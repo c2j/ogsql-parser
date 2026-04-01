@@ -309,6 +309,10 @@ impl Parser {
                 Ok(stmt) => crate::ast::Statement::CreateSequence(stmt),
                 Err(_) => self.skip_to_semicolon(),
             },
+            Some(Keyword::VIEW) => match self.parse_create_view() {
+                Ok(stmt) => crate::ast::Statement::CreateView(stmt),
+                Err(_) => self.skip_to_semicolon(),
+            },
             _ => self.skip_to_semicolon(),
         }
     }

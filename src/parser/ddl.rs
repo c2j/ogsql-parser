@@ -1,0 +1,786 @@
+use crate::ast::{
+    AlterColumnAction, AlterTableAction, AlterTableStatement, CheckOption, ColumnConstraint,
+    ColumnDef, CreateIndexStatement, CreateSequenceStatement, CreateTableStatement,
+    CreateViewStatement, DataType, DropStatement, IndexColumn, ObjectType, TableConstraint,
+    TimeZoneInfo, TruncateStatement,
+};
+use crate::parser::{Parser, ParserError};
+use crate::token::keyword::Keyword;
+use crate::token::Token;
+
+impl Parser {
+    // ========== CREATE TABLE ==========
+
+    pub(crate) fn parse_create_table(&mut self) -> Result<CreateTableStatement, ParserError> {
+        self.expect_keyword(Keyword::TABLE)?;
+
+        let if_not_exists = self.parse_if_not_exists();
+        let name = self.parse_object_name()?;
+        self.expect_token(&Token::LParen)?;
+
+        let mut columns = Vec::new();
+        let mut constraints = Vec::new();
+
+        loop {
+            if self.match_keyword(Keyword::CONSTRAINT)
+                || self.match_keyword(Keyword::PRIMARY)
+                || self.match_keyword(Keyword::UNIQUE)
+                || self.match_keyword(Keyword::CHECK)
+                || self.match_keyword(Keyword::FOREIGN)
+            {
+                constraints.push(self.parse_table_constraint()?);
+            } else {
+                columns.push(self.parse_column_def()?);
+            }
+
+            if !self.match_token(&Token::Comma) {
+                break;
+            }
+            self.advance();
+        }
+
+        self.expect_token(&Token::RParen)?;
+        let options = Vec::new();
+
+        Ok(CreateTableStatement {
+            if_not_exists,
+            name,
+            columns,
+            constraints,
+            options,
+        })
+    }
+
+    fn parse_if_not_exists(&mut self) -> bool {
+        if self.match_keyword(Keyword::IF_P) {
+            self.advance();
+            if self.match_keyword(Keyword::NOT) {
+                self.advance();
+                if self.match_keyword(Keyword::EXISTS) {
+                    self.advance();
+                    return true;
+                }
+            }
+        }
+        false
+    }
+
+    fn parse_column_def(&mut self) -> Result<ColumnDef, ParserError> {
+        let name = self.parse_identifier()?;
+        let data_type = self.parse_data_type()?;
+
+        let mut constraints = Vec::new();
+        while let Some(constraint) = self.try_parse_column_constraint()? {
+            constraints.push(constraint);
+        }
+
+        Ok(ColumnDef {
+            name,
+            data_type,
+            constraints,
+        })
+    }
+
+    fn parse_data_type(&mut self) -> Result<DataType, ParserError> {
+        match self.peek_keyword() {
+            Some(Keyword::BOOLEAN_P) => {
+                self.advance();
+                Ok(DataType::Boolean)
+            }
+            Some(Keyword::SMALLINT) => {
+                self.advance();
+                Ok(DataType::SmallInt)
+            }
+            Some(Keyword::INTEGER) | Some(Keyword::INT_P) => {
+                self.advance();
+                Ok(DataType::Integer)
+            }
+            Some(Keyword::BIGINT) => {
+                self.advance();
+                Ok(DataType::BigInt)
+            }
+            Some(Keyword::REAL) | Some(Keyword::FLOAT_P) => {
+                self.advance();
+                Ok(DataType::Real)
+            }
+            Some(Keyword::DOUBLE_P) => {
+                self.advance();
+                if self.match_keyword(Keyword::PRECISION) {
+                    self.advance();
+                }
+                Ok(DataType::Double)
+            }
+            Some(Keyword::NUMERIC) | Some(Keyword::DECIMAL_P) => {
+                self.advance();
+                let (precision, scale) = if self.match_token(&Token::LParen) {
+                    self.advance();
+                    let prec = self.parse_int_literal()?;
+                    let scale = if self.match_token(&Token::Comma) {
+                        self.advance();
+                        Some(self.parse_int_literal()?)
+                    } else {
+                        None
+                    };
+                    self.expect_token(&Token::RParen)?;
+                    (Some(prec), scale)
+                } else {
+                    (None, None)
+                };
+                Ok(DataType::Numeric(precision, scale))
+            }
+            Some(Keyword::CHAR_P) => {
+                self.advance();
+                let len = if self.match_token(&Token::LParen) {
+                    self.advance();
+                    let n = self.parse_int_literal()?;
+                    self.expect_token(&Token::RParen)?;
+                    Some(n)
+                } else {
+                    None
+                };
+                Ok(DataType::Char(len))
+            }
+            Some(Keyword::VARCHAR) => {
+                self.advance();
+                let len = if self.match_token(&Token::LParen) {
+                    self.advance();
+                    let n = self.parse_int_literal()?;
+                    self.expect_token(&Token::RParen)?;
+                    Some(n)
+                } else {
+                    None
+                };
+                Ok(DataType::Varchar(len))
+            }
+            Some(Keyword::TEXT_P) => {
+                self.advance();
+                Ok(DataType::Text)
+            }
+            Some(Keyword::BYTE_P) => {
+                self.advance();
+                Ok(DataType::Bytea)
+            }
+            Some(Keyword::TIMESTAMP) => {
+                self.advance();
+                let precision = if self.match_token(&Token::LParen) {
+                    self.advance();
+                    let n = self.parse_int_literal()?;
+                    self.expect_token(&Token::RParen)?;
+                    Some(n)
+                } else {
+                    None
+                };
+                let tz = self.parse_timezone_info()?;
+                Ok(DataType::Timestamp(precision, tz))
+            }
+            Some(Keyword::DATE_P) => {
+                self.advance();
+                Ok(DataType::Date)
+            }
+            Some(Keyword::TIME) => {
+                self.advance();
+                let precision = if self.match_token(&Token::LParen) {
+                    self.advance();
+                    let n = self.parse_int_literal()?;
+                    self.expect_token(&Token::RParen)?;
+                    Some(n)
+                } else {
+                    None
+                };
+                let tz = self.parse_timezone_info()?;
+                Ok(DataType::Time(precision, tz))
+            }
+            Some(Keyword::INTERVAL) => {
+                self.advance();
+                Ok(DataType::Interval)
+            }
+            _ => {
+                let name = self.parse_object_name()?;
+                Ok(DataType::Custom(name))
+            }
+        }
+    }
+
+    fn parse_int_literal(&mut self) -> Result<u32, ParserError> {
+        match self.peek() {
+            Token::Integer(n) => {
+                let n = *n as u32;
+                self.advance();
+                Ok(n)
+            }
+            _ => Err(ParserError::UnexpectedToken {
+                position: self.pos,
+                expected: "integer literal".to_string(),
+                got: format!("{:?}", self.peek()),
+            }),
+        }
+    }
+
+    fn parse_timezone_info(&mut self) -> Result<Option<TimeZoneInfo>, ParserError> {
+        if self.match_keyword(Keyword::WITH) {
+            self.advance();
+            if self.match_keyword(Keyword::TIME) {
+                self.advance();
+                self.expect_keyword(Keyword::ZONE)?;
+                Ok(Some(TimeZoneInfo::WithTimeZone))
+            } else {
+                Err(ParserError::UnexpectedToken {
+                    position: self.pos,
+                    expected: "TIME".to_string(),
+                    got: format!("{:?}", self.peek()),
+                })
+            }
+        } else if self.match_keyword(Keyword::WITHOUT) {
+            self.advance();
+            if self.match_keyword(Keyword::TIME) {
+                self.advance();
+                self.expect_keyword(Keyword::ZONE)?;
+                Ok(Some(TimeZoneInfo::WithoutTimeZone))
+            } else {
+                Err(ParserError::UnexpectedToken {
+                    position: self.pos,
+                    expected: "TIME".to_string(),
+                    got: format!("{:?}", self.peek()),
+                })
+            }
+        } else {
+            Ok(None)
+        }
+    }
+
+    fn try_parse_column_constraint(&mut self) -> Result<Option<ColumnConstraint>, ParserError> {
+        match self.peek_keyword() {
+            Some(Keyword::NOT) => {
+                self.advance();
+                self.expect_keyword(Keyword::NULL_P)?;
+                Ok(Some(ColumnConstraint::NotNull))
+            }
+            Some(Keyword::NULL_P) => {
+                self.advance();
+                Ok(Some(ColumnConstraint::Null))
+            }
+            Some(Keyword::DEFAULT) => {
+                self.advance();
+                let expr = self.parse_expr()?;
+                Ok(Some(ColumnConstraint::Default(expr)))
+            }
+            Some(Keyword::UNIQUE) => {
+                self.advance();
+                Ok(Some(ColumnConstraint::Unique))
+            }
+            Some(Keyword::PRIMARY) => {
+                self.advance();
+                self.expect_keyword(Keyword::KEY)?;
+                Ok(Some(ColumnConstraint::PrimaryKey))
+            }
+            Some(Keyword::CHECK) => {
+                self.advance();
+                self.expect_token(&Token::LParen)?;
+                let expr = self.parse_expr()?;
+                self.expect_token(&Token::RParen)?;
+                Ok(Some(ColumnConstraint::Check(expr)))
+            }
+            Some(Keyword::REFERENCES) => {
+                self.advance();
+                let table = self.parse_object_name()?;
+                let columns = if self.match_token(&Token::LParen) {
+                    self.advance();
+                    let mut cols = vec![self.parse_identifier()?];
+                    while self.match_token(&Token::Comma) {
+                        self.advance();
+                        cols.push(self.parse_identifier()?);
+                    }
+                    self.expect_token(&Token::RParen)?;
+                    cols
+                } else {
+                    Vec::new()
+                };
+                Ok(Some(ColumnConstraint::References(table, columns)))
+            }
+            _ => Ok(None),
+        }
+    }
+
+    fn parse_table_constraint(&mut self) -> Result<TableConstraint, ParserError> {
+        if self.match_keyword(Keyword::CONSTRAINT) {
+            self.advance();
+            let _name = self.parse_identifier()?;
+        }
+
+        match self.peek_keyword() {
+            Some(Keyword::PRIMARY) => {
+                self.advance();
+                self.expect_keyword(Keyword::KEY)?;
+                let columns = self.parse_column_list()?;
+                Ok(TableConstraint::PrimaryKey(columns))
+            }
+            Some(Keyword::UNIQUE) => {
+                self.advance();
+                let columns = self.parse_column_list()?;
+                Ok(TableConstraint::Unique(columns))
+            }
+            Some(Keyword::CHECK) => {
+                self.advance();
+                self.expect_token(&Token::LParen)?;
+                let expr = self.parse_expr()?;
+                self.expect_token(&Token::RParen)?;
+                Ok(TableConstraint::Check(expr))
+            }
+            Some(Keyword::FOREIGN) => {
+                self.advance();
+                self.expect_keyword(Keyword::KEY)?;
+                let columns = self.parse_column_list()?;
+                self.expect_keyword(Keyword::REFERENCES)?;
+                let ref_table = self.parse_object_name()?;
+                let ref_columns = self.parse_column_list()?;
+                Ok(TableConstraint::ForeignKey {
+                    columns,
+                    ref_table,
+                    ref_columns,
+                })
+            }
+            _ => Err(ParserError::UnexpectedToken {
+                position: self.pos,
+                expected: "table constraint".to_string(),
+                got: format!("{:?}", self.peek()),
+            }),
+        }
+    }
+
+    fn parse_column_list(&mut self) -> Result<Vec<String>, ParserError> {
+        self.expect_token(&Token::LParen)?;
+        let mut columns = vec![self.parse_identifier()?];
+        while self.match_token(&Token::Comma) {
+            self.advance();
+            columns.push(self.parse_identifier()?);
+        }
+        self.expect_token(&Token::RParen)?;
+        Ok(columns)
+    }
+
+    // ========== ALTER TABLE ==========
+
+    pub(crate) fn parse_alter_table(&mut self) -> Result<AlterTableStatement, ParserError> {
+        self.expect_keyword(Keyword::TABLE)?;
+
+        let if_exists = self.parse_if_exists();
+        let name = self.parse_object_name()?;
+
+        let mut actions = Vec::new();
+        actions.push(self.parse_alter_table_action()?);
+
+        while self.match_token(&Token::Comma) {
+            self.advance();
+            actions.push(self.parse_alter_table_action()?);
+        }
+
+        Ok(AlterTableStatement {
+            if_exists,
+            name,
+            actions,
+        })
+    }
+
+    fn parse_if_exists(&mut self) -> bool {
+        if self.match_keyword(Keyword::IF_P) {
+            self.advance();
+            if self.match_keyword(Keyword::EXISTS) {
+                self.advance();
+                return true;
+            }
+        }
+        false
+    }
+
+    fn parse_alter_table_action(&mut self) -> Result<AlterTableAction, ParserError> {
+        match self.peek_keyword() {
+            Some(Keyword::ADD_P) => {
+                self.advance();
+                if self.match_keyword(Keyword::COLUMN) {
+                    self.advance();
+                }
+                if self.match_keyword(Keyword::IF_P) {
+                    self.advance();
+                    if self.match_keyword(Keyword::NOT) {
+                        self.advance();
+                        if self.match_keyword(Keyword::EXISTS) {
+                            self.advance();
+                        }
+                    }
+                }
+                let col = self.parse_column_def()?;
+                Ok(AlterTableAction::AddColumn(col))
+            }
+            Some(Keyword::DROP) => {
+                self.advance();
+                if self.match_keyword(Keyword::COLUMN) {
+                    self.advance();
+                }
+                let if_exists = self.parse_if_exists();
+                let name = self.parse_identifier()?;
+                let cascade = self.try_consume_keyword(Keyword::CASCADE);
+                Ok(AlterTableAction::DropColumn {
+                    name,
+                    if_exists,
+                    cascade,
+                })
+            }
+            Some(Keyword::ALTER) => {
+                self.advance();
+                if self.match_keyword(Keyword::COLUMN) {
+                    self.advance();
+                }
+                let name = self.parse_identifier()?;
+                let action = self.parse_alter_column_action()?;
+                Ok(AlterTableAction::AlterColumn { name, action })
+            }
+            _ => Err(ParserError::UnexpectedToken {
+                position: self.pos,
+                expected: "ALTER TABLE action".to_string(),
+                got: format!("{:?}", self.peek()),
+            }),
+        }
+    }
+
+    fn parse_alter_column_action(&mut self) -> Result<AlterColumnAction, ParserError> {
+        match self.peek_keyword() {
+            Some(Keyword::TYPE_P) | Some(Keyword::SET) => {
+                if self.match_keyword(Keyword::TYPE_P) {
+                    self.advance();
+                    let data_type = self.parse_data_type()?;
+                    Ok(AlterColumnAction::SetDataType(data_type))
+                } else {
+                    self.advance();
+                    if self.match_keyword(Keyword::DATA_P) {
+                        self.advance();
+                        self.expect_keyword(Keyword::TYPE_P)?;
+                        let data_type = self.parse_data_type()?;
+                        Ok(AlterColumnAction::SetDataType(data_type))
+                    } else if self.match_keyword(Keyword::DEFAULT) {
+                        self.advance();
+                        let expr = self.parse_expr()?;
+                        Ok(AlterColumnAction::SetDefault(expr))
+                    } else if self.match_keyword(Keyword::NOT) {
+                        self.advance();
+                        self.expect_keyword(Keyword::NULL_P)?;
+                        Ok(AlterColumnAction::SetNotNull)
+                    } else {
+                        Err(ParserError::UnexpectedToken {
+                            position: self.pos,
+                            expected: "ALTER COLUMN SET option".to_string(),
+                            got: format!("{:?}", self.peek()),
+                        })
+                    }
+                }
+            }
+            Some(Keyword::DROP) => {
+                self.advance();
+                if self.match_keyword(Keyword::DEFAULT) {
+                    self.advance();
+                    Ok(AlterColumnAction::DropDefault)
+                } else if self.match_keyword(Keyword::NOT) {
+                    self.advance();
+                    self.expect_keyword(Keyword::NULL_P)?;
+                    Ok(AlterColumnAction::DropNotNull)
+                } else {
+                    Err(ParserError::UnexpectedToken {
+                        position: self.pos,
+                        expected: "DROP DEFAULT or DROP NOT NULL".to_string(),
+                        got: format!("{:?}", self.peek()),
+                    })
+                }
+            }
+            _ => Err(ParserError::UnexpectedToken {
+                position: self.pos,
+                expected: "ALTER COLUMN action".to_string(),
+                got: format!("{:?}", self.peek()),
+            }),
+        }
+    }
+
+    // ========== DROP ==========
+
+    pub(crate) fn parse_drop(&mut self) -> Result<DropStatement, ParserError> {
+        match self.peek_keyword() {
+            Some(Keyword::TABLE) => {
+                self.advance();
+                self.parse_drop_statement(ObjectType::Table)
+            }
+            Some(Keyword::INDEX) => {
+                self.advance();
+                self.parse_drop_statement(ObjectType::Index)
+            }
+            Some(Keyword::SEQUENCE) => {
+                self.advance();
+                self.parse_drop_statement(ObjectType::Sequence)
+            }
+            Some(Keyword::VIEW) => {
+                self.advance();
+                self.parse_drop_statement(ObjectType::View)
+            }
+            Some(Keyword::SCHEMA) => {
+                self.advance();
+                self.parse_drop_statement(ObjectType::Schema)
+            }
+            Some(Keyword::DATABASE) => {
+                self.advance();
+                self.parse_drop_statement(ObjectType::Database)
+            }
+            _ => Err(ParserError::UnexpectedToken {
+                position: self.pos,
+                expected: "DROP object type".to_string(),
+                got: format!("{:?}", self.peek()),
+            }),
+        }
+    }
+
+    fn parse_drop_statement(
+        &mut self,
+        object_type: ObjectType,
+    ) -> Result<DropStatement, ParserError> {
+        let if_exists = self.parse_if_exists();
+
+        let mut names = vec![self.parse_object_name()?];
+        while self.match_token(&Token::Comma) {
+            self.advance();
+            names.push(self.parse_object_name()?);
+        }
+
+        let cascade = self.try_consume_keyword(Keyword::CASCADE);
+        let purge = self.try_consume_keyword(Keyword::PURGE);
+
+        Ok(DropStatement {
+            object_type,
+            if_exists,
+            names,
+            cascade,
+            purge,
+        })
+    }
+
+    // ========== CREATE INDEX ==========
+
+    pub(crate) fn parse_create_index(&mut self) -> Result<CreateIndexStatement, ParserError> {
+        self.expect_keyword(Keyword::INDEX)?;
+
+        let unique = self.try_consume_keyword(Keyword::UNIQUE);
+        let if_not_exists = self.parse_if_not_exists();
+
+        let name = if !matches!(self.peek(), Token::Keyword(Keyword::ON)) {
+            Some(self.parse_identifier()?)
+        } else {
+            None
+        };
+
+        self.expect_keyword(Keyword::ON)?;
+        let table = self.parse_object_name()?;
+
+        self.expect_token(&Token::LParen)?;
+        let mut columns = vec![self.parse_index_column()?];
+        while self.match_token(&Token::Comma) {
+            self.advance();
+            columns.push(self.parse_index_column()?);
+        }
+        self.expect_token(&Token::RParen)?;
+
+        let where_clause = if self.match_keyword(Keyword::WHERE) {
+            self.advance();
+            Some(self.parse_expr()?)
+        } else {
+            None
+        };
+
+        Ok(CreateIndexStatement {
+            unique,
+            if_not_exists,
+            name,
+            table,
+            columns,
+            where_clause,
+        })
+    }
+
+    fn parse_index_column(&mut self) -> Result<IndexColumn, ParserError> {
+        let name = self.parse_identifier()?;
+
+        let asc = if self.match_keyword(Keyword::ASC) {
+            self.advance();
+            Some(true)
+        } else if self.match_keyword(Keyword::DESC) {
+            self.advance();
+            Some(false)
+        } else {
+            None
+        };
+
+        Ok(IndexColumn { name, asc })
+    }
+
+    // ========== CREATE SEQUENCE ==========
+
+    pub(crate) fn parse_create_sequence(&mut self) -> Result<CreateSequenceStatement, ParserError> {
+        self.expect_keyword(Keyword::SEQUENCE)?;
+
+        let if_not_exists = self.parse_if_not_exists();
+        let name = self.parse_object_name()?;
+
+        let mut start = None;
+        let mut increment = None;
+        let mut min_value = None;
+        let mut max_value = None;
+        let mut cache = None;
+        let mut cycle = false;
+
+        loop {
+            match self.peek_keyword() {
+                Some(Keyword::START) => {
+                    self.advance();
+                    self.try_consume_keyword(Keyword::WITH);
+                    start = Some(self.parse_expr()?);
+                }
+                Some(Keyword::INCREMENT) => {
+                    self.advance();
+                    self.try_consume_keyword(Keyword::BY);
+                    increment = Some(self.parse_expr()?);
+                }
+                Some(Keyword::MINVALUE) => {
+                    self.advance();
+                    min_value = Some(self.parse_expr()?);
+                }
+                Some(Keyword::MAXVALUE) => {
+                    self.advance();
+                    max_value = Some(self.parse_expr()?);
+                }
+                Some(Keyword::CACHE) => {
+                    self.advance();
+                    cache = Some(self.parse_expr()?);
+                }
+                Some(Keyword::CYCLE) => {
+                    self.advance();
+                    cycle = true;
+                }
+                Some(Keyword::NO) => {
+                    self.advance();
+                    if self.match_keyword(Keyword::CYCLE) {
+                        self.advance();
+                        cycle = false;
+                    } else if self.match_keyword(Keyword::MINVALUE) {
+                        self.advance();
+                        min_value = None;
+                    } else if self.match_keyword(Keyword::MAXVALUE) {
+                        self.advance();
+                        max_value = None;
+                    }
+                }
+                _ => break,
+            }
+        }
+
+        Ok(CreateSequenceStatement {
+            if_not_exists,
+            name,
+            start,
+            increment,
+            min_value,
+            max_value,
+            cache,
+            cycle,
+        })
+    }
+
+    // ========== TRUNCATE ==========
+
+    pub(crate) fn parse_truncate(&mut self) -> Result<TruncateStatement, ParserError> {
+        if self.match_keyword(Keyword::TABLE) {
+            self.advance();
+        }
+
+        let mut tables = vec![self.parse_object_name()?];
+        while self.match_token(&Token::Comma) {
+            self.advance();
+            tables.push(self.parse_object_name()?);
+        }
+
+        let cascade = self.try_consume_keyword(Keyword::CASCADE);
+        let restart_identity = self.try_consume_keyword(Keyword::RESTART);
+
+        Ok(TruncateStatement {
+            tables,
+            cascade,
+            restart_identity,
+        })
+    }
+
+    // ========== CREATE VIEW ==========
+
+    pub(crate) fn parse_create_view(&mut self) -> Result<CreateViewStatement, ParserError> {
+        self.expect_keyword(Keyword::VIEW)?;
+
+        let replace = if self.match_keyword(Keyword::OR) {
+            self.advance();
+            self.expect_keyword(Keyword::REPLACE)?;
+            true
+        } else {
+            false
+        };
+
+        let temporary =
+            if self.match_keyword(Keyword::TEMPORARY) || self.match_keyword(Keyword::TEMP) {
+                self.advance();
+                true
+            } else {
+                false
+            };
+
+        let recursive = self.try_consume_keyword(Keyword::RECURSIVE);
+
+        let name = self.parse_object_name()?;
+
+        let columns = if self.match_token(&Token::LParen) {
+            self.advance();
+            let mut cols = vec![self.parse_identifier()?];
+            while self.match_token(&Token::Comma) {
+                self.advance();
+                cols.push(self.parse_identifier()?);
+            }
+            self.expect_token(&Token::RParen)?;
+            cols
+        } else {
+            vec![]
+        };
+
+        self.expect_keyword(Keyword::AS)?;
+        let query = Box::new(self.parse_select_statement()?);
+
+        let check_option = if self.match_keyword(Keyword::WITH) {
+            self.advance();
+            if self.match_keyword(Keyword::LOCAL) {
+                self.advance();
+                self.expect_keyword(Keyword::CHECK)?;
+                self.expect_keyword(Keyword::OPTION)?;
+                Some(CheckOption::Local)
+            } else if self.match_keyword(Keyword::CASCADED) {
+                self.advance();
+                self.expect_keyword(Keyword::CHECK)?;
+                self.expect_keyword(Keyword::OPTION)?;
+                Some(CheckOption::Cascaded)
+            } else {
+                self.expect_keyword(Keyword::CHECK)?;
+                self.expect_keyword(Keyword::OPTION)?;
+                Some(CheckOption::Cascaded)
+            }
+        } else {
+            None
+        };
+
+        Ok(CreateViewStatement {
+            replace,
+            temporary,
+            recursive,
+            name,
+            columns,
+            query,
+            check_option,
+        })
+    }
+}
