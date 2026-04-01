@@ -556,8 +556,23 @@ pub enum CheckOption {
     Cascaded,
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub struct CreateSchemaStatement {
+    pub if_not_exists: bool,
+    pub name: Option<String>,
+    pub authorization: Option<String>,
+    pub elements: Vec<SchemaElement>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum SchemaElement {
+    Table(CreateTableStatement),
+    Index(CreateIndexStatement),
+    View(CreateViewStatement),
+    Sequence(CreateSequenceStatement),
+}
+
 stub_struct!(
-    CreateSchemaStatement,
     CreateDatabaseStatement,
     CreateTablespaceStatement,
     DropDatabaseStatement,

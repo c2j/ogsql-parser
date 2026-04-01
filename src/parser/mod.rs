@@ -313,6 +313,10 @@ impl Parser {
                 Ok(stmt) => crate::ast::Statement::CreateView(stmt),
                 Err(_) => self.skip_to_semicolon(),
             },
+            Some(Keyword::SCHEMA) => match self.parse_create_schema() {
+                Ok(stmt) => crate::ast::Statement::CreateSchema(stmt),
+                Err(_) => self.skip_to_semicolon(),
+            },
             _ => self.skip_to_semicolon(),
         }
     }

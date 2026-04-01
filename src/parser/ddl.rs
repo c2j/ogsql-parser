@@ -1,8 +1,8 @@
 use crate::ast::{
     AlterColumnAction, AlterTableAction, AlterTableStatement, CheckOption, ColumnConstraint,
-    ColumnDef, CreateIndexStatement, CreateSequenceStatement, CreateTableStatement,
-    CreateViewStatement, DataType, DropStatement, IndexColumn, ObjectType, TableConstraint,
-    TimeZoneInfo, TruncateStatement,
+    ColumnDef, CreateIndexStatement, CreateSchemaStatement, CreateSequenceStatement,
+    CreateTableStatement, CreateViewStatement, DataType, DropStatement, IndexColumn, ObjectType,
+    SchemaElement, TableConstraint, TimeZoneInfo, TruncateStatement,
 };
 use crate::parser::{Parser, ParserError};
 use crate::token::keyword::Keyword;
@@ -781,6 +781,55 @@ impl Parser {
             columns,
             query,
             check_option,
+        })
+    }
+
+    // ========== CREATE SCHEMA ==========
+
+    pub(crate) fn parse_create_schema(&mut self) -> Result<CreateSchemaStatement, ParserError> {
+        self.expect_keyword(Keyword::SCHEMA)?;
+
+        let if_not_exists = self.parse_if_not_exists();
+
+        let (name, authorization) = if self.match_keyword(Keyword::AUTHORIZATION) {
+            self.advance();
+            let auth = Some(self.parse_identifier()?);
+            (None, auth)
+        } else {
+            let schema_name = Some(self.parse_identifier()?);
+            let auth = if self.match_keyword(Keyword::AUTHORIZATION) {
+                self.advance();
+                Some(self.parse_identifier()?)
+            } else {
+                None
+            };
+            (schema_name, auth)
+        };
+
+        let mut elements = Vec::new();
+        loop {
+            if self.match_keyword(Keyword::CREATE) {
+                self.advance();
+                let element = match self.peek_keyword() {
+                    Some(Keyword::TABLE) => SchemaElement::Table(self.parse_create_table()?),
+                    Some(Keyword::INDEX) => SchemaElement::Index(self.parse_create_index()?),
+                    Some(Keyword::VIEW) => SchemaElement::View(self.parse_create_view()?),
+                    Some(Keyword::SEQUENCE) => {
+                        SchemaElement::Sequence(self.parse_create_sequence()?)
+                    }
+                    _ => break,
+                };
+                elements.push(element);
+            } else {
+                break;
+            }
+        }
+
+        Ok(CreateSchemaStatement {
+            if_not_exists,
+            name,
+            authorization,
+            elements,
         })
     }
 }
