@@ -1,0 +1,56 @@
+{
+  "topic": "SQLdiag",
+  "term_count": 10,
+  "terms": [
+    {
+      "term": "常见问题处理",
+      "content": "常见问题处理 常见问题处理 训练场景失败：请检查历史日志文件路径是否正确，且文件格式符合上文规定。 预测场景失败：请检查模型路径是否正确。确保待预测负载文件格式正确。",
+      "source_file": "4448_file_4448.txt"
+    },
+    {
+      "term": "常见问题处理",
+      "content": "常见问题处理 常见问题处理 训练场景失败：请检查历史日志文件路径是否正确，且文件格式符合上文规定。 预测场景失败：请检查模型路径是否正确。确保待预测负载文件格式正确。",
+      "source_file": "4708_file_4708.txt"
+    },
+    {
+      "term": "命令参考",
+      "content": "命令参考 命令参考 表1 命令行参数说明 参数 参数说明 取值范围 -f 训练或预测文件位置 - --predicted-file 预测结果存储位置 - --model 模型选择 template, dnn --model-path 训练模型存储位置 -",
+      "source_file": "4707_file_4707.txt"
+    },
+    {
+      "term": "概述",
+      "content": "概述 概述 SQLdiag是一个SQL语句执行时间预测工具，通过模板化方法或者深度学习方法，实现在不获取SQL语句执行计划的前提下，依据语句逻辑相似度与历史执行记录，预测SQL语句的执行时间并以此发现异常SQL。 本功能主要适配集中式部署的数据库，对于分布式数据库可能不能做到全量支持。",
+      "source_file": "4444_file_4444.txt"
+    },
+    {
+      "term": "概述",
+      "content": "概述 概述 SQLdiag是一个SQL语句执行时间预测工具，通过模板化方法或者深度学习方法，实现在不获取SQL语句执行计划的前提下，依据语句逻辑相似度与历史执行记录，预测SQL语句的执行时间并以此发现异常SQL。",
+      "source_file": "4704_file_4704.txt"
+    },
+    {
+      "term": "命令参考",
+      "content": "命令参考 命令参考 表1 命令行参数说明 参数 参数说明 取值范围 -f 训练或预测文件位置 - --predicted-file 预测结果存储位置 - --model 模型选择 template, dnn --model-path 训练模型存储位置 -",
+      "source_file": "4447_file_4447.txt"
+    },
+    {
+      "term": "使用指导",
+      "content": "使用指导 使用指导 前提条件 需要保证用户提供训练数据。 如果用户通过提供的工具收集训练数据，则需要启用WDR功能，涉及到的参数为track_stmt_stat_level和log_min_duration_statement，具体情况见下面小结。 为保证预测准确率，用户提供的历史语句日志应尽可能全面并具有代表性。 SQL流水采集方法 本工具需要用户提前准备数据，训练数据格式如下，每个样本通过换行符分隔： SQL,EXECUTION_TIME 预测数据格式如下： SQL 其中SQL表示 SQL语句的文本 ，EXECUTION_TIME表示 SQL语句的执行时间 ，样例数据见sample_data中的train.csv和predict.csv。 用户可以按照要求格式自己收集训练数据，工具也提供了脚本自动采集（load_sql_from_rd），该脚本基于WDR报告获取SQL信息，涉及到的参数有log_min_duration_statement和track_stmt_stat_level： 其中log_min_duration_statement表示慢SQL阈值，如果为0则全量收集，时间单位为毫秒； track_stmt_stat_level表示信息捕获的级别，建议设置为track_stmt_stat_level='L0,L0' 参数开启后，可能占用一定的系统资源，但一般不大。持续的高并发场景可能产生5%以内的损耗，数据库并发较低的场景，性能损耗可忽略。下述脚本存在于sqldiag根目录（$ GAUSSHOME /bin/components/sqldiag）中。 使用脚本获取训练集方式：\nload_sql_from_wdr.py [-h] --port PORT --start-time START_TIME\n                            --finish-time FINISH_TIME [--save-path SAVE_PATH]\n例如：\n    python load_sql_from_wdr.py --start-time \"2021-04-25 00:00:00\" --finish-time \"2021-04-26 14:00:00\" --port 5432  --save-path ./data.csv 操作步骤 提供历史日志以供模型训练 进行训练与预测操作。 基于模板法的训练与预测：\n   gs_dbmind component sqldiag [train, predict] -f FILE --model template --model-path template_model_path --config-file config_path\n基于DNN的训练与预测：\n   gs_dbmind component sqldiag [train, predict] -f FILE --model dnn --model-path dnn_model_path --config-file config_path 使用方法示例 使用提供的测试数据进行模板化训练： gs_dbmind component sqldiag train -f ./sample_data/train.csv --model template --model-path ./template --config-file config_path 使用提供的测试数据进行模板化预测： gs_dbmind component sqldiag predict -f ./sample_data/predict.csv --model template --model-path ./template --predicted-file ./result/t_result --config-file config_path 使用提供的测试数据进行模板化模型更新： gs_dbmind component sqldiag finetune -f ./sample_data/train.csv --model template --model-path ./template --config-file config_path 使用提供的测试数据进行DNN训练： gs_dbmind component sqldiag train -f ./sample_data/train.csv --model dnn --model-path ./dnn_model --config-file config_path 使用提供的测试数据进行DNN预测： gs_dbmind component sqldiag predict -f ./sample_data/predict.csv --model dnn --model-path ./dnn_model --predicted-file --config-file config_path 使用提供的测试数据进行DNN模型更新： gs_dbmind component sqldiag finetune -f ./sample_data/train.csv --model dnn --model-path ./dnn_model --config-file config_path",
+      "source_file": "4705_file_4705.txt"
+    },
+    {
+      "term": "获取帮助",
+      "content": "获取帮助 获取帮助 使用SQLdiag工具前，您可以通过以下指令获取帮助。 1 gs_dbmind component sqldiag --help 显示如下帮助信息： usage:   [-h] [-f CSV_FILE] [--predicted-file PREDICTED_FILE]\n               [--model {template,dnn}] [--query QUERY] [--threshold THRESHOLD] --model-file MODEL_FILEPATH\n               [--config-file CONFIG_FILE]\n               {train,predict,finetune}\n\nSQLdiag integrated by openGauss.\n\npositional arguments:\n  {train,predict,finetune}\n                        The training mode is to perform feature extraction and\n                        model training based on historical SQL statements. The\n                        prediction mode is to predict the execution time of a\n                        new SQL statement through the trained model.\n\noptional arguments:\n  -h, --help            show this help message and exit\n  -f CSV_FILE, --csv-file CSV_FILE\n                        The data set for training or prediction. The file\n                        format is CSV. If it is two columns, the format is\n                        (SQL statement, duration time). If it is three\n                        columns, the format is (timestamp of SQL statement\n                        execution time, SQL statement, duration time).\n  --predicted-file PREDICTED_FILE\n                        The file path to save the predicted result.\n  --model {template,dnn}\n                        Choose the model model to use.\n  --query QUERY         Input the queries to predict.\n  --threshold THRESHOLD \n                        Slow SQL threshold.\n  --model-file MODEL_FILE, --model-path MODEL_FILE\n                        The storage path of the model file, used to read or\n                        save the model file.\n  --config-file CONFIG_FILE, --config CONFIG_FILE",
+      "source_file": "4446_file_4446.txt"
+    },
+    {
+      "term": "获取帮助",
+      "content": "获取帮助 获取帮助 使用SQLdiag工具前，您可以通过以下指令获取帮助。 1 gs_dbmind component sqldiag --help 显示如下帮助信息： usage:   [-h] [-f CSV_FILE] [--predicted-file PREDICTED_FILE]\n               [--model {template,dnn}] [--query QUERY] [--threshold THRESHOLD] --model-file MODEL_FILE\n               [--config-file CONFIG_FILE]\n               {train,predict,finetune}\n\nSQLdiag integrated by GaussDB .\n\npositional arguments:\n  {train,predict,finetune}\n                        The training mode is to perform feature extraction and\n                        model training based on historical SQL statements. The\n                        prediction mode is to predict the execution time of a\n                        new SQL statement through the trained model.\n\noptional arguments:\n  -h, --help            show this help message and exit\n  -f CSV_FILE, --csv-file CSV_FILE\n                        The data set for training or prediction. The file\n                        format is CSV. If it is two columns, the format is\n                        (SQL statement, duration time). If it is three\n                        columns, the format is (timestamp of SQL statement\n                        execution time, SQL statement, duration time).\n  --predicted-file PREDICTED_FILE\n                        The file path to save the predicted result.\n  --model {template,dnn}\n                        Choose the model model to use.\n  --query QUERY         Input the queries to predict.\n  --threshold THRESHOLD \n                        Slow SQL threshold.\n  --model-file MODEL_FILE, --model-path MODEL_FILE\n                        The storage path of the model file, used to read or\n                        save the model file.\n  --config-file CONFIG_FILE, --config CONFIG_FILE",
+      "source_file": "4706_file_4706.txt"
+    },
+    {
+      "term": "使用指导",
+      "content": "使用指导 使用指导 前提条件 需要保证用户提供训练数据。 如果用户通过提供的工具收集训练数据，则需要启用WDR功能，涉及到的参数为track_stmt_stat_level和log_min_duration_statement，具体情况见下面小结。 为保证预测准确率，用户提供的历史语句日志应尽可能全面并具有代表性。 SQL流水采集方法 SQL流水采集方法暂不支持分布式。 本工具需要用户提前准备数据，训练数据格式如下，每个样本通过换行符分隔： SQL,EXECUTION_TIME 预测数据格式如下： SQL 其中SQL表示 SQL语句的文本 ，EXECUTION_TIME表示 SQL语句的执行时间 ，样例数据见sample_data中的train.csv和predict.csv。 用户可以按照要求格式自己收集训练数据，工具也提供了脚本自动采集（load_sql_from_rd），该脚本基于WDR报告获取SQL信息，涉及到的参数有log_min_duration_statement和track_stmt_stat_level： 其中log_min_duration_statement表示慢SQL阈值，如果为0则全量收集，时间单位为毫秒； track_stmt_stat_level表示信息捕获的级别，建议设置为track_stmt_stat_level='L0,L0' 参数开启后，可能占用一定的系统资源，但一般不大。持续的高并发场景可能产生5%以内的损耗，数据库并发较低的场景，性能损耗可忽略。下述脚本存在于sqldiag根目录（$ GAUSSHOME /bin/components/sqldiag）中。 使用脚本获取训练集方式：\nload_sql_from_wdr.py [-h] --port PORT --start-time START_TIME\n                            --finish-time FINISH_TIME [--save-path SAVE_PATH]\n例如：\n    python load_sql_from_wdr.py --start-time \"2021-04-25 00:00:00\" --finish-time \"2021-04-26 14:00:00\" --port 5432  --save-path ./data.csv 操作步骤 提供历史日志以供模型训练 进行训练与预测操作。 基于模板法的训练与预测：\n   gs_dbmind component sqldiag [train, predict] -f FILE --model template --model-path template_model_path --config-file config_path\n基于DNN的训练与预测：\n   gs_dbmind component sqldiag [train, predict] -f FILE --model dnn --model-path dnn_model_path --config-file config_path 使用方法示例 使用提供的测试数据进行模板化训练： gs_dbmind component sqldiag train -f ./sample_data/train.csv --model template --model-path ./template --config-file config_path 使用提供的测试数据进行模板化预测： gs_dbmind component sqldiag predict -f ./sample_data/predict.csv --model template --model-path ./template --predicted-file ./result/t_result --config-file config_path 使用提供的测试数据进行模板化模型更新： gs_dbmind component sqldiag finetune -f ./sample_data/train.csv --model template --model-path ./template --config-file config_path 使用提供的测试数据进行DNN训练： gs_dbmind component sqldiag train -f ./sample_data/train.csv --model dnn --model-path ./dnn_model --config-file config_path 使用提供的测试数据进行DNN预测： gs_dbmind component sqldiag predict -f ./sample_data/predict.csv --model dnn --model-path ./dnn_model --predicted-file --config-file config_path 使用提供的测试数据进行DNN模型更新： gs_dbmind component sqldiag finetune -f ./sample_data/train.csv --model dnn --model-path ./dnn_model --config-file config_path",
+      "source_file": "4445_file_4445.txt"
+    }
+  ]
+}

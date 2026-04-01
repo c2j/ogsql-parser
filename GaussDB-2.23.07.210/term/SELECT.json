@@ -1,0 +1,66 @@
+{
+  "topic": "SELECT",
+  "term_count": 12,
+  "terms": [
+    {
+      "term": "【规则】避免对大字段（如VARCHAR(2000)）执行ORDER",
+      "content": "【规则】避免对大字段（如VARCHAR(2000)）执行ORDER BY、DISTINCT、GROUP BY、UNION等会引起排序的操作 【规则】避免对大字段（如VARCHAR(2000)）执行ORDER BY、DISTINCT、GROUP BY、UNION等会引起排序的操作 此类操作将消耗大量的CPU和内存资源，执行效率低下。",
+      "source_file": "677_VARCHAR(2000)ORDER BYDISTINCTGROUP BYUNION.txt"
+    },
+    {
+      "term": "【建议】避免在SELECT目标列中使用子查询，可能导致计划无法下推到DN执行，影响执行性能",
+      "content": "【建议】避免在SELECT目标列中使用子查询，可能导致计划无法下推到DN执行，影响执行性能 【建议】避免在SELECT目标列中使用子查询，可能导致计划无法下推到DN执行，影响执行性能",
+      "source_file": "539_SELECTDN.txt"
+    },
+    {
+      "term": "【规则】禁止使用LOCK",
+      "content": "【规则】禁止使用LOCK TABLE语句加锁，使用 SELECT .. FOR UPDATE语句 【规则】禁止使用LOCK TABLE语句加锁，使用 SELECT .. FOR UPDATE语句 LOCK TABLE提供多种锁级别，但如果对数据库原理和业务理解不足，误用表锁可能触发死锁，导致集群不可用。",
+      "source_file": "538_LOCK TABLE SELECT .. FOR UPDATE.txt"
+    },
+    {
+      "term": "【建议】考虑使用UNION",
+      "content": "【建议】考虑使用UNION ALL，少使用UNION，注意考虑去重 【建议】考虑使用UNION ALL，少使用UNION，注意考虑去重 UNION ALL不去重，少了排序操作，速度相对UNION更快。 如果没有去重的需求，优先使用UNION ALL。",
+      "source_file": "540_UNION ALLUNION.txt"
+    },
+    {
+      "term": "【规则】SELECT语句中通配符字段“*”",
+      "content": "【规则】SELECT语句中通配符字段“*” 【规则】SELECT语句中通配符字段“*” 使用通配符字段查询表时，如果因业务或数据库升级导致表结构发生变化，可能出现与业务语句不兼容的情况。 因此业务应指明所需查询的表字段名称，避免使用通配符。",
+      "source_file": "676_SELECT_.txt"
+    },
+    {
+      "term": "【建议】考虑使用UNION",
+      "content": "【建议】考虑使用UNION ALL，少使用UNION，注意考虑去重 【建议】考虑使用UNION ALL，少使用UNION，注意考虑去重 UNION ALL不去重，少了排序操作，速度相对UNION更快。 如果没有去重的需求，优先使用UNION ALL。",
+      "source_file": "679_UNION ALLUNION.txt"
+    },
+    {
+      "term": "【建议】避免频繁使用下使用count()获取大表行数，该操作资源消耗较大，影响并行作业执行效率",
+      "content": "【建议】避免频繁使用下使用count()获取大表行数，该操作资源消耗较大，影响并行作业执行效率 【建议】避免频繁使用下使用count()获取大表行数，该操作资源消耗较大，影响并行作业执行效率 如果不需要实时的行数统计信息，可以尝试使用如下语句来获取表行数。 SELECT reltules FROM pg_class WHERE relname = 'tablename'; pg_class中所记录的表行数信息只会在对该表执行ANALYZE以后才会更新。 目前ANALYZE有两种触发条件: 业务主动发送ANALYZE语句，例如： --分析连接库中所有表 ANALYZE ;\n--分析指定表 ANALYZE tablename; 借助AUTO VACUUM机制，在每间隔一定时间或表的增删达到一定行数时触发。间隔时间和增删比例可通过GUC参数设置。",
+      "source_file": "541_count().txt"
+    },
+    {
+      "term": "【规则】避免对大字段（如VARCHAR(2000)）执行ORDER",
+      "content": "【规则】避免对大字段（如VARCHAR(2000)）执行ORDER BY、DISTINCT、GROUP BY、UNION等会引起排序的操作 【规则】避免对大字段（如VARCHAR(2000)）执行ORDER BY、DISTINCT、GROUP BY、UNION等会引起排序的操作 此类操作将消耗大量的CPU和内存资源，执行效率低下。",
+      "source_file": "537_VARCHAR(2000)ORDER BYDISTINCTGROUP BYUNION.txt"
+    },
+    {
+      "term": "【建议】避免频繁使用下使用count()获取大表行数，该操作资源消耗较大，影响并行作业执行效率",
+      "content": "【建议】避免频繁使用下使用count()获取大表行数，该操作资源消耗较大，影响并行作业执行效率 【建议】避免频繁使用下使用count()获取大表行数，该操作资源消耗较大，影响并行作业执行效率 如果不需要实时的行数统计信息，可以尝试使用如下语句来获取表行数。 SELECT reltules FROM pg_class WHERE relname = 'tablename'; pg_class中所记录的表行数信息只会在对该表执行ANALYZE以后才会更新。 目前ANALYZE有两种触发条件: 业务主动发送ANALYZE语句，例如： --分析连接库中所有表 ANALYZE ;\n--分析指定表 ANALYZE tablename; 借助AUTO VACUUM机制，在每间隔一定时间或表的增删达到一定行数时触发。间隔时间和增删比例可通过GUC参数设置。",
+      "source_file": "680_count().txt"
+    },
+    {
+      "term": "【规则】带有LIMIT的查询语句中必须带有ORDER",
+      "content": "【规则】带有LIMIT的查询语句中必须带有ORDER BY保证有序 【规则】带有LIMIT的查询语句中必须带有ORDER BY保证有序 作为一种分布式数据库，表数据将分布在多个DN上。 如果SQL语句中只带有LIMIT，而不带有ORDER BY子句，数据库将会把网络传输较快的DN所发送的（符合查询要求的）结果作为最终结果输出到客户端。 由于网络传输效率不同时刻可能发生改变，因此导致多次执行该SQL语句时，返回结果表现出不一致的情况。",
+      "source_file": "536_LIMITORDER BY.txt"
+    },
+    {
+      "term": "【规则】LOCK",
+      "content": "【规则】LOCK TABLE语句加锁，使用 SELECT .. FOR UPDATE语句 【规则】LOCK TABLE语句加锁，使用 SELECT .. FOR UPDATE语句 LOCK TABLE提供多种锁级别，但如果对数据库原理和业务理解不足，误用表锁可能触发死锁，导致数据库不可用。",
+      "source_file": "678_LOCK TABLE SELECT .. FOR UPDATE.txt"
+    },
+    {
+      "term": "【规则】SELECT语句中禁止通配符字段“*”",
+      "content": "【规则】SELECT语句中禁止通配符字段“*” 【规则】SELECT语句中禁止通配符字段“*” 使用通配符字段查询表时，如果因业务或数据库升级导致表结构发生变化，可能出现与业务语句不兼容的情况。 因此业务应指明所需查询的表字段名称，避免使用通配符。",
+      "source_file": "535_SELECT_.txt"
+    }
+  ]
+}

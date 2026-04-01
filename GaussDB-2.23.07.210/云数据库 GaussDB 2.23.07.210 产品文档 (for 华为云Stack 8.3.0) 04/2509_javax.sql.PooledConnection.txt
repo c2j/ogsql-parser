@@ -1,0 +1,1 @@
+javax.sql.PooledConnection javax.sql.PooledConnection javax.sql.PooledConnection是由连接池创建的连接接口。 表1 对javax.sql.PooledConnection的支持情况 方法名 返回值类型 支持JDBC4 addConnectionEventListener (ConnectionEventListener listener) void Yes close() void Yes getConnection() Connection Yes removeConnectionEventListener (ConnectionEventListener listener) void Yes 父主题： JDBC接口参考 版权所有 © 华为技术有限公司

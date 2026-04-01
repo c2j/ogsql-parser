@@ -1,0 +1,47 @@
+配置示例 配置示例 文本搜索配置（Text Search Configuration），指定了将文档转换成tsvector过程中所必需的组件： 解析器，用于把文本分解成标记token； 词典列表，用于将每个token转换成词位lexeme。 每次to_tsvector或to_tsquery函数调用时，都需要指定一个文本搜索配置来指定具体的处理过程。GUC参数 default_text_search_config 指定了默认的文本搜索配置，当文本搜索函数中没有显式指定文本搜索配置参数时，将会使用该默认值进行处理。 GaussDB 中预定义有一些可用的文本搜索配置，用户也可创建自定义的文本搜索配置。此外，为了便于管理文本搜索对象，还提供有多个gsql元命令，可以显示有关文本搜索对象的信息（详细请参见《工具参考》中“客户端工具 >元命令参考”章节）。 操作步骤 创建一个文本搜索配置ts_conf，复制预定义的文本搜索配置english。 1
+2 gaussdb =# CREATE TEXT SEARCH CONFIGURATION ts_conf ( COPY = pg_catalog . english ); CREATE TEXT SEARCH CONFIGURATION 创建Synonym词典。 假设同义词词典定义文件gs_dict.syn内容如下： 1
+2 gaussdb gs gauss gs 执行如下语句创建Synonym词典： 1
+2
+3
+4
+5 gaussdb =# CREATE TEXT SEARCH DICTIONARY gs_dict ( TEMPLATE = synonym , SYNONYMS = gs_dict , FILEPATH = 'file:///home/dicts' ); 创建一个Ispell词典english_ispell（词典定义文件来自开源词典）。 1
+2
+3
+4
+5
+6
+7 gaussdb =# CREATE TEXT SEARCH DICTIONARY english_ispell ( TEMPLATE = ispell , DictFile = english , AffFile = english , StopWords = english , FILEPATH = 'file:///home/dicts' ); 设置文本搜索配置ts_conf，修改某些类型的token对应的词典列表。关于token类型的详细信息，请参见 解析器 。 1
+2
+3
+4 gaussdb =# ALTER TEXT SEARCH CONFIGURATION ts_conf ALTER MAPPING FOR asciiword , asciihword , hword_asciipart , word , hword , hword_part WITH gs_dict , english_ispell , english_stem ; 在文本搜索配置中，选择设置不索引或搜索某些token类型。 1
+2 gaussdb =# ALTER TEXT SEARCH CONFIGURATION ts_conf DROP MAPPING FOR email , url , url_path , sfloat , float ; 使用文本检索调测函数ts_debug()对所创建的词典配置ts_conf进行测试。 1
+2
+3
+4
+5 gaussdb =# SELECT * FROM ts_debug ( 'ts_conf' , ' GaussDB, the highly scalable, SQL compliant, open source object-relational database management system, is now undergoing beta testing of the next version of our software. ' ); 可以设置当前session使用ts_conf作为默认的文本搜索配置。此设置仅在当前session有效。 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27 gaussdb =# \ dF + ts_conf Text search configuration "public.ts_conf" Parser : "pg_catalog.default" Token | Dictionaries -----------------+------------------------------------- asciihword | gs_dict , english_ispell , english_stem asciiword | gs_dict , english_ispell , english_stem file | simple host | simple hword | gs_dict , english_ispell , english_stem hword_asciipart | gs_dict , english_ispell , english_stem hword_numpart | simple hword_part | gs_dict , english_ispell , english_stem int | simple numhword | simple numword | simple uint | simple version | simple word | gs_dict , english_ispell , english_stem gaussdb =# SET default_text_search_config = 'public.ts_conf' ; SET gaussdb =# SHOW default_text_search_config ; default_text_search_config ---------------------------- public . ts_conf ( 1 row ) 父主题： 全文检索 版权所有 © 华为技术有限公司

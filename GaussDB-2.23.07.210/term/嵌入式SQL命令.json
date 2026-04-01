@@ -1,0 +1,166 @@
+{
+  "topic": "嵌入式SQL命令",
+  "term_count": 32,
+  "terms": [
+    {
+      "term": "PREPARE",
+      "content": "PREPARE PREPARE 功能描述 准备用于执行的语句。 语法格式 PREPARE name FROM string 参数说明 name 预备查询标识符。 string 包含预备语句的文本C字符串或者宿主变量，预备语句包含SELECT，INSERT，UPDATE或者DELETE命令之一。 示例 char *stmt = \"SELECT * FROM test1 WHERE a = ? AND b = ?\";\nEXEC SQL ALLOCATE DESCRIPTOR outdesc;\nEXEC SQL PREPARE foo FROM :stmt;\nEXEC SQL EXECUTE foo USING SQL DESCRIPTOR indesc INTO SQL DESCRIPTOR outdesc; ecpg提供的prepare语句不直接等同于内核提供的prepare语法，举例如下： GaussDB Kernel 内核语法： PREPARE name [ ( data_type [, ...] ) ] AS statement 嵌入式SQL语句： EXEC SQL PREPARE I（int, int） AS INSERT INTO T VALUES ( $1, $2 );\nEXEC SQL EXECUTE I(1, 2); 执行上述语句出现报错时，提示too few arguments on。ecpg提供动态SQL解决PREPARE name [ ( data_type [, ...] ) ] AS statement语法场景的使用。 利用动态sql语法规则解决上述问题： EXEC SQL PREPARE I AS INSERT INTO T VALUES ( $1, $2 );\nEXEC SQL EXECUTE I using 1, 2;",
+      "source_file": "918_PREPARE.txt"
+    },
+    {
+      "term": "EXECUTE",
+      "content": "EXECUTE IMMEDIATE EXECUTE IMMEDIATE 功能描述 预备并且执行动态指定的SQL语句，不检索结果行。 语法格式 EXECUTE IMMEDIATE string 参数说明 string 包含要被执行的SQL语句的C字符串或者宿主变量。 示例 使用EXECUTE IMMEDIATE和名为command的宿主变量执行INSERT语句： sprintf(command, \"INSERT INTO test (name, amount, letter) VALUES ('db: ''r1''', 1, 'f')\"); \nEXEC SQL EXECUTE IMMEDIATE :command;",
+      "source_file": "915_EXECUTE IMMEDIATE.txt"
+    },
+    {
+      "term": "SET",
+      "content": "SET CONNECTION SET CONNECTION 功能描述 设置一个数据库连接。 语法格式 SET CONNECTION [ TO | = ] connection_name 参数说明 connection_name 通过CONNECT命令创建数据库连接名字。 示例 EXEC SQL SET CONNECTION TO con2;\nEXEC SQL SET CONNECTION = con1; 相关链接 CONNECT ， DISCONECT",
+      "source_file": "920_SET CONNECTION.txt"
+    },
+    {
+      "term": "TYPE",
+      "content": "TYPE TYPE 功能描述 定义一个新的数据类型。当运行带有-c选项的ecpg的时候，仅仅标识该命令。 语法格式 TYPE type_name IS ctype 参数说明 type_name 数据类型名称。 ctype C语言数据类型说明。 示例 EXEC SQL TYPE customer IS\n    struct\n    {\n        varchar name[50];\n        int     phone;\n    };\n\nEXEC SQL TYPE cust_ind IS\n    struct ind\n    {\n        short   name_ind;\n        short   phone_ind;\n    };\n\nEXEC SQL TYPE c IS char reference;\nEXEC SQL TYPE ind IS union { int integer; short smallint; };\nEXEC SQL TYPE intarray IS int[AMOUNT];\nEXEC SQL TYPE str IS varchar[BUFFERSIZ];\nEXEC SQL TYPE string IS char[11]; 使用EXEC SQL TYPE的示例（注意以下示例使用时在ecpg预处理阶段需要添加-c参数）： #include <stdlib.h>\n#include <string.h>\n#include <stdio.h>\n\nEXEC SQL WHENEVER SQLERROR SQLPRINT;  \nEXEC SQL TYPE tt IS \n    struct \n    { \n        varchar v[256]; \n        int     i; \n    };  \nEXEC SQL TYPE tt_ind IS \n    struct ind { \n        short   v_ind; \n        short   i_ind; \n    };  \n\nint main(void) \n{ \nEXEC SQL BEGIN DECLARE SECTION; \n    tt t; \n    tt_ind t_ind; \nEXEC SQL END DECLARE SECTION; \n     EXEC SQL CONNECT TO testdb AS con1; \n     EXEC SQL SELECT current_database(), 256 INTO :t:t_ind LIMIT 1; \n\n     printf(\"t.v = %s\\n\", t.v.arr); \n     printf(\"t.i = %d\\n\", t.i); \n\n     printf(\"t_ind.v_ind = %d\\n\", t_ind.v_ind); \n     printf(\"t_ind.i_ind = %d\\n\", t_ind.i_ind); \n\n     EXEC SQL DISCONNECT con1; \n\n     return 0; \n} 该示例输出为： t.v = testdb \nt.i = 256 \nt_ind.v_ind = 0 \nt_ind.i_ind = 0",
+      "source_file": "2647_TYPE.txt"
+    },
+    {
+      "term": "SET",
+      "content": "SET DESCRIPTOR SET DESCRIPTOR 功能描述 在SQL描述符区域中设置信息，描述符区域通常用于绑定预备查询执行中的参数。该命令有两种形式： 适用于描述符“头部”，它独立于特定的数据。 为由数字标识的特定数据赋值。 语法格式 SET DESCRIPTOR descriptor_name descriptor_header_item = value [, ... ]\nSET DESCRIPTOR descriptor_name VALUE number descriptor_item = value [, ...] 参数说明 descriptor_name 描述符名称。 descriptor_header_item 标记识别设置的头部信息项。目前仅仅支持COUNT 设置描述符项数。 number 设置的描述符项数。计数从1开始。 descriptor_item 标记识别在描述符中的项信息。当前仅支持DATA，TYPE和LENGTH。 value 存储到描述符项中的值。可以是SQl常量或者宿主变量。 示例 EXEC SQL SET DESCRIPTOR indesc COUNT = 1; \nEXEC SQL SET DESCRIPTOR indesc VALUE 1 DATA = 2; \nEXEC SQL SET DESCRIPTOR indesc VALUE 1 DATA = :val1; \nEXEC SQL SET DESCRIPTOR indesc VALUE 2 INDICATOR = :val1, DATA = 'some string'; \nEXEC SQL SET DESCRIPTOR indesc VALUE 2 INDICATOR = :val2null, DATA = :val2; 相关链接 ALLOCATE DESCRIPTOR ， DEALLOCATE DESCRIPTOR ， GET DESCRIPTOR",
+      "source_file": "2646_SET DESCRIPTOR.txt"
+    },
+    {
+      "term": "PREPARE",
+      "content": "PREPARE PREPARE 功能描述 准备用于执行的语句。 语法格式 PREPARE name FROM string 参数说明 name 预备查询标识符。 string 包含预备语句的文本C字符串或者宿主变量，预备语句包含SELECT，INSERT，UPDATE或者DELETE命令之一。 示例 char *stmt = \"SELECT * FROM test1 WHERE a = ? AND b = ?\";\nEXEC SQL ALLOCATE DESCRIPTOR outdesc;\nEXEC SQL PREPARE foo FROM :stmt;\nEXEC SQL EXECUTE foo USING SQL DESCRIPTOR indesc INTO SQL DESCRIPTOR outdesc; ecpg提供的prepare语句不直接等同于内核提供的prepare语法，举例如下： GaussDB Kernel 内核语法： PREPARE name [ ( data_type [, ...] ) ] AS statement 嵌入式SQL语句： EXEC SQL PREPARE I（int, int） AS INSERT INTO T VALUES ( $1, $2 );\nEXEC SQL EXECUTE I(1, 2); 执行上述语句出现报错时，提示too few arguments on。ecpg提供动态SQL解决PREPARE name [ ( data_type [, ...] ) ] AS statement语法场景的使用。 利用动态sql语法规则解决上述问题： EXEC SQL PREPARE I AS INSERT INTO T VALUES ( $1, $2 );\nEXEC SQL EXECUTE I using 1, 2;",
+      "source_file": "2643_PREPARE.txt"
+    },
+    {
+      "term": "DISCONECT",
+      "content": "DISCONECT DISCONECT 功能描述 关闭一个（或所有）与数据库的连接。 语法格式 DISCONNECT connection_name\nDISCONNECT [ CURRENT ] \nDISCONNECT DEFAULT \nDISCONNECT ALL 参数说明 connection_name 由CONNECT命令建立的数据库连接名称。 current 关闭“当前的”连接，它可以是最近打开的连接或者是由SET CONNECTION命令设置的连接。如果没有参数被传给DISCONNECT命令，它作为默认值。 default 关闭默认连接。 all 关闭所有打开的连接。 示例 #include <stdio.h>\n#include <stdlib.h>\n#include <string.h>\n\nint main(void) \n{ \n    /* 需要提前创建testdb库 */\nEXEC SQL CONNECT TO testdb AS DEFAULT USER testuser; \n    EXEC SQL CONNECT TO testdb AS con1 USER testuser; \n    EXEC SQL CONNECT TO testdb AS con2 USER testuser; \n    EXEC SQL CONNECT TO testdb AS con3 USER testuser; \n    EXEC SQL DISCONNECT CURRENT;  /* 关闭 con3          */ \n    EXEC SQL DISCONNECT DEFAULT;  /* 关闭 DEFAULT       */ \n    EXEC SQL DISCONNECT ALL;      /* 关闭 con2 以及 con1 */ \n    return 0; \n} 相关链接 CONNECT ， SET CONNECTION",
+      "source_file": "2639_DISCONECT.txt"
+    },
+    {
+      "term": "ALLOCATE",
+      "content": "ALLOCATE DESCRIPTOR ALLOCATE DESCRIPTOR 功能描述 分配一个新命名的SQL描述符区域。 语法格式 ALLOCATE DESCRIPTOR name 参数说明 name SQL描述符名称。大小写敏感，是一个SQL标识或者一个宿主变量。 示例 EXEC SQL ALLOCATE DESCRIPTOR mydesc; 相关链接 DEALLOCATE DESCRIPTOR ， GET DESCRIPTOR ， SET DESCRIPTOR",
+      "source_file": "2634_ALLOCATE DESCRIPTOR.txt"
+    },
+    {
+      "term": "VAR",
+      "content": "VAR VAR 功能描述 将新的C数据类型分配给宿主变量。宿主变量必须预先在声明段声明。 对于VAR的用法需要谨慎。使用VAR语句后数据类型的变化可能会导致内存地址无效，从而导致数据变量无效，出现无法成功赋值的场景。 若在宿主变量声明段中确定好数据类型，则无须使用VAR语句。 语法格式 VAR varname IS ctype 参数说明 varname C语言变量名称。 ctype C语言类型说明。 示例 EXEC SQL BEGIN DECLARE SECTION; \n    short a;\nEXEC SQL END DECLARE SECTION;\nEXEC SQL VAR a IS int;",
+      "source_file": "2648_VAR.txt"
+    },
+    {
+      "term": "SET",
+      "content": "SET DESCRIPTOR SET DESCRIPTOR 功能描述 在SQL描述符区域中设置信息，描述符区域通常用于绑定预备查询执行中的参数。该命令有两种形式： 适用于描述符“头部”，它独立于特定的数据。 为由数字标识的特定数据赋值。 语法格式 SET DESCRIPTOR descriptor_name descriptor_header_item = value [, ... ]\nSET DESCRIPTOR descriptor_name VALUE number descriptor_item = value [, ...] 参数说明 descriptor_name 描述符名称。 descriptor_header_item 标记识别设置的头部信息项。目前仅仅支持COUNT 设置描述符项数。 number 设置的描述符项数。计数从1开始。 descriptor_item 标记识别在描述符中的项信息。当前仅支持DATA，TYPE和LENGTH。 value 存储到描述符项中的值。可以是SQl常量或者宿主变量。 示例 EXEC SQL SET DESCRIPTOR indesc COUNT = 1; \nEXEC SQL SET DESCRIPTOR indesc VALUE 1 DATA = 2; \nEXEC SQL SET DESCRIPTOR indesc VALUE 1 DATA = :val1; \nEXEC SQL SET DESCRIPTOR indesc VALUE 2 INDICATOR = :val1, DATA = 'some string'; \nEXEC SQL SET DESCRIPTOR indesc VALUE 2 INDICATOR = :val2null, DATA = :val2; 相关链接 ALLOCATE DESCRIPTOR ， DEALLOCATE DESCRIPTOR ， GET DESCRIPTOR",
+      "source_file": "921_SET DESCRIPTOR.txt"
+    },
+    {
+      "term": "TYPE",
+      "content": "TYPE TYPE 功能描述 定义一个新的数据类型。当运行带有-c选项的ecpg的时候，仅仅标识该命令。 语法格式 TYPE type_name IS ctype 参数说明 type_name 数据类型名称。 ctype C语言数据类型说明。 示例 EXEC SQL TYPE customer IS\n    struct\n    {\n        varchar name[50];\n        int     phone;\n    };\n\nEXEC SQL TYPE cust_ind IS\n    struct ind\n    {\n        short   name_ind;\n        short   phone_ind;\n    };\n\nEXEC SQL TYPE c IS char reference;\nEXEC SQL TYPE ind IS union { int integer; short smallint; };\nEXEC SQL TYPE intarray IS int[AMOUNT];\nEXEC SQL TYPE str IS varchar[BUFFERSIZ];\nEXEC SQL TYPE string IS char[11]; 使用EXEC SQL TYPE的示例（注意以下示例使用时在ecpg预处理阶段需要添加-c参数）： #include <stdlib.h>\n#include <string.h>\n#include <stdio.h>\n\nEXEC SQL WHENEVER SQLERROR SQLPRINT;  \nEXEC SQL TYPE tt IS \n    struct \n    { \n        varchar v[256]; \n        int     i; \n    };  \nEXEC SQL TYPE tt_ind IS \n    struct ind { \n        short   v_ind; \n        short   i_ind; \n    };  \n\nint main(void) \n{ \nEXEC SQL BEGIN DECLARE SECTION; \n    tt t; \n    tt_ind t_ind; \nEXEC SQL END DECLARE SECTION; \n     EXEC SQL CONNECT TO testdb AS con1; \n     EXEC SQL SELECT current_database(), 256 INTO :t:t_ind LIMIT 1; \n\n     printf(\"t.v = %s\\n\", t.v.arr); \n     printf(\"t.i = %d\\n\", t.i); \n\n     printf(\"t_ind.v_ind = %d\\n\", t_ind.v_ind); \n     printf(\"t_ind.i_ind = %d\\n\", t_ind.i_ind); \n\n     EXEC SQL DISCONNECT con1; \n\n     return 0; \n} 该示例输出为： t.v = testdb \nt.i = 256 \nt_ind.v_ind = 0 \nt_ind.i_ind = 0",
+      "source_file": "922_TYPE.txt"
+    },
+    {
+      "term": "WHENEVER",
+      "content": "WHENEVER WHENEVER 功能描述 定义一个行为，它会在SQL执行异常时（行未找到、SQL告警或错误）被调用。 语法格式 WHENEVER { NOT FOUND | SQLERROR | SQLWARNING } action 参数说明 参数描述见 设置回调 章节。 示例 EXEC SQL WHENEVER NOT FOUND CONTINUE; \nEXEC SQL WHENEVER NOT FOUND DO BREAK; \nEXEC SQL WHENEVER SQLWARNING SQLPRINT; \nEXEC SQL WHENEVER SQLWARNING DO warn(); \nEXEC SQL WHENEVER SQLERROR sqlprint; \nEXEC SQL WHENEVER SQLERROR SQLCALL print2(); \nEXEC SQL WHENEVER SQLERROR DO handle_error(\"select\"); \nEXEC SQL WHENEVER SQLERROR DO sqlnotice(NULL, NONO);\nEXEC SQL WHENEVER SQLERROR DO sqlprint(); \nEXEC SQL WHENEVER SQLERROR GOTO error_label; \nEXEC SQL WHENEVER SQLERROR STOP; 使用WHENEVER NOT FOUND BREAK来处理结果集的循环，参考如下完整示例： #include <stdlib.h>\n#include <string.h>\n#include <stdio.h>\n\nint main(void)\n{\n    EXEC SQL CONNECT TO testdb AS con1;\n    EXEC SQL ALLOCATE DESCRIPTOR d;\n    EXEC SQL DECLARE cur CURSOR FOR SELECT current_database(), 'hoge', 256;\n    EXEC SQL OPEN cur;\n    EXEC SQL BEGIN DECLARE SECTION;\n    char* d1;\n    char* d2;\n    EXEC SQL END DECLARE SECTION;\n    /* 当到达结果集末尾时，跳出循环 */\n    EXEC SQL WHENEVER NOT FOUND DO BREAK;\n\n    while (1)\n    {\n        EXEC SQL FETCH NEXT FROM cur INTO SQL DESCRIPTOR d;\n        exec sql get descriptor d value 1 :d1=DATA;\n        exec sql get descriptor d value 2 :d2=DATA;\n        printf(\"d1 is %s,%s\\n\", d1, d2) ;\n    }\n     EXEC SQL CLOSE cur;\n     EXEC SQL COMMIT;\n     EXEC SQL DEALLOCATE DESCRIPTOR d;\n     EXEC SQL DISCONNECT ALL;\n     return 0;\n}",
+      "source_file": "924_WHENEVER.txt"
+    },
+    {
+      "term": "SET",
+      "content": "SET AUTOCOMMIT SET AUTOCOMMIT 功能描述 设置当前数据库会话的自动提交行为。默认情况下，嵌入式SQL程序不自动提交，因此需要显式地发出COMMIT。这个命令可以把会话改成自动提交模式，这样每一个单独的语句都会被隐式提交。 语法格式 SET AUTOCOMMIT { = | TO } { ON | OFF }",
+      "source_file": "919_SET AUTOCOMMIT.txt"
+    },
+    {
+      "term": "OPEN",
+      "content": "OPEN OPEN 功能描述 打开一个游标，并将实际值选择性地绑定到游标声明中的占位符。该游标必须事先使用DECLARE命令声明过。执行OPEN命令会触发在服务器上开始执行查询。 语法格式 OPEN cursor_name\nOPEN cursor_name USING value [, ... ] \nOPEN cursor_name USING SQL DESCRIPTOR descriptor_name 参数说明 cursor_name 被打开的游标的名称。可以是一个SQL标识符或者一个宿主变量。 value 被绑定到游标中一个占位符的值。可以是一个SQL常量、一个宿主变量或者一个带有指示符的宿主变量。 descriptor_name 包含要绑定到游标中占位符的值的描述符的名称。可以是一个SQL标识符或者一个宿主变量。 示例 EXEC SQL OPEN a; \nEXEC SQL OPEN d USING 1, 'test'; \nEXEC SQL OPEN c1 USING SQL DESCRIPTOR mydesc; \nEXEC SQL OPEN :curname1; 相关链接 DECLARE",
+      "source_file": "2642_OPEN.txt"
+    },
+    {
+      "term": "DESCRIBE",
+      "content": "DESCRIBE DESCRIBE 功能描述 检索预准备语句中包含的结果列的元数据信息。 语法格式 DESCRIBE [ OUTPUT ] prepared_name USING  SQL  DESCRIPTOR descriptor_name\nDESCRIBE [ OUTPUT ] prepared_name INTO SQL  DESCRIPTOR descriptor_name\nDESCRIBE [ OUTPUT ] prepared_name INTO sqlda_name 参数说明 prepared_name 预备语句名称可以是一个SQL标识符或者宿主变量。 descriptor_name 描述符名称，大小写敏感。可以是SQL标识符或者宿主变量。 sqlda_name SQLDA变量名称，详细使用请参见 SQLDA 。 示例 EXEC SQL ALLOCATE DESCRIPTOR mydesc;\nEXEC SQL PREPARE stmt1 FROM :sql_stmt;\nEXEC SQL DESCRIBE stmt1 INTO SQL DESCRIPTOR mydesc;\nEXEC SQL GET DESCRIPTOR mydesc VALUE 1 :charvar = NAME;\nEXEC SQL DEALLOCATE DESCRIPTOR mydesc; 相关链接 ALLOCATE DESCRIPTOR ， GET DESCRIPTOR",
+      "source_file": "2638_DESCRIBE.txt"
+    },
+    {
+      "term": "DEALLOCATE",
+      "content": "DEALLOCATE DESCRIPTOR DEALLOCATE DESCRIPTOR 功能描述 释放SQL描述符区域。 语法格式 DEALLOCATE DESCRIPTOR name 参数说明 name SQL描述符名称。大小写敏感，是一个SQL标识符或一个宿主变量。 示例 DEALLOCATE DESCRIPTOR mydesc; 相关链接 ALLOCATE DESCRIPTOR ， GET DESCRIPTOR ， SET DESCRIPTOR",
+      "source_file": "2636_DEALLOCATE DESCRIPTOR.txt"
+    },
+    {
+      "term": "CONNECT",
+      "content": "CONNECT CONNECT 功能描述 在客户端和SQL服务器之间建立连接。 语法格式 CONNECT TO connection_target [ AS connection_name ] [ USER connection_user ] 参数说明 connection_target 以下列形式之一指定连接的目标服务器： [ database_name ] [ @ host ] [ : port ]：通过TCP/IP连接。 unix:postgresql:// host [ : port ] / [ database_name ] [ ? connection_option ]：通过Unix域套接字连接。 tcp:postgresql:// host [ : port ] / [ database_name ] [ ? connection_option ]：通过TCP/IP连接。 SQL string constant：包含上述形式之一的值。 connection_name 用于该连接的一个可选标识符，可以在其他命令中引用它。可以是一个SQL标识符或者一个宿主变量。 connection_user 用于数据库连接的用户名。 使用 user_name / password 、 user_name SQLIDENTIFIED BY password 或者 user_name USING password 之一，这个参数也能指定用户名和口令。 用户名和口令可以是SQL标识符、字符串常量或者宿主变量。 上述参数中斜体部分为变量，请根据实际情况进行修改。 示例 指定连接参数的变体的示例： EXEC SQL CONNECT TO \"connectdb\" AS main; \nEXEC SQL CONNECT TO \"connectdb\" AS second; \nEXEC SQL CONNECT TO 'connectdb' AS main; \nEXEC SQL CONNECT TO REGRESSDB1 as main; \nEXEC SQL CONNECT TO connectdb AS :id; \nEXEC SQL CONNECT TO connectdb AS main USER connectuser/connectdb; \nEXEC SQL CONNECT TO connectdb AS main USER connectuser USING \"connectdb\"; \nEXEC SQL CONNECT TO connectdb AS main; \nEXEC SQL CONNECT TO tcp:postgresql://localhost/connectdb USER connectuser IDENTIFIED BY connectpw; \nEXEC SQL CONNECT TO tcp:postgresql://localhost: $PORT /connectdb USER connectuser SQLIDENTIFIED BY connectpw; \nEXEC SQL CONNECT TO unix:postgresql://localhost/connectdb USER connectuser SQLIDENTIFIED BY \"connectpw\"; \nEXEC SQL CONNECT TO unix:postgresql://localhost/connectdb USER connectuser USING \"connectpw\"; 使用宿主变量指定连接参数的示例： #include <stdio.h>\n#include <stdlib.h>\n#include <string.h>\n\nint main(void) \n{ \nEXEC SQL BEGIN DECLARE SECTION; /* 此处dbname、user、pwd应从环境变量或配置文件读取，环境变量需用户自己按需配置；非环境变量情况下可直接赋值字符串 */ char *dbname     = getenv(\"EXAMPLE_DBNAME_ENV\") ;    /* 数据库名 */ \n    char *user       = getenv(\"EXAMPLE_USERNAME_ENV\") ;  /* 连接用户名 */ \n    char *pwd        = getenv(\"EXAMPLE_PASSWD_ENV\") ; /* 密码 */\n    char *connection = \"tcp:postgresql://localhost: $PORT /testdb\";  /* 连接字符串 */ \n    char ver[256];                  /* 存储版本字符串的缓冲区 */ \nEXEC SQL END DECLARE SECTION;\n\n     ECPGdebug(1, stderr); \n     EXEC SQL CONNECT TO :dbname; \n     EXEC SQL SELECT pg_catalog.set_config('search_path', '', false); EXEC SQL COMMIT; \n     EXEC SQL SELECT version() INTO :ver; \n     EXEC SQL DISCONNECT; \n\n     printf(\"version: %s\\n\", ver); \n     EXEC SQL CONNECT TO :connection USER :user USING :pwd; \n     EXEC SQL SELECT pg_catalog.set_config('search_path', '', false); EXEC SQL COMMIT; \n     EXEC SQL SELECT version() INTO :ver; \n     EXEC SQL DISCONNECT; \n\n     printf(\"version: %s\\n\", ver); \n     return 0; \n} 相关链接 DISCONECT ， SET CONNECTION",
+      "source_file": "2635_CONNECT.txt"
+    },
+    {
+      "term": "DECLARE",
+      "content": "DECLARE DECLARE 功能描述 声明一个游标用于迭代预备语句的结果集。该命令与SQL命令的DECLARE在语义上略有不同：后者执行查询并准备结果集以便检索，而嵌入式SQL命令只是将一个名称声明为“循环变量”并用于在查询的结果集上迭代，实际在使用OPEN命令打开游标时执行。 语法格式 DECLARE cursor_name [ BINARY ]  [ NO  SCROLL ] CURSOR [ { WITH | WITHOUT } HOLD ] FOR prepared_name\nDECLARE cursor_name [ BINARY ]  [ NO SCROLL ] CURSOR [ { WITH | WITHOUT } HOLD ] FOR query 参数说明 cursor_name 游标名称，大小写敏感。可以是一个SQL标识符或者一个宿主变量。 prepared_name 预备查询的名称，可以是一个SQL标识符或者一个宿主变量。 query 提供游标要返回的行的SELECT命令。 游标选项的含义参考 DECLARE 。 示例 声明用于查询的游标示例： EXEC SQL DECLARE C CURSOR FOR SELECT * FROM My_Table; \nEXEC SQL DECLARE C CURSOR FOR SELECT Item1 FROM T; \nEXEC SQL DECLARE cur1 CURSOR FOR SELECT version(); 声明用于预备语句的游标示例： EXEC SQL PREPARE stmt1 AS SELECT version(); \nEXEC SQL DECLARE cur1 CURSOR FOR stmt1; 相关链接 OPEN",
+      "source_file": "912_DECLARE.txt"
+    },
+    {
+      "term": "GET",
+      "content": "GET DESCRIPTOR GET DESCRIPTOR 功能描述 检索查询结果集的信息，并且将它存储到宿主变量中。在使用该命令将信息传递给宿主语言变量之前通常使用FETCH或者SELECT填充标识符区域。该命令有两种形式： 检索描述符的“头部”项，适用于全面查看结果集。 列号作为附加参数，检索特定列的信息。 语法格式 GET DESCRIPTOR descriptor_name VALUE column_number :cvariable = descriptor_item [, ... ]\nGET DESCRIPTOR descriptor_name:cvariable = descriptor_header_item [, ... ] 参数说明 descriptor_name 描述符名称。 descriptor_header_item 标识要检索哪一个头部项信息。当前仅支持用于得到结果集中列数的COUNT。 column_number 关于被检索的列数信息。计数从1开始。 descriptor_item 标记识别检索列的信息项。 cvariable 宿主变量将接收从描述符区域检索的数据。 示例 检索结果集中列数： EXEC SQL GET DESCRIPTOR d :d_count = COUNT; 在第一列中检索数据长度： EXEC SQL GET DESCRIPTOR d VALUE 1 :d_returned_octet_length = RETURNED_OCTET_LENGTH; 检索作为字符串第二列的数据主体： EXEC SQL GET DESCRIPTOR d VALUE 2 :d_data = DATA; 执行SELECT current_database();并且显示列数、列数据长度和列数据的完整过程示例： #include <stdio.h>\n#include <stdlib.h>\n#include <string.h>\n\nint main(void) \n{ \nEXEC SQL BEGIN DECLARE SECTION; \n    int  d_count; \n    char d_data[1024]; \n    int  d_returned_octet_length; \nEXEC SQL END DECLARE SECTION; \n    EXEC SQL CONNECT TO testdb AS con1 USER testuser; \n    EXEC SQL SELECT pg_catalog.set_config('search_path', '', false); EXEC SQL COMMIT; \n    EXEC SQL ALLOCATE DESCRIPTOR d; \n\n    /* 描述、打开一个游标，并且分配一个描述符给该游标  */ \n    EXEC SQL DECLARE cur CURSOR FOR SELECT current_database(); \n    EXEC SQL OPEN cur; \n    EXEC SQL FETCH NEXT FROM cur INTO SQL DESCRIPTOR d; \n  \n    /* 得到全部列的数量 */ \n    EXEC SQL GET DESCRIPTOR d :d_count = COUNT; \n    printf(\"d_count = %d\\n\", d_count); \n\n    /* 得到一个返回列的长度 */ \n    EXEC SQL GET DESCRIPTOR d VALUE 1 :d_returned_octet_length = RETURNED_OCTET_LENGTH; \n    printf(\"d_returned_octet_length = %d\\n\", d_returned_octet_length); \n\n    /* 将返回的列取出成一个字符串 */ \n    EXEC SQL GET DESCRIPTOR d VALUE 1 :d_data = DATA; \n    printf(\"d_data = %s\\n\", d_data); \n\n    /* 关闭 */ \n    EXEC SQL CLOSE cur; \n    EXEC SQL COMMIT; \n  \n    EXEC SQL DEALLOCATE DESCRIPTOR d; \n    EXEC SQL DISCONNECT ALL; \n    return 0; \n} 该示例执行结果为： d_count                 = 1 \nd_returned_octet_length = 6 \nd_data                  = testdb 相关链接 ALLOCATE DESCRIPTOR ， DEALLOCATE DESCRIPTOR ， SET DESCRIPTOR",
+      "source_file": "2641_GET DESCRIPTOR.txt"
+    },
+    {
+      "term": "SET",
+      "content": "SET AUTOCOMMIT SET AUTOCOMMIT 功能描述 设置当前数据库会话的自动提交行为。默认情况下，嵌入式SQL程序不自动提交，因此需要显式地发出COMMIT。这个命令可以把会话改成自动提交模式，这样每一个单独的语句都会被隐式提交。 语法格式 SET AUTOCOMMIT { = | TO } { ON | OFF }",
+      "source_file": "2644_SET AUTOCOMMIT.txt"
+    },
+    {
+      "term": "ALLOCATE",
+      "content": "ALLOCATE DESCRIPTOR ALLOCATE DESCRIPTOR 功能描述 分配一个新命名的SQL描述符区域。 语法格式 ALLOCATE DESCRIPTOR name 参数说明 name SQL描述符名称。大小写敏感，是一个SQL标识或者一个宿主变量。 示例 EXEC SQL ALLOCATE DESCRIPTOR mydesc; 相关链接 DEALLOCATE DESCRIPTOR ， GET DESCRIPTOR ， SET DESCRIPTOR",
+      "source_file": "909_ALLOCATE DESCRIPTOR.txt"
+    },
+    {
+      "term": "CONNECT",
+      "content": "CONNECT CONNECT 功能描述 在客户端和SQL服务器之间建立连接。 语法格式 CONNECT TO connection_target [ AS connection_name ] [ USER connection_user ] 参数说明 connection_target 以下列形式之一指定连接的目标服务器： [ database_name ] [ @ host ] [ : port ]：通过TCP/IP连接。 unix:postgresql:// host [ : port ] / [ database_name ] [ ? connection_option ]：通过Unix域套接字连接。 tcp:postgresql:// host [ : port ] / [ database_name ] [ ? connection_option ]：通过TCP/IP连接。 SQL string constant：包含上述形式之一的值。 connection_name 用于该连接的一个可选标识符，可以在其他命令中引用它。可以是一个SQL标识符或者一个宿主变量。 connection_user 用于数据库连接的用户名。 使用 user_name / password 、 user_name SQLIDENTIFIED BY password 或者 user_name USING password 之一，这个参数也能指定用户名和口令。 用户名和口令可以是SQL标识符、字符串常量或者宿主变量。 上述参数中斜体部分为变量，请根据实际情况进行修改。 示例 指定连接参数的变体的示例： EXEC SQL CONNECT TO \"connectdb\" AS main; \nEXEC SQL CONNECT TO \"connectdb\" AS second; \nEXEC SQL CONNECT TO 'connectdb' AS main; \nEXEC SQL CONNECT TO REGRESSDB1 as main; \nEXEC SQL CONNECT TO connectdb AS :id; \nEXEC SQL CONNECT TO connectdb AS main USER connectuser/connectdb; \nEXEC SQL CONNECT TO connectdb AS main USER connectuser USING \"connectdb\"; \nEXEC SQL CONNECT TO connectdb AS main; \nEXEC SQL CONNECT TO tcp:postgresql://localhost/connectdb USER connectuser IDENTIFIED BY connectpw; \nEXEC SQL CONNECT TO tcp:postgresql://localhost: $PORT /connectdb USER connectuser SQLIDENTIFIED BY connectpw; \nEXEC SQL CONNECT TO unix:postgresql://localhost/connectdb USER connectuser SQLIDENTIFIED BY \"connectpw\"; \nEXEC SQL CONNECT TO unix:postgresql://localhost/connectdb USER connectuser USING \"connectpw\"; 使用宿主变量指定连接参数的示例： #include <stdio.h>\n#include <stdlib.h>\n#include <string.h>\n\nint main(void) \n{ \nEXEC SQL BEGIN DECLARE SECTION; /* 此处dbname、user、pwd应从环境变量或配置文件读取，环境变量需用户自己按需配置；非环境变量情况下可直接赋值字符串 */ char *dbname     = getenv(\"EXAMPLE_DBNAME_ENV\") ;    /* 数据库名 */ \n    char *user       = getenv(\"EXAMPLE_USERNAME_ENV\") ;  /* 连接用户名 */ \n    char *pwd        = getenv(\"EXAMPLE_PASSWD_ENV\") ; /* 密码 */\n    char *connection = \"tcp:postgresql://localhost: $PORT /testdb\";  /* 连接字符串 */ \n    char ver[256];                  /* 存储版本字符串的缓冲区 */ \nEXEC SQL END DECLARE SECTION;\n\n     ECPGdebug(1, stderr); \n     EXEC SQL CONNECT TO :dbname; \n     EXEC SQL SELECT pg_catalog.set_config('search_path', '', false); EXEC SQL COMMIT; \n     EXEC SQL SELECT version() INTO :ver; \n     EXEC SQL DISCONNECT; \n\n     printf(\"version: %s\\n\", ver); \n     EXEC SQL CONNECT TO :connection USER :user USING :pwd; \n     EXEC SQL SELECT pg_catalog.set_config('search_path', '', false); EXEC SQL COMMIT; \n     EXEC SQL SELECT version() INTO :ver; \n     EXEC SQL DISCONNECT; \n\n     printf(\"version: %s\\n\", ver); \n     return 0; \n} 相关链接 DISCONECT ， SET CONNECTION",
+      "source_file": "910_CONNECT.txt"
+    },
+    {
+      "term": "DECLARE",
+      "content": "DECLARE DECLARE 功能描述 声明一个游标用于迭代预备语句的结果集。该命令与SQL命令的DECLARE在语义上略有不同：后者执行查询并准备结果集以便检索，而嵌入式SQL命令只是将一个名称声明为“循环变量”并用于在查询的结果集上迭代，实际在使用OPEN命令打开游标时执行。 语法格式 DECLARE cursor_name [ BINARY ]  [ NO SCROLL ] CURSOR [ { WITH | WITHOUT } HOLD ] FOR prepared_name\nDECLARE cursor_name [ BINARY ]  [ NO SCROLL ] CURSOR [ { WITH | WITHOUT } HOLD ] FOR query 参数说明 cursor_name 游标名称，大小写敏感。可以是一个SQL标识符或者一个宿主变量。 prepared_name 预备查询的名称，可以是一个SQL标识符或者一个宿主变量。 query 提供游标要返回的行的SELECT命令。 游标选项的含义参考 DECLARE 。 示例 声明用于查询的游标示例： EXEC SQL DECLARE C CURSOR FOR SELECT * FROM My_Table; \nEXEC SQL DECLARE C CURSOR FOR SELECT Item1 FROM T; \nEXEC SQL DECLARE cur1 CURSOR FOR SELECT version(); 声明用于预备语句的游标示例： EXEC SQL PREPARE stmt1 AS SELECT version(); \nEXEC SQL DECLARE cur1 CURSOR FOR stmt1; 相关链接 OPEN",
+      "source_file": "2637_DECLARE.txt"
+    },
+    {
+      "term": "EXECUTE",
+      "content": "EXECUTE IMMEDIATE EXECUTE IMMEDIATE 功能描述 预备并且执行动态指定的SQL语句，不检索结果行。 语法格式 EXECUTE IMMEDIATE string 参数说明 string 包含要被执行的SQL语句的C字符串或者宿主变量。 示例 使用EXECUTE IMMEDIATE和名为command的宿主变量执行INSERT语句： sprintf(command, \"INSERT INTO test (name, amount, letter) VALUES ('db: ''r1''', 1, 'f')\"); \nEXEC SQL EXECUTE IMMEDIATE :command;",
+      "source_file": "2640_EXECUTE IMMEDIATE.txt"
+    },
+    {
+      "term": "DESCRIBE",
+      "content": "DESCRIBE DESCRIBE 功能描述 检索预准备语句中包含的结果列的元数据信息。 语法格式 DESCRIBE [ OUTPUT ] prepared_name USING  SQL  DESCRIPTOR descriptor_name\nDESCRIBE [ OUTPUT ] prepared_name INTO SQL  DESCRIPTOR descriptor_name\nDESCRIBE [ OUTPUT ] prepared_name INTO sqlda_name 参数说明 prepared_name 预备语句名称可以是一个SQL标识符或者宿主变量。 descriptor_name 描述符名称，大小写敏感。可以是SQL标识符或者宿主变量。 sqlda_name SQLDA变量名称，详细使用请参见 SQLDA 。 示例 EXEC SQL ALLOCATE DESCRIPTOR mydesc;\nEXEC SQL PREPARE stmt1 FROM :sql_stmt;\nEXEC SQL DESCRIBE stmt1 INTO SQL DESCRIPTOR mydesc;\nEXEC SQL GET DESCRIPTOR mydesc VALUE 1 :charvar = NAME;\nEXEC SQL DEALLOCATE DESCRIPTOR mydesc; 相关链接 ALLOCATE DESCRIPTOR ， GET DESCRIPTOR ，",
+      "source_file": "913_DESCRIBE.txt"
+    },
+    {
+      "term": "GET",
+      "content": "GET DESCRIPTOR GET DESCRIPTOR 功能描述 检索查询结果集的信息，并且将它存储到宿主变量中。在使用该命令将信息传递给宿主语言变量之前通常使用FETCH或者SELECT填充标识符区域。该命令有两种形式： 检索描述符的“头部”项，适用于全面查看结果集。 列号作为附加参数，检索特定列的信息。 语法格式 GET DESCRIPTOR descriptor_name VALUE column_number :cvariable = descriptor_item [, ... ]\nGET DESCRIPTOR descriptor_name:cvariable = descriptor_header_item [, ... ] 参数说明 descriptor_name 描述符名称。 descriptor_header_item 标识要检索哪一个头部项信息。当前仅支持用于得到结果集中列数的COUNT。 column_number 关于被检索的列数信息。计数从1开始。 descriptor_item 标记识别检索列的信息项。 cvariable 宿主变量将接收从描述符区域检索的数据。 示例 检索结果集中列数： EXEC SQL GET DESCRIPTOR d :d_count = COUNT; 在第一列中检索数据长度： EXEC SQL GET DESCRIPTOR d VALUE 1 :d_returned_octet_length = RETURNED_OCTET_LENGTH; 检索作为字符串第二列的数据主体： EXEC SQL GET DESCRIPTOR d VALUE 2 :d_data = DATA; 执行SELECT current_database();并且显示列数、列数据长度和列数据的完整过程示例： #include <stdio.h>\n#include <stdlib.h>\n#include <string.h>\n\nint main(void) \n{ \nEXEC SQL BEGIN DECLARE SECTION; \n    int  d_count; \n    char d_data[1024]; \n    int  d_returned_octet_length; \nEXEC SQL END DECLARE SECTION; \n    EXEC SQL CONNECT TO testdb AS con1 USER testuser; \n    EXEC SQL SELECT pg_catalog.set_config('search_path', '', false); EXEC SQL COMMIT; \n    EXEC SQL ALLOCATE DESCRIPTOR d; \n\n    /* 描述、打开一个游标，并且分配一个描述符给该游标  */ \n    EXEC SQL DECLARE cur CURSOR FOR SELECT current_database(); \n    EXEC SQL OPEN cur; \n    EXEC SQL FETCH NEXT FROM cur INTO SQL DESCRIPTOR d; \n  \n    /* 得到全部列的数量 */ \n    EXEC SQL GET DESCRIPTOR d :d_count = COUNT; \n    printf(\"d_count = %d\\n\", d_count); \n\n    /* 得到一个返回列的长度 */ \n    EXEC SQL GET DESCRIPTOR d VALUE 1 :d_returned_octet_length = RETURNED_OCTET_LENGTH; \n    printf(\"d_returned_octet_length = %d\\n\", d_returned_octet_length); \n\n    /* 将返回的列取出成一个字符串 */ \n    EXEC SQL GET DESCRIPTOR d VALUE 1 :d_data = DATA; \n    printf(\"d_data = %s\\n\", d_data); \n\n    /* 关闭 */ \n    EXEC SQL CLOSE cur; \n    EXEC SQL COMMIT; \n  \n    EXEC SQL DEALLOCATE DESCRIPTOR d; \n    EXEC SQL DISCONNECT ALL; \n    return 0; \n} 该示例执行结果为： d_count                 = 1 \nd_returned_octet_length = 6 \nd_data                  = testdb 相关链接 ALLOCATE DESCRIPTOR ， DEALLOCATE DESCRIPTOR ， SET DESCRIPTOR",
+      "source_file": "916_GET DESCRIPTOR.txt"
+    },
+    {
+      "term": "VAR",
+      "content": "VAR VAR 功能描述 将新的C数据类型分配给宿主变量。宿主变量必须预先在声明段声明。 对于VAR的用法需要谨慎。使用VAR语句后数据类型的变化可能会导致内存地址无效，从而导致数据变量无效，出现无法成功赋值的场景。 若在宿主变量声明段中确定好数据类型，则无须使用VAR语句。 语法格式 VAR varname IS ctype 参数说明 varname C语言变量名称。 ctype C语言类型说明。 示例 EXEC SQL BEGIN DECLARE SECTION; \n    short a;\nEXEC SQL END DECLARE SECTION;\nEXEC SQL VAR a IS int;",
+      "source_file": "923_VAR.txt"
+    },
+    {
+      "term": "OPEN",
+      "content": "OPEN OPEN 功能描述 打开一个游标，并将实际值选择性地绑定到游标声明中的占位符。该游标必须事先使用DECLARE命令声明过。执行OPEN命令会触发在服务器上开始执行查询。 语法格式 OPEN cursor_name\nOPEN cursor_name USING value [, ... ] \nOPEN cursor_name USING SQL DESCRIPTOR descriptor_name 参数说明 cursor_name 被打开的游标的名称。可以是一个SQL标识符或者一个宿主变量。 value 被绑定到游标中一个占位符的值。可以是一个SQL常量、一个宿主变量或者一个带有指示符的宿主变量。 descriptor_name 包含要绑定到游标中占位符的值的描述符的名称。可以是一个SQL标识符或者一个宿主变量。 示例 EXEC SQL OPEN a; \nEXEC SQL OPEN d USING 1, 'test'; \nEXEC SQL OPEN c1 USING SQL DESCRIPTOR mydesc; \nEXEC SQL OPEN :curname1; 相关链接 DECLARE",
+      "source_file": "917_OPEN.txt"
+    },
+    {
+      "term": "DISCONECT",
+      "content": "DISCONECT DISCONECT 功能描述 关闭一个（或所有）与数据库的连接。 语法格式 DISCONNECT connection_name\nDISCONNECT [ CURRENT ] \nDISCONNECT DEFAULT \nDISCONNECT ALL 参数说明 connection_name 由CONNECT命令建立的数据库连接名称。 current 关闭“当前的”连接，它可以是最近打开的连接或者是由SET CONNECTION命令设置的连接。如果没有参数被传给DISCONNECT命令，它作为默认值。 default 关闭默认连接。 all 关闭所有打开的连接。 示例 #include <stdio.h>\n#include <stdlib.h>\n#include <string.h>\n\nint main(void) \n{ \n    /* 需要提前创建testdb库 */   \n EXEC SQL CONNECT TO testdb AS DEFAULT USER testuser; \n    EXEC SQL CONNECT TO testdb AS con1 USER testuser; \n    EXEC SQL CONNECT TO testdb AS con2 USER testuser; \n    EXEC SQL CONNECT TO testdb AS con3 USER testuser; \n    EXEC SQL DISCONNECT CURRENT;  /* 关闭 con3          */ \n    EXEC SQL DISCONNECT DEFAULT;  /* 关闭 DEFAULT       */ \n    EXEC SQL DISCONNECT ALL;      /* 关闭 con2 以及 con1 */ \n    return 0; \n} 相关链接 CONNECT ， SET CONNECTION",
+      "source_file": "914_DISCONECT.txt"
+    },
+    {
+      "term": "DEALLOCATE",
+      "content": "DEALLOCATE DESCRIPTOR DEALLOCATE DESCRIPTOR 功能描述 释放SQL描述符区域。 语法格式 DEALLOCATE DESCRIPTOR name 参数说明 name SQL描述符名称。大小写敏感，是一个SQL标识符或一个宿主变量。 示例 DEALLOCATE DESCRIPTOR mydesc; 相关链接 ALLOCATE DESCRIPTOR ， GET DESCRIPTOR ， SET DESCRIPTOR",
+      "source_file": "911_DEALLOCATE DESCRIPTOR.txt"
+    },
+    {
+      "term": "WHENEVER",
+      "content": "WHENEVER WHENEVER 功能描述 定义一个行为，它会在SQL执行异常时（行未找到、SQL告警或错误）被调用。 语法格式 WHENEVER { NOT FOUND | SQLERROR | SQLWARNING } action 参数说明 参数描述见 设置回调 章节。 示例 EXEC SQL WHENEVER NOT FOUND CONTINUE; \nEXEC SQL WHENEVER NOT FOUND DO BREAK; \nEXEC SQL WHENEVER SQLWARNING SQLPRINT; \nEXEC SQL WHENEVER SQLWARNING DO warn(); \nEXEC SQL WHENEVER SQLERROR sqlprint; \nEXEC SQL WHENEVER SQLERROR SQLCALL print2(); \nEXEC SQL WHENEVER SQLERROR DO handle_error(\"select\"); \nEXEC SQL WHENEVER SQLERROR DO sqlnotice(NULL, NONO);\nEXEC SQL WHENEVER SQLERROR DO sqlprint(); \nEXEC SQL WHENEVER SQLERROR GOTO error_label; \nEXEC SQL WHENEVER SQLERROR STOP; 使用WHENEVER NOT FOUND BREAK来处理结果集的循环，参考如下完整示例： #include <stdlib.h>\n#include <string.h>\n#include <stdio.h>\n\nint main(void)\n{\n    EXEC SQL CONNECT TO testdb AS con1;\n    EXEC SQL ALLOCATE DESCRIPTOR d;\n    EXEC SQL DECLARE cur CURSOR FOR SELECT current_database(), 'hoge', 256;\n    EXEC SQL OPEN cur;\n    EXEC SQL BEGIN DECLARE SECTION;\n    char* d1;\n    char* d2;\n    EXEC SQL END DECLARE SECTION;\n    /* 当到达结果集末尾时，跳出循环 */\n    EXEC SQL WHENEVER NOT FOUND DO BREAK;\n\n    while (1)\n    {\n        EXEC SQL FETCH NEXT FROM cur INTO SQL DESCRIPTOR d;\n        exec sql get descriptor d value 1 :d1=DATA;\n        exec sql get descriptor d value 2 :d2=DATA;\n        printf(\"d1 is %s,%s\\n\", d1, d2) ;\n    }\n     EXEC SQL CLOSE cur;\n     EXEC SQL COMMIT;\n     EXEC SQL DEALLOCATE DESCRIPTOR d;\n     EXEC SQL DISCONNECT ALL;\n     return 0;\n}",
+      "source_file": "2649_WHENEVER.txt"
+    },
+    {
+      "term": "SET",
+      "content": "SET CONNECTION SET CONNECTION 功能描述 设置一个数据库连接。 语法格式 SET CONNECTION [ TO | = ] connection_name 参数说明 connection_name 通过CONNECT命令创建数据库连接名字。 示例 EXEC SQL SET CONNECTION TO con2;\nEXEC SQL SET CONNECTION = con1; 相关链接 CONNECT ， DISCONECT",
+      "source_file": "2645_SET CONNECTION.txt"
+    }
+  ]
+}

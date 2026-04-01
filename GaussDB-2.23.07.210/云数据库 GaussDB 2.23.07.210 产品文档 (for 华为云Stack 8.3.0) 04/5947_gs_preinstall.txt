@@ -1,0 +1,130 @@
+gs_preinstall gs_preinstall 集中式不支持单独调用。 背景信息 GaussDB 提供了gs_preinstall工具来帮助完成数据库实例的环境配置，以保证数据库实例安装的正常进行。 注意事项 用户需要检查上层目录权限，保证安装用户对安装包和配置文件目录读写执行的权限。 xml文件中各主机的名称与IP映射配置正确。 只能使用root用户执行gs_preinstall命令。出于安全考虑，线下场景用户需自行保证数据库实例工具临时存放的包路径下的文件属主为root，权限为700，若执行gs_preinstall之前，临时包路径下用户已创建文件，则在执行gs_preinstall后请手动修改该文件权限。该工具不支持独立调用，出于安全考虑，前置完成后会自动删除。 出于安全考虑，数据库实例工具临时存放的包路径与xml文件中'gaussdbToolPath'路径不可配置为一个路径。 当为数据库实例用户设置密码时，密码不可包含如下特殊字符：“;”、“'”、“$”。 gs_preinstall指定的用户不支持使用-d手动选定家目录，仅支持系统默认创建的/home下和用户同名的家目录。 本产品支持的操作系统版本列表如下： x86服务器支持EulerOS V2.0SP5（ intel ）、 EulerOS V2.0SP10（ intel、hygon ）、Kylin V10 SP2 （intel、hygon）、UnionTech V20 (intel、hygon)。 ARM服务器支持EulerOS V2.0SP9（ kunpeng ）、 EulerOS V2.0SP10（ kunpeng、phytium ）、Kylin V10 SP2（ kunpeng、phytium ）、 Kylin V10 SP1（ kunpeng、phytium ）、 UnionTech V20 (kunpeng、phytium) 。 操作系统只支持英文操作系统。 语法 准备数据库实例环境（root用户进入项目script目录下，执行gs_preinstall脚本） gs_preinstall -U USER -G GROUP -X XMLFILE --alarm-type= ALARMTYPE [--alarm-server-addr= HOSTADDR ] [-L] [-M MOUNTDIR ] [--skip-os-set] [--env-var=" ENVVAR " [...]] [--sep-env-file= MPPRCFILE ] [--skip-hostname-set] [-l LOGFILE ] [--non-interactive][--libnet-set] [--dorado-mode] 显示帮助信息(root用户进入项目script目录下执行） ./gs_preinstall -? | --help 显示版本号信息(root用户进入项目script目录下执行) ./gs_preinstall -V | --version 参数说明 -U 运行数据库实例的操作系统用户名。 取值范围：字符串，要符合标识符的命名规范。 配置-U参数值时，字符串中不能包含"|",";","&","$","<",">","`","\\","'","\","{","}","(",")","[","]","~","*","?"特殊字符。 -G 运行数据库实例的操作系统用户的群组名。 取值范围：字符串，要符合标识符的命名规范。 -X 数据库实例配置文件路径。 取值范围：xml文件的存储路径。 --alarm-type=ALARMTYPE 告警类型。 取值范围：1、5 取值为1表示使用华为FusionInsight的告警管理工具管理告警。 取值为5表示告警将写入system_alarm日志中，此方式只支持数据库实例管理组件和gtm组件上报告警。 --alarm-server-addr=HOSTADDR 系统日志服务器端IP。 不指定该参数，则不配置系统日志参数。 -L 指定该参数则仅给当前节点准备好数据库实例安装环境。适用于不允许使用root互信的场景和设置安全加固参数PermitRootLogin为no的场景。需要满足如下前提条件： 安装包和数据库实例配置文件已提前上传到所有主机； 数据库实例安装用户已提前创建好并建立好互信关系； 用户需要自己保证各台主机上所执行命令的一致性。 -M 指定Cgroups组件的mount路径。如果第一次执行前置时已经挂载成功，再次执行前置时将不会重新挂载到指定的mount路径。 --skip-os-set 是否设置操作系统参数。默认设置系统参数。如果指定该参数则不设置。 --dorado-mode 是否为dorado双数据库实例。默认不设置该参数。 --libnet-set 是否设置用户态网络，目前支持线下部署集中式欧拉2.9ARM机器数据库实例。默认不设置改参数。 --env-var="ENVVAR" 配置普通用户环境变量。可以指定多个。 取值范围：字符串。 不能指定数据库实例默认创建的环境变量。默认创建的环境变量见 表1 。 --sep-env-file=MPPRCFILE 保存环境变量的文件。如果指定该参数，表示将使用环境变量分离的版本。 不能指定环境变量文件为数据库实例相关目录或者和这些目录同名，不能指定环境变量文件所在目录为'gaussdbToolPath'任何一层目录，不能和数据库实例用户的目录相同。 --skip-hostname-set 是否将xml配置文件中主机名与IP的映射关系写入“/etc/hosts”文件中。默认写入，如果指定该参数则不写入。 -l 指定日志文件名及路径。在内部会自动给日志名添加一个时间戳。 默认值：$GAUSSLOG/om/gs_preinstall.log 当既不明确指定-l，又不在XML文件中配置gaussdbLogPath时，默认值为“$GAUSSLOG/om/gs_preinstall-YYYY-MM-DD_hhmmss.log”。 当不明确指定-l，但在XML文件中配置了gaussdbLogPath时，默认值为gaussdbLogPath的值、用户名和om/gs_preinstall-YYYY-MM-DD_hhmmss.log的组合。 --agent-mode 使用代理通讯方式 --non-interactive 指定前置执行模式。 当不指定该参数时，则为安全交互模式，在此模式下用户需要人机交互输入密码。 当指定该参数时，为非交互模式，不需要进行人机交互。 交互式输入密码的过程中，密码不能包含";","'","$"3个特殊字符。 --trace-id 每次om请求的唯一标识，可根据om操作日志中的trace-id识别调用链从而进行故障定界。可选参数。 取值范围：1-128位的字符串，允许的字符为数字，字母和'-'。 -?, --help 显示帮助信息。 -V, --version 显示版本号信息。 表1 GaussDB 默认创建的环境变量 环境变量名称 说明 MPPDB_ENV_SEPARATE_PATH 数据库实例环境变量分离文件路径 GPHOME 数据库实例工具目录 PATH 数据库实例工具脚本目录 LD_LIBRARY_PATH 数据库实例引用第三方动态库路径 PYTHONPATH python软件路径 GAUSS_WARNING_TYPE 告警类型 GAUSSHOME 数据库实例安装路径 GAUSS_VERSION 数据库实例版本号 PGHOST 数据库实例用户的临时目录路径 GS_CLUSTER_NAME 数据库实例名称 DORADO_REARRANGE 数据库dorado双实例模式专用，区分其他部署模式 GAUSSLOG 数据库实例日志路径 GAUSS_ENV 数据库实例环境变量标识 UNPACKPATH 数据库实例工具临时存放的包路径 BACKUP_USER 数据库实例备份恢复用户（记录rdsBackupUser，agent模式专有） PGUSER 数据库实例管理员用户（记录rdsAdminUser，agent模式专有） 该配置需要在数据库实例每台机器上都要修改。 示例 切换root用户，进入script目录下，使用非交互方式进行数据库实例环境准备： ./gs_preinstall -U omm -G dbgrp -X /opt/software/GaussDB_Kernel/clusterconfig.xml --alarm-type=5 --non-interactive
+Parsing the configuration file.
+Successfully parsed the configuration file.
+Installing the tools on the local node.
+Successfully installed the tools on the local node.
+Distributing package.
+Successfully distributed package.
+Installing the tools in the cluster.
+Successfully installed the tools in the cluster.
+Checking hostname mapping.
+Successfully checked hostname mapping.
+Checking OS version.
+Successfully checked OS version.
+Creating cluster's path.
+Successfully created cluster's path.
+Set and check OS parameter.
+Setting OS parameters.
+Successfully set OS parameters.
+Warning: Installation environment contains some warning messages.
+Please get more details by "/package_r8/sudo/gs_checkos -i A -h host179174,host179175,host179176".
+Set and check OS parameter completed.
+Preparing CRON service.
+Successfully prepared CRON service.
+Preparing SSH service.
+Successfully prepared SSH service.
+Setting user environmental variables.
+Successfully set user environmental variables.
+Configuring alarms on the cluster nodes.
+Successfully configured alarms on the cluster nodes.
+Setting the dynamic link library.
+Successfully set the dynamic link library.
+Setting Cgroup.
+Successfully set Cgroup.
+Setting finish flag.
+Successfully set finish flag.
+Preinstallation succeeded. 使用交互模式进行数据库实例环境准备： ./gs_preinstall -U omm -G dbgrp -X /opt/software/GaussDB_Kernel/clusterconfig.xml --alarm-type=5
+Parsing the configuration file.
+Successfully parsed the configuration file.
+Installing the tools on the local node.
+Successfully installed the tools on the local node.
+Are you sure you want to create trust for root (yes/no)? yes
+Please enter password for root.
+Password:
+Creating SSH trust for the root permission user.
+Checking network information.
+All nodes in the network are Normal.
+Successfully checked network information.
+Creating SSH trust.
+Creating the local key file.
+Successfully created the local key files.
+Appending local ID to authorized_keys.
+Successfully appended local ID to authorized_keys.
+Updating the known_hosts file.
+Successfully updated the known_hosts file.
+Appending authorized_key on the remote node.
+Successfully appended authorized_key on all remote node.
+Checking common authentication file content.
+Successfully checked common authentication content.
+Distributing SSH trust file to all node.
+Successfully distributed SSH trust file to all node.
+Verifying SSH trust on all hosts.
+Successfully verified SSH trust on all hosts.
+Successfully created SSH trust.
+Successfully created SSH trust for the root permission user.
+Setting pssh path
+Successfully set core path.
+Distributing package.
+Begin to distribute package to tool path.
+Successfully distribute package to tool path.
+Begin to distribute package to package path.
+Successfully distribute package to package path.
+Successfully distributed package.
+Are you sure you want to create the user[omm] and create trust for it (yes/no)? yes
+Preparing SSH service.
+Successfully prepared SSH service.
+Installing the tools in the cluster.
+Successfully installed the tools in the cluster.
+Checking hostname mapping.
+Successfully checked hostname mapping.
+Creating SSH trust for [omm] user.
+Please enter password for current user[omm].
+Password:
+Checking network information.
+All nodes in the network are Normal.
+Successfully checked network information.
+Creating SSH trust.
+Creating the local key file.
+Successfully created the local key files.
+Appending local ID to authorized_keys.
+Successfully appended local ID to authorized_keys.
+Updating the known_hosts file.
+Successfully updated the known_hosts file.
+Appending authorized_key on the remote node.
+Successfully appended authorized_key on all remote node.
+Checking common authentication file content.
+Successfully checked common authentication content.
+Distributing SSH trust file to all node.
+Successfully distributed SSH trust file to all node.
+Verifying SSH trust on all hosts.
+Successfully verified SSH trust on all hosts.
+Successfully created SSH trust.
+Successfully created SSH trust for [omm] user.
+Checking OS version.
+Successfully checked OS version.
+Creating cluster's path.
+Successfully created cluster's path.
+Set and check OS parameter.
+Setting OS parameters.
+Successfully set OS parameters.
+Warning: Installation environment contains some warning messages.
+Please get more details by "/data1/omm/ssh_test/script/gs_checkos -i A -h pekpomdev00062,pekpomdev00061,pekpomdev00060".
+Set and check OS parameter completed.
+Preparing CRON service.
+Successfully prepared CRON service.
+Setting user environmental variables.
+Successfully set user environmental variables.
+Configuring alarms on the cluster nodes.
+Successfully configured alarms on the cluster nodes.
+Setting the dynamic link library.
+Successfully set the dynamic link library.
+Setting pssh path
+Successfully set pssh path.
+Setting Cgroup.
+Successfully set Cgroup.
+Set ARM Optimization.
+Successfully set ARM Optimization.
+Setting finish flag.
+Scene: non-huaweiyun
+Successfully set finish flag.
+Preinstallation succeeded. 父主题： 系统内部调用的工具 版权所有 © 华为技术有限公司

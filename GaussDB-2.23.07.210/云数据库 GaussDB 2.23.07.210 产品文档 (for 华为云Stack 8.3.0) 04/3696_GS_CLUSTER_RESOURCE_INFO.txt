@@ -1,0 +1,1 @@
+GS_CLUSTER_RESOURCE_INFO GS_CLUSTER_RESOURCE_INFO 集中式不支持该视图。 父主题： 系统视图 版权所有 © 华为技术有限公司

@@ -1,0 +1,1 @@
+PGXC_WLM_OPERATOR_HISTORY PGXC_WLM_OPERATOR_HISTORY PGXC_WLM_OPERATOR_HISTORY视图显示的是缓存在内存中的所有CN上执行作业结束时的算子信息。查询该视图需要sysadmin权限。 当前特性是实验室特性，使用时请联系华为技术工程师提供技术支持。 该数据会被定期转存到gs_wlm_operator_info表中，转存周期为3分钟。具体的字段请参见 GS_WLM_OPERATOR_INFO 的字段信息。 当查询视图无数据显示时，请联系华为工程师提供技术支撑。 父主题： 系统视图 版权所有 © 华为技术有限公司

@@ -1,0 +1,46 @@
+{
+  "topic": "规划信息准备",
+  "term_count": 8,
+  "terms": [
+    {
+      "term": "申请数据库服务网段",
+      "content": "申请数据库服务网段 申请数据库服务网段 Region租户侧VPC网段：用于GaussDB数据库对外提供服务，建议规划一个C类的IP地址段，并配置好网段。 DMZ service网段：部署数据库服务，建议申请的网段不少于20个IP地址，要求不能和底座的DMZ service网络DHCP池共用。 DMZ service advance网段：部署数据库服务，建议申请的网段不少于20个IP地址，要求不能和底座的DMZ service advance网络DHCP池共用。 获取external relay network网段：规划给高阶服务BMS使用，前期安装HCS底座时已规划，可以从LLD查看。",
+      "source_file": "4763_file_4763.txt"
+    },
+    {
+      "term": "网络连通需求",
+      "content": "网络连通需求 网络连通需求 Dorado存储NOF组网，请参考参考《华为云Stack 8.3.0 NOF无损网络配置基线》。 同一实例内的裸金属服务器节点之间的高速平面互通。 双Region租户侧VPC网段互通：通过L3GW打通同城两个通用Region的VPC网络。 源设备 源端子网 目的设备 目标端子网 目的端口    （监听） 协议 端口说明 监听端口是否可更改 认证方式 加密方式 所属平面 版本 特殊场景 主region的主dn节点 主region 的VPC 子网网段 备region的备dn节点 备region 的VPC 子网网段 45001（实际值等于数据库guc参数replconninfo连接串中的localport值） TCP 【作用】跨集群的DN节点之间复制的连接端口，备集群的DN连接主集群DN主【说明】为可配置端口，端口范围1024~65535，实际值等于guc参数cross_cluster_replconninfo连接串中的localport值，该值通常默认为port+20【安装后是否默认开启】是 是 IP地址认证或者user/password，基于sha256/sm3认证或md5认证（md5默认不支持，为兼容开源第三方工具保留，不推荐使用） SSL 用户平面 V500R002C00 无 Dorado存储BMC管理IP需要与dmz Service平面互通。 Dorado存储BMC管理IP需要与external-om平面互通。 BMS的BMC管理IP和external om平面网络互通。 确保源设备到目标设备的防火墙放通如下对应端口（dorado相关端口，和dorado版本有关，相关端口请在部署时找一线存储TD确认）： 源设备 源IP 目的设备 目的IP 目的端口    （监听） 协议 端口说明 监听端口是否可更改 认证方式 加密方式 所属平面 版本 特殊场景 管理虚拟机 Dmz service IP网段 控制器 控制器管理IP  控制器维护IP 22 TCP SSH服务使用的端口，用于远程登录存储阵列，通过命令行方式管理存储阵列。 是 用户名+密码 SSH 管理平面 OceanStor Dorado 6.0.0 侦听端口可以修改成24000-24900 管理虚拟机 Dmz service IP网段 控制器 控制器管理IP    控制器维护IP 8088 TCP 系统对外提供web服务的端口，用于对系统的管理和维护。对管理口、维护口都开启。 否 用户名+密码 TLS 管理平面 OceanStor Dorado 6.0.0 无",
+      "source_file": "4815_file_4815.txt"
+    },
+    {
+      "term": "申请数据库服务网段",
+      "content": "申请数据库服务网段 申请数据库服务网段 Region租户侧VPC网段：用于GaussDB数据库对外提供服务，建议规划一个C类的IP地址段，并配置好网段。 DMZ service网段：部署数据库服务，建议申请的网段不少于20个IP地址，要求不能和底座的DMZ service网络DHCP池共用。 DMZ service advance网段：部署数据库服务，建议申请的网段不少于20个IP地址，要求不能和底座的DMZ service advance网络DHCP池共用。 获取external relay network网段：规划给高阶服务BMS使用，前期安装HCS底座时已规划，可以从LLD查看。 NOF网络，需要规划存储侧NOF网段：存储侧接入NOF网络平面A的网段，存储侧接入NOF网络平面B的网段，计算侧接入NOF网络平面A的网段，计算侧接入NOF网络平面B的网段。",
+      "source_file": "4812_file_4812.txt"
+    },
+    {
+      "term": "ManageOne创建租户",
+      "content": "ManageOne创建租户 ManageOne创建租户 如果已经有规划的用户，直接跳过该章节。如果无规划，需要自己创建租户，再在对应的Region下，为对应的租户根据规划的VPC网段创建VPC，创建VPC时需要注意：VPC必须指定网段，且必须小于子网网段，不能完全相同。 创建租户的指导请参考《华为云Stack 8.3.0 用户指南》的“划分组织”章节，创建资源集的指导请参考《华为云Stack 8.3.0 用户指南》的“运营管理”章节。",
+      "source_file": "4765_ManageOne.txt"
+    },
+    {
+      "term": "申请云外Dorado存储网段",
+      "content": "申请云外Dorado存储网段 申请云外Dorado存储网段 联系环境管理员申请IP： 存储的bmc管理IP 存储的对外提供的业务IP（RoCE组网方式需要）",
+      "source_file": "4813_Dorado.txt"
+    },
+    {
+      "term": "ManageOne创建租户",
+      "content": "ManageOne创建租户 ManageOne创建租户 如果已经有规划的用户，直接跳过该章节。如果无规划，需要自己创建租户，再在对应的Region下，为对应的租户根据规划的VPC网段创建VPC，创建VPC时需要注意：VPC必须指定网段，且必须小于子网网段，不能完全相同。 创建租户的指导请参考《华为云Stack 8.3.0 用户指南》的“划分组织”章节，创建资源集的指导请参考《华为云Stack 8.3.0 用户指南》的“运营管理”章节",
+      "source_file": "4814_ManageOne.txt"
+    },
+    {
+      "term": "申请云外Dorado存储网段",
+      "content": "申请云外Dorado存储网段 申请云外Dorado存储网段 联系环境管理员申请IP： 存储的bmc管理IP。",
+      "source_file": "4764_Dorado.txt"
+    },
+    {
+      "term": "网络连通需求",
+      "content": "网络连通需求 网络连通需求 同一实例内的裸金属服务器节点之间的高速平面互通。 双Region租户侧VPC网段互通：通过L3GW打通同城两个通用Region的VPC网络。 源设备 源端子网 目的设备 目标端子网 目的端口    （监听） 协议 端口说明 监听端口是否可更改 认证方式 加密方式 所属平面 版本 特殊场景 主region的主dn节点 主region 的VPC 子网网段 备region的备dn节点 备region 的VPC 子网网段 45001（实际值等于数据库guc参数replconninfo连接串中的localport值） TCP 【作用】跨集群的DN节点之间复制的连接端口，备集群的DN连接主集群DN主【说明】为可配置端口，端口范围1024~65535，实际值等于guc参数cross_cluster_replconninfo连接串中的localport值，该值通常默认为port+20【安装后是否默认开启】是 是 IP地址认证或者user/password，基于sha256/sm3认证或md5认证（md5默认不支持，为兼容开源第三方工具保留，不推荐使用） SSL 用户平面 V500R002C00 无 Dorado存储BMC管理IP需要与dmz Service平面互通。 Dorado存储BMC管理IP需要与external-om平面互通。 BMS的BMC管理IP和external om平面网络互通。 确保源设备到目标设备的防火墙放通如下对应端口（dorado相关端口，和dorado版本有关，相关端口请在部署时找一线存储TD确认）： 源设备 源IP 目的设备 目的IP 目的端口    （监听） 协议 端口说明 监听端口是否可更改 认证方式 加密方式 所属平面 版本 特殊场景 管理虚拟机 Dmz service IP网段 控制器 控制器管理IP  控制器维护IP 22 TCP SSH服务使用的端口，用于远程登录存储阵列，通过命令行方式管理存储阵列。 是 用户名+密码 SSH 管理平面 OceanStor Dorado 6.0.0 侦听端口可以修改成24000-24900 管理虚拟机 Dmz service IP网段 控制器 控制器管理IP    控制器维护IP 8088 TCP 系统对外提供web服务的端口，用于对系统的管理和维护。对管理口、维护口都开启。 否 用户名+密码 TLS 管理平面 OceanStor Dorado 6.0.0 无 DBS-Yggdrasil DBS-Yggdrasil_host_01_ip_01 DBS-Yggdrasil_host_02_ip_01 RegionLB RegionLB-LVS-Float-IP 443 8086 46448 TCP ygg跨region调用 ygg服务对接Silvan组件与GaussDB的API服务 iam SSH global -> region 不涉及 dorado容灾api调用 DBS-Yggdrasil DBS-Yggdrasil_host_01_ip_01 DBS-Yggdrasil_host_02_ip_01 ManageOne-IAM01 ManageOne-IAM01-IP ManageOne-IAM02-IP ManageOne-IAM03-IP 26335 TCP ygg跨region调用token置换 ygg服务对接IAM服务 iam SSH public -> dmz 不涉及 dorado容灾api调用",
+      "source_file": "4766_file_4766.txt"
+    }
+  ]
+}

@@ -1,0 +1,96 @@
+{
+  "topic": "容灾管理",
+  "term_count": 18,
+  "terms": [
+    {
+      "term": "结束日志保持",
+      "content": "结束日志保持 结束日志保持 功能介绍 主实例结束容灾日志保持。 调用接口前，您需要提前 获取终端节点 ，即下文中的Endpoint值。 约束限制 仅支持数据库版本大于等于3.209的实例。 两地三中心场景下不支持此接口。 URI URI格式 POST https://{ Endpoint }/gaussdb/v3.5/{project_id}/instances/{instance_id}/disaster-recovery/keep-log-stop URL样例 https://gaussdb.sa-fb-2.hcsglobal.com/gaussdb/v3.5/0483b6b16e954cb88930a360d2c4e663/instances/dsfae23fsfdsae3435in14/disaster-recovery/keep-log-stop 参数说明 表1 参数说明 名称 是否必选 说明 project_id 是 租户在某一region下的project ID。 获取方法请参见 获取项目ID/名称 。 instance_id 是 实例ID。 请求消息 参数说明 表2 参数说明 名称 是否必选 参数类型 说明 disaster_type 是 String 容灾类型。 枚举值： stream 请求示例 { \n\t\"disaster_type\" : \"stream\" \n} 响应消息 表3 响应Body参数列表 名称 参数类型 说明 job_id String 任务id。 正常响应样例 { \n    \"job_id\":\"8bf0175e-562e-45f6-942a-2e2c72c577d7\" \n} 异常响应 请参见 异常请求结果 。 状态码 正常 202 异常 请参见 状态码 。 错误码 请参见 错误码 。",
+      "source_file": "407_file_407.txt"
+    },
+    {
+      "term": "解除容灾关系",
+      "content": "解除容灾关系 解除容灾关系 功能介绍 解除容灾关系，从容灾主实例端下发。 调用接口前，您需要提前 获取终端节点 ，即下文中的Endpoint值。 约束限制 仅支持从主Region下发解除容灾关系操作。 两地三中心场景下，主实例A和同城备实例B和异地备实例C搭建容灾关系，不能在异地集群C为主的情况下，下发解除容灾操作，需要在异地集群C降备后才能解除。 主实例A和备实例B搭建容灾关系，在备实例B进行容灾演练场景时，禁止在主实例A下发容灾解除操作。 URI URI格式 POST https://{Endpoint}/gaussdb/v3.5/{project_id}/instances/{instance_id}/disaster-recovery/release URI样例 https://gaussdb.sa-fb-2.hcsglobal.com/gaussdb/v3.5/0483b6b16e954cb88930a360d2c4e663/instances/c04c789b6baa4b6dbcc139c5226f3a2cin14/disaster-recovery/release 参数说明 表1 参数说明 名称 是否必选 说明 project_id 是 租户在某一region下的project ID。 获取方法请参见 获取项目ID/名称 。 instance_id 是 实例ID。 请求消息 参数说明 表2 参数说明 名称 是否必选 参数类型 说明 disaster_type 是 String 容灾类型。 枚举值： stream dorado 请求示例 { \n\t\"disaster_type\" : \"stream\" \n} 响应消息 表3 响应Body参数列表 名称 参数类型 说明 job_id String 任务id。 正常响应样例 { \n    \"job_id\":\"8bf0175e-562e-45f6-942a-2e2c72c577d7\" \n} 异常响应 请参见 异常请求结果 。 状态码 正常 202 异常 请参见 状态码 。 错误码 请参见 错误码 。",
+      "source_file": "401_file_401.txt"
+    },
+    {
+      "term": "容灾状态下升级",
+      "content": "容灾状态下升级 容灾状态下升级 仅支持灰度升级的升级待观察方式。 大版本升级 主集群先升级，不提交升级。 灾备集群升级。 灾备集群升级完成后，灾备集群先提交升级，主集群后提交升级。 小版本升级 主备集群可以同时执行升级命令。 升级完成后，灾备集群先提交升级，主集群再提交。 备集群提交升级前，主集群需要升级完成。 备集群先提交，主集群后提交。 备集群已提交情况下，主集群不可回滚。 主备集群升级过程中，不可发生主备集群的切换。",
+      "source_file": "5289_file_5289.txt"
+    },
+    {
+      "term": "开启日志保持",
+      "content": "开启日志保持 开启日志保持 功能介绍 主实例开始容灾日志保持。 调用接口前，您需要提前 获取终端节点 ，即下文中的Endpoint值。 约束限制 仅支持数据库版本大于等于3.209的实例。 两地三中心场景下不支持此接口。 URI URI格式 POST https://{ Endpoint }/gaussdb/v3.5/{project_id}/instances/{instance_id}/disaster-recovery/keep-log-start https://gaussdb.sa-fb-2.hcsglobal.com/gaussdb/v3.5/0483b6b16e954cb88930a360d2c4e663/instances/dsfae23fsfdsae3435in14/disaster-recovery/keep-log-start 参数说明 表1 参数说明 名称 是否必选 说明 project_id 是 租户在某一region下的project ID。 获取方法请参见 获取项目ID/名称 。 instance_id 是 实例ID。 请求消息 参数说明 表2 参数说明 名称 是否必选 参数类型 说明 xlog_keep_ratio 否 Integer 主实例默认10： 日志保留空间占可使用剩余磁盘容量的比例, 可设置范围为1-99。 disaster_type 是 String 容灾类型。 枚举值： stream 请求示例 { \n\t\"xlog_keep_ratio\":50,\n        \"disaster_type\" : \"stream\" \n} 响应消息 表3 响应Body参数列表 名称 参数类型 说明 job_id String 任务id。 正常响应样例 { \n    \"job_id\":\"8bf0175e-562e-45f6-942a-2e2c72c577d7\" \n} 异常响应 请参见 异常请求结果 。 状态码 正常 202 异常 请参见 状态码 。 错误码 请参见 错误码 。",
+      "source_file": "406_file_406.txt"
+    },
+    {
+      "term": "备实例容灾升主",
+      "content": "备实例容灾升主 备实例容灾升主 功能介绍 容灾升主（failover），灾备实例端下发。 调用接口前，您需要提前 获取终端节点 ，即下文中的Endpoint值。 约束限制 在灾备region下发。 支持数据库版本大于等于3.209。 两地三中心场景下仅支持数据库版本大于等于3.209。 URI URI格式 POST https://{ Endpoint }/gaussdb/v3.5/{project_id}/instances/{instance_id}/disaster-recovery/failover URI样例 https://gaussdb.sa-fb-2.hcsglobal.com/gaussdb/v3.5/0483b6b16e954cb88930a360d2c4e663/instances/c04c789b6baa4b6dbcc139c5226f3a2cin14/disaster-recovery/failover 参数说明 表1 参数说明 名称 是否必选 说明 project_id 是 租户在某一region下的project ID。 获取方法请参见 获取项目ID/名称 。 instance_id 是 实例ID。 请求消息 表2 参数说明 名称 是否必选 参数类型 说明 is_support_restore 否 Boolean 是否支持容灾回切(仅支持数据库版本大于等于3.200) true支持 false不支持(默认false) disaster_type 是 String 容灾类型。 枚举值： stream dorado 正常响应样例 {\n\"is_support_restore\": true,\n\"disaster_type\": \"stream\"\n} 响应消息 表3 响应Body参数列表 名称 参数类型 说明 job_id String 任务id。 正常响应样例 { \n    \"job_id\":\"8bf0175e-562e-45f6-942a-2e2c72c577d7\" \n} 异常响应 请参见 异常请求结果 。 状态码 正常 202 异常 请参见 状态码 。 错误码 请参见 错误码 。",
+      "source_file": "400_file_400.txt"
+    },
+    {
+      "term": "容灾期间，进行限制操作",
+      "content": "容灾期间，进行限制操作 容灾期间，进行限制操作 搭建容灾关系后，主实例无法进行节点扩容、AZ强启加回、就地升级和升级自动提交等操作，需要断开容灾关系后，再对主实例进行相关操作。本章介绍整体的操作流程。 前提条件 主备集群的容灾关系正常。 操作步骤 登录主实例的管理控制台。 单击左侧导航栏的“容灾管理”，在容灾任务的“操作”列单击“结束”。 在弹出的确认框中勾选“确认结束任务”，单击“是”，结束灾备任务。 如图所示，容灾关系已经结束。 容灾关系结束后，对主备实例进行相关操作。 节点扩容：需要分别对主备实例进行扩容，且扩容后，主备实例分片数需要相同。 AZ强启与加回：无需对备实例进行操作。 就地升级和升级自动提交：主备实例升级后的大版本（例如都为2.1）需要保持一致。 操作完成后，重建容灾关系。 登录主Region所在的Console。 单击左侧导航栏的“容灾管理”，在页面右上方单击“创建容灾任务”。 填写 表1 中的参数，勾选确认信息。 表1 灾备参数 参数 说明 灾备类型 灾备的方式。 该版本仅支持流式容灾，即“流式”。 主实例 需要容灾的实例，即容灾主实例。 须知： 仅支持选择版本为2.0及以上，状态正常，且副本数大于2的实例。 灾备区域 灾备实例所在的区域。 灾备实例 作为灾备的实例。作为灾备的实例中所有数据库都会被清理后根据容灾实例重新建立，请确认无误后再选择。 须知： 选灾备实例需与主实例具有相同的大版本、一致性类型、拓扑结构，且实例状态正常，无正在进行中的操作。目前不限制实例的存储空间，但如果选择的实例小于主实例存储空间，可能会导致灾备任务失败。 仔细阅读并勾选“我已确认创建灾备任务后，所选择的灾备实例上所有数据库都会被清理，再基于主实例重新建立。 同时会将所选择灾备实例的自动备份一起删除，请谨慎操作。 如需保留所选择灾备实例的数据，请您先在该灾备实例上创建一个手动备份。” 单击“是”开始创建容灾任务，可在“容灾管理”页面查看任务状态。",
+      "source_file": "5285_file_5285.txt"
+    },
+    {
+      "term": "重置容灾配置",
+      "content": "重置容灾配置 重置容灾配置 功能介绍 重置容灾网络等配置。 1. 将自动“创建委托”以授权DBS云服务访问VPC资源信息、查询IAAS接口。 2. 重置实例容灾网络等配置。 调用接口前，您需要提前 获取终端节点 ，即下文中的Endpoint值。 URI URI格式 POST https://{ Endpoint }/gaussdb/v3.5/{project_id}/instances/{instance_id}/reset-dr-config URL样例 https://gaussdb.sa-fb-2.hcsglobal.com/gaussdb/v3.5/0483b6b16e954cb88930a360d2c4e663/instances/dsfae23fsfdsae3435in14/reset-dr-config 参数说明 表1 参数说明 名称 是否必选 说明 project_id 是 租户在某一region下的project ID。 获取方法请参见 获取项目ID/名称 。 instance_id 是 实例ID。 请求消息 参数说明 无 响应消息 无 正常响应样例 无 异常响应 请参见 异常请求结果 。 状态码 正常 202 异常 请参见 状态码 。 错误码 请参见 错误码 。",
+      "source_file": "408_file_408.txt"
+    },
+    {
+      "term": "创建容灾、主备切换大数据场景等待超时",
+      "content": "创建容灾、主备切换大数据场景等待超时 创建容灾、主备切换大数据场景等待超时 搭建容灾和主备切换操作依赖超时机制，异常场景或者大数据量场景导致容灾等待时间超时，操作失败。 前提条件 数据库系统运行正常。 已经下发了容灾搭建或主备切换，工作流因等待超时失败 操作步骤 使用浏览器，通过地址“https:// ManageOne运维面主页的访问地址 :31943”，登录ManageOne运维面，或通过地址“https:// ManageOne主门户的访问地址 ”，登录ManageOne主门户，选择“运维中心（OC）”，进入ManageOne运维面。 密码方式：输入帐号和密码。 默认帐号：bss_admin 如果是升级场景，默认帐号为admin。 默认密码：参见 《华为云Stack 8.3.0 帐户一览表》 的“A类（Portal）”页签中，“ManageOne运维面”帐户对应的默认密码。 USB Key方式：插入已预置用户证书的USB Key，选择设备和用户证书，并输入PIN码 在ManageOne运维面页面的“常用链接”栏中单击“ServiceCM”，跳转到ServiceCM插件列表界面。 在ServiceCM插件列表界面，单击“自助开发平台 > dbs-ops”，进入DBS运维管理平台。 1.如果是搭建容灾时超时失败，搜索“stream_disaster_waiting_timeout”参数，加大参数值。 2.如果是主备切换超时失败，搜索“stream_switchover_waiting_timeout”参数，加大参数值 修改系统参数后，在任务流失败的上一步进行重试。等待任务进行成功。 1.搭建容灾 2.主备切换",
+      "source_file": "5287_file_5287.txt"
+    },
+    {
+      "term": "主CN剔除，",
+      "content": "主CN剔除， 备无法连接，RPO增高处理 主CN剔除， 备无法连接，RPO增高处理 搭建容灾关系后，由于主集群具有容灾关系的CN状态异常，或者由于网络异常，灾备集群对应CN无法连接，RPO持续增长。本章介绍恢复RPO的处理流程。 前提条件 主备集群的容灾关系正常。 操作步骤 参考 登录实例节点 ，登录主实例节点。 执行如下指令，检查主集群状态。 cm_ctl query -Cvid 参考 登录实例节点 ，登录灾备集群节点。 执行如下指令，检查灾备集群状态。 cm_ctl query -Cvid 如图所示，CN状态为“Disconnected”的即为需要停止的CN节点。 执行如下命令，停止灾备实例相关CN节点。 cm_ctl stop -n NODEID -D DATADIR NODEID需要替换为状态为“disconnected”的CN ID，DATADIR需要替换为CN节点的目录。 停止灾备实例CN后RPO可恢复。 等主实例具有容灾关系的CN修复后，可执行如下命令重启灾备实例对应的CN。 cm_ctl start -n NODEID -D DATADIR NODEID需要替换为已经停止的CN ID，DATADIR需要替换为CN节点的目录。",
+      "source_file": "5286_CN RPO.txt"
+    },
+    {
+      "term": "查询容灾集群监控状态",
+      "content": "查询容灾集群监控状态 查询容灾集群监控状态 功能介绍 查询实例搭建容灾后实时容灾状态。 调用接口前，您需要提前 获取终端节点 ，即下文中的Endpoint值。 URI URI格式 GET https://{ Endpoint }/gaussdb/v3.5/{project_id}/instances/{instance_id}/disaster-recovery/monitor?disaster_type={disaster_type} URI样例 https://gaussdb.sa-fb-2.hcsglobal.com/gaussdb/v3.5/0483b6b16e954cb88930a360d2c4e663/instances/a7d62bf77aa04fceb52fbd57181c9e3ein14/disaster-recovery/monitor?disaster_type={disaster_type} 参数说明 表1 参数说明 名称 是否必选 参数类型 说明 project_id 是 String 租户在某一region下的project ID。 获取方法请参见 获取项目ID/名称 。 instance_id 是 String 实例ID。 disaster_type 是 String 容灾类型： stream dorado 请求消息 https://gaussdb.sa-fb-2.hcsglobal.com/gaussdb/v3.5/4a52a8a8f63d4c6d966dff0e20b69738/instances/4d653d1caf0e4a49b4753713fac679e3in14/disaster-recovery/monitor?disaster_type=stream 响应消息 表2 响应Body参数列表 名称 参数类型 说明 instance_id String 实例id。 status String 容灾状态。 rpo String 数据恢复点目标。 rto String 数据恢复时间目标。 rpo_threshold String rpo阈值。 rto_threshold String rto阈值。 switchover_progress String 主从切换进度。该值为一个百分数。例如：40% failover_progress String 容灾升主进度。该值为一个百分数。例如：40% 正常响应样例 { \n    \"rpo\":\"0\", \n    \"rto\":\"0\", \n    \"status\":\"archive\", \n    \"instance_id\":\"b3692282395340c5b5421ecf3d7bd6adin14\",  \n    \"rto_threshold\":\"900\", \n    \"rpo_threshold\":\"10\", \n    \"failover_progress\":\"\", \n    \"switchover_ progress \":\"\"\n} 异常响应 请参见 异常请求结果 。 状态码 正常 200 异常 请参见 状态码 。 错误码 请参见 错误码 。",
+      "source_file": "397_file_397.txt"
+    },
+    {
+      "term": "容灾期间，节点替换后刷新集群信息",
+      "content": "容灾期间，节点替换后刷新集群信息 容灾期间，节点替换后刷新集群信息 前提条件 数据库系统运行正常。 没有安装数据库容灾服务（DBS-yggdrasil）且非跨云方式搭建容灾的容灾关系 主Region实例与备Region实例已建立容灾关系，且主Region或备Region实例进行了一次节点替换。 注意事项 如果节点替换后未进行刷新容灾信息操作，不允许执行多次节点替换及后续容灾操作; 进行“导出容灾配置”操作时，需确保当前实例节点无异常。 操作步骤 使用浏览器，通过地址“https:// ManageOne运维面主页的访问地址 :31943”，登录ManageOne运维面，或通过地址“https:// ManageOne主门户的访问地址 ”，登录ManageOne主门户，选择“运维中心（OC）”，进入ManageOne运维面。 密码方式：输入帐号和密码。 默认帐号：bss_admin 如果是升级场景，默认帐号为admin。 默认密码：参见 《华为云Stack 8.3.0 帐户一览表》 的“A类（Portal）”页签中，“ManageOne运维面”帐户对应的默认密码。 USB Key方式：插入已预置用户证书的USB Key，选择设备和用户证书，并输入PIN码 单击“登录”。 在ManageOne运维面页面的“常用链接”栏中单击 “ServiceCM” ，跳转到ServiceCM插件列表界面。 在ServiceCM插件列表界面，单击 “自助开发平台 > dbs-ops” ，进入DBS运维管理平台。 单击节点替换后的实例，进入实例详情页面，单击上方的“导出容灾配置”，会下载一个csv文件。 确保节点替换结束，实例状态正常 下载后的csv文件，要另存为xlsx文件，并确保文件名中没有特殊符号。 打开csv文件，选择另存为xlsx文件，并确保文件名中没有空格及特殊符号（除了下划线）。 按照上述步骤1~6，登录对端Region的DBS运维管理平台。 点击对应有容灾关系的实例，进入实例详情页面，单击上方的“导入容灾配置”，选择 6 中另存的文件。 单击“确认”，开始导入。",
+      "source_file": "5284_file_5284.txt"
+    },
+    {
+      "term": "搭建容灾关系",
+      "content": "搭建容灾关系 搭建容灾关系 功能介绍 搭建容灾关系。 两地三中心添加流灾备实例也将调用此接口。 调用接口前，您需要提前 获取终端节点 ，即下文中的Endpoint值。 约束限制 从主实例端下发。 支持数据库版本大于等于3.209。 两地三中心场景下仅支持数据库版本大于等于3.209。 URI URI格式 POST https://{ Endpoint }/gaussdb/v3.5/{project_id}/instances/{instance_id}/disaster-recovery/construct URI样例 https://gaussdb.sa-fb-2.hcsglobal.com/gaussdb/v3.5/0483b6b16e954cb88930a360d2c4e663/instances/9089bbf7377442daa55bc28d514c08bdin14/disaster-recovery/construct 参数说明 表1 参数说明 名称 是否必选 说明 project_id 是 租户在某一region下的project ID。 获取方法请参见 获取项目ID/名称 。 instance_id 是 实例ID。 请求消息 参数说明 表2 参数说明 名称 是否必选 参数类型 说明 disaster_type 是 String 容灾类型。 枚举值： stream ： 代表流式容灾 dorado：代表Dorado容灾 dr_ip 是 String 对端实例任意数据ip。 dr_user_name 是 String 对端实例账户名称。 dr_user_password 是 String 对端实例账户密码。 请求示例 { \n   \"disaster_type\" : \"stream\", \n   \"dr_ip\" : \"127.0.0.1\", \n   \"dr_user_name\" : \"root\", \n   \"dr_user_password\" : \"password\" \n } 响应消息 表3 响应Body参数列表 名称 参数类型 说明 job_id String 任务id。 正常响应样例 {\n\"job_id\":\"8bf0175e-562e-45f6-942a-2e2c72c577d7\"\n} 异常响应 请参见 异常请求结果 。 状态码 正常 202 异常 请参见 状态码 。 错误码 请参见 错误码 。",
+      "source_file": "399_file_399.txt"
+    },
+    {
+      "term": "灾备实例主从切换",
+      "content": "灾备实例主从切换 灾备实例主从切换 功能介绍 灾备实例主从切换（switchover），可在主备任意一端下发。 调用接口前，您需要提前 获取终端节点 ，即下文中的Endpoint值。 约束限制 支持数据库版本大于等于3.209。 两地三中心场景下仅支持数据库版本大于等于3.209。 URI URI格式 POST https://{ Endpoint }/gaussdb/v3.5/{project_id}/instances/{instance_id}/disaster-recovery/switchover URI样例 https://gaussdb.sa-fb-2.hcsglobal.com/gaussdb/v3.5/0483b6b16e954cb88930a360d2c4e663/instances/dsfae23fsfdsae3435in14/instances/c04c789b6baa4b6dbcc139c5226f3a2cin14/disaster-recovery/switchover 参数说明 表1 参数说明 名称 是否必选 说明 project_id 是 租户在某一region下的project ID。 获取方法请参见 获取项目ID/名称 。 instance_id 是 实例ID。 请求消息 参数说明 表2 参数说明 名称 是否必选 参数类型 说明 disaster_type 是 String 容灾类型。 枚举值： stream dorado 请求示例 { \n\t\"disaster_type\" : \"stream\" \n} 响应消息 表3 响应Body参数列表 名称 参数类型 说明 job_id String 任务id。 正常响应样例 { \n    \"job_id\":\"8bf0175e-562e-45f6-942a-2e2c72c577d7\" \n} 异常响应 请参见 异常请求结果 。 状态码 正常 202 异常 请参见 状态码 。 错误码 请参见 错误码 。",
+      "source_file": "402_file_402.txt"
+    },
+    {
+      "term": "开启容灾演练",
+      "content": "开启容灾演练 开启容灾演练 功能介绍 灾备实例开始容灾演练。 演练开启后，主实例会对增量数据进行暂存，此处可以指定保留增量数据大小的上限值，演练结束后，备实例可以根据暂存的增量数据进行增量回放。如果增量数据超过此处设定值，演练结束后备实例会进行全量数据回放。 调用接口前，您需要提前 获取终端节点 ，即下文中的Endpoint值。 约束限制 仅支持数据库版本大于等于3.209的实例。 两地三中心场景下不支持此接口。 URI URI格式 POST https://{ Endpoint }/gaussdb/v3.5/{project_id}/instances/{instance_id}/disaster-recovery/simulation-start URL样例 https://gaussdb.sa-fb-2.hcsglobal.com/gaussdb/v3.5/0483b6b16e954cb88930a360d2c4e663/instances/dsfae23fsfdsae3435in14/disaster-recovery/simulation-start 参数说明 表1 参数说明 名称 是否必选 说明 project_id 是 租户在某一region下的project ID。 获取方法请参见 获取项目ID/名称 。 instance_id 是 实例ID。 请求消息 参数说明 表2 参数说明 名称 是否必选 参数类型 说明 xlog_keep_ratio 否 Integer 灾备实例该字段不生效，主实例默认10： 日志保留空间占可使用剩余磁盘容量的比例, 可设置范围为1-99。 disaster_type 是 String 容灾类型。 枚举值： stream 请求示例 { \n\t\"xlog_keep_ratio\":50,\n        \"disaster_type\" : \"stream\" \n} 响应消息 表3 响应Body参数列表 名称 参数类型 说明 job_id String 任务id。 正常响应样例 { \n    \"job_id\":\"8bf0175e-562e-45f6-942a-2e2c72c577d7\" \n} 异常响应 请参见 异常请求结果 。 状态码 正常 202 异常 请参见 状态码 。 错误码 请参见 错误码 。",
+      "source_file": "404_file_404.txt"
+    },
+    {
+      "term": "查询容灾关系列表",
+      "content": "查询容灾关系列表 查询容灾关系列表 功能介绍 查询容灾关系列表。 调用接口前，您需要提前 获取终端节点 ，即下文中的Endpoint值。 URI URI格式 GET https://{ Endpoint }/gaussdb/v3.5/{project_id}/disaster-recovery/relations URI样例 https://gaussdb.sa-fb-2.hcsglobal.com/gaussdb/v3.5/0483b6b16e954cb88930a360d2c4e663/disaster-recovery/relations 参数说明 表1 参数说明 名称 参数类型 是否必选 说明 project_id String 是 租户在某一region下的project ID。 获取方法请参见 获取项目ID/名称 。 instance_name String 否 实例名称，可查询过滤本端实例。 instance_id String 否 实例id，可查询过滤本端实例id。 limit Integer 否 查询记录数。为空时，默认为100。最小值为1，最大值为100。 offset Integer 否 索引位置，偏移量。从第一条数据偏移offset条数据后开始查询，默认为0（偏移0条数据，表示从第一条数据开始查询），必须为数字，不能为负数。 请求示例 https://gaussdb.sa-fb-2.hcsglobal.com/gaussdb/v3.5/4a52a8a8f63d4c6d966dff0e20b69738/disaster-recovery/relations?limit=&offset=0&instance_name=test 请求消息 无 响应消息 表2 响应Body参数列表 名称 参数类型 说明 total Integer 总记录数。 relations Array of Object 容灾关系详情。 表3 relations字段数据结构说明 名称 参数类型 说明 disaster_type String 容灾类型。 枚举值: stream name String 容灾任务名称。 disaster_role String 容灾角色。 枚举值: disaster master created String 创建时间，格式为“yyyy-mm-ddThh:mm:ssZ”。 其中，T指某个时间的开始；Z指时区偏移量，例如北京时间偏移显示为+0800。 updated String 更新时间，格式为“yyyy-mm-ddThh:mm:ssZ”。 其中，T指某个时间的开始；Z指时区偏移量，例如北京时间偏移显示为+0800。 slave_region_instance_info Object 备region实例信息。 master_region_instance_info Object 主region实例信息。 synchronization_id String 容灾关系唯一id。 id String 容灾记录id。 instance_id String 当前region实例id。 instance_name String 当前region实例名称。 instance_status String 当前region实例状态。 precheck_failed_reason String 预校验失败原因。 status String 容灾记录状态。 actions Array of String 实例当前正在执行的action列表。 表4 region_instance_info字段数据结构说明 名称 参数类型 说明 instance_id String 实例id。 project_id String 实例项目id。 project_name String 实例项目名称。 region_code String regionCode编码。 ip_address String 数据ip地址列表“,”分割。 正常响应样例 { \n   \"total\" : 1, \n   \"relations\" : [ { \n     \"name\" : \"DR-task-0962\", \n     \"created\" : \"2022-06-16 09:39:51\", \n     \"updated\" : \"2022-06-16 09:44:55\", \n     \"id\" : \"30b74120-4b50-495d-8174-7eeddf7feac5\", \n     \"synchronization_id\" : \"9446f822-ccd2-43dc-929c-0b78ba7fdf64\", \n     \"status\" : \"normal\", \n     \"precheck_failed_reason\" : \"\", \n     \"disaster_type\" : \"stream\", \n     \"disaster_role\" : \"disaster\", \n     \"slave_region_instance_info\" : { \n       \"region_code\" : \"sa-fb-1\", \n       \"instance_id\" : \"d1060faf0d3743dd8830b39e7423bc9ain14\", \n       \"project_id\" : \"4a52a8a8f63d4c6d966dff0e20b69738\", \n       \"project_name\" : \"sa-fb-1_GaussDB\", \n       \"ip_address\" : \"172.166.1.192,172.166.0.6,172.166.1.135\" \n     }, \n     \"master_region_instance_info\" : { \n       \"region_code\" : \"sa-fb-1\", \n       \"instance_id\" : \"54d4b9fb131745fcba32cb90a05cabb8in14\", \n       \"project_id\" : \"4a52a8a8f63d4c6d966dff0e20b69738\", \n       \"project_name\" : \"sa-fb-1_GaussDB\", \n       \"ip_address\" : \"172.167.1.86,172.167.0.89,172.167.1.229\" \n     }, \n     \"instance_id\" : \"d1060faf0d3743dd8830b39e7423bc9ain14\", \n     \"instance_name\" : \"hly-0609-02\", \n     \"instance_status\" : \"normal\", \n     \"actions\" : [ \"STREAM_DISASTER_RELATION_MASTER_TAG\" ] \n   } ] \n } 异常响应 请参见 异常请求结果 。 状态码 正常 200 异常 请参见 状态码 。 错误码 请参见 错误码 。",
+      "source_file": "398_file_398.txt"
+    },
+    {
+      "term": "重建容灾关系",
+      "content": "重建容灾关系 重建容灾关系 功能介绍 流容灾备升主选择支持容灾回切，实现容灾关系的重建任务。 调用接口前，您需要提前 获取终端节点 ，即下文中的Endpoint值。 约束限制 支持数据库版本大于等于3.209。 两地三中心场景下仅支持数据库版本大于等于3.209。 URI URI格式 POST https://{ Endpoint }/gaussdb/v3.5/{project_id}/instances/{instance_id}/disaster-recovery/restore URL样例 https://gaussdb.sa-fb-2.hcsglobal.com/gaussdb/v3.5/0483b6b16e954cb88930a360d2c4e663/instances/dsfae23fsfdsae3435in14/disaster-recovery/restore 参数说明 表1 参数说明 名称 是否必选 说明 project_id 是 租户在某一region下的project ID。 获取方法请参见 获取项目ID/名称 。 instance_id 是 实例ID。 请求消息 参数说明 表2 参数说明 名称 是否必选 参数类型 说明 disaster_type 是 String 容灾类型。 枚举值： stream dorado 请求示例 { \n\t\"disaster_type\" : \"stream\" \n} 响应消息 表3 响应Body参数列表 名称 参数类型 说明 job_id String 任务id。 正常响应样例 { \n    \"job_id\":\"8bf0175e-562e-45f6-942a-2e2c72c577d7\" \n} 异常响应 请参见 异常请求结果 。 状态码 正常 202 异常 请参见 状态码 。 错误码 请参见 错误码 。",
+      "source_file": "403_file_403.txt"
+    },
+    {
+      "term": "容灾期间，校验备份任务超时处理",
+      "content": "容灾期间，校验备份任务超时处理 容灾期间，校验备份任务超时处理 搭建容灾和主从切换操作过程中，因为实例存在自动触发备份的任务，会影响搭建容灾和主备切换任务的执行，所以加了校验备份的任务，如果备份任务一直未结束，工作流会因超时失败。 前提条件 数据库系统运行正常。 已经下发了容灾搭建或主备切换，工作流因备份任务一直进行中，校验任务等待超时失败；或者因为超时处理，导致后续流程失败。 操作步骤 使用浏览器，通过地址“https:// ManageOne运维面主页的访问地址 :31943”，登录ManageOne运维面，或通过地址“https:// ManageOne主门户的访问地址 ”，登录ManageOne主门户，选择“运维中心（OC）”，进入ManageOne运维面。 密码方式：输入帐号和密码。 默认帐号：bss_admin 如果是升级场景，默认帐号为admin。 默认密码：参见 《华为云Stack 8.3.0 帐户一览表》 的“A类（Portal）”页签中，“ManageOne运维面”帐户对应的默认密码。 USB Key方式：插入已预置用户证书的USB Key，选择设备和用户证书，并输入PIN码 在ManageOne运维面页面的“常用链接”栏中单击“ServiceCM”，跳转到ServiceCM插件列表界面。、 在ServiceCM插件列表界面，单击“自助开发平台 > dbs-ops”，进入DBS运维管理平台。 选择实例运维 -> 任务管理。 等待备份任务结束后，在任务流失败的校验任务等Task重试。 1.搭建容灾 处理方式：“CheckActionsDisasterTask”重试。 2.容灾主备切换 处理方式：“CheckActionsDisasterTask”重试。 3.容灾主备切换“CheckActionsDisasterTask”处理过长导致后续“WaitStreamSwitchoverTask”失败。 处理方式：操作灾备容灾实例触发的工作流，同时重试“StreamSwitchoverTask”任务。",
+      "source_file": "5288_file_5288.txt"
+    },
+    {
+      "term": "结束容灾演练",
+      "content": "结束容灾演练 结束容灾演练 功能介绍 灾备实例结束容灾演练。 调用接口前，您需要提前 获取终端节点 ，即下文中的Endpoint值。 约束限制 仅支持数据库版本大于等于3.209的实例。 两地三中心场景下不支持此接口。 URI URI格式 POST https://{ Endpoint }/gaussdb/v3.5/{project_id}/instances/{instance_id}/disaster-recovery/simulation-stop URL样例 https://gaussdb.sa-fb-2.hcsglobal.com/gaussdb/v3.5/0483b6b16e954cb88930a360d2c4e663/instances/dsfae23fsfdsae3435in14/disaster-recovery/simulation-stop 参数说明 表1 参数说明 名称 是否必选 说明 project_id 是 租户在某一region下的project ID。 获取方法请参见 获取项目ID/名称 。 instance_id 是 实例ID。 请求消息 参数说明 表2 参数说明 名称 是否必选 参数类型 说明 disaster_type 是 String 容灾类型。 枚举值： stream 请求示例 { \n\t\"disaster_type\" : \"stream\" \n} 响应消息 表3 响应Body参数列表 名称 参数类型 说明 job_id String 任务id。 正常响应样例 { \n    \"job_id\":\"8bf0175e-562e-45f6-942a-2e2c72c577d7\" \n} 异常响应 请参见 异常请求结果 。 状态码 正常 202 异常 请参见 状态码 。 错误码 请参见 错误码 。",
+      "source_file": "405_file_405.txt"
+    }
+  ]
+}

@@ -1,0 +1,20 @@
+查询参数模板详情 查询参数模板详情 功能介绍 查询参数模板详情，根据参数模板ID获取指定参数模板详情。 调用接口前，您需要提前 获取终端节点 ，即下文中的Endpoint值。 URI URI格式 GET https://{ Endpoint }/gaussdb/v3/{project_id}/configurations/{config_id} URI样例 https://gaussdb.sa-fb-2.hcsglobal.com/gaussdb/v3/619d3e78f61b4be68bc5aa0b59edcf7b/configurations/3ca44134a16d4bbab8eb701e025b19f7pr14 参数说明 表1 参数说明 参数 是否必选 参数类型 描述 project_id 是 String 租户在某一region下的project ID。 获取方法请参见 获取项目ID/名称 。 config_id 是 String 参数模板ID。 请求消息 无。 响应消息 正常响应要素说明 表2 参数说明 参数 参数类型 描述 id String 参数模板ID。 name String 参数模板名称。 description String 参数模板描述。 engine_version String 引擎版本。 instance_mode String 部署形态。 枚举值： ha ：主备版 combined ：分布式版 金融版（标准型） combined_hcs2 ：分布式版 企业版 combined_hcs3 ：分布式版 金融版(标准型) combined_hcs4 ：分布式版 金融版（数据计算型，容灾主） combined_hcs5 ：分布式版 金融版（数据计算型，容灾备） created_at String 创建时间，格式为“yyyy-mm-ddThh:mm:ssZ”。 其中，T指某个时间的开始；Z指时区偏移量，例如北京时间偏移显示为+0800。 updated_at String 修改时间，格式为“yyyy-mm-ddThh:mm:ssZ”。 其中，T指某个时间的开始；Z指时区偏移量，例如北京时间偏移显示为+0800。 configuration_parameters Array of objects 参数详情，具体请参考 表configuration_parameters字段数据结构说明 。 表3 configuration_parameters字段数据结构说明 参数 参数类型 描述 name String 特定参数名称。 value String 特定参数值。 need_restart Boolean 参数是否需要重启。 - 取值为"true"，需要重启。 - 取值为"false"，不需要重启。 readonly Boolean 该参数是否只读。 true：只读 false：可编辑 value_range String 参数取值范围。 data_type String 参数类型，取值为“string”、“integer”、“boolean”、“list”或“float”之一。 description String 参数描述。 正常响应样例 {
+         "id": "3ca44134a16d4bbab8eb701e025b19f7pr14",
+         "name": " GaussDB _2b87a799-515",
+         "description": "ParamGroup for instance.",
+          "engine_version": "2.3",
+          "instance_mode": "ha",
+          "created_at": "2022-08-05T08:15:07+0800",
+          "updated_at": "2022-08-09T03:06:52+0800",
+          "configuration_parameters": [
+                {
+                     "name": "audit_system_object",
+                     "value": "12294",
+                     "need_restart": false,
+                     "readonly": false,
+                     "value_range": "1-65536",
+                     "data_type": "integer",
+                     "description": "该参数决定是否对GaussDB Kernel数据库对象的CREATE、DROP、ALTER操作进行审计。GaussDB Kernel数据库对象包括DATABASE、USER、schema、TABLE等。通过修改该配置参数的值，可以只审计需要的数据库对象的操作，在主备强制选主场景建议audit_system_object取最大值，所有DDL对象全部审计，不当修改该参数会导致丢失DDL审计日志，请在客服人员指导下进行修改。"
+                  }
+           ]
+} 异常响应 请参见 异常请求结果 。 状态码 正常 200 异常 请参见 状态码 。 错误码 请参见 错误码 。 父主题： 参数配置 版权所有 © 华为技术有限公司

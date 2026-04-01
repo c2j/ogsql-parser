@@ -1,0 +1,10 @@
+DROP PACKAGE DROP PACKAGE 功能描述 删除已存在的PACKAGE或者PACKAGE BODY。 注意事项 删除PACKAGE BODY后，PACKAGE内的存储过程及函数会同时失效。 语法格式 DROP PACKAGE [ IF EXISTS ] package_name;
+DROP PACKAGE BODY [ IF EXISTS ] package_name; 参数说明 IF EXISTS 如果指定的存储过程不存在，会提示一个notice而不是产生一个错误。 package_name 要删除的package名称。 取值范围：已存在的package名。 示例 --创建PACKAGE。 gaussdb=# CREATE OR REPLACE PACKAGE PCK1
+IS
+a int;
+END pck1;
+/
+CREATE PACKAGE
+
+--删除PACKAGE。 gaussdb=# DROP PACKAGE PCK1;
+DROP PACKAGE 相关链接 ALTER PACKAGE ， CREATE PACKAGE 父主题： D 版权所有 © 华为技术有限公司

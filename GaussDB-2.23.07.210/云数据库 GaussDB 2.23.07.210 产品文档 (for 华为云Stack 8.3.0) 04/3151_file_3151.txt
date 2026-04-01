@@ -1,0 +1,23 @@
+动态调用匿名块 动态调用匿名块 动态调用匿名块是指在动态语句中执行匿名块，使用EXECUTE IMMEDIATE…USING语句后面带IN、OUT来输入、输出参数。 语法 语法请参见 图1 。 图1 call_anonymous_block::= using_clause子句的语法参见 图2 。 图2 using_clause::= 对以上语法格式的解释如下： 匿名块程序实施部分，以BEGIN语句开始，以END语句停顿，以一个分号结束。 USING  [IN|OUT|IN OUT] bind_argument，用于指定存放传递给存储过程参数值的变量。bind_argument前的修饰符与对应参数的修饰符一致。 匿名块中间的输入输出参数使用占位符来指明，要求占位符个数与参数个数相同，并且占位符所对应参数的顺序和USING中参数的顺序一致。 目前 GaussDB 在动态语句调用匿名块时，EXCEPTION语句中暂不支持使用占位符进行输入输出参数的传递。 不支持调用带有占位符的重载函数。 不支持同一条语句同时使用匿名块内声明的变量和绑定参数。 不支持绑定参数时使用PERFORM关键字调用存储过程。 仅支持匿名块中调用SQL语句以及带有out/inout参数的存储过程绑定参数，其余绑定参数场景皆不支持。例如：匿名块中使用表达式以及cursor等、匿名块中嵌套调用动态语句。 示例 gaussdb=# DROP SCHEMA IF EXISTS hr CASCADE; gaussdb=# CREATE SCHEMA hr; gaussdb=# SET CURRENT_SCHEMA = hr; gaussdb=# CREATE TABLE staffs 
+(
+  staff_id NUMBER, 
+  first_name VARCHAR2,
+  salary NUMBER
+); gaussdb=# INSERT INTO staffs VALUES (200, 'mike', 5800); gaussdb=# INSERT INTO staffs VALUES (201, 'lily', 3000); gaussdb=# INSERT INTO staffs VALUES (202, 'john', 4400);
+
+--创建存储过程dynamic_proc gaussdb=# CREATE OR REPLACE PROCEDURE dynamic_proc
+AS
+   staff_id     NUMBER(6) := 200;
+   first_name   VARCHAR2(20);
+   salary       NUMBER(8,2);
+BEGIN
+    --执行匿名块 
+    EXECUTE IMMEDIATE 'begin select first_name, salary into :first_name, :salary from hr.staffs where staff_id= :dno; end;'
+       USING OUT first_name, OUT salary, IN staff_id;
+   dbe_output.print_line(first_name|| ' ' || salary);
+END;
+/
+
+--调用存储过程 gaussdb=# CALL dynamic_proc();
+
+--删除存储过程 gaussdb=# DROP PROCEDURE dynamic_proc; 父主题： 动态语句 版权所有 © 华为技术有限公司

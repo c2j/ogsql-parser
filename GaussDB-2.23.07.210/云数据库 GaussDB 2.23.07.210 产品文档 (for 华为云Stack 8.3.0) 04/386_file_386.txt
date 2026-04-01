@@ -1,0 +1,13 @@
+查询引擎列表 查询引擎列表 功能介绍 查询引擎列表。 调用接口前，您需要提前 获取终端节点 ，即下文中的Endpoint值。 URI URI格式 GET https://{ Endpoint }/gaussdb/v3/{project_id}/datastores URI样例 https://gaussdb.sa-fb-2.hcsglobal.com/gaussdb/v3/0483b6b16e954cb88930a360d2c4e663/datastores 参数说明 表1 参数说明 名称 是否必选 说明 project_id 是 租户在某一region下的project ID。 获取方法请参见 获取项目ID/名称 。 请求消息 请求示例 无。 响应消息 正常响应要素说明 表2 要素说明 名称 参数类型 说明 datastores Array of objects 数据库引擎列表。 详情请参见 表3 。 表3 dataStores字段数据结构说明 参数 参数类型 描述 supported_versions Array of strings 部署形态支持的引擎版本列表。 instance_mode String 部署形态。 枚举值： ha ：主备版 combined ：分布式版 金融版（标准型） combined_hcs2 ：分布式版 企业版 combined_hcs3 ：分布式版 金融版(标准型) combined_hcs4 ：分布式版 金融版（数据计算型，容灾主） combined_hcs5 ：分布式版 金融版（数据计算型，容灾备） 正常响应样例 {
+	"datastores": [
+		{
+			"instance_mode": "ha",
+			"supported_versions": [
+				"2.0",
+				"2.3",
+				"2.6",
+				"2.9"
+			]
+		}
+	]
+} 异常响应 请参见 异常请求结果 。 状态码 正常 200 异常 请参见 状态码 。 错误码 请参见 错误码 。 父主题： 引擎版本和规格 版权所有 © 华为技术有限公司

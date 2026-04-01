@@ -1,0 +1,1 @@
+GS_UID GS_UID GS_UID系统表存储了数据库中使用hasuids属性表的唯一标识元信息。 表1 GS_UID字段 名称 类型 描述 relid oid 表的oid信息。 uid_backup bigint 当前可以为表分配唯一标识的最大值。 父主题： 其他系统表 版权所有 © 华为技术有限公司

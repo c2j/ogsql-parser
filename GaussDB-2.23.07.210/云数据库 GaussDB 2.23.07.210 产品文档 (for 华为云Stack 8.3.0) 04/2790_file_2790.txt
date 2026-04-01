@@ -1,0 +1,301 @@
+系统信息函数 系统信息函数 会话信息函数 SYS_CONTEXT() 描述：返回当前时刻与上下文命名空间'namespace'关联的参数'parameter'的值。 返回值类型：text 示例： 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17 select SYS_CONTEXT ( 'userenv' , 'NLS_CURRENCY' ); sys_context ------------- $ ( 1 row ) select SYS_CONTEXT ( 'userenv' , 'NLS_DATE_FORMAT' ); sys_context --------------- ISO , MDY ( 1 row ) select SYS_CONTEXT ( 'userenv' , 'NLS_DATE_LANGUAGE' ); sys_context ------------- en_US . UTF - 8 ( 1 row ) current_catalog 描述：当前数据库的名称（在标准SQL中称"catalog"）。 返回值类型：name 示例： 1
+2
+3
+4
+5 testdb =# SELECT current_catalog ; current_database ------------------ testdb ( 1 row ) current_database() 描述：当前数据库的名称。 返回值类型：name 示例： 1
+2
+3
+4
+5 testdb =# SELECT current_database (); current_database ------------------ testdb ( 1 row ) current_query() 描述：由客户端提交的当前执行语句（可能包含多个声明）。 返回值类型：text 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT current_query (); current_query ------------------------- SELECT current_query (); ( 1 row ) current_schema[()] 描述：当前模式的名称。 返回值类型：name 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT current_schema (); current_schema ---------------- public ( 1 row ) 备注：current_schema返回在搜索路径中第一个顺位有效的模式名。（如果搜索路径为空则返回NULL，没有有效的模式名也返回NULL）。如果创建表或者其他命名对象时没有声明目标模式，则将使用这些对象的模式。 current_schemas( Boolean ) 描述：搜索路径中的模式名称。 返回值类型：name[] 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT current_schemas ( true ); current_schemas --------------------- { pg_catalog , public } ( 1 row ) 备注： current_schemas( Boolean )返回搜索路径中所有模式名称的数组。布尔选项决定像pg_catalog这样隐含包含的系统模式是否包含在返回的搜索路径中。 搜索路径可以通过运行时设置更改。命令是： 1 SET search_path TO schema [, schema , ...] database() 描述：返回当前的schema的名称。 参数：无 返回值类型：name 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT database (); database ---------- public ( 1 row ) 此函数仅当sql_compatibility = 'B'，设置参数 b_format_version = '5.7'和参数b_format_dev_version = 's1'时生效。 current_user 描述：当前执行环境下的用户名。 返回值类型：name 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT current_user ; current_user -------------- omm ( 1 row ) 备注：current_user是用于权限检查的用户标识。通常，他表示会话用户，但是可以通过 SET ROLE 改变他。在函数执行的过程中随着属性SECURITY DEFINER的改变，其值也会改变。 definer_current_user 描述：当前执行环境下的用户名。 返回值类型：name 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT definer_current_user (); definer_current_user ---------------------- omm ( 1 row ) pg_current_sessionid() 描述：当前执行环境下的会话ID。 返回值类型：text 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT pg_current_sessionid (); pg_current_sessionid ---------------------------- 1579228402 . 140190434944768 ( 1 row ) 备注：pg_current_sessionid()是用于获取当前执行环境下的会话ID。其组成结构为：时间戳.会话ID，当线程池模式开启（enable_thread_pool=on）时，会话ID为SessionID；而线程池模式关闭时，会话ID为ThreadID。 pg_current_sessid 描述：当前执行环境下的会话ID。 返回值类型：text 示例： gaussdb=# select pg_current_sessid();
+pg_current_sessid
+-------------------
+140308875015936
+(1 row) 备注：在线程池模式下获得当前会话的会话ID，非线程池模式下获得当前会话对应的后台线程ID。 pg_current_userid 描述：当前用户ID。 返回值类型：text gaussdb=# SELECT pg_current_userid();
+pg_current_userid
+-------------------
+10
+(1 row) working_version_num() 描述：版本序号信息。返回一个系统兼容性有关的版本序号。 返回值类型：int 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT working_version_num (); working_version_num --------------------- 92231 ( 1 row ) tablespace_oid_name(oid) 描述: 根据表空间oid，查找表空间名称。 返回值类型：text 示例： 1
+2
+3
+4
+5 gaussdb =# select tablespace_oid_name ( 1663 ); tablespace_oid_name --------------------- pg_default ( 1 row ) inet_client_addr() 描述：连接的远端地址。inet_client_addr返回当前客户端的IP地址。 此函数只有在远程连接模式下有效。 返回值类型：inet 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT inet_client_addr (); inet_client_addr ------------------ 10 . 10 . 0 . 50 ( 1 row ) inet_client_port() 描述：连接的远端端口。inet_client_port返回当前客户端的端口号。 此函数只有在远程连接模式下有效。 返回值类型：int 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT inet_client_port (); inet_client_port ------------------ 33143 ( 1 row ) inet_server_addr() 描述：连接的本地地址。inet_server_addr返回服务器接收当前连接用的IP地址。 此函数只有在远程连接模式下有效。 返回值类型：inet 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT inet_server_addr (); inet_server_addr ------------------ 10 . 10 . 0 . 13 ( 1 row ) inet_server_port() 描述：连接的本地端口。inet_server_port返回接收当前连接的端口号。如果是通过Unix-domain socket连接的，则所有这些函数都返回NULL。 此函数只有在远程连接模式下有效。 返回值类型：int 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT inet_server_port (); inet_server_port ------------------ 8000 ( 1 row ) pg_backend_pid() 描述：当前会话连接的服务线程的线程ID。 返回值类型：int 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT pg_backend_pid (); pg_backend_pid ----------------- 140229352617744 ( 1 row ) pg_conf_load_time() 描述：配置加载时间。pg_conf_load_time返回最后加载服务器配置文件的时间戳。 返回值类型：timestamp with time zone 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT pg_conf_load_time (); pg_conf_load_time ------------------------------ 2017 - 09 - 01 16 : 05 : 23 . 89868 + 08 ( 1 row ) pg_my_temp_schema() 描述：会话的临时模式的OID，不存在则为0。 返回值类型：oid 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT pg_my_temp_schema (); pg_my_temp_schema ------------------- 0 ( 1 row ) 备注：pg_my_temp_schema返回当前会话中临时模式的OID，如果不存在（没有创建临时表）的话则返回0。如果给定的OID是其它会话中临时模式的OID，pg_is_other_temp_schema则返回true。 pg_is_other_temp_schema(oid) 描述：是否为另一个会话的临时模式。 返回值类型： Boolean 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT pg_is_other_temp_schema ( 25356 ); pg_is_other_temp_schema ------------------------- f ( 1 row ) pg_listening_channels() 描述：会话正在侦听的信道名称。 返回值类型：setof text 示例： 1
+2
+3
+4 gaussdb =# SELECT pg_listening_channels (); pg_listening_channels ----------------------- ( 0 rows ) 备注：pg_listening_channels返回当前会话正在侦听的一组信道名称。 pg_postmaster_start_time() 描述：服务器启动时间。pg_postmaster_start_time返回服务器启动时的timestamp with time zone。 返回值类型：timestamp with time zone 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT pg_postmaster_start_time (); pg_postmaster_start_time ------------------------------ 2017 - 08 - 30 16 : 02 : 54 . 99854 + 08 ( 1 row ) pg_get_ruledef(rule_oid) 描述：获取规则的CREATE RULE命令。 返回值类型：text 示例： gaussdb=# select * from pg_get_ruledef(24828);
+                                pg_get_ruledef
+-------------------------------------------------------------------
+ CREATE RULE t1_ins AS ON INSERT TO t1 DO INSTEAD INSERT INTO t2 (id) VALUES (new.id);
+(1 row) sessionid2pid() 描述: 从sessionid中得到pid信息（例如，gs_session_stat中sessid列）。 返回值类型: int8 示例： 1
+2
+3
+4
+5
+6 gaussdb =# select sessionid2pid ( sessid :: cstring ) from gs_session_stat limit 2 ; sessionid2pid ----------------- 139973107902208 139973107902208 ( 2 rows ) session_context( 'namespace' , 'parameter') 描述：获取并返回指定namespace下参数parameter的值。 返回值类型：VARCHAR 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT session_context ( 'USERENV' , 'CURRENT_SCHEMA' ); session_context ------------------ public ( 1 row ) 备注：当前支持的parameter：current_user, current_schema, client_info, ip_address, sessionid, sid. pg_trigger_depth() 描述：触发器的嵌套层次。 返回值类型：int 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT pg_trigger_depth (); pg_trigger_depth ------------------ 0 ( 1 row ) session_user 描述：会话用户名。 返回值类型：name 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT session_user ; session_user -------------- omm ( 1 row ) 备注：session_user通常是连接当前数据库的初始用户，不过系统管理员可以用 SET SESSION AUTHORIZATION 修改这个设置。 user 描述：等价于current_user。 返回值类型：name 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT user ; current_user -------------- omm ( 1 row ) getpgusername() 描述：获取数据库用户名。 返回值类型：name 示例： 1
+2
+3
+4
+5 gaussdb =# select getpgusername (); getpgusername --------------- GaussDB_userna ( 1 row ) getdatabaseencoding() 描述：获取数据库编码方式。 返回值类型：name 示例： 1
+2
+3
+4
+5 gaussdb =# select getdatabaseencoding (); getdatabaseencoding --------------------- SQL_ASCII ( 1 row ) version() 描述：版本信息。version返回一个描述服务器版本信息的字符串。 返回值类型：text 示例： gaussdb=# select version();
+version
+-------------------------------------------------------------------------------------------------------------------------------------------------------------
+gaussdb (GaussDB Kernel XXX.X.XXX build fab4f5ea) compiled at 2021-10-24 11:58:22 commit 3086 last mr 6592 release
+(1 row) opengauss_version() 描述：openGauss版本信息。 返回值类型：text 使用示例如下，查询结果中的 x.x.x 请已实际输出为准： 1
+2
+3
+4
+5 gaussdb =# select opengauss_version (); opengauss_version ------------------- x . x . x ( 1 row ) gs_deployment() 描述：当前系统的部署形态信息。 返回值类型：text 示例： 1
+2
+3
+4
+5 gaussdb =# select gs_deployment (); gs_deployment --------------------- BusinessCentralized ( 1 row ) get_hostname() 描述：返回当前节点的hostname。 返回值类型：text 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT get_hostname (); get_hostname -------------- linux - user ( 1 row ) get_nodename() 描述：返回当前节点的名字。 返回值类型：text 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT get_nodename (); get_nodename -------------- datanode1 ( 1 row ) get_nodeinfo(text) 描述：根据检索的属性返回对应的节点信息的值，可检索属性目前包括：node_name、node_type 返回值类型：text 示例： 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10 gaussdb =# SELECT get_nodeinfo ( 'node_type' ); get_nodeinfo -------------- CEN_DN ( 1 row ) gaussdb =# SELECT get_nodeinfo ( 'node_name' ); get_nodeinfo -------------- datanode1 ( 1 row ) get_schema_oid(cstring) 描述：返回查询schema的oid。 返回值类型：oid 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT get_schema_oid ( 'public' ); get_schema_oid ---------------- 2200 ( 1 row ) get_client_info() 描述：返回客户端信息。 返回值类型：record 访问权限查询函数 DDL类权限ALTER、DROP、COMMENT、INDEX、VACUUM属于所有者固有的权限，隐式拥有。 以下访问权限查询函数仅表示用户是否具有某对象上的某种对象权限，即返回记录在系统表acl字段中的对象权限拥有情况。 has_any_column_privilege(user, table, privilege) 描述：指定用户是否有访问表任何列的权限。 表1 参数类型说明 参数名 合法入参类型 user name, oid table text, oid privilege text 返回类型： Boolean has_any_column_privilege(table, privilege) 描述：当前用户是否有访问表任何列的权限，合法参数类型见 表1 。 返回类型： Boolean 备注：has_any_column_privilege检查用户是否以特定方式访问表的任何列。其参数可能与has_table_privilege类似，除了访问权限类型必须是SELECT、INSERT、UPDATE、COMMENT或REFERENCES的一些组合。 拥有表的表级别权限则隐含的拥有该表每列的列级权限，因此如果与has_table_privilege参数相同，has_any_column_privilege总是返回true。但是如果授予至少一列的列级权限也返回成功。 has_column_privilege(user, table, column, privilege) 描述：指定用户是否有访问列的权限。 表2 参数类型说明 参数名 合法入参类型 user name, oid table text, oid column text, smallint privilege text 返回类型： Boolean has_column_privilege(table, column, privilege) 描述：当前用户是否有访问列的权限，合法参数类型见 表2 。 返回类型： Boolean 备注：has_column_privilege检查用户是否以特定方式访问一列。其参数类似于has_table_privilege，可以通过列名或属性号添加列。想要的访问权限类型必须是SELECT、INSERT、UPDATE、COMMENT或REFERENCES的一些组合。 拥有表的表级别权限则隐含的拥有该表每列的列级权限。 has_cek_privilege(user, cek, privilege) 描述：指定用户是否有访问列加密密钥CEK的权限。参数说明如下。 表3 参数类型说明 参数名 合法入参类型 描述 取值范围 user name，oid 用户 用户名字或id。 cek text，oid 列加密密钥 列加密密钥名称或id。 privilege text 权限 USAGE：允许使用指定列加密密钥。 DROP：允许删除指定列加密密钥。 返回类型：Boolean has_cmk_privilege(user, cmk, privilege) 描述：指定用户是否有访问客户端加密主密钥CMK的权限。参数说明如下。 表4 参数类型说明 参数名 合法入参类型 描述 取值范围 user name，oid 用户 用户名字或id。 cmk text，oid 客户端加密主密钥 客户端加密主密钥名称或id。 privilege text 权限 USAGE：允许使用指定客户端加密主密钥。 DROP：允许删除指定客户端加密主密钥。 返回类型：Boolean has_database_privilege(user, database, privilege) 描述：指定用户是否有访问数据库的权限。参数说明如下。 表5 参数类型说明 参数名 合法入参类型 user name, oid database text, oid privilege text 返回类型： Boolean has_database_privilege(database, privilege) 描述：当前用户是否有访问数据库的权限，合法参数类型请参见 表5 。 返回类型： Boolean 备注：has_database_privilege检查用户是否能以在特定方式访问数据库。其参数类似has_table_privilege。访问权限类型必须是CREATE、CONNECT、TEMPORARY、ALTER、DROP、COMMENT或TEMP（等价于TEMPORARY）的一些组合。 has_directory_privilege(user, directory, privilege) 描述：指定用户是否有访问directory的权限。 表6 参数类型说明 参数名 合法入参类型 user name, oid directory text, oid privilege text 返回类型： Boolean has_directory_privilege(directory, privilege) 描述：当前用户是否有访问directory的权限，合法参数类型请参见 表6 。 返回类型： Boolean has_foreign_data_wrapper_privilege(user, fdw, privilege) 描述：指定用户是否有访问外部数据封装器的权限。 表7 参数类型说明 参数名 合法入参类型 user name, oid fdw text, oid privilege text 返回类型： Boolean has_foreign_data_wrapper_privilege(fdw, privilege) 描述：当前用户是否有访问外部数据封装器的权限。合法参数类型请参见 表7 。 返回类型： Boolean 备注：has_foreign_data_wrapper_privilege检查用户是否能以特定方式访问外部数据封装器。其参数类似has_table_privilege。访问权限类型必须是USAGE。 has_function_privilege(user, function, privilege) 描述：指定用户是否有访问函数的权限。 表8 参数类型说明 参数名 合法入参类型 user name, oid function text, oid privilege text 返回类型： Boolean has_function_privilege(function, privilege) 描述：当前用户是否有访问函数的权限。合法参数类型请参见 表8 。 返回类型： Boolean 备注：has_function_privilege检查一个用户是否能以指定方式访问一个函数。其参数类似has_table_privilege。使用文本字符而不是OID声明一个函数时，允许输入的类型和regprocedure数据类型一样（请参考 对象标识符类型 ）。访问权限类型必须是EXECUTE、ALTER、DROP或COMMENT。 has_language_privilege(user, language, privilege) 描述：指定用户是否有访问语言的权限。 表9 参数类型说明 参数名 合法入参类型 user name, oid language text, oid privilege text 返回类型： Boolean has_language_privilege(language, privilege) 描述：当前用户是否有访问语言的权限。合法参数类型请参见 表9 。 返回类型： Boolean 备注：has_language_privilege检查用户是否能以特定方式访问一个过程语言。其参数类似has_table_privilege。访问权限类型必须是USAGE。 has_nodegroup_privilege(user, nodegroup, privilege) 描述：检查用户是否有数据库节点访问权限。 返回类型：Boolean 表10 参数类型说明 参数名 合法入参类型 user name, oid nodegroup text, oid privilege text has_nodegroup_privilege(nodegroup, privilege) 描述：检查用户是否有数据库节点访问权限。参数与has_table_privilege类似。访问权限类型必须是USAGE、CREATE、COMPUTE、ALTER或DROP。 返回类型：Boolean has_schema_privilege(user, schema, privilege) 描述：指定用户是否有访问模式的权限。 返回类型： Boolean has_schema_privilege(schema, privilege) 描述：当前用户是否有访问模式的权限。 返回类型： Boolean 备注：has_schema_privilege检查用户是否能以特定方式访问一个模式。其参数类似has_table_privilege。访问权限类型必须是CREATE、USAGE、ALTER、DROP或COMMENT的一些组合。 has_server_privilege(user, server, privilege) 描述：指定用户是否有访问外部服务的权限。 返回类型： Boolean has_server_privilege(server, privilege) 描述：当前用户是否有访问外部服务的权限。 返回类型： Boolean 备注：has_server_privilege检查用户是否能以指定方式访问一个外部服务器。其参数类似has_table_privilege。访问权限类型必须是USAGE、ALTER、DROP或COMMENT之一的值。 has_table_privilege(user, table, privilege) 描述：指定用户是否有访问表的权限。 返回类型： Boolean has_table_privilege(table, privilege) 描述：当前用户是否有访问表的权限。 返回类型： Boolean 备注：has_table_privilege检查用户是否以特定方式访问表。用户可以通过名称或OID（pg_authid.oid）来指定，public表明PUBLIC伪角色，或如果缺省该参数，则使用current_user。该表可以通过名称或者OID声明。如果用名称声明，则在必要时可以用模式进行修饰。如果使用文本字符串来声明所希望的权限类型，这个文本字符串必须是SELECT、INSERT、UPDATE、DELETE、TRUNCATE、REFERENCES、TRIGGER、ALTER、DROP、COMMENT、INDEX或VACUUM之一的值。可以给权限类型添加WITH GRANT OPTION，用来测试权限是否拥有授权选项。也可以用逗号分隔列出的多个权限类型，如果拥有任何所列出的权限，则结果便为true。 示例： 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11 gaussdb =# SELECT has_table_privilege ( 'tpcds.web_site' , 'select' ); has_table_privilege --------------------- t ( 1 row ) gaussdb =# SELECT has_table_privilege ( 'omm' , 'tpcds.web_site' , 'select,INSERT WITH GRANT OPTION ' ); has_table_privilege --------------------- t ( 1 row ) has_tablespace_privilege(user, tablespace, privilege) 描述：指定用户是否有访问表空间的权限。 返回类型： Boolean has_tablespace_privilege(tablespace, privilege) 描述：当前用户是否有访问表空间的权限。 返回类型： Boolean 备注：has_tablespace_privilege检查用户是否能以特定方式访问一个表空间。其参数类似has_table_privilege。访问权限类型必须是CREATE、ALTER、DROP或COMMENT之一的值。 pg_has_role(user, role, privilege) 描述：指定用户是否有角色的权限。 返回类型： Boolean pg_has_role(role, privilege) 描述：当前用户是否有角色的权限。 返回类型： Boolean 备注：pg_has_role检查用户是否能以特定方式访问一个角色。其参数类似has_table_privilege，除了public不能用做用户名。访问权限类型必须是MEMBER或USAGE的一些组合。 MEMBER表示的是角色中的直接或间接成员关系（也就是SET ROLE的权限），而USAGE表示无需通过SET ROLE也直接拥有角色的使用权限。 has_any_privilege(user, privilege) 描述：指定用户是否有某项ANY权限，若同时查询多个权限，只要具有其中一个则返回true。 返回类型： Boolean 表11 参数类型说明 参数名 合法入参类型 描述 取值范围 user name 用户 已存在的用户名。 privilege text ANY权限 可选取值： CREATE ANY TABLE [WITH ADMIN OPTION] ALTER ANY TABLE [WITH ADMIN OPTION] DROP ANY TABLE [WITH ADMIN OPTION] SELECT ANY TABLE [WITH ADMIN OPTION] INSERT ANY TABLE [WITH ADMIN OPTION] UPDATE ANY TABLE [WITH ADMIN OPTION] DELETE ANY TABLE [WITH ADMIN OPTION] CREATE ANY SEQUENCE [WITH ADMIN OPTION] CREATE ANY INDEX [WITH ADMIN OPTION] CREATE ANY FUNCTION [WITH ADMIN OPTION] EXECUTE ANY FUNCTION [WITH ADMIN OPTION] CREATE ANY PACKAGE [WITH ADMIN OPTION] EXECUTE ANY PACKAGE [WITH ADMIN OPTION] CREATE ANY TYPE [WITH ADMIN OPTION] 模式可见性查询函数 每个函数执行检查数据库对象类型的可见性。对于函数和操作符，如果在前面的搜索路径中没有相同的对象名称和参数的数据类型，则此对象是可见的。对于操作符类，则要同时考虑名称和相关索引的访问方法。 所有这些函数都需要使用OID来标识需要检查的对象。如果用户想通过名称测试对象，则使用OID别名类型（regclass、regtype、regprocedure、regoperator、regconfig或regdictionary）将会很方便。 比如，如果一个表所在的模式在搜索路径中，并且在前面的搜索路径中没有同名的表，则这个表是可见的。它等效于表可以不带明确模式修饰进行引用。比如，要列出所有可见表的名称： 1 gaussdb =# SELECT relname FROM pg_class WHERE pg_table_is_visible ( oid ); pg_collation_is_visible(collation_oid) 描述：该排序是否在搜索路径中可见。 返回类型： Boolean pg_conversion_is_visible(conversion_oid) 描述：该转换是否在搜索路径中可见。 返回类型： Boolean pg_function_is_visible(function_oid) 描述：该函数是否在搜索路径中可见。 返回类型： Boolean pg_opclass_is_visible(opclass_oid) 描述：该操作符类是否在搜索路径中可见。 返回类型： Boolean pg_operator_is_visible(operator_oid) 描述：该操作符是否在搜索路径中可见。 返回类型： Boolean pg_opfamily_is_visible(opclass_oid) 描述：该操作符族是否在搜索路径中可见。 返回类型： Boolean pg_table_is_visible(table_oid) 描述：该表是否在搜索路径中可见。 返回类型： Boolean pg_ts_config_is_visible(config_oid) 描述：该文本检索配置是否在搜索路径中可见。 返回类型： Boolean pg_ts_dict_is_visible(dict_oid) 描述：该文本检索词典是否在搜索路径中可见。 返回类型： Boolean pg_ts_parser_is_visible(parser_oid) 描述：该文本搜索解析是否在搜索路径中可见。 返回类型： Boolean pg_ts_template_is_visible(template_oid) 描述：该文本检索模板是否在搜索路径中可见。 返回类型： Boolean pg_type_is_visible(type_oid) 描述：该类型（或域）是否在搜索路径中可见。 返回类型： Boolean 系统表信息函数 format_type(type_oid, typemod) 描述：获取数据类型的SQL名称 返回类型：text 备注：format_type通过某个数据类型的OID以及可能的修饰词，返回其SQL名称。如果不知道具体的修饰词，则在修饰词的位置传入NULL。修饰词一般只对有长度限制的数据类型有意义。format_type所返回的SQL名称中包含数据类型的长度值，其大小是：实际存储长度len - sizeof(int32)，单位字节。原因是数据存储时需要32位的空间来存储用户对数据类型的自定义长度信息，即实际存储长度要比用户定义长度多4个字节。在下例中，format_type返回的SQL名称为“character varying(6)”，6表示varchar类型的长度值是6字节，因此该类型的实际存储长度为10字节。 1
+2
+3
+4
+5 gaussdb =# SELECT format_type (( SELECT oid FROM pg_type WHERE typname = 'varchar' ), 10 ); format_type ---------------------- character varying ( 6 ) ( 1 row ) getdistributekey(table_name) 描述：获取一个hash表的分布列。单机环境下不支持分布，该函数返回为空。 pg_check_authid(role_oid) 描述：检查是否存在给定oid的角色名 返回类型：bool 示例： gaussdb=# select pg_check_authid(1);
+pg_check_authid
+-----------------
+f
+(1 row) pg_describe_object(catalog_id, object_id, object_sub_id) 描述：获取数据库对象的描述 返回类型：text 备注：pg_describe_object返回由目录OID，对象OID和一个（或许0个）子对象ID指定的数据库对象的描述。这有助于确认存储在pg_depend系统表中对象的身份。 pg_get_constraintdef(constraint_oid) 描述：获取约束的定义 返回类型：text pg_get_constraintdef(constraint_oid, pretty_bool) 描述：获取约束的定义 返回类型：text 备注：pg_get_constraintdef和pg_get_indexdef分别从约束或索引上使用创建命令进行重构。 pg_get_expr(pg_node_tree, relation_oid) 描述：反编译表达式的内部形式，假设其中的任何Vars都引用第二个参数指定的关系。 返回类型：text pg_get_expr(pg_node_tree, relation_oid, pretty_bool) 描述：反编译表达式的内部形式，假设其中的任何Vars都引用第二个参数指定的关系。 返回类型：text 备注：pg_get_expr反编译一个独立表达式的内部形式，比如一个字段的缺省值。在检查系统表的内容的时候很有用。如果表达式可能包含关键字，则指定他们引用相关的OID作为第二个参数；如果没有关键字，零就足够了。 pg_get_functiondef(func_oid) 描述：获取函数的定义 返回类型：text 示例： gaussdb=# select * from pg_get_functiondef(598);
+ headerlines |                     definition                     
+-------------+----------------------------------------------------
+           4 | CREATE OR REPLACE FUNCTION pg_catalog.abbrev(inet)+
+             |  RETURNS text                                     +
+             |  LANGUAGE internal                                +
+             |  IMMUTABLE STRICT NOT FENCED NOT SHIPPABLE        +
+             | AS $function$inet_abbrev$function$                +
+             | 
+(1 row) pg_get_function_arguments(func_oid) 描述：获取函数定义的参数列表（带默认值） 返回类型：text 备注：pg_get_function_arguments返回一个函数的参数列表，需要在CREATE FUNCTION中使用这种格式。 pg_get_function_identity_arguments(func_oid) 描述：获取参数列表来确定一个函数 (不带默认值) 返回类型：text 备注：pg_get_function_identity_arguments返回需要的参数列表用来标识函数，这种形式需要在ALTER FUNCTION中使用，并且这种形式省略了默认值。 pg_get_function_result(func_oid) 描述：获取函数的RETURNS子句 返回类型：text 备注：pg_get_function_result为函数返回适当的RETURNS子句。 pg_get_indexdef(index_oid) 描述：获取索引的CREATE INDEX命令 返回类型：text 示例： gaussdb=# select * from pg_get_indexdef(16416);
+                             pg_get_indexdef                             
+-------------------------------------------------------------------------
+ CREATE INDEX test3_b_idx ON test3 USING btree (b) TABLESPACE pg_default
+(1 row) pg_get_indexdef(index_oid, dump_schema_only) 描述：获取索引的CREATE INDEX命令，仅用于dump场景。对于包含local索引的间隔分区表，当dump_schema_only为true时，返回的创建索引语句中不包含自动创建的分区的local索引信息；当dump_schema_only为false时，返回的创建索引语句中包含自动创建的分区的local索引信息。对于非间隔分区表或者不包含local索引的间隔分区分区表，dump_schema_only参数取值不影响函数返回结果。 返回类型：text 示例： gaussdb=# CREATE TABLE sales
+gaussdb-# (prod_id NUMBER(6),
+gaussdb(#  cust_id NUMBER,
+gaussdb(#  time_id DATE,
+gaussdb(#  channel_id CHAR(1),
+gaussdb(#  promo_id NUMBER(6),
+gaussdb(#  quantity_sold NUMBER(3),
+gaussdb(#  amount_sold NUMBER(10,2)
+gaussdb(# )
+PARTITION BY RANGE( time_id) INTERVAL('1 day')
+gaussdb-# (
+gaussdb(#  partition p1 VALUES LESS THAN ('2019-02-01 00:00:00'),
+gaussdb(#  partition p2 VALUES LESS THAN ('2019-02-02 00:00:00')
+gaussdb(# );
+CREATE TABLE gaussdb=# create index index_sales on sales(prod_id) local (PARTITION idx_p1 ,PARTITION idx_p2);
+CREATE INDEX gaussdb=# -- 插入数据没有匹配的分区，新创建一个分区，并将数据插入该分区 gaussdb=# INSERT INTO sales VALUES(1, 12, '2019-02-05 00:00:00', 'a', 1, 1, 1);
+INSERT 0 1 gaussdb=# select oid from pg_class where relname = 'index_sales';
+  oid
+-------
+ 24632
+(1 row) gaussdb=# select * from pg_get_indexdef(24632, true);
+                                                     pg_get_indexdef
+--------------------------------------------------------------------------------------------------------------------------
+ CREATE INDEX index_sales ON sales USING btree (prod_id) LOCAL(PARTITION idx_p1, PARTITION idx_p2)  TABLESPACE pg_default
+(1 row) gaussdb=# select * from pg_get_indexdef(24632, false);
+                                                                    pg_get_indexdef
+
+------------------------------------------------------------------------------------------------------------------------------------
+--------------------
+ CREATE INDEX index_sales ON sales USING btree (prod_id) LOCAL(PARTITION idx_p1, PARTITION idx_p2, PARTITION sys_p1_prod_id_idx)  TA
+BLESPACE pg_default
+(1 row pg_get_indexdef(index_oid, column_no, pretty_bool) 描述：获取索引的CREATE INDEX命令，或者如果column_no不为零，则只获取一个索引字段的定义。 示例： gaussdb=# select * from pg_get_indexdef(16416, 0, false);
+                             pg_get_indexdef                             
+-------------------------------------------------------------------------
+ CREATE INDEX test3_b_idx ON test3 USING btree (b) TABLESPACE pg_default
+(1 row) gaussdb=# select * from pg_get_indexdef(16416, 1, false);
+ pg_get_indexdef 
+-----------------
+ b
+(1 row) 返回类型：text 备注：pg_get_functiondef为函数返回一个完整的CREATE OR REPLACE FUNCTION语句。 pg_get_keywords() 描述：获取SQL关键字和类别列表 返回类型：setof record 备注：pg_get_keywords返回一组关于描述服务器识别SQL关键字的记录。word列包含关键字。catcode列包含一个分类代码：U表示通用的，C表示列名，T表示类型或函数名，或R表示保留。catdesc列包含了一个可能本地化描述分类的字符串。 pg_get_userbyid(role_oid) 描述：获取给定OID的角色名 返回类型：name 备注：pg_get_userbyid通过角色的OID抽取对应的用户名。 pg_check_authid(role_id) 描述：通过role_id检查用户是否存在 返回类型：text 示例： gaussdb=# select pg_check_authid(20);
+pg_check_authid
+-----------------
+f
+(1 row) pg_get_viewdef(view_name) 描述：为视图获取底层的SELECT命令 返回类型：text pg_get_viewdef(view_name, pretty_bool) 描述：为视图获取底层的SELECT命令，如果pretty_bool为true，行字段可以包含80列。 返回类型：text 备注：pg_get_viewdef重构出定义视图的SELECT查询。这些函数大多数都有两种形式，其中带有pretty_bool参数，且参数为true时，是"适合打印"的结果，这种格式更容易读。另一种是缺省的格式，更有可能被将来的不同版本用同样的方法解释。如果是用于转储，那么尽可能避免使用适合打印的格式。给pretty-print参数传递false生成的结果和没有这个参数的变种生成的结果完全一样。 pg_get_viewdef(view_oid) 描述：为视图获取底层的SELECT命令 返回类型：text pg_get_viewdef(view_oid, pretty_bool) 描述：为视图获取底层的SELECT命令，如果pretty_bool为true，行字段可以包含80列。 返回类型：text pg_get_viewdef(view_oid, wrap_column_int) 描述：为视图获取底层的SELECT命令；行字段被换到指定的列数，打印是隐含的。 返回类型：text pg_get_tabledef(table_oid) 描述：根据table_oid获取表定义 示例： gaussdb=# select * from pg_get_tabledef(16384); pg_get_tabledef                    
+------------------------------------------------------- ---- ---- ---- ---- --- SET search_path = public; +
+ CREATE  TABLE t1 ( +
+         c1 bigint DEFAULT nextval('serial'::regclass) +
+ ) +
+ WITH (orientation=row, compression=no) +
+ TO GROUP group1; + ILM Security Policies:                                                  + POLICY "p4" TABLE                                                    + ROW STORE COMPRESS ADVANCED ROW AFTER 1 DAYS OF NO MODIFICATION    + STATUS: ENABLED  DELETED: NO                                       + (1 row) 返回类型：text pg_get_tabledef(table_name) 描述：根据table_name获取表定义 示例： gaussdb=# select * from pg_get_tabledef('t1'); pg_get_tabledef                    
+------------------------------------------------------- --- --- --- --- --- --- SET search_path = public; +
+ CREATE  TABLE t1 ( +
+         c1 bigint DEFAULT nextval('serial'::regclass) +
+ ) +
+ WITH (orientation=row, compression=no) +
+ TO GROUP group1; + ILM Security Policies:                                                 + POLICY "p4" TABLE                                                   + ROW STORE COMPRESS ADVANCED ROW AFTER 1 DAYS OF NO MODIFICATION   + STATUS: ENABLED  DELETED: NO                                      + (1 row) 返回类型：text 备注：pg_get_tabledef重构出表定义的CREATE语句，包含了表定义本身、索引信息、comments 、ilm策略 信息。对于表对象依赖的group、schema、tablespace、server等信息，需要用户自己去创建，表定义里不会有这些对象的创建语句。 pg_options_to_table(reloptions) 描述：获取存储选项名称/值对的集合 返回类型：setof record 备注：pg_options_to_table当通过pg_class.reloptions或pg_attribute.attoptions时返回存储选项名称/值对（option_name/option_value）的集合。 pg_tablespace_databases(tablespace_oid) 描述：获取在指定的表空间中有对象的数据库OID集合 返回类型：setof oid 备注：pg_tablespace_databases允许检查表空间的状况，返回在该表空间中保存了对象的数据库OID集合。如果这个函数返回数据行，则该表空间就是非空的，因此不能删除。要显示该表空间中的特定对象，用户需要连接pg_tablespace_databases标识的数据库与查询pg_class系统表。 pg_tablespace_location(tablespace_oid) 描述：获取表空间所在的文件系统的路径 返回类型：text pg_typeof(any) 描述：获取任何值的数据类型 返回类型：regtype 备注：pg_typeof返回传递给他的值的数据类型OID。这可能有助于故障排除或动态构造SQL查询。声明此函数返回regtype，这是一个OID别名类型（请参考 对象标识符类型 ）；这意味着它是一个为了比较而显示类型名称的OID。 示例： 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11 gaussdb =# SELECT pg_typeof ( 33 ); pg_typeof ----------- integer ( 1 row ) gaussdb =# SELECT typlen FROM pg_type WHERE oid = pg_typeof ( 33 ); typlen -------- 4 ( 1 row ) collation for (any) 描述：获取参数的排序 返回类型：text 备注：表达式collation for返回传递给他的值的排序。 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT collation for ( description ) FROM pg_description LIMIT 1 ; pg_collation_for ------------------ "default" ( 1 row ) 值可能是引号括起来的并且模式限制的。如果没有为参数表达式排序，则返回一个null值。如果参数不是排序的类型，则抛出一个错误。 pg_extension_update_paths(name) 描述：返回指定扩展的版本更新路径。 返回类型：text(source text), text(path text), text(target text) pg_get_serial_sequence(tablename, colname) 描述：获取对应表名和列名上的序列。 返回类型：text 示例： gaussdb=# select * from pg_get_serial_sequence('t1', 'c1');
+ pg_get_serial_sequence 
+------------------------
+ public.serial
+(1 row) pg_sequence_parameters(sequence_oid) 描述：获取指定sequence的参数，包含起始值，最小值和最大值，递增值等。 返回类型：int16, int16, int16, int16, Boolean 示例： gaussdb=# select * from pg_sequence_parameters(16420);
+ start_value | minimum_value |    maximum_value    | increment | cycle_option 
+-------------+---------------+---------------------+-----------+--------------
+         101 |             1 | 9223372036854775807 |         1 | f
+(1 row) 注释信息函数 col_description(table_oid, column_number) 描述：获取一个表字段的注释 返回类型：text 备注：col_description返回一个表中字段的注释，通过表OID和字段号来声明。 obj_description(object_oid, catalog_name) 描述：获取一个数据库对象的注释 返回类型：text 备注：带有两个参数的obj_description返回一个数据库对象的注释，该对象是通过其OID和其所属的系统表名称声明。比如，obj_description(123456,'pg_class')将返回OID为123456的表的注释。只带一个参数的obj_description只要求对象OID。 obj_description不能用于表字段，因为字段没有自己的OID。 obj_description(object_oid) 描述：获取一个数据库对象的注释 返回类型：text shobj_description(object_oid, catalog_name) 描述：获取一个共享数据库对象的注释 返回类型：text 备注：shobj_description和obj_description差不多，不同之处仅在于前者用于共享对象。一些系统表是通用于 GaussDB 中所有数据库的全局表，因此这些表的注释也是全局存储的。 事务ID和快照 内部事务ID类型（xid）是64位。这些函数使用的数据类型txid_snapshot，存储在特定时刻事务ID可见性的信息。其组件描述在 表12 。 表12 快照组件 名称 描述 xmin 最早的事务ID（txid）仍然活动。所有较早事务将是已经提交可见的，或者是直接回滚。 xmax 作为尚未分配的txid。所有大于或等于此txids的都是尚未开始的快照时间，因此不可见。 xip_list 当前快照中活动的txids。这个列表只包含在xmin和xmax之间活动的txids；有可能活动的txids高于xmax。介于大于等于xmin、小于xmax，并且不在这个列表中的txid，在这个时间快照已经完成的，因此按照提交状态查看他是可见还是回滚。这个列表不包含子事务的txids。 txid_snapshot的文本表示为：xmin:xmax:xip_list。 示例：10:20:10,14,15意思为：xmin=10, xmax=20, xip_list=10, 14, 15。 以下的函数在一个输出形式中提供服务器事务信息。这些函数的主要用途是为了确定在两个快照之间有哪个事务提交。 pgxc_is_committed(transaction_id) 描述：如果普通表提交或忽略给定的XID（gxid）。NULL表示的状态是未知的（运行，准备，冻结等）。 返回类型：bool pgxc_is_committed(transaction_id, bucketid) 描述: 当前版本集中式不支持hashbucket 表，该接口函数调用报错。 txid_current() 描述：获取当前事务ID。 返回类型：bigint gs_txid_oldestxmin() 描述：获取当前最小事务id的值oldesxmin。 返回类型：bigint txid_current_snapshot() 描述：获取当前快照。 返回类型：txid_snapshot txid_snapshot_xip(txid_snapshot) 描述：在快照中获取正在进行的事务ID。 返回类型：setof bigint txid_snapshot_xmax(txid_snapshot) 描述：获取快照的xmax。 返回类型：bigint txid_snapshot_xmin(txid_snapshot) 描述：获取快照的xmin。 返回类型：bigint txid_visible_in_snapshot(bigint, txid_snapshot) 描述：在快照中事务ID是否可见（不使用子事务ID）。 返回类型： Boolean get_local_prepared_xact() 描述：获取当前节点两阶段残留事务信息，包括事务id，两阶段gid名称，prepared的时间，owner的oid，database的oid及当前节点的node_name。 返回类型：xid, text, timestamptz, oid, oid，text get_remote_prepared_xacts() 描述：获取所有远程节点两阶段残留事务信息，包括事务id，两阶段gid名称，prepared的时间，owner的名称，database的名称及node_name。 返回类型：xid, text, timestamptz, name, name，text global_clean_prepared_xacts(text, text) 描述：并发清理两阶段残留事务，仅 GaussDB 分布式场景下gs_clean工具可以调用清理，其他用户调用均返回false。 返回类型： Boolean gs_get_next_xid_csn() 描述：返回全局所有节点上的next_xid和next_csn值。 返回值如下： 表13 gs_get_next_xid_csn返回参数说明 字段名 描述 nodename 节点名称。 next_xid 当前节点下一个事务id号。 next_csn 当前节点下一个csn号。 pg_control_system() 描述：返回系统控制文件状态。 返回类型：SETOF record pg_control_checkpoint() 描述：返回系统检查点状态。 返回类型：SETOF record pv_builtin_functions 描述：查看所有内置系统函数信息。 参数：nan 返回值类型：proname name, pronamespace oid, proowner oid, prolang oid, procost real, prorows real, provariadic oid, protransform regproc, proisagg boolean, proiswindow boolean, prosecdef boolean, proleakproof boolean, proisstrict boolean, proretset boolean, provolatile "char", pronargs smallint, pronargdefaults smallint, prorettype oid, proargtypes oidvector, proallargtypes integer[], proargmodes "char"[], proargnames text[], proargdefaults pg_node_tree, prosrc text, probin text, proconfig text[], proacl aclitem[], prodefaultargpos int2vector, fencedmode boolean, proshippable boolean, propackage boolean, oid oid pv_thread_memory_detail 描述：返回各线程的内存信息。 参数：nan 返回值类型：threadid text, tid bigint, thrdtype text, contextname text, level smallint, parent text, totalsize bigint, freesize bigint, usedsize bigint pg_relation_compression_ratio 描述：查询表压缩率，默认返回1.0。 参数：text 返回值类型：real pg_relation_with_compression 描述：查询表是否压缩。 参数：text 返回值类型：boolean pg_stat_file_recursive 描述：列出路径下所有文件。 参数：location text pg_shared_memory_detail 描述：返回所有已产生的共享内存上下文的使用信息，各列描述请参考 GS_SHARED_MEMORY_DETAIL 。 参数：nan 返回值类型：contextname text, level smallint, parent text, totalsize bigint, freesize bigint, usedsize bigint get_gtm_lite_status 描述：返回GTM上的backupXid和csn号，用来支持问题定位，GTM-FREE模式下不支持使用本系统函数，集中式不支持该函数。 gs_stat_get_wlm_plan_operator_info 描述：从内部哈希表中获取算子计划信息。 参数：oid 返回值类型：datname text, queryid int8, plan_node_id int4, startup_time int8, total_time int8, actual_rows int8, max_peak_memory int4, query_dop int4, parent_node_id int4, left_child_id int4, right_child_id int4, operation text, orientation text, strategy text, options text, condition text, projection text pg_stat_get_partition_tuples_hot_updated 描述：返回给定分区id的分区热更新元组数的统计。 参数：oid 返回值类型：bigint gs_session_memory_detail_tp 描述：返回会话的内存使用情况，参考gs_session_memory_detail。 参数：nan 返回值类型：sessid text, sesstype text, contextname text, level smallint, parent text, totalsize bigint, freesize bigint, usedsize bigint gs_thread_memory_detail 描述：返回各线程的内存信息。 参数：nan 返回值类型：threadid text, tid bigint, thrdtype text, contextname text, level smallint, parent text, totalsize bigint, freesize bigint, usedsize bigint pg_stat_get_wlm_session_iostat_info() 描述：返回会话负载I/O信息。 参数：nan 返回值类型：threadid bigint, maxcurr_iops integer, mincurr_iops integer, maxpeak_iops integer, minpeak_iops integer, iops_limits integer, io_priority integer, curr_io_limits integer adm_hist_snapshot_func() 描述：返回快照执行时间相关信息，访问该函数需要打开enable_wdr_snapshot参数，并且需要snapshot schema， snapshot表和tables_snap_timestamp表的访问权限。 参数：nan 返回值类型：snap_id bigint,  dbid oid,  begin_interval_time timestamp(3),  end_interval_time timestamp(3),  flush_elapsed interval day(5) to second(1),  begin_interval_time_tz timestamp(3) with time zone,  end_interval_time_tz timestamp(3) with time zone gs_get_current_version() 描述：依据当前编译宏返回当前编译模式，返回'P'。 参数：nan 返回值类型：char gs_get_kernel_info() 描述：DN节点上的事务相关的信息。 返回值如下。 表14 gs_get_kernel_info返回参数说明 名称 类型 描述 node_name text 节点名。 module text 模块名。包括： XACT（事务模块）。 STANDBY（备机模块）。 UNDO（undo模块）。 HOTPATH（热补丁模块）。 name text 探查内存态关键数据名字。包括： startup_max_xid（线程启动时最大的xid值）。 recent_local_xmin（本地活跃事务最小xid值）。 recent_global_xmin（全局活跃事务最小xid值）。 standby_xmin（备机活跃事务最小xid值）。 standby_redo_cleanup_xmin（备机redo时cleanup日志最小xid值）。 standby_redo_cleanup_xmin_lsn（备机redo时cleanup日志最小xid的LSN值）。 local_csn_min（本地活跃事务最小CSN值）。 replication_slot_xmin（复制槽的最小xid值）。 replication_slot_catalog_xmin（catalog复制槽最小xid值）。 global_recycle_xid（全局undo回收事务的最小xid值）。 global_frozen_xid（全局冻结事务的最小的xid值）。 recent_xmin（当前会话活跃事务最小xid值）。 next_csn（下一个事务的CSN值）。 hotpatch_additional_info（热补丁预留字段）。 stmt_session_discard_records（内核支持全量SQL因slot满丢弃数据量）。 stmt_shm_flush_discard_records（内核支持全量SQL因ringbuf满丢弃数据量）。 value text 探查内存态关键数据值。 示例： gaussdb=# select * from gs_get_kernel_info();
+  node_name   | module  |             name              |  value  
+--------------+---------+-------------------------------+---------
+ datanode1    | XACT    | startup_max_xid               | 16488
+ datanode1    | XACT    | recent_local_xmin             | 15805
+ datanode1    | XACT    | recent_global_xmin            | 15805
+ datanode1    | STANDBY | standby_xmin                  | 0
+ datanode1    | STANDBY | standby_redo_cleanup_xmin     | 0
+ datanode1    | STANDBY | standby_redo_cleanup_xmin_lsn | 0/0
+ datanode1    | XACT    | local_csn_min                 | 6014225
+ datanode1    | XACT    | replication_slot_xmin         | 0
+ datanode1    | XACT    | replication_slot_catalog_xmin | 0
+ datanode1    | UNDO    | global_recycle_xid            | 15805
+ datanode1    | XACT    | global_frozen_xid             | 0
+ datanode1    | XACT    | recent_xmin                   | 15805
+ datanode1    | XACT    | next_csn                      | 6014226
+ datanode1    | HOTPATH | hotpatch_additional_info      | 
+ datanode1    | FULL_SQL| stmt_session_discard_records  | 0
+ datanode1    | FULL_SQL| stmt_shm_flush_discard_records| 0
+(16 row) 父主题： 函数和操作符 版权所有 © 华为技术有限公司

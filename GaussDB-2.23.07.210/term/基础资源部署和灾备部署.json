@@ -1,0 +1,31 @@
+{
+  "topic": "基础资源部署和灾备部署",
+  "term_count": 5,
+  "terms": [
+    {
+      "term": "业务面跨云容灾",
+      "content": "业务面跨云容灾 业务面跨云容灾 云与云之间Region区域是相互隔离，无法直接进行通信的，通过打通两朵云之间Pod区网络实现业务面的跨云通信，网络打通操作详见 创建专线 。在主端Region容灾搭建页面填写跨云灾备端实例的容灾IP和root账号密码，实现Pod区跨云通信，完成跨云容灾搭建。 实现原理如下：",
+      "source_file": "6009_file_6009.txt"
+    },
+    {
+      "term": "业务面跨Region部署流程",
+      "content": "业务面跨Region部署流程 业务面跨Region部署流程 搭建 GaussDB 跨Region容灾服务，至少需要搭建2个Region的 GaussDB 服务，安装云底座时需要选择容灾部署模式，即ManageOne等Global级服务采用跨Region部署模式。每个Region的部署流程如下图所示，先部署ManageOne和云底座，其次部署高阶依赖（Console Framwork、RegionLB、OBS、CSL等），(如果当前实例类型为BMS，请扩容 GaussDB 的BMS计算节点和BMS集中式网关)，最后部署DBSPlatform和 GaussDB 管理服务。 管理服务部署完成后，请根据 容灾环境配置 主Region和容灾Region之间的网络，至此就可以在主Region和容灾Region创建两个 GaussDB 实例，并搭建容灾关系。",
+      "source_file": "6008_Region.txt"
+    },
+    {
+      "term": "部署主备Region的",
+      "content": "部署主备Region的GaussDB服务 部署主备Region的 GaussDB 服务 参考 《华为云Stack 技术中台与AI数据中台服务软件安装指南》 中的“云数据库 GaussDB 安装指南”章节，分别安装主备Region的 GaussDB 云服务。",
+      "source_file": "6011_RegionGaussDB.txt"
+    },
+    {
+      "term": "灾备部署依赖",
+      "content": "灾备部署依赖 灾备部署依赖 下表展示了 GaussDB 跨Region容灾的依赖服务，云底座管理面Global级服务(如ManageOne等服务)需采用跨Region容灾部署模式。 表1 GaussDB 服务跨Region容灾依赖关系说明 被依赖服务 依赖类型 依赖场景 依赖说明 ManageOne 强依赖 管理面 通过ManageOne对外提供运营和运维能力 VPC 强依赖 数据面 提供云内网络自动化能力 DBS Platform 强依赖 管理面 提供数据库服务公共能力 ReverseLB/RegionLB/PODLB 强依赖 管理面 ManageOne跳转登录运维portal使用，管理区nginx作为RegionLB的后端 ConsoleFramework 强依赖 管理面 依赖ConsoleFramework注册服务Console 自动化变更平台 强依赖 管理面 部署升级使用 BMS 强依赖 数据面 GaussDB 采用BMS形态时，依赖BMS服务 云专线增强型 强依赖 数据面 在 GaussDB 业务面跨Region容灾场景下，用户打通主Region实例面到灾备Region数据面之间的网络",
+      "source_file": "6007_file_6007.txt"
+    },
+    {
+      "term": "基础资源部署",
+      "content": "基础资源部署 基础资源部署 参考 《华为云Stack 软件安装指南》 和 《华为云Stack 技术中台与AI数据中台服务软件安装指南》 ，安装依赖的服务。",
+      "source_file": "6010_file_6010.txt"
+    }
+  ]
+}

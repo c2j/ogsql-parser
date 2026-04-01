@@ -1,0 +1,1 @@
+GLOBAL_CLEAR_BAD_BLOCK_INFO GLOBAL_CLEAR_BAD_BLOCK_INFO GLOBAL_CLEAR_BAD_BLOCK_INFO视图，在CN上执行，用于清理所有实例中已修复的损坏页面的信息，在DN上执行结果为空。默认只有初始用户、具有sysadmin属性的用户、在运维模式下具有运维管理员属性的用户以及监控用户可以查看，其余用户需要赋权后才可以使用。 表1 GLOBAL_BAD_BLOCK_INFO字段 名称 类型 描述 node_name text 当前清理修复页面的节点信息。 result boolean 当前实例清理修复页面执行的结果。 父主题： 其他系统视图 版权所有 © 华为技术有限公司

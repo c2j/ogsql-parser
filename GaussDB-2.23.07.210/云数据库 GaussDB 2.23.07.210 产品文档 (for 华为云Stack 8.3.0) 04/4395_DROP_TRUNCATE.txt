@@ -1,0 +1,374 @@
+闪回DROP/TRUNCATE 闪回DROP/TRUNCATE 背景信息 闪回DROP：可以恢复意外删除的表，从回收站（recyclebin）中恢复被删除的表及其附属结构如索引、表约束等。闪回drop是基于回收站机制，通过还原回收站中记录的表的物理文件，实现已drop表的恢复。 闪回TRUNCATE：可以恢复误操作或意外被进行truncate的表，从回收站中恢复被truncate的表及索引的物理数据。闪回truncate基于回收站机制，通过还原回收站中记录的表的物理文件，实现已truncate表的恢复。 前提条件 开启enable_recyclebin参数（GUC参数在postgresql.conf文件修改），启用回收站，请联系管理员修改。 recyclebin_retention_time参数用于设置回收站对象保留时间，超过该时间的回收站对象将被自动清理，请联系管理员修改。 相关语法 删除表 DROP TABLE table_name [PURGE] 清理回收站对象 PURGE { TABLE { table_name }
+| INDEX { index_name }
+| RECYCLEBIN
+} 闪回被删除的表 TIMECAPSULE TABLE { table_name } TO BEFORE DROP [RENAME TO new_tablename] 截断表 TRUNCATE TABLE { table_name } [ PURGE ] 闪回截断的表 TIMECAPSULE TABLE { table_name } TO BEFORE TRUNCATE 参数说明 DROP/TRUNCATE TABLE table_name PURGE 默认将表数据放入回收站中，PURGE直接清理。 PURGE RECYCLEBIN 表示清理回收站对象。 TO BEFORE DROP 使用这个子句检索回收站中已删除的表及其子对象。 可以指定原始用户指定的表的名称，或对象删除时数据库分配的系统生成名称。 回收站中系统生成的对象名称是唯一的。因此，如果指定系统生成名称，那么数据库检索指定的对象。使用“select  * from gs_recyclebin;”语句查看回收站中的内容。 在指定了用户指定的名称且回收站中包含多个该名称的对象的情况下，数据库检索回收站中最近移动的对象，如果想要检索更早版本的表，可以执行如下操作： 指定你想要检索的表的系统生成名称。 执行TIMECAPSULE TABLE ... TO BEFORE  DROP语句，直到你要检索的表。 恢复DROP表时，只恢复基表名，其他子对象名均保持回收站对象名。用户可根据需要，执行DDL命令手工调整子对象名。 回收站对象不支持DML、DCL、DDL等写操作，不支持DQL查询操作（后续支持）。 闪回点和当前点之间，执行过修改表结构或影响物理结构的语句，闪回失败。执行过DDL的表进行闪回操作报错：“ERROR：The table definition of %s has been changed. ”。涉及namespace、表名改变等操作的DDL执行闪回操作报错： ERROR: recycle object %s desired does not exis； 开启enable_recyclebin参数，启用回收站 时， 如果表 上 有truncate trigger、truncate表时，无法触发trigger。 RENAME  TO 为从回收站中检索的表指定一个新名称。 TO BEFORE TRUNCATE 闪回到TRUNCATE之前。 语法示例 -- PURGE TABLE table_name; -- 
+--查看回收站
+gaussdb=# select * from gs_recyclebin;
+ rcybaseid | rcydbid | rcyrelid | rcyname | rcyoriginname | rcyoperation | rcytype | rcyrecyclecsn | rcyrecycletime | rcycreatecsn | rcychangecsn | rcynamespace | rcyowner | rcytablespace
+ | rcyrelfilenode | rcycanrestore | rcycanpurge | rcyfrozenxid | rcyfrozenxid64 
+-----------+---------+----------+---------+---------------+--------------+---------+---------------+----------------+--------------+--------------+--------------+----------+--------------
+-+----------------+---------------+-------------+--------------+----------------
+(0 rows)
+
+gaussdb=# drop table if EXISTS flashtest;
+NOTICE:  table "flashtest" does not exist, skipping
+DROP TABLE
+gaussdb=# select * from gs_recyclebin;
+ rcybaseid | rcydbid | rcyrelid | rcyname | rcyoriginname | rcyoperation | rcytype | rcyrecyclecsn | rcyrecycletime | rcycreatecsn | rcychangecsn | rcynamespace | rcyowner | rcytablespace
+ | rcyrelfilenode | rcycanrestore | rcycanpurge | rcyfrozenxid | rcyfrozenxid64 
+-----------+---------+----------+---------+---------------+--------------+---------+---------------+----------------+--------------+--------------+--------------+----------+--------------
+-+----------------+---------------+-------------+--------------+----------------
+(0 rows)
+--创建表flashtest
+gaussdb=# create table if not EXISTS flashtest(id int, name text) with (storage_type = ustore);
+NOTICE:  The 'DISTRIBUTE BY' clause is not specified. Using 'id' as the distribution column by default.
+HINT:  Please use 'DISTRIBUTE BY' clause to specify suitable data distribution column.
+CREATE TABLE
+--插入数据
+gaussdb=# insert into flashtest values(1, 'A');
+INSERT 0 1
+gaussdb=# select * from flashtest;
+ id | name 
+----+------
+  1 | A
+(1 row)
+--DROP表flashtest
+gaussdb=# drop table if EXISTS flashtest;
+DROP TABLE
+--查看回收站，删除的表被放入回收站
+gaussdb=# select * from gs_recyclebin;
+ rcybaseid | rcydbid | rcyrelid |           rcyname            |    rcyoriginname     | rcyoperation | rcytype | rcyrecyclecsn |        rcyrecycletime         | rcycreatecsn | rcychangecs
+n | rcynamespace | rcyowner | rcytablespace | rcyrelfilenode | rcycanrestore | rcycanpurge | rcyfrozenxid | rcyfrozenxid64 
+-----------+---------+----------+------------------------------+----------------------+--------------+---------+---------------+-------------------------------+--------------+------------
+--+--------------+----------+---------------+----------------+---------------+-------------+--------------+----------------
+     18591 |   12737 |    18585 | BIN$31C14EB4899$9737$0==$0   | flashtest            | d            |       0 |      79352606 | 2023-09-13 20:01:28.640664+08 |     79352595 |     7935259
+5 |         2200 |       10 |             0 |          18585 | t             | t           | 225492       |         225492
+     18591 |   12737 |    18590 | BIN$31C14EB489E$12D1B978==$0 | pg_toast_18585_index | d            |       3 |      79352606 | 2023-09-13 20:01:28.64093+08  |     79352595 |     7935259
+5 |           99 |       10 |             0 |          18590 | f             | f           | 0            |              0
+     18591 |   12737 |    18588 | BIN$31C14EB489C$12D1BF60==$0 | pg_toast_18585       | d            |       2 |      79352606 | 2023-09-13 20:01:28.641018+08 |            0 |            
+0 |           99 |       10 |             0 |          18588 | f             | f           | 225492       |         225492
+(3 rows)
+--查看表flashtest，表不存在
+gaussdb=# select * from flashtest;
+ERROR:  relation "flashtest" does not exist
+LINE 1: select * from flashtest;
+                      ^
+--PURGE表，将回收站中的表删除
+gaussdb=# PURGE TABLE flashtest;
+PURGE TABLE
+--查看回收站，回收站中的表被删除
+gaussdb=# select * from gs_recyclebin;
+ rcybaseid | rcydbid | rcyrelid | rcyname | rcyoriginname | rcyoperation | rcytype | rcyrecyclecsn | rcyrecycletime | rcycreatecsn | rcychangecsn | rcynamespace | rcyowner | rcytablespace
+ | rcyrelfilenode | rcycanrestore | rcycanpurge | rcyfrozenxid | rcyfrozenxid64 
+-----------+---------+----------+---------+---------------+--------------+---------+---------------+----------------+--------------+--------------+--------------+----------+--------------
+-+----------------+---------------+-------------+--------------+----------------
+(0 rows)
+
+
+-- PURGE INDEX index_name; --
+gaussdb=# drop table if EXISTS flashtest;
+NOTICE:  table "flashtest" does not exist, skipping
+DROP TABLE
+--创建表flashtest
+gaussdb=# create table if not EXISTS flashtest(id int, name text) with (storage_type = ustore);
+NOTICE:  The 'DISTRIBUTE BY' clause is not specified. Using 'id' as the distribution column by default.
+HINT:  Please use 'DISTRIBUTE BY' clause to specify suitable data distribution column.
+CREATE TABLE
+--为表flashtest创建索引flashtest_index
+gaussdb=# create index flashtest_index on flashtest(id);
+CREATE INDEX
+--查看flashtest表的基本信息
+gaussdb=# \d+ flashtest
+                       Table "public.flashtest"
+ Column |  Type   | Modifiers | Storage  | Stats target | Description 
+--------+---------+-----------+----------+--------------+-------------
+ id     | integer |           | plain    |              | 
+ name   | text    |           | extended |              | 
+Indexes:
+    "flashtest_index" ubtree (id) WITH (storage_type=USTORE) TABLESPACE pg_default
+Has OIDs: no
+Distribute By: HASH(id)
+Location Nodes: ALL DATANODES
+Options: orientation=row, storage_type=ustore, compression=no, toast.storage_type=ustore
+
+--DROP表
+gaussdb=# drop table if EXISTS flashtest;
+DROP TABLE
+--查看回收站
+gaussdb=# select * from gs_recyclebin;
+ rcybaseid | rcydbid | rcyrelid |           rcyname            |    rcyoriginname     | rcyoperation | rcytype | rcyrecyclecsn |        rcyrecycletime         | rcycreatecsn | rcychangecs
+n | rcynamespace | rcyowner | rcytablespace | rcyrelfilenode | rcycanrestore | rcycanpurge | rcyfrozenxid | rcyfrozenxid64 
+-----------+---------+----------+------------------------------+----------------------+--------------+---------+---------------+-------------------------------+--------------+------------
+--+--------------+----------+---------------+----------------+---------------+-------------+--------------+----------------
+     18648 |   12737 |    18641 | BIN$31C14EB48D1$9A85$0==$0   | flashtest            | d            |       0 |      79354509 | 2023-09-13 20:40:11.360638+08 |     79354506 |     7935450
+8 |         2200 |       10 |             0 |          18641 | t             | t           | 226642       |         226642
+     18648 |   12737 |    18646 | BIN$31C14EB48D6$12E230B8==$0 | pg_toast_18641_index | d            |       3 |      79354509 | 2023-09-13 20:40:11.361034+08 |     79354506 |     7935450
+6 |           99 |       10 |             0 |          18646 | f             | f           | 0            |              0
+     18648 |   12737 |    18644 | BIN$31C14EB48D4$12E236A0==$0 | pg_toast_18641       | d            |       2 |      79354509 | 2023-09-13 20:40:11.36112+08  |            0 |            
+0 |           99 |       10 |             0 |          18644 | f             | f           | 226642       |         226642
+     18648 |   12737 |    18647 | BIN$31C14EB48D7$9A85$0==$0   | flashtest_index      | d            |       1 |      79354509 | 2023-09-13 20:40:11.361246+08 |     79354508 |     7935450
+8 |         2200 |       10 |             0 |          18647 | f             | t           | 0            |              0
+(4 rows)
+
+--PURGE索引flashtest_index
+gaussdb=# PURGE index flashtest_index;
+PURGE INDEX
+--查看回收站，回收站中的索引flashtest_index被删除
+gaussdb=# select * from gs_recyclebin;
+ rcybaseid | rcydbid | rcyrelid |           rcyname            |    rcyoriginname     | rcyoperation | rcytype | rcyrecyclecsn |        rcyrecycletime         | rcycreatecsn | rcychangecs
+n | rcynamespace | rcyowner | rcytablespace | rcyrelfilenode | rcycanrestore | rcycanpurge | rcyfrozenxid | rcyfrozenxid64 
+-----------+---------+----------+------------------------------+----------------------+--------------+---------+---------------+-------------------------------+--------------+------------
+--+--------------+----------+---------------+----------------+---------------+-------------+--------------+----------------
+     18648 |   12737 |    18641 | BIN$31C14EB48D1$9A85$0==$0   | flashtest            | d            |       0 |      79354509 | 2023-09-13 20:40:11.360638+08 |     79354506 |     7935450
+8 |         2200 |       10 |             0 |          18641 | t             | t           | 226642       |         226642
+     18648 |   12737 |    18646 | BIN$31C14EB48D6$12E230B8==$0 | pg_toast_18641_index | d            |       3 |      79354509 | 2023-09-13 20:40:11.361034+08 |     79354506 |     7935450
+6 |           99 |       10 |             0 |          18646 | f             | f           | 0            |              0
+     18648 |   12737 |    18644 | BIN$31C14EB48D4$12E236A0==$0 | pg_toast_18641       | d            |       2 |      79354509 | 2023-09-13 20:40:11.36112+08  |            0 |            
+0 |           99 |       10 |             0 |          18644 | f             | f           | 226642       |         226642
+(3 rows)
+
+-- PURGE RECYCLEBIN --
+--PURGE回收站
+gaussdb=# PURGE RECYCLEBIN;
+PURGE RECYCLEBIN
+--查看回收站，回收站被清空
+gaussdb=# select * from gs_recyclebin;
+ rcybaseid | rcydbid | rcyrelid | rcyname | rcyoriginname | rcyoperation | rcytype | rcyrecyclecsn | rcyrecycletime | rcycreatecsn | rcychangecsn | rcynamespace | rcyowner | rcytablespace
+ | rcyrelfilenode | rcycanrestore | rcycanpurge | rcyfrozenxid | rcyfrozenxid64 
+-----------+---------+----------+---------+---------------+--------------+---------+---------------+----------------+--------------+--------------+--------------+----------+--------------
+-+----------------+---------------+-------------+--------------+----------------
+(0 rows)
+
+-- TIMECAPSULE TABLE { table_name } TO BEFORE DROP [RENAME TO new_tablename] --
+gaussdb=# drop table if EXISTS flashtest;
+NOTICE:  table "flashtest" does not exist, skipping
+DROP TABLE
+--创建表flashtest
+gaussdb=# create table if not EXISTS flashtest(id int, name text) with (storage_type = ustore);
+NOTICE:  The 'DISTRIBUTE BY' clause is not specified. Using 'id' as the distribution column by default.
+HINT:  Please use 'DISTRIBUTE BY' clause to specify suitable data distribution column.
+CREATE TABLE
+--插入数据
+gaussdb=# insert into flashtest values(1, 'A');
+INSERT 0 1
+gaussdb=# select * from flashtest;
+ id | name 
+----+------
+  1 | A
+(1 row)
+
+--DROP表
+gaussdb=# drop table if EXISTS flashtest;
+DROP TABLE
+--查看回收站，表被放入回收站
+gaussdb=# select * from gs_recyclebin;
+ rcybaseid | rcydbid | rcyrelid |           rcyname            |    rcyoriginname     | rcyoperation | rcytype | rcyrecyclecsn |        rcyrecycletime         | rcycreatecsn | rcychangecs
+n | rcynamespace | rcyowner | rcytablespace | rcyrelfilenode | rcycanrestore | rcycanpurge | rcyfrozenxid | rcyfrozenxid64 
+-----------+---------+----------+------------------------------+----------------------+--------------+---------+---------------+-------------------------------+--------------+------------
+--+--------------+----------+---------------+----------------+---------------+-------------+--------------+----------------
+     18658 |   12737 |    18652 | BIN$31C14EB48DC$9B2B$0==$0   | flashtest            | d            |       0 |      79354760 | 2023-09-13 20:47:57.075907+08 |     79354753 |     7935475
+3 |         2200 |       10 |             0 |          18652 | t             | t           | 226824       |         226824
+     18658 |   12737 |    18657 | BIN$31C14EB48E1$12E45E00==$0 | pg_toast_18652_index | d            |       3 |      79354760 | 2023-09-13 20:47:57.076129+08 |     79354753 |     7935475
+3 |           99 |       10 |             0 |          18657 | f             | f           | 0            |              0
+     18658 |   12737 |    18655 | BIN$31C14EB48DF$12E46400==$0 | pg_toast_18652       | d            |       2 |      79354760 | 2023-09-13 20:47:57.07621+08  |            0 |            
+0 |           99 |       10 |             0 |          18655 | f             | f           | 226824       |         226824
+(3 rows)
+
+--查看表，表不存在
+gaussdb=# select * from flashtest;
+ERROR:  relation "flashtest" does not exist
+LINE 1: select * from flashtest;
+                      ^
+--闪回drop表
+gaussdb=# timecapsule table flashtest to before drop;
+TimeCapsule Table
+--查看表，表被恢复到drop之前
+gaussdb=# select * from flashtest;
+ id | name 
+----+------
+  1 | A
+(1 row)
+
+--查看回收站，回收站中的表被删除
+gaussdb=# select * from gs_recyclebin;
+ rcybaseid | rcydbid | rcyrelid | rcyname | rcyoriginname | rcyoperation | rcytype | rcyrecyclecsn | rcyrecycletime | rcycreatecsn | rcychangecsn | rcynamespace | rcyowner | rcytablespace
+ | rcyrelfilenode | rcycanrestore | rcycanpurge | rcyfrozenxid | rcyfrozenxid64 
+-----------+---------+----------+---------+---------------+--------------+---------+---------------+----------------+--------------+--------------+--------------+----------+--------------
+-+----------------+---------------+-------------+--------------+----------------
+(0 rows)
+
+--DROP表
+gaussdb=# drop table if EXISTS flashtest;
+DROP TABLE
+gaussdb=# select * from flashtest;
+ERROR:  relation "flashtest" does not exist
+LINE 1: select * from flashtest;
+                      ^
+--查看回收站，表被放入回收站
+gaussdb=# select * from gs_recyclebin;
+ rcybaseid | rcydbid | rcyrelid |           rcyname            |        rcyoriginname         | rcyoperation | rcytype | rcyrecyclecsn |        rcyrecycletime         | rcycreatecsn | rcy
+changecsn | rcynamespace | rcyowner | rcytablespace | rcyrelfilenode | rcycanrestore | rcycanpurge | rcyfrozenxid | rcyfrozenxid64 
+-----------+---------+----------+------------------------------+------------------------------+--------------+---------+---------------+-------------------------------+--------------+----
+----------+--------------+----------+---------------+----------------+---------------+-------------+--------------+----------------
+     18664 |   12737 |    18652 | BIN$31C14EB48DC$9B4E$0==$0   | flashtest                    | d            |       0 |      79354845 | 2023-09-13 20:49:17.762977+08 |     79354753 |    
+ 79354753 |         2200 |       10 |             0 |          18652 | t             | t           | 226824       |         226824
+     18664 |   12737 |    18657 | BIN$31C14EB48E1$12E680A8==$0 | BIN$31C14EB48E1$12E45E00==$0 | d            |       3 |      79354845 | 2023-09-13 20:49:17.763271+08 |     79354753 |    
+ 79354753 |           99 |       10 |             0 |          18657 | f             | f           | 0            |              0
+     18664 |   12737 |    18655 | BIN$31C14EB48DF$12E68698==$0 | BIN$31C14EB48DF$12E46400==$0 | d            |       2 |      79354845 | 2023-09-13 20:49:17.763343+08 |            0 |    
+        0 |           99 |       10 |             0 |          18655 | f             | f           | 226824       |         226824
+(3 rows)
+
+--闪回drop表，表名用回收站中的rcyname
+gaussdb=# timecapsule table "BIN$31C14EB48DC$9B4E$0==$0" to before drop;
+TimeCapsule Table
+----查看回收站，回收站中的表被删除
+gaussdb=# select * from gs_recyclebin;
+ rcybaseid | rcydbid | rcyrelid | rcyname | rcyoriginname | rcyoperation | rcytype | rcyrecyclecsn | rcyrecycletime | rcycreatecsn | rcychangecsn | rcynamespace | rcyowner | rcytablespace
+ | rcyrelfilenode | rcycanrestore | rcycanpurge | rcyfrozenxid | rcyfrozenxid64 
+-----------+---------+----------+---------+---------------+--------------+---------+---------------+----------------+--------------+--------------+--------------+----------+--------------
+-+----------------+---------------+-------------+--------------+----------------
+(0 rows)
+
+gaussdb=# select * from flashtest;
+ id | name 
+----+------
+  1 | A
+(1 row)
+
+--DROP表
+gaussdb=# drop table if EXISTS flashtest;
+DROP TABLE
+----查看回收站，表被放入回收站
+gaussdb=# select * from gs_recyclebin;
+ rcybaseid | rcydbid | rcyrelid |           rcyname            |        rcyoriginname         | rcyoperation | rcytype | rcyrecyclecsn |        rcyrecycletime         | rcycreatecsn | rcy
+changecsn | rcynamespace | rcyowner | rcytablespace | rcyrelfilenode | rcycanrestore | rcycanpurge | rcyfrozenxid | rcyfrozenxid64 
+-----------+---------+----------+------------------------------+------------------------------+--------------+---------+---------------+-------------------------------+--------------+----
+----------+--------------+----------+---------------+----------------+---------------+-------------+--------------+----------------
+     18667 |   12737 |    18652 | BIN$31C14EB48DC$9B8D$0==$0   | flashtest                    | d            |       0 |      79354943 | 2023-09-13 20:52:14.525946+08 |     79354753 |    
+ 79354753 |         2200 |       10 |             0 |          18652 | t             | t           | 226824       |         226824
+     18667 |   12737 |    18657 | BIN$31C14EB48E1$1320B4F0==$0 | BIN$31C14EB48E1$12E680A8==$0 | d            |       3 |      79354943 | 2023-09-13 20:52:14.526319+08 |     79354753 |    
+ 79354753 |           99 |       10 |             0 |          18657 | f             | f           | 0            |              0
+     18667 |   12737 |    18655 | BIN$31C14EB48DF$1320BAE0==$0 | BIN$31C14EB48DF$12E68698==$0 | d            |       2 |      79354943 | 2023-09-13 20:52:14.526423+08 |            0 |    
+        0 |           99 |       10 |             0 |          18655 | f             | f           | 226824       |         226824
+(3 rows)
+
+--查看表，表不存在
+gaussdb=# select * from flashtest;
+ERROR:  relation "flashtest" does not exist
+LINE 1: select * from flashtest;
+                      ^
+--闪回drop表，并重命名表
+gaussdb=# timecapsule table flashtest to before drop rename to flashtest_rename;
+TimeCapsule Table
+--查看原表，表不存在
+gaussdb=# select * from flashtest;
+ERROR:  relation "flashtest" does not exist
+LINE 1: select * from flashtest;
+                      ^
+--查看重命名后的表，表存在
+gaussdb=# select * from flashtest_rename;
+ id | name 
+----+------
+  1 | A
+(1 row)
+
+--查看回收站，回收站中的表被删除
+gaussdb=# select * from gs_recyclebin;
+ rcybaseid | rcydbid | rcyrelid | rcyname | rcyoriginname | rcyoperation | rcytype | rcyrecyclecsn | rcyrecycletime | rcycreatecsn | rcychangecsn | rcynamespace | rcyowner | rcytablespace
+ | rcyrelfilenode | rcycanrestore | rcycanpurge | rcyfrozenxid | rcyfrozenxid64 
+-----------+---------+----------+---------+---------------+--------------+---------+---------------+----------------+--------------+--------------+--------------+----------+--------------
+-+----------------+---------------+-------------+--------------+----------------
+(0 rows)
+--drop表
+gaussdb=# drop table if EXISTS flashtest_rename;
+DROP TABLE
+--清空回收站
+gaussdb=# PURGE RECYCLEBIN;
+PURGE RECYCLEBIN
+--查看回收站，回收站被清空
+gaussdb=# select * from gs_recyclebin;
+ rcybaseid | rcydbid | rcyrelid | rcyname | rcyoriginname | rcyoperation | rcytype | rcyrecyclecsn | rcyrecycletime | rcycreatecsn | rcychangecsn | rcynamespace | rcyowner | rcytablespace
+ | rcyrelfilenode | rcycanrestore | rcycanpurge | rcyfrozenxid | rcyfrozenxid64 
+-----------+---------+----------+---------+---------------+--------------+---------+---------------+----------------+--------------+--------------+--------------+----------+--------------
+-+----------------+---------------+-------------+--------------+----------------
+(0 rows)
+
+
+-- TIMECAPSULE TABLE { table_name } TO BEFORE TRUNCATE --
+gaussdb=# drop table if EXISTS flashtest;
+NOTICE:  table "flashtest" does not exist, skipping
+DROP TABLE
+--创建表flashtest
+gaussdb=# create table if not EXISTS flashtest(id int, name text) with (storage_type = ustore);
+NOTICE:  The 'DISTRIBUTE BY' clause is not specified. Using 'id' as the distribution column by default.
+HINT:  Please use 'DISTRIBUTE BY' clause to specify suitable data distribution column.
+CREATE TABLE
+--插入数据
+gaussdb=# insert into flashtest values(1, 'A');
+INSERT 0 1
+gaussdb=# select * from flashtest;
+ id | name 
+----+------
+  1 | A
+(1 row)
+
+--truncate表
+gaussdb=# truncate table flashtest;
+TRUNCATE TABLE
+--查看回收站，表的数据被放入回收站
+gaussdb=# select * from gs_recyclebin;
+ rcybaseid | rcydbid | rcyrelid |           rcyname            |    rcyoriginname     | rcyoperation | rcytype | rcyrecyclecsn |        rcyrecycletime         | rcycreatecsn | rcychangecs
+n | rcynamespace | rcyowner | rcytablespace | rcyrelfilenode | rcycanrestore | rcycanpurge | rcyfrozenxid | rcyfrozenxid64 
+-----------+---------+----------+------------------------------+----------------------+--------------+---------+---------------+-------------------------------+--------------+------------
+--+--------------+----------+---------------+----------------+---------------+-------------+--------------+----------------
+     18703 |   12737 |    18697 | BIN$31C14EB4909$9E4C$0==$0   | flashtest            | t            |       0 |      79356608 | 2023-09-13 21:24:42.819863+08 |     79356606 |     7935660
+6 |         2200 |       10 |             0 |          18697 | t             | t           | 227927       |         227927
+     18703 |   12737 |    18700 | BIN$31C14EB490C$132FE3F0==$0 | pg_toast_18697       | t            |       2 |      79356608 | 2023-09-13 21:24:42.820358+08 |            0 |            
+0 |           99 |       10 |             0 |          18700 | f             | f           | 227927       |         227927
+     18703 |   12737 |    18702 | BIN$31C14EB490E$132FEA40==$0 | pg_toast_18697_index | t            |       3 |      79356608 | 2023-09-13 21:24:42.821012+08 |     79356606 |     7935660
+6 |           99 |       10 |             0 |          18702 | f             | f           | 0            |              0
+(3 rows)
+
+--查看表，表中的数据为空
+gaussdb=# select * from flashtest;
+ id | name 
+----+------
+(0 rows)
+
+--闪回truncate表
+gaussdb=# timecapsule table flashtest to before truncate;
+TimeCapsule Table
+--查看表，表中的数据被恢复
+gaussdb=# select * from flashtest;
+ id | name 
+----+------
+  1 | A
+(1 row)
+
+--查看回收站
+gaussdb=# select * from gs_recyclebin;
+ rcybaseid | rcydbid | rcyrelid |           rcyname            |    rcyoriginname     | rcyoperation | rcytype | rcyrecyclecsn |        rcyrecycletime         | rcycreatecsn | rcychangecs
+n | rcynamespace | rcyowner | rcytablespace | rcyrelfilenode | rcycanrestore | rcycanpurge | rcyfrozenxid | rcyfrozenxid64 
+-----------+---------+----------+------------------------------+----------------------+--------------+---------+---------------+-------------------------------+--------------+------------
+--+--------------+----------+---------------+----------------+---------------+-------------+--------------+----------------
+     18703 |   12737 |    18702 | BIN$31C14EB490E$132FFC38==$0 | pg_toast_18697_index | t            |       3 |      79356610 | 2023-09-13 21:24:42.872654+08 |     79356606 |     7935660
+6 |           99 |       10 |             0 |          18708 | f             | f           | 0            |              0
+     18703 |   12737 |    18700 | BIN$31C14EB490C$13300228==$0 | pg_toast_18697       | t            |       2 |      79356610 | 2023-09-13 21:24:42.872732+08 |            0 |            
+0 |           99 |       10 |             0 |          18706 | f             | f           | 0            |         227928
+     18703 |   12737 |    18697 | BIN$31C14EB4909$9E4D$0==$0   | flashtest            | t            |       0 |      79356610 | 2023-09-13 21:24:42.872792+08 |     79356606 |     7935660
+6 |         2200 |       10 |             0 |          18704 | t             | t           | 0            |         227928
+(3 rows)
+
+--drop表
+gaussdb=# drop table if EXISTS flashtest;
+DROP TABLE
+--清空回收站
+gaussdb=# PURGE RECYCLEBIN;
+PURGE RECYCLEBIN
+--查看回收站，回收站被清空
+gaussdb=# select * from gs_recyclebin;
+ rcybaseid | rcydbid | rcyrelid | rcyname | rcyoriginname | rcyoperation | rcytype | rcyrecyclecsn | rcyrecycletime | rcycreatecsn | rcychangecsn | rcynamespace | rcyowner | rcytablespace
+ | rcyrelfilenode | rcycanrestore | rcycanpurge | rcyfrozenxid | rcyfrozenxid64 
+-----------+---------+----------+---------+---------------+--------------+---------+---------------+----------------+--------------+--------------+--------------+----------+--------------
+-+----------------+---------------+-------------+--------------+----------------
+(0 rows) 父主题： 闪回恢复 版权所有 © 华为技术有限公司

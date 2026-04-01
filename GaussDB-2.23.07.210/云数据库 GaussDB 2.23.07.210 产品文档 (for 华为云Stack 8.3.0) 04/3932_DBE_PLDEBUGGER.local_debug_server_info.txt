@@ -1,0 +1,1 @@
+DBE_PLDEBUGGER.local_debug_server_info DBE_PLDEBUGGER.local_debug_server_info 用于查找当前连接中已经turn_on的存储过程oid。便于用户确认在调试哪些存储过程，需要通过funcoid和pg_proc配合使用。 表1 local_debug_server_info 返回值列表 名称 类型 描述 nodename OUT text 节点名称 port OUT bigint 端口号 funcoid OUT oid 存储过程oid 父主题： DBE_PLDEBUGGER Schema 版权所有 © 华为技术有限公司

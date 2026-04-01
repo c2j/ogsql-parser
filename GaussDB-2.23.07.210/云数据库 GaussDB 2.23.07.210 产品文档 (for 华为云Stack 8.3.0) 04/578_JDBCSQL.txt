@@ -1,0 +1,30 @@
+【规则】通过JDBC接入数据库时，避免拼接多条SQL为一条语句发送执行 【规则】通过JDBC接入数据库时，避免拼接多条SQL为一条语句发送执行 当多条语句拼接为一条语句，其中一条执行失败后会整体返回失败，不利于定位错误，建议拆分。 示例 不符合规则语句 Connection conn = ....
+try {
+    Statement stmt = null;
+    try {
+        stmt = conn.createStatement();
+        stmt.executeUpdate("CREATE TABLE t1 (a int); DROP TABLE t1");
+    } finally {
+        stmt.close();
+    }
+    conn.commit();
+} catch(Exception e) {
+   conn.rollback();
+} finally {
+   conn.close();
+} 建议拆分成两条语句分别发送： Connection conn = ....
+try {
+    Statement stmt = null;
+    try {
+        stmt = conn.createStatement();
+        stmt.executeUpdate("CREATE TABLE t1 (a int)");
+        stmt.executeUpdate("DROP TABLE t1");
+    } finally {
+        stmt.close();
+    }
+    conn.commit();
+} catch(Exception e) {
+   conn.rollback();
+} finally {
+   conn.close();
+} 父主题： 事务 版权所有 © 华为技术有限公司

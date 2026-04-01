@@ -1,0 +1,43 @@
+创建分区表 创建分区表 创建普通分区表（创建一级分区表） 由于SQL语言功能强大和灵活多样性，SQL语法树通常比复杂，分区表同样如此，分区表的创建可以理解成在原有非分区表的基础上新增表分区属性，因此分区表的语法接口可以看成是对原有非分区表CREATE TABLE语句进行扩展PARTITION BY语句部分，同时指定分区相关的三个核元素： 分区类型（partType）：描述分区表的分区策略，分别有RANGE/INTERVAL/LIST/HASH。 分区键（partKey）：描述分区表的分区列，目前RANGE/LIST分区支持多列（不超过16列）分区键，INTERVAL/HASH分区只支持单列分区。 分区表达式（partExpr）：描述分区表的具体分区表方式，即键值与分区的对应映射关系。 这三部分重要元素在建表语句的Partition By Clause字句中体现， PARTITION BY partType ( partKey ) ( partExpr[,partExpr] …)。示例如下： CREATE TABLE [ IF NOT EXISTS ] partition_table_name
+(
+    [ /* 该部分继承于普通表的Create Table */ { column_name data_type [ COLLATE collation ] [ column_constraint [ ... ] ]
+    | table_constraint
+    | LIKE source_table [ like_option [...] ] }[, ... ]
+    ]
+)
+[ WITH ( {storage_parameter = value} [, ... ] ) ]
+[ COMPRESS | NOCOMPRESS ]
+[ TABLESPACE tablespace_name ] /* 范围分区场景，若申明INTERVAL子句则为间隔分区场景 */ PARTITION BY RANGE (partKey) [ INTERVAL ('interval_expr') [ STORE IN (tablespace_name [, ... ] ) ] ] (
+    partition_start_end_item [, ... ]
+    partition_less_then_item [, ... ]
+) /* 列表分区场景 */ PARTITION BY LIST (partKey)
+(
+    PARTITION partition_name VALUES (list_values_clause) [ TABLESPACE tablespace_name [, ... ] ]
+...
+) /* 哈希分区场景 */ PARTITION BY HASH (partKey) (
+    PARTITION partition_name [ TABLESPACE tablespace_name [, ... ] ]
+...
+) /* 开启/关闭分区表行迁移 */ [ { ENABLE | DISABLE } ROW MOVEMENT ]; 规格约束： Range/List分区最大支持16个分区键，Interval/Hash分区均只支持1个分区键，二级分区只支持1个分区键。 Interval分区仅支持时间/日期数据类型，Interval分区不支持在二级分区表中创建。 除哈希分区外，分区键不能插入空值，否则DML语句会进行报错处理。唯一例外：Range分区表定义有MAXVALUE分区/List分区表定义有DEFAULT分区。 分区数最大值为1048575个，可以满足大部分业务场景的诉求。但分区数增加会导致系统中文件数增加，影响系统的性能，一般对于单个表而言不建议分区数超过200。 创建二级分区表 二级分区表，可以看成是对一级分区表的扩展，在二级分区表中第一层分区是一张逻辑表并不实际存储数据，数据实际是存储在二级分区节点上的。从实现上而言，二级分区表的分区方案是由两个一级分区的嵌套而来的，一级分区的分区方案详见章节CREATE TABLE PARTITION。常见的二级分区表组合方案有：Range-Range分区、Range-List分区、Range-Hash分区、List-Range分区、List-List分区、List-Hash分区、Hash-Range分区、Hash-List分区、Hash-Hash分区等。目前二级分区仅支持行存表，二级分区创建的示例如下： CREATE TABLE [ IF NOT EXISTS ] subpartition_table_name
+(
+    [ /* 该部份继承于普通表的Create Table */ { column_name data_type [ COLLATE collation ] [ column_constraint [ ... ] ]
+    | table_constraint
+    | LIKE source_table [ like_option [...] ] } [, ... ]
+    ]
+)
+[ WITH ( {storage_parameter = value} [, ... ] ) ]
+[ COMPRESS | NOCOMPRESS ]
+[ TABLESPACE tablespace_name ] /* 二级分区定义的部分 */ PARTITION BY {RANGE | LIST | HASH} SUBPARTITOIN BY {RANGE | LIST | HASH}
+(
+    PARTITION partition_name partExpr…  /* 第一层分区 */
+    (
+        SUBPARTITION partition_name partExpr … /* 第二层分区 */
+        SUBPARTITION partition_name partExpr … /* 第二层分区 */
+    ),
+    PARTITION partition_name partExpr…  /* 第一层分区 */
+    (
+        SUBPARTITION partition_name partExpr … /* 第二层分区 */
+        SUBPARTITION partition_name partExpr … /* 第二层分区 */
+    ),
+    …
+)
+[ { ENABLE | DISABLE } ROW MOVEMENT ]; 规格约束： 二级分区支持LIST/HASH/RANGE分区的任意两两组合。 二级分区场景中仅支持单分区键。 二级分区中不支持Interval类型分区的组合。 二级分区场景中，分区总数上限为1048575。 修改分区属性 分区表和分区相关的部分属性可以使用类似非分区表的ALTER-TABLE命令进行分区属性修改，常用的分区属性修改语句包括： 增加分区 删除分区 删除/清空分区数据 切割分区 合并分区 移动分区 交换分区 重命名分区 以上常用的分区属性变更语句基于对普通表ALTER TABLE语句进行扩展，在使用方式上大部分使用方式类似，分区表属性变更的基本语法框架示例如下： /* 基本alter table语法 */ ALTER TABLE [ IF EXISTS ] { table_name [*] | ONLY table_name | ONLY ( table_name )} action [, ... ]; 分区表ALTER TABLE语句使用方法请参见 分区表运维管理 、《开发者指南》中“SQL参考 > SQL语法 > ALTER TABLE PARTITION和ALTER TABLE SUBPARTITION”章节。 父主题： 分区基本使用 版权所有 © 华为技术有限公司

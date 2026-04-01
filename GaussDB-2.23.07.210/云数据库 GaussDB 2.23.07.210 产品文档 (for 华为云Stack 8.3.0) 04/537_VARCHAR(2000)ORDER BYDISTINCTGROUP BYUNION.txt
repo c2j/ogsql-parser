@@ -1,0 +1,1 @@
+【规则】避免对大字段（如VARCHAR(2000)）执行ORDER BY、DISTINCT、GROUP BY、UNION等会引起排序的操作 【规则】避免对大字段（如VARCHAR(2000)）执行ORDER BY、DISTINCT、GROUP BY、UNION等会引起排序的操作 此类操作将消耗大量的CPU和内存资源，执行效率低下。 父主题： SELECT 版权所有 © 华为技术有限公司

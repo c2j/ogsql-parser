@@ -1,0 +1,1 @@
+GS_SECURITY_LABEL GS_SECURITY_LABEL GS_SECURITY_LABEL是共享系统表，记录安全标签的相关信息，每条记录对应一个安全标签。 表1 GS_SECURITY_LABEL字段 名称 类型 描述 oid oid 行标识符（隐含字段，必须明确选择）。 label_name name 安全标签名称。 label_content text 安全标签内容。 父主题： 其他系统表 版权所有 © 华为技术有限公司

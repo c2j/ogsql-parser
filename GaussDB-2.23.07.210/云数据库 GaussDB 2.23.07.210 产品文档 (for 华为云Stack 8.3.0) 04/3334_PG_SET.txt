@@ -1,0 +1,1 @@
+PG_SET PG_SET PG_SET系统表存储SET数据类型定义的元数据。 表1 PG_SET字段 名称 类型 描述 settypid oid SET数据类型的OID。 setnum tinyint SET数据类型的成员数量，最大64个成员。 setsortorder tinyint SET数据类型定义时成员的排序位置，从0开始编号。 setlabel text SET数据类型的成员名称。 父主题： 其他系统表 版权所有 © 华为技术有限公司

@@ -1,0 +1,72 @@
+PACKAGE支持自治事务 PACKAGE支持自治事务 自治事务可以在package中的存储过程或者函数中定义，标识符为PRAGMA AUTONOMOUS_TRANSACTION，其余语法与创建package中存储过程或函数语法相同，请参见 CREATE PACKAGE ，示例如下： gaussdb=# create database test DBCOMPATIBILITY = 'ORA';
+CREATE DATABASE
+gaussdb=# \c test
+--建表
+gaussdb=# CREATE TABLE t2(a INT, b INT);
+NOTICE:  The 'DISTRIBUTE BY' clause is not specified. Using 'a' as the distribution column by default.
+HINT:  Please use 'DISTRIBUTE BY' clause to specify suitable data distribution column.
+CREATE TABLE
+gaussdb=# INSERT INTO t2 VALUES(1,2);
+INSERT 0 1
+gaussdb=# SELECT * FROM t2;
+ a | b 
+---+---
+ 1 | 2
+(1 row)
+
+--创建包含自治事务的PACKAGE中的存储过程和函数
+gaussdb=# CREATE OR REPLACE PACKAGE autonomous_pkg AS
+  PROCEDURE autonomous_4(a INT, b INT);
+  FUNCTION autonomous_32(a INT ,b INT) RETURN INT;
+END autonomous_pkg;
+/
+CREATE PACKAGE
+gaussdb=# CREATE OR REPLACE PACKAGE BODY autonomous_pkg AS
+PROCEDURE autonomous_4(a INT, b INT)  AS 
+DECLARE 
+ num3 INT := a;
+ num4 INT := b;
+ PRAGMA AUTONOMOUS_TRANSACTION;
+BEGIN
+	INSERT INTO t2 VALUES(num3, num4); 
+END;
+FUNCTION autonomous_32(a INT ,b INT) RETURN INT AS 
+DECLARE 
+	PRAGMA AUTONOMOUS_TRANSACTION;
+BEGIN
+	INSERT INTO t2 VALUES(a, b);
+	RETURN 1;
+END;
+END autonomous_pkg;
+/
+CREATE PACKAGE BODY
+--创建调用PACKAGE自治事务存储过程和函数的普通存储过程
+gaussdb=# CREATE OR REPLACE PROCEDURE autonomous_5(a INT, b INT)  AS 
+DECLARE
+va INT;
+BEGIN
+	INSERT INTO t2 VALUES(666, 666);
+	autonomous_pkg.autonomous_4(a,b);
+        va := autonomous_pkg.autonomous_32(a + 1, b + 1);
+	ROLLBACK;
+END;
+/
+CREATE PROCEDURE
+--调用普通存储过程
+gaussdb=# SELECT autonomous_5(11,22);
+ autonomous_5 
+--------------
+
+(1 row)
+
+--查看表结果
+gaussdb=# SELECT * FROM t2 ORDER BY a;
+ a  | b  
+----+----
+  1 |  2
+ 11 | 22
+ 12 | 23
+(3 rows)
+
+gaussdb=# DROP TABLE t2;
+DROP TABLE 上述例子，最后在回滚的事务块中执行包含PACKAGE自治事务的存储过程和函数，直接说明了自治事务的特性，即主事务的回滚，不会影响自治事务已经提交的内容。 父主题： 自治事务 版权所有 © 华为技术有限公司

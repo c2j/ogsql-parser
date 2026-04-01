@@ -1,0 +1,1 @@
+SESSION_STAT SESSION_STAT 当前节点以会话线程或AutoVacuum线程为单位，统计会话状态信息。 表1 SESSION_STAT字段 名称 类型 描述 sessid text 线程启动时间+线程标识。 statid integer 统计编号。 statname text 统计会话名称。 statunit text 统计会话单位。 value bigint 统计会话值。 父主题： Session/Thread 版权所有 © 华为技术有限公司

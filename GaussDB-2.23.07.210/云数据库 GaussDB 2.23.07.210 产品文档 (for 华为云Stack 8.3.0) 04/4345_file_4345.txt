@@ -1,0 +1,93 @@
+分区表相关内置工具函数 分区表相关内置工具函数 前置建表相关信息 前置建表： CREATE TABLE test_range_pt (a INT, b INT, c INT)
+PARTITION BY RANGE (a)
+(
+    PARTITION p1 VALUES LESS THAN (2000),
+    PARTITION p2 VALUES LESS THAN (3000),
+    partition p3 VALUES LESS THAN (4000),
+    partition p4 VALUES LESS THAN (5000),
+    partition p5 VALUES LESS THAN (MAXVALUE)
+)ENABLE ROW MOVEMENT; 查看分区表oid SELECT oid FROM pg_class WHERE relname = 'test_range_pt';
+oid
+-------
+49290
+(1 row) 查看分区信息 SELECT oid,relname,parttype,parentid,boundaries FROM pg_partition WHERE parentid = 49290;
+oid  |    relname    | parttype | parentid | boundaries
+-------+---------------+----------+----------+------------
+49293 | test_range_pt   | r        |    49290 |
+49294 | p1            | p        |    49290 | {2000}
+49295 | p2            | p        |    49290 | {3000}
+49296 | p3            | p        |    49290 | {4000}
+49297 | p4            | p        |    49290 | {5000}
+49298 | p5            | p        |    49290 | {NULL}
+(6 rows) 创建索引 CREATE INDEX idx_range_a ON test_range_pt(a) LOCAL;
+CREATE INDEX
+--查看分区索引oid
+SELECT oid FROM pg_class WHERE relname = 'idx_range_a';
+oid
+-------
+90250
+(1 row) 查看索引分区信息 SELECT oid,relname,parttype,parentid,boundaries,indextblid FROM pg_partition WHERE parentid = 90250;
+oid  | relname  | parttype | parentid | boundaries | indextblid
+-------+----------+----------+----------+------------+------------
+90255 | p5_a_idx | x        |    90250 |            |      49298
+90254 | p4_a_idx | x        |    90250 |            |      49297
+90253 | p3_a_idx | x        |    90250 |            |      49296
+90252 | p2_a_idx | x        |    90250 |            |      49295
+90251 | p1_a_idx | x        |    90250 |            |      49294
+(5 rows) 工具函数示例 pg_get_tabledef获取分区表的定义，入参可以为表的oid或者表名。 SELECT pg_get_tabledef('test_range_pt');
+                          pg_get_tabledef                           
+--------------------------------------------------------------------
+ SET search_path = public;                                         +
+ CREATE TABLE test_range_pt (                                      +
+     a integer,                                                    +
+     b integer,                                                    +
+     c integer                                                     +
+ )                                                                 +
+ WITH (orientation=row, compression=no)                            +
+ PARTITION BY RANGE (a)                                            +
+ (                                                                 +
+     PARTITION p1 VALUES LESS THAN (2000) TABLESPACE pg_default,   +
+     PARTITION p2 VALUES LESS THAN (3000) TABLESPACE pg_default,   +
+     PARTITION p3 VALUES LESS THAN (4000) TABLESPACE pg_default,   +
+     PARTITION p4 VALUES LESS THAN (5000) TABLESPACE pg_default,   +
+     PARTITION p5 VALUES LESS THAN (MAXVALUE) TABLESPACE pg_default+
+ )                                                                 +
+ ENABLE ROW MOVEMENT;
+(1 row) pg_stat_get_partition_tuples_hot_updated返回给定分区id的分区热更新元组数的统计。 在分区p1中插入10条数据并更新，统计分区p1的热更新元组数。 INSERT INTO test_range_pt VALUES(generate_series(1,10),1,1);
+INSERT 0 10
+SELECT pg_stat_get_partition_tuples_hot_updated(49294);
+pg_stat_get_partition_tuples_hot_updated
+------------------------------------------
+0
+(1 row)
+UPDATE test_range_pt SET b = 2;
+UPDATE 10
+SELECT pg_stat_get_partition_tuples_hot_updated(49294);
+pg_stat_get_partition_tuples_hot_updated
+------------------------------------------
+10
+(1 row) pg_partition_size(oid,oid)指定OID代表的分区使用的磁盘空间。其中，第一个oid为表的OID，第二个oid为分区的OID。 查看分区p1的磁盘空间。 SELECT pg_partition_size(49290, 49294);
+pg_partition_size
+-------------------
+90112
+(1 row) pg_partition_size(text, text) 指定名称的分区使用的磁盘空间。其中，第一个text为表名，第二个text为分区名。 查看分区p1的磁盘空间。 SELECT pg_partition_size('test_range_pt', 'p1');
+pg_partition_size
+-------------------
+90112
+(1 row) pg_partition_indexes_size(oid,oid)指定OID代表的分区的索引使用的磁盘空间。其中，第一个oid为表的OID，第二个oid为分区的OID。 查看分区p1的索引分区磁盘空间。 SELECT pg_partition_indexes_size(49290, 49294);
+pg_partition_indexes_size
+---------------------------
+204800
+(1 row) pg_partition_indexes_size(text,text) 指定名称的分区的索引使用的磁盘空间。其中，第一个text为表名，第二个text为分区名。 查看分区p1的索引分区磁盘空间。 SELECT pg_partition_indexes_size('test_range_pt', 'p1');
+pg_partition_indexes_size
+---------------------------
+204800
+(1 row) pg_partition_filenode(partition_oid) 获取到指定分区表的oid所对应的filenode。 查看分区p1的filenode。 SELECT pg_partition_filenode(49294);
+pg_partition_filenode
+-----------------------
+49294
+(1 row) pg_partition_filepath(partition_oid) 指定分区的文件路径名。 查看分区p1的文件路径。 SELECT pg_partition_filepath(49294);
+pg_partition_filepath
+-----------------------
+base/16521/49294
+(1 row) 父主题： 分区表系统视图&DFX 版权所有 © 华为技术有限公司

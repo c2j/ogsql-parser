@@ -1,0 +1,16 @@
+{
+  "topic": "安全管理",
+  "term_count": 2,
+  "terms": [
+    {
+      "term": "帐户管理",
+      "content": "帐户管理 帐户管理 GaussDB 使用的帐户包括：各个服务节点虚拟机的操作系统帐户、 Gauss core和base帐户、OpsBaseStore帐户、实例虚拟机的操作系统帐户、实例中数据库的帐户、 GaussDB 使用的IAM的帐户。各帐户的详细信息，请参考《华为云Stack 8.3.0 帐户一览表》。 系统密码是登录系统的必要条件，修改系统密码能够防止密码的泄露。为了系统安全，建议定期更新密码。",
+      "source_file": "5633_file_5633.txt"
+    },
+    {
+      "term": "证书管理",
+      "content": "证书管理 证书管理 GaussDB 集群相关证书信息，请参考《华为云Stack 8.3.0 证书一览表》。 更换微服务SSL证书",
+      "source_file": "5634_file_5634.txt"
+    }
+  ]
+}

@@ -1,0 +1,2 @@
+CREATE BARRIER CREATE BARRIER 功能描述 创建一个新集群节点间的同步点。该同步点可用于数据恢复。该功能为内部使用功能，不建议用户使用。 注意事项 CREATE BARRIER通常只用于备份恢复操作，因此只允许在以下两种场景下执行。 数据库初始化用户可执行。 在CN节点上开启备份恢复模式，即GUC参数operation_mode=on的前提下，具备OPRADMIN权限的用户可执行。 语法格式 1 CREATE BARRIER 'barrier_name' ; 参数说明 barrier_name 必选参数。同步点名称。 取值范围：字符串，要符合 标识符命名规范 。 示例 1
+2 --指定barrier名称。 gaussdb =# CREATE BARRIER 'barrier1' ; 父主题： C 版权所有 © 华为技术有限公司

@@ -1,0 +1,31 @@
+{
+  "topic": "虚拟机异常",
+  "term_count": 5,
+  "terms": [
+    {
+      "term": "管理面网络故障",
+      "content": "管理面网络故障 管理面网络故障 管理面网络故障包括网络延时、网络中断、管理面IP冲突、防火墙不通。 网络延时 网络中断",
+      "source_file": "5259_file_5259.txt"
+    },
+    {
+      "term": "SSH无法登录虚拟机",
+      "content": "SSH无法登录虚拟机 SSH无法登录虚拟机 现象描述 用SSH连接工具（如Xshell等）无法SSH连接到管理面VM。 可能原因 SSH连接工具配置错误。 登录用户没有SSH连接权限。 VM网卡异常。 定位思路 检查SSH连接工具配置是否正确（VM的IP地址、用户名、密码）。 通过Service OM登录到VM。 检查登录用户是否有SSH登录权限。 处理步骤 参考 登录数据库管理节点 ，尝试登录管理节点。 检查SSH连接工具配置信息，下面以Xshell为例。 打开Open，查看主机信息，选择要登录的主机，单击Properties，查看配置信息有无异常（IP地址，用户名，密码或密钥）。如果异常，请修改为正确的信息。 查看用户名，密码是否正确： 如果执行完成后可以通过SSH连接到VM，则跳过后面的步骤。 参考 VNC登录管理面虚拟机 尝试通过VNC的方式登录虚拟机。 执行命令检查网络配置是否正常，下图表示网络配置正常。如果IP、子网掩码、网关有异常的话，需要将其调整正确。 ifconfig ECS网络配置正常，如下图所示，联系技术支持。 BMS网络配置正常，如下图所示，联系技术支持。 网络配置异常，如下图所示，请执行 5 。 如果网络配置异常，则执行下面命令编辑网卡配置文件。 ECS： vim /etc/sysconfig/network-scripts/ifcfg-eth0 DEVICE=eth0\nBOOTPROTO='static'\nIPADDR=xxx.xxx.xxx.xxx\nNETMASK=255.255.255.0\nSTARTMODE='auto' BMS联系技术支持。 vim /etc/sysconfig/network-scripts/ifcfg-bond0 TYPE=Bond\nBONDING_MASTER=yes\nBOOTPROTO=dhcp\nNAME=bond0\nUUID=64e33ec2-1eed-41ef-ba9a-a1379f85b4d7\nDEVICE=bond0\nONBOOT=yes\nNETMASK=255.255.255.0\nIPADDR=xxx.xxx.xxx.xxx 调整完毕后，执行命令重启网卡服务。 service network restart 重启后登录成功，故障处理完成。 重启失败或重启后登录失败，联系技术支持。",
+      "source_file": "5256_SSH.txt"
+    },
+    {
+      "term": "管理面数据库主备倒换后浮动IP无法SSH登录",
+      "content": "管理面数据库主备倒换后浮动IP无法SSH登录 管理面数据库主备倒换后浮动IP无法SSH登录 现象描述 在使用HCSU或HCSD进行升级或安装新服务时，通过管理面数据库浮动IP进行SSH登录时报错。 可能原因 管理面数据库发生了主备倒换，浮动IP迁移到备机，但SSH的22端口未监听到浮动IP上。 定位思路 查看主备节点的22端口是否有监听在浮动IP上。 处理步骤 参考 登录Service OM平台 ，登录Service OM。 在页面上方的导航栏，选择 “ 服务列表 > 资源 > 计算资源 ” ，进入计算资源界面。 左侧导航栏，单击 “可用分区” 前的+号，选择管理节点所在可用区 “manage-az” ，单击“虚拟机”，进入虚拟机列表界面。默认查询所有虚拟机。 在搜索框输入 “DBS-GaussCore” 。 获取搜索到的 “DBS-GaussCore-01” 管理节点IP，如果存在两个IP，则选择第一个IP。 此处还需要记录 “DBS-GaussCore-02” 的管理节点IP。如果存在两个IP，则选择第一个IP。 参考 登录数据库管理节点 ，登录DBS-GaussCore节点。 执行如下指令，查看数据库浮动IP。 ifconfig eth0:1 若回显为空，表示当前节点为备机，请登录另一台节点执行。 执行如下命令，检查sshd的22端口是否监听在浮动IP上： netstat -anp | grep -w ' x.x.x.x :22' 其中，x.x.x.x请替换为上方查询到的浮动IP。 若无回显，表示端口未监听。 执行如下命令，重启sshd服务: service sshd restart 重启完成后，重复步骤2中检查监听的命令，确认22端口已监听在浮动IP上。",
+      "source_file": "5262_IPSSH.txt"
+    },
+    {
+      "term": "虚拟机资源异常",
+      "content": "虚拟机资源异常 虚拟机资源异常 现象描述 在非高并发场景下，DBS运维管理平台监控页面显示系统资源异常的告警。例如：内存使用过高，CPU使用率过高，磁盘读写频率过高，磁盘空间即将占满等告警。 可能原因 应用程序BUG，占用大量内存和CPU。 应用程序异常，输出大量日志，占满磁盘空间。 程序存在漏洞，导致黑客入侵，服务器被当成肉机，占用大量系统资源。 定位思路 通过命令排查异常进程，判断哪些进程占用了大量资源，反馈给相应的开发人员，及时修改程序BUG。 如果不是已知进程，则遭到黑客入侵，及时进行安全加固，修复程序漏洞。 处理步骤 参考 登录数据库管理节点 ，使用opsadmin SSH登录系统，登录完成后切换为root权限，执行 top 命令查看系统资源使用情况，找出长时间占用资源大的进程。 重点关注PID、%CPU、%MEM、COMMAND，通过COMMAND列可以看到进程名字，下图中java进程使用内存为33.6%，进程的pid为29565。 通过“ ps -ef |grep 进程号 ”查看进程信息，进程号是 1 得到异常进程的PID。下面示例查看的进程是tomcat进程。 参考《云数据库 GaussDB 2.23.07.200 运维指南》中的“巡检指南”章节，巡检tomcat运行状态。 如果巡检异常，根据巡检报告进行处理。 如果巡检正常，执行 4 。 磁盘空间占满，执行 df -h ，查看哪个磁盘空间被占满，一般情况是数据盘被占满。 Size：表示总体大小。 Used：表示已使用大小。 Avail：表示剩余可用大小。 Use%：表示使用百分比。 Mounted on：表示挂载目录。 进入数据盘挂载目录（/opt/cloud），执行“du -sh /opt/cloud/*”查看各目录大小，找到最大的目录。进入该目录（一般都是日志目录），查找目录下的占用空间较大的日志文件，查看其中的异常日志，联系技术支持进行定位。 [root@service2 ~ ]# cd /opt/cloud/\n[root@service2 service]# ll\ntotal 44\ndrwx------.3 serviceservice4096 Oct 27 16:29 backup\ndrwx------.8 serviceservice4096 Jun 23 09:56 jre1.8.0_102\ndrwx------.3 serviceservice16384 Sep1 14:40 lost+found\ndrwx------.9 service4096 Oct 27 16:38 tomcat\n[root@service2 service]# du -sh /opt/cloud/*\n2.5M/opt/cloud/backup\n355M/opt/cloud/jre1.8.0_102\n24K /opt/cloud/lost+found\n197M/opt/cloud/tomcat",
+      "source_file": "5258_file_5258.txt"
+    },
+    {
+      "term": "SSH和VNC无法登录虚拟机",
+      "content": "SSH和VNC无法登录虚拟机 SSH和VNC无法登录虚拟机 现象描述 用SSH连接工具（如Xshell等）无法SSH连接到管理面VM。 使用ServiceOM的VNC界面登录VM时卡在密码输入界面。 可能原因 由于操作系统的auditd插件问题导致节点系统进程挂起。 处理步骤 参考 登录Service OM平台 ，登录Service OM。 在页面上方的导航栏，选择 “ 服务列表 > 资源 > 计算资源 ” ，进入计算资源界面。 左侧导航栏，单击 “可用分区” 前的+号，选择管理节点所在可用区 “manage-az” ，单击“虚拟机”，进入虚拟机列表界面。默认查询所有虚拟机。 搜索故障的虚拟机，在虚拟机右侧的“更多 > 虚拟机状态”下点击“重启“。 等待虚拟机重启完成，状态变为“运行中“。 使用SSH登录该虚拟机，切换到root用户，执行如下的命令，关闭auditd的af插件，并重启auditd进程： a='/etc/audisp/plugins.d/af_unix.conf'; [[ ! -f \"${a}\" ]] && a='/etc/audit/plugins.d/af_unix.conf'; sed -i -r 's@^active\\s+=\\s+\\S+@active = no@g' ${a}; chattr +i ${a}; service auditd restart;",
+      "source_file": "5257_SSHVNC.txt"
+    }
+  ]
+}

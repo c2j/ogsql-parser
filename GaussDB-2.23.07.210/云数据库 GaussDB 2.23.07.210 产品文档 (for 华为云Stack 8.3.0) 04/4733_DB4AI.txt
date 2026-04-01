@@ -1,0 +1,63 @@
+原生DB4AI引擎 原生DB4AI引擎 GaussDB 当前版本支持了原生DB4AI能力，通过引入原生AI算子，简化操作流程，充分利用数据库优化器、执行器的优化与执行能力，获得高性能的数据库内模型训练能力。更简化的模型训练与预测流程、更高的性能表现，让开发者在更短时间内能更专注于模型的调优与数据分析上，而避免了碎片化的技术栈与冗余的代码实现。 关键字解析 表1 DB4AI语法及关键字 名称 描述 语法 CREATE MODEL 创建模型并进行训练，同时保存模型。 PREDICT BY 利用已有模型进行推断。 DROP MODEL 删除模型。 关键字 TARGET 训练/推断任务的目标列名。 FEATURES 训练/推断任务的数据特征列名。 MODEL 训练任务的模型名称。 使用指导 本版本支持的算法概述。 当前版本的DB4AI新增支持算法如下： 表2 支持算法 优化算法 算法 GD logistic_regression linear_regression svm_classification PCA multiclass Kmeans kmeans xgboost xgboost_regression_logistic xgboost_binary_logistic xgboost_regression_squarederror xgboost_regression_gamma 模型训练语法说明。 CREATE MODEL 使用“CREATE MODEL”语句可以进行模型的创建和训练。模型训练SQL语句，选用公开数据集鸢尾花数据集iris。 以multiclass为例，训练一个模型。从tb_iris训练集中指定sepal_length, sepal_width,petal_length,petal_widt为特征列，使用multiclass算法，创建并保存模型iris_classification_model。 gaussdb=# CREATE MODEL iris_classification_model USING xgboost_regression_logistic FEATURES sepal_length, sepal_width,petal_length,petal_width TARGET target_type < 2 FROM tb_iris_1 WITH nthread=4, max_depth=8;
+MODEL CREATED. PROCESSED 1 上述命令中： “CREATE MODEL”语句用于模型的训练和保存。 USING关键字指定算法名称。 FEATURES用于指定训练模型的特征，需根据训练数据表的列名添加。 TARGET指定模型的训练目标，它可以是训练所需数据表的列名，也可以是一个表达式，例如: price > 10000。 WITH用于指定训练模型时的超参数。当超参未被用户进行设置的时候，框架会使用默认数值。 针对不同的算子，框架支持不同的超参组合： 表3 算子支持的超参 算子 超参 GD (logistic_regression、linear_regression、svm_classification) optimizer(char*); verbose(bool); max_iterations(int); max_seconds(double); batch_size(int); learning_rate(double); decay(double); tolerance(double) 其中，SVM限定超参lambda(double) Kmeans max_iterations(int); num_centroids(int); tolerance(double); batch_size(int); num_features(int); distance_function(char*); seeding_function(char*); verbose(int);seed(int) GD(pca) batch_size(int);max_iterations(int);max_seconds(int);tolerance(float8);verbose(bool);number_components(int);seed(int) GD(multiclass) classifier(char*) 注意：multiclass的其他超参种类取决于选择的分类器中类 xgboost_regression_logistic、xgboost_binary_logistic、xgboost_regression_squarederror、xgboost_regression_gamma batch_size(int);booster(char*);tree_method(char*);eval_metric(char*);seed(int);nthread(int);max_depth(int);gamma(float8);eta(float8);min_child_weight(int);verbosity(int) 当前各个超参数设置的默认值和取值范围如下： 表4 超参的默认值以及取值范围 算子 超参(默认值) 取值范围 超参描述 GD: logistic_regression、linear_regression、svm_classification、pca optimizer = gd（梯度下降法） gd/ngd（自然梯度下降） 优化器 verbose = false T/F 日志显示 max_iterations = 100 (0, 10000] 最大迭代次数 max_seconds = 0 (不对运行时长设限制) [0,INT_MAX_VALUE] 运行时长 batch_size = 1000 (0, 1048575] 一次训练所选取的样本数 learning_rate = 0.8 (0, DOUBLE_MAX_VALUE] 学习率 decay = 0.95 (0, DOUBLE_MAX_VALUE] 权值衰减率 tolerance = 0.0005 (0, DOUBLE_MAX_VALUE] 公差 seed = 0（对seed取随机值） [0, INT_MAX_VALUE] 种子 just for linear、SVM：kernel = "linear" linear/gaussian/polynomial 核函数 just for linear、SVM：components = MAX(2*features, 128) [0, INT_MAX_VALUE] 高维空间维数 just for linear、SVM：gamma = 0.5 (0, DOUBLE_MAX_VALUE] gaussian核函数参数 just for linear、SVM：degree = 2 [2, 9] polynomial核函数参数 just for linear、SVM：coef0 = 1.0 [0, DOUBLE_MAX_VALUE] polynomial核函数的参数 just for SVM：lambda = 0.01 (0, DOUBLE_MAX_VALUE) 正则化参数 just for pca： number_components （0，INT_MAX_VALUE] 降维的目标维度 GD: multiclass classifier="svm_classification" svm_classification\logistic_regression 多分类任务的分类器 Kmeans max_iterations = 10 [1, 10000] 最大迭代次数 num_centroids = 10 [1, 1000000] 簇的数目 tolerance = 0.00001 (0,1] 中心点误差 batch_size = 10 [1, 1048575] 一次训练所选取的样本数 num_features = 2 [1, INT_MAX_VALUE] 输入样本特征数 distance_function = "L2_Squared" L1\L2\L2_Squared\Linf 正则化方法 seeding_function = "Random++" "Random++"\"KMeans||" 初始化种子点方法 verbose = 0U { 0, 1, 2 } 冗长模式 seed = 0U [0, INT_MAX_VALUE] 种子 xgboost: xgboost_regression_logistic、 xgboost_binary_logistic、 xgboost_regression_gamma、xgboost_regression_squarederror n_iter=10 (0, 10000] 迭代次数 batch_size=10000 (0, 1048575] 一次训练所选取的样本数 booster="gbtree" gbtree\gblinear\dart booster种类 tree_method="auto" auto\exact\approx\hist\gpu_hist 注意：gpu_hist参数需要相应的库是GPU版本，否则DB4AI平台不支持该值。 树构建算法 eval_metric="rmse" rmse\rmsle\map\mae\auc\aucpr 验证数据的评估指标 seed=0 [0, INT_MAX_VALUE] 种子 nthread=1 [0, 100] 并发量 max_depth=5 (0, MAX_MEMORY_LIMIT] 树的最大深度，该超参仅对树型booster生效。 gamma=0.0 [0, DOUBLE_MAX_VALUE] 叶节点上进行进一步分区所需的最小损失减少 eta=0.3 [0, 1] 更新中使用的步长收缩，以防止过拟合 min_child_weight=1 [0, INT_MAX_VALUE] 孩子节点中所需的实例权重的最小总和 verbosity=1 0 (silent)\1 (warning)\2 (info)\3 (debug) 打印信息的详细程度 MAX_MEMORY_LIMIT = 最大内存加载的元组数量 GS_MAX_COLS = 数据库单表最大属性数量 模型保存成功，则返回创建成功信息： MODEL CREATED. PROCESSED x 查看模型信息。 当训练完成后模型会被存储到系统表gs_model_warehouse中。系统表gs_model_warehouse可以查看到关于模型本身和训练过程的相关信息。 关于模型的详细描述信息以二进制的形式存储在系统表中，用户可用过使用函数gs_explain_model完成对模型的查看，语句如下： gaussdb=# select gs_explain_model('iris_classification_model');
+ DB4AI MODEL
+-------------------------------------------------------------
+ Name: iris_classification_model
+ Algorithm: xgboost_regression_logistic
+ Query: CREATE MODEL iris_classification_model
+ USING xgboost_regression_logistic
+ FEATURES sepal_length, sepal_width,petal_length,petal_width
+ TARGET target_type < 2
+ FROM tb_iris_1
+ WITH nthread=4, max_depth=8;
+ Return type: Float64
+ Pre-processing time: 0.000000
+ Execution time: 0.001443
+ Processed tuples: 78
+ Discarded tuples: 0
+ n_iter: 10
+ batch_size: 10000
+ max_depth: 8
+ min_child_weight: 1
+ gamma: 0.0000000000
+ eta: 0.3000000000
+ nthread: 4
+ verbosity: 1
+ seed: 0
+ booster: gbtree
+ tree_method: auto
+ eval_metric: rmse
+ rmse: 0.2648450136
+ model size: 4613 利用已存在的模型做推断任务。 使用“SELECT”和“PREDICT BY”关键字利用已有模型完成推断任务。 查询语法：SELECT…PREDICT BY…(FEATURES…)…FROM…; gaussdb=# SELECT id , PREDICT BY iris_classification (FEATURES sepal_length,sepal_width,petal_length,petal_width ) as " PREDICT" FROM tb_iris limit 3;
+ 
+id  | PREDICT
+-----+---------
+  84 |       2
+  85 |       0
+  86 |       0
+(3 rows) 针对相同的推断任务，同一个模型的结果是大致稳定的。且基于相同的超参数和训练集训练的模型也具有稳定性，同时AI模型训练存在随机成分（每个batch的数据分布、随机梯度下降），所以不同的模型间的计算表现、结果允许存在小的差别。 查看执行计划。 使用explain语句可对“CREATE MODEL”和“PREDICT BY”的模型训练或预测过程中的执行计划进行分析。Explain关键字后可直接拼接CREATE MODEL/ PREDICT BY语句（子句），也可接可选的参数，支持的参数如下： 表5 EXPLAIN支持的参数 参数名 描述 ANALYZE 布尔型变量，追加运行时间、循环次数等描述信息 VERBOSE 布尔型变量，控制训练的运行信息是否输出到客户端 COSTS 布尔型变量 CPU 布尔型变量 DETAIL 布尔型变量，不可用。 NODES 布尔型变量，不可用 NUM_NODES 布尔型变量，不可用 BUFFERS 布尔型变量 TIMING 布尔型变量 PLAN 布尔型变量 FORMAT 可选格式类型：TEXT / XML / JSON / YAML 示例： gaussdb=# Explain CREATE MODEL patient_logisitic_regression USING logistic_regression FEATURES second_attack, treatment TARGET trait_anxiety > 50 FROM patients WITH batch_size=10, learning_rate = 0.05;
+                               QUERY PLAN
+-------------------------------------------------------------------------
+ Train Model - logistic_regression  (cost=0.00..0.00 rows=0 width=0)
+   ->  Materialize  (cost=0.00..41.08 rows=1776 width=12)
+         ->  Seq Scan on patients  (cost=0.00..32.20 rows=1776 width=12)
+(3 rows) 异常场景。 训练阶段。 场景一：当超参数的设置超出取值范围，模型训练失败，返回ERROR，并提示错误，例如： gaussdb=# CREATE MODEL patient_linear_regression USING linear_regression FEATURES second_attack,treatment TARGET trait_anxiety  FROM patients WITH optimizer='aa';
+ERROR:  Invalid hyperparameter value for optimizer. Valid values are: gd, ngd. 场景二：当模型名称已存在，模型保存失败，返回ERROR，并提示错误原因，例如： gaussdb=# CREATE MODEL patient_linear_regression USING linear_regression FEATURES second_attack,treatment TARGET trait_anxiety  FROM patients;
+ERROR:  The model name "patient_linear_regression" already exists in gs_model_warehouse. 场景三：FEATURE或者TARGETS列是*，返回ERROR，并提示错误原因，例如： gaussdb=# CREATE MODEL patient_linear_regression USING linear_regression FEATURES *  TARGET trait_anxiety  FROM patients;
+ERROR:  FEATURES clause cannot be *
+----------------------------------------------------------------------------------------------------------------------- gaussdb=# CREATE MODEL patient_linear_regression USING linear_regression FEATURES second_attack,treatment TARGET *  FROM patients;
+ERROR:  TARGET clause cannot be * 场景四：对于无监督学习方法使用TARGET关键字，或者在监督学习方法中不适用TARGET关键字，均会返回ERROR，并提示错误原因，例如： gaussdb=# CREATE MODEL patient_linear_regression USING linear_regression FEATURES second_attack,treatment FROM patients;
+ERROR:  Supervised ML algorithms require TARGET clause
+-----------------------------------------------------------------------------------------------------------------------------
+CREATE MODEL patient_linear_regression USING linear_regression TARGET trait_anxiety  FROM patients;   
+ERROR:  Supervised ML algorithms require FEATURES clause 场景五：当进行分类任务时TARGET列的分类只有1种情况，会返回ERROR，并提示错误原因，例如： gaussdb=# CREATE MODEL ecoli_svmc USING multiclass FEATURES f1, f2, f3, f4, f5, f6, f7 TARGET cat FROM (SELECT * FROM db4ai_ecoli WHERE cat='cp');
+ERROR:  At least two categories are needed 场景六：DB4AI在训练过程中会过滤掉含有空值的数据，当参与训练的模型数据为空的时候，会返回ERROR，并提示错误原因，例如： gaussdb=# create model iris_classification_model using xgboost_regression_logistic features message_regular target error_level from error_code;
+ERROR:  Training data is empty, please check the input data. 场景七：DB4AI的算法对于支持的数据类型是有限制的。当数据类型不在支持白名单中，会返回ERROR，并提示非法的oid，可通过pg_type查看OID确定非法的数据类型，例如： gaussdb=# CREATE MODEL ecoli_svmc USING multiclass FEATURES f1, f2, f3, f4, f5, f6, f7, cat TARGET cat FROM db4ai_ecoli ;
+ERROR:  Oid type 1043 not yet supported 场景八：当GUC参数statement_timeout设置了时长，训练超时执行的语句将被终止：执行CREATE MODEL语句。训练集的大小、训练轮数(iteration)、提前终止条件(tolerance、max_seconds)、并行线程数(nthread)等参数都会影响训练时长。当时长超过数据库限制，语句被终止模型训练失败。 模型解析。 场景九：当模型名在系统表中查找不到，数据库会报ERROR，例如： gaussdb=# select gs_explain_model("ecoli_svmc");
+ERROR:  column "ecoli_svmc" does not exist 推断阶段。 场景十：当模型名在系统表中查找不到，数据库会报ERROR，例如： gaussdb=# select id, PREDICT BY patient_logistic_regression (FEATURES second_attack,treatment) FROM patients;
+ERROR:  There is no model called "patient_logistic_regression". 场景十一：当做推断任务FEATURES的数据维度和数据类型与训练集存在不一致，将报ERROR，并提示错误原因，例如： gaussdb=# select id, PREDICT BY patient_linear_regression (FEATURES second_attack) FROM patients;
+ERROR:  Invalid number of features for prediction, provided 1, expected 2
+CONTEXT:  referenced column: patient_linear_regression_pred
+------------------------------------------------------------------------------------------------------------------------------------- gaussdb=# select id, PREDICT BY patient_linear_regression (FEATURES 1,second_attack,treatment) FROM patients;
+ERROR:  Invalid number of features for prediction, provided 3, expected 2
+CONTEXT:  referenced column: patient_linear_regression_pre DB4AI特性需要读取数据参与计算，不适用于密态数据库等情况。 父主题： DB4AI: 数据库驱动AI 版权所有 © 华为技术有限公司

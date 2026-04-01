@@ -1,0 +1,1 @@
+PV_REDO_STAT PV_REDO_STAT PV_REDO_STAT视图显示会话线程的日志回放情况。具体字段信息如 表1 所示。 表1 PV_REDO_STAT字段 名称 类型 描述 phywrts bigint 日志回放过程中写数据的次数。 phyblkwrt bigint 日志回放过程中写数据的块数。 writetim bigint 日志回放过程中写数据消耗的总时间。 avgiotim bigint 日志回放过程中写一次数据平均消耗的时间。 lstiotim bigint 日志回放过程中最后一次写数据消耗的时间。 miniotim bigint 日志回放过程中单次写数据消耗的最短时间。 maxiowtm bigint 日志回放过程中单次写数据消耗的最长时间。 父主题： 其他系统视图 版权所有 © 华为技术有限公司

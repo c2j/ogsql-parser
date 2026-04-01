@@ -1,0 +1,21 @@
+{
+  "topic": "业务流程分析",
+  "term_count": 3,
+  "terms": [
+    {
+      "term": "业务流程",
+      "content": "业务流程 业务流程 表1 组件说明 组件名称 组件所在节点 日志打印位置 GaussDB Console Console-Static 日志路径和下载方法请参考各个业务具体章节。 GaussDB API DBS-OPEN-API-For-GaussDB-01、DBS-OPEN-API-For-GaussDB-02 GaussDB 实例管理 DBS-GaussDB-01、DBS-GaussDB-02 GaussDB 备份管理 DBS-GaussDB-01、DBS-GaussDB-02 GaussDB Node POD VM 创建实例 删除实例 备份实例 恢复实例 容灾搭建 容灾主备切换 容灾灾备升主",
+      "source_file": "5549_file_5549.txt"
+    },
+    {
+      "term": "部署架构图",
+      "content": "部署架构图 部署架构图 表1 组件说明 组件名称 组件所在节点 部署状况 部署关系（主备/多活） 网络平面 组件说明 GaussDB Console Console-Static 2节点部署 多活 DMZ_service 管理面组件，提供可视化页面给用户使用。 GaussDB API DBS-OPEN-API-For-GaussDB-01、DBS-OPEN-API-For-GaussDB-02 2节点部署 多活 DMZ_service DMZ_service_Advance 管理面组件，API负责提供对外的所有入口，并转发给各个服务执行。 GaussDB InstanceManager DBS-GaussDB-01、DBS-GaussDB-02 2节点部署 多活 DMZ_service DMZ_service_Advance 管理面组件，实例管理负责实例整个生命周期的管理和调度，包括创建实例、重启实例、重置密码、节点扩容、实例删除等功能。 GaussDB BackupManager DBS-GaussDB-01、DBS-GaussDB-02 2节点部署 多活 DMZ_service DMZ_service_Advance 管理面组件，备份管理负责实例备份/恢复的管理，管理实例的备份策略，提供自动全备、增量备份、备份恢复新实例、当前实例等能力。 GaussDB Core DBS-GaussCore-01、DBS-GaussCore-02 2节点部署 多活 external_om 管控面核心Core元数据库，保存管理面核心数据的数据库。 GaussDB Workflow DBS-GaussBase-01、 DBS-GaussBase-02 2节点部署 多活 external_om 管控面工作流元数据库，保存管理面工作流服务状态信息的数据库。 GaussDB Backup DBS-GaussBackup-01、 DBS-GaussBackup-02 2节点部署 多活 external_om 管理面备份服务元数据库，保存管理面备份服务产生的相关数据。 GaussDB Metering DBS-GaussMetering-01、 DBS-GaussMetering-02 2节点部署 多活 external_om 管理面计量元数据库，保存计量计费数据。 Ops-Admin DBS-OpsAdmin-01、DBS-OpsAdmin-02 2节点部署 多活 DMZ_service DMZ_service_Advance Region域运维节点。 Ops-Base DBS-OpsBase 1节点部署 多活 DMZ_service OM域运维节点。 Metering DBS-ResMgnt-01、DBS-ResMgnt-02 2节点部署 多活 DMZ_service DMZ_service_Advance 管理面计费服务，产生话单等计费数据。 Resourse Manager DBS-ResMgnt-01、DBS-ResMgnt-02 2节点部署 多活 DMZ_service DMZ_service_Advance 资源管理服务，和IaaS直接交互，提供和IaaS交互的接口。 Monitor-Service DBS-Monitor-01、DBS-Monitor-02、DBS-Monitor-03 3节点部署 多活 DMZ_service DMZ_service_Advance 实例故障与监控服务，提供实例的状态和错误日志慢日志等实例信息。 Common-service DBS-Monitor-01、DBS-Monitor-02、DBS-Monitor-03 3节点部署 多活 DMZ_service DMZ_service_Advance 管理面公共接口服务，提供诸如查询实例个数实例状态等公共接口。 Zookeeper DBS-Zookeeper-01、DBS-Zookeeper-02、DBS-Zookeeper-03 3节点部署 多活 external_om Zookeeper集群，管理面的注册中心和Kafka的仲裁中心。 Kafka DBS-Kafka-01、DBS-Kafka-02、DBS-Kafka-03 3节点部署 多活 DMZ_service DMZ_service_Advance Kafka集群，负责保存实例上报的元数据。 RDS HA DBS-HA-For-RDS-01、DBS-HA-For-RDS-02、DBS-HA-For-RDS-03 3节点部署 多活 DMZ_service DMZ_service_Advance 管理面组件，提供节点所在虚拟机故障自动修复，拉起等关键能力。 Workflow DBS-Workflow-01、DBS-Workflow-02、DBS-Workflow-03 3节点部署 多活 external_om 管理面工作流服务，提供管理面工作流接口。 Agent 各数据库实例 与内核合并部署 - POD 业务侧组件，负责整个实例的管理，是实例管理、备份、HA等服务的最终执行者，同时负责实例的各类监控。",
+      "source_file": "5547_file_5547.txt"
+    },
+    {
+      "term": "组件关系依赖图",
+      "content": "组件关系依赖图 组件关系依赖图 DBS Console ：面向最终租户的实例管理Web控制台，租户通过该界面可以自助完成数据库实例的管理。 APIGW ：面向最终租户的实例管理Open API，租户可以通过调用这些API完成数据库实例管理。 DBS Service ：数据库服务管理与控制系统，负责数据库实例所有管理功能，对外统一提供RESTful风格的API。 ManageOne 运营 ：提供VDC管理、权限管理、产品管理、订单、计费管理等一系列运营能力。 ManageOne 运维 ：提供基础运维服务，集成了告警、性能监控、服务监控、日志下载、统一密码、资源监控等能力。 RegionLB ：公有云管理面API调用的统一负载均衡器，所有来自Console或APIGW的调用，都首先到RegionLB，再由其分发到对应的服务。 SDR ：计费系统及话单FTP服务器，计费系统负责对租户使用的资源进行计费，服务负责把资源数据形成话单文件，并保存到FTP服务器，再由计费系统从中读取。 NTP ：提供时钟同步能力，数据库管理面和数据库业务面均依赖该服务进行时钟同步。 CTS ：管理面API调用审计日志，DBS的所有API调用日志都将存入CTS，以便进行审计、追踪。 DNS ：提供域名解析服务，数据库服务依赖DNS解析依赖组件的域名。 OBS ：对象存储服务，用于存储租户数据库所有备份数据，以及管理面自身的备份数据。 CES ：DBS支持数据库实例的多种监控指标查看，实例上报指标至管控面，再由管控面组件同步到CES，并在其中提供统一的查看界面，HCS场景下CES被ManageOne OC性能监控纳管。 RMS： 提供全局资源配置的检索，配置历史追溯，以及基于资源配置的持续的审计评估能力，确保云上资源配置变更符合预期。 IaaS+ ：ECS/EVS/VPC/OpenStack提供计算、存储和网络虚拟资源，DBS基于此允许数据库实例对外提供数据库服务。 ServiceOM : 集成了计算、存储、网络以及数据库运维管理平台服务，提供专业运维能力。 DBS OPS ：提供数据库服务专业运维能力，有实例管理、节点管理、任务管理、配置管理、实例巡检、实例监控等数据库专业运维能力。",
+      "source_file": "5548_file_5548.txt"
+    }
+  ]
+}

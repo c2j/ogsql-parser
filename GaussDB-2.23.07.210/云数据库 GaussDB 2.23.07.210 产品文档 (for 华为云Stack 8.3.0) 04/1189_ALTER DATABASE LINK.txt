@@ -1,0 +1,5 @@
+ALTER DATABASE LINK ALTER DATABASE LINK 功能描述 修改DATABASE LINK对象。DATABASE LINK详细说明请见 DATABASE LINK 。 注意事项 目前仅支持修改DATABASE LINK对象的用户名和密码。 语法格式 ALTER [ PUBLIC ] DATABASE LINK dblink CONNECT TO user IDENTIFIED BY 'password'; 参数说明 dblink 连接名称。 user 远端被连接数据库用户名。 password 远端被连接数据库用户密码。 PUBLIC 连接类型，不加PUBLIC默认PRIVATE。 示例 gaussdb=# CREATE USER user01 WITH SYSADMIN PASSWORD '********'; gaussdb=# SET ROLE user01 PASSWORD '********';
+
+--创建公共dblink gaussdb=# CREATE PUBLIC DATABASE LINK public_dblink CONNECT TO 'user1' IDENTIFIED BY '********' USING (host '192.168.11.11',port '54399',dbname 'db01');
+
+-- 修改dblink对象信息 gaussdb=# ALTER PUBLIC DATABASE LINK public_dblink CONNECT TO 'user2' IDENTIFIED BY '********'; gaussdb=# DROP PUBLIC DATABASE LINK public_dblink; gaussdb=# RESET ROLE; gaussdb=# DROP USER USER01 CASCADE; 相关链接 CREATE DATABASE LINK ， DROP DATABASE LINK 父主题： A 版权所有 © 华为技术有限公司

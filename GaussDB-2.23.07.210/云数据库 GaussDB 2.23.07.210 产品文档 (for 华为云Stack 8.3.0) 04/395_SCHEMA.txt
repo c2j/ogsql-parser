@@ -1,0 +1,10 @@
+查询数据库SCHEMA列表 查询数据库SCHEMA列表 功能介绍 查询指定实例的数据库SCHEMA列表。 调用接口前，您需要提前 获取终端节点 ，即下文中的Endpoint值。 约束限制 实例在异常或冻结状态下不能执行该操作。 URI URI格式 GET https://{ Endpoint }/gaussdb/v3/{project_id}/instances/{instance_id}/schemas?db_name={db_name} URI样例 https://gaussdb.sa-fb-2.hcsglobal.com/gaussdb/v3/054ea741f700d4a32f1bc00f5c80dd4c/instances/{instance_id}/schemas?db_name=dbname 参数说明 表1 参数说明 参数 是否必选 参数类型 描述 project_id 是 String 租户在某一region下的project ID。 获取方法请参见 获取项目ID/名称 。 instance_id 是 String 实例ID。 db_name 是 String 数据库名称。不能和模板库重名。模板库包括postgres， template0 ，template1。 offset 否 Integer 分页符。从第一条数据偏移offset页数据后开始查询，默认为0（偏移0页数据，表示从第一条数据开始查询），必须为数字，不能为负数。例如：该参数指定为1，limit指定为10，则只展示第11-20条数据。 limit 否 Integer 每页显示的条目数量,取值范围[1, 100]，默认10。 请求消息 无。 响应消息 正常响应要素说明 表2 参数说明 参数 参数类型 描述 database_schemas Array of objects 列表中每个元素表示一个数据库schema，详情参见 表3 。 total_count Integer 数据库schema总数。 表3 database_schemas字段数据结构说明 参数 参数类型 描述 schema_name String schema名称。 owner String schema所属用户。 正常响应样例 { 
+  "database_schemas" : [ { 
+    "schema_name" : "rds-test", 
+    "owner" : "root" 
+  }, { 
+    "schema_name" : "testdb1", 
+    "owner" : "root" 
+  } ], 
+  "total_count" : 2 
+} 异常响应 请参见 异常请求结果 。 状态码 正常 200 异常 请参见 状态码 。 错误码 请参见 错误码 。 父主题： 管理数据库和用户 版权所有 © 华为技术有限公司

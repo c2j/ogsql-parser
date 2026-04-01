@@ -1,0 +1,1 @@
+检测实例进程运行状态 检测实例进程运行状态 命令格式 cm_ctl check -B BINNAME -T DATAPATH 参数说明 -B BINNAME：指定进程名，其进程名包括“cm_agent”,“gs_gtm”,“gaussdb”和“cm_server”。 -T DATAPATH：指定实例数据目录。 常用命令 检测cm_agent进程运行状态： cm_ctl check -B cm_agent -T /data1/omm/cluster/data/cm/cm_agent 检测cm_server进程运行状态： cm_ctl check -B cm_server -T /data1/omm/cluster/data/cm/cm_server 父主题： cm_ctl工具使用指南 版权所有 © 华为技术有限公司

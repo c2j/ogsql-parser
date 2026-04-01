@@ -1,0 +1,36 @@
+COMMIT | END COMMIT | END 功能描述 通过COMMIT或者END可完成提交事务的功能，即提交事务的所有操作。 注意事项 执行COMMIT这个命令的时候，命令执行者必须是该事务的创建者或系统管理员，且创建和提交操作可以不在同一个会话中。 语法格式 1 { COMMIT | END } [ WORK | TRANSACTION ] ; 参数说明 COMMIT | END 提交当前事务，让所有当前事务的更改为其他事务可见。 WORK | TRANSACTION 可选关键字，除了增加可读性没有其他任何作用。 示例 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27
+28
+29
+30
+31
+32
+33
+34
+35
+36 -- 创建SCHEMA。 gaussdb =# CREATE SCHEMA tpcds ; --创建表。 gaussdb =# CREATE TABLE tpcds . customer_demographics_t2 ( CD_DEMO_SK INTEGER NOT NULL , CD_GENDER CHAR ( 1 ) , CD_MARITAL_STATUS CHAR ( 1 ) , CD_EDUCATION_STATUS CHAR ( 20 ) , CD_PURCHASE_ESTIMATE INTEGER , CD_CREDIT_RATING CHAR ( 10 ) , CD_DEP_COUNT INTEGER , CD_DEP_EMPLOYED_COUNT INTEGER , CD_DEP_COLLEGE_COUNT INTEGER ) DISTRIBUTE BY HASH ( CD_DEMO_SK ); --开启事务。 gaussdb =# START TRANSACTION ; --插入数据。 gaussdb =# INSERT INTO tpcds . customer_demographics_t2 VALUES ( 1 , 'M' , 'U' , 'DOCTOR DEGREE' , 1200 , 'GOOD' , 1 , 0 , 0 ); gaussdb =# INSERT INTO tpcds . customer_demographics_t2 VALUES ( 2 , 'F' , 'U' , 'MASTER DEGREE' , 300 , 'BAD' , 1 , 0 , 0 ); --提交事务，让所有更改永久化。 gaussdb =# COMMIT ; --查询数据。 gaussdb =# SELECT * FROM tpcds . customer_demographics_t2 ; --删除表tpcds.customer_demographics_t2。 gaussdb =# DROP TABLE tpcds . customer_demographics_t2 ; -- 删除SCHEMA。 gaussdb =# DROP SCHEMA tpcds ; 相关链接 ROLLBACK 父主题： C 版权所有 © 华为技术有限公司

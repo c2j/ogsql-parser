@@ -1,0 +1,11 @@
+执行具有输入参数的语句 执行具有输入参数的语句 准备一个普通语句，通过替换参数（在想要替换参数的地方写上问号）执行它的特定版本。使用EXECUTE语句通过USING子句给定参数执行准备语句。示例如下： EXEC SQL BEGIN DECLARE SECTION;
+    const char *stmt = "INSERT INTO test1 VALUES(?, ?);";
+EXEC SQL END DECLARE SECTION;
+    /* PREPARE 准备一个语句用于执行 */
+    EXEC SQL PREPARE mystmt FROM :stmt;
+    ...
+    /* 单引号为有效字符，若用字符串需用双引号 */
+    EXEC SQL EXECUTE mystmt USING 42, 'foobar';
+
+    /* 当你不再需要预备语句时，你应该释放它 */
+    EXEC SQL DEALLOCATE PREPARE name; 父主题： 执行动态SQL语句 版权所有 © 华为技术有限公司

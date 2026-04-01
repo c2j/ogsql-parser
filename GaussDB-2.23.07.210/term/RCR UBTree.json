@@ -1,0 +1,46 @@
+{
+  "topic": "RCR UBTree",
+  "term_count": 8,
+  "terms": [
+    {
+      "term": "RCR",
+      "content": "RCR UBTree空间管理 RCR UBTree空间管理 当前Astore的索引依赖AutoVacuum和Free Space Map（FSM）进行空间管理，存在回收不及时的问题，而Ustore的索引使用其特有的URQ（UBTree Recycle Queue，一种基于循环队列的数据结构，即双循环队列）对索引空闲空间进行管理。双循环队列是指有两个循环队列，一个潜在空页队列，另一个可用空页队列。在DML过程中完成索引的空间管理，能有效地缓解DML过程中造成的空间急剧膨胀问题。 索引回收队列单独储存在B-tree索引对应的FSM文件中。 如上图所示，索引页面在双循环队列间流动如下： 索引空页流动到潜在队列 索引页尾字段中记录了页面上活跃元组个数（activeTupleCount）。在DML过程中，删空一个页面的所有元组，即activeTupleCount为零时会将索引页放入潜在队列中。 潜在队列流动到可用队列 潜在队列到可用队列的转化主要是达到一个潜在队列收支平衡以及可用队列在拿页时有页可拿的目的。即当从可用队列拿出一个索引空页用完后，建议从潜在队列转化至少一个索引页面到可用队列中，以及每当潜在队列新加入一个索引页面时，能从潜在队列中移除至少一个索引页插入可用队列中，达到潜在队列的收支平衡，以及可用队列有页可用的目的。 可用队列流动到索引空页 索引在分裂等获取一个索引空页面时，会先从可用队列中进行查找是否有可以复用的索引页，如果找到则直接进行复用，没有可复用页面则进行物理扩页。",
+      "source_file": "4379_RCR UBTree.txt"
+    },
+    {
+      "term": "RCR",
+      "content": "RCR UBTree多版本管理 RCR UBTree多版本管理 RCR(Row Consistency Read) btree 的多版本管理是基于数据行的行级多版本管理。将XID记录在了数据行上，会增加Key的大小，索引会有5-20%左右的膨胀。最新版本和历史版本均在btree上，索引没有记录Undo信息。插入或者删除key时按照key + TID的顺序排列，索引列相同的元组按照对应元组的TID作为第二关键字进行排序，会将xmin、xmax追加到key的后面。索引分裂时，多版本信息随着key的迁移而迁移。",
+      "source_file": "4376_RCR UBTree.txt"
+    },
+    {
+      "term": "RCR",
+      "content": "RCR UBTree可见性机制 RCR UBTree可见性机制 RCR UBTree可见性判断是通过判断Key上xmin/xmax来确定的，与Astore堆表数据行上xmin/xmax作用类似。",
+      "source_file": "4377_RCR UBTree.txt"
+    },
+    {
+      "term": "RCR",
+      "content": "RCR UBTree增删改查 RCR UBTree增删改查 Insert操作 ：Ubtree的插入逻辑基本不变，只需增加索引插入时直接获取事务信息填写xmin字段。 Delete操作 ：Ubtree额外增加了索引删除流程。索引删除主要步骤与插入相似，获取事务信息填写xmax字段（B-tree索引不维护版本信息，不需要删除操作）,同时更新页面上的active_tuple_count。若active_tuple_count被减为0，则尝试页面回收。 Update操作 ：对于Ustore而言，数据更新对Ubtree索引列的操作也与Astore有所不同。数据更新包含两种情况：索引列和非索引列更新，下图给出了Ubtree在数据发生更新时的处理。 上图展示Ubtree在索引列和非索引列更新的差异： 在非索引列更新的情况下，索引不发生任何变化。index tuple仍指向第一次插入的data tuple，Uheap不会插入新的data tuple，而是修改当下data tuple并将历史数据存入Undo中。 在索引列更新的情况下，Ubtree也会插入新的index tuple，但是会指向同一个data linepointer和同一个data tuple。扫描旧版本的数据则需要从Undo中读取。 Scan操作 ：用户在读取数据时，可通过使用索引扫描加速，Ubtree支持索引数据的多版本管理及可见性检查，索引层的可见性检查使得索引扫描（Index Scan）及仅索引扫描（IndexOnly Scan）性能有所提升。 对于索引扫描： 若索引列包含所有扫描列（IndexOnly Scan），则通过扫描条件在索引上进行二分查找，找到符合条件元组即可返回数据。 若索引列不包含所有扫描列（Index Scan），则通过扫描条件在索引上进行二分查找，找到符合条件元组的TID，再通过TID到数据表上查找对应的数据元组。如下图所示。",
+      "source_file": "4378_RCR UBTree.txt"
+    },
+    {
+      "term": "RCR",
+      "content": "RCR UBTree可见性机制 RCR UBTree可见性机制 RCR UBTree可见性判断是通过判断Key上xmin/xmax来确定的，与Astore堆表数据行上xmin/xmax作用类似。",
+      "source_file": "4637_RCR UBTree.txt"
+    },
+    {
+      "term": "RCR",
+      "content": "RCR UBTree增删改查 RCR UBTree增删改查 Insert操作 ：UBTree的插入逻辑基本不变，只需增加索引插入时直接获取事务信息填写xmin字段。 Delete操作 ：UBTree额外增加了索引删除流程，索引删除主要步骤与插入相似，获取事务信息填写xmax字段（BTree索引不维护版本信息，不需要删除操作）,同时更新页面上的active_tuple_count，若active_tuple_count被减为0，则尝试页面回收。 Update操作 ：对于Ustore而言，数据更新对UBTree索引列的操作也与Astore有所不同，数据更新包含两种情况：索引列和非索引列更新，下图给出了UBTree在数据发生更新时的处理。 上图展示UBTree在索引列和非索引列更新的差异： 在非索引列更新的情况下，索引不发生任何变化。index tuple仍指向第一次插入的data tuple，Uheap不会插入新的data tuple，而是修改当下data tuple并将历史数据存入Undo中。 在索引列更新的情况下，UBTree也会插入新的index tuple，但是会指向同一个data linepointer和同一个data tuple，扫描旧版本的数据则需要从Undo中读取。 Scan操作 ：用户在读取数据时，可通过使用索引扫描加速。UBTree支持索引数据的多版本管理及可见性检查，索引层的可见性检查使得索引扫描（Index Scan）及仅索引扫描（IndexOnly Scan）性能有所提升。 对于索引扫描： 若索引列包含所有扫描列（IndexOnly Scan），则通过扫描条件在索引上进行二分查找，找到符合条件元组即可返回数据。 若索引列不包含所有扫描列（Index Scan），则通过扫描条件在索引上进行二分查找，找到符合条件元组的TID，再通过TID到数据表上查找对应的数据元组。如下图所示。",
+      "source_file": "4638_RCR UBTree.txt"
+    },
+    {
+      "term": "RCR",
+      "content": "RCR UBTree空间管理 RCR UBTree空间管理 当前Astore的索引依赖AutoVacuum和Free Space Map（FSM）进行空间管理，存在回收不及时的问题。而Ustore的索引使用其特有的URQ（UBTree Recycle Queue，一种基于循环队列的数据结构，即双循环队列），对索引空闲空间进行管理。双循环队列是指有两个循环队列，一个潜在空页队列，另一个可用空页队列，在DML过程中完成索引的空间管理，能有效地缓解DML过程中造成的空间急剧膨胀问题。索引回收队列单独储存在BTree索引对应的FSM文件中。 如上图所示，索引页面在双循环队列间流动如下： 索引空页流动到潜在队列 索引页尾字段中记录了页面上活跃元组个数（activeTupleCount），在DML过程中，删空一个页面的所有元组，即activeTupleCount为零时会将索引页放入潜在队列中。 潜在队列流动到可用队列 潜在队列到可用队列的转化主要是达到一个潜在队列收支平衡以及可用队列在拿页时有页可拿的目的，即当从可用队列拿出一个索引空页用完后，建议从潜在队列转化至少一个索引页面到可用队列中，以及每当潜在队列新加入一个索引页面时，能从潜在队列中移除至少一个索引页插入可用队列中，达到潜在队列的收支平衡，以及可用队列有页可用的目的。 可用队列流动到索引空页 索引在分裂等获取一个索引空页面时，会先从可用队列中进行查找是否有可以复用的索引页。如果找到则直接进行复用，没有可复用页面则进行物理扩页。",
+      "source_file": "4639_RCR UBTree.txt"
+    },
+    {
+      "term": "RCR",
+      "content": "RCR UBTree多版本管理 RCR UBTree多版本管理 RCR(Row Consistency Read) UBtree的多版本管理是基于数据行的行级多版本管理，将XID记录在了数据行上，会增加Key的大小，索引会有5-20%左右的膨胀。最新版本和历史版本均在btree上，索引没有记录Undo信息。插入或者删除key时按照key + TID的顺序排列，索引列相同的元组按照对应元组的TID作为第二关键字进行排序。会将xmin、xmax追加到key的后面。索引分裂时，多版本信息随着key的迁移而迁移。",
+      "source_file": "4636_RCR UBTree.txt"
+    }
+  ]
+}

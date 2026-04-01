@@ -1,0 +1,16 @@
+{
+  "topic": "GUC参数编程规范",
+  "term_count": 2,
+  "terms": [
+    {
+      "term": "【规则】客户端（如JDBC）应使用默认参数执行查询，如果需要修改会话级别的GUC参数，应谨慎评估",
+      "content": "【规则】客户端（如JDBC）应使用默认参数执行查询，如果需要修改会话级别的GUC参数，应谨慎评估 【规则】客户端（如JDBC）应使用默认参数执行查询，如果需要修改会话级别的GUC参数，应谨慎评估 通过ODBC或JDBC修改GUC参数时，需注意GUC参数仅会在当前connection中生效，特别是在连接池场景下，容易发生问题，且导致问题定位困难。 如果在连接中必须进行GUC参数设置，那么在将连接归还给连接池之前，必须使用 SET SESSION AUTHORIZATION DEFAULT; RESET ALL; 将连接的状态清空。",
+      "source_file": "658_JDBCGUC.txt"
+    },
+    {
+      "term": "【规则】客户端（如JDBC）应使用默认参数执行查询，如果需要修改会话级别的GUC参数，应谨慎评估",
+      "content": "【规则】客户端（如JDBC）应使用默认参数执行查询，如果需要修改会话级别的GUC参数，应谨慎评估 【规则】客户端（如JDBC）应使用默认参数执行查询，如果需要修改会话级别的GUC参数，应谨慎评估 通过ODBC或JDBC修改GUC参数时，需注意GUC参数仅会在当前connection中生效，特别是在连接池场景下，容易发生问题，且导致问题定位困难。 如果在连接中必须进行GUC参数设置，那么在将连接归还给连接池之前，必须使用 SET SESSION AUTHORIZATION DEFAULT; RESET ALL; 将连接的状态清空。",
+      "source_file": "516_JDBCGUC.txt"
+    }
+  ]
+}

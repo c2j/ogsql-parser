@@ -1,0 +1,1 @@
+DBE_PLDEBUGGER.backtrace DBE_PLDEBUGGER.backtrace debug端调试过程中，调用backtrace，查看当前的调用堆栈。 表1 backtrace返回值列表 名称 类型 描述 frameno OUT integer 调用栈编号 funcname OUT text 函数名 lineno OUT integer 行号 query OUT text 断点内容 funcoid OUT oid 函数oid 父主题： DBE_PLDEBUGGER Schema 版权所有 © 华为技术有限公司

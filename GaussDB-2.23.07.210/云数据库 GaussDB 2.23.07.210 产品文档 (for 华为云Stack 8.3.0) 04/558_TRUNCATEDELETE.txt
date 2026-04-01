@@ -1,0 +1,1 @@
+【规则】如果需要清空一张表，建议使用TRUNCATE，而不是DELETE 【规则】如果需要清空一张表，建议使用TRUNCATE，而不是DELETE TRUNCATE会创建新的物理文件，并在事务结束时将原文件物理删除，清空磁盘空间。而DELETE会将表中数据进行标记，直到VACUUM FULL阶段才会真正清理磁盘空间。 父主题： DELETE 版权所有 © 华为技术有限公司

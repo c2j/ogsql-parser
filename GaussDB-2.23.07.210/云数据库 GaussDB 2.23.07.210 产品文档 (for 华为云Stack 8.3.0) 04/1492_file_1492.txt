@@ -1,0 +1,44 @@
+函数支持自治事务 函数支持自治事务 自治事务可以在函数中定义，标识符为PRAGMA AUTONOMOUS_TRANSACTION，其余语法与函数语法相同，请参见 CREATE FUNCTION ，示例如下。 gaussdb=# CREATE TABLE t4(a INT, b INT, c TEXT);
+NOTICE:  The 'DISTRIBUTE BY' clause is not specified. Using 'a' as the distribution column by default.
+HINT:  Please use 'DISTRIBUTE BY' clause to specify suitable data distribution column.
+CREATE TABLE
+
+gaussdb=# CREATE OR REPLACE FUNCTION autonomous_32(a INT ,b INT ,c TEXT) RETURN INT AS 
+DECLARE 
+	PRAGMA AUTONOMOUS_TRANSACTION;
+BEGIN
+	INSERT INTO t4 VALUES(a, b, c);
+	RETURN 1;
+END;
+/
+CREATE FUNCTION
+gaussdb=# CREATE OR REPLACE FUNCTION autonomous_33(num1 INT) RETURN INT AS 
+DECLARE 
+	num3 INT := 220;
+	tmp INT;
+	PRAGMA AUTONOMOUS_TRANSACTION;
+BEGIN
+	num3 := num3/num1;
+	RETURN num3;
+EXCEPTION
+	WHEN DIVISION_BY_ZERO THEN
+		SELECT autonomous_32(num3, num1, SQLERRM) INTO tmp;
+		ROLLBACK;
+		RETURN 0;
+END;
+/
+CREATE FUNCTION
+gaussdb=# SELECT autonomous_33(0);
+ autonomous_33 
+---------------
+             0
+(1 row)
+
+gaussdb=# SELECT * FROM t4;
+  a  | b |        c         
+-----+---+------------------
+ 220 | 0 | division by zero
+(1 row)
+
+gaussdb=# DROP TABLE t4;
+DROP TABLE 上述例子，最后在回滚的事务块中执行包含自治事务的函数，也能直接说明了自治事务的特性，即主事务的回滚，不会影响自治事务已经提交的内容。 父主题： 自治事务 版权所有 © 华为技术有限公司

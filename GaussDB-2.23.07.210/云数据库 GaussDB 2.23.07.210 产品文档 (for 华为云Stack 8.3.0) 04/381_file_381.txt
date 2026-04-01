@@ -1,0 +1,20 @@
+恢复到当前实例 恢复到当前实例 功能介绍 将数据库恢复到当前实例。 调用接口前，您需要提前 获取终端节点 ，即下文中的Endpoint值。 URI URI格式 POST https://{ endpoint }/gaussdb/v3/{project_id}/instances/recovery URI样例 https://gaussdb.sa-fb-2.hcsglobal.com/gaussdb/v3/0c8243400d37468bb4aed3cc94c2911d/instances/recovery 参数说明 表1 参数说明 参数 是否必选 参数类型 描述 project_id 是 String 租户在某一region下的project ID。 获取方法请参见 获取项目ID/名称 。 请求消息 参数说明 表2 参数说明 参数 是否必选 参数类型 描述 source 是 Objects 恢复数据源对象。详情见 表3 target 是 Objects 恢复目标对象。详情见 表4 表3 source 字段数据结构说明 参数 是否必选 参数类型 描述 instance_id 是 String 实例ID。 type 是 String 表示恢复方式，缺省值为backup，枚举值： “ backup ”，表示使用备份文件恢复，按照此方式恢复时，“backup_id”必选。 “ timestamp ”，表示按时间点恢复，按照此方式恢复时，“restore_time”必选。 backup_id 否 String 用于恢复的备份ID。当使用备份文件恢复时需要指定该参数。 xbsa可支持差量备份ID 恢复 restore_time 否 String Pitr用于恢复的时间戳，obs恢复可通过 【查询可恢复时间段】接口查询。详情请参见 查询可恢复时间段 。xbsa恢复可通过第三方文件解析查询。 table_list 否 Array 表级备份信息。仅恢复到库或恢复到表需要填写。详情参见 表5 说明： 仅支持3.200以上实例。 最多支持100个库或100个表同时恢复，超出建议使用实例级恢复。 schema_type 否 String 源备份类别，默认值：INSTANCE 枚举值： INSTANCE： 实例级备份 DATABASE_TABLE： 表级备份 表4 target字段数据结构说明 参数 是否必选 参数类型 描述 instance_id 是 String 恢复目标实例ID。 表5 table_list字段数据结构说明 名称 是否必选 参数类型 说明 db_name 是 String 源备份库名 说明： 不支持恢复模板库以及系统用户。 模板库包括postgres、 template0 、template1。 系统用户包括rdsAdmin、 rdsMetric、rdsBackup、rdsRepl。 schema_name 否 String 源备份schema 恢复到表时，该参数必传，恢复到库时，该参数无效。 说明： 不支持恢复系统级的如dbe_application_info、rdsRepl等schema。 table_name 否 String 源备份表名 恢复到表时，该参数必传，恢复到库时，该参数无效。 new_db_name 否 String 恢复到的新库名 不填时与源备份库名一致。 说明： 不能与当前实例已有库同名。 数据库名称长度可在1～63个字符之间，由字母、数字、或下划线组成，不能包含其他特殊字符，不能以“pg”和数字开头，且不能和模板库重名。 模板库包括postgres、 template0 、template1。也不能以系统用户rdsAdmin、rdsMetric、rdsBackup、rdsRepl命名。 不使用保留或非保留关键字命名数据库对象，具体请参考《开发指南》中的"开发设计建议 - 数据库对象命名"章节。 new_schema_name 否 String 恢复到的新schema 恢复到库时，该参数无效，恢复到表不填时与源备份schema一致。 说明： 不能与当前实例已有schema同名。 schema名称在1到63个字符之间，由字母、数字、或下划线组成，不能包含其他特殊字符，不能以“pg”和数字开头，且不能和模板库、已存在的schema重名，模板库包括postgres、 template0 、template1，已存在的schema包括public、information_schema，另外不支持恢复系统级的如dbe_application_info、rdsRepl等schema。 不使用保留或非保留关键字命名数据库对象，具体请参考《开发指南》中的"开发设计建议 - 数据库对象命名"章节。 new_table_name 否 String 恢复到的新表名 恢复到库时，该参数无效，恢复到表不填时与备份的表名一致。 说明： 不能与当前实例已有表同名。 表名在1到63个字符之间，由字母、数字、或下划线组成，不能包含其他特殊字符，不能以“pg”和数字开头，具体请参考《开发指南》中的"开发设计建议 - 数据库对象命名"章节。 请求样例 恢复到当前实例 { 
+   "source" : { 
+     "instance_id" : "5362449138da4e408dbae5152ca26640in14", 
+     "type" : "backup", 
+     "backup_id" : "cc94568cb5a54e4a8ab5dff95e64a5e0br14" ,
+     "table_list": [
+            {
+                "db_name": "table_backup_db",
+                "schema_name": "myschema",
+                "table_name": "test"
+            }
+      ],
+      "schema_type": "DATABASE_TABLE"
+   }, 
+   "target" : { 
+     "instance_id" : "5362449138da4e408dbae5152ca26640in14" 
+   } 
+ } 响应消息 正常响应要素说明 表6 响应Body参数 参数 参数类型 描述 job_id String 任务ID。 正常响应样例 { 
+  "job_id" : "a03b1b8a-b756-467c-8a49-38720c3d23ec" 
+} 异常响应 请参见 异常请求结果 。 状态码 正常 202 异常 请参见 状态码 。 错误码 请参见 错误码 。 父主题： 备份管理 版权所有 © 华为技术有限公司

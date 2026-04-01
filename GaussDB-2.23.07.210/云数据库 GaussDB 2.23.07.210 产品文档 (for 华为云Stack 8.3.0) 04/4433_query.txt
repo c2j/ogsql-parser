@@ -1,0 +1,13 @@
+单query索引推荐 单query索引推荐 单query索引推荐功能支持用户在数据库中直接进行操作，本功能基于查询语句的语义信息和数据库的统计信息，对用户输入的单条查询语句生成推荐的索引。本功能涉及的函数接口如下。 表1 单query索引推荐功能的接口 函数名 参数 功能 gs_index_advise SQL语句字符串 针对单条查询语句生成推荐索引。 本功能仅支持单条SELECT、INSERT、DELETE、UPDATE类型的语句，不支持其他类型的SQL语句。 本功能使用优化器采样结果，用户需要保证最近analyze过，否则优化器结果不准确。 本功能暂不支持段页式表、普通视图、物化视图、全局临时表、二级分区表以及密态数据库。 如果对ustore表相关语句进行索引推荐，本功能可能无法保证结果的准确性。 使用方法 使用上述函数，获取针对该query生成的推荐索引，推荐结果由索引的表名和列名组成。 例如： gaussdb=# select "table", "column" from gs_index_advise('SELECT c_discount from bmsql_customer where c_w_id = 10');
+     table      |  column  
+----------------+----------
+ bmsql_customer | c_w_id
+(1 row) 上述结果表明：应当在 bmsql_customer 的 c_w_id 列上创建索引，例如可以通过下述SQL语句创建索引： CREATE INDEX idx on bmsql_customer(c_w_id); 某些SQL语句，也可能被推荐创建联合索引，例如： gaussdb=# select "table", "column" from gs_index_advise('select name, age, sex from t1 where age >= 18 and age < 35 and sex = ' 'f ' ';');
+ table | column
+-------+------------
+ t1    | age, sex
+(1 row) 则上述语句表明应该在表 t1 上创建一个联合索引 (age, sex)， 则可以通过下述命令创建： CREATE INDEX idx1 on t1(age, sex); 针对分区表可推荐具体索引类型，例如： gaussdb=# select "table", "column", "indextype" from gs_index_advise('select name, age, sex from range_table where age = 20;');
+ table | column | indextype
+-------+--------+-----------
+ t1    | age    | global
+(1 row) 系统函数gs_index_advise()的参数是文本型，如果参数中存在如单引号（'）等特殊字符，可以使用单引号（'）进行转义，可参考上述示例。 父主题： Index-advisor 版权所有 © 华为技术有限公司

@@ -1,0 +1,36 @@
+{
+  "topic": "Global Plancache",
+  "term_count": 6,
+  "terms": [
+    {
+      "term": "LOCAL_PLANCACHE_STATUS",
+      "content": "LOCAL_PLANCACHE_STATUS LOCAL_PLANCACHE_STATUS LOCAL_PLANCACHE_STATUS视图显示当前节点的GPC全局计划缓存状态信息。 表1 LOCAL_PLANCACHE_STATUS字段 名称 类型 描述 nodename text 所属节点名称。 query text 查询语句text。 refcount integer 被引用次数。 valid bool 是否合法。 databaseid oid 所属数据库id。 schema_name text 所属schema。 params_num integer 参数数量。 func_id oid 该plancache所在存储过程oid，如果不属于存储过程则为0。 stmt_id integer 显示存储过程内语句计划的序号。",
+      "source_file": "2255_LOCAL_PLANCACHE_STATUS.txt"
+    },
+    {
+      "term": "GLOBAL_PLANCACHE_STATUS",
+      "content": "GLOBAL_PLANCACHE_STATUS GLOBAL_PLANCACHE_STATUS GLOBAL_PLANCACHE_STATUS视图显示全部节点上GPC全局计划缓存的状态信息，具体的字段见 LOCAL_PLANCACHE_STATUS 。",
+      "source_file": "2256_GLOBAL_PLANCACHE_STATUS.txt"
+    },
+    {
+      "term": "GLOBAL_PREPARE_STATEMENT_STATUS",
+      "content": "GLOBAL_PREPARE_STATEMENT_STATUS GLOBAL_PREPARE_STATEMENT_STATUS GLOBAL_PREPARE_STATEMENT_STATUS视图显示全部节点的GPC全局计划缓存状态对应的prepare statement信息。具体字段见 LOCAL_PREPARE_STATEMENT_STATUS",
+      "source_file": "2258_GLOBAL_PREPARE_STATEMENT_STATUS.txt"
+    },
+    {
+      "term": "GLOBAL_PLANCACHE_STATUS",
+      "content": "GLOBAL_PLANCACHE_STATUS GLOBAL_PLANCACHE_STATUS GLOBAL_PLANCACHE_STATUS视图显示GPC全局计划缓存状态信息。 表1 GLOBAL_PLANCACHE_STATUS字段 名称 类型 描述 nodename text 所属节点名称。 query text 查询语句text。 refcount integer 被引用次数。 valid bool 是否合法。 databaseid oid 所属数据库id。 schema_name text 所属schema。 params_num integer 参数数量。 func_id oid 该plancache所在存储过程oid，如果不属于存储过程则为0。 pkg_id oid 该plancache所在存储过程所属的Package，如果不属于Package则为0。 stmt_id integer 显示存储过程内语句计划的序号。",
+      "source_file": "3914_GLOBAL_PLANCACHE_STATUS.txt"
+    },
+    {
+      "term": "GLOBAL_PLANCACHE_CLEAN",
+      "content": "GLOBAL_PLANCACHE_CLEAN GLOBAL_PLANCACHE_CLEAN GLOBAL_PLANCACHE_CLEAN视图用于清理所有节点上无人使用的全局计划缓存。返回值为Boolean类型。",
+      "source_file": "3915_GLOBAL_PLANCACHE_CLEAN.txt"
+    },
+    {
+      "term": "LOCAL_PREPARE_STATEMENT_STATUS",
+      "content": "LOCAL_PREPARE_STATEMENT_STATUS LOCAL_PREPARE_STATEMENT_STATUS LOCAL_PREPARE_STATEMENT_STATUS视图显示当前节点的GPC全局计划缓存状态对应的prepare statement信息。 表1 LOCAL_PREPARE_STATEMENT_STATUS字段 名称 类型 描述 nodename text 所属节点名称。 cn_sess_id bigint 其来自的cn的sessionid。 cn_node_id integer 其来自的cn的node_id。 cn_time_line integer 其来自的cn的重启次数。 statement_name text 其statement name。 refcount integer 其对应的plancache的被引用次数。 is_shared bool 其对应plancache是否共享。 query text 对应的query语句。",
+      "source_file": "2257_LOCAL_PREPARE_STATEMENT_STATUS.txt"
+    }
+  ]
+}

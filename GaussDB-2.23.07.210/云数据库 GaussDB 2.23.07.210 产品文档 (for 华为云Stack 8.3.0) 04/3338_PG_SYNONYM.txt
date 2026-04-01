@@ -1,0 +1,1 @@
+PG_SYNONYM PG_SYNONYM PG_SYNONYM系统表存储同义词对象名与其他数据库对象名间的映射信息。 表1 PG_SYNONYM字段 名称 类型 描述 oid oid 数据库对象id。 synname name 同义词名称。 synnamespace oid 包含该同义词的名字空间的OID。 synowner oid 同义词的所有者，通常是创建它的用户OID。 synobjschema name 关联对象指定的模式名。 synobjname name 关联对象名。 syndblinkname name 关联DATABASE LINK对象名。 父主题： 其他系统表 版权所有 © 华为技术有限公司

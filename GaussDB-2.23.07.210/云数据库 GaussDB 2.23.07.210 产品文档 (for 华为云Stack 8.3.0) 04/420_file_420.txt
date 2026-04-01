@@ -1,0 +1,35 @@
+查询备份列表 查询备份列表 功能介绍 获取备份列表。 调用接口前，您需要提前 获取终端节点 ，即下文中的Endpoint值。 接口约束 该接口仅支持查询 GaussDB 的手动全量备份及自动全量备份。 URI URI格式 GET https://{ Endpoint }/opengauss/v3/{project_id}/backups?instance_id={instance_id}&backup_id={backup_id}&backup_type={backup_type}&offset={offset}&limit={limit}&begin_time={begin_time}&end_time={end_time} URI样例 查询所有备份列表 https://gaussdb.sa-fb-2.hcsglobal.com/opengauss/v3/054ea741f700d4a32f1bc00f5c80dd4c/backups 根据指定条件查询实例列表 https://gaussdb.sa-fb-2.hcsglobal.com/opengauss/v3/0483b6b16e954cb88930a360d2c4e663/backups?instance_id=88be33e4c5a64ceba42b42da89310111in14&backup_id=88be1234c5a64ceba42b42da89310111br14&backup_type=auto&begin_time=2022-05-09T16:15:50+0800&end_time=2022-05-09T16:20:45+0800&limit=1&offset=1 参数说明 表1 参数说明 参数 是否必选 参数类型 描述 project_id 是 String 租户在某一region下的project ID。 获取方法请参见 获取项目ID/名称 。 instance_id 否 String 实例ID。 backup_id 否 String 备份ID，严格匹配UUID规则。 backup_type 否 String 备份类型，取值范围： auto 自动全量备份 manual 手动全量备份 Snapshot_Xbsa xbsa 手动全量备份 offset 否 Integer 索引位置，偏移量。从第一条数据偏移offset条数据后开始查询，默认为0（偏移0条数据，表示从第一条数据开始查询），必须为数字，不能为负数。 最小值： 0 limit 否 Integer 查询记录数。默认为100，不能为负数，最小值为1，最大值为100。 最小值： 1 最大值： 100 begin_time 否 String 查询开始时间，格式为“yyyy-mm-ddThh:mm:ssZ”。其中，T指某个时间的开始；Z指时区偏移量。与end_time必须同时使用。 end_time 否 String 查询结束时间，格式为“yyyy-mm-ddThh:mm:ssZ”，且大于查询开始时间。其中，T指某个时间的开始；Z指时区偏移量。与begin_time必须同时使用。 请求消息 无。 响应消息 正常响应要素说明 表2 参数说明 参数 参数类型 描述 backups Array of objects 备份信息。 详情请参见 表3 。 total_count Long 备份文件的总数。 表3 backups字段数据结构说明 参数 参数类型 描述 id String 备份ID。 name String 备份名称。 description String 备份文件描述信息。 begin_time String 备份开始时间，格式为"yyyy-mm-ddThh:mm:ssZ"。 其中，T指某个时间的开始；Z指时区偏移量。 end_time String 备份结束时间，格式为“yyyy-mm-ddThh:mm:ssZ”。 其中，T指某个时间的开始；Z指时区偏移量。 status String 备份状态 枚举值： BUILDING：备份中。 COMPLETED：备份完成。 FAILED：备份失败。 size Double 备份大小(单位：MB)。 type String 备份类型 取值： auto：自动全量备份。 manual：手动全量备份。 datastore Object 数据库信息。 详情请参见 表4 instance_id String 实例ID。 表4 datastore字段数据结构说明 参数 参数类型 描述 type String 数据库引擎，不区分大小写，取值如下： GaussDB 。 version String 数据库版本。不填时，默认为当前最新版本。 正常响应样例 {
+    "backups": [
+        {
+            "id": "a696cd25e4fc453aa503650225cece8bbr14",
+            "name": " GaussDB -hly-ha-20220509080110906",
+            "description": null,
+            "status": "FAILED",
+            "size": 0.0,
+            "type": "auto",
+            "datastore": {
+                "type": " GaussDB (for openGauss)",
+                "version": "1.4"
+            },
+            "begin_time": "2022-05-09T16:01:10+0800",
+            "end_time": "2022-05-09T16:04:31+0800",
+            "instance_id": "164abc6d35114095bb849d007b19db3bin14"
+        },
+        {
+            "id": "5651c62a7f12461c98020dd3abfe24ccbr14",
+            "name": " GaussDB -hly-master-20220509022658257",
+            "description": null,
+            "status": "FAILED",
+            "size": 0.0,
+            "type": "auto",
+            "datastore": {
+                "type": " GaussDB ",
+                "version": "1.4"
+            },
+            "begin_time": "2022-05-09T10:26:58+0800",
+            "end_time": "2022-05-09T10:30:17+0800",
+            "instance_id": "fd26e3bf26e5467587eec857e4f66ef0in14"
+        }
+	],
+    "total_count": 167
+} 异常响应 请参见 异常请求结果 。 状态码 正常 202 异常 请参见 状态码 。 错误码 请参见 错误码 。 父主题： 备份管理 版权所有 © 华为技术有限公司

@@ -1,0 +1,31 @@
+{
+  "topic": "备份",
+  "term_count": 5,
+  "terms": [
+    {
+      "term": "备份策略",
+      "content": "备份策略 备份策略 新建备份策略 在主菜单中选择“日常运维 > 备份管理”。 在左侧导航栏，单击“备份策略”。 在备份策略页面，单击“新建”。 在“新建策略”页面，请参考 表1 填写基本信息。 表1 参数说明 参数名称 参数说明 示例 名称 备份策略的名称。 test 策略周期 备份策略的周期。 1 首次执行时间 首次执行备份策略的时间。 2021-03-03 00:00:00 备份类型 可选择的备份类型：全量或增量。 全量 描述 备份策略的描述信息。 DBS_backup 选择备份系统 可选择的备份系统。 ManageOne 单击“确认”。 查看备份策略详情 在主菜单中选择“日常运维 > 备份管理 > 备份策略”。 在“策略名称”列，选择已存在的策略。 在弹出的“基本信息”对话框中，查看该备份策略的基本信息。 单击“确认”。 修改备份策略 在主菜单中选择“日常运维 > 备份管理 > 备份策略”。 在已存在的备份策略右侧，单击“修改”。 进入“修改策略”页面，修改基本信息。 单击“确认”。 删除备份策略 在主菜单中选择“日常运维 > 备份管理 > 备份策略”。 在已存在的备份策略右侧，单击“删除”。 弹出“确定要进行删除操作吗”对话框，单击“确定”，进行删除操作。",
+      "source_file": "5627_file_5627.txt"
+    },
+    {
+      "term": "备份配置",
+      "content": "备份配置 备份配置 手动备份数据 管理备份数据",
+      "source_file": "5624_file_5624.txt"
+    },
+    {
+      "term": "任务列表",
+      "content": "任务列表 任务列表 在主菜单中选择“日常运维 > 备份管理”。 在左侧导航栏，单击“任务列表”。 在任务列表页面，在“过滤条件”区域，可以参考 表1 设置不同的过滤条件筛选出备份任务。 表1 过滤条件关键参数说明 过滤条件 取值 示例 系统名称 可选择的系统名称：FusionSphere、ManageOne。 ManageOne 区域 选择备份区域，ManageOne部署完成后，每个区域需要新增一条备份服务器参数。每个区域最多只能存在一台备份服务器。 Global 备份类型 可选择的备份类型：全量或增量。 全量 过滤条件设置完成后，单击页面右上方的 按钮并在“任务列表”的表格中，查看筛选出的备份任务。 在页面右上方的搜索框中，输入关键字，搜索需要的备份任务。 刷新页面内容。",
+      "source_file": "5628_file_5628.txt"
+    },
+    {
+      "term": "准备第三方SFTP备份服务器",
+      "content": "准备第三方SFTP备份服务器 准备第三方SFTP备份服务器 各部件（ManageOne除外）通过自动或手动方式执行完备份任务后，备份的数据文件默认是先保存在本地服务器路径下，只有配置了第三方备份服务器的地址后，系统才会通过定时任务将本地备份的数据文件上传到第三方服务器上进行保存。ManageOne没有本地备份方式，是在SFTP服务器上进行备份。 管理平台软件与第三方备份服务器之间需要保持网络连接：“请检查相关网络配置（如防火墙、核心交换机），确保管理平台软件与第三方备份服务器之间通过相应协议端口可以正常网络通信”。 操作场景 本章节指导用户通过维护终端连接到SFTP服务器进行配置，为各云服务对接SFTP服务器做准备。 前提条件 维护终端已通过管理网口连接到SFTP服务器。 已获取SFTP服务器的IP地址。 SFTP服务器已经安装Linux操作系统且具有足够存储空间（空间占用基于使用的部件及其业务量进行空间估算）。 Linux操作系统已经关闭SELinux。 背景信息 以PuTTY 0.67软件为例进行说明。 以CentOS Linux release 7.5.1804为例进行说明。 操作步骤 运行PuTTY软件。 系统弹出“PuTTY Configuration”对话框，如 图1 所示。 图1 PuTTY Configuration 设置CLI界面中默认支持显示中文字符。 在左侧导航树中选择“Window > Translation”。 将“Remote character set:”修改为“UTF-8”，如 图2 所示。 图2 设置中文字符显示 在左侧导航树中选择“Window > Appearance”。 在“Font settings”区域框中单击“Change”。 系统弹出“字体”对话框。 在弹出的“字体”对话框中选择所需要显示的中文字符属性（包括字体、字形和大小），单击“确定”。 系统返回“PuTTY Configuration”界面。 在左侧导航树中选择“Session”。 在“Load, save or delete a stored session”区域框中，选择“Default Settings”，单击“Save”，将配置保存为默认配置。 选择“Session”。在“Specify the destination you want to connect to”区域框的“Host Name (or IP address)”中输入与维护终端连接的SFTP服务器管理网口的IP地址，并选择“Connection type”为“SSH”。 单击“Open”，系统弹出CLI登录界面，界面显示如下： login as: 在CLI界面提示下，输入SFTP服务器的用户名和密码。登录成功后界面显示如下： Last login: Mon Apr 10 10:38:06 2017 from XXX.XXX.XXX.XXX \n[root@localhost ~ ]# 创建用户组并添加用户、设置密码。 执行 groupadd sftp 命令，创建用户组。 执行 useradd -g sftp -s /bin/false sftpuser 命令，添加用户。 执行 passwd  sftpuser 命令，设置密码。 为用户组创建一个目录并设置权限。 执行 mkdir  /datas 命令，创建 datas 目录（该目录为非根分区目录，非日志分区目录，否则会导致分区空间不足时OS无法使用）。 执行 chmod 755 /datas 命令，为 “/datas” 赋予权限。 执行 mkdir  /datas/backup 命令，创建上传目录。 执行 usermod -d /datas/backup sftpuser 命令，修改用户sftpuser所在的目录。 修改sshd_config文件。 执行 vi /etc/ssh /sshd_config 命令，打开 sshd_config 文件。 按 “i” ，进入编辑模式。 去掉PasswordAuthentication前的#号并修改为yes 修改前：#PasswordAuthentication no 修改后：PasswordAuthentication yes 去掉MaxSessions前的#号并修改为500 修改前：#MaxSessions 10 修改后：MaxSessions 500 将MaxStartups配置项的值修改为2000。 将Subsystem sftp /usr/libexec/openssh/sftp-server前加上#号，注释该段文字。 若有PubkeyAcceptedKeyTypes参数，将PubkeyAcceptedKeyTypes前加上#号，注释该段文字。 若有HostKeyAlgorithms参数，将HostKeyAlgorithms前加上#号，注释该段文字。 将GSSAPIAuthentication配置项的值修改成no。 在配置文件的最后面添加如下信息。 Subsystem sftp internal-sftp #指定使用sftp服务使用系统自带的internal-sftp\nMatch User sftpuser #用来匹配用户\nChrootDirectory /datas/backup  #用chroot将用户的根目录指定到/datas/backup \nAllowTcpForwarding no\nForceCommand internal-sftp #指定sftp命令 按 “Esc” ，退出编辑模式。 输入 “:wq” ，按 “Enter” ，保存退出。 执行以下命令，重启SSH服务。 service sshd restart 设定Chroot目录权限。 执行 chown -R root:root /datas/backup 命令。 执行 chmod 755 /datas/backup 命令，为 “/datas/backup” 赋予权限。 建立SFTP用户登入后可写入的目录。 执行 mkdir /datas/backup/sftpuser ，创建目录。 执行 chown -R sftpuser:sftp /datas/backup/sftpuser/ 命令 。 执行 chmod 755 /datas/backup/sftpuser/ 命令，为 “/datas/backup/sftpuser/” 赋予权限。 若存在技术中台与AI数据中台服务，则需要建立SFTP用户登入后可写入的目录。其中目录规则为 {regionId}-backupday-{服务分组名}。其中regionId可从参数信息汇总文件《 xxx _export_all_CN.xlsx》中“1.2基本参数”中的Region_id字段获取。例如：bj-region-1-backupday-om-clouddb。 执行 mkdir /datas/backup/ {regionId}-backupday-om-clouddb，创建目录。 执行 mkdir /datas/backup/ {regionId}-backupday-om-middleware，创建目录。 执行 chown -R sftpuser:sftp /datas/backup/ {regionId}-backupday-om-clouddb / 命令 。 执行 chown -R sftpuser:sftp /datas/backup/ {regionId}-backupday-om-middleware / 命令 。 执行 chmod 755 /datas/backup/ {regionId}-backupday-om-clouddb / 命令，为“/datas/backup/{regionId}-backupday-om-clouddb/”赋予权限。 执行 chmod 755 /datas/backup/ {regionId}-backupday-om-middleware / 命令，为“/datas/backup/{regionId}-backupday-om-middleware/”赋予权限。 执行 service sshd restart 命令，重新启动sshd服务。 执行 sftp sftpuser@ sftp服务器IP地址 命令验证是否可以正常登录 。 是，任务结束。 否，重新执行 1 ~ 14 ，如果仍然不能正常登录，请联系技术支持工程师协助解决。 使用PuTTY工具以 sopuser 用户通过SSH方式登录ManageOne所有节点，执行以下命令，切换到 ossadm 用户。 su - ossadm 执行 sftp -oPort= port user @ sftp服务器IP地址 命令验证ManageOne节点是否连通成功，出现以下类似回显代表连通成功。 [ossadm@MOC-ManageOne-Deploy01 ~ ]$ sftp -oPort=22 sopuser@192.168.42.50\nAuthorized users only. All activities may be monitored and reported.\nsopuser@192.168.42.50's password: 请输入密码 Connected to 192.168.42.50.\nsftp> exit 是，任务结束。 否，请客户排查网络，如果仍然失败，请联系技术支持工程师协助解决。",
+      "source_file": "5623_SFTP.txt"
+    },
+    {
+      "term": "常见问题",
+      "content": "常见问题 常见问题 备份失败处理方法",
+      "source_file": "5629_file_5629.txt"
+    }
+  ]
+}

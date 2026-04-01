@@ -1,0 +1,8 @@
+案例：改写SQL消除子查询 案例：改写SQL消除子查询 现象描述 1
+2
+3
+4 select 1 , ( select count ( * ) from customer_address_001 a4 where a4 . ca_address_sk = a . ca_address_sk ) as GZCS from customer_address_001 a ; 此SQL性能较差，查看发现执行计划中存在SubPlan，具体如下： 优化说明 此优化的核心就是消除子查询。分析业务场景发现 a . ca_address_sk 不为null，那么从SQL语义出发，可以等价改写SQL为： 1
+2
+3
+4
+5 select count ( * ) from customer_address_001 a4 , customer_address_001 a where a4 . ca_address_sk = a . ca_address_sk group by a . ca_address_sk ; 为了保证改写的等效性，在 customer_address_001. ca_address_sk 加了 not null 约束。 父主题： 实际调优案例 版权所有 © 华为技术有限公司

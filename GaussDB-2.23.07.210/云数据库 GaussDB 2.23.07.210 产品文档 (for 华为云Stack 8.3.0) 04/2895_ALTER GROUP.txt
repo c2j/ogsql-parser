@@ -1,0 +1,4 @@
+ALTER GROUP ALTER GROUP 功能描述 修改一个用户组的属性。 注意事项 ALTER GROUP是ALTER ROLE的别名，非SQL标准语法，不推荐使用，建议用户直接使用ALTER ROLE替代。 语法格式 向用户组中添加用户。 ALTER GROUP group_name 
+    ADD USER user_name [, ... ]; 从用户组中删除用户。 ALTER GROUP group_name 
+    DROP USER user_name [, ... ]; 修改用户组的名称。 ALTER GROUP group_name 
+    RENAME TO new_name; 参数说明 请参考ALTER ROLE的 参数说明 。 示例 请参见CREATE GROUP的 8.12.8.25-示例 。 相关链接 CREATE GROUP ， DROP GROUP ， ALTER ROLE 父主题： A 版权所有 © 华为技术有限公司

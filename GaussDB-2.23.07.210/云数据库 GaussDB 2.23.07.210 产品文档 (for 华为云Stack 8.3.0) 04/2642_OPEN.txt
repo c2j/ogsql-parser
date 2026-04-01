@@ -1,0 +1,6 @@
+OPEN OPEN 功能描述 打开一个游标，并将实际值选择性地绑定到游标声明中的占位符。该游标必须事先使用DECLARE命令声明过。执行OPEN命令会触发在服务器上开始执行查询。 语法格式 OPEN cursor_name
+OPEN cursor_name USING value [, ... ] 
+OPEN cursor_name USING SQL DESCRIPTOR descriptor_name 参数说明 cursor_name 被打开的游标的名称。可以是一个SQL标识符或者一个宿主变量。 value 被绑定到游标中一个占位符的值。可以是一个SQL常量、一个宿主变量或者一个带有指示符的宿主变量。 descriptor_name 包含要绑定到游标中占位符的值的描述符的名称。可以是一个SQL标识符或者一个宿主变量。 示例 EXEC SQL OPEN a; 
+EXEC SQL OPEN d USING 1, 'test'; 
+EXEC SQL OPEN c1 USING SQL DESCRIPTOR mydesc; 
+EXEC SQL OPEN :curname1; 相关链接 DECLARE 父主题： 嵌入式SQL命令 版权所有 © 华为技术有限公司

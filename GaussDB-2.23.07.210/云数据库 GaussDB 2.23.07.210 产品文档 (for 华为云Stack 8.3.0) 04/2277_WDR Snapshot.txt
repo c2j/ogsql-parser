@@ -1,0 +1,1 @@
+WDR Snapshot数据表 WDR Snapshot数据表 WDR Snapshot数据表命名原则：snap_{源数据表}。 WDR Snapshot数据表来源为 DBE_PERF Schema 下的视图，WDR Snapshot在启动后（打开GUC参数 enable_wdr_snapshot ）会触发创建WDR Snapshot数据表。 初始用户或者监控管理员用户具有权限查看WDR Snapshot数据表。 父主题： WDR Snapshot Schema 版权所有 © 华为技术有限公司

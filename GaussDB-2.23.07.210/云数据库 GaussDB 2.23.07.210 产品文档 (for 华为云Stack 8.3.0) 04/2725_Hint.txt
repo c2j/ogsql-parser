@@ -1,0 +1,16 @@
+连接时内表物化的Hint 连接时内表物化的Hint 功能描述 实现在指定连接的inner表时，对内表进行物化。 语法格式 [no] materialize_inner([@queryblock] inner_table_list) 参数说明 no 表示hint的物化方式不使用。 @queryblock 见 指定Hint所处于的查询块Queryblock ，可省略，表示在当前查询块生效。 inner_table_list: 执行连接操作时，希望被物化的内表序列，为空格隔开的字符串。 示例 t1表作为内表物化，(t1 t2)的结果作为连接的内表被物化。 gaussdb=# explain (costs off) select /*+materialize_inner(t1) materialize_inner(t1 t2)*/ * from t1,t2,t3 where  t1.c3 = t2.c3 and t2.c2=t3.c2 and t1.c2=5;
+                       QUERY PLAN                       
+--------------------------------------------------------
+ Nested Loop
+   Join Filter: (t2.c2 = t3.c2)
+   ->  Seq Scan on t3
+   ->  Materialize
+         ->  Nested Loop
+               Join Filter: (t1.c3 = t2.c3)
+               ->  Seq Scan on t2
+               ->  Materialize
+                     ->  Bitmap Heap Scan on t1
+                           Recheck Cond: (c2 = 5)
+                           ->  Bitmap Index Scan on it3
+                                 Index Cond: (c2 = 5)
+(12 rows) 父主题： 使用Plan Hint进行调优 版权所有 © 华为技术有限公司

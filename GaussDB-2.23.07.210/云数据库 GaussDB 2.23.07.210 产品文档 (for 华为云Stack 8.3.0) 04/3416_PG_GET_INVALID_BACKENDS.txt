@@ -1,0 +1,1 @@
+PG_GET_INVALID_BACKENDS PG_GET_INVALID_BACKENDS 不支持查询该视图，报错提示：“Un-support feature”。 父主题： 通信 版权所有 © 华为技术有限公司

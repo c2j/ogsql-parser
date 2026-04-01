@@ -1,0 +1,53 @@
+设置参数 设置参数 背景信息 GaussDB 提供了多种修改GUC参数的方法，用户可以方便的针对数据库、用户、会话进行设置。 参数名称不区分大小写。 参数取值有整型、浮点型、字符串、布尔型和枚举型五类。 布尔值可以是（on，off）、（true，false）、（yes，no）或者（1，0），且不区分大小写。 枚举类型的取值是在系统表pg_settings的enumvals字段取值定义的。 对于有单位的参数，在设置时请指定单位，否则将使用默认的单位。 参数的默认单位在系统表pg_settings的unit字段定义的。 内存单位有：KB（千字节）、MB（兆字节）和GB（吉字节）。 时间单位：ms（毫秒）、s（秒）、min（分钟）、h（小时）和d（天）。 具体参数说明请参见 GUC参数说明 。 GUC参数设置 GaussDB 提供了六类GUC参数，具体分类和设置方式请参考 表1 ： 表1 GUC参数分类 参数类型 说明 设置方式 INTERNAL 固定参数，在创建数据库的时候确定，用户无法修改，只能通过show语法或者pg_settings视图进行查看。 无 POSTMASTER 数据库服务端参数，在数据库启动时确定，可以通过配置文件指定。 支持 表2 中的方式一。 SIGHUP 数据库全局参数，可在数据库启动时设置或者在数据库启动后，发送指令重新加载。 支持 表2 中的方式一、方式二。 BACKEND 会话连接参数。在创建会话连接时指定，连接建立后无法修改。连接断掉后参数失效。内部使用参数，不推荐用户设置。 支持 表2 中的方式一、方式二。 说明： 设置该参数后，下一次建立会话连接时生效。 SUSET 数据库管理员参数。可在数据库启动时、数据库启动后或者数据库管理员通过SQL进行设置。 支持 表2 中的方式一、方式二或由数据库管理员通过方式三设置。 USERSET 普通用户参数。可被任何用户在任何时刻设置。 支持 表2 中的方式一、方式二或方式三设置。 GaussDB 提供了三种方式来修改GUC参数，具体操作请参考 表2 ： 表2 GUC参数设置方式 序号 设置方法 方式一 使用如下命令修改参数。 gs_guc set -D datadir -c " paraname=value " 说明： 如果参数是一个字符串变量，则使用-c parameter="'value'"或者使用-c "parameter = 'value'"。 当参数是一个字符串变量，gs_guc工具不会进行合法性校验，如果配置参数不合法导致数据库运行异常，可以查看pg_log日志进行问题排查。 使用以下命令在数据库节点上同时设置某个参数。 gs_guc set -Z datanode -N all -I all -c " paraname=value " 使用以下命令在数据库节点上设置cm_agent某个参数。 gs_guc set -Z cmagent -c "paraname=value" gs_guc set -Z cmagent -N all -I all -c "paraname=value" 使用以下命令在数据库节点上设置cm_server某个参数。 gs_guc set -Z cmserver -c "paraname=value" gs_guc set -Z cmserver -N all -I all -c "paraname=value" 重启数据库使参数生效。 说明： 重启 数据库 操作会导致用户执行操作中断，请在操作之前规划好合适的执行窗口。 gs_om -t stop && gs_om -t start 方式二 gs_guc reload -D datadir -c "paraname=value " 说明： 使用以下命令在数据库节点上同时设置某个参数。 gs_guc reload -Z datanode -N all -I all -c " paraname=value " 方式三 修改指定数据库、用户、会话级别的参数。 设置数据库级别的参数 1 gaussdb =# ALTER DATABASE dbname SET paraname TO value ; 在下次会话中生效。 设置用户级别的参数 1 gaussdb =# ALTER USER username SET paraname TO value ; 在下次会话中生效。 设置会话级别的参数 1 gaussdb =# SET paraname TO value ; 修改本次会话中的取值。退出会话后，设置将失效。 说明： SET设置的会话级参数优先级最高，其次是ALTER设置的，其中ALTER DATABASE设置的参数值优先级高于ALTER USER设置，这三种设置方式设置的优先级都高于gs_guc设置方式。 ALTER DATABASE和ALTER USER设置的参数在当前会话都不会生效，需要重启会话才能生效。 使用方式一和方式二设置参数时，若所设参数不属于当前节点，数据库会提示参数不在支持范围内的相关信息。 使用方式三设置参数时，若参数值为int整型，则会将整数前导零过滤掉，例如SET paraname TO 008192 与SET paraname TO 8192 效果相同。 操作步骤 使用方式一设置数据库参数，以在 数据库主节点 设置 hot_standby 参数为例。 以操作系统用户omm登录数据库主节点。 查看 hot_standby 参数。 1 cat / gaussdb / data / dbnode / postgresql . conf | grep "hot_standby =" hot_standby = on on表示 允许恢复阶段查询 操作。 设置 hot_standby 参数为off， 禁止恢复阶段查询 操作。 gs_guc set -Z datanode - D /gaussdb/data/dbnode -c " hot_standby =off " 可以使用以下命令在数据库节点上设置 hot_standby 参数为off。 gs_guc set -Z datanode - N all -I all -c " hot_standby =off " 重启数据库使参数生效。 gs_om -t stop && gs_om -t start 连接数据库，具体操作请参考《开发者指南》中“数据库使用入门 > 连接数据库 > 使用gsql连接”章节。 检查参数设置的正确性。 1
+2
+3
+4
+5 gaussdb =# SHOW hot_standby ; hot_standby ------------- off ( 1 row ) 使用方式二设置参数，以在 数据库主节点 设置authentication_timeout参数为例。 以操作系统用户omm登录数据库主节点。 查看authentication_timeout参数。 1 cat / gaussdb / data / dbnode / postgresql . conf | grep authentication_timeout authentication_timeout = 1min 设置authentication_timeout参数为59s。 gs_guc reload -Z datanode -N all -I all -c "authentication_timeout = 59s"
+
+Total instances: 2. Failed instances: 0.
+Success to perform gs_guc! 可以使用以下命令在数据库节点上设置authentication_timeout参数为59s。 gs_guc reload -Z datanode - N all -I all -c "authentication_timeout = 59s" 连接数据库，具体操作请参考《开发者指南》中“数据库使用入门 > 连接数据库 > 使用gsql连接”章节。 检查参数设置的正确性。 1
+2
+3
+4
+5 gaussdb =# SHOW authentication_timeout ; authentication_timeout ------------------------ 59 s ( 1 row ) 使用方式三设置参数，以设置explain_perf_mode参数为例。 连接数据库，具体操作请参考《开发者指南》中“数据库使用入门 > 连接数据库 > 使用gsql连接”章节。 查看explain_perf_mode参数。 1
+2
+3
+4
+5 gaussdb =# SHOW explain_perf_mode ; explain_perf_mode ------------------- normal ( 1 row ) 设置explain_perf_mode参数。 使用以下任意方式进行设置： 设置数据库级别的参数 1 gaussdb =# ALTER DATABASE postgres SET explain_perf_mode TO pretty ; 当结果显示为如下信息，则表示设置成功。 ALTER DATABASE 在下次会话中生效。 设置用户级别的参数 1 gaussdb =# ALTER USER omm SET explain_perf_mode TO pretty ; 当结果显示为如下信息，则表示设置成功。 ALTER ROLE 在下次会话中生效。 设置会话级别的参数 1 gaussdb =# SET explain_perf_mode TO pretty ; 当结果显示为如下信息，则表示设置成功。 SET 检查参数设置的正确性。 1
+2
+3
+4
+5 gaussdb =# SHOW explain_perf_mode ; explain_perf_mode -------------- pretty ( 1 row ) 示例 示例1：使用方式一修改 GaussDB 数据库主节点的最大连接数。 连接数据库，具体操作请参考《开发者指南》中“数据库使用入门 > 连接数据库 > 使用gsql连接”章节。 查看最大连接数。 1
+2
+3
+4
+5 gaussdb =# SHOW max_connections ; max_connections ----------------- 200 ( 1 row ) 使用如下命令退出数据库。 1 gaussdb =# \ q 修改 GaussDB 数据库主节点的最大连接数。 gs_guc set -Z datanode -N all -I all -c "max_connections = 800" 重启 数据库 。 gs_om -t stop && gs_om -t start 连接数据库，具体操作请参考《开发者指南》中“数据库使用入门 > 连接数据库 > 使用gsql连接”章节。 查看最大连接数。 1
+2
+3
+4
+5 gaussdb =# SHOW max_connections ; max_connections ----------------- 800 ( 1 row ) 示例2：使用方式二设置数据库主节点的客户端认证最长时间参数“authentication_timeout” 连接数据库，具体操作请参考《开发者指南》中“数据库使用入门 > 连接数据库 > 使用gsql连接”章节 查看客户端认证的最长时间。 1
+2
+3
+4
+5 gaussdb =# SHOW authentication_timeout ; authentication_timeout ------------------------ 1 min ( 1 row ) 使用如下命令退出数据库。 1 gaussdb =# \ q 修改数据库主节点的客户端认证最长时间。 gs_guc reload -Z datanode -N all -I all -c "authentication_timeout = 59s" 连接数据库，具体操作请参考《开发者指南》中“数据库使用入门 > 连接数据库 > 使用gsql连接”章节。 查看客户端认证的最长时间。 1
+2
+3
+4
+5 gaussdb =# SHOW authentication_timeout ; authentication_timeout ------------------------ 59 s ( 1 row ) 示例3：修改 GaussDB 数据库节点的最大连接数。 连接数据库，具体操作请参考《开发者指南》中“数据库使用入门 > 连接数据库 > 使用gsql连接”章节。 查看最大连接数。 1
+2
+3
+4
+5 gaussdb =# SHOW max_connections ; max_connections ----------------- 200 ( 1 row ) 使用如下命令退出数据库。 1 gaussdb =# \ q 修改 GaussDB 数据库节点的最大连接数。 gs_guc set -Z datanode -N all -I all -c "max_connections = 500" 重启 数据库 。 gs_om -t stop
+gs_om -t start 连接数据库，具体操作请参考《开发者指南》中“数据库使用入门 > 连接数据库 > 使用gsql连接”章节。 查看最大连接数。 1
+2
+3
+4
+5 gaussdb =# SHOW max_connections ; max_connections ----------------- 500 ( 1 row ) 示例4：设置数据库节点的客户端认证最长时间参数“authentication_timeout” 连接数据库，具体操作请参考《开发者指南》中“数据库使用入门 > 连接数据库 > 使用gsql连接”章节。 查看客户端认证的最长时间。 1
+2
+3
+4
+5 gaussdb =# SHOW authentication_timeout ; authentication_timeout ------------------------ 1 min ( 1 row ) 使用如下命令退出数据库。 1 gaussdb =# \ q 修改 GaussDB 数据库节点的客户端认证最长时间。 gs_guc reload -Z datanode -N all -I all -c "authentication_timeout = 30s" 连接数据库，具体操作请参考《开发者指南》中“数据库使用入门 > 连接数据库 > 使用gsql连接”章节。 查看客户端认证的最长时间。 1
+2
+3
+4
+5 gaussdb =# SHOW authentication_timeout ; authentication_timeout ------------------------ 30 s ( 1 row ) 父主题： 配置运行参数 版权所有 © 华为技术有限公司

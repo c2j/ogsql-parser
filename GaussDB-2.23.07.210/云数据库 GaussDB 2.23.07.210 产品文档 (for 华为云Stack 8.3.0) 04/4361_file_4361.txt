@@ -1,0 +1,1 @@
+特性约束 特性约束 类别 特性 是否支持 事务 Repeatable Read/Serializable × 在事务块中对分区表执行DDL操作 × 可扩展性 Hashbucket × SQL Table sampling/物化视图/键值锁 × 父主题： Ustore特性与规格 版权所有 © 华为技术有限公司

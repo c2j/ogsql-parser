@@ -1,0 +1,12 @@
+ALTER DIRECTORY ALTER DIRECTORY 功能描述 对directory属性进行修改。 注意事项 目前只支持修改directory所有者。 当enable_access_server_directory=off时，只允许初始用户修改directory所有者；当enable_access_server_directory=on时，具有SYSADMIN权限的用户和directory对象的所有者可以修改directory，且要求该用户是新所有者的成员。 语法格式 1
+2 ALTER DIRECTORY directory_name OWNER TO new_owner ; 参数说明 directory_name 需要修改的目录名称，范围为已经存在的目录名称。 new_owner 目录的新所有者。 示例 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11 --创建目录。 gaussdb =# CREATE OR REPLACE DIRECTORY dir as '/tmp/' ; --创建用户。 gaussdb =# CREATE USER jim PASSWORD '********' ; --修改目录的owner。 gaussdb =# ALTER DIRECTORY dir OWNER TO jim ; --删除外部表。 gaussdb =# DROP DIRECTORY dir ; 相关链接 CREATE DIRECTORY ， DROP DIRECTORY 父主题： A 版权所有 © 华为技术有限公司

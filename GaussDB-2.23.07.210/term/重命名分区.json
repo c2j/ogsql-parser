@@ -1,0 +1,36 @@
+{
+  "topic": "重命名分区",
+  "term_count": 6,
+  "terms": [
+    {
+      "term": "对一级分区表重命名分区",
+      "content": "对一级分区表重命名分区 对一级分区表重命名分区 使用ALTER TABLE RENAME PARTITION可以对一级分区表重命名分区。 例如，通过指定分区名将范围分区表range_sales的分区date_202001重命名。 ALTER TABLE range_sales RENAME PARTITION date_202001 TO date_202001_new; 或者，通过指定分区值将列表分区表list_sales中'0'所对应的分区重命名。 ALTER TABLE list_sales RENAME PARTITION FOR ('0') TO channel_new;",
+      "source_file": "4590_file_4590.txt"
+    },
+    {
+      "term": "对分区表重命名分区",
+      "content": "对分区表重命名分区 对分区表重命名分区 使用ALTER TABLE RENAME PARTITION可以对分区表重命名分区。 例如，通过指定分区名将范围分区表range_sales的分区date_202001重命名。 ALTER TABLE range_sales RENAME PARTITION date_202001 TO date_202001_new; 或者，通过指定分区值将列表分区表list_sales中'0'所对应的分区重命名。 ALTER TABLE list_sales RENAME PARTITION FOR ('0') TO channel_new;",
+      "source_file": "4337_file_4337.txt"
+    },
+    {
+      "term": "对Local索引重命名索引分区",
+      "content": "对Local索引重命名索引分区 对Local索引重命名索引分区 使用ALTER INDEX RENAME PARTITION可以对Local索引重命名索引分区。具体方法与一级分区表重命名分区相同。",
+      "source_file": "4338_Local.txt"
+    },
+    {
+      "term": "对Local索引重命名索引分区",
+      "content": "对Local索引重命名索引分区 对Local索引重命名索引分区 使用ALTER INDEX RENAME PARTITION可以对Local索引重命名索引分区。具体方法与一级分区表重命名分区相同。",
+      "source_file": "4593_Local.txt"
+    },
+    {
+      "term": "对二级分区表重命名二级分区",
+      "content": "对二级分区表重命名二级分区 对二级分区表重命名二级分区 使用ALTER TABLE RENAME SUBPARTITION可以对二级分区表重命名二级分区。 例如，通过指定分区名将二级分区表range_list_sales的分区date_202001_channel1重命名。 ALTER TABLE range_list_sales RENAME SUBPARTITION date_202001_channel1 TO date_202001_channelnew; 或者，通过指定分区值将二级分区表range_list_sales中('2020-01-08', '0')所对应的分区重命名。 ALTER TABLE range_list_sales RENAME SUBPARTITION FOR ('2020-01-08', '0') TO date_202001_channelnew;",
+      "source_file": "4592_file_4592.txt"
+    },
+    {
+      "term": "对二级分区表重命名一级分区",
+      "content": "对二级分区表重命名一级分区 对二级分区表重命名一级分区 使用ALTER TABLE RENAME PARTITION可以对二级分区表重命名一级分区。具体方法与一级分区表相同。",
+      "source_file": "4591_file_4591.txt"
+    }
+  ]
+}

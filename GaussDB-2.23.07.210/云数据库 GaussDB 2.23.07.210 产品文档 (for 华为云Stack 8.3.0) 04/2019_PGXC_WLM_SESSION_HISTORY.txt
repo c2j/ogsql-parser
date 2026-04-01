@@ -1,0 +1,1 @@
+PGXC_WLM_SESSION_HISTORY PGXC_WLM_SESSION_HISTORY PGXC_WLM_SESSION_HISTORY视图显示的是缓存在内存中的所有CN上执行作业结束后的负载管理 （当前特性是实验室特性，使用时请联系华为技术工程师提供技术支持。） 记录。查询该视图需要sysadmin或者monitor admin权限。该数据会被定期转存到gs_wlm_session_info表中，转存周期为3分钟，具体请参见 GS_WLM_SESSION_HISTORY 视图介绍，具体的字段请参见 GS_WLM_SESSION_HISTORY 的字段信息。 当查询视图无数据显示时，请联系华为工程师提供技术支撑。 父主题： 系统视图 版权所有 © 华为技术有限公司

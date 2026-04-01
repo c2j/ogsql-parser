@@ -1,0 +1,1 @@
+DROP GLOBAL CONFIGURATION DROP GLOBAL CONFIGURATION 功能描述 删除系统表gs_global_config中的参数值。 注意事项 仅支持数据库初始用户运行此命令。 参数名称不能为weak_password、undostoragetype。 语法格式 DROP GLOBAL CONFIGURATION name [, ...]; 参数说明 name 参数名称必须是gs_global_config中已经存在的，删除不存在的参数将报错。 示例 请参考ALTER GLOBAL CONFIGURATION的 示例 。 相关链接 ALTER GLOBAL CONFIGURATION 父主题： D 版权所有 © 华为技术有限公司

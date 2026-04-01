@@ -1,0 +1,34 @@
+ALTER SCHEMA ALTER SCHEMA 功能描述 修改模式属性。 注意事项 只有模式的所有者或者被授予了模式ALTER权限的用户有权限执行ALTER SCHEMA命令，系统管理员默认拥有此权限。但要修改模式的所有者，当前用户必须是该模式的所有者或者系统管理员，且该用户是新所有者角色的成员。 对于除public以外的系统模式，如pg_catalog、sys等，只允许初始用户修改模式的所有者。修改系统自带模式的名称可能会导致部分功能不可用甚至影响数据库正常运行，默认情况下不允许修改系统自带模式的名称，考虑到前向兼容性，仅允许当系统在启动或升级过程中或参数allow_system_table_mods为on时修改。 除初始用户外，其他用户无法将schema的所有者修改为运维管理员。 语法格式 修改模式的名称。 1
+2 ALTER SCHEMA schema_name RENAME TO new_name ; 修改模式的所有者。 1
+2 ALTER SCHEMA schema_name OWNER TO new_owner ; 修改模式的默认字符集和字符序。 ALTER SCHEMA schema_name 
+    [ [DEFAULT] CHARACTER SET | CHARSET [ = ] default_charset ] [ [DEFAULT] COLLATE [ = ] default_collation ]; 参数说明 schema_name 现有模式的名称。 取值范围：已存在的模式名。 RENAME TO new_name 修改模式的名称。 new_name：模式的新名称。 模式名不能和当前数据库里其他的模式重名。 模式名不能和当前数据库的初始用户重名。 模式的名称不可以“pg_”开头。 模式的名称不可以“gs_role_”开头。 取值范围：字符串，要符合 标识符命名规范 。 OWNER TO new_owner 修改模式的所有者。非系统管理员要改变模式的所有者，该用户还必须是新的所有角色的直接或间接成员， 并且该成员必须在此数据库上有CREATE权限。 new_owner：模式的新所有者。 取值范围：已存在的用户名/角色名。 default_charset 修改模式的默认字符集。单独指定时会将模式的默认字符序设置为指定的字符集的默认字符序。 仅在MYSQL模式数据库下（即sql_compatibility = 'MYSQL'）支持该语法。支持字符集参见 表1 MYSQL模式（即sql_compatibility = 'MYSQL'）下支持的字符集和字符序介绍 。 default_collate 修改模式的默认字符序。单独指定时会将模式的默认字符集设置为指定的字符序对应的字符集。 仅在MYSQL模式数据库下（即sql_compatibility = 'MYSQL'）支持该语法。支持字符序参见 表1 MYSQL模式（即sql_compatibility = 'MYSQL'）下支持的字符集和字符序介绍 。 示例 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27
+28
+29
+30
+31 --创建并切换至测试数据库。 gaussdb =# CREATE DATABASE test1 WITH DBCOMPATIBILITY = 'MYSQL' ; gaussdb =# \ c test1 --创建模式ds。 gaussdb =# CREATE SCHEMA ds ; --将当前模式ds更名为ds_new。 gaussdb =# ALTER SCHEMA ds RENAME TO ds_new ; --创建用户jack。 gaussdb =# CREATE USER jack PASSWORD '********' ; --将DS_NEW的所有者修改为jack。 gaussdb =# ALTER SCHEMA ds_new OWNER TO jack ; --将ds_new的默认字符集修改为utf8mb4，默认字符序修改为utf8mb4_bin。仅在MYSQL模式数据库下（即sql_compatibility = 'MYSQL'）支持该语法。 gaussdb =# CREATE SCHEMA sch ; gaussdb =# ALTER SCHEMA sch CHARACTER SET utf8mb4 COLLATE utf8mb4_bin ; --删除模式ds_new和sch。 gaussdb =# DROP SCHEMA ds_new ; gaussdb =# DROP SCHEMA sch ; --删除用户jack gaussdb =# DROP USER jack ; --切换回初始数据库，并删除测试数据库。请用真实的数据库名替换postgres。 gaussdb =# \ c postgres gaussdb =# DROP DATABASE test1 ; 相关链接 CREATE SCHEMA ， DROP SCHEMA 父主题： A 版权所有 © 华为技术有限公司

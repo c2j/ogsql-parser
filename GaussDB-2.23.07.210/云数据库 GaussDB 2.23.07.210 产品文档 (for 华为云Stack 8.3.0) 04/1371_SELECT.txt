@@ -1,0 +1,365 @@
+SELECT SELECT 功能描述 SELECT用于从表或视图中取出数据。 SELECT语句就像叠加在数据库表上的过滤器，利用SQL关键字从数据表中过滤出用户需要的数据。 注意事项 表的所有者、拥有表SELECT权限的用户或拥有SELECT ANY TABLE权限的用户，有权读取表或视图中数据，系统管理员默认拥有此权限。 SELECT支持普通表的join，不支持普通表和GDS外表的join。即SELECT语句中不能同时出现普通表和GDS外表。 必须对每个在SELECT命令中使用的字段有SELECT权限。 使用FOR UPDATE或FOR SHARE还要求UPDATE权限。 语法格式 查询数据 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15 [ WITH [ RECURSIVE ] with_query [, ...] ] SELECT [ /*+ plan_hint */ ] [ ALL | DISTINCT [ ON ( expression [, ...] ) ] ] { * | { expression [ [ AS ] output_name ] } [, ...] } [ FROM from_item [, ...] ] [ WHERE condition ] [ GROUP BY grouping_element [, ...] ] [ HAVING condition [, ...] ] [ WINDOW { window_name AS ( window_definition ) } [, ...] ] [ { UNION | INTERSECT | EXCEPT | MINUS } [ ALL | DISTINCT ] select ] [ ORDER BY { expression [ [ ASC | DESC | USING operator ] | nlssort_expression_clause ] [ NULLS { FIRST | LAST } ] } [, ...] ] [ LIMIT { [ offset ,] count | ALL } ] [ OFFSET start [ ROW | ROWS ] ] [ FETCH { FIRST | NEXT } [ count ] { ROW | ROWS } ONLY ] [ { FOR { UPDATE | SHARE } [ OF table_name [, ...] ] [ NOWAIT | WAIT n | SKIP LOCKED ] } [...] ] TABLE { ONLY { ( table_name ) | table_name } | table_name [ * ] } ; condition和expression中可以使用targetlist中表达式的别名。 只能同一层引用。 只能引用targetlist中的别名。 只能是后面的表达式引用前面的表达式。 不能包含volatile函数。 不能包含Window function函数。 不支持在join on条件中引用别名。 targetlist中有多个要应用的别名则报错。 缓存SELECT语句计划的场景下，WHERE IN候选子集不易过大，建议条件个数不要超过100，防止引发动态内存过高问题： WHERE IN 候选子集过大时，生成计划的内存占用会增大。 当拼接SQL构造的WHERE IN 子集不同，缓存计划的SQL模板无法复用。会生成大量不同的计划，且计划无法共享 ，占用大量内存。 其中子查询with_query为： 1
+2 with_query_name [ ( column_name [, ...] ) ] AS [ [ NOT ] MATERIALIZED ] ( { select | values | insert | update | delete } ) 其中指定查询源from_item为： 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10 { [ ONLY ] table_name [ * ] [ partition_clause ] [ [ AS ] alias [ ( column_alias [, ...] ) ] ] [ TABLESAMPLE sampling_method ( argument [, ...] ) [ REPEATABLE ( seed ) ] ] | ( select ) [ AS ] alias [ ( column_alias [, ...] ) ] | with_query_name [ [ AS ] alias [ ( column_alias [, ...] ) ] ] | function_name ( [ argument [, ...] ] ) [ AS ] alias [ ( column_alias [, ...] | column_definition [, ...] ) ] | function_name ( [ argument [, ...] ] ) AS ( column_definition [, ...] ) | xmltable_clause | from_item unpivot_clause | from_item pivot_clause | from_item [ NATURAL ] join_type from_item [ ON join_condition | USING ( join_column [, ...] ) ] } 其中group子句为： 1
+2
+3
+4
+5
+6 ( ) | expression | ( expression [, ...] ) | ROLLUP ( { expression | ( expression [, ...] ) } [, ...] ) | CUBE ( { expression | ( expression [, ...] ) } [, ...] ) | GROUPING SETS ( grouping_element [, ...] ) from_item中指定分区partition_clause为： 1
+2 PARTITION { ( partition_name [, ...] ) | FOR ( partition_value [, ...] ) } 指定分区只适合分区表。 PARTITION指定多个分区名时，可以存在相同的分区名，最终分区范围取其并集。 其中设置排序方式nlssort_expression_clause为： 1 NLSSORT ( column_name , ' NLS_SORT = { SCHINESE_PINYIN_M | generic_m_ci } ' ) 其中，第二个参数可选generic_m_ci，仅支持纯英文不区分大小写排序。 简化版查询语法，功能相当于SELECT * FROM table_name。 1 TABLE { ONLY { ( table_name ) | table_name } | table_name [ * ] } ; 参数说明 WITH [ RECURSIVE ] with_query [, ...] 用于声明一个或多个可以在主查询中通过名称引用的子查询，相当于临时表。这种子查询语句结构称为CTE（Common Table Expression）结构，应用这种结构时，执行计划中将存在CTE SCAN的内容。 如果声明了RECURSIVE，那么允许SELECT子查询通过名称引用它自己。 其中with_query的详细格式为：with_query_name [ ( column_name [, ...] ) ] AS [ [ NOT ] MATERIALIZED ] ( {select | values | insert | update | delete} ) with_query_name指定子查询生成的结果集名称，在查询中可使用该名称访问子查询的结果集。 column_name指定子查询结果集中显示的列名。 每个子查询可以是SELECT，VALUES，INSERT，UPDATE或DELETE语句。 RECURSIVE只能出现在WITH后面，多个CTE的情况下，只需要在第一个CTE处声明RECURSIVE。 用户可以使用MATERIALIZED / NOT MATERIALIZED对CTE进行修饰。对于Stream计划，目前仅支持内联执行一种方式，此时该语法不生效。 如果声明为MATERIALIZED，WITH查询将被物化，生成一个子查询结果集的拷贝，在引用处直接查询该拷贝，因此WITH子查询无法和主干SELECT语句进行联合优化（如谓词下推、等价类传递等）。当使用NOT MATERIALIZED进行修饰时，如果WITH查询语义上可以作为子查询内联执行，则可以进行上述优化。 如果用户没有显式声明物化属性则遵守以下规则：如果CTE只在所属SELECT主干中被引用一次，且语义上支持内联执行，则会被改写为子查询内联执行，否则以CTE Scan的方式物化执行。 plan_hint子句 以/*+ */的形式在SELECT关键字后，用于对SELECT对应语句块生成的计划进行hint调优，详细用法请参见章节 使用Plan Hint进行调优 。每条语句中只有第一个/*+ plan_hint */注释块会作为hint生效，里面可以写多条hint。 ALL 声明返回所有符合条件的行，是默认行为，可以省略该关键字。 DISTINCT [ ON ( expression [, ...] ) ] 从SELECT的结果集中删除所有重复的行，使结果集中的每行都是唯一的。 ON ( expression [, ...] ) 只保留那些在给出的表达式上运算出相同结果的行集合中的第一行。 DISTINCT ON表达式是使用与ORDER BY相同的规则进行解释的。除非使用了ORDER BY来保证需要的行首先出现，否则，"第一行"是不可预测的。 SELECT列表 指定查询表中列名，可以是部分列或者是全部（使用通配符*表示）。 通过使用子句AS output_name可以为输出字段取个别名，这个别名通常用于输出字段的显示。支持关键字name、value和type作为列别名。 列名可以用下面几种形式表达： 手动输入列名，多个列之间用英文逗号（,）分隔。 可以是FROM子句里面计算出来的字段。 FROM子句 为SELECT声明一个或者多个源表。 FROM子句涉及的元素如下所示。 table_name 表名或视图名，名称前可加上模式名，如：schema_name.table_name。 支持使用DATABASE LINK方式对远端表、同义词进行操作，使用方式详情请见 DATABASE LINK 。 alias 给表或复杂的表引用起一个临时的表别名，以便被其余的查询引用。 别名用于缩写或者在自连接中消除歧义。如果提供了别名，它就会完全代替表的实际名称。 当为join产生的表joined_table指定别名时，如果joined_table被()包裹，即(joined_table)，非保留关键字UNPIVOT和PIVOT不允许作为别名使用。 TABLESAMPLE sampling_method ( argument [, ...] ) [ REPEATABLE ( seed ) ] table_name之后的TABLESAMPLE子句表示应该用指定的sampling_method来检索表中行的子集。 可选的REPEATABLE子句指定一个用于产生采样方法中随机数的 种子 数。种子值可以是任何非空常量值。如果查询时表没有被更改，指定相同种子和argument值的两个查询将会选择该表相同的采样。但是不同的种子值通常将会产生不同的采样。如果没有给出REPEATABLE，则会基于一个系统产生的种子为每一个查询选择一个新的随机采样。 TIMECAPSULE { TIMESTAMP | CSN } expression 查询指定CSN点或者指定时间点表的内容。 目前不支持闪回查询的表：系统表、DFS表、全局临时表、本地临时表、UNLOGGED表、视图、序列表、hashbucket表、共享表、继承表。 TIMECAPSULE TIMESTAMP 关键字，闪回查询的标识，根据date日期，闪回查找指定时间点的结果集。date日期必须是一个过去有效的时间戳。 TIMECAPSULE CSN 关键字，闪回查询的标识，根据表的CSN闪回查询指定CSN点的结果集。其中CSN可从gs_txn_snapshot记录的snpcsn号查得。 expression 常量、函数或SQL表达式。 闪回查询不能跨越影响表结构或物理存储的语句，否则会报错。即闪回点和当前点之间，如果执行过修改表结构或影响物理存储的语句（TRUNCATE、DDL、DCL、VACUUM FULL），则闪回失败。 闪回查询支持PCR类型的UBTree索引进行索引扫描；如果没有创建PCR类型的UBTree索引，则闪回查询只能通过seqScan进行全表扫描。 闪回点过旧时，因闪回版本被回收等导致无法获取旧版本会导致闪回失败，报错：Restore point too old。 通过时间方式指定闪回点，闪回数据和实际时间点最多偏差为3秒。 对表执行truncate之后，再进行闪回查询或者闪回表操作。通过时间点进行的闪回操作会报错：Snapshot too old。通过CSN进行的闪回操作会找不到数据，或者报错：Snapshot too old。 GTM-Free场景各节点使用本地csn，没有全局统一csn号，暂不支持使用CSN方式进行闪回操作。 column_alias 列别名。 PARTITION 查询分区表的某个分区的数据。 partition_name 分区名。 partition_value 指定的分区键值。在创建分区表时，如果指定了多个分区键，可以通过PARTITION FOR子句指定的这一组分区键的值，唯一确定一个分区。 subquery FROM子句中可以出现子查询，创建一个临时表保存子查询的输出。 with_query_name WITH子句同样可以作为FROM子句的源，可以通过WITH查询的名称对其进行引用。 function_name 函数名称。函数调用也可以出现在FROM子句中。 join_type 有5种类型，如下所示。 [ INNER ] JOIN 一个JOIN子句组合两个FROM项。可使用圆括弧以决定嵌套的顺序。如果没有圆括弧，JOIN从左向右嵌套。 在任何情况下，JOIN都比逗号分隔的FROM项绑定得更紧。 LEFT [ OUTER ] JOIN 返回笛卡尔积中所有符合连接条件的行，再加上左表中通过连接条件没有匹配到右表行的那些行。这样，左边的行将扩展为生成表的全长，方法是在那些右表对应的字段位置填上NULL。请注意，只在计算匹配的时候，才使用JOIN子句的条件，外层的条件是在计算完毕之后施加的。 RIGHT [ OUTER ] JOIN 返回所有内连接的结果行，加上每个不匹配的右边行（左边用NULL扩展）。 这只是一个符号上的方便，因为总是可以把它转换成一个LEFT OUTER JOIN，只要把左边和右边的输入互换位置即可。 FULL [ OUTER ] JOIN 返回所有内连接的结果行，加上每个不匹配的左边行（右边用NULL扩展），再加上每个不匹配的右边行（左边用NULL扩展）。 CROSS JOIN CROSS JOIN等效于INNER JOIN ON（TRUE） ，即没有被条件删除的行。这种连接类型只是符号上的方便，因为它们与简单的FROM和WHERE的效果相同。 必须为INNER和OUTER连接类型声明一个连接条件，即NATURAL ON，join_condition，USING (join_column [， ...]) 之一。但是它们不能出现在CROSS JOIN中。 其中CROSS JOIN和INNER JOIN生成一个简单的笛卡尔积，和在FROM的顶层列出两个项的结果相同。 ON join_condition 连接条件，用于限定连接中的哪些行是匹配的。如：ON left_table.a = right_table.a。不建议使用int等数值类型作为join_condition，因为int等数值类型可以隐式转换为bool值（非0值隐式转换为true，0转换为false），可能导致非预期的结果。 USING(join_column[，...]) ON left_table.a = right_table.a AND left_table.b = right_table.b ... 的简写。要求对应的列必须同名。 NATURAL NATURAL是具有相同名称的两个表的所有列的USING列表的简写。 from item 用于连接的查询源对象的名称。 xmltable_clause xmltable_clause仅支持在ORA兼容模式和PG兼容模式下使用。xmltable_clause基于给定的XMLTYPE（在ORA兼容模式下）或XML（在PG兼容模式下）类型的数据产生一个虚拟表。其对应语法格式为： XMLTABLE(
+xmlnamespaces_clause
+row_expression
+passing_clause
+columns_clause
+) xmlnamespaces_clause为： [
+    XMLNAMESPACES(
+    {string AS identifier }
+    |
+    { DEFAULT string }
+    [, { string AS identifier } | { DEFAULT string } ]...
+    ),
+] 可选的xmlnamespaces_clause是一个以XMLNAMESPACES开始，后跟以英文逗号分隔的XML命名空间声明的子句。其中string为英文单引号作为边界符的命名空间全称，identifier为英文双引号作为边界符的命名空间别名，且别名可以在row_expression及columns_clause中使用。当前版本不支持使用DEFAULT声明默认的命名空间。 row_expression 所需的row_expression为英文单引号作为边界符的XPath 1.0表达式。将后续passing_clause中的document_expression作为其上下文，得到一组XML节点。这些节点经后续的columns_clause处理生成虚拟表的每一行。 passing_clause为： PASSING [BY { REF | VALUE }] document_expression [BY { REF | VALUE }] 所需的passing_clause以PASSING开始，其中的document_expression为传入XMLTABLE中被处理的XMLTYPE（在ORA兼容模式下）或XML（在PG兼容模式下）类型的数据，目前仅支持单根数据。在ORA兼容模式下，无论使用第一处还是第二处的BY VALUE或BY REF都会报错；在PG兼容模式下，虽然可以识别接收第一处和第二处的BY VALUE或BY REF，但并未做功能上的处理。 columns_clause为： [
+    COLUMNS
+    name { type [PATH column_expression] [DEFAULT default_expression] [NOT NULL | NULL] | FOR ORDINALITY }
+    [, ...]
+] 可选的columns_clause用来指明将在虚拟表中生成的列所需的相关信息。 name：为列的名称。 type：为列的类型。 PATH：可选的PATH部分的column_expression为XPath 1.0的表达式，由row_expression得到的节点集中的某个节点作为其上下文，经其处理得到该节点生成的行数据中对应列的值所需的数据，在将其转换为type类型的结果时，存在隐式转换。若没有给出PATH部分，则name会被当作column_expression。 DEFAULT：可选的DEFAULT部分的default_expression为一个表达式，若经column_expression处理后该列得到NULL值，会将计算default_expression得到的结果用于生成该列的值，注意default_expression会在需要的时候才进行计算，若表达式为稳定的，则在需要的时候只会计算一次。 NOT NULL | NULL：在PG兼容模式下，可选的NOT NULL或NULL用来说明该列是否可为NULL值，若列值与指定的选项不符则会报错。 FOR ORDINALITY：说明该列为行号列，从1开始为生成的行填充行号，最多只能有一个列被标记为FOR ORDINALITY。 在ORA兼容模式下可省略columns_clause，当省略columns_clause后，会在内部生成默认的columns_clause：COLUMNS column_value XMLTYPE PATH '.'来用于后续的处理。在PG兼容模式下不可省略columns_clause。 目前xmltable_clause存在如下约束： 其中涉及的XPath表达式均为XPath 1.0。 目前不支持在column_expression使用形如'..'的XPath表达式。 经过column_expression得到的数据在转换为type类型的数据时，在ORA兼容模式下，若得到的数据过长，超过类型的typmod，会截断处理。目前仅对CHAR、CHARACTER、NCHAR、BPCHAR、VARCHAR、CHARACTER VARYING、VARCHAR2、NVARCHAR2数据类型（包括附带(n)形式）的typmod大于0时，过长的数据会进行截断处理。在PG兼容模式下，会报错处理。 目前支持传入的XMLTYPE（在ORA兼容模式下）或XML（在PG兼容模式下）类型数据的最大值为1GB。 从不支持XMLTABLE的版本升级到支持XMLTABLE的版本时，在升级观察期期间，不可使用XMLTABLE语法。 仅在ORA兼容模式下支持XPath中存在如下表达：*:nodename，其中nodename为节点名称，该种表达表示选取nodename节点时忽略其命名空间。 非保留关键字XMLTABLE不能作为Functions as Table Sources类型函数的函数名称。 在输入非良构的XMLTYPE（在ORA兼容模式下）类型数据时，会把与非良构部分同级的，在非良构部分之后的用于节点间控制书写格式的空格和回车字符当作文本节点解析，例如下面文本中node2节点的结束标签与node3节点的开始标签之间的空格和回车即会被当作文本节点解析，此与ORA数据库不一致，使用时请注意。 输入情况： <root> <node1>node1</node1> malform <node2>node2</node2> <node3>node3</node3> </root> 实际情况： <root><node1>node1</node1> malform <node2>node2</node2> <node3>node3</node3> </root> 目前xmltable_clause实现的功能与ORA数据库和PG数据库还存在如下差异，使用时请注意，详见 表1 。 表1 GaussDB Kernel 与ORA数据库和PG数据库对比 GaussDB Kernel 数据库 PG数据库 ORA数据库 在row_expression处及columns_clause中的PATH处使用XPath 1.0表达式。 与 GaussDB Kernel 一致。 在与row_expression和columns_clause中的PATH对应处使用XQuery 1.0表达式。 不支持默认命名空间功能。 与 GaussDB Kernel 一致。 支持默认命名空间功能。 支持在passing_clause子句中传入单个数据但不可取别名。 与 GaussDB Kernel 一致（注意传入数据为XML类型）。 支持在对应子句部分传入多个数据且可取别名。 不支持省略passing_clause子句。 与 GaussDB Kernel 一致。 支持省略对应子句。 不支持在passing_clause子句后使用RETURNING SEQUENCE BY REF子句。 与 GaussDB Kernel 一致。 支持在对应子句后使用RETURNING SEQUENCE BY REF子句。 不支持在columns_clause子句中使用( SEQUENCE ) BY REF修饰XMLTYPE类型的返回数据。 与 GaussDB Kernel 一致。 支持在对应子句中使用( SEQUENCE ) BY REF修饰XMLTYPE类型的返回数据。 在省略columns_clause子句中的PATH部分时，若不使用""将列名包起，在传入XMLTABLE的数据中对应节点的节点名为小写的情况下能正确找到该节点进行后续操作。 与 GaussDB Kernel 一致。 在省略对应部分时，若不使用""将列名包起，在传入XMLTABLE的数据中对应节点的节点名为大写的情况下能正确找到该节点进行后续操作。 不支持省略columns_clause子句中列类型的声明。 与 GaussDB Kernel 一致。 支持省略对应子句中列类型的声明。 在ORA兼容模式下支持省略columns_clause子句，在PG兼容模式下不支持省略columns_clause子句。 不支持省略对应子句。 支持省略对应子句。 在ORA兼容模式下返回数据长度超过类型的typmod时会截断处理，在PG兼容模式下返回数据长度超过类型的typmod时会报错。 返回数据长度超过类型的typmod时会报错。 返回数据长度超过类型的typmod时会截断处理。 示例： gaussdb=# SELECT * FROM XMLTABLE(
+gaussdb(# XMLNAMESPACES('nspace1' AS "ns1", 'nspace2' AS "ns2"), -- 声明两个XML的命名空间'nspace1'和'nspace2'及对应的别名"ns1"和"ns2"
+gaussdb(# '/ns1:root/*:child' -- 经row_expression从传入的数据中选取命名空间为'nspace1'的root节点，在选取其下面的所有child节点，忽略child的命名空间；其中ns1为'nspace1'的别名
+gaussdb(# PASSING xmltype(
+gaussdb(# '<root xmlns="nspace1">
+gaussdb'#     <child>
+gaussdb'#         <name>peter</name>
+gaussdb'#         <age>11</age>
+gaussdb'#     </child>
+gaussdb'#     <child xmlns="nspace1">
+gaussdb'#         <name>qiqi</name>
+gaussdb'#         <age>12</age>
+gaussdb'#     </child>
+gaussdb'#     <child xmlns="nspace2">
+gaussdb'#         <name>hacker</name>
+gaussdb'#         <age>15</age>
+gaussdb'#     </child>
+gaussdb'# </root>')
+gaussdb(# COLUMNS
+gaussdb(# column FOR ORDINALITY, -- 该列为行号列
+gaussdb(# name varchar(10) path 'ns1:name', -- 从row_expression获取的每个child节点中选取命名空间为'nspace1'的name节点，并将节点中的值转换为varchar(10)返回；其中ns1为'nspace1'的别名
+gaussdb(# age int); -- 从row_expression获取的每个child节点中选取age节点，并将节点中的值转换为int返回；由于第一个child节点没有显式指明命名空间，故跟随父节点root的命名空间，故该列一个值都没有返回
+ column | name  | age 
+--------+-------+-----
+      1 | peter |    
+      2 | qiqi  |    
+      3 |       |    
+(3 rows) unpivot_clause unpivot_clause可将列转置为行，其对应语法格式为： UNPIVOT [ {INCLUDE | EXCLUDE} NULLS ]
+    (   
+        unpivot_col_clause
+        unpivot_for_clause
+        unpivot_in_clause
+    ) {INCLUDE | EXCLUDE} NULLS 该子句用于控制转置后的结果是否包含存在NULL值的行，INCLUDE NULLS将使得结果包含存在NULL值的行，而EXCLUDE NULLS将从结果集中过滤掉这些行数据。如果忽略该子句，unpivot操作默认会从结果集中剔除存在NULL值的行。 unpivot_col_clause为： unpivot_col_element unpivot_col_element指定了输出的列名，这些列会保存待转置列的列值。 unpivot_col_element为： { column | ( column [, column]... ) } unpivot_col_element有两种形式：column；( column [, column]... )。 unpivot_for_clause为： FOR { unpivot_col_element } unpivot_for_clause中的unpivot_col_element用于指定输出的列名，这些列会保存待转置列的列名或别名。 unpivot_in_clause为： IN ( unpivot_in_element [,unpivot_in_element...] ) unpivot_in_clause指定了待转置列，这些列的列名和列值将保存在之前指定的输出列中。 unpivot_in_element为： { unpivot_col_element }[  AS { unpivot_alias_element } ] unpivot_col_element为指定的待转置列，若采用( column [, column]... )形式指定待转置列，( column [, column]... )中所有的column列名将通过下划线 "_" 进行拼接，并保存在输出列中。例如，IN ((col1, col2)) 将会生成列名 "col1_col2"，并保存在unpivot_for_clause指定的输出列中。此外，AS关键字可为待转置列指定别名，一旦指定别名，输出列中将保存别名而不再保存待转置列的列名。 unpivot_alias_element为： { alias | ( alias [, alias]... )} 与unpivot_col_element类似，unpivot_alias_element也有两种形式。其中，alias为指定的别名。 目前unpivot_clause存在如下约束： 仅支持在ORA兼容模式下使用。 unpivot_clause子句内不支持与hint配合使用。 对于unpivot_col_clause，其unpivot_col_element指定的输出列数目需与unpivot_in_clause中unpivot_col_element的列数目相同。 对于unpivot_for_clause，其unpivot_col_element指定的输出列数目需与unpivot_in_clause中unpivot_alias_element的别名数目相同。 对于unpivot_in_clause，别名必须为常量，或者可以转换为常量的表达式。 对于unpivot_in_clause，常量表达式支持的函数只能是不可变（IMMUTABLE）函数。 对于unpivot_in_clause的所有unpivot_col_element而言，如果这些unpivot_col_element相同位置的column类型存在差异，则unpivot会尝试进行类型转换，以将这些转置列的列值转换为公共类型。类似地，对于所有unpivot_alias_element而言，如果这些unpivot_alias_element相同位置的alias类型存在差异，unpivot也会进行类似的类型转换。 例如，假定存在"IN (col1, col2)"形式的unpivot_in_clause，其中col1为int类型，而col2为float类型，则unpivot在计算过程中会尝试将col1的列值转为公共类型float。 pivot_clause pivot_clause可将行转置为列，其对应语法格式为： PIVOT [ XML ]
+( aggregate_function ( expr ) [[AS] alias ]
+    [, aggregate_function ( expr ) [[AS] alias ] ]...
+    pivot_for_clause
+    pivot_in_clause
+) aggregate_function ( expr ) [[AS] alias ] aggregate_function针对给定的表达式进行聚合计算，计算结果将保存在pivot_in_clause指定的输出列中。[AS] alias（AS关键字可省略）可为aggregate_function指定别名，别名将以 "_别名" 格式附加在pivot_in_clause指定的输出列名后。 pivot_for_clause为： FOR { column
+    | ( column [, column]... )
+    } pivot_for_clause指定了待转置行，column表示待转置行的某一列。 pivot_in_clause为： IN ( { { { expr
+         | ( expr [, expr]... )
+         } [ [AS] alias]
+       }...
+     }
+  ) pivot_in_clause指定了输出结果的列名，列名可由一个expr或多个expr构成，例如，（expr1, expr2）。当列名由多个expr构成时，这些expr将按顺序通过下划线 "_" 进行连接，即（expr1, expr2）对应的输出列名为 "expr1_expr2"。除了生成输出列名外，这些expr还决定着聚合函数触发时机，当待转置行的行值与这些expr的值相同时，pivot将进行聚合函数aggregate_function的计算，并将计算结果保存在列名由这些expr构成的输出列中。假定expr1为1，expr2为2，对于行"1 2"，pivot将进行aggregate_function的计算，对于行"1 1"，则不会触发计算。 目前pivot_clause存在如下约束： 仅支持在ORA兼容模式下使用。 pivot_clause子句内不支持与hint配合使用。 当指定多于一个aggregate_function时，最多允许一个aggregate_function没有别名，其余aggregate_function均需指定别名。 XML只支持语法不支持功能。 pivot_in_clause中的expr可以是常量，或者是可以转换为常量的表达式。若不是一元表达式，则需为expr指定别名。 对于pivot_in_clause中的expr，常量表达式支持的函数只能是不可变（IMMUTABLE）函数。 对于pivot_in_clause中的expr，当通过as为其指定别名时，非保留关键字可作为别名使用，否则不能。 输出列的列名长度限制为63，超出将报错。 WHERE子句 WHERE子句构成一个行选择表达式，用来缩小SELECT查询的范围。condition是返回值为布尔型的任意表达式，任何不满足该条件的行都不会被检索。不建议使用int等数值类型作为condition，因为int等数值类型可以隐式转换为bool值（非0值隐式转换为true，0转换为false），可能导致非预期的结果。 WHERE子句中可以通过指定"(+)"操作符的方法将表的连接关系转换为外连接。但是不建议用户使用这种用法，因为这并不是SQL的标准语法，在做平台迁移的时候可能面临语法兼容性的问题。同时，使用"(+)"有很多限制： "(+)"只能出现在where子句中。 如果from子句中已经有指定表连接关系，那么不能再在where子句中使用"(+)"。 "(+)"只能作用在表或者视图的列上，不能作用在表达式上。 如果表A和表B有多个连接条件，那么必须在所有的连接条件中指定"(+)"，否则"(+)"将不会生效，表连接会转化成内连接，并且不给出任何提示信息。 "(+)"作用的连接条件中的表不能跨查询或者子查询。如果"(+)"作用的表，不在当前查询或者子查询的from子句中，则会报错。如果"(+)"作用的对端的表不存在，则不报错，同时连接关系会转化为内连接。 "(+)"作用的表达式不能直接通过"OR"连接。 如果"(+)"作用的列是和一个常量的比较关系， 那么这个表达式会成为join条件的一部分。 同一个表不能对应多个外表。 "(+)"只能出现"比较表达式"，"NOT表达式"，“ANY表达式”，“ALL表达式”，“IN表达式”，“NULLIF表达式”，“IS DISTINCT FROM表达式”，“IS OF表达式”。"(+)"不能出现在其他类型表达式中，并且这些表达式中不允许出现通过“AND”和“OR”连接的表达式。 "(+)"只能转化为左外连接或者右外连接，不能转化为全连接，即不能在一个表达式的两个表上同时指定"(+)" 对于WHERE子句的LIKE操作符，当LIKE中要查询特殊字符“%”、“_”、“\”的时候需要使用反斜杠“\”来进行转义。 GROUP BY子句 将查询结果按某一列或多列的值分组，值相等的为一组。 CUBE ( { expression | ( expression [, ...] ) } [, ...] ) CUBE是自动对GROUP BY子句中列出的字段进行分组汇总，结果集将包含维度列中各值的所有可能组合，以及与这些维度值组合相匹配的基础行中的聚合值。它会为每个分组返回一行汇总信息， 用户可以使用CUBE来产生交叉表值。比如，在CUBE子句中给出三个表达式（n = 3），运算结果为2 n = 2 3 = 8组。 以n个表达式的值分组的行称为常规行，其余的行称为超级聚集行。 GROUPING SETS ( grouping_element [, ...] ) GROUPING SETS子句是GROUP BY子句的进一步扩展，它可以使用户指定多个GROUP BY选项。 这样做可以通过裁剪用户不需要的数据组来提高效率。 当用户指定了所需的数据组时，数据库不需要执行完整CUBE或ROLLUP生成的聚合集合。 如果SELECT列表的表达式中引用了那些没有分组的字段，则会报错，除非使用了聚集函数，因为对于未分组的字段，可能返回多个数值。 HAVING子句 与GROUP BY子句配合用来选择特殊的组。HAVING子句将组的一些属性与一个常数值比较，只有满足HAVING子句中的逻辑表达式的组才会被提取出来。 WINDOW子句 一般形式为WINDOW window_name AS ( window_definition ) [， ...]，window_name是可以被随后的窗口定义所引用的名称，window_definition可以是以下的形式： [ existing_window_name ] [ PARTITION BY expression [, ...] ] [ ORDER BY expression [ ASC | DESC | USING operator ] [ NULLS { FIRST | LAST } ] [, ...] ] [ frame_clause ] frame_clause为窗函数定义一个窗口框架window frame，窗函数（并非所有）依赖于框架，window frame是当前查询行的一组相关行。frame_clause可以是以下的形式： [ RANGE | ROWS ] frame_start [ RANGE | ROWS ] BETWEEN frame_start AND frame_end frame_start和frame_end可以是： UNBOUNDED PRECEDING VALUE PRECEDING CURRENT ROW VALUE FOLLOWING UNBOUNDED FOLLOWING UNION子句 UNION计算多个SELECT语句返回行集合的并集。 UNION子句有如下约束条件： 除非声明了ALL子句，否则缺省的UNION结果不包含重复的行。 同一个SELECT语句中的多个UNION操作符是从左向右计算的，除非用圆括弧进行了标识。 FOR UPDATE不能在UNION的结果或输入中声明。 一般表达式： select_statement UNION [ALL] select_statement select_statement可以是任何没有ORDER BY、LIMIT、FOR UPDATE子句的SELECT语句。 如果用圆括弧包围，ORDER BY和LIMIT可以附着在子表达式里。 INTERSECT子句 INTERSECT计算多个SELECT语句返回行集合的交集，不含重复的记录。 INTERSECT子句有如下约束条件： 同一个SELECT语句中的多个INTERSECT操作符是从左向右计算的，除非用圆括弧进行了标识。 当对多个SELECT语句的执行结果进行UNION和INTERSECT操作的时候，会优先处理INTERSECT。 一般形式： select_statement INTERSECT select_statement select_statement可以是任何没有FOR UPDATE子句的SELECT语句。 EXCEPT子句 EXCEPT子句有如下的通用形式： select_statement EXCEPT [ ALL ] select_statement select_statement是任何没有FOR UPDATE子句的SELECT表达式。 EXCEPT操作符计算存在于左边SELECT语句的输出而不存在于右边SELECT语句输出的行。 EXCEPT的结果不包含任何重复的行，除非声明了ALL选项。使用ALL时，一个在左边表中有m个重复而在右边表中有n个重复的行将在结果中出现max(m-n,0) 次。 除非用圆括弧指明顺序，否则同一个SELECT语句中的多个EXCEPT操作符是从左向右计算的。EXCEPT和UNION的绑定级别相同。 目前，不能给EXCEPT的结果或者任何EXCEPT的输入声明FOR UPDATE子句。 MINUS子句 与EXCEPT子句具有相同的功能和用法。 ORDER BY子句 对SELECT语句检索得到的数据进行升序或降序排序。对于ORDER BY表达式中包含多列的情况： 首先根据最左边的列进行排序，如果这一列的值相同，则根据下一个表达式进行比较，依此类推。 如果对于所有声明的表达式都相同，则按随机顺序返回。 在与DISTINCT关键字一起使用的情况下，ORDER BY中排序的列必须包括在SELECT语句所检索的结果集的列中。 在与GROUP BY子句一起使用的情况下，ORDER BY中排序的列必须包括在SELECT语句所检索的结果集的列中。 如果要支持中文拼音排序，需要在初始化数据库时指定编码格式为UTF-8、GB18030、GB18030_2022或GBK。命令如下: initdb –E UTF8 –D ../data –locale=zh_CN.UTF-8、initdb -E GB18030 -D ../data -locale=zh_CN.GB18030、initdb -E GB18030_2022 -D ../data -locale=zh_CN.GB18030或initdb –E GBK –D ../data –locale=zh_CN.GBK。 LIMIT子句 LIMIT子句由两个独立的子句组成： LIMIT { count | ALL } 限制返回行数，count为指定行数，LIMIT ALL的效果和省略LIMIT子句一样。 OFFSET start count声明返回的最大行数，而start声明开始返回行之前忽略的行数。如果两个都指定了，会在开始计算count个返回行之前先跳过start行。 LIMIT子句不支持ROWNUM作为count或者offset。 OFFSET子句 SQL：2008开始提出一种不同的语法： OFFSET start { ROW | ROWS } start声明开始返回行之前忽略的行数。 FETCH { FIRST | NEXT } [ count ] { ROW | ROWS } ONLY 如果不指定count，默认值为1，FETCH子句限定返回查询结果从第一行开始的总行数。 FOR UPDATE子句 FOR UPDATE子句将对SELECT检索出来的行进行加锁。这样避免它们在当前事务结束前被其他事务修改或者删除，即其他企图UPDATE、 DELETE、 SELECT FOR UPDATE这些行的事务将被阻塞，直到当前事务结束。 为了避免操作等待其他事务提交，可使用NOWAIT选项，如果被选择的行不能立即被锁住，执行SELECT FOR UPDATE NOWAIT将会立即汇报一个错误，而不是等待；WAIT n选项，如果被选择的行不能立即被锁住，等待n秒（其中，n为int类型，取值范围：0 <= n <= 2147483），n秒内获取锁则正常执行，否则报错；SKIP LOCKED选项，对表加锁时跳过已经加锁的行，SKIP LOCKED只能跳过行锁，对不同事务中锁与锁不互相阻塞的场景，如SELECT FOR SHARE - SELECT FOR SHARE SKIP LOCKED, SKIP LOCKED不会跳过锁。 FOR SHARE的行为类似，只是它在每个检索出来的行上要求一个共享锁，而不是一个排他锁。一个共享锁阻塞其它事务执行UPDATE、DELETE、SELECT，不阻塞SELECT FOR SHARE。 如果在FOR UPDATE或FOR SHARE中明确指定了表名称，则只有这些指定的表被锁定，其他在SELECT中使用的表将不会被锁定。否则，将锁定该命令中所有使用的表。 如果FOR UPDATE或FOR SHARE应用于一个视图或者子查询，它同样将锁定所有该视图或子查询中使用到的表。 多个FOR UPDATE和FOR SHARE子句可以用于为不同的表指定不同的锁定模式。 如果一个表中同时出现（或隐含同时出现）在FOR UPDATE和FOR SHARE子句中，则按照FOR UPDATE处理。类似的，如果影响一个表的任意子句中出现了NOWAIT，该表将按照NOWAIT处理。 对于FOR UPDATE/SHARE，执行计划不能下推的SQL，直接返回报错信息；对于执行计划可以下推的，下推到 DN 执行。 对投影列或者WHERE条件中存在rownum的查询不支持FOR UPDATE/SHARE。 对于子查询是stream计划的FOR UPDATE/SHARE语句，不支持加锁的同一行被并发更新。 对于ORDER BY FOR UPDATE/SHARE语句，stream计划的sort算子和lock算子执行顺序与其他计划有所差别，stream计划是先执行lock再执行sort，其他计划是先执行sort再执行lock。原因是因为stream计划如果数据不在当前DN，需要重分布数据，回到数据的原始DN去加锁。由于重分布后数据会变得无序，所以最后还要加sort算子。如果先sort后lock，这样会导致原本有序的数据重新变得无序，这时sort就无意义了，可以消除此sort算子。最终计划的执行顺序就由原本的sort -> lock -> sort变为了lock -> sort。 对于FOR UPDATE/SHARE语句并发场景，业界有使用加ORDER BY对数据进行排序的方式来避免死锁，这种做法对于分布式来说是不可行的，因为DN的加锁顺序不能通过ORDER BY保证。另外加ORDER BY会造成性能开销，所以不建议加ORDER BY去解决死锁问题。 从505.0.0之前的版本升级到本版本，升级未提交情况下无法使用SKIP LOCKED功能。 DATABASE LINK功能不支持SKIP LOCKED语法。 NLS_SORT 指定某字段按照特殊方式排序。目前仅支持中文拼音格式排序和不区分大小写排序。如果要支持此排序方式，在创建数据库时需要指定编码格式为“UTF8”、”GB18030”、”GB18030_2022”或“GBK”；如果指定为其他编码，例如SQL_ASCII，则可能报错或者排序无效。 取值范围： SCHINESE_PINYIN_M，按照中文拼音排序。 generic_m_ci，不区分大小写排序（可选，仅支持纯英文不区分大小写排序）。 PARTITION子句 查询某个分区表中相应分区的数据。 示例 1
+  2
+  3
+  4
+  5
+  6
+  7
+  8
+  9
+ 10
+ 11
+ 12
+ 13
+ 14
+ 15
+ 16
+ 17
+ 18
+ 19
+ 20
+ 21
+ 22
+ 23
+ 24
+ 25
+ 26
+ 27
+ 28
+ 29
+ 30
+ 31
+ 32
+ 33
+ 34
+ 35
+ 36
+ 37
+ 38
+ 39
+ 40
+ 41
+ 42
+ 43
+ 44
+ 45
+ 46
+ 47
+ 48
+ 49
+ 50
+ 51
+ 52
+ 53
+ 54
+ 55
+ 56
+ 57
+ 58
+ 59
+ 60
+ 61
+ 62
+ 63
+ 64
+ 65
+ 66
+ 67
+ 68
+ 69
+ 70
+ 71
+ 72
+ 73
+ 74
+ 75
+ 76
+ 77
+ 78
+ 79
+ 80
+ 81
+ 82
+ 83
+ 84
+ 85
+ 86
+ 87
+ 88
+ 89
+ 90
+ 91
+ 92
+ 93
+ 94
+ 95
+ 96
+ 97
+ 98
+ 99
+100
+101
+102
+103
+104
+105
+106
+107
+108
+109
+110
+111
+112
+113
+114
+115
+116
+117
+118
+119
+120
+121
+122
+123
+124
+125
+126
+127
+128
+129
+130
+131
+132
+133
+134
+135
+136
+137
+138
+139
+140
+141
+142
+143
+144
+145
+146
+147
+148
+149
+150
+151
+152
+153
+154
+155
+156
+157
+158
+159
+160
+161
+162
+163
+164
+165
+166
+167
+168
+169
+170
+171
+172
+173
+174
+175
+176
+177
+178
+179
+180
+181
+182
+183
+184
+185
+186
+187
+188
+189
+190
+191
+192
+193
+194
+195
+196
+197
+198
+199
+200
+201
+202
+203
+204
+205
+206
+207
+208
+209
+210
+211
+212
+213
+214
+215
+216
+217
+218
+219
+220
+221
+222
+223
+224
+225
+226
+227
+228
+229
+230
+231
+232
+233
+234
+235
+236
+237
+238
+239
+240
+241
+242
+243
+244
+245
+246
+247
+248
+249
+250
+251
+252
+253
+254
+255
+256
+257
+258
+259
+260
+261
+262
+263
+264
+265
+266
+267
+268
+269
+270
+271
+272
+273
+274
+275 --创建SCHEMA。 gaussdb =# CREATE SCHEMA tpcds ; --创建表tpcds.reason。 gaussdb =# CREATE TABLE tpcds . reason ( r_reason_sk integer , r_reason_id character ( 16 ), r_reason_desc character ( 100 ) ); --向表中插入多条记录。 gaussdb =# INSERT INTO tpcds . reason values ( 3 , 'AAAAAAAABAAAAAAA' , 'reason 1' ),( 10 , 'AAAAAAAABAAAAAAA' , 'reason 2' ),( 4 , 'AAAAAAAABAAAAAAA' , 'reason 3' ),( 10 , 'AAAAAAAABAAAAAAA' , 'reason 4' ),( 10 , 'AAAAAAAABAAAAAAA' , 'reason 5' ),( 20 , 'AAAAAAAACAAAAAAA' , 'N%reason 6' ),( 30 , 'AAAAAAAACAAAAAAA' , 'W%reason 7' ); --先通过子查询得到一张临时表temp_t，然后查询表temp_t中的所有数据。 gaussdb =# WITH temp_t ( name , isdba ) AS ( SELECT usename , usesuper FROM pg_user ) SELECT * FROM temp_t ; --查询tpcds.reason表的所有r_reason_sk记录，且去除重复。 gaussdb =# SELECT DISTINCT ( r_reason_sk ) FROM tpcds . reason ; --LIMIT子句示例：获取表中一条记录。 gaussdb =# SELECT * FROM tpcds . reason LIMIT 1 ; --查询所有记录，且按字母升序排列。 gaussdb =# SELECT r_reason_desc FROM tpcds . reason ORDER BY r_reason_desc ; --通过表别名，从pg_user和pg_user_status这两张表中获取数据。 gaussdb =# SELECT a . usename , b . locktime FROM pg_user a , pg_user_status b WHERE a . usesysid = b . roloid ; --FULL JOIN子句示例：将pg_user和pg_user_status这两张表的数据进行全连接显示，即数据的合集。 gaussdb =# SELECT a . usename , b . locktime , a . usesuper FROM pg_user a FULL JOIN pg_user_status b on a . usesysid = b . roloid ; --GROUP BY子句示例：根据查询条件过滤，并对结果进行分组。 gaussdb =# SELECT r_reason_id , AVG ( r_reason_sk ) FROM tpcds . reason GROUP BY r_reason_id HAVING AVG ( r_reason_sk ) > 25 ; --GROUP BY CUBE子句示例：根据查询条件过滤，并对结果进行分组汇总。 gaussdb =# SELECT r_reason_id , AVG ( r_reason_sk ) FROM tpcds . reason GROUP BY CUBE ( r_reason_id , r_reason_sk ); --GROUP BY GROUPING SETS子句示例:根据查询条件过滤，并对结果进行分组汇总。 gaussdb =# SELECT r_reason_id , AVG ( r_reason_sk ) FROM tpcds . reason GROUP BY GROUPING SETS (( r_reason_id , r_reason_sk ), r_reason_sk ); --UNION子句示例：将表tpcds.reason里r_reason_desc字段中的内容以W开头和以N开头的进行合并。 gaussdb =# SELECT r_reason_sk , tpcds . reason . r_reason_desc FROM tpcds . reason WHERE tpcds . reason . r_reason_desc LIKE 'W%' UNION SELECT r_reason_sk , tpcds . reason . r_reason_desc FROM tpcds . reason WHERE tpcds . reason . r_reason_desc LIKE 'N%' ; --NLS_SORT子句示例：中文拼音排序。 gaussdb =# SELECT * FROM tpcds . reason ORDER BY NLSSORT ( r_reason_desc , 'NLS_SORT = SCHINESE_PINYIN_M' ); --不区分大小写排序（可选，仅支持纯英文不区分大小写排序）: gaussdb =# SELECT * FROM tpcds . reason ORDER BY NLSSORT ( r_reason_desc , 'NLS_SORT = generic_m_ci' ); --创建分区表tpcds.reason_p gaussdb =# CREATE TABLE tpcds . reason_p ( r_reason_sk integer , r_reason_id character ( 16 ), r_reason_desc character ( 100 ) ) PARTITION BY RANGE ( r_reason_sk ) ( partition P_05_BEFORE values less than ( 05 ), partition P_15 values less than ( 15 ), partition P_25 values less than ( 25 ), partition P_35 values less than ( 35 ), partition P_45_AFTER values less than ( MAXVALUE ) ); --插入数据。 gaussdb =# INSERT INTO tpcds . reason_p values ( 3 , 'AAAAAAAABAAAAAAA' , 'reason 1' ),( 10 , 'AAAAAAAABAAAAAAA' , 'reason 2' ),( 4 , 'AAAAAAAABAAAAAAA' , 'reason 3' ),( 10 , 'AAAAAAAABAAAAAAA' , 'reason 4' ),( 10 , 'AAAAAAAABAAAAAAA' , 'reason 5' ),( 20 , 'AAAAAAAACAAAAAAA' , 'reason 6' ),( 30 , 'AAAAAAAACAAAAAAA' , 'reason 7' ); --PARTITION子句示例：从tpcds.reason_p的表分区P_05_BEFORE中获取数据。 gaussdb =# SELECT * FROM tpcds . reason_p PARTITION ( P_05_BEFORE ); r_reason_sk | r_reason_id | r_reason_desc -------------+------------------+------------------------------------ 3 | AAAAAAAABAAAAAAA | reason 1 4 | AAAAAAAABAAAAAAA | reason 3 ( 2 rows ) --PARTITION子句指定多分区示例：从tpcds.reason_p的表分区P_05_BEFORE，P_15，P_25中获取数据。 gaussdb =# SELECT * FROM tpcds . reason_p PARTITION ( P_05_BEFORE , P_15 , P_25 ) ORDER BY 1 ; r_reason_sk | r_reason_id | r_reason_desc -------------+------------------+------------------------------------------------------------------------------------------------------ 3 | AAAAAAAABAAAAAAA | reason 1 4 | AAAAAAAABAAAAAAA | reason 3 10 | AAAAAAAABAAAAAAA | reason 2 10 | AAAAAAAABAAAAAAA | reason 4 10 | AAAAAAAABAAAAAAA | reason 5 20 | AAAAAAAACAAAAAAA | reason 6 ( 6 rows ) --GROUP BY子句示例：按r_reason_id分组统计tpcds.reason_p表中的记录数。 gaussdb =# SELECT COUNT ( * ), r_reason_id FROM tpcds . reason_p GROUP BY r_reason_id ; count | r_reason_id -------+------------------ 2 | AAAAAAAACAAAAAAA 5 | AAAAAAAABAAAAAAA ( 2 rows ) --GROUP BY CUBE子句示例：根据查询条件过滤，并对查询结果分组汇总。 gaussdb =# SELECT * FROM tpcds . reason GROUP BY CUBE ( r_reason_id , r_reason_sk , r_reason_desc ); --GROUP BY GROUPING SETS子句示例：根据查询条件过滤，并对查询结果分组汇总。 gaussdb =# SELECT * FROM tpcds . reason GROUP BY GROUPING SETS (( r_reason_id , r_reason_sk ), r_reason_desc ); --HAVING子句示例：按r_reason_id分组统计tpcds.reason_p表中的记录，并只显示r_reason_id个数大于2的信息。 gaussdb =# SELECT COUNT ( * ) c , r_reason_id FROM tpcds . reason_p GROUP BY r_reason_id HAVING c > 2 ; c | r_reason_id ---+------------------ 5 | AAAAAAAABAAAAAAA ( 1 row ) --IN子句示例：按r_reason_id分组统计tpcds.reason_p表中的r_reason_id个数，并只显示r_reason_id值为 AAAAAAAABAAAAAAA或AAAAAAAADAAAAAAA的个数。 gaussdb =# SELECT COUNT ( * ), r_reason_id FROM tpcds . reason_p GROUP BY r_reason_id HAVING r_reason_id IN ( 'AAAAAAAABAAAAAAA' , 'AAAAAAAADAAAAAAA' ); count | r_reason_id -------+------------------ 5 | AAAAAAAABAAAAAAA ( 1 row ) --INTERSECT子句示例：查询r_reason_id等于AAAAAAAABAAAAAAA，并且r_reason_sk小于5的信息。 gaussdb =# SELECT * FROM tpcds . reason_p WHERE r_reason_id = 'AAAAAAAABAAAAAAA' INTERSECT SELECT * FROM tpcds . reason_p WHERE r_reason_sk < 5 ; r_reason_sk | r_reason_id | r_reason_desc -------------+------------------+------------------------------------ 4 | AAAAAAAABAAAAAAA | reason 3 3 | AAAAAAAABAAAAAAA | reason 1 ( 2 rows ) --EXCEPT子句示例：查询r_reason_id等于AAAAAAAABAAAAAAA，并且去除r_reason_sk小于4的信息。 gaussdb =# SELECT * FROM tpcds . reason_p WHERE r_reason_id = 'AAAAAAAABAAAAAAA' EXCEPT SELECT * FROM tpcds . reason_p WHERE r_reason_sk < 4 ; r_reason_sk | r_reason_id | r_reason_desc -------------+------------------+------------------------------------ 10 | AAAAAAAABAAAAAAA | reason 5 10 | AAAAAAAABAAAAAAA | reason 4 4 | AAAAAAAABAAAAAAA | reason 3 10 | AAAAAAAABAAAAAAA | reason 2 ( 4 rows ) --创建表store_returns、customer gaussdb =# CREATE TABLE tpcds . store_returns ( sr_item_sk int , sr_customer_id varchar ( 50 ), sr_customer_sk int ); gaussdb =# CREATE TABLE tpcds . customer ( c_item_sk int , c_customer_id varchar ( 50 ), c_customer_sk int ); --通过在where子句中指定"(+)"来实现左连接。 gaussdb =# SELECT t1 . sr_item_sk , t2 . c_customer_id FROM tpcds . store_returns t1 , tpcds . customer t2 WHERE t1 . sr_customer_sk = t2 . c_customer_sk ( + ) ORDER BY 1 DESC LIMIT 1 ; sr_item_sk | c_customer_id ------------+--------------- 18000 | ( 1 row ) --通过在where子句中指定"(+)"来实现右连接。 gaussdb =# SELECT t1 . sr_item_sk , t2 . c_customer_id FROM tpcds . store_returns t1 , tpcds . customer t2 WHERE t1 . sr_customer_sk ( + ) = t2 . c_customer_sk ORDER BY 1 DESC LIMIT 1 ; sr_item_sk | c_customer_id ------------+------------------ | AAAAAAAAJNGEBAAA ( 1 row ) --通过在where子句中指定"(+)"来实现左连接，并且增加连接条件。 gaussdb =# SELECT t1 . sr_item_sk , t2 . c_customer_id FROM tpcds . store_returns t1 , tpcds . customer t2 WHERE t1 . sr_customer_sk = t2 . c_customer_sk ( + ) AND t2 . c_customer_sk ( + ) < 1 ORDER BY 1 LIMIT 1 ; sr_item_sk | c_customer_id ------------+--------------- 1 | ( 1 row ) --不支持在where子句中指定"(+)"的同时使用内层嵌套AND/OR的表达式。 gaussdb =# SELECT t1 . sr_item_sk , t2 . c_customer_id FROM tpcds . store_returns t1 , tpcds . customer t2 WHERE NOT ( t1 . sr_customer_sk = t2 . c_customer_sk ( + ) AND t2 . c_customer_sk ( + ) < 1 ); ERROR : Operator "(+)" can not be used in nesting expression . LINE 1 : ... tomer_id from store_returns t1 , customer t2 where not ( t1 . sr_ ... ^ --where子句在不支持表达式宏指定"(+)"会报错。 gaussdb =# SELECT t1 . sr_item_sk , t2 . c_customer_id FROM tpcds . store_returns t1 , tpcds . customer t2 WHERE ( t1 . sr_customer_sk = t2 . c_customer_sk ( + )):: bool ; ERROR : Operator "(+)" can only be used in common expression . --where子句在表达式的两边都指定"(+)"会报错。 gaussdb =# SELECT t1 . sr_item_sk , t2 . c_customer_id FROM tpcds . store_returns t1 , tpcds . customer t2 WHERE t1 . sr_customer_sk ( + ) = t2 . c_customer_sk ( + ); ERROR : Operator "(+)" can 't be specified on more than one relation in one join condition HINT:  "t1", "t2"...are specified Operator "(+)" in one condition. --删除表。 gaussdb=# DROP TABLE tpcds.reason_p; --WITH RECURSIVE查询示例：计算从1到100的累加值。 gaussdb=# WITH RECURSIVE t1(a) as ( select 100 ), t(n) AS ( VALUES (1) UNION ALL SELECT n+1 FROM t WHERE n < (select max(a) from t1) ) SELECT sum(n) FROM t; sum ------ 5050 (1 row) --创建ORA兼容兼容数据库 gaussdb=# CREATE DATABASE pivot_db dbcompatibility ' ORA '; gaussdb=# \c pivot_db --UNPIVOT子句示例：将表p1的math列和phy列转置为（class，score）行 pivot_db=# CREATE TABLE p1(id int, math int, phy int); pivot_db=#INSERT INTO p1 values(1,20,30); pivot_db=#INSERT INTO p1 values(2,30,40); pivot_db=#INSERT INTO p1 values(3,40,50); pivot_db=#SELECT * FROM p1; id | math | phy ----+------+----- 1 |   20 |  30 2 |   30 |  40 3 |   40 |  50 (3 rows) pivot_db=#SELECT * FROM p1 UNPIVOT(score FOR class IN(math, phy)); id | class | score ----+-------+------- 1 | MATH  |    20 1 | PHY   |    30 2 | MATH  |    30 2 | PHY   |    40 3 | MATH  |    40 3 | PHY   |    50 (6 rows) --PIVOT子句示例：将表p2的（class，score）行转置为' MATH '列和 ' PHY '列 pivot_db=#CREATE TABLE p2(id int, class varchar(10), score int); pivot_db=#INSERT INTO p2 SELECT * FROM p1 UNPIVOT(score FOR class IN(math, phy)); pivot_db=#SELECT * FROM p2; id | class | score ----+-------+------- 1 | MATH  |    20 1 | PHY   |    30 2 | MATH  |    30 2 | PHY   |    40 3 | MATH  |    40 3 | PHY   |    50 (6 rows) pivot_db=#SELECT * FROM p2 PIVOT(max(score) FOR class IN (' MATH ', ' PHY ')); id | ' MATH ' | ' PHY ' ----+--------+------- 1 |     20 |    30 3 |     40 |    50 2 |     30 |    40 (3 rows) --切换到初始数据库,请使用真实的初始数据库名称替换init_db。 pivot_db=# \c init_db gaussdb=# DROP DATABASE pivot_db; --SKIP LOCKED示例 --step 1:创建astore表并插入数据 gaussdb=# CREATE TABLE skiplocked_astore(id int, info text) WITH (storage_type=astore); gaussdb=# INSERT INTO skiplocked_astore VALUES (1, ' abc '), (2, ' bcd '), (3, ' cdf '),(3, ' dfg ' ); --step 2:session1开启事务通过UPDATE锁住skiplocked_astore中id等于1的行 gaussdb =# BEGIN ; BEGIN gaussdb =# SELECT * FROM skiplocked_astore WHERE id = 1 FOR UPDATE ; id | info ----+------ 1 | abc ( 1 row ) --STEP 3:session2 使用SKIP LOCKED会跳过被锁行，仅返回加锁成功的行 gaussdb =# SELECT * FROM skiplocked_astore FOR UPDATE SKIP LOCKED ; id | info ----+------ 2 | bcd 3 | cdf 3 | dfg ( 3 rows ) --删除SCHEMA。 gaussdb =# DROP SCHEMA tpcds CASCADE ; 父主题： S 版权所有 © 华为技术有限公司

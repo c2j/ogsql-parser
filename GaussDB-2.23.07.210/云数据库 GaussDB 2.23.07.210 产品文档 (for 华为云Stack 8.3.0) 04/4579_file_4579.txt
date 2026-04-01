@@ -1,0 +1,21 @@
+对间隔分区表分割分区 对间隔分区表分割分区 对间隔分区表分割分区的命令与范围分区表相同。 对间隔分区表的间隔分区完成分割分区操作之后，源分区之前的间隔分区会变成范围分区。 例如，创建如下间隔分区表，并插入数据新增三个分区sys_p1、sys_p2、sys_p3。 CREATE TABLE interval_sales
+(
+    prod_id       NUMBER(6),
+    cust_id       NUMBER,
+    time_id       DATE,
+    channel_id    CHAR(1),
+    promo_id      NUMBER(6),
+    quantity_sold NUMBER(3),
+    amount_sold   NUMBER(10, 2)
+)
+PARTITION BY RANGE (TIME_ID) INTERVAL ('1 MONTH')
+(
+    PARTITION date_2015 VALUES LESS THAN ('2016-01-01'),
+    PARTITION date_2016 VALUES LESS THAN ('2017-01-01'),
+    PARTITION date_2017 VALUES LESS THAN ('2018-01-01'),
+    PARTITION date_2018 VALUES LESS THAN ('2019-01-01'),
+    PARTITION date_2019 VALUES LESS THAN ('2020-01-01')
+);
+INSERT INTO interval_sales VALUES (263722,42819872,'2020-07-09','E',432072,213,17); --新增分区sys_p1
+INSERT INTO interval_sales VALUES (345724,72651233,'2021-03-05','A',352451,146,9);  --新增分区sys_p2
+INSERT INTO interval_sales VALUES (153241,65143129,'2021-05-07','H',864134,89,34);  --新增分区sys_p3 如果对分区sys_p2进行分割，则会将分区sys_p1变为范围分区，分区范围下界值从依赖间隔分区值变成依赖前一个分区的上界值，也就是分区范围从['2020-07-01', '2020-08-01')变成['2020-01-01', '2020-08-01')；分区sys_p3依然为间隔分区，其分区范围为['2021-05-01', '2021-06-01')。 父主题： 分割分区 版权所有 © 华为技术有限公司

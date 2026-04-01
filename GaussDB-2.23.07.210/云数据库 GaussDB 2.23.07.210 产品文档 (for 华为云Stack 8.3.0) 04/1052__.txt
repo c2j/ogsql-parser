@@ -1,0 +1,217 @@
+日期/时间类型 日期/时间类型 GaussDB 支持的日期/时间类型请参见 表1 。该类型的操作符和内置函数请参见 时间和日期处理函数和操作符 。 1. 如果其他的数据库时间格式和 GaussDB 的时间格式不一致，可通过修改配置参数DateStyle的值来保持一致。 2. 当前日期表示法采用ISO标准，年由4位数组成，以公历公元1年为0001年，以公元前1年为0000年，公元前2年为-0001年，其他以此类推。 表1 日期/时间类型 名称 描述 存储空间 DATE 日期。 最小值：公元前4713年， 4714-11-24BC 。最大值：公元5874897年，5874897-12-31AD。 在设置sql_compatibility = 'MYSQL'、b_format_version = '5.7'和b_format_dev_version = 's1'三个参数后，输入和输出格式、范围的规格有差异： 输入格式：支持有分隔符YYYY-MM-DD和无分隔符YYYYMMDD的输入格式。 有分隔符场景下，日期的年、月、日之间不支持“+”、“:”作为分隔符（某些分隔符混合使用场景下不支持，规格继承已有实现。如：date '2020-12?12'），输入格式不受DateStyle参数的影响。 无分隔符场景下，输入不完整时可能不会报错，但是输出结果不一定正确。 输出格式：仅支持YYYY-MM-DD，且不受DateStyle参数的影响。 范围：4713-01-01 BC ~ 5874897-12-31 AD。 sql_mode参数值包含“strict_trans_tables”时，非法输入或者超过范围，会报错。 sql_mode参数值不包含“strict_trans_tables”时，允许年、月、日值是0，但是输出时会按照年、月、日的顺序依次转换为合法的值，如'0000-00-10' 转换为：0002-12-10 BC。 非法输入或者超过范围时，会报warning信息，并返回0000-00-00 00:00:00值。 说明： ORA兼容性下，数据库将空字符串作为NULL处理，数据类型DATE会被替换为TIMESTAMP(0) WITHOUT TIME ZONE。 4字节（实际存储空间大小为8字节） TIME [(p)] [WITHOUT TIME ZONE] 用于表示一天内的时间。 p表示小数点后的精度，取值范围为0~6。 最小值：00:00:00。最大值：24:00:00。 在设置sql_compatibility = 'MYSQL'、b_format_version = '5.7'和b_format_dev_version = 's1'三个参数后，不限定于表示一天内的时间，如可以表示持续时间、相对时间等概念，且格式、范围、精度的规格有差异： 输入格式：支持有分隔符[D] hh:mm:ss.ffffff和无分隔符 hhmmss.ffffff的输入格式。D是表示天数，整型数（支持负数），可选。输出时会按照1天24小时的关系换算成小时数，加hh后显示。只支持冒号“:”作为分隔符。 输出格式：hh:mm:ss.ffffff。在显示的时候会自动忽略小数部分末尾的所有零。 范围：-838:59:59.000000 ~ 838:59:59.000000。 sql_mode参数值包含“strict_trans_tables”时，非法输入返回00:00:00，超过范围会报错。 sql_mode参数值不包含“strict_trans_tables”时，非法输入会返回 00:00:00；合法输入但是超过范围，会返回最近的边界值。如：838:59:59.000001会返回 838:59:59，而-838:59:59.000001会返回-838:59:59。 精度：p表示小数点后的精度，取值范围为0~6。当p设置超过6时，按照p为6进行处理。 作为表列的数据类型时，缺省精度为0。 作为表达式使用（如time '10:10:10.123456'）时，缺省的精度为6。 8字节 TIME [(p)] [WITH TIME ZONE] 用于表示一天内的时间，携带时区。 p表示小数点后的精度，取值范围为0~6。 最小值：00:00:00+15:59。最大值：24:00:00-15:59。 12字节 TIMESTAMP[(p)] [WITHOUT TIME ZONE] 日期和时间，不携带时区。 p表示小数点后的精度，取值范围为0~6。 最小值：公元前4713年，4714-11-24 BC 00:00:00.000000。最大值：公元294277年，294277-01-09 AD 04:00:54.775807，最大值等效infinity。 在设置sql_compatibility = 'MYSQL'、b_format_version = '5.7'和b_format_dev_version = 's1'三个参数后，会被替换为TIMESTAMP[(p)] [WITH TIME ZONE]类型，但格式、范围、精度的规格有差异： 输入格式：支持有分隔符YYYY-MM-DD hh:mm:ss.ffffff+timezone和无分隔符YYYYMMDDhhmmss.ffffff的输入格式。 有分隔符的情况下，日期年、月、日之间不支持“+”、“:”作为分隔符（某些分隔符混合使用场景下不支持，规格继承已有实现。如：timestamp '2020-12?12 00:00:00'），时间部分只支持冒号“:”作为分隔符。输入格式不受DateStyle参数的影响。 无分隔符且输入不完整的场景下，可能不会报错，但是输出结果不一定正确。 年份只有2位数时，00~69对应范围为2000~2069；70~99对应范围为1970~1999。 年份只有1位数时，如：timestamp '1-1-1 00:00:00' 结果为'0001-01-01 00:00:00'。 输出格式：仅支持YYYY-MM-DD hh:mm:ss.ffffff格式，且不受DateStyle参数的影响。在显示的时候会自动忽略时间部分小数部分末尾的所有零。 范围： sql_mode参数值包含“strict_trans_tables”时，范围与TIMESTAMP[(p)] WITH TIME ZONE一致；非法输入或者超过范围时，会报错。 sql_mode参数值不包含“strict_trans_tables”时，允许年、月、日值是0，但是输出时会按照年、月、日的顺序依次转换为合法的值，如'0000-00-10 00:00:00'转换为：0002-12-10 00:00:00 BC。 非法输入或者超过范围时，会报warning信息，并返回0000-00-00 00:00:00值。 精度：p表示小数点后的精度，取值范围为0~6。当p设置超过6时，按照p为6进行处理。 作为表列的数据类型时，缺省精度为0。 作为表达式使用（如timestamp '2000-01-01 00:00:00.123456'）时，缺省的精度为6。 时区：支持的范围：-15:59~+15:59，或使用时区名称（请参考系统视图 PG_TIMEZONE_NAMES ），与TIMESTAMP[(p)] WITH TIME ZONE类型的时区规格一致。将指定时区的时间值转换为UTC-0时区的时间。显示时，再将UTC-0时区的时间转换为当前服务器时区（SHOW TIME ZONE可以查看服务器时区）的时间。因此，通过SET TIME ZONE语句更改服务器时区时，显示的结果也会变更。 8字节 TIMESTAMP[(p)][WITH TIME ZONE] 日期和时间，带时区。TIMESTAMP的别名为TIMESTAMPTZ。 p表示小数点后的精度，取值范围为0~6。 最小值：公元前4713年，4714-11-24 BC 00:00:00.000000 +0。最大值：公元294277年，294277-01-09 AD 04:00:54.775807 +0，最大值等效infinity。 时区更新：部分国家或地区因为政治、经济、战争等因素经常会更新时区信息， 数据库系统也因此常常需要同步修改时区文件以确保时间内容的正确性。 GaussDB时区类型目前只涉及 timestamp with timezone, 当新的时区文件生效时，不会对已有的老数据进行变更，新数据会随时区文件信息进行同步调整。在这点上和O的同类型数据能力有差异。 8字节 SMALLDATETIME 日期和时间，不带时区。 精确到分钟，秒位大于等于30秒进一位。 最小值：公元前4713年，4713-11-24BC 00:00:00.000000。最大值：公元294277年，294277-01-09AD 00:00:00.000000。 8字节 INTERVAL DAY (l) TO SECOND (p) 时间间隔，X天X小时X分X秒。 l：天数的精度，取值范围为0~6。为适配Oracle语法，未实现具体功能。 p：秒数的精度，取值范围为0~6。小数末尾的零不显示。 16字节 INTERVAL [FIELDS] [ (p) ] 时间间隔。 FIELDS：可以是YEAR，MONTH，DAY，HOUR，MINUTE，SECOND，DAY TO HOUR，DAY TO MINUTE，DAY TO SECOND，HOUR TO MINUTE，HOUR TO SECOND，MINUTE TO SECOND。 p：秒数的精度，取值范围为0~6，且fields为SECOND，DAY TO SECOND，HOUR TO SECOND或MINUTE TO SECOND时，参数p才有效。小数末尾的零不显示。 12字节 reltime 相对时间间隔。 格式为：X years X mons X days XX:XX:XX。 采用儒略历计时，规定一年为365.25天，一个月为30天，计算输入值对应的相对时间间隔。 4字节 abstime 日期和时间。 格式为：YYYY-MM-DD hh:mm:ss+timezone。 取值范围为1901-12-13 20:45:53 GMT~2038-01-18 23:59:59 GMT，精度为秒。 4字节 datetime[(p)] 日期和时间。 仅在设置sql_compatibility = 'MYSQL'、b_format_version = '5.7'以及b_format_dev_version = 's1'三个参数后生效，datetime[(p)]类型会被替换为TIMESTAMP[(p)] WITHOUT TIME ZONE类型，但格式、范围、精度、时区处理的规格有差异： 输入格式：支持有分隔符YYYY-MM-DD hh:mm:ss.ffffff+timezone和无分隔符YYYYMMDDhhmmss.ffffff的输入格式。 有分隔符的情况下，日期年、月、日之间不支持“+”、“:”作为分隔符（某些分隔符混合使用场景下不支持，规格继承已有实现。如：datetime '2020-12?12 00:00:00'），时间部分只支持冒号“:”作为分隔符。输入格式不受DateStyle参数的影响。 无分隔符且输入不完整的场景下，可能不会报错，但是输出结果不一定正确。 年份只有2位数时，00-69对应范围为2000-2069；70-99对应范围为：1970-1999。 年份只有1位数时，如：datetime '1-1-1 00:00:00' 结果为'0001-01-01 00:00:00'。 输出格式：仅支持YYYY-MM-DD hh:mm:ss.ffffff格式，且不受DateStyle参数的影响。在显示的时候会自动忽略时间部分小数部分末尾的所有零。 范围： sql_mode参数值包含“strict_trans_tables”时，范围与TIMESTAMP[(p)] WITHOUT TIME ZONE一致，非法输入或者超过范围时，会报错。 sql_mode参数值不包含“strict_trans_tables”时，允许年、月、日值是0，但是输出时会按照年、月、日的顺序依次转换为合法的值，如'0000-00-10 00:00:00'转换为：0002-12-10 00:00:00 BC。非法输入或者超过范围时，会报warning信息，并返回0000-00-00 00:00:00值。 精度：p表示小数点后的精度，取值范围为0~6。给定精度超过6时，按照6处理。 作为表列的数据类型时，缺省精度为0。 作为表达式使用（如：datetime '2000-01-01 00:00:00.123456'）时，缺省的精度为6。 时区：支持的范围：-15:59 ~ +15:59，或使用时区名称（请参考系统视图 PG_TIMEZONE_NAMES ），与TIMESTAMP[(p)] WITH TIME ZONE类型的时区规格一致。将指定时区的时间值转换为当前服务器时区（SHOW TIME ZONE可以查看服务器时区）的时间。如果将转换后的日期时间存入表中，此值不会再随服务器时区的变更而再做时区转换。 8字节 时间类型的数据在显示的时候会自动忽略末尾的所有零。 精度p默认取值为6。 对于INTERVAL类型，日期和时间在系统内部分别用int32和double类型存储，所以两者的取值范围和对应数据类型的取值范围一致。 插入时间超出范围的时候，系统可能不报错，但不保证行为正常。 在参数a_format_version值为10c和a_format_dev_version值为s1的情况下，缺省的DATE值由以下确定： 年通过SYSDATE返回当年。 月通过SYSDATE返回当月。 日返回01（月份的第一天）。 小时，分钟，秒都是0。 示例： 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27
+28
+29
+30
+31
+32
+33
+34
+35
+36
+37
+38
+39
+40
+41
+42
+43
+44
+45
+46
+47
+48
+49
+50
+51
+52
+53
+54
+55
+56
+57
+58
+59
+60
+61
+62
+63
+64
+65
+66
+67
+68
+69
+70
+71
+72
+73
+74
+75
+76
+77
+78
+79
+80
+81
+82
+83
+84
+85
+86
+87
+88
+89
+90
+91
+92
+93 --创建表。 gaussdb =# CREATE TABLE date_type_tab ( coll date ); --插入数据。 gaussdb =# INSERT INTO date_type_tab VALUES ( date '12-10-2010' ); --查看数据。 gaussdb =# SELECT * FROM date_type_tab ; coll ------------ 2010 - 12 - 10 ( 1 row ) --删除表。 gaussdb =# DROP TABLE date_type_tab ; --创建表。 gaussdb =# CREATE TABLE time_type_tab ( da time without time zone , dai time with time zone , dfgh timestamp without time zone , dfga timestamp with time zone , vbg smalldatetime ); --插入数据。 gaussdb =# INSERT INTO time_type_tab VALUES ( '21:21:21' , '21:21:21 pst' , '2010-12-12' , '2013-12-11 pst' , '2003-04-12 04:05:06' ); --查看数据。 gaussdb =# SELECT * FROM time_type_tab ; da | dai | dfgh | dfga | vbg ----------+-------------+---------------------+------------------------+--------------------- 21 : 21 : 21 | 21 : 21 : 21 - 08 | 2010 - 12 - 12 00 : 00 : 00 | 2013 - 12 - 11 16 : 00 : 00 + 08 | 2003 - 04 - 12 04 : 05 : 00 ( 1 row ) --删除表。 gaussdb =# DROP TABLE time_type_tab ; --创建表。 gaussdb =# CREATE TABLE day_type_tab ( a int , b INTERVAL DAY ( 3 ) TO SECOND ( 4 )); --插入数据。 gaussdb =# INSERT INTO day_type_tab VALUES ( 1 , INTERVAL '3' DAY ); --查看数据。 gaussdb =# SELECT * FROM day_type_tab ; a | b ---+-------- 1 | 3 days ( 1 row ) --删除表。 gaussdb =# DROP TABLE day_type_tab ; --创建表。 gaussdb =# CREATE TABLE year_type_tab ( a int , b interval year ( 6 )); --插入数据。 gaussdb =# INSERT INTO year_type_tab VALUES ( 1 , interval '2' year ); --查看数据。 gaussdb =# SELECT * FROM year_type_tab ; a | b ---+--------- 1 | 2 years ( 1 row ) gaussdb =# SELECT TIME 'allballs' ; time ---------- 00 : 00 : 00 ( 1 row ) --删除表。 gaussdb =# DROP TABLE year_type_tab ; -- MYSQL兼容模式下datetime和timestamp数据类型示例 -- 创建MYSQL兼容模式下的数据库 gaussdb =# create database gaussdb_m dbcompatibility = 'MYSQL' ; -- 设置兼容版本控制参数 gaussdb_m =# set b_format_version = '5.7' ; gaussdb_m =# set b_format_dev_version = 's1' ; -- 创建表 gaussdb_m =# CREATE TABLE datetime_typ_tab ( col1 datetime , col2 timestamp ); -- 插入数据 gaussdb_m =# INSERT INTO datetime_typ_tab VALUES ( '2003-04-12 04:05:06+09:00' , '2003-04-12 04:05:06+09:00' ); -- 查看数据 gaussdb_m =# SELECT * FROM datetime_typ_tab ; col1 | col2 ---------------------+--------------------- 2003 - 04 - 12 03 : 05 : 06 | 2003 - 04 - 12 03 : 05 : 06 ( 1 row ) -- 删除表 gaussdb_m =# DROP TABLE datetime_typ_tab ; 日期输入 日期和时间的输入几乎可以是任何合理的格式，包括ISO-8601格式、SQL-兼容格式或者其它的格式。系统支持按照日、月、年的顺序自定义日期输入。如果把DateStyle参数设置为MDY就按照“月-日-年”解析，设置为DMY就按照“日-月-年”解析，设置为YMD就按照“年-月-日”解析。 日期的文本输入需要加单引号包围，语法如下： type [ ( p ) ] 'value' 可选的精度声明中的p是一个整数，表示在秒域中小数部分的位数。 表2 显示了date类型的输入格式。 表2 日期输入格式 例子 描述 1999-01-08 ISO 8601格式（建议格式），任何方式下都是1999年1月8日。 January 8, 1999 在任何datestyle输入模式下都无歧义。 1/8/1999 有歧义，在MDY模式下是1月8日，在DMY模式下是8月1日。 1/18/1999 MDY模式下是1月18日，其它模式下被拒绝。 01/02/03 MDY模式下的2003年1月2日。 DMY模式下的2003年2月1日。 YMD模式下的2001年2月3日。 1999-Jan-08 任何模式下都是1月8日。 Jan-08-1999 任何模式下都是1月8日。 08-Jan-1999 任何模式下都是1月8日。 99-Jan-08 YMD模式下是1月8日，否则错误。 08-Jan-99 一月八日，除了在YMD模式下是错误的之外。 Jan-08-99 一月八日，除了在YMD模式下是错误的之外。 19990108 ISO 8601格式，任何模式下都是1999年1月8日。 990108 ISO 8601格式，任何模式下都是1999年1月8日。 1999.008 年和年里的第几天。 J2451187 儒略日。 January 8, 99 BC 公元前99年。 示例： 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27
+28
+29
+30
+31
+32
+33
+34
+35
+36
+37 --创建表。 gaussdb =# CREATE TABLE date_type_tab ( coll date ); --插入数据。 gaussdb =# INSERT INTO date_type_tab VALUES ( date '12-10-2010' ); --查看数据。 gaussdb =# SELECT * FROM date_type_tab ; coll --------------------- 2010 - 12 - 10 ( 1 row ) --查看日期格式。 gaussdb =# SHOW datestyle ; DateStyle ----------- ISO , MDY ( 1 row ) --设置日期格式。 gaussdb =# SET datestyle = 'YMD' ; SET --插入数据。 gaussdb =# INSERT INTO date_type_tab VALUES ( date '2010-12-11' ); --查看数据。 gaussdb =# SELECT * FROM date_type_tab ; coll --------------------- 2010 - 12 - 10 2010 - 12 - 11 ( 2 rows ) --删除表。 gaussdb =# DROP TABLE date_type_tab ; 时间 时间类型包括time [ (p) ] without time zone和time [ (p) ] with time zone。如果只写time等效于time without time zone。 如果在time without time zone类型的输入中声明了时区，则会忽略这个时区。 时间输入类型的详细信息请参见 表3 ，时区输入类型的详细信息请参见 表4 。 表3 时间输入 例子 描述 05:06.8 ISO 8601 4:05:06 ISO 8601 4:05 ISO 8601 40506 ISO 8601 4:05 AM 与04:05一样，AM不影响数值 4:05 PM 与16:05一样，输入小时数必须<= 12 04:05:06.789-8 ISO 8601 04:05:06-08:00 ISO 8601 04:05-08:00 ISO 8601 040506-08 ISO 8601 04:05:06 PST 缩写的时区 2003-04-12 04:05:06 America/New_York 用名称声明的时区 表4 时区输入 例子 描述 PST 太平洋标准时间（Pacific Standard Time） America/New_York 完整时区名称 -8:00 ISO 8601与PST的偏移 -800 ISO 8601与PST的偏移 -8 ISO 8601与PST的偏移 示例： 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17 gaussdb =# SELECT time '04:05:06' ; time ---------- 04 : 05 : 06 ( 1 row ) gaussdb =# SELECT time '04:05:06 PST' ; time ---------- 04 : 05 : 06 ( 1 row ) gaussdb =# SELECT time with time zone '04:05:06 PST' ; timetz ------------- 04 : 05 : 06 - 08 ( 1 row ) 特殊值 GaussDB 支持几个特殊值，在读取的时候将被转换成普通的日期/时间值，请参考 表5 。 表5 特殊值 输入字符串 适用类型 描述 epoch date，timestamp 1970-01-01 00:00:00+00 （Unix系统零时） infinity timestamp 无穷大，比任何其他时间戳都晚 -infinity timestamp 无穷小，比任何其他时间戳都早 now date，time，timestamp 当前事务的开始时间 today date，timestamp 今日午夜零时 tomorrow date，timestamp 明日午夜零时 yesterday date，timestamp 昨日午夜零时 allballs time 00:00:00.00 UTC 示例： --创建表。 gaussdb=# CREATE TABLE realtime_type_special(col1 varchar(20), col2 date, col3 timestamp, col4 time);
+
+--插入数据。 gaussdb=# INSERT INTO realtime_type_special VALUES('epoch', 'epoch', 'epoch', NULL); gaussdb=# INSERT INTO realtime_type_special VALUES('now', 'now', 'now', 'now'); gaussdb=# INSERT INTO realtime_type_special VALUES('today', 'today', 'today', NULL); gaussdb=# INSERT INTO realtime_type_special VALUES('tomorrow', 'tomorrow', 'tomorrow', NULL); gaussdb=# INSERT INTO realtime_type_special VALUES('yesterday', 'yesterday', 'yesterday', NULL);
+
+--查看数据。 gaussdb=# SELECT * FROM realtime_type_special;
+   col1    |        col2         |            col3            |      col4
+-----------+---------------------+----------------------------+-----------------
+ epoch     | 1970-01-01 00:00:00 | 1970-01-01 00:00:00        |
+ now       | 2023-02-27 11:38:13 | 2023-02-27 11:38:13.032815 | 11:38:13.032815
+ today     | 2023-02-27 00:00:00 | 2023-02-27 00:00:00        |
+ tomorrow  | 2023-02-28 00:00:00 | 2023-02-28 00:00:00        |
+ yesterday | 2023-02-26 00:00:00 | 2023-02-26 00:00:00        |
+(5 rows) gaussdb=# SELECT * FROM realtime_type_special WHERE col3 < 'infinity';
+   col1    |        col2         |            col3            |      col4
+-----------+---------------------+----------------------------+-----------------
+ epoch     | 1970-01-01 00:00:00 | 1970-01-01 00:00:00        |
+ now       | 2023-02-27 11:38:13 | 2023-02-27 11:38:13.032815 | 11:38:13.032815
+ today     | 2023-02-27 00:00:00 | 2023-02-27 00:00:00        |
+ tomorrow  | 2023-02-28 00:00:00 | 2023-02-28 00:00:00        |
+ yesterday | 2023-02-26 00:00:00 | 2023-02-26 00:00:00        |
+(5 rows) gaussdb=# SELECT * FROM realtime_type_special WHERE col3 > '-infinity';
+   col1    |        col2         |            col3            |      col4
+-----------+---------------------+----------------------------+-----------------
+ epoch     | 1970-01-01 00:00:00 | 1970-01-01 00:00:00        |
+ now       | 2023-02-27 11:38:13 | 2023-02-27 11:38:13.032815 | 11:38:13.032815
+ today     | 2023-02-27 00:00:00 | 2023-02-27 00:00:00        |
+ tomorrow  | 2023-02-28 00:00:00 | 2023-02-28 00:00:00        |
+ yesterday | 2023-02-26 00:00:00 | 2023-02-26 00:00:00        |
+(5 rows) gaussdb=# SELECT * FROM realtime_type_special WHERE col3 > 'now';
+   col1   |        col2         |        col3         | col4
+----------+---------------------+---------------------+------
+ tomorrow | 2023-02-28 00:00:00 | 2023-02-28 00:00:00 |
+(1 row) gaussdb=# SELECT * FROM realtime_type_special WHERE col3 = 'today';
+ col1  |        col2         |        col3         | col4
+-------+---------------------+---------------------+------
+ today | 2023-02-27 00:00:00 | 2023-02-27 00:00:00 |
+(1 row) gaussdb=# SELECT * FROM realtime_type_special WHERE col3 = 'tomorrow';
+   col1   |        col2         |        col3         | col4
+----------+---------------------+---------------------+------
+ tomorrow | 2023-02-28 00:00:00 | 2023-02-28 00:00:00 |
+(1 row) gaussdb=# SELECT * FROM realtime_type_special WHERE col3 > 'yesterday';
+   col1   |        col2         |            col3            |      col4
+----------+---------------------+----------------------------+-----------------
+ now      | 2023-02-27 11:38:13 | 2023-02-27 11:38:13.032815 | 11:38:13.032815
+ today    | 2023-02-27 00:00:00 | 2023-02-27 00:00:00        |
+ tomorrow | 2023-02-28 00:00:00 | 2023-02-28 00:00:00        |
+(3 rows)
+
+--删除表。 gaussdb=# DROP TABLE realtime_type_special; 时间段输入 reltime的输入方式可以采用任何合法的时间段文本格式，包括数字形式（含负数和小数）及时间形式，其中时间形式的输入支持SQL标准格式、ISO-8601格式等。另外，文本输入需要加单引号。 时间段输入的详细信息请参考 表6 。 表6 时间段输入 输入示例 输出结果 描述 60 2 mons 采用数字表示时间段，默认单位是day，可以是小数或负数。特别的，负数时间段，在语义上，可以理解为“早于多久”。 31.25 1 mons 1 days 06:00:00 -365 -12 mons -5 days 1 years 1 mons 8 days 12:00:00 1 years  1 mons 8 days 12:00:00 采用POSTGRES格式表示时间段，可以正负混用，不区分大小写，输出结果为将输入时间段计算并转换得到的简化POSTGRES格式时间段。 -13 months -10 hours -1 years -25 days -04:00:00 -2 YEARS +5 MONTHS 10 DAYS -1 years -6 mons -25 days -06:00:00 P-1.1Y10M -3 mons -5 days -06:00:00 采用ISO-8601格式表示时间段，可以正负混用，不区分大小写，输出结果为将输入时间段计算并转换得到的简化POSTGRES格式时间段。 -12H -12:00:00 示例： 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25 --创建表。 gaussdb =# CREATE TABLE reltime_type_tab ( col1 character ( 30 ), col2 reltime ); --插入数据。 gaussdb =# INSERT INTO reltime_type_tab VALUES ( '90' , '90' ); gaussdb =# INSERT INTO reltime_type_tab VALUES ( '-366' , '-366' ); gaussdb =# INSERT INTO reltime_type_tab VALUES ( '1975.25' , '1975.25' ); gaussdb =# INSERT INTO reltime_type_tab VALUES ( '-2 YEARS +5 MONTHS 10 DAYS' , '-2 YEARS +5 MONTHS 10 DAYS' ); gaussdb =# INSERT INTO reltime_type_tab VALUES ( '30 DAYS 12:00:00' , '30 DAYS 12:00:00' ); gaussdb =# INSERT INTO reltime_type_tab VALUES ( 'P-1.1Y10M' , 'P-1.1Y10M' ); --查看数据。 gaussdb =# SELECT * FROM reltime_type_tab ; col1 | col2 --------------------------------+------------------------------------- 1975 . 25 | 5 years 4 mons 29 days - 2 YEARS + 5 MONTHS 10 DAYS | - 1 years - 6 mons - 25 days - 06 : 00 : 00 P - 1 . 1 Y10M | - 3 mons - 5 days - 06 : 00 : 00 - 366 | - 1 years - 18 : 00 : 00 90 | 3 mons 30 DAYS 12 : 00 : 00 | 1 mon 12 : 00 : 00 ( 6 rows ) --删除表。 gaussdb =# DROP TABLE reltime_type_tab ; 父主题： 数据类型 版权所有 © 华为技术有限公司

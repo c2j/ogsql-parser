@@ -1,0 +1,51 @@
+{
+  "topic": "检查BMS形态依赖项",
+  "term_count": 9,
+  "terms": [
+    {
+      "term": "BMC网段与provision平面网络互通",
+      "content": "BMC网段与provision平面网络互通 BMC网段与provision平面网络互通 目的 检查BMC网段与provision平面网络是否打通。 前提条件 底座已安装。 操作步骤 登录FusionSphere OpenStack安装部署界面（CPS）首节点后台。 从底座LLD \"Protal\" 页签，获取FusionSphere OpenStack安装部署界面（CPS）的IP，从后台登录 密码从账户一览表中“A类（后台）”页签，FusionSphere OpenStack对应的FSP账号密码， 登录后切换root用户。 su - root 执行以下命令获取分配的provision ip。 ip a | grep provision 登入ServiceOM 选择 裸金属 > 待发放BMC IP。 执行以下命令。 ping –I { provision ip} { bmc ip } 预期结果 无丢包现象且延时低，网络互通。",
+      "source_file": "032_BMCprovision.txt"
+    },
+    {
+      "term": "防火墙链路状态检查",
+      "content": "防火墙链路状态检查 防火墙链路状态检查 目的 确定防火墙链路为关闭状态。 前提条件 防火墙正常登录。 操作步骤 后台登录所有防火墙。 执行如下命令，查看链路状态。 dis lldp st 预期结果 执行命令后，无接口信息。",
+      "source_file": "035_file_35.txt"
+    },
+    {
+      "term": "provision平面与external",
+      "content": "provision平面与external om平面网络互通 provision平面与external om平面网络互通 目的 provision平面与external om平面网络互通。 前提条件 底座已安装。 操作步骤 登录FusionSphere OpenStack安装部署界面（CPS）首节点后台。 从底座LLD \"Protal\" 页签，获取FusionSphere OpenStack安装部署界面（CPS）的IP，从后台登录 密码从账户一览表中“A类（后台）”页签，FusionSphere OpenStack对应的FSP账号密码， 登录后切换root用户。 su - root 输入以下命令，获取分配的provision ip。 ip a | grep provision 输入以下命令，获取分配的 external om ip。 ip a | grep external 执行 以下命令，其中external om ip为任意 external om 平面内已分配地址(当前CPS主机分配的地址除外)。 ping –I { provision  ip} { external om ip } 预期结果 无丢包现象且延时低，网络互通。",
+      "source_file": "090_provisionexternal om.txt"
+    },
+    {
+      "term": "是否已添加新增AZ（根据部署扩容指定AZ）",
+      "content": "是否已添加新增AZ（根据部署扩容指定AZ） 是否已添加新增AZ（根据部署扩容指定AZ） 目的 检查AZ是否已添加。 前提条件 添加新增AZ。 操作步骤 租户用户登录ManageOne运营面，选择“服务列表”。 选择“裸金属资源”，查看可用的AZ。 预期结果 AZ数量和预先规划数量一致。 部署形态 所需AZ数（一般region） 所需AZ数（容灾备region） 主备 1主2备 1或3 1或3 主备 1主3备 3 3 主备 单副本 1 1 主备 1主1备 1或2 1或2 分布式 金融版（标准型） 3 1 分布式 企业版 1或3 1或3 分布式 金融版（数据计算型） 3 1 分布式 企业版 灾备实例 1 1",
+      "source_file": "088_AZAZ.txt"
+    },
+    {
+      "term": "防火墙链路状态检查",
+      "content": "防火墙链路状态检查 防火墙链路状态检查 目的 确定防火墙链路为关闭状态。 前提条件 防火墙正常登录。 操作步骤 后台登录所有防火墙。 执行如下命令，查看链路状态。 dis lldp st 预期结果 执行命令后，无接口信息。",
+      "source_file": "091_file_91.txt"
+    },
+    {
+      "term": "BMC网段与provision平面网络互通",
+      "content": "BMC网段与provision平面网络互通 BMC网段与provision平面网络互通 目的 检查BMC网段与provision平面网络是否打通。 前提条件 底座已安装。 操作步骤 登录FusionSphere OpenStack安装部署界面（CPS）首节点后台。 从底座LLD \"Protal\" 页签，获取FusionSphere OpenStack安装部署界面（CPS）的IP，从后台登录 密码从账户一览表中“A类（后台）”页签，FusionSphere OpenStack对应的FSP账号密码， 登录后切换root用户。 su - root 执行以下命令获取分配的provision ip。 ip a | grep provision 登入ServiceOM 选择 裸金属 > 待发放BMC IP。 执行以下命令。 ping –I { provision ip} { bmc ip } 预期结果 无丢包现象且延时低，网络互通。",
+      "source_file": "089_BMCprovision.txt"
+    },
+    {
+      "term": "是否已添加新增AZ（根据部署扩容指定AZ）",
+      "content": "是否已添加新增AZ（根据部署扩容指定AZ） 是否已添加新增AZ（根据部署扩容指定AZ） 目的 检查AZ是否已添加。 前提条件 添加新增AZ。 操作步骤 租户用户登录ManageOne运营面，选择“服务列表”。 选择“裸金属资源”，查看可用的AZ。 预期结果 AZ数量和预先规划数量一致。 部署形态 所需AZ数（一般region） 所需AZ数（容灾备region） 主备 1主2备 1或3 1或3 主备 1主3备 3 3 主备 单副本 1 1 主备 1主1备 1或2 1或2 分布式 金融版（标准型） 3 1 分布式 企业版 1或3 1或3 分布式 金融版（数据计算型） 3 1 分布式 企业版 灾备实例 1 1",
+      "source_file": "031_AZAZ.txt"
+    },
+    {
+      "term": "provision平面与external",
+      "content": "provision平面与external om平面网络互通 provision平面与external om平面网络互通 目的 provision平面与external om平面网络互通。 前提条件 底座已安装。 操作步骤 登录FusionSphere OpenStack安装部署界面（CPS）首节点后台。 从底座LLD \"Protal\" 页签，获取FusionSphere OpenStack安装部署界面（CPS）的IP，从后台登录 密码从账户一览表中“A类（后台）”页签，FusionSphere OpenStack对应的FSP账号密码， 登录后切换root用户。 su - root 输入以下命令，获取分配的provision ip。 ip a | grep provision 输入以下命令，获取分配的 external om ip。 ip a | grep external 执行 以下命令，其中external om ip为任意 external om 平面内已分配地址(当前CPS主机分配的地址除外)。 ping –I { provision  ip} { external om ip } 预期结果 无丢包现象且延时低，网络互通。",
+      "source_file": "033_provisionexternal om.txt"
+    },
+    {
+      "term": "provision平面与obs-om平面网络通",
+      "content": "provision平面与obs-om平面网络通 provision平面与obs-om平面网络通 目的 检查BMC网段与obs-om平面网络是否打通。 前提条件 底座已安装。 操作步骤 登录FusionSphere OpenStack安装部署界面（CPS）首节点后台。 从底座LLD \"Protal\" 页签，获取FusionSphere OpenStack安装部署界面（CPS）的IP，后台登录。 密码从账户一览表中“A类（后台）”页签，FusionSphere OpenStack对应的FSP账号密码， 登录后切换root用户。 su - root 输入ip a | grep provision，获取分配的provision ip。 获取OBS安装工程的LLD导出表。 打开导出参数 –> 查看2.3 Portal –> obsv3 参数。 执行 ping –I { provision ip} { obs IP}地址。 预期结果 网络互通。",
+      "source_file": "034_provisionobs-om.txt"
+    }
+  ]
+}

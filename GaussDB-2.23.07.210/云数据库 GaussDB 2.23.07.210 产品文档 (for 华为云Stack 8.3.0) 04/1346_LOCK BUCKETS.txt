@@ -1,0 +1,5 @@
+LOCK BUCKETS LOCK BUCKETS 功能描述 bucket粒度的锁。 注意事项 仅支持在hashbucket扩容期间调用。只支持管理员权限用户调用。 LOCK BUCKETS只能在一个事务块的内部有用，因为锁在事务结束时就会被释放。出现在任意事务块外面的LOCK BUCKETS都会报错。 语法格式 1 LOCK BUCKETS ( bucketlist ) IN { ACCESS SHARE | ACCESS EXCLUSIVE } MODE [ CANCELABLE ]; 参数说明 LOCK BUCKETS的参数说明如下所示： bucketlist 要锁定的bucket的列表。 取值范围：对于每个bucket，取值范围为[0,1023]。 ACCESS SHARE ACCESS锁只允许对bucket进行读取，而禁止对bucket进行修改。 ACCESS EXCLUSIVE 这个模式保证其所有者（事务）是可以访问该bucket的唯一事务。 CA NCELABLE 通过指定该参数允许等锁线程给持锁线程和等锁线程发送CANCEL信号。 示例 1
+2
+3
+4
+5 gaussdb =# START TRANSACTION ; gaussdb =# LOCK BUCKETS ( 0 , 1 , 2 , 3 ) IN ACCESS EXCLUSIVE MODE ; gaussdb =# COMMIT ; 父主题： L 版权所有 © 华为技术有限公司

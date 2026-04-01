@@ -1,0 +1,29 @@
+使用CSV格式写日志 使用CSV格式写日志 前提条件 log_destination 的值设置为csvlog。 logging_collector 的值设置为on。 csvlog定义 以“逗号分隔值” 即CSV（Comma Separated Value）的形式发出日志。 以下是简单的用来存储CSV形式日志输出的表定义： 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27
+28
+29 CREATE TABLE gaussdb_log ( log_time timestamp ( 3 ) with time zone , node_name text , user_name text , database_name text , process_id bigint , connection_from text , "session_id" text , session_line_num bigint , command_tag text , session_start_time timestamp with time zone , virtual_transaction_id text , transaction_id bigint , query_id bigint , module text , error_severity text , sql_state_code text , message text , detail text , hint text , internal_query text , internal_query_pos integer , context text , query text , query_pos integer , location text , application_name text ); 详细说明请参见 表1 。 表1 csvlog字段含义表 字段名 字段含义 字段名 字段含义 log_time 毫秒级的时间戳 module 日志所属模块 node_name 节点名称 error_severity ERRORSTATE代码 user_name 用户名 sql_state_code SQLSTATE代码 database_name 数据库名 message 错误消息 process_id 进程ID detail 详细错误消息 connection_from 客户主机：端口号 hint 提示 session_id 会话ID internal_query 内部查询（查询那些导致错误的信息，如果有的话） session_line_num 每个会话的行数 internal_query_pos 内部查询指针 command_tag 命令标签 context 环境 session_start_time 会话开始时间 query 错误发生位置的字符统计 virtual_transaction_id 常规事务 query_pos 错误发生位置指针 transaction_id 事务ID location 在 GaussDB 源代码中错误的位置（如果 log_error_verbosity 的值设为verbose ） query_id 查询ID application_name 应用名称 使用COPY FROM命令将日志文件导入这个表： 1 COPY gaussdb_log FROM '/opt/data/pg_log/logfile.csv' WITH csv ; 此处的日志名“logfile.csv”要换成实际生成的日志的名称。 简化输入 简化输入到CSV日志文件，可以通过如下操作： 设置 log_filename 和 log_rotation_age ，为日志文件提供一个一致的、可预测的命名方案。通过日志文件名，预测一个独立的日志文件完成并进入准备导入状态的时间。 将 log_rotation_size 设为0来终止基于尺寸的日志回滚，因为基于尺寸的日志回滚让预测日志文件名变得非常的困难。 将 log_truncate_on_rotation 设为on以便区分在同一日志文件中旧的日志数据和新的日志数据。 父主题： 错误报告和日志 版权所有 © 华为技术有限公司

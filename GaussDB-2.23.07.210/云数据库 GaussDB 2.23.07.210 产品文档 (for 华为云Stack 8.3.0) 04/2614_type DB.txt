@@ -1,0 +1,33 @@
+type DB type DB type DB如下表所示。 方法 描述 返回值 (db *DB)Begin() 开启一个事务，事务的隔离级别由驱动决定。 *Tx, error (db *DB)BeginTx(ctx context.Context, opts *TxOptions) 开启一个给定事务隔离级别的事务，给定的上下文会一直使用到事务提交或回滚为止。若上下文被取消，那么sql包将会对事务进行回滚。 *Tx, error (db *DB)Close() 关闭数据库并释放所有已打开的资源。 error (db *DB)Exec(query string, args ...interface{}) 执行一个不返回数据行的操作。 Result, error (db *DB)ExecContext(ctx context.Context, query string, args ...interface{}) 在给定上下文中，执行一个不返回数据行的操作。 Result, error (db *DB)Ping() 检查数据库连接是否仍然有效，并在有需要时建立一个连接。 error (db *DB)PingContext(ctx context.Context) 在给定上下文中，检查数据库连接是否仍然有效，并在有需要时建立一个连接。 error (db *DB)Prepare(query string) 为以后的查询或执行创建一个预备语句。 *Stmt, error (db *DB)PrepareContext(ctx context.Context, query string) 在给定的上下文中，为以后的查询或执行创建一个预备语句。 *Stmt, error (db *DB)Query(query string, args ...interface{}) 执行一个查询并返回多个数据行。 *Rows, error (db *DB)QueryContext(ctx context.Context, query string, args ...interface{}) 在给定的上下文中，执行一个查询并返回多个数据行。 *Rows, error (db *DB)QueryRow(query string, args ...interface{}) 执行一个只返回一个数据行的查询。 *Row (db *DB)QueryRowContext(ctx context.Context, query string, args ...interface{}) 在给定上下文中，执行一个只返回一个数据行的查询。 *Row 参数说明 参数 参数说明 ctx 表示给定的上下文。 query 被执行的SQL语句。 args 被执行SQL语句需要绑定的参数。支持按位置绑定和按名称绑定，详情见如下示例。 opts 事务隔离级别和事务访问模式，其中事务隔离级别（opts.Isolation）支持范围为sql.LevelReadUncommitted、sql.LevelReadCommitted、sql.LevelRepeatableRead、sql.LevelSerializable。事务访问模式（opts.ReadOnly）支持范围为true（read only）和false（read write）。 Query类接口Query()、QueryContext()、QueryRow()、QueryRowContext()通常用于查询语句，如SELECT语句；操作语句使用Exec()接口执行，若非查询语句通过Query类接口执行，则执行结果可能与预期不符，故不建议使用Query类接口执行非查询语句，例如UPDATE/INSERT等。 使用Query类接口执行查询语句的结果需要通过 type Rows 中Next()接口获取，若不通过Next()接口获取，可能会产生不可预期的错误。 示例： //本示例以用户名和密码保存在环境变量中为例，运行本示例前请先在本地环境中设置环境变量(环境变量名称请根据自身情况进行设置) package main
+//依赖包根据环境中依赖包路径设置
+import (
+	"database/sql"
+	_ "gitee.com/opengauss/openGauss-connector-go-pq"
+	"log"
+)
+
+func main() { hostip := os.Getenv("GOHOSTIP")   //GOHOSTIP为写入环境变量的IP地址 port := os.Getenv("GOPORT")       //GOPORT为写入环境变量的port usrname := os.Getenv("GOUSRNAME") //GOUSRNAME为写入环境变量的用户名 passwd := os.Getenv("GOPASSWD")   //GOPASSWDW为写入环境变量的用户密码 str := "host=" + hostip + " port=" + port + " user=" + usrname + " password=" + passwd + " dbname=postgres sslmode=disable" db, err := sql.Open("opengauss", str)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer db.Close()
+
+	err = db.Ping()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	_, err = db.Exec("create table test_bound(id int, name text)")
+
+	// 按位置绑定
+	_, err = db.Exec("insert into test_bound(id, name) values(:1, :2)", 1, "张三")
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	// 按名称绑定
+	_, err = db.Exec("insert into test_bound(id, name) values(:id, :name)", sql.Named("id", 1), sql.Named("name", "张三"))
+	if err != nil {
+		log.Fatal(err)
+	}
+} 父主题： Go接口参考 版权所有 © 华为技术有限公司

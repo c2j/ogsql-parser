@@ -1,0 +1,21 @@
+{
+  "topic": "监控服务日志",
+  "term_count": 3,
+  "terms": [
+    {
+      "term": "monitor.error.log",
+      "content": "monitor.error.log monitor.error.log 日志含义 日志来源于监控服务（monitor）的错误日志输出，通过查看此日志，可以看到整个监控服务（monitor）运行的全部错误日志信息。 日志命名 日志文件名：monitor.error.log.%i %i为日志轮转的数字。 日志格式 %d{yyyy-MM-dd HH:mm:ss}:%p %t %l -- %m -- %c %n 日志参数 表1 日志参数 字段名称 字段含义 %date{yyyy-MM-dd HH:mm:ss.SSS} 日志生成的时间，格式：yyyy-MM-dd HH:mm:ss.SSS。GMT %p 日志级别 %t 线程ID %c 当前类的完整类名 %l 代码位置 [%m] 日志内容 %n 换行 日志示例 日志的典型样例： 监控（monitor）服务错误日志。 2021-08-23 11:43:26,146 annel-thread-20 [ERROR][] -- errorCode: MONITOR.0004, msg: Send metrics to cloudwatch invalid content  error. -- c.h.h.d.m.c.c.CesProducerRunnable.lambda$handleCesReturnResult$0(118)",
+      "source_file": "5514_monitor.error.log.txt"
+    },
+    {
+      "term": "monitor.info.log",
+      "content": "monitor.info.log monitor.info.log 日志含义 日志来源于监控服务（monitor）的日志输出，通过查看此日志，可以看到整个监控服务（monitor）运行的全部日志信息。 日志命名 日志文件名：monitor.info.log.%i %i为日志轮转的数字。 日志格式 %d{yyyy-MM-dd HH:mm:ss}:%p %t %l -- %m -- %c %n 日志参数 表1 日志参数 字段名称 字段含义 %date{yyyy-MM-dd HH:mm:ss.SSS} 日志生成的时间，格式：yyyy-MM-dd HH:mm:ss.SSS。GMT %p 日志级别 %t 线程ID %c 当前类的完整类名 %l 代码位置 [%m] 日志内容 %n 换行 日志示例 日志的典型样例： 监控（monitor）服务运行日志。 2021-08-23 13:47:34,282 hannel-thread-6 [INFO ][] -- topic: dbs-error-log, message: 0edd74109ee24fbfbc22fc21a175a625no02 0549b4a43100d4f32f51c01c2fe4acdb 2021-08-23T13:47:02.147+0000, use time :0ms -- c.h.h.d.m.c.k.r.KafkaProducerRunnable.doSend(115):q",
+      "source_file": "5513_monitor.info.log.txt"
+    },
+    {
+      "term": "monitor.ces.log",
+      "content": "monitor.ces.log monitor.ces.log 日志含义 日志来源于监控服务（monitor）的发送给CES的日志输出，通过查看此日志，可以看到整个监控服务（monitor）运行时发送给CES的全部日志信息。 日志命名 日志文件名：monitor.ces.log.%i %i为日志轮转的数字。 日志格式 %d{yyyy-MM-dd HH:mm:ss}:%p %t %l -- %m -- %c %n 日志参数 表1 日志参数 字段名称 字段含义 %date{yyyy-MM-dd HH:mm:ss.SSS} 日志生成的时间，格式：yyyy-MM-dd HH:mm:ss.SSS。GMT %p 日志级别 %t 线程ID %c 当前类的完整类名 %l 代码位置 [%m] 日志内容 %n 换行 日志示例 日志的典型样例： 监控（monitor）服务发送CES日志。 2021-08-23 13:08:04,000 annel-thread-36 [INFO ][] -- httpCode:201, cost:36ms, 054ea741f700d4a32f1bc00f5c80dd4c bf5c7402c48c46ac998965e23286d167no03 1629724020000, requestId:te-br-iaas-odin1a-CES-APISERVICE-INTERNAL-018008106188.id-1aa8019a-57ba-9199-3419-acf2f0a72c23.ts-1629724084008.c-461732, CesMetric Size:4 -- c.h.h.d.m.c.u.CloudWatchUtil.outputCesLog(147)",
+      "source_file": "5515_monitor.ces.log.txt"
+    }
+  ]
+}

@@ -1,0 +1,1 @@
+PV_SESSION_STAT PV_SESSION_STAT PV_SESSION_STAT视图显示以会话线程或AutoVacuum线程为单位的统计会话状态信息。具体字段信息如 表1 所示。 表1 PV_SESSION_STAT字段 名称 类型 描述 sessid text 线程标识+线程启动时间。 statid integer 统计编号。 statname text 统计会话名称。 statunit text 统计会话单位。 value bigint 统计会话值。 父主题： 其他系统视图 版权所有 © 华为技术有限公司

@@ -1,0 +1,1 @@
+PCR UBTree增删改查 PCR UBTree增删改查 Insert操作 ：操作与RCR UBTree基本一致，区别是：插入前需要先申请TD和写入Undo。 Delete操作 ：操作与RCR UBTree基本一致，区别是：删除前需要先申请TD和写入Undo。 Update操作 ：操作与RCR UBTree无区别，均转换为一条Delete操作和和一条Insert操作。 Scan操作 ：操作与RCR UBTree基本一致，区别是：查询操作需要将页面拷贝一个CR页面出来，将CR页面回滚到扫描快照可见的状态，从而整个页面的元组对于快照都是可见版本。 父主题： PCR UBTree 版权所有 © 华为技术有限公司

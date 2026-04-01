@@ -1,0 +1,1 @@
+DB_SOURCE DB_SOURCE DB_SOURCE视图显示当前用户可访问的存储过程、函数、触发器、包的定义信息。该视图同时存在于PG_CATALOG和SYS Schema下。 表1 DB_SOURCE字段 名称 类型 描述 owner name 对象的所有者。 name name 对象名字。 type name 对象类型：function、package、package body、procedure、trigger。 line numeric 此行在定义信息中的行号。 text text 存储对象的文本来源。 origin_con_id character varying(256) 暂不支持，值为0。 父主题： 其他系统视图 版权所有 © 华为技术有限公司

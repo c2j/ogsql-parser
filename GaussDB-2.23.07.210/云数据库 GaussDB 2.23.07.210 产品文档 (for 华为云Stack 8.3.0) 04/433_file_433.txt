@@ -1,0 +1,4 @@
+重建容灾关系 重建容灾关系 功能介绍 流容灾备升主选择支持容灾回切，实现容灾关系的重建任务。 仅支持数据库版本大于等于3.200.。 URI URI格式 POST https://{ Endpoint }/gaussdb/v3.1/{project_id}/instances/{instance_id}/disaster/relations/{synchronization_id}/restore URL样例 https://gaussdb.sa-fb-2.hcsglobal.com/gaussdb/v3.1/0483b6b16e954cb88930a360d2c4e663/instances/dsfae23fsfdsae3435in14/disaster/relations/e4b98979-5d3b-4805-a804-47158bcec818/restore 参数说明 表1 参数说明 名称 是否必选 说明 project_id 是 租户在某一region下的project ID。 获取方法请参见 获取项目ID/名称 。 instance_id 是 实例ID。 synchronization_id 是 容灾关系唯一id。 请求消息 参数说明 无 响应消息 表2 响应Body参数列表 名称 参数类型 说明 master_job_id String 主端任务id。 slave_job_id String 备端任务id。 正常响应样例 { 
+        "master_job_id":"9c242441-fdcc-404f-ba78-f7856aed3edf",
+        "slave_job_id":"8c242441-fdcc-404f-ba78-f7856aed3edf" 
+} 异常响应 请参见 异常请求结果 。 状态码 正常 202 异常 请参见 状态码 。 错误码 请参见 错误码 。 父主题： 容灾管理（V3.1） 版权所有 © 华为技术有限公司

@@ -1,0 +1,16 @@
+{
+  "topic": "交换分区",
+  "term_count": 2,
+  "terms": [
+    {
+      "term": "对一级分区表交换分区",
+      "content": "对一级分区表交换分区 对一级分区表交换分区 使用ALTER TABLE EXCHANGE PARTITION可以对一级分区表交换分区。 例如，通过指定分区名将范围分区表range_sales的分区date_202001和普通表exchange_sales进行交换，不进行分区键校验，并更新Global索引。 ALTER TABLE range_sales EXCHANGE PARTITION (date_202001) WITH TABLE exchange_sales WITHOUT VALIDATION UPDATE GLOBAL INDEX; 或者，通过指定分区值将范围分区表range_sales中'2020-01-08'所对应的分区和普通表exchange_sales进行交换，进行分区校验并将不满足目标分区约束的数据插入到分区表的其他分区中。由于不带UPDATE GLOBAL INDEX子句，执行该命令后Global索引会失效。 ALTER TABLE range_sales EXCHANGE PARTITION FOR ('2020-01-08') WITH TABLE exchange_sales WITH VALIDATION VERBOSE;",
+      "source_file": "4571_file_4571.txt"
+    },
+    {
+      "term": "对二级分区表交换二级分区",
+      "content": "对二级分区表交换二级分区 对二级分区表交换二级分区 使用ALTER TABLE EXCHANGE SUBPARTITION可以对二级分区表交换二级分区。 例如，通过指定分区名将二级分区表range_list_sales的二级分区date_202001_channel1和普通表exchange_sales进行交换，不进行分区键校验，并更新Global索引。 ALTER TABLE range_list_sales EXCHANGE SUBPARTITION (date_202001_channel1) WITH TABLE exchange_sales WITHOUT VALIDATION UPDATE GLOBAL INDEX; 或者，通过指定分区值将二级分区表range_list_sales中('2020-01-08', '0')所对应的二级分区和普通表exchange_sales进行交换，进行分区校验并将不满足目标分区约束的数据插入到分区表的其他分区中。由于不带UPDATE GLOBAL INDEX子句，执行该命令后Global索引会失效。 ALTER TABLE range_list_sales EXCHANGE SUBPARTITION FOR ('2020-01-08', '0') WITH TABLE exchange_sales WITH VALIDATION VERBOSE; 不支持对二级分区表的一级分区交换分区。",
+      "source_file": "4572_file_4572.txt"
+    }
+  ]
+}

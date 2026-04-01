@@ -1,0 +1,1 @@
+GS_WLM_USER_SESSION_INFO GS_WLM_USER_SESSION_INFO GS_WLM_USER_SESSION_INFO 视图显示当前用户在 所有CN节点 上执行作业结束后的负载管理 （当前特性是实验室特性，使用时请联系华为技术工程师提供技术支持。） 记录。此视图的数据直接从系统表 GS_WLM_SESSION_QUERY_INFO_ALL 获取。具体的字段请参见 GS_WLM_SESSION_HISTORY 的字段信息。查询该视图需要sysadmin权限，且仅在数据库postgres下面查询时有数据。 当查询视图无数据显示时，请联系华为工程师提供技术支撑。 父主题： 系统视图 版权所有 © 华为技术有限公司

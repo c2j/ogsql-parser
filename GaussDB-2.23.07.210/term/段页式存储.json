@@ -1,0 +1,121 @@
+{
+  "topic": "段页式存储",
+  "term_count": 23,
+  "terms": [
+    {
+      "term": "GS_SEG_EXTENTS",
+      "content": "GS_SEG_EXTENTS GS_SEG_EXTENTS GS_SEG_EXTENTS查看所有表空间的扩展信息。该视图输出用户段对象的所有扩展，包含1号文件中的segment head、fork head、level1 page，2~5号文件中的data extent。只支持管理员权限用户查询。 表1 GS_SEG_EXTENTS字段 名称 类型 描述 node_name text 节点名称。 tablespace_name name 段对象所属的表空间。 bucketnode integer 0~1023表示hashbucket表的bucketnode。 1024表示段页式普通表的bucketnode。 1025表示段页式全局临时表的bucketnode。 1026表示段页式unlogged表的bucketnode。 head_block_id bigint 段头页面号。 extent_id integer 逻辑扩展号。 file_id integer 扩展所在的数据文件标识。 forknum integer 段对象的分支类型。取值范围： 0表示main fork。 1表示fsm fork。 2表示vm fork。 block_id bigint 扩展所在的数据文件中的起始页面号。 blocks integer 扩展大小。取值：1、8、128、1024、4096。 usage_type text 扩展的使用类型。取值范围： segment head表示段头。 fork head表示分支头。 level1 page表示level页面。 data extent表示数据扩展。",
+      "source_file": "1717_GS_SEG_EXTENTS.txt"
+    },
+    {
+      "term": "GS_SEG_DATAFILES",
+      "content": "GS_SEG_DATAFILES GS_SEG_DATAFILES GS_SEG_DATAFILES查看所有表空间的数据文件信息。只支持管理员权限用户查询。 表1 GS_SEG_DATAFILES字段 名称 类型 描述 node_name text 节点名称。 file_name text 数据文件名。例如base/17467/2_fsm。 file_id integer 数据文件标识。 bucketnode integer 0~1023表示hashbucket表的bucketnode。 1024表示段页式普通表的bucketnode。 1025表示段页式全局临时表的bucketnode。 1026表示段页式unlogged表的bucketnode。 forknum integer 段对象的分支类型。取值范围： 0表示main fork。 1表示fsm fork。 2表示vm fork。 tablespace_name name 数据文件所属的表空间名称。 contents text 数据文件的存储内容。取值范围： permanent：永久。 unlogged：不记录日志。 temporary：临时。 extent_size integer 数据文件的扩展大小。 meta_blocks bigint 数据文件的已分配的元页面数。 data_blocks bigint 数据文件的已分配的数据页面数。 total_blocks bigint 数据文件的总物理页面数。 high_water_mark bigint 数据文件使用页数的高水位线。 utilization real 使用的block数占总block数的百分比。即(data_blocks+meta_blocks)/total_blocks。",
+      "source_file": "1715_GS_SEG_DATAFILES.txt"
+    },
+    {
+      "term": "GS_SEG_SEGMENTS",
+      "content": "GS_SEG_SEGMENTS GS_SEG_SEGMENTS GS_SEG_SEGMENTS查看所有表空间的段信息，包含表、索引、TOAST、TOAST INDEX段及fsm fork、vm fork段。只支持管理员权限用户查询。 表1 GS_SEG_SEGMENTS字段 名称 类型 描述 node_name text 节点名称。 schema_name name 段对象所属的名称空间。 segment_name name 段对象名。来源：pg_class、pg_partition.relname。 partition_name name 段对象分区名称。非分区为NULL。来源：pg_partition.relname。 forknum integer 段对象的分支类型。取值范围： 0表示main fork。 1表示fsm fork。 2表示vm fork。 segment_type text 段对象类型。取值范围： table：段页式普通表。 table partition：段页式分区表（主表和子表）、段页式二级分区表（其中的一级分区表）。 table subpartition：段页式二级分区表（其中的顶层节点表和二级分区表）。 index：段页式普通表索引。 index partition：段页式分区表、二级分区表的索引。 global partition index: 段页式分区表、二级分区表的全局索引。 toast：段页式toast表。 toast index：段页式toast表的索引。 tablespace_name name 段对象所属的表空间。 bucketnode integer 0~1023表示hashbucket表的bucketnode。 1024表示段页式普通表的bucketnode。 1025表示段页式全局临时表的bucketnode。 1026表示段页式unlogged表的bucketnode。 head_block_id bigint 段头页面号。 contents text 数据文件的存储内容。取值范围： permanent：永久。 unlogged：不记录日志。 temporary：临时。 table_name name 段对象所属的基表名。 blocks bigint 段对象的逻辑页面数。 total_blocks bigint 段对象的物理页面数。 extents integer 段对象的逻辑扩展数。 total_extents integer 段对象的物理扩展数。 head_lsn text 段头lsn标识。 level0_slots bigint[] 段扩展映射level0槽位数组。 level1_slots bigint[] 段扩展映射level1槽位数组。 fork_head bigint[] 段对象的分支段头数组。",
+      "source_file": "3421_GS_SEG_SEGMENTS.txt"
+    },
+    {
+      "term": "GS_SEG_SPC_SEGMENTS",
+      "content": "GS_SEG_SPC_SEGMENTS GS_SEG_SPC_SEGMENTS GS_SEG_SPC_SEGMENTS获取所有表空间已使用的段信息。只支持管理员权限用户查询。 表1 GS_SEG_SPC_SEGMENTS字段 名称 类型 描述 node_name text 节点名称。 tablespace_name name 表空间名称。 file_id integer 数据文件标识。 bucketnode integer 0~1023表示hashbucket表的bucketnode。 1024表示段页式普通表的bucketnode。 1025表示段页式全局临时表的bucketnode。 1026表示段页式unlogged表的bucketnode。 forknum integer 段对象的分支类型。取值范围： 0表示main fork。 1表示fsm fork。 2表示vm fork。 block_id bigint 数据扩展的起始页面号。 blocks integer 数据扩展大小。取值1、8、128、1024、4096。 contents text 数据文件的存储内容。取值范围： permanent：永久。 unlogged：不记录日志。 temporary：临时。 in_used text 是否已分配。取值Y/N。 mapblock_location text 扩展在map block中的位置。格式：(page_id, offset)。 head_file_id integer 段头文件标识。 head_block_id bigint 段头页面号。 usage_type text 扩展的使用类型。取值范围： segment head表示段头。 fork head表示分支头。 level1 page表示level页面。 data extent表示数据扩展。 remain_flag text 是否为shrink残留扩展。取值Y/N。 special_data integer 扩展对应反向指针的特殊数据区。 ipblock_location text 扩展反向指针位置。格式：(block_id, offset)。",
+      "source_file": "1721_GS_SEG_SPC_SEGMENTS.txt"
+    },
+    {
+      "term": "GLOBAL_GS_SEG_DATAFILES",
+      "content": "GLOBAL_GS_SEG_DATAFILES GLOBAL_GS_SEG_DATAFILES GLOBAL_GS_SEG_DATAFILES在CN上执行，用来查看所有节点所有表空间的数据文件信息。只支持管理员权限用户查询。 表1 GLOBAL_GS_SEG_DATAFILES字段 名称 类型 描述 node_name text 节点名称。 file_name text 数据文件名。例如base/17467/2_fsm。 file_id integer 数据文件标识。 bucketnode integer 0~1023表示hashbucket表的bucketnode。 1024表示段页式普通表的bucketnode。 1025表示段页式全局临时表的bucketnode。 1026表示段页式unlogged表的bucketnode。 forknum integer 段对象的分支类型。取值范围： 0表示main fork。 1表示fsm fork。 2表示vm fork。 tablespace_name name 数据文件所属的表空间名称。 contents text 数据文件的存储内容。取值范围： permanent：永久。 unlogged：不记录日志。 temporary：临时。 extent_size integer 数据文件的扩展大小。 meta_blocks bigint 数据文件的已分配的元页面数。 data_blocks bigint 数据文件的已分配的数据页面数。 total_blocks bigint 数据文件的总物理页面数。 high_water_mark bigint 数据文件使用页数的高水位线。 utilization real 使用的block数占总block数的百分比。即(data_blocks+meta_blocks)/total_blocks。",
+      "source_file": "1710_GLOBAL_GS_SEG_DATAFILES.txt"
+    },
+    {
+      "term": "GS_SEG_DATAFILE_LAYOUT",
+      "content": "GS_SEG_DATAFILE_LAYOUT GS_SEG_DATAFILE_LAYOUT GS_SEG_DATAFILE_LAYOUT查看段页式1~5号数据文件的静态布局。只支持管理员权限用户查询。 表1 GS_SEG_DATAFILE_LAYOUT字段 名称 类型 描述 version text 段页式版本。默认：1.0。 seg_storage_type text segment表示普通段页式数据。 hashbucket表示hashbucket数据。 file_id integer 数据文件标识。 section_id integer 数据文件划分的数据区号。 section_type text 数据文件区类型。取值范围： file_header表示文件头。 spc_header表示空间头。 map_header表示映射头。 map_pages表示映射页面。 ip_pages(inverse pointer pages)表示反向指针页面。 data_pages表示数据页面。 page_start bigint 数据区域起始页面号。 page_end bigint 数据区域结束页面号。 page_count bigint 数据区域页面数。 total_size bigint 数据区的大小。单位为字节。",
+      "source_file": "3419_GS_SEG_DATAFILE_LAYOUT.txt"
+    },
+    {
+      "term": "GS_SEG_SPC_REMAIN_SEGMENTS",
+      "content": "GS_SEG_SPC_REMAIN_SEGMENTS GS_SEG_SPC_REMAIN_SEGMENTS GS_SEG_SPC_REMAIN_SEGMENTS获取索引表空间残留的段信息，包含main fork、fsm fork、vm fork段。只支持管理员权限用户查询。 表1 GS_SEG_SPC_REMAIN_SEGMENTS字段 名称 类型 描述 node_name text 节点名称。 tablespace_name name 表空间名称。 file_id integer 数据文件标识。 bucketnode integer 0~1023表示hashbucket表的bucketnode。 1024表示段页式普通表的bucketnode。 1025表示段页式全局临时表的bucketnode。 1026表示段页式unlogged表的bucketnode。 forknum integer 段对象的分支类型。取值范围： 0表示main fork。 1表示fsm fork。 2表示vm fork。 block_id bigint 数据扩展的起始页面号。 blocks integer 数据扩展大小。取值1、8、128、1024、4096。 contents text 数据文件的存储内容。取值范围： permanent：永久。 unlogged：不记录日志。 temporary：临时。 in_used text 是否已分配。取值Y/N。 mapblock_location text 扩展在map block中的位置。格式（page_id, offset）。 head_file_id integer 段头文件标识。 head_block_id bigint 段头页面号。 usage_type text 扩展的使用类型。取值范围： segment head表示段头。 fork head表示分支头。 level1 page表示level页面。 data extent表示数据扩展。 remain_flag text 是否为shrink残留扩展。取值Y/N。 special_data integer 扩展对应反向指针的特殊数据区。 ipblock_location text 扩展反向指针位置。格式：（block_id, offset）。",
+      "source_file": "3426_GS_SEG_SPC_REMAIN_SEGMENTS.txt"
+    },
+    {
+      "term": "GLOBAL_GS_SEG_SPC_SEGMENTS",
+      "content": "GLOBAL_GS_SEG_SPC_SEGMENTS GLOBAL_GS_SEG_SPC_SEGMENTS GLOBAL_GS_SEG_SPC_SEGMENTS在CN上执行，获取所有节点所有表空间已使用的段信息。只支持管理员权限用户查询。 表1 GLOBAL_GS_SEG_SPC_SEGMENTS字段 名称 类型 描述 node_name text 节点名称。 tablespace_name name 表空间名称。 file_id integer 数据文件标识。 bucketnode integer 0~1023表示hashbucket表的bucketnode。 1024表示段页式普通表的bucketnode。 1025表示段页式全局临时表的bucketnode。 1026表示段页式unlogged表的bucketnode。 forknum integer 段对象的分支类型。取值范围： 0表示main fork。 1表示fsm fork。 2表示vm fork。 block_id bigint 数据扩展的起始页面号。 blocks integer 数据扩展大小。取值1、8、128、1024、4096。 contents text 数据文件的存储内容。取值范围： permanent：永久。 unlogged：不记录日志。 temporary：临时。 in_used text 是否已分配。取值Y/N。 mapblock_location text 扩展在map block中的位置。格式：(page_id, offset)。 head_file_id integer 段头文件标识。 head_block_id bigint 段头页面号。 usage_type text 扩展的使用类型。取值范围： segment head表示段头。 fork head表示分支头。 level1 page表示level页面。 data extent表示数据扩展。 remain_flag text 是否为shrink残留扩展。取值Y/N。 special_data integer 扩展对应反向指针的特殊数据区。 ipblock_location text 扩展反向指针位置。格式：(block_id, offset)。",
+      "source_file": "1714_GLOBAL_GS_SEG_SPC_SEGMENTS.txt"
+    },
+    {
+      "term": "GS_SEG_EXTENTS",
+      "content": "GS_SEG_EXTENTS GS_SEG_EXTENTS GS_SEG_EXTENTS查看所有表空间的扩展信息。该视图输出用户段对象的所有扩展，包含1号文件中的segment head、fork head、level1 page，2~5号文件中的data extent。只支持管理员权限用户查询。 表1 GS_SEG_EXTENTS字段 名称 类型 描述 node_name text 节点名称 tablespace_name name 段对象所属的表空间。 bucketnode integer 0~1023表示hashbucket表的bucketnode。 1024表示段页式普通表的bucketnode。 1025表示段页式全局临时表的bucketnode。 1026表示段页式unlogged表的bucketnode。 head_block_id bigint 段头页面号。 extent_id integer 逻辑扩展号。 file_id integer 扩展所在的数据文件标识。 forknum integer 段对象的分支类型。取值范围： 0表示main fork。 1表示fsm fork。 2表示vm fork。 block_id bigint 扩展所在的数据文件中的起始页面号。 blocks integer 扩展大小。取值：1、8、128、1024、4096。 usage_type text 扩展的使用类型。取值范围： segment head表示段头。 fork head表示分支头。 level1 page表示level页面。 data extent表示数据扩展。",
+      "source_file": "3420_GS_SEG_EXTENTS.txt"
+    },
+    {
+      "term": "GS_SEG_SPC_REMAIN_EXTENTS",
+      "content": "GS_SEG_SPC_REMAIN_EXTENTS GS_SEG_SPC_REMAIN_EXTENTS GS_SEG_SPC_REMAIN_EXTENTS获取索引表空间残留的孤立的扩展信息。这些扩展信息不包含在残留段中，可以作为独立的清理单元。只支持管理员权限用户查询。 表1 GS_SEG_SPC_REMAIN_EXTENTS字段 名称 类型 描述 node_name text 节点名称。 tablespace_name name 表空间名称。 file_id integer 数据文件标识。 bucketnode integer 0~1023表示hashbucket表的bucketnode。 1024表示段页式普通表的bucketnode。 1025表示段页式全局临时表的bucketnode。 1026表示段页式unlogged表的bucketnode。 forknum integer 段对象的分支类型。取值范围： 0表示main fork。 1表示fsm fork。 2表示vm fork。 block_id bigint 数据扩展的起始页面号。 blocks integer 数据扩展大小。取值1、8、128、1024、4096。 contents text 数据文件的存储内容。取值范围： permanent：永久。 unlogged：不记录日志。 temporary：临时。 in_used text 是否已分配。取值Y/N。 mapblock_location text 扩展在map block中的位置。格式（page_id, offset）。 head_file_id integer 段头文件标识。 head_block_id bigint 段头页面号。 usage_type text 扩展的使用类型。取值范围： segment head表示段头。 fork head表示分支头。 level1 page表示level页面。 data extent表示数据扩展。 remain_flag text 是否为shrink残留扩展。取值Y/N。 special_data integer 扩展对应反向指针的特殊数据区。 ipblock_location text 扩展反向指针位置。格式：（block_id，offset）。",
+      "source_file": "1722_GS_SEG_SPC_REMAIN_EXTENTS.txt"
+    },
+    {
+      "term": "GS_SEG_SPC_EXTENTS",
+      "content": "GS_SEG_SPC_EXTENTS GS_SEG_SPC_EXTENTS GS_SEG_SPC_EXTENTS获取所有表空间已使用的扩展信息。输出包含segment head、fork head、level1 page、data extent。只支持管理员权限用户查询。 表1 GS_SEG_SPC_EXTENTS 名称 类型 描述 node_name text 节点名称。 tablespace_name name 表空间名称。 file_id integer 数据文件标识。 bucketnode integer 0~1023表示hashbucket表的bucketnode。 1024表示段页式普通表的bucketnode。 1025表示段页式全局临时表的bucketnode。 1026表示段页式unlogged表的bucketnode。 forknum integer 段对象的分支类型。取值范围： 0表示main fork。 1表示fsm fork。 2表示vm fork。 block_id bigint 数据扩展的起始页面号。 blocks integer 数据扩展大小。取值1、8、128、1024、4096。 contents text 数据文件的存储内容。取值范围： permanent：永久。 unlogged：不记录日志。 temporary：临时。 in_used text 是否已分配。取值Y/N。 mapblock_location text 扩展在map block中的位置。格式：(page_id, offset)。 head_file_id integer 段头文件标识。 head_block_id bigint 段头页面号。 usage_type text 扩展的使用类型。取值范围： segment head表示段头。 fork head表示分支头。 level1 page表示level页面。 data extent表示数据扩展。 remain_flag text 是否为shrink残留扩展。取值Y/N。 special_data integer 扩展对应反向指针的特殊数据区。 ipblock_location text 扩展反向指针位置。格式：(block_id, offset)。",
+      "source_file": "1720_GS_SEG_SPC_EXTENTS.txt"
+    },
+    {
+      "term": "GS_SEG_DATAFILES",
+      "content": "GS_SEG_DATAFILES GS_SEG_DATAFILES GS_SEG_DATAFILES查看所有表空间的数据文件信息。只支持管理员权限用户查询。 表1 GS_SEG_DATAFILES字段 名称 类型 描述 node_name text 节点名称。 file_name text 数据文件名。例如base/17467/2_fsm。 file_id integer 数据文件标识。 bucketnode integer 0~1023表示hashbucket表的bucketnode。 1024表示段页式普通表的bucketnode。 1025表示段页式全局临时表的bucketnode。 1026表示段页式unlogged表的bucketnode。 forknum integer 段对象的分支类型。取值范围： 0表示main fork。 1表示fsm fork。 2表示vm fork。 tablespace_name name 数据文件所属的表空间名称。 contents text 数据文件的存储内容。取值范围： permanent：永久。 unlogged：不记录日志。 temporary：临时。 extent_size integer 数据文件的扩展大小。 meta_blocks bigint 数据文件的已分配的元页面数。 data_blocks bigint 数据文件的已分配的数据页面数。 total_blocks bigint 数据文件的总物理页面数。 high_water_mark bigint 数据文件使用页数的高水位线。 utilization real 使用的block数占总block数的百分比。即(data_blocks+meta_blocks)/total_blocks。",
+      "source_file": "3418_GS_SEG_DATAFILES.txt"
+    },
+    {
+      "term": "GS_SEG_DATAFILE_LAYOUT",
+      "content": "GS_SEG_DATAFILE_LAYOUT GS_SEG_DATAFILE_LAYOUT GS_SEG_DATAFILE_LAYOUT查看段页式1~5号数据文件的静态布局。只支持管理员权限用户查询。 表1 GS_SEG_DATAFILE_LAYOUT字段 名称 类型 描述 version text 段页式版本。默认：1.0。 seg_storage_type text segment表示普通段页式数据。 hashbucket表示hashbucket数据。 file_id integer 数据文件标识。 section_id integer 数据文件划分的数据区号。 section_type text 数据文件区类型。取值范围： file_header表示文件头。 spc_header表示空间头。 map_header表示映射头。 map_pages表示映射页面。 ip_pages(inverse pointer pages)表示反向指针页面。 data_pages表示数据页面。 page_start bigint 数据区域起始页面号。 page_end bigint 数据区域结束页面号。 page_count bigint 数据区域页面数。 total_size bigint 数据区的大小。单位为字节。",
+      "source_file": "1716_GS_SEG_DATAFILE_LAYOUT.txt"
+    },
+    {
+      "term": "GS_SEG_SEGMENTS",
+      "content": "GS_SEG_SEGMENTS GS_SEG_SEGMENTS GS_SEG_SEGMENTS查看所有表空间的段信息，包含表、索引、TOAST、TOAST INDEX段及fsm fork、vm fork段。只支持管理员权限用户查询。 表1 GS_SEG_SEGMENTS字段 名称 类型 描述 node_name text 节点名称。 schema_name name 段对象所属的名称空间。 segment_name name 段对象名。来源：pg_class、pg_partition.relname。 partition_name name 段对象分区名称。非分区为NULL。来源：pg_partition.relname。 forknum integer 段对象的分支类型。取值范围： 0表示main fork。 1表示fsm fork。 2表示vm fork。 segment_type text 段对象类型。取值范围： table：段页式普通表。 table partition：段页式分区表（主表和子表）、段页式二级分区表（其中的一级分区表）。 table subpartition：段页式二级分区表（其中的顶层节点表和二级分区表）。 index：段页式普通表索引。 index partition：段页式分区表、二级分区表的索引。 global partition index: 段页式分区表、二级分区表的全局索引。 toast：段页式toast表。 toast index：段页式toast表的索引。 tablespace_name name 段对象所属的表空间。 bucketnode integer 0~1023表示hashbucket表的bucketnode。 1024表示段页式普通表的bucketnode。 1025表示段页式全局临时表的bucketnode。 1026表示段页式unlogged表的bucketnode。 head_block_id bigint 段头页面号。 contents text 数据文件的存储内容。取值范围： permanent：永久。 unlogged：不记录日志。 temporary：临时。 table_name name 段对象所属的基表名。 blocks bigint 段对象的逻辑页面数。 total_blocks bigint 段对象的物理页面数。 extents integer 段对象的逻辑扩展数。 total_extents integer 段对象的物理扩展数。 head_lsn text 段头lsn标识。 level0_slots bigint[] 段扩展映射level0槽位数组。 level1_slots bigint[] 段扩展映射level1槽位数组。 fork_head bigint[] 段对象的分支段头数组。",
+      "source_file": "1718_GS_SEG_SEGMENTS.txt"
+    },
+    {
+      "term": "GLOBAL_GS_SEG_SPC_EXTENTS",
+      "content": "GLOBAL_GS_SEG_SPC_EXTENTS GLOBAL_GS_SEG_SPC_EXTENTS GLOBAL_GS_SEG_SPC_EXTENTS在CN上执行，获取所有节点所有表空间已使用的扩展信息。输出包含segment head、fork head、level1 page、data extent。只支持管理员权限用户查询。 表1 GLOBAL_GS_SEG_SPC_EXTENTS 名称 类型 描述 node_name text 节点名称。 tablespace_name name 表空间名称。 file_id integer 数据文件标识。 bucketnode integer 0~1023表示hashbucket表的bucketnode。 1024表示段页式普通表的bucketnode。 1025表示段页式全局临时表的bucketnode。 1026表示段页式unlogged表的bucketnode。 forknum integer 段对象的分支类型。取值范围： 0表示main fork。 1表示fsm fork。 2表示vm fork。 block_id bigint 数据扩展的起始页面号。 blocks integer 数据扩展大小。取值1、8、128、1024、4096。 contents text 数据文件的存储内容。取值范围： permanent：永久。 unlogged：不记录日志。 temporary：临时。 in_used text 是否已分配。取值Y/N。 mapblock_location text 扩展在map block中的位置。格式：(page_id, offset)。 head_file_id integer 段头文件标识。 head_block_id bigint 段头页面号。 usage_type text 扩展的使用类型。取值范围： segment head表示段头。 fork head表示分支头。 level1 page表示level页面。 data extent表示数据扩展。 remain_flag text 是否为shrink残留扩展。取值Y/N。 special_data integer 扩展对应反向指针的特殊数据区。 ipblock_location text 扩展反向指针位置。格式：(block_id, offset)。",
+      "source_file": "1713_GLOBAL_GS_SEG_SPC_EXTENTS.txt"
+    },
+    {
+      "term": "GLOBAL_GS_SEG_SEGMENTS",
+      "content": "GLOBAL_GS_SEG_SEGMENTS GLOBAL_GS_SEG_SEGMENTS GLOBAL_GS_SEG_SEGMENTS在CN上执行，查看所有节点所有表空间的段信息，包含表、索引、TOAST、TOAST INDEX段及fsm fork、vm fork段。只支持管理员权限用户查询。 表1 GLOBAL_GS_SEG_SEGMENTS字段 名称 类型 描述 node_name text 节点名称。 schema_name name 段对象所属的名称空间。 segment_name name 段对象名。来源：pg_class、pg_partition.relname。 partition_name name 段对象分区名称。非分区为NULL。来源：pg_partition.relname。 forknum integer 段对象的分支类型。取值范围： 0表示main fork。 1表示fsm fork。 2表示vm fork。 segment_type text 段对象类型。取值范围： table：段页式普通表。 table partition：段页式分区表（主表和子表）、段页式二级分区表（其中的一级分区表）。 table subpartition：段页式二级分区表（其中的顶层节点表和二级分区表）。 index：段页式普通表索引。 index partition：段页式分区表、二级分区表的索引。 global partition index: 段页式分区表、二级分区表的全局索引。 toast：段页式toast表。 toast index：段页式toast表的索引。 tablespace_name name 段对象所属的表空间。 bucketnode integer 0~1023表示hashbucket表的bucketnode。 1024表示段页式普通表的bucketnode。 1025表示段页式全局临时表的bucketnode。 1026表示段页式unlogged表的bucketnode。 head_block_id bigint 段头页面号。 contents text 数据文件的存储内容。取值范围： permanent：永久。 unlogged：不记录日志。 temporary：临时。 table_name name 段对象所属的基表名。 blocks bigint 段对象的逻辑页面数。 total_blocks bigint 段对象的物理页面数。 extents integer 段对象的逻辑扩展数。 total_extents integer 段对象的物理扩展数。 head_lsn text 段头lsn标识。 level0_slots bigint[] 段扩展映射level0槽位数组。 level1_slots bigint[] 段扩展映射level1槽位数组。 fork_head bigint[] 段对象的分支段头数组。",
+      "source_file": "1712_GLOBAL_GS_SEG_SEGMENTS.txt"
+    },
+    {
+      "term": "GS_SEG_SPC_EXTENTS",
+      "content": "GS_SEG_SPC_EXTENTS GS_SEG_SPC_EXTENTS GS_SEG_SPC_EXTENTS获取所有表空间已使用的扩展信息。输出包含segment head、fork head、level1 page、data extent。只支持管理员权限用户查询。 表1 GS_SEG_SPC_EXTENTS 名称 类型 描述 node_name text 节点名称。 tablespace_name name 表空间名称。 file_id integer 数据文件标识。 bucketnode integer 0~1023表示hashbucket表的bucketnode。 1024表示段页式普通表的bucketnode。 1025表示段页式全局临时表的bucketnode。 1026表示段页式unlogged表的bucketnode。 forknum integer 段对象的分支类型。取值范围： 0表示main fork。 1表示fsm fork。 2表示vm fork。 block_id bigint 数据扩展的起始页面号。 blocks integer 数据扩展大小。取值1、8、128、1024、4096。 contents text 数据文件的存储内容。取值范围： permanent：永久。 unlogged：不记录日志。 temporary：临时。 in_used text 是否已分配。取值Y/N。 mapblock_location text 扩展在map block中的位置。格式：(page_id, offset)。 head_file_id integer 段头文件标识。 head_block_id bigint 段头页面号。 usage_type text 扩展的使用类型。取值范围： segment head表示段头。 fork head表示分支头。 level1 page表示level页面。 data extent表示数据扩展。 remain_flag text 是否为shrink残留扩展。取值Y/N。 special_data integer 扩展对应反向指针的特殊数据区。 ipblock_location text 扩展反向指针位置。格式：(block_id, offset)。",
+      "source_file": "3423_GS_SEG_SPC_EXTENTS.txt"
+    },
+    {
+      "term": "GS_SEG_SPC_REMAIN_EXTENTS",
+      "content": "GS_SEG_SPC_REMAIN_EXTENTS GS_SEG_SPC_REMAIN_EXTENTS GS_SEG_REMAIN_EXTENTS获取索引表空间残留的孤立的扩展信息。这些扩展信息不包含在残留段中，可以作为独立的清理单元。只支持管理员权限用户查询。 表1 GS_SEG_SPC_REMAIN_EXTENTS字段 名称 类型 描述 node_name text 节点名称。 tablespace_name name 表空间名称。 file_id integer 数据文件标识。 bucketnode integer 0~1023表示hashbucket表的bucketnode。 1024表示段页式普通表的bucketnode。 1025表示段页式全局临时表的bucketnode。 1026表示段页式unlogged表的bucketnode。 forknum integer 段对象的分支类型。取值范围： 0表示main fork。 1表示fsm fork。 2表示vm fork。 block_id bigint 数据扩展的起始页面号。 blocks integer 数据扩展大小。取值1、8、128、1024、4096。 contents text 数据文件的存储内容。取值范围： permanent：永久。 unlogged：不记录日志。 temporary：临时。 in_used text 是否已分配。取值Y/N。 mapblock_location text 扩展在map block中的位置。格式（page_id, offset）。 head_file_id integer 段头文件标识。 head_block_id bigint 段头页面号。 usage_type text 扩展的使用类型。取值范围： segment head表示段头。 fork head表示分支头。 level1 page表示level页面。 data extent表示数据扩展。 remain_flag text 是否为shrink残留扩展。取值Y/N。 special_data integer 扩展对应反向指针的特殊数据区。 ipblock_location text 扩展反向指针位置。格式：（block_id, offset）。",
+      "source_file": "3425_GS_SEG_SPC_REMAIN_EXTENTS.txt"
+    },
+    {
+      "term": "GS_SEG_SPC_SEGMENTS",
+      "content": "GS_SEG_SPC_SEGMENTS GS_SEG_SPC_SEGMENTS GS_SEG_SPC_SEGMENTS获取所有表空间已使用的段信息。只支持管理员权限用户查询。 表1 GS_SEG_SPC_SEGMENTS字段 名称 类型 描述 node_name text 节点名称。 tablespace_name name 表空间名称。 file_id integer 数据文件标识。 bucketnode integer 0~1023表示hashbucket表的bucketnode。 1024表示段页式普通表的bucketnode。 1025表示段页式全局临时表的bucketnode。 1026表示段页式unlogged表的bucketnode。 forknum integer 段对象的分支类型。取值范围： 0表示main fork。 1表示fsm fork。 2表示vm fork。 block_id bigint 数据扩展的起始页面号。 blocks integer 数据扩展大小。取值1、8、128、1024、4096。 contents text 数据文件的存储内容。取值范围： permanent：永久。 unlogged：不记录日志。 temporary：临时。 in_used text 是否已分配。取值Y/N。 mapblock_location text 扩展在map block中的位置。格式：(page_id, offset)。 head_file_id integer 段头文件标识。 head_block_id bigint 段头页面号。 usage_type text 扩展的使用类型。取值范围： segment head表示段头。 fork head表示分支头。 level1 page表示level页面。 data extent表示数据扩展。 remain_flag text 是否为shrink残留扩展。取值Y/N。 special_data integer 扩展对应反向指针的特殊数据区。 ipblock_location text 扩展反向指针位置。格式：(block_id, offset)。",
+      "source_file": "3424_GS_SEG_SPC_SEGMENTS.txt"
+    },
+    {
+      "term": "GS_SEG_SPC_REMAIN_SEGMENTS",
+      "content": "GS_SEG_SPC_REMAIN_SEGMENTS GS_SEG_SPC_REMAIN_SEGMENTS GS_SEG_SPC_REMAIN_SEGMENTS获取索引表空间残留的段信息，包含main fork、fsm fork、vm fork段。只支持管理员权限用户查询。 表1 GS_SEG_SPC_REMAIN_SEGMENTS字段 名称 类型 描述 node_name text 节点名称。 tablespace_name name 表空间名称。 file_id integer 数据文件标识。 bucketnode integer 0~1023表示hashbucket表的bucketnode。 1024表示段页式普通表的bucketnode。 1025表示段页式全局临时表的bucketnode。 1026表示段页式unlogged表的bucketnode。 forknum integer 段对象的分支类型。取值范围： 0表示main fork。 1表示fsm fork。 2表示vm fork。 block_id bigint 数据扩展的起始页面号。 blocks integer 数据扩展大小。取值1、8、128、1024、4096。 contents text 数据文件的存储内容。取值范围： permanent：永久。 unlogged：不记录日志。 temporary：临时。 in_used text 是否已分配。取值Y/N。 mapblock_location text 扩展在map block中的位置。格式（page_id, offset）。 head_file_id integer 段头文件标识。 head_block_id bigint 段头页面号。 usage_type text 扩展的使用类型。取值范围： segment head表示段头。 fork head表示分支头。 level1 page表示level页面。 data extent表示数据扩展。 remain_flag text 是否为shrink残留扩展。取值Y/N。 special_data integer 扩展对应反向指针的特殊数据区。 ipblock_location text 扩展反向指针位置。格式：（block_id, offset）。",
+      "source_file": "1723_GS_SEG_SPC_REMAIN_SEGMENTS.txt"
+    },
+    {
+      "term": "GS_SEG_SEGMENT_LAYOUT",
+      "content": "GS_SEG_SEGMENT_LAYOUT GS_SEG_SEGMENT_LAYOUT GS_SEG_SEGMENT_LAYOUT输出段页式文件的静态布局。只支持管理员权限用户查询。 表1 GS_SEG_SEGMENT_LAYOUT字段 名称 类型 描述 version text 段页式版本。默认：1.0。 section_id integer 段划分的数据区号。 section_type text 段数据区扩展类型。取值范围： meta：段头。 data：数据。 extent_size integer 扩展大小。单位为字节。 extent_page_count integer 扩展页面数。 extent_count_start bigint 起始扩展号。 extent_count_end bigint 终止扩展号。 total_size bigint 段数据区的大小。单位为字节。",
+      "source_file": "3422_GS_SEG_SEGMENT_LAYOUT.txt"
+    },
+    {
+      "term": "GS_SEG_SEGMENT_LAYOUT",
+      "content": "GS_SEG_SEGMENT_LAYOUT GS_SEG_SEGMENT_LAYOUT GS_SEG_SEGMENT_LAYOUT输出段页式文件的静态布局。只支持管理员权限用户查询。 表1 GS_SEG_SEGMENT_LAYOUT字段 名称 类型 描述 version text 段页式版本。默认：1.0。 section_id integer 段划分的数据区号。 section_type text 段数据区扩展类型。取值范围： meta：段头。 data：数据。 extent_size integer 扩展大小。单位为字节。 extent_page_count integer 扩展页面数。 extent_count_start bigint 起始扩展号。 extent_count_end bigint 终止扩展号。 total_size bigint 段数据区的大小。单位为字节。",
+      "source_file": "1719_GS_SEG_SEGMENT_LAYOUT.txt"
+    },
+    {
+      "term": "GLOBAL_GS_SEG_EXTENTS",
+      "content": "GLOBAL_GS_SEG_EXTENTS GLOBAL_GS_SEG_EXTENTS GLOBAL_GS_SEG_EXTTENTS在CN上执行，查看所有节点所有表空间的扩展信息。该视图输出用户段对象的所有扩展，包含1号文件中的segment head、fork head、level1 page，2~5号文件中的data extent。只支持管理员权限用户查询。 表1 GLOBAL_GS_SEG_EXTTENTS字段 名称 类型 描述 node_name text 节点名称。 tablespace_name name 段对象所属的表空间。 bucketnode integer 0~1023表示hashbucket表的bucketnode。 1024表示段页式普通表的bucketnode。 1025表示段页式全局临时表的bucketnode。 1026表示段页式unlogged表的bucketnode。 head_block_id bigint 段头页面号。 extent_id integer 逻辑扩展号。 file_id integer 扩展所在的数据文件标识。 forknum integer 段对象的分支类型。取值范围： 0表示main fork。 1表示fsm fork。 2表示vm fork。 block_id bigint 扩展所在的数据文件中的起始页面号。 blocks integer 扩展大小。取值：1、8、128、1024、4096。 usage_type text 扩展的使用类型。取值范围： segment head表示段头。 fork head表示分支头。 level1 page表示level页面。 data extent表示数据扩展。",
+      "source_file": "1711_GLOBAL_GS_SEG_EXTENTS.txt"
+    }
+  ]
+}

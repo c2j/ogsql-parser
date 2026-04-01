@@ -1,0 +1,1 @@
+GLOBAL_STATEMENT_COMPLEX_HISTORY_TABLE GLOBAL_STATEMENT_COMPLEX_HISTORY_TABLE 显示各个节点执行作业结束后的负载管理记录。此数据是从内核中转储到系统表中的数据。具体的字段请参考 GLOBAL_STATEMENT_COMPLEX_HISTORY 中的字段。 父主题： Query 版权所有 © 华为技术有限公司

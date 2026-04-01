@@ -1,0 +1,1 @@
+klist klist 功能介绍 为数据库实例认证服务Kerberos提供列出凭证缓存中的用户和票据能力。 参数说明 Kerberos工具为开源第三方提供，具体参数说明请参考Kerberos官方文档： https://web.mit.edu/kerberos/krb5-1.17/doc/admin/admin_commands/index.html 父主题： 系统内部调用的工具 版权所有 © 华为技术有限公司

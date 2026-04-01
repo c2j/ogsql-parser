@@ -1,0 +1,22 @@
+ALTER PACKAGE ALTER PACKAGE 功能描述 修改PACKAGE的属性或重编译包。 注意事项 目前仅支持ALTER PACKAGE OWNER功能，系统管理员默认拥有该权限，有以下权限约束： 当前用户必须是该package的所有者或者系统管理员，且该用户是新所有者角色的成员。 重编译包需要设置plpgsql_dependency参数。 当打开三权分立时，即使是系统管理员，也必须拥有用户组权限才能修改package的owner。 只有初始化用户才能修改package的owner为初始化用户。 三权分立模式下，DEFINER类型package不允许修改所有者。非三权分立模式下，仅系统管理员以上权限可以修改package所有者。 不允许系统管理员将DEFINER类型的package的所有者改为初始用户或运维管理员。 语法格式 修改package的所有者。 ALTER PACKAGE package_name OWNER TO new_owner; 重编译包 ALTER PACKAGE package_name COMPILE [PACKAGE | BODY | SPECIFICATION]; 参数说明 package_name 要修改的package名称。 取值范围：已存在的package名，仅支持修改单个package。 new_owner package的新所有者。要修改函数的所有者，新所有者必须拥有该package所属模式的CREATE权限。 取值范围：已存在的用户角色。 示例 请参见 CREATE PACKAGE 中示例。 重编译示例： -- 开启依赖功能 gaussdb=# SET behavior_compat_options ='plpgsql_dependency';
+
+-- 创建包 gaussdb=# CREATE OR REPLACE PACKAGE TEST_PKG
+AS
+    pkg_var int := 1;
+    PROCEDURE test_pkg_proc(var int);
+end TEST_PKG;
+/ gaussdb=# CREATE OR REPLACE PACKAGE BODY TEST_PKG 
+AS
+    PROCEDURE test_pkg_proc(var int)
+IS
+BEGIN
+    pkg_var := 1;
+END;
+END TEST_PKG;
+/
+
+-- 重编译包 gaussdb=# ALTER PACKAGE test_pkg COMPILE;
+
+-- 删除包 gaussdb=# DROP PACKAGE TEST_PKG;
+
+-- 关闭依赖功能 gaussdb=# SET behavior_compat_options = ''; 相关链接 CREATE PACKAGE ， DROP PACKAGE 父主题： A 版权所有 © 华为技术有限公司

@@ -1,0 +1,1 @@
+Configuration settings Configuration settings Configuration settings列名称及描述如下表所示。 表1 Configuration settings报表主要内容 列名称 描述 Name GUC参数名称。 Abstract GUC参数描述。 Type 数据类型。 Curent Value 当前值。 Min Value 合法最小值。 Max Value 合法最大值。 Category GUC参数类别。 Enum Values 如果是枚举值，列举所有枚举值。 Default Value 数据库启动时参数默认值。 Reset Value 数据库重置时参数默认值。 父主题： WDR报告信息介绍 版权所有 © 华为技术有限公司

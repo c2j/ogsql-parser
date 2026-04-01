@@ -1,0 +1,1 @@
+实例下发init node阶段报错OBS连接异常 实例下发init node阶段报错OBS连接异常 问题根因：ping OBS节点网络不通。 先部署高阶服务，网关后扩容需要添加高阶部署的dmz servce 、dms service advancd 网段和obs ip 父主题： 常见问题FAQ 版权所有 © 华为技术有限公司

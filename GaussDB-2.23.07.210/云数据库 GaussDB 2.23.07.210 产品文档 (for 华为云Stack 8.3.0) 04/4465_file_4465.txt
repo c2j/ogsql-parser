@@ -1,0 +1,41 @@
+获取帮助 获取帮助 启动调优程序之前，可以通过如下命令获取帮助信息： gs_dbmind component dkr --help 输出帮助信息结果如下： usage:               [-h] [-f FILE] [--standard STANDARD] [-s STATISTICS]
+                     [-m {offline,online}] [--dn DN] [-p PORT] [-d DATABASE]
+                     [--host HOST] [--schema SCHEMA] [-U USER]
+                     [--start_time START_TIME] [--end_time END_TIME]
+                     [--min_distinct_threshold MIN_DISTINCT_THRESHOLD]
+                     [--cost_type {naive,optimizer}]
+                     [--max_replication_table_size MAX_REPLICATION_TABLE_SIZE]
+                     [--prior_distribute_transaction]
+                     [--driver]
+
+Generate a set of distributed keys for workload. two modes are supported:offline: (--file -m
+-s) online: (--file -p -d --host -U --start_time --end_time --schema)
+
+optional arguments:
+  -h, --help            show this help message and exit
+  -f FILE, --file FILE  File contains workload queries (One query per line) or
+                        oracle stored procedure
+  --standard STANDARD   queries in the file as standard format
+  -s STATISTICS, --statistics STATISTICS
+                        File contains statistical information
+  -m {offline,online}, --mode {offline,online}
+                        the current mode
+  --dn DN               The number of data nodes
+  -p PORT, --port PORT  Port of database
+  -d DATABASE, --database DATABASE
+                        Name of database
+  --host HOST           Host for database
+  --schema SCHEMA       Schema name for the current business data
+  -U USER, --user USER  Username for database log-in
+  --start_time START_TIME
+                        Collect WDR report start time
+  --end_time END_TIME   Collect WDR report end time
+  --min_distinct_threshold MIN_DISTINCT_THRESHOLD
+                        Minimum value of distinct value
+  --cost_type {naive,optimizer}
+                        Which cost estimation algorithm to use
+  --max_replication_table_size MAX_REPLICATION_TABLE_SIZE
+                        Maximum number of rows in the replication table
+  --prior_distribute_transaction
+                        Prioritize the processing of distributed transaction
+  --driver              Whether to employ python-driver 父主题： 外部工具 版权所有 © 华为技术有限公司

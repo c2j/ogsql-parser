@@ -1,0 +1,1 @@
+GS_WLM_USER_INFO GS_WLM_USER_INFO 用户统计信息视图。 当查询视图无数据显示时，请联系华为工程师提供技术支撑。 表1 GS_WLM_USER_INFO字段 名称 类型 描述 userid oid 用户OID。 username name 用户名。 sysadmin boolean 是否是管理员用户。 rpoid oid 关联的资源池的OID。 respool name 关联的资源池的名称。 parentid oid 用户组的OID。 totalspace bigint 用户的可用空间上限。 spacelimit bigint 用户表空间限制。 childcount integer 子用户的个数。 childlist text 子用户列表。 父主题： 负载管理 版权所有 © 华为技术有限公司

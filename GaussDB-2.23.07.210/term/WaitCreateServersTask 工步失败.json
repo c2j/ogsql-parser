@@ -1,0 +1,16 @@
+{
+  "topic": "WaitCreateServersTask 工步失败",
+  "term_count": 2,
+  "terms": [
+    {
+      "term": "资源不足",
+      "content": "资源不足 资源不足 查看报错信息是否有如下字段“There are not enough hosts available”。 如果出现以上报错信息，请按 创建BMS规格 与 规格与引擎、可用分区绑定 中的内容检查规格绑定是否正确，如果失败则需要重新绑定规格，再进行下发。",
+      "source_file": "6084_file_6084.txt"
+    },
+    {
+      "term": "WaitCreateBMSServerJobTask",
+      "content": "WaitCreateBMSServerJobTask 工步失败 WaitCreateBMSServerJobTask 工步失败 虚拟机发放超时，需要联系BMS工程师定位具体原因并处理。 一般来说失败会回滚，导致BMS虚拟机被自动删除，无法用来定位，按以下操作步骤，阻止失败虚拟机自动回滚： 登录Service OM 。 进入服务列表->DBS运维平台->配置管理->系统参数管理。 下拉选择DBS_SYSTEM_PARAMETER，搜索内容 “resourcemanagerAutoRollbackWorkflow”。 修改参数值为“false”。 重新下发实例。 成功发放实例后，需要将该参数改回“true”，否则会导致删除实例时，底层资源残留。",
+      "source_file": "6085_WaitCreateBMSServerJobTask .txt"
+    }
+  ]
+}

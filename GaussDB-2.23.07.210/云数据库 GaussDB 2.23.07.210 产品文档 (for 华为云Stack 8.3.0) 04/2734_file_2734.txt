@@ -1,0 +1,59 @@
+案例：建立合适的索引 案例：建立合适的索引 现象描述 查询与销售部所有员工的信息： 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24 --建表 CREATE TABLE staffs ( staff_id NUMBER ( 6 ) NOT NULL , first_name VARCHAR2 ( 20 ), last_name VARCHAR2 ( 25 ), employment_id VARCHAR2 ( 10 ), section_id NUMBER ( 4 ), state_name VARCHAR2 ( 10 ), city VARCHAR2 ( 10 )); CREATE TABLE sections ( section_id NUMBER ( 4 ), place_id NUMBER ( 4 ), section_name VARCHAR2 ( 20 )); CREATE TABLE states ( state_id NUMBER ( 4 )); CREATE TABLE places ( place_id NUMBER ( 4 ), state_id NUMBER ( 4 )); --优化前查询 EXPLAIN SELECT staff_id , first_name , last_name , employment_id , state_name , city FROM staffs , sections , states , places WHERE sections . section_name = 'Sales' AND staffs . section_id = sections . section_id AND sections . place_id = places . place_id AND places . state_id = states . state_id ORDER BY staff_id ; --优化后查询 CREATE INDEX loc_id_pk ON places ( place_id ); CREATE INDEX state_c_id_pk ON states ( state_id ); EXPLAIN SELECT staff_id , first_name , last_name , employment_id , state_name , city FROM staffs , sections , states , places WHERE sections . section_name = 'Sales' AND staffs . section_id = sections . section_id AND sections . place_id = places . place_id AND places . state_id = states . state_id ORDER BY staff_id ; 优化分析 在优化前，没有创建places.place_id和states.state_id索引，执行计划如下： 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19 QUERY PLAN ---------------------------------------------------------------------------------------------------- Sort ( cost = 125 . 25 .. 126 . 34 rows = 438 width = 254 ) Sort Key : staffs . staff_id -> Hash Join ( cost = 64 . 91 .. 106 . 03 rows = 438 width = 254 ) Hash Cond : ( states . state_id = places . state_id ) -> Seq Scan on states ( cost = 0 . 00 .. 29 . 45 rows = 1945 width = 12 ) -> Hash ( cost = 64 . 35 .. 64 . 35 rows = 45 width = 266 ) -> Hash Join ( cost = 33 . 09 .. 64 . 35 rows = 45 width = 266 ) Hash Cond : ( places . place_id = sections . place_id ) -> Seq Scan on places ( cost = 0 . 00 .. 25 . 13 rows = 1513 width = 24 ) -> Hash ( cost = 33 . 02 .. 33 . 02 rows = 6 width = 266 ) -> Hash Join ( cost = 19 . 16 .. 33 . 02 rows = 6 width = 266 ) Hash Cond : ( staffs . section_id = sections . section_id ) -> Seq Scan on staffs ( cost = 0 . 00 .. 12 . 76 rows = 276 width = 266 ) -> Hash ( cost = 19 . 11 .. 19 . 11 rows = 4 width = 24 ) -> Seq Scan on sections ( cost = 0 . 00 .. 19 . 11 rows = 4 width = 24 ) Filter : (( section_name ):: text = 'Sales' :: text ) ( 16 rows ) 建议在places.place_id和states.state_id列上建立2个索引，执行计划如下： 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17
+18 QUERY PLAN ----------------------------------------------------------------------------------------------------- Sort ( cost = 107 . 40 .. 108 . 49 rows = 438 width = 254 ) Sort Key : staffs . staff_id -> Hash Join ( cost = 35 . 37 .. 88 . 18 rows = 438 width = 254 ) Hash Cond : ( sections . section_id = staffs . section_id ) -> Nested Loop ( cost = 19 . 16 .. 66 . 85 rows = 292 width = 12 ) -> Hash Join ( cost = 19 . 16 .. 50 . 27 rows = 30 width = 24 ) Hash Cond : ( places . place_id = sections . place_id ) -> Seq Scan on places ( cost = 0 . 00 .. 25 . 13 rows = 1513 width = 24 ) -> Hash ( cost = 19 . 11 .. 19 . 11 rows = 4 width = 24 ) -> Seq Scan on sections ( cost = 0 . 00 .. 19 . 11 rows = 4 width = 24 ) Filter : (( section_name ):: text = 'Sales' :: text ) -> Index Only Scan using state_c_id_pk on states ( cost = 0 . 00 .. 0 . 45 rows = 10 width = 12 ) Index Cond : ( state_id = places . state_id ) -> Hash ( cost = 12 . 76 .. 12 . 76 rows = 276 width = 266 ) -> Seq Scan on staffs ( cost = 0 . 00 .. 12 . 76 rows = 276 width = 266 ) ( 15 rows ) 父主题： 实际调优案例 版权所有 © 华为技术有限公司

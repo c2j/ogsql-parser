@@ -1,0 +1,1 @@
+RCR Uheap多版本管理 RCR Uheap多版本管理 Ustore对其使用的heap做了如下重要的增强，简称Uheap。 Ustore RCR(Row Consistency Read)的多版本管理是基于数据行的行级多版本管理。不过Ustore将XID记录在了页面的TD(Transaction Directory)区域区别于常见的将XID存储在数据行上，节省了页面空间。事务修改记录时，会将历史数据记录到Undo Row中，在Tuple中的td_id指向的TD槽上记录产生的Undo Row地址(zone_id, block no, page offset)，并将新的数据覆盖写入页面。访问元组时，沿着版本链还原该元组，直到找到自己对应的版本。 父主题： RCR Uheap 版权所有 © 华为技术有限公司

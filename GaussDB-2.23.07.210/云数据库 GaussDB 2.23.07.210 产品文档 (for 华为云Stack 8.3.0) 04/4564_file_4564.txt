@@ -1,0 +1,10 @@
+向二级分区表新增一级分区 向二级分区表新增一级分区 使用ALTER TABLE ADD PARTITION可以在二级分区表中新增一个一级分区，这个行为可以作用在一级分区策略为RANGE或者LIST的情况。如果这个新增一级分区下申明了二级分区定义，则数据库会根据定义创建对应的二级分区；如果这个新增一级分区下没有申明二级分区定义，则数据库会自动创建一个默认的二级分区。 例如，对二级分区表range_list_sales新增一个一级分区，并在下面创建四个二级分区。 ALTER TABLE range_list_sales ADD PARTITION date_202005 VALUES LESS THAN ('2020-06-01') TABLESPACE tb1
+(
+    SUBPARTITION date_202005_channel1 VALUES ('0', '1', '2'),
+    SUBPARTITION date_202005_channel2 VALUES ('3', '4', '5') TABLESPACE tb2,
+    SUBPARTITION date_202005_channel3 VALUES ('6', '7'),
+    SUBPARTITION date_202005_channel4 VALUES ('8', '9')
+); 或者对二级分区表range_list_sales只进行新增一级分区操作。 ALTER TABLE range_list_sales ADD PARTITION date_202005 VALUES LESS THAN ('2020-06-01') TABLESPACE tb1; 上面这种行为与如下SQL语句等价。 ALTER TABLE range_list_sales ADD PARTITION date_202005 VALUES LESS THAN ('2020-06-01') TABLESPACE tb1
+(
+    SUBPARTITION date_202005_channel1 VALUES (DEFAULT)
+); 当二级分区表的一级分区策略为HASH时，不支持通过ALTER TABLE ADD PARTITION命令新增一级分区。 父主题： 新增分区 版权所有 © 华为技术有限公司

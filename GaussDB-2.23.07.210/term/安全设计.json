@@ -1,0 +1,31 @@
+{
+  "topic": "安全设计",
+  "term_count": 5,
+  "terms": [
+    {
+      "term": "手动替换证书步骤",
+      "content": "手动替换证书步骤 手动替换证书步骤 创建自认证证书 自认证证书生成 请联系管理员处理 。 对私钥密码的保护，使用cm encrypt工具，请参考 cm_ctl工具介绍 。 cm_ctl encrypt [-M MODE] -D DATADIR 生成服务器端密钥因子server.key.cipher、server.key.rand。 cm_ctl encrypt -M server -D DATADIR\nplease enter the password:（使用密码需要与服务器私钥的保护密码相同） 生成客户端密钥因子client.key.cipher、client.key.rand。 cm_ctl encrypt -M client -D DATADIR\nplease enter the password:（使用密码需要与客户端私钥的保护密码相同）",
+      "source_file": "5989_file_5989.txt"
+    },
+    {
+      "term": "手动替换证书步骤",
+      "content": "手动替换证书步骤 手动替换证书步骤 创建自认证证书 自认证证书生成 请联系管理员处理 。 对私钥密码的保护，使用cm encrypt工具，请参考 cm_ctl工具介绍 。 cm_ctl encrypt [-M MODE] -D DATADIR 生成服务器端密钥因子server.key.cipher、server.key.rand。 cm_ctl encrypt -M server -D DATADIR\nplease enter the password:（使用密码需要与服务器私钥的保护密码相同） 生成客户端密钥因子client.key.cipher、client.key.rand。 cm_ctl encrypt -M client -D DATADIR\nplease enter the password:（使用密码需要与客户端私钥的保护密码相同）",
+      "source_file": "5878_file_5878.txt"
+    },
+    {
+      "term": "证书使用指南",
+      "content": "证书使用指南 证书使用指南 使用证书时需配置cm_server参数为on（默认关闭）。 cm_ctl set --param --server -k enable_ssl=\"on\" 证书文件需要存在于所有节点的$$GAUSSHOME/share/sslcert/cm中，证书替换后重启数据库实例生效。 所需证书文件：server.crt、server.key、client.crt、client.key、cacert.pem、server.key.cipher、server.key.rand、client.key.cipher、client.key.rand 根证书、密钥、证书以及密钥密码加密文件的权限，需保证权限为400。如果权限不满足要求，则无法使用ssl。 chmod 400 cacert.pem\nchmod 400 server.crt\nchmod 400 server.key\nchmod 400 server.key.cipher\nchmod 400 server.key.rand\nchmod 400 client.crt\nchmod 400 client.key\nchmod 400 client.key.cipher\nchmod 400 client.key.rand 证书有效期的检测周期为1天，可通过ssl_cert_expire_check_interval设置。证书有效期剩余90天时会开始产生告警，可通过ssl_cert_expire_alert_threshold设置（配置参数详见 ssl_cert_expire_alert_threshold )。 客户端和服务端的证书吊销列表分别为client.crl、server.crl。",
+      "source_file": "5990_file_5990.txt"
+    },
+    {
+      "term": "证书使用指南",
+      "content": "证书使用指南 证书使用指南 使用证书时需配置cm_server参数为on（默认关闭）。 cm_ctl set --param --server -k enable_ssl=\"on\" 证书文件需要存在于所有节点的$GAUSSHOME/share/sslcert/cm中，证书替换后重启集群生效。 所需证书文件：server.crt、server.key、client.crt、client.key、cacert.pem、server.key.cipher、server.key.rand、client.key.cipher、client.key.rand 根证书、密钥、证书以及密钥密码加密文件的权限，需保证权限为400。如果权限不满足要求，则无法使用ssl。 chmod 400 cacert.pem chmod 400 server.crt chmod 400 server.key chmod 400 server.key.cipher chmod 400 server.key.rand chmod 400 client.crt chmod 400 client.key chmod 400 client.key.cipher chmod 400 client.key.rand 证书有效期的检测周期为1天，可通过ssl_cert_expire_check_interval设置。证书有效期剩余90天时会开始产生告警，可通过ssl_cert_expire_alert_threshold设置（配置参数详见 ssl_cert_expire_alert_threshold )。 客户端和服务端的证书吊销列表分别为client.crl、server.crl。",
+      "source_file": "5879_file_5879.txt"
+    },
+    {
+      "term": "ifconfig提权步骤",
+      "content": "ifconfig提权步骤 ifconfig提权步骤 执行以下命令获取ifconfig绝对路径。 which ifconfig 执行以下命令修改权限文件/etc/sudoers。 Cmnd_Alias COMMAND_FLAG = ifconfig 绝对路径 数据库实例用户名 ALL=(root) NOPASSWD: COMMAND_FLAG 可以缩小权限范围，例如： Cmnd_Alias COMMAND_FLAG = /usr/sbin/ifconfig * netmask * up, /usr/sbin/ifconfig * down 数据库实例用户名 ALL=(root) NOPASSWD: COMMAND_FLAG 在实际使用中，需将/usr/sbin/ifconfig和数据库实例用户名修改为实际环境对应的ifconfig的绝对路和数据库实例用户名。",
+      "source_file": "5991_ifconfig.txt"
+    }
+  ]
+}

@@ -1,0 +1,1 @@
+PG_FOREIGN_TABLE PG_FOREIGN_TABLE PG_FOREIGN_TABLE系统表存储外部表的辅助信息。 表1 PG_FOREIGN_TABLE字段 名称 类型 描述 ftrelid oid 外部表的ID。 ftserver oid 外部表的所在服务器。 ftwriteonly boolean 外部表是否可写。取值如下： t（true）：表示可写 f（false）：表示不可写 ftoptions text[] 外部表的可选项，具体参考CREATE FOREIGN TABLE语法说明。 父主题： 其他系统表 版权所有 © 华为技术有限公司

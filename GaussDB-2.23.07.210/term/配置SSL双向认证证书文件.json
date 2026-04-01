@@ -1,0 +1,21 @@
+{
+  "topic": "配置SSL双向认证证书文件",
+  "term_count": 3,
+  "terms": [
+    {
+      "term": "配置客户端证书",
+      "content": "配置客户端证书 配置客户端证书 确保当前仍在/home/myuser/data/sslcert目录下，执行如下命令，生成base64编码后的根证书（cacert.pem）、客户端用户证书（client.crt）及客户端用户私钥（client.key），base64编码后的文件名分别为cacert64.pem、client64.crt及client64.key： base64 -w0 cacert.pem > cacert64.pem\nbase64 -w0 client.crt > client64.crt\nbase64 -w0 client.key > client64.key 将文件 cacert64.pem、client64.crt、client64.key 的文件内容，以及执行 4.2.1生成证书文件 步骤4时输入的客户端私钥密码字符串 <client_password> 通过 安装三方备份 SSL证书 API接口传入GaussDB中。详细API操作见《云数据库 GaussDB API参考》的 “安装三方备份SSL证书”章节。 若开启SSL认证，当一个backUpAgent服务端同时对应多个GaussDB客户端时，需要确保多个GaussDB的客户端证书均与backUpAgent服务端证书由同一个根证书颁发。当同一个GaussDB客户端同时对应多个backUpAgent服务端时，需要保证多个backUpAgent服务端证书均与GaussDB的客户端证书由同一个根证书颁发。",
+      "source_file": "6153_file_6153.txt"
+    },
+    {
+      "term": "配置服务端证书",
+      "content": "配置服务端证书 配置服务端证书 确保当前仍在/home/myuser/data/sslcert目录下，执行如下命令，将根证书及服务端私钥、服务端证书拷贝至backUpAgent可执行文件同级目录下： cp cacert.pem server.key server.crt ../backUpAgent/bin 如果需要将当前服务器/home/myuser/data/sslcert目录下颁发完成的服务端证书拷贝至其他服务器，请使用scp命令将cacert.pem、server.key、server.crt文件拷贝至目标服务器的/home/myuser/data/backUpAgent/bin目录下，或确保与backUpAgent可执行文件同目录即可。",
+      "source_file": "6152_file_6152.txt"
+    },
+    {
+      "term": "生成证书文件",
+      "content": "生成证书文件 生成证书文件 本章指导用户在备份服务器生成证书文件。 注意事项 在以下生成证书文件过程中，需要自行设定根私钥、服务端私钥、客户端私钥的密码，密码的设定要求如下： 长度在8-15位之间。 至少包含一个大写字母、一个小写字母、一个数字和一个特殊字符。 特殊字符的输入不支持 '（单引号）、\"（双引号）、 ` (反引号)以及空格字符。 请按照上述要求设定密码，不符合上述要求的密码可能会导致证书配置失败或SSL认证失败。 操作步骤 搭建CA环境 。 以 myuser 用户登录备份服务器，执行如下命令，进入/home/myuser/data目录， cd ~ /data 执行如下命令，在/home/myuser/data文件夹下创建sslcert目录并进入该目录： mkdir sslcert && cd sslcert 执行如下命令，将openssl相关配置文件拷贝到当前目录： cp ../backUpAgent/bin/openssl ../backUpAgent/bin/openssl.cnf . 在sslcert文件夹下通过如下命令建立CA环境： mkdir ./demoCA ./demoCA/newcerts ./demoCA/private\nchmod 777 ./demoCA/private\necho '01'> ./demoCA/serial\ntouch ./demoCA/index.txt 生成根私钥、根证书 。 执行如下命令，生成根私钥，执行命令时在提示框设定根私钥的密码，以下以<root_password>指代该密码，请妥善记住该密码： ./openssl genrsa -aes256 -out demoCA/private/cakey.pem 2048 执行如下命令，生成根证书请求，执行命令时在提示框输入根私钥的密码 <root_password>： ./openssl req -config ./openssl.cnf -new -key demoCA/private/cakey.pem -sigopt rsa_padding_mode:pss -out demoCA/careq.pem -subj '/C=CN/ST=Beijing/L=Beijing/O=huawei/OU=gauss/CN=root' 执行如下命令，生成根证书，执行命令时在提示框输入根私钥的密码 <root_password>： ./openssl ca -config ./openssl.cnf -batch -out demoCA/cacert.pem -keyfile demoCA/private/cakey.pem -extensions v3_ca -selfsign -infiles demoCA/careq.pem 修改 demoCA/index.txt.attr 文件，将 unique_subject 属性修改为 no，并使用 :wq 退出保存： vim demoCA/index.txt.attr 生成服务端私钥、服务端证书 。 执行如下命令，生成服务端私钥，执行命令时在提示框设定服务端私钥的密码，以下以<server_password>指代该密码，请妥善记住该密码： ./openssl genrsa -aes256 -out server.key 2048 执行如下命令，生成服务端证书请求文件，执行命令时在提示框输入服务端私钥的密码<server_password>： ./openssl req -config ./openssl.cnf -new -sigopt rsa_padding_mode:pss -key server.key -out server.req -subj '/C=CN/ST=Beijing/L=Beijing/O=huawei/OU=gauss/CN=server' 执行如下命令，通过根私钥、根证书颁发生成服务端证书，执行命令时在提示框输入根私钥的密码 <root_password>： ./openssl ca -config ./openssl.cnf -extensions server -batch -in server.req -out server.crt -subj '/C=CN/ST=Beijing/L=Beijing/O=huawei/OU=gauss/CN=server' 生成服务端证书时，请确认commonName字段（即上述 -subj 后字符串中的CN字段）设置为 server。 生成客户端私钥、客户端证书 。 执行如下命令，生成客户端私钥，执行命令时在提示框设定客户端私钥的密码，以下以<client_password>指代该密码，请妥善记住该密码： ./openssl genrsa -aes256 -out client.key 2048 执行如下命令，生成客户端证书请求文件，执行命令时在提示框输入客户端私钥的密码<client_password>： ./openssl req -config ./openssl.cnf -new -sigopt rsa_padding_mode:pss -key client.key -out client.req -subj '/C=CN/ST=Beijing/L=Beijing/O=huawei/OU=gauss/CN=client' 执行如下命令，通过根私钥、根证书颁发生成客户端证书，执行命令时在提示框输入根私钥的密码 <root_password>： ./openssl ca -config ./openssl.cnf -extensions client -batch -in client.req -out client.crt -subj '/C=CN/ST=Beijing/L=Beijing/O=huawei/OU=gauss/CN=client' 生成客户端证书时，请确认commonName字段（即上述 -subj 后字符串中的CN字段）设置为 client。 指定文件权限并清理无用文件 。 执行如下命令，指定证书文件权限为600，并删除证书请求文件： cp demoCA/cacert.pem ./\nchmod 600 cacert.pem client.crt client.key server.crt server.key && rm client.req server.req 执行完成上述操作后，在/home/myuser/data/sslcert文件夹下生成 表1 所述的5个文件，如下所示：",
+      "source_file": "6151_file_6151.txt"
+    }
+  ]
+}

@@ -1,0 +1,77 @@
+简单表达式 简单表达式 逻辑表达式 逻辑表达式的操作符和运算规则，请参见 逻辑操作符 。 比较表达式 常用的比较操作符，请参见 比较操作符 。 除比较操作符外，还可以使用以下句式结构： BETWEEN操作符 a  BETWEEN  x AND  y等效于a >= x AND a <= y a  NOT BETWEEN x  AND y等效于a < x OR a > y 检查一个值是不是null，可使用： expression IS NULL expression IS NOT NULL 或者与之等价的句式结构，但不是标准的： expression ISNULL expression  NOTNULL 不要写expression=NULL或expression<>(!=)NULL，因为NULL代表一个未知的值，不能通过该表达式判断两个未知值是否相等。 XML类型数据仅支持比较表达式 IS NULL、IS NOT NULL。 is distinct from/is not distinct from is distinct from A和B的数据类型、值不完全相同时为true。 A和B的数据类型、值完全相同时为false。 将空值视为相同。 is not distinct from A和B的数据类型、值不完全相同时为false。 A和B的数据类型、值完全相同时为true。 将空值视为相同。 <=> 安全等于操作符 在 '=' 比较的基础上增加NULL值的比较，在操作符左右值都不为NULL时与 '=' 结果相同。 A和B的数据类型、值不完全相同时为false。 A和B的数据类型、值完全相同时为true。 将空值视为相同。 <=>操作符与 is not distinct from 用法完全相同。 该操作符仅在数据库兼容MY类型时（即sql_compatibility = 'B'）有效，其他类型不支持该操作符。 示例 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27
+28
+29
+30
+31
+32
+33
+34
+35
+36
+37
+38
+39
+40
+41
+42
+43
+44
+45
+46
+47
+48
+49
+50
+51
+52
+53
+54
+55
+56
+57
+58
+59
+60
+61
+62
+63
+64
+65
+66
+67
+68
+69
+70
+71
+72
+73
+74
+75
+76
+77 gaussdb =# SELECT 2 BETWEEN 1 AND 3 AS RESULT ; result ---------- t ( 1 row ) gaussdb =# SELECT 2 >= 1 AND 2 <= 3 AS RESULT ; result ---------- t ( 1 row ) gaussdb =# SELECT 2 NOT BETWEEN 1 AND 3 AS RESULT ; result ---------- f ( 1 row ) gaussdb =# SELECT 2 < 1 OR 2 > 3 AS RESULT ; result ---------- f ( 1 row ) gaussdb =# SELECT 2 + 2 IS NULL AS RESULT ; result ---------- f ( 1 row ) gaussdb =# SELECT 2 + 2 IS NOT NULL AS RESULT ; result ---------- t ( 1 row ) gaussdb =# SELECT 2 + 2 ISNULL AS RESULT ; result ---------- f ( 1 row ) gaussdb =# SELECT 2 + 2 NOTNULL AS RESULT ; result ---------- t ( 1 row ) gaussdb =# SELECT 2 + 2 IS DISTINCT FROM NULL AS RESULT ; result ---------- t ( 1 row ) gaussdb =# SELECT 2 + 2 IS NOT DISTINCT FROM NULL AS RESULT ; result ---------- f ( 1 row ) gaussdb =# select 1 <=> 1 AS RESULT ; result -------- t ( 1 row ) gaussdb =# select NULL <=> 1 AS RESULT ; result -------- f ( 1 row ) gaussdb =# select NULL <=> NULL AS RESULT ; result -------- t ( 1 row ) 父主题： 表达式 版权所有 © 华为技术有限公司

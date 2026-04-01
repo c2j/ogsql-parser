@@ -1,0 +1,3 @@
+cts-sdk-run.log cts-sdk-run.log 日志含义 该日志来源于公共基础（common-service）服务向CloudTrace系统发送信息的任务运行时产生的日志输出，通过查看此日志，可以看到公共基础服务（common-service）与CloudTrace交互任务运行时的相关信息。 日志命名 日志文件名：cts-sdk-run.log.%i %i为日志轮转的数字。 日志格式 通配符形式 : [%d][%m]%n 模块名形式 : [time][logDetail] 日志参数 表1 日志参数 字段名称 字段含义 time [%d] 日志生成的时间，格式样例:Wed Oct 07 23:55:50 UTC 2020 logDetail [%m][%C{1.}.%M(%L)]%n 日志详情(包括日志信息,附加信息和换行符) 日志示例 日志的典型样例： 公共基础服务（common-service）服务日常运行日志如下: [Tue Jul 20 16:16:22 UTC 2021]send-trace-thread send trace success, projectId=056538411200d4cd2f79c003c7606412
+[Tue Jul 20 16:16:23 UTC 2021][1.1.7] cts-sdk send start
+[Tue Jul 20 16:16:24 UTC 2021]CloudTrace traceNotify start, traceName=NoSQLDeleteBackup, projectId=056538411200d4cd2f79c003c7606412 父主题： 公共基础服务日志 版权所有 © 华为技术有限公司

@@ -1,0 +1,1 @@
+PV_OS_RUN_INFO PV_OS_RUN_INFO PV_OS_RUN_INFO视图显示当前操作系统运行的状态信息。具体字段信息如 表1 所示。 表1 PV_OS_RUN_INFO字段 名称 类型 描述 id integer 编号。 name text 操作系统运行状态名称。 value numeric 操作系统运行状态值。 comments text 操作系统运行状态注释。 cumulative boolean 操作系统运行状态的值是否为累加值。 父主题： 其他系统视图 版权所有 © 华为技术有限公司

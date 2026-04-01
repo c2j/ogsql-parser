@@ -1,0 +1,1 @@
+【建议】考虑使用UNION ALL，少使用UNION，注意考虑去重 【建议】考虑使用UNION ALL，少使用UNION，注意考虑去重 UNION ALL不去重，少了排序操作，速度相对UNION更快。 如果没有去重的需求，优先使用UNION ALL。 父主题： SELECT 版权所有 © 华为技术有限公司

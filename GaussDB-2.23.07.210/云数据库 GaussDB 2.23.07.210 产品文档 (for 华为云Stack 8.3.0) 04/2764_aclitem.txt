@@ -1,0 +1,6 @@
+aclitem类型 aclitem类型 aclitem数据类型是用来存储对象权限信息的，它的内部实现是int类型，支持的格式为‘ user1 = privs / user2 ’。 aclitem[]数据类型为aclitem组成的数组，支持的格式为‘{ user1 = privs1 / user3 ， user2 = privs2 / user3 }’。 其中user1，user2和user3为数据库中已存在的用户/角色名，privs为数据库中支持的权限（参见 表2 ）。 示例： --新建一张数据表table_acl，有三个字段，类型分别为int、aclitem、aclitem[]。 gaussdb=# CREATE TABLE table_acl (id int,priv aclitem,privs aclitem[]); --向数据表table_acl插入一条内容为(1,'user1=arw/omm','{omm=d/user2,omm=w/omm}')的数据。 gaussdb=# INSERT INTO table_acl VALUES (1,'user1=arw/omm','{omm=d/user2,omm=w/omm}'); --向数据表table_acl再插入一条内容为(2,'user1=aw/omm','{omm=d/user2}')的数据。 gaussdb=# INSERT INTO table_acl VALUES (2,'user1=aw/omm','{omm=d/user2}'); gaussdb=# SELECT * FROM table_acl;
+ id |     priv      |          privs
+----+---------------+-------------------------
+  1 | user1=arw/omm | {omm=d/user2,omm=w/omm}
+  2 | user1=aw/omm  | {omm=d/user2}
+(2 rows) 父主题： 数据类型 版权所有 © 华为技术有限公司

@@ -1,0 +1,1 @@
+GS_DEPENDENCIES GS_DEPENDENCIES GS_DEPENDENCIES系统表记录对象的依赖项信息，和 13.2.15.4 GS_DEPENDENCIES_OBJ 表是一个一对多的关系。 表1 GS_DEPENDENCIES字段 名称 类型 描述 schemaname name 名称空间的名称。 packagename name package的名称。 refobjpos integer 被依赖体引用的位置。 1：类型。 2：包头。 4：函数头。 8：函数体。 16：包体。 32：视图。 refobjoid oid 被依赖体的oid。 objectname text 依赖体名称。 父主题： 其他系统表 版权所有 © 华为技术有限公司

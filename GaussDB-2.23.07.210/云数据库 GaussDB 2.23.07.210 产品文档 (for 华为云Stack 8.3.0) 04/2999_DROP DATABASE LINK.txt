@@ -1,0 +1,1 @@
+DROP DATABASE LINK DROP DATABASE LINK 功能描述 删除DATABASE LINK对象。 语法格式 DROP [ PUBLIC ] DATABASE LINK dblink; 参数说明 dblink 连接对象的名称。 PUBLIC 连接类型，不加public默认private。 示例 请参考CREATE DATABASE LINK的 8.12.8.17-示例 。 相关链接 ALTER DATABASE LINK ， CREATE DATABASE LINK 父主题： D 版权所有 © 华为技术有限公司

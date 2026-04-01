@@ -1,0 +1,1 @@
+PERF_QUERY PERF_QUERY 提供当前节点下采集到堆栈信息的名称、树状结构和百分比。需要有sysadmin权限或者monadmin权限。 表1 PERF_QUERY字段 名称 类型 描述 backtrace text 堆栈信息树状结构文本。 overhead float 当前堆栈信息在整个堆栈采集过程中所占时间百分比。 父主题： OS 版权所有 © 华为技术有限公司

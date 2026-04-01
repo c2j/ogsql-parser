@@ -1,0 +1,2 @@
+DBE_PLDEBUGGER.abort DBE_PLDEBUGGER.abort 令server端执行的存储过程报错跳出。返回值表示是否成功发送abort。 函数原型为： 1
+2 DBE_PLDEBUGGER . abort () RETURN boolean ; 表1 abort 返回值列表 名称 类型 描述 abort OUT boolean 表示成功或失败 父主题： DBE_PLDEBUGGER Schema 版权所有 © 华为技术有限公司

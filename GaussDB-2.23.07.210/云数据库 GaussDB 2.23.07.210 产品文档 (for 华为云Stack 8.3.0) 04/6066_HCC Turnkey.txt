@@ -1,0 +1,1 @@
+安装或检查HCC Turnkey 安装或检查HCC Turnkey 如果现场已经安装8.3.0版本的HCC Turnkey，直接使用该HCC Turnkey，请勿同时或重复安装多个HCC Turnkey。 如果现场未安装，请先参考中《华为云Stack 技术中台与AI数据中台服务软件安装指南》中“安装HCC Turnkey”执行安装操作。 父主题： 安装服务前准备 版权所有 © 华为技术有限公司

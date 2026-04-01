@@ -1,0 +1,46 @@
+{
+  "topic": "介绍",
+  "term_count": 8,
+  "terms": [
+    {
+      "term": "基本文本匹配",
+      "content": "基本文本匹配 基本文本匹配 GaussDB 的全文检索基于匹配算子@@，当一个tsvector(document)匹配到一个tsquery(query)时，则返回true。其中，tsvector(document)和tsquery(query)两种数据类型可以任意排序。 1\n2\n3\n4\n5 gaussdb =# SELECT 'a fat cat sat on a mat and ate a fat rat' :: tsvector @@ 'cat & rat' :: tsquery AS RESULT ; result ---------- t ( 1 row ) 1\n2\n3\n4\n5 gaussdb =# SELECT 'fat & cow' :: tsquery @@ 'a fat cat sat on a mat and ate a fat rat' :: tsvector AS RESULT ; result ---------- f ( 1 row ) 正如上面例子表明，tsquery不仅是文本，且比tsvector包含的要多。tsquery包含已经标注化为词条的搜索词，同时可能是使用AND、OR、或NOT操作符连接的多个术语。详细请参见 文本搜索类型 。函数to_tsquery和plainto_tsquery对于将用户书写文本转换成适合的tsquery是非常有用的，比如将文本中的词标准化。类似地，to_tsvector用于解析和标准化文档字符串。因此，实际中文本搜索匹配看起来更像这样： 1\n2\n3\n4\n5 gaussdb =# SELECT to_tsvector ( 'fat cats ate fat rats' ) @@ to_tsquery ( 'fat & rat' ) AS RESULT ; result ---------- t ( 1 row ) 需要注意的是，下面这种方式是不可行的： 1\n2\n3\n4\n5 gaussdb =# SELECT 'fat cats ate fat rats' :: tsvector @@ to_tsquery ( 'fat & rat' ) AS RESULT ; result ---------- f ( 1 row ) 由于tsvector没有对rats进行标准化，所以rats不匹配rat。 @@操作符也支持text输入，允许一个文本字符串的显示转换为tsvector或者在简单情况下忽略tsquery。可用形式是： 1\n2\n3\n4 tsvector @@ tsquery tsquery @@ tsvector text @@ tsquery text @@ text 已经看到了前面两种，形式text @@ tsquery等价于to_tsvector(text) @@ tsquery，而text @@ text等价于to_tsvector(text) @@ plainto_tsquery(text)。",
+      "source_file": "1148_file_1148.txt"
+    },
+    {
+      "term": "文档概念",
+      "content": "文档概念 文档概念 文档是全文搜索系统的搜索单元，例如：杂志上的一篇文章或电子邮件消息。文本搜索引擎必须能够解析文档，而且可以存储父文档的关联词素（关键词）。后续，这些关联词素用来搜索包含查询词的文档。 在 GaussDB 中，文档通常是一个数据库表中一行的文本字段，或者这些字段的可能组合（级联）。文档可能存储在多个表中或者需动态获取。换句话说，一个文档由被索引化的不同部分构成，因此无法存储为一个整体。比如： 1\n 2\n 3\n 4\n 5\n 6\n 7\n 8\n 9\n10\n11 gaussdb =# SELECT d_dow || '-' || d_dom || '-' || d_fy_week_seq AS identify_serials FROM tpcds . date_dim WHERE d_fy_week_seq = 1 ; identify_serials ------------------ 5 - 6 - 1 0 - 8 - 1 2 - 3 - 1 3 - 4 - 1 4 - 5 - 1 1 - 2 - 1 6 - 7 - 1 ( 7 rows ) 实际上，在这些示例查询中，应该使用coalesce防止一个独立的NULL属性导致整个文档的NULL结果。 另外一种可能是：文档在文件系统中作为简单的文本文件存储。在这种情况下，数据库可以用于存储全文索引并且执行搜索，同时可以使用一些唯一标识从文件系统中检索文档。然而，从数据库外部检索文件需要拥有系统管理员权限或者特殊函数支持。因此，还是将所有数据保存在数据库中比较方便。同时，将所有数据保存在数据库中可以方便地访问文档元数据以便于索引和显示。 为了实现文本搜索目的，必须将每个文档减少至预处理后的tsvector格式。搜索和相关性排序都是在tsvector形式的文档上执行的。原始文档只有在被选中要呈现给用户时才会被检索。因此，通常将tsvector说成文档，但是很显然其实它只是完整文档的一种紧凑表示。",
+      "source_file": "2845_file_2845.txt"
+    },
+    {
+      "term": "基本文本匹配",
+      "content": "基本文本匹配 基本文本匹配 GaussDB 的全文检索基于匹配算子@@，当一个tsvector(document)匹配到一个tsquery(query)时，则返回true。其中，tsvector(document)和tsquery(query)两种数据类型可以任意排序。 1\n2\n3\n4\n5 gaussdb =# SELECT 'a fat cat sat on a mat and ate a fat rat' :: tsvector @@ 'cat & rat' :: tsquery AS RESULT ; result ---------- t ( 1 row ) 1\n2\n3\n4\n5 gaussdb =# SELECT 'fat & cow' :: tsquery @@ 'a fat cat sat on a mat and ate a fat rat' :: tsvector AS RESULT ; result ---------- f ( 1 row ) 正如上面例子表明，tsquery不仅是文本，且比tsvector包含的要多。tsquery包含已经标注化为词条的搜索词，同时可能是使用AND、OR、或NOT操作符连接的多个术语。详细请参见 文本搜索类型 。函数to_tsquery和plainto_tsquery对于将用户书写文本转换成适合的tsquery是非常有用的，比如将文本中的词标准化。类似地，to_tsvector用于解析和标准化文档字符串。因此，实际中文本搜索匹配看起来更像这样： 1\n2\n3\n4\n5 gaussdb =# SELECT to_tsvector ( 'fat cats ate fat rats' ) @@ to_tsquery ( 'fat & rat' ) AS RESULT ; result ---------- t ( 1 row ) 需要注意的是，下面这种方式是不可行的： 1\n2\n3\n4\n5 gaussdb =# SELECT 'fat cats ate fat rats' :: tsvector @@ to_tsquery ( 'fat & rat' ) AS RESULT ; result ---------- f ( 1 row ) 由于tsvector没有对rats进行标准化，所以rats不匹配rat。 @@操作符也支持text输入，允许一个文本字符串的显示转换为tsvector或者在简单情况下忽略tsquery。可用形式是： 1\n2\n3\n4 tsvector @@ tsquery tsquery @@ tsvector text @@ tsquery text @@ text 已经看到了前面两种，形式text @@ tsquery等价于to_tsvector(text) @@ tsquery，而text @@ text等价于to_tsvector(text) @@ plainto_tsquery(text)。",
+      "source_file": "2846_file_2846.txt"
+    },
+    {
+      "term": "文档概念",
+      "content": "文档概念 文档概念 文档是全文搜索系统的搜索单元，例如：杂志上的一篇文章或电子邮件消息。文本搜索引擎必须能够解析文档，而且可以存储父文档的关联词素（关键词）。后续，这些关联词素用来搜索包含查询词的文档。 在 GaussDB 中，文档通常是一个数据库表中一行的文本字段，或者这些字段的可能组合（级联）。文档可能存储在多个表中或者需动态获取。换句话说，一个文档由被索引化的不同部分构成，因此无法存储为一个整体。比如： 1\n 2\n 3\n 4\n 5\n 6\n 7\n 8\n 9\n10\n11 gaussdb =# SELECT d_dow || '-' || d_dom || '-' || d_fy_week_seq AS identify_serials FROM tpcds . date_dim WHERE d_fy_week_seq = 1 ; identify_serials ------------------ 5 - 6 - 1 0 - 8 - 1 2 - 3 - 1 3 - 4 - 1 4 - 5 - 1 1 - 2 - 1 6 - 7 - 1 ( 7 rows ) 实际上，在这些示例查询中，应该使用coalesce防止一个独立的NULL属性导致整个文档的NULL结果。 另外一种可能是：文档在文件系统中作为简单的文本文件存储。在这种情况下，数据库可以用于存储全文索引并且执行搜索，同时可以使用一些唯一标识从文件系统中检索文档。然而，从数据库外部检索文件需要拥有系统管理员权限或者特殊函数支持。因此，还是将所有数据保存在数据库中比较方便。同时，将所有数据保存在数据库中可以方便地访问文档元数据以便于索引和显示。 为了实现文本搜索目的，必须将每个文档减少至预处理后的tsvector格式。搜索和相关性排序都是在tsvector形式的文档上执行的。原始文档只有在被选中要呈现给用户时才会被检索。因此，通常将tsvector说成文档，但是很显然其实它只是完整文档的一种紧凑表示。",
+      "source_file": "1147_file_1147.txt"
+    },
+    {
+      "term": "全文检索概述",
+      "content": "全文检索概述 全文检索概述 文本搜索操作符在数据库中已存在多年。 GaussDB 为文本数据类型提供~、~*、LIKE和ILIKE操作符；但它们缺乏现代信息系统所要求的许多必要属性。这些缺憾可以通过使用索引及词典进行解决。 文本检索缺乏信息系统所要求的必要属性： 没有语义支持，即使是英语。 由于要识别派生词并不是那么容易，因此正则表达式也不能满足要求。如，satisfies和satisfy，当使用正则表达式寻找satisfy时，并不会查询到包含satisfies的文档。用户可以使用OR搜索多种派生形式，但过程非常繁琐。并且有些词会有上千的派生词，因此容易出错。 没有对搜索结果的分类（排序）。当搜索出成千的文档时，查找效率很低。 由于没有索引的支持，每一次的搜索需要遍历所有的文档，整体搜索比较缓慢。 使用全文索引可以对文档进行预处理，并且可以使后续的搜索更快速。预处理过程包括： 将文档解析成token。 为每个文档标记不同类别的token是非常有必要的，例如：数字、文字、复合词、电子邮件地址，这样就可以做不同的处理。原则上token的类别依赖于具体的应用，但对于大多数的应用来说，可以使用一组预定义的token类。 将token转换为词素。 词素像token一样是一个字符串，但它已经标准化处理，这样同一个词的不同形式是一样的。例如，标准化通常包括：将大写字母折成小写字母、删除后缀（如英语中的s或者es）。这将允许通过搜索找到同一个词的不同形式，不需要繁琐地输入所有可能的变形样式。同时，这一步通常会删除停用词。这些停用词通常因为太常见而对搜索无用。（总之，token是文档文本的原片段，而词素被认为是有用的索引和搜索词。） GaussDB 使用词典执行这一步，且提供了各种标准的词典。 保存搜索优化后的预处理文档。 比如，每个文档可以呈现为标准化词素的有序组合。伴随词素，通常还需要存储词素位置信息以用于邻近排序。因此文档包含的查询词越密集其排序越高。 词典能够对token如何标准化做到细粒度控制。使用合适的词典，可以定义不被索引的停用词。 数据类型tsvector用于存储预处理文档，tsquery用于存储查询条件，详细请参见 文本搜索类型 。为这些数据类型提供的函数和操作符请参见 文本检索函数和操作符 。其中最重要的是匹配运算符@@，将在 基本文本匹配 中介绍。",
+      "source_file": "1146_file_1146.txt"
+    },
+    {
+      "term": "分词器",
+      "content": "分词器 分词器 全文检索功能还可以做更多事情：忽略索引某个词（停用词），处理同义词和使用复杂解析，例如：不仅基于空格的解析。这些功能通过文本搜索分词器控制。 GaussDB 支持多语言的预定义的分词器，并且可以创建分词器（gsql的\\dF命令显示了所有可用分词器）。 在安装期间选择一个合适的分词器，并且在postgresql.conf中相应的设置default_text_search_config。如果为了整个数据库使用同一个文本搜索分词器可以使用postgresql.conf中的值。如果需要在数据库中使用不同分词器，可以使用ALTER DATABASE ... SET在任一数据库进行配置。用户也可以在每个会话中设置default_text_search_config。 每个依赖于分词器的文本搜索函数有一个可选的配置参数，用以明确声明所使用的分词器。仅当忽略这个参数的时候，才使用default_text_search_config。 为了更方便的建立自定义文本搜索分词器，可以通过简单的数据库对象建立分词器。 GaussDB 文本搜索功能提供了四种类型与分词器相关的数据库对象： 文本搜索解析器将文档分解为token，并且分类每个token（例如：词和数字）。 文本搜索词典将token转换成规范格式并且丢弃停用词。 文本搜索模板提供潜在的词典功能：一个词典指定一个模板，并且为模板设置参数。 文本搜索分词器选择一个解析器，并且使用一系列词典规范化语法分析器产生的token。",
+      "source_file": "2847_file_2847.txt"
+    },
+    {
+      "term": "分词器",
+      "content": "分词器 分词器 全文检索功能还可以做更多事情：忽略索引某个词（停用词），处理同义词和使用复杂解析，例如：不仅基于空格的解析。这些功能通过文本搜索分词器控制。 GaussDB 支持多语言的预定义的分词器，并且可以创建分词器（gsql的\\dF命令显示了所有可用分词器）。 在安装期间选择一个合适的分词器，并且在postgresql.conf中相应的设置default_text_search_config。如果为了 整个集群 使用同一个文本搜索分词器可以使用postgresql.conf中的值。如果需要在 集群 中使用不同分词器，可以使用ALTER DATABASE ... SET在任一数据库进行配置。用户也可以在每个会话中设置default_text_search_config。 每个依赖于分词器的文本搜索函数有一个可选的配置参数，用以明确声明所使用的分词器。仅当忽略这个参数的时候，才使用default_text_search_config。 为了更方便的建立自定义文本搜索分词器，可以通过简单的数据库对象建立分词器。 GaussDB 文本搜索功能提供了四种类型与分词器相关的数据库对象： 文本搜索解析器将文档分解为token，并且分类每个token（例如：词和数字）。 文本搜索词典将token转换成规范格式并且丢弃停用词。 文本搜索模板提供潜在的词典功能：一个词典指定一个模板，并且为模板设置参数。 文本搜索分词器选择一个解析器，并且使用一系列词典规范化语法分析器产生的token。",
+      "source_file": "1149_file_1149.txt"
+    },
+    {
+      "term": "全文检索概述",
+      "content": "全文检索概述 全文检索概述 文本搜索操作符在数据库中已存在多年。 GaussDB 为文本数据类型提供~、~*、LIKE和ILIKE操作符；但它们缺乏现代信息系统所要求的许多必要属性。这些缺憾可以通过使用索引及词典进行解决。 文本检索缺乏信息系统所要求的必要属性： 没有语义支持，即使是英语。 由于要识别派生词并不是那么容易，因此正则表达式也不能满足要求。如，satisfies和satisfy，当使用正则表达式寻找satisfy时，并不会查询到包含satisfies的文档。用户可以使用OR搜索多种派生形式，但过程非常繁琐。并且有些词会有上千的派生词，因此容易出错。 没有对搜索结果的分类（排序）。当搜索出成千的文档时，查找效率很低。 由于没有索引的支持，每一次的搜索需要遍历所有的文档，整体搜索比较缓慢。 使用全文索引可以对文档进行预处理，并且可以使后续的搜索更快速。预处理过程包括： 将文档解析成token。 为每个文档标记不同类别的token是非常有必要的，例如：数字、文字、复合词、电子邮件地址，这样就可以做不同的处理。原则上token的类别依赖于具体的应用，但对于大多数的应用来说，可以使用一组预定义的token类。 将token转换为词素。 词素像token一样是一个字符串，但它已经标准化处理，这样同一个词的不同形式是一样的。例如，标准化通常包括：将大写字母折成小写字母、删除后缀（如英语中的s或者es）。这将允许通过搜索找到同一个词的不同形式，不需要繁琐地输入所有可能的变形样式。同时，这一步通常会删除停用词。这些停用词通常因为太常见而对搜索无用。（总之，token是文档文本的原片段，而词素被认为是有用的索引和搜索词。） GaussDB 使用词典执行这一步，且提供了各种标准的词典。 保存搜索优化后的预处理文档。 比如，每个文档可以呈现为标准化词素的有序组合。伴随词素，通常还需要存储词素位置信息以用于邻近排序。因此文档包含的查询词越密集其排序越高。 词典能够对token如何标准化做到细粒度控制。使用合适的词典，可以定义不被索引的停用词。 数据类型tsvector用于存储预处理文档，tsquery用于存储查询条件，详细请参见 文本搜索类型 。为这些数据类型提供的函数和操作符请参见 文本检索函数和操作符 。其中最重要的是匹配运算符@@，将在 基本文本匹配 中介绍。",
+      "source_file": "2844_file_2844.txt"
+    }
+  ]
+}

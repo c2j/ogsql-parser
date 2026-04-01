@@ -1,0 +1,1 @@
+回滚段管理 回滚段管理 每个undo zone除了管理部分transaction page（用于存储事务回滚的元数据）外，还管理undo page。 Undo页面中存储undo row，对数据的修改会将历史版本记录到Undo中。 Undo记录也是数据，因此对Undo页面的修改同样会记录Redo。 父主题： Undo 版权所有 © 华为技术有限公司

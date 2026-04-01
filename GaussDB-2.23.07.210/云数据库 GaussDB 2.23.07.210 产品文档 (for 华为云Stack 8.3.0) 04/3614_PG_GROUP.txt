@@ -1,0 +1,1 @@
+PG_GROUP PG_GROUP PG_GROUP视图可用来查看数据库认证角色和组之间的成员关系。 表1 PG_GROUP字段 名称 类型 描述 groname name 组的名称。 grosysid oid 组的ID。 grolist oid[] 包含该组里面所有角色的ID的数组。 父主题： 其他系统视图 版权所有 © 华为技术有限公司

@@ -1,0 +1,26 @@
+{
+  "topic": "GaussRoach.py",
+  "term_count": 4,
+  "terms": [
+    {
+      "term": "命令行参考",
+      "content": "命令行参考 命令行参考 注意事项 备份命令 停止备份命令 备份删除命令 恢复命令 genstack命令 启动命令 清除命令 配置命令 归档命令 版本命令 帮助命令 日志找回命令 Roach操作参数",
+      "source_file": "5787_file_5787.txt"
+    },
+    {
+      "term": "Roach简介",
+      "content": "Roach简介 Roach简介 GaussRoach.py工具是 GaussDB 提供的用于备份和恢复的实用工具。可对整个数据库中的数据、WAL归档日志和运行日志进行备份。 GaussRoach.py工具是一款数据库高可用性以及容灾恢复策略的备份管理工具。使用该工具可以备份恢复数据库；不仅可以备份到物理磁盘，也可以备份到OBS、NAS和REMOTE。数据库级备份包含数据库静态配置文件（cluster_static_config）、数据库动态配置文件（cluster_dynamic_config）、数据节点DN（Datanode）及其备实例。",
+      "source_file": "5900_Roach.txt"
+    },
+    {
+      "term": "Roach简介",
+      "content": "Roach简介 Roach简介 GaussRoach.py工具是 GaussDB 提供的用于备份和恢复的实用工具。可对整个数据库中的数据、WAL归档日志和运行日志进行备份。 GaussRoach.py工具是一款数据库高可用性以及容灾恢复策略的备份管理工具。使用该工具不仅可以备份恢复集群，也可以备份恢复单表；不仅可以备份到物理磁盘，也可以备份到OBS和NAS；不仅可以从集群级备份中恢复集群，也可以从集群级备份中恢复数据库/表。集群级备份包含集群静态配置文件（cluster_static_config）、集群动态配置文件（cluster_dynamic_config）、全局事务管理器GTM（Global Transaction Management）、协调节点CN（Coordinator Node）、数据节点DN（Datanode）及其备实例。",
+      "source_file": "5786_Roach.txt"
+    },
+    {
+      "term": "命令行参考",
+      "content": "命令行参考 命令行参考 注意事项 备份命令 停止备份命令 备份删除命令 恢复命令 genstack命令 启动命令 清除命令 配置命令 归档命令 快照恢复命令 版本命令 帮助命令 日志找回命令 Roach操作参数",
+      "source_file": "5901_file_5901.txt"
+    }
+  ]
+}

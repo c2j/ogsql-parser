@@ -1,0 +1,10 @@
+创建数据库SCHEMA 创建数据库SCHEMA 功能介绍 在指定实例的数据库中, 创建数据库schema。 调用接口前，您需要提前 获取终端节点 ，即下文中的Endpoint值。 约束限制 实例在创建、变更规格、冻结、异常等状态下不能执行该操作。 URI URI格式 POST https://{ Endpoint }/gaussdb/v3/{project_id}/instances/{instance_id}/schema URI样例 https://gaussdb.sa-fb-2.hcsglobal.com/gaussdb/v3/0483b6b16e954cb88930a360d2c4e663/instances/{instance_id}/schema 参数说明 表1 参数说明 名称 是否必选 说明 project_id 是 租户在某一region下的project ID。 获取方法请参见 获取项目ID/名称 。 instance_id 是 实例ID。 请求消息 参数说明 表2 参数说明 名称 是否必选 参数类型 说明 db_name 是 String 数据库名称。 数据库名称在1到63个字符之间，由字母、数字、或下划线组成，不能包含其他特殊字符，不能以“pg”和数字开头，且不能和模板库重名。 模板库包括postgres， template0 ，template1。 schemas 是 Array of objects 每个元素都是与数据库相关联的schema信息。单次请求最多支持20个元素。详情请参见 表3 表3 schemas字段数据结构说明 名称 是否必选 参数类型 说明 name 是 String schema名称。 schema名称在1到63个字符之间，由字母、数字、或下划线组成，不能包含其他特殊字符，不能以“pg”和数字开头，且不能和模板库和已存在的schema重名。模板库包括postgres， template0 ，template1。 已存在的schema包括public，information_schema。 owner 是 String 数据库属主用户。 数据库属主名称在1到63个字符之间，不能以“pg”和数字开头，不能和系统用户名称相同。 系统用户包括“rdsAdmin”,“ rdsMetric”, “rdsBackup”, “rdsRepl”。 请求示例 在gaussdb_test数据库中创建多个SCHEMA。 { 
+   "db_name" : "gaussdb_test", 
+   "schemas" : [ { 
+     "name" : "rds", 
+     "owner" : "teste123" 
+   }, { 
+     "name" : "rds001", 
+     "owner" : "teste123" 
+   } ] 
+ } 响应消息 正常响应样例 无。 异常响应 请参见 异常请求结果 。 状态码 正常 200 异常 请参见 状态码 。 错误码 请参见 错误码 。 父主题： 管理数据库和用户 版权所有 © 华为技术有限公司

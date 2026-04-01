@@ -1,0 +1,16 @@
+创建手动备份 创建手动备份 功能介绍 创建手动备份。 调用接口前，您需要提前 获取终端节点 ，即下文中的Endpoint值。 URI URI格式 POST https://{ Endpoint }/opengauss/v3/{project_id}/backups URI样例 https://gaussdb.sa-fb-2.hcsglobal.com/opengauss/v3/054ea741f700d4a32f1bc00f5c80dd4c/backups 参数说明 表1 参数说明 参数 是否必选 参数类型 描述 project_id 是 String 租户在某一region下的project ID。 获取方法请参见 获取项目ID/名称 。 请求消息 参数说明 表2 参数说明 参数 是否必选 参数类型 描述 instance_id 是 String 实例ID。 name 是 String 备份名称，4~64个字符，必须以英文字母开头，区分大小写，可以包含英文字母、数字、中划线或者下划线，不能包含其他特殊字符。 最小长度： 4 最大长度： 64 description 否 String 备份描述，不能包含>!<"&'=特殊字符，不大于256个字符。 最大长度： 256 backup_type 否 String 创建备份的类型，缺省值为"completed" 。 取值： completed: 全备。 differential: 增备。 请求样例 创建手动备份 {
+  "instance_id" : "7e01ac5ac5274957ba506f3851d11d51in14",
+  "name" : "backupwqwq3",
+  "description" : "manual backup"
+} 响应消息 正常响应要素说明 表3 响应Body参数 参数 参数类型 描述 backup Object 备份信息。 详情请参见 表4 job_id String 任务ID。 表4 backup字段数据结构说明 参数 参数类型 描述 id String 备份ID。 name String 备份名称。 description String 备份描述。 begin_time String 备份开始时间，格式为“yyyy-mm-ddThh:mm:ssZ”。 其中，T指某个时间的开始；Z指时区偏移量。 status String 备份状态，取值： BUILDING：备份中。 COMPLETED：备份完成。 FAILED：备份失败。 DELETING：备份删除中。 type String 备份类型，“manual”表示手动全量备份 instance_id String 实例ID。 正常响应样例 {
+    "backup": {
+        "id": "e76112bfb2074871bf54cb8df5af7f64br14",
+        "name": "backupwqwq32",
+        "description": "mannual backup",
+        "status": "BUILDING",
+        "type": "manual",
+        "begin_time": "2022-05-09T18:02:31+0800",
+        "instance_id": "fd26e3bf26e5467587eec857e4f66ef0in14"
+    },
+    "job_id": "e4733090-b2c8-4ea7-a33a-f55f65723fb3"
+} 异常响应 请参见 异常请求结果 。 状态码 正常 202 异常 请参见 状态码 。 错误码 请参见 错误码 。 父主题： 备份管理 版权所有 © 华为技术有限公司

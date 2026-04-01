@@ -1,0 +1,1 @@
+PG_RLSPOLICY PG_RLSPOLICY PG_RLSPOLICY系统表存储行级访问控制策略。 表1 PG_RLSPOLICY字段 名称 类型 描述 oid oid 行标识符（隐含属性，必须明确选择）。 polname name 行级访问控制策略的名称。 polrelid oid 行级访问控制策略作用的表对象oid。 polcmd "char" 行级访问控制策略影响的SQL操作。 polpermissive boolean 行级访问控制策略的属性，t为表达式OR条件拼接，f为表达式AND条件拼接。 polroles oid[] 行级访问控制策略影响的用户oid列表，不指定表示影响所有的用户。 polqual pg_node_tree 行级访问控制策略的表达式。 父主题： 用户和权限管理 版权所有 © 华为技术有限公司

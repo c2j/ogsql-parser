@@ -1,0 +1,139 @@
+段页式存储函数 段页式存储函数 段页式存储函数相关字段取值说明： forknum：数据文件分支。 取值范围：【0：mainfork；1：fsmfork； 2：vm fork】。 file id：数据文件编号。 取值范围: 【1：元数据文件；2~ 5：数据文件】。 blocks：扩展大小。 取值范围：【1：1号文件；8：2号文件；128：3号文件；1024：4号文件；4096：5号文件】。 file_block_id/head_block_id/block_id：物理页面在数据文件中的偏移页面号，以及其他含义为页面号的字段皆为此意。 取值范围：【0~4294967294 】。 page_ type: 页面类型。 取值范围： 元页面：file head/file_header：文件头；spc head/spc_header：空间头；map head/map_header：映射头；map page/map_pages：映射页面；reverse pointer page/inverse pointer page/ip pages/：反向指针页面；segment head page/segment head：段头页面；level1 page：level1页面；data_pages/data extent：数据页面；fork head：分支头。 数据页面：heap、uheap、btree、ubtree。 未知页面：unknown(data extent)：全零段页式页面，无法判断页面类型；unknown(fsm indexurq)：fsm或indexurq 页面。 contents: 数据文件的存储内容。 取值范围：【permanent：永久；unlogged：不记录日志；temporary：临时】。 local_space_shrink(tablespacename TEXT, databasename TEXT) 描述：当前节点上对指定段页式空间做物理空间收缩。注意，目前只支持对当前连接的database做shrink。 返回值：空 gs_space_shrink(tablespace int4, database int4, extent_type int4, forknum int4) 描述：效果跟local_space_shrink类似，对指定段页式空间做物理空间收缩,但参数不同，传入的是tablespace和database的oid，extent_type为[2,5]的int值。注意：extent_type为 1表示段页式元数据，目前不支持对元数据所在的物理文件做收缩。该函数仅限工具使用，不建议用户直接使用。 返回值：空 gs_stat_remain_segment_info() 描述：在主机上执行，展示在当前节点上，因为故障等原因而残留的extent。默认只有初始用户、具有sysadmin属性的用户以及在运维模式下具有运维管理员属性的用户可以查看，其余用户需要赋权后才可以使用。只支持在主机上执行。残留extent主要分为两类：分配而未被利用的segment和分配出去而未被利用的extent。两者主要区别在于segment会包含多个extent，回收时，要将segment上的extent一并全部回收。 返回值类型： 名称 描述 node_name 节点名称。 space_id 表空间ID。 db_id 数据库ID。 block_id Extent的ID。 type Extent的类型，当前有三种：ALLOC_SEGMENT|DROP_SEGMENT|SHRINK_EXTENT。 其中type的三种类型分别表示： ALLOC_SEGMENT:用户创建一张段页式表，当segment刚被分配，但是建表语句所在事务仍未提交时，节点故障，导致该segment被分配后，没有被使用。 DROP_SEGMENT:用户删除段页式表，当该事务成功提交，但是此表的segment页面对应的bit位未被重置，就发生掉电等故障，造成该segment未被使用，也未被释放。 SHRINK_EXTENT:用户对段页式表执行shrink操作，在未对空置出的extent进行释放时，发生掉电等故障，造成该extent残留，无法被重新利用。 例如： select * from gs_stat_remain_segment_info();
+
+    node_name   | space_id | db_id | block_id |     type      
+----------------+----------+-------+----------+---------------
+     dn_6001    |    16804 | 16803 |     4157 | ALLOC_SEGMENT
+(1 row) gs_free_remain_segment() 描述：在主机上执行，清理通过函数pg_stat_remain_segment_info查询出的当前库的残留。默认只有初始用户、具有sysadmin属性的用户以及在运维模式下具有运维管理员属性的用户可以执行，其余用户需要赋权后才可以使用。只支持在主机上执行。 返回值：bool gs_local_stat_remain_segment_info() 描述：在主机上执行，显示当前节点的段页式残留信息。用户权限、返回值请参考gs_stat_remain_segment_info。 gs_local_free_remain_segment() 描述：在主机上执行，清理当前节点当前库的段页式残留。用户权限、返回值请参考gs_free_remain_segment。 gs_seg_dump_page(tablespace_name name, file_id int4, bucketnode int4, file_block_id bigint, forknum int4  default 0) 描述：在DN上执行，解析段页式的指定页面并返回解析内容。只有具有sysadmin属性的用户以及在运维模式下具有运维管理员属性的用户可以执行。该函数为物理页面解析方式，每次返回一个页面的解析结果（返回的结果中不会包含实际的用户数据信息）。 本函数不要求用户输入页面类型，在实现时，先尝试确定页面类型；如果不能确定，则输出可能的解析结果。 参数说明： 名称 类型 描述 table_space_name NAME 段对象所属的表空间。取值范围：合法存在的表空间name。 file_id INTEGER 数据文件标识。取值范围：【1, 5】的int4值。 bucketnode INTEGER 0~1023表示hashbucket表的bucketnode。 1024表示段页式普通表的bucketnode。 1025表示段页式全局临时表的bucketnode。 1026表示段页式unlogged表的bucketnode。 file_block_id BIGINT 物理页面在数据文件中的偏移页面号。取值范围：【0~4294967294】。 forknum INTEGER DEFAULT  0 数据文件fork号，默认为0。 取值范围： 0：main fork。 1：fsm fork。 2：vm fork。 返回值类型： 名称 类型 描述 page_type TEXT 页面类型。取值范围： 业务页面：heap、uheap、btree、ubtree。 段页式元页面：bucket main head、file head、spc head、map head、map page、reverse pointer page、segment head page、level1 page。 未知页面: unknown(data extent)：全零段页式页面，无法判断页面类型。 unknown(fsm indexurq)：fsm或indexurq页面。 result TEXT 解析结果。 例如： gaussdb=# select * from gs_seg_dump_page('pg_default', 1, 1024, 4157);
+     page_type     |                                   result                                    
+-------------------+-----------------------------------------------------------------------------
+ segment head page | Page information of block 4157/4157                                        +
+                   |         pd_lsn: 0/2C90608 ,len 8 ,offset 0                                 +
+                   |                                                                            +
+                   |         pd_checksum: 0x8A7F, verify success,len 2, offset 8                +
+                   |         pd_flags:                                                          +
+                   |         pd_lower: 24, empty, len 2, offset 12                              +
+                   |         pd_upper: 8192, old, len 2, offset 14                              +
+                   |         pd_special: 8192, size 0, len 2, offset 16                         +
+                   |         Page size & version: 8192, 8, len 2, offset 18                     +
+                   |         pd_xid_base: 0, len 8, offset 24 pd_multi_base: 0, len 8, offset 32+
+                   |         pd_prune_xid: 0, len 4 ,offset 20                                  +
+                   |                                                                            +
+                   |         Segment head information on this page                              +
+                   |                 magic: 44414548544E454D                                    +
+                   |                 lsn is: 0/2C90540                                          +
+                   |                 nblocks: 0                                                 +
+                   |                 total_blocks: 8                                            +
+                   |                 reserved: 0                                                +
+                   |                 Level 0 slots information on this page                     +
+                   |                         The BlockNumber of level0 slots 0 is: 4157         +
+                   |                 fork head information on this page                         +
+                   |                         4157(valid)                                        +
+                   |                         4294967295(invalid)                                +
+                   |                         4294967295(invalid)
+(1 row) gs_seg_dump_page(relid oid, bucketnode int, block_id bigint, partition bool default false, forknum int4 default 0) 描述：在DN上执行，解析段页式的指定页面并返回解析内容。只有具有sysadmin属性的用户以及在运维模式下具有运维管理员属性的用户可以执行。该函数为逻辑页面解析方式，每次返回一个页面的解析结果（返回的结果中不会包含实际的用户数据信息）。本函数不要求用户输入页面类型，在实现时，先尝试确定页面类型；如果不能确定，则输出可能的解析结果。 参数说明： 名称 类型 描述 relid OID 段对象标识。取值范围：合法存在的段页式对象oid，否则报错。 bucketnode INTEGER 0~1023表示hashbucket表的bucketnode。 1024表示段页式普通表的bucketnode。 1025表示段页式全局临时表的bucketnode。 1026表示段页式unlogged表的bucketnode。 block_id BIGINT 逻辑页面号。取值范围：【0~4294967294】。 partition BOOLEAN DEFAULT FALSE 段对象是否为分区，默认为false。取值范围：bool，代表所传入的oid对应的对象是否为分区。 forknum INTEGER DEFAULT  0 数据文件fork号，默认为0。 取值范围： 0：main fork。 1：fsm fork。 2：vm fork。 返回值说明： 名称 类型 描述 page_type TEXT 页面类型。取值范围： 业务页面：heap、uheap、btree、ubtree。 段页式元页面：bucket main head、file head、spc head、map head、map page、reverse pointer page、segment head page、level1 page。 未知页面： unknown(data extent)：全零段页式页面，无法判断页面类型。 unknown(fsm indexurq)：fsm或indexurq页面。 result TEXT 解析结果。 例如： gaussdb=# select * from gs_seg_dump_page(16788, 1024, 0);
+ page_type |                                                         result
+-----------+-------------------------------------------------------------------------------------------------------------------------
+ heap      | Page information of block 6021/6021                                                                                    +
+           |         pd_lsn: 0/4463418 ,len 8 ,offset 0                                                                             +
+           |                                                                                                                        +
+           |         pd_checksum: 0xD4CD, verify success,len 2, offset 8                                                            +
+           |         pd_flags:                                                                                                      +
+           |         pd_lower: 44, non-empty, len 2, offset 12                                                                      +
+           |         pd_upper: 8160, old, len 2, offset 14                                                                          +
+           |         pd_special: 8192, size 0, len 2, offset 16                                                                     +
+           |         Page size & version: 8192, 6, len 2, offset 18                                                                 +
+           |         pd_xid_base: 17049, len 8, offset 24 pd_multi_base: 0, len 8, offset 32                                        +
+           |         pd_prune_xid: 17049, len 4 ,offset 20                                                                          +
+           |                                                                                                                        +
+           |         Heap tuple information on this page                                                                            +
+           |                                                                                                                        +
+           |                 Tuple #1 is normal: length 28, offset 8160                                                             +
+           |                         (uint64)xmin/xmax/t_cid: 17052/0/0                                                             +
+           |                         (uint32)t_xmin/t_xmax: 3/3(check ilm flag to indicate whether t_xmin/t_xmax is xid or ilm time)+
+           |                         ctid:(block 0/0, offset 1)                                                                     +
+           |                         t_infomask: HEAP_XMAX_INVALID HEAP_HAS_NO_UID                                                  +
+           |                         t_infomask2: Attrs Num: 1                                                                      +
+           |                         t_hoff: 24                                                                                     +
+           |                         t_bits: NNNNNNNN                                                                               +
+           |         Summary (1 total):  1 normal, 0 unused, 0 dead                                                                 +
+           |                                                                                                                        +
+           | Normal Heap Page, special space is 0                                                                                   +
+           |                                                                                                                        +
+           |
+(1 row) gs_seg_get_spc_location(tablespace_name NAME, bucketnode INTEGER, head_block_id BIGINT, block_id BIGINT) 描述：给定段和逻辑页面号，计算物理位置。只支持管理员权限用户查询。 参数说明： 名称 类型 描述 tablespace_name NAME 段对象所属的表空间。 bucketnode INTEGER 0~1023表示hashbucket表的bucketnode。 1024表示段页式普通表的bucketnode。 1025表示段页式全局临时表的bucketnode。 1026表示段页式unlogged表的bucketnode。 head_block_id BIGINT 指定的段头页面号。 block_id BIGINT 指定的逻辑页面号。 返回值说明： 名称 类型 描述 extent_id INTEGER 逻辑页面所在的逻辑扩展号。 extent_size INTEGER 逻辑页面所在的逻辑扩展的大小。 file_id INTEGER 物理页面所在的数据文件标识。 file_block_id BIGINT 物理页面在数据文件中的偏移页面号。 例如： gaussdb=# select * from gs_seg_get_spc_location('pg_default', 1024, 4157, 0);
+ extent_id | extent_size | file_id | file_block_id
+-----------+-------------+---------+---------------
+         0 |           8 |       2 |          4157
+(1 row) gs_seg_get_spc_location(relid OID, bucketnode INTEGER，block_id BIGINT,  partition BOOLEAD DEFAULT FALSE，forknum INTEGER DEFAULT 0) 描述：给定段和逻辑页面号，计算物理位置。只支持管理员权限用户查询。 参数说明： 名称 类型 描述 relid OID 段对象标识。 bucketnode INTEGER 0~1023表示hashbucket表的bucketnode。 1024表示段页式普通表的bucketnode。 1025表示段页式全局临时表的bucketnode。 1026表示段页式unlogged表的bucketnode。 block_id BIGINT 指定逻辑页面号。 partition BOOLEAD DEFAULT FALSE 段对象是否为分区，默认为FALSE。 forknum INTEGER DEFAULT 0 段对象的分支，默认为0。 取值范围： 0：main fork。 1：fsm fork。 2：vm fork。 返回值说明： 名称 类型 描述 extent_id INTEGER 逻辑页面所在的逻辑扩展号。 extent_size INTEGER 逻辑页面所在的逻辑扩展的大小。 file_id INTEGER 物理页面所在的数据文件标识。 file_block_id BIGINT 物理页面在数据文件中的偏移页面号。 例如： gaussdb=# select * from gs_seg_get_spc_location(24578,1024,0);
+ extent_id | extent_size | file_id | file_block_id
+-----------+-------------+---------+---------------
+         0 |           8 |       2 |          4157
+(1 row) gs_seg_get_location(block_id BIGINT, as_extent BOOLEAN DEFAULT FALSE) 描述：给定段和逻辑页面号，计算物理位置。只支持管理员权限用户查询。 参数说明： 名称 类型 描述 block_id BIGINT 指定逻辑页面号。 as_extent BOOLEAN DEFAULT FALSE 参数block_id是否为扩展号，默认FALSE。 返回值说明： 名称 类型 描述 extent_id BIGINT 扩展号。 extent_size INTEGER 扩展的大小。 extent_offset INTEGER 扩展的偏移块号。 level0_slots_idx INTEGER 扩展在段头level0槽位数组下标。 level1_slots_idx INTEGER 扩展在段头level1槽位数组下标。 level1_page_offset INTEGER 扩展在段头level1槽位页面的偏移。 segment_blocks BIGINT 包含此页面或扩展的段的页面数。 relative_fno INTEGER 包含此页面或扩展的相对文件编号。 例如： gaussdb=# select * from gs_seg_get_location(4157);
+ extent_id | extent_size | extent_offset | level0_slots_idx | level1_slots_idx | level1_page_offset | segment_blocks | relative_fno
+-----------+-------------+---------------+------------------+------------------+--------------------+----------------+--------------
+        47 |         128 |            61 |               47 |                  |                    |           4158 |            3
+(1 row) gs_seg_get_segment_layout() 描述：输出段的静态布局。只支持管理员权限用户查询。 返回值说明： 名称 类型 描述 version TEXT 段页式版本。默认：1.0。 section_id INTEGER 段划分的数据区号。 section_type TEXT 段数据区扩展类型。 取值范围： meta：段头。 data：数据。 extent_size INTEGER 扩展大小。单位为字节。 extent_page_count INTEGER 扩展页面数。 extent_count_start BIGINT 起始扩展号。 extent_count_end BIGINT 终止扩展号。 total_size BIGINT 段数据区的大小。单位为字节。 例如： gaussdb=# select * from gs_seg_get_segment_layout();
+ version | section_id | section_type | extent_size | extent_page_count | extent_count_start | extent_count_end |   total_size
+---------+------------+--------------+-------------+-------------------+--------------------+------------------+----------------
+ 1.0     |          1 | meta         |        8192 |                 1 |                  0 |                0 |           8192
+ 1.0     |          2 | data         |       65536 |                 8 |                  1 |               16 |        1048576
+ 1.0     |          3 | data         |     1048576 |               128 |                 17 |              143 |      134217728
+ 1.0     |          4 | data         |     8388608 |              1024 |                144 |              255 |     1073741824
+ 1.0     |          5 | data         |    33554432 |              4096 |                256 |          1025255 | 34394366541824
+(5 rows) gs_seg_get_datafile_layout() 描述：查看1~5号数据文件的静态布局。只支持管理员权限用户查询。 返回值说明： 名称 类型 描述 version TEXT 段页式版本。默认：1.0。 seg_storage_type TEXT segment表示普通段页式数据。 hashbucket表示hashbucket数据。 file_id INTEGER 数据文件标识。 section_id INTEGER 数据文件划分的数据区号。 section_type TEXT 数据文件区类型。 取值范围： file_header表示文件头。 spc_header表示空间头。 map_header表示映射头。 map_pages表示映射页面。 ip_pages(inverse pointer pages)表示反向指针页面。 data_pages表示数据页面。 page_start BIGINT 数据区域起始页面号。 page_end BIGINT 数据区域结束页面号。 page_count BIGINT 数据区域页面数。 total_size BIGINT 数据区的大小。单位为字节。 例如： gaussdb=# select * from gs_seg_get_datafile_layout();
+
+...(数据较多，仅展示部分) version | seg_storage_type | file_id | section_id | section_type |  page_start  |   page_end   | page_count  |   total_size
+---------+------------------+---------+------------+--------------+--------------+--------------+-------------+-----------------
+ 1.0     | segment          |       1 |          0 | file_header  |            0 |            0 |           1 |            8192
+ 1.0     | segment          |       1 |          1 | spc_header   |            1 |            1 |           1 |            8192
+ 1.0     | segment          |       1 |          2 | map_header   |            2 |            2 |           1 |            8192
+ 1.0     | segment          |       1 |          3 | map_pages    |            3 |           66 |          64 |          524288
+ 1.0     | segment          |       1 |          4 | ip_pages     |           67 |         4156 |        4090 |        33505280
+ 1.0     | segment          |       1 |          5 | data_pages   |         4157 |      4147260 |     4143104 |     33940307968 gs_seg_get_slice_layout(file_id INTEGER,bucketnode INTEGER, slice_id INTEGER) 描述：输出给定数据文件分片的静态布局。只支持管理员权限用户查询。 参数说明： 名称 类型 描述 file_id INTEGER 数据文件标识。 bucketnode INTEGER 0~1023表示hashbucket表的bucketnode。 1024表示段页式普通表的bucketnode。 1025表示段页式全局临时表的bucketnode。 1026表示段页式unlogged表的bucketnode。 slice_id INTEGER Slice文件标识。 返回值说明： 名称 类型 描述 version TEXT 段页式版本。默认：1.0。 section_id INTEGER 数据文件划分的数据区号。 section_type INTEGER 数据文件区类型。 取值范围： file_header表示文件头。 spc_header表示空间头。 map_header表示映射头。 map_pages表示映射页面。 ip_pages(inverse pointer pages)表示反向指针页面。 data_pages表示数据页面。 page_start BIGINT 数据区域起始页面号。 page_end BIGINT 数据区域结束页面号。 page_count BIGINT 数据区域页面数。 total_size BIGINT 数据区的大小。单位为字节。 例如： gaussdb=# select * from gs_seg_get_slice_layout(1,1024, 0);
+ version | section_id | section_type | page_start | page_end | page_count | total_size
+---------+------------+--------------+------------+----------+------------+------------
+ 1.0     |          0 | file_header  |          0 |        0 |          1 |       8192
+ 1.0     |          1 | spc_header   |          1 |        1 |          1 |       8192
+ 1.0     |          2 | map_header   |          2 |        2 |          1 |       8192
+ 1.0     |          3 | map_pages    |          3 |       66 |         64 |     524288
+ 1.0     |          4 | ip_pages     |         67 |     4156 |       4090 |   33505280
+ 1.0     |          5 | data_pages   |       4157 |   131071 |     126915 | 1039687680
+(6 rows) gs_seg_get_segment(tablespace_name NAME, bucketnode INTEGER, head_block_id BIGINT) 描述：输出该表空间下段头文件里段头页面的段头信息。只支持管理员权限用户查询。 参数说明： 名称 类型 描述 tablespace_name NAME 段对象所属的表空间。 bucketnode INTEGER 0~1023表示hashbucket表的bucketnode。 1024表示段页式普通表的bucketnode。 1025表示段页式全局临时表的bucketnode。 1026表示段页式unlogged表的bucketnode。 head_block_id BIGINT 段头页面号。 返回值说明： 名称 类型 描述 blocks BIGINT 段对象的逻辑页面数。 total_blocks BIGINT 段对象的物理页面数。 extents INTEGER 段对象的逻辑扩展数。 total_extents INTEGER 段对象的物理扩展数。 head_lsn TEXT 段头lsn标识。 level0_slots BIGINT[] 段扩展映射level0槽位数组。 level1_slots BIGINT[] 段扩展映射level1槽位数组。 fork_head BIGINT[] 段对象的分支段头数组。 例如： gaussdb=# select * from gs_seg_get_segment('pg_default', 1024, 4157);
+ blocks | total_blocks | extents | total_extents | head_lsn | level0_slots | level1_slots |   fork_head
+--------+--------------+---------+---------------+----------+--------------+--------------+----------------
+      9 |           16 |       2 |             2 | 62211744 | {4157,4165}  | {}           | {4157,4158,-1}
+(1 row) gs_seg_get_segment(relid OID, bucketnode INTEGER, partition BOOLEAD DEFAULT FALSE，forknum INTEGER DEFAULT 0) 描述：给定relid，bucketnode等信息输出对应的段头信息。只支持管理员权限用户查询。 参数说明： 名称 类型 描述 relid OID 表对应的OID。 bucketnode INTEGER 0~1023表示hashbucket表的bucketnode。 1024表示段页式普通表的bucketnode。 1025表示段页式全局临时表的bucketnode。 1026表示段页式unlogged表的bucketnode。 partition BOOLEAN DEFAULT FALSE 段对象是否为分区，默认为false。 取值范围：bool，代表所传入的oid对应的对象是否为分区。 forknum INTEGER DEFAULT  0 数据文件fork号，默认为0。 取值范围： 0：main fork。 1：fsm fork。 2：vm fork。 返回值说明： 名称 类型 描述 blocks BIGINT 段对象的逻辑页面数。 total_blocks BIGINT 段对象的物理页面数。 extents INTEGER 段对象的逻辑扩展数。 total_extents INTEGER 段对象的物理扩展数。 head_lsn TEXT 段头lsn标识。 level0_slots BIGINT[] 段扩展映射level0槽位数组。 level1_slots BIGINT[] 段扩展映射level1槽位数组。 fork_head BIGINT[] 段对象的分支段头数组。 例如： gaussdb=# select * from gs_seg_get_segment(16768, 1024);
+ blocks | total_blocks | extents | total_extents | head_lsn | level0_slots | level1_slots |   fork_head
+--------+--------------+---------+---------------+----------+--------------+--------------+----------------
+      9 |           16 |       2 |             2 | 62211744 | {4157,4165}  | {}           | {4157,4158,4294967295}
+(1 row) gs_seg_get_extents(tablespace_name NAME, bucketnode INTEGER, head_block_id BIGINT) 描述：输出该表空间下段头文件里段头页面的段对象的所有扩展，包含1号文件中的segment head、fork head、level1 page，2~5号文件中的data extent。只支持管理员权限用户查询。 参数说明： 名称 类型 描述 tablespace_name NAME 段对象所属的表空间。 bucketnode INTEGER 0~1023表示hashbucket表的bucketnode。 1024表示段页式普通表的bucketnode。 1025表示段页式全局临时表的bucketnode。 1026表示段页式unlogged表的bucketnode。 head_block_id BIGINT 段头页面号。 返回值说明： 名称 类型 描述 extent_id INTEGER 逻辑扩展号。 file_id INTEGER 扩展所在的数据文件标识。 forknum INTEGER 段对象的分支。 取值范围： 0：main fork。 1：fsm fork。 2：vm fork。 block_id BIGINT 扩展所在的数据文件中的起始页面号。 blocks INTEGER 扩展大小。 取值范围： 1表示1号文件。 8表示2号文件。 128表示3号文件。 1024表示4号文件。 4096表示5号文件。 usage_type TEXT Extent的使用类型。 取值范围： segment head表示段头。 fork head表示分支头。 level1 page表示level页面。 data extent表示数据扩展。 例如： gaussdb=# select * from gs_seg_get_extents('pg_default', 1024, 4157);
+ extent_id | file_id | forknum | block_id | blocks |  usage_type
+-----------+---------+---------+----------+--------+--------------
+           |       1 |       0 |     4157 |      1 | segment head
+         0 |       2 |       0 |     4157 |      8 | data extent
+         1 |       2 |       0 |     4165 |      8 | data extent
+(3 rows) gs_seg_get_extents(relid OID, bucketnode INTEGER, partition BOOLEAD DEFAULT FALSE，forknum INTEGER DEFAULT 0) 描述：输出对应段头文件里段头页面的段对象的所有扩展，包含1号文件中的segment head、fork head、level1 page，2~5号文件中的data extent。只支持管理员权限用户查询。 参数说明： 名称 类型 描述 relid OID 表对应的OID。 bucketnode INTEGER 0~1023表示hashbucket表的bucketnode。 1024表示段页式普通表的bucketnode。 1025表示段页式全局临时表的bucketnode。 1026表示段页式unlogged表的bucketnode。 partition BOOLEAN DEFAULT FALSE 段对象是否为分区，默认为false。 取值范围：bool，代表所传入的oid对应的对象是否为分区。 forknum INTEGER DEFAULT  0 数据文件fork号，默认为0。 取值范围： 0：main fork。 1：fsm fork。 2：vm fork。 返回值说明： 名称 类型 描述 extent_id INTEGER 逻辑扩展号。 file_id INTEGER 扩展所在的数据文件标识。 forknum INTEGER 段对象的分支。 取值范围： 0：main fork。 1：fsm fork。 2：vm fork。 block_id BIGINT 扩展所在的数据文件中的起始页面号。 blocks INTEGER 扩展大小。 取值范围： 1表示1号文件。 8表示2号文件。 128表示3号文件。 1024表示4号文件。 4096表示5号文件。 usage_type TEXT Extent的使用类型。 取值范围： segment head表示段头。 fork head表示分支头。 level1 page表示level页面。 data extent表示数据扩展。 例如： gaussdb=# select * from gs_seg_get_extents(16768, 1024);
+ extent_id | file_id | forknum | block_id | blocks |  usage_type
+-----------+---------+---------+----------+--------+--------------
+           |       1 |       0 |     4157 |      1 | segment head
+         0 |       2 |       0 |     4157 |      8 | data extent
+         1 |       2 |       0 |     4165 |      8 | data extent
+(3 rows) gs_seg_free_spc_remain_segment(tablespace_name NAME, head_file_id INTEGER, head_block_id BIGINT) 描述：释放指定表空间上的段页式残留段在1号文件上占用的页面。残留段可以在GS_SEG_SPC_REMAIN_SEGMENTS视图中查询。只支持管理员权限用户查询。且仅允许在主机执行。 当前该函数存在缺陷，计划在后续版本重构，以彻底解决段页式残留问题，该函数为离线兜底的段页式清理手段。 为保证查询到的残留段和残留扩展的一致性，以及残留清理的一致性，该函数及GS_SEG_SPC_REMAIN_SEGMENTS视图应在DDL\DML受限状态下执行。鉴于当前版本并未提供DML\DDL受限能力，用户在是使用该特性时，应保证其执行环境DML\DDL受限状态。 参数说明： 名称 类型 描述 tablespace_name NAME 表空间名称。 head_file_id INTEGER 段页式残留段的段头所在的数据文件标识。取值范围：【1】。 head_block_id BIGINT 指定的段头页面号。 返回值说明：void 例如： gaussdb=# select * from gs_seg_free_spc_remain_segment('pg_default', 1, 4159);
+ gs_seg_free_spc_remain_segment 
+--------------------------------
+
+(1 row) gs_seg_free_spc_remain_extent(tablespace_name NAME, file_id INTEGER, forknum INTEGER, block_id BIGINT) 描述：释放指定表空间上残留的段页式孤立扩展。残留的孤立扩展可以在GS_SEG_SPC_REMAIN_EXTENTS视图中查询。该函数也可以清理GS_SEG_SPC_REMAIN_SEGMENTS视图中查询得到的segment的segment head，但是该动作会导致被清理的segment head所在的segment中其他的extent（fork head、level1 page、data extent等）在GS_SEG_SPC_REMAIN_EXTENTS视图暴露出来。只支持管理员权限用户查询。且仅允许在主机执行。 当前该函数存在缺陷，计划在后续版本重构，以彻底解决段页式残留问题，该函数为离线兜底的段页式清理手段。 为保证查询到的残留段和残留扩展的一致性，以及残留清理的一致性，该函数及GS_SEG_SPC_REMAIN_EXTENTS视图应在DDL\DML受限状态下执行。鉴于当前版本并未提供DML\DDL受限能力，用户在是使用该特性时，应保证其执行环境DML\DDL受限状态。 参数说明： 名称 类型 描述 tablespace_name NAME 表空间名称。 file_id INTEGER 段页式残留扩展所在数据文件标识。取值范围：【1~5】号文件。 forknum INTEGER 数据文件分支编号。 取值范围： 0：main fork。 1：fsm fork。 2：vm fork。 block_id BIGINT 指定的段头页面号。 返回值说明：void 例如： gaussdb=# select * from gs_seg_free_spc_remain_extent('pg_default', 1, 0, 4159);
+ gs_seg_free_spc_remain_extent 
+-------------------------------
+
+(1 row) gs_seg_get_datafiles(database_name NAME) 描述：输出查看实例所有数据文件信息。只支持管理员权限用户查询。 参数说明： 名称 类型 描述 database_name NAME 数据库名称。默认为current_database()，代表当前数据库名称。 返回值说明： 名称 类型 描述 file_name TEXT 数据文件名。例如：base/17467/2_fsm。 file_id INTEGER 数据文件标识。取值范围：【1~5】号文件。 bucketnode INTEGER 0~1023表示hashbucket表的bucketnode。 1024表示段页式普通表的bucketnode。 1025表示段页式全局临时表的bucketnode。 1026表示段页式unlogged表的bucketnode。 forknum INTEGER 段对象的分支类型。取值范围： 0：表示main fork。 1：表示fsm fork。 2：表示vm fork。 tablespace_name NAME 数据文件所属的表空间名称。 contents TEXT 数据文件的存储内容。 取值范围： permanent：永久。 unlogged：不记录日志。 temporary：临时。 extent_size INTEGER 数据文件的扩展大小。 meta_blocks BIGINT 数据文件的已分配的元页面数。 data_blocks BIGINT 数据文件的已分配的数据页面数。 total_blocks BIGINT 数据文件的总物理页面数。 high_water_mark BIGINT 数据文件使用页数的高水位线。 utilization REAL 使用的block数占总block数的百分比。即(data_blocks+meta_blocks)/total_blocks。 例如： gaussdb=# select * from gs_seg_get_datafiles();
+  file_name   | file_id | bucketnode | forknum | tablespace_name | contents  | extent_size | meta_blocks | data_blocks | total_blocks | high_water_mark | utilization
+--------------+---------+------------+---------+-----------------+-----------+-------------+-------------+-------------+--------------+-----------------+-------------
+ base/15949/1 |       1 |       1024 |       0 | pg_default      | permanent |           1 |        4157 |           1 |        16384 |      1048702976 | 2.24208e-44
+ base/15949/2 |       2 |       1024 |       0 | pg_default      | permanent |           8 |        4157 |           8 |        16384 |      1048717312 | 2.24208e-44
+(2 rows) gs_seg_get_spc_extents(tablespace_name NAME, file_id INTEGER, forknum INTEGER, skip_unused BOOLEAN DEFAULT TRUE) 描述：获取指定表空间所有扩展信息。只支持管理员权限用户查询。 参数说明： 名称 类型 描述 tablespace_name NAME 表空间名称。 file_id INTEGER 数据文件标识。 bucketnode INTEGER 0~1023表示hashbucket表的bucketnode。 1024表示段页式普通表的bucketnode。 1025表示段页式全局临时表的bucketnode。 1026表示段页式unlogged表的bucketnode。 forknum INTEGER 数据文件分支。 取值范围： 0：main fork。 1：fsm fork。 2：vm fork。 skip_unused BOOLEAN DEFAULT TRUE 是否只输出已分配的extent，默认为TRUE，代表只输出已分配的extent。 返回值说明： 名称 类型 描述 block_id BIGINT 数据扩展的起始页面号。 blocks INTEGER 数据扩展大小。 取值范围： 1表示1号文件。 8表示2号文件。 128表示3号文件。 1024表示4号文件。 4096表示5号文件。 contents TEXT 存储内容。 取值范围： permanent表示永久。 unlogged表示不记录日志。 temporary表示临时。 in_used TEXT 是否已分配。 取值范围： Y表示已分配。 N表示未分配。 mapblock_location TEXT 扩展在map block中的位置。格式：(page_id, offset)。 head_file_id INTEGER 段头所在数据文件标识。 head_block_id BIGINT 段头页面号。 usage_type TEXT Extent的使用类型。 取值范围： segment head表示段头。 fork head表示分支头。 level1 page表示level页面。 data extent表示数据扩展。 remain_flag TEXT 是否为shrink残留扩展。 取值范围： Y表示是shrink残留扩展。 N表示不是shrink残留扩展。 special_data INTEGER 扩展对应反向指针的特殊数据区。 ipblock_location TEXT 扩展反向指针位置。格式：(block_id, offset)。 例如： gaussdb=# select * from gs_seg_get_spc_extents('pg_default', 1,1024, 0);
+ block_id | blocks | contents  | in_used | mapblock_location | head_file_id | head_block_id |  usage_type  | remain_flag | special_data | ipblock_location
+----------+--------+-----------+---------+-------------------+--------------+---------------+--------------+-------------+--------------+------------------
+     4157 |      1 | permanent | Y       | (4157,0)          |            1 |          4157 | segment head | N           |            0 | (67,0)
+     4158 |      1 | permanent | Y       | (4157,1)          |            1 |          4158 | fork head    | N           |            1 | (67,1)
+(2 rows) 父主题： 系统管理函数 版权所有 © 华为技术有限公司

@@ -1,0 +1,43 @@
+DN实例异常(ALM_AI_AbnormalDatanodeInst) DN实例异常(ALM_AI_AbnormalDatanodeInst) 告警解释 当DN主实例与DN备实例连接异常时，产生该告警。 告警属性 告警ID 告警级别 告警类型 是否可自动清除 ALM_AI_AbnormalDatanodeInst major 处理出错 不涉及 告警参数 请参考 告警参数说明 。 对系统的影响 DN主实例的Redo日志将自动发送到对应的DN备实例，会增加该DN备实例所在物理节点上的网络压力。 系统自处理过程 当DN主实例与对应的DN备实例连接异常时，DN主实例的Redo日志将自动发送到对应的DN备实例，不影响业务的运行。 可能原因 手动停止节点操作。 DN主实例与对应的DN备实例连接异常。 处理步骤 参考 登录DBS运维管理平台 ，登录DBS运维管理平台。 选择 “ 实例运维 > 任务管理 ” ，右上角筛选条件选择“实例ID”，输入框中输入实例ID，执行搜索。查看是否在有停止节点“StopInstance”的工作流。 如果有手动停止节点操作，且除停止的节点外，其余节点状态正常，则当前集群状态正常。手动停止节点时，如果当前节点有主DN实例，其他节点的备DN实例可能会上报GTM实例告警。无需再进行下面的操作步骤。 参考 登录实例节点 ，登录数据库节点。 执行如下命令，导入环境变量。 source /home/Ruby/gauss_env_file 执行如下命令查看集群DN主备实例是否故障。 cm_ctl query -Cvdipz ALL 是，修复故障实例，具体方法请参考《应急预案》中的“运维案例库 > 租户面应急案例 > 节点修复”章节。 否，执行 7 。 执行以下命令查看主机侦听IP。 cm_ctl view | grep datanodeListenIP 执行结果： datanodeListenIP 1:192.168.0.11 执行以下命令查看集群DN主备实例所在机器网络是否正常。 /sbin/ifconfig ECS正常状态举例： eth0: flags=4163<UP,BROADCAST,RUNNING,MULTICAST>  mtu 1500
+        inet 192.168.0.11  netmask 255.255.254.0  broadcast 10.244.63.255
+        inet6 fe80::f816:3eff:fef6:cc21  prefixlen 64  scopeid 0x20<link>
+        ether fa:16:3e:f6:cc:21  txqueuelen 1000  (Ethernet)
+        RX packets 209186638  bytes 73773029069 (68.7 GiB)
+        RX errors 0  dropped 0  overruns 0  frame 0
+        TX packets 212672196  bytes 74282112558 (69.1 GiB)
+        TX errors 0  dropped 0 overruns 0  carrier 0  collisions 0
+
+eth1: flags=4163<UP,BROADCAST,RUNNING,MULTICAST>  mtu 1500
+        inet 192.168.0.12  netmask 255.255.240.0  broadcast 172.31.15.255
+        inet6 fe80::f816:3eff:febe:a070  prefixlen 64  scopeid 0x20<link>
+        ether fa:16:3e:be:a0:70  txqueuelen 1000  (Ethernet)
+        RX packets 164919137  bytes 41636391534 (38.7 GiB)
+        RX errors 0  dropped 0  overruns 0  frame 0
+        TX packets 162372198  bytes 55563782499 (51.7 GiB)
+        TX errors 0  dropped 0 overruns 0  carrier 0  collisions 0 BMS正常状态举例： bond0: flags=5187<UP,BROADCAST,RUNNING,MASTER,MULTICAST>  mtu 1500
+        inet 10.10.47.243  netmask 255.255.192.0  broadcast 10.10.63.255
+        ether fa:16:3e:48:b3:5c  txqueuelen 1000  (Ethernet)
+        RX packets 1432347  bytes 1700305571 (1.5 GiB)
+        RX errors 0  dropped 0  overruns 0  frame 0
+        TX packets 702126  bytes 651514794 (621.3 MiB)
+        TX errors 0  dropped 4 overruns 0  carrier 0  collisions 0
+
+bond0.2752: flags=4163<UP,BROADCAST,RUNNING,MULTICAST>  mtu 1500
+        inet 192.168.0.45  netmask 255.255.255.0  broadcast 192.168.0.255
+        ether fa:16:3e:e7:f8:21  txqueuelen 1000  (Ethernet)
+        RX packets 71389  bytes 3611104 (3.4 MiB)
+        RX errors 0  dropped 0  overruns 0  frame 0
+        TX packets 70575  bytes 3811710 (3.6 MiB)
+        TX errors 0  dropped 0 overruns 0  carrier 0  collisions 0
+
+bond0.2752:0: flags=4163<UP,BROADCAST,RUNNING,MULTICAST>  mtu 1500
+        inet 192.168.0.183  netmask 255.255.255.0  broadcast 192.168.0.255
+        ether fa:16:3e:e7:f8:21  txqueuelen 1000  (Ethernet)
+
+bond0.2994: flags=4163<UP,BROADCAST,RUNNING,MULTICAST>  mtu 1500
+        inet 172.16.41.83  netmask 255.255.192.0  broadcast 172.16.63.255
+        ether fa:16:3e:ea:54:05  txqueuelen 1000  (Ethernet)
+        RX packets 0  bytes 0 (0.0 B)
+        RX errors 0  dropped 0  overruns 0  frame 0
+        TX packets 6  bytes 252 (252.0 B)
+        TX errors 0  dropped 0 overruns 0  carrier 0  collisions 0 通过 7 查询到的侦听IP判断集群GTM主备实例所在机器使用的网卡为： ECS：eth0或eth1。 BMS：bond0或bond0.xxxx。 上述举例中，集群DN主备实例所在机器使用的网卡为eth0。若eth0显示如举例所示，则网卡正常；否则不正常，请及时修复网卡。 如果问题仍未解决，参考和 收集日志 ，并收集告警信息， 联系技术支持 进行处理。 需要下载的日志信息有： GaussDB Kernel组件下的/var/lib/log/Ruby 父主题： GaussDB 内核告警参考 版权所有 © 华为技术有限公司

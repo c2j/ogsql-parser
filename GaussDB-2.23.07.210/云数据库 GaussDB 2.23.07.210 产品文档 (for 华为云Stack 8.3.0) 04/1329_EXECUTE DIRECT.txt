@@ -1,0 +1,60 @@
+EXECUTE DIRECT EXECUTE DIRECT 功能描述 在指定的节点上执行SQL语句。一般情况下，SQL语句的执行是由集群负载自动分配到合适的节点上，EXECUTE DIRECT主要用于数据库维护和测试。 注意事项 当enable_nonsysadmin_execute_direct=off时，只有系统管理员和监控管理员才能执行EXECUTE DIRECT。 为了各个节点上数据的一致性，SQL语句仅支持SELECT，不允许执行事务语句、DDL、DML。 使用此类型语句在指定的DN执行stddev聚集计算时，返回结果集是以三元数组形式返回，如{3, 8, 30}，表示count结果为3，sum结果为8，平方和为30。使用此类型语句在指定的DN执行AVG聚集计算时，返回结果集以二元组形式返回，如{4，2}，表示count结果为4，sum结果为2。 当指定多个节点时，不支持agg函数，当query中包含agg函数时，会返回“EXECUTE DIRECT on multinode not support agg functions.” 由于CN节点不存储用户表数据，不允许指定CN节点执行用户表上的SELECT查询。 不允许执行嵌套的EXECUTE DIRECT语句，即执行的SQL语句不能同样是EXECUTE DIRECT语句，此时可直接执行最内层EXECUTE DIRECT语句代替。 agg函数查询结果与直接在CN上查询不一致，会返回多个信息，不支持array_avg函数。 参数为nodeoid或者nodeoid list时，仅支持分布式下参数enable_direct_standby_datanodes成功设置时才生效。实现到指定DN节点查询，不支持无效或重复nodeoid，以及不支持nodeoid和nodename混合使用。 语法格式 EXECUTE DIRECT ON ( nodename [, ... ] ) query ;
+EXECUTE DIRECT ON ( nodeoid [, ... ] ) query;
+EXECUTE DIRECT ON { COORDINATORS | DATANODES | ALL } query; 参数说明 nodename 节点名称。 取值范围：已存在的节点。 nodeoid 节点oid。 取值范围：已存在的DN节点oid，查看 PGXC_NODE 系统表获取。 query 要执行查询语句。 COORDINATORS 在所有coordinator执行查询语句 DATANODES 在所有datanode执行查询语句 ALL 在所有coordinator和datanode执行查询语句 示例 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27
+28
+29
+30
+31
+32
+33
+34
+35
+36
+37
+38
+39
+40
+41
+42
+43
+44
+45
+46
+47
+48
+49
+50
+51
+52
+53
+54
+55
+56
+57
+58 --查询当前集群的节点分布状态。 gaussdb =# SELECT * FROM pgxc_node ; node_name | node_type | node_port | node_host | node_port1 | node_host1 | hostis_primary | nodeis_primary | nodeis_preferred | node_id | sctp_port | control_port | sctp_port1 | control_port1 --------------+-----------+-----------+----------------+------------+----------------+----------------+----------------+------------------+-------------+-----------+--------------+------------+--------------- cn_5001 | C | 8050 | 10 . 180 . 155 . 74 | 8050 | 10 . 180 . 155 . 74 | t | f | f | 1120683504 | 0 | 0 | 0 | 0 cn_5003 | C | 8050 | 10 . 180 . 157 . 130 | 8050 | 10 . 180 . 157 . 130 | t | f | f | - 125853378 | 0 | 0 | 0 | 0 dn_6001_6002 | D | 40050 | 10 . 180 . 155 . 74 | 45050 | 10 . 146 . 187 . 231 | t | f | f | 1644780306 | 40052 | 40052 | 45052 | 45052 dn_6003_6004 | D | 40050 | 10 . 146 . 187 . 231 | 45050 | 10 . 180 . 157 . 130 | t | f | f | - 966646068 | 40052 | 40052 | 45052 | 45052 dn_6005_6006 | D | 40050 | 10 . 180 . 157 . 130 | 45050 | 10 . 180 . 155 . 74 | t | f | f | 868850011 | 40052 | 40052 | 45052 | 45052 cn_5002 | C | 8050 | localhost | 8050 | localhost | t | f | f | - 1736975100 | 0 | 0 | 0 | 0 ( 6 rows ) --创建SCHEMA。 gaussdb =# CREATE SCHEMA tpcds ; --创建表tpcds.customer_address。 gaussdb =# CREATE TABLE tpcds . customer_address ( ca_address_sk INTEGER NOT NULL , ca_address_id CHARACTER ( 16 ) NOT NULL ); --查询dn_6001_6002上tpcds.customer_address记录。dn_6001_6002为SELECT * FROM pgxc_node;查询结果中的node_name字段信息，需根据实际查询结果选择。 gaussdb =# EXECUTE DIRECT ON ( dn_6001_6002 ) 'select count(*) from tpcds.customer_address' ; count ------- 16922 ( 1 row ) --查询tpcds.customer_address所有记录。 gaussdb =# SELECT COUNT ( * ) FROM tpcds . customer_address ; count ------- 50000 ( 1 row ) /* 参数 nodeoid 语法使用示例 */ gaussdb =# SELECT oid FROM pgxc_node where node_name = 'dn_6001_6002_6003' ; oid ------- 16385 16386 16384 ( 3 rows ) gaussdb =# SET enable_direct_standby_datanodes = on ; SET gaussdb =# EXECUTE DIRECT ON ( 16385 , 16386 , 16384 ) 'SELECT * FROM gs_get_listen_address_ext_info();' ; node_name | host | port | ext_listen_ip -------------------+------------+-------+--------------- dn_6001_6002_6003 | 8 . 92 . 5 . 175 | 42109 | 8 . 92 . 5 . 175 dn_6001_6002_6003 | 8 . 92 . 5 . 176 | 42109 | 8 . 92 . 5 . 176 dn_6001_6002_6003 | 8 . 92 . 5 . 177 | 42109 | 8 . 92 . 5 . 177 ( 3 rows ) --删除表tpcds.customer_address。 gaussdb =# DROP TABLE tpcds . customer_address ; --删除SCHEMA。 gaussdb =# DROP SCHEMA tpcds ; 父主题： E 版权所有 © 华为技术有限公司

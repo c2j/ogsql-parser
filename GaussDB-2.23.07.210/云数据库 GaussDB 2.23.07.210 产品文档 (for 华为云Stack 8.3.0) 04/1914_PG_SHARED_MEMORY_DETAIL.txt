@@ -1,0 +1,1 @@
+PG_SHARED_MEMORY_DETAIL PG_SHARED_MEMORY_DETAIL PG_SHARED_MEMORY_DETAIL视图显示所有已产生的共享内存上下文的使用信息。具体字段信息如 表1 所示。 表1 PG_SHARED_MEMORY_DETAIL字段 名称 类型 描述 contextname text 内存上下文的名称。 level smallint 当前上下文在整体内存上下文中的层级。 parent text 上级内存上下文。 totalsize bigint 共享内存总大小，单位Byte。 freesize bigint 共享内存剩余大小，单位Byte。 usedsize bigint 共享内存使用大小，单位Byte。 父主题： 其他系统视图 版权所有 © 华为技术有限公司

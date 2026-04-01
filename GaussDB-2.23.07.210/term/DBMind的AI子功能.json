@@ -1,0 +1,86 @@
+{
+  "topic": "DBMind的AI子功能",
+  "term_count": 16,
+  "terms": [
+    {
+      "term": "X-Tuner",
+      "content": "X-Tuner X-Tuner 概述 使用准备 使用示例 获取帮助 命令参考 常见问题处理",
+      "source_file": "4425_X-Tuner.txt"
+    },
+    {
+      "term": "Distributed-key-advisor",
+      "content": "Distributed-key-advisor Distributed-key-advisor 对于分布式数据库来说，一个有效的分布键是十分重要的。可以通过使用本功能进行数据库分布键的自动化推荐。 分布键推荐功能提供数据库外部工具和SQL内置接口两种方式，支持数据迁移前与数据迁移后两种场景的分布键推荐。 外部工具 SQL内置接口",
+      "source_file": "4461_Distributed-key-advisor.txt"
+    },
+    {
+      "term": "SQLdiag",
+      "content": "SQLdiag SQLdiag SQLdiag是 GaussDB 中SQL语句执行时长预测工具。现有的预测技术主要基于执行计划的预测方法，但这些预测方案仅适用于分析型场景且可以获取执行计划的任务，对于OLTP或者HTAP这样的快速、简单查询是没有太多使用价值的。与上述方案不同，SQLdiag着眼于数据库的历史SQL语句，通过对历史SQL语句的执行表现进行总结归纳，将之再用于推断新的未知业务上。由于短时间内数据库SQL语句执行时长不会有太大的差距，SQLdiag可以从历史数据中检测出与已执行SQL语句相似的语句结果集，并基于SQL向量化技术通过SQL模板化和深度学习这两种方法来预测SQL语句执行时长。本工具有如下优点： 不需要SQL语句的执行计划，对数据库性能不会有任何的影响。 使用场景广泛，目前业内的很多算法局限性比较高，比如只适用于OLTP或者其他场景，而SQLdiag使用场景广泛。 该工具容易理解，只需要简单的操作，就可以训练出自己的预测模型。 本工具的典型应用场景是对一批即将上线的SQL语句进行透视，提前识别风险。 概述 使用指导 获取帮助 命令参考 常见问题处理",
+      "source_file": "4443_SQLdiag.txt"
+    },
+    {
+      "term": "Slow",
+      "content": "Slow Query Diagnosis Slow Query Diagnosis 概述 环境部署 使用指导 获取帮助 命令参考 注意事项说明",
+      "source_file": "4436_Slow Query Diagnosis.txt"
+    },
+    {
+      "term": "SQL",
+      "content": "SQL Rewriter SQL Rewriter 概述 使用指导 获取帮助 命令参考 常见问题处理",
+      "source_file": "4449_SQL Rewriter.txt"
+    },
+    {
+      "term": "SQL",
+      "content": "SQL Rewriter SQL Rewriter 概述 使用指导 获取帮助 命令参考 常见问题处理",
+      "source_file": "4709_SQL Rewriter.txt"
+    },
+    {
+      "term": "Cluster",
+      "content": "Cluster Diagnosis Cluster Diagnosis 概述 使用指导 获取帮助 命令参考 常见问题处理",
+      "source_file": "4721_Cluster Diagnosis.txt"
+    },
+    {
+      "term": "Index-advisor",
+      "content": "Index-advisor Index-advisor 单query索引推荐 虚拟索引 workload级别索引推荐",
+      "source_file": "4432_Index-advisor.txt"
+    },
+    {
+      "term": "Anomaly",
+      "content": "Anomaly detection Anomaly detection 概述 使用指导 获取帮助 命令参考 常见问题处理",
+      "source_file": "4715_Anomaly detection.txt"
+    },
+    {
+      "term": "Slow",
+      "content": "Slow Query Diagnosis Slow Query Diagnosis 概述 环境部署 使用指导 获取帮助 命令参考 注意事项说明",
+      "source_file": "4696_Slow Query Diagnosis.txt"
+    },
+    {
+      "term": "X-Tuner",
+      "content": "X-Tuner X-Tuner 概述 使用准备 使用示例 获取帮助 命令参考 常见问题处理",
+      "source_file": "4685_X-Tuner.txt"
+    },
+    {
+      "term": "SQLdiag",
+      "content": "SQLdiag SQLdiag SQLdiag是 GaussDB 中SQL语句执行时长预测工具。现有的预测技术主要基于执行计划的预测方法，但这些预测方案仅适用于分析型场景且可以获取执行计划的任务，对于OLTP或者HTAP这样的快速、简单查询是没有太多使用价值的。与上述方案不同，SQLdiag着眼于数据库的历史SQL语句，通过对历史SQL语句的执行表现进行总结归纳，将之再用于推断新的未知业务上。由于短时间内数据库SQL语句执行时长不会有太大的差距，SQLdiag可以从历史数据中检测出与已执行SQL语句相似的语句结果集，并基于SQL向量化技术通过SQL模板化和深度学习这两种方法来预测SQL语句执行时长。本工具有如下优点： 不需要SQL语句的执行计划，对数据库性能不会有任何的影响。 使用场景广泛，目前业内的很多算法局限性比较高，比如只适用于OLTP或者其他场景，而SQLdiag使用场景广泛。 该工具容易理解，只需要简单的操作，就可以训练出自己的预测模型。 本工具的典型应用场景是对一批即将上线的SQL语句进行透视，提前识别风险。 概述 使用指导 获取帮助 命令参考 常见问题处理",
+      "source_file": "4703_SQLdiag.txt"
+    },
+    {
+      "term": "Index-advisor",
+      "content": "Index-advisor Index-advisor 本节介绍索引推荐的功能，共包含三个子功能：单query索引推荐、虚拟索引和workload级别索引推荐。 单query索引推荐 虚拟索引 workload级别索引推荐",
+      "source_file": "4692_Index-advisor.txt"
+    },
+    {
+      "term": "智能巡检",
+      "content": "智能巡检 智能巡检 概述 使用指导 命令参考 常见问题处理",
+      "source_file": "4727_file_4727.txt"
+    },
+    {
+      "term": "Anomaly",
+      "content": "Anomaly detection Anomaly detection 概述 使用指导 获取帮助 命令参考 常见问题处理",
+      "source_file": "4455_Anomaly detection.txt"
+    },
+    {
+      "term": "Cluster",
+      "content": "Cluster Diagnosis Cluster Diagnosis 概述 使用指导 获取帮助 命令参考 常见问题处理",
+      "source_file": "4472_Cluster Diagnosis.txt"
+    }
+  ]
+}

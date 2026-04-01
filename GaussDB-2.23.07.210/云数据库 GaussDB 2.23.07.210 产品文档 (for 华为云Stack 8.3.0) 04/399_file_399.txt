@@ -1,0 +1,8 @@
+搭建容灾关系 搭建容灾关系 功能介绍 搭建容灾关系。 两地三中心添加流灾备实例也将调用此接口。 调用接口前，您需要提前 获取终端节点 ，即下文中的Endpoint值。 约束限制 从主实例端下发。 支持数据库版本大于等于3.209。 两地三中心场景下仅支持数据库版本大于等于3.209。 URI URI格式 POST https://{ Endpoint }/gaussdb/v3.5/{project_id}/instances/{instance_id}/disaster-recovery/construct URI样例 https://gaussdb.sa-fb-2.hcsglobal.com/gaussdb/v3.5/0483b6b16e954cb88930a360d2c4e663/instances/9089bbf7377442daa55bc28d514c08bdin14/disaster-recovery/construct 参数说明 表1 参数说明 名称 是否必选 说明 project_id 是 租户在某一region下的project ID。 获取方法请参见 获取项目ID/名称 。 instance_id 是 实例ID。 请求消息 参数说明 表2 参数说明 名称 是否必选 参数类型 说明 disaster_type 是 String 容灾类型。 枚举值： stream ： 代表流式容灾 dorado：代表Dorado容灾 dr_ip 是 String 对端实例任意数据ip。 dr_user_name 是 String 对端实例账户名称。 dr_user_password 是 String 对端实例账户密码。 请求示例 { 
+   "disaster_type" : "stream", 
+   "dr_ip" : "127.0.0.1", 
+   "dr_user_name" : "root", 
+   "dr_user_password" : "password" 
+ } 响应消息 表3 响应Body参数列表 名称 参数类型 说明 job_id String 任务id。 正常响应样例 {
+"job_id":"8bf0175e-562e-45f6-942a-2e2c72c577d7"
+} 异常响应 请参见 异常请求结果 。 状态码 正常 202 异常 请参见 状态码 。 错误码 请参见 错误码 。 父主题： 容灾管理 版权所有 © 华为技术有限公司

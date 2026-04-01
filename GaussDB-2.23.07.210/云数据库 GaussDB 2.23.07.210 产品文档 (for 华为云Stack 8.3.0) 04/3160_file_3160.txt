@@ -1,0 +1,95 @@
+错误捕获语句 错误捕获语句 缺省时，当PL/SQL函数执行过程中发生错误时退出函数执行，并且周围的事务也会回滚。可以用一个带有EXCEPTION子句的BEGIN块捕获错误并且从中恢复。其语法是正常的BEGIN块语法的一个扩展： 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12 [ << label >> ] [ DECLARE declarations ] BEGIN statements EXCEPTION WHEN condition [ OR condition ...] THEN handler_statements [ WHEN condition [ OR condition ...] THEN handler_statements ...] END ; 如果没有发生错误，这种形式的包围块只是简单地执行所有语句，然后转到END之后的下一个语句。但是如果在执行的语句内部发生了一个错误，则这个语句将会回滚，然后转到EXCEPTION列表。寻找匹配错误的第一个条件。若找到匹配，则执行对应的handler_statements，然后转到END之后的下一个语句。如果没有找到匹配，则会向事务的外层报告错误，和没有EXCEPTION子句一样。错误码可以捕获同一类的其他错误码。 也就是说该错误可以被一个包围块用EXCEPTION捕获，如果没有包围块，则进行退出函数处理。 condition的名称可以是SQL标准错误码编号说明的任意值。特殊的条件名OTHERS匹配除了QUERY_CANCELED之外的所有错误类型。 如果在选中的handler_statements里发生了新错误，则不能被这个EXCEPTION子句捕获，而是向事务的外层报告错误。一个外层的EXCEPTION子句可以捕获它。 如果一个错误被EXCEPTION捕获，PL/SQL函数的局部变量保持错误发生时的原值，但是所有该块中想写入数据库中的状态都回滚。 示例： 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27
+28
+29
+30
+31
+32
+33
+34
+35
+36
+37
+38
+39
+40
+41 gaussdb =# CREATE TABLE mytab ( id INT , firstname VARCHAR ( 20 ), lastname VARCHAR ( 20 )) ; CREATE TABLE gaussdb =# INSERT INTO mytab ( firstname , lastname ) VALUES ( 'Tom' , 'Jones' ); INSERT 0 1 gaussdb =# CREATE FUNCTION fun_exp () RETURNS INT AS $$ DECLARE x INT : = 0 ; y INT ; BEGIN UPDATE mytab SET firstname = 'Joe' WHERE lastname = 'Jones' ; x : = x + 1 ; y : = x / 0 ; EXCEPTION WHEN division_by_zero THEN RAISE NOTICE 'caught division_by_zero' ; RETURN x ; END ; $$ LANGUAGE plpgsql ; CREATE FUNCTION gaussdb =# call fun_exp (); NOTICE : caught division_by_zero fun_exp --------- 1 ( 1 row ) gaussdb =# select * from mytab ; id | firstname | lastname ----+-----------+---------- | Tom | Jones ( 1 row ) gaussdb =# DROP FUNCTION fun_exp (); DROP FUNCTION gaussdb =# DROP TABLE mytab ; DROP TABLE 当控制到达给y赋值的地方时，会有一个division_by_zero错误失败。这个错误将被EXCEPTION子句捕获。而在RETURN语句里返回的数值将是x的增量值。 进入和退出一个包含EXCEPTION子句的块要比不包含的块开销大的多。因此，不必要的时候不要使用EXCEPTION。 在下列场景中，无法捕获处理异常，整个存储过程回滚：1. 节点故障，2. 网络故障引起的存储过程参与节点线程退出以及COPY FROM操作中源数据与目标表的表结构不一致造成的异常，3. EXCEPTION清理子事务时的异常（对于包含EXCEPTION语句的存储过程，执行时会开启一个隐式的子事务，正常执行完毕statements时，会自动清理此子事务，清理过程中可能会由于内存管控发生异常）。 示例 ：UPDATE/INSERT异常 这个例子根据使用异常处理器执行恰当的UPDATE或INSERT 。 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27
+28
+29
+30
+31
+32
+33
+34
+35
+36
+37
+38
+39
+40
+41
+42
+43
+44 gaussdb =# CREATE TABLE db ( a INT , b TEXT ); CREATE TABLE gaussdb =# CREATE FUNCTION merge_db ( key INT , data TEXT ) RETURNS VOID AS $$ BEGIN LOOP --第一次尝试更新key UPDATE db SET b = data WHERE a = key ; IF found THEN RETURN ; END IF ; --不存在，所以尝试插入key，如果其他人同时插入相同的key，可能得到唯一key失败。 BEGIN INSERT INTO db ( a , b ) VALUES ( key , data ); RETURN ; EXCEPTION WHEN unique_violation THEN --什么也不做，并且循环尝试再次更新。 END ; END LOOP ; END ; $$ LANGUAGE plpgsql ; CREATE FUNCTION gaussdb =# SELECT merge_db ( 1 , 'david' ); merge_db ---------- ( 1 row ) gaussdb =# SELECT merge_db ( 1 , 'dennis' ); merge_db ---------- ( 1 row ) --删除FUNCTION和TABLE gaussdb =# DROP FUNCTION merge_db ; DROP FUNCTION gaussdb =# DROP TABLE db ; DROP TABLE 父主题： 控制语句 版权所有 © 华为技术有限公司

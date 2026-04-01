@@ -1,0 +1,86 @@
+{
+  "topic": "数据库执行语句函数",
+  "term_count": 16,
+  "terms": [
+    {
+      "term": "PQgetvalue",
+      "content": "PQgetvalue PQgetvalue 功能描述 返回一个PGresult的一行的单一域值。行和列号从 0 开始。调用者不应该直接释放该结果。它将在相关的PGresult句柄被传递给PQclear之后被释放。 原型 char* PQgetvalue(const PGresult* res, int tup_num, int field_num); 参数 表1 PQgetvalue参数 关键字 参数说明 res 操作结果句柄。 row_number 行数。 column_number 列数。 返回值 对于文本格式的数据，PQgetvalue返回的值是该域值的一种空值结束的字符串表示。 对于二进制格式的数据，该值是由该数据类型的typsend和typreceive函数决定的二进制表示。 如果该域值为空，则返回一个空串。",
+      "source_file": "2576_PQgetvalue.txt"
+    },
+    {
+      "term": "PQresultStatus",
+      "content": "PQresultStatus PQresultStatus 功能描述 返回命令的结果状态。 原型 ExecStatusType PQresultStatus(const PGresult* res); 参数 表1 PQresultStatus参数 关键字 参数说明 res 包含查询结果的对象指针。 返回值 PQresultStatus：命令执行结果的枚举，包括： 1\n 2\n 3\n 4\n 5\n 6\n 7\n 8\n 9\n10\n11\n12\n13\n14\n15\n16\n17\n18\n19\n20\n21\n22\n23\n24\n25\n26\n27\n28\n29\n30 PQresultStatus 可以返回下面数值之一： PGRES_EMPTY_QUERY 发送给服务器的字串是空的。 PGRES_COMMAND_OK 成功完成一个不返回数据的命令。 PGRES_TUPLES_OK 成功执行一个返回数据的查询（比如 SELECT 或者 SHOW ）。 PGRES_COPY_OUT （从服务器） Copy Out （拷贝出）数据传输开始。 PGRES_COPY_IN Copy In （拷贝入）（到服务器）数据传输开始。 PGRES_BAD_RESPONSE 服务器的响应无法理解。 PGRES_NONFATAL_ERROR 发生了一个非致命错误（通知或者警告）。 PGRES_FATAL_ERROR 发生了一个致命错误。 PGRES_COPY_BOTH 拷贝入 / 出（到和从服务器）数据传输开始。这个特性当前只用于流复制， 所以这个状态不会在普通应用中发生。 PGRES_SINGLE_TUPLE PGresult 包含一个来自当前命令的结果元组。 这个状态只在查询选择了单行模式时发生 注意事项 请注意，恰好检索到零行的SELECT命令仍然显示PGRES_TUPLES_OK。PGRES_COMMAND_OK用于永远不能返回行的命令（插入或更新，不带返回子句等）。PGRES_EMPTY_QUERY响应可能表明客户端软件存在bug。 状态为PGRES_NONFATAL_ERROR的结果永远不会由PQexec或其他查询执行函数直接返回，此类结果将传递给通知处理程序。 示例 请参见 示例 章节。",
+      "source_file": "868_PQresultStatus.txt"
+    },
+    {
+      "term": "PQresultStatus",
+      "content": "PQresultStatus PQresultStatus 功能描述 返回命令的结果状态。 原型 ExecStatusType PQresultStatus(const PGresult* res); 参数 表1 PQresultStatus参数 关键字 参数说明 res 包含查询结果的对象指针。 返回值 PQresultStatus：命令执行结果的枚举，包括： 1\n 2\n 3\n 4\n 5\n 6\n 7\n 8\n 9\n10\n11\n12\n13\n14\n15\n16\n17\n18\n19\n20\n21\n22\n23\n24\n25\n26\n27\n28\n29\n30 PQresultStatus 可以返回下面数值之一： PGRES_EMPTY_QUERY 发送给服务器的字串是空的。 PGRES_COMMAND_OK 成功完成一个不返回数据的命令。 PGRES_TUPLES_OK 成功执行一个返回数据的查询（比如 SELECT 或者 SHOW ）。 PGRES_COPY_OUT （从服务器） Copy Out （拷贝出）数据传输开始。 PGRES_COPY_IN Copy In （拷贝入）（到服务器）数据传输开始。 PGRES_BAD_RESPONSE 服务器的响应无法理解。 PGRES_NONFATAL_ERROR 发生了一个非致命错误（通知或者警告）。 PGRES_FATAL_ERROR 发生了一个致命错误。 PGRES_COPY_BOTH 拷贝入 / 出（到和从服务器）数据传输开始。这个特性当前只用于流复制， 所以这个状态不会在普通应用中发生。 PGRES_SINGLE_TUPLE PGresult 包含一个来自当前命令的结果元组。 这个状态只在查询选择了单行模式时发生 注意事项 请注意，恰好检索到零行的SELECT命令仍然显示PGRES_TUPLES_OK。PGRES_COMMAND_OK用于永远不能返回行的命令（插入或更新，不带返回子句等）。PGRES_EMPTY_QUERY响应可能表明客户端软件存在bug。 状态为PGRES_NONFATAL_ERROR的结果永远不会由PQexec或其他查询执行函数直接返回，此类结果将传递给通知处理程序。 示例 请参见 示例 章节。",
+      "source_file": "2580_PQresultStatus.txt"
+    },
+    {
+      "term": "PQprepare",
+      "content": "PQprepare PQprepare 功能描述 用给定的参数提交请求，创建一个预备语句，然后等待结束。 原型 PGresult* PQprepare(PGconn* conn, const char* stmtName, const char* query, int nParams, const Oid* paramTypes); 参数 表1 PQprepare参数 关键字 参数说明 conn 指向包含连接的对象指针。 stmtName 需要执行的prepare语句。 query 需要执行的查询字符串。 nParams 参数个数。 paramTypes 声明参数类型的数组。 返回值 PGresult：包含查询结果的对象指针。 注意事项 PQprepare创建一个为PQexecPrepared执行用的预备语句，本特性支持命令的重复执行，不需要每次都进行解析和规划。PQprepare仅在协议3.0及以后的连接中支持，使用协议2.0时，PQprepare将失败。 该函数从查询字符串创建一个名为stmtName的预备语句，该查询字符串必须包含一个SQL命令。stmtName可以是\"\"来创建一个未命名的语句，在这种情况下，任何预先存在的未命名的语句都将被自动替换；否则，如果在当前会话中已经定义了语句名称，那么这就是一个错误。如果使用了任何参数，那么在查询中将它们称为$1,$2等。nParams是在paramTypes[]数组中预先指定类型的参数的数量。（当nParams为0时，数组指针可以为NULL） paramTypes[]通过OID指定要分配给参数符号的数据类型。如果paramTypes为NULL ，或者数组中的任何特定元素为零，服务器将按照对非类型化字面字符串的相同方式为参数符号分配数据类型。另外，查询可以使用数字高于nParams的参数符号；还将推断这些符号的数据类型。 通过执行SQLPREPARE语句，还可以创建与PQexecPrepared一起使用的预备语句。此外，虽然没有用于删除预备语句的libpq函数，但是SQL DEALLOCATE语句可用于此目的。 示例 请参见 示例 章节。",
+      "source_file": "867_PQprepare.txt"
+    },
+    {
+      "term": "PQnfields",
+      "content": "PQnfields PQnfields 功能描述 返回查询结果中每一行的列（域）数。 原型 int PQnfields(const PGresult* res); 参数 表1 PQnfields参数 关键字 参数说明 res 操作结果句柄。 返回值 int类型数字。",
+      "source_file": "2577_PQnfields.txt"
+    },
+    {
+      "term": "PQexecPrepared",
+      "content": "PQexecPrepared PQexecPrepared 功能描述 发送一个请求来用给定参数执行一个预备语句，并且等待结果。 原型 PGresult* PQexecPrepared(PGconn* conn, \n                         const char* stmtName, \n                         int nParams, \n                         const char* const* paramValues,\n                         const int* paramLengths,\n                         const int* paramFormats,\n                         int resultFormat); 参数 表1 PQexecPrepared参数 关键字 参数说明 conn 连接句柄。 stmtName stmt 名称，可以用\"\"或者NULL来引用未命名语句，否则它必须是一个现有预备语句的名字。 nParams 参数个数。 paramValues 参数的实际值。 paramLengths 参数的实际数据长度。 paramFormats 参数的格式（文本或二进制）。 resultFormat 结果的格式（文本或二进制）。 返回值 PGresult类型指针。",
+      "source_file": "2573_PQexecPrepared.txt"
+    },
+    {
+      "term": "PQexecParamsBatch",
+      "content": "PQexecParamsBatch PQexecParamsBatch 功能描述 执行一个批量绑定参数的命令。 原型 PGresult* PQexecParamsBatch(PGconn* conn, \n                            const char* command,\n                            int nParams,\n                            int nBatch, \n                            const Oid* paramTypes,\n                            const char* const* paramValues,\n                            const int* paramLengths,\n                            const int* paramFormats,\n                            int resultFormat); 参数 表1 PQexecParamsBatch参数 关键字 参数说明 conn 连接句柄。 command SQL文本串。 nParams 绑定参数的个数 nBatch 批量操作数。 paramTypes 绑定参数类型。 paramValues 绑定参数的值。 paramLengths 参数长度。 paramFormats 参数格式（文本或二进制）。 resultFormat 返回结果格式（文本或二进制）。 返回值 PGresult类型指针。",
+      "source_file": "2572_PQexecParamsBatch.txt"
+    },
+    {
+      "term": "PQclear",
+      "content": "PQclear PQclear 功能描述 释放与PGresult相关联的存储空间，任何不再需要的查询结果都应该用PQclear释放掉。 原型 void PQclear(PGresult* res); 参数 表1 PQclear参数 关键字 参数说明 res 包含查询结果的对象指针。 注意事项 PGresult不会自动释放，当提交新的查询时它并不消失，甚至断开连接后也不会。要删除它，必须调用PQclear，否则则会有内存泄漏。 示例 请参见 示例 章节。",
+      "source_file": "869_PQclear.txt"
+    },
+    {
+      "term": "PQexecParams",
+      "content": "PQexecParams PQexecParams 功能描述 执行一个绑定参数的命令。 原型 PGresult* PQexecParams(PGconn* conn, \n                       const char* command,\n                       int nParams,\n                       const Oid* paramTypes,\n                       const char* const* paramValues,\n                       const int* paramLengths,\n                       const int* paramFormats, \n                       int resultFormat); 参数 表1 PQexecParams参数 关键字 参数说明 conn 连接句柄。 command SQL文本串。 nParams 绑定参数的个数 paramTypes 绑定参数类型。 paramValues 绑定参数的值。 paramLengths 参数长度。 paramFormats 参数格式（文本或二进制）。 resultFormat 返回结果格式（文本或二进制）。 返回值 PGresult类型指针。",
+      "source_file": "2571_PQexecParams.txt"
+    },
+    {
+      "term": "PQexec",
+      "content": "PQexec PQexec 功能描述 向服务器提交一条命令并等待结果。 原型 PGresult* PQexec(PGconn* conn, const char* query); 参数 表1 PQexec参数 关键字 参数说明 conn 指向包含连接的对象指针。 command 需要执行的查询字符串。 返回值 PGresult：包含查询结果的对象指针。 注意事项 应该调用PQresultStatus函数来检查任何错误的返回值（包括空指针的值，在这种情况下它将返回PGRES_FATAL_ERROR）。使用PQerrorMessage获取有关错误的更多信息。 命令字符串可以包括多个SQL命令（用分号分隔）。在一个PQexec调用中发送的多个查询是在一个事务里处理的，除非在查询字符串里有明确的BEGIN/COMMIT命令把整个字符串分隔成多个事务。请注意，返回的PGresult结构只描述字符串里执行的最后一条命令的结果，如果有一个命令失败，那么字符串处理的过程就会停止，并且返回的PGresult会描述错误条件。 示例 请参见 示例 章节。",
+      "source_file": "866_PQexec.txt"
+    },
+    {
+      "term": "PQntuples",
+      "content": "PQntuples PQntuples 功能描述 返回查询结果中的行（元组）数。 原型 int PQntuples(const PGresult* res); 参数 表1 PQntuples参数 关键字 参数说明 res 操作结果句柄。 PQntuples返回一个整数结果，在 32 位操作系统上大型的结果集可能使返回值溢出。 返回值 int类型数字。 示例 请参见 示例 章节。",
+      "source_file": "2578_PQntuples.txt"
+    },
+    {
+      "term": "PQfname",
+      "content": "PQfname PQfname 功能描述 返回与给定列号相关联的列名。列号从 0 开始。调用者不应该直接释放该结果。它将在相关的PGresult句柄被传递给PQclear之后被释放。 原型 char* PQfname(const PGresult* res, int field_num); 参数 表1 PQfname参数 关键字 参数说明 res 操作结果句柄。 column_number 列数。 返回值 char类型指针。",
+      "source_file": "2575_PQfname.txt"
+    },
+    {
+      "term": "PQprepare",
+      "content": "PQprepare PQprepare 功能描述 用给定的参数提交请求，创建一个预备语句，然后等待结束。 原型 PGresult* PQprepare(PGconn* conn, const char* stmtName, const char* query, int nParams, const Oid* paramTypes); 参数 表1 PQprepare参数 关键字 参数说明 conn 指向包含连接的对象指针。 stmtName 需要执行的prepare名称。 query 需要执行的查询字符串。 nParams 参数个数。 paramTypes 声明参数类型的数组。 返回值 PGresult：包含查询结果的对象指针。 注意事项 PQprepare创建一个为PQexecPrepared执行用的预备语句，本特性支持命令的重复执行，不需要每次都进行解析和规划。PQprepare仅在协议3.0及以后的连接中支持，使用协议2.0时，PQprepare将失败。 该函数从查询字符串创建一个名为stmtName的预备语句，该查询字符串必须包含一个SQL命令。stmtName可以是\"\"来创建一个未命名的语句，在这种情况下，任何预先存在的未命名的语句都将被自动替换；否则，如果在当前会话中已经定义了语句名称，那么这就是一个错误。如果使用了任何参数，那么在查询中将它们称为$1,$2等。nParams是在paramTypes[]数组中预先指定类型的参数的数量。（当nParams为0时，数组指针可以为NULL） paramTypes[]通过OID指定要分配给参数符号的数据类型。如果paramTypes为NULL ，或者数组中的任何特定元素为零，服务器将按照对非类型化字面字符串的相同方式为参数符号分配数据类型。另外，查询可以使用数字高于nParams的参数符号；还将推断这些符号的数据类型。 通过执行SQLPREPARE语句，还可以创建与PQexecPrepared一起使用的预备语句。此外，虽然没有用于删除预备语句的libpq函数，但是SQL DEALLOCATE语句可用于此目的。 示例 请参见 示例 章节。",
+      "source_file": "2579_PQprepare.txt"
+    },
+    {
+      "term": "PQclear",
+      "content": "PQclear PQclear 功能描述 释放与PGresult相关联的存储空间，任何不再需要的查询结果都应该用PQclear释放掉。 原型 void PQclear(PGresult* res); 参数 表1 PQclear参数 关键字 参数说明 res 包含查询结果的对象指针。 注意事项 PGresult不会自动释放，当提交新的查询时它并不消失，甚至断开连接后也不会。要删除它，必须调用PQclear，否则会有内存泄漏。 示例 请参见 示例 章节。",
+      "source_file": "2569_PQclear.txt"
+    },
+    {
+      "term": "PQexec",
+      "content": "PQexec PQexec 功能描述 向服务器提交一条命令并等待结果。 原型 PGresult* PQexec(PGconn* conn, const char* query); 参数 表1 PQexec参数 关键字 参数说明 conn 指向包含连接的对象指针。 command 需要执行的查询字符串。 返回值 PGresult：包含查询结果的对象指针。 注意事项 应该调用PQresultStatus函数来检查任何错误的返回值（包括空指针的值，在这种情况下它将返回PGRES_FATAL_ERROR）。使用PQerrorMessage获取有关错误的更多信息。 命令字符串可以包括多个SQL命令（用分号分隔）。在一个PQexec调用中发送的多个查询是在一个事务里处理的，除非在查询字符串里有明确的BEGIN/COMMIT命令把整个字符串分隔成多个事务。请注意，返回的PGresult结构只描述字符串里执行的最后一条命令的结果，如果有一个命令失败，那么字符串处理的过程就会停止，并且返回的PGresult会描述错误条件。 示例 请参见 示例 章节。",
+      "source_file": "2570_PQexec.txt"
+    },
+    {
+      "term": "PQexecPreparedBatch",
+      "content": "PQexecPreparedBatch PQexecPreparedBatch 功能描述 发送一个请求来用给定的批量参数执行一个预备语句，并且等待结果。 原型 PGresult* PQexecPreparedBatch(PGconn* conn, \n                              const char* stmtName, \n                              int nParams,\n                              int nBatchCount,\n                              const char* const* paramValues,\n                              const int* paramLengths,\n                              const int* paramFormats,\n                              int resultFormat); 参数 表1 PQexecPreparedBatch参数 关键字 参数说明 conn 连接句柄。 stmtName stmt 名称，可以用\"\"或者NULL来引用未命名语句，否则它必须是一个现有预备语句的名字。 nParams 参数个数。 nBatchCount 批量数。 paramValues 参数的实际值。 paramLengths 参数的实际数据长度。 paramFormats 参数的格式（文本或二进制）。 resultFormat 结果的格式（文本或二进制）。 返回值 PGresult类型指针。",
+      "source_file": "2574_PQexecPreparedBatch.txt"
+    }
+  ]
+}

@@ -1,0 +1,1 @@
+DROP PROCEDURE DROP PROCEDURE 功能描述 删除已存在的存储过程。 语法格式 DROP PROCEDURE [ IF EXISTS ] procedure_name; 参数说明 IF EXISTS 如果指定的存储过程不存在，发出一个notice而不是抛出一个错误。 procedure_name 要删除的存储过程名称。 取值范围：已存在的存储过程名。 示例 请参见CREATE PROCEDURE的 8.12.8.35-示例 。 相关链接 ALTER PROCEDURE ， CREATE PROCEDURE 父主题： D 版权所有 © 华为技术有限公司

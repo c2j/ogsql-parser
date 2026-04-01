@@ -1,0 +1,1 @@
+部署主备Region的GaussDB服务 部署主备Region的 GaussDB 服务 参考 《华为云Stack 技术中台与AI数据中台服务软件安装指南》 中的“云数据库 GaussDB 安装指南”章节，分别安装主备Region的 GaussDB 云服务。 父主题： 基础资源部署和灾备部署 版权所有 © 华为技术有限公司

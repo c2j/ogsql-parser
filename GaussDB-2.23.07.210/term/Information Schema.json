@@ -1,0 +1,66 @@
+{
+  "topic": "Information Schema",
+  "term_count": 12,
+  "terms": [
+    {
+      "term": "_PG_FOREIGN_TABLES",
+      "content": "_PG_FOREIGN_TABLES _PG_FOREIGN_TABLES 存储所有的定义在本数据库的外部表信息。只显示当前用户有权访问的外部表信息。该视图只有sysadmin权限可以查看。 表1 _PG_FOREIGN_TABLES字段 名称 类型 描述 foreign_table_catalog information_schema.sql_identifier 外部表所在的数据库名称（永远是当前数据库）。 foreign_table_schema name 外部表的schema名称。 foreign_table_name name 外部表的名称。 ftoptions text[] 外部表的可选项。 foreign_server_catalog information_schema.sql_identifier 外部服务器所在的数据库名称（永远是当前数据库）。 foreign_server_name information_schema.sql_identifier 外部服务器的名称。 authorization_identifier information_schema.sql_identifier 所有者的角色名称。",
+      "source_file": "3714__PG_FOREIGN_TABLES.txt"
+    },
+    {
+      "term": "_PG_FOREIGN_TABLES",
+      "content": "_PG_FOREIGN_TABLES _PG_FOREIGN_TABLES 存储所有的定义在本数据库的外部表信息。只显示当前用户有权访问的外部表信息。该视图只有sysadmin权限可以查看。 表1 _PG_FOREIGN_TABLES字段 名称 类型 描述 foreign_table_catalog information_schema.sql_identifier 外部表所在的数据库名称(永远是当前数据库)。 foreign_table_schema name 外部表的schema名称。 foreign_table_name name 外部表的名称。 ftoptions text[] 外部表的可选项。 foreign_server_catalog information_schema.sql_identifier 外部服务器所在的数据库名称(永远是当前数据库)。 foreign_server_name information_schema.sql_identifier 外部服务器的名称。 authorization_identifier information_schema.sql_identifier 所有者的角色名称。",
+      "source_file": "2028__PG_FOREIGN_TABLES.txt"
+    },
+    {
+      "term": "_PG_FOREIGN_SERVERS",
+      "content": "_PG_FOREIGN_SERVERS _PG_FOREIGN_SERVERS 显示外部服务器的信息。该视图只有sysadmin权限可以查看。 表1 _PG_FOREIGN_SERVERS字段 名称 类型 描述 oid oid 外部服务器的oid。 srvoptions text[] 外部服务器指定选项，使用“keyword=value”格式的字符串。 foreign_server_catalog information_schema.sql_identifier 外部服务器所在database名称(永远为当前数据库)。 foreign_server_name information_schema.sql_identifier 外部服务器名称。 foreign_data_wrapper_catalog information_schema.sql_identifier 外部数据封装器所在database名称(永远为当前数据库)。 foreign_data_wrapper_name information_schema.sql_identifier 外部数据封装器名称。 foreign_server_type information_schema.character_data 外部服务器的类型。 foreign_server_version information_schema.character_data 外部服务器的版本。 authorization_identifier information_schema.sql_identifier 外部服务器的所有者的角色名称。",
+      "source_file": "2026__PG_FOREIGN_SERVERS.txt"
+    },
+    {
+      "term": "_PG_USER_MAPPINGS",
+      "content": "_PG_USER_MAPPINGS _PG_USER_MAPPINGS 存储从本地用户到远程的映射。该视图只有sysadmin权限可以查看。 表1 _PG_USER_MAPPINGS字段 名称 类型 描述 oid oid 从本地用户到远程的映射的oid。 umoptions text[] 用户映射指定选项，使用\"keyword=value”格式的字符串。 umuser oid 被映射的本地用户的OID，如果用户映射是公共的则为0。 authorization_identifier information_schema.sql_identifier 本地用户角色名称。 foreign_server_catalog information_schema.sql_identifier 外部服务器定义所在的database名称。 foreign_server_name information_schema.sql_identifier 外部服务器名称。 srvowner information_schema.sql_identifier 外部服务器所有者。",
+      "source_file": "3715__PG_USER_MAPPINGS.txt"
+    },
+    {
+      "term": "INFORMATION_SCHEMA_CATALOG_NAME",
+      "content": "INFORMATION_SCHEMA_CATALOG_NAME INFORMATION_SCHEMA_CATALOG_NAME 用来显示当前所在的database的名称。 表1 INFORMATION_SCHEMA_CATALOG_NAME字段 名称 类型 描述 catalog_name information_schema.sql_identifier 当前database的名称",
+      "source_file": "3716_INFORMATION_SCHEMA_CATALOG_NAME.txt"
+    },
+    {
+      "term": "_PG_FOREIGN_SERVERS",
+      "content": "_PG_FOREIGN_SERVERS _PG_FOREIGN_SERVERS 显示外部服务器的信息。该视图只有sysadmin权限可以查看。 表1 _PG_FOREIGN_SERVERS字段 名称 类型 描述 oid oid 外部服务器的oid。 srvoptions text[] 外部服务器指定选项，使用“keyword=value”格式的字符串。 foreign_server_catalog information_schema.sql_identifier 外部服务器所在database名称（永远为当前数据库）。 foreign_server_name information_schema.sql_identifier 外部服务器名称。 foreign_data_wrapper_catalog information_schema.sql_identifier 外部数据封装器所在database名称（永远为当前数据库）。 foreign_data_wrapper_name information_schema.sql_identifier 外部数据封装器名称。 foreign_server_type information_schema.character_data 外部服务器的类型。 foreign_server_version information_schema.character_data 外部服务器的版本。 authorization_identifier information_schema.sql_identifier 外部服务器的所有者的角色名称。",
+      "source_file": "3712__PG_FOREIGN_SERVERS.txt"
+    },
+    {
+      "term": "_PG_FOREIGN_TABLE_COLUMNS",
+      "content": "_PG_FOREIGN_TABLE_COLUMNS _PG_FOREIGN_TABLE_COLUMNS 显示外部表的列信息。该视图只有sysadmin权限可以查看。 表1 _PG_FOREIGN_TABLE_COLUMNS字段 名称 类型 描述 nspname name schema名称。 relname name 表名称。 attname name 列名称。 attfdwoptions text[] 外部数据封装器的属性选项，使用“keyword=value”格式的字符串。",
+      "source_file": "3713__PG_FOREIGN_TABLE_COLUMNS.txt"
+    },
+    {
+      "term": "_PG_FOREIGN_DATA_WRAPPERS",
+      "content": "_PG_FOREIGN_DATA_WRAPPERS _PG_FOREIGN_DATA_WRAPPERS 显示外部数据封装器的信息。该视图只有sysadmin权限可以查看。 表1 _PG_FOREIGN_DATA_WRAPPERS字段 名称 类型 描述 oid oid 外部数据封装器的oid。 fdwowner oid 外部数据封装器的所有者的oid。 fdwoptions text[] 外部数据封装器指定选项，使用“keyword=value”格式的字符串。 foreign_data_wrapper_catalog information_schema.sql_identifier 外部封装器所在的数据库名称（永远为当前数据库）。 foreign_data_wrapper_name information_schema.sql_identifier 外部数据封装器名称。 authorization_identifier information_schema.sql_identifier 外部数据封装器所有者的角色名称。 foreign_data_wrapper_language information_schema.character_data 外部数据封装器的实现语言。",
+      "source_file": "3711__PG_FOREIGN_DATA_WRAPPERS.txt"
+    },
+    {
+      "term": "_PG_FOREIGN_DATA_WRAPPERS",
+      "content": "_PG_FOREIGN_DATA_WRAPPERS _PG_FOREIGN_DATA_WRAPPERS 显示外部数据封装器的信息。该视图只有sysadmin权限可以查看。 表1 _PG_FOREIGN_DATA_WRAPPERS字段 名称 类型 描述 oid oid 外部数据封装器的oid。 fdwowner oid 外部数据封装器的所有者的oid。 fdwoptions text[] 外部数据封装器指定选项，使用“keyword=value”格式的字符串。 foreign_data_wrapper_catalog information_schema.sql_identifier 外部封装器所在的数据库名称(永远为当前数据库)。 foreign_data_wrapper_name information_schema.sql_identifier 外部数据封装器名称。 authorization_identifier information_schema.sql_identifier 外部数据封装器所有者的角色名称。 foreign_data_wrapper_language information_schema.character_data 外部数据封装器的实现语言。",
+      "source_file": "2025__PG_FOREIGN_DATA_WRAPPERS.txt"
+    },
+    {
+      "term": "_PG_FOREIGN_TABLE_COLUMNS",
+      "content": "_PG_FOREIGN_TABLE_COLUMNS _PG_FOREIGN_TABLE_COLUMNS 显示外部表的列信息。该视图只有sysadmin权限可以查看。 表1 _PG_FOREIGN_TABLE_COLUMNS字段 名称 类型 描述 nspname name schema名称。 relname name 表名称。 attname name 列名称。 attfdwoptions text[] 外部数据封装器的属性选项，使用“keyword=value”格式的字符串。",
+      "source_file": "2027__PG_FOREIGN_TABLE_COLUMNS.txt"
+    },
+    {
+      "term": "_PG_USER_MAPPINGS",
+      "content": "_PG_USER_MAPPINGS _PG_USER_MAPPINGS 存储从本地用户到远程的映射。该视图只有sysadmin权限可以查看。 表1 _PG_USER_MAPPINGS字段 名称 类型 描述 oid oid 从本地用户到远程的映射的oid。 umoptions text[] 用户映射指定选项，使用\"keyword=value”格式的字符串。 umuser oid 被映射的本地用户的OID，如果用户映射是公共的则为0。 authorization_identifier information_schema.sql_identifier 本地用户角色名称。 foreign_server_catalog information_schema.sql_identifier 外部服务器定义所在的database名称。 foreign_server_name information_schema.sql_identifier 外部服务器名称。 srvowner information_schema.sql_identifier 外部服务器所有者。",
+      "source_file": "2029__PG_USER_MAPPINGS.txt"
+    },
+    {
+      "term": "INFORMATION_SCHEMA_CATALOG_NAME",
+      "content": "INFORMATION_SCHEMA_CATALOG_NAME INFORMATION_SCHEMA_CATALOG_NAME 用来显示当前所在的database的名称。 表1 INFORMATION_SCHEMA_CATALOG_NAME字段 名称 类型 描述 catalog_name information_schema.sql_identifier 当前database的名称",
+      "source_file": "2030_INFORMATION_SCHEMA_CATALOG_NAME.txt"
+    }
+  ]
+}

@@ -1,0 +1,1 @@
+执行SQL命令 执行SQL命令 嵌入式SQL命令格式为EXEC SQL [Command]，在嵌入的SQL应用中可以运行 GaussDB Kernel 支持的常见标准SQL语句，或者ecpg提供的扩展SQL语句。当前不支持存储过程、匿名块、闪回等特性语法。 执行SQL语句 使用游标 事务管理 预备语句 嵌入式SQL命令 父主题： 基于ecpg开发 版权所有 © 华为技术有限公司

@@ -1,0 +1,136 @@
+日志 日志 数据库日志记录了数据库服务端启动、运行或停止时出现的问题，当数据库在启动、运行或停止的过程中出现问题时，数据库用户可以通过运行日志快速分析问题的产生原因，并根据不同的原因采取相应的处理方法，尽可能地解决问题。 运行日志简介 日志文件位置： 通过实例的配置文件postgresql.conf中log_directory配置或者通过gsql执行show log_directory可以确定日志的位置。默认配置下：日志位于“$GAUSSLOG”目录下。下面示例分别对应CN/DN/GTM、OM、cm_server、cm_agent、om_monitor的日志位置。 $GAUSSLOG/pg_log
+$GAUSSLOG/om
+$GAUSSLOG/cm/cm_server
+$GAUSSLOG/cm/cm_agent
+$GAUSSLOG/cm/om_monitor 日志文件命名规则： postgresql-%Y-%m-%d_%H%M%S.log，其中%Y表示年，%m表示月，%d表示日期，%H%M%S表示时分秒。可以通过日志文件名快速找到某个时间点对应的日志文件。 例如：postgresql-2015-06-08_202702.log文件表示2015年6月8日20时27分02秒生成的日志。 日志文件内容： GaussDB 数据库系统启动后会从进程的配置文件postgresql.conf中读取运行日志文件的前缀格式log_line_prefix，用户可以自定义日志文件的格式前缀，默认配置为’%m %p ’。其中：%m表示当前日志条目生成的时间戳，精确到毫秒级；%p表示当前日志条目是哪个线程输出的，即线程ID。 日志文件的格式前缀后面紧跟的是当前日志条目的级别和日志的内容，其中，日志级别可以通过配置参数log_min_messages调整。默认最小消息级别为warning级别。 日志文件条目的格式如下所示： 2015-06-12 20:53:58.421 CST 140521357960960 WARNING: 0: can not connect to node 16385 
+2015-06-12 20:53:58.421 CST 140521357960960 WARNING: 0: failed to acquire connection from datdnode 16385 for thread 140521267787520
+2015-06-12 20:53:58.421 CST 140521267787520 WARNING: 20971524: incomplete message from client:77,9
+2015-06-12 20:53:58.421 CST 140521267787520 WARNING: 20971524: failed to receive connDefs at the time:1.
+2015-06-12 20:53:58.421 CST 140521267787520 ERROR: 20971524: failed to getpooled connections 运行日志分析 由于数据库运行过程中出现的问题会产生不同的表现形式，因此，根据问题的不同表现形式运行日志分为：实例类和集群类。以下说明两类日志的详细分析方法： 实例类： 是指$GAUSSLOG/pg_log目录下的日志，具体是哪个DN的日志，可以通过查看DN对应的配置文件postgresql.conf中log_directory配置。 用户可以通过在gsql客户端输入命令“\set VERBOSITY verbose”进入verbose模式。在verbose模式下，客户端会显示详细的错误信息，包括：错误级别、错误码、错误位置信息等。用户可以根据《开发者指南》中“错误码参考”章节中该错误码对应的错误信息、错误产生原因和错误处理方式。 集群类： 集群管理提供的功能包括启动、停止、查询、主备切换、重建以及状态监控等，可使用的接口是cm_ctl。cm_ctl供om调用，cm_ctl的提示信息保存在$GAUSSLOG/bin/cm_ctl目录下。比如说cm_ctl start后，各个节点的om_monitor启动cm_agent，om_monitor的日志保存在$GAUSSLOG/cm/om_monitor；然后cm_agent启动本节点的所有实例，cm_agent的日志保存在$GAUSSLOG/cm/cm_agent，启动实例启动过程中的提示信息保存在system_call_XXX.log；同时cm_server根据cm_agent上报的实例状态仲裁主备关系，cm_server的日志保存在$GAUSSLOG/cm/cm_server，cm_agent执行cm_server下发的仲裁命令的提示信息也保存在cm_agent的system_call_XXX.log。下面就集群常见问题的日志分析方法举例说明： 启动失败： 查看cm_ctl的日志，可能是互信有问题，比如： cm_ctl: start cluster.
+cm_ctl: start nodeid:1
+cm_ctl: start nodeid:2
+cm_ctl: start nodeid:3
+cm_ctl: ssh failed at "10.146.174.168". cmd is ssh 10.146.174.168 "( rm -f /home/mppllt/mppdb/install/bin/cluster_manual_start /home/mppllt/mppdb/install/bin/instance_manual_start_* < "/dev/null" 2>&1 & ) > /dev/null 2>&1" < /dev/null > /dev/null 2>&1, rc=65280.File exists
+cm_ctl: start nodeid:4
+....................................................................................................................................................................................
+cm_ctl: start cluster failed in (180)s. 查看om_monitor的日志，可能是cm_agent无法启动，如下： 2014-09-12 19:32:31.877 CST tid=26209 child process cm_agent have die! pid is 7951 exit status is 256
+ 2014-09-12 19:32:31.884 CST tid=26209 child process(7951) cm_agent have exit
+ cm_agent:cm_agent 7956 started
+ can not open config file: /home/hq/install/data/cmserver/cm_agent/cm_agent.conf No such file or directory 查看cm_agent的日志，可能是实例端口占用或磁盘有故障，比如“port:19201, already in use.”、“data path disc writable test failed”。 查看cm_agent的system_call_XXX.log日志，可能是参数配置有问题，比如“FATAL:  hot standby is not possible because max_connections = 10 is a lower setting than on the master server” 主备倒换： 如果首次启动发生主备倒换，查看cm_server日志，cm_server根据两个实例日志位置大小仲裁主备，日志位置大的升主，日志位置小的降备，如： 2014-12-26 23:09:54.807 CST tid=3363 CM_AGENT datanode_instance_arbitrate node is 2 , instanceId is 6002, local_static_role 2=Standby, local_dynamic_role 3=Pending, peer_static_role 1=Primary, peerl_dynamic_role 3=Pending , local_last_xlog_location=0/1F6DED8, peerl_last_xlog_location=0/1F6D600, local_db_state 2=Need repair, peerl_db_state 2=Need repair, local_sync_state=0, build_reason 2=Disconnected, double_restarting=0
+2014-12-26 23:09:54.807 CST tid=3363 CM_AGENT 1883 pending-pending,XLByteLT:local_last_xlog_location=0 peerl_last_xlog_location=0 LT=1.to primary 运行过程中发生主备倒换，可能是主机心跳超时，备机升主，查看cm_server日志如下： 2014-12-22 11:53:11.231 UTC tid=126063 instance(1001) heartbeat timeout.
+2014-12-22 11:53:11.861 UTC tid=36972 gtm_instance_arbitrate node is 12, instanceId is 1002, local_static_role 2=Standby, local_dynamic_role 2=Standby, peer_static_role 1=Primary, peerl_dynamic_role 5=UNKNOWN, local_xid=921611, peer_xid=0, local_db_state 0=Normal, local_sync_status=3, double_restarting=0
+2014-12-22 11:53:11.861 UTC tid=36972 instance(node: 12, instanceid: 1002) reported sync mode is:1, arbitrate sync mode is:1.
+2014-12-22 11:53:11.862 UTC tid=36972 instance_delay_arbitrate_time_out end (node=12  instanceid=1002) local_delay_role=5 peerl_delay_role=5 local_dynamic_role=2 peerl_dynamic_role=5 delay_max_count=60 arbitrate_delay_time_out=60 
+2014-12-22 11:53:11.874 UTC tid=36972 cm_server_send_msg is : MSG_CM_AGENT_FAILOVER 自动重建： 可能是主备日志位置不一致，备机重建，查看cm_server日志如下： 2015-02-07 01:48:38.315 UTC tid=42665 datanode_instance_arbitrate node is 3 , instanceId is 6019, local_static_role 2=Standby, local_dynamic_role 2=Standby, peer_static_role 1=Primary, peerl_dynamic_role 1=Primary , local_term=5, local_last_xlog_location=0/FA910608, peer_term=5, peerl_last_xlog_location=0/FA910500, local_db_state 2=NeedRepair, peerl_db_state 0=Normal, local_sync_state=0, build_reason 1=WalSegmentRemoved, double_restarting=0
+2015-02-07 01:48:38.315 CST tid=42665 CM_AGENT LOG: before send MSG_CM_AGENT_BUILD local_dynamic_role =2  peerl_dynamic_role =1 group_index=8 member_index=1  timeout_set=1 delay_time =0
+2015-02-07 01:48:38.315 CST tid=42665 CM_AGENT LOG: instance_delay_arbitrate_time_out end (node=1  instanceid=6019) local_delay_role=5 peerl_delay_role=5 local_dynamic_role=2 peerl_dynamic_role=1 delay_max_count=120 arbitrate_delay_time_out=120
+2015-02-07 01:48:38.315 CST tid=42665 CM_AGENT LOG: cmserver send msg: MSG_CM_AGENT_BUILD 主备日志位置不一致可能是主机断网或压力下cm_agent上报DN主状态超时，导致cm_agent杀死DN主，cm_server看到的DN主为UNKNOWN状态，对备机下发failover操作，此时主机部分业务没有同步到备机，导致failover后主备关系无法建立。 基于SQL接口访问性能日志和运行日志 系统管理员具有接口调用的权限，基于SQL接口可以成功创建运行日志和性能日志的外表和视图：select gs_create_log_tables(); gaussdb=# \d+
+No relations found.gaussdb=# select gs_create_log_tables();
+ gs_create_log_tables
+----------------------
+
+(1 row)gaussdb=# \d+
+                                  List of relations
+ Schema |       Name        |     Type      | Owner |  Size   | Storage | Description
+--------+-------------------+---------------+-------+---------+---------+-------------
+ public | gs_pg_log_ft      | foreign table | ##### | 0 bytes |         |
+ public | gs_pg_log_v       | view          | ##### | 0 bytes |         |
+ public | gs_profile_log_ft | foreign table | ##### | 0 bytes |         |
+ public | gs_profile_log_v  | view          | ##### | 0 bytes |         |
+(4 rows) 系统管理员具有接口调用的权限，基于SQL接口可以通过gs_pg_log_ft查询运行日志（日志类型为'pg_log'），通过gs_profile_log_ft查询性能日志（日志类型为'gs_profile'）。两张表均为只读表，不支持写入和更新，默认加载两个最新文件。系统管理员也可通过gs_pg_log_v和gs_profile_log_v视图分别查看对应的运行日志和性能日志。 gaussdb=# \d gs_pg_log_ft
+                Foreign table "public.gs_pg_log_ft"
+    Column     |           Type           | Modifiers | FDW Options
+---------------+--------------------------+-----------+-------------
+ dirname       | text                     |           |
+ filename      | text                     |           |
+ hostname      | text                     |           |
+ match         | boolean                  |           |
+ logtime       | timestamp with time zone |           |
+ nodename      | text                     |           |
+ app           | text                     |           |
+ session_start | timestamp with time zone |           |
+ session_id    | text                     |           |
+ db            | text                     |           |
+ remote        | text                     |           |
+ cmdtag        | text                     |           |
+ username      | text                     |           |
+ vxid          | text                     |           |
+ pid           | bigint                   |           |
+ lineno        | bigint                   |           |
+ xid           | bigint                   |           |
+ qid           | bigint                   |           |
+ ecode         | text                     |           |
+ mod           | text                     |           |
+ level         | text                     |           |
+ msg           | text                     |           |
+Server: log_srv
+FDW Options: (logtype 'pg_log', master_only 'true', latest_files '2')
+FDW permition: read only
+
+gaussdb=# \d gs_profile_log_ft
+           Foreign table "public.gs_profile_log_ft"
+  Column  |           Type           | Modifiers | FDW Options
+----------+--------------------------+-----------+-------------
+ dirname  | text                     |           |
+ filename | text                     |           |
+ hostname | text                     |           |
+ logtime  | timestamp with time zone |           |
+ nodename | text                     |           |
+ thread   | bigint                   |           |
+ xid      | bigint                   |           |
+ qid      | bigint                   |           |
+ reqsrc   | text                     |           |
+ reqtype  | text                     |           |
+ reqok    | integer                  |           |
+ reqcount | bigint                   |           |
+ reqsize  | bigint                   |           |
+ requsec  | bigint                   |           |
+Server: log_srv
+FDW Options: (logtype 'gs_profile', master_only 'true', latest_files '2')
+FDW permition: read only
+
+gaussdb=# \d gs_pg_log_v
+              View "public.gs_pg_log_v"
+    Column     |           Type           | Modifiers
+---------------+--------------------------+-----------
+ dirname       | text                     |
+ filename      | text                     |
+ hostname      | text                     |
+ match         | boolean                  |
+ logtime       | timestamp with time zone |
+ nodename      | text                     |
+ app           | text                     |
+ session_start | timestamp with time zone |
+ session_id    | text                     |
+ db            | text                     |
+ remote        | text                     |
+ cmdtag        | text                     |
+ username      | text                     |
+ vxid          | text                     |
+ pid           | bigint                   |
+ lineno        | bigint                   |
+ xid           | bigint                   |
+ qid           | bigint                   |
+ ecode         | text                     |
+ mod           | text                     |
+ level         | text                     |
+ msg           | text                     |gaussdb=# \d gs_profile_log_v
+         View "public.gs_profile_log_v"
+  Column  |           Type           | Modifiers
+----------+--------------------------+-----------
+ dirname  | text                     |
+ filename | text                     |
+ hostname | text                     |
+ logtime  | timestamp with time zone |
+ nodename | text                     |
+ thread   | bigint                   |
+ xid      | bigint                   |
+ qid      | bigint                   |
+ reqsrc   | text                     |
+ reqtype  | text                     |
+ reqok    | integer                  |
+ reqcount | bigint                   |
+ reqsize  | bigint                   |
+ requsec  | bigint                   | 允许基于gs_pg_log_ft和gs_profile_log_ft对master_only和latest_files执行alter foreign table操作，其他alter此表的操作均不支持。master_only为true则默认只查询主DN日志文件，为false时查询所有的对应日志文件。latest_files默认查询2个文件，取值为1~2147483647。 gaussdb=# alter foreign table gs_pg_log_ft options (set master_only 'false');
+ALTER FOREIGN TABLEgaussdb=# alter foreign table gs_profile_log_ft options (set latest_files '10');
+ALTER FOREIGN TABLE 日志外表gs_pg_log_ft和日志视图gs_pg_log_v不支持部分模块和第三方组件查询。 父主题： 数据库故障定位方法 版权所有 © 华为技术有限公司

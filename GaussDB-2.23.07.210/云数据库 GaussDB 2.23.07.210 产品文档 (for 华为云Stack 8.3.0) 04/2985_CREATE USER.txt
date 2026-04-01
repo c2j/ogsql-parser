@@ -1,0 +1,48 @@
+CREATE USER CREATE USER 功能描述 创建一个用户。 注意事项 通过CREATE USER创建的用户，默认具有LOGIN权限。 通过CREATE USER创建用户的同时，系统会在执行该命令的数据库中，为该用户创建一个同名的SCHEMA。 系统管理员在普通用户同名schema下创建的对象，所有者为schema的同名用户（非系统管理员）。 语法格式 CREATE USER user_name [ [ WITH ] option [ ... ] ] [ ENCRYPTED | UNENCRYPTED ] { PASSWORD | IDENTIFIED BY } { 'password' [EXPIRED] | DISABLE }; 其中option子句用于设置权限及属性等信息。 {SYSADMIN | NOSYSADMIN}
+    | {MONADMIN | NOMONADMIN}
+    | {OPRADMIN | NOOPRADMIN}
+    | {POLADMIN | NOPOLADMIN}
+    | {AUDITADMIN | NOAUDITADMIN}
+    | {CREATEDB | NOCREATEDB}
+    | {USEFT | NOUSEFT}
+    | {CREATEROLE | NOCREATEROLE}
+    | {INHERIT | NOINHERIT}
+    | {LOGIN | NOLOGIN}
+    | {REPLICATION | NOREPLICATION}
+    | {VCADMIN | NOVCADMIN}
+    | {PERSISTENCE | NOPERSISTENCE}
+    | CONNECTION LIMIT connlimit
+    | VALID BEGIN 'timestamp'
+    | VALID UNTIL 'timestamp'
+    | RESOURCE POOL 'respool'
+    | USER GROUP 'groupuser'
+    | PERM SPACE 'spacelimit'
+    | TEMP SPACE 'tmpspacelimit'
+    | SPILL SPACE 'spillspacelimit'
+    | NODE GROUP logic_cluster_name
+    | IN ROLE role_name [, ...]
+    | IN GROUP role_name [, ...]
+    | ROLE role_name [, ...]
+    | ADMIN role_name [, ...]
+    | USER role_name [, ...]
+    | SYSID uid
+    | DEFAULT TABLESPACE tablespace_name
+    | PROFILE DEFAULT
+    | PROFILE profile_name
+    | PGUSER 参数说明 user_name 用户名称。 取值范围：字符串，要符合 标识符命名规范 。且最大长度不超过63个字符。 password 登录密码。 密码规则如下： 密码默认不少于8个字符。 不能与用户名及用户名倒序相同。 至少包含大写字母（A-Z），小写字母（a-z），数字（0-9），非字母数字字符（限定为~!@#$%^&*()-_=+\|[{}];:,<.>/?）四类字符中的三类字符。 密码也可以是符合格式要求的密文字符串，这种情况主要用于用户数据导入场景，不推荐用户直接使用。如果直接使用密文密码，用户需要知道密文密码对应的明文，并且保证明文密码复杂度，数据库不会校验密文密码复杂度，直接使用密文密码的安全性由用户保证。 创建用户时，应当使用单引号将用户密码括起来。 取值范围：字符串。 CREATE USER的其他参数值请参考 CREATE ROLE 。 示例 --创建用户jim，登录密码为 ******** 。 gaussdb=# CREATE USER jim PASSWORD ' ******** ';
+
+--下面语句与上面的等价。 gaussdb=# CREATE USER kim IDENTIFIED BY ' ******** ';
+
+--如果创建有“创建数据库”权限的用户，则需要加CREATEDB关键字。 gaussdb=# CREATE USER dim CREATEDB PASSWORD ' ******** ';
+
+--将用户jim的登录密码由 ******** 修改为**********。 gaussdb=# ALTER USER jim IDENTIFIED BY '**********' REPLACE ' ******** ';
+
+--为用户jim追加CREATEROLE权限。 gaussdb=# ALTER USER jim CREATEROLE;
+
+--将enable_seqscan的值设置为on， 设置成功后，在下一会话中生效。 gaussdb=# ALTER USER jim SET enable_seqscan TO on;
+
+--重置jim的enable_seqscan参数。 gaussdb=# ALTER USER jim RESET enable_seqscan;
+
+--锁定jim账户。 gaussdb=# ALTER USER jim ACCOUNT LOCK;
+
+--删除用户。 gaussdb=# DROP USER kim CASCADE; gaussdb=# DROP USER jim CASCADE; gaussdb=# DROP USER dim CASCADE; 相关链接 ALTER USER ， CREATE ROLE ， DROP USER 父主题： C 版权所有 © 华为技术有限公司

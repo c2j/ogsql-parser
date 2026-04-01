@@ -1,0 +1,33 @@
+ha_check_status.log ha_check_status.log 日志含义 管理面高可用组件HA通信消息日志。通过查看该日志，系统管理人员与系统维护人员可以查看各个时间各类网络、磁盘、数据库等的健康状态，从而快速定位问题。 日志命名 日志文件名：ha_check_status.log.* 日志格式 日志的格式如下： [时间][级别][模块][任务流ID][来源][具体内容][位置] 日志参数 表1 日志参数 字段名称 字段含义 级别 日志的级别：分为INFO，WARN，ERROR 时间 日志生成的时间，格式：yyyy-mm-dd hh:mm:ss:ms。 来源 上报日志的进程和线程号。 模块 打印日志的进程模块名称 具体内容 日志具体的内容。 位置 打印日志的具体代码位置 任务流ID 任务流ID 日志示例 日志的典型样例： 下边是节点磁盘及数据库状态的日志示例。 [2021-08-30 19:23:39,066 +10][INFO][ha_status][][P25123T140558569338672][dbStatus:
+ nodeId: "e66bd15fed6045b68ef1ef33a4ce6c30no14"
+role: STANDBY
+state: WRITABLE
+groupState: RUNNING
+errmsg: "SUCCESS"
+][_output_to_log(handler.py:181)]
+[2021-08-30 19:23:39,067 +10][INFO][ha_status][][P25123T140558569338672][DiskStatus:
+ [id: 17646
+type: DATA
+state: WRITABLE
+spaceUsage: 796
+inodeUsage: 7
+allocBuyRatio: -1.0
+, id: 17645
+type: BACKUP
+state: WRITABLE
+spaceUsage: 22
+inodeUsage: 1
+allocBuyRatio: -1.0
+, id: 17644
+type: LOG
+state: WRITABLE
+spaceUsage: 18
+inodeUsage: 1
+allocBuyRatio: -1.0
+, id: 17640
+type: SYSTEM
+state: WRITABLE
+spaceUsage: 5349
+inodeUsage: 1784
+allocBuyRatio: -1.0
+]][_output_to_log(handler.py:185)] 父主题： 租户日志 版权所有 © 华为技术有限公司

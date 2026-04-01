@@ -1,0 +1,56 @@
+{
+  "topic": "DELETE",
+  "term_count": 10,
+  "terms": [
+    {
+      "term": "【规格】在GMT-FREE模式下，不允许跨节点事务，因此删除HASH分布表中数据时，必须在WHERE条件中指定分布列等值过滤条件",
+      "content": "【规格】在GMT-FREE模式下，不允许跨节点事务，因此删除HASH分布表中数据时，必须在WHERE条件中指定分布列等值过滤条件 【规格】在GMT-FREE模式下，不允许跨节点事务，因此删除HASH分布表中数据时，必须在WHERE条件中指定分布列等值过滤条件",
+      "source_file": "554_GMT-FREEHASHWHERE.txt"
+    },
+    {
+      "term": "【建议】DELETE有主键或索引的表，WHERE条件应结合主键或索引，提高执行效率",
+      "content": "【建议】DELETE有主键或索引的表，WHERE条件应结合主键或索引，提高执行效率 【建议】DELETE有主键或索引的表，WHERE条件应结合主键或索引，提高执行效率",
+      "source_file": "694_DELETEWHERE.txt"
+    },
+    {
+      "term": "【规则】DELETE语句中使用ORDER",
+      "content": "【规则】DELETE语句中使用ORDER BY、GROUP BY子句，避免不必要的排序 【规则】DELETE语句中使用ORDER BY、GROUP BY子句，避免不必要的排序",
+      "source_file": "692_DELETEORDER BYGROUP BY.txt"
+    },
+    {
+      "term": "【规则】DELETE语句中使用ORDER",
+      "content": "【规则】DELETE语句中使用ORDER BY、GROUP BY子句，避免不必要的排序 【规则】DELETE语句中使用ORDER BY、GROUP BY子句，避免不必要的排序",
+      "source_file": "557_DELETEORDER BYGROUP BY.txt"
+    },
+    {
+      "term": "【规则】DELETE语句中必须有WHERE子句，避免全表扫描",
+      "content": "【规则】DELETE语句中必须有WHERE子句，避免全表扫描 【规则】DELETE语句中必须有WHERE子句，避免全表扫描",
+      "source_file": "556_DELETEWHERE.txt"
+    },
+    {
+      "term": "【建议】DELETE有主键或索引的表，WHERE条件应结合主键或索引，提高执行效率",
+      "content": "【建议】DELETE有主键或索引的表，WHERE条件应结合主键或索引，提高执行效率 【建议】DELETE有主键或索引的表，WHERE条件应结合主键或索引，提高执行效率",
+      "source_file": "559_DELETEWHERE.txt"
+    },
+    {
+      "term": "【规则】如果需要清空一张表，建议使用TRUNCATE，而不是DELETE",
+      "content": "【规则】如果需要清空一张表，建议使用TRUNCATE，而不是DELETE 【规则】如果需要清空一张表，建议使用TRUNCATE，而不是DELETE TRUNCATE会创建新的物理文件，并在事务结束时将原文件物理删除，清空磁盘空间。而DELETE会将表中数据进行标记，直到VACUUM FULL阶段才会真正清理磁盘空间。",
+      "source_file": "693_TRUNCATEDELETE.txt"
+    },
+    {
+      "term": "【规则】如果需要清空一张表，建议使用TRUNCATE，而不是DELETE",
+      "content": "【规则】如果需要清空一张表，建议使用TRUNCATE，而不是DELETE 【规则】如果需要清空一张表，建议使用TRUNCATE，而不是DELETE TRUNCATE会创建新的物理文件，并在事务结束时将原文件物理删除，清空磁盘空间。而DELETE会将表中数据进行标记，直到VACUUM FULL阶段才会真正清理磁盘空间。",
+      "source_file": "558_TRUNCATEDELETE.txt"
+    },
+    {
+      "term": "【规格】不支持多表删除",
+      "content": "【规格】不支持多表删除 【规格】不支持多表删除 多表删除即在单条SQL语句中，对多个表进行删除。",
+      "source_file": "555_file_555.txt"
+    },
+    {
+      "term": "【规则】DELETE语句中必须有WHERE子句，避免全表扫描",
+      "content": "【规则】DELETE语句中必须有WHERE子句，避免全表扫描 【规则】DELETE语句中必须有WHERE子句，避免全表扫描",
+      "source_file": "691_DELETEWHERE.txt"
+    }
+  ]
+}

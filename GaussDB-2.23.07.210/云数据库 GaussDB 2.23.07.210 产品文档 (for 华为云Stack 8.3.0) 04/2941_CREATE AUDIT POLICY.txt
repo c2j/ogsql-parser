@@ -1,0 +1,36 @@
+CREATE AUDIT POLICY CREATE AUDIT POLICY 功能描述 创建统一审计策略。 注意事项 只有poladmin，sysadmin或初始用户能进行此操作。 需要开启安全策略开关，即设置GUC参数enable_security_policy=on，脱敏策略才可以生效。 系统管理员或安全策略管理员可以访问GS_AUDITING_POLICY、GS_AUDITING_POLICY_ACCESS、GS_AUDITING_POLICY_PRIVILEGES、GS_AUDITING_POLICY_FILTERS系统表查询已创建的审计策略。 在使用DATABASE LINK功能的场景下，客户端发起的DATABASE LINK请求，实际的发送方是服务端，发送端ip地址等相关的属性将是服务端的值。详情见 DATABASE LINK 。 语法格式 CREATE AUDIT POLICY [ IF NOT EXISTS ] policy_name { privilege_audit_clause | access_audit_clause } [, ... ] [ filter_group_clause ] [ ENABLE | DISABLE ]; privilege_audit_clause： 1 PRIVILEGES { DDL | ALL } [ ON LABEL ( resource_label_name [, ... ] ) ] access_audit_clause： ACCESS { DML | ALL } [ ON LABEL ( resource_label_name [, ... ] ) ] filter_group_clause： FILTER ON { filter_type ( filter_value [, ... ] ) } [, ... ] 参数说明 policy_name 审计策略名称，需要唯一，不可重复； 取值范围：字符串，要符合 标识符命名规范 。 resource_label_name 资源标签名称。 DDL 指的是针对数据库执行如下操作时进行审计，目前支持：CREATE、ALTER、DROP、ANALYZE、COMMENT、GRANT、REVOKE、SET、SHOW、LOGIN_ANY、LOGIN_FAILURE、LOGIN_SUCCESS、LOGOUT。 DML 指的是针对数据库执行如下操作时进行审计，目前支持：SELECT、COPY、DEALLOCATE、DELETE、EXECUTE、INSERT、PREPARE、REINDEX、TRUNCATE、UPDATE。 ALL 指的是上述DDL或DML中支持的所有对数据库的操作。当形式为{ DDL | ALL }时，ALL指所有DDL操作；当形式为{ DML | ALL }时，ALL指所有DML操作。 filter_type 描述策略过滤的条件类型，包括IP | APP | ROLES。 filter_value 指具体过滤信息内容。 ENABLE|DISABLE 可以打开或关闭统一审计策略。若不指定ENABLE|DISABLE，语句默认为ENABLE。 示例 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27
+28
+29
+30
+31
+32
+33
+34
+35
+36 --创建dev_audit和bob_audit用户。 gaussdb =# CREATE USER dev_audit PASSWORD '********' ; gaussdb =# CREATE USER bob_audit PASSWORD '********' ; --创建一个表tb_for_audit。 gaussdb =# CREATE TABLE tb_for_audit ( col1 text , col2 text , col3 text ); --创建资源标签。 gaussdb =# CREATE RESOURCE LABEL adt_lb0 ADD TABLE ( tb_for_audit ); --对数据库执行create操作创建审计策略。 gaussdb =# CREATE AUDIT POLICY adt1 PRIVILEGES CREATE ; --对数据库执行SELECT操作创建审计策略。 gaussdb =# CREATE AUDIT POLICY adt2 ACCESS SELECT ; --仅审计记录用户dev_audit和bob_audit在执行针对adt_lb0资源进行的create操作数据库创建审计策略。 gaussdb =# CREATE AUDIT POLICY adt3 PRIVILEGES CREATE ON LABEL ( adt_lb0 ) FILTER ON ROLES ( dev_audit , bob_audit ); --仅审计记录用户dev_audit和bob_audit,客户端工具为gsql，IP地址为'10.20.30.40', '127.0.0.0/24'，在执行针对adt_lb0资源进行的select、insert、delete操作数据库创建审计策略。 gaussdb =# CREATE AUDIT POLICY adt4 ACCESS SELECT ON LABEL ( adt_lb0 ), INSERT ON LABEL ( adt_lb0 ), DELETE FILTER ON ROLES ( dev_audit , bob_audit ), APP ( gsql ), IP ( '10.20.30.40' , '127.0.0.0/24' ); --删除针对adt_lb0资源进行的select操作的审计策略。 gaussdb =# ALTER AUDIT POLICY adt4 REMOVE ACCESS ( SELECT ON LABEL ( adt_lb0 )); --删除审计策略。 gaussdb =# DROP AUDIT POLICY adt1 , adt2 , adt3 , adt4 ; --删除资源标签。 gaussdb =# DROP RESOURCE LABEL adt_lb0 ; --删除表tb_for_audit。 gaussdb =# DROP TABLE tb_for_audit ; --删除dev_audit和bob_audit用户。 gaussdb =# DROP USER dev_audit , bob_audit ; 相关链接 ALTER AUDIT POLICY ， DROP AUDIT POLICY 。 父主题： C 版权所有 © 华为技术有限公司

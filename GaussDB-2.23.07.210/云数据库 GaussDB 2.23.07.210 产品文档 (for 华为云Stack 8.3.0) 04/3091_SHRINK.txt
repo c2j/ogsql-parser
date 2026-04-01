@@ -1,0 +1,13 @@
+SHRINK SHRINK 功能描述 将给定的压缩表进行chunk碎片化的整理，整理后有利于页面的读写。 当前特性是实验室特性，使用时请联系华为技术工程师提供技术支持。 注意事项 shrink操作只在主机上执行，备机上不能手动执行。 shrink操作的时间与当前CPU使用率和表的大小相关。 shrink本质属于优化操作，若优化时数据库异常，重新拉起后未优化的部分不再执行。 语法格式 SHRINK TABLE table_name [nowait];
+SHRINK INDEX index_name [nowait]; 参数说明 nowait 表示任务发起后立即返回，不需要等待整理结果，后台线程会定时唤醒对shrink添加的任务进行整理。 示例 以下以SHRINK TABLE进行举例，SHRINK INDEX操作与SHRINK TABLE相同。 --创建表row_compression gaussdb=# CREATE TABLE row_compression
+(
+    id int
+) WITH (compresstype=2, compress_chunk_size = 512, compress_level = 1);
+
+--插入数据 gaussdb=# INSERT INTO row_compression SELECT generate_series(1,1000);
+
+--查看数据 gaussdb=# SELECT * FROM row_compression;
+
+--shrink整理 gaussdb=# SHRINK TABLE row_compression;
+
+--删除表 gaussdb=# DROP TABLE row_compression; 父主题： S 版权所有 © 华为技术有限公司

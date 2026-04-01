@@ -1,0 +1,1 @@
+STATEMENT_COMPLEX_HISTORY STATEMENT_COMPLEX_HISTORY STATEMENT_COMPLEX_HISTORY视图显示在 所有CN节点 上执行作业结束后的负载管理 （当前特性是实验室特性，使用时请联系华为技术工程师提供技术支持。） 记录。此视图的数据直接从系统表 GS_WLM_SESSION_QUERY_INFO_ALL 获取。具体的字段请参考 表1 。 父主题： Query 版权所有 © 华为技术有限公司

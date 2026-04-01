@@ -1,0 +1,1 @@
+GS_SPM_ID_HASH_JOIN GS_SPM_ID_HASH_JOIN GS_SPM_ID_HASH_JOIN系统表是用于存储unique_sql_id和sql_hash关系的系统表，具备sysadmin权限的用户可以对该系统表进行读操作，但只有初始用户才可以对该系统表进行写的操作。 表1 GS_SPM_ID_HASH_JOIN字段 名称 类型 描述 unique_sql_id bigint 数据库中SQL的唯一标识。 sql_hash bigint SPM中SQL的唯一标识。 父主题： SPM计划管理 版权所有 © 华为技术有限公司

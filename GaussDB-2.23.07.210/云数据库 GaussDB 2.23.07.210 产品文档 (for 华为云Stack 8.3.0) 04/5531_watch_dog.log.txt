@@ -1,0 +1,18 @@
+watch_dog.log watch_dog.log 日志含义 管理面数据库健康状态查询操作日志。通过查看该日志，系统管理人员与系统维护人员可以查看节点数据库状态，从而快速定位问题。 日志命名 日志文件名：watch_dog.log.* 日志格式 日志的格式如下： [时间][级别][模块][任务流ID][来源][具体内容][位置] 日志参数 表1 日志参数 字段名称 字段含义 级别 日志的级别：分为INFO，WARN，ERROR 时间 日志生成的时间，格式：yyyy-mm-dd hh:mm:ss:ms 来源 上报日志的进程和线程号 模块 打印日志的进程模块名称 具体内容 日志具体的内容 位置 打印日志的具体代码位置 任务流ID 任务流ID 日志示例 日志的典型样例： 下边是数据库状态查询打印的日志示例。 [2021-08-30 22:45:43,336 +10][INFO][agent][][P27305T140595897251648][node_info : dbStatus {
+  nodeId: "e66bd15fed6045b68ef1ef33a4ce6c30no14"
+  role: STANDBY
+  state: WRITABLE
+  groupState: RUNNING
+  errmsg: "SUCCESS"
+}
+gaussV5DnStatus {
+  dbObjId: 6003
+  role: STANDBY
+  state: WRITABLE
+}
+gaussV5Repl {
+  gaussV5DnReplStatus {
+    state: SYNCING
+  }
+}
+][check_node_db_status(check_status.py:72)] 父主题： 租户日志 版权所有 © 华为技术有限公司

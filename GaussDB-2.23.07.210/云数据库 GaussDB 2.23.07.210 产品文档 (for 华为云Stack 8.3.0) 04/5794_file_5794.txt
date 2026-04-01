@@ -1,0 +1,64 @@
+启动命令 启动命令 功能 start命令用于在集群恢复操作后启动集群。 命令格式 python3 GaussRoach.py
+-t start [--cluster-timeout] <timeout>
+[--cluster-unique-id] <value>
+[--logging-path] <logging-path>
+[--parallel-jobs] <jobs-count>
+[--parallel-restore]
+[--restore-new-cluster]
+[--standby-build-timeout] <timeout>
+[-X <XML path of the new cluster>]
+[--obs-server-ip <address>]
+[--bucket-name <bucketname>]
+[--obs-ak <ak>]
+[--obs-sk <sk>]
+[--task-id <task id>]
+[--restore-target-time <UNIX TIMESTAMP>]
+[--pitr]
+[--username <user-name>]
+[-W <password>] 参数说明 表1 启动命令的命令行参数列表 完整选项 缩写选项 数据类型 说明 取值范围 缺省值 应用实例 -t 不涉及 字符串 Roach接口支持多种功能。指定该参数为start，表示启动集群。 -t backup -t stop -t delete -t restore -t genstack -t getobject -t start -t clean -t config -t version -t help 不涉及 -t start --cluster-timeout 不涉及 整数 集群启停的超时时间 整数 1800(s) --cluster-timeout 1800 --cluster-unique-id 不涉及 字符串 指定集群备份时的集群ID。 不涉及 不涉及 --cluster-unique-id dws-xlnobs_9732b696-4b6d-4844-a40c-d1f6355aca02 --logging-path 不涉及 字符串 日志存放路径。 不涉及 $GAUSSLOG/roach/controller --logging-path $GAUSSLOG/roach/controller --parallel-jobs 不涉及 整数 备份或恢复操作的并行进程数量。 1–32 5 --parallel-jobs 6 --parallel-restore 不涉及 布尔型 并行恢复对应的启动集群的参数，此时备DN是通过start而非全量build来启动。 说明： 此参数只用于从OBS/NAS介质的场景，且恢复时也需要指定为备机并行恢复的模式。 不涉及 False --parallel-restore --restore-new-cluster 不涉及 布尔型 将集群恢复到另一主机上。 如果命令中指定了该参数，则参数值为true。否则值为false。 说明： 该参数仅在media type为disk、OBS、NAS时有效。 不涉及 False --restore-new-cluster --standby-build-timeout 不涉及 整数 主机build备机超时时间 整数 600000(s) --standby-build-timeout 600000 -X -X 字符串 新集群的XML路径。 说明： 该参数仅对从磁盘将集群恢复到不同节点组的功能有效。 该参数区分大小写，参数值必须为大写。 绝对路径 不涉及 -X /home/db/ restore --obs-server-ip 不涉及 字符串 OBS服务器IP 地址。 说明： 该参数仅在PITR恢复启动时使用。 不涉及 不涉及 --obs-server-ip obs.test.huawei. com --bucket-name 不涉及 字符串 OBS桶名。 说明： 该参数仅在PITR恢复启动时使用。 不涉及 不涉及 --bucket-name dyk --obs-ak 不涉及 字符串 OBS用户名。 说明： 该参数仅在PITR恢复启动时使用。 不涉及 不涉及 --obs-ak Test72JBCACXX 2222222 --archive-mode 不涉及 字符串 归档类型。 说明： 该参数仅在PITR归档时使用。 on|off|clean 不涉及 --archive-mode on --task-id 不涉及 字符串 归档时使用的task id。 说明： 该参数仅在PITR恢复启动时使用。 不涉及 不涉及 --task-id test_uuid --restore-target-time 不涉及 字符串 PITR恢复指定恢复的时间。 说明： 该参数仅在PITR恢复启动时使用。 不涉及 不涉及 --restore-target-time 1624419494 --pitr 不涉及 布尔值 是否是PITR恢复启动。 说明： 该参数仅在PITR恢复启动时使用。 不涉及 False --pitr --username -U 字符串 备份时数据库集群初始化用户名。 不涉及 不涉及 --username cluster_user -W 不涉及 字符串 备份时数据库集群初始化用户名的密码。出于安全考虑，不建议使用该接口传递密码。建议使用echo和pipe方式来传递密码。 不涉及 不涉及 -W foo_pswd 使用指南 在恢复集群之后，使用start命令启动集群。并行参数（可选）可以同start命令一同提供，用以同步运行流程。 命令示例 恢复操作后启动集群。 python3 GaussRoach.py -t start 将集群恢复到不同节点组后启动集群。 python3 GaussRoach.py -t start --restore-new-cluster -X < XML path of the new cluster > 将集群恢复到pitr指定的时间后启动集群。(仅针对REMOTE介质) python3 GaussRoach.py -t start --restore-new-cluster -X <xml path of the new cluster> -- task-id GaussKernel_archive --restore-target-time 1684976963 --pitr --parallel-restore --remote-ip x.x.x.x --remote-port "8009" --remote-config "null" --metadata-destination <metadata_destination_path> --media-type REMOTE 系统回显 sparrow@node200: ~ /db/bin> python3 GaussRoach.py -t start
+Stopping the cluster.
+Successfully stopped the cluster.
+Starting the cluster.
+Starting ETCD.
+Successfully started ETCD.
+Starting GTM.
+Successfully started GTM.
+Starting CN.
+Successfully started CN.
+Starting DN master.
+Successfully started DN master.
+Starting build DN standby.
+Successfully start DN standby.
+Starting the cluster.
+Successfully started primary instance. Please wait for standby instances.
+.
+Successfully started standby instances.
+Waiting for the cluster become normal...
+Stopping the cluster.
+Successfully stopped the cluster.
+Starting the cluster.
+Successfully started primary instance. Please wait for standby instances.
+.
+Successfully started standby instances.
+======================================================================
+cluster_state      : Normal
+redistributing     : No
+node_count         : 3
+Coordinator State
+    normal         : 3
+    abnormal       : 0
+GTM State
+    primary        : 1
+    standby        : 2
+    abnormal       : 0
+    down           : 0
+Datanode State
+    primary        : 6
+    standby        : 12
+    secondary      : 0
+    building       : 0
+    abnormal       : 0
+    down           : 0
+
+Successfully started the cluster.
+Roach operation start completed. 相关命令 恢复命令 父主题： 命令行参考 版权所有 © 华为技术有限公司

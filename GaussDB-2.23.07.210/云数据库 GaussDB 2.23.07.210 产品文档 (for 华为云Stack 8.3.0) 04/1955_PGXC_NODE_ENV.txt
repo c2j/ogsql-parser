@@ -1,0 +1,1 @@
+PGXC_NODE_ENV PGXC_NODE_ENV PGXC_NODE_ENV视图显示集群中所有节点的环境变量信息。该视图只有monitor admin和sysadmin权限可以查看。具体字段信息如 表1 所示。 表1 PGXC_NODE_ENV字段 名称 类型 描述 node_name1 text 集群中节点的名称。 host1 text 集群中节点的主机名称。 process1 integer 集群中节点的进程号。 port1 integer 集群中节点的端口号。 installpath1 text 集群中节点的安装目录。 datapath1 text 集群中节点的数据目录。 log_directory1 text 集群中节点的日志目录。 父主题： 其他系统视图 版权所有 © 华为技术有限公司

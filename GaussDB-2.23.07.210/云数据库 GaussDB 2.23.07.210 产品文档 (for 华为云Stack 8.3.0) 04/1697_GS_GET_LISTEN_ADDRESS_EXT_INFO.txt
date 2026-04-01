@@ -1,0 +1,1 @@
+GS_GET_LISTEN_ADDRESS_EXT_INFO GS_GET_LISTEN_ADDRESS_EXT_INFO GS_GET_LISTEN_ADDRESS_EXT_INFO视图描述了查询当前DN实例扩展IP配置信息。具体使用场景参见 •gs_get_listen_address_ext_info() 。 表1 GS_GET_LISTEN_ADDRESS_EXT_INFO字段 名称 类型 描述 node_name text DN实例名。 host text DN实例侦听IP。 port bigint DN实例侦听的port。 ext_listen_ip text DN实例配置扩展IP。 父主题： 通信 版权所有 © 华为技术有限公司

@@ -1,0 +1,8 @@
+结束会话 结束会话 功能介绍 查杀指定会话列表。 调用接口前，您需要提前 获取终端节点 ，即下文中的Endpoint值。 接口约束 仅支持包含有CN或DN（主、备）组件的节点。 URI URI格式 POST  https://{ Endpoint }/gaussdb/v3/{project_id}/instances/{instance_id}/kill-session URI样例 https://{Endpoint}/gaussdb/v3/0483b6b16e954cb88930a360d2c4e663/instances/cc6fd964d93f4003851dfc29d57d30a5in14/kill-session 参数说明 表1 路径参数 参数 是否必选 参数类型 描述 project_id 是 String 租户在某一region下的project ID。 获取方法请参见 获取项目ID/名称 。 instance_id 是 String 实例的ID。 请求消息 参数说明 表2 请求Body参数说明 名称 是否必选 参数类型 说明 node_id 是 String 节点ID，仅支持包含有CN或DN（主、备）组件的节点。 component_id 是 String 组件ID，仅支持包含有CN或DN（主、备）组件ID，且需要是node_id参数上的组件。 session_ids 是 Array of strings 查杀指定会话ID列表 请求示例 {
+	"node_id": "52c25e148a4a48c293b66ca95565719cno14",
+	"component_id": "cn_5001",
+	"session_ids": ["10180"]
+} 响应消息 正常响应要素说明 表3 参数说明 参数 参数类型 描述 session_ids Array of strings 成功查杀指定会话ID列表。 success Boolean 是否成功。 响应示例 { 
+  "session_ids" : [ 10180 ], 
+  "success" : true 
+} 异常响应 请参见 异常请求结果 。 状态码 正常 200 异常 请参见 状态码 。 错误码 请参见 错误码 。 父主题： 实例管理 版权所有 © 华为技术有限公司

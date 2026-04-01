@@ -1,0 +1,29 @@
+匿名块支持自治事务 匿名块支持自治事务 自治事务可以在匿名块中定义，标识符为PRAGMA AUTONOMOUS_TRANSACTION，其余语法与创建匿名块语法相同，请参见 匿名块 ，示例如下。 gaussdb=# CREATE TABLE t1(a INT ,B TEXT);
+CREATE TABLE
+
+gaussdb=# START TRANSACTION;
+START TRANSACTION
+
+gaussdb=# DECLARE 
+	PRAGMA AUTONOMOUS_TRANSACTION;
+BEGIN
+	DBE_OUTPUT.PRINT_LINE('JUST USE CALL.');
+	INSERT INTO t1 VALUES(1,'YOU ARE SO CUTE,WILL COMMIT!');
+END;
+/
+JUST USE CALL.
+ANONYMOUS BLOCK EXECUTE
+
+gaussdb=# INSERT INTO t1 VALUES(1,'YOU WILL ROLLBACK!');
+INSERT 0 1
+gaussdb=# ROLLBACK;
+ROLLBACK
+
+gaussdb=# SELECT * FROM t1;
+ a |              b               
+---+------------------------------
+ 1 | YOU ARE SO CUTE,WILL COMMIT!
+(1 row)
+
+gaussdb=# DROP TABLE t1;
+DROP TABLE 上述例子，最后在回滚的事务块前执行包含自治事务的匿名块，直接说明了自治事务的特性，即主事务的回滚，不会影响自治事务已经提交的内容。 父主题： 自治事务 版权所有 © 华为技术有限公司

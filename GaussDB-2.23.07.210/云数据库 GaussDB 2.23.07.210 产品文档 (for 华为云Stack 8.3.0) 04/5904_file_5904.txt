@@ -1,0 +1,16 @@
+停止备份命令 停止备份命令 功能 stop命令用于停止运行中的备份操作。 命令格式 python3 $GPHOME/script/GaussRoach.py
+-t stop [-F]
+[--logging-path <logging-path>]
+[--stop-object <object-type>]
+[--stop-timeout <timeout-value>]
+[--pause-resume-backup]
+[--logging-path <filepath>]
+[--metadata-destination <path-name>] 参数说明 表1 停止备份命令的命令行参数列表 完整选项 缩写选项 数据类型 说明 取值范围 缺省值 应用实例 -t 不涉及 字符串 Roach界面支持多种功能。 指定该参数为stop表示调用停止功能。 -t backup -t stop -t delete -t restore -t genstack -t getobject -t start -t clean -t config -t archive -t snapshot_restore -t version -t help 不涉及 -t stop -F - 字符串 可选参数 为了兼容老版本功能保留该参数，当前版本携带或不携带该参数均会强制停止备份操作。 不涉及 不涉及 stop -F --logging-path 不涉及 字符串 日志路径。 不涉及 $GAUSSLOG/roach/controller --logging-path $GAUSSLOG/roach/controller --stop-object 不涉及 字符串 停止操作类型。 backup|restore|cluster backup --stop-object backup --stop-timeout 不涉及 字符串 停止操作的超时时间。超过该时间段后会退出停止操作。 30-57600（单位为秒） 600 --stop-timeout 1500 --pause-resume-backup 不涉及 布尔型 暂停断点续做 不涉及 False --pause-resume-backup --metadata-destination 不涉及 字符串 备份时的metadata的地址 不涉及 不涉及 --metadata-destination /data/metadata/ 使用指南 stop命令用于停止当前备份操作。该命令停止所有进程并清理所有备份文件。 stop命令可从数据库中的任意节点上执行。 如果执行该命令时未进行备份操作，则会提示没有正在执行的备份命令，同时也会尝试清理数据库中可能存在的备份残留状态。 Roach也兼容使用 python3 GaussRoach.py –t stop –F 命令停止备份，有-F和无-F参数的执行结果相同。 如果有一个全量备份和一个增量备份同时执行，那么stop操作会一起停止这两个备份任务。 命令示例 停止备份。 python3 $GPHOME/script/GaussRoach.py -t stop 系统回显 sparrow@BLR1000014692: ~ /db/bin/script> python3 GaussRoach.py -t stop
+Stopping backup.
+Stopping gs_roach process
+Successfully stopped gs_roach process
+Stopping the backup process in database
+Successfully stopped the backup process in database
+Waiting python backup process, stop timeout is 600 seconds.
+Successfully stopped backup.
+Roach operation stop completed. 相关命令 备份命令 父主题： 命令行参考 版权所有 © 华为技术有限公司

@@ -1,0 +1,1 @@
+V$SYSSTAT V$SYSSTAT V$SYSSTAT视图显示自数据库实例启动那刻起就开始累计的全实例的资源使用情况。默认只有初始用户或监控管理员可以访问，其它用户需授予MONADMIN权限才可访问。该视图同时存在于PG_CATALOG和SYS Schema下。 表1 V$SYSSTAT字段 名称 类型 描述 statistic# numeric 统计编号。 name character varying(64) 统计名称。 class numeric 暂不支持，值为NULL。 value numeric 统计值。 stat_id numeric 暂不支持，值为NULL。 con_id numeric 暂不支持，值为0。 父主题： 其他系统视图 版权所有 © 华为技术有限公司

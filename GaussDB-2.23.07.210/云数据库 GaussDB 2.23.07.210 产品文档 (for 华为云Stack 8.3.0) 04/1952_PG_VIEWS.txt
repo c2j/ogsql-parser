@@ -1,0 +1,1 @@
+PG_VIEWS PG_VIEWS PG_VIEWS视图显示数据库中每个视图的有用信息。具体字段信息如 表1 所示。 表1 PG_VIEWS字段 名称 类型 引用 描述 schemaname name PG_NAMESPACE .nspname 视图的模式名。 viewname name PG_CLASS .relname 视图名。 viewowner name PG_AUTHID .Erolname 视图的所有者。 definition text - 视图的定义。 父主题： 其他系统视图 版权所有 © 华为技术有限公司

@@ -1,0 +1,102 @@
+DBE_OUTPUT DBE_OUTPUT 当使用DBE_OUTPUT.PUT_LINE打印DBE_FILE.READ_LINE_NCHAR接口得到的结果时，需要确保UTF-8字符集编码能够转换成当前数据库字符集编码，满足上述条件后可以正常输出结果。DBE_OUTPUT.PRINT_LINE不支持该功能。 接口介绍 高级功能包DBE_OUTPUT支持的所有接口请参见 表 DBE_OUTPUT 。 表1 DBE_OUTPUT 接口名称 描述 DBE_OUTPUT.PRINT_LINE 输出指定的文本，并添加换行符。 DBE_OUTPUT.PRINT 输出指定的文本，不添加换行符。 DBE_OUTPUT.SET_BUFFER_SIZE 设置输出缓冲区的大小，如果不指定则缓冲区最大能容纳20000字节，如果指定小于等于2000字节，则缓冲区允许容纳2000字节。 DBE_OUTPUT.DISABLE 禁用PUT、PUT_LINE、NEW_LINE、GET_LINE、GET_LINES调用，并清空输出缓冲区。 DBE_OUTPUT.ENABLE 开启缓冲区，允许对PUT、PUT_LINE、NEW_LINE、GET_LINE和GET_LINES的调用，设置缓冲区大小。 DBE_OUTPUT.GET_LINE 从缓冲区中以换行符作为分界获取一行数据，获取的数据将不会输出到客户端。 DBE_OUTPUT.GET_LINES 以VARCHAR数组的形式获取缓冲区的指定行数的字符串，被取出的内容将会在缓冲区中清除，不会输出到客户端。 DBE_OUTPUT.NEW_LINE 放置一行在缓冲区末尾，放置行尾标记，空出新的一行。 DBE_OUTPUT.PUT 将输入字符串放入到缓冲区，末尾不加换行符，在匿名块执行结束时会将以换行符结尾的行输出显示。 DBE_OUTPUT.PUT_LINE 将输入字符串放入到缓冲区，并末尾添加换行符，在匿名块执行结束时会将以换行符结尾的行输出显示。 DBE_OUTPUT.PRINT_LINE 存储过程PRINT_LINE输出指定的文本，并添加换行符。DBE_OUTPUT.PRINT_LINE函数原型为： 1
+2 DBE_OUTPUT . PRINT_LINE ( format IN VARCHAR2 ); 表2 DBE_OUTPUT.PRINT_LINE接口参数说明 参数 描述 format 输出的文本。 DBE_OUTPUT.PRINT 存储过程PRINT输出指定的文本，不添加换行符。DBE_OUTPUT.PRINT函数原型为： 1
+2 DBE_OUTPUT . PRINT ( format IN VARCHAR2 ); 表3 DBE_OUTPUT.PRINT接口参数说明 参数 描述 format 输出的文本。 DBE_OUTPUT.SET_BUFFER_SIZE 存储过程SET_BUFFER_SIZE设置输出缓冲区的大小，如果不指定的话缓冲区最大只能容纳20000字节。DBE_OUTPUT.SET_BUFFER_SIZE函数原型为： 1
+2 DBE_OUTPUT . SET_BUFFER_SIZE ( size IN INTEGER default 20000 ); 表4 DBE_OUTPUT.SET_BUFFER_SIZE接口参数说明 参数 描述 size 设置输出缓冲区的大小。 DBE_OUTPUT.DISABLE 存储过程DISABLE禁用PUT、PUT_LINE、NEW_LINE、GET_LINE、GET_LINES调用，并清空输出缓冲区。DBE_OUTPUT.DISABLE函数原型为： 1 DBE_OUTPUT . DISABLE ; DBE_OUTPUT.ENABLE 存储过程ENABLE开启缓冲区，允许对PUT、PUT_LINE、NEW_LINE、GET_LINE和GET_LINES的调用，并设置缓冲区大小，如果未指定缓冲区大小则默认容纳20000字节。DBE_OUTPUT.ENABLE函数原型为： 1
+2
+3 DBE_OUTPUT . ENABLE ( buffer_size IN INTEGER DEFAULT 20000 ); 表5 DBE_OUTPUT.ENABLE接口参数说明 参数 描述 buffer_size 缓冲区大小的上限，以字节为单位。将buffer_size设置为NULL表示使用默认值（20000字节）。 DBE_OUTPUT.GET_LINE 存储过程GET_LINE从缓冲区中以换行符作为分界获取一行数据，获取的数据将不会输出到客户端。DBE_OUTPUT.GET_LINE函数原型为： 1
+2
+3
+4 DBE_OUTPUT . GET_LINE ( line OUT VARCHAR2 , status OUT INTEGER ); 表6 DBE_OUTPUT.GET_LINE接口参数说明 参数 描述 line 表示获取到的字符串。 status 表示调用状态是否正常，如果获取到字符串则为0，否则为1。 DBE_OUTPUT.GET_LINES 存储过程GET_LINES以VARCHAR数组的形式获取缓冲区的指定行数的字符串，被取出的内容将会在缓冲区中清除，不会输出到客户端。DBE_OUTPUT.GET_LINES函数原型为： 1
+2
+3
+4 DBE_OUTPUT . GET_LINES ( lines OUT VARCHAR [], numlines IN OUT INTEGER ); 表7 DBE_OUTPUT.GET_LINES接口参数说明 参数 描述 lines 输出从缓冲区读取的多行字符串数组。 numlines 输入值为需要从缓冲区检索的行数。输出值为实际检索到的行数，如果输出值小于输入值，则表明缓冲区中存在的行数小于输入的行数。 DBE_OUTPUT.NEW_LINE 存储过程NEW_LINE放置一行在缓冲区末尾，放置行尾标记，空出新的一行。DBE_OUTPUT.NEW_LINE函数原型为： 1 DBE_OUTPUT . NEW_LINE ; DBE_OUTPUT.PUT 存储过程PUT将输入字符串放入到缓冲区，末尾不加换行符，在匿名块执行结束时会将以换行符结尾的行输出显示。DBE_OUTPUT.PUT函数原型为： 1
+2 DBE_OUTPUT . PUT ( item IN VARCHAR2 ); 表8 DBE_OUTPUT.PUT接口参数说明 参数 描述 item 待放在缓存区的字符或字符串item。 DBE_OUTPUT.PUT_LINE 存储过程PUT_LINE将输入字符串放入到缓冲区，并且末尾添加换行符，在匿名块执行结束时会将以换行符结尾的行输出显示。DBE_OUTPUT.PUT_LINE函数原型为： 1
+2 DBE_OUTPUT . PUT_LINE ( item IN VARCHAR2 ); 表9 DBE_OUTPUT.PUT_LINE接口参数说明 参数 描述 item 待放在缓存区的字符或字符串。 示例 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27
+28
+29
+30
+31
+32
+33
+34
+35
+36
+37
+38
+39
+40
+41
+42
+43
+44
+45
+46
+47
+48
+49
+50
+51
+52
+53
+54
+55
+56
+57
+58
+59
+60
+61
+62
+63
+64
+65
+66
+67
+68
+69
+70
+71
+72
+73
+74
+75
+76
+77
+78
+79
+80
+81
+82
+83
+84
+85
+86
+87
+88
+89 BEGIN DBE_OUTPUT . SET_BUFFER_SIZE ( 50 ); DBE_OUTPUT . PRINT ( 'hello, ' ); DBE_OUTPUT . PRINT_LINE ( 'database!' ); --输出hello, database! END ; / -- 预期结果为： hello , database ! ANONYMOUS BLOCK EXECUTE -- 测试disable禁用put、put_line、new_line、get_line、get_lines调用,测试put_line不输出 BEGIN dbe_output . disable (); dbe_output . put_line ( '1' ); END ; / -- 预期结果为： ANONYMOUS BLOCK EXECUTE -- 测试enable启用put、put_line、new_line、get_line、get_lines调用，测试put_line输出1 BEGIN dbe_output . enable (); dbe_output . put_line ( '1' ); END ; / -- 预期结果为： 1 ANONYMOUS BLOCK EXECUTE -- 测试put，输入字符串a放入到缓冲区，末尾不加换行符，a不输出 BEGIN dbe_output . enable (); dbe_output . put ( 'a' ); END ; / -- 预期结果为： ANONYMOUS BLOCK EXECUTE -- 测试new_line,添加换行，输出a BEGIN dbe_output . enable (); dbe_output . put ( 'a' ); dbe_output . new_line ; END ; / -- 预期结果为： a ANONYMOUS BLOCK EXECUTE -- 测试get_line获取缓冲区数据保存到变量，使用put_line输出 DECLARE line VARCHAR ( 32672 ); status INTEGER : = 0 ; BEGIN dbe_output . put_line ( 'hello' ); dbe_output . get_line ( line , status ); dbe_output . put_line ( '-----------' ); dbe_output . put_line ( line ); dbe_output . put_line ( status ); END ; / -- 预期结果为： ----------- hello 0 ANONYMOUS BLOCK EXECUTE -- 测试get_lines获取缓冲区多行内容，使用put_line输出 DECLARE lines varchar []; linenum integer ; BEGIN dbe_output . put_line ( 'line 1' ); dbe_output . put_line ( 'line 2' ); dbe_output . put_line ( 'line 3' ); linenum : = 100 ; dbe_output . get_lines ( lines , linenum ); dbe_output . put_line ( 'num: ' || linenum ); FOR i IN 1 .. linenum LOOP dbe_output . put_line ( lines [ i ]); END LOOP ; END ; / -- 预期结果为： num : 3 line 1 line 2 line 3 ANONYMOUS BLOCK EXECUTE 父主题： 二次封装接口(推荐) 版权所有 © 华为技术有限公司

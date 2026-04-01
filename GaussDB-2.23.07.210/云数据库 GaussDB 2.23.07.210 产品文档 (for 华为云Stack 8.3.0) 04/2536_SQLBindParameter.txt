@@ -1,0 +1,10 @@
+SQLBindParameter SQLBindParameter 功能描述 将一条SQL语句中的一个参数标志和一个缓冲区绑定起来。 原型 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10 SQLRETURN SQLBindParameter ( SQLHSTMT StatementHandle , SQLUSMALLINT ParameterNumber , SQLSMALLINT InputOutputType , SQLSMALLINT ValuetType , SQLSMALLINT ParameterType , SQLULEN ColumnSize , SQLSMALLINT DecimalDigits , SQLPOINTER ParameterValuePtr , SQLLEN BufferLength , SQLLEN * StrLen_or_IndPtr ); 参数 表1 SQLBindParameter 关键词 参数说明 StatementHandle 语句句柄。 ParameterNumber 参数序号，起始为1，依次递增。 InputOutputType 输入输出参数类型。可以是SQL_PARAM_INPUT、SQL_PARAM_OUTPUT、SQL_PARAM_INPUT_OUTPUT。 ValueType 参数的C数据类型。可以是SQL_C_CHAR、SQL_C_LONG、SQL_C_DOUBLE等。 ParameterType 参数的SQL数据类型。可以是SQL_CHAR、SQL_INTEGER、SQL_DOUBLE等。 ColumnSize 相应参数标记的列或表达式的大小。 DecimalDigits 相应参数标记的列或表达式的十进制数字。 ParameterValuePtr 指向存储参数数据缓冲区的指针。 BufferLength ParameterValuePtr指向缓冲区的长度，以字节为单位。 StrLen_or_IndPtr 缓冲区的长度或指示器指针。若为空值，则未使用任何长度或指示器值。 返回值 SQL_SUCCESS：表示调用正确。 SQL_SUCCESS_WITH_INFO：表示会有一些警告信息。 SQL_ERROR：表示比较严重的错误，如：内存分配失败、建立连接失败等。 SQL_INVALID_HANDLE：表示调用无效句柄。其他API的返回值同理。 注意事项 当SQLBindParameter返回SQL_ERROR或SQL_SUCCESS_WITH_INFO时，通过调用 SQLGetDiagRec 函数，并将HandleType和Handle参数设置为SQL_HANDLE_STMT和StatementHandle，可得到一个相关的SQLSTATE值，通过SQLSTATE值可以查出调用此函数的具体信息。 示例 参见： 示例 父主题： ODBC接口参考 版权所有 © 华为技术有限公司

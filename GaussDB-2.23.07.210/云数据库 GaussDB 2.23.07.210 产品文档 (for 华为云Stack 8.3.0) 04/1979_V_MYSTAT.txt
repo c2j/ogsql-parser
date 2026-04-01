@@ -1,0 +1,1 @@
+V_MYSTAT V_MYSTAT V_MYSTAT视图显示数据库所有会话的统计信息。该视图只有系统管理员可以访问，普通用户需要授权才能访问，该视图同时存在于PG_CATALOG和SYS Schema下。具体字段信息如 表1 所示。 表1 V_MYSTAT字段 名称 类型 描述 sid numeric 当前会话的id。 statistic# numeric 暂不支持，值为NULL。 value numeric 暂不支持，值为NULL。 con_id numeric 暂不支持，值为NULL。 父主题： 其他系统视图 版权所有 © 华为技术有限公司

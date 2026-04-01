@@ -1,0 +1,1 @@
+安装ECS镜像patch软件 安装ECS镜像patch软件 安装设置镜像所需的软件和配置，执行全部过程需要约10~15分钟，建议通过ssh远程操作。 该章节仅限于制作ECS镜像使用。 执行 “sh build_gaussdb_image.sh ECS uos_20_1050e_arm64”命令，如下 sh build_gaussdb_image.sh ECS uos_20_1050e_arm64 最终脚本打印出"build GaussDB image successfully"，说明镜像所需的软件和配置已经ok，如下所示 父主题： 安装软件 版权所有 © 华为技术有限公司

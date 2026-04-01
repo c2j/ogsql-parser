@@ -1,0 +1,6 @@
+最佳实践 最佳实践 多索引自适应选择支持，举例如下： create table t1(c1 int, c2 int, c3 int, c4 varchar(32), c5 text);
+create index t1_idx2 on t1(c1,c2,c3,c4);
+create index t1_idx1 on t1(c1,c2,c3);
+
+insert into t1( c1, c2, c3, c4, c5) SELECT (random()*(2*10^9))::integer , (random()*(2*10^9))::integer,  (random()*(2*10^9))::integer, (random()*(2*10^9))::integer,  repeat('abc', i%10) ::text from generate_series(1,1000000) i;
+insert into t1( c1, c2, c3, c4, c5) SELECT (random()*1)::integer, (random()*1)::integer, (random()*1)::integer, (random()*(2*10^9))::integer, repeat('abc', i%10) ::text from generate_series(1,1000000) i; 性能对比： 随机参数：c1~ random(1, 20); c2~ random(1, 20); c3~ random(1, 20); c4 ~ random(2, 10000) 线程数50，客户端50，执行时长60s 方法 语句 tps gplan prepare k as select * from t1 where c1=$1 and c2=$2 and c3=$3 and c4=$4; 35126 cplan prepare k as select /*+ use_cplan */ * from t1 where c1=$1 and c2=$2 and c3=$3 and c4=$4; 75817 aplan prepare k as select /*+ choose_adaptive_gplan */ * from t1 where c1=$1 and c2=$2 and c3=$3 and c4=$4; 175681 父主题： 自适应计划选择 版权所有 © 华为技术有限公司

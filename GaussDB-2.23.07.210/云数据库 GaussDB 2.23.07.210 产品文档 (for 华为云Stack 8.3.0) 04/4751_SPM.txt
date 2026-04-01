@@ -1,0 +1,195 @@
+SPM计划管理 SPM计划管理 SPM整体流程 业务数据的变化、数据库版本的升级等场景可能导致SQL的执行计划发生变化，且这种变化对SQL的执行可能带来性能的正向收益，同样也可能带来显著的性能劣化。为了将这种不确定的变化变为确定正向的变化，需要增加一个SPM（SQL Plan Management）组件。如 图1 SPM整体流程 所示，SPM处于SQL引擎中，且处于SQL引擎的两大核心组件优化器和执行器之间。 图1 SPM整体流程 结合上图，对SPM的关键组成介绍如下： Outline管理组件： Outline管理是SPM中最基础的组件，主要负责将一个具体的计划转化为一个具体的Hint集合，或者将一个具体的Hint集合转换为一个具体的计划。对于一个具体计划，它的Outline是一组能够完全确定该计划的Hint集合。 计划捕获组件： 对于一个具体SQL，该组件将优化器给出的计划（如上图中的plan_x）以outline的形式落盘，并将该SQL第一条 gplan 计划标记为ACC（ACCEPTED的简称）状态，其他计划标记为UNACC（UNACCEPTED的简称）状态，以备后续使用。 计划选择组件： 计划选择组件用于决策是否将优化器给出的执行计划交给执行器去执行。如果SPM认为该计划存在性能劣化的风险，SPM会在ACC/FIXED状态的计划中再选择一个计划（如上图中的plan_y，plan_y可能等于plan_x，也可能不相等）交给执行器去执行。 计划演进组件 计划捕获+计划选择组件可以将交给执行器的计划固定下来，计划演进组件是将优化器新产生的计划（已被计划捕获组件固化下来，但为UNACC状态的计划）进行优秀程度的判定，如果被判定的计划符合优秀的判定标准，则可以将其调整为ACC状态，以备计划选择使用。 SPM基本使用 SPM计划管理的规格约束参见《特性描述》的SPM部分， SPM计划管理在不同场景中有一些差异，因此在介绍SPM计划管理基本使用之前，首先说明一下： GUC参数spm_enable_plan_capture取值范围分别是off、auto、manual，其中auto和manual分别对应SPM计划捕获行为的自动计划捕获模式和手动计划捕获模式，这两种计划捕获模式的唯一区别在于：前者仅对重复出现的SQL进行捕获，后者没有这一约束。 由于pbe下模板SQL的cplan计划存在无法复用的问题， 因此pbe下的所有cplan计划 无法被捕获 ，第一次出现的gplan会被标记为ACC状态。 不同的客户端（例如JDBC和gsql）pbe sql的SPM计划管理行为是一致的。 SPM计划管理会对pbe下gplan的第一组参数进行捕获。 在不同的场景下，除了上述中的一些差异点外，其他行为在不同的场景中的表现是一致的，下面以在gsql中 pbe sql的SPM计划管理手动捕获模式的基本使用为例，给出基本操作： 初始化数据 初始化数据的SQL如下： drop table if exists tb_a cascade;
+create table tb_a(id int,c1 int, c2 int, pad text);
+create index tb_a_idx_c1 on tb_a(c1);
+insert into tb_a select id, (random()*200)::int, (random()*10000)::int, 'ss' from (select generate_series(1,10000) id) tb_a;
+analyze tb_a; 设置前置GUC参数 设置如下GUC参数的目的均在注释中已经体现。 -- 开启SPM计划捕获
+set spm_enable_plan_capture=manual;
+-- 开启SPM计划选择
+set spm_enable_plan_selection=on;
+-- 当前SPM只支持gplan，确保生成的计划是gplan
+set plan_cache_mode = 'force_generic_plan';
+-- 在pretty模式可以看到baseline的使用情况
+set explain_perf_mode=pretty;
+-- 关闭执行器sql bypass的特殊优化
+-- 这里是off， 只是希望测试的sql执行流程更具有一般性，对SPM流程无任何影响
+set enable_opfusion=off; 计划捕获测试 关键操作的说明已经在注释中体现。 -- 捕获tablescan，确保捕获tablescan计划
+set enable_seqscan=on;
+set enable_indexscan=off;
+set enable_bitmapscan=off;
+-- 执行测试sql，结果下如下，可以看到当前sql并没有使用任何baseline计划。
+prepare spm_query as select * from tb_a where c1 = $1;
+explain(costs off) execute spm_query(1);
+ id |      operation
+----+----------------------
+  1 | ->  Seq Scan on tb_a
+(1 row)
+
+ Predicate Information (identified by plan id)
+-----------------------------------------------
+   1 --Seq Scan on tb_a
+         Filter: (c1 = $1)
+(2 rows)
+-- 查看baseline，可以看到tablescan计划被捕获，且状态为ACC
+select sql_hash, plan_hash, outline, status, gplan from gs_spm_sql_baseline where sql_text like '%tb_a where c1 = $1%';
+ sql_hash  | plan_hash  |                 outline                  | status | gplan
+-----------+------------+------------------------------------------+--------+-------
+ 982135085 | 4251425169 |  begin_outline_data                     +| ACC    | t
+           |            |  TableScan(@"sel$1" public.tb_a@"sel$1")+|        |
+           |            |  version("1.0.0")                       +|        |
+           |            |  end_outline_data                        |        |
+(1 row)
+-- 捕获indexscan ， 确保捕获indexscan计划
+set enable_indexscan=on;
+set enable_seqscan=off;
+set enable_bitmapscan=off;
+-- 执行测试sql，可以看到计划仍然为tablescan ，且该计划管理来自SPM (baseline中ACC的计划)，因为从第二条计划开始计划被标记为UNACC状态，UNACC状态的计划是不能被使用的。
+deallocate spm_query;
+prepare spm_query as select * from tb_a where c1 = $1;
+explain(costs off) execute spm_query(1);
+ id |      operation
+----+----------------------
+  1 | ->  Seq Scan on tb_a
+(1 row)
+
+ Predicate Information (identified by plan id)
+-----------------------------------------------
+   1 --Seq Scan on tb_a
+         Filter: (c1 = $1)
+(2 rows)
+
+                   ====== Query Others =====
+---------------------------------------------------------------
+ use_baseline: Yes, sql_hash: 982135085, plan_hash: 4251425169
+(1 row)
+-- 查看baseline，可以看到indexscan的计划被捕获，且状态为UNACC
+select sql_hash, plan_hash, outline, status, gplan from gs_spm_sql_baseline where sql_text like '%tb_a where c1 = $1%';
+ sql_hash  | plan_hash  | outline                                              | status | gplan
+-----------+------------+------------------------------------------------------+--------+-------
+ 982135085 | 4251425169 |  begin_outline_data                                 +| ACC    | t
+           |            |  TableScan(@"sel$1" public.tb_a@"sel$1")            +|        |
+           |            |  version("1.0.0")                                   +|        |
+           |            |  end_outline_data                                    |        |
+ 982135085 |  808368919 |  begin_outline_data                                 +| UNACC  | t
+           |            |  IndexScan(@"sel$1" public.tb_a@"sel$1" tb_a_idx_c1)+|        |
+           |            |  version("1.0.0")                                   +|        |
+           |            |  end_outline_data                                    |        |
+(2 rows)
+-- 捕获bitmapscan，确保捕获bitmapscan计划
+set enable_bitmapscan=on;
+set enable_seqscan=off;
+set enable_indexscan=off;
+-- 执行测试sql
+deallocate spm_query;
+prepare spm_query as select * from tb_a where c1 = $1;
+explain(costs off) execute spm_query(1);
+ id |      operation
+----+----------------------
+  1 | ->  Seq Scan on tb_a
+(1 row)
+
+ Predicate Information (identified by plan id)
+-----------------------------------------------
+   1 --Seq Scan on tb_a
+         Filter: (c1 = $1)
+(2 rows)
+
+                   ====== Query Others =====
+---------------------------------------------------------------
+ use_baseline: Yes, sql_hash: 982135085, plan_hash: 4251425169
+(1 row)
+-- 查看baseline，可以看到bitmapscan的计划被捕获，且状态位UNACC
+select sql_hash, plan_hash, outline, status, gplan from gs_spm_sql_baseline where sql_text like '%tb_a where c1 = $1%';
+ sql_hash  | plan_hash  |                        outline                        | status | gplan
+-----------+------------+-------------------------------------------------------+--------+-------
+ 982135085 | 4251425169 |  begin_outline_data                                  +| ACC    | t
+           |            |  TableScan(@"sel$1" public.tb_a@"sel$1")             +|        |
+           |            |  version("1.0.0")                                    +|        |
+           |            |  end_outline_data                                     |        |
+ 982135085 |  808368919 |  begin_outline_data                                  +| UNACC  | t
+           |            |  IndexScan(@"sel$1" public.tb_a@"sel$1" tb_a_idx_c1) +|        |
+           |            |  version("1.0.0")                                    +|        |
+           |            |  end_outline_data                                     |        |
+ 982135085 |  930064183 |  begin_outline_data                                  +| UNACC  | t
+           |            |  BitmapScan(@"sel$1" public.tb_a@"sel$1" tb_a_idx_c1)+|        |
+           |            |  version("1.0.0")                                    +|        |
+           |            |  end_outline_data                                     |        |
+(3 rows) 计划选择测试 在上面的测试中可以发现，无论如何调整GUC参数对计划的生成进行预，计划最终的选择都是ACC状态的tablescan,这说明计划选择不会使用UNACC状态的计划。 -- 测试优先使用FIXED状态的计划
+-- 将上方indexscan计划的状态改为ACC，seqscan修改为FIXED状态，并查看baseline， 可以发现状态修改成功。 select * from dbe_sql_util.gs_spm_set_plan_status(982135085, 4251425169, 'FIXED');
+select * from dbe_sql_util.gs_spm_set_plan_status(982135085, 808368919, 'ACC');
+select sql_hash, plan_hash, outline, status, gplan, cost from gs_spm_sql_baseline where sql_text like '%tb_a where c1 = $1%' order by creation_time;
+ sql_hash  | plan_hash  |                        outline                        | status | gplan |  cost
+-----------+------------+-------------------------------------------------------+--------+-------+---------
+ 982135085 | 4251425169 |  begin_outline_data                                  +| FIXED  | t     |     167
+           |            |  TableScan(@"sel$1" public.tb_a@"sel$1")             +|        |       |
+           |            |  version("1.0.0")                                    +|        |       |
+           |            |  end_outline_data                                     |        |       |
+ 982135085 |  808368919 |  begin_outline_data                                  +| ACC    | t     | 133.039
+           |            |  IndexScan(@"sel$1" public.tb_a@"sel$1" tb_a_idx_c1) +|        |       |
+           |            |  version("1.0.0")                                    +|        |       |
+           |            |  end_outline_data                                     |        |       |
+ 982135085 |  930064183 |  begin_outline_data                                  +| UNACC  | t     |  49.467
+           |            |  BitmapScan(@"sel$1" public.tb_a@"sel$1" tb_a_idx_c1)+|        |       |
+           |            |  version("1.0.0")                                    +|        |       |
+           |            |  end_outline_data                                     |        |       |
+(3 rows)
+-- 确保优化器生成的计划是bitmapscan
+set enable_bitmapscan=on;
+set enable_seqscan=off;
+set enable_indexscan=off;
+-- 执行SQL发现，优化器仍然选择了FIXED状态的tablescan，而不是选择了代价更小且状态位ACC状态的indexscan。
+deallocate spm_query;
+prepare spm_query as select * from tb_a where c1 = $1;
+explain(costs off) execute spm_query(1);
+ id |      operation
+----+----------------------
+  1 | ->  Seq Scan on tb_a
+(1 row)
+
+ Predicate Information (identified by plan id)
+-----------------------------------------------
+   1 --Seq Scan on tb_a
+         Filter: (c1 = $1)
+(2 rows)
+
+                   ====== Query Others =====
+---------------------------------------------------------------
+ use_baseline: Yes, sql_hash: 982135085, plan_hash: 4251425169
+(1 row) 计划演进测试 -- 演进bitmapscan计划，并查看计划评估结果
+select * from dbe_sql_util.gs_spm_evolute_plan(982135085, 930064183);
+select sql_hash, plan_hash, better, refer_plan, reason from gs_spm_sql_evolution where sql_hash=982135085;
+ sql_hash  | plan_hash | better | refer_plan |                                  reason
+-----------+-----------+--------+------------+--------------------------------------------------------------------------
+ 982135085 | 930064183 | t      |  808368919 | target plan execution time:0.448333, refer plan execution time: 0.660667
+(1 row)
+-- 通过上方演进的结果可以看出bitmapscan（plan_hash）的执行时间远小于indexscan（refer_plan）的执行时间。并且计划演进给出的结论(better==t)表示bitmapscan是可以被接受的。
+-- 根据演进结论修改bitmapscan计划状态为ACC
+select * from dbe_sql_util.gs_spm_set_plan_status(982135085, 930064183, 'ACC');
+-- 确保优化器生成的计划是bitmapscan
+set enable_bitmapscan=on;
+set enable_seqscan=off;
+set enable_indexscan=off;
+-- 执行SQL语句，可以看到，优化器推荐的bitmapscan可以被正常放行使用。
+deallocate spm_query;
+prepare spm_query as select * from tb_a where c1 = $1;
+explain(costs off) execute spm_query(1);
+ id |                 operation
+----+--------------------------------------------
+  1 | ->  Bitmap Heap Scan on tb_a
+  2 |    ->  Bitmap Index Scan using tb_a_idx_c1
+(2 rows)
+
+ Predicate Information (identified by plan id)
+-----------------------------------------------
+   1 --Bitmap Heap Scan on tb_a
+         Recheck Cond: (c1 = $1)
+   2 --Bitmap Index Scan using tb_a_idx_c1
+         Index Cond: (c1 = $1)
+(4 rows) 
+
+                  ====== Query Others =====
+--------------------------------------------------------------
+ use_baseline: Yes, sql_hash: 982135085, plan_hash: 930064183
+(1 row) 清理数据 清理数据的SQL如下： drop table tb_a;
+DROP TABLE
+drop index tb_a_idx_c1;
+DROP INDEX 父主题： 主备版 版权所有 © 华为技术有限公司

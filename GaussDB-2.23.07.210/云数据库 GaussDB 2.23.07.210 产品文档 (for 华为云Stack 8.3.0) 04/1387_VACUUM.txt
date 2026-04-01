@@ -1,0 +1,25 @@
+VACUUM VACUUM 功能描述 VACUUM回收表或B-Tree索引中已经删除的行所占据的存储空间。在一般的数据库操作里，那些已经DELETE的行并没有从它们所属的表中物理删除；在完成VACUUM之前它们仍然存在。因此有必要周期地运行VACUUM，特别是在经常更新的表上。 注意事项 如果没有参数，VACUUM处理当前数据库里用户拥有相应权限的每个表。如果参数指定了一个表，VACUUM只处理指定的那个表。 要对一个表进行VACUUM操作，通常用户必须是表的所有者或者被授予了指定表VACUUM权限的用户，默认系统管理员有该权限。数据库的所有者允许对数据库中除了共享目录以外的所有表进行VACUUM操作（该限制意味着只有系统管理员才能真正对一个数据库进行VACUUM操作）。VACUUM命令会跳过那些用户没有权限的表进行垃圾回收操作。 VACUUM不能在事务块内执行。 建议生产数据库经常清理（至少每晚一次），以保证不断地删除失效的行。尤其是在增删了大量记录之后，对受影响的表执行VACUUM ANALYZE命令是一个很好的习惯。这样将更新系统目录为最近的更改，并且允许查询优化器在规划用户查询时有更好的选择。 不建议日常使用FULL选项，但是可以在特殊情况下使用。例如在用户删除了一个表的大部分行之后，希望从物理上缩小该表以减少磁盘空间占用。VACUUM FULL通常要比单纯的VACUUM收缩更多的表尺寸。FULL选项并不清理索引，所以推荐周期性的运行 REINDEX 命令。如果执行此命令后所占用物理空间无变化（未减少），请确认是否有其他活跃事务（删除数据事务开始之前开始的事务，并在VACUUM FULL执行前未结束）存在，如果有等其他活跃事务退出进行重试。 VACUUM FULL通过重建表的方式将表内空闲空间归还给表空间，重建过程需要额外申请表中有效数据相当的存储空间。对于非段页式表，VACUUM FULL执行结束后，原表所占物理文件会被删除，原表所占的物理文件的空间会归还给操作系统；对于段页式表，VACUUM FULL执行结束后，原表所占的物理空间，会被归还给段页式数据文件，不会归还给操作系统。 VACUUM会导致I/O流量的大幅增加，这可能会影响其他活动会话的性能。因此，有时候会建议使用基于开销的VACUUM延迟特性。 如果指定了VERBOSE选项，VACUUM将打印处理过程中的信息，以表明当前正在处理的表。各种有关当前表的统计信息也会打印出来。 当含有带括号的选项列表时，选项可以以任何顺序写入。如果没有括号，则选项必须按语法显示的顺序给出。 VACUUM和VACUUM FULL时，会根据参数vacuum_defer_cleanup_age延迟清理行存表记录，即不会立即清理刚刚删除的元组。 VACUUM ANALYZE先执行一个VACUUM操作，然后给每个选定的表执行一个ANALYZE。对于日常维护脚本而言，这是一个很方便的组合。 简单的VACUUM（不带FULL选项）只是简单地回收空间并且令其可以再次使用。这种形式的命令可以和对表的普通读写并发操作，因为没有请求排他锁。VACUUM FULL执行更广泛的处理，包括跨块移动行，以便把表压缩到最少的磁盘块数目里。这种形式要慢许多并且在处理的时候需要在表上施加一个排他锁。 如果没有打开xc_maintenance_mode参数，那么VACUUM FULL会跳过所有系统表。 执行DELETE后立即执行VACUUM FULL命令不会回收空间。执行DELETE后再执行1000个非SELECT事务，或者等待1s后再执行1个事务，之后再执行VACUUM FULL命令空间才会回收。 VACUUM FULL期间会对表加排他锁，不建议在业务高峰期运行VACUUM FULL，可能导致等锁时间过长或者死锁。 为保证性能和统计信息的准确性，避免VACUUM ANALYZE、AUTOANALYZE、手动ANALYZE等涉及ANALYZE的命令同时执行或执行过于频繁。 语法格式 回收空间并更新统计信息，对关键字顺序无要求。 1
+2 VACUUM [ ( { FULL | FREEZE | VERBOSE | { ANALYZE | ANALYSE }} [,...] ) ] [ table_name [ ( column_name [, ...] ) ] [ PARTITION ( partition_name ) ] ]; 仅回收空间，不更新统计信息。 1 VACUUM [ FULL [ COMPACT ] ] [ FREEZE ] [ VERBOSE ] [ table_name [ PARTITION ( partition_name ) ] ]; 回收空间并更新统计信息，且对关键字顺序有要求。 1
+2 VACUUM [ FULL ] [ FREEZE ] [ VERBOSE ] { ANALYZE | ANALYSE } [ VERBOSE ] [ table_name [ ( column_name [, ...] ) ] [ PARTITION ( partition_name ) ] ]; 参数说明 FULL 选择“FULL”清理，这样可以恢复更多的空间，但是需要耗时更多，并且在表上施加了排他锁。 使用FULL参数会导致统计信息丢失，如果需要收集统计信息，请在VACUUM FULL语句中加上ANALYZE关键字。 FREEZE 指定FREEZE相当于执行VACUUM时将vacuum_freeze_min_age参数设为0。 VERBOSE 为每个表打印一份详细的清理工作报告。 ANALYZE | ANALYSE 更新用于优化器的统计信息，以决定执行查询的最有效方法。 table_name 要清理的表的名称（可以有模式修饰）。 取值范围：要清理的表的名称。缺省时为当前数据库中的所有表。 column_name 要分析的具体的字段名称，需要配合analyze选项使用。 取值范围：要分析的具体的字段名称。缺省时为所有字段。 由于VACUUM ANALYZE语句的机制是依次执行VACUUM和ANALYZE，因此当column_name错误时，会存在VACUUM执行成功但ANALYZE执行失败的情况；对于分区表，则会出现对某个分区VACUUM执行成功之后ANALYZE执行失败的情况。 PARTITION COMPACT和PARTITION参数不能同时使用。 partition_name 要清理的表的分区名称。缺省时为所有分区。 示例 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23 --创建SCHEMA。 gaussdb =# CREATE SCHEMA tpcds ; --创建表tpcds.reason。 gaussdb =# CREATE TABLE tpcds . reason ( r_reason_sk integer , r_reason_id character ( 16 ), r_reason_desc character ( 100 ) ); --向表中插入多条记录。 gaussdb =# INSERT INTO tpcds . reason values ( 1 , 'AAAAAAAABAAAAAAA' , 'reason 1' ),( 2 , 'AAAAAAAABAAAAAAA' , 'reason 2' ); --在表tpcds.reason上创建索引。 gaussdb =# CREATE UNIQUE INDEX ds_reason_index1 ON tpcds . reason ( r_reason_sk ); --对带索引的表tpcds.reason执行VACUUM操作。 gaussdb =# VACUUM ( VERBOSE , ANALYZE ) tpcds . reason ; --删除索引。 gaussdb =# DROP INDEX tpcds . ds_reason_index1 CASCADE ; gaussdb =# DROP TABLE tpcds . reason ; gaussdb =# DROP SCHEMA tpcds CASCADE ; 优化建议 vacuum VACUUM不能在事务块内执行。 建议生产数据库经常清理（至少每晚一次），以保证不断地删除失效的行。尤其是在增删了大量记录后，对相关表执行VACUUM ANALYZE命令。 不建议日常使用FULL选项，但是可以在特殊情况下使用。例如，一个例子就是在用户删除了一个表的大部分行之后，希望从物理上缩小该表以减少磁盘空间占用。 父主题： V 版权所有 © 华为技术有限公司

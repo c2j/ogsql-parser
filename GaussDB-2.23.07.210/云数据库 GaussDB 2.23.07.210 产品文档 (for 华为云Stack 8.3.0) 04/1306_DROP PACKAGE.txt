@@ -1,0 +1,14 @@
+DROP PACKAGE DROP PACKAGE 功能描述 删除已存在的PACKAGE或者PACKAGE BODY。 注意事项 删除PACKAGE BODY后，PACKAGE内的存储过程及函数会同时失效。 语法格式 DROP PACKAGE [ IF EXISTS ] package_name;
+DROP PACKAGE BODY [ IF EXISTS ] package_name; 参数说明 IF EXISTS 如果指定的存储过程不存在，会提示一个notice而不是产生一个错误。 package_name 要删除的package名称。 取值范围：已存在的package名。 示例 --创建ORA兼容性数据库。 gaussdb=# CREATE DATABASE ora_compat_db DBCOMPATIBILITY 'ORA';
+CREATE DATABASE gaussdb=# \c ora_compat_db
+
+--创建PACKAGE。 gaussdb=# CREATE OR REPLACE PACKAGE emp_bonus IS
+var1 INT:=1;--公有变量
+var2 INT:=2;
+PROCEDURE testpro1(var3 INT);--公有存储过程，可以被外部调用
+END emp_bonus;
+/
+
+--删除PACKAGE。 gaussdb=# DROP PACKAGE emp_bonus;
+
+--切换回初始数据库，并删除ORA兼容性数据库。请用真实的数据库名替换postgres。 gaussdb=# \c postgres gaussdb=# DROP DATABASE ora_compat_db; 相关链接 ALTER PACKAGE ， CREATE PACKAGE 父主题： D 版权所有 © 华为技术有限公司

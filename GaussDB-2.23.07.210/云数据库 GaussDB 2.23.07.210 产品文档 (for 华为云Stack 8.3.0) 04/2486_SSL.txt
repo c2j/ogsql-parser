@@ -1,0 +1,57 @@
+连接数据库（以SSL方式） 连接数据库（以SSL方式） 用户通过JDBC连接 GaussDB 服务器时，可以通过开启SSL加密客户端和服务器之间的通讯，为敏感数据在Internet上的传输提供了一种安全保障手段。 本小节主要介绍应用程序通过JDBC如何采用SSL的方式对客户端进行配置（服务端配置请联系管理员）。 在使用本小节所描述的方法前，默认用户已经获取了服务端和客户端所需要的证书和私钥文件，关于证书等文件的获取请参考Openssl相关文档和命令。 客户端配置 上传证书文件，将在服务端配置章节生成的文件client.key.pk8、client.crt、cacert.pem放置在客户端。 示例 注：示例1和示例2选择其一。 // 认证用的用户名和密码直接写到代码中有很大的安全风险，建议在配置文件或者环境变量中存放(密码应密文存放，使用时解密)，确保安全； // 本示例以用户名和密码保存在环境变量中为例，运行本示例前请先在本地环境中设置环境变量(环境变量名称请根据自身情况进行设置)EXAMPLE_USERNAME_ENV和EXAMPLE_PASSWORD_ENV。 import java.sql.Connection;
+import java.sql.DriverManager;
+import java.util.Properties;
+
+public class SSL{
+    public static void main(String[] args) {
+        Properties urlProps = new Properties();
+        String urls = "jdbc:postgresql:// $ip : $port /postgres "; String userName = System.getenv("EXAMPLE_USERNAME_ENV"); String password = System.getenv("EXAMPLE_PASSWORD_ENV"); /**
+         * ==================  示例1  使用NonValidatingFactory通道
+         */
+        urlProps.setProperty("sslfactory","org.postgresql.ssl.NonValidatingFactory");
+        urlProps.setProperty("user", userName );
+        urlProps.setProperty("password", password );
+        urlProps.setProperty("ssl", "true");
+        /**
+         * ==================  示例2  使用证书
+         */
+        urlProps.setProperty("sslcert", "client.crt");
+        urlProps.setProperty("sslkey", "client.key.pk8");
+        urlProps.setProperty("sslrootcert", "cacert.pem");
+        urlProps.setProperty("user", userName );
+        urlProps.setProperty("password", password );
+        urlProps.setProperty("ssl", "true");
+        /* sslmode可配置为：require、verify-ca、verify-full，以下三个示例选择其一*/
+        /* ==================  示例2.1  设置sslmode为require，使用证书 */
+        urlProps.setProperty("sslmode", "require");
+        /* ==================  示例2.2  设置sslmode为verify-ca，使用证书 */
+        urlProps.setProperty("sslmode", "verify-ca");
+        /* ==================  示例2.3  设置sslmode为verify-full，使用证书（Linux下验证） */
+        urls = "jdbc:postgresql://world:8000/postgres";
+        urlProps.setProperty("sslmode", "verify-full");
+        try {
+            Class.forName("org.postgresql.Driver").newInstance();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        try {
+            Connection conn;
+            conn = DriverManager.getConnection(urls,urlProps);
+            conn.close();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+}
+/**
+ * 注：将客户端密钥转化为DER格式:
+ * openssl pkcs8 -topk8 -outform DER -in client.key -out client.key.pk8 -nocrypt
+ * openssl pkcs8 -topk8 -inform PEM -in client.key -outform DER -out client.key.der -v1 PBE-MD5-DES
+ * openssl pkcs8 -topk8 -inform PEM -in client.key -outform DER -out client.key.der -v1 PBE-SHA1-3DES
+ * 以上算法由于安全级别较低，不推荐使用。
+ * 如果客户需要采用更高级别的私钥加密算法，启用bouncycastle或者其他第三方私钥解密密码包后可以使用的私钥加密算法如下：
+ * openssl pkcs8 -in client.key -topk8  -outform DER -out client.key.der -v2 AES128
+ * openssl pkcs8 -in client.key -topk8  -outform DER -out client.key.der -v2 aes-256-cbc -iter 1000000
+ * openssl pkcs8 -in client.key -topk8 -out client.key.der  -outform Der -v2 aes-256-cbc -v2prf hmacWithSHA512
+ * 启用bouncycastle：使用jdbc的项目引入依赖：bcpkix-jdk15on.jar包，版本建议：1.65以上。
+ */ 父主题： 基于JDBC开发 版权所有 © 华为技术有限公司

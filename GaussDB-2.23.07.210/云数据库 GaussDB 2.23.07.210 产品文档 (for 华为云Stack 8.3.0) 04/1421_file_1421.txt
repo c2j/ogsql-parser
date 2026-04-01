@@ -1,0 +1,251 @@
+数组支持的函数 数组支持的函数 以下示例为ORA兼容模式下的示例，函数定义说明里[]中的内容代表可选项，如count[()]表示可以写成count或count()。 暂不支持数组未初始化报错（Reference to uninitialized collection）、数组下标越界报错（Subscript beyond count）、数组下标超限制报错（Subscript outside of limit）。 extend[(count)] 参数：count为int4类型。 返回值：无返回值。 功能描述：在varray变量末尾拓展1个或count个元素，元素默认扩展为NULL。 示例1：extend，扩展1个元素，默认扩展为NULL。 gaussdb=# declare
+gaussdb-#     type array_integer is varray(10) of integer;
+gaussdb-#     arrint array_integer := array_integer();
+gaussdb-# begin
+gaussdb$#     dbe_output.print_line(arrint.count);
+gaussdb$#     arrint.extend;
+gaussdb$#     dbe_output.print_line(arrint.count);
+gaussdb$# end;
+gaussdb$# /
+0
+1
+ANONYMOUS BLOCK EXECUTE 示例2：extend(count)，扩展count个元素，默认扩展为NULL。 gaussdb=# declare
+gaussdb-#     type array_integer is varray(10) of integer;
+gaussdb-#     arrint array_integer := array_integer();
+gaussdb-# begin
+gaussdb$#     dbe_output.print_line(arrint.count);
+gaussdb$#     arrint.extend(3);
+gaussdb$#     dbe_output.print_line(arrint.count);
+gaussdb$# end;
+gaussdb$# /
+0
+3
+ANONYMOUS BLOCK EXECUTE extend(count, idx) 参数：idx和count为int4类型。 返回值：无返回值。 功能描述：在varray变量末尾拓展count个元素，并且扩展元素的值等于给定idx下标元素的值。该功能需要设置a_format_version值为10c和设置a_format_dev_version值为s1后才能使用。 示例：extend(count, idx)，扩展第idx位置的元素。 gaussdb=# set a_format_version='10c';
+SET gaussdb=# set a_format_dev_version='s1';
+SET gaussdb=# declare
+gaussdb-#     type array_integer is varray(10) of integer;
+gaussdb-#     arrint array_integer := array_integer(1,2);
+gaussdb-# begin
+gaussdb$#     arrint.extend(2, 1);
+gaussdb$#     dbe_output.print_line(arrint.count);
+gaussdb$#     for i in 1..arrint.count loop
+gaussdb$#         dbe_output.print_line(arrint(i));
+gaussdb$#     end loop;
+gaussdb$# end;
+gaussdb$# /
+4
+1
+2
+1
+1
+ANONYMOUS BLOCK EXECUTE count[()] 参数：无。 返回值：int4类型。 功能描述：返回数组中的元素个数。 示例1：查看已初始化的数组元素个数。 gaussdb=# declare
+gaussdb-#     type array_integer is varray(10) of integer;
+gaussdb-#     arrint array_integer;
+gaussdb-#     len int;
+gaussdb-# begin
+gaussdb$#     arrint := array_integer(1, 2, 3);
+gaussdb$#     len := arrint.count();
+gaussdb$#     dbe_output.print_line(len);
+gaussdb$# end;
+gaussdb$# /
+3
+ANONYMOUS BLOCK EXECUTE trim[(n)] 参数：n为int4类型。 返回值：无返回值。 功能描述：无参数时，删除数组末尾一个元素空间，给定输入参数n时，删除数组末尾指定数量元素空间。 示例1：删除数组中的n个元素。 gaussdb=# declare
+gaussdb-#     type array_integer is varray(10) of integer;
+gaussdb-#     arrint array_integer := array_integer(1,2,3);
+gaussdb-# begin
+gaussdb$#     dbe_output.print_line(arrint.count);
+gaussdb$#     arrint.trim(1);
+gaussdb$#     dbe_output.print_line(arrint.count);
+gaussdb$# end;
+gaussdb$# /
+3
+2
+ANONYMOUS BLOCK EXECUTE
+-- n大于数组元素个数, 清空数组元素 gaussdb=# declare
+gaussdb-#     type array_integer is varray(10) of integer;
+gaussdb-#     arrint array_integer := array_integer(1,2,3);
+gaussdb-# begin
+gaussdb$#     dbe_output.print_line(arrint.count);
+gaussdb$#     arrint.trim(4);
+gaussdb$#     dbe_output.print_line(arrint.count);
+gaussdb$# end;
+gaussdb$# /
+3
+0
+ANONYMOUS BLOCK EXECUTE delete[()] 参数：无参数。 返回值：无返回值。 功能描述：清空数组中的元素。 示例1：清空数组中的元素。 gaussdb=# declare
+gaussdb-#     type array_integer is varray(10) of integer;
+gaussdb-#     arrint array_integer := array_integer(1,2,3);
+gaussdb-# begin
+gaussdb$#     dbe_output.print_line(arrint.count);
+gaussdb$#     arrint.delete();
+gaussdb$#     dbe_output.print_line(arrint.count);
+gaussdb$# end;
+gaussdb$# /
+3
+0
+ANONYMOUS BLOCK EXECUTE
+-- 数组未初始化 gaussdb=# declare
+gaussdb-#     type array_integer is varray(10) of integer;
+gaussdb-#     arrint array_integer;
+gaussdb-# begin
+gaussdb$#     arrint.delete();
+gaussdb$# end;
+gaussdb$# /
+ANONYMOUS BLOCK EXECUTE delete(idx) 参数：int4类型。 返回值：无返回值。 功能描述：给定下标idx在数组范围内，则删除数组中给定下标idx的元素。 示例1：给定idx下标在数组范围内。 gaussdb=# declare
+gaussdb-#     type array_integer is varray(10) of integer;
+gaussdb-#     arrint array_integer := array_integer(1, 2, 3);
+gaussdb-# begin
+gaussdb$#     dbe_output.print_line(arrint.count);
+gaussdb$#     arrint.delete(2);
+gaussdb$#     dbe_output.print_line(arrint.count);
+gaussdb$#     for i in 1..arrint.count loop
+gaussdb$#         dbe_output.print_line(arrint(i));
+gaussdb$#     end loop;
+gaussdb$# end;
+gaussdb$# /
+3
+2
+1
+3
+ANONYMOUS BLOCK EXECUTE 示例2：给定idx下标在数组范围外。 gaussdb=# declare
+gaussdb-#     type array_integer is varray(10) of integer;
+gaussdb-#     arrint array_integer := array_integer(1, 2, 3);
+gaussdb-# begin
+gaussdb$#     dbe_output.print_line(arrint.count);
+gaussdb$#     arrint.delete(4);
+gaussdb$#     raise info '%', arrint;
+gaussdb$# end;
+gaussdb$# /
+3
+INFO:  {1,2,3}
+ANONYMOUS BLOCK EXECUTE gaussdb=# declare
+gaussdb-#     type array_integer is varray(10) of integer;
+gaussdb-#     arrint array_integer:= array_integer(1, 2, 3);
+gaussdb-# begin
+gaussdb$#     dbe_output.print_line(arrint.count);
+gaussdb$#     arrint.delete(11);
+gaussdb$#     raise info '%', arrint;
+gaussdb$# end;
+gaussdb$# /
+3
+INFO:  {1,2,3}
+ANONYMOUS BLOCK EXECUTE first[()] 参数：无。 返回值：int4类型。 功能描述：返回数组中第一个元素的下标，若没有第一个元素，则返回NULL。 示例： gaussdb=# declare
+gaussdb-#     type varr is varray(10) of varchar(3);
+gaussdb-#     v varr := varr('asd','zxc');
+gaussdb-# begin
+gaussdb$#     raise info 'first is %',v.first();
+gaussdb$# end;
+gaussdb$# /
+INFO:  first is 1
+ANONYMOUS BLOCK EXECUTE
+-- 数组未初始化返回NULL gaussdb=# declare
+gaussdb-#     type varr is varray(10) of varchar(3);
+gaussdb-#     v varr;
+gaussdb-# begin
+gaussdb$#     raise info 'first is %',v.first;
+gaussdb$# end;
+gaussdb$# /
+INFO:  first is <NULL>
+ANONYMOUS BLOCK EXECUTE last[()] 参数：无。 返回值：int4类型。 功能描述：返回数组中最后一个元素的下标。若没有最后一个元素，则返回NULL。 示例1： gaussdb=# declare
+gaussdb-#     type varr is varray(10) of varchar(3);
+gaussdb-#     v varr := varr('asd','zxc');
+gaussdb-# begin
+gaussdb$#     raise info 'last is %',v.last();
+gaussdb$# end;
+gaussdb$# /
+INFO:  last is 2
+ANONYMOUS BLOCK EXECUTE
+-- 数组未初始化返回NULL gaussdb=# declare
+gaussdb-#     type varr is varray(10) of varchar(3);
+gaussdb-#     v varr;
+gaussdb-# begin
+gaussdb$#     raise info 'last is %',v.last;
+gaussdb$# end;
+gaussdb$# /
+INFO:  last is <NULL>
+ANONYMOUS BLOCK EXECUTE prior(idx) 参数：int4类型。 返回值：int4类型。 功能描述：返回数组中指定下标的前一个元素下标，若无法找到对应元素下标则返回NULL。 示例： gaussdb=# declare
+gaussdb-#     type varr is varray(10) of varchar(3);
+gaussdb-#     v varr := varr('asd','zxc');
+gaussdb-# begin
+gaussdb$#     raise info 'prior is %',v.prior(2);
+gaussdb$# end;
+gaussdb$# /
+INFO:  prior is 1
+ANONYMOUS BLOCK EXECUTE
+-- 数组未初始化返回NULL gaussdb=# declare
+gaussdb-#     type varr is varray(10) of varchar(3);
+gaussdb-#     v varr;
+gaussdb-# begin
+gaussdb$#     raise info 'prior is %',v.prior(2);
+gaussdb$# end;
+gaussdb$# /
+INFO:  prior is <NULL>
+ANONYMOUS BLOCK EXECUTE
+-- 下标越界，大于数组范围 gaussdb=# declare
+gaussdb-#     type varr is varray(10) of varchar(3);
+gaussdb-#     v varr := varr('asd','zxc','qwe');
+gaussdb-# begin
+gaussdb$#     raise info 'prior is %',v.prior(10);
+gaussdb$# end;
+gaussdb$# /
+INFO:  prior is 3
+ANONYMOUS BLOCK EXECUTE next(idx) 参数：int4类型。 返回值：int4类型。 功能描述：返回数组中指定下标的后一个元素下标，若无法找到对应元素下标则返回NULL。 示例： gaussdb=# declare
+gaussdb-#     type varr is varray(10) of varchar(3);
+gaussdb-#     v varr := varr('asd','zxc');
+gaussdb-# begin
+gaussdb$#     raise info 'next is %',v.next(1);
+gaussdb$# end;
+gaussdb$# /
+INFO:  next is 2
+ANONYMOUS BLOCK EXECUTE
+-- 数组未初始化返回NULL gaussdb=# declare
+gaussdb-#     type varr is varray(10) of varchar(3);
+gaussdb-#     v varr;
+gaussdb-# begin
+gaussdb$#     raise info 'next  is %',v.next(1);
+gaussdb$# end;
+gaussdb$# /
+INFO:  next  is <NULL>
+ANONYMOUS BLOCK EXECUTE
+-- 下标越界，大于数组范围 gaussdb=# declare
+gaussdb-#     type varr is varray(10) of varchar(3);
+gaussdb-#     v varr := varr('asd','zxc','qwe');
+gaussdb-# begin
+gaussdb$#     raise info 'next  is %',v.next(10);
+gaussdb$# end;
+gaussdb$# /
+INFO:  next  is <NULL>
+ANONYMOUS BLOCK EXECUTE exists(idx) 参数：int4类型。 返回值：true或false，BOOLEAN类型。 功能描述：查找指定位置是否存在元素。 示例： gaussdb=# declare
+gaussdb-#     type varr is varray(10) of varchar(3);
+gaussdb-#     v varr := varr('asd','zxc');
+gaussdb-#     flag bool;
+gaussdb-# begin
+gaussdb$#     flag := v.exists(1);
+gaussdb$#     raise info '%',flag;
+gaussdb$#     flag := v.exists(3);
+gaussdb$#     raise info '%',flag;
+gaussdb$#     flag := v.exists(7);
+gaussdb$#     raise info '%',flag;
+gaussdb$# end;
+gaussdb$# /
+INFO:  t
+INFO:  f
+INFO:  f
+ANONYMOUS BLOCK EXECUTE
+-- 数组未初始化返回false gaussdb=# declare
+gaussdb-#     type varr is varray(10) of varchar(3);
+gaussdb-#     v varr;
+gaussdb-#     flag bool;
+gaussdb-# begin
+gaussdb$#     flag := v.exists(1);
+gaussdb$#     raise info '%',flag;
+gaussdb$#     flag := v.exists(3);
+gaussdb$#     raise info '%',flag;
+gaussdb$#     flag := v.exists(7);
+gaussdb$#     raise info '%',flag;
+gaussdb$# end;
+gaussdb$# /
+INFO:  f
+INFO:  f
+INFO:  f
+ANONYMOUS BLOCK EXECUTE 父主题： 数组 版权所有 © 华为技术有限公司

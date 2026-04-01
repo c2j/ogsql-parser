@@ -1,0 +1,1 @@
+PQbackendPID PQbackendPID 补充解释 PQbackendPID函数返回值在 GaussDB 中表示后台线程的槽位ID (SlotID)，而并非后台线程的BackendPid。由于存在上述差异，不建议按照PostgreSQL同名函数的语义执行。若希望获取该连接的后台PID，可以通过执行系统函数pg_backend_pid获取。同时，依赖libpq的其他驱动程序的同名接口（如Python连接驱动psycopg2的get_backend_pid函数）也遵循上述规则。 父主题： 数据库连接控制函数 版权所有 © 华为技术有限公司

@@ -1,0 +1,3 @@
+备份恢复后执行数据确认 备份恢复后执行数据确认 功能介绍 确认备份恢复后的数据是否正常，仅需要在恢复到当前实例后调用。数据确认后会删除本次恢复时间点后的归档日志，并重新开启日志归档。 调用接口前，您需要提前 获取终端节点 ，即下文中的Endpoint值。 URI URI格式 POST  https://{ endpoint }/gaussdb/v3/{project_id}/instances/{instance_id}/confirm-restore-data URI样例 https://gaussdb.sa-fb-2.hcsglobal.com/gaussdb/v3/0483b6b16e954cb88930a360d2c4e663/instances/dsfae23fsfdsae3435in14/confirm-restore-data 参数说明 表1 参数说明 名称 类型 是否必选 描述 project_id String 是 租户在某一region下的project ID。 获取方法请参见 获取项目ID/名称 。 instance_id String 是 实例ID。 请求消息 无 响应消息 正常响应要素说明 表2 响应Body参数 名称 类型 描述 job_id String 任务ID 正常响应样例 { 
+  "job_id" : "a03b1b8a-b756-467c-8a49-38720c3d23ec" 
+} 异常响应 请参见 异常请求结果 。 状态码 正常 202 异常 请参见 状态码 。 错误码 请参见 错误码 。 父主题： 备份管理 版权所有 © 华为技术有限公司

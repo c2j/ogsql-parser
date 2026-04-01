@@ -1,0 +1,2 @@
+DROP FUNCTION DROP FUNCTION 功能描述 删除一个已存在的函数。 注意事项 如果函数中涉及对临时表的相关操作，则无法使用DROP FUNCTION删除函数。 只有函数的所有者或者被授予了函数DROP权限的用户才能执行DROP FUNCTION命令，系统管理员默认拥有该权限。 语法格式 DROP FUNCTION [ IF EXISTS ] function_name 
+[ ( [ {[ argname ] [ argmode ] argtype} [, ...] ] ) [ CASCADE | RESTRICT ] ]; 参数说明 IF EXISTS IF EXISTS表示，如果函数存在则执行删除操作，函数不存在也不会报错，只是发出一个notice。 function_name 要删除的函数名称。 取值范围：已存在的函数名。 argmode 函数参数的模式。 argname 函数参数的名称。 argtype 函数参数的类型 示例 请参见CREATE FUNCTION的 示例 。 相关链接 ALTER FUNCTION ， CREATE FUNCTION 父主题： D 版权所有 © 华为技术有限公司

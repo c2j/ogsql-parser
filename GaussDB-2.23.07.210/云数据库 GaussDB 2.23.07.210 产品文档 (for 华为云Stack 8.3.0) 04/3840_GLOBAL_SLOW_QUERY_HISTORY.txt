@@ -1,0 +1,1 @@
+GLOBAL_SLOW_QUERY_HISTORY GLOBAL_SLOW_QUERY_HISTORY GS_SLOW_QUERY_HISTORY显示所有节点上未转储的慢查询信息，本版本中已废弃。具体字段信息请参考GS_SLOW_QUERY_INFO。 父主题： Query 版权所有 © 华为技术有限公司

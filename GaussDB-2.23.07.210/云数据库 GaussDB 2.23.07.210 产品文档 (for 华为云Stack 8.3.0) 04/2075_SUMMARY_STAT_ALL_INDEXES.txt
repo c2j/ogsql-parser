@@ -1,0 +1,1 @@
+SUMMARY_STAT_ALL_INDEXES SUMMARY_STAT_ALL_INDEXES 显示集群级数据库的每个索引的访问统计信息。 表1 SUMMARY_STAT_ALL_INDEXES字段 名称 类型 描述 schemaname name 索引的模式名。 relname name 索引的表名。 indexrelname name 索引名。 idx_scan numeric 索引上开始的索引扫描数。 idx_tup_read numeric 通过索引上扫描返回的索引项数。 idx_tup_fetch numeric 通过使用索引的简单索引扫描抓取的活表行数。 父主题： Object 版权所有 © 华为技术有限公司

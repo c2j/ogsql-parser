@@ -1,0 +1,21 @@
+{
+  "topic": "XBSA备份操作手册",
+  "term_count": 3,
+  "terms": [
+    {
+      "term": "检查系统参数",
+      "content": "检查系统参数 检查系统参数 在使用XBSA备份数据前，需要检查系统参数“GAUSSDB_XBSA_SUPPORT” 是否正确配置，使用XBSA PITR功能需要开启白名单“gaussdbv5_feature_support_xbsa_log_backup”。 操作步骤 登录DBS运维管理平台。 进入“实例运维 > 配置管理 >系统参数管理”。 搜索“GAUSSDB_XBSA_SUPPORT”参数，查看参数值。 GAUSSDB_XBSA_SUPPORT 为“true”时，创建实例过程中，默认的备份方式为XBSA，并且针对采用OBS备份的实例，会出现切换XBSA按钮，只支持3.200 版本及以上的实例。 GAUSSDB_XBSA_SUPPORT为“false”时，默认备份方式为OBS，并无切换XBSA备份的功能入口。 进入“实例运维 > 配置管理 >特性白名单”。 搜索\"gaussdbv5_feature_support_xbsa_log_backup\"，单击特性发布。",
+      "source_file": "6145_file_6145.txt"
+    },
+    {
+      "term": "设置细粒度权限",
+      "content": "设置细粒度权限 设置细粒度权限 本章介绍第三方备份平台通过API对接 GaussDB 实例时，设置账号细粒度权限的流程。 对接流程 参考《云数据库 GaussDB 用户指南》 的“创建VDC和VDC用户”章节，创建VDC用户。 参考《云数据库 GaussDB 产品介绍》的“用户角色和权限”章节，赋予新VDC用户指定的细粒度权限。 XBSA备份相关的细粒度权限如下： 操作名称 授权项 备注 设置实例扩展信息 gaussdb:instance:setInstanceExtendInfo gaussdb:instance:list 界面选择VPC需要配置： VPC Administrator 查询实例扩展信息 gaussdb:instance:list 无 安装三方备份SSL证书 gaussdb:backup:create 无 创建手动备份 gaussdb:backup:create gaussdb:backup:list 无 获取备份列表 gaussdb:backup:list 无 查询差量备份列表 gaussdb:backup:list 无 恢复到新实例 gaussdb:instance:create gaussdb:backup:list gaussdb:instance:list 界面选择VPC、子网、安全组需要配置： VPC Administrator Server Administrator 恢复到当前实例 gaussdb:instance:restoreInPlace gaussdb:instance:list gaussdb:backup:list 无 获取任务信息 gaussdb:instance:list 无",
+      "source_file": "6146_file_6146.txt"
+    },
+    {
+      "term": "API对接流程",
+      "content": "API对接流程 API对接流程 本章介绍第三方备份平台通过API对接 GaussDB 实例的流程。 对接流程 参考《云数据库 GaussDB API参考》的“设置实例扩展信息”章节，设置第三方服务器地址、端口及额外的第三方信息。 参考《云数据库 GaussDB API参考》的“安装三方备份SSL证书”章节 ，设置实例的SSL证书。 SSL证书获取方式参考 配置客户端证书 。如果不开启SSL双向认证，则跳过此步。 参考《云数据库 GaussDB API参考》的\"创建手动备份、恢复新实例、恢复到当前实例、查询备份列表\"等内容进行备份数据对接。",
+      "source_file": "6147_API.txt"
+    }
+  ]
+}

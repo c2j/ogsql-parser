@@ -1,0 +1,51 @@
+{
+  "topic": "麒麟镜像制作指导",
+  "term_count": 9,
+  "terms": [
+    {
+      "term": "创建虚拟机",
+      "content": "创建虚拟机 创建虚拟机 基于 注册镜像 注册的麒麟OS镜像，创建虚拟机。 操作步骤 ServiceOM镜像资源页面点击“创建虚拟机”。 选择好可用分区之后，点击“下一步” 选择之前注册好的麒麟操作系统ISO镜像之后，点击“下一步” 磁盘类型选择“云磁盘”，系统盘大小输入“40”，虚拟机规格可根据情况自行选择 存储推荐选择“SSD” 网络配置推荐选择（默认）如下 输入虚拟机名称之后，点击“下一步” 确认好虚拟机信息之后，点击“立即申请”",
+      "source_file": "6094_file_6094.txt"
+    },
+    {
+      "term": "注册镜像",
+      "content": "注册镜像 注册镜像 基于麒麟提供的ISO文件，使用镜像资源服务注册麒麟OS基础镜像。 登录Service OM。 在服务列表中选择“镜像资源”。 单击“注册镜像”。 虚拟化类型、镜像服务器类型、上传方式、最小磁盘等信息选择/填写如下图所示，填写完信息之后单击“注册”。 镜像系统盘最小为40G，如客户有需要可以适当扩充系统盘空间。 建议适当保留一定系统盘空间用于应急扩充使用，不推荐划分用尽所有系统盘空间。 根据实际情况考虑，建议值: 100G。",
+      "source_file": "6093_file_6093.txt"
+    },
+    {
+      "term": "替换数据库内核包【可选】",
+      "content": "替换数据库内核包【可选】 替换数据库内核包【可选】 该章节仅作为ECS镜像的工程方案中使用，解决早期版本中不支持麒麟ECS实例的方案。制作和部署BMS镜像时跳过该章节。 替换数据库ECS实例的Euler编译包为麒麟编译包，登录数据库DBS运维管理平台，选择左侧的“配置管理”，然后选择“引擎资源管理”，引擎名称选择“GaussDB”。 点击“编辑”选中的引擎版本，以GaussDB3.100.0版本为例，修改数据库内核安装包名： 修改“ARM包名”为v3.100.0-GaussDBV5-install-kylin-aarch64_xxx.tar.gz值。 修改“扩展ARM包名”中json字符值的\"ha\"为v3.100.0-GaussDBV5-install-kylin-ha-aarch64_xxx.tar.gz，替换原“扩展ARM包名”json字符值。 更新数据库管理面桶中GaussDB对应版本的数据库KylinOS编译的om_agent包名为EulerOS编译的om_agent包名，以数据库3.100.0版本为例： 通过OBS Browser工具登录数据库管理面桶，搜索gaussdbv5_arm，找到gaussdbv5_arm_om_agent_3.100.0.tar.gz包，改名备份为gaussdbv5_arm_om_agent_3.100.0.tar.gz.bak; 然后通过OBS Browser工具登录数据库管理面桶，搜索gaussdbv5_kylin_arm，找到gaussdbv5_kylin_arm_om_agent_3.100.0.tar.gz包，改名为gaussdbv5_arm_om_agent_3.100.0.tar.gz 通过OBS Browser工具登录数据库管理面桶，搜索gaussdbv5_ha_arm，找到gaussdbv5_ha_arm_om_agent_3.100.0.tar.gz包，改名备份为gaussdbv5_ha_arm_om_agent_3.100.0.tar.gz.bak; 然后通过OBS Browser工具登录数据库管理面桶，搜索gaussdbv5_kylin_ha_arm，找到gaussdbv5_kylin_arm_om_agent_3.100.0.tar.gz包，改名为gaussdbv5_arm_om_agent_3.100.0.tar.gz 验证，创建对应版本的欧拉ECS数据库，成功发放实例后再进行确认操作系统版本和数据库内核版本即可。",
+      "source_file": "6105_file_6105.txt"
+    },
+    {
+      "term": "操作系统参数配置建议",
+      "content": "操作系统参数配置建议 操作系统参数配置建议 数据库实例安装完成后，在SATA/SAS SSD下磁盘调度方式建议使用deadline调度方式，Nvme建议使用none调度方式。 该参数对磁盘性能影响较大，设置不当会影响数据的读写性能，设置方法参考如下步骤。 操作步骤 参考 登录实例节点 ，登录实例节点。 切到root用户。 exit 查看当前磁盘的调度方式： cat /sys/block/ $DEVICE-NAME /queue/scheduler $DEVICE-NAME代表具体的磁盘设备，如sdb。 noop deadline [cfq] [ ]中的值即为当前使用的磁盘IO调度模式。 使用echo方式临时修改磁盘的调度方式。 例如将sdb磁盘修改为deadline： echo deadline > /sys/block/sdb/queue/scheduler 持久化修改磁盘的调度方式。 查看磁盘调度算法 cat /sys/block/sdb/queue/scheduler mq-deadline kyber [bfq] none 编写udev文件 vim /etc/udev/rules.d/io_scheduler.rules ACTION==\"add|change\",KERNEL==\"sdb\",ATTR{queue/scheduler}=\"mq-deadline\" 修改磁盘udev规则 udevadm trigger --name-match=sdb 查看磁盘调度算法 cat /sys/block/sdb/queue/scheduler [mq-deadline] kyber  bfq none",
+      "source_file": "6106_file_6106.txt"
+    },
+    {
+      "term": "安装麒麟OS",
+      "content": "安装麒麟OS 安装麒麟OS 基于上一步创建出来的虚拟机，进行麒麟OS的安装。 在服务列表的“计算资源”下，选择“虚拟机”，找到上一步创建的虚拟机，然后点击右侧的“VNC登录”。 登录后进入麒麟OS的安装页面，选择好安装语言后，点击“继续”进入下一步，如下 点击“软件选择”，进入后选择 “带UKUI GUI的服务器”，并勾选右侧所有的选项卡，如下 选择“安装位置”，在弹出的页面中选择自定义，然后点击完成，如下 在弹出的页面中选择自动创建，如下： 在弹出的页面中，将“swap”分区期望容量（推荐）设为1G（1024MB），并将多余的容量分配到“/”分区下；修改卷组名称为klas，去掉后面的host后缀（建议）。 / 最后将“/boot”和“/”分区的文件系统更改为ext4，点击“更新设置”，然后点击“完成”。 在弹出的更改提示框中选择“接受更改”。 在安装页面选择 “Root密码”并设置root密码，如下 设置完root密码后，点击“完成”，最后点击“开始安装”。 安装完成后点击“重启系统”，重启完成之后点击“许可信息”，接受许可信息后点击“结束配置”，即可进入登录页面，如下 安装麒麟OS完成。",
+      "source_file": "6095_OS.txt"
+    },
+    {
+      "term": "生成并注册镜像（旧）",
+      "content": "生成并注册镜像（旧） 生成并注册镜像（旧） 早期版本中没有镜像管理，仅能从引擎资源管理中填写镜像ID。 虚拟机安装完镜像patch软件之后，确认不再进行其它操作后，开始生成镜像。 找到上一步安装完软件的虚拟机，点击“更多”，然后选择“制作镜像”，如下。 在弹出的页面中输入/选择相关信息之后，最小磁盘、镜像类型等信息推荐如下，最后点击“确定”。 上一步完成之后，会自动注册镜像，相关信息可在镜像资源中的镜像列表里查看。 以上步骤注册的是虚拟机镜像，如果是BMS实例，则需要导出zvhd镜像文件后，上传至OBS再注册BMS镜像。在ServiceOM页面中，点击服务列表 ->镜像资源，然后在弹出的镜像页中选择注册镜像，如下所示。 在弹出的注册镜像页中，虚拟化类型选择\"Ironic\"，CPU架构选择\"ARM\"，操作系统选择\"linux\"，版本选择\"银河麒麟服务器操作系统\"，填写名称和镜像地址后，点击注册。 CPU架构和启动模式根据实际情况选择，上图以ARM架构UEFI启动方式为例。 在ManageOne运维面页面的“常用链接”栏中单击 “ServiceCM” ，跳转到ServiceCM插件列表界面。 在ServiceCM插件列表界面，单击 “自助开发平台 > dbs-ops” ，进入DBS运维管理平台。 选择左侧的“配置管理”，然后选择“引擎资源管理”，引擎名称选择“GaussDB”。 点击“编辑”选中的引擎版本，以GaussDB 3.100.0版本为例。 ECS-ARM镜像ID修改到“ARM镜像ID”。 BSM-ARM镜像ID修改到“扩展镜像ID”json中的“kylinArmBms”。 修改后的内容回填到对应文本框中，点击“确定”保存成功。 至此，镜像制作及注册均已完成。 麒麟V10SP2-20210524镜像中自带的auditd（audit-3.0-5.se.06版本）服务存在内存泄漏问题。麒麟官网推荐通过升级audit包版本至audit-3.0-5.se.08.ky10版本修复此问题。 可通过以下方法关闭/开启auditd服务： 关闭： 切换到root用户并移动到/usr/sbin 目录，输入命令chmod -x auditd，然后再输入service auditd stop命令关闭auditd服务。 开启： 切换到root用户并移动到/usr/sbin 目录，输入命令chmod +x auditd，然后再输入service auditd start命令开启auditd服务。",
+      "source_file": "6103_file_6103.txt"
+    },
+    {
+      "term": "生成并注册镜像（新）",
+      "content": "生成并注册镜像（新） 生成并注册镜像（新） 虚拟机安装完镜像patch软件之后，确认不再进行其它操作后，开始生成镜像。 找到上一步安装完软件的虚拟机，点击“更多”，然后选择“制作镜像”，如下。 在弹出的页面中输入/选择相关信息之后，最小磁盘、镜像类型等信息推荐如下，最后点击“确定”。 上一步完成之后，会自动注册镜像，相关信息可在镜像资源中的镜像列表里查看。 以上步骤注册的是虚拟机镜像，如果是BMS实例，则需要导出zvhd镜像文件后，上传至OBS再注册BMS镜像。在ServiceOM页面中，点击服务列表 ->镜像资源，然后在弹出的镜像页中选择注册镜像，如下所示。 在弹出的注册镜像页中，虚拟化类型选择\"Ironic\"，CPU架构选择\"ARM\"，操作系统选择\"linux\"，版本选择\"银河麒麟服务器操作系统\"，填写名称和镜像地址后，点击注册。 CPU架构和启动模式根据实际情况选择，上文以ARM架构UEFI启动方式为例。 如果导出的镜像格式为vhd格式，则需要手动改为zvhd格式。 在ManageOne运维面页面的“常用链接”栏中单击 “ServiceCM” ，跳转到ServiceCM插件列表界面。 在ServiceCM插件列表界面，单击 “自助开发平台 > dbs-ops” ，进入DBS运维管理平台。 选择左侧的“配置管理”，然后选择“镜像管理”，点击“内核包管理”。 以GaussDB v3.200版本下镜像注册为例，引擎选择GaussDB，内核包架构选择arm。 若镜像是KylinV10SP1则需要检查v3.200的内核包信息中kylin的镜像系统版本是否为10.1。 将镜像系统版本修改为对应的版本，点击确定。 点击“镜像管理”> “新增镜像”。 ECS-ARM镜像ID新增信息为： BMS-ARM镜像ID新增信息为： 点击“确定”保存成功。 至此，镜像制作及注册均已完成。 新增或修改的镜像版本至少在内核包管理中存在一条，如不存在则需要修改内核包管理中的镜像系统版本。 相同引擎名称、镜像架构、镜像发行版本和虚拟化类型下有且只有一个大版本优选。 相同引擎名称、镜像架构、镜像系统版本、镜像发行版本和虚拟化类型下有且只有一个小版本优选。 麒麟V10SP2-20210524镜像中自带的auditd（audit-3.0-5.se.06版本）服务存在内存泄漏问题。麒麟官网推荐通过升级audit包版本至audit-3.0-5.se.08.ky10版本修复此问题。 可通过以下方法关闭/开启auditd服务： 关闭： 切换到root用户并移动到/usr/sbin 目录，输入命令chmod -x auditd，然后再输入service auditd stop命令关闭auditd服务。 开启： 切换到root用户并移动到/usr/sbin 目录，输入命令chmod +x auditd，然后再输入service auditd start命令开启auditd服务。",
+      "source_file": "6104_file_6104.txt"
+    },
+    {
+      "term": "安装软件",
+      "content": "安装软件 安装软件 使用上一步创建安装的虚拟机，进行镜像的制作。 升级麒麟内核版本【可选】 修改网卡接口脚本配置 上传patch软件安装包 安装BMS镜像patch软件 安装ECS镜像patch软件 清理安装文件，完成安装",
+      "source_file": "6096_file_6096.txt"
+    },
+    {
+      "term": "镜像制作准备",
+      "content": "镜像制作准备 镜像制作准备 从官方供应商获取麒麟操作系统V10服务器ISO镜像文件。 可参考 表1 查看镜像版本配套。 从Support上获取当前版本配套GaussDB_image_patch_*.tar.gz（image_patch_*.tar.gz）镜像包制作文件。 获取方法（样例）： 运营商：单击 此处 ，选择对应版本后，下载GaussDB_image_patch_2.23.01.260.tar.gz 。 企业网：单击 此处 ，选择对应版本后，下载GaussDB_image_patch_2.23.01.260.tar.gz 。 表1 麒麟镜像配套表 配套版本 镜像Patch版本 麒麟ISO镜像版本 （nkvers） 系统架构 GaussDB内核版本 GaussDB for openGauss 2.6.7.312 image_patch_2.6.7.305_aarch64.tar.gz Release: Kylin Linux Advanced Server release V10 (Tercel) Kernel: 4.19.90-17.ky10.aarch64 Build: Kylin Linux Advanced Server release V10 (SP1) /(Tercel)-aarch64-Build04/20200711 BMS-ARM Dorado存储FC 2.x GaussDB 2.23.01.260 GaussDB_image_patch_2.23.01.260.tar.gz Release: Kylin Linux Advanced Server release V10 (Tercel) Kernel: 4.19.90-23.8.v2101.ky10.aarch64 Build: Kylin Linux Advanced Server release V10 (SP1) /(Tercel)-aarch64-Build20/20210518 BMS-ARM Dorado存储NoF&FC 3.200.x GaussDB 2.23.01.260 GaussDB_image_patch_2.23.01.260.tar.gz Release: Kylin Linux Advanced Server release V10 (Sword) Kernel: 4.19.90-24.4.v2101.ky10.aarch64 Build: Kylin Linux Advanced Server release V10 (SP2) /(Sword)-aarch64-Build09/20210524 ECS-ARM 3.100.x GaussDB 2.23.01.260 GaussDB_image_patch_2.23.01.260.tar.gz Release: Kylin Linux Advanced Server release V10 (Tercel) Kernel: 4.19.90-23.8.v2101.ky10.aarch64 Build: Kylin Linux Advanced Server release V10 (SP1) /(Tercel)-aarch64-Build20/20210518 ECS-ARM 3.202.x 3.203.x 检查存储RAID卡、存储网络驱动。 制作镜像前，请确认raid和网络硬件驱动，非默认支持的硬件驱动需要从硬件厂商获取安装。 表2 BMS镜像默认驱动检查表 驱动类型 驱动包 镜像Patch版本 RAID NIC-IN200-KylinV10SP1-hinic-3.7.0.8-aarch64.rpm image_patch_2.6.7.305_aarch64.tar.gz 存储网络FC FC-IN300-KylinV10SP1-hifc-3.7.0.8-aarch64.rpm image_patch_2.6.7.305_aarch64.tar.gz 多路径软件 UltraPath-31.00.114-KYLIN10.aarch64.rpm image_patch_2.6.7.305_aarch64.tar.gz RAID NIC-Hi1822-KylinV10SP1-hinic-3.9.0.8-aarch64.rpm GaussDB_image_patch_2.23.01.200.tar.gz 存储网络FC FC-Hi1822-KylinV10SP1-hifc-3.9.0.8-aarch64.rpm GaussDB_image_patch_2.23.01.200.tar.gz 存储网络NoF nvme-cli-1.16.zip mlnx-tools-5.1.3.tar.gz GaussDB_image_patch_2.23.01.200.tar.gz 多路径软件 ultrapath-nvme-31.02.026-KYLINV10SP1.aarch64.rpm UltraPath-31.02.024-KYLIN10.aarch64.rpm GaussDB_image_patch_2.23.01.200.tar.gz",
+      "source_file": "6092_file_6092.txt"
+    }
+  ]
+}

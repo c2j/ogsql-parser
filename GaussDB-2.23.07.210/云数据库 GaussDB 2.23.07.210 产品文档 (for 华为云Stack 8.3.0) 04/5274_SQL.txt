@@ -1,0 +1,16 @@
+如何查询SQL错误的日志 如何查询SQL错误的日志 问题现象 连接数据库执行SQL语句时，若有语句本身有问题，如语法错误、关键字错误或者权限错误等，客户端会返回一些错误信息来进行提示，从而支持业务上确认语句错误。我们可以通过查询SQL错误的日志来识别错误。 处理方法 SQL错误可以从客户端或者登录数据库后台查看，具体步骤如下。若可以直接在业务应用侧看到报错信息，则直接查看 6 即可。 参考 登录实例节点 ，登录数据库节点。 分布式场景需要登录CN所在节点。 主备版场景需要登录主DN所在节点。 执行如下命令，导入环境变量。 source /home/Ruby/gauss_env_file 执行以下命令查看节点信息。 cm_ctl query -Cvd 分布式场景结果举例： [ Coordinator State ]
+
+node               instance                 state
+---------------------------------------------------
+1  pekpopgsci00235 5001 /usr1/omm/data/cn Normal
+2  pekpopgsci00236 5002 /usr1/omm/data/cn Normal
+3  pekpopgsci00238 5003 /usr1/omm/data/cn Normal
+
+[ Central Coordinator State ]
+
+node               instance                 state
+--------------------------------------------------- 如上述结果举例所示，节点pekpopgsci00235对应的CN名称为5001，则此节点的CN日志路径为 “$GAUSSLOG/pg_log/cn_5001” 。 主备版场景结果举例： [  Datanode State   ]
+
+node             instance                             state            | node             instance                             state            | node             instance                             state            | node             instance                             state
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+1  25.213.51.194 6001 /var/lib/engine/data1/data/dn_1 P Primary Normal | 2  25.213.8.118  6002 /var/lib/engine/data1/data/dn_2 S Standby Normal | 3  25.213.11.47  6003 /var/lib/engine/data1/data/dn_3 S Standby Normal | 4  25.213.25.32  6004 /var/lib/engine/data1/data/dn_4 S Standby Normal 如上述结果举例所示，主DN节点对应的DN名称为6001，则此节点的DN日志路径为 “$GAUSSLOG/pg_log/dn_6001” 。 执行以下命令到日志路径下查看对应报错时间段的日志。 分布式： cd $GAUSSLOG/pg_log/cn_5001 主备版： cd $GAUSSLOG/pg_log/dn_6001 找到对应时间点的日志文件中的ERROR和对应报错的语句。 根据日志的报错内容，判断不同原因的SQL错误，常见错误如下。 语法错误 执行语句：select * from pg_sleep(5),;  -- 多了一个逗号 日志报错：ERROR:  syntax error at or near ";" at character 27 关键字错误 执行语句：select * from tmp_status;  -- tmp_status表实际上不存在 日志报错：ERROR: relation "tmp_status" does not exist at character 15 权限错误 执行语句：delete from tmp_db;  -- 当前用户没有tmp_db这个表的删除权限 日志报错：ERROR: permission denied for relation tmp_db 除零错误 执行语句：select 1/0;  --语句中有除0操作 日志报错：ERROR: division by zero 父主题： 业务操作类 版权所有 © 华为技术有限公司

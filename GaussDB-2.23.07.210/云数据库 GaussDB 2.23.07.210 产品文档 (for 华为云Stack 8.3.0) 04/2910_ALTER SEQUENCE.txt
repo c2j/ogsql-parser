@@ -1,0 +1,9 @@
+ALTER SEQUENCE ALTER SEQUENCE 功能描述 修改一个现有的序列的参数。 注意事项 序列的所有者或者被授予了序列ALTER权限的用户或者被授予了ALTER ANY SEQUENCE权限的用户才能执行ALTER SEQUENCE命令，系统管理员默认拥有该权限。但要修改序列的所有者，当前用户必须是该序列的所有者或者系统管理员，且该用户是新所有者角色的成员。 当前版本仅支持修改拥有者、归属列、最大值和cache缓存值。若要修改其他参数，可以删除重建，并用Setval函数恢复当前值。 ALTER SEQUENCE MAXVALUE不支持在事务、函数和存储过程中使用。 修改序列的最大值后，会清空该序列在所有会话的cache。 如果Sequence被创建时使用了LARGE标识，则ALTER时也需要使用LARGE标识。 ALTER SEQUENCE会阻塞nextval、setval、currval和lastval的调用。 语法格式 修改序列最大值、归属列和缓存值： ALTER [ LARGE ] SEQUENCE [ IF EXISTS ] name 
+    [MAXVALUE maxvalue | NO MAXVALUE | NOMAXVALUE | CACHE cache]
+    [ OWNED BY { table_name.column_name | NONE } ] ; 修改序列的拥有者： ALTER [ LARGE ] SEQUENCE [ IF EXISTS ] name OWNER TO new_owner; 参数说明 name 将要修改的序列名称。 IF EXISTS 当序列不存在时使用该选项，不会显示ERROR，而是返回一个NOTICE信息。 MAXVALUE maxvalue | NO MAXVALUE | NOMAXVALUE 执行序列的最大值。新修改的最大值必须大于当前的last_value；如果没有指定，将保持旧的最大值。 取值范围：(last_value, 2 63 -1] ，使用LARGE标识时则为(last_value, 2 127 -1]。 CACHE 为了快速访问，而在内存中预先存储序列号的个数。如果没有指定，将保持旧的缓冲值。 取值范围：[1, 2^63-1] ，使用LARGE标识时则为：[1, 2 127 -1]。 OWNED BY 将序列和一个表的指定字段进行关联。这样，在删除那个字段或其所在表的时候会自动删除已关联的序列。 如果序列已经和表有关联后，使用这个选项后新的关联关系会覆盖旧的关联。 关联的表和序列的所有者必须是同一个用户，并且在同一个模式中。 使用OWNED BY NONE将删除任何已经存在的关联。 new_owner 序列新所有者的用户名。用户要修改序列的所有者，必须是新角色的直接或者间接成员，并且那个角色必须有序列所在模式上的CREATE权限。 示例 --创建一个名为serial的递增序列，从101开始。 gaussdb=# CREATE SEQUENCE serial START 101;
+
+--创建一个表,定义默认值。 gaussdb=# CREATE TABLE t1(c1 bigint default nextval('serial'));
+
+--将序列serial的归属列变为T1.C1。 gaussdb=# ALTER SEQUENCE serial OWNED BY t1.c1;
+
+--删除序列和表。 gaussdb=# DROP SEQUENCE serial CASCADE; gaussdb=# DROP TABLE t1; 相关链接 CREATE SEQUENCE ， DROP SEQUENCE 父主题： A 版权所有 © 华为技术有限公司

@@ -1,0 +1,36 @@
+{
+  "topic": "Undo",
+  "term_count": 6,
+  "terms": [
+    {
+      "term": "空间管理",
+      "content": "空间管理 空间管理 Undo子系统依赖后台回收线程进行空闲空间回收。负责主机上Undo模块的空间回收，备机通过回放xLog进行回收。回收线程遍历使用中的undo zone，对该zone中的txn page扫描，依据xid从小到大的顺序进行遍历。回收已提交或者已回滚完成的事务，且该事务的提交时间应早于$(current_time-undo_retention_time)。对于遍历过程中需要回滚的事务，后台回收线程会为该事务添加异步回滚任务。 当数据库中存在运行时间长、修改数据量大的事务，或者开启闪回时间较长的时候，可能出现undo空间持续膨胀的情况。当undo占用空间接近undo_space_limit_size时，就会触发强制回收。只要事务已提交或者已回滚完成，即使事务提交时间晚于$(current_time-undo_retention_time)，在这种情况下也可能被回收掉。",
+      "source_file": "4388_file_4388.txt"
+    },
+    {
+      "term": "回滚段管理",
+      "content": "回滚段管理 回滚段管理 每个undo zone除了管理部分transaction page（用于存储事务回滚的元数据）外，还管理undo page。 Undo页面中存储undo row，对数据的修改会将历史版本记录到Undo中。 Undo记录也是数据，因此对Undo页面的修改同样会记录Redo。",
+      "source_file": "4646_file_4646.txt"
+    },
+    {
+      "term": "文件组织结构",
+      "content": "文件组织结构 文件组织结构 如需查询当前回滚段使用的存储方式是页式或段页式，可以查询系统表。 当前仅支持页式。 示例： gaussdb=# select * from gs_global_config where name like '%undostoragetype%';\n      name       |  value\n-----------------+---------\n undostoragetype | page\n(1 row) 当回滚段使用的存储方式为页式： txn page所在文件组织结构： $node_dir/undo/{permanent|unlogged|temp}/$undo_zone_id.meta.$segno undo row所在文件组织结构： $node_dir/undo/{permanent|unlogged|temp}/$undo_zone_id.$segno",
+      "source_file": "4387_file_4387.txt"
+    },
+    {
+      "term": "回滚段管理",
+      "content": "回滚段管理 回滚段管理 每个undo zone除了管理部分transaction page（用于存储事务回滚的元数据）外，还管理undo page。 Undo页面中存储undo row，对数据的修改会将历史版本记录到Undo中。 Undo记录也是数据，因此对Undo页面的修改同样会记录Redo。",
+      "source_file": "4386_file_4386.txt"
+    },
+    {
+      "term": "文件组织结构",
+      "content": "文件组织结构 文件组织结构 如需查询当前回滚段使用的存储方式是页式或段页式，可以查询系统表。 当前仅支持页式。 示例： gaussdb=# select * from gs_global_config where name like '%undostoragetype%';\n      name       |  value\n-----------------+---------\n undostoragetype | page\n(1 row) 当回滚段使用的存储方式为页式： txn page所在文件组织结构： $node_dir/undo/{permanent|unlogged|temp}/$undo_zone_id.meta.$segno undo row所在文件组织结构： $node_dir/undo/{permanent|unlogged|temp}/$undo_zone_id.$segno",
+      "source_file": "4647_file_4647.txt"
+    },
+    {
+      "term": "空间管理",
+      "content": "空间管理 空间管理 Undo子系统依赖后台回收线程进行空闲空间回收，负责主机上Undo模块的空间回收，备机通过回放xLog进行回收。回收线程遍历使用中的undo zone，对该zone中的txn page扫描，依据xid从小到大的顺序进行遍历。回收已提交或者已回滚完成的事务，且该事务的提交时间应早于$(current_time-undo_retention_time)。对于遍历过程中需要回滚的事务，后台回收线程会为该事务添加异步回滚任务。 当数据库中存在运行时间长、修改数据量大的事务，或者开启闪回时间较长的时候，可能出现undo空间持续膨胀的情况。当undo占用空间接近undo_space_limit_size时，就会触发强制回收。只要事务已提交或者已回滚完成，即使事务提交时间晚于$(current_time-undo_retention_time)，在这种情况下也可能被回收掉。",
+      "source_file": "4648_file_4648.txt"
+    }
+  ]
+}

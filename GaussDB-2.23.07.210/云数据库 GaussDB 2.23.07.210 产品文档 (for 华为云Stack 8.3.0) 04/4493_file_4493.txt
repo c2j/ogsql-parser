@@ -1,0 +1,26 @@
+使用 使用 语法格式 创建全量物化视图 CREATE MATERIALIZED VIEW view_name AS query; 刷新全量物化视图 REFRESH MATERIALIZED VIEW view_name; 删除物化视图 DROP MATERIALIZED VIEW view_name; 查询物化视图 SELECT * FROM view_name; 参数说明 view_name 要创建的物化视图名。 取值范围：字符串，要符合标识符的命名规范。 AS query 一个SELECT VALUES命令或者一个运行预备好的SELECT或VALUES查询的EXECUTE命令。 示例 --准备数据。 gaussdb=# CREATE TABLE t1(c1 int, c2 int); gaussdb=# INSERT INTO t1 VALUES(1, 1); gaussdb=# INSERT INTO t1 VALUES(2, 2);
+
+--创建全量物化视图。 gaussdb=# CREATE MATERIALIZED VIEW mv AS select count(*) from t1;
+CREATE MATERIALIZED VIEW
+
+--查询物化视图结果。 gaussdb=# SELECT * FROM mv;
+ count 
+-------
+     2
+(1 row)
+
+--向物化视图中基表插入数据。 gaussdb=# INSERT INTO t1 VALUES(3, 3);
+INSERT 0 1
+
+--对全量物化视图做全量刷新。 gaussdb=# REFRESH MATERIALIZED VIEW mv;
+REFRESH MATERIALIZED VIEW
+
+--查询物化视图结果。 gaussdb=# SELECT * FROM mv;
+ count 
+-------
+     3
+(1 row)
+
+--删除物化视图，删除表。 gaussdb=# DROP MATERIALIZED VIEW mv;
+DROP MATERIALIZED VIEW gaussdb=# DROP TABLE t1; 
+DROP TABLE 父主题： 全量物化视图 版权所有 © 华为技术有限公司

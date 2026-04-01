@@ -1,0 +1,1 @@
+Roach简介 Roach简介 GaussRoach.py工具是 GaussDB 提供的用于备份和恢复的实用工具。可对整个数据库中的数据、WAL归档日志和运行日志进行备份。 GaussRoach.py工具是一款数据库高可用性以及容灾恢复策略的备份管理工具。使用该工具可以备份恢复数据库；不仅可以备份到物理磁盘，也可以备份到OBS、NAS和REMOTE。数据库级备份包含数据库静态配置文件（cluster_static_config）、数据库动态配置文件（cluster_dynamic_config）、数据节点DN（Datanode）及其备实例。 父主题： GaussRoach.py 版权所有 © 华为技术有限公司

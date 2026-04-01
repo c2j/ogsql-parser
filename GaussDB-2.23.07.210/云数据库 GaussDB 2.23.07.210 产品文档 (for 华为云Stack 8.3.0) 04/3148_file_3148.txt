@@ -1,0 +1,58 @@
+执行动态查询语句 执行动态查询语句 介绍执行动态查询语句。 GaussDB 提供两种方式：使用 EXECUTE IMMEDIATE 、 OPEN FOR 实现动态查询。前者通过动态执行SELECT语句，后者结合了游标的使用。当需要将查询的结果保存在一个数据集用于提取时，可使用OPEN FOR实现动态查询。 EXECUTE IMMEDIATE 语法图请参见 图1 。 图1 EXECUTE IMMEDIATE dynamic_select_clause::= using_clause子句的语法图参见 图2 。 图2 using_clause::= 对以上语法格式的解释如下： define_variable：用于指定存放单行查询结果的变量。 USING IN bind_argument：用于指定存放传递给动态SQL值的变量，即在dynamic_select_string中存在占位符时使用。 USING OUT bind_argument：用于指定存放动态SQL返回值的变量。 查询语句中，into和out不能同时存在； 占位符命名以“:”开始，后面可跟数字、字符或字符串，与USING子句的bind_argument一一对应； bind_argument只能是值、变量或表达式，不能是表名、列名、数据类型等数据库对象，即不支持使用bind_argument为动态SQL语句传递模式对象。如果存储过程需要通过声明参数传递数据库对象来构造动态SQL语句（常见于执行DDL语句时），建议采用连接运算符“||”拼接dynamic_select_clause； 动态PL/SQL块允许出现重复的占位符，即相同占位符只能与USING子句的一个bind_argument按位置对应。当设置guc参数behavior_compat_options值为dynamic_sql_compat时，会按照占位符的顺序依次匹配USING子句bind_argument，重复的占位符不会再识别为同一个占位符。 示例 gaussdb=# DROP SCHEMA IF EXISTS hr CASCADE; gaussdb=# CREATE SCHEMA hr; gaussdb=# SET CURRENT_SCHEMA = hr; gaussdb=# CREATE TABLE staffs 
+(
+  staff_id NUMBER, 
+  first_name VARCHAR2,
+  salary NUMBER
+); gaussdb=# INSERT INTO staffs VALUES (200, 'mike', 5800); gaussdb=# INSERT INTO staffs VALUES (201, 'lily', 3000); gaussdb=# INSERT INTO staffs VALUES (202, 'john', 4400);
+
+--从动态语句检索值（INTO 子句）： gaussdb=# DECLARE
+   staff_count  VARCHAR2(20);
+BEGIN
+   EXECUTE IMMEDIATE 'select count(*) from hr.staffs'
+      INTO staff_count;
+   dbe_output.print_line(staff_count);
+END;
+/
+
+--传递并检索值（INTO子句用在USING子句前）： gaussdb=# CREATE OR REPLACE PROCEDURE dynamic_proc
+AS
+   staff_id     NUMBER(6) := 200;
+   first_name   VARCHAR2(20);
+   salary       NUMBER(8,2);
+BEGIN
+   EXECUTE IMMEDIATE 'select first_name, salary from hr.staffs where staff_id = :1'
+       INTO first_name, salary
+       USING IN staff_id;
+   dbe_output.print_line(first_name || ' ' || salary);
+END;
+/
+
+--调用存储过程 gaussdb=# CALL dynamic_proc();
+
+--删除存储过程 gaussdb=# DROP PROCEDURE dynamic_proc; OPEN FOR 动态查询语句还可以使用OPEN FOR打开动态游标来执行。 语法参见 图3 。 图3 open_for::= 参数说明： cursor_name：要打开的游标名。 dynamic_string：动态查询语句。 USING value：在dynamic_string中存在占位符时使用。 游标的使用请参考 游标 。 示例 gaussdb=# CREATE SCHEMA hr; gaussdb=# SET CURRENT_SCHEMA = hr; gaussdb=# CREATE TABLE staffs 
+(
+  section_id NUMBER,
+  first_name VARCHAR2,
+  phone_number VARCHAR2, 
+  salary NUMBER
+  ); gaussdb=# INSERT INTO staffs VALUES (30, 'mike', '13567829252', 5800); gaussdb=# INSERT INTO staffs VALUES (40, 'john', '17896354637', 4000); gaussdb=# DECLARE
+    name          VARCHAR2(20);
+    phone_number  VARCHAR2(20);
+    salary        NUMBER(8,2);
+    sqlstr        VARCHAR2(1024);
+
+    TYPE app_ref_cur_type IS REF CURSOR;  --定义游标类型
+    my_cur app_ref_cur_type;  --定义游标变量
+    
+BEGIN
+    sqlstr := 'select first_name,phone_number,salary from hr.staffs
+         where section_id = :1';
+    OPEN my_cur FOR sqlstr USING '30';  --打开游标, using是可选的
+    FETCH my_cur INTO name, phone_number, salary; --获取数据
+    WHILE my_cur%FOUND LOOP
+          dbe_output.print_line(name||'#'||phone_number||'#'||salary);
+          FETCH my_cur INTO name, phone_number, salary;
+    END LOOP;
+    CLOSE my_cur;   --关闭游标
+END;
+/ 父主题： 动态语句 版权所有 © 华为技术有限公司

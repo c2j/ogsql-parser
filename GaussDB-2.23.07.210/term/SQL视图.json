@@ -1,0 +1,16 @@
+{
+  "topic": "SQL视图",
+  "term_count": 2,
+  "terms": [
+    {
+      "term": "执行计划绑定",
+      "content": "执行计划绑定 执行计划绑定 操作场景 该功能将特定的执行计划与SQL语句绑定在一起，以提升被纳管数据库实例查询性能，并确保执行计划的稳定性。 前提条件 如果需要绑定执行计划，则需要设置参数spm_enable_plan_capture值为“auto”，设置方法参见 修改实例参数 。 操作步骤 登录管理控制台 。 单击管理控制台左上角的 ，选择区域和项目。 在页面左上角单击 ，选择 “ 数据库 > 云数据库 GaussDB ” 。进入 云数据库 GaussDB 信息页面。 选择指定的实例，单击实例名称，进入实例基本信息页面。 在左侧导航栏中单击 “诊断优化 > SQL视图” ，选择单击“慢SQL”。 在“执行计划绑定”列单击“详情”，弹出“执行计划绑定详情”框，可查看该条慢SQL捕获到的执行计划。 绑定状态：单击 ，选择绑定状态，单击“确定”后，完成绑定/解绑慢SQL执行计划。 一条慢SQL可以绑定多个执行计划，被纳管实例将从中选择代价最小的执行计划。 使用gsql连接数据库，手动prepare +SQL，然后使用execute执行查询的场景，execute语句的unique_sql_id无法检索相关绑定计划。比如： prepare p1(int) as select * from t1 where t1.a = $1; execute p1(1); execute p2(1); 使用execute p1(1)和execute p1(2)的unique_sql_id都无法检索相关绑定计划，需要使用select * from t1 where t1.a = $1的unique_sql_id，或者使用文本在spm相关视图中进行检索。 图1 执行计划绑定详情",
+      "source_file": "289_file_289.txt"
+    },
+    {
+      "term": "SQL",
+      "content": "SQL PATCH SQL PATCH 操作场景 GaussDB 数据库实例存在慢SQL时，用户想要优化慢SQL的执行计划，可以使用SQL PATCH进行调优。 操作步骤 登录管理控制台 。 单击管理控制台左上角的 ，选择区域和项目。 在页面左上角单击 ，选择 “ 数据库 > 云数据库 GaussDB ” 。进入 云数据库 GaussDB 信息页面。 在 “实例管理” 页面，选择指定的实例，单击实例的名称，进入实例详情页面。 在左侧导航栏中单击 “诊断优化 > SQL视图” ，选择单击“慢SQL”。 在“SQL PATCH”列单击“详情”，显示“SQL Patch详情”页面。 如果没创建 SQL Patch，则可输入Patch名称和Patch内容，单击“创建”，则可创建SQL Patch。 Patch名称：不为空，不支持中文和特殊字符，可以包含英文字母（区分大小写）、数字、下划线（_）、dollor符号（$），长度限制1~63。 Patch内容（hint）：不为空，不支持中文，内容需符合hint语法（根据实际实例类型可参见《云数据库 GaussDB 2.23.07.200 分布式版开发指南 (for 华为云Stack 8.3.0) 01》或《云数据库 GaussDB 2.23.07.200 主备版开发指南 (for 华为云Stack 8.3.0) 01》手册中的“使用SQL PATCH进行调优”章节），长度限制1~1024。 图1 创建SQL Patch 如果已创建 SQL Patch，则显示SQL Patch信息。 图2 SQL Patch详情 状态：单击 ，可开启或关闭SQL Patch。关闭SQL Patch，状态显示未生效，开启SQL Patch，状态显示生效中。 单击“删除”，则可删除SQL Patch。",
+      "source_file": "288_SQL PATCH.txt"
+    }
+  ]
+}

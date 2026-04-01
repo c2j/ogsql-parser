@@ -1,0 +1,21 @@
+{
+  "topic": "使用客户端连接实例",
+  "term_count": 3,
+  "terms": [
+    {
+      "term": "通过内网连接实例",
+      "content": "通过内网连接实例 通过内网连接实例 本章介绍如何在管理控制台创建 GaussDB 实例，并通过内网使用 弹性云服务器 连接 GaussDB 实例。 准备工作 GaussDB 提供gsql工具帮助您在命令行下连接数据库，您需要提前创建一台 弹性云服务器 用于安装gsql工具。 创建并连接ECS，请参见 弹性云服务器快速入门 。 该 弹性云服务器 用于连接数据库实例，需要与目标实例处于同一虚拟私有云内。 正确配置安全组，使得 弹性云服务器 可以通过“连接地址”访问数据库实例。 操作系统需要选择Euler操作系统。gsql支持的操作系统版本如下： X86：EulerOS V2.0SP5，Kylin V10 SP2。 鲲鹏服务器：EulerOS V2.0SP8，Kylin V10 SP1。 设置安全组规则 在访问数据库前，您需要将访问数据库的IP地址，或者IP段加入安全组入方向的访问规则。 获取驱动包 在 “实例管理” 页面，选择指定的实例，单击实例的名称，进入 “ 基本信息 ” 页面。 单击左侧导航栏中的“连接管理”，进入“连接管理”页面。 单击gsql客户端后的 ，下载驱动或客户端到本地。 远程连接数据库 登录申请的 弹性云服务器 。 在申请的 弹性云服务器 上，上传客户端工具包并配置gsql的执行环境变量。 以root用户登录客户端机器。 创建“/tmp/tools”目录。 mkdir /tmp/tools 将下载的驱动包上传到申请的 弹性云服务器 “/tmp/tools”路径下。 解压 GaussDB 软件包。 cd /tmp/tools unzip GaussDB_driver.zip 获取“GaussDB-Kernel-VxxxRxxxCxx-EULER-64bit-gsql.tar.gz”，拷贝到“/tmp/tools”路径下。 cd /tmp/tools /GaussDB_driver/Centralized/Euler2.5_X86_64/ cp GaussDB-Kernel-VxxxRxxxCxx-EULER-64bit-gsql.tar.gz /tmp/tools 解压文件。 cd /tmp/tools tar -zxvf GaussDB-Kernel-VxxxRxxxCxx-EULER-64bit-gsql.tar.gz 设置环境变量。 打开“~/.bashrc”文件。 vim ~ /.bashrc 按下i键进入INSERT模式，在其中输入如下内容后，单击“ESC”退出编辑模式，使用“:wq!”命令保存并退出。 export PATH= /tmp/tools / bin:$PATH export LD_LIBRARY_PATH= /tmp/tools/ lib:$LD_LIBRARY_PATH 使环境变量配置生效。 source ~ /.bashrc 执行如下指令，根据提示输入密码，连接数据库。 数据库创建成功后，会默认生成名称为postgres的数据库，此处以postgres库为例。 gsql -d postgres -h 10.0.0.0 -U root -p 8000 Password for user root: postgres为需要连接的数据库名称，10.0.0.0分布式为CN的IP地址，主备版为主DN的IP地址，root为登录数据库的用户名，8000为分布式版CN或主备版DN的默认端口号。 如果实例子网选择的为IPV6子网，则连接数据库时也可使用IPV6地址进行连接。 SSL连接 登录管理控制台。 在 “实例管理” 页面，单击实例名称进入 “基本信息” 页面，单击 “数据库信息” 模块 “SSL” 处的 ，下载根证书或捆绑包。 如果需要打开实例的SSL连接功能，首先需要在本地计算机上进行如下的hosts配置： {obs_float_ip}  dbs-cert-download-{region_id}.{obs_prefix}.{region_id}.{external_global_domain_name} region_id: 当前region的region_id，在底座LLD中查询参数'region0_id'获取。 obs_prefix: obs服务域名前缀，obs3.0为'obsv3'，obs2.0为'obs'，在OBS安装工程LLD查询参数'obs_global_domain_name_prefix'。 external_global_domain_name: 当前region的外部服务域名，在底座LLD查询参数'external_global_domain_name'。 obs_float_ip: 当前region的obs服务的外部访问地址，在OBS安装工程LLD查询参数名'global_obs_ip'。 示例： 127.0.0.1 dbs-cert-download-sa-fb-1.obsv3.sa-fb-1.demo.com 将根证书上传至需连接 GaussDB 实例的 弹性云服务器 ，或保存到可访问数据库实例的设备。 将根证书导入 弹性云服务器 Linux操作系统。 连接 GaussDB 实例。 以Linux系统为例，在 弹性云服务器 设置环境变量，执行如下命令。 export PGSSLMODE= <sslmode> export PGSSLROOTCERT= <ca-file-directory> gsql -h <host> -p <port> -d <database> -U <user> 表1 参数说明 参数 说明 <host> 主机IP，在 “实例管理” 页面单击实例名称，进入 “基本信息” 页面。 “连接信息” 模块的 “内网地址” （通过 弹性云服务器 访问）。 <port> 端口，默认8000，当前端口，即在 “实例管理” 页面单击实例名称，进入 “基本信息” 页面， “连接信息” 模块的 “数据库端口” 。 <database> 需要连接的数据库名，默认管理数据库是postgres。 <user> 用户名，即 GaussDB 数据库账号，默认管理员账号为root。 <ca-file-directory> ssl连接CA证书路径。 <sslmode> ssl连接模式，设置为 “verify-ca” ，通过检查证书链（Certificate Chain，以下简称CA）来验证服务是否可信任。 在 弹性云服务器 设置环境变量，使用root用户SSL连接postgres数据库实例，具体示例如下： export PGSSLMODE=\"verify-ca\"\nexport PGSSLROOTCERT=\"/home/Ruby/ca.pem\" gsql -d postgres -h 10.0.0.0 -U root -p 8000 Password for user root: 登录数据库后，出现如下信息，表示通过SSL连接成功。 SSL connection (cipher: DHE-RSA-AES256-GCM-SHA384, bits: 256)",
+      "source_file": "187_file_187.txt"
+    },
+    {
+      "term": "通过数据管理服务DAS连接实例",
+      "content": "通过数据管理服务DAS连接实例 通过数据管理服务DAS连接实例 操作场景 通过 数据管理服务 （Data Admin Service，简称DAS）这款可视化的专业数据库管理工具，可获得执行SQL、高级数据库管理、智能化运维等功能，做到易用、安全、智能的管理数据库。 操作步骤 登录管理控制台。 在 “实例管理” 页面，选择目标实例，单击操作列的 “登录” ，进入数据管理服务数据库登录界面。 您也可以在 “实例管理” 页面，单击目标实例名称，在页面右上角，单击 “登录” ，进入数据管理服务数据库登录界面。 正确输入数据库管理员用户名和密码，单击“测试连接”。 测试连接成功后，单击 “登录” ，即可进入您的数据库并进行管理。",
+      "source_file": "186_DAS.txt"
+    },
+    {
+      "term": "实例连接方式介绍",
+      "content": "实例连接方式介绍 实例连接方式介绍 GaussDB 提供使用内网和 数据管理服务 （Data Admin Service，简称DAS）的连接方式。 表1 GaussDB 连接方式 连接方式 IP地址 使用场景 说明 DAS连接 无需使用IP地址 通过数据管理服务（Data Admin Service，简称DAS）这款可视化的专业数据库管理工具，可获得执行SQL、高级数据库管理、智能化运维等功能，做到易用、安全、智能地管理数据库。 GaussDB 默认开通DAS连接权限。 易用、安全、高级、智能。 内网连接 内网IP地址 系统默认提供内网IP地址。 当应用部署在 弹性云服务器 上，且该 弹性云服务器 与 GaussDB 实例处于互通的两个VPC内时，建议单独使用内网IP连接 弹性云服务器 与 GaussDB 实例。 安全性高，可实现 GaussDB 的较好性能。 推荐使用内网连接。",
+      "source_file": "185_file_185.txt"
+    }
+  ]
+}

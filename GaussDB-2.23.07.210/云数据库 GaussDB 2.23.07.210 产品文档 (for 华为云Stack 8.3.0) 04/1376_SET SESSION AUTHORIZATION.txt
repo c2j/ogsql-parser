@@ -1,0 +1,15 @@
+SET SESSION AUTHORIZATION SET SESSION AUTHORIZATION 功能描述 把当前会话里的会话用户标识和当前用户标识都设置为指定的用户。 注意事项 只有在初始会话用户有系统管理员权限的时候，会话用户标识符才能改变。否则，只有在指定了被认证的用户名的情况下，系统才接受该命令。 语法格式 为当前会话设置会话用户标识符和当前用户标识符。 1 SET [ SESSION | LOCAL ] SESSION AUTHORIZATION role_name PASSWORD 'password' ; 重置会话和当前用户标识符为初始认证的用户名。 1
+2 { SET [ SESSION | LOCAL ] SESSION AUTHORIZATION DEFAULT | RESET SESSION AUTHORIZATION } ; 参数说明 SESSION 声明这个命令只对当前会话起作用。 LOCAL 声明该命令只在当前事务中有效。 role_name 用户名。 取值范围：字符串，要符合 标识符命名规范 。 password 角色的密码。要求符合密码的命名规则。不支持直接使用密文密码。 DEFAULT 重置会话和当前用户标识符为初始认证的用户名。 示例 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14 --创建角色paul。 gaussdb =# CREATE ROLE paul IDENTIFIED BY '********' ; --设置当前用户为paul。 gaussdb =# SET SESSION AUTHORIZATION paul password '********' ; --查看当前会话用户，当前用户。 gaussdb => SELECT SESSION_USER , CURRENT_USER ; --重置当前用户。 gaussdb => RESET SESSION AUTHORIZATION ; --删除用户。 gaussdb =# DROP USER paul ; 相关参考 SET ROLE 父主题： S 版权所有 © 华为技术有限公司

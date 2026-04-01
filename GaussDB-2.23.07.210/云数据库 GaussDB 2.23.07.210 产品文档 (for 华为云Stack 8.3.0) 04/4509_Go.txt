@@ -1,0 +1,44 @@
+使用Go驱动操作内存解密逃生通道 使用Go驱动操作内存解密逃生通道 使用Go驱动操作内存解密逃生通道全密态数据库需要完成配置Go驱动和密钥配置等相关操作，详细请参见 使用Go驱动操作密态数据库 。 全密态数据库开启内存解密逃生通道，Go驱动连接串需要配置enable_ ce=3参数。 // 以单ip:port为例，本示例以用户名和密码保存在环境变量中为例，运行本示例前请先在本地环境中设置环境变量(环境变量名称请根据自身情况进行设置)
+func main() {
+    hostip := os.Getenv("GOHOSTIP")   //GOHOSTIP为写入环境变量的IP地址
+    port := os.Getenv("GOPORT")       //GOPORT为写入环境变量的port
+    usrname := os.Getenv("GOUSRNAME") //GOUSRNAME为写入环境变量的用户名
+    passwd := os.Getenv("GOPASSWD")   //GOPASSWDW为写入环境变量的用户密码
+    str := "host=" + hostip + " port=" + port + " user=" + usrname + " password=" + passwd + " dbname=postgres enable_ce=3" // DSN连接串
+    // str := "opengauss://" + usrname + ":" + passwd + "@" + hostip + ":" + port + "/postgres?enable_ce=3"  // URL连接串
+
+    // 获取数据库连接池句柄
+    db, err := sql.Open("opengauss", str)
+    if err != nil {
+        log.Fatal(err)
+    }
+    defer db.Close()
+
+    // Open函数仅是验证参数，Ping方法可检查数据源是否合法
+    err = db.Ping()
+    if err == nil {
+        fmt.Printf("Connection succeed!\n")
+    } else {
+        log.Fatal(err)
+    }
+} 设置完成后，可以进行 执行密态等值查询相关的创建密钥语句 、 执行密态等值查询加密表相关的语句 、 执行加密表的预编译SQL语句 、 执行加密表的Copy In操作 。 传输和销毁密钥示例 hostip := os.Getenv("GOHOSTIP")   //GOHOSTIP为写入环境变量的IP地址
+port := os.Getenv("GOPORT")       //GOPORT为写入环境变量的port
+usrname := os.Getenv("GOUSRNAME") //GOUSRNAME为写入环境变量的用户名
+passwd := os.Getenv("GOPASSWD")   //GOPASSWDW为写入环境变量的用户密码
+// 配置自动传输密钥模式；此模式设置为yes，则将在连接初始化时自动将当前用户有权访问的所有列加密密钥发送给服务端，并在连接关闭时自动销毁
+str := "host=" + hostip + " port=" + port + " user=" + usrname + " password=" + passwd + " dbname=postgres enable_ce=3 auto_sendtoken=yes"
+db, err := sql.Open("opengauss", str)
+if err != nil {
+   log.Fatal(err)
+}
+defer db.Close()
+
+// 手动执行传输与销毁密钥命令
+_, err = db.Exec("send_token")
+if err != nil {
+    log.Fatal(err)
+}
+_, err = db.Exec("clear_token")
+if err != nil {
+    log.Fatal(err)
+} 父主题： 内存解密逃生通道 版权所有 © 华为技术有限公司

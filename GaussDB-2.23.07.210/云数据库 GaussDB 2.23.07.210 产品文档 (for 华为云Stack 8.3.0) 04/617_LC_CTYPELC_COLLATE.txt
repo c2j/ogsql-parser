@@ -1,0 +1,1 @@
+【建议】创建数据库时建议指定LC_CTYPE和LC_COLLATE，该参数将影响数据的排序顺序 【建议】创建数据库时建议指定LC_CTYPE和LC_COLLATE，该参数将影响数据的排序顺序 示例： CREATE DATABASE SAMPLE_DB WITH LC_CTYPE =  'zh_CN.gbk' LC_COLLATE = 'zh_CN.gbk'; 父主题： 数据库设计规范 版权所有 © 华为技术有限公司

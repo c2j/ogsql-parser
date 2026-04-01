@@ -1,0 +1,15 @@
+CREATE NODE GROUP CREATE NODE GROUP 功能描述 创建一个新的集群节点组。 注意事项 CREATE NODE GROUP是集群管理工具封装的接口，用来实现集群管理。 该接口仅对管理员用户开放使用。 语法格式 1
+2
+3 CREATE NODE GROUP groupname WITH ( nodename [, ... ] ) [ BUCKETS [ ( bucketnumber [, ... ] ) ] ] [ VCGROUP ] [ DISTRIBUTE FROM src_group_name ]; 参数说明 groupname 节点组名称。 取值范围：字符串，要符合 标识符命名规范 。且最大长度不超过63个字符。 节点组命名支持ASCII字符集上所有字符，但是建议用户按照标识符命名规范命名。 nodename 节点名称。 取值范围：字符串，要符合 标识符命名规范 。且最大长度不超过63个字符。 BUCKETS [ ( bucketnumber [, ... ] ) ] BUCKETS子句是集群管理工具的内部用法，仅支持在扩容期间调用。 示例 -- 查询集群DN初始状态。 gaussdb=# SELECT node_name, nodeis_preferred FROM pgxc_node WHERE node_type = 'D' ORDER BY 1;
+ node_name | nodeis_preferred
+-----------+------------------
+ dn_6001_6002_6003 | f
+ dn_6004_6005_6006 | f
+ dn_6007_6008_6009 | f
+(3 rows)
+
+-- 创建node group，用上一步中查询到的真实节点名称替换dn_6001_6002_6003。 gaussdb=# CREATE NODE GROUP test_group WITH ( dn_6001_6002_6003 );
+
+-- 查询node group。 gaussdb=# SELECT group_name, group_members FROM pgxc_group;
+
+-- 删除node group。 gaussdb=# DROP NODE GROUP test_group; 相关链接 ALTER NODE GROUP ， DROP NODE GROUP 父主题： C 版权所有 © 华为技术有限公司

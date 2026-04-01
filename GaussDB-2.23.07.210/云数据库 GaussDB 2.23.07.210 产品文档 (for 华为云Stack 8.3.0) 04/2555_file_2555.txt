@@ -1,0 +1,3 @@
+开发流程 开发流程 编译并且连接一个libpq的源程序，需要做下面的一些事情： 解压GaussDB-Kernel_数据库版本号_操作系统版本号_64bit_Libpq.tar.gz或GaussDB-Kernel_数据库版本号_操作系统版本号_64bit_Libpq_Static.tar.gz相应的发布包文件，其中include文件夹下的头文件为所需的头文件，lib文件夹中为所需的libpq库文件。 除libpq-fe.h外，include文件夹下默认还存在头文件postgres_ext.h，gs_thread.h，gs_threadlocal.h，这三个头文件是libpq-fe.h的依赖文件。 包含libpq-fe.h头文件： #include <libpq-fe.h> 通过-I directory 选项，提供头文件的安装位置（有些时候编译器会查找缺省的目录，因此可以忽略这些选项）。如： gcc -I (头文件所在目录) -L (libpq库所在目录) testprog.c -lpq 如果要使用制作文件(makefile)，向CPPFLAGS、LDFLAGS、LIBS变量中增加如下选项： CPPFLAGS += -I (头文件所在目录)
+LDFLAGS += -L (libpq库所在目录)
+LIBS += -lpq 父主题： 基于libpq开发 版权所有 © 华为技术有限公司

@@ -1,0 +1,1 @@
+GS_STAT_SESSION_CU GS_STAT_SESSION_CU GS_STAT_SESSION_CU视图查询 整个集群 各个节点中当前运行session的CU命中情况。session退出后，相应的统计数据会清零。 集群 重启后，统计数据也会清零。该视图只有monitor admin和sysadmin权限可以查看。具体字段信息如 表1 所示。 表1 GS_STAT_SESSION_CU字段 名称 类型 描述 node_name1 text 节点名称。 mem_hit integer 内存命中次数。 hdd_sync_read integer 硬盘同步读次数。 hdd_asyn_read integer 硬盘异步读次数。 父主题： 其他系统视图 版权所有 © 华为技术有限公司

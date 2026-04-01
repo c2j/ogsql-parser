@@ -1,0 +1,1 @@
+DBE_PLDEBUGGER.error_end DBE_PLDEBUGGER.error_end server端因为存储过程报错断住，可以在debug端调用error_end结束报错断住流程，结束调试流程，返回结束报错断住，停止调试（限制报错断住时使用）。 表1 error_end返回值列表 名称 类型 描述 funcoid OUT oid 函数id。 funcname OUT text 函数名。 lineno OUT integer 当前调试运行的下一行行号（固定值：0）。 query OUT text 结束报错断住，停止调试。 父主题： DBE_PLDEBUGGER Schema 版权所有 © 华为技术有限公司

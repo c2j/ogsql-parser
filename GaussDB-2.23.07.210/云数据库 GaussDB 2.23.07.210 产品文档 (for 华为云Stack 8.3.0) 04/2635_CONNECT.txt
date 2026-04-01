@@ -1,0 +1,39 @@
+CONNECT CONNECT 功能描述 在客户端和SQL服务器之间建立连接。 语法格式 CONNECT TO connection_target [ AS connection_name ] [ USER connection_user ] 参数说明 connection_target 以下列形式之一指定连接的目标服务器： [ database_name ] [ @ host ] [ : port ]：通过TCP/IP连接。 unix:postgresql:// host [ : port ] / [ database_name ] [ ? connection_option ]：通过Unix域套接字连接。 tcp:postgresql:// host [ : port ] / [ database_name ] [ ? connection_option ]：通过TCP/IP连接。 SQL string constant：包含上述形式之一的值。 connection_name 用于该连接的一个可选标识符，可以在其他命令中引用它。可以是一个SQL标识符或者一个宿主变量。 connection_user 用于数据库连接的用户名。 使用 user_name / password 、 user_name SQLIDENTIFIED BY password 或者 user_name USING password 之一，这个参数也能指定用户名和口令。 用户名和口令可以是SQL标识符、字符串常量或者宿主变量。 上述参数中斜体部分为变量，请根据实际情况进行修改。 示例 指定连接参数的变体的示例： EXEC SQL CONNECT TO "connectdb" AS main; 
+EXEC SQL CONNECT TO "connectdb" AS second; 
+EXEC SQL CONNECT TO 'connectdb' AS main; 
+EXEC SQL CONNECT TO REGRESSDB1 as main; 
+EXEC SQL CONNECT TO connectdb AS :id; 
+EXEC SQL CONNECT TO connectdb AS main USER connectuser/connectdb; 
+EXEC SQL CONNECT TO connectdb AS main USER connectuser USING "connectdb"; 
+EXEC SQL CONNECT TO connectdb AS main; 
+EXEC SQL CONNECT TO tcp:postgresql://localhost/connectdb USER connectuser IDENTIFIED BY connectpw; 
+EXEC SQL CONNECT TO tcp:postgresql://localhost: $PORT /connectdb USER connectuser SQLIDENTIFIED BY connectpw; 
+EXEC SQL CONNECT TO unix:postgresql://localhost/connectdb USER connectuser SQLIDENTIFIED BY "connectpw"; 
+EXEC SQL CONNECT TO unix:postgresql://localhost/connectdb USER connectuser USING "connectpw"; 使用宿主变量指定连接参数的示例： #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+int main(void) 
+{ 
+EXEC SQL BEGIN DECLARE SECTION; /* 此处dbname、user、pwd应从环境变量或配置文件读取，环境变量需用户自己按需配置；非环境变量情况下可直接赋值字符串 */ char *dbname     = getenv("EXAMPLE_DBNAME_ENV") ;    /* 数据库名 */ 
+    char *user       = getenv("EXAMPLE_USERNAME_ENV") ;  /* 连接用户名 */ 
+    char *pwd        = getenv("EXAMPLE_PASSWD_ENV") ; /* 密码 */
+    char *connection = "tcp:postgresql://localhost: $PORT /testdb";  /* 连接字符串 */ 
+    char ver[256];                  /* 存储版本字符串的缓冲区 */ 
+EXEC SQL END DECLARE SECTION;
+
+     ECPGdebug(1, stderr); 
+     EXEC SQL CONNECT TO :dbname; 
+     EXEC SQL SELECT pg_catalog.set_config('search_path', '', false); EXEC SQL COMMIT; 
+     EXEC SQL SELECT version() INTO :ver; 
+     EXEC SQL DISCONNECT; 
+
+     printf("version: %s\n", ver); 
+     EXEC SQL CONNECT TO :connection USER :user USING :pwd; 
+     EXEC SQL SELECT pg_catalog.set_config('search_path', '', false); EXEC SQL COMMIT; 
+     EXEC SQL SELECT version() INTO :ver; 
+     EXEC SQL DISCONNECT; 
+
+     printf("version: %s\n", ver); 
+     return 0; 
+} 相关链接 DISCONECT ， SET CONNECTION 父主题： 嵌入式SQL命令 版权所有 © 华为技术有限公司

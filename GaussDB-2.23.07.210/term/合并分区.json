@@ -1,0 +1,16 @@
+{
+  "topic": "合并分区",
+  "term_count": 2,
+  "terms": [
+    {
+      "term": "对一级分区表合并分区",
+      "content": "对一级分区表合并分区 对一级分区表合并分区 使用ALTER TABLE MERGE PARTITIONS可以将多个分区合并为一个分区。 例如，将范围分区表range_sales的分区date_202001和date_202002合并为一个新的分区，并更新Global索引。 ALTER TABLE range_sales MERGE PARTITIONS date_202001, date_202002 INTO\n    PARTITION date_2020_old UPDATE GLOBAL INDEX; 对间隔分区表的间隔分区完成合并分区操作之后，源分区之前的间隔分区会变成范围分区。",
+      "source_file": "4584_file_4584.txt"
+    },
+    {
+      "term": "对二级分区表合并二级分区",
+      "content": "对二级分区表合并二级分区 对二级分区表合并二级分区 使用ALTER TABLE MERGE SUBPARTITIONS可以将多个二级分区合并为一个分区。 例如，将二级分区表hash_list_sales的分区product1_channel1、product1_channel2、product1_channel3合并为一个新的分区，并更新Global索引。 ALTER TABLE hash_list_sales MERGE SUBPARTITIONS product1_channel1, product1_channel2, product1_channel3 INTO\n    SUBPARTITION product1_channel1 UPDATE GLOBAL INDEX;",
+      "source_file": "4585_file_4585.txt"
+    }
+  ]
+}

@@ -1,0 +1,1 @@
+FAQ FAQ 执行命令报错“Failed to obtain the GPHOME” 父主题： 主备版 版权所有 © 华为技术有限公司

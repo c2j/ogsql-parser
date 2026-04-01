@@ -1,0 +1,39 @@
+获取帮助 获取帮助 操作步骤 连接数据库时，可以使用如下命令获取帮助信息。 gsql --help 显示如下帮助信息： ......
+Usage:
+  gsql [OPTION]... [DBNAME [USERNAME]]
+
+General options:
+  -c, --command=COMMAND    run only single command (SQL or internal) and exit
+  -d, --dbname=DBNAME      database name to connect to (default: "omm")
+  -f, --file=FILENAME      execute commands from file, then exit
+...... 连接到数据库后，可以使用如下命令获取帮助信息。 help 显示如下帮助信息： You are using gsql, the command-line interface to gaussdb.
+Type:  \copyright for distribution terms
+       \h for help with SQL commands
+       \? for help with gsql commands
+       \g or terminate with semicolon to execute query
+       \q to quit 任务示例 使用如下命令连接数据库。 gsql -d gaussdb -p 8000 gaussdb为需要连接的数据库名称， 8000 为 CN 的端口号。 连接成功后，系统显示类似如下信息： gsql ((GaussDB Kernel XXX.X.XXX build f521c606) compiled at 2021-09-16 14:55:22 commit 2935 last mr 6385 release)
+Non-SSL connection (SSL connection is recommended when requiring high-security)
+Type "help" for help. 查看gsql的帮助信息。具体执行命令请参见 表1 。 表1 使用gsql联机帮助 描述 示例 查看版权信息 \copyright 查看 GaussDB 支持的SQL语句的帮助 查看 GaussDB 支持的SQL语句的帮助 例如，查看 GaussDB 支持的所有SQL语句： 1
+2
+3
+4
+5
+6 gaussdb =# \ h Available help : ABORT ALTER AGGREGATE ALTER APP WORKLOAD GROUP ... ... 例如，查看CREATE DATABASE命令的参数可使用下面的命令： 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13 gaussdb =# \ help CREATE DATABASE Command : CREATE DATABASE Description : create a new database Syntax : CREATE DATABASE database_name [ [ WITH ] { [ OWNER [ = ] user_name ] | [ TEMPLATE [ = ] template ] | [ ENCODING [ = ] encoding ] | [ LC_COLLATE [ = ] lc_collate ] | [ LC_CTYPE [ = ] lc_ctype ] | [ DBCOMPATIBILITY [ = ] compatibility_type ] | [ TABLESPACE [ = ] tablespace_name ] | [ CONNECTION LIMIT [ = ] connlimit ] } [...] ]; 查看gsql命令的帮助 例如，查看gsql支持的命令： 1
+2
+3
+4
+5
+6
+7 gaussdb =# \ ? General \ copyright show GaussDB Kernel usage and distribution terms \ g [ FILE ] or ; execute query ( and send results to file or | pipe ) \ h ( \ help ) [ NAME ] help on syntax of SQL commands , * for all commands \ q quit gsql ... ... 父主题： gsql 版权所有 © 华为技术有限公司

@@ -1,0 +1,428 @@
+案例：使用DN Gather减少计划中的Stream节点 案例：使用DN Gather减少计划中的Stream节点 DN Gather用来把分布式计划中的Stream节点去掉，而是把数据发送到一个节点进行计算，这样可以减少分布式计划执行时数据重分布的代价，从而提升单个查询以及系统整体的吞吐能力。不过DN Gather面向的是TP的小数据量场景，对于小数据量查询因为节省了数据重分布的代价且单个节点的算力完全够用所以可以得到性能的提升。对于大数据量的计算，多节点并行计算更有优势。需要通过打开关闭开关来对比哪种情况更快（dngather_min_rows默认为500行，下述案例采用了默认值）。下面简单说明几个案例： Gather Join 要把Join的结果收敛到单个DN需要满足 Join前后优化器估计的数据行数在阈值以下。 Join的子节点均为Stream节点。 为了方便举例，让Join的子节点都为Stream节点，关闭了Broadcast。 gaussdb=# set enable_broadcast=false;        
+SET gaussdb=# set explain_perf_mode=pretty;
+SET gaussdb=# set enable_dngather=false;
+SET gaussdb=# explain select count(*) from t1, t2 where t1.b = t2.b;
+ id |                    operation                     | E-rows | E-width | E-costs 
+----+--------------------------------------------------+--------+---------+---------
+  1 | ->  Aggregate                                    |      1 |       8 | 31.46
+  2 |    ->  Streaming (type: GATHER)                  |      3 |       8 | 31.46
+  3 |       ->  Aggregate                              |      3 |       8 | 31.34
+  4 |          ->  Hash Join (5,7)                     |     30 |       0 | 31.30
+  5 |             ->  Streaming(type: REDISTRIBUTE)    |     30 |       4 | 15.49
+  6 |                ->  Seq Scan on t1                |     30 |       4 | 14.14
+  7 |             ->  Hash                             |     29 |       4 | 15.49
+  8 |                ->  Streaming(type: REDISTRIBUTE) |     30 |       4 | 15.49
+  9 |                   ->  Seq Scan on t2             |     30 |       4 | 14.14
+(9 rows)
+
+ Predicate Information (identified by plan id) 
+-----------------------------------------------
+   4 --Hash Join (5,7)
+         Hash Cond: (t1.b = t2.b)
+(2 rows) gaussdb=# set enable_dngather=true;
+SET gaussdb=# explain select count(*) from t1, t2 where t1.b = t2.b;
+ id |                                operation                                | E-rows | E-width | E-costs 
+----+-------------------------------------------------------------------------+--------+---------+---------
+  1 | ->  Streaming (type: GATHER)                                            |      1 |       8 | 32.53
+  2 |    ->  Aggregate                                                        |      1 |       8 | 32.47
+  3 |       ->  Hash Join (4,6)                                               |     30 |       0 | 32.38
+  4 |          ->  Streaming(type: REDISTRIBUTE ng: node_group->datanode1)    |     30 |       4 | 15.69
+  5 |             ->  Seq Scan on t1                                          |     30 |       4 | 14.14
+  6 |          ->  Hash                                                       |     30 |       4 | 15.69
+  7 |             ->  Streaming(type: REDISTRIBUTE ng: node_group->datanode1) |     30 |       4 | 15.69
+  8 |                ->  Seq Scan on t2                                       |     30 |       4 | 14.14
+(8 rows)
+
+ Predicate Information (identified by plan id) 
+-----------------------------------------------
+   3 --Hash Join (4,6)
+         Hash Cond: (t1.b = t2.b)
+(2 rows) gaussdb=# set enable_dngather=false;
+SET gaussdb=# explain select * from t1, t2, t3, t4 where t1.b = t2.b and t2.c = t3.c and t3.d = t4.d order by t1.a;
+ id |                         operation                         | E-rows | E-width | E-costs 
+----+-----------------------------------------------------------+--------+---------+---------
+  1 | ->  Streaming (type: GATHER)                              |     30 |     144 | 66.46
+  2 |    ->  Sort                                               |     30 |     144 | 65.05
+  3 |       ->  Hash Join (4,16)                                |     30 |     144 | 64.86
+  4 |          ->  Streaming(type: REDISTRIBUTE)                |     30 |     108 | 49.05
+  5 |             ->  Hash Join (6,13)                          |     30 |     108 | 48.08
+  6 |                ->  Streaming(type: REDISTRIBUTE)          |     30 |      72 | 32.27
+  7 |                   ->  Hash Join (8,10)                    |     30 |      72 | 31.30
+  8 |                      ->  Streaming(type: REDISTRIBUTE)    |     30 |      36 | 15.49
+  9 |                         ->  Seq Scan on t1                |     30 |      36 | 14.14
+ 10 |                      ->  Hash                             |     29 |      36 | 15.49
+ 11 |                         ->  Streaming(type: REDISTRIBUTE) |     30 |      36 | 15.49
+ 12 |                            ->  Seq Scan on t2             |     30 |      36 | 14.14
+ 13 |                ->  Hash                                   |     29 |      36 | 15.49
+ 14 |                   ->  Streaming(type: REDISTRIBUTE)       |     30 |      36 | 15.49
+ 15 |                      ->  Seq Scan on t3                   |     30 |      36 | 14.14
+ 16 |          ->  Hash                                         |     29 |      36 | 15.49
+ 17 |             ->  Streaming(type: REDISTRIBUTE)             |     30 |      36 | 15.49
+ 18 |                ->  Seq Scan on t4                         |     30 |      36 | 14.14
+(18 rows)
+
+ Predicate Information (identified by plan id) 
+-----------------------------------------------
+   3 --Hash Join (4,16)
+         Hash Cond: (t3.d = t4.d)
+   5 --Hash Join (6,13)
+         Hash Cond: (t2.c = t3.c)
+   7 --Hash Join (8,10)
+         Hash Cond: (t1.b = t2.b)
+(6 rows) gaussdb=# set enable_dngather=true;
+SET gaussdb=# explain select * from t1, t2, t3, t4 where t1.b = t2.b and t2.c = t3.c and t3.d = t4.d order by t1.a;
+ id |                                   operation                                   | E-rows | E-width | E-costs 
+----+-------------------------------------------------------------------------------+--------+---------+---------
+  1 | ->  Streaming (type: GATHER)                                                  |     30 |     144 | 68.47
+  2 |    ->  Sort                                                                   |     30 |     144 | 66.36
+  3 |       ->  Hash Join (4,10)                                                    |     30 |     144 | 65.55
+  4 |          ->  Hash Join (5,7)                                                  |     30 |      72 | 32.38
+  5 |             ->  Streaming(type: REDISTRIBUTE ng: node_group->datanode3)       |     30 |      36 | 15.69
+  6 |                ->  Seq Scan on t1                                             |     30 |      36 | 14.14
+  7 |             ->  Hash                                                          |     30 |      36 | 15.69
+  8 |                ->  Streaming(type: REDISTRIBUTE ng: node_group->datanode3)    |     30 |      36 | 15.69
+  9 |                   ->  Seq Scan on t2                                          |     30 |      36 | 14.14
+ 10 |          ->  Hash                                                             |     30 |      72 | 32.38
+ 11 |             ->  Hash Join (12,14)                                             |     30 |      72 | 32.38
+ 12 |                ->  Streaming(type: REDISTRIBUTE ng: node_group->datanode3)    |     30 |      36 | 15.69
+ 13 |                   ->  Seq Scan on t3                                          |     30 |      36 | 14.14
+ 14 |                ->  Hash                                                       |     30 |      36 | 15.69
+ 15 |                   ->  Streaming(type: REDISTRIBUTE ng: node_group->datanode3) |     30 |      36 | 15.69
+ 16 |                      ->  Seq Scan on t4                                       |     30 |      36 | 14.14
+(16 rows)
+
+ Predicate Information (identified by plan id) 
+-----------------------------------------------
+   3 --Hash Join (4,10)
+         Hash Cond: (t2.c = t3.c)
+   4 --Hash Join (5,7)
+         Hash Cond: (t1.b = t2.b)
+  11 --Hash Join (12,14)
+         Hash Cond: (t3.d = t4.d)
+(6 rows) gaussdb=# set enable_dngather=false;
+SET gaussdb=# explain select count(*) from t1, t2, t3, t4 where t1.b = t2.b and t2.c = t3.c and t3.d = t4.d group by t1.b order by t1.b;
+ id |                          operation                           | E-rows | E-width | E-costs 
+----+--------------------------------------------------------------+--------+---------+---------
+  1 | ->  Streaming (type: GATHER)                                 |     30 |      12 | 66.45
+  2 |    ->  GroupAggregate                                        |     30 |      12 | 65.20
+  3 |       ->  Sort                                               |     30 |       4 | 65.05
+  4 |          ->  Hash Join (5,17)                                |     30 |       4 | 64.86
+  5 |             ->  Streaming(type: REDISTRIBUTE)                |     30 |       4 | 49.05
+  6 |                ->  Hash Join (7,14)                          |     30 |       4 | 48.08
+  7 |                   ->  Streaming(type: REDISTRIBUTE)          |     30 |       8 | 32.27
+  8 |                      ->  Hash Join (9,11)                    |     30 |       8 | 31.30
+  9 |                         ->  Streaming(type: REDISTRIBUTE)    |     30 |       8 | 15.49
+ 10 |                            ->  Seq Scan on t2                |     30 |       8 | 14.14
+ 11 |                         ->  Hash                             |     29 |       8 | 15.49
+ 12 |                            ->  Streaming(type: REDISTRIBUTE) |     30 |       8 | 15.49
+ 13 |                               ->  Seq Scan on t3             |     30 |       8 | 14.14
+ 14 |                   ->  Hash                                   |     29 |       4 | 15.49
+ 15 |                      ->  Streaming(type: REDISTRIBUTE)       |     30 |       4 | 15.49
+ 16 |                         ->  Seq Scan on t4                   |     30 |       4 | 14.14
+ 17 |             ->  Hash                                         |     29 |       4 | 15.49
+ 18 |                ->  Streaming(type: REDISTRIBUTE)             |     30 |       4 | 15.49
+ 19 |                   ->  Seq Scan on t1                         |     30 |       4 | 14.14
+(19 rows)
+
+ Predicate Information (identified by plan id) 
+-----------------------------------------------
+   4 --Hash Join (5,17)
+         Hash Cond: (t2.b = t1.b)
+   6 --Hash Join (7,14)
+         Hash Cond: (t3.d = t4.d)
+   8 --Hash Join (9,11)
+         Hash Cond: (t2.c = t3.c)
+(6 rows) gaussdb=# set enable_dngather=true;
+SET gaussdb=# explain select count(*) from t1, t2, t3, t4 where t1.b = t2.b and t2.c = t3.c and t3.d = t4.d group by t1.b order by t1.b;
+ id |                                    operation                                     | E-rows | E-width | E-costs 
+----+----------------------------------------------------------------------------------+--------+---------+---------
+  1 | ->  Streaming (type: GATHER)                                                     |     30 |      12 | 68.69
+  2 |    ->  GroupAggregate                                                            |     30 |      12 | 66.81
+  3 |       ->  Sort                                                                   |     30 |       4 | 66.36
+  4 |          ->  Hash Join (5,11)                                                    |     30 |       4 | 65.55
+  5 |             ->  Hash Join (6,8)                                                  |     30 |       8 | 32.38
+  6 |                ->  Streaming(type: REDISTRIBUTE ng: node_group->datanode1)       |     30 |       4 | 15.69
+  7 |                   ->  Seq Scan on t1                                             |     30 |       4 | 14.14
+  8 |                ->  Hash                                                          |     30 |       8 | 15.69
+  9 |                   ->  Streaming(type: REDISTRIBUTE ng: node_group->datanode1)    |     30 |       8 | 15.69
+ 10 |                      ->  Seq Scan on t2                                          |     30 |       8 | 14.14
+ 11 |             ->  Hash                                                             |     30 |       4 | 32.38
+ 12 |                ->  Hash Join (13,15)                                             |     30 |       4 | 32.38
+ 13 |                   ->  Streaming(type: REDISTRIBUTE ng: node_group->datanode1)    |     30 |       8 | 15.69
+ 14 |                      ->  Seq Scan on t3                                          |     30 |       8 | 14.14
+ 15 |                   ->  Hash                                                       |     30 |       4 | 15.69
+ 16 |                      ->  Streaming(type: REDISTRIBUTE ng: node_group->datanode1) |     30 |       4 | 15.69
+ 17 |                         ->  Seq Scan on t4                                       |     30 |       4 | 14.14
+(17 rows)
+
+ Predicate Information (identified by plan id) 
+-----------------------------------------------
+   4 --Hash Join (5,11)
+         Hash Cond: (t2.c = t3.c)
+   5 --Hash Join (6,8)
+         Hash Cond: (t1.b = t2.b)
+  12 --Hash Join (13,15)
+         Hash Cond: (t3.d = t4.d)
+(6 rows) Gather Groupby/Agg 要把GroupBy/Agg结果收敛到单个DN需要满足 GroupBy/Agg前后优化器估计的数据行数在阈值以下。 Agg的子节点均为Stream节点。 gaussdb=# set explain_perf_mode=pretty;
+SET gaussdb=# set enable_dngather=false;
+SET gaussdb=# explain select count(*) from t1 group by b;
+ id |                operation                | E-rows | E-width | E-costs 
+----+-----------------------------------------+--------+---------+---------
+  1 | ->  Streaming (type: GATHER)            |     30 |      12 | 15.87
+  2 |    ->  HashAggregate                    |     30 |      12 | 14.62
+  3 |       ->  Streaming(type: REDISTRIBUTE) |     30 |       4 | 14.45
+  4 |          ->  Seq Scan on t1             |     30 |       4 | 14.14
+(4 rows) gaussdb=# set enable_dngather=true;
+SET gaussdb=# explain select count(*) from t1 group by b;
+ id |                             operation                             | E-rows | E-width | E-costs 
+----+-------------------------------------------------------------------+--------+---------+---------
+  1 | ->  Streaming (type: GATHER)                                      |     30 |      12 | 16.85
+  2 |    ->  HashAggregate                                              |     30 |      12 | 14.97
+  3 |       ->  Streaming(type: REDISTRIBUTE ng: node_group->datanode1) |     30 |       4 | 14.46
+  4 |          ->  Seq Scan on t1                                       |     30 |       4 | 14.14
+(4 rows) gaussdb=# set enable_dngather=false;
+SET gaussdb=# explain select b from t1 group by b;
+ id |                operation                | E-rows | E-width | E-costs 
+----+-----------------------------------------+--------+---------+---------
+  1 | ->  Streaming (type: GATHER)            |     30 |       4 | 15.84
+  2 |    ->  HashAggregate                    |     30 |       4 | 14.59
+  3 |       ->  Streaming(type: REDISTRIBUTE) |     30 |       4 | 14.45
+  4 |          ->  Seq Scan on t1             |     30 |       4 | 14.14
+(4 rows) gaussdb=# set enable_dngather=true;
+SET gaussdb=# explain select b from t1 group by b;
+ id |                             operation                             | E-rows | E-width | E-costs 
+----+-------------------------------------------------------------------+--------+---------+---------
+  1 | ->  Streaming (type: GATHER)                                      |     30 |       4 | 16.74
+  2 |    ->  HashAggregate                                              |     30 |       4 | 14.87
+  3 |       ->  Streaming(type: REDISTRIBUTE ng: node_group->datanode1) |     30 |       4 | 14.46
+  4 |          ->  Seq Scan on t1                                       |     30 |       4 | 14.14
+(4 rows) Gather 窗口函数 要把窗口函数的结果收敛到单个DN需要满足 窗口函数前后优化器估计的数据行数在阈值以下。 窗口函数的子节点均为Stream节点。 gaussdb=# set explain_perf_mode=pretty;
+SET gaussdb=# set enable_dngather=false;
+SET gaussdb=# explain select count(*) over (partition by b) a from t1;
+ id |                 operation                  | E-rows | E-width | E-costs 
+----+--------------------------------------------+--------+---------+---------
+  1 | ->  Streaming (type: GATHER)               |     29 |       4 | 16.71
+  2 |    ->  WindowAgg                           |     29 |       4 | 14.96
+  3 |       ->  Sort                             |     29 |       4 | 14.75
+  4 |          ->  Streaming(type: REDISTRIBUTE) |     30 |       4 | 14.45
+  5 |             ->  Seq Scan on t1             |     30 |       4 | 14.14
+(5 rows) gaussdb=# set enable_dngather=true;
+SET gaussdb=# explain select count(*) over (partition by b) a from t1;
+ id |                              operation                               | E-rows | E-width | E-costs 
+----+----------------------------------------------------------------------+--------+---------+---------
+  1 | ->  Streaming (type: GATHER)                                         |     30 |       4 | 19.07
+  2 |    ->  WindowAgg                                                     |     30 |       4 | 16.38
+  3 |       ->  Sort                                                       |     30 |       4 | 15.73
+  4 |          ->  Streaming(type: REDISTRIBUTE ng: node_group->datanode3) |     30 |       4 | 14.46
+  5 |             ->  Seq Scan on t1                                       |     30 |       4 | 14.14
+(5 rows) gaussdb=# set enable_dngather=false;
+SET gaussdb=# explain select sum(b) over (partition by b) a from t1 group by b;
+ id |                   operation                   | E-rows | E-width | E-costs 
+----+-----------------------------------------------+--------+---------+---------
+  1 | ->  Streaming (type: GATHER)                  |     30 |       4 | 16.18
+  2 |    ->  WindowAgg                              |     30 |       4 | 14.93
+  3 |       ->  Sort                                |     30 |       4 | 14.78
+  4 |          ->  HashAggregate                    |     30 |       4 | 14.59
+  5 |             ->  Streaming(type: REDISTRIBUTE) |     30 |       4 | 14.45
+  6 |                ->  Seq Scan on t1             |     30 |       4 | 14.14
+(6 rows) gaussdb=# set enable_dngather=true;
+SET gaussdb=# explain select sum(b) over (partition by b) a from t1 group by b;
+ id |                                operation                                | E-rows | E-width | E-costs 
+----+-------------------------------------------------------------------------+--------+---------+---------
+  1 | ->  Streaming (type: GATHER)                                            |     30 |       4 | 18.00
+  2 |    ->  WindowAgg                                                        |     30 |       4 | 16.13
+  3 |       ->  Sort                                                          |     30 |       4 | 15.68
+  4 |          ->  HashAggregate                                              |     30 |       4 | 14.87
+  5 |             ->  Streaming(type: REDISTRIBUTE ng: node_group->datanode3) |     30 |       4 | 14.46
+  6 |                ->  Seq Scan on t1                                       |     30 |       4 | 14.14
+(6 rows) Union/Union all 要把Union/Union all的结果收敛到单个DN需要满足 子节点需要至少一个满足上述1、2、3里面的情况。 为了方便举例，让Join的子节点都为Stream节点，关闭了Broadcast。 gaussdb=# set explain_perf_mode=pretty;
+SET gaussdb=# set enable_broadcast=false;        
+SET gaussdb=# set enable_dngather=false;
+SET gaussdb=# explain select t1.a, t2.b from t1, t2 where t1.b = t2.b union all select t3.a, t3.b from t3, t4 where t3.b = t4.b;
+ id |                    operation                     | E-rows | E-width | E-costs 
+----+--------------------------------------------------+--------+---------+---------
+  1 | ->  Streaming (type: GATHER)                     |     60 |       8 | 65.31
+  2 |    ->  Result                                    |     60 |       8 | 62.81
+  3 |       ->  Append(4, 10)                          |     60 |       8 | 62.81
+  4 |          ->  Hash Join (5,7)                     |     30 |       8 | 31.30
+  5 |             ->  Streaming(type: REDISTRIBUTE)    |     30 |       8 | 15.49
+  6 |                ->  Seq Scan on t1                |     30 |       8 | 14.14
+  7 |             ->  Hash                             |     29 |       4 | 15.49
+  8 |                ->  Streaming(type: REDISTRIBUTE) |     30 |       4 | 15.49
+  9 |                   ->  Seq Scan on t2             |     30 |       4 | 14.14
+ 10 |          ->  Hash Join (11,13)                   |     30 |       8 | 31.30
+ 11 |             ->  Streaming(type: REDISTRIBUTE)    |     30 |       8 | 15.49
+ 12 |                ->  Seq Scan on t3                |     30 |       8 | 14.14
+ 13 |             ->  Hash                             |     29 |       4 | 15.49
+ 14 |                ->  Streaming(type: REDISTRIBUTE) |     30 |       4 | 15.49
+ 15 |                   ->  Seq Scan on t4             |     30 |       4 | 14.14
+(15 rows)
+
+ Predicate Information (identified by plan id) 
+-----------------------------------------------
+   4 --Hash Join (5,7)
+         Hash Cond: (t1.b = t2.b)
+  10 --Hash Join (11,13)
+         Hash Cond: (t3.b = t4.b)
+(4 rows) gaussdb=# set enable_dngather=true;
+SET gaussdb=# explain select t1.a, t2.b from t1, t2 where t1.b = t2.b union all select t3.a, t3.b from t3, t4 where t3.b = t4.b;
+ id |                                operation                                | E-rows | E-width | E-costs 
+----+-------------------------------------------------------------------------+--------+---------+---------
+  1 | ->  Streaming (type: GATHER)                                            |     60 |       8 | 69.11
+  2 |    ->  Append(3, 9)                                                     |     60 |       8 | 65.36
+  3 |       ->  Hash Join (4,6)                                               |     30 |       8 | 32.38
+  4 |          ->  Streaming(type: REDISTRIBUTE ng: node_group->datanode1)    |     30 |       8 | 15.69
+  5 |             ->  Seq Scan on t1                                          |     30 |       8 | 14.14
+  6 |          ->  Hash                                                       |     30 |       4 | 15.69
+  7 |             ->  Streaming(type: REDISTRIBUTE ng: node_group->datanode1) |     30 |       4 | 15.69
+  8 |                ->  Seq Scan on t2                                       |     30 |       4 | 14.14
+  9 |       ->  Hash Join (10,12)                                             |     30 |       8 | 32.38
+ 10 |          ->  Streaming(type: REDISTRIBUTE ng: node_group->datanode1)    |     30 |       8 | 15.69
+ 11 |             ->  Seq Scan on t3                                          |     30 |       8 | 14.14
+ 12 |          ->  Hash                                                       |     30 |       4 | 15.69
+ 13 |             ->  Streaming(type: REDISTRIBUTE ng: node_group->datanode1) |     30 |       4 | 15.69
+ 14 |                ->  Seq Scan on t4                                       |     30 |       4 | 14.14
+(14 rows)
+
+ Predicate Information (identified by plan id) 
+-----------------------------------------------
+   3 --Hash Join (4,6)
+         Hash Cond: (t1.b = t2.b)
+   9 --Hash Join (10,12)
+         Hash Cond: (t3.b = t4.b)
+(4 rows) gaussdb=# set enable_dngather=false;
+SET gaussdb=# explain select t1.a, t2.b from t1, t2 where t1.b = t2.b union select t3.a, t3.b from t3, t4 where t3.b = t4.b order by a, b;
+ id |                      operation                      | E-rows | E-width | E-costs 
+----+-----------------------------------------------------+--------+---------+---------
+  1 | ->  Streaming (type: GATHER)                        |     60 |       8 | 66.09
+  2 |    ->  Sort                                         |     60 |       8 | 63.59
+  3 |       ->  HashAggregate                             |     60 |       8 | 63.11
+  4 |          ->  Append(5, 11)                          |     60 |       8 | 62.81
+  5 |             ->  Hash Join (6,8)                     |     30 |       8 | 31.30
+  6 |                ->  Streaming(type: REDISTRIBUTE)    |     30 |       8 | 15.49
+  7 |                   ->  Seq Scan on t1                |     30 |       8 | 14.14
+  8 |                ->  Hash                             |     29 |       4 | 15.49
+  9 |                   ->  Streaming(type: REDISTRIBUTE) |     30 |       4 | 15.49
+ 10 |                      ->  Seq Scan on t2             |     30 |       4 | 14.14
+ 11 |             ->  Hash Join (12,14)                   |     30 |       8 | 31.30
+ 12 |                ->  Streaming(type: REDISTRIBUTE)    |     30 |       8 | 15.49
+ 13 |                   ->  Seq Scan on t3                |     30 |       8 | 14.14
+ 14 |                ->  Hash                             |     29 |       4 | 15.49
+ 15 |                   ->  Streaming(type: REDISTRIBUTE) |     30 |       4 | 15.49
+ 16 |                      ->  Seq Scan on t4             |     30 |       4 | 14.14
+(16 rows)
+
+ Predicate Information (identified by plan id) 
+-----------------------------------------------
+   5 --Hash Join (6,8)
+         Hash Cond: (t1.b = t2.b)
+  11 --Hash Join (12,14)
+         Hash Cond: (t3.b = t4.b)
+(4 rows) gaussdb=# set enable_dngather=true;
+SET gaussdb=# explain select t1.a, t2.b from t1, t2 where t1.b = t2.b union select t3.a, t3.b from t3, t4 where t3.b = t4.b order by a, b;
+ id |                                   operation                                   | E-rows | E-width | E-costs 
+----+-------------------------------------------------------------------------------+--------+---------+---------
+  1 | ->  Streaming (type: GATHER)                                                  |     60 |       8 | 71.93
+  2 |    ->  Sort                                                                   |     60 |       8 | 68.18
+  3 |       ->  HashAggregate                                                       |     60 |       8 | 66.26
+  4 |          ->  Append(5, 11)                                                    |     60 |       8 | 65.36
+  5 |             ->  Hash Join (6,8)                                               |     30 |       8 | 32.38
+  6 |                ->  Streaming(type: REDISTRIBUTE ng: node_group->datanode2)    |     30 |       8 | 15.69
+  7 |                   ->  Seq Scan on t1                                          |     30 |       8 | 14.14
+  8 |                ->  Hash                                                       |     30 |       4 | 15.69
+  9 |                   ->  Streaming(type: REDISTRIBUTE ng: node_group->datanode2) |     30 |       4 | 15.69
+ 10 |                      ->  Seq Scan on t2                                       |     30 |       4 | 14.14
+ 11 |             ->  Hash Join (12,14)                                             |     30 |       8 | 32.38
+ 12 |                ->  Streaming(type: REDISTRIBUTE ng: node_group->datanode2)    |     30 |       8 | 15.69
+ 13 |                   ->  Seq Scan on t3                                          |     30 |       8 | 14.14
+ 14 |                ->  Hash                                                       |     30 |       4 | 15.69
+ 15 |                   ->  Streaming(type: REDISTRIBUTE ng: node_group->datanode2) |     30 |       4 | 15.69
+ 16 |                      ->  Seq Scan on t4                                       |     30 |       4 | 14.14
+(16 rows)
+
+ Predicate Information (identified by plan id) 
+-----------------------------------------------
+   5 --Hash Join (6,8)
+         Hash Cond: (t1.b = t2.b)
+  11 --Hash Join (12,14)
+         Hash Cond: (t3.b = t4.b)
+(4 rows) gaussdb=# set enable_dngather=false;
+SET gaussdb=# explain select b, count(*) from t1 group by b union all select b, count(*) from t2 group by b order by b;
+ id |                    operation                     | E-rows | E-width | E-costs 
+----+--------------------------------------------------+--------+---------+---------
+  1 | ->  Streaming (type: GATHER)                     |     60 |      12 | 32.43
+  2 |    ->  Sort                                      |     60 |      12 | 29.93
+  3 |       ->  Result                                 |     60 |      12 | 29.45
+  4 |          ->  Append(5, 8)                        |     60 |      12 | 29.45
+  5 |             ->  HashAggregate                    |     30 |      12 | 14.62
+  6 |                ->  Streaming(type: REDISTRIBUTE) |     30 |       4 | 14.45
+  7 |                   ->  Seq Scan on t1             |     30 |       4 | 14.14
+  8 |             ->  HashAggregate                    |     30 |      12 | 14.62
+  9 |                ->  Streaming(type: REDISTRIBUTE) |     30 |       4 | 14.45
+ 10 |                   ->  Seq Scan on t2             |     30 |       4 | 14.14
+(10 rows) gaussdb=# set enable_dngather=true;
+SET gaussdb=# explain select b, count(*) from t1 group by b union all select b, count(*) from t2 group by b order by b;
+ id |                                operation                                | E-rows | E-width | E-costs 
+----+-------------------------------------------------------------------------+--------+---------+---------
+  1 | ->  Streaming (type: GATHER)                                            |     60 |      12 | 36.22
+  2 |    ->  Sort                                                             |     60 |      12 | 32.47
+  3 |       ->  Append(4, 7)                                                  |     60 |      12 | 30.55
+  4 |          ->  HashAggregate                                              |     30 |      12 | 14.97
+  5 |             ->  Streaming(type: REDISTRIBUTE ng: node_group->datanode2) |     30 |       4 | 14.46
+  6 |                ->  Seq Scan on t1                                       |     30 |       4 | 14.14
+  7 |          ->  HashAggregate                                              |     30 |      12 | 14.97
+  8 |             ->  Streaming(type: REDISTRIBUTE ng: node_group->datanode2) |     30 |       4 | 14.46
+  9 |                ->  Seq Scan on t2                                       |     30 |       4 | 14.14
+(9 rows) gaussdb=# set enable_dngather=false;
+SET gaussdb=# explain select b, count(*) from t1 group by b union all select count(distinct a) a , count(distinct b)b from t2 order by b;
+ id |                          operation                           | E-rows | E-width |    E-costs     
+----+--------------------------------------------------------------+--------+---------+----------------
+  1 | ->  Streaming (type: GATHER)                                 |     33 |      12 | 20000000045.02
+  2 |    ->  Sort                                                  |     33 |      12 | 20000000043.65
+  3 |       ->  Append(4, 8)                                       |     33 |      12 | 20000000043.43
+  4 |          ->  Subquery Scan on "*SELECT* 1"                   |     30 |      12 | 14.72
+  5 |             ->  HashAggregate                                |     30 |      12 | 14.62
+  6 |                ->  Streaming(type: REDISTRIBUTE)             |     30 |       4 | 14.45
+  7 |                   ->  Seq Scan on t1                         |     30 |       4 | 14.14
+  8 |          ->  Subquery Scan on "*SELECT* 2"                   |      1 |      16 | 20000000028.73
+  9 |             ->  Nested Loop (10,14)                          |      3 |      16 | 20000000028.70
+ 10 |                ->  Aggregate                                 |      3 |      12 | 10000000014.18
+ 11 |                   ->  Streaming(type: BROADCAST)             |      9 |      12 | 10000000014.18
+ 12 |                      ->  Aggregate                           |      3 |      12 | 14.19
+ 13 |                         ->  Seq Scan on t2                   |     30 |       4 | 14.14
+ 14 |                ->  Materialize                               |      3 |       8 | 10000000014.49
+ 15 |                   ->  Aggregate                              |      3 |      12 | 10000000014.48
+ 16 |                      ->  Streaming(type: BROADCAST)          |      9 |      12 | 10000000014.48
+ 17 |                         ->  Aggregate                        |      3 |      12 | 14.48
+ 18 |                            ->  Streaming(type: REDISTRIBUTE) |     30 |       4 | 14.45
+ 19 |                               ->  Seq Scan on t2             |     30 |       4 | 14.14
+(19 rows)
+
+ Predicate Information (identified by plan id) 
+-----------------------------------------------
+   8 --Subquery Scan on "*SELECT* 2"
+         Filter: (Hash By "*SELECT* 2".a)
+(2 rows) gaussdb=# set enable_dngather=true;
+SET gaussdb=# explain select b, count(*) from t1 group by b union all select count(distinct a) a , count(distinct b)b from t2 order by b;
+ id |                                 operation                                  | E-rows | E-width |    E-costs     
+----+----------------------------------------------------------------------------+--------+---------+----------------
+  1 | ->  Streaming (type: GATHER)                                               |     33 |      11 | 20000000046.96
+  2 |    ->  Sort                                                                |     33 |      11 | 20000000044.90
+  3 |       ->  Append(4, 8)                                                     |     33 |      11 | 20000000043.99
+  4 |          ->  Subquery Scan on "*SELECT* 1"                                 |     30 |      12 | 15.27
+  5 |             ->  HashAggregate                                              |     30 |      12 | 14.97
+  6 |                ->  Streaming(type: REDISTRIBUTE ng: node_group->datanode2) |     30 |       4 | 14.46
+  7 |                   ->  Seq Scan on t1                                       |     30 |       4 | 14.14
+  8 |          ->  Streaming(type: REDISTRIBUTE ng: node_group->datanode2)       |      3 |      16 | 20000000028.83
+  9 |             ->  Nested Loop (10,14)                                        |      3 |      16 | 20000000028.70
+ 10 |                ->  Aggregate                                               |      3 |      12 | 10000000014.18
+ 11 |                   ->  Streaming(type: BROADCAST)                           |      9 |      12 | 10000000014.18
+ 12 |                      ->  Aggregate                                         |      3 |      12 | 14.19
+ 13 |                         ->  Seq Scan on t2                                 |     30 |       4 | 14.14
+ 14 |                ->  Materialize                                             |      3 |       8 | 10000000014.50
+ 15 |                   ->  Aggregate                                            |      3 |      12 | 10000000014.48
+ 16 |                      ->  Streaming(type: BROADCAST)                        |      9 |      12 | 10000000014.48
+ 17 |                         ->  Aggregate                                      |      3 |      12 | 14.48
+ 18 |                            ->  Streaming(type: REDISTRIBUTE)               |     30 |       4 | 14.45
+ 19 |                               ->  Seq Scan on t2                           |     30 |       4 | 14.14
+(19 rows) 父主题： 实际调优案例 版权所有 © 华为技术有限公司

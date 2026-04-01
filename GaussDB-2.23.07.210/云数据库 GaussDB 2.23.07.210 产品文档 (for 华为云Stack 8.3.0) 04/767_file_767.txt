@@ -1,0 +1,16 @@
+创建和管理序列 创建和管理序列 背景信息 序列Sequence是用来产生唯一整数的数据库对象。序列的值是按照一定规则自增的整数。因为自增所以不重复，因此说Sequence具有唯一标识性。这也是Sequence常被用作主键的原因。 通过序列使某字段成为唯一标识符的方法有两种： 一种是声明字段的类型为 序列整型 ，由数据库在后台自动创建一个对应的Sequence。 另一种是使用 CREATE SEQUENCE 自定义一个新的Sequence，然后将nextval('sequence_name')函数读取的序列值，指定为某一字段的默认值，这样该字段就可以作为唯一标识符。 操作步骤 方法一： 声明字段类型为序列整型来定义标识符字段。例如： 1
+2
+3
+4
+5 gaussdb =# CREATE TABLE T1 ( id serial , name text ); 当结果显示为如下信息，则表示创建成功。 1 CREATE TABLE 方法二： 创建序列，并通过nextval('sequence_name')函数指定为某一字段的默认值。这种方式更灵活，可以为序列定义cache，一次预申请多个序列值，减少与GTM的交互次数，来提高性能。 创建序列 1 gaussdb =# CREATE SEQUENCE seq1 cache 100 ; 当结果显示为如下信息，则表示创建成功。 1 CREATE SEQUENCE 指定为某一字段的默认值，使该字段具有唯一标识属性。 1
+2
+3
+4
+5 gaussdb =# CREATE TABLE T2 ( id int not null default nextval ( 'seq1' ), name text ); 当结果显示为如下信息，则表示默认值指定成功。 1 CREATE TABLE 指定序列与列的归属关系。 将序列和一个表的指定字段进行关联。这样，在删除那个字段或其所在表的时候会自动删除已关联的序列。 1 gaussdb =# ALTER SEQUENCE seq1 OWNED BY T2 . id ; 当结果显示为如下信息，则表示指定成功。 1 ALTER SEQUENCE 除了为序列指定了cache，方法二所实现的功能基本与方法一类似。但是一旦定义cache，序列将会产生空洞(序列值为不连贯的数值，如：1.4.5)，并且不能保序。另外为某序列指定从属列后，该列删除，对应的sequence也会被删除。 虽然数据库并不限制序列只能为一列产生默认值，但建议不要多列共用同一个序列。 当前版本只支持在定义表的时候指定自增列，或者指定某列的默认值为nextval('seqname')， 不支持在已有表中增加自增列或者增加默认值为nextval('seqname')的列。 注意事项 新序列值的产生是靠GTM维护的，默认情况下，每申请一个序列值都要向GTM发送一次申请，GTM在当前值的基础上加上步长值作为产生的新值返回给调用者。GTM作为全局唯一的节点，势必成为性能的瓶颈，所以对于需要大量频繁产生序列号的操作，如使用Bulkload工具进行数据导入场景，是非常不推荐产生默认序列值的。比如，在下面所示的场景中， INSERT INTO SELECT FROM语句的性能会非常慢。 1
+2
+3
+4
+5
+6
+7 gaussdb =# CREATE SEQUENCE newSeq1 ; gaussdb =# CREATE TABLE newT1 ( id int not null default nextval ( 'newSeq1' ), name text ); gaussdb =# INSERT INTO newT1 ( name ) SELECT name FROM T1 ; 可以提高性能的写法是（假设T1表导入newT1表中的数据为10000行）： 1
+2 gaussdb =# INSERT INTO newT1 ( id , name ) SELECT id , name FROM T1 ; gaussdb =# SELECT SETVAL ( 'newSeq1' , 10000 ); 序列操作函数nextval()，setval() 等均不支持回滚。另外setval设置的新值，会对当前会话的nextval立即生效，但对其他会话，如果定义了cache，不会立即生效，在用尽所有缓存的值后，其变动才被其他会话感知。所以为了避免产生重复值，要谨慎使用setval，设置的新值不能是已经产生的值或者在缓存中的值。 如果必须要在bulkload场景下产生默认序列值，则一定要为newSeq1定义足够大的cache，并且不要定义Maxvalue或者Minvalue。数据库会试图将nextval('sequence_name')的调用下推到Data Node，以提高性能。 目前GTM对并发的连接请求是有限制的，当Data Node很多时，将产生大量并发连接， 这时一定要控制bulkload的并发数目，避免耗尽GTM的连接资源。如果目标表为复制表(DISTRIBUTE BY REPLICATION)时下推将不能进行。当数据量较大时，这对数据库将是个灾难。除了性能问题之外，空间也可能会剧烈膨胀，在导入结束后，需要用vacuum full来恢复。推荐采用如上建议，不要在bulkload的场景中产生默认序列值。 另外，序列创建后，在每个节点上都维护了一张单行表，存储序列的定义及当前值，但此当前值并非GTM上的当前值，只是保存本节点与GTM交互后的状态。如果其他节点也向GTM申请了新值，或者调用了Setval修改了序列的状态，不会刷新本节点的单行表，但因每次申请序列值是向GTM申请，所以对序列正确性没有影响。 父主题： 其他操作 版权所有 © 华为技术有限公司

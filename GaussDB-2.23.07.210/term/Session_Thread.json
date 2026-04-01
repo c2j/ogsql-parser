@@ -1,0 +1,191 @@
+{
+  "topic": "Session/Thread",
+  "term_count": 37,
+  "terms": [
+    {
+      "term": "THREAD_WAIT_STATUS",
+      "content": "THREAD_WAIT_STATUS THREAD_WAIT_STATUS 通过该视图可以检测当前实例中工作线程（backend thread）以及辅助线程（auxiliary thread）的阻塞等待情况，具体事件信息请参见 15.3.67-表2 等待状态列表 、 15.3.67-表3 轻量级锁等待事件列表 、 15.3.67-表4 IO等待事件列表 和 15.3.67-表5 事务锁等待事件列表 。 表1 THREAD_WAIT_STATUS字段 名称 类型 描述 node_name text 数据库进程名称。 db_name text 数据库名称。 thread_name text 线程名称。 query_id bigint 查询ID，对应debug_query_id。 tid bigint 当前线程的线程号。 sessionid bigint session的ID。 lwtid integer 当前线程的轻量级线程号。 psessionid bigint streaming线程的父线程。 tlevel integer streaming线程的层级。 smpid integer 并行线程的ID。 wait_status text 当前线程的等待状态。等待状态的详细信息请参见 15.3.67-表2 等待状态列表 。 wait_event text 如果wait_status是acquire lock、acquire lwlock、wait io三种类型，此列描述具体的锁、轻量级锁、I/O的信息；否则为空。 locktag text 当前线程正在等待锁的信息。 lockmode text 当前线程正等待获取的锁模式。包含表级锁、行级锁、页级锁下的各模式。 block_sessionid bigint 阻塞当前线程获取锁的会话标识。 global_sessionid text 全局会话ID。",
+      "source_file": "3808_THREAD_WAIT_STATUS.txt"
+    },
+    {
+      "term": "LOCAL_THREADPOOL_STATUS",
+      "content": "LOCAL_THREADPOOL_STATUS LOCAL_THREADPOOL_STATUS LOCAL_THREADPOOL_STATUS视图显示线程池下工作线程及会话的状态信息。该视图仅在线程池开启（enable_thread_pool = on）时生效。 表1 LOCAL_THREADPOOL_STATUS字段 名称 类型 描述 node_name text 数据库进程名称。 group_id integer 线程池组ID。 bind_numa_id integer 该线程池组绑定的NUMA ID。 bind_cpu_number integer 该线程池组绑定的CPU信息。如果未绑定CPU，该值为NULL。 listener integer 该线程池组的Listener线程数量。 worker_info text 线程池中线程相关信息，包括以下信息： default：该线程池组中的初始线程数量。 new：该线程池组中新增线程的数量。 expect：该线程池组中预期线程的数量。 actual：该线程池组中实际线程的数量。 idle：该线程池组中空闲线程的数量。 pending：该线程池组中等待线程的数量。 session_info text 线程池中会话相关信息，包括以下信息： total：该线程池组中所有的会话数量。 waiting：该线程池组中等待调度的会话数量。 running：该线程池中正在执行的会话数量。 idle：该线程池组中空闲的会话数量。 stream_info text stream池相关信息，包含以下信息： total：该stream池组中所有的线程数量。 running：该stream池中正在执行的线程数量。 idle：该stream池组中空闲的线程数量。",
+      "source_file": "3810_LOCAL_THREADPOOL_STATUS.txt"
+    },
+    {
+      "term": "GLOBAL_THREADPOOL_STATUS",
+      "content": "GLOBAL_THREADPOOL_STATUS GLOBAL_THREADPOOL_STATUS GLOBAL_THREADPOOL_STATUS视图显示在所有节点上的线程池中工作线程及会话的状态信息。具体的字段 表1 。",
+      "source_file": "3811_GLOBAL_THREADPOOL_STATUS.txt"
+    },
+    {
+      "term": "LOCAL_ACTIVE_SESSION",
+      "content": "LOCAL_ACTIVE_SESSION LOCAL_ACTIVE_SESSION LOCAL_ACTIVE_SESSION视图显示本节点上的ACTIVE SESSION PROFILE内存中的样本。 表1 LOCAL_ACTIVE_SESSION字段 名称 类型 描述 sampleid bigint 采样ID。 sample_time timestamp with time zone 采样的时间。 need_flush_sample boolean 该样本是否需要刷新到磁盘。 databaseid oid 数据库ID thread_id bigint 线程的ID。 sessionid bigint 会话的ID。 start_time timestamp with time zone 会话的启动时间。 event text 具体的事件名称。 lwtid integer 当前线程的轻量级线程号。 psessionid bigint streaming线程的父线程。 tlevel integer streaming线程的层级。与执行计划的层级（id）相对应。 smpid integer smp执行模式下并行线程的并行编号。 userid oid session用户的id。 application_name text 应用的名称。 client_addr inet client端的地址。 client_hostname text client端的名称。 client_port integer 客户端用于与后端通讯的TCP端口号。 query_id bigint debug query id unique_query_id bigint unique query id user_id oid unique query的key中的user_id。 cn_id integer cn id，在DN上表示下发该unique sql的节点id，unique query的key中的cn_id。 unique_query text 规范化后的UniqueSQL文本串。 locktag text 会话等待锁信息，可通过locktag_decode解析。 lockmode text 会话等待锁模式。 block_sessionid bigint 如果会话正在等待锁，阻塞该会话获取锁的会话标识。 final_block_sessionid bigint 表示源头阻塞会话id。 wait_status text 描述event列的更多详细信息。 global_sessionid text 全局会话ID xact_start_time timestamp with time zone 事务开始时间。 query_start_time timestamp with time zone 语句开始执行时间。 state text 当前语句状态。 可能取值为：active、dle in transaction、fastpath function call、idle in transaction (aborted)、disabled、retrying。 event_start_time timestamp with time zone wait event的开始时间。 current_xid xid 当前事务ID。 top_xid xid 顶层事务ID。",
+      "source_file": "3815_LOCAL_ACTIVE_SESSION.txt"
+    },
+    {
+      "term": "LOCAL_ACTIVE_SESSION",
+      "content": "LOCAL_ACTIVE_SESSION LOCAL_ACTIVE_SESSION LOCAL_ACTIVE_SESSION视图显示本节点上的ACTIVE SESSION PROFILE内存中的样本。 表1 LOCAL_ACTIVE_SESSION字段 名称 类型 描述 sampleid bigint 采样ID。 sample_time timestamp with time zone 采样的时间。 need_flush_sample boolean 该样本是否需要刷新到磁盘。 databaseid oid 数据库ID thread_id bigint 线程的ID。 sessionid bigint 会话的ID。 start_time timestamp with time zone 会话的启动时间。 event text 具体的事件名称。 lwtid integer 当前线程的轻量级线程号。 psessionid bigint streaming线程的父线程。 tlevel integer streaming线程的层级。与执行计划的层级(id)相对应。 smpid integer smp执行模式下并行线程的并行编号。 userid oid session用户的id。 application_name text 应用的名称。 client_addr inet client端的地址。 client_hostname text client端的名称。 client_port integer 客户端用于与后端通讯的TCP端口号。 query_id bigint debug query id unique_query_id bigint unique query id user_id oid unique query的key中的user_id。 cn_id integer cn id，在DN上表示该unique sql来之该CN节点，unique query的key中的cn_id。 unique_query text 规范化后的UniqueSQL文本串。 locktag text 会话等待锁信息，可通过locktag_decode解析。 lockmode text 会话等待锁模式。 block_sessionid bigint 如果会话正在等待锁，阻塞该会话获取锁的会话标识。 final_block_sessionid bigint 表示源头阻塞会话id。 wait_status text 描述event列的更多详细信息。 global_sessionid text 全局会话ID。 xact_start_time timestamp with time zone 事务开始时间。 query_start_time timestamp with time zone 语句开始执行时间。 state text 当前语句状态。 可能取值为：active、idle in transaction、fastpath function call、idle in transaction (aborted)、disabled、retrying。 event_start_time timestamp with time zone wait event的开始时间。 current_xid xid 当前事务ID。 top_xid xid 顶层事务ID。",
+      "source_file": "2129_LOCAL_ACTIVE_SESSION.txt"
+    },
+    {
+      "term": "SESSION_MEMORY",
+      "content": "SESSION_MEMORY SESSION_MEMORY 统计Session级别的内存使用情况，包含执行作业在数据节点上 GaussDB 线程和Stream线程分配的所有内存，单位为MB。 表1 SESSION_MEMORY字段 名称 类型 描述 sessid text 线程启动时间+线程标识。 init_mem integer 当前正在执行作业进入执行器前已分配的内存。 used_mem integer 当前正在执行作业已分配的内存。 peak_mem integer 当前正在执行作业已分配的内存峰值。",
+      "source_file": "3802_SESSION_MEMORY.txt"
+    },
+    {
+      "term": "GLOBAL_SESSION_TIME",
+      "content": "GLOBAL_SESSION_TIME GLOBAL_SESSION_TIME 用于统计各节点会话线程的运行时间信息，及各执行阶段所消耗时间。 表1 GLOBAL_SESSION_TIME字段 名称 类型 描述 node_name name 节点名称。 sessid text 线程启动时间+线程标识。 stat_id integer 统计编号。 stat_name text 会话类型名称。 value bigint 会话值。",
+      "source_file": "3801_GLOBAL_SESSION_TIME.txt"
+    },
+    {
+      "term": "GLOBAL_THREADPOOL_STATUS",
+      "content": "GLOBAL_THREADPOOL_STATUS GLOBAL_THREADPOOL_STATUS GLOBAL_THREADPOOL_STATUS视图显示在所有节点上的线程池中工作线程及会话的状态信息。具体的字段 表1 。",
+      "source_file": "2125_GLOBAL_THREADPOOL_STATUS.txt"
+    },
+    {
+      "term": "THREAD_WAIT_STATUS",
+      "content": "THREAD_WAIT_STATUS THREAD_WAIT_STATUS 通过该视图可以检测当前实例中工作线程（backend thread）以及辅助线程（auxiliary thread）的阻塞等待情况，具体事件信息见 表2 。 表1 THREAD_WAIT_STATUS字段 名称 类型 描述 node_name text 当前节点的名称。 db_name text 数据库名称。 thread_name text 线程名称。 query_id bigint 查询ID，对应debug_query_id。 tid bigint 当前线程的线程号。 sessionid bigint session的ID lwtid integer 当前线程的轻量级线程号。 psessionid bigint streaming线程的父线程。 tlevel integer streaming线程的层级。 smpid integer 并行线程的ID。 wait_status text 当前线程的等待状态。等待状态的详细信息请参见 Wait Events事件信息列表 。 wait_event text 如果wait_status是acquire lock、acquire lwlock、wait io三种类型，此列描述具体的锁、轻量级锁、I/O的信息；否则为空。 locktag text 当前线程正在等待锁的信息。 lockmode text 当前线程正等待获取的锁模式。包含表级锁、行级锁、页级锁下的各模式。 block_sessionid bigint 阻塞当前线程获取锁的会话标识。 global_sessionid text 全局会话ID。",
+      "source_file": "2122_THREAD_WAIT_STATUS.txt"
+    },
+    {
+      "term": "STATEMENT_IOSTAT_COMPLEX_RUNTIME",
+      "content": "STATEMENT_IOSTAT_COMPLEX_RUNTIME STATEMENT_IOSTAT_COMPLEX_RUNTIME STATEMENT_IOSTAT_COMPLEX_RUNTIME视图显示当前用户执行作业正在运行时的I/O负载管理 （当前特性是实验室特性，使用时请联系华为技术工程师提供技术支持。） 相关信息。以下涉及到iops，均以万次/s为单位。 表1 STATEMENT_IOSTAT_COMPLEX_RUNTIME字段 名称 类型 描述 query_id bigint 作业id。 mincurriops integer 该作业当前I/O在各 DN 中的最小值。 maxcurriops integer 该作业当前I/O在各 DN 中的最大值。 minpeakiops integer 在作业运行时，作业I/O峰值中，各 DN 的最小值。 maxpeakiops integer 在作业运行时，作业I/O峰值中，各 DN 的最大值。 io_limits integer 该作业所设GUC参数io_limits。 io_priority text 该作业所设GUC参数io_priority。 query text 作业。 curr_io_limits integer 使用io_priority管控I/O时的实时iolimits值。",
+      "source_file": "2128_STATEMENT_IOSTAT_COMPLEX_RUNTIME.txt"
+    },
+    {
+      "term": "SESSION_TIME",
+      "content": "SESSION_TIME SESSION_TIME 用于统计当前节点会话线程的运行时间信息，及各执行阶段所消耗时间。 表1 SESSION_TIME字段 名称 类型 描述 sessid text 线程启动时间+线程标识。 stat_id integer 统计编号。 stat_name text 会话类型名称。 value bigint 会话值。",
+      "source_file": "3800_SESSION_TIME.txt"
+    },
+    {
+      "term": "STATEMENT_IOSTAT_COMPLEX_RUNTIME",
+      "content": "STATEMENT_IOSTAT_COMPLEX_RUNTIME STATEMENT_IOSTAT_COMPLEX_RUNTIME STATEMENT_IOSTAT_COMPLEX_RUNTIME视图显示当前用户执行作业正在运行时的I/O负载管理相关信息。以下涉及到iops，均以万次/s为单位。 表1 STATEMENT_IOSTAT_COMPLEX_RUNTIME字段 名称 类型 描述 query_id bigint 作业id。 mincurriops integer 该作业当前I/O在各数据库节点中的最小值。 maxcurriops integer 该作业当前I/O在各数据库节点中的最大值。 minpeakiops integer 在作业运行时，作业I/O峰值中，各数据库节点的最小值。 maxpeakiops integer 在作业运行时，作业I/O峰值中，各数据库节点的最大值。 io_limits integer 该作业所设GUC参数io_limits。 io_priority text 该作业所设GUC参数io_priority。 query text 作业。 node_group text 作业所属用户对应的逻辑数据库。 curr_io_limits integer 使用io_priority管控I/O时的实时io_limits值。",
+      "source_file": "3814_STATEMENT_IOSTAT_COMPLEX_RUNTIME.txt"
+    },
+    {
+      "term": "LOCAL_THREADPOOL_STATUS",
+      "content": "LOCAL_THREADPOOL_STATUS LOCAL_THREADPOOL_STATUS LOCAL_THREADPOOL_STATUS视图显示线程池中工作线程及会话的状态信息。该视图仅在线程池开启（enable_thread_pool = on）时生效。 表1 LOCAL_THREADPOOL_STATUS字段 名称 类型 描述 node_name text 节点名称。 group_id integer 线程池组ID。 bind_numa_id integer 该线程池组绑定的NUMA ID。 bind_cpu_number integer 该线程池组绑定的CPU信息。如果未绑定CPU，该值为NULL。 listener integer 该线程池组的Listener线程数量。 worker_info text 线程池中线程相关信息，包括以下信息： default：该线程池组中的初始线程数量 new：该线程池组中新增线程的数量 expect：该线程池组中预期线程的数量 actual：该线程池组中实际线程的数量 idle：该线程池组中空闲线程的数量 pending：该线程池组中等待线程的数量 session_info text 线程池中会话相关信息，包括以下信息： total：该线程池组中所有的会话数量 waiting：该线程池组中等待调度的会话数量 running：该线程池中正在执行的会话数量 idle：该线程池组中空闲的会话数量 stream_info text Stream线程池相关信息，包括以下信息： total：该线程池组中所有的stream线程数量 running：该线程池组中当前正在工作的stream线程数量 idle：该线程池组中空闲的stream线程数量",
+      "source_file": "2124_LOCAL_THREADPOOL_STATUS.txt"
+    },
+    {
+      "term": "SESSION_STAT",
+      "content": "SESSION_STAT SESSION_STAT 当前节点以会话线程或AutoVacuum线程为单位，统计会话状态信息。 表1 SESSION_STAT字段 名称 类型 描述 sessid text 线程启动时间+线程标识。 statid integer 统计编号。 statname text 统计会话名称。 statunit text 统计会话单位。 value bigint 统计会话值。",
+      "source_file": "3798_SESSION_STAT.txt"
+    },
+    {
+      "term": "GLOBAL_SESSION_MEMORY",
+      "content": "GLOBAL_SESSION_MEMORY GLOBAL_SESSION_MEMORY 统计各节点的Session级别的内存使用情况，包含执行作业在数据节点上 GaussDB 线程和Stream线程分配的所有内存，单位为MB。 表1 GLOBAL_SESSION_MEMORY字段 名称 类型 描述 node_name name 节点名称。 sessid text 线程启动时间+线程标识。 init_mem integer 当前正在执行作业进入执行器前已分配的内存。 used_mem integer 当前正在执行作业已分配的内存。 peak_mem integer 当前正在执行作业已分配的内存峰值。",
+      "source_file": "3803_GLOBAL_SESSION_MEMORY.txt"
+    },
+    {
+      "term": "SESSION_MEMORY_DETAIL",
+      "content": "SESSION_MEMORY_DETAIL SESSION_MEMORY_DETAIL 统计线程的内存使用情况，以MemoryContext节点来统计。 表1 SESSION_MEMORY_DETAIL字段 名称 类型 描述 sessid text 线程启动时间+线程标识。 sesstype text 线程名称。 contextname text 内存上下文名称。 level smallint 内存上下文的重要级别。 parent text 父级内存上下文名称。 totalsize bigint 总申请内存大小（单位：字节）。 freesize bigint 空闲内存大小（单位：字节）。 usedsize bigint 使用内存大小（单位：字节）。",
+      "source_file": "3804_SESSION_MEMORY_DETAIL.txt"
+    },
+    {
+      "term": "SESSION_MEMORY_RUNTIME",
+      "content": "SESSION_MEMORY_RUNTIME SESSION_MEMORY_RUNTIME SESSION_MEMORY_RUNTIME视图显示当前用户执行复杂作业（正在运行）时的内存使用信息。 表1 SESSION_MEMORY_RUNTIME字段 名称 类型 描述 datid oid 连接后端的数据库OID。 usename name 登录到该后端的用户名。 pid bigint 后端线程ID。 start_time timestamp with time zone 语句执行的开始时间。如果是存储过程、函数，则查询的是第一个查询时间，不会随着存储过程内语句运行而改变。 min_peak_memory integer 语句在 所有DN 上的最小内存峰值大小，单位MB。 max_peak_memory integer 语句在 所有DN 上的最大内存峰值大小，单位MB。 spill_info text 语句在 所有DN 上的下盘信息： None： 所有DN 均未下盘 All： 所有DN 均下盘 [a:b]：数量为b个 DN 中有a个 DN 下盘 query text 正在执行的语句。 top_mem_dn text mem使用量topN信息。",
+      "source_file": "2127_SESSION_MEMORY_RUNTIME.txt"
+    },
+    {
+      "term": "GLOBAL_SESSION_STAT_ACTIVITY",
+      "content": "GLOBAL_SESSION_STAT_ACTIVITY GLOBAL_SESSION_STAT_ACTIVITY 显示 集群 内各节点上正在运行的线程相关的信息。 表1 GLOBAL_SESSION_STAT_ACTIVITY字段 名称 类型 描述 coorname text CN节点名称。 datid oid 用户会话在后台连接到的数据库OID。 datname text 用户会话在后台连接到的数据库名称。 pid bigint 后台线程ID。 usesysid oid 登录该后台的用户OID。 usename text 登录该后台的用户名。 application_name text 连接到该后台的应用名。 client_addr inet 连接到该后台的客户端的IP地址。如果此字段是null，它表明通过服务器机器上UNIX套接字连接客户端或者这是内部进程，如autovacuum。 client_hostname text 客户端的主机名，这个字段是通过client_addr的反向DNS查找得到。这个字段只有在启动log_hostname且使用IP连接时才非空。 client_port integer 客户端用于与后台通讯的TCP端口号，如果使用Unix套接字，则为-1。 backend_start timestampwith time zone 该过程开始的时间，即当客户端连接服务器时间。 xact_start timestampwith time zone 启动当前事务的时间，如果没有事务是活跃的，则为null。如果当前查询是首个事务，则这列等同于query_start列。 query_start timestampwith time zone 开始当前活跃查询的时间，如果state的值不是active，则这个值是上一个查询的开始时间。如果是存储过程、函数，则查询的是第一个查询时间，不会随着存储过程内语句运行而改变。 state_change timestampwith time zone 上次状态改变的时间。 waiting boolean 如果后台当前正等待锁则为true，否则为false。如果等待的锁发生在DN，则需要根据pg_thread_wait_status视图的wait_status字段确定发生在哪个DN，然后到对应的DN查询pg_stat_activity的waiting字段来确认是否发生了等待锁的行为。 state text 该后台当前总体状态。可能值是： active：后台正在执行一个查询。 idle：后台正在等待一个新的客户端命令。 idle in transaction：后台在事务中，但是目前无法执行查询。 idle in transaction (aborted)：后台在事务中，但事务中有语句执行失败。 fastpath function call：后台正在执行一个fast-path函数。 disabled：如果后台禁用track_activities，则报告这个状态。 说明： 普通用户只能查看到自己账户所对应的会话状态。即其他账户的state信息为空。例如以judy用户连接数据库后，在pg_stat_activity中查看到的普通用户joe及初始用户omm的state信息为空。 gaussdb=# SELECT datname, usename, usesysid,state,pid FROM pg_stat_activity; datname    | usename | usesysid | state    |       pid ----------+---------+----------+--------+-----------------testdb  | omm       | 10       |        |139968752121616 testdb  | omm       | 10       |        |139968903116560 db_tpcds  | judy      | 16398    | active |139968391403280 testdb  | omm       | 10       |        |139968643069712 testdb  | omm       | 10       |        |139968680818448 testdb  | joe       | 16390    |        |139968563377936 (6 rows) resource_pool name 用户使用的资源池。 query_id bigint 查询语句的ID。 query text 该后台的最新查询。如果state状态是active（活跃的），此字段显示当前正在执行的查询。所有其他情况表示上一个查询。 unique_sql_id bigint 语句的unique sql id。 trace_id text 驱动传入的trace id，与应用的一次请求相关联。",
+      "source_file": "2121_GLOBAL_SESSION_STAT_ACTIVITY.txt"
+    },
+    {
+      "term": "GLOBAL_SESSION_STAT_ACTIVITY",
+      "content": "GLOBAL_SESSION_STAT_ACTIVITY GLOBAL_SESSION_STAT_ACTIVITY 显示数据库内各节点上正在运行的线程相关的信息。 表1 GLOBAL_SESSION_STAT_ACTIVITY字段 名称 类型 描述 coorname text 数据库进程名称。 datid oid 用户会话在后台连接到的数据库OID。 datname text 用户会话在后台连接到的数据库名称。 pid bigint 后台线程ID。 usesysid oid 登录该后台的用户OID。 usename text 登录该后台的用户名。 application_name text 连接到该后台的应用名。 client_addr inet 连接到该后台的客户端的IP地址。如果此字段是null，它表明通过服务器机器上UNIX套接字连接客户端或者这是内部进程，如autovacuum。 client_hostname text 客户端的主机名，这个字段是通过client_addr的反向DNS查找得到。这个字段只有在启动log_hostname且使用IP连接时才非空。 client_port integer 客户端用于与后台通讯的TCP端口号，如果使用Unix套接字，则为-1。 backend_start timestampwith time zone 该过程开始的时间，即当客户端连接服务器时间。 xact_start timestampwith time zone 启动当前事务的时间，如果没有事务是活跃的，则为null。如果当前查询是首个事务，则这列等同于query_start列。 query_start timestampwith time zone 开始当前活跃查询的时间，如果state的值不是active，则这个值是上一个查询的开始时间。如果是存储过程、函数、package，则查询的是第一个查询时间，不会随着存储过程内语句运行而改变。 state_change timestampwith time zone 上次状态改变的时间。 waiting boolean 如果后台当前正等待锁则为true。 enqueue text 该字段不支持。 state text 该后台当前总体状态。可能值是： active：后台正在执行一个查询。 idle：后台正在等待一个新的客户端命令。 idle in transaction：后台在事务中，但是目前无法执行查询。 idle in transaction (aborted)：后台在事务中，但事务中有语句执行失败。 fastpath function call：后台正在执行一个fast-path函数。 disabled：如果后台禁用track_activities，则报告这个状态。 说明： 普通用户只能查看到自己账户所对应的会话状态。即其他账户的state信息为空。例如以judy用户连接数据库后，在pg_stat_activity中查看到的普通用户joe及初始用户omm的state信息为空。 gaussdb=# SELECT datname, usename, usesysid,state,pid FROM pg_stat_activity;\ndatname    | usename | usesysid | state    |       pid\n----------+---------+----------+--------+-----------------testdb  | omm       | 10       |        |139968752121616\ntestdb  | omm       | 10       |        |139968903116560\ndb_tpcds  | judy      | 16398    | active |139968391403280\ntestdb  | omm       | 10       |        |139968643069712\ntestdb  | omm       | 10       |        |139968680818448\ntestdb  | joe       | 16390    |        |139968563377936\n(6 rows) resource_pool name 用户使用的资源池。 query_id bigint 查询语句的ID。 query text 该后台的最新查询。如果state状态是active（活跃的），此字段显示当前正在执行的查询。所有其他情况表示上一个查询。 unique_sql_id bigint 语句的unique sql id。 trace_id text 驱动传入的trace id，与应用的一次请求相关联。",
+      "source_file": "3807_GLOBAL_SESSION_STAT_ACTIVITY.txt"
+    },
+    {
+      "term": "SESSION_STAT",
+      "content": "SESSION_STAT SESSION_STAT 当前节点以会话线程或AutoVacuum线程为单位，统计会话状态信息。 表1 SESSION_STAT字段 名称 类型 描述 sessid text 线程启动时间+线程标识。 statid integer 统计编号。 statname text 统计会话名称。 statunit text 统计会话单位。 value bigint 统计会话值。",
+      "source_file": "2112_SESSION_STAT.txt"
+    },
+    {
+      "term": "SESSION_STAT_ACTIVITY",
+      "content": "SESSION_STAT_ACTIVITY SESSION_STAT_ACTIVITY 显示当前节点上正在运行的线程相关的信息。 表1 SESSION_STAT_ACTIVITY字段 名称 类型 描述 datid oid 用户会话在后台连接到的数据库OID。 datname name 用户会话在后台连接到的数据库名称。 pid bigint 后台线程ID。 usesysid oid 登录该后台的用户OID。 usename name 登录该后台的用户名。 application_name text 连接到该后台的应用名。 client_addr inet 连接到该后台的客户端的IP地址。如果此字段是null，它表明通过服务器机器上UNIX套接字连接客户端或者这是内部进程，如autovacuum。 client_hostname text 客户端的主机名，这个字段是通过client_addr的反向DNS查找得到。这个字段只有在启动log_hostname且使用IP连接时才非空。 client_port integer 客户端用于与后台通讯的TCP端口号，如果使用Unix套接字，则为-1。 backend_start timestampwith time zone 该过程开始的时间，即当客户端连接服务器时间。 xact_start timestampwith time zone 启动当前事务的时间，如果没有事务是活跃的，则为null。如果当前查询是首个事务，则这列等同于query_start列。 query_start timestampwith time zone 开始当前活跃查询的时间，如果state的值不是active，则这个值是上一个查询的开始时间。如果是存储过程、函数，则查询的是第一个查询时间，不会随着存储过程内语句运行而改变。 state_change timestampwith time zone 上次状态改变的时间。 waiting boolean 如果后台当前正等待锁则为true。 state text 该后台当前总体状态。可能值是： active：后台正在执行一个查询。 idle：后台正在等待一个新的客户端命令。 idle in transaction：后台在事务中，但是目前无法执行查询。 idle in transaction (aborted)：这个状态除说明事务中有某个语句导致了错误外，类似于idle in transaction fastpath function call：后台正在执行一个fast-path函数。 disabled：如果后台禁用track_activities，则报告这个状态。 说明： 普通用户只能查看到自己账户所对应的会话状态。即其他账户的state信息为空。例如以judy用户连接数据库后，在pg_stat_activity中查看到的普通用户joe及初始用户omm的state信息为空。 gaussdb=# SELECT datname, usename, usesysid,state,pid FROM pg_stat_activity; datname    | usename | usesysid | state    |       pid ----------+---------+----------+--------+-----------------testdb  | omm       | 10       |        |139968752121616 testdb  | omm       | 10       |        |139968903116560 db_tpcds  | judy      | 16398    | active |139968391403280 testdb  | omm       | 10       |          |139968643069712 testdb  | omm       | 10       |        |139968680818448 testdb  | joe       | 16390    |        |139968563377936 (6 rows) resource_pool name 用户使用的资源池。 query_id bigint 查询语句的ID。 query text 该后台的最新查询。如果state状态是active（活跃的），此字段显示当前正在执行的查询。所有其他情况表示上一个查询。 unique_sql_id bigint 语句的unique sql id。 trace_id text 驱动传入的trace id，与应用的一次请求相关联。",
+      "source_file": "2120_SESSION_STAT_ACTIVITY.txt"
+    },
+    {
+      "term": "SESSION_STAT_ACTIVITY",
+      "content": "SESSION_STAT_ACTIVITY SESSION_STAT_ACTIVITY 显示当前节点上正在运行的线程相关的信息。 表1 SESSION_STAT_ACTIVITY字段 名称 类型 描述 datid oid 用户会话在后台连接到的数据库OID。 datname name 用户会话在后台连接到的数据库名称。 pid bigint 后台线程ID。 usesysid oid 登录该后台的用户OID。 usename name 登录该后台的用户名。 application_name text 连接到该后台的应用名。 client_addr inet 连接到该后台的客户端的IP地址。如果此字段是null，它表明通过服务器机器上UNIX套接字连接客户端或者这是内部进程，如autovacuum。 client_hostname text 客户端的主机名，这个字段是通过client_addr的反向DNS查找得到。这个字段只有在启动log_hostname且使用IP连接时才非空。 client_port integer 客户端用于与后台通讯的TCP端口号，如果使用Unix套接字，则为-1。 backend_start timestampwith time zone 该过程开始的时间，即当客户端连接服务器时间。 xact_start timestampwith time zone 启动当前事务的时间，如果没有事务是活跃的，则为null。如果当前查询是首个事务，则这列等同于query_start列。 query_start timestampwith time zone 开始当前活跃查询的时间，如果state的值不是active，则这个值是上一个查询的开始时间。如果是存储过程、函数、package，则查询的是第一个查询时间，不会随着存储过程内语句运行而改变。 state_change timestampwith time zone 上次状态改变的时间。 waiting boolean 如果后台当前正等待锁则为true。 enqueue text 该字段不支持。 state text 该后台当前总体状态。可能值是： active：后台正在执行一个查询。 idle：后台正在等待一个新的客户端命令。 idle in transaction：后台在事务中，但是目前无法执行查询。 idle in transaction (aborted)：这个状态除说明事务中有某个语句导致了错误外，类似于idle in transaction fastpath function call：后台正在执行一个fast-path函数。 disabled：如果后台禁用track_activities，则报告这个状态。 说明： 普通用户只能查看到自己账户所对应的会话状态。即其他账户的state信息为空。例如以judy用户连接数据库后，在pg_stat_activity中查看到的普通用户joe及初始用户omm的stat信息为空。 gaussdb=# SELECT datname, usename, usesysid,state,pid FROM pg_stat_activity;\ndatname    | usename | usesysid | state    |       pid\n----------+---------+----------+--------+-----------------testdb  | omm       | 10       |        |139968752121616\ntestdb  | omm       | 10       |        |139968903116560\ndb_tpcds  | judy      | 16398    | active |139968391403280\ntestdb  | omm       | 10       |          |139968643069712\ntestdb  | omm       | 10       |        |139968680818448\ntestdb  | joe       | 16390    |        |139968563377936\n(6 rows) resource_pool name 用户使用的资源池。 query_id bigint 查询语句的ID。 query text 该后台的最新查询。如果state状态是active（活跃的），此字段显示当前正在执行的查询。所有其他情况表示上一个查询。 unique_sql_id bigint 语句的unique sql id。 trace_id text 驱动传入的trace id，与应用的一次请求相关联。",
+      "source_file": "3806_SESSION_STAT_ACTIVITY.txt"
+    },
+    {
+      "term": "SESSION_MEMORY_DETAIL",
+      "content": "SESSION_MEMORY_DETAIL SESSION_MEMORY_DETAIL 统计线程的内存使用情况，以MemoryContext节点来统计。 表1 SESSION_MEMORY_DETAIL字段 名称 类型 描述 sessid text 线程启动时间+线程标识。 sesstype text 线程名称。 contextname text 内存上下文名称。 level smallint 内存上下文的重要级别。 parent text 父级内存上下文名称。 totalsize bigint 总申请内存大小(单位：字节)。 freesize bigint 空闲内存大小(单位：字节)。 usedsize bigint 使用内存大小(单位：字节)。",
+      "source_file": "2118_SESSION_MEMORY_DETAIL.txt"
+    },
+    {
+      "term": "GLOBAL_SESSION_MEMORY_DETAIL",
+      "content": "GLOBAL_SESSION_MEMORY_DETAIL GLOBAL_SESSION_MEMORY_DETAIL 统计各节点的线程的内存使用情况，以MemoryContext节点来统计。 表1 GLOBAL_SESSION_MEMORY_DETAIL字段 名称 类型 描述 node_name name 节点名称。 sessid text 线程启动时间+线程标识。 sesstype text 线程名称。 contextname text 内存上下文名称。 level smallint 内存上下文的重要级别。 parent text 父级内存上下文名称。 totalsize bigint 总申请内存大小(单位：字节)。 freesize bigint 空闲内存大小(单位：字节)。 usedsize bigint 使用内存大小(单位：字节)。",
+      "source_file": "2119_GLOBAL_SESSION_MEMORY_DETAIL.txt"
+    },
+    {
+      "term": "GLOBAL_SESSION_MEMORY",
+      "content": "GLOBAL_SESSION_MEMORY GLOBAL_SESSION_MEMORY 统计各节点的Session级别的内存使用情况，包含执行作业在数据节点上gaussdb线程和Stream线程分配的所有内存，单位为MB。 表1 GLOBAL_SESSION_MEMORY字段 名称 类型 描述 node_name name 节点名称。 sessid text 线程启动时间+线程标识。 init_mem integer 当前正在执行作业进入执行器前已分配的内存。 used_mem integer 当前正在执行作业已分配的内存。 peak_mem integer 当前正在执行作业已分配的内存峰值。",
+      "source_file": "2117_GLOBAL_SESSION_MEMORY.txt"
+    },
+    {
+      "term": "GLOBAL_THREAD_WAIT_STATUS",
+      "content": "GLOBAL_THREAD_WAIT_STATUS GLOBAL_THREAD_WAIT_STATUS 通过该视图可以检测所有节点上工作线程（backend thread）以及辅助线程（auxiliary thread）的阻塞等待情况。具体事件信息见 表2 。 通过GLOBAL_THREAD_WAIT_STATUS视图，可以查看 集群 全局各个节点上所有SQL语句产生的线程之间的调用层次关系，以及各个线程的阻塞等待状态，从而更容易定位hang以及类似现象的原因。 GLOBAL_THREAD_WAIT_STATUS视图和THREAD_WAIT_STATUS视图列定义完全相同，这是由于GLOBAL_THREAD_WAIT_STATUS视图本质是到 集群 中各个节点上查询THREAD_WAIT_STATUS视图汇总的结果。 表1 GLOBAL_THREAD_WAIT_STATUS字段 名称 类型 描述 node_name text 当前节点的名称。 db_name text 数据库名称。 thread_name text 线程名称。 query_id bigint 查询ID，对应debug_query_id。 tid bigint 当前线程的线程号。 sessionid bigint session的ID lwtid integer 当前线程的轻量级线程号。 psessionid bigint streaming线程的父线程。 tlevel integer streaming线程的层级。 smpid integer 并行线程的ID。 wait_status text 当前线程的等待状态。等待状态的详细信息请参见 表2 。 wait_event text 如果wait_status是acquire lock、acquire lwlock、wait io三种类型，此列描述具体的锁、轻量级锁、I/O的信息。否则是空。 locktag text 当前线程正在等待锁的信息。 lockmode text 当前线程正等待获取的锁模式。包含表级锁、行级锁、页级锁下的各模式。 block_sessionid bigint 阻塞当前线程获取锁的会话标识。 global_sessionid text 全局会话ID。",
+      "source_file": "2123_GLOBAL_THREAD_WAIT_STATUS.txt"
+    },
+    {
+      "term": "GLOBAL_SESSION_MEMORY_DETAIL",
+      "content": "GLOBAL_SESSION_MEMORY_DETAIL GLOBAL_SESSION_MEMORY_DETAIL 统计各节点的线程的内存使用情况，以MemoryContext节点来统计。 表1 GLOBAL_SESSION_MEMORY_DETAIL字段 名称 类型 描述 node_name name 节点名称。 sessid text 线程启动时间+线程标识。 sesstype text 线程名称。 contextname text 内存上下文名称。 level smallint 内存上下文的重要级别。 parent text 父级内存上下文名称。 totalsize bigint 总申请内存大小（单位：字节）。 freesize bigint 空闲内存大小（单位：字节）。 usedsize bigint 使用内存大小（单位：字节）。",
+      "source_file": "3805_GLOBAL_SESSION_MEMORY_DETAIL.txt"
+    },
+    {
+      "term": "SESSION_MEMORY_RUNTIME",
+      "content": "SESSION_MEMORY_RUNTIME SESSION_MEMORY_RUNTIME SESSION_MEMORY_RUNTIME视图显示和当前用户执行复杂作业正在运行时的负载管理内存使用的信息。 表1 SESSION_MEMORY_RUNTIME字段 名称 类型 描述 datid oid 连接后端的数据库OID。 usename name 登录到该后端的用户名。 pid bigint 后端线程ID。 start_time timestamp with time zone 语句执行的开始时间。如果是存储过程、函数、package，则查询的是第一个查询时间，不会随着存储过程内语句运行而改变。 min_peak_memory integer 语句在数据库节点上的最小内存峰值大小，单位MB。 max_peak_memory integer 语句在数据库节点上的最大内存峰值大小，单位MB。 spill_info text 语句在数据库节点上的下盘信息： None：数据库节点均未下盘 All：数据库节点均下盘 [a:b]：数量为b个数据库节点中有a个数据库节点下盘 query text 正在执行的语句。 node_group text 语句所属用户对应的逻辑数据库。 top_mem_dn text mem使用量topN信息。",
+      "source_file": "3813_SESSION_MEMORY_RUNTIME.txt"
+    },
+    {
+      "term": "GLOBAL_ACTIVE_SESSION",
+      "content": "GLOBAL_ACTIVE_SESSION GLOBAL_ACTIVE_SESSION GLOBAL_ACTIVE_SESSION视图显示所有节点上的ACTIVE SESSION PROFILE内存中的样本的汇总。505.0.0版本新增三列信息，升级观察期执行会报错，需使用LOCAL_ACTIVE_SESSION直连节点查询。 表1 GLOBAL_ACTIVE_SESSION字段 名称 类型 描述 node_name text 节点名称。 sampleid bigint 采样ID。 sample_time timestamp without time zone 采样的时间。 need_flush_sample boolean 该样本是否需要刷新的磁盘。 databaseid oid 数据库ID。 thread_id bigint 线程的ID。 sessionid bigint 会话的ID。 start_time timestamp without time zone 会话的启动时间。 event text 具体的事件名称。 lwtid integer 当前线程的轻量级线程号。 psessionid bigint streaming线程的父线程。 tlevel integer streaming线程的层级。与执行计划的层级(id)相对应。 smpid integer smp执行模式下并行线程的并行编号。 userid oid session用户的id。 application_name text 应用的名称。 client_addr inet client端的地址。 client_hostname text client端的名称。 client_port integer 客户端用于与后端通讯的TCP端口号。 query_id bigint debug query id unique_query_id bigint unique query id user_id oid unique query的key中的user_id。 cn_id integer cn id，在DN上表示该unique sql来之该CN节点，unique query的key中的cn_id。 unique_query text 规范化后的UniqueSQL文本串。 locktag text 会话等待锁信息，可通过locktag_decode解析。 lockmode text 会话等待锁模式。 block_sessionid bigint 如果会话正在等待锁，阻塞该会话获取锁的会话标识。 final_block_sessionid bigint 表示源头阻塞会话id。 wait_status text 描述event列的更多详细信息。 global_sessionid text 全局会话ID。 xact_start_time timestamp with time zone 事务开始时间。 query_start_time timestamp with time zone 语句开始执行时间。 state text 当前语句状态。 可能取值为：active、idle in transaction、fastpath function call、idle in transaction (aborted)、disabled、retrying。 event_start_time timestamp with time zone wait event的开始时间。 current_xid xid 当前事务ID。 top_xid xid 顶层事务ID。",
+      "source_file": "2130_GLOBAL_ACTIVE_SESSION.txt"
+    },
+    {
+      "term": "SESSION_CPU_RUNTIME",
+      "content": "SESSION_CPU_RUNTIME SESSION_CPU_RUNTIME SESSION_CPU_RUNTIME视图显示和当前用户执行复杂作业（正在运行）时的负载管理CPU使用的信息。 表1 SESSION_CPU_RUNTIME字段 名称 类型 描述 datid oid 连接后端的数据库OID。 usename name 登录到该后端的用户名。 pid bigint 后端线程ID。 start_time timestamp with time zone 语句执行的开始时间。如果是存储过程、函数、package，则查询的是第一个查询时间，不会随着存储过程内语句运行而改变。 min_cpu_time bigint 语句在数据库节点上的最小CPU时间，单位为ms。 max_cpu_time bigint 语句在数据库节点上的最大CPU时间，单位为ms。 total_cpu_time bigint 语句在数据库节点上的CPU总时间，单位为ms。 query text 正在执行的语句。 node_group text 语句所属用户对应的逻辑数据库。 top_cpu_dn text cpu使用量topN信息。",
+      "source_file": "3812_SESSION_CPU_RUNTIME.txt"
+    },
+    {
+      "term": "SESSION_CPU_RUNTIME",
+      "content": "SESSION_CPU_RUNTIME SESSION_CPU_RUNTIME SESSION_CPU_RUNTIME视图显示当前用户执行复杂作业（正在运行）时的CPU使用信息。 表1 SESSION_CPU_RUNTIME字段 名称 类型 描述 datid oid 连接后端的数据库OID。 usename name 登录到该后端的用户名。 pid bigint 后端线程ID。 start_time timestamp with time zone 语句执行的开始时间。如果是存储过程、函数，则查询的是第一个查询时间，不会随着存储过程内语句运行而改变。 min_cpu_time bigint 语句在 所有DN 上的最小CPU时间，单位为ms。 max_cpu_time bigint 语句在 所有DN 上的最大CPU时间，单位为ms。 total_cpu_time bigint 语句在 所有DN 上的CPU总时间，单位为ms。 query text 正在执行的语句。 top_cpu_dn text cpu使用量topN信息。",
+      "source_file": "2126_SESSION_CPU_RUNTIME.txt"
+    },
+    {
+      "term": "GLOBAL_SESSION_STAT",
+      "content": "GLOBAL_SESSION_STAT GLOBAL_SESSION_STAT 各节点上以会话线程或AutoVacuum线程为单位，统计会话状态信息。 表1 GLOBAL_SESSION_STAT字段 名称 类型 描述 node_name name 节点名称。 sessid text 线程启动时间+线程标识。 statid integer 统计编号。 statname text 统计会话名称。 statunit text 统计会话单位。 value bigint 统计会话值。",
+      "source_file": "2113_GLOBAL_SESSION_STAT.txt"
+    },
+    {
+      "term": "SESSION_MEMORY",
+      "content": "SESSION_MEMORY SESSION_MEMORY 统计Session级别的内存使用情况，包含执行作业在数据节点上gaussdb线程和Stream线程分配的所有内存，单位为MB。 表1 SESSION_MEMORY字段 名称 类型 描述 sessid text 线程启动时间+线程标识。 init_mem integer 当前正在执行作业进入执行器前已分配的内存。 used_mem integer 当前正在执行作业已分配的内存。 peak_mem integer 当前正在执行作业已分配的内存峰值。",
+      "source_file": "2116_SESSION_MEMORY.txt"
+    },
+    {
+      "term": "SESSION_TIME",
+      "content": "SESSION_TIME SESSION_TIME 用于统计当前节点会话线程的运行时间信息，及各执行阶段所消耗时间。 表1 SESSION_TIME字段 名称 类型 描述 sessid text 线程启动时间+线程标识。 stat_id integer 统计编号。 stat_name text 会话类型名称。 value bigint 会话值。",
+      "source_file": "2114_SESSION_TIME.txt"
+    },
+    {
+      "term": "GLOBAL_SESSION_TIME",
+      "content": "GLOBAL_SESSION_TIME GLOBAL_SESSION_TIME 用于统计各节点会话线程的运行时间信息，及各执行阶段所消耗时间。 表1 GLOBAL_SESSION_TIME字段 名称 类型 描述 node_name name 节点名称。 sessid text 线程启动时间+线程标识。 stat_id integer 统计编号。 stat_name text 会话类型名称。 value bigint 会话值。",
+      "source_file": "2115_GLOBAL_SESSION_TIME.txt"
+    },
+    {
+      "term": "GLOBAL_THREAD_WAIT_STATUS",
+      "content": "GLOBAL_THREAD_WAIT_STATUS GLOBAL_THREAD_WAIT_STATUS 通过该视图可以检测所有节点上工作线程（backend thread）以及辅助线程（auxiliary thread）的阻塞等待情况。具体事件信息请参见 15.3.67-表2 等待状态列表 、 15.3.67-表3 轻量级锁等待事件列表 、 15.3.67-表4 IO等待事件列表 和 15.3.67-表5 事务锁等待事件列表 。 通过GLOBAL_THREAD_WAIT_STATUS视图，可以查看数据库全局各个节点上所有SQL语句产生的线程之间的调用层次关系，以及各个线程的阻塞等待状态，从而更容易定位hang以及类似现象的原因。 GLOBAL_THREAD_WAIT_STATUS视图和THREAD_WAIT_STATUS视图列定义完全相同，这是由于GLOBAL_THREAD_WAIT_STATUS视图本质是到数据库中各个节点上查询THREAD_WAIT_STATUS视图汇总的结果。 表1 GLOBAL_THREAD_WAIT_STATUS字段 名称 类型 描述 node_name text 数据库进程名称。 db_name text 数据库名称。 thread_name text 线程名称。 query_id bigint 查询ID，对应debug_query_id。 tid bigint 当前线程的线程号。 sessionid bigint session的ID lwtid integer 当前线程的轻量级线程号。 psessionid bigint streaming线程的父线程。 tlevel integer streaming线程的层级。 smpid integer 并行线程的ID。 wait_status text 当前线程的等待状态。等待状态的详细信息请参见 15.3.67-表2 等待状态列表 。 wait_event text 如果wait_status是acquire lock、acquire lwlock、wait io三种类型，此列描述具体的锁、轻量级锁、I/O的信息。否则是空。 locktag text 当前线程正在等待锁的信息。 lockmode text 当前线程正等待获取的锁模式。包含表级锁、行级锁、页级锁下的各模式。 block_sessionid bigint 阻塞当前线程获取锁的会话标识。 global_sessionid text 全局会话ID。",
+      "source_file": "3809_GLOBAL_THREAD_WAIT_STATUS.txt"
+    },
+    {
+      "term": "GLOBAL_SESSION_STAT",
+      "content": "GLOBAL_SESSION_STAT GLOBAL_SESSION_STAT 各节点上以会话线程或AutoVacuum线程为单位，统计会话状态信息。 表1 GLOBAL_SESSION_STAT字段 名称 类型 描述 node_name name 节点名称。 sessid text 线程启动时间+线程标识。 statid integer 统计编号。 statname text 统计会话名称。 statunit text 统计会话单位。 value bigint 统计会话值。",
+      "source_file": "3799_GLOBAL_SESSION_STAT.txt"
+    }
+  ]
+}

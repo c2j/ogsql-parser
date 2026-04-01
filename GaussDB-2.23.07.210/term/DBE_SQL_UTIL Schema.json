@@ -1,0 +1,111 @@
+{
+  "topic": "DBE_SQL_UTIL Schema",
+  "term_count": 21,
+  "terms": [
+    {
+      "term": "DBE_SQL_UTIL.show_sql_patch",
+      "content": "DBE_SQL_UTIL.show_sql_patch DBE_SQL_UTIL.show_sql_patch show_sql_patch是用于显示给定patch_name对应的SQL PATCH的接口函数，返回运行结果。 限制仅初始用户、sysadmin、opradmin、monadmin用户有权限调用。 表1 DBE_SQL_UTIL.show_sql_patch入参和返回值列表 参数 类型 描述 patch_name IN name PATCH名称。 unique_sql_id OUT bigint 查询全局唯一ID。 enabled OUT bool PATCH是否生效。 abort OUT bool 是否是AbortHint。 hint_str OUT text Hint文本。",
+      "source_file": "3973_DBE_SQL_UTIL.show_sql_patch.txt"
+    },
+    {
+      "term": "DBE_SQL_UTIL.create_abort_sql_patch",
+      "content": "DBE_SQL_UTIL.create_abort_sql_patch DBE_SQL_UTIL.create_abort_sql_patch create_abort_sql_patch是用于创建避险SQL PATCH的接口函数，返回执行是否成功。 限制仅初始用户、sysadmin、opradmin、monadmin用户有权限调用。 表1 DBE_SQL_UTIL.create_abort_sql_patch入参和返回值列表 参数 类型 描述 patch_name IN name PATCH名称。 unique_sql_id IN bigint 查询全局唯一ID。 description IN text PATCH的备注，默认值为NULL。 enabled IN bool PATCH是否生效，默认值为true。 result OUT bool 执行是否成功。",
+      "source_file": "3969_DBE_SQL_UTIL.create_abort_sql_patch.txt"
+    },
+    {
+      "term": "DBE_SQL_UTIL.create_abort_sql_patch",
+      "content": "DBE_SQL_UTIL.create_abort_sql_patch DBE_SQL_UTIL.create_abort_sql_patch create_abort_sql_patch是用于在当前建立连接的CN上创建避险SQL PATCH的接口函数，返回执行是否成功。 限制仅初始用户、sysadmin、opradmin、monadmin用户有权限调用。 CN之间SQL PATCH不共享，要在各个CN上单独创建。 开启负载均衡场景或者需要指定创建的CN的场景，推荐使用 DBE_SQL_UTIL.create_remote_abort_sql_patch 接口进行创建。 表1 DBE_SQL_UTIL.create_abort_sql_patch入参和返回值列表 参数 类型 描述 patch_name IN name PATCH名称。 unique_sql_id IN bigint 查询全局唯一ID。 description IN text PATCH的备注，默认值为NULL。 enabled IN bool PATCH是否生效，默认值为true。 result OUT bool 执行是否成功。",
+      "source_file": "2280_DBE_SQL_UTIL.create_abort_sql_patch.txt"
+    },
+    {
+      "term": "DBE_SQL_UTIL.create_hint_sql_patch",
+      "content": "DBE_SQL_UTIL.create_hint_sql_patch DBE_SQL_UTIL.create_hint_sql_patch create_hint_sql_patch是用于在当前建立连接的CN上创建调优SQL PATCH的接口函数，返回执行是否成功。 限制仅初始用户、sysadmin、opradmin、monadmin用户有权限调用。 CN之间SQL PATCH不共享，要在各个CN上单独创建。 开启负载均衡场景或者需要指定创建的CN的场景，推荐使用 DBE_SQL_UTIL.create_remote_hint_sql_patch 接口进行创建。 表1 DBE_SQL_UTIL.create_hint_sql_patch入参和返回值列表 参数 类型 描述 patch_name IN name PATCH名称。 unique_sql_id IN bigint 查询全局唯一ID。 hint_string IN text Hint文本。 description IN text PATCH的备注，默认值为NULL。 enabled IN bool PATCH是否生效，默认值为true。 result OUT bool 执行是否成功。",
+      "source_file": "2279_DBE_SQL_UTIL.create_hint_sql_patch.txt"
+    },
+    {
+      "term": "DBE_SQL_UTIL.create_hint_sql_patch",
+      "content": "DBE_SQL_UTIL.create_hint_sql_patch DBE_SQL_UTIL.create_hint_sql_patch create_hint_sql_patch是用于创建调优SQL PATCH的接口函数，返回执行是否成功。本函数是原函数的重载函数，支持通过parent_unique_sql_id值限制hint patch的生效范围。 限制仅初始用户、sysadmin、opradmin、monadmin用户有权限调用。 表1 DBE_SQL_UTIL.create_hint_sql_patch重载函数入参和返回值列表 参数 类型 描述 patch_name IN name PATCH名称。 unique_sql_id IN bigint 查询全局唯一ID。 parent_unique_sql_id IN bigint 标识外层SQL语句的全局唯一ID，值为0时表示限制存储过程外语句SQL PATCH生效；非0值表示限制特定存储过程生效。 hint_string IN text Hint文本。 description IN text PATCH的备注，默认值为NULL。 enabled IN bool PATCH是否生效，默认值为true。 result OUT bool 执行是否成功。",
+      "source_file": "2285_DBE_SQL_UTIL.create_hint_sql_patch.txt"
+    },
+    {
+      "term": "DBE_SQL_UTIL.show_sql_patch",
+      "content": "DBE_SQL_UTIL.show_sql_patch DBE_SQL_UTIL.show_sql_patch show_sql_patch是用于显示给定patch_name对应的SQL PATCH的接口函数，返回运行结果。 限制仅初始用户、sysadmin、opradmin、monadmin用户有权限调用。 表1 DBE_SQL_UTIL.show_sql_patch入参和返回值列表 参数 类型 描述 patch_name IN name PATCH名称。 unique_sql_id OUT bigint 查询全局唯一ID。 enabled OUT bool PATCH是否生效。 abort OUT bool 是否是AbortHint。 hint_str OUT text Hint文本。",
+      "source_file": "2284_DBE_SQL_UTIL.show_sql_patch.txt"
+    },
+    {
+      "term": "DBE_SQL_UTIL.enable_remote_sql_patch",
+      "content": "DBE_SQL_UTIL.enable_remote_sql_patch DBE_SQL_UTIL.enable_remote_sql_patch enable_remote_sql_patch是用于指定CN开启SQL PATCH的接口函数，返回执行是否成功。 限制仅初始用户、sysadmin、opradmin、monadmin用户有权限调用。 表1 DBE_SQL_UTIL.enable_remote_sql_patch入参和返回值列表 参数 类型 描述 node_name IN text 目标节点名。 patch_name IN name PATCH名称。 result OUT bool 执行是否成功。",
+      "source_file": "2290_DBE_SQL_UTIL.enable_remote_sql_patch.txt"
+    },
+    {
+      "term": "DBE_SQL_UTIL.disable_sql_patch",
+      "content": "DBE_SQL_UTIL.disable_sql_patch DBE_SQL_UTIL.disable_sql_patch disable_sql_patch是用于在当前建立连接的CN上禁用SQL PATCH的接口函数，返回执行是否成功。 限制仅初始用户、sysadmin、opradmin、monadmin用户有权限调用。 CN之间SQL PATCH不共享，要在各个CN上单独执行。 开启负载均衡场景或者需要指定创建的CN的场景，推荐使用 DBE_SQL_UTIL.disable_remote_sql_patch 接口进行禁用操作。 表1 DBE_SQL_UTIL.disable_sql_patch入参和返回值列表 参数 类型 描述 patch_name IN name PATCH名称。 result OUT bool 执行是否成功。",
+      "source_file": "2283_DBE_SQL_UTIL.disable_sql_patch.txt"
+    },
+    {
+      "term": "DBE_SQL_UTIL.disable_sql_patch",
+      "content": "DBE_SQL_UTIL.disable_sql_patch DBE_SQL_UTIL.disable_sql_patch disable_sql_patch是用于禁用SQL PATCH的接口函数，返回执行是否成功。 限制仅初始用户、sysadmin、opradmin、monadmin用户有权限调用。 表1 DBE_SQL_UTIL.disable_sql_patch入参和返回值列表 参数 类型 描述 patch_name IN name PATCH名称。 result OUT bool 执行是否成功。",
+      "source_file": "3972_DBE_SQL_UTIL.disable_sql_patch.txt"
+    },
+    {
+      "term": "DBE_SQL_UTIL.create_abort_sql_patch",
+      "content": "DBE_SQL_UTIL.create_abort_sql_patch DBE_SQL_UTIL.create_abort_sql_patch create_abort_sql_patch是用于创建避险SQL PATCH的接口函数，返回执行是否成功。本函数是原函数的重载函数，支持通过parent_unique_sql_id值限制abort patch的生效范围。 限制仅初始用户、sysadmin、opradmin、monadmin用户有权限调用。 表1 DBE_SQL_UTIL.create_abort_sql_patch重载函数入参和返回值列表 参数 类型 描述 patch_name IN name PATCH名称。 unique_sql_id IN bigint 查询全局唯一ID。 parent_unique_sql_id IN bigint 标识外层SQL语句的全局唯一ID，值为0时表示限制存储过程外语句SQL PATCH生效；非0值表示限制特定存储过程生效。 description IN text PATCH的备注，默认值为NULL。 enabled IN bool PATCH是否生效，默认值为true。 result OUT bool 执行是否成功。",
+      "source_file": "2286_DBE_SQL_UTIL.create_abort_sql_patch.txt"
+    },
+    {
+      "term": "DBE_SQL_UTIL.drop_sql_patch",
+      "content": "DBE_SQL_UTIL.drop_sql_patch DBE_SQL_UTIL.drop_sql_patch drop_sql_patch是用于删除SQL PATCH的接口函数，返回执行是否成功。 限制仅初始用户、sysadmin、opradmin、monadmin用户有权限调用。 表1 DBE_SQL_UTIL.drop_sql_patch入参和返回值列表 参数 类型 描述 patch_name IN name PATCH名称。 result OUT bool 执行是否成功。",
+      "source_file": "3970_DBE_SQL_UTIL.drop_sql_patch.txt"
+    },
+    {
+      "term": "DBE_SQL_UTIL.create_hint_sql_patch",
+      "content": "DBE_SQL_UTIL.create_hint_sql_patch DBE_SQL_UTIL.create_hint_sql_patch create_hint_sql_patch是用于创建调优SQL PATCH的接口函数，返回执行是否成功。 限制仅初始用户、sysadmin、opradmin、monadmin用户有权限调用。 表1 DBE_SQL_UTIL.create_hint_sql_patch入参和返回值列表 参数 类型 描述 patch_name IN name PATCH名称。 unique_sql_id IN bigint 查询全局唯一ID。 hint_string IN text Hint文本。 description IN text PATCH的备注，默认值为NULL。 enabled IN bool PATCH是否生效，默认值为true。 result OUT bool 执行是否成功。",
+      "source_file": "3968_DBE_SQL_UTIL.create_hint_sql_patch.txt"
+    },
+    {
+      "term": "DBE_SQL_UTIL.drop_remote_sql_patch",
+      "content": "DBE_SQL_UTIL.drop_remote_sql_patch DBE_SQL_UTIL.drop_remote_sql_patch drop_remote_sql_patch是用于指定CN删除SQL PATCH的接口函数，返回执行是否成功。 限制仅初始用户、sysadmin、opradmin、monadmin用户有权限调用。 表1 DBE_SQL_UTIL.drop_remote_sql_patch入参和返回值列表 参数 类型 描述 node_name IN text 目标节点名。 patch_name IN name PATCH名称。 result OUT bool 执行是否成功。",
+      "source_file": "2289_DBE_SQL_UTIL.drop_remote_sql_patch.txt"
+    },
+    {
+      "term": "DBE_SQL_UTIL.create_abort_sql_patch",
+      "content": "DBE_SQL_UTIL.create_abort_sql_patch DBE_SQL_UTIL.create_abort_sql_patch create_abort_sql_patch是用于创建避险SQL PATCH的接口函数，返回执行是否成功。本函数是原函数的重载函数，支持通过parent_unique_sql_id值限制abort patch的生效范围。 限制仅初始用户、sysadmin、opradmin、monadmin用户有权限调用。 表1 DBE_SQL_UTIL.create_abort_sql_patch重载函数入参和返回值列表 参数 类型 描述 patch_name IN name PATCH名称。 unique_sql_id IN bigint 查询全局唯一ID。 parent_unique_sql_id IN bigint 标识外层SQL语句的全局唯一ID，值为0时表示限制存储过程外语句SQL PATCH生效；非0值表示限制特定存储过程生效。 description IN text PATCH的备注，默认值为NULL。 enabled IN bool PATCH是否生效，默认值为true。 result OUT bool 执行是否成功。",
+      "source_file": "3975_DBE_SQL_UTIL.create_abort_sql_patch.txt"
+    },
+    {
+      "term": "DBE_SQL_UTIL.enable_sql_patch",
+      "content": "DBE_SQL_UTIL.enable_sql_patch DBE_SQL_UTIL.enable_sql_patch enable_sql_patch是用于开启SQL PATCH的接口函数，返回执行是否成功。 限制仅初始用户、sysadmin、opradmin、monadmin用户有权限调用。 表1 DBE_SQL_UTIL.enable_sql_patch入参和返回值列表 参数 类型 描述 patch_name IN name PATCH名称。 result OUT bool 执行是否成功。",
+      "source_file": "3971_DBE_SQL_UTIL.enable_sql_patch.txt"
+    },
+    {
+      "term": "DBE_SQL_UTIL.enable_sql_patch",
+      "content": "DBE_SQL_UTIL.enable_sql_patch DBE_SQL_UTIL.enable_sql_patch enable_sql_patch是用于在当前建立连接的CN上开启SQL PATCH的接口函数，返回执行是否成功。 限制仅初始用户、sysadmin、opradmin、monadmin用户有权限调用。 CN之间SQL PATCH不共享，要在各个CN上单独执行。 开启负载均衡场景或者需要指定创建的CN的场景，推荐使用 DBE_SQL_UTIL.enable_remote_sql_patch 接口进行开启操作。 表1 DBE_SQL_UTIL.enable_sql_patch入参和返回值列表 参数 类型 描述 patch_name IN name PATCH名称。 result OUT bool 执行是否成功。",
+      "source_file": "2282_DBE_SQL_UTIL.enable_sql_patch.txt"
+    },
+    {
+      "term": "DBE_SQL_UTIL.drop_sql_patch",
+      "content": "DBE_SQL_UTIL.drop_sql_patch DBE_SQL_UTIL.drop_sql_patch drop_sql_patch是用于在当前建立连接的CN上删除SQL PATCH的接口函数，返回执行是否成功。 限制仅初始用户、sysadmin、opradmin、monadmin用户有权限调用。 CN之间SQL PATCH不共享，要在各个CN上单独执行。 开启负载均衡场景或者需要指定创建的CN的场景，推荐使用 DBE_SQL_UTIL.drop_remote_sql_patch 接口进行删除操作。 表1 DBE_SQL_UTIL.drop_sql_patch入参和返回值列表 参数 类型 描述 patch_name IN name PATCH名称。 result OUT bool 执行是否成功。",
+      "source_file": "2281_DBE_SQL_UTIL.drop_sql_patch.txt"
+    },
+    {
+      "term": "DBE_SQL_UTIL.create_remote_hint_sql_patch",
+      "content": "DBE_SQL_UTIL.create_remote_hint_sql_patch DBE_SQL_UTIL.create_remote_hint_sql_patch create_remote_hint_sql_patch是用于指定CN创建调优SQL PATCH的接口函数，返回执行是否成功。 限制仅初始用户、sysadmin、opradmin、monadmin用户有权限调用。 表1 DBE_SQL_UTIL.create_remote_hint_sql_patch入参和返回值列表 参数 类型 描述 node_name IN text 目标节点名。 patch_name IN name PATCH名称。 unique_sql_id IN bigint 查询全局唯一ID。 hint_string IN text Hint文本。 description IN text PATCH的备注，默认值为NULL。 enabled IN bool PATCH是否生效，默认值为true。 result OUT bool 执行是否成功。",
+      "source_file": "2287_DBE_SQL_UTIL.create_remote_hint_sql_patch.txt"
+    },
+    {
+      "term": "DBE_SQL_UTIL.disable_remote_sql_patch",
+      "content": "DBE_SQL_UTIL.disable_remote_sql_patch DBE_SQL_UTIL.disable_remote_sql_patch disable_remote_sql_patch是用于指定CN禁用SQL PATCH的接口函数，返回执行是否成功。 限制仅初始用户、sysadmin、opradmin、monadmin用户有权限调用。 表1 DBE_SQL_UTIL.disable_remote_sql_patch入参和返回值列表 参数 类型 描述 node_name IN text 目标节点名。 patch_name IN name PATCH名称。 result OUT bool 执行是否成功。",
+      "source_file": "2291_DBE_SQL_UTIL.disable_remote_sql_patch.txt"
+    },
+    {
+      "term": "DBE_SQL_UTIL.create_hint_sql_patch",
+      "content": "DBE_SQL_UTIL.create_hint_sql_patch DBE_SQL_UTIL.create_hint_sql_patch create_hint_sql_patch是用于创建调优SQL PATCH的接口函数，返回执行是否成功。本函数是原函数的重载函数，支持通过parent_unique_sql_id值限制hint patch的生效范围。 限制仅初始用户、sysadmin、opradmin、monadmin用户有权限调用。 表1 DBE_SQL_UTIL.create_hint_sql_patch重载函数入参和返回值列表 参数 类型 描述 patch_name IN name PATCH名称。 unique_sql_id IN bigint 查询全局唯一ID。 parent_unique_sql_id IN bigint 标识外层SQL语句的全局唯一ID，值为0时表示限制存储过程外语句SQL PATCH生效；非0值表示限制特定存储过程生效。 hint_string IN text Hint文本。 description IN text PATCH的备注，默认值为NULL。 enabled IN bool PATCH是否生效，默认值为true。 result OUT bool 执行是否成功。",
+      "source_file": "3974_DBE_SQL_UTIL.create_hint_sql_patch.txt"
+    },
+    {
+      "term": "DBE_SQL_UTIL.create_remote_abort_sql_patch",
+      "content": "DBE_SQL_UTIL.create_remote_abort_sql_patch DBE_SQL_UTIL.create_remote_abort_sql_patch create_remote_abort_sql_patch是用于指定CN创建避险SQL PATCH的接口函数，返回执行是否成功。 限制仅初始用户、sysadmin、opradmin、monadmin用户有权限调用。 表1 DBE_SQL_UTIL.create_remote_abort_sql_patch入参和返回值列表 参数 类型 描述 node_name IN text 目标节点名。 patch_name IN name PATCH名称。 unique_sql_id IN bigint 查询全局唯一ID。 description IN text PATCH的备注，默认值为NULL。 enabled IN bool PATCH是否生效，默认值为true。 result OUT bool 执行是否成功。",
+      "source_file": "2288_DBE_SQL_UTIL.create_remote_abort_sql_patch.txt"
+    }
+  ]
+}

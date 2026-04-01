@@ -1,0 +1,1 @@
+DBE_PLDEVELOPER DBE_PLDEVELOPER DBE_PLDEVELOPER下系统表用于记录PL/SQL包、函数及存储过程编译过程中需要记录的信息。 DBE_PLDEVELOPER.gs_source DBE_PLDEVELOPER.gs_errors 父主题： Schema 版权所有 © 华为技术有限公司

@@ -1,0 +1,46 @@
+{
+  "topic": "安装后检查",
+  "term_count": 8,
+  "terms": [
+    {
+      "term": "检查BMS启动方式",
+      "content": "检查BMS启动方式 检查BMS启动方式 BMS部署形态下，服务安装后，需要检查BMS服务器的启动方式。确保BMS服务器与镜像的启动方式一致。 操作步骤 使用浏览器，通过地址“https:// ManageOne运维面主页的访问地址 :31943”，登录ManageOne运维面，或通过地址“https:// ManageOne主门户的访问地址 ”，登录ManageOne主门户，选择“运维中心（OC）”，进入ManageOne运维面。 密码方式：输入帐号和密码。 默认帐号：bss_admin 如果是升级场景，默认帐号为admin。 默认密码：参见 《华为云Stack 8.3.0 帐户一览表》 的“A类（Portal）”页签中，“ManageOne运维面”帐户对应的默认密码。 USB Key方式：插入已预置用户证书的USB Key，选择设备和用户证书，并输入PIN码 在“常用链接”栏中单击“Service OM”，并选择相应区域，跳转到对应区域的Service OM界面。 在页面上方的导航栏，选择 “ 服务列表 > 资源 > 镜像资源 ” ，进入镜像资源界面。 如图所示，根据裸金属服务器的操作系统架构查看X86或者ARM镜像启动方式。 在页面上方的导航栏，选择 “ 服务列表 > 资源 > 裸金属资源 ” ，进入裸金属资源界面。 查看所有裸金属服务器的启动方式。如果与对应镜像的启动方式不一致，需要手动修改启动方式。",
+      "source_file": "103_BMS.txt"
+    },
+    {
+      "term": "检查BMS启动方式",
+      "content": "检查BMS启动方式 检查BMS启动方式 BMS部署形态下，服务安装后，需要检查BMS服务器的启动方式。确保BMS服务器与镜像的启动方式一致。 操作步骤 使用浏览器，通过地址“https:// ManageOne运维面主页的访问地址 :31943”，登录ManageOne运维面，或通过地址“https:// ManageOne主门户的访问地址 ”，登录ManageOne主门户，选择“运维中心（OC）”，进入ManageOne运维面。 密码方式：输入帐号和密码。 默认帐号：bss_admin 如果是升级场景，默认帐号为admin。 默认密码：参见 《华为云Stack 8.3.0 帐户一览表》 的“A类（Portal）”页签中，“ManageOne运维面”帐户对应的默认密码。 USB Key方式：插入已预置用户证书的USB Key，选择设备和用户证书，并输入PIN码 在“常用链接”栏中单击“Service OM”，并选择相应区域，跳转到对应区域的Service OM界面。 在页面上方的导航栏，选择 “ 服务列表 > 资源 > 镜像资源 ” ，进入镜像资源界面。 如图所示，根据裸金属服务器的操作系统架构查看X86或者ARM镜像启动方式。 在页面上方的导航栏，选择 “ 服务列表 > 资源 > 裸金属资源 ” ，进入裸金属资源界面。 查看所有裸金属服务器的启动方式。如果与对应镜像的启动方式不一致，需要手动修改启动方式。",
+      "source_file": "047_BMS.txt"
+    },
+    {
+      "term": "数据库容灾服务安装后配置",
+      "content": "数据库容灾服务安装后配置 数据库容灾服务安装后配置 如果 在“扩容组件确认”界面 选择了“数据库容灾服务”，则需要执行本章的操作。 操作步骤 使用浏览器，通过地址“https:// ManageOne运维面主页的访问地址 :31943”，登录ManageOne运维面，或通过地址“https:// ManageOne主门户的访问地址 ”，登录ManageOne主门户，选择“运维中心（OC）”，进入ManageOne运维面。 密码方式：输入帐号和密码。 默认帐号：bss_admin 如果是升级场景，默认帐号为admin。 默认密码：参见 《华为云Stack 8.3.0 帐户一览表》 的“A类（Portal）”页签中，“ManageOne运维面”帐户对应的默认密码。 USB Key方式：插入已预置用户证书的USB Key，选择设备和用户证书，并输入PIN码 在ManageOne运维面页面的“常用链接”栏中单击“ServiceCM”，跳转到ServiceCM插件列表界面。 在ServiceCM插件列表界面，单击“自助开发平台 > dbs-ops”，进入DBS运维管理平台。 单击左侧实例运维 > 配置管理 > 系统参数管理。 在左侧下拉框选择DBS_SYSTEM_PARAMETER，搜索框输入YGGDRASIL_ENDPOINT，单击右侧搜索按钮进行搜索。 修改参数值为https://dbs-dr.{global域名}:46449/yggdrasil/ Global域名从《环境安装底座LLD信息表》中1.2基本参数页面，global_domain_name字段对应的结果获取。 查询“YGGDRASIL_ENABLED”参数 ，并修改为True。 单击重置OPS缓存即可生效。 修改白名单。 单击左侧 实例运维 -> 配置管理 选择特性白名单 在特性名称中输入gaussdb_feature_supportDisasterApiGlobal 单击查询。 在查询结果中单击右侧“特性发布”。 弹出窗口选择“发布”，点击确定",
+      "source_file": "049_file_49.txt"
+    },
+    {
+      "term": "手动关闭GuestOS_Agent自动升级",
+      "content": "手动关闭GuestOS_Agent自动升级 手动关闭GuestOS_Agent自动升级 BMS部署形态安装或者升级新版本后，需要手动关闭GuestOS_Agent自动升级。 操作步骤 使用浏览器，通过地址“https:// ManageOne运维面主页的访问地址 :31943”，登录ManageOne运维面，或通过地址“https:// ManageOne主门户的访问地址 ”，登录ManageOne主门户，选择“运维中心（OC）”，进入ManageOne运维面。 密码方式：输入帐号和密码。 默认帐号：bss_admin 如果是升级场景，默认帐号为admin。 默认密码：参见 《华为云Stack 8.3.0 帐户一览表》 的“A类（Portal）”页签中，“ManageOne运维面”帐户对应的默认密码。 USB Key方式：插入已预置用户证书的USB Key，选择设备和用户证书，并输入PIN码 在ManageOne运维面选择“常用链接”栏中单击“Service OM”，并选择相应区域，跳转到对应区域的Service OM界面。 在上方选择 “服务列表 > 资源 > 裸金属资源” 。 选择“GuestOS_Agent”。 在页面中，单击“关闭GuestOS_Agent自动升级”。",
+      "source_file": "104_GuestOS_Agent.txt"
+    },
+    {
+      "term": "BMS实例发放前检查",
+      "content": "BMS实例发放前检查 BMS实例发放前检查 部署形态 console显示 volume规格 参数组名称 solution值 部署形态 BMS个数 主备 1主2备 gaussdb.opengauss.volume.localssd.3.ha Default-Enterprise-Edition-GaussDB triset 1+1+1 3 1主3备 gaussdb.opengauss.volume.localssd.4.ha Default-Enterprise-Edition-GaussDB quadruset 2+2+1 5 单副本 gaussdb.opengauss.volume.localssd.1.ha Default-Enterprise-Edition-GaussDB single 1 1 1主1备 gaussdb.opengauss.volume.localssd.2.ha Default-Enterprise-Edition-GaussDB double 1+1 2 分布式 金融版（数据计算型） gaussdb.opengauss.volume.localssd.2.co Default-Computation-Edition-GaussDB hcs4 2+2+1 5 企业版 gaussdb.opengauss.volume.localssd.3.co Default-Enterprise-Edition-GaussDB hcs2 1+1+1 3 金融版（标准型） gaussdb.opengauss.volume.localssd.4.co Default-Finance-Edition-GaussDB hcs1 4+4+1 9 企业版 灾备实例 gaussdb.opengauss.volume.localssd.1.co Default-Single-Replica-Disaster-GaussDB hcs6 1 1 BMS资源满足度检查 BMS裸金属发放验证和回收 BMS高速网络平面两中心互通（两地三中心检查） BMS JBOD模式禁用检查 BMS PXE是否打开 BMS高速网络与低速网络vlan分配数量检查 BMS机器网卡检查 BMS高速网络平面两中心间带宽（两地三中心检查） L3GW网络测试（两地三中心检查） 管理区到BMS网络测试 检查数据库VPC所在资源空间 管理面通信矩阵放通检查 数据库可用AZ命名与BMS可用分区一致 BMS管控规格关联度检查 引擎、规格与BMS可用分区绑定检查 检查BMS节点磁盘和管控磁盘大小 检查底层规格与物理机绑定情况",
+      "source_file": "106_BMS.txt"
+    },
+    {
+      "term": "BMS实例发放前检查",
+      "content": "BMS实例发放前检查 BMS实例发放前检查 部署形态 console显示 volume规格 参数组名称 solution值 部署形态 BMS个数 主备 1主2备 gaussdb.opengauss.volume.localssd.3.ha Default-Enterprise-Edition-GaussDB triset 1+1+1 3 1主3备 gaussdb.opengauss.volume.localssd.4.ha Default-Enterprise-Edition-GaussDB quadruset 2+2+1 5 单副本 gaussdb.opengauss.volume.localssd.1.ha Default-Enterprise-Edition-GaussDB single 1 1 1主1备 gaussdb.opengauss.volume.localssd.2.ha Default-Enterprise-Edition-GaussDB double 1+1 2 分布式 金融版（数据计算型） gaussdb.opengauss.volume.localssd.2.co Default-Computation-Edition-GaussDB hcs4 2+2+1 5 企业版 gaussdb.opengauss.volume.localssd.3.co Default-Enterprise-Edition-GaussDB hcs2 1+1+1 3 金融版（标准型） gaussdb.opengauss.volume.localssd.4.co Default-Finance-Edition-GaussDB hcs1 4+4+1 9 企业版 灾备实例 gaussdb.opengauss.volume.localssd.1.co Default-Single-Replica-Disaster-GaussDB hcs6 1 1 BMS资源满足度检查 BMS裸金属发放验证和回收 BMS高速网络平面两中心互通（两地三中心检查） BMS JBOD模式禁用检查 BMS PXE是否打开 BMS高速网络与低速网络vlan分配数量检查 BMS机器网卡检查 BMS高速网络平面两中心间带宽（两地三中心检查） L3GW网络测试（两地三中心检查） 管理区到BMS网络测试 检查数据库VPC所在资源空间 管理面通信矩阵放通检查 数据库可用AZ命名与BMS可用分区一致 BMS管控规格关联度检查 引擎、规格与BMS可用分区绑定检查 检查BMS节点磁盘和管控磁盘大小 检查底层规格与物理机绑定情况",
+      "source_file": "050_BMS.txt"
+    },
+    {
+      "term": "手动关闭GuestOS_Agent自动升级",
+      "content": "手动关闭GuestOS_Agent自动升级 手动关闭GuestOS_Agent自动升级 BMS部署形态安装或者升级新版本后，需要手动关闭GuestOS_Agent自动升级。 操作步骤 使用浏览器，通过地址“https:// ManageOne运维面主页的访问地址 :31943”，登录ManageOne运维面，或通过地址“https:// ManageOne主门户的访问地址 ”，登录ManageOne主门户，选择“运维中心（OC）”，进入ManageOne运维面。 密码方式：输入帐号和密码。 默认帐号：bss_admin 如果是升级场景，默认帐号为admin。 默认密码：参见 《华为云Stack 8.3.0 帐户一览表》 的“A类（Portal）”页签中，“ManageOne运维面”帐户对应的默认密码。 USB Key方式：插入已预置用户证书的USB Key，选择设备和用户证书，并输入PIN码 在ManageOne运维面选择“常用链接”栏中单击“Service OM”，并选择相应区域，跳转到对应区域的Service OM界面。 在上方选择 “服务列表 > 资源 > 裸金属资源” 。 选择“GuestOS_Agent”。 在页面中，单击“关闭GuestOS_Agent自动升级”。",
+      "source_file": "048_GuestOS_Agent.txt"
+    },
+    {
+      "term": "数据库容灾服务安装后配置",
+      "content": "数据库容灾服务安装后配置 数据库容灾服务安装后配置 如果 在“扩容组件确认”界面 选择了“数据库容灾服务”，则需要执行本章的操作。 操作步骤 使用浏览器，通过地址“https:// ManageOne运维面主页的访问地址 :31943”，登录ManageOne运维面，或通过地址“https:// ManageOne主门户的访问地址 ”，登录ManageOne主门户，选择“运维中心（OC）”，进入ManageOne运维面。 密码方式：输入帐号和密码。 默认帐号：bss_admin 如果是升级场景，默认帐号为admin。 默认密码：参见 《华为云Stack 8.3.0 帐户一览表》 的“A类（Portal）”页签中，“ManageOne运维面”帐户对应的默认密码。 USB Key方式：插入已预置用户证书的USB Key，选择设备和用户证书，并输入PIN码 在ManageOne运维面页面的“常用链接”栏中单击“ServiceCM”，跳转到ServiceCM插件列表界面。 在ServiceCM插件列表界面，单击“自助开发平台 > dbs-ops”，进入DBS运维管理平台。 单击左侧实例运维 > 配置管理 > 系统参数管理。 在左侧下拉框选择DBS_SYSTEM_PARAMETER，搜索框输入YGGDRASIL_ENDPOINT，单击右侧搜索按钮进行搜索。 修改参数值为https://dbs-dr.{global域名}:46449/yggdrasil/ Global域名从《环境安装底座LLD信息表》中1.2基本参数页面，global_domain_name字段对应的结果获取。 查询“YGGDRASIL_ENABLED”参数 ，并修改为True。 单击重置OPS缓存即可生效。 修改白名单。 单击左侧 实例运维 -> 配置管理 选择特性白名单 在特性名称中输入gaussdb_feature_supportDisasterApiGlobal 单击查询。 在查询结果中单击右侧“特性发布”。 弹出窗口选择“发布”，点击确定",
+      "source_file": "105_file_105.txt"
+    }
+  ]
+}

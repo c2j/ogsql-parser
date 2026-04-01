@@ -1,0 +1,42 @@
+调用语句 调用语句 语法 调用一个语句的语法请参见 图1 。 图1 call_clause::= 对以上语法格式的解释如下： procedure_name：存储过程名。 parameter：存储过程的参数，可以没有或者有多个参数。 示例 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27
+28
+29
+30
+31
+32
+33
+34
+35
+36
+37
+38
+39
+40
+41
+42 --建表 gaussdb =# CREATE SCHEMA hr ; gaussdb =# SET CURRENT_SCHEMA = hr ; gaussdb =# CREATE TABLE staffs ( section_id INTEGER , salary INTEGER ); gaussdb =# INSERT INTO staffs VALUES ( 30 , 10 ); gaussdb =# INSERT INTO staffs VALUES ( 30 , 20 ); --创建存储过程proc_staffs gaussdb =# CREATE OR REPLACE PROCEDURE proc_staffs ( section NUMBER ( 6 ), salary_sum out NUMBER ( 8 , 2 ), staffs_count out INTEGER ) IS BEGIN SELECT sum ( salary ), count ( * ) INTO salary_sum , staffs_count FROM hr . staffs where section_id = section ; END ; / --创建存储过程proc_return. gaussdb =# CREATE OR REPLACE PROCEDURE proc_return AS v_num NUMBER ( 8 , 2 ); v_sum INTEGER ; BEGIN proc_staffs ( 30 , v_sum , v_num ); --调用语句 dbe_output . print_line ( v_sum || '#' || v_num ); RETURN ; --返回语句 END ; / --调用存储过程proc_return. gaussdb =# CALL proc_return (); --清除存储过程 gaussdb =# DROP PROCEDURE proc_staffs ; gaussdb =# DROP PROCEDURE proc_return ; 父主题： 基本语句 版权所有 © 华为技术有限公司

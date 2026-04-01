@@ -1,0 +1,12 @@
+查询可恢复时间段 查询可恢复时间段 功能介绍 查询可恢复时间段。 调用接口前，您需要提前 获取终端节点 ，即下文中的Endpoint值。 URI URI格式 GET https://{ Endpoint }/gaussdb/v3/{project_id}/instances/{instance_id}/restore-time?date={date} URI样例 https://gaussdb-opengauss-api.sa-fb-2.hcsglobal.com/gaussdb/v3/0483b6b16e954cb88930a360d2c4e663/instances/d2113b7c60154636b94bea1320b6a874in14/restore-time?date=2022-04-17 参数说明 表1 参数说明 参数 是否必选 参数类型 描述 project_id 是 String 租户在某一region下的project ID。 获取方法请参见 获取项目ID/名称 。 instance_id 是 String 实例ID。 date 是 String 所需查询的日期，为yyyy-mm-dd字符串格式，时区为UTC。 schema_type 否 String 备份类别取值, 默认值：INSTANCE。 枚举值： INSTANCE： 实例级备份。 DATABASE_TABLE： 表级备份。 请求消息 无。 响应消息 正常响应要素说明 表2 参数说明 参数 参数类型 描述 restore_time Array of objects 可恢复时间段列表。 详情请参见 表3 表3 restore_time字段数据结构说明 参数 参数类型 描述 start_time Long 可恢复时间段的起始时间点，UNIX时间戳格式，单位是毫秒，时区是UTC+8。 end_time Long 可恢复时间段的结束时间点，UNIX时间戳格式，单位是毫秒，时区是UTC+8。 正常响应样例 {
+    "restore_time": [
+        {
+            "start_time": 1652084311000,
+            "end_time": 1652092839000
+        },
+        {
+            "start_time": 1652092847000,
+            "end_time": 1652094792000
+        }
+    ]
+} 异常响应 请参见 异常请求结果 。 状态码 正常 200 异常 请参见 状态码 。 错误码 请参见 错误码 。 父主题： 备份管理 版权所有 © 华为技术有限公司

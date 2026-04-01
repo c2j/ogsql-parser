@@ -1,0 +1,1 @@
+PG_RULES PG_RULES PG_RULES视图可用来查询重写规则的有用信息。具体字段信息如 表1 所示。 表1 PG_RULES字段 名称 类型 描述 schemaname name 表的模式名称。 tablename name 规则作用的表的名称。 rulename name 规则的名称。 definition text 规则的定义（由CREATE语句重新构造获得）。 父主题： 其他系统视图 版权所有 © 华为技术有限公司

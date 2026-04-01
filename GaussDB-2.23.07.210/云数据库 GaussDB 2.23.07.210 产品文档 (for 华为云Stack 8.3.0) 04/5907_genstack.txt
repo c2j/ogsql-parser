@@ -1,0 +1,4 @@
+genstack命令 genstack命令 功能 genstack命令用于生成调用堆栈信息并将其打印到日志文件。 命令格式 python3 GaussRoach.py -t genstack 参数说明 完整选项 缩写选项 数据类型 说明 取值范围 缺省值 应用实例 -t -t 字符串 Roach接口支持多种功能。使用genstack值指定此选项将调用生成调用堆栈功能。 -t backup -t stop -t delete -t restore -t genstack -t getobject -t start -t clean -t config -t archive -t snapshot_restore -t version -t help 不涉及 -t genstack 使用指南 无 命令示例 生成调用堆栈跟踪。 python3 GaussRoach.py -t genstack 系统回显 Generating stack trace for all gs_roach processes into logfile
+List of nodes for stack trace generation: ['hghproach00004', 'hghproach00005', 'hghproach00008']
+Successfully generated stack trace
+Roach operation genstack completed. 父主题： 命令行参考 版权所有 © 华为技术有限公司

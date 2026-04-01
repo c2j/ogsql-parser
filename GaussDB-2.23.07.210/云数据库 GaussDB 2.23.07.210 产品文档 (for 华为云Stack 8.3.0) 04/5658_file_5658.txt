@@ -1,0 +1,1 @@
+创建用户 创建用户 登录CloudScope，进入CloudOpsAuth页面。 打开链接：https:// {CloudScope域名} /CloudOpsAuth/#/order-mgmt/list/my-todo 账户名：admin 在左侧导航栏选择“用户”，单击“创建”。 基本信息参考如下，单击“下一步”。 选择默认的时间策略，单击“确定”。 父主题： 创建非Admin用户并授权 版权所有 © 华为技术有限公司

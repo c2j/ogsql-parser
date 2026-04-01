@@ -1,0 +1,21 @@
+{
+  "topic": "删除分区",
+  "term_count": 3,
+  "terms": [
+    {
+      "term": "对二级分区表删除二级分区",
+      "content": "对二级分区表删除二级分区 对二级分区表删除二级分区 使用ALTER TABLE DROP SUBPARTITION可以删除二级分区表的一个二级分区，这个行为可以作用在二级分区策略为RANGE或者LIST的情况。 例如，通过指定分区名删除二级分区表range_list_sales的二级分区date_202005_channel1，并更新Global索引。 ALTER TABLE range_list_sales DROP SUBPARTITION date_202005_channel1 UPDATE GLOBAL INDEX; 或者，通过指定分区值来删除二级分区表range_list_sales中('2020-05-08', '0')所对应的二级分区。由于不带UPDATE GLOBAL INDEX子句，执行该命令后Global索引会失效。 ALTER TABLE range_list_sales DROP SUBPARTITION FOR ('2020-05-08', '0'); 当二级分区表所删除的目标分区只有一个二级分区时，不支持通过ALTER TABLE DROP SUBPARTITION命令删除二级分区。 当二级分区表的二级分区策略为HASH时，不支持通过ALTER TABLE DROP SUBPARTITION命令删除二级分区。",
+      "source_file": "4569_file_4569.txt"
+    },
+    {
+      "term": "对二级分区表删除一级分区",
+      "content": "对二级分区表删除一级分区 对二级分区表删除一级分区 使用ALTER TABLE DROP PARTITION可以删除二级分区表的一个一级分区，这个行为可以作用在一级分区策略为RANGE或者LIST的情况。数据库会将这个一级分区，以及一级分区下的所有二级分区都删除。 例如，通过指定分区名删除二级分区表range_list_sales的一级分区date_202005，并更新Global索引。 ALTER TABLE range_list_sales DROP PARTITION date_202005 UPDATE GLOBAL INDEX; 或者，通过指定分区值来删除二级分区表range_list_sales中('2020-05-08')所对应的一级分区。由于不带UPDATE GLOBAL INDEX子句，执行该命令后Global索引会失效。 ALTER TABLE range_list_sales DROP PARTITION FOR ('2020-05-08'); 当二级分区表只有一个一级分区时，不支持通过ALTER TABLE DROP PARTITION命令删除一级分区。 当二级分区表的一级分区策略为HASH时，不支持通过ALTER TABLE DROP PARTITION命令删除一级分区。",
+      "source_file": "4568_file_4568.txt"
+    },
+    {
+      "term": "对一级分区表删除分区",
+      "content": "对一级分区表删除分区 对一级分区表删除分区 使用ALTER TABLE DROP PARTITION可以删除指定分区表的任何一个分区，这个行为可以作用在范围分区表、间隔分区表、列表分区表上。 例如，通过指定分区名删除范围分区表range_sales的分区date_202005，并更新Global索引。 ALTER TABLE range_sales DROP PARTITION date_202005 UPDATE GLOBAL INDEX; 或者，通过指定分区值来删除范围分区表range_sales中'2020-05-08'所对应的分区。由于不带UPDATE GLOBAL INDEX子句，执行该命令后Global索引会失效。 ALTER TABLE range_sales DROP PARTITION FOR ('2020-05-08'); 当分区表只有一个分区时，不支持通过ALTER TABLE DROP PARTITION命令删除分区。 当分区表为哈希分区表时，不支持通过ALTER TABLE DROP PARTITION命令删除分区。",
+      "source_file": "4567_file_4567.txt"
+    }
+  ]
+}

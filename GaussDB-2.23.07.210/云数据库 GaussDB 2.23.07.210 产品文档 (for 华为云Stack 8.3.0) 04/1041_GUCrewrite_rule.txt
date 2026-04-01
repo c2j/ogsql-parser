@@ -1,0 +1,293 @@
+案例：调整查询重写GUC参数rewrite_rule 案例：调整查询重写GUC参数rewrite_rule rewrite_rule包含了多个查询重写规则：magicset、partialpush、uniquecheck、disablerep、intargetlist、predpush等。下面简要说明其中重要的几个规则的使用场景： 部分下推参数partialpush的使用 查询下推到DN分布式执行，可以大大加速查询。如果查询语句中有一个不能下推的因素，整个语句就不能下推，无法生成Stream计划在DN分布式执行，性能通常较差。 举例如下查询： yshen=# set rewrite_rule='none'; 
+SET
+yshen=# explain (verbose on, costs off)  select two_sum(tt.c1, tt.c2) from (select t1.c1,t2.c2 from t1,t2 where t1.c1=t2.c2) tt(c1,c2);
+                              QUERY PLAN
+----------------------------------------------------------------------
+ Hash Join
+   Output: two_sum(t1.c1, t2.c2)
+   Hash Cond: (t1.c1 = t2.c2)
+   ->  Data Node Scan on t1 "_REMOTE_TABLE_QUERY_"
+         Output: t1.c1
+         Node/s: All datanodes
+         Remote query: SELECT c1 FROM ONLY public.t1 WHERE true
+   ->  Hash
+         Output: t2.c2
+         ->  Data Node Scan on t2 "_REMOTE_TABLE_QUERY_"
+               Output: t2.c2
+               Node/s: All datanodes
+               Remote query: SELECT c2 FROM ONLY public.t2 WHERE true
+(13 rows) 其中two_sum()函数无法下推，导致走到RemoteQuery的计划： 首先下发select c1 from t1 where true语句到DN读取全部t1表的数据。 然后下发select c2 from t2 where true语句到DN读取全部t2表的数据。 获取需要的数据之后，在CN上做HASH JOIN。 最后结果参与two_sum运算并返回最终结果。 该计划很慢，原因是网络传输了大量数据，然后在CN上执行HASH JOIN，不能充分利用集群资源。 通过增加partialpush查询重写参数，可以把1，2，3下推到DN分布式执行，极大提升语句的性能： yshen=# set rewrite_rule='partialpush'; 
+SET
+yshen=# explain (verbose on, costs off) select two_sum(tt.c1, tt.c2) from (select t1.c1,t2.c2 from t1,t2 where t1.c1=t2.c2) tt(c1,c2);
+                       QUERY PLAN
+---------------------------------------------------------
+ Subquery Scan on tt
+   Output: two_sum(tt.c1, tt.c2)
+   ->  Streaming (type: GATHER)  --Gather以下计划在DN分布式执行
+         Output: t1.c1, t2.c2
+         Node/s: All datanodes
+         ->  Nested Loop
+               Output: t1.c1, t2.c2
+               Join Filter: (t1.c1 = t2.c2)
+               ->  Seq Scan on public.t1
+                     Output: t1.c1, t1.c2, t1.c3
+                     Distribute Key: t1.c1
+               ->  Materialize
+                     Output: t2.c2
+                     ->  Streaming(type: REDISTRIBUTE)
+                           Output: t2.c2
+                           Distribute Key: t2.c2
+                           Spawn on: All datanodes
+                           Consumer Nodes: All datanodes
+                           ->  Seq Scan on public.t2
+                                 Output: t2.c2
+                                 Distribute Key: t2.c1
+(21 rows) 目标列子查询提升参数intargetlist 通过将目标列中子查询提升，转为join，往往可以极大提升查询性能。举例如下查询： yshen=# set rewrite_rule='none'; 
+SET
+yshen=# explain (verbose on, costs off) select c1,(select avg(c2) from t2 where t2.c2=t1.c2) from t1 where t1.c1<100 order by t1.c2;
+                              QUERY PLAN
+-----------------------------------------------------------------------
+ Streaming (type: GATHER)
+   Output: t1.c1, ((SubPlan 1)), t1.c2
+   Merge Sort Key: t1.c2
+   Node/s: All datanodes
+   ->  Sort
+         Output: t1.c1, ((SubPlan 1)), t1.c2
+         Sort Key: t1.c2
+         ->  Seq Scan on public.t1
+               Output: t1.c1, (SubPlan 1), t1.c2
+               Distribute Key: t1.c1
+               Filter: (t1.c1 < 100)
+               SubPlan 1
+                 ->  Aggregate
+                       Output: avg(t2.c2)
+                       ->  Result
+                             Output: t2.c2
+                             Filter: (t2.c2 = t1.c2)
+                             ->  Materialize
+                                   Output: t2.c2
+                                   ->  Streaming(type: BROADCAST)
+                                         Output: t2.c2
+                                         Spawn on: All datanodes
+                                         Consumer Nodes: All datanodes
+                                         ->  Seq Scan on public.t2
+                                               Output: t2.c2
+                                               Distribute Key: t2.c1
+(26 rows) 由于目标列中的相关子查询(select avg(c2) from t2 where t2.c2=t1.c2)无法提升的缘故，导致每扫描t1的一行数据，就会触发子查询的一次执行，效率低下。如果打开intargetlist参数会把子查询提升转为join，来提升查询的性能： yshen=# set rewrite_rule='intargetlist';
+SET
+yshen=# explain (verbose on, costs off) select c1,(select avg(c2) from t2 where t2.c2=t1.c2) from t1 where t1.c1<100 order by t1.c2;
+                          QUERY PLAN
+---------------------------------------------------------------
+ Streaming (type: GATHER)
+   Output: t1.c1, (avg(t2.c2)), t1.c2
+   Merge Sort Key: t1.c2
+   Node/s: All datanodes
+   ->  Sort
+         Output: t1.c1, (avg(t2.c2)), t1.c2
+         Sort Key: t1.c2
+         ->  Hash Right Join
+               Output: t1.c1, (avg(t2.c2)), t1.c2
+               Hash Cond: (t2.c2 = t1.c2)
+               ->  Streaming(type: BROADCAST)
+                     Output: (avg(t2.c2)), t2.c2
+                     Spawn on: All datanodes
+                     Consumer Nodes: All datanodes
+                     ->  HashAggregate
+                           Output: avg(t2.c2), t2.c2
+                           Group By Key: t2.c2
+                           ->  Streaming(type: REDISTRIBUTE)
+                                 Output: t2.c2
+                                 Distribute Key: t2.c2
+                                 Spawn on: All datanodes
+                                 Consumer Nodes: All datanodes
+                                 ->  Seq Scan on public.t2
+                                       Output: t2.c2
+                                       Distribute Key: t2.c1
+               ->  Hash
+                     Output: t1.c1, t1.c2
+                     ->  Seq Scan on public.t1
+                           Output: t1.c1, t1.c2
+                           Distribute Key: t1.c1
+                           Filter: (t1.c1 < 100)
+(31 rows) 提升无agg的子查询uniquecheck 子链接提升需要保证对于每个条件只有一行输出，对于有agg的子查询可以自动提升，对于无agg的子查询如： select t1.c1 from t1 where t1.c1 = (select t2.c1 from t2 where t1.c1=t2.c2) ; 重写为： select t1.c1 from t1 join (select t2.c1 from t2 where t2.c1 is not null group by t2.c1(unique check)) tt(c1) on tt.c1=t1.c1; 需注意，上述SQL中的unique check表示t2.c1需要进行检查，非正常SQL表达，该SQL无法直接执行。为了保证语义等价，子查询tt必须保证对于每个group by t2.c1只能有一行输出。打开uniquecheck查询重写参数保证可以提升并且等价，如果在运行时输出了多于一行的数据，就会报错。 yshen=# set rewrite_rule='uniquecheck';
+SET
+yshen=# explain verbose select t1.c1 from t1 where t1.c1 = (select t2.c1 from t2 where t1.c1=t2.c1) ;
+                               QUERY PLAN
+------------------------------------------------------------------------
+ Streaming (type: GATHER)
+   Output: t1.c1
+   Node/s: All datanodes
+   ->  Nested Loop
+         Output: t1.c1
+         Join Filter: (t1.c1 = subquery."?column?")
+         ->  Seq Scan on public.t1
+               Output: t1.c1, t1.c2, t1.c3
+               Distribute Key: t1.c1
+         ->  Materialize
+               Output: subquery."?column?", subquery.c1
+               ->  Subquery Scan on subquery
+                     Output: subquery."?column?", subquery.c1
+                     ->  HashAggregate
+                           Output: t2.c1, t2.c1
+                           Group By Key: t2.c1
+                           Filter: (t2.c1 IS NOT NULL)
+                           Unique Check Required   --如果在运行时输出了多于一行的数据，就会报错。
+                           ->  Index Only Scan using t2idx on public.t2
+                                 Output: t2.c1
+                                 Distribute Key: t2.c1
+(21 rows) 注意：因为分组group by t2.c1 unique check发生在过滤条件tt.c1=t1.c1之前，可能导致原来不报错的查询重写之后报错。举例： 有t1,t2表，其中的数据为： yshen=# select * from t1 order by c2;
+ c1 | c2 | c3
+----+----+----
+  1 |  1 |  1
+  2 |  2 |  2
+  3 |  3 |  3
+  4 |  4 |  4
+  5 |  5 |  5
+  6 |  6 |  6
+  7 |  7 |  7
+  8 |  8 |  8
+  9 |  9 |  9
+ 10 | 10 | 10
+(10 rows)
+
+yshen=# select * from t2 order by c1;
+ c1 | c2 | c3
+----+----+----
+  1 |  1 |  1
+  2 |  2 |  2
+  3 |  3 |  3
+  4 |  4 |  4
+  5 |  5 |  5
+  6 |  6 |  6
+  7 |  7 |  7
+  8 |  8 |  8
+  9 |  9 |  9
+ 10 | 10 | 10
+ 11 | 11 | 11
+ 11 | 11 | 11
+ 12 | 12 | 12
+ 12 | 12 | 12
+ 13 | 13 | 13
+ 13 | 13 | 13
+ 14 | 14 | 14
+ 14 | 14 | 14
+ 15 | 15 | 15
+ 15 | 15 | 15
+ 16 | 16 | 16
+ 16 | 16 | 16
+ 17 | 17 | 17
+ 17 | 17 | 17
+ 18 | 18 | 18
+ 18 | 18 | 18
+ 19 | 19 | 19
+ 19 | 19 | 19
+ 20 | 20 | 20
+ 20 | 20 | 20
+(30 rows) 分别关闭和打开uniquecheck参数对比，打开之后报错。 yshen=#  select t1.c1 from t1 where t1.c1 = (select t2.c1 from t2 where t1.c1=t2.c2) ;
+ c1
+----
+  6
+  7
+  3
+  1
+  2
+  4
+  5
+  8
+  9
+ 10
+(10 rows)
+
+yshen=# set rewrite_rule='uniquecheck';
+SET
+yshen=#  select t1.c1 from t1 where t1.c1 = (select t2.c1 from t2 where t1.c1=t2.c2) ;
+ERROR:  more than one row returned by a subquery used as an expression 将条件下推到子查询中predpush、predpushnormal、predpushforce 通常优化器以查询块为单位进行优化，不同查询块独立优化，如果有涉及到跨查询块的谓词条件，难以从全局角度考虑谓词应用的位置。predpush可以将谓词下推到子查询块中，在父查询块中的数据量较小或子查询中可以利用索引的场景下能够提升性能。涉及到predpush的rewrite_rule规则有3个，分别是： predpushnormal：尝试下推谓词到子查询中，需要利用STREAM算子，如BROADCAST来实现分布式计划。 predpushforce：尝试下推谓词到子查询中，尽量利用参数化路径的索引扫描。 predpush：利用代价在predpushnormal和predpushforce中选择一个最优的分布式计划，但是会增加优化时间。 以下是关闭和开启该查询重写规则的计划示例： gaussdb=# show rewrite_rule;
+ rewrite_rule
+--------------
+ magicset
+(1 row) gaussdb=# explain (costs off) select * from t1, (select sum(c2), c1 from t2 group by c1) st2 where st2.c1 = t1.c1;
+              QUERY PLAN
+--------------------------------------
+ Streaming (type: GATHER)
+   Node/s: All datanodes
+   ->  Nested Loop
+         Join Filter: (t1.c1 = t2.c1)
+         ->  HashAggregate
+               Group By Key: t2.c1
+               ->  Seq Scan on t2
+         ->  Seq Scan on t1
+(8 rows) gaussdb=# set rewrite_rule='predpushnormal';
+SET gaussdb=# explain (costs off) select * from t1, (select sum(c2), c1 from t2 group by c1) st2 where st2.c1 = t1.c1;
+                        QUERY PLAN
+----------------------------------------------------------
+ Streaming (type: GATHER)
+   Node/s: All datanodes
+   ->  Nested Loop
+         ->  Seq Scan on t1
+         ->  GroupAggregate
+               Group By Key: t2.c1
+               ->  Result
+                     Filter: (t1.c1 = t2.c1)
+                     ->  Materialize
+                           ->  Streaming(type: BROADCAST)
+                                 Spawn on: All datanodes
+                                 ->  Seq Scan on t2
+(12 rows) gaussdb=# set rewrite_rule='predpushforce';
+SET gaussdb=# explain (costs off) select * from t1, (select sum(c2), c1 from t2 group by c1) st2 where st2.c1 = t1.c1;
+                     QUERY PLAN
+----------------------------------------------------
+ Streaming (type: GATHER)
+   Node/s: All datanodes
+   ->  Nested Loop
+         ->  Seq Scan on t1
+         ->  HashAggregate
+               Group By Key: t2.c1
+               ->  Index Scan using t2_c1_idx on t2
+                     Index Cond: (t1.c1 = c1)
+(8 rows) gaussdb=# set rewrite_rule = 'predpush';
+SET gaussdb=# explain (costs off) select * from t1, (select sum(c2), c1 from t2 group by c1) st2 where st2.c1 = t1.c1;
+                        QUERY PLAN
+----------------------------------------------------------
+ Streaming (type: GATHER)
+   Node/s: All datanodes
+   ->  Nested Loop
+         ->  Seq Scan on t1
+         ->  GroupAggregate
+               Group By Key: t2.c1
+               ->  Result
+                     Filter: (t1.c1 = t2.c1)
+                     ->  Materialize
+                           ->  Streaming(type: BROADCAST)
+                                 Spawn on: All datanodes
+                                 ->  Seq Scan on t2
+(12 rows) 禁止复制表的子查询提升参数disablerep 复制表只需在一个DN节点上做查询，提升后可能发生性能劣化，举例如下： gaussdb=# create table t_rep(a int) distribute by replication;
+CREATE TABLE gaussdb=# create table t_dis(a int);
+NOTICE:  The 'DISTRIBUTE BY' clause is not specified. Using 'a' as the distribution column by default.
+HINT:  Please use 'DISTRIBUTE BY' clause to specify suitable data distribution column.
+CREATE TABLE gaussdb=# set rewrite_rule = '';
+SET gaussdb=# explain (costs off) select * from t_dis where a = any(select a from t_rep) or a > 100;
+                          QUERY PLAN
+---------------------------------------------------------------
+ Streaming (type: GATHER)
+   Node/s: All datanodes
+   ->  Hash Left Join
+         Hash Cond: (t_dis.a = subquery.a)
+         Filter: ((subquery.a IS NOT NULL) OR (t_dis.a > 100))
+         ->  Seq Scan on t_dis
+         ->  Hash
+               ->  Subquery Scan on subquery
+                     Filter: (Hash By subquery.a)
+                     ->  HashAggregate
+                           Group By Key: t_rep.a
+                           ->  Seq Scan on t_rep
+(12 rows) 对复制表来说，所有DN上存储的数据相同，故不需在所有节点上都进行扫描。 gaussdb=# set rewrite_rule = disablerep;
+SET gaussdb=# explain (costs off) select * from t_dis where a = any(select a from t_rep) or a > 100;
+                    QUERY PLAN
+---------------------------------------------------
+ Streaming (type: GATHER)
+   Node/s: All datanodes
+   ->  Seq Scan on t_dis
+         Filter: ((hashed SubPlan 1) OR (a > 100))
+         SubPlan 1
+           ->  Seq Scan on t_rep
+(6 rows 父主题： 实际调优案例 版权所有 © 华为技术有限公司

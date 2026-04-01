@@ -1,0 +1,85 @@
+SQLDA SQLDA SQLDA是一个C语言结构体，用来存放一个查询的结果集，一个结构体存储一个结果集的记录。 EXEC SQL include sqlda.h; 
+sqlda_t         *mysqlda;  
+EXEC SQL FETCH 3 FROM mycursor INTO DESCRIPTOR mysqlda; 注意SQL关键词被省略了， 命名SQL描述符区域 章节中关于INTO和USING关键词的用例在一定条件下也适用于这里。在一个DESCRIBE语句中，如果使用了INTO关键词，则DESCRIPTOR关键词可以省略： EXEC SQL DESCRIBE prepared_statement INTO mysqlda; 使用SQLDA的步骤： 准备一个查询，并且为它声明一个游标。 为结果行声明SQLDA。 为输入参数声明SQLDA，并且初始化参数和分配内存。 打开具有输入SQLDA的游标。 从游标中抓取行，并且将它们存储到输出SQLDA中。 从输出SQLDA中读取值到宿主变量中。 关闭游标。 释放为SQLDA分配的内存。 SQLDA的数据结构类型有三种：sqlda_t、sqlvar_t以及struct sqlname。 sqlda_t结构 sqlda_t的定义如下： struct sqlda_struct
+{
+    char            sqldaid[8];
+    long            sqldabc;
+    short           sqln;
+    short           sqld;
+    struct sqlda_struct *desc_next;
+    struct sqlvar_struct sqlvar[1];
+};
+typedef struct sqlda_struct sqlda_t; 结构体成员的含义如下： sqldaid：它包含一个字符串"SQLDA"。 sqldabc：它包含已分配空间的尺寸（以字节计）。 sqln：当它被传递给使用USING关键词的OPEN、DECLARE或者EXECUTE语句时，它包含一个参数化查询实例的输入参数的数目。在它被用作SELECT、EXECUTE或FETCH语句的输出时，它的值和sqld一样。 sqld：它包含一个结果集中的域的数量。 desc_next：如果查询返回不止一个记录，那么会返回一个SQLDA结构体链表，desc_next指向下一个SQLDA结构体的指针。 sqlvar：这是结果集中的列组。 sqlvar_t结构 结构类型sqlvar_t保存一个列值和元数据（例如：类型、长度）。该类型的定义如下： struct sqlvar_struct
+{
+    short          sqltype;
+    short          sqllen;
+    char          *sqldata;
+    short         *sqlind;
+    struct sqlname sqlname;
+};
+typedef struct sqlvar_struct sqlvar_t; 结构体成员的含义如下： sqltype：包含该域的类型标识符。 sqllen：包含域的二进制长度，例如：ECPGt_int是4字节。 sqldata：指向数据。数据格式可参考 类型映射 章节。 sqlind：指向空指示符。0表示非空，-1表示空。 sqlname：域的名称。 struct sqlname结构 一个struct sqlname结构保存一个列名。它被当作sqlvar_t结构的一个成员。该结构的定义如下： #define NAMEDATALEN 64
+struct sqlname
+{
+        short           length;
+        char            data[NAMEDATALEN];
+}; 结构体成员的含义如下： length：包含域名称的长度。 data：包含实际的域名称。 使用一个SQLDA检索一个结果集 通过一个SQLDA检索一个查询结果集的一般步骤： 声明一个sqlda_t结构来接收结果集。 执行FETCH/EXECUTE/DESCRIBE命令来处理一个已声明SQLDA的查询。 通过查看sqlda_t结构的成员sqln来检查结果集中记录的数量。 从sqlda_t结构体的成员sqlvar[0]、sqlvar[1]等中得到每一列的值。 沿着sqlda_t结构的成员desc_next指针到达下一行（sqlda_t）。 根据需要重复上述步骤。 示例如下： /* 声明一个sqlda_t结构来接收结果集。*/
+sqlda_t *sqlda1;
+/* 接下来，指定一个命令中的SQLDA。这是一个FETCH命令的例子。*/
+EXEC SQL FETCH NEXT FROM cur1 INTO DESCRIPTOR sqlda1;
+/* 运行一个循环顺着链表来检索行。*/
+sqlda_t *cur_sqlda;
+for (cur_sqlda = sqlda1;
+     cur_sqlda != NULL;
+     cur_sqlda = cur_sqlda->desc_next)
+{
+    ...
+}
+/* 在循环内部，运行另一个循环来检索行中每一列的数据（sqlvar_t结构）。*/
+for (i = 0; i < cur_sqlda->sqld; i++)
+{
+    sqlvar_t v = cur_sqlda->sqlvar[i];
+    char *sqldata = v.sqldata;
+    short sqllen  = v.sqllen;
+    ...
+}
+/* 要得到一列的值，应检查sqlvar_t结构的成员sqltype的值。然后，根据列类型切换到一种合适的方法从sqlvar域中复制数据到一个主变量。*/
+char var_buf[1024];
+switch (v.sqltype)
+{
+    case ECPGt_char:
+        memset(&var_buf, 0, sizeof(var_buf));
+        memcpy(&var_buf, sqldata, (sizeof(var_buf) <= sqllen ? sizeof(var_buf) - 1 : sqllen));
+        break;
+
+    case ECPGt_int: 
+        memcpy(&intval, sqldata, sqllen);
+        snprintf(var_buf, sizeof(var_buf), "%d", intval);
+        break;
+    ...
+} 使用一个SQLDA传递查询参数 使用一个SQLDA传递输入参数给一个预备查询的一般步骤： 创建一个预备查询（预备语句）。 声明一个sqlda_t结构体作为SQLDA。 为SQLDA分配内存区域。 在分配好的内存中设置（复制）输入值。 打开一个在SQLDA上声明的游标。 示例如下： /* 首先，创建一个预备语句。 */
+EXEC SQL BEGIN DECLARE SECTION;
+    char query[1024] = "SELECT d.oid, * FROM pg_database d, pg_stat_database s WHERE d.oid = s.datid AND (d.datname = ? OR d.oid = ?)";
+EXEC SQL END DECLARE SECTION;
+    EXEC SQL PREPARE stmt1 FROM :query;
+
+    /* 接下来为一个SQLDA分配内存，并且在sqlda_t结构的sqln成员变量中设置输入参数的数量。
+     * 当预备查询要求两个或多个输入参数时，应用必须分配额外的内存空间，空间的大小为 (参数数目 - 1) * sizeof(sqlvar_t)。
+     * 这里的例子展示了为两个输入参数分配内存空间。
+     */
+    sqlda_t *sqlda2;
+    sqlda2 = (sqlda_t *) malloc(sizeof(sqlda_t) + sizeof(sqlvar_t));
+    memset(sqlda2, 0, sizeof(sqlda_t) + sizeof(sqlvar_t));
+    sqlda2->sqln = 2; /* 输入变量的数目 */
+    /* 内存分配之后，把参数值存储到sqlvar[]数组（当 SQLDA 在接收结果集时，这也是用来检索列值的数组）。
+     * 在这个例子中，输入参数是"postgres"（字符串类型）和1（整数类型）。*/
+    sqlda2->sqlvar[0].sqltype = ECPGt_char;
+    sqlda2->sqlvar[0].sqldata = "postgres";
+    sqlda2->sqlvar[0].sqllen  = 8;
+    int intval = 1;
+    sqlda2->sqlvar[1].sqltype = ECPGt_int;
+    sqlda2->sqlvar[1].sqldata = (char *) &intval;
+    sqlda2->sqlvar[1].sqllen  = sizeof(intval);
+    /* 通过打开一个游标并且说明之前已经建立好的 SQLDA，输入参数被传递给预备语句。*/
+    EXEC SQL OPEN cur1 USING DESCRIPTOR sqlda2;
+    /* 最后，用完输入 SQLDA 后必须显式地释放已分配的内存空间，这与用于接收查询结果的 SQLDA 不同。*/
+    free(sqlda2); 父主题： SQL描述符区域 版权所有 © 华为技术有限公司

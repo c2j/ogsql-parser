@@ -1,0 +1,42 @@
+游标循环 游标循环 游标在WHILE语句、LOOP语句中的使用称为游标循环，一般这种循环都需要使用OPEN、FETCH和CLOSE语句。下面要介绍的一种循环不需要这些操作，可以简化游标循环的操作，这种循环方式适用于静态游标的循环，不用执行静态游标的四个步骤。 语法 FOR AS循环的语法请参见 图1 。 图1 FOR_AS_loop::= 注意事项 不能在该循环语句中对查询的表进行更新操作。 变量loop_name会自动定义且只在此循环中有效，类型和select_statement的查询结果类型一致。loop_name的取值就是select_statement的查询结果。 变量loop_name在编译过程中不会解析具体的类型，如果有需要解析具体类型的场景（比如loop_name作为重载函数或者存储过程的出入参）会编译报错。如需解析变量的具体类型，可以设置参数behavior_compat_options值为allow_procedure_compile_check。 游标的属性中%FOUND、%NOTFOUND、%ROWCOUNT在 GaussDB 数据库中都是访问同一个内部变量，事务和匿名块不支持多个游标同时访问。 示例 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27
+28
+29
+30
+31
+32
+33
+34
+35
+36
+37
+38
+39
+40
+41
+42 gaussdb =# BEGIN FOR ROW_TRANS IN SELECT first_name FROM hr . staffs LOOP DBE_OUTPUT . PRINT_LINE ( ROW_TRANS . first_name ); END LOOP ; END ; / --执行结果 gaussdb =# Tom ANONYMOUS BLOCK EXECUTE --创建表 gaussdb =# CREATE TABLE integerTable1 ( A INTEGER ); gaussdb =# CREATE TABLE integerTable2 ( B INTEGER ); gaussdb =# INSERT INTO integerTable2 VALUES ( 2 ); --多游标共享游标属性的标量 gaussdb =# DECLARE CURSOR C1 IS SELECT A FROM integerTable1 ; --声明游标 CURSOR C2 IS SELECT B FROM integerTable2 ; PI_A INTEGER ; PI_B INTEGER ; BEGIN OPEN C1 ; --打开游标 OPEN C2 ; FETCH C1 INTO PI_A ; ----  C1%FOUND 和 C2%FOUND 值为 FALSE FETCH C2 INTO PI_B ; ----  C1%FOUND 和 C2%FOUND 的值都为 TRUE --判断游标状态 IF C1 % FOUND THEN IF C2 % FOUND THEN DBE_OUTPUT . PRINT_LINE ( 'Dual cursor share paremeter.' ); END IF ; END IF ; CLOSE C1 ; --关闭游标 CLOSE C2 ; END ; / --删除临时表 gaussdb =# DROP TABLE integerTable1 ; gaussdb =# DROP TABLE integerTable2 ; 父主题： 游标 版权所有 © 华为技术有限公司

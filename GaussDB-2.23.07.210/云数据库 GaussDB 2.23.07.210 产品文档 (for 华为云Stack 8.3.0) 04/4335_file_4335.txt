@@ -1,0 +1,1 @@
+移动分区 移动分区 用户可以使用移动分区的命令来将一个分区移动到新的表空间中。移动分区可以通过指定分区名或者分区值来进行。 使用ALTER TABLE MOVE PARTITION可以对分区表移动分区。 例如，通过指定分区名将范围分区表range_sales的分区date_202001移动到表空间tb1中。 ALTER TABLE range_sales MOVE PARTITION date_202001 TABLESPACE tb1; 或者，通过指定分区值将列表分区表list_sales中'0'所对应的分区移动到表空间tb1中。 ALTER TABLE list_sales MOVE PARTITION FOR ('0') TABLESPACE tb1; 父主题： 分区表运维管理 版权所有 © 华为技术有限公司

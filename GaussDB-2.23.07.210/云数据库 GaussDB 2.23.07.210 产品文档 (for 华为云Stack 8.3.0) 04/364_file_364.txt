@@ -1,0 +1,15 @@
+创建参数模板 创建参数模板 功能介绍 创建参数模板。 调用接口前，您需要提前 获取终端节点 ，即下文中的Endpoint值。 URI URI格式 POST https://{ Endpoint }/gaussdb/v3/{project_id}/configurations URI样例 https://gaussdb.sa-fb-2.hcsglobal.com/gaussdb/v3/054ea741f700d4a32f1bc00f5c80dd4c/configurations 参数说明 表1 参数说明 参数 是否必选 参数类型 描述 project_id 是 String 租户在某一region下的project ID。 获取方法请参见 获取项目ID/名称 。 请求消息 参数说明 表2 参数说明 名称 是否必选 参数类型 说明 name 是 String 参数模板名称。 取值范围：长度1到64位之间，区分大小写字母，可包含字母、数字、中划线、下划线或句点，不能包含其他特殊字符。 description 否 String 参数模板描述，默认为空。 取值范围：长度超过256自动截取，不能包含回车>!<"&'=等特殊字符。 parameter_values 否 Map<String,String> 参数名和参数值映射关系。用户可以基于默认参数模板的参数，自定义参数值。 datastore 是 object 数据库引擎信息。可通过 【查询引擎列表】接口查询。详情请参见 表3 。 表3 datastore参数说明 名称 是否必选 参数类型 说明 engine_version 是 String 数据库版本。 instance_mode 是 String 部署形态。 枚举值： ha ：主备版 combined ：分布式版 金融版（标准型） combined_hcs2 ：分布式版 企业版 combined_hcs3 ：分布式版 金融版(标准型) combined_hcs4 ：分布式版 金融版（数据计算型，容灾主） combined_hcs5 ：分布式版 金融版（数据计算型，容灾备） 请求示例 创建一个2.3版本，主备版部署形态的参数模板。 {
+    "name": "paramTemplate",
+    "description": "",
+    "parameter_values": {
+        "audit_system_object": "12294"
+    },
+    "datastore": {
+        "engine_version": "2.3",
+        "instance_mode": "ha"
+    }
+} 响应消息 正常响应要素说明 表4 参数说明 参数 参数类型 描述 id String 参数模板ID。 name String 参数模板名称。 created_at String 创建时间，格式为“yyyy-mm-ddThh:mm:ssZ”。 其中，T指某个时间的开始；Z指时区偏移量，例如北京时间偏移显示为+0800。 正常响应样例 { 
+  "id" : "137eeaf0cc884ca4adffa9ebd101c115pr14", 
+  "name" : "paramTemplate-del", 
+  "created_at" : "2022-08-09T03:06:52+0800" 
+} 异常响应 请参见 异常请求结果 。 状态码 正常 200 异常 请参见 状态码 。 错误码 请参见 错误码 。 父主题： 参数配置 版权所有 © 华为技术有限公司

@@ -1,0 +1,9 @@
+定义安全标签 定义安全标签 前提条件 数据库正常运行，执行操作的用户需要具有SYSADMIN权限或者继承了内置角色gs_role_seclabel的权限。 背景信息 提供系统表gs_security_label来查看系统中已创建好的安全标签： SELECT * FROM gs_security_label; 操作步骤 以某个实际业务应用举例说明，比如某公司的信息等级为公开，秘密和绝密，那么就可分别对应成等级L1、L2和L3，信息存储范围为一层到五层各层员工的信息，那么可分别对应成范围G1、G2、G3、G4、G5，以此为基础定义安全标签。 创建一个安全标签，标志信息等级为公开，范围为二层和四层。 1 gaussdb =# CREATE SECURITY LABEL label1 'L1:G2,G4' ; 创建一个安全标签，标志信息等级为秘密，范围为二层到四层。 1 gaussdb =# CREATE SECURITY LABEL label2 'L2:G2-G4' ; 创建一个安全标签，标志信息等级为绝密，范围为一层到五层。 1 gaussdb =# CREATE SECURITY LABEL label3 'L3:G1-G5' ; 查询系统表gs_security_label。 1 gaussdb =# SELECT * FROM gs_security_label ; 查询结果如下： gaussdb=# SELECT * FROM gs_security_label;
+ label_name | label_content
+------------+---------------
+ label1     | L1:G2,G4
+ label2     | L2:G2-G4
+ label3     | L3:G1-G5
+(3 rows) 删除安全标签。 1
+2
+3 gaussdb =# DROP SECURITY LABEL label1 ; gaussdb =# DROP SECURITY LABEL label2 ; gaussdb =# DROP SECURITY LABEL label3 ; 父主题： 基于标签的强制访问控制 版权所有 © 华为技术有限公司

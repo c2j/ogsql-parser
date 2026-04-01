@@ -1,0 +1,166 @@
+{
+  "topic": "WDR报告信息介绍",
+  "term_count": 32,
+  "terms": [
+    {
+      "term": "Instance",
+      "content": "Instance Efficiency Percentages Instance Efficiency Percentages Instance Efficiency Percentages指标名称及描述如下表所示。 表1 Instance Efficiency Percentages报表主要内容 指标名称 描述 Buffer Hit % Buffer Pool命中率。 Effective CPU % CPU time占DB time的比例。 WalWrite NoWait % 访问WAL Buffer的event次数占总wait event的比例。 Soft Parse % 软解析的次数占总的解析次数的比例。 Non-Parse CPU % 非parse的时间占执行总时间的比例。",
+      "source_file": "2412_Instance Efficiency Percentages.txt"
+    },
+    {
+      "term": "Database",
+      "content": "Database Stat Database Stat Database Stat列名称及描述如下表所示。 表1 Database Stat报表主要内容 列名称 描述 DB Name 数据库名称。 Backends 连接到该数据库的后端数。 Xact Commit 此数据库中已经提交的事务数。 Xact Rollback 此数据库中已经回滚的事务数。 Blks Read 在这个数据库中读取的磁盘块的数量。 Blks Hit 高速缓存中已经发现的磁盘块的次数。 Tuple Returned 顺序扫描的行数。 Tuple Fetched 随机扫描的行数。 Tuple Inserted 通过数据库查询插入的行数。 Tuple Updated 通过数据库查询更新的行数。 Tup Deleted 通过数据库查询删除的行数。 Conflicts 由于数据库恢复冲突取消的查询数量。 Temp Files 通过数据库查询创建的临时文件数量。 Temp Bytes 通过数据库查询写入临时文件的数据总量。 Deadlocks 在该数据库中检索的死锁数。 Blk Read Time 通过数据库后端读取数据文件块花费的时间，以毫秒计算。 Blk Write Time 通过数据库后端写入数据文件块花费的时间，以毫秒计算。 Stats Reset 重置当前状态统计的时间。",
+      "source_file": "2410_Database Stat.txt"
+    },
+    {
+      "term": "Object",
+      "content": "Object stats Object stats Object stats包含User Tables stats、User index stats和Bad lock stats三张表，列名称及描述如下所示。 User Tables stats 表1 User Tables stats报表主要内容 列名称 描述 Node Name 节点名称。 DB Name Database名称。 Schema Schema名称。 Relname Relation名称。 Seq Scan 此表发起的顺序扫描数。 Seq Tup Read 顺序扫描抓取的活跃行数。 Index Scan 此表发起的索引扫描数。 Index Tup Fetch 索引扫描抓取的活跃行数。 Tuple Insert 插入行数。 Tuple Update 更新行数。 Tuple Delete 删除行数。 Tuple Hot Update HOT更新行数（即没有更新所需的单独索引）。 Live Tuple 估计活跃行数。 Dead Tuple 估计死行数。 Last Vacuum 最后一次此表是手动清理的（不计算VACUUM FULL）时间。 Last Autovacuum 上次被autovacuum守护进程清理的时间。 Last Analyze 上次手动分析这个表的时间。 Last Autoanalyze 上次被autovacuum守护进程分析的时间。 Vacuum Count 这个表被手动清理的次数（不计算VACUUM FULL）。 Autovacuum Count 这个表被autovacuum清理的次数。 Analyze Count 这个表被手动分析的次数。 Autoanalyze Count 这个表被autovacuum守护进程分析的次数。 User index stats 表2 User index stats报表主要内容 列名称 描述 Node Name 节点名称。 DB Name Database名称。 Schema Schema名称。 Relname Relation名称。 Index Relname Index名称。 Index Scan 索引上开始的索引扫描数。 Index Tuple Read 通过索引上扫描返回的索引项数。 Index Tuple Fetch 通过使用索引的简单索引扫描抓取的表行数。 Bad lock stats 表3 Bad lock stats报表主要内容 列名称 描述 DB Id 数据库的OID。 Tablespace Id 表空间的OID。 Relfilenode 文件对象ID。 Fork Number 文件类型。 Error Count 失败计数。 First Time 第一次发生时间。 Last Time 最近一次发生时间。",
+      "source_file": "4082_Object stats.txt"
+    },
+    {
+      "term": "Top",
+      "content": "Top 10 Events by Total Wait Time Top 10 Events by Total Wait Time Top 10 Events by Total Wait Time列名称及描述如下表所示。 表1 Top 10 Events by Total Wait Time报表主要内容 列名称 描述 Event Wait Event名称。 Waits wait次数。 Total Wait Time(us) 总wait时间（微秒）。 Avg Wait Time(us) 平均wait时间（微秒）。 Tpye Wait Event类别。",
+      "source_file": "2413_Top 10 Events by Total Wait Time.txt"
+    },
+    {
+      "term": "SQL",
+      "content": "SQL Statistics SQL Statistics SQL Statistics列名称及描述如下表所示。 表1 SQL Statistics报表主要内容 列名称 描述 Unique SQL Id 归一化的SQL ID。 Parent Unique SQL Id 父语句的归一化SQL ID，对于非存储过程子语句的场景，该值为0。 Node Name 节点名称。 User Name 用户名称。 Avg Tuples Fetched 平均随机扫描行。 Avg Tuples Returned 平均顺序扫描行。 Calls 调用次数。 Total Elapse Time(us) 总执行时间（us）。 Avg Elapse Time(us) 平均执行时间（us）。 Returned Rows SELECT返回行数。 Avg Returned Rows 平均SELECT返回行数。 Tuples Affected Insert/Update/Delete行数。 Avg Tuples Affected 平均Insert/Update/Delete行数。 Logical Read Buffer逻辑读次数。 Avg Logical Read 平均Buffer逻辑读次数 Physical Read Buffer物理读次数。 Avg Physical Read 平均Buffer物理读次数 CPU Time(us) CPU时间（us）。 Avg CPU Time(us) 平均CPU时间（us） Data IO Time(us) IO上的时间花费（us）。 Avg Data IO Time(us) 平均IO上的时间花费（us）。 Lock Wait Time(us) SQL的等锁时间（us）。 Avg Lock Wait Time(us) 平均每条SQL的等锁时间（us）。 Sort Count 排序执行的次数。 Sort Time(us) 排序执行的时间（us）。 Sort Mem Used(KB) 排序过程中使用的work memory大小（KB）。 Sort Spill Count 排序过程中，若发生落盘，写文件的次数。 Sort Spill Size(KB) 排序过程中，若发生落盘，使用的文件大小（KB）。 Hash Count hash执行的次数。 Hash Time(us) hash执行的时间（us）。 Hash Mem Used(KB) hash过程中使用的work memory大小（KB）。 Hash Spill Count hash过程中，若发生落盘，写文件的次数。 Hash Spill Size(KB) hash过程中，若发生落盘，使用的文件大小（KB）。 SQL Text 归一化SQL字符串。",
+      "source_file": "4078_SQL Statistics.txt"
+    },
+    {
+      "term": "SQL",
+      "content": "SQL Detail SQL Detail SQL Detail列名称及描述如下表所示。 表1 SQL Detail报表主要内容 列名称 描述 Unique SQL Id 归一化SQL ID。 Parent Unique SQL Id 父语句的归一化SQL ID，单独执行的语句该值为0。 User Name 用户名称。 Node Name 节点名称。Node模式下不显示该字段。 SQL Text 归一化SQL文本。",
+      "source_file": "4084_SQL Detail.txt"
+    },
+    {
+      "term": "Instance",
+      "content": "Instance Efficiency Percentages Instance Efficiency Percentages Instance Efficiency Percentages指标名称及描述如下表所示。 表1 Instance Efficiency Percentages报表主要内容 指标名称 描述 Buffer Hit % Buffer Pool命中率。 Effective CPU % CPU time占DB time的比例。 WalWrite NoWait % 访问WAL Buffer的event次数占总wait event的比例。 Soft Parse % 软解析的次数占总的解析次数的比例。 Non-Parse CPU % 非parse的时间占执行总时间的比例。",
+      "source_file": "4071_Instance Efficiency Percentages.txt"
+    },
+    {
+      "term": "Configuration",
+      "content": "Configuration settings Configuration settings Configuration settings列名称及描述如下表所示。 表1 Configuration settings报表主要内容 列名称 描述 Name GUC参数名称。 Abstract GUC参数描述。 Type 数据类型。 Curent Value 当前值。 Min Value 合法最小值。 Max Value 合法最大值。 Category GUC参数类别。 Enum Values 如果是枚举值，列举所有枚举值。 Default Value 数据库启动时参数默认值。 Reset Value 数据库重置时参数默认值。",
+      "source_file": "2424_Configuration settings.txt"
+    },
+    {
+      "term": "Cache",
+      "content": "Cache IO Stats Cache IO Stats Cache IO Stats包含User table IO activity部分和User index IOactivity部分，两部分表格列名称及描述如下所示。 User table IO activity 表1 User table IO activity表格字段 列名称 描述 DB Name Database名称。 Schema Name Schema名称。 Table Name Table名称。 %Heap Blks Hit Ratio 此表的Buffer Pool命中率。 Heap Blks Read 该表中读取的磁盘块数。 Heap Blks Hit 此表缓存命中数。 Idx Blks Read 表中所有索引读取的磁盘块数。 Idx Blks Hit 表中所有索引命中缓存数。 Toast Blks Read 此表的TOAST表读取的磁盘块数（如果存在）。 Toast Blks Hit 此表的TOAST表命中缓冲区数（如果存在）。 Tidx Blks Read 此表的TOAST表索引读取的磁盘块数（如果存在）。 Tidx Blks Hit 此表的TOAST表索引命中缓冲区数（如果存在）。 User index IO activity 表2 User index IO activity表格字段 列名称 描述 DB Name Database名称。 Schema Name Schema名称。 Table Name Table名称。 Index Name Index名称。 %Idx Blks Hit Ratio Index的命中率。 Idx Blks Read 所有索引读取的磁盘块数。 Idx Blks Hit 所有索引命中缓存数。",
+      "source_file": "2421_Cache IO Stats.txt"
+    },
+    {
+      "term": "Host",
+      "content": "Host CPU Host CPU Host CPU列名称及描述如下表所示。 表1 Host CPU报表主要内容 列名称 描述 Cpus CPU数量。 Cores CPU核数。 Sockets CPU Sockets数量。 Load Average Begin 开始snapshot的Load Average值。 Load Average End 结束snapshot的Load Average值。 %User 用户态在CPU时间上的占比。 %System 内核态在CPU时间上的占比。 %WIO Wait IO在CPU时间上的占比。 %Idle 空闲时间在CPU时间上的占比。",
+      "source_file": "4074_Host CPU.txt"
+    },
+    {
+      "term": "Object",
+      "content": "Object stats Object stats Object stats包含User Tables stats、User index stats和Bad lock stats三张表，列名称及描述如下所示。 User Tables stats 表1 User Tables stats报表主要内容 列名称 描述 DB Name Database名称。 Schema Schema名称。 Relname Relation名称。 Seq Scan 此表发起的顺序扫描数。 Seq Tup Read 顺序扫描抓取的活跃行数。 Index Scan 此表发起的索引扫描数。 Index Tup Fetch 索引扫描抓取的活跃行数。 Tuple Insert 插入行数。 Tuple Update 更新行数。 Tuple Delete 删除行数。 Tuple Hot Update HOT更新行数（即没有更新所需的单独索引）。 Live Tuple 估计活跃行数。 Dead Tuple 估计死行数。 Last Vacuum 最后一次此表是手动清理的（不计算VACUUM FULL）时间。 Last Autovacuum 上次被autovacuum守护进程清理的时间。 Last Analyze 上次手动分析这个表的时间。 Last Autoanalyze 上次被autovacuum守护进程分析的时间。 Vacuum Count 这个表被手动清理的次数（不计算VACUUM FULL）。 Autovacuum Count 这个表被autovacuum清理的次数。 Analyze Count 这个表被手动分析的次数。 Autoanalyze Count 这个表被autovacuum守护进程分析的次数。 User index stats 表2 User index stats报表主要内容 列名称 描述 DB Name Database名称。 Schema Schema名称。 Relname Relation名称。 Index Relname Index名称。 Index Scan 索引上开始的索引扫描数。 Index Tuple Read 通过索引上扫描返回的索引项数。 Index Tuple Fetch 通过使用索引的简单索引扫描抓取的表行数。 Bad lock stats 表3 Bad lock stats报表主要内容 列名称 描述 DB Id 数据库的OID。 Tablespace Id 表空间的OID。 Relfilenode 文件对象ID。 Fork Number 文件类型。 Error Count 失败计数。 First Time 第一次发生时间。 Last Time 最近一次发生时间。",
+      "source_file": "2423_Object stats.txt"
+    },
+    {
+      "term": "Wait",
+      "content": "Wait Classes by Total Wait Time Wait Classes by Total Wait Time Wait Classes by Total Wait Time列名称及描述如下表所示。 表1 Wait Classes by Total Wait Time报表主要内容 列名称 描述 Type Wait Event类别名称： STATUS。 LWLOCK_EVENT。 LOCK_EVENT。 IO_EVENT。 Waits Wait次数。 Total Wait Time(us) 总Wait时间（微秒）。 Avg Wait Time(us) 平均Wait时间（微秒）。",
+      "source_file": "4073_Wait Classes by Total Wait Time.txt"
+    },
+    {
+      "term": "Load",
+      "content": "Load Profile Load Profile Load Profile指标名称及描述如下表所示。 表1 Load Profile报表主要内容 指标名称 描述 DB Time(us) 作业运行的elapse time总和。 CPU Time(us) 作业运行的CPU时间总和。 Redo size(blocks) 产生的WAL的大小（块数）。 Logical read (blocks) 表或者索引文件的逻辑读（块数）。 Physical read (blocks) 表或者索引的物理读（块数）。 Physical write (blocks) 表或者索引的物理写（块数）。 Read IO requests 表或者索引的读次数。 Write IO requests 表或者索引的写次数。 Read IO (MB) 表或者索引的读大小（MB）。 Write IO (MB) 表或者索引的写大小（MB）。 Logins 登录次数。 Executes (SQL) SQL执行次数。 Rollbacks 回滚事务数。 Transactions 事务数。 SQL response time P95(us) 95%的SQL的响应时间。 SQL response time P80(us) 80%的SQL的响应时间。",
+      "source_file": "4070_Load Profile.txt"
+    },
+    {
+      "term": "Time",
+      "content": "Time Model Time Model Time Model名称及描述如下表所示。 表1 Time Model报表主要内容 名称 描述 DB_TIME 所有线程端到端的墙上时间（WALL TIME）消耗总和（单位：微秒）。 EXECUTION_TIME 消耗在执行器上的时间总和（单位：微秒)。 PL_EXECUTION_TIME 消耗在plpgsql执行上的时间总和（单位：微秒）。 CPU_TIME 所有线程CPU时间消耗总和（单位：微秒）。 PLAN_TIME 消耗在执行计划生成上的时间总和（单位：微秒）。 REWRITE_TIME 消耗在查询重写上的时间总和（单位：微秒）。 PL_COMPILATION_TIME 消耗在SQL编译上的时间总和（单位：微秒）。 PARSE_TIME 消耗在SQL解析上的时间总和（单位：微秒）。 NET_SEND_TIME 消耗在网络发送上的时间总和（单位：微秒）。 DATA_IO_TIME 消耗在数据读写上的时间总和（单位：微秒）。",
+      "source_file": "2418_Time Model.txt"
+    },
+    {
+      "term": "Time",
+      "content": "Time Model Time Model Time Model名称及描述如下表所示。 表1 Time Model报表主要内容 名称 描述 DB_TIME 所有线程端到端的墙上时间（WALL TIME）消耗总和（单位：微秒）。 EXECUTION_TIME 消耗在执行器上的时间总和（单位：微秒)。 PL_EXECUTION_TIME 消耗在plpgsql执行上的时间总和（单位：微秒）。 CPU_TIME 所有线程CPU时间消耗总和（单位：微秒）。 PLAN_TIME 消耗在执行计划生成上的时间总和（单位：微秒）。 REWRITE_TIME 消耗在查询重写上的时间总和（单位：微秒）。 PL_COMPILATION_TIME 消耗在SQL编译上的时间总和（单位：微秒）。 PARSE_TIME 消耗在SQL解析上的时间总和（单位：微秒）。 NET_SEND_TIME 消耗在网络发送上的时间总和（单位：微秒）。 DATA_IO_TIME 消耗在数据读写上的时间总和（单位：微秒）。",
+      "source_file": "4077_Time Model.txt"
+    },
+    {
+      "term": "IO",
+      "content": "IO Profile IO Profile IO Profile指标名称及描述如下表所示。 表1 IO Profile指标表主要内容 指标名称 描述 Database requests Database IO次数。 Database (MB) Database IO数据量。 Database (blocks) Database IO数据块。 Redo requests Redo IO次数。 Redo (MB) Redo IO量。",
+      "source_file": "4075_IO Profile.txt"
+    },
+    {
+      "term": "Utility",
+      "content": "Utility status Utility status Utility status包含Replication slot和Replication stat两张表，列名称及描述如下所示。 Replication slot 表1 Replication slot报表主要内容 列名称 描述 Slot Name 复制节点名。 Slot Type 复制节点类型。 DB Name 复制节点数据库名称。 Active 复制节点状态。 Xmin 复制节点事务标识。 Restart Lsn 复制节点的Xlog文件信息。 Dummy Standby 复制节点假备。 Replication stat 表2 Replication stat报表主要内容 列名称 描述 Thread Id 线程的PID。 Usesys Id 用户系统ID。 Usename 用户名称。 Application Name 应用程序。 Client Addr 客户端地址。 Client Hostname 客户端主机名。 Client Port 客户端端口。 Backend Start 程序起始时间。 State 日志复制状态。 Sender Sent Location 发送端发送日志位置。 Receiver Write Location 接收端write日志位置。 Receiver Flush Location 接收端flush日志位置。 Receiver Replay Location 接收端replay日志位置。 Sync Priority 同步优先级。 Sync State 同步状态。",
+      "source_file": "2422_Utility status.txt"
+    },
+    {
+      "term": "Wait",
+      "content": "Wait Events Wait Events Wait Events列名称及描述如下表所示。 表1 Wait Events报表主要内容 列名称 描述 Type Wait Event类别名称： STATUS。 LWLOCK_EVENT。 LOCK_EVENT。 IO_EVENT。 Event Wait Event名称。 Total Wait Time (us) 总Wait时间（us）。 Waits 总Wait次数。 Failed Waits Wait失败次数。 Avg Wait Time (us) 平均Wait时间（us）。 Max Wait Time (us) 最大Wait时间（us）。",
+      "source_file": "4079_Wait Events.txt"
+    },
+    {
+      "term": "Top",
+      "content": "Top 10 Events by Total Wait Time Top 10 Events by Total Wait Time Top 10 Events by Total Wait Time列名称及描述如下表所示。 表1 Top 10 Events by Total Wait Time报表主要内容 列名称 描述 Event Wait Event名称。 Waits wait次数。 Total Wait Time(us) 总wait时间（微秒）。 Avg Wait Time(us) 平均wait时间（微秒）。 Type Wait Event类别。",
+      "source_file": "4072_Top 10 Events by Total Wait Time.txt"
+    },
+    {
+      "term": "Memory",
+      "content": "Memory Statistics Memory Statistics Memory Statistics指标名称及描述如下表所示。 表1 Memory Statistics报表主要内容 指标名称 描述 shared_used_memory 已经使用共享内存大小（MB）。 max_shared_memory 最大共享内存（MB）。 process_used_memory 进程已经使用内存（MB）。 max_process_memory 最大进程内存（MB）。",
+      "source_file": "2417_Memory Statistics.txt"
+    },
+    {
+      "term": "Wait",
+      "content": "Wait Classes by Total Wait Time Wait Classes by Total Wait Time Wait Classes by Total Wait Time列名称及描述如下表所示。 表1 Wait Classes by Total Wait Time报表主要内容 列名称 描述 Tpye Wait Event类别名称： STATUS。 LWLOCK_EVENT。 LOCK_EVENT。 IO_EVENT。 Waits Wait次数。 Total Wait Time(us) 总Wait时间（微秒）。 Avg Wait Time(us) 平均Wait时间（微秒）。",
+      "source_file": "2414_Wait Classes by Total Wait Time.txt"
+    },
+    {
+      "term": "Database",
+      "content": "Database Stat Database Stat Database Stat列名称及描述如下表所示。 表1 Database Stat报表主要内容 列名称 描述 Node Name 节点名称 DB Name 数据库名称。 Backends 连接到该数据库的后端数。 Xact Commit 此数据库中已经提交的事务数。 Xact Rollback 此数据库中已经回滚的事务数。 Blks Read 在这个数据库中读取的磁盘块的数量。 Blks Hit 高速缓存中已经发现的磁盘块的次数。 Tuple Returned 顺序扫描的行数。 Tuple Fetched 随机扫描的行数。 Tuple Inserted 通过数据库查询插入的行数。 Tuple Updated 通过数据库查询更新的行数。 Tup Deleted 通过数据库查询删除的行数。 Conflicts 由于数据库恢复冲突取消的查询数量。 Temp Files 通过数据库查询创建的临时文件数量。 Temp Bytes 通过数据库查询写入临时文件的数据总量。 Deadlocks 在该数据库中检索的死锁数。 Blk Read Time 通过数据库后端读取数据文件块花费的时间，以毫秒计算。 Blk Write Time 通过数据库后端写入数据文件块花费的时间，以毫秒计算。 Stats Reset 重置当前状态统计的时间。",
+      "source_file": "4069_Database Stat.txt"
+    },
+    {
+      "term": "Memory",
+      "content": "Memory Statistics Memory Statistics Memory Statistics指标名称及描述如下表所示。 表1 Memory Statistics报表主要内容 指标名称 描述 shared_used_memory 已经使用共享内存大小（MB）。 max_shared_memory 最大共享内存（MB）。 process_used_memory 进程已经使用内存（MB）。 max_process_memory 最大进程内存（MB）。",
+      "source_file": "4076_Memory Statistics.txt"
+    },
+    {
+      "term": "Host",
+      "content": "Host CPU Host CPU Host CPU列名称及描述如下表所示。 表1 Host CPU报表主要内容 列名称 描述 Cpus CPU数量。 Cores CPU核数。 Sockets CPU Sockets数量。 Load Average Begin 开始snapshot的Load Average值。 Load Average End 结束snapshot的Load Average值。 %User 用户态在CPU时间上的占比。 %System 内核态在CPU时间上的占比。 %WIO Wait IO在CPU时间上的占比。 %Idle 空闲时间在CPU时间上的占比。",
+      "source_file": "2415_Host CPU.txt"
+    },
+    {
+      "term": "SQL",
+      "content": "SQL Detail SQL Detail SQL Detail列名称及描述如下表所示。 表1 SQL Detail报表主要内容 列名称 描述 Unique SQL Id 归一化SQL ID。 Parent Unique SQL Id 父语句的归一化SQL ID，单独执行的语句该值为0。 User Name 用户名称。 Node Name 节点名称。Node模式下不显示该字段。 SQL Text 归一化SQL文本。",
+      "source_file": "2425_SQL Detail.txt"
+    },
+    {
+      "term": "Cache",
+      "content": "Cache IO Stats Cache IO Stats Cache IO Stats包含User table IO activity部分和User index IO activity部分，两部分表格列名称及描述如下所示。 User table IO activity 表1 User table IO activity表格字段 列名称 描述 Node Name 节点名称。 DB Name Database名称。 Schema Name Schema名称。 Table Name Table名称。 %Heap Blks Hit Ratio 此表的Buffer Pool命中率。 Heap Blks Read 该表中读取的磁盘块数。 Heap Blks Hit 此表缓存命中数。 Idx Blks Read 表中所有索引读取的磁盘块数。 Idx Blks Hit 表中所有索引命中缓存数。 Toast Blks Read 此表的TOAST表读取的磁盘块数（如果存在）。 Toast Blks Hit 此表的TOAST表命中缓冲区数（如果存在）。 Tidx Blks Read 此表的TOAST表索引读取的磁盘块数（如果存在）。 Tidx Blks Hit 此表的TOAST表索引命中缓冲区数（如果存在）。 User index IO activity 表2 User index IO activity 表格字段 列名称 描述 Node Name 节点名称。 DB Name Database名称。 Schema Name Schema名称。 Table Name Table名称。 Index Name Index名称。 %Idx Blks Hit Ratio Index的命中率。 Idx Blks Read 所有索引读取的磁盘块数。 Idx Blks Hit 所有索引命中缓存数。",
+      "source_file": "4080_Cache IO Stats.txt"
+    },
+    {
+      "term": "Load",
+      "content": "Load Profile Load Profile Load Profile指标名称及描述如下表所示。 表1 Load Profile报表主要内容 指标名称 描述 DB Time(us) 作业运行的elapse time总和。 CPU Time(us) 作业运行的CPU时间总和。 Redo size(blocks) 产生的WAL的大小（块数）。 Logical read (blocks) 表或者索引文件的逻辑读（块数）。 Physical read (blocks) 表或者索引的物理读（块数）。 Physical write (blocks) 表或者索引的物理写（块数）。 Read IO requests 表或者索引的读次数。 Write IO requests 表或者索引的写次数。 Read IO (MB) 表或者索引的读大小（MB）。 Write IO (MB) 表或者索引的写大小（MB）。 Logins 登录次数。 Executes (SQL) SQL执行次数。 Rollbacks 回滚事务数。 Transactions 事务数。 SQL response time P95(us) 95%的SQL的响应时间。 SQL response time P80(us) 80%的SQL的响应时间。",
+      "source_file": "2411_Load Profile.txt"
+    },
+    {
+      "term": "Utility",
+      "content": "Utility status Utility status Utility status包含Replication slot和Replication stat两张表，列名称及描述如下所示。 Replication slot 表1 Replication slot报表主要内容 列名称 描述 Slot Name 复制节点名。 Slot Type 复制节点类型。 DB Name 复制节点数据库名称。 Active 复制节点状态。 Xmin 复制节点事务标识。 Restart Lsn 复制节点的Xlog文件信息。 Dummy Standby 复制节点假备。 Replication stat 表2 Replication stat报表主要内容 列名称 描述 Thread Id 线程的PID。 Usesys Id 用户系统ID。 Usename 用户名称。 Application Name 应用程序。 Client Addr 客户端地址。 Client Hostname 客户端主机名。 Client Port 客户端端口。 Backend Start 程序起始时间。 State 日志复制状态。 Sender Sent Location 发送端发送日志位置。 Receiver Write Location 接收端write日志位置。 Receiver Flush Location 接收端flush日志位置。 Receiver Replay Location 接收端replay日志位置。 Sync Priority 同步优先级。 Sync State 同步状态。",
+      "source_file": "4081_Utility status.txt"
+    },
+    {
+      "term": "SQL",
+      "content": "SQL Statistics SQL Statistics SQL Statistics列名称及描述如下表所示。 表1 SQL Statistics报表主要内容 列名称 描述 Unique SQL Id 归一化的SQL ID。 Parent Unique SQL Id 父语句的归一化SQL ID，对于非存储过程子语句的场景，该值为0。 Node Name 节点名称。 User Name 用户名称。 Avg Tuples Fetched 平均随机扫描行。 Avg Tuples Returned 平均顺序扫描行。 Calls 调用次数。 Total Elapse Time(us) 总执行时间（us）。 Avg Elapse Time(us) 平均执行时间（us）。 Returned Rows SELECT返回行数。 Avg Returned Rows 平均SELECT返回行数。 Tuples Affected Insert/Update/Delete行数。 Avg Tuples Affected 平均Insert/Update/Delete行数。 Logical Read Buffer逻辑读次数。 Avg Logical Read 平均Buffer逻辑读次数。 Physical Read Buffer物理读次数。 Avg Physical Read 平均Buffer物理读次数。 CPU Time(us) CPU时间（us）。 Avg CPU Time(us) 平均CPU时间（us）。 Data IO Time(us) IO上的时间花费（us）。 Avg Data IO Time(us) 平均IO上的时间花费（us）。 Lock Wait Time(us) SQL的锁等待时间（us）。 Avg Lock Wait Time(us) 平均每条SQL的锁等待时间（us）。 Sort Count 排序执行的次数。 Sort Time(us) 排序执行的时间（us）。 Sort Mem Used(KB) 排序过程中使用的work memory大小（KB）。 Sort Spill Count 排序过程中，若发生落盘，写文件的次数。 Sort Spill Size(KB) 排序过程中，若发生落盘，使用的文件大小（KB）。 Hash Count hash执行的次数。 Hash Time(us) hash执行的时间（us）。 Hash Mem Used(KB) hash过程中使用的work memory大小（KB）。 Hash Spill Count hash过程中，若发生落盘，写文件的次数。 Hash Spill Size(KB) hash过程中，若发生落盘，使用的文件大小（KB）。 SQL Text 归一化SQL字符串。",
+      "source_file": "2419_SQL Statistics.txt"
+    },
+    {
+      "term": "IO",
+      "content": "IO Profile IO Profile IO Profile指标名称及描述如下表所示。 表1 IO Profile指标表主要内容 指标名称 描述 Database requests Database IO次数。 Database (MB) Database IO数据量。 Database (blocks) Database IO数据块。 Redo requests Redo IO次数。 Redo (MB) Redo IO量。",
+      "source_file": "2416_IO Profile.txt"
+    },
+    {
+      "term": "Configuration",
+      "content": "Configuration settings Configuration settings Configuration settings列名称及描述如下表所示。 表1 Configuration settings报表主要内容 列名称 描述 Name GUC名称。 Abstract GUC描述。 Type 数据类型。 Curent Value 当前值。 Min Value 合法最小值。 Max Value 合法最大值。 Category GUC类别。 Enum Values 如果是枚举值，列举所有枚举值。 Default Value 数据库启动时参数默认值。 Reset Value 数据库重置时参数默认值。",
+      "source_file": "4083_Configuration settings.txt"
+    },
+    {
+      "term": "Wait",
+      "content": "Wait Events Wait Events Wait Events列名称及描述如下表所示。 表1 Wait Events报表主要内容 列名称 描述 Type Wait Event类别名称： STATUS。 LWLOCK_EVENT。 LOCK_EVENT。 IO_EVENT。 Event Wait Event名称。 Total Wait Time (us) 总Wait时间（us）。 Waits 总Wait次数。 Failed Waits Wait失败次数。 Avg Wait Time (us) 平均Wait时间（us）。 Max Wait Time (us) 最大Wait时间（us）。",
+      "source_file": "2420_Wait Events.txt"
+    }
+  ]
+}

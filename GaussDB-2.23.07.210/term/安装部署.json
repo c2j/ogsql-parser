@@ -1,0 +1,16 @@
+{
+  "topic": "安装部署",
+  "term_count": 2,
+  "terms": [
+    {
+      "term": "GaussDB安装指南",
+      "content": "GaussDB安装指南 GaussDB安装指南 安装简介 GaussDB安装(OBS方式） GaussDB安装(Swift+NAS方式)",
+      "source_file": "013_GaussDB.txt"
+    },
+    {
+      "term": "DBSplatform安装指南",
+      "content": "DBSplatform安装指南 DBSplatform安装指南 安装简介 安装前准备 安装过程（自动化部署工程）",
+      "source_file": "002_DBSplatform.txt"
+    }
+  ]
+}

@@ -1,0 +1,566 @@
+查询改写的Hint 查询改写的Hint 功能描述 优化器支持一系列查询改写规则，可以对SQL语句进行等价的逻辑改写，从而生成更好的执行计划。但在一些场景下，用户并不希望改写SQL语句、或者优化器的改写会导致计划跳变，对于这些特定的场景，需要能够使用hint对改写规则进行控制，让优化器按照特定的方式进行改写。目前数据库支持对ANY/EXISTS的子链接、简单子查询、消减ORDER BY、HAVING子句下推、延迟聚合等多种场景的SQL进行hint控制，具体请参见： Hint使用说明 。 部分查询改写规则同时受查询改写的hint和GUC参数控制，通常查询改写的hint优先级高于GUC参数控制，涉及到受GUC参数控制的改写规则会在 Hint使用说明 相关章节进行描述。 每条查询改写规则受一对互斥的hint控制，如：子查询展开的规则同时受EXPAND_SUBQUERY和NO_EXPAND_SUBQUERY控制，其中，EXPAND_SUBQUERY hint表示允许应用该规则对SQL进行改写，NO_EXPAND_SUBQUERY表示禁止使用该规则对SQL进行改写。且当同一个查询块（queryblock）中同时存在两个互斥的hint时，以获取的首个hint为准，例如：/*+ EXPAND_SUBQUERY NO_EXPAND_SUBQUERY */ 则EXPAND_SUBQUERY hint生效。 查询改写的hint允许重复，但对于重复的hint数据库只会使用第一个，对于其他未使用的Hint则会报"unused hint" Warning提示。例如：/*+ EXPAND_SUBLINK EXPAND_SUBLINK */  由于数据库只使用第一个EXPAND_SUBLINK hint，所以仍然会报"unused hint" Warning提示。 语法格式 hintname[(@queryblock)] 参数说明 hintname: 控制查询改写规则的Hint名称，当前支持的查询改写Hint请参见 表1 。 @queryblock 请参见 指定Hint所处于的查询块Queryblock ，可省略，表示在当前查询块生效，当不指定时，Hint没有括号"()"。 查询改写Hint列表 表1 查询改写支持的hint列表 序号 hint名称 描述 1 EXPAND_SUBLINK_HAVING 允许HAVING子句中的子链接提升。 2 NO_EXPAND_SUBLINK_HAVING 禁止HAVING子句中的子链接提升。 3 EXPAND_SUBLINK 允许对ANY/EXISTS类型子链接进行提升。 4 NO_EXPAND_SUBLINK 禁止对ANY/EXISTS类型子链接进行提升。 5 EXPAND_SUBLINK_TARGET 允许对TargetList中的子链接进行提升。 6 NO_EXPAND_SUBLINK_TARGET 禁止对TargetList中的子链接进行提升。 7 USE_MAGIC_SET 从主查询下推条件到子查询, 先针对子查询的关联字段进行分组聚集，再和主查询进行关联，减少相关子链接的重复扫描，提升查询效率。 8 NO_USE_MAGIC_SET 禁止从主查询下推条件到子查询, 将带有聚集算子的子查询提前和主查询进行关联。 9 EXPAND_SUBLINK_UNIQUE_CHECK 允许对无agg的子链接进行提升，子链接提升需要保证对于每个条件只有一行输出。 10 NO_EXPAND_SUBLINK_UNIQUE_CHECK 禁止对无agg的子链接进行提升。 11 NO_SUBLINK_DISABLE_REPLICATED 允许带有复制表的fast query shipping或者Stream场景的表达式子链接提升。 12 SUBLINK_DISABLE_REPLICATED 禁止带有复制表的fast query shipping或者Stream场景的表达式子链接提升。 13 NO_SUBLINK_DISABLE_EXPR 允许对表达式类型的子链接进行提升。 14 SUBLINK_DISABLE_EXPR 禁止对表达式类型的子链接进行提升。 15 ENABLE_SUBLINK_ENHANCED 允许子链接提升增强，支持对OR表达式等相关或非相关子链接提升。 16 NO_ENABLE_SUBLINK_ENHANCED 禁用子链接提升增强，禁止对OR表达式等相关或非相关子链接提升。 17 PARTIAL_PUSH Stream场景支持对listagg和arrayagg添加gather算子。 18 NO_PARTIAL_PUSH Stream场景禁止对listagg和arrayagg添加gather算子。 19 REDUCE_ORDER_BY 消减冗余的ORDER BY，外层查询对内层查询结果无排序要求时，可以减少不必要的ORDER BY提升查询效率。 20 NO_REDUCE_ORDER_BY 禁止消减不必要的ORDER BY。 21 REMOVE_NOT_NULL 消减不必要的NOT NULL条件，当列属性为NOT NULL时可以消减查询条件中的IS NOT NULL判断。 22 NO_REMOVE_NOT_NULL 禁止消减IS NOT NULL条件判断。 23 LAZY_AGG 子查询与外层查询存在同样的GROUP BY条件，两层聚集运算可能导致查询效率低下，消除子查询中的聚集运算，以此提高查询效率。 24 NO_LAZY_AGG 禁用消除子查询中的聚集运算规则。 25 EXPAND_SUBQUERY 子查询提升，将子查询提升与上层做JOIN连接，优化查询效率。 26 NO_EXPAND_SUBQUERY 禁用子查询提升。 27 PUSHDOWN_HAVING 下推HAVING条件表达式。 28 NO_PUSHDOWN_HAVING 禁止下推HAVING表达式。 29 INLIST_TO_JOIN 控制使用inlist-to-join对SQL进行改写。 30 NO_INLIST_TO_JOIN 控制禁止使用inlist-to-join对SQL进行改写。 31 ROWNUM_PUSHDOWN 允许行号下推。 32 NO_ROWNUM_PUSHDOWN 禁止行号下推。 Hint使用准备 为了方便了解hint的使用场景，手册提供了所有查询改写hint的应用示例，请参见 Hint使用说明 ，相关建表语句和环境准备如下： 会话设置 SET client_encoding = 'UTF8';
+CREATE SCHEMA rewrite_rule_test;
+SET current_schema = rewrite_rule_test; 建表语句 CREATE TABLE rewrite_rule_hint_t1 (a INT, b INT, c INT, d INT);
+CREATE TABLE rewrite_rule_hint_t2 (a INT, b INT, c INT, d INT);
+CREATE TABLE rewrite_rule_hint_t3 (a INT, b INT, c INT, d INT);
+CREATE TABLE rewrite_rule_hint_t4 (a INT NOT NULL, b INT, c INT, d INT);
+CREATE TABLE rewrite_rule_hint_t5 (slot INTEGER NOT NULL,cid BIGINT NOT NULL,name CHARACTER VARYING NOT NULL) WITH (ORIENTATION = row);
+INSERT INTO rewrite_rule_hint_t5 (slot, cid, name) values(generate_series(1, 10),generate_series(1, 10),'records.storage.state');
+ANALYZE rewrite_rule_hint_t5;
+CREATE TABLE rewrite_rule_hint_customer (
+    c_custkey INTEGER NOT NULL,
+    c_name CHARACTER VARYING(25) NOT NULL,
+    c_address CHARACTER VARYING(40) NOT NULL,
+    c_nationkey INTEGER NOT NULL,
+    c_phone CHARACTER(15) NOT NULL,
+    c_acctbal NUMERIC(15, 2) NOT NULL,
+    c_mktsegment CHARACTER(10) NOT NULL,
+    c_comment CHARACTER VARYING(117) NOT NULL
+);
+CREATE TABLE rewrite_rule_hint_orders (
+    o_orderkey INTEGER NOT NULL,
+    o_custkey INTEGER NOT NULL,
+    o_orderstatus CHARACTER(1) NOT NULL,
+    o_totalprice NUMERIC(15, 2) NOT NULL,
+    o_orderdate DATE NOT NULL,
+    o_orderpriority CHARACTER(15) NOT NULL,
+    o_clerk CHARACTER(15) NOT NULL,
+    o_shippriority INTEGER NOT NULL,
+    o_comment CHARACTER VARYING(79) NOT NULL
+); Hint使用说明 EXPAND_SUBLINK_HAVING 允许HAVING子句中的子链接提升。该场景同时受GUC参数rewrite_rule的控制，当未使用本规则的hint且rewrite_rule值为enable_sublink_pullup_enhanced时，规则同样生效。但当同时使用本规则的hint和GUC参数时，hint的优先级高于GUC参数。该hint与NO_EXPAND_SUBLINK_HAVING为一组互斥的规则控制hint。 gaussdb=# EXPLAIN(costs off)SELECT /*+EXPAND_SUBLINK_HAVING*/ a,sum(b) AS value FROM rewrite_rule_hint_t1 GROUP BY a HAVING sum(a) >= (SELECT avg(b) FROM rewrite_rule_hint_t1) ORDER BY value DESC;
+                                          QUERY PLAN
+----------------------------------------------------------------------------------------------
+ Streaming (type: GATHER)
+   Merge Sort Key: inner_subquery.value DESC
+   Node/s: All datanodes
+   InitPlan 1 (returns $0)
+     ->  Aggregate
+           ->  Streaming(type: BROADCAST)
+                 Spawn on: All datanodes
+                 ->  Aggregate
+                       ->  Seq Scan on rewrite_rule_hint_t1
+   ->  Sort
+         Sort Key: inner_subquery.value DESC
+         ->  Subquery Scan on inner_subquery
+               ->  HashAggregate
+                     Group By Key: rewrite_rule_test.rewrite_rule_hint_t1.a
+                     Filter: ((sum(rewrite_rule_test.rewrite_rule_hint_t1.a))::numeric >= $0)
+                     ->  Seq Scan on rewrite_rule_hint_t1
+(16 rows) NO_EXPAND_SUBLINK_HAVING 禁止HAVING子句中的子链接提升。该场景同时受GUC参数rewrite_rule的控制，当未使用本规则的hint且rewrite_rule值未设置为enable_sublink_pullup_enhanced时，规则同样禁用。但当同时使用本规则的hint和GUC参数时，hint的优先级高于GUC参数。该hint与EXPAND_SUBLINK_HAVING为一组互斥的规则控制hint。 gaussdb=# EXPLAIN(costs off)SELECT /*+NO_EXPAND_SUBLINK_HAVING*/ a,sum(b) AS value FROM rewrite_rule_hint_t1 GROUP BY a HAVING sum(a) >= (SELECT avg(b) FROM rewrite_rule_hint_t1) ORDER BY value DESC;
+                                       QUERY PLAN
+----------------------------------------------------------------------------------------
+ Streaming (type: GATHER)
+   Merge Sort Key: (sum(rewrite_rule_test.rewrite_rule_hint_t1.b)) DESC
+   Node/s: All datanodes
+   InitPlan 1 (returns $0)
+     ->  Aggregate
+           ->  Streaming(type: BROADCAST)
+                 Spawn on: All datanodes
+                 ->  Aggregate
+                       ->  Seq Scan on rewrite_rule_hint_t1
+   ->  Sort
+         Sort Key: (sum(rewrite_rule_test.rewrite_rule_hint_t1.b)) DESC
+         ->  HashAggregate
+               Group By Key: rewrite_rule_test.rewrite_rule_hint_t1.a
+               Filter: ((sum(rewrite_rule_test.rewrite_rule_hint_t1.a))::numeric >= $0)
+               ->  Seq Scan on rewrite_rule_hint_t1
+(15 rows) EXPAND_SUBLINK 允许子链接进行提升。支持对[Not]Any类型的非相关子链接或[Not]Exists类型的相关子链接等场景的控制。该场景下本规则的hint与NO_EXPAND hint互斥，且该hint的优先级高于NO_EXPAND。该hint与NO_EXPAND_SUBLINK为一组互斥的规则控制hint。 gaussdb=# EXPLAIN(costs off)SELECT * FROM rewrite_rule_hint_t1 WHERE a > ANY(SELECT /*+EXPAND_SUBLINK*/ a FROM rewrite_rule_hint_t2) AND b > ANY (SELECT /*+EXPAND_SUBLINK*/a FROM rewrite_rule_hint_t3);
+                                  QUERY PLAN
+------------------------------------------------------------------------------
+ Streaming (type: GATHER)
+   Node/s: All datanodes
+   ->  Nested Loop Semi Join
+         Join Filter: (rewrite_rule_hint_t1.b > rewrite_rule_hint_t3.a)
+         ->  Nested Loop Semi Join
+               Join Filter: (rewrite_rule_hint_t1.a > rewrite_rule_hint_t2.a)
+               ->  Seq Scan on rewrite_rule_hint_t1
+               ->  Materialize
+                     ->  Streaming(type: BROADCAST)
+                           Spawn on: All datanodes
+                           ->  Seq Scan on rewrite_rule_hint_t2
+         ->  Materialize
+               ->  Streaming(type: BROADCAST)
+                     Spawn on: All datanodes
+                     ->  Seq Scan on rewrite_rule_hint_t3
+(15 rows) NO_EXPAND_SUBLINK 禁止子链接进行提升。支持对[Not]Any类型的非相关子链接或[Not]Exists类型的相关子链接等场景的控制。该场景下本规则的hint与NO_EXPAND hint等效。该hint与EXPAND_SUBLINK为一组互斥的规则控制hint。 gaussdb=# EXPLAIN(costs off)SELECT * FROM rewrite_rule_hint_t1 WHERE a > ANY(SELECT /*+NO_EXPAND_SUBLINK*/ a FROM rewrite_rule_hint_t2) AND b > ANY (SELECT /*+EXPAND_SUBLINK*/a FROM rewrite_rule_hint_t3);
+                         QUERY PLAN
+------------------------------------------------------------
+ Streaming (type: GATHER)
+   Node/s: All datanodes
+   ->  Seq Scan on rewrite_rule_hint_t1
+         Filter: ((NOT (hashed SubPlan 2)) AND (SubPlan 1))
+         SubPlan 2
+           ->  Materialize
+                 ->  Streaming(type: BROADCAST)
+                       Spawn on: All datanodes
+                       ->  Seq Scan on rewrite_rule_hint_t3
+         SubPlan 1
+           ->  Materialize
+                 ->  Streaming(type: BROADCAST)
+                       Spawn on: All datanodes
+                       ->  Seq Scan on rewrite_rule_hint_t2
+(14 rows) EXPAND_SUBLINK_TARGET 允许TargetList中的子链接进行提升。该场景下本规则的hint与NO_EXPAND hint互斥，且该hint优先级高于NO_EXPAND。该场景同时受GUC参数rewrite_rule的控制，当未使用本规则的hint且rewrite_rule值为intargetlist时，规则同样生效。但当同时使用本规则的hint和GUC参数时，hint的优先级高于GUC参数。该hint与NO_EXPAND_SUBLINK_TARGET为一组互斥的规则控制hint。 gaussdb=# EXPLAIN(costs off)SELECT a,(SELECT /*+EXPAND_SUBLINK_TARGET*/ avg(b) FROM rewrite_rule_hint_t1 WHERE rewrite_rule_hint_t1.b = rewrite_rule_hint_t2.b) FROM rewrite_rule_hint_t2 WHERE rewrite_rule_hint_t2.a < 100 ORDER BY rewrite_rule_hint_t2.b;
+                                                   QUERY PLAN
+----------------------------------------------------------------------------------------------------------------
+ Streaming (type: GATHER)
+   Merge Sort Key: rewrite_rule_test.rewrite_rule_hint_t2.b
+   Node/s: All datanodes
+   ->  Merge Left Join
+         Merge Cond: (rewrite_rule_test.rewrite_rule_hint_t2.b = rewrite_rule_hint_t1.b)
+         ->  Sort
+               Sort Key: rewrite_rule_test.rewrite_rule_hint_t2.b
+               ->  Streaming(type: REDISTRIBUTE)
+                     Spawn on: All datanodes
+                     ->  Seq Scan on rewrite_rule_hint_t2
+                           Filter: (a < 100)
+         ->  Sort
+               Sort Key: rewrite_rule_hint_t1.b
+               ->  HashAggregate
+                     Group By Key: rewrite_rule_hint_t1.b
+                     ->  Streaming(type: REDISTRIBUTE)
+                           Spawn on: All datanodes
+                           ->  Hash Right Semi Join
+                                 Hash Cond: (rewrite_rule_test.rewrite_rule_hint_t2.b = rewrite_rule_hint_t1.b)
+                                 ->  Streaming(type: BROADCAST)
+                                       Spawn on: All datanodes
+                                       ->  Seq Scan on rewrite_rule_hint_t2
+                                             Filter: (a < 100)
+                                 ->  Hash
+                                       ->  Seq Scan on rewrite_rule_hint_t1
+(25 rows) NO_EXPAND_SUBLINK_TARGET 禁止TargetList中的子链接进行提升。该场景下本规则的hint与NO_EXPAND hint等效。该场景同时受GUC参数rewrite_rule的控制，当未使用本规则的hint且rewrite_rule值未设置为intargetlist时，规则同样禁用。但当同时使用本规则的Hint和GUC参数时，hint的优先级高于GUC参数。该hint与EXPAND_SUBLINK_TARGET为一组互斥的规则控制hint。 gaussdb=# EXPLAIN(costs off)SELECT a,(SELECT /*+NO_EXPAND_SUBLINK_TARGET*/ avg(b) FROM rewrite_rule_hint_t1 WHERE rewrite_rule_hint_t1.b = rewrite_rule_hint_t2.b) FROM rewrite_rule_hint_t2 WHERE rewrite_rule_hint_t2.a < 100 ORDER BY rewrite_rule_hint_t2.b;
+                                      QUERY PLAN
+---------------------------------------------------------------------------------------
+ Streaming (type: GATHER)
+   Merge Sort Key: rewrite_rule_hint_t2.b
+   Node/s: All datanodes
+   ->  Sort
+         Sort Key: rewrite_rule_hint_t2.b
+         ->  Seq Scan on rewrite_rule_hint_t2
+               Filter: (a < 100)
+               SubPlan 1
+                 ->  Aggregate
+                       ->  Result
+                             Filter: (rewrite_rule_hint_t1.b = rewrite_rule_hint_t2.b)
+                             ->  Materialize
+                                   ->  Streaming(type: BROADCAST)
+                                         Spawn on: All datanodes
+                                         ->  Seq Scan on rewrite_rule_hint_t1
+(15 rows) USE_MAGIC_SET 从主查询下推条件到子查询。先针对子查询的关联字段进行分组聚集，再和主查询进行关联，减少相关子链接的重复扫描，提升查询效率。该场景同时受GUC参数rewrite_rule的控制，当未使用本规则的hint且rewrite_rule值设置为magicset时，规则同样生效。但当同时使用本规则的hint和GUC参数时，hint的优先级高于GUC参数。该hint与NO_USE_MAGIC_SET为一组互斥的规则控制hint。 gaussdb=# EXPLAIN(costs off) SELECT rewrite_rule_hint_t1 FROM rewrite_rule_hint_t1 WHERE rewrite_rule_hint_t1.b = 10 AND rewrite_rule_hint_t1.c < (SELECT /*+USE_MAGIC_SET*/ sum(c) FROM rewrite_rule_hint_t2 WHERE rewrite_rule_hint_t1.a = rewrite_rule_hint_t2.a);
+                                                                             QUERY PLAN
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Nested Loop
+   Join Filter: ((rewrite_rule_test.rewrite_rule_hint_t1.c < (sum(rewrite_rule_hint_t2.c))) AND (rewrite_rule_test.rewrite_rule_hint_t1.a = rewrite_rule_hint_t2.a))
+   ->  Data Node Scan on rewrite_rule_hint_t1 "_REMOTE_TABLE_QUERY_"
+         Node/s: All datanodes
+   ->  HashAggregate
+         Group By Key: rewrite_rule_hint_t2.a
+         ->  Hash Semi Join
+               Hash Cond: (rewrite_rule_hint_t2.a = rewrite_rule_test.rewrite_rule_hint_t1.a)
+               ->  Data Node Scan on rewrite_rule_hint_t2 "_REMOTE_TABLE_QUERY_"
+                     Node/s: All datanodes
+               ->  Hash
+                     ->  Data Node Scan on rewrite_rule_hint_t1 "_REMOTE_TABLE_QUERY_"
+                           Node/s: All datanodes
+(13 rows) NO_USE_MAGIC_SET 禁止从主查询下推条件到子查询。将带有聚集算子的子查询提前和主查询进行关联。该场景同时受GUC参数rewrite_rule的控制，当未使用本规则的hint且rewrite_rule值未设置magicset时，规则同样禁用。但当同时使用本规则的hint和GUC参数时，hint的优先级高于GUC参数。该hint与USE_MAGIC_SET为一组互斥的规则控制hint。 gaussdb=# EXPLAIN(costs off) SELECT rewrite_rule_hint_t1 FROM rewrite_rule_hint_t1 WHERE rewrite_rule_hint_t1.b = 10 AND rewrite_rule_hint_t1.c < (SELECT /*+NO_USE_MAGIC_SET*/ sum(c) FROM rewrite_rule_hint_t2 WHERE rewrite_rule_hint_t1.a = rewrite_rule_hint_t2.a);
+                                QUERY PLAN
+---------------------------------------------------------------------------
+ Hash Join
+   Hash Cond: (rewrite_rule_hint_t2.a = rewrite_rule_hint_t1.a)
+   Join Filter: (rewrite_rule_hint_t1.c < (sum(rewrite_rule_hint_t2.c)))
+   ->  Data Node Scan on "__REMOTE_GROUP_QUERY__"
+         Node/s: All datanodes
+   ->  Hash
+         ->  Data Node Scan on rewrite_rule_hint_t1 "_REMOTE_TABLE_QUERY_"
+               Node/s: All datanodes
+(8 rows) EXPAND_SUBLINK_UNIQUE_CHECK 提升无agg的子链接。子链接提升需要保证对于每个条件只有一行输出，对于有agg的子链接可以自动提升。该场景同时受GUC参数rewrite_rule的控制，当未使用本规则的hint且rewrite_rule值为 uniquecheck时，规则同样生效。但当同时使用本规则的hint和GUC参数时，hint的优先级高于GUC参数。该hint与NO_EXPAND_SUBLINK_UNIQUE_CHECK为一组互斥的规则控制hint。 gaussdb=# EXPLAIN(costs off)SELECT rewrite_rule_hint_t1.a FROM rewrite_rule_hint_t1 WHERE rewrite_rule_hint_t1.a = (SELECT /*+EXPAND_SUBLINK_UNIQUE_CHECK*/ rewrite_rule_hint_t2.a FROM rewrite_rule_hint_t2 WHERE rewrite_rule_hint_t1.a = rewrite_rule_hint_t2.b);
+                                     QUERY PLAN
+-------------------------------------------------------------------------------------
+ Streaming (type: GATHER)
+   Node/s: All datanodes
+   ->  Hash Join
+         Hash Cond: (rewrite_rule_hint_t1.a = subquery."?column?")
+         ->  Seq Scan on rewrite_rule_hint_t1
+         ->  Hash
+               ->  Subquery Scan on subquery
+                     ->  HashAggregate
+                           Group By Key: rewrite_rule_hint_t2.b
+                           Filter: (rewrite_rule_hint_t2.b = rewrite_rule_hint_t2.a)
+                           Unique Check Required
+                           ->  Seq Scan on rewrite_rule_hint_t2
+(12 rows) NO_EXPAND_SUBLINK_UNIQUE_CHECK 禁止提升无agg的子链接。该场景同时受GUC参数rewrite_rule的控制，当未使用本规则的hint且rewrite_rule值未设置为uniquecheck时，规则同样禁用。但当同时使用本规则的hint和GUC参数时，hint的优先级高于GUC参数。该hint与EXPAND_SUBLINK_UNIQUE_CHECK为一组互斥的规则控制hint。 gaussdb=# EXPLAIN(costs off)SELECT rewrite_rule_hint_t1.a FROM rewrite_rule_hint_t1 WHERE rewrite_rule_hint_t1.a = (SELECT /*+NO_EXPAND_SUBLINK_UNIQUE_CHECK*/ rewrite_rule_hint_t2.a FROM rewrite_rule_hint_t2 WHERE rewrite_rule_hint_t1.a = rewrite_rule_hint_t2.b);
+                                QUERY PLAN
+---------------------------------------------------------------------------
+ Streaming (type: GATHER)
+   Node/s: All datanodes
+   ->  Seq Scan on rewrite_rule_hint_t1
+         Filter: (a = (SubPlan 1))
+         SubPlan 1
+           ->  Result
+                 Filter: (rewrite_rule_hint_t1.a = rewrite_rule_hint_t2.b)
+                 ->  Materialize
+                       ->  Streaming(type: BROADCAST)
+                             Spawn on: All datanodes
+                             ->  Seq Scan on rewrite_rule_hint_t2
+(11 rows) NO_SUBLINK_DISABLE_REPLICATED 不禁止带有复制表的fast query shipping或者Stream场景提升子链接。该场景同时受GUC参数rewrite_rule的控制，当未使用本规则的hint且rewrite_rule值未设置为disablerep时，规则生效。但当同时使用本规则的hint和GUC参数时，hint的优先级高于GUC参数。该hint与SUBLINK_DISABLE_REPLICATED为一组互斥的规则控制hint。 gaussdb=# EXPLAIN(costs off)SELECT * FROM rewrite_rule_hint_t1 WHERE (0 =(SELECT /*+NO_SUBLINK_DISABLE_REPLICATED*/ count(*) FROM rewrite_rule_hint_t2 WHERE rewrite_rule_hint_t2.a = rewrite_rule_hint_t1.a) OR NOT EXISTS(SELECT /*+NO_SUBLINK_DISABLE_REPLICATED*/1 FROM rewrite_rule_hint_t3 WHERE rewrite_rule_hint_t3.b = rewrite_rule_hint_t1.b));
+                                                           QUERY PLAN
+---------------------------------------------------------------------------------------------------------------------------------
+ Streaming (type: GATHER)
+   Node/s: All datanodes
+   ->  Hash Left Join
+         Hash Cond: (rewrite_rule_hint_t1.b = rewrite_rule_hint_t3.b)
+         Filter: (((subquery."?column?" IS NOT NULL) AND (0 = COALESCE(subquery.count, 0))) OR (rewrite_rule_hint_t3.b IS NULL))
+         ->  Streaming(type: REDISTRIBUTE)
+               Spawn on: All datanodes
+               ->  Hash Left Join
+                     Hash Cond: (rewrite_rule_hint_t1.a = subquery."?column?")
+                     ->  Seq Scan on rewrite_rule_hint_t1
+                     ->  Hash
+                           ->  Subquery Scan on subquery
+                                 ->  HashAggregate
+                                       Group By Key: rewrite_rule_hint_t2.a
+                                       ->  Seq Scan on rewrite_rule_hint_t2
+         ->  Hash
+               ->  HashAggregate
+                     Group By Key: rewrite_rule_hint_t3.b
+                     ->  Streaming(type: REDISTRIBUTE)
+                           Spawn on: All datanodes
+                           ->  Seq Scan on rewrite_rule_hint_t3
+(21 rows) SUBLINK_DISABLE_REPLICATED 禁止带有复制表的fast query shipping或者Stream场景提升子链接。该场景同时受GUC参数rewrite_rule的控制，当未使用本规则的hint且rewrite_rule值设置为disablerep时，规则禁用。但当同时使用本规则的hint和GUC参数时，hint的优先级高于GUC参数。该hint与NO_SUBLINK_DISABLE_REPLICATED为一组互斥的规则控制hint。 gaussdb=# EXPLAIN(costs off)SELECT * FROM rewrite_rule_hint_t1 WHERE (0 =(SELECT /*+SUBLINK_DISABLE_REPLICATED*/ count(*) FROM rewrite_rule_hint_t2 WHERE rewrite_rule_hint_t2.a = rewrite_rule_hint_t1.a) OR NOT EXISTS(SELECT /*+NO_SUBLINK_DISABLE_REPLICATED*/1 FROM rewrite_rule_hint_t3 WHERE rewrite_rule_hint_t3.b = rewrite_rule_hint_t1.b));
+                                      QUERY PLAN                                      
+--------------------------------------------------------------------------------------
+ Seq Scan on rewrite_rule_hint_t1
+   Filter: ((0 = (SubPlan 1)) OR (NOT (alternatives: SubPlan 2 or hashed SubPlan 3)))
+   SubPlan 1
+     ->  Aggregate
+           ->  Seq Scan on rewrite_rule_hint_t2
+                 Filter: (a = rewrite_rule_hint_t1.a)
+   SubPlan 2
+     ->  Seq Scan on rewrite_rule_hint_t3
+           Filter: (b = rewrite_rule_hint_t1.b)
+   SubPlan 3
+     ->  Seq Scan on rewrite_rule_hint_t3
+(11 rows) NO_SUBLINK_DISABLE_EXPR 允许子链接中表达式提升。该场景同时受GUC参数rewrite_rule的控制，当未使用本规则的hint且rewrite_rule值未设置为disable_pullup_expr_sublink时，规则同样生效。但当同时使用本规则的hint和GUC参数时，hint的优先级高于GUC参数。该hint与SUBLINK_DISABLE_EXPR为一组互斥的规则控制hint。 gaussdb=# EXPLAIN(costs off)SELECT a FROM rewrite_rule_hint_t1 WHERE rewrite_rule_hint_t1.b = (SELECT /*+NO_SUBLINK_DISABLE_EXPR*/ max(b) FROM rewrite_rule_hint_t2 WHERE rewrite_rule_hint_t2.a = rewrite_rule_hint_t1.a);
+                                                   QUERY PLAN
+-----------------------------------------------------------------------------------------------------------------
+ Streaming (type: GATHER)
+   Node/s: All datanodes
+   ->  Hash Join
+         Hash Cond: ((rewrite_rule_hint_t1.a = subquery."?column?") AND (rewrite_rule_hint_t1.b = subquery.max))
+         ->  Seq Scan on rewrite_rule_hint_t1
+         ->  Hash
+               ->  Subquery Scan on subquery
+                     ->  HashAggregate
+                           Group By Key: rewrite_rule_hint_t2.a
+                           ->  Seq Scan on rewrite_rule_hint_t2
+(10 rows) SUBLINK_DISABLE_EXPR 禁止子链接中表达式提升。该场景同时受GUC参数rewrite_rule的控制，当未使用本规则的hint且rewrite_rule值为disable_pullup_expr_sublink时，规则同样禁用。但当同时使用本规则的hint和GUC参数时，hint的优先级高于GUC参数。该hint与NO_SUBLINK_DISABLE_EXPR为一组互斥的规则控制hint。 gaussdb=# EXPLAIN(costs off)SELECT a FROM rewrite_rule_hint_t1 WHERE rewrite_rule_hint_t1.b = (SELECT /*+SUBLINK_DISABLE_EXPR*/ max(b) FROM rewrite_rule_hint_t2 WHERE rewrite_rule_hint_t2.a = rewrite_rule_hint_t1.a);
+                                   QUERY PLAN
+---------------------------------------------------------------------------------
+ Streaming (type: GATHER)
+   Node/s: All datanodes
+   ->  Seq Scan on rewrite_rule_hint_t1
+         Filter: (b = (SubPlan 1))
+         SubPlan 1
+           ->  Aggregate
+                 ->  Result
+                       Filter: (rewrite_rule_hint_t2.a = rewrite_rule_hint_t1.a)
+                       ->  Materialize
+                             ->  Streaming(type: BROADCAST)
+                                   Spawn on: All datanodes
+                                   ->  Seq Scan on rewrite_rule_hint_t2
+(12 rows) ENABLE_SUBLINK_ENHANCED 子链接提升增强。该场景同时受GUC参数rewrite_rule的控制，当未使用本规则的hint且rewrite_rule值设置为enable_sublink_pullup_enhanced时，规则同样生效。但当同时使用本规则的hint和GUC参数时，hint的优先级高于GUC参数。该hint与NO_ENABLE_SUBLINK_ENHANCED为一组互斥的规则控制hint。 gaussdb=# EXPLAIN (costs off)SELECT cntrycode,count(*) AS numcust,sum(c_acctbal) AS totacctbal FROM (SELECT substring(c_phone from 1 for 2) AS cntrycode,c_acctbal FROM rewrite_rule_hint_customer WHERE substring(c_phone from 1 for 2) IN ('22', '25', '26', '14', '18', '30', '17')AND c_acctbal > (SELECT /*+ENABLE_SUBLINK_ENHANCED*/ avg(c_acctbal) FROM rewrite_rule_hint_customer WHERE c_acctbal > 0.00 AND substring(c_phone from 1 for 2) IN ('22', '25', '26', '14', '18', '30', '17')) AND NOT EXISTS (SELECT * FROM rewrite_rule_hint_orders WHERE o_custkey = c_custkey)) AS custsale GROUP BY cntrycode ORDER BY cntrycode;
+                                                                                       QUERY PLAN
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Sort
+   Sort Key: ("substring"((rewrite_rule_test.rewrite_rule_hint_customer.c_phone)::text, 1, 2))
+   ->  HashAggregate
+         Group By Key: ("substring"((rewrite_rule_test.rewrite_rule_hint_customer.c_phone)::text, 1, 2))
+         ->  Streaming (type: GATHER)
+               Node/s: All datanodes
+               ->  HashAggregate
+                     Group By Key: "substring"((rewrite_rule_test.rewrite_rule_hint_customer.c_phone)::text, 1, 2)
+                     ->  Nested Loop Anti Join
+                           Join Filter: (rewrite_rule_hint_orders.o_custkey = rewrite_rule_test.rewrite_rule_hint_customer.c_custkey)
+                           ->  Nested Loop
+                                 Join Filter: (rewrite_rule_test.rewrite_rule_hint_customer.c_acctbal > (pg_catalog.avg((avg(rewrite_rule_test.rewrite_rule_hint_customer.c_acctbal)))))
+                                 ->  Aggregate
+                                       ->  Streaming(type: BROADCAST)
+                                             Spawn on: All datanodes
+                                             ->  Aggregate
+                                                   ->  Seq Scan on rewrite_rule_hint_customer
+                                                         Filter: ((c_acctbal > 0.00) AND ("substring"((c_phone)::text, 1, 2) = ANY ('{22,25,26,14,18,30,17}'::text[])))
+                                 ->  Seq Scan on rewrite_rule_hint_customer
+                                       Filter: ("substring"((c_phone)::text, 1, 2) = ANY ('{22,25,26,14,18,30,17}'::text[]))
+                           ->  Materialize
+                                 ->  Streaming(type: REDISTRIBUTE)
+                                       Spawn on: All datanodes
+                                       ->  Seq Scan on rewrite_rule_hint_orders
+(24 rows) NO_ENABLE_SUBLINK_ENHANCED 禁用子链接提升增强。该场景同时受GUC参数rewrite_rule的控制，当未使用本规则的hint且rewrite_rule值未设置为enable_sublink_pullup_enhanced时，规则禁用。但当同时使用本规则的hint和GUC参数时，hint的优先级高于GUC参数。该hintBLE_SUBLINK_ENHANCED为一组互斥的规则控制hint。 gaussdb=# EXPLAIN (costs off)SELECT cntrycode,count(*) AS numcust,sum(c_acctbal) AS totacctbal FROM (SELECT substring(c_phone from 1 for 2) AS cntrycode,c_acctbal FROM rewrite_rule_hint_customer WHERE substring(c_phone from 1 for 2) IN ('22', '25', '26', '14', '18', '30', '17')AND c_acctbal > (SELECT /*+NO_ENABLE_SUBLINK_ENHANCED*/ avg(c_acctbal) FROM rewrite_rule_hint_customer WHERE c_acctbal > 0.00 AND substring(c_phone from 1 for 2) IN ('22', '25', '26', '14', '18', '30', '17')) AND NOT EXISTS (SELECT * FROM rewrite_rule_hint_orders WHERE o_custkey = c_custkey)) AS custsale GROUP BY cntrycode ORDER BY cntrycode;
+                                                                  QUERY PLAN
+----------------------------------------------------------------------------------------------------------------------------------------------
+ Sort
+   Sort Key: ("substring"((rewrite_rule_test.rewrite_rule_hint_customer.c_phone)::text, 1, 2))
+   InitPlan 1 (returns $0)
+     ->  Aggregate
+           ->  Streaming(type: BROADCAST)
+                 Spawn on: All datanodes
+                 ->  Aggregate
+                       ->  Seq Scan on rewrite_rule_hint_customer
+                             Filter: ((c_acctbal > 0.00) AND ("substring"((c_phone)::text, 1, 2) = ANY ('{22,25,26,14,18,30,17}'::text[])))
+   ->  HashAggregate
+         Group By Key: ("substring"((rewrite_rule_test.rewrite_rule_hint_customer.c_phone)::text, 1, 2))
+         ->  Streaming (type: GATHER)
+               Node/s: All datanodes
+               ->  HashAggregate
+                     Group By Key: "substring"((rewrite_rule_test.rewrite_rule_hint_customer.c_phone)::text, 1, 2)
+                     ->  Nested Loop Anti Join
+                           Join Filter: (rewrite_rule_hint_orders.o_custkey = rewrite_rule_test.rewrite_rule_hint_customer.c_custkey)
+                           ->  Seq Scan on rewrite_rule_hint_customer
+                                 Filter: ((c_acctbal > $0) AND ("substring"((c_phone)::text, 1, 2) = ANY ('{22,25,26,14,18,30,17}'::text[])))
+                           ->  Materialize
+                                 ->  Streaming(type: REDISTRIBUTE)
+                                       Spawn on: All datanodes
+                                       ->  Seq Scan on rewrite_rule_hint_orders
+(23 rows) PARTIAL_PUSH Stream场景支持对listagg和arrayagg添加gather算子。该场景同时受GUC参数rewrite_rule的控制，当未使用本规则的hint且rewrite_rule值设置为partialpush时，规则同样生效。但当同时使用本规则的hint和GUC参数时，hint的优先级高于GUC参数。该hint与NO_PARTIAL_PUSH为一组互斥的规则控制hint。 gaussdb=# SET rewrite_rule='intargetlist';
+EXPLAIN (costs off)SELECT /*+PARTIAL_PUSH*/listagg((SELECT b FROM rewrite_rule_hint_t2 WHERE rewrite_rule_hint_t2.b = rewrite_rule_hint_t1.b ORDER BY rewrite_rule_hint_t2.c limit 1), ',') WITHIN GROUP(ORDER BY rewrite_rule_hint_t1.b) FROM rewrite_rule_hint_t1 ORDER BY 1;
+                                                QUERY PLAN
+------------------------------------------------------------------------------------------------------------
+ Sort
+   Sort Key: (listagg(subquery.b, ','::text ) WITHIN GROUP ( ORDER BY rewrite_rule_hint_t1.b))
+   ->  Aggregate
+         ->  Streaming (type: GATHER)
+               Node/s: All datanodes
+               ->  Nested Loop Left Join
+                     Join Filter: (subquery."?column?" = rewrite_rule_hint_t1.b)
+                     ->  Seq Scan on rewrite_rule_hint_t1
+                     ->  Materialize
+                           ->  Streaming(type: BROADCAST)
+                                 Spawn on: All datanodes
+                                 ->  Subquery Scan on subquery
+                                       Filter: (subquery."?column?" OPERATOR(pg_catalog.=) 1::bigint)
+                                       ->  WindowAgg
+                                             ->  Sort
+                                                   Sort Key: rewrite_rule_hint_t2.b, rewrite_rule_hint_t2.c
+                                                   ->  Streaming(type: REDISTRIBUTE)
+                                                         Spawn on: All datanodes
+                                                         ->  Seq Scan on rewrite_rule_hint_t2
+(19 rows) NO_PARTIAL_PUSH Stream场景禁止对listagg和arrayagg添加gather算子。该场景同时受GUC参数rewrite_rule的控制，当未使用本规则的hint且rewrite_rule值未设置为partialpush时，规则禁用。但当同时使用本规则的hint和GUC参数时，hint的优先级高于GUC参数。该hint与PARTIAL_PUSH为一组互斥的规则控制hint。 gaussdb=# SET rewrite_rule='intargetlist';
+EXPLAIN (costs off)SELECT /*+NO_PARTIAL_PUSH*/listagg((SELECT b FROM rewrite_rule_hint_t2 WHERE rewrite_rule_hint_t2.b = rewrite_rule_hint_t1.b ORDER BY rewrite_rule_hint_t2.c limit 1), ',') WITHIN GROUP(ORDER BY rewrite_rule_hint_t1.b) FROM rewrite_rule_hint_t1 ORDER BY 1;
+ 
+                                               QUERY PLAN
+---------------------------------------------------------------------------------------------------------
+ Sort
+   Sort Key: (listagg(subquery.b, ','::text ) WITHIN GROUP ( ORDER BY rewrite_rule_hint_t1.b))
+   ->  Aggregate
+         ->  Hash Left Join
+               Hash Cond: (rewrite_rule_hint_t1.b = subquery."?column?")
+               ->  Data Node Scan on rewrite_rule_hint_t1 "_REMOTE_TABLE_QUERY_"
+                     Node/s: All datanodes
+               ->  Hash
+                     ->  Subquery Scan on subquery
+                           Filter: (subquery."?column?" OPERATOR(pg_catalog.=) 1::bigint)
+                           ->  WindowAgg
+                                 ->  Sort
+                                       Sort Key: rewrite_rule_hint_t2.b, rewrite_rule_hint_t2.c
+                                       ->  Data Node Scan on rewrite_rule_hint_t2 "_REMOTE_TABLE_QUERY_"
+                                             Node/s: All datanodes
+(15 rows) REDUCE_ORDER_BY 消减不必要的ORDER BY。当外层查询对内层查询结果无排序要求时，可以减少不必要的ORDER BY提升查询效率。该hint与NO_REDUCE_ORDER_BY为一组互斥的规则控制hint。 gaussdb=# EXPLAIN(costs off)SELECT * FROM rewrite_rule_hint_t1,(SELECT /*+REDUCE_ORDER_BY*/ * FROM rewrite_rule_hint_t2 ORDER BY a DESC);
+                     QUERY PLAN
+----------------------------------------------------
+ Streaming (type: GATHER)
+   Node/s: All datanodes
+   ->  Nested Loop
+         ->  Streaming(type: BROADCAST)
+               Spawn on: All datanodes
+               ->  Seq Scan on rewrite_rule_hint_t1
+         ->  Materialize
+               ->  Seq Scan on rewrite_rule_hint_t2
+(8 rows) NO_REDUCE_ORDER_BY 禁止消减不必要的ORDER BY。该hint与REDUCE_ORDER_BY为一组互斥的规则控制hint。 gaussdb=# EXPLAIN(costs off)SELECT * FROM rewrite_rule_hint_t1,(SELECT /*+NO_REDUCE_ORDER_BY*/ * FROM rewrite_rule_hint_t2 ORDER BY a DESC);
+                        QUERY PLAN
+-----------------------------------------------------------
+ Streaming (type: GATHER)
+   Node/s: All datanodes
+   ->  Nested Loop
+         ->  Streaming(type: BROADCAST)
+               Spawn on: All datanodes
+               ->  Seq Scan on rewrite_rule_hint_t1
+         ->  Materialize
+               ->  Sort
+                     Sort Key: rewrite_rule_hint_t2.a DESC
+                     ->  Seq Scan on rewrite_rule_hint_t2
+(10 rows) REMOVE_NOT_NULL 消减不必要的IS NOT NULL条件。当列属性为NOT NULL时可以消减查询条件中的IS NOT NULL判断。该场景同时受GUC参数enable_constraint_optimization控制，当未使用本规则的hint且enable_constraint_optimization值为on时，规则生效。但当同时使用本规则的hint和GUC参数时，hint的优先级高于GUC参数。该hint与NO_REMOVE_NOT_NULL为一组互斥的规则控制hint。 gaussdb=# SET enable_fast_query_shipping=off;
+EXPLAIN(costs off)SELECT /*+REMOVE_NOT_NULL*/ * FROM rewrite_rule_hint_t4 WHERE b > 10 OR a IS NOT NULL;
+               QUERY PLAN
+----------------------------------------
+ Streaming (type: GATHER)
+   Node/s: All datanodes
+   ->  Seq Scan on rewrite_rule_hint_t4
+(3 rows) NO_REMOVE_NOT_NULL 禁止消减不必要的IS NOT NULL条件。该场景同时受GUC参数enable_constraint_optimization控制，当未使用本规则的hint且enable_constraint_optimization值为off时，规则禁用。但当同时使用本规则的hint和GUC参数时，hint的优先级高于GUC参数。该hint与REMOVE_NOT_NULL为一组互斥的规则控制hint。 gaussdb=# SET enable_fast_query_shipping=off;
+EXPLAIN(costs off)SELECT /*+NO_REMOVE_NOT_NULL*/ * FROM rewrite_rule_hint_t4 WHERE b > 10 OR a IS NOT NULL;
+                 QUERY PLAN
+-----------------------------------------------
+ Streaming (type: GATHER)
+   Node/s: All datanodes
+   ->  Seq Scan on rewrite_rule_hint_t4
+         Filter: ((b > 10) OR (a IS NOT NULL))
+(4 rows) LAZY_AGG 子查询与外层查询存在同样的GROUP BY条件。两层聚集运算可能导致查询效率低下，消除子查询中的聚集运算，以此提高查询效率。该场景同时受GUC参数rewrite_rule控制，当未使用本规则的hint且rewrite_rule值为lazyagg时，规则生效。但当同时使用本规则的hint和GUC参数时，hint的优先级高于GUC参数。该hint与NO_LAZY_AGG为一组互斥的规则控制hint。 gaussdb=# EXPLAIN(costs off)SELECT rewrite_rule_hint_t1.b,sum(cc) FROM (SELECT /*+LAZY_AGG*/b,sum(c) AS cc FROM rewrite_rule_hint_t2 GROUP BY b) s1,rewrite_rule_hint_t1 WHERE s1.b = rewrite_rule_hint_t1.b GROUP BY rewrite_rule_hint_t1.b ORDER BY 1,2;
+                                    QUERY PLAN
+-----------------------------------------------------------------------------------
+ Streaming (type: GATHER)
+   Merge Sort Key: rewrite_rule_hint_t1.b, (sum((rewrite_rule_hint_t2.c)::bigint))
+   Node/s: All datanodes
+   ->  Sort
+         Sort Key: rewrite_rule_hint_t1.b, (sum((rewrite_rule_hint_t2.c)::bigint))
+         ->  HashAggregate
+               Group By Key: rewrite_rule_hint_t1.b
+               ->  Hash Join
+                     Hash Cond: (rewrite_rule_hint_t2.b = rewrite_rule_hint_t1.b)
+                     ->  Streaming(type: REDISTRIBUTE)
+                           Spawn on: All datanodes
+                           ->  Seq Scan on rewrite_rule_hint_t2
+                     ->  Hash
+                           ->  Streaming(type: REDISTRIBUTE)
+                                 Spawn on: All datanodes
+                                 ->  Seq Scan on rewrite_rule_hint_t1
+(16 rows) NO_LAZY_AGG 禁用消除子查询中的聚集运算规则。该场景同时受GUC参数rewrite_rule控制，当未使用本规则的hint且rewrite_rule值未设置为lazyagg时，规则禁用。但当同时使用本规则的hint和GUC参数时，hint的优先级高于GUC参数。该hint与LAZY_AGG为一组互斥的规则控制hint。 gaussdb=# EXPLAIN(costs off)SELECT rewrite_rule_hint_t1.b,sum(cc) FROM (SELECT /*+NO_LAZY_AGG*/b,sum(c) AS cc FROM rewrite_rule_hint_t2 GROUP BY b) s1,rewrite_rule_hint_t1 WHERE s1.b = rewrite_rule_hint_t1.b GROUP BY rewrite_rule_hint_t1.b ORDER BY 1,2;
+                                    QUERY PLAN
+----------------------------------------------------------------------------------
+ Streaming (type: GATHER)
+   Merge Sort Key: rewrite_rule_hint_t1.b, (sum(s1.cc))
+   Node/s: All datanodes
+   ->  Sort
+         Sort Key: rewrite_rule_hint_t1.b, (sum(s1.cc))
+         ->  HashAggregate
+               Group By Key: rewrite_rule_hint_t1.b
+               ->  Hash Join
+                     Hash Cond: (rewrite_rule_hint_t1.b = s1.b)
+                     ->  Streaming(type: REDISTRIBUTE)
+                           Spawn on: All datanodes
+                           ->  Seq Scan on rewrite_rule_hint_t1
+                     ->  Hash
+                           ->  Subquery Scan on s1
+                                 ->  HashAggregate
+                                       Group By Key: rewrite_rule_hint_t2.b
+                                       ->  Streaming(type: REDISTRIBUTE)
+                                             Spawn on: All datanodes
+                                             ->  Seq Scan on rewrite_rule_hint_t2
+(19 rows) EXPAND_SUBQUERY 子查询提升，将子查询提升与上层做join连接，优化查询效率。该场景下本规则hint与NO_EXPAND hint互斥，当同时使用本规则的hint和NO_EXPAND时，该hint的优先级更高。该hint与NO_EXPAND_SUBQUERY为一组互斥的规则控制hint。 gaussdb=# SET enable_fast_query_shipping=off;
+EXPLAIN(costs off) SELECT * FROM rewrite_rule_hint_t1,(SELECT /*+EXPAND_SUBQUERY*/ * FROM rewrite_rule_hint_t2 WHERE a > 1) tt WHERE rewrite_rule_hint_t1.a = tt.a;
+                              QUERY PLAN
+----------------------------------------------------------------------
+ Streaming (type: GATHER)
+   Node/s: All datanodes
+   ->  Hash Join
+         Hash Cond: (rewrite_rule_hint_t1.a = rewrite_rule_hint_t2.a)
+         ->  Seq Scan on rewrite_rule_hint_t1
+               Filter: (a > 1)
+         ->  Hash
+               ->  Seq Scan on rewrite_rule_hint_t2
+                     Filter: (a > 1)
+(9 rows) NO_EXPAND_SUBQUERY 禁用子查询提升。该场景的hint和NO_EXPAND hint等效，但该hint的优先级更高。该hint与EXPAND_SUBQUERY为一组互斥的规则控制hint。 gaussdb=# SET enable_fast_query_shipping=off;
+EXPLAIN(costs off) SELECT * FROM rewrite_rule_hint_t1,(SELECT /*+NO_EXPAND_SUBQUERY*/ * FROM rewrite_rule_hint_t2 WHERE a > 1) tt WHERE rewrite_rule_hint_t1.a = tt.a;
+                              QUERY PLAN
+----------------------------------------------------------------------
+ Streaming (type: GATHER)
+   Node/s: All datanodes
+   ->  Hash Join
+         Hash Cond: (rewrite_rule_hint_t1.a = rewrite_rule_hint_t2.a)
+         ->  Seq Scan on rewrite_rule_hint_t1
+         ->  Hash
+               ->  Seq Scan on rewrite_rule_hint_t2
+                     Filter: (a > 1)
+(8 rows) PUSHDOWN_HAVING 下推HAVING条件表达式。该hint与NO_PUSHDOWN_HAVING为一组互斥的规则控制hint。 gaussdb=# EXPLAIN(costs off)SELECT /*+PUSHDOWN_HAVING*/ sum(a),b,c FROM rewrite_rule_hint_t1 WHERE b > 0 GROUP BY b,c HAVING sum(a) > 100 AND c > 0;
+                     QUERY PLAN
+----------------------------------------------------
+ Streaming (type: GATHER)
+   Node/s: All datanodes
+   ->  HashAggregate
+         Group By Key: b, c
+         Filter: (sum(a) > 100)
+         ->  Streaming(type: REDISTRIBUTE)
+               Spawn on: All datanodes
+               ->  Seq Scan on rewrite_rule_hint_t1
+                     Filter: ((b > 0) AND (c > 0))
+(9 rows) NO_PUSHDOWN_HAVING 禁止下推HAVING表达式。该hint与PUSHDOWN_HAVING为一组互斥的规则控制hint。 gaussdb=# EXPLAIN(costs off)SELECT /*+NO_PUSHDOWN_HAVING*/ sum(a),b,c FROM rewrite_rule_hint_t1 WHERE b > 0 GROUP BY b,c HAVING sum(a) > 100 AND c > 0;
+                     QUERY PLAN
+----------------------------------------------------
+ Streaming (type: GATHER)
+   Node/s: All datanodes
+   ->  HashAggregate
+         Group By Key: b, c
+         Filter: ((sum(a) > 100) AND (c > 0))
+         ->  Streaming(type: REDISTRIBUTE)
+               Spawn on: All datanodes
+               ->  Seq Scan on rewrite_rule_hint_t1
+                     Filter: (b > 0)
+(9 rows) INLIST_TO_JOIN 控制使用inlist-to-join对SQL进行改写。该场景同时受GUC参数qrw_inlist2join_optmode的控制，当未使用本规则的hint且qrw_inlist2join_optmode值设置为rule_base时，规则生效。但当同时使用本规则的hint和GUC参数时，hint的优先级高于GUC参数。该hint与NO_INLIST_TO_JOIN为一组互斥的规则控制hint。 gaussdb=# EXPLAIN (costs off)SELECT * FROM rewrite_rule_hint_t5 WHERE slot = '5' AND (name) IN (SELECT /*+INLIST_TO_JOIN*/ name FROM rewrite_rule_hint_t5 WHERE slot = '5'AND cid IN (5,1000,1001,1002,1003,1004,1005,1006,1007,2000,4000,10781986,10880002)LIMIT 50);
+                                                            QUERY PLAN
+----------------------------------------------------------------------------------------------------------------------------------
+ Streaming (type: GATHER)
+   Node/s: All datanodes
+   ->  Nested Loop Semi Join
+         Join Filter: ((rewrite_rule_test.rewrite_rule_hint_t5.name)::text = (rewrite_rule_test.rewrite_rule_hint_t5.name)::text)
+         Skew Join Optimized by Statistic
+         ->  Streaming(type: PART REDISTRIBUTE PART ROUNDROBIN)
+               Spawn on: datanode2
+               ->  Seq Scan on rewrite_rule_hint_t5
+                     Filter: (slot = 5)
+         ->  Materialize
+               ->  Streaming(type: PART REDISTRIBUTE PART BROADCAST)
+                     Spawn on: datanode3
+                     ->  Limit
+                           ->  Streaming(type: BROADCAST)
+                                 Spawn on: datanode2
+                                 ->  Limit
+                                       ->  Hash Right Semi Join
+                                             Hash Cond: ("*VALUES*".column1 = rewrite_rule_test.rewrite_rule_hint_t5.cid)
+                                             ->  Values Scan on "*VALUES*"
+                                             ->  Hash
+                                                   ->  Seq Scan on rewrite_rule_hint_t5
+                                                         Filter: (slot = 5)
+(22 rows) INLIST_TO_JOIN[(@queryblock threshold)]：支持无参数或任意大于等于0的整数值（取值范围INT型），兼容GUC参数qrw_inlist2join_optmode取值，推荐使用默认值即可。 参数说明： threshold：可选参数，查询重写阈值，可选值范围参考取值范围部分。 默认值：1（可选，未设置即取默认值） 取值范围： 0：cost_base 1：rule_base 其他任意正整数（INT型）：查询重写阈值，即list内元素个数大于该阈值，进行inlist2join查询重写。 NO_INLIST_TO_JOIN 控制禁止使用inlist-to-join对SQL进行改写。该场景同时受GUC参数qrw_inlist2join_optmode的控制，当未使用本规则的hint且qrw_inlist2join_optmode值设置为disable时，规则禁用。但当同时使用本规则的hint和GUC参数时，hint的优先级高于GUC参数。该hint与INLIST_TO_JOIN为一组互斥的规则控制hint。 gaussdb=# EXPLAIN (costs off)SELECT * FROM rewrite_rule_hint_t5 WHERE slot = '5' AND (name) IN (SELECT /*+NO_INLIST_TO_JOIN*/ name FROM rewrite_rule_hint_t5 WHERE slot = '5'AND cid IN (5,1000,1001,1002,1003,1004,1005,1006,1007,2000,4000,10781986,10880002)LIMIT 50);
+                                                                               QUERY PLAN
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Streaming (type: GATHER)
+   Node/s: All datanodes
+   ->  Nested Loop Semi Join
+         Join Filter: ((rewrite_rule_test.rewrite_rule_hint_t5.name)::text = (rewrite_rule_test.rewrite_rule_hint_t5.name)::text)
+         Skew Join Optimized by Statistic
+         ->  Streaming(type: PART REDISTRIBUTE PART ROUNDROBIN)
+               Spawn on: datanode2
+               ->  Seq Scan on rewrite_rule_hint_t5
+                     Filter: (slot = 5)
+         ->  Materialize
+               ->  Streaming(type: PART REDISTRIBUTE PART BROADCAST)
+                     Spawn on: datanode1
+                     ->  Limit
+                           ->  Streaming(type: BROADCAST)
+                                 Spawn on: datanode2
+                                 ->  Limit
+                                       ->  Seq Scan on rewrite_rule_hint_t5
+                                             Filter: ((slot = 5) AND (cid = ANY ('{5,1000,1001,1002,1003,1004,1005,1006,1007,2000,4000,10781986,10880002}'::bigint[])))
+(18 rows) ROWNUM_PUSHDOWN 允许行号下推。该场景同时受GUC参数rewrite_rule的控制，当未使用本规则的hint且rewrite_rule值未设置为disable_rownum_pushdown时，允许下推。但当同时使用本规则的hint和GUC参数时，hint的优先级高于GUC参数。该hint与NO_ROWNUM_PUSHDOWN为一组互斥的规则控制hint。 gaussdb=# EXPLAIN (costs off) SELECT * FROM (SELECT /*+ROWNUM_PUSHDOWN*/rownum rn, a FROM rewrite_rule_hint_t1) WHERE rn BETWEEN 5 AND 10;
+                                               QUERY PLAN
+--------------------------------------------------------------------------------------------------------
+ Streaming (type: GATHER)
+   Node/s: All datanodes
+   ->  Subquery Scan on __unnamed_subquery__
+         Filter: ((__unnamed_subquery__.rn >= 5::numeric) AND (__unnamed_subquery__.rn <= 10::numeric))
+         ->  Rownum
+               StopKey: (ROWNUM <= 10::numeric)
+               ->  Streaming(type: BROADCAST)
+                     Spawn on: All datanodes
+                     ->  Rownum
+                           StopKey: (ROWNUM <= 10::numeric)
+                           ->  Seq Scan on rewrite_rule_hint_t1
+(11 rows) NO_ROWNUM_PUSHDOWN 禁止行号下推。该场景同时受GUC参数rewrite_rule的控制，当未使用本规则的hint且rewrite_rule值设置为disable_rownum_pushdown时，禁止下推。但当同时使用本规则的hint和GUC参数时，hint的优先级高于GUC参数。该hint与ROWNUM_PUSHDOWN为一组互斥的规则控制hint。 gaussdb=# EXPLAIN (costs off) SELECT * FROM (SELECT /*+NO_ROWNUM_PUSHDOWN*/rownum rn, a FROM rewrite_rule_hint_t1) WHERE rn BETWEEN 5 AND 10;
+                                               QUERY PLAN
+--------------------------------------------------------------------------------------------------------
+ Streaming (type: GATHER)
+   Node/s: All datanodes
+   ->  Subquery Scan on __unnamed_subquery__
+         Filter: ((__unnamed_subquery__.rn >= 5::numeric) AND (__unnamed_subquery__.rn <= 10::numeric))
+         ->  Rownum
+               ->  Streaming(type: BROADCAST)
+                     Spawn on: All datanodes
+                     ->  Seq Scan on rewrite_rule_hint_t1
+(8 rows) 父主题： 使用Plan Hint进行调优 版权所有 © 华为技术有限公司

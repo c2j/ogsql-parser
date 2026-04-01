@@ -1,0 +1,36 @@
+{
+  "topic": "取消正在处理的查询",
+  "term_count": 6,
+  "terms": [
+    {
+      "term": "PQfreeCancel",
+      "content": "PQfreeCancel PQfreeCancel 功能描述 释放PQgetCancel创建的数据结构。 原型 void PQfreeCancel(PGcancel * cancel); 参数 表1 PQfreeCancel参数 关键字 参数说明 cancel 指向包含cancel信息的对象指针。 注意事项 PQfreeCancel释放一个由前面的PQgetCancel创建的数据对象。",
+      "source_file": "878_PQfreeCancel.txt"
+    },
+    {
+      "term": "PQcancel",
+      "content": "PQcancel PQcancel 功能描述 要求服务器放弃处理当前命令。 原型 int PQcancel(PGcancel* cancel, char* errbuf, int errbufsize); 参数 表1 PQcancel参数 关键字 参数说明 cancel 指向包含cancel信息的对象指针。 errbuf 出错时保存错误信息的buffer。 errbufsize 保存错误信息的buffer大小。 返回值 int：执行结果为1表示成功，0表示失败，失败原因存到errbuf中。 注意事项 成功发送并不保证请求将产生任何效果。如果取消有效，当前命令将提前终止并返回错误结果。如果取消失败（例如，因为服务器已经处理完命令），无返回结果。 如果errbuf是信号处理程序中的局部变量，则可以安全地从信号处理程序中调用PQcancel。就PQcancel而言，PGcancel对象是只读的，因此它也可以从一个线程中调用，这个线程与操作PGconn对象线程是分离的。",
+      "source_file": "2590_PQcancel.txt"
+    },
+    {
+      "term": "PQgetCancel",
+      "content": "PQgetCancel PQgetCancel 功能描述 创建一个数据结构，其中包含取消通过特定数据库连接发出的命令所需的信息。 原型 PGcancel* PQgetCancel(PGconn* conn); 参数 表1 PQgetCancel参数 关键字 参数说明 conn 指向包含连接信息的对象指针。 返回值 PGcancel：指向包含cancel信息对象的指针。 注意事项 PQgetCancel创建一个给定PGconn连接对象的PGcancel对象。如果给定的conn是NULL或无效连接，它将返回NULL。PGcancel对象是一个不透明的结构，应用程序不能直接访问它；它只能传递给PQcancel或PQfreeCancel。",
+      "source_file": "877_PQgetCancel.txt"
+    },
+    {
+      "term": "PQgetCancel",
+      "content": "PQgetCancel PQgetCancel 功能描述 创建一个数据结构，其中包含取消通过特定数据库连接发出的命令所需的信息。 原型 PGcancel* PQgetCancel(PGconn* conn); 参数 表1 PQgetCancel参数 关键字 参数说明 conn 指向包含连接信息的对象指针。 返回值 PGcancel：指向包含cancel信息对象的指针。 注意事项 PQgetCancel创建一个给定PGconn连接对象的PGcancel对象。如果给定的conn是NULL或无效连接，它将返回NULL。PGcancel对象是一个不透明的结构，应用程序不能直接访问它；它只能传递给PQcancel或PQfreeCancel。",
+      "source_file": "2588_PQgetCancel.txt"
+    },
+    {
+      "term": "PQcancel",
+      "content": "PQcancel PQcancel 功能描述 要求服务器放弃处理当前命令。 原型 int PQcancel(PGcancel* cancel, char* errbuf, int errbufsize); 参数 表1 PQcancel参数 关键字 参数说明 cancel 指向包含cancel信息的对象指针。 errbuf 出错时保存错误信息的buffer。 errbufsize 保存错误信息的buffer大小。 返回值 int：执行结果为1表示成功，0表示失败，失败原因存到errbuf中。 注意事项 成功发送并不保证请求将产生任何效果。如果取消有效，当前命令将提前终止并返回错误结果。如果取消失败（例如，因为服务器已经处理完命令），无返回结果。 如果errbuf是信号处理程序中的局部变量，则可以安全地从信号处理程序中调用PQcancel。就PQcancel而言，PGcancel对象是只读的，因此它也可以从一个线程中调用，这个线程与操作PGconn对象线程是分离的。",
+      "source_file": "879_PQcancel.txt"
+    },
+    {
+      "term": "PQfreeCancel",
+      "content": "PQfreeCancel PQfreeCancel 功能描述 释放PQgetCancel创建的数据结构。 原型 void PQfreeCancel(PGcancel* cancel); 参数 表1 PQfreeCancel参数 关键字 参数说明 cancel 指向包含cancel信息的对象指针。 注意事项 PQfreeCancel释放一个由前面的PQgetCancel创建的数据对象。",
+      "source_file": "2589_PQfreeCancel.txt"
+    }
+  ]
+}

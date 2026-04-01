@@ -1,0 +1,19 @@
+DISCONECT DISCONECT 功能描述 关闭一个（或所有）与数据库的连接。 语法格式 DISCONNECT connection_name
+DISCONNECT [ CURRENT ] 
+DISCONNECT DEFAULT 
+DISCONNECT ALL 参数说明 connection_name 由CONNECT命令建立的数据库连接名称。 current 关闭“当前的”连接，它可以是最近打开的连接或者是由SET CONNECTION命令设置的连接。如果没有参数被传给DISCONNECT命令，它作为默认值。 default 关闭默认连接。 all 关闭所有打开的连接。 示例 #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+int main(void) 
+{ 
+    /* 需要提前创建testdb库 */   
+ EXEC SQL CONNECT TO testdb AS DEFAULT USER testuser; 
+    EXEC SQL CONNECT TO testdb AS con1 USER testuser; 
+    EXEC SQL CONNECT TO testdb AS con2 USER testuser; 
+    EXEC SQL CONNECT TO testdb AS con3 USER testuser; 
+    EXEC SQL DISCONNECT CURRENT;  /* 关闭 con3          */ 
+    EXEC SQL DISCONNECT DEFAULT;  /* 关闭 DEFAULT       */ 
+    EXEC SQL DISCONNECT ALL;      /* 关闭 con2 以及 con1 */ 
+    return 0; 
+} 相关链接 CONNECT ， SET CONNECTION 父主题： 嵌入式SQL命令 版权所有 © 华为技术有限公司

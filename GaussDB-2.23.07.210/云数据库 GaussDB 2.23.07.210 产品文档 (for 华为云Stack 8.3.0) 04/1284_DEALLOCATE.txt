@@ -1,0 +1,35 @@
+DEALLOCATE DEALLOCATE 功能描述 DEALLOCATE用于删除前面编写的预备语句。 注意事项 如果用户没有明确删除一个预备语句，那么它将在会话结束的时候被删除。 语法中PREPARE关键字总会被忽略。 语法格式 1 DEALLOCATE [ PREPARE ] { name | ALL } ; 参数说明 name 将要删除的预备语句。 ALL 删除所有预备语句。 示例 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27
+28
+29
+30
+31
+32
+33
+34
+35 --创建q1,q2,q3三个预备语句，先删除q1，再删除所有预备语句。 gaussdb =# SELECT name , statement , parameter_types FROM pg_prepared_statements ; name | statement | parameter_types ------+-----------+----------------- ( 0 rows ) gaussdb =# PREPARE q1 AS SELECT 1 AS a ; PREPARE gaussdb =# PREPARE q2 AS SELECT 1 AS a ; PREPARE gaussdb =# PREPARE q3 AS SELECT 1 AS a ; PREPARE gaussdb =# SELECT name , statement , parameter_types FROM pg_prepared_statements ; name | statement | parameter_types ------+------------------------------+----------------- q1 | PREPARE q1 AS SELECT 1 AS a ; | {} q3 | PREPARE q3 AS SELECT 1 AS a ; | {} q2 | PREPARE q2 AS SELECT 1 AS a ; | {} ( 3 rows ) gaussdb =# DEALLOCATE q1 ; DEALLOCATE gaussdb =# SELECT name , statement , parameter_types FROM pg_prepared_statements ; name | statement | parameter_types ------+------------------------------+----------------- q3 | PREPARE q3 AS SELECT 1 AS a ; | {} q2 | PREPARE q2 AS SELECT 1 AS a ; | {} ( 2 rows ) gaussdb =# DEALLOCATE ALL ; DEALLOCATE ALL gaussdb =# SELECT name , statement , parameter_types FROM pg_prepared_statements ; name | statement | parameter_types ------+-----------+----------------- ( 0 rows ) 父主题： D 版权所有 © 华为技术有限公司

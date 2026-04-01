@@ -1,0 +1,1 @@
+Dorado容灾安装指南 Dorado容灾安装指南 前言 搭建前准备 镜像制作与注册 扩容Dorado BMS AZ 扩容裸机网关 BMS设备入云 数据库服务安装 容灾Region创建VPC并打通网络 GaussDB数据库配置 搭建Dorado数据库实例容灾关系 常见问题FAQ 父主题： Dorado容灾使用指南 版权所有 © 华为技术有限公司

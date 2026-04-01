@@ -1,0 +1,61 @@
+CREATE PROCEDURE CREATE PROCEDURE 功能描述 创建一个新的存储过程。 注意事项 如果创建存储过程时参数或返回值带有精度，不进行精度检测。 创建存储过程时，存储过程定义中对表对象的操作建议都显示指定模式，否则可能会导致存储过程执行异常。 在创建存储过程时，存储过程内部通过SET语句设置current_schema和search_path无效。执行完函数search_path和current_schema与执行函数前的search_path和current_schema保持一致。 SELECT、CALL调用函数时，必须要在出参位置提供实参进行调用，实参不会发生作用。 不能创建仅形参名字不同（存储过程名和参数列表类型都一样）的重载存储过程。 不能创建与函数拥有相同名称和参数列表的存储过程。 不支持仅默认值不同的存储过程重载。 重载的存储过程在调用时变量需要明确具体的类型。 在存储过程内部使用未声明的变量，存储过程被调用时会报错。 在创建procedure时，不能在avg函数外面嵌套其他agg函数，或者其他系统函数。 函数定义时如果指定为IMMUTABLE和SHIPPABLE类型，应该尽量避免函数中存在INSERT，UPDATE，DELETE，MERGE和DDL操作，因为上述操作应该由CN判断对应的执行节点，否则执行结果可能产生错误。 存储过程中不支持需要return集合的操作。 在存储过程内部调用其它无参数的存储过程时，可以省略括号，直接使用存储过程名进行调用。 在存储过程内部调用其他有出参的函数，如果在赋值表达式中调用时，需要打开guc参数 set behavior_compat_options = 'proc_outparam_override' ，并提前定义与出参类型相同的变量，然后将变量作为出参调用带有出参的其他函数，出参才能生效。否则，被调函数的出参会被忽略。 存储过程支持参数注释的查看与导出、导入。 存储过程支持介于IS/AS与plsql_body之间的注释的查看与导出、导入。 被授予CREATE ANY FUNCTION权限的用户，可以在用户模式下创建/替换存储过程。 存储过程默认为SECURITY INVOKER权限，如果想将默认行为改为SECURITY DEFINER权限，需要设置guc参数behavior_compat_options='plsql_security_definer'。 存储过程创建时依赖未定义对象，如参数behavior_compat_options='plpgsql_dependency'打开，创建可执行，通过WARNING提示；如参数未打开，存储过程创建不可执行。 当打开三权分立时，对于定义者权限的存储过程，只能由本用户自己重建，除初始用户外不能alter到其它用户。 如果将定义者权限的存储过程创建到其他用户Schema下，则会以其他用户的权限执行该存储过程，有越权风险，请谨慎使用。 在表达式中使用out参数作为出参时，如下情况不会生效，例如：使用execute immediate sqlv using func语法执行函数、使用select func into语法执行函数、使用insert、update等DML语句执行、使用select where a=func()；带out出参的函数，作为入参时，fun（func（out b），a），out出参b未生效等。 在存储过程内部函数复杂调用，如：func(x).a，函数调用返回复合类型，支持跨schema调用。 调用带out出参的存储过程，设置GUC参数set behavior_compat_options = 'proc_outparam_transfer_length'后可以传递参数长度。规格限制如下： 支持的基本类型包括：CHAR(n)、CHARACTER(n)、NCHAR(n)、VARCHAR(n)、VARYING(n)、VARCHAR2(n)、NVARCHAR2(n)。 out出参不生效的情况下（比如perform）不需要传递长度。 不支持精度传递的基本类型包括：NUMERIC、DECIMAL、NUMBER、FLOAT、DEC、INTEGER、TIME、TIMESTAMP、INTERVAL、TIME WITH TIME ZONE、TIMESTAMP WITH TIME ZONE、TIME WITHOUT TIME ZONE、TIMESTAMP WITHOUT TIME ZONE。 GUC参数set behavior_compat_options是否设置为proc_outparam_override时都支持传递参数长度。 要传递集合类型的元素长度和被集合类型嵌套的数组类型的元素长度需要在GUC参数behavior_compat_options里同时开启tableof_elem_constraints选项。 函数中存在通过guc参数控制特性的语法、函数等，如果在会话内更改相关guc参数，可能存在与预期结果不符，修改参数后，调用函数可能会维持修改前的行为，请谨慎变更guc参数。 语法格式 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15 CREATE [ OR REPLACE ] PROCEDURE procedure_name [ ( { [ argname ] [ argmode ] argtype [ { DEFAULT | : = | = } expression ] } [,...]) ] [ { IMMUTABLE | STABLE | VOLATILE } | { SHIPPABLE | NOT SHIPPABLE } | [ NOT ] LEAKPROOF | { CALLED ON NULL INPUT | RETURNS NULL ON NULL INPUT | STRICT } | { [ EXTERNAL ] SECURITY INVOKER | [ EXTERNAL ] SECURITY DEFINER | AUTHID DEFINER | AUTHID CURRENT_USER } | COST execution_cost | SET configuration_parameter { [ TO | = ] value | FROM CURRENT } ][ ... ] { IS | AS } plsql_body / 参数说明 OR REPLACE 当存在同名的存储过程时，替换原来的定义。 procedure_name 创建的存储过程名称，可以带有模式名。 取值范围：字符串，要符合 标识符命名规范 。 建议不要创建和系统函数重名的函数，否则调用时需要指定函数的schema。 argmode 参数的模式。 VARIADIC用于声明数组类型的参数。 取值范围： IN，OUT，INOUT或VARIADIC。缺省值是IN。只有OUT模式的参数后面能跟VARIADIC。并且OUT和INOUT模式的参数不能用在RETURNS TABLE的过程定义中。 argname 参数的名称。 取值范围：字符串，要符合 标识符命名规范 。 argtype 参数的数据类型。可以使用%ROWTYPE间接引用表的类型，或者使用%TYPE间接引用表或复合类型中某一列的类型。 取值范围：可用的数据类型。 expression 参数的默认表达式。 在参数a_format_version值为10c和a_format_dev_version值为s2的情况下，参数为INOUT模式时不支持默认表达式。 推荐使用方式：将所有默认值参数定义在所有非默认值参数后。 调用带有默认参数的函数时，入参从左往右排入函数，如果有非默认参数的入参缺失则报错。 打开 proc_uncheck_default_param 参数，调用带有默认参数的函数时，入参从左往右排入函数，允许缺省默认参数个入参，如果有非默认参数的入参缺失，则会用错位的默认值填充该参数。 在参数a_format_version值为10c、a_format_dev_version值为s1和关闭proc_outparam_override，函数参数同时包括out出参和default时，默认值不可缺省。 IMMUTABLE、STABLE 等 行为约束可选项。各参数的功能与CREATE FUNCTION类似，详细说明见 CREATE FUNCTION plsql_body PL/SQL存储过程体。 当在存储过程体中进行创建用户、修改密码或加解密等涉及密码或密钥相关操作时，系统表及日志中会记录密码或密钥的明文信息。为防止敏感信息泄露，不建议用户在存储过程体中进行涉及密码或密钥等敏感信息的相关操作。 argname和argmode的顺序没有严格要求，推荐按照argname、argmode、argtype的顺序使用。 示例 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27
+28
+29
+30
+31
+32
+33
+34
+35
+36
+37
+38
+39
+40
+41
+42
+43
+44
+45
+46
+47 --创建一个存储过程。 gaussdb =# CREATE OR REPLACE PROCEDURE prc_add ( param1 IN INTEGER , param2 IN OUT INTEGER ) AS BEGIN param2 : = param1 + param2 ; dbe_output . print_line ( 'result is: ' || to_char ( param2 )); END ; / --调用此存储过程。 gaussdb =# SELECT prc_add ( 2 , 3 ); --创建一个参数模式为VARIADIC的存储过程。 gaussdb =# CREATE OR REPLACE PROCEDURE pro_variadic ( var1 VARCHAR2 ( 10 ) DEFAULT 'hello!' , var4 VARIADIC int4 []) AS BEGIN dbe_output . print_line ( var1 ); END ; / --执行此存储过程。 gaussdb =# SELECT pro_variadic ( var1 => 'hello' , VARIADIC var4 => array [ 1 , 2 , 3 , 4 ]); --创建一个存储过程，将带着调用它的用户的权限执行。 gaussdb =# CREATE TABLE tb1 ( a integer ); gaussdb =# CREATE PROCEDURE insert_data ( v integer ) SECURITY INVOKER AS BEGIN INSERT INTO tb1 VALUES ( v ); END ; / --调用此存储过程。 gaussdb =# CALL insert_data ( 1 ); --删除一个存储过程。 gaussdb =# DROP PROCEDURE prc_add ; gaussdb =# DROP PROCEDURE pro_variadic ; gaussdb =# DROP PROCEDURE insert_data ; --删除表tb1。 gaussdb =# DROP TABLE tb1 ; 相关链接 DROP PROCEDURE 优化建议 analyse | analyze 不支持在事务或匿名块中执行analyze 。 不支持在函数或存储过程中执行analyze操作。 父主题： C 版权所有 © 华为技术有限公司

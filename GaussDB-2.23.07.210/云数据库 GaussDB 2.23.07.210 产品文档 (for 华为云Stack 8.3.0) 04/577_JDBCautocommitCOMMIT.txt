@@ -1,0 +1,1 @@
+【规则】通过JDBC客户端接入时，关闭autocommit参数，显式的执行事务的COMMIT 【规则】通过JDBC客户端接入时，关闭autocommit参数，显式的执行事务的COMMIT 一方面，开启autocommit参数，会导致部分参数（如fetchsize）失效； 另一方面，业务应明确业务逻辑，减少对数据库的依赖。 父主题： 事务 版权所有 © 华为技术有限公司

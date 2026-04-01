@@ -1,0 +1,58 @@
+恢复到新实例 恢复到新实例 功能介绍 根据备份恢复新实例。 调用接口前，您需要提前 获取终端节点 ，即下文中的Endpoint值。 接口约束 目标实例与源实例的数据库版本和实例类型必须一致。 目标实例规格必须大于等于源实例规格。 仅支持ECS和MCS的金融版（标准型）和1主3备形态的实例。 URI URI格式 POST https://{ Endpoint }/opengauss/v3/{project_id}/instances URI样例 https://gaussdb.sa-fb-2.hcsglobal.com/opengauss/v3/0483b6b16e954cb88930a360d2c4e663/instances 参数说明 表1 参数说明 参数 是否必选 描述 project_id 是 租户在某一region下的project ID。 获取方法请参见 获取项目ID/名称 。 请求消息 表2 参数说明 参数 是否必选 参数类型 描述 name 是 String 实例名称。 用于表示实例的名称，同一租户下，同类型的实例名可重名。 取值范围：4~64个字符之间，必须以字母开头，区分大小写，可以包含字母、数字、中划线或者下划线，不能包含其他的特殊字符。 availability_zone 是 String 可用区ID。 GaussDB 取值范围：非空，可选部署在同一可用区或三个不同可用区，可用区之间用逗号隔开。详见示例。 部署在同一可用区：需要输入三个相同的可用区。 部署在三个不同可用区：需要分别输入三个不同的可用区。 取值范围：非空，请向企业管理员获取。 flavor_ref 是 String 规格码，取值范围：非空。参考 数据库实例规格 中 GaussDB 的“规格编码”列内容获取。 volume 是 Object volume信息。 详情请参见 表3 vpc_id 是 String 虚拟私有云ID，获取方法如下： 方法1：登录虚拟私有云服务的控制台界面，在虚拟私有云的详情页面查找VPC ID。 方法2：获取方法请参见《虚拟私有云API参考》中“查询VPC列表”的内容。 subnet_id 是 String 子网的网络ID信息，获取方法如下： 方法1：登录虚拟私有云服务的控制台界面，单击VPC下的子网，进入子网详情页面，查找网络ID。 方法2：获取方法请参见《虚拟私有云API参考》中“查询子网列表”的内容。 security_group_id 是 String 指定实例所属的安全组。 方法1：登录虚拟私有云服务的控制台界面，在安全组的详情页面查找安全组ID。 方法2：获取方法请参见《虚拟私有云API参考》中“查询安全组列表”的内容。 password 是 String 数据库密码。 GaussDB 密码取值范围: 非空； 至少包含大写字母（A-Z），小写字母（a-z），数字（0-9），非字母数字字符（限定为~!@#%^*-_=+?,）四类字符中的三类字符；长度8~32个字符。 建议您输入高强度密码，以提高安全性，防止出现密码被暴力破解等安全风险。 charge_info 否 Object 付费方式信息，支持按需。 详情请参见 表4 。 backup_strategy 否 Object 自动备份策略。 详情请参见 表6 。 restore_point 是 Object 恢复数据源对象。 详情请参见 表5 。 configuration_id 否 String 参数组ID。当不传该参数时，使用系统默认的参数模板。 port 否 String GaussDB 数据库端口当前只支持设置为8000，当不传该参数时，默认端口为8000。 time_zone 否 String UTC时区。 不选择时， GaussDB 默认为UTC时间。 选择填写时，取值范围为UTC-12:00~UTC+12:00，且只支持整段时间，如UTC+08:00，不支持UTC+08:30。 master_az 否 String 主可用区ID。取值为availability_zone三个可用区ID其一。当原实例存在单独的仲裁可用区时必传，其他情况不需要填写。 arbitration_az 否 String 仲裁可用区ID。取值为availability_zone三个可用区ID其一。当原实例存在单独的仲裁可用区时必传，其他情况不需要填写。 xbsa_ssl_certs 否 Object xbsa证书信息。 详情请参见 表7 。 表3 volume字段数据结构说明 参数 是否必选 参数类型 描述 type 是 String 磁盘类型。 仅支持LOCALSSD，ULTRAHIGH。 size 是 Integer 磁盘大小,需要大于等于原实例。例如：该参数填写为“40”，表示为恢复的实例分配40GB的磁盘空间。 MCS部署方案：取值范围：（分片数*40GB）~（分片数*16TB），且大小只能为分片数*40的整数倍。 表4 charge_info字段数据结构说明 参数 是否必选 参数类型 描述 charge_mode 是 String 计费模式。支持postPaid，后付费，即按需付费。 表5 restore_point字段数据结构说明 参数 是否必选 参数类型 描述 instance_id 是 String 源实例ID。 backup_id 是 String 用于恢复的备份ID。 表6 backup_strategy字段数据结构说明 参数 是否必选 参数类型 描述 start_time 是 String 备份时间段。自动备份将在该时间段内触发。 取值范围：非空，格式必须为hh:mm-HH:MM且有效，当前时间指UTC时间。 HH取值必须比hh大1。 mm和MM取值必须相同，且取值必须为整点。 取值示例： 08:00-09:00 23:00-00:00 keep_days 否 Integer 指定备份文件的可保存天数。 取值范围：0～732，开放“gaussdb_feature_supportConsoleBackupPolicyDay_36500”白名单后，支持备份文件最长保留天数36500天。该参数缺省或为0时，默认填写为30天。 表7 xbsa_ssl_certs字段数据结构说明 参数 是否必选 参数类型 描述 ca_cert_pem 是 String 根证书文件内容。base64 编码。 client_crt 是 String 用户证书内容。base64 编码。 client_key 是 String 用户私钥内容。base64 编码。 rand_pass 是 String 私钥文件的密码。 请求样例 恢复 实例： {
+    "name": "targetInst",
+    "availability_zone": "aaa,bbb,ccc",
+    "flavor_ref": "gaussdb.opengauss.ee.ld.2xlarge.x868.co",
+    "volume": {
+        "type": "LOCALSSD",
+        "size": 160
+    },
+   
+    "vpc_id": "490a4a08-ef4b-44c5-94be-3051ef9e4fce",
+    "subnet_id": "0e2eda62-1d42-4d64-a9d1-4e9aa9cd994f",
+    "security_group_id": "2a1f7fc8-3307-42a7-aa6f-42c8b9b8f8c5",
+    "password": "******",
+    "restore_point": {
+        "instance_id": "d8e6ca5a624745bcb546a227aa3ae1cfin14",
+        "backup_id": "2f4ddb93b9014b0893d81d2e472f30febr14"
+    },
+  
+    "configuration_id": "52e86e87445847a79bf807ceda213165pr01",
+    "port": 8000,
+    
+    "time_zone": "UTC+04:00",
+    "master_az": "aaa",
+    "arbitration_az": "bbb"
+} 响应消息 正常响应要素说明 表8 要素说明 参数 参数类型 描述 instance Object 实例信息。 详情请参见 表9 。 job_id String 恢复新实例的任务id。 表9 instance说明 参数 参数类型 描述 id String 实例id。 name String 实例名称。 用于表示实例的名称，同一租户下，同类型的实例名可重名。 取值范围：4~64个字符之间，必须以字母开头，区分大小写，可以包含字母、数字、中划线或者下划线，不能包含其他的特殊字符。 status String 实例状态。如BUILD，表示创建中。 datastore Object 数据库信息。 详情请参见 表10 ha Object 实例部署形态。 详情请参见 表11 port String 数据库端口信息。 当不传该参数时，默认端口8000。 volume Object volume信息。 详情请参见 表12 backup_strategy Object 自动备份策略。 详情请参见 表13 replica_num Integer 实例副本数。 region String 区域ID。 flavor_ref String 规格码。 availability_zone String 可用区ID。可选部署在同一可用区或三个不同可用区，可用区之间用逗号隔开。 取值范围：非空，请向企业管理员获取。 vpc_id String 虚拟私有云ID。 subnet_id String 子网ID。 security_group_id String 安全组ID。 charge_info Object 付费方式信息，支持按需。 详情请参见 表14 。 表10 datastore字段数据结构说明 参数 参数类型 描述 type String 数据库引擎，返回值如下： GaussDB 。 枚举值： GaussDB 。 version String 数据库版本。 表11 ha字段数据结构说明 参数 参数类型 描述 mode String GaussDB 分布式模式，返回值为：enterprise（企业版）；主备版，返回值为：centralization_standard(主备版)。 replication_mode String 备机同步参数。 取值： GaussDB 为“sync”。 说明： “sync”为同步模式。 枚举值： sync consistency String GaussDB 的预留参数：指定实例一致性类型，取值范围：strong（强一致性） | eventual(最终一致性)。 枚举值： strong eventual 表12 volume字段数据结构说明 参数 参数类型 描述 type String 磁盘类型。 取值如下，区分大小写： LOCALSSD 枚举值： LOCALSSD size Integer 磁盘大小。 GaussDB 分布式实例恢复时需指定大小：要求必须为（分片数 * 40GB）的倍数，取值范围：（分片数 40GB）~（分片数 16TB）。 表13 backup_strategy字段数据结构说明 参数 参数类型 描述 start_time String 备份时间段。自动备份将在该时间段内触发。 取值范围：非空，格式必须为hh:mm-HH:MM且有效，当前时间指UTC时间。 HH取值必须比hh大1。 mm和MM取值必须相同，且取值必须为整点。 取值示例： 08:00-09:00 23:00-00:00 keep_days Integer 指定备份文件的可保存天数。 取值范围：0～732，开放“gaussdb_feature_supportConsoleBackupPolicyDay_36500”白名单后，支持备份文件最长保留天数36500天。该参数缺省时，默认填写为30天。 表14 charge_info字段数据结构说明 参数 参数类型 描述 charge_mode String 计费模式。支持postPaid，后付费，即按需付费。 正常响应样例 {
+    "instance": {
+        "id": "2gfdsh844a4023a776fc5c5fb71fb4in14",
+        "name": "gaussdb-instance-rep2",
+        "status": "BUILD",
+        "datastore": {
+            "type": " GaussDB (for openGauss)",
+            "version": "1.4"
+        },
+        "ha": {
+            "mode": "enterprise",
+            "consistency": "strong",
+            "replication_mode": "sync"
+        },
+        "volume": {
+            
+            "type": "LOCALSSD",
+            "size": 160
+        },
+        "port": "8000",
+        "replica_num": 3,
+        "region": "regionA",
+        "flavor_ref": "gaussdb.opengauss.ee.ld.2xlarge.x868.co",
+        "availability_zone": "aaa,bbb,ccc",
+        "vpc_id": "490a4a08-ef4b-44c5-94be-3051ef9e4fce",
+        "subnet_id": "0e2eda62-1d42-4d64-a9d1-4e9aa9cd994f",
+        "security_group_id": "2a1f7fc8-3307-42a7-aa6f-42c8b9b8f8c5",
+        "charge_info": {
+            "charge_mode": "postPaid"
+        },
+        
+    },
+    "job_id": "dff1d289-4d03-4942-8b9f-463ea07c000d"
+} 异常响应 请参见 异常请求结果 。 状态码 正常 202 异常 请参见 状态码 。 错误码 请参见 错误码 。 父主题： 备份管理 版权所有 © 华为技术有限公司

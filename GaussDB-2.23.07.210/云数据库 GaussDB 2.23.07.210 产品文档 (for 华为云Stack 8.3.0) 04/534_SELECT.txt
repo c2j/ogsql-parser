@@ -1,0 +1,1 @@
+SELECT SELECT 【规则】SELECT语句中禁止通配符字段“*” 【规则】带有LIMIT的查询语句中必须带有ORDER BY保证有序 【规则】避免对大字段（如VARCHAR(2000)）执行ORDER BY、DISTINCT、GROUP BY、UNION等会引起排序的操作 【规则】禁止使用LOCK TABLE语句加锁，使用 SELECT .. FOR UPDATE语句 【建议】避免在SELECT目标列中使用子查询，可能导致计划无法下推到DN执行，影响执行性能 【建议】考虑使用UNION ALL，少使用UNION，注意考虑去重 【建议】避免频繁使用下使用count()获取大表行数，该操作资源消耗较大，影响并行作业执行效率 父主题： 数据库编程规范 版权所有 © 华为技术有限公司

@@ -1,0 +1,26 @@
+{
+  "topic": "WDR Snapshot Schema",
+  "term_count": 4,
+  "terms": [
+    {
+      "term": "WDR",
+      "content": "WDR Snapshot数据表 WDR Snapshot数据表 WDR Snapshot数据表命名原则：snap_{源数据表}。 WDR Snapshot数据表来源为 DBE_PERF Schema 下的视图，WDR Snapshot在启动后（打开GUC参数 enable_wdr_snapshot ）会触发创建WDR Snapshot数据表。 初始用户或者监控管理员用户具有权限查看WDR Snapshot数据表。",
+      "source_file": "2277_WDR Snapshot.txt"
+    },
+    {
+      "term": "WDR",
+      "content": "WDR Snapshot原信息 WDR Snapshot原信息 SNAPSHOT.SNAPSHOT SNAPSHOT.TABLES_SNAP_TIMESTAMP SNAP_SEQ",
+      "source_file": "2273_WDR Snapshot.txt"
+    },
+    {
+      "term": "WDR",
+      "content": "WDR Snapshot原信息 WDR Snapshot原信息 SNAPSHOT.SNAPSHOT SNAPSHOT.TABLES_SNAP_TIMESTAMP SNAP_SEQ",
+      "source_file": "3924_WDR Snapshot.txt"
+    },
+    {
+      "term": "WDR",
+      "content": "WDR Snapshot 数据表 WDR Snapshot 数据表 WDR Snapshot数据表命名原则： snap_{源数据表}。 WDR Snapshot数据表来源为 DBE_PERF Schema 下的视图，WDR Snapshot在启动后（打开GUC参数 enable_wdr_snapshot ）会触发创建WDR Snapshot数据表。",
+      "source_file": "3928_WDR Snapshot .txt"
+    }
+  ]
+}

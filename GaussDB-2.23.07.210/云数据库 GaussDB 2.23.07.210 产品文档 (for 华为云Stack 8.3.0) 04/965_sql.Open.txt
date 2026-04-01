@@ -1,0 +1,1 @@
+sql.Open接口 sql.Open接口 sql.Open接口如下表所示。 方法 描述 返回值 Open(driverName, dataSourceName string) 根据给定的数据库驱动以及驱动专属的数据源来打开一个数据库 *DB, error 参数driverName和dataSourceName详解参见 连接数据库 。 父主题： Go接口参考 版权所有 © 华为技术有限公司

@@ -1,0 +1,36 @@
+{
+  "topic": "声明语法",
+  "term_count": 6,
+  "terms": [
+    {
+      "term": "子程序",
+      "content": "子程序 子程序 存储在数据库中的存储过程、函数和操作符及高级包等。当在数据库上建立好后，可以在其他程序中调用它们。 独立的子程序 包内的子程序 嵌套的子程序",
+      "source_file": "1429_file_1429.txt"
+    },
+    {
+      "term": "子程序",
+      "content": "子程序 子程序 存储在数据库中的存储过程、函数、操作符和高级包等。当在数据库上建立好后，可以在其他程序中调用它们。 独立的子程序 包内的子程序 嵌套的子程序",
+      "source_file": "3139_file_3139.txt"
+    },
+    {
+      "term": "基本结构",
+      "content": "基本结构 基本结构 结构 PL/SQL块中可以包含子块，子块可以位于PL/SQL中任何部分。PL/SQL块的结构如下： 声明部分：声明PL/SQL用到的变量，类型及游标，以及局部的存储过程和函数。 DECLARE 不涉及变量声明时声明部分可以没有。 对匿名块来说，没有变量声明部分时，可以省去DECLARE关键字。 对存储过程来说，没有DECLARE， AS相当于DECLARE。即便没有变量声明的部分，关键字AS也必须保留。 执行部分：过程及SQL语句，程序的主要部分。必选。 BEGIN 执行异常部分：错误处理。可选。 EXCEPTION 结束。必选。 END;\n/ 禁止在PL/SQL块中使用连续的Tab，连续的Tab可能会造成在使用gsql工具带“-r”参数执行PL/SQL块时出现异常。 分类 PL/SQL块可以分为以下几类： 匿名块：动态构造，只能执行一次。语法请参考 图1 。 子程序：存储在数据库中的存储过程、函数和操作符及高级包等。当在数据库上建立好后，可以在其他程序中调用它们。",
+      "source_file": "1427_file_1427.txt"
+    },
+    {
+      "term": "基本结构",
+      "content": "基本结构 基本结构 结构 PL/SQL块中可以包含子块，子块可以位于PL/SQL中任何部分。PL/SQL块的结构如下： 声明部分：声明PL/SQL用到的变量、类型、游标、局部的存储过程和函数。 DECLARE 不涉及变量声明时声明部分可以没有。 对匿名块来说，没有变量声明部分时，可以省去DECLARE关键字。 对存储过程来说，没有DECLARE， AS相当于DECLARE。即便没有变量声明的部分，关键字AS也必须保留。 执行部分：过程及SQL语句，程序的主要部分。必选。 BEGIN 执行异常部分：错误处理。可选。 EXCEPTION 结束。必选。 END;\n/ 禁止在PL/SQL块中使用连续的Tab，连续的Tab可能会造成在使用gsql工具带“-r”参数执行PL/SQL块时出现异常。 分类 PL/SQL块可以分为以下几类： 匿名块：动态构造，只能执行一次。语法请参考 图1 。 子程序：存储在数据库中的存储过程、函数、操作符和高级包等。当在数据库上建立好后，可以在其他程序中调用它们。",
+      "source_file": "3137_file_3137.txt"
+    },
+    {
+      "term": "匿名块",
+      "content": "匿名块 匿名块 匿名块（Anonymous Block）一般用于不频繁执行的脚本或不重复进行的活动。它们在一个会话中执行，并不被存储。 语法 匿名块的语法参见 图1 。 图1 anonymous_block::= 对以上语法图的解释如下： 匿名块程序实施部分，以BEGIN语句开始，以END语句停顿，以一个分号结束。输入“/”按回车执行它。 最后的结束符“/”必须独占一行，不能直接跟在END后面。 声明部分包括变量定义、类型、游标定义等。 最简单的匿名块不执行任何命令。但一定要在任意实施块里至少有一个语句，甚至是一个NULL语句。 下面列举了基本的匿名块程序： 1\n 2\n 3\n 4\n 5\n 6\n 7\n 8\n 9\n10\n11\n12\n13\n14\n15\n16\n17\n18\n19\n20 --空语句块 gaussdb =# BEGIN NULL ; END ; / --将信息打印到控制台： gaussdb =# BEGIN dbe_output . print_line ( 'hello world!' ); END ; / --将变量内容打印到控制台： gaussdb =# DECLARE my_var VARCHAR2 ( 30 ); BEGIN my_var : = 'world' ; dbe_output . print_line ( 'hello' || my_var ); END ; /",
+      "source_file": "3138_file_3138.txt"
+    },
+    {
+      "term": "匿名块",
+      "content": "匿名块 匿名块 匿名块（Anonymous Block）一般用于不频繁执行的脚本或不重复进行的活动。它们在一个会话中执行，并不被存储。 语法 匿名块的语法参见 图1 。 图1 anonymous_block::= 对以上语法图的解释如下： 匿名块程序实施部分，以BEGIN语句开始，以END语句停顿，以一个分号结束。输入“/”按回车执行它。 最后的结束符“/”必须独占一行，不能直接跟在END后面。 声明部分包括变量定义、类型、游标定义等。 最简单的匿名块不执行任何命令。但一定要在任意实施块里至少有一个语句，甚至是一个NULL语句。 示例 下面列举了基本的匿名块程序： 1\n 2\n 3\n 4\n 5\n 6\n 7\n 8\n 9\n10\n11\n12\n13\n14\n15\n16\n17\n18\n19\n20\n21\n22\n23 --空语句块 gaussdb =# BEGIN NULL ; END ; / --将信息打印到控制台： gaussdb =# BEGIN dbe_output . print_line ( 'hello world!' ); END ; / hello world ! ANONYMOUS BLOCK EXECUTE --将变量内容打印到控制台： gaussdb =# DECLARE my_var VARCHAR2 ( 30 ); BEGIN my_var : = 'world' ; dbe_output . print_line ( 'hello' || my_var ); END ; / helloworld ANONYMOUS BLOCK EXECUTE",
+      "source_file": "1428_file_1428.txt"
+    }
+  ]
+}

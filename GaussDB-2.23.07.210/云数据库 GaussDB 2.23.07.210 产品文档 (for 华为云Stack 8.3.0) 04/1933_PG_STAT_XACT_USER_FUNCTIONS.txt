@@ -1,0 +1,1 @@
+PG_STAT_XACT_USER_FUNCTIONS PG_STAT_XACT_USER_FUNCTIONS PG_STAT_XACT_USER_FUNCTIONS视图包含每个函数的执行的统计信息。具体字段信息如 表1 所示。 表1 PG_STAT_XACT_USER_FUNCTIONS字段 名称 类型 描述 funcid oid 函数标识。 schemaname name 模式的名称。 funcname name 函数名称。 calls bigint 函数被调用的次数。 total_time double precision 函数的总执行时长。 self_time double precision 当前线程调用函数的总的时长。 父主题： 其他系统视图 版权所有 © 华为技术有限公司

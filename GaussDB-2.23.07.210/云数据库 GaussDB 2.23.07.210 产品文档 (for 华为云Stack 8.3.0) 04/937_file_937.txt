@@ -1,0 +1,4 @@
+执行没有结果集的语句 执行没有结果集的语句 执行EXECUTE IMMEDIATE命令示例如下： EXEC SQL BEGIN DECLARE SECTION;
+    const char *stmt = "CREATE TABLE test1 (...);";
+EXEC SQL END DECLARE SECTION;
+    EXEC SQL EXECUTE IMMEDIATE :stmt; EXECUTE IMMEDIATE可以用于不返回结果集的SQL语句，比如：DDL，INSERT，UPDATE，DELETE语句。但不能用这种方式执行检索数据的语句，比如：SELECT语句。 父主题： 执行动态SQL语句 版权所有 © 华为技术有限公司

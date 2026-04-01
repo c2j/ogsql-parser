@@ -1,0 +1,18 @@
+DROP AGGREGATE DROP AGGREGATE 功能描述 删除一个聚合函数。 注意事项 DROP AGGREGATE删除一个现存的聚合函数，执行这条命令的用户必须是该聚合函数的所有者。 语法格式 DROP AGGREGATE [ IF EXISTS ] name ( argtype [ , ... ] ) [ CASCADE | RESTRICT ]; 参数说明 IF EXISTS 如果指定的聚合不存在，那么发出一个 notice 而不是抛出一个错误。 name 现存的聚合函数名(可以有模式修饰) argtype 聚合函数操作的输入数据类型，要引用一个零参数聚合函数，请用*代替输入数据类型列表。 CASCADE 级联删除依赖于这个聚合函数的对象。 RESTRICT 如果有任何依赖对象，则拒绝删除这个聚合函数。这是缺省处理。 示例 -- 创建自定义函数。 gaussdb=# CREATE OR REPLACE FUNCTION int_add(int,int)
+	returns int as $BODY$
+declare
+begin
+	return $1 + $2;
+end;
+$BODY$ language plpgsql;
+
+-- 创建聚合函数。 gaussdb=# CREATE AGGREGATE myavg (int)
+(
+    sfunc = int_add,
+    stype = int,
+    initcond = '0'
+);
+
+--将integer类型的聚合函数myavg删除。 gaussdb=# DROP AGGREGATE myavg(integer);
+
+-- 删除自定义函数 gaussdb=# DROP FUNCTION int_add(int,int); 相关链接 ALTER AGGREGATE ， CREATE AGGREGATE 兼容性 SQL 标准里没有DROP AGGREGATE语句。 父主题： D 版权所有 © 华为技术有限公司

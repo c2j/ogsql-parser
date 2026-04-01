@@ -1,0 +1,96 @@
+{
+  "topic": "File",
+  "term_count": 18,
+  "terms": [
+    {
+      "term": "LOCAL_REL_IOSTAT",
+      "content": "LOCAL_REL_IOSTAT LOCAL_REL_IOSTAT 获取当前节点中数据文件I/O状态的累计值，显示为所有数据文件I/O状态的总和。 表1 LOCAL_REL_IOSTAT字段 名称 类型 描述 phyrds bigint 读物理文件的数目。 phywrts bigint 写物理文件的数目。 phyblkrd bigint 读物理文件的块的数目。 phyblkwrt bigint 写物理文件的块的数目。",
+      "source_file": "3741_LOCAL_REL_IOSTAT.txt"
+    },
+    {
+      "term": "SUMMARY_FILE_REDO_IOSTAT",
+      "content": "SUMMARY_FILE_REDO_IOSTAT SUMMARY_FILE_REDO_IOSTAT 数据库内汇聚所有的Redo(WAL）相关的统计信息。 表1 SUMMARY_FILE_REDO_IOSTAT字段 名称 类型 描述 phywrts numeric 向wal buffer中写的次数。 phyblkwrt numeric 向wal buffer中写的block的块数。 writetim numeric 向xLog文件中写操作的时间（单位：微秒）。 avgiotim bigint 平均写xLog的时间（writetim/phywrts，单位：微秒）。 lstiotim bigint 最后一次写xLog的时间（单位：微秒）。 miniotim bigint 最小的写xLog时间（单位：微秒）。 maxiowtm bigint 最大的写xLog时间（单位：微秒）。",
+      "source_file": "3739_SUMMARY_FILE_REDO_IOSTAT.txt"
+    },
+    {
+      "term": "FILE_IOSTAT",
+      "content": "FILE_IOSTAT FILE_IOSTAT 通过对数据文件I/O的统计，反映数据的I/O性能，用以发现I/O操作异常等性能问题。 表1 FILE_IOSTAT字段 名称 类型 描述 filenum oid 文件标识。 dbid oid 数据库标识。 spcid oid 表空间标识。 phyrds bigint 读物理文件的数目。 phywrts bigint 写物理文件的数目。 phyblkrd bigint 读物理文件块的数目。 phyblkwrt bigint 写物理文件块的数目。 readtim bigint 读文件的总时长（单位：微秒）。 writetim bigint 写文件的总时长（单位：微秒）。 avgiotim bigint 读写文件的平均时长（单位：微秒）。 lstiotim bigint 最后一次读文件时长（单位：微秒）。 miniotim bigint 读写文件的最小时长（单位：微秒）。 maxiowtm bigint 读写文件的最大时长（单位：微秒）。",
+      "source_file": "2049_FILE_IOSTAT.txt"
+    },
+    {
+      "term": "GLOBAL_FILE_IOSTAT",
+      "content": "GLOBAL_FILE_IOSTAT GLOBAL_FILE_IOSTAT 得到所有节点上的数据文件I/O 统计信息。 表1 GLOBAL_FILE_IOSTAT字段 名称 类型 描述 node_name name 节点名称。 filenum oid 文件标识。 dbid oid 数据库标识。 spcid oid 表空间标识。 phyrds bigint 读物理文件的数目。 phywrts bigint 写物理文件的数目。 phyblkrd bigint 读物理文件块的数目。 phyblkwrt bigint 写物理文件块的数目。 readtim bigint 读文件的总时长（单位：微秒）。 writetim bigint 写文件的总时长（单位：微秒）。 avgiotim bigint 读写文件的平均时长（单位：微秒）。 lstiotim bigint 最后一次读文件时长（单位：微秒）。 miniotim bigint 读写文件的最小时长（单位：微秒）。 maxiowtm bigint 读写文件的最大时长（单位：微秒）。",
+      "source_file": "3737_GLOBAL_FILE_IOSTAT.txt"
+    },
+    {
+      "term": "GLOBAL_REL_IOSTAT",
+      "content": "GLOBAL_REL_IOSTAT GLOBAL_REL_IOSTAT 获取所有节点上的数据文件I/O统计信息。 表1 GLOBAL_REL_IOSTAT字段 名称 类型 描述 node_name name 节点名称 phyrds bigint 读物理文件的数目。 phywrts bigint 写物理文件的数目。 phyblkrd bigint 读物理文件块的数目。 phyblkwrt bigint 写物理文件块的数目。",
+      "source_file": "2056_GLOBAL_REL_IOSTAT.txt"
+    },
+    {
+      "term": "FILE_REDO_IOSTAT",
+      "content": "FILE_REDO_IOSTAT FILE_REDO_IOSTAT 本节点Redo(WAL)相关的统计信息。 表1 FILE_REDO_IOSTAT字段 名称 类型 描述 phywrts bigint 向wal buffer中写的次数。 phyblkwrt bigint 向wal buffer中写的block的块数。 writetim bigint 向xLog文件中写操作的时间（单位：微秒）。 avgiotim bigint 平均写xLog的时间(writetim/phywrts)（单位：微秒）。 lstiotim bigint 最后一次写xLog的时间（单位：微秒）。 miniotim bigint 最小的写xLog时间（单位：微秒）。 maxiowtm bigint 最大的写xLog时间（单位：微秒）。",
+      "source_file": "2052_FILE_REDO_IOSTAT.txt"
+    },
+    {
+      "term": "SUMMARY_FILE_REDO_IOSTAT",
+      "content": "SUMMARY_FILE_REDO_IOSTAT SUMMARY_FILE_REDO_IOSTAT 集群 内汇聚所有的Redo(WAL)相关的统计信息。 表1 SUMMARY_FILE_REDO_IOSTAT字段 名称 类型 描述 phywrts numeric 向wal buffer中写的次数。 phyblkwrt numeric 向wal buffer中写的block的块数。 writetim numeric 向xLog文件中写操作的时间（单位：微秒）。 avgiotim bigint 平均写xLog的时间(writetim/phywrts)（单位：微秒）。 lstiotim bigint 最后一次写xLog的时间（单位：微秒）。 miniotim bigint 最小的写xLog时间（单位：微秒）。 maxiowtm bigint 最大的写xLog时间（单位：微秒）。",
+      "source_file": "2053_SUMMARY_FILE_REDO_IOSTAT.txt"
+    },
+    {
+      "term": "GLOBAL_REL_IOSTAT",
+      "content": "GLOBAL_REL_IOSTAT GLOBAL_REL_IOSTAT 获取所有节点上的数据文件I/O统计信息。 表1 GLOBAL_REL_IOSTAT字段 名称 类型 描述 node_name name 节点名称。 phyrds bigint 读物理文件的数目。 phywrts bigint 写物理文件的数目。 phyblkrd bigint 读物理文件块的数目。 phyblkwrt bigint 写物理文件块的数目。",
+      "source_file": "3742_GLOBAL_REL_IOSTAT.txt"
+    },
+    {
+      "term": "LOCAL_REL_IOSTAT",
+      "content": "LOCAL_REL_IOSTAT LOCAL_REL_IOSTAT 获取当前节点中数据文件I/O状态的累计值，显示为所有数据文件I/O状态的总和。 表1 LOCAL_REL_IOSTAT字段 名称 类型 描述 phyrds bigint 读物理文件的数目。 phywrts bigint 写物理文件的数目。 phyblkrd bigint 读物理文件的块的数目。 phyblkwrt bigint 写物理文件的块的数目。",
+      "source_file": "2055_LOCAL_REL_IOSTAT.txt"
+    },
+    {
+      "term": "GLOBAL_FILE_REDO_IOSTAT",
+      "content": "GLOBAL_FILE_REDO_IOSTAT GLOBAL_FILE_REDO_IOSTAT 显示数据库内各节点的Redo(WAL)相关统计信息。 表1 GLOBAL_FILE_REDO_IOSTAT字段 名称 类型 描述 node_name name 节点名称。 phywrts bigint 向wal buffer中写的次数。 phyblkwrt bigint 向wal buffer中写的block的块数。 writetim bigint 向xLog文件中写操作的时间（单位：微秒）。 avgiotim bigint 平均写xLog的时间（writetim/phywrts，单位：微秒）。 lstiotim bigint 最后一次写xLog的时间（单位：微秒）。 miniotim bigint 最小的写xLog时间（单位：微秒）。 maxiowtm bigint 最大的写xLog时间（单位：微秒）。",
+      "source_file": "3740_GLOBAL_FILE_REDO_IOSTAT.txt"
+    },
+    {
+      "term": "SUMMARY_REL_IOSTAT",
+      "content": "SUMMARY_REL_IOSTAT SUMMARY_REL_IOSTAT 获取所有节点上的数据文件I/O统计信息。 表1 SUMMARY_REL_IOSTAT字段 名称 类型 描述 phyrds numeric 读物理文件的数目。 phywrts numeric 写物理文件的数目。 phyblkrd numeric 读物理文件的块的数目。 phyblkwrt numeric 写物理文件的块的数目。",
+      "source_file": "2057_SUMMARY_REL_IOSTAT.txt"
+    },
+    {
+      "term": "FILE_REDO_IOSTAT",
+      "content": "FILE_REDO_IOSTAT FILE_REDO_IOSTAT 本节点Redo(WAL)相关的统计信息。 表1 FILE_REDO_IOSTAT字段 名称 类型 描述 phywrts bigint 向wal buffer中写的次数。 phyblkwrt bigint 向wal buffer中写的block的块数。 writetim bigint 向xLog文件中写操作的时间（单位：微秒）。 avgiotim bigint 平均写xLog的时间（writetim/phywrts，单位：微秒）。 lstiotim bigint 最后一次写xLog的时间（单位：微秒）。 miniotim bigint 最小的写xLog时间（单位：微秒）。 maxiowtm bigint 最大的写xLog时间（单位：微秒）。",
+      "source_file": "3738_FILE_REDO_IOSTAT.txt"
+    },
+    {
+      "term": "SUMMARY_FILE_IOSTAT",
+      "content": "SUMMARY_FILE_IOSTAT SUMMARY_FILE_IOSTAT 通过 集群 内对数据文件汇聚I/O的统计，反映数据的I/O性能，用以发现I/O操作异常等性能问题。 表1 SUMMARY_FILE_IOSTAT字段 名称 类型 描述 filenum oid 文件标识。 dbid oid 数据库标识。 spcid oid 表空间标识。 phyrds numeric 读物理文件的数目。 phywrts numeric 写物理文件的数目。 phyblkrd numeric 读物理文件块的数目。 phyblkwrt numeric 写物理文件块的数目。 readtim numeric 读文件的总时长（单位：微秒）。 writetim numeric 写文件的总时长（单位：微秒）。 avgiotim bigint 读写文件的平均时长（单位：微秒）。 lstiotim bigint 最后一次读文件时长（单位：微秒）。 miniotim bigint 读写文件的最小时长（单位：微秒）。 maxiowtm bigint 读写文件的最大时长（单位：微秒）。",
+      "source_file": "2050_SUMMARY_FILE_IOSTAT.txt"
+    },
+    {
+      "term": "SUMMARY_REL_IOSTAT",
+      "content": "SUMMARY_REL_IOSTAT SUMMARY_REL_IOSTAT 获取所有节点上的数据文件I/O 统计信息。 表1 SUMMARY_REL_IOSTAT字段 名称 类型 描述 phyrds numeric 读物理文件的数目。 phywrts numeric 写物理文件的数目。 phyblkrd numeric 读物理文件的块的数目。 phyblkwrt numeric 写物理文件的块的数目。",
+      "source_file": "3743_SUMMARY_REL_IOSTAT.txt"
+    },
+    {
+      "term": "GLOBAL_FILE_REDO_IOSTAT",
+      "content": "GLOBAL_FILE_REDO_IOSTAT GLOBAL_FILE_REDO_IOSTAT 显示 集群 内各节点的Redo(WAL)相关统计信息。 表1 GLOBAL_FILE_REDO_IOSTAT字段 名称 类型 描述 node_name name 节点名称。 phywrts bigint 向wal buffer中写的次数。 phyblkwrt bigint 向wal buffer中写的block的块数。 writetim bigint 向xLog文件中写操作的时间（单位：微秒）。 avgiotim bigint 平均写xLog的时间(writetim/phywrts)（单位：微秒）。 lstiotim bigint 最后一次写xLog的时间（单位：微秒）。 miniotim bigint 最小的写xLog时间（单位：微秒）。 maxiowtm bigint 最大的写xLog时间（单位：微秒）。",
+      "source_file": "2054_GLOBAL_FILE_REDO_IOSTAT.txt"
+    },
+    {
+      "term": "SUMMARY_FILE_IOSTAT",
+      "content": "SUMMARY_FILE_IOSTAT SUMMARY_FILE_IOSTAT 通过数据库内对数据文件汇聚I/O的统计，反映数据的I/O性能，用以发现I/O操作异常等性能问题。 表1 SUMMARY_FILE_IOSTAT字段 名称 类型 描述 filenum oid 文件标识。 dbid oid 数据库标识。 spcid oid 表空间标识。 phyrds numeric 读物理文件的数目。 phywrts numeric 写物理文件的数目。 phyblkrd numeric 读物理文件块的数目。 phyblkwrt numeric 写物理文件块的数目。 readtim numeric 读文件的总时长（单位：微秒）。 writetim numeric 写文件的总时长（单位：微秒）。 avgiotim bigint 读写文件的平均时长（单位：微秒）。 lstiotim bigint 最后一次读文件时长（单位：微秒）。 miniotim bigint 读写文件的最小时长（单位：微秒）。 maxiowtm bigint 读写文件的最大时长（单位：微秒）。",
+      "source_file": "3736_SUMMARY_FILE_IOSTAT.txt"
+    },
+    {
+      "term": "GLOBAL_FILE_IOSTAT",
+      "content": "GLOBAL_FILE_IOSTAT GLOBAL_FILE_IOSTAT 显示所有节点上的数据文件I/O统计信息。 表1 GLOBAL_FILE_IOSTAT字段 名称 类型 描述 node_name name 节点名称 filenum oid 文件标识。 dbid oid 数据库标识。 spcid oid 表空间标识。 phyrds bigint 读物理文件的数目。 phywrts bigint 写物理文件的数目。 phyblkrd bigint 读物理文件块的数目。 phyblkwrt bigint 写物理文件块的数目。 readtim bigint 读文件的总时长（单位：微秒）。 writetim bigint 写文件的总时长（单位：微秒）。 avgiotim bigint 读写文件的平均时长（单位：微秒）。 lstiotim bigint 最后一次读文件时长（单位：微秒）。 miniotim bigint 读写文件的最小时长（单位：微秒）。 maxiowtm bigint 读写文件的最大时长（单位：微秒）。",
+      "source_file": "2051_GLOBAL_FILE_IOSTAT.txt"
+    },
+    {
+      "term": "FILE_IOSTAT",
+      "content": "FILE_IOSTAT FILE_IOSTAT 通过对数据文件I/O的统计，反映数据的I/O性能，用以发现I/O操作异常等性能问题。 表1 FILE_IOSTAT字段 名称 类型 描述 filenum oid 文件标识。 dbid oid 数据库标识。 spcid oid 表空间标识。 phyrds bigint 读物理文件的数目。 phywrts bigint 写物理文件的数目。 phyblkrd bigint 读物理文件块的数目。 phyblkwrt bigint 写物理文件块的数目。 readtim bigint 读文件的总时长（单位：微秒）。 writetim bigint 写文件的总时长（单位：微秒）。 avgiotim bigint 读写文件的平均时长（单位：微秒）。 lstiotim bigint 最后一次读文件时长（单位：微秒）。 miniotim bigint 读写文件的最小时长（单位：微秒）。 maxiowtm bigint 读写文件的最大时长（单位：微秒）。",
+      "source_file": "3735_FILE_IOSTAT.txt"
+    }
+  ]
+}

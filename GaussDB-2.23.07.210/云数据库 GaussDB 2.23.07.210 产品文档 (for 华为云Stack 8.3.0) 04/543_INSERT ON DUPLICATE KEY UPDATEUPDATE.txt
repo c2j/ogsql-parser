@@ -1,0 +1,1 @@
+【规格】INSERT ON DUPLICATE KEY UPDATE不支持对主键或唯一约束的列上执行UPDATE 【规格】INSERT ON DUPLICATE KEY UPDATE不支持对主键或唯一约束的列上执行UPDATE INSERT ON DUPLICATE KEY UPDATE的语义是对唯一约束冲突的行进行更新，这个过程中不应对约束的值进行更新。 父主题： INSERT 版权所有 © 华为技术有限公司

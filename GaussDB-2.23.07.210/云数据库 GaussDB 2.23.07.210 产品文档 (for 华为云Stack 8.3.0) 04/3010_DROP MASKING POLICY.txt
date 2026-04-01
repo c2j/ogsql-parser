@@ -1,0 +1,5 @@
+DROP MASKING POLICY DROP MASKING POLICY 功能描述 删除脱敏策略。 注意事项 只有poladmin，sysadmin或初始用户才能执行此操作。 语法格式 1 DROP MASKING POLICY [ IF EXISTS ] policy_name ; 参数说明 policy_name 审计策略名称，需要唯一，不可重复。 取值范围：字符串，已存在的策略名称。 示例 1
+2
+3
+4
+5 --删除一个脱敏策略。 gaussdb =# DROP MASKING POLICY IF EXISTS maskpol1 ; --删除一组脱敏策略。 gaussdb =# DROP MASKING POLICY IF EXISTS maskpol1 , maskpol2 , maskpol3 ; 相关链接 ALTER MASKING POLICY ， CREATE MASKING POLICY 。 父主题： D 版权所有 © 华为技术有限公司

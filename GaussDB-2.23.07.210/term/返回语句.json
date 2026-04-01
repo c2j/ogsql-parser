@@ -1,0 +1,26 @@
+{
+  "topic": "返回语句",
+  "term_count": 4,
+  "terms": [
+    {
+      "term": "RETURN",
+      "content": "RETURN NEXT及RETURN QUERY RETURN NEXT及RETURN QUERY 语法 创建函数时需要指定返回值SETOF datatype。 return_next_clause::= return_query_clause::= 对以上语法的解释如下： 当需要函数返回一个集合时，使用RETURN NEXT或者RETURN QUERY向结果集追加结果，然后继续执行函数的下一条语句。随着后续的RETURN NEXT或RETURN QUERY命令的执行，结果集中会有多个结果。函数执行完成后会一起返回所有结果。 RETURN NEXT可用于标量和复合数据类型。 RETURN QUERY有一种变体RETURN QUERY EXECUTE，后面还可以增加动态查询，通过USING向查询插入参数。 示例 1\n 2\n 3\n 4\n 5\n 6\n 7\n 8\n 9\n10\n11\n12\n13\n14\n15\n16\n17\n18\n19\n20\n21\n22\n23\n24\n25\n26\n27\n28\n29\n30\n31\n32\n33\n34\n35\n36\n37\n38 gaussdb =# DROP TABLE t1 ; gaussdb =# CREATE TABLE t1 ( a int ); gaussdb =# INSERT INTO t1 VALUES ( 1 ),( 10 ); --RETURN NEXT gaussdb =# CREATE OR REPLACE FUNCTION fun_for_return_next () RETURNS SETOF t1 AS $$ DECLARE r t1 % ROWTYPE ; BEGIN FOR r IN select * from t1 LOOP RETURN NEXT r ; END LOOP ; RETURN ; END ; $$ LANGUAGE plpgsql ; gaussdb =# call fun_for_return_next (); a --- 1 10 ( 2 rows ) -- RETURN QUERY gaussdb =# CREATE OR REPLACE FUNCTION fun_for_return_query () RETURNS SETOF t1 AS $$ DECLARE r t1 % ROWTYPE ; BEGIN RETURN QUERY select * from t1 ; END ; $$ language plpgsql ; gaussdb =# call fun_for_return_query (); a --- 1 10 ( 2 rows )",
+      "source_file": "3155_RETURN NEXTRETURN QUERY.txt"
+    },
+    {
+      "term": "RETURN",
+      "content": "RETURN RETURN 语法 返回语句的语法请参见 图1 。 图1 return_clause::= 对以上语法的解释如下： 用于将存储过程或函数返回结果赋值给调用者。 示例 请参见调用语句的 示例 。",
+      "source_file": "3154_RETURN.txt"
+    },
+    {
+      "term": "RETURN",
+      "content": "RETURN RETURN 语法 返回语句的语法请参见 图1 。 图1 return_clause::= 对以上语法的解释如下： 用于将存储过程或函数返回结果赋值给调用者。 示例 请参见调用语句的 示例 。",
+      "source_file": "1444_RETURN.txt"
+    },
+    {
+      "term": "RETURN",
+      "content": "RETURN NEXT及RETURN QUERY RETURN NEXT及RETURN QUERY 语法 创建函数时需要指定返回值SETOF datatype。 return_next_clause::= return_query_clause::= 对以上语法的解释如下： 当需要函数返回一个集合时，使用RETURN NEXT或者RETURN QUERY向结果集追加结果，然后继续执行函数的下一条语句。随着后续的RETURN NEXT或RETURN QUERY命令的执行，结果集中会有多个结果。函数执行完成后会一起返回所有结果。 RETURN NEXT可用于标量和复合数据类型。 RETURN QUERY有一种变体RETURN QUERY EXECUTE，后面还可以增加动态查询，通过USING向查询插入参数。 示例 1\n 2\n 3\n 4\n 5\n 6\n 7\n 8\n 9\n10\n11\n12\n13\n14\n15\n16\n17\n18\n19\n20\n21\n22\n23\n24\n25\n26\n27\n28\n29\n30\n31\n32\n33\n34\n35\n36\n37\n38 gaussdb =# DROP TABLE t1 ; gaussdb =# CREATE TABLE t1 ( a int ); gaussdb =# INSERT INTO t1 VALUES ( 1 ),( 10 ); --RETURN NEXT gaussdb =# CREATE OR REPLACE FUNCTION fun_for_return_next () RETURNS SETOF t1 AS $$ DECLARE r t1 % ROWTYPE ; BEGIN FOR r IN select * from t1 LOOP RETURN NEXT r ; END LOOP ; RETURN ; END ; $$ LANGUAGE plpgsql ; gaussdb =# call fun_for_return_next (); a --- 1 10 ( 2 rows ) -- RETURN QUERY gaussdb =# CREATE OR REPLACE FUNCTION fun_for_return_query () RETURNS SETOF t1 AS $$ DECLARE r t1 % ROWTYPE ; BEGIN RETURN QUERY select * from t1 ; END ; $$ language plpgsql ; gaussdb =# call fun_for_return_query (); a --- 1 10 ( 2 rows )",
+      "source_file": "1445_RETURN NEXTRETURN QUERY.txt"
+    }
+  ]
+}

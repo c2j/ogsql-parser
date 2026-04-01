@@ -1,0 +1,1 @@
+Top 10 Events by Total Wait Time Top 10 Events by Total Wait Time Top 10 Events by Total Wait Time列名称及描述如下表所示。 表1 Top 10 Events by Total Wait Time报表主要内容 列名称 描述 Event Wait Event名称。 Waits wait次数。 Total Wait Time(us) 总wait时间（微秒）。 Avg Wait Time(us) 平均wait时间（微秒）。 Tpye Wait Event类别。 父主题： WDR报告信息介绍 版权所有 © 华为技术有限公司

@@ -1,0 +1,70 @@
+条件语句 条件语句 条件语句的主要作用判断参数或者语句是否满足已给定的条件，根据判定结果执行相应的操作。 GaussDB 有五种形式的IF： IF_THEN 图1 IF_THEN::= IF_THEN语句是IF的最简单形式。如果条件为真，statements将被执行。否则，将忽略它们的结果使该IF_THEN语句执行结束。 示例 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10 gaussdb =# DECLARE v_user_id integer default 1 ; BEGIN IF v_user_id <> 0 THEN raise info 'v_user_id is NOT 0' ; END IF ; END ; / INFO : v_user_id is NOT 0 IF_THEN_ELSE 图2 IF_THEN_ELSE::= IF_THEN_ELSE语句增加了ELSE的分支，可以声明在条件为假的时候执行的语句。 示例 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11 gaussdb =# DECLARE v_user_id integer default 1 ; BEGIN IF v_user_id <> 0 THEN raise info 'v_user_id is NOT 0' ; ELSE raise info 'v_user_id is 0' ; END IF ; END ; / INFO : v_user_id is NOT 0 IF_THEN_ELSE IF IF语句可以嵌套，嵌套方式如下： 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13 gaussdb =# DECLARE v_user_id integer default 1 ; BEGIN IF v_user_id = 0 THEN raise info 'v_user_id is  0' ; ELSE IF v_user_id > 0 THEN raise info 'v_user_id > 0' ; END IF ; END IF ; END ; / INFO : v_user_id > 0 这种形式实际上就是在一个IF语句的ELSE部分嵌套了另一个IF语句。因此需要一个END IF语句给每个嵌套的IF，另外还需要一个END IF语句结束父IF-ELSE。如果有多个选项，可使用下面的形式。 IF_THEN_ELSIF_ELSE 图3 IF_THEN_ELSIF_ELSE::= 示例 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15 gaussdb =# DECLARE v_user_id integer default NULL ; BEGIN IF v_user_id = 0 THEN raise info 'v_user_id is  0' ; ELSIF v_user_id > 0 THEN raise info 'v_user_id > 0' ; ELSIF v_user_id < 0 THEN raise info 'v_user_id < 0' ; ELSE raise info 'v_user_id is NULL' ; END IF ; END ; / INFO : v_user_id is NULL IF_THEN_ELSEIF_ELSE ELSEIF是ELSIF的别名。 综合示例 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25 gaussdb =# CREATE OR REPLACE PROCEDURE proc_control_structure ( i in integer ) AS BEGIN IF i > 0 THEN raise info 'i:% is greater than 0. ' , i ; ELSIF i < 0 THEN raise info 'i:% is smaller than 0. ' , i ; ELSE raise info 'i:% is equal to 0. ' , i ; END IF ; RETURN ; END ; / CREATE PROCEDURE gaussdb =# CALL proc_control_structure ( 3 ); INFO : i : 3 is greater than 0 . proc_control_structure ------------------------ ( 1 row ) --删除存储过程 gaussdb =# DROP PROCEDURE proc_control_structure ; DROP PROCEDURE 父主题： 控制语句 版权所有 © 华为技术有限公司

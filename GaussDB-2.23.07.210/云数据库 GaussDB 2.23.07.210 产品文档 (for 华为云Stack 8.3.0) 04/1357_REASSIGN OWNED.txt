@@ -1,0 +1,9 @@
+REASSIGN OWNED REASSIGN OWNED 功能描述 修改数据库对象的属主。 REASSIGN OWNED要求系统将所有旧角色拥有的数据库对象的属主更改为新角色。 注意事项 REASSIGN OWNED常用于在删除角色之前的准备工作。 执行REASSIGN OWNED需要有原角色和目标角色上的权限。 语法格式 REASSIGN OWNED BY old_role [, ...] TO new_role; 参数说明 old_role 旧属主的角色名。 new_role 将要成为这些对象属主的新角色的名称。注意：只有初始用户才可以通过REASSIGN OWNED语法将属主修改为初始化用户。 示例 1
+2
+3
+4
+5
+6
+7
+8
+9 --创建jim和tom用户。 gaussdb =# CREATE USER jim PASSWORD '********' ; gaussdb =# CREATE USER tom PASSWORD '********' ; --将所有jim拥有的数据库对象的属主更改为tom。 gaussdb =# REASSIGN OWNED BY jim TO tom ; --删除jim和tom用户。 gaussdb =# DROP USER jim , tom CASCADE ; 相关链接 DROP OWNED 父主题： R 版权所有 © 华为技术有限公司

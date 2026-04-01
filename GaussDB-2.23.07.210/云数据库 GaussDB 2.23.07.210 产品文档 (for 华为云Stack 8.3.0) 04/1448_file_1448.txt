@@ -1,0 +1,38 @@
+分支语句 分支语句 语法 分支语句的语法请参见 图1 。 图1 case_when::= when_clause子句的语法图参见 图2 。 图2 when_clause::= 参数说明： case_expression：变量或表达式。 when_expression：常量或者条件表达式。 statement：执行语句。 示例 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27
+28
+29
+30
+31
+32
+33
+34
+35
+36
+37
+38 gaussdb =# CREATE OR REPLACE PROCEDURE proc_case_branch ( pi_result in integer , pi_return out integer ) AS BEGIN CASE pi_result WHEN 1 THEN pi_return : = 111 ; WHEN 2 THEN pi_return : = 222 ; WHEN 3 THEN pi_return : = 333 ; WHEN 6 THEN pi_return : = 444 ; WHEN 7 THEN pi_return : = 555 ; WHEN 8 THEN pi_return : = 666 ; WHEN 9 THEN pi_return : = 777 ; WHEN 10 THEN pi_return : = 888 ; ELSE pi_return : = 999 ; END CASE ; raise info 'pi_return : %' , pi_return ; END ; / CREATE PROCEDURE gaussdb =# CALL proc_case_branch ( 3 , 0 ); INFO : pi_return : 333 pi_return ----------- 333 ( 1 row ) --删除存储过程 gaussdb =# DROP PROCEDURE proc_case_branch ; DROP PROCEDURE 父主题： 控制语句 版权所有 © 华为技术有限公司

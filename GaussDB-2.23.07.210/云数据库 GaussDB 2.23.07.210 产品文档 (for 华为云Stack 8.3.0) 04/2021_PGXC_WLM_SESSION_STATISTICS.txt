@@ -1,0 +1,1 @@
+PGXC_WLM_SESSION_STATISTICS PGXC_WLM_SESSION_STATISTICS PGXC_WLM_SESSION_STATISTICS视图显示在所有CN上正在执行的作业的负载管理 （当前特性是实验室特性，使用时请联系华为技术工程师提供技术支持。） 信息。查询该视图需要sysadmin权限。 具体的字段请参见 GS_WLM_SESSION_STATISTICS 的字段信息。 父主题： 系统视图 版权所有 © 华为技术有限公司

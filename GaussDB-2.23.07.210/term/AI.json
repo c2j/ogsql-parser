@@ -1,0 +1,26 @@
+{
+  "topic": "AI",
+  "term_count": 4,
+  "terms": [
+    {
+      "term": "GS_MODEL_WAREHOUSE",
+      "content": "GS_MODEL_WAREHOUSE GS_MODEL_WAREHOUSE GS_MODEL_WAREHOUSE系统表用于存储AI引擎训练模型，其中包含模型，训练过程的详细描述。 表1 GS_MODEL_WAREHOUSE字段 名称 数据类型 描述 oid oid 隐含列。 modelname name 唯一约束。 modelowner oid 模型拥有者的OID。 createtime timestamp without time zone 模型创建的时间。 processedtuples integer 训练涉及的元组数。 discardedtuples integer 未参加训练的不合格元组数。 preprocesstime real 数据预处理时长。 exectime real 训练时长。 iterations integer 迭代轮次。 outputtype oid 模型输出的数据类型OID。 modeltype text AI算子的类型名称。 query text 创建模型所执行的query语句。 modeldata bytea 保存的二进制模型信息。 weight real[] 目前只适用于GD算子模型。 hyperparametersnames text[] 涉及的超参名称。 hyperparametersvalues text[] 超参所对应的取值。 hyperparametersoids oid[] 超参对应的数据类型OID。 coefnames text[] 模型参数名称。 coefvalues text[] 模型参数对应的取值。 coefoids oid[] 模型参数对应的数据类型OID。 trainingscoresname text[] 度量模型性能方法的名称。 trainingscoresvalue real[] 度量模型性能方法的数值。 modeldescribe text[] 模型的描述信息。",
+      "source_file": "3240_GS_MODEL_WAREHOUSE.txt"
+    },
+    {
+      "term": "GS_MODEL_WAREHOUSE",
+      "content": "GS_MODEL_WAREHOUSE GS_MODEL_WAREHOUSE GS_MODEL_WAREHOUSE系统表用于存储AI引擎训练模型，其中包含模型，训练过程的详细描述。 表1 GS_MODEL_WAREHOUSE字段 名称 数据类型 描述 oid oid 隐含列。 modelname name 唯一约束。 modelowner oid 模型拥有者的OID。 createtime timestamp without time zone 模型创建的时间。 processedtuples integer 训练涉及的元组数。 discardedtuples integer 未参加训练的不合格元组数。 preprocesstime real 数据预处理时长。 exectime real 训练时长。 iterations integer 迭代轮次。 outputtype oid 模型输出的数据类型OID。 modeltype text AI算子的类型名称。 query text 创建模型所执行的query语句。 modeldata bytea 保存的二进制模型信息。 weight real[] 目前只适用于GD算子模型。 hyperparametersnames text[] 涉及的超参名称。 hyperparametersvalues text[] 超参所对应的取值。 hyperparametersoids oid[] 超参对应的数据类型OID。 coefnames text[] 模型参数名称。 coefvalues text[] 模型参数对应的取值。 coefoids oid[] 模型参数对应的数据类型OID。 trainingscoresname text[] 度量模型性能方法的名称。 trainingscoresvalue real[] 度量模型性能方法的数值。 modeldescribe text[] 模型的描述信息。",
+      "source_file": "1527_GS_MODEL_WAREHOUSE.txt"
+    },
+    {
+      "term": "GS_OPT_MODEL",
+      "content": "GS_OPT_MODEL GS_OPT_MODEL GS_OPT_MODEL是启用AiEngine执行计划时间预测功能时的数据表，记录机器学习模型的配置、训练结果、功能、对应系统函数、训练历史等相关信息。 分布式场景下提供此系统表，但AI能力不可用。",
+      "source_file": "1528_GS_OPT_MODEL.txt"
+    },
+    {
+      "term": "GS_OPT_MODEL",
+      "content": "GS_OPT_MODEL GS_OPT_MODEL GS_OPT_MODEL是启用AiEngine执行计划时间预测功能时的数据表，记录机器学习模型的配置、训练结果、功能、对应系统函数、训练历史等相关信息。 表1 GS_OPT_MODEL字段 名称 类型 描述 template_name name 机器学习模型的模板名，决定训练和预测调用的函数接口，目前只实现了rlstm，方便后续扩展。 model_name name 模型的实例名，每个模型对应AiEngine在线学习进程中的一套参数、训练日志、模型系数。此列需为unique。 datname name 该模型所服务的database名，每个模型只针对单个database。此参数决定训练时所使用的数据。 ip name AiEngine端所部署的host ip地址。 port integer AiEngine端所侦听的端口号。 max_epoch integer 模型每次训练的迭代次数上限。 learning_rate real 模型训练的学习速率，推荐缺省值1。 dim_red real 模型特征维度降维系数。 hidden_units integer 模型隐藏层神经元个数。如果训练发现模型长期无法收敛，可以适量提升本参数。 batch_size integer 模型每次迭代时一个batch的大小，尽量设为大于等于训练数据总量的值，加快模型的收敛速度。 feature_size integer [不需设置] 模型特征的长度，用于触发重新训练，模型训练后该参数自动更新。 available boolean [不需设置]标识模型是否收敛。 Is_training boolean [不需设置]标识模型是否正在训练。 label \"char\"[] 模型的目标任务： S: startup time T: total time R: rows M: peak memory 目前受模型性能限制，推荐{S, T}或{R}。 max bigint[] [不需设置]标识模型各任务标签的最大值，用于触发重新训练。 acc real[] [不需设置]标识模型各任务的准确率。 description text 模型注释。",
+      "source_file": "3241_GS_OPT_MODEL.txt"
+    }
+  ]
+}

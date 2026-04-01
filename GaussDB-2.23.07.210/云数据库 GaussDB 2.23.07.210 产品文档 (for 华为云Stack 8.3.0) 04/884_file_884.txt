@@ -1,0 +1,81 @@
+示例：常用操作 示例：常用操作 import psycopg2
+import os
+
+# 从环境变量中获取用户名和密码
+user = os.getenv('user')
+password = os.getenv('password')
+
+# 创建连接对象
+conn=psycopg2.connect(database="database", user=user, password=password, host="localhost", port=port)
+cur=conn.cursor() #创建指针对象
+
+# 创建连接对象（SSl连接）
+conn = psycopg2.connect(dbname="database", user=user, password=password, host="localhost", port=port,
+         sslmode="verify-ca", sslcert="client.crt",sslkey="client.key",sslrootcert="cacert.pem")
+注意： 如果sslcert、sslkey、sslrootcert没有填写，默认取当前用户.postgresql目录下对应的client.crt、client.key、root.crt
+
+
+# 创建表
+cur.execute("CREATE TABLE student(id integer,name varchar,sex varchar);")
+
+# 插入数据
+cur.execute("INSERT INTO student(id,name,sex) VALUES(%s,%s,%s)",(1,'Aspirin','M'))
+cur.execute("INSERT INTO student(id,name,sex) VALUES(%s,%s,%s)",(2,'Taxol','F'))
+cur.execute("INSERT INTO student(id,name,sex) VALUES(%s,%s,%s)",(3,'Dixheral','M'))
+
+# 批量插入数据
+stus = ((4,'John','M'),(5,'Alice','F'),(6,'Peter','M'))
+cur.executemany("INSERT INTO student(id,name,sex) VALUES(%s,%s,%s)",stus)
+
+# 获取结果
+cur.execute('SELECT * FROM student')
+results=cur.fetchall()
+print (results)
+
+# 提交操作
+conn.commit()
+
+# 插入一条数据
+cur.execute("INSERT INTO student(id,name,sex) VALUES(%s,%s,%s)",(7,'Lucy','F'))
+
+# 回退操作
+conn.rollback()
+
+# 关闭连接
+cur.close()
+conn.close()
+
+psycopg2常用连接方式
+1. conn = psycopg2.connect(dbname="dbname", user=user, password=password, host="localhost", port=port)
+2. conn = psycopg2.connect(f"dbname=dbname user={user} password={password}  host=localhost port=port")
+3. 使用日志
+import logging
+import psycopg2
+from psycopg2.extras import LoggingConnection
+import os
+
+# 从环境变量中获取用户名和密码
+user = os.getenv('user')
+password = os.getenv('password')
+
+logging.basicConfig(level=logging.DEBUG) # 日志级别
+logger = logging.getLogger(__name__)
+
+db_settings = {
+    "user": user,
+    "password": password,
+    "host": "localhost",
+    "database": "dbname",
+    "port": port
+}
+
+# LoggingConnection默认记录所有SQL，可自行实现filter过滤不需要的或敏感的SQL，下面给出了简单的过滤password相关SQL的示例
+class SelfLoggingConnection(LoggingConnection):
+
+    def filter(self, msg, curs):
+        if db_setting['password'] in msg.decode():
+            return b'queries containing the password will not be recorded'
+        return msg
+
+conn = psycopg2.connect(connection_factory=SelfLoggingConnection, **db_settings)
+conn.initialize(logger) LoggingConnection默认记录所有SQL信息，且不会对敏感信息进行脱敏，可通过filter函数自行定义输出的SQL内容。 日志功能是psycopg2为了方便开发者显性调试全量SQL而提供个额外功能，默认情况下不需要使用。该功能会在pyscopg2执行SQL语句前打印SQL语句，但是，需要在debug日志级别下才会输出。该功能不是默认功能，只是在有特殊需要的时候才使用，没有特别需求，不建议使用。详情参考： https://www.psycopg.org/docs/extras.html?highlight=loggingconnection 父主题： 基于Psycopg开发 版权所有 © 华为技术有限公司

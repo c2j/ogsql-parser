@@ -1,0 +1,86 @@
+{
+  "topic": "Go接口参考",
+  "term_count": 16,
+  "terms": [
+    {
+      "term": "sql.Open接口",
+      "content": "sql.Open接口 sql.Open接口 sql.Open接口如下表所示。 方法 描述 返回值 Open(driverName, dataSourceName string) 根据给定的数据库驱动以及驱动专属的数据源来打开一个数据库 *DB, error 参数driverName和dataSourceName详解参见 连接数据库 。",
+      "source_file": "965_sql.Open.txt"
+    },
+    {
+      "term": "type",
+      "content": "type Tx type Tx type Tx如下表所示。 方法 描述 返回值 (tx *Tx)Commit() 提交事务。 error (tx *Tx)Exec(query string, args ...interface{}) 执行一个不返回数据行的操作。 Result, error (tx *Tx)ExecContext(ctx context.Context, query string, args ...interface{}) 在给定上下文中，执行一个不返回数据行的操作。 Result, error (tx *Tx)Prepare(query string) 为以后的查询或执行创建一个预备语句。返回的语句将在事务中执行，并且一旦事务被提交或回滚就不能再使用。 *Stmt, error (tx *Tx)PrepareContext(ctx context.Context, query string) 为以后的查询或执行创建一个预备语句。返回的语句将在事务中执行，并且一旦事务被提交或回滚就不能再使用。 给定的上下文将用于预备阶段，而不是事务执行阶段。该方法返回的语句将在事务上下文中执行。 *Stmt, error (tx *Tx)Query(query string, args ...interface{}) 执行一个返回数据行的查询。 *Rows, error (tx *Tx)QueryContext(ctx context.Context, query string, args ...interface{}) 在给定上下文中，执行一个返回数据行的查询。 *Rows, error (tx *Tx)QueryRow(query string, args ...interface{}) 执行一个只返回一个数据行的查询。 *Row (tx *Tx)QueryRowContext(ctx context.Context, query string, args ...interface{}) 在给定上下文中，执行一个只返回一个数据行的查询。 *Row (tx *Tx) Rollback() 事务回滚。 error (tx *Tx)Stmt(stmt *Stmt) 为已有的语句返回一个事务专用的预备语句。 示例： str, err := db.Prepare(\"insert into t1 values(:1, :2)\")\ntx, err := db.Begin()\nres, err := tx.Stmt(str).Exec(1, \"aaa\") *Stmt (tx *Tx)StmtContext(ctx context.Context, stmt *Stmt) 在给定上下文中，为已有的语句返回一个事务专用的预备语句。 *Stmt 参数说明 参数 参数说明 ctx 表示给定的上下文。 query 被执行的SQL语句。 args 被执行SQL语句需要绑定的参数。支持按位置绑定和按名称绑定，详情DB类型中的示例。 stmt 已有的预处理语句，一般指prepare语句返回的预处理语句。 Query类接口Query()、QueryContext()、QueryRow()、QueryRowContext()通常用于查询语句，如SELECT语句；操作语句使用Exec()接口执行，若非查询语句通过Query类接口执行，则执行结果可能与预期不符，故不建议使用Query类接口执行非查询语句，例如UPDATE/INSERT等。 使用Query类接口执行查询语句的结果需要通过 type Rows 中Next()接口获取，若不通过Next()接口获取，可能会产生不可预期的错误。",
+      "source_file": "2616_type Tx.txt"
+    },
+    {
+      "term": "type",
+      "content": "type Stmt type Stmt type Stmt如下表所示。 方法 描述 返回值 (s *Stmt)Close() 关闭给定的预处理语句。 error (s *Stmt)Exec(args ...interface{}) 使用给定的参数执行预处理语句，并返回一个Result值。支持PBE 特性。PBE，即Prepare-Bind-Execute，是发送和执行查询的一种方式，CN可通过复杂查询协议接收PBE报文执行语句。 说明： 预编译语句的占位符可以为“$”也可以是“?”。 预编译语句的占位符数量由数据库限制，当表字段超过数据库限制或者与当前表字段数目不匹配时，由服务端返回错误。 PBE特性支持增、删、改操作，批量操作时 U 报文最大长度限制 为1GB - 1B，即0x3fffffff字节。超出长度限制会报bind message length XXX  too long. This can be caused by very large or incorrect ength specifications on InputStream parameters错误。 插入一条数据的时候，使用PBE对比单插接口(conn.simpleExec，简单执行语句)有大幅的性能下降，建议优先使用单插接口而不是PBE。 驱动底层错误处理重构，PBE性能对比原来下降不到5%。 Result, error (s *Stmt)ExecContext(ctx context.Context, args ...interface{}) 在给定的上下文中，使用给定的参数执行预处理语句，并返回一个Result值。 Result, error (s *Stmt)Query(args ...interface{}) 使用给定的参数执行预处理语句，并以*Rows形式返回查询结果。 *Rows, error (s *Stmt)QueryContext(ctx context.Context, args ...interface{}) 在给定的上下文中，使用给定的参数执行预处理语句，并以*Rows形式返回查询结果。 *Rows, error (s *Stmt)QueryRow(args ...interface{}) 使用给定的参数执行预处理语句，并返回一个*Row作为结果。 *Row (s *Stmt)QueryRowContext (ctx context.Context, args ...interface{}) 在给定的上下文中，使用给定的参数执行预处理语句，并返回一个*Row作为结果。 *Row 参数说明 参数 参数说明 ctx 表示给定的上下文。 query 被执行的SQL语句。 args 被执行SQL语句需要绑定的参数。支持按位置绑定和按名称绑定，详情DB类型中的示例。 Query类接口Query()、QueryContext()、QueryRow()、QueryRowContext()通常用于查询语句，如SELECT语句；操作语句使用Exec()接口执行，若非查询语句通过Query类接口执行，则执行结果可能与预期不符，故不建议使用Query类接口执行非查询语句，例如UPDATE/INSERT等。 使用Query类接口执行查询语句的结果需要通过 type Rows 中Next()接口获取，若不通过Next()接口获取，可能会产生不可预期的错误。",
+      "source_file": "2615_type Stmt.txt"
+    },
+    {
+      "term": "sql.Open接口",
+      "content": "sql.Open接口 sql.Open接口 sql.Open接口如下表所示。 方法 描述 返回值 Open(driverName, dataSourceName string) 根据给定的数据库驱动以及驱动专属的数据源来打开一个数据库 *DB, error 参数driverName和dataSourceName详解参见 连接数据库 。",
+      "source_file": "2613_sql.Open.txt"
+    },
+    {
+      "term": "type",
+      "content": "type Stmt type Stmt type Stmt如下表所示。 方法 描述 返回值 (s *Stmt)Close() 关闭给定的预处理语句。 error (s *Stmt)Exec(args ...interface{}) 使用给定的参数执行预处理语句，并返回一个Result值。支持PBE 特性。PBE，即Prepare-Bind-Execute，是发送和执行查询的一种方式，CN可通过复杂查询协议接收PBE报文执行语句。 说明： 预编译语句的占位符可以为“$”也可以是“?”。 预编译语句的占位符数量由数据库限制，当表字段超过数据库限制或者与当前表字段数目不匹配时，由服务端返回错误。 PBE特性支持增、删、改操作，批量操作时 U 报文最大长度限制 为1GB - 1B，即0x3fffffff字节。超出长度限制会报bind message length XXX  too long. This can be caused by very large or incorrect ength specifications on InputStream parameters错误。 插入一条数据的时候，使用PBE对比单插接口(conn.simpleExec，简单执行语句)有大幅的性能下降，建议优先使用单插接口而不是PBE。 驱动底层错误处理重构，PBE性能对比原来下降不到5%。 Result, error (s *Stmt)ExecContext(ctx context.Context, args ...interface{}) 在给定的上下文中，使用给定的参数执行预处理语句，并返回一个Result值。 Result, error (s *Stmt)Query(args ...interface{}) 使用给定的参数执行预处理语句，并以*Rows形式返回查询结果。 *Rows, error (s *Stmt)QueryContext(ctx context.Context, args ...interface{}) 在给定的上下文中，使用给定的参数执行预处理语句，并以*Rows形式返回查询结果。 *Rows, error (s *Stmt)QueryRow(args ...interface{}) 使用给定的参数执行预处理语句，并返回一个*Row作为结果。 *Row (s *Stmt)QueryRowContext (ctx context.Context, args ...interface{}) 在给定的上下文中，使用给定的参数执行预处理语句，并返回一个*Row作为结果。 *Row 参数说明 参数 参数说明 ctx 表示给定的上下文。 query 被执行的sql语句。 args 被执行sql语句需要绑定的参数。支持按位置绑定和按名称绑定，详情DB类型中的示例。 Query类接口Query()、QueryContext()、QueryRow()、QueryRowContext()通常用于查询语句，如SELECT语句；操作语句使用Exec()接口执行，若非查询语句通过Query类接口执行，则执行结果可能与预期不符，故不建议使用Query类接口执行非查询语句，例如UPDATE/INSERT等。 使用Query类接口执行查询语句的结果需要通过 type Rows 中Next()接口获取，若不通过Next()接口获取，可能会产生不可预期的错误。",
+      "source_file": "967_type Stmt.txt"
+    },
+    {
+      "term": "type",
+      "content": "type ColumnType type ColumnType type ColumnType如下表所示。 方法 描述 返回值 (ci *ColumnType)DatabaseTypeName() 返回列类型的数据库系统名称。返回空字符串表示该驱动类型名字并未被支持。 error (ci *ColumnType)DecimalSize() 返回小数类型的范围和精度。 返回值ok的值为false时，说明给定的类型不可用或者不支持。 precision, scale int64, ok bool (ci *ColumnType)Length() 返回数据列类型长度。返回值ok的值为false时，说明给定的类型不存在长度。 length int64, ok bool (ci *ColumnType)ScanType() 返回一种Go类型，该类型能够在Rows.scan进行扫描时使用。 reflect.Type (ci *ColumnType)Name() 返回数据列的名字。 string",
+      "source_file": "971_type ColumnType.txt"
+    },
+    {
+      "term": "type",
+      "content": "type Rows type Rows type Rows如下表所示。 方法 描述 返回值 (rs *Rows)Close() 关闭Rows，停止对数据集的迭代。 error (rs *Rows)ColumnTypes() 返回列信息。 []*ColumnType, error (rs *Rows)Columns() 返回各个列的名字。 []string, error (rs *Rows)Err() 返回迭代过程中出现的任何错误。 error (rs *Rows)Next() 为Scan方法准备好下一个待读取的数据行。如果有进一步的结果集，则返回true，否则返回false。 bool (rs *Rows)Scan(dest ...interface{}) 将当前被迭代数据行的各个列复制到dest指向的值中。 error (rs *Rows)NextResultSet() 判断是否有进一步的结果集。 bool 参数说明 参数 参数说明 dest 查询列需要被复制到该参数指向的值。",
+      "source_file": "969_type Rows.txt"
+    },
+    {
+      "term": "type",
+      "content": "type DB type DB type DB如下表所示。 方法 描述 返回值 (db *DB)Begin() 开启一个事务，事务的隔离级别由驱动决定。 *Tx, error (db *DB)BeginTx(ctx context.Context, opts *TxOptions) 开启一个给定事务隔离级别的事务，给定的上下文会一直使用到事务提交或回滚为止。若上下文被取消，那么sql包将会对事务进行回滚。 *Tx, error (db *DB)Close() 关闭数据库并释放所有已打开的资源。 error (db *DB)Exec(query string, args ...interface{}) 执行一个不返回数据行的操作。 Result, error (db *DB)ExecContext(ctx context.Context, query string, args ...interface{}) 在给定上下文中，执行一个不返回数据行的操作。 Result, error (db *DB)Ping() 检查数据库连接是否仍然有效，并在有需要时建立一个连接。 error (db *DB)PingContext(ctx context.Context) 在给定上下文中，检查数据库连接是否仍然有效，并在有需要时建立一个连接。 error (db *DB)Prepare(query string) 为以后的查询或执行创建一个预备语句。 *Stmt, error (db *DB)PrepareContext(ctx context.Context, query string) 在给定的上下文中，为以后的查询或执行创建一个预备语句。 *Stmt, error (db *DB)Query(query string, args ...interface{}) 执行一个查询并返回多个数据行。 *Rows, error (db *DB)QueryContext(ctx context.Context, query string, args ...interface{}) 在给定的上下文中，执行一个查询并返回多个数据行。 *Rows, error (db *DB)QueryRow(query string, args ...interface{}) 执行一个只返回一个数据行的查询。 *Row (db *DB)QueryRowContext(ctx context.Context, query string, args ...interface{}) 在给定上下文中，执行一个只返回一个数据行的查询。 *Row 参数说明 参数 参数说明 ctx 表示给定的上下文。 query 被执行的sql语句。 args 被执行sql语句需要绑定的参数。支持按位置绑定和按名称绑定，详情见如下示例。 opts 事务隔离级别和事务访问模式，其中事务隔离级别（opts.Isolation）支持范围为sql.LevelReadUncommitted、sql.LevelReadCommitted、sql.LevelRepeatableRead、sql.LevelSerializable。事务访问模式（opts.ReadOnly）支持范围为true（read only）和false（read write）。 Query类接口Query()、QueryContext()、QueryRow()、QueryRowContext()通常用于查询语句，如SELECT语句；操作语句使用Exec()接口执行，若非查询语句通过Query类接口执行，则执行结果可能与预期不符，故不建议使用Query类接口执行非查询语句，例如UPDATE/INSERT等。 使用Query类接口执行查询语句的结果需要通过 type Rows 中Next()接口获取，若不通过Next()接口获取，可能会产生不可预期的错误。 示例： //本示例以用户名和密码保存在环境变量中为例，运行本示例前请先在本地环境中设置环境变量(环境变量名称请根据自身情况进行设置) package main\n/* go驱动依赖包位置根据配置的go.mod设置 */\nimport (\n\t\"database/sql\"\n\t_ \"gitee.com/opengauss/openGauss-connector-go-pq\"\n\t\"log\"\n)\n\nfunc main() { hostip := os.Getenv(\"GOHOSTIP\")   //GOHOSTIP为写入环境变量的IP地址 port := os.Getenv(\"GOPORT\")       //GOPORT为写入环境变量的port usrname := os.Getenv(\"GOUSRNAME\") //GOUSRNAME为写入环境变量的用户名 passwd := os.Getenv(\"GOPASSWD\")   //GOPASSWDW为写入环境变量的用户密码 str := \"host=\" + hostip + \" port=\" + port + \" user=\" + usrname + \" password=\" + passwd + \" dbname=postgres sslmode=disable\" db, err := sql.Open(\"opengauss\", str)\n\tif err != nil {\n\t\tlog.Fatal(err)\n\t}\n\tdefer db.Close()\n\n\terr = db.Ping()\n\tif err != nil {\n\t\tlog.Fatal(err)\n\t}\n\n\t_, err = db.Exec(\"create table test_bound(id int, name text)\")\n\n\t// 按位置绑定\n\t_, err = db.Exec(\"insert into test_bound(id, name) values(:1, :2)\", 1, \"张三\")\n\tif err != nil {\n\t\tlog.Fatal(err)\n\t}\n\n\t// 按名称绑定\n\t_, err = db.Exec(\"insert into test_bound(id, name) values(:id, :name)\", sql.Named(\"id\", 1), sql.Named(\"name\", \"张三\"))\n\tif err != nil {\n\t\tlog.Fatal(err)\n\t}\n}",
+      "source_file": "966_type DB.txt"
+    },
+    {
+      "term": "type",
+      "content": "type Result type Result type Result如下表所示。 方法 描述 返回值 (res Result)RowsAffected() 返回insert、delete、update、select、move、fetch、copy操作受影响的行数。 int64, error",
+      "source_file": "972_type Result.txt"
+    },
+    {
+      "term": "type",
+      "content": "type Result type Result type Result如下表所示。 方法 描述 返回值 (res Result)RowsAffected() 返回insert、delete、update、select、move、fetch、copy操作受影响的行数。 int64, error",
+      "source_file": "2620_type Result.txt"
+    },
+    {
+      "term": "type",
+      "content": "type ColumnType type ColumnType type ColumnType如下表所示。 方法 描述 返回值 (ci *ColumnType)DatabaseTypeName() 返回列类型的数据库系统名称。返回空字符串表示该驱动类型名字并未被支持。 error (ci *ColumnType)DecimalSize() 返回小数类型的范围和精度。 返回值ok的值为false时，说明给定的类型不可用或者不支持。 precision, scale int64, ok bool (ci *ColumnType)Length() 返回数据列类型长度。返回值ok的值为false时，说明给定的类型不存在长度。 length int64, ok bool (ci *ColumnType)ScanType() 返回一种Go类型，该类型能够在Rows.scan进行扫描时使用。 reflect.Type (ci *ColumnType)Name() 返回数据列的名字。 string",
+      "source_file": "2619_type ColumnType.txt"
+    },
+    {
+      "term": "type",
+      "content": "type DB type DB type DB如下表所示。 方法 描述 返回值 (db *DB)Begin() 开启一个事务，事务的隔离级别由驱动决定。 *Tx, error (db *DB)BeginTx(ctx context.Context, opts *TxOptions) 开启一个给定事务隔离级别的事务，给定的上下文会一直使用到事务提交或回滚为止。若上下文被取消，那么sql包将会对事务进行回滚。 *Tx, error (db *DB)Close() 关闭数据库并释放所有已打开的资源。 error (db *DB)Exec(query string, args ...interface{}) 执行一个不返回数据行的操作。 Result, error (db *DB)ExecContext(ctx context.Context, query string, args ...interface{}) 在给定上下文中，执行一个不返回数据行的操作。 Result, error (db *DB)Ping() 检查数据库连接是否仍然有效，并在有需要时建立一个连接。 error (db *DB)PingContext(ctx context.Context) 在给定上下文中，检查数据库连接是否仍然有效，并在有需要时建立一个连接。 error (db *DB)Prepare(query string) 为以后的查询或执行创建一个预备语句。 *Stmt, error (db *DB)PrepareContext(ctx context.Context, query string) 在给定的上下文中，为以后的查询或执行创建一个预备语句。 *Stmt, error (db *DB)Query(query string, args ...interface{}) 执行一个查询并返回多个数据行。 *Rows, error (db *DB)QueryContext(ctx context.Context, query string, args ...interface{}) 在给定的上下文中，执行一个查询并返回多个数据行。 *Rows, error (db *DB)QueryRow(query string, args ...interface{}) 执行一个只返回一个数据行的查询。 *Row (db *DB)QueryRowContext(ctx context.Context, query string, args ...interface{}) 在给定上下文中，执行一个只返回一个数据行的查询。 *Row 参数说明 参数 参数说明 ctx 表示给定的上下文。 query 被执行的SQL语句。 args 被执行SQL语句需要绑定的参数。支持按位置绑定和按名称绑定，详情见如下示例。 opts 事务隔离级别和事务访问模式，其中事务隔离级别（opts.Isolation）支持范围为sql.LevelReadUncommitted、sql.LevelReadCommitted、sql.LevelRepeatableRead、sql.LevelSerializable。事务访问模式（opts.ReadOnly）支持范围为true（read only）和false（read write）。 Query类接口Query()、QueryContext()、QueryRow()、QueryRowContext()通常用于查询语句，如SELECT语句；操作语句使用Exec()接口执行，若非查询语句通过Query类接口执行，则执行结果可能与预期不符，故不建议使用Query类接口执行非查询语句，例如UPDATE/INSERT等。 使用Query类接口执行查询语句的结果需要通过 type Rows 中Next()接口获取，若不通过Next()接口获取，可能会产生不可预期的错误。 示例： //本示例以用户名和密码保存在环境变量中为例，运行本示例前请先在本地环境中设置环境变量(环境变量名称请根据自身情况进行设置) package main\n//依赖包根据环境中依赖包路径设置\nimport (\n\t\"database/sql\"\n\t_ \"gitee.com/opengauss/openGauss-connector-go-pq\"\n\t\"log\"\n)\n\nfunc main() { hostip := os.Getenv(\"GOHOSTIP\")   //GOHOSTIP为写入环境变量的IP地址 port := os.Getenv(\"GOPORT\")       //GOPORT为写入环境变量的port usrname := os.Getenv(\"GOUSRNAME\") //GOUSRNAME为写入环境变量的用户名 passwd := os.Getenv(\"GOPASSWD\")   //GOPASSWDW为写入环境变量的用户密码 str := \"host=\" + hostip + \" port=\" + port + \" user=\" + usrname + \" password=\" + passwd + \" dbname=postgres sslmode=disable\" db, err := sql.Open(\"opengauss\", str)\n\tif err != nil {\n\t\tlog.Fatal(err)\n\t}\n\tdefer db.Close()\n\n\terr = db.Ping()\n\tif err != nil {\n\t\tlog.Fatal(err)\n\t}\n\n\t_, err = db.Exec(\"create table test_bound(id int, name text)\")\n\n\t// 按位置绑定\n\t_, err = db.Exec(\"insert into test_bound(id, name) values(:1, :2)\", 1, \"张三\")\n\tif err != nil {\n\t\tlog.Fatal(err)\n\t}\n\n\t// 按名称绑定\n\t_, err = db.Exec(\"insert into test_bound(id, name) values(:id, :name)\", sql.Named(\"id\", 1), sql.Named(\"name\", \"张三\"))\n\tif err != nil {\n\t\tlog.Fatal(err)\n\t}\n}",
+      "source_file": "2614_type DB.txt"
+    },
+    {
+      "term": "type",
+      "content": "type Rows type Rows type Rows如下表所示。 方法 描述 返回值 (rs *Rows)Close() 关闭Rows，停止对数据集的迭代。 error (rs *Rows)ColumnTypes() 返回列信息。 []*ColumnType, error (rs *Rows)Columns() 返回各个列的名字。 []string, error (rs *Rows)Err() 返回迭代过程中出现的任何错误。 error (rs *Rows)Next() 为Scan方法准备好下一个待读取的数据行。如果有进一步的结果集，则返回true，否则返回false。 bool (rs *Rows)Scan(dest ...interface{}) 将当前被迭代数据行的各个列复制到dest指向的值中。 error (rs *Rows)NextResultSet() 判断是否有进一步的结果集。 bool 参数说明 参数 参数说明 dest 查询列需要被复制到该参数指向的值。",
+      "source_file": "2617_type Rows.txt"
+    },
+    {
+      "term": "type",
+      "content": "type Tx type Tx type Tx如下表所示。 方法 描述 返回值 (tx *Tx)Commit() 提交事务。 error (tx *Tx)Exec(query string, args ...interface{}) 执行一个不返回数据行的操作。 Result, error (tx *Tx)ExecContext(ctx context.Context, query string, args ...interface{}) 在给定上下文中，执行一个不返回数据行的操作。 Result, error (tx *Tx)Prepare(query string) 为以后的查询或执行创建一个预备语句。返回的语句将在事务中执行，并且一旦事务被提交或回滚就不能再使用。 *Stmt, error (tx *Tx)PrepareContext(ctx context.Context, query string) 为以后的查询或执行创建一个预备语句。返回的语句将在事务中执行，并且一旦事务被提交或回滚就不能再使用。 给定的上下文将用于预备阶段，而不是事务执行阶段。该方法返回的语句将在事务上下文中执行。 *Stmt, error (tx *Tx)Query(query string, args ...interface{}) 执行一个返回数据行的查询。 *Rows, error (tx *Tx)QueryContext(ctx context.Context, query string, args ...interface{}) 在给定上下文中，执行一个返回数据行的查询。 *Rows, error (tx *Tx)QueryRow(query string, args ...interface{}) 执行一个只返回一个数据行的查询。 *Row (tx *Tx)QueryRowContext(ctx context.Context, query string, args ...interface{}) 在给定上下文中，执行一个只返回一个数据行的查询。 *Row (tx *Tx) Rollback() 事务回滚。 error (tx *Tx)Stmt(stmt *Stmt) 为已有的语句返回一个事务专用的预备语句。 示例： str, err := db.Prepare(\"insert into t1 values(:1, :2)\")\ntx, err := db.Begin()\nres, err := tx.Stmt(str).Exec(1, \"aaa\") *Stmt (tx *Tx)StmtContext(ctx context.Context, stmt *Stmt) 在给定上下文中，为已有的语句返回一个事务专用的预备语句。 *Stmt 参数说明 参数 参数说明 ctx 表示给定的上下文。 query 被执行的sql语句。 args 被执行sql语句需要绑定的参数。支持按位置绑定和按名称绑定，详情DB类型中的示例。 stmt 已有的预处理语句，一般指prepare语句返回的预处理语句。 Query类接口Query()、QueryContext()、QueryRow()、QueryRowContext()通常用于查询语句，如SELECT语句；操作语句使用Exec()接口执行，若非查询语句通过Query类接口执行，则执行结果可能与预期不符，故不建议使用Query类接口执行非查询语句，例如UPDATE/INSERT等。 使用Query类接口执行查询语句的结果需要通过 type Rows 中Next()接口获取，若不通过Next()接口获取，可能会产生不可预期的错误。",
+      "source_file": "968_type Tx.txt"
+    },
+    {
+      "term": "type",
+      "content": "type Row type Row type Row如下所示。 方法 描述 返回值 (r *Row)Scan(dest ...interface{}) 将当前数据行中的列复制到dest指向的值中。 error (r *Row)Err() 返回执行过程中出现的错误。 error 参数说明 参数 参数说明 dest 查询列需要被复制到该参数指向的值。",
+      "source_file": "2618_type Row.txt"
+    },
+    {
+      "term": "type",
+      "content": "type Row type Row type Row如下所示。 方法 描述 返回值 (r *Row)Scan(dest ...interface{}) 将当前数据行中的列复制到dest指向的值中。 error (r *Row)Err() 返回执行过程中出现的错误。 error 参数说明 参数 参数说明 dest 查询列需要被复制到该参数指向的值。",
+      "source_file": "970_type Row.txt"
+    }
+  ]
+}

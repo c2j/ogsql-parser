@@ -1,0 +1,5 @@
+查看参数 查看参数 GaussDB 安装后，有一套默认的GUC参数，为了使 GaussDB 与业务的配合度更高，用户需要根据业务场景和数据量的大小进行GUC参数调整。 操作步骤 连接数据库，具体操作请参考《开发者指南》中“数据库使用入门 > 连接数据库 > 使用gsql连接”章节。 查看数据库GUC参数当前取值。 方法一：使用SHOW命令。 使用如下命令查看单个参数： 1 gaussdb =# SHOW server_version ; server_version显示数据库版本信息的参数。 使用如下命令查看所有参数： 1 gaussdb =# SHOW ALL ; 方法二：使用pg_settings视图。 使用如下命令查看单个参数： 1 gaussdb =# SELECT * FROM pg_settings WHERE NAME = 'server_version' ; 使用如下命令查看所有参数： 1 gaussdb =# SELECT * FROM pg_settings ; 示例 查看客户端的字符编码类型。 1
+2
+3
+4
+5 gaussdb =# SHOW client_encoding ; client_encoding ---------------- UTF8 ( 1 row ) 父主题： 配置运行参数 版权所有 © 华为技术有限公司

@@ -1,0 +1,55 @@
+访问特殊数据类型 访问特殊数据类型 ecpg支持numeric、decimal、date、timestamp和interval数据类型。由于这些数据类型的内部结构较为复杂，无法被映射到初级数据类型的宿主变量，因此应用程序通过声明特殊类型的宿主变量以及使用pgtypes库中的函数处理这些特殊类型。pgtypes库中的接口函数可参考 ecpg接口参考 章节。 timestamp, date 首先，程序必须包含timestamp类型的头文件： #include <pgtypes_timestamp.h> 其次，在声明部分中声明类型为timestamp的宿主变量： EXEC SQL BEGIN DECLARE SECTION;
+    timestamp ts;
+EXEC SQL END DECLARE SECTION; 读取值到宿主变量之后，使用pgtypes库函数进行处理。如下示例中，使用PGTYPEStimestamp_to_asc()函数将timestamp值转换成文本形式： EXEC SQL SELECT now()::timestamp INTO :ts;
+printf("ts = %s\n", PGTYPEStimestamp_to_asc(ts)); 示例输出如下： ts = 2022-06-27 18:03:56.949343 另外，date类型可以用相同的方式处理。程序必须包括pgtypes_data.h头文件，并声明一个date类型的宿主变量并用PGTYPEdata_to_asc()函数将其转换成文本形式。 interval interval类型的处理与timestamp和date类型类似，不同的是interval类型变量的存储空间需要分配在堆内存中。 示例如下： #include <stdio.h>
+#include <stdlib.h>
+#include <pgtypes_interval.h>
+int main(void)
+{
+EXEC SQL BEGIN DECLARE SECTION;
+    interval *in;
+EXEC SQL END DECLARE SECTION;
+    /* 连接数据库testdb, 需提前创建好testdb库 */
+    EXEC SQL CONNECT TO testdb;
+    in = PGTYPESinterval_new();
+    EXEC SQL SELECT '1 min'::interval INTO :in;
+    printf("interval = %s\n", PGTYPESinterval_to_asc(in));
+    PGTYPESinterval_free(in);
+    EXEC SQL COMMIT;
+    EXEC SQL DISCONNECT ALL;
+    return 0;
+} numeric, decimal numeric和decimal类型的处理类似于interval类型：需要定义一个指针，并在堆上分配一些内存空间并且使用pgtypes库函数访问该变量。 示例如下： #include <stdio.h>
+#include <stdlib.h>
+#include <pgtypes_numeric.h>
+EXEC SQL WHENEVER SQLERROR STOP;
+int main(void)
+{
+EXEC SQL BEGIN DECLARE SECTION;
+    numeric *num;
+    numeric *num2;
+    decimal *dec;
+EXEC SQL END DECLARE SECTION;
+    /* 连接数据库testdb, 需提前创建testdb库 */
+    EXEC SQL CONNECT TO testdb;
+
+    num = PGTYPESnumeric_new();
+    dec = PGTYPESdecimal_new();
+
+    EXEC SQL SELECT 12.345::numeric(4,2), 23.456::decimal(4,2) INTO :num, :dec;
+    printf("numeric = %s\n", PGTYPESnumeric_to_asc(num, 0));
+    printf("numeric = %s\n", PGTYPESnumeric_to_asc(num, 1));
+    printf("numeric = %s\n", PGTYPESnumeric_to_asc(num, 2));
+    /*转换十进制到数值型以显示十进制值*/
+    num2 = PGTYPESnumeric_new();
+    PGTYPESnumeric_from_decimal(dec, num2);
+    printf("decimal = %s\n", PGTYPESnumeric_to_asc(num2, 0));
+    printf("decimal = %s\n", PGTYPESnumeric_to_asc(num2, 1));
+    printf("decimal = %s\n", PGTYPESnumeric_to_asc(num2, 2));
+    PGTYPESnumeric_free(num2);
+    PGTYPESdecimal_free(dec);
+    PGTYPESnumeric_free(num);
+
+    EXEC SQL COMMIT;
+    EXEC SQL DISCONNECT ALL;
+    return 0;
+} 父主题： 宿主变量 版权所有 © 华为技术有限公司

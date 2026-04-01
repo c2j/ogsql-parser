@@ -1,0 +1,1 @@
+大量回滚事务拖慢Undo空间回收 大量回滚事务拖慢Undo空间回收 问题现象 使用gs_async_rollback_xact_status视图查看有大量的待回滚事务，且待回滚的事务数量维持不变或者持续增高。 select * from gs_async_rollback_xact_status()； 处理方法 调大异步回滚线程数量，调整方式有以下两种： 方式1：在postgresql.conf中配置max_undo_workers，然后重启节点。 方式2：gs_guc reload -Z NODE-TYPE [-N NODE-NAME] [-I INSTANCE-NAME | -D DATADIR] -c max_undo_workers=100 重启实例。 父主题： snapshot too old 版权所有 © 华为技术有限公司

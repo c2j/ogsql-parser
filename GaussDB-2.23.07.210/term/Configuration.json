@@ -1,0 +1,26 @@
+{
+  "topic": "Configuration",
+  "term_count": 4,
+  "terms": [
+    {
+      "term": "GLOBAL_CONFIG_SETTINGS",
+      "content": "GLOBAL_CONFIG_SETTINGS GLOBAL_CONFIG_SETTINGS GLOBAL_CONFIG_SETTINGS显示各节点数据库运行时参数的相关信息。 表1 GLOBAL_CONFIG_SETTINGS的字段 名称 类型 描述 node_name text 节点名称。 name text 参数名称。 setting text 参数当前值。 unit text 参数的隐式结构。 category text 参数的逻辑组。 short_desc text 参数的简单描述。 extra_desc text 参数的详细描述。 context text 设置参数值的上下文，包括internal，postmaster，sighup，backend，superuser，user。 vartype text 参数类型，包括bool，enum，integer，real，string。 source text 参数的赋值方式。 min_val text 参数最大值。如果参数类型不是数值型，那么该字段值为null。 max_val text 参数最小值。如果参数类型不是数值型，那么该字段值为null。 enumvals text[] enum类型参数合法值。如果参数类型不是enum型，那么该字段值为null。 boot_val text 数据库启动时参数默认值。 reset_val text 数据库重置时参数默认值。 sourcefile text 设置参数值的配置文件。如果参数不是通过配置文件赋值，那么该字段值为null。 sourceline integer 设置参数值的配置文件的行号。如果参数不是通过配置文件赋值，那么该字段值为null。",
+      "source_file": "2227_GLOBAL_CONFIG_SETTINGS.txt"
+    },
+    {
+      "term": "CONFIG_SETTINGS",
+      "content": "CONFIG_SETTINGS CONFIG_SETTINGS CONFIG_SETTINGS视图显示数据库运行时参数的相关信息。 表1 CONFIG_SETTINGS字段 名称 类型 描述 name text 参数名称。 setting text 参数当前值。 unit text 参数的隐式结构。 category text 参数的逻辑组。 short_desc text 参数的简单描述。 extra_desc text 参数的详细描述。 context text 设置参数值的上下文，包括internal，postmaster，sighup，backend，superuser，user。 vartype text 参数类型，包括bool，enum，integer，real，string。 source text 参数的赋值方式。 min_val text 参数最大值。如果参数类型不是数值型，那么该字段值为null。 max_val text 参数最小值。如果参数类型不是数值型，那么该字段值为null。 enumvals text[] enum类型参数合法值。如果参数类型不是enum型，那么该字段值为null。 boot_val text 数据库启动时参数默认值。 reset_val text 数据库重置时参数默认值。 sourcefile text 设置参数值的配置文件。如果参数不是通过配置文件赋值，那么该字段值为null。 sourceline integer 设置参数值的配置文件的行号。如果参数不是通过配置文件赋值，那么该字段值为null。",
+      "source_file": "2226_CONFIG_SETTINGS.txt"
+    },
+    {
+      "term": "GLOBAL_CONFIG_SETTINGS",
+      "content": "GLOBAL_CONFIG_SETTINGS GLOBAL_CONFIG_SETTINGS GLOBAL_CONFIG_SETTINGS显示各节点数据库运行时参数的相关信息。 表1 GLOBAL_CONFIG_SETTINGS的字段 名称 类型 描述 node_name text 节点名称。 name text 参数名称。 setting text 参数当前值。 unit text 参数的隐式结构。 category text 参数的逻辑组。 short_desc text 参数的简单描述。 extra_desc text 参数的详细描述。 context text 设置参数值的上下文，包括internal，postmaster，sighup，backend，superuser，user。 vartype text 参数类型，包括bool，enum，integer，real，string。 source text 参数的赋值方式。 min_val text 参数最小值。如果参数类型不是数值型，那么该字段值为null。 max_val text 参数最大值。如果参数类型不是数值型，那么该字段值为null。 enumvals text[] enum类型参数合法值。如果参数类型不是enum型，那么该字段值为null。 boot_val text 数据库启动时参数默认值。 reset_val text 数据库重置时参数默认值。 sourcefile text 设置参数值的配置文件。如果参数不是通过配置文件赋值，那么该字段值为null。 sourceline integer 设置参数值的配置文件的行号。如果参数不是通过配置文件赋值，那么该字段值为null。",
+      "source_file": "3902_GLOBAL_CONFIG_SETTINGS.txt"
+    },
+    {
+      "term": "CONFIG_SETTINGS",
+      "content": "CONFIG_SETTINGS CONFIG_SETTINGS CONFIG_SETTINGS视图显示数据库运行时参数的相关信息。 表1 CONFIG_SETTINGS字段 名称 类型 描述 name text 参数名称。 setting text 参数当前值。 unit text 参数的隐式结构。 category text 参数的逻辑组。 short_desc text 参数的简单描述。 extra_desc text 参数的详细描述。 context text 设置参数值的上下文，包括internal，postmaster，sighup，backend，superuser，user。 vartype text 参数类型，包括bool，enum，integer，real，string。 source text 参数的赋值方式。 min_val text 参数最大值。如果参数类型不是数值型，那么该字段值为null。 max_val text 参数最小值。如果参数类型不是数值型，那么该字段值为null。 enumvals text[] enum类型参数合法值。如果参数类型不是enum型，那么该字段值为null。 boot_val text 数据库启动时参数默认值。 reset_val text 数据库重置时参数默认值。 sourcefile text 设置参数值的配置文件。如果参数不是通过配置文件赋值，那么该字段值为null。 sourceline integer 设置参数值的配置文件的行号。如果参数不是通过配置文件赋值，那么该字段值为null。",
+      "source_file": "3901_CONFIG_SETTINGS.txt"
+    }
+  ]
+}

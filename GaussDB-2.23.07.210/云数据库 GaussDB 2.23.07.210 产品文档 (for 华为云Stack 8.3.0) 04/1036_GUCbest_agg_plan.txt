@@ -1,0 +1,37 @@
+案例：调整GUC参数best_agg_plan 案例：调整GUC参数best_agg_plan 现象描述 agg_ t1的表定义为： 1 create table agg_t1 ( a int , b int , c int ) distribute by hash ( a ); 假设agg下层算子所输出结果集的分布列为setA，agg操作的group by列为setB，则在Stream框架下，Agg操作可以分为两个场景。 setA是setB的一个子集。 对于这种场景，直接对下层结果集进行汇聚的结果就是正确的汇聚结果，上层算子直接使用即可。如下图所示： 1
+2
+3
+4
+5
+6
+7 gaussdb =# explain select a , count ( 1 ) from agg_t1 group by a ; id | operation | E - rows | E - width | E - costs ----+------------------------------+--------+---------+--------- 1 | -> Streaming ( type : GATHER ) | 20 | 12 | 14 . 23 2 | -> HashAggregate | 20 | 12 | 13 . 30 3 | -> Seq Scan on agg_t1 | 20 | 4 | 13 . 13 ( 3 rows ) setA不是setB的一个子集。 对于这种场景，Stream执行框架分为如下三种计划形态： hashagg + gather(redistribute) + hashagg redistribute + hashagg(+ gather) hashagg + redistribute + hashagg(+ gather) GaussDB 提供了guc参数best_agg_plan来干预执行计划，强制其生成上述对应的执行计划，此参数取值范围为0，1，2，3 取值为1时，强制生成第一种计划。 取值为2时，如果group by列可以重分布，强制生成第二种计划，否则生成第一种计划。 取值为3时，如果group by列可以重分布，强制生成第三种计划，否则生成第一种计划。 取值为0时，优化器会根据以上三种计划的估算代价选择最优的一种计划生成。 具体影响请看下述图片 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27
+28
+29
+30
+31 gaussdb =# set best_agg_plan to 1 ; SET gaussdb =# explain select b , count ( 1 ) from t1 group by b ; id | operation | E - rows | E - width | E - costs ----+---------------------------------+--------+---------+--------- 1 | -> HashAggregate | 8 | 4 | 15 . 83 2 | -> Streaming ( type : GATHER ) | 25 | 4 | 15 . 83 3 | -> HashAggregate | 25 | 4 | 14 . 33 4 | -> Seq Scan on t1 | 30 | 4 | 14 . 14 ( 4 rows ) gaussdb =# set best_agg_plan to 2 ; SET gaussdb =# explain select b , count ( 1 ) from t1 group by b ; id | operation | E - rows | E - width | E - costs ----+-----------------------------------------+--------+---------+--------- 1 | -> Streaming ( type : GATHER ) | 30 | 4 | 15 . 85 2 | -> HashAggregate | 30 | 4 | 14 . 60 3 | -> Streaming ( type : REDISTRIBUTE ) | 30 | 4 | 14 . 45 4 | -> Seq Scan on t1 | 30 | 4 | 14 . 14 ( 4 rows ) gaussdb =# set best_agg_plan to 3 ; SET gaussdb =# explain select b , count ( 1 ) from t1 group by b ; id | operation | E - rows | E - width | E - costs ----+-----------------------------------------+--------+---------+--------- 1 | -> Streaming ( type : GATHER ) | 30 | 4 | 15 . 84 2 | -> HashAggregate | 30 | 4 | 14 . 59 3 | -> Streaming ( type : REDISTRIBUTE ) | 25 | 4 | 14 . 59 4 | -> HashAggregate | 25 | 4 | 14 . 33 5 | -> Seq Scan on t1 | 30 | 4 | 14 . 14 ( 5 rows ) 优化说明 通常优化器总会选择最优的执行计划，但是众所周知代价估算，尤其是中间结果集的代价估算一般会有比较大的偏差，这种比较大的偏差就可能会导致agg的计算方式出现比较大的偏差，这时候就需要通过best_agg_plan进行agg计算模型的干预。 一般来说，当agg汇聚的收敛度很小时，即结果集的个数在agg之后并没有明显变少时（经验上以5倍为临界点），选择redistribute+hashagg执行方式，否则选择hashagg+redistribute+hashagg执行方式。 父主题： 实际调优案例 版权所有 © 华为技术有限公司

@@ -1,0 +1,1 @@
+DBE_PLDEBUGGER.step DBE_PLDEBUGGER.step debug端调试过程中，如果当前执行的是一个存储过程，则进入该存储过程继续调试，返回该存储过程第一行的行号等信息，如果当前执行的不是存储过程，则和next行为一致，执行该sql后返回下一行的行号等信息。 表1 step入参和返回值列表 名称 类型 描述 funcoid OUT oid 函数ID funcname OUT text 函数名 lineno OUT integer 当前调试运行的下一行行号 query OUT text 当前调试的下一行函数源码 父主题： DBE_PLDEBUGGER Schema 版权所有 © 华为技术有限公司

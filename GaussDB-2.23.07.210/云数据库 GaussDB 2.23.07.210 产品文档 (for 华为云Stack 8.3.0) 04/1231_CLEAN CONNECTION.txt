@@ -1,0 +1,28 @@
+CLEAN CONNECTION CLEAN CONNECTION 功能描述 清理当前CN节点到其他指定数据库节点(CN/DN)的空闲或无效网络连接。允许在指定CN节点上清理当前CN中缓存的指定数据库、指定用户的相关空闲/无效连接。 注意事项 在非force模式下，该功能只清理数据库集群节点(CN/DN)之间的连接，不会影响客户端连接。 该功能只清理CN中已缓存的空闲/无效的连接，正在使用的正常连接不做清理。 该功能只在CN上执行有效，在DN中不生效。 可以通过查询PG_STAT_GET_POOLER_STATUS()函数查看缓存的连接，检验清理的效果。 建议只在数据库出现网络连接异常时执行此功能。 语法格式 CLEAN CONNECTION 
+    TO { COORDINATOR ( nodename [, ... ] ) | NODE ( nodename [, ... ] )| ALL [ CHECK ] [ FORCE ] }
+    { FOR DATABASE dbname | TO USER username | FOR DATABASE dbname TO USER username }; 参数说明 CHECK 仅在节点列表为TO ALL时可以指定。如果指定该参数，会在清理连接之前检查数据库是否被其他会话连接访问。此参数主要用于DROP DATABASE之前的连接访问检查，如果发现有其他会话连接，则将报错并停止删除数据库。 FORCE 仅在节点列表为TO ALL时可以指定，如果指定该参数，当前CN中所有和指定dbname和username相关的线程都会收到SIGTERM信号，相应的会话被强制关闭，事务会中止，网络连接被清理。 COORDINATOR ( nodename ,nodename ... } ) | NODE ( nodename , nodename ... ) | ALL 删除当前CN节点与指定节点的空闲/无效连接。有三种场景： COORDINATOR： 删除当前CN到指定CN节点上的空闲/无效连接。 NODE： 删除当前CN到指定DN节点上的空闲/无效连接。 ALL： 删除当前CN到所有节点上的空闲/无效连接，包括CN和DN。 取值范围：可替换其中的nodename为已存在的节点名。 dbname 删除当前CN节点中指定数据库相关的连接。如果不指定该属性，则删除所有数据库相关的连接。 取值范围：系统中已存在数据库名称。 username 删除当前CN节点中指定用户相关连接。如果不指定，则删除所有用户相关的连接。 取值范围：已存在的用户。 示例 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26 --创建数据库test_clean_connection。 gaussdb =# CREATE DATABASE test_clean_connection ; --创建jack用户。 gaussdb =# CREATE USER jack PASSWORD '********' ; --创建数据库testdb。 gaussdb =# CREATE DATABASE testdb ; --删除与数据库template1相关的当前CN节点与dn1和dn2节点的空闲/无效连接。 gaussdb =# CLEAN CONNECTION TO NODE ( dn_6001_6002 , dn_6003_6004 ) FOR DATABASE template1 ; --删除与用户jack相关的当前CN节点与dn1节点的空闲/无效连接。 gaussdb =# CLEAN CONNECTION TO NODE ( dn_6001_6002 ) TO USER jack ; --删除与数据库testdb相关的当前CN节点与所有节点的连接。 gaussdb =# CLEAN CONNECTION TO ALL FORCE FOR DATABASE testdb ; --删除数据库testdb。 gaussdb =# DROP DATABASE testdb ; --删除用户jack。 gaussdb =# DROP USER jack ; --删除数据库test_clean_connection。 gaussdb =# DROP DATABASE test_clean_connection ; 父主题： C 版权所有 © 华为技术有限公司

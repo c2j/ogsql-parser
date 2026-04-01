@@ -1,0 +1,1 @@
+PG_WORKLOAD_GROUP PG_WORKLOAD_GROUP PG_WORKLOAD_GROUP系统表提供了数据库负载组的信息。具体字段信息如 表1 所示。 表1 PG_WORKLOAD_GROUP字段 名称 类型 描述 oid oid 行标识符（隐含字段，必须明确选择）。 workload_gpname name 负载组名称。 respool_oid oid 绑定到的资源池的id。 act_statements integer 负载组内最大的活跃语句数。 父主题： 系统表 版权所有 © 华为技术有限公司

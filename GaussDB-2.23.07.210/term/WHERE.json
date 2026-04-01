@@ -1,0 +1,131 @@
+{
+  "topic": "WHERE",
+  "term_count": 25,
+  "terms": [
+    {
+      "term": "【建议】WHERE条件中IN的候选子集不易过大，建议不超过500",
+      "content": "【建议】WHERE条件中IN的候选子集不易过大，建议不超过500 【建议】WHERE条件中IN的候选子集不易过大，建议不超过500 查询时，会对IN中每一条数据进行等值比较，开销较大。 如果包含的值为较为固定的值，应考虑创建REPLICATION表，并将候选数据写入表中，然后通过INNER JOIN来实现包含查询。",
+      "source_file": "531_WHEREIN500.txt"
+    },
+    {
+      "term": "【建议】WHERE条件中IN的候选子集不易过大，建议不超过500",
+      "content": "【建议】WHERE条件中IN的候选子集不易过大，建议不超过500 【建议】WHERE条件中IN的候选子集不易过大，建议不超过500 查询时，会对IN中每一条数据进行等值比较，开销较大。 如果包含的值为较为固定的值，应考虑创建临时表，并将候选数据写入表中，然后通过INNER JOIN来实现包含查询。",
+      "source_file": "672_WHEREIN500.txt"
+    },
+    {
+      "term": "【规则】禁止在WHERE条件相同表字段进行相互比较",
+      "content": "【规则】禁止在WHERE条件相同表字段进行相互比较 【规则】禁止在WHERE条件相同表字段进行相互比较 例如如下语句应考虑合理性： SELECT * FROM t1 WHERE col1 = col1; 应考虑修改为： SELECT * FROM t1 WHERE col1 IS NOT NULL;",
+      "source_file": "663_WHERE.txt"
+    },
+    {
+      "term": "【规则】模糊查询LIKE语句，%不应放在首字符位置",
+      "content": "【规则】模糊查询LIKE语句，%不应放在首字符位置 【规则】模糊查询LIKE语句，%不应放在首字符位置 如果%放在首字符位置，将无法使用索引，会导致全表扫描。",
+      "source_file": "671_LIKE%.txt"
+    },
+    {
+      "term": "【规则】禁止在WHERE条件相同表字段进行相互比较",
+      "content": "【规则】禁止在WHERE条件相同表字段进行相互比较 【规则】禁止在WHERE条件相同表字段进行相互比较 例如如下语句应考虑合理性： SELECT * FROM t1 WHERE col1 = col1; 应考虑修改为： SELECT * FROM t1 WHERE col1 IS NOT NULL;",
+      "source_file": "521_WHERE.txt"
+    },
+    {
+      "term": "【规则】禁止WHERE",
+      "content": "【规则】禁止WHERE 条件字段使用表达式或是函数 【规则】禁止WHERE 条件字段使用表达式或是函数 对条件字段使用表达式或函数时，索引会失效，同时会对每一行数据进行计算，产生不必要的性能消耗 示例 如下代码不符合规范： SELECT income FROM table WHERE abs(income) > ?; SELECT income FROM table WHERE income * 10 > ?; SELECT create_time FROM table WHERE date_format(create_time, '%Y­%m­%d %H:%i:%s') = '2009­01­01 00:00:0'; 应修改为： SELECT income FROM table WHERE income > ? OR income < (-1) * ?; SELECT income FROM table WHERE income > ?/10; SELECT create_time FROM table WHERE create_time = str_to_date('2009­01­01 00:00:0', '%Y­%m­%d %H:%i:%s');",
+      "source_file": "665_WHERE .txt"
+    },
+    {
+      "term": "【规则】禁止WHERE条件涉及隐式数据类型转换",
+      "content": "【规则】禁止WHERE条件涉及隐式数据类型转换 【规则】禁止WHERE条件涉及隐式数据类型转换 数据库中进行隐式转换后可能导致无法使用所创建的索引。 建议在开发过程中开启GUC参数check_implicit_conversions，并关闭enable_fast_query_shipping，以便检查查询语句中是否存在可能带来不良性能影响的隐式数据类型。 SET enable_fast_query_shipping = off; SET check_implicit_conversions = true; 由于隐式数据类型转换检测存在额外的开销，一旦查询语句开发完成后，请关闭check_implicit_conversions参数，并重置enable_fast_query_shipping。 示例 当不带如下代码不符合规范： --t_tablename表的phonenumber字段为VARCHAR类型（而不是数值类型） SELECT column1 INTO i_l_variable1 FROM t_tablename WHERE phonenumber = 13512345678; 建议修改为： --t_tablename表的phonenumber字段为VARCHAR类型（而不是数值类型） SELECT column1 INTO i_l_variable1 FROM t_tablename WHERE phonenumber = '13512345678';",
+      "source_file": "664_WHERE.txt"
+    },
+    {
+      "term": "【规则】查询条件的索引字段上禁止与NULL（IS",
+      "content": "【规则】查询条件的索引字段上禁止与NULL（IS NULL和IS NOT NULL）进行比较 【规则】查询条件的索引字段上禁止与NULL（IS NULL和IS NOT NULL）进行比较",
+      "source_file": "668_NULLIS NULLIS NOT NULL.txt"
+    },
+    {
+      "term": "【规则】查询条件的索引字段上禁止NOT",
+      "content": "【规则】查询条件的索引字段上禁止NOT 【规则】查询条件的索引字段上禁止NOT",
+      "source_file": "528_NOT.txt"
+    },
+    {
+      "term": "【建议】多使用等值操作，少使用非等值操作",
+      "content": "【建议】多使用等值操作，少使用非等值操作 【建议】多使用等值操作，少使用非等值操作 WHERE条件中的非等值条件（IN、BETWEEN、<、<=、>、>=）会导致后面的条件使用不了索引，因为不能同时用到两个范围条件。",
+      "source_file": "533_file_533.txt"
+    },
+    {
+      "term": "【规则】查询条件中与NULL做比较时，禁止使用“！=”比较符，应使用IS",
+      "content": "【规则】查询条件中与NULL做比较时，禁止使用“！=”比较符，应使用IS NULL或IS NOT NULL 【规则】查询条件中与NULL做比较时，禁止使用“！=”比较符，应使用IS NULL或IS NOT NULL",
+      "source_file": "525_NULL=IS NULLIS NOT NULL.txt"
+    },
+    {
+      "term": "【规则】查询条件的索引字段上禁用NOT",
+      "content": "【规则】查询条件的索引字段上禁用NOT 【规则】查询条件的索引字段上禁用NOT",
+      "source_file": "669_NOT.txt"
+    },
+    {
+      "term": "【规则】禁止WHERE条件涉及隐式数据类型转换",
+      "content": "【规则】禁止WHERE条件涉及隐式数据类型转换 【规则】禁止WHERE条件涉及隐式数据类型转换 数据库中进行隐式转换后可能导致无法使用所创建的索引。 建议在开发过程中开启GUC参数check_implicit_conversions，并关闭enable_fast_query_shipping，以便检查查询语句中是否存在可能带来不良性能影响的隐式数据类型。 SET enable_fast_query_shipping = off; SET check_implicit_conversions = true; 由于隐式数据类型转换检测存在额外的开销，一旦查询语句开发完成后，请关闭check_implicit_conversions参数，并重置enable_fast_query_shipping。 示例 当不带如下代码不符合规范： --t_tablename表的phonenumber字段为VARCHAR类型（而不是数值类型） SELECT column1 INTO i_l_variable1 FROM t_tablename WHERE phonenumber = 13512345678; 建议修改为： --t_tablename表的phonenumber字段为VARCHAR类型（而不是数值类型） SELECT column1 INTO i_l_variable1 FROM t_tablename WHERE phonenumber = '13512345678';",
+      "source_file": "522_WHERE.txt"
+    },
+    {
+      "term": "【规则】查询条件的索引字段上禁止与NULL（IS",
+      "content": "【规则】查询条件的索引字段上禁止与NULL（IS NULL和IS NOT NULL）进行比较 【规则】查询条件的索引字段上禁止与NULL（IS NULL和IS NOT NULL）进行比较",
+      "source_file": "527_NULLIS NULLIS NOT NULL.txt"
+    },
+    {
+      "term": "【规则】模糊查询LIKE语句，%不应放在首字符位置",
+      "content": "【规则】模糊查询LIKE语句，%不应放在首字符位置 【规则】模糊查询LIKE语句，%不应放在首字符位置 如果%放在首字符位置，将无法使用索引，会导致全表扫描。",
+      "source_file": "530_LIKE%.txt"
+    },
+    {
+      "term": "【规则】表查询时，WHERE条件中应包含所有分布键字段等值查询条件，否则将在多个节点上进行查询，影响系统并发度和性能。",
+      "content": "【规则】表查询时，WHERE条件中应包含所有分布键字段等值查询条件，否则将在多个节点上进行查询，影响系统并发度和性能。 【规则】表查询时，WHERE条件中应包含所有分布键字段等值查询条件，否则将在多个节点上进行查询，影响系统并发度和性能。",
+      "source_file": "524_WHERE.txt"
+    },
+    {
+      "term": "【建议】WHERE条件中IN的候选子集不为常量，而是表中的列时，建议改写为子查询",
+      "content": "【建议】WHERE条件中IN的候选子集不为常量，而是表中的列时，建议改写为子查询 【建议】WHERE条件中IN的候选子集不为常量，而是表中的列时，建议改写为子查询 在这种情况下，实际上是一个不等值的JOIN，会通过nestloop计划执行。在表过大时执行效率低下，建议修改为等值JOIN的子查询。 示例 如下代码不推荐使用： SELECT col1, COALESCE (max(col2 - 1), 0) FROM t1, t2 WHERE t1.col1 = ANY ( VALUES (id1), (id2)) GROUP BY col1; 建议修改为： SELECT col1, COALESCE (max(tmp), 0) FROM (\n   ( SELECT col1, (col2-1) AS tmp FROM t1, t2 WHERE t1.col1 = t2.id1 AND t1.col1 != t2.id2\n   ) UNION ALL ( SELECT col1, (col2-1) AS tmp FROM t1, t2 WHERE t1.col1 = t2.id2\n   )\n) GROUP BY col1;",
+      "source_file": "532_WHEREIN.txt"
+    },
+    {
+      "term": "【规则】查询条件的索引字段上禁用NOT",
+      "content": "【规则】查询条件的索引字段上禁用NOT IN 【规则】查询条件的索引字段上禁用NOT IN",
+      "source_file": "670_NOT IN.txt"
+    },
+    {
+      "term": "【规则】查询条件中与NULL做比较时，禁止使用“！=”比较符，应使用IS",
+      "content": "【规则】查询条件中与NULL做比较时，禁止使用“！=”比较符，应使用IS NULL或IS NOT NULL 【规则】查询条件中与NULL做比较时，禁止使用“！=”比较符，应使用IS NULL或IS NOT NULL",
+      "source_file": "666_NULL=IS NULLIS NOT NULL.txt"
+    },
+    {
+      "term": "【规则】查询条件的索引字段上禁止NOT",
+      "content": "【规则】查询条件的索引字段上禁止NOT IN 【规则】查询条件的索引字段上禁止NOT IN",
+      "source_file": "529_NOT IN.txt"
+    },
+    {
+      "term": "【规则】查询条件中禁止对索引字段使用“!=",
+      "content": "【规则】查询条件中禁止对索引字段使用“!= ”比较符，避免索引失效 【规则】查询条件中禁止对索引字段使用“!= ”比较符，避免索引失效",
+      "source_file": "667_!= .txt"
+    },
+    {
+      "term": "【规则】禁止WHERE",
+      "content": "【规则】禁止WHERE 条件字段使用表达式或是函数 【规则】禁止WHERE 条件字段使用表达式或是函数 对条件字段使用表达式或函数时，索引会失效，同时会对每一行数据进行计算，产生不必要的性能消耗 示例 如下代码不符合规范： SELECT income FROM table WHERE abs(income) > ?; SELECT income FROM table WHERE income * 10 > ?; SELECT create_time FROM table WHERE date_format(create_time, '%Y­%m­%d %H:%i:%s') = '2009­01­01 00:00:0'; 应修改为： SELECT income FROM table WHERE income > ? OR income < (-1) * ?; SELECT income FROM table WHERE income > ?/10; SELECT create_time FROM table WHERE create_time = str_to_date('2009­01­01 00:00:0', '%Y­%m­%d %H:%i:%s');",
+      "source_file": "523_WHERE .txt"
+    },
+    {
+      "term": "【建议】WHERE条件中IN的候选子集不为常量，而是表中的列时，建议改写为子查询",
+      "content": "【建议】WHERE条件中IN的候选子集不为常量，而是表中的列时，建议改写为子查询 【建议】WHERE条件中IN的候选子集不为常量，而是表中的列时，建议改写为子查询 在这种情况下，实际上是一个不等值的JOIN，会通过nestloop计划执行。在表过大时执行效率低下，建议修改为等值JOIN的子查询。 示例 如下代码不推荐使用： SELECT col1, COALESCE (max(col2 - 1), 0) FROM t1, t2 WHERE t1.col1 = ANY ( VALUES (id1), (id2)) GROUP BY col1; 建议修改为： SELECT col1, COALESCE (max(tmp), 0) FROM (\n   ( SELECT col1, (col2-1) AS tmp FROM t1, t2 WHERE t1.col1 = t2.id1 AND t1.col1 != t2.id2\n   ) UNION ALL ( SELECT col1, (col2-1) AS tmp FROM t1, t2 WHERE t1.col1 = t2.id2\n   )\n) GROUP BY col1;",
+      "source_file": "673_WHEREIN.txt"
+    },
+    {
+      "term": "【建议】多使用等值操作，少使用非等值操作",
+      "content": "【建议】多使用等值操作，少使用非等值操作 【建议】多使用等值操作，少使用非等值操作 WHERE条件中的非等值条件（IN、BETWEEN、<、<=、>、>=）会导致后面的条件使用不了索引，因为不能同时用到两个范围条件。",
+      "source_file": "674_file_674.txt"
+    },
+    {
+      "term": "【规则】查询条件中禁止对索引字段使用“!=",
+      "content": "【规则】查询条件中禁止对索引字段使用“!= ”比较符，避免索引失效 【规则】查询条件中禁止对索引字段使用“!= ”比较符，避免索引失效",
+      "source_file": "526_!= .txt"
+    }
+  ]
+}

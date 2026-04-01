@@ -1,0 +1,84 @@
+CREATE INDEX CREATE INDEX 功能描述 在指定的表上创建索引。 索引可以用来提高数据库查询性能，但是不恰当的使用将导致数据库性能下降。建议仅在匹配如下某条原则时创建索引： 经常执行查询的字段。 在连接条件上创建索引，对于存在多字段连接的查询，建议在这些字段上建立组合索引。例如，select * from t1 join t2 on t1.a=t2.a and t1.b=t2.b，可以在t1表上的a，b字段上建立组合索引。 where子句的过滤条件字段上（尤其是范围条件）。 在经常出现在order by、group by和distinct后的字段。 在分区表上创建索引与在普通表上创建索引的语法不太一样，使用时请注意，如当索引带GLOBAL/LOCAL关键字或者创建索引为GLOBAL索引时不支持创建部分索引。 注意事项 基表为HASH分布时，若创建不包含基表分布键的主键或唯一索引，需要使用全局二级索引（CREATE GLOBAL INDEX），若创建包含基表分布键的主键或唯一索引，需要使用普通索引（CREATE INDEX），单DN部署形式下，使用全局二级索引或者普通索引均可创建成功；当基表为除HASH分布以外的其他分布形式时，主键或唯一索引只能使用普通索引（CREATE INDEX），即索引键必须包含基表分布键。 索引自身也占用存储空间、消耗计算资源，创建过多的索引将对数据库性能造成负面影响（尤其影响数据导入的性能，建议在数据导入后再建索引）。因此，仅在必要时创建索引。 索引定义里的所有函数和操作符都必须是immutable类型的，即它们的结果必须只能依赖于它们的输入参数，而不受任何外部的影响（如另外一个表的内容或者当前时间）。这个限制可以确保该索引的行为是定义良好的。要在一个索引上或WHERE中使用用户定义函数，请把它标记为immutable类型函数。 被授予CREATE ANY INDEX权限的用户，可以在public模式和用户模式下创建索引。 如果基表是HASH/RANGE/LIST分布，则创建唯一索引时必须包含基表的分布键，且不能含有表达式。 如果表达式索引中调用的是用户自定义函数，按照函数创建者权限执行表达式索引函数。 不支持XML类型数据作为普通索引、UNIQUE索引、GLOBAL索引、LOCAL索引、部分索引。 在线创建索引的类型只支持btree索引和ubtree索引，。索引创建形式只支持非分区表普通索引及分区表GLOBAL索引、LOCAL索引，不支持PCR ubtree索引、二级分区与GSI。在线并行创建索引只支持Astore及Ustore的普通索引、GLOBAL索引、LOCAL索引。 语法格式 在表上创建索引。 1
+2
+3
+4
+5
+6
+7 CREATE [ UNIQUE ] INDEX [ CONCURRENTLY ] [ IF NOT EXISTS ] [ [ schemaname .] index_name ] ON table_name [ USING method ] ( { { column_name [ ( length ) ] | ( expression ) } [ COLLATE collation ] [ opclass ] [ ASC | DESC ] [ NULLS { FIRST | LAST } ] } [, ...] ) [ WITH ( { storage_parameter = value } [, ... ] ) ] [ TABLESPACE tablespace_name ] [ COMMENT 'string' ] [ ... ] [ VISIBLE | INVISIBLE ] [ WHERE predicate ]; 在分区表上创建索引。 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13 CREATE [ UNIQUE ] INDEX [ [ schemaname .] index_name ] ON table_name [ USING method ] ( { { column_name [ ( length ) ] | ( expression ) } [ COLLATE collation ] [ opclass ] [ ASC | DESC ] [ NULLS LAST ] } [, ...] ) [ LOCAL [ ( PARTITION index_partition_name { [ FOR { partition_name | ( partition_value [, ...] ) } ] [ TABLESPACE index_partition_tablespace ] [ ( SUBPARTITION index_subpartition_name [ FOR { partition_name | ( partition_value [, ...] ) } ] [ TABLESPACE index_partition_tablespace ] [, ...] ) ] [, ...] } ) ] | GLOBAL ] [ WITH ( { storage_parameter = value } [, ...] ) ] [ TABLESPACE tablespace_name ] [ COMMENT 'string' ] [ ... ] [ VISIBLE | INVISIBLE ] [ WHERE predicate ]; 参数说明 UNIQUE 创建唯一性索引，每次添加数据时检测表中是否有重复值。如果插入或更新的值会引起重复的记录时，将导致一个错误。 目前只有行存表B-tree及UBtree索引支持唯一索引。 CONCURRENTLY 以不阻塞DML的方式创建索引（加ShareUpdateExclusiveLock锁）。创建索引时，一般会阻塞其他语句对该索引所依赖表的访问。指定此关键字，可以实现创建过程中不阻塞DML。 此选项只能指定一个索引的名称。 普通CREATE INDEX命令可以在事务内执行，但是CREATE INDEX CONCURRENTLY不可以在事务内执行。 对于临时表，支持使用CONCURRENTLY关键字创建索引，但是实际创建过程中，采用的是阻塞式的创建方式，因为没有其他会话会并发访问临时表，并且阻塞式创建成本更低。 创建索引时指定此关键字，Astore需要执行先后两次对该表的全表扫描来完成build，第一次扫描的时候创建索引，不阻塞读写操作；第二次扫描的时候合并更新第一次扫描到目前为止发生的变更；Ustore只需全表扫描一次，在全表扫描过程中并发DML产生的数据会被插入到以“index_oid_cctmp”命名的临时表中，扫描结束后将临时表中的数据合并到主索引中并删除临时表，完成索引创建。可使用GUC参数delete_cctmp_table控制在线创建索引结束后是否删除临时表：该参数默认为on，即默认删除临时表；设置为off时，保留临时表。 Astore由于需要执行两次对表的扫描和build，而且必须等待现有的所有可能对该表执行修改的事务结束。这意味着该索引的创建比正常耗时更长，同时因此带来的CPU和I/O消耗对其他业务也会造成影响；Ustore虽只需全表扫描一次来完成索引创建，但上述消耗同样存在。 在线创建索引过程中可能会发生异常（例如用户手动取消、唯一索引键值重复、资源不足、启动线程失败、锁超时等场景），导致在线创建索引失败，这种情况可能会留下not valid状态的索引，为避免占用系统资源，会自动将其清理。但对于严重错误，比如FATAL/PANIC/数据库故障等场景，需要用户手动清理索引及临时表。在线创建索引失败且自动残留清理失效的情况下，会残留下not valid的索引，这些残留索引可能是ready或者not ready状态（取决于在线创建索引是在哪个阶段失败的，比如在第一阶段失败索引是not ready状态，在第三阶段失败索引是ready状态）。如果残留索引是ready状态，DML仍会维护此残留索引，且维护此索引过程中可能会产生其他错误（比如索引列大小超过最大值，违反唯一索引约束等）。为了避免残留索引占用系统资源和产生用户预期外报错，需要用户尽快手动将其删除。分布式中只有data node节点会自动清理失败索引，coordinator node节点的失败索引需要手动清理。严重错误场景会导致分布式部分节点中找不到失败索引的元信息，DROP INDEX语句无法删除这些索引，需要用DROP INDEX IF EXISTS删除。 Astore由于在第二次扫描之后，索引构建必须等待任何持有早于第二次扫描拿的快照的事务终止，而且建索引时加的ShareUpdateExclusiveLock锁（4级）会和大于等于4级的锁冲突，在创建这类索引时，容易引发卡住（hang）或者死锁问题。例如： 两个会话对同一个表创建CONCURRENTLY索引，会引起死锁问题。 两个会话，一个对表创建CONCURRENTLY索引，一个DROP TABLE，会引起死锁问题。 三个会话，会话1先对表a加锁，不提交，会话2接着对表b创建CONCURRENTLY索引，会话3接着对表a执行写入操作，在会话1事务未提交之前，会话2会一直被阻塞。 创建CONCURRENTLY索引与同一个表的TRUNCATE操作并发，会引起死锁问题。 将事务隔离级别设置成可重复读（默认为读已提交），起两个会话，会话1起事务对表a执行写入操作，不提交，会话2对表b创建CONCURRENTLY索引，在会话1事务未提交之前，会话2会一直被阻塞。 索引构建过程中或者构建失败的情况下，需要确认索引进度或状态，可以通过查询函数gs_get_index_status('schema_name', 'index_name')来确认当前所有节点上索引的状态，其中入参为schema_name和index_name，分别用来指定索引的模式名称和索引名称，返回值为node_name，indisready和indisvalid，分别表示节点名称，索引在该节点上是否可插入，以及索引在该节点上是否可用，只有当所有节点indisready和indisvalid均为true的情况下，索引才是“可用的”，否则请等待索引创建完成，或者构建失败情况下，删除索引重新创建。 在I/O、CPU不受限的情况下，在线创建索引对业务性能的劣化一般可以控制在10%以内，但在特殊场景下劣化可能会超过此数值。这是因为在线创建索引本身是一种消耗IO、CPU资源较多的长事务，需要比离线创建索引消耗更多的资源。在线创建索引事务持续时间越长，对业务性能的影响越大。在线创建索引时间与基表数据量、并发DML产生的数据量正相关，在IO、CPU不受限的情况下，在线创建索引时间大约是离线创建索引的2~6倍，但当并发事务量较大（>10000tps）或存在资源争抢的情况时，可能会超过此数值。如果在线创建索引期间存在长事务，还要加上长事务运行时间。在Astore及Ustore模式下，可以使用并行创建索引来缩短创建索引时间；在线并行创建索引性能随着并行工作线程数量增加而提升到一定值后稳定，相比串行创建索引性能一般可提升30%左右。建议在业务低谷期进行在线创建索引，以避免对业务造成较大影响。同时避免在线创建索引期间执行长事务。虽然在线创建索引在一定程度上提供了业务不中断的能力，但仍然需要谨慎实施。 在线创建唯一索引（CREATE UNIQUE INDEX CONCURRENTLY）时会扫表检查表上数据是否满足唯一性，如果在线创建索引扫表过程中表上数据不满足唯一性，在线创建索引就会报错退出。注意在线创建索引过程中表上数据是否满足唯一性可能会发生变化，是否失败取决于扫表过程中是否扫到了重复的数据。考虑以下情况：（1）扫表过程中插入了元组A和元组B，且它们的索引列相同，在线创建索引扫表时同时扫到了A和B，则可能会报违反唯一性，但是如果后续B被删除了，则可能会出现在线创建索引过程中报错违反唯一性，但在线创建索引失败退出后查找表上数据发现满足唯一性的情况；（2）在线创建索引过程中先插入元组A，后删除A，再插入A，使用SnapshotNow扫表，则A可能会被扫表两次，则可能会违反唯一性约束。在线创建索引过程中Astore使用SnapshotMVCC扫表，Ustore使用SnapshotNow扫表。 IF NOT EXISTS 如果指定IF NOT EXISTS关键字，创建索引前会在当前schema中查找是否已有名字相同的relation。若已有同名relation存在，则不会新建，返回NOTICE提示。未指定IF NOT EXISTS关键字时，若schema中存在同名relation，返回ERROR告警。 schema_name 模式的名称。 取值范围：已存在模式名。 index_name 要创建的索引名，不能包含模式名，索引的模式与表相同。 取值范围：字符串，要符合 标识符命名规范 。 table_name 需要为其创建索引的表的名称，可以用模式修饰。 取值范围：已存在的表名。 USING method 指定创建索引的方法。 取值范围： btree：btree索引使用一种类似于B+树的结构来存储数据的键值，通过这种结构能够快速的查找索引。btree适合支持比较查询以及查询范围。在表为ustore创建索引时，btree索引会自动转换为ubtree索引。 ubtree：仅供ustore表使用的多版本btree索引，索引页面上包含事务信息，能并自主回收页面。ubtree索引默认开启insertpt功能。 行存表支持的索引类型：btree（行存表缺省值）、。行存表（USTORE存储引擎）支持的索引类型：ubtree。 column_name 表中需要创建索引的列的名称（字段名）。 如果索引方式支持多字段索引，可以声明多个字段。全局索引最多可以声明31个字段，其他索引最多可以声明32个字段。 column_name ( length ) 创建一个基于该表一个字段的前缀键索引，column_name为前缀键的字段名，length为前缀长度。 前缀键将取指定字段数据的前缀作为索引键值，可以减少索引占用的存储空间。含有前缀键字段的部分过滤条件和连接条件可以使用索引。 前缀键支持的索引方法：btree、ubtree。 前缀键的字段的数据类型必须是二进制类型或字符类型（不包括特殊字符类型）。 前缀长度必须是不超过2676的正整数，并且不能超过字段的最大长度。对于二进制类型，前缀长度以字节数为单位。对于非二进制字符类型，前缀长度以字符数为单位。键值的实际长度受内部页面限制，若字段中含有多字节字符、或者一个索引上有多个键，索引行长度可能会超限，导致报错，设定较长的前缀长度时请考虑此情况。 CREATE INDEX语法中，不支持以下关键字作为前缀键的字段名称：COALESCE、EXTRACT、GREATEST、LEAST、LNNVL、NULLIF、NVL、NVL2、OVERLAY、POSITION、REGEXP_LIKE、SUBSTRING、TIMESTAMPDIFF、TREAT、TRIM、XMLCONCAT、XMLELEMENT、XMLEXISTS、XMLFOREST、XMLPARSE、XMLPI、XMLROOT、XMLSERIALIZE。 前缀键属于一种特殊的表达式键，部分未说明的约束和限制，与表达式键一致，请参考表达式索引的说明。 前缀索引作为一种表达式索引，与表达式索引一致，不支持作为分布式的唯一索引和主键。 expression 创建一个基于该表的一个或多个字段的表达式索引，通常必须写在圆括弧中。如果表达式有函数调用的形式，圆括弧可以省略。 表达式索引可用于获取对基本数据的某种变形的快速访问。比如，一个在upper(col)上的函数索引将允许WHERE upper(col) = 'JIM'子句使用索引。 在创建表达式索引时，如果表达式中包含IS NULL子句，则这种索引是无效的。此时，建议用户尝试创建一个部分索引。 COLLATE collation COLLATE子句指定列的排序规则（该列必须是可排列的数据类型）。如果没有指定，则使用默认的排序规则。排序规则可以使用“SELECT * FROM pg_collation”命令从pg_collation系统表中查询，默认的排序规则为查询结果中以default开始的行。 opclass 操作符类的名称。对于索引的每一列可以指定一个操作符类，操作符类标识了索引那一列的使用的操作符。例如一个btree索引在一个四字节整数上可以使用int4_ops；这个操作符类包括四字节整数的比较函数。实际上对于列上的数据类型默认的操作符类是足够用的。操作符类主要用于一些有多种排序的数据。例如，用户想按照绝对值或者实数部分排序一个复数。能通过定义两个操作符类然后在建立索引时选择合适的类。 ASC 指定按升序排序 （默认）。 DESC 指定按降序排序。 NULLS FIRST 指定空值在排序中排在非空值之前，当指定DESC排序时，本选项为默认的。 NULLS LAST 指定空值在排序中排在非空值之后，未指定DESC排序时，本选项为默认的。 PARTITION子句 PARTITION index_partition_name [ FOR { partition_name | ( partition_value [, ...] ) } ] [ TABLESPACE index_partition_tablespace ] 如果分区子句指定了for partition_name或partition_value，此时创建的分区索引带有分类索引属性；如果未指定for partition_name或partition_value，分区子句个数必须和目标表分区个数一一对应。 仅支持在单个分区上创建分类索引。 分类索引仅支持btree和ubtree索引。 分类索引不支持UNIQUE属性。 当前不支持GLOBAL索引。 当前不支持二级分区。 创建的分类索引会带有sparsely_partitioned=true选项时，需要注意该选项不可以通过CREATE TABLE或ALTER TABLE语句将非分类索引显式指定为分类索引。如果创建的索引为分类索引，即使声明sparsely_partitioned=false也会被忽略。 从505.0.0之前版本升级到505.0.0及更高版本时，在升级观察期期间，不支持创建分类索引。 PARTITION index_partition_name 索引分区的名称。 取值范围：字符串，要符合 标识符命名规范 。 FOR partition_name 指定的目标分区名。如果指定的分区不存在则报错。 FOR (partition_value [, ...]) 指定的分区键值。分区键值需要放入分区键值FOR列表中，如果存在多列分区键，则需要指定多个partition_value。 TABLESPACE index_partition_tablespace 索引分区的表空间。 取值范围：如果没有声明，将使用分区表索引的表空间index_tablespace。 WITH ( {storage_parameter = value} [, ... ] ) 指定索引方法的存储参数。 取值范围： Psort之外的索引都支持FILLFACTOR参数。只有非分区表的BTREE索引支持DEDUPLICATION参数。只有UBTREE索引支持INDEX_TXNTYPE参数。 STORAGE_TYPE 表示索引所在的表的存储引擎类型，当索引指定的storage_type与索引类型冲突时，会自动修改为正确的存储类型。仅支持BTREE、UBTREE。该参数设置成功后就不再支持修改。 取值范围：USTORE，表示索引所在的表为Inplace-Update存储引擎。ASTORE，表示索引所在的表为Append-Only存储引擎。 默认值：Ustore表创建的索引默认为USTORE，Astore表创建的索引默认为ASTORE。 FILLFACTOR 一个索引的填充因子（fillfactor）是一个介于10和100之间的百分数。对于大并发插入且键值范围比较密集的场景，插入时同一个索引页面的竞争比较大，选择较小的填充因子更加合适。 取值范围：10~100 CROSSBUCKET 索引是否使用跨hashbucket索引。仅支持B-Tree索引。当前特性是实验室特性，使用时请联系华为工程师提供技术支持。 取值范围：ON，OFF 默认值：OFF。由于分区表默认创建GLOBAL索引，因此hashbucket分区表创建索引受此行为控制，默认创建crossbucket索引。 ACTIVE_PAGES 表示索引的页面数量，可能比实际的物理文件页面少，可以用于优化器调优。目前只对ustore的分区表local索引生效，且会被vacuum、analyze更新（包括auto vacuum）。不建议用户手动设置该参数，该参数在分布式下无效。 DEDUPLICATION 索引参数，设置索引是否对键值重复的元组进行去重压缩。在重复键值的索引较多时，开启参数可以有效降低索引占用空间。对主键索引和唯一索引不生效。非唯一索引且索引键值重复度很低或者唯一的场景，开启参数会使索引插入性能小幅度劣化。暂不支持分区表的local/global索引。 取值范围：布尔值，默认取GUC参数中enable_default_index_deduplication的值（默认为off）。 INDEX_TXNTYPE UBTree索引类型（只有UBTree索引支持INDEX_TXNTYPE），当该值取值为PCR时，可支持通过UBTree进行闪回查询。PCR版本UBTree索引当前不支持在线创建索引、全局二级索引、极致RTO回放和备机读的功能。当不指定index_txntype时，具体创建哪种类型的索引通过GUC参数index_txntype进行控制。INDEX_TXNTYPE不支持ALTER INDEX INDEX_NAME SET (INDEX_TXNTYPE=PCR或RCR)进行修改。 类型：字符串（不区分大小写） 取值范围：RCR, PCR 默认值：RCR 举例： CREATE UNIQUE INDEX t2_b_pkey ON t(b) WITH(index_txntype='pcr'); STAT_STATE 标识该索引的统计信息是否被锁定，如果被锁定了，该索引的统计信息无法更新。该参数在分布式下无效。 取值范围：locked、unlock。 默认值：unlock。 TABLESPACE tablespace_name 指定索引的表空间，如果没有声明则使用默认的表空间。 取值范围：已存在的表空间名。 WHERE predicate 创建一个部分索引。部分索引是一个只包含表的一部分记录的索引，通常是该表中比其他部分数据更有用的部分。例如，有一个表，表里包含已记账和未记账的订单，未记账的订单只占表的一小部分而且这部分是最常用的部分，此时就可以通过只在未记账部分创建一个索引来改善性能。另外一个可能的用途是使用带有UNIQUE的WHERE强制一个表的某个子集的唯一性。 取值范围：predicate表达式只能引用表的字段，它可以使用所有字段，而不仅是被索引的字段。目前，子查询和聚集表达式不能出现在WHERE子句里。不建议使用int等数值类型作为predicate，因为int等数值类型可以隐式转换为bool值（非0值隐式转换为true，0转换为false），可能导致非预期的结果。 对于分区表索引，当创建索引带GLOBAL关键字，或者最终创建的索引类型为GLOBAL索引时，不支持带WHERE子句创建索引。 COMMENT 'string' COMMENT 'string'表示给索引添加注释。 仅在MYSQL模式数据库下（即sql_compatibility = 'MYSQL'）有效。 索引级注释支持的最大长度为1024字符。 VISIBLE 设置索引状态为可见，此选项为默认的。 VISIBLE仅支持在ORA模式数据库下（即sql_compatibility = 'ORA'）设置，在其他数据库兼容模式下不支持。 当disable_keyword_options参数设置为“visible”时，此关键字不支持使用。 升级未提交阶段，不支持使用此关键字。 INVISIBLE 设置索引状态为不可见。 INVISIBLE仅支持在ORA模式数据库下（即sql_compatibility = 'ORA'）设置，在其他数据库兼容模式下不支持。 当disable_keyword_options参数设置为“invisible”时，此关键字不支持使用。 升级未提交阶段，不支持使用此关键字。 示例 普通索引 --创建tbl_test1表。 gaussdb=# CREATE TABLE tbl_test1(
+    id int,           --用户id
+    name varchar(50), --用户姓名
+    postcode char(6)  --邮编
+);
+
+--创建表空间tbs_index1。 gaussdb=# CREATE TABLESPACE tbs_index1 RELATIVE LOCATION 'test_tablespace/tbs_index1';
+
+--为表tbl_test1创建索引idx_test1指定表空间。 gaussdb=# CREATE INDEX idx_test1 ON tbl_test1(name) TABLESPACE tbs_index1;
+
+--查询索引idx_test1信息。 gaussdb=# SELECT indexname,tablename,tablespace FROM pg_indexes WHERE indexname = 'idx_test1';
+ indexname | tablename | tablespace 
+-----------+-----------+------------
+ idx_test1 | tbl_test1 | tbs_index1
+(1 row)
+
+--删除索引。 gaussdb=# DROP INDEX idx_test1;
+--删除表空间 gaussdb=# DROP TABLESPACE tbs_index1; 唯一索引 --为表tbl_test1创建唯一索引idx_test2 。 gaussdb=# CREATE UNIQUE INDEX idx_test2 ON tbl_test1(id);
+
+--查询索引信息。 gaussdb=# \d tbl_test1
+           Table "public.tbl_test1"
+  Column  |         Type          | Modifiers 
+----------+-----------------------+-----------
+ id       | integer               | 
+ name     | character varying(50) | 
+ postcode | character(6)          | 
+Indexes:
+    "idx_test2" UNIQUE, btree (id) TABLESPACE pg_default
+
+--删除索引。 gaussdb=# DROP INDEX idx_test2; 表达式索引 -- 为表tbl_test1创建一个表达式索引。 gaussdb=# CREATE INDEX idx_test3 ON tbl_test1(substr(postcode,2));
+
+--查询索引信息。 gaussdb=# \d tbl_test1
+           Table "public.tbl_test1"
+  Column  |         Type          | Modifiers 
+----------+-----------------------+-----------
+ id       | integer               | 
+ name     | character varying(50) | 
+ postcode | character(7)          | 
+Indexes:
+    "idx_test3" btree (substr(postcode::text, 2)) TABLESPACE pg_default
+
+--删除索引。 gaussdb=# DROP INDEX idx_test3; 部分索引 -- 为表tbl_test1中id不为为空的数据建立索引。 gaussdb=# CREATE INDEX idx_test4 ON tbl_test1(id) WHERE id IS NOT NULL;
+
+-- 删除索引。 gaussdb=# DROP INDEX idx_test4;
+-- 删除表 gaussdb=# DROP TABLE tbl_test1; 分区索引 --建表。 gaussdb=# CREATE TABLE student(id int, name va(20)) PARTITION BY RANGE (id) (
+    PARTITION p1 VALUES LESS THAN (200),
+    PARTITION pmax VALUES LESS THAN (MAXVALUE)
+);
+--创建LOCAL分区索引不指定索引分区的名称。 gaussdb=# CREATE INDEX idx_student1 ON student(id) LOCAL;
+--查看索引分区信息，LOCAL索引分区数和表的分区数一致。 gaussdb=# SELECT relname FROM pg_partition WHERE parentid = 'idx_student1'::regclass;
+   relname   
+-------------
+ p1_id_idx
+ pmax_id_idx
+(2 rows)
+--删除LOCAL分区索引。 gaussdb=# DROP INDEX idx_student1;
+
+
+--创建GLOBAL索引。 gaussdb=# CREATE INDEX idx_student2 ON student(name) GLOBAL;
+--查看索引分区信息，GLOBAL索引分区数和表的分区数不一致。 gaussdb=# SELECT relname FROM pg_partition WHERE parentid = 'idx_student2'::regclass;
+ relname 
+---------
+(0 rows)
+--删除GLOBAL分区索引。 gaussdb=# DROP INDEX idx_student2;
+
+--删除表。 gaussdb=# DROP TABLE student; 相关链接 ALTER INDEX ， DROP INDEX 优化建议 create index 建议仅在匹配如下条件之一时创建索引： 经常执行查询的字段。 在连接条件上创建索引，对于存在多字段连接的查询，建议在这些字段上建立组合索引。例如，select * from t1 join t2 on t1.a=t2.a and t1.b=t2.b，可以在t1表上的a，b字段上建立组合索引。 where子句的过滤条件字段上（尤其是范围条件）。 在经常出现在order by、group by和distinct后的字段。 约束限制： 普通表的索引支持最大列数为32列；分区表的GLOBAL索引支持最大列数为31列。 单个索引大小不能超过索引页面大小（8k），其中B-tree、UBtree及索引不能超过页面大小的三分之一。 分区表上不支持创建部分索引。 父主题： C 版权所有 © 华为技术有限公司

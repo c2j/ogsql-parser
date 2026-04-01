@@ -1,0 +1,12 @@
+虚拟机资源异常 虚拟机资源异常 现象描述 在非高并发场景下，DBS运维管理平台监控页面显示系统资源异常的告警。例如：内存使用过高，CPU使用率过高，磁盘读写频率过高，磁盘空间即将占满等告警。 可能原因 应用程序BUG，占用大量内存和CPU。 应用程序异常，输出大量日志，占满磁盘空间。 程序存在漏洞，导致黑客入侵，服务器被当成肉机，占用大量系统资源。 定位思路 通过命令排查异常进程，判断哪些进程占用了大量资源，反馈给相应的开发人员，及时修改程序BUG。 如果不是已知进程，则遭到黑客入侵，及时进行安全加固，修复程序漏洞。 处理步骤 参考 登录数据库管理节点 ，使用opsadmin SSH登录系统，登录完成后切换为root权限，执行 top 命令查看系统资源使用情况，找出长时间占用资源大的进程。 重点关注PID、%CPU、%MEM、COMMAND，通过COMMAND列可以看到进程名字，下图中java进程使用内存为33.6%，进程的pid为29565。 通过“ ps -ef |grep 进程号 ”查看进程信息，进程号是 1 得到异常进程的PID。下面示例查看的进程是tomcat进程。 参考《云数据库 GaussDB 2.23.07.200 运维指南》中的“巡检指南”章节，巡检tomcat运行状态。 如果巡检异常，根据巡检报告进行处理。 如果巡检正常，执行 4 。 磁盘空间占满，执行 df -h ，查看哪个磁盘空间被占满，一般情况是数据盘被占满。 Size：表示总体大小。 Used：表示已使用大小。 Avail：表示剩余可用大小。 Use%：表示使用百分比。 Mounted on：表示挂载目录。 进入数据盘挂载目录（/opt/cloud），执行“du -sh /opt/cloud/*”查看各目录大小，找到最大的目录。进入该目录（一般都是日志目录），查找目录下的占用空间较大的日志文件，查看其中的异常日志，联系技术支持进行定位。 [root@service2 ~ ]# cd /opt/cloud/
+[root@service2 service]# ll
+total 44
+drwx------.3 serviceservice4096 Oct 27 16:29 backup
+drwx------.8 serviceservice4096 Jun 23 09:56 jre1.8.0_102
+drwx------.3 serviceservice16384 Sep1 14:40 lost+found
+drwx------.9 service4096 Oct 27 16:38 tomcat
+[root@service2 service]# du -sh /opt/cloud/*
+2.5M/opt/cloud/backup
+355M/opt/cloud/jre1.8.0_102
+24K /opt/cloud/lost+found
+197M/opt/cloud/tomcat 父主题： 虚拟机异常 版权所有 © 华为技术有限公司

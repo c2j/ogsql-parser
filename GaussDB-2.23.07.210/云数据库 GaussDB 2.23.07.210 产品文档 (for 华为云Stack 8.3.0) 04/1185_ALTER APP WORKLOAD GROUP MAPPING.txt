@@ -1,0 +1,21 @@
+ALTER APP WORKLOAD GROUP MAPPING ALTER APP WORKLOAD GROUP MAPPING 功能描述 修改一个应用映射组关联的负载组。只有用户对当前数据库有ALTER权限，才可以对应用映射组进行修改。 语法格式 1
+2 ALTER APP WORKLOAD GROUP MAPPING app_name WITH ( WORKLOAD_GPNAME = wg_name ); 参数说明 app_name 应用映射组名称。应用映射组名称不能和当前数据库里其他应用映射组重名。 取值范围：字符串，要符合 标识符命名规范 。 wg_name 负载组名称。 取值范围：字符串，已创建的负载组。 示例 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20 -- 创建一个资源池，其控制组指定为"DefaultClass"组下属的"High" Timeshare Workload控制组。 gaussdb =# CREATE RESOURCE POOL pool1 WITH ( CONTROL_GROUP = "High" ); -- 创建一个负载组，关联已创建的资源池。 gaussdb =# CREATE WORKLOAD GROUP wg_hr1 USING RESOURCE POOL pool1 ; --创建一个默认应用映射组，关联默认的负载组。 gaussdb =# CREATE APP WORKLOAD GROUP MAPPING app_wg_map1 ; -- 更新一个应用映射组关联的负载组名称。 gaussdb =# ALTER APP WORKLOAD GROUP MAPPING app_wg_map1 WITH ( WORKLOAD_GPNAME = wg_hr1 ); --删除应用映射组。 gaussdb =# DROP APP WORKLOAD GROUP MAPPING app_wg_map1 ; --删除负载组。 gaussdb =# DROP WORKLOAD GROUP wg_hr1 ; --删除资源池。 gaussdb =# DROP RESOURCE POOL pool1 ; 相关链接 CREATE APP WORKLOAD GROUP MAPPING ， DROP APP WORKLOAD GROUP MAPPING 父主题： A 版权所有 © 华为技术有限公司

@@ -1,0 +1,1 @@
+对分区表重命名分区 对分区表重命名分区 使用ALTER TABLE RENAME PARTITION可以对分区表重命名分区。 例如，通过指定分区名将范围分区表range_sales的分区date_202001重命名。 ALTER TABLE range_sales RENAME PARTITION date_202001 TO date_202001_new; 或者，通过指定分区值将列表分区表list_sales中'0'所对应的分区重命名。 ALTER TABLE list_sales RENAME PARTITION FOR ('0') TO channel_new; 父主题： 重命名分区 版权所有 © 华为技术有限公司

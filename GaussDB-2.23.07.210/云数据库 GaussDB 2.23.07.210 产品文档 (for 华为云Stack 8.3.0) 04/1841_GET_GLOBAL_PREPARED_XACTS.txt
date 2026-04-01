@@ -1,0 +1,1 @@
+GET_GLOBAL_PREPARED_XACTS GET_GLOBAL_PREPARED_XACTS GET_GLOBAL_PREPARED_XACTS视图显示全局所有节点上的两阶段残留事务信息。 表1 GET_GLOBAL_PREPARED_XACTS字段 名称 类型 描述 transaction xid 残留事务的xid。 gid text 残留两阶段事务全局gid。 prepared timestamp with time zone 残留两阶段事务prepared时间。 owner name 残留两阶段事务的owner。 database name 残留两阶段事务所属的database。 node_name text 残留事务所在的节点名称。 父主题： 其他系统视图 版权所有 © 华为技术有限公司

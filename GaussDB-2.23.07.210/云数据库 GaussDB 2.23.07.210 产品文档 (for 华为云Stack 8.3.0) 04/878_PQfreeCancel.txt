@@ -1,0 +1,1 @@
+PQfreeCancel PQfreeCancel 功能描述 释放PQgetCancel创建的数据结构。 原型 void PQfreeCancel(PGcancel * cancel); 参数 表1 PQfreeCancel参数 关键字 参数说明 cancel 指向包含cancel信息的对象指针。 注意事项 PQfreeCancel释放一个由前面的PQgetCancel创建的数据对象。 父主题： 取消正在处理的查询 版权所有 © 华为技术有限公司

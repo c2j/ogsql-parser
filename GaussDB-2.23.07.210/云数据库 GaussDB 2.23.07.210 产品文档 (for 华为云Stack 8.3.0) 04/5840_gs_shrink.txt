@@ -1,0 +1,140 @@
+gs_shrink gs_shrink 背景信息 随着业务场景和数据量的变化，需要集群节点具有可扩展性以及可收缩性。 GaussDB 提供了gs_shrink工具来帮助完成对数据库集群节点进行缩容操作。 缩容前提条件 集群状态为Normal，重分布状态为No。 集群不能处于锁定状态。 集群配置文件已经生成，配置的信息正确并且和当前集群状态一致。 缩容前用户需要确保default_storage_nodegroup参数值为installation。 缩容前需退出创建了临时表的客户端连接，因为在缩容过程中及缩容成功后临时表会失效，操作临时表也会失败。 降副本前提条件 集群状态为Normal，重分布状态为No，balanced状态为Yes。 整个集群数据库中的业务已全部停止且不能锁定集群。 注意事项 缩容仅支持大于等于两副本部署的集群。 缩容操作不可下发在被缩容的节点上。 需保证所有cn可连接。 需保证网络正常。 重分布资源管控对象redisuser，redisrespool，redisclass，redisgrp不能被占用。 在前一次缩容结束后才能再次缩容。 缩容前enable_random_datanode需要设置成off。 max_prepared_transactions和max_locks_per_transaction调大可用于尽量避免出现内存问题。 read-only模式的缩容过程中，锁集群后数据库不支持DDL和DCL操作。 insert模式的缩容过程中，集群锁定前支持ddl和dcl操作；不支持用户并发事物块中包含Temp表创建使用；重分布过程中，不支持对database、tablespace进行删除、创建操作。 重分布过程中，不建议对需要进行重分布的表所属用户进行权限变更。 普通表重分布执行到交换元数据阶段，可能因为其他用户对该表执行SQL，导致重分布失败。 重分布进度预估仅针对只读模式。 表缩容过程中，不支持事务块中并发ddl。 重分布阶段不允许执行性能统计查询。 缩容时集群不可处于read-only状态。 确认DN所在磁盘使用率未超阈值(默认85%)且未在执行其他运维操作。 gs_check -i CheckDataDiskUsage 使用gs_guc工具关闭集群只读模式。 gs_guc reload -N all -Z coordinator -I all -c 'default_transaction_read_only = off' gs_guc reload -N all -Z datanode -I all -c 'default_transaction_read_only = off' 缩容不支持表优先重分布、部分表不重分布。 缩容不支持集群中存在list和range分布的表。 不支持cms少数派故障场景下和gtmFree时gtm故障场景下的normal集群缩容。 集群缩容过程中，请勿改动$PGHOST/shrink_step/shrink_step.dat文件，否则影响缩容重入正确性。 集群按照环的方式配置，比如4个或5个主机组成一个环，这些主机上的DN主节点、备节点和从节点都部署在这个环里， 缩容的最小单元是一个环。 缩容时，按照当前分片部署顺序从后向前缩容，不可跳跃。 缩容不支持包括CN的节点，如果包括CN，先使用增删CN工具，删除CN后再缩容。 缩容数据重分布失败，不影响业务，用户可选择合适的时间尽快完成重分布，否则会导致数据长期分布不均匀。 缩容的主机不能包含ETCD，GTM，CM Server。 重分布前，需要保证对应数据库下的data_redis为重分布预留schema，不允许用户操作该schema和其内部表。因为在重分布过程中，会使用到data_redis并且重分布结束后会删除该schema，如果存在用户表，则可能会出现数据误删。 重分布前会清理回收站，且回收站不记录重分布的闪回表。 在普通集群模式下，缩容操作只支持集群中只有一个NodeGroup的缩容，不支持集群中包含多个NodeGroup的缩容。 重分布过程中不能将其他用户绑定到重分布专用的资源池redisrespool上；不能用gs_cgroup -M等操作破坏当前Cgroups配置。缩容过程不支持gs_cgroup。 readonly模式下重分布过程中，表只支持dql操作。 insert模式下重分布过程中，对于表： 支持用户进行本地表的drop、truncate、truncate-partition业务。 支持表的更新、插入和删除数据操作。 重分布阶段不允许性能统计查询。 重分布过程存在秒级窗口，因为drop本地表操作导致重分布失败。 当重分布的表进入最后一轮追增状态（end_catchup）会锁表，此时重分布的表不支持更新、插入和删除操作。 重分布过程中，执行长时间查询可能导致重分布等锁超时失败。 大分区表重分布时间较长，周期性删除分区操作会打断重分布。 unlogged表无xlog，在线数据重分布，有丢数据风险。 在普通集群模式下，缩容完成以后，集群中唯一的NodeGroup名称为group_version1或者group_version2。 如果缩容前的Node Group下有依赖它的Child Node Group，缩容完成后，集群中新创建的Node Group下也会创建相应数量的Child Node Group，且和缩容前的Child Node Group一一对应。 缩容过程中，若因实例异常导致缩容失败，请参考 gs_replace 章节内容在后台进行节点修复操作，故障修复后重入缩容。 执行缩容前，建议磁盘阈值满足以下条件： （全部表容量/缩容后DN个数 + 最大单表容量/缩容后DN个数）< 只读阈值（85%）*磁盘容量。 缩容失败后，不允许手动单独调用重分布，需要重入缩容。 缩容过程中系统将关闭“自动剔除故障CN”功能，在缩容完成后系统再次打开该功能。 缩容失败后，若存在缩容步骤文件，此时不支持使用gs_om工具删除CN。 缩容后若清理被缩容节点失败，缩容流程成功结束，此时如有需要需手动清理。 删除DN实例数据目录，cm_agent目录。 删除$PGHOST目录。 删除$GAUSSLOG目录。 kill gaussdb相关进程。 删除安装产生的环境变量。 多表join功能约束： 不能使用read-only模式。 需要用户识别出带有join关系的用户表列表，利用文件的形式传递给内核。 为属于一个group的表预留足够的磁盘空间，即group中所有表（表+索引）总和的1倍；考虑到资源有限，逐个group进行重分布，因此需要预留最大group大小1倍即可。 每个group中的表数量上限为5张，下限为2张。 表名中如果含有特殊字符，比如空格等需要使用双引号进行转义，否则代码可能无法正确读取表名，例如会使用空格做表名切分。 多表join group中的表目前只支持普通行存表（包括普通表和分区表），range/list表、外表、物化视图、hashbucket表、复制表等均不支持。 多表join需要配合写报错模式和业务快速失败模式进行，因此只支持用户业务允许报错重试的场景；写报错模式时间窗口需要等group中的所有表均完成才能进行元数据切换，相较于单张表，影响窗口增大，但仍然是秒级完成，写报错模式持续时长和用户配置的last_catchup_threshold参数有关，默认值5秒；切换元数据耗时：通常场景采用cancel模式拿锁加切换元数据，单表2秒，最长10秒（最多5张表）；最坏场景：(lockwait_timeout + 2)*group中表数量。 重分布开始后支持修改group信息，但是由于重分布的顺序是先单表后group，一旦表已经完成重分布就无法回退且无法指定到group中。 在重分布的重入场景中，如果修改了已经开始重分布的group中的表到两个不同的group中，下次重入表占用的空间不会自动释放，直到group完成元数据切换后才能进行资源清理。如果需要释放只能手动执行。 在IO、CPU资源使用较高的场景，不适合开启多表缩容功能。否则可能触发重分布工具主动资源管控，导致使用IO限制过严以及性能严重降低、追增不上的情况，使用前需谨慎评估。 对于group中的表写业务量都比较大的场景，开启多表缩容功能可能出现追增不上的风险，需要谨慎评估。 语法 物理集群缩容 gs_shrink [-t contraction] {-h HOSTNAME | -f hostfile} [--parallel-jobs=NUMBER] [-l LOGFILE] [--redis-mode=MODE] [--resource-level=LEVL] [--join-tables=FILE] 重分布资源管控 gs_shrink -t resourcectl --resource-level=f/h/m/l 重分布参数设置 gs_shrink -t parametercfg [--lockwait-timeout=MSEC] [--lockwait-interval=SECS] [--trylock-threshold=NUMBER] [--enable-cancel=Boolean] [--last-catchup-threshold=MSEC] [--catchup-times=NUMBER] [--write-error-mode=Boolean] [--catchup-query-dop=NUMBER] [--parallel-catchup-threshold=NUMBER] [--parallel-reindex-jobs=NUMBER][--redis-retry-times=NUMBER][--redis-retry-interval=NUMBER] 集群降副本 gs_shrink -t reduce --offline [--reduce-ips=IPS] [--reduce-times=1] [--reduce-other] 显示帮助信息 gs_shrink -? | --help 显示版本号信息 gs_shrink -V | --version 接收数据库管理员密码 echo "password" | gs_shrink [-t {reduce|contraction|resourcectl|parametercfg}] {-h HOSTNAME | -f hostfile} [--parallel-jobs=NUMBER] [-l LOGFILE] 云上环境中，对于未开启Peer认证方式的数据库系统，可以使用此方式传入数据库管理员用户的密码，用于连接数据库进行运维操作。 参数说明 通用参数 -t gs_shrink命令参数类型。 取值范围：reduce（降副本），contraction（缩容），resourcectl（资源管控），parametercfg（重分布参数设置）。 不传入-t参数时，默认执行缩容操作。 -l 指定日志文件及存放路径。 默认值：$GAUSSLOG/om/gs_shrink-YYYY-MM-DD_hhmmss.log -?, --help 显示帮助信息。 -V, --version 显示版本号信息。 调用链接口参数 --trace-id 每次om请求的唯一标识，可根据om操作日志中的trace-id识别调用链从而进行故障定界。可选参数。 取值范围：1-128位的字符串，允许的字符为数字，字母和'-'。 缩容参数 -h HOSTNAME 指定需要缩容的DN环节点名称，中间用逗号分隔。 -f hostfile 指定需要缩容的DN环节点名称文件，文件每行为一个DN环节点名称，中间用逗号分隔。 文件内容如下： host1,host2,host3 host4,host5,host6 -h参数和-f参数只能同时指定一个。 --parallel-jobs=NUMBER 指定数据重分布过程的并发执行任务个数。 如果不指定--parallel-jobs参数，则数据重分布默认值为1，为非并发执行方式。 取值范围：[1, 8]，推荐并发任务数为4。 --join-tables= FILE 多表切换模式，输入为具有join关系的用户表配置文件。 取值范围：指定的文件路径，指定文件内容不能超过1000行。 指定文件格式。每一行格式为：database schema1 tablename1 schema2 tablename2 ...（每行的多张表构成一个分组（group））。例如： testdb public test1 public test2
+testdb public test3 public test4 public test5 注意： 不支持database、schema、tablename数据对象名称存在空格，schema和tablename名称中存在大写字母或者特殊字符时需要加双引号进行转义。 每一行schema tablename必须成对出现，唯一确定一张表。 一张表不能出现在多个分组中，每组的表数量必须大于等于2，小于等于5。 如果存在一个schema里的tablename为其他schema的名字时，会正常处理这张表不会报错。 --redis-mode=MODE 指定数据重分布的执行模式。 取值范围： read-only：只读模式。 insert：插入模式，正在进行重分布的表支持并发插入（insert）以及导入（Gds导入）。 如果不指定，默认为read-only模式。 资源管控参数： --resource-level=RESLEVEL 指定数据重分布的资源等级。 取值范围： f：100%资源 h：50%资源 m：30%资源 l：10%资源 默认值：l 当资源管控参数设置为f时，进入快速重分布场景，会充分使用资源，通过并发操作提升数据重分布的性能。此时，如果shared_buffers参数值设置过小（小于推荐值），会影响此场景下的性能优化效果。 重分布参数设置接口参数 配置对应的全局系统表参数供重分布工具和缩容脚本查询使用，可以在重分布开始前和重分布过程中使用，缩容成功后清除所有参数配置。不设置对应参数则保留上次调用的结果，未设置过的参数重分布开始时写入默认值。 --lockwait-timeout 锁超时时间。如果等锁线程在该时间内无法拿到锁，则报锁超时失败。触发CANCEL模式拿锁时，实际使用的锁超时时间为此参数设置的2倍。 对应参数：lockwait_timeout 取值范围：[1,1200000] 单位：毫秒 默认值：4000 --lockwait-interval 等锁步长。连续拿锁超时的场景，如果此轮等锁超时，间隔该参数指定的时长进行下一轮尝试。 对应参数：lockwait_interval 取值范围：[0,300] 单位：秒 默认值：5 --trylock-threshold 等锁尝试次数上限。需和enable_cancel参数同时使用，如果到达该上限还因为等锁超时无法成功获取到锁，则下次拿锁使用CANCEL模式。未开启enable_cancel不生效。 对应参数：trylock_threshold 取值范围：[1,INT_MAX], -1（无上限） 单位：次 默认值：3 --enable-cancel 是否允许用户业务快速失败。即是否允许达到等锁尝试次数上限或切表事务获取用户表8级锁时，快速失败用户业务从而保证重分布成功拿锁。 对应参数：enable_cancel 取值范围：[false,true] 默认值：true 此模式默认开启，如果用户业务没有连接级重试机制，建议手动关闭此参数。 触发CANCEL模式拿锁时，会发送FATAL级报错，用户业务不是在锁队列中等待而是中断连接。 --last-catchup-threshold 最后一轮追增时间上限。即最后一轮完成delete+insert追增耗时。 对应参数：last_catchup_threshold 取值范围：[1000,60000] 单位：毫秒 默认值：5000 --catchup-times 追增轮次上限。超出上限后强制进行最后一轮追增。 对应参数：catchup_times 取值范围：[1,INT_MAX], -1 单位：次 默认值：-1（表示无上限） --write-error-mode 写报错模式。true表示写报错模式。false表示采用全阻塞模式进行最后一轮追增。 对应参数：write_error_mode 取值范围：[false,true] 默认值：true 此模式默认开启，如果用户业务没有会话级重试机制，建议手动关闭此参数。 开启写报错模式后，用户写业务会有ERROR级报错，而不是在锁队列中等待。 开启此模式后，为避免长时间处于写报错状态，可能触发重分布进程主动退出和自动拉起特性，此时缩容时间会变长，具体 请联系管理员处理 。 --catchup-query-dop 追增并行扫描度。 对应参数：catchup_query_dop 取值范围：[1,32] 单位：个 默认值：4 注：该参数设置过小可能导致追增性能下降，设置过大占用资源较多。 --parallel-catchup-threshold 多表重分布模式中开启并行追增所需的耗时阈值，一个分组中所有表追增耗时小于该值时，开启并行追增。 对应参数：parallel_catchup_threshold 取值范围：[1000,1800000] 单位：毫秒 默认值：300000 --parallel-reindex-jobs 同时临时表创建索引时的并发度，即多少个索引同时创建。 对应参数：parallel_reindex_jobs 取值范围：[1,64] 单位：个 默认值：2 --redis-retry-times 自动拉起重分布进程的次数上限，触发重分布进程主动退出时使用，拉起次数超出上限本轮重分布失败结束。 对应参数：redis_retry_times 取值范围：[0,100] 单位：次 默认值：5 --redis-retry-interval 自动拉起重分布进程的时间间隔，触发重分布进程主动退出时使用。 对应参数：redis_retry_interval 取值范围：[0,36000] 单位：秒 默认值：600 降副本参数 --offline 降副本模式，表示离线降副本。 --reduce-ips=IPS 被降副本的节点ip范围，多个使用逗号分隔。 --reduce-times=1 降副本次数，默认降1个副本。 --reduce-other 支持删除节点上的ETCD/CMS。 示例 示例一 ： 物理集群缩容 gs_shrink -h SIA1000130664,SIA1000130753,SIA1000131471
+Creating the backup directory.
+Successfully created the backup directory.
+Checking the cluster status.
+Successfully checked the cluster status.
+Checking whether the input hostname is looped.
+Checking if the node name is in the physical cluster.
+Checking host file.
+Successfully checked host file.
+Successfully checked if the node name is in the physical cluster.
+Checking whether the input hostname is the cluster last ring.
+Successfully checked whether the input hostname is the cluster last ring.
+Successfully checked whether the input hostname is looped.
+Checking contracted nodes.
+Successfully checked contracted nodes.
+Running: entry1 Percontraction.
+Checking node group.
+Obtaining information about the current node group.
+Successfully obtained the current node group information.
+Successfully checked node group.
+Backing up parameter files.
+Successfully backed up parameter files.
+Checking the current node group.
+Obtaining information about the current node group.
+Successfully obtained the current node group information.
+Successfully checked the current node group.
+Creating new node group.
+Successfully created new node group.
+Successfully entry1 Percontraction.
+Running : entry2 Redistribute.
+Redistributing.
+Check if another redistribution process is running and waiting for it to end.
+There is no redistribution process running now.
+If you want to check the progress of redistribution, please check the log file on pekpomsdvs00228: /var/log/gaussdb/perfadm/bin/gs_redis/gs_redis-2020-06-09_051644.log.
+Successfully setup resource control.
+Successfully clear resource control.
+Redistribution succeeded.
+Successfully running: entry2 Redistribute.
+Running : entry3 Postcontraction.
+Checking post contraction.
+Checking the cluster status.
+Successfully checked the cluster status.
+Deleting old node group.
+Successfully deleted old node group.
+Checking node group.
+Obtaining information about the current node group.
+Successfully obtained the current node group information.
+Successfully checked node group.
+Successfully checked post contraction.
+Backing up files.
+Successfully backed up files.
+Locking cluster.
+Successfully locked cluster.
+Updating files.
+Waiting for the cluster status to become normal.
+..
+The cluster status is normal.
+Successfully updated files.
+Unlocking cluster.
+Successfully unlocked cluster.
+Successfully posted contraction.
+Deleting backup files.
+Successfully deleted backup files.
+Deleting contracted nodes.
+Successfully deleted contracted nodes.
+Contraction succeeded. 示例二 ：集群降副本操作 [Ruby@pekpomdev00063 script]$ gs_shrink -t reduce --offline
+{'action': 'reduce', 'online': False}
+Init global info successfully.
+Create step directory successfully.
+Cluster status is : Normal
+Cluster balanced is : Yes
+Cluster redistributing is : No
+Check reduce replica condition successfully.
+Successfully backup config file.
+Start getting all standby datanode.
+[<gspylib.common.DbClusterInfo.instanceInfo instance at 0x7fbae9872368>, <gspylib.common.DbClusterInfo.instanceInfo instance at 0x7fbae986cdd0>, <gspylib.common.DbClusterInfo.instanceInfo instance at 0x7fbae93f7320>]
+[['10.244.45.69'[['10.244.44.156']][['10.244.44.156', ][, , [['10.244.44.252''10.244.45.69']]]
+'10.244.44.252']
+]]
+Ready to perform sql: select group_members from pgxc_group;
+Ready to perform sql: select group_members from pgxc_group;
+ Ready to perform sql: select group_members from pgxc_group;
+Execute sql command output result is : 16384 16387 16390
+node_name in pgxc_node is: dn_6007_6008_6009
+Ready to perform sql: select oid from pgxc_node where node_name='dn_6007_6008_6009' and node_host='172.31.1.103' and node_type='S';
+Execute sql command output result is : 16384 16387 16390
+node_name in pgxc_node is: dn_6004_6005_6006
+Ready to perform sql: select oid from pgxc_node where node_name='dn_6004_6005_6006' and node_host='172.31.8.236' and node_type='S';
+Execute sql command output result is : 16384 16387 16390
+node_name in pgxc_node is: dn_6001_6002_6003
+Ready to perform sql: select oid from pgxc_node where node_name='dn_6001_6002_6003' and node_host='172.31.8.236' and node_type='S';
+Get node_name nad listen_ip oid in pgxc_node, output result is [16389]
+Get instance [10.244.44.252] oid successfully. [16389]
+Clear async standby datanode.[10.244.44.252]
+Get node_name nad listen_ip oid in pgxc_node, output result is [16386]
+Get instance [10.244.44.252] oid successfully. [16386]
+Clear async standby datanode.[10.244.44.252]
+Get node_name nad listen_ip oid in pgxc_node, output result is [16392]
+Get instance [10.244.45.69] oid successfully. [16392]
+Clear async standby datanode.[10.244.45.69]
+Get reduce datanode successfully.
+ ['10.244.44.252', '10.244.45.69']
+Stop reduce instance [/var/lib/engine/data1/data/dn_5] success.
+Stop reduce instance [/var/lib/engine/data1/data/dn_3] success.
+Stop reduce instance [/var/lib/engine/data1/data/dn_9] success.
+Start generate new cluster_static_config.
+Distribute cluster static config file successfully.
+New cluster static config file distribute successfully.
+Start update postgresql.conf in datanode instance.
+Update postgresql.conf successfully.
+node_name: dn_6007_6008_6009
+listenips: ['172.31.1.103']
+ hasips:['10.244.45.69']
+Ready to perform sql: delete from pgxc_node where node_host='172.31.1.103' and node_name='dn_6007_6008_6009' and node_type='S';
+Clear node in pgxc_node table successfully.
+node_name: dn_6001_6002_6003
+listenips: ['172.31.8.236']
+ hasips:['10.244.44.252']
+Ready to perform sql: delete from pgxc_node where node_host='172.31.8.236' and node_name='dn_6001_6002_6003' and node_type='S';
+Clear node in pgxc_node table successfully.
+node_name: dn_6004_6005_6006
+listenips: ['172.31.8.236']
+ hasips:['10.244.44.252']
+Ready to perform sql: delete from pgxc_node where node_host='172.31.8.236' and node_name='dn_6004_6005_6006' and node_type='S';
+Clear node in pgxc_node table successfully.
+Update pgxc_node table successfully.
+Start update pg_hba.conf .
+Update pg_hba successfully.
+Starting new cluster.
+Clear dynamic config file in cluster successfully.
+Kill cluster manager process successfully.
+...
+Start cluster successfully. Cluster already normal.
+Restart cluster finish.Reset dynamic config file successfully.
+============================
+Reduce replica successfully.
+['10.244.44.252', '10.244.45.69']
+============================
+Clean backup file successfully. 相关命令 gs_expand 父主题： 系统内部调用的工具 版权所有 © 华为技术有限公司

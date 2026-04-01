@@ -1,0 +1,4 @@
+5012001 话单生成任务重试次数超限 5012001 话单生成任务重试次数超限 告警解释 周期性话单生成任务执行，重试次数超过指定次数（默认10次）仍无法完成话单的采集，产生告警。 告警属性 告警ID 告警级别 是否可自动清除 5012001 重要 是 告警参数 参数名称 参数含义 名称 话单生成任务重试次数超限。 类型 DBS。 发生时间 告警发生时间。 定位信息 无。 对系统的影响 当前时间段的话单未生成。 可能原因 数据库出现异常。 网络出现故障。 计量服务出现异常。 处理步骤 登录DBS运维管理平台 。 在菜单栏中选择 “ 资源拓扑 > 资源管理 > 资源列表 ” ，进入该页面。 选择“系统资源 > 管理虚拟机”，在右侧搜索框中输入关键字“Metering”排查管理节点情况。查找“GaussDB Metering”库信息。 使用XShell登录数据库节点。首先使用opsadmin登录。登录完成后，切换root权限。 切换至dbadmin用户，执行如下命令： gsql -p port -q metering -U metering -W pwd 其中port是指metering数据库端口，pwd是指metering用户密码， 执行如下语句。 SELECT * FROM DBS_METERING_JOB
+WHERE STATUS='TODO' OR STATUS = 'DOING'
+ORDER BY BEGIN_AT DESC 
+LIMIT 10; 如果查找出来的结果中UPDATED_AT和CREATED_AT不在同一个小时区间内，请检查数据库CORE库和Metering库节点的时区设置是否一致。 如果在同一个小时时区，则检查UPDATED_AT和CREATED_AT的时间间隔并进行记录。 收集故障或日志信息，并联系技术支持处理。 下载管理节点日志，具体请参见 下载管理节点日志 。 请 联系技术支持 ，并发送已收集的故障日志信息。 请收集metering服务各节点的“/opt/cloud/metering/logs”的日志，优先关注“warn”，“error”的日志。 参考信息 不涉及。 父主题： 管理面告警 版权所有 © 华为技术有限公司

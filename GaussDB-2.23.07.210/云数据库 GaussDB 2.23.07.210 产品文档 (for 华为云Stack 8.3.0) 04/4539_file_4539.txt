@@ -1,0 +1,1 @@
+二级分区 二级分区 二级分区（Sub Partition，也叫组合分区）是基本数据分区类型的组合，将表通过一种数据分布方法进行分区，然后使用第二种数据分布方式将每个分区进一步细分为子分区。给定分区的所有子分区表示数据的逻辑子集。常见的二级分区组合如下所示： Range-Range Range-List Range-Hash List-Range List-List List-Hash Hash-Range Hash-List Hash-Hash Interval分区看成是范围分区的一种特殊形式，目前不支持二级分区场景中定义Interval分区。 二级分区表的一级分区和二级分区分区键均只支持1列。 父主题： 分区策略 版权所有 © 华为技术有限公司

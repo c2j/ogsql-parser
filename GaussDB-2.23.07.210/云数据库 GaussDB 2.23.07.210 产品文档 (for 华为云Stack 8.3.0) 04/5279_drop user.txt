@@ -1,0 +1,25 @@
+执行drop user失败 执行drop user失败 问题现象 drop user失败，提示该用户被其他数据库对象依赖。 gaussdb=#  drop user test1 cascade;
+ERROR:  role "test1" cannot be dropped because some objects depend on it 原因分析 在这种场景下，可以通过查看系统表找到该用户被其他用户赋予权限的对象，以其他用户登录数据库手动删除其赋予该用户的权限对象，再执行drop user。 处理方法 参考 登录实例节点 ，登录数据库任意一个节点。 执行如下命令，导入环境变量。 source /home/Ruby/gauss_env_file 执行如下指令，连接数据库。 gsql -d postgres -U root -p 8000 -h 10 .0.0.0 -W pwd postgres为需要连接的数据库名称，10.0.0.0为数据库所在的服务器IP地址，root为登录数据库的用户名，8000为数据库端口号，pwd为root用户的密码。 执行如下语句，查看删除失败的用户被哪些权限对象所依赖。 以用户“test1”为例。如下示例表示存在两个权限对象依赖。 gaussdb=#  select d.datname,s.classid,s.objid from pg_roles r join pg_shdepend s on r.oid=s.refobjid join pg_database d on s.dbid=d.oid where rolname=' test1 ';
+ datname | classid | objid
+---------+---------+-------
+ dat1    |     826 | 16400
+ dat2    |    2615 | 16399
+(2 rows) 首先处理第一个权限对象。 参考 1 - 3 ，以root用户登录到依赖对象所在的dat1数据库。 执行如下命令，查看pg_class来获取依赖对象的类型。 如下示例表示对象类型为ACL默认权限。查询语句where过滤条件中的oid是 4 中classid字段 dat1=#  select relname from pg_class where oid = 826 ;
+   relname         
+----------------
+ pg_default_acl 
+(1 row) 执行如下语句，查看pg_default_acl来获取具体依赖信息。 如下示例中，可以看出用户test1被用户admin赋予了模式test_schema_1下表对象的ACL默认权限。 查询语句where过滤条件中的oid是 4 中的objid字段。 dat1=#  select n.nspname, d.defaclacl, d.defaclobjtype from pg_default_acl d join pg_namespace n on d.defaclnamespace=n.oid where d.oid = 16400 ;
+    nspname    |          defaclacl                 | defaclobjtype
+---------------+----------------------------------------------------
+ test_schema_1 | {Ruby=arwd/admin,test1=arwd/admin} | r 示例中defaclobjtype字段的显示结果，r表示表table，S表示序列sequence，f表示函数function，T表示类型type。 参考 1 - 3 ，以admin用户登录到依赖对象所在的dat1数据库。 执行如下语句，用revoke命令回收admin赋予test1用户的模式test_schema_1下表的ACL默认权限。 类似的可以执行ALTER DEFAULT PRIVILEGES语句回收权限。 dat1=#   ALTER DEFAULT PRIVILEGES IN SCHEMA test_schema_1 revoke all privileges ON TABLES from test1 ;
+ALTER DEFAULT PRIVILEGES 可根据 6 查询出的实际对象类型替换示例中的关键字TABLES为SEQUENCES、FUNCTIONS或TYPES。更加详细的语法可参见《云数据库 GaussDB ) 使用指南》中的“开发者指南 > SQL语法 > ALTER DEFAULT PRIVILEGES”章节。 接下来处理第二个依赖对象，方法与 5 - 7 类似。 首先以root用户登录到依赖对象所在的dat2数据库。 执行如下查询语句，查看pg_class确定依赖对象的类型。 where过滤条件中的oid是 4 中classid字段。 dat2=#  select relname from pg_class where oid = 2615 ;
+   relname
+--------------
+ pg_namespace
+(1 row) 查询结果为系统表pg_namespace，表示对象类型为schema。因此查询 pg_namespace系统表来获取具体依赖信息，查询语句where过滤条件中的oid是 4 中的objid字段。 根据如下示例中，nspname与nspacl字段可以看出test1用户的test_schema_1 schema由Ruby赋予权限。 dat2=# select * from pg_namespace where oid=' 16399 ';
+nspname    | nspowner | nsptimeline |                        nspacl                         | in_redistribution
+---------------+----------+-------------+-------------------------------------------------------+-------------------
+test_schema_1 |       10 |           0 | {Ruby=UC/Ruby,admin=UC/Ruby,test1=U/Ruby} | n
+(1 row) 类似的，如果 9 中查询结果是系统表pg_class，则表示对象类型为table；查询结果是系统表pg_proc，表示对象类型为function；查询结果是其他系统表，可查询《云数据库 GaussDB )服务 使用指南》中的“开发者指南 > 系统表和系统视图”章节确定对象类型。 参考 1 - 3 ，以Ruby用户登录dat2库。 执行如下命令，回收赋予test1用户的权限。 根据上一步中确定的对象类型，执行revoke语句回收权限。更加详细的语法可参见《云数据库 GaussDB 服务 使用指南》中的“开发者指南 > SQL语法 > REVOKE”章节。 dat2=# revoke all on schema test_schema_1 from test1;
+REVOKE 至此，test1用户的被其他用户赋予的权限已经全部清除，可重新执行drop user命令。 gaussdb=# drop user test1 cascade;
+DROP ROLE 父主题： 业务操作类 版权所有 © 华为技术有限公司

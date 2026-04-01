@@ -1,0 +1,1 @@
+PGobject PGobject 表1 PGobject常用方法 返回值 方法 描述 throws 支持JDBC4 Object[] getStruct() 获取复合类型子类型名，按创建顺序排序。 - Yes String getValue() 获取复合类型字符串形式值。 - Yes String[] getArrayValue() 获取复合类型数组形式值，以复合数据类型字段顺序排序。 - Yes Object[] getAttributes() 获取复合类型对象数组形式值（如果组成字段类型为Table类型和Array类型则返回为PgArray，如果组成字段为复合类型则返回PGobject，其他类型返回字符串值）。 SQLException Yes 父主题： JDBC接口参考 版权所有 © 华为技术有限公司

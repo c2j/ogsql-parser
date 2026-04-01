@@ -1,0 +1,1 @@
+CREATE GLOBAL INDEX CREATE GLOBAL INDEX 功能描述 在指定的表上创建全局二级索引（Global Secondary Index，简称GSI）。 全局二级索引允许用户定义与基表分布不一致的索引，从而实现基表非分布列查询的单节点计划和基表非分布列上的unique/主键约束。 集中式不支持此功能。 父主题： C 版权所有 © 华为技术有限公司

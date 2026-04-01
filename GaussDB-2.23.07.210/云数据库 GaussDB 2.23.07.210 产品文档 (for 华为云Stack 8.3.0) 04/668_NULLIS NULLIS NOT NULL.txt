@@ -1,0 +1,1 @@
+【规则】查询条件的索引字段上禁止与NULL（IS NULL和IS NOT NULL）进行比较 【规则】查询条件的索引字段上禁止与NULL（IS NULL和IS NOT NULL）进行比较 父主题： WHERE 版权所有 © 华为技术有限公司

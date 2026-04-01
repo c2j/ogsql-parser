@@ -1,0 +1,18 @@
+ALTER RESOURCE LABEL ALTER RESOURCE LABEL 功能描述 修改资源标签。 注意事项 只有poladmin, sysadmin或初始用户才能执行此操作。 语法格式 1
+2 ALTER RESOURCE LABEL label_name ( ADD | REMOVE ) label_item_list [, ...]; label_item_list： 1 resource_type ( resource_path [, ...]) resource_type： TABLE | COLUMN | SCHEMA | VIEW | FUNCTION 参数说明 label_name 资源标签名称。 取值范围：字符串，要符合 标识符命名规范 。 resource_type 指的是要标记的数据库资源类型。 resource_path 指的是描述具体的数据库资源的路径。 示例 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17 --创建基本表table_for_label。 gaussdb =# CREATE TABLE table_for_label ( col1 int , col2 text ); --创建资源标签table_label。 gaussdb =# CREATE RESOURCE LABEL table_label ADD COLUMN ( table_for_label . col1 ); --将col2添加至资源标签table_label中。 gaussdb =# ALTER RESOURCE LABEL table_label ADD COLUMN ( table_for_label . col2 ); --将资源标签table_label中的一项移除。 gaussdb =# ALTER RESOURCE LABEL table_label REMOVE COLUMN ( table_for_label . col1 ); --删除资源标签table_label。 gaussdb =# DROP RESOURCE LABEL table_label ; --删除基本表table_for_label。 gaussdb =# DROP TABLE table_for_label ; 相关链接 CREATE RESOURCE LABEL ， DROP RESOURCE LABEL 。 父主题： A 版权所有 © 华为技术有限公司

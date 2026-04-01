@@ -1,0 +1,126 @@
+{
+  "topic": "字段设计规范",
+  "term_count": 24,
+  "terms": [
+    {
+      "term": "【规则】字符类型字段不应存储数字类型的数据",
+      "content": "【规则】字符类型字段不应存储数字类型的数据 【规则】字符类型字段不应存储数字类型的数据 如果对存储在字符类型字段中的数据进行数值计算，或者与数值进行比较操作（如置于过滤条件中），会带来不必要的数据类型转换的开销，同时该字段上的索引可能失效，影响查询性能。",
+      "source_file": "495_file_495.txt"
+    },
+    {
+      "term": "【建议】用于WHERE条件过滤和关联的字段都应设置NOT",
+      "content": "【建议】用于WHERE条件过滤和关联的字段都应设置NOT NULL约束 【建议】用于WHERE条件过滤和关联的字段都应设置NOT NULL约束 对于NOT NULL字段，优化器在某些场景下会进行特殊优化，可较大提升查询性能。",
+      "source_file": "643_WHERENOT NULL.txt"
+    },
+    {
+      "term": "【规则】字段设计应使用推荐类型",
+      "content": "【规则】字段设计应使用推荐类型 【规则】字段设计应使用推荐类型 字段设计需使用推荐字段，如果需要使用禁用、不推荐的字段类型，建议联系数据库专家进行评估。 这些数据类型不推荐的原因是业务使用场景较少，未大规模商用。 表1 数据库数据类型最佳实践 数据类型 说明 是否推荐 UUID 不同数据库可能产生相同UUID 禁止 序列整型 即自增列，包括SMALLSERIAL,SERIAL,BIGSERIAL 禁止 整数类型 TINYINT, SMALLINT, INTEGER, BIGINT 推荐 任意精度类型 NUMERIC/DECIMAL 推荐 浮点类型 REAL/FLOAT4,DOUBLE PRECISION/FLOAT8,FLOAT 推荐 布尔类型 BOOLEAN 推荐 定长字符 CHAR(n) 推荐 变长字符 VARCHAR(n),NVARCHAR2(n) 推荐 TEXT/CLOB（字符大对象） 不推荐 时间类型 DATE, TIME, TIMESTAMP, SMALLDATETIME, INTERVAL, REALTIME 推荐 TIMETZ，TIMESTAMPTZ 不推荐 二进制类型 BYTEA（变长二进制类型） 推荐 BLOB（二进制大对象），RAW（变长十六进制） 不推荐 位串类型 BIT(n), VARBIT(n) 推荐 特殊字符类型 NAME,\"CHAR\"，通常供数据库系统内部使用 不推荐 JSON类型 JSON类型目前不支持操作符 不推荐 自定义类型 可用于定义枚举EMU等类型 不推荐 HLL数据类型 建议直接使用HLL相关函数，减少性能影响 不推荐 货币类型 MONEY 存储带有固定小数精度的货币金额 不推荐 几何类型 POINT, LSEG, BOX, PATH, POLYGON, CIRCLE 不推荐 网络地址类型 存储IPV4  MAC地址数据类型 不推荐 文本搜索类型 用于支持全文检索 不推荐",
+      "source_file": "633_file_633.txt"
+    },
+    {
+      "term": "【规则】尽量使用高效的数值类数据类型。在满足业务精度的情况下，选择的优先级从高到低依次为整数、浮点数、NUMERIC",
+      "content": "【规则】尽量使用高效的数值类数据类型。在满足业务精度的情况下，选择的优先级从高到低依次为整数、浮点数、NUMERIC 【规则】尽量使用高效的数值类数据类型。在满足业务精度的情况下，选择的优先级从高到低依次为整数、浮点数、NUMERIC",
+      "source_file": "492_NUMERIC.txt"
+    },
+    {
+      "term": "【建议】不建议对表预留字段。大部分场景下可支持快速新增、删除表字段，或者修改字段的DEFAULT值",
+      "content": "【建议】不建议对表预留字段。大部分场景下可支持快速新增、删除表字段，或者修改字段的DEFAULT值 【建议】不建议对表预留字段。大部分场景下可支持快速新增、删除表字段，或者修改字段的DEFAULT值 新增列必须符合以下要求 ，否则会带来全表更新开销 ，影响在线业务。 1. 数据类型为以下类型中的一种：BOOL, BYTEA, SMALLINT, BIGINT, SMALLINT, INTEGER, NUMERIC, FLOAT, DOUBLE PRECISION, CHAR, VARCHAR, TEXT, TIMESTAMPTZ, TIMESTAMP, DATE, TIME, TIMETZ, INTERVAL； 2. 新增列的DEFAULT值长度不超过128个字节； 3. 新增列DEFAULT值不包含volatile函数； 4. 新增列设置有DEFAULT值，且DEFAULT值不为NULL。 如果不确定是否满足条件3，请联系GaussDB数据库技术人员进行评估。",
+      "source_file": "502_DEFAULT.txt"
+    },
+    {
+      "term": "【规则】",
+      "content": "【规则】大字段（例如varchar（1000）、varchar(4000)）不超过8个 【规则】 大字段（例如varchar（1000）、varchar(4000)）不超过8个",
+      "source_file": "641_varchar1000varchar(4000)8.txt"
+    },
+    {
+      "term": "【规则】相关联字段的数据类型应保持一致",
+      "content": "【规则】相关联字段的数据类型应保持一致 【规则】相关联字段的数据类型应保持一致 在进行关联操作时，如果字段类型不一致，会带来数据类型转换开销。",
+      "source_file": "498_file_498.txt"
+    },
+    {
+      "term": "【规则】合理设置数值字段的数据类型，根据取值范围选择合适的数值类型，尽量少用NUMERIC/DECIMAL类型",
+      "content": "【规则】合理设置数值字段的数据类型，根据取值范围选择合适的数值类型，尽量少用NUMERIC/DECIMAL类型 【规则】合理设置数值字段的数据类型，根据取值范围选择合适的数值类型，尽量少用NUMERIC/DECIMAL类型 NUMERIC和DECIMAL等价，NUMERIC(或DECIMAL）数据类型操作对CPU消耗较高。 当sql_compatibility = 'MYSQL'时，设置参数b_format_version = '5.7'和参数b_format_dev_version = 's1'后，TINYINT的范围是：-128 ~ +127。 UNSIGNED 类型仅支持sql_compatibility = 'MYSQL'的数据库。 表1 数值类数据类型存储空间及取值范围 类型 存储空间 最小值 最大值 TINYINT [UNSIGNED] 1 0 255 SMALLINT [UNSIGNED] 2 带符号为-32768；无符号为0 带符号为32767；无符号为65535 INTEGER [UNSIGNED] 4 带符号为-2,147,483,648；无符号为0 带符号为2,147,483,647；无符号为4,294,967,295 BIGINT [UNSIGNED] 8 带符号为-9,223,372,036,854,775,808；无符号为0 带符号为9,223,372,036,854,775,807；无符号为18,446,744,073,709,551,615 REAL/FLOAT4 4 6位十进制数字精度 DOUBLE PRECISION/FLOAT8 8 15位十进制数字精度",
+      "source_file": "493_NUMERIC_DECIMAL.txt"
+    },
+    {
+      "term": "【规则】合理设置数值字段的数据类型，根据取值范围选择合适的数值类型，尽量少用NUMERIC/DECIMAL类型",
+      "content": "【规则】合理设置数值字段的数据类型，根据取值范围选择合适的数值类型，尽量少用NUMERIC/DECIMAL类型 【规则】合理设置数值字段的数据类型，根据取值范围选择合适的数值类型，尽量少用NUMERIC/DECIMAL类型 NUMERIC和DECIMAL等价，NUMERIC(或DECIMAL）数据类型操作对CPU消耗较高。 当sql_compatibility = 'B'时，设置参数b_format_version = '5.7'和参数b_format_dev_version = 's1'后，TINYINT的范围是：-128 ~ +127。 UNSIGNED 类型仅支持sql_compatibility = 'B'的数据库。 表1 数值类数据类型存储空间及取值范围 类型 存储空间 最小值 最大值 TINYINT [UNSIGNED] 1 0 255 SMALLINT [UNSIGNED] 2 带符号为-32768；无符号为0 带符号为32767；无符号为65535 INTEGER [UNSIGNED] 4 带符号为-2,147,483,648；无符号为0 带符号为2,147,483,647；无符号为4,294,967,295 BIGINT [UNSIGNED] 8 带符号为-9,223,372,036,854,775,808；无符号为0 带符号为9,223,372,036,854,775,807；无符号为18,446,744,073,709,551,615 REAL/FLOAT4 4 6位十进制数字精度 DOUBLE PRECISION/FLOAT8 8 15位十进制数字精度",
+      "source_file": "635_NUMERIC_DECIMAL.txt"
+    },
+    {
+      "term": "【规则】尽量使用高效的数值类数据类型。在满足业务精度的情况下，选择的优先级从高到低依次为整数、浮点数、NUMERIC",
+      "content": "【规则】尽量使用高效的数值类数据类型。在满足业务精度的情况下，选择的优先级从高到低依次为整数、浮点数、NUMERIC 【规则】尽量使用高效的数值类数据类型。在满足业务精度的情况下，选择的优先级从高到低依次为整数、浮点数、NUMERIC",
+      "source_file": "634_NUMERIC.txt"
+    },
+    {
+      "term": "【规则】合理选用字符串数据类型。如果该字段输入确定为固定字符则使用定长字符类型，或需要自动补充空格，否则请使用变长字符类型VARCHAR。",
+      "content": "【规则】合理选用字符串数据类型。如果该字段输入确定为固定字符则使用定长字符类型，或需要自动补充空格，否则请使用变长字符类型VARCHAR。 【规则】合理选用字符串数据类型。如果该字段输入确定为固定字符则使用定长字符类型，或需要自动补充空格，否则请使用变长字符类型VARCHAR。 典型的定长字段类型，例如“sex”字段，仅允许输入“f”或“m”一个字节长度的字符。这类字段建议使用定长数据类型（如CHAR(n)）。 如果不存在此特点，或者后续可能扩展需要输入更长的字符，请优先使用变长字符类型（如VARCHAR, TEXT），且 不建议指定变长类型的长度 。 原因如下： 定长字段会对不够长度的输入数据补充空格，然后存入数据库中，产生不必要的存储空间浪费。 如果定义为定长字符类型，后续扩展长度，需要对全表进行扫描重写，性能开销大，影响在线业务。 对于指定固定长度的变长字段，每次插入时会检查是否长度越界，带来性能开销。",
+      "source_file": "636_VARCHAR.txt"
+    },
+    {
+      "term": "【规则】",
+      "content": "【规则】大字段（例如varchar（1000）、varchar(4000)）不超过8个 【规则】 大字段（例如varchar（1000）、varchar(4000)）不超过8个",
+      "source_file": "499_varchar1000varchar(4000)8.txt"
+    },
+    {
+      "term": "【建议】用于WHERE条件过滤和关联的字段都应设置NOT",
+      "content": "【建议】用于WHERE条件过滤和关联的字段都应设置NOT NULL约束 【建议】用于WHERE条件过滤和关联的字段都应设置NOT NULL约束 对于NOT NULL字段，优化器在某些场景下会进行特殊优化，可较大提升查询性能。",
+      "source_file": "501_WHERENOT NULL.txt"
+    },
+    {
+      "term": "【规则】字符类型字段不应存储数字类型的数据",
+      "content": "【规则】字符类型字段不应存储数字类型的数据 【规则】字符类型字段不应存储数字类型的数据 如果对存储在字符类型字段中的数据进行数值计算，或者与数值进行比较操作（如置于过滤条件中），会带来不必要的数据类型转换的开销，同时该字段上的索引可能失效，影响查询性能。",
+      "source_file": "637_file_637.txt"
+    },
+    {
+      "term": "【建议】字段定义时建议同时创建COMMENT注释信息，以便于未来维护",
+      "content": "【建议】字段定义时建议同时创建COMMENT注释信息，以便于未来维护 【建议】字段定义时建议同时创建COMMENT注释信息，以便于未来维护 不同类型字段说明、取值范围及使用方法请参考《开发者指南》中“SQL参考 > 数据类型”章节。",
+      "source_file": "642_COMMENT.txt"
+    },
+    {
+      "term": "【建议】不建议对表预留字段。大部分场景下可支持快速新增、删除表字段，或者修改字段的DEFAULT值",
+      "content": "【建议】不建议对表预留字段。大部分场景下可支持快速新增、删除表字段，或者修改字段的DEFAULT值 【建议】不建议对表预留字段。大部分场景下可支持快速新增、删除表字段，或者修改字段的DEFAULT值 新增列必须符合以下要求 ，否则会带来全表更新开销 ，影响在线业务。 1. 数据类型为以下类型中的一种：BOOL, BYTEA, SMALLINT, BIGINT, SMALLINT, INTEGER, NUMERIC, FLOAT, DOUBLE PRECISION, CHAR, VARCHAR, TEXT, TIMESTAMPTZ, TIMESTAMP, DATE, TIME, TIMETZ, INTERVAL； 2. 新增列的DEFAULT值长度不超过128个字节； 3. 新增列DEFAULT值不包含volatile函数； 4. 新增列设置有DEFAULT值，且DEFAULT值不为NULL。 如果不确定是否满足条件3，请联系GaussDB数据库技术人员进行评估。",
+      "source_file": "644_DEFAULT.txt"
+    },
+    {
+      "term": "【规则】对于明确不存在NULL值的字段加上NOT",
+      "content": "【规则】对于明确不存在NULL值的字段加上NOT NULL约束 【规则】对于明确不存在NULL值的字段加上NOT NULL约束 对于NOT NULL字段，优化器在某些场景下会进行特殊优化，可提升查询性能。",
+      "source_file": "497_NULLNOT NULL.txt"
+    },
+    {
+      "term": "【规则】字符类型字段不应存储时间或日期类数据",
+      "content": "【规则】字符类型字段不应存储时间或日期类数据 【规则】字符类型字段不应存储时间或日期类数据 如果对存储在字符类型字段中的数据与日期类数据进行计算或比较操作（如置于过滤条件中），会带来不必要的数据类型转换的开销，同时该字段上的索引可能失效，影响查询性能。",
+      "source_file": "638_file_638.txt"
+    },
+    {
+      "term": "【规则】相关联字段的数据类型应保持一致",
+      "content": "【规则】相关联字段的数据类型应保持一致 【规则】相关联字段的数据类型应保持一致 在进行关联操作时，如果字段类型不一致，会带来数据类型转换开销。",
+      "source_file": "640_file_640.txt"
+    },
+    {
+      "term": "【规则】字符类型字段不应存储时间或日期类数据",
+      "content": "【规则】字符类型字段不应存储时间或日期类数据 【规则】字符类型字段不应存储时间或日期类数据 如果对存储在字符类型字段中的数据与日期类数据进行计算或比较操作（如置于过滤条件中），会带来不必要的数据类型转换的开销，同时该字段上的索引可能失效，影响查询性能。",
+      "source_file": "496_file_496.txt"
+    },
+    {
+      "term": "【规则】对于明确不存在NULL值的字段加上NOT",
+      "content": "【规则】对于明确不存在NULL值的字段加上NOT NULL约束 【规则】对于明确不存在NULL值的字段加上NOT NULL约束 对于NOT NULL字段，优化器在某些场景下会进行特殊优化，可提升查询性能。",
+      "source_file": "639_NULLNOT NULL.txt"
+    },
+    {
+      "term": "【规则】字段设计应使用推荐类型",
+      "content": "【规则】字段设计应使用推荐类型 【规则】字段设计应使用推荐类型 字段设计需使用推荐字段，如果需要使用禁用、不推荐的字段类型。 这些数据类型不推荐的原因是业务使用场景较少，未大规模商用。 表1 数据库数据类型最佳实践 数据类型 说明 是否推荐 UUID 不同集群可能产生相同UUID 禁止 序列整型 即自增列，包括SMALLSERIAL,SERIAL,BIGSERIAL 禁止 整数类型 TINYINT, SMALLINT, INTEGER, BIGINT 推荐 任意精度类型 NUMERIC/DECIMAL 推荐 浮点类型 REAL/FLOAT4,DOUBLE PRECISION/FLOAT8,FLOAT 推荐 布尔类型 BOOLEAN 推荐 定长字符 CHAR(n) 推荐 变长字符 VARCHAR(n),NVARCHAR2(n) 推荐 TEXT/CLOB（字符大对象） 不推荐 时间类型 DATE, TIME, TIMESTAMP, SMALLDATETIME, INTERVAL, REALTIME 推荐 TIMETZ，TIMESTAMPTZ 不推荐 二进制类型 BYTEA（变长二进制类型） 推荐 BLOB（二进制大对象），RAW（变长十六进制） 不推荐 位串类型 BIT(n), VARBIT(n) 推荐 特殊字符类型 NAME,\"CHAR\"，通常供数据库系统内部使用 不推荐 JSON类型 JSON类型目前不支持操作符 不推荐 自定义类型 可用于定义枚举EMU等类型 不推荐 HLL数据类型 建议直接使用HLL相关函数，减少性能影响 不推荐 货币类型 MONEY 存储带有固定小数精度的货币金额 不推荐 几何类型 POINT, LSEG, BOX, PATH, POLYGON, CIRCLE 不推荐 网络地址类型 存储IPV4 MAC地址数据类型 不推荐 文本搜索类型 用于支持全文检索 不推荐",
+      "source_file": "491_file_491.txt"
+    },
+    {
+      "term": "【建议】字段定义时建议同时创建COMMENT注释信息，以便于未来维护",
+      "content": "【建议】字段定义时建议同时创建COMMENT注释信息，以便于未来维护 【建议】字段定义时建议同时创建COMMENT注释信息，以便于未来维护 不同类型字段说明、取值范围及使用方法请参考《开发者指南》中“SQL参考 > 数据类型”章节。",
+      "source_file": "500_COMMENT.txt"
+    },
+    {
+      "term": "【规则】合理选用字符串数据类型。如果该字段输入确定为固定字符则使用定长字符类型，或需要自动补充空格，否则请使用变长字符类型VARCHAR。",
+      "content": "【规则】合理选用字符串数据类型。如果该字段输入确定为固定字符则使用定长字符类型，或需要自动补充空格，否则请使用变长字符类型VARCHAR。 【规则】合理选用字符串数据类型。如果该字段输入确定为固定字符则使用定长字符类型，或需要自动补充空格，否则请使用变长字符类型VARCHAR。 典型的定长字段类型，例如“sex”字段，仅允许输入“f”或“m”一个字节长度的字符。这类字段建议使用定长数据类型（如CHAR(n)）。 如果不存在此特点，或者后续可能扩展需要输入更长的字符，请优先使用变长字符类型（如VARCHAR, TEXT），且 不建议指定变长类型的长度 。 原因如下： 定长字段会对不够长度的输入数据补充空格，然后存入数据库中，产生不必要的存储空间浪费。 如果定义为定长字符类型，后续扩展长度，需要对全表进行扫描重写，性能开销大，影响在线业务。 对于指定固定长度的变长字段，每次插入时会检查是否长度越界，带来性能开销。",
+      "source_file": "494_VARCHAR.txt"
+    }
+  ]
+}

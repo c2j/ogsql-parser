@@ -1,0 +1,489 @@
+常用示例 常用示例 ecpg常用示例代码 #include <locale.h>
+#include <string.h> 
+#include <stdlib.h>
+
+exec sql whenever sqlerror sqlprint;
+exec sql include sqlca;
+
+int main(void)
+{
+EXEC SQL BEGIN DECLARE SECTION;
+    char *temp_str = (char *)malloc(11);
+EXEC SQL END DECLARE SECTION;
+
+    ECPGdebug(1, stderr);
+
+    exec sql connect to postgres;
+
+    /* 打开自动提交，以下执行exec sql时不用手动commit */
+    exec sql set autocommit = on;
+    exec sql drop table if exists test_t;
+    /* 建表，插入数据 */
+    exec sql create table test_t(f float, i int, a int[10], mstr char(10));
+    exec sql insert into test_t(f, i, a, mstr) values(1.01,1,'{0,1,2,3,4,5,6,7,8,9}', 'China');
+    
+    /* 关闭自动提交，以下插入数据的sql语句需要手动commit才能提交 */
+    exec sql set autocommit = off;
+    exec sql insert into test_t(f, i, a, mstr) values(2.01,2,'{0,1,2,3,4,5,6,7,8,9}', 'USA');
+    exec sql commit;
+
+    exec sql insert into test_t(f, i, a, mstr) values(3.01,3,'{0,1,2,3,4,5,6,7,8,9}', 'AUS');
+    exec sql insert into test_t(f, i, a, mstr) values(4.01,4,'{0,1,2,3,4,5,6,7,8,9}', 'JAP');
+    exec sql commit;
+
+EXEC SQL BEGIN DECLARE SECTION;
+    int a[10] = {9,8,7,6,5,4,3,2,1,0};
+    int id = 6;
+EXEC SQL END DECLARE SECTION;
+
+    /* 从宿主变量取数据插入到表中，宿主变量的类型与表定义的类型一致  */
+    strcpy(temp_str, "RUS");
+    exec sql insert into test_t(f, i, a, mstr) values(5.01,5,:a,:temp_str);
+    exec sql commit;
+
+    exec sql set autocommit = on;
+    exec sql begin;
+    exec sql insert into test_t(f, i, a, mstr) values(6.01,:id,:a,'SIG');
+    exec sql commit;
+    exec sql set autocommit = off;
+
+exec sql begin declare section;
+    float ff;
+    char tmp_text[25] = "klmnopqrst";
+exec sql end declare section;
+
+    exec sql set autocommit = on;
+    exec sql begin work;
+
+    printf("Found ff=%f tmp_text=%10.10s\n", ff, tmp_text);
+
+    /* 条件查询语句示例 */
+    exec sql select f, mstr into :ff,:tmp_text from test_t where f > (select f from test_t where i = 4 or i < 0) order by a limit 1;
+    printf("Found ff=%f tmp_text=%10.10s\n", ff, tmp_text);
+
+    exec sql select f, mstr into :ff,:tmp_text from test_t where mstr = 'JAP' order by i;
+    printf("Found ff=%f tmp_text=%10.10s\n", ff, tmp_text);
+
+    exec sql select f, mstr into :ff,:tmp_text from  test_t order by i DESC limit 1;
+    printf("Found ff=%f tmp_text=%10.10s\n", ff, tmp_text);
+
+    exec sql select f, mstr into :ff,:tmp_text from  test_t order by mstr limit 1;
+    printf("Found ff=%f tmp_text=%10.10s\n", ff, tmp_text);
+
+    exec sql select count(f), a into :ff,:tmp_text from test_t where i > 2 group by a limit 1;
+    printf("Found ff=%f tmp_text=%20.30s\n", ff, tmp_text);
+
+    exec sql select count(f), a into :ff,:tmp_text from test_t where i > 3 group by a order by a limit 1;
+    printf("Found ff=%f tmp_text=%20.30s\n", ff, tmp_text);
+
+    exec sql select sum(f), a into :ff,:tmp_text from test_t where i > 2  group by a order by a limit 1;
+    printf("Found ff=%f tmp_text=%20.30s\n", ff, tmp_text);
+
+    exec sql select distinct a into :tmp_text from test_t order by a limit 1;
+
+    exec sql drop table test_t;
+
+    exec sql commit;
+    /* 释放连接，释放为宿主变量分配的内存 */
+    exec sql disconnect;
+    free(temp_str);
+
+    return 0;
+} pgtypes库函数示例代码 示例一：使用库函数对时间和日期类型进行不同操作。具体使用方式可参考 使用库函数 章节。 #include <stdio.h>
+#include <string.h>
+#include <stdlib.h>
+#include <limits.h>
+#include <pgtypes_date.h>
+#include <pgtypes_timestamp.h>
+
+char *dates[] = { "19990108foobar",
+                  "19990108 foobar",
+                  "1999-01-08 foobar",
+                  "January 8, 1999",
+                  "1999-01-08",
+                  "1/8/1999",
+                  "1/18/1999",
+                  "01/02/03",
+                  "1999-Jan-08",
+                  "Jan-08-1999",
+                  "08-Jan-1999",
+                  "99-Jan-08",
+                  "08-Jan-99",
+                  "08-Jan-06",
+                  "Jan-08-99",
+                  "19990108",
+                  "990108",
+                  "1999.008",
+                  "J2451187",
+                  "January 8, 99 BC",
+                  NULL
+                 };
+
+/* 不可与libc的“times”冲突 */
+static char *times[] = { "0:04",
+                         "1:59 PDT",
+                         "13:24:40 -8:00",
+                         "13:24:40.495+3",
+                          NULL 
+                        };
+
+char *intervals[] = { "1 minute",
+                      "1 12:59:10",
+                      "2 day 12 hour 59 minute 10 second",
+                      "1 days 12 hrs 59 mins 10 secs",
+                      "1 days 1 hours 1 minutes 1 seconds",
+                      "1 year 59 mins",
+                      "1 year 59 mins foobar",
+                      NULL 
+                    };
+
+int main(void)
+{
+ exec sql begin declare section;
+    date date1;
+    timestamp ts1, ts2;
+    char *text;
+    interval *i1;
+    date *dc;
+ exec sql end declare section;
+
+    int i, j;
+    char *endptr;
+
+    ECPGdebug(1, stderr);
+
+    /* 从文本中解析一个时间戳并将日期转换成字符串 */
+    ts1 = PGTYPEStimestamp_from_asc("2003-12-04 17:34:29", NULL);
+    text = PGTYPEStimestamp_to_asc(ts1);
+
+    printf("timestamp: %s\n", text);
+    free(text);
+
+    /* 从时间戳中抽取日期部分 */
+    date1 = PGTYPESdate_from_timestamp(ts1);
+    dc = PGTYPESdate_new();
+    *dc = date1;
+    /* 返回一个日期变量的文本表达 */
+    text = PGTYPESdate_to_asc(*dc);
+    printf("Date of timestamp: %s\n", text);
+    free(text);
+    PGTYPESdate_free(dc);
+
+    for (i = 0; dates[i]; i++)
+    {
+        bool err = false;
+        /* 从日期的文本表达解析一个日期 */
+        date1 = PGTYPESdate_from_asc(dates[i], &endptr);
+        if (date1 == INT_MIN) {
+            err = true;
+        }
+        /* 返回一个日期变量的文本表达 */
+        text = PGTYPESdate_to_asc(date1);
+        printf("Date[%d]: %s (%c - %c)\n",
+                i, err ? "-" : text,
+                endptr ? 'N' : 'Y',
+                err ? 'T' : 'F');
+        free(text);
+        if (!err)
+        {
+            for (j = 0; times[j]; j++)
+            {
+                int length = strlen(dates[i])+ 1+ strlen(times[j])+ 1;
+                char* t = (char *)malloc(length);
+                sprintf(t, "%s %s", dates[i], times[j]);
+                /* 从文本中解析一个时间戳并将日期转换成字符串 */
+                ts1 = PGTYPEStimestamp_from_asc(t, NULL);
+                text = PGTYPEStimestamp_to_asc(ts1);
+                if (i != 19 || j != 3)
+                    printf("TS[%d,%d]: %s\n",i, j, errno ? "-" : text);
+                free(text);
+                free(t);
+           }
+        }
+    }
+
+    /* 从文本中解析一个时间戳 */
+    ts1 = PGTYPEStimestamp_from_asc("2004-04-04 23:23:23", NULL);
+
+    for (i = 0; intervals[i]; i++)
+    {
+        interval *ic;
+        /* 从文本中解析一个区间 */
+        i1 = PGTYPESinterval_from_asc(intervals[i], &endptr);
+        if (*endptr)
+            printf("endptr set to %s\n", endptr);
+        if (!i1)
+        {
+             printf("Error parsing interval %d\n", i);
+             continue;
+         }
+         /* 把一个区间变量加到时间戳变量上 */
+         j = PGTYPEStimestamp_add_interval(&ts1, i1, &ts2);
+         if (j < 0)
+             continue;
+         /* 将一个区间类型变量转换成文本格式 */
+         text = PGTYPESinterval_to_asc(i1);
+         printf("interval[%d]: %s\n", i, text ? text : "-");
+         free(text);
+
+         /* 返回一个已分配区间变量的指针 */
+         ic = PGTYPESinterval_new();
+         /* 复制一个区间类型的变量 */
+         PGTYPESinterval_copy(i1, ic);
+         /* 将一个区间类型变量转换成文本格式 */
+         text = PGTYPESinterval_to_asc(i1);
+         printf("interval_copy[%d]: %s\n", i, text ? text : "-");
+         free(text);
+         /* 释放已经分配区间变量的内存 */
+         PGTYPESinterval_free(ic);
+         PGTYPESinterval_free(i1);
+    }
+
+    return (0);
+} 示例二：使用pgtypes库函数对numeric类型进行不同操作。 #include <stdio.h>
+#include <stdlib.h>
+#include <pgtypes_numeric.h>
+#include <pgtypes_error.h>
+#include <decimal.h>
+
+char* nums[] = { "2E394", "-2", ".794", "3.44", "592.49E21", "-32.84e4",
+                 "2E-394", ".1E-2", "+.0", "-592.49E-07", "+32.84e-4",
+                 ".500001", "-.5000001",
+                 "1234567890123456789012345678.91", /* 30个数位应转换为十进制 */
+                 "1234567890123456789012345678.921", /* 31个数位的数字不应转为十进制 */
+                 "not a number",
+                 NULL
+                };
+
+static void check_errno(void);
+
+int main(void)
+{
+    char *text="error\n";
+    char *endptr;
+    numeric *num, *nin;
+    decimal *dec;
+    long l;
+    int i, j, k, q, r, count = 0;
+    double d;
+    numeric **numarr = (numeric **) calloc(1, sizeof(numeric));
+
+    ECPGdebug(1, stderr);
+
+    for (i = 0; nums[i]; i++)
+    {
+         /* 返回由malloc分配的字符串的指针，它包含numeric类型nums[i]的字符串表达 */
+         num = PGTYPESnumeric_from_asc(nums[i], &endptr);
+         if (!num) check_errno();
+         if (endptr != NULL)
+         {
+              printf("endptr of %d is not NULL\n", i);
+              if (*endptr != '\0')
+                  printf("*endptr of %d is not \\0\n", i);
+         }
+         if (!num) continue;
+
+         numarr = (numeric **)realloc(numarr, sizeof(numeric *) * (count + 1));
+         numarr[count++] = num;
+
+         /* 返回由malloc分配的字符串的指针，它包含numeric类型num的字符串表达 */
+         text = PGTYPESnumeric_to_asc(num, -1);
+         if (!text) check_errno();
+         printf("num[%d,1]: %s\n", i, text); free(text);
+         text = PGTYPESnumeric_to_asc(num, 0);
+         if (!text) check_errno();
+          printf("num[%d,2]: %s\n", i, text); free(text);
+         text = PGTYPESnumeric_to_asc(num, 1);
+         if (!text) check_errno();
+          printf("num[%d,3]: %s\n", i, text); free(text);
+         text = PGTYPESnumeric_to_asc(num, 2);
+         if (!text) check_errno();
+         printf("num[%d,4]: %s\n", i, text); free(text);
+
+         /* 请求一个指向新分配的numeric变量的指针 */
+         nin = PGTYPESnumeric_new();
+         text = PGTYPESnumeric_to_asc(nin, 2);
+         if (!text) check_errno();
+         printf("num[%d,5]: %s\n", i, text); free(text);
+
+         /* 将一个numeric类型的变量转换为长整型 */
+         r = PGTYPESnumeric_to_long(num, &l);
+         if (r) check_errno();
+         printf("num[%d,6]: %ld (r: %d)\n", i, r?0L:l, r);
+         if (r == 0)
+         {
+             /* 把一个长整型变量转换为一个numeric变量 */
+             r = PGTYPESnumeric_from_long(l, nin);
+             if (r) check_errno();
+             /* 返回由malloc分配的字符串的指针，它包含numeric类型nin的字符串表达 */
+             text = PGTYPESnumeric_to_asc(nin, 2);
+             /* 比较两个numeric变量 */
+             q = PGTYPESnumeric_cmp(num, nin);
+             printf("num[%d,7]: %s (r: %d - cmp: %d)\n", i, text, r, q);
+             free(text);
+          }
+
+          /* 将一个numeric类型的变量转换成整数 */
+          r = PGTYPESnumeric_to_int(num, &k);
+          if (r) check_errno();
+          printf("num[%d,8]: %d (r: %d)\n", i, r?0:k, r);
+          if (r == 0)
+          {
+              /* 把一个整数变量转换成一个numeric变量 */
+              r = PGTYPESnumeric_from_int(k, nin);
+              if (r) check_errno();
+              /* 返回由malloc分配的字符串的指针，它包含numeric类型nin的字符串表达 */
+              text = PGTYPESnumeric_to_asc(nin, 2);
+              q = PGTYPESnumeric_cmp(num, nin);
+              printf("num[%d,9]: %s (r: %d - cmp: %d)\n", i, text, r, q);
+              free(text);
+          }
+
+          if (i != 6)
+          {
+               /* 将一个numeric类型的变量转换成双精度类型 */
+               r = PGTYPESnumeric_to_double(num, &d);
+               if (r) check_errno();
+               printf("num[%d,10]: %g (r: %d)\n", i, r?0.0:d, r);
+           }
+
+          /* 请求一个指向新分配的numeric变量的指针*/
+          dec = PGTYPESdecimal_new();
+          /* 将一个decimal类型的变量转换成numeric */
+          r = PGTYPESnumeric_to_decimal(num, dec);
+          if (r) check_errno();
+          printf("num[%d,11]: - (r: %d)\n", i, r);
+          if (r == 0)
+          {
+              /* 将一个decimal类型的变量转换成numeric */
+              r = PGTYPESnumeric_from_decimal(dec, nin);
+              if (r) check_errno();
+              /* 返回由malloc分配的字符串的指针，它包含numeric类型nin的字符串表达 */
+              text = PGTYPESnumeric_to_asc(nin, 2);
+              /* 比较两个numeric变量 */
+              q = PGTYPESnumeric_cmp(num, nin);
+              printf("num[%d,12]: %s (r: %d - cmp: %d)\n", i, text, r, q);
+              free(text);
+          }
+
+          /* 释放numeric变量的内存 */
+          PGTYPESdecimal_free(dec);
+          PGTYPESnumeric_free(nin);
+          printf("\n");
+    }
+
+    for (i = 0; i < count; i++)
+    {
+        for (j = 0; j < count; j++)
+        {
+            /* 请求一个指向新分配的numeric变量的指针 */
+            numeric* a = PGTYPESnumeric_new();
+            numeric* s = PGTYPESnumeric_new();
+            numeric* m = PGTYPESnumeric_new();
+            numeric* d = PGTYPESnumeric_new();
+            /*  把两个numeric变量相加放到第三个numeric变量中 */
+            r = PGTYPESnumeric_add(numarr[i], numarr[j], a);
+            if (r)
+            {
+               check_errno();
+               printf("r: %d\n", r);
+             }
+            else
+            {
+                /* 返回由malloc分配的字符串的指针，它包含numeric类型a的字符串表达 */
+                text = PGTYPESnumeric_to_asc(a, 10);
+                printf("num[a,%d,%d]: %s\n", i, j, text);
+                free(text);
+            }
+            /* 把两个numeric变量相减并且把结果返回到第三个numeric变量 */
+            r = PGTYPESnumeric_sub(numarr[i], numarr[j], s);
+            if (r)
+            {
+                check_errno();
+                printf("r: %d\n", r);
+            }
+            else
+            {
+                /* 返回由malloc分配的字符串的指针，它包含numeric类型s的字符串表达 */
+                text = PGTYPESnumeric_to_asc(s, 10);
+                printf("num[s,%d,%d]: %s\n", i, j, text);
+                free(text);
+            }
+            /* 把两个numeric变量相乘并且把结果返回到第三个numeric变量 */
+            r = PGTYPESnumeric_mul(numarr[i], numarr[j], m);
+            if (r)
+            {
+                check_errno();
+                printf("r: %d\n", r);
+            }
+            else
+            {
+                /* 返回由malloc分配的字符串的指针，它包含numeric类型m的字符串表达 */
+                text = PGTYPESnumeric_to_asc(m, 10);
+                printf("num[m,%d,%d]: %s\n", i, j, text);
+                free(text);
+            }
+            /* 把两个numeric变量相除并且把结果返回到第三个numeric变量 */
+            r = PGTYPESnumeric_div(numarr[i], numarr[j], d);
+            if (r)
+            {
+                check_errno();
+                printf("r: %d\n", r);
+            }
+            else
+            {
+                /* 返回由malloc分配的字符串的指针，它包含numeric类型d的字符串表达 */
+                text = PGTYPESnumeric_to_asc(d, 10);
+                printf("num[d,%d,%d]: %s\n", i, j, text);
+                free(text);
+            }
+
+            /* 释放一个numeric变量的内存 */
+            PGTYPESnumeric_free(a);
+            PGTYPESnumeric_free(s);
+            PGTYPESnumeric_free(m);
+            PGTYPESnumeric_free(d);
+       }
+   }
+
+    for (i = 0; i < count; i++)
+    {
+        /* 返回由malloc分配的字符串的指针，它包含numeric类型numarr[i]的字符串表达 */
+        text = PGTYPESnumeric_to_asc(numarr[i], -1);
+        printf("%d: %s\n", i, text);
+        free(text);
+        /* 释放内存 */
+        PGTYPESnumeric_free(numarr[i]);
+    }
+    free(numarr);
+
+    return (0);
+}
+
+/* 错误处理 */
+static void
+check_errno(void)
+{
+    switch(errno)
+    {
+        case 0:
+        printf("(no errno set) - ");
+        break;
+        case PGTYPES_NUM_OVERFLOW:
+        printf("(errno == PGTYPES_NUM_OVERFLOW) - ");
+        break;
+        case PGTYPES_NUM_UNDERFLOW:
+        printf("(errno == PGTYPES_NUM_UNDERFLOW) - ");
+        break;
+        case PGTYPES_NUM_BAD_NUMERIC:
+        printf("(errno == PGTYPES_NUM_BAD_NUMERIC) - ");
+        break;
+        case PGTYPES_NUM_DIVIDE_ZERO:
+        printf("(errno == PGTYPES_NUM_DIVIDE_ZERO) - ");
+        break;
+        default:
+        printf("(unknown errno (%d))\n", errno);
+        printf("(libc: (%s)) ", strerror(errno));
+        break;
+    }
+} 父主题： 基于ecpg开发 版权所有 © 华为技术有限公司

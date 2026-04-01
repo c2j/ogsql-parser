@@ -1,0 +1,1 @@
+资源不足 资源不足 查看报错信息是否有如下字段“There are not enough hosts available”。 如果出现以上报错信息，请按 创建BMS规格 与 规格与引擎、可用分区绑定 中的内容检查规格绑定是否正确，如果失败则需要重新绑定规格，再进行下发。 父主题： WaitCreateServersTask 工步失败 版权所有 © 华为技术有限公司

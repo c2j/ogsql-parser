@@ -1,0 +1,11 @@
+配置设置函数 配置设置函数 配置设置函数是可以用于查询以及修改运行时配置参数的函数。 current_setting(setting_name) 描述：当前的设置值。 返回值类型：text 备注：current_setting用于以查询形式获取setting_name的当前值。和SQL语句SHOW是等效的。比如： 1
+2
+3
+4
+5
+6 gaussdb =# SELECT current_setting ( 'datestyle' ); current_setting ----------------- ISO , MDY ( 1 row ) set_working_grand_version_num_manually(tmp_version) 描述：通过切换授权版本号来更新和升级高斯数据库的新特性。 返回值类型：void shell_in(type) 描述：为shell类型输入路由(那些尚未填充的类型)。 返回值类型：void shell_out(type) 描述：为shell类型输出路由（那些尚未填充的类型）。 返回值类型：void set_config(setting_name, new_value, is_local) 描述：设置参数并返回新值。 返回值类型：text 备注：set_config将参数setting_name设置为new_value，如果is_local为true，则新值将只应用于当前事务。如果希望新值应用于当前会话，可以使用false，和SQL语句SET是等效的。 示例： 1
+2
+3
+4
+5
+6 gaussdb =# SELECT set_config ( 'log_statement_stats' , 'off' , false ); set_config ------------ off ( 1 row ) 父主题： 系统管理函数 版权所有 © 华为技术有限公司

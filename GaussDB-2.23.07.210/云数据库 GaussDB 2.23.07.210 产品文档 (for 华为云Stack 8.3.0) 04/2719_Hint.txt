@@ -1,0 +1,7 @@
+指定不使用全局计划缓存的Hint 指定不使用全局计划缓存的Hint 功能描述 全局计划缓存打开时，可以通过no_gpc hint来强制单个查询语句不在全局共享计划缓存，只保留会话生命周期的计划缓存。 语法格式 1 no_gpc 本参数仅在enable_global_plancache=on时对PBE执行的语句生效。 示例 gaussdb=# deallocate all;
+DEALLOCATE ALL gaussdb=# prepare p1 as insert /*+ no_gpc*/ into t1 select c1,c2 from t2 where c1=$1;
+PREPARE gaussdb=# execute p1(3);
+INSERT 0 1 gaussdb=# select * from dbe_perf.global_plancache_status where schema_name='public' order by 1,2;
+ nodename | query | refcount | valid | databaseid | schema_name | params_num | func_id | pkg_id | stmt_id 
+----------+-------+----------+-------+------------+-------------+------------+---------+--------+---------
+(0 rows) dbe_perf.global_plancache_status视图中无结果即没有计划被全局缓存。 父主题： 使用Plan Hint进行调优 版权所有 © 华为技术有限公司

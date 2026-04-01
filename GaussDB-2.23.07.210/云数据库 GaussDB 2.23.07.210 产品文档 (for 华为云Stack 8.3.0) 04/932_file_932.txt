@@ -1,0 +1,7 @@
+处理字符串 处理字符串 处理SQL字符串数据类型（例如：varchar、text），有两种方式来声明宿主变量： 方式一：使用char[]（一个char字符串），C语言程序中处理字符数据最常见的方式。 EXEC SQL BEGIN DECLARE SECTION;
+    char str[50];
+EXEC SQL END DECLARE SECTION; 注意字符串必须控制长度，如果上述示例的宿主变量用作存放查询结果且查询命令返回的字符串长度超过49字节，那么将会发生缓冲区溢出。 方式二：使用VARCHAR类型，ecpg提供的一种特殊类型。在一个VARCHAR类型数组上的定义会被转变成一个struct类型。如下声明： VARCHAR var[180]; 会被转变成： struct varchar_var 
+{ 
+    int len; 
+    char arr[180]; 
+} var; 要在一个VARCHAR宿主变量中存储一个字符串，该宿主变量必须被声明为包含零字节为终止符长度的字符串。字段arr存放以零字节为终止符的字符串，字段len保存存储在arr中的字符串的长度，计算长度时不包括终止符。当宿主变量被用于一个查询的输入时，如果strlen(arr)和len结果不同，将使用较短的那一个。 VARCHAR可以被写成大写或小写形式，但是不能大小写混合。 char和VARCHAR类型宿主变量也可以保存其他SQL类型的值，它们将被存储为字符串形式。 父主题： 宿主变量 版权所有 © 华为技术有限公司

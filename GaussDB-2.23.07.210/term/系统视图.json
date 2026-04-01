@@ -1,0 +1,326 @@
+{
+  "topic": "系统视图",
+  "term_count": 64,
+  "terms": [
+    {
+      "term": "物化视图",
+      "content": "物化视图 物化视图 GS_MATVIEWS",
+      "source_file": "3471_file_3471.txt"
+    },
+    {
+      "term": "GS_WLM_WORKLOAD_RECORDS",
+      "content": "GS_WLM_WORKLOAD_RECORDS GS_WLM_WORKLOAD_RECORDS GS_WLM_WORKLOAD_RECORDS视图显示当前用户在 每个CN 上执行作业时在 CN 上的状态信息。查询该视图需要sysadmin权限。具体字段信息如 表1 所示。 当前特性是实验室特性，使用时请联系华为技术工程师提供技术支持。 当查询视图无数据显示时，请联系华为工程师提供技术支撑。 表1 GS_WLM_WORKLOAD_RECORDS字段 名称 类型 描述 node_name text 作业执行所在 CN 的名称。 thread_id bigint 后端线程id。 processid integer 后端线程的pid。 time_stamp bigint 语句执行的开始时间。 username name 登录到该后端的用户名。 memory integer 语句所需的内存大小。 active_points integer 语句在资源池上消耗的资源点数。 max_points integer 语句在资源池上可消耗的最大资源点数。 priority integer 作业的优先级。可取integer范围内值，越大优先级越高。 resource_pool text 作业所在资源池。 status text 作业执行的状态，包括： pending：阻塞状态。 running：执行状态。 finished：结束状态。 aborted：终止状态。 unknown：未知状态。 control_group text 作业所使用的Cgroups。 enqueue text 作业的排队信息，包括： GLOBAL：全局排队。 RESPOOL: 资源池排队。 ACTIVE：不排队。 query text 正在执行的语句。",
+      "source_file": "2010_GS_WLM_WORKLOAD_RECORDS.txt"
+    },
+    {
+      "term": "PGXC_WLM_OPERATOR_HISTORY",
+      "content": "PGXC_WLM_OPERATOR_HISTORY PGXC_WLM_OPERATOR_HISTORY PGXC_WLM_OPERATOR_HISTORY视图显示的是缓存在内存中的所有CN上执行作业结束时的算子信息。查询该视图需要sysadmin权限。 当前特性是实验室特性，使用时请联系华为技术工程师提供技术支持。 该数据会被定期转存到gs_wlm_operator_info表中，转存周期为3分钟。具体的字段请参见 GS_WLM_OPERATOR_INFO 的字段信息。 当查询视图无数据显示时，请联系华为工程师提供技术支撑。",
+      "source_file": "2016_PGXC_WLM_OPERATOR_HISTORY.txt"
+    },
+    {
+      "term": "PG_SESSION_WLMSTAT",
+      "content": "PG_SESSION_WLMSTAT PG_SESSION_WLMSTAT PG_SESSION_WLMSTAT视图显示当前用户执行作业正在运行时的负载管理 （当前特性是实验室特性，使用时请联系华为技术工程师提供技术支持。） 相关信息。查询该视图需要sysadmin权限。具体字段信息如 表1 所示。 当查询视图无数据显示时，请联系华为工程师提供技术支撑。 表1 PG_SESSION_WLMSTAT字段 名称 类型 描述 datid oid 连接后端的数据库OID。 datname name 连接后端的数据库名称。 threadid bigint 后端线程id。 sessionid bigint 会话id。 processid integer 后端线程的pid。 usesysid oid 登录后端的用户OID。 appname text 连接到后端的应用名。 usename name 登录到该后端的用户名。 priority bigint 语句所在Cgroups的优先级。 attribute text 语句的属性： Ordinary：语句发送到数据库后被解析前的默认属性。 Simple：简单语句。 Complicated：复杂语句。 Internal：数据库内部语句。 Unknown：未知。 block_time bigint 语句当前为止的pending的时间，单位s。 elapsed_time bigint 语句当前为止的实际执行时间，单位s。 total_cpu_time bigint 语句在上一时间周期内的 DN 上CPU使用的总时间，单位s。 cpu_skew_percent integer 语句在上一时间周期内的DN上CPU使用的倾斜率。 statement_mem integer 语句执行使用的statement_mem，预留字段。 active_points integer 语句占用的资源池并发点数。 dop_value integer 语句的从资源池中获取的dop值。 control_group text 语句当前所使用的Cgroups。 status text 语句当前的状态，包括： pending：执行前状态。 running：执行进行状态。 finished：执行正常结束。（当enqueue字段为StoredProc或Transaction时，仅代表语句中的部分作业已经执行完毕，该状态会持续到该语句完全执行完毕。） aborted：执行异常终止。 active: 非以上四种状态外的正常状态。 unknown: 未知状态。 enqueue text 语句当前的排队情况，包括： Global:：在全局队列中排队。 Respool：在资源池队列中排队。 CentralQueue：在中心协调节点(CCN)中排队。 Transaction：语句处于一个事务块中。 StoredProc : 语句处于一个存储过程中。 None：未在排队。 Forced None : 事务块语句或存储过程语句由于超出设定的等待时间而强制执行。 resource_pool name 语句当前所在的资源池。 query text 该后端的最新查询。如果state状态是active（活的），此字段显示当前正在执行的查询。所有其他情况表示上一个查询。",
+      "source_file": "2011_PG_SESSION_WLMSTAT.txt"
+    },
+    {
+      "term": "GS_WLM_OPERATOR_HISTORY",
+      "content": "GS_WLM_OPERATOR_HISTORY GS_WLM_OPERATOR_HISTORY GS_WLM_OPERATOR_HISTORY视图显示的是当前用户在当前数据库主节点上执行作业结束后的算子的相关记录。查询该视图需要sysadmin权限。 记录的数据同表 表1 。 当查询视图无数据显示时，请联系华为工程师提供技术支撑。",
+      "source_file": "3699_GS_WLM_OPERATOR_HISTORY.txt"
+    },
+    {
+      "term": "通信",
+      "content": "通信 通信 GS_COMM_LISTEN_ADDRESS_EXT_INFO GS_GET_LISTEN_ADDRESS_EXT_INFO PG_COMM_DELAY PG_COMM_RECV_STREAM PG_COMM_SEND_STREAM PG_COMM_STATUS PG_GET_INVALID_BACKENDS",
+      "source_file": "3409_file_3409.txt"
+    },
+    {
+      "term": "透明加密",
+      "content": "透明加密 透明加密 PG_TDE_INFO",
+      "source_file": "3466_file_3466.txt"
+    },
+    {
+      "term": "SPM计划管理",
+      "content": "SPM计划管理 SPM计划管理 GS_SPM_SQL_BASELINE GS_SPM_SQL_PARAM GS_SPM_SQL_EVOLUTION GS_SPM_SYS_BASELINE",
+      "source_file": "1724_SPM.txt"
+    },
+    {
+      "term": "GS_WLM_SESSION_STATISTICS",
+      "content": "GS_WLM_SESSION_STATISTICS GS_WLM_SESSION_STATISTICS GS_WLM_SESSION_STATISTICS视图显示当前用户在 当前CN 上正在执行的作业的负载管理 （当前特性是实验室特性，使用时请联系华为技术工程师提供技术支持。） 记录。查询该视图需要sysadmin权限。具体字段信息如 表1 所示。 当查询视图无数据显示时，请联系华为工程师提供技术支撑。 表1 GS_WLM_SESSION_STATISTICS的字段 名称 类型 描述 datid oid 连接后端的数据OID。 dbname name 连接后端的数据库名称。 schemaname text 模式的名称。 nodename text 语句执行的 CN 节点名称。 username name 连接到后端的用户名。 application_name text 连接到后端的应用名。 client_addr inet 连接到后端的客户端的IP地址。如果此字段是null，它表明通过服务器机器上UNIX套接字连接客户端或者这是内部进程，如autovacuum。 client_hostname text 客户端的主机名，这个字段是通过client_addr的反向DNS查找得到。这个字段只有在启动log_hostname且使用IP连接时才非空。 client_port integer 客户端用于与后端通讯的TCP端口号，如果使用Unix套接字，则为-1。 query_band text 用于标示作业类型，可通过GUC参数query_band进行设置，默认为空字符串。 pid bigint 后端线程id。 sessionid bigint 会话id。 global_sessionid text 全局会话id。 block_time bigint 语句执行前的阻塞时间，单位ms。 start_time timestamp with time zone 语句执行的开始时间。 duration bigint 语句已经执行的时间，单位ms。 estimate_total_time bigint 语句执行预估总时间，单位ms。 estimate_left_time bigint 语句执行预估剩余时间，单位ms。 enqueue text 工作负载管理 （当前特性是实验室特性，使用时请联系华为技术工程师提供技术支持。） 资源状态。 resource_pool name 用户使用的资源池。 control_group text 语句所使用的Cgroup。 estimate_memory integer 语句预估使用内存，单位MB。该字段只有当GUC参数 enable_dynamic_workload 为on时才有效。 min_peak_memory integer 语句在 所有DN 上的最小内存峰值，单位MB。 max_peak_memory integer 语句在 所有DN 上的最大内存峰值，单位MB。 average_peak_memory integer 语句执行过程中的内存使用平均值，单位MB。 memory_skew_percent integer 语句在 各DN 间的内存使用倾斜率。 spill_info text 语句在 所有DN 上的下盘信息： None： 所有DN 均未下盘。 All： 所有DN 均下盘。 [a:b]：数量为b个 DN 中有a个 DN 下盘。 min_spill_size integer 若发生下盘， 所有DN 上下盘的最小数据量，单位MB，默认为0。 max_spill_size integer 若发生下盘， 所有DN 上下盘的最大数据量，单位MB，默认为0。 average_spill_size integer 若发生下盘， 所有DN 上下盘的平均数据量，单位MB，默认为0。 spill_skew_percent integer 若发生下盘， DN 间下盘倾斜率。 min_dn_time bigint 语句在 所有DN 上的最小执行时间，单位ms。 max_dn_time bigint 语句在 所有DN 上的最大执行时间，单位ms。 average_dn_time bigint 语句在 所有DN 上的平均执行时间，单位ms。 dntime_skew_percent integer 语句在 各DN 间的执行时间倾斜率。 min_cpu_time bigint 语句在 所有DN 上的最小CPU时间，单位ms。 max_cpu_time bigint 语句在 所有DN 上的最大CPU时间，单位ms。 total_cpu_time bigint 语句在 所有DN 上的CPU总时间，单位ms。 cpu_skew_percent integer 语句在 各DN 间的CPU时间倾斜率。 min_peak_iops integer 语句在 所有DN 上的每秒最小IO峰值（单位是万次/s）。 max_peak_iops integer 语句在 所有DN 上的每秒最大IO峰值（单位是万次/s）。 average_peak_iops integer 语句在 所有DN 上的每秒平均IO峰值（单位是万次/s）。 iops_skew_percent integer 语句在 DN 间的I/O倾斜率。 warning text 主要显示如下几类告警信息以及 SQL自诊断 相关告警： Spill file size large than 256MB Broadcast size large than 100MB Early spill Spill times is greater than 3 Spill on memory adaptive Hash table conflict queryid bigint 语句执行使用的内部query id。 query text 正在执行的语句。 query_plan text 语句的执行计划。 top_cpu_dn text CPU使用量topN信息。 top_mem_dn text 内存使用量topN信息。",
+      "source_file": "2008_GS_WLM_SESSION_STATISTICS.txt"
+    },
+    {
+      "term": "GET_GLOBAL_PREPARED_XACTS",
+      "content": "GET_GLOBAL_PREPARED_XACTS GET_GLOBAL_PREPARED_XACTS 集中式不支持该视图。",
+      "source_file": "3695_GET_GLOBAL_PREPARED_XACTS.txt"
+    },
+    {
+      "term": "GS_WLM_SESSION_INFO_ALL",
+      "content": "GS_WLM_SESSION_INFO_ALL GS_WLM_SESSION_INFO_ALL GS_WLM_SESSION_INFO_ALL视图显示在 所有CN节点 上执行作业结束后的负载管理 （当前特性是实验室特性，使用时请联系华为技术工程师提供技术支持。） 记录。查询该视图需要sysadmin或者monitor admin权限。具体字段信息如 表1 所示。 当查询视图无数据显示时，请联系华为工程师提供技术支撑。 表1 GS_WLM_SESSION_INFO_ALL的字段 名称 类型 描述 datid oid 连接后端的数据库OID。 dbname text 连接后端的数据库名称。 schemaname text 模式的名称。 nodename text 语句执行的 CN 名称。 username text 连接到后端的用户名。 application_name text 连接到后端的应用名。 client_addr inet 连接到后端的客户端的IP地址。如果此字段是null，它表明通过服务器机器上UNIX套接字连接客户端或者这是内部进程，如autovacuum。 client_hostname text 客户端的主机名，这个字段是通过client_addr的反向DNS查找得到。这个字段只有在启动log_hostname且使用IP连接时才非空。 client_port integer 客户端用于与后端通讯的TCP端口号，如果使用Unix套接字，则为-1。 query_band text 用于标示作业类型，可通过GUC参数query_band进行设置，默认为空字符串。 block_time bigint 语句执行前的阻塞时间，包含语句解析和优化时间，单位ms。 start_time timestamp with time zone 语句执行的开始时间。 finish_time timestamp with time zone 语句执行的结束时间。 duration bigint 语句实际执行的时间，单位ms。 estimate_total_time bigint 语句预估执行时间，单位ms。 status text 语句执行结束状态：正常为finished，异常为aborted。 abort_info text 语句执行结束状态为aborted时显示异常信息。 resource_pool text 用户使用的资源池。 control_group text 语句所使用的Cgroup。 estimate_memory integer 语句估算内存大小。 min_peak_memory integer 语句在 所有DN 上的最小内存峰值，单位MB。 max_peak_memory integer 语句在 所有DN 上的最大内存峰值，单位MB。 average_peak_memory integer 语句执行过程中的内存使用平均值，单位MB。 memory_skew_percent integer 语句 各DN 间的内存使用倾斜率。 spill_info text 语句在 所有DN 上的下盘信息： None： 所有DN 均未下盘。 All： 所有DN 均下盘。 [a:b]：数量为b个 DN 中有a个 DN 下盘。 min_spill_size integer 若发生下盘， 所有DN 上下盘的最小数据量，单位MB，默认为0。 max_spill_size integer 若发生下盘， 所有DN 上下盘的最大数据量，单位MB，默认为0。 average_spill_size integer 若发生下盘， 所有DN 上下盘的平均数据量，单位MB，默认为0。 spill_skew_percent integer 若发生下盘， DN 间下盘倾斜率。 min_dn_time bigint 语句在 所有DN 上的最小执行时间，单位ms。 max_dn_time bigint 语句在 所有DN 上的最大执行时间，单位ms。 average_dn_time bigint 语句在 所有DN 上的平均执行时间，单位ms。 dntime_skew_percent integer 语句在 各DN 间的执行时间倾斜率。 min_cpu_time bigint 语句在 所有DN 上的最小CPU时间，单位ms。 max_cpu_time bigint 语句在 所有DN 上的最大CPU时间，单位ms。 total_cpu_time bigint 语句在 所有DN 上的CPU总时间，单位ms。 cpu_skew_percent integer 语句在 DN 间的CPU时间倾斜率。 min_peak_iops integer 语句在 所有DN 上的每秒最小IO峰值（单位是万次/s）。 max_peak_iops integer 语句在 所有DN 上的每秒最大IO峰值（单位是万次/s）。 average_peak_iops integer 语句在 所有DN 上的每秒平均IO峰值（单位是万次/s）。 iops_skew_percent integer 语句在 DN 间的IO倾斜率。 warning text 主要显示如下几类告警信息以及 SQL自诊断 相关告警： Spill file size large than 256MB Broadcast size large than 100MB Early spill Spill times is greater than 3 Spill on memory adaptive Hash table conflict queryid bigint 语句执行使用的内部query id。 query text 执行的语句。 query_plan text 语句的执行计划。 cpu_top1_node_name text CPU使用率第1的节点名称。 cpu_top2_node_name text CPU使用率第2的节点名称。 cpu_top3_node_name text CPU使用率第3的节点名称。 cpu_top4_node_name text CPU使用率第4的节点名称。 cpu_top5_node_name text CPU使用率第5的节点名称。 mem_top1_node_name text 内存使用量第1的节点名称。 mem_top2_node_name text 内存使用量第2的节点名称。 mem_top3_node_name text 内存使用量第3的节点名称。 mem_top4_node_name text 内存使用量第4的节点名称。 mem_top5_node_name text 内存使用量第5的节点名称。 cpu_top1_value bigint CPU使用率。 cpu_top2_value bigint CPU使用率。 cpu_top3_value bigint CPU使用率。 cpu_top4_value bigint CPU使用率。 cpu_top5_value bigint CPU使用率。 mem_top1_value bigint 内存使用量。 mem_top2_value bigint 内存使用量。 mem_top3_value bigint 内存使用量。 mem_top4_value bigint 内存使用量。 mem_top5_value bigint 内存使用量。 top_mem_dn text 内存使用量topN信息。 top_cpu_dn text CPU使用量topN信息。 n_returned_rows bigint SELECT返回的结果集行数。 n_tuples_fetched bigint 随机扫描行。 n_tuples_returned bigint 顺序扫描行。 n_tuples_inserted bigint 插入行。 n_tuples_updated bigint 更新行。 n_tuples_deleted bigint 删除行。 n_blocks_fetched bigint buffer的块访问次数。 n_blocks_hit bigint buffer的块命中次数。 db_time bigint 有效的DB时间花费，多线程将累加（单位：微秒）。 cpu_time bigint CPU时间（单位：微秒）。 execution_time bigint 执行器内执行时间（单位：微秒）。 parse_time bigint SQL解析时间（单位：微秒）。 plan_time bigint SQL生成计划时间（单位：微秒）。 rewrite_time bigint SQL重写时间（单位：微秒）。 pl_execution_time bigint plpgsql上的执行时间（单位：微秒）。 pl_compilation_time bigint plpgsql上的编译时间（单位：微秒）。 net_send_time bigint 网络上的时间花费（单位：微秒）。 data_io_time bigint I/O上的时间花费（单位：微秒）。 is_slow_query bigint 是否是慢SQL记录。",
+      "source_file": "2007_GS_WLM_SESSION_INFO_ALL.txt"
+    },
+    {
+      "term": "GS_WLM_OPERATOR_STATISTICS",
+      "content": "GS_WLM_OPERATOR_STATISTICS GS_WLM_OPERATOR_STATISTICS GS_WLM_OPERATOR_STATISTICS视图显示当前用户正在执行的作业的算子相关信息。查询该视图需要sysadmin权限。具体字段信息如 表1 所示。 当前特性是实验室特性，使用时请联系华为技术工程师提供技术支持。 表1 GS_WLM_OPERATOR_STATISTICS的字段 名称 类型 描述 queryid bigint 语句执行使用的内部query_id。 pid bigint 后端线程id。 plan_node_id integer 查询对应的执行计划的plan node id。 plan_node_name text 对应于plan_node_id的算子的名称。 start_time timestamp with time zone 该算子处理第一条数据的开始时间。 duration bigint 该算子到结束时候总的执行时间（ms）。 status text 当前算子的执行状态，包括finished和running。 query_dop integer 当前算子执行时的并行度。 estimated_rows bigint 优化器估算的行数信息。 tuple_processed bigint 当前算子返回的元素个数。 min_peak_memory integer 当前算子在 所有DN 上的最小内存峰值（MB）。 max_peak_memory integer 当前算子在 所有DN 上的最大内存峰值（MB）。 average_peak_memory integer 当前算子在 所有DN 上的平均内存峰值（MB）。 memory_skew_percent integer 当前算子在 各DN 间的内存使用倾斜率。 min_spill_size integer 若发生下盘， 所有DN 上下盘的最小数据量（MB），默认为0。 max_spill_size integer 若发生下盘， 所有DN 上下盘的最大数据量（MB），默认为0。 average_spill_size integer 若发生下盘， 所有DN 上下盘的平均数据量（MB），默认为0。 spill_skew_percent integer 若发生下盘， DN 间下盘倾斜率。 min_cpu_time bigint 该算子在 所有DN 上的最小执行时间（ms）。 max_cpu_time bigint 该算子在 所有DN 上的最大执行时间（ms）。 total_cpu_time bigint 该算子在 所有DN 上的总执行时间（ms）。 cpu_skew_percent integer DN 间执行时间的倾斜率。 warning text 主要显示如下几类告警信息： Sort/SetOp/HashAgg/HashJoin spill Spill file size large than 256MB Broadcast size large than 100MB Early spill Spill times is greater than 3 Spill on memory adaptive Hash table conflict",
+      "source_file": "2003_GS_WLM_OPERATOR_STATISTICS.txt"
+    },
+    {
+      "term": "动态脱敏",
+      "content": "动态脱敏 动态脱敏 GS_MASKING",
+      "source_file": "1761_file_1761.txt"
+    },
+    {
+      "term": "PGXC_WLM_OPERATOR_STATISTICS",
+      "content": "PGXC_WLM_OPERATOR_STATISTICS PGXC_WLM_OPERATOR_STATISTICS PGXC_WLM_OPERATOR_STATISTICS视图显示在所有CN上正在执行作业的算子信息。查询该视图需要sysadmin权限。 当前特性是实验室特性，使用时请联系华为技术工程师提供技术支持。 具体的字段请参见 GS_WLM_OPERATOR_STATISTICS 的字段信息。 当查询视图无数据显示时，请联系华为工程师提供技术支撑。",
+      "source_file": "2018_PGXC_WLM_OPERATOR_STATISTICS.txt"
+    },
+    {
+      "term": "通信",
+      "content": "通信 通信 COMM_CLIENT_INFO GLOBAL_COMM_CLIENT_INFO GS_COMM_LISTEN_ADDRESS_EXT_INFO GS_GET_LISTEN_ADDRESS_EXT_INFO GS_STATIC_THREADPOOL_CTRL_STATUS PG_COMM_DELAY PG_COMM_RECV_STREAM PG_COMM_SEND_STREAM PG_COMM_STATUS PG_GET_INVALID_BACKENDS PG_POOLER_STATUS PGXC_COMM_DELAY PGXC_COMM_RECV_STREAM PGXC_COMM_SEND_STREAM PGXC_COMM_STATUS",
+      "source_file": "1693_file_1693.txt"
+    },
+    {
+      "term": "负载管理",
+      "content": "负载管理 负载管理 GS_WLM_CGROUP_INFO GS_WLM_EC_OPERATOR_HISTORY GS_WLM_EC_OPERATOR_STATISTICS GS_WLM_REBUILD_USER_RESOURCE_POOL GS_WLM_USER_INFO PGXC_WLM_REBUILD_USER_RESPOOL",
+      "source_file": "1672_file_1672.txt"
+    },
+    {
+      "term": "用户和权限管理",
+      "content": "用户和权限管理 用户和权限管理 ADM_COL_PRIVS ADM_ROLE_PRIVS ADM_ROLES ADM_SYS_PRIVS ADM_TAB_PRIVS ADM_USERS DB_COL_PRIVS DB_TAB_PRIVS DB_USERS GS_DB_PRIVILEGES GS_LABELS MY_COL_PRIVS MY_ROLE_PRIVS MY_SYS_PRIVS PG_RLSPOLICIES PG_ROLES PG_SECLABELS PG_SHADOW PG_USER PG_USER_MAPPINGS ROLE_ROLE_PRIVS ROLE_SYS_PRIVS ROLE_TAB_PRIVS",
+      "source_file": "3440_file_3440.txt"
+    },
+    {
+      "term": "段页式存储",
+      "content": "段页式存储 段页式存储 GLOBAL_GS_SEG_DATAFILES GLOBAL_GS_SEG_EXTENTS GLOBAL_GS_SEG_SEGMENTS GLOBAL_GS_SEG_SPC_EXTENTS GLOBAL_GS_SEG_SPC_SEGMENTS GS_SEG_DATAFILES GS_SEG_DATAFILE_LAYOUT GS_SEG_EXTENTS GS_SEG_SEGMENTS GS_SEG_SEGMENT_LAYOUT GS_SEG_SPC_EXTENTS GS_SEG_SPC_SEGMENTS GS_SEG_SPC_REMAIN_EXTENTS GS_SEG_SPC_REMAIN_SEGMENTS",
+      "source_file": "1709_file_1709.txt"
+    },
+    {
+      "term": "PGXC_WLM_SESSION_HISTORY",
+      "content": "PGXC_WLM_SESSION_HISTORY PGXC_WLM_SESSION_HISTORY PGXC_WLM_SESSION_HISTORY视图显示的是缓存在内存中的所有CN上执行作业结束后的负载管理 （当前特性是实验室特性，使用时请联系华为技术工程师提供技术支持。） 记录。查询该视图需要sysadmin或者monitor admin权限。该数据会被定期转存到gs_wlm_session_info表中，转存周期为3分钟，具体请参见 GS_WLM_SESSION_HISTORY 视图介绍，具体的字段请参见 GS_WLM_SESSION_HISTORY 的字段信息。 当查询视图无数据显示时，请联系华为工程师提供技术支撑。",
+      "source_file": "2019_PGXC_WLM_SESSION_HISTORY.txt"
+    },
+    {
+      "term": "PGXC_WLM_SESSION_STATISTICS",
+      "content": "PGXC_WLM_SESSION_STATISTICS PGXC_WLM_SESSION_STATISTICS PGXC_WLM_SESSION_STATISTICS视图显示在所有CN上正在执行的作业的负载管理 （当前特性是实验室特性，使用时请联系华为技术工程师提供技术支持。） 信息。查询该视图需要sysadmin权限。 具体的字段请参见 GS_WLM_SESSION_STATISTICS 的字段信息。",
+      "source_file": "2021_PGXC_WLM_SESSION_STATISTICS.txt"
+    },
+    {
+      "term": "GS_WLM_SESSION_INFO",
+      "content": "GS_WLM_SESSION_INFO GS_WLM_SESSION_INFO GS_WLM_SESSION_INFO视图显示数据库实例执行作业结束后的负载管理记录。查询该视图需要sysadmin权限。 具体的字段请参考 表1 中的信息。 当查询视图无数据显示时，请联系华为工程师提供技术支撑。",
+      "source_file": "3703_GS_WLM_SESSION_INFO.txt"
+    },
+    {
+      "term": "GS_WLM_SESSION_HISTORY",
+      "content": "GS_WLM_SESSION_HISTORY GS_WLM_SESSION_HISTORY GS_WLM_SESSION_HISTORY视图显示当前用户在数据库实例上执行作业结束后的负载管理记录。查询该视图需要sysadmin或者monitor admin权限。 当查询视图无数据显示时，请联系华为工程师提供技术支撑。 表1 GS_WLM_SESSION_HISTORY的字段 名称 类型 描述 datid oid 连接后端的数据库OID。 dbname text 连接后端的数据库名称。 schemaname text 模式的名称。 nodename text 语句执行的数据库实例名称。 username text 连接到后端的用户名。 application_name text 连接到后端的应用名。 client_addr inet 连接到后端的客户端的IP地址。 如果此字段是null，它表明通过服务器机器上UNIX套接字连接客户端或者这是内部进程，如autovacuum。 client_hostname text 客户端的主机名，这个字段是通过client_addr的反向DNS查找得到。这个字段只有在启动log_hostname且使用IP连接时才非空。 client_port integer 客户端用于与后端通讯的TCP端口号，如果使用Unix套接字，则为-1。 query_band text 用于标示作业类型，可通过GUC参数query_band进行设置，默认为空字符串。 block_time bigint 语句执行前的阻塞时间，包含语句解析和优化时间，单位ms。 start_time timestamp with time zone 语句执行的开始时间。 finish_time timestamp with time zone 语句执行的结束时间。 duration bigint 语句实际执行的时间，单位ms。 estimate_total_time bigint 语句预估执行时间，单位ms。 status text 语句执行结束状态：正常为finished，异常为aborted。 abort_info text 语句执行结束状态为aborted时显示异常信息。 resource_pool text 用户使用的资源池。 control_group text 语句所使用的Cgroup。 estimate_memory integer 语句估算内存大小。 min_peak_memory integer 语句在数据库实例上的最小内存峰值，单位MB。 max_peak_memory integer 语句在数据库实例上的最大内存峰值，单位MB。 average_peak_memory integer 语句执行过程中的内存使用平均值，单位MB。 memory_skew_percent integer 语句数据库实例间的内存使用倾斜率。 spill_info text 语句在数据库实例上的下盘信息： None：数据库实例均未下盘。 All: 数据库实例均下盘。 [a:b]: 数量为b个数据库实例中有a个数据库实例下盘。 min_spill_size integer 若发生下盘，数据库实例上下盘的最小数据量，单位MB，默认为0。 max_spill_size integer 若发生下盘，数据库实例上下盘的最大数据量，单位MB，默认为0。 average_spill_size integer 若发生下盘，数据库实例上下盘的平均数据量，单位MB，默认为0。 spill_skew_percent integer 若发生下盘，数据库实例间下盘倾斜率。 min_dn_time bigint 语句在数据库实例上的最小执行时间，单位ms。 max_dn_time bigint 语句在数据库实例上的最大执行时间，单位ms。 average_dn_time bigint 语句在数据库实例上的平均执行时间，单位ms。 dntime_skew_percent integer 语句在数据库实例间的执行时间倾斜率。 min_cpu_time bigint 语句在数据库实例上的最小CPU时间，单位ms。 max_cpu_time bigint 语句在数据库实例上的最大CPU时间，单位ms。 total_cpu_time bigint 语句在数据库实例上的CPU总时间，单位ms。 cpu_skew_percent integer 语句在数据库实例间的CPU时间倾斜率。 min_peak_iops integer 语句在数据库实例上的每秒最小IO峰值（单位是万次/s）。 max_peak_iops integer 语句在数据库实例上的每秒最大IO峰值（单位是万次/s）。 average_peak_iops integer 语句在数据库实例上的每秒平均IO峰值（单位是万次/s）。 iops_skew_percent integer 语句在数据库实例间的IO倾斜率。 warning text 主要显示如下几类告警信息： Spill file size large than 256MB Broadcast size large than 100MB Early spill Spill times is greater than 3 Spill on memory adaptive Hash table conflict queryid bigint 语句执行使用的内部query id。 query text 执行的语句。 query_plan text 语句的执行计划。 node_group text 语句所属用户对应的逻辑数据库实例。 cpu_top1_node_name text cpu使用率第1的节点名称。 cpu_top2_node_name text cpu使用率第2的节点名称。 cpu_top3_node_name text cpu使用率第3的节点名称。 cpu_top4_node_name text cpu使用率第4的节点名称。 cpu_top5_node_name text cpu使用率第5的节点名称。 mem_top1_node_name text 内存使用量第1的节点名称。 mem_top2_node_name text 内存使用量第2的节点名称。 mem_top3_node_name text 内存使用量第3的节点名称。 mem_top4_node_name text 内存使用量第4的节点名称。 mem_top5_node_name text 内存使用量第5的节点名称。 cpu_top1_value bigint cpu使用率。 cpu_top2_value bigint cpu使用率。 cpu_top3_value bigint cpu使用率。 cpu_top4_value bigint cpu使用率。 cpu_top5_value bigint cpu使用率。 mem_top1_value bigint 内存使用量。 mem_top2_value bigint 内存使用量。 mem_top3_value bigint 内存使用量。 mem_top4_value bigint 内存使用量。 mem_top5_value bigint 内存使用量。 top_mem_dn text 内存使用量topN信息。 top_cpu_dn text cpu使用量topN信息。",
+      "source_file": "3702_GS_WLM_SESSION_HISTORY.txt"
+    },
+    {
+      "term": "GS_SESSION_MEMORY_STATISTICS",
+      "content": "GS_SESSION_MEMORY_STATISTICS GS_SESSION_MEMORY_STATISTICS GS_SESSION_MEMORY_STATISTICS视图显示当前用户执行复杂作业正在运行时的负载管理 （当前特性是实验室特性，使用时请联系华为技术工程师提供技术支持。） 内存使用的信息。查询该视图需要sysadmin权限。具体字段信息如 表1 所示。 表1 GS_SESSION_MEMORY_STATISTICS字段 名称 类型 描述 datid oid 连接后端的数据库OID。 usename name 登录到该后端的用户名。 pid bigint 后端线程id。 start_time timestamp with time zone 语句执行的开始时间。 min_peak_memory integer 语句在 所有DN 上的最小内存峰值大小，单位MB。 max_peak_memory integer 语句在 所有DN 上的最大内存峰值大小，单位MB。 spill_info text 语句在 所有DN 上的下盘信息： None： 所有DN 均未下盘。 All： 所有DN 均下盘。 [a:b]：数量为b个 DN 中有a个 DN 下盘。 query text 正在执行的语句。 top_mem_dn text 内存使用量topN信息。",
+      "source_file": "2001_GS_SESSION_MEMORY_STATISTICS.txt"
+    },
+    {
+      "term": "用户和权限管理",
+      "content": "用户和权限管理 用户和权限管理 ADM_COL_PRIVS ADM_ROLE_PRIVS ADM_ROLES ADM_SYS_PRIVS ADM_TAB_PRIVS ADM_USERS DB_COL_PRIVS DB_TAB_PRIVS DB_USERS GS_DB_PRIVILEGES GS_LABELS MY_COL_PRIVS MY_ROLE_PRIVS MY_SYS_PRIVS PG_RLSPOLICIES PG_ROLES PG_SECLABELS PG_SHADOW PG_USER PG_USER_MAPPINGS ROLE_ROLE_PRIVS ROLE_SYS_PRIVS ROLE_TAB_PRIVS",
+      "source_file": "1737_file_1737.txt"
+    },
+    {
+      "term": "GS_WLM_WORKLOAD_RECORDS",
+      "content": "GS_WLM_WORKLOAD_RECORDS GS_WLM_WORKLOAD_RECORDS 集中式不支持该视图。",
+      "source_file": "3706_GS_WLM_WORKLOAD_RECORDS.txt"
+    },
+    {
+      "term": "GS_CLUSTER_RESOURCE_INFO",
+      "content": "GS_CLUSTER_RESOURCE_INFO GS_CLUSTER_RESOURCE_INFO 集中式不支持该视图。",
+      "source_file": "3696_GS_CLUSTER_RESOURCE_INFO.txt"
+    },
+    {
+      "term": "段页式存储",
+      "content": "段页式存储 段页式存储 GS_SEG_DATAFILES GS_SEG_DATAFILE_LAYOUT GS_SEG_EXTENTS GS_SEG_SEGMENTS GS_SEG_SEGMENT_LAYOUT GS_SEG_SPC_EXTENTS GS_SEG_SPC_SEGMENTS GS_SEG_SPC_REMAIN_EXTENTS GS_SEG_SPC_REMAIN_SEGMENTS",
+      "source_file": "3417_file_3417.txt"
+    },
+    {
+      "term": "GS_WLM_SESSION_STATISTICS",
+      "content": "GS_WLM_SESSION_STATISTICS GS_WLM_SESSION_STATISTICS GS_WLM_SESSION_STATISTICS视图显示当前用户在数据库实例上正在执行的作业的负载管理记录。查询该视图需要sysadmin权限。 当查询视图无数据显示时，请联系华为工程师提供技术支撑。 表1 GS_WLM_SESSION_STATISTICS的字段 名称 类型 描述 datid oid 连接后端的数据OID。 dbname name 连接后端的数据库名称。 schemaname text 模式的名称。 nodename text 语句执行的数据库实例名称。 username name 连接到后端的用户名。 application_name text 连接到后端的应用名。 client_addr inet 连接到后端的客户端的IP地址。如果此字段是null，它表明通过服务器机器上UNIX套接字连接客户端或者这是内部进程，如autovacuum。 client_hostname text 客户端的主机名，这个字段是通过client_addr的反向DNS查找得到。这个字段只有在启动log_hostname且使用IP连接时才非空。 client_port integer 客户端用于与后端通讯的TCP端口号，如果使用Unix套接字，则为-1。 query_band text 用于标示作业类型，可通过GUC参数query_band进行设置，默认为空字符串。 pid bigint 后端线程ID。 sessionid bigint 会话ID。 block_time bigint 语句执行前的阻塞时间，单位ms。 start_time timestamp with time zone 语句执行的开始时间。 duration bigint 语句已经执行的时间，单位ms。 estimate_total_time bigint 语句执行预估总时间，单位ms。 estimate_left_time bigint 语句执行预估剩余时间，单位ms。 enqueue text 工作负载管理资源状态。 resource_pool name 用户使用的资源池。 control_group text 语句所使用的Cgroup。 estimate_memory integer 语句预估使用内存，单位MB。 min_peak_memory integer 语句在数据库实例上的最小内存峰值，单位MB。 max_peak_memory integer 语句在数据库实例上的最大内存峰值，单位MB。 average_peak_memory integer 语句执行过程中的内存使用平均值，单位MB。 memory_skew_percent integer 语句在数据库实例间的内存使用倾斜率。 spill_info text 语句在数据库实例上的下盘信息： None：数据库实例均未下盘。 All：数据库实例均下盘。 [a:b]：数量为b个数据库实例中有a个数据库实例下盘。 min_spill_size integer 若发生下盘，数据库实例上下盘的最小数据量，单位MB，默认为0。 max_spill_size integer 若发生下盘，数据库实例上下盘的最大数据量，单位MB，默认为0。 average_spill_size integer 若发生下盘，数据库实例上下盘的平均数据量，单位MB，默认为0。 spill_skew_percent integer 若发生下盘，数据库实例间下盘倾斜率。 min_dn_time bigint 语句在数据库实例上的最小执行时间，单位ms。 max_dn_time bigint 语句在数据库实例上的最大执行时间，单位ms。 average_dn_time bigint 语句在数据库实例上的平均执行时间，单位ms。 dntime_skew_percent integer 语句在数据库实例间的执行时间倾斜率。 min_cpu_time bigint 语句在数据库实例上的最小CPU时间，单位ms。 max_cpu_time bigint 语句在数据库实例上的最大CPU时间，单位ms。 total_cpu_time bigint 语句在数据库实例上的CPU总时间，单位ms。 cpu_skew_percent integer 语句在数据库实例间的CPU时间倾斜率。 min_peak_iops integer 语句在数据库实例上的每秒最小IO峰值（单位是万次/s）。 max_peak_iops integer 语句在数据库实例上的每秒最大IO峰值（单位是万次/s）。 average_peak_iops integer 语句在数据库实例上的每秒平均IO峰值（单位是万次/s）。 iops_skew_percent integer 语句在数据库实例间的IO倾斜率。 warning text 主要显示如下几类告警信息： Spill file size large than 256MB Broadcast size large than 100MB Early spill Spill times is greater than 3 Spill on memory adaptive Hash table conflict queryid bigint 语句执行使用的内部query id。 query text 正在执行的语句。 query_plan text 语句的执行计划。 node_group text 语句所属用户对应的逻辑数据库实例。 top_cpu_dn text cpu使用量topN信息。 top_mem_dn text 内存使用量topN信息。",
+      "source_file": "3705_GS_WLM_SESSION_STATISTICS.txt"
+    },
+    {
+      "term": "透明加密",
+      "content": "透明加密 透明加密 PG_TDE_INFO",
+      "source_file": "1763_file_1763.txt"
+    },
+    {
+      "term": "PG_SESSION_WLMSTAT",
+      "content": "PG_SESSION_WLMSTAT PG_SESSION_WLMSTAT PG_SESSION_WLMSTAT视图显示当前用户执行作业正在运行时的负载管理相关信息。查询该视图需要sysadmin权限。 表1 PG_SESSION_WLMSTAT字段 名称 类型 描述 datid oid 连接后端的数据库OID。 datname name 连接后端的数据库名称。 threadid bigint 后端线程ID。 sessionid bigint 会话ID。 processid integer 后端线程的pid。 usesysid oid 登录后端的用户OID。 appname text 连接到后端的应用名。 usename name 登录到该后端的用户名。 priority bigint 语句所在Cgroups的优先级。 attribute text 语句的属性： Ordinary：语句发送到数据库后被解析前的默认属性。 Simple：简单语句。 Complicated：复杂语句。 Internal：数据库内部语句。 Unknown：未知。 block_time bigint 语句当前为止的pending的时间，单位s。 elapsed_time bigint 语句当前为止的实际执行时间，单位s。 total_cpu_time bigint 语句在上一时间周期内的数据库实例上CPU使用的总时间，单位s。 cpu_skew_percent integer 语句在上一时间周期内的数据库实例上CPU使用的倾斜率。 statement_mem integer 语句执行使用的statement_mem，预留字段。 active_points integer 语句占用的资源池并发点数。 dop_value integer 语句的从资源池中获取的dop值。 control_group text 该字段不支持。 status text 语句当前的状态，包括： pending：执行前状态。 running：执行进行状态。 finished：执行正常结束。（当enqueue字段为StoredProc或Transaction时，仅代表语句中的部分作业已经执行完毕，该状态会持续到该语句完全执行完毕。） aborted：执行异常终止。 active: 非以上四种状态外的正常状态。 unknown: 未知状态。 enqueue text 该字段不支持。 resource_pool name 语句当前所在的资源池。 query text 该后端的最新查询。如果state状态是active（活的），此字段显示当前正在执行的查询。所有其他情况表示上一个查询。 is_plana boolean 该字段不支持。 node_group text 该字段不支持。",
+      "source_file": "3707_PG_SESSION_WLMSTAT.txt"
+    },
+    {
+      "term": "PGXC_WLM_WORKLOAD_RECORDS",
+      "content": "PGXC_WLM_WORKLOAD_RECORDS PGXC_WLM_WORKLOAD_RECORDS PGXC_WLM_WORKLOAD_RECORDS视图显示当前用户在每个CN上执行作业时在CN上的状态信息。查询该视图需要sysadmin权限。具体字段信息如 表1 所示。 当前特性是实验室特性，使用时请联系华为技术工程师提供技术支持。 当查询视图无数据显示时，请联系华为工程师提供技术支撑。 表1 PGXC_WLM_WORKLOAD_RECORDS字段 名称 类型 描述 node_name text 作业执行所在的CN的name thread_id bigint 后端线程id。 processid integer 线程的lwpid。 time_stamp bigint 语句执行的开始时间。 username name 登录到该后端的用户名。 memory integer 语句所需的内存大小。 active_points integer 语句在资源池上消耗的资源点数。 max_points integer 资源在资源池上的最大资源数。 priority integer 作业的优先级。数字越大优先级越高。 resource_pool text 作业所在资源池。 status text 作业执行的状态，包括： pending： 阻塞状态。 running：执行状态。 finished：结束状态。 aborted：终止状态。 unkown：未知状态。 control_group text 作业所使用的Cgroups。 enqueue text 作业的排队信息，包括： GLOBAL：全局排队。 RESPOOL：资源池排队。 ACTIVE：不排队。 query text 正在执行的语句。 node_group text 语句所属的nodegroup。",
+      "source_file": "2022_PGXC_WLM_WORKLOAD_RECORDS.txt"
+    },
+    {
+      "term": "PGXC_WLM_EC_OPERATOR_HISTORY",
+      "content": "PGXC_WLM_EC_OPERATOR_HISTORY PGXC_WLM_EC_OPERATOR_HISTORY PGXC_WLM_EC_OPERATOR_HISTORY视图显示在所有CN上执行的EC（Extension Connector）作业结束时的算子信息。查询该视图需要sysadmin权限。此视图从数据库中查询的数据，视图中的记录会定时被清理，清理周期为3分钟。具体的字段请参见 GS_WLM_EC_OPERATOR_INFO 的字段。 当查询视图无数据显示时，请联系华为工程师提供技术支撑。",
+      "source_file": "2013_PGXC_WLM_EC_OPERATOR_HISTORY.txt"
+    },
+    {
+      "term": "GS_WLM_SESSION_HISTORY",
+      "content": "GS_WLM_SESSION_HISTORY GS_WLM_SESSION_HISTORY GS_WLM_SESSION_HISTORY视图显示当前用户在 当前CN 上执行作业结束后的负载管理 （当前特性是实验室特性，使用时请联系华为技术工程师提供技术支持。） 记录。查询该视图需要sysadmin或者monitor admin权限。具体字段信息如 表1 所示。 GaussDB 中的数据会定时被清理，清理周期为3分钟。当GUC参数enable_resource_record为on时，视图中的记录每隔3分钟被转储到系统表 GS_WLM_SESSION_QUERY_INFO_ALL 中一次，同时视图中的记录被删除；当GUC参数enable_resource_record为off时，记录在视图中的存留时间达到超期时间（超期时间为3分钟）后会被删除。 当查询视图无数据显示时，请联系华为工程师提供技术支撑。 表1 GS_WLM_SESSION_HISTORY的字段 名称 类型 描述 datid oid 连接后端的数据库OID。 dbname text 连接后端的数据库名称。 schemaname text 模式的名称。 nodename text 语句执行的 CN 名称。 username text 连接到后端的用户名。 application_name text 连接到后端的应用名。 client_addr inet 连接到后端的客户端的IP地址。 如果此字段是null，它表明通过服务器机器上UNIX套接字连接客户端或者这是内部进程，如autovacuum。 client_hostname text 客户端的主机名，这个字段是通过client_addr的反向DNS查找得到。这个字段只有在启动log_hostname且使用IP连接时才非空。 client_port integer 客户端用于与后端通讯的TCP端口号，如果使用Unix套接字，则为-1。 query_band text 用于标示作业类型，可通过GUC参数query_band进行设置，默认为空字符串。 block_time bigint 语句执行前的阻塞时间，包含语句解析和优化时间，单位ms。 start_time timestamp with time zone 语句执行的开始时间。 finish_time timestamp with time zone 语句执行的结束时间。 duration bigint 语句实际执行的时间，单位ms。 estimate_total_time bigint 语句预估执行时间，单位ms。 status text 语句执行结束状态：正常为finished，异常为aborted。 abort_info text 语句执行结束状态为aborted时显示异常信息。 resource_pool text 用户使用的资源池。 control_group text 语句所使用的Cgroup。 estimate_memory integer 语句估算内存大小。 min_peak_memory integer 语句在 所有DN 上的最小内存峰值，单位MB。 max_peak_memory integer 语句在 所有DN 上的最大内存峰值，单位MB。 average_peak_memory integer 语句执行过程中的内存使用平均值，单位MB。 memory_skew_percent integer 语句 各DN 间的内存使用倾斜率。 spill_info text 语句在 所有DN 上的下盘信息： None： 所有DN 均未下盘。 All: 所有DN 均下盘。 [a:b]: 数量为b个 DN 中有a个 DN 下盘。 min_spill_size integer 若发生下盘， 所有DN 上下盘的最小数据量，单位MB，默认为0。 max_spill_size integer 若发生下盘， 所有DN 上下盘的最大数据量，单位MB，默认为0。 average_spill_size integer 若发生下盘， 所有DN 上下盘的平均数据量，单位MB，默认为0。 spill_skew_percent integer 若发生下盘， DN 间下盘倾斜率。 min_dn_time bigint 语句在 所有DN 上的最小执行时间，单位ms。 max_dn_time bigint 语句在 所有DN 上的最大执行时间，单位ms。 average_dn_time bigint 语句在 所有DN 上的平均执行时间，单位ms。 dntime_skew_percent integer 语句在 各DN 间的执行时间倾斜率。 min_cpu_time bigint 语句在 所有DN 上的最小CPU时间，单位ms。 max_cpu_time bigint 语句在 所有DN 上的最大CPU时间，单位ms。 total_cpu_time bigint 语句在 所有DN 上的CPU总时间，单位ms。 cpu_skew_percent integer 语句在 DN 间的CPU时间倾斜率。 min_peak_iops integer 语句在 所有DN 上的每秒最小IO峰值（单位是万次/s）。 max_peak_iops integer 语句在 所有DN 上的每秒最大IO峰值（单位是万次/s）。 average_peak_iops integer 语句在 所有DN 上的每秒平均IO峰值（单位是万次/s）。 iops_skew_percent integer 语句在 DN 间的IO倾斜率。 warning text 主要显示如下几类告警信息以及 SQL自诊断 相关告警： Spill file size large than 256MB Broadcast size large than 100MB Early spill Spill times is greater than 3 Spill on memory adaptive Hash table conflict queryid bigint 语句执行使用的内部query id。 query text 执行的语句。 query_plan text 语句的执行计划。 cpu_top1_node_name text cpu使用率第1的节点名称。 cpu_top2_node_name text cpu使用率第2的节点名称。 cpu_top3_node_name text cpu使用率第3的节点名称。 cpu_top4_node_name text cpu使用率第4的节点名称。 cpu_top5_node_name text cpu使用率第5的节点名称。 mem_top1_node_name text 内存使用量第1的节点名称。 mem_top2_node_name text 内存使用量第2的节点名称。 mem_top3_node_name text 内存使用量第3的节点名称。 mem_top4_node_name text 内存使用量第4的节点名称。 mem_top5_node_name text 内存使用量第5的节点名称。 cpu_top1_value bigint cpu使用率。 cpu_top2_value bigint cpu使用率。 cpu_top3_value bigint cpu使用率。 cpu_top4_value bigint cpu使用率。 cpu_top5_value bigint cpu使用率。 mem_top1_value bigint 内存使用量。 mem_top2_value bigint 内存使用量。 mem_top3_value bigint 内存使用量。 mem_top4_value bigint 内存使用量。 mem_top5_value bigint 内存使用量。 top_mem_dn text 内存使用量topN信息。 top_cpu_dn text cpu使用量topN信息。",
+      "source_file": "2005_GS_WLM_SESSION_HISTORY.txt"
+    },
+    {
+      "term": "GS_WLM_USER_SESSION_INFO",
+      "content": "GS_WLM_USER_SESSION_INFO GS_WLM_USER_SESSION_INFO GS_WLM_USER_SESSION_INFO 视图显示当前用户在 所有CN节点 上执行作业结束后的负载管理 （当前特性是实验室特性，使用时请联系华为技术工程师提供技术支持。） 记录。此视图的数据直接从系统表 GS_WLM_SESSION_QUERY_INFO_ALL 获取。具体的字段请参见 GS_WLM_SESSION_HISTORY 的字段信息。查询该视图需要sysadmin权限，且仅在数据库postgres下面查询时有数据。 当查询视图无数据显示时，请联系华为工程师提供技术支撑。",
+      "source_file": "2009_GS_WLM_USER_SESSION_INFO.txt"
+    },
+    {
+      "term": "GS_SESSION_MEMORY_STATISTICS",
+      "content": "GS_SESSION_MEMORY_STATISTICS GS_SESSION_MEMORY_STATISTICS GS_SESSION_MEMORY_STATISTICS视图显示和当前用户执行复杂作业正在运行时的负载管理内存使用的信息。 表1 GS_SESSION_MEMORY_STATISTICS字段 名称 类型 描述 datid oid 连接后端的数据库OID。 usename name 登录到该后端的用户名。 pid bigint 后端线程ID。 start_time timestamp with time zone 语句执行的开始时间。 min_peak_memory integer 语句在数据库节点上的最小内存峰值大小，单位MB。 max_peak_memory integer 语句在数据库节点上的最大内存峰值大小，单位MB。 spill_info text 语句在数据库节点上的下盘信息： None：数据库节点均未下盘。 All：数据库节点均下盘。 [a:b]：数量为b个数据库节点中有a个数据库节点下盘。 query text 正在执行的语句。 node_group text 该字段不支持。 top_mem_dn text mem使用量信息。",
+      "source_file": "3698_GS_SESSION_MEMORY_STATISTICS.txt"
+    },
+    {
+      "term": "PGXC_WLM_EC_OPERATOR_STATISTICS",
+      "content": "PGXC_WLM_EC_OPERATOR_STATISTICS PGXC_WLM_EC_OPERATOR_STATISTICS PGXC_WLM_EC_OPERATOR_STATISTICS视图显示所有CN上正在执行的EC（Extension Connector）作业的算子信息。查询该视图需要sysadmin权限。具体的字段请参见 GS_WLM_EC_OPERATOR_STATISTICS 的字段信息。 当查询视图无数据显示时，请联系华为工程师提供技术支撑。",
+      "source_file": "2015_PGXC_WLM_EC_OPERATOR_STATISTICS.txt"
+    },
+    {
+      "term": "其他系统视图",
+      "content": "其他系统视图 其他系统视图 ADM_ARGUMENTS ADM_COL_COMMENTS ADM_COLL_TYPES ADM_CONS_COLUMNS ADM_CONSTRAINTS ADM_DATA_FILES ADM_DEPENDENCIES ADM_DIRECTORIES ADM_HIST_SNAPSHOT ADM_HIST_SQL_PLAN ADM_HIST_SQLSTAT ADM_HIST_SQLTEXT ADM_INDEXES ADM_IND_COLUMNS ADM_IND_EXPRESSIONS ADM_OBJECTS ADM_PROCEDURES ADM_SCHEDULER_JOB_ARGS ADM_SCHEDULER_JOBS ADM_SCHEDULER_PROGRAM_ARGS ADM_SCHEDULER_PROGRAMS ADM_SCHEDULER_RUNNING_JOBS ADM_SEGMENTS ADM_SEQUENCES ADM_SOURCE ADM_SYNONYMS ADM_TAB_COL_STATISTICS ADM_TAB_COLS ADM_TAB_COLUMNS ADM_TAB_COMMENTS ADM_TAB_HISTOGRAMS ADM_TAB_STATISTICS ADM_TAB_STATS_HISTORY ADM_TABLES ADM_TABLESPACES ADM_TRIGGERS ADM_TYPE_ATTRS ADM_TYPES ADM_VIEWS DB_ARGUMENTS DB_ALL_TABLES DB_COL_COMMENTS DB_COLL_TYPES DB_CONS_COLUMNS DB_CONSTRAINTS DB_DEPENDENCIES DB_IND_COLUMNS DB_IND_EXPRESSIONS DB_INDEXES DB_OBJECTS DB_PROCEDURES DB_SCHEDULER_JOB_ARGS DB_SCHEDULER_PROGRAM_ARGS DB_SEQUENCES DB_SOURCE DB_SYNONYMS DB_TAB_COL_STATISTICS DB_TAB_COLUMNS DB_TAB_COMMENTS DB_TAB_HISTOGRAMS DB_TAB_MODIFICATIONS DB_TAB_STATS_HISTORY DB_TABLES DB_TRIGGERS DB_TYPES DB_VIEWS DICT DICTIONARY DV_SESSIONS DV_SESSION_LONGOPS GET_GLOBAL_PREPARED_XACTS GLOBAL_BAD_BLOCK_INFO GLOBAL_CLEAR_BAD_BLOCK_INFO GLOBAL_SQL_PATCH GLOBAL_STAT_HOTKEYS_INFO GLOBAL_WAL_SENDER_STATUS GS_ALL_CONTROL_GROUP_INFO GS_ALL_PREPARED_STATEMENTS GS_GET_CONTROL_GROUP_INFO GS_GSC_MEMORY_DETAIL GS_LSC_MEMORY_DETAIL GS_MY_PLAN_TRACE GS_SESSION_ALL_SETTINGS GS_SQL_COUNT GS_STAT_DB_CU GS_STAT_SESSION_CU GS_TOTAL_NODEGROUP_MEMORY_DETAIL GS_WORKLOAD_RULE_STAT GV_INSTANCE GV_SESSION MPP_TABLES MY_AUDIT_TRAIL MY_COL_COMMENTS MY_COLL_TYPES MY_CONS_COLUMNS MY_CONSTRAINTS MY_DEPENDENCIES MY_INDEXES MY_IND_COLUMNS MY_IND_EXPRESSIONS MY_JOBS MY_OBJECTS MY_PROCEDURES MY_SCHEDULER_JOB_ARGS MY_SCHEDULER_JOBS MY_SCHEDULER_PROGRAM_ARGS MY_SEQUENCES MY_SOURCE MY_SYNONYMS MY_TAB_COLUMNS MY_TAB_COL_STATISTICS MY_TAB_COMMENTS MY_TAB_HISTOGRAMS MY_TAB_MODIFICATIONS MY_TAB_STATS_HISTORY MY_TAB_STATISTICS MY_TABLES MY_TABLESPACES MY_TRIGGERS MY_TYPE_ATTRS MY_TYPES MY_VIEWS NLS_DATABASE_PARAMETERS NLS_INSTANCE_PARAMETERS PG_AVAILABLE_EXTENSIONS PG_AVAILABLE_EXTENSION_VERSIONS PG_CONTROL_GROUP_CONFIG PG_CURSORS PG_EXT_STATS PG_GET_SENDERS_CATCHUP_TIME PG_GROUP PG_INDEXES PG_LOCKS PG_NODE_ENV PG_OS_THREADS PG_PREPARED_STATEMENTS PG_PREPARED_XACTS PG_PUBLICATION_TABLES PG_REPLICATION_SLOTS PG_RULES PG_RUNNING_XACTS PG_SESSION_IOSTAT PG_SETTINGS PG_SHARED_MEMORY_DETAIL PG_STATS PG_STAT_ACTIVITY PG_STAT_ACTIVITY_NG PG_STAT_ALL_INDEXES PG_STAT_ALL_TABLES PG_STAT_BAD_BLOCK PG_STAT_BGWRITER PG_STAT_DATABASE PG_STAT_DATABASE_CONFLICTS PG_STAT_REPLICATION PG_STAT_SUBSCRIPTION PG_STAT_SYS_INDEXES PG_STAT_SYS_TABLES PG_STAT_USER_FUNCTIONS PG_STAT_USER_INDEXES PG_STAT_USER_TABLES PG_STAT_XACT_ALL_TABLES PG_STAT_XACT_SYS_TABLES PG_STAT_XACT_USER_FUNCTIONS PG_STAT_XACT_USER_TABLES PG_STATIO_ALL_INDEXES PG_STATIO_ALL_SEQUENCES PG_STATIO_ALL_TABLES PG_STATIO_SYS_INDEXES PG_STATIO_SYS_SEQUENCES PG_STATIO_SYS_TABLES PG_STATIO_USER_INDEXES PG_STATIO_USER_SEQUENCES PG_STATIO_USER_TABLES PG_THREAD_WAIT_STATUS PG_TABLES PG_TIMEZONE_ABBREVS PG_TIMEZONE_NAMES PG_TOTAL_MEMORY_DETAIL PG_TOTAL_USER_RESOURCE_INFO PG_TOTAL_USER_RESOURCE_INFO_OID PG_VARIABLE_INFO PG_VIEWS PGXC_GET_STAT_ALL_TABLES PGXC_GET_TABLE_SKEWNESS PGXC_NODE_ENV PGXC_OS_THREADS PGXC_PREPARED_XACTS PGXC_RUNNING_XACTS PGXC_STAT_ACTIVITY PGXC_STAT_BAD_BLOCK PGXC_SQL_COUNT PGXC_THREAD_WAIT_STATUS PGXC_TOTAL_MEMORY_DETAIL PGXC_VARIABLE_INFO PLAN_TABLE PV_FILE_STAT PV_INSTANCE_TIME PV_OS_RUN_INFO PV_REDO_STAT PV_SESSION_MEMORY PV_SESSION_MEMORY_CONTEXT PV_SESSION_MEMORY_DETAIL PV_SESSION_STAT PV_SESSION_TIME PV_THREAD_MEMORY_CONTEXT PV_TOTAL_MEMORY_DETAIL SYS_DUMMY V_INSTANCE V_MYSTAT V_SESSION V$GLOBAL_OPEN_CURSOR V$GLOBAL_TRANSACTION V$LOCK V$NLS_PARAMETERS V$OPEN_CURSOR V$SESSION_WAIT V$SYSSTAT V$SYSTEM_EVENT V$VERSION",
+      "source_file": "1770_file_1770.txt"
+    },
+    {
+      "term": "GS_WLM_SESSION_INFO_ALL",
+      "content": "GS_WLM_SESSION_INFO_ALL GS_WLM_SESSION_INFO_ALL GS_WLM_SESSION_INFO_ALL视图显示在数据库实例上执行作业结束后的负载管理记录。查询该视图需要sysadmin或者monitor admin权限。 当查询视图无数据显示时，请联系华为工程师提供技术支撑。 表1 GS_WLM_SESSION_INFO_ALL的字段 名称 类型 描述 datid oid 连接后端的数据库OID。 dbname text 连接后端的数据库名称。 schemaname text 模式的名称。 nodename text 语句执行的 CN 名称。 username text 连接到后端的用户名。 application_name text 连接到后端的应用名。 client_addr inet 连接到后端的客户端的IP地址。如果此字段是null，它表明通过服务器机器上UNIX套接字连接客户端或者这是内部进程，如autovacuum。 client_hostname text 客户端的主机名，这个字段是通过client_addr的反向DNS查找得到。这个字段只有在启动log_hostname且使用IP连接时才非空。 client_port integer 客户端用于与后端通讯的TCP端口号，如果使用Unix套接字，则为-1。 query_band text 用于标示作业类型，可通过GUC参数query_band进行设置，默认为空字符串。 block_time bigint 语句执行前的阻塞时间，包含语句解析和优化时间，单位ms。 start_time timestamp with time zone 语句执行的开始时间。 finish_time timestamp with time zone 语句执行的结束时间。 duration bigint 语句实际执行的时间，单位ms。 estimate_total_time bigint 语句预估执行时间，单位ms。 status text 语句执行结束状态：正常为finished，异常为aborted。 abort_info text 语句执行结束状态为aborted时显示异常信息。 resource_pool text 用户使用的资源池。 control_group text 语句所使用的Cgroup。 estimate_memory integer 语句估算内存大小。 min_peak_memory integer 语句在 所有DN 上的最小内存峰值，单位MB。 max_peak_memory integer 语句在 所有DN 上的最大内存峰值，单位MB。 average_peak_memory integer 语句执行过程中的内存使用平均值，单位MB。 memory_skew_percent integer 语句 各DN 间的内存使用倾斜率。 spill_info text 语句在 所有DN 上的下盘信息： None： 所有DN 均未下盘。 All： 所有DN 均下盘。 [a:b]：数量为b个 DN 中有a个 DN 下盘。 min_spill_size integer 若发生下盘， 所有DN 上下盘的最小数据量，单位MB，默认为0。 max_spill_size integer 若发生下盘， 所有DN 上下盘的最大数据量，单位MB，默认为0。 average_spill_size integer 若发生下盘， 所有DN 上下盘的平均数据量，单位MB，默认为0。 spill_skew_percent integer 若发生下盘， DN 间下盘倾斜率。 min_dn_time bigint 语句在 所有DN 上的最小执行时间，单位ms。 max_dn_time bigint 语句在 所有DN 上的最大执行时间，单位ms。 average_dn_time bigint 语句在 所有DN 上的平均执行时间，单位ms。 dntime_skew_percent integer 语句在 各DN 间的执行时间倾斜率。 min_cpu_time bigint 语句在 所有DN 上的最小CPU时间，单位ms。 max_cpu_time bigint 语句在 所有DN 上的最大CPU时间，单位ms。 total_cpu_time bigint 语句在 所有DN 上的CPU总时间，单位ms。 cpu_skew_percent integer 语句在 DN 间的CPU时间倾斜率。 min_peak_iops integer 语句在 所有DN 上的每秒最小IO峰值（单位是万次/s）。 max_peak_iops integer 语句在 所有DN 上的每秒最大IO峰值（单位是万次/s）。 average_peak_iops integer 语句在 所有DN 上的每秒平均IO峰值（单位是万次/s）。 iops_skew_percent integer 语句在 DN 间的IO倾斜率。 warning text 主要显示如下几类告警信息以及 SQL自诊断 相关告警： Spill file size large than 256MB Broadcast size large than 100MB Early spill Spill times is greater than 3 Spill on memory adaptive Hash table conflict queryid bigint 语句执行使用的内部query id。 query text 执行的语句。 query_plan text 语句的执行计划。 cpu_top1_node_name text cpu使用率第1的节点名称。 cpu_top2_node_name text cpu使用率第2的节点名称。 cpu_top3_node_name text cpu使用率第3的节点名称。 cpu_top4_node_name text cpu使用率第4的节点名称。 cpu_top5_node_name text cpu使用率第5的节点名称。 mem_top1_node_name text 内存使用量第1的节点名称。 mem_top2_node_name text 内存使用量第2的节点名称。 mem_top3_node_name text 内存使用量第3的节点名称。 mem_top4_node_name text 内存使用量第4的节点名称。 mem_top5_node_name text 内存使用量第5的节点名称。 cpu_top1_value bigint cpu使用率。 cpu_top2_value bigint cpu使用率。 cpu_top3_value bigint cpu使用率。 cpu_top4_value bigint cpu使用率。 cpu_top5_value bigint cpu使用率。 mem_top1_value bigint 内存使用量。 mem_top2_value bigint 内存使用量。 mem_top3_value bigint 内存使用量。 mem_top4_value bigint 内存使用量。 mem_top5_value bigint 内存使用量。 top_mem_dn text 内存使用量topN信息。 top_cpu_dn text cpu使用量topN信息。 n_returned_rows bigint SELECT返回的结果集行数。 n_tuples_fetched bigint 随机扫描行。 n_tuples_returned bigint 顺序扫描行。 n_tuples_inserted bigint 插入行。 n_tuples_updated bigint 更新行。 n_tuples_deleted bigint 删除行。 n_blocks_fetched bigint buffer的块访问次数。 n_blocks_hit bigint buffer的块命中次数。 db_time bigint 有效的DB时间花费，多线程将累加（单位：微秒）。 cpu_time bigint CPU时间（单位：微秒）。 execution_time bigint 执行器内执行时间（单位：微秒）。 parse_time bigint SQL解析时间（单位：微秒）。 plan_time bigint SQL生成计划时间（单位：微秒）。 rewrite_time bigint SQL重写时间（单位：微秒）。 pl_execution_time bigint plpgsql上的执行时间（单位：微秒）。 pl_compilation_time bigint plpgsql上的编译时间（单位：微秒）。 net_send_time bigint 网络上的时间花费（单位：微秒）。 data_io_time bigint IO上的时间花费（单位：微秒）。 is_slow_query bigint 是否是慢SQL记录。",
+      "source_file": "3704_GS_WLM_SESSION_INFO_ALL.txt"
+    },
+    {
+      "term": "GS_WLM_OPERATOR_STATISTICS",
+      "content": "GS_WLM_OPERATOR_STATISTICS GS_WLM_OPERATOR_STATISTICS GS_WLM_OPERATOR_STATISTICS视图显示当前用户正在执行的作业的算子相关信息。查询该视图需要sysadmin权限。 当查询视图无数据显示时，请联系华为工程师提供技术支撑。 表1 GS_WLM_OPERATOR_STATISTICS的字段 名称 类型 描述 queryid bigint 语句执行使用的内部query_id。 pid bigint 后端线程id。 plan_node_id integer 查询对应的执行计划的plan node id。 plan_node_name text 对应于plan_node_id的算子的名称。 start_time timestamp with time zone 该算子处理第一条数据的开始时间。 duration bigint 该算子到结束时候总的执行时间（ms）。 status text 当前算子的执行状态，包括finished和running。 query_dop integer 当前算子执行时的并行度。 estimated_rows bigint 优化器估算的行数信息。 tuple_processed bigint 当前算子返回的元素个数。 min_peak_memory integer 当前算子在数据库实例上的最小内存峰值（MB）。 max_peak_memory integer 当前算子在数据库实例上的最大内存峰值（MB）。 average_peak_memory integer 当前算子在数据库实例上的平均内存峰值（MB）。 memory_skew_percent integer 当前算子在数据库实例间的内存使用倾斜率。 min_spill_size integer 若发生下盘，数据库实例上下盘的最小数据量（MB)，默认为0。 max_spill_size integer 若发生下盘，数据库实例上下盘的最大数据量（MB），默认为0。 average_spill_size integer 若发生下盘，数据库实例上下盘的平均数据量（MB），默认为0。 spill_skew_percent integer 若发生下盘，数据库实例间下盘倾斜率。 min_cpu_time bigint 该算子在数据库实例上的最小执行时间（ms)。 max_cpu_time bigint 该算子在数据库实例上的最大执行时间（ms)。 total_cpu_time bigint 该算子在数据库实例上的总执行时间(ms)。 cpu_skew_percent integer 数据库实例间执行时间的倾斜率。 warning text 主要显示如下几类告警信息： Sort/SetOp/HashAgg/HashJoin spill Spill file size large than 256MB Broadcast size large than 100MB Early spill Spill times is greater than 3 Spill on memory adaptive Hash table conflict",
+      "source_file": "3700_GS_WLM_OPERATOR_STATISTICS.txt"
+    },
+    {
+      "term": "GS_WLM_SESSION_INFO",
+      "content": "GS_WLM_SESSION_INFO GS_WLM_SESSION_INFO GS_WLM_SESSION_INFO视图显示 当前CN 执行作业结束后的负载管理 （当前特性是实验室特性，使用时请联系华为技术工程师提供技术支持。） 记录。查询该视图需要sysadmin权限。 此数据是从内核中转储到系统表中的数据。当设置GUC参数enable_resource_record为on时，系统会定时（周期为3分钟）将内核中query信息导入GS_WLM_SESSION_QUERY_INFO_ALL系统表，开启此功能会占用系统存储空间并对性能有一定影响。用户通过查询GS_WLM_SESSION_INFO视图，可以查看已经转储的TOP SQL信息。具体的字段请参见 GS_WLM_SESSION_HISTORY 的字段信息。 当查询视图无数据显示时，请联系华为工程师提供技术支撑。",
+      "source_file": "2006_GS_WLM_SESSION_INFO.txt"
+    },
+    {
+      "term": "PGXC_WLM_EC_OPERATOR_INFO",
+      "content": "PGXC_WLM_EC_OPERATOR_INFO PGXC_WLM_EC_OPERATOR_INFO PGXC_WLM_EC_OPERATOR_INFO视图显示在所有CN上执行的EC（Extension Connector）作业结束时的算子信息。查询该视图需要sysadmin权限。此视图的数据直接从系统表 GS_WLM_EC_OPERATOR_INFO 获取，具体的字段请参见 GS_WLM_EC_OPERATOR_INFO 的字段信息。 当查询视图无数据显示时，请联系华为工程师提供技术支撑。",
+      "source_file": "2014_PGXC_WLM_EC_OPERATOR_INFO.txt"
+    },
+    {
+      "term": "OLTP表压缩",
+      "content": "OLTP表压缩 OLTP表压缩 GS_ADM_ILMDATAMOVEMENTPOLICIES GS_ADM_ILMOBJECTS GS_ADM_ILMPOLICIES GS_ADM_ILMEVALUATIONDETAILS GS_ADM_ILMPARAMETERS GS_ADM_ILMRESULTS GS_ADM_ILMTASKS GS_MY_ILMEVALUATIONDETAILS GS_MY_ILMRESULTS GS_MY_ILMTASKS GS_MY_ILMDATAMOVEMENTPOLICIES GS_MY_ILMOBJECTS GS_MY_ILMPOLICIES",
+      "source_file": "1679_OLTP.txt"
+    },
+    {
+      "term": "PG_WLM_STATISTICS",
+      "content": "PG_WLM_STATISTICS PG_WLM_STATISTICS PG_WLM_STATISTICS视图显示作业结束后或已被处理异常后的负载管理 （当前特性是实验室特性，使用时请联系华为技术工程师提供技术支持。） 相关信息。查询该视图需要sysadmin权限。具体字段信息如 表1 所示。 表1 PG_WLM_STATISTICS字段 名称 类型 描述 statement text 执行了异常处理的语句。 block_time bigint 语句执行前的阻塞时间。 elapsed_time bigint 语句的实际执行时间。 total_cpu_time bigint 语句执行异常处理时 DN 上CPU使用的总时间。 qualification_time bigint 语句检查倾斜率的时间周期。 cpu_skew_percent integer 语句在执行异常处理时 DN 上CPU使用的倾斜率。 control_group text 语句执行异常处理时所使用的Cgroups。 status text 语句执行异常处理后的状态，包括： pending：执行前预备状态。 running：执行进行状态。 finished：执行正常结束。 abort：执行异常终止。 action text 语句执行的异常处理动作，包括： abort：执行终止操作。 adjust：执行Cgroups调整操作，目前只有降级操作。 finish：正常结束。",
+      "source_file": "2012_PG_WLM_STATISTICS.txt"
+    },
+    {
+      "term": "DATABASE",
+      "content": "DATABASE LINK DATABASE LINK GS_DB_LINKS V$DBLINK",
+      "source_file": "1765_DATABASE LINK.txt"
+    },
+    {
+      "term": "GS_SESSION_CPU_STATISTICS",
+      "content": "GS_SESSION_CPU_STATISTICS GS_SESSION_CPU_STATISTICS GS_SESSION_CPU_STATISTICS视图显示当前用户执行复杂作业正在运行时的负载管理 （当前特性是实验室特性，使用时请联系华为技术工程师提供技术支持。） CPU使用的信息。查询该视图需要sysadmin权限。具体字段信息如 表1 所示。 表1 GS_SESSION_CPU_STATISTICS字段 名称 类型 描述 datid oid 连接后端的数据库OID。 usename name 登录到该后端的用户名。 pid bigint 后端线程id。 start_time timestamp with time zone 语句执行的开始时间。 min_cpu_time bigint 语句在 所有DN 上的最小CPU时间，单位为ms。 max_cpu_time bigint 语句在 所有DN 上的最大CPU时间，单位为ms。 total_cpu_time bigint 语句在 所有DN 上的CPU总时间，单位为ms。 query text 正在执行的语句。 top_cpu_dn text CPU使用量topN信息。",
+      "source_file": "2000_GS_SESSION_CPU_STATISTICS.txt"
+    },
+    {
+      "term": "GS_WLM_RESOURCE_POOL",
+      "content": "GS_WLM_RESOURCE_POOL GS_WLM_RESOURCE_POOL 视图显示资源池上的部分统计信息。具体字段信息如 表1 所示。 当前特性是实验室特性，使用时请联系华为技术工程师提供技术支持。 当查询视图无数据显示时，请联系华为工程师提供技术支撑。 表1 GS_WLM_RESOURCE_POOL的字段 名称 类型 描述 rpoid oid 资源池的OID。 respool name 资源池的名称。 control_group name 资源池的控制组。 parentid oid 父资源池的OID。 ref_count integer 关联到该资源池上的作业数量。 active_points integer 资源池上已经使用的点数。 running_count integer 正在资源池上运行的作业数量。 waiting_count integer 正在资源池上排队的作业数量。 io_limits integer 资源池的iops上限。 io_priority integer 资源池的I/O优先级。",
+      "source_file": "2004_GS_WLM_RESOURCE_POOL.txt"
+    },
+    {
+      "term": "PGXC_WLM_OPERATOR_INFO",
+      "content": "PGXC_WLM_OPERATOR_INFO PGXC_WLM_OPERATOR_INFO PGXC_WLM_OPERATOR_INFO视图显示在所有CN上执行作业结束时的算子信息。查询该视图需要sysadmin权限。 当前特性是实验室特性，使用时请联系华为技术工程师提供技术支持。 此视图的数据直接从系统表 GS_WLM_OPERATOR_INFO 获取。具体的字段请参见 GS_WLM_OPERATOR_INFO 的字段信息。 当查询视图无数据显示时，请联系华为工程师提供技术支撑。",
+      "source_file": "2017_PGXC_WLM_OPERATOR_INFO.txt"
+    },
+    {
+      "term": "PG_WLM_STATISTICS",
+      "content": "PG_WLM_STATISTICS PG_WLM_STATISTICS PG_WLM_STATISTICS视图显示作业结束后或已被处理异常后的负载管理相关信息。查询该视图需要sysadmin权限。 表1 PG_WLM_STATISTICS字段 名称 类型 描述 statement text 执行了异常处理的语句。 block_time bigint 语句执行前的阻塞时间。 elapsed_time bigint 语句的实际执行时间。 total_cpu_time bigint 语句执行异常处理时数据库实例上CPU使用的总时间。 qualification_time bigint 语句检查倾斜率的时间周期。 cpu_skew_percent integer 语句在执行异常处理时数据库实例上CPU使用的倾斜率。 control_group text 语句执行异常处理时所使用的Cgroups。 status text 语句执行异常处理后的状态，包括： pending：执行前预备状态。 running：执行进行状态。 finished：执行正常结束。 abort：执行异常终止。 action text 语句执行的异常处理动作，包括： abort：执行终止操作。 adjust：执行Cgroups调整操作，目前只有降级操作。 finish：正常结束。",
+      "source_file": "3708_PG_WLM_STATISTICS.txt"
+    },
+    {
+      "term": "DATABASE",
+      "content": "DATABASE LINK DATABASE LINK GS_DB_LINKS V$DBLINK",
+      "source_file": "3468_DATABASE LINK.txt"
+    },
+    {
+      "term": "GS_WLM_RESOURCE_POOL",
+      "content": "GS_WLM_RESOURCE_POOL GS_WLM_RESOURCE_POOL 这是资源池上的一些统计信息。 当查询视图无数据显示时，请联系华为工程师提供技术支撑。 表1 GS_WLM_RESOURCE_POOL的字段 名称 类型 描述 rpoid oid 资源池的OID。 respool name 资源池的名称。 control_group name 该字段不支持。 parentid oid 父资源池的OID。 ref_count integer 关联到该资源池上的作业数量。 active_points integer 资源池上已经使用的点数。 running_count integer 正在资源池上运行的作业数量。 waiting_count integer 正在资源池上排队的作业数量。 io_limits integer 资源池的iops上限。 io_priority integer 资源池的io优先级。",
+      "source_file": "3701_GS_WLM_RESOURCE_POOL.txt"
+    },
+    {
+      "term": "其他系统视图",
+      "content": "其他系统视图 其他系统视图 ADM_ARGUMENTS ADM_COL_COMMENTS ADM_COLL_TYPES ADM_CONS_COLUMNS ADM_CONSTRAINTS ADM_DATA_FILES ADM_DEPENDENCIES ADM_DIRECTORIES ADM_HIST_SNAPSHOT ADM_HIST_SQL_PLAN ADM_HIST_SQLSTAT ADM_HIST_SQLTEXT ADM_INDEXES ADM_IND_COLUMNS ADM_IND_EXPRESSIONS ADM_OBJECTS ADM_PROCEDURES ADM_RECYCLEBIN ADM_SCHEDULER_JOB_ARGS ADM_SCHEDULER_JOBS ADM_SCHEDULER_PROGRAM_ARGS ADM_SCHEDULER_PROGRAMS ADM_SCHEDULER_RUNNING_JOBS ADM_SEGMENTS ADM_SEQUENCES ADM_SOURCE ADM_SYNONYMS ADM_TAB_COL_STATISTICS ADM_TAB_COLS ADM_TAB_COLUMNS ADM_TAB_COMMENTS ADM_TAB_HISTOGRAMS ADM_TAB_STATISTICS ADM_TAB_STATS_HISTORY ADM_TABLES ADM_TABLESPACES ADM_TRIGGERS ADM_TYPE_ATTRS ADM_TYPES ADM_VIEWS DB_ARGUMENTS DB_ALL_TABLES DB_COL_COMMENTS DB_COLL_TYPES DB_CONS_COLUMNS DB_CONSTRAINTS DB_DEPENDENCIES DB_ERRORS DB_IND_COLUMNS DB_IND_EXPRESSIONS DB_INDEXES DB_OBJECTS DB_PROCEDURES DB_SCHEDULER_JOB_ARGS DB_SCHEDULER_PROGRAM_ARGS DB_SEQUENCES DB_SOURCE DB_SYNONYMS DB_TAB_COL_STATISTICS DB_TAB_COLUMNS DB_TAB_COMMENTS DB_TAB_HISTOGRAMS DB_TAB_MODIFICATIONS DB_TAB_STATS_HISTORY DB_TABLES DB_TRIGGERS DB_TYPES DB_VIEWS DICT DICTIONARY DV_SESSIONS DV_SESSION_LONGOPS GS_ALL_CONTROL_GROUP_INFO GS_ALL_PREPARED_STATEMENTS GS_COMM_PROXY_THREAD_STATUS GS_FILE_STAT GS_GET_CONTROL_GROUP_INFO GS_GLC_MEMORY_DETAIL GS_GSC_MEMORY_DETAIL GS_INSTANCE_TIME GS_LSC_MEMORY_DETAIL GS_MY_PLAN_TRACE GS_OS_RUN_INFO GS_REDO_STAT GS_SESSION_ALL_SETTINGS GS_SESSION_MEMORY GS_SESSION_MEMORY_CONTEXT GS_SESSION_MEMORY_DETAIL GS_SESSION_STAT GS_SESSION_TIME GS_SQL_COUNT GS_STAT_SESSION_CU GS_THREAD_MEMORY_CONTEXT GS_TOTAL_MEMORY_DETAIL GS_TOTAL_NODEGROUP_MEMORY_DETAIL GS_WORKLOAD_RULE_STAT GV_INSTANCE GV_SESSION MPP_TABLES MY_AUDIT_TRAIL MY_COL_COMMENTS MY_COLL_TYPES MY_CONSTRAINTS MY_CONS_COLUMNS MY_DEPENDENCIES MY_ERRORS MY_INDEXES MY_IND_COLUMNS MY_IND_EXPRESSIONS MY_JOBS MY_OBJECTS MY_PROCEDURES MY_RECYCLEBIN MY_SCHEDULER_JOB_ARGS MY_SCHEDULER_JOBS MY_SCHEDULER_PROGRAM_ARGS MY_SEQUENCES MY_SOURCE MY_SYNONYMS MY_TAB_COL_STATISTICS MY_TAB_COLUMNS MY_TAB_COMMENTS MY_TAB_HISTOGRAMS MY_TAB_MODIFICATIONS MY_TAB_STATS_HISTORY MY_TAB_STATISTICS MY_TABLES MY_TABLESPACES MY_TRIGGERS MY_TYPE_ATTRS MY_TYPES MY_VIEWS NLS_DATABASE_PARAMETERS NLS_INSTANCE_PARAMETERS PG_AVAILABLE_EXTENSION_VERSIONS PG_AVAILABLE_EXTENSIONS PG_CURSORS PG_CONTROL_GROUP_CONFIG PG_EXT_STATS PG_GET_SENDERS_CATCHUP_TIME PG_GROUP PG_GTT_RELSTATS PG_GTT_STATS PG_GTT_ATTACHED_PIDS PG_INDEXES PG_LOCKS PG_NODE_ENV PG_OS_THREADS PG_PREPARED_STATEMENTS PG_PREPARED_XACTS PG_PUBLICATION_TABLES PG_REPLICATION_ORIGIN_STATUS PG_REPLICATION_SLOTS PG_RULES PG_RUNNING_XACTS PG_SESSION_IOSTAT PG_SETTINGS PG_STATS PG_STAT_ACTIVITY PG_STAT_ACTIVITY_NG PG_STAT_ALL_INDEXES PG_STAT_ALL_TABLES PG_STAT_BAD_BLOCK PG_STAT_BGWRITER PG_STAT_DATABASE PG_STAT_DATABASE_CONFLICTS PG_STAT_USER_FUNCTIONS PG_STAT_USER_INDEXES PG_STAT_USER_TABLES PG_STAT_REPLICATION PG_STAT_SUBSCRIPTION PG_STAT_SYS_INDEXES PG_STAT_SYS_TABLES PG_STAT_XACT_ALL_TABLES PG_STAT_XACT_SYS_TABLES PG_STAT_XACT_USER_FUNCTIONS PG_STAT_XACT_USER_TABLES PG_STATIO_ALL_INDEXES PG_STATIO_ALL_SEQUENCES PG_STATIO_ALL_TABLES PG_STATIO_SYS_INDEXES PG_STATIO_SYS_SEQUENCES PG_STATIO_SYS_TABLES PG_STATIO_USER_INDEXES PG_STATIO_USER_SEQUENCES PG_STATIO_USER_TABLES PG_TABLES PG_THREAD_WAIT_STATUS PG_TIMEZONE_ABBREVS PG_TIMEZONE_NAMES PG_TOTAL_MEMORY_DETAIL PG_TOTAL_USER_RESOURCE_INFO PG_TOTAL_USER_RESOURCE_INFO_OID PG_VIEWS PG_VARIABLE_INFO PGXC_PREPARED_XACTS PGXC_THREAD_WAIT_STATUS PLAN_TABLE SYS_DUMMY V_INSTANCE V_MYSTAT V_SESSION V$GLOBAL_TRANSACTION V$LOCK V$NLS_PARAMETERS V$OPEN_CURSOR V$SESSION_WAIT V$SYSSTAT V$SYSTEM_EVENT V$VERSION",
+      "source_file": "3473_file_3473.txt"
+    },
+    {
+      "term": "物化视图",
+      "content": "物化视图 物化视图 GS_MATVIEWS",
+      "source_file": "1768_file_1768.txt"
+    },
+    {
+      "term": "GS_WLM_OPERATOR_HISTORY",
+      "content": "GS_WLM_OPERATOR_HISTORY GS_WLM_OPERATOR_HISTORY GS_WLM_OPERATOR_HISTORY视图显示的是当前用户在 当前CN 上执行作业结束后的算子的相关记录。查询该视图需要sysadmin权限。 内核中的数据会定时被清理，清理周期为3分钟。当GUC参数enable_resource_record为on时，视图中的记录每隔3分钟被转储到系统表 GS_WLM_OPERATOR_INFO 中一次，同时视图中的记录被删除；当GUC参数enable_resource_record为off时，记录在视图中的存留时间达到超期时间（超期时间为3分钟）后会被删除。具体的字段请参见 GS_WLM_OPERATOR_INFO 的字段信息。 当查询视图无数据显示时，请联系华为工程师提供技术支撑。",
+      "source_file": "2002_GS_WLM_OPERATOR_HISTORY.txt"
+    },
+    {
+      "term": "负载管理",
+      "content": "负载管理 负载管理 GS_WLM_CGROUP_INFO GS_WLM_EC_OPERATOR_STATISTICS GS_WLM_PLAN_OPERATOR_HISTORY GS_WLM_REBUILD_USER_RESOURCE_POOL GS_WLM_USER_INFO",
+      "source_file": "3389_file_3389.txt"
+    },
+    {
+      "term": "PGXC_WLM_SESSION_INFO",
+      "content": "PGXC_WLM_SESSION_INFO PGXC_WLM_SESSION_INFO PGXC_WLM_SESSION_INFO视图显示在所有CN上执行作业结束后的负载管理 （当前特性是实验室特性，使用时请联系华为技术工程师提供技术支持。） 记录。查询该视图需要sysadmin权限。 此视图的数据直接从系统表 GS_WLM_SESSION_QUERY_INFO_ALL 获取，具体的字段请参见 GS_WLM_SESSION_HISTORY 的字段信息。 当查询视图无数据显示时，请联系华为工程师提供技术支撑。",
+      "source_file": "2020_PGXC_WLM_SESSION_INFO.txt"
+    },
+    {
+      "term": "动态脱敏",
+      "content": "动态脱敏 动态脱敏 GS_MASKING",
+      "source_file": "3464_file_3464.txt"
+    },
+    {
+      "term": "GS_SESSION_CPU_STATISTICS",
+      "content": "GS_SESSION_CPU_STATISTICS GS_SESSION_CPU_STATISTICS GS_SESSION_CPU_STATISTICS视图显示和当前用户执行复杂作业正在运行时的负载管理CPU使用的信息。 表1 GS_SESSION_CPU_STATISTICS字段 名称 类型 描述 datid oid 连接后端的数据库OID。 usename name 登录到该后端的用户名。 pid bigint 后端线程ID。 start_time timestamp with time zone 语句执行的开始时间。 min_cpu_time bigint 语句在数据库节点上的最小CPU时间，单位为ms。 max_cpu_time bigint 语句在数据库节点上的最大CPU时间，单位为ms。 total_cpu_time bigint 语句在数据库节点上的CPU总时间，单位为ms。 query text 正在执行的语句。 node_group text 该字段不支持。 top_cpu_dn text cpu使用量信息。",
+      "source_file": "3697_GS_SESSION_CPU_STATISTICS.txt"
+    },
+    {
+      "term": "OLTP表压缩",
+      "content": "OLTP表压缩 OLTP表压缩 GS_ADM_ILMDATAMOVEMENTPOLICIES GS_ADM_ILMOBJECTS GS_ADM_ILMPOLICIES GS_ADM_ILMEVALUATIONDETAILS GS_ADM_ILMPARAMETERS GS_ADM_ILMRESULTS GS_ADM_ILMTASKS GS_MY_ILMEVALUATIONDETAILS GS_MY_ILMRESULTS GS_MY_ILMTASKS GS_MY_ILMDATAMOVEMENTPOLICIES GS_MY_ILMOBJECTS GS_MY_ILMPOLICIES",
+      "source_file": "3395_OLTP.txt"
+    },
+    {
+      "term": "GS_CLUSTER_RESOURCE_INFO",
+      "content": "GS_CLUSTER_RESOURCE_INFO GS_CLUSTER_RESOURCE_INFO GS_CLUSTER_RESOURCE_INFO视图显示的是 所有DN 资源的汇总信息。该视图需要设置enable_dynamic_workload=on才能查询，并且该视图不支持在DN执行。查询该视图需要sysadmin权限。具体字段信息如 表1 所示。 表1 GS_CLUSTER_RESOURCE_INFO字段 名称 类型 描述 min_mem_util integer DN 最小内存使用率。 max_mem_util integer DN 最大内存使用率。 min_cpu_util integer DN 最小CPU使用率。 max_cpu_util integer DN 最大CPU使用率。 min_io_util integer DN 最小I/O使用率。 max_io_util integer DN 最大I/O使用率。 used_mem_rate integer 物理节点最大内存使用率。",
+      "source_file": "1999_GS_CLUSTER_RESOURCE_INFO.txt"
+    },
+    {
+      "term": "审计",
+      "content": "审计 审计 ADM_AUDIT_OBJECT ADM_AUDIT_SESSION ADM_AUDIT_STATEMENT ADM_AUDIT_TRAIL GS_AUDITING GS_AUDITING_ACCESS GS_AUDITING_PRIVILEGE",
+      "source_file": "3432_file_3432.txt"
+    },
+    {
+      "term": "审计",
+      "content": "审计 审计 ADM_AUDIT_OBJECT ADM_AUDIT_SESSION ADM_AUDIT_STATEMENT ADM_AUDIT_TRAIL GS_AUDITING GS_AUDITING_ACCESS GS_AUDITING_PRIVILEGE",
+      "source_file": "1729_file_1729.txt"
+    },
+    {
+      "term": "分区表",
+      "content": "分区表 分区表 ADM_IND_PARTITIONS ADM_IND_SUBPARTITIONS ADM_PART_COL_STATISTICS ADM_PART_INDEXES ADM_PART_TABLES ADM_SUBPART_COL_STATISTICS ADM_SUBPART_KEY_COLUMNS ADM_TAB_SUBPARTITIONS ADM_TAB_PARTITIONS DB_IND_PARTITIONS DB_IND_SUBPARTITIONS DB_PART_COL_STATISTICS DB_PART_INDEXES DB_PART_KEY_COLUMNS DB_PART_TABLES DB_SUBPART_COL_STATISTICS DB_SUBPART_KEY_COLUMNS DB_TAB_PARTITIONS DB_TAB_SUBPARTITIONS MY_IND_PARTITIONS MY_IND_SUBPARTITIONS MY_PART_COL_STATISTICS MY_PART_INDEXES MY_PART_KEY_COLUMNS MY_PART_TABLES MY_SUBPART_COL_STATISTICS MY_SUBPART_KEY_COLUMNS MY_TAB_PARTITIONS MY_TAB_SUBPARTITIONS GS_STATIO_ALL_PARTITIONS GS_STAT_XACT_ALL_PARTITIONS GS_STAT_ALL_PARTITIONS",
+      "source_file": "3356_file_3356.txt"
+    },
+    {
+      "term": "SPM计划管理",
+      "content": "SPM计划管理 SPM计划管理 GS_SPM_SQL_BASELINE GS_SPM_SQL_PARAM GS_SPM_SQL_EVOLUTION GS_SPM_SYS_BASELINE",
+      "source_file": "3427_SPM.txt"
+    },
+    {
+      "term": "分区表",
+      "content": "分区表 分区表 ADM_IND_PARTITIONS ADM_IND_SUBPARTITIONS ADM_PART_COL_STATISTICS ADM_PART_INDEXES ADM_PART_TABLES ADM_SUBPART_KEY_COLUMNS ADM_TAB_PARTITIONS DB_IND_PARTITIONS DB_IND_SUBPARTITIONS DB_PART_COL_STATISTICS DB_PART_KEY_COLUMNS DB_PART_TABLES DB_SUBPART_KEY_COLUMNS DB_TAB_PARTITIONS DB_TAB_SUBPARTITIONS MY_IND_PARTITIONS MY_IND_SUBPARTITIONS MY_PART_COL_STATISTICS MY_PART_INDEXES MY_PART_KEY_COLUMNS MY_PART_TABLES MY_SUBPART_KEY_COLUMNS MY_TAB_PARTITIONS GS_STATIO_ALL_PARTITIONS GS_STAT_XACT_ALL_PARTITIONS GS_STAT_ALL_PARTITIONS",
+      "source_file": "1645_file_1645.txt"
+    }
+  ]
+}

@@ -1,0 +1,1 @@
+手动剔除故障的CN 手动剔除故障的CN 命令格式 cm_ctl disable -n NODEID -D DATADIR [-t SECS] 参数说明 -n NODEID：手动剔除指定CN，NODEID为节点名称，可通过cm_ctl query -Cv命令查询。-n参数需要和-D参数一起使用。 -D DATADIR：手动剔除指定CN，DATADIR为指定实例数据目录，可通过cm_ctl query -Cvd命令查询。-D参数需要和-n参数一起使用。 -t SECS：指定超时时间。超时后，会退出并报错。 常用命令 手动剔除指定CN： cm_ctl disable -n 1 -D /data1/omm/cluster/data/coordinator 父主题： cm_ctl工具使用指南 版权所有 © 华为技术有限公司

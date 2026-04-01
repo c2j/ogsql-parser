@@ -1,0 +1,1 @@
+【规格】在GTM-FREE模式下，不允许执行跨节点事务 【规格】在GTM-FREE模式下，不允许执行跨节点事务 在GTM-FREE模式下，如果所执行的SQL语句包含跨节点事务，会得到报错：Unsupport DML two phase commit under gtm free mode. 在这种情况下，如果某一条语句必须临时开启跨节点事务，需要在事务中先执行如下命令开启跨节点事务 SET enable_twophase_commit = on; 并在事务结束前执行 RESET enable_twophase_commit; 或 SET enable_twophase_commit = off; 父主题： 事务 版权所有 © 华为技术有限公司

@@ -1,0 +1,1 @@
+SUMMARY_STAT_DATABASE_CONFLICTS SUMMARY_STAT_DATABASE_CONFLICTS 显示 集群 内汇聚的数据库冲突状态的统计信息。 表1 SUMMARY_STAT_DATABASE_CONFLICTS字段 名称 类型 描述 datname name 数据库名称。 confl_tablespace bigint 冲突的表空间的数目。 confl_lock bigint 冲突的锁数目。 confl_snapshot bigint 冲突的快照数目。 confl_bufferpin bigint 冲突的缓冲区数目。 confl_deadlock bigint 冲突的死锁数目。 父主题： Object 版权所有 © 华为技术有限公司

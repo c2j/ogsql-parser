@@ -1,0 +1,1 @@
+索引重建/不可用 索引重建/不可用 使用ALTER INDEX可以设置索引是否可用。 例如，假设分区表range_ sales上存在索引range_sales_idx，可以通过如下命令设置其不可用。 ALTER INDEX range_sales_idx UNUSABLE; 可以使用如下命令重建索引range_sales_idx。 ALTER INDEX range_sales_idx REBUILD; 父主题： 分区表索引重建/不可用 版权所有 © 华为技术有限公司

@@ -1,0 +1,25 @@
+检索查询 检索查询 对于常用的检索查询，嵌入式SQL提供了常规命令SELECT和FETCH的特殊变体。这些命令使用特殊的INTO子句，用以指定检索出来的数值存储在哪些宿主变量里。SELECT用于返回单行的查询，FETCH用于使用游标返回多行的查询。 使用SELECT /*  
+ * 假定有这个表：  
+ * CREATE TABLE test1 (a int, b varchar(50)); 
+ */
+EXEC SQL BEGIN DECLARE SECTION;
+    int v1;
+    VARCHAR v2;
+EXEC SQL END DECLARE SECTION;
+
+    ...
+
+    EXEC SQL SELECT a, b INTO :v1, :v2 FROM test; INTO子句出现在选择列表和FROM子句之间。选择列表和INTO后面的列表的元素（也叫目标列表）个数必须相同。 使用FETCH EXEC SQL BEGIN DECLARE SECTION;
+    int v1;
+    VARCHAR v2;
+EXEC SQL END DECLARE SECTION;
+    ...
+
+    EXEC SQL DECLARE foo CURSOR FOR SELECT a, b FROM test;
+    ...
+    do
+    {
+        ...
+        EXEC SQL FETCH NEXT FROM foo INTO :v1, :v2;
+        ...
+    } while (...); 这里的INTO子句出现在所有SQL子句后面。 父主题： 宿主变量 版权所有 © 华为技术有限公司

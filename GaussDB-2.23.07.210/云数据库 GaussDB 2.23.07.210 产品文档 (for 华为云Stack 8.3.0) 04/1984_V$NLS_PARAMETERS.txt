@@ -1,0 +1,1 @@
+V$NLS_PARAMETERS V$NLS_PARAMETERS V$NLS_PARAMETERS视图显示数据库当前配置的（National Language Support）NLS参数和参数的值。所有用户都可以访问，该视图同时存在于PG_CATALOG和SYS Schema下。具体字段信息如 表1 所示。 表1 V$NLS_PARAMETERS字段 名称 类型 描述 parameter character varying(64) （National Language Support）NLS参数名。 value character varying(64) （National Language Support）NLS参数的值。 con_id numeric 暂不支持，值为0。 父主题： 其他系统视图 版权所有 © 华为技术有限公司

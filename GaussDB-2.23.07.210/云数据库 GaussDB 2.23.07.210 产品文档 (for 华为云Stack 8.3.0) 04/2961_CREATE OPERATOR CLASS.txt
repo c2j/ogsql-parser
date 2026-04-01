@@ -1,0 +1,17 @@
+CREATE OPERATOR CLASS CREATE OPERATOR CLASS 功能描述 定义一个新的操作符类。该功能为内部使用功能，不建议用户使用。 注意事项 CREATE OPERATOR CLASS定义一个新的操作符类。 一个操作符类定义一种特定的数据类型如何与一种索引一起使用。操作符类声明特定的操作符可以为这种数据类型以及索引方法提供特定的角色或者 "策略"。当索引列选择定义的操作符类时，操作符类还声明索引方法使用的支持程序。所有操作符类使用的函数和操作符都必须在创建操作符类之前定义。 如果指定了模式，那么操作符类就在指定的模式中创建。 否则就在当前模式中创建。在同一个模式中的两个操作符类可以有同样的名字， 但它们必须用于不同的索引方法。 定义操作符类的用户将成为其所有者。目前，创建用户必须是超级用户。 CREATE OPERATOR CLASS既不检查这个类定义是否包含所有索引方法需要的操作符以及函数， 也不检查这些操作符和函数是否形成一个自包含的集合。 相关的操作符类可以集合成操作符族。 添加一个新的操作符类到一个已经存在的操作符族， 在CREATE OPERATOR CLASS中指定FAMILY选项。 没有这个选项时，新建的类会放置到与它同名的族中（如果不存在则创建它）。 语法格式 CREATE OPERATOR CLASS
+name [ DEFAULT ] FOR TYPE data_type
+USING index_method [
+FAMILY family_name ] AS
+{  OPERATOR strategy_number operator_name [ (
+op_type, op_type ) ] [ FOR SEARCH | FOR ORDER BY sort_family_name ]
+| FUNCTION
+support_number [ ( op_type [ , op_type ] ) ] function_name ( argument_type [,
+...] )
+| STORAGE storage_type
+} [, ... ]; 参数说明 name 将要创建的操作符类的名字（可以用模式修饰）。 default 如果存在，表示该操作符类将成为它的数据类型的缺省操作符类。 对于某个数据类型和访问方式而言，最多有一个操作符类是缺省的。 data_type 操作符类处理的字段的数据类型。 index_method 操作符类处理的索引方法的名字。 family_name 操作符类添加到的现有操作符族的名字。如果没有指定，则使用与该操作符类相同名字的操作符族（如果不存在则创建它）。 strategy_number 与运算符类关联的索引方法的策略编号。 operator_name 和该操作符类关联的操作符的名字（可以用模式修饰）。 op_type 在OPERATOR子句中，表示该操作符的操作数的数据类型，或NONE表示左一元运算符或右一元运算符。在与运算符类的数据类型相同的正常情况下，可以省略操作数数据类型。 在FUNCTION子句中，如果函数的操作数数据类型和函数的输入数据类型（对于B-tree比较函数和哈希函数）或类的数据类型不同， 那么就在该子句中写上这个函数要支持的操作数类型。这些缺省是正确的， 因此op_type 不需要在FUNCTION子句中指定， 除了B-tree排序支持函数支持交叉数据类型比较的情况。 sort_family_name 描述与排序操作符相关的排序顺序的现有btree 操作符族的名字。 缺省时是FOR SEARCH。 support_number 与运算符类关联的函数的索引方法的编号。 function_name 运算符类的索引方法的函数名称。 argument_type 函数参数的数据类型。 storage_type 实际存储在索引里的数据类型。通常它和字段数据类型相同， 但是一些索引方法允许它是不同的。 除非索引方法允许使用不同的类型，否则必须省略STORAGE子句。 示例 -- 定义一个函数。
+CREATE FUNCTION func_add_sql(num1 integer, num2 integer) RETURN integer AS BEGIN
+RETURN num1 + num2; 
+END;
+/
+-- 新建一个操作符类，将上述函数作为其关联的函数
+CREATE OPERATOR CLASS oc1 DEFAULT FOR TYPE _int4 USING btree AS FUNCTION 1 func_add_sql (integer, integer); 相关链接 ALTER OPERATOR ， CREATE OPERATOR ， DROP OPERATOR 父主题： C 版权所有 © 华为技术有限公司

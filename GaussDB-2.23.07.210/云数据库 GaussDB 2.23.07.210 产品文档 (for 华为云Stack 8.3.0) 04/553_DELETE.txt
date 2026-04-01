@@ -1,0 +1,1 @@
+DELETE DELETE 【规格】在GMT-FREE模式下，不允许跨节点事务，因此删除HASH分布表中数据时，必须在WHERE条件中指定分布列等值过滤条件 【规格】不支持多表删除 【规则】DELETE语句中必须有WHERE子句，避免全表扫描 【规则】DELETE语句中使用ORDER BY、GROUP BY子句，避免不必要的排序 【规则】如果需要清空一张表，建议使用TRUNCATE，而不是DELETE 【建议】DELETE有主键或索引的表，WHERE条件应结合主键或索引，提高执行效率 父主题： 数据库编程规范 版权所有 © 华为技术有限公司

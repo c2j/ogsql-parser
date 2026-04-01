@@ -1,0 +1,1 @@
+存储设备连线要求 存储设备连线要求 Dorado存储设备上架配置管理IP后，根据规划的方式连线。 Dorado存储BMC IP，需要external_om平面、dmz Service平面互通。 父主题： Dorado存储NOF组网配置 版权所有 © 华为技术有限公司

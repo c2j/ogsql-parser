@@ -1,0 +1,139 @@
+循环语句 循环语句 简单LOOP语句 语法图 图1 loop::= 示例 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22 gaussdb =# CREATE OR REPLACE PROCEDURE proc_loop ( i in integer , count out integer ) AS BEGIN count : = 0 ; LOOP IF count > i THEN raise info 'count is %. ' , count ; EXIT ; ELSE count : = count + 1 ; END IF ; END LOOP ; END ; / CREATE PROCEDURE gaussdb =# CALL proc_loop ( 10 , 5 ); INFO : count is 11 . count ------- 11 ( 1 row ) 该循环必须要结合EXIT使用，否则将陷入死循环。 WHILE_LOOP语句 语法图 图2 while_loop::= 只要条件表达式为真，WHILE语句就会不停的在一系列语句上进行循环，在每次进入循环体的时候进行条件判断。 示例 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27 gaussdb =# CREATE TABLE integertable ( c1 integer ) ; CREATE TABLE gaussdb =# CREATE OR REPLACE PROCEDURE proc_while_loop ( maxval in integer ) AS DECLARE i int : = 1 ; BEGIN WHILE i < maxval LOOP INSERT INTO integertable VALUES ( i ); i : = i + 1 ; END LOOP ; END ; / CREATE PROCEDURE --调用存储过程 gaussdb =# CALL proc_while_loop ( 10 ); proc_while_loop ----------------- ( 1 row ) --删除存储过程和表 gaussdb =# DROP PROCEDURE proc_while_loop ; DROP PROCEDURE gaussdb =# DROP TABLE integertable ; DROP TABLE FOR_LOOP（integer变量）语句 语法图 图3 for_loop::= 变量name会自动定义为integer类型并且只在此循环里存在。变量name介于lower_bound和upper_bound之间。 当使用REVERSE关键字时，lower_bound必须大于等于upper_bound，否则循环体不会被执行。 示例 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27 --从0到5进行循环 gaussdb =# CREATE OR REPLACE PROCEDURE proc_for_loop () AS BEGIN FOR I IN 0 .. 5 LOOP DBE_OUTPUT . PRINT_LINE ( 'It is ' || to_char ( I ) || ' time;' ) ; END LOOP ; END ; / CREATE PROCEDURE --调用存储过程 gaussdb =# CALL proc_for_loop (); It is 0 time ; It is 1 time ; It is 2 time ; It is 3 time ; It is 4 time ; It is 5 time ; proc_for_loop --------------- ( 1 row ) --删除存储过程 gaussdb =# DROP PROCEDURE proc_for_loop ; DROP PROCEDURE FOR_LOOP查询语句 语法图 图4 for_loop_query::= 变量target会自动定义，类型和query的查询结果的类型一致，并且只在此循环中有效。target的取值就是query的查询结果。 示例 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24 --循环输出查询结果。 gaussdb =# CREATE OR REPLACE PROCEDURE proc_for_loop_query () AS record VARCHAR2 ( 50 ); BEGIN FOR record IN SELECT spcname FROM pg_tablespace LOOP dbe_output . print_line ( record ); END LOOP ; END ; / CREATE PROCEDURE --调用存储过程 gaussdb =# CALL proc_for_loop_query (); pg_default pg_global proc_for_loop_query --------------------- ( 1 row ) --删除存储过程 gaussdb =# DROP PROCEDURE proc_for_loop_query ; DROP PROCEDURE FORALL批量查询语句 语法图 图5 forall::= 变量index会自动定义为integer类型并且只在此循环里存在。index的取值介于low_bound和upper_bound之间。 如果声明了SAVE EXCEPTIONS，则会将循环体DML执行过程中每次遇到的异常保存在SQL&BULK_EXCEPTIONS中，并在执行结束后统一抛出一个异常，循环过程中没有异常的执行的结果在当前子事务内不会回滚。 示例 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27
+28
+29
+30
+31
+32
+33
+34
+35
+36
+37
+38
+39
+40
+41
+42
+43 gaussdb =# CREATE TABLE hdfs_t1 ( title NUMBER ( 6 ), did VARCHAR2 ( 20 ), data_period VARCHAR2 ( 25 ), kind VARCHAR2 ( 25 ), interval VARCHAR2 ( 20 ), time DATE , isModified VARCHAR2 ( 10 ) ); CREATE TABLE gaussdb =# INSERT INTO hdfs_t1 VALUES ( 8 , 'Donald' , 'OConnell' , 'DOCONNEL' , '650.507.9833' , to_date ( '21-06-1999' , 'dd-mm-yyyy' ), 'SH_CLERK' ); INSERT 0 1 gaussdb =# CREATE OR REPLACE PROCEDURE proc_forall () AS BEGIN FORALL i IN 100 .. 120 update hdfs_t1 set title = title + 100 * i ; END ; / CREATE PROCEDURE --调用存储过程 gaussdb =# CALL proc_forall (); proc_forall ------------- ( 1 row ) --查询存储过程调用结果 gaussdb =# SELECT * FROM hdfs_t1 ; title | did | data_period | kind | interval | time | ismodified --------+--------+-------------+----------+--------------+---------------------+------------ 231008 | Donald | OConnell | DOCONNEL | 650 . 507 . 9833 | 1999 - 06 - 21 00 : 00 : 00 | SH_CLERK ( 1 row ) --删除存储过程和表 gaussdb =# DROP PROCEDURE proc_forall ; DROP PROCEDURE gaussdb =# DROP TABLE hdfs_t1 ; DROP TABLE 父主题： 控制语句 版权所有 © 华为技术有限公司

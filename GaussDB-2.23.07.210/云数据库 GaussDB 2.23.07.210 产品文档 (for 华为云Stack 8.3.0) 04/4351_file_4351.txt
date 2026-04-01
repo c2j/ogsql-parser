@@ -1,0 +1,40 @@
+设置存储引擎 设置存储引擎 存储引擎会对数据库整体效率和性能具有巨大影响，请根据实际需求选择适当的存储引擎。用户可使用WITH ( [ORIENTATION | STORAGE_TYPE] [= value] [, ... ] )为表或索引指定一个可选的存储参数。参数的详细描述如下所示： ORIENTATION STORAGE_TYPE ROW（缺省值）：表的数据将以行式存储。 [USTORE(缺省值)|ASTORE|空] 如果ORIENTATION指定为ROW，且STORAGE_TYPE为空的情况下创建出的表类型取决于GUC参数enable_default_ustore_table（取值为on/off，默认情况为on，参数详情请参见《管理员指南》中“配置运行参数 > GUC参数说明”章节）：如果参数设置为on，创建出的表为Ustore类型；如果为off，创建出的表为Astore类型。 具体示例如下： gaussdb=# CREATE TABLE TEST(a int);
+gaussdb=# \d+ test
+                         Table "public.test"
+ Column |  Type   | Modifiers | Storage | Stats target | Description
+--------+---------+-----------+---------+--------------+-------------
+ a      | integer |           | plain   |              |
+Has OIDs: no
+Options: orientation=row, compression=no, storage_type=USTORE
+
+gaussdb=# CREATE TABLE TEST1(a int) with(orientation=row, storage_type=ustore);
+gaussdb=# \d+ test1
+Table "public.test1"
+ Column |  Type   | Modifiers | Storage | Stats target | Description
+--------+---------+-----------+---------+--------------+-------------
+ a      | integer |           | plain   |              |
+Has OIDs: no
+Options: orientation=row, storage_type=ustore, compression=no
+
+gaussdb=# CREATE TABLE TEST2(a int) with(orientation=row, storage_type=astore);
+gaussdb=# \d+ test2
+Table "public.test2"
+ Column |  Type   | Modifiers | Storage | Stats target | Description
+--------+---------+-----------+---------+--------------+-------------
+ a      | integer |           | plain   |              |
+Has OIDs: no
+Options: orientation=row, storage_type=astore, compression=no
+
+gaussdb=# create table test4(a int) with(orientation=row);
+gaussdb=# \d+
+                                                 List of relations
+ Schema | Name  | Type  |   Owner   |  Size   |                       Storage                        | Description
+--------+-------+-------+-----------+---------+------------------------------------------------------+-------------
+ public | test4 | table | l30048445 | 0 bytes | {orientation=row,compression=no,storage_type=USTORE} |
+(1 row)
+
+gaussdb=# show enable_default_ustore_table;
+ enable_default_ustore_table
+-----------------------------
+ on
+(1 row) 父主题： 存储引擎体系架构 版权所有 © 华为技术有限公司

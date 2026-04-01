@@ -1,0 +1,602 @@
+CREATE TABLE CREATE TABLE 功能描述 在当前数据库中创建一个新的空白表，该表由命令执行者所有。 注意事项 如果在建表过程中数据库系统发生故障，系统恢复后可能无法自动清除之前已创建的、大小为0的磁盘文件。此种情况出现概率小，不影响数据库系统的正常运行。 使用JDBC时，支持通过PrepareStatement对DEFAULT值进行参数化设置。 被授予CREATE ANY TABLE权限的用户，可以在public模式和用户模式下创建表。如果想要创建包含serial类型列的表，还需要授予CREATE ANY SEQUENCE创建序列的权限。 XML类型不能作为主键、外键。 在为数据对象增加或者变更ILM策略的时候，如果追加了行级表达式，需要注意行表达式目前只支持白名单中列出的函数。具体白名单函数列表参考 行表达式函数白名单 。 语法格式 创建表。 CREATE [ [ GLOBAL | LOCAL ] [ TEMPORARY | TEMP ] | UNLOGGED ] TABLE [ IF NOT EXISTS ] table_name 
+    ({ column_name data_type [ CHARACTER SET | CHARSET charset ] [ compress_mode ] [ COLLATE collation ] [ column_constraint [ ... ] ]
+        | table_constraint
+        | LIKE source_table [ like_option [...] ] }
+        [, ... ])
+    [ table_option [ [ , ] ... ] ]
+    [ WITH ( {storage_parameter = value} [, ... ] ) ]
+    [ ON COMMIT { PRESERVE ROWS | DELETE ROWS | DROP } ]
+    [ COMPRESS | NOCOMPRESS ]
+    [ ILM ADD POLICY ROW STORE { COMPRESS ADVANCED } { ROW } AFTER n { day | month | year } OF { NO MODIFICATION } [ ON ( EXPR )]]
+    [ TABLESPACE tablespace_name ]; 其中table_option为： { COMMENT [ = ] 'string' |
+  AUTO_INCREMENT [ = ] value |
+  [ DEFAULT ] CHARACTER SET | CHARSET [ = ] default_charset |
+  [ DEFAULT ] COLLATE [ = ] default_collation } 其中列约束column_constraint为： [ CONSTRAINT constraint_name ]
+{ NOT NULL |
+  NULL |
+  CHECK ( expression ) |
+  DEFAULT default_expr |
+  ON UPDATE update_expr |
+  GENERATED ALWAYS AS ( generation_expr ) [STORED] |
+  GENERATED [ ALWAYS | BY DEFAULT [ ON NULL ] ] AS IDENTITY [ ( identity_options ) ] |
+  AUTO_INCREMENT |
+  COMMENT 'string' |
+  UNIQUE [KEY] index_parameters |
+  ENCRYPTED WITH ( COLUMN_ENCRYPTION_KEY = column_encryption_key, ENCRYPTION_TYPE = encryption_type_value ) |
+  PRIMARY KEY index_parameters |
+  REFERENCES reftable [ ( refcolumn ) ] [ MATCH FULL | MATCH PARTIAL | MATCH SIMPLE ]
+      [ ON DELETE action ] [ ON UPDATE action ] }
+[ DEFERRABLE | NOT DEFERRABLE | INITIALLY DEFERRED | INITIALLY IMMEDIATE ] 其中列的压缩可选项compress_mode为： { DELTA | PREFIX | DICTIONARY | NUMSTR | NOCOMPRESS } 其中表约束table_constraint为： [ CONSTRAINT [ constraint_name ] ]
+{ CHECK ( expression ) |
+  UNIQUE [ index_name ][ USING method ] ( { { column_name [ ( length ) ] | ( expression ) } [ ASC | DESC ] } [, ... ] ) index_parameters |
+  PRIMARY KEY [ USING method ] ( { column_name [ ASC | DESC ] } [, ... ] ) index_parameters |
+  FOREIGN KEY [ index_name ] ( column_name [, ... ] ) REFERENCES reftable [ (refcolumn [, ... ] ) ]
+      [ MATCH FULL | MATCH PARTIAL | MATCH SIMPLE ] [ ON DELETE action ] [ ON UPDATE action ] 
+  }
+[ DEFERRABLE | NOT DEFERRABLE | INITIALLY DEFERRED | INITIALLY IMMEDIATE ]
+{ [ COMMENT 'string' ] [ ... ] } 其中like选项like_option为： { INCLUDING | EXCLUDING } { DEFAULTS | GENERATED | CONSTRAINTS | INDEXES | STORAGE | COMMENTS | PARTITION | RELOPTIONS | UPDATE | IDENTITY | ALL } 其中索引参数index_parameters为： [ WITH ( {storage_parameter = value} [, ... ] ) ]
+[ USING INDEX TABLESPACE tablespace_name ] 其中update_expr为： { CURRENT_TIMESTAMP | LOCALTIMESTAMP | NOW() } 其中identity_options为： [ INCREMENT [ BY ] increment ] [ MINVALUE minvalue | NO MINVALUE | NOMINVALUE] [ MAXVALUE maxvalue | NO MAXVALUE | NOMAXVALUE] [ START [ WITH ] start ] [ CACHE cache | NOCACHE ] [ [ NO ] CYCLE | NOCYCLE] [ SCALE [ EXTEND | NO EXTEND] | NOSCALE ] 参数说明 UNLOGGED 如果指定此关键字，则创建的表为非日志表。在非日志表中写入的数据不会被写入到预写日志中，这样就会比普通表快很多。但是非日志表在冲突、执行操作系统重启、数据库重启、主备切换、切断电源操作或异常关机后会被自动截断，会造成数据丢失的风险。非日志表中的内容也不会被复制到备服务器中。在非日志表中创建的索引也不会被自动记录。 使用场景：非日志表不能保证数据的安全性，用户应该在确保数据已经做好备份的前提下使用，例如系统升级时进行数据的备份。 故障处理：当异常关机等操作导致非日志表上的索引发生数据丢失时，用户应该对发生错误的索引进行重建。 GLOBAL | LOCAL 创建临时表时可以在TEMP或TEMPORARY前指定GLOBAL或LOCAL关键字。如果指定GLOBAL关键字， GaussDB 会创建全局临时表，否则 GaussDB 会创建本地临时表。 TEMPORARY | TEMP 如果指定TEMP或TEMPORARY关键字，则创建的表为临时表。临时表分为全局临时表和本地临时表两种类型。创建临时表时如果指定GLOBAL关键字则为全局临时表，否则为本地临时表。 全局临时表的元数据对所有会话可见，会话结束后元数据继续存在。会话与会话之间的用户数据、索引和统计信息相互隔离，每个会话只能看到和更改自己提交的数据。全局临时表有两种模式：一种是基于会话级别的(ON COMMIT PRESERVE ROWS), 当会话结束时自动清空用户数据；一种是基于事务级别的(ON COMMIT DELETE ROWS), 当执行commit或rollback时自动清空用户数据。建表时如果没有指定ON COMMIT选项，则缺省为会话级别。与本地临时表不同，全局临时表建表时可以指定非pg_temp_开头的schema。 本地临时表只在当前会话可见，本会话结束后会自动删除。因此，在除当前会话连接的 数据库节点 故障时，仍然可以在当前会话上创建和使用临时表。由于临时表只在当前会话创建，对于涉及对临时表操作的DDL语句，会产生DDL失败的报错。因此，建议DDL语句中不要对临时表进行操作。TEMP和TEMPORARY等价。 本地临时表通过每个会话独立的以pg_temp开头的schema来保证只对当前会话可见，因此，不建议用户在日常操作中手动删除以pg_temp、pg_toast_temp开头的schema。 如果建表时不指定TEMPORARY/TEMP关键字，而指定表的schema为当前会话的pg_temp_开头的schema，则此表会被创建为临时表。 ALTER/DROP全局临时表和索引，如果其它会话正在使用它，禁止操作（ALTER INDEX index_name REBUILD除外）。 全局临时表的DDL只会影响当前会话的用户数据和索引。例如truncate、reindex、analyze只对当前会话有效。 全局临时表功能可以通过设置GUC参数max_active_global_temporary_table控制是否启用。如果max_active_global_temporary_table=0，关闭全局临时表功能。 临时表只对当前会话可见，因此不支持与\parallel on并行执行一起使用。 临时表不支持主备切换。 全局临时表不响应自动清理，在长链接场景使用时尽量使用on commit delete rows的全局临时表，或定期手动执行vacuum，否则可能导致clog日志不回收。 全局临时表不支持以下场景： 不支持创建全局临时Sequence，各个会话的全局临时表使用共享的Sequence，只能保证唯一性，不保证连续性。 不支持创建全局临时视图。 不支持创建分区表。 不支持创建Hash bucket表。 不支持扩展统计信息。 不支持ON COMMIT DROP属性。 IF NOT EXISTS 如果已经存在相同名称的表，不会报出错误，而会发出通知，告知通知此表已存在。 table_name 要创建的表名。 物化视图的一些处理逻辑会通过表名的前缀来识别是不是物化视图日志表和物化视图关联表，因此，用户不要创建表名以mlog_或matviewmap_为前缀的表，否则会影响此表的一些功能。 column_name 新表中要创建的字段名。 constraint_name 建表时指定的约束名称。 在B模式数据库下（即sql_compatibility = 'B'）constraint_name为可选项，在其他模式数据库下，必须加上constraint_name。 index_name 索引名。 index_name仅在B模式数据库下（即sql_compatibility = 'B'）支持，其他模式数据库下不支持。 对于外键约束，constraint_name和index_name同时指定时，索引名为constraint_name。 对于唯一键约束，constraint_name和index_name同时指定时，索引名以index_name。 USING method 指定创建索引的方法。 取值范围请参见 参数说明 中的USING method。 USING method仅在B模式数据库下（即sql_compatibility = 'B'）支持，其他模式数据库下不支持。 在B模式下，未指定USING method时，对于ASTORE的存储方式，默认索引方法为btree；对于USTORE的存储方式，默认索引方法为ubtree。 当表的存储方式为USTORE时，SQL语句中约束指定为using btree，底层会自动将约束建立为using ubtree。 ASC | DESC ASC表示指定按升序排序（默认）。DESC指定按降序排序。 ASC | DESC只在B模式数据库下（即sql_compatibility = 'B'）支持，其他模式数据库不支持。 expression 创建一个基于该表的一个或多个字段的表达式索引约束，必须写在圆括弧中。 UNIQUE约束中的表达式索引只在B模式数据库下支持（即sql_compatibility = 'B'），其他模式数据库不支持。 data_type 字段的数据类型。 compress_mode 表字段的压缩选项。该选项指定表字段优先使用的压缩算法。行存表不支持压缩。 取值范围：DELTA、PREFIX、DICTIONARY、NUMSTR、NOCOMPRESS CHARACTER SET | CHARSET charset 指定表字段的字符集。单独指定时会将字段的字符序设置为指定的字符集的默认字符序。 只在B模式数据库下（即sql_compatibility = 'B'）支持该语法，其他模式数据库不支持。 COLLATE collation COLLATE子句指定列的排序规则（字符序）（该列必须是可排列的数据类型）。如果没有指定，则使用默认的排序规则。排序规则可以使用“select * from pg_collation;”命令从pg_collation系统表中查询，默认的排序规则为查询结果中以default开始的行。对于B模式数据库下（即sql_compatibility = 'B'）还支持utf8mb4_bin、utf8mb4_general_ci、utf8mb4_unicode_ci、binary、gbk_chinese_ci、gbk_bin、gb18030_chinese_ci、gb18030_bin字符序。 仅字符类型支持指定字符集。指定为binary字符集或字符序实际是将字符类型转化为对应的二进制类型，若类型映射不存在则报错。当前仅有TEXT类型转化为BLOB的映射。 除binary字符集和字符序外，当前仅支持指定与数据库编码相同的字符集。 字段字符集或字符序未显式指定时，若指定了表的默认字符集或字符序，字段字符集和字符序将从表上继承。若表的默认字符集或字符序不存在，当b_format_behavior_compat_options包含'default_collation'时，字段的字符集和字符序将继承当前数据库的字符集及其对应的默认字符序。 表1 B模式（即sql_compatibility = 'B'）下支持的字符集和字符序介绍 字符序名称 对应的字符集 描述 utf8mb4_general_ci utf8mb4（即utf8） 使用通用排序规则，不区分大小写。 utf8mb4_unicode_ci utf8mb4（即utf8） 使用通用排序规则，不区分大小写。 utf8mb4_bin utf8mb4（即utf8） 使用二进制排序规则，区分大小写。 binary binary (即sql_ascii) 使用二进制排序规则。 gbk_chinese_ci gbk 使用中文语言排序规则。 gbk_bin gbk 使用二进制排序规则，区分大小写。 gb18030_chinese_ci gb18030 使用中文语言排序规则。 gb18030_bin gb18030 使用二进制排序规则，区分大小写。 LIKE source_table [ like_option ... ] LIKE子句声明一个表，新表自动从这个表中继承所有字段名及其数据类型和非空约束。 新表与源表之间在创建动作完毕之后是完全无关的。在源表做的任何修改都不会传播到新表中，并且也不可能在扫描源表的时候包含新表的数据。 被复制的列和约束并不使用相同的名称进行融合。如果明确的指定了相同的名称或者在另外一个LIKE子句中，将会报错。 源表上的字段缺省表达式只有在指定INCLUDING DEFAULTS时，才会复制到新表中。缺省是不包含缺省表达式的，即新表中的所有字段的缺省值都是NULL。 如果指定了INCLUDING UPDATE，则源表列的ON UPDATE CURRENT_TIMESTAMP属性会复制到新表列中。默认不复制该属性。 如果指定了INCLUDING GENERATED，则源表列的生成表达式会复制到新表中。默认不复制生成表达式。 源表上的CHECK约束仅在指定INCLUDING CONSTRAINTS时，会复制到新表中，而其他类型的约束永远不会复制到新表中。非空约束总是复制到新表中。此规则同时适用于表约束和列约束。 如果指定了INCLUDING INDEXES，则源表上的索引也将在新表上创建，默认不建立索引。 如果指定了INCLUDING STORAGE，则源表列的STORAGE设置会复制到新表中，默认情况下不包含STORAGE设置。 如果指定了INCLUDING COMMENTS，则源表列、约束和索引的注释会复制到新表中。默认情况下，不复制源表的注释。 如果指定了INCLUDING PARTITION，则源表的分区定义会复制到新表中，同时新表将不能再使用PARTITION BY子句。默认情况下，不拷贝源表的分区定义。如果源表上带有索引，可以使用INCLUDING PARTITION INCLUDING INDEXES语法实现。如果对分区表只使用INCLUDING INDEXES，目标表定义将是普通表，但是索引是分区索引，最后结果会报错，因为普通表不支持分区索引。 如果指定了INCLUDING RELOPTIONS，则源表的存储参数（即源表的WITH子句）会复制到新表中。默认情况下，不复制源表的存储参数。 如果指定了INCLUDING IDENTITY，则源表的IDENTITY会复制到新表中，并创建一个与源表SEQUENCE参数相同的SEQUENCE。默认情况下，不复制源表的IDENTITY。 INCLUDING ALL包含了INCLUDING DEFAULTS、INCLUDING UPDATE、INCLUDING GENERATED、INCLUDING CONSTRAINTS、INCLUDING INDEXES、INCLUDING STORAGE、INCLUDING COMMENTS、INCLUDING PARTITION、INCLUDING RELOPTIONS和INCLUDING IDENTITY的内容。 如果源表包含serial、bigserial、smallserial、largeserial类型，或者源表字段的默认值是Sequence，且Sequence属于源表（通过CREATE SEQUENCE ... OWNED BY创建），这些Sequence不会关联到新表中，新表中会重新创建属于自己的Sequence。这和之前版本的处理逻辑不同。如果用户希望源表和新表共享Sequence，需要首先创建一个共享的Sequence（避免使用OWNED BY），并配置为源表字段默认值，这样创建的新表会和源表共享该Sequence。 不建议将其他表私有的Sequence配置为源表字段的默认值，尤其是其他表只分布在特定的NodeGroup上，这可能导致CREATE TABLE ... LIKE执行失败。另外，如果源表配置其他表私有的Sequence，当该表删除时Sequence也会连带删除，这样源表的Sequence将不可用。如果用户希望多个表共享Sequence，建议创建共享的Sequence。 对于分区表EXCLUDING，需要配合INCLUDING ALL使用，如INCLUDING ALL EXCLUDING DEFAULTS，除源分区表的DEFAULTS，其它全包含。 AUTO_INCREMENT [ = ] value 这个子句为自动增长列指定一个初始值，value必须为正整数，不得超过2 127 -1。 该子句仅在参数sql_compatibility='B'时有效。 COMMENT [ = ] 'string' COMMENT [ = ] 'string子句表示给表添加注释。 在column_constraint中的COMMENT 'string'表示给列添加注释。 在table_constraint中的COMMENT 'string'表示给主键和唯一键对应的索引添加注释。 该子句仅在B模式数据库下（即sql_compatibility = 'B'）有效。 表级注释支持的最大字符串长度为2048字符，列级和索引级注释支持的最大长度为1024字符。 table_constraint中的COMMENT仅支持主键和唯一键，其他约束不支持。 WITH ( { storage_parameter = value } [, ... ] ) 这个子句为表或索引指定一个可选的存储参数。用于表的WITH子句还可以包含OIDS=FALSE表示不分配OID。 使用任意精度类型Numeric定义列时，建议指定精度p以及刻度s。在不指定精度和刻度时，会按输入的显示出来。 参数的详细描述如下所示。 FILLFACTOR 一个表的填充因子（fillfactor）是一个介于10和100之间的百分数。在Ustore存储引擎下，该值得默认值为92，在Astore存储引擎下默认值为100（完全填充）。如果指定了较小的填充因子，INSERT操作仅按照填充因子指定的百分率填充表页。每个页上的剩余空间将用于在该页上更新行，这就使得UPDATE有机会在同一页上放置同一条记录的新版本，这比把新版本放置在其他页上更有效。对于一个从不更新的表将填充因子设为100是最佳选择，但是对于频繁更新的表，选择较小的填充因子则更加合适。 取值范围：10~100 ORIENTATION 指定表数据的存储方式，该参数设置成功后就不再支持修改。 取值范围： ROW，表示表的数据将以行式存储。 行存储适合于OLTP业务，适用于点查询或者增删操作较多的场景。 默认值： 若指定表空间为普通表空间，默认值为ROW。 STORAGE_TYPE 指定存储引擎类型，该参数设置成功后就不再支持修改。 取值范围： USTORE，表示表支持Inplace-Update存储引擎。特别需要注意，使用UStore表，必须要开启track_counts和track_activities参数，否则会引起空间膨胀。 ASTORE，表示表支持Append-Only存储引擎。 默认值： 不指定ORIENTATION和STORAGE_TYPE时创建表，默认是USTORE存储引擎（表示表支持Inplace-Update存储引擎）。 INIT_TD 创建UStore表时，指定初始化的TD个数，该参数可以通过alter table进行修改。特别需要注意，该参数会影响数据页面存放的单个元组的最大大小，具体换算方法为MAX_TUPLE_SIZE = BLCKSZ - INIT_TD * TD_SIZE，例如用户将INIT_TD数量从4修改为8，单个元组最大大小会减小4 * INIT_TD大小。 取值范围：2~128，默认值为4。 COMPRESSION 指定表数据的压缩级别，它决定了表数据的压缩比以及压缩时间。一般来讲，压缩级别越高，压缩比也越大，压缩时间也越长；反之亦然。实际压缩比取决于加载的表数据的分布特征。行存表不支持压缩。 取值范围： 行存表不支持压缩，默认值为NO。 COMPRESSLEVEL 指定表数据同一压缩级别下的不同压缩水平，它决定了同一压缩级别下表数据的压缩比以及压缩时间。对同一压缩级别进行了更加详细的划分，为用户选择压缩比和压缩时间提供了更多的空间。总体来讲，此值越大，表示同一压缩级别下压缩比越大，压缩时间越长；反之亦然。 取值范围：0~3，默认值为0。 segment 使用段页式的方式存储 （当前特性是实验室特性，使用时请联系华为技术工程师提供技术支持。） 。本参数仅支持行存表。不支持1-5号物理文件非法删除破坏场景的防护。 取值范围：on/off 默认值：off enable_tde 指定该表为加密表。数据库会自动将加密表中的数据先加密再存储。使用该参数前，请确保已通过GUC参数enable_tde开启透明加密功能，并通过GUC参数tde_key_info设置访问密钥服务的信息，在《特性指南》中《透明数据加密》章节可获取该参数的详细使用方法。本参数仅支持行存表、临时表和unlogged表段页式表。 取值范围：on/off。设置enable_tde=on时，key_type、tde_cmk_id、dek_cipher参数由数据库自动生成，用户无法手动指定或更改。 默认值：off parallel_workers 表示创建索引时起的bgworker线程数量，例如2就表示将会起2个bgworker线程并发创建索引。 取值范围：[0,32]，int类型，0表示关闭并行建索引。 默认值：不设置该参数，表示未开启并行建索引功能。 encrypt_algo 指定透明数据加密算法。前提是需要对该表设置enable_tde选项。加密算法只能在创建表时指定，不同的表允许使用不同的加密算法，创建表成功后算法不可修改。 取值范围：字符串，有效值为：AES_128_CTR，SM4_CTR。 默认值：不设置enable_tde选项时默认为空；当enable_tde选项设置为on或off时，如果不设置encrypt_algo则算法默认为AES_128_CTR。 dek_cipher 透明数据加密密钥的密文。当开启enable_tde选项时会自动申请创建，用户不可单独指定。通过密钥轮转功能可以对密钥进行更新。 取值范围：字符串。 默认值：不开启加密时默认为空。 key_type 透明加密密钥类型。当开启enable_tde选项时会自动申请创建，用户不可单独指定。 取值范围：字符串。 默认值：不开启加密时默认为空。 cmk_id 透明数据加密使用的数据库实例主密钥ID。当开启enable_tde选项时通过GUC参数 tde_cmk_id 获取，用户单独不可指定或修改。 取值范围：字符串。 默认值：不开启加密时默认为空。 hasuids 参数开启：更新表元组时，为元组分配表级唯一标识id。 取值范围：on/off。 默认值：off。 collate 在B模式数据库下（即sql_compatibility = 'B'）用于记录表的默认字符序，一般只用于内部存储和导入导出，不推荐用户指定或修改。 取值范围：B模式数据库中独立支持的字符序的oid。 默认值：0。 stat_state 标识该表的统计信息是否被锁定，如果被锁定了，该表的统计信息无法更新。 取值范围：locked、unlock。 默认值：unlock。 statistic_granularity 记录该表在分析统计信息时的默认partition_mode。partition_mode说明请参见 ANALYZE|ANALYSE参数说明 ，此参数对非分区表设置无效。 取值范围：请参见partition_mode取值范围。 默认值：AUTO WITHOUT OIDS 等价于WITH（OIDS=FALSE）的语法。 ON COMMIT { PRESERVE ROWS | DELETE ROWS | DROP } ON COMMIT选项决定在事务中执行创建临时表操作，当事务提交时，此临时表的后续操作。有以下三个选项，当前支持PRESERVE ROWS和DELETE ROWS选项。 PRESERVE ROWS（缺省值）：提交时不对临时表做任何操作，临时表及其表数据保持不变。 DELETE ROWS：提交时删除临时表中数据。 DROP：提交时删除此临时表。只支持本地临时表，不支持全局临时表。 COMPRESS | NOCOMPRESS 创建新表时，需要在CREATE TABLE语句中指定关键字COMPRESS，这样，当对该表进行批量插入时就会触发压缩特性。该特性会在页范围内扫描所有元组数据，生成字典、压缩元组数据并进行存储。指定关键字NOCOMPRESS则不对表进行压缩。行存表不支持压缩。 缺省值：NOCOMPRESS，即不对元组数据进行压缩。 [ ILM ADD POLICY ROW STORE { COMPRESS ADVANCED } { ROW } AFTER n { day | month | year } OF { NO MODIFICATION } [ ON ( EXPR )]] 创建新表时，可以调用ILM ADD POLICY ROW STORE COMPRESS ADVANCED ROW给行存添加高级压缩策略。比如：CREATE TABLE t1 (a int) ILM ADD POLICY ROW STORE COMPRESS ADVANCED ROW AFTER 3 DAY OF NO MODIFICATION ON (a != 0) 表示创建t1表并添加高级压缩策略：三天未修改并且a != 0的行。 AFTER n { day | month | year } OF  NO MODIFICATION ：表示n天/月/年没有修改的行。 ON ( EXPR )：行级表达式，用于判断行的冷热。 TABLESPACE tablespace_name 创建新表时指定此关键字，表示新表将要在指定表空间内创建。如果没有声明，将使用默认表空间。 CONSTRAINT constraint_name 列约束或表约束的名称。可选的约束子句用于声明约束，新行或者更新的行必须满足这些约束才能成功插入或更新。 定义约束有两种方法： 列约束：作为一个列定义的一部分，仅影响该列。 表约束：不和某个列绑在一起，可以作用于多个列。 NOT NULL 字段值不允许为NULL。 NULL 字段值允许为NULL ，这是缺省值。 这个子句只是为和非标准SQL数据库兼容。不建议使用。 CHECK ( expression ) CHECK约束声明一个布尔表达式，每次要插入的新行或者要更新的行的新值必须使表达式结果为真或未知才能成功，否则会抛出一个异常并且不会修改数据库。 声明为字段约束的检查约束应该只引用该字段的数值，而在表约束里出现的表达式可以引用多个字段。 expression表达式中，如果存在“<>NULL”或“！=NULL”，这种写法是无效的，需要写成“is NOT NULL”。 DEFAULT default_expr DEFAULT子句给字段指定缺省值。该数值可以是任何不含变量的表达式（不允许使用子查询和对本表中的其他字段的交叉引用）。缺省表达式的数据类型必须和字段类型匹配。 缺省表达式将被用于任何未声明该字段数值的插入操作。如果没有指定缺省值则缺省值为NULL 。 ON UPDATE update_expr ON UPDATE子句为字段的一种属性约束。 当对表中某元组执行UPDATE操作时，若更新字段的新值和表中旧值不相同，则表中该元组上具有该属性且不在更新字段内的字段值自动更新为当前时间戳；若更新字段的新值和表中旧值相同，则表中该元组上具有该属性且不在更新字段内的字段值不变，保持原有值；若具有该属性的字段在更新字段内，则对应这些字段值直接按指定更新的值更新。 该属性仅支持在B模式库中的5.7版本下指定（即sql_compatibility = 'B'、b_format_version='5.7'、b_format_dev_version='s1'）。 语法上update_expr支持CURRENT_TIMESTAMP 、LOCALTIMESTAMP 、NOW()三种关键字，也支持关键字带括号指定或不指定精度。例如：ON UPDATE CURRENT_TIMESTAMP()、ON UPDATE CURRENT_TIMESTAMP(5)、ON UPDATE LOCALTIMESTAMP()、ON UPDATE LOCALTIMESTAMP(6)等。不带括号或空括号时精度为0，其中NOW关键字不支持不带括号。三种关键字互为同义词，属性效果相同。 该属性仅支持在如下类型的列上指定: timestamp、datetime、date、time without time zone、smalldatetime、abstime。 CREATE TABLE AS语法不会继承该列属性。 CREATE TABLE LIKE语法可通过INCLUDING UPDATE或EXCLUDING UPDATE来选择继承或排除该约束。 该属性指定的精度和对应列上类型指定的精度可以不一致，通过该属性更新字段值后显示结果按最小精度显示。例如：CREATE TABLE t1 (col1 timestamp(6) ON UPDATE CURRENT_TIMESTAMP(3)); 若UPDATE语法触发该属性生效，则本次更新后col1字段值小数位显示3位。 该属性和生成列约束不能同时指定同一列。 分区表中的分区键不支持指定该属性。 GENERATED ALWAYS AS ( generation_expr ) [STORED ] 该子句将字段创建为生成列，生成列的值在写入（插入或更新）数据时由generation_expr计算得到，STORED表示像普通列一样存储生成列的值。 STORED关键字可省略，与不省略STORED语义相同。 生成表达式不能以任何方式引用当前行以外的其他数据。生成表达式不能引用其他生成列，不能引用系统列。生成表达式不能返回结果集，不能使用子查询，不能使用聚集函数，不能使用窗口函数。生成表达式调用的函数只能是不可变（IMMUTABLE）函数。 不能为生成列指定默认值。 生成列不能作为分区键的一部分。 生成列不能和ON UPDATE约束子句的CASCADE,SET NULL,SET DEFAULT动作同时指定。生成列不能和ON DELETE约束子句的SET NULL,SET DEFAULT动作同时指定。 修改和删除生成列的方法和普通列相同。删除生成列依赖的普通列，生成列被自动删除。不能改变生成列所依赖的列的类型。 生成列不能被直接写入。在INSERT或UPDATE命令中, 不能为生成列指定值, 但是可以指定关键字DEFAULT。 生成列的权限控制和普通列一样。 GENERATED [ ALWAYS | BY DEFAULT [ ON NULL ] ] AS IDENTITY [ ( identity_options ) ] 该子句将列创建为IDENTITY列。会根据identity_options自动创建一个隐式序列附加到指定列，在插入数据时将序列中获取的值自动分配给该列。 GENERATED [ ALWAYS ] AS IDENTITY：该列仅接受插入由序列生成器提供的IDENTITY值，不能接受用户指定值。 GENERATED BY DEFAULT AS IDENTITY：该列优先插入用户提供值，若用户不指定值，将插入由序列生成器提供的IDENTITY值。 GENERATED BY DEFAULT ON NULL AS IDENTITY：该列优先插入用户提供值，若用户指定NULL值或用户不指定值，将插入由序列生成器提供的IDENTITY值。 可选的identity_options子句可用于覆盖序列选项。 increment：指定隐式序列步长。为正数时将生成一个递增的序列，为负数时将生成一个递减的序列，缺省值为1。 MINVALUE minvalue | NO MINVALUE | NOMINVALUE：执行序列的最小值，如果没有声明minvalue或者声明了NO MINVALUE，则递增序序列缺省值为1，递减序列的缺省值为-10^27+1。NOMINVALUE等价于NO MINVALUE。 MAXVALUE maxvalue | NO MAXVALUE | NOMAXVALUE：执行序列的最大值，如果没有声明maxvalue或者声明了NO MAXVALUE，则递增序序列缺省值为10^28-1，递减序列的缺省值为-1。NOMAXVALUE等价于NO MAXVALUE。 start：指定隐式序列的起始值。缺省值：对于递增序列为minvalue，递减序列为maxvalue。 cache：为了快速访问，而在内存中预先存储序列号的个数。缺省值为1，表示一次只能生成一个值，即没有缓存。 NOCACHE：未预先存储序列的值。 CYCLE：用于使序列达到maxvalue或者minvalue后可循环并继续下去。如果声明了NO CYCLE，则在序列达到其最大或最小值之后任何对nextval的调用都会返回一个错误。NOCYCLE等价于NO CYCLE，缺省值为NO CYCLE。 SCALE：用于启用序列的可伸缩性。如果指定，则会在序列的开头附加一个数字偏移量，防止生成值中有重复项。如果声明了NOSCALE，则禁止序列的可伸缩性。缺省值为NOSCALE。 EXTEND：扩展数字偏移量长度（默认值为6），将序列生成值对齐到x（默认为6）+y（最大位数）位，指定EXTEND时必须指定SCALE。如果声明了NOEXTEND，则不扩展数字偏移量长度。缺省值为NOEXTEND。 IDENTITY列只能为smallint、integer、bigint、decimal、numeric、float、double precision或real数字类型。 在A兼容模式下，当创建IDENTITY列为整数数字类型时，将默认创建为numeric数字类型。 修改IDENTITY列的字段类型和普通列相同，但仅限于修改为smallint、integer、bigint、decimal、numeric、float、double precision和real数字类型。 IDENTITY列默认有NOT NULL约束。 一张表里只允许有一个IDENTITY列。 删除IDENTITY列的方法和删除普通列相同，删除列时，IDENTITY的隐式序列将会被自动删除。 IDENTITY列不能和SET DEFAULT动作同时指定。 自动创建的隐式序列的类型为LARGE SEQUENCE。 用户不能执行DROP LARGE SEQUENCE或ALTER LARGE SEQUENCE对IDENTITY的隐式序列进行修改。 当对该表进行赋权后，插入能正常执行，若要更改IDENTITY列、删除IDENTITY属性或删除IDENTITY列，需要对相应的隐式序列额外赋权。 [ SCALE [ EXTEND | NOEXTED ] | NOSCALE ]子句仅用于A兼容模式的集中式下创建IDENTITY列时可用。 在全密态数据库下，不支持创建表时指定加密IDENTITY列。 AUTO_INCREMENT 该关键字将字段指定为自动增长列。 若在插入时不指定此列的值（或指定此列的值为0、NULL、DEFAULT），此列的值将由自增计数器自动增长得到。 若插入或更新此列为一个大于当前自增计数器的值，执行成功后，自增计数器将刷新为此值。 自增初始值由“AUTO_INCREMENT [ = ] value”子句设置，若不设置，默认为1。 仅在参数sql_compatibility='B'时可以指定自动增长列。 自动增长列数据类型只能为整数类型、4字节或8字节浮点类型、布尔类型。 每个表只能有一个自动增长列。 自动增长列必须是主键约束或唯一约束的第一个字段。 自动增长列不能指定DEFAULT缺省值。 CHECK约束的表达式中不能含有自动增长列，生成列的表达式中不能含有自动增长列。 可以指定自动增长列允许NULL，若不指定，默认自动增长列含有NOT NULL约束。 含有自动增长列的表创建时，会创建一个依赖于此列的序列作为自增计数器，不允许通过序列相关功能修改或删除此序列，可以查看序列的值。 本地临时表中的自动增长列不会创建序列。 自增计数器自增和刷新操作不会回滚。 [DEFAULT] CHARACTER SET | CHARSET [ = ] default_charset 指定表的默认字符集。单独指定时会将表的默认字符序设置为指定的字符集的默认字符序。 仅在B模式下（即sql_compatibility='B'）支持该语法。 [DEFAULT] COLLATE [ = ] default_collation 指定表的默认字符序。单独指定时会将表的默认字符集设置为指定的字符序对应的字符集。 仅在B模式下（即sql_compatibility='B'）支持该语法。字符序请参见 表1 B模式（即sql_compatibility = 'B'）下支持的字符集和字符序介绍 。 表的字符集或字符序未显式指定时，若指定了模式的默认字符集或字符序，表字符集和字符序将从模式上继承。若模式的默认字符集或字符序不存在，当b_format_behavior_compat_options包含'default_collation'时，表的字符集和字符序将继承当前数据库的字符集及其对应的默认字符序。 UNIQUE [KEY] index_parameters UNIQUE约束表示表里的一个或多个字段的组合必须在全表范围内唯一。 UNIQUE KEY只能在B模式数据库下（即sql_compatibility = 'B'）支持使用，与UNIQUE语义相同。 UNIQUE [ index_name ][ USING method ]( {{ column_name [ ( length ) ] | ( expression ) } [ ASC | DESC ] }[, ... ] ) index_parameters UNIQUE约束表示表里的一个字段或多个字段的组合必须在全表范围内唯一。 对于唯一约束，NULL被认为是互不相等的。 column_name(length)是前缀键，详见： •column_name ( length ) 。 index_name为索引名。 index_name仅在B模式数据库下（即sql_compatibility = 'B'）支持，其他模式数据库下不支持。 对于唯一键约束，constraint_name和index_name同时指定时，索引名为index_name。 PRIMARY KEY index_parameters PRIMARY KEY [ USING method ] ( { column_name [ ASC | DESC ] } [, ... ] ） index_parameters 主键约束声明表中的一个或者多个字段只能包含唯一的非NULL值。 一个表只能声明一个主键。 REFERENCES reftable [ ( refcolumn ) ] [ MATCH matchtype ] [ ON DELETE action ] [ ON UPDATE action ] (column constraint) FOREIGN KEY ( column_name [, ... ] ) REFERENCES reftable [ ( refcolumn [, ... ] ) ] [ MATCH matchtype ] [ ON DELETE action ] [ ON UPDATE action ] (table constraint) 外键约束要求新表中一列或多列构成的组应该只包含、匹配被参考表中被参考字段值。若省略refcolumn，则将使用reftable的主键。被参考列应该是被参考表中的唯一字段或主键。外键约束不能被定义在临时表和永久表之间。 参考字段与被参考字段之间存在三种类型匹配，分别是： MATCH FULL：不允许一个多字段外键的字段为NULL，除非全部外键字段都是NULL。 MATCH SIMPLE（缺省）：允许任意外键字段为NULL。 MATCH PARTIAL：目前暂不支持。 另外，当被参考表中的数据发生改变时，某些操作也会在新表对应字段的数据上执行。ON DELETE子句声明当被参考表中的被参考行被删除时要执行的操作。ON UPDATE子句声明当被参考表中的被参考字段数据更新时要执行的操作。对于ON DELETE子句、ON UPDATE子句的可能动作： NO ACTION（缺省）：删除或更新时，创建一个表明违反外键约束的错误。若约束可推迟，且若仍存在任何引用行，那这个错误将会在检查约束的时候产生。 RESTRICT：删除或更新时，创建一个表明违反外键约束的错误。与NO ACTION相同，只是动作不可推迟。 CASCADE：删除新表中任何引用了被删除行的行，或更新新表中引用行的字段值为被参考字段的新值。 SET NULL：设置引用字段为NULL。 SET DEFAULT：设置引用字段为它们的缺省值。 DEFERRABLE | NOT DEFERRABLE 这两个关键字设置该约束是否可推迟。一个不可推迟的约束将在每条命令之后马上检查。可推迟约束可以推迟到事务结尾使用SET CONSTRAINTS命令检查。缺省是NOT DEFERRABLE。目前，UNIQUE约束、主键约束、外键约束可以接受这个子句。所有其他约束类型都是不可推迟的。 INITIALLY IMMEDIATE | INITIALLY DEFERRED 如果约束是可推迟的，则这个子句声明检查约束的缺省时间。 如果约束是INITIALLY IMMEDIATE（缺省），则在每条语句执行之后就立即检查它； 如果约束是INITIALLY DEFERRED ，则只有在事务结尾才检查它。 约束检查的时间可以用SET CONSTRAINTS命令修改。 USING INDEX TABLESPACE tablespace_name 为UNIQUE或PRIMARY KEY约束相关的索引声明一个表空间。如果没有提供这个子句，这个索引将在default_tablespace中创建，如果default_tablespace为空，将使用数据库的缺省表空间。 ENCRYPTION_TYPE = encryption_type_value 为ENCRYPTED WITH约束中的加密类型，encryption_type_value的值为[ DETERMINISTIC | RANDOMIZED ] 示例 --创建简单的表。 gaussdb=# CREATE SCHEMA tpcds;
+CREATE SCHEMA gaussdb=# CREATE TABLE tpcds. warehouse_t1
+(
+    W_WAREHOUSE_SK            INTEGER               NOT NULL,
+    W_WAREHOUSE_ID            CHAR(16)              NOT NULL,
+    W_WAREHOUSE_NAME          VARCHAR(20)                   ,
+    W_WAREHOUSE_SQ_FT         INTEGER                       ,
+    W_STREET_NUMBER           CHAR(10)                      ,
+    W_STREET_NAME             VARCHAR(60)                   ,
+    W_STREET_TYPE             CHAR(15)                      ,
+    W_SUITE_NUMBER            CHAR(10)                      ,
+    W_CITY                    VARCHAR(60)                   ,
+    W_COUNTY                  VARCHAR(30)                   ,
+    W_STATE                   CHAR(2)                       ,
+    W_ZIP                     CHAR(10)                      ,
+    W_COUNTRY                 VARCHAR(20)                   ,
+    W_GMT_OFFSET              DECIMAL(5,2)
+); gaussdb=# CREATE TABLE tpcds. warehouse_t2
+(
+    W_WAREHOUSE_SK            INTEGER               NOT NULL,
+    W_WAREHOUSE_ID            CHAR(16)              NOT NULL,
+    W_WAREHOUSE_NAME          VARCHAR(20)                   ,
+    W_WAREHOUSE_SQ_FT         INTEGER                       ,
+    W_STREET_NUMBER           CHAR(10)                      ,
+    W_STREET_NAME             VARCHAR(60),
+    W_STREET_TYPE             CHAR(15)                      ,
+    W_SUITE_NUMBER            CHAR(10)                      ,
+    W_CITY                    VARCHAR(60)                   ,
+    W_COUNTY                  VARCHAR(30)                   ,
+    W_STATE                   CHAR(2)                       ,
+    W_ZIP                     CHAR(10)                      ,
+    W_COUNTRY                 VARCHAR(20)                   ,
+    W_GMT_OFFSET              DECIMAL(5,2)
+); gaussdb=# DROP TABLE tpcds.warehouse_t2;
+DROP TABLE gaussdb=# DROP TABLE tpcds.warehouse_t1;
+DROP TABLE gaussdb=# DROP SCHEMA tpcds;
+DROP SCHEMA --创建表，并指定W_STATE字段的缺省值为GA。 gaussdb=# CREATE SCHEMA tpcds;
+CREATE SCHEMA gaussdb=# CREATE TABLE tpcds. warehouse_t3
+(
+    W_WAREHOUSE_SK            INTEGER               NOT NULL,
+    W_WAREHOUSE_ID            CHAR(16)              NOT NULL,
+    W_WAREHOUSE_NAME          VARCHAR(20)                   ,
+    W_WAREHOUSE_SQ_FT         INTEGER                       ,
+    W_STREET_NUMBER           CHAR(10)                      ,
+    W_STREET_NAME             VARCHAR(60)                   ,
+    W_STREET_TYPE             CHAR(15)                      ,
+    W_SUITE_NUMBER            CHAR(10)                      ,
+    W_CITY                    VARCHAR(60)                   ,
+    W_COUNTY                  VARCHAR(30)                   ,
+    W_STATE                   CHAR(2)           DEFAULT 'GA',
+    W_ZIP                     CHAR(10)                      ,
+    W_COUNTRY                 VARCHAR(20)                   ,
+    W_GMT_OFFSET              DECIMAL(5,2)
+); gaussdb=# DROP TABLE tpcds.warehouse_t3;
+DROP TABLE gaussdb=# DROP SCHEMA tpcds;
+DROP SCHEMA
+
+--创建表，并在事务结束时检查W_WAREHOUSE_NAME字段是否有重复。 gaussdb=# CREATE SCHEMA tpcds;
+CREATE SCHEMA gaussdb=# CREATE TABLE tpcds. warehouse_t4
+(
+    W_WAREHOUSE_SK            INTEGER                NOT NULL,
+    W_WAREHOUSE_ID            CHAR(16)               NOT NULL,
+    W_WAREHOUSE_NAME          VARCHAR(20)   UNIQUE DEFERRABLE,
+    W_WAREHOUSE_SQ_FT         INTEGER                        ,
+    W_STREET_NUMBER           CHAR(10)                       ,
+    W_STREET_NAME             VARCHAR(60)                    ,
+    W_STREET_TYPE             CHAR(15)                       ,
+    W_SUITE_NUMBER            CHAR(10)                       ,
+    W_CITY                    VARCHAR(60)                    ,
+    W_COUNTY                  VARCHAR(30)                    ,
+    W_STATE                   CHAR(2)                        ,
+    W_ZIP                     CHAR(10)                       ,
+    W_COUNTRY                 VARCHAR(20)                    ,
+    W_GMT_OFFSET              DECIMAL(5,2) 
+); gaussdb=# DROP TABLE tpcds.warehouse_t4;
+DROP TABLE gaussdb=# DROP SCHEMA tpcds;
+DROP SCHEMA --创建一个带有70%填充因子的表。 gaussdb=# CREATE SCHEMA tpcds;
+CREATE SCHEMA gaussdb=# CREATE TABLE tpcds. warehouse_t5
+(
+    W_WAREHOUSE_SK            INTEGER                NOT NULL,
+    W_WAREHOUSE_ID            CHAR(16)               NOT NULL,
+    W_WAREHOUSE_NAME          VARCHAR(20)                    ,
+    W_WAREHOUSE_SQ_FT         INTEGER                        ,
+    W_STREET_NUMBER           CHAR(10)                       ,
+    W_STREET_NAME             VARCHAR(60)                    ,
+    W_STREET_TYPE             CHAR(15)                       ,
+    W_SUITE_NUMBER            CHAR(10)                       ,
+    W_CITY                    VARCHAR(60)                    ,
+    W_COUNTY                  VARCHAR(30)                    ,
+    W_STATE                   CHAR(2)                        ,
+    W_ZIP                     CHAR(10)                       ,
+    W_COUNTRY                 VARCHAR(20)                    ,
+    W_GMT_OFFSET              DECIMAL(5,2),
+    UNIQUE(W_WAREHOUSE_NAME) WITH(fillfactor=70)
+); gaussdb=# DROP TABLE tpcds.warehouse_t5;
+DROP TABLE gaussdb=# DROP SCHEMA tpcds;
+DROP SCHEMA
+
+--或者用下面的语法。 gaussdb=# CREATE SCHEMA tpcds;
+CREATE SCHEMA gaussdb=# CREATE TABLE tpcds. warehouse_t6
+(
+    W_WAREHOUSE_SK            INTEGER                NOT NULL,
+    W_WAREHOUSE_ID            CHAR(16)               NOT NULL,
+    W_WAREHOUSE_NAME          VARCHAR(20)              UNIQUE,
+    W_WAREHOUSE_SQ_FT         INTEGER                        ,
+    W_STREET_NUMBER           CHAR(10)                       ,
+    W_STREET_NAME             VARCHAR(60)                    ,
+    W_STREET_TYPE             CHAR(15)                       ,
+    W_SUITE_NUMBER            CHAR(10)                       ,
+    W_CITY                    VARCHAR(60)                    ,
+    W_COUNTY                  VARCHAR(30)                    ,
+    W_STATE                   CHAR(2)                        ,
+    W_ZIP                     CHAR(10)                       ,
+    W_COUNTRY                 VARCHAR(20)                    ,
+    W_GMT_OFFSET              DECIMAL(5,2)
+) WITH(fillfactor=70); gaussdb=# DROP TABLE tpcds.warehouse_t6;
+DROP TABLE gaussdb=# DROP SCHEMA tpcds;
+DROP SCHEMA
+
+--创建表，并指定该表数据不写入预写日志。 gaussdb=# CREATE SCHEMA tpcds;
+CREATE SCHEMA gaussdb=# CREATE UNLOGGED TABLE tpcds. warehouse_t7
+(
+    W_WAREHOUSE_SK            INTEGER               NOT NULL,
+    W_WAREHOUSE_ID            CHAR(16)              NOT NULL,
+    W_WAREHOUSE_NAME          VARCHAR(20)                   ,
+    W_WAREHOUSE_SQ_FT         INTEGER                       ,
+    W_STREET_NUMBER           CHAR(10)                      ,
+    W_STREET_NAME             VARCHAR(60)                   ,
+    W_STREET_TYPE             CHAR(15)                      ,
+    W_SUITE_NUMBER            CHAR(10)                      ,
+    W_CITY                    VARCHAR(60)                   ,
+    W_COUNTY                  VARCHAR(30)                   ,
+    W_STATE                   CHAR(2)                       ,
+    W_ZIP                     CHAR(10)                      ,
+    W_COUNTRY                 VARCHAR(20)                   ,
+    W_GMT_OFFSET              DECIMAL(5,2)
+); gaussdb=# DROP TABLE tpcds.warehouse_t7;
+DROP TABLE gaussdb=# DROP SCHEMA tpcds;
+DROP SCHEMA
+
+--创建表临时表。 gaussdb=# CREATE TEMPORARY TABLE warehouse_t24
+(
+    W_WAREHOUSE_SK            INTEGER               NOT NULL,
+    W_WAREHOUSE_ID            CHAR(16)              NOT NULL,
+    W_WAREHOUSE_NAME          VARCHAR(20)                   ,
+    W_WAREHOUSE_SQ_FT         INTEGER                       ,
+    W_STREET_NUMBER           CHAR(10)                      ,
+    W_STREET_NAME             VARCHAR(60)                   ,
+    W_STREET_TYPE             CHAR(15)                      ,
+    W_SUITE_NUMBER            CHAR(10)                      ,
+    W_CITY                    VARCHAR(60)                   ,
+    W_COUNTY                  VARCHAR(30)                   ,
+    W_STATE                   CHAR(2)                       ,
+    W_ZIP                     CHAR(10)                      ,
+    W_COUNTRY                 VARCHAR(20)                   ,
+    W_GMT_OFFSET              DECIMAL(5,2)
+);
+
+--创建本地临时表，并指定提交事务时删除该临时表数据。 gaussdb=# CREATE TEMPORARY TABLE warehouse_t25
+(
+    W_WAREHOUSE_SK            INTEGER               NOT NULL,
+    W_WAREHOUSE_ID            CHAR(16)              NOT NULL,
+    W_WAREHOUSE_NAME          VARCHAR(20)                   ,
+    W_WAREHOUSE_SQ_FT         INTEGER                       ,
+    W_STREET_NUMBER           CHAR(10)                      ,
+    W_STREET_NAME             VARCHAR(60)                   ,
+    W_STREET_TYPE             CHAR(15)                      ,
+    W_SUITE_NUMBER            CHAR(10)                      ,
+    W_CITY                    VARCHAR(60)                   ,
+    W_COUNTY                  VARCHAR(30)                   ,
+    W_STATE                   CHAR(2)                       ,
+    W_ZIP                     CHAR(10)                      ,
+    W_COUNTRY                 VARCHAR(20)                   ,
+    W_GMT_OFFSET              DECIMAL(5,2)
+) ON COMMIT DELETE ROWS;
+
+--创建全局临时表，并指定会话结束时删除该临时表数据，当前Ustore存储引擎不支持全局临时表。 gaussdb=# CREATE GLOBAL TEMPORARY TABLE gtt1
+(
+    ID                        INTEGER               NOT NULL,
+    NAME                      CHAR(16)              NOT NULL,
+    ADDRESS                   VARCHAR(50)                   ,
+    POSTCODE                  CHAR(6)
+) ON COMMIT PRESERVE ROWS;
+
+--创建表时，不希望因为表已存在而报错。 gaussdb=# CREATE SCHEMA tpcds;
+CREATE SCHEMA gaussdb=# CREATE TABLE IF NOT EXISTS tpcds. warehouse_t8
+(
+    W_WAREHOUSE_SK            INTEGER               NOT NULL,
+    W_WAREHOUSE_ID            CHAR(16)              NOT NULL,
+    W_WAREHOUSE_NAME          VARCHAR(20)                   ,
+    W_WAREHOUSE_SQ_FT         INTEGER                       ,
+    W_STREET_NUMBER           CHAR(10)                      ,
+    W_STREET_NAME             VARCHAR(60)                   ,
+    W_STREET_TYPE             CHAR(15)                      ,
+    W_SUITE_NUMBER            CHAR(10)                      ,
+    W_CITY                    VARCHAR(60)                   ,
+    W_COUNTY                  VARCHAR(30)                   ,
+    W_STATE                   CHAR(2)                       ,
+    W_ZIP                     CHAR(10)                      ,
+    W_COUNTRY                 VARCHAR(20)                   ,
+    W_GMT_OFFSET              DECIMAL(5,2)
+); gaussdb=# DROP TABLE tpcds.warehouse_t8;
+DROP TABLE gaussdb=# DROP SCHEMA tpcds;
+DROP SCHEMA
+
+--创建普通表空间。 gaussdb=# CREATE TABLESPACE DS_TABLESPACE1 RELATIVE LOCATION 'tablespace/tablespace_1';
+--创建表时，指定表空间。 gaussdb=# CREATE SCHEMA tpcds;
+CREATE SCHEMA gaussdb=# CREATE TABLE tpcds. warehouse_t9
+(
+    W_WAREHOUSE_SK            INTEGER               NOT NULL,
+    W_WAREHOUSE_ID            CHAR(16)              NOT NULL,
+    W_WAREHOUSE_NAME          VARCHAR(20)                   ,
+    W_WAREHOUSE_SQ_FT         INTEGER                       ,
+    W_STREET_NUMBER           CHAR(10)                      ,
+    W_STREET_NAME             VARCHAR(60)                   ,
+    W_STREET_TYPE             CHAR(15)                      ,
+    W_SUITE_NUMBER            CHAR(10)                      ,
+    W_CITY                    VARCHAR(60)                   ,
+    W_COUNTY                  VARCHAR(30)                   ,
+    W_STATE                   CHAR(2)                       ,
+    W_ZIP                     CHAR(10)                      ,
+    W_COUNTRY                 VARCHAR(20)                   ,
+    W_GMT_OFFSET              DECIMAL(5,2)
+) TABLESPACE DS_TABLESPACE1; gaussdb=# DROP TABLE tpcds.warehouse_t9;
+DROP TABLE gaussdb=# DROP SCHEMA tpcds;
+DROP SCHEMA
+
+--创建表时，单独指定W_WAREHOUSE_NAME的索引表空间。 gaussdb=# CREATE SCHEMA tpcds;
+CREATE SCHEMA gaussdb=# CREATE TABLE tpcds. warehouse_t10
+(
+    W_WAREHOUSE_SK            INTEGER               NOT NULL,
+    W_WAREHOUSE_ID            CHAR(16)              NOT NULL,
+    W_WAREHOUSE_NAME          VARCHAR(20)           UNIQUE USING INDEX TABLESPACE DS_TABLESPACE1,
+    W_WAREHOUSE_SQ_FT         INTEGER                       ,
+    W_STREET_NUMBER           CHAR(10)                      ,
+    W_STREET_NAME             VARCHAR(60)                   ,
+    W_STREET_TYPE             CHAR(15)                      ,
+    W_SUITE_NUMBER            CHAR(10)                      ,
+    W_CITY                    VARCHAR(60)                   ,
+    W_COUNTY                  VARCHAR(30)                   ,
+    W_STATE                   CHAR(2)                       ,
+    W_ZIP                     CHAR(10)                      ,
+    W_COUNTRY                 VARCHAR(20)                   ,
+    W_GMT_OFFSET              DECIMAL(5,2)
+); gaussdb=# DROP TABLE tpcds.warehouse_t10;
+DROP TABLE gaussdb=# DROP SCHEMA tpcds;
+DROP SCHEMA --创建一个有主键约束的表。 gaussdb=# CREATE SCHEMA tpcds;
+CREATE SCHEMA gaussdb=# CREATE TABLE tpcds. warehouse_t11
+(
+    W_WAREHOUSE_SK            INTEGER            PRIMARY KEY,
+    W_WAREHOUSE_ID            CHAR(16)              NOT NULL,
+    W_WAREHOUSE_NAME          VARCHAR(20)                   ,
+    W_WAREHOUSE_SQ_FT         INTEGER                       ,
+    W_STREET_NUMBER           CHAR(10)                      ,
+    W_STREET_NAME             VARCHAR(60)                   ,
+    W_STREET_TYPE             CHAR(15)                      ,
+    W_SUITE_NUMBER            CHAR(10)                      ,
+    W_CITY                    VARCHAR(60)                   ,
+    W_COUNTY                  VARCHAR(30)                   ,
+    W_STATE                   CHAR(2)                       ,
+    W_ZIP                     CHAR(10)                      ,
+    W_COUNTRY                 VARCHAR(20)                   ,
+    W_GMT_OFFSET              DECIMAL(5,2)
+); gaussdb=# DROP TABLE tpcds.warehouse_t11;
+DROP TABLE gaussdb=# DROP SCHEMA tpcds;
+DROP SCHEMA
+
+---或是用下面的语法，效果完全一样。 gaussdb=# CREATE SCHEMA tpcds;
+CREATE SCHEMA gaussdb=# CREATE TABLE tpcds. warehouse_t12
+(
+    W_WAREHOUSE_SK            INTEGER               NOT NULL,
+    W_WAREHOUSE_ID            CHAR(16)              NOT NULL,
+    W_WAREHOUSE_NAME          VARCHAR(20)                   ,
+    W_WAREHOUSE_SQ_FT         INTEGER                       ,
+    W_STREET_NUMBER           CHAR(10)                      ,
+    W_STREET_NAME             VARCHAR(60)                   ,
+    W_STREET_TYPE             CHAR(15)                      ,
+    W_SUITE_NUMBER            CHAR(10)                      ,
+    W_CITY                    VARCHAR(60)                   ,
+    W_COUNTY                  VARCHAR(30)                   ,
+    W_STATE                   CHAR(2)                       ,
+    W_ZIP                     CHAR(10)                      ,
+    W_COUNTRY                 VARCHAR(20)                   ,
+    W_GMT_OFFSET              DECIMAL(5,2),
+    PRIMARY KEY(W_WAREHOUSE_SK)
+); gaussdb=# DROP TABLE tpcds.warehouse_t12;
+DROP TABLE gaussdb=# DROP SCHEMA tpcds;
+DROP SCHEMA
+
+--或是用下面的语法，指定约束的名称。 gaussdb=# CREATE SCHEMA tpcds;
+CREATE SCHEMA gaussdb=# CREATE TABLE tpcds. warehouse_t13
+(
+    W_WAREHOUSE_SK            INTEGER               NOT NULL,
+    W_WAREHOUSE_ID            CHAR(16)              NOT NULL,
+    W_WAREHOUSE_NAME          VARCHAR(20)                   ,
+    W_WAREHOUSE_SQ_FT         INTEGER                       ,
+    W_STREET_NUMBER           CHAR(10)                      ,
+    W_STREET_NAME             VARCHAR(60)                   ,
+    W_STREET_TYPE             CHAR(15)                      ,
+    W_SUITE_NUMBER            CHAR(10)                      ,
+    W_CITY                    VARCHAR(60)                   ,
+    W_COUNTY                  VARCHAR(30)                   ,
+    W_STATE                   CHAR(2)                       ,
+    W_ZIP                     CHAR(10)                      ,
+    W_COUNTRY                 VARCHAR(20)                   ,
+    W_GMT_OFFSET              DECIMAL(5,2),
+    CONSTRAINT W_CSTR_KEY1 PRIMARY KEY(W_WAREHOUSE_SK)
+); gaussdb=# DROP TABLE tpcds.warehouse_t13;
+DROP TABLE gaussdb=# DROP SCHEMA tpcds;
+DROP SCHEMA
+
+--创建一个有主键约束并且指定约束类型及排序方式的表。 gaussdb=# CREATE TABLE tpcds. warehouse_t13_1
+(
+    W_WAREHOUSE_SK            INTEGER               NOT NULL,
+    W_WAREHOUSE_ID            CHAR(16)              NOT NULL,
+    W_WAREHOUSE_NAME          VARCHAR(20)                   ,
+    W_WAREHOUSE_SQ_FT         INTEGER                       ,
+    W_STREET_NUMBER           CHAR(10)                      ,
+    W_STREET_NAME             VARCHAR(60)                   ,
+    W_STREET_TYPE             CHAR(15)                      ,
+    W_SUITE_NUMBER            CHAR(10)                      ,
+    W_CITY                    VARCHAR(60)                   ,
+    W_COUNTY                  VARCHAR(30)                   ,
+    W_STATE                   CHAR(2)                       ,
+    W_ZIP                     CHAR(10)                      ,
+    W_COUNTRY                 VARCHAR(20)                   ,
+    W_GMT_OFFSET              DECIMAL(5,2),
+    CONSTRAINT PRIMARY KEY USING BTREE (W_WAREHOUSE_SK DESC)
+); gaussdb=# DROP TABLE tpcds.warehouse_t13_1;
+DROP TABLE gaussdb=# DROP SCHEMA tpcds;
+DROP SCHEMA
+
+--创建一个有复合主键约束的表。 gaussdb=# CREATE SCHEMA tpcds;
+CREATE SCHEMA gaussdb=# CREATE TABLE tpcds. warehouse_t14
+(
+    W_WAREHOUSE_SK            INTEGER               NOT NULL,
+    W_WAREHOUSE_ID            CHAR(16)              NOT NULL,
+    W_WAREHOUSE_NAME          VARCHAR(20)                   ,
+    W_WAREHOUSE_SQ_FT         INTEGER                       ,
+    W_STREET_NUMBER           CHAR(10)                      ,
+    W_STREET_NAME             VARCHAR(60)                   ,
+    W_STREET_TYPE             CHAR(15)                      ,
+    W_SUITE_NUMBER            CHAR(10)                      ,
+    W_CITY                    VARCHAR(60)                   ,
+    W_COUNTY                  VARCHAR(30)                   ,
+    W_STATE                   CHAR(2)                       ,
+    W_ZIP                     CHAR(10)                      ,
+    W_COUNTRY                 VARCHAR(20)                   ,
+    W_GMT_OFFSET              DECIMAL(5,2),
+    CONSTRAINT W_CSTR_KEY2 PRIMARY KEY(W_WAREHOUSE_SK, W_WAREHOUSE_ID)
+); gaussdb=# DROP TABLE tpcds.warehouse_t14;
+DROP TABLE gaussdb=# DROP SCHEMA tpcds;
+DROP SCHEMA
+--定义一个检查列约束。 gaussdb=# CREATE SCHEMA tpcds;
+CREATE SCHEMA gaussdb=# CREATE TABLE tpcds. warehouse_t19
+(
+    W_WAREHOUSE_SK            INTEGER               PRIMARY KEY CHECK (W_WAREHOUSE_SK > 0),
+    W_WAREHOUSE_ID            CHAR(16)              NOT NULL,
+    W_WAREHOUSE_NAME          VARCHAR(20)           CHECK (W_WAREHOUSE_NAME IS NOT NULL),
+    W_WAREHOUSE_SQ_FT         INTEGER                       ,
+    W_STREET_NUMBER           CHAR(10)                      ,
+    W_STREET_NAME             VARCHAR(60)                   ,
+    W_STREET_TYPE             CHAR(15)                      ,
+    W_SUITE_NUMBER            CHAR(10)                      ,
+    W_CITY                    VARCHAR(60)                   ,
+    W_COUNTY                  VARCHAR(30)                   ,
+    W_STATE                   CHAR(2)                       ,
+    W_ZIP                     CHAR(10)                      ,
+    W_COUNTRY                 VARCHAR(20)                   ,
+    W_GMT_OFFSET              DECIMAL(5,2)
+); gaussdb=# CREATE TABLE tpcds. warehouse_t20
+(
+    W_WAREHOUSE_SK            INTEGER               PRIMARY KEY,
+    W_WAREHOUSE_ID            CHAR(16)              NOT NULL,
+    W_WAREHOUSE_NAME          VARCHAR(20)           CHECK (W_WAREHOUSE_NAME IS NOT NULL),
+    W_WAREHOUSE_SQ_FT         INTEGER                       ,
+    W_STREET_NUMBER           CHAR(10)                      ,
+    W_STREET_NAME             VARCHAR(60)                   ,
+    W_STREET_TYPE             CHAR(15)                      ,
+    W_SUITE_NUMBER            CHAR(10)                      ,
+    W_CITY                    VARCHAR(60)                   ,
+    W_COUNTY                  VARCHAR(30)                   ,
+    W_STATE                   CHAR(2)                       ,
+    W_ZIP                     CHAR(10)                      ,
+    W_COUNTRY                 VARCHAR(20)                   ,
+    W_GMT_OFFSET              DECIMAL(5,2),
+    CONSTRAINT W_CONSTR_KEY2 CHECK(W_WAREHOUSE_SK > 0 AND W_WAREHOUSE_NAME IS NOT NULL) 
+);
+--向 tpcds. warehouse_t19表中增加一个varchar列。 gaussdb=# ALTER TABLE tpcds. warehouse_t19 ADD W_GOODS_CATEGORY varchar(30);
+
+--给 tpcds. warehouse_t19表增加一个检查约束。 gaussdb=# ALTER TABLE tpcds. warehouse_t19 ADD CONSTRAINT W_CONSTR_KEY4 CHECK (W_STATE IS NOT NULL);
+
+--在一个操作中改变两个现存字段的类型。 gaussdb=# ALTER TABLE tpcds. warehouse_t19
+    ALTER COLUMN W_GOODS_CATEGORY TYPE varchar(80),
+    ALTER COLUMN W_STREET_NAME TYPE varchar(100);
+
+--此语句与上面语句等效。 gaussdb=# ALTER TABLE tpcds. warehouse_t19 MODIFY (W_GOODS_CATEGORY varchar(30), W_STREET_NAME varchar(60));
+
+--给一个已存在字段添加非空约束。 gaussdb=# ALTER TABLE tpcds. warehouse_t19 ALTER COLUMN W_GOODS_CATEGORY SET NOT NULL;
+
+--移除已存在字段的非空约束。 gaussdb=# ALTER TABLE tpcds. warehouse_t19 ALTER COLUMN W_GOODS_CATEGORY DROP NOT NULL;
+
+--将表移动到另一个表空间。 gaussdb=# ALTER TABLE tpcds. warehouse_t19 SET TABLESPACE PG_DEFAULT; 
+--创建模式joe。 gaussdb=# CREATE SCHEMA joe;
+
+--将表移动到另一个模式中。 gaussdb=# ALTER TABLE tpcds. warehouse_t19 SET SCHEMA joe;
+
+--重命名已存在的表。 gaussdb=# ALTER TABLE joe.warehouse_t19 RENAME TO warehouse_t23;
+
+--从warehouse_t23表中删除一个字段。 gaussdb=# ALTER TABLE joe.warehouse_t23 DROP COLUMN W_STREET_NAME;
+
+--删除表空间、模式joe gaussdb=# DROP TABLESPACE DS_TABLESPACE1; gaussdb=# DROP SCHEMA IF EXISTS joe CASCADE; gaussdb=# DROP TABLE tpcds.warehouse_t20;
+DROP TABLE gaussdb=# DROP SCHEMA tpcds;
+DROP SCHEMA
+
+--定义一个有ALWAYS属性IDENTITY列的表。 gaussdb=# CREATE SCHEMA tpcds;
+CREATE SCHEMA gaussdb=# CREATE TABLE tpcds. warehouse_t26
+(
+    W_WAREHOUSE_SK            INTEGER GENERATED ALWAYS AS IDENTITY ,
+    W_WAREHOUSE_ID            CHAR(16)              NOT NULL,
+    W_WAREHOUSE_NAME          VARCHAR(20)                   ,
+    W_WAREHOUSE_SQ_FT         INTEGER                       ,
+    W_STREET_NUMBER           CHAR(10)                      ,
+    W_STREET_NAME             VARCHAR(60)                   ,
+    W_STREET_TYPE             CHAR(15)                      ,
+    W_SUITE_NUMBER            CHAR(10)                      ,
+    W_CITY                    VARCHAR(60)                   ,
+    W_COUNTY                  VARCHAR(30)                   ,
+    W_STATE                   CHAR(2)                       ,
+    W_ZIP                     CHAR(10)                      ,
+    W_COUNTRY                 VARCHAR(20)                   ,
+    W_GMT_OFFSET              DECIMAL(5,2)
+); gaussdb=# DROP TABLE tpcds.warehouse_t26;
+DROP TABLE gaussdb=# DROP SCHEMA tpcds;
+DROP SCHEMA
+
+--定义一个有BY DEFAULT属性IDENTITY列的表。 gaussdb=# CREATE SCHEMA tpcds;
+CREATE SCHEMA gaussdb=# CREATE TABLE tpcds. warehouse_t27
+(
+    W_WAREHOUSE_SK            INTEGER GENERATED BY DEFAULT AS IDENTITY (INCREMENT BY 10 MINVALUE 200 SCALE) ,
+    W_WAREHOUSE_ID            CHAR(16)              NOT NULL,
+    W_WAREHOUSE_NAME          VARCHAR(20)                   ,
+    W_WAREHOUSE_SQ_FT         INTEGER                       ,
+    W_STREET_NUMBER           CHAR(10)                      ,
+    W_STREET_NAME             VARCHAR(60)                   ,
+    W_STREET_TYPE             CHAR(15)                      ,
+    W_SUITE_NUMBER            CHAR(10)                      ,
+    W_CITY                    VARCHAR(60)                   ,
+    W_COUNTY                  VARCHAR(30)                   ,
+    W_STATE                   CHAR(2)                       ,
+    W_ZIP                     CHAR(10)                      ,
+    W_COUNTRY                 VARCHAR(20)                   ,
+    W_GMT_OFFSET              DECIMAL(5,2)
+); gaussdb=# DROP TABLE tpcds.warehouse_t27;
+DROP TABLE gaussdb=# DROP SCHEMA tpcds;
+DROP SCHEMA
+
+--定义一个有BY DEFAULT ON NULL属性IDENTITY列的表。 gaussdb=# CREATE SCHEMA tpcds;
+CREATE SCHEMA gaussdb=# CREATE TABLE tpcds. warehouse_t28
+(
+    W_WAREHOUSE_SK            INTEGER GENERATED BY DEFAULT ON NULL AS IDENTITY (START WITH 10 MAXVALUE 200 CYCLE) ,
+    W_WAREHOUSE_ID            CHAR(16)              NOT NULL,
+    W_WAREHOUSE_NAME          VARCHAR(20)                   ,
+    W_WAREHOUSE_SQ_FT         INTEGER                       ,
+    W_STREET_NUMBER           CHAR(10)                      ,
+    W_STREET_NAME             VARCHAR(60)                   ,
+    W_STREET_TYPE             CHAR(15)                      ,
+    W_SUITE_NUMBER            CHAR(10)                      ,
+    W_CITY                    VARCHAR(60)                   ,
+    W_COUNTY                  VARCHAR(30)                   ,
+    W_STATE                   CHAR(2)                       ,
+    W_ZIP                     CHAR(10)                      ,
+    W_COUNTRY                 VARCHAR(20)                   ,
+    W_GMT_OFFSET              DECIMAL(5,2)
+); gaussdb=# DROP TABLE tpcds.warehouse_t28;
+DROP TABLE gaussdb=# DROP SCHEMA tpcds;
+DROP SCHEMA
+
+--创建一个有外键约束的表。 gaussdb=# CREATE SCHEMA tpcds;
+CREATE SCHEMA gaussdb=# CREATE TABLE tpcds.city_t23
+(
+    W_CITY            VARCHAR(60)                PRIMARY KEY,
+    W_ADDRESS       TEXT                     
+); gaussdb=# CREATE TABLE tpcds.warehouse_t23
+(
+    W_WAREHOUSE_SK            INTEGER               NOT NULL,
+    W_WAREHOUSE_ID            CHAR(16)              NOT NULL,
+    W_WAREHOUSE_NAME          VARCHAR(20)                   ,
+    W_WAREHOUSE_SQ_FT         INTEGER                       ,
+    W_STREET_NUMBER           CHAR(10)                      ,
+    W_STREET_NAME             VARCHAR(60)                   ,
+    W_STREET_TYPE             CHAR(15)                      ,
+    W_SUITE_NUMBER            CHAR(10)                      ,
+    W_CITY                    VARCHAR(60)           REFERENCES tpcds.city_t23(W_CITY),
+    W_COUNTY                  VARCHAR(30)                   ,
+    W_STATE                   CHAR(2)                       ,
+    W_ZIP                     CHAR(10)                      ,
+    W_COUNTRY                 VARCHAR(20)                   ,
+    W_GMT_OFFSET              DECIMAL(5,2)
+); gaussdb=# DROP TABLE tpcds.city_t23;
+DROP TABLE gaussdb=# DROP TABLE tpcds.warehouse_t23;
+DROP TABLE gaussdb=# DROP SCHEMA tpcds;
+DROP SCHEMA
+
+--或是用下面的语法，效果完全一样。 gaussdb=# CREATE SCHEMA tpcds;
+CREATE SCHEMA gaussdb=# CREATE TABLE tpcds.warehouse_t23
+(
+    W_WAREHOUSE_SK            INTEGER               NOT NULL,
+    W_WAREHOUSE_ID            CHAR(16)              NOT NULL,
+    W_WAREHOUSE_NAME          VARCHAR(20)                   ,
+    W_WAREHOUSE_SQ_FT         INTEGER                       ,
+    W_STREET_NUMBER           CHAR(10)                      ,
+    W_STREET_NAME             VARCHAR(60)                   ,
+    W_STREET_TYPE             CHAR(15)                      ,
+    W_SUITE_NUMBER            CHAR(10)                      ,
+    W_CITY                    VARCHAR(60)                   ,
+    W_COUNTY                  VARCHAR(30)                   ,
+    W_STATE                   CHAR(2)                       ,
+    W_ZIP                     CHAR(10)                      ,
+    W_COUNTRY                 VARCHAR(20)                   ,
+    W_GMT_OFFSET              DECIMAL(5,2)                  ,
+    FOREIGN KEY(W_CITY) REFERENCES tpcds.city_t23(W_CITY)
+); gaussdb=# DROP TABLE tpcds.warehouse_t23;
+DROP TABLE gaussdb=# DROP SCHEMA tpcds;
+DROP SCHEMA
+
+--或是用下面的语法，指定约束的名称。 gaussdb=# CREATE SCHEMA tpcds;
+CREATE SCHEMA gaussdb=# CREATE TABLE tpcds.warehouse_t23
+(
+    W_WAREHOUSE_SK            INTEGER               NOT NULL,
+    W_WAREHOUSE_ID            CHAR(16)              NOT NULL,
+    W_WAREHOUSE_NAME          VARCHAR(20)                   ,
+    W_WAREHOUSE_SQ_FT         INTEGER                       ,
+    W_STREET_NUMBER           CHAR(10)                      ,
+    W_STREET_NAME             VARCHAR(60)                   ,
+    W_STREET_TYPE             CHAR(15)                      ,
+    W_SUITE_NUMBER            CHAR(10)                      ,
+    W_CITY                    VARCHAR(60)                   ,
+    W_COUNTY                  VARCHAR(30)                   ,
+    W_STATE                   CHAR(2)                       ,
+    W_ZIP                     CHAR(10)                      ,
+    W_COUNTRY                 VARCHAR(20)                   ,
+    W_GMT_OFFSET              DECIMAL(5,2)                  ,
+    CONSTRAINT W_FORE_KEY1 FOREIGN KEY(W_CITY) REFERENCES tpcds.city_t23(W_CITY)
+); gaussdb=# DROP TABLE tpcds.warehouse_t23;
+DROP TABLE gaussdb=# DROP SCHEMA tpcds;
+DROP SCHEMA -- 创建t1表，设置t1的默认字符集为utf8mb4，默认字符序为utf8mb4_bin，设置c1字段的字符集为utf8mb4，字符序为utf8mb4_unicode_ci gaussdb=# CREATE TABLE t1(C1 VARCHAR(20) CHARSET utf8mb4 COLLATE utf8mb4_unicode_ci) CHARSET = utf8mb4 COLLATE = utf8mb4_ bin ; -- 修改t1表的默认字符集为utf8mb4，默认字符序为utf8mb4_general_ci gaussdb=# ALTER TABLE t1 charset utf8mb4 collate utf8mb4_general_ci;
+-- 为t1表新增字段c3，并设置字段的字符集为utf8mb4，字符序为utf8mb4_bin gaussdb=# ALTER TABLE t1 add c3 varchar(20) charset utf8mb4 collate utf8mb4_bin;
+
+-- 创建开启ILM的表 gaussdb=# ALTER DATABASE SET ILM=ON; gaussdb=# CREATE TABLE ilm_table (a int) ILM ADD POLICY ROW STORE COMPRESS ADVANCED ROW AFTER 3 MONTHS OF NO MODIFICATION ON (a != 0);
+
+-- 或是用下面的语法，效果完全一样。
+创建一个表随后为其添加ILM策略 gaussdb=# CREATE TABLE ilm_table (a int); gaussdb=# ALTER TABLE ilm_table ILM ADD POLICY ROW STORE COMPRESS ADVANCED ROW AFTER 3 MONTHS OF NO MODIFICATION; gaussdb=# ALTER TABLE ilm_table ILM DISABLE_ALL; gaussdb=# ALTER TABLE ilm_table ILM ENABLE_ALL; gaussdb=# ALTER TABLE ilm_table ILM DELETE_ALL;
+
+-- 创建B模式数据 gaussdb =# CREATE DATABASE test_on_update DBCOMPATIBILITY 'b'; gaussdb =# \c test_on_update
+
+-- 设置数据库兼容性 gaussdb =# SET b_format_version='5.7'; gaussdb =# SET b_format_dev_version='s1';
+
+-- 创建 t1_on_update 表，设置ON UPDATE属性 gaussdb=# CREATE TABLE t1_on_update (
+    TS0     TIMESTAMP     ON UPDATE CURRENT_TIMESTAMP    ,
+    TS1     TIMESTAMP     ON UPDATE CURRENT_TIMESTAMP()  ,
+    TS2     TIMESTAMP(6)  ON UPDATE CURRENT_TIMESTAMP(6) ,
+    DT0     DATETIME      ON UPDATE LOCALTIMESTAMP       ,
+    DT1     DATETIME      ON UPDATE NOW()
+); 相关链接 ALTER TABLE ， DROP TABLE ， CREATE TABLESPACE 优化建议 UNLOGGED UNLOGGED表和表上的索引因为数据写入时不通过WAL日志机制，写入速度远高于普通表。因此，可以用于缓冲存储复杂查询的中间结果集，增强复杂查询的性能。 UNLOGGED表无主备机制，在系统故障或异常断点等情况下，会有数据丢失风险，因此，不可用来存储基础数据。 TEMPORARY | TEMP 临时表只在当前会话可见，会话结束后会自动删除。 LIKE 新表自动从这个表中继承所有字段名及其数据类型和非空约束，新表与源表之间在创建动作完毕之后是完全无关的。 LIKE INCLUDING DEFAULTS 源表上的字段缺省表达式只有在指定INCLUDING DEFAULTS时，才会复制到新表中。缺省是不包含缺省表达式的，即新表中的所有字段的缺省值都是NULL。 LIKE INCLUDING CONSTRAINTS 源表上的CHECK约束仅在指定INCLUDING CONSTRAINTS时，会复制到新表中，而其他类型的约束永远不会复制到新表中。非空约束总是复制到新表中。此规则同时适用于表约束和列约束。 LIKE INCLUDING INDEXES 如果指定了INCLUDING INDEXES，则源表上的索引也将在新表上创建，默认不建立索引。 LIKE INCLUDING STORAGE 如果指定了INCLUDING STORAGE，则复制列的STORAGE设置会复制到新表中，默认情况下不包含STORAGE设置。 LIKE INCLUDING COMMENTS 如果指定了INCLUDING COMMENTS，则源表列、约束和索引的注释会复制到新表中。默认情况下，不复制源表的注释。 LIKE INCLUDING PARTITION 如果指定了INCLUDING PARTITION，则源表的分区定义会复制到新表中，同时新表将不能再使用PARTITION BY子句。默认情况下，不拷贝源表的分区定义。 列表/哈希分区表暂不支持LIKE INCLUDING PARTITION。 LIKE INCLUDING RELOPTIONS 如果指定了INCLUDING RELOPTIONS，则源表的存储参数（即源表的WITH子句）会复制到新表中。默认情况下，不复制源表的存储参数。 LIKE INCLUDING IDENTITY 如果指定了INCLUDING IDENTITY，则创建一个和源表SEQUENCE参数相同的SEQUENCE来实现IDENTITY，并且IDENTITY类型与源表相同。默认情况下，不复制源表的IDENTITY。 LIKE INCLUDING ALL INCLUDING ALL包含了INCLUDING DEFAULTS、INCLUDING CONSTRAINTS、INCLUDING INDEXES、INCLUDING STORAGE、INCLUDING COMMENTS、INCLUDING PARTITION、INCLUDING RELOPTIONS和INCLUDING IDENTITY的内容。 ORIENTATION ROW 创建行存表，行存储适合于OLTP业务，此类型的表上交互事务比较多，一次交互会涉及表中的多个列，用行存查询效率较高。 父主题： C 版权所有 © 华为技术有限公司

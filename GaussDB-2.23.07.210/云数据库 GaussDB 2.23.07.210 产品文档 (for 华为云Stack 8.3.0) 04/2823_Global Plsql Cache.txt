@@ -1,0 +1,18 @@
+Global Plsql Cache特性函数 Global Plsql Cache特性函数 invalidate_plsql_object(); invalidate_plsql_object(schema, objname, objtype); 描述：将Global Plsql Cache全局缓存中的对象失效掉，仅在enable_global_plsqlcache = on时可用。调用该函数的用户需要具有SYSADMIN权限。 参数：该函数为重载函数。当无入参时，将所有database内的所有全局缓存对象失效。 当指定(schema, objname, objtype)三个参数时可将当前database内的指定全局缓存对象失效，其中：schema为对象所属的schema名称；objname为对象名称；objtype为对象类型，对象为package类型时值为'package'，对象为函数或存储过程时值为'function'。 示例: 该函数不返回失效结果，可通过gs_glc_memory_detail视图查询，对象未被失效时可在视图中查找到对应的valid状态的行，失效后则没有对应的valid状态行。 invalidate_plsql_object所属的schema为pg_catalog，但不指定schema也可调用该函数。 #如在视图中可查到函数f3的缓存信息，状态为valid gaussdb=# select * from gs_glc_memory_detail where type='func' or type='pkg';
+ contextname | database | schema  | type | status  |        location        |   env    | usedsize
+-------------+----------+---------+------+---------+------------------------+----------+----------
+ pkg1        | testdb | public  | pkg  | valid   | in_global_hash_table   |        0 |   184176
+ f3          | testdb | public  | func | valid   | in_global_hash_table   |        0 |    47584
+#调用函数，指定schema、函数名、类型即可将f3失效，再次查询视图，则f3没有对应的valid状态行 gaussdb=# select invalidate_plsql_object('public','f3','function');
+ invalidate_plsql_object
+-------------------------
+(1 row)
+#如要失效package类型，参数如下所示 gaussdb=# call pg_catalog.invalidate_plsql_object('public','pkg1','package');
+ invalidate_plsql_object
+-------------------------
+(1 row)
+
+#调用时没有入参，则将失效所有缓存对象 gaussdb=# select invalidate_plsql_object();
+ invalidate_plsql_object
+-------------------------
+(1 row) 父主题： 函数和操作符 版权所有 © 华为技术有限公司

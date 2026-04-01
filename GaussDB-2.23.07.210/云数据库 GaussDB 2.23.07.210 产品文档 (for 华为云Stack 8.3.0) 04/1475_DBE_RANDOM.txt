@@ -1,0 +1,16 @@
+DBE_RANDOM DBE_RANDOM 接口介绍 高级功能包DBE_RANDOM支持的所有接口请参见 表 DBE_RANDOM接口参数说明 。 表1 DBE_RANDOM接口参数说明 接口名称 描述 DBE_RANDOM.SET_SEED 设置一个随机数的种子。 DBE_RANDOM.GET_VALUE 生成一个大小介于指定的low及high之间的随机数。 DBE_RANDOM.SET_SEED 存储过程SEED用于设置一个随机数的种子。DBE_RANDOM.SET_SEED函数原型为： 1 DBE_RANDOM . SET_SEED ( seed IN INTEGER ); 表2 DBE_RANDOM.SET_SEED接口参数说明 参数 描述 seed 用于产生一个随机数的种子。 DBE_RANDOM.GET_VALUE 函数GET_VALUE生成一个大小介于指定的low及high之间的随机数。DBE_RANDOM.GET_VALUE函数原型为： 1
+2
+3
+4 DBE_RANDOM . GET_VALUE ( min IN NUMBER default 0 , max IN NUMBER default 1 ) RETURN NUMBER ; 表3 DBE_RANDOM.GET_VALUE接口参数说明 参数 描述 min 指定随机数大小的下边界，生成的随机数大于或等于min。 max 指定随机数大小的上边界，生成的随机数小于max。 实际上，只要求这里的参数类型是NUMERIC即可，对于左右边界的大小并没有要求。 DBE_RANDOM实现的是伪随机，所以若使用的初值（种子）不变，那么伪随机数的数序也不变，使用时需要注意。 生成的随机数有效数字为15位。 示例 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13 --产生0到1之间的随机数： SELECT DBE_RANDOM . GET_VALUE ( 0 , 1 ); get_value ------------------ . 917468812743886 ( 1 row ) --对于指定范围内的整数，要加入参数min和max，并从结果中截取较小的数（最大值不能被作为可能的值）。所以对于0到99之间的整数，使用下面的代码： SELECT TRUNC ( DBE_RANDOM . GET_VALUE ( 0 , 100 )); trunc ------- 26 ( 1 row ) 父主题： 二次封装接口(推荐) 版权所有 © 华为技术有限公司

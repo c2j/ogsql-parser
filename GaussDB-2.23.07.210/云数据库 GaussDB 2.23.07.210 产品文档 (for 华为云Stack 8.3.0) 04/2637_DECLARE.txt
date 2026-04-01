@@ -1,0 +1,5 @@
+DECLARE DECLARE 功能描述 声明一个游标用于迭代预备语句的结果集。该命令与SQL命令的DECLARE在语义上略有不同：后者执行查询并准备结果集以便检索，而嵌入式SQL命令只是将一个名称声明为“循环变量”并用于在查询的结果集上迭代，实际在使用OPEN命令打开游标时执行。 语法格式 DECLARE cursor_name [ BINARY ]  [ NO SCROLL ] CURSOR [ { WITH | WITHOUT } HOLD ] FOR prepared_name
+DECLARE cursor_name [ BINARY ]  [ NO SCROLL ] CURSOR [ { WITH | WITHOUT } HOLD ] FOR query 参数说明 cursor_name 游标名称，大小写敏感。可以是一个SQL标识符或者一个宿主变量。 prepared_name 预备查询的名称，可以是一个SQL标识符或者一个宿主变量。 query 提供游标要返回的行的SELECT命令。 游标选项的含义参考 DECLARE 。 示例 声明用于查询的游标示例： EXEC SQL DECLARE C CURSOR FOR SELECT * FROM My_Table; 
+EXEC SQL DECLARE C CURSOR FOR SELECT Item1 FROM T; 
+EXEC SQL DECLARE cur1 CURSOR FOR SELECT version(); 声明用于预备语句的游标示例： EXEC SQL PREPARE stmt1 AS SELECT version(); 
+EXEC SQL DECLARE cur1 CURSOR FOR stmt1; 相关链接 OPEN 父主题： 嵌入式SQL命令 版权所有 © 华为技术有限公司

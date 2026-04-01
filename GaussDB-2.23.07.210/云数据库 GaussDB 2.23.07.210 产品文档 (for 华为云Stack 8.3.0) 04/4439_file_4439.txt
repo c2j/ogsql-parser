@@ -1,0 +1,5 @@
+使用指导 使用指导 假设用户已经初始化配置文件目录confpath，则可以通过下述命令实现本特性的功能： 仅启动慢SQL诊断功能（慢SQL诊断根因数量由算法运行结果决定，数量不固定），启动命令如下（更多用法参考对service子命令的说明）： gs_dbmind service start -c confpath --only-run slow_sql_diagnosis 用户查询慢SQL诊断历史，命令如下： gs_dbmind component slow_query_diagnosis show -c confpath --instance instance --query SQL --start-time timestamps0 --end-time timestamps1 用户交互式诊断慢SQL，命令如下： gs_dbmind component slow_query_diagnosis diagnosis -c confpath --database dbname --schema schema_name --query SQL 启用慢SQL诊断后台任务，首先将opengauss_exporter下的pg_sql_statement_history开启，具体步骤如下： 1、停止opengauss_exporter进程；
+2、进入dbmind/components/opengauss_exporter/yamls/statements.yml中，将该指标的status设置为enable；
+3、将slow_query_diagnosis加入到配置文件dbmind.conf下TIMED_TASK的task中，任务之间用逗号隔离；
+4、重启opengauss_exporter进程；
+5、运行 gs_dbmind service reload -c confpath 命令，启动慢SQL诊断后台任务； 用户手动清理历史预测结果，命令如下： gs_dbmind component slow_query_diagnosis clean -c confpath --retention-days DAYS 停止已启动的服务，命令如下： gs_dbmind service stop -c confpath 父主题： Slow Query Diagnosis 版权所有 © 华为技术有限公司

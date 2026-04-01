@@ -1,0 +1,16 @@
+{
+  "topic": "DBE_PLDEVELOPER",
+  "term_count": 2,
+  "terms": [
+    {
+      "term": "DBE_PLDEVELOPER.gs_source",
+      "content": "DBE_PLDEVELOPER.gs_source DBE_PLDEVELOPER.gs_source 用于记录PL/SQL对象（存储过程、函数、包、包体）编译相关信息，具体内容见下列字段描述。 打开plsql_show_all_error参数后，会把成功或失败的PL/SQL对象编译信息记录在此表中，如果关闭plsql_show_all_error参数则只会将正确的编译相关信息插入此表中。 gs_source表中只记录用户定义的原始对象语句，即使用户使用了ALTER改变了创建的SCHEMA或者名字，gs_source表中的信息也不会发生变化，如果用户更改了对象的SCHEMA或者名字，会导致用户在删除对象后，对象仍存在于gs_source表中。 gs_source表中的owner指创建的用户，不是用户创建存储过程或者package时指定的用户。 数据库默认情况下没有对gs_source表中设置行级访问控制，如果用户想使用数据库隔离性特性，请参考以下语句，自行添加行级访问控制。 ALTER TABLE dbe_pldeveloper.gs_source ENABLE ROW LEVEL SECURITY;\nCREATE ROW LEVEL SECURITY POLICY all_data_rls ON dbe_pldeveloper.gs_source USING(owner = (select oid from pg_roles where rolname=current_user)); 表1 DBE_PLDEVELOPER.gs_source字段 名称 类型 描述 id oid 对象的ID。 owner bigint 对象创建用户ID。 nspid oid 对象的模式ID。 name name 对象名。 type text 对象类型（procedure/function/package/package body）。 status boolean 是否创建成功。 src text 对象创建的原始语句。",
+      "source_file": "3965_DBE_PLDEVELOPER.gs_source.txt"
+    },
+    {
+      "term": "DBE_PLDEVELOPER.gs_errors",
+      "content": "DBE_PLDEVELOPER.gs_errors DBE_PLDEVELOPER.gs_errors 用于记录PL/SQL对象（存储过程、函数、包、包体）编译过程中遇到的报错信息，具体内容见下列字段描述。 打开plsql_show_all_error参数后，如果编译过程中存在报错，则会跳过报错继续编译并把报错信息记录在gs_errors中，如果关闭plsql_show_all_error参数，且behavior_compat_options参数不为skip_insert_gs_source，则会直接将报错信息插入此表中。 该表的owner是创建的用户，修改存储过程或者package的owner不会修改该表信息。 1、创建包头时候开头（as/is之前）和结尾（end之后），如果出现错误，不会记录在gs_errors表格里面，会直接在客户端返回错误的行号和该行具体内容，返回的行号不一定准确。个别is本身和end本身错误场景也不会记录在gs_errors表格里面。 2、创建包体时候开头（as/is之前）和结尾（end之后），如果出现错误，不会记录在gs_errors表格里面，会直接在客户端返回错误的行号和该行具体内容，返回的行号不一定准确。个别is本身和end本身错误场景也不会记录在gs_errors表格里面。 3、创建包体时候，函数或者存过结尾（end之后），如果出现错误，不会记录在gs_errors表格里面，会直接在客户端返回错误的行号和该行具体内容，行号不一定准确。 4、创建包体时候，函数或者存过开头（as/is 以及 as/is之前）如果出现错误，报错行数不准确。 5、创建包头时候，变量声明少分号，会记录在gs_errors表格里面，记录的报错行号不准确。开启参数不会记录。 6、包体内存储过程或函数内部，自治事务标识符PRAGMA AUTOMOUS_TRANSACTION声明错误不确保是否能记录在gs_errors表里。 7、客户端直接报错，但是gs_errors表格未记录的情况，如果客户端报错行号不对，本需求不纠正原本报错的行号。 8、对于类似if ....then、for....loop、when .... then语句中间的错误或EXCEPTION本身错误，报错行号在本行，而不是下一个分号所在行。 9、包内存储过程或函数内部begin本身错误的场景，报错行数不准。 表1 DBE_PLDEVELOPER.gs_errors字段 名称 类型 描述 id oid 对象的ID。 owner bigint 对象创建用户ID。 nspid oid 对象的模式ID。 name name 对象名。 type text 对象类型（procedure/function/package/package body）。 line integer 行号。 src text 报错信息。",
+      "source_file": "3966_DBE_PLDEVELOPER.gs_errors.txt"
+    }
+  ]
+}

@@ -1,0 +1,1 @@
+关闭数据库连接 关闭数据库连接 数据库使用完成后关闭数据库连接。 使用下面的语句关闭连接： EXEC SQL DISCONNECT [connection]; connection可通过下面的方法声明： connection-name（连接名） default（缺省） current（当前） all（所有） 父主题： 基于ecpg开发 版权所有 © 华为技术有限公司

@@ -1,0 +1,38 @@
+同层参数化路径的Hint 同层参数化路径的Hint 功能描述 通过predpush_same_level、nestloop_index hint来指定同层表或物化视图之间参数化路径生成。 语法格式 1
+2
+3
+4 predpush_same_level ( src , dest ) predpush_same_level ( src1 src2 ..., dest ) [ no ] nestloop_index ([ @ queryblock ] dest [, index_list ]) -- 索引方式 [ no ] nestloop_index ([ @ queryblock ] dest [,( src1 src2 ...)]) -- 表名方式 predpush_same_level参数仅在rewrite_rule中的predpushforce选项打开时生效。 nestloop_index对rewrite_rule不做要求。 参数说明 no 表示hint的参数化路径方式不使用。 @queryblock 见 指定Hint所处于的查询块Queryblock ，可省略，表示在当前查询块生效。 dest为参数化路径的目标表，即索引所在的表。 src为参数路径的参数表。 index_list为参数化路径使用的索引序列，为空格隔开的字符串。 示例 nestloop_index示例： 在t1表上传入t2,t3表的t2.c1和t3.c2进行索引扫描（参数化路径）： gaussdb=# explain (costs off) select /*+nestloop_index(t1,(t2 t3)) */* from t1,t2,t3 where t1.c1 = t2.c1 and t1.c2 = t3.c2;
+                        QUERY PLAN                         
+-----------------------------------------------------------
+ Nested Loop
+   ->  Seq Scan on t3
+   ->  Nested Loop
+         ->  Seq Scan on t2
+         ->  Index Scan using it1 on t1
+               Index Cond: ((c1 = t2.c1) AND (c2 = t3.c2))
+(6 rows) 在t1表上的it1上进行索引扫描（参数化路径）： gaussdb=# explain (costs off) select /*+NestLoop_Index(t1,it1) */* from t1,t2 where t1.c1 = t2.c1;
+            QUERY PLAN            
+----------------------------------
+ Nested Loop
+   ->  Seq Scan on t2
+   ->  Index Scan using it1 on t1
+         Index Cond: (c1 = t2.c1)
+(4 rows) 2. predpush_same_level示例： 准备参数： 1
+2 gaussdb =# SET rewrite_rule = 'predpushforce' ; SET 执行语句查看计划： gaussdb=# EXPLAIN SELECT * FROM t1, t2 WHERE t1.c1 = t2.c1;
+                            QUERY PLAN                            
+------------------------------------------------------------------
+ 
+ Hash Join  (cost=53.76..301.54 rows=18915 width=24)
+   Hash Cond: (t1.c1 = t2.c1)
+   ->  Seq Scan on t1  (cost=0.00..29.45 rows=1945 width=12)
+   ->  Hash  (cost=29.45..29.45 rows=1945 width=12)
+         ->  Seq Scan on t2  (cost=0.00..29.45 rows=1945 width=12)
+(5 rows) 可以看到t1.c1 = t2.c1条件过滤在Join上面，此时可以通过predpush_same_level(t1, t2)将条件下推至t2的扫描算子上： gaussdb=# EXPLAIN SELECT /*+predpush_same_level(t1, t2)*/ * FROM t1, t2 WHERE t1.c1 = t2.c1;
+                              QUERY PLAN                              
+----------------------------------------------------------------------
+ 
+ Nested Loop  (cost=0.00..1143.20 rows=18915 width=24)
+   ->  Seq Scan on t1  (cost=0.00..29.45 rows=1945 width=12)
+   ->  Index Scan using it2 on t2  (cost=0.00..0.47 rows=10 width=12)
+         Index Cond: (c1 = t1.c1)
+(4 rows) 可以指定多个src，但是所有的src必须在同一个条件中。 如果指定的src和dest条件不存在，或该条件不符合参数化路径要求，则本hint不生效。 如果dest扫描算子上存在stream算子，则本hint不生效。 父主题： 使用Plan Hint进行调优 版权所有 © 华为技术有限公司

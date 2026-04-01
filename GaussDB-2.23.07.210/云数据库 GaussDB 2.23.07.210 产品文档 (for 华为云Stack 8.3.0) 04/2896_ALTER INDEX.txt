@@ -1,0 +1,88 @@
+ALTER INDEX ALTER INDEX 功能描述 ALTER INDEX用于修改现有索引的定义。 注意事项 索引的所有者或者拥有索引所在表的INDEX权限的用户或者被授予了ALTER ANY INDEX权限的用户有权限执行此命令，系统管理员默认拥有此权限。 请勿在同一基表上保持大量的不可见索引，否则可能会对INSERT、UPDATE、DELETE等DML操作的性能产生影响。 语法格式 重命名表索引的名称。 ALTER INDEX [ IF EXISTS ] index_name 
+    RENAME TO new_name; 修改表索引的所属空间。 ALTER INDEX [ IF EXISTS ] index_name 
+    SET TABLESPACE tablespace_name; 修改表索引的存储参数。 ALTER INDEX [ IF EXISTS ] index_name 
+    SET ( {storage_parameter = value} [, ... ] ); 重置表索引的存储参数。 ALTER INDEX [ IF EXISTS ] index_name 
+    RESET ( storage_parameter [, ... ] ) ; 设置表索引或索引分区不可用。 ALTER INDEX [ IF EXISTS ] index_name 
+    [ MODIFY PARTITION index_partition_name ] UNUSABLE; 重建表索引或索引分区。 ALTER INDEX index_name 
+    REBUILD [ PARTITION index_partition_name ]; 重命名索引分区。 ALTER INDEX [ IF EXISTS ] index_name 
+    RENAME PARTITION index_partition_name TO new_index_partition_name; 修改索引分区的所属表空间。 ALTER INDEX [ IF EXISTS ] index_name 
+    MOVE PARTITION index_partition_name TABLESPACE new_tablespace; 设置分布式全局二级索引就绪。 ALTER INDEX [ IF EXISTS ] index_name GSIVALID; 集中式不支持分布式全局二级索引，因此不支持该语法。 设置分布式全局二级索引可用。 ALTER INDEX [ IF EXISTS ] index_name GSIUSABLE; 集中式不支持分布式全局二级索引，因此不支持该语法。 用于设置索引状态为可见。 ALTER INDEX [ IF EXISTS ] index_name VISIBLE; 此语法仅支持在A兼容性数据库下（即sql_compatibility = 'A'）设置，在其他数据库兼容模式下不支持。 当disable_keyword_options参数设置为“visible”时，VISIBLE关键字不支持使用。 升级未提交阶段，不支持使用此语法。 用于设置索引状态为不可见。 ALTER INDEX [ IF EXISTS ] index_name INVISIBLE; 此语法仅支持在A兼容性数据库下（即sql_compatibility = 'A'）设置，在其他数据库兼容模式下不支持。 当disable_keyword_options参数设置为“invisible”时，INVISIBLE关键字不支持使用。 升级未提交阶段，不支持使用此语法。 备机读场景下，设置索引状态为不可见后，查询语句的执行计划可能会发生变化，备机查询性能可能会受到影响。 参数说明 index_name 要修改的索引名。 IF EXISTS 如果指定的索引不存在，则发出一个notice而不是error。 RENAME TO new_name 只改变索引的名称。对存储的数据没有影响。 new_name 新的索引名。 取值范围：字符串，且符合 标识符命名规范 。 SET TABLESPACE tablespace_name 改变索引的表空间为指定表空间，并且把索引相关的数据文件移动到新的表空间里。 tablespace_name 表空间的名称。 取值范围：已存在的表空间 SET ( {storage_parameter = value} [, ... ] ) 改变索引的一个或多个索引方法特定的存储参数。  需要注意的是索引内容不会被这个命令立即修改，根据参数的不同，可能需要使用REINDEX重建索引来获得期望的效果。 storage_parameter 索引方法特定的参数名。ACTIVE_PAGES表示索引的页面数量，可能比实际的物理文件页面少，可以用于优化器调优。目前只对ustore的分区表 local索引生效，且会被vacuum、analyze更新（包括auto vacuum）。不建议用户手动设置该参数。 value 索引方法特定的存储参数的新值。根据参数的不同，这可能是一个数字或单词。 RESET (  { storage_parameter  }  [, ...] ) 重置索引的一个或多个索引方法特定的存储参数为缺省值。与SET一样，可能需要使用REINDEX来完全更新索引。 [ MODIFY PARTITION index_partition_name ] UNUSABLE 用于设置表或者索引分区上的索引不可用。 REBUILD [ PARTITION index_partition_name ] 用于重建表或者索引分区上的索引。 RENAME PARTITION index_partition_name TO new_index_partition_name 用于重命名索引分区 MOVE PARTITION index_partition_name TABLESPACE new_tablespace 用于修改索引分区的所属表空间。 new_index_partition_name 新索引分区名。 index_partition_name 索引分区名。 new_tablespace 新表空间。 GSIVALID 用于CREATE GLOBAL INDEX CONCURRENTLY功能内部调用，修改分布式全局二级索引状态。集中式不支持分布式全局二级索引，因此不支持该语法。 GSIUSABLE 用于VACUUM FULL功能内部调用，修改分布式全局二级索引状态。集中式不支持分布式全局二级索引，因此不支持该语法。 VISIBLE 用于设置索引状态为可见。 INVISIBLE 用于设置索引状态为不可见。 示例 重命名索引。 --创建test1表并为其创建索引。 gaussdb=# CREATE TABLE test1(col1 int, col2 int); gaussdb=# CREATE INDEX aa ON test1(col1);
+
+--将索引aa重命名为idx_test1_col1。 gaussdb=# ALTER INDEX aa RENAME TO idx_test1_col1;
+
+--查询test1表上的索引信息。 gaussdb=# SELECT tablename,indexname,tablespace FROM pg_indexes WHERE tablename = 'test1';
+ tablename |   indexname    | tablespace 
+-----------+----------------+------------
+ test1     | idx_test1_col1 | 
+(1 row) 修改索引所属表空间。 --创建表空间tbs_index1。 gaussdb=# CREATE TABLESPACE tbs_index1 RELATIVE LOCATION 'tablespace1/tbs_index1';
+
+--修改索引idx_test1_col1的所属表空间为tbs_index1。 gaussdb=# ALTER INDEX IF EXISTS idx_test1_col1 SET TABLESPACE tbs_index1;
+
+--查询test1表上的索引信息。 gaussdb=# SELECT tablename,indexname,tablespace FROM pg_indexes WHERE tablename = 'test1';
+ tablename |   indexname    | tablespace 
+-----------+----------------+------------
+ test1     | idx_test1_col1 | tbs_index1
+(1 row) 修改与重置索引存储参数。 --查看索引idx_test1_col1详细信息。 gaussdb=# \di idx_test1_col1 
+                     List of relations
+ Schema |      Name      | Type  | Owner | Table | Storage 
+--------+----------------+-------+-------+-------+---------
+ public | idx_test1_col1 | index | omm   | test1 | 
+(1 row)
+
+--修改索引idx_test1_col1 的填充因子。 gaussdb=# ALTER INDEX IF EXISTS idx_test1_col1 SET (FILLFACTOR = 70);
+--查看索引idx_test1_col1详细信息。 gaussdb=# \di idx_test1_col1
+                         List of relations
+ Schema |      Name      | Type  | Owner | Table |     Storage     
+--------+----------------+-------+-------+-------+-----------------
+ public | idx_test1_col1 | index | omm   | test1 | {fillfactor=70}
+(1 row) --重置索引idx_test1_col1 的存储参数。 gaussdb=# ALTER INDEX IF EXISTS idx_test1_col1 RESET (FILLFACTOR);
+--查看索引idx_test1_col1详细信息。 gaussdb=# \di idx_test1_col1
+                     List of relations
+ Schema |      Name      | Type  | Owner | Table | Storage 
+--------+----------------+-------+-------+-------+---------
+ public | idx_test1_col1 | index | omm   | test1 | 
+(1 row) 修改索引可用性。 --设置索引idx_test1_col1不可用。 gaussdb=# ALTER INDEX IF EXISTS idx_test1_col1 UNUSABLE;
+--查看索引idx_test1_col1的可用性。 gaussdb=# SELECT indisusable FROM pg_index WHERE indexrelid = 'idx_test1_col1'::regclass;
+ indisusable 
+-------------
+ f
+(1 row)
+
+--重建索引idx_test1_col1。 gaussdb=# ALTER INDEX idx_test1_col1 REBUILD;
+--查看索引idx_test1_col1的可用性。 gaussdb=# SELECT indisusable FROM pg_index WHERE indexrelid = 'idx_test1_col1'::regclass;
+ indisusable 
+-------------
+ t
+(1 row)
+
+--删除。 gaussdb=# DROP INDEX idx_test1_col1; gaussdb=# DROP TABLE test1; gaussdb=# DROP TABLESPACE tbs_index1; 重命名索引分区。 --创建分区表test2。 gaussdb=# CREATE TABLE test2(col1 int, col2 int) PARTITION BY RANGE (col1)(
+    PARTITION p1 VALUES LESS THAN (100),
+    PARTITION p2 VALUES LESS THAN (200)
+);
+--创建分区索引。 gaussdb=# CREATE INDEX idx_test2_col1 ON test2(col1) LOCAL(
+    PARTITION p1,
+    PARTITION p2
+);
+--重命名索引分区。 gaussdb=# ALTER INDEX idx_test2_col1 RENAME PARTITION p1 TO p1_test2_idx; gaussdb=# ALTER INDEX idx_test2_col1 RENAME PARTITION p2 TO p2_test2_idx;
+
+--查询索引idx_test2_col1分区的名称。 gaussdb=# SELECT relname FROM pg_partition WHERE parentid = 'idx_test2_col1'::regclass;
+   relname    
+--------------
+ p1_test2_idx
+ p2_test2_idx
+(2 rows) 修改索引分区的所属表空间。 --创建表空间tbs_index2与tbs_index3。 gaussdb=# CREATE TABLESPACE tbs_index2 RELATIVE LOCATION 'tablespace1/tbs_index2'; gaussdb=# CREATE TABLESPACE tbs_index3 RELATIVE LOCATION 'tablespace1/tbs_index3';
+
+--修改索引idx_test2_col1分区的所属表空间。 gaussdb=# ALTER INDEX idx_test2_col1 MOVE PARTITION p1_test2_idx TABLESPACE tbs_index2; gaussdb=# ALTER INDEX idx_test2_col1 MOVE PARTITION p2_test2_idx TABLESPACE tbs_index3;
+
+--查询索引idx_test2_col1分区的所属表空间。 gaussdb=# SELECT t1.relname index_name, 
+       t2.spcname tablespace_name
+FROM pg_partition t1, pg_tablespace t2
+WHERE t1.parentid = 'idx_test2_col1'::regclass AND
+      t1.reltablespace = t2.oid;
+  index_name  | tablespace_name 
+--------------+-----------------
+ p1_test2_idx | tbs_index2
+ p2_test2_idx | tbs_index3
+(2 rows)
+
+--删除。 gaussdb=# DROP INDEX idx_test2_col1; gaussdb=# DROP TABLE test2; gaussdb=# DROP TABLESPACE tbs_index2; gaussdb=# DROP TABLESPACE tbs_index3; 相关链接 CREATE INDEX ， DROP INDEX ， REINDEX 父主题： A 版权所有 © 华为技术有限公司

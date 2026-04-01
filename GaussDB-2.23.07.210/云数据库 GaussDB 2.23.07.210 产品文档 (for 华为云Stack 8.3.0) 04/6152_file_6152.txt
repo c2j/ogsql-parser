@@ -1,0 +1,1 @@
+配置服务端证书 配置服务端证书 确保当前仍在/home/myuser/data/sslcert目录下，执行如下命令，将根证书及服务端私钥、服务端证书拷贝至backUpAgent可执行文件同级目录下： cp cacert.pem server.key server.crt ../backUpAgent/bin 如果需要将当前服务器/home/myuser/data/sslcert目录下颁发完成的服务端证书拷贝至其他服务器，请使用scp命令将cacert.pem、server.key、server.crt文件拷贝至目标服务器的/home/myuser/data/backUpAgent/bin目录下，或确保与backUpAgent可执行文件同目录即可。 父主题： 配置SSL双向认证证书文件 版权所有 © 华为技术有限公司

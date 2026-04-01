@@ -1,0 +1,1 @@
+UBTree UBTree 其使用的btree做了如下重要的增强，简称Ubtree。 Ubtree索引增加了事务信息，能够独立进行MVCC；增加了IndexOnlyScan的比例，大大减少回表次数。 不依赖Vacuum进行旧版本清理。独立的空间回收能力，索引与堆表解耦，可独立清理，IO平稳度更优。 RCR UBTree PCR UBTree 父主题： 存储格式 版权所有 © 华为技术有限公司

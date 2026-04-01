@@ -1,0 +1,56 @@
+创建和管理定时任务 创建和管理定时任务 背景信息 当客户在使用数据库过程中，如果白天执行一些耗时比较长的任务（例如：统计数据汇总之类或从其他数据库同步数据的任务），会对正常的业务有性能影响，所以客户经常选择在晚上执行，无形中增加了客户的工作量。因此GaussDB Kernel数据库兼容A数据库中定时任务的功能，可以由客户创建定时任务，当任务时间点到达后可以自动触发任务的执行，从而可以减少客户运维的工作量。 GaussDB Kernel数据库兼容A定时任务功能主要通过DBE_TASK高级包提供的接口，可以实现定时任务的创建、任务到期自动执行、任务删除、修改任务属性（包括：任务id、任务的关闭开启、任务的触发时间、触发时间间隔、任务内容等）。 定时任务管理 创建测试表。 1 gaussdb =# CREATE TABLE test ( id int , time date ); 当结果显示为如下信息，则表示创建成功。 1 CREATE TABLE 创建自定义存储过程。 1
+2
+3
+4
+5
+6
+7
+8
+9 gaussdb =# CREATE OR REPLACE PROCEDURE PRC_JOB_1 () AS N_NUM integer : = 1 ; BEGIN FOR I IN 1 .. 1000 LOOP INSERT INTO test VALUES ( I , SYSDATE ); END LOOP ; END ; / 当结果显示为如下信息，则表示创建成功。 1 CREATE PROCEDURE 创建任务。 新创建的任务（未指定job_id）表示每隔1分钟执行一次存储过程PRC_JOB_1。 1
+2
+3
+4
+5 gaussdb =# call dbe_task . submit ( 'call public.prc_job_1(); ' , sysdate , 'interval ''1 minute''' , : a ); id ----- 1 ( 1 row ) 指定job_id创建任务，其中job_id可用范围为1~32767。 1
+2
+3
+4
+5 gaussdb =# call dbe_task . id_submit ( 1 , 'call public.prc_job_1(); ' , sysdate , 'interval ''1 minute''' ); id_submit --------- ( 1 row ) 通过视图查看当前用户已创建的任务信息。 1
+2
+3
+4
+5 gaussdb =# select job , dbname , start_date , last_date , this_date , next_date , broken , status , interval , failures , what from my_jobs ; job | dbname | start_date | last_date | this_date | next_date | broken | status | interval | failures | what -----+--------+---------------------+----------------------------+----------------------------+---------------------+--------+--------+---------------------+----------+--------------------------- 1 | testdb | 2017 - 07 - 18 11 : 38 : 03 | 2017 - 07 - 18 13 : 53 : 03 . 607838 | 2017 - 07 - 18 13 : 53 : 03 . 607838 | 2017 - 07 - 18 13 : 54 : 03 | n | s | interval '1 minute' | 0 | call public . prc_job_1 (); ( 1 row ) 停止任务。 1
+2
+3
+4
+5 gaussdb =# call dbe_task . finish ( 1 , true ); finish -------- ( 1 row ) 启动任务。 1
+2
+3
+4
+5 gaussdb =# call dbe_task . finish ( 1 , false ); finish -------- ( 1 row ) 修改任务属性。 修改JOB的Next_date参数信息。 --修改Job1的Next_date为1小时以后开始执行。 1
+2
+3
+4
+5 gaussdb =# call dbe_task . next_date ( 1 , sysdate + 1 . 0 / 24 ); next_date ----------- ( 1 row ) 修改JOB的Interval参数信息。 --修改Job1的Interval为每隔1小时执行一次。 1
+2
+3
+4
+5 gaussdb =# call dbe_task . interval ( 1 , 'sysdate + 1.0/24' ); interval ---------- ( 1 row ) 修改JOB的What参数信息。 --修改Job1的What为执行SQL语句“insert into public.test values(333, sysdate+5);”。 1
+2
+3
+4
+5 gaussdb =# call dbe_task . content ( 1 , 'insert into public.test values(333, sysdate+5);' ); content --------- ( 1 row ) 同时修改JOB的Next_date、Interval、What等多个参数信息。 1
+2
+3
+4
+5 gaussdb =# call dbe_task . update ( 1 , 'call public.prc_job_1();' , sysdate , 'interval ''1 minute''' ); update -------- ( 1 row ) 删除JOB。 1
+2
+3
+4
+5 gaussdb =# call dbe_task . cancel ( 1 ); cancel --------- ( 1 row ) 查看JOB执行情况。 当JOB自动执行时，如果JOB执行失败（即job_status状态值为'f'）时，用户可以通过查看当前JOB所属CN的数据目录的pg_log子目录下对应时间点的运行日志来查看JOB的失败信息。 日志信息如下所示，从失败信息（detail error msg）中可以查看失败的具体错误。 LOG:  Execute Job Detail: 
+        job_id: 1 
+        what: call public.test();  
+        start_date: 2017-07-19 23:30:47.401818 
+        job_status: failed 
+        detail error msg: relation "test" does not exist 
+        end_date: 2017-07-19 23:30:47.401818 
+        next_run_date: 2017-07-19 23:30:56.855827 JOB的权限控制。 当创建一个JOB时，该JOB会和创建该JOB的数据库和用户绑定（即：pg_job系统表新增的JOB记录中的dbname和log_user）。 如果当前用户是DBA用户、系统管理员、该JOB的创建用户（即：pg_job中的log_user），那么该用户有权限通过高级包接口remove、change、next_data、what、interval删除或修改JOB的参数信息。否则，会提示当前用户没有权限操作该JOB。 如果当前数据库是该JOB创建所属的数据库（即：为pg_job系统表中的dbname），那么连接到当前数据库上可以通过高级包接口cancel、update、next_data、content、interval删除或修改JOB的参数信息。 当删除JOB所属的数据库（即：为pg_job系统表中的dbname）时，系统会关联删除该数据库从属的JOB记录。 当删除JOB所属的用户（即：为pg_job系统表中的log_user）时，系统会关联删除该用户从属的JOB记录。 JOB的并发控制管理。 用户可以通过配置GUC参数 job_queue_processes 来调整并发同时执行的JOB数目。 当 job_queue_processes 为0时，表示不启用定时任务功能，任何job都不会被执行。 当 job_queue_processes 大于0时，表示启用定时任务功能，该值为系统能够并发处理的最大任务数。 由于并行运行的任务数太多会消耗更多的系统资源，因此需要设置系统并发处理的任务数，当前并发的任务数达到 job_queue_processes 时，且此时又有任务到期，那么这些任务本次得不到执行而延期到下一轮询周期。因此，建议用户需要根据每个任务的执行时长合理的设置任务的时间间隔（即submit接口中的interval参数），来避免由于任务执行时间太长而导致下个轮询周期无法正常执行的情况。 注：对于不使用JOB的集群，用户可以在集群安装初始化完成后，通过设置 job_queue_processes 为0来关闭JOB功能，减少系统资源的消耗。 父主题： 其他操作 版权所有 © 华为技术有限公司

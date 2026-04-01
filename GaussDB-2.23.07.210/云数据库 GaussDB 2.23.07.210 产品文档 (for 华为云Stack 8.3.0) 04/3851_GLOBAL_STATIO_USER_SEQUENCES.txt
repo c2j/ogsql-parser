@@ -1,0 +1,1 @@
+GLOBAL_STATIO_USER_SEQUENCES GLOBAL_STATIO_USER_SEQUENCES GLOBAL_STATIO_USER_SEQUENCES视图显示各节点的命名空间中所有用户关系表类型为序列的I/O状态信息。 表1 GLOBAL_STATIO_USER_SEQUENCES字段 名称 类型 描述 node_name name 节点名称。 relid oid 序列OID。 schemaname name 序列中模式名。 relname name 序列名。 blks_read bigint 从序列中读取的磁盘块数。 blks_hit bigint 序列中缓存命中数。 父主题： Cache/IO 版权所有 © 华为技术有限公司

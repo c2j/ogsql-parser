@@ -1,0 +1,866 @@
+{
+  "topic": "其他系统表",
+  "term_count": 172,
+  "terms": [
+    {
+      "term": "PG_SHDEPEND",
+      "content": "PG_SHDEPEND PG_SHDEPEND PG_SHDEPEND系统表记录数据库对象和共享对象（比如角色）之间的依赖性关系。这些信息允许 GaussDB 保证在企图删除这些对象之前，这些对象是没有被引用的。 PG_DEPEND 的作用类似，只是它是用于在一个数据库内部的对象的依赖性关系的。 和其它大多数系统表不同，PG_SHDEPEND是在数据库里面所有的数据库之间共享的：每个数据库只有一个PG_SHDEPEND，而不是每个数据库一个。 表1 PG_SHDEPEND字段 名称 类型 引用 描述 dbid oid PG_DATABASE .oid 依赖对象所在的数据库的OID，如果是共享对象，则为零。 classid oid PG_CLASS .oid 依赖对象所在的系统表的OID。 objid oid 任意OID属性 指定的依赖对象的OID。 objsubid integer - 对于一个表字段，这是字段号（objid和classid参考表本身）。对于所有其他对象类型，这个字段为零。 refclassid oid PG_CLASS .oid 被引用对象所在的系统表的OID（必须是一个共享表）。 refobjid oid 任意OID属性 指定的被引用对象的OID。 deptype \"char\" - 一段代码，定义了这个依赖性关系的特定语义；参阅下文。 objfile text - 用户定义函数库文件路径。 在任何情况下，一条PG_SHDEPEND记录就表明这个被引用的对象不能在未删除依赖对象的前提下删除。不过，deptype同时还标出了几种不同的子风格： SHARED_DEPENDENCY_OWNER (o) 被引用的对象（必须是一个角色）是依赖对象的所有者。 SHARED_DEPENDENCY_ACL (a) 被引用的对象（必须是一个角色）在依赖对象的ACL（访问控制列表，也就是权限列表）里提到。SHARED_DEPENDENCY_ACL不会在对象的所有者头上添加的，因为所有者会有一个SHARED_DEPENDENCY_OWNER记录。 SHARED_DEPENDENCY_PIN (p) 没有依赖对象；这类记录标识系统自身依赖于该被依赖对象，因此这样的对象绝对不能被删除。这种类型的记录只是由initdb创建。这样的依赖对象的字段都是零。 SHARED_DEPENDENCY_ DBPRIV(d) 被引用的对象（必须是一个角色）具有依赖对象所对应的ANY权限（指定的依赖对象的OID对应的是系统表gs_db_privilege中一行）。 SHARED_DEPENDENCY_ SECLABEL(l) 被引用的对象（必须是一个安全标签）被应用在依赖对象上。",
+      "source_file": "3332_PG_SHDEPEND.txt"
+    },
+    {
+      "term": "PGXC_SLICE",
+      "content": "PGXC_SLICE PGXC_SLICE PGXC_SLICE表是针对range范围分布和list分布创建的系统表，用来记录分布具体信息，当前不支持range interval自动扩展分片，不过在系统表中预留。 PGXC_SLICE系统表仅在分布式场景下有具体含义，集中式只能查询表定义。 表1 PGXC_SLICE字段 名称 类型 描述 relname name 表名或者分片名，通过type区分 type \"char\" 当为’t’时relname是表名，当为’s’时relname是分片的名字 strategy \"char\" ‘r’：为range分布表 ‘l’：为list分布表 后续interval分片会扩展该值 relid oid 该tuple隶属的分布表oid referenceoid oid 所参考分布表的oid,用于slice reference建表语法 sindex integer 当为list分布表时，表示当前boundary在某个分片内的位置 interval text[] 预留字段 transitboundary text[] 预留字段 transitno integer 预留字段 nodeoid oid 当relname为分片名时，表示该分片的数据存放在哪个DN上，nodeoid表示这个DN的oid boundaries text[] 当relname为分片名时，对应该分片的边界值。 specified boolean 当前分片对应的DN是否是用户在DDL中显示指定的。 sliceorder integer 用户定义分片的顺序",
+      "source_file": "3349_PGXC_SLICE.txt"
+    },
+    {
+      "term": "PG_TRIGGER",
+      "content": "PG_TRIGGER PG_TRIGGER PG_TRIGGER系统表存储触发器信息。 表1 PG_TRIGGER字段 名称 类型 描述 oid oid 行标识符（隐含字段，必须明确选择）。 tgrelid oid 触发器所在表的OID。 tgname name 触发器名。 tgfoid oid 触发器OID。 tgtype smallint 触发器类型。 tgenabled \"char\" O =触发器在“origin”和“local”模式下触发。 D =触发器被禁用。 R =触发器在“replica”模式下触发。 A =触发器始终触发。 tgisinternal boolean 内部触发器标识，如果为true表示内部触发器。 tgconstrrelid oid 完整性约束引用的表。 tgconstrindid oid 完整性约束的索引。 tgconstraint oid 约束触发器在pg_constraint中的OID。 tgdeferrable boolean 约束触发器是为DEFERRABLE类型。 t（true）：表示是。 f（false）：表示不是。 tginitdeferred boolean 约束触发器是否为INITIALLY DEFERRED类型。 t（true）：表示是。 f（false）：表示不是。 tgnargs smallint 触发器函数入参个数。 tgattr int2vector 当触发器指定列时的列号，未指定则为空数组。 tgargs bytea 传递给触发器的参数。 tgqual pg_node_tree 表示触发器的WHEN条件，如果没有则为null。 tgowner oid 触发器所有者",
+      "source_file": "1628_PG_TRIGGER.txt"
+    },
+    {
+      "term": "GS_WORKLOAD_RULE",
+      "content": "GS_WORKLOAD_RULE GS_WORKLOAD_RULE GS_WORKLOAD_RULE系统表存储与SQL限流规则相关的信息。该系统表没有权限限制，所有用户可查询。 表1 GS_WORKLOAD_RULE字段 名称 类型 描述 rule_id bigint 限流规则标识列，系统自动生成。 rule_name name 限流规则的名称，用于检索限流规则，不保证唯一性，可以为NULL。 databases name[] 限流规则作用的数据库列表，为NULL表示所有库生效。 max_workload bigint 限制规则设置的最大并发数。 is_valid boolean 限流规则是否生效，超时的限流规则会设为false。 start_time timestamp with time zone 限流规则开始的时间，为NULL表示从现在开始生效。 end_time timestamp with time zone 限流规则结束的时间，为NULL表示一直生效。 rule_type text 限流规则类型，当前仅支持：“sqlid”、“select”、“insert”、“update”、“delete”、“merge”、“resource”，其他的为非法值。 option_val text[] 限流规则的参数值，包括：sqlid，关键字列表，资源限制情况。 详细请参见 gs_add_workload_rule 接口说明。 node_names text[] 预留字段，限流规则生效的节点名称列表，当前不生效。 user_names text[] 预留字段，限流规则生效的用户名称列表，当前不生效。",
+      "source_file": "3288_GS_WORKLOAD_RULE.txt"
+    },
+    {
+      "term": "PG_AMOP",
+      "content": "PG_AMOP PG_AMOP PG_AMOP系统表存储有关和访问方法操作符族关联的信息。如果一个操作符是一个操作符族中的成员，则在这个表中会占据一行。一个族成员是一个search操作符或一个ordering操作符。一个操作符可以在多个族中出现，但是不能在一个族中的多个搜索位置或多个排序位置中出现。 表1 PG_AMOP字段 名称 类型 引用 描述 oid oid - 行标识符（隐含字段，必须明确选择）。 amopfamily oid PG_OPFAMILY .oid 这个项的操作符族。 amoplefttype oid PG_TYPE .oid 操作符的左输入类型。可能取值及其描述见于 7.3 数据类型 。 amoprighttype oid PG_TYPE .oid 操作符的右输入类型。可能取值及其描述见于 7.3 数据类型 。 amopstrategy smallint - 操作符策略数。 amoppurpose \"char\" - 操作符目的。 s：表示搜索。 o：表示排序。 amopopr oid PG_OPERATOR .oid 该操作符的OID。 amopmethod oid PG_AM .oid 索引访问方式操作符族。 amopsortfamily oid PG_OPFAMILY .oid 如果是一个排序操作符，则为这个项排序所依据的btree操作符族；如果是一个搜索操作符，则为0。 search操作符表明这个操作符族的一个索引可以被搜索，找到所有满足WHERE indexed_column operator constant的行。显然，这样的操作符必须返回布尔值，并且它的左输入类型必须匹配索引的字段数据类型。 ordering操作符表明这个操作符族的一个索引可以被扫描，返回以ORDER BY indexed_column operator constant顺序表示的行。这样的操作符可以返回任意可排序的数据类型，它的左输入类型也必须匹配索引的字段数据类型。 ORDER BY的确切的语义是由amopsortfamily字段指定的，该字段必须为操作符的返回类型引用一个btree操作符族。",
+      "source_file": "1579_PG_AMOP.txt"
+    },
+    {
+      "term": "PG_TABLESPACE",
+      "content": "PG_TABLESPACE PG_TABLESPACE PG_TABLESPACE系统表存储表空间信息。 表1 PG_TABLESPACE字段 名称 类型 描述 oid oid 行标识符（隐含属性，必须明确选择）。 spcname name 表空间名称。 spcowner oid 表空间的所有者，通常是创建它的人。 spcacl aclitem[] 访问权限。具体请参见 GRANT 和 REVOKE 。 spcoptions text[] 表空间的选项。 spcmaxsize text 可使用的最大磁盘空间大小，单位Byte。 relative boolean 标识表空间指定的存储路径是否为相对路径。",
+      "source_file": "3339_PG_TABLESPACE.txt"
+    },
+    {
+      "term": "PG_JOB",
+      "content": "PG_JOB PG_JOB PG_JOB系统表存储用户创建的定时任务的任务详细信息，定时任务线程定时轮询pg_job系统表中的时间，当任务到期会触发任务的执行，并更新pg_job表中的任务状态。该系统表属于Shared Relation，所有创建的job记录对所有数据库可见。普通用户需授权才能访问。 表1 PG_JOB字段 名称 类型 描述 oid oid 行标识符（隐含属性，必须明确选择）。 job_id bigint 作业ID，主键，是唯一的（有唯一索引） current_postgres_pid bigint 如果当前任务已被执行，那么此处记录运行此任务的线程ID。默认为 -1，表示此任务未被执行过。 log_user name 创建者的UserName priv_user name 作业执行者的UserName dbname name 标识作业要在哪个数据库执行的数据库名称 node_name name 标识当前作业是在哪个 数据库主节点 上创建和执行 job_status \"char\" 当前任务的执行状态，取值范围：('r', 's', 'f', 'd')，默认为's'，取值含义： Status of job step: r=running, s=successfully finished,  f=job failed, d=disable 当job连续执行失败16次，会将job_status自动设置为失效状态'd'，后续不再执行该job。 注：当用户将定时任务关闭（即：guc参数job_queue_processes为0时），由于监控job执行的线程不会启动，所以该状态不会根据job的实时状态进行设置，用户不需要关注此状态。只有当开启定时任务功能（即：guc参数job_queue_processes为非0时），系统才会根据当前job的实时状态刷新该字段值。 start_date timestamp without time zone 作业第一次开始执行时间，时间精确到毫秒。 next_run_date timestamp without time zone 下次定时执行任务的时间，时间精确到毫秒。 failure_count smallint 失败计数，作业连续执行失败16次，不再继续执行。 interval text 作业执行的重复时间间隔。 last_start_date timestamp without time zone 上次运行开始时间，时间精确到毫秒。 last_end_date timestamp without time zone 上次运行的结束时间，时间精确到毫秒。 last_suc_date timestamp without time zone 上次成功运行的开始时间，时间精确到毫秒。 this_run_date timestamp without time zone 正在运行任务的开始时间，时间精确到毫秒。 nspname name 标识作业执行时的schema的名称。 job_name text DBE_SCHEDULER定时任务专用，定时任务名称。 end_date timestamp without time zone DBE_SCHEDULER定时任务专用，定时任务失效时间，时间精确到毫秒。 enable boolean DBE_SCHEDULER定时任务专用，定时任务启用状态： true：启用 false：未启用 failure_msg text 最新一次执行任务报错信息。",
+      "source_file": "3313_PG_JOB.txt"
+    },
+    {
+      "term": "GS_GLOBAL_CONFIG",
+      "content": "GS_GLOBAL_CONFIG GS_GLOBAL_CONFIG GS_GLOBAL_CONFIG记录了集群初始化时，用户指定的参数值。除此之外，还存放了用户设置的弱口令，支持数据库初始用户通过ALTER和DROP语法对系统表中的参数进行写入、修改和删除。此系统表默认只有初始用户、系统管理员和安全管理员可以访问，其他用户默认无权访问。 表1 GS_GLOBAL_CONFIG字段 名称 类型 描述 name name 集群初始化时系统内置的指定参数名称、弱口令名称、或用户需要使用的参数。 value text 集群初始化时系统内置的指定参数值、弱口令、或用户需要使用的参数值。",
+      "source_file": "1561_GS_GLOBAL_CONFIG.txt"
+    },
+    {
+      "term": "GS_ARCHIVE_STATUS",
+      "content": "GS_ARCHIVE_STATUS GS_ARCHIVE_STATUS GS_ARCHIVE_STATUS系统表记录REMOTE介质下的归档状态信息，在PITR恢复后会被清空。需要有系统管理员或安全策略管理员权限才可以修改此表。 表1 GS_ARCHIVE_STATUS字段 名称 类型 描述 node_name name 表示该记录由哪一个节点更新，若多个节点均有可能更新则该字段为\"ALLNODES\"。 archive_name name 归档槽名称。 status_type \"char\" 记录类型： 'A'：对应于原OBS/NAS归档下的archive_start_records文件中的记录。 'B'：对应于原OBS/NAS归档下的hadr_start_barrier文件中的记录。 'C'：对应于原OBS/NAS归档下的hadr_barrier_id文件中的记录。 'D'：对应于原OBS/NAS归档下的obs_archive_start_end_record文件中的记录。 'E'：对应于原OBS/NAS归档下的cn_build_history文件中的记录。 'F'：REMOTE归档中，记录空洞区间记录。 update_time timestamp with time zone 表示该记录更新时间。 record text 表示该具体内容。",
+      "source_file": "1557_GS_ARCHIVE_STATUS.txt"
+    },
+    {
+      "term": "GS_ASP",
+      "content": "GS_ASP GS_ASP GS_ASP显示被持久化的ACTIVE SESSION PROFILE样本。该系统表只能在系统库中查询。 表1 GS_ASP字段 名称 类型 描述 sampleid bigint 采样ID。 sample_time timestamp with time zone 采样的时间。 need_flush_sample boolean 该样本是否需要刷新到磁盘。 t（true）：表示需要。 f（false）：表示不需要。 databaseid oid 数据库ID。 thread_id bigint 线程的ID。 sessionid bigint 会话的ID。 start_time timestamp with time zone 会话的启动时间。 event text 具体的事件名称。内核中关键的事件信息请参见 表2 、 表3 、 表4 和 表5 ，或从视图 13.2.14.3 WAIT_EVENT_INFO 中查看系统中所有的事件列表。关于每种事务锁对业务的影响程度，请参见 LOCK 语法小节的详细描述。 lwtid integer 当前线程的轻量级线程号。 psessionid bigint streaming线程的父线程。 tlevel integer streaming线程的层级。与执行计划的层级(id)相对应。 smpid integer smp执行模式下并行线程的并行编号。 userid oid session用户的id。 application_name text 应用的名字。 client_addr inet client端的地址。 client_hostname text client端的名字。 client_port integer 客户端用于与后端通讯的TCP端口号。 query_id bigint debug query id。 unique_query_id bigint unique query id。 user_id oid unique query的key中的user_id。 cn_id integer 表示该unique sql来自哪个CN节点。unique query的key中的cn_id。 unique_query text 规范化后的Unique SQL文本串。 locktag text 会话等待锁信息，可通过locktag_decode解析。 lockmode text 会话等待锁模式： LW_EXCLUSIVE：排他锁。 LW_SHARED：共享锁。 LW_WAIT_UNTIL_FREE：等待LW_EXCLUSIVE可用。 block_sessionid bigint 如果会话正在等待锁，阻塞该会话获取锁的会话标识。 wait_status text 描述event列的更多详细信息。 global_sessionid text 全局会话ID。 xact_start_time timestamp with time zone 事务开始时间。 query_start_time timestamp with time zone 语句开始执行时间。 state text 当前语句状态。 可能取值为：active、idle in transaction、fastpath function call、idle in transaction (aborted)、disabled、retrying。",
+      "source_file": "1558_GS_ASP.txt"
+    },
+    {
+      "term": "PG_OPFAMILY",
+      "content": "PG_OPFAMILY PG_OPFAMILY PG_OPFAMILY系统表定义操作符族。 每个操作符族是一个操作符和相关支持例程的集合，其中的例程实现为一个特定的索引访问方式指定的语义。另外，族中的操作符都是“兼容的”，通过由访问方式指定的方法。操作符族的概念允许交叉数据类型操作符和索引一起使用，并且合理的使用访问方式的语义的知识。 表1 PG_OPFAMILY字段 名称 类型 引用 描述 oid oid - 行标识符（隐含属性，必须明确选择）。 opfmethod oid PG_AM .oid 操作符族使用的索引方法。 opfname name - 这个操作符族的名称。 opfnamespace oid PG_NAMESPACE .oid 这个操作符的名称空间。 opfowner oid PG_AUTHID .oid 操作符族的所有者。 定义一个操作符族的大多数信息不在它的PG_OPFAMILY行里面，而是在相关的行 PG_AMOP ， PG_AMPROC 和 PG_OPCLASS 里。",
+      "source_file": "3323_PG_OPFAMILY.txt"
+    },
+    {
+      "term": "PGXC_REDISTB",
+      "content": "PGXC_REDISTB PGXC_REDISTB PGXC_REDISTB表是在扩容期间创建的表，每个数据库创建一张，用来记录用户表的重分布状态，扩容结束后会被删除。只有具有connect权限的用户可查看。 表1 名称 类型 描述 relname name 用户表的名称 nspname name 表所在的表空间名称 pcrelid oid 表的oid pclocatortype character 定位器类型： H: hash M: Modulo N: Round Robin R: Replicate pchashalgorithm smallint 使用哈希算法分布元组 pchashbuckets smallint 哈希容器的值 pgroup name 表所属的node group redistributed character 表当前的状态 i：表示正在进行重分布 y：表示已经完成重分布 n：表示还未进行重分布 d：表示重分布已完成，临时表还未删除 redis_order integer 表重分布的顺序（默认值1024，设置为0表示该表不进行重分布；数值越小，越先进行重分布） pcattnum int2vector 用作分布键的列标号 nodeoids oidvector_extend 表所在node group的节点id internal_mask integer reloption中是否包含内部信息。当前支持的取值如下： 0x0，未开启内部掩码。 0x8000，开启内部掩码。 0x01，该表禁止insert。 0x02，该表禁止delete。 0x04，该表禁止alter。 0x08，该表禁止select。 0x0100，该表禁止update。 table_size bigint 表的大小，单位字节。",
+      "source_file": "1637_PGXC_REDISTB.txt"
+    },
+    {
+      "term": "PG_INDEX",
+      "content": "PG_INDEX PG_INDEX PG_INDEX系统表存储索引的一部分信息，其他的信息大多数在PG_CLASS中。 表1 PG_INDEX字段 名称 类型 描述 indexrelid oid 这个索引在pg_class里的记录的OID。 indrelid oid 使用这个索引的表在pg_class里的记录的OID。 indnatts smallint 索引中的字段数目。 indisunique boolean 如果为真，这是个唯一索引。 如果为假，这不是唯一索引。 indisprimary boolean 如果为真，该索引代表该表的主键。这个字段为真的时候indisunique总是为真。 如果为假，该索引不是该表的主键。 indisexclusion boolean 如果为真，该索引支持排他约束。 如果为假，该索引不支持排他约束。 indimmediate boolean 如果为真，在插入数据时会立即进行唯一性检查。 如果为假，在插入数据时不会进行唯一性检查。 indisclustered boolean 如果为真，则该表最后在这个索引上建了簇。 如果为假，则该表没有在这个索引上建簇。 indisusable boolean 如果为真，该索引对insert/select可用。 如果为假，该索引对insert/select不可用。 indisvalid boolean 如果为真，则该索引可以用于查询。如果为假，则该索引可能不完整，仍然必须在INSERT/UPDATE操作时进行更新，不过不能安全的用于查询。如果是唯一索引，则唯一属性也将不为真。 indcheckxmin boolean 如果为true，查询不能使用索引，直到pg_index此行的xmin低于其快照的TransactionXmin，因为该表可能包含它们能看到的不兼容行断开的HOT链。 如果为false，查询可以用于索引。 indisready boolean 如果为真，表示此索引对插入数据是可用的，否则，在插入或修改数据时忽略此索引。 indkey int2vector 这是一个包含indnatts值的数组，这些数组值表示这个索引所建立的表字段。比如一个值为1 3的意思是第一个字段和第三个字段组成这个索引键字。这个数组里的零表明对应的索引属性是在这个表字段上的一个表达式，而不是一个简单的字段引用。 indcollation oidvector 索引各列对应的排序规则的OID，详情请参考 PG_COLLATION 。 indclass oidvector 对于索引键字里面的每个字段，这个字段都包含一个指向所使用的操作符类的OID，详情请参考 PG_OPCLASS 。 indoption int2vector 存储列前标识位，该标识位是由索引的访问方法定义。 indexprs pg_node_tree 表达式树（以nodeToString()形式表现）用于那些非简单字段引用的索引属性。它是一个列表，个数与INDKEY中的零值个数相同。如果所有索引属性都是简单的引用，则为空。 indpred pg_node_tree 部分索引断言的表达式树（以nodeToString()的形式表现）。如果不是部分索引，则是空字符串。 indisreplident boolean 如果为真，则此索引的列成为逻辑解码的解码列。 如果为假，则此索引的列不是逻辑解码的解码列。 indnkeyatts smallint 索引中的总字段数，超出indnatts的部分不参与索引查询。 indcctmpid oid Ustore在线创建索引时临时表OID。 indisvisible boolean 如果为真，则此索引状态为可见，即优化器可以使用此索引。 如果为假，则此索引状态为不可见，此时若enable_invisible_indexes参数为off，则优化器不可以使用此索引；若enable_invisible_indexes参数为on，则优化器可以使用此索引。",
+      "source_file": "1599_PG_INDEX.txt"
+    },
+    {
+      "term": "PG_FOREIGN_TABLE",
+      "content": "PG_FOREIGN_TABLE PG_FOREIGN_TABLE PG_FOREIGN_TABLE系统表存储外部表的辅助信息。 表1 PG_FOREIGN_TABLE字段 名称 类型 描述 ftrelid oid 外部表的ID。 ftserver oid 外部表的所在服务器。 ftwriteonly boolean 外部表是否可写。取值如下： t（true）：表示可写 f（false）：表示不可写 ftoptions text[] 外部表的可选项，具体参考CREATE FOREIGN TABLE语法说明。",
+      "source_file": "3309_PG_FOREIGN_TABLE.txt"
+    },
+    {
+      "term": "PG_JOB_PROC",
+      "content": "PG_JOB_PROC PG_JOB_PROC PG_JOB_PROC系统表对应PG_JOB表中每个任务的作业内容（包括：PL/SQL代码块、匿名块）。将存储过程信息独立出来，如果放到PG_JOB中，被加载到共享内存的时候，会占用不必要的空间，所以在使用的时候再进行查询获取。普通用户需授权才能访问。 表1 PG_JOB_PROC字段 名称 类型 描述 oid oid 行标识符（隐含属性，必须明确选择）。 job_id integer 外键，关联pg_job表中的job_id。 what text 作业内容，DBE_SCHEDULER定时任务中的程序内容。 job_name text DBE_SCHEDULER定时任务专用，定时任务或程序名称。",
+      "source_file": "3314_PG_JOB_PROC.txt"
+    },
+    {
+      "term": "PG_FOREIGN_SERVER",
+      "content": "PG_FOREIGN_SERVER PG_FOREIGN_SERVER PG_FOREIGN_SERVER系统表存储外部服务器定义。一个外部服务器描述了一个外部数据源，例如一个远程服务器。外部服务器通过外部数据封装器访问。 表1 PG_FOREIGN_SERVER字段 名称 类型 引用 描述 oid oid - 行标识符（隐含属性，必须明确选择）。 srvname name - 外部服务器名。 srvowner oid PG_AUTHID .oid 外部服务器的所有者。 srvfdw oid PG_FOREIGN_DATA_WRAPPER .oid 这个外部服务器的外部数据封装器的OID。 srvtype text - 服务器的类型（可选）。 srvversion text - 服务器的版本（可选）。 srvacl aclitem[] - 访问权限。 srvoptions text[] - 外部服务器指定选项，使用“keyword=value”格式的字符串。",
+      "source_file": "3308_PG_FOREIGN_SERVER.txt"
+    },
+    {
+      "term": "PG_SUBSCRIPTION",
+      "content": "PG_SUBSCRIPTION PG_SUBSCRIPTION 系统表PG_SUBSCRIPTION包含所有现有的逻辑复制订阅。需要有系统管理员权限才可以访问此系统表。 和大部分系统表不同，PG_SUBSCRIPTION在集群的所有数据库之间共享，每个集群只有一份PG_SUBSCRIPTION拷贝，而不是每个数据库一份。 表1 PG_SUBSCRIPTION字段 名称 类型 描述 oid oid 行标识符（隐含字段，必须明确选择）。 subdbid oid 订阅所在的数据库的OID。 subname name 订阅的名称。 subowner oid 订阅的拥有者。 subenabled boolean 如果为真，订阅被启用并且应该被复制。 subconninfo text 到发布端数据库的连接信息。 subslotname name 发布端数据库中复制槽的名称。空表示为NONE。 subsynccommit text 订阅worker的synchronous_commit设置的值。 subpublications text[] 被订阅的publication名称的数组。这些引用的是发布者服务器上的publication。",
+      "source_file": "1625_PG_SUBSCRIPTION.txt"
+    },
+    {
+      "term": "PG_TS_CONFIG",
+      "content": "PG_TS_CONFIG PG_TS_CONFIG PG_TS_CONFIG系统表包含表示文本搜索配置的记录。一个配置指定一个特定的文本搜索解析器和一个为了每个解析器的输出类型使用的字典的列表。 解析器在PG_TS_CONFIG记录中显示，但是字典映射的标记是由 PG_TS_CONFIG_MAP 里面的辅助记录定义的。 表1 PG_TS_CONFIG字段 名称 类型 引用 描述 oid oid - 行标识符（隐含属性，必须明确选择）。 cfgname name - 文本搜索配置名。 cfgnamespace oid PG_NAMESPACE .oid 包含这个配置的名称空间的OID。 cfgowner oid PG_AUTHID .oid 配置的所有者。 cfgparser oid PG_TS_PARSER .oid 这个配置的文本搜索解析器的OID。 cfoptions text[] - 分词相关配置选项。",
+      "source_file": "3341_PG_TS_CONFIG.txt"
+    },
+    {
+      "term": "GS_DEPENDENCIES",
+      "content": "GS_DEPENDENCIES GS_DEPENDENCIES GS_DEPENDENCIES系统表记录对象的依赖项信息，和 13.2.15.4 GS_DEPENDENCIES_OBJ 表是一个一对多的关系。 表1 GS_DEPENDENCIES字段 名称 类型 描述 schemaname name 名称空间的名称。 packagename name package的名称。 refobjpos integer 被依赖体引用的位置。 1：类型。 2：包头。 4：函数头。 8：函数体。 16：包体。 32：视图。 refobjoid oid 被依赖体的oid。 objectname text 依赖体名称。",
+      "source_file": "3272_GS_DEPENDENCIES.txt"
+    },
+    {
+      "term": "PG_FOREIGN_DATA_WRAPPER",
+      "content": "PG_FOREIGN_DATA_WRAPPER PG_FOREIGN_DATA_WRAPPER PG_FOREIGN_DATA_WRAPPER系统表存储外部数据封装器定义。一个外部数据封装器是在外部服务器上驻留外部数据的机制，是可以访问的。 表1 PG_FOREIGN_DATA_WRAPPER字段 名称 类型 引用 描述 oid oid - 行标识符（隐含字段，必须明确选择）。 fdwname name - 外部数据封装器名。 fdwowner oid PG_AUTHID .oid 外部数据封装器的所有者。 fdwhandler oid PG_PROC .oid 引用一个负责为外部数据封装器提供扩展例程的处理函数。如果没有提供处理函数则为零。 fdwvalidator oid PG_PROC .oid 引用一个验证器函数，这个验证器函数负责验证给予外部数据封装器的选项、外部服务器选项和使用外部数据封装器的用户映射的有效性。如果没有提供验证器函数则为零。 fdwacl aclitem[] - 访问权限。 fdwoptions text[] - 外部数据封装器指定选项，使用“keyword=value”格式的字符串。",
+      "source_file": "1595_PG_FOREIGN_DATA_WRAPPER.txt"
+    },
+    {
+      "term": "STREAMING_CONT_QUERY",
+      "content": "STREAMING_CONT_QUERY STREAMING_CONT_QUERY STREAMING_CONT_QUERY系统表存储所有CONTVIEW对象的元数据信息。 表1 STREAMING_CONT_QUERY字段 名称 类型 描述 id integer CONTVIEW对象唯一的标识符，不可重复。 type \"char\" 标识CONTVIEW的类型。 'r'表示该CONTVIEW是基于行存存储模型。 relid oid CONTVIEW对象的标识。 defrelid oid CONTVIEW对应的持续计算规则VIEW的标识。 active boolean 标识CONTVIEW是否处于持续计算状态。 t（true）：表示是。 f（false）：表示不是。 streamrelid oid CONTVIEW对应的STREAM的标识。 matrelid oid CONTVIEW对应物化表的标识。 lookupidxid oid CONTVIEW对应GROUP LOOK UP INDEX的标识，此字段内部使用，仅行存具有。 step_factor smallint 标识CONTVIEW的步进模式。主要取值为0（无重叠窗口）和1（滑动窗口，步长为1）。 ttl integer CONTVIEW设置的ttl_interval参数值。 ttl_attno smallint CONTVIEW设置的TTL功能对应时间列的字段编号。 dictrelid oid CONTVIEW对应字典表的标识。 grpnum smallint CONTVIEW持续计算规则中维度列的个数，此字段内部使用。 grpidx int2vector CONTVIEW持续计算规则中维度列在TARGET LIST的索引，此字段内部使用。",
+      "source_file": "3353_STREAMING_CONT_QUERY.txt"
+    },
+    {
+      "term": "PG_TYPE",
+      "content": "PG_TYPE PG_TYPE PG_TYPE系统表存储数据类型的相关信息。 表1 PG_TYPE字段 名称 类型 描述 oid oid 行标识符（隐含字段，必须明确选择）。 typname name 数据类型名称。 typnamespace oid 包含这个类型的名称空间的OID。 typowner oid 该类型的所有者。 typlen smallint 对于定长类型是该类型内部表现形式的字节数目。对于变长类型是负数。 -1表示一种“变长”（有长度字属性的数据）。 -2表示这是一个NULL结尾的C字符串。 typbyval boolean 指定内部传递这个类型的数值时是传值（该值为true）还是传引用（该值为false）。如果该类型的TYPLEN不是1，2，4，8， TYPBYVAL建议为假。变长类型通常是传引用。即使TYPLEN允许传值，TYPBYVAL也可以为假。 typtype \"char\" 对于基础类型是b。 对于复合类型是c（比如，一个表的行类型）。 对于域类型是d。 对于伪类型是p。 对于范围类型是r。 对于枚举类型是e。 对于未定义类型是u。 对于集合类型是o。 参见typrelid和typbasetype。 typcategory \"char\" 是数据类型的模糊分类，可用于解析器做为数据转换的依据。 typispreferred boolean 如果为真，则数据符合TYPCATEGORY所指定的转换规则时进行转换。否则不进行转换。 typisdefined boolean 如果定义了类型则为真，如果是一种尚未定义的类型的占位符则为假。如果为假，则除了该类型名称，名称空间和OID之外没有可靠的信息。 typdelim \"char\" 当分析数组输入时，分隔两个此类型数值的字符请注意该分隔符是与数组元素数据类型相关联的，而不是和数组数据类型关联。 typrelid oid 如果是复合类型（请参见typtype），则这个字段指向pg_class中定义该表的行。对于自由存在的复合类型，pg_class记录并不表示一个表，但是总需要它来查找该类型连接的pg_attribute记录。对于非复合类型为零。 typelem oid 如果不为0，则它标识pg_type里面的另外一行。当前类型可以当做一个产生类型为typelem的数组来描述。一个\"真正的\"数组类型是变长的（typlen= -1），但是一些定长的（typlen > 0）类型也拥有非零的typelem（比如name和point）。如果一个定长类型拥有一个typelem ，则他的内部形式必须是typelem数据类型的某个数目的个数值，不能有其它数据。变长数组类型有一个该数组子过程定义的头（文件）。 typarray oid 如果不为0，则表示在pg_type中有对应的类型记录。 typinput regproc 输入转换函数（文本格式）。 typoutput regproc 输出转换函数（文本格式）。 typreceive regproc 输入转换函数（二进制格式），如果没有则为0。 typsend regproc 输出转换函数（二进制格式），如果没有则为0。 typmodin regproc 输入类型修改符函数，如果为0，则不支持。 typmodout regproc 输出类型修改符函数，如果为0，则不支持。 typanalyze regproc 自定义的ANALYZE函数，如果使用标准函数，则为0。 typalign \"char\" 当存储此类型的数值时要求的对齐性质。它应用于磁盘存储以及该值的大多数形式。如果数值是连续存放的，比如在磁盘上以完全的裸数据的形式存放时，则先在此类型的数据前填充空白，这样它就可以按照要求的界限存储。对齐引用是该序列中第一个数据的开头。可能的值包含： c = char对齐，也就是不需要对齐。 s = short对齐（在大多数机器上是2字节） i = int对齐（在大多数机器上是4字节） d = double对齐（在大多数机器上是8字节，但不一定是全部） 须知： 对于在系统表里使用的类型，在pg_type里定义的尺寸和对齐必须和编译器在一个表示表的一行的结构里的布局一样。 typstorage \"char\" 指明一个变长类型（那些有typlen = -1）是否准备好应付非常规值，以及对这种属性的类型的缺省策略是什么。可能的值包含： p：数值总是以简单方式存储。 e：数值可以存储在一个\"次要\"关系中（如果该关系有这么一个，请参见pg_class.reltoastrelid）。 m：数值可以以内联的压缩方式存储。 x：数值可以以内联的压缩方式或者在\"次要\"表里存储。 须知： m域也可以移到从属表里存储，但只是最后的解决方法（e和x域先移走）。 typnotnull boolean 该类型是否存在NOTNULL约束。目前只用于域。 typbasetype oid 如果这是一个衍生类型（请参见typtype），则该标识作为这个类型的基础的类型。如果不是衍生类型则为零。 typtypmod integer 域使用typtypmod记录要作用到它们的基础类型上的typmod（如果基础类型不使用typmod则为-1）。如果这种类型不是域，则为-1。 如果该类型是数组类型，则typtypmod是数组类型的最大容量。 如果该类型是带索引的集合类型，则typtypmod是该集合类型的索引最大长度。 typndims integer 如果一个域是数组，则typndims是数组维数的数值（也就是说，typbasetype是一个数组类型；域的typelem将匹配基本类型的typelem）。非域非数组域为零。 typcollation oid 指定类型的排序规则，取值参考 PG_COLLATION 系统表。如果为0，则表示不支持排序。 typdefaultbin pg_node_tree 如果为非NULL，则它是该类型缺省表达式的nodeToString() 表现形式。目前这个字段只用于域。 typdefault text 如果某类型没有相关缺省值，则取值是NULL。如果typdefaultbin不是NULL，则typdefault必须包含一个typdefaultbin代表的缺省表达式。如果typdefaultbin为NULL但typdefault不是，typdefault则是该类型缺省值的外部表现形式，可以把它交给该类型的输入转换器生成一个常量。 typacl aclitem[] 访问权限。 typelemmod integer 集合类型和数组类型对应元素类型的typmod为NULL时表示元素类型的typmod未知，为-1时则表示元素类型不需要typmod。",
+      "source_file": "1634_PG_TYPE.txt"
+    },
+    {
+      "term": "GS_TABLESTATS_HISTORY",
+      "content": "GS_TABLESTATS_HISTORY GS_TABLESTATS_HISTORY GS_TABLESTATS_HISTORY是表、索引、分区级别的历史统计信息管理表，存储有关该数据库中表、索引、分区的历史统计数据。 表1 GS_TABLESTATS_HISTORY字段 名称 类型 描述 relid oid 表、索引、分区在pg_class/pg_partition内的唯一标识。 relname name 表、索引、分区的名称。 relnamespace oid 包含此对象的命名空间的oid。 relkind \"char\" 对象类型。 r：标识普通表。 I：标识表级索引。 i：标识分区索引。 p：标识一级分区。 s：标识二级分区。 reltimestamp timestamp with time zone 该条统计信息收集的时间。 relpages double precision 以页为单位的此表在磁盘上的大小，它只是优化器用的一个近似值。 reltuples double precision 表中行的数目，只是优化器使用的一个估计值。 relallvisible integer 被标识为全可见的表中的页的数量。",
+      "source_file": "3285_GS_TABLESTATS_HISTORY.txt"
+    },
+    {
+      "term": "PG_PUBLICATION",
+      "content": "PG_PUBLICATION PG_PUBLICATION 系统表PG_PUBLICATION包含当前数据库中创建的所有publication。 表1 PG_PUBLICATION字段 名称 类型 描述 oid oid 行标识符（隐含字段，必须明确选择）。 pubname name publication的名称。 pubowner oid publication的拥有者。 puballtables boolean 如果为真，这个publication自动包括数据库中的所有表，包括未来将会创建的任何表。 pubinsert boolean 如果为真，为publication中的表复制INSERT操作。 pubupdate boolean 如果为真，为publication中的表复制UPDATE操作。 pubdelete boolean 如果为真，为publication中的表复制DELETE操作。",
+      "source_file": "1614_PG_PUBLICATION.txt"
+    },
+    {
+      "term": "PG_TS_PARSER",
+      "content": "PG_TS_PARSER PG_TS_PARSER PG_TS_PARSER系统表包含定义文本解析器的记录。解析器负责分裂输入文本为词位，并且为每个词位分配标记类型。新解析器必须由数据库系统管理员创建。 表1 PG_TS_PARSER字段 名称 类型 引用 描述 oid oid - 行标识符（隐含属性；必须明确选择）。 prsname name - 文本搜索解析器名。 prsnamespace oid PG_NAMESPACE .oid 包含这个解析器的名称空间的OID。 prsstart regproc PG_PROC .proname 解析器的启动函数名。 prstoken regproc PG_PROC .proname 解析器的下一个标记函数名。 prsend regproc PG_PROC .proname 解析器的关闭函数名。 prsheadline regproc PG_PROC .proname 解析器的标题函数名。 prslextype regproc PG_PROC .proname 解析器的lextype函数名。",
+      "source_file": "3344_PG_TS_PARSER.txt"
+    },
+    {
+      "term": "PG_SHDEPEND",
+      "content": "PG_SHDEPEND PG_SHDEPEND PG_SHDEPEND系统表记录数据库对象和共享对象（比如角色）之间的依赖性关系。这些信息允许 GaussDB 保证在企图删除这些对象之前，这些对象是没有被引用的。 PG_DEPEND 的作用类似，只是它是用于在一个数据库内部的对象的依赖性关系的。 和其它大多数系统表不同，PG_SHDEPEND是在 集群 里面所有的数据库之间共享的：每个 数据库集群 只有一个PG_SHDEPEND，而不是每个数据库一个。 表1 PG_SHDEPEND字段 名称 类型 引用 描述 dbid oid PG_DATABASE .oid 依赖对象所在的数据库的OID ，如果是共享对象，则为零。 classid oid PG_CLASS .oid 依赖对象所在的系统表的OID。 objid oid 任意OID属性 指定的依赖对象的OID。 objsubid integer - 对于一个表字段，这是字段号（objid和classid参考表本身）。对于所有其他对象类型，这个字段为零。 refclassid oid PG_CLASS .oid 被引用对象所在的系统表的OID(必须是一个共享表)。 refobjid oid 任意OID属性 指定的被引用对象的OID。 deptype \"char\" - 一段代码，定义了这个依赖性关系的特定语义；参阅下文。 在任何情况下，一条PG_SHDEPEND记录就表明这个被引用的对象不能在未删除依赖对象的前提下删除。不过，deptype同时还标出了几种不同的子风格： SHARED_DEPENDENCY_OWNER (o) 被引用的对象（必须是一个角色）是依赖对象的所有者。 SHARED_DEPENDENCY_ACL (a) 被引用的对象（必须是一个角色）在依赖对象的ACL（访问控制列表，也就是权限列表）里提到。SHARED_DEPENDENCY_ACL不会在对象的所有者头上添加的，因为所有者会有一个SHARED_DEPENDENCY_OWNER记录。 SHARED_DEPENDENCY_PIN (p) 没有依赖对象；这类记录标识系统自身依赖于该被依赖对象，因此这样的对象不能被删除。这种类型的记录只是由initdb创建。这样的依赖对象的字段都是零。 SHARED_DEPENDENCY_ DBPRIV(d) 被引用的对象（必须是一个角色）具有依赖对象所对应的ANY权限（指定的依赖对象的OID对应的是系统表gs_db_privilege中一行）。 SHARED_DEPENDENCY_ SECLABEL(l) 被引用的对象（必须是一个安全标签）被应用在依赖对象上。",
+      "source_file": "1621_PG_SHDEPEND.txt"
+    },
+    {
+      "term": "GS_TABLESTATS_HISTORY",
+      "content": "GS_TABLESTATS_HISTORY GS_TABLESTATS_HISTORY GS_TABLESTATS_HISTORY是表、索引、分区级别的历史统计信息管理表，存储有关该数据库中表、索引、分区的历史统计数据。该表在分布式下可见不可用。 表1 GS_TABLESTATS_HISTORY字段 名称 类型 描述 relid oid 表、索引、分区在 12.2.15.28 PG_CLASS 、 12.2.1.1 PG_PARTITION 内的唯一标识。 relname name 表、索引、分区的名称。 relnamespace oid 包含此对象的命名空间的oid。 relkind \"char\" 对象类型。 r：标识普通表。 I：标识表级索引。 i：标识分区索引。 p：标识一级分区。 s：标识二级分区。 reltimestamp timestamp with time zone 该条统计信息收集的时间。 relpages double precision 以页为单位的此表在磁盘上的大小，它只是优化器用的一个近似值。 reltuples double precision 表中行的数目，只是优化器使用的一个估计值。 relallvisible integer 被标识为全可见的表中的页的数量。",
+      "source_file": "1573_GS_TABLESTATS_HISTORY.txt"
+    },
+    {
+      "term": "PG_OBSSCANINFO",
+      "content": "PG_OBSSCANINFO PG_OBSSCANINFO PG_OBSSCANINFO系统表定义了在云上加速场景中，使用加速集群 （由于规格变更，当前版本已经不再支持本特性，请不要使用） 时扫描OBS数据的运行时信息，每条记录对应一个query中单个OBS外表 （当前特性是实验室特性，使用时请联系华为技术工程师提供技术支持。） 的运行时信息。 表1 PG_OBSSCANINFO字段 名称 类型 引用 描述 query_id bigint - 查询标识。 user_id text - 执行该查询的数据库用户。 table_name text - OBS外表的表名。 file_type text - 底层数据保存的文件格式。 time_stamp timestamp with time zone - 扫描操作开始的时间。 actual_time double precision - 扫描操作执行时间，单位为秒。 file_scanned bigint - 扫描的文件数量。 data_size double precision - 扫描的数据量，单位为字节。 billing_info text - 保留字段。",
+      "source_file": "1608_PG_OBSSCANINFO.txt"
+    },
+    {
+      "term": "PG_RESOURCE_POOL",
+      "content": "PG_RESOURCE_POOL PG_RESOURCE_POOL PG_RESOURCE_POOL系统表提供了数据库资源池的信息。 表1 PG_RESOURCE_POOL字段 名称 类型 描述 oid oid 行标识符（隐含字段，必须明确选择）。 respool_name name 资源池名称。 mem_percent integer 内存配置的百分比。 cpu_affinity bigint CPU绑定core的数值。 control_group name 资源池所在的control group名称。 active_statements integer 资源池上最大的并发数。 max_dop integer 最大并发度。用作扩容的接口，表示数据重分布时，扫描并发度。 memory_limit name 资源池最大的内存。 parentid oid 父资源池OID。 io_limits integer 每秒触发I/O的次数上限。单位是万次/s。 io_priority name I/O利用率高达90%时，重消耗I/O作业进行I/O资源管控时关联的优先级等级。 max_worker integer 只用于扩容的接口，表示扩容数据重分布时，表内插入并发度。 max_dynamic_memory text 资源池允许使用的最大动态内存值。 max_shared_memory text 资源池允许使用的最大共享内存值。 max_concurrency integer 资源池允许使用的最大并发数。",
+      "source_file": "1618_PG_RESOURCE_POOL.txt"
+    },
+    {
+      "term": "PG_ENUM",
+      "content": "PG_ENUM PG_ENUM PG_ENUM系统表包含显示每个枚举类型值和标签的记录。给定枚举类型的内部表示实际上是PG_ENUM里面相关行的OID。 表1 PG_ENUM字段 名称 类型 引用 描述 oid oid - 行标识符（隐含属性，必须明确选择）。 enumtypid oid PG_TYPE .oid 拥有这个枚举值的 13.2.15.77 PG_TYPE 记录的OID。 enumsortorder real - 这个枚举值在它的枚举类型中的排序位置。 enumlabel name - 这个枚举值的文本标签。 PG_ENUM行的OID跟着一个特殊规则：偶数的OID保证用和它们的枚举类型一样的排序顺序排序。也就是，如果两个偶数OID属于相同的枚举类型，那么较小的OID必须有较小enumsortorder值。奇数OID需要毫无关系的排序顺序。这个规则允许枚举比较例程在许多常见情况下避开目录查找。创建和修改枚举类型的例程只要可能就尝试分配偶数OID给枚举值。 当创建了一个枚举类型时，它的成员赋予了排序顺序位置1到n。但是随后添加的成员可能会分配enumsortorder的负值或分数值。对这些值的唯一要求是它们要正确的排序和在每个枚举类型中唯一。",
+      "source_file": "3304_PG_ENUM.txt"
+    },
+    {
+      "term": "PG_RESOURCE_POOL",
+      "content": "PG_RESOURCE_POOL PG_RESOURCE_POOL PG_RESOURCE_POOL系统表提供了数据库资源池的信息。 表1 PG_RESOURCE_POOL字段 名称 类型 描述 oid oid 行标识符（隐含属性，必须明确选择）。 respool_name name 资源池名称。 mem_percent integer 内存配置的百分比。 cpu_affinity bigint CPU绑定core的数值。 control_group name 资源池所在的control group名称。 active_statements integer 资源池上最大的并发数。 max_dop integer 最大并发度。用作扩容的接口，表示数据重分布时，扫描并发度。 memory_limit name 资源池最大的内存。 parentid oid 父资源池OID。 io_limits integer 每秒触发I/O的次数上限。单位是万次/s。 io_priority name I/O利用率高达90%时，重消耗I/O作业进行I/O资源管控时关联的优先级等级。 nodegroup name 表示资源池所在的逻辑数据库的名称。（集中式不支持该字段）。 is_foreign boolean 表示资源池是否用于逻辑数据库之外的用户。如果为true，表示资源池用来控制不属于当前资源池的普通用户的资源。（集中式不支持该字段）。 max_worker integer 只用于扩容的接口，表示扩容数据重分布时，表内插入并发度。 max_connections integer 最大连接数，用来限制资源池可使用的最大连接数。 max_dynamic_memory name 资源池允许使用的最大动态内存值。 max_shared_memory name 资源池允许使用的最大共享内存值。 max_concurrency integer 资源池允许使用的最大并发数。 注：max_dop和max_worker用于扩容，不适用于集中式。",
+      "source_file": "3330_PG_RESOURCE_POOL.txt"
+    },
+    {
+      "term": "GS_ARCHIVE_STATUS",
+      "content": "GS_ARCHIVE_STATUS GS_ARCHIVE_STATUS GS_ARCHIVE_STATUS系统表记录REMOTE介质下的归档状态信息，在PITR恢复后会被清空。需要有系统管理员或安全策略管理员权限才可以修改此表。 表1 GS_ARCHIVE_STATUS字段 名称 类型 描述 node_name name 表示该记录由哪一个节点更新，若多个节点均有可能更新则为\"ALLNODES\"。 archive_name name 归档槽名称。 status_type \"char\" 记录类型： 'A'：对应于原OBS/NAS归档下的archive_start_records文件中的记录。 'B'：对应于原OBS/NAS归档下的hadr_start_barrier文件中的记录。 'C'：对应于原OBS/NAS归档下的hadr_barrier_id文件中的记录。 'D'：对应于原OBS/NAS归档下的obs_archive_start_end_record文件中的记录。 'E'：对应于原OBS/NAS归档下的cn_build_history文件中的记录。 'F'：REMOTE归档中，记录空洞区间记录。 update_time timestamp with time zone 表示该记录更新时间。 record text 表示该记录具体内容。",
+      "source_file": "3270_GS_ARCHIVE_STATUS.txt"
+    },
+    {
+      "term": "PG_OPCLASS",
+      "content": "PG_OPCLASS PG_OPCLASS PG_OPCLASS系统表定义索引访问方法操作符类。 每个操作符类为一种特定数据类型和一种特定索引访问方法定义索引字段的语义。一个操作符类本质上指定一个特定的操作符族适用于一个特定的可索引的字段数据类型。索引的字段实际可用的族中的操作符集是接受字段的数据类型作为它们的左边的输入的那个。 表1 PG_OPCLASS字段 名称 类型 引用 描述 oid oid - 行标识符（隐含属性，必须明确选择）。 opcmethod oid PG_AM .oid 操作符类所服务的索引访问方法。 opcname name - 这个操作符类的名称。 opcnamespace oid PG_NAMESPACE .oid 这个操作符类的名称空间。 opcowner oid PG_AUTHID .oid 操作符类属主。 opcfamily oid PG_OPFAMILY .oid 包含该操作符类的操作符族。 opcintype oid PG_TYPE .oid 操作符类索引的数据类型。 opcdefault boolean - 如果操作符类是opcintype的缺省，则为真。 opckeytype oid PG_TYPE .oid 索引数据的类型，如果和opcintype相同则为零。 一个操作符类的opcmethod必须匹配包含它的操作符族的opfmethod。",
+      "source_file": "3321_PG_OPCLASS.txt"
+    },
+    {
+      "term": "PG_STATISTIC_EXT",
+      "content": "PG_STATISTIC_EXT PG_STATISTIC_EXT PG_STATISTIC_EXT系统表存储有关该数据库中表的扩展统计数据，包括多列统计数据和表达式统计数据（后续支持）。收集哪些扩展统计数据是由用户指定的。需要有系统管理员权限才可以访问此系统表。 表1 PG_STATISTIC_EXT字段 名称 类型 描述 starelid oid 所描述的字段所属的表或者索引。 starelkind \"char\" 所属对象的类型，'c'表示表，'p'表示分区。 stainherit boolean 是否统计有继承关系的对象。 stanullfrac real 该字段中为NULL的记录的比率。 stawidth integer 非NULL记录的平均存储宽度，以字节计。 stadistinct real 标识全局统计信息中数据库节点上字段里唯一的非NULL数据值的数目。 一个大于零的数值是独立数值的实际数目。 一个小于零的数值是表中行数的分数的负数（比如，一个字段的数值平均出现概率为两次，则可以表示为stadistinct=-0.5）。 零值表示独立数值的数目未知。 stadndistinct real 标识dn1上字段里唯一的非NULL数据值的数目。 一个大于零的数值是独立数值的实际数目。 一个小于零的数值是表中行数的分数的负数（比如，一个字段的数值平均出现概率为两次，则可以表示为stadistinct=-0.5）。 零值表示独立数值的数目未知。 stakindN smallint 一个编码，表示这种类型的统计存储在pg_statistic行的第n个“槽位”。 n的取值范围：1～5 staopN oid 一个用于生成这些存储在第n个“槽位”的统计信息的操作符。比如，一个柱面图槽位会显示<操作符，该操作符定义了该数据的排序顺序。 n的取值范围：1～5 stakey int2vector 所描述的字段编号的数组。 stanumbersN real[] 第n个“槽位”的相关类型的数值类型统计，如果该槽位和数值类型没有关系，则就是NULL。 n的取值范围：1～5 stavaluesN anyarray 第n个“槽位”类型的字段数据值，如果该槽位类型不存储任何数据值，则就是NULL。每个数组的元素值实际上都是指定字段的数据类型，因此，除了把这些字段的类型定义成anyarray之外，没有更好地办法。 n的取值范围：1～5 staexprs pg_node_tree 扩展统计信息对应的表达式。 stasource \"char\" 扩展统计信息的来源： 'a'：表示自动创建，由GUC参数 auto_statistic_ext_columns 控制。 'm'：表示手动创建，用户通过 analyze tablename ((column list)) 或者 alter table tablename add statistics ((column list)) 来创建。 stastatus \"char\" 扩展统计信息的状态： 'a'：表示活跃可用。 'd'：表示被禁用，相关信息不被收集，优化器在生成计划的时候也不使用。用户可以使用语法 alter table tablename disable/enable statistics((column list)) 来修改扩展统计信息的状态。 staextname name 多列统计信息多列组的别名。 stastate \"char\" 标识统计信息是否被锁定，若被锁定则无法更新。 l：标识已经被锁定。 u：标识没有被锁定。 PG_STATISTIC_EXT系统表存储了统计对象的一些敏感信息，如高频值MCV。系统管理员和授权后的其他用户可以通过访问PG_STATISTIC_EXT系统表查询到统计对象的这些敏感信息。",
+      "source_file": "3336_PG_STATISTIC_EXT.txt"
+    },
+    {
+      "term": "PGXC_SLICE",
+      "content": "PGXC_SLICE PGXC_SLICE PGXC_SLICE表是针对range范围分布和list分布创建的系统表，用来记录分布具体信息，当前不支持range interval自动扩展分片，不过在系统表中预留。 表1 PGXC_SLICE字段 名称 类型 描述 relname name 表名或者分片名，通过type区分 type \"char\" 当为’t’时relname是表名，当为’s’时relname是分片的名字 strategy \"char\" ‘r’：为range分布表 ‘l’：为list分布表 后续interval分片会扩展该值 relid oid 该tuple隶属的分布表oid referenceoid oid 所参考分布表的oid,用于slice reference建表语法 sindex integer 当为list分布表时，表示当前boundary在某个分片内的位置 interval text[] 预留字段 transitboundary text[] 预留字段 transitno integer 预留字段 nodeoid oid 当relname为分片名时，表示该分片的数据存放在哪个DN上，nodeoid表示这个DN的oid boundaries text[] 当relname为分片名时，对应该分片的边界值。 specified boolean 当前分片对应的DN是否是用户在DDL中显示指定的。 sliceorder integer 用户定义分片的顺序",
+      "source_file": "1638_PGXC_SLICE.txt"
+    },
+    {
+      "term": "PG_ATTRDEF",
+      "content": "PG_ATTRDEF PG_ATTRDEF PG_ATTRDEF系统表存储列的默认值。 表1 PG_ATTRDEF字段 名称 类型 描述 oid oid 行标识符（隐含属性，必须明确选择）。 adrelid oid 该列的所属表。 adnum smallint 该列的数目。 adbin pg_node_tree 字段缺省值或生成表达式的内部表现形式。 adsrc text 可读缺省值或生成表达式的内部表现形式。 adgencol \"char\" 标识该列是否为生成列。取值为's'表示该列为生成列，取值为'\\0'表示该列为普通列，默认值为'\\0'。 adbin_on_update pg_node_tree 字段on update current_timestamp属性表达式的内部表现形式。 adsrc_on_update text 可读on update current_timestamp属性表达式的内部表现形式。",
+      "source_file": "3293_PG_ATTRDEF.txt"
+    },
+    {
+      "term": "GS_PACKAGE",
+      "content": "GS_PACKAGE GS_PACKAGE GS_PACKAGE系统表记录PACKAGE内的信息。 表1 GS_PACKAGE字段 名称 类型 描述 oid oid 行标识符（隐含属性，必须明确选择）。 pkgnamespace oid package所属schema。 pkgowner oid package的所属者。 pkgname name package的名字。 pkgspecsrc text package specification的内容。 pkgbodydeclsrc text package body的内容。 pkgbodyinitsrc text package init的内容。 pkgacl aclitem[] 访问权限。 pkgsecdef boolean package是否是定义者权限。",
+      "source_file": "1565_GS_PACKAGE.txt"
+    },
+    {
+      "term": "PG_INHERITS",
+      "content": "PG_INHERITS PG_INHERITS PG_INHERITS系统表记录关于表继承层次的信息。数据库里每个直接的子系表都有一条记录。间接的继承可以通过追溯记录链来判断。 表1 PG_INHERITS字段 名称 类型 引用 描述 inhrelid oid PG_CLASS .oid 子表的OID。 inhparent oid PG_CLASS .oid 父表的OID。 inhseqno integer - 如果一个子表存在多个直系父表（多重继承），这个数字表明此继承字段的排列顺序。计数从1开始。",
+      "source_file": "1600_PG_INHERITS.txt"
+    },
+    {
+      "term": "PG_SYNONYM",
+      "content": "PG_SYNONYM PG_SYNONYM PG_SYNONYM系统表存储同义词对象名与其他数据库对象名间的映射信息。 表1 PG_SYNONYM字段 名称 类型 描述 oid oid 数据库对象id。 synname name 同义词名称。 synnamespace oid 包含该同义词的名字空间的OID。 synowner oid 同义词的所有者，通常是创建它的用户OID。 synobjschema name 关联对象指定的模式名。 synobjname name 关联对象名。 syndblinkname name 关联DATABASE LINK对象名。",
+      "source_file": "3338_PG_SYNONYM.txt"
+    },
+    {
+      "term": "PG_CONSTRAINT",
+      "content": "PG_CONSTRAINT PG_CONSTRAINT PG_CONSTRAINT系统表存储表上的检查约束、主键、唯一约束和外键约束。 表1 PG_CONSTRAINT字段 名称 类型 描述 oid oid 行标识符（隐含字段，必须明确选择）。 conname name 约束名称（不一定是唯一的）。 connamespace oid 包含这个约束的名称空间的OID。 contype \"char\" c：检查约束。 p：主键约束。 u：唯一约束。 t：触发器约束。 x：互斥约束。 f：外键约束。 s：聚簇约束。 i：无效约束。 condeferrable boolean 这个约束是否可以推迟。 true：表示可以。 false：表示不可以。 condeferred boolean 缺省时这个约束是否可以推迟。 true：表示可以。 false：表示不可以。 convalidated boolean 约束是否有效。目前，只有外键和CHECK约束可将其设置为FALSE。 true：表示有效。 false：表示无效。 conrelid oid 这个约束所在的表，如果不是表约束则为0。 contypid oid 这个约束所在的域，如果不是一个域约束则为0。 conindid oid 与约束关联的索引ID。 confrelid oid 如果是外键，则为参考的表，否则为0。 confupdtype \"char\" 外键更新动作代码。 a：没动作。 r：限制。 c：级联。 n：设置为null。 d：设置为缺省。 confdeltype \"char\" 外键删除动作代码。 a：没动作。 r：限制。 c：级联。 n：设置为null。 d：设置为缺省。 confmatchtype \"char\" 外键匹配类型。 f：全部。 p：部分。 u：未指定（在f的基础上允许匹配NULL值）。 conislocal boolean 是否是为关系创建的本地约束。 true：表示是。 false：表示不是。 coninhcount integer 约束直接继承父表的数目。继承父表数非零时，不能删除或重命名该约束。 connoinherit boolean 是否可以被继承。 true：表示可以。 false：表示不可以。 consoft boolean 是否为信息约束(Informational Constraint)。 true：表示是。 false：表示不是。 conopt boolean 是否使用信息约束优化执行计划。 true：表示使用。 false：表示不使用。 conkey smallint[] 如果是表约束，则是约束控制的字段列表。 confkey smallint[] 如果是一个外键，是参考的字段的列表。 conpfeqop oid[] 如果是一个外键，是做PK=FK比较的相等操作符ID的列表。 conppeqop oid[] 如果是一个外键，是做PK=PK比较的相等操作符ID的列表。 conffeqop oid[] 如果是一个外键，是做FK=FK比较的相等操作符ID的列表。 conexclop oid[] 如果是一个排他约束，是列的排他操作符ID列表。 conbin pg_node_tree 如果是检查约束，那就是其表达式的内部形式。 consrc text 如果是检查约束，则是表达式的可读形式。 conincluding smallint[] 不用做约束，但是会包含在INDEX中的属性列。 consrc在被引用的对象改变之后不会被更新，它不会跟踪字段的名称修改。建议使用pg_get_constraintdef()来抽取一个检查约束的定义。 12.2.15.28 PG_CLASS 的relchecks需要和在该表上为给定关系找到的检查约束的数目一致。",
+      "source_file": "1586_PG_CONSTRAINT.txt"
+    },
+    {
+      "term": "PG_REWRITE",
+      "content": "PG_REWRITE PG_REWRITE PG_REWRITE系统表存储为表和视图定义的重写规则。 表1 PG_REWRITE字段 名称 类型 描述 oid oid 行标识符（隐含属性，必须明确选择）。 rulename name 规则名称。 ev_class oid 使用这条规则的表名称。 ev_attr smallint 这条规则适用的字段（目前总是为零，表示整个表）。 ev_type \"char\" 规则适用的事件类型： 1 = SELECT 2 = UPDATE 3 = INSERT 4 = DELETE ev_enabled \"char\" 用于控制复制的触发。 O =“origin”和“local”模式时触发。 D =禁用触发。 R =“replica”时触发。 A ＝任何模式是都会触发。 is_instead boolean 如果该规则是INSTEAD规则，则为真。 ev_qual pg_node_tree 规则的资格条件的表达式树（以nodeToString（) 形式存在）。 ev_action pg_node_tree 规则动作的查询树（以nodeToString() 形式存在）。",
+      "source_file": "3331_PG_REWRITE.txt"
+    },
+    {
+      "term": "GS_SQL_PATCH",
+      "content": "GS_SQL_PATCH GS_SQL_PATCH GS_SQL_PATCH系统表存储当前节点上的SQL_PATCH的状态信息。 表1 GS_SQL_PATCH字段 名称 类型 描述 patch_name name PATCH名称。 unique_sql_id bigint 查询全局唯一ID。 owner oid PATCH的创建用户ID。 enable boolean PATCH是否生效。 status \"char\" PATCH的状态（预留字段）。 abort boolean 是否是AbortHint。 hint_string text Hint文本。 hint_node pg_node_tree Hint解析&序列化的结果。 original_query text 原始语句（预留字段）。 patched_query text PATCH之后的语句（预留字段）。 original_query_tree pg_node_tree 原始语句的解析结果（预留字段）。 patched_query_tree pg_node_tree PATCH之后语句的解析结果（预留字段）。 description text PATCH的备注。 parent_unique_sql_id bigint PATCH生效的SQL语句的外层语句的全局唯一ID，存储过程外的语句该值为0，存储过程内的语句该值为调用该存储过程语句的全局唯一ID。",
+      "source_file": "1570_GS_SQL_PATCH.txt"
+    },
+    {
+      "term": "GS_JOB_ATTRIBUTE",
+      "content": "GS_JOB_ATTRIBUTE GS_JOB_ATTRIBUTE GS_JOB_ATTRIBUTE系统表提供了DBE_SCHEDULER定时任务的相关属性信息，其中包括定时任务，定时任务类，证书，授权，程序和调度的基本属性。新安装数据库集群普通用户无权限访问。 表1 GS_JOB_ATTRIBUTE字段 名称 类型 描述 oid oid 行标识符（隐含字段）。 job_name text 定时任务，定时任务类，证书，程序和调度的名字，授权的用户名。 attribute_name text 定时任务，定时任务类，证书，程序和调度的属性名，授权的内容。 attribute_value text 定时任务，定时任务类，证书，程序和调度的属性值。",
+      "source_file": "1562_GS_JOB_ATTRIBUTE.txt"
+    },
+    {
+      "term": "PG_PUBLICATION_REL",
+      "content": "PG_PUBLICATION_REL PG_PUBLICATION_REL 系统表PG_PUBLICATION_REL包含当前数据库中的表和publication之间的映射，这是一种多对多映射。 表1 PG_PUBLICATION_REL字段 名称 类型 引用 描述 oid oid - 行标识符（隐含字段，必须明确选择）。 prpubid oid - 对publication的引用。 prrelid oid - 对表的引用。",
+      "source_file": "1615_PG_PUBLICATION_REL.txt"
+    },
+    {
+      "term": "PG_CONVERSION",
+      "content": "PG_CONVERSION PG_CONVERSION PG_CONVERSION系统表描述编码转换信息。 表1 PG_CONVERSION字段 名称 类型 引用 描述 oid oid - 行标识符（隐含属性，必须明确选择）。 conname name - 转换名称（在一个名称空间里是唯一的）。 connamespace oid PG_NAMESPACE .oid 包含这个转换的名称空间的OID。 conowner oid PG_AUTHID .oid 编码转换的属主。 conforencoding integer - 源编码ID。 contoencoding integer - 目的编码ID。 conproc regproc PG_PROC .proname 转换过程。 condefault boolean - 如果这是缺省转换则为真，否则为假。",
+      "source_file": "3299_PG_CONVERSION.txt"
+    },
+    {
+      "term": "STREAMING_STREAM",
+      "content": "STREAMING_STREAM STREAMING_STREAM STREAMING_STREAM系统表存储所有STREAM对象的元数据信息。 表1 STREAMING_STREAM字段 名称 类型 描述 relid oid STREAM对象的标识。 queries bytea 该STREAM对应CONTVIEW的位图映射。",
+      "source_file": "3352_STREAMING_STREAM.txt"
+    },
+    {
+      "term": "GS_UID",
+      "content": "GS_UID GS_UID GS_UID系统表存储了数据库中使用hasuids属性表的唯一标识元信息。 表1 GS_UID字段 名称 类型 描述 relid oid 表的oid信息。 uid_backup bigint 当前可以为表分配唯一标识的最大值。",
+      "source_file": "3287_GS_UID.txt"
+    },
+    {
+      "term": "PG_TYPE",
+      "content": "PG_TYPE PG_TYPE PG_TYPE系统表存储数据类型的相关信息。 表1 PG_TYPE字段 名称 类型 描述 oid oid 行标识符（隐含属性，必须明确选择）。 typname name 数据类型名称。 typnamespace oid 包含这个类型的名称空间的OID。 typowner oid 该类型的所有者。 typlen smallint 对于定长类型是该类型内部表现形式的字节数目。对于变长类型是负数。 -1表示一种“变长”（有长度字属性的数据）。 -2表示这是一个NULL结尾的C字符串。 typbyval boolean 指定内部传递这个类型的数值时是传值（该值为true）还是传引用（该值为false）。如果该类型的TYPLEN不是1，2，4，8， TYPBYVAL最好为false。变长类型通常是传引用。即使TYPLEN允许传值，TYPBYVAL也可以为false。 typtype \"char\" 对于基础类型是b。 对于复合类型是c（比如，一个表的行类型）。 对于域类型是d。 对于伪类型是p。 对于未定义类型是u。 对于集合类型是o。 参见typrelid和typbasetype。 typcategory \"char\" 是数据类型的模糊分类，可用于解析器做为数据转换的依据。 typispreferred boolean 如果为真，则数据符合TYPCATEGORY所指定的转换规则时进行转换。 typisdefined boolean 如果定义了类型则为真，如果是一种尚未定义的类型的占位符则为假。如果为假，则除了该类型名称，名称空间和OID之外没有可靠的信息。 typdelim \"char\" 当分析数组输入时，分隔两个此类型数值的字符请注意该分隔符是与数组元素数据类型相关联的，而不是和数组数据类型关联。 typrelid oid 如果是复合类型（请参见typtype），则这个字段指向pg_class中定义该表的行。对于自由存在的复合类型，pg_class记录并不表示一个表，但是总需要它来查找该类型连接的pg_attribute记录。对于非复合类型为零。 typelem oid 如果不为0，则它标识pg_type里面的另外一行。当前类型可以当做一个产生类型为typelem的数组来描述。一个“真正的”数组类型是变长的（typlen= -1），但是一些定长的（typlen > 0）类型也拥有非零的typelem（比如name和point）。如果一个定长类型拥有一个typelem ，则他的内部形式必须是typelem数据类型的某个数目的个数值，不能有其它数据。变长数组类型有一个该数组子过程定义的头（文件）。 typarray oid 如果不为0，则表示在pg_type中有对应的类型记录。 typinput regproc 输入转换函数（文本格式）。 typoutput regproc 输出转换函数（文本格式）。 typreceive regproc 输入转换函数（二进制格式），如果没有则为0。 typsend regproc 输出转换函数（二进制格式），如果没有则为0。 typmodin regproc 输入类型修改符函数，如果为0，则不支持。 typmodout regproc 输出类型修改符函数，如果为0，则不支持。 typanalyze regproc 自定义的ANALYZE函数，如果使用标准函数，则为0。 typalign \"char\" 当存储此类型的数值时要求的对齐性质。它应用于磁盘存储以及该值在 GaussDB 内部的大多数形式。如果数值是连续存放的，比如在磁盘上以完全的裸数据的形式存放时，则先在此类型的数据前填充空白，这样它就可以按照要求的界限存储。对齐引用是该序列中第一个数据的开头。可能的值包含： c = char对齐，也就是不需要对齐。 s = short对齐（在大多数机器上是2字节） i = int对齐（在大多数机器上是4字节） d = double对齐（在大多数机器上是8字节，但不一定是全部） 须知： 对于在系统表里使用的类型，在pg_type里定义的尺寸和对齐必须和编译器在一个表示表的一行的结构里的布局一样。 typstorage \"char\" 指明一个变长类型（那些有typlen = -1）是否准备好应付非常规值，以及对这种属性的类型的缺省策略是什么。可能的值包含： p：数值总是以简单方式存储。 e：数值可以存储在一个“次要”关系中（如果该关系有这么一个，请参见pg_class.reltoastrelid）。 m：数值可以以内联的压缩方式存储。 x：数值可以以内联的压缩方式或者在\"次要\"表里存储。 须知： m域也可以移到从属表里存储，但只是最后的解决方法（e和x域先移走）。 typnotnull boolean 该类型是否存在NOTNULL约束。目前只用于域。 typbasetype oid 如果这是一个衍生类型（请参见typtype），则该标识作为这个类型的基础的类型。如果不是衍生类型则为零。 typtypmod integer 域使用typtypmod记录要作用到它们的基础类型上的typmod（如果基础类型不使用typmod则为-1）。如果这种类型不是域，则为-1。 如果该类型是数组类型则typtypmod是数组类型的最大容量。 如果该类型是带索引的集合类型则typtypmod是该集合类型的索引最大长度。 typndims integer 如果一个域是数组，则typndims是数组维数的数值（也就是说，typbasetype是一个数组类型；域的typelem将匹配基本类型的typelem）。非域非数组域为零。 typcollation oid 指定类型的排序规则。取值请参见 PG_COLLATION 系统表。如果为0，则表示不支持排序。 typdefaultbin pg_node_tree 如果为非NULL，则它是该类型缺省表达式的nodeToString() 表现形式。目前这个字段只用于域。 typdefault text 如果某类型没有相关缺省值，则取值是NULL。 如果typdefaultbin为非NULL，则typdefault必须包含一个typdefaultbin代表的缺省表达式。 如果typdefaultbin为NULL但typdefault不是，typdefault则是该类型缺省值的外部表现形式，可以把它作为该类型的输入，转换器生成一个常量。 typacl aclitem[] 访问权限。 typelemmod integer 集合类型和数组类型对应元素类型的typmod, 为NULL时表示元素类型的typmod未知，为-1时则表示元素类型不需要typmod。",
+      "source_file": "3346_PG_TYPE.txt"
+    },
+    {
+      "term": "GS_GLOBAL_CONFIG",
+      "content": "GS_GLOBAL_CONFIG GS_GLOBAL_CONFIG GS_GLOBAL_CONFIG记录了数据库实例初始化时，用户指定的参数值。除此之外，还存放了用户设置的弱口令，支持数据库初始用户通过ALTER和DROP语法对系统表中的参数进行写入、修改和删除。此系统表默认只有初始用户、系统管理员和安全管理员可以访问，其他用户默认无权访问。 表1 GS_GLOBAL_CONFIG字段 名称 类型 描述 name name 数据库实例初始化时系统内置的指定参数名称、弱口令名称、或用户需要使用的参数。 value text 数据库实例初始化时系统内置的指定参数值、弱口令名称、或用户需要使用的参数值。",
+      "source_file": "3274_GS_GLOBAL_CONFIG.txt"
+    },
+    {
+      "term": "PG_SYNONYM",
+      "content": "PG_SYNONYM PG_SYNONYM PG_SYNONYM系统表存储同义词对象名与其他数据库对象名间的映射信息。 表1 PG_SYNONYM字段 名称 类型 描述 oid oid 数据库对象id。 synname name 同义词名称。 synnamespace oid 包含该同义词的名字空间的OID。 synowner oid 同义词的所有者，通常是创建它的用户OID。 synobjschema name 关联对象指定的模式名。 synobjname name 关联对象名。 syndblinkname name DATABASE LINK对象名。",
+      "source_file": "1626_PG_SYNONYM.txt"
+    },
+    {
+      "term": "GS_TXN_SNAPSHOT",
+      "content": "GS_TXN_SNAPSHOT GS_TXN_SNAPSHOT GS_TXN_SNAPSHOT是“时间戳-CSN”映射表，周期性采样，并维护适当的时间范围，用于估算范围内的时间戳对应的CSN值。 表1 GS_TXN_SNAPSHOT字段 名称 类型 描述 snptime timestamp with time zone 快照捕获时间。 snpxmin bigint 快照xmin。 snpcsn bigint 快照csn。 snpsnapshot text 快照序列化文本。",
+      "source_file": "1574_GS_TXN_SNAPSHOT.txt"
+    },
+    {
+      "term": "PG_OBSSCANINFO",
+      "content": "PG_OBSSCANINFO PG_OBSSCANINFO 当前特性是实验室特性，使用时请联系华为技术工程师提供技术支持。 PG_OBSSCANINFO系统表定义了在云上加速场景中，使用加速数据库实例时扫描OBS数据的运行时信息，每条记录对应一个query中单个OBS外表的运行时信息。 当前特性是实验室特性，使用时请联系华为技术工程师提供技术支持。 表1 PG_OBSSCANINFO字段 名称 类型 引用 描述 query_id bigint - 查询标识。 user_id text - 执行该查询的数据库用户。 table_name text - OBS外表的表名。 file_type text - 底层数据保存的文件格式。 time_stamp timestamp with time zone - 扫描操作开始的时间。 actual_time double precision - 扫描操作执行时间，单位为秒。 file_scanned bigint - 扫描的文件数量。 data_size double precision - 扫描的数据量，单位为字节。 billing_info text - 保留字段。",
+      "source_file": "3320_PG_OBSSCANINFO.txt"
+    },
+    {
+      "term": "GS_JOB_ATTRIBUTE",
+      "content": "GS_JOB_ATTRIBUTE GS_JOB_ATTRIBUTE GS_JOB_ATTRIBUTE系统表提供了DBE_SCHEDULER定时任务的相关属性信息，其中包括定时任务，定时任务类，证书，授权，程序和调度的基本属性。新安装数据库实例普通用户无权限访问。 表1 GS_JOB_ATTRIBUTE字段 名称 类型 描述 oid oid 行标识符（隐含字段）。 job_name text 定时任务，定时任务类，证书，程序和调度的名字，授权的用户名。 attribute_name text 定时任务，定时任务类，证书，程序和调度的属性名，授权的内容。 attribute_value text 定时任务，定时任务类，证书，程序和调度的属性值。",
+      "source_file": "3276_GS_JOB_ATTRIBUTE.txt"
+    },
+    {
+      "term": "GS_DEPENDENCIES",
+      "content": "GS_DEPENDENCIES GS_DEPENDENCIES GS_DEPENDENCIES系统表记录对象的依赖项信息，和 12.2.15.4 GS_DEPENDENCIES_OBJ 表是一个一对多的关系。 表1 GS_DEPENDENCIES字段 名称 类型 描述 schemaname name 名称空间的名称。 refobjpos integer 被依赖体引用的位置。 1：类型。 2：包头。 4：函数头。 8：函数体。 16：包体。 32：视图。 refobjoid oid 被依赖体的oid。 objectname text 依赖体名称。",
+      "source_file": "1559_GS_DEPENDENCIES.txt"
+    },
+    {
+      "term": "GS_PLAN_TRACE",
+      "content": "GS_PLAN_TRACE GS_PLAN_TRACE GS_PLAN_TRACE系统表是用于存储plan trace的系统表，主要记录的是DML语句生成计划过程的详情，只有具有sysadmin权限的用户才可以使用该系统表。分布式场景下不支持plan trace特性，所以在分布式下该视图中无数据。 表1 GS_PLAN_TRACE字段 名称 类型 描述 query_id text 当前请求的唯一id。 query text 当前请求的sql语句，该字段大小不会超过系统参数track_activity_query_size指定的大小。 unique_sql_id bigint 当前请求sql的唯一id。 plan text 当前请求sql对应的查询计划文本，该字段大小不会超过10K。 plan_trace text 当前请求sql对应的查询计划生成过程的明细，该字段大小不会超过300M。 owner oid 当前请求sql用户的oid。 modifydate timestamp with time zone 当前plan trace的更新时间（当前指的是 plan trace创建时间）。",
+      "source_file": "1566_GS_PLAN_TRACE.txt"
+    },
+    {
+      "term": "PG_AMOP",
+      "content": "PG_AMOP PG_AMOP PG_AMOP系统表存储有关和访问方法操作符族关联的信息。如果一个操作符是一个操作符族中的成员，则在这个表中会占据一行。一个族成员是一个search操作符或一个ordering操作符。一个操作符可以在多个族中出现，但是不能在一个族中的多个搜索位置或多个排序位置中出现。 表1 PG_AMOP字段 名称 类型 引用 描述 oid oid - 行标识符（隐含属性，必须明确选择）。 amopfamily oid PG_OPFAMILY .oid 这个项的操作符族。 amoplefttype oid PG_TYPE .oid 操作符的左输入类型。可能取值及其描述见于 8.3 数据类型 。 amoprighttype oid PG_TYPE .oid 操作符的右输入类型。可能取值及其描述见于 8.3 数据类型 。 amopstrategy smallint - 操作符策略数。 amoppurpose \"char\" - 操作符目的。 s：表示搜索。 o：表示排序。 amopopr oid PG_OPERATOR .oid 该操作符的OID。 amopmethod oid PG_AM .oid 索引访问方式操作符族。 amopsortfamily oid PG_OPFAMILY .oid 如果是一个排序操作符，则为这个项排序所依据的btree操作符族；如果是一个搜索操作符，则为0。 search操作符表明这个操作符族的一个索引可以被搜索，找到所有满足WHERE indexed_column operator constant的行。显然，这样的操作符必须返回布尔值，并且它的左输入类型必须匹配索引的字段数据类型。 ordering操作符表明这个操作符族的一个索引可以被扫描，返回以ORDER BY indexed_column operator constant顺序表示的行。这样的操作符可以返回任意可排序的数据类型，它的左输入类型也必须匹配索引的字段数据类型。 ORDER BY的确切的语义是由amopsortfamily字段指定的，该字段必须为操作符的返回类型引用一个btree操作符族。",
+      "source_file": "3291_PG_AMOP.txt"
+    },
+    {
+      "term": "PG_EXTENSION",
+      "content": "PG_EXTENSION PG_EXTENSION PG_EXTENSION系统表存储关于所安装扩展的信息。 GaussDB 默认扩展是plpgsql、DIST_FDW、FILE_FDW、LOG_FDW、DBLINK_FDW、PACKAGES、SECURITY_PLUGIN、GSSTAT_PLUGIN、NUMERIC_ENHANCE、PKG_DBE_RAW、PKG_DBE_OUTPUT、PKG_DBE_UTILITY、PKG_PL_PROFILER、PKG_ILM、PKG_DBE_STATS和PKG_DBE_XML。 该特性为内部使用，不建议用户使用。 表1 PG_EXTENSION 名称 类型 描述 oid oid 数据库对象id。 extname name 扩展名。 extowner oid 扩展的所有者。 extnamespace oid 扩展导出对象的名称空间。 extrelocatable boolean 标识此扩展是否可迁移到其他名称空间，true表示允许。 extversion text 扩展的版本号。 extconfig oid[] 扩展的配置信息。 extcondition text[] 扩展配置信息的过滤条件。",
+      "source_file": "3305_PG_EXTENSION.txt"
+    },
+    {
+      "term": "STATEMENT_HISTORY",
+      "content": "STATEMENT_HISTORY STATEMENT_HISTORY 获得当前节点的执行语句的信息。查询系统表必须具有sysadmin权限。只可在系统库中查询到结果，用户库中无法查询。 对于此系统表查询有如下约束： 必须在postgres库内查询，其它库中不存数据。 此系统表受track_stmt_stat_level控制，默认为\"OFF,L0\"，第一部分控制Full SQL，第二部分控制Slow SQL，具体字段记录级别见下表。考虑性能影响，更改该参数的值时建议通过set方式设置，使该参数仅对当前会话生效。 对于Slow SQL，当track_stmt_stat_level的值为非OFF时，且SQL执行时间超过log_min_duration_statement，会记录为慢SQL。 表1 STATEMENT_HISTORY字段 名称 类型 描述 记录级别 db_name name 数据库名称。 L0 schema_name name schema名称。 L0 origin_node integer 节点名称。 L0 user_name name 用户名。 L0 application_name text 用户发起的请求的应用程序名称。 L0 client_addr text 用户发起的请求的客户端地址。 L0 client_port integer 用户发起的请求的客户端端口。 L0 unique_query_id bigint 归一化SQL ID。 L0 debug_query_id bigint 唯一SQL ID。部分语句存在不唯一的情况，如Parse报文、DCL和TCL等语句的debug_query_id值为0。 L0 query text 归一化SQL(仅在CN上有值)，track_stmt_parameter参数开启时，显示完整SQL。 L0 start_time timestamp with time zone 语句启动的时间。 L0 finish_time timestamp with time zone 语句结束的时间。 L0 slow_sql_threshold bigint 语句执行时慢SQL的标准。 L0 transaction_id bigint 事务ID。 L0 thread_id bigint 执行线程ID。 L0 session_id bigint 用户session id。 L0 n_soft_parse bigint 软解析次数, n_soft_parse + n_hard_parse可能大于n_calls, 因为子查询未计入n_calls。 L0 n_hard_parse bigint 硬解析次数, n_soft_parse + n_hard_parse可能大于n_calls, 因为子查询未计入n_calls。 L0 query_plan text 语句执行计划。 L1(Full SQL) L0(Slow SQL) n_returned_rows bigint SELECT返回的结果集行数。 L0 n_tuples_fetched bigint 随机扫描行。 L0 n_tuples_returned bigint 顺序扫描行。 L0 n_tuples_inserted bigint 插入行。 L0 n_tuples_updated bigint 更新行。 L0 n_tuples_deleted bigint 删除行。 L0 n_blocks_fetched bigint buffer的块访问次数。 L0 n_blocks_hit bigint buffer的块命中次数。 L0 db_time bigint 有效的DB时间花费，多线程将累加（单位：微秒）。 L0 cpu_time bigint CPU时间（单位：微秒）。 L0 execution_time bigint 执行器内执行时间（单位：微秒）。 L0 parse_time bigint SQL解析时间（单位：微秒）。 L0 plan_time bigint SQL生成计划时间（单位：微秒）。 L0 rewrite_time bigint SQL重写时间（单位：微秒）。 L0 pl_execution_time bigint plpgsql上的执行时间（单位：微秒）。 L0 pl_compilation_time bigint plpgsql上的编译时间（单位：微秒）。 L0 data_io_time bigint IO上的时间花费（单位：微秒）。 L0 net_send_info text 通过物理连接发送消息的网络状态，包含时间（微秒）、调用次数、吞吐量（字节）。在分布式数据库中，CN与CN、CN与客服端以及CN与DN之间都是通过物理连接进行通信，通过该字段可以分析SQL在分布式系统下的网络开销。例如：{\"time\":xxx, \"n_calls\":xxx, \"size\":xxx}。 L0 net_recv_info text 通过物理连接接收消息的网络状态，包含时间（微秒）、调用次数、吞吐量（字节）。在分布式数据库中，CN与CN、CN与客服端以及CN与DN之间都是通过物理连接进行通信，通过该字段可以分析SQL在分布式系统下的网络开销。例如：{\"time\":xxx, \"n_calls\":xxx, \"size\":xxx}。 L0 net_stream_send_info text 通过逻辑连接发送消息的网络状态，包含时间（微秒）、调用次数、吞吐量（字节）。在分布式数据库中，不同分片的DN之间通过逻辑连接进行通信，通过该字段可以分析SQL在分布式系统下的网络开销。 例如：{\"time\":xxx, \"n_calls\":xxx, \"size\":xxx}。 L0 net_stream_recv_info text 通过逻辑连接接收消息的网络状态，包含时间（微秒）、调用次数、吞吐量（字节）。在分布式数据库中，不同分片的DN之间通过逻辑连接进行通信，通过该字段可以分析SQL在分布式系统下的网络开销。 例如：{\"time\":xxx, \"n_calls\":xxx, \"size\":xxx}。 L0 lock_count bigint 加锁次数。 L0 lock_time bigint 加锁耗时。 L1 lock_wait_count bigint 加锁等待次数。 L0 lock_wait_time bigint 加锁等待耗时。 L1 lock_max_count bigint 最大持锁数量。 L0 lwlock_count bigint 轻量级加锁次数（预留）。 L0 lwlock_wait_count bigint 轻量级等锁次数。 L0 lwlock_time bigint 轻量级加锁时间（预留）。 L1 lwlock_wait_time bigint 轻量级等锁时间。 L1 details bytea 等待事件和语句锁事件的列表。 记录级别的值>=L0时，开始记录等待事件的列表。显示当前节点wait event的相关统计信息。内核中关键的事件信息请参见 表2 、 表3 、 表4 和 表5 ，或从视图wait_event_info中查看系统中所有的事件列表。关于每种事务锁对业务的影响程度，请参考 LOCK 语法小节的详细描述。 记录级别的值是L2时，开始记录语句锁事件的列表。该列表按时间顺序记录事件。记录的数量受参数track_stmt_details_size的影响。 该字段为二进制，需要借助解析函数pg_catalog.statement_detail_decode读取，见（ 表8 ）。 事件包括： 加锁开始 加锁结束 等锁开始 等锁结束 放锁开始 放锁结束 轻量级等锁开始 轻量级等锁结束 L0/L2 is_slow_sql boolean 该SQL是否为Slow SQL。 t（true）：表示是。 f（false）：表示不是。 L0 trace_id text 驱动传入的trace id，与应用的一次请求相关联。 L0 advise text 可能导致该SQL为Slow SQL的风险信息。 L0 parent_unique_sql_id bigint 当前语句的外层SQL的归一化SQL ID，对于存储过程内执行的语句，该值为调用存储过程语句的归一化SQL ID，存储过程外的语句该值为0。 L0 finish_status text 语句完成状态，默认值normal。cancelled表示被取消或被terminate。 L0 query_plan字段的记录级别对于Full SQL为L1，对于Slow SQL为L0。",
+      "source_file": "1640_STATEMENT_HISTORY.txt"
+    },
+    {
+      "term": "PG_PUBLICATION_REL",
+      "content": "PG_PUBLICATION_REL PG_PUBLICATION_REL 系统表PG_PUBLICATION_REL包含当前数据库中的表和publication之间的映射，这是一种多对多映射。 表1 PG_PUBLICATION_REL字段 名称 类型 描述 oid oid 行标识符（隐含属性，必须明确选择）。 prpubid oid 对publication的引用。 prrelid oid 对表的引用。",
+      "source_file": "3327_PG_PUBLICATION_REL.txt"
+    },
+    {
+      "term": "GS_SECURITY_LABEL",
+      "content": "GS_SECURITY_LABEL GS_SECURITY_LABEL GS_SECURITY_LABEL是共享系统表，记录安全标签的相关信息，每条记录对应一个安全标签。 表1 GS_SECURITY_LABEL字段 名称 类型 描述 oid oid 行标识符（隐含字段，必须明确选择）。 label_name name 安全标签名称。 label_content text 安全标签内容。",
+      "source_file": "3281_GS_SECURITY_LABEL.txt"
+    },
+    {
+      "term": "PG_OPERATOR",
+      "content": "PG_OPERATOR PG_OPERATOR PG_OPERATOR系统表存储有关操作符的信息。 表1 PG_OPERATOR字段 名称 类型 引用 描述 oid oid - 行标识符（隐含属性，必须明确选择）。 oprname name - 操作符的名称。 oprnamespace oid PG_NAMESPACE .oid 包含此操作符的名称空间的OID。 oprowner oid PG_AUTHID .oid 操作符所有者。 oprkind \"char\" - b=infix =中缀(“两边”） l=前缀(“左边”) r=后缀(“右边”) oprcanmerge boolean - 这个操作符是否支持合并连接。 t（true）：表示支持合并连接。 f（false）：表示不支持合并连接。 oprcanhash boolean - 这个操作符是否支持Hash连接。 t（true）：表示支持Hash连接。 f（false）：表示不支持Hash连接。 oprleft oid PG_TYPE .oid 左操作数的类型。 oprright oid PG_TYPE .oid 右操作数的类型。 oprresult oid PG_TYPE .oid 结果类型。 oprcom oid PG_OPERATOR .oid 此操作符的交换符，如果存在的话。 oprnegate oid PG_OPERATOR .oid 此操作符的反转器，如果存在的话。 oprcode regproc PG_PROC .proname 实现这个操作符的函数。 oprrest regproc PG_PROC .proname 此操作符的约束选择性计算函数。 oprjoin regproc PG_PROC .proname 此操作符的连接选择性计算函数。",
+      "source_file": "3322_PG_OPERATOR.txt"
+    },
+    {
+      "term": "PG_TS_CONFIG_MAP",
+      "content": "PG_TS_CONFIG_MAP PG_TS_CONFIG_MAP PG_TS_CONFIG_MAP系统表包含为每个文本搜索配置的解析器的每个输出符号类型，显示哪个文本搜索字典应该被咨询、以什么顺序搜索的记录。 表1 PG_TS_CONFIG_MAP字段 名称 类型 引用 描述 mapcfg oid PG_TS_CONFIG .oid 拥有这个映射记录的 PG_TS_CONFIG 记录的OID。 maptokentype integer - 由配置的解析器产生的一个符号类型值。 mapseqno integer - 在相同mapcfg或maptokentype值的情况下，该符号类型的顺序号。 mapdict oid PG_TS_DICT .oid 要咨询的文本搜索字典的OID。",
+      "source_file": "1630_PG_TS_CONFIG_MAP.txt"
+    },
+    {
+      "term": "GS_WORKLOAD_RULE",
+      "content": "GS_WORKLOAD_RULE GS_WORKLOAD_RULE GS_WORKLOAD_RULE系统表存储与SQL限流规则相关的信息。该系统表没有权限限制，所有用户可查询。 表1 GS_WORKLOAD_RULE字段 名称 类型 描述 rule_id bigint 限流规则标识列，系统自动生成。 rule_name name 限流规则的名称，用于检索限流规则，不保证唯一性，可以为NULL。 databases name[] 限流规则作用的数据库列表，为NULL表示所有库生效。 max_workload bigint 限制规则设置的最大并发数。 is_valid boolean 限流规则是否生效，超时的限流规则会设为false。 start_time timestamp with time zone 限流规则开始的时间，为NULL表示从现在开始生效。 end_time timestamp with time zone 限流规则结束的时间，为NULL表示一直生效。 rule_type text 限流规则类型，当前仅支持：“sqlid”、“select”、“insert”、“update”、“delete”、“merge”、“resource”，其他的为非法值。 option_val text[] 限流规则的参数值，包括：sqlid，关键字列表，资源限制情况。 详细请参见 gs_add_workload_rule 接口说明。 node_names text[] 预留字段，限流规则生效的节点名称列表，当前不生效。 user_names text[] 预留字段，限流规则生效的用户名称列表，当前不生效。",
+      "source_file": "1576_GS_WORKLOAD_RULE.txt"
+    },
+    {
+      "term": "PG_TRIGGER",
+      "content": "PG_TRIGGER PG_TRIGGER PG_TRIGGER系统表存储触发器信息。 表1 PG_TRIGGER字段 名称 类型 描述 oid oid 行标识符（隐含属性，必须明确选择）。 tgrelid oid 触发器所在表的OID。 tgname name 触发器名。 tgfoid oid 要被触发器调用的函数。 tgtype smallint 触发器类型。 tgenabled \"char\" O =触发器在“origin”和“local”模式下触发。 D =触发器被禁用。 R =触发器在“replica”模式下触发。 A =触发器始终触发。 tgisinternal boolean 内部触发器标识，如果为true表示内部触发器。 tgconstrrelid oid 完整性约束引用的表。 tgconstrindid oid 完整性约束的索引。 tgconstraint oid 约束触发器在pg_constraint中的OID。 tgdeferrable boolean 约束触发器是为DEFERRABLE类型。 tginitdeferred boolean 约束触发器是否为INITIALLY DEFERRED类型。 tgnargs smallint 触发器函数入参个数。 tgattr int2vector 当触发器指定列时的列号，未指定则为空数组。 tgargs bytea 传递给触发器的参数。 tgqual pg_node_tree 表示触发器的WHEN条件，如果没有则为null。 tgowner oid 触发器的所有者。",
+      "source_file": "3340_PG_TRIGGER.txt"
+    },
+    {
+      "term": "PG_LARGEOBJECT",
+      "content": "PG_LARGEOBJECT PG_LARGEOBJECT PG_LARGEOBJECT系统表保存那些标记着“大对象”的数据。一个大对象是使用其创建时分配的OID标识的。每个大对象都分解成足够小的小段或者“页面”以便以行的形式存储在PG_LARGEOBJECT里。每页的数据定义为LOBLKSIZE。 需要有系统管理员权限才可以访问此系统表。 表1 PG_LARGEOBJECT字段 名称 类型 引用 描述 loid oid PG_LARGEOBJECT_METADATA .oid 包含本页的大对象的标识符。 pageno integer - 本页在其大对象数据中的页码从零开始计算。 data bytea - 存储在大对象中的实际数据。这些数据绝不会超过LOBLKSIZE字节，而且可能更少。 PG_LARGEOBJECT的每一行保存一个大对象的一个页面，从该对象内部的字节偏移（pageno * LOBLKSIZE）开始。这种实现允许松散的存储：页面可以丢失，而且可以比LOBLKSIZE字节少（即使它们不是对象的最后一页）。大对象内丢失的部分读做零。",
+      "source_file": "3316_PG_LARGEOBJECT.txt"
+    },
+    {
+      "term": "PG_EXTENSION",
+      "content": "PG_EXTENSION PG_EXTENSION PG_EXTENSION系统表存储关于所安装扩展的信息。 GaussDB 默认有 20 个扩展，即plpgsql、DIST_FDW、FILE_FDW、LOG_FDW、GC_FDW、DBLINK_FDW、PACKAGES、ROACH_API、STREAMING、TSDB、DIMSEARCH、GSREDISTRIBUTE、SECURITY_PLUGIN、GSSTAT_PLUGIN、NUMERIC_ENHANCE、PKG_DBE_RAW、PKG_DBE_OUTPUT、PKG_DBE_UTILITY、PKG_DBE_XML和PKG_ILM。 该特性为内部使用，不建议用户使用。 由于规格变更，当前版本已经不再支持DIMSEARCH，请不要使用。 表1 PG_EXTENSION 名称 类型 描述 extname name 扩展名。 extowner oid 扩展的所有者。 extnamespace oid 扩展导出对象的名称空间。 extrelocatable boolean 标识此扩展是否可迁移到其他名称空间，true表示可以，false表示不可以。 extversion text 扩展的版本号。 extconfig oid[] 扩展的配置信息。 extcondition text[] 扩展配置信息的过滤条件。",
+      "source_file": "1593_PG_EXTENSION.txt"
+    },
+    {
+      "term": "PG_LANGUAGE",
+      "content": "PG_LANGUAGE PG_LANGUAGE PG_LANGUAGE系统表登记编程语言，用户可以用这些语言或接口写函数或者存储过程。 表1 PG_LANGUAGE字段 名称 类型 引用 描述 oid oid - 行标识符（隐含字段；必须明确选择）。 lanname name - 语言的名称。 lanowner oid PG_AUTHID .oid 语言的所有者。 lanispl boolean - 对于内部语言而言是假（比如SQL），对于用户定义的语言则是真。目前，gs_dump仍然使用该字段判断哪种语言需要转储，但是这些可能在将来被其它机制取代。 lanpltrusted boolean - 如果这是可信语言则为真，意味着系统相信它不会被授予任何正常SQL执行环境之外的权限。只有初始用户可以用不可信的语言创建函数。否则为假。 lanplcallfoid oid PG_PROC .oid 对于非内部语言，这是指向该语言处理器的引用，语言处理器是一个特殊函数， 负责执行以某种语言写的所有函数。 laninline oid PG_PROC .oid 这个字段引用一个负责执行“inline”匿名代码块的函数（DO块）。如果不支持内联块则为零。 lanvalidator oid PG_PROC .oid 这个字段引用一个语言校验器函数，它负责检查新创建的函数的语法和有效性。如果没有提供校验器，则为零。 lanacl aclitem[] - 访问权限。",
+      "source_file": "1603_PG_LANGUAGE.txt"
+    },
+    {
+      "term": "PG_CLASS",
+      "content": "PG_CLASS PG_CLASS PG_CLASS系统表存储数据库对象信息及其之间的关系。 表1 PG_CLASS字段 名称 类型 描述 oid oid 行标识符（隐含属性，必须明确选择）。 relname name 表、索引、视图等对象的名称。 relnamespace oid 包含这个关系的名称空间的OID。 reltype oid 对应这个表的行类型的数据类型（索引为零，因为索引没有pg_type记录）。 reloftype oid 复合类型的OID，0表示其他类型。 relowner oid 关系所有者。 relam oid 如果行是索引，则就是所用的访问模式（B-tree，hash等）。 relfilenode oid 这个关系在磁盘上的文件的名称，如果没有则为0。 reltablespace oid 这个关系存储所在的表空间。如果为零，则意味着使用该数据库的缺省表空间。如果关系在磁盘上没有文件，则这个字段没有什么意义。 relpages double precision 以页（大小为BLCKSZ）为单位的此表在磁盘上的大小，它只是优化器用的一个近似值。 reltuples double precision 表中行的数目，只是优化器使用的一个估计值。 relallvisible integer 被标识为全可见的表中的页的数量。此字段是优化器用来做SQL执行优化使用的。VACUUM、ANALYZE和一些DDL语句（例如，CREATE INDEX）会引起此字段更新。 reltoastrelid oid 与此表关联的TOAST表的OID ，如果没有则为0。 TOAST表在一个从属表里“离线”存储大字段。 reltoastidxid oid 对于TOAST表是它的索引的OID，如果不是TOAST表则为0。 relhasindex boolean 如果它是一个表而且至少有（或者最近有过）一个索引，则为真。 它是由CREATE INDEX设置的，但DROP INDEX不会立即将它清除。如果VACUUM进程检测一个表没有索引，将会把它将清理relhasindex字段，将值设置为假。 relisshared boolean 如果该表在数据库中由所有数据库共享则为真，否则为假。只有某些系统表（比如pg_database）是共享的。 relpersistence \"char\" p：表示永久表。 u：表示非日志表。 t：表示临时表。 g：表示全局临时表。 relkind \"char\" r：表示普通表。 i：表示索引。 I：表示分区表GLOBAL索引。 S：表示序列。 L：表示长序列。 v：表示视图。 c：表示复合类型。 t：表示TOAST表。 f：表示外表。 m：表示物化视图。 relnatts smallint 关系中用户字段数目（除了系统字段以外）。在 13.2.15.25 PG_ATTRIBUTE 里肯定有相同数目对应行。 relchecks smallint 表里的检查约束的数目，参阅 13.2.15.29 PG_CONSTRAINT 表。 relhasoids boolean 如果为关系中每行都生成一个OID则为真，否则为假。 relhaspkey boolean 如果这个表有一个（或者曾经有一个）主键则为真，否则为假。 relhasrules boolean 如表有规则就为真。是否有规则可参考系统表 13.2.15.62 PG_REWRITE 。 relhastriggers boolean True表示表中有触发器，或者曾经有过触发器。系统表 13.2.15.71 PG_TRIGGER 中记录了表和视图的触发器。 relhassubclass boolean 如果有（或者曾经有）任何继承的子表为真，否则为假。 relcmprs tinyint 表示是否启用表的压缩特性。需要特别注意，当且仅当批量插入才会触发压缩，普通的CRUD并不能够触发压缩。 0表示其他不支持压缩的表（主要是指系统表，不支持压缩属性的修改操作）。 1表示表数据的压缩特性为NOCOMPRESS或者无指定关键字。 2表示表数据的压缩特性为COMPRESS。 relrowmovement boolean 针对分区表进行update操作时，是否允许行迁移。 true：表示允许行迁移。 false：表示不允许行迁移。 parttype \"char\" 表或者索引是否具有分区表的性质。 p：表示带有分区表性质。 n：表示没有分区表特性。 s：表示该表为二级分区表。 relfrozenxid xid32 该表中所有在这个之前的事务ID已经被一个固定的（\"frozen\"）事务ID替换。该字段用于跟踪此表是否需要为了防止事务ID重叠（或者允许收缩pg_clog）而进行清理。如果该关系不是表则为零（InvalidTransactionId）。 为保持前向兼容，保留此字段，新增relfrozenxid64用于记录此信息。 relacl aclitem[] 访问权限。aclitem类型说明可以参考 aclitem类型 。 查询的回显结果为以下形式： 1 user1 = privs / user2 表示 user2 赋予 user1 的权限为 privs 1 = privs / user3 表示 user3 赋予 public 角色的权限为 privs 其中user1，user2和user3为数据库中已存在的用户/角色名，privs为数据库中支持的权限。权限的参数说明请参见 表2 。 reloptions text[] 表或索引的访问方法，使用\"keyword=value\"格式的字符串。 relreplident \"char\" 逻辑解码中解码列的标识： d = 默认 （主键，如果存在）。 n = 无。 f = 所有列。 i = 索引的indisreplident被设置或者为默认。 relfrozenxid64 xid 该表中所有在这个之前的事务ID已经被一个固定的（\"frozen\"）事务ID替换。该字段用于跟踪此表是否需要为了防止事务ID重叠（或者允许收缩pg_clog）而进行清理。如果该关系不是表则为零（InvalidTransactionId）。 对于全局临时表，该字段无实际意义。各会话的全局临时表的relfrozenxid64可在pg_catalog.pg_gtt_relstats视图中查看。 relbucket oid 当前表是否包含hash bucket分片。有效的OID指向pg_hashbucket表中记录的具体分片信息。NULL表示不包含hash bucket分片。 relbucketkey int2vector 表示hash分区列信息，NULL表示不包含。 relminmxid xid 该表中所有在这个之前的多事务ID已经被一个事务ID替换。该字段用于跟踪该表是否需要为了防止多事务ID重叠或者允许收缩pg_clog而进行清理。如果该关系不是表则为零（InvalidTransactionId）。 表2 权限的参数说明 参数 参数说明 r SELECT（读） w UPDATE（写） a INSERT（插入） d DELETE D TRUNCATE x REFERENCES t TRIGGER X EXECUTE U USAGE C CREATE c CONNECT T TEMPORARY A ALTER P DROP m COMMENT i INDEX v VACUUM * 给前面权限的授权选项",
+      "source_file": "3296_PG_CLASS.txt"
+    },
+    {
+      "term": "PG_REPLICATION_ORIGIN",
+      "content": "PG_REPLICATION_ORIGIN PG_REPLICATION_ORIGIN PG_REPLICATION_ORIGIN系统表包含所有已创建的复制源，在一个集群的所有数据库之间共享，并且每个实例只有一份pg_replication_origin的拷贝，而不是每个数据库实例一份。 表1 PG_REPLICATION_ORIGIN字段 名称 类型 描述 roident oid 一个集群范围内唯一的复制源标识符。 roname text 外部的由用户定义的复制源名称。",
+      "source_file": "1617_PG_REPLICATION_ORIGIN.txt"
+    },
+    {
+      "term": "PG_ENUM",
+      "content": "PG_ENUM PG_ENUM PG_ENUM系统表包含显示每个枚举类型值和标签的记录。给定枚举类型的内部表示实际上是PG_ENUM里面相关行的OID。 表1 PG_ENUM字段 名称 类型 引用 描述 oid oid - 行标识符（隐含字段，必须明确选择）。 enumtypid oid PG_TYPE .oid 拥有这个枚举值的 12.2.15.78 PG_TYPE 记录的OID。 enumsortorder real - 这个枚举值在它的枚举类型中的排序位置。 enumlabel name - 这个枚举值的文本标签。 PG_ENUM行的OID跟着一个特殊规则：偶数的OID保证用和它们的枚举类型一样的排序顺序排序。也就是，如果两个偶数OID属于相同的枚举类型，那么较小的OID必须有较小enumsortorder值。奇数OID需要毫无关系的排序顺序。这个规则允许枚举比较例程在许多常见情况下避开目录查找。创建和修改枚举类型的例程只要可能就尝试分配偶数OID给枚举值。 当创建了一个枚举类型时，它的成员赋予了排序顺序位置1到n。但是随后添加的成员可能会分配enumsortorder的负值或分数值。对这些值的唯一要求是它们要正确的排序和在每个枚举类型中唯一。",
+      "source_file": "1592_PG_ENUM.txt"
+    },
+    {
+      "term": "PG_STATISTIC",
+      "content": "PG_STATISTIC PG_STATISTIC PG_STATISTIC系统表存储有关该数据库中表和索引列的统计数据。默认只有系统管理员权限才可以访问此系统表，普通用户需要授权才可以访问。 表1 PG_STATISTIC字段 名称 类型 描述 starelid oid 所描述的字段所属的表或者索引。 starelkind \"char\" 所属对象的类型。 staattnum smallint 所描述的字段在表中的编号，从1开始。 stainherit boolean 是否统计有继承关系的对象。 stanullfrac real 该字段中为NULL的记录的比率。 stawidth integer 非NULL记录的平均存储宽度，以字节计。 stadistinct real 标识全局统计信息中数据库节点上字段里唯一的非NULL数据值的数目。 一个大于零的数值是独立数值的实际数目。 一个小于零的数值是表中行数的分数的负数（比如，一个字段的数值平均出现概率为两次，则可以表示为stadistinct=-0.5）。 零值表示独立数值的数目未知。 stakindN smallint 一个编码，表示这种类型的统计存储在pg_statistic行的第n个“槽位”。 n的取值范围：1～5 staopN oid 一个用于生成这些存储在第n个“槽位”的统计信息的操作符。比如，一个柱面图槽位会显示<操作符，该操作符定义了该数据的排序顺序。 n的取值范围：1～5 stanumbersN real[] 第n个“槽位”的相关类型的数值类型统计，如果该槽位和数值类型没有关系，则就是NULL。 n的取值范围：1～5 stavaluesN anyarray 第n个“槽位”类型的字段数据值，如果该槽位类型不存储任何数据值，则就是NULL。每个数组的元素值实际上都是指定字段的数据类型，因此，除了把这些字段的类型定义成anyarray之外，没有更好地办法。 n的取值范围：1～5 stadndistinct real 标识dn1上字段里唯一的非NULL数据值的数目。 一个大于零的数值是独立数值的实际数目。 一个小于零的数值是表中行数的分数的负数（比如，一个字段的数值平均出现概率为两次，则可以表示为stadistinct=-0.5）。 零值表示独立数值的数目未知。 staextinfo text 统计信息的扩展信息。预留字段。 stastate \"char\" 标识统计信息是否被锁定，若被锁定则无法更新。 l：标识已经被锁定。 u：标识没有被锁定。 PG_STATISTIC系统表存储了统计对象的一些敏感信息，如高频值MCV。系统管理员和授权后的其他用户可以通过访问PG_STATISTIC系统表查询到统计对象的这些敏感信息。",
+      "source_file": "3335_PG_STATISTIC.txt"
+    },
+    {
+      "term": "PG_FOREIGN_SERVER",
+      "content": "PG_FOREIGN_SERVER PG_FOREIGN_SERVER PG_FOREIGN_SERVER系统表存储外部服务器定义。一个外部服务器描述了一个外部数据源，例如一个远程服务器。外部服务器通过外部数据封装器访问。 表1 PG_FOREIGN_SERVER字段 名称 类型 引用 描述 oid oid - 行标识符（隐含字段，必须明确选择）。 srvname name - 外部服务器名。 srvowner oid PG_AUTHID .oid 外部服务器的所有者。 srvfdw oid PG_FOREIGN_DATA_WRAPPER .oid 这个外部服务器的外部数据封装器的OID。 srvtype text - 服务器的类型（可选）。 srvversion text - 服务器的版本（可选）。 srvacl aclitem[] - 访问权限。 srvoptions text[] - 外部服务器指定选项，使用“keyword=value”格式的字符串。",
+      "source_file": "1596_PG_FOREIGN_SERVER.txt"
+    },
+    {
+      "term": "GS_POLICY_LABEL",
+      "content": "GS_POLICY_LABEL GS_POLICY_LABEL GS_POLICY_LABEL系统表记录资源标签配置信息，一个资源标签对应着一条或多条记录，每条记录标记了数据库资源所属的资源标签。需要有系统管理员或安全策略管理员权限才可以访问此系统表。 FQDN（Fully Qualified Domain Name）标识了数据库资源所属的绝对路径。 表1 GS_POLICY_LABEL表字段 名称 类型 描述 oid oid 行标识符（隐含属性，必须明确选择）。 labelname name 资源标签名称。 labeltype name 资源标签类型，目前仅为RESOURCE。 fqdnnamespace oid 被标识的数据库资源所属的namespace oid。 fqdnid oid 被标识的数据库资源的oid，若数据库资源为列，则该列为所属表的oid。 relcolumn name 列名，若被标识的数据库资源为列，该列指出列名，否则该列为空。 fqdntype name 被标识的数据库资源的类型名称，例如：schema, table, column, view等。",
+      "source_file": "3279_GS_POLICY_LABEL.txt"
+    },
+    {
+      "term": "PG_EXTENSION_DATA_SOURCE",
+      "content": "PG_EXTENSION_DATA_SOURCE PG_EXTENSION_DATA_SOURCE PG_EXTENSION_DATA_SOURCE系统表存储外部数据源对象的信息。一个外部数据源对象（Data Source）包含了外部数据库的一些口令编码等信息，主要配合Extension Connector使用。 表1 PG_EXTENSION_DATA_SOURCE字段 名称 类型 引用 描述 oid oid - 行标识符（隐含属性，必须明确选择）。 srcname name - 外部数据源对象的名称。 srcowner oid PG_AUTHID.oid 外部数据源对象的所有者。 srctype text - 外部数据源对象的类型，缺省为空。 srcversion text - 外部数据源对象的版本，缺省为空。 srcacl aclitem[] - 访问权限。 srcoptions text[] - 外部数据源对象的指定选项，使用“keyword=value”格式的字符串。",
+      "source_file": "3306_PG_EXTENSION_DATA_SOURCE.txt"
+    },
+    {
+      "term": "PG_EXTENSION_DATA_SOURCE",
+      "content": "PG_EXTENSION_DATA_SOURCE PG_EXTENSION_DATA_SOURCE PG_EXTENSION_DATA_SOURCE系统表存储外部数据源对象的信息。一个外部数据源对象（Data Source）包含了外部数据库的一些口令编码等信息，主要配合Extension Connector使用，默认仅系统管理员可访问此表。 表1 PG_EXTENSION_DATA_SOURCE字段 名称 类型 引用 描述 oid oid - 行标识符（隐含字段，必须明确选择）。 srcname name - 外部数据源对象的名称。 srcowner oid PG_AUTHID.oid 外部数据源对象的所有者。 srctype text - 外部数据源对象的类型，缺省为空。 srcversion text - 外部数据源对象的版本，缺省为空。 srcacl aclitem[] - 访问权限。 srcoptions text[] - 外部数据源对象的指定选项，使用“keyword=value”格式的字符串。",
+      "source_file": "1594_PG_EXTENSION_DATA_SOURCE.txt"
+    },
+    {
+      "term": "GS_JOB_ARGUMENT",
+      "content": "GS_JOB_ARGUMENT GS_JOB_ARGUMENT GS_JOB_ARGUMENT系统表提供了DBE_SCHEDULER定时任务和程序的参数属性。 表1 GS_JOB_ARGUMENT字段 名称 类型 描述 oid oid 行标识符（隐含字段）。 argument_position integer 定时任务或程序的参数位置。 argument_type name 定时任务或程序的参数类型。 job_name text 定时任务或程序名。 argument_name text 定时任务或程序的参数名（定时任务继承了程序的参数名，所以为空）。 argument_value text 定时任务的参数值（程序本身无法绑定值）。 default_value text 程序的参数默认值。",
+      "source_file": "1563_GS_JOB_ARGUMENT.txt"
+    },
+    {
+      "term": "GS_DEPENDENCIES_OBJ",
+      "content": "GS_DEPENDENCIES_OBJ GS_DEPENDENCIES_OBJ GS_DEPENDENCIES_OBJ系统表记录对象的被依赖项详细信息。 表1 GS_DEPENDENCIES_OBJ字段 名称 类型 描述 schemaname name 名称空间的名称。 type integer 被依赖体的类型。 1：未知类型。 2：变量。 3：类型。 4：函数。 5：视图。 6：函数头。 name text 被依赖体名称。 objnode pg_node_tree 被依赖体的详细信息。",
+      "source_file": "1560_GS_DEPENDENCIES_OBJ.txt"
+    },
+    {
+      "term": "PG_FOREIGN_TABLE",
+      "content": "PG_FOREIGN_TABLE PG_FOREIGN_TABLE PG_FOREIGN_TABLE系统表存储外部表的辅助信息。 表1 PG_FOREIGN_TABLE字段 名称 类型 描述 ftrelid oid 外部表的ID。 ftserver oid 外部表的所在服务器。 ftwriteonly boolean 外部表是否可写，取值如下： t（true）：表示可写。 f（false）：表示不可写。 ftoptions text[] 外部表的可选项，具体参考CREATE FOREIGN TABLE语法说明。",
+      "source_file": "1597_PG_FOREIGN_TABLE.txt"
+    },
+    {
+      "term": "PG_PLTEMPLATE",
+      "content": "PG_PLTEMPLATE PG_PLTEMPLATE PG_PLTEMPLATE系统表存储过程语言的“模板”信息。 表1 PG_PLTEMPLATE字段 名称 类型 描述 tmplname name 这个模板所应用的语言的名称。 tmpltrusted boolean 如果语言被认为是可信的，则为真。否则为假。 tmpldbacreate boolean 如果语言是由数据库所有者创建的，则为真。否则为假。 tmplhandler text 调用处理器函数的名称。 tmplinline text 匿名块处理器的名称，若没有则为NULL。 tmplvalidator text 校验函数的名称，如果没有则为NULL。 tmpllibrary text 实现语言的共享库的路径。 tmplacl aclitem[] 模板的访问权限（未使用）。",
+      "source_file": "1612_PG_PLTEMPLATE.txt"
+    },
+    {
+      "term": "PG_INHERITS",
+      "content": "PG_INHERITS PG_INHERITS PG_INHERITS系统表记录关于表继承层次的信息。数据库里每个直接的子系表都有一条记录。间接的继承可以通过追溯记录链来判断。 表1 PG_INHERITS字段 名称 类型 引用 描述 inhrelid oid PG_CLASS .oid 子表的OID。 inhparent oid PG_CLASS .oid 父表的OID。 inhseqno integer - 如果一个子表存在多个直系父表（多重继承），这个数字表明此继承字段的排列顺序。计数从1开始。",
+      "source_file": "3312_PG_INHERITS.txt"
+    },
+    {
+      "term": "GS_PACKAGE",
+      "content": "GS_PACKAGE GS_PACKAGE GS_PACKAGE系统表记录PACKAGE内的信息。 表1 GS_PACKAGE字段 名称 类型 描述 oid oid 行标识符（隐含属性，必须明确选择）。 pkgnamespace oid package所属schema。 pkgowner oid package的所属者。 pkgname name package的名字。 pkgspecsrc text package specification的内容。 pkgbodydeclsrc text package body的内容。 pkgbodyinitsrc text package init的内容。 pkgacl aclitem[] 访问权限。 pkgsecdef boolean package是否是定义者权限。",
+      "source_file": "3277_GS_PACKAGE.txt"
+    },
+    {
+      "term": "PG_PROC",
+      "content": "PG_PROC PG_PROC PG_PROC系统表存储函数或过程的信息。 表1 PG_PROC字段 名称 类型 描述 oid oid 行标识符（隐含字段，必须明确选择）。 proname name 函数名称。 pronamespace oid 包含该函数名称空间的OID。 proowner oid 函数的所有者。 prolang oid 这个函数的实现语言或调用接口。 procost real 估算的执行成本。 prorows real 估算的影响行的数目。 provariadic oid 参数元素的数据类型。 protransform regproc 此函数的简化调用方式。 proisagg boolean 函数是否是聚集函数。 t（true）：表示是。 f（false）：表示不是。 proiswindow boolean 函数是否是窗口函数。 t（true）：表示是。 f（false）：表示不是。 prosecdef boolean 函数是否是一个安全定义器（也就是一个“setuid”函数）。 t（true）：表示是。 f（false）：表示不是。 proleakproof boolean 函数是否没有副作用。如果函数没有对参数进行防泄露处理，则会抛出错误。 t（true）：表示没副作用。 f（false）：表示有副作用。 proisstrict boolean 如果任何调用参数是空，则函数返回空。这时函数实际上连调用都不调用。不是“strict”的函数必须准备处理空输入。 proretset boolean 函数返回一个集合（也就是说，指定数据类型的多个数值）。 provolatile \"char\" 告诉该函数的结果是否只依赖于它的输入参数，或者还会被外界因素影响。 对于“不可变的”（immutable）它是i，这样的函数对于相同的输入总是产生相同的结果。 对于“稳定的”（stable）函数它是s，（对于固定输入）其结果在一次扫描里不变。 对于“易变”（volatile）函数它是v，其结果可能在任何时候变化v也用于那些有副作用的函数，因此调用它们无法得到优化。 pronargs smallint 参数数目。 pronargdefaults smallint 有默认值的参数数目。 prorettype oid 返回值的数据类型。 proargtypes oidvector 一个存放函数参数的数据类型的数组。数组里只包括输入参数（包括INOUT参数）此代表该函数的调用签名（接口）。 proallargtypes oid[] 一个包含函数参数的数据类型的数组。数组里包括所有参数的类型（包括OUT和INOUT参数），如果所有参数都是IN参数，则这个字段就会是空。请注意数组下标是以1为起点的，而因为历史原因，proargtypes的下标起点为0。 proargmodes \"char\"[] 一个保存函数参数模式的数组，编码如下： i表示IN参数。 o表示OUT参数。 b表示INOUT参数。 v表示VARIADIC参数。 如果所有参数都是IN参数，则这个字段为空。请注意，下标对应的是proallargtypes的位置，而不是proargtypes。 proargnames text[] 一个保存函数参数的名称的数组。没有名称的参数在数组里设置为空字符串。如果没有一个参数有名称，这个字段将是空。请注意，此数组的下标对应proallargtypes而不是proargtypes。 proargdefaults pg_node_tree 默认值的表达式树。是PRONARGDEFAULTS元素的列表。 prosrc text 描述函数或存储过程的定义。例如，对于解释型语言来说就是函数的源程序，或者一个链接符号，一个文件名，或者函数和存储过程创建时指定的其他任何函数体内容，具体取决于语言/调用习惯的实现。 probin text 关于如何调用该函数的附加信息。同样，其含义也是和语言相关的。 proconfig text[] 函数针对运行时配置变量的本地设置。 proacl aclitem[] 访问权限。具体请参见 GRANT 和 REVOKE 。 prodefaultargpos int2vector 函数具有默认值的入参的位置。 fencedmode boolean 函数的执行模式，表示函数是在fence还是not fence模式下执行。如果是fence执行模式，函数的执行会在重新fork的进程中执行。 系统内建函数，fencedmode字段均为false，即 not fence模式。 proshippable boolean 表示该函数是否可以下推到 DN 上执行，默认值是false。 对于IMMUTABLE类型的函数，函数始终可以下推到 DN 上执行。 对于STABLE/VOLATILE类型的函数，仅当函数的属性是SHIPPABLE的时候，函数可以下推到 DN 执行。 propackage boolean 表示该函数是否支持重载，默认值是false。 t（true）：表示支持。 f（false）：表示不支持。 prokind \"char\" 表示该对象为函数还是存储过程： 值为'f'表示该对象为函数。 值为'p'表示该对象为存储过程。 proargsrc text 描述兼容oracle语法定义的函数或存储过程的参数输入字符串，包括参数注释。默认值为NULL。 proargtypesext oidvector_extend 当函数参数较多时，用来存放函数参数的数据类型的数组。数组里只包括输入参数（包括INOUT参数）此代表该函数的调用签名（接口）。 prodefaultargposext int2vector_extend 当函数参数较多时，函数具有默认值的入参的位置。 allargtypes oidvector 不区分参数类型，包含存储过程所有参数（包含入参、出参、INOUT参数）。 allargtypesext oidvector_extend 当函数参数较多时，用来存放函数参数的数据类型的数组。数组里包含所有参数（包含入参、出参、INOUT参数）。",
+      "source_file": "1613_PG_PROC.txt"
+    },
+    {
+      "term": "PG_RANGE",
+      "content": "PG_RANGE PG_RANGE PG_RANGE系统表存储关于范围类型的信息。除了 PG_TYPE 里类型的记录。 表1 PG_RANGE字段 名称 类型 引用 描述 rngtypid oid PG_TYPE .oid 范围类型的OID。 rngsubtype oid PG_TYPE .oid 这个范围类型的元素类型（子类型）的OID。 rngcollation oid PG_COLLATION .oid 用于范围比较的排序规则的OID，如果没有则为零。 rngsubopc oid PG_OPCLASS .oid 用于范围比较的子类型的操作符类的OID。 rngcanonical regproc PG_PROC .proname 转换范围类型为规范格式的函数名，如果没有则为0。 rngsubdiff regproc PG_PROC .proname 返回两个double precision元素值的不同的函数名，如果没有则为0。 rngsubopc（如果元素类型是可排序的，则加上rngcollation）决定用于范围类型的排序顺序。当元素类型是离散的时使用rngcanonical。",
+      "source_file": "1616_PG_RANGE.txt"
+    },
+    {
+      "term": "PG_DIRECTORY",
+      "content": "PG_DIRECTORY PG_DIRECTORY PG_DIRECTORY系统表用于保存用户添加的directory对象，可以通过CREATE DIRECTORY语句向该表中添加记录，当enable_access_server_directory=off时，只允许初始用户创建directory对象；当enable_access_server_directory=on时，具有SYSADMIN权限的用户和继承了内置角色gs_role_directory_create权限的用户可以创建directory对象。普通用户需要授权才能访问该表。 表1 PG_DIRECTORY字段 名称 类型 描述 oid oid 行标识符（隐含属性，必须明确选择）。 dirname name 目录对象的名称。 owner oid 目录对象的所有者。 dirpath text 目录路径。 diracl aclitem[] 访问权限。",
+      "source_file": "3303_PG_DIRECTORY.txt"
+    },
+    {
+      "term": "PG_TS_PARSER",
+      "content": "PG_TS_PARSER PG_TS_PARSER PG_TS_PARSER系统表包含定义文本解析器的记录。解析器负责分裂输入文本为词位，并且为每个词位分配标记类型。因为解析器必须通过C语言级别的函数实现，所以新解析器必须由数据库系统管理员创建。 表1 PG_TS_PARSER字段 名称 类型 引用 描述 oid oid - 行标识符（隐含字段；必须明确选择）。 prsname name - 文本搜索解析器名。 prsnamespace oid PG_NAMESPACE .oid 包含这个解析器的名称空间的OID。 prsstart regproc PG_PROC .proname 解析器的启动函数名。 prstoken regproc PG_PROC .proname 解析器的下一个标记函数名。 prsend regproc PG_PROC .proname 解析器的关闭函数名。 prsheadline regproc PG_PROC .proname 解析器的标题函数名。 prslextype regproc PG_PROC .proname 解析器的lextype函数名。",
+      "source_file": "1632_PG_TS_PARSER.txt"
+    },
+    {
+      "term": "GS_UID",
+      "content": "GS_UID GS_UID GS_UID系统表存储了数据库中使用hasuids属性表的唯一标识元信息。 表1 GS_UID字段 名称 类型 描述 relid oid 表的oid信息。 uid_backup bigint 当前可以为表分配唯一标识的最大值。",
+      "source_file": "1575_GS_UID.txt"
+    },
+    {
+      "term": "GS_PLAN_TRACE",
+      "content": "GS_PLAN_TRACE GS_PLAN_TRACE GS_PLAN_TRACE系统表是用于存储plan trace的系统表，主要记录的是DML语句生成计划过程的详情，只有初始用户才具有对该系统表进行写的权限，只要用户具备sysadmin权限就可以对该系统表进行读操作。 表1 GS_PLAN_TRACE字段 名称 类型 描述 query_id text 当前请求的唯一id。 query text 当前请求的sql语句，该字段大小不会超过系统参数track_activity_query_size指定的大小。 unique_sql_id bigint 当前请求sql的唯一id。 plan text 当前请求sql对应的查询计划文本，该字段大小不会超过10K。 plan_trace text 当前请求sql对应的查询计划生成过程的明细，该字段大小不会超过300M。 owner oid 当前请求sql用户的oid。 modifydate timestamp with time zone 当前plan trace的更新时间（当前指的是 plan trace创建时间）。",
+      "source_file": "3278_GS_PLAN_TRACE.txt"
+    },
+    {
+      "term": "PLAN_TABLE_DATA",
+      "content": "PLAN_TABLE_DATA PLAN_TABLE_DATA PLAN_TABLE_DATA存储了用户通过执行EXPLAIN PLAN收集到的计划信息。与PLAN_TABLE视图不同的是PLAN_TABLE_DATA表存储了所有session和user执行EXPLAIN PLAN收集的计划信息。 表1 PLAN_TABLE_DATA字段 名称 类型 描述 session_id text 表示插入该条数据的会话，由服务线程启动时间戳和服务线程ID组成。受非空约束限制。 user_id oid 用户ID，用于标识触发插入该条数据的用户。受非空约束限制。 statement_id varchar2(30) 用户输入的查询标签。 plan_id bigint 查询标识。该标识在计划生成阶段自动产生，供内核工程师调试使用。 id integer 计划中的节点编号。 operation varchar2(30) 操作描述。 options varchar2(255) 操作选项。 object_name name 操作对应的对象名，来自于用户定义。 object_type varchar2(30) 对象类型。 object_owner name 对象所属schema，来自于用户定义。 projection varchar2(4000) 操作输出的列信息。 cost double precision 优化器对算子估算的执行代价。 cardinality double precision 优化器对算子估算的结果行数。 PLAN_TABLE_DATA中包含了当前节点所有用户、所有会话的数据，仅管理员有访问权限。普通用户可以通过 PLAN_TABLE 视图查看属于自己的数据。 PLAN_TABLE_DATA中的数据是用户通过执行EXPLAIN PLAN命令后由系统自动插入表中，因此禁止用户手动对数据进行插入或更新，否则会引起表中的数据混乱。需要对表中数据删除时，建议通过 PLAN_TABLE 视图。 statement_id、object_name、object_owner和projection字段内容遵循用户定义的大小写存储，其它字段内容采用大写存储。",
+      "source_file": "3350_PLAN_TABLE_DATA.txt"
+    },
+    {
+      "term": "GS_STATISTIC_HISTORY",
+      "content": "GS_STATISTIC_HISTORY GS_STATISTIC_HISTORY GS_STATISTIC_HISTORY是单列历史统计信息管理表，存储有关该数据库中表和索引列的历史统计数据。默认只有系统管理员权限才可以访问此系统表，普通用户需要授权才可以访问。 表1 GS_STATISTIC_HISTORY字段 名称 类型 描述 starelid oid 所描述的字段所属的表或者索引。 starelkind \"char\" 所属对象的类型。 staattnum smallint 所描述的字段在表中的编号，从1开始。 stainherit boolean 是否统计有继承关系的对象。 statimestamp timestamp with time zone 该条统计信息收集的时间。 stanullfrac real 该字段中为NULL的记录的比率。 stawidth integer 非NULL记录的平均存储宽度，以字节计。 stadistinct real 标识全局统计信息中数据库节点上字段里唯一的非NULL数据值的数目。 一个大于零的数值是独立数值的实际数目。 一个小于零的值是distinct值所占总行数的比例，比如stadistinct=-0.5时，它的实际distinct值是总行数*0.5。 零值表示独立数值的数目未知。 standvfunc \"char\" 该条统计信息计算NDV时采用的算法。 d：采用原来的DUJ1算法估算。 c：采用C19算法估算。 staorigin \"char\" 该条统计信息的收集方式来源。 a：标识由autoanalyze触发收集。 m：标识由手动analyze触发收集。 g：标识由插入大量数据触发了gsstat线程做analyze收集。 stakindN smallint 一个编码，表示这种类型的统计存储在pg_statistic行的第n个“槽位”。 n的取值范围：1～5。 staopN oid 一个用于生成这些存储在第n个“槽位”的统计信息的操作符。比如，一个柱面图槽位会显示<操作符，该操作符定义了该数据的排序顺序。 n的取值范围：1～5。 stanumbersN real[] 第n个“槽位”的相关类型的数值类型统计，如果该槽位和数值类型没有关系，则就是NULL。 n的取值范围：1～5。 stavaluesN anyarray 第n个“槽位”类型的字段数据值，如果该槽位类型不存储任何数据值，则就是NULL。每个数组的元素值实际上都是指定字段的数据类型，因此，除了把这些字段的类型定义成anyarray之外，没有更好的办法。 n的取值范围：1～5。 stadndistinct real 标识DN1上字段里唯一的非NULL数据值的数目。 一个大于零的数值是独立数值的实际数目。 一个小于零的值是distinct值所占总行数的比例，比如stadndistinct=-0.5时，它的实际distinct值是总行数*0.5。 零值表示独立数值的数目未知。 staextinfo text 统计信息的扩展信息。预留字段。",
+      "source_file": "3284_GS_STATISTIC_HISTORY.txt"
+    },
+    {
+      "term": "PG_DIRECTORY",
+      "content": "PG_DIRECTORY PG_DIRECTORY PG_DIRECTORY系统表用于保存用户添加的directory对象，可以通过CREATE DIRECTORY语句向该表中添加记录，当enable_access_server_directory=off时，只允许初始用户创建directory对象；当enable_access_server_directory=on时，具有SYSADMIN权限的用户和继承了内置角色gs_role_directory_create权限的用户可以创建directory对象。普通用户需要授权才能访问该表。 表1 PG_DIRECTORY字段 名称 类型 描述 oid oid 行标识符（隐含字段，必须明确选择）。 dirname name 目录对象的名称。 owner oid 目录对象的所有者。 dirpath text 目录路径。 diracl aclitem[] 访问权限。",
+      "source_file": "1591_PG_DIRECTORY.txt"
+    },
+    {
+      "term": "PG_OBJECT",
+      "content": "PG_OBJECT PG_OBJECT PG_OBJECT系统表存储限定类型对象（普通表，索引，序列，视图，存储过程和函数）的创建用户、创建时间和最后修改时间。 表1 PG_OBJECT字段 名称 类型 描述 object_oid oid 对象标识符。 object_type \"char\" 对象类型： r 表示普通表 i 表示索引 s 表示序列 v 表示视图 P 表示存储过程和函数 S 表示包头 B 表示包体 creator oid 创建用户的标识符。 ctime timestamp with time zone 对象的创建时间。 mtime timestamp with time zone 对象的最后修改时间，修改行为包括ALTER操作和GRANT、REVOKE操作。 createcsn bigint 对象创建时的CSN。 changecsn bigint 对表或索引执行DDL操作时的CSN。 valid boolean 对象的有效性，t为有效，f为无效。 无法记录初始化数据库（initdb）过程中所创建或修改的对象，即PG_OBJECT无法查询到该对象记录。 对于升级前创建的对象，再次修改时会记录其修改时间（mtime），对表或索引执行DDL操作时会记录其所属事务的事务提交序列号（changecsn）。由于无法得知该对象创建时间，因此ctime和createcsn为空。 ctime和mtime所记录的时间为用户当次操作所属事务的起始时间。 由扩容引起的对象修改时间也会被记录。 createcsn和changecsn记录的是用户当次操作所属事务的事务提交序列号。 enable_gtt_concurrent_truncate开启时，truncate全局临时表不会刷新mtime字段。 对象创建语句时存在未定义的对象，或所依赖的对象有修改或删除动作时，对象会为无效状态。",
+      "source_file": "3319_PG_OBJECT.txt"
+    },
+    {
+      "term": "PG_ATTRDEF",
+      "content": "PG_ATTRDEF PG_ATTRDEF PG_ATTRDEF系统表存储列的默认值。 表1 PG_ATTRDEF字段 名称 类型 描述 oid oid 行标识符（隐含字段，必须明确选择）。 adrelid oid 该列的所属表。 adnum smallint 该列的数目。 adbin pg_node_tree 字段缺省值的内部表现形式。 adsrc text 人类可读的缺省值的内部表现形式。 adgencol \"char\" 标识该列是否为生成列。取值为's'表示该列为生成列，取值为'\\0'表示该列为普通列，默认值为'\\0'。 adbin_on_update pg_node_tree 字段on update current_timestamp属性表达式的内部表现形式。 adsrc_on_update text 可读on update current_timestamp属性表达式的内部表现形式。",
+      "source_file": "1581_PG_ATTRDEF.txt"
+    },
+    {
+      "term": "GS_ASP",
+      "content": "GS_ASP GS_ASP GS_ASP显示被持久化的ACTIVE SESSION PROFILE样本，该表只能在系统库下查询，在用户库下查询无数据。 表1 GS_ASP字段 名称 类型 描述 sampleid bigint 采样ID。 sample_time timestamp with time zone 采样的时间。 need_flush_sample boolean 该样本是否需要刷新到磁盘。 t（true）：表示需要。 f（false）：表示不需要。 databaseid oid 数据库ID。 thread_id bigint 线程的ID。 sessionid bigint 会话的ID。 start_time timestamp with time zone 会话的启动时间。 event text 具体的事件名称。内核中关键的事件信息请参见 表2 、 15.3.67-表3 轻量级锁等待事件列表 、 表4 和 表5 。关于每种事务锁对业务的影响程度，请参见 LOCK 语法小节的详细描述。 lwtid integer 当前线程的轻量级线程号。 psessionid bigint streaming线程的父线程。 tlevel integer streaming线程的层级。与执行计划的层级（id）相对应。 smpid integer smp执行模式下并行线程的并行编号。 userid oid session用户的id。 application_name text 应用的名字。 client_addr inet client端的地址。 client_hostname text client端的名字。 client_port integer 客户端用于与后端通讯的TCP端口号。 query_id bigint debug query id。 unique_query_id bigint unique query id。 user_id oid unique query的key中的user_id。 cn_id integer 表示下发该unique sql的节点id。unique query的key中的cn_id。 unique_query text 规范化后的Unique SQL文本串。 locktag text 会话等待锁信息，可通过locktag_decode解析。 lockmode text 会话等待锁模式： LW_EXCLUSIVE：排他锁 LW_SHARED：共享锁 LW_WAIT_UNTIL_FREE：等待LW_EXCLUSIVE可用 block_sessionid bigint 如果会话正在等待锁，阻塞该会话获取锁的会话标识。 wait_status text 描述event列的更多详细信息。 global_sessionid text 全局会话ID。 xact_start_time timestamp with time zone 事务开始时间。 query_start_time timestamp with time zone 语句开始执行时间。 state text 当前事务状态。 可能取值为：active、idle in transaction、fastpath function call、idle in transaction (aborted)、disabled、retrying。",
+      "source_file": "3271_GS_ASP.txt"
+    },
+    {
+      "term": "PG_PROC",
+      "content": "PG_PROC PG_PROC PG_PROC系统表存储函数或过程的信息。 表1 PG_PROC字段 名称 类型 描述 oid oid 行标识符（隐含属性，必须明确选择）。 proname name 函数名称。 pronamespace oid 包含该函数名称空间的OID。 proowner oid 函数的所有者。 prolang oid 这个函数的实现语言或调用接口。 procost real 估算的执行成本。 prorows real 估算的影响行的数目。 provariadic oid 参数元素的数据类型。 protransform regproc 此函数的简化调用方式。 proisagg boolean 函数是聚集函数。 t（true）：表示是。 f（false）：表示不是。 proiswindow boolean 函数是窗口函数。 t（true）：表示是。 f（false）：表示不是。 prosecdef boolean 函数是一个安全定义器（也就是一个“setuid”函数）。 t（true）：表示是。 f（false）：表示不是。 proleakproof boolean 函数没副作用。如果函数没有对参数进行防泄露处理，则会抛出错误。 t（true）：表示没副作用。 f（false）：表示有副作用。 proisstrict boolean 如果任何调用参数是空，则函数返回空。这时函数实际上连调用都不调用。不是“strict”的函数必须准备处理空输入。 proretset boolean 函数返回一个集合（也就是说，指定数据类型的多个数值）。 provolatile \"char\" 告诉该函数的结果是否只依赖于它的输入参数，或者还会被外界因素影响。 i：“不可变的”（immutable）函数，这样的函数对于相同的输入总是产生相同的结果。 s：稳定的”（stable）函数它是s，（对于固定输入）其结果在一次扫描里不变。 v：“易变”（volatile）函数它是v，其结果可能在任何时候变化v也用于那些有副作用的函数，因此调用它们无法得到优化。 pronargs smallint 参数数目。 pronargdefaults smallint 有默认值的参数数目。 prorettype oid 返回值的数据类型。 proargtypes oidvector 一个存放函数参数的数据类型的数组。数组里只包括输入参数（包括INOUT参数）此代表该函数的调用签名（接口）。 proallargtypes oid[] 一个包含函数参数的数据类型的数组。数组里包括所有参数的类型（包括OUT和INOUT参数），如果所有参数都是IN参数，则这个字段就会是空。请注意数组下标是以1为起点的，而因为历史原因，proargtypes的下标起点为0。 proargmodes \"char\"[] 一个保存函数参数模式的数组，编码如下： i表示IN参数。 o表示OUT参数。 b表示INOUT参数。 v表示VARIADIC参数。 如果所有参数都是IN参数，则这个字段为空。请注意，下标对应的是proallargtypes的位置，而不是proargtypes。 proargnames text[] 一个保存函数参数的名称的数组。没有名称的参数在数组里设置为空字符串。如果没有一个参数有名称，这个字段将是空。请注意，此数组的下标对应proallargtypes而不是proargtypes。 proargdefaults pg_node_tree 默认值的表达式树。是PRONARGDEFAULTS元素的列表。 prosrc text 描述函数或存储过程的定义。例如，对于解释型语言来说就是函数的源程序，或者一个连接符号，一个文件名，或者函数和存储过程创建时指定的其他任何函数体内容，具体取决于语言/调用习惯的实现。 probin text 关于如何调用该函数的附加信息。同样，其含义也是和语言相关的。 proconfig text[] 函数针对运行时配置变量的本地设置。 proacl aclitem[] 访问权限。具体请参见 GRANT 和 REVOKE 。 prodefaultargpos int2vector 函数具有默认值的入参的位置。 fencedmode boolean 函数的执行模式，表示函数是在fence还是not fence模式下执行。如果是fence执行模式，函数的执行会在重新fork的进程中执行。 系统内建函数，fencedmode字段均为false，即not fence模式。 proshippable boolean 表示该函数是否可以下推到数据库节点上执行，默认值是false。 对于IMMUTABLE类型的函数，函数始终可以下推到数据库节点上执行。 对于STABLE/VOLATILE类型的函数，仅当函数的属性是SHIPPABLE的时候，函数可以下推到数据库节点执行。 propackage boolean 表示该函数是否支持重载，默认值是false。 t（true）：表示支持。 f（false）：表示不支持。 prokind \"char\" 表示该对象为函数还是存储过程： 值为'f'表示该对象为函数。 值为'p'表示该对象为存储过程。 proargsrc text 描述兼容oracle语法定义的函数或存储过程的参数输入字符串，包括参数注释。默认值为NULL。 proisprivate boolean 描述函数是否是PACKAGE内的私有函数，默认为false。 propackageid oid 函数所属的package oid，如果不在package内，则为0。 proargtypesext oidvector_extend 当函数参数较多时，用来存放函数参数的数据类型的数组。数组里只包括输入参数（包括INOUT参数）此代表该函数的调用签名（接口）。 prodefaultargposext int2vector_extend 当函数参数较多时，函数具有默认值的入参的位置。 allargtypes oidvector 不区分参数类型，包含存储过程所有参数（包含入参、出参、INOUT参数）。 allargtypesext oidvector_extend 当函数参数较多时，用来存放函数参数的数据类型的数组。数组里包含所有参数（包含入参、出参、INOUT参数）。",
+      "source_file": "3325_PG_PROC.txt"
+    },
+    {
+      "term": "PG_LARGEOBJECT",
+      "content": "PG_LARGEOBJECT PG_LARGEOBJECT PG_LARGEOBJECT系统表保存那些标记着“大对象”的数据。一个大对象是使用其创建时分配的OID标识的。每个大对象都分解成足够小的小段或者“页面”以便以行的形式存储在PG_LARGEOBJECT里。每页的数据定义为LOBLKSIZE。 需要有系统管理员权限才可以访问此系统表。 表1 PG_LARGEOBJECT字段 名称 类型 引用 描述 loid oid PG_LARGEOBJECT_METADATA .oid 包含本页的大对象的标识符。 pageno integer - 本页在其大对象数据中的页码从零开始计算。 data bytea - 存储在大对象中的实际数据。这些数据绝不会超过LOBLKSIZE字节，而且可能更少。 PG_LARGEOBJECT的每一行保存一个大对象的一个页面，从该对象内部的字节偏移（pageno * LOBLKSIZE）开始。这种实现允许松散的存储：页面可以丢失，而且可以比LOBLKSIZE字节少（即使它们不是对象的最后一页）。大对象内丢失的部分读做零。",
+      "source_file": "1604_PG_LARGEOBJECT.txt"
+    },
+    {
+      "term": "PG_CONVERSION",
+      "content": "PG_CONVERSION PG_CONVERSION PG_CONVERSION系统表描述编码转换信息。 表1 PG_CONVERSION字段 名称 类型 引用 描述 oid oid - 行标识符（隐含字段，必须明确选择）。 conname name - 转换名称（在一个名称空间里是唯一的）。 connamespace oid PG_NAMESPACE .oid 包含这个转换的名称空间的OID。 conowner oid PG_AUTHID .oid 编码转换的属主。 conforencoding integer - 源编码ID。 contoencoding integer - 目的编码ID。 conproc regproc PG_PROC .proname 转换过程。 condefault boolean - 如果这是缺省转换则为真，否则为假。",
+      "source_file": "1587_PG_CONVERSION.txt"
+    },
+    {
+      "term": "PGXC_GROUP",
+      "content": "PGXC_GROUP PGXC_GROUP PGXC_GROUP系统表存储节点组信息。PGXC_GROUP系统表在集中式场景下只能查询表定义。 表1 PGXC_GROUP字段 名称 类型 描述 oid oid 行标识符（隐含字段，必须明确选择）。 group_name name 节点组名称。 in_redistribution \"char\" 是否需要重分布。取值包括n,y,t。 n：表示NodeGroup没有再进行重分布。 y：表示NodeGroup是重分布过程中的源节点组。 t：表示NodeGroup是重分布过程中的目的节点组。 group_members oidvector_extend 节点组的节点OID列表。 group_buckets text 分布数据桶的集合。 is_installation boolean 是否安装子数据库实例。 t（true）：表示安装。 f（false）：表示不安装。 group_acl aclitem[] 访问权限。 group_kind \"char\" node group类型，取值包括i, n, v, e。 i：表示installation node group。 n：表示普通非逻辑数据库实例node group。 v：表示逻辑数据库实例node group。 e：表示弹性数据库实例。 group_parent oid 如果是子node group，该字段表示父node group的OID，如果是父node group，该字段值为空。 bucket_map text 暂不支持，置NULL。",
+      "source_file": "3348_PGXC_GROUP.txt"
+    },
+    {
+      "term": "PG_STATISTIC_EXT",
+      "content": "PG_STATISTIC_EXT PG_STATISTIC_EXT PG_STATISTIC_EXT系统表存储有关该数据库中表的扩展统计数据，包括多列统计数据和表达式统计数据（后续支持）。收集哪些扩展统计数据是由用户指定的。需要有系统管理员权限才可以访问此系统表。 表1 PG_STATISTIC_EXT字段 名称 类型 描述 starelid oid 所描述的字段所属的表或者索引。 starelkind \"char\" 所属对象的类型。'c'表示表，'p'表示分区。 stainherit boolean 是否统计有继承关系的对象。 t（true）：表示统计。 f（false）：表示不统计。 stanullfrac real 该字段中为NULL的记录的比率。 stawidth integer 非NULL记录的平均存储宽度，以字节计。 stadistinct real 标识全局统计信息中 所有DN 上字段里唯一的非NULL数据值的数目。 一个大于零的数值是独立数值的实际数目。 一个小于零的数值是表中行数的分数的负数（比如，一个字段的数值平均出现概率为两次，则可以表示为stadistinct=-0.5）。 零值表示独立数值的数目未知。 stadndistinct real 标识dn1上字段里唯一的非NULL数据值的数目。 一个大于零的数值是独立数值的实际数目。 一个小于零的数值是表中行数的分数的负数（比如，一个字段的数值平均出现概率为两次，则可以表示为stadistinct=-0.5）。 零值表示独立数值的数目未知。 stakindN smallint 一个编码，表示这种类型的统计存储在pg_statistic行的第n个“槽位”。 n的取值范围：1～5 staopN oid 一个用于生成这些存储在第n个“槽位”的统计信息的操作符。比如，一个柱面图槽位会显示<操作符，该操作符定义了该数据的排序顺序。 n的取值范围：1～5 stakey int2vector 所描述的字段编号的数组。 stanumbersN real[] 第n个“槽位”的相关类型的数值类型统计，如果该槽位和数值类型没有关系，则就是NULL。 n的取值范围：1～5 stavaluesN anyarray 第n个“槽位”类型的字段数据值，如果该槽位类型不存储任何数据值，则就是NULL。每个数组的元素值实际上都是指定字段的数据类型，因此，除了把这些字段的类型定义成anyarray之外，没有更好的办法。 n的取值范围：1～5 staexprs pg_node_tree 扩展统计信息对应的表达式。 stasource \"char\" 扩展统计信息的来源： 'a'：表示自动创建，详见GUC参数 auto_statistic_ext_columns 。 'm'：表示手动创建，用户通过analyze tablename ((column list))或者alter table tablename add statistics ((column list))来创建。 stastatus \"char\" 扩展统计信息的状态： 'a'：表示活跃可用。 'd'：表示被禁用，相关信息不被收集，优化器在生成计划的时候也不使用。用户可以使用语法alter table tablename disable/enable statistics((column list))来修改扩展统计信息的状态。 staextname name 多列统计信息多列组的别名。 stastate \"char\" 标识统计信息是否被锁定，若被锁定则无法更新。该参数目前在分布式下无实际意义。 l：标识已经被锁定。 u：标识没有被锁定。 PG_STATISTIC_EXT系统表存储了统计对象的一些敏感信息，如高频值MCV。系统管理员和授权后的其他用户可以通过访问PG_STATISTIC_EXT系统表查询到统计对象的这些敏感信息。",
+      "source_file": "1624_PG_STATISTIC_EXT.txt"
+    },
+    {
+      "term": "GS_DEPENDENCIES_OBJ",
+      "content": "GS_DEPENDENCIES_OBJ GS_DEPENDENCIES_OBJ GS_DEPENDENCIES_OBJ系统表记录对象的被依赖项详细信息。 表1 GS_DEPENDENCIES_OBJ字段 名称 类型 描述 schemaname name 名称空间的名称。 packagename name package的名称。 type integer 被依赖体的类型。 1：未知类型。 2：变量。 3：类型。 4：函数。 5：视图。 6：函数头。 name text 被依赖体名称。 objnode pg_node_tree 被依赖体的详细信息。",
+      "source_file": "3273_GS_DEPENDENCIES_OBJ.txt"
+    },
+    {
+      "term": "PG_AMPROC",
+      "content": "PG_AMPROC PG_AMPROC PG_AMPROC系统表存储有关与访问方法操作符族相关联的支持过程的信息。每个属于某个操作符族的支持过程都占有一行。 表1 PG_AMPROC字段 名称 类型 引用 描述 oid oid - 行标识符（隐含字段，必须明确选择）。 amprocfamily oid PG_OPFAMILY .oid 该项的操作符族。 amproclefttype oid PG_TYPE .oid 相关操作符的左输入数据类型。 常见的数据类型请参见 数据类型 。 amprocrighttype oid PG_TYPE .oid 相关操作符的右输入数据类型。 常见的数据类型请参见 数据类型 。 amprocnum smallint - 支持过程编号。 amproc regproc PG_PROC .proname 过程的OID。 amproclefttype和amprocrighttype字段的习惯解释，标识一个特定支持过程支持的操作符的左和右输入类型。对于某些访问方式，匹配支持过程本身的输入数据类型，对其他的则不这样。有一个对索引的“缺省”支持过程的概念，amproclefttype和amprocrighttype都等于索引操作符类的opcintype。",
+      "source_file": "1580_PG_AMPROC.txt"
+    },
+    {
+      "term": "PG_CAST",
+      "content": "PG_CAST PG_CAST PG_CAST系统表存储数据类型之间的转化关系。 表1 PG_CAST字段 名称 类型 描述 oid oid 行标识符（隐含属性，必须明确选择）。 castsource oid 源数据类型的OID。 casttarget oid 目标数据类型的OID。 castfunc oid 转化函数的OID。如果为零表明不需要转化函数。 castcontext \"char\" 源数据类型和目标数据类型间的转化方式： 'e'：表示只能进行显式转化（使用CAST或::语法）。 'i'：表示能进行隐式转化。 'a'：表示类型间同时支持隐式和显式转化。 castmethod \"char\" 转化方法： 'f'：使用castfunc字段中指定的函数进行转化。 'b'：类型间是二进制强制转化，不使用castfunc。",
+      "source_file": "3295_PG_CAST.txt"
+    },
+    {
+      "term": "PG_HASHBUCKET",
+      "content": "PG_HASHBUCKET PG_HASHBUCKET PG_HASHBUCKET系统表存储hash bucket信息。 表1 PG_HASHBUCKET字段 名称 类型 描述 oid oid 行标识符（隐含字段，必须明确选择）。 bucketid oid 对bucketvector计算的hash值，通过hash值可以加速对bucketvector的查找。 bucketcnt integer 包含分片的个数。 bucketmapsize integer 所有DN上包含的分片总数。 bucketref integer 预留字段，默认值为1。 bucketvector oidvector_extend 记录此行bucket信息包含的所有bucket的id，在此列上建立唯一索引，具有相同bucketid信息的表共享同一行pg_hashbucket数据。 bucketmap text 用来存储逻辑bucket到物理bucket的映射关系，即16384到1024的映射关系。 bucketversion oidvector_extend 预留字段，记录后续hashbucket扩容过程中发生改变的信息版本号。 bucketcsn text hashbucket重分布前源节点每个bucket的对应的最大CSN，用于新节点可见性判断； bucketxid text hashbucket扩容，新节点上线设置的next_xid，用于校验是否在阈值范围内。",
+      "source_file": "1598_PG_HASHBUCKET.txt"
+    },
+    {
+      "term": "PG_DEPEND",
+      "content": "PG_DEPEND PG_DEPEND PG_DEPEND系统表记录数据库对象之间的依赖关系。这个信息允许DROP命令找出哪些其它对象必须由DROP CASCADE删除，或者是在DROP RESTRICT的情况下避免删除。 这个表的功能类似 PG_SHDEPEND ，用于记录那些在数据库之间共享的对象之间的依赖性关系。 表1 PG_DEPEND字段 名称 类型 引用 描述 classid oid PG_CLASS .oid 有依赖对象所在系统表的OID。 objid oid 任意OID属性 指定的依赖对象的OID。 objsubid integer - 对于表字段，这个是该属性的字段数（objid和classid引用表本身）。对于所有其它对象类型，目前这个字段是0。 refclassid oid PG_CLASS .oid 被引用对象所在的系统表的OID。 refobjid oid 任意OID属性 指定的被引用对象的OID。 refobjsubid integer - 对于表字段，这个是该字段的字段号（refobjid和refclassid引用表本身）。对于所有其它对象类型，目前这个字段是0。 deptype \"char\" - 一个定义这个依赖关系特定语义的代码。 在所有情况下，一个PG_DEPEND记录表示被引用的对象不能在有依赖的对象被删除前删除。不过，这里还有几种由deptype定义的情况： DEPENDENCY_NORMAL (n)：独立创建的对象之间的一般关系。有依赖的对象可以在不影响被引用对象的情况下删除。被引用对象只有在声明了CASCADE的情况下删除，这时有依赖的对象也被删除。例子：一个表字段对其数据类型有一般依赖关系。 DEPENDENCY_AUTO (a)：有依赖对象可以和被引用对象分别删除，并且如果删除了被引用对象则应该被自动删除（不管是RESTRICT或CASCADE模式）。例子：一个表上面的命名约束是在该表上的自动依赖关系，因此如果删除了表，它也会被删除。 DEPENDENCY_INTERNAL (i)：有依赖的对象是作为被引用对象的一部分创建的，实际上只是它的内部实现的一部分。 DROP有依赖对象是不能直接允许的（将告诉用户发出一条删除被引用对象的DROP）。一个对被引用对象的DROP将传播到有依赖对象，不管是否声明了CASCADE。 DEPENDENCY_EXTENSION (e)：依赖对象是被依赖对象extension的一个成员（请参见 PG_EXTENSION ）。依赖对象只可以通过在被依赖对象上DROP EXTENSION删除。函数上这个依赖类型和内部依赖一样动作，但是它为了清晰和简化gs_dump保持分开。 DEPENDENCY_PIN (p)：没有依赖对象，这种类型的记录标志着系统本身依赖于被引用对象，因此这个对象绝不能被删除。这种类型的记录只有在initdb的时候创建。有依赖对象的字段里是零。",
+      "source_file": "3301_PG_DEPEND.txt"
+    },
+    {
+      "term": "STREAMING_REAPER_STATUS",
+      "content": "STREAMING_REAPER_STATUS STREAMING_REAPER_STATUS STREAMING_REAPER_STATUS系统表存储流引擎 （由于规格变更，当前版本已经不再支持本特性，请不要使用） reaper线程的状态信息。 表1 STREAMING_REAPER_STATUS字段 名称 类型 描述 id integer CONTVIEW对象唯一的标识符，不可重复。 contquery_name name CONTVIEW对象的名称。 gather_interval text CONTVIEW对象设置的gather_interval参数值（自动聚合特定时间前历史数据的时间参数）。 gather_completion_time text CONTVIEW对象最近一次的GATHER（历史数据聚合）的完成时间。",
+      "source_file": "1643_STREAMING_REAPER_STATUS.txt"
+    },
+    {
+      "term": "PG_LARGEOBJECT_METADATA",
+      "content": "PG_LARGEOBJECT_METADATA PG_LARGEOBJECT_METADATA PG_LARGEOBJECT_METADATA系统表存储与大数据相关的元数据。实际的大对象数据存储在PG_LARGEOBJECT里。 表1 PG_LARGEOBJECT_METADATA字段 名称 类型 引用 描述 oid oid - 行标识符（隐含属性，必须明确选择）。 lomowner oid PG_AUTHID .oid 大对象的所有者。 lomacl aclitem[] - 访问权限。",
+      "source_file": "3317_PG_LARGEOBJECT_METADATA.txt"
+    },
+    {
+      "term": "PLAN_TABLE_DATA",
+      "content": "PLAN_TABLE_DATA PLAN_TABLE_DATA PLAN_TABLE_DATA存储了用户通过执行EXPLAIN PLAN收集到的计划信息。与PLAN_TABLE视图不同的是PLAN_TABLE_DATA表存储了所有session和user执行EXPLAIN PLAN收集的计划信息。 表1 PLAN_TABLE_DATA字段 名称 类型 描述 session_id text 表示插入该条数据的会话，由服务线程启动时间戳和服务线程ID组成。受非空约束限制。 user_id oid 用户ID，用于标识触发插入该条数据的用户。受非空约束限制。 statement_id character varying(30) 用户输入的查询标签。 plan_id bigint 查询计划标识。该标识在计划生成阶段自动产生，供内核工程师调试使用。 id integer 计划中的节点编号。 operation character varying(30) 操作描述。 options character varying(255) 操作选项。 object_name name 操作对应的对象名，来自于用户定义。 object_type character varying(30) 对象类型。 object_owner name 对象所属schema，来自于用户定义。 projection character varying(4000) 操作输出的列信息。 cost double precision 优化器对算子估算的执行代价。 cardinality double precision 优化器对算子估算的结果行数。 PLAN_TABLE_DATA中包含了当前节点所有用户、所有会话的数据，仅管理员有访问权限。普通用户可以通过 PLAN_TABLE 视图查看属于自己的数据。 对于不活跃（已退出）的会话，其在PLAN_TABLE_DATA中的数据会在一定时间（默认5min）后被gs_clean清理。用户也可以手动执行gs_clean -C选项对表中不活跃的会话数据进行清理，详见《工具参考》中“服务端工具 > gs_clean”章节。 PLAN_TABLE_DATA中的数据是用户通过执行EXPLAIN PLAN命令后由系统自动插入表中，因此禁止用户手动对数据进行插入或更新，否则会引起表中的数据混乱。需要对表中数据删除时，建议通过 PLAN_TABLE 视图或参考《工具参考》中“服务端工具 > gs_clean”章节。 statement_id、object_name、object_owner和projection字段内容遵循用户定义的大小写存储，其它字段内容采用大写存储。",
+      "source_file": "1639_PLAN_TABLE_DATA.txt"
+    },
+    {
+      "term": "PG_TS_TEMPLATE",
+      "content": "PG_TS_TEMPLATE PG_TS_TEMPLATE PG_TS_TEMPLATE系统表包含定义文本搜索模板的记录。模板是文本搜索字典的类的实现框架。因为模板必须通过C语言级别的函数实现，索引新模板的创建必须由数据库系统管理员创建。 表1 PG_TS_TEMPLATE字段 名称 类型 引用 描述 oid oid - 行标识符（隐含字段；必须明确选择）。 tmplname name - 文本搜索模板名。 tmplnamespace oid PG_NAMESPACE .oid 包含这个模板的名称空间的OID。 tmplinit regproc PG_PROC .proname 模板的初始化函数名。 tmpllexize regproc PG_PROC .proname 模板的lexize函数名。",
+      "source_file": "1633_PG_TS_TEMPLATE.txt"
+    },
+    {
+      "term": "GS_RECYCLEBIN",
+      "content": "GS_RECYCLEBIN GS_RECYCLEBIN GS_RECYCLEBIN描述了闪回特性回收站对象的详细信息。 表1 GS_RECYCLEBIN字段 名称 类型 描述 oid oid 系统列。 rcybaseid oid 基表对象id，引用gs_recyclebin.oid。 rcydbid oid 当前对象所属数据库oid。 rcyrelid oid 当前对象oid。 rcyname name 回收站对象名称，格式“BIN$unique_id$oid$0”，其中unique_id为最多16字符唯一标识，oid为对象标识符。 rcyoriginname name 原始对象名称。 rcyoperation \"char\" 操作类型： d表示drop t表示truncate rcytype integer 对象类型： 0表示table。 1表示index。 2表示toast table。 3表示toast index。 4表示sequence，指serial、bigserial、smallserial、largeserial类型自动关联的序列对象。 5表示partition。 6表示global index。 7表示物化视图。 8表示global secondary index。 rcyrecyclecsn bigint 对象drop、truncate时csn。 rcyrecycletime timestamp with time zone 对象drop、truncate时间。 rcycreatecsn bigint 对象创建时csn。 rcychangecsn bigint 对象定义改变的csn。 rcynamespace oid 包含这个关系的名字空间的OID。 rcyowner oid 关系所有者。 rcytablespace oid 这个关系存储所在的表空间。如果为0，则意味着使用该数据库的缺省表空间。如果关系在磁盘上没有文件，则这个字段没有什么意义。 rcyrelfilenode oid 回收站对象在磁盘上的文件的名称，如果没有则为0，用于TRUNCATE对象恢复时物理文件还原。 rcycanrestore boolean 是否可以被单独闪回。 rcycanpurge boolean 是否可以被单独purge。 rcyfrozenxid xid32 该表中所有在这个之前的事务ID已经被一个固定的（\"frozen\"）事务ID替换。 rcyfrozenxid64 xid 该表中所有在这个之前的事务ID已经被一个固定的（\"frozen\"）事务ID替换。 rcybucket oid 12.2.15.42 PG_HASHBUCKET 中的桶信息。",
+      "source_file": "1568_GS_RECYCLEBIN.txt"
+    },
+    {
+      "term": "PG_OBJECT",
+      "content": "PG_OBJECT PG_OBJECT PG_OBJECT系统表存储限定类型对象（普通表，索引，序列，视图，存储过程和函数）的创建用户、创建时间和最后修改时间。 表1 PG_OBJECT字段 名称 类型 描述 object_oid oid 对象标识符 object_type \"char\" 对象类型： r 表示普通表 i 表示索引 s 表示序列 v 表示视图 P 表示存储过程和函数 S 表示包头 B 表示包体 creator oid 创建用户的标识符 ctime timestamp with time zone 对象的创建时间 mtime timestamp with time zone 对象的最后修改时间，修改行为包括ALTER操作和GRANT、REVOKE操作 createcsn bigint 对象创建时的CSN。 changecsn bigint 对表或索引执行DDL操作时的CSN。 valid boolean 对象的有效性，t为有效，f为无效。 无法记录初始化数据库（initdb）过程中所创建或修改的对象，即PG_OBJECT无法查询到该对象记录。 对于升级至该版本的数据库，无法记录升级以前所创建的对象，即PG_OBJECT无法查询到该对象记录。 对于上述两类对象再次修改时，会记录其修改时间（mtime），由于无法得知该对象创建时间，因此ctime为空。 对于升级前创建的对象，再次修改时会记录其修改时间（mtime），对表或索引执行DDL操作时会记录其所属事务的事务提交序列号（changecsn）。由于无法得知该对象创建时间，因此ctime和createcsn为空。 ctime和mtime所记录的时间为用户当次操作所属事务的起始时间。 由扩容引起的对象修改时间也会被记录。 createcsn和changecsn记录的是用户当次操作所属事务的事务提交序列号。 对象创建语句时存在未定义的对象，或所依赖的对象有修改或删除动作时，对象会为无效状态。",
+      "source_file": "1607_PG_OBJECT.txt"
+    },
+    {
+      "term": "PG_HASHBUCKET",
+      "content": "PG_HASHBUCKET PG_HASHBUCKET PG_HASHBUCKET系统表存储hash bucket信息。 表1 PG_HASHBUCKET字段 名称 类型 描述 oid oid 行标识符（隐含字段，必须明确选择）。 bucketid oid 对bucketvector计算的hash值，通过hash值可以加速对bucketvector的查找。 bucketcnt integer 包含分片的个数。 bucketmapsize integer 所有DN上包含的分片总数。 bucketref integer 预留字段，默认值为1。 bucketvector oidvector_extend 记录此行bucket信息包含的所有bucket的id，在此列上建立唯一索引，具有相同bucketid信息的表共享同一行pg_hashbucket数据。 bucketmap text 用来存储逻辑bucket到物理bucket的映射关系，即16384到1024的映射关系。 bucketversion oidvector_extend 预留字段，记录后续hashbucket扩容过程中发生改变的信息版本号。 bucketcsn text 暂不支持，置NULL。 bucketxid text 暂不支持，置NULL。",
+      "source_file": "3310_PG_HASHBUCKET.txt"
+    },
+    {
+      "term": "PG_AM",
+      "content": "PG_AM PG_AM PG_AM系统表存储有关索引访问方法的信息。系统支持的每种索引访问方法都有一行。 表1 PG_AM字段 名称 类型 引用 描述 oid oid - 行标识符（隐含属性，必须明确选择）。 amname name - 访问方法的名称。 amstrategies smallint - 访问方法的操作符策略个数，或者如果访问方法没有一个固定的操作符策略集则为0。 amsupport smallint - 访问方法的支持过程个数。 amcanorder boolean - 这种访问方式是否支持通过索引字段值的命令扫描排序。 t（true）：表示支持。 f（false）：表示不支持。 amcanorderbyop boolean - 这种访问方式是否支持通过索引字段上操作符的结果的命令扫描排序。 t（true）：表示支持。 f（false）：表示不支持。 amcanbackward boolean - 访问方式是否支持向后扫描。 t（true）：表示支持。 f（false）：表示不支持。 amcanunique boolean - 访问方式是否支持唯一索引。 t（true）：表示支持。 f（false）：表示不支持。 amcanmulticol boolean - 访问方式是否支持多字段索引。 t（true）：表示支持。 f（false）：表示不支持。 amoptionalkey boolean - 访问方式是否支持第一个索引字段上没有任何约束的扫描。 t（true）：表示支持。 f（false）：表示不支持。 amsearcharray boolean - 访问方式是否支持ScalarArrayOpExpr搜索。 t（true）：表示支持。 f（false）：表示不支持。 amsearchnulls boolean - 访问方式是否支持IS NULL/NOT NULL搜索。 t（true）：表示支持。 f（false）：表示不支持。 amstorage boolean - 是否允许索引存储的数据类型与列的数据类型不同。 t（true）：表示允许。 f（false）：表示不允许。 amclusterable boolean - 是否允许在一个这种类型的索引上聚簇。 t（true）：表示允许。 f（false）：表示不允许。 ampredlocks boolean - 是否允许这种类型的一个索引管理细粒度的谓词锁定。 t（true）：表示允许。 f（false）：表示不允许 amkeytype oid PG_TYPE .oid 存储在索引里数据的类型，如果不是一个固定的类型则为0。 aminsert regproc PG_PROC .proname “插入这个行”函数。 ambeginscan regproc PG_PROC .proname “准备索引扫描” 函数。 amgettuple regproc PG_PROC .proname “下一个有效行”函数，如果没有则为0。 amgetbitmap regproc PG_PROC .proname “抓取所有的有效行” 函数，如果没有则为0。 amrescan regproc PG_PROC .proname “（重新）开始索引扫描”函数。 amendscan regproc PG_PROC .proname “索引扫描后清理” 函数。 ammarkpos regproc PG_PROC .proname “标记当前扫描位置”函数。 amrestrpos regproc PG_PROC .proname “恢复已标记的扫描位置”函数。 ammerge regproc PG_PROC .proname “归并多个索引对象”函数。 ambuild regproc PG_PROC .proname “建立新索引”函数。 ambuildempty regproc PG_PROC .proname “建立空索引”函数。 ambulkdelete regproc PG_PROC .proname 批量删除函数。 amvacuumcleanup regproc PG_PROC .proname VACUUM后的清理函数。 amcanreturn regproc PG_PROC .proname 检查是否索引支持唯一索引扫描的函数，如果没有则为0。 amcostestimate regproc PG_PROC .proname 估计一个索引扫描开销的函数。 amoptions regproc PG_PROC .proname 为一个索引分析和确认reloptions的函数。",
+      "source_file": "1578_PG_AM.txt"
+    },
+    {
+      "term": "PG_STATISTIC",
+      "content": "PG_STATISTIC PG_STATISTIC PG_STATISTIC系统表存储有关该数据库中表和索引列的统计数据。默认只有系统管理员权限才可以访问此系统表，普通用户需要授权才可以访问。 表1 PG_STATISTIC字段 名称 类型 描述 starelid oid 所描述的字段所属的表或者索引。 starelkind \"char\" 所属对象的类型。 staattnum smallint 所描述的字段在表中的编号，从1开始。 stainherit boolean 是否统计有继承关系的对象。 stanullfrac real 该字段中为NULL的记录的比率。 stawidth integer 非NULL记录的平均存储宽度，以字节计。 stadistinct real 标识全局统计信息中 所有DN 上字段里唯一的非NULL数据值的数目。 一个大于零的数值是独立数值的实际数目。 一个小于零的数值是表中行数的分数的负数（比如，一个字段的数值平均出现概率为两次，则可以表示为stadistinct=-0.5）。 零值表示独立数值的数目未知。 stakindN smallint 一个编码，表示这种类型的统计存储在pg_statistic行的第n个“槽位”。 n的取值范围：1～5 staopN oid 一个用于生成这些存储在第n个“槽位”的统计信息的操作符。比如，一个柱面图槽位会显示<操作符，该操作符定义了该数据的排序顺序。 n的取值范围：1～5 stanumbersN real[] 第n个“槽位”的相关类型的数值类型统计，如果该槽位和数值类型没有关系，则就是NULL。 n的取值范围：1～5 stavaluesN anyarray 第n个“槽位”类型的字段数据值，如果该槽位类型不存储任何数据值，则就是NULL。每个数组的元素值实际上都是指定字段的数据类型，因此，除了把这些字段的类型定义成anyarray之外，没有更好的办法。 n的取值范围：1～5 stadndistinct real 标识dn1上字段里唯一的非NULL数据值的数目。 一个大于零的数值是独立数值的实际数目。 一个小于零的数值是表中行数的分数的负数（比如，一个字段的数值平均出现概率为两次，则可以表示为stadistinct=-0.5）。 零值表示独立数值的数目未知。 staextinfo text 统计信息的扩展信息。预留字段。 stastate \"char\" 标识统计信息是否被锁定，若被锁定则无法更新。该参数目前在分布式下无实际意义。 l：标识已经被锁定。 u：标识没有被锁定。 PG_STATISTIC系统表存储了统计对象的一些敏感信息，如高频值MCV。系统管理员和授权后的其他用户可以通过访问PG_STATISTIC系统表查询到统计对象的这些敏感信息。",
+      "source_file": "1623_PG_STATISTIC.txt"
+    },
+    {
+      "term": "PG_RANGE",
+      "content": "PG_RANGE PG_RANGE PG_RANGE系统表存储关于范围类型的信息。除了 PG_TYPE 里类型的记录。 表1 PG_RANGE字段 名称 类型 引用 描述 rngtypid oid PG_TYPE .oid 范围类型的OID。 rngsubtype oid PG_TYPE .oid 这个范围类型的元素类型（子类型）的OID。 rngcollation oid PG_COLLATION .oid 用于范围比较的排序规则的OID，如果没有则为零。 rngsubopc oid PG_OPCLASS .oid 用于范围比较的子类型的操作符类的OID。 rngcanonical regproc PG_PROC .proname 转换范围类型为规范格式的函数名，如果没有则为0。 rngsubdiff regproc PG_PROC .proname 返回两个double precision元素值的不同的函数名，如果没有则为0。 rngsubopc（如果元素类型是可排序的，则加上rngcollation）决定用于范围类型的排序顺序。当元素类型是离散的时使用rngcanonical。",
+      "source_file": "3328_PG_RANGE.txt"
+    },
+    {
+      "term": "PG_NAMESPACE",
+      "content": "PG_NAMESPACE PG_NAMESPACE PG_NAMESPACE系统表存储名称空间，即存储schema相关的信息。如果开启数据库对象隔离属性，用户只能查看自己有权限访问的schema信息。 表1 PG_NAMESPACE字段 名称 类型 描述 oid oid 行标识符（隐含字段，必须明确选择）。 nspname name 名称空间的名称。 nspowner oid 名称空间的所有者。 nsptimeline bigint 在 DN 上创建此命名空间时的时间线。此字段为内部使用，仅在 DN 上有效。 nspacl aclitem[] 访问权限。具体请参见 GRANT 和 REVOKE 。 in_redistribution \"char\" 是否处于重发布状态。 t（true）：表示处于重发布状态。 f（false）：表示没有处于重发布状态。 nspcollation oid 名称空间的默认字符序（仅在sql_compatibility='MYSQL'时可能有值）。",
+      "source_file": "1606_PG_NAMESPACE.txt"
+    },
+    {
+      "term": "PG_AGGREGATE",
+      "content": "PG_AGGREGATE PG_AGGREGATE PG_AGGREGATE系统表存储与聚集函数有关的信息。PG_AGGREGATE里的每条记录都是一条pg_proc里面的记录的扩展。PG_PROC记录承载该聚集的名称、输入和输出数据类型，以及其它一些和普通函数类似的信息。 表1 PG_AGGREGATE字段 名称 类型 引用 描述 aggfnoid regproc PG_PROC .proname 此聚集函数的 PG_PROC proname。 aggtransfn regproc PG_PROC .proname 转换函数。 aggcollectfn regproc PG_PROC .proname 收集函数。 aggfinalfn regproc PG_PROC .proname 最终处理函数（如果没有则为零）。 aggsortop oid PG_OPERATOR .oid 关联排序操作符（如果没有则为零）。 aggtranstype oid PG_TYPE .oid 此聚集函数的内部转换（状态）数据的数据类型。 可能取值及其含义见于pg_type.h中诸type定义，主要分为多态（isPolymorphicType）和非多态两类。 agginitval text - 转换状态的初始值。这是一个文本数据域，它包含初始值的外部字符串表现形式。如果数据域是null，则转换状态值从null开始。 agginitcollect text - 收集状态的初始值。这是一个文本数据域，它包含初始值的外部字符串表现形式。如果数据域是null，则收集状态值从null开始。 aggkind \"char\" - 此聚集函数类型： 'n' ：表示Normal Agg 'o' ：表示Ordered Set Agg aggnumdirectargs smallint - Ordered Set Agg类型聚集函数的直接参数（非聚集相关参数）数量。对Normal Agg类型聚集函数，该值为0。",
+      "source_file": "3289_PG_AGGREGATE.txt"
+    },
+    {
+      "term": "PG_REWRITE",
+      "content": "PG_REWRITE PG_REWRITE PG_REWRITE系统表存储为表和视图定义的重写规则。 表1 PG_REWRITE字段 名称 类型 描述 oid oid 行标识符（隐含字段，必须明确选择）。 rulename name 规则名称。 ev_class oid 使用这条规则的表名称。 ev_attr smallint 这条规则适用的字段（目前总是为零，表示整个表）。 ev_type \"char\" 规则适用的事件类型： 1 = SELECT 2 = UPDATE 3 = INSERT 4 = DELETE ev_enabled \"char\" 用于控制复制的触发。 O =“origin”和“local”模式时触发。 D =禁用触发。 R =“replica”时触发。 A ＝任何模式是都会触发。 is_instead boolean 如果该规则是INSTEAD规则，则为真。 ev_qual pg_node_tree 规则的资格条件的表达式树（以nodeToString() 形式存在）。 ev_action pg_node_tree 规则动作的查询树（以nodeToString() 形式存在）。",
+      "source_file": "1619_PG_REWRITE.txt"
+    },
+    {
+      "term": "PG_CAST",
+      "content": "PG_CAST PG_CAST PG_CAST系统表存储数据类型之间的转化关系。 表1 PG_CAST字段 名称 类型 描述 oid oid 行标识符（隐含字段，必须明确选择）。 castsource oid 源数据类型的OID。 casttarget oid 目标数据类型的OID。 castfunc oid 转化函数的OID。如果为零表明不需要转化函数。 castcontext \"char\" 源数据类型和目标数据类型间的转化方式： 'e'：表示只能进行显式转化（使用CAST或::语法）。 'i'：表示能进行隐式转化。 'a'：表示类型间同时支持隐式和显式转化。 castmethod \"char\" 转化方法： 'f'：使用castfunc字段中指定的函数进行转化。 'b'：类型间是二进制强制转化，不使用castfunc。",
+      "source_file": "1583_PG_CAST.txt"
+    },
+    {
+      "term": "PG_AM",
+      "content": "PG_AM PG_AM PG_AM系统表存储有关索引访问方法的信息。系统支持的每种索引访问方法都有一行。 表1 PG_AM字段 名称 类型 引用 描述 oid oid - 行标识符（隐含属性，必须明确选择）。 amname name - 访问方法的名称。 amstrategies smallint - 访问方法的操作符策略个数，或者如果访问方法没有一个固定的操作符策略集则为0。 amsupport smallint - 访问方法的支持过程个数。 amcanorder boolean - 这种访问方式是否支持通过索引字段值的命令扫描排序。 t（true）：表示支持。 f（false）：表示不支持。 amcanorderbyop boolean - 这种访问方式是否支持通过索引字段上操作符的结果的命令扫描排序。 t（true）：表示支持。 f（false）：表示不支持。 amcanbackward boolean - 访问方式是否支持向后扫描。 t（true）：表示支持。 f（false）：表示不支持。 amcanunique boolean - 访问方式是否支持唯一索引。 t（true）：表示支持。 f（false）：表示不支持。 amcanmulticol boolean - 访问方式是否支持多字段索引。 t（true）：表示支持。 f（false）：表示不支持。 amoptionalkey boolean - 访问方式是否支持第一个索引字段上没有任何约束的扫描。 t（true）：表示支持。 f（false）：表示不支持。 amsearcharray boolean - 访问方式是否支持ScalarArrayOpExpr搜索。 t（true）：表示支持。 f（false）：表示不支持。 amsearchnulls boolean - 访问方式是否支持IS NULL/NOT NULL搜索。 t（true）：表示支持。 f（false）：表示不支持。 amstorage boolean - 是否允许索引存储的数据类型与列的数据类型不同。 t（true）：表示允许。 f（false）：表示不允许。 amclusterable boolean - 是否允许在一个这种类型的索引上聚簇。 t（true）：表示允许。 f（false）：表示不允许。 ampredlocks boolean - 是否允许这种类型的一个索引管理细粒度的谓词锁定。 t（true）：表示允许。 f（false）：表示不允许。 amkeytype oid PG_TYPE .oid 存储在索引里数据的类型，如果不是一个固定的类型则为0。 aminsert regproc PG_PROC .proname “插入这个行”函数。 ambeginscan regproc PG_PROC .proname “准备索引扫描”函数。 amgettuple regproc PG_PROC .proname “下一个有效行”函数，如果没有则为0。 amgetbitmap regproc PG_PROC .proname “抓取所有的有效行” 函数，如果没有则为0。 amrescan regproc PG_PROC .proname “（重新）开始索引扫描”函数。 amendscan regproc PG_PROC .proname “索引扫描后清理” 函数。 ammarkpos regproc PG_PROC .proname “标记当前扫描位置”函数。 amrestrpos regproc PG_PROC .proname “恢复已标记的扫描位置”函数。 ammerge regproc PG_PROC .proname “归并多个索引对象”函数。 ambuild regproc PG_PROC .proname “建立新索引”函数。 ambuildempty regproc PG_PROC .proname “建立空索引”函数。 ambulkdelete regproc PG_PROC .proname 批量删除函数。 amvacuumcleanup regproc PG_PROC .proname VACUUM后的清理函数。 amcanreturn regproc PG_PROC .proname 检查是否索引支持唯一索引扫描的函数，如果没有则为0。 amcostestimate regproc PG_PROC .proname 估计一个索引扫描开销的函数。 amoptions regproc PG_PROC .proname 为一个索引分析和确认reloptions的函数。",
+      "source_file": "3290_PG_AM.txt"
+    },
+    {
+      "term": "PG_SHDESCRIPTION",
+      "content": "PG_SHDESCRIPTION PG_SHDESCRIPTION PG_SHDESCRIPTION系统表为共享数据库对象存储可选的注释。可以使用COMMENT命令操作注释的内容，使用\\d命令查看注释内容。 PG_DESCRIPTION提供了类似的功能，它记录了单个数据库中对象的注释。 不同于大多数系统表，PG_SHDESCRIPTION是在数据库里面所有的数据库之间共享的：每个数据库只有一个PG_SHDESCRIPTION，而不是每个数据库一个。 表1 PG_SHDESCRIPTION字段 名称 类型 引用 描述 objoid oid 任意OID属性 这条描述所描述的对象的OID。 classoid oid PG_CLASS .oid 这个对象出现的系统表的OID。 description text - 作为对该对象的描述的任意文本。",
+      "source_file": "3333_PG_SHDESCRIPTION.txt"
+    },
+    {
+      "term": "PGXC_GROUP",
+      "content": "PGXC_GROUP PGXC_GROUP PGXC_GROUP系统表存储节点组信息。 表1 PGXC_GROUP字段 名称 类型 描述 oid oid 行标识符（隐含字段，必须明确选择）。 group_name name 节点组名称。 in_redistribution \"char\" 是否需要重分布。取值包括n,y,t。 n：表示NodeGroup没有再进行重分布。 y：表示NodeGroup是重分布过程中的源节点组。 t：表示NodeGroup是重分布过程中的目的节点组。 group_members oidvector_extend 节点组的节点OID列表。 group_buckets text 分布数据桶的集合。 is_installation boolean 是否安装子集群。 t（true）：表示安装。 f（false）：表示不安装。 group_acl aclitem[] 访问权限。 group_kind \"char\" node group类型，取值包括i, n, v, e。 i：表示installation node group。 n：表示普通集群node group。 e：表示弹性集群。 group_parent oid 如果是子node group，该字段表示父node group的OID，如果是父node group，该字段值为空。 bucket_map text 物理bucket与逻辑bucket的映射关系。",
+      "source_file": "1636_PGXC_GROUP.txt"
+    },
+    {
+      "term": "PG_TS_CONFIG_MAP",
+      "content": "PG_TS_CONFIG_MAP PG_TS_CONFIG_MAP PG_TS_CONFIG_MAP系统表包含为每个文本搜索配置的解析器的每个输出符号类型，显示哪个文本搜索字典应该被咨询、以什么顺序搜索的记录。 表1 PG_TS_CONFIG_MAP字段 名称 类型 引用 描述 mapcfg oid PG_TS_CONFIG .oid 拥有这个映射记录的 PG_TS_CONFIG 记录的OID。 maptokentype integer - 由配置的解析器产生的一个符号类型值。 mapseqno integer - 在相同mapcfg或maptokentype值的情况下，该符号类型的顺序号。 mapdict oid PG_TS_DICT .oid 要咨询的文本搜索字典的OID。",
+      "source_file": "3342_PG_TS_CONFIG_MAP.txt"
+    },
+    {
+      "term": "PG_ATTRIBUTE",
+      "content": "PG_ATTRIBUTE PG_ATTRIBUTE PG_ATTRIBUTE系统表存储关于表字段的信息。 表1 PG_ATTRIBUTE字段 名称 类型 描述 attrelid oid 此字段所属表。 attname name 字段名。 atttypid oid 字段类型。 attstattarget integer 控制ANALYZE为这个字段积累的统计细节的级别。 零值表示不收集统计信息。 负数表示使用系统缺省的统计对象。 正数值的确切信息是和数据类型相关的。 对于标量数据类型，ATTSTATTARGET既是要收集的\"最常用数值\"的目标数目，也是要创建的柱状图的目标数量。 attlen smallint 是本字段类型的 13.2.15.77 PG_TYPE 中typlen的拷贝。 attnum smallint 字段编号。 attndims integer 如果该字段是数组，则是维数，否则是0 。 attcacheoff integer 在磁盘上的时候总是-1 ，但是如果加载入内存中的行描述器中，它可能会被更新以缓冲在行中字段的偏移量。 atttypmod integer 记录创建新表时支持的类型特定的数据（比如一个varchar字段的最大长度）。它传递给类型相关的输入和长度转换函数当做第三个参数。其值对那些不需要ATTTYPMOD的类型通常为-1。 attbyval boolean 这个字段类型的 13.2.15.77 PG_TYPE 中typbyval的拷贝。 attstorage \"char\" 这个字段类型的 13.2.15.77 PG_TYPE 中typstorage的拷贝。 attalign \"char\" 这个字段类型的 13.2.15.77 PG_TYPE 中typalign的拷贝。 attnotnull boolean 这代表一个非空约束。可以改变这个字段以打开或者关闭这个约束。 atthasdef boolean 这个字段有一个缺省值，此时它对应 13.2.15.24 PG_ATTRDEF 表里实际定义此值的记录。 attisdropped boolean 这个字段已经被删除了，不再有效。一个已经删除的字段物理上仍然存在表中，但会被分析器忽略，因此不能再通过SQL访问。 attislocal boolean 这个字段是局部定义在关系中的。请注意一个字段可以同时是局部定义和继承的。 attcmprmode tinyint 对某一列指定压缩方式。压缩方式包括： 0：ATT_CMPR_NOCOMPRESS，不压缩。 1：ATT_CMPR_DELTA，DELTA压缩算法。 2：ATT_CMPR_DICTIONARY，字典压缩算法。 3：ATT_CMPR_PREFIX，前缀压缩算法。 4：ATT_CMPR_NUMSTR，数字字符串压缩算法。 attinhcount integer 这个字段所拥有的直接父表的个数。如果一个字段的父表个数非零，则它就不能被删除或重命名。 attcollation oid 对此列定义的校对列。 attacl aclitem[] 列级访问权限控制。 attoptions text[] 字段属性。目前支持以下两种属性： n_distinct，表示该字段的distinct值数量（不包含字表）。 n_distinct_inherited，表示该字段的distinct值数量（包含字表）。 attfdwoptions text[] 外表字段属性。当前支持的dist_fdw、file_fdw、log_fdw未使用外表字段属性。 attinitdefval bytea 存储了此列默认的值表达式。行存表的ADD COLUMN需要使用此字段。 attkvtype tinyint 对某一列指定key value类型。类型包括： 0：ATT_KV_UNDEFINED，默认。 1：ATT_KV_TAG，维度。 2：ATT_KV_FIELD，指标。 3：ATT_KV_TIMETAG，时间列。 attidentity \"char\" 表示该列的identity类型。类型包括： '0'或'\\0'：非IDENTITY列。 'a'：IDENTITY列属性为ALWAYS类型。 'd'：IDENTITY列属性为BY DEFAULT类型。 'n'：IDENTITY列属性为BY DEFAULT ON NULL类型。",
+      "source_file": "3294_PG_ATTRIBUTE.txt"
+    },
+    {
+      "term": "PG_NAMESPACE",
+      "content": "PG_NAMESPACE PG_NAMESPACE PG_NAMESPACE系统表存储名称空间，即存储schema相关的信息。 表1 PG_NAMESPACE字段 名称 类型 描述 oid oid 行标识符（隐含属性，必须明确选择）。 nspname name 名称空间的名称。 nspowner oid 名称空间的所有者。 nsptimeline bigint 在数据库节点上创建此命名空间时的时间线。此字段为内部使用，仅在数据库节点上有效。 nspacl aclitem[] 访问权限。 in_redistribution \"char\" 是否处于重发布状态。 nspcollation oid 名称空间的默认字符序（仅在sql_compatibility='b'时可能有值）。",
+      "source_file": "3318_PG_NAMESPACE.txt"
+    },
+    {
+      "term": "PG_DATABASE",
+      "content": "PG_DATABASE PG_DATABASE PG_DATABASE系统表存储关于可用数据库的信息。 表1 PG_DATABASE字段 名称 类型 描述 oid oid 行标识符（隐含字段，必须明确选择）。 datname name 数据库名称。 datdba oid 数据库所有人，通常为其创建者。 encoding integer 数据库的字符编码方式。 datcollate name 数据库使用的排序顺序。 datctype name 数据库使用的字符分类。 datistemplate boolean 是否允许作为模板数据库。 true：表示允许。 false：表示不允许。 datallowconn boolean 这个字段用于保护template0数据库不被更改。 true：表示用户可以连接到这个数据库。 false：表示没有用户可以连接到这个数据库。 datconnlimit integer 该数据库上允许的最大并发连接数，-1表示无限制。 datlastsysoid oid 数据库里最后一个系统OID 。 datfrozenxid xid32 用于跟踪该数据库是否需要为了防止事务ID重叠而进行清理。当前版本该字段已经废弃使用，为保持前向兼容，保留此字段，新增datfrozenxid64用于记录此信息。 dattablespace oid 数据库的缺省表空间。 datcompatibility name 数据库兼容模式。当前支持四种兼容模式：PG、ORA、MYSQL、TD。 datacl aclitem[] 访问权限。 datfrozenxid64 xid 用于跟踪该数据库是否需要为了防止事务ID重叠而进行清理。 datminmxid xid 该数据库中所有在这个之前的多事务ID已经被一个事务ID替换。这用于跟踪该数据库是否需要为了防止事务ID重叠或者允许收缩pg_clog而进行清理。它是此数据库中所有表的 12.2.15.28 PG_CLASS 中relminmxid的最小值。 dattimezone name 数据库时区信息，默认为PRC时区。",
+      "source_file": "1588_PG_DATABASE.txt"
+    },
+    {
+      "term": "PGXC_CLASS",
+      "content": "PGXC_CLASS PGXC_CLASS PGXC_CLASS系统表存储每张表的复制或分布信息。PGXC_CLASS系统表在集中式场景下只能查询表定义。 表1 PGXC_CLASS字段 名称 类型 描述 pcrelid oid 表的OID。 pclocatortype \"char\" 定位器类型。 H：hash G：Range L：List M：Modulo N：Round Robin R：Replication pchashalgorithm smallint 使用哈希算法分布元组。 pchashbuckets smallint 哈希容器的值。 pgroup name 节点群的名称。 redistributed \"char\" 表已经完成重分布。 redis_order integer 重分布的顺序。该值等于0的表在本轮重分布过程中不进行重分布。 pcattnum int2vector 用作分布键的列标号。 nodeoids oidvector_extend 表分布的节点OID列表。 options text 系统内部保留字段，存储扩展状态信息。",
+      "source_file": "3347_PGXC_CLASS.txt"
+    },
+    {
+      "term": "PG_ATTRIBUTE",
+      "content": "PG_ATTRIBUTE PG_ATTRIBUTE PG_ATTRIBUTE系统表存储关于表字段的信息。 表1 PG_ATTRIBUTE字段 名称 类型 描述 attrelid oid 此字段所属表。 attname name 字段名。 atttypid oid 字段类型。 attstattarget integer 控制ANALYZE为这个字段积累的统计细节的级别。 零值表示不收集统计信息。 负数表示使用系统缺省的统计对象。 正数值的确切信息是和数据类型相关的。 对于标量数据类型，ATTSTATTARGET既是要收集的\"最常用数值\"的目标数目，也是要创建的柱状图的目标数量。 attlen smallint 是本字段类型的 12.2.15.78 PG_TYPE 中typlen的拷贝。 attnum smallint 字段编号。 attndims integer 如果该字段是数组，则是维数，否则是0 。 attcacheoff integer 在磁盘上的时候总是-1 ，但是如果加载入内存中的行描述器中，它可能会被更新以缓冲在行中字段的偏移量。 atttypmod integer 记录创建新表时支持的类型特定的数据（比如一个varchar字段的最大长度）。它传递给类型相关的输入和长度转换函数当做第三个参数。其值对那些不需要ATTTYPMOD的类型通常为-1。 attbyval boolean 这个字段类型的 12.2.15.78 PG_TYPE 中typbyval的拷贝。 attstorage \"char\" 这个字段类型的 12.2.15.78 PG_TYPE 中typstorage的拷贝。 attalign \"char\" 这个字段类型的 12.2.15.78 PG_TYPE 中typalign的拷贝。 attnotnull boolean 这代表一个非空约束。可以改变这个字段以打开或者关闭这个约束。 atthasdef boolean 这个字段有一个缺省值，此时它对应 12.2.15.25 PG_ATTRDEF 表里实际定义此值的记录。 attisdropped boolean 这个字段已经被删除了，不再有效。一个已经删除的字段物理上仍然存在表中，但会被分析器忽略，因此不能再通过SQL访问。 attislocal boolean 这个字段是局部定义在关系中的。请注意一个字段可以同时是局部定义和继承的。 attcmprmode tinyint 对某一列指定压缩方式。压缩方式包括： 0：ATT_CMPR_NOCOMPRESS，不压缩。 1：ATT_CMPR_DELTA，DELTA压缩算法。 2：ATT_CMPR_DICTIONARY，字典压缩算法。 3：ATT_CMPR_PREFIX，前缀压缩算法。 4：ATT_CMPR_NUMSTR，数字字符串压缩算法。 attinhcount integer 这个字段所拥有的直接父表的个数。如果一个字段的父表个数非零，则它就不能被删除或重命名。 attcollation oid 对此列定义的校对列。 attacl aclitem[] 列级访问权限控制。 attoptions text[] 字段属性。目前支持以下两种属性： n_distinct，表示该字段的distinct值数量（不包含子表）。 n_distinct_inherited，表示该字段的distinct值数量（包含子表）。 attfdwoptions text[] 外表字段属性。当前支持的dist_fdw、file_fdw、log_fdw未使用外表字段属性。 attinitdefval bytea 存储了此列默认的值表达式。行存表的ADD COLUMN需要使用此字段。 attkvtype tinyint 对某一列指定key value类型。类型包括： 0：ATT_KV_UNDEFINED，默认。 1：ATT_KV_TAG，维度。 2：ATT_KV_FIELD，指标。 3：ATT_KV_TIMETAG，时间列。 4：ATT_KV_HIDETAG，隐藏分布列。 attidentity \"char\" 表示该列的identity类型。类型包括： '0'或'\\0'：非IDENTITY列。 'a'：IDENTITY列属性为ALWAYS类型。 'd'：IDENTITY列属性为BY DEFAULT类型。 'n'：IDENTITY列属性为BY DEFAULT ON NULL类型。",
+      "source_file": "1582_PG_ATTRIBUTE.txt"
+    },
+    {
+      "term": "PG_OPERATOR",
+      "content": "PG_OPERATOR PG_OPERATOR PG_OPERATOR系统表存储有关操作符的信息。 表1 PG_OPERATOR字段 名称 类型 引用 描述 oid oid - 行标识符（隐含字段，必须明确选择）。 oprname name - 操作符的名称。 oprnamespace oid PG_NAMESPACE .oid 包含此操作符的名称空间的OID。 oprowner oid PG_AUTHID .oid 操作符所有者。 oprkind \"char\" - b=infix =中缀(“两边”) l=前缀(“左边”) r=后缀(“右边”) oprcanmerge boolean - 这个操作符是否支持合并连接。 t（true）：表示支持合并连接。 f（false）：表示不支持合并连接。 oprcanhash boolean - 这个操作符是否支持Hash连接。 t（true）：表示支持Hash连接。 f（false）：表示不支持Hash连接。 oprleft oid PG_TYPE .oid 左操作数的类型。 oprright oid PG_TYPE .oid 右操作数的类型。 oprresult oid PG_TYPE .oid 结果类型。 oprcom oid PG_OPERATOR .oid 此操作符的交换符，如果存在的话。 oprnegate oid PG_OPERATOR .oid 此操作符的反转器，如果存在的话。 oprcode regproc PG_PROC .proname 实现这个操作符的函数。 oprrest regproc PG_PROC .proname 此操作符的约束选择性计算函数。 oprjoin regproc PG_PROC .proname 此操作符的连接选择性计算函数。",
+      "source_file": "1610_PG_OPERATOR.txt"
+    },
+    {
+      "term": "PG_DESCRIPTION",
+      "content": "PG_DESCRIPTION PG_DESCRIPTION PG_DESCRIPTION系统表可以给每个数据库对象存储一个可选的描述（注释）。许多内置的系统对象的描述提供了PG_DESCRIPTION的初始内容。 这个表的功能类似 PG_SHDESCRIPTION ，用于记录整个数据库范围内共享对象的注释。 表1 PG_DESCRIPTION字段 名称 类型 引用 描述 objoid oid 任意OID属性 这条描述所描述的对象的OID。 classoid oid PG_CLASS .oid 这个对象出现的系统表的OID。 objsubid integer - 对于一个表字段的注释，它是字段号（objoid和classoid指向表自身）。对于其它对象类型，它是零。 description text - 对该对象描述的任意文本。",
+      "source_file": "3302_PG_DESCRIPTION.txt"
+    },
+    {
+      "term": "PG_TS_DICT",
+      "content": "PG_TS_DICT PG_TS_DICT PG_TS_DICT系统表包含定义文本搜索字典的记录。字典取决于文本搜索模板，该模板声明所有需要的实现函数；字典本身提供模板支持的用户可设置的参数的值。 这种分工允许字典通过非权限用户创建。参数由文本字符串dictinitoption指定，参数的格式和意义取决于模板。 表1 PG_TS_DICT字段 名称 类型 引用 描述 oid oid - 行标识符（隐含属性，必须明确选择）。 dictname name - 文本搜索字典名。 dictnamespace oid PG_NAMESPACE .oid 包含这个字典的名称空间的OID。 dictowner oid PG_AUTHID .oid 字典的所有者。 dicttemplate oid PG_TS_TEMPLATE .oid 这个字典的文本搜索模板的OID。 dictinitoption text - 该模板的初始化选项字符串。",
+      "source_file": "3343_PG_TS_DICT.txt"
+    },
+    {
+      "term": "GS_OBSSCANINFO",
+      "content": "GS_OBSSCANINFO GS_OBSSCANINFO GS_OBSSCANINFO系统表定义了在云上加速场景中，使用加速集群 （由于规格变更，当前版本已经不再支持本特性，请不要使用） 时扫描OBS数据的运行时信息，每条记录对应一个query中单个OBS外表 （当前特性是实验室特性，使用时请联系华为技术工程师提供技术支持。） 的运行时信息。 表1 GS_OBSSCANINFO字段 名称 类型 引用 描述 query_id bigint - 查询标识。 user_id text - 执行该查询的数据库用户。 table_name text - OBS外表的表名。 file_type text - 底层数据保存的文件格式。 time_stamp timestamp with time zone - 扫描操作开始的时间。 actual_time double precision - 扫描操作执行时间，单位为秒。 file_scanned bigint - 扫描的文件数量。 data_size double precision - 扫描的数据量，单位为字节。 billing_info text - 保留字段。",
+      "source_file": "1564_GS_OBSSCANINFO.txt"
+    },
+    {
+      "term": "STREAMING_STREAM",
+      "content": "STREAMING_STREAM STREAMING_STREAM STREAMING_STREAM系统表存储所有STREAM对象的元数据信息。 表1 STREAMING_STREAM字段 名称 类型 描述 relid oid STREAM对象的标识。 queries bytea 该STREAM对应CONTVIEW的位图映射。",
+      "source_file": "1641_STREAMING_STREAM.txt"
+    },
+    {
+      "term": "PG_PLTEMPLATE",
+      "content": "PG_PLTEMPLATE PG_PLTEMPLATE PG_PLTEMPLATE系统表存储过程语言的“模板”信息。 表1 PG_PLTEMPLATE字段 名称 类型 描述 tmplname name 这个模板所应用的语言的名称。 tmpltrusted boolean 如果语言被认为是可信的，则为真。 tmpldbacreate boolean 如果语言是由数据库所有者创建的，则为真。 tmplhandler text 调用处理器函数的名称。 tmplinline text 匿名块处理器的名称，若没有则为NULL。 tmplvalidator text 校验函数的名称，如果没有则为NULL。 tmpllibrary text 实现语言的共享库的路径。 tmplacl aclitem[] 模板的访问权限（未使用）。",
+      "source_file": "3324_PG_PLTEMPLATE.txt"
+    },
+    {
+      "term": "PG_CLASS",
+      "content": "PG_CLASS PG_CLASS PG_CLASS系统表存储数据库对象信息及其之间的关系。 表1 PG_CLASS字段 名称 类型 描述 oid oid 行标识符（隐含字段，必须明确选择）。 relname name 表、索引、视图等对象的名称。 relnamespace oid 包含这个关系的名称空间的OID。 reltype oid 对应这个表的行类型的数据类型（索引为零，因为索引没有pg_type记录）。 reloftype oid 复合类型的OID，0表示其他类型。 relowner oid 关系所有者。 relam oid 如果行是索引，则就是所用的访问模式（B-tree，hash等）。 relfilenode oid 这个关系在磁盘上的文件的名称，如果没有则为0。 reltablespace oid 这个关系存储所在的表空间。如果为零，则意味着使用该数据库的缺省表空间。如果关系在磁盘上没有文件，则这个字段没有什么意义。 relpages double precision 以页(大小为BLCKSZ)为单位的该表在磁盘上的大小，它只是优化器用的一个近似值。 reltuples double precision 表中行的数目，只是优化器使用的一个估计值。 relallvisible integer 被标识为全可见的表中的页的数量。此字段是优化器用来做SQL执行优化使用的。VACUUM、ANALYZE和一些DDL语句（例如，CREATE INDEX）会引起此字段更新。 reltoastrelid oid 与该表关联的TOAST表的OID ，如果没有则为0。 TOAST表在一个从属表里“离线”存储大字段。 reltoastidxid oid 对于TOAST表是它的索引的OID，如果不是TOAST表则为0。 relhasindex boolean 如果它是一个表而且至少有（或者最近有过）一个索引，则为真。 它是由CREATE INDEX设置的，但DROP INDEX不会立即将它清除。如果VACUUM进程检测一个表没有索引，将会把它将清理relhasindex字段，将值设置为假。 relisshared boolean 如果该表在 整个集群 中由所有数据库共享则为真，否则为假。只有某些系统表（比如pg_database）是共享的。 relpersistence \"char\" p：表示永久表。 u：表示非日志表。 t：表示临时表。 g：表示全局临时表。 relkind \"char\" r：表示普通表。 i：表示索引。 G：表示全局二级索引。 S：表示序列。 v：表示视图。 c：表示复合类型。 t：表示TOAST表。 f：表示外表。 m：表示物化视图。 e：表示STREAM对象。 o：表示CONTVIEW对象。 relnatts smallint 关系中用户字段数目（除了系统字段以外）。在 12.2.15.26 PG_ATTRIBUTE 里肯定有相同数目对应行。 relchecks smallint 表里的检查约束的数目，参阅 12.2.15.30 PG_CONSTRAINT 表。 relhasoids boolean 如果为关系中每行都生成一个OID则为真，否则为假。 relhaspkey boolean 如果这个表有一个（或者曾经有一个）主键，则为真，否则为假。 relhasrules boolean 如表有规则就为真。是否有规则可参考系统表 12.2.15.63 PG_REWRITE 。 relhastriggers boolean True表示表中有触发器，或者曾经有过触发器。系统表 12.2.15.72 PG_TRIGGER 中记录了表和视图的触发器。 relhassubclass boolean 如果有（或者曾经有）任何继承的子表，为真，否则为假。 relcmprs tinyint 表示是否启用表的压缩特性。需要特别注意，当且仅当批量插入才会触发压缩，普通的CRUD并不能够触发压缩。 0表示其他不支持压缩的表（主要是指系统表，不支持压缩属性的修改操作）。 1表示表数据的压缩特性为NOCOMPRESS或者无指定关键字。 2表示表数据的压缩特性为COMPRESS。 relrowmovement boolean 针对分区表进行update操作时，是否允许行迁移。 true：表示允许行迁移。 false：表示不允许行迁移。 parttype \"char\" 表或者索引是否具有分区表的性质。 p：表示带有分区表性质。 n：表示没有分区表特性。 relfrozenxid xid32 该表中所有在这个之前的事务ID已经被一个固定的（\"frozen\"）事务ID替换。该字段用于跟踪该表是否需要为了防止事务ID重叠（或者允许收缩pg_clog）而进行清理。如果该关系不是表则为零（InvalidTransactionId）。 为保持前向兼容，保留此字段，新增relfrozenxid64用于记录此信息。 relacl aclitem[] 访问权限。aclitem类型说明可以参考 aclitem类型 。 查询的回显结果为以下形式： 1 user1 = privs / user2 表示 user2 赋予 user1 的权限为 privs 1 = privs / user3 表示 user3 赋予 public 角色的权限为 privs 其中user1，user2和user3为数据库中已存在的用户/角色名，privs为数据库中支持的权限。权限的参数说明请参见 表2 。 reloptions text[] 表或索引的访问方法，使用\"keyword=value\"格式的字符串。 relreplident \"char\" 逻辑解码中解码列的标识： d：默认 (主键，如果存在)。 n：无。 f：所有列。 i：索引的indisreplident被设置或者为默认。 relfrozenxid64 xid 该表中所有在这个之前的事务ID已经被一个固定的（\"frozen\"）事务ID替换。该字段用于跟踪该表是否需要为了防止事务ID重叠（或者允许收缩pg_clog）而进行清理。如果该关系不是表则为零（InvalidTransactionId）。 relbucket oid 当前表是否包含hash bucket分片。有效的OID指向pg_hashbucket表中记录的具体分片信息。NULL表示不包含hash bucket分片。 relbucketkey int2vector 表示hash分区列信息，NULL表示不包含。 relminmxid xid 该表中所有在这个之前的多事务ID已经被一个事务ID替换。该字段用于跟踪该表是否需要为了防止多事务ID重叠或者允许收缩pg_clog而进行清理。如果该关系不是表则为零（InvalidTransactionId）。 表2 权限的参数说明 参数 参数说明 r SELECT（读） w UPDATE（写） a INSERT（插入） d DELETE D TRUNCATE x REFERENCES t TRIGGER X EXECUTE U USAGE C CREATE c CONNECT T TEMPORARY A ALTER P DROP m COMMENT i INDEX v VACUUM * 给前面权限的授权选项",
+      "source_file": "1584_PG_CLASS.txt"
+    },
+    {
+      "term": "PG_LANGUAGE",
+      "content": "PG_LANGUAGE PG_LANGUAGE PG_LANGUAGE系统表登记编程语言，用户可以用这些语言或接口写函数或者存储过程。 表1 PG_LANGUAGE字段 名称 类型 引用 描述 oid oid - 行标识符（隐含属性；必须明确选择）。 lanname name - 语言的名称。 lanowner oid PG_AUTHID .oid 语言的所有者。 lanispl boolean - 对于内部语言而言是假（比如SQL），对于用户定义的语言则是真。目前，gs_dump仍然使用该字段判断哪种语言需要转储，但是这些可能在将来被其它机制取代。 lanpltrusted boolean - 如果这是可信语言则为真，意味着系统相信它不会被授予任何正常SQL执行环境之外的权限。只有初始用户可以用不可信的语言创建函数。 lanplcallfoid oid PG_PROC .oid 对于非内部语言，这是指向该语言处理器的引用，语言处理器是一个特殊函数， 负责执行以某种语言写的所有函数。 laninline oid PG_PROC .oid 这个字段引用一个负责执行“inline”匿名代码块的函数（DO块）。如果不支持内联块则为零。 lanvalidator oid PG_PROC .oid 这个字段引用一个语言校验器函数，它负责检查新创建的函数的语法和有效性。如果没有提供校验器，则为零。 lanacl aclitem[] - 访问权限。",
+      "source_file": "3315_PG_LANGUAGE.txt"
+    },
+    {
+      "term": "GS_JOB_ARGUMENT",
+      "content": "GS_JOB_ARGUMENT GS_JOB_ARGUMENT GS_JOB_ARGUMENT系统表提供了DBE_SCHEDULER定时任务和程序的参数属性。 表1 GS_JOB_ARGUMENT字段 名称 类型 描述 oid oid 行标识符（隐含字段）。 argument_position integer 定时任务或程序的参数位置。 argument_type name 定时任务或程序的参数类型。 job_name text 定时任务或程序名。 argument_name text 定时任务或程序的参数名（定时任务继承了程序的参数名，所以为空）。 argument_value text 定时任务的参数值（程序本身无法绑定值）。 default_value text 程序的参数默认值。",
+      "source_file": "3275_GS_JOB_ARGUMENT.txt"
+    },
+    {
+      "term": "PG_TS_DICT",
+      "content": "PG_TS_DICT PG_TS_DICT PG_TS_DICT系统表包含定义文本搜索字典的记录。字典取决于文本搜索模板，该模板声明所有需要的实现函数；字典本身提供模板支持的用户可设置的参数的值。 这种分工允许字典通过非权限用户创建。参数由文本字符串dictinitoption指定，参数的格式和意义取决于模板。 表1 PG_TS_DICT字段 名称 类型 引用 描述 oid oid - 行标识符（隐含字段，必须明确选择）。 dictname name - 文本搜索字典名。 dictnamespace oid PG_NAMESPACE .oid 包含这个字典的名称空间的OID。 dictowner oid PG_AUTHID .oid 字典的所有者。 dicttemplate oid PG_TS_TEMPLATE .oid 这个字典的文本搜索模板的OID。 dictinitoption text - 该模板的初始化选项字符串。",
+      "source_file": "1631_PG_TS_DICT.txt"
+    },
+    {
+      "term": "PG_JOB_PROC",
+      "content": "PG_JOB_PROC PG_JOB_PROC PG_JOB_PROC系统表对应PG_JOB表中每个任务的作业内容（包括：PL/SQL代码块、匿名块）。将存储过程信息独立出来，是因为这个字段是varchar(4000)的，如果放到PG_JOB中，被加载到共享内存的时候，会占用不必要的空间，所以在使用的时候再进行查询获取。普通用户需授权后才能访问。 表1 PG_JOB_PROC字段 名称 类型 描述 oid oid 行标识符（隐含字段，必须明确选择）。 job_id integer 外键，关联pg_job表中的job_id。 what text 作业内容，DBE_SCHEDULER定时任务中的程序内容。 job_name text DBE_SCHEDULER定时任务专用，定时任务或程序名称。",
+      "source_file": "1602_PG_JOB_PROC.txt"
+    },
+    {
+      "term": "PG_REPLICATION_ORIGIN",
+      "content": "PG_REPLICATION_ORIGIN PG_REPLICATION_ORIGIN PG_REPLICATION_ORIGIN系统表包含所有已创建的复制源，该表为全局共享表，即在每个节点上有只有一份pg_replication_origin，而不是每个数据库一份。 表1 PG_REPLICATION_ORIGIN字段 名称 类型 描述 roident oid 一个数据库实例范围内唯一的复制源标识符。 roname text 外部的由用户定义的复制源名称。",
+      "source_file": "3329_PG_REPLICATION_ORIGIN.txt"
+    },
+    {
+      "term": "PG_OPCLASS",
+      "content": "PG_OPCLASS PG_OPCLASS PG_OPCLASS系统表定义索引访问方法操作符类。 每个操作符类为一种特定数据类型和一种特定索引访问方法定义索引字段的语义。一个操作符类本质上指定一个特定的操作符族适用于一个特定的可索引的字段数据类型。索引的字段实际可用的族中的操作符集是接受字段的数据类型作为它们的左边的输入的那个。 表1 PG_OPCLASS字段 名称 类型 引用 描述 oid oid - 行标识符（隐含字段，必须明确选择）。 opcmethod oid PG_AM .oid 操作符类所服务的索引访问方法。 opcname name - 这个操作符类的名称。 opcnamespace oid PG_NAMESPACE .oid 这个操作符类的名称空间。 opcowner oid PG_AUTHID .oid 操作符类属主。 opcfamily oid PG_OPFAMILY .oid 包含该操作符类的操作符族。 opcintype oid PG_TYPE .oid 操作符类索引的数据类型。 opcdefault boolean - 如果操作符类是opcintype的缺省，则为真。 opckeytype oid PG_TYPE .oid 索引数据的类型，如果和opcintype相同则为零。 一个操作符类的opcmethod必须匹配包含它的操作符族的opfmethod。",
+      "source_file": "1609_PG_OPCLASS.txt"
+    },
+    {
+      "term": "PGXC_CLASS",
+      "content": "PGXC_CLASS PGXC_CLASS PGXC_CLASS系统表存储每张表的复制或分布信息。 表1 PGXC_CLASS字段 名称 类型 描述 pcrelid oid 表的OID。 pclocatortype \"char\" 定位器类型。 H：hash G：Range L：List M：Modulo N：Round Robin R：Replication pchashalgorithm smallint 使用哈希算法分布元组。 pchashbuckets smallint 哈希容器的值。 pgroup name 节点群的名称。 redistributed \"char\" 表已经完成重分布。 redis_order integer 重分布的顺序。该值等于0的表在本轮重分布过程中不进行重分布。 pcattnum int2vector 用作分布键的列标号。 nodeoids oidvector_extend 表分布的节点OID列表。 options text 系统内部保留字段，存储扩展状态信息。",
+      "source_file": "1635_PGXC_CLASS.txt"
+    },
+    {
+      "term": "PG_JOB",
+      "content": "PG_JOB PG_JOB PG_JOB系统表存储用户创建的定时任务的任务详细信息，定时任务线程定时轮询pg_job系统表中的时间，当任务到期会触发任务的执行，并更新pg_job表中的任务状态。该系统表属于Shared Relation，所有创建的job记录对所有数据库可见。普通用户需授权后才能访问。 表1 PG_JOB字段 名称 类型 描述 oid oid 行标识符（隐含字段，必须明确选择）。 job_id bigint 作业ID，主键，是唯一的（有唯一索引） current_postgres_pid bigint 如果当前任务已被执行，那么此处记录运行此任务的线程ID。默认为 -1，表示此任务未被执行过。 log_user name 创建者的UserName priv_user name 作业执行者的UserName dbname name 标识作业要在哪个数据库执行的数据库名称 node_name name 标识当前作业是在哪个 CN 上创建和执行 job_status \"char\" 当前任务的执行状态，取值范围：('r', 's', 'f', 'd')，默认为's'，取值含义： Status of job step: r=running, s=successfully finished,  f=job failed, d=disable 当job连续执行失败16次，会将job_status自动设置为失效状态'd'，后续不再执行该job。 注：当用户将定时任务关闭（即：guc参数job_queue_processes为0时），由于监控job执行的线程不会启动，所以该状态不会根据job的实时状态进行设置，用户不需要关注此状态。只有当开启定时任务功能（即：guc参数job_queue_processes为非0时），系统才会根据当前job的实时状态刷新该字段值。 start_date timestamp without time zone 作业第一次开始执行时间，时间精确到毫秒。 next_run_date timestamp without time zone 下次定时执行任务的时间，时间精确到毫秒。 failure_count smallint 失败计数，作业连续执行失败16次，不再继续执行。 interval text 作业执行的重复时间间隔。 last_start_date timestamp without time zone 上次运行开始时间，时间精确到毫秒。 last_end_date timestamp without time zone 上次运行的结束时间，时间精确到毫秒。 last_suc_date timestamp without time zone 上次成功运行的开始时间，时间精确到毫秒。 this_run_date timestamp without time zone 正在运行任务的开始时间，时间精确到毫秒。 nspname name 标识作业执行时的schema的名称。 job_name text DBE_SCHEDULER定时任务专用，定时任务名称。 end_date timestamp without time zone DBE_SCHEDULER定时任务专用，定时任务失效时间，时间精确到毫秒。 enable boolean DBE_SCHEDULER定时任务专用，定时任务启用状态： true：启用 false：未启用 failure_msg text 最新一次执行任务报错信息。",
+      "source_file": "1601_PG_JOB.txt"
+    },
+    {
+      "term": "PG_INDEX",
+      "content": "PG_INDEX PG_INDEX PG_INDEX系统表存储索引的一部分信息，其他的信息大多数在PG_CLASS中。 表1 PG_INDEX字段 名称 类型 描述 indexrelid oid 这个索引在pg_class里的记录的OID。 indrelid oid 使用这个索引的表在pg_class里的记录的OID。 indnatts smallint 索引中的字段数目。 indisunique boolean 如果为真，这是个唯一索引。 如果为假，这不是唯一索引。 indisprimary boolean 如果为真，该索引代表该表的主键。这个字段为真的时候indisunique总是为真。 如果为假，该索引不是该表的主键。 indisexclusion boolean 如果为真，该索引支持排他约束。 如果为假，该索引不支持排他约束。 indimmediate boolean 如果为真，在插入数据时会立即进行唯一性检查。 如果为假，在插入数据时不会进行唯一性检查。 indisclustered boolean 如果为真，则该表最后在这个索引上建了簇。 如果为假，则该表没有再这个索引上建簇 indisusable boolean 如果为真，该索引对insert/select可用。 如果为假，该索引对insert/select不可用。 indisvalid boolean 如果为真，则该索引可以用于查询。如果为假，则该索引可能不完整，仍然必须在INSERT/UPDATE操作时进行更新，不过不能安全的用于查询。如果是唯一索引，则唯一属性也将不为真。 indcheckxmin boolean 如果为true，查询不能使用索引，直到pg_index此行的xmin低于其快照的TransactionXmin，因为该表可能包含它们能看到的不兼容行断开的HOT链。 如果为false，查询可以用于索引。 indisready boolean 如果为真，表示此索引对插入数据是可用的，否则，在插入或修改数据时忽略此索引。 indkey int2vector 这是一个包含indnatts值的数组，这些数组值表示这个索引所建立的表字段。比如一个值为1 3的意思是第一个字段和第三个字段组成这个索引键字。这个数组里的零表明对应的索引属性是在这个表字段上的一个表达式，而不是一个简单的字段引用。 indcollation oidvector 索引各列对应的排序规则的OID，详情请参考 PG_COLLATION 。 indclass oidvector 对于索引键字里面的每个字段，这个字段都包含一个指向所使用的操作符类的OID，详情请参考 PG_OPCLASS 。 indoption int2vector 存储列前标识位，该标识位是由索引的访问方法定义。 indexprs pg_node_tree 表达式树（以nodeToString()形式表现）用于那些非简单字段引用的索引属性。它是一个列表，个数与INDKEY中的零值个数相同。如果所有索引属性都是简单的引用，则为空。 indpred pg_node_tree 部分索引断言的表达式树（以nodeToString()的形式表现）。如果不是部分索引，则是空字符串。 indisreplident boolean 如果为真，则此索引的列成为逻辑解码的解码列。 如果为假，则此索引的列不是逻辑解码的解码列。 indnkeyatts smallint 索引中的总字段数，超出indnatts的部分不参与索引查询。 indcctmpid oid Ustore在线创建索引时临时表oid。 indisvisible boolean 如果为真，则此索引状态为可见，即优化器可以使用此索引。 如果为假，则此索引状态为不可见，此时若enable_invisible_indexes参数为off，则优化器不可以使用此索引；若enable_invisible_indexes参数为on，则优化器可以使用此索引。",
+      "source_file": "3311_PG_INDEX.txt"
+    },
+    {
+      "term": "GS_STATISTIC_EXT_HISTORY",
+      "content": "GS_STATISTIC_EXT_HISTORY GS_STATISTIC_EXT_HISTORY GS_STATISTIC_EXT_HISTORY是多列历史统计信息管理表，存储有关该数据库中表的历史扩展统计数据，包括多列统计数据和表达式统计数据（后续支持）。收集哪些扩展统计数据是由用户指定的。需要有系统管理员权限才可以访问此系统表。 表1 GS_STATISTIC_EXT_HISTORY 字段 名称 类型 描述 starelid oid 所描述的字段所属的表或者索引。 starelkind \"char\" 所属对象的类型，'c'表示表，'p'表示分区。 stainherit boolean 是否统计有继承关系的对象。 statimestamp timestamp with time zone 该条统计信息收集的时间。 stanullfrac real 该字段中为NULL的记录的比率。 stawidth integer 非NULL记录的平均存储宽度，以字节计。 stadistinct real 标识全局统计信息中数据库节点上字段里唯一的非NULL数据值的数目。 一个大于零的数值是独立数值的实际数目。 一个小于零的值是distinct值所占总行数的比例，比如stadistinct=-0.5时，它的实际distinct值是总行数*0.5。 零值表示独立数值的数目未知。 stadndistinct real 标识DN1上字段里唯一的非NULL数据值的数目。 一个大于零的数值是独立数值的实际数目。 一个小于零的值是distinct值所占总行数的比例，比如stadndistinct=-0.5时，它的实际distinct值是总行数*0.5。 零值表示独立数值的数目未知。 standvfunc \"char\" 该条统计信息计算NDV时采用的算法。 d：采用原来的DUJ1算法估算。 c：采用C19算法估算。 staorigin \"char\" 该条统计信息的收集方式来源。 a：标识由autoanalyze触发收集。 m：标识由手动analyze触发收集。 g：标识由插入大量数据触发了gsstat线程做analyze收集。 stakindN smallint 一个编码，表示这种类型的统计存储在pg_statistic行的第n个“槽位”。 n的取值范围：1～5。 staopN oid 一个用于生成这些存储在第n个“槽位”的统计信息的操作符。比如，一个柱面图槽位会显示<操作符，该操作符定义了该数据的排序顺序。 n的取值范围：1～5。 stakey int2vector 所描述的字段编号的数组。 stanumbersN real[] 第n个“槽位”的相关类型的数值类型统计，如果该槽位和数值类型没有关系，则就是NULL。 n的取值范围：1～5。 stavaluesN anyarray 第n个“槽位”类型的字段数据值，如果该槽位类型不存储任何数据值，则就是NULL。每个数组的元素值实际上都是指定字段的数据类型，因此，除了把这些字段的类型定义成anyarray之外，没有更好的办法。 n的取值范围：1～5。 staexprs pg_node_tree 扩展统计信息对应的表达式。 stasource \"char\" 扩展统计信息的来源： 'a'：表示自动创建，由GUC参数auto_statistic_ext_columns控制。 'm'：表示手动创建，用户通过 analyze tablename ((column list)) 或者 alter table tablename add statistics ((column list)) 来创建。 stastatus \"char\" 扩展统计信息的状态： 'a'：表示活跃可用。 'd'：表示被禁用，相关信息不被收集，优化器在生成计划的时候也不使用。用户可以使用语法 alter table tablename disable/enable statistics((column list)) 来修改扩展统计信息的状态。 staextname name 多列统计信息多列组的别名。",
+      "source_file": "3283_GS_STATISTIC_EXT_HISTORY.txt"
+    },
+    {
+      "term": "PG_TABLESPACE",
+      "content": "PG_TABLESPACE PG_TABLESPACE PG_TABLESPACE系统表存储表空间信息。 表1 PG_TABLESPACE字段 名称 类型 描述 oid oid 行标识符（隐含字段，必须明确选择）。 spcname name 表空间名称。 spcowner oid 表空间的所有者，通常是创建它的人。 spcacl aclitem[] 访问权限。具体请参见 GRANT 和 REVOKE 。 spcoptions text[] 表空间的选项。 spcmaxsize text 可使用的最大磁盘空间大小，单位Byte。 relative boolean 标识表空间指定的存储路径是否为相对路径。 t（true）：表示是。 f（false）：表示不是。",
+      "source_file": "1627_PG_TABLESPACE.txt"
+    },
+    {
+      "term": "PG_OPFAMILY",
+      "content": "PG_OPFAMILY PG_OPFAMILY PG_OPFAMILY系统表定义操作符族。 每个操作符族是一个操作符和相关支持例程的集合，其中的例程实现为一个特定的索引访问方式指定的语义。另外，族中的操作符都是“兼容的”，通过由访问方式指定的方法。操作符族的概念允许交叉数据类型操作符和索引一起使用，并且合理的使用访问方式的语义的知识。 表1 PG_OPFAMILY字段 名称 类型 引用 描述 oid oid - 行标识符（隐含字段，必须明确选择）。 opfmethod oid PG_AM .oid 操作符族使用的索引方法。 opfname name - 这个操作符族的名称。 opfnamespace oid PG_NAMESPACE .oid 这个操作符的名称空间。 opfowner oid PG_AUTHID .oid 操作符族的所有者。 定义一个操作符族的大多数信息不在它的PG_OPFAMILY行里面，而是在相关的行 PG_AMOP ， PG_AMPROC 和 PG_OPCLASS 里。",
+      "source_file": "1611_PG_OPFAMILY.txt"
+    },
+    {
+      "term": "PG_PUBLICATION",
+      "content": "PG_PUBLICATION PG_PUBLICATION 系统表PG_PUBLICATION包含当前数据库中创建的所有publication。 表1 PG_PUBLICATION字段 名称 类型 描述 oid oid 行标识符（隐含属性，必须明确选择）。 pubname name publication的名称。 pubowner oid publication的拥有者。 puballtables boolean 如果为真，这个publication自动包括数据库中的所有表，包括未来将会创建的任何表。 pubinsert boolean 如果为真，为publication中的表复制INSERT操作。 pubupdate boolean 如果为真，为publication中的表复制UPDATE操作。 pubdelete boolean 如果为真，为publication中的表复制DELETE操作。",
+      "source_file": "3326_PG_PUBLICATION.txt"
+    },
+    {
+      "term": "PG_DEPEND",
+      "content": "PG_DEPEND PG_DEPEND PG_DEPEND系统表记录数据库对象之间的依赖关系。这个信息允许DROP命令找出哪些其它对象必须由DROP CASCADE删除，或者是在DROP RESTRICT的情况下避免删除。 这个表的功能类似 PG_SHDEPEND ，用于记录那些在 数据库集群 之间共享的对象之间的依赖性关系。 表1 PG_DEPEND字段 名称 类型 引用 描述 classid oid PG_CLASS .oid 有依赖对象所在系统表的OID。 objid oid 任意OID属性 指定的依赖对象的OID。 objsubid integer - 对于表字段，这个是该属性的字段数（objid和classid引用表本身）。对于所有其它对象类型，目前这个字段是0。 refclassid oid PG_CLASS .oid 被引用对象所在的系统表的OID。 refobjid oid 任意OID属性 指定的被引用对象的OID。 refobjsubid integer - 对于表字段，这个是该字段的字段号（refobjid和refclassid引用表本身）。对于所有其它对象类型，目前这个字段是0。 deptype \"char\" - 一个定义这个依赖关系特定语义的代码。 在所有情况下，一个PG_DEPEND记录表示被引用的对象不能在有依赖的对象被删除前删除。不过，这里还有几种由deptype定义的情况： DEPENDENCY_NORMAL (n)：独立创建的对象之间的一般关系。有依赖的对象可以在不影响被引用对象的情况下删除。被引用对象只有在声明了CASCADE的情况下删除，这时有依赖的对象也被删除。例子：一个表字段对其数据类型有一般依赖关系。 DEPENDENCY_AUTO (a)：有依赖对象可以和被引用对象分别删除，并且如果删除了被引用对象则应该被自动删除（不管是RESTRICT或CASCADE模式）。例子：一个表上面的命名约束是在该表上的自动依赖关系，因此如果删除了表，它也会被删除。 DEPENDENCY_INTERNAL (i)：有依赖的对象是作为被引用对象的一部分创建的，实际上只是它的内部实现的一部分。 DROP有依赖对象是不能直接允许的（将告诉用户发出一条删除被引用对象的DROP）。一个对被引用对象的DROP将传播到有依赖对象，不管是否声明了CASCADE。例子：一个创建来强制外键约束的触发器在该约束的 PG_CONSTRAINT 记录上是标记为内部依赖的。 DEPENDENCY_EXTENSION (e)：依赖对象是被依赖对象extension的一个成员（请参见 PG_EXTENSION ）。依赖对象只可以通过在被依赖对象上DROP EXTENSION删除。函数上这个依赖类型和内部依赖一样动作，但是它为了清晰和简化gs_dump保持分开。 DEPENDENCY_PIN (p)：没有依赖对象，这种类型的记录标志着系统本身依赖于被引用对象，因此这个对象绝不能被删除。这种类型的记录只有在initdb的时候创建。有依赖对象的字段里是零。",
+      "source_file": "1589_PG_DEPEND.txt"
+    },
+    {
+      "term": "PG_TS_TEMPLATE",
+      "content": "PG_TS_TEMPLATE PG_TS_TEMPLATE PG_TS_TEMPLATE系统表包含定义文本搜索模板的记录。模板是文本搜索字典的类的实现框架。因为模板必须通过C语言级别的函数实现，索引新模板的创建必须由数据库系统管理员创建。 表1 PG_TS_TEMPLATE字段 名称 类型 引用 描述 oid oid - 行标识符（隐含属性；必须明确选择）。 tmplname name - 文本搜索模板名。 tmplnamespace oid PG_NAMESPACE .oid 包含这个模板的名称空间的OID。 tmplinit regproc PG_PROC .proname 模板的初始化函数名。 tmpllexize regproc PG_PROC .proname 模板的lexize函数名。",
+      "source_file": "3345_PG_TS_TEMPLATE.txt"
+    },
+    {
+      "term": "GS_SQL_PATCH",
+      "content": "GS_SQL_PATCH GS_SQL_PATCH GS_SQL_PATCH系统表存储所有SQL_PATCH的状态信息。 表1 GS_SQL_PATCH字段 名称 类型 描述 patch_name name PATCH名称。 unique_sql_id bigint 查询全局唯一ID。 owner oid PATCH的创建用户ID。 enable boolean PATCH是否生效。 status \"char\" PATCH的状态（预留字段）。 abort boolean 是否是AbortHint。 hint_string text Hint文本。 hint_node pg_node_tree Hint解析&序列化的结果。 original_query text 原始语句（预留字段）。 patched_query text PATCH之后的语句（预留字段）。 original_query_tree pg_node_tree 原始语句的解析结果（预留字段）。 patched_query_tree pg_node_tree PATCH之后语句的解析结果（预留字段）。 description text PATCH的备注。 parent_unique_sql_id bigint PATCH生效的SQL语句的外层语句的全局唯一ID，存储过程外的语句该值为0，存储过程内的语句该值为调用该存储过程语句的全局唯一ID。",
+      "source_file": "3282_GS_SQL_PATCH.txt"
+    },
+    {
+      "term": "GS_SECURITY_LABEL",
+      "content": "GS_SECURITY_LABEL GS_SECURITY_LABEL GS_SECURITY_LABEL是共享系统表，记录安全标签的相关信息，每条记录对应一个安全标签。 表1 GS_SECURITY_LABEL字段 名称 类型 描述 oid oid 行标识符（隐含字段，必须明确选择）。 label_name name 安全标签名称。 label_content text 安全标签内容。",
+      "source_file": "1569_GS_SECURITY_LABEL.txt"
+    },
+    {
+      "term": "PG_FOREIGN_DATA_WRAPPER",
+      "content": "PG_FOREIGN_DATA_WRAPPER PG_FOREIGN_DATA_WRAPPER PG_FOREIGN_DATA_WRAPPER系统表存储外部数据封装器定义。一个外部数据封装器是在外部服务器上驻留外部数据的机制，是可以访问的。 表1 PG_FOREIGN_DATA_WRAPPER字段 名称 类型 引用 描述 oid oid - 行标识符（隐含属性，必须明确选择）。 fdwname name - 外部数据封装器名。 fdwowner oid PG_AUTHID .oid 外部数据封装器的所有者。 fdwhandler oid PG_PROC .oid 引用一个负责为外部数据封装器提供扩展例程的处理函数。如果没有提供处理函数则为零。 fdwvalidator oid PG_PROC .oid 引用一个验证器函数，这个验证器函数负责验证给予外部数据封装器的选项、 外部服务器选项和使用外部数据封装器的用户映射的有效性。 如果没有提供验证器函数则为零。 fdwacl aclitem[] - 访问权限。 fdwoptions text[] - 外部数据封装器指定选项，使用“keyword=value”格式的字符串。",
+      "source_file": "3307_PG_FOREIGN_DATA_WRAPPER.txt"
+    },
+    {
+      "term": "GS_RECYCLEBIN",
+      "content": "GS_RECYCLEBIN GS_RECYCLEBIN GS_RECYCLEBIN描述了回收站对象的详细信息。 表1 GS_RECYCLEBIN字段 名称 类型 描述 oid oid 系统列。 rcybaseid oid 基表对象id，引用gs_recyclebin.oid。 rcydbid oid 当前对象所属数据库oid。 rcyrelid oid 当前对象oid。 rcyname name 回收站对象名称，格式“BIN$unique_id$oid$0”，其中unique_id为最多16字符唯一标识，oid为对象标识符。 rcyoriginname name 原始对象名称。 rcyoperation \"char\" 操作类型。 d表示drop。 t表示truncate。 rcytype integer 对象类型。 0表示table。 1表示index。 2表示toast table。 3表示toast index。 4表示sequence，指serial、bigserial、smallserial、largeserial类型自动关联的序列对象。 5表示partition。 6表示global index。 7表示物化视图。 rcyrecyclecsn bigint 对象drop、truncate时csn。 rcyrecycletime timestamp with time zone 对象drop、truncate时间。 rcycreatecsn bigint 对象创建时csn。 rcychangecsn bigint 对象定义改变的csn。 rcynamespace oid 包含这个关系的名字空间的OID。 rcyowner oid 关系所有者。 rcytablespace oid 这个关系存储所在的表空间。如果为0，则意味着使用该数据库的缺省表空间。如果关系在磁盘上没有文件，则这个字段没有什么意义。 rcyrelfilenode oid 回收站对象在磁盘上的文件的名称，如果没有则为0，用于TRUNCATE对象恢复时物理文件还原。 rcycanrestore boolean 是否可以被单独闪回。 rcycanpurge boolean 是否可以被单独purge。 rcyfrozenxid xid32 该表中所有在这个之前的事务ID已经被一个固定的（\"frozen\"）事务ID替换。 rcyfrozenxid64 xid 该表中所有在这个之前的事务ID已经被一个固定的（\"frozen\"）事务ID替换。 rcybucket oid 13.2.15.41 PG_HASHBUCKET 中的桶信息。",
+      "source_file": "3280_GS_RECYCLEBIN.txt"
+    },
+    {
+      "term": "PG_AMPROC",
+      "content": "PG_AMPROC PG_AMPROC PG_AMPROC系统表存储有关与访问方法操作符族相关联的支持过程的信息。每个属于某个操作符族的支持过程都占有一行。 表1 PG_AMPROC字段 名称 类型 引用 描述 oid oid - 行标识符（隐含属性，必须明确选择）。 amprocfamily oid PG_OPFAMILY .oid 该项的操作符族。 amproclefttype oid PG_TYPE .oid 相关操作符的左输入数据类型。可能取值及其描述见于 8.3 数据类型 。 amprocrighttype oid PG_TYPE .oid 相关操作符的右输入数据类型。可能取值及其描述见于 8.3 数据类型 。 amprocnum smallint - 支持过程编号。 amproc regproc PG_PROC .proname 过程的OID。 amproclefttype和amprocrighttype字段的习惯解释，标识一个特定支持过程支持的操作符的左和右输入类型。对于某些访问方式，匹配支持过程本身的输入数据类型，对其他的则不这样。有一个对索引的“缺省”支持过程的概念，amproclefttype和amprocrighttype都等于索引操作符类的opcintype。",
+      "source_file": "3292_PG_AMPROC.txt"
+    },
+    {
+      "term": "PG_SUBSCRIPTION",
+      "content": "PG_SUBSCRIPTION PG_SUBSCRIPTION 系统表PG_SUBSCRIPTION包含所有现有的逻辑复制订阅。需要有系统管理员权限才可以访问此系统表。 和大部分系统表不同，PG_SUBSCRIPTION在数据库实例的所有数据库之间共享，即在每个节点上有只有一份PG_SUBSCRIPTION，而不是每个数据库一份。 表1 PG_SUBSCRIPTION字段 名称 类型 描述 oid oid 行标识符（隐含属性，必须明确选择）。 subdbid oid 订阅所在的数据库的OID。 subname name 订阅的名称。 subowner oid 订阅的拥有者。 subenabled boolean 如果为真，订阅被启用并且应该被复制。 subconninfo text 到发布端数据库的连接信息。 subslotname name 发布端数据库中复制槽的名称。空表示为NONE。 subsynccommit text 订阅worker的synchronous_commit设置的值。 subpublications text[] 被订阅的publication名称的数组。这些引用的是发布者服务器上的publication。",
+      "source_file": "3337_PG_SUBSCRIPTION.txt"
+    },
+    {
+      "term": "STREAMING_CONT_QUERY",
+      "content": "STREAMING_CONT_QUERY STREAMING_CONT_QUERY STREAMING_CONT_QUERY系统表存储所有CONTVIEW对象的元数据信息。 表1 STREAMING_CONT_QUERY字段 名称 类型 描述 id integer CONTVIEW对象唯一的标识符，不可重复。 type \"char\" 标识CONTVIEW的类型。 'r'表示该CONTVIEW是基于行存存储模型。 relid oid CONTVIEW对象的标识。 defrelid oid CONTVIEW对应的持续计算规则VIEW的标识。 active boolean 标识CONTVIEW是否处于持续计算状态。 t（true）：表示是。 f（false）：表示不是。 streamrelid oid CONTVIEW对应的STREAM的标识。 matrelid oid CONTVIEW对应物化表的标识。 lookupidxid oid CONTVIEW对应GROUP LOOK UP INDEX的标识，此字段内部使用，仅行存具有。 step_factor smallint 标识CONTVIEW的步进模式。主要取值为0（无重叠窗口）和1（滑动窗口，步长为1）。 ttl integer CONTVIEW设置的ttl_interval参数值。 ttl_attno smallintint2 CONTVIEW设置的TTL功能对应时间列的字段编号。 dictrelid oid CONTVIEW对应字典表的标识。 grpnum smallint CONTVIEW持续计算规则中维度列的个数，此字段内部使用。 grpidx int2vector CONTVIEW持续计算规则中维度列在TARGET LIST的索引，此字段内部使用。",
+      "source_file": "1642_STREAMING_CONT_QUERY.txt"
+    },
+    {
+      "term": "PG_COLLATION",
+      "content": "PG_COLLATION PG_COLLATION PG_COLLATION系统表描述可用的排序规则，本质上从一个SQL名称映射到操作系统本地类别。 表1 PG_COLLATION字段 名称 类型 引用 描述 oid oid - 行标识符（隐含属性，必须明确选择）。 collname name - 排序规则名（每个名称空间和编码唯一）。 collnamespace oid PG_NAMESPACE .oid 包含这个排序规则的名称空间的OID。 collowner oid PG_AUTHID .oid 排序规则的所有者。 collencoding integer - 排序规则可用的编码，兼容PostgreSQL所有的字符编码类型，如果适用于任意编码为-1。 collcollate name - 这个排序规则对象的LC_COLLATE。 collctype name - 这个排序规则对象的LC_CTYPE。 collpadattr text - 这个排序规则的填充属性。 NULL：不适用。 NO PAD：无填充。 PAD SPACE：末尾空白填充。 collisdef boolean - 这个排序规则是否是所属字符集的默认字符序。",
+      "source_file": "3297_PG_COLLATION.txt"
+    },
+    {
+      "term": "PG_AGGREGATE",
+      "content": "PG_AGGREGATE PG_AGGREGATE PG_AGGREGATE系统表存储与聚集函数有关的信息。PG_AGGREGATE里的每条记录都是一条pg_proc里面的记录的扩展。PG_PROC记录承载该聚集的名称、输入和输出数据类型，以及其它一些和普通函数类似的信息。 表1 PG_AGGREGATE字段 名称 类型 引用 描述 aggfnoid regproc PG_PROC .proname 此聚集函数的 PG_PROC proname。 aggtransfn regproc PG_PROC .proname 转换函数。 aggcollectfn regproc PG_PROC .proname 收集函数。 aggfinalfn regproc PG_PROC .proname 最终处理函数（如果没有则为零）。 aggsortop oid PG_OPERATOR .oid 关联排序操作符（如果没有则为零）。 aggtranstype oid PG_TYPE .oid 此聚集函数的内部转换（状态）数据的数据类型。 可能取值及其含义见于pg_type.h中诸type定义，主要分为多态（isPolymorphicType）和非多态两类。 agginitval text - 转换状态的初始值。这是一个文本数据域，它包含初始值的外部字符串表现形式。如果数据域是null，则转换状态值从null开始。 agginitcollect text - 收集状态的初始值。这是一个文本数据域，它包含初始值的外部字符串表现形式。如果数据域是null，则收集状态值从null开始。 aggkind \"char\" - 此聚集函数类型： 'n' ：表示Normal Agg 'o' ：表示Ordered Set Agg aggnumdirectargs smallint - Ordered Set Agg类型聚集函数的直接参数（非聚集相关参数）数量。对Normal Agg类型聚集函数，该值为0。",
+      "source_file": "1577_PG_AGGREGATE.txt"
+    },
+    {
+      "term": "PG_LARGEOBJECT_METADATA",
+      "content": "PG_LARGEOBJECT_METADATA PG_LARGEOBJECT_METADATA PG_LARGEOBJECT_METADATA系统表存储与大数据相关的元数据。实际的大对象数据存储在PG_LARGEOBJECT里。 表1 PG_LARGEOBJECT_METADATA字段 名称 类型 引用 描述 oid oid - 行标识符（隐含字段，必须明确选择）。 lomowner oid PG_AUTHID .oid 大对象的所有者。 lomacl aclitem[] - 访问权限。",
+      "source_file": "1605_PG_LARGEOBJECT_METADATA.txt"
+    },
+    {
+      "term": "PG_SHDESCRIPTION",
+      "content": "PG_SHDESCRIPTION PG_SHDESCRIPTION PG_SHDESCRIPTION系统表为共享数据库对象存储可选的注释。可以使用COMMENT命令操作注释的内容，使用\\d命令查看注释内容。 PG_DESCRIPTION提供了类似的功能，它记录了单个数据库中对象的注释。 不同于大多数系统表，PG_SHDESCRIPTION是在 集群 里面所有的数据库之间共享的：每个 数据库集群 只有一个PG_SHDESCRIPTION，而不是每个数据库一个。 表1 PG_SHDESCRIPTION字段 名称 类型 引用 描述 objoid oid 任意OID属性 这条描述所描述的对象的OID。 classoid oid PG_CLASS .oid 这个对象出现的系统表的OID。 description text - 作为对该对象的描述的任意文本。",
+      "source_file": "1622_PG_SHDESCRIPTION.txt"
+    },
+    {
+      "term": "GS_POLICY_LABEL",
+      "content": "GS_POLICY_LABEL GS_POLICY_LABEL GS_POLICY_LABEL系统表记录资源标签配置信息，一个资源标签对应着一条或多条记录，每条记录标记了数据库资源所属的资源标签。需要有系统管理员或安全策略管理员权限才可以访问此系统表。 FQDN（Fully Qualified Domain Name）标识了数据库资源所属的绝对路径。 表1 GS_POLICY_LABEL表字段 名称 类型 描述 oid oid 行标识符（隐含属性，必须明确选择）。 labelname name 资源标签名称。 labeltype name 资源标签类型，目前仅为RESOURCE。 fqdnnamespace oid 被标识的数据库资源所属的namespace oid。 fqdnid oid 被标识的数据库资源的oid，若数据库资源为列，则该列为所属表的oid。 relcolumn name 列名，若被标识的数据库资源为列，该列指出列名，否则该列为空。 fqdntype name 被标识的数据库资源的类型名称，例如schema、table、column、view等。",
+      "source_file": "1567_GS_POLICY_LABEL.txt"
+    },
+    {
+      "term": "PG_DESCRIPTION",
+      "content": "PG_DESCRIPTION PG_DESCRIPTION PG_DESCRIPTION系统表可以给每个数据库对象存储一个可选的描述（注释）。许多内置的系统对象的描述提供了PG_DESCRIPTION的初始内容。 这个表的功能类似 PG_SHDESCRIPTION ，用于记录 整个集群 范围内共享对象的注释。 表1 PG_DESCRIPTION字段 名称 类型 引用 描述 objoid oid 任意OID属性 这条描述所描述的对象的OID。 classoid oid PG_CLASS .oid 这个对象出现的系统表的OID。 objsubid integer - 对于一个表字段的注释，它是字段号（objoid和classoid指向表自身）。对于其它对象类型，它是零。 description text - 对该对象描述的任意文本。",
+      "source_file": "1590_PG_DESCRIPTION.txt"
+    },
+    {
+      "term": "PG_SET",
+      "content": "PG_SET PG_SET PG_SET系统表存储SET数据类型定义的元数据。 表1 PG_SET字段 名称 类型 描述 settypid oid SET数据类型的OID。 setnum tinyint SET数据类型的成员数量，最大64个成员。 setsortorder tinyint SET数据类型定义时成员的排序位置，从0开始编号。 setlabel text SET数据类型的成员名称。",
+      "source_file": "3334_PG_SET.txt"
+    },
+    {
+      "term": "PG_COLLATION",
+      "content": "PG_COLLATION PG_COLLATION PG_COLLATION系统表描述可用的排序规则，本质上从一个SQL名称映射到操作系统本地类别。 表1 PG_COLLATION字段 名称 类型 引用 描述 oid oid - 行标识符（隐含字段，必须明确选择）。 collname name - 排序规则名（每个名称空间和编码唯一）。 collnamespace oid PG_NAMESPACE .oid 包含这个排序规则的名称空间的OID。 collowner oid PG_AUTHID .oid 排序规则的所有者。 collencoding integer - 排序规则可用的编码，兼容PostgreSQL所有的字符编码类型，如果适用于任意编码为-1。 collcollate name - 这个排序规则对象的LC_COLLATE。 collctype name - 这个排序规则对象的LC_CTYPE。 collpadattr text - 这个排序规则的填充属性。 NULL：不适用。 NO PAD：无填充。 PAD SPACE：末尾空白填充。 collisdef boolean - 这个排序规则是否是所属字符集的默认字符序。",
+      "source_file": "1585_PG_COLLATION.txt"
+    },
+    {
+      "term": "PG_CONSTRAINT",
+      "content": "PG_CONSTRAINT PG_CONSTRAINT PG_CONSTRAINT系统表存储表上的检查约束、主键和唯一约束。 表1 PG_CONSTRAINT字段 名称 类型 描述 oid oid 行标识符（隐含属性，必须明确选择）。 conname name 约束名称（不一定是唯一的）。 connamespace oid 包含这个约束的名称空间的OID。 contype \"char\" c：检查约束。 p：主键约束。 u：唯一约束。 t：触发器约束。 x：互斥约束。 f：外键约束。 s：聚簇约束。 i：无效约束。 condeferrable boolean 这个约束是否可以推迟。 true：表示可以。 false：表示不可以。 condeferred boolean 缺省时这个约束是否可以推迟。 true：表示可以。 false：表示不可以。 convalidated boolean 约束是否有效。目前，只有外键和CHECK约束可将其设置为FALSE。 true：表示有效。 false：表示无效。 conrelid oid 这个约束所在的表，如果不是表约束则为0。 contypid oid 这个约束所在的域，如果不是一个域约束则为0。 conindid oid 与约束关联的索引ID。 confrelid oid 如果是外键，则为参考的表，否则为0。 confupdtype \"char\" 外键更新动作代码。 a：没动作。 r：限制。 c：级联。 n：设置为null。 d：设置为缺省。 confdeltype \"char\" 外键删除动作代码。 a：没动作。 r：限制。 c：级联。 n：设置为null。 d：设置为缺省。 confmatchtype \"char\" 外键匹配类型。 f：全部。 p：部分。 u：未指定（在f的基础上允许匹配NULL值）。 conislocal boolean 是否是为关系创建的本地约束。 true：表示是。 false：表示不是。 coninhcount integer 约束直接继承父表的数目。继承父表数非零时，不能删除或重命名该约束。 connoinherit boolean 是否可以被继承。 true：表示可以。 false：表示不可以。 consoft boolean 是否为信息约束（Informational Constraint）。 true：表示是。 false：表示不是。 conopt boolean 是否使用信息约束优化执行计划。 true：表示使用。 false：表示不使用。 conkey smallint[] 如果是表约束，则是约束控制的字段列表。 confkey smallint[] 如果是一个外键，是参考的字段的列表。 conpfeqop oid[] 如果是一个外键，是做PK=FK比较的相等操作符ID的列表。 conppeqop oid[] 如果是一个外键，是做PK=PK比较的相等操作符ID的列表。 conffeqop oid[] 如果是一个外键，是做FK=FK比较的相等操作符ID的列表。由于当前不支持外键，所以值为空。 conexclop oid[] 如果是一个排他约束，是列的排他操作符ID列表。 conbin pg_node_tree 如果是检查约束，那就是其表达式的内部形式。 consrc text 如果是检查约束，则是表达式的可读形式。 conincluding smallint[] 不用做约束，但是会包含在INDEX中的属性列。 consrc在被引用的对象改变之后不会被更新，它不会跟踪字段的名称修改。与其依赖这个字段，建议还是使用pg_get_constraintdef()来抽取一个检查约束的定义。 13.2.15.27 PG_CLASS 的relchecks需要和在此表上为给定关系找到的检查约束的数目一致。",
+      "source_file": "3298_PG_CONSTRAINT.txt"
+    },
+    {
+      "term": "STREAMING_REAPER_STATUS",
+      "content": "STREAMING_REAPER_STATUS STREAMING_REAPER_STATUS STREAMING_REAPER_STATUS系统表存储流引擎 （由于规格变更，当前版本已经不再支持本特性，请不要使用） reaper线程的状态信息。 表1 STREAMING_REAPER_STATUS字段 名称 类型 描述 id integer CONTVIEW对象唯一的标识符，不可重复。 contquery_name name CONTVIEW对象的名称。 gather_interval text CONTVIEW对象设置的gather_interval参数值（自动聚合特定时间前历史数据的时间参数）。 gather_completion_time text CONTVIEW对象最近一次的GATHER（历史数据聚合）的完成时间。",
+      "source_file": "3354_STREAMING_REAPER_STATUS.txt"
+    },
+    {
+      "term": "GS_STATISTIC_HISTORY",
+      "content": "GS_STATISTIC_HISTORY GS_STATISTIC_HISTORY GS_STATISTIC_HISTORY是单列历史统计信息管理表，存储有关该数据库中表和索引列的历史统计数据。该表在分布式下可见不可用。 表1 GS_STATISTIC_HISTORY字段 名称 类型 描述 starelid oid 所描述的字段所属的表或者索引。 starelkind \"char\" 所属对象的类型。 staattnum smallint 所描述的字段在表中的编号，从1开始。 stainherit boolean 是否统计有继承关系的对象。 statimestamp timestamp with time zone 该条统计信息收集的时间。 stanullfrac real 该字段中为NULL的记录的比率。 stawidth integer 非NULL记录的平均存储宽度，以字节计。 stadistinct real 标识全局统计信息中数据库节点上字段里唯一的非NULL数据值的数目。 一个大于零的数值是独立数值的实际数目。 一个小于零的值是distinct值所占总行数的比例，比如stadistinct=-0.5时，它的实际distinct值是总行数*0.5。 零值表示独立数值的数目未知。 standvfunc \"char\" 该条统计信息计算NDV时采用的算法。 d：采用原来的DUJ1算法估算。 c：采用C19算法估算。 staorigin \"char\" 该条统计信息的收集方式来源。 a：标识由autoanalyze触发收集。 m：标识由手动analyze触发收集。 g：标识由插入大量数据触发了gsstat线程做analyze收集。 stakindN smallint 一个编码，表示这种类型的统计存储在pg_statistic行的第n个“槽位”。 n的取值范围：1～5。 staopN oid 一个用于生成这些存储在第n个“槽位”的统计信息的操作符。比如，一个柱面图槽位会显示<操作符，该操作符定义了该数据的排序顺序。 n的取值范围：1～5。 stanumbersN real[] 第n个“槽位”的相关类型的数值类型统计，如果该槽位和数值类型没有关系，则就是NULL。 n的取值范围：1～5。 stavaluesN anyarray 第n个“槽位”类型的字段数据值，如果该槽位类型不存储任何数据值，则就是NULL。每个数组的元素值实际上都是指定字段的数据类型，因此，除了把这些字段的类型定义成anyarray之外，没有更好的办法。 n的取值范围：1～5。 stadndistinct real 标识DN1上字段里唯一的非NULL数据值的数目。 一个大于零的数值是独立数值的实际数目。 一个小于零的值是distinct值所占总行数的比例，比如stadndistinct=-0.5时，它的实际distinct值是总行数*0.5。 零值表示独立数值的数目未知。 staextinfo text 统计信息的扩展信息。预留字段。",
+      "source_file": "1572_GS_STATISTIC_HISTORY.txt"
+    },
+    {
+      "term": "PG_DATABASE",
+      "content": "PG_DATABASE PG_DATABASE PG_DATABASE系统表存储关于可用数据库的信息。 表1 PG_DATABASE字段 名称 类型 描述 oid oid 行标识符（隐含属性，必须明确选择）。 datname name 数据库名称。 datdba oid 数据库所有人，通常为其创建者。 encoding integer 数据库的字符编码方式。 datcollate name 数据库使用的排序顺序。 datctype name 数据库使用的字符分类。 datistemplate boolean 是否允许作为模板数据库。 datallowconn boolean 如果为真，表示用户可以连接到这个数据库。如果为假，则没有用户可以连接到这个数据库。这个字段用于保护template0数据库不被更改。 datconnlimit integer 该数据库上允许的最大并发连接数，-1表示无限制。 datlastsysoid oid 数据库里最后一个系统OID 。 datfrozenxid xid32 用于跟踪该数据库是否需要为了防止事务ID重叠而进行清理。当前版本该字段已经废弃使用，为保持前向兼容，保留此字段，新增datfrozenxid64用于记录此信息。 dattablespace oid 数据库的缺省表空间。 datcompatibility name 数据库兼容模式，当前支持四种兼容模式：A、B、C、PG，分别表示兼容O、MY、TD和POSTGRES。 datacl aclitem[] 访问权限。 datfrozenxid64 xid 用于跟踪该数据库是否需要为了防止事务ID重叠而进行清理。 datminmxid xid 该数据库中所有在这个之前的多事务ID已经被一个事务ID替换。这用于跟踪该数据库是否需要为了防止事务ID重叠或者允许收缩pg_clog而进行清理。它是此数据库中所有表的 13.2.15.27 PG_CLASS 中relminmxid的最小值。 dattimezone name 数据库时区信息，默认为PRC时区。",
+      "source_file": "3300_PG_DATABASE.txt"
+    },
+    {
+      "term": "PG_TS_CONFIG",
+      "content": "PG_TS_CONFIG PG_TS_CONFIG PG_TS_CONFIG系统表包含表示文本搜索配置的记录。一个配置指定一个特定的文本搜索解析器和一个为了每个解析器的输出类型使用的字典的列表。 解析器在PG_TS_CONFIG记录中显示，但是字典映射的标记是由 PG_TS_CONFIG_MAP 里面的辅助记录定义的。 表1 PG_TS_CONFIG字段 名称 类型 引用 描述 oid oid - 行标识符（隐含字段，必须明确选择）。 cfgname name - 文本搜索配置名。 cfgnamespace oid PG_NAMESPACE .oid 包含这个配置的名称空间的OID。 cfgowner oid PG_AUTHID .oid 配置的所有者。 cfgparser oid PG_TS_PARSER .oid 这个配置的文本搜索解析器的OID。 cfoptions text[] - 分词相关配置选项。",
+      "source_file": "1629_PG_TS_CONFIG.txt"
+    },
+    {
+      "term": "PG_SET",
+      "content": "PG_SET PG_SET PG_SET系统表存储SET数据类型定义的元数据，当前分布式下暂不支持该功能。",
+      "source_file": "1620_PG_SET.txt"
+    },
+    {
+      "term": "GS_STATISTIC_EXT_HISTORY",
+      "content": "GS_STATISTIC_EXT_HISTORY GS_STATISTIC_EXT_HISTORY GS_STATISTIC_EXT_HISTORY是多列历史统计信息管理表，存储有关该数据库中表的历史扩展统计数据，包括多列统计数据和表达式统计数据（后续支持）。该表在分布式下可见不可用。 表1 GS_STATISTIC_EXT_HISTORY字段 名称 类型 描述 starelid oid 所描述的字段所属的表或者索引。 starelkind \"char\" 所属对象的类型，'c'表示表，'p'表示分区。 stainherit boolean 是否统计有继承关系的对象。 statimestamp timestamp with time zone 该条统计信息收集的时间。 stanullfrac real 该字段中为NULL的记录的比率。 stawidth integer 非NULL记录的平均存储宽度，以字节计。 stadistinct real 标识全局统计信息中数据库节点上字段里唯一的非NULL数据值的数目。 一个大于零的数值是独立数值的实际数目。 一个小于零的值是distinct值所占总行数的比例，比如stadistinct=-0.5时，它的实际distinct值是总行数*0.5。 零值表示独立数值的数目未知。 stadndistinct real 标识DN1上字段里唯一的非NULL数据值的数目。 一个大于零的数值是独立数值的实际数目。 一个小于零的值是distinct值所占总行数的比例，比如stadndistinct=-0.5时，它的实际distinct值是总行数*0.5。 零值表示独立数值的数目未知。 standvfunc \"char\" 该条统计信息计算NDV时采用的算法。 d：采用原来的DUJ1算法估算。 c：采用C19算法估算。 staorigin \"char\" 该条统计信息的收集方式来源。 a：标识由autoanalyze触发收集。 m：标识由手动analyze触发收集。 g：标识由插入大量数据触发了gsstat线程做analyze收集。 stakindN smallint 一个编码，表示这种类型的统计存储在pg_statistic行的第n个“槽位”。 n的取值范围：1～5。 staopN oid 一个用于生成这些存储在第n个“槽位”的统计信息的操作符。比如，一个柱面图槽位会显示<操作符，该操作符定义了该数据的排序顺序。 n的取值范围：1～5。 stakey int2vector 所描述的字段编号的数组。 stanumbersN real[] 第n个“槽位”的相关类型的数值类型统计，如果该槽位和数值类型没有关系，则就是NULL。 n的取值范围：1～5。 stavaluesN anyarray 第n个“槽位”类型的字段数据值，如果该槽位类型不存储任何数据值，则就是NULL。每个数组的元素值实际上都是指定字段的数据类型，因此，除了把这些字段的类型定义成anyarray之外，没有更好的办法。 n的取值范围：1～5。 staexprs pg_node_tree 扩展统计信息对应的表达式。 stasource \"char\" 扩展统计信息的来源： 'a'：表示自动创建，由GUC参数auto_statistic_ext_columns控制。 'm'：表示手动创建，用户通过 analyze tablename ((column list)) 或者 alter table tablename add statistics ((column list)) 来创建。 stastatus \"char\" 扩展统计信息的状态。 'a'：表示活跃可用。 'd'：表示被禁用，相关信息不被收集，优化器在生成计划的时候也不使用。用户可以使用语法 alter table tablename disable/enable statistics((column list)) 来修改扩展统计信息的状态。 staextname name 多列统计信息多列组的别名。",
+      "source_file": "1571_GS_STATISTIC_EXT_HISTORY.txt"
+    },
+    {
+      "term": "STATEMENT_HISTORY",
+      "content": "STATEMENT_HISTORY STATEMENT_HISTORY 获得当前节点的执行语句的信息。查询系统表必须具有sysadmin权限。只可在系统库中查询到结果，用户库中无法查询。 对于此系统表查询有如下约束： 必须在postgres库内查询，其它库中不存数据。 此系统表受track_stmt_stat_level控制，默认为\"OFF,L0\"，第一部分控制Full SQL，第二部分控制Slow SQL，具体字段记录级别见下表。考虑性能影响，更改该参数的值时建议通过set方式设置，使该参数仅对当前会话生效。 对于Slow SQL，当track_stmt_stat_level的值为非OFF时，且SQL执行时间超过log_min_duration_statement，会记录为慢SQL。 表1 STATEMENT_HISTORY字段 名称 类型 描述 记录级别 db_name name 数据库名称。 L0 schema_name name schema名称。 L0 origin_node integer 节点名称。 L0 user_name name 用户名。 L0 application_name text 用户发起的请求的应用程序名称。 L0 client_addr text 用户发起的请求的客户端地址。 L0 client_port integer 用户发起的请求的客户端端口。 L0 unique_query_id bigint 归一化SQL ID。 L0 debug_query_id bigint 唯一SQL ID。部分语句存在不唯一的情况，如Parse报文、DCL和TCL等语句的debug_query_id值为0。 L0 query text 归一化SQL ，track_stmt_parameter参数开启时，显示完整SQL 。 L0 start_time timestamp with time zone 语句启动的时间。 L0 finish_time timestamp with time zone 语句结束的时间。 L0 slow_sql_threshold bigint 语句执行时慢SQL的标准。 L0 transaction_id bigint 事务ID。 L0 thread_id bigint 执行线程ID。 L0 session_id bigint 用户session id。 L0 n_soft_parse bigint 软解析次数，n_soft_parse + n_hard_parse可能大于n_calls，因为子查询未计入n_calls。 L0 n_hard_parse bigint 硬解析次数，n_soft_parse + n_hard_parse可能大于n_calls，因为子查询未计入n_calls。 L0 query_plan text 语句执行计划。 L1(Full SQL) L0(Slow SQL) n_returned_rows bigint SELECT返回的结果集行数。 L0 n_tuples_fetched bigint 随机扫描行。 L0 n_tuples_returned bigint 顺序扫描行。 L0 n_tuples_inserted bigint 插入行。 L0 n_tuples_updated bigint 更新行。 L0 n_tuples_deleted bigint 删除行。 L0 n_blocks_fetched bigint buffer的块访问次数。 L0 n_blocks_hit bigint buffer的块命中次数。 L0 db_time bigint 有效的DB时间花费，多线程将累加（单位：微秒）。 L0 cpu_time bigint CPU时间（单位：微秒）。 L0 execution_time bigint 执行器内执行时间（单位：微秒）。 L0 parse_time bigint SQL解析时间（单位：微秒）。 L0 plan_time bigint SQL生成计划时间（单位：微秒）。 L0 rewrite_time bigint SQL重写时间（单位：微秒）。 L0 pl_execution_time bigint plpgsql上的执行时间（单位：微秒）。 L0 pl_compilation_time bigint plpgsql上的编译时间（单位：微秒）。 L0 data_io_time bigint IO上的时间花费（单位：微秒）。 L0 net_send_info text 通过物理连接发送消息的网络状态，包含时间（微秒）、调用次数、吞吐量（字节）。通过该字段可以分析SQL在分布式系统下的网络开销，单机模式下不支持该字段。例如：{\"time\":xxx, \"n_calls\":xxx, \"size\":xxx}。 L0 net_recv_info text 通过物理连接接收消息的网络状态，包含时间（微秒）、调用次数、吞吐量（字节）。通过该字段可以分析SQL在分布式系统下的网络开销，单机模式下不支持该字段。例如：{\"time\":xxx, \"n_calls\":xxx, \"size\":xxx}。 L0 net_stream_send_info text 通过逻辑连接发送消息的网络状态，包含时间（微秒）、调用次数、吞吐量（字节）。通过该字段可以分析SQL在分布式系统下的网络开销，单机模式下不支持该字段。例如：{\"time\":xxx, \"n_calls\":xxx, \"size\":xxx}。 L0 net_stream_recv_info text 通过逻辑连接接收消息的网络状态，包含时间（微秒）、调用次数、吞吐量（字节）。通过该字段可以分析SQL在分布式系统下的网络开销，单机模式下不支持该字段。例如：{\"time\":xxx, \"n_calls\":xxx, \"size\":xxx}。 L0 lock_count bigint 加锁次数。 L0 lock_time bigint 加锁耗时。 L1 lock_wait_count bigint 加锁等待次数。 L0 lock_wait_time bigint 加锁等待耗时。 L1 lock_max_count bigint 最大持锁数量。 L0 lwlock_count bigint 轻量级加锁次数（预留）。 L0 lwlock_wait_count bigint 轻量级等锁次数。 L0 lwlock_time bigint 轻量级加锁时间（预留）。 L1 lwlock_wait_time bigint 轻量级等锁时间。 L1 details bytea 等待事件和语句锁事件的列表。 记录级别的值>=L0时，开始记录等待事件的列表。显示当前语句event等待相关的统计信息。具体事件信息请参见 表2 、 15.3.67-表3 轻量级锁等待事件列表 、 表4 和 表5 。关于每种事务锁对业务的影响程度，请参见 LOCK 语法小节的详细描述。 记录级别的值是L2时，开始记录语句锁事件的列表，该列表按时间顺序记录事件，记录的数量受参数track_stmt_details_size的影响。 该字段为二进制，需要借助解析函数pg_catalog.statement_detail_decode读取，请参见（ 表6 ）。 事件包括： 加锁开始 加锁结束 等锁开始 等锁结束 放锁开始 放锁结束 轻量级等锁开始 轻量级等锁结束 L0/L2 is_slow_sql boolean 该SQL是否为slow SQL。 t（true）：表示是。 f（false）：表示不是。 L0 trace_id text 驱动传入的trace id，与应用的一次请求相关联。 L0 advise text 可能导致该SQL为slow SQL的风险信息。 L0 parent_unique_sql_id bigint 当前语句的外层SQL的归一化SQL ID，对于存储过程内执行的语句，该值为调用存储过程语句的归一化SQL ID，存储过程外的语句该值为0。 L0 finish_status text 语句完成状态，默认值normal。cancelled表示被取消或被terminate。 L0 query_plan字段的记录级别对于Full SQL为L1，对于Slow SQL为L0。",
+      "source_file": "3351_STATEMENT_HISTORY.txt"
+    },
+    {
+      "term": "GS_TXN_SNAPSHOT",
+      "content": "GS_TXN_SNAPSHOT GS_TXN_SNAPSHOT GS_TXN_SNAPSHOT是“时间戳-CSN”映射表，周期性采样，并维护适当的时间范围，用于估算范围内的时间戳对应的CSN值。 表1 GS_TXN_SNAPSHOT字段 名称 类型 描述 snptime timestamp with time zone 快照捕获时间。 snpxmin bigint 快照xmin。 snpcsn bigint 快照csn。 snpsnapshot text 快照序列化文本。",
+      "source_file": "3286_GS_TXN_SNAPSHOT.txt"
+    }
+  ]
+}

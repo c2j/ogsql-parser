@@ -1,0 +1,2 @@
+对二级分区表合并二级分区 对二级分区表合并二级分区 使用ALTER TABLE MERGE SUBPARTITIONS可以将多个二级分区合并为一个分区。 例如，将二级分区表hash_list_sales的分区product1_channel1、product1_channel2、product1_channel3合并为一个新的分区，并更新Global索引。 ALTER TABLE hash_list_sales MERGE SUBPARTITIONS product1_channel1, product1_channel2, product1_channel3 INTO
+    SUBPARTITION product1_channel1 UPDATE GLOBAL INDEX; 父主题： 合并分区 版权所有 © 华为技术有限公司

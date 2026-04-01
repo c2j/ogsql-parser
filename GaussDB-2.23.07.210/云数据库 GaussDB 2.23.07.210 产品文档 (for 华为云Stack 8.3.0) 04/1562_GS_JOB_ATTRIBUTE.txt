@@ -1,0 +1,1 @@
+GS_JOB_ATTRIBUTE GS_JOB_ATTRIBUTE GS_JOB_ATTRIBUTE系统表提供了DBE_SCHEDULER定时任务的相关属性信息，其中包括定时任务，定时任务类，证书，授权，程序和调度的基本属性。新安装数据库集群普通用户无权限访问。 表1 GS_JOB_ATTRIBUTE字段 名称 类型 描述 oid oid 行标识符（隐含字段）。 job_name text 定时任务，定时任务类，证书，程序和调度的名字，授权的用户名。 attribute_name text 定时任务，定时任务类，证书，程序和调度的属性名，授权的内容。 attribute_value text 定时任务，定时任务类，证书，程序和调度的属性值。 父主题： 其他系统表 版权所有 © 华为技术有限公司

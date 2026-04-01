@@ -1,0 +1,46 @@
+{
+  "topic": "PCR UBTree",
+  "term_count": 8,
+  "terms": [
+    {
+      "term": "PCR",
+      "content": "PCR UBTree增删改查 PCR UBTree增删改查 Insert操作 ：操作与RCR UBTree基本一致，区别是：插入前需要先申请TD和写入Undo。 Delete操作 ：操作与RCR UBTree基本一致，区别是：删除前需要先申请TD和写入Undo。 Update操作 ：操作与RCR UBTree无区别，均转换为一条Delete操作和和一条Insert操作。 Scan操作 ：操作与RCR UBTree基本一致，区别是：查询操作需要将页面拷贝一个CR页面出来，将CR页面回滚到扫描快照可见的状态，从而整个页面的元组对于快照都是可见版本。",
+      "source_file": "4643_PCR UBTree.txt"
+    },
+    {
+      "term": "PCR",
+      "content": "PCR UBTree空间管理 PCR UBTree空间管理 空间管理操作与RCR UBTree基本一致，区别是：PCR UBTree支持闪回，所以页面可回收的时间点由OldestXmin改成了GlobalRecycleXid。",
+      "source_file": "4644_PCR UBTree.txt"
+    },
+    {
+      "term": "PCR",
+      "content": "PCR UBTree可见性机制 PCR UBTree可见性机制 PCR UBTree可见性判断是通过把页面回滚到快照可见的时刻得到元组全部可见的页面完成的。",
+      "source_file": "4642_PCR UBTree.txt"
+    },
+    {
+      "term": "PCR",
+      "content": "PCR UBTree多版本管理 PCR UBTree多版本管理 与RCR UBTree的区别是，PCR(Page Consistency Read) 的多版本管理是基于页面的多版本管理，所有元组的事务信息统一由TD槽进行管理。",
+      "source_file": "4641_PCR UBTree.txt"
+    },
+    {
+      "term": "PCR",
+      "content": "PCR UBTree多版本管理 PCR UBTree多版本管理 与RCR UBTree的区别是，PCR(Page Consistency Read) 的多版本管理是基于页面的多版本管理，所有元组的事务信息统一由TD槽进行管理。",
+      "source_file": "4381_PCR UBTree.txt"
+    },
+    {
+      "term": "PCR",
+      "content": "PCR UBTree增删改查 PCR UBTree增删改查 Insert操作 ：操作与RCR UBTree基本一致，区别是：插入前需要先申请TD和写入Undo。 Delete操作 ：操作与RCR UBTree基本一致，区别是：删除前需要先申请TD和写入Undo。 Update操作 ：操作与RCR UBTree无区别，均转换为一条Delete操作和和一条Insert操作。 Scan操作 ：操作与RCR UBTree基本一致，区别是：查询操作需要将页面拷贝一个CR页面出来，将CR页面回滚到扫描快照可见的状态，从而整个页面的元组对于快照都是可见版本。",
+      "source_file": "4383_PCR UBTree.txt"
+    },
+    {
+      "term": "PCR",
+      "content": "PCR UBTree空间管理 PCR UBTree空间管理 空间管理操作与RCR UBTree基本一致，区别是：PCR UBTree支持闪回，所以页面可回收的时间点由OldestXmin改成了GlobalRecycleXid。",
+      "source_file": "4384_PCR UBTree.txt"
+    },
+    {
+      "term": "PCR",
+      "content": "PCR UBTree可见性机制 PCR UBTree可见性机制 PCR UBTree可见性判断是通过把页面回滚到快照可见的时刻得到元组全部可见的页面完成的。",
+      "source_file": "4382_PCR UBTree.txt"
+    }
+  ]
+}

@@ -1,0 +1,1 @@
+PGXC_PREPARED_XACTS PGXC_PREPARED_XACTS PGXC_PREPARED_XACTS视图显示当前处于prepared阶段的两阶段事务。只有system admin和monitor admin用户有权限查看。 表1 PGXC_PREPARED_XACTS字段 名称 类型 描述 pgxc_prepared_xact text 查看当前处于prepared阶段的两阶段事务。 父主题： 其他系统视图 版权所有 © 华为技术有限公司

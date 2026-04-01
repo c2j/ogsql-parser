@@ -1,0 +1,99 @@
+使用JDBC操作密态数据库 使用JDBC操作密态数据库 配置JDBC驱动 获取JDBC驱动包，JDBC驱动获取及使用可参考《开发者指南》中“应用程序开发教程 > 基于JDBC开发”章节。 密态数据库支持的JDBC驱动包为gsjdbc4.jar、opengaussjdbc.jar、gscejdbc.jar。 gsjdbc4.jar: 主类名为“org.postgresql.Driver”，数据库连接的url前缀为“jdbc:postgresql”。 opengaussjdbc.jar：主类名为“com.huawei.opengauss.jdbc.Driver”，数据库连接的url前缀为“jdbc:opengauss”。 gscejdbc.jar（目前仅支持EulerOS操作系统）：主类名为“com.huawei.gaussdb.jdbc.Driver”，数据库连接的url前缀为“jdbc:gaussdb”，密态场景推荐使用此驱动包。 配置LD_LIBRARY_PATH 密态场景使用JDBC驱动包时，需要先设置环境变量LD_LIBRARY_PATH。 使用gscejdbc.jar驱动包时，gscejdbc.jar驱动包中密态数据库需要的依赖库会自动拷贝到该路径下，并在开启密态功能连接数据库的时候加载； 使用opengaussjdbc.jar或gsjdbc4.jar时，需要同时解压包名为GaussDB-Kernel_数据库版本号_操作系统版本号_64bit_libpq.tar.gz的压缩包解压到指定目录，并将lib文件夹所在目录路径，添加至LD_LIBRARY_PATH环境变量中。 全密态场景使用JDBC驱动包时需要有System.loadLibrary权限，以及环境变量LD_LIBRARY_PATH中第一优先路径的文件读写权限，建议使用独立目录作为全密态依赖库的存放路径。若在执行的时候指定java.library.path，需要与LD_LIBRARY_PATH的第一优先路径保持一致。 使用gscejdbc.jar时，jvm加载class文件需要依赖系统的libstdc++库，若开启密态则gscejdbc.jar会自动拷贝密态数据库依赖的动态库（包括libstdc++库）到用户设定的LD_LIBRARY_PATH路径下。如果依赖库与现有系统库版本不匹配，则首次运行仅部署依赖库，再次调用后即可正常使用。 执行SQL语句 在执行本节的SQL语句之前，请确保已完成前两阶段：准备阶段、配置阶段 。 本节以完整的执行流程为例，介绍如何使用密态数据库语法，包括三个阶段：使用DDL阶段、使用DML阶段、清理阶段。 JDBC开发中与非密态场景操作一致的部分请参考《开发者指南》中“应用程序开发教程 > 基于JDBC开发”章节。 密态数据库连接参数 enable_ce：String类型。其中enable_ce=0表示不开启全密态开关，enable_ce=1表示支持密态等值查询基本能力，enable_ce=3表示在密态等值查询能力的基础上支持内存解密逃生通道。 // 以下用例以gscejdbc.jar驱动为例，如果使用其他驱动包，仅需修改驱动类名和数据库连接的url前缀。
+// gsjdbc4.jar: 主类名为“org.postgresql.Driver”，数据库连接的url前缀为“jdbc:postgresql”。
+// opengaussjdbc.jar：主类名为“com.huawei.opengauss.jdbc.Driver”，数据库连接的url前缀为“jdbc:opengauss”。
+// gscejdbc.jar：主类名为“com.huawei.gaussdb.jdbc.Driver”，数据库连接的url前缀为“jdbc:gaussdb”
+
+public static void main(String[] args) {
+    // 驱动类。
+    String driver = "com.huawei.gaussdb.jdbc.Driver";
+    // 数据库连接描述符。enable_ce=1表示支持密态等值查询基本能力。
+    String sourceURL = "jdbc:gaussdb://127.0.0.1:8000/postgres?enable_ce=1";
+    // 在环境变量USER、PASSWORD分别配置用户名密码。
+    String username = System.getenv("USER");
+    String passwd = System.getenv("PASSWORD");
+    Connection conn = null;
+    try {
+        // 加载驱动
+        Class.forName(driver);
+        // 创建连接
+        conn = DriverManager.getConnection(sourceURL, username, passwd);
+        System.out.println("Connection succeed!");
+        // 创建语句对象
+        Statement stmt = conn.createStatement();
+       // 设置访问主密钥的参数 // 此处介绍2种方式，选择其中1种方式即可： // 认证方式一 aksk认证 （生成主密钥阶段介绍了如何获取相关参数：项目ID、AK、SK） connsetClientInfo("key_info", "keyType=hcs_kms, kmsProjectId={项目ID}, ak={AK}, sk={SK}"); /* 示例: conn.setClientInfo("key_info", "keyType=hcs_kms,kmsProjectId=0b59929e8100268a2f22c01429802728," + "ak=XMAUMJY******DFWLQW, sk=ga6rO8lx1Q4uB*********2gf80muIzUX,"); */ // 认证方式二 账号密码认证 （ 生成主密钥阶段 介绍了如何获取相关参数：IAM服务器地址、IAM用户名、IAM用户密码、账号名、项目） conn.setClientInfo("key_info", "keyType=hcs_kms," + "iamUrl={IAM服务器地址}," + "iamUser={IAM用户名}," + "iamPassword={IAM用户密码}," + "iamDomain={账号名}," + "kmsProject={项目}"); /* 示例： conn.setClientInfo("key_info", "keyType=hcs_kms," + "iamUrl=https://iam.xxx.com/v3/auth/tokens," + "iamUser=test," + "iamPassword=*********," + "iamDomain=test_account," + "kmsProject=xxx"); */ // 定义客户端主密钥：cmk1为主密钥名字，可自行取名
+        
+        // 生成主密钥阶段 介绍了如何获取如下参数：KMS服务器地址、密钥ID int rc = stmt.executeUpdate("CREATE CLIENT MASTER KEY ImgCMK1 WITH ( KEY_STORE = hcs_kms , KEY_PATH = '{KMS服务器地址}/{密钥ID}', ALGORITHM = AES_256);"); /* KEY_PATH示例：https://kms-scc-apig.sa-fb-1.console-arm2.com/v1.0/0b59929e8100268a2f22c01429802728/kms/9a262917-8b31-41af-a1e0-a53235f32de9 解释： 在生成主密钥阶段 ， 密钥服务已生成并存储主密钥，执行本语法只是将主密钥的相关信息存储在数据库中，方便以后访问 提示：KEY_PATH格式请参考：《开发者指南》中“SQL参考 > SQL语法 > CREATE CLIENT MASTER KEY”章节 */ // 定义列加密密钥
+        int rc2 = stmt.executeUpdate("CREATE COLUMN ENCRYPTION KEY ImgCEK1 WITH VALUES (CLIENT_MASTER_KEY = ImgCMK1, ALGORITHM  = AES_256_GCM);");
+        // 定义加密表
+        int rc3 = stmt.executeUpdate("CREATE TABLE creditcard_info (id_number int, name varchar(50) encrypted with (column_encryption_key = ImgCEK1, encryption_type = DETERMINISTIC),credit_card varchar(19) encrypted with (column_encryption_key = ImgCEK1, encryption_type = DETERMINISTIC));");
+        // 插入数据
+        int rc4 = stmt.executeUpdate("INSERT INTO creditcard_info VALUES (1,'joe','6217986500001288393');");
+        // 查询加密表
+        ResultSet rs = null;
+        rs = stmt.executeQuery("select * from creditcard_info where name = 'joe';");
+        // 删除加密表
+        int rc5 = stmt.executeUpdate("DROP TABLE IF EXISTS creditcard_info;");
+        // 删除列加密密钥
+        int rc6 = stmt.executeUpdate("DROP COLUMN ENCRYPTION KEY IF EXISTS ImgCEK1;");
+        // 删除客户端主密钥
+        int rc7 = stmt.executeUpdate("DROP CLIENT MASTER KEY IF EXISTS ImgCMK1;");
+        // 关闭语句对象
+        stmt.close();
+        // 关闭连接
+        conn.close();
+    } catch (Exception e) {
+        e.printStackTrace();
+        return;
+    }
+} 【建议】使用JDBC操作密态数据库时，一个数据库连接对象对应一个线程，否则，不同线程变更可能导致冲突。 【建议】使用JDBC操作密态数据库时，不同connection对密态配置数据有变更，由客户端调用isvalid方法保证connection能够持有变更后的密态配置数据，此时需要保证参数refreshClientEncryption为1(默认值为1)，在单客户端操作密态数据场景下，refreshClientEncryption参数可以设置为0。 调用isValid方法刷新缓存示例 // 创建连接conn1
+Connection conn1 = DriverManager.getConnection("url","user","password");
+// 在另外一个连接conn2中创建客户端主密钥
+...
+// conn1通过调用isValid刷新缓存，刷新conn1密钥缓存
+try {
+ if (!conn1.isValid(60)) {
+  System.out.println("isValid Failed for connection 1");
+ }
+} catch (SQLException e) {
+ e.printStackTrace();
+        return null;
+} 执行密态等值密文解密 数据库连接接口PgConnection类型新增解密接口，可以对全密态数据库的密态等值密文进行解密。解密后返回其明文值，通过schema.table.column找到密文对应的加密列并返回其原始数据类型。 表1 新增org.postgresql.jdbc.PgConnection函数接口 方法名 返回值类型 支持JDBC 4 decryptData(String ciphertext, Integer len, String schema, String table, String column) ClientLogicDecryptResult Yes 参数说明： ciphertext 需要解密的密文。 len 密文长度。当取值小于实际密文长度时，解密失败。 schema 加密列所属schema名称。 table 加密列所属table名称。 column 加密列所属column名称。 下列场景可以解密成功，但不推荐： 密文长度入参比实际密文长。 schema.table.column指向其他加密列。此时将返回被指向的加密列的原始数据类型。 表2 新增org.postgresql.jdbc.clientlogic.ClientLogicDecryptResult函数接口 方法名 返回值类型 描述 支持JDBC4 isFailed() Boolean 解密是否失败，若失败返回True，否则返回False。 Yes getErrMsg() String 获取错误信息。 Yes getPlaintext() String 获取解密后的明文。 Yes getPlaintextSize() Integer 获取解密后的明文长度。 Yes getOriginalType() String 获取加密列的原始数据类型。 Yes // 通过非密态连接、逻辑解码等其他方式获得密文后，可使用该接口对密文进行解密
+import org.postgresql.jdbc.PgConnection;
+import org.postgresql.jdbc.clientlogic.ClientLogicDecryptResult;
+
+// conn为密态连接
+// 调用密态PgConnection的decryptData方法对密文进行解密，通过列名称定位到该密文的所属加密列，并返回其原始数据类型
+ClientLogicDecryptResult decrypt_res = null;
+decrypt_res = ((PgConnection)conn).decryptData(ciphertext, ciphertext.length(), schemaname_str,
+        tablename_str, colname_str);
+// 检查返回结果类解密成功与否，失败可获取报错信息，成功可获得明文及长度和原始数据类型
+if (decrypt_res.isFailed()) {
+    System.out.println(String.format("%s\n", decrypt_res.getErrMsg()));
+} else {
+    System.out.println(String.format("decrypted plaintext: %s size: %d type: %s\n", decrypt_res.getPlaintext(),
+        decrypt_res.getPlaintextSize(), decrypt_res.getOriginalType()));
+} 执行加密表的预编译SQL语句 // 调用Connection的prepareStatement方法创建预编译语句对象。
+PreparedStatement pstmt = con.prepareStatement("INSERT INTO creditcard_info VALUES (?, ?, ?);");
+// 调用PreparedStatement的setShort设置参数。
+pstmt.setInt(1, 2);
+pstmt.setString(2, "joy");
+pstmt.setString(3, "6219985678349800033");
+// 调用PreparedStatement的executeUpdate方法执行预编译SQL语句。
+int rowcount = pstmt.executeUpdate();
+// 调用PreparedStatement的close方法关闭预编译语句对象。
+pstmt.close(); 执行加密表的批处理操作 // 调用Connection的prepareStatement方法创建预编译语句对象。
+Connection conn = DriverManager.getConnection("url","user","password");
+PreparedStatement pstmt = conn.prepareStatement("INSERT INTO creditcard_info (id_number, name, credit_card) VALUES (?,?,?)");
+// 针对每条数据都要调用setShort设置参数，以及调用addBatch确认该条设置完毕。
+int loopCount = 20;
+ for (int i = 1; i < loopCount + 1; ++i) {
+      pstmt.setInt(1, i);
+      pstmt.setString(2, "Name " + i);
+      pstmt.setString(3, "CreditCard " + i);
+      // Add row to the batch.
+      pstmt.addBatch();
+}
+// 调用PreparedStatement的executeBatch方法执行批处理。
+int[] rowcount = pstmt.executeBatch();
+// 调用PreparedStatement的close方法关闭预编译语句对象。
+pstmt.close(); 父主题： 设置密态等值查询 版权所有 © 华为技术有限公司

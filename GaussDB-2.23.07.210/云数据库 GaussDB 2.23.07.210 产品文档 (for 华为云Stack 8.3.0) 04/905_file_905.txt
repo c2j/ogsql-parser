@@ -1,0 +1,44 @@
+使用游标 使用游标 使用游标可以检索出多行的结果集，应用程序必须声明一个游标并且从游标中抓取每一行数据。 声明一个游标： EXEC SQL DECLARE c CURSOR FOR select * from tb1; 打开游标： EXEC SQL OPEN c; 从游标中抓取一行数据： EXEC SQL FETCH 1 in c into :a, :str; 关闭游标： EXEC SQL CLOSE c; 更多游标的使用细节可参考 DECLARE ，关于FETCH命令的细节可参考 FETCH 。 完整使用示例： #include <string.h>
+#include <stdlib.h>
+
+int main(void)
+{
+exec sql begin declare section;
+    int *a;
+    char *str;
+exec sql end declare section;
+
+    int count = 0;
+    exec sql connect to postgres ;
+    exec sql set autocommit to off;
+    exec sql begin;
+    exec sql drop table if exists tb1;
+    exec sql create table tb1(id int, info text);
+    exec sql insert into tb1 (id, info) select generate_series(1, 100000), 'test';
+    exec sql select count(*) into :a from tb1;
+    printf ("a is %d\n", *a);
+    exec sql commit;
+
+    // 定义游标
+    exec sql declare c cursor for select * from tb1;
+    // 打开游标
+    exec sql open c;
+    exec sql whenever not found do break;
+    while(1) {
+        // 抓取数据
+        exec sql fetch 1 in c into :a, :str;
+        count++;
+        if (count == 100000) {
+            printf("Fetch res: a is %d, str is %s", *a, str);
+        }
+    }
+    // 关闭游标
+    exec sql close c;
+    exec sql set autocommit to on;
+    exec sql drop table tb1;
+    exec sql disconnect;
+
+    ECPGfree_auto_mem();
+    return 0;
+
+} 父主题： 执行SQL命令 版权所有 © 华为技术有限公司

@@ -1,0 +1,1 @@
+实例下发报错 实例下发报错 根据报错的volume id查询 python /etc/cinder/cinder-api/tools/get_operation_info.py -v e871c4e0-e64b-4f05-b3a5-f8b69af3d914 报错日志如下 登录BMS实例系统，查看启动器，发现启动器都下线，需要排查FC光口是否正常，连线是否正常 查看fc驱动，如下图所示驱动正常 问题原因： BMS设备HBA卡和fc交换机未连线，重新连线后解决。 父主题： 常见问题FAQ 版权所有 © 华为技术有限公司

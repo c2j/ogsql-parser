@@ -1,0 +1,32 @@
+分区导入数据性能优化 分区导入数据性能优化 场景描述 当往分区表中插入数据时候，如果插入的数据为常量/参数/表达式等简单类型，会自动对INSERT算子进行执行优化（FastPath）。可以通过执行计划来判断是否触发了执行优化，触发执行优化时Insert计划前会带有FastPath关键字。 示例 create table fastpath_t1
+(
+    col1 int,
+    col2 text
+) 
+PARTITION BY RANGE(col1)
+(
+    PARTITION p1 VALUES LESS THAN(10),
+    PARTITION p2 VALUES LESS THAN(MAXVALUE)
+);
+
+--INSERT常量，执行FastPath优化 gaussdb=# explain insert into fastpath_t1 values (0, 'test_insert');
+                            QUERY PLAN                            
+------------------------------------------------------------------
+ FastPath Insert on fastpath_t1  (cost=0.00..0.01 rows=1 width=0)
+   ->  Result  (cost=0.00..0.01 rows=1 width=0)
+(2 rows)
+
+--INSERT带参数/简单表达式，执行FastPath优化 gaussdb=# prepare insert_t1 as insert into fastpath_t1 values($1 + 1 + $2, $2);
+PREPARE gaussdb=# explain execute insert_t1(10, '0');
+                            QUERY PLAN                            
+------------------------------------------------------------------
+ FastPath Insert on fastpath_t1  (cost=0.00..0.02 rows=1 width=0)
+   ->  Result  (cost=0.00..0.02 rows=1 width=0)
+(2 rows)
+
+--INSERT为子查询，无法执行FastPath优化，走标准执行器模块 gaussdb=# create table test_1(col1 int, col3 text); gaussdb=# explain insert into fastpath_t1 select * from test_1;
+                           QUERY PLAN                            
+-----------------------------------------------------------------
+ Insert on fastpath_t1  (cost=0.00..22.38 rows=1238 width=36)
+   ->  Seq Scan on test_1  (cost=0.00..22.38 rows=1238 width=36)
+(2 rows) 注意事项及约束条件 只支持INSERT VALUES语句下的执行优化，且VALUES子句后的数据为常量/参数/表达式等类型。 只支持行存表的执行优化。 不支持触发器。 不支持UPSERT语句的执行优化。 在CPU为资源瓶颈时能获得较好的提升。 父主题： 分区算子执行优化 版权所有 © 华为技术有限公司

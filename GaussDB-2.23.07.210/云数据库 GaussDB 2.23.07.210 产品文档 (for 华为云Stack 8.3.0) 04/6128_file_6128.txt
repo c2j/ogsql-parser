@@ -1,0 +1,1 @@
+检查系统参数 检查系统参数 在使用NAS存储备份数据前，需要检查系统参数“NAS_SUPPORT”和“NAS_REAL_PATH” 是否正确配置。 操作步骤 登录DBS运维管理平台。 进入“实例运维 > 配置管理 >系统参数管理”。 搜索“NAS_SUPPORT”和“NAS_REAL_PATH”参数，查看参数值。 NAS_SUPPORT为“true”时，创建实例过程中才会自动挂载存储管理列表中默认为true的NAS存储设备。 NAS_REAL_PATH，该值表示NAS服务器映射在数据库数据节点上的基础路径。实际NAS路径为  NAS_REAL_PATH拼接NAS设备ID。NAS_REAL_PATH的默认值为 /var/chroot/home/nfs。 父主题： DBS运维管理平台设备管理 版权所有 © 华为技术有限公司

@@ -1,0 +1,33 @@
+gs_convert gs_convert 背景信息 GaussDB 提供了gs_convert工具来帮助用户将数据库中已有的普通表，在线本地转换成hashbucket表，以便后续使用hashbucket特性。 前提条件 集群状态必须为Normal或者Degraded状态，集群Degraded状态只是实例异常引起的集群状态异常，不支持VM异常引起的集群状态异常（VM异常指非软件类异常，例如：磁盘故障、通信故障），请确保实例状态异常节点的网络正常。 实例状态：CN全部正常，GTM、CMS至少有主节点存活。 迁移前重分布状态必须为No。 集群配置文件的配置信息正确并且和当前集群配置一致。 资源管控对象redisuser，redisrespool，redisclass，redisgrp不能被占用。 迁移操作要求整个集群没有被锁定（没有业务持有集群锁禁用DDL）。 注意事项 在线本地迁移磁盘空间要求预留最大单表的1.5倍、锁资源约束继承逻辑在线扩容的规格。 对业务的影响：本地迁移对在线业务的平均吞吐量和平均时延的影响，在用户设置的资源管控级别范围内，业务闪断控制在秒级（和逻辑扩容约束保持一致）。 资源使用情况： 离线场景不控制IO资源使用。 在线场景IO占用控制在用户下发的资源管控参数范围内。 普通表转hashbucket表，单DN 1TB场景磁盘空间不膨胀。 转换前后hashbucket表的约束继承hashbucket特性本身的约束；hashbucket表不支持的表类型均不支持表类型迁移（不支持ustore表、不支持range、list分布的表、不支持二级分区表、不支持临时表、unlogged表、不支持外表、不支持透明加密和密态表）。 在线迁移正常运行过程中，用户修改转换文件无效。异常发生后，若重分布已开始不允许修改文件中表的转换类型及新增表，可删除未转换的表信息；重分布前允许用户更改文件内容（增、删、改）。 当前仅支持普通astore非分区表或分区表，hashbucket非分区表或分区表之间的类型转换。支持迁移的表类型继承hashbucket表约束，不支持ustore表、不支持range和list分布的表、不支持二级分区表、不支持临时表、unlogged表。 迁移失败后的待重入阶段禁止使用gs_om的managecn功能删除CN。 迁移操作仅支持分布式部署的集群。 迁移操作要求集群不能处于read-only状态。 不支持PITR恢复后重入表迁移操作。 hashbucket表迁移到普通表后，段页式的存储空间不会主动释放，可以执行global_space_shrink释放，详见段页式特性。 确认DN所在磁盘使用率未超阈值(默认85%)且未在执行其他运维操作。 gs_check -i CheckDataDiskUsage 使用gs_guc工具关闭集群只读模式。 gs_guc reload -N all -Z coordinator -I all -c 'default_transaction_read_only = off' gs_guc reload -N all -Z datanode -I all -c 'default_transaction_read_only = off' 迁移失败后集群不回滚，需重入迁移操作。 语法 表迁移 gs_convert -t convert --convert-tables-file FILEPATH [-l LOGFILE] [--parallel-jobs NUMBER] [--convert-mode MODE] [--resource-level LEVEL] 重分布资源管控 gs_convert -t resourcectl --resource-level LEVEL [-l LOGFILE] 重分布参数设置 gs_convert -t parametercfg [--lockwait-timeout=MSEC] [--lockwait-interval=SECS] [--trylock-threshold=NUMBER] [--enable-cancel=Boolean] [--last-catchup-threshold=MSEC] [--catchup-times=NUMBER] [--write-error-mode=Boolean] [--catchup-query-dop=NUMBER] [--parallel-catchup-threshold=NUMBER] [--parallel-reindex-jobs=NUMBER] [--redis-retry-times=NUMBER] [--redis-retry-interval=NUMBER] 显示帮助信息 gs_convert -? | --help 显示版本信息 gs_convert -V | --version 本特性不支持免密能力，非ssh环境下如需后台手动执行表迁移、资源管控、重分布参数设置操作，需通过管道形式传入数据库管理员用户密码，如下： echo "********" | gs_convert -t xxx 参数说明 gs_convert参数可以分为如下几类： 通用参数 -t gs_convert命令参数类型。 取值范围：convert，resourcectl，parametercfg。 -l 指定日志文件及存放路径。 默认值：$GAUSSLOG/om/gs_convert-YYYY-MM-DD_hhmmss.log。 -?, --help 显示帮助信息。 -V, --version 显示版本号信息。 --trace-id 调用链接口参数。 每次om请求的唯一标识，可根据om操作日志中的trace-id识别调用链从而进行故障定界。可选参数。 取值范围：1-128位的字符串，允许的字符为数字，字母和'-'。 迁移参数 --convert-tables-file 记录需要做类型转换的table信息的文件，文件中每行记录一个需要转换的表的信息，各项信息之间用空格分隔。 文件每行内容格式如下： database schema table_name convert_type convert_type为目标转换类型，可选值为normal及hashbucket，文件中不能存在空行且总行数不超过1000。 注意：schema和table_name名称中存在大写字母或者特殊字符或者空格时需要加双引号进行转义。不支持schema和table_name名称中存在双引号。 --parallel-jobs 指定数据重分布过程的并发执行任务个数。 如果不指定--parallel-jobs参数，则数据重分布默认值为1，为非并发执行方式。 --convert-mode 指定表迁移的执行模式。 取值范围： read-only：只读模式。 insert：插入模式，正在进行重分布的表支持并发插入（insert）以及导入（GDS导入）。 如不指定，ssh环境默认read-only模式，云环境默认insert模式。 资源管控参数 --resource-level 指定数据重分布的资源等级。 取值范围： f：100%资源。 h：50%资源。 m：30%资源。 l：10%资源。 默认值：l 当资源管控参数设置为f时，进入快速重分布场景，会充分使用资源，通过并发操作提升数据重分布的性能。此时，如果shared_buffers参数值设置过小（小于推荐值），会影响此场景下的性能优化效果。 重分布参数设置接口参数 配置对应的全局系统表参数供重分布工具和迁移脚本查询使用，可以在重分布开始前和重分布过程中使用，迁移成功后清除所有参数配置。不设置对应参数则保留上次调用的结果，未设置过的参数重分布开始时写入默认值。 --lockwait-timeout 锁超时时间。如果等锁线程在该时间内无法拿到锁，则报锁超时失败。触发CANCEL模式拿锁时，实际使用的锁超时时间为此参数设置的2倍。 对应参数：lockwait_timeout 取值范围：1~1200000 单位：毫秒 默认值：4000 --lockwait-interval 等锁步长。连续拿锁超时的场景，如果此轮等锁超时，间隔该参数指定的时长进行下一轮尝试。 对应参数：lockwait_interval 取值范围：0~300 单位：秒 默认值：5 --trylock-threshold 等锁尝试次数上限。需和enable_cancel参数同时使用，如果到达该上限还因为等锁超时无法成功获取到锁，则下次拿锁使用CANCEL模式。未开启enable_cancel不生效。 对应参数：trylock_threshold 取值范围：[1,INT_MAX], -1（无上限） 单位：次 默认值：3 --enable-cancel 是否允许用户业务快速失败。即是否允许达到等锁尝试次数上限或切表事务获取用户表8级锁时，快速失败用户业务从而保证重分布成功拿锁。 对应参数：enable_cancel 取值范围：[false,true] 默认值：true 此模式默认开启，如果用户业务没有连接级重试机制，建议手动关闭此参数。 触发CANCEL模式拿锁时，会发送FATAL级报错，用户业务不是在锁队列中等待而是中断连接。 --last-catchup-threshold 最后一轮追增时间上限。即最后一轮完成delete+insert追增耗时。 对应参数：last_catchup_threshold 取值范围：[1000,60000] 单位：毫秒 默认值：5000 --catchup-times 追增轮次上限。超出上限后强制进行最后一轮追增。 对应参数：catchup_times 取值范围：[1,INT_MAX], -1 单位：次 默认值：-1（表示无上限） --write-error-mode 写报错模式。true表示写报错模式。false表示采用全阻塞模式进行最后一轮追增。 对应参数：write_error_mode 取值范围：[false,true] 默认值：true 此模式默认开启，如果用户业务没有会话级重试机制，建议手动关闭此参数。 开启写报错模式后，用户写业务会有ERROR级报错，而不是在锁队列中等待。 开启此模式后，为避免长时间处于写报错状态，可能触发重分布进程主动退出和自动拉起特性，此时缩容时间会变长。 --catchup-query-dop 追增并行扫描度。 对应参数：catchup_query_dop 取值范围：[1,32] 单位：个 默认值：4 注：该参数设置过小可能导致追增性能下降，设置过大占用资源较多。 --parallel-catchup-threshold 多表重分布模式中开启并行追增所需的耗时阈值，一个分组中所有表追增耗时小于该值时，开启并行追增。 对应参数：parallel_catchup_threshold 取值范围：[1000,1800000] 单位：毫秒 默认值：300000 --parallel-reindex-jobs 同时临时表创建索引时的并发度，即多少个索引同时创建。 对应参数：parallel_reindex_jobs 取值范围：[1,64] 单位：个 默认值：2 --redis-retry-times 自动拉起重分布进程的次数上限，触发重分布进程主动退出时使用，拉起次数超出上限本轮重分布失败结束。 对应参数：redis_retry_times 取值范围：[0,100] 单位：次 默认值：5 --redis-retry-interval 自动拉起重分布进程的时间间隔，触发重分布进程主动退出时使用。 对应参数：redis_retry_interval 取值范围：[0,36000] 单位：秒 默认值：600 示例 示例一 ：表迁移（insert） gs_convert -t convert --convert-tables-file /home/Ruby/convert_file --convert-mode insert
+Performing health check.
+Health check succeeded.
+Start to check the contents of /home/Ruby/convert_file.
+Successfully to check /home/Ruby/convert_file.
+Pre conversion.
+Prepare operate step dir.
+Disabling the Heartbeat Check.
+Start conversion.
+Resource control.
+Successfully setup resource control.
+If you want to check the progress of conversion, please check the log file on 10.244.47.231:/var/lib/log/Ruby/bin/gs_redis/gs_redis-2023-08-25_070053.log.
+Successfully clear resource control.
+Post conversion.
+Resuming the Heartbeat Check.
+Conversion succeeded. 示例二：表迁移（read-only） gs_convert -t convert --convert-tables-file transfer
+Performing health check.
+Health check succeeded.
+Start to check the contents of transfer.
+Successfully to check transfer.
+Pre conversion.
+Prepare operate step dir.
+Disabling the Heartbeat Check.
+Start conversion.
+If you want to check the progress of conversion, please check the log file on cluster-0001:/data1/omm/log/perfadm/bin/gs_redis/gs_redis-2023-08-25_150422.log.
+Post conversion.
+Resuming the Heartbeat Check.
+Conversion succeeded. 示例三：资源管控（依赖重分布用户及资源池） gs_convert -t resourcectl --resource-level m
+Resource control for shrink succeeds, now the resource level is:
+--------------------------------------------------
+Resource Level: m, max_worker is: 1, max_dop is: 2.
+-------------------------------------------------- 示例四：重分布参数设置 gs_convert -t parametercfg --lockwait-timeout 500 --lockwait-interval 100
+Successfully to config params for redistribute. 父主题： 系统内部调用的工具 版权所有 © 华为技术有限公司

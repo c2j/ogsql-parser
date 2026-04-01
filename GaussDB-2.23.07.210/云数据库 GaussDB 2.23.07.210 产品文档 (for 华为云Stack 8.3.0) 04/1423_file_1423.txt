@@ -1,0 +1,122 @@
+集合类型的使用 集合类型的使用 在使用集合之前，需要自定义一个集合类型。 在存储过程中紧跟AS关键字后面定义集合类型。定义方法如下。 其中： table_type：要定义的集合类型名。 TABLE：表示要定义的集合类型。 data_type：要创建的集合中成员的类型。 indexby_type：创建集合索引的类型。 无索引的集合类型 以变长数组的方式存储指定数据类型的成员，用户可以通过extend函数扩展存储空间，通过trim函数释放存储空间。存储空间为10，成员类型为int的集合变量x，存储方式如下图所示： 其中成员 x(2)，x(5)，x(8)三个成员是无效的，但是存储空间仍然保留，后续可以继续赋值，而不需要重新分配空间。 注：无索引的集合类型作为函数返回值或者自治事务入参时，会删除无效成员的存储空间，所有成员的下标会相应发生改变。 定义集合类型后，使用table_type作为类型名声明变量： var_name table_type [:= table_type([v1[,...]])]; 可在变量声明时或者声明后使用类型构造器对变量进行初始化。如未初始化，变量var_name的值为NULL。 变量声明和初始化后，可通过下标访问集合成员，或者对成员进行赋值。下标的范围为[1, upper]，upper的值为当前空间的大小。如访问被删除的成员，会返回no data found的错误信息。 非兼容ORA模式下（参数sql_compatibility值不为ORA），不支持创建集合类型。 在 GaussDB 中，无索引的集合不会自动增长，访问下标越界时会报错。 支持在schema、匿名块、存储过程、自定义函数中定义的集合类型，其作用域各不相同。 NOT NULL只支持语法不支持功能。 当data_type为varchar、numeric等可以定义长度和精度的类型时，要校验集合的元素长度或者将元素转换成对应的精度，需要开启tableof_elem_constraints参数（设置behavior_compat_options参数值为tableof_elem_constraints）。 data_type为数组类型时，数组类型的元素长度校验或精度转换也受参数tableof_elem_constraints是否开启影响。 通过数组类型转换成的集合类型的值不支持对元素长度校验或精度转换。 data_type可以为基础数据类型、或存储过程内定义的record类型、集合类型、数组类型，不支持ref cursor类型。 不同的集合类型的变量不能相互赋值。即使成员类型相同，但集合类型名称不同，也是不同的集合类型。如TYPE t1 IS  TABLE OF int;和TYPE t2 IS TABLE OF int;定义的两个集合类型，t1和t2是不同的集合类型，以其定义的变量不支持相互赋值（作为成员类型时该约束不保证生效，赋值逻辑受父类型影响）。 只支持集合的等值(=)与非等值(<>或!=)比较，不支持其他关系运算和算数运算操作。 集合类型与NULL比较时，请使用 IS [ NOT ] NULL，使用 = 操作符与NULL比较的结果不准确。 支持集合类型变量作为函数的参数和返回值，此时要求参数或者返回值的类型是在schema中定义的集合类型。 无索引的集合作为函数入参时，可以传入对应子元素类型相同的数组类型作为入参，不支持多维数组，且要求数组下标从1开始（过时的方法，不建议使用该功能。可执行“set behavior_compat_options = 'disable_rewrite_nesttable';”禁用）。 不支持对XML类型数据操作。 集合类型以及嵌套集合的类型不支持作为表中的一列来创建表。 集合类型的构造器不支持浮点数以及表达式作为下标。 在匿名块中定义的集合类型，匿名块执行ROLLBACK或发生EXCEPTION后，集合类型将无法继续使用。 set enable_recordtype_check_strict = on;后，成员是record类型，且record类型有列具有not null属性或defalut属性，在存储过程编译时会报错。 GaussDB 支持使用圆括号来访问集合元素，且还支持一些特有的函数，如extend，count，first，last，prior，next，delete来访问集合的内容。 集合函数支持multiset union/intersect/except all/distinct函数。 带索引的集合类型 该集合类型将下标和对应成员值以键值对的方式存储在HASH表中，对该类型变量的所有操作实际就是对HASH表的操作。用户无需自行扩展或释放存储空间，仅需通过赋值或delete方式进行存储和删除成员。集合相关操作、说明如下： 类型定义 索引集合类型定义需同时指定成员类型data_type和下标类型indexby_type，其中下标类型仅支持integer和varchar。 变量声明和初始化 索引集合类型声明后存在3种初始化场景：未初始化、初始化为空、初始化指定下标和成员值。其中未初始化和初始化为空场景对变量的效果一致。未初始化或初始化为空后变量不为NULL，后续都可以对变量直接进行赋值。初始化指定下标和成员值场景会将指定的下标和成员值以键值对的形式保存到变量中。 变量赋值 索引集合类型变量赋值分为两种：成员赋值和整体赋值。成员赋值可通过指定下标方式对某个成员赋值，若该成员不存在则直接赋值，若存在则刷新该成员值。整体赋值则会将被赋值变量中原有成员都清空后重新保存新的成员值。整体赋值场景不能给变量赋NULL值，否则报错。 变量取值 通过指定下标方式可获取变量中对应下标的成员值，若通过下标找不到该成员则会返回no data found的错误信息。 非兼容ORA模式下（参数sql_compatibility值不为ORA），不支持创建带索引集合类型。 支持在匿名块、存储过程、自定义函数中定义带索引集合类型，其作用域各不相同。不支持在schema中定义带索引集合类型。 NOT NULL只支持语法不支持功能。 当data_type为varchar、numeric等可以定义长度和精度的类型时，要校验集合的元素长度或者将元素转换成对应的精度，需要开启tableof_elem_constraints参数（设置behavior_compat_options参数值为tableof_elem_constraints）。 data_type为数组类型时，数组类型的元素长度校验或精度转换也受参数tableof_elem_constraints是否开启影响。 通过数组类型转换成的集合类型的值不支持对元素长度校验或精度转换。 data_type可以为基础数据类型，或存储过程内定义的record类型，集合类型，数组类型，不支持ref cursor类型。 indexby_type仅支持integer和varchar。 indexby_type为varchar时，开启参数tableof_elem_constraints后在对带索引集合类型赋值时会校验index值的长度，校验行为不受char_coerce_compat参数是否开启影响，index长度大于定义长度则报错；不开启参数tableof_elem_constraints则不会对索引值进行长度校验。 未初始化的带索引集合类型变量非NULL。 带索引集合类型变量不能赋NULL值，否则报错。 带索引集合类型变量作为入参不能赋NULL值或''。 不同的带索引集合类型的变量不能相互赋值。即使成员类型和下标类型相同，但集合类型名称不同，也是不同的集合类型。如 TYPE t1 IS  TABLE OF int index by int; 和 TYPE t2 IS TABLE OF int index by int; 定义的两个集合类型，t1和t2是不同的集合类型，以其定义的变量不支持相互赋值（作为成员类型时该约束不保证生效，赋值逻辑受父类型影响）。 带索引集合类型不支持关系运算和算数运算操作。 select ... bulk collect into 方式赋值带索引集合类型变量时，只支持下标为integer类型的集合类型，下标为varchar类型集合不支持。 带索引的集合作为函数入参时，可以传入对应子元素类型相同的数组类型作为入参，不支持多维数组，不支持索引类型为varchar（过时的方法，不建议使用该功能。可执行“set behavior_compat_options = 'disable_rewrite_nesttable';”禁用）。 类型构造器目前仅支持集合类型，其参数个数的上限与用户自定义函数参数个数上限相同。对于带索引的集合类型，构造器在使用时索引的值仅支持为常量。 不支持对XML类型数据操作。 集合类型以及嵌套集合的类型不支持作为表中的一列来创建表。 集合类型的构造器不支持浮点数以及表达式作为下标。 在匿名块中定义的集合类型，匿名块执行ROLLBACK或发生EXCEPTION后，集合类型将无法继续使用。 set enable_recordtype_check_strict = on;后，成员是record类型，且record类型有列具有not null属性或defalut属性，在存储过程或PACKAGE编译时会报错。 示例 示例1：无索引的集合类型。 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27
+28
+29
+30
+31
+32
+33
+34
+35
+36
+37
+38
+39
+40
+41
+42
+43
+44
+45
+46
+47
+48
+49
+50
+51
+52
+53
+54
+55
+56
+57
+58
+59
+60 --演示在存储过程中对集合进行操作。 gaussdb =# CREATE OR REPLACE PROCEDURE table_proc AS DECLARE TYPE TABLE_INTEGER IS TABLE OF INTEGER ; --定义集合类型 TABLEINT TABLE_INTEGER : = TABLE_INTEGER (); --声明集合类型的变量 BEGIN TABLEINT . extend ( 10 ); FOR I IN 1 .. 10 LOOP TABLEINT ( I ) : = I ; END LOOP ; DBE_OUTPUT . PRINT_LINE ( TABLEINT . COUNT ); DBE_OUTPUT . PRINT_LINE ( TABLEINT ( 1 )); DBE_OUTPUT . PRINT_LINE ( TABLEINT ( 10 )); END ; / --调用该存储过程。 gaussdb =# CALL table_proc (); 10 1 10 table_proc ------------ ( 1 row ) --删除存储过程。 gaussdb =# DROP PROCEDURE table_proc ; --演示在存储过程中对嵌套集合进行操作。 gaussdb =# CREATE OR REPLACE PROCEDURE nest_table_proc AS DECLARE TYPE TABLE_INTEGER IS TABLE OF INTEGER ; --定义集合类型 TYPE NEST_TABLE_INTEGER IS TABLE OF TABLE_INTEGER ; --定义集合类型 NEST_TABLE_VAR NEST_TABLE_INTEGER : = NEST_TABLE_INTEGER (); --声明嵌套集合类型的变量 BEGIN NEST_TABLE_VAR . extend ( 10 ); FOR I IN 1 .. 10 LOOP NEST_TABLE_VAR ( I ) : = TABLE_INTEGER (); NEST_TABLE_VAR ( I ). extend ( 10 ); NEST_TABLE_VAR ( I )( I ) : = I ; END LOOP ; DBE_OUTPUT . PRINT_LINE ( NEST_TABLE_VAR . COUNT ); DBE_OUTPUT . PRINT_LINE ( NEST_TABLE_VAR ( 1 )( 1 )); DBE_OUTPUT . PRINT_LINE ( NEST_TABLE_VAR ( 10 )( 10 )); END ; / --调用该存储过程。 gaussdb =# CALL nest_table_proc (); 10 1 10 nest_table_proc ----------------- ( 1 row ) --删除存储过程。 gaussdb =# DROP PROCEDURE nest_table_proc ; 示例2：带索引的集合类型。 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27
+28
+29
+30
+31
+32
+33
+34
+35
+36
+37
+38
+39
+40
+41
+42
+43
+44
+45
+46
+47
+48
+49
+50
+51
+52
+53
+54
+55
+56
+57
+58
+59
+60
+61
+62
+63 --演示在存储过程中对带索引集合进行操作。 gaussdb =# CREATE OR REPLACE PROCEDURE index_table_proc AS DECLARE TYPE TABLE_INTEGER IS TABLE OF INTEGER INDEX BY INTEGER ; --定义集合类型 TYPE TABLE_VARCHAR IS TABLE OF INTEGER INDEX BY VARCHAR ; --定义集合类型 TABLEINT_01 TABLE_INTEGER ; --声明集合类型变量,未初始化 TABLEINT_02 TABLE_INTEGER : = TABLE_INTEGER (); --声明集合类型变量,初始化为空 TABLEINT_03 TABLE_INTEGER : = TABLE_INTEGER ( 2 => 3 , 3 => 4 ); --声明集合类型变量,初始化指定值 RES INTEGER ; BEGIN FOR I IN 1 .. 10 LOOP TABLEINT_01 ( I ) : = I ; --成员赋值 TABLEINT_02 ( I ) : = I + 1 ; --成员赋值 END LOOP ; TABLEINT_01 : = TABLEINT_02 ; --整体赋值 RES : = TABLEINT_03 ( 2 ); --取值 DBE_OUTPUT . PRINT_LINE ( RES ); DBE_OUTPUT . PRINT_LINE ( TABLEINT_01 ( 1 )); DBE_OUTPUT . PRINT_LINE ( TABLEINT_01 ( 10 )); END ; / --调用该存储过程。 gaussdb =# CALL index_table_proc (); 3 2 11 index_table_proc ------------------ ( 1 row ) --删除存储过程。 gaussdb =# DROP PROCEDURE index_table_proc ; --演示在存储过程中对嵌套集合进行操作。 gaussdb =# CREATE OR REPLACE PROCEDURE nest_table_proc AS DECLARE TYPE TABLE_INTEGER IS TABLE OF INTEGER INDEX BY INTEGER ; --定义集合类型 TYPE NEST_TABLE_INTEGER IS TABLE OF TABLE_INTEGER INDEX BY INTEGER ; --定义集合类型 NEST_TABLE_VAR NEST_TABLE_INTEGER ; --声明嵌套集合类型的变量 BEGIN FOR I IN 1 .. 10 LOOP NEST_TABLE_VAR ( I )( I ) : = I ; END LOOP ; DBE_OUTPUT . PRINT_LINE ( NEST_TABLE_VAR . COUNT ); DBE_OUTPUT . PRINT_LINE ( NEST_TABLE_VAR ( 1 )( 1 )); DBE_OUTPUT . PRINT_LINE ( NEST_TABLE_VAR ( 10 )( 10 )); END ; / --调用该存储过程。 gaussdb =# CALL nest_table_proc (); 10 1 10 nest_table_proc ----------------- ( 1 row ) --删除存储过程。 gaussdb =# DROP PROCEDURE nest_table_proc ; 父主题： 集合 版权所有 © 华为技术有限公司

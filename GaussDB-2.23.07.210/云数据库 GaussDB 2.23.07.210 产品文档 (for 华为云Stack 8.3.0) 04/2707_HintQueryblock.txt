@@ -1,0 +1,55 @@
+指定Hint所处于的查询块Queryblock 指定Hint所处于的查询块Queryblock 功能描述 该功能允许用户在hint中通过@queryblock来实现查询块级别的Hint控制，可以指定Hint生效的查询块，比如在外层查询块指定内层查询块的Hint。 语法格式 在hint的参数最开始加入可缺省的@queryblock, Hint_SEPC为某Hint。 Hint_SEPC([@queryblock]) 参数说明 Hint_SEPC为hint名，@queryblock可缺省，若缺省表示在hint声明的当前查询块生效。若@queryblock缺省之后导致Hint_SPEC无参，则hint不需要使用括号，直接写成Hint_SPEC，而非Hint_SPEC()。下面分别从queryblock的命名 和 hint生效的方式给出例子。部分hint无法只能在最外层生效，且不支持通过@queryblock方式指定，具体参见各自hint的语法说明。 查询块QueryBlock的命名： 每个查询块，都需要给出一个名称，以实现对hint的精确指定。命名方式有两种，用户指定和系统默认指定。 用户可以通过使用blockname的hint实现对于查询块名称的指定，具体可以参考 子链接块名的hint 章节。 若系统对于查询块没有指定默认别名，则系统会自动按照处理的顺序生成默认块名。一般情况下，每个查询块的默认别名由其所在的查询块名的首3个字母、"$"、查询块的编号组成，比如第一个select查询块的别名为sel$1。 在pretty 模式下，加入blockname 开关的explain方式可以查看对于查询中每个表的处理算子所在的查询块名。 gaussdb=# set explain_perf_mode = pretty;
+SET gaussdb=# explain (blockname on,costs off) select * from t1, (select c1 from t2 group by c1) sub1 where t1.c1 = sub1.c1;
+ id |              operation              | Query Block 
+----+-------------------------------------+-------------
+  1 | ->  Hash Join (2,3)                 | sel$1
+  2 |    ->  Seq Scan on t1@"sel$1"       | sel$1
+  3 |    ->  Hash                         | 
+  4 |       ->  HashAggregate             | sel$2
+  5 |          ->  Seq Scan on t2@"sel$2" | sel$2
+(5 rows) 可以看到t2的扫描在sel$2的查询块中。 @queryblock对于查询块的指定： 对于上述例子，修改t2中indexscan的方式。 select /*+indexscan(@sel$2 t2) tablescan(t1)*/ * from t1, (select c1 from t2 group by c1) sub1 where t1.c1 = sub1.c1; indexscan 和 tablescan都为扫描方式的hint, 扫描方式相关的hint可以参考 SCAN方式的Hint 。 通过在sel$1的查询块中指定 indexscan(@sel$2 t2)的hint，可以将该hint移至查询块sel$2中，对t2生效。若后续改写时查询块sel$2被提升至sel$1,则该Hint也会一起被提升至sel$1,继续对t2生效。 gaussdb=# explain (blockname on,costs off) select /*+indexscan(@sel$2 t2) tablescan(t1)*/ * from t1, (select c1 from t2 group by c1) sub1 where t1.c1 = sub1.c1;
+ id |                      operation                       | Query Block 
+----+------------------------------------------------------+-------------
+  1 | ->  Hash Join (2,3)                                  | sel$1
+  2 |    ->  Seq Scan on t1@"sel$1"                        | sel$1
+  3 |    ->  Hash                                          | 
+  4 |       ->  Group                                      | sel$2
+  5 |          ->  Index Only Scan using it2 on t2@"sel$2" | sel$2
+(5 rows) 有时候，优化器阶段的查询重写会展开一些查询块，导致计划在explain中不显示相关查询块。Hint指定查询块是根据优化器阶段之前查询块名字进行指定。当意图获知名字的查询块可能会在计划阶段被展开时，可以加入 no_expand的hint(参见 指定子查询不展开的Hint 章节)，让其不被展开。 查询块sel$2是简单查询，优化器后续处理时进行查询改写，t1提升至sel$1进行处理，因此计划中没有显示在sel$2查询块的操作。 gaussdb=# explain (blockname on,costs off) select * from t2, (select c1 from t1 where t1.c3 = 2) sub1 where t2.c1 = sub1.c1;
+ id |                operation                 | Query Block 
+----+------------------------------------------+-------------
+  1 | ->  Hash Join (2,3)                      | sel$1
+  2 |    ->  Seq Scan on t2@"sel$1"            | sel$1
+  3 |    ->  Hash                              | 
+  4 |       ->  Bitmap Heap Scan on t1@"sel$2" | sel$1
+  5 |          ->  Bitmap Index Scan using it3 | 
+(5 rows) 查询块sel$2是简单查询，优化器后续处理时因为no_expand跳过查询改写，t1还在原查询块处理。 gaussdb=# explain (blockname on,costs off) select * from t2, (select /*+ no_expand*/ c1 from t1 where t1.c3 = 2) sub1 where t2.c1 = sub1.c1;
+ id |                operation                 | Query Block 
+----+------------------------------------------+-------------
+  1 | ->  Hash Join (2,3)                      | sel$1
+  2 |    ->  Seq Scan on t2@"sel$1"            | sel$1
+  3 |    ->  Hash                              | 
+  4 |       ->  Bitmap Heap Scan on t1@"sel$2" | sel$2
+  5 |          ->  Bitmap Index Scan using it3 | 
+(5 rows) 通过no_expand知道t1处于sel$2查询块后，可以通过@sel$2进行hint的查询块指定。 gaussdb=# explain (blockname on,costs off) select/*+ indexscan(@sel$2 t1)*/ * from t2, (select c1 from t1 where t1.c3 = 2) sub1 where t2.c1 = sub1.c1;
+ id |                  operation                   | Query Block 
+----+----------------------------------------------+-------------
+  1 | ->  Hash Join (2,3)                          | sel$1
+  2 |    ->  Seq Scan on t2@"sel$1"                | sel$1
+  3 |    ->  Hash                                  | 
+  4 |       ->  Index Scan using it3 on t1@"sel$2" | sel$1
+(4 rows) view中查询块的编号需要取决于具体使用该view时的语句顺序。因此在创建view中应该避免使用hint指定查询块的功能，否则行为不可控。 gaussdb=# create view v1 as select/*+ no_expand */ c1 from t1 where c1 in (select /*+ no_expand */ c1 from t2 where t2.c3=4 );
+CREATE VIEW gaussdb=# explain (blockname on,costs off) select  * from v1;
+ id |                   operation                   | Query Block 
+----+-----------------------------------------------+-------------
+  1 | ->  Seq Scan on t1@"sel$2"                    | sel$2
+  2 |    ->  Seq Scan on t2@"sel$3"  [1, SubPlan 1] | sel$3
+(2 rows)
+
+ Predicate Information (identified by plan id) 
+-----------------------------------------------
+   1 --Seq Scan on t1@"sel$2"
+         Filter: (hashed SubPlan 1)
+   2 --Seq Scan on t2@"sel$3"
+         Filter: (c3 = 4)
+(4 rows) 此时v1中的语句分属于sel$2和sel$3。 部分Hint无法只能在最外层生效，且不支持通过@queryblock方式指定，具体参见各自Hint的语法说明。 父主题： 使用Plan Hint进行调优 版权所有 © 华为技术有限公司

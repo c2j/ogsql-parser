@@ -1,0 +1,1 @@
+命令参考 命令参考 表1 命令行参数说明 参数名称 释义 db_port 数据库端口号 database 数据库名称 file 包含多个查询语句的文件路径 db-host （可选）数据库主机号 db-user （可选）数据库用户名 schema （可选，模式为public）模式 父主题： SQL Rewriter 版权所有 © 华为技术有限公司

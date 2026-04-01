@@ -1,0 +1,16 @@
+{
+  "topic": "与Oracle兼容性说明",
+  "term_count": 2,
+  "terms": [
+    {
+      "term": "主备版",
+      "content": "主备版 主备版 Oracle数据库兼容性概述 SQL的基本元素 伪列 操作符 表达式 条件 常见的SQL DDL子句 SQL查询和子查询 PL/SQL语言 系统函数 系统视图 高级包",
+      "source_file": "159_file_159.txt"
+    },
+    {
+      "term": "分布式",
+      "content": "分布式 分布式 Oracle数据库兼容性概述 SQL的基本元素 伪列 操作符 表达式 条件 常见的SQL DDL子句 SQL查询和子查询 PL/SQL语言 系统函数 系统视图 高级包",
+      "source_file": "146_file_146.txt"
+    }
+  ]
+}

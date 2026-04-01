@@ -1,0 +1,33 @@
+常量与宏 常量与宏 GaussDB 支持的常量和宏请参见 表1 。 表1 常量和宏 参数 描述 示例 CURRENT_CATALOG 当前数据库 1
+2
+3
+4
+5 testdb =# SELECT CURRENT_CATALOG ; current_database ------------------ testdb ( 1 row ) CURRENT_ROLE 当前用户 1
+2
+3
+4
+5 gaussdb =# SELECT CURRENT_ROLE ; current_user -------------- omm ( 1 row ) CURRENT_SCHEMA 当前数据库模式 1
+2
+3
+4
+5 gaussdb =# SELECT CURRENT_SCHEMA ; current_schema ---------------- public ( 1 row ) CURRENT_USER 当前用户 1
+2
+3
+4
+5 gaussdb =# SELECT CURRENT_USER ; current_user -------------- omm ( 1 row ) LOCALTIMESTAMP 当前会话时间（无时区） 1
+2
+3
+4
+5 gaussdb =# SELECT LOCALTIMESTAMP ; timestamp ---------------------------- 2015 - 10 - 10 15 : 37 : 30 . 968538 ( 1 row ) NULL 空值 - SESSION_USER 当前系统用户 1
+2
+3
+4
+5 gaussdb =# SELECT SESSION_USER ; session_user -------------- omm ( 1 row ) SYSDATE 当前系统日期 1
+2
+3
+4
+5 gaussdb =# SELECT SYSDATE ; sysdate --------------------- 2015 - 10 - 10 15 : 48 : 53 ( 1 row ) USER 当前用户，此用户为CURRENT_USER的别名。 1
+2
+3
+4
+5 gaussdb =# SELECT USER ; current_user -------------- omm ( 1 row ) 父主题： SQL参考 版权所有 © 华为技术有限公司

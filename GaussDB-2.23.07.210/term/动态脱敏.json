@@ -1,0 +1,46 @@
+{
+  "topic": "动态脱敏",
+  "term_count": 8,
+  "terms": [
+    {
+      "term": "GS_MASKING",
+      "content": "GS_MASKING GS_MASKING GS_MASKING视图显示所有已配置的动态脱敏策略信息。需要有系统管理员或安全策略管理员权限才可以访问此视图。 表1 GS_MASKING字段 名称 类型 描述 polname name 脱敏策略名称。 polenabled boolean 脱敏策略开关。 maskaction name 脱敏函数。 labelname name 脱敏函数作用的标签名称。 masking_object text 脱敏数据库资源对象。 filter_name text 过滤条件的逻辑表达式。",
+      "source_file": "3465_GS_MASKING.txt"
+    },
+    {
+      "term": "GS_MASKING_POLICY_FILTERS",
+      "content": "GS_MASKING_POLICY_FILTERS GS_MASKING_POLICY_FILTERS GS_MASKING_POLICY_FILTERS系统表记录动态数据脱敏策略对应的用户过滤条件，当用户条件满足FILTER条件时，对应的脱敏策略才会生效。需要有系统管理员或安全策略管理员权限才可以访问此系统表。 表1 GS_MASKING_POLICY_FILTERS表字段 名称 类型 描述 oid oid 行标识符（隐含属性，必须明确选择）。 filtertype name 过滤类型。目前值仅为logical_expr。 filterlabelname name 过滤范围。目前值仅为logical_expr。 policyoid oid 该条用户过滤条件所属的脱敏策略oid，对应 GS_MASKING_POLICY 中的oid。 modifydate timestamp without time zone 该条用户过滤条件创建或修改的最新时间戳。 logicaloperator text 过滤条件的波兰表达式。",
+      "source_file": "3263_GS_MASKING_POLICY_FILTERS.txt"
+    },
+    {
+      "term": "GS_MASKING_POLICY",
+      "content": "GS_MASKING_POLICY GS_MASKING_POLICY GS_MASKING_POLICY系统表记录动态数据脱敏策略的主体信息，每条记录对应一个脱敏策略。需要有系统管理员或安全策略管理员权限才可以访问此系统表。 表1 GS_MASKING_POLICY表字段 名称 类型 描述 oid oid 行标识符（隐含属性，必须明确选择）。 polname name 策略名称，唯一不可重复。 polcomments name 策略描述字段，记录策略相关的描述信息，通过COMMENTS关键字体现。 modifydate timestamp without time zone 策略创建或修改的最新时间戳。 polenabled boolean 策略启动开关。 t（true）：表示策略启动。 f（false）：表示策略没有启动。",
+      "source_file": "1548_GS_MASKING_POLICY.txt"
+    },
+    {
+      "term": "GS_MASKING_POLICY_FILTERS",
+      "content": "GS_MASKING_POLICY_FILTERS GS_MASKING_POLICY_FILTERS GS_MASKING_POLICY_FILTERS系统表记录动态数据脱敏策略对应的用户过滤条件，当用户条件满足FILTER条件时，对应的脱敏策略才会生效。需要有系统管理员或安全策略管理员权限才可以访问此系统表。 表1 GS_MASKING_POLICY_FILTERS表字段 名称 类型 描述 oid oid 行标识符（隐含属性，必须明确选择）。 filtertype name 过滤类型。目前值仅为logical_expr。 filterlabelname name 过滤范围。目前值仅为logical_expr。 policyoid oid 该条记录所属的脱敏策略的oid，对应 GS_MASKING_POLICY 中的oid。 modifydate timestamp without time zone 该条用户过滤条件创建或修改的最新时间戳。 logicaloperator text 过滤条件的波兰表达式。",
+      "source_file": "1550_GS_MASKING_POLICY_FILTERS.txt"
+    },
+    {
+      "term": "GS_MASKING_POLICY_ACTIONS",
+      "content": "GS_MASKING_POLICY_ACTIONS GS_MASKING_POLICY_ACTIONS GS_MASKING_POLICY_ACTIONS系统表记录动态数据脱敏策略中相应的脱敏策略包含的脱敏行为，一个脱敏策略对应着该表的一行或多行记录。需要有系统管理员或安全策略管理员权限才可以访问此系统表。 表1 GS_MASKING_POLICY_ACTIONS表字段 名称 类型 描述 oid oid 行标识符（隐含属性，必须明确选择）。 actiontype name 脱敏函数，标识脱敏策略使用的脱敏函数。 actparams name 向脱敏函数中传递的参数信息。 actlabelname name 被脱敏的label名称。 policyoid oid 该条记录所属的脱敏策略的oid，对应 GS_MASKING_POLICY 中的oid。 actmodifydate timestamp without time zone 该条记录创建或修改的最新时间戳。",
+      "source_file": "1549_GS_MASKING_POLICY_ACTIONS.txt"
+    },
+    {
+      "term": "GS_MASKING",
+      "content": "GS_MASKING GS_MASKING GS_MASKING视图显示所有已配置的动态脱敏策略信息。需要有系统管理员或安全策略管理员权限才可以访问此视图。 表1 GS_MASKING字段 名称 类型 描述 polname name 脱敏策略名称。 polenabled boolean 脱敏策略开关。 maskaction name 脱敏函数。 labelname name 脱敏函数作用的标签名称。 masking_object text 脱敏数据库资源对象。 filter_name text 过滤条件的逻辑表达式。",
+      "source_file": "1762_GS_MASKING.txt"
+    },
+    {
+      "term": "GS_MASKING_POLICY_ACTIONS",
+      "content": "GS_MASKING_POLICY_ACTIONS GS_MASKING_POLICY_ACTIONS GS_MASKING_POLICY_ACTIONS系统表记录动态数据脱敏策略中相应的脱敏策略包含的脱敏行为，一个脱敏策略对应着该表的一行或多行记录。需要有系统管理员或安全策略管理员权限才可以访问此系统表。 表1 GS_MASKING_POLICY_ACTIONS表字段 名称 类型 描述 oid oid 行标识符（隐含属性，必须明确选择）。 actiontype name 脱敏函数，标识脱敏策略使用的脱敏函数。 actparams name 向脱敏函数中传递的参数信息。 actlabelname name 被脱敏的label名称。 policyoid oid 该条记录所属的脱敏策略oid，对应 GS_MASKING_POLICY 中的oid。 actmodifydate timestamp without time zone 该条记录创建或修改的最新时间戳。",
+      "source_file": "3262_GS_MASKING_POLICY_ACTIONS.txt"
+    },
+    {
+      "term": "GS_MASKING_POLICY",
+      "content": "GS_MASKING_POLICY GS_MASKING_POLICY GS_MASKING_POLICY系统表记录动态数据脱敏策略的主体信息，每条记录对应一个脱敏策略。需要有系统管理员或安全策略管理员权限才可以访问此系统表。 表1 GS_MASKING_POLICY表字段 名称 类型 描述 oid oid 行标识符（隐含属性，必须明确选择）。 polname name 策略名称，唯一不可重复。 polcomments name 策略描述字段，记录策略相关的描述信息，通过COMMENTS关键字体现。 modifydate timestamp without time zone 策略创建或修改的最新时间戳。 polenabled boolean 策略启动开关。 t（true）：表示策略启动。 f（false）：表示策略没有启动。",
+      "source_file": "3261_GS_MASKING_POLICY.txt"
+    }
+  ]
+}

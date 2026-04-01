@@ -1,0 +1,2 @@
+DBE_PLDEBUGGER.continue DBE_PLDEBUGGER.continue 执行当前存储过程，直到下一个断点或结束，返回执行的下一条的行数和对应query。 函数原型为： 1
+2 DBE_PLDEBUGGER . continue () RETURN Record ; 表1 continue 返回值列表 名称 类型 描述 funcoid OUT oid 函数id funcname OUT text 函数名 lineno OUT integer 当前调试运行的下一行行号 query OUT text 当前调试的下一行函数源码 父主题： DBE_PLDEBUGGER Schema 版权所有 © 华为技术有限公司

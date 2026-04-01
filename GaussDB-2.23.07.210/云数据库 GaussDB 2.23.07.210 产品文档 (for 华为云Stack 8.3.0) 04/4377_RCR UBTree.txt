@@ -1,0 +1,1 @@
+RCR UBTree可见性机制 RCR UBTree可见性机制 RCR UBTree可见性判断是通过判断Key上xmin/xmax来确定的，与Astore堆表数据行上xmin/xmax作用类似。 父主题： RCR UBTree 版权所有 © 华为技术有限公司

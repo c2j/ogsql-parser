@@ -1,0 +1,1 @@
+业务流程 业务流程 表1 组件说明 组件名称 组件所在节点 日志打印位置 GaussDB Console Console-Static 日志路径和下载方法请参考各个业务具体章节。 GaussDB API DBS-OPEN-API-For-GaussDB-01、DBS-OPEN-API-For-GaussDB-02 GaussDB 实例管理 DBS-GaussDB-01、DBS-GaussDB-02 GaussDB 备份管理 DBS-GaussDB-01、DBS-GaussDB-02 GaussDB Node POD VM 创建实例 删除实例 备份实例 恢复实例 容灾搭建 容灾主备切换 容灾灾备升主 父主题： 业务流程分析 版权所有 © 华为技术有限公司

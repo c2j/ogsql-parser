@@ -1,0 +1,1 @@
+PCR UBTree多版本管理 PCR UBTree多版本管理 与RCR UBTree的区别是，PCR(Page Consistency Read) 的多版本管理是基于页面的多版本管理，所有元组的事务信息统一由TD槽进行管理。 父主题： PCR UBTree 版权所有 © 华为技术有限公司

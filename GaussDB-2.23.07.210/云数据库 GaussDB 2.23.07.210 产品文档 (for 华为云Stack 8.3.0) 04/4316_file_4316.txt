@@ -1,0 +1,236 @@
+分区表静态剪枝 分区表静态剪枝 对于检索条件中分区键上带有常数的分区表查询语句，在优化器阶段将对indexscan、bitmap indexscan、indexonlyscan等算子中包含的检索条件作为剪枝条件，完成分区的筛选。算子包含的检索条件中需要至少包含一个分区键字段，对于含有多个分区键的分区表，包含任意分区键子集即可。 静态剪枝支持范围如下所示： 支持分区类型：范围分区、哈希分区、列表分区。 支持表达式类型：比较表达式（<，<=，=，>=，>）、逻辑表达式、数组表达式。 目前静态剪枝不支持子查询表达式。 为了支持分区表剪枝，在计划生成时会将分区键上的过滤条件强制转换为分区键类型，该操作与隐式类型转换规则存在差异，可能导致相同条件在分区键上转换报错，非分区键无报错的情况。 静态剪枝支持的典型场景具体示例如下： 比较表达式 --创建分区表
+CREATE TABLE t1 (c1 int, c2 int)
+PARTITION BY RANGE (c1)
+(
+    PARTITION p1 VALUES LESS THAN(10),
+    PARTITION p2 VALUES LESS THAN(20),
+    PARTITION p3 VALUES LESS THAN(MAXVALUE)
+);
+SET max_datanode_for_plan = 1; gaussdb=# EXPLAIN (VERBOSE ON, COSTS OFF) SELECT * FROM t1 WHERE c1 = 1;
+                        QUERY PLAN                         
+-----------------------------------------------------------
+ Data Node Scan
+   Output: t1.c1, t1.c2
+   Node/s: datanode1
+   Remote query: SELECT c1, c2 FROM public.t1 WHERE c1 = 1
+
+ Remote SQL: SELECT c1, c2 FROM public.t1 WHERE c1 = 1
+ Datanode Name: datanode1
+   Partition Iterator
+     Output: c1, c2
+     Iterations: 1
+     ->  Partitioned Seq Scan on public.t1
+           Output: c1, c2
+           Filter: (t1.c1 = 1)
+           Selected Partitions:  1
+
+(15 rows) gaussdb=# EXPLAIN (VERBOSE ON, COSTS OFF) SELECT * FROM t1 WHERE c1 < 1;
+                        QUERY PLAN                         
+-----------------------------------------------------------
+ Data Node Scan
+   Output: t1.c1, t1.c2
+   Node/s: All datanodes
+   Remote query: SELECT c1, c2 FROM public.t1 WHERE c1 < 1
+
+ Remote SQL: SELECT c1, c2 FROM public.t1 WHERE c1 < 1
+ Datanode Name: datanode1
+   Partition Iterator
+     Output: c1, c2
+     Iterations: 1
+     ->  Partitioned Seq Scan on public.t1
+           Output: c1, c2
+           Filter: (t1.c1 < 1)
+           Selected Partitions:  1
+
+(15 rows) gaussdb=# EXPLAIN (VERBOSE ON, COSTS OFF) SELECT * FROM t1 WHERE c1 > 11;
+                        QUERY PLAN                         
+------------------------------------------------------------
+ Data Node Scan
+   Output: t1.c1, t1.c2
+   Node/s: All datanodes
+   Remote query: SELECT c1, c2 FROM public.t1 WHERE c1 > 11
+
+ Remote SQL: SELECT c1, c2 FROM public.t1 WHERE c1 > 11
+ Datanode Name: datanode1
+   Partition Iterator
+     Output: c1, c2
+     Iterations: 2
+     ->  Partitioned Seq Scan on public.t1
+           Output: c1, c2
+           Filter: (t1.c1 > 11)
+           Selected Partitions:  2..3
+
+(15 rows) gaussdb=# EXPLAIN (VERBOSE ON, COSTS OFF) SELECT * FROM t1 WHERE c1 is NULL;
+                          QUERY PLAN                           
+---------------------------------------------------------------
+ Data Node Scan
+   Output: t1.c1, t1.c2
+   Node/s: datanode1
+   Remote query: SELECT c1, c2 FROM public.t1 WHERE c1 IS NULL
+
+ Remote SQL: SELECT c1, c2 FROM public.t1 WHERE c1 IS NULL
+ Datanode Name: datanode1
+   Partition Iterator
+     Output: c1, c2
+     Iterations: 1
+     ->  Partitioned Seq Scan on public.t1
+           Output: c1, c2
+           Filter: (t1.c1 IS NULL)
+           Selected Partitions:  3
+
+(15 rows) 逻辑表达式 gaussdb=# EXPLAIN (VERBOSE ON, COSTS OFF) SELECT * FROM t1 WHERE c1 = 1 AND c2 = 2;
+                              QUERY PLAN                              
+----------------------------------------------------------------------
+ Data Node Scan
+   Output: t1.c1, t1.c2
+   Node/s: datanode1
+   Remote query: SELECT c1, c2 FROM public.t1 WHERE c1 = 1 AND c2 = 2
+
+ Remote SQL: SELECT c1, c2 FROM public.t1 WHERE c1 = 1 AND c2 = 2
+ Datanode Name: datanode1
+   Partition Iterator
+     Output: c1, c2
+     Iterations: 1
+     ->  Partitioned Seq Scan on public.t1
+           Output: c1, c2
+           Filter: ((t1.c1 = 1) AND (t1.c2 = 2))
+           Selected Partitions:  1
+
+(15 rows) gaussdb=# EXPLAIN (VERBOSE ON, COSTS OFF) SELECT * FROM t1 WHERE c1 = 1 OR c1 = 2;
+                            QUERY PLAN                              
+---------------------------------------------------------------------
+ Data Node Scan
+   Output: t1.c1, t1.c2
+   Node/s: All datanodes
+   Remote query: SELECT c1, c2 FROM public.t1 WHERE c1 = 1 OR c1 = 2
+
+ Remote SQL: SELECT c1, c2 FROM public.t1 WHERE c1 = 1 OR c1 = 2
+ Datanode Name: datanode1
+   Partition Iterator
+     Output: c1, c2
+     Iterations: 1
+     ->  Partitioned Seq Scan on public.t1
+           Output: c1, c2
+           Filter: ((t1.c1 = 1) OR (t1.c1 = 2))
+           Selected Partitions:  1
+
+(15 rows) gaussdb=# EXPLAIN (VERBOSE ON, COSTS OFF) SELECT * FROM t1 WHERE NOT c1 = 1;
+                          QUERY PLAN                           
+---------------------------------------------------------------
+ Data Node Scan
+   Output: t1.c1, t1.c2
+   Node/s: All datanodes
+   Remote query: SELECT c1, c2 FROM public.t1 WHERE NOT c1 = 1
+
+ Remote SQL: SELECT c1, c2 FROM public.t1 WHERE NOT c1 = 1
+ Datanode Name: datanode1
+   Partition Iterator
+     Output: c1, c2
+     Iterations: 3
+     ->  Partitioned Seq Scan on public.t1
+           Output: c1, c2
+           Filter: (t1.c1 <> 1)
+           Selected Partitions:  1..3
+
+(15 rows) 数组表达式 gaussdb=# EXPLAIN (VERBOSE ON, COSTS OFF) SELECT * FROM t1 WHERE c1 IN (1, 2, 3);
+                                 QUERY PLAN                                  
+------------------------------------------------------------------------------
+ Data Node Scan
+   Output: t1.c1, t1.c2
+   Node/s: All datanodes
+   Remote query: SELECT c1, c2 FROM public.t1 WHERE c1 = ANY (ARRAY[1, 2, 3])
+
+ Remote SQL: SELECT c1, c2 FROM public.t1 WHERE c1 = ANY (ARRAY[1, 2, 3])
+ Datanode Name: datanode1
+   Partition Iterator
+     Output: c1, c2
+     Iterations: 1
+     ->  Partitioned Seq Scan on public.t1
+           Output: c1, c2
+           Filter: (t1.c1 = ANY ('{1,2,3}'::integer[]))
+           Selected Partitions:  1
+
+(15 rows) gaussdb=# EXPLAIN (VERBOSE ON, COSTS OFF) SELECT * FROM t1 WHERE c1 = ALL(ARRAY[1, 2, 3]);
+                                  QUERY PLAN                                  
+------------------------------------------------------------------------------
+ Data Node Scan
+   Output: t1.c1, t1.c2
+   Node/s: All datanodes
+   Remote query: SELECT c1, c2 FROM public.t1 WHERE c1 = ALL (ARRAY[1, 2, 3])
+
+ Remote SQL: SELECT c1, c2 FROM public.t1 WHERE c1 = ALL (ARRAY[1, 2, 3])
+ Datanode Name: datanode1
+   Partition Iterator
+     Output: c1, c2
+     Iterations: 0
+     ->  Partitioned Seq Scan on public.t1
+           Output: c1, c2
+           Filter: (t1.c1 = ALL ('{1,2,3}'::integer[]))
+           Selected Partitions:  NONE
+
+(15 rows) gaussdb=# EXPLAIN (VERBOSE ON, COSTS OFF) SELECT * FROM t1 WHERE c1 = ANY(ARRAY[1, 2, 3]);
+                                  QUERY PLAN                                  
+------------------------------------------------------------------------------
+ Data Node Scan
+   Output: t1.c1, t1.c2
+   Node/s: All datanodes
+   Remote query: SELECT c1, c2 FROM public.t1 WHERE c1 = ANY (ARRAY[1, 2, 3])
+
+ Remote SQL: SELECT c1, c2 FROM public.t1 WHERE c1 = ANY (ARRAY[1, 2, 3])
+ Datanode Name: datanode1
+   Partition Iterator
+     Output: c1, c2
+     Iterations: 1
+     ->  Partitioned Seq Scan on public.t1
+           Output: c1, c2
+           Filter: (t1.c1 = ANY ('{1,2,3}'::integer[]))
+           Selected Partitions:  1
+
+(15 rows) gaussdb=# EXPLAIN (VERBOSE ON, COSTS OFF) SELECT * FROM t1 WHERE c1 = SOME(ARRAY[1, 2, 3]);
+                                  QUERY PLAN                                  
+------------------------------------------------------------------------------
+ Data Node Scan
+   Output: t1.c1, t1.c2
+   Node/s: All datanodes
+   Remote query: SELECT c1, c2 FROM public.t1 WHERE c1 = ANY (ARRAY[1, 2, 3])
+
+ Remote SQL: SELECT c1, c2 FROM public.t1 WHERE c1 = ANY (ARRAY[1, 2, 3])
+ Datanode Name: datanode1
+   Partition Iterator
+     Output: c1, c2
+     Iterations: 1
+     ->  Partitioned Seq Scan on public.t1
+           Output: c1, c2
+           Filter: (t1.c1 = ANY ('{1,2,3}'::integer[]))
+           Selected Partitions:  1
+
+(15 rows) 静态剪枝不支持的典型场景具体示例如下： 子查询表达式 gaussdb=# EXPLAIN (VERBOSE ON, COSTS OFF) SELECT * FROM t1 WHERE c1 = ALL(SELECT c2 FROM t1 WHERE c1 > 10);
+                               QUERY PLAN                                
+-------------------------------------------------------------------------
+ Streaming (type: GATHER)
+   Output: public.t1.c1, public.t1.c2
+   Node/s: All datanodes
+   ->  Partition Iterator
+         Output: public.t1.c1, public.t1.c2
+         Iterations: 3
+         ->  Partitioned Seq Scan on public.t1
+               Output: public.t1.c1, public.t1.c2
+               Distribute Key: public.t1.c1
+               Filter: (SubPlan 1)
+               Selected Partitions:  1..3
+               SubPlan 1
+                 ->  Materialize
+                       Output: public.t1.c2
+                       ->  Streaming(type: BROADCAST)
+                             Output: public.t1.c2
+                             Spawn on: All datanodes
+                             Consumer Nodes: All datanodes
+                             ->  Partition Iterator
+                                   Output: public.t1.c2
+                                   Iterations: 2
+                                   ->  Partitioned Seq Scan on public.t1
+                                         Output: public.t1.c2
+                                         Distribute Key: public.t1.c1
+                                         Filter: (public.t1.c1 > 10)
+                                         Selected Partitions:  2..3
+(26 rows) 父主题： 分区剪枝 版权所有 © 华为技术有限公司

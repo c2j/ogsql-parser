@@ -1,0 +1,21 @@
+{
+  "topic": "监控运维",
+  "term_count": 3,
+  "terms": [
+    {
+      "term": "DBA智能运维",
+      "content": "DBA智能运维 DBA智能运维 对象分析 空间分析 SQL分析 iptables限流 实时会话",
+      "source_file": "5764_DBA.txt"
+    },
+    {
+      "term": "实例监控",
+      "content": "实例监控 实例监控 监控列表 实例监控 健康巡检 健康巡检模板 信息采集",
+      "source_file": "5758_file_5758.txt"
+    },
+    {
+      "term": "告警管理",
+      "content": "告警管理 告警管理 告警阈值配置 事件告警列表 事件告警配置 数据表巡检配置",
+      "source_file": "5753_file_5753.txt"
+    }
+  ]
+}

@@ -1,0 +1,1 @@
+DN强制停止Redo（ALM_AI_ForceFinishRedo） DN强制停止Redo（ALM_AI_ForceFinishRedo） 告警解释 用户执行强制finishredo命令，集群DN实例执行finishredo会产生告警。 告警属性 告警ID 告警级别 告警类型 是否可自动清除 ALM_AI_ForceFinishRedo minor 提示 不涉及 告警参数 请参考 告警参数说明 。 对系统的影响 一般人为手动强制执行finish redo时，才会上报此告警，存在丢数据风险。 系统自处理过程 该操作属于高危操作，系统无法自处理。 可能原因 一般人为手动强制执行finish redo时，才会上报此告警。 处理步骤 无需处理，等待系统完成。 父主题： GaussDB 内核告警参考 版权所有 © 华为技术有限公司

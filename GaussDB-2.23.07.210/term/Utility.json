@@ -1,0 +1,236 @@
+{
+  "topic": "Utility",
+  "term_count": 46,
+  "terms": [
+    {
+      "term": "PARALLEL_DECODE_THREAD_INFO",
+      "content": "PARALLEL_DECODE_THREAD_INFO PARALLEL_DECODE_THREAD_INFO PARALLEL_DECODE_THREAD_INFO视图用于查看当前节点上进行并行解码的线程信息，该视图需在DN上查询，在CN上查询返回空。 表1 PARALLEL_DECODE_THREAD_INFO字段 名称 类型 描述 thread_id bigint 线程id。 slot_name text 复制槽名。 thread_type text 线程种类（共三种，sender代表发送线程，reader代表读取线程，decoder代表解码线程）。 seq_number integer 当前复制槽中同种线程的序号（从1开始）。",
+      "source_file": "2216_PARALLEL_DECODE_THREAD_INFO.txt"
+    },
+    {
+      "term": "GLOBAL_PARALLEL_DECODE_STATUS",
+      "content": "GLOBAL_PARALLEL_DECODE_STATUS GLOBAL_PARALLEL_DECODE_STATUS GLOBAL_PARALLEL_DECODE_STATUS视图用于查看当前节点上的复制槽的并行解码信息。 表1 GLOBAL_PARALLEL_DECODE_STATUS字段 名称 类型 描述 node_name name 节点名称。 slot_name text 复制槽的名称。 parallel_decode_num integer 该复制槽的并行解码线程数。 read_change_queue_length text 将每个解码线程读取日志队列的当前长度拼接后输出。 decode_change_queue_length text 将每个解码线程解码结果队列的当前长度拼接后输出。 reader_lsn text 当前reader线程读取的日志位置。 working_txn_cnt bigint 当前拼接-发送线程中正在拼接的事务个数。 working_txn_memory bigint 拼接-发送线程中拼接事务占用总内存（单位字节）。 decoded_time timestamptz 该复制槽最新解码到的WAL日志时间。",
+      "source_file": "3891_GLOBAL_PARALLEL_DECODE_STATUS.txt"
+    },
+    {
+      "term": "CLASS_VITAL_INFO",
+      "content": "CLASS_VITAL_INFO CLASS_VITAL_INFO CLASS_VITAL_INFO视图用于做WDR时校验相同的表或者索引的Oid是否一致。 表1 CLASS_VITAL_INFO字段 名称 类型 描述 relid oid 表的oid。 schemaname name schema名称。 relname name 表名。 relkind \"char\" 表示对象类型，取值范围如下： r：表示普通表。 t：表示toast表。 i：表示索引。 G：表示全局二级索引。",
+      "source_file": "2208_CLASS_VITAL_INFO.txt"
+    },
+    {
+      "term": "BGWRITER_STAT",
+      "content": "BGWRITER_STAT BGWRITER_STAT BGWRITER_STAT视图显示关于后端写进程活动的统计信息。 表1 BGWRITER_STAT字段 名称 类型 描述 checkpoints_timed bigint 执行的定期检查点数。 checkpoints_req bigint 执行的需求检查点数。 checkpoint_write_time double precision 花费在检查点处理部分的时间总量，其中文件被写入到磁盘，以毫秒为单位。 checkpoint_sync_time double precision 花费在检查点处理部分的时间总量，其中文件被同步到磁盘，以毫秒为单位。 buffers_checkpoint bigint 检查点写缓冲区数量。 buffers_clean bigint 后端写进程写缓冲区数量。 maxwritten_clean bigint 后端写进程停止清理扫描时间数，因为它写了太多缓冲区。 buffers_backend bigint 通过后端直接写缓冲区数。 buffers_backend_fsync bigint 后端不得不执行自己的fsync调用的时间数（通常后端写进程处理这些即使后端确实自己写）。 buffers_alloc bigint 分配的缓冲区数量。 stats_reset timestamp with time zone 这些统计被重置的时间。",
+      "source_file": "3877_BGWRITER_STAT.txt"
+    },
+    {
+      "term": "REPLICATION_SLOTS",
+      "content": "REPLICATION_SLOTS REPLICATION_SLOTS REPLICATION_SLOTS视图用于查看复制槽的信息。 表1 REPLICATION_SLOTS字段 名称 类型 描述 slot_name text 复制槽的名称。 plugin text 逻辑复制槽对应的输出插件名称。 slot_type text 复制槽的类型。 physical：物理复制槽。 logical：逻辑复制槽。 datoid oid 复制槽所在的数据库OID。 database name 复制槽所在的数据库名称。 active boolean 复制槽是否为激活状态。 t（true）：表示是。 f（false）：表示不是。 xmin xid 数据库须为复制槽保留的最早事务的事务号。 catalog_xmin xid 数据库须为逻辑复制槽保留的最早的涉及系统表的事务的事务号。 restart_lsn text 复制槽需要的最早xlog的物理位置。 dummy_standby boolean 预留参数。",
+      "source_file": "2195_REPLICATION_SLOTS.txt"
+    },
+    {
+      "term": "PARALLEL_DECODE_THREAD_INFO",
+      "content": "PARALLEL_DECODE_THREAD_INFO PARALLEL_DECODE_THREAD_INFO PARALLEL_DECODE_THREAD_INFO视图用于查看当前节点上进行并行解码的线程信息。 表1 PARALLEL_DECODE_THREAD_INFO字段 名称 类型 描述 thread_id bigint 线程id。 slot_name text 复制槽名。 thread_type text 线程种类（共三种，sender代表发送线程，reader代表读取线程，decoder代表解码线程）。 seq_number integer 当前复制槽中同种线程的序号（从1开始）。",
+      "source_file": "3892_PARALLEL_DECODE_THREAD_INFO.txt"
+    },
+    {
+      "term": "CLASS_VITAL_INFO",
+      "content": "CLASS_VITAL_INFO CLASS_VITAL_INFO CLASS_VITAL_INFO视图用于做WDR时校验相同的表或者索引的oid是否一致。 表1 CLASS_VITAL_INFO字段 名称 类型 描述 relid oid 表的oid。 schemaname name schema名称。 relname name 表名。 relkind \"char\" 表示对象类型，取值范围如下： r：表示普通表。 t：表示toast表。 i：表示索引。",
+      "source_file": "3885_CLASS_VITAL_INFO.txt"
+    },
+    {
+      "term": "USER_LOGIN",
+      "content": "USER_LOGIN USER_LOGIN USER_LOGIN用来记录用户登录和退出次数的相关信息。 表1 USER_LOGIN字段 名称 类型 描述 node_name text 节点名称。 user_name text 用户名称。 user_id integer 用户oid(同pg_authid中的oid字段)。 login_counter bigint 登录次数。 logout_counter bigint 退出次数。",
+      "source_file": "2209_USER_LOGIN.txt"
+    },
+    {
+      "term": "PARALLEL_DECODE_STATUS",
+      "content": "PARALLEL_DECODE_STATUS PARALLEL_DECODE_STATUS PARALLEL_DECODE_STATUS视图用于查看当前节点上的复制槽的并行解码信息。 表1 PARALLEL_DECODE_STATUS字段 名称 类型 描述 slot_name text 复制槽的名称。 parallel_decode_num integer 该复制槽的并行解码线程数。 read_change_queue_length text 将每个解码线程读取日志队列的当前长度拼接后输出。 decode_change_queue_length text 将每个解码线程解码结果队列的当前长度拼接后输出。 reader_lsn text 当前reader线程读取的日志位置。 working_txn_cnt bigint 当前拼接-发送线程中正在拼接的事务个数。 working_txn_memory bigint 拼接-发送线程中拼接事务占用总内存（单位字节）。 decoded_time timestamptz 该复制槽最新解码到的WAL日志时间。",
+      "source_file": "3890_PARALLEL_DECODE_STATUS.txt"
+    },
+    {
+      "term": "GLOBAL_PARALLEL_DECODE_THREAD_INFO",
+      "content": "GLOBAL_PARALLEL_DECODE_THREAD_INFO GLOBAL_PARALLEL_DECODE_THREAD_INFO GLOBAL_PARALLEL_DECODE_THREAD_INFO视图用于查看集群各主DN节点上的进行并行解码的线程信息。该视图需在CN上查询，在DN上查询报错。 表1 GLOBAL_PARALLEL_DECODE_THREAD_INFO字段 名称 类型 描述 node_name name 节点名称。 thread_id bigint 线程id。 slot_name text 复制槽名。 thread_type text 线程种类（共三种，sender代表发送线程，reader代表读取线程，decoder代表解码线程）。 seq_number integer 当前复制槽中同种线程的序号（从1开始）。",
+      "source_file": "2217_GLOBAL_PARALLEL_DECODE_THREAD_INFO.txt"
+    },
+    {
+      "term": "GLOBAL_BGWRITER_STAT",
+      "content": "GLOBAL_BGWRITER_STAT GLOBAL_BGWRITER_STAT GLOBAL_BGWRITER_STAT视图显示各节点关于后端写进程活动的统计信息。 表1 GLOBAL_BGWRITER_STAT字段 名称 类型 描述 node_name name 节点名称。 checkpoints_timed bigint 执行的定期检查点数。 checkpoints_req bigint 执行的需求检查点数。 checkpoint_write_time double precision 花费在检查点处理部分的时间总量，其中文件被写入到磁盘，以毫秒为单位。 checkpoint_sync_time double precision 花费在检查点处理部分的时间总量，其中文件被同步到磁盘，以毫秒为单位。 buffers_checkpoint bigint 检查点写缓冲区数量。 buffers_clean bigint 后端写进程写缓冲区数量。 maxwritten_clean bigint 后端写进程停止清理扫描时间数，因为它写了太多缓冲区。 buffers_backend bigint 通过后端直接写缓冲区数。 buffers_backend_fsync bigint 后端不得不执行自己的fsync调用的时间数（通常后端写进程处理这些即使后端确实自己写）。 buffers_alloc bigint 分配的缓冲区数量。 stats_reset timestamp with time zone 这些统计被重置的时间。",
+      "source_file": "3878_GLOBAL_BGWRITER_STAT.txt"
+    },
+    {
+      "term": "BGWRITER_STAT",
+      "content": "BGWRITER_STAT BGWRITER_STAT BGWRITER_STAT视图显示关于后端写进程活动的统计信息。 表1 BGWRITER_STAT字段 名称 类型 描述 checkpoints_timed bigint 执行的定期检查点数。 checkpoints_req bigint 执行的需求检查点数。 checkpoint_write_time double precision 花费在检查点处理部分的时间总量，其中文件被写入到磁盘，以毫秒为单位。 checkpoint_sync_time double precision 花费在检查点处理部分的时间总量，其中文件被同步到磁盘，以毫秒为单位。 buffers_checkpoint bigint 检查点写缓冲区数量。 buffers_clean bigint 后端写进程写缓冲区数量。 maxwritten_clean bigint 后端写进程停止清理扫描时间数，因为它写了太多缓冲区。 buffers_backend bigint 通过后端直接写缓冲区数。 buffers_backend_fsync bigint 后端不得不执行自己的fsync调用的时间数（通常后端写进程处理这些即使后端确实自己写）。 buffers_alloc bigint 分配的缓冲区数量。 stats_reset timestamp with time zone 这些统计被重置的时间。",
+      "source_file": "2197_BGWRITER_STAT.txt"
+    },
+    {
+      "term": "GLOBAL_POOLER_STATUS",
+      "content": "GLOBAL_POOLER_STATUS GLOBAL_POOLER_STATUS GLOBAL_POOLER_STATUS视图用于查询全局CN 的pooler中的缓存连接状态。 表1 GLOBAL_POOLER_STATUS字段 名称 类型 描述 source_node_name name 源节点名称。 database text 数据库名称。 user_name text 用户名。 tid bigint 非线程池逻辑下为连接CN的线程id，线程池逻辑下为连接CN的sessionid。 node_oid bigint 连接的实例节点OID。 node_name name 连接的实例节点名称。 in_use boolean 连接是否正被使用： t（true）：表示连接正在使用。 f（false）：表示连接没有使用。 fdsock bigint 端口文件描述符。 remote_pid bigint 连接的远端节点线程号。 session_params text 会话参数。",
+      "source_file": "2204_GLOBAL_POOLER_STATUS.txt"
+    },
+    {
+      "term": "GLOBAL_REPLICATION_SLOTS",
+      "content": "GLOBAL_REPLICATION_SLOTS GLOBAL_REPLICATION_SLOTS GLOBAL_REPLICATION_SLOTS视图用于查看数据库各节点的复制槽的信息。 表1 GLOBAL_REPLICATION_SLOTS字段 名称 类型 描述 node_name name 节点名称。 slot_name text 复制槽的名称。 plugin text 逻辑复制槽对应的输出插件名称。 slot_type text 复制槽的类型。 physical：物理复制槽。 logical：逻辑复制槽。 datoid oid 复制槽所在的数据库OID。 database name 复制槽所在的数据库名称。 active boolean 复制槽是否为激活状态。 t（true）：表示是。 f（false）：表示不是。 x_min xid 数据库须为复制槽保留的最早事务的事务号。 catalog_xmin xid 数据库须为逻辑复制槽保留的最早的涉及系统表的事务的事务号。 restart_lsn text 复制槽需要的最早xlog的物理位置。 dummy_standby boolean 预留参数。",
+      "source_file": "3876_GLOBAL_REPLICATION_SLOTS.txt"
+    },
+    {
+      "term": "GLOBAL_CANDIDATE_STATUS",
+      "content": "GLOBAL_CANDIDATE_STATUS GLOBAL_CANDIDATE_STATUS GLOBAL_CANDIDATE_STATUS视图显示整个数据库所有实例候选buffer个数，buffer淘汰信息。 表1 GLOBAL_GET_BGWRITER_STATUS字段 名称 类型 描述 node_name text 节点名称。 candidate_slots integer 当前Normal Buffer Pool候选buffer链中页面个数。 get_buf_from_list bigint Normal Buffer Pool，buffer淘汰从候选buffer链中获取页面的次数。 get_buf_clock_sweep bigint Normal Buffer Pool，buffer淘汰从原淘汰方案中获取页面的次数。 seg_candidate_slots integer 当前Segment Buffer Pool候选buffer链中页面个数。 seg_get_buf_from_list bigint Segment Buffer Pool，buffer淘汰从候选buffer链中获取页面的次数。 seg_get_buf_clock_sweep bigint Segment Buffer Pool，buffer淘汰从原淘汰方案中获取页面的次数。",
+      "source_file": "3889_GLOBAL_CANDIDATE_STATUS.txt"
+    },
+    {
+      "term": "GLOBAL_BGWRITER_STAT",
+      "content": "GLOBAL_BGWRITER_STAT GLOBAL_BGWRITER_STAT GLOBAL_BGWRITER_STAT视图显示各节点关于后端写进程活动的统计信息。 表1 GLOBAL_BGWRITER_STAT字段 名称 类型 描述 node_name name 节点名称。 checkpoints_timed bigint 执行的定期检查点数。 checkpoints_req bigint 执行的需求检查点数。 checkpoint_write_time double precision 花费在检查点处理部分的时间总量，其中文件被写入到磁盘，以毫秒为单位。 checkpoint_sync_time double precision 花费在检查点处理部分的时间总量，其中文件被同步到磁盘，以毫秒为单位。 buffers_checkpoint bigint 检查点写缓冲区数量。 buffers_clean bigint 后端写进程写缓冲区数量。 maxwritten_clean bigint 后端写进程停止清理扫描时间数，因为它写了太多缓冲区。 buffers_backend bigint 通过后端直接写缓冲区数。 buffers_backend_fsync bigint 后端不得不执行自己的fsync调用的时间数（通常后端写进程处理这些即使后端确实自己写）。 buffers_alloc bigint 分配的缓冲区数量。 stats_reset timestamp with time zone 这些统计被重置的时间。",
+      "source_file": "2198_GLOBAL_BGWRITER_STAT.txt"
+    },
+    {
+      "term": "GLOBAL_CANDIDATE_STATUS",
+      "content": "GLOBAL_CANDIDATE_STATUS GLOBAL_CANDIDATE_STATUS GLOBAL_CANDIDATE_STATUS视图显示整个数据库所有实例候选buffer个数，buffer淘汰信息。 表1 GLOBAL_GET_BGWRITER_STATUS字段 名称 类型 描述 node_name text 节点名称。 candidate_slots integer 当前Normal Buffer Pool候选buffer链中页面个数。 get_buf_from_list bigint Normal Buffer Pool，buffer淘汰从候选buffer链中获取页面的次数。 get_buf_clock_sweep bigint Normal Buffer Pool，buffer淘汰从原淘汰方案中获取页面的次数。 seg_candidate_slots integer 当前Segment Buffer Pool候选buffer链中页面个数。 seg_get_buf_from_list bigint Segment Buffer Pool，buffer淘汰从候选buffer链中获取页面的次数。 seg_get_buf_clock_sweep bigint Segment Buffer Pool，buffer淘汰从原淘汰方案中获取页面的次数。",
+      "source_file": "2213_GLOBAL_CANDIDATE_STATUS.txt"
+    },
+    {
+      "term": "REPLICATION_STAT",
+      "content": "REPLICATION_STAT REPLICATION_STAT REPLICATION_STAT用于描述日志同步状态信息，如发起端发送日志位置，接收端接收日志位置等。 表1 REPLICATION_STAT字段 名称 类型 描述 pid bigint 线程的PID。 usesysid oid 用户系统ID。 usename name 用户名。 application_name text 程序名称。 client_addr inet 客户端地址。 client_hostname text 客户端名。 client_port integer 客户端端口。 backend_start timestamp with time zone 程序启动时间。 state text 日志复制的状态： 追赶状态 一致的流状态 sender_sent_location text 发送端发送日志位置。 receiver_write_location text 接收端write日志位置。 receiver_flush_location text 接收端flush日志位置。 receiver_replay_location text 接收端replay日志位置。 sync_priority integer 同步复制的优先级（0表示异步）。 sync_state text 同步状态： 异步复制 同步复制 潜在同步者",
+      "source_file": "3873_REPLICATION_STAT.txt"
+    },
+    {
+      "term": "GLOBAL_PARALLEL_DECODE_THREAD_INFO",
+      "content": "GLOBAL_PARALLEL_DECODE_THREAD_INFO GLOBAL_PARALLEL_DECODE_THREAD_INFO GLOBAL_PARALLEL_DECODE_THREAD_INFO视图用于查看当前节点上的复制槽的并行解码线程信息。 表1 GLOBAL_PARALLEL_DECODE_THREAD_INFO字段 名称 类型 描述 node_name name 节点名称。 thread_id bigint 线程id。 slot_name text 复制槽名。 thread_type text 线程种类（共三种，sender代表发送线程，reader代表读取线程，decoder代表解码线程）。 seq_number integer 当前复制槽中同种线程的序号（从1开始）。",
+      "source_file": "3893_GLOBAL_PARALLEL_DECODE_THREAD_INFO.txt"
+    },
+    {
+      "term": "GLOBAL_PAGEWRITER_STATUS",
+      "content": "GLOBAL_PAGEWRITER_STATUS GLOBAL_PAGEWRITER_STATUS GLOBAL_PAGEWRITER_STATUS视图显示 整个集群 所有实例的刷页信息和检查点信息。 表1 GLOBAL_PAGEWRITER_STATUS字段 名称 类型 描述 node_name text 实例名称。 pgwr_actual_flush_total_num bigint 从启动到当前时间总计刷脏页数量。 pgwr_last_flush_num integer 上一批刷脏页数量。 remain_dirty_page_num bigint 当前预计还剩余多少脏页。 queue_head_page_rec_lsn text 当前实例的脏页队列第一个脏页的recovery_lsn。 queue_rec_lsn text 当前实例的脏页队列的recovery_lsn。 current_xlog_insert_lsn text 当前实例xLog写入的位置。 ckpt_redo_point text 当前实例的检查点。",
+      "source_file": "2203_GLOBAL_PAGEWRITER_STATUS.txt"
+    },
+    {
+      "term": "GLOBAL_PARALLEL_DECODE_STATUS",
+      "content": "GLOBAL_PARALLEL_DECODE_STATUS GLOBAL_PARALLEL_DECODE_STATUS GLOBAL_PARALLEL_DECODE_STATUS视图用于查看集群各主DN节点上的复制槽的并行解码信息。该视图需在CN上查询，在DN上查询报错。 表1 GLOBAL_PARALLEL_DECODE_STATUS字段 名称 类型 描述 node_name name 节点名称。 slot_name text 复制槽的名称。 parallel_decode_num integer 该复制槽的并行解码线程数。 read_change_queue_length text 将每个解码线程读取日志队列的当前长度拼接后输出。 decode_change_queue_length text 将每个解码线程解码结果队列的当前长度拼接后输出。 reader_lsn text 当前reader线程读取的日志位置。 working_txn_cnt bigint 当前拼接-发送线程中正在拼接的事务个数。 working_txn_memory bigint 拼接-发送线程中拼接事务占用总内存（单位字节）。 decoded_time timestamptz 该复制槽最新解码到的WAL日志时间。",
+      "source_file": "2215_GLOBAL_PARALLEL_DECODE_STATUS.txt"
+    },
+    {
+      "term": "SUMMARY_USER_LOGIN",
+      "content": "SUMMARY_USER_LOGIN SUMMARY_USER_LOGIN SUMMARY_USER_LOGIN用来记录数据库主节点上用户登录和退出次数的相关信息。 表1 SUMMARY_USER_LOGIN字段 名称 类型 描述 node_name text 数据库进程名称。 user_name text 用户名称。 user_id integer 用户oid（同pg_authid中的oid字段）。 login_counter bigint 登录次数。 logout_counter bigint 退出次数。",
+      "source_file": "3887_SUMMARY_USER_LOGIN.txt"
+    },
+    {
+      "term": "USER_LOGIN",
+      "content": "USER_LOGIN USER_LOGIN USER_LOGIN用来记录用户登录和退出次数的相关信息。 表1 USER_LOGIN字段 名称 类型 描述 node_name text 数据库进程名称。 user_name text 用户名称。 user_id integer 用户oid（同pg_authid中的oid字段)。 login_counter bigint 登录次数。 logout_counter bigint 退出次数。",
+      "source_file": "3886_USER_LOGIN.txt"
+    },
+    {
+      "term": "GLOBAL_RECOVERY_STATUS",
+      "content": "GLOBAL_RECOVERY_STATUS GLOBAL_RECOVERY_STATUS GLOBAL_RECOVERY_STATUS视图显示关于主机和备机的日志流控信息。 表1 GLOBAL_RECOVERY_STATUS字段 名称 类型 描述 node_name text 节点名称，包含主机和备机。 standby_node_name text 备机节点名称。 source_ip text 主机的IP地址。 source_port integer 主机的端口号。 dest_ip text 备机的IP地址。 dest_port integer 备机的端口号。 current_rto bigint 备机当前的日志流控时间，单位秒。 target_rto bigint 备机通过GUC参数设置的预期流控时间，单位秒。 current_sleep_time bigint 为了达到这个预期主机所需要的睡眠时间，单位微秒。",
+      "source_file": "3884_GLOBAL_RECOVERY_STATUS.txt"
+    },
+    {
+      "term": "GLOBAL_REPLICATION_SLOTS",
+      "content": "GLOBAL_REPLICATION_SLOTS GLOBAL_REPLICATION_SLOTS GLOBAL_REPLICATION_SLOTS视图用于查看 集群 各节点的复制槽的信息。 表1 GLOBAL_REPLICATION_SLOTS字段 名称 类型 描述 node_name name 节点名称。 slot_name text 复制槽的名称。 plugin text 逻辑复制槽对应的输出插件名称。 slot_type text 复制槽的类型。 physical：物理复制槽。 logical：逻辑复制槽。 datoid oid 复制槽所在的数据库OID。 database name 复制槽所在的数据库名称。 active boolean 复制槽是否为激活状态。 t（true）：表示是。 f（false）：表示不是。 x_min xid 数据库须为复制槽保留的最早事务的事务号。 catalog_xmin xid 数据库须为逻辑复制槽保留的最早的涉及系统表的事务的事务号。 restart_lsn text 复制槽需要的最早xlog的物理位置。 dummy_standby boolean 预留参数。",
+      "source_file": "2196_GLOBAL_REPLICATION_SLOTS.txt"
+    },
+    {
+      "term": "GLOBAL_PAGEWRITER_STATUS",
+      "content": "GLOBAL_PAGEWRITER_STATUS GLOBAL_PAGEWRITER_STATUS GLOBAL_PAGEWRITER_STATUS视图显示数据库实例的刷页信息和检查点信息。 表1 GLOBAL_PAGEWRITER_STATUS字段 名称 类型 描述 node_name text 节点名称。 pgwr_actual_flush_total_num bigint 从启动到当前时间总计刷脏页数量。 pgwr_last_flush_num integer 上一批刷脏页数量。 remain_dirty_page_num bigint 当前预计还剩余多少脏页。 queue_head_page_rec_lsn text 当前实例的脏页队列第一个脏页的recovery_lsn。 queue_rec_lsn text 当前实例的脏页队列的recovery_lsn。 current_xlog_insert_lsn text 当前实例xLog写入的位置。 ckpt_redo_point text 当前实例的检查点。",
+      "source_file": "3881_GLOBAL_PAGEWRITER_STATUS.txt"
+    },
+    {
+      "term": "GLOBAL_SINGLE_FLUSH_DW_STATUS",
+      "content": "GLOBAL_SINGLE_FLUSH_DW_STATUS GLOBAL_SINGLE_FLUSH_DW_STATUS GLOBAL_SINGLE_FLUSH_DW_STATUS视图显示数据库所有实例单页面淘汰双写文件信息。展示内容中，/前是第一个版本双写文件刷页情况，/后是第二个版本双写文件刷页情况。 这里的 第一个版本双写刷页情况 指的是 对非段页式页面进行单页面淘汰双写， 第二个版本双写刷页情况 指的是 对段页式页面进行单页面淘汰双写 。 表1 GLOBAL_SINGLE_FLUSH_DW_STATUS字段 名称 类型 描述 node_name text 实例名称。 curr_dwn text 当前双写文件的序列号。 curr_start_page text 当前双写文件start位置。 total_writes text 当前双写文件总计写数据页面个数。 file_trunc_num text 当前双写文件复用的次数。 file_reset_num text 当前双写文件写满后发生重置的次数。",
+      "source_file": "3888_GLOBAL_SINGLE_FLUSH_DW_STATUS.txt"
+    },
+    {
+      "term": "GLOBAL_RECORD_RESET_TIME",
+      "content": "GLOBAL_RECORD_RESET_TIME GLOBAL_RECORD_RESET_TIME GLOBAL_RECORD_RESET_TIME用于重置（重启，主备倒换，数据库删除）汇聚数据库统计信息时间。 表1 GLOBAL_RECORD_RESET_TIME字段 名称 类型 描述 node_name text 节点名称。 reset_time timestamp with time zone 重置时间点。",
+      "source_file": "3882_GLOBAL_RECORD_RESET_TIME.txt"
+    },
+    {
+      "term": "GLOBAL_CKPT_STATUS",
+      "content": "GLOBAL_CKPT_STATUS GLOBAL_CKPT_STATUS GLOBAL_CKPT_STATUS视图用于显示 整个集群 所有实例的检查点信息和各类日志刷页情况。 表1 GLOBAL_CKPT_STATUS字段 名称 类型 描述 node_name text 实例名称。 ckpt_redo_point test 当前实例的检查点。 ckpt_clog_flush_num bigint 从启动到当前时间clog刷盘页面数。 ckpt_csnlog_flush_num bigint 从启动到当前时间csnlog刷盘页面数。 ckpt_multixact_flush_num bigint 从启动到当前时间multixact刷盘页面数。 ckpt_predicate_flush_num bigint 从启动到当前时间predicate刷盘页面数。 ckpt_twophase_flush_num bigint 从启动到当前时间twophase刷盘页面数。",
+      "source_file": "2201_GLOBAL_CKPT_STATUS.txt"
+    },
+    {
+      "term": "GLOBAL_REPLICATION_STAT",
+      "content": "GLOBAL_REPLICATION_STAT GLOBAL_REPLICATION_STAT GLOBAL_REPLICATION_STAT视图用于获得各节点描述日志同步状态信息，如发起端发送日志位置，接收端接收日志位置等。 表1 GLOBAL_REPLICATION_STAT字段 名称 类型 描述 node_name name 节点名称。 pid bigint 线程的PID。 usesysid oid 用户系统ID。 usename name 用户名。 application_name text 程序名称。 client_addr inet 客户端地址。 client_hostname text 客户端名。 client_port integer 客户端端口。 backend_start timestamp with time zone 程序启动时间。 state text 日志复制的状态： 追赶状态 一致的流状态 sender_sent_location text 发送端发送日志位置。 receiver_write_location text 接收端write日志位置。 receiver_flush_location text 接收端flush日志位置。 receiver_replay_location text 接收端replay日志位置。 sync_priority integer 同步复制的优先级（0表示异步）。 sync_state text 同步状态： 异步复制 同步复制 潜在同步者",
+      "source_file": "3874_GLOBAL_REPLICATION_STAT.txt"
+    },
+    {
+      "term": "SUMMARY_USER_LOGIN",
+      "content": "SUMMARY_USER_LOGIN SUMMARY_USER_LOGIN SUMMARY_USER_LOGIN用来记录 所有CN节点 上用户登录和退出次数的相关信息。 表1 SUMMARY_USER_LOGIN字段 名称 类型 描述 node_name text 节点名称。 user_name text 用户名称。 user_id integer 用户oid(同pg_authid中的oid字段)。 login_counter bigint 登录次数。 logout_counter bigint 退出次数。",
+      "source_file": "2210_SUMMARY_USER_LOGIN.txt"
+    },
+    {
+      "term": "GLOBAL_CKPT_STATUS",
+      "content": "GLOBAL_CKPT_STATUS GLOBAL_CKPT_STATUS GLOBAL_CKPT_STATUS视图用于显示数据库所有实例的检查点信息和各类日志刷页情况。 表1 GLOBAL_CKPT_STATUS字段 名称 类型 描述 node_name text 节点名称。 ckpt_redo_point test 当前实例的检查点。 ckpt_clog_flush_num bigint 从启动到当前时间clog刷盘页面数。 ckpt_csnlog_flush_num bigint 从启动到当前时间csnlog刷盘页面数。 ckpt_multixact_flush_num bigint 从启动到当前时间multixact刷盘页面数。 ckpt_predicate_flush_num bigint 从启动到当前时间predicate刷盘页面数。 ckpt_twophase_flush_num bigint 从启动到当前时间twophase刷盘页面数。",
+      "source_file": "3879_GLOBAL_CKPT_STATUS.txt"
+    },
+    {
+      "term": "GLOBAL_RECOVERY_STATUS",
+      "content": "GLOBAL_RECOVERY_STATUS GLOBAL_RECOVERY_STATUS GLOBAL_RECOVERY_STATUS视图显示关于主机和备机的日志流控信息。 表1 GLOBAL_RECOVERY_STATUS字段 名称 类型 描述 node_name text 节点的名称，包含主机和备机。 standby_node_name text 备机名称。 source_ip text 主机的IP地址。 source_port integer 主机的端口号。 dest_ip text 备机的IP地址。 dest_port integer 备机的端口号。 current_rto bigint 备机当前的日志流控时间，单位秒。 target_rto bigint 备机通过GUC参数设置的预期流控时间，单位秒。 current_sleep_time bigint 为了达到这个预期主机所需要的睡眠时间，单位微秒。",
+      "source_file": "2207_GLOBAL_RECOVERY_STATUS.txt"
+    },
+    {
+      "term": "REPLICATION_STAT",
+      "content": "REPLICATION_STAT REPLICATION_STAT REPLICATION_STAT用于描述日志同步状态信息，如发起端发送日志位置，收端接收日志位置等。 表1 REPLICATION_STAT字段 名称 类型 描述 pid bigint 线程的PID。 usesysid oid 用户系统ID。 usename name 用户名。 application_name text 程序名称。 client_addr inet 客户端地址。 client_hostname text 客户端名。 client_port integer 客户端端口。 backend_start timestamp with time zone 程序启动时间。 state text 日志复制的状态（追赶状态，还是一致的流状态）。 sender_sent_location text 发送端发送日志位置。 receiver_write_location text 接收端write日志位置。 receiver_flush_location text 接收端flush日志位置。 receiver_replay_location text 接收端replay日志位置。 sync_priority integer 同步复制的优先级（0表示异步）。 sync_state text 同步状态（异步复制，同步复制，还是潜在同步者）。",
+      "source_file": "2193_REPLICATION_STAT.txt"
+    },
+    {
+      "term": "POOLER_STATUS",
+      "content": "POOLER_STATUS POOLER_STATUS POOLER_STATUS视图用于查询本地CN 的pooler中的缓存连接状态。 表1 POOLER_STATUS字段 名称 类型 描述 database text 数据库名称。 user_name text 用户名。 tid bigint 非线程池逻辑下为连接CN的线程id，线程池逻辑下为连接CN的sessionid。 node_oid bigint 连接的实例节点OID。 node_name name 连接的实例节点名称。 in_use boolean 连接是否正被使用： t（true）：表示连接正在使用。 f（false）：表示连接没有使用。 node_port integer 连接的节点端口。 fdsock bigint 端口文件描述符。 remote_pid bigint 连接的远端节点线程号。 session_params text 会话参数。 used_count bigint 该连接的复用次数。 idx bigint 连接的实例节点逻辑连接id。 streamid bigint 每个逻辑连接对应的流标识id。",
+      "source_file": "2199_POOLER_STATUS.txt"
+    },
+    {
+      "term": "GLOBAL_DOUBLE_WRITE_STATUS",
+      "content": "GLOBAL_DOUBLE_WRITE_STATUS GLOBAL_DOUBLE_WRITE_STATUS GLOBAL_DOUBLE_WRITE_STATUS视图显示数据库所有实例的双写文件的情况。它是由每个节点的local_double_write_stat视图组成，属性完全一致。 表1 GLOBAL_DOUBLE_WRITE_STATUS字段 名称 类型 描述 node_name text 节点名称。 curr_dwn bigint 当前双写文件的序列号。 curr_start_page bigint 当前双写文件恢复起始页面。 file_trunc_num bigint 当前双写文件复用的次数。 file_reset_num bigint 当前双写文件写满后发生重置的次数。 total_writes bigint 当前双写文件总的I/O次数。 low_threshold_writes bigint 低效率写双写文件的I/O次数（一次I/O刷页数量少于16页面）。 high_threshold_writes bigint 高效率写双写文件的I/O次数（一次I/O刷页数量多于一批，421个页面）。 total_pages bigint 当前刷页到双写文件区的总的页面个数。 low_threshold_pages bigint 低效率刷页的页面个数。 high_threshold_pages bigint 高效率刷页的页面个数。 file_id bigint 当前双写文件的id号。",
+      "source_file": "3880_GLOBAL_DOUBLE_WRITE_STATUS.txt"
+    },
+    {
+      "term": "GLOBAL_DOUBLE_WRITE_STATUS",
+      "content": "GLOBAL_DOUBLE_WRITE_STATUS GLOBAL_DOUBLE_WRITE_STATUS GLOBAL_DOUBLE_WRITE_STATUS视图显示 整个集群 所有实例的双写文件的情况。 表1 GLOBAL_DOUBLE_WRITE_STATUS字段 名称 类型 描述 node_name text 实例名称。 curr_dwn bigint 当前双写文件的序列号。 curr_start_page bigint 当前双写文件恢复起始页面。 file_trunc_num bigint 当前双写文件复用的次数。 file_reset_num bigint 当前双写文件写满后发生重置的次数。 total_writes bigint 当前双写文件总的I/O次数。 low_threshold_writes bigint 低效率写双写文件的I/O次数（一次I/O刷页数量少于16页面）。 high_threshold_writes bigint 高效率写双写文件的I/O次数（一次I/O刷页数量多于一批，421个页面）。 total_pages bigint 当前刷页到双写文件区的总的页面个数。 low_threshold_pages bigint 低效率刷页的页面个数。 high_threshold_pages bigint 高效率刷页的页面个数。 file_id bigint 当前双写文件的id号。",
+      "source_file": "2202_GLOBAL_DOUBLE_WRITE_STATUS.txt"
+    },
+    {
+      "term": "REPLICATION_SLOTS",
+      "content": "REPLICATION_SLOTS REPLICATION_SLOTS REPLICATION_SLOTS视图用于查看复制槽的信息。 表1 REPLICATION_SLOTS字段 名称 类型 描述 slot_name text 复制槽的名称。 plugin text 逻辑复制槽对应的输出插件名称。 slot_type text 复制槽的类型。 physical：物理复制槽。 logical：逻辑复制槽。 datoid oid 复制槽所在的数据库OID。 database name 复制槽所在的数据库名称。 active boolean 复制槽是否为激活状态。 t（true）：表示是。 f（false）：表示不是。 xmin xid 数据库须为复制槽保留的最早事务的事务号。 catalog_xmin xid 数据库须为逻辑复制槽保留的最早的涉及系统表的事务的事务号。 restart_lsn text 复制槽需要的最早xlog的物理位置。 dummy_standby boolean 预留参数。",
+      "source_file": "3875_REPLICATION_SLOTS.txt"
+    },
+    {
+      "term": "GLOBAL_REPLICATION_STAT",
+      "content": "GLOBAL_REPLICATION_STAT GLOBAL_REPLICATION_STAT GLOBAL_REPLICATION_STAT视图用于获得各节点描述日志同步状态信息，如发起端发送日志位置，收端接收日志位置等。 表1 GLOBAL_REPLICATION_STAT字段 名称 类型 描述 node_name name 节点名称。 pid bigint 线程的PID。 usesysid oid 用户系统ID。 usename name 用户名。 application_name text 程序名称。 client_addr inet 客户端地址。 client_hostname text 客户端名。 client_port integer 客户端端口。 backend_start timestamp with time zone 程序启动时间。 state text 日志复制的状态（追赶状态，还是一致的流状态）。 sender_sent_location text 发送端发送日志位置。 receiver_write_location text 接收端write日志位置。 receiver_flush_location text 接收端flush日志位置。 receiver_replay_location text 接收端replay日志位置。 sync_priority integer 同步复制的优先级（0表示异步）。 sync_state text 同步状态： 异步复制 同步复制 潜在同步者",
+      "source_file": "2194_GLOBAL_REPLICATION_STAT.txt"
+    },
+    {
+      "term": "GLOBAL_GET_BGWRITER_STATUS",
+      "content": "GLOBAL_GET_BGWRITER_STATUS GLOBAL_GET_BGWRITER_STATUS GLOBAL_GET_BGWRITER_STATUS视图显示 整个集群 所有实例bgwriter线程刷页信息，候选buffer链中页面个数，buffer淘汰信息。 表1 GLOBAL_GET_BGWRITER_STATUS字段 名称 类型 描述 node_name text 实例名称。 bgwr_actual_flush_total_num bigint 从启动到当前时间bgwriter线程总计刷脏页数量。 bgwr_last_flush_num integer bgwriter线程上一批刷脏页数量。 candidate_slots integer 当前候选buffer链中页面个数。 get_buffer_from_list bigint buffer淘汰从候选buffer链中获取页面的次数。 get_buffer_clock_sweep bigint buffer淘汰从原淘汰方案中获取页面的次数。",
+      "source_file": "2211_GLOBAL_GET_BGWRITER_STATUS.txt"
+    },
+    {
+      "term": "GLOBAL_REDO_STATUS",
+      "content": "GLOBAL_REDO_STATUS GLOBAL_REDO_STATUS GLOBAL_REDO_STATUS视图显示 整个集群 所有实例的日志回放情况。 表1 GLOBAL_REDO_STATUS字段 名称 类型 描述 node_name text 实例名称。 redo_start_ptr bigint 当前实例日志回放的起始点。 redo_start_time bigint 当前实例日志回放的起始UTC时间。 redo_done_time bigint 当前实例日志回放的结束UTC时间。 curr_time bigint 当前实例的当前UTC时间。 min_recovery_point bigint 当前实例日志的最小一致性点位置。 read_ptr bigint 当前实例日志的读取位置。 last_replayed_read_ptr bigint 当前实例的日志回放位置。 recovery_done_ptr bigint 当前实例启动完成时的回放位置。 read_xlog_io_counter bigint 当前实例读取回放日志的io次数计数。 read_xlog_io_total_dur bigint 当前实例读取回放日志的io总时延。 read_data_io_counter bigint 当前实例回放过程中读取数据页面的io次数计数。 read_data_io_total_dur bigint 当前实例回放过程中读取数据页面的io总时延。 write_data_io_counter bigint 当前实例回放过程中写数据页面的io次数计数。 write_data_io_total_dur bigint 当前实例回放过程中写数据页面的io总时延。 process_pending_counter bigint 当前实例回放过程中日志分发线程的同步次数计数。 process_pending_total_dur bigint 当前实例回放过程中日志分发线程的同步总时延。 apply_counter bigint 当前实例回放过程中回放线程的同步次数计数。 apply_total_dur bigint 当前实例回放过程中回放线程的同步总时延。 speed bigint 当前实例日志回放速率，每回放256MB日志该值更新一次，单位byte/s。 在集群环境下，建议使用cm_ctl query -rv命令来获取更精确的备机回放速度（cm_ctl命令请参考《工具参考》中“统一集群管理工具”章节）。 local_max_ptr bigint 当前实例启动成功后本地收到的回放日志的最大值。 primary_flush_ptr bigint 主机落盘日志的位置。 worker_info text 当前实例回放线程信息，若没有开并行回放则该值为空。",
+      "source_file": "2206_GLOBAL_REDO_STATUS.txt"
+    },
+    {
+      "term": "PARALLEL_DECODE_STATUS",
+      "content": "PARALLEL_DECODE_STATUS PARALLEL_DECODE_STATUS PARALLEL_DECODE_STATUS视图用于查看当前节点上的复制槽的并行解码信息，该视图需在DN上查询，在CN上查询返回空。 表1 PARALLEL_DECODE_STATUS字段 名称 类型 描述 slot_name text 复制槽的名称。 parallel_decode_num integer 该复制槽的并行解码线程数。 read_change_queue_length text 将每个解码线程读取日志队列的当前长度拼接后输出。 decode_change_queue_length text 将每个解码线程解码结果队列的当前长度拼接后输出。 reader_lsn text 当前reader线程读取的日志位置。 working_txn_cnt bigint 当前拼接-发送线程中正在拼接的事务个数。 working_txn_memory bigint 拼接-发送线程中拼接事务占用总内存（单位字节）。 decoded_time timestamptz 该复制槽最新解码到的WAL日志时间。",
+      "source_file": "2214_PARALLEL_DECODE_STATUS.txt"
+    },
+    {
+      "term": "GLOBAL_REDO_STATUS",
+      "content": "GLOBAL_REDO_STATUS GLOBAL_REDO_STATUS GLOBAL_REDO_STATUS视图显示数据库实例的日志回放情况。 表1 GLOBAL_REDO_STATUS字段 名称 类型 描述 node_name text 节点名称。 redo_start_ptr bigint 当前实例日志回放的起始点。 redo_start_time bigint 当前实例日志回放的起始UTC时间。 redo_done_time bigint 当前实例日志回放的结束UTC时间。 curr_time bigint 当前实例的当前UTC时间。 min_recovery_point bigint 当前实例日志的最小一致性点位置。 read_ptr bigint 当前实例日志的读取位置。 last_replayed_read_ptr bigint 当前实例的日志回放位置。 recovery_done_ptr bigint 当前实例启动完成时的回放位置。 read_xlog_io_counter bigint 当前实例读取回放日志的I/O次数计数。 read_xlog_io_total_dur bigint 当前实例读取回放日志的I/O总时延。 read_data_io_counter bigint 当前实例回放过程中读取数据页面的I/O次数计数。 read_data_io_total_dur bigint 当前实例回放过程中读取数据页面的I/O总时延。 write_data_io_counter bigint 当前实例回放过程中写数据页面的I/O次数计数。 write_data_io_total_dur bigint 当前实例回放过程中写数据页面的I/O总时延。 process_pending_counter bigint 当前实例回放过程中日志分发线程的同步次数计数。 process_pending_total_dur bigint 当前实例回放过程中日志分发线程的同步总时延。 apply_counter bigint 当前实例回放过程中回放线程的同步次数计数。 apply_total_dur bigint 当前实例回放过程中回放线程的同步总时延。 speed bigint 当前实例日志回放速率，每回放256MB日志该值更新一次，单位byte/s。 建议使用cm_ctl query -rv命令来获取更精确的备机回放速度（cm_ctl命令请参考《工具参考》中“统一数据库管理工具”章节）。 local_max_ptr bigint 当前实例启动成功后本地收到的回放日志的最大值。 primary_flush_ptr bigint 主机落盘日志的位置。 worker_info text 当前实例回放线程信息，若没有开并行回放则该值为空。",
+      "source_file": "3883_GLOBAL_REDO_STATUS.txt"
+    },
+    {
+      "term": "GLOBAL_RECORD_RESET_TIME",
+      "content": "GLOBAL_RECORD_RESET_TIME GLOBAL_RECORD_RESET_TIME GLOBAL_RECORD_RESET_TIME用于重置（重启，主备倒换，数据库删除）汇聚 集群 统计信息时间。 表1 GLOBAL_RECORD_RESET_TIME字段 名称 类型 描述 node_name text 节点名称。 reset_time timestamp with time zone 重置时间点。",
+      "source_file": "2205_GLOBAL_RECORD_RESET_TIME.txt"
+    },
+    {
+      "term": "GLOBAL_COMM_CHECK_CONNECTION_STATUS",
+      "content": "GLOBAL_COMM_CHECK_CONNECTION_STATUS GLOBAL_COMM_CHECK_CONNECTION_STATUS GLOBAL_COMM_CHECK_CONNECTION_STATUS视图用于显示所有CN和所有活跃节点（CN和主DN）的连接情况，权限控制继承DBE_PERF schema。 表1 GLOBAL_COMM_CHECK_CONNECTION_STATUS字段 名称 类型 描述 node_name text 实例名称。 remote_name text 对端实例名称。 remote_host text 对端实例的IP。 remote_port integer 对端实例的PORT。 is_connected boolean 当前实例与对端实例的连接探测结果： t（true）：表示探测连接正常。 f（false）：表示探测连接异常。 no_error_occur boolean 当前实例与对端实例的pooler建连结果： t（true）：表示pooler连接正常。 f（false）：表示pooler连接异常。",
+      "source_file": "2200_GLOBAL_COMM_CHECK_CONNECTION_STATUS.txt"
+    },
+    {
+      "term": "GLOBAL_SINGLE_FLUSH_DW_STATUS",
+      "content": "GLOBAL_SINGLE_FLUSH_DW_STATUS GLOBAL_SINGLE_FLUSH_DW_STATUS GLOBAL_SINGLE_FLUSH_DW_STATUS视图显示 整个集群 所有实例单页面淘汰双写文件信息，展示内容，/ 前是第一个版本双写文件刷页情况，/ 后是第二个版本双写文件刷页情况。这里的第一个版本双写刷页情况指的是对非段页式页面进行单页面淘汰双写，第二个版本双写刷页情况指的是对段页式页面进行单页面淘汰双写。 表1 GLOBAL_SINGLE_FLUSH_DW_STATUS字段 名称 类型 描述 node_name text 实例名称。 curr_dwn text 当前双写文件的序列号。 curr_start_page text 当前双写文件start位置。 total_writes text 当前双写文件总计写数据页面个数。 file_trunc_num text 当前双写文件复用的次数。 file_reset_num text 当前双写文件写满后发生重置的次数。",
+      "source_file": "2212_GLOBAL_SINGLE_FLUSH_DW_STATUS.txt"
+    }
+  ]
+}

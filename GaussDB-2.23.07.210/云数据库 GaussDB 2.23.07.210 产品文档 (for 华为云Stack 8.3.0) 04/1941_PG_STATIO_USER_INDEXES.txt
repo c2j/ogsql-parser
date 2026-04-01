@@ -1,0 +1,1 @@
+PG_STATIO_USER_INDEXES PG_STATIO_USER_INDEXES PG_STATIO_USER_INDEXES视图显示命名空间中所有用户关系表索引的I/O状态信息。具体字段信息如 表1 所示。 表1 PG_STATIO_USER_INDEXES字段 名称 类型 描述 relid oid 该索引所在的表的OID。 indexrelid oid 该索引的OID。 schemaname name 该索引的模式名。 relname name 该索引的表名. indexrelname name 索引名称。 idx_blks_read bigint 从索引中读取的磁盘块数。 idx_blks_hit bigint 索引命中缓存数。 父主题： 其他系统视图 版权所有 © 华为技术有限公司

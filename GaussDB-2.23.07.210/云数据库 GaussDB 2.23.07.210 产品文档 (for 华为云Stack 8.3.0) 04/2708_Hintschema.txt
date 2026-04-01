@@ -1,0 +1,18 @@
+Hint可以指定表的查询块名和schema名 Hint可以指定表的查询块名和schema名 功能描述 由于在一个查询中，允许在不同查询块使用相同表名，同时不同schema可以有相同表名，因此Hint在指定查询中某个表table时允许指定其所属于的查询块名queryblock和schema名，避免歧义。 该指定方法支持所有需要指定表名的Hint。 语法格式 hint指定某个表table，通过“.”指定schema，通过“@”queryblock指定查询块名。 schema和queryblock可缺省。 [schema.]relname[@queryblock] 参数说明 relname为查询中表table的名字，表有别名时，需要优先使用别名alias，此时relname=alias。当表名中有特殊符号，比如“@”、“.”时，relname需要用""括起来，以避免和查询块和schema名的声明重合。比如表名relnametest@1，需要写做 "relnametest@1"。 schema为表所处的schema，可缺省，缺省时hint不区分schema对relname进行查找。 queryblock为表所处的queryblock，可缺省，缺省时Hint不区分queryblock对relname进行查找。 示例 sel$2的t1被提升至sel$1，存在t1指代不清的问题。 gaussdb=# explain(blockname on,costs off) select /*+ indexscan(t1)*/ * from t1, (select c2 from t1 where c1=1) tt1 where t1.c1 = tt1.c2; 
+WARNING:  Error hint: IndexScan(t1), relation name "t1" is ambiguous.
+... 指定t1@sel$2,可以发现在sel$2的t1上进行了indexscan，Index Cond: (c1 = 1)。 gaussdb=# explain(blockname on,costs off) select /*+ indexscan(t1@sel$2)*/ * from t1, (select c2 from t1 where c1=1) tt1 where t1.c1 = tt1.c2; 
+ id |                     operation                     | Query Block 
+----+---------------------------------------------------+-------------
+  1 | ->  Hash Join (2,3)                               | sel$1
+  2 |    ->  Seq Scan on t1@"sel$1"                     | sel$1
+  3 |    ->  Hash                                       | 
+  4 |       ->  Index Only Scan using it1 on t1@"sel$2" | sel$1
+(4 rows)
+
+  Predicate Information (identified by plan id)   
+--------------------------------------------------
+   1 --Hash Join (2,3)
+         Hash Cond: (public.t1.c1 = public.t1.c2)
+   4 --Index Only Scan using it1 on t1@"sel$2"
+         Index Cond: (c1 = 1)
+(4 rows) 父主题： 使用Plan Hint进行调优 版权所有 © 华为技术有限公司

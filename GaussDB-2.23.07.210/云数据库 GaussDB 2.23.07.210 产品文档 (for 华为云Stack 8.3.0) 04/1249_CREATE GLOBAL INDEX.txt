@@ -1,0 +1,30 @@
+CREATE GLOBAL INDEX CREATE GLOBAL INDEX 功能描述 在指定的表上创建全局二级索引（Global Secondary Index，简称GSI）。 全局二级索引允许用户定义与基表分布不一致的索引，从而实现基表非分布列查询的单节点计划和基表非分布列上的unique/主键约束。 在升级未提交观察期间，不允许创建GSI。 建议在GSI的基表创建普通索引提升IUD执行效率，另外，在基表上创建GSI后将影响IUD的性能，带来劣化。 注意事项 同基表约束，GSI的分布列不支持更新（UPDATE）操作。 只支持GTM-LITE模式下创建GSI，不支持其他GTM模式，在其他模式下创建GSI会报错。 Astore不支持创建GSI以外的UBTree，不支持对GSI创建分区。 不支持创建与基表分布一致的GSI，执行时会报错。 只支持对Ustore表执行CREATE GSI CONCURRENTLY，对Astore表执行CREATE GSI CONCURRENTLY会报语法错误；不支持表达式索引和部分索引CREATE GSI CONCURRENTLY，会报语法错误。 不支持在线重建GSI。 支持对基表为hash分布的行存Astore表、Ustore表、分区表创建hash分布的GSI，不支持基表为 复制表、 段页式、list/range分布、二级分区表等，对于GSI本身不支持hash分布以外的分布。 当基表为分区表时，GSI最多支持27列；当基表为非分区表时，最多支持28列（包括索引键和分布键）。 不支持UPSERT、建有GSI的基表上的IUD returning功能，以及MERGE INTO。 不支持对基表列名或者ctid、xc_node_hash、xmin、xmax、tableoid（当基表为分区表时）增加_new$$、_NEW$$后与自身列名重复的基表创建GSI。 对于创建GSI（非在线）、重建GSI，以及涉及重建GSI的操作：比如分区表分区操作（包括DROP、TRUNCATE、MERGE、SPLIT、EXCHANGE PARTITION）指定UPDATE DISTRIBUTED GLOBAL INDEX，ALTER TABLE涉及重建数据的操作，建议开启STREAM模式，以达到最优性能。（其中，STREAM模式指设置enable_stream_operator参数为ON，并设置create_gsi_opt参数置为build） 如果在执行VACUUM FULL、CLUSTER或者REINDEX操作时中断，表上的GSI可能会变为UNUSABLE状态，此时查询语句走GSI会报错，建议执行REINDEX INDEX重建GSI。 在对建有GSI的基表执行COPY、GDS数据导入时，建议开启STREAM模式，以达到最优数据导入性能。 在当前版本，每次对建有GSI的基表执行COPY、GDS数据导入时，将重建GSI，如果基表存量数据较多，待导入数据较少，导入性能将受严重影响。 当前会使GSI失效的操作：REINDEX数据库级、CLUSTER数据库级/分区级、ALTER TABLE PARTITION（DROP、TRUNCATE、MERGE、SPLIT、EXCHANGE PARTITION未指定UPDATE DISTRIBUTED GLOBAL INDEX将失效分区表上的所有GSI，其中，EXCHANGE PARTITITON未指定UPDATE DISTRIBUTED GLOBAL INDEX将同步失效普通表上的所有GSI） 。 回表基于STREAM，继承STREAM相关约束。考虑到STREAM通信时延，当选择率过低或者谓词命中行数较少时，性能非最优，不建议使用回表计划，建议与普通索引配合使用。 对于Insert into select批量插入场景，UPDATE/DELETE批量场景，当前版本执行计划采用回到CN的方式，性能较差（类比503.1.0版本创建GSI性能）。 GSI支持表达式索引，但存在以下约束： 同基表约束，不支持分布键包含表达式（且无法创建索引列仅包含表达式的GSI，因为此时分布键必定为表达式），创建时会报语法错误。 同普通索引约束，不支持CONTAINING列中包含表达式，创建时会报语法错误。 若表上存在以"expr"为前缀的列名，不支持创建带有表达式的GSI，创建时会报语法错误。 语法格式 CREATE GLOBAL [ UNIQUE ] INDEX [ CONCURRENTLY ] [ [schema_name.]index_name ] ON table_name [ USING method ]
+    ({ { column_name [ ( length ) ] | ( expression ) } [ COLLATE collation ] [ opclass ] [ ASC | DESC ] [ NULLS { FIRST | LAST } ] }[, ...] ) 
+    [CONTAINING (column_name [ ,... ])] [DISTRIBUTE BY hash(column_name [ ,... ])][ WITH ( {storage_parameter = value} [, ... ] )]
+    [ TABLESPACE tablespace_name ] [ VISIBLE | INVISIBLE ] [ WHERE predicate]; 参数说明 UNIQUE 创建唯一性索引，每次添加数据时检测表中是否有重复值。如果插入或更新的值会引起重复的记录时，将报错。 CONCURRENTLY 以不阻塞DML的方式创建索引（加ShareUpdateExclusiveLock锁）。创建索引时，一般会阻塞其他语句对该索引所依赖表的访问。指定此关键字，可以实现创建过程中不阻塞DML。 普通CREATE GLOBAL INDEX命令可以在事务内执行，但是CREATE  GLOBAL INDEX CONCURRENTLY不可以在事务内执行。 内置了stream加速创建优化，该优化受enable_stream_operator参数控制。当该参数开启时，在线创建会以stream的方式进行，创建性能提升。 索引在线创建过程中可能会发生构建失败。构建失败的可能情形包括用户指令终止在线创建命令、修改该索引的定义、修改基表定义且影响了该索引的定义等。索引在线构建失败时有报错提示，同时留下一个“不可用”的索引。这个索引会被查询忽略，但它仍消耗IUD开销。因此推荐的恢复方法是通过DROP INDEX IF EXISTS语法删除该索引并尝试再次在线创建索引，或通过REINDEX/REBUILD语法重建索引。 schema_name 模式的名称。 取值范围：已存在模式名。 index_name 要创建的索引名，不能包含模式名，索引的模式与表相同。 取值范围：字符串，要符合 标识符命名规范 。 table_name 需要为其创建索引的表的名称，可以用模式修饰。 取值范围：已存在的表名。 USING method 指定创建索引的方法。 取值范围：ubtree，提供多版本B-tree索引，索引页面上包含事务信息。 column_name 表中需要创建索引的列的名称（字段名）。 如果索引方式支持多字段索引，可以声明多个字段，对于非分区基表最多可以声明28个字段，对于分区基表最多可以声明27个字段。 column_name ( length ) 支持前缀键，详见： •column_name ( length ) 。 前缀索引作为一种表达式索引，在GSI中的约束与表达式键一致。 expression 创建一个基于该表的一个或多个字段的表达式索引，通常必须写在圆括号中。如果表达式有函数调用的形式，圆括号可以省略。表达式索引可用于获取对基本数据的某种变形的快速访问。比如，一个在upper(col)上的函数索引将允许WHERE upper(col) = 'JIM'子句使用索引。在创建表达式索引时，如果表达式中包含IS NULL子句，则这种索引是无效的。此时，建议用户尝试创建一个部分索引。 COLLATE collation COLLATE子句指定列的排序规则（该列必须是可排列的数据类型）。如果没有指定，则使用默认的排序规则。排序规则可以使用“select * from pg_collation”命令从pg_collation系统表中查询，默认的排序规则为查询结果中以default开始的行。 opclass 操作符类的名称。对于索引的每一列可以指定一个操作符类，操作符类标识了索引那一列的使用的操作符。 ASC 指定按升序排序 （默认）。 DESC 指定按降序排序。 NULLS FIRST 指定空值在排序中排在非空值之前，当指定DESC排序时，本选项为默认的。 NULLS LAST 指定空值在排序中排在非空值之后，未指定DESC排序时，本选项为默认的。 CONTAINING 全局二级索引可以包含索引键以外的基表属性。 CONTAINING ( column_name [, ...]) 全局二级索引包含的索引键以外的基表属性。 DISTRIBUTE BY 指定全局二级索引分布键，其分布键需要与基表不同，且只能使用哈希分布方式。 DISTRIBUTE BY hash(column_name [,...]) 全局二级索引分布键。 需要被包含在索引键中。 WITH ( {storage_parameter = value} [, ... ] ) 指定GSI的存储参数。 取值范围： FILLFACTOR 一个索引的填充因子（fillfactor）是一个介于10和100之间的百分数。 取值范围：10~100 STORAGE _ TYPE 指定GSI的存储类型。 取值范围：USTORE INDEXSPLIT 控制选择UBtree合适分裂点的方式，与Btree相同。 取值范围：DEFAULT、INSERTPT TABLESPACE tablespace_name 指定索引的表空间，如果没有声明则使用默认的表空间。 取值范围：已存在的表空间名。 VISIBLE 设置索引状态为可见，此选项为默认的。 VISIBLE仅支持在ORA模式数据库下（即sql_compatibility = 'ORA'）设置，在其他数据库兼容模式下不支持。 当disable_keyword_options参数设置为“visible”时，此关键字不支持使用。 升级未提交阶段，不支持使用此关键字。 INVISIBLE 设置索引状态为不可见。 INVISIBLE仅支持在ORA模式数据库下（即sql_compatibility = 'ORA'）设置，在其他数据库兼容模式下不支持。 当disable_keyword_options参数设置为“invisible”时，此关键字不支持使用。 升级未提交阶段，不支持使用此关键字。 WHERE predicate 创建一个部分索引。部分索引是一个只包含表的一部分记录的索引，通常是该表中比其他部分数据更有用的部分。例如，有一个表，表里包含已记账和未记账的定单，未记账的定单只占表的一小部分而且这部分是最常用的，此时就可以通过只在未记账部分创建一个索引来改善性能。另外一个可能的用途是使用带有UNIQUE的WHERE强制一个表的某个子集的唯一性。 取值范围：predicate表达式只能引用表的字段，它可以使用所有字段，而不仅是被索引的字段。目前，子查询和聚集表达式不能出现在WHERE子句里。不建议使用int等数值类型作为predicate，因为int等数值类型可以隐式转换为BOOLEAN值（非0值隐式转换为true，0转换为false），可能导致非预期的结果。 示例 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27 --创建包含3列的基表test1 gaussdb =# CREATE TABLE test1 ( c1 int , c2 int , c3 int ); -- 在test表的c2列上创建GSI，并包含c3列，基于c2列哈希分布 gaussdb =# CREATE GLOBAL INDEX idx_gsi_1 ON test1 ( c2 ) CONTAINING ( c3 ) DISTRIBUTE BY HASH ( c2 ); -- 创建包含3列的基表test2 gaussdb =# CREATE TABLE test2 ( c1 int , c2 int , c3 int ); -- 在test2表的c2列上创建GSI，并包含c3列，默认基于c2列哈希分布 gaussdb =# CREATE GLOBAL INDEX idx_gsi_2 ON test2 ( c2 ) CONTAINING ( c3 ) ; -- 创建包含3列的基表test3 gaussdb =# CREATE TABLE test3 ( c1 int , c2 int , c3 int ); -- 在test3表的c2列上创建UNIQUE形式的GSI，默认基于c2列哈希分布 gaussdb =# CREATE GLOBAL UNIQUE INDEX idx_gsi_3 ON test3 ( c2 ) DISTRIBUTE BY HASH ( c2 ); -- 删除索引 gaussdb =# DROP INDEX idx_gsi_1 ; gaussdb =# DROP INDEX idx_gsi_2 ; gaussdb =# DROP INDEX idx_gsi_3 ; -- 删除表 gaussdb =# DROP TABLE test1 ; gaussdb =# DROP TABLE test2 ; gaussdb =# DROP TABLE test3 ; 父主题： C 版权所有 © 华为技术有限公司

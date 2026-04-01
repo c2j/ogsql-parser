@@ -1,0 +1,36 @@
+{
+  "topic": "预处理指令",
+  "term_count": 6,
+  "terms": [
+    {
+      "term": "define和undef指令",
+      "content": "define和undef指令 define和undef指令 嵌入式 SQL具有类似于C语言中#define指令： EXEC SQL DEFINE name;\nEXEC SQL DEFINE name value;\nEXEC SQL UNDEF name; 示例如下： /* 定义名称 */\nEXEC SQL DEFINE HAVE_FEATURE;\n\n/* 定义常量 */\nEXEC SQL DEFINE MYNUMBER 12;\nEXEC SQL DEFINE MYSTRING 'abc';\n\n/* 使用 UNDEF 移除定义 */\nEXEC SQL UNDEF MYNUMBER; 在嵌入式SQL程序中也可以使用C语言版本的#define和#undef。区别在于定义的值会在哪里被计算，如果使用EXEC SQL DEFINE，那么ecpg预处理阶段会计算这些定义并替换值。如下示例，ecpg对其进行替换并且编译器不会解析名为MYNUMBER的任何名称或标识符： EXEC SQL DEFINE MYNUMBER 12; \n... \nEXEC SQL UPDATE Tbl SET col = MYNUMBER; 不能把#define用于一个将要在一个嵌入式SQL查询中使用的变量，因为在这种情况下嵌入式SQL预编译器不能看到这个声明。",
+      "source_file": "2672_defineundef.txt"
+    },
+    {
+      "term": "ifdef，ifndef，else，elif和endif指令",
+      "content": "ifdef，ifndef，else，elif和endif指令 ifdef，ifndef，else，elif和endif指令 ecpg提供了ifdef、ifndef、else、elif和endif条件编译指令。在预处理时，按照不同的条件去编译程序的不同部分，使用时，需要添加EXEC SQL前缀关键字。 示例如下： EXEC SQL ifndef TZVAR; \nEXEC SQL SET TIMEZONE TO 'GMT'; \nEXEC SQL elif TZNAME; \nEXEC SQL SET TIMEZONE TO TZNAME; \nEXEC SQL else; \nEXEC SQL SET TIMEZONE TO TZVAR; \nEXEC SQL endif;",
+      "source_file": "946_ifdefifndefelseelifendif.txt"
+    },
+    {
+      "term": "define和undef指令",
+      "content": "define和undef指令 define和undef指令 嵌入式SQL具有类似于C语言中#define指令： EXEC SQL DEFINE name;\nEXEC SQL DEFINE name value;\nEXEC SQL UNDEF name; 示例如下： /* 定义名称 */\nEXEC SQL DEFINE HAVE_FEATURE;\n\n/* 定义常量 */\nEXEC SQL DEFINE MYNUMBER 12;\nEXEC SQL DEFINE MYSTRING 'abc';\n\n/* 使用 UNDEF 移除定义 */\nEXEC SQL UNDEF MYNUMBER; 在嵌入式SQL程序中也可以使用C语言版本的#define和#undef。区别在于定义的值会在哪里被计算，如果使用EXEC SQL DEFINE，那么ecpg预处理阶段会计算这些定义并替换值。如下示例，ecpg对其进行替换并且编译器不会解析名为MYNUMBER的任何名称或标识符： EXEC SQL DEFINE MYNUMBER 12; \n... \nEXEC SQL UPDATE Tbl SET col = MYNUMBER; 不能把#define用于一个将要在一个嵌入式SQL查询中使用的变量，因为在这种情况下嵌入式SQL预编译器不能看到这个声明。",
+      "source_file": "947_defineundef.txt"
+    },
+    {
+      "term": "包含文件",
+      "content": "包含文件 包含文件 将外部文件包含到嵌入SQL程序中，可使用如下语句： EXEC SQL INCLUDE filename;\nEXEC SQL INCLUDE <filename>;\nEXEC SQL INCLUDE \"filename\"; ecpg预处理器按照如下顺序搜索文件： 当前目录 /usr/local/include GaussDB Kernel 的目录，在编译时定义 /usr/include EXEC SQL INCLUDE \"filename\"语句仅搜索当前目录。 在每一个目录中，预处理器首先按照给定的文件名搜索，若没找到则会追加.h到文件名后重试（除非指定的文件名已有该后缀）。 文件名是大小写敏感的。",
+      "source_file": "945_file_945.txt"
+    },
+    {
+      "term": "ifdef，ifndef，else，elif和endif指令",
+      "content": "ifdef，ifndef，else，elif和endif指令 ifdef，ifndef，else，elif和endif指令 ecpg提供了ifdef、ifndef、else、elif和endif条件编译指令。在预处理时，按照不同的条件去编译程序的不同部分，使用时，需要添加EXEC SQL前缀关键字。 示例如下： EXEC SQL ifndef TZVAR; \nEXEC SQL SET TIMEZONE TO 'GMT'; \nEXEC SQL elif TZNAME; \nEXEC SQL SET TIMEZONE TO TZNAME; \nEXEC SQL else; \nEXEC SQL SET TIMEZONE TO TZVAR; \nEXEC SQL endif;",
+      "source_file": "2671_ifdefifndefelseelifendif.txt"
+    },
+    {
+      "term": "包含文件",
+      "content": "包含文件 包含文件 将外部文件包含到嵌入SQL程序中，可使用如下语句： EXEC SQL INCLUDE filename;\nEXEC SQL INCLUDE <filename>;\nEXEC SQL INCLUDE \"filename\"; ecpg预处理器按照如下顺序搜索文件： 当前目录 /usr/local/include GaussDB Kernel 的目录，在编译时定义 /usr/include EXEC SQL INCLUDE \"filename\"语句仅搜索当前目录。 在每一个目录中，预处理器首先按照给定的文件名搜索，若没找到则会追加.h到文件名后重试（除非指定的文件名已有该后缀）。 文件名是大小写敏感的。",
+      "source_file": "2670_file_2670.txt"
+    }
+  ]
+}

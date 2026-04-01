@@ -1,0 +1,67 @@
+安全函数 安全函数 安全函数 gs_encrypt_aes128(encryptstr,keystr) 描述：使用基于keystr派生出的密钥对encryptstr字符串进行加密，返回加密后的字符串。keystr的长度范围为8~16字节，并且至少包含大写字母、小写字母、数字和特殊字符中的三种字符。支持的加密数据类型：目前数据库支持的数值类型，字符类型，二进制类型中的RAW，日期/时间类型中的DATE、TIMESTAMP、SMALLDATETIME。 返回值类型：text 返回值长度：至少为92字节，不超过4*[(Len+68)/3]字节，其中Len为加密前数据长度（单位为字节）。 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT gs_encrypt_aes128 ( 'MPPDB' , '1234@abc' ); gs_encrypt_aes128 ---------------------------------------------------------------------------------------------- OF1g3 + 70 oeqFfyKiWlpxfYxPnpeitNc6 + 7 nAe02Ttt37fZF8Q + bbEYhdw / YG + 0 c9tHKRWM6OcTzlB3HnqvX + 1 d8Bflo = ( 1 row ) 由于该函数的执行过程需要传入口令，为了安全起见，gsql工具不会将包含该函数名字样的SQL记录入执行历史。即无法在gsql里通过上下翻页功能找到该函数的执行历史。 gs_decrypt_aes128(decryptstr,keystr) 描述：使用基于keystr派生出的密钥对decrypt字符串进行解密，返回解密后的字符串。解密使用的keystr必须保证与加密时使用的keystr一致才能正确解密。keystr不得为空。 此函数需要结合gs_encrypt_aes128加密函数共同使用。 返回值类型：text 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT gs_decrypt_aes128 ( 'OF1g3+70oeqFfyKiWlpxfYxPnpeitNc6+7nAe02Ttt37fZF8Q+bbEYhdw/YG+0c9tHKRWM6OcTzlB3HnqvX+1d8Bflo=' , '1234@abc' ); gs_decrypt_aes128 ------------------- MPPDB ( 1 row ) 由于该函数的执行过程需要传入口令，为了安全起见，gsql工具不会将包含该函数名字样的SQL记录入执行历史；即无法在gsql里通过上下翻页功能找到该函数的执行历史。 aes_encrypt(str, key_str, init_vector) 描述：基于AES算法，使用加密口令key_str和初始化向量init_vector对字符串str进行加密。 参数解释： str: 需要被加密的字符串。若str为NULL，函数返回NULL。 key_str: 加密口令。若key_str为NULL，函数返回NULL。为了安全，对于128bit/192bit/256bit的密钥长度（由块加密模式block_encryption_mode确定），建议用户使用128bit/192bit/256bit的安全随机数作为密钥字符串。 init_vector: 为需要它的块加密模式提供初始化变量，长度大于等于16字节（大于16字节的部分会被自动忽略）。str和key_str均不为NULL时，该参数不可为NULL，否则报错。为了安全，建议用户在OFB模式下，保证每次加密IV值的唯一性；在CBC模式和CFB模式下，保证每次加密的IV值不可被预测。 返回值类型：text 示例： gaussdb=# select aes_encrypt('huwei123','123456vfhex4dyu,vdaladhjsadad','1234567890123456');
+ aes_encrypt
+-------------
+ u*8\x05c?0
+(1 row) 该函数仅在 GaussDB 兼容MYSQL类型时（即sql_compatibility = 'MYSQL'）有效，其他类型不支持该函数。 由于该函数的执行过程需要传入加密口令，为了安全起见，gsql工具不会将包含该函数名字样的SQL记录入执行历史，即无法在gsql里通过上下翻页功能找到该函数的执行历史。 在存储过程的相关操作中需尽量避免调用该函数，避免敏感参数信息在日志中泄露的风险。同时建议用户在使用包含该函数的存储过程相关操作时，将该函数的参数信息过滤后再提供给外部维护人员定位，日志使用完后请及时删除。 在打开debug_print_plan开关的情况下需尽量避免调用该函数，避免敏感参数信息在日志中泄露的风险。同时建议用户在打开debug_print_plan开关生成的日志中对该函数的参数信息进行过滤后再提供给外部维护人员定位，日志使用完后请及时删除。 由于SQL_ASCII设置与其他设置表现得相当不同。如果服务器字符集是SQL_ASCII，服务器把字节值0~127根据 ASCII标准解释，而字节值128~255则当作无法解析的字符。如果设置为SQL_ASCII，就不会有编码转换。该函数调用openssl三方库返回的数据的编码为非ASCII数据，因此当数据库服务端字符集设置为SQL_ASCII时，客户端编码也需设置为SQL_ASCII ，否则会报错。因为数据库不会帮助转换或者校验非ASCII字符。 aes_decrypt(pass_str, key_str, init_vector) 描述：基于AES算法，使用解密口令key_str和初始化向量init_vector对字符串str进行解密。 参数解释： pass_str: 需要被解密的字符串。若pass_str为NULL，函数返回NULL。 key_str: 解密口令。若key_str为NULL，函数返回NULL。为了安全，对于128bit/192bit/256bit的密钥长度（由块加密模式block_encryption_mode确定），建议用户使用128bit/192bit/256bit的安全随机数作为密钥字符串。 init_vector: 为需要它的块解密模式提供初始化变量，长度大于等于16字节（大于16字节的部分会被自动忽略）。pass_str和key_str均不为NULL时，该参数不可为NULL，否则报错。为了安全，建议用户在OFB模式下，保证每次加密IV值的唯一性；在CBC模式和CFB模式下，保证每次加密的IV值不可被预测。 返回值类型：text 示例： gaussdb=# select aes_decrypt(aes_encrypt('huwei123','123456vfhex4dyu,vdaladhjsadad','1234567890123456'),'123456vfhex4dyu,vdaladhjsadad','1234567890123456');
+ aes_decrypt
+-------------
+ huwei123
+(1 row) 该函数仅在 GaussDB 兼容MYSQL类型时（即sql_compatibility = 'MYSQL'）有效，其他类型不支持该函数。 由于该函数的执行过程需要传入解密口令，为了安全起见，gsql工具不会将包含该函数名字样的SQL记录入执行历史；即无法在gsql里通过上下翻页功能找到该函数的执行历史。 在存储过程的相关操作中需尽量避免调用该函数，避免敏感参数信息在日志中泄露的风险。同时建议用户在使用包含该函数的存储过程相关操作时，将该函数的参数信息过滤后再提供给外部维护人员定位，日志使用完后请及时删除。 在打开debug_print_plan开关的情况下需尽量避免调用该函数，避免敏感参数信息在日志中泄露的风险。同时建议用户在打开debug_print_plan开关生成的日志中对该函数的参数信息进行过滤后再提供给外部维护人员定位，日志使用完后请及时删除。 若想成功解密，需要保证block_encryption_mode，key_str，iv值与加密时一致。 由于编码差异，不支持从gsql客户端直接拷贝加密后的数据进行解密，此场景解密出的结果不一定是加密前的字符串。 由于SQL_ASCII设置与其他设置表现得相当不同。如果服务器字符集是SQL_ASCII，服务器把字节值0~127根据 ASCII标准解释，而字节值128~255则当作无法解析的字符。如果设置为SQL_ASCII，就不会有编码转换。该函数调用openssl三方库返回的数据的编码为非ASCII数据，因此当数据库服务端字符集设置为SQL_ASCII时，客户端编码也需设置为SQL_ASCII ，否则会报错。因为数据库不会帮助转换或者校验非ASCII字符。 gs_digest(input_string, hash_algorithm) 描述：使用指定的哈希算法，对输入的字符串计算哈希，并且以十六进制数作为返回值。 参数解释： input_string：需要被计算哈希的字符串，不能为NULL。 hash_algorithm：指定的哈希计算算法，当前支持SHA256，SHA384，SHA512和SM3，支持大写和小写。使用不支持的哈希算法则会报错。 返回值类型：text 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT pg_catalog . gs_digest ( 'gaussdb' , 'sha256' ); gs_digest ------------------------------------------------------------------ 4 dc50d746f4e04f9b446986b34a0050e358fbfb8bc1fba314c54b52a417b0b8e ( 1 row ) gs_password_deadline() 描述：显示当前账户密码离过期还距离多少天。 返回值类型：interval 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT gs_password_deadline (); gs_password_deadline ------------------------- 83 days 17 : 44 : 32 . 196094 ( 1 row ) gs_password_notifytime() 描述：显示账户密码到期前提醒的天数。 返回值类型：int32 login_audit_messages(BOOLEAN) 描述：查看登录用户的登录信息。 返回值类型：元组 示例： 查看上一次登录成功的日期、时间和IP等信息。 1
+2
+3
+4
+5 gaussdb => select * from login_audit_messages ( true ); username | database | logintime | mytype | result | client_conninfo ----------+----------+------------------------+---------------+--------+----------------- omm | postgres | 2020 - 06 - 29 21 : 56 : 40 + 08 | login_success | ok | gsql @ [ local ] ( 1 row ) 查看自从上一次登录成功以来登录失败的尝试次数、日期和时间。 1
+2
+3
+4
+5
+6 gaussdb => select * from login_audit_messages ( false ); username | database | logintime | mytype | result | client_conninfo ----------+----------+------------------------+--------------+--------+------------------- omm | postgres | 2020 - 06 - 29 21 : 57 : 55 + 08 | login_failed | failed | [ unknown ] @ [ local ] omm | postgres | 2020 - 06 - 29 21 : 57 : 53 + 08 | login_failed | failed | [ unknown ] @ [ local ] ( 2 rows ) login_audit_messages_pid() 描述：查看登录用户的登录信息。与login_audit_messages的区别在于结果基于当前backendid向前查找。所以不会因为同一用户的后续登录，而影响本次登录的查询结果。也就是查询不到该用户后续登录的信息。 返回值类型：元组 在开启线程池的情况下，由于线程切换，同一session中获取到的backendid可能会发生变化，因此会造成多次调用该函数返回值不一致的情况。不建议用户在开启线程池的情况下调用此函数。 示例： 查看上一次登录成功的日期、时间和IP等信息。 1
+2
+3
+4
+5 gaussdb => SELECT * FROM login_audit_messages_pid ( true ); username | database | logintime | mytype | result | client_conninfo | backendid ----------+----------+------------------------+---------------+--------+-----------------+----------------- omm | postgres | 2020 - 06 - 29 21 : 56 : 40 + 08 | login_success | ok | gsql @ [ local ] | 139823109633792 ( 1 row ) 查看自从上一次登录成功以来登录失败的尝试次数、日期和时间。 1
+2
+3
+4
+5
+6 gaussdb => SELECT * FROM login_audit_messages_pid ( false ); username | database | logintime | mytype | result | client_conninfo | backendid ----------+----------+------------------------+--------------+--------+-------------------+----------------- omm | postgres | 2020 - 06 - 29 21 : 57 : 55 + 08 | login_failed | failed | [ unknown ] @ [ local ] | 139823109633792 omm | postgres | 2020 - 06 - 29 21 : 57 : 53 + 08 | login_failed | failed | [ unknown ] @ [ local ] | 139823109633792 ( 2 rows ) inet_server_addr() 描述：显示服务器IP信息。 返回值类型：inet 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT inet_server_addr (); inet_server_addr ------------------ 10 . 10 . 0 . 13 ( 1 row ) 上面是以客户端在10.10.0.50上，服务器端在10.10.0.13上为例。 如果是通过本地连接，使用此接口显示为空。 inet_client_addr() 描述：显示客户端IP信息。 返回值类型：inet 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT inet_client_addr (); inet_client_addr ------------------ 10 . 10 . 0 . 50 ( 1 row ) 上面是以客户端在10.10.0.50上，服务器端在10.10.0.13上为例。 如果是通过本地连接，使用此接口显示为空。 pg_query_audit() 描述：查看 当前CN 节点审计日志。 返回值类型：record 函数返回字段如下： 名称 类型 描述 time timestamp with time zone 操作时间 type text 操作类型 result text 操作结果 userid oid 用户id username text 执行操作的用户名 database text 数据库名称 client_conninfo text 客户端连接信息 object_name text 操作对象名称 detail_info text 执行操作详细信息 node_name text 节点名称 thread_id text 线程id local_port text 本地端口 remote_port text 远端端口 pgxc_query_audit() 描述：查看 所有CN节点 审计日志。 返回值类型：record 函数返回字段同pg_query_audit函数。 pg_delete_audit() 描述：删除指定时间段的审计日志。 返回值类型：void alldigitsmasking() 描述：脱敏策略的内部函数，对所有字符进行脱敏。 参数：col text, letter character default '0' 返回值类型：text creditcardmasking() 描述：脱敏策略的内部函数，对所有信用卡信息进行脱敏。 参数：col text, letter character default 'x' 返回值类型：text randommasking() 描述：脱敏策略的内部函数，使用随机策略。 参数：col text, 返回值类型：text fullemailmasking() 描述：脱敏策略的内部函数，对出现最后一个'.'之前的文本（除'@'符外）进行脱敏。 参数：col text, letter character default 'x' 返回值类型：text basicemailmasking() 描述：脱敏策略的内部函数，对出现第一个'@'之前的文本进行脱敏。 参数：col text, letter character default 'x' 返回值类型：text shufflemasking() 描述：脱敏策略的内部函数，对字符进行乱序排列。 参数：col text 返回值类型：text regexpmasking() 描述：脱敏策略的内部函数，对字符进行正则表达式替换。 参数：col text, reg text, replace_text text, pos INTEGER default 0, reg_len INTEGER default -1 返回值类型：text gs_encrypt(encryptstr, keystr, encrypttype) 描述：根据encrypttype，以keystr为加密口令对encryptstr字符串进行加密，返回加密后的字符串。 返回值类型：text 参数 类型 描述 取值范围 encryptstr text 需要加密的数据 - keystr text 加密口令 8~16字节，至少包含3种字符（大写字母、小写字母、数字、特殊字符） encrypttype text 加解密类型（不区分大小写） aes128、sm4、aes128_cbc_sha256、 aes256_cbc_sha256、aes128_gcm_sha256,、aes256_gcm_sha256、sm4_ctr_sm3 示例： gaussdb=# SELECT gs_encrypt('MPPDB', 'Asdf1234', 'sm4'); 
+         gs_encrypt         
+ ------------------------------
+ ZBzOmaGA4Bb+coyucJ0B8AkIShqc
+(1 row) 由于该函数的执行过程需要传入加密口令，为了安全起见，gsql工具不会将包含该函数名字样的SQL记录入执行历史。即无法在gsql里通过上下翻页功能找到该函数的执行历史。 aes128、sm4为兼容旧版本参数。aes128加解密使用AES128 CBC模式，使用SHA1进行完整性校验。sm4加解密算法使用SM4 CTR模式，不进行完整性校验。 gs_decrypt(decryptstr, keystr, decrypttype) 描述：根据decrypttype，以keystr为解密口令对decrypt字符串进行解密，返回解密后的字符串。解密使用的decrypttype 及keystr必须保证与加密时使用的encrypttype 及keystr一致才能正常解密。keystr不得为空。 此函数需要结合gs_encrypt加密函数共同使用。 返回值类型：text 参数 类型 描述 取值范围 decryptstr text 需要解密的数据 - keystr text 解密口令 8~16字节，至少包含3种字符（大写字母、小写字母、数字、特殊字符） decrypttype text 加解密类型（不区分大小写） aes128、sm4、aes128_cbc_sha256、 aes256_cbc_sha256、aes128_gcm_sha256,、aes256_gcm_sha256、sm4_ctr_sm3 示例： gaussdb=# select gs_decrypt('ZBzOmaGA4Bb+coyucJ0B8AkIShqc', 'Asdf1234', 'sm4');
+ gs_decrypt 
+------------
+ MPPDB
+(1 row) 由于该函数的执行过程需要传入解密口令，为了安全起见，gsql工具不会将包含该函数名字样的SQL记录入执行历史；即无法在gsql里通过上下翻页功能找到该函数的执行历史。 aes128、sm4为兼容旧版本参数。aes128加解密使用AES128 CBC模式，使用SHA1进行完整性校验。sm4加解密算法使用SM4 CTR模式，不进行完整性校验。 gs_encrypt_bytea(encryptstr, keystr, encrypttype) 描述：根据encrypttype，以keystr为加密口令对encryptstr字符串进行加密，返回加密后的字符串。 返回值类型：bytea 参数 类型 描述 取值范围 encryptstr text 需要加密的数据 - keystr text 加密口令 8~16字节，至少包含3种字符（大写字母、小写字母、数字、特殊字符） encrypttype text 加解密类型（不区分大小写） aes128_cbc_sha256、 aes256_cbc_sha256、aes128_gcm_sha256,、aes256_gcm_sha256、sm4_ctr_sm3 示例： gaussdb=# SELECT gs_encrypt_bytea('MPPDB', 'Asdf1234', 'sm4_ctr_sm3'); 
+                                         gs_encrypt_bytea         
+ ------------------------------------------------------------------------------------------------------------------
+ \x90e286971c2c70410def0a2814af4ac44c737926458b66271d9d1547bc937395ca018d7755672fa9dc3cdc6ec4a76001dc0e137f3bc5c8a5c51143561f1d09a848bfdebfec5e
+(1 row) 由于该函数的执行过程需要传入加密口令，为了安全起见，gsql工具不会将包含该函数名字样的SQL记录入执行历史，即无法在gsql里通过上下翻页功能找到该函数的执行历史。 gs_decrypt_bytea(decryptstr, keystr, decrypttype) 描述：根据decrypttype，以keystr为解密口令对decrypt字符串进行解密，返回解密后的字符串。解密使用的decrypttype 及keystr必须保证与加密时使用的encrypttype 及keystr一致才能正常解密。keystr不得为空。 此函数需要结合gs_encrypt_bytea加密函数共同使用。 返回值类型：text 参数 类型 描述 取值范围 decryptstr bytea 需要解密的数据 - keystr text 解密口令 8~16字节，至少包含3种字符（大写字母、小写字母、数字、特殊字符） decrypttype text 加解密类型（不区分大小写） aes128_cbc_sha256、 aes256_cbc_sha256、aes128_gcm_sha256,、aes256_gcm_sha256、sm4_ctr_sm3 示例： gaussdb=# select gs_decrypt_bytea('\x90e286971c2c70410def0a2814af4ac44c737926458b66271d9d1547bc937395ca018d7755672fa9dc3cdc6ec4a76001dc0e137f3bc5c8a5c51143561f1d09a848bfdebfec5e', 'Asdf1234', 'sm4_ctr_sm3');
+ gs_decrypt_bytea 
+------------------
+ MPPDB
+(1 row) 由于该函数的执行过程需要传入解密口令，为了安全起见，gsql工具不会将包含该函数名字样的SQL记录入执行历史；即无法在gsql里通过上下翻页功能找到该函数的执行历史。 父主题： 函数和操作符 版权所有 © 华为技术有限公司

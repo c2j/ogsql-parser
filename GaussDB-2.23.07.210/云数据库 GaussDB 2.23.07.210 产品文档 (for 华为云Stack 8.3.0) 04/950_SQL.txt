@@ -1,0 +1,10 @@
+命名SQL描述符区域 命名SQL描述符区域 一个命名SQL描述符区域由一个头部以及一个或多个条目描述符区域构成。头部包含与整个描述区域相关的信息，而条目描述符区域则描述结果行中的某一列。 在使用SQL描述符区域之前，需要分配一个SQL描述符区域： EXEC SQL ALLOCATE DESCRIPTOR identifier; 当不再需要这个描述符区域时，应及时释放： EXEC SQL DEALLOCATE DESCRIPTOR identifier; 要使用一个描述符区域，需要使用INTO子句声明： EXEC SQL FETCH NEXT FROM mycursor INTO SQL DESCRIPTOR mydesc; 如果结果集为空，该描述符区域仍会包含查询的元数据。 对于还没有执行的预备查询，可以使用DESCRIBE得到其结果集的元数据。 EXEC SQL BEGIN DECLARE SECTION; 
+    char *sql_stmt = "SELECT * FROM table1"; 
+EXEC SQL END DECLARE SECTION;  
+
+    EXEC SQL PREPARE stmt1 FROM :sql_stmt; 
+    EXEC SQL DESCRIBE stmt1 INTO SQL DESCRIPTOR mydesc; 在DESCRIBE和FETCH语句中，INTO和USING关键词的使用相似：它们产生结果集以及一个描述符区域的元数据。 从头部检索一个描述符区域的值并且将其存储到一个宿主变量中： EXEC SQL GET DESCRIPTOR name :hostvar = field; 当前只定义了一个头部描述符区域COUNT，它存放描述符区域的条目（即结果集中包含多少列），宿主变量为一个整数类型，需从条目描述符区域中得到一个具体值： EXEC SQL GET DESCRIPTOR name VALUE num :hostvar = field; num可以是一个字符整数或者一个包含整数的宿主变量。可能的类型如下： CARDINALITY（整数）：结果集中的行数 DATA：实际的数据项（这个范围的实际数据类型取决于查询） DATETIME_INTERVAL_CODE（整数）：当TYPE是9时，DATETIME_INTERVAL_CODE将具有以下值之一：1表示DATE，2表示TIME，3表示TIMESTAMP，4表示TIME WITH TIME ZONE，5表示TIMESTAMP WITH TIME ZONE。 INDICATOR（整数）：指示符（表示一个空值或者一个值截断） LENGTH（整数）：以字符计的数据长度 NAME(string)：列名 OCTET_LENGTH（整数）：以字节计的数据字符表达的长度 PRECISION（整数）：精度（用于类型numeric） RETURNED_LENGTH（整数）：以字符计的数据长度 RETURNED_OCTET_LENGTH（整数）：以字节计的数据字符表达的长度 SCALE（整数）：比例（用于类型numeric） TYPE（整数）：列的数据类型的数字编码 要检索字段数值并且把它存储到一个宿主变量里，使用下面的命令： EXEC SQL GET DESCRIPTOR mydesc  VALUE num :hostvar = field num可以是一个字符整数或者一个包含整数的宿主变量。可能的字段有: DATA 实际数据项（因此，这个字段的数据类型依赖于这个查询） NAME(string) 字段名称 手动建立一个描述符区域为一个查询或游标提供输入参数，使用如下命令： EXEC SQL SET DESCRIPTOR name VALUE numfield = :hostvar; 在一个FETCH语句中检索多行记录且用数组类型的宿主变量来存储数据，示例如下： EXEC SQL BEGIN DECLARE SECTION; 
+    int id[5]; 
+EXEC SQL END DECLARE SECTION;  
+    EXEC SQL FETCH 5 FROM mycursor INTO SQL DESCRIPTOR mydesc;  
+    EXEC SQL GET DESCRIPTOR mydesc VALUE 1 :id = DATA; 父主题： SQL描述符区域 版权所有 © 华为技术有限公司

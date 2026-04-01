@@ -1,0 +1,8 @@
+ETCD集群不健康（ALM_AI_AbnormalEtcdUnhealth） ETCD集群不健康（ALM_AI_AbnormalEtcdUnhealth） 告警解释 当出现如下情况时，产生该告警： 当集群中健康的ETCD的实例数目小于ETCD总实例数的一半时，则产生告警。 告警属性 告警ID 告警级别 告警类型 是否可自动清除 ALM_AI_AbnormalEtcdUnhealth critical 处理出错 不涉及 告警参数 请参考 告警参数说明 。 对系统的影响 当ETCD集群不健康时，会导致整个数据库集群不可用。 系统自处理过程 当检测到ETCD集群不健康时主cm_server会将集群的状态信息同步到备cm_server，同时尝试去修复不健康的ETCD。 可能原因 ETCD连接不可用，或者ETCD进程不存在。 ETCD实例进程中的数据文件不存在。 ETCD实例进程没有其数据目录读写权限。 处理步骤 参考 登录实例节点 ，登录数据库节点。 执行如下命令，导入环境变量。 source /home/Ruby/gauss_env_file 执行如下指令，查看集群状态。 cm_ctl query -Cvid [    ETCD State     ]
+
+node             instance             state
+---------------------------------------------------
+
+1  25.213.61.150 7001 /usr/local/etcd StateFollower
+2  25.213.10.25  7002 /usr/local/etcd StateFollower
+3  25.213.36.153 7003 /usr/local/etcd StateLeader 如上述示例查询到该实例的ETCD目录是/usr/local/etcd。 执行以下指令，检查数据库管理员对以上目录是否有可访问权限。 cd /usr/local/etcd 如提示 Permission denied 则说明无访问权限，执行以下指令修改权限 chmod 777 /usr/local/etcd 执行如下指令，检查该目录下的数据文件（/data/etcd/member/snap/*.snap、/data/etcd/member/wal/*.wal）是否存在； cd /usr/local/etcd ls snap ls wal 若不存在，请参考《应急预案》中的“运维案例库 > 租户面应急案例 > 节点替换”章节进行节点替换。 父主题： GaussDB 内核告警参考 版权所有 © 华为技术有限公司

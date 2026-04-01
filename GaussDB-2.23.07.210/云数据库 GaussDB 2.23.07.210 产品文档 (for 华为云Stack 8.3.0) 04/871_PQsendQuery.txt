@@ -1,0 +1,1 @@
+PQsendQuery PQsendQuery 功能描述 向服务器提交一个命令而不等待结果。如果查询成功发送则返回1，否则返回0。 原型 int PQsendQuery(PGconn * conn, const char * query); 参数 表1 PQsendQuery参数 关键字 参数说明 conn 指向包含连接的对象指针。 query 需要执行的查询字符串. 返回值 int：执行结果为1表示成功，0表示失败，失败原因存到conn->errorMessage中。 注意事项 在成功调用PQsendQuery后，调用PQgetResult一次或者多次获取结果。PQgetResult返回空指针表示命令已执行完成，否则不能再次调用PQsendQuery（在同一连接上）。 父主题： 异步命令处理 版权所有 © 华为技术有限公司

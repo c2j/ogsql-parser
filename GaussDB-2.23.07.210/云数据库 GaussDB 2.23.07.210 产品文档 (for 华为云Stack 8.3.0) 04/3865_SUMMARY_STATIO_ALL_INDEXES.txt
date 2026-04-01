@@ -1,0 +1,1 @@
+SUMMARY_STATIO_ALL_INDEXES SUMMARY_STATIO_ALL_INDEXES SUMMARY_STATIO_ALL_INDEXES视图包含数据库内汇聚的数据库中的每个索引行， 显示特定索引的I/O的统计。 表1 SUMMARY_STATIO_ALL_INDEXES字段 名称 类型 描述 schemaname name 该索引的模式名。 relname name 该索引的表名。 indexrelname name 索引名称。 idx_blks_read numeric 从索引中读取的磁盘块数。 idx_blks_hit numeric 索引命中缓存数。 父主题： Cache/IO 版权所有 © 华为技术有限公司

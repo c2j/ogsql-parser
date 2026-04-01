@@ -1,0 +1,1 @@
+PG_PUBLICATION_REL PG_PUBLICATION_REL 系统表PG_PUBLICATION_REL包含当前数据库中的表和publication之间的映射，这是一种多对多映射。 表1 PG_PUBLICATION_REL字段 名称 类型 描述 oid oid 行标识符（隐含属性，必须明确选择）。 prpubid oid 对publication的引用。 prrelid oid 对表的引用。 父主题： 其他系统表 版权所有 © 华为技术有限公司

@@ -1,0 +1,36 @@
+{
+  "topic": "基本概念",
+  "term_count": 6,
+  "terms": [
+    {
+      "term": "分区键",
+      "content": "分区键 分区键 分区键由一个或多个列组成，分区键值结合对应分区方法能够唯一确定某一元组所在的分区，通常在建表时通过PARTITION BY语句指定： CREATE TABLE table_name (…) PARTITION BY part_strategy ( partition_key ) (…) 范围分区表和列表分区表支持最多16列分区键；其他分区表只支持1列分区键。",
+      "source_file": "4533_file_4533.txt"
+    },
+    {
+      "term": "分区键",
+      "content": "分区键 分区键 分区键由一个或多个列组成，分区键值结合对应分区方法能够唯一确定某一元组所在的分区，通常在建表时通过PARTITION BY语句指定： CREATE TABLE table_name (…) PARTITION BY part_strategy ( partition_key ) (…) 范围分区表和列表分区表支持最多16列分区键；其他分区表只支持1列分区键。",
+      "source_file": "4305_file_4305.txt"
+    },
+    {
+      "term": "分区（分区子表、子分区）",
+      "content": "分区（分区子表、子分区） 分区（分区子表、子分区） 分区表中实际保存数据的表，对应的entry通常保存在pg_partition中，各个子分区的parentid作为外键关联其分区母表在pg_class表中的oid列。 示例1：t1_hash为一个分区表： CREATE TABLE t1_hash (c1 INT, c2 INT, c3 INT)\nPARTITION BY HASH(c1)\n(\n    PARTITION p0,\n    PARTITION p1,\n    PARTITION p2,\n    PARTITION p3,\n    PARTITION p4,\n    PARTITION p5,\n    PARTITION p6,\n    PARTITION p7,\n    PARTITION p8,\n    PARTITION p9\n);\n\n--查询t1_hash分区类型 gaussdb=# SELECT oid, relname, parttype FROM pg_class WHERE relname = 't1_hash';\noid  | relname | parttype\n-------+---------+----------\n16685 | t1_hash | p      \n(1 row)\n\n--查询t1_hash的分区信息 gaussdb=# SELECT oid, relname, parttype, parentid FROM pg_partition WHERE parentid = 16685;\noid  | relname | parttype | parentid\n-------+---------+----------+----------\n16688 | t1_hash | r        |    16685\n16689 | p0      | p        |    16685\n16690 | p1      | p        |    16685\n16691 | p2      | p        |    16685\n16692 | p3      | p        |    16685\n16693 | p4      | p        |    16685\n16694 | p5      | p        |    16685\n16695 | p6      | p        |    16685\n16696 | p7      | p        |    16685\n16697 | p8      | p        |    16685\n16698 | p9      | p        |    16685\n(11 rows)",
+      "source_file": "4304_file_4304.txt"
+    },
+    {
+      "term": "分区表（母表）",
+      "content": "分区表（母表） 分区表（母表） 实际对用户体现的表，用户对该表进行常规DML语句的增、删、查、改操作。通常使用在建表DDL语句显式的使用PARTITION BY语句进行定义，创建成功以后在pg_class表中新增一个entry，并且parttype列内容为'p'（一级分区）或者's'（二级分区），表明该entry为分区表的母表。分区母表通常是一个逻辑形态，对应的表文件并不存放数据。 示例1：t1_hash为一个一级分区表，分区类型为hash： gaussdb=# \\d+ t1_hash\n                      Table \"public.t1_hash\"\n Column |  Type   | Modifiers | Storage | Stats target | Description\n--------+---------+-----------+---------+--------------+-------------\n c1     | integer |           | plain   |              |\n c2     | integer |           | plain   |              |\n c3     | integer |           | plain   |              |\nPartition By HASH(c1)\nNumber of partitions: 10 (View pg_partition to check each partition range.)\nHas OIDs: no\nOptions: orientation=row, compression=no\n\n--查询t1_hash分区类型 gaussdb=# SELECT relname, parttype FROM pg_class WHERE relname = 't1_hash';\n relname | parttype\n---------+----------\n t1_hash | p           \n(1 row) 示例2：t1_sub_rr为一个二级分区表，分区类型为range-list： gaussdb=# \\d+ t1_sub_rr\n                    Table \"public.t1_sub_rr\"\n Column |  Type   | Modifiers | Storage | Stats target | Description\n--------+---------+-----------+---------+--------------+-------------\n c1     | integer |           | plain   |              |\n c2     | integer |           | plain   |              |\n c3     | integer |           | plain   |              |\nPartition By RANGE(c1) Subpartition By LIST(c2)\nNumber of partitions: 6 (View pg_partition to check each partition range.)\nNumber of subpartitions: 18 (View pg_partition to check each subpartition range.)\nHas OIDs: no\nOptions: orientation=row, compression=no\n\n--查询t1_sub_rr分区类型 gaussdb=# SELECT relname, parttype FROM pg_class WHERE relname = 't1_sub_rr';\n  relname  | parttype\n-----------+----------\n t1_sub_rr | s      \n(1 row)",
+      "source_file": "4531_file_4531.txt"
+    },
+    {
+      "term": "分区表（母表）",
+      "content": "分区表（母表） 分区表（母表） 实际对用户体现的表，用户对该表进行常规DML语句的增、删、查、改操作。通常使用在建表DDL语句显式的使用PARTITION BY语句进行定义，创建成功以后在pg_class表中新增一个entry，并且parttype列内容为'p'，表明该entry为分区表的母表。分区母表通常是一个逻辑形态，对应的表文件并不存放数据。 示例1：t1_hash为一个分区表，分区类型为hash： gaussdb=# \\d+ t1_hash\n                      Table \"public.t1_hash\"\nColumn |  Type    | Modifiers | Storage | Stats target | Description\n--------+---------+-----------+---------+--------------+-------------\nc1     | integer |              | plain   |                 |\nc2     | integer |              | plain   |                 |\nc3     | integer |              | plain   |                 |\nPartition By HASH(c1)\nNumber of partitions: 10 (View pg_partition to check each partition range.)\nHas OIDs: no\nOptions: orientation=row, compression=no\n\n--查询t1_hash分区类型 gaussdb=# SELECT relname, parttype FROM pg_class WHERE relname = 't1_hash';\nrelname | parttype\n---------+----------\nt1_hash | p           \n(1 row)",
+      "source_file": "4303_file_4303.txt"
+    },
+    {
+      "term": "分区（分区子表、子分区）",
+      "content": "分区（分区子表、子分区） 分区（分区子表、子分区） 分区表中实际保存数据的表，对应的entry通常保存在pg_partition中，各个子分区的parentid作为外键关联其分区母表在pg_class表中的oid列。 示例1：t1_hash为一个一级分区表： CREATE TABLE t1_hash (c1 INT, c2 INT, c3 INT)\nPARTITION BY HASH(c1)\n(\n    PARTITION p0,\n    PARTITION p1,\n    PARTITION p2,\n    PARTITION p3,\n    PARTITION p4,\n    PARTITION p5,\n    PARTITION p6,\n    PARTITION p7,\n    PARTITION p8,\n    PARTITION p9\n);\n\n--查询t1_hash分区类型 gaussdb=# SELECT oid, relname, parttype FROM pg_class WHERE relname = 't1_hash';\n  oid  | relname | parttype\n-------+---------+----------\n 16685 | t1_hash | p      \n(1 row)\n\n--查询t1_hash的分区信息 gaussdb=# SELECT oid, relname, parttype, parentid FROM pg_partition WHERE parentid = 16685;\n  oid  | relname | parttype | parentid\n-------+---------+----------+----------\n 16688 | t1_hash | r        |    16685\n 16689 | p0      | p        |    16685\n 16690 | p1      | p        |    16685\n 16691 | p2      | p        |    16685\n 16692 | p3      | p        |    16685\n 16693 | p4      | p        |    16685\n 16694 | p5      | p        |    16685\n 16695 | p6      | p        |    16685\n 16696 | p7      | p        |    16685\n 16697 | p8      | p        |    16685\n 16698 | p9      | p        |    16685\n(11 rows)",
+      "source_file": "4532_file_4532.txt"
+    }
+  ]
+}

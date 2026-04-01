@@ -1,0 +1,1 @@
+高阶服务如果以ECS方式安装，未配置BMS服务地址导致创建实例时失败，报错 高阶服务如果以ECS方式安装，未配置BMS服务地址导致创建实例时失败，报错 如果高阶服务是以MCS方式安装的，需要配置BMS服务地址，与ECS地址配置一致。 创建实例时可能报错如下“URI does not specify a valid host name”： 登录DBS运维管理平台。 查找ECS服务地址：如图，在配置管理中，选择DBS_SYSTEM_PARAMETER，然后搜索ecsRootAddress，获取ECS服务地址，复制。 查找BMS服务地址（参数bmsRootAddress），并配置成ECS服务地址，单击空白处保存生效即可。 父主题： 常见问题FAQ 版权所有 © 华为技术有限公司

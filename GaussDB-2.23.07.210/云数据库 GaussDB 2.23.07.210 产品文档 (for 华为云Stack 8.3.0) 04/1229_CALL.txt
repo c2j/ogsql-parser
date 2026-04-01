@@ -1,0 +1,41 @@
+CALL CALL 功能描述 使用CALL命令可以调用已定义的函数和存储过程。 注意事项 函数或存储过程的所有者、被授予了函数或存储过程EXECUTE权限的用户、或被授予EXECUTE ANY FUNCTION权限的用户，有权使用CALL命令，系统管理员默认拥有此权限。 语法格式 1 CALL [ schema . ] { func_name | procedure_name } ( param_expr ); 参数说明 schema 函数或存储过程所在的模式名称。 func_name 所调用函数或存储过程的名称。 取值范围：已存在的函数名称。 支持使用DATABASE LINK方式对远端函数或存储过程进行操作，使用方式详情请见 DATABASE LINK 。 param_expr 参数列表可以用符号":="或者"=>"将参数名和参数值隔开，这种方法的好处是参数可以以任意顺序排列。若参数列表中仅出现参数值，则参数值的排列顺序必须和函数或存储过程定义时的相同。 取值范围：已存在的函数参数名称或存储过程参数名称。 参数可以包含入参（参数名和类型之间指定“IN”关键字）和出参（参数名和类型之间指定“OUT”关键字），使用CALL命令调用函数或存储过程时，对于非重载的函数，参数列表必须包含出参，出参可以传入一个变量或者任一常量，详见 示例 。 示例 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27
+28
+29
+30
+31
+32
+33
+34
+35
+36
+37
+38
+39
+40
+41 --创建一个函数func_add_sql，计算两个整数的和，并返回结果。 gaussdb =# CREATE FUNCTION func_add_sql ( num1 integer , num2 integer ) RETURN integer AS BEGIN RETURN num1 + num2 ; END ; / --按参数值传递。 gaussdb =# CALL func_add_sql ( 1 , 3 ); --使用命名标记法传参。 gaussdb =# CALL func_add_sql ( num1 => 1 , num2 => 3 ); gaussdb =# CALL func_add_sql ( num2 : = 2 , num1 : = 3 ); --删除函数。 gaussdb =# DROP FUNCTION func_add_sql ; --创建带出参的函数。 gaussdb =# CREATE FUNCTION func_increment_sql ( num1 IN integer , num2 IN integer , res OUT integer ) RETURN integer AS BEGIN res : = num1 + num2 ; END ; / --出参传入常量。 gaussdb =# CALL func_increment_sql ( 1 , 2 , 1 ); --出参传入变量。 gaussdb =# DECLARE res int ; BEGIN func_increment_sql ( 1 , 2 , res ); dbe_output . print_line ( res ); END ; / --删除函数。 gaussdb =# DROP FUNCTION func_increment_sql ; 相关链接 CREATE FUNCTION ， CREATE PROCEDURE 父主题： C 版权所有 © 华为技术有限公司

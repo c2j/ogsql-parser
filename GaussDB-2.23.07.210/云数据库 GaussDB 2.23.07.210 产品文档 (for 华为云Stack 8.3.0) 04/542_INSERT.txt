@@ -1,0 +1,1 @@
+INSERT INSERT 【规格】INSERT ON DUPLICATE KEY UPDATE不支持对主键或唯一约束的列上执行UPDATE 【规则】对存在多个唯一约束的表执行INSERT ON DUPLICATE KEY UPDATE 【建议】对于批量插入的情况，建议使用executeBatch执行INSERT INTO VALUES (?)，执行效率将高于执行多条INSERT INTO VALUES(?)或INSERT INTO VALUES(?),...,(?) 父主题： 数据库编程规范 版权所有 © 华为技术有限公司

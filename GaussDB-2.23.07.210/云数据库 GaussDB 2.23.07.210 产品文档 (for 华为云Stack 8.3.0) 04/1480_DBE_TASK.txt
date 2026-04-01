@@ -1,0 +1,136 @@
+DBE_TASK DBE_TASK 接口介绍 高级功能包DBE_TASK支持的所有接口请参见 表 DBE_TASK 。 表1 DBE_TASK 接口名称 描述 DBE_TASK.SUBMIT 提交一个定时任务。作业号由系统自动生成。 DBE_TASK.JOB_SUBMIT 同 DBE_TASK.SUBMIT 。但提供语法兼容参数。 DBE_TASK.ID_SUBMIT 提交一个定时任务。作业号由用户指定。 DBE_TASK.CANCEL 通过作业号来删除定时任务。 DBE_TASK.RUN 运行定时任务。 DBE_TASK.FINISH 禁用或者启用定时任务。 DBE_TASK.UPDATE 修改定时任务的属性，包括任务内容、下次执行时间、执行间隔。 DBE_TASK.CHANGE 同 DBE_TASK.UPDATE 。但提供语法兼容参数。 DBE_TASK.CONTENT 修改定时任务的任务内容属性。 DBE_TASK.NEXT_TIME 修改定时任务的下次执行时间属性。 DBE_TASK.INTERVAL 修改定时任务的执行间隔属性。 DBE_TASK.SUBMIT 存储过程SUBMIT提交一个系统提供的定时任务。 DBE_TASK.SUBMIT函数原型为： 1
+2
+3
+4
+5
+6 DBE_TASK . SUBMIT ( what IN TEXT , next_time IN TIMESTAMP DEFAULT sysdate , interval_time IN TEXT DEFAULT 'null' , id OUT INTEGER ) RETURN INTEGER ; 当创建一个定时任务（DBE_TASK）时，系统默认将当前数据库和用户名与当前创建的定时任务（DBE_TASK）绑定起来。该接口函数可以通过call或select调用，如果通过select调用，可以不填写出参。如果在存储过程中则需要用通过perform调用该接口函数。如果提交的sql语句任务使用到非public的schema，应该制定表或者函数的schema，或者在sql语句前添加set current_schema = xxx;语句。 表2 DBE_TASK.SUBMIT接口参数说明 参数 类型 入参/出参 是否可以为空 描述 what text IN 否 要执行的SQL语句。支持一个或多个‘DDL’(不支持DB相关操作)，‘DML’，‘匿名块’，‘调用存储过程的语句’或4种混合的场景。 next_time timestamp IN 否 下次作业运行时间。默认值为当前系统时间（sysdate）。如果是过去时间，在提交作业时表示立即执行。 interval_time text IN 是 用来计算下次作业运行时间的时间表达式，可以是interval表达式，也可以是sysdate加上一个numeric值（例如：sysdate+1.0/24）。如果为空值或字符串"null"表示只执行一次，执行后JOB状态STATUS变成'd' 不再执行。 id integer OUT 否 作业号。范围为1～32767。当使用select调用时，该参数不能添加，当使用call调用时，该参数必须添加。 当在TASK的参数what中创建用户时，日志会记录密码的明文。因此不建议在TASK任务中创建用户。该接口创建的任务不能保证高可用，建议使用 PKG_SERVICE.SUBMIT_ON_N.... 创建任务，并将job执行节点指定为CCN。 示例： 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19 gaussdb =# select DBE_TASK . SUBMIT ( 'call pro_xxx();' , to_date ( '20180101' , 'yyyymmdd' ), 'sysdate+1' ); submit -------- 31031 ( 1 row ) gaussdb =# select DBE_TASK . SUBMIT ( 'call pro_xxx();' , to_date ( '20180101' , 'yyyymmdd' ), 'sysdate+1.0/24' ); submit -------- 512 ( 1 row ) gaussdb =# DECLARE gaussdb -# jobid int ; gaussdb -# BEGIN gaussdb $ # PERFORM DBE_TASK . SUBMIT ( 'call pro_xxx();' , sysdate , 'interval ''5 minute''' , jobid ); gaussdb $ # END ; gaussdb $ # / ANONYMOUS BLOCK EXECUTE DBE_TASK.JOB_SUBMIT 存储过程SUBMIT提交一个系统提供的定时任务。并提供了额外的兼容性参数。 DBE_TASK.JOB_SUBMIT函数原型为： 1
+2
+3
+4
+5
+6
+7
+8
+9 DBE_TASK . JOB_SUBMIT ( job OUT INTEGER , what IN TEXT , next_date IN TIMESTAMP DEFAULT sysdate , job_interval IN TEXT DEFAULT 'null' , no_parse IN BOOLEAN DEFAULT false , instance IN INTEGER DEFAULT 0 , force IN BOOLEAN DEFAULT false ) RETURN INTEGER ; 表3 DBE_TASK.JOB_SUBMIT接口参数说明 参数 类型 入参/出参 是否可以为空 描述 job integer OUT 否 作业号。范围为1～32767。当使用select调用dbe.job_submit时，该参数可以省略。 what text IN 否 要执行的SQL语句。支持一个或多个‘DDL’(不支持DB相关操作)，‘DML’，‘匿名块’，‘调用存储过程的语句’或4种混合的场景。 next_date timestamp IN 是 下次作业运行时间。默认值为当前系统时间（sysdate）。如果是过去时间，在提交作业时表示立即执行。 job_interval text IN 是 用来计算下次作业运行时间的时间表达式，可以是interval表达式，也可以是sysdate加上一个numeric值（例如：sysdate+1.0/24）。如果为空值或字符串"null"表示只执行一次，执行后JOB状态STATUS变成'd'不再执行。 no_parse boolean IN 是 默认值false，仅用于语法上的兼容。 instance integer IN 是 默认值0，仅用于语法上的兼容。 force boolean IN 是 默认值false，仅用于语法上的兼容。 示例： 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10 gaussdb =# DECLARE gaussdb -# id integer ; gaussdb -# BEGIN gaussdb $ # id = DBE_TASK . JOB_SUBMIT ( gaussdb $ # what => 'insert into t1 values (1, 2)' , gaussdb $ # job_interval => 'sysdate + 1' --daily gaussdb $ # ); gaussdb $ # END ; gaussdb $ # / ANONYMOUS BLOCK EXECUTE DBE_TASK.ID_SUBMIT ID_SUBMIT与SUBMIT语法功能相同，但其第一个参数是入参，即指定的作业号，SUBMIT最后一个参数是出参，表示系统自动生成的作业号。 1
+2
+3
+4
+5 DBE_TASK . ID_SUBMIT ( id IN BIGINT , what IN TEXT , next_time IN TIMESTAMP DEFAULT sysdate , interval_time IN TEXT DEFAULT 'null' ); 示例： 1
+2
+3
+4
+5 gaussdb =# CALL dbe_task . id_submit ( 101 , 'insert_msg_statistic1;' , sysdate , 'sysdate+3.0/24' ); id_submit ----------- ( 1 row ) DBE_TASK.CANCEL 存储过程CANCEL删除指定的定时任务。 DBE_TASK.CANCEL函数原型为： 1 CANCEL ( id IN INTEGER ); 表4 DBE_TASK.CANCEL接口参数说明 参数 类型 入参/出参 是否可以为空 描述 id integer IN 否 指定的作业号。 示例： gaussdb=# CALL dbe_task.cancel(101);
+ cancel
+--------
+
+(1 row) DBE_TASK.RUN 存储过程RUN运行定时任务。 DBE_TASK.RUN函数原型为： 1
+2
+3 DBE_TASK . RUN ( job IN BIGINT , force IN BOOLEAN DEFAULT FALSE ); 表5 DBE_TASK.RUN接口参数说明 参数 类型 入参/出参 是否可以为空 描述 job bigint IN 否 指定的作业号。 force boolean IN 是 仅用于语法上的兼容。 示例： 1
+2
+3
+4
+5
+6 gaussdb =# BEGIN gaussdb $ # DBE_TASK . ID_SUBMIT ( 12345 , 'insert_msg_statistic1;' , sysdate , 'sysdate+3.0/24' ); gaussdb $ # DBE_TASK . RUN ( 12345 ); gaussdb $ # END ; gaussdb $ # / ANONYMOUS BLOCK EXECUTE DBE_TASK.FINISH 存储过程FINISH禁用或者启用定时任务。 DBE_TASK.FINISH函数原型为： 1
+2
+3
+4 DBE_TASK . FINISH ( id IN INTEGER , broken IN BOOLEAN , next_time IN TIMESTAMP DEFAULT sysdate ); 表6 DBE_TASK.FINISH接口参数说明 参数 类型 入参/出参 是否可以为空 描述 id integer IN 否 指定的作业号。 broken boolean IN 否 状态标志位，true代表禁用，false代表启用。具体true或false值更新当前job；如果为空值，则不改变原有job的状态。 next_time timestamp IN 是 下次运行时间，默认为当前系统时间。如果参数broken状态为true，则更新该参数为'4000-1-1'；如果参数broken状态为false，且如果参数next_time不为空值，则更新指定job的next_time值，如果next_time为空值，则不更新next_time值。该参数可以省略，为默认值。 示例： 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17 gaussdb =# CALL dbe_task . id_submit ( 101 , 'insert_msg_statistic1;' , sysdate , 'sysdate+3.0/24' ); id_submit ----------- ( 1 row ) gaussdb =# CALL dbe_task . finish ( 101 , true ); finish -------- ( 1 row ) gaussdb =# CALL dbe_task . finish ( 101 , false , sysdate ); finish -------- ( 1 row ) DBE_TASK.UPDATE 存储过程UPDATE修改定时任务的属性，包括任务内容、下次执行时间、执行间隔。 DBE_TASK.UPDATE函数原型为： 1
+2
+3
+4
+5 dbe_task . UPDATE ( id IN INTEGER , content IN TEXT , next_time IN TIMESTAMP , interval_time IN TEXT ); 表7 DBE_TASK.UPDATE接口参数说明 参数 类型 入参/出参 是否可以为空 描述 id integer IN 否 指定的作业号。 content text IN 是 执行的存储过程名或者sql语句块。如果该参数为空值，则不更新指定job的content值，否则更新指定job的content值。 next_time timestamp IN 是 下次运行时间。如果该参数为空值，则不更新指定job的next_time值，否则更新指定job的next_time值。 interval_time text IN 是 用来计算下次作业运行时间的时间表达式。如果该参数为空值，则不更新指定job的interval_time值；如果该参数不为空值，会校验interval_time是否为有效的时间类型或interval类型，则更新指定job的interval_time值。如果为字符串"null"表示只执行一次，执行后JOB状态STATUS变成'd' 不再执行。 示例： 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11 gaussdb =# CALL dbe_task . update ( 101 , 'call userproc();' , sysdate , 'sysdate + 1.0/1440' ); update -------- ( 1 row ) gaussdb =# CALL dbe_task . update ( 101 , 'insert into tbl_a values(sysdate);' , sysdate , 'sysdate + 1.0/1440' ); update -------- ( 1 row ) DBE_TASK.CHANGE 存储过程UPDATE修改定时任务的属性，包括任务内容、下次执行时间、执行间隔。 DBE_TASK.CHANGE函数原型为： 1
+2
+3
+4
+5
+6
+7 DBE_TASK . CHANGE ( job IN INTEGER , what IN TEXT DEFAULT NULL , next_date IN TIMESTAMP DEFAULT NULL , job_interval IN TEXT DEFAULT NULL , instance IN INTEGER DEFAULT NULL , force IN BOOLEAN DEFAULT false ); 表8 DBE_TASK.CHANGE接口参数说明 参数 类型 入参/出参 是否可以为空 描述 job integer IN 否 指定的作业号。 what text IN 是 执行的存储过程名或者sql语句块。如果该参数为空值，则不更新指定job的what值，否则更新指定job的what值。 next_date timestamp IN 是 下次运行时间。如果该参数为空值，则不更新指定job的next_time值，否则更新指定job的next_date值。 job_interval text IN 是 用来计算下次作业运行时间的时间表达式。如果该参数为空值，则不更新指定job的job_interval值；如果该参数不为空值，会校验job_interval是否为有效的时间类型或interval类型，则更新指定job的job_interval值。如果为字符串"null"表示只执行一次，执行后JOB状态STATUS变成'd' 不再执行。 instance integer IN 是 仅用于语法上的兼容。 force boolean IN 否 仅用于语法上的兼容。 示例： 1
+2
+3
+4
+5
+6
+7
+8 gaussdb =# BEGIN gaussdb $ # DBE_TASK . CHANGE ( gaussdb $ # job => 101 , gaussdb $ # what => 'insert into t2 values (2);' gaussdb $ # ); gaussdb $ # END ; gaussdb $ # / ANONYMOUS BLOCK EXECUTE DBE_TASK.CONTENT 存储过程CONTENT修改定时任务的任务内容属性。 DBE_TASK.CONTENT函数原型为： 1
+2
+3 DBE_TASK . CONTENT ( id IN INTEGER , content IN TEXT ); 表9 DBE_TASK.CONTENT接口参数说明 参数 类型 入参/出参 是否可以为空 描述 id integer IN 否 指定的作业号。 content text IN 否 执行的存储过程调用或者sql语句块或者程序块。 当content参数是一个或多个可以执行成功的sql语句/程序块/调用存储过程时，该接口函数才能被执行成功，否则会执行失败。 若content参数为一个简单的insert、update等语句，需要在表前加模式名。 示例： 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11 gaussdb =# CALL dbe_task . content ( 101 , 'call userproc();' ); content --------- ( 1 row ) gaussdb =# CALL dbe_task . content ( 101 , 'insert into tbl_a values(sysdate);' ); content --------- ( 1 row ) DBE_TASK.NEXT_TIME 存储过程NEXT_TIME修改定时任务的下次执行时间属性。 DBE_TASK.NEXT_TIME函数原型为： 1
+2
+3 DBE_TASK . NEXT_TIME ( id IN BIGINT , next_time IN TEXT ); 表10 DBE_TASK.NEXT_TIME接口参数说明 参数 类型 入参/出参 是否可以为空 描述 id bigint IN 否 指定的作业号。 next_time text IN 否 下次运行时间。 如果输入的next_time的值小于当前日期值，该job会立即执行一次。 示例： 1
+2
+3
+4
+5 gaussdb =# CALL dbe_task . next_time ( 101 , sysdate ); next_time ----------- ( 1 row ) DBE_TASK.INTERVAL 存储过程INTERVAL修改定时任务的执行间隔属性。 DBE_TASK.INTERVAL函数原型为： 1
+2
+3 DBE_TASK . INTERVAL ( id IN INTEGER , interval_time IN TEXT ); 表11 DBE_TASK.INTERVAL接口参数说明 参数 类型 入参/出参 是否可以为空 描述 id integer IN 否 指定的作业号。 interval_time text IN 是 用来计算下次作业运行时间的时间表达式。如果为空值或字符串"null"表示只执行一次，执行后JOB状态STATUS变成'd' 不再执行。作业间隔需要为有效的时间类型或interval类型。 示例： 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11 gaussdb =# CALL dbe_task . interval ( 101 , 'sysdate + 1.0/1440' ); interval ---------- ( 1 row ) gaussdb =# CALL dbe_task . cancel ( 101 ); cancel -------- ( 1 row ) 对于指定job正在运行状态（即job_status为'r'）时，不允许通过cancel、update、next_time、content、interval等接口删除或修改job的参数信息。 约束说明 使用summit/id_submit创建一个新job后，该job从属于当前coordinator（即：该job仅在当前coordinator上调度和执行），其他coordinator不会调度和执行该job，如果出现coordinator节点故障，无法保证job正常执行。建议使用 PKG_SERVICE.SUBMIT_ON_N.... 接口，将job执行节点指定为CCN，以保证节点故障时job仍然可用。不是所有coordinator都可以查看、修改、删除其他CN创建的job。 job只能通过dbe_task高级包提供的接口进行创建、更新、删除操作，因为高级包的接口中会考虑所有CN间job信息的同步和pg_job与pg_job_proc表主键的关联操作，如果通过DML语句对pg_job表进行增删改，会导致job信息在CN间不一致和系统表无法关联变更的混乱问题，会严重影响job内部的管理。 由于用户创建的每个任务和CN绑定，当任务运行过程中，该CN故障，则该任务的状态无法实时刷新，仍为’r’状态，需要等CN启动正常后才能刷新为’s’状态。如果在任务未执行时CN故障，则该CN上的任务都得不到正常的调度和执行，需要人为干预让该CN恢复正常，或进行节点删除/替换、job才能正常的调度和执行。 job在定时执行过程中，需要在当前job所属的CN上实时更新该job的运行状态、最近执行开始时间、最近执行结束时间、下次开始时间、失败次数（如果job执行失败）等相关参数信息到pg_job系统表中，并同步到其他CN，保证job信息的一致性。如果其他CN存在节点故障，那么job所属CN会同步超时重发的处理，导致job执行时间变长，但CN间同步超时失败后，原CN上pg_job表中job的相关信息仍然能正常更新，且job能正常执行成功。当故障CN恢复正常后，可能出现该CN上pg_job表中当前job的执行时间、运行状态等参数与原CN上不一致的情况，需要原CN上再次执行该job后才能保证job信息的同步。 对于并发同时有多个job到达执行时间的场景，由于会为每个job创建一个线程来执行job，由于系统内部启动每个线程的时间会有延迟，因此会导致同时并发执行的job的开始时间有延迟，每个job的延迟时间在0.1ms左右。 父主题： 二次封装接口(推荐) 版权所有 © 华为技术有限公司

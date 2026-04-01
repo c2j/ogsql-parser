@@ -1,0 +1,1 @@
+DV_SESSION_LONGOPS DV_SESSION_LONGOPS DV_SESSION_LONGOPS视图显示当前正在执行的操作的进度。该视图需要授权访问。 表1 DV_SESSION_LONGOPS字段 名称 类型 描述 sid bigint 当前正在执行的后台进程的OID。 serial# integer 当前正在执行的后台进程的序号，在 GaussDB 中为0。 sofar integer 目前完成的工作量，在 GaussDB 中为空。 totalwork integer 工作总量，在 GaussDB 中为空。 父主题： 其他系统视图 版权所有 © 华为技术有限公司

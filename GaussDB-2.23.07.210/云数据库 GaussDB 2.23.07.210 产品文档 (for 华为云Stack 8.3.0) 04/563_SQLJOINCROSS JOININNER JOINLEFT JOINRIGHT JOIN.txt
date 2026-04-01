@@ -1,0 +1,1 @@
+【规则】关联时，应该根据SQL标准指明连接方式，避免直接使用JOIN关键词，而是使用CROSS JOIN、INNER JOIN、LEFT JOIN、RIGHT JOIN等 【规则】关联时，应该根据SQL标准指明连接方式，避免直接使用JOIN关键词，而是使用CROSS JOIN、INNER JOIN、LEFT JOIN、RIGHT JOIN等 父主题： 关联查询 版权所有 © 华为技术有限公司

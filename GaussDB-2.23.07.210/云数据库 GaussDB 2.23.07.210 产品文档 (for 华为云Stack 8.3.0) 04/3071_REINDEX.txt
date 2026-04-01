@@ -1,0 +1,47 @@
+REINDEX REINDEX 功能描述 为表中的数据重建索引。 在以下几种情况下需要使用REINDEX重建索引： 索引崩溃，并且不再包含有效的数据。 索引变得“臃肿”，包含大量的空页或接近空页。 为索引更改了存储参数（例如填充因子），并且希望这个更改完全生效。 使用CONCURRENTLY选项创建索引失败，留下了一个“非法”索引。 注意事项 REINDEX DATABASE和SYSTEM这种形式的重建索引不能在事务块中执行。目前不支持对物化视图进行REINDEX操作。 语法格式 重建普通索引。 REINDEX { INDEX | TABLE | DATABASE | SYSTEM } [CONCURRENTLY] name [ FORCE ]; 重建索引分区。 REINDEX { INDEX | TABLE} name
+    PARTITION partition_name [ FORCE ]; 参数说明 INDEX 重新建立指定的索引。 TABLE 重新建立指定表的所有索引，如果表有从属的“TOAST”表，则这个表也会重建索引。如果表上有索引已经被alter unusable失效，则这个索引无法被重新创建。当指定CONCURRENTLY选项时，暂不支持重建从属“TOAST”表上的索引。 DATABASE 重建当前数据库里的所有索引。当指定CONCURRENTLY选项时，暂不支持重建数据库中表的从属“TOAST”表上的索引。 SYSTEM 在当前数据库上重建所有系统表上的索引。不会处理在用户表上的索引。 CONCURRENTLY 以不阻塞DML的方式重建索引（加ShareUpdateExclusiveLock锁）。重建索引时，一般会阻塞其他语句对该索引所依赖表的访问。指定此关键字，可以实现重建过程中不阻塞DML。不支持在线重建系统表上的索引。不支持REINDEX INTERNAL TABLE CONCURRENTLY和REINDEX SYSTEM CONCURRENTLY，不支持REINDEX INVALID INDEX CONCURRENTLY。当执行REINDEX DATABASE CONCURRENTLY时，在线重建当前数据库中用户表上的所有索引（不会处理系统表上的索引）。REINDEX CONCURRENTLY不可以在事务内执行。在线重建索引只支持B-tree索引和UB-tree索引，只支持普通索引、GLOBAL索引、LOCAL索引，不支持PCR ubtree索引，不支持二级分区与GSI。在线并行重建索引只支持Astore及Ustore的普通索引、GLOBAL索引、LOCAL索引，其他继承当前版本在线重建索引规格约束。如果在线重建索引失败，对于用户手动取消、唯一索引键值重复、资源不足、启动线程失败、锁超时等场景，为避免占用资源，系统会自动清理新索引，在系统无法自动清理失败新索引的情况下（比如数据库宕机、FATAL、PANIC），需要尽快手动清除（使用DROP INDEX语句）非法新索引及（使用DROP TABLE语句）临时表，以防占用更多资源。一般来说，非法的新索引的后缀名为_ccnew。REINDEX INDEX CONCURRENTLY对表加4级会话锁，且其前几个阶段与CREATE INDEX CONCURRENTLY相似，因此也可能产生卡住或死锁的问题，具体场景与CREATE INDEX CONCURRENTLY相似（比如两个会话同时对同一个索引或表进行REINDEX CONCURRENTLY操作，会引发死锁问题），详见 CONCURRENTLY 章节。 重建索引时指定此关键字，Astore需要执行先后两次对全表的扫描来完成build，第一次扫描时创建新索引，不阻塞读写操作，第二次扫描时合并更新第一次扫描到目前为止发生的变更；Ustore需完成一次全表扫描，在扫描过程中并发DML产生的数据会被插入到以“index_oid_cctmp“命名的临时表中，扫描结束后合并临时表到以“_ccnew{n}“为后缀名的新索引中并删除临时表，交换新旧索引，旧索引标记为死亡，启用新索引，重建索引完成。 name 需要重建索引的索引、表、数据库的名称。表和索引可以有模式修饰。 REINDEX DATABASE和SYSTEM只能重建当前数据库的索引，所以name必须和当前数据库名称相同。 FORCE 无效选项，会被忽略。 partition_name 需要重建索引的分区的名称或者索引分区的名称。 取值范围： 如果前面是REINDEX INDEX，则这里应该指定索引分区的名称； 如果前面是REINDEX TABLE，则这里应该指定分区的名称； REINDEX DATABASE和SYSTEM这种形式的重建索引不能在事务块中执行。 示例 --创建SCHEMA。 gaussdb=# CREATE SCHEMA tpcds;
+
+--创建表tpcds. customer。 gaussdb=# CREATE TABLE tpcds.customer
+(
+c_customer_sk         INTEGER        NOT NULL,
+c_customer_id         CHAR(16)       NOT NULL
+);
+
+--向表中插入多条记录。 gaussdb=# INSERT INTO tpcds.customer VALUES (1, 'AAAAAAAABAAAAAAA'),(5, 'AAAAAAAACAAAAAAA'),(10, 'AAAAAAAADAAAAAAA');
+
+--创建一个行存表 tpcds. customer_t1，并在 tpcds. customer_t1表上的c_customer_sk字段创建索引。 gaussdb=# CREATE TABLE tpcds. customer_t1
+(
+    c_customer_sk             integer               not null,
+    c_customer_id             char(16)              not null,
+    c_current_cdemo_sk        integer                       ,
+    c_current_hdemo_sk        integer                       ,
+    c_current_addr_sk         integer                       ,
+    c_first_shipto_date_sk    integer                       ,
+    c_first_sales_date_sk     integer                       ,
+    c_salutation              char(10)                      ,
+    c_first_name              char(20)                      ,
+    c_last_name               char(30)                      ,
+    c_preferred_cust_flag     char(1)                       ,
+    c_birth_day               integer                       ,
+    c_birth_month             integer                       ,
+    c_birth_year              integer                       ,
+    c_birth_country           varchar(20)                   ,
+    c_login                   char(13)                      ,
+    c_email_address           char(50)                      ,
+    c_last_review_date        char(10)
+)
+WITH (orientation = row); gaussdb=# CREATE INDEX tpcds_customer_index1 ON tpcds. customer_t1 (c_customer_sk); gaussdb=# INSERT INTO tpcds. customer_t1 SELECT * FROM tpcds. customer WHERE c_customer_sk < 10;
+
+--重建一个单独索引。 gaussdb=# REINDEX INDEX tpcds. tpcds_customer_index1;
+
+--在线重建一个单独索引。 gaussdb=# REINDEX INDEX CONCURRENTLY tpcds. tpcds_customer_index1;
+
+--重建表 tpcds. customer_t1上的所有索引。 gaussdb=# REINDEX TABLE tpcds. customer_t1;
+
+--在线重建表 tpcds. customer_t1上的所有索引。 gaussdb=# REINDEX TABLE CONCURRENTLY tpcds. customer_t1;
+
+--删除 tpcds. customer_t1表。 gaussdb=# DROP TABLE tpcds. customer_t1;
+
+--删除表。 gaussdb=# DROP TABLE tpcds.customer;
+
+--删除SCHEMA。 gaussdb=# DROP SCHEMA tpcds CASCADE; 优化建议 INTERNAL TABLE 此种情况大多用于故障恢复，不建议进行并发操作。 DATABASE 不能在事务中REINDEX DATABASE。 SYSTEM 不能在事务中REINDEX系统表。 父主题： R 版权所有 © 华为技术有限公司

@@ -1,0 +1,1 @@
+PG_TDE_INFO PG_TDE_INFO PG_TDE_INFO视图显示 整个集群 的加密信息。 表1 PG_TDE_INFO字段 名称 类型 描述 is_encrypt boolean 是否加密 集群 。 f：非加密 集群 。 t：加密 集群 。 g_tde_algo text 加密算法。 SM4-CTR-128 AES-CTR-128 remain text 保留字段。 父主题： 透明加密 版权所有 © 华为技术有限公司

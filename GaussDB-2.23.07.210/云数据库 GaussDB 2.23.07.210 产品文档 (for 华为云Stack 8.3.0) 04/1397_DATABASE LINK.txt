@@ -1,0 +1,179 @@
+DATABASE LINK DATABASE LINK 功能描述 在本地数据库利用DATABASE LINK与远程数据库建立连接，并通过DATABASE LINK对远程数据库进行访问。 DATABASE LINK可以分为public或private，private DATABASE LINK仅能被创建者访问，而当DATABASE LINK为public时则所有用户都能访问。 所有已创建的DATABASE LINK信息都存在本地数据库的系统视图gs_db_links中。 注意事项 DATABASE LINK特性只在ORA兼容版本下可以使用。 DATABASE LINK连接的远端数据库仅支持503.1.0及之后版本。 用户需要保证本地和远端数据库的兼容性参数DBCOMPATIBILITY和guc参数 behavior_compat_options 、 a_format_dev_version 、 a_format_version 取值一致。 DATABASE LINK连接开启session时会设置如下guc参数： set search_path=pg_catalog, '$user', 'public';
+set dates t yle=ISO;
+set intervalstyle=postgres;
+set extra_float_digits=3; 其余参数为远端设置的参数，远端参数与本地参数不同时，可能会出现数据显示格式不一致等情况，使用时应尽量保证远端与本地参数相同。 使用前置准备：使用gs_guc在pg_hba.conf文件中添加白名单允许客户端连接。 示例：gs_guc reload -I all -N all -Z coordinator -Z datanode -h "host all all 192.168.11.11/32 sha256" 详细配置参数信息参考gs_guc客户端认证策略设置。 某些情况集群白名单中也需要添加DN的IP。 创建DATABASE LINK权限需要使用GRANT语法赋予，新建用户默认无权限，系统管理员拥有权限。详见GRANT相关说明。 使用DATABASE LINK对远端表操作时，会在本地创建与远端对应的SCHEMA，若本地不存在该表的元数据信息，会将元数据信息写入本地系统表中，此时会使用7级锁保证写入的一致性，持续到事务结束放锁，删除DATABASE LINK时会将相应的元数据信息删除。 如果业务中有长事务首次使用dblink操作远端对象，会持续持锁直到事务结束，其他首次使用dblink的事务会被阻塞。可通过一条快速执行的语句先对要使用的远端对象做查询操作使其元数据落盘来规避这种情况，如 "select * from t1@dblink where 1=2;"。另外，远端表结构发生变化时本地要更新存储的元数据信息，也会有类似情况。 在本地创建与远端对应的SCHEMA时会使用“USERNAME（私有DATABASE LINK才有）#远端SCHEMA@DBLINK名”做为SCHEMA名，名称长度上限为63。 如果本地与远端字符集不同，可能会出现无法转换的报错，报错信息为远端返回报错。当本地数据库字符编码为GB18030_2022时，发送到远端会被转换为GB18030。因此，若本地数据库的字符集为GB18030_2022时，远程数据库字符集只能是GB18030或GB18030_2022。 使用DATABASE LINK对远端表操作时，会创建一个单节点的NODE GROUP随机绑定一个DN。 当赋予用户创建DATABASE LINK权限时，相当于许可用户使用服务端DATABASE的IP对远端进行访问。若不希望有此效果，应不要使用GRANT对用户赋权。 语法格式 创建DATABASE LINK。 CREATE [ PUBLIC ] DATABASE LINK dblink
+  [ CONNECT TO { CURRENT_USER | user IDENTIFIED BY password } ] [ USING ( option 'value' [...]) ]; 修改DATABASE LINK信息。 ALTER [ PUBLIC ] DATABASE LINK dblink
+  { CONNECT TO user IDENTIFIED BY password }; 删除指定DATABASE LINK。 DROP [ PUBLIC ] DATABASE LINK dblink; PUBLIC ：指定公共以创建对所有用户可见的公共数据库链接。如果省略此子句，则数据库链接是私有的，仅对当前用户可用。远程数据库上可访问的数据取决于数据库链接在连接到远程数据库时使用的标识： 如果指定CONNECT TO user IDENTIFIED BY password，则数据库链接将使用指定的用户和密码连接。 如果指定CONNECT TO CURRENT_USER，则数据库链接使用当前数据库初始用户名和空密码连接远程数据库。 如果忽略了上述两个子句，则数据库链接将以本地初始用户的身份连接到远程数据库。 dblink ：要创建的DATABASE LINK的名字。 user ：创建的DATABASE LINK使用的用户名。 password ：用户名对应的密码。 USING  ( option 'value' [, ... ] ) USING 可选择指定要连接的数据库的IP地址、端口号、远端的database name等参数，支持的options包括： host：指定连接的地址，不支持ipv6地址。支持以‘,’分割的字符串来指定多个IP地址，当前不支持密态数据库和ssl设置和证书认证，不指定默认为空。 port：指定连接的端口号，不指定默认为5432。 dbname：指定连接的数据库名称，不指定默认为连接远端使用的用户名。 fetch_size：从远端每次获取数据量大小，fetch_size取值为0到2147483647，默认为100。 须知： USING后的括号可以只选择上述关键字中的一部分去写。 USING关键字也可以不写，同时之后的括号也不要再写。 DATABASE LINK创建的时候不会去验证是否能连接成功，如果缺乏相关的关键字，可能会在使用时报错。 通过DATABASE LINK进行select操作。 使用建立好的database link对远程数据库对象进行访问的语法和访问本地对象的语法基本一致，区别在于，在被访问的远程对象描述符后加@dblink。SQL语句具体支持情况有一些约束，详参见 表1 。 [ WITH [ RECURSIVE ] with_query [, ...] ]
+ SELECT [/*+ plan_hint */] [ ALL | DISTINCT [ ON ( expression [, ...] ) ] ]
+ { * | {expression [ [ AS ] output_name ]} [, ...] }
+ [ FROM from_item [, ...] ]
+ [ WHERE condition ]
+ [ GROUP BY grouping_element [, ...] ]
+ [ HAVING condition [, ...] ]
+ [ { UNION | INTERSECT | EXCEPT | MINUS } [ ALL | DISTINCT ] select ]
+ [ ORDER BY {expression [ [ ASC | DESC | USING operator ] | nlssort_expression_clause ] [ NULLS { FIRST | LAST } ]} [, ...] ]
+ [ LIMIT { [offset,] count | ALL } ]
+ [ OFFSET start [ ROW | ROWS ] ]
+ [ {FOR { UPDATE | SHARE  } [ OF table_name [, ...] ] } [...] ];
+ {[ ONLY ] table_name [ * ] @ dblink [ [ AS ] alias [ ( column_alias [, ...] ) ] ]
+  |( select ) [ AS ] alias [ ( column_alias [, ...] ) ]
+  |with_query_name [ [ AS ] alias [ ( column_alias [, ...] ) ] ]
+  | [function_name] ( [ argument [, ...] ] ) [ AS ] alias [ ( column_alias [, ...] | column_definition [, ...] ) ]
+  | [function_name] ( [ argument [, ...] ] ) AS ( column_definition [, ...] )
+  |from_item [ NATURAL ] join_type from_item [ ON join_condition | USING ( join_column [, ...] ) ]}; 通过DATABASE LINK进行insert操作。 [ WITH [ RECURSIVE ] with_query [, ...] ]
+  INSERT [/*+ plan_hint */] INTO table_name @ dblink [ ( column_name [, ...] ) ]
+     { DEFAULT VALUES
+     | VALUES {( { expression | DEFAULT } [, ...] ) }[, ...] 
+     | query }
+     [ RETURNING { {output_expression [ [ AS ] output_name ] }[, ...]} ]; 通过DATABASE LINK进行update操作。 UPDATE [/*+ plan_hint */] [ ONLY ] table_name @ dblink [ [ AS ] alias ]
+ SET {column_name = { expression | DEFAULT } 
+    |( column_name [, ...] ) = {( { expression | DEFAULT } [, ...] ) |sub_query }}[, ...]
+    [ FROM from_list] [ WHERE condition ]
+    [ ORDER BY {expression [ [ ASC | DESC | USING operator ] | nlssort_expression_clause ] [ NULLS { FIRST | LAST } ]} [, ...] ]
+    [ LIMIT { [offset,] count | ALL } ]
+    [ RETURNING { {output_expression [ [ AS ] output_name ]} [, ...] }];
+ 
+ where sub_query can be:
+ SELECT [ ALL | DISTINCT [ ON ( expression [, ...] ) ] ]
+ { * | {expression [ [ AS ] output_name ]} [, ...] }
+ [ FROM from_item [, ...] ]
+ [ WHERE condition ]
+ [ GEOUP BY grouping_element [, ...] ]
+ [ HAVING condition [, ...] ]; 通过DATABASE LINK进行delete操作 [ WITH [ RECURSIVE ] with_query [, ...] ]
+ DELETE [/*+ plan_hint */] FROM [ ONLY ] table_name @ dblink [ [ AS ] alias ]
+    [ USING using_list ]
+    [ WHERE condition]
+    [ ORDER BY {expression [ [ ASC | DESC | USING operator ] | nlssort_expression_clause ] [ NULLS { FIRST | LAST } ]} [, ...] ]
+    [ LIMIT { [offset,] count | ALL } ]
+    [ RETURNING { { output_expr [ [ AS ] output_name ] } [, ...] } ]; 通过DATABASE LINK进行lock table操作 LOCK [ TABLE ] {[ ONLY ] name @ dblink [, ...]}
+    [ IN {ACCESS SHARE | ROW SHARE | ROW EXCLUSIVE | SHARE UPDATE EXCLUSIVE | SHARE | SHARE ROW EXCLUSIVE | EXCLUSIVE | ACCESS EXCLUSIVE} MODE ]
+    [ NOWAIT ]; 调用远程数据库的存储过程或函数 1 CALL | SELECT [ schema . ] { func_name @ dblink | procedure_name @ dblink } ( param_expr ); DATABASE LINK调用远程函数或存储过程不支持自定义类型、out出参、聚集函数、窗口函数、以及返回set函数，不支持使用SELECT * FROM func@dblink()形式调用。 DATABASE LINK调用远程函数或存储过程不指定schema默认调用PUBLIC下的函数。 DATABASE LINK调用远程函数或存储过程时，param_expr不支持用符号":="或者"=>"将参数名和参数值隔开。 上述语法中SQL语句涉及到的DATABASE LINK无关参数含义与原SQL语句中含义相同。 指定列名时可以在列名后加上"@dblink"指定为对应DATABASE LINK所指向的表的列。 通过DATABASE LINK执行update/delete语句带LIMIT限定的语句，无论WHERE条件是否是分布列，都可以正常执行。 规格约束 事务 使用DATABASE LINK的时候本地和远程事务的关系如下： 本地事务会同步控制远程事务的提交/回滚状态。 隔离级别的对应关系为： 本地隔离级别 远程隔离级别 Read Uncommitted Repeatable Read Read Committed Repeatable Read Repeatable Read Repeatable Read Serializable Serializable 本地事务提交过程中会向远端发送事务提交请求，如果远端事务提交成功后出现异常情况导致本地的事务提交失败，如连接异常，本地集群实例异常等情况，远端的事务提交无法被撤回，可能出现本地事务与远端事务不一致的情况。 本地用户对 DATABASE LINK 的使用权限 如果使用了public关键词，就是公有的DATABASE LINK，可以被所有用户/schema使用。 如果没有使用public关键词，就是私有的DATABASE LINK，仅能被当前用户/schema使用（包括sysadmin用户也无法跨schema使用DATABASE LINK）。 通过 DATABASE LINK 访问远程数据库对象的权限 对远程数据库对象的访问权限与DATABASE LINK绑定的远程连接用户的权限保持一致。 支持sql范围 DATABASE LINK相关语句支持情况请参见 表1 。 DATABASE LINK相关表类型支持情况请参见 表2 。 DATABASE LINK函数调用 DATABASE LINK调用远程函数不支持自定义类型、OUT/INOUT参数、聚集函数、窗口函数、以及返回set函数。 PLSQL_BODY内通过DATABASE LINK调用远程数据库的存储过程或函数不支持自定义类型、OUT/INOUT参数、重载函数、聚集函数、窗口函数、以及返回set函数。 PLSQL_BODY内调用远程数据库的存储过程或函数时，应使用[CALL | SELECT] [ schema. ] { func_name@dblink | procedure_name@dblink } ( param_expr )语法格式调用。 PLSQL_BODY内调用远程数据库的无参存储过程或函数时，应使用[CALL | SELECT] [ schema. ] { func_name@dblink | procedure_name@dblink } ( )语法格式调用。 同义词 不支持将DATABASE LINK名创建为一个同义词的使用方法。 不支持通过DATABASE LINK调用远端数据库中指向一个DATABASE LINK对象的同义词。例如如下场景： 步骤一：在DB1上创建表TABLE1。 步骤二：在DB2上创建连接DB1的DBLINK1，并创建同义词"CREATE SYNONYM T1 FOR TABLE1@DBLINK1"。 步骤三：在DB3上创建连接DB2的DBLINK2，通过DBLINK2调用DB2上的同义词T1，"SELECT * FROM T1@DBLINK2"。 表类型约束 HASHBUCKET：不支持通过DATABASE LINK对远端Hash bucket表进行查询或DML操作。 SLICE：不支持通过DATABASE LINK对远端slice表进行查询或DML操作。 复制表：不支持通过DATABASE LINK对远端复制表进行查询或DML操作。 TEMPORARY：不支持通过DATABASE LINK对远端临时表进行查询或DML操作。 视图 目前支持对DATABASE LINK的远端表创建视图，但是当远端表本身的结构发生变化时，该视图使用时可能会发生异常。例如： 步骤一：在DB1上创建表TABLE1。 步骤二：在DB2上创建连接DB1的DBLINK，并创建视图"CREATE VIEW V1 AS SELECT * FROM TABLE1@DBLINK。 步骤三：在DB1上删除TABLE1的一列，在DB2上查询该视图会产生报错。 其他场景： DATABASE LINK表不支持trigger，包括trigger 调用函数内使用DATABASE LINK场景、trigger调用函数为DATABASE LINK函数、在DATABASE LINK上定义trigger情况。 暂不支持upsert、merge 语法。 不支持current cursor语法。 不支持查询表的隐藏字段。 dump 与备份 不支持DATABASE LINK相关数据库对象的dump，备机不支持DATABASE LINK调用，也不支持被DATABASE LINK连接。 谓词下推约束 仅支持WHERE子句使用的数据类型、操作符和函数是内置的，并且使用的函数是IMMUTABLE类型。 聚集函数下推约束 仅支持单表且没有group、order by、having、limit子句的select语句，并且不支持窗口函数。 hint下推 支持针对DATABASE LINK表对象的hint条件下推，仅限scan方式的hint下推，语法格式如下： [no] tablescan|indexscan|indexonlyscan(table [index]) 并要求在一个 queryblock 中的表名或表别名不能重复。 表1 支持sql范围 sql类型 操作对象 支持选项说明 执行上下文 创建DATABASE LINK database link NA 普通事务块 修改DATABASE LINK database link 仅支持用户名、密码的修改 普通事务块 删除DATABASE LINK database link NA 普通事务块 SELECT语句 普通表、普通视图、全量物化视图 where子句 DATABASE LINK表和内部表join DATABASE LINK表和DATABASE LINK表join 聚集函数 limit子句 order by子句 group by子句、having子句 union子句 with子句 for update子句 Rownum使用 普通事务块、存储过程、函数、高级包、逻辑视图 INSERT语句 普通表 多value插入 普通事务块、存储过程、函数、高级包 UPDATE语句 普通表 limit子句 order by子句 where子句 普通事务块、存储过程、函数、高级包 DELETE语句 普通表 limit子句 order by子句 where子句 普通事务块、存储过程、函数、高级包 LOCK TABLE语句 普通表 lockmode子句 nowait子句 普通事务块 表2 表类型支持情况 维度 GaussDB 表类型 DATABASE LINK支持情况 TEMP选项 临时表 不支持 全局临时表 不支持 UNLOGGED选项 非日志表 支持 存储特性 行存 Astore 支持 Ustore 不支持 分区表 不支持 二级分区表 不支持 视图 DATABASE LINK访问远程视图 支持dql，不支持dml 本地视图通过 DATABASE LINK 关联远程表 支持dql，不支持dml 示例 -- DDL语句
+create user user2 with password '********'; -- 创建普通用户
+GRANT CREATE PUBLIC DATABASE LINK TO user2; --赋予用户创建DATABASE LINK对象的权限
+GRANT DROP PUBLIC DATABASE LINK TO user2;  --赋予用户删除DATABASE LINK对象的权限
+GRANT ALTER PUBLIC DATABASE LINK TO user2;   --赋予用户修改DATABASE LINK对象的权限
+REVOKE CREATE PUBLIC DATABASE LINK FROM user2;  --回收用户创建DATABASE LINK对象的权限
+REVOKE DROP PUBLIC DATABASE LINK FROM user2;    --回收用户删除DATABASE LINK对象的权限
+REVOKE ALTER PUBLIC DATABASE LINK FROM user2;   --回收用户修改DATABASE LINK对象的权限
+create public database link dblink connect to 'user1' identified by '********' using (host '192.168.11.11', port '5432', dbname 'db1'); --创建DATABASE LINK对象
+alter public database link dblink connect to 'user1' identified by '********'; -- 修改DATABASE LINK信息
+drop public database link dblink; -- 删除DATABASE LINK对象
+
+-- DATABASE LINK具体操作语句
+-- 前置操作
+create user user1 with sysadmin password '********';
+create user user2 with sysadmin password '********';
+create database db1 DBCOMPATIBILITY = 'ORA'; --远端数据库
+create database db2 DBCOMPATIBILITY = 'ORA'; --测试DATABASE LINK数据库
+\c db1 user1
+-- 创建普通表
+db1=> create table remote_tb(f1 int, f2 text, f3 text[]);
+db1=> insert into remote_tb values (0,'a','{"a0","b0","c0"}');
+db1=> insert into remote_tb values (1,'bb','{"a1","b1","c1"}');
+db1=> insert into remote_tb values (2,'cc','{"a2","b2","c2"}');
+-- 创建function
+create or replace function f(a in int, b in int)
+db1-> return int
+db1-> as
+db1$> tmp int :=  a + b;
+db1$> begin
+db1$> return tmp;
+db1$> end;
+db1$> /
+CREATE FUNCTION
+-- 创建同义词
+db1=> create synonym remote_sy for remote_tb;
+
+\c db2 user2
+db2=> create table local_tb(f1 int, f2 text, f3 text[]);
+db2=> insert into local_tb values (2,'c','{"a2","b2","c2"}');
+db2=> create public database link dblink connect to 'user1' identified by '********' using (host '192.168.11.11', port '5432', dbname 'db1'); -- host和port需要根据实际情况填写
+db2=> select * from remote_tb@dblink; --查询远端表
+ f1 | f2 |     f3     
+----+----+------------
+  1 | bb | {a1,b1,c1}
+  2 | cc | {a2,b2,c2}
+  0 | a  | {a0,b0,c0}
+(3 rows)
+db2=> insert into remote_tb@dblink values (4,'d','{"a1","b2","c3"}'); --向远端表插入数据
+INSERT 0 1
+db2=> update remote_tb@dblink set f2 = 'aa' where f1 = 0; --更新远端表
+UPDATE 1
+db2=> delete remote_tb@dblink where f1 = 1; --删除远端表数据
+DELETE 1
+db2=> select * from remote_tb@dblink join local_tb on  local_tb.f1 = remote_tb.f1@dblink; --本地表join远程表
+ f1 | f2 |     f3     | f1 | f2 |     f3     
+----+----+------------+----+----+------------
+  2 | cc | {a2,b2,c2} |  2 | c  | {a2,b2,c2}
+(1 row)
+
+db2=> select count(*) from remote_tb@dblink;
+ count 
+-------
+     3
+(1 row)
+db2=> 
+db2=> select f@dblink(1,2); --访问远端函数
+ f 
+---
+ 3
+(1 row)
+create or replace function call_f(a in int, b in int) -- plsql_body内访问远端函数
+db2-> return int
+db2-> as
+db2$> tmp int;
+db2$> begin
+db2$> tmp := f@dblink(a, b);
+db2$> return tmp;
+db2$> end;
+db2$> /
+CREATE FUNCTION
+db2=> select call_f(1, 2);
+ call_f 
+--------
+      3
+(1 row)
+db2=> create synonym local_sy for remote_tb@dblink; --创建DATABASE LINK对象的同义词
+CREATE SYNONYM
+db2=> select * from local_sy;
+ f1 | f2 |     f3     
+----+----+------------
+  1 | bb  | {a1,b1,c1}
+  2 | cc | {a2,b2,c2}
+  0 | a  | {a0,b0,c0}
+(3 rows)
+db2=> select * from remote_sy@dblink; --访问远端数据库的同义词
+ f1 | f2 |     f3     
+----+----+------------
+  1 | bb | {a1,b1,c1}
+  2 | cc | {a2,b2,c2}
+  0 | a  | {a0,b0,c0}
+(3 rows)
+db2=> explain verbose select /*+ tablescan(remote_sy) */ * from remote_sy@dblink; --DATABASE LINK支持部分hint下推
+                                     QUERY PLAN                                     
+------------------------------------------------------------------------------------
+ Foreign Scan on public.remote_tb remote_sy  (cost=100.00..100.03 rows=1 width=68)
+   Output: f1, f2, f3
+   Remote SQL: SELECT /*+  tablescan(remote_sy) */ f1, f2, f3 FROM public.remote_tb
+(3 rows)
+
+db2=> select * from gs_database_link; --查看DATABASE LINK系统表
+db2=> start transaction;
+START TRANSACTION
+db2=> select * from remote_sy@dblink;
+ f1 | f2 |     f3     
+----+----+------------
+  1 | bb | {a1,b1,c1}
+  2 | cc | {a2,b2,c2}
+  0 | a  | {a0,b0,c0}
+(3 rows)
+
+db2=> select intransaction from gs_db_links; --查看DATABASE LINK系统视图
+ intransaction 
+---------------
+ t
+(1 row)
+db2=> end;
+COMMIT
+db2=> alter public database link dblink connect to 'user1' identified by 'Huawei12#$'; --修改DATABASE LINK信息
+db2=> drop public database link dblink; --删除DATABASE LINK对象 相关链接 CREATE DATABASE LINK 、 GS_DATABASE_LINK 、 GS_DB_LINKS 父主题： 附录 版权所有 © 华为技术有限公司

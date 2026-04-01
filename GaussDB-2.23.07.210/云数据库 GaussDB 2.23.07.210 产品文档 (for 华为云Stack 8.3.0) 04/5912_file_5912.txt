@@ -1,0 +1,9 @@
+快照恢复命令 快照恢复命令 功能 snapshot_restore命令用于快照备份的恢复。 命令格式 python3 GaussRoach.py -t snapshot_restore --snapshot-action snapshot_action --backup-config-path path
+[--media-type <media-type>]
+[--media-destination <media-destination-path>]
+[--metadata-destination <metadata-path>]
+[--bucket-name <bucketname>]
+[--cluster-unique-id <value>]
+[--obs-server-ip <address>]
+[--backup-key <backup-key>] 参数说明 完整选项 缩写选项 数据类型 说明 取值范围 缺省值 应用实例 -t -t 字符串 快照恢复功能。 -t backup -t stop -t delete -t restore -t genstack -t getobject -t start -t clean -t config -t archive -t snapshot_restore -t version -t help 不涉及 -t snapshot_restore --snapshot-action 不涉及 字符串 快照恢复的具体操作。 backup_config|restore_config|start 不涉及 --snapshot-action backup_config --backup-config-path 不涉及 字符串 配置文件备份路径。 不涉及 不涉及 --backup-config-path /home/Ruby/config --backup-key 不涉及 字符串 执行恢复操作使用的backup key。 不涉及 不涉及 --backup-key 20150315-16103 --media-type 不涉及 字符串 介质类型，当前快照恢复只支持OBS介质 OBS OBS 不涉及 对于OBS：--media-type OBS --media-destination 不涉及 字符串 指定介质的目的路径。 OBS： 样例策略 OBS 不涉及 对于OBS：--media-destination Samplepolicy --metadata-destination 不涉及 字符串 元数据文件位置。 不涉及 不涉及 --metadata-destination /home/username --bucket-name 不涉及 字符串 指定OBS桶名称。 不涉及 不涉及 --bucket-name rdsbucket.resource.user4444 --cluster-unique-id 不涉及 字符串 指定数据库实例备份时的数据库实例ID。 不涉及 不涉及 --cluster-unique-id  dws-xlnobs_9732b696-4b6d-4844-a40c-d1f6355aca02 --obs-server-ip 不涉及 IP地址 指定OBS的服务器地址 x.x.x.x 不涉及 --obs-server-ip x.x.x.x 使用指南 无。 命令示例 备份配置文件。 python3 GaussRoach.py -t snapshot_restore --snapshot-aciton backup_config --backup-config-path /home/Ruby/config 系统回显 champ@BLR1000014692: ~ /db/bin/script> python3 GaussRoach.py -t snapshot_restore --snapshot-action backup_config --backup-config-path /home/Ruby/config
+Roach operation snapshot_restore completed. 相关命令 无 父主题： 命令行参考 版权所有 © 华为技术有限公司

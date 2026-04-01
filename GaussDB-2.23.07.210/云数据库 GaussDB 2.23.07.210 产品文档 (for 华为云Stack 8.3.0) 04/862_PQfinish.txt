@@ -1,0 +1,1 @@
+PQfinish PQfinish 功能描述 关闭与服务器的连接，同时释放被PGconn对象使用的存储器。 原型 void PQfinish(PGconn* conn); 参数 表1 PQfinish参数 关键字 参数说明 conn 指向包含连接的对象指针。 注意事项 若PQstatus判断服务器连接尝试失败，应用程序调用PQfinish释放被PGconn对象使用的存储器，PQfinish调用后PGconn指针不可再次使用。 示例 请参见 示例 章节。 父主题： 数据库连接控制函数 版权所有 © 华为技术有限公司

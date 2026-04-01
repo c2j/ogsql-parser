@@ -1,0 +1,1 @@
+XBSA备份部署架构 XBSA备份部署架构 部署场景1 第三方备份Backup Client虚拟机通过管控面APIG网关调用接口来触发备份，走POD区访问APIG。注意：Backup Client虚拟机不能清理租户区TDNS配置，否则会导致所有上层服务的域名解析不对 数据库实例虚机与Backup Client虚拟机网络互通，采用同VPC网络打通。 Backup Client与云外备份服务端通信，通过增强云专线方式进行网络打通。 部署场景2 第三方备份Backup Client虚拟机通过管控面APIG网关调用接口来触发备份， Backup Client和APIG间的网络需要打通。 Backup Client所在虚机需要接入到云内网络，通过增强云专线方式进行网络打通。 父主题： XBSA配置最佳实践 版权所有 © 华为技术有限公司

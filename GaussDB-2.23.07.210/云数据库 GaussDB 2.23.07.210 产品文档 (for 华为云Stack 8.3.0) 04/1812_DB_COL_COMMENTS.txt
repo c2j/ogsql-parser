@@ -1,0 +1,1 @@
+DB_COL_COMMENTS DB_COL_COMMENTS DB_COL_COMMENTS视图显示当前用户可访问的表中字段的注释信息。该视图同时存在于PG_CATALOG和SYS Schema下。 表1 DB_COL_COMMENTS字段 名称 类型 描述 owner character varying(64) 表的所有者。 table_name character varying(64) 表名。 column_name character varying(64) 列名。 comments text 注释。 schema character varying(64) 列所属的名称空间的名称。 父主题： 其他系统视图 版权所有 © 华为技术有限公司

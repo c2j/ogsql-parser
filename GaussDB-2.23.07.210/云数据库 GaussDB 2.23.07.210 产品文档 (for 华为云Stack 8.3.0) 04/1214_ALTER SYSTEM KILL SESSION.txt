@@ -1,0 +1,17 @@
+ALTER SYSTEM KILL SESSION ALTER SYSTEM KILL SESSION 功能描述 ALTER SYSTEM KILL SESSION命令用于结束一个会话。 语法格式 1 ALTER SYSTEM KILL SESSION 'session_sid, serial' [ IMMEDIATE ]; 参数说明 session_sid, serial 会话的SID和SERIAL（格式请参考示例）。可通过pg_stat_activity系统表配合查询当前活跃线程（可见示例），但执行ALTER SYSTEM KILL SESSION命令时线程可能已结束。 取值范围：通过查看系统表dv_sessions可查看所有会话的SID和SERIAL。 IMMEDIATE 表明会话将在命令执行后立即结束。 示例 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17 --查询会话信息。 gaussdb =# SELECT sid , serial # , username FROM dv_sessions WHERE sid IN ( SELECT pid FROM pg_stat_activity ); sid | serial # | username -----------------+---------+---------- 140468994160384 | 0 | omm 140469010941696 | 0 | omm 140468977379072 | 0 | omm 140468915402496 | 0 | omm 140469299762944 | 0 | omm 140469278791424 | 0 | omm 140469417232128 | 0 | omm 140131094742800 | 0 | ( 8 rows ) --结束SID为140469417232128的会话。 gaussdb =# ALTER SYSTEM KILL SESSION '140469417232128,0' IMMEDIATE ; 父主题： A 版权所有 © 华为技术有限公司

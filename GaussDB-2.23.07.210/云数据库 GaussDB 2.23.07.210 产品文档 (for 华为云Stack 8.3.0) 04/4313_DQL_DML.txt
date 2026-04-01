@@ -1,0 +1,37 @@
+分区表DQL/DML 分区表DQL/DML 由于分区的实现完全体现在数据库内核中，用户对分区表的DQL/DML与非分区表相比，在语法上没有任何区别。 出于分区表的易用性考虑， GaussDB 支持指定分区的DQL/DML操作，指定分区可以通过PARTITION (partname)或者PARTITION FOR (partvalue)来进行。指定分区DQL/DML支持以下几类语法： 查询（SELECT） 插入（INSERT） 更新（UPDATE） 删除（DELETE） 插入或更新（UPSERT） 合并（MERGE INTO） 下面给出了指定分区做DQL/DML的示例： /* 创建分区表 list_02 */ CREATE TABLE IF NOT EXISTS list_02
+(
+    id   INT,
+    role VARCHAR(100),
+    data VARCHAR(100)
+)
+PARTITION BY LIST (id)
+(
+    PARTITION p_list_2 VALUES(0,1,2,3,4,5,6,7,8,9),
+    PARTITION p_list_3 VALUES(10,11,12,13,14,15,16,17,18,19),
+    PARTITION p_list_4 VALUES( DEFAULT ),
+    PARTITION p_list_5 VALUES(20,21,22,23,24,25,26,27,28,29),
+    PARTITION p_list_6 VALUES(30,31,32,33,34,35,36,37,38,39),
+    PARTITION p_list_7 VALUES(40,41,42,43,44,45,46,47,48,49)
+) ENABLE ROW MOVEMENT; /* 导入数据 */ INSERT INTO list_02 VALUES(null, 'alice', 'alice data');
+INSERT INTO list_02 VALUES(2, null, 'bob data');
+INSERT INTO list_02 VALUES(null, null, 'peter data'); /* 对指定分区进行查询 */ -- 查询分区表全部数据 gaussdb=# SELECT * FROM list_02 ORDER BY data;
+ id | role  |    data    
+----+-------+------------
+    | alice | alice data
+  2 |       | bob data
+    |       | peter data
+(3 rows)
+-- 查询分区p_list_2数据 gaussdb=# SELECT * FROM list_02 PARTITION (p_list_2) ORDER BY data;
+ id | role |   data   
+----+------+----------
+  2 |      | bob data
+(1 row)
+-- 查询(100)所对应的分区的数据，即分区p_list_4 gaussdb=# SELECT * FROM list_02 PARTITION FOR (100) ORDER BY data;
+ id | role  |    data
+----+-------+------------
+    | alice | alice data
+    |       | peter data
+(2 rows) /* 对指定分区做IUD */ -- 删除分区p_list_5中的全部数据 gaussdb=# DELETE FROM list_02 PARTITION (p_list_5);
+-- 指定分区p_list_7插入数据，由于数据不符合该分区约束，插入报错 gaussdb=# INSERT INTO list_02 PARTITION (p_list_7) VALUES(null, 'cherry', 'cherry data');
+ERROR:  inserted partition key does not map to the table partition
+-- 将分区值100所属分区，即分区p_list_4的数据进行更新 gaussdb=# UPDATE list_02 PARTITION FOR (100) SET data = ''; 父主题： 分区基本使用 版权所有 © 华为技术有限公司

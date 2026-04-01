@@ -1,0 +1,67 @@
+PLAN TRACE使用介绍 PLAN TRACE使用介绍 该特性是数据库内核开发人员对慢SQL深度分析使用的特性，不建议非内核开发人员使用。 该特性开启后，会在执行DML期间记录优化器相关信息到系统表中，这样会导致原本的读事务变成了写事务，从而导致要求必须在读事务里执行的函数无法执行，例如函数pg_create_logical_replication_slot等。 使用plan trace特性可以查看查询计划的优化过程。在plan trace中可以看到计划中路径的计算过程、路径的选择与淘汰过程等关键信息，以达到分析慢SQL根因的目的。下面分别介绍使用该特性有两种方式。 方式一： 使用guc参数enable_plan_trace启用plan trace特性，操作步骤如下： 打开plan trace guc开关： set enable_plan_trace = on; 执行业务sql。例如业务sql如下： select * from tb_a a, tb_b b where a.c1 = b.c1 and a.c1=1; 通过视图gs_my_plan_trace查看自己新生成的plan trace。 select * from gs_my_plan_trace order by modifydate limit 1; 由于plan trace的记录一般比较大，如果使用gsql连接数据库，建议使用\x命令将gsql的查询结果展示方式改为Expanded方式。 由于plan trace通常比较大，这里只给出本示例执行结果的关键trace的部分片段，如下所示： 片段1：在trace中，可以看到当前执行的sql和计划。 query_id      | 8a10c7bc194c8bd2588eec379450832c
+query         | select * from tb_a a, tb_b b where a.id=b.id and a.c1=?;
+unique_sql_id | 1921680825
+plan          | Datanode Name: datanode1
+              | Hash Join  (cost=61.66..245.21 rows=49 width=30)
+              |   Hash Cond: (b.id = a.id)
+              |   ->  Seq Scan on tb_b b  (cost=0.00..155.00 rows=10000 width=15)
+              |   ->  Hash  (cost=61.05..61.05 rows=49 width=15)
+              |         ->  Bitmap Heap Scan on tb_a a  (cost=4.63..61.05 rows=49 width=15)
+              |               Recheck Cond: (c1 = '***')
+              |               ->  Bitmap Index Scan on tb_a_idx_c1  (cost=0.00..4.62 rows=49 width=0)
+              |                     Index Cond: (c1 = '***') 片段2：在trace中，可以看到当前sql使用的关键guc参数。 plan_trace    | [key_guc]
+              | enable_pbe_optimization=1
+              | plan_cache_mode=0
+              | random_page_cost=4.000
+              | enable_hashjoin=1
+              | enable_mergejoin=1
+              | enable_nestloop=1
+              | enable_seqscan=1
+              | effective_cache_size=16385
+              | work_mem=65536
+              | default_statistics_target=100
+              | cost_param=0
+              | =[key_guc]= 片段3：在trace中，可以看到当前sql的查询计划的路径代价的计算过程。 | [btcostestimate]
+              | cal: num_sa_scans,1.000000
+              | cal: num_index_tuples=btree_selectivity * index_tuples,48.629630,0.004863,10000.000000
+              | cal: num_index_tuples = rint(num_index_tuples / num_sa_scans),49.000000
+              |
+              | [adt_genericcostestimate]
+              | input: loop_count,1.000000 num_index_tuples,49.000000 index_total_pages,37.000000
+              | cal: num_sa_scans,1.000000 idx_local_tupls,10000.000000
+              | cal: index_selectivity,0.004863
+              | cal: num_index_pages=ceil(num_index_tuples/idx_local_tupls * index_total_pages),1.000000
+              | cal: num_scans=num_sa_scans * loop_count,1.000000
+              | cal: index_total_cost=num_index_pages * spc_random_page_cost,4.000000
+              | cal: index_total_cost += num_index_tuples * num_sa_scans * (cpu_index_tuple_cost + qual_op_cost),4.367500
+              | cal: index_total_cost += num_sa_scans * 100.0 * cpu_operator_cost,4.617500
+              | =[adt_genericcostestimate]=
+              | =[btcostestimate]= 片段4：在trace中，可以看到基表路径的淘汰过程：1. 老路径被淘汰；2. 老路径被淘汰的原因；3. 新路径的相关信息。 | An old path is removed with cost = 881.806443 .. 932.541443;  rows = 49.000000
+              | The old path and the comparison results are:
+              | {
+              |          old pathid=00000005    Cost = NewBetter        |       PathKeys = Equal        |          BMS = Equal          |         Rows = Equal
+              | }
+              | A new path is accepted with cost = 284.629750 .. 341.718970;  rows = 49.000000
+              | The detail information of the new path:
+              | {
+              |         HashJoin(1:tb_a  2:tb_b ) pathid=00000011 hasparam=0 rows=49 multiple=1.000000 tuples=0.00 rpages=0.00 ipages=0.00 selec=0.00000000 ml=0 iscost=1 lossy=0 uidx=0)  dop=1 cost=284.63..341.72 hint 0 trace_id=#3##4##11#           clauses: a.id = b.id(norm_ 片段5：在trace中，可以看到join路径的淘汰过程：1. 老路径被淘汰；2. 老路径淘汰的原因；3. 新路径的相关信息。 | An old path is removed with cost = 4.629750 .. 7591.045220;  rows = 49.000000
+              | The old path and the comparison results are:
+              | {
+              |          old pathid=00000008    Cost = Equal            |       PathKeys = Equal        |          BMS = Equal          |         Rows = Equal
+              |         Small fuzzy factor is used!
+              | }
+              | A new path is accepted with cost = 4.629750 .. 7566.167720;  rows = 49.000000
+              | The detail information of the new path:
+              | {
+              |         NestLoop(1:tb_a  2:tb_b ) pathid=00000014 hasparam=0 rows=49 multiple=1.000000 tuples=0.00 rpages=0.00 ipages=0.00 selec=0.00000000 ml=0 iscost=1 lossy=0 uidx=0)  dop=1 cost=4.63..7566.17 hint 0 trace_id=#4##13##14#           clauses: a.id = b.id(norm_
+              |         Small fuzzy factor is used! trace内容非常多，但都比较通俗易懂，在这里不一一展开，请使用该特性的人员自行分析。 方式二： 使用系统函数gs_plan_trace_watch_sqlid启用plan trace特性，操作步骤如下： 通过系统表dbe_perf.statement获得感兴趣的sql 的 unique sql id，例如使用如下sql来获取unique sql id： select * from dbe_perf.statement where query like '%tb_a%'; 获取到的结果如下中的unique_sql_id字段： node_name            | datanode1
+node_id              | 0
+user_name            | qiumc
+user_id              | 10
+unique_sql_id        | 1921680825
+query                | select * from tb_a a, tb_b b where a.id=b.id and a.c1=?;
+n_calls              | 3
+min_elapse_time      | 8880
+max_elapse_time      | 12371
+total_elapse_time    | 32036 具有sysadmin权限的用户调用gs_plan_trace_watch_sqlid函数侦听感兴趣的unique sql id。示例如下： select gs_plan_trace_watch_sqlid(1921680825); 如果感兴趣的unique sql id没有开始生成plan trace，则该unique sql id会被保存在一个内存的列表中，且可以通过函数gs_plan_trace_show_sqlids()来查看当前待收集plan trace的unique sql id列表，例如示例sql如下： select gs_plan_trace_show_sqlids(); 该sql的执行结果结果如下： -[ RECORD 1 ]-------------+------------
+gs_plan_trace_show_sqlids | 1921680825, 如果此时执行一次sql： select * from tb_a a, tb_b b where a.id=b.id and a.c1=1; 同样可以针对该sql生成plan trace记录。 只有具有sysadmin/opradmin/monadmin权限的用户才可以调用gs_plan_trace_watch_sqlid、gs_plan_trace_show_sqlids这两个函数。如果普通用户执行了管理员侦听的unique sql id的sql，则可以使用视图gs_my_plan_trace来查看自己生成的plan trace。 plan trace通常比较大，需要用户及时清理，否则会占用大量的磁盘空间，用户可以使用gs_plan_trace_delete函数来删除自己生成的plan trace。 例如使用sql： select gs_plan_trace_delete(TIMESTAMPTZ '2023-01-10 17:16:42.652543+08') 可以删除当前用户的小于等于2023-01-10 17:16:42.652543+08时间的所有plan trace，从而达到每个用户都可以清理自己plan trace数据的目的。 父主题： SQL调优指南 版权所有 © 华为技术有限公司

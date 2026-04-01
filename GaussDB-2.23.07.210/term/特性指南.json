@@ -1,0 +1,16 @@
+{
+  "topic": "特性指南",
+  "term_count": 2,
+  "terms": [
+    {
+      "term": "主备版",
+      "content": "主备版 主备版 物化视图 设置密态等值查询 内存解密逃生通道 透明数据加密 基于标签的强制访问控制 逻辑复制 分区表 存储引擎 内存管理 DBMind: 数据库自治运维 DB4AI: 数据库驱动AI ABO优化器 Foreign Data Wrapper SPM计划管理",
+      "source_file": "4488_file_4488.txt"
+    },
+    {
+      "term": "分布式版",
+      "content": "分布式版 分布式版 物化视图 设置密态等值查询 透明数据加密 基于标签的强制访问控制 逻辑复制 分区表 存储引擎 内存管理 DBMind: 数据库自治运维 ABO优化器 Foreign Data Wrapper GTM模式",
+      "source_file": "4268_file_4268.txt"
+    }
+  ]
+}

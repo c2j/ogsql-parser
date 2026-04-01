@@ -1,0 +1,21 @@
+{
+  "topic": "DBSplatform安装指南",
+  "term_count": 3,
+  "terms": [
+    {
+      "term": "安装简介",
+      "content": "安装简介 安装简介 服务简介 部署架构 部署流程",
+      "source_file": "003_file_3.txt"
+    },
+    {
+      "term": "安装过程（自动化部署工程）",
+      "content": "安装过程（自动化部署工程） 安装过程（自动化部署工程） 上传云服务软件包 使用HCC Turnkey自动化安装云服务",
+      "source_file": "010_file_10.txt"
+    },
+    {
+      "term": "安装前准备",
+      "content": "安装前准备 安装前准备 文档、工具和软件包 安装或检查HCC Turnkey",
+      "source_file": "007_file_7.txt"
+    }
+  ]
+}

@@ -1,0 +1,1 @@
+修改网卡接口脚本配置 修改网卡接口脚本配置 通过ifconfig查看主网卡名称如enp3s0。 1）修改服务器的网络配置为DHCP，添加PERSISTENT_DHCLIENT=yes，并修改ONBOOT为yes，如下 父主题： 安装软件 版权所有 © 华为技术有限公司

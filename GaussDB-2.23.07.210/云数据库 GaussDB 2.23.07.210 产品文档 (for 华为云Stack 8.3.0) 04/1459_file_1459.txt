@@ -1,0 +1,19 @@
+隐式游标 隐式游标 对于非查询语句，如修改、删除操作，则由系统自动地为这些操作设置游标并创建其工作区，这些由系统隐含创建的游标称为隐式游标，隐式游标的名称为SQL，这是由系统定义的。 简介 对于隐式游标的操作，如定义、打开、取值及关闭操作，都由系统自动地完成，无需用户进行处理。用户只能通过隐式游标的相关属性，来完成相应的操作。在隐式游标的工作区中，所存放的数据是最新处理的一条SQL语句所包含的数据，与用户自定义的显式游标无关。 格式调用为 ： SQL% INSERT，UPDATE，DELETE，SELECT语句中不必明确定义游标。 属性 隐式游标属性为： SQL%FOUND布尔型属性：当最近一次读记录时成功返回，则值为TRUE。 SQL%NOTFOUND布尔型属性：当最近一次读记录时失败返回，则值为TRUE。 SQL%ROWCOUNT数值型属性：返回已从游标中读取的记录数。 SQL%ISOPEN布尔型属性：取值总是FALSE。SQL语句执行完毕立即关闭隐式游标。 示例 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19 --删除员工表hr.staffs中某部门的所有员工，如果该部门中已没有员工，则在部门表hr.department中删除该部门。 gaussdb =# CREATE OR REPLACE PROCEDURE proc_cursor3 () AS DECLARE V_DEPTNO NUMBER ( 4 ) : = 100 ; BEGIN DELETE FROM hr . staffs WHERE section_id = V_DEPTNO ; --根据游标状态做进一步处理 IF SQL % NOTFOUND THEN DELETE FROM hr . department WHERE section_id = V_DEPTNO ; END IF ; END ; / gaussdb =# CALL proc_cursor3 (); --删除存储过程和临时表 gaussdb =# DROP PROCEDURE proc_cursor3 ; 父主题： 游标 版权所有 © 华为技术有限公司

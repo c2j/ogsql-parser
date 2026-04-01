@@ -1,0 +1,26 @@
+分区表行迁移 分区表行迁移 用户可以使用ALTER TABLE ENABLE/DISABLE ROW MOVEMENT来开启/关闭分区表行迁移。 开启行迁移时，允许通过更新操作将一个分区中的数据迁移到另一个分区中；关闭行迁移时，如果出现这种更新行为，则业务报错。 如果业务明确不允许对分区键所在列进行更新操作，建议关闭分区表行迁移。 例如，创建列表分区表，并开启分区表行迁移，此时可以跨分区更新分区键所在列；关闭分区表行迁移后，对分区键所在列进行跨分区更新会业务报错。 CREATE TABLE list_sales
+(
+    product_id     INT4 NOT NULL,
+    customer_id    INT4 PRIMARY KEY,
+    time_id        DATE,
+    channel_id     CHAR(1),
+    type_id        INT4,
+    quantity_sold  NUMERIC(3),
+    amount_sold    NUMERIC(10,2)
+)
+PARTITION BY LIST (channel_id)
+(
+    PARTITION channel1 VALUES ('0', '1', '2'),
+    PARTITION channel2 VALUES ('3', '4', '5'),
+    PARTITION channel3 VALUES ('6', '7'),
+    PARTITION channel4 VALUES ('8', '9')
+) ENABLE ROW MOVEMENT;
+INSERT INTO list_sales VALUES (153241,65143129,'2021-05-07','0',864134,89,34);
+--跨分区更新成功，数据从分区channel1迁移到分区channel2
+UPDATE list_sales SET channel_id = '3' WHERE channel_id = '0';
+--关闭分区表行迁移
+ALTER TABLE list_sales DISABLE ROW MOVEMENT;
+--跨分区更新失败，报错fail to update partitioned table "list_sales"
+UPDATE list_sales SET channel_id = '0' WHERE channel_id = '3';
+--分区内更新依然成功
+UPDATE list_sales SET channel_id = '4' WHERE channel_id = '3'; 父主题： 分区表运维管理 版权所有 © 华为技术有限公司

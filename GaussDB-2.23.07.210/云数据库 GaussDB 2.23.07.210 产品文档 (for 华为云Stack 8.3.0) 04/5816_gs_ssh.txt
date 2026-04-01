@@ -1,0 +1,11 @@
+gs_ssh gs_ssh 背景信息 GaussDB 提供了gs_ssh工具帮助用户在集群各节点上执行相同的命令。 前提条件 集群已经正确安装部署。 调用命令可用which查询到且在当前用户下有执行权限。 执行的命令返回的内容不可以太多或者无限制。 语法 同步执行命令 gs_ssh -c cmd 显示帮助信息 gs_ssh -? | --help 显示版本号信息 gs_ssh -V | --version gs_ssh工具支持以管道符形式传入被执行的cmd，如：echo 'gsql -p xxx -d xxx -U xxx -W xxx -c "xxx;"' | gs_ssh，使用该方式执行命令时，进程中不显示具体的cmd。当使用gs_ssh工具执行包含敏感信息的命令时，请使用管道符形式传入cmd，避免敏感信息在进程中可查。 参数说明 -c 指定需要在集群各主机上执行的linux shell命令名。 -?, --help 显示帮助信息。 -V, --version 显示版本号信息。 示例 在集群各主机上执行相同命令。以执行"hostname"命令为例。 gs_ssh -c "hostname"
+Successfully execute command on all nodes.
+Output:
+[SUCCESS] plat1:
+plat1
+[SUCCESS] plat2:
+plat2
+[SUCCESS] plat3:
+plat3
+[SUCCESS] plat4:
+plat4 父主题： 服务端工具 版权所有 © 华为技术有限公司

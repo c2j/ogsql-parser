@@ -1,0 +1,36 @@
+LOCK LOCK 功能描述 LOCK TABLE获取表级锁。 GaussDB 在为一个引用了表的命令自动请求锁时，尽可能选择最小限制的锁模式。如果用户需要一种更为严格的锁模式，可以使用LOCK命令。例如，一个应用是在Read Committed隔离级别上运行事务，并且它需要保证表中的数据在事务的运行过程中不被修改。为实现这个目的，则可以在查询之前对表使用SHARE锁模式进行锁定。这样将防止数据不被并发修改，从而保证后续的查询可以读到已提交的持久化的数据。因为SHARE锁模式与任何写操作需要的ROW EXCLUSIVE模式冲突，并且LOCK TABLE name IN SHARE MODE语句将等到所有当前持有ROW EXCLUSIVE模式锁的事务提交或回滚后才能执行。因此，一旦获得该锁，就不会存在未提交的写操作，并且其他操作也只能等到该锁释放之后才能开始。 允许扩容重分布工具等锁时内核自动CANCEL业务。 注意事项 LOCK TABLE只能在一个事务块的内部有用，因为锁在事务结束时就会被释放。出现在任意事务块外面的LOCK TABLE都会报错。 如果没有声明锁模式，缺省为最严格的模式ACCESS EXCLUSIVE。 LOCK TABLE ... IN ACCESS SHARE MODE需要在目标表上有SELECT权限。所有其他形式的LOCK需要UPDATE或DELETE权限。 没有UNLOCK TABLE命令，锁总是在事务结束时释放。 LOCK TABLE只处理表级的锁，因此那些带“ROW”字样的锁模式都是有歧义的。这些模式名称通常可理解为用户试图在一个被锁定的表中获取行级的锁。同样，ROW EXCLUSIVE模式也是一个可共享的表级锁。注意，只要是涉及到LOCK TABLE，所有锁模式都有相同的语意，区别仅在于规则中锁与锁之间是否冲突，规则请参见 表1 。 如果没有打开xc_maintenance_mode参数，那么对系统表申请ACCESS EXCLUSIVE级别锁将报错。 自动CANCEL业务接口只允许重分布工具使用。 语法格式 LOCK [ TABLE ] {[ ONLY ] name [, ...]| {name [ * ]} [, ...]}
+    [ IN {ACCESS SHARE | ROW SHARE | ROW EXCLUSIVE | SHARE UPDATE EXCLUSIVE | SHARE | SHARE ROW EXCLUSIVE | EXCLUSIVE | ACCESS EXCLUSIVE} MODE ]
+    [ NOWAIT ][CANCELABLE]; 参数说明 表1 冲突的锁模式 请求的锁模式/当前锁模式 ACCESS SHARE ROW SHARE ROW EXCLUSIVE SHARE UPDATE EXCLUSIVE SHARE SHARE ROW EXCLUSIVE EXCLUSIVE ACCESS EXCLUSIVE ACCESS SHARE - - - - - - - X ROW SHARE - - - - - - X X ROW EXCLUSIVE - - - - X X X X SHARE UPDATE EXCLUSIVE - - - X X X X X SHARE - - X X - X X X SHARE ROW EXCLUSIVE - - X X X X X X EXCLUSIVE - X X X X X X X ACCESS EXCLUSIVE X X X X X X X X LOCK的参数说明如下所示： name 要锁定的表的名称，可以有模式修饰。 LOCK TABLE命令中声明的表的顺序就是上锁的顺序。 取值范围：已存在的表名。 支持使用DATABASE LINK方式对远端表进行操作，使用方式详情请见 DATABASE LINK 。 ONLY 如果指定ONLY，只有该表被锁定。如果没有声明，该表和他的所有子表将都被锁定。 ACCESS SHARE ACCESS锁只允许对表进行读取，而禁止对表进行修改。所有对表进行读取而不修改的SQL语句都会自动请求这种锁。例如，SELECT命令会自动在被引用的表上请求一个这种锁。 ROW SHARE ROW SHARE锁允许对表进行并发读取，禁止对表进行其他操作。 SELECT FOR UPDATE和SELECT FOR SHARE命令会自动在目标表上请求ROW SHARE锁（且所有被引用但不是FOR SHARE/FOR UPDATE的其他表上，还会自动加上ACCESS SHARE锁）。 对于分区表，SELECT FOR SHARE操作还会在DN上获取partition对象的ROW EXCLUSIVE锁进行并发控制。 ROW EXCLUSIVE 与ROW SHARE锁相同，ROW EXCLUSIVE允许并发读取表，但是禁止修改表中数据。UPDATE、DELETE、INSERT命令会自动在目标表上请求这个锁（且所有被引用的其他表上还会自动加上的ACCESS SHARE锁）。通常情况下，所有会修改表数据的命令都会请求表的ROW EXCLUSIVE锁。 SHARE UPDATE EXCLUSIVE 这个模式保护一个表的模式不被并发修改，以及禁止在目标表上执行垃圾回收命令（VACUUM）。 VACUUM（不带FULL选项）、ANALYZE、CREATE INDEX CONCURRENTLY命令会自动请求这样的锁。 SHARE SHARE锁允许并发的查询，但是禁止对表进行修改。 CREATE INDEX（不带CONCURRENTLY）语句会自动请求这种锁。 SHARE ROW EXCLUSIVE SHARE ROW EXCLUSIVE锁禁止对表进行任何的并发修改，而且是独占锁，因此一个会话中只能获取一次。 任何SQL语句都不会自动请求这个锁模式。 EXCLUSIVE EXCLUSIVE锁允许对目标表进行并发查询，但是禁止任何其他操作。 这个模式只允许并发加ACCESS SHARE锁，也就是说，只有对表的读动作可以和持有这个锁模式的事务并发执行。 任何SQL语句都不会在用户表上自动请求这个锁模式。然而在某些操作的时候，会在某些系统表上请求它。 ACCESS EXCLUSIVE 这个模式保证其所有者（事务）是可以访问该表的唯一事务。 ALTER TABLE、DROP TABLE、TRUNCATE、REINDEX、CLUSTER、VACUUM FULL命令会自动请求这种锁。 在LOCK TABLE命令没有明确声明需要的锁模式时，它是缺省锁模式。 NOWAIT 声明LOCK TABLE不去等待任何冲突的锁释放，如果无法立即获取该锁，该命令退出并且发出一个错误信息。 在不指定NOWAIT的情况下获取表级锁时，如果有其他互斥锁存在的话，则等待其他锁的释放。 CA NCELABLE 通过指定该参数允许等锁线程给持锁线程和等锁线程发送CANCEL信号。 只允许重分布工具使用，其它用户使用将报错。 示例 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27
+28
+29
+30
+31
+32
+33
+34 --创建SCHEMA。 gaussdb =# CREATE SCHEMA tpcds ; --创建表tpcds.reason。 gaussdb =# CREATE TABLE tpcds . reason ( r_reason_sk INTEGER NOT NULL , r_reason_id CHAR ( 16 ) NOT NULL , r_reason_desc INTEGER ); --向表中插入多条记录。 gaussdb =# INSERT INTO tpcds . reason VALUES ( 1 , 'AAAAAAAABAAAAAAA' , '18' ),( 5 , 'AAAAAAAACAAAAAAA' , '362' ),( 7 , 'AAAAAAAADAAAAAAA' , '585' ); --在执行删除操作时对一个有主键的表进行 SHARE ROW EXCLUSIVE 锁。 gaussdb =# CREATE TABLE tpcds . reason_t1 AS TABLE tpcds . reason ; gaussdb =# START TRANSACTION ; gaussdb =# LOCK TABLE tpcds . reason_t1 IN SHARE ROW EXCLUSIVE MODE ; gaussdb =# DELETE FROM tpcds . reason_t1 WHERE r_reason_desc IN ( SELECT r_reason_desc FROM tpcds . reason_t1 WHERE r_reason_sk < 6 ); gaussdb =# DELETE FROM tpcds . reason_t1 WHERE r_reason_sk = 7 ; gaussdb =# COMMIT ; --删除表tpcds.reason_t1。 gaussdb =# DROP TABLE tpcds . reason_t1 ; --删除表tpcds.reason。 gaussdb =# DROP TABLE tpcds . reason ; --删除SCHEMA。 gaussdb =# DROP SCHEMA tpcds CASCADE ; 父主题： L 版权所有 © 华为技术有限公司

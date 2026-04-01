@@ -1,0 +1,79 @@
+Synonym词典 Synonym词典 Synonym词典用于定义、识别token的同义词并转化，不支持词组（词组形式的同义词可用Thesaurus词典定义，详细请参见 Thesaurus词典 ）。 示例 Synonym词典可用于解决语言学相关问题，例如，为避免使单词"Paris"变成"pari"，可在Synonym词典文件中定义一行"Paris paris"，并将该词典放置在预定义的english_stem词典之前。 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27
+28
+29
+30
+31
+32
+33
+34
+35
+36
+37
+38
+39
+40
+41 gaussdb =# SELECT * FROM ts_debug ( 'english' , 'Paris' ); alias | description | token | dictionaries | dictionary | lexemes -----------+-----------------+-------+----------------+--------------+--------- asciiword | Word , all ASCII | Paris | { english_stem } | english_stem | { pari } ( 1 row ) gaussdb =# CREATE TEXT SEARCH DICTIONARY my_synonym ( TEMPLATE = synonym , SYNONYMS = my_synonyms , FILEPATH = 'file:///home/dicts/' ); gaussdb =# ALTER TEXT SEARCH CONFIGURATION english ALTER MAPPING FOR asciiword WITH my_synonym , english_stem ; gaussdb =# SELECT * FROM ts_debug ( 'english' , 'Paris' ); alias | description | token | dictionaries | dictionary | lexemes -----------+-----------------+-------+---------------------------+------------+--------- asciiword | Word , all ASCII | Paris | { my_synonym , english_stem } | my_synonym | { paris } ( 1 row ) gaussdb =# SELECT * FROM ts_debug ( 'english' , 'paris' ); alias | description | token | dictionaries | dictionary | lexemes -----------+-----------------+-------+---------------------------+------------+--------- asciiword | Word , all ASCII | Paris | { my_synonym , english_stem } | my_synonym | { paris } ( 1 row ) gaussdb =# ALTER TEXT SEARCH DICTIONARY my_synonym ( CASESENSITIVE = true ); gaussdb =# SELECT * FROM ts_debug ( 'english' , 'Paris' ); alias | description | token | dictionaries | dictionary | lexemes -----------+-----------------+-------+---------------------------+------------+--------- asciiword | Word , all ASCII | Paris | { my_synonym , english_stem } | my_synonym | { paris } ( 1 row ) gaussdb =# SELECT * FROM ts_debug ( 'english' , 'paris' ); alias | description | token | dictionaries | dictionary | lexemes -----------+-----------------+-------+---------------------------+------------+--------- asciiword | Word , all ASCII | Paris | { my_synonym , english_stem } | my_synonym | { pari } ( 1 row ) 其中，同义词词典文件全名为my_synonyms.syn，所在目录为当前连接 CN 节点的/home/dicts/下。关于创建词典的语法和更多参数，请参见 CREATE TEXT SEARCH DICTIONARY 。 星号（*）可用于词典文件中的同义词结尾，表示该同义词是一个前缀。在to_tsvector()中该星号将被忽略，但在to_tsquery()中会匹配该前缀并对应输出结果（参照 处理查询 一节）。 假设词典文件synonym_sample.syn内容如下： 1
+2 gogle googl indices index * 创建并使用词典： 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27
+28
+29
+30
+31
+32
+33
+34
+35
+36
+37
+38 gaussdb =# CREATE TEXT SEARCH DICTIONARY syn ( TEMPLATE = synonym , SYNONYMS = synonym_sample ); gaussdb =# SELECT ts_lexize ( 'syn' , 'indices' ); ts_lexize ----------- { index } ( 1 row ) gaussdb =# CREATE TEXT SEARCH CONFIGURATION tst ( copy = simple ); gaussdb =# ALTER TEXT SEARCH CONFIGURATION tst ALTER MAPPING FOR asciiword WITH syn ; gaussdb =# SELECT to_tsvector ( 'tst' , 'indices' ); to_tsvector ------------- 'index' : 1 ( 1 row ) gaussdb =# SELECT to_tsquery ( 'tst' , 'indices' ); to_tsquery ------------ 'index' : * ( 1 row ) gaussdb =# SELECT 'indexes are very useful' :: tsvector ; tsvector --------------------------------- 'are' 'indexes' 'useful' 'very' ( 1 row ) gaussdb =# SELECT 'indexes are very useful' :: tsvector @@ to_tsquery ( 'tst' , 'indices' ); ? column ? ---------- t ( 1 row ) 父主题： 词典 版权所有 © 华为技术有限公司

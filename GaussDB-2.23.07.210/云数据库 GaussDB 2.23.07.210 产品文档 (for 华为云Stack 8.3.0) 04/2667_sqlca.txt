@@ -1,0 +1,38 @@
+sqlca sqlca 嵌入式SQL接口提供了sqlca（SQL通信区）的全局变量。sqlca包含告警和错误信息。如果在语句执行期间发生多个告警和错误，那么sqlca将只保存最后一个信息。在一个多线程的程序中，每一个线程会自动得到它的sqlca副本。 数据结构如下： struct 
+{ 
+    char sqlcaid[8]; 
+    long sqlabc; 
+    long sqlcode; 
+    struct 
+    { 
+        int sqlerrml; 
+        char sqlerrmc[SQLERRMC_LEN]; 
+    } sqlerrm;
+    char sqlerrp[8]; 
+    long sqlerrd[6]; 
+    char sqlwarn[8]; 
+    char sqlstate[5]; 
+} sqlca; 如果SQL语句没有发生错误，则sqlca.sqlcode为0，sqlca.sqlstate为"00000"。如果发生了告警或者错误，那么sqlca.sqlcode是负数并且sqlca.sqlstate不同于"00000"。SQLSTATE与SQLCODE的具体值可参考 SQLSTATE与SQLCODE 。 如果SQL语句正确执行，那么sqlca.sqlerrd[1]包含被处理行的OID，并且sqlca.sqlerrd[2]包含被处理或返回的行数。 在发生错误或告警时，sqlca.sqlerrm.sqlerrmc将包含描述该错误的字符串。sqlca.sqlerrm.sqlerrml包含存储在sqlca.sqlerrm.sqlerrmc中错误消息的长度（strlen()的结果）。注意：一些消息可能无法适应定长的sqlerrmc数组，它们将被截断。 在发生告警时，sqlca.sqlwarn[2]被设置为W。 sqlcaid、sqlabc、sqlerrp、sqlwarn以及sqlerrd的剩余元素目前未包含有用的信息。 示例如下： /* 整合WHENEVER和sqlca实现错误处理 */
+EXEC SQL WHENEVER SQLERROR SQLCALL print_sqlca();  
+
+void print_sqlca() 
+{ 
+    fprintf(stderr, "==== sqlca ====\n");  
+    fprintf(stderr, "sqlcode: %ld\n", sqlca.sqlcode); 
+    fprintf(stderr, "sqlerrm.sqlerrml: %d\n", sqlca.sqlerrm.sqlerrml); 
+    fprintf(stderr, "sqlerrm.sqlerrmc: %s\n", sqlca.sqlerrm.sqlerrmc); 
+    fprintf(stderr, "sqlerrd: %ld %ld %ld %ld %ld %ld\n", sqlca.sqlerrd[0],sqlca.sqlerrd[1],sqlca.sqlerrd[2],
+                                                          sqlca.sqlerrd[3],sqlca.sqlerrd[4],sqlca.sqlerrd[5]); 
+    fprintf(stderr, "sqlwarn: %d %d %d %d %d %d %d %d\n", sqlca.sqlwarn[0], sqlca.sqlwarn[1], sqlca.sqlwarn[2], 
+                                                          sqlca.sqlwarn[3], sqlca.sqlwarn[4], sqlca.sqlwarn[5], 
+                                                          sqlca.sqlwarn[6], sqlca.sqlwarn[7]);
+    fprintf(stderr, "sqlstate: %5s\n", sqlca.sqlstate); 
+    fprintf(stderr, "===============\n"); 
+} 输出结果形如（此处的错误是一个拼写表名错误）： ==== sqlca ==== 
+sqlcode: -400 
+sqlerrm.sqlerrml: 49 
+sqlerrm.sqlerrmc: relation "pg_databasep" does not exist on line 38 
+sqlerrd: 0 0 0 0 0 0 
+sqlwarn: 0 0 0 0 0 0 0 0 
+sqlstate: 42P01 
+=============== 父主题： 错误处理 版权所有 © 华为技术有限公司

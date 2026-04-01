@@ -1,0 +1,36 @@
+SQL限流函数 SQL限流函数 gs_add_workload_rule(rule_type, rule_name, databases, start_time, end_time, max_workload, option_val) 描述：创建一条SQL限流规则。需要具有sysadmin权限的用户才可执行。只支持在CN节点上执行。 参数：参数介绍请参见 表1 。 返回值类型：int8 表1 gs_add_workload_rule参数说明 参数名称 类型 描述 取值范围 rule_type text 限流规则类型，不区分大小写。 “sqlid”：根据Unique SQL ID进行限流； “select”、“insert”、“update”、“delete”、“merge”：根据查询类型和关键字进行限流； “resource”：根据系统资源利用率进行实例级别的限流。 rule_name name 限流规则名称，用于检索限流规则。 任意字符串，可以为NULL。 databases name[] 限流规则生效的数据库名称数组，区分大小写。 数据库名列表，必须为已创建的数据库名。可以为NULL，表示所有数据库生效。 目前只有指定rule_type为查询类型时，数据库列表才生效，因为Unique SQL ID本身是与库进行绑定的，其只属于某个库；而根据资源利用率的限流规则是对实例生效的，即对所有库生效。 start_time timestamptz 限流规则生效的开始时间。 可以为NULL，表示从当前时间开始生效。 end_time timestamptz 限流规则生效的结束时间。 可以为NULL，表示规则一直生效。 max_workload int8 限流规则设置的最大并发数。 - option_val text[] 限流规则的补充信息。 与rule_type匹配，具体匹配关系如下： “sqlid”：要限流的Unique SQL ID，以及慢SQL管控规则，格式为'{id=1234, time_limit=100, max_execute_time=500, max_iops=1}'，其中id指为Unique SQL ID，为必选项，可通过dbe_perf.statement或者pg_stat_activity视图获取。其他选项非必选，其含义参考慢SQL管控规则的Hint； “select”、“insert”、“update”、“delete”、“merge”  ：要限流的关键字序列，不区分大小写，可以为NULL； “resource” ：要限流的资源阈值，形式为'{cpu-80, memory-70}'。当前cpu和memory无论设置为多少，都当成"0"处理。 示例： 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17 gaussdb =# select gs_add_workload_rule ( 'sqlid' , 'rule for one query' , '{}' , now (), NULL , 20 , '{id=32413214}' ); gs_add_workload_rule ---------------------- 1 ( 1 row ) gaussdb =# create database db1 ; gaussdb =# create database db2 ; gaussdb =# select gs_add_workload_rule ( 'select' , 'rule for select' , '{db1, db2}' , NULL , NULL , 100 , '{tb1, tb2}' ); gs_add_workload_rule ---------------------- 2 ( 1 row ) gaussdb =# select gs_add_workload_rule ( 'resource' , 'rule for resource' , '{}' , NULL , NULL , 20 , '{cpu-80}' ); gs_add_workload_rule ---------------------- 3 ( 1 row ) gs_update_workload_rule(rule_id, rule_name, databases, start_time, end_time, max_workload, option_val) 描述：更新一条SQL限流规则，需要重新设置全部参数，不支持只指定部分参数。需要具有sysadmin权限的用户才可执行。只支持在CN节点上执行。 参数：参数介绍请参见 表2 。 返回值类型：boolean 表2 gs_update_workload_rule参数说明 参数名称 类型 描述 取值范围 rule_id int8 要更新的限流规则ID。 - rule_name name 限流规则名称，用于检索限流规则。 任意字符串，可以为NULL。 databases name[] 限流规则生效的数据库名称数组，区分大小写。 数据库名列表，必须为已创建的数据库名。可以为NULL，表示所有数据库生效。 目前只有指定rule_type为查询类型时，数据库列表才生效，因为Unique SQL ID本身是与库进行绑定的，其只属于某个库；而根据资源利用率的限流规则是对实例生效的，即对所有库生效。 start_time timestamptz 限流规则生效的开始时间。 可以为NULL，表示从当前时间开始生效。 end_time timestamptz 限流规则生效的结束时间。 可以为NULL，表示规则一直生效。 max_workload int8 限流规则设置的最大并发数。 - option_val text[] 限流规则的补充信息。 与rule_type匹配，具体匹配关系如下： “sqlid”：要限流的Unique SQL ID，以及慢SQL管控规则，格式为'{id=1234, time_limit=100, max_execute_time=500, max_iops=1}'，其中id指为Unique SQL ID，为必选项，可通过dbe_perf.statement或者pg_stat_activity视图获取。其他选项非必选，其含义参考慢SQL管控规则的Hint； “select”、“insert”、“update”、“delete”、“merge”：要限流的关键字序列，不区分大小写，可以为NULL； “resource”：要限流的资源阈值，形式为'{cpu-80, memory-70}'，表示触发实例级别限流的操作系统资源阈值，可以为NULL，表示不管资源利用率直接进行限流。 示例： 1
+2
+3
+4
+5
+6 gaussdb =# create database db1 ; gaussdb =# select gs_update_workload_rule ( 2 , 'rule for select 2' , '{db1}' , now (), NULL , 50 , '{tb1}' ); gs_update_workload_rule ------------------------- t ( 1 row ) gs_delete_workload_rule(rule_id) 描述：删除一条SQL限流规则。需要具有sysadmin权限的用户才可执行。只支持在CN节点上执行。 参数：rule_id，要更新的限流规则ID，类型为int8 返回值类型：boolean 示例： 1
+2
+3
+4
+5 gaussdb =# select gs_delete_workload_rule ( 3 ); gs_delete_workload_rule ------------------------- t ( 1 row ) gs_get_workload_rule_stat(rule_id) 描述：查询SQL限流规则拦截SQL的次数。需要具有sysadmin权限的用户才可执行。只支持在CN节点上执行。 参数：rule_id，要查询的限流规则ID，类型为int8。可以指定rule_id为-1，此时表示查询所有的SQL限流规则。 返回值类型： 名称 类型 描述 rule_id int8 SQL限流规则的ID。 validate_count int8 SQL限流规则拦截SQL的次数。 示例： 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11 gaussdb =# select * from gs_get_workload_rule_stat ( 1 ); rule_id | validate_count ---------+---------------- 1 | 0 ( 1 row ) gaussdb =# select * from gs_get_workload_rule_stat ( - 1 ); rule_id | validate_count ---------+---------------- 1 | 0 2 | 0 ( 2 rows ) 父主题： 函数和操作符 版权所有 © 华为技术有限公司

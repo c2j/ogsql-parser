@@ -1,0 +1,7 @@
+PQexecPrepared PQexecPrepared 功能描述 发送一个请求来用给定参数执行一个预备语句，并且等待结果。 原型 PGresult* PQexecPrepared(PGconn* conn, 
+                         const char* stmtName, 
+                         int nParams, 
+                         const char* const* paramValues,
+                         const int* paramLengths,
+                         const int* paramFormats,
+                         int resultFormat); 参数 表1 PQexecPrepared参数 关键字 参数说明 conn 连接句柄。 stmtName stmt 名称，可以用""或者NULL来引用未命名语句，否则它必须是一个现有预备语句的名字。 nParams 参数个数。 paramValues 参数的实际值。 paramLengths 参数的实际数据长度。 paramFormats 参数的格式（文本或二进制）。 resultFormat 结果的格式（文本或二进制）。 返回值 PGresult类型指针。 父主题： 数据库执行语句函数 版权所有 © 华为技术有限公司

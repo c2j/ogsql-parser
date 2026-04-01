@@ -1,0 +1,1 @@
+javax.sql.ConnectionPoolDataSource javax.sql.ConnectionPoolDataSource javax.sql.ConnectionPoolDataSource是数据源连接池接口。 表1 对javax.sql.ConnectionPoolDataSource的支持情况 方法名 返回值类型 支持JDBC4 getPooledConnection() PooledConnection Yes getPooledConnection(String user,String password) PooledConnection Yes 父主题： JDBC接口参考 版权所有 © 华为技术有限公司

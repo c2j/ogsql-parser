@@ -1,0 +1,41 @@
+{
+  "topic": "系统异常",
+  "term_count": 7,
+  "terms": [
+    {
+      "term": "实例上下电之后挂盘错误",
+      "content": "实例上下电之后挂盘错误 实例上下电之后挂盘错误 现象描述 GaussDB 实例上下电之后，某个DN组件异常，登录异常DN节点，发现/dev/sdb未挂载。 可能原因 概率性问题，可能原因未知。 定位思路 实例上下电之后，发现某个DN节点异常，登录异常DN节点后，执行“ df -h ”查看/dev/sdb是否挂载。 处理步骤 登录DBS运维管理平台 ，根据实例名称，查看异常DN所在节点的名称。 根据获取到的异常DN节点名称，参考 VNC登录管理面虚拟机 ，查找该虚拟机。 再找到的虚拟机的“操作”列，单击“更多 > 虚拟机状态 > 停止”。 等待关机后，单击“更多 > 虚拟机状态 > 启动”。 登录DBS运维管理平台 ，根据实例名称，查看异常DN所在节点是否恢复正常。 如果已经恢复正常，则需要查看同一个虚拟机上是否有CN节点为“deleted”状态。 如果有，则需要在节点上执行节点修复操作。具体请参考《应急预案》中的“节点修复”章节。如果仍然未修复，请联系技术支持。",
+      "source_file": "5303_file_5303.txt"
+    },
+    {
+      "term": "节点扩容过程中主机异常下电（MCS部署场景）",
+      "content": "节点扩容过程中主机异常下电（MCS部署场景） 节点扩容过程中主机异常下电（MCS部署场景） 现象描述 MCS部署场景下， GaussDB 集群节点扩容中，出现主机异常下电，导致集群启动时，无法获取网卡“eth1:0”信息。 可能原因 由于主机异常下电导致浮动IP丢失。 定位思路 检查浮动IP，确保在集群启动阶段，IP资源正常。 处理步骤 登录DBS运维管理平台 。 选择 “ 实例运维 > 实例管理 ” ，右上角下拉筛选框选择 “实例名称” ，输入框中输入实例名称进行搜索。 单击目标实例，进入实例详情页面，节点运行状态为“创建中”的节点，查看该节点的IP地址信息。其中，如果注明了浮动IP，即表示该节点存在浮动IP。 图1 节点信息 获取到包含浮动IP的节点ID，参考 登录实例节点 登录到对应节点。 如果登录节点后当前用户是Ruby用户，执行 5 。 如果登录节点后当前用户是root用户，执行 6 。 执行命令，切换到root用户。 exit 在root用户下，执行命令，查看节点的IP信息。 ifconfig 如图所示，是一个带有浮动IP的正常状态。其中，“eth1:0”即表示该节点的浮动IP。 图2 挂载浮动IP 如图所示，该节点不存在浮动IP，则需要执行 7 手动挂载相应的浮动IP。 图3 未挂载浮动IP 在实例详情页面，关闭“是否开启HA”开关，再重新打开该开关，系统会重新挂载浮动IP。 挂载完成后，执行命令，检查浮动IP挂载结果。 ifconfig 挂载正常如 图2 所示。",
+      "source_file": "5304_MCS.txt"
+    },
+    {
+      "term": "DN内存不足",
+      "content": "DN内存不足 DN内存不足 问题现象 在数据库运行过程中，产生DN内存不足的告警，或者在执行语句时产生由于DN内存不足导致的报错“ memory is temporarily unavailable”。 原因分析 内存不足的原因较为多样，多为并发过多的原因导致的内存使用耗尽。 处理方法 参考 登录实例节点 ，登录实例任意节点。 执行如下命令，导入环境变量。 source /home/Ruby/gauss_env_file 执行以下命令连接数据库。 gsql -d 数据库名称 -p 端口号 -U 用户名 -W 密码 -r 执行以下命令查看内存视图。 select *  from DBE_PERF.global_memory_node_detail where memorytype = 'dynamic_used_memory' or memorytype = 'max_dynamic_memory' or memorytype = 'dynamic_peak_memory' or memorytype = 'process_used_memory' or  memorytype = 'other_used_memory' or  memorytype = 'dynamic_used_shrctx' order by nodename, memorytype; 当同节点的“dynamic_used_memory”大于“max_dynamic_memory”时会报内存不足。 当同节点的“dynamic_used_memory”小于“max_dynamic_memory”但“dynamic_peak_memory”大于“max_dynamic_memory”时，说明曾经出现过内存不足的情况。 若同节点的“dynamic_used_shrctx/max_dynamic_memory”大于80%时，请登录该节点执行以下命令查询“pg_shared_memory_detail”视图，查看使用内存较多的MemoryContext。 select * from pg_shared_memory_detail; 若同节点的“dynamic_used_shrctx/max_dynamic_memory”小于40%时，请登录该节点执行以下命令查询“pv_session_memory_detail”视图，查看使用内存较多的MemoryContext。 select * from pv_session_memory_detail; 若同节点的“other_used_memory/process_used_memory”大于50%时，一般为内存泄漏问题可以参考下文重启进程。 若同节点的“dynamic_used_memory/max_dynamic_memory”大于80%，请登录该节点执行以下命令查询视图。 select contextname, sum(totalsize)/1024/1024 as total, sum(usedsize)/1024/1024,count(*) as used from pv_session_memory_detail group by 1 order by 2 desc limit 20; 若某节点存在内存不足的情况，可以登录该节点，通过查询cm_ctl query -Cvd找到对应节点的数据目录。 执行如下命令，找到对应数据目录gaussdb的进程号。 ps ux | grep gaussdb 通过kill -9 （进程号）的方式重启该节点的进程进行临时规避。 此规避手段对业务会产生影响，为高危操作，建议谨慎操作。",
+      "source_file": "5305_DN.txt"
+    },
+    {
+      "term": "数据盘故障（BMS部署场景）",
+      "content": "数据盘故障（BMS部署场景） 数据盘故障（BMS部署场景） 现象描述 出现5012951 云数据库 GaussDB DN服务异常告警。 可能原因 此节点下DN数据盘发生故障 定位思路 参考 登录实例节点 ，登录数据库节点。 执行如下命令，导入环境变量。 source /home/Ruby/gauss_env_file 执行如下命令查询集群状态，发现有DN服务异常的服务状态为Disk damaged。 cm_ctl query -Cvd 操作步骤 请参考“系统盘故障”章节的 4 到 18 ，进行磁盘替换和节点修复。",
+      "source_file": "5302_BMS.txt"
+    },
+    {
+      "term": "CN节点网络中断",
+      "content": "CN节点网络中断 CN节点网络中断 问题现象 在数据库运行过程中，CN所在节点网络中断， 后台使用“cm_ctl query -Cv”命令查看CN状态时显示“Down”或者“Delete”。 原因分析 网络中断或者网卡故障等会导致CN无法与集群中其他节点正常连接，CN无法正常工作，默认情况下30秒内故障CN会被剔除，业务不再连接故障CN，会连接到其他CN继续工作 。 处理方法 参考 登录实例节点 ，登录实例任意节点。 执行如下命令，导入环境变量。 source /home/Ruby/gauss_env_file 执行以下命令查看集群状态及故障CN节点IP。 CN故障时， 默认情况下故障30秒内CN状态会显示“Down”，30秒后故障CN会被剔除，CN状态显示“Deleted”。 cm_ctl query -Cvid; 从状态正常的节点执行以下命令连接故障CN网络。 ping 故障CN节点IP 若无法ping通，请检查CN节点所在机器是否下电、重启，排查网线是否断开，交换机，防火墙配置是否有问题，恢复网络。 网络恢复后，参考“应急预案”章节的“运维案例库 > 租户面应急案例 >节点修复”执行节点修复，恢复被剔除的CN。",
+      "source_file": "5306_CN.txt"
+    },
+    {
+      "term": "系统盘故障（BMS部署场景）",
+      "content": "系统盘故障（BMS部署场景） 系统盘故障（BMS部署场景） 现象描述 当前告警系统收到“5012901 连接Agent异常”告警后，根据告警信息中的“实例ID”和“节点ID”，查看到节点状态无法刷新。 可能原因 该节点操作系统无法登录或者无响应。 该节点被下电或者网络连接异常。 定位思路 参考 登录实例节点 ，登录实例节点。 执行如下指令，查询磁盘状况。 mount 如图所示，“root”盘只读（ro），说明系统盘有可能故障。需要登录iBMC检查是否有告警产生。 处理步骤 如果确认可能原因是此裸金属服务器被下电，或网络连接异常，请重新上电和排查网络问题。 如果排查以上原因后，此问题原因可能是该节点操作系统无法登录或者操作系统盘故障。 修复磁盘前建议参考《云数据库 GaussDB 用户指南》中的“用户指南 > 备份与恢复 > 创建手动备份”章节，创建全量备份。 参考 登录Service OM平台 ，登录Service OM。 选择“首页 > 服务列表 > 裸金属资源 > 裸金属实例”，根据节点名称在裸金属服务器实例列表中找到该节点，并获取裸金属实例ID和裸金属ID。 根据 4 获取的裸金属ID，在裸金属服务器中，找到该裸金属后，在右侧更多操作中，选择\"进入维护模式\"。 再次单击“更多”操作，选择“强制下电”。 点击该裸金属服务器ID，获取BMC IP地址信息。 登录服务器iBMC系统，对故障主机进行下电操作。 登录地址：https:// 服务器iBMC管理网口的IP地址 。 默认帐户：Administrator。 登录CPS计算节点。 使用PuTTY，通过External OM平面IP地址登录OpenStack控制节点。 默认帐号：fsp， External OM平面IP地址的获取方式：请获取软件安装阶段HUAWEI CLOUD Stack Deploy导出的参数信息汇总文件《xxx_export_all.xlsm》，并在“工具生成的IP参数”页签搜索“参数名称”为Reverse-Proxy的数据，获取对应的IP地址。 执行以下命令，并按提示输入“root”用户的密码，切换至“root”用户。 su - root 执行以下命令，防止系统超时退出。 TMOUT=0 登录主机后执行以下命令，导入环境变量。 source set_env 出现如下回显选择1。 出现如下回显，需要输入密码。 通过执行以下命令，查找计算节点，再次登录此节点 cps template-instance-list --service ironic nova-compute-ironic 执行结果如下： 找到active状态的omip后，参考 9 登录此计算控制节点。 登录计算控制节点后，根据 4 获取的裸金属服务器实例ID，执行以下步骤删除此实例ID。 执行如下命令，根据裸金属服务器实例ID查询节点信息和状态。 nova list --all-t | grep 9dc35918-cb9e-4c21-915b-a32a15866047 执行如下命令，根据裸金属服务器实例ID删除节点。 nova delete 9dc35918-cb9e-4c21-915b-a32a15866047 其中，9dc35918-cb9e-4c21-915b-a32a15866047为获取的裸金属服务器实例ID，命令执行结果如下： 根据裸金属服务器类型，使用新的硬盘更换故障硬盘。 以2288H V5服务器为例，请参考 《FusionServer Pro 机架服务器 V100R005 产品文档》 中“华为FusionServer V5 机架服务器维护与服务指南 > 2288H V5服务器维护与服务指南 > 部件更换 > 可更换部件 > 拆卸SAS/SATA硬盘 ”和“安装SAS/SATA硬盘”章节。 在iBMC系统对故障主机进行上电操作。 上电过程中，进入服务器BIOS系统重新划分RAID组。 以2288H V5服务器为例，请参考 《FusionServer Pro 机架服务器 V100R005 产品文档》 中“专题资料 > 专题资料（通用） > 华为服务器 RAID控制卡 用户指南 (V5)”中对应型号RAID卡 > 初始配置（EFI/UEFI模式） >“创建RAID 1”章节。 服务器操作系统安装过程中，支持硬盘直通的RAID卡会直接找到挂载的直通硬盘作为安装盘；而不支持硬盘直通的RAID卡，在操作系统安装过程中，只能找到该RAID卡下已经配置好的虚拟磁盘作为安装盘。 请在主机PXE操作前确认将JBOD Mode设置为关闭并重启主机，等待PXE操作进度完成90%以上卡顿或者100%后再次打开重启主机。 具体操作请参见 《FusionServer Pro 机架服务器 V100R005 产品文档》 中“专题资料 > 专题资料（通用） > 华为服务器 RAID控制卡 用户指南 (V5) ”中对应型号RAID卡“硬盘直通”章节。 如果是系统盘故障，请参考“创建RAID 1”章节；如果是数据盘故障了，请参考“创建RAID 10章节”。 根据 4 获取的裸金属ID，在裸金属服务器中，找到该裸金属后，在右侧更多操作中，选择\"退出维护模式\"。 在裸金属服务器中，查看已经上电后的裸金属，是否在格式化完成变成可部署状态。 待裸金属管理状态变成“可部署”状态后，选择“服务列表 >DBS运维管理平台 >实例列表”，根据实例名称，找到实例，点击进入实例详情。 在实例管理详细页面，找到节点状态为异常的，在“更多”中，选择“节点修复”，在弹出框中选择“节点替换”，单击确认进行节点替换。 确认节点替换成功与否，如果失败，请联系技术支持。",
+      "source_file": "5301_BMS.txt"
+    },
+    {
+      "term": "OpsAdmin01节点故障导致DBS运维管理平台不可用",
+      "content": "OpsAdmin01节点故障导致DBS运维管理平台不可用 OpsAdmin01节点故障导致DBS运维管理平台不可用 现象描述 DBS运维管理平台页面异常，无法访问。 可能原因 在2.5.4.30版本安装平台服务后，DBS-OpsBase配置了直连DBS-OpsAdmin01节点的地址。 所以DBS-OpsAdmin-01节点故障或01节点上的opsadmin服务故障，会导致DBS运维管理平台页面异常。 问题定位 参考 登录Service OM平台 ，登录Service OM。 在页面上方的导航栏，选择 “ 服务列表 > 资源 > 计算资源 ” ，进入计算资源界面。 左侧导航栏，单击 “可用分区” ，选择管理节点所在可用区 “manage-az” ，单击“虚拟机”，进入虚拟机列表界面。默认查询所有虚拟机。 在搜索框输入 “DBS-OpsAdmin” 。 获取搜索到的 “DBS-OpsAdmin-01” 管理节点IP，如果存在两个IP，则选择第一个IP。 此处还需要记录 “DBS-OpsAdmin-02” 的管理节点IP。如果存在两个IP，则选择第一个IP。 参考 登录数据库管理节点 ，登录DBS-OpsBase节点。 执行如下指令，查看DBS-OpsBase节点是否与DBS-OpsAdmin-01节点的互通。 curl x.x.x.x :8666 其中 x.x.x.x 请替换为DBS-OpsAdmin-01节点的IP。 若无法curl通，表示DBS-OpsAdmin-01节点故障，需要将DBS-OpsBase的连接地址改为DBS-OpsAdmin02的IP。 解决步骤 参考 登录数据库管理节点 ，登录DBS-OpsBase节点。 执行以下命令，切换到root。 sudo su - root 默认密码请参考 《华为云Stack 8.3.0 帐户一览表》 中 “数据库” 页签。根据“云服务”、“帐户所在的管理虚拟机/节点”列，并且帐户名称选择 “root” 获取。 为了您的帐户安全，请定期修改密码。 执行如下命令，切换到service用户。 su - service 打开配置文件。 vim /opt/cloud/ops-base/webapps/ops-base/WEB-INF/classes/application.properties 修改参数 regionInfo 的值。 将原本的DBS-OpsAdmin-01节点的IP，改为DBS-OpsAdmin-02节点的IP。DBS-OpsAdmin-02节点的IP可以在 4 处获取。 保存并退出编辑。 执行如下命令，进入服务目录。 cd /opt/cloud/ops-base/bin 执行如下命令，重启opsbase服务。 sh stop.sh && sh start.sh 重启完成后，重新尝试登录DBS运维管理平台。 如果仍然未修复，请联系技术支持。",
+      "source_file": "5300_OpsAdmin01DBS.txt"
+    }
+  ]
+}

@@ -1,0 +1,1 @@
+DICT DICT DICT视图显示数据库中的数据字典表和系统视图的描述信息。所有用户都可以访问，该视图同时存在于PG_CATALOG和SYS Schema下。 表1 DICT字段 名称 类型 描述 table_name character varying(64) 对象的名称。 comments character varying(4000) 对象上的文本注释。 父主题： 其他系统视图 版权所有 © 华为技术有限公司

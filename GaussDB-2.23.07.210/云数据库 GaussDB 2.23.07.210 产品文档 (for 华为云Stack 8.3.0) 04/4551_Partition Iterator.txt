@@ -1,0 +1,24 @@
+Partition Iterator算子消除 Partition Iterator算子消除 场景描述 在当前分区表架构中，执行器通过Partition Iterator算子去迭代访问每一个分区。当分区剪枝结果只有一个分区时，Partition Iterator算子已经失去了迭代器的作用，在此情况下消除Partition Iterator算子，可以避免执行时一些不必要的开销。由于执行器的PIPELINE架构，Partition Iterator算子会重复执行，在数据量较大的场景下消除Partition Iterator算子的收益十分可观。 示例 消除Partition Iterator算子在GUC参数partition_iterator_elimination开启后才能生效，示例如下： CREATE TABLE test_range_pt (a INT, b INT, c INT)
+PARTITION BY RANGE (a)
+(
+    PARTITION p1 VALUES LESS THAN (2000),
+    PARTITION p2 VALUES LESS THAN (3000),
+    PARTITION p3 VALUES LESS THAN (4000),
+    PARTITION p4 VALUES LESS THAN (5000),
+    PARTITION p5 VALUES LESS THAN (MAXVALUE)
+)ENABLE ROW MOVEMENT; gaussdb=# EXPLAIN SELECT * FROM test_range_pt WHERE a = 3000;
+                                    QUERY PLAN                                    
+----------------------------------------------------------------------------------
+ Partition Iterator  (cost=0.00..25.31 rows=10 width=12)
+   Iterations: 1
+   ->  Partitioned Seq Scan on test_range_pt  (cost=0.00..25.31 rows=10 width=12)
+         Filter: (a = 3000)
+         Selected Partitions:  3
+(5 rows) gaussdb=# SET partition_iterator_elimination = on;
+SET gaussdb=# EXPLAIN SELECT * FROM test_range_pt WHERE a = 3000;
+                                 QUERY PLAN                                 
+----------------------------------------------------------------------------
+ Partitioned Seq Scan on test_range_pt  (cost=0.00..25.31 rows=10 width=12)
+   Filter: (a = 3000)
+   Selected Partitions:  3
+(3 rows) 注意事项及约束条件 GUC参数partition_iterator_elimination开启后，且优化器剪枝结果只有一个分区时，目标场景优化才能生效。 消除Partition Iterator算子不支持二级分区表。 支持cplan，支持部分gplan场景，如分区键a = $1（即优化器阶段可以剪枝到一个分区的场景）。 支持SeqScan、Indexscan、Indexonlyscan、Bitmapscan、RowToVec、Tidscan算子。 支持行存，astore/ustore存储引擎，支持SQLBypass。 父主题： 分区算子执行优化 版权所有 © 华为技术有限公司

@@ -1,0 +1,62 @@
+COMMENT COMMENT 功能描述 定义或修改一个对象的注释。 注意事项 每个对象只存储一条注释，因此要修改一个注释，对同一个对象发出一条新的COMMENT命令即可。要删除注释，在文本字符串的位置写上NULL即可。当删除对象时，注释自动被删除掉。 目前注释浏览没有安全机制，任何连接到某数据库上的用户都可以看到所有该数据库对象的注释。共享对象（比如数据库、角色、表空间）的注释是全局存储的，连接到任何数据库的任何用户都可以看到它们。因此，不要在注释里存放与安全有关的敏感信息。 对大多数对象，只有对象的所有者或者被授予了对象COMMENT权限的用户可以设置注释，系统管理员默认拥有该权限。 角色没有所有者，所以COMMENT ON ROLE命令仅可以由系统管理员对系统管理员角色执行，有CREATE ROLE权限的角色也可以为非系统管理员角色设置注释。系统管理员可以对所有对象进行注释。 语法格式 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27
+28
+29
+30
+31
+32
+33 COMMENT ON { AGGREGATE agg_name ( agg_type [, ...] ) | CAST ( source_type AS target_type ) | COLLATION object_name | COLUMN { table_name . column_name | view_name . column_name } | CONSTRAINT constraint_name ON table_name | CONVERSION object_name | DATABASE object_name | DOMAIN object_name | EXTENSION object_name | FOREIGN DATA WRAPPER object_name | FUNCTION function_name ( [ { [ argname ] [ argmode ] argtype } [, ...] ] ) | INDEX object_name | LARGE OBJECT large_object_oid | OPERATOR operator_name ( left_type , right_type ) | OPERATOR CLASS object_name USING index_method | OPERATOR FAMILY object_name USING index_method | [ PROCEDURAL ] LANGUAGE object_name | ROLE object_name | SCHEMA object_name | SERVER object_name | TABLE object_name | TABLESPACE object_name | TEXT SEARCH CONFIGURATION object_name | TEXT SEARCH DICTIONARY object_name | TEXT SEARCH PARSER object_name | TEXT SEARCH TEMPLATE object_name | TYPE object_name | VIEW object_name | TRIGGER trigger_name ON table_name } IS 'text' ; 参数说明 agg_name 聚集函数的名称 agg_type 聚集函数参数的类型 source_type 类型转换的源数据类型。 target_type 类型转换的目标数据类型。 object_name 对象名。 table_name.column_name view_name.column_name 列名称。前缀可加表名称或者视图名称。 constraint_name 表约束的名称。 table_name 表的名称。 function_name 函数名称。 argmode,argname,argtype 函数参数的模式、名称、类型。 large_object_oid 大对象的OID。 operator_name 操作符名称。 left_type,right_type 操作参数的数据类型（可以用模式修饰）。当前置或者后置操作符不存在时，可以增加NONE选项。 text 注释。 示例 --建表 gaussdb=# CREATE TABLE emp(
+    empno varchar(7),
+    ename varchar(50),
+    job varchar(50),
+    mgr varchar(7),
+    deptno int
+);
+--表添加注释 gaussdb=# COMMENT ON TABLE emp IS '部门表';
+--字段添加注释 gaussdb=# COMMENT ON COLUMN emp.empno  IS  '员工编号'; gaussdb=# COMMENT ON COLUMN emp.ename  IS  '员工姓名'; gaussdb=# COMMENT ON COLUMN emp.job    IS  '职务'; gaussdb=# COMMENT ON COLUMN emp.mgr    IS  '上司编号'; gaussdb=# COMMENT ON COLUMN emp.deptno IS  '部门编号';
+
+--查看表的注释 gaussdb=# \d+
+ Schema |    Name     |   Type   | Owner |    Size    |             Storage              | Description 
+--------+-------------+----------+-------+------------+----------------------------------+-------------
+ public | emp         | table    | omm   | 0 bytes    | {orientation=row,compression=no} | 部门表
+
+--查看字段注释 gaussdb=# \d+ emp
+                                 Table "public.emp"
+ Column |         Type          | Modifiers | Storage  | Stats target | Description 
+--------+-----------------------+-----------+----------+--------------+-------------
+ empno  | character varying(7)  |           | extended |              | 员工编号
+ ename  | character varying(50) |           | extended |              | 员工姓名
+ job    | character varying(50) |           | extended |              | 职务
+ mgr    | character varying(7)  |           | extended |              | 上司编号
+ deptno | integer               |           | plain    |              | 部门编号
+Has OIDs: no
+Distribute By: HASH(empno)
+Location Nodes: ALL DATANODES
+Options: orientation=row, compression=no
+
+--删除 gaussdb=# DROP TABLE emp; 父主题： C 版权所有 © 华为技术有限公司

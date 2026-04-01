@@ -1,0 +1,26 @@
+快速定位查询存储倾斜的表 快速定位查询存储倾斜的表 目前提供的倾斜查询接口有函数： table_distribution(schemaname text, tablename text) 、 table_distribution() 以及视图 PGXC_GET_TABLE_SKEWNESS ，客户可以根据自身业务情况来选择使用。 场景一：磁盘满后快速定位存储倾斜的表 首先，通过 pg_stat_get_last_data_changed_time(oid) 函数查询出近期发生过数据变更的表，鉴于表的最后修改时间只在进行IUD操作的CN记录，要查询库内1天(间隔可在函数中调整)内被修改的所有表，可以使用如下封装函数： 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21 CREATE OR REPLACE FUNCTION get_last_changed_table ( OUT schemaname text , OUT relname text ) RETURNS setof record AS $$ DECLARE row_data record ; row_name record ; query_str text ; query_str_nodes text ; BEGIN query_str_nodes : = 'SELECT node_name FROM pgxc_node where node_type = ''C''' ; FOR row_name IN EXECUTE ( query_str_nodes ) LOOP query_str : = 'EXECUTE DIRECT ON (' || row_name . node_name || ') ''SELECT b.nspname,a.relname FROM pg_class a INNER JOIN pg_namespace b on a.relnamespace = b.oid where pg_stat_get_last_data_changed_time(a.oid) BETWEEN current_timestamp - 1 AND current_timestamp;''' ; FOR row_data IN EXECUTE ( query_str ) LOOP schemaname = row_data . nspname ; relname = row_data . relname ; return next ; END LOOP ; END LOOP ; return ; END ; $$ LANGUAGE 'plpgsql' ; 然后，通过 table_distribution(schemaname text, tablename text) 查询出表在各个DN占用的存储空间。 1 SELECT table_distribution ( schemaname , relname ) FROM get_last_changed_table (); 场景二：常规数据倾斜巡检 在库中表个数少于1W的场景，直接使用倾斜视图查询当前库内所有表的数据倾斜情况。 1 SELECT * FROM pgxc_get_table_skewness ORDER BY totalsize DESC ; 在库中表个数非常多（至少大于1W）的场景，因 PGXC_GET_TABLE_SKEWNESS 涉及全库查并计算非常全面的倾斜字段，所以可能会花费比较长的时间（小时级），建议参考 PGXC_GET_TABLE_SKEWNESS 视图定义，直接使用table_distribution()函数自定义输出，减少输出列进行计算优化，例如： 1
+2
+3
+4
+5
+6 SELECT schemaname , tablename , max ( dnsize ) AS maxsize , min ( dnsize ) AS minsize FROM pg_catalog . pg_class c INNER JOIN pg_catalog . pg_namespace n ON n . oid = c . relnamespace INNER JOIN pg_catalog . table_distribution () s ON s . schemaname = n . nspname AND s . tablename = c . relname INNER JOIN pg_catalog . pgxc_class x ON c . oid = x . pcrelid AND x . pclocatortype = 'H' GROUP BY schemaname , tablename ; 父主题： 数据倾斜查询最佳实践 版权所有 © 华为技术有限公司

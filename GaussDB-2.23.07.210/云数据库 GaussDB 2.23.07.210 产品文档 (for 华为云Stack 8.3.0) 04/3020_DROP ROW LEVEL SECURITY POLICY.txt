@@ -1,0 +1,7 @@
+DROP ROW LEVEL SECURITY POLICY DROP ROW LEVEL SECURITY POLICY 功能描述 删除表上某个行访问控制策略。 注意事项 仅表的所有者或者管理员用户才能删除表的行访问控制策略。 语法格式 DROP [ ROW LEVEL SECURITY ] POLICY [ IF EXISTS ] policy_name ON table_name [ CASCADE | RESTRICT ]; 参数说明 IF EXISTS 如果指定的行访问控制策略不存在，发出一个notice而不是抛出一个错误。 policy_name 要删除的行访问控制策略的名称。 table_name 行访问控制策略所在的数据表名。 CASCADE | RESTRICT 仅适配此语法，无对象依赖于该行访问控制策略，CASCADE和RESTRICT效果相同。 示例 --创建数据表all_data。 gaussdb=# CREATE TABLE all_data(id int, role varchar(100), data varchar(100));
+
+--创建行访问控制策略。 gaussdb=# CREATE ROW LEVEL SECURITY POLICY all_data_rls ON all_data USING(role = CURRENT_USER);
+
+--删除行访问控制策略。 gaussdb=# DROP ROW LEVEL SECURITY POLICY all_data_rls ON all_data;
+
+--删除数据表all_data。 gaussdb=# DROP TABLE all_data; 相关链接 ALTER ROW LEVEL SECURITY POLICY ， CREATE ROW LEVEL SECURITY POLICY 父主题： D 版权所有 © 华为技术有限公司

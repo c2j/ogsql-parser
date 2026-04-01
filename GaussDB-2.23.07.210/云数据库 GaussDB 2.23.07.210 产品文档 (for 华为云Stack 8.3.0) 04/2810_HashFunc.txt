@@ -1,0 +1,92 @@
+HashFunc函数 HashFunc函数 ora_hash(expression,[seed]) 描述：用于计算给定表达式的哈希值。expression:可输入的类型覆盖字符串，时间类型，数字类型，根据expression进行计算哈希值。seed:可选参数，一个int8值，可以对同一个输入值返回不同的结果, 用于计算带随机数的hash值。 返回类型：int8类型的哈希值。 示例： 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27
+28
+29
+30
+31
+32
+33
+34
+35
+36
+37
+38
+39
+40 gaussdb =# select ora_hash ( 123 ); ora_hash ------------ 4089882933 ( 1 row ) gaussdb =# select ora_hash ( '123' ); ora_hash ------------ 2034089965 ( 1 row ) gaussdb =# select ora_hash ( 'sample' ); ora_hash ------------ 1573005290 ( 1 row ) gaussdb =# select ora_hash ( to_date ( '2012-1-2' , 'yyyy-mm-dd' )); ora_hash ------------ 1171473495 ( 1 row ) gaussdb =# select ora_hash ( 123 , 234 ); ora_hash ------------ - 9089505052966355682 ( 1 row ) gaussdb =# select ora_hash ( '123' , 234 ); ora_hash ------------ 5742589019960764616 ( 1 row ) gaussdb =# select ora_hash ( 'sample' , 234 ); ora_hash ------------ - 1747984408055821656 ( 1 row ) gaussdb =# select ora_hash ( to_date ( '2012-1-2' , 'yyyy-mm-dd' ), 234 ); ora_hash ------------ - 3306025179710572679 ( 1 row ) 此函数在参数a_format_version值为10c和a_format_dev_version值为s2的情况下才能生效。 hash_array(anyarray) 描述：数组哈希，将数组的元素通过哈希函数得到结果，并返回合并结果。 参数：数据类型为anyarray。 返回值类型：integer 示例： 1
+2
+3
+4
+5 gaussdb =# select hash_array ( ARRAY [[ 1 , 2 , 3 ],[ 1 , 2 , 3 ]]); hash_array ------------ - 382888479 ( 1 row ) hash_numeric(numeric) 描述：计算Numeric类型的数据的hash值。 参数：Numeric类型的数据。 返回值类型：integer 示例： 1
+2
+3
+4
+5 gaussdb =# select hash_numeric ( 30 ); hash_numeric -------------- - 282860963 ( 1 row ) hash_range(anyrange) 描述：计算range的哈希值。 参数：anyrange类型的数据。 返回值类型：integer 示例： 1
+2
+3
+4
+5 gaussdb =# select hash_range ( numrange ( 1 . 1 , 2 . 2 )); hash_range ------------ 683508754 ( 1 row ) hashbpchar(character) 描述：计算bpchar的哈希值。 参数：character类型的数据。 返回值类型：integer 示例： 1
+2
+3
+4
+5 gaussdb =# select hashbpchar ( 'hello' ); hashbpchar ------------- - 1870292951 ( 1 row ) hashchar(char) 描述：char和布尔数据转换为哈希值。 参数：char类型的数据或者bool类型的数据。 返回值类型：integer 示例： 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11 gaussdb =# select hashbpchar ( 'hello' ); hashbpchar ------------- - 1870292951 ( 1 row ) gaussdb =# select hashchar ( 'true' ); hashchar ------------ 1686226652 ( 1 row ) hashenum(anyenum) 描述：枚举类型转哈希值。 参数：anyenum类型的数据。 返回值类型：integer 示例： 1
+2
+3
+4
+5
+6
+7 gaussdb =# CREATE TYPE b1 AS ENUM ( 'good' , 'bad' , 'ugly' ); CREATE TYPE gaussdb =# call hashenum ( 'good' :: b1 ); hashenum ------------ 1821213359 ( 1 row ) hashfloat4(real) 描述：float4转哈希值。 参数：real类型的数据。 返回值类型：integer 示例： 1
+2
+3
+4
+5 gaussdb =# select hashfloat4 ( 12 . 1234 ); hashfloat4 ------------ 1398514061 ( 1 row ) hashfloat8(double precision) 描述：float8转哈希值。 参数：double precision类型的数据。 返回值类型：integer 示例： 1
+2
+3
+4
+5 gaussdb =# select hashfloat8 ( 123456 . 1234 ); hashfloat8 ------------ 1673665593 ( 1 row ) hashinet(inet) 描述：支持inet / cidr上的哈希索引的功能。返回传入inet的hash值。 参数：inet类型的数据。 返回值类型：integer 示例： 1
+2
+3
+4
+5 gaussdb =# select hashinet ( '127.0.0.1' :: inet ); hashinet ------------- - 1435793109 ( 1 row ) hashint1(tinyint) 描述：INT1转哈希值。 参数：tinyint类型的数据。 返回值类型：uint32 示例： 1
+2
+3
+4
+5 gaussdb =# select hashint1 ( 20 ); hashint1 ------------- - 2014641093 ( 1 row ) hashint2(smallint) 描述：INT2转哈希值。 参数：smallint类型的数据。 返回值类型：uint32 示例： gaussdb=# select hashint2(20000);
+  hashint2  
+------------
+ -863179081
+(1 row) 父主题： 函数和操作符 版权所有 © 华为技术有限公司

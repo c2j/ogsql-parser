@@ -1,0 +1,351 @@
+数字操作函数和操作符 数字操作函数和操作符 数字操作符 + 描述：加 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT 2 + 3 AS RESULT ; result -------- 5 ( 1 row ) - 描述：减 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT 2 - 3 AS RESULT ; result -------- - 1 ( 1 row ) * 描述：乘 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT 2 * 3 AS RESULT ; result -------- 6 ( 1 row ) / 描述：除（除法操作符不会取整） 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT 4 / 2 AS RESULT ; result -------- 2 ( 1 row ) 1
+2
+3
+4
+5 gaussdb =# SELECT 4 / 3 AS RESULT ; result ------------------ 1 . 33333333333333 ( 1 row ) +/- 描述：正/负 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT - 2 AS RESULT ; result -------- - 2 ( 1 row ) % 描述：模（求余） 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT 5 % 4 AS RESULT ; result -------- 1 ( 1 row ) @ 描述：绝对值 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT @ - 5 . 0 AS RESULT ; result -------- 5 . 0 ( 1 row ) ^ 描述：幂（指数运算） 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT 2 . 0 ^ 3 . 0 AS RESULT ; result -------------------- 8 . 0000000000000000 ( 1 row ) |/ 描述：平方根 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT |/ 25 . 0 AS RESULT ; result -------- 5 ( 1 row ) ||/ 描述：立方根 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT ||/ 27 . 0 AS RESULT ; result -------- 3 ( 1 row ) ! 描述：阶乘 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT 5 ! AS RESULT ; result -------- 120 ( 1 row ) !! 描述：阶乘（前缀操作符） 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT !! 5 AS RESULT ; result -------- 120 ( 1 row ) & 描述：二进制AND 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT 91 & 15 AS RESULT ; result -------- 11 ( 1 row ) | 描述：二进制OR 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT 32 | 3 AS RESULT ; result -------- 35 ( 1 row ) # 描述：二进制XOR 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT 17 # 5 AS RESULT ; result -------- 20 ( 1 row ) ~ 描述：二进制NOT 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT ~ 1 AS RESULT ; result -------- - 2 ( 1 row ) << 描述：二进制左移 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT 1 << 4 AS RESULT ; result -------- 16 ( 1 row ) >> 描述：二进制右移 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT 8 >> 2 AS RESULT ; result -------- 2 ( 1 row ) 数字操作函数 abs(x) 描述：绝对值。 返回值类型：和输入相同。 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT abs ( - 17 . 4 ); abs ------ 17 . 4 ( 1 row ) acos(x) 描述：反余弦。 返回值类型：double precision 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT acos ( - 1 ); acos ------------------ 3 . 14159265358979 ( 1 row ) asin(x) 描述：反正弦。 返回值类型：double precision 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT asin ( 0 . 5 ); asin ------------------ . 523598775598299 ( 1 row ) atan(x) 描述：反正切。 返回值类型：double precision 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT atan ( 1 ); atan ------------------ . 785398163397448 ( 1 row ) atan2(y, x) 描述：y/x的反正切。 返回值类型：double precision 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT atan2 ( 2 , 1 ); atan2 ------------------ 1 . 10714871779409 ( 1 row ) bitand(integer, integer) 描述：计算两个数字与运算(&)的结果。 返回值类型：bigint类型数字。 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT bitand ( 127 , 63 ); bitand -------- 63 ( 1 row ) cbrt(dp) 描述：立方根。 返回值类型：double precision 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT cbrt ( 27 . 0 ); cbrt ------ 3 ( 1 row ) ceil(x) 描述：不小于参数的最小的整数。 返回值类型：整数。 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT ceil ( - 42 . 8 ); ceil ------ - 42 ( 1 row ) ceiling(dp or numeric) 描述：不小于参数的最小整数（ceil的别名）。 返回值类型：dp or numeric，不考虑隐式类型转换的情况下与输入相同。 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT ceiling ( - 95 . 3 ); ceiling --------- - 95 ( 1 row ) cos(x) 描述：余弦。 返回值类型：double precision 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT cos ( - 3 . 1415927 ); cos ------------------- - . 999999999999999 ( 1 row ) cosh(x) 描述：双曲余弦。 返回值类型：dp or numeric，不考虑隐式类型转换的情况下与输入相同。 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT cosh ( 4 ); cosh ------------------- 27 . 3082328360165 ( 1 row ) 此函数在参数a_format_version值为10c和a_format_dev_version值为s2的情况下有效。 cot(x) 描述：余切。 返回值类型：double precision 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT cot ( 1 ); cot ------------------ . 642092615934331 ( 1 row ) degrees(dp) 描述：把弧度转为角度。 返回值类型：double precision 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT degrees ( 0 . 5 ); degrees ------------------ 28 . 6478897565412 ( 1 row ) div(y numeric, x numeric) 描述：y除以x的商的整数部分。 返回值类型：numeric 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT div ( 9 , 4 ); div ----- 2 ( 1 row ) exp(x) 描述：自然指数。 返回值类型：dp or numeric，不考虑隐式类型转换的情况下与输入相同。 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT exp ( 1 . 0 ); exp -------------------- 2 . 7182818284590452 ( 1 row ) floor(x) 描述：不大于参数的最大整数。 返回值类型：与输入相同。 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT floor ( - 42 . 8 ); floor ------- - 43 ( 1 row ) int1(in) 描述：将传入的text参数转换为int1类型值并返回。 返回值类型：int1 示例： 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10 gaussdb =# select int1 ( '123' ); int1 ------ 123 ( 1 row ) gaussdb =# select int1 ( '1.1' ); int1 ------ 1 ( 1 row ) int2(in) 描述：将传入参数转换为int2类型值并返回。 支持的入参类型包括float4，float8，int16，numeric，text。 返回值类型：int2 示例： 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10 gaussdb =# select int2 ( '1234' ); int2 ------ 1234 ( 1 row ) gaussdb =# select int2 ( 25 . 3 ); int2 ------ 25 ( 1 row ) int4(in) 描述：将传入参数转换为int4类型值并返回。 支持的入参类型包括bit，boolean，char，double precision，int16，numeric，real，smallint，text。 返回值类型：int4 示例： 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10 gaussdb =# select int4 ( '789' ); int4 ------ 789 ( 1 row ) gaussdb =# select int4 ( 99 . 9 ); int4 ------ 100 ( 1 row ) float4(in) 描述：将传入参数转换为float4类型值并返回。支持的入参类型包括：bigint，double precision，int16, integer, numeric，smallint，text。 返回值类型：float4 示例： 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11 gaussdb =# select float4 ( '789' ); float4 -------- 789 ( 1 row ) gaussdb =# select float4 ( 99 . 9 ); float4 -------- 99 . 9 ( 1 row ) float8(in) 描述：将传入参数转换为float8类型值并返回。支持的入参类型包括：bigint，int16, integer, numeric，real，smallint，text。 返回值类型：float8 示例： 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11 gaussdb =# select float8 ( '789' ); float8 -------- 789 ( 1 row ) gaussdb =# select float8 ( 99 . 9 ); float8 -------- 99 . 9 ( 1 row ) int16(in) 描述：将传入参数转换为int16类型值并返回。支持的入参类型包括：bigint，boolean，double precision，integer，numeric，oid，real，smallint，tinyint。 返回值类型：int16 示例： 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11 gaussdb =# select int16 ( '789' ); int16 -------- 789 ( 1 row ) gaussdb =# select int16 ( 99 . 9 ); int16 -------- 100 ( 1 row ) numeric(in) 描述：将传入参数转换为numeric类型值并返回。支持的入参类型包括：bigint，boolean，double precision，int16，integer，money，real，smallint。 返回值类型：numeric 示例： 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11 gaussdb =# select "numeric" ( '789' ); numeric --------- 789 ( 1 row ) gaussdb =# select "numeric" ( 99 . 9 ); numeric --------- 99 . 9 ( 1 row ) oid(in) 描述：将传入参数转换为oid类型值并返回。支持的入参类型包括：bigint，int16。 返回值类型：oid radians(dp) 描述：把角度转为弧度。 返回值类型：double precision 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT radians ( 45 . 0 ); radians ------------------ . 785398163397448 ( 1 row ) random() 描述：0.0到1.0之间的随机数。 返回值类型：double precision 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT random (); random ------------------ . 824823560658842 ( 1 row ) rand([seed]) 描述：可以无入参，也可以接受一个bigint类型的seed入参。返回0到1之间的随机数，如果指定seed，则返回随机数种子seed的随机值。 参数：bigint类型，指定一个随机数种子。 返回值类型：double 示例： 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11 b_compatible_db =# SELECT rand (); rand ------------------ . 327476012520492 ( 1 row ) b_compatible_db =# SELECT rand ( 12321 ); rand ------------------ . 326073104515672 ( 1 row ) 该函数在数据库参数sql_compatibility = 'B'时生效。返回值会省略后置0。 multiply(x double precision or text, y double precision or text) 描述：x和y的乘积。 返回值类型：double precision 示例： 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10 gaussdb =# SELECT multiply ( 9 . 0 , '3.0' ); multiply ------------------- 27 ( 1 row ) gaussdb =# SELECT multiply ( '9.0' , 3 . 0 ); multiply ------------------- 27 ( 1 row ) ln(x) 描述：自然对数。 返回值类型：dp or numeric，不考虑隐式类型转换的情况下与输入相同。 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT ln ( 2 . 0 ); ln ------------------- . 6931471805599453 ( 1 row ) log(x) 描述：以10为底的对数。 返回值类型：与输入相同。 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT log ( 100 . 0 ); log -------------------- 2 . 0000000000000000 ( 1 row ) log(b numeric, x numeric) 描述：以b为底的对数。 返回值类型：numeric 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT log ( 2 . 0 , 64 . 0 ); log -------------------- 6 . 0000000000000000 ( 1 row ) mod(x,y) 描述：x/y的余数（模）。如果x是0，则返回0。 返回值类型：与参数类型相同 （bigint、integer、numeric或者smallint类型） 。 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT mod ( 9 , 4 ); mod ----- 1 ( 1 row ) 1
+2
+3
+4
+5 gaussdb =# SELECT mod ( 9 , 0 ); mod ----- 9 ( 1 row ) pi() 描述：“π”常量。 返回值类型：double precision 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT pi (); pi ------------------ 3 . 14159265358979 ( 1 row ) power(a double precision, b double precision) 描述：a的b次幂。 返回值类型：double precision 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT power ( 9 . 0 , 3 . 0 ); power ---------------------- 729 . 0000000000000000 ( 1 row ) remainder(x,y) 描述：x/y的余数，如果y是0，则报错。 返回值类型：与输入相同（float4、float8或者numeric类型） 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT remainder ( 11 , 4 ); remainder ---------- - 1 ( 1 row ) 1
+2
+3 gaussdb =# SELECT remainder ( 9 , 0 ); ERROR : division by zero CONTEXT : referenced column : remainder 此函数在参数a_format_version值为10c和a_format_dev_version值为s2的情况下有效。 round(x) 描述：离输入参数最近的整数。 返回值类型：与输入相同（double precision或者numeric类型）。 示例： 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11 gaussdb =# SELECT round ( 42 . 4 ); round ------- 42 ( 1 row ) gaussdb =# SELECT round ( 42 . 6 ); round ------- 43 ( 1 row ) float/double类型的输出结果可能会出现-0（trunc、ceil等函数同样会出现此种情形。在参数a_format_version值为10c和a_format_dev_version值为s1的情况下结果为0），例如： 1
+2
+3
+4
+5 gaussdb =# SELECT round ( - 0 . 2 :: float8 ); round ------- - 0 ( 1 row ) round(v numeric, s int) 描述：保留小数点后s位，s后一位进行四舍五入。 返回值类型：numeric 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT round ( 42 . 4382 , 2 ); round ------- 42 . 44 ( 1 row ) 控制参数s输入为小数时：在参数a_format_version值为10c和a_format_dev_version值为s1的情况下s截断为整数，否则s四舍五入为整数。 在参数a_format_version值为10c和a_format_dev_version值为s1的情况下，round函数支持round(timestamp, text)重载，在以(text, text)或(text, '')为入参调用round函数时，会优先选择round(timestamp, text)。 setseed(dp) 描述：为随后的random()调用设置种子(-1.0到1.0之间，包含)。 返回值类型：void 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT setseed ( 0 . 54823 ); setseed --------- ( 1 row ) sign(x) 描述：输出此参数的符号。 返回值类型：-1表示负数，0表示0，1表示正数。 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT sign ( - 8 . 4 ); sign ------ - 1 ( 1 row ) sin(x) 描述：正弦。 返回值类型：double precision 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT sin ( 1 . 57079 ); sin ------------------ . 999999999979986 ( 1 row ) sinh(x) 描述：双曲正弦。 返回值类型：dp or numeric，不考虑隐式类型转换的情况下与输入相同。 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT sinh ( 4 ); sinh ------------------ 27 . 2899171971277 ( 1 row ) 此函数在参数a_format_version值为10c和a_format_dev_version值为s2的情况下有效。 sqrt(x) 描述：平方根。 返回值类型：dp or numeric，不考虑隐式类型转换的情况下与输入相同。 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT sqrt ( 2 . 0 ); sqrt ------------------- 1 . 414213562373095 ( 1 row ) tan(x) 描述：正切。 返回值类型：double precision 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT tan ( 20 ); tan ------------------ 2 . 23716094422474 ( 1 row ) tanh(x) 描述：双曲正切。 返回值类型：与输入相同（double precision或者numeric类型）。 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT tanh ( 0 . 1 ); tanh ------------------------------------------ 0 . 0996679946249558171183050836783521835389 ( 1 row ) 此函数在参数a_format_version值为10c和a_format_dev_version值为s2的情况下有效。 trunc(x) 描述：截断（取整数部分）。 返回值类型：与输入相同。 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT trunc ( 42 . 8 ); trunc ------- 42 ( 1 row ) trunc(v numeric, s int) 描述：截断为s位小数。 返回值类型：numeric 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT trunc ( 42 . 4382 , 2 ); trunc ------- 42 . 43 ( 1 row ) A兼容模式下，参数a_format_version值为10c和a_format_dev_version值为s1时，参数s若入参为小数则不会被四舍五入，而是被截断。 smgrne(a smgr, b smgr) 描述：比较两个smgr类型整数是否不相等。 返回值类型：bool smgreq(a smgr, b smgr) 描述：比较两个smgr类型整数是否相等。 返回值类型：bool int1abs 描述：返回uint8类型数据的绝对值。 参数：tinyint 返回值类型：tinyint int1and 描述：返回两个uint8类型数据按位与的结果。 参数：tinyint, tinyint 返回值类型：tinyint int1cmp 描述：返回两个uint8类型数据比较的结果，若第一个参数大，则返回1；若第二个参数大，则返回-1；若相等，则返回0。 参数：tinyint, tinyint 返回值类型：integer int1div 描述：返回两个uint8类型数据相除的结果，结果为float8类型。 参数：tinyint, tinyint 返回值类型：tinyint int1eq 描述：比较两个uint8类型数据是否相等。 参数：tinyint, tinyint 返回值类型：boolean int1ge 描述：判断两个uint8类型数据是否第一个参数大于等于第二个参数。 参数：tinyint, tinyint 返回值类型：boolean int1gt 描述：无符号1字节整数做大于运算。 参数：tinyint, tinyint 返回值类型：boolean int1larger 描述：无符号1字节整数求最大值。 参数：tinyint, tinyint 返回值类型：tinyint int1le 描述：无符号1字节整数做小于等于运算。 参数：tinyint, tinyint 返回值类型：boolean int1lt 描述：无符号1字节整数做小于运算。 参数：tinyint, tinyint 返回值类型：boolean int1smaller 描述：无符号1字节整数求最小算。 参数：tinyint, tinyint 返回值类型：tinyint int1inc 描述：无符号1字节整数加一。 参数：tinyint 返回值类型：tinyint int1mi 描述：无符号一字节整数做差运算。 参数：tinyint, tinyint 返回值类型：tinyint int1mod 描述：无符号一字节整数做取余运算。 参数：tinyint, tinyint 返回值类型：tinyint int1mul 描述：无符号一字节整数做乘法运算。 参数：tinyint, tinyint 返回值类型：tinyint int1ne 描述：无符号一字节整数不等于运算。 参数：tinyint, tinyint 返回值类型：boolean int1pl 描述：无符号一字节整数加法。 参数：tinyint, tinyint 返回值类型：tinyint int1um 描述：无符号一字节数 取 相反数并返回有符号二字节整数。 参数：tinyint 返回值类型：smallint int1xor 描述：无符号一字节整数异或操作。 参数：tinyint, tinyint 返回值类型：tinyint cash_div_int1 描述：对money类型进行除法运算。 参数：money, tinyint 返回值类型：money cash_mul_int1 描述：对money类型进行乘法运算。 参数：money, tinyint 返回值类型：money int1not 描述：无符号一字节整数二进制位翻转。 参数：tinyint 返回值类型：tinyint int1or 描述：无符号一字节整数或运算。 参数：tinyint, tinyint 返回值类型：tinyint int1shl 描述：无符号一字节整数左移指定位数。 参数：tinyint, integer 返回值类型：tinyint int1shr 描述：无符号一字节整数右移指定位数。 参数：tinyint, integer 返回值类型：tinyint width_bucket(op numeric, b1 numeric, b2 numeric, count int) 描述：返回一个桶，这个桶是在一个有count个桶，上界为b1下界为b2的等深柱图中operand将被赋予的那个桶。 返回值类型：int 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT width_bucket ( 5 . 35 , 0 . 024 , 10 . 06 , 5 ); width_bucket -------------- 3 ( 1 row ) width_bucket(op dp, b1 dp, b2 dp, count int) 描述：返回一个桶，这个桶是在一个有count个桶，上界为b1下界为b2的等深柱图中operand将被赋予的那个桶。 返回值类型：int 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT width_bucket ( 5 . 35 , 0 . 024 , 10 . 06 , 5 ); width_bucket -------------- 3 ( 1 row ) analyze_tgtype_for_type(n smallint) 描述：用于解析pg_trigger.tgtype，按位解析n，并返回before each row, after each row, before statement, after statement, instead of中的一个 返回值类型：varchar2(16) analyze_tgtype_for_event(n smallint) 描述：用于解析pg_trigger.tgtype，按位解析n，并返回insert, update, delete, truncate中的一个或多个 返回值类型：varchar2(246) nanvl(n2, n1) 描述：输入两个参数，要求为数字类型或可以被隐式转化为数字类型的非数字类型；若第一个参数n2为NaN，返回n1，否则返回n2。 返回值类型：入参参数中最优先的类型，优先级double precision>float4>numeric。 示例： gaussdb=# SELECT nanvl('NaN', 1.1);
+ nanvl 
+-------
+   1.1
+(1 row) 此函数在参数a_format_version值为10c和a_format_dev_version值为s2的情况下有效。 numeric_eq_text(numeric, text) 描述：判断numeric变量是否等于text变量转为numeric后的值。 返回值类型：boolean 示例： gaussdb=# SELECT numeric_eq_text(1, '1');
+ numeric_eq_text
+-----------------
+ t
+(1 row) numeric_ne_text(numeric, text) 描述：判断numeric变量是否不等于text变量转为numeric后的值。 返回值类型：boolean numeric_gt_text(numeric, text) 描述：判断numeric变量是否大于text变量转为numeric后的值。 返回值类型：boolean numeric_ge_text(numeric, text) 描述：判断numeric变量是否大于等于text变量转为numeric后的值。 返回值类型：bool numeric_lt_text(numeric, text) 描述：判断numeric变量是否小于text变量转为numeric后的值。 返回值类型：boolean numeric_le_text(numeric, text) 描述：判断numeric变量是否小于等于text变量转为numeric后的值。 返回值类型：boolean text_eq_numeric(text, numeric) 描述：判断text变量转为numeric后的值是否等于numeric变量。 返回值类型：boolean 示例： gaussdb=# SELECT text_eq_numeric('1', 1);
+ text_eq_numeric
+-----------------
+ t
+(1 row) text_ne_numeric(text, numeric) 描述：判断text变量转为numeric后的值是否不等于numeric变量。 返回值类型：boolean text_gt_numeric(text, numeric) 描述：判断text变量转为numeric后的值是否大于numeric变量。 返回值类型：boolean text_ge_numeric(text, numeric) 描述：判断text变量转为numeric后的值是否大于等于numeric变量。 返回值类型：boolean text_lt_numeric(text, numeric) 描述：判断text变量转为numeric后的值是否小于numeric变量。 返回值类型：boolean text_le_numeric(text, numeric) 描述：判断text变量转为numeric后的值是否小于等于numeric变量。 返回值类型：boolean bigint_eq_text(bigint, text) 描述：判断bigint变量是否等于text变量转为bigint后的值 返回值类型：boolean gaussdb=# SELECT bigint_eq_text(1, '1');
+ bigint_eq_text
+----------------
+ t
+(1 row) bigint_ne_text(bigint, text) 描述：判断bigint变量是否不等于text变量转为bigint后的值。 返回值类型：boolean bigint_gt_text(bigint, text) 描述：判断bigint变量是否大于text变量转为bigint后的值。 返回值类型：boolean bigint_ge_text(bigint, text) 描述：判断bigint变量是否大于等于text变量转为bigint后的值。 返回值类型：boolean bigint_lt_text(bigint, text) 描述：判断bigint变量是否小于text变量转为bigint后的值。 返回值类型：boolean bigint_le_text(bigint, text) 描述：判断bigint变量是否小于等于text变量转为bigint后的值。 返回值类型：boolean text_eq_bigint(text, bigint) 描述：判断text变量转为bigint后的值是否等于bigint变量。 返回值类型：boolean 示例： gaussdb=# SELECT text_eq_bigint('1', 1);
+ text_eq_bigint
+----------------
+ t
+(1 row) text_ne_bigint(text, bigint) 描述：判断text变量转为bigint后的值是否不等于bigint变量。 返回值类型：boolean text_gt_bigint(text, bigint) 描述：判断text变量转为bigint后的值是否大于bigint变量。 返回值类型：boolean text_ge_bigint(text, bigint) 描述：判断text变量转为bigint后的值是否大于等于bigint变量。 返回值类型：boolean text_lt_bigint(text, bigint) 描述：判断text变量转为bigint后的值是否小于bigint变量。 返回值类型：boolean text_le_bigint(text, bigint) 描述：判断text变量转为bigint后的值是否小于等于bigint变量。 返回值类型：boolean 父主题： 函数和操作符 版权所有 © 华为技术有限公司

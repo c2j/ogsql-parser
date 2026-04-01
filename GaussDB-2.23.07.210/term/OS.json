@@ -1,0 +1,61 @@
+{
+  "topic": "OS",
+  "term_count": 11,
+  "terms": [
+    {
+      "term": "PERF_QUERY",
+      "content": "PERF_QUERY PERF_QUERY 提供当前节点下采集到堆栈信息的名称、树状结构和百分比。需要有sysadmin权限或者monadmin权限。 表1 PERF_QUERY字段 名称 类型 描述 backtrace text 堆栈信息树状结构文本。 overhead float 当前堆栈信息在整个堆栈采集过程中所占时间百分比。",
+      "source_file": "3724_PERF_QUERY.txt"
+    },
+    {
+      "term": "GLOBAL_OS_RUNTIME",
+      "content": "GLOBAL_OS_RUNTIME GLOBAL_OS_RUNTIME 提供 整个集群 中所有正常节点下的操作系统运行状态信息。 表1 GLOBAL_OS_RUNTIME字段 名称 类型 描述 node_name name 节点名称。 id integer 编号。 name text 操作系统运行状态名称。 value numeric 操作系统运行状态值。 comments text 操作系统运行状态注释。 cumulative boolean 操作系统运行状态的值是否为累加值。",
+      "source_file": "2034_GLOBAL_OS_RUNTIME.txt"
+    },
+    {
+      "term": "GLOBAL_OS_THREADS",
+      "content": "GLOBAL_OS_THREADS GLOBAL_OS_THREADS 提供数据库中所有正常节点下的线程状态信息。 表1 GLOBAL_OS_THREADS字段 名称 类型 描述 node_name text 节点名称。 pid bigint 当前节点进程中正在运行的线程号。 lwpid integer 与pid对应的轻量级线程号。 thread_name text 与pid对应的线程名称。 creation_time timestamp with time zone 与pid对应的线程创建的时间。",
+      "source_file": "3722_GLOBAL_OS_THREADS.txt"
+    },
+    {
+      "term": "GLOBAL_OS_RUNTIME",
+      "content": "GLOBAL_OS_RUNTIME GLOBAL_OS_RUNTIME 提供数据库中所有正常节点下的操作系统运行状态信息。 表1 GLOBAL_OS_RUNTIME字段 名称 类型 描述 node_name name 节点名称。 id integer 编号。 name text 操作系统运行状态名称。 value numeric 操作系统运行状态值。 comments text 操作系统运行状态注释。 cumulative boolean 操作系统运行状态的值是否为累加值。",
+      "source_file": "3720_GLOBAL_OS_RUNTIME.txt"
+    },
+    {
+      "term": "GLOBAL_OS_THREADS",
+      "content": "GLOBAL_OS_THREADS GLOBAL_OS_THREADS 提供 整个集群 中所有正常节点下的线程状态信息。 表1 GLOBAL_OS_THREADS字段 名称 类型 描述 node_name text 当前节点的名称。 pid bigint 当前节点进程中正在运行的线程号。 lwpid integer 与pid对应的轻量级线程号。 thread_name text 与pid对应的线程名称。 creation_time timestamp with time zone 与pid对应的线程创建的时间。",
+      "source_file": "2036_GLOBAL_OS_THREADS.txt"
+    },
+    {
+      "term": "OS_RUNTIME",
+      "content": "OS_RUNTIME OS_RUNTIME 显示当前操作系统运行的状态信息。 表1 OS_RUNTIME字段 名称 类型 描述 id integer 编号。 name text 操作系统运行状态名称。 value numeric 操作系统运行状态值。 comments text 操作系统运行状态注释。 cumulative boolean 操作系统运行状态的值是否为累加值。",
+      "source_file": "3719_OS_RUNTIME.txt"
+    },
+    {
+      "term": "OS_THREADS",
+      "content": "OS_THREADS OS_THREADS 提供当前节点下所有线程的状态信息。 表1 OS_THREADS字段 名称 类型 描述 node_name text 当前节点的名称。 pid bigint 当前节点进程中正在运行的线程号。 lwpid integer 与pid对应的轻量级线程号。 thread_name text 与pid对应的线程名称。 creation_time timestamp with time zone 与pid对应的线程创建的时间。",
+      "source_file": "2035_OS_THREADS.txt"
+    },
+    {
+      "term": "OS_RUNTIME",
+      "content": "OS_RUNTIME OS_RUNTIME 显示当前操作系统运行的状态信息。 表1 OS_RUNTIME字段 名称 类型 描述 id integer 编号。 name text 操作系统运行状态名称。 value numeric 操作系统运行状态值。 comments text 操作系统运行状态注释。 cumulative boolean 操作系统运行状态的值是否为累加值。",
+      "source_file": "2033_OS_RUNTIME.txt"
+    },
+    {
+      "term": "OS_THREADS",
+      "content": "OS_THREADS OS_THREADS 提供当前节点下所有线程的状态信息。 表1 OS_THREADS字段 名称 类型 描述 node_name text 数据库进程名称。 pid bigint 数据库进程中正在运行的线程号。 lwpid integer 与pid对应的轻量级线程号。 thread_name text 与pid对应的线程名称。 creation_time timestamp with time zone 与pid对应的线程创建的时间。",
+      "source_file": "3721_OS_THREADS.txt"
+    },
+    {
+      "term": "NODE_NAME",
+      "content": "NODE_NAME NODE_NAME 提供数据库中所有正常节点的名称。 表1 NODE_NAME字段 名称 类型 描述 node_name name 节点名称。",
+      "source_file": "3723_NODE_NAME.txt"
+    },
+    {
+      "term": "PERF_QUERY",
+      "content": "PERF_QUERY PERF_QUERY 提供当前节点下采集到堆栈信息的名称、树状结构和百分比。需要有sysadmin权限或者monadmin权限。 表1 PERF_QUERY字段 名称 类型 描述 backtrace text 堆栈信息树状结构文本。 overhead float 当前堆栈信息在整个堆栈采集过程中所占时间比重。",
+      "source_file": "2037_PERF_QUERY.txt"
+    }
+  ]
+}

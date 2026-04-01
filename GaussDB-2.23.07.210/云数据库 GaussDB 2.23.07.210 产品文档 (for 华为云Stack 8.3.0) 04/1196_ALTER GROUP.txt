@@ -1,0 +1,26 @@
+ALTER GROUP ALTER GROUP 功能描述 修改一个用户组的属性。 注意事项 ALTER GROUP是ALTER ROLE的别名，非SQL标准语法，不推荐使用，建议用户直接使用ALTER ROLE替代。 语法格式 向用户组中添加用户。 1
+2 ALTER GROUP group_name ADD USER user_name [, ... ]; 从用户组中删除用户。 1
+2 ALTER GROUP group_name DROP USER user_name [, ... ]; 修改用户组的名称。 1
+2 ALTER GROUP group_name RENAME TO new_name ; 参数说明 请参考ALTER ROLE的 参数说明 。 示例 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23 --创建用户组。 gaussdb =# CREATE GROUP super_users WITH PASSWORD "********" ; --创建用户。 gaussdb =# CREATE ROLE lche WITH PASSWORD "********" ; --创建用户。 gaussdb =# CREATE ROLE jim WITH PASSWORD "********" ; --向用户组中添加用户。 gaussdb =# ALTER GROUP super_users ADD USER lche , jim ; --从用户组中删除用户。 gaussdb =# ALTER GROUP super_users DROP USER jim ; --修改用户组的名称。 gaussdb =# ALTER GROUP super_users RENAME TO normal_users ; --删除用户。 gaussdb =# DROP ROLE lche , jim ; --删除用户组。 gaussdb =# DROP GROUP normal_users ; 相关链接 CREATE GROUP ， DROP GROUP ， ALTER ROLE 父主题： A 版权所有 © 华为技术有限公司

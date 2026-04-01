@@ -1,0 +1,86 @@
+{
+  "topic": "数据库连接控制函数",
+  "term_count": 16,
+  "terms": [
+    {
+      "term": "PQreset",
+      "content": "PQreset PQreset 功能描述 重置与服务器的通讯端口。 原型 void PQreset(PGconn* conn); 参数 表1 PQreset参数 关键字 参数说明 conn 指向包含连接的对象指针。 注意事项 此函数将关闭与服务器的连接并且试图与同一个服务器重建新的连接，并使用所有前面使用过的参数。该函数在连接异常后进行故障恢复时很有用。",
+      "source_file": "863_PQreset.txt"
+    },
+    {
+      "term": "PQconnectdbParams",
+      "content": "PQconnectdbParams PQconnectdbParams 功能描述 与数据库服务器建立一个新的连接。 原型 1 PGconn * PQconnectdbParams ( const char * const * keywords , const char * const * values , int expand_dbname ); 参数 表1 PQconnectdbParams参数 关键字 参数说明 keywords 定义为一个字符串的数组，每个都成为一个关键字。 values 给每个关键字一个值。 expand_dbname 当expand_dbname是非零的时，允许将dbname的关键字值看做一个连接字符串。只有第一个出现的dbname是这样展开的，任何随后的dbname值作为纯数据库名处理。 返回值 PGconn *：指向包含链接的对象指针，内存在函数内部申请。 注意事项 该函数用从两个NULL结束的数组中来的参数打开一个新的数据库连接。与PQsetdbLogin不同的是，可以不必更换函数签名（名字）就可以扩展参数集，所以建议应用程序中使用这个函数（或者它的类似的非阻塞变种PQconnectStartParams和PQconnectPoll）。",
+      "source_file": "2559_PQconnectdbParams.txt"
+    },
+    {
+      "term": "PQstatus",
+      "content": "PQstatus PQstatus 功能描述 返回连接的状态。 原型 ConnStatusType PQstatus(const PGconn* conn); 参数 表1 PQstatus参数 关键字 参数说明 conn 指向包含连接的对象指针。 返回值 ConnStatusType：连接状态的枚举，包括： 1\n 2\n 3\n 4\n 5\n 6\n 7\n 8\n 9\n10\n11\n12\n13\n14\n15\n16\n17\n18\n19\n20\n21\n22\n23 CONNECTION_STARTED 等待进行连接。 CONNECTION_MADE 连接成功；等待发送。 CONNECTION_AWAITING_RESPONSE 等待来自服务器的响应。 CONNECTION_AUTH_OK 已收到认证；等待后端启动结束。 CONNECTION_SSL_STARTUP 协商 SSL 加密。 CONNECTION_SETENV 协商环境驱动的参数设置。 CONNECTION_OK 连接正常。 CONNECTION_BAD 连接故障。 注意事项 状态可以是多个值之一。但是，在异步连接过程之外只能看到其中两个：CONNECTION_OK和CONNECTION_BAD。与数据库的良好连接状态为CONNECTION_OK。状态表示连接尝试失败CONNECTION_BAD。通常，“正常”状态将一直保持到PQfinish，但通信失败可能会导致状态过早变为CONNECTION_BAD。在这种情况下，应用程序可以尝试通过调用进行恢复PQreset。 示例 请参见 示例 章节。",
+      "source_file": "2567_PQstatus.txt"
+    },
+    {
+      "term": "PQsetdbLogin",
+      "content": "PQsetdbLogin PQsetdbLogin 功能描述 与数据库服务器建立一个新的连接。 原型 PGconn* PQsetdbLogin(const char* pghost, const char* pgport, const char* pgoptions, const char* pgtty,\n    const char* dbName, const char* login, const char* pwd); 参数 表1 PQsetdbLogin参数 关键字 参数说明 pghost 要连接的主机名，请参见 连接参数 章节描述的host字段。 pgport 主机服务器的端口号，请参见 连接参数 描述的port字段。 pgoptions 添加命令行选项以在运行时发送到服务器，请参见 连接参数 描述的options字段。 pgtty 忽略（以前，这个选项声明服务器日志的输出方向） dbName 要连接的数据库名，请参见 连接参数 描述的dbname字段。 login 要连接的用户名，请参见 连接参数 章节描述的user字段。 pwd 如果服务器要求口令认证，所用的口令，请参见 连接参数 描述的password字段。 返回值 PGconn *：指向包含连接的对象指针，内存在函数内部申请。 注意事项 该函数为PQconnectdb前身，参数个数固定，未定义参数被调用时使用缺省值，若需要给固定参数设置缺省值，则可赋值NULL或者空字符串。 若dbName中包含“=”或连接URL的有效前缀，则该dbName被看做一个conninfo字符串并传递至PQconnectdb中，其余参数与PQconnectdbParams保持一致。",
+      "source_file": "861_PQsetdbLogin.txt"
+    },
+    {
+      "term": "PQsetdbLogin",
+      "content": "PQsetdbLogin PQsetdbLogin 功能描述 与数据库服务器建立一个新的连接。 原型 PGconn* PQsetdbLogin(const char* pghost, const char* pgport, const char* pgoptions, const char* pgtty,\n    const char* dbName, const char* login, const char* pwd); 参数 表1 PQsetdbLogin参数 关键字 参数说明 pghost 要连接的主机名，详见 连接参数 章节描述的host字段。 pgport 主机服务器的端口号，详见 连接参数 描述的port字段。 pgoptions 添加命令行选项以在运行时发送到服务器，详见 连接参数 描述的options字段。 pgtty 忽略（以前，这个选项声明服务器日志的输出方向）。 dbName 要连接的数据库名，详见 连接参数 描述的dbname字段。 login 要连接的用户名，详见 连接参数 章节描述的user字段。 pwd 如果服务器要求口令认证，所用的口令，详见 连接参数 描述的password字段。 返回值 PGconn *：指向包含连接的对象指针，内存在函数内部申请。 注意事项 该函数为PQconnectdb前身，参数个数固定，未定义参数被调用时使用缺省值，若需要给固定参数设置缺省值，则可赋值NULL或者空字符串。 若dbName中包含“=”或连接URL的有效前缀，则该dbName被看做一个conninfo字符串并传递至PQconnectdb中，其余参数与PQconnectdbParams保持一致。",
+      "source_file": "2564_PQsetdbLogin.txt"
+    },
+    {
+      "term": "PQconninfoParse",
+      "content": "PQconninfoParse PQconninfoParse 功能描述 根据连接，返回已解析的连接选项。 原型 PQconninfoOption* PQconninfoParse(const char* conninfo, char** errmsg); 参数 表1 关键字 参数说明 conninfo 被传递的字符串。可以为空，这样将会使用默认参数。也可以包含由空格分隔的一个或多个参数设置，还可以包含一个URI。 errmsg 错误信息。 返回值 PQconninfoOption类型指针。",
+      "source_file": "2561_PQconninfoParse.txt"
+    },
+    {
+      "term": "PQconnectdb",
+      "content": "PQconnectdb PQconnectdb 功能描述 与数据库服务器建立一个新的连接。 原型 PGconn* PQconnectdb(const char* conninfo); 参数 表1 PQconnectdb参数 关键字 参数说明 conninfo 连接字符串，字符串中的字段见 连接参数 章节。 返回值 PGconn *：指向包含连接的对象指针，内存在函数内部申请。 注意事项 这个函数用从一个字符串conninfo来的参数与数据库打开一个新的连接。 传入的参数可以为空，表明使用所有缺省的参数，或者可以包含一个或更多个用空白间隔的参数设置，或者它可以包含一个URL。 示例 请参见 示例 章节。",
+      "source_file": "2560_PQconnectdb.txt"
+    },
+    {
+      "term": "PQconnectdbParams",
+      "content": "PQconnectdbParams PQconnectdbParams 功能描述 与数据库服务器建立一个新的连接。 原型 1 PGconn * PQconnectdbParams ( const char * const * keywords , const char * const * values , int expand_dbname ); 参数 表1 PQconnectdbParams参数 关键字 参数说明 keywords 定义为一个字符串的数组，每个都成为一个关键字。 values 给每个关键字一个值。 expand_dbname 当expand_dbname是非零的时，允许将dbname的关键字值看做一个连接字符串。只有第一个出现的dbname是这样展开的，任何随后的dbname值作为纯数据库名处理。 返回值 PGconn *：指向包含连接的对象指针，内存在函数内部申请。 注意事项 该函数用从两个NULL结束的数组中来的参数打开一个新的数据库连接。与PQsetdbLogin不同的是，可以不必更换函数签名（名字）就可以扩展参数集，所以建议应用程序中使用这个函数（或者它的类似的非阻塞变种PQconnectStartParams和PQconnectPoll）。",
+      "source_file": "858_PQconnectdbParams.txt"
+    },
+    {
+      "term": "PQbackendPID",
+      "content": "PQbackendPID PQbackendPID 补充解释 PQbackendPID函数返回值在 GaussDB 中表示后台线程的槽位ID (SlotID)，而并非后台线程的BackendPid。由于存在上述差异，不建议按照PostgreSQL同名函数的语义执行。若希望获取该连接的后台PID，可以通过执行系统函数pg_backend_pid获取。同时，依赖libpq的其他驱动程序的同名接口（如Python连接驱动psycopg2的get_backend_pid函数）也遵循上述规则。",
+      "source_file": "860_PQbackendPID.txt"
+    },
+    {
+      "term": "PQerrorMessage",
+      "content": "PQerrorMessage PQerrorMessage 功能描述 返回连接上的错误信息。 原型 char* PQerrorMessage(const PGconn* conn); 参数 表1 关键字 参数说明 conn 连接句柄。 返回值 char类型指针。",
+      "source_file": "2563_PQerrorMessage.txt"
+    },
+    {
+      "term": "PQconnectdb",
+      "content": "PQconnectdb PQconnectdb 功能描述 与数据库服务器建立一个新的连接。 原型 PGconn* PQconnectdb(const char* conninfo); 参数 表1 PQconnectdb参数 关键字 参数说明 conninfo 连接字符串，字符串中的字段见 5.4.5 连接参数 章节。 返回值 PGconn *：指向包含连接的对象指针，内存在函数内部申请。 注意事项 这个函数用从一个字符串conninfo来的参数与数据库打开一个新的连接。 传入的参数可以为空，表明使用所有缺省的参数，或者可以包含一个或更多个用空白间隔的参数设置，或者它可以包含一个URL。 示例 请参见 示例 章节。",
+      "source_file": "859_PQconnectdb.txt"
+    },
+    {
+      "term": "PQfinish",
+      "content": "PQfinish PQfinish 功能描述 关闭与服务器的连接，同时释放被PGconn对象使用的存储器。 原型 void PQfinish(PGconn* conn); 参数 表1 PQfinish参数 关键字 参数说明 conn 指向包含连接的对象指针。 注意事项 若PQstatus判断服务器连接尝试失败，应用程序调用PQfinish释放被PGconn对象使用的存储器，PQfinish调用后PGconn指针不可再次使用。 示例 请参见 示例 章节。",
+      "source_file": "862_PQfinish.txt"
+    },
+    {
+      "term": "PQstatus",
+      "content": "PQstatus PQstatus 功能描述 返回连接的状态。 原型 ConnStatusType PQstatus(const PGconn* conn); 参数 表1 PQstatus参数 关键字 参数说明 conn 指向包含连接的对象指针。 返回值 ConnStatusType：连接状态的枚举，包括： 1\n 2\n 3\n 4\n 5\n 6\n 7\n 8\n 9\n10\n11\n12\n13\n14\n15\n16\n17\n18\n19\n20\n21\n22\n23 CONNECTION_STARTED 等待进行连接。 CONNECTION_MADE 连接成功；等待发送。 CONNECTION_AWAITING_RESPONSE 等待来自服务器的响应。 CONNECTION_AUTH_OK 已收到认证；等待后端启动结束。 CONNECTION_SSL_STARTUP 协商 SSL 加密。 CONNECTION_SETENV 协商环境驱动的参数设置。 CONNECTION_OK 连接正常。 CONNECTION_BAD 连接故障。 注意事项 状态可以是多个值之一。但是，在异步连接过程之外只能看到其中两个：CONNECTION_OK和CONNECTION_BAD。与数据库的良好连接状态为CONNECTION_OK。状态表示连接尝试失败CONNECTION_BAD。通常，“正常”状态将一直保持到PQfinish，但通信失败可能会导致状态过早变为CONNECTION_BAD。在这种情况下，应用程序可以尝试通过调用进行恢复PQreset。 示例 请参见 示例 章节。",
+      "source_file": "864_PQstatus.txt"
+    },
+    {
+      "term": "PQfinish",
+      "content": "PQfinish PQfinish 功能描述 关闭与服务器的连接，同时释放被PGconn对象使用的存储器。 原型 void PQfinish(PGconn* conn); 参数 表1 PQfinish参数 关键字 参数说明 conn 指向包含连接的对象指针。 注意事项 若PQstatus判断服务器连接尝试失败，应用程序调用PQfinish释放被PGconn对象使用的存储器，PQfinish调用后PGconn指针不可再次使用。 示例 请参见 示例 章节。",
+      "source_file": "2565_PQfinish.txt"
+    },
+    {
+      "term": "PQreset",
+      "content": "PQreset PQreset 功能描述 重置与服务器的通讯端口。 原型 void PQreset(PGconn* conn); 参数 表1 PQreset参数 关键字 参数说明 conn 指向包含连接的对象指针。 注意事项 此函数将关闭与服务器的连接并且试图与同一个服务器重建新的连接，并使用所有前面使用过的参数。该函数在连接异常后进行故障恢复时很有用。",
+      "source_file": "2566_PQreset.txt"
+    },
+    {
+      "term": "PQconnectStart",
+      "content": "PQconnectStart PQconnectStart 功能描述 与数据库服务器建立一次非阻塞的连接。 原型 PGconn* PQconnectStart(const char* conninfo); 参数 表1 关键字 参数说明 conninfo 连接信息字符串。可以为空，这样将会使用默认参数。也可以包含由空格分隔的一个或多个参数设置，还可以包含一个URI。 返回值 PGconn类型指针。",
+      "source_file": "2562_PQconnectStart.txt"
+    }
+  ]
+}

@@ -1,0 +1,1 @@
+Foreign Data Wrapper Foreign Data Wrapper GaussDB 的FDW（Foreign Data Wrapper）可以实现各个 GaussDB 数据库及远程服务器（包括数据库、文件系统）之间的跨库操作。目前支持的外部数据封装器类型包括file_fdw。 file_fdw 父主题： 分布式版 版权所有 © 华为技术有限公司

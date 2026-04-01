@@ -1,0 +1,7 @@
+Coordinator进程异常(ALM_AI_AbnormalCoordinatorProcess) Coordinator进程异常(ALM_AI_AbnormalCoordinatorProcess) 告警解释 当出现如下情况时，产生该告警： CN实例数据目录中的postgresql.conf配置文件不存在或者其中某个配置参数不正确。 CN实例线程无法侦听IP，或者无法绑定侦听端口。 CN实例进程没有其数据目录读写权限。 告警属性 告警ID 告警级别 告警类型 是否可自动清除 ALM_AI_AbnormalCoordinatorProcess critical 处理出错 不涉及 告警参数 请参考 告警参数说明 。 对系统的影响 当CN实例启动失败时，GaussDB将提示启动失败，期间数据库系统将无法使用DDL语句，DML可以正常使用。如果CN实例超过一段时间没有修复（默认值为25秒），集群管理会将该CN剔除，直到集群只剩一个CN实例，CN被剔除以后，DDL语句将不会被阻塞。 系统自处理过程 无。 可能原因 CN实例数据目录中的postgresql.conf配置文件不存在或者其中某个配置参数不对。 CN实例线程无法侦听IP，或者无法绑定侦听端口。 CN实例进程没有其数据目录读写权限。 处理步骤 参考 登录实例节点 ，登录数据库节点。 执行如下命令，导入环境变量。 source /home/Ruby/gauss_env_file 执行以下命令检查集群CN状态。 cm_ctl query -Cvd 结果举例： [ Coordinator State ]
+
+node             instance                      state
+------------------------------------------------------
+1  25.213.61.150 5001 /var/lib/engine/data1/cn Down
+2  25.213.10.25  5002 /var/lib/engine/data1/cn Normal
+3  25.213.36.153 5003 /var/lib/engine/data1/cn Normal 如上述结果举例所示，CN实例5001异常。 执行以下命令进入日志目录。 cd $GAUSSLOG/cm/cm_agent 执行以下命令查看日志。 vi cm_agent- 20 XX -XX-XX_XXXXXX -current.log 查看该日志中的参数cn_replace、cn_disk_damage、cn_nic_down、port_conflict( xxxx )、cn_manual_stop值。 cn_replace=1：表示当前正在执行CN替换，需等待gs_replace命令执行结束。 cn_disk_damage=1：表示磁盘损坏，需修复磁盘。 cn_nic_down=1：表示网卡异常，需修复网卡。 cn_conflict( xxxx )=1：表示端口冲突，需处理冲突。 cn_manual_stop=1：表示CN被手动停止，执行以下命令拉起即可。 cm_ctl start 如果问题仍未解决，参考和 收集日志 ，并收集告警信息， 联系技术支持 进行处理。 需要下载的日志信息有： GaussDB Kernel组件下的/var/lib/log/Ruby 父主题： GaussDB 内核告警参考 版权所有 © 华为技术有限公司

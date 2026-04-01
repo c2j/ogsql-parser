@@ -1,0 +1,1 @@
+服务API端口对应表 服务API端口对应表 服务 API路径 端口 GaussDB /opt/cloud/GaussDB-open-api/logs/ 8002 父主题： 操作参考 版权所有 © 华为技术有限公司

@@ -1,0 +1,16 @@
+SHOW SHOW 功能描述 SHOW将显示当前运行时参数的数值。 语法格式 1
+2
+3
+4
+5
+6
+7
+8
+9 SHOW { [ VARIABLES LIKE ] configuration_parameter | CURRENT_SCHEMA | TIME ZONE | TRANSACTION ISOLATION LEVEL | SESSION AUTHORIZATION | ALL } ; 参数说明 显示变量的参数请参见RESET的 参数说明 。 示例 1
+2
+3
+4
+5
+6
+7
+8 --显示 timezone 参数值。 gaussdb =# SHOW timezone ; --显示所有参数。 gaussdb =# SHOW ALL ; --显示参数名中包含”var”的所有参数 gaussdb =# SHOW VARIABLES LIKE var ; 相关链接 SET ， RESET 父主题： S 版权所有 © 华为技术有限公司

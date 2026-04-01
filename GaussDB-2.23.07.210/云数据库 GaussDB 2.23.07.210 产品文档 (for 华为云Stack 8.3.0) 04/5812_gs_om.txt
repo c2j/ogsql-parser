@@ -1,0 +1,388 @@
+gs_om gs_om 背景信息 GaussDB 提供了gs_om工具帮助对 集群 进行维护，包括启动 集群 、停止 集群 、重启 集群 、查询 集群 状态、切换主备实例、管理 CN 、修改IP、生成静态配置文件、升级时间评估、安装、扩容、增加 CN 、节点替换和温备相关时间评估、管理虚拟IP、SSL证书替换、输出相对表空间路径、启停kerberos认证、 集群 拓扑结构比较、显示帮助信息和显示版本号信息等功能。 使用root执行的功能需调用集群工具临时存放的包路径下的gs_om执行。 语法 启动 集群 gs_om -t start [-h HOSTNAME ] [--az=AZNAME] [--time-out= SECS ] [-l LOGFILE ] 停止 集群 gs_om -t stop [-h HOSTNAME ] [--az=AZNAME] [-m MODE ] [-l LOGFILE ] 重启 集群 gs_om -t restart [--nodegroup-name=NODEGROUPNAME] [-l LOGFILE ] 查询 集群 状态 gs_om -t status [-h HOSTNAME ] [-o OUTPUT ] [--detail] [-l LOGFILE ] 切换主备实例 switch为维护操作：确保 集群 状态正常，所有业务结束，并使用pgxc_get_senders_catchup_time()视图查询无主备追赶后，再进行switch操作。 gs_om -t switch [-h HOSTNAME \ --az=AZNAME] [-D INSTANCEDIR ] [--reset] [--time-out= SECS ] [-l LOGFILE ] 管理 CN gs_om -t managecn -m MODE -X XMLFILE [-l LOGFILE ] 修改IP gs_om -t changeip -X XMLFILE [--rollback] [-l LOGFILE ] [--auto-stop] 生成静态配置文件 gs_om -t generateconf -X XMLFILE [--distribute] [-l LOGFILE ] 升级、安装、扩容、节点替换、温备、增加 CN 时间评估 耗时评估建议在服务器上使用。 安装耗时与节点数、 DN 数成正比。节点数与 DN 数越多，耗时越长。 小 集群 规模下，安装耗时较短，评估意义不大，建议在10节点及以上 集群 规模下使用。 为了评估的准确性，建议在每节点4到8个 DN 下进行评估。 gs_om -t estimate -m upgrade [-l LOGFILE ]
+gs_om -t estimate -m install -X XMLFILE [-l LOGFILE ]
+gs_om -t estimate -m expand -X XMLFILE [-l LOGFILE ]
+gs_om -t estimate -m replace -h HOSTNAME [-l LOGFILE ]
+gs_om -t estimate -m warm-standby -h HOSTNAME [-l LOGFILE ]
+gs_om -t estimate -m addCN [-l LOGFILE ] SSL证书替换 gs_om -t cert --cert-file=CERTFILE [-l LOGFILE] [-m COMPONENT]
+gs_om -t cert --rollback [-m COMPONENT] 证书替换 不加-m参数时，默认替换CN数据目录下的根证书和服务端证书及私钥，同时替换$GAUSSHOME/share/sslcert/gsql目录下的证书，并对替换前的证书打包备份在当前目录。 加-m gsql参数时，同不加-m参数一样。 加-m gds参数时，替换$GAUSSHOME/share/sslcert/gds目录下的证书，并对替换前的证书打包备份在当前目录。 加-m xbsa参数时，替换$GAUSSHOME/share/sslcert/xbsa目录下的证书，并对替换前的证书打包备份在当前目录。 加-m roach参数时，替换$GAUSSHOME/share/sslcert/roach目录下的证书，并对替换前的证书打包备份在当前目录。 加-m etcd参数时，必须增加-L参数，替换ETCD数据目录下的证书，同时替换$GAUSSHOME/share/sslcert/etcd目录下的证书，并对替换前的证书打包备份在当前目录。 证书回滚和证书替换的-m参数的使用同理。 输出相对表空间路径 gs_om -t tablespace [-h HOSTNAME] [-l LOGFILE] 开启、关闭 集群 内kerberos认证 gs_om -t kerberos -m install -U USER --krb-server IP1 --krb-standby IP2
+gs_om -t kerberos -m install -U USER --krb-client
+gs_om -t kerberos -m uninstall -U USER 部署Kerberos需要保证集群所有节点时间同步，时间误差不超过3min。 USER为集群初始化用户。 安装、卸载kerberos，需保证 集群 处于停止状态，部署完成之后启动集群。 安装服务端，IP1表示主server所在的IP节点，IP2表示备server所在的IP节点。服务端主备IP指定集群内任意IP即可。安装client，在集群内任一节点执行一次命令即可。 命令行执行成功后重启数据库服务， 集群 内kerberos认证开启。 关闭 集群 内kerberos认证命令在任意节点上执行一次即可。 统计磁盘信息 gs_om -t show_disk 统计集群磁盘信息 gs_om -t show_cluster_disk 统计磁盘和日志信息 gs_om -t show_disk_and_log 统计报警日志信息 gs_om -t show_alarm_log 统计集群磁盘信息 gs_om -t get_all_primary_disk 集群 拓扑结构比较 gs_om -t compare-cluster --remote-host=HOSTNAME --remote-env-file=MPPRCFILE [-l LOGFILE] 查询express集群的工作负载 gs_om -t express -m queryworkload [-h HOSTNAME] [--detail] [-l LOGFILE] 热补丁命令 gs_om -t hotpatch -n NAME -c [load | active | deactive | unload | info | recover | cleanLock]
+gs_om -t hotpatch -n NODETYPE -c list 热补丁操作需要集群中需要打补丁的进程处于可响应信号，网络可达的正常状态，如果集群中进程处于非正常的状态，不保证热补丁操作能够成功，当进程状态恢复正常后，可通过重试来达到最终成功。 load：加载补丁，将指定目录中的补丁分发到 集群 中各节点中的补丁目录，并将补丁目录中补丁加载到内存。 active：激活补丁，将加载到内存中补丁激活，补丁只有在激活后才生效。 deactive：去激活补丁，将激活的补丁去激活，此时补丁在内存中，但是不生效。 unload：卸载补丁，将加载到内存中的补丁卸载。 info：查看补丁信息。 recover：OM补丁专有命令，用于恢复被preinstall等操作破坏的补丁。 cleanLock：OM补丁专有命令，用于清除因故障操作导致的热补丁残留锁文件。 list：查看补丁列表。 当 -c 后面的命令为load时，-n的内容为路径+补丁名称。 例如：gs_om -t hotpatch -n /home/hotpatch/GaussDB-Kernel_503.0.1.HP0001.pat -c load 当 -c 后面的命令为list时，-n 的内容表示nodetype, nodetype可选内容为KERNEL、GTM、CMSERVER、ALL，分别代表内核（ CN/DN ）、GTM、CMSERVER、全部类型。 例如：gs_om -t hotpatch -n KERNEL -c list 当 -c 后面的命令为list和load之外的命令时，-n 的内容为补丁名称。 为了使用方便，-n后面也可以加上补丁路径。 例如：gs_om -t hotpatch -n GaussDB-Kernel_503.0.1.HP0001.pat -c info FAQ： 如果补丁操作成功，会返回包含“[PATCH-SUCCESS]”的字符串，如果失败，则会返回包含“[PATCH-ERROR]”的字符串。 常见的错误及处理方法如下： “this patch has been loaded before”，补丁已经被加载，重复执行load命令导致，不需要处理。 “No patch loaded now”， 补丁未加载而执行加载外的命令，需要先加载补丁。 “The patch and bin are not at same version”，补丁文件和可执行文件不匹配，请确定并更换补丁文件。 “patch lib return error: 0xXXXXXXXX”, 热补丁库内部错误，需要将错误码（0xXXXXXXXX）及当时使用的补丁文件发送给华为工程师进行进一步分析处理。 性能诊断采集任务 gs_om -t perf_job -m [enable_all|disable_all|is_enable] 性能诊断采集任务会以一定频率访问视图并存储为json文件，性能诊断采集任务运行后，会在$GAUSSLOG/pg_perf下定期生成json文件。 enable_all：安装内置的性能诊断采集任务。安装成功后，可以查询pg_job以及pg_job_proc表，获取性能诊断采集任务的详细信息。 例如：性能诊断采集任务在pg_job_proc表内what字段类似为：select capture_view_to_json('dbe_perf.statement', 0); disable_all：卸载内置的性能诊断采集任务。 is_enable：查询是否安装内置性能诊断采集任务。 设置虚拟ip gs_om -t virtualip -m MODE [-X XMLFILE | --virtual-ip=Ips] [-L] [-l LOGFILE] 增加ec gs_om -t ec -m [install|uninstall|add|delete|restart] [-U] [-N] [--type] {[--target|--all]|--key-files} [--force] [-l LOGFILE] quorum模式到dcf模式切换 gs_om -t change_mode -m [dcf|quorum] [-L] [-l LOGFILE] [--time-out=SECS] 切换操作需要数据库实例中实例的进程处于可响应信号、网络可达的正常状态，如果数据库实例中进程处于非Normal状态，则不保证切换操作能够成功，当进程恢复正常状态后，可通过重试来达到最终成功。 线下模式切换完成之后需要手动更改xml文件以用于执行扩容，替换，升副本，升级，PITR恢复等需要使用xml文件的操作。 初始是安装dcf模式的数据库实例不建议用户切换到quorum模式。 DN副本数小于3不支持模式切换。 主备集群差异较大时会导致切换失败，需要等待备机同步后重入切换动作。 dorado双集群相关命令 gs_om -t dorado_switch -m [primary|standby]
+gs_om -t dorado_failover --dorado_status=[normal|abnormal]
+gs_om -t dorado_restore
+gs_om -t dorado_query
+gs_om -t dorado_disk_mount
+gs_om -t dorado_refresh_dr_relations --data_ips=hostnames dorado双集群相关功能当前仅支持集中式。 流式容灾相关命令 gs_om -t streaming_disaster_recovery_start -m [primary|disaster_standby] [--time-out=SECS] [--json=string]
+gs_om -t streaming_disaster_recovery_stop [--json=string]
+gs_om -t streaming_disaster_recovery_failover
+gs_om -t streaming_disaster_recovery_switchover -m [primary|disaster_standby] [--time-out=SECS]
+gs_om -t streaming_disaster_recovery_query
+gs_om -t prepare_disaster_info -m [write|read] -U [USER] [--time-out=SECS] [--json=string] gs_om -t dr_post_check -c [switchover|failover|query] -m [primary|disaster_standby] --dr_type streaming_cluster gs_om -t dr_cluster_manual_recovery -m [primary|disaster_standby] --dr_type streaming_cluster 显示帮助信息 gs_om -? | --help 显示版本号信息 gs_om -V | --version 接收数据库管理员密码 echo "password" | gs_om -t [start | stop | restart | status ...] 云上环境中，对于未开启Peer认证方式的数据库系统，可以使用此方式传入数据库管理员用户的密码，用于连接数据库进行运维操作。 参数说明 gs_om参数可以分为如下几类： 通用参数： -t gs_om命令的类型。 取值范围：start、stop、restart、status、switch、managecn、changeip、generateconf、formatcu、estimate、virtualip、cert、tablespace、kerberos、isolate_stop、isolate_tostandby、isolate_restore、killsession、compare-cluster，show_disk、show_cluster_disk、show_disk_and_log、show_alarm_log、get_all_primary_disk、hotpatch、perf_job、express、ec、dorado_refresh_dr_relations、streaming_disaster_recovery_start、streaming_disaster_recovery_stop、streaming_disaster_recovery_failover、streaming_disaster_recovery_switchover、streaming_disaster_recovery_query、prepare_disaster_info、 dr_post_check 、 dr_cluster_manual_recovery 、 break_dr_options、streaming_disaster_recovery_keep、streaming_disaster_recovery_restore、streaming_disaster_recovery_simulation、dr_change_hadr_user_info、change_mode。 -l 指定日志文件及存放路径。 默认值：$GAUSSLOG/om/gs_om-YYYY-MM-DD_hhmmss.log（virtualip的默认值：/tmp/gs_virtualip/gs_om-YYYY-MM-DD_hhmmss.log） -?, --help 显示帮助信息。 -V, --version 显示版本号信息。 启动 集群 参数： -h 指定需要启动的服务器名称。一次只能启动一个服务器。 取值范围：服务器名称。 不指定服务器名称时，表示启动 整个集群 。 --time-out=SECS 指定超时时间，如果超时，om脚本自动退出。单位：s。 取值范围：正整数，建议值600。 默认值：600 -I 预留接口， GaussDB 不支持。 --az 指定需要启动的AZ名称。一次只能启动一个AZ。 取值范围：AZ名称。 不指定AZ名称时，表示启动所有AZ。 停止 集群 参数： -h 指定需要停止实例所在的服务器名称。一次只能停止一个服务器。 取值范围：实例所在的服务器名称。 不指定服务器名称时，表示停止 整个集群 。 --az 指定需要停止的AZ名称。一次只能停止一个AZ。 取值范围：AZ名称。 不指定AZ名称时，表示停止所有AZ。 -I 预留接口， GaussDB 不支持。 -m, --mode=MODE 停止模式设置。 取值范围：支持三种停止模式。 fast（f）方式：保证有主备关系的实例数据是一致的。 immediate（i）方式：不保证有主备关系的实例数据是一致的。 smart（s）方式：保证有主备关系的实例数据是一致的，且备机本地所有日志都已redo。 默认值：fast方式。 查询状态参数： 集群 状态显示结果的参数说明请参见 表1 。 -h 指定需要待查询的服务器名称。 取值范围：服务器名称。 不指定服务器时，表示查询 整个集群 。 -o 输出到指定的output文件中。 如果不指定，直接显示在屏幕上。 --az 指定需要启动的AZ名称，一次只能启动一个AZ。 取值范围：AZ名称，不指定AZ名称时，表示启动所有AZ。 --detail 显示详细信息。如果不指定，只提示该服务器是否正常。 切换主备实例参数： -h 指定需要切换实例的服务器名称。 取值范围：实例所在服务器名称。 --az 指定需要切换实例所在的AZ名称。 取值范围：实例所在AZ名称。 -D 实例指定的目录。 --time-out=SECS 切换节点最大等待时间。 如果超时，om脚本自动退出。单位：s。 取值范围：正整型。 -I 预留接口， GaussDB 不支持。 --reset 重置主备状态。 隔离恢复 -h 指定的隔离恢复服务器名称。 降备隔离 -h 指定的降备隔离服务器名称。 性能诊断采集业务 -m 性能采集任务功能范围，取值为[enable_all|disable_all|is_enable]。 热补丁 -n 热补丁名称。 -c 热补丁支持的操作，支持[load | active | deactive | unload | info | list ]。 管理 CN 参数： -X 新的 集群 配置文件路径。 取值范围：clusterconfig.xml的路径。 -m, --mode=MODE 指定所要进行的操作。 取值范围： add：增加 集群 CN 。 delete：删除 集群 CN 。 quorum模式切换dcf模式： -m, --mode=MODE 指定所要进行的操作。 取值范围： quorum：dcf模式切换quorum模式。 dcf：quorum模式切换dcf模式。 --time-out=SECS 指定DN超时时间，如果超时，om脚本报错回滚。单位：s。 取值范围：正整数（60~2147483646），建议值180。 默认值：180。 修改IP参数： -X 新的 集群 配置文件路径。 取值范围：clusterconfig.xml的路径。 --rollback 当自动回滚失败时，用户排除错误后，输入该参数执行手动回滚操作。 --auto-stop 修改IP前自动停止集群。 生成配置文件参数： -X 选择 集群 配置文件路径。 取值范围：clusterconfig.xml的路径。 --distribute 将静态配置文件发布到 集群 实例的安装目录。 升级、安装、扩容、节点替换、温备、增加 CN 时间评估参数： -m, --mode=MODE 指定所要进行的评估操作 取值范围：upgrade、install、expand、replace、warm-standby、addCN -X 执行安装或扩容所配置的xml文件路径。当评估模式为安装或扩容时，该参数是必选项。 取值范围：clusterconfig.xml的路径。 -h 指定故障主机的名称。可以指定多个主机名称，以逗号分隔。当评估模式为节点替换或温备时，该参数是必选项。 取值范围：主机名称。 -X 新的 集群 配置xml文件路径。 取值范围：clusterconfig.xml的路径。 -L 指定该参数时，仅对当前节点进行操作。 SSL证书替换： -L 指定该参数时，仅对当前节点进行操作。 --cert-file 指定本地SSL证书zip压缩包所在路径，如果启用国密认证，指定本地国密SSL双证书zip压缩包所在路径。 --rollback 证书回退到上一次成功备份的状态。 -m 指定改参数时，仅对该组件进行操作。 输出相对表空间路径 -h 指定需要待输出的服务器名称。 开启、关闭 集群 内kerberos认证： -U 指定 数据库集群 部署用户。 取值范围： 数据库集群 部署用户 -m 指定所要进行的操作。 取值范围： install：开启 集群 内kerberos认证。 uninstall：关闭 集群 内kerberos认证。 查询express集群的工作负载 -m：操作类型，当前只支持queryworkload。 --detail：显示详细信息或部分信息。 -h: 需要查询工作负载的服务器名称。 虚拟ip设置 -m, --mode=MODE 指定所要进行的操作。 取值范围： add：增加虚拟ip。 delete：删除虚拟IP。 -X XML配置文件的路径，改参数为必选项 --virtual-ip 虚拟IP将被删除。 -L 本地模式。 集群 拓扑结构比较 --remote-host 指定远程 集群 的一个正常节点名。 取值范围：和本地 集群 用户已建立互信的远程 集群 节点。 --remote-env-file 指定远程节点的用户环境变量文件。 取值范围：指定节点 集群 用户的环境变量文件，若未环境变量分离则为用户目录下的.bashrc文件 调用链接口参数 --trace-id 每次om请求的唯一标识，可根据om操作日志中的trace-id识别调用链从而进行故障定界。可选参数。 取值范围：1-128位的字符串，允许的字符为数字，字母和'-'。 表1 状态说明 字段 字段含义 字段值 cluster_state 集群 状态。显示 整个集群 是否运行正常。 Normal：表示 集群 可用，且数据有冗余备份。所有进程都在运行，主备关系正常。 Unavailable：表示 集群 不可用。 DN 的主备实例有两个或更多异常、GTM主备都异常、 所有CN 都异常。 Degraded：表示 集群 可用，但数据没有冗余备份。 DN 主备有且只有一个异常、GTM有且只有主机且是最高可用模式、 CN 有且只有部分异常。 redistributing 数据重分布状态 Yes：表示 集群 处于数据重分布状态。 No：表示 集群 未处于数据重分步状态。 balanced 平衡状态。显示是否有 集群 实例发生过主备切换而导致主机负载不均衡。 Yes：表示 集群 处于负载均衡状态。 No：表示 集群 未处于负载均衡状态。 node 主机名称 表示该实例所在的主机名称。多AZ时会显示AZ编号。 node_ip 主机IP 表示该实例所在的主机IP。 instance 实例ID 表示该实例的ID。 state 实例状态 Primary：表示实例为主实例。 Standby：表示实例为备实例。 Pending：表示该实例在仲裁阶段。 Unknown：表示实例状态未知。 Down：表示实例处于宕机状态。 StateLeader：表示该ETCD为主实例状态。 StateFollower：表示该ETCD为备实例状态。 StateCandidate：表示该ETCD为仲裁阶段。 说明： 由于ETCD的主备关系切换时间很短，所以系统很难获取到StateCandidate这种状态。 示例 启动 集群 。 gs_om -t start
+Starting cluster.
+======================================================================
+Successfully started single primary multi standby. Wait for standby instance.
+======================================================================
+.
+Successfully started cluster.
+======================================================================
+cluster_state      : Normal
+redistributing     : No
+node_count         : 3
+Coordinator State
+    normal         : 2
+    abnormal       : 0
+GTM State
+    primary        : 1
+    standby        : 1
+    abnormal       : 0
+    down           : 0
+Datanode State
+    primary        : 4
+    standby        : 12
+    secondary      : 0
+    building       : 0
+    abnormal       : 0
+    down           : 0
+
+Successfully started cluster. 停止 集群 。 gs_om -t stop
+Stopping cluster.
+=========================================
+Successfully stopped cluster.
+=========================================
+End stop cluster. 重启 集群 。 gs_om -t restart
+Stopping cluster.
+=========================================
+Successfully stopped cluster.
+=========================================
+End stop cluster.
+Starting cluster.
+======================================================================
+Successfully started single primary multi standby. Wait for standby instance.
+======================================================================
+.
+Successfully started cluster.
+======================================================================
+cluster_state      : Normal
+redistributing     : No
+node_count         : 3
+Coordinator State
+    normal         : 2
+    abnormal       : 0
+GTM State
+    primary        : 1
+    standby        : 1
+    abnormal       : 0
+    down           : 0
+Datanode State
+    primary        : 4
+    standby        : 12
+    secondary      : 0
+    building       : 0
+    abnormal       : 0
+    down           : 0 查看 集群 详细状态信息，含实例状态信息。 gs_om -t status --detail
+[  CMServer State   ]
+node          node_ip         instance                                    state
+---------------------------------------------------------------------------------
+AZ1 1  linux-221  10.90.57.221    1    /opt/huawei/Bigdata/gaussdb/cm/cm_server Standby
+AZ1 2  linux-222  10.90.57.222    2    /opt/huawei/Bigdata/gaussdb/cm/cm_server Primary
+
+[    ETCD State     ]
+node     node_ip         instance                 state---------------------------------------------------------------1  plat1 192.168.0.11    7001 /home/gaussdba/etcd StateFollower2  plat2 192.168.0.12    7002 /home/gaussdba/etcd StateLeader3  plat3 192.168.0.13    7003 /home/gaussdba/etcd StateFollower
+[   Cluster State   ]
+
+cluster_state   : Normal
+redistributing  : No
+balanced        : Yes
+
+[ Coordinator State ]
+
+node          node_ip         instance                                   state
+--------------------------------------------------------------------------------
+AZ1 1  linux-221  10.90.57.221    5001 /srv/BigData/gaussdb/data1/coordinator Normal
+AZ1 2  linux-222  10.90.57.222    5002 /srv/BigData/gaussdb/data1/coordinator Normal
+AZ1 3  linux-ncqd 10.90.57.223    5003 /srv/BigData/gaussdb/data1/coordinator Normal
+
+[ Central Coordinator State ]
+
+node          node_ip         instance                                   state
+--------------------------------------------------------------------------------
+AZ1 2  linux-222  10.90.57.222    5002 /srv/BigData/gaussdb/data1/coordinator Normal
+
+
+[     GTM State     ]
+
+node          node_ip         instance                           state                    sync_state
+--------------------------------------------------------------------------------------------------------
+AZ1 2  linux-222  10.90.57.222    1001 /opt/huawei/Bigdata/gaussdb/gtm P Primary Connection ok  Sync
+AZ1 1  linux-221  10.90.57.221    1002 /opt/huawei/Bigdata/gaussdb/gtm S Standby Connection ok  Sync       
+
+[  Datanode State   ]
+node          node_ip         instance                                    state            | node          node_ip         instance                                    state            | node          node_ip         instance                                    state
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+AZ1 1  linux-221  10.90.57.221    6001 /srv/BigData/gaussdb/data1/master1      P Standby Normal | 2  linux-222  10.90.57.222    6002 /srv/BigData/gaussdb/data1/slave1       S Primary Normal | 3  linux-ncqd 10.90.57.223    3002 /srv/BigData/gaussdb/data1/slave4 S Standby Normal
+AZ1 1  linux-221  10.90.57.221    6003 /srv/BigData/gaussdb/data2/master2      P Standby Normal | 3  linux-ncqd 10.90.57.223    6004 /srv/BigData/gaussdb/data2/slave2       S Primary Normal | 2  linux-222  10.90.57.222    3003 /srv/BigData/gaussdb/data2/slave5  S Standby Normal
+AZ1 1  linux-221  10.90.57.221    6005 /srv/BigData/gaussdb/data3./master3     P Standby Normal | 2  linux-222  10.90.57.222    6006 /srv/BigData/gaussdb/data3./slave3      S Primary Normal | 3  linux-ncqd 10.90.57.223    3004 /srv/BigData/gaussdb/data3./slave6 S Standby Normal
+AZ1 2  linux-222  10.90.57.222    6007 /srv/BigData/gaussdb/data1/master1      P Primary Normal | 3  linux-ncqd 10.90.57.223    6008 /srv/BigData/gaussdb/data1/slave1       S Standby Normal | 1  linux-221  10.90.57.221    3005 /srv/BigData/gaussdb/data1/slave4  S Standby Normal
+AZ1 2  linux-222  10.90.57.222    6009 /srv/BigData/gaussdb/data2/master2      P Primary Normal | 1  linux-221  10.90.57.221    6010 /srv/BigData/gaussdb/data2/slave2       S Standby Normal | 3  linux-ncqd 10.90.57.223    3006 /srv/BigData/gaussdb/data2/slave5 S Standby Normal
+AZ1 2  linux-222  10.90.57.222    6011 /srv/BigData/gaussdb/data3./master3     P Primary Normal | 3  linux-ncqd 10.90.57.223    6012 /srv/BigData/gaussdb/data3./slave3      S Standby Normal | 1  linux-221  10.90.57.221    3007 /srv/BigData/gaussdb/data3./slave6 S Standby Normal
+AZ1 3  linux-ncqd 10.90.57.223    6013 /srv/BigData/gaussdb/data1/master1      P Primary Normal | 1  linux-221  10.90.57.221    6014 /srv/BigData/gaussdb/data1/slave1       S Standby Normal | 2  linux-222  10.90.57.222    3008 /srv/BigData/gaussdb/data1/slave4  S Standby Normal
+AZ1 3  linux-ncqd 10.90.57.223    6015 /srv/BigData/gaussdb/data2/master2      P Primary Normal | 2  linux-222  10.90.57.222    6016 /srv/BigData/gaussdb/data2/slave2       S Standby Normal | 1  linux-221  10.90.57.221    3009 /srv/BigData/gaussdb/data2/slave5 S Standby Normal
+AZ1 3  linux-ncqd 10.90.57.223    6017 /srv/BigData/gaussdb/data3./master3     P Primary Normal | 1  linux-221  10.90.57.221    6018 /srv/BigData/gaussdb/data3./slave3      S Standby Normal | 2  linux-222  10.90.57.222    3010 /srv/BigData/gaussdb/data3./slave6 S Standby Normal DN 1备实例所在主机plat1，路径是“/gaussdb/data/data_dnS1”为例，执行命令。 gs_om -t switch -h plat1 -D /gaussdb/data/data_dnS1 Switching instances.
+Successfully switched instances. 查询当前发生过切换的实例。 gs_om -t switch
+Operation: Switch query.
+[     GTM State     ]
+
+node                   instance             state
+--------------------------------------------------------------------
+(no need to switchover gtm)
+
+[  Datanode State   ]
+
+node     node_ip         instance                              state  | node     node_ip        instance                      state            | node     node_ip        instance                       state
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+AZ1 1  plat1 192.168.0.11    6001 /gaussdb/data/data_dn1 P Standby Normal | 2  plat2 192.168.0.12   6002 /gaussdb/data/data_dnS1  S Primary Normal | 3  plat1 192.168.0.13   3002 /gaussdb/data/data_dnDS1  R Secondary Normal
+Operation succeeded: Switch query. 通过查询发现有两组 DN 主备发生过切换。将发生切换的实例恢复为初始配置的主备状态。 gs_om -t switch --reset --time-out=60
+Operating: Switch reset.
+cm_ctl: cmserver is rebalancing the cluster automatically.
+......
+cm_ctl: switchover successfully.
+Operation succeeded: Switch reset. 在 集群 中的任何一节点上执行如下命令，生成配置文件。 gs_om -t generateconf -X /opt/software/GaussDB_Kernel/clusterconfig.xml --distribute
+Generating static configuration files for all nodes.
+Creating temp directory to store static configuration files.
+Successfully created the temp directory.
+Generating static configuration files.
+Successfully generated static configuration files.
+Static configuration files for all nodes are saved in /opt/huawei/Bigdata/gaussdb/wisequery/script/static_config_files.
+Distributing static configuration files to all nodes.
+Successfully distributed static configuration files. 然后打开生成的配置文件目录，会看到新生成的3个文件。 cd /opt/huawei/Bigdata/gaussdb/wisequery/script/static_config_files
+ll
+total 456
+-rwxr-xr-x 1 omm dbgrp 155648 2016-07-13 15:51 cluster_static_config_plat1
+-rwxr-xr-x 1 omm dbgrp 155648 2016-07-13 15:51 cluster_static_config_plat2
+-rwxr-xr-x 1 omm dbgrp 155648 2016-07-13 15:51 cluster_static_config_plat3 增加 集群 内部节点上的 CN 实例。 前提条件：在xml中配置好需要增加的 CN 信息，执行前置命令。 gs_om -t managecn -m add -X /opt/software/GaussDB_Kernel/clusterconfig.xml Checking the cluster configuration difference.
+Successfully checked the cluster configuration difference.
+Checking the cluster status.
+Successfully checked the cluster status.
+Distributing the XML configuration file to all nodes.
+Successfully distributed the XML configuration file.
+Creating backup directory.
+Successfully created backup directory.
+Backing up cluster configuration.
+Successfully backed up cluster configuration.
+Modifying static configuration files.
+Static configuration file's modification is completed.
+Locking cluster.
+Successfully locked cluster.
+Building CN instance.
+Successfully built CN instance.
+Creating pgxc_node catalog.
+Successfully created pgxc_node catalog.
+Configuring pg_hba on all nodes.
+Unlocking cluster.
+Successfully unlock cluster.
+Waiting for cluster status to become Normal or Degraded.
+.
+The cluster status is Normal. 删除 集群 内部节点上的 CN 实例。 gs_om -t managecn -m delete -X /opt/software/GaussDB_Kernel/clusterconfig.xml Checking the cluster configuration difference.
+Successfully checked the cluster configuration difference.
+Checking the cluster status.
+Successfully checked the cluster status.
+Distributing the XML configuration file to all nodes.
+Successfully distributed the XML configuration file.
+Creating backup directory.
+Successfully created backup directory.
+Backing up cluster configuration.
+Successfully backed up cluster configuration.
+Modifying static configuration files.
+Static configuration file's modification is completed.
+Locking cluster.
+Successfully locked cluster.
+Dropping pgxc_node catalog.
+Successfully dropped pgxc_node catalog.
+Configuring pg_hba on all nodes.
+Unlocking cluster.
+Successfully unlock cluster.
+Waiting for cluster status to become Normal or Degraded.
+.
+The cluster status is Normal.
+Deleting the CN instance.
+Successfully cleaned CN instance. 增加 集群 外部服务器上的 CN ，首先用新增外部机器 CN 的配置文件执行前置，然后以下面命令进行外部增加 CN 操作，以增加SIA10000622109为例。 gs_om -t managecn -m add -X /opt/software/GaussDB_Kernel/clusterconfig.xml Checking the cluster configuration difference.
+Successfully checked the cluster configuration difference.
+Checking the cluster status.
+Successfully checked the cluster status.
+Distributing the XML configuration file to all nodes.
+Successfully distributed the XML configuration file.
+Creating backup directory.
+Successfully created backup directory.
+Installing GaussDB on the new node.
+Checking installation environment on this node (SIA1000062209).
+Installing applications on this node (SIA1000062209).
+Synchronizing libcgroup configuration to this node (SIA1000062209).
+Successfully installed GaussDB on the new node.
+Backing up cluster configuration.
+Successfully backed up cluster configuration.
+Modifying static configuration files.
+Static configuration file's modification is completed.
+Locking cluster.
+Successfully locked cluster.
+Building CN instance.
+Successfully built CN instance.
+Creating pgxc_node catalog.
+Successfully created pgxc_node catalog.
+Configuring pg_hba on all nodes.
+Unlocking cluster.
+Successfully unlock cluster.
+Waiting for cluster status to become Normal or Degraded.
+.
+The cluster status is Normal. 集群 运行过程中，某个含有 CN 的节点损坏短时间内无法修复（网络无法连接、硬件故障造成操作系统无法登录等），此时会造成其他 CN 无法执行业务，造成业务中断。此时，可以选择进行节点替换，但耗时较长，为了尽可能的快速恢复业务，可以执行对该节点上的 CN 删除。以故障节点为SIA1000022048为例： gs_om -t managecn -m delete -X /opt/software/GaussDB_Kernel/clusterconfig.xml Checking the cluster configuration difference.
+Successfully checked the cluster configuration difference.
+Warning: Failed to connect to the node SIA1000022048.
+Checking the cluster status.
+Successfully checked the cluster status.
+Distributing the XML configuration file to all nodes.
+Successfully distributed the XML configuration file.
+Creating backup directory.
+Successfully created backup directory.
+Backing up cluster configuration.
+Successfully backed up cluster configuration.
+Modifying static configuration files.
+Static configuration file's modification is completed.
+Locking cluster.
+Successfully locked cluster.
+Dropping pgxc_node catalog.
+Successfully dropped pgxc_node catalog.
+Configuring pg_hba on all nodes.
+Successfully configured pg_hba on all nodes.
+Unlocking cluster.
+Successfully unlock cluster.
+Waiting for cluster status to become Normal or Degraded.
+...........
+The cluster status is Degraded.
+Manage CN is completed. 如果执行完删除节点SIA1000022048的 CN 后，该节点又从故障中恢复，此时该节点上记录的 集群 信息为删除 CN 前的，造成该节点与真实的 集群 信息不相同，因此需要对该节点执行如下操作，以保障 集群 信息的统一。 调用gs_om -t generateconf -X /opt/software/GaussDB_Kernel/clusterconfig.xml ，用最新的 集群 配置文件重新生成各节点的静态配置文件，并覆盖此节点上的静态配置文件。 调用gs_om -t stop -h SIA1000022048和gs_om -t start -h SIA1000022048对该节点进行重启，使得新的 集群 配置信息生效。 手动删除节点SIA1000022048上的 CN 数据目录（选做）。 修改IP。 gs_om -t changeip -X /opt/software/GaussDB_Kernel/clusterconfig.xml Changing cluster's IP addresses.
+Distributing files to all nodes.
+Successfully distributed files.
+Checking the cluster configuration differences.
+Successfully checked the cluster configuration differences.
+Creating the backup directory.
+Successfully created backup directory.
+Backing up cluster configuration.
+Successfully backed up cluster configuration.
+Changing static configuration files.
+Successfully changed static configuration files.
+Modifying instance configuration files.
+Successfully modified instance configuration files.
+Starting the cluster.
+Successfully started the cluster.
+Updating catalog.
+Successfully updated catalog.
+Checking the cluster status.
+Successfully checked the cluster status.
+Successfully changed cluster's IP addresses. 升级时间评估。 gs_om -t estimate -m upgrade
+NOTICE: The estimated error of time is within 30 percent.
+Estimating upgrade time, please wait.
+Total estimated time for upgrade: 27m-22s
+Distributing software packages                :        1m
+Checking upgrade environment                  :        1m
+Dumping database objects                      :        1m
+Stopping the old clusters                     :        5m
+Backing up the old cluster                    :        1m
+Installing the new cluster                    :        1m
+Configuring the new cluster.                  :        5m
+Restoring database objects                    :        6m-51s
+Upgrading data                                :        1s
+Starting the new cluster in read-only mode    :        5m
+Starting the new cluster in normal mode       :        30s 安装时间评估。 gs_om -t estimate -m install -X /opt/software/GaussDB_Kernel/clusterconfig.xml NOTICE: The estimated error of time is within 30 percent.
+Installation time is proportional to the number of nodes and datanodes. The more nodes and datanodes, the longer it takes.
+The number of nodes: 3.
+The maximum number of datanodes in the nodes: 4.
+Total estimated time for installation: 3m-18s 扩容时间评估。 gs_om -t estimate -m expand -X /opt/software/GaussDB_Kernel/clusterconfig.xml NOTICE: The estimated error of time is within 30 percent.
+Estimating expand time, please wait.
+Total estimated time for expand: 13m-35s
+Performing check and initialize               :        19s
+Performing health check                       :        9s
+Installing new nodes                          :        12s
+Configuring new nodes                         :        1m-19s
+Dumping database objects                      :        1m
+Restoring database objects                    :        6m-51s
+Configuring new instances                     :        35s
+Starting new nodes                            :        6s
+Synchronizing                                 :        8s
+Starting new cluster                          :        1m-9s 节点替换时间评估。 gs_om -t estimate -m replace -h plat1
+NOTICE: The estimated error of time is within 30 percent.
+Estimating replace time, please wait.
+Total estimated time for replacement: 13m-23s
+Installing node                             :        40s
+Fixing CMAgents instances                   :        2m-5s
+Configuring instances                       :        1m-36s
+Dumping database objects                    :        1m
+Restoring database objects                  :        6m-51s
+Starting node                               :        59s 温备时间评估。 gs_om -t estimate -m warm-standby -h plat1
+NOTICE: The estimated error of time is within 30 percent.
+Estimating warm-standby time, please wait.
+Total estimated time for warm-standby: 13m-55s
+Replacing IP                                :        40s
+Installing node                             :        40s
+Fixing CMAgents instances                   :        2m-5s
+Configuring instances                       :        1m-36s
+Dumping database objects                    :        1m
+Restoring database objects                  :        6m-51s
+Starting node                               :        51s 增加 CN 时间评估。 gs_om -t estimate -m addCN
+NOTICE: The estimated error of time is within 30 percent.
+Estimating addCN time, please wait.
+Total estimated time for CN-Addition: 9m-41s
+Checking and Prepare                       :        1m-43s
+Dumping database objects                   :        1m
+Restoring database objects                 :        6m-51s
+Starting node                              :        8s SSL证书回退。 gs_om -t cert --rollback 
+[plat1] SSL cert files rollback successfully.
+[plat2] SSL cert files rollback successfully.
+[plat3] SSL cert files rollback successfully. 输出相对表空间路径。 gs_om -t tablespace -h plat1
+Collecting relative tablespace mount points.
+--------------------plat1------------------------------------------------------------
+cn_5001:/gaussdb/data/coordinator/pg_location/
+dn_6001:/gaussdb/data/master1/pg_location/
+dn_3003:/gaussdb/data/dummy1/pg_location/
+dn_6006:/gaussdb/data/slave1/pg_location/ 停机隔离故障节点 gs_om -t isolate_stop -h plat1
+Performing checkpoint.
+Checkpoint is completed.
+Stopping [plat1].
+Successfully stopped [plat1].
+Waiting for cluster status to become available.
+.
+The cluster status is Degraded. 降备隔离故障节点 gs_om -t isolate_tostandby -h plat2
+Performing checkpoint.
+Checkpoint is completed.
+Switching the master to standby.
+plat2:6002:/gaussdb/data1/standby1 is Down-Abnormal, skip it.
+plat2:6005:/gaussdb/data1/master1 is Primary, switch to Standby.
+plat2:6007:/gaussdb/data2/master2 is Primary, switch to Standby.
+plat2:6012:/gaussdb/data2/standby2 is Standby, no need to switch it.
+plat2:1002:/gaussdb/manager/gtm is Standby, no need to switch it.
+Switching the master to standby is completed.
+Waiting for cluster status to become available.
+.
+The cluster status is Degraded. 恢复被隔离节点 gs_om -t isolate_restore -h plat1
+Starting [plat1].
+Successfully started [plat1].
+Waiting for cluster status to become available.
+...........
+The cluster status is Degraded.
+Performing checkpoint.
+Checkpoint is completed.
+Switching the nodes to balanced state.
+plat1:6001:/gaussdb/data1/master1 is Primary, matched with static role, no need to switch it.
+plat1:6003:/gaussdb/data2/master2 is Standby, switch to Primary.
+plat1:6008:/gaussdb/data2/standby2 is Standby, matched with static role, no need to switch it.
+plat1:6010:/gaussdb/data1/standby1 is Standby, matched with static role, no need to switch it.
+Switching the nodes to balanced state is completed.
+Waiting for cluster status to become available.
+.
+The cluster status is Degraded. 杀死数据库的所有活跃用户会话 gs_om -t killsession
+Killing all active sessions.
+Killing all active sessions is completed.
+Performing checkpoint.
+Checkpoint is completed. 集群 拓扑结构比较 gs_om -t compare-cluster --remote-host=linux-224 --remote-env-file='/home/ omm /.bashrc' 
+Get remote host linux-224 GAUSSHOME env. 
+Copy node linux-224 cluster static config to the local. 
+Init remote cluster info. 
+Compare cluster configuration differences. 
+No difference in cluster topology. 父主题： 服务端工具 版权所有 © 华为技术有限公司

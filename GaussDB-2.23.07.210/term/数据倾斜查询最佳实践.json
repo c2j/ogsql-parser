@@ -1,0 +1,11 @@
+{
+  "topic": "数据倾斜查询最佳实践",
+  "term_count": 1,
+  "terms": [
+    {
+      "term": "快速定位查询存储倾斜的表",
+      "content": "快速定位查询存储倾斜的表 快速定位查询存储倾斜的表 目前提供的倾斜查询接口有函数： table_distribution(schemaname text, tablename text) 、 table_distribution() 以及视图 PGXC_GET_TABLE_SKEWNESS ，客户可以根据自身业务情况来选择使用。 场景一：磁盘满后快速定位存储倾斜的表 首先，通过 pg_stat_get_last_data_changed_time(oid) 函数查询出近期发生过数据变更的表，鉴于表的最后修改时间只在进行IUD操作的CN记录，要查询库内1天(间隔可在函数中调整)内被修改的所有表，可以使用如下封装函数： 1\n 2\n 3\n 4\n 5\n 6\n 7\n 8\n 9\n10\n11\n12\n13\n14\n15\n16\n17\n18\n19\n20\n21 CREATE OR REPLACE FUNCTION get_last_changed_table ( OUT schemaname text , OUT relname text ) RETURNS setof record AS $$ DECLARE row_data record ; row_name record ; query_str text ; query_str_nodes text ; BEGIN query_str_nodes : = 'SELECT node_name FROM pgxc_node where node_type = ''C''' ; FOR row_name IN EXECUTE ( query_str_nodes ) LOOP query_str : = 'EXECUTE DIRECT ON (' || row_name . node_name || ') ''SELECT b.nspname,a.relname FROM pg_class a INNER JOIN pg_namespace b on a.relnamespace = b.oid where pg_stat_get_last_data_changed_time(a.oid) BETWEEN current_timestamp - 1 AND current_timestamp;''' ; FOR row_data IN EXECUTE ( query_str ) LOOP schemaname = row_data . nspname ; relname = row_data . relname ; return next ; END LOOP ; END LOOP ; return ; END ; $$ LANGUAGE 'plpgsql' ; 然后，通过 table_distribution(schemaname text, tablename text) 查询出表在各个DN占用的存储空间。 1 SELECT table_distribution ( schemaname , relname ) FROM get_last_changed_table (); 场景二：常规数据倾斜巡检 在库中表个数少于1W的场景，直接使用倾斜视图查询当前库内所有表的数据倾斜情况。 1 SELECT * FROM pgxc_get_table_skewness ORDER BY totalsize DESC ; 在库中表个数非常多（至少大于1W）的场景，因 PGXC_GET_TABLE_SKEWNESS 涉及全库查并计算非常全面的倾斜字段，所以可能会花费比较长的时间（小时级），建议参考 PGXC_GET_TABLE_SKEWNESS 视图定义，直接使用table_distribution()函数自定义输出，减少输出列进行计算优化，例如： 1\n2\n3\n4\n5\n6 SELECT schemaname , tablename , max ( dnsize ) AS maxsize , min ( dnsize ) AS minsize FROM pg_catalog . pg_class c INNER JOIN pg_catalog . pg_namespace n ON n . oid = c . relnamespace INNER JOIN pg_catalog . table_distribution () s ON s . schemaname = n . nspname AND s . tablename = c . relname INNER JOIN pg_catalog . pgxc_class x ON c . oid = x . pcrelid AND x . pclocatortype = 'H' GROUP BY schemaname , tablename ;",
+      "source_file": "1410_file_1410.txt"
+    }
+  ]
+}

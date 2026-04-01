@@ -1,0 +1,1 @@
+【规则】禁止在WHERE条件相同表字段进行相互比较 【规则】禁止在WHERE条件相同表字段进行相互比较 例如如下语句应考虑合理性： SELECT * FROM t1 WHERE col1 = col1; 应考虑修改为： SELECT * FROM t1 WHERE col1 IS NOT NULL; 父主题： WHERE 版权所有 © 华为技术有限公司

@@ -1,0 +1,1 @@
+GS_SLOW_QUERY_HISTORY（废弃） GS_SLOW_QUERY_HISTORY（废弃） GS_SLOW_QUERY_HISTORY显示当前节点上未转储的慢查询信息。具体字段信息请参考 18.9.15 GS_SLOW_QUERY_INFO 。本版本中已废弃。 父主题： Query 版权所有 © 华为技术有限公司

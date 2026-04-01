@@ -1,0 +1,1 @@
+GS_WLM_SESSION_INFO GS_WLM_SESSION_INFO GS_WLM_SESSION_INFO视图显示数据库实例执行作业结束后的负载管理记录。查询该视图需要sysadmin权限。 具体的字段请参考 表1 中的信息。 当查询视图无数据显示时，请联系华为工程师提供技术支撑。 父主题： 系统视图 版权所有 © 华为技术有限公司

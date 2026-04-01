@@ -1,0 +1,4 @@
+VAR VAR 功能描述 将新的C数据类型分配给宿主变量。宿主变量必须预先在声明段声明。 对于VAR的用法需要谨慎。使用VAR语句后数据类型的变化可能会导致内存地址无效，从而导致数据变量无效，出现无法成功赋值的场景。 若在宿主变量声明段中确定好数据类型，则无须使用VAR语句。 语法格式 VAR varname IS ctype 参数说明 varname C语言变量名称。 ctype C语言类型说明。 示例 EXEC SQL BEGIN DECLARE SECTION; 
+    short a;
+EXEC SQL END DECLARE SECTION;
+EXEC SQL VAR a IS int; 父主题： 嵌入式SQL命令 版权所有 © 华为技术有限公司

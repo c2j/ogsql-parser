@@ -1,0 +1,41 @@
+{
+  "topic": "事务",
+  "term_count": 7,
+  "terms": [
+    {
+      "term": "【规则】通过JDBC客户端接入时，关闭autocommit参数，显式的执行事务的COMMIT",
+      "content": "【规则】通过JDBC客户端接入时，关闭autocommit参数，显式的执行事务的COMMIT 【规则】通过JDBC客户端接入时，关闭autocommit参数，显式的执行事务的COMMIT 一方面，开启autocommit参数，会导致部分参数（如fetchsize）失效； 另一方面，业务应明确业务逻辑，减少对数据库的依赖。",
+      "source_file": "577_JDBCautocommitCOMMIT.txt"
+    },
+    {
+      "term": "【规格】大对象操作不支持事务",
+      "content": "【规格】大对象操作不支持事务 【规格】大对象操作不支持事务 大对象操作包括：创建删除DATABASE，ANALYZE，VACUUM。",
+      "source_file": "576_file_576.txt"
+    },
+    {
+      "term": "【规则】通过JDBC接入数据库时，避免拼接多条SQL为一条语句发送执行",
+      "content": "【规则】通过JDBC接入数据库时，避免拼接多条SQL为一条语句发送执行 【规则】通过JDBC接入数据库时，避免拼接多条SQL为一条语句发送执行 当多条语句拼接为一条语句，其中一条执行失败后会整体返回失败，不利于定位错误，建议拆分。 示例 不符合规则语句 Connection conn = ....\ntry {\n    Statement stmt = null;\n    try {\n        stmt = conn.createStatement();\n        stmt.executeUpdate(\"CREATE TABLE t1 (a int); DROP TABLE t1\");\n    } finally {\n        stmt.close();\n    }\n    conn.commit();\n} catch(Exception e) {\n   conn.rollback();\n} finally {\n   conn.close();\n} 建议拆分成两条语句分别发送： Connection conn = ....\ntry {\n    Statement stmt = null;\n    try {\n        stmt = conn.createStatement();\n        stmt.executeUpdate(\"CREATE TABLE t1 (a int)\");\n        stmt.executeUpdate(\"DROP TABLE t1\");\n    } finally {\n        stmt.close();\n    }\n    conn.commit();\n} catch(Exception e) {\n   conn.rollback();\n} finally {\n   conn.close();\n}",
+      "source_file": "578_JDBCSQL.txt"
+    },
+    {
+      "term": "【规格】在GTM-FREE模式下，不允许执行跨节点事务",
+      "content": "【规格】在GTM-FREE模式下，不允许执行跨节点事务 【规格】在GTM-FREE模式下，不允许执行跨节点事务 在GTM-FREE模式下，如果所执行的SQL语句包含跨节点事务，会得到报错：Unsupport DML two phase commit under gtm free mode. 在这种情况下，如果某一条语句必须临时开启跨节点事务，需要在事务中先执行如下命令开启跨节点事务 SET enable_twophase_commit = on; 并在事务结束前执行 RESET enable_twophase_commit; 或 SET enable_twophase_commit = off;",
+      "source_file": "575_GTM-FREE.txt"
+    },
+    {
+      "term": "【规则】通过JDBC客户端接入时，关闭autocommit参数，显式的执行事务的COMMIT",
+      "content": "【规则】通过JDBC客户端接入时，关闭autocommit参数，显式的执行事务的COMMIT 【规则】通过JDBC客户端接入时，关闭autocommit参数，显式的执行事务的COMMIT 一方面，开启autocommit参数，会导致部分参数（如fetchsize）失效； 另一方面，业务应明确业务逻辑，减少对数据库的依赖。",
+      "source_file": "711_JDBCautocommitCOMMIT.txt"
+    },
+    {
+      "term": "【规则】通过JDBC接入数据库时，避免拼接多条SQL为一条语句发送执行",
+      "content": "【规则】通过JDBC接入数据库时，避免拼接多条SQL为一条语句发送执行 【规则】通过JDBC接入数据库时，避免拼接多条SQL为一条语句发送执行 当多条语句拼接为一条语句，其中一条执行失败后会整体返回失败，不利于定位错误，建议拆分。 示例 不符合规则语句 Connection conn = ....\ntry {\n    Statement stmt = null;\n    try {\n        stmt = conn.createStatement();\n        stmt.executeUpdate(\"CREATE TABLE t1 (a int); DROP TABLE t1\");\n    } finally {\n        stmt.close();\n    }\n    conn.commit();\n} catch(Exception e) {\n   conn.rollback();\n} finally {\n   conn.close();\n} 建议拆分成两条语句分别发送： Connection conn = ....\ntry {\n    Statement stmt = null;\n    try {\n        stmt = conn.createStatement();\n        stmt.executeUpdate(\"CREATE TABLE t1 (a int)\");\n        stmt.executeUpdate(\"DROP TABLE t1\");\n    } finally {\n        stmt.close();\n    }\n    conn.commit();\n} catch(Exception e) {\n   conn.rollback();\n} finally {\n   conn.close();\n}",
+      "source_file": "712_JDBCSQL.txt"
+    },
+    {
+      "term": "【规格】大对象操作不支持事务",
+      "content": "【规格】大对象操作不支持事务 【规格】大对象操作不支持事务 大对象操作包括：创建删除DATABASE，ANALYZE，VACUUM。",
+      "source_file": "710_file_710.txt"
+    }
+  ]
+}

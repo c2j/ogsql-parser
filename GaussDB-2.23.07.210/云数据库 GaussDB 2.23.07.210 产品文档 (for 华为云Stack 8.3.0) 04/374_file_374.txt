@@ -1,0 +1,10 @@
+查询参数模板的修改历史 查询参数模板的修改历史 功能介绍 查询参数模板的修改历史记录。 调用接口前，您需要提前 获取终端节点 ，即下文中的Endpoint值。 URI URI格式 GET https://{ Endpoint }/gaussdb/v3/{project_id}/configurations/{config_id}/histories URI样例 https://gaussdb.sa-fb-2.hcsglobal.com/gaussdb/v3/619d3e78f61b4be68bc5aa0b59edcf7b/configurations/3ca44134a16d4bbab8eb701e025b19f7pr14/histories 参数说明 表1 参数说明 参数 是否必选 参数类型 描述 project_id 是 String 租户在某一region下的project ID。 获取方法请参见 获取项目ID/名称 。 config_id 是 String 参数模板ID。 offset 否 Integer 索引位置，偏移量。从第一条数据偏移offset条数据后开始查询，默认为0（偏移0条数据，表示从第一条数据开始查询），必须为数字，不能为负数。例如：该参数指定为0，limit指定为10，则只展示第1-10条数据。 limit 否 Integer 查询记录数。默认为100，不能为负数，最小值为1，最大值为100。例如该参数设定为10，则查询结果最多只显示10条记录。 请求消息 无。 响应消息 正常响应要素说明 表2 参数说明 参数 参数类型 描述 histories Array of objects 参数模板信息，具体参数请参考 表3 。 total_count Integer 总记录数。 表3 histories字段数据结构说明 参数 参数类型 描述 parameter_name String 参数名称。 old_value String 修改前参数值。 new_value String 修改后参数值。 update_result String 修改状态 (SUCCESS | FAILED)。 updated_at String 修改时间，格式为“yyyy-mm-ddThh:mm:ssZ”。 其中，T指某个时间的开始；Z指时区偏移量，例如北京时间偏移显示为+0800。 正常响应样例 { 
+   "histories" : [ { 
+     "parameter_name" : "audit_system_object", 
+     "old_value" : "12295", 
+     "new_value" : "12298", 
+     "update_result" : "SUCCESS", 
+     "updated_at" : "2022-08-09T03:06:52+0800" 
+   } ], 
+   "total_count" : 1 
+ } 异常响应 请参见 异常请求结果 。 状态码 正常 200 异常 请参见 状态码 。 错误码 请参见 错误码 。 父主题： 参数配置 版权所有 © 华为技术有限公司

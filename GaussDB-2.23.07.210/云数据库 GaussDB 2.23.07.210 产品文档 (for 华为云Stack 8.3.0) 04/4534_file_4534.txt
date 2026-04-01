@@ -1,0 +1,1 @@
+分区策略 分区策略 分区策略在使用DDL语句建表语句时通过PARTITION BY语句的语法指定，分区策略描述了在分区表中数据和分区路由映射规则。常见的分区类型有基于条件的Range分区/Interval分区、基于哈希散列函数的Hash分区、基于数据枚举的List列表分区： CREATE TABLE table_name (…) PARTITION BY partition_strategy (partition_key) (…) 范围分区 间隔分区 哈希分区 列表分区 二级分区 分区表对导入操作的性能影响 父主题： 分区表介绍 版权所有 © 华为技术有限公司

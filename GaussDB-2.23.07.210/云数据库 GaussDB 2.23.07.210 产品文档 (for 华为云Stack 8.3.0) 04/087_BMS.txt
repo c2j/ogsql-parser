@@ -1,0 +1,1 @@
+检查BMS形态依赖项 检查BMS形态依赖项 是否已添加新增AZ（根据部署扩容指定AZ） BMC网段与provision平面网络互通 provision平面与external om平面网络互通 防火墙链路状态检查 父主题： 安装前准备 版权所有 © 华为技术有限公司

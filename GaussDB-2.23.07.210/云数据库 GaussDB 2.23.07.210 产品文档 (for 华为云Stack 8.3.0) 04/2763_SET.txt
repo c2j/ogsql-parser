@@ -1,0 +1,16 @@
+SET类型 SET类型 SET类型是一种包含字符串成员的集合类型，在表字段创建时定义。 规格描述 SET类型成员个数最大为64个，最小为1个。不能定义为空集。 成员名称长度最大为255个字符，允许使用空字符串作为成员名称。成员名称必须是字符常量，且不能是计算后得到的字符常量，如 SET('a' || 'b', 'c')。 成员名称不能包含逗号，成员名称不能重复。 不支持创建SET类型的数组和域类型。 只有在sql_compatibility参数值为B兼容模式下支持SET类型。 不支持SET类型作为分区表的分区键。 DROP TYPE 删除SET类型时，需要使用CASCADE方式删除，且关联的表字段也会被同时删除。 对于USTORE存储方式的表，如果表中包含SET类型的字段，且已经开启回收站功能，表被删除时，不会进入到回收站中，会直接删除。 ALTER TABLE 不支持将SET类型字段的数据类型修改为其他SET类型。 表或者SET类型关联的表字段被删除时，或者表字段的SET类型修改为其他类型时，SET数据类型也会被同步删除。 不支持以CREATE TABLE { AS | LIKE } 的方式创建包含SET类型的表。 SET类型是随表字段创建的，其名称是组合而成的。如果schema中已经存在同名的数据类型，创建SET类型会失败。 SET类型支持与int2、int4、int8、text类型的=、<、>、<、<=、>、>=比较。 SET类型支持与int2、int4、int8、float4、float8、numeric、char、varchar、text、nvarchar2数据类型的转换。 注意事项 SET类型的表字段值必须是SET类型定义的集合的子集。如： gaussdb=# CREATE TABLE employee (
+  name text,
+  site SET('beijing','shanghai','nanjing','wuhan')
+); site字段的值必须是上述集合定义中的子集，可以是空集合，如果提供的值在SET定义中的成员中不存在，会报错。如： gaussdb=# INSERT INTO employee values('zhangsan', 'nanjing,beijing');
+INSERT 0 1 gaussdb=# INSERT INTO employee VALUES ('zhangsan', 'hangzhou');
+ERROR:  invalid input value for set employee_site_set: 'hangzhou' INSERT时无论用户提供的成员值顺序是怎样的，INSERT成功后，查询到的SET类型的值，其成员都是按照定义时的顺序输出的。 gaussdb=# SELECT * FROM employee;
+   name   |      site       
+----------+-----------------
+ zhangsan | beijing,nanjing
+(1 rows) SET类型是以bitmap的方式存储的。SET类型的成员按照定义时的顺序，赋予不同的值。如：SET('beijing','shanghai','nanjing','wuhan') 的类型，对应的值如下： 表1 SET成员与其对应的数值 SET成员 成员值 二进制值 'beijing' 1 0001 'shanghai' 2 0010 'nanjing' 4 0100 'wuhan' 8 1000 因此，如果给SET类型的字段赋值为数值时，会转换为对应的子集。如：9对应的二进制值为 1001, 对应的子集是 'beijing,wuhan'。 gaussdb=# INSERT INTO employee values('lisi', 9);
+INSERT 0 1 gaussdb=# SELECT * FROM employee;
+   name   |      site       
+----------+-----------------
+ zhangsan | beijing,nanjing
+ lisi     | beijing,wuhan
+(2 rows) gaussdb=# DROP TABLE employee; 父主题： 数据类型 版权所有 © 华为技术有限公司

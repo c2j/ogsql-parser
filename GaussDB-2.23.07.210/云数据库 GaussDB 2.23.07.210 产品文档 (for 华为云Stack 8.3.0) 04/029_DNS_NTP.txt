@@ -1,0 +1,1 @@
+DNS/NTP管理面和租户面 DNS/NTP管理面和租户面 目的 检查DNS/NTP服务正常。 前提条件 DNS/NTP管理面和租户面已部署。 操作步骤 在HCC Turnkey导出参数表查找如下参数的值，即为DNS/NTP管理面和租户面IP。 TDNS-TNTP01 TDNS-TNTP02 OM-SRV01 OM-SRV02 分别登录后用命令检查DNS与NTP服务是否正常。 service named status service ntpd status 预期结果 DNS/NTP管理面和租户面服务正常，显示状态为Active。 父主题： 检查数据库服务依赖项 版权所有 © 华为技术有限公司

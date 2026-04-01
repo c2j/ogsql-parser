@@ -1,0 +1,8 @@
+GTM实例SOCKET异常(ALM_AI_AbnormalGTMSocket) GTM实例SOCKET异常(ALM_AI_AbnormalGTMSocket) 告警解释 当操作系统的其它进程占用GTM实例侦听端口号或双机端口号时，产生该告警。 告警属性 告警ID 告警级别 告警类型 是否可自动清除 ALM_AI_AbnormalGTMSocket critical 处理出错 不涉及 告警参数 请参考 告警参数说明 。 对系统的影响 双机端口长时间被占用超过120s后，系统会自处理并恢复可用。但120s内，系统不可用。 系统自处理过程 如果侦听端口或双机端口被占用，则该GTM实例进程无法启动， GaussDB 首先会尝试重新启动该进程，该段时间系统不可用。 如果在120s内该节点依然无法启动， GaussDB 会将GTM备实例升为GTM主实例，系统恢复可用。 可能原因 操作系统的其它进程占用GTM实例侦听端口号或双机端口号。 处理步骤 参考 登录实例节点 ，登录数据库节点。 执行如下命令，导入环境变量。 source /home/Ruby/gauss_env_file 执行以下命令检查集群GTM状态。 cm_ctl query -Cvd 结果举例： [     GTM State     ]
+
+node             instance                       state                    sync_state
+---------------------------------------------------------------------------------------
+1  25.213.61.150 1001 /var/lib/engine/data1/gtm P Standby Connection ok  Sync
+2  25.213.10.25  1002 /var/lib/engine/data1/gtm S Primary Connection ok  Sync
+3  25.213.36.153 1003 /var/lib/engine/data1/gtm S Down  Connection ok  Sync 如上述结果举例所示，GTM实例1003异常，数据目录为/var/lib/engine/data1/gtm。 使用以下命令打开gtm.conf文件。 vi /var/chroot/var/lib/engine/data1/gtm/gtm.conf 找到GTM实例的侦听端口参数port与双机侦听端口参数local_port。 local_port =                               20001 使用以下命令确认该端口是否被其它进程占用。 netstat -anp | grep 20001 若GTM实例的侦听端口或GTM实例的双机端口没有被其他进程占用，则界面不回显。若被占用，显示信息如下所示。 netstat -anp | grep 20001
+tcp        0      0 10.244.62.204:21251     0.0.0.0:*               LISTEN      13083/gaussdb 若占用该端口的进程不是关键进程建议使用如下命令kill该进程。如果是关键进程请执行 6 。 kill -9 20001 如果问题仍未解决，参考和 收集日志 ，并收集告警信息， 联系技术支持 进行处理。 需要下载的日志信息有： GaussDB Kernel组件下的/var/lib/log/Ruby 父主题： GaussDB 内核告警参考 版权所有 © 华为技术有限公司

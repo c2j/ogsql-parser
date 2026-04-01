@@ -1,0 +1,1 @@
+OPERATOR_HISTORY OPERATOR_HISTORY OPERATOR_HISTORY视图显示的是当前用户数据库主节点上执行作业结束后的算子的相关记录。记录的数据同 表1 。 父主题： Operator 版权所有 © 华为技术有限公司

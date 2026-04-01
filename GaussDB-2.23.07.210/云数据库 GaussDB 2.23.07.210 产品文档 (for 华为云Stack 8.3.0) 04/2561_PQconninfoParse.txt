@@ -1,0 +1,1 @@
+PQconninfoParse PQconninfoParse 功能描述 根据连接，返回已解析的连接选项。 原型 PQconninfoOption* PQconninfoParse(const char* conninfo, char** errmsg); 参数 表1 关键字 参数说明 conninfo 被传递的字符串。可以为空，这样将会使用默认参数。也可以包含由空格分隔的一个或多个参数设置，还可以包含一个URI。 errmsg 错误信息。 返回值 PQconninfoOption类型指针。 父主题： 数据库连接控制函数 版权所有 © 华为技术有限公司

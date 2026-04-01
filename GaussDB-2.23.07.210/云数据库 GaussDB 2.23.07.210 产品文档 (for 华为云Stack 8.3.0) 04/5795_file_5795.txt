@@ -1,0 +1,10 @@
+清除命令 清除命令 功能 clean命令用于在恢复操作之前清除该集群。 命令格式 python3 GaussRoach.py
+-t clean [--logging-path <logging-path>]
+[--restore-new-cluster] 参数说明 表1 清除命令的命令行参数列表 完整选项 缩写选项 数据类型 说明 取值范围 缺省值 应用实例 -t 不涉及 字符串 Roach接口支持多种功能。指定该参数为clean，表示调用清除功能。 -t backup -t stop -t delete -t restore -t genstack -t getobject -t start -t clean -t config -t version -t help 不涉及 -t clean --logging-path 不涉及 字符串 日志存放路径。 不涉及 $GAUSSLOG/roach/controller --logging-path $GAUSSLOG/roach/controller --restore-new-cluster 不涉及 布尔型 将集群恢复到另一主机上。 如果命令中指定了该参数，则参数值为true。否则值为false。 说明： 该参数仅在media type为disk、OBS 、REMOTE 和NAS时有效。 不涉及 False --restore-new-cluster 使用指南 在恢复操作之前，用户使用 清除 命令删除集群数据库。 在执行清理操作之前，请确保存在有效的备份。 执行清理和恢复时，请确保备份已经过验证。 用户可以通过使用clean脚本或者作为恢复命令的参数来执行清除操作。 命令示例 恢复操作前清除集群数据库。 python3 GaussRoach.py -t clean 将集群恢复到不同节点组前清除集群数据库。 python3 GaussRoach.py -t clean --restore-new-cluster 系统回显 Cleaning cluster.
+Parsing the configuration file.
+Stopping cluster.
+Successfully stopped cluster.
+Cleaning data before restoration.
+Successfully cleaned data before restoration.
+Successfully cleaned cluster.
+Roach operation clean completed. 相关命令 恢复命令 父主题： 命令行参考 版权所有 © 华为技术有限公司

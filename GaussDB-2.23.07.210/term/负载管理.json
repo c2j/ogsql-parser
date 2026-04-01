@@ -1,0 +1,91 @@
+{
+  "topic": "负载管理",
+  "term_count": 17,
+  "terms": [
+    {
+      "term": "PGXC_WLM_REBUILD_USER_RESPOOL",
+      "content": "PGXC_WLM_REBUILD_USER_RESPOOL PGXC_WLM_REBUILD_USER_RESPOOL 该视图用于在所有的节点上重建内存中用户的资源池信息。只在资源池信息缺失或错乱时用作补救措施。查询该视图需要sysadmin权限。 当前特性是实验室特性，使用时请联系华为技术工程师提供技术支持。 当查询视图无数据显示时，请联系华为工程师提供技术支撑。 表1 PGXC_WLM_REBUILD_USER_RESPOOL字段 名称 类型 描述 gs_wlm_rebuild_user_resource_pool boolean 重建内存中用户资源池信息结果。t为成功，f为失败。",
+      "source_file": "1678_PGXC_WLM_REBUILD_USER_RESPOOL.txt"
+    },
+    {
+      "term": "GS_WLM_CGROUP_INFO",
+      "content": "GS_WLM_CGROUP_INFO GS_WLM_CGROUP_INFO GS_WLM_CGROUP_INFO视图显示当前执行作业的控制组的信息。 当查询视图无数据显示时，请联系华为工程师提供技术支撑。 表1 GS_WLM_CGROUP_INFO字段 名称 类型 描述 cgroup_name text 控制组的名称。 priority integer 作业的优先级。 usage_percent integer 控制组占用的百分比。 shares bigint 控制组分配的CPU资源配额。 cpuacct bigint CPU配额分配。 cpuset text CPU限额分配。 relpath text 控制组的相对路径。 valid text 该控制组是否有效。 node_group text 逻辑数据库实例名称。",
+      "source_file": "3390_GS_WLM_CGROUP_INFO.txt"
+    },
+    {
+      "term": "并发场景支持抗过载逃生能力",
+      "content": "并发场景支持抗过载逃生能力 并发场景支持抗过载逃生能力 可获得性 本特性自503.0.0版本开始引入。 特性简介 慢SQL导致的过载问题在现有的多个测试场景中经常出现，通常应用层在业务上需要保证对外提供的服务具备稳定可靠的SLA，每当出现慢SQL出现以后应用层会通过增加对数据库的连接请求数来确保SLA目标达成，因此对于数据库来说则是连接请求数增多导致的并发陡增问题，在现有的实现机制上由于连接数增多会导致CPU、内存等资源消耗增加，同时由于慢SQL无法执行完成导致执行slot被长时间占用，新的业务请求无法进入，最终导致业务吞吐量托底并且无有效回复手段。针对这一慢SQL入侵场景，本特性针对该场景下提升过载逃生的韧性能力，通过韧性的增强，能够在大并发场景下数据库服务端保持一定能力的稳定业务输出。 客户价值 当数据库由于慢SQL无法快速执行完成导致执行slot被长时间占用，新的业务请求无法进入，最终导致数据库无法对外提供服务时，能够提升过载逃生的韧性能力，通过韧性的增强，能够在大并发场景下数据库服务端保持一定能力的稳定业务输出。 特性描述 支持韧性检测能力：通过定义慢SQL的执行时间来实现慢SQL检测，一旦检测出慢SQL后则启动承受能力。 支持韧性承受能力：慢SQL入侵被认定以后，慢SQL在总量上受限于预先设定值，避免所有的执行slot都被慢SQL所占用，能够在整体上承受慢SQL的入侵。 支持韧性调整能力：慢SQL入侵被认定以后，在慢车道的管控态运行，系统对其IO资源使用加以限制和隔离降低对其他作业影响，确保系统整体KPI不全面恶化。 支持实时观测：慢SQL进入管控态后，可以通过视图查询慢SQL的具体运行状态。 支持灵活容错：对于资源充足或者偶发慢SQL需要具有一定包容性，零星异常SQL仍然有机会执行完毕。 支持灵活配置：对于预期执行时间基于规则设置，后续可自适应的选择合理的预期执行时间。 特性增强 无。 特性约束 仅对非sysadmin或monitoradmin权限的用户执行的select类型的语句进行慢SQL管控。 仅在线程池开启模式下生效。 资源管控仅在use_workload_manager=on时生效。 依赖关系 无。",
+      "source_file": "4253_file_4253.txt"
+    },
+    {
+      "term": "资源管控",
+      "content": "资源管控 资源管控 可获得性 本特性自503.1.0版本开始引入。 特性简介 资源管控作为后续企业级应用场景的关键诉求，在MetaERP等场景下有着重要的作用。当进程或者某一单一线程占用大量的资源时，需要资源管控能力来限制单一进程/线程使用的资源，避免出现单一进程/线程占用大量资源导致其他进程/线程出现饿死的情况。 GaussDB 目前已经识别的可管控的资源有：CPU、内存、I/O、最大并发数、磁盘空间等。 客户价值 补充数据库资源管理能力，针对不同用户限制不同的资源使用，避免出现某一用户占用全部资源导致其他用户申请不到资源的场景。 特性描述 支持进程级CPU管控和调整。 支持资源池粒度的CPU，用户和资源池可绑定，间接管控用户的CPU资源使用。 支持资源池级CPU使用的资源监控能力。 支持session/线程粒度的CPU管控能力。 支持资源池粒度的最大连接数的限制能力。 SMP计划支持预占stream线程执行。 支持实例级别、资源池级别、session级别、SQL级别的内存管控和监控能力。 支持资源池级别、作业级别的I/O管控和监控能力。 支持资源池粒度的最大并发数管控能力。 支持进程级别的最大并发数管控能力。 特性增强 无。 特性约束 资源管控仅在use_workload_manager=on和enable_control_group=on时生效。 需要初始化control group文件系统。 依赖关系 无。",
+      "source_file": "4254_file_4254.txt"
+    },
+    {
+      "term": "PG_APP_WORKLOADGROUP_MAPPING",
+      "content": "PG_APP_WORKLOADGROUP_MAPPING PG_APP_WORKLOADGROUP_MAPPING PG_APP_WORKLOADGROUP_MAPPING系统表提供了数据库负载映射组的信息。 表1 PG_APP_WORKLOADGROUP_MAPPING字段 名称 类型 描述 oid oid 行标识符（隐含字段，必须明确选择）。 appname name 应用名称。 workload_gpname name 映射到的负载组名称。",
+      "source_file": "1500_PG_APP_WORKLOADGROUP_MAPPING.txt"
+    },
+    {
+      "term": "GS_WLM_REBUILD_USER_RESOURCE_POOL",
+      "content": "GS_WLM_REBUILD_USER_RESOURCE_POOL GS_WLM_REBUILD_USER_RESOURCE_POOL 该视图用于在当前连接节点上重建内存中用户的资源池信息。只在资源池信息缺失或错乱时用作补救措施。查询该视图需要sysadmin权限。 当前特性是实验室特性，使用时请联系华为技术工程师提供技术支持。 表1 GS_WLM_REBUILD_USER_RESOURCE_POOL字段 名称 类型 描述 gs_wlm_rebuild_user_resource_pool boolean 重建内存中用户资源池信息结果。t为成功，f为失败。",
+      "source_file": "1676_GS_WLM_REBUILD_USER_RESOURCE_POOL.txt"
+    },
+    {
+      "term": "GS_WLM_EC_OPERATOR_STATISTICS",
+      "content": "GS_WLM_EC_OPERATOR_STATISTICS GS_WLM_EC_OPERATOR_STATISTICS GS_WLM_EC_OPERATOR_STATISTICS视图显示当前用户正在执行的EC（Extension Connector）作业的算子相关信息。查询该视图需要sysadmin权限。 当查询视图无数据显示时，请联系华为工程师提供技术支撑。 表1 表1 GS_WLM_EC_OPERATOR_STATISTICS字段 名称 类型 描述 queryid bigint EC语句执行使用的内部query_id。 plan_node_id integer EC算子对应的执行计划的plan node id。 start_time timestamp with time zone EC算子处理第一条数据的开始时间。 ec_status text EC作业的执行状态。 EC_STATUS_INIT：初始化。 EC_STATUS_CONNECTED：已连接。 EC_STATUS_EXECUTED：已执行。 EC_STATUS_FETCHING：获取中。 EC_STATUS_END：已结束。 ec_execute_datanode text 执行EC作业的DN名称。 ec_dsn text EC作业所使用的DSN。 ec_username text EC作业访问远端数据库实例的USERNAME（远端数据库实例为SPARK类型时该值为空）。 ec_query text EC作业发送给远端数据库实例执行的语句。 ec_libodbc_type text EC作业使用的unixODBC驱动类型。 类型1：对应 libodbc.so.1。 类型2：对应 libodbc.so.2。 ec_fetch_count bigint EC作业当前处理的数据条数。",
+      "source_file": "3391_GS_WLM_EC_OPERATOR_STATISTICS.txt"
+    },
+    {
+      "term": "GS_WLM_REBUILD_USER_RESOURCE_POOL",
+      "content": "GS_WLM_REBUILD_USER_RESOURCE_POOL GS_WLM_REBUILD_USER_RESOURCE_POOL 该视图用于在当前连接节点上重建内存中用户的资源池信息，无输出。只在资源池信息缺失或错乱时用作补救措施。查询该视图需要sysadmin权限。 表1 GS_WLM_REBUILD_USER_RESOURCE_POOL字段 名称 类型 描述 gs_wlm_rebuild_user_resource_pool boolean 重建内存中用户资源池信息结果。t为成功，f为失败。",
+      "source_file": "3393_GS_WLM_REBUILD_USER_RESOURCE_POOL.txt"
+    },
+    {
+      "term": "GS_WLM_EC_OPERATOR_HISTORY",
+      "content": "GS_WLM_EC_OPERATOR_HISTORY GS_WLM_EC_OPERATOR_HISTORY GS_WLM_EC_OPERATOR_HISTORY视图显示的是当前用户在当前CN上执行EC（Extension Connector）作业结束后的算子相关记录。此视图查询数据的记录会被定时清理，清理周期为3分钟。查询该视图需要sysadmin权限。 当查询视图无数据显示时，请联系华为工程师提供技术支撑。 当GUC参数 enable_resource_record 为on时，视图中的记录每隔3分钟被转储到系统表 GS_WLM_EC_OPERATOR_INFO 中一次，同时视图中的记录被删除； 当GUC参数 enable_resource_record 为off时，记录在视图中的存留时间达到超期时间（超期时间为3分钟）后会被删除。记录的数据同 GS_WLM_EC_OPERATOR_INFO 的字段。 表1 GS_WLM_EC_OPERATOR_HISTORY字段 名称 类型 描述 queryid bigint EC语句执行使用的内部query_id。 plan_node_id integer EC算子对应的执行计划的plan node id。 start_time timestamp with time zone EC算子处理第一条数据的开始时间。 duration bigint EC算子到结束时候总的执行时间(ms)。 tuple_processed bigint EC算子返回的元素个数。 min_peak_memory integer EC算子在所有DN上的最小内存峰值(MB)。 max_peak_memory integer EC算子在所有DN上的最大内存峰值(MB)。 average_peak_memory integer EC算子在所有DN上的平均内存峰值(MB)。 ec_status text EC作业的执行状态。 ec_execute_datanode text 执行EC作业的DN名称。 ec_dsn text EC作业所使用的DSN。 ec_username text EC作业访问远端集群的USERNAME（远端集群为SPARK类型时该值为空）。 ec_query text EC作业发送给远端集群执行的语句。 ec_libodbc_type text EC作业使用的unixODBC驱动类型。",
+      "source_file": "1674_GS_WLM_EC_OPERATOR_HISTORY.txt"
+    },
+    {
+      "term": "SQL限流能力",
+      "content": "SQL限流能力 SQL限流能力 可获得性 本特性自505.0.0版本开始引入。 特性简介 在数据库系统中，时常会出现某类SQL执行异常，占用较多系统资源，或者出现某类SQL因异常或业务需求并发激增，影响其他业务执行，甚至整个数据库系统无法响应其他业务请求的情况。为了解决该问题， GaussDB 实现了SQL限流的能力，可以从多维度限制某类SQL执行的并发数。 客户价值 当数据库由于某类SQL并发数突增或者长时间执行，导致其他的业务请求无法执行，最终导致数据库无法对外提供服务时，通过本特性能够限制异常SQL的并发数，让正常的业务得到保障，提升系统韧性。 特性描述 本特性可以实现多种规则的SQL限流能力，限制某类SQL或实例的最大并发数，包括： 根据Unique SQL ID进行限流：在明确某条SQL为慢SQL或者占用资源较高的SQL时，可以通过Unique SQL ID对该SQL进行限流，避免业务大量执行此SQL而影响其他业务； 根据SQL类型及关键字进行限流：在明确某类SQL请求可能会随业务量增长而增长的时候，使用SQL类型和关键字对此类SQL进行限流； 由于某些业务高峰是可以预知的，在仅希望在业务高峰时段对SQL请求进行限制的情况下，可以设置SQL限流的生效时间，避免限流规则常驻系统； 当只希望限流规则作用于业务库，而对系统库的SQL不做控制，可以按不同库的维度进行限流； 除了对某类SQL进行限流，本特性还提供实例级别的限流能力； 对于限流规则，提供查询统计的能力，可以查询所有的限流规则，并根据规则列表对限流规则进行管理。此外，还提供查询限流规则限制访问的SQL次数。 特性增强 无 特性约束 当前不支持在备机创建限流规则，但主机创建的限流规则会自动同步到备机生效，待备机日志回放完成后生效。 对于Unique SQL ID限流，需要设置GUC参数enable_resource_track = on，instr_unique_sql_count > 0。 对于关键字限流，按照并发度排序，并发度越低优先级越高。关键字不区分大小写，支持模糊匹配。 数据库名称区分大小写。删除某个数据库，再创建同名的数据库，会导致所有已录入的针对这个数据库的限流规则失效。 基于资源的实例级最大活跃并发数限流，按照并发度排序，并发度越低优先级越高，资源利用率的采集存在10s左右的时间差。 对于限流周期结束的规则，会在下次限流规则触发时将is_valid标记为false，后续不再检查。 对于SQL限流次数的统计没有落盘，是数据库从启动到当前的累计次数。 游标、存储过程中的SQL语句不会被限流。 管理员用户执行的SQL语句不会被限流。 依赖关系 无",
+      "source_file": "4255_SQL.txt"
+    },
+    {
+      "term": "GS_WLM_PLAN_OPERATOR_HISTORY",
+      "content": "GS_WLM_PLAN_OPERATOR_HISTORY GS_WLM_PLAN_OPERATOR_HISTORY GS_WLM_PLAN_OPERATOR_HISTORY视图显示的是当前用户数据库主节点上执行作业结束后的执行计划算子级的相关记录。 记录的数据同 表1 。 当查询视图无数据显示时，请联系华为工程师提供技术支撑。 表1 GS_WLM_PLAN_OPERATOR_HISTORY字段 名称 类型 描述 datname name 收集计划信息所在的database名。 queryid bigint 语句执行使用的内部query_id。 plan_node_id integer 查询对应的执行计划的plan node id。 startup_time bigint 该算子处理第一条数据的开始时间。 total_time bigint 该算子到结束时候总的执行时间（ms）。 actual_rows bigint 实际执行的行数信息。 max_peak_memory integer 当前算子在数据库节点上的最大内存峰值（MB）。 query_dop integer 当前算子执行时的并行度。 parent_node_id integer 当前算子的父节点node id。 left_child_id integer 当前算子的左孩子节点node id。 right_child_id integer 当前算子的右孩子节点node id。 operation text 当前算子进行的操作名称。 orientation text 当前算子的对齐方式。 strategy text 当前算子操作的实现方法。 options text 当前算子操作的选择方式。 condition text 当前算子操作的过滤条件。 projection text 当前算子的映射关系。",
+      "source_file": "3392_GS_WLM_PLAN_OPERATOR_HISTORY.txt"
+    },
+    {
+      "term": "GS_WLM_CGROUP_INFO",
+      "content": "GS_WLM_CGROUP_INFO GS_WLM_CGROUP_INFO GS_WLM_CGROUP_INFO视图显示当前执行作业的控制组的信息 （当前特性是实验室特性，使用时请联系华为技术工程师提供技术支持。） 。 当查询视图无数据显示时，请联系华为工程师提供技术支撑。 表1 GS_WLM_CGROUP_INFO字段 名称 类型 描述 cgroup_name text 控制组的名称。 priority integer 作业的优先级。 usage_percent integer 控制组占用的百分比。 shares bigint 控制组分配的CPU资源配额。 cpuacct bigint CPU配额分配。 cpuset text CPU限额分配。 relpath text 控制组的相对路径。 valid text 该控制组是否有效。",
+      "source_file": "1673_GS_WLM_CGROUP_INFO.txt"
+    },
+    {
+      "term": "PG_APP_WORKLOADGROUP_MAPPING",
+      "content": "PG_APP_WORKLOADGROUP_MAPPING PG_APP_WORKLOADGROUP_MAPPING PG_APP_WORKLOADGROUP_MAPPING系统表提供了数据库负载映射组的信息。 表1 PG_APP_WORKLOADGROUP_MAPPING字段 名称 类型 描述 oid oid 行标识符（隐含属性，必须明确选择）。 appname name 应用名称。 workload_gpname name 映射到的负载组名称。",
+      "source_file": "3213_PG_APP_WORKLOADGROUP_MAPPING.txt"
+    },
+    {
+      "term": "支持I层高时延逃生能力",
+      "content": "支持I层高时延逃生能力 支持I层高时延逃生能力 可获得性 本特性自V500R002C10SPC500版本开始引入。 特性简介 I层异常会导致数据库SQL执行时延升高，进而导致内存或者线程池出现过载问题，针对此场景 GaussDB 提供自动逃生能力。 客户价值 当数据库由于I层异常导致SQL执行时延升高，会话堆积，内存或线程池过载无法对外提供服务时，能够快速实现逃生，短时间内恢复对外提供服务的能力。 特性描述 数据库内存出现过载问题时，快速kill会话并禁止新连接接入，待内存恢复正常状态后恢复对外服务能力。内存过载和恢复正常的内存阈值通过GUC参数resilience_memory_reject_percent设置，默认关闭该功能。 数据库线程池使用率过载时，快速kill会话并禁止新连接接入，待会话数降低到线程池可承受能力时恢复对外服务能力。线程池使用率过载和恢复正常的阈值通过GUC参数resilience_threadpool_reject_cond设置，默认关闭该功能。 特性增强 无。 特性约束 内存或者线程池过载触发逃生能力时，默认不对sysadmin或monitoradmin权限的用户的session做清理操作，若想对sysadmin或monitoradmin权限的用户的session做清理操作，请设置参数resilience_escape_user_permissions，具体请参考resilience_escape_user_permissions的详细描述和使用方法。 升级模式下，不触发该特性功能。 依赖关系 无。",
+      "source_file": "4252_I.txt"
+    },
+    {
+      "term": "GS_WLM_USER_INFO",
+      "content": "GS_WLM_USER_INFO GS_WLM_USER_INFO 用户统计信息视图。 当查询视图无数据显示时，请联系华为工程师提供技术支撑。 表1 GS_WLM_USER_INFO字段 名称 类型 描述 userid oid 用户OID。 username name 用户名。 sysadmin boolean 是否是管理员用户。 rpoid oid 关联的资源池的OID。 respool name 关联的资源池的名称。 parentid oid 用户组的OID。 totalspace bigint 用户的可用空间上限。 spacelimit bigint 用户表空间限制。 childcount integer 子用户的个数。 childlist text 子用户列表。",
+      "source_file": "3394_GS_WLM_USER_INFO.txt"
+    },
+    {
+      "term": "GS_WLM_USER_INFO",
+      "content": "GS_WLM_USER_INFO GS_WLM_USER_INFO 用户统计信息视图。查询该视图需要sysadmin权限。 当前特性是实验室特性，使用时请联系华为技术工程师提供技术支持。 当查询视图无数据显示时，请联系华为工程师提供技术支撑。 表1 GS_WLM_USER_INFO字段 名称 类型 描述 userid oid 用户OID。 username name 用户名。 sysadmin boolean 是否是管理员用户。 t（true）：表示是。 f（false）：表示不是。 rpoid oid 关联的资源池的OID。 respool name 关联的资源池的名称。 parentid oid 用户组的OID。 totalspace bigint 用户的可用空间上限。 spacelimit bigint 用户表空间限制。 childcount integer 子用户的个数。 childlist text 子用户列表。",
+      "source_file": "1677_GS_WLM_USER_INFO.txt"
+    },
+    {
+      "term": "GS_WLM_EC_OPERATOR_STATISTICS",
+      "content": "GS_WLM_EC_OPERATOR_STATISTICS GS_WLM_EC_OPERATOR_STATISTICS GS_WLM_EC_OPERATOR_STATISTICS视图显示当前用户正在执行的EC（Extension Connector）作业的算子相关信息。查询该视图需要sysadmin权限。 当查询视图无数据显示时，请联系华为工程师提供技术支撑。 表1 GS_WLM_EC_OPERATOR_STATISTICS字段 名称 类型 描述 queryid bigint EC语句执行使用的内部query_id。 plan_node_id integer EC算子对应的执行计划的plan node id。 start_time timestamp with time zone EC算子处理第一条数据的开始时间。 ec_status text EC作业的执行状态。 EC_STATUS_INIT：初始化。 EC_STATUS_CONNECTED：已连接。 EC_STATUS_EXECUTED：已执行。 EC_STATUS_FETCHING：获取中。 EC_STATUS_END：已结束。 ec_execute_datanode text 执行EC作业的DN名称。 ec_dsn text EC作业所使用的DSN。 ec_username text EC作业访问远端集群的USERNAME（远端集群为SPARK类型时该值为空）。 ec_query text EC作业发送给远端集群执行的语句。 ec_libodbc_type text EC作业使用的unixODBC驱动类型。 类型1：对应 libodbc.so.1。 类型2：对应 libodbc.so.2。 ec_fetch_count bigint EC作业当前处理的数据条数。",
+      "source_file": "1675_GS_WLM_EC_OPERATOR_STATISTICS.txt"
+    }
+  ]
+}

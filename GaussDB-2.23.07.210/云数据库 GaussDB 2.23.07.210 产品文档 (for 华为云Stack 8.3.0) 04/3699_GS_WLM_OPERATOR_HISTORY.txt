@@ -1,0 +1,1 @@
+GS_WLM_OPERATOR_HISTORY GS_WLM_OPERATOR_HISTORY GS_WLM_OPERATOR_HISTORY视图显示的是当前用户在当前数据库主节点上执行作业结束后的算子的相关记录。查询该视图需要sysadmin权限。 记录的数据同表 表1 。 当查询视图无数据显示时，请联系华为工程师提供技术支撑。 父主题： 系统视图 版权所有 © 华为技术有限公司

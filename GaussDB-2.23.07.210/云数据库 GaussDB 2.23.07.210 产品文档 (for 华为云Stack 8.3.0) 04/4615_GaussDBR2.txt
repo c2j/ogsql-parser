@@ -1,0 +1,1 @@
+GaussDB内核R2版本 GaussDB 内核R2版本 - Ustore增加新的基于原位更新的行存储引擎Ustore，首次实现新、旧版本的记录的分离存储。 - Ustore增加回滚段模块。 - Ustore增加回滚过程，支持同步/异步/页内模式。 - Ustore增加支持事务的增强版本B-tree。 - Astore增加闪回功能，支持闪回表/闪回查询/闪回Drop/闪回Truncate。 - Ustore不支持的特性包括分布式并行查询/Table Sampling/Global Temp Table/在线创建/重建索引/极致RTO/Vacuum Full/列约束DEFERRABLE以及INITIALLY DEFERRED。 父主题： 存储引擎更新说明 版权所有 © 华为技术有限公司

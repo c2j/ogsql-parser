@@ -1,0 +1,106 @@
+{
+  "topic": "数据库编程规范",
+  "term_count": 20,
+  "terms": [
+    {
+      "term": "WHERE",
+      "content": "WHERE WHERE 【规则】禁止在WHERE条件相同表字段进行相互比较 【规则】禁止WHERE条件涉及隐式数据类型转换 【规则】禁止WHERE 条件字段使用表达式或是函数 【规则】表查询时，WHERE条件中应包含所有分布键字段等值查询条件，否则将在多个节点上进行查询，影响系统并发度和性能。 【规则】查询条件中与NULL做比较时，禁止使用“！=”比较符，应使用IS NULL或IS NOT NULL 【规则】查询条件中禁止对索引字段使用“!= ”比较符，避免索引失效 【规则】查询条件的索引字段上禁止与NULL（IS NULL和IS NOT NULL）进行比较 【规则】查询条件的索引字段上禁止NOT 【规则】查询条件的索引字段上禁止NOT IN 【规则】模糊查询LIKE语句，%不应放在首字符位置 【建议】WHERE条件中IN的候选子集不易过大，建议不超过500 【建议】WHERE条件中IN的候选子集不为常量，而是表中的列时，建议改写为子查询 【建议】多使用等值操作，少使用非等值操作",
+      "source_file": "520_WHERE.txt"
+    },
+    {
+      "term": "DELETE",
+      "content": "DELETE DELETE 【规格】在GMT-FREE模式下，不允许跨节点事务，因此删除HASH分布表中数据时，必须在WHERE条件中指定分布列等值过滤条件 【规格】不支持多表删除 【规则】DELETE语句中必须有WHERE子句，避免全表扫描 【规则】DELETE语句中使用ORDER BY、GROUP BY子句，避免不必要的排序 【规则】如果需要清空一张表，建议使用TRUNCATE，而不是DELETE 【建议】DELETE有主键或索引的表，WHERE条件应结合主键或索引，提高执行效率",
+      "source_file": "553_DELETE.txt"
+    },
+    {
+      "term": "DELETE",
+      "content": "DELETE DELETE 【规则】DELETE语句中必须有WHERE子句，避免全表扫描 【规则】DELETE语句中使用ORDER BY、GROUP BY子句，避免不必要的排序 【规则】如果需要清空一张表，建议使用TRUNCATE，而不是DELETE 【建议】DELETE有主键或索引的表，WHERE条件应结合主键或索引，提高执行效率",
+      "source_file": "690_DELETE.txt"
+    },
+    {
+      "term": "UPDATE",
+      "content": "UPDATE UPDATE 【规则】UPDATE语句中必须有WHERE子句，避免全表扫描 【规则】不允许在UPDATE子句同时更新多个列时，被更新列同样是更新源 【规则】UPDATE语句中使用ORDER BY、GROUP BY子句，避免不必要的排序 【建议】有主键/索引的表，更新时WHERE条件应结合主键/索引",
+      "source_file": "685_UPDATE.txt"
+    },
+    {
+      "term": "GUC参数编程规范",
+      "content": "GUC参数编程规范 GUC参数编程规范 【规则】客户端（如JDBC）应使用默认参数执行查询，如果需要修改会话级别的GUC参数，应谨慎评估",
+      "source_file": "657_GUC.txt"
+    },
+    {
+      "term": "UPDATE",
+      "content": "UPDATE UPDATE 【规格】在GTM-FREE模式下，不允许跨节点事务，因此更新HASH分布中数据表时WHERE条件中必须指定分布列等值过滤条件 【规格】不支持多表更新 【规则】UPDATE语句中必须有WHERE子句，避免全表扫描 【规则】不允许在UPDATE子句同时更新多个列时，被更新列同样是更新源 【规则】UPDATE语句中使用ORDER BY、GROUP BY子句，避免不必要的排序 【建议】有主键/索引的表，更新时WHERE条件应结合主键/索引",
+      "source_file": "546_UPDATE.txt"
+    },
+    {
+      "term": "GUC参数编程规范",
+      "content": "GUC参数编程规范 GUC参数编程规范 【规则】客户端（如JDBC）应使用默认参数执行查询，如果需要修改会话级别的GUC参数，应谨慎评估",
+      "source_file": "515_GUC.txt"
+    },
+    {
+      "term": "SELECT",
+      "content": "SELECT SELECT 【规则】SELECT语句中禁止通配符字段“*” 【规则】带有LIMIT的查询语句中必须带有ORDER BY保证有序 【规则】避免对大字段（如VARCHAR(2000)）执行ORDER BY、DISTINCT、GROUP BY、UNION等会引起排序的操作 【规则】禁止使用LOCK TABLE语句加锁，使用 SELECT .. FOR UPDATE语句 【建议】避免在SELECT目标列中使用子查询，可能导致计划无法下推到DN执行，影响执行性能 【建议】考虑使用UNION ALL，少使用UNION，注意考虑去重 【建议】避免频繁使用下使用count()获取大表行数，该操作资源消耗较大，影响并行作业执行效率",
+      "source_file": "534_SELECT.txt"
+    },
+    {
+      "term": "事务",
+      "content": "事务 事务 【规格】大对象操作不支持事务 【规则】通过JDBC客户端接入时，关闭autocommit参数，显式的执行事务的COMMIT 【规则】通过JDBC接入数据库时，避免拼接多条SQL为一条语句发送执行",
+      "source_file": "709_file_709.txt"
+    },
+    {
+      "term": "WHERE",
+      "content": "WHERE WHERE 【规则】禁止在WHERE条件相同表字段进行相互比较 【规则】禁止WHERE条件涉及隐式数据类型转换 【规则】禁止WHERE 条件字段使用表达式或是函数 【规则】查询条件中与NULL做比较时，禁止使用“！=”比较符，应使用IS NULL或IS NOT NULL 【规则】查询条件中禁止对索引字段使用“!= ”比较符，避免索引失效 【规则】查询条件的索引字段上禁止与NULL（IS NULL和IS NOT NULL）进行比较 【规则】查询条件的索引字段上禁用NOT 【规则】查询条件的索引字段上禁用NOT IN 【规则】模糊查询LIKE语句，%不应放在首字符位置 【建议】WHERE条件中IN的候选子集不易过大，建议不超过500 【建议】WHERE条件中IN的候选子集不为常量，而是表中的列时，建议改写为子查询 【建议】多使用等值操作，少使用非等值操作",
+      "source_file": "662_WHERE.txt"
+    },
+    {
+      "term": "关联查询",
+      "content": "关联查询 关联查询 【规则】多表关联嵌套深度小于8 【规则】表关联查询必须明确指定各表的连接条件（ON），以避免产生笛卡尔积 【规则】关联时，应该根据SQL标准指明连接方式，避免直接使用JOIN关键词，而是使用CROSS JOIN、INNER JOIN、LEFT JOIN、RIGHT JOIN等 【规则】多表关联查询时, 对表添加使用别名，保证语句逻辑清晰，便于维护 【建议】不同字段的比较开销不同，关联字段应尽量使用比较效率高的字段类型 【建议】关联字段应为相同数据类型，避免存在隐式类型转换影响执行效率 【建议】少用嵌套子查询，尽量使用表关联，因为子查询会产生临时表，对SQL性能影响较大 【建议】对于关联列上存在大量NULL值的情况，建议在WHERE条件中增加关联列IS NOT NULL的过滤条件，能够提升执行效率",
+      "source_file": "695_file_695.txt"
+    },
+    {
+      "term": "对象访问编程规范",
+      "content": "对象访问编程规范 对象访问编程规范 【规则】用户对对象进行操作时，应对该对象拥有操作权限 【规则】访问对象（表，函数等）时建议带上SCHEMA名称，即使用schemaname.tablename进行访问",
+      "source_file": "659_file_659.txt"
+    },
+    {
+      "term": "子查询",
+      "content": "子查询 子查询 【规则】禁止一条SQL语句中，出现重复子查询语句 【建议】少用标量子查询 【建议】避免在SELECT目标列中使用子查询，可能导致计划无法下推影响执行性能 【建议】子查询嵌套深度不建议超过2层",
+      "source_file": "569_file_569.txt"
+    },
+    {
+      "term": "SELECT",
+      "content": "SELECT SELECT 【规则】SELECT语句中通配符字段“*” 【规则】避免对大字段（如VARCHAR(2000)）执行ORDER BY、DISTINCT、GROUP BY、UNION等会引起排序的操作 【规则】LOCK TABLE语句加锁，使用 SELECT .. FOR UPDATE语句 【建议】考虑使用UNION ALL，少使用UNION，注意考虑去重 【建议】避免频繁使用下使用count()获取大表行数，该操作资源消耗较大，影响并行作业执行效率",
+      "source_file": "675_SELECT.txt"
+    },
+    {
+      "term": "INSERT",
+      "content": "INSERT INSERT 【规格】INSERT ON DUPLICATE KEY UPDATE不支持对主键或唯一约束的列上执行UPDATE 【规则】对存在多个唯一约束的表执行INSERT ON DUPLICATE KEY UPDATE 【建议】对于批量插入的情况，建议使用executeBatch执行INSERT INTO VALUES (?)，执行效率将高于执行多条INSERT INTO VALUES(?)或INSERT INTO VALUES(?),...,(?)",
+      "source_file": "681_INSERT.txt"
+    },
+    {
+      "term": "对象访问编程规范",
+      "content": "对象访问编程规范 对象访问编程规范 【规则】用户对对象进行操作时，应对该对象拥有操作权限 【规则】访问对象（表，函数等）时建议带上SCHEMA名称，即使用schemaname.tablename进行访问",
+      "source_file": "517_file_517.txt"
+    },
+    {
+      "term": "INSERT",
+      "content": "INSERT INSERT 【规格】INSERT ON DUPLICATE KEY UPDATE不支持对主键或唯一约束的列上执行UPDATE 【规则】对存在多个唯一约束的表执行INSERT ON DUPLICATE KEY UPDATE 【建议】对于批量插入的情况，建议使用executeBatch执行INSERT INTO VALUES (?)，执行效率将高于执行多条INSERT INTO VALUES(?)或INSERT INTO VALUES(?),...,(?)",
+      "source_file": "542_INSERT.txt"
+    },
+    {
+      "term": "关联查询",
+      "content": "关联查询 关联查询 【规则】多表关联嵌套深度小于8 【规则】表关联查询必须明确指定各表的连接条件（ON），以避免产生笛卡尔积 【规则】关联时，应该根据SQL标准指明连接方式，避免直接使用JOIN关键词，而是使用CROSS JOIN、INNER JOIN、LEFT JOIN、RIGHT JOIN等 【规则】多表关联查询时, 对表添加使用别名，保证语句逻辑清晰，便于维护 【建议】不同字段的比较开销不同，关联字段应尽量使用比较效率高的字段类型 【建议】关联字段应为相同数据类型，避免存在隐式类型转换影响执行效率 【建议】少用嵌套子查询，尽量使用表关联，因为子查询会产生临时表，对SQL性能影响较大 【建议】对于关联列上存在大量NULL值的情况，建议在WHERE条件中增加关联列IS NOT NULL的过滤条件，能够提升执行效率",
+      "source_file": "560_file_560.txt"
+    },
+    {
+      "term": "子查询",
+      "content": "子查询 子查询 【规则】禁止一条SQL语句中，出现重复子查询语句 【建议】少用标量子查询 【建议】避免在SELECT目标列中使用子查询，可能导致计划无法下推影响执行性能 【建议】子查询嵌套深度不建议超过2层",
+      "source_file": "704_file_704.txt"
+    },
+    {
+      "term": "事务",
+      "content": "事务 事务 【规格】在GTM-FREE模式下，不允许执行跨节点事务 【规格】大对象操作不支持事务 【规则】通过JDBC客户端接入时，关闭autocommit参数，显式的执行事务的COMMIT 【规则】通过JDBC接入数据库时，避免拼接多条SQL为一条语句发送执行",
+      "source_file": "574_file_574.txt"
+    }
+  ]
+}

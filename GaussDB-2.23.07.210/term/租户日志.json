@@ -1,0 +1,101 @@
+{
+  "topic": "租户日志",
+  "term_count": 19,
+  "terms": [
+    {
+      "term": "收集日志",
+      "content": "收集日志 收集日志 租户节点日志可通过 “日常运维” 或 “资源监控” 页签中获取，以下两种方式任选其一即可。 日志下载过程中，可能由于系统轮转等原因，日志内容发生改变，导致日志压缩过程失败，遇到压缩失败的情况，请重新下载该节点的日志。 由于日志存储服务器大小和带宽限制，单次下载任务只能收集未压缩之前大小不超过1G的日志文件，所以下载日志的时候请选择所需日志和所需时间，不要一次下载所有时间的所有日志。 通过云服务运维页面获取 使用浏览器，通过地址“https:// ManageOne运维面主页的访问地址 :31943”，登录ManageOne运维面，或通过地址“https:// ManageOne主门户的访问地址 ”，登录ManageOne主门户，选择“运维中心（OC）”，进入ManageOne运维面。 密码方式：输入帐号和密码。 默认帐号：bss_admin 如果是升级场景，默认帐号为admin。 默认密码：参见 《华为云Stack 8.3.0 帐户一览表》 的“A类（Portal）”页签中，“ManageOne运维面”帐户对应的默认密码。 USB Key方式：插入已预置用户证书的USB Key，选择设备和用户证书，并输入PIN码 单击“登录”。 在页面左上角，选择对应云服务，进入云服务资源管理页面。 单击带有对应region id（如sa-fb-1）的云服务名称，进入云服务详情页面。 单击左侧 “运行日志” ，列表中展示预置场景模板、管理面及租户面日志。 选择 “ 租户面 > 节点日志 ” ，左侧列表选择一个或多个虚拟机，右侧选择日志类型,勾选需要下载的日志路径，单击 “下载” 。 图1 下载日志 填写任务名称，选择时间段后，单击“确定”。 通过日常运维页签获取 使用浏览器，通过地址“https:// ManageOne运维面主页的访问地址 :31943”，登录ManageOne运维面，或通过地址“https:// ManageOne主门户的访问地址 ”，登录ManageOne主门户，选择“运维中心（OC）”，进入ManageOne运维面。 密码方式：输入帐号和密码。 默认帐号：bss_admin 如果是升级场景，默认帐号为admin。 默认密码：参见 《华为云Stack 8.3.0 帐户一览表》 的“A类（Portal）”页签中，“ManageOne运维面”帐户对应的默认密码。 USB Key方式：插入已预置用户证书的USB Key，选择设备和用户证书，并输入PIN码 单击“登录”。 选择 “ 日常运维 > 统一日志 > 运行日志 ” ，单击 “ 租户侧管理节点运行日志下载 > 新增日志下载任务 ” 。 填写任务名称，选择对应云服务、区域、需要下载的组件、合理的时间段、需要收集的日志路径，在虚拟机列表中选择一个或多个虚拟机，单击“确定”，等待任务完成。 合理的时间段：日志的时间段不得大于7天。选择时间段指日志文件最后归档时间，并不是日志产生的时间，如果日志文件尚未归档，选择最近时间段进行下载。 虚拟机：搜索框中按名称、私有IP、ID搜索虚拟机。 完成任务后，在列表页面单击“下载”，即可下载对应的日志。",
+      "source_file": "5526_file_5526.txt"
+    },
+    {
+      "term": "agent_sudo.log",
+      "content": "agent_sudo.log agent_sudo.log 日志含义 管理面sudo权限操作日志。通过查看该日志，系统管理人员与系统维护人员可以查看节点上管理面使用sudo进行的操作，从而快速定位问题。 日志命名 日志文件名：agent_sudo.log.* 日志格式 日志的格式如下： [时间][级别][模块][任务流ID][来源][具体内容][位置] 日志参数 表1 日志参数 字段名称 字段含义 级别 日志的级别：分为INFO，WARN，ERROR 时间 日志生成的时间，格式：yyyy-mm-dd hh:mm:ss:ms 来源 上报日志的进程和线程号 模块 打印日志的进程模块名称 具体内容 日志具体的内容 位置 打印日志的具体代码位置 任务流ID 任务流ID 日志示例 日志的典型样例： 下边是设置iptables白名单的日志示例。 [2021-08-05 23:50:21,918 +10][INFO][sudo][][P29345T140407694505792][execute iptables rule 'iptables   -I INPUT -p tcp --dport 20050 -d 192.168.33.207 -j ACCEPT'][execute_iptables_rule(os_manage_exec.py:1677)]",
+      "source_file": "5533_agent_sudo.log.txt"
+    },
+    {
+      "term": "sysmonitor.log",
+      "content": "sysmonitor.log sysmonitor.log 日志含义 信号监控日志，当进程被信号异常终止时，通过记录信号发送的进程以及发送的信号以便于问题定位。 日志命名 日志文件名：sysmonitor.log.* 日志格式 日志的格式如下： [时间][模块][进程号][来源][父进程来源][具体内容][具体内容执行进程号] 日志参数 表1 日志参数 字段名称 字段含义 模块 sysmonitor 进程号 sysmonitor进程号 时间 日志生成的时间，格式：LOC yyyy-mm-dd hh:mm:ss:ms。 来源 具体执行命令及进程ID。 父进程来源 具体执行命令的父进程命令及进程ID 具体内容 日志具体的内容。 具体内容执行进程号 具体内容执行进程号 日志示例 日志的典型样例： 下边是查询任务下发打印的日志示例。 [LOC 2021-08-29:02:11:27]sysmonitor[1444]: comm:kill exe:kill[30171](parent comm:xargs parent exe:xargs[30170]) send SIGKILL to comm:python exe:python2.7[1985]",
+      "source_file": "5542_sysmonitor.log.txt"
+    },
+    {
+      "term": "watch_dog.log",
+      "content": "watch_dog.log watch_dog.log 日志含义 管理面数据库健康状态查询操作日志。通过查看该日志，系统管理人员与系统维护人员可以查看节点数据库状态，从而快速定位问题。 日志命名 日志文件名：watch_dog.log.* 日志格式 日志的格式如下： [时间][级别][模块][任务流ID][来源][具体内容][位置] 日志参数 表1 日志参数 字段名称 字段含义 级别 日志的级别：分为INFO，WARN，ERROR 时间 日志生成的时间，格式：yyyy-mm-dd hh:mm:ss:ms 来源 上报日志的进程和线程号 模块 打印日志的进程模块名称 具体内容 日志具体的内容 位置 打印日志的具体代码位置 任务流ID 任务流ID 日志示例 日志的典型样例： 下边是数据库状态查询打印的日志示例。 [2021-08-30 22:45:43,336 +10][INFO][agent][][P27305T140595897251648][node_info : dbStatus {\n  nodeId: \"e66bd15fed6045b68ef1ef33a4ce6c30no14\"\n  role: STANDBY\n  state: WRITABLE\n  groupState: RUNNING\n  errmsg: \"SUCCESS\"\n}\ngaussV5DnStatus {\n  dbObjId: 6003\n  role: STANDBY\n  state: WRITABLE\n}\ngaussV5Repl {\n  gaussV5DnReplStatus {\n    state: SYNCING\n  }\n}\n][check_node_db_status(check_status.py:72)]",
+      "source_file": "5531_watch_dog.log.txt"
+    },
+    {
+      "term": "agent.log",
+      "content": "agent.log agent.log 日志含义 管理面Agent操作日志。通过查看该日志，系统管理人员与系统维护人员可以查看节点agent任务状态，从而快速定位问题。 日志命名 日志文件名：agent.log.* 日志格式 日志的格式如下： [时间][级别][模块][任务流ID][来源][具体内容][位置] 日志参数 表1 日志参数 字段名称 字段含义 级别 日志的级别：分为INFO，WARNING，ERROR 时间 日志生成的时间，格式：yyyy-mm-dd hh:mm:ss:ms 来源 上报日志的进程和线程号 模块 打印日志的进程模块名称 具体内容 日志具体的内容 位置 打印日志的具体代码位置 日志示例 日志的典型样例： 下边是查询任务下发打印的日志示例。 [2021-08-18 13:32:32,059 +10][INFO][agent][queryGroupState-86458c30-d825-45cd-a274-d36dfa8f4eaa-99d6][P26912T139861669529872][Send query status request to node[192.168.51.13:20050]][query_group_state(engine_controller.py:1320)]",
+      "source_file": "5527_agent.log.txt"
+    },
+    {
+      "term": "内核agent日志",
+      "content": "内核agent日志 内核agent日志 日志含义 内核Om Agent操作日志。通过查看该日志，系统管理人员与系统维护人员可以查看节点om agent任务状态，从而快速定位问题。 日志命名 日志文件名：agent.log.* 日志格式 日志的格式如下： [任务流ID][时间][级别][模块][位置][具体内容] 日志参数 表1 日志参数 字段名称 字段含义 任务流ID 任务追踪的traceID 时间 日志生成的时间，格式：yyyy-mm-dd hh:mm:ss:ms 级别 日志的级别：分为DEBUG，INFO，WARNING，ERROR 模块 打印日志的进程模块名称 位置 打印日志的具体代码位置 具体内容 日志具体的内容 日志示例 日志的典型样例： 下边是查询任务下发打印的日志示例。 139dd958169111ecb7edfa163e3ee6ba 2021-09-16 09:54:49,687 [DEBUG] checkOmRollback(omRollback:434) Success to check the om code is rolled back successfully",
+      "source_file": "5543_agent.txt"
+    },
+    {
+      "term": "audit.log",
+      "content": "audit.log audit.log 日志含义 系统审计服务日志，用于记录关键系统调用，可以用于审计系统操作，从而快速定位问题。 日志命名 日志文件名：audit.log.* 日志格式 日志的格式如下： [type][msg][arch][syscall][success][exit][pid] 日志参数 表1 日志参数 字段名称 字段含义 type 每条记录都是以type=“keyword”开头，例如：SYSCALL表示这条记录是向内核的系统调用触发产生的。 msg 在audit(time_stamp:ID)格式中，记录时间戳，从1970年1月1日00:00:00到现在的时间，ID为记录中唯一的ID标识，同一个事件产生的ID是相同的，如上访问audit_test目录会触发产生三条日志，但是事件ID是相同的。 arch 表示系统的CPU架构，这个十六进制表示“x86_64”，使用命令ausearch -i --arch c000003e可以打印出有这部分内容的audit.log中日志的解释。需要注意的是，使用ausearch来查询时，需要保证audit log中有这样的日志记录。 syscall 向内核的系统调用的类型，类型值为257，在/usr/include/asm/unistd_64.h中有定义，这里257表示openat，可以使用命令ausyscall来查询不同的数字对应的系统调用名称。或者使用ausyscall --dump命令来显示所有的系统调用。 success 表示系统调用成功与否 exit 系统调用结束时的返回码，可以使用如下命令来查看返回值为3的日志解释，不同的系统调用，返回值不同。 pid 进程Id，即为ls进程的ID。 日志示例 日志的典型样例： 下边是查询任务下发打印的日志示例。 type=SYSCALL msg=audit(1523501777.709:4172989316): arch=c000003e syscall=257 success=yes exit=3 a0=ffffffffffffff9c a1=10ce550 a2=90800 a3=0 items=1 ppid=2354 pid=30729 auid=0 uid=1001 gid=1001 euid=1001 suid=1001 fsuid=1001 egid=1001 sgid=1001 fsgid=1001 tty=pts1 ses=9870 comm=\"ls\" exe=\"/usr/bin/ls\" key=\"audit_test\"",
+      "source_file": "5541_audit.log.txt"
+    },
+    {
+      "term": "kafka_client.log",
+      "content": "kafka_client.log kafka_client.log 日志含义 管理面Kafka消息发送日志。通过查看该日志，系统管理人员与系统维护人员可以定位节点上kafka组件是否异常，从而判断整个采集通道，是组件采集失败，还是kafka发送失败，还是后续的kafka消费失败，从而快速定位问题。 日志命名 日志文件名：kafka_client.log.* 日志格式 日志的格式如下： [时间][级别][模块][任务流ID][来源][具体内容][位置] 日志参数 表1 日志参数 字段名称 字段含义 级别 日志的级别：分为INFO，WARN，ERROR 时间 日志生成的时间，格式：yyyy-mm-dd hh:mm:ss:ms 来源 上报日志的进程和线程号 模块 打印日志的进程模块名称 具体内容 日志具体的内容 位置 打印日志的具体代码位置 任务流ID 任务流ID 日志示例 日志的典型样例： 下边是查询任务下发打印的日志示例。 [2021-08-18 13:32:32,059 +10][INFO][agent][queryGroupState-86458c30-d825-45cd-a274-d36dfa8f4eaa-99d6][P26912T139861669529872][Send query status request to node[192.168.51.13:20050]][query_group_state(engine_controller.py:1320)]",
+      "source_file": "5532_kafka_client.log.txt"
+    },
+    {
+      "term": "ops_metric_result.log",
+      "content": "ops_metric_result.log ops_metric_result.log 日志含义 管理面ops监控指标采集结果日志。通过查看该日志，系统管理人员与系统维护人员可以查看节点ops监控指标的采集结果，从而快速定位问题。 日志命名 日志文件名：ops_metric_result.log.* 日志格式 json格式，关键字段有： [projectId][nodeId][instanceId][namespace][time][rds***_***] 日志参数 表1 日志参数 字段名称 字段含义 projectId 项目ID nodeId 节点ID instanceId 实例ID namespace 命名空间，日志所属服务 time 采集时间 rds***_*** 指标名称 日志示例 日志的典型样例： 下边是查询任务下发打印的日志示例。 {\"projectId\":\"054b61972980d4552f0bc00ac8d3f5cd\",\"nodeId\":\"e66bd15fed6045b68ef1ef33a4ce6c30no14\",\"instanceId\":\"42903cec0379402a9cecccec42ed0b25in14\",\"process_number\":\"1\",\"namespace\":\"gaussdbv5\",\"rds126_xlog_num\":[{'value': [{'dn_6003': 133}, {'metric_alarm_value': 133}, {'metric_alarm_name': 'dn_6003'}], 'time': '1630317702000'}]}",
+      "source_file": "5536_ops_metric_result.log.txt"
+    },
+    {
+      "term": "obs_utils.log",
+      "content": "obs_utils.log obs_utils.log 日志含义 管理面obs操作日志。通过查看该日志，系统管理人员与系统维护人员可以查看节点obs任务状态，从而快速定位问题。 日志命名 日志文件名：obs_utils.log.* 日志格式 日志的格式如下： [时间][级别][模块][任务流ID][来源][具体内容][位置] 日志参数 表1 日志参数 字段名称 字段含义 级别 日志的级别：分为INFO，WARN，ERROR 时间 日志生成的时间，格式：yyyy-mm-dd hh:mm:ss:ms。 来源 上报日志的进程和线程号。 模块 打印日志的进程模块名称 具体内容 日志具体的内容。 位置 打印日志的具体代码位置 任务流ID 任务流ID 日志示例 日志的典型样例： 下边是下载任务校验下载文件大小打印的日志示例。 [2021-08-05 21:47:53,119 CST][INFO][agent][][P25622T140586866521920][Download file size is 8255699. Same with conten length from obs][download_file(obs_utils_v3.py:821)]",
+      "source_file": "5537_obs_utils.log.txt"
+    },
+    {
+      "term": "request_agent.log",
+      "content": "request_agent.log request_agent.log 日志含义 8.0.3及以前版本，管理面Agent部分操作日志（如备份、增备等日志打印所在），之后版本统一收编到agent.log。通过查看该日志，系统管理人员与系统维护人员可以查看节点agent备份任务状态，从而快速定位问题。 日志命名 日志文件名：request_agent.log.* 日志格式 日志的格式如下： [时间][级别][模块][任务流ID][来源][具体内容][位置] 日志参数 表1 日志参数 字段名称 字段含义 级别 日志的级别：分为INFO，WARN，ERROR 时间 日志生成的时间，格式：yyyy-mm-dd hh:mm:ss:ms 来源 上报日志的进程和线程号 模块 打印日志的进程模块名称 具体内容 日志具体的内容 位置 打印日志的具体代码位置 任务流ID 任务流ID 日志示例 日志的典型样例： 下边是备份任务下发打印的日志示例。 [2021-08-18 13:32:32,059 +10][INFO][agent][exportDB-86458c30-d825-45cd-a274-d36dfa8f4eaa-99d6][P26912T139861669529872][Send backup request to node[192.168.51.13:20050]][backup(engine_controller.py:1320)]",
+      "source_file": "5530_request_agent.log.txt"
+    },
+    {
+      "term": "audit_service.log",
+      "content": "audit_service.log audit_service.log 日志含义 管理面审计日志采集服务操作日志。通过查看该日志，系统管理人员与系统维护人员可以查看数据库审计日志、慢日志等采集任务状态，从而快速定位问题。 日志命名 日志文件名：audit_service.log.* 日志格式 日志的格式如下： [时间][级别][模块][任务流ID][来源][具体内容][位置] 日志参数 表1 日志参数 字段名称 字段含义 级别 日志的级别：分为INFO，WARN，ERROR 时间 日志生成的时间，格式：yyyy-mm-dd hh:mm:ss:ms。 来源 上报日志的进程和线程号。 模块 打印日志的进程模块名称 具体内容 日志具体的内容。 位置 打印日志的具体代码位置 任务流ID 任务流ID 日志示例 日志的典型样例： 下边是开启审计日志任务打印的日志示例。 [2021-08-18 13:32:32,059 +10][INFO][audit_service][][P26912T139861669529872][Update feature switch and node info.][check_and_update_db_info(audit_log_service.py:320)]",
+      "source_file": "5539_audit_service.log.txt"
+    },
+    {
+      "term": "asyncJobResult.dat",
+      "content": "asyncJobResult.dat asyncJobResult.dat 日志含义 管理面Agent异步操作结果日志。通过查看该日志，系统管理人员与系统维护人员可以快速查看异步结果文件的开始和结束时间，以及任务结果和任务工作流ID，从而快速定位问题。 日志命名 日志文件名：asyncJobResult.dat 日志格式 日志的格式如下： [任务流ID][状态][任务名称][开始时间][结束时间][任务结果] 日志参数 表1 日志参数 字段名称 字段含义 任务流ID 任务流ID 状态 任务状态， 0：运行中  1：运行成功 2：运行失败 任务名称 任务名称 开始时间 任务开始时间：yyyy-mm-dd hh:mm:ss 结束时间 任务结束时间：yyyy-mm-dd hh:mm:ss 任务结果 任务结果的返回信息 日志示例 日志的典型样例： 下边是安装任务打印的日志示例。 [preInstallDb-d54ff24b-384c-4f6b-999c-e499d3bc7813]\nstate = 1\ntask = MSG_INSTANCE_MNG_INITDB\nstarttime = 2021-08-05 21:49:19\nendtime = 2021-08-05 23:52:26\nresult = preinstall success",
+      "source_file": "5528_asyncJobResult.dat.txt"
+    },
+    {
+      "term": "messages",
+      "content": "messages messages 日志含义 操作系统核心组件系统日志。通过查看该日志，系统管理人员与系统维护人员可以查看节点操作系统核心服务状态，从而快速定位问题。 日志命名 日志文件名：messages.* 日志格式 日志的格式如下： [时间][主机名][服务][具体内容] 日志参数 表1 日志参数 字段名称 字段含义 时间 日志生成的时间，格式：yyyy-mm-dd hh:mm:ss:ms。 主机名 打印日志的主机名称。 服务 打印日志的系统服务 具体内容 日志具体的内容。 日志示例 日志的典型样例： 下边是系统dhcp服务打印的日志示例。 2021-08-30T21:23:41.861493+10:00 host-192-168-33-207 dhclient[23660]: DHCPREQUEST on eth1 to 10.0.255.254 port 67 (xid=0x7c227b7f)",
+      "source_file": "5540_messages.txt"
+    },
+    {
+      "term": "内核日志介绍",
+      "content": "内核日志介绍 内核日志介绍 日志路径：/var/lib/log/Ruby 在数据库运行过程中，会出现大量日志，既有保证数据库安全可靠的WAL日志（预写式日志，也称为Xlog），也有用于数据库日常维护的运行和操作日志等。在数据库发生故障时，可以参考这些日志进行问题定位和数据库恢复的操作。",
+      "source_file": "5544_file_5544.txt"
+    },
+    {
+      "term": "agent_process_monitor.log",
+      "content": "agent_process_monitor.log agent_process_monitor.log 日志含义 管理面Agent升级日志。通过查看该日志，系统管理人员与系统维护人员可以查看节点agent升级状态，从而快速定位问题。 日志命名 日志文件名：agent_process_monitor.log.* 日志格式 日志的格式如下： [时间][级别][模块][任务流ID][来源][具体内容][位置] 日志参数 表1 日志参数 字段名称 字段含义 级别 日志的级别：分为INFO，WARN，ERROR 时间 日志生成的时间，格式：yyyy-mm-dd hh:mm:ss:ms 来源 上报日志的进程和线程号 模块 打印日志的进程模块名称 具体内容 日志具体的内容 位置 打印日志的具体代码位置 任务流ID 任务流ID 日志示例 日志的典型样例： 下边是agent升级过程重启进程打印的日志示例。 [2021-08-06 01:50:21,042][INFO][monitor][24003][140235224602432][agent_monitor.py][agent_monitor][kill_existed_process][1336][ready to kill_processwatchdog.py]",
+      "source_file": "5535_agent_process_monitor.log.txt"
+    },
+    {
+      "term": "ha_check_status.log",
+      "content": "ha_check_status.log ha_check_status.log 日志含义 管理面高可用组件HA通信消息日志。通过查看该日志，系统管理人员与系统维护人员可以查看各个时间各类网络、磁盘、数据库等的健康状态，从而快速定位问题。 日志命名 日志文件名：ha_check_status.log.* 日志格式 日志的格式如下： [时间][级别][模块][任务流ID][来源][具体内容][位置] 日志参数 表1 日志参数 字段名称 字段含义 级别 日志的级别：分为INFO，WARN，ERROR 时间 日志生成的时间，格式：yyyy-mm-dd hh:mm:ss:ms。 来源 上报日志的进程和线程号。 模块 打印日志的进程模块名称 具体内容 日志具体的内容。 位置 打印日志的具体代码位置 任务流ID 任务流ID 日志示例 日志的典型样例： 下边是节点磁盘及数据库状态的日志示例。 [2021-08-30 19:23:39,066 +10][INFO][ha_status][][P25123T140558569338672][dbStatus:\n nodeId: \"e66bd15fed6045b68ef1ef33a4ce6c30no14\"\nrole: STANDBY\nstate: WRITABLE\ngroupState: RUNNING\nerrmsg: \"SUCCESS\"\n][_output_to_log(handler.py:181)]\n[2021-08-30 19:23:39,067 +10][INFO][ha_status][][P25123T140558569338672][DiskStatus:\n [id: 17646\ntype: DATA\nstate: WRITABLE\nspaceUsage: 796\ninodeUsage: 7\nallocBuyRatio: -1.0\n, id: 17645\ntype: BACKUP\nstate: WRITABLE\nspaceUsage: 22\ninodeUsage: 1\nallocBuyRatio: -1.0\n, id: 17644\ntype: LOG\nstate: WRITABLE\nspaceUsage: 18\ninodeUsage: 1\nallocBuyRatio: -1.0\n, id: 17640\ntype: SYSTEM\nstate: WRITABLE\nspaceUsage: 5349\ninodeUsage: 1784\nallocBuyRatio: -1.0\n]][_output_to_log(handler.py:185)]",
+      "source_file": "5538_ha_check_status.log.txt"
+    },
+    {
+      "term": "ops_collector.log",
+      "content": "ops_collector.log ops_collector.log 日志含义 管理面监控指标采集操作日志。通过查看该日志，系统管理人员与系统维护人员可以查看监控指标采集任务，从而快速定位问题。 日志命名 日志文件名：ops_collector.log.* 日志格式 日志的格式如下： [时间][级别][模块][任务流ID][来源][具体内容][位置] 日志参数 表1 日志参数 字段名称 字段含义 级别 日志的级别：分为INFO，WARNING，ERROR 时间 日志生成的时间，格式：yyyy-mm-dd hh:mm:ss:ms 来源 上报日志的进程和线程号 模块 打印日志的进程模块名称 具体内容 日志具体的内容 位置 打印日志的具体代码位置 任务流ID 任务流ID 日志示例 日志的典型样例： 下边是磁盘指标采集任务打印的日志示例。 [2021-08-30 22:38:59,600 +10][INFO][agent][][P27667T140368020485888][For OPS, sys061_instance_disk_total_size:40.0  time:1630327139.59  schedule_time:1630327130.0][to_string_for_ops(MetricBase.py:161)]",
+      "source_file": "5529_ops_collector.log.txt"
+    },
+    {
+      "term": "agent_error.log",
+      "content": "agent_error.log agent_error.log 日志含义 8.0.3及以前版本，管理面Agent错误日志，之后版本错误日志在其它日志中各自打印。通过查看该日志，系统管理人员与系统维护人员可以查看节点agent错误信息，从而快速定位问题。 日志命名 日志文件名：agent_error.log.* 日志格式 日志的格式如下： [时间][级别][模块][任务流ID][来源][具体内容][位置] 日志参数 表1 日志参数 字段名称 字段含义 级别 日志的级别：ERROR 时间 日志生成的时间，格式：yyyy-mm-dd hh:mm:ss:ms 来源 上报日志的进程和线程号 模块 打印日志的进程模块名称 具体内容 日志具体的内容 位置 打印日志的具体代码位置 任务流ID 任务流ID 日志示例 日志的典型样例： 下边是错误日志示例。 [2021-08-23 19:29:40,349 +10][ERROR][agent][][P25123T140558569338672][Agent received a illegal request!][receive_message(handler.py:232)]",
+      "source_file": "5534_agent_error.log.txt"
+    }
+  ]
+}

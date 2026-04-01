@@ -1,0 +1,8 @@
+设置实例扩展信息 设置实例扩展信息 功能介绍 设置实例扩展信息。 调用接口前，您需要提前 获取终端节点 ，即下文中的Endpoint值。 URI URI格式 PUT https://{ endpoint }/gaussdb/v3/{project_id}/instances/{instance_id}/extend-info URI样例 https://gaussdb.sa-fb-2.hcsglobal.com/gaussdb/v3/0c8243400d37468bb4aed3cc94c2911d/instances/f9b5f9b296ec6808e067in14/extend-info 参数说明 表1 参数说明 名称 是否必选 说明 project_id 是 租户在某一region下的project ID。 获取方法请参见 获取项目ID/名称 。 instance_id 是 实例ID。 请求消息 参数说明 表2 参数说明 名称 是否必选 参数类型 说明 key 是 String 实例扩展key，枚举值： “BackupSet”，备份集信息。 “XbsaRoute”，Xbsa协议下对应的路由信息。 value 是 String 实例扩展信息。 请求示例 { 
+  "key" : "BackupSet", 
+  "value" : "BackupSetExamples" 
+}
+{ 
+  "key" : "XbsaRoute", 
+  "value" : "{\"ip\":\"192.168.1.1\",\"port\":\"8009\"}" 
+} 响应消息 正常响应要素说明 无。 正常响应样例 无。 异常响应 请参见 异常请求结果 。 状态码 正常 200 异常 请参见 状态码 。 错误码 请参见 错误码 。 父主题： 实例管理 版权所有 © 华为技术有限公司

@@ -1,0 +1,1 @@
+在线校验功能 在线校验功能 在线校验是Ustore特有的，在运行过程中可以有效预防页面因编码逻辑错误导致的逻辑损坏，默认开启UPAGE:UBTREE:UNDO三个模块校验。业务现网请保持开启，性能场景除外。 关闭： gs_guc reload -Z datanode -N all -I all -c "ustore_attr=''" 打开： gs_guc reload -Z datanode -N all -I all -c "ustore_attr='ustore_verify_level=fast;ustore_verify_module=upage:ubtree:undo'" 父主题： Ustore的最佳实践 版权所有 © 华为技术有限公司

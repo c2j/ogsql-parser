@@ -1,0 +1,66 @@
+{
+  "topic": "密态等值查询",
+  "term_count": 12,
+  "terms": [
+    {
+      "term": "GS_CLIENT_GLOBAL_KEYS_ARGS",
+      "content": "GS_CLIENT_GLOBAL_KEYS_ARGS GS_CLIENT_GLOBAL_KEYS_ARGS GS_CLIENT_GLOBAL_KEYS_ARGS系统表记录密态等值特性中客户端加密主密钥相关元数据信息，每条记录对应客户端加密主密钥的一个键值对信息。 表1 GS_CLIENT_GLOBAL_KEYS_ARGS字段 名称 类型 描述 oid oid 行标识符（隐含字段）。 global_key_id oid 客户端加密主密钥（cmk）oid。 function_name name 值为encryption。 key name 客户端加密主密钥（cmk）的元数据信息对应的名称。 value bytea 客户端加密主密钥（cmk）的元数据信息名称的值。",
+      "source_file": "3224_GS_CLIENT_GLOBAL_KEYS_ARGS.txt"
+    },
+    {
+      "term": "GS_CLIENT_GLOBAL_KEYS",
+      "content": "GS_CLIENT_GLOBAL_KEYS GS_CLIENT_GLOBAL_KEYS GS_CLIENT_GLOBAL_KEYS系统表记录密态等值特性中客户端加密主密钥相关信息，每条记录对应一个客户端加密主密钥。 表1 GS_CLIENT_GLOBAL_KEYS字段 名称 类型 描述 oid oid 行标识符（隐含字段）。 global_key_name name 客户端加密主密钥(cmk)名称。 key_namespace oid 包含此客户端加密主密钥(cmk)的命名空间OID。 key_owner oid 客户端加密主密钥(cmk)的所有者。 key_acl aclitem[] 创建该密钥时所拥有的访问权限。 create_date timestamp without time zone 创建密钥的时间。",
+      "source_file": "1510_GS_CLIENT_GLOBAL_KEYS.txt"
+    },
+    {
+      "term": "GS_COLUMN_KEYS_ARGS",
+      "content": "GS_COLUMN_KEYS_ARGS GS_COLUMN_KEYS_ARGS GS_COLUMN_KEYS_ARGS系统表记录密态等值特性中客户端加密主密钥相关元数据信息，每条记录对应客户端加密主密钥的一个键值对信息。 表1 GS_COLUMN_KEYS_ARGS字段 名称 类型 描述 oid oid 行标识符（隐含字段）。 column_key_id oid 列加密密钥(cek)oid。 function_name name 值为encryption。 key name 列加密密钥(cek)的元数据信息对应的名称。 value bytea 列加密密钥(cek)的元数据信息名称的值。",
+      "source_file": "1513_GS_COLUMN_KEYS_ARGS.txt"
+    },
+    {
+      "term": "GS_ENCRYPTED_PROC",
+      "content": "GS_ENCRYPTED_PROC GS_ENCRYPTED_PROC GS_ENCRYPTED_PROC系统表提供了密态函数/存储过程函数参数、返回值的原始数据类型，加密列等信息。 表1 GS_ENCRYPTED_PROC字段 名称 类型 描述 oid oid 行标识符（隐含字段）。 func_id oid function的oid，对应系统表 12.2.85 PG_PROC 中的oid行标识符。 prorettype_orig integer 返回值的原始数据类型。 last_change timestamp without time zone 密态函数上次修改的时间。 proargcachedcol oidvector 函数INPUT参数对应的加密列的oid，对应系统表 12.2.4.5 GS_ENCRYPTED_COLUMNS 中的oid行标识符。 proallargtypes_orig oid[] 所有函数参数的原始数据类型。",
+      "source_file": "1515_GS_ENCRYPTED_PROC.txt"
+    },
+    {
+      "term": "GS_ENCRYPTED_PROC",
+      "content": "GS_ENCRYPTED_PROC GS_ENCRYPTED_PROC GS_ENCRYPTED_PROC系统表提供了密态函数/存储过程函数参数、返回值的原始数据类型，加密列等信息。 表1 GS_ENCRYPTED_PROC字段 名称 类型 描述 oid oid 行标识符（隐含字段）。 func_id oid function的oid，对应系统表 13.2.84 PG_PROC 中的oid行标识符。 prorettype_orig integer 返回值的原始数据类型。 last_change timestamp without time zone 密态函数信息上次修改的时间。 proargcachedcol oidvector 函数INPUT参数对应的加密列的oid，对应系统表 13.2.4.5 GS_ENCRYPTED_COLUMNS 中的oid行标识符。 proallargtypes_orig oid[] 所有函数参数的原始数据类型。",
+      "source_file": "3228_GS_ENCRYPTED_PROC.txt"
+    },
+    {
+      "term": "GS_ENCRYPTED_COLUMNS",
+      "content": "GS_ENCRYPTED_COLUMNS GS_ENCRYPTED_COLUMNS GS_ENCRYPTED_COLUMNS系统表记录密态等值特性中表的加密列相关信息，每条记录对应一条加密列信息。 表1 GS_ENCRYPTED_COLUMNS字段 名称 类型 描述 oid oid 行标识符（隐含字段）。 rel_id oid 表的OID。 column_name name 加密列的名称。 column_key_id oid 外键，列加密密钥的OID。 encryption_type tinyint 加密类型，取值为2（DETERMINISTIC）或者1（RANDOMIZED）。 data_type_original_oid oid 加密列的原始数据类型id，参考系统表 PG_TYPE 中的oid。 data_type_original_mod integer 加密列的原始数据类型修饰符，参考系统表 PG_ATTRIBUTE 中的atttypmod。其值对那些不需要的类型data_type_original_mod通常为-1。 create_date timestamp without time zone 创建加密列的时间。",
+      "source_file": "3227_GS_ENCRYPTED_COLUMNS.txt"
+    },
+    {
+      "term": "GS_CLIENT_GLOBAL_KEYS",
+      "content": "GS_CLIENT_GLOBAL_KEYS GS_CLIENT_GLOBAL_KEYS GS_CLIENT_GLOBAL_KEYS系统表记录密态等值特性中客户端加密主密钥相关信息，每条记录对应一个客户端加密主密钥。 表1 GS_CLIENT_GLOBAL_KEYS字段 名称 类型 描述 oid oid 行标识符（隐含字段）。 global_key_name name 客户端加密主密钥（cmk）名称。 key_namespace oid 包含此客户端加密主密钥（cmk）的命名空间OID。 key_owner oid 客户端加密主密钥（cmk）的所有者。 key_acl aclitem[] 创建该密钥时所拥有的访问权限。 create_date timestamp without time zone 创建密钥的时间。",
+      "source_file": "3223_GS_CLIENT_GLOBAL_KEYS.txt"
+    },
+    {
+      "term": "GS_ENCRYPTED_COLUMNS",
+      "content": "GS_ENCRYPTED_COLUMNS GS_ENCRYPTED_COLUMNS GS_ENCRYPTED_COLUMNS系统表记录密态等值特性中表的加密列相关信息，每条记录对应一条加密列信息。 表1 GS_ENCRYPTED_COLUMNS字段 名称 类型 描述 rel_id oid 表的OID。 column_name name 加密列的名称。 column_key_id oid 外键，列加密密钥的OID。 encryption_type tinyint 加密类型。取值为2(DETERMINISTIC)或者1(RANDOMIZED)。 data_type_original_oid oid 加密列的原始数据类型id。该值参考系统表 PG_TYPE 的oid字段。 data_type_original_mod integer 加密列的原始数据类型修饰符。该值参考原始数据类型对应的系统表 PG_ATTRIBUTE 中的atttypmod字段。 create_date timestamp without time zone 创建加密列的时间。",
+      "source_file": "1514_GS_ENCRYPTED_COLUMNS.txt"
+    },
+    {
+      "term": "GS_COLUMN_KEYS_ARGS",
+      "content": "GS_COLUMN_KEYS_ARGS GS_COLUMN_KEYS_ARGS GS_COLUMN_KEYS_ARGS系统表记录密态等值特性中客户端加密主密钥相关元数据信息，每条记录对应客户端加密主密钥的一个键值对信息。 表1 GS_COLUMN_KEYS_ARGS字段 名称 类型 描述 oid oid 行标识符（隐含字段）。 column_key_id oid 列加密密钥（cek）oid。 function_name name 值为encryption。 key name 列加密密钥（cek）的元数据信息对应的名称。 value bytea 列加密密钥（cek）的元数据信息名称的值。",
+      "source_file": "3226_GS_COLUMN_KEYS_ARGS.txt"
+    },
+    {
+      "term": "GS_COLUMN_KEYS",
+      "content": "GS_COLUMN_KEYS GS_COLUMN_KEYS GS_COLUMN_KEYS系统表记录密态等值特性中列加密密钥相关信息，每条记录对应一个列加密密钥。 表1 GS_COLUMN_KEYS字段 名称 类型 描述 oid oid 行标识符（隐含字段）。 column_key_name name 列加密密钥（cek）名称。 column_key_distributed_id oid 根据加密密钥（cek）全称域名hash值得到的id。 global_key_id oid 外键。客户端加密主密钥（cmk）的OID。 key_namespace oid 包含此列加密密钥（cek）的命名空间OID。 key_owner oid 列加密密钥（cek）的所有者。 create_date timestamp without time zone 创建列加密密钥的时间。 key_acl aclitem[] 创建该列加密密钥时所拥有的访问权限。",
+      "source_file": "3225_GS_COLUMN_KEYS.txt"
+    },
+    {
+      "term": "GS_CLIENT_GLOBAL_KEYS_ARGS",
+      "content": "GS_CLIENT_GLOBAL_KEYS_ARGS GS_CLIENT_GLOBAL_KEYS_ARGS GS_CLIENT_GLOBAL_KEYS_ARGS系统表记录密态等值特性中客户端加密主密钥相关元数据信息，每条记录对应客户端加密主密钥的一个键值对信息。 表1 GS_CLIENT_GLOBAL_KEYS_ARGS字段 名称 类型 描述 oid oid 行标识符（隐含字段）。 global_key_id oid 客户端加密主密钥(cmk)oid。 function_name name 值为encryption。 key name 客户端加密主密钥(cmk)的元数据信息对应的名称。 value bytea 客户端加密主密钥(cmk)的元数据信息名称的值。",
+      "source_file": "1511_GS_CLIENT_GLOBAL_KEYS_ARGS.txt"
+    },
+    {
+      "term": "GS_COLUMN_KEYS",
+      "content": "GS_COLUMN_KEYS GS_COLUMN_KEYS GS_COLUMN_KEYS系统表记录密态等值特性中列加密密钥相关信息，每条记录对应一个列加密密钥。 表1 GS_COLUMN_KEYS字段 名称 类型 描述 oid oid 行标识符（隐含字段）。 column_key_name name 列加密密钥(cek)名称。 column_key_distributed_id oid 根据加密密钥(cek)全称域名hash值得到的id。 global_key_id oid 外键。客户端加密主密钥(cmk)的OID。 key_namespace oid 包含此列加密密钥(cek)的命名空间OID。 key_owner oid 列加密密钥(cek)的所有者。 create_date timestamp without time zone 创建列加密密钥的时间。 key_acl aclitem[] 创建该列加密密钥时所拥有的访问权限。",
+      "source_file": "1512_GS_COLUMN_KEYS.txt"
+    }
+  ]
+}

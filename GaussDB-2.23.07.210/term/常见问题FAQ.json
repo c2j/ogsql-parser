@@ -1,0 +1,101 @@
+{
+  "topic": "常见问题FAQ",
+  "term_count": 19,
+  "terms": [
+    {
+      "term": "实例下发报错",
+      "content": "实例下发报错 实例下发报错 根据报错的volume id查询 python /etc/cinder/cinder-api/tools/get_operation_info.py -v e871c4e0-e64b-4f05-b3a5-f8b69af3d914 报错日志如下 登录BMS实例系统，查看启动器，发现启动器都下线，需要排查FC光口是否正常，连线是否正常 查看fc驱动，如下图所示驱动正常 问题原因： BMS设备HBA卡和fc交换机未连线，重新连线后解决。",
+      "source_file": "4795_file_4795.txt"
+    },
+    {
+      "term": "高阶服务如果以ECS方式安装，未配置BMS服务地址导致创建实例时失败，报错",
+      "content": "高阶服务如果以ECS方式安装，未配置BMS服务地址导致创建实例时失败，报错 高阶服务如果以ECS方式安装，未配置BMS服务地址导致创建实例时失败，报错 如果高阶服务是以MCS方式安装的，需要配置BMS服务地址，与ECS地址配置一致。 创建实例时可能报错如下“URI does not specify a valid host name”： 使用浏览器，登录ManageOne运维面。 登录地址：https:// ManageOne运维面主页的访问地址 :31943。例如，https://oc.type.com:31943。 默认帐号：bss_admin，默认密码可在《华为云Stack 8.3.0 账户一览表》中“A类Portal”页签，产品名称为“ManageOne”，账户登录界面名称为“ManageOne运维面”获取。 为了您的账户安全，请定期修改密码。 在页面的“常用链接”导航栏中，单击“ServiceCM”，跳转到ServiceCM插件列表界面。 在ServiceCM插件列表界面，单击“自助开发平台 > dbs-ops”，进入DBS运维管理平台。 查找ECS服务地址：如图，在配置管理中，选择DBS_SYSTEM_PARAMETER，然后搜索ecsRootAddress，获取ECS服务地址，复制。 查找BMS服务地址（参数bmsRootAddress），并配置成ECS服务地址，单击空白处保存生效即可。",
+      "source_file": "4851_ECSBMS.txt"
+    },
+    {
+      "term": "创建实例时无法选择新增加的Dorado",
+      "content": "创建实例时无法选择新增加的Dorado AZ 创建实例时无法选择新增加的Dorado AZ 确认BMS实例规格是否启用、适配并关联AZ 使用浏览器，登录ManageOne运维面。 登录地址：https:// ManageOne运维面主页的访问地址 :31943。例如，https://oc.type.com:31943。 默认帐号：bss_admin，默认密码可在《华为云Stack 8.3.0 账户一览表》中“A类Portal”页签，产品名称为“ManageOne”，账户登录界面名称为“ManageOne运维面”获取。 为了您的账户安全，请定期修改密码。 在页面的“常用链接”导航栏中，单击“ServiceCM”，跳转到ServiceCM插件列表界面。 在ServiceCM插件列表界面，单击“自助开发平台 > dbs-ops”，进入DBS运维管理平台。 高阶服务默认禁用BMS规格，需要执行如下操作启用对应规格。 说明：如果BMS入云时候的规格和标准规格不一致，BMS入云后需要手动创建对应的BMS资源规格，BMS资源的规格ID需要和数据库服务默认对应的规格一致。 如果BMS规格和标准规格不一致可以重新创建BMS规格，或修改数据库服务规格中的flavor，此处flavor即BMS资源规格的规格ID。数据库实例的规格和BMS资源规格关联通过此处设置关联关系。 默认新扩容的服务，DBS运维平台处的AZ处没有新AZ的信息，需要手动创建，名字需要保持一致，创建完成启用此AZ。 BMS实例规格关联AZ",
+      "source_file": "4850_Dorado AZ.txt"
+    },
+    {
+      "term": "创建Dorado容灾关系报错",
+      "content": "创建Dorado容灾关系报错 创建Dorado容灾关系报错 原因：Dorado存储未添加远端设备 登录两个Dorado设备，在其中一个Dorado web页面创建一个用户，赋权“远端设备管理员”角色 登录另一个Dorado web页面 “数据保护”à“远端设备”à“+”添加远端设备，使用之前创建的用户，ip链路选择其中1条链路",
+      "source_file": "4847_Dorado.txt"
+    },
+    {
+      "term": "实例下发init",
+      "content": "实例下发init node阶段报错OBS连接异常 实例下发init node阶段报错OBS连接异常 问题根因：ping OBS节点网络不通。 先部署高阶服务，网关后扩容需要添加高阶部署的dmz servce 、dms service advancd 网段和obs ip",
+      "source_file": "4796_init nodeOBS.txt"
+    },
+    {
+      "term": "BMS接入交换机放通provision网络",
+      "content": "BMS接入交换机放通provision网络 BMS接入交换机放通provision网络 从BMS重新入云网络配置 ssh localadmin@84.227.67.40、39 #BMS设备所连接的交换机端口 int 25ge 1/0/9 int 25ge 1/0/10 int 25ge 1/0/11 #vlan 2006为provision平面的VLAN id port default vlan 2006 stp edged-port enable commit save",
+      "source_file": "4794_BMSprovision.txt"
+    },
+    {
+      "term": "MO统一日志运行测日志无法下载",
+      "content": "MO统一日志运行测日志无法下载 MO统一日志运行测日志无法下载 curl -i -k https://identity.ecs02.vkfzx-pt-01.sdc.cs.icbc.com:443/identity/v3/auth/tokens -X POST -d '{\"auth\":{\"identity\":{\"methods\":[\"password\"],\"password\":{\"user\":{\"name\":\"cloud_admin\",\"password\":,\"domain\":{\"id\":\"default\"}}}},\"scope\":{\"project\":{\"name\":\"admin\",\"domain\":{\"id\":\"default\"}}}}}' -H \"Content-Type: application/json\" export TOKEN= curl -i -k 'https://84.227.8.3:443/v1.0/servers?expect_fields=basic,block_device,addresses,metadata,volume,flavor,tags&all_tenants=1&limit=1000&offset=1' -X GET -H \"Content-Type\": \"application/json\" -H \"X-Auth-Token\":\"$TOKEN\" -H \"Host\":\"compute-ext.ecs02.vkfzx-pt-01.sdc.cs.icbc.com\" 容灾搭建Build失败。 Vpc网段不能和子网网关一致，原因是：",
+      "source_file": "4800_MO.txt"
+    },
+    {
+      "term": "BMS实例失败，报错Unable",
+      "content": "BMS实例失败，报错Unable to create the network. No tenant network is available for allocation BMS实例失败，报错Unable to create the network. No tenant network is available for allocation Cps后台查询neutron库中的vlan信息，删除残留的vlan信息 neutron port-list -c id -c binding:vif_details |grep physnet2 |wc –l neutron port-show ccaf0aef-f052-4d6d-b28b-717995b3d8c4 删除unbound的port信息 ----结束",
+      "source_file": "4849_BMSUnable to create the network. No tenant network is available for allocation.txt"
+    },
+    {
+      "term": "高阶服务如果以ECS方式安装，未配置BMS服务地址导致创建实例时失败，报错",
+      "content": "高阶服务如果以ECS方式安装，未配置BMS服务地址导致创建实例时失败，报错 高阶服务如果以ECS方式安装，未配置BMS服务地址导致创建实例时失败，报错 如果高阶服务是以MCS方式安装的，需要配置BMS服务地址，与ECS地址配置一致。 创建实例时可能报错如下“URI does not specify a valid host name”： 登录DBS运维管理平台。 查找ECS服务地址：如图，在配置管理中，选择DBS_SYSTEM_PARAMETER，然后搜索ecsRootAddress，获取ECS服务地址，复制。 查找BMS服务地址（参数bmsRootAddress），并配置成ECS服务地址，单击空白处保存生效即可。",
+      "source_file": "4803_ECSBMS.txt"
+    },
+    {
+      "term": "创建实例时无法选择新增加的Dorado",
+      "content": "创建实例时无法选择新增加的Dorado AZ 创建实例时无法选择新增加的Dorado AZ 确认BMS实例规格是否启用、适配并关联AZ 登录DBS运维管理平台。 高阶服务默认禁用BMS规格，需要执行如下操作启用对应规格。 说明：如果BMS入云时候的规格和标准规格不一致，BMS入云后需要手动创建对应的BMS资源规格，BMS资源的规格ID需要和数据库服务默认对应的规格一致。 如果BMS规格和标准规格不一致可以重新创建BMS规格，或修改数据库服务规格中的flavor，此处flavor即BMS资源规格的规格ID。数据库实例的规格和BMS资源规格关联通过此处设置关联关系。 默认新扩容的服务，DBS运维平台处的AZ处没有新AZ的信息，需要手动创建，名字需要保持一致，创建完成启用此AZ。 BMS实例规格关联AZ。",
+      "source_file": "4802_Dorado AZ.txt"
+    },
+    {
+      "term": "实例下发init",
+      "content": "实例下发init node阶段报错OBS连接异常 实例下发init node阶段报错OBS连接异常 问题根因：ping OBS节点网络不通。 先部署高阶服务，网关后扩容需要添加高阶部署的dmz servce 、dms service advancd 网段和obs ip",
+      "source_file": "4844_init nodeOBS.txt"
+    },
+    {
+      "term": "配置搭建容灾关系参数缺失",
+      "content": "配置搭建容灾关系参数缺失 配置搭建容灾关系参数缺失 gaussdb_feature_supportDorado参数缺失，手动添加改参数规避",
+      "source_file": "4798_file_4798.txt"
+    },
+    {
+      "term": "配置搭建容灾关系参数缺失",
+      "content": "配置搭建容灾关系参数缺失 配置搭建容灾关系参数缺失 gaussdb_feature_supportDorado参数缺失，手动添加改参数规避",
+      "source_file": "4846_file_4846.txt"
+    },
+    {
+      "term": "实例下发失败报错参数缺失",
+      "content": "实例下发失败报错参数缺失 实例下发失败报错参数缺失 问题原因：2.0集群96u768g规格参数内核未提供，管控无法适配，手动适配后通过 \"dn:walwriter_sleep_threshold\" \"dn:wal_file_init_num\" core库没有升级，表字段缺失CORE.DBS_ENGINE_PARAMETER_DEFININATION   DATA_MARK INSERT INTO CORE.DBS_ENGINE_PARAMETER_DEFININATION (ID, SUB_GROUP, ENGINE_SOFTWARE_VERSION, ENGINE_NAME, NODE_TYPE, PARAMETER_NAME, DEFAULT_VALUE, DESCRIPTION, IS_DYNAMIC, VALUE_RANGE, DATA_TYPE, COMMAND, READ_ONLY, RESOURCE_SPECIFICATION_TYPE, RESOURCE_SPECIFICATION_VALUE, IS_VISIBLE, IS_HW_PARAMETER, SLAVE_DEFAULT_VALUE, REPLICA_DEFAULT_VALUE, \"VERSION\", INTRODUCED_VERSION, IS_OPS_CHANGEABLE, OPS_VALUE_RANGE, SPECIFIC_VALUE_RANGE, EXTENDED_FIELDS) VALUES('70d5660a-e280-4902-b901-1128ba89d9ab', 'test_group', '2.0', 'gaussdbv5', 'ha', 'dn:walwriter_sleep_threshold', '500', NULL, true, NULL, 'integer', 'setDynamicVar', false, 'mem', '768', false, false, '500', '500', 0, NULL, true, NULL, NULL, NULL); INSERT INTO CORE.DBS_ENGINE_PARAMETER_DEFININATION (ID, SUB_GROUP, ENGINE_SOFTWARE_VERSION, ENGINE_NAME, NODE_TYPE, PARAMETER_NAME, DEFAULT_VALUE, DESCRIPTION, IS_DYNAMIC, VALUE_RANGE, DATA_TYPE, COMMAND, READ_ONLY, RESOURCE_SPECIFICATION_TYPE, RESOURCE_SPECIFICATION_VALUE, IS_VISIBLE, IS_HW_PARAMETER, SLAVE_DEFAULT_VALUE, REPLICA_DEFAULT_VALUE, \"VERSION\", INTRODUCED_VERSION, IS_OPS_CHANGEABLE, OPS_VALUE_RANGE, SPECIFIC_VALUE_RANGE, EXTENDED_FIELDS) VALUES('2d0ab31e-b6f0-484b-8665-c2acada455ee', 'test_group', '2.0', 'gaussdbv5', 'ha', 'dn:wal_file_init_num', '10', NULL, true, '0-50', 'integer', 'setDynamicVar', false, 'mem', '768', false, false, '10', '10', 0, NULL, true, NULL, NULL, NULL);",
+      "source_file": "4797_file_4797.txt"
+    },
+    {
+      "term": "BMS接入交换机放通provision网络",
+      "content": "BMS接入交换机放通provision网络 BMS接入交换机放通provision网络 从BMS重新入云网络配置 ssh localadmin@84.227.67.40、39 #BMS设备所连接的交换机端口 int 25ge 1/0/9 int 25ge 1/0/10 int 25ge 1/0/11 #vlan 2006为provision平面的VLAN id port default vlan 2006 stp edged-port enable commit save",
+      "source_file": "4843_BMSprovision.txt"
+    },
+    {
+      "term": "创建Dorado容灾关系报错",
+      "content": "创建Dorado容灾关系报错 创建Dorado容灾关系报错 原因：Dorado存储未添加远端设备 登录两个Dorado设备，在其中一个Dorado web页面创建一个用户，赋权“远端设备管理员”角色 登录另一个Dorado web页面 “数据保护”à“远端设备”à“+”添加远端设备，使用之前创建的用户，fc链路选择其中1条链路",
+      "source_file": "4799_Dorado.txt"
+    },
+    {
+      "term": "MO统一日志运行测日志无法下载",
+      "content": "MO统一日志运行测日志无法下载 MO统一日志运行测日志无法下载 curl -i -k https://identity.ecs02.vkfzx-pt-01.sdc.cs.icbc.com:443/identity/v3/auth/tokens -X POST -d '{\"auth\":{\"identity\":{\"methods\":[\"password\"],\"password\":{\"user\":{\"name\":\"cloud_admin\",\"password\":,\"domain\":{\"id\":\"default\"}}}},\"scope\":{\"project\":{\"name\":\"admin\",\"domain\":{\"id\":\"default\"}}}}}' -H \"Content-Type: application/json\" export TOKEN= curl -i -k 'https://84.227.8.3:443/v1.0/servers?expect_fields=basic,block_device,addresses,metadata,volume,flavor,tags&all_tenants=1&limit=1000&offset=1' -X GET -H \"Content-Type\": \"application/json\" -H \"X-Auth-Token\":\"$TOKEN\" -H \"Host\":\"compute-ext.ecs02.vkfzx-pt-01.sdc.cs.icbc.com\" 容灾搭建Build失败 Vpc网段不能和子网网关一致，原因是",
+      "source_file": "4848_MO.txt"
+    },
+    {
+      "term": "实例下发失败报错参数缺失",
+      "content": "实例下发失败报错参数缺失 实例下发失败报错参数缺失 问题原因：2.0集群96u768g规格参数内核未提供，管控无法适配，手动适配后通过 \"dn:walwriter_sleep_threshold\" \"dn:wal_file_init_num\" core库没有升级，表字段缺失CORE.DBS_ENGINE_PARAMETER_DEFININATION   DATA_MARK INSERT INTO CORE.DBS_ENGINE_PARAMETER_DEFININATION\n(ID, SUB_GROUP, ENGINE_SOFTWARE_VERSION, ENGINE_NAME, NODE_TYPE, PARAMETER_NAME, DEFAULT_VALUE, DESCRIPTION, IS_DYNAMIC, VALUE_RANGE, DATA_TYPE, COMMAND, READ_ONLY, RESOURCE_SPECIFICATION_TYPE, RESOURCE_SPECIFICATION_VALUE, IS_VISIBLE, IS_HW_PARAMETER, SLAVE_DEFAULT_VALUE, REPLICA_DEFAULT_VALUE, \"VERSION\", INTRODUCED_VERSION, IS_OPS_CHANGEABLE, OPS_VALUE_RANGE, SPECIFIC_VALUE_RANGE, EXTENDED_FIELDS)\nVALUES('70d5660a-e280-4902-b901-1128ba89d9ab', 'test_group', '2.0', 'gaussdbv5', 'ha', 'dn:walwriter_sleep_threshold', '500', NULL, true, NULL, 'integer', 'setDynamicVar', false, 'mem', '768', false, false, '500', '500', 0, NULL, true, NULL, NULL, NULL);\n\nINSERT INTO CORE.DBS_ENGINE_PARAMETER_DEFININATION\n(ID, SUB_GROUP, ENGINE_SOFTWARE_VERSION, ENGINE_NAME, NODE_TYPE, PARAMETER_NAME, DEFAULT_VALUE, DESCRIPTION, IS_DYNAMIC, VALUE_RANGE, DATA_TYPE, COMMAND, READ_ONLY, RESOURCE_SPECIFICATION_TYPE, RESOURCE_SPECIFICATION_VALUE, IS_VISIBLE, IS_HW_PARAMETER, SLAVE_DEFAULT_VALUE, REPLICA_DEFAULT_VALUE, \"VERSION\", INTRODUCED_VERSION, IS_OPS_CHANGEABLE, OPS_VALUE_RANGE, SPECIFIC_VALUE_RANGE, EXTENDED_FIELDS)\nVALUES('2d0ab31e-b6f0-484b-8665-c2acada455ee', 'test_group', '2.0', 'gaussdbv5', 'ha', 'dn:wal_file_init_num', '10', NULL, true, '0-50', 'integer', 'setDynamicVar', false, 'mem', '768', false, false, '10', '10', 0, NULL, true, NULL, NULL, NULL);",
+      "source_file": "4845_file_4845.txt"
+    },
+    {
+      "term": "BMS实例失败，报错Unable",
+      "content": "BMS实例失败，报错Unable to create the network. No tenant network is available for allocation BMS实例失败，报错Unable to create the network. No tenant network is available for allocation Cps后台查询neutron库中的vlan信息，删除残留的vlan信息 neutron port-list -c id -c binding:vif_details |grep physnet2 |wc –l neutron port-show ccaf0aef-f052-4d6d-b28b-717995b3d8c4 删除unbound的port信息 ----结束",
+      "source_file": "4801_BMSUnable to create the network. No tenant network is available for allocation.txt"
+    }
+  ]
+}

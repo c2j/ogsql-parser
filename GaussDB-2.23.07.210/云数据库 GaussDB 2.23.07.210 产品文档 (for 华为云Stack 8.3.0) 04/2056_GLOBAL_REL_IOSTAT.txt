@@ -1,0 +1,1 @@
+GLOBAL_REL_IOSTAT GLOBAL_REL_IOSTAT 获取所有节点上的数据文件I/O统计信息。 表1 GLOBAL_REL_IOSTAT字段 名称 类型 描述 node_name name 节点名称 phyrds bigint 读物理文件的数目。 phywrts bigint 写物理文件的数目。 phyblkrd bigint 读物理文件块的数目。 phyblkwrt bigint 写物理文件块的数目。 父主题： File 版权所有 © 华为技术有限公司

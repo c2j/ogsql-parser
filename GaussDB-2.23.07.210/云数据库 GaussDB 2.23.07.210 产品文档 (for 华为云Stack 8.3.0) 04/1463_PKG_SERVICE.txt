@@ -1,0 +1,136 @@
+PKG_SERVICE PKG_SERVICE PKG_SERVICE支持的所有接口请参见 表1 。 表1 PKG_SERVICE 接口名称 描述 PKG_SERVICE.SQL_IS_CONTEXT_ACTIVE 确认该CONTEXT是否已注册。 PKG_SERVICE.SQL_CLEAN_ALL_CONTEXTS 取消所有注册的CONTEXT。 PKG_SERVICE.SQL_REGISTER_CONTEXT 注册一个CONTEXT。 PKG_SERVICE.SQL_UNREGISTER_CONTEXT 取消注册该CONTEXT。 PKG_SERVICE.SQL_SET_SQL 向CONTEXT设置一条SQL语句，目前只支持SELECT。 PKG_SERVICE.SQL_RUN 在一个CONTEXT上执行设置的SQL语句。 PKG_SERVICE.SQL_NEXT_ROW 读取该CONTEXT中的下一行数据。 PKG_SERVICE.SQL_GET_VALUE 读取该CONTEXT中动态定义的列值 PKG_SERVICE.SQL_SET_RESULT_TYPE 根据类型OID动态定义该CONTEXT的一个列。 PKG_SERVICE.JOB_CANCEL 通过任务ID来删除定时任务。 PKG_SERVICE.JOB_FINISH 禁用或者启用定时任务。 PKG_SERVICE.JOB_SUBMIT 提交一个定时任务。作业号由系统自动生成或由用户指定。 PKG_SERVICE.JOB_UPDATE 修改定时任务的属性，包括任务内容、下次执行时间、执行间隔。 PKG_SERVICE.SUBMIT_ON_NODES 提交一个任务到所有节点，作业号由系统自动生成。 PKG_SERVICE.ISUBMIT_ON_NODES 提交一个任务到所有节点，作业号由用户指定。 PKG_SERVICE.SQL_GET_ARRAY_RESULT 获取该CONTEXT中返回的数组值。 PKG_SERVICE.SQL_GET_VARIABLE_RESULT 获取该CONTEXT中返回的列值。 PKG_SERVICE.SQL_IS_CONTEXT_ACTIVE 该函数用来确认一个CONTEXT是否已注册。该函数传入想查找的CONTEXT ID，如果该CONTEXT存在返回TRUE，反之返回FALSE。 PKG_SERVICE.SQL_IS_CONTEXT_ACTIVE函数原型为： 1
+2
+3
+4 PKG_SERVICE . SQL_IS_CONTEXT_ACTIVE ( context_id IN INTEGER ) RETURN BOOLEAN ; 表2 PKG_SERVICE.SQL_IS_CONTEXT_ACTIVE接口说明 参数名称 描述 context_id 想查找的CONTEXT ID号。 PKG_SERVICE.SQL_CLEAN_ALL_CONTEXTS 该函数用来取消所有CONTEXT PKG_SERVICE.SQL_CLEAN_ALL_CONTEXTS函数原型为： 1
+2
+3 PKG_SERVICE . SQL_CLEAN_ALL_CONTEXTS ( ) RETURN VOID ; PKG_SERVICE.SQL_REGISTER_CONTEXT 该函数用来打开一个CONTEXT，是后续对该CONTEXT进行各项操作的前提。该函数不传入任何参数，内部自动递增生成CONTEXT ID，并作为返回值返回给integer定义的变量。 PKG_SERVICE.SQL_REGISTER_CONTEXT函数原型为： 1
+2
+3 DBE_SQL . REGISTER_CONTEXT ( ) RETURN INTEGER ; PKG_SERVICE.SQL_UNREGISTER_CONTEXT 该函数用来关闭一个CONTEXT，是该CONTEXT中各项操作的结束。如果在存储过程结束时没有调用该函数，则该CONTEXT占用的内存仍然会保存，因此关闭CONTEXT非常重要。由于异常情况的发生会中途退出存储过程，导致CONTEXT未能关闭，因此建议存储过程中有异常处理，将该接口包含在内。 PKG_SERVICE.SQL_UNREGISTER_CONTEXT函数原型为： 1
+2
+3
+4 PKG_SERVICE . SQL_UNREGISTER_CONTEXT ( context_id IN INTEGER ) RETURN INTEGER ; 表3 PKG_SERVICE.SQL_UNREGISTER_CONTEXT接口说明 参数名称 描述 context_id 打算关闭的CONTEXT ID号。 PKG_SERVICE.SQL_SET_SQL 该函数用来解析给定游标的查询语句，被传入的查询语句会立即执行。目前仅支持SELECT查询语句的解析，且语句参数仅可通过text类型传递，长度不大于1G。 PKG_SERVICE.SQL_SET_SQL函数的原型为： 1
+2
+3
+4
+5
+6 PKG_SERVICE . SQL_SET_SQL ( context_id IN INTEGER , query_string IN TEXT , language_flag IN INTEGER ) RETURN BOOLEAN ; 表4 PKG_SERVICE.SQL_SET_SQL接口说明 参数名称 描述 context_id 执行查询语句解析的CONTEXT ID。 query_string 执行的查询语句。 language_flag 版本语言号，目前只支持1。 PKG_SERVICE.SQL_RUN 该函数用来执行一个给定的CONTEXT。该函数接收一个CONTEXT ID，运行后获得的数据用于后续操作。目前仅支持SELECT查询语句的执行。 PKG_SERVICE.SQL_RUN函数的原型为： 1
+2
+3
+4 PKG_SERVICE . SQL_RUN ( context_id IN INTEGER , ) RETURN INTEGER ; 表5 PKG_SERVICE.SQL_RUN接口说明 参数名称 描述 context_id 执行查询语句解析的CONTEXT ID。 PKG_SERVICE.SQL_NEXT_ROW 该函数返回执行SQL实际返回的数据行数，每一次运行该接口都会获取到新的行数的集合，直到数据读取完毕获取不到新行为止。 PKG_SERVICE.SQL_NEXT_ROW函数的原型为： 1
+2
+3
+4 PKG_SERVICE . SQL_NEXT_ROW ( context_id IN INTEGER , ) RETURN INTEGER ; 表6 PKG_SERVICE.SQL_NEXT_ROW接口说明 参数名称 描述 context_id 执行的CONTEXT ID。 PKG_SERVICE.SQL_GET_VALUE 该函数用来返回给定CONTEXT中给定位置的CONTEXT元素值，该接口访问的是PKG_SERVICE.SQL_NEXT_ROW获取的数据。 PKG_SERVICE.SQL_GET_VALUE函数的原型为： 1
+2
+3
+4
+5
+6 PKG_SERVICE . SQL_GET_VALUE ( context_id IN INTEGER , pos IN INTEGER , col_type IN ANYELEMENT ) RETURN ANYELEMENT ; 表7 PKG_SERVICE.SQL_GET_VALUE接口说明 参数名称 描述 context_id 执行的CONTEXT ID。 pos 动态定义列在查询中的位置。 col_type 任意类型变量，定义列的返回值类型。 PKG_SERVICE.SQL_SET_RESULT_TYPE 该函数用来定义从给定CONTEXT返回的列，该接口只能应用于SELECT定义的CONTEXT中。定义的列通过查询列表的相对位置来标识，PKG_SERVICE.SQL_SET_RESULT_TYPE函数的原型为： 1
+2
+3
+4
+5
+6
+7 PKG_SERVICE . SQL_SET_RESULT_TYPE ( context_id IN INTEGER , pos IN INTEGER , coltype_oid IN ANYELEMENT , maxsize IN INTEGER ) RETURN INTEGER ; 表8 PKG_SERVICE.SQL_SET_RESULT_TYPE接口说明 参数名称 描述 context_id 执行的CONTEXT ID。 pos 动态定义列在查询中的位置。 coltype_oid 任意类型的变量，可根据变量类型得到对应类型OID。 maxsize 定义的列的长度。 PKG_SERVICE.JOB_CANCEL 存储过程CANCEL删除指定的定时任务。 PKG_SERVICE.JOB_CANCEL函数原型为： 1
+2 PKG_SERVICE . JOB_CANCEL ( id IN INTEGER ); 表9 PKG_SERVICE.JOB_CANCEL接口参数说明 参数 类型 入参/出参 是否可以为空 描述 id integer IN 否 指定的作业号。 PKG_SERVICE.JOB_FINISH 存储过程FINISH禁用或者启用定时任务。 PKG_SERVICE.JOB_FINISH函数原型为： 1
+2
+3
+4 PKG_SERVICE . JOB_FINISH ( id IN INTEGER , broken IN BOOLEAN , next_time IN TIMESTAMP DEFAULT sysdate ); 表10 PKG_SERVICE.JOB_FINISH接口参数说明 参数 类型 入参/出参 是否可以为空 描述 id integer IN 否 指定的作业号。 broken boolean IN 否 状态标志位，true代表禁用，false代表启用。根据true或false值更新当前job；如果为空值，则不改变原有job的状态。 next_time timestamp IN 是 下次运行时间，默认为当前系统时间。如果参数broken状态为true，则更新该参数为'4000-1-1'；如果参数broken状态为false，且如果参数next_time不为空值，则更新指定job的next_time值，如果next_time为空值，则不更新next_time值。该参数可以省略，为默认值。 PKG_SERVICE.JOB_SUBMIT 存储过程JOB_SUBMIT提交一个系统提供的定时任务。 PKG_SERVICE.JOB_SUBMIT函数原型为： 1
+2
+3
+4
+5
+6 PKG_SERVICE . JOB_SUBMIT ( id IN BIGINT , content IN TEXT , next_time IN TIMESTAMP DEFAULT sysdate , interval_time IN TEXT DEFAULT 'null' , job OUT INTEGER ); 当创建一个定时任务（JOB）时，系统默认将当前数据库和用户名与当前创建的定时任务绑定起来。该接口函数可以通过call或select调用，如果通过select调用，可以不填写出参。如果在存储过程中，则需要通过perform调用该接口函数。如果提交的sql语句任务使用到非public的schema，应该指定表或者函数的schema，或者在sql语句前添加set current_schema = xxx;语句。 表11 PKG_SERVICE.JOB_SUBMIT接口参数说明 参数 类型 入参/出参 是否可以为空 描述 id bigint IN 否 作业号。如果传入id为NULL，则内部会生成作业ID。 content text IN 否 要执行的SQL语句。支持一个或多个‘DML’，‘匿名块’，‘调用存储过程的语句’或3种混合的场景。 next_time timestamp IN 否 下次作业运行时间。默认值为当前系统时间（sysdate）。如果是过去时间，在提交作业时表示立即执行。 interval_time text IN 是 用来计算下次作业运行时间的时间表达式，可以是interval表达式，也可以是sysdate加上一个numeric值（例如：sysdate+1.0/24）。如果为空值或字符串"null"表示只执行一次，执行后JOB状态STATUS变成'd' 不再执行。 job integer OUT 否 作业号。范围为1～32767。当使用select调用pkg_service.job_submit时，该参数可以省略。 PKG_SERVICE.JOB_UPDATE 存储过程UPDATE修改定时任务的属性，包括任务内容、下次执行时间、执行间隔。 PKG_SERVICE.JOB_UPDATE函数原型为： 1
+2
+3
+4
+5 PKG_SERVICE . JOB_UPDATE ( id IN BIGINT , next_time IN TIMESTAMP , interval_time IN TEXT , content IN TEXT ); 表12 PKG_SERVICE.JOB_UPDATE接口参数说明 参数 类型 入参/出参 是否可以为空 描述 id integer IN 否 指定的作业号。 next_time timestamp IN 是 下次运行时间。如果该参数为空值，则不更新指定job的next_time值，否则更新指定job的next_time值。 interval_time text IN 是 用来计算下次作业运行时间的时间表达式。如果该参数为空值，则不更新指定job的interval_time值；如果该参数不为空值，会校验interval_time是否为有效的时间类型或interval类型，则更新指定job的interval_time值。如果为字符串"null"表示只执行一次，执行后JOB状态STATUS变成'd' 不再执行。 content text IN 是 执行的存储过程名或者sql语句块。如果该参数为空值，则不更新指定job的content值，否则更新指定job的content值。 示例： 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27
+28
+29
+30
+31
+32
+33
+34
+35
+36
+37
+38
+39
+40
+41
+42
+43
+44
+45
+46
+47
+48
+49
+50
+51
+52
+53
+54
+55
+56
+57
+58
+59
+60
+61
+62
+63
+64
+65 CREATE TABLE test_table ( a int ); CREATE TABLE CREATE OR REPLACE PROCEDURE test_job ( a in int ) IS BEGIN INSERT INTO test_table VALUES ( a ); COMMIT ; END ; / CREATE PROCEDURE --PKG_SERVICE.JOB_SUBMIT SELECT PKG_SERVICE . JOB_SUBMIT ( NULL , 'call test_job(1);' , to_date ( '20180101' , 'yyyymmdd' ), 'sysdate+1' ); job_submit ------------ 28269 ( 1 row ) SELECT PKG_SERVICE . JOB_SUBMIT ( NULL , 'call test_job(1);' , to_date ( '20180101' , 'yyyymmdd' ), 'sysdate+1.0/24' ); job_submit ------------ 1506 ( 1 row ) CALL PKG_SERVICE . JOB_SUBMIT ( NULL , 'INSERT INTO test_table VALUES(1);  call test_job(1); call test_job(1);' , add_months ( to_date ( '201701' , 'yyyymm' ), 1 ), 'date_trunc(''day'',SYSDATE) + 1 +(8*60+30.0)/(24*60)' ,: jobid ); job ------- 14131 ( 1 row ) SELECT PKG_SERVICE . JOB_SUBMIT ( 101 , 'insert_msg_statistic1;' , sysdate , 'sysdate+3.0/24' ); job_submit ------------ 101 ( 1 row ) --PKG_SERVICE.JOB_UPDATE CALL PKG_SERVICE . JOB_UPDATE ( 101 , sysdate , 'sysdate + 1.0/1440' , 'call test_job(1);' ); job_update ------------ ( 1 row ) CALL PKG_SERVICE . JOB_UPDATE ( 101 , sysdate , 'sysdate + 1.0/1440' , 'insert into test_table values(1);' ); job_update ------------ ( 1 row ) --PKG_SERVICE.JOB_FINISH CALL PKG_SERVICE . JOB_FINISH ( 101 , true ); job_finish ------------ ( 1 row ) --PKG_SERVICE.JOB_CANCEL CALL PKG_SERVICE . JOB_CANCEL ( 101 ); job_cancel ------------ ( 1 row ) DROP TABLE test_table ; DROP TABLE PKG_SERVICE.SUBMIT_ON_NODES 存储过程SUBMIT_ON_NODES创建一个所有CN/DN上的定时任务，仅sysadmin/monitor admin有此权限。 PKG_SERVICE.SUBMIT_ON_NODES函数原型为： 1
+2
+3
+4
+5
+6
+7 PKG_SERVICE . SUBMIT_ON_NODES ( node_name IN NAME , database IN NAME , what IN TEXT , next_date IN TIMESTAMP WITHOUT TIME ZONE , job_interval IN TEXT , job OUT INTEGER ); 表13 PKG_SERVICE.SUBMIT_ON_NODES接口参数说明 参数 类型 入参/出参 是否可以为空 描述 node_name text IN 否 指定作业的执行节点，当前仅支持值为'ALL_NODE'（在所有节点执行）与'CCN'（在central coordinator执行）。 database text IN 否 集群作业所使用的database，节点类型为'ALL_NODE'时仅支持值为'postgres'。 what text IN 否 要执行的SQL语句。支持一个或多个‘DML’，‘匿名块’，‘调用存储过程的语句’或3种混合的场景。 nextdate timestamp IN 否 下次作业运行时间。默认值为当前系统时间（sysdate）。如果是过去时间，在提交作业时表示立即执行。 job_interval text IN 否 用来计算下次作业运行时间的时间表达式，可以是interval表达式，也可以是sysdate加上一个numeric值（例如：sysdate+1.0/24）。如果为空值或字符串"null"表示只执行一次，执行后JOB状态STATUS变成'd'不再执行。 job integer OUT 否 作业号。范围为1～32767。当使用select调用dbms.submit_on_nodes时，该参数可以省略。 示例： 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11 SELECT pkg_service . submit_on_nodes ( 'ALL_NODE' , 'postgres' , 'select capture_view_to_json(''dbe_perf.statement'', 0);' , sysdate , 'interval ''60 second''' ); submit_on_nodes ----------------- 12068 ( 1 row ) SELECT pkg_service . submit_on_nodes ( 'CCN' , 'postgres' , 'select capture_view_to_json(''dbe_perf.statement'', 0);' , sysdate , 'interval ''60 second''' ); submit_on_nodes ----------------- 9027 ( 1 row ) PKG_SERVICE.ISUBMIT_ON_NODES ISUBMIT_ON_NODES与SUBMIT_ON_NODES语法功能相同，但其第一个参数是入参，即指定的作业号，SUBMIT最后一个参数是出参，表示系统自动生成的作业号。仅sysadmin/monitor admin有此权限。 PKG_SERVICE.SQL_GET_ARRAY_RESULT 该函数用来返回绑定的数组类型的OUT参数的值，可以用来获取存储过程中的OUT参数。 PKG_SERVICE.SQL_GET_ARRAY_RESULT函数原型为： 1
+2
+3
+4
+5
+6 PKG_SERVICE . SQL_GET_ARRAY_RESULT ( context_id in int , pos in VARCHAR2 , column_value inout anyarray , result_type in anyelement ); 表14 PKG_SERVICE.SQL_GET_ARRAY_RESULT接口说明 参数名称 描述 context_id 想查找的CONTEXT ID号。 pos 绑定的参数名。 column_value 返回值。 result_type 返回值类型。 PKG_SERVICE.SQL_GET_VARIABLE_RESULT 该函数用来返回绑定的非数组类型的OUT参数的值，可以用来获取存储过程中的OUT参数。 PKG_SERVICE.SQL_GET_VARIABLE_RESULT函数原型为： 1
+2
+3
+4
+5
+6 PKG_SERVICE . SQL_GET_VARIABLE_RESULT ( context_id in int , pos in VARCHAR2 , result_type in anyelement ) RETURNS anyelement ; 表15 PKG_SERVICE.SQL_GET_VARIABLE_RESULT接口说明 参数名称 描述 context_id 想查找的CONTEXT ID号。 pos 绑定的参数名。 result_type 返回值类型。 父主题： 基础接口 版权所有 © 华为技术有限公司

@@ -1,0 +1,29 @@
+案例：改写SQL消除in-clause 案例：改写SQL消除in-clause 现象描述 in-clause/any-clause是常见的SQL语句约束条件，有时in或any后面的clause都是常量，类似于： 1
+2
+3
+4 select count ( 1 ) from calc_empfyc_c1_result_tmp_t1 where ls_pid_cusr1 in ( ‘ 20120405 ’ , ‘ 20130405 ’ ); 或者 1
+2
+3
+4 select count ( 1 ) from calc_empfyc_c1_result_tmp_t1 where ls_pid_cusr1 in any ( ‘ 20120405 ’ , ‘ 20130405 ’ ); 但是也有一些如下的特殊用法： 1
+2
+3
+4
+5 SELECT ls_pid_cusr1 , COALESCE ( max ( round (( current_date - bthdate ) / 365 )), 0 ) FROM calc_empfyc_c1_result_tmp_t1 t1 , p10_md_tmp_t2 t2 WHERE t1 . ls_pid_cusr1 = any ( values ( id ),( id15 )) GROUP BY ls_pid_cusr1 ; 其中，id、id15为p10_md_tmp_t2中的两列，“t1.ls_pid_cusr1 = any(values(id),(id15))”等价于“t1.ls_pid_cusr1 = id or t1.ls_pid_cusr1 = id15” 。 因此join-condition实质上是一个不等式，这种非等值的join操作必须使用nestloop来连接，对应执行计划如下： 优化说明 测试发现由于两表结果集过大，导致nestloop耗时过长，超过一小时未返回结果，因此性能优化的关键是消除nestloop，让join走更高效的hashjoin。从语义等价的角度消除any-clause，SQL改写如下： 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19 select ls_pid_cusr1 , COALESCE ( max ( round ( ym / 365 )), 0 ) from ( ( SELECT ls_pid_cusr1 ,( current_date - bthdate ) as ym FROM calc_empfyc_c1_result_tmp_t1 t1 , p10_md_tmp_t2 t2 WHERE t1 . ls_pid_cusr1 = t2 . id and t1 . ls_pid_cusr1 != t2 . id15 ) union all ( SELECT ls_pid_cusr1 ,( current_date - bthdate ) as ym FROM calc_empfyc_c1_result_tmp_t1 t1 , p10_md_tmp_t2 t2 WHERE t1 . ls_pid_cusr1 = id15 ) ) GROUP BY ls_pid_cusr1 ; 优化后的SQL查询由两个等值join的子查询构成，而每个子查询都可以使用更适合此场景的hashjoin。优化后的执行计划如下 优化后，从超过1个小时未返回结果优化到7s返回结果。 父主题： 实际调优案例 版权所有 © 华为技术有限公司

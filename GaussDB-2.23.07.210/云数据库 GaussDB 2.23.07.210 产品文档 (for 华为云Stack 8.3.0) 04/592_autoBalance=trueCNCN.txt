@@ -1,0 +1,1 @@
+【建议】建议设置连接参数autoBalance=true，开启CN负载均衡功能，并中设置多个CN连接地址（使用逗号分隔） 【建议】建议设置连接参数auto B alance=true，开启CN负载均衡功能，并中设置多个CN连接地址（使用逗号分隔） 一旦开启autobalance，JDBC DRIVER会尝试将JDBC connection分配到不同的CN节点上。 设置多个CN连接地址的目的是避免JDBC DRIVER在首次获取集群CN列表时，因所设置的CN节点故障而失败。 一旦首次成功获取，便不会再依赖连接参数中指定的CN列表，而是根据实时获取的集群CN列表，每隔一段时间，选取连接其中有效的CN获取最新的CN列表。 父主题： JDBC 版权所有 © 华为技术有限公司

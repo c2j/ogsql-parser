@@ -1,0 +1,8 @@
+SQLGetDiagRec SQLGetDiagRec 功能描述 返回诊断记录的多个字段的当前值，其中诊断记录包含错误、警告及状态信息。 原型 1
+2
+3
+4
+5
+6
+7
+8 SQLRETURN SQLGetDiagRec ( SQLSMALLINT HandleType SQLHANDLE Handle , SQLSMALLINT RecNumber , SQLCHAR * SQLState , SQLINTEGER * NativeErrorPtr , SQLCHAR * MessageText , SQLSMALLINT BufferLength SQLSMALLINT * TextLengthPtr ); 参数 表1 SQLGetDiagRec参数 关键字 参数说明 HandleType 句柄类型标识符，它说明诊断所要求的句柄类型。必须为下列值之一： SQL_HANDLE_ENV SQL_HANDLE_DBC SQL_HANDLE_STMT SQL_HANDLE_DESC Handle 诊断数据结构的句柄，其类型由HandleType来指出。如果HandleType是SQL_HANDLE_ENV，Handle可以是共享的或非共享的环境句柄。 RecNumber 指出应用从查找信息的状态记录。状态记录从1开始编号。 SQLState 输出参数 ：指向缓冲区的指针，该缓冲区存储着有关RecNumber的五字符的SQLSTATE码。 NativeErrorPtr 输出参数 ：指向缓冲区的指针，该缓冲区存储着本地的错误码。 MessageText 指向缓冲区的指针，该缓冲区存储着诊断信息文本串。 BufferLength MessageText的长度。 TextLengthPtr 输出参数 ：指向缓冲区的指针，返回MessageText中的字节总数。如果返回字节数大于BufferLength，则MessageText中的诊断信息文本被截断成BufferLength减去NULL结尾字符的长度。 返回值 SQL_SUCCESS：表示调用正确。 SQL_SUCCESS_WITH_INFO：表示会有一些警告信息。 SQL_ERROR：表示比较严重的错误，如：内存分配失败、建立连接失败等。 SQL_INVALID_HANDLE：表示调用无效句柄。其他API的返回值同理。 注意事项 SQLGetDiagRec不发布自己的诊断记录。它用下列返回值来报告它自己的执行结果： SQL_SUCCESS：函数成功返回诊断信息。 SQL_SUCCESS_WITH_INFO：MessageText太小以致不能容纳所请求的诊断信息。没有诊断记录生成。 SQL_INVALID_HANDLE：由HandleType和Handle所指出的句柄是不合法句柄。 SQL_ERROR：RecNumber小于等于0或BufferLength小于0。 如果调用ODBC函数返回SQL_ERROR或SQL_SUCCESS_WITH_INFO，可调用SQLGetDiagRec返回诊断信息值SQLSTATE，SQLSTATE值的如下表。 表2 SQLSTATE值 SQLSATATE 错误 描述 HY000 一般错误 未定义特定的SQLSTATE所产生的一个错误。 HY001 内存分配错误 驱动程序不能分配所需要的内存来支持函数的执行或完成。 HY008 取消操作 调用SQLCancel取消执行语句后，依然在StatementHandle上调用函数。 HY010 函数系列错误 在为执行中的所有数据参数或列发送数据前就调用了执行函数。 HY013 内存管理错误 不能处理函数调用，可能由当前内存条件差引起。 HYT01 连接超时 数据源响应请求之前，连接超时。 IM001 驱动程序不支持此函数 调用了StatementHandle相关的驱动程序不支持的函数 示例 参见： 示例 父主题： ODBC接口参考 版权所有 © 华为技术有限公司

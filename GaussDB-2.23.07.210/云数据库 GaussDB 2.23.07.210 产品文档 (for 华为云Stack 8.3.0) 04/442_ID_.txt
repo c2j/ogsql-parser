@@ -1,0 +1,1 @@
+获取项目ID/名称 获取项目ID/名称 操作场景 在调用接口的时候，部分URL中需要填入项目编号，所以需要获取到项目编号。获取方式如下： 使用浏览器，以VDC管理员或VDC业务员帐号登录ManageOne。 非B2B场景登录地址：https:// ManageOne运营面的访问地址 。例如，https://console.demo.com。 B2B场景登录地址：https:// ManageOne租户面的访问地址 。例如，https://tenant.demo.com。 在页面右上角单击用户图标，在下拉列表中选择“个人设置”。 在资源空间列表中获取对应区域的ID，即项目ID（project_id）。 同时可获取资源空间名称，即项目名称。 父主题： 附录 版权所有 © 华为技术有限公司

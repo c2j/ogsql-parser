@@ -1,0 +1,1 @@
+DBE_PLDEBUGGER.finish DBE_PLDEBUGGER.finish 执行存储过程中当前的SQL直到下一个断点触发或执行到上层栈的下一行。 表1 finish入参和返回值列表 名称 类型 描述 funcoid OUT oid 函数id funcname OUT text 函数名 lineno OUT integer 当前调试运行的下一行行号 query OUT text 当前调试的下一行函数源码 父主题： DBE_PLDEBUGGER Schema 版权所有 © 华为技术有限公司

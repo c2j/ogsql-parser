@@ -1,0 +1,68 @@
+GOTO语句 GOTO语句 GOTO语句可以实现从GOTO位置到目标语句的无条件跳转。GOTO语句会改变原本的执行逻辑，因此应该慎重使用，或者也可以使用EXCEPTION处理特殊场景。当执行GOTO语句时，目标Label必须是唯一的。 语法 label declaration ::= goto statement ::= 示例 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25 gaussdb =# CREATE OR REPLACE PROCEDURE GOTO_test () AS DECLARE v1 int ; BEGIN v1 : = 0 ; LOOP EXIT WHEN v1 > 100 ; v1 : = v1 + 2 ; if v1 > 25 THEN GOTO pos1 ; END IF ; END LOOP ; << pos1 >> v1 : = v1 + 10 ; raise info 'v1 is %. ' , v1 ; END ; / CREATE PROCEDURE gaussdb =# call GOTO_test (); INFO : v1 is 36 . goto_test ----------- ( 1 row ) 限制场景 GOTO使用有以下限制场景 不支持有多个相同的GOTO labels目标场景，无论是否在同一个block中。 1
+2
+3
+4
+5
+6
+7 BEGIN GOTO pos1 ; << pos1 >> SELECT * FROM ... << pos1 >> UPDATE t1 SET ... END ; 不支持GOTO跳转到IF语句，CASE语句，LOOP语句中。 1
+2
+3
+4
+5
+6
+7 BEGIN GOTO pos1 ; IF valid THEN << pos1 >> SELECT * FROM ... END IF ; END ; 不支持GOTO语句从一个IF子句跳转到另一个IF子句，或从一个CASE语句的WHEN子句跳转到另一个WHEN子句。 1
+2
+3
+4
+5
+6
+7
+8
+9 BEGIN IF valid THEN GOTO pos1 ; SELECT * FROM ... ELSE << pos1 >> UPDATE t1 SET ... END IF ; END ; 不支持从外部块跳转到内部的BEGIN-END块。 1
+2
+3
+4
+5
+6
+7 BEGIN GOTO pos1 ; BEGIN << pos1 >> UPDATE t1 SET ... END ; END ; 不支持从异常处理部分跳转到当前的BEGIN-END块。但可以跳转到上层BEGIN-END块。 1
+2
+3
+4
+5
+6
+7 BEGIN << pos1 >> UPDATE t1 SET ... EXCEPTION WHEN condition THEN GOTO pos1 ; END ; 如果从GOTO到一个不包含执行语句的位置，需要添加NULL语句。 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12 DECLARE done BOOLEAN ; BEGIN FOR i IN 1 .. 50 LOOP IF done THEN GOTO end_loop ; END IF ; << end_loop >> -- 除非后面有可执行语句，否则不允许GOTO到这里 NULL ; -- 这里添加NULL语句避免错误 END LOOP ; -- 如果没有上一句NULL会报错 END ; / 父主题： 控制语句 版权所有 © 华为技术有限公司

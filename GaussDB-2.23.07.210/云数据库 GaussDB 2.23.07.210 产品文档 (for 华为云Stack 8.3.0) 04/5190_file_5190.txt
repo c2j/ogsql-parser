@@ -1,0 +1,21 @@
+告警参数说明 告警参数说明 本手册提供GaussDB的内核告警处理指导。 告警记录示例： {
+"id":"0000001078919230",
+"name":"AbnormalETCDProcess",
+"level":"critical",
+"scope":["newsql"],
+"source_tag":"pekpomtest00060-etcd",
+"op_type":"firing",
+"details":"ETCD instance process abnormal",
+"clear_type":"ADAC",
+"start_timestamp":1577936016381,
+"end_timestamp":0
+} 消除告警示例： {
+"id":"0000001078919230",
+"name":"AbnormalETCDProcess",
+"level":"critical",
+"scope":["newsql"],
+"source_tag":"pekpomtest00060-etcd",
+"op_type":"resolved",
+"start_timestamp":0,
+"end_timestamp":1577946016707
+} om monitor每4秒检测一次ETCD的进程是否存在，如果连续三次都不存在，则上报告警。如果检测到ETCD启动成功则上报告警消除。 父主题： GaussDB 内核告警参考 版权所有 © 华为技术有限公司

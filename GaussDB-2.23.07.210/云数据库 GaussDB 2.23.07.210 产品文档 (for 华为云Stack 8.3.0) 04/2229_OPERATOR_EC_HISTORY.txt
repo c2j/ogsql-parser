@@ -1,0 +1,1 @@
+OPERATOR_EC_HISTORY OPERATOR_EC_HISTORY OPERATOR_EC_HISTORY视图显示的是当前用户在当前CN上执行EC（Extension Connector）作业结束后的算子相关记录。此视图查询数据的记录会被定时清理，清理周期为3分钟。 当GUC参数 enable_resource_record 为 “on” 时，视图中的记录每隔3分钟被转储到系统表 GS_WLM_EC_OPERATOR_INFO 中一次，同时视图中的记录被删除； 当GUC参数 enable_resource_record 为 “off” 时，记录在视图中的存留时间达到超期时间（超期时间为3分钟）后会被删除。记录的数据同 GS_WLM_EC_OPERATOR_INFO 的字段。 父主题： Operator 版权所有 © 华为技术有限公司

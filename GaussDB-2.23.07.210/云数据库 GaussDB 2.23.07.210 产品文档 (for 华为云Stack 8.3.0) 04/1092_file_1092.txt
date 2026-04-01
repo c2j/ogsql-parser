@@ -1,0 +1,116 @@
+条件表达式函数 条件表达式函数 条件表达式函数 coalesce(expr1, expr2, ..., exprn) 描述： 返回参数列表中第一个非NULL的参数值。 COALESCE(expr1, expr2) 等价于CASE WHEN expr1 IS NOT NULL THEN expr1 ELSE expr2 END。 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT coalesce ( NULL , 'hello' ); coalesce ---------- hello ( 1 row ) 备注： 如果表达式列表中的所有表达式都等于NULL，则本函数返回NULL。 它常用于在显示数据时用缺省值替换NULL。 和CASE表达式一样，COALESCE不会计算不需要用来判断结果的参数；即在第一个非空参数右边的参数不会被计算。 decode(base_expr, compare1, value1, Compare2,value2, … default) 描述：把base_expr与后面的每个compare(n) 进行比较，如果匹配返回相应的value(n)。如果没有发生匹配，则返回default。 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT decode ( 'A' , 'A' , 1 , 'B' , 2 , 0 ); case ------ 1 ( 1 row ) 备注：不支持对xml数据类型的操作。 nullif(expr1, expr2) 描述：当且仅当expr1和expr2相等时，NULLIF才返回NULL，否则它返回expr1。 nullif(expr1, expr2) 逻辑上等价于CASE WHEN expr1 = expr2 THEN NULL ELSE expr1 END。 nullif(expr1, expr2)函数为映射函数，故pg_proc系统表中无法查到对应函数定义。 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT nullif ( 'hello' , 'world' ); nullif -------- hello ( 1 row ) 备注：不支持对xml数据类型的操作。 如果两个参数的数据类型不同，则： 若两种数据类型之间存在隐式转换，则以其中优先级较高的数据类型为基准将另一个参数隐式转换成该类型，转换成功则进行计算，转换失败则返回错误。如： 1
+2
+3
+4
+5 gaussdb =# SELECT nullif ( '1234' :: VARCHAR , 123 :: INT4 ); nullif -------- 1234 ( 1 row ) 1
+2 gaussdb =# SELECT nullif ( '1234' :: VARCHAR , '2012-12-24' :: DATE ); ERROR : invalid input syntax for type timestamp : "1234" 若两种数据类型之间不存在隐式转换，则返回错误。如： 1
+2
+3
+4
+5
+6 gaussdb =# SELECT nullif ( 1 :: bit , '1' :: MONEY ); ERROR : operator does not exist : bit = money LINE 1 : SELECT nullif ( 1 :: bit , '1' :: MONEY ); ^ HINT : No operator matches the given name and argument type ( s ). You might need to add explicit type casts . CONTEXT : referenced column : nullif nvl( expr1 , expr2 ) 描述： 如果expr1为NULL则返回expr2。 如果expr1非NULL，则返回expr1。 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT nvl ( 'hello' , 'world' ); nvl ------- hello ( 1 row ) 备注：参数expr1和expr2可以为任意类型，当NVL的两个参数不属于同类型时，看第二个参数是否可以向第一个参数进行隐式转换，如果可以则返回第一个参数类型。如果第二个参数不能向第一个参数进行隐式转换而第一个参数可以向第二个参数进行隐式转换，则返回第二个参数的类型。如果两个参数之间不存在隐式类型转换并且也不属于同一类型则报错。 nvl2( expr1 , expr2，expr3 ) 描述： 如果expr1为NULL，则返回expr3。 如果expr1非NULL，则返回expr2。 此函数在参数a_format_version值为10c和a_format_dev_version值为s1的情况下有效。 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT nvl2 ( 'hello' , 'world' , 'other' ); case ------- world ( 1 row ) 备注：参数expr2和expr3可以为任意类型， 当NVL2的后面两个参数不属于同类型时，看expr3参数是否可以向expr2参数进行隐式转换，如果不能隐式转换，会返回错误。如果第一个参数是数值类型，函数将第一个参数和其他参数都转换为numeric类型，然后进行比较，对于不能转换的，提示出错信息；第一个参数是其他类型的，函数将其他参数都转换为第一个参数的类型进行比较，对于不能转换的，提示出错信息。 greatest(expr1 [, ...]) 描述：获取并返回参数列表中值最大的表达式的值。 返回值类型： 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT greatest ( 1 * 2 , 2 - 3 , 4 - 1 ); greatest ---------- 3 ( 1 row ) 1
+2
+3
+4
+5 gaussdb =# SELECT greatest ( 'HARRY' , 'HARRIOT' , 'HAROLD' ); greatest ---------- HARRY ( 1 row ) 备注：不支持对xml数据类型的操作。 此函数在参数a_format_version值为10c和a_format_dev_version值为s1的情况下： 如果参数中有任意一个参数的值为null，函数返回null。 如果第一个参数是数值类型，函数将第一个参数和其他参数都转换为numeric类型，然后进行比较，对于不能转换的，提示出错信息；第一个参数是其他类型的，函数将其他参数都转换为第一个参数的类型进行比较，对于不能转换的，提示出错信息。 least(expr1 [, ...]) 描述：获取并返回参数列表中值最小的表达式的值。 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT least ( 1 * 2 , 2 - 3 , 4 - 1 ); least ------- - 1 ( 1 row ) 1
+2
+3
+4
+5 gaussdb =# SELECT least ( 'HARRY' , 'HARRIOT' , 'HAROLD' ); least -------- HAROLD ( 1 row ) 备注：不支持对xml数据类型的操作。 此函数在参数a_format_version值为10c和a_format_dev_version值为s1的情况下： 如果参数中有任意一个参数的值为null，函数返回null。 如果第一个参数是数值类型，函数将第一个参数和其他参数都转换为numeric类型，然后进行比较，对于不能转换的，提示出错信息；第一个参数是其他类型的，函数将其他参数都转换为第一个参数的类型进行比较，对于不能转换的，提示出错信息。 EMPTY_BLOB() 描述：使用EMPTY_BLOB在INSERT或UPDATE语句中初始化一个BLOB变量，取值为NULL。 返回值类型：BLOB 示例： 1
+2
+3
+4
+5
+6 --新建表 gaussdb =# CREATE TABLE blob_tb ( b blob , id int ) DISTRIBUTE BY REPLICATION ; --插入数据 gaussdb =# INSERT INTO blob_tb VALUES ( empty_blob (), 1 ); --删除表 gaussdb =# DROP TABLE blob_tb ; 备注：使用DBE_LOB.GET_LENGTH求得的长度为0。 EMPTY_CLOB() 描述：使用EMPTY_CLOB在INSERT或UPDATE语句中初始化一个CLOB变量，取值为空。 此函数在参数a_format_version值为10c和a_format_dev_version值为s1的情况下有效。 返回值类型：CLOB 示例： 1
+2
+3
+4
+5
+6 --新建表 gaussdb =# CREATE TABLE clob_tb ( c clob , id int ); --插入数据 gaussdb =# INSERT INTO clob_tb VALUES ( empty_clob (), 1 ); --删除表 gaussdb =# DROP TABLE clob_tb ; 备注：使用DBE_LOB.GET_LENGTH求得的长度为0。 lnnvl(condition) 描述：lnnvl用于某个查询语句的where子句中，如果条件为true就返回false，如果条件为unknown或者false，就返回true。 condition：必须为逻辑表达式。但不能用于复合条件如and、or或者between。 返回类型：bool 示例： 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19 --新建表 gaussdb =# CREATE TABLE student_demo ( name VARCHAR2 ( 20 ), grade NUMBER ( 10 , 2 )); CREATE TABLE --插入数据 gaussdb =# INSERT INTO student_demo VALUES ( 'name0' , 0 ); INSERT 0 1 gaussdb =# INSERT INTO student_demo VALUES ( 'name1' , 1 ); INSERT 0 1 gaussdb =# INSERT INTO student_demo VALUES ( 'name2' , 2 ); INSERT 0 1 --调用lnnvl gaussdb =# SELECT * FROM student_demo WHERE LNNVL ( name = 'name1' ); name | grade -------+------- name0 | 0 . 00 name2 | 2 . 00 ( 2 rows ) 此函数在参数a_format_version值为10c和a_format_dev_version值为s2的情况下，才支持lnnvl函数。 isnull(expr) 描述：判断expr是否为NULL，如果expr为NULL，返回true，否则返回false。isnull函数是is null表达式的映射，isnull(expr)等价于expr is null表达式。isnull函数在全模式下兼容。 参数：支持任意类型输入。 返回类型：boolean 示例： 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11 gaussdb =# SELECT isnull ( null ); ? column ? ---------- t ( 1 row ) gaussdb =# SELECT isnull ( 1 ); ? column ? ---------- f ( 1 row ) isnull(expr)函数为映射函数，故pg_proc系统表中无法查到对应函数定义。 if(expr1, expr2, expr3) 描述：判断expr1的值，当expr1为true时返回expr2的值，否则返回expr3的值。 if(expr1, expr2, expr3)逻辑上等价于CASE WHEN expr1 THEN expr2 ELSE expr3 END。 参数：见下表。 表1 参数类型说明 参数名 合法入参类型 描述 expr1 boolean 用于判断if()函数选择返回值。 expr2 任意类型 当expr1为true时，返回值为expr2。 expr3 任意类型 当expr1为false时，返回值为expr3。 返回值类型：与入参类型有关，输出规则见说明。 if(expr1, expr2, expr3)仅在MYSQL兼容模式下支持。 当设置兼容性参数b_format_version=''和b_format_dev_version=''时，if(expr1, expr2, expr3)函数输出结果类型与CASE WHEN expr1 THEN expr2 ELSE expr3 END输出结果类型一致；当设置兼容性参数b_format_version='5.7'和b_format_dev_version='s1'后返回值类型推导遵从以下规则，规则优先级由高到低排列： 两入参类型相同时，返回值类型与入参类型相同； 其中一个入参为SET类型时，返回TEXT类型； 其中一个入参为BLOB类型时，返回BLOB类型； 其中一个入参为TEXT类型时，返回TEXT类型； 其中一个入参为STRING类型时，返回TEXT类型； 其中一个入参为时间类型时，另一个也为时间类型则返回TIMESTAMPTZ，否则返回TEXT类型； 两入参均为有符号整型时，若其中一个入参为BIGINT类型则返回BIGINT类型，否则返回INT类型； 两入参均为无符号整型时，若其中一个入参为UNSIGNED BIGINT类型则返回UNSIGNED BIGINT类型，否则返回UNSIGNED INT类型； 两入参分别为浮点型与整型时，返回浮点型； 除以上提到的NUMERIC类型组合外，其余NUMERIC类型组合均返回NUMERIC类型； 若入参类型与返回值类型不存在隐式转换函数，则报错。 expr1入参为NULL时返回结果与expr1为FALSE场景返回结果一致。 if(expr1, expr2, expr3)函数为映射函数，故pg_proc系统表中无法查到对应函数定义。 示例： 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13 --expr1为表达式 gaussdb =# select if ( 2 > 3 , 'true' , 'false' ); case ------- false ( 1 row ) --expr1入参为NULL时，与false场景结果一致，返回expr2的值 gaussdb =# select if ( null , 'not null' , 'is null' ); case --------- is null ( 1 row ) ifnull(expr1, expr2) 描述：若expr1为NULL返回expr2的值，否则返回expr1的值。 ifnull(expr1, expr2)逻辑上等价于nvl(expr1, expr2)。 参数：任意类型。 返回值类型：与入参类型有关，输出规则见说明。 ifnull(expr1, expr2)仅在MYSQL兼容模式下支持。 当设置兼容性参数b_format_version=''和b_format_dev_version=''时，ifnull(expr1, expr2)函数输出结果类型与nvl(expr1, expr2)输出结果类型一致；当设置兼容性参数b_format_version='5.7'和b_format_dev_version='s1'后返回值类型推导遵从以下规则，规则优先级由高到低排列： 两入参类型相同时，返回值类型与入参类型相同； 其中一个入参为SET类型时，返回TEXT类型； 其中一个入参为BLOB类型时，返回BLOB类型； 其中一个入参为TEXT类型时，返回TEXT类型； 其中一个入参为STRING类型时，返回TEXT类型； 其中一个入参为时间类型时，另一个也为时间类型则返回TIMESTAMPTZ，否则返回TEXT类型； 两入参类型其中一个为float4类型另一个为NUMERIC范畴中任一类型，返回值为double类型。 两入参均为NUMERIC类型时，返回两个入参类型中精度较高的类型，例如入参类型分别为TINYINT和INT时，返回值类型推导为INT型； 若入参类型与返回值类型不存在隐式转换函数，则报错。 两入参同时为NULL时，返回值为NULL，否则返回第一个不为空的值。 ifnull(expr1, expr2)函数为映射函数，故pg_proc系统表中无法查到对应函数定义。 示例： 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20 --入参为空串，输出为空串而非NULL gaussdb =# select ifnull ( '' , null ) is null as a ; a --- f ( 1 row ) --两个入参都为NULL，输出为NULL gaussdb =# select ifnull ( null , null ) is null as a ; a --- t ( 1 row ) --输入NULL和字符串，输出结果为第一个非空的值 gaussdb =# select ifnull ( null , 'A' ) as a ; a --- A ( 1 row ) 父主题： 函数和操作符 版权所有 © 华为技术有限公司

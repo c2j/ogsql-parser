@@ -1,0 +1,1 @@
+设置RootAddress 设置RootAddress 操作步骤 登录Service OM 。 进入服务列表->DBS运维平台->配置管理->系统参数管理。 下拉选择DBS_SYSTEM_PARAMETER，搜索内容 bmsRootAddress。 查看对应参数值结果是否为空，若为空，则搜索“ecsRootAddress”，将其中的参数值填写入“bmsRootAddress”中。 父主题： BMS入云完成后配置 版权所有 © 华为技术有限公司

@@ -1,0 +1,1 @@
+GLOBAL_OS_RUNTIME GLOBAL_OS_RUNTIME 提供 整个集群 中所有正常节点下的操作系统运行状态信息。 表1 GLOBAL_OS_RUNTIME字段 名称 类型 描述 node_name name 节点名称。 id integer 编号。 name text 操作系统运行状态名称。 value numeric 操作系统运行状态值。 comments text 操作系统运行状态注释。 cumulative boolean 操作系统运行状态的值是否为累加值。 父主题： OS 版权所有 © 华为技术有限公司

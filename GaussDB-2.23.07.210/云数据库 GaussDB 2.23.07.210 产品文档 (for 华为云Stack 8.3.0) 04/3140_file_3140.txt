@@ -1,0 +1,1 @@
+独立的子程序 独立的子程序 在Schema内创建的子程序，在Schema内创建的存储过程、函数、包等。 详细使用请参考： CREATE PACKAGE CREATE FUNCTION CREATE PROCEDURE 父主题： 子程序 版权所有 © 华为技术有限公司

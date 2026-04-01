@@ -1,0 +1,93 @@
+范围分区 范围分区 范围分区（Range Partition）根据为每个分区建立的分区键的值范围将数据映射到分区。范围分区是生产系统中最常见的分区类型，通常在以时间维度（Date、Time Stamp）描述数据场景中使用。范围分区有两种语法格式，示例如下： VALUES LESS THAN的语法格式 对于从句是VALUE LESS THAN的语法格式，范围分区策略的分区键最多支持16列。 单列分区键示例如下： CREATE TABLE range_sales
+(
+    product_id      INT4 NOT NULL,
+    customer_id     INT4 NOT NULL,
+    time            DATE,
+    channel_id      CHAR(1),
+    type_id         INT4,
+    quantity_sold   NUMERIC(3),
+    amount_sold     NUMERIC(10,2)
+)
+PARTITION BY RANGE (time)
+(
+    PARTITION date_202001 VALUES LESS THAN ('2020-02-01'),
+    PARTITION date_202002 VALUES LESS THAN ('2020-03-01'),
+    PARTITION date_202003 VALUES LESS THAN ('2020-04-01'),
+    PARTITION date_202004 VALUES LESS THAN ('2020-05-01')
+); 其中date_202002表示2020年2月的分区，将包含分区键值从2020年2月1日到2020年2月29日的数据。 每个分区都有一个VALUES LESS子句，用于指定分区的非包含上限。大于或等于该分区键的任何值都将添加到下一个分区。除第一个分区外，所有分区都具有由前一个分区的VALUES LESS子句指定的隐式下限。可以为最高分区定义MAXVALUE关键字，MAXVALUE表示一个虚拟无限值，其排序高于分区键的任何其他可能值，包括空值。 多列分区键示例如下： CREATE TABLE range_sales
+(
+    c1      INT4 NOT NULL,
+    c2      INT4 NOT NULL,
+    c3      CHAR(1)
+)
+PARTITION BY RANGE (c1,c2)
+(
+    PARTITION p1 VALUES LESS THAN (10,10),
+    PARTITION p2 VALUES LESS THAN (10,20),
+    PARTITION p3 VALUES LESS THAN (20,10)
+);
+INSERT INTO range_sales VALUES(9,5,'a');
+INSERT INTO range_sales VALUES(9,20,'a');
+INSERT INTO range_sales VALUES(9,21,'a');
+INSERT INTO range_sales VALUES(10,5,'a');
+INSERT INTO range_sales VALUES(10,15,'a');
+INSERT INTO range_sales VALUES(10,20,'a');
+INSERT INTO range_sales VALUES(10,21,'a');
+INSERT INTO range_sales VALUES(11,5,'a');
+INSERT INTO range_sales VALUES(11,20,'a');
+INSERT INTO range_sales VALUES(11,21,'a'); gaussdb=# SELECT * FROM range_sales PARTITION (p1);
+ c1 | c2 | c3
+----+----+----
+  9 |  5 | a
+  9 | 20 | a
+  9 | 21 | a
+ 10 |  5 | a
+(4 rows) gaussdb=# SELECT * FROM range_sales PARTITION (p2);
+ c1 | c2 | c3
+----+----+----
+ 10 | 15 | a
+(1 row) gaussdb=# SELECT * FROM range_sales PARTITION (p3);
+ c1 | c2 | c3
+----+----+----
+ 10 | 20 | a
+ 10 | 21 | a
+ 11 |  5 | a
+ 11 | 20 | a
+ 11 | 21 | a
+(5 rows) 多列分区的分区规则如下： 从第一列开始比较。 如果插入的值当前列小于分区当前列边界值，则直接插入。 如果插入的当前列等于分区当前列的边界值，则比较插入值的下一列与分区下一列边界值的大小。 如果插入的当前列大于分区当前列的边界值，则换下一个分区进行比较。 START END语法格式 对于从句是START END语法格式，范围分区策略的分区键最多支持1列。 示例如下： -- 创建表空间
+CREATE TABLESPACE startend_tbs1 LOCATION '/home/omm/startend_tbs1';
+CREATE TABLESPACE startend_tbs2 LOCATION '/home/omm/startend_tbs2';
+CREATE TABLESPACE startend_tbs3 LOCATION '/home/omm/startend_tbs3';
+CREATE TABLESPACE startend_tbs4 LOCATION '/home/omm/startend_tbs4';
+-- 创建临时schema
+CREATE SCHEMA tpcds;
+SET CURRENT_SCHEMA TO tpcds;
+-- 创建分区表，分区键是integer类型
+CREATE TABLE tpcds.startend_pt (c1 INT, c2 INT)
+TABLESPACE startend_tbs1
+PARTITION BY RANGE (c2) (
+    PARTITION p1 START(1) END(1000) EVERY(200) TABLESPACE startend_tbs2,
+    PARTITION p2 END(2000),
+    PARTITION p3 START(2000) END(2500) TABLESPACE startend_tbs3,
+    PARTITION p4 START(2500),
+    PARTITION p5 START(3000) END(5000) EVERY(1000) TABLESPACE startend_tbs4
+)
+ENABLE ROW MOVEMENT;
+
+-- 查看分区表信息 gaussdb=# SELECT relname, boundaries, spcname FROM pg_partition p JOIN pg_tablespace t ON
+    p.reltablespace=t.oid and p.parentid='tpcds.startend_pt'::regclass ORDER BY 1;
+     relname | boundaries | spcname
+-------------+------------+---------------
+        p1_0 | {1}        | startend_tbs2
+        p1_1 | {201}      | startend_tbs2
+        p1_2 | {401}      | startend_tbs2
+        p1_3 | {601}      | startend_tbs2
+        p1_4 | {801}      | startend_tbs2
+        p1_5 | {1000}     | startend_tbs2
+          p2 | {2000}     | startend_tbs1
+          p3 | {2500}     | startend_tbs3
+          p4 | {3000}     | startend_tbs1
+        p5_1 | {4000}     | startend_tbs4
+        p5_2 | {5000}     | startend_tbs4
+ startend_pt |            | startend_tbs1
+(12 rows) 父主题： 分区策略 版权所有 © 华为技术有限公司

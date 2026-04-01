@@ -1,0 +1,463 @@
+DBE_UTILITY DBE_UTILITY 接口介绍 高级功能包DBE_UTILITY支持的所有接口请参见 表1 。 表1 DBE_UTILITY 接口名称 描述 DBE_UTILITY.FORMAT_ERROR_BACKTRACE 输出存储过程异常的调用堆栈。 DBE_UTILITY.FORMAT_ERROR_STACK 输出存储过程异常的具体信息。 DBE_UTILITY.FORMAT_CALL_STACK 输出存储过程的调用堆栈。 DBE_UTILITY.GET_TIME 输出当前时间，一般用于做差得到执行时长。 DBE_UTILITY.CANONICALIZE 用于给表名字符串做规范。 DBE_UTILITY.COMMA_TO_TABLE 将用逗号隔开的名字列表的字符串转换为PL/SQL表名列表。 DBE_UTILITY.DB_VERSION 返回数据库的版本号和兼容性版本号。 DBE_UTILITY.EXEC_DDL_STATEMENT 用于执行用户输入的DDL语句。 DBE_UTILITY.EXPAND_SQL_TEXT_PROC 用于展开SQL查询的视图。 DBE_UTILITY.GET_CPU_TIME 返回当前CPU处理时间的测量值。 DBE_UTILITY.GET_ENDIANNESS 用于获取数据库所在平台字节序的大小端信息。 DBE_UTILITY.GET_HASH_VALUE 返回一个给定字符串的hash值。 DBE_UTILITY.GET_SQL_HASH 输出一个给定字符串的hash值，该存储过程在不打开proc_outparam_override时使用。 DBE_UTILITY.IS_BIT_SET 用于检查参数n是否存在于r。 DBE_UTILITY.IS_CLUSTER_DATABASE 用于判断当前数据库是否在数据库集群模式下运行。 DBE_UTILITY.NAME_RESOLVE 解析给定的对象名称，包括同义词翻译和必要的授权检查。 DBE_UTILITY.NAME_TOKENIZE 用于解析a [. b [. c ]][@ dblink ]形式的名字。 DBE_UTILITY.OLD_CURRENT_SCHEMA 返回当前用户环境下的数据库模式名称。 DBE_UTILITY.OLD_CURRENT_USER 返回当前用户的名称。 DBE_UTILITY.TABLE_TO_COMMA 将PL/SQL中的表名转换为用逗号隔开的名字列表的字符串。 DBE_UTILITY.GET_SQL_HASH_FUNC 功能同DBE_UTILITY.GET_SQL_HASH，该函数在打开proc_outparam_override时使用。 DBE_UTILITY.EXPAND_SQL_TEXT 内部函数，不建议用户使用。 DBE_UTILITY.CANONICALIZE_RET 内部函数，不建议用户使用。 DBE_UTILITY.COMMA_TO_TABLE_FUN 内部函数，不建议用户使用。 DBE_UTILITY.COMPILE_SCHEMA 内部函数，不建议用户使用，已废弃。 DBE_UTILITY.NAME_SEPARATE 内部函数，不建议用户使用。 DBE_UTILITY.NAME_TOKENIZE_FUNC 内部函数，不建议用户使用。 DBE_UTILITY.NAME_TOKENIZE_LOWER 内部函数，不建议用户使用。 DBE_UTILITY.NAME_TOKENIZE_LOWER_FUNC 内部函数，不建议用户使用。 DBE_UTILITY.PRIVILEGE_CHECK 内部函数，不建议用户使用。 DBE_UTILITY.SEARCH_CLASS_WITH_NSPOID_ONAME_TYPE 内部函数，不建议用户使用。 DBE_UTILITY.SEARCH_OBJECTS 内部函数，不建议用户使用。 DBE_UTILITY.SEARCH_OBJECTS_SYNONYM_FILL_SECHEMA 内部函数，不建议用户使用。 DBE_UTILITY.SEARCH_PROCEDURE_WITH_NSPOID_ONAME 内部函数，不建议用户使用。 DBE_UTILITY.SEARCH_SYNONM_WITH_NSPOID_ONAME 内部函数，不建议用户使用。 DBE_UTILITY.TABLE_TO_COMMA_FUNC 内部函数，不建议用户使用。 DBE_UTILITY.USER_NAME 内部函数，不建议用户使用。 DBE_UTILITY.FORMAT_ERROR_BACKTRACE 存储过程FORMAT_ERROR_BACKTRACE返回在执行过程中出现错误时，出现错误位置的调用堆栈。DBE_UTILITY.FORMAT_ERROR_BACKTRACE函数原型为： 1
+2 DBE_UTILITY . FORMAT_ERROR_BACKTRACE () RETURN TEXT ; DBE_UTILITY.FORMAT_ERROR_STACK 存储过程FORMAT_ERROR_STACK返回在执行过程中出现错误时，出现错误位置的具体信息。DBE_UTILITY.FORMAT_ERROR_STACK函数原型为： 1
+2 DBE_UTILITY . FORMAT_ERROR_STACK () RETURN TEXT ; DBE_UTILITY.FORMAT_CALL_STACK 存储过程FORMAT_CALL_STACK设置输出函数调用堆栈。DBE_UTILITY.FORMAT_CALL_STACK函数原型为： 1
+2 DBE_UTILITY . FORMAT_CALL_STACK () RETURN TEXT ; DBE_UTILITY.GET_TIME 存储过程GET_TIME设置输出时间，通常用于做差，单独的返回值没有意义。DBE_UTILITY.GET_TIME函数原型为： 1
+2 DBE_UTILITY . GET_TIME () RETURN BIGINT ; DBE_UTILITY.CANONICALIZE 存储过程CANONICALIZE用于给表名字符串做规范。该过程处理单个保留字或关键字，并删除单个标识符的空白，以便“table”成为TABLE。DBE_UTILITY.CANONICALIZE函数原型为： 1
+2
+3
+4
+5 DBE_UTILITY . CANONICALIZE ( name IN VARCHAR2 , canon_name OUT VARCHAR2 , canon_len IN BINARY_INTEGER DEFAULT 1024 ); 表2 DBE_UTILITY.CANONICALIZE接口说明 参数名称 类型 入参/出参 是否可以为空 描述 name VARCHAR2 IN 否 待规范的字符串。 canon_name VARCHAR2 OUT 是 规范好的字符串。 canon_len BINARY_INTEGER IN 是 要规范的字符串长度，默认值为1024（以字节为单位）。 DBE_UTILITY.COMMA_TO_TABLE 存储过程COMMA_TO_TABLE将用逗号隔开的名字列表的字符串转换为PL/SQL表名列表。DBE_UTILITY.COMMA_TO_TABLE函数原型为： 1
+2
+3
+4
+5 DBE_UTILITY . COMMA_TO_TABLE ( list IN VARCHAR2 , tablen OUT BINARY_INTEGER , tab OUT VARCHAR2 [] ); 表3 DBE_UTILITY.COMMA_TO_TABLE接口说明 参数名称 类型 入参/出参 是否可以为空 描述 list VARCHAR2 IN 否 逗号隔开的名字列表字符串。 tablen BINARY_INTEGER OUT 是 列表名字的个数。 tab VARCHAR2 OUT 是 转换后的表名称列表。 DBE_UTILITY.DB_VERSION 存储过程DB_VERSION返回数据库的版本号和兼容性版本号。DBE_UTILITY.DB_VERSION函数原型为： 1
+2
+3 DBE_UTILITY . DB_VERSION ( version OUT VARCHAR2 ); 表4 DBE_UTILITY.DB_VERSION接口说明 参数名称 类型 入参/出参 是否可以为空 描述 version VARCHAR2 OUT 否 输出参数，表示内部的数据库软件版本信息，是一个字符串。 DBE_UTILITY.EXEC_DDL_STATEMENT 存储过程EXEC_DDL_STATEMENT用于执行用户输入的DDL语句。DBE_UTILITY.EXEC_DDL_STATEMENT函数原型为： 1
+2
+3 DBE_UTILITY . EXEC_DDL_STATEMENT ( parse_string IN TEXT ); 表5 DBE_UTILITY.EXEC_DDL_STATEMENT接口说明 参数名称 类型 入参/出参 是否可以为空 描述 parse_string TEXT IN 是 需要执行的DDL语句。 DBE_UTILITY.EXPAND_SQL_TEXT_PROC 存储过程EXPAND_SQL_TEXT_PROC用于展开SQL查询的视图，会递归展开视图中的视图对象，一直展开显示到表。DBE_UTILITY.EXPAND_SQL_TEXT_PROC函数原型为： 1
+2
+3
+4 DBE_UTILITY . EXPAND_SQL_TEXT_PROC ( input_sql_text IN CLOB , output_sql_text OUT CLOB ); 表6 DBE_UTILITY.EXPAND_SQL_TEXT_PROC接口说明 参数名称 类型 入参/出参 是否可以为空 描述 input_sql_text CLOB IN 否 输入的SQL文本。 output_sql_text CLOB OUT 否 输出展开视图的SQL文本。 用户输入的input_sql_text参数中，SQL语句中的对象需要增加schema前缀，否则函数会报无法找到对象的错误。若设置behavior_compat_options参数值为bind_procedure_searchpath，则无需强制指定schema前缀。 DBE_UTILITY.GET_CPU_TIME 存储过程GET_CPU_TIME返回当前CPU处理时间的测量值（以百分之一秒为单位）。DBE_UTILITY.GET_CPU_TIME函数原型为： 1
+2 DBE_UTILITY . GET_CPU_TIME () RETURN NUMBER ; DBE_UTILITY.GET_ENDIANNESS 存储过程GET_ENDIANNESS用于获取数据库所在平台字节序的大小端信息。DBE_UTILITY. GET_ENDIANNESS函数原型为： 1
+2 DBE_UTILITY . GET_ENDIANNESS RETURN INTEGER ; DBE_UTILITY.GET_HASH_VALUE 存储过程GET_HASH_VALUE返回一个给定字符串的hash值。DBE_UTILITY.GET_HASH_VALUE函数原型为： 1
+2
+3
+4
+5 DBE_UTILITY . GET_HASH_VALUE ( name IN VARCHAR2 ( n ), base IN INTEGER , hash_size IN INTEGER ) RETURN INTEGER ; 表7 DBE_UTILITY.GET_HASH_VALUE接口说明 参数名称 类型 入参/出参 是否可以为空 描述 name VARCHAR2 IN 否 待哈希转换的字符串。 base INTEGER IN 否 返回的hash值的起始值。 hash_size INTEGER IN 否 哈希映射到的哈希表的大小。 DBE_UTILITY.GET_SQL_HASH 存储过程GET_SQL_HASH通过MD5算法输出一个给定字符串的hash值。DBE_UTILITY.GET_SQL_HASH函数原型为： 1
+2
+3
+4
+5 DBE_UTILITY . GET_SQL_HASH ( name IN VARCHAR2 , hash OUT RAW , last4bytes OUT BIGINT ); 表8 DBE_UTILITY.GET_SQL_HASH接口说明 参数名称 类型 入参/出参 是否可以为空 描述 name VARCHAR2 IN 否 待哈希转换的字符串。 hash RAW OUT 否 完整的16进制MD5哈希值。 last4bytes BIGINT OUT 否 MD5哈希值的最后四字节，以无符号整数形式展现。 设置behavior_compat_options参数值为非proc_outparam_override参数后（参数设置 请联系管理员处理 ），请调用DBE_UTILITY.GET_SQL_HASH函数，如调用DBE_UTILITY.GET_SQL_HASH_FUNC则会发生赋值不成功。 DBE_UTILITY.IS_BIT_SET 存储过程IS_BIT_SET用于检查参数n是否存在于r。DBE_UTILITY. IS_BIT_SET函数原型为： 1
+2
+3
+4 DBE_UTILITY . IS_BIT_SET ( r IN RAW , n IN INTEGER ) RETURN INTEGER ; 表9 DBE_UTILITY.IS_BIT_SET接口说明 参数名称 类型 入参/出参 是否可以为空 描述 r RAW IN 否 4字节加上实际的十六进制字符串。 n INTEGER IN 否 用于在二进制中判断是否存在该数值。 DBE_UTILITY.IS_CLUSTER_DATABASE 存储过程IS_CLUSTER_DATABASE用于判断当前数据库是否在数据库集群模式下运行。DBE_UTILITY.IS_CLUSTER_DATABASE函数原型为： 1
+2 DBE_UTILITY . IS_CLUSTER_DATABASE RETURN BOOLEAN ; DBE_UTILITY.NAME_RESOLVE 存储过程NAME_RESOLVE解析给定的对象名称，包括同义词翻译和必要的授权检查。DBE_UTILITY.NAME_RESOLVE函数原型为： 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10 DBE_UTILITY . NAME_RESOLVE ( name IN VARCHAR2 , context IN INTEGER , schema OUT VARCHAR2 , part1 OUT VARCHAR2 , part2 OUT VARCHAR2 , dblink OUT VARCHAR2 , part1_type OUT INTEGER , object_number OUT OID ); 表10 DBE_UTILITY.NAME_RESOLVE接口说明 参数名称 类型 入参/出参 是否可以为空 描述 name VARCHAR2 IN 否 待解析对象名，结构为[[a.]b.]c[@d]。 context INTEGER IN 否 返回的hash值的起始值。 schema VARCHAR2 OUT 否 对象所在的模式。 part1 VARCHAR2 OUT 否 名称的第一部分，该字段的类型由part1_type指定。 part2 VARCHAR2 OUT 是 如果该字段不为空，则为子程序名称。 dblink VARCHAR2 OUT 是 数据库链接。 part1_type INTEGER OUT 否 part1的类型： 5：synonym 7：procedure(top level) 8：function(top level) object_number OID OUT 否 对象标识。object_number在ORA数据库中类型为Number，表示对象标识，而 GaussDB 中对象标识类型为OID，并且不支持Number到OID的隐式转换。 DBE_UTILITY.NAME_TOKENIZE 存储过程NAME_TOKENIZE用于解析a [. b [. c ]][@ dblink ]形式的名字，如果名字带有双引号则去掉，否则变为大写字母。DBE_UTILITY.NAME_TOKENIZE函数原型为： 1
+2
+3
+4
+5
+6
+7
+8 DBE_UTILITY . NAME_TOKENIZE ( name IN VARCHAR2 , a OUT VARCHAR2 , b OUT VARCHAR2 , c OUT VARCHAR2 , dblink OUT VARCHAR2 , nextpos OUT INTEGER ); 表11 DBE_UTILITY.NAME_TOKENIZE接口说明 参数名称 类型 入参/出参 是否可以为空 描述 name VARCHAR2 IN 否 名字，由SQL标识符组成（比如，scott.foo@dblink）。 a VARCHAR2 OUT 否 名字的第一个token。 b VARCHAR2 OUT 是 名字的第二个token。 c VARCHAR2 OUT 是 名字的第三个token。 dblink VARCHAR2 OUT 是 数据库链接。 nextpos INTEGER OUT 否 字符串经过解析后的下一个位置。 DBE_UTILITY.OLD_CURRENT_SCHEMA 存储过程OLD_CURRENT_SCHEMA返回当前用户环境下的数据库模式名称。DBE_UTILITY.OLD_CURRENT_SCHEMA函数原型为： 1
+2 DBE_UTILITY . OLD_CURRENT_SCHEMA () RETURN VARCHAR ; DBE_UTILITY.OLD_CURRENT_USER 存储过程OLD_CURRENT_USER返回当前用户的名称。DBE_UTILITY.OLD_CURRENT_USER函数原型为： 1
+2 DBE_UTILITY . OLD_CURRENT_USER () RETURN TEXT ; DBE_UTILITY.TABLE_TO_COMMA 存储过程TABLE_TO_COMMA将PL/SQL中的表名转换为用逗号隔开的名字列表的字符串。DBE_UTILITY.TABLE_TO_COMMA函数原型为： 1
+2
+3
+4
+5 DBE_UTILITY . TABLE_TO_COMMA ( tab IN VARCHAR2 [], tablen OUT BINARY_INTEGER , list OUT VARCHAR2 ); 表12 DBE_UTILITY.TABLE_TO_COMMA接口说明 参数名称 类型 入参/出参 是否可以为空 描述 tab VARCHAR2[] IN 否 包含表名的结构表数组。 tablen BINARY_INTEGER OUT 否 结构表中的表个数。 list VARCHAR2 OUT 否 以逗号分割表名的字符串。 DBE_UTILITY.GET_SQL_HASH_FUNC 函数GET_SQL_HASH_FUNC通过MD5算法输出一个给定字符串的hash值。DBE_UTILITY.GET_SQL_HASH_FUNC函数原型为： 1
+2
+3
+4
+5 DBE_UTILITY . GET_SQL_HASH_FUNC ( name IN VARCHAR2 , hash OUT RAW , last4bytes OUT BIGINT ); 表13 DBE_UTILITY.GET_SQL_HASH_FUNC接口说明 参数名称 类型 入参/出参 是否可以为空 描述 name VARCHAR2 IN 否 待哈希转换的字符串。 hash RAW OUT 否 完整的16进制MD5哈希值。 last4bytes BIGINT OUT 否 MD5哈希值的最后四字节，以无符号整数形式展现。 设置set behavior_compat_options = 'proc_outparam_override' 参数后，请调用DBE_UTILITY.GET_SQL_HASH_FUNC函数，如调用DBE_UTILITY.GET_SQL_HASH则会报参数不匹配异常。 示例 1
+  2
+  3
+  4
+  5
+  6
+  7
+  8
+  9
+ 10
+ 11
+ 12
+ 13
+ 14
+ 15
+ 16
+ 17
+ 18
+ 19
+ 20
+ 21
+ 22
+ 23
+ 24
+ 25
+ 26
+ 27
+ 28
+ 29
+ 30
+ 31
+ 32
+ 33
+ 34
+ 35
+ 36
+ 37
+ 38
+ 39
+ 40
+ 41
+ 42
+ 43
+ 44
+ 45
+ 46
+ 47
+ 48
+ 49
+ 50
+ 51
+ 52
+ 53
+ 54
+ 55
+ 56
+ 57
+ 58
+ 59
+ 60
+ 61
+ 62
+ 63
+ 64
+ 65
+ 66
+ 67
+ 68
+ 69
+ 70
+ 71
+ 72
+ 73
+ 74
+ 75
+ 76
+ 77
+ 78
+ 79
+ 80
+ 81
+ 82
+ 83
+ 84
+ 85
+ 86
+ 87
+ 88
+ 89
+ 90
+ 91
+ 92
+ 93
+ 94
+ 95
+ 96
+ 97
+ 98
+ 99
+100
+101
+102
+103
+104
+105
+106
+107
+108
+109
+110
+111
+112
+113
+114
+115
+116
+117
+118
+119
+120
+121
+122
+123
+124
+125
+126
+127
+128
+129
+130
+131
+132
+133
+134
+135
+136
+137
+138
+139
+140
+141
+142
+143
+144
+145
+146
+147
+148
+149
+150
+151
+152
+153
+154
+155
+156
+157
+158
+159
+160
+161
+162
+163
+164
+165
+166
+167
+168
+169
+170
+171
+172
+173
+174
+175
+176
+177
+178
+179
+180
+181
+182
+183
+184
+185
+186
+187
+188
+189
+190
+191
+192
+193
+194
+195
+196
+197
+198
+199
+200
+201
+202
+203
+204
+205
+206
+207
+208
+209
+210
+211
+212
+213
+214
+215
+216
+217
+218
+219
+220
+221
+222
+223
+224
+225
+226
+227
+228
+229
+230
+231
+232
+233
+234
+235
+236
+237
+238
+239
+240
+241
+242
+243
+244
+245
+246
+247
+248
+249
+250
+251
+252
+253
+254
+255
+256
+257
+258
+259
+260
+261
+262
+263
+264
+265
+266
+267
+268
+269
+270
+271
+272
+273
+274
+275
+276
+277
+278
+279
+280
+281
+282
+283
+284
+285
+286
+287
+288
+289
+290
+291
+292
+293
+294
+295
+296
+297
+298
+299
+300
+301
+302
+303
+304
+305
+306
+307
+308
+309
+310
+311
+312
+313
+314
+315
+316
+317
+318
+319
+320
+321
+322
+323
+324
+325
+326
+327
+328
+329
+330
+331
+332
+333
+334
+335
+336
+337
+338
+339
+340
+341
+342
+343
+344
+345
+346
+347
+348
+349
+350
+351
+352
+353
+354
+355
+356
+357
+358
+359
+360
+361
+362
+363
+364
+365
+366
+367
+368
+369
+370
+371
+372
+373
+374
+375
+376
+377
+378
+379
+380
+381
+382
+383
+384
+385
+386
+387
+388
+389
+390
+391
+392
+393
+394
+395
+396
+397
+398
+399
+400
+401
+402
+403
+404 -- 示例1 create or replace procedure print_err () as DECLARE a bool ; BEGIN a : = not_exist ; exception when others then dbe_output . print_line ( 'err_stack: ' || DBE_UTILITY . FORMAT_ERROR_STACK ()); END ; / CREATE PROCEDURE call print_err (); -- 预期结果为： err_stack : 50360452 : column "not_exist" does not exist print_err ----------- ( 1 row ) -- 清理环境 drop procedure print_err ; DROP PROCEDURE -- 示例2 create or replace procedure print_err () as DECLARE a bool ; BEGIN a : = not_exist ; exception when others then dbe_output . print_line ( 'backtrace: ' || DBE_UTILITY . FORMAT_ERROR_BACKTRACE ()); END ; / CREATE PROCEDURE call print_err (); -- 预期结果为： backtrace : 50360452 : PL / pgSQL function print_err () line 5 at assignment print_err ----------- ( 1 row ) -- 清理环境 drop procedure print_err ; DROP PROCEDURE -- 示例3 create or replace procedure print_err () as DECLARE a bool ; BEGIN a : = not_exist ; exception when others then dbe_output . print_line ( 'call_stack: ' ); dbe_output . print_line ( DBE_UTILITY . FORMAT_CALL_STACK ()); END ; / CREATE PROCEDURE call print_err (); -- 预期结果为： call_stack : 3 dbe_utility . format_call_stack () 9 print_err () print_err ----------- ( 1 row ) -- 清理环境 drop procedure print_err ; DROP PROCEDURE -- 示例4 CREATE OR REPLACE PROCEDURE test_get_time1 () AS declare start_time bigint ; end_time bigint ; BEGIN start_time : = dbe_utility . get_time (); pg_sleep ( 1 ); end_time : = dbe_utility . get_time (); dbe_output . print_line ( end_time - start_time ); END ; / CREATE PROCEDURE call test_get_time1 (); -- 预期结果为： 101 test_get_time1 ---------------- ( 1 row ) -- 清理环境 drop PROCEDURE test_get_time1 ; DROP PROCEDURE -- 示例5 -- 给表名字符串做规范 declare cname varchar2 ( 50 ); begin dbe_utility . canonicalize ( 'seg1' , cname , 50 ); dbe_output . put_line ( cname ); end ; / -- 预期结果为： SEG1 ANONYMOUS BLOCK EXECUTE -- 示例6 -- 将输入的字符串转换成一个表名的数组 DECLARE tab_list VARCHAR2 ( 100 ) : = 't1,t2' ; len BINARY_INTEGER ; tab varchar2 []; BEGIN dbe_output . put_line ( 'table list is: ' || tab_list ); dbe_utility . comma_to_table ( tab_list , len , tab ); END ; / -- 预期结果为： table list is : t1 , t2 ANONYMOUS BLOCK EXECUTE -- 示例7 -- 查看数据库的版本号和兼容性版本号 declare v_version varchar2 ; begin dbe_utility . db_version ( v_version ); v_version : = left ( v_version , 8 ); dbe_output . print_line ( 'version:' || v_version ); end ; / -- 预期结果为： version : gaussdb ANONYMOUS BLOCK EXECUTE -- 示例8 -- 查看当前CPU处理时间的测量值 DECLARE cputime NUMBER ; BEGIN cputime : = dbe_utility . get_cpu_time (); dbe_output . put_line ( 'cpu time：' || cputime ); END ; / -- 示例9 -- 获取数据库所在平台字节序的大小端信息 BEGIN dbe_output . PUT_LINE ( dbe_utility . GET_ENDIANNESS ()); END ; / -- 预期结果为： 2 ANONYMOUS BLOCK EXECUTE -- 示例10 -- 获取一个给定字符串的hash值 DECLARE result NUMBER ( 28 ); BEGIN result : = dbe_utility . get_hash_value ( 'hello' , 10 , 10 ); dbe_output . put_line ( result ); END ; / -- 预期结果为： 11 ANONYMOUS BLOCK EXECUTE -- 示例11 -- 判断当前数据库是否为集群模式 DECLARE is_cluster BOOLEAN ; BEGIN is_cluster : = dbe_utility . IS_CLUSTER_DATABASE (); dbe_output . put_line ( 'CLUSTER DATABASE: ' || CASE WHEN is_cluster THEN 'TRUE' ELSE 'FALSE' END ); END ; / -- 预期结果为： CLUSTER DATABASE : TRUE ANONYMOUS BLOCK EXECUTE -- 示例12 -- 获取当前用户环境下的数据库模式名称 DECLARE schm varchar2 ( 100 ); BEGIN schm : = dbe_utility . old_current_schema (); dbe_output . put_line ( 'current schema: ' || schm ); END ; / -- 示例13 -- 获取当前用户名称 select dbe_utility . old_current_user () from sys_dummy ; -- 示例14 DECLARE ddl_str VARCHAR2 ( 255 ); BEGIN dbe_output . print_line ( 'start to test exec_ddl_statement create table.' ); ddl_str : = 'CREATE TABLE test_ddl (COL1 INT)' ; dbe_utility . exec_ddl_statement ( ddl_str ); END ; / -- 预期结果为： start to test exec_ddl_statement create table . NOTICE : The 'DISTRIBUTE BY' clause is not specified . Using 'col1' as the distribution column by default . HINT : Please use 'DISTRIBUTE BY' clause to specify suitable data distribution column . CONTEXT : SQL statement "CREATE TABLE test_ddl (COL1 INT)" SQL statement "CALL dbe_utility.exec_ddl_statement(ddl_str)" PL / pgSQL function inline_code_block line 5 at PERFORM ANONYMOUS BLOCK EXECUTE select * from test_ddl ; -- 预期结果为： col1 ------ ( 0 rows ) -- 清理环境 drop table test_ddl ; DROP TABLE -- 示例15 create table t1 ( c1 int primary key , c2 int ); insert into t1 values ( 1 , 1 ),( 2 , 1 ),( 3 , 2 ),( 4 , 2 ),( 5 , 3 ),( 6 , 3 ); create view v1 as select * from t1 where c1 > 1 ; create view v2 as select c1 from v1 where c2 > 1 ; create view v3 as select * from v2 where c1 > 2 ; declare in_sql clob : = 'select * from public.v3' ; out_sql clob ; begin dbe_output . print_line ( 'start to test expand_sql_text_proc v3 expend sql text.' ); dbe_utility . expand_sql_text_proc ( in_sql , out_sql ); dbe_output . print_line ( out_sql ); end ; / -- 预期结果为： start to test expand_sql_text_proc v3 expend sql text . SELECT c1 FROM ( SELECT v2 . c1 FROM ( SELECT v1 . c1 FROM ( SELECT t1 . c1 , t1 . c2 FROM public . t1 WHERE t1 . c1 > 1 ) v1 WHERE v1 . c2 > 1 ) v2 WHERE v2 . c1 > 2 ) v3 ANONYMOUS BLOCK EXECUTE -- 清理环境 drop table t1 cascade ; -- 预期结果为： NOTICE : drop cascades to 3 other objects DETAIL : drop cascades to view v1 drop cascades to view v2 drop cascades to view v3 DROP TABLE -- 示例16 declare name varchar2 ; hash raw ; last4bytes bigint ; BEGIN name : = '' ; -- return correctly (D41D8CD98F00B204E9800998ECF8427E, 2118318316) dbe_utility . get_sql_hash ( name , hash , last4bytes ); raise notice '%' , hash ; raise notice '%' , last4bytes ; END ; / -- 预期结果为： NOTICE : D41D8CD98F00B204E9800998ECF8427E NOTICE : 2118318316 ANONYMOUS BLOCK EXECUTE -- 示例17 declare bitchar raw ( 8 ); begin bitchar : = '2111111f' ; dbe_output . print ( 'test ' || bitchar || ' bit is_bit_set value from 1 to 32 bit: ' ); for i in reverse 32 .. 1 loop dbe_output . print ( dbe_utility . is_bit_set ( bitchar , i )); end loop ; dbe_output . print_line ( '.' ); end ; / -- 预期结果为： test 2111111 F bit is_bit_set value from 1 to 32 bit : 00100001000100010001000100011111 . ANONYMOUS BLOCK EXECUTE -- 示例18 create or REPLACE PROCEDURE p_test_pk ( -- for print result name in varchar2 , type in integer ) as schema varchar2 ; part1 varchar2 ; part2 varchar2 ; dblink varchar2 ; part1_type integer ; object_number integer ; begin dbe_utility . name_resolve ( name , type , schema , part1 , part2 , dblink , part1_type , object_number ); raise notice 'schema: % -- part1: % -- part2: % -- dblink: % -- part1_type: %' , schema , part1 , part2 , dblink , part1_type ; end ; / CREATE PROCEDURE declare begin p_test_pk ( 'a.b.c@aa' , 3 ); end ; / -- 预期结果为： NOTICE : schema : a -- part1: b -- part2: c -- dblink: aa -- part1_type: 0 CONTEXT : SQL statement "CALL p_test_pk('a.b.c@aa',3)" PL / pgSQL function inline_code_block line 1 at PERFORM ANONYMOUS BLOCK EXECUTE -- 示例19 DECLARE name varchar ; a varchar ; b varchar ; c varchar ; dblink varchar ; nextpos INTEGER ; BEGIN name : = '我.w#sdfsdf.CD' ; DBE_UTILITY . NAME_TOKENIZE ( name , a , b , c , dblink , nextpos ); RAISE INFO E 'dbe_utility.name_tokenize parse error: name:%\na:%\nb:%\nc:%\ndblink:%' , name , a , b , c , dblink ; IF nextpos <> OCTET_LENGTH ( name ) THEN RAISE INFO E 'dbe_utility.name_tokenize length error: name:%\nlength of name:%\nnextpos:%' , name , OCTET_LENGTH ( name ), nextpos ; END IF ; END ; / -- 预期结果为： INFO : dbe_utility . name_tokenize parse error : name : 我 . w # sdfsdf . CD a : 我 b : W # SDFSDF c : CD dblink : < NULL > ANONYMOUS BLOCK EXECUTE -- 示例20 DECLARE list varchar2 ( 50 ) : = 'aabb,ccdd,eeff,gghh' ; len_list integer ; tab varchar2 []; get_list varchar2 ( 50 ); len_tab integer ; BEGIN dbe_output . print_line ( '参数列表：' || list ); dbe_utility . comma_to_table ( list , len_list , tab ); dbe_output . print_line ( '参数长度：' || len_list ); FOR i IN 1 .. len_list LOOP dbe_output . print_line ( '列表名称 ' || i || ' : ' || tab ( i )); END LOOP ; dbe_output . print_line ( '调用table_to_comma：' ); dbe_utility . table_to_comma ( tab , len_tab , get_list ); dbe_output . print_line ( '输出结果：' || get_list ); dbe_output . print_line ( '数组长度：' || len_tab ); END ; / -- 预期结果为： 参数列表： aabb , ccdd , eeff , gghh 参数长度： 4 列表名称 1 : aabb 列表名称 2 : ccdd 列表名称 3 : eeff 列表名称 4 : gghh 调用 table_to_comma ： 输出结果： aabb , ccdd , eeff , gghh 数组长度： 4 ANONYMOUS BLOCK EXECUTE -- 示例21 declare name varchar2 ; hash raw ; last4bytes bigint ; BEGIN name : = 'hello world' ; -- return correctly(5EB63BBBE01EEED093CB22BB8F5ACDC3, 3285015183) dbe_utility . get_sql_hash_func ( name , hash , last4bytes ); raise notice '%' , hash ; raise notice '%' , last4bytes ; END ; / -- 预期结果为： NOTICE : 3285015183 NOTICE : < NULL > ANONYMOUS BLOCK EXECUTE 父主题： 二次封装接口(推荐) 版权所有 © 华为技术有限公司

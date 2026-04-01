@@ -1,0 +1,15 @@
+CREATE USER MAPPING CREATE USER MAPPING 功能描述 定义一个用户到一个外部服务器的新映射。 注意事项 当在OPTIONS中出现password选项时，需要保证 GaussDB 每个节点的$GAUSSHOME/bin目录下存在usermapping.key.cipher和usermapping.key.rand文件，如果不存在这两个文件，请使用gs\_guc工具生成并使用gs\_ssh工具发布到 GaussDB 每个节点的$GAUSSHOME/bin目录下。具体操作请参考 •OPTIONS (  { option_name ' value '  }  [, ...] ) 中的说明。 OPTIONS中的敏感字段（如password）在使用多层引号时，语义和不带引号的场景是不同的，因此不会被识别为敏感字段进行脱敏。 语法格式 CREATE USER MAPPING FOR { user_name | USER | CURRENT_USER | PUBLIC }
+    SERVER server_name
+    [ OPTIONS ( option 'value' [ , ... ] ) ]; 参数说明 user_name 要映射到外部服务器的一个现有用户的名称。 CURRENT_USER和USER匹配当前用户的名称。 当PUBLIC被指定时，一个公共映射会被创建，当没有特定用户的映射可用时将会使用它。 server_name 将为其创建用户映射的现有服务器的名称。 OPTIONS (  { option_name ' value '  }  [, ...] ) 这个子句指定用户映射的选项。这些选项通常定义该映射实际的用户名和口令。选项名必须唯一。允许的选项名和值与该服务器的外部数据包装器有关。 用户的口令会加密后保存到系统表 PG_USER_MAPPING 中，加密时需要使用usermapping.key.cipher和usermapping.key.rand作为加密密码文件和加密因子。首次使用前需要通过如下命令创建这两个文件，并将这两个文件放入各节点的$GAUSSHOME/bin目录，且确保具有读权限。gs_ssh工具可以协助您快速将文件放入各节点对应目录下。 gs_ssh -c "gs_guc generate -o usermapping -S default -D $GAUSSHOME/bin" 其中-S参数指定default时会随机生成密码，用户也可为-S参数指定密码，此密码用于保证生成密码文件的安全性和唯一性，用户无需保存或记忆。其他参数详见工具参考中gs_guc工具说明。 示例 -- 创建角色。 gaussdb=# CREATE ROLE bob PASSWORD '********';
+
+-- 创建外部服务器 gaussdb=# CREATE SERVER my_server FOREIGN DATA WRAPPER log_fdw;
+
+-- 创建USER MAPPING。 gaussdb=# CREATE USER MAPPING FOR bob SERVER my_server OPTIONS (user 'bob', password '********');
+
+-- 修改USER MAPPING。 gaussdb=# ALTER USER MAPPING FOR bob SERVER my_server OPTIONS (SET password '********');
+
+-- 删除USER MAPPING。 gaussdb=# DROP USER MAPPING FOR bob SERVER my_server;
+
+-- 删除外部服务器。 gaussdb=# DROP SERVER my_server;
+
+-- 删除角色。 gaussdb=# DROP ROLE bob; 相关链接 ALTER USER MAPPING ， DROP USER MAPPING 父主题： C 版权所有 © 华为技术有限公司

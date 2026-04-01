@@ -1,0 +1,197 @@
+XML类型函数 XML类型函数 xmlparse ( { DOCUMENT | CONTENT } value [wellformed]) 描述：使用函数xmlparse, 来从字符数据产生xml类型的值。 参数：数据类型为text 返回值类型：xml 示例： 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15 gaussdb =# SELECT XMLPARSE ( DOCUMENT '<?xml version="1.0"?><book><title>Manual</title><chapter>...</chapter></book>' ); xmlparse ---------------------------------------------------------- < book >< title > Manual </ title >< chapter > ... </ chapter ></ book > ( 1 row ) gaussdb =# SELECT XMLPARSE ( CONTENT 'abc<foo>bar</foo><bar>foo</bar>' ); xmlparse --------------------------------- abc < foo > bar </ foo >< bar > foo </ bar > ( 1 row ) gaussdb =# SELECT XMLPARSE ( CONTENT 'abc<foo>bar</foo' wellformed ); xmlparse ------------------ abc < foo > bar </ foo ( 1 row ) xmlconcat(xml[, ...]) 描述：将由单个XML值组成的列表串接成一个单独的值，该值包含一个XML的内容片段。其中空值会被忽略，并且只有当所有参数都为空时结果才为空。在兼容ORA数据库模式下，设置a_format_version值为10c和a_format_dev_version值为s2，增加了校验输入片段是否为非良构xml文本。 参数：数据类型为XML。 返回值类型：XML 注：示例2为兼容ORA数据库的语法示例。 示例1： gaussdb=# set xmloption=content;
+SET gaussdb=# select XMLCONCAT(('<?xml version="1.0" encoding="GB2312" standalone="no"?><bar>foo</bar>'),('<?xml version="1.0" encoding="GB2312" standalone="no" ?><bar>foo</bar>')) ;
+                             xmlconcat
+-------------------------------------------------------------------
+<?xml version="1.0" standalone="no"?><bar>foo</bar><bar>foo</bar>
+(1 row) gaussdb=# select XMLCONCAT('abc>');
+ xmlconcat
+-----------
+ abc>
+(1 row) 示例2： gaussdb=# set a_format_version='10c';
+SET gaussdb=# set a_format_dev_version=s2;
+SET gaussdb=# set xmloption=content;
+SET gaussdb=# select XMLCONCAT(('<?xml version="1.0" encoding="GB2312" standalone="no"?><bar>foo</bar>'),('<?xml version="1.0" encoding="GB2312" standalone="no" ?><bar>foo</bar>')) ;
+                             xmlconcat
+-------------------------------------------------------------------
+<?xml version="1.0" standalone="no"?><bar>foo</bar><bar>foo</bar>
+(1 row) gaussdb=# select XMLCONCAT('abc>');
+ERROR:  invalid XML document
+LINE 1: SELECT XMLCONCAT('abc>');                     
+DETAIL:  line 1: Start tag expected, '<' not found
+CONTEXT:  referenced column: xmlconcat xmlagg(xml [order_by_clause]) 描述：该函数是一个聚集函数、它将聚集函数调用的输入值串接起来，且支持跨行串接，order_by_clause详见 SELECT 。在兼容ORA数据库模式下，设置a_format_version值为10c和a_format_dev_version值为s2，数据库xmloption参数默认为content，当xmloption设置为document时，使用换行符串接多行xml。若xml声明中encoding属性值不为默认编码UTF-8时，聚集结果有xml声明。 参数：xml 返回值类型：xml 注：示例2为兼容ORA数据库的语法示例。 示例1： 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15 gaussdb =# CREATE TABLE xmltest ( id int , data xml ); NOTICE : The 'DISTRIBUTE BY' clause is not specified . Using 'id' as the distribution column by default . HINT : Please use 'DISTRIBUTE BY' clause to specify suitable data distribution column . gaussdb =# INSERT INTO xmltest VALUES ( 1 , '<value>one</value>' ); INSERT 0 1 gaussdb =# INSERT INTO xmltest VALUES ( 2 , '<value>two</value>' ); INSERT 0 1 gaussdb =# SELECT xmlagg ( data ) FROM xmltest ; xmlagg -------------------------------------- < value > one </ value >< value > two </ value > ( 1 row ) 示例2： 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26 gaussdb =# set xmloption = document ; SET gaussdb =# SELECT xmlagg ( data ) FROM xmltest ; xmlagg -------------------- < value > one </ value >+ < value > two </ value > ( 1 row ) gaussdb =# DELETE FROM XMLTEST ; DELETE 2 gaussdb =# INSERT INTO xmltest VALUES ( 1 , '<?xml version="1.0" encoding="GBK"?><value>one</value>' ); INSERT 0 1 gaussdb =# INSERT INTO xmltest VALUES ( 2 , '<?xml version="1.0" encoding="GBK"?><value>two</value>' ); INSERT 0 1 gaussdb =# SELECT xmlagg ( data ) FROM xmltest ; xmlagg -------------------------------------------------------- <? xml version = "1.0" encoding = "GBK" ?>< value > one </ value >+ < value > two </ value > ( 1 row ) gaussdb =# SELECT xmlagg ( data order by id desc ) FROM xmltest ; xmlagg -------------------------------------------------------- <? xml version = "1.0" encoding = "GBK" ?>< value > two </ value >+ < value > one </ value > ( 1 row ) xmlelement( [ ENTITYESCAPING | NOENTITYESCAPING ] { [ NAME ] element_name | EVALNAME element_name } [ , xmlattributes( [ ENTITYESCAPING | NOENTITYESCAPING ] value [ [ AS ] attname | AS EVALNAME attname ] [ , ... ] ) ] [ , content [ [ AS ] alias ] [ , ... ] ] ) 描述：使用给定的名称、属性和内容产生一个XML元素。 返回值类型：xml 示例： 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27
+28
+29
+30
+31
+32
+33
+34
+35
+36
+37
+38
+39
+40
+41
+42
+43
+44
+45
+46
+47
+48
+49
+50
+51
+52
+53
+54
+55
+56
+57
+58
+59
+60
+61
+62
+63
+64
+65
+66
+67
+68
+69
+70 gaussdb =# SELECT xmlelement ( name foo ); xmlelement ------------ < foo /> 在 ORA 兼容模式下： 1 . xmlelement 中默认不设置或者设置 ENTITYESCAPING 关键字时， xmlelement 的内容中的保留字符将会被转义： gaussdb =# SELECT xmlelement ( "entityescaping<>" , 'a$><&"b' ); xmlelement ------------------------------------------------------------- < entityescaping <>> a $ & gt ; & lt ; & amp ; & quot ; b </ entityescaping <>> ( 1 row ) gaussdb =# SELECT xmlelement ( entityescaping "entityescaping<>" , 'a$><&"b' ); xmlelement ------------------------------------------------------------- < entityescaping <>> a $ & gt ; & lt ; & amp ; & quot ; b </ entityescaping <>> ( 1 row ) 2 . xmlelement 中设置 NOENTITYESCAPING 关键字时， xmlelement 的内容中的保留字符将不会被转义： gaussdb =# SELECT xmlelement ( noentityescaping "entityescaping<>" , 'a$><&"b' ); xmlelement ---------------------------------------------- < entityescaping <>> a $ ><& "b</entityescaping<>> (1 row) 3.xmlelement中对内容使用[as] alias声明别名时，内容值类型必须为xml类型： gaussdb=# SELECT xmlelement(" entityescaping <> ", '<abc/>' b); ERROR:  argument of XMLELEMENT must be type xml, not type unknown LINE 1: SELECT xmlelement(" entityescaping <> ", '<abc/>' b); ^ CONTEXT:  referenced column: xmlelement gaussdb=# SELECT xmlelement(" entityescaping <> ", '<abc/>' as b); ERROR:  argument of XMLELEMENT must be type xml, not type unknown LINE 1: SELECT xmlelement(" entityescaping <> ", '<abc/>' as b); ^ CONTEXT:  referenced column: xmlelement gaussdb=# SELECT xmlelement(" entityescaping <> ", xml('<abc/>') b); xmlelement --------------------------------------------- <entityescaping<>><abc/></entityescaping<>> (1 row) gaussdb=# SELECT xmlelement(" entityescaping <> ", xml('<abc/>') as b); xmlelement --------------------------------------------- <entityescaping<>><abc/></entityescaping<>> (1 row) 4.xmlattributes中默认不设置或者设置ENTITYESCAPING关键字时，xmlattributes的内容中的保留字符将会被转义： gaussdb=# SELECT xmlelement(" entityescaping <> ", xmlattributes('entityescaping<>' " entityescaping <> ")); xmlelement --------------------------------------------------------------- <entityescaping<> entityescaping<>=" entityescaping & lt ; & gt ; "/> (1 row) gaussdb=# SELECT xmlelement(name " entityescaping <> ", xmlattributes(entityescaping 'entityescaping<>' " entityescaping <> ")); xmlelement --------------------------------------------------------------- <entityescaping<> entityescaping<>=" entityescaping & lt ; & gt ; "/> (1 row) 5.xmlattributes中设置NOENTITYESCAPING关键字时，xmlattributes的内容中的保留字符将不会被转义： gaussdb=# SELECT xmlelement(" entityescaping <> ", xmlattributes(noentityescaping 'entityescaping<>' " entityescaping <> ")); xmlelement --------------------------------------------------------- <entityescaping<> entityescaping<>=" entityescaping <> " /> ( 1 row ) xmlelement和xmlattributes的name字段赋NULL时，行为与O不一致。xmlelement的name字段赋NULL时，结果显示name信息为空，且不显示属性信息。xmlattributes的name字段赋NULL时，不显示属性信息。 设置如下两个参数后，xmlelement的内容转义规则为ORA兼容，未设置时xmlelement的内容转义规则为PG兼容。 1
+2 set a_format_version = '10c' ; set a_format_dev_version = s2 ; getclobval(xml) 描述：将XML类型转化成CLOB类型。该函数在参数a_format_version值为10c和a_format_dev_version值为s4的情况下有效。 参数：入参为XML类型。 返回值类型：CLOB 示例： 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19 gaussdb =# set a_format_version = '10c' ; SET gaussdb =# set a_format_dev_version = 's4' ; SET gaussdb =# declare xmldata xml ; result clob ; begin xmldata : = '<a>123</a>' ; result : = getclobval ( xmldata ); RAISE NOTICE 'result is : %' , result ; END ; / NOTICE : result is : < a > 123 </ a > gaussdb =# select getclobval ( xmlparse ( document '<a>123</a>' )); getclobval ------------ < a > 123 </ a > ( 1 row ) getstringval(xml) 描述：该函数将XML类型转化为字符串。此函数在参数a_format_version值为10c和a_format_dev_version值为s4的情况下有效。 参数：入参为XML类型。 返回值类型：VARCHAR2 示例： gaussdb=# set a_format_version='10c';
+SET gaussdb=# set a_format_dev_version='s4';
+SET gaussdb=# declare
+ xmldata xml;
+ result varchar2;
+begin
+ xmldata := '<a>123<b>456</b></a>';
+ result := getstringval(xmldata);
+ RAISE NOTICE 'result is : %',result;
+END;
+/
+NOTICE:  result is : <a>123<b>456</b></a> gaussdb=# select getstringval(xmlparse(document '<a>123<b>456</b></a>'));
+     getstringval
+----------------------
+ <a>123<b>456</b></a>
+(1 row) xmlsequence(xml) 描述：此函数的功能是将一个 XML类型的参数转换为一个 XMLTYPE类型的数组，每个数组元素都是 XMLTYPE对象。这个函数的输入参数不能为空，也必须是一个有效的 XML 文档。如果输入参数不符合要求，函数会返回空值或者抛出异常。这个函数可以用于处理 XML文档中的多个子节点，或者将 XML文档分割为多个片段。 参数：xml类型。 返回值类型：xmltype类型的数组 示例：如果想要将这个文档转换为一个包含三个元素的数组，每个元素都是一个 book 节点，可以使用以下语句： gaussdb=# SELECT xmlsequence(xml('<books><book><title>The Catcher in the Rye</title><author>J.D. Salinger</author><year>1951</year></book><book><title>1984</title><author>George Orwell</author><year>1949</year></book><book><title>The Hitchhiker''s Guide to the Galaxy</title><author>Douglas Adams</author><year>1979</year></book></books>'));
+                        xmlsequence                        
+-----------------------------------------------------------
+ {"<books>                                                +
+     <book>                                               +
+       <title>The Catcher in the Rye</title>              +
+       <author>J.D. Salinger</author>                     +
+       <year>1951</year>                                  +
+     </book>                                              +
+     <book>                                               +
+       <title>1984</title>                                +
+       <author>George Orwell</author>                     +
+       <year>1949</year>                                  +
+     </book>                                              +
+     <book>                                               +
+       <title>The Hitchhiker's Guide to the Galaxy</title>+
+       <author>Douglas Adams</author>                     +
+       <year>1979</year>                                  +
+     </book>                                              +
+   </books>"}
+(1 row) 当XML文档中含有双引号时，单独查看xmlsequence函数，结果中会包含双引号的转义符，使用xmlsequence函数结果时，不受影响。 父主题： 函数和操作符 版权所有 © 华为技术有限公司

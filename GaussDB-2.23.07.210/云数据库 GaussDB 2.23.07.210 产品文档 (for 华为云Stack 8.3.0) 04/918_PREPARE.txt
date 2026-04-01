@@ -1,0 +1,6 @@
+PREPARE PREPARE 功能描述 准备用于执行的语句。 语法格式 PREPARE name FROM string 参数说明 name 预备查询标识符。 string 包含预备语句的文本C字符串或者宿主变量，预备语句包含SELECT，INSERT，UPDATE或者DELETE命令之一。 示例 char *stmt = "SELECT * FROM test1 WHERE a = ? AND b = ?";
+EXEC SQL ALLOCATE DESCRIPTOR outdesc;
+EXEC SQL PREPARE foo FROM :stmt;
+EXEC SQL EXECUTE foo USING SQL DESCRIPTOR indesc INTO SQL DESCRIPTOR outdesc; ecpg提供的prepare语句不直接等同于内核提供的prepare语法，举例如下： GaussDB Kernel 内核语法： PREPARE name [ ( data_type [, ...] ) ] AS statement 嵌入式SQL语句： EXEC SQL PREPARE I（int, int） AS INSERT INTO T VALUES ( $1, $2 );
+EXEC SQL EXECUTE I(1, 2); 执行上述语句出现报错时，提示too few arguments on。ecpg提供动态SQL解决PREPARE name [ ( data_type [, ...] ) ] AS statement语法场景的使用。 利用动态sql语法规则解决上述问题： EXEC SQL PREPARE I AS INSERT INTO T VALUES ( $1, $2 );
+EXEC SQL EXECUTE I using 1, 2; 父主题： 嵌入式SQL命令 版权所有 © 华为技术有限公司

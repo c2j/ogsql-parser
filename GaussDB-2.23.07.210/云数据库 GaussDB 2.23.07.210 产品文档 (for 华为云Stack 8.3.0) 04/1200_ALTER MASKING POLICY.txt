@@ -1,0 +1,48 @@
+ALTER MASKING POLICY ALTER MASKING POLICY 功能描述 修改脱敏策略。 注意事项 只有poladmin，sysadmin或初始用户才能执行此操作。 需要打开enable_security_policy开关脱敏策略才可以生效。 语法格式 修改策略描述： 1 ALTER MASKING POLICY policy_name COMMENTS policy_comments ; 修改脱敏方式： 1 ALTER MASKING POLICY policy_name { ADD | REMOVE | MODIFY } masking_actions [, ...]; 其中masking_actions: 1 masking_function ON LABEL ( label_name [, ...]) 其中masking_function： 1 { maskall | randommasking | creditcardmasking | basicemailmasking | fullemailmasking | shufflemasking | alldigitsmasking | regepmasking } 修改脱敏策略生效场景： 1 ALTER MASKING POLICY policy_name MODIFY ( filter_group_clause ); 其中filter_group_clause： 1 FILTER ON { ( FILTER_TYPE ( filter_value [, ... ] ) ) [, ... ] } 移除脱敏策略生效场景，使策略对所用场景生效： 1 ALTER MASKING POLICY policy_name DROP FILTER ; 修改脱敏策略开启/关闭： 1 ALTER MASKING POLICY policy_name { ENABLE | DISABLE } ; 参数说明 policy_name 脱敏策略名称，需要唯一，不可重复。 取值范围：字符串，要符合 标识符命名规范 。 policy_comments 需要为脱敏策略添加或修改的描述信息。 masking_function 指的是预置的八种脱敏方式或者用户自定义的函数，支持模式。 maskall不是预置函数，硬编码在代码中，不支持\df展示。 预置是脱敏方式如下： maskall | randommasking | creditcardmasking | basicemailmasking | fullemailmasking | shufflemasking | alldigitsmasking | regepmasking label_name 资源标签名称。 FILTER_TYPE 指定脱敏策略的过滤信息，过滤类型包括：IP、ROLES、APP。 filter_value 指具体过滤信息内容，例如具体的IP，具体的APP名称，具体的用户名。 ENABLE|DISABLE 可以打开或关闭脱敏策略。若不指定ENABLE|DISABLE，语句默认为ENABLE。 示例 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27
+28
+29
+30
+31
+32
+33
+34
+35
+36
+37
+38
+39
+40
+41
+42
+43
+44
+45
+46
+47
+48 --创建dev_mask和bob_mask用户。 gaussdb =# CREATE USER dev_mask PASSWORD '********' ; gaussdb =# CREATE USER bob_mask PASSWORD '********' ; --创建一个表tb_for_masking。 gaussdb =# CREATE TABLE tb_for_masking ( col1 text , col2 text , col3 text ); --创建资源标签标记敏感列col1。 gaussdb =# CREATE RESOURCE LABEL mask_lb1 ADD COLUMN ( tb_for_masking . col1 ); --创建资源标签标记敏感列col2。 gaussdb =# CREATE RESOURCE LABEL mask_lb2 ADD COLUMN ( tb_for_masking . col2 ); --对访问敏感列col1的操作创建脱敏策略。 gaussdb =# CREATE MASKING POLICY maskpol1 maskall ON LABEL ( mask_lb1 ); --为脱敏策略maskpol1添加描述。 gaussdb =# ALTER MASKING POLICY maskpol1 COMMENTS 'masking policy for tb_for_masking.col1' ; --修改脱敏策略maskpol1，新增一项脱敏方式。 gaussdb =# ALTER MASKING POLICY maskpol1 ADD randommasking ON LABEL ( mask_lb2 ); --修改脱敏策略maskpol1，移除一项脱敏方式。 gaussdb =# ALTER MASKING POLICY maskpol1 REMOVE randommasking ON LABEL ( mask_lb2 ); --修改脱敏策略maskpol1，修改一项脱敏方式。 gaussdb =# ALTER MASKING POLICY maskpol1 MODIFY randommasking ON LABEL ( mask_lb1 ); --修改脱敏策略maskpol1使之仅对用户dev_mask和bob_mask,客户端工具为gsql，IP地址为'10.20.30.40', '127.0.0.0/24'场景生效。 gaussdb =# ALTER MASKING POLICY maskpol1 MODIFY ( FILTER ON ROLES ( dev_mask , bob_mask ), APP ( gsql ), IP ( '10.20.30.40' , '127.0.0.0/24' )); --修改脱敏策略maskpol1，使之对所有用户场景生效。 gaussdb =# ALTER MASKING POLICY maskpol1 DROP FILTER ; --禁用脱敏策略maskpol1。 gaussdb =# ALTER MASKING POLICY maskpol1 DISABLE ; --删除脱敏策略。 gaussdb =# DROP MASKING POLICY maskpol1 ; - 删除资源标签。 gaussdb =# DROP RESOURCE LABEL mask_lb1 , mask_lb2 ; - 删除表 tb_for_masking 。 gaussdb =# DROP TABLE tb_for_masking ; --删除用户dev_mask,和bob_mask。 gaussdb =# DROP USER dev_mask , bob_mask ; 相关链接 CREATE MASKING POLICY ， DROP MASKING POLICY 父主题： A 版权所有 © 华为技术有限公司

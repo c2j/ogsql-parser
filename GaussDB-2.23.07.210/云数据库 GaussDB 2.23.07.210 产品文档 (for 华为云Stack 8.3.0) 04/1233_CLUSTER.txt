@@ -1,0 +1,60 @@
+CLUSTER CLUSTER 功能描述 根据一个索引对表进行聚簇排序。 CLUSTER指定 GaussDB 通过索引名指定的索引聚簇由表名指定的表。 表名上必须已经定义该索引。 当对一个表聚簇后，该表将基于索引信息进行物理存储。聚簇是一次性操作：当表被更新之后， 更改的内容不会被聚簇。也就是说，系统不会试图按照索引顺序对新的存储内容及更新记录进行重新聚簇。 在对一个表聚簇之后， GaussDB 会记录该表在哪个索引上建立了聚簇。 CLUSTER table_name将在该表之前记录过的聚簇索引上重新聚簇。用户也可以用ALTER TABLE table_name CLUSTER on index_name 来设置指定表用于后续聚簇操作的索引，或使用ALTER TABLE table_name SET WITHOUT CLUSTER来清除指定表之前设置的聚簇索引。 不含参数的CLUSTER命令会将当前用户所拥有的数据库中的先前做过聚簇的所有表重新处理。如果系统管理员调用这个命令，则对所有进行过聚簇的表重新聚簇。 在对一个表进行聚簇的时候，会在其上请求一个ACCESS EXCLUSIVE锁。这样就避免了在CLUSTER操作完成之前对该表执行其它的操作(包括读写)。 注意事项 只有行存B-tree索引支持CLUSTER操作。 如果用户只是随机访问表中的行，那么表中数据的实际存储顺序是无关紧要的。但是，如果对某些特定数据的访问较多，而且有一个索引将这些数据分组，那么使用CLUSTER对性能会有所提升。 如果一个请求从表中请求索引一定范围的值，或者是一个索引值对应多行，CLUSTER也会有助于应用，因为如果索引标识出了第一匹配行所在的存储页，所有其它行可能也已经在同一个存储页里了，这样便节省了磁盘访问的时间，加速了查询。 在聚簇过程中，系统会先创建一个按照索引顺序建立的表的临时备份，同时也建立表上的每个索引的临时备份。因此，聚簇过程中需要保证磁盘上有足够的剩余空间，至少是表大小与全部索引大小之和。 因为CLUSTER记录着哪些索引曾被用于聚簇，所以用户可以在第一次手动指定索引，对指定表进行聚簇，然后设置一个周期化执行的维护脚本，只需执行不带参数的CLUSTER命令，就可以实现对想要周期性聚簇的表进行自动更新。 因为优化器记录着有关表的排序的统计，在表上执行聚簇操作后，需运行ANALYZE操作以确保优化器具备最新的排序信息，否则，优化器可能会选择非最优的查询规划。 CLUSTER不允许在事务中执行。 如果没有将GUC参数xc_maintenance_mode设置为on，那么CLUSTER会跳过所有系统表。 对于全局二级索引（GSI），当前在单个分区执行CLUSTER或通过CLUSTER [VERBOSE]对以做过聚簇的表重新进行聚簇后，查询语句走全局二级索引会报错，需要执行REINDEX INDEX重建全局二级索引。 语法格式 对一个表进行聚簇排序。 1 CLUSTER [ VERBOSE ] table_name [ USING index_name ]; 对一个分区进行聚簇排序。 1 CLUSTER [ VERBOSE ] table_name PARTITION ( partition_name ) [ USING index_name ]; 对已做过聚簇的表重新进行聚簇。 1 CLUSTER [ VERBOSE ]; 参数说明 VERBOSE 可选。启用显示进度信息。 table_name 表名称。 取值范围：已存在的表名称。 [ USING index_name ] 索引名称。 取值范围：已存在的索引名称。 第一次对表进行聚簇排序时必须指定index_name，后续再次对表进行聚簇排序时不指定index_name，将会按照已有记录对表进行聚簇排序。 partition_name 分区名称。 取值范围：已存在的分区名称。 示例 对表进行聚簇排序： 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27 --建表并向表中插入数据 gaussdb =# CREATE TABLE test_c1 ( id int , name varchar ( 20 )); gaussdb =# CREATE INDEX idx_test_c1_id ON test_c1 ( id ); gaussdb =# INSERT INTO test_c1 VALUES ( 3 , 'Joe' ),( 1 , 'Jack' ),( 2 , 'Scott' ); --查看 gaussdb =# SELECT * FROM test_c1 ; id | name ----+------- 3 | Joe 1 | Jack 2 | Scott ( 3 rows ) --聚簇排序 gaussdb =# CLUSTER test_c1 USING idx_test_c1_id ; --查看 gaussdb =# SELECT * FROM test_c1 ; id | name ----+------- 1 | Jack 2 | Scott 3 | Joe ( 3 rows ) --删除 gaussdb =# DROP TABLE test_c1 ; 对已做过聚簇的表重新进行聚簇排序： -- 建表 gaussdb=# CREATE TABLE test(col1 int,CONSTRAINT pk_test PRIMARY KEY (col1));
+-- 第一次聚簇排序不带USING关键字报错 gaussdb=# CLUSTER test;
+ERROR:  there is no previously clustered index for table "test"
+
+-- 聚簇排序 gaussdb=# CLUSTER test USING pk_test;
+--对已做过聚簇的表重新进行聚簇 gaussdb=# CLUSTER VERBOSE test;
+
+-- 删除 gaussdb=# DROP TABLE test; 对分区进行聚簇排序： -- 建表并向表中插入数据 gaussdb=# CREATE TABLE test_c2(id int, info varchar(4)) PARTITION BY RANGE (id)(
+    PARTITION p1 VALUES LESS THAN (11),
+    PARTITION p2 VALUES LESS THAN (21)
+); gaussdb=# CREATE INDEX idx_test_c2_id1 ON test_c2(id); gaussdb=# INSERT INTO test_c2 VALUES (6,'ABBB'),(2,'ABAB'),(9,'AAAA'); gaussdb=# INSERT INTO test_c2 VALUES (11,'AAAB'),(19,'BBBA'),(16,'BABA');
+-- 查看 gaussdb=# SELECT * FROM test_c2;
+ id | info 
+----+------
+  6 | ABBB
+  2 | ABAB
+  9 | AAAA
+ 11 | AAAB
+ 19 | BBBA
+ 16 | BABA
+(6 rows)
+-- 对分区p2进行聚簇排序 gaussdb=# CLUSTER test_c2 PARTITION (p2) USING idx_test_c2_id1;
+-- 查看 gaussdb=# SELECT * FROM test_c2;
+ id | info 
+----+------
+  6 | ABBB
+  2 | ABAB
+  9 | AAAA
+ 11 | AAAB
+ 16 | BABA
+ 19 | BBBA
+(6 rows)
+
+-- 删除 gaussdb=# DROP TABLE test_c2; 父主题： C 版权所有 © 华为技术有限公司

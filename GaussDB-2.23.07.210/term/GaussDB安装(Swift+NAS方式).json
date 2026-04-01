@@ -1,0 +1,31 @@
+{
+  "topic": "GaussDB安装(Swift+NAS方式)",
+  "term_count": 5,
+  "terms": [
+    {
+      "term": "NAS服务搭建和配置",
+      "content": "NAS服务搭建和配置 NAS服务搭建和配置 对于不使用OBS需要自建NAS服务做备份的场景，请参考《云数据库 GaussDB 2.23.07.200 NAS配置最佳实践》搭建和配置NAS服务。 如果不对接NAS/OBS服务，除了创建/删除实例之外的所有基本功能将不可用，且在创建实例之前，需在ServiceCM手动关闭特性白名单rds_feature_supportInsBackupRecovery，并设置系统参数GaussDB_v5_skip_recycle_task为TRUE；如果对接NAS/OBS的场景，则不需要操作该白名单和系统参数，保持默认配置即可。 对接NAS设备后，强依赖OBS功能将不可用，包括：库表级备份、备份下载、跨区域备份、运维类日志下载、错误日志查看及下载、慢日志查看及下载、ServiceCM上的采集信息（WDR报告查看及下载、SummaryStatement统计信息查看及下载）等。",
+      "source_file": "132_NAS.txt"
+    },
+    {
+      "term": "安装前准备",
+      "content": "安装前准备 安装前准备 文档、工具和软件包 安装前检查项 检查数据库服务依赖项 检查BMS形态依赖项 申请或更新许可 安装或检查HCC Turnkey 检查RAID状态 双出口或单出口网络配置检查 管理节点地址规划 使用HCC Turnkey新增 AZ 扩容BMS网关节点",
+      "source_file": "077_file_77.txt"
+    },
+    {
+      "term": "安装后调测",
+      "content": "安装后调测 安装后调测 使用FusionCare自动化调测 手动调测",
+      "source_file": "124_file_124.txt"
+    },
+    {
+      "term": "安装过程（自动化部署工程）",
+      "content": "安装过程（自动化部署工程） 安装过程（自动化部署工程） 上传云服务软件包 使用HCC Turnkey自动化安装云服务",
+      "source_file": "099_file_99.txt"
+    },
+    {
+      "term": "安装后检查",
+      "content": "安装后检查 安装后检查 检查BMS启动方式 手动关闭GuestOS_Agent自动升级 数据库容灾服务安装后配置 BMS实例发放前检查",
+      "source_file": "102_file_102.txt"
+    }
+  ]
+}

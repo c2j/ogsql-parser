@@ -1,0 +1,26 @@
+{
+  "topic": "发放实例失败常见问题排查",
+  "term_count": 4,
+  "terms": [
+    {
+      "term": "WaitAgentInstallResultTask",
+      "content": "WaitAgentInstallResultTask 工步失败 WaitAgentInstallResultTask 工步失败 报错信息 Failed to start cluster，则表示启动集群失败了。 处理过程 登录到实例节点。 联系内核工程师定位，查看日志。 如果发现节点之间数据同步网卡互相不通，而导致集群启动失败，则依次登录实例的所有节点ping其他的节点。 如果ping不通，则可以确认是高速网络网段内网络互相不通，联系网络工程师打通网络平面中的IP。 重试工步或者重新下发实例。",
+      "source_file": "6087_WaitAgentInstallResultTask .txt"
+    },
+    {
+      "term": "PreInstallDB",
+      "content": "PreInstallDB 工步失败 PreInstallDB 工步失败 创建磁盘失败 处理过程 登录实例节点 输入命令 lsblk，查看磁盘分布。 如果发现系统盘在 sbd，则删除实例，联系BMS工程师去重组raid盘。",
+      "source_file": "6086_PreInstallDB .txt"
+    },
+    {
+      "term": "AttachBMSPortTask",
+      "content": "AttachBMSPortTask 工步失败 AttachBMSPortTask 工步失败 资源管理调用IAAS接口报错。 处理过程 联系到BMS工程师，获取对应的port和server ID 来定位问题，查看日志， 得到如下报错信息，说明实例上的网络端口已经超出了规格中定义的端口数量。 登录serviceOM。 进入“服务列表 -> 裸金属资源 -> 规格 ”，找到对应的裸金属规格查看规格详情 如果发现规格详情中填写业务网络数量为2，实际GaussDB需要的业务网络数量为4，则需要删除原有规格，重新创建规格。",
+      "source_file": "6088_AttachBMSPortTask .txt"
+    },
+    {
+      "term": "WaitCreateServersTask",
+      "content": "WaitCreateServersTask 工步失败 WaitCreateServersTask 工步失败 该工步失败说明虚拟机没有成功发放，具体报错信息需要进入到子任务流中查看。 资源不足 WaitCreateBMSServerJobTask 工步失败",
+      "source_file": "6083_WaitCreateServersTask .txt"
+    }
+  ]
+}

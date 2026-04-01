@@ -1,0 +1,1 @@
+【规则】UPDATE语句中使用ORDER BY、GROUP BY子句，避免不必要的排序 【规则】UPDATE语句中使用ORDER BY、GROUP BY子句，避免不必要的排序 父主题： UPDATE 版权所有 © 华为技术有限公司

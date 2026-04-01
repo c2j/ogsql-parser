@@ -1,0 +1,25 @@
+START TRANSACTION START TRANSACTION 功能描述 通过START TRANSACTION启动事务。如果声明了隔离级别、读写模式，那么新事务就使用这些特性，类似执行了 SET TRANSACTION 。 语法格式 格式一：START TRANSACTION格式 START TRANSACTION
+  [ 
+    { 
+       ISOLATION LEVEL { READ COMMITTED | SERIALIZABLE | REPEATABLE READ }
+       | { READ WRITE | READ ONLY }
+     } [ ...] 
+  ]; 格式二：BEGIN格式 BEGIN [ WORK | TRANSACTION ]
+  [ 
+    { 
+       ISOLATION LEVEL { READ COMMITTED | SERIALIZABLE | REPEATABLE READ }
+       | { READ WRITE | READ ONLY }
+      } [ ...] 
+  ]; 参数说明 WORK | TRANSACTION BEGIN格式中的可选关键字，没有实际作用。 ISOLATION LEVEL 指定事务隔离级别，它决定当一个事务中存在其他并发运行事务时它能够看到什么数据。 在事务中第一个数据修改语句（SELECT, INSERT，DELETE，UPDATE，FETCH，COPY）执行之后，事务隔离级别就不能再次设置。 取值范围： READ COMMITTED：读已提交隔离级别，只能读到已经提交的数据，而不会读到未提交的数据。这是缺省值。 REPEATABLE READ： 可重复读隔离级别，仅仅看到事务开始之前提交的数据，它不能看到未提交的数据，以及在事务执行期间由其它并发事务提交的修改。 SERIALIZABLE： GaussDB 目前功能上不支持此隔离级别，设置该隔离级别时，等价于REPEATABLE READ。 READ WRITE | READ ONLY 指定事务访问模式（读/写或者只读）。 示例 --创建SCHEMA。 gaussdb=# CREATE SCHEMA tpcds;
+
+--创建表 tpcds. reason。 gaussdb=# CREATE TABLE tpcds. reason (c1 int, c2 int);
+
+--以默认方式启动事务。 gaussdb=# START TRANSACTION; gaussdb=# SELECT * FROM tpcds. reason; gaussdb=# END;
+
+--以默认方式启动事务。 gaussdb=# BEGIN; gaussdb=# SELECT * FROM tpcds. reason; gaussdb=# END;
+
+--以隔离级别为READ COMMITTED，读/写方式启动事务。 gaussdb=# START TRANSACTION ISOLATION LEVEL READ COMMITTED READ WRITE; gaussdb=# SELECT * FROM tpcds. reason; gaussdb=# COMMIT;
+
+--删除表 tpcds. reason。 gaussdb=# DROP TABLE tpcds. reason;
+
+--删除SCHEMA。 gaussdb=# DROP SCHEMA tpcds; 相关链接 COMMIT | END ， ROLLBACK ， SET TRANSACTION 父主题： S 版权所有 © 华为技术有限公司

@@ -1,0 +1,1 @@
+PG_SECLABEL PG_SECLABEL PG_SECLABEL系统表存储数据对象上的安全标签。 PG_SHSECLABEL 的作用类似，只是它是用于在一个 数据库集群 内共享的数据库对象的安全标签上的。 表1 PG_SECLABEL字段 名称 类型 引用 描述 objoid oid 任意OID属性 这个安全标签所属的对象的OID。 classoid oid PG_CLASS .oid 出现这个对象的系统目录的OID。 objsubid integer - 出现在这个对象中的列的序号。 provider text - 与这个标签相关的标签提供程序。 label text - 应用于这个对象的安全标签。 父主题： 用户和权限管理 版权所有 © 华为技术有限公司

@@ -1,0 +1,176 @@
+EXPLAIN EXPLAIN 功能描述 显示SQL语句的执行计划。 执行计划将显示SQL语句所引用的表会采用什么样的扫描方式，如：简单的顺序扫描、索引扫描等。如果引用了多个表，执行计划还会显示用到的JOIN算法。 执行计划的最关键的部分是语句的预计执行开销，这是计划生成器估算执行该语句将花费多长的时间。 若指定了ANALYZE选项，则该语句会被执行，然后根据实际的运行结果显示统计数据，包括每个计划节点内时间总开销（毫秒为单位）和实际返回的总行数。这对于判断计划生成器的估计值是否接近实际值非常有用。 注意事项 在指定ANALYZE选项时，语句会被执行。如果用户想使用EXPLAIN分析INSERT，UPDATE，DELETE，CREATE TABLE AS或EXECUTE语句，而不想改动数据（执行这些语句会影响数据），请使用如下方法。 START TRANSACTION;
+EXPLAIN ANALYZE ...;
+ROLLBACK; 由于参数DETAIL，NODES，NUM_NODES是分布式模式下的功能，在单机模式中是被禁止使用的。假如使用，会产生如下错误。 gaussdb=# CREATE TABLE student(id int, name char(20));
+CREATE TABLE gaussdb=# EXPLAIN (NODE true) INSERT INTO student VALUES(5,'a'),(6,'b');
+ERROR:  unrecognized EXPLAIN option "nodes" gaussdb=# EXPLAIN (NUM_NODES true) INSERT INTO student VALUES(5,'a'),(6,'b');
+ERROR:  unrecognized EXPLAIN option "num_nodes" 语法格式 显示SQL语句的执行计划，支持多种选项，对选项顺序无要求。 EXPLAIN [ (  option  [, ...] )  ] statement; 其中选项option子句的语法为。 ANALYZE [ boolean ] |
+    ANALYSE [ boolean ] |
+    VERBOSE [ boolean ] |
+    COSTS [ boolean ] |
+    CPU [ boolean ] |
+    DETAIL [ boolean ] |
+    NODES [ boolean ] |(仅分布式模式可用，集中式模式不可用)
+    NUM_NODES [ boolean ] |(仅分布式模式可用，集中式模式不可用)
+    BUFFERS [ boolean ] |
+    TIMING [ boolean ] |
+    PLAN [ boolean ] |
+    BLOCKNAME [ boolean ] |
+    OUTLINE [ boolean ] |
+    FORMAT { TEXT | XML | JSON | YAML }
+    OPTEVAL [ boolean ] 显示SQL语句的执行计划，且要按顺序给出选项。 EXPLAIN  { [   ANALYZE  | ANALYSE    ] [ VERBOSE  ]  | PERFORMANCE  } statement; 参数说明 statement 指定要分析的SQL语句。 ANALYZE boolean | ANALYSE boolean 显示实际运行时间和其他统计数据。当两个参数同时使用时，在option中排在后面的一个生效。 取值范围： TRUE（缺省值）：显示实际运行时间和其他统计数据。 FALSE：不显示。 VERBOSE boolean 显示有关计划的额外信息。 取值范围： TRUE（缺省值）：显示额外信息。 FALSE：不显示。 COSTS boolean 包括每个规划节点的估计总成本，以及估计的行数和每行的宽度。 取值范围： TRUE（缺省值）：显示估计总成本和宽度。 FALSE：不显示。 CPU boolean 打印CPU的使用情况的信息。需要结合ANALYZE或ANALYSE选项一起使用。 取值范围： TRUE（缺省值）：显示CPU的使用情况。 FALSE：不显示。 DETAIL boolean 打印数据库节点上的信息。需要结合ANALYZE或ANALYSE选项一起使用。 取值范围： TRUE（缺省值）：打印数据库节点的信息。 FALSE：不打印。 NODES boolean （仅分布式模式可用，集中式模式不可用） 打印query执行的节点信息。 取值范围： TRUE（缺省值）：打印执行的节点的信息。 FALSE：不打印。 NUM_NODES boolean （仅分布式模式可用，集中式模式不可用） 打印执行中的节点的个数信息。 取值范围： TRUE（缺省值）：打印数据库节点个数的信息。 FALSE：不打印。 BUFFERS boolean 包括缓冲区的使用情况的信息。需要结合ANALYZE或ANALYSE选项一起使用。 取值范围： TRUE：显示缓冲区的使用情况。 FALSE（缺省值）：不显示。 TIMING boolean 包括实际的启动时间和花费在输出节点上的时间信息。需要结合ANALYZE或ANALYSE选项一起使用。 取值范围： TRUE（缺省值）：显示启动时间和花费在输出节点上的时间信息。 FALSE：不显示。 PLAN 是否将执行计划存储在plan_table中。当该选项开启时，会将执行计划存储在plan_table中，不打印到当前屏幕，因此该选项为on时，不能与其他选项同时使用。 取值范围： ON（缺省值）：将执行计划存储在plan_table中，不打印到当前屏幕。执行成功返回EXPLAIN SUCCESS。 OFF：不存储执行计划，将执行计划打印到当前屏幕。 BLOCKNAME boolean 是否显示计划的每个操作所处于的查询块。当该选项开启时，会将每个操作所处于的查询块的名字输出在Query Block列上，方便用户获取查询块名字，并使用Hint修改执行计划： TRUE（缺省值）：显示计划时，将每个操作所处于的查询块的名字输出在新增列Query Block列上。该选项需要在pretty模式下使用。见 指定Hint所处于的查询块Queryblock 。 FALSE：不对计划显示产生影响。 OUTLINE boolean 是否显示计划的Outline Hint信息。 ON：显示计划时，将Outline Hint显示在计划下方 。该选项需要在pretty模式下使用。见 Outline Hint 。 OFF（缺省值）：不显示计划的Outline Hint信息。 FORMAT 指定输出格式。 取值范围：TEXT，XML，JSON和YAML。 默认值：TEXT。 PERFORMANCE 使用此选项时，即打印执行中的所有相关信息。下述为部分信息描述： ex c/r：代表平均每行使用cpu周期数，等于（ex cyc）/（ex row）。 ex row：执行行数。 ex cyc：代表使用的cpu周期数。 inc cyc：代表包含子节点使用的总cpu周期数。 shared hit：代表算子的share buffer命中情况。 loops：算子循环执行次数。 total_calls：生成元素总数。 remote query poll time stream gather：算子用于侦听各DN数据到达CN的网络poll时间。 deserialize time：反序列化所需时间。 estimated time：估计时间。 OPTEVAL boolean 是否显示SCAN算子（当前仅支持seqscan、indexscan、indexonlyscan、bitmapheapscan）的代价淘汰明细，当开启此开关的时候，会在执行计划中显示一个名字为Cost Evaluation Info (identified by plan id)的计划块，该选项仅仅可以和COSTS、VERBOSE、FORMAT三个选项共存。此计划块中的具体参数明细，请参考 示例2 。 取值范围： TRUE：显示SCAN算子的代价淘汰明细。 FALSE（缺省值）：不显示。 示例1 --创建SCHEMA。 gaussdb=# CREATE SCHEMA tpcds; 
+
+--创建表tpcds.customer_address。 gaussdb=# CREATE TABLE tpcds.customer_address
+(
+ca_address_sk         INTEGER           NOT NULL,
+ca_address_id         CHARACTER(16)     NOT NULL
+);
+ 
+--向表中插入多条记录。 gaussdb=# INSERT INTO tpcds.customer_address VALUES (5000, 'AAAAAAAABAAAAAAA'),(10000, 'AAAAAAAACAAAAAAA');
+
+--创建一个表 tpcds. customer_address_p1。 gaussdb=# CREATE TABLE tpcds. customer_address_p1 AS TABLE tpcds. customer_address;
+
+--修改explain_perf_mode为normal。 gaussdb=# SET explain_perf_mode=normal;
+
+--显示表简单查询的执行计划。 gaussdb=# EXPLAIN SELECT * FROM tpcds. customer_address_p1;
+QUERY PLAN
+--------------------------------------------------
+Data Node Scan  (cost=0.00..0.00 rows=0 width=0)
+Node/s: All dbnode s
+(2 rows)
+
+--以JSON格式输出的执行计划（explain_perf_mode为normal时）。 gaussdb=# EXPLAIN(FORMAT JSON) SELECT * FROM tpcds. customer_address_p1;
+              QUERY PLAN              
+--------------------------------------
+ [                                   +
+   {                                 +
+     "Plan": {                       +
+       "Node Type": "Data Node Scan",+
+       "Startup Cost": 0.00,         +
+       "Total Cost": 0.00,           +
+       "Plan Rows": 0,               +
+       "Plan Width": 0,              +
+       "Node/s": "All dbnode s"     +
+     }                               +
+   }                                 +
+ ]
+(1 row)
+
+--如果有一个索引，当使用一个带索引WHERE条件的查询，可能会显示一个不同的计划。 gaussdb=# EXPLAIN SELECT * FROM tpcds. customer_address_p1 WHERE ca_address_sk=10000;
+QUERY PLAN
+--------------------------------------------------
+Data Node Scan  (cost=0.00..0.00 rows=0 width=0)
+Node/s: dn_6005_6006
+(2 rows)
+
+--以YAML格式输出的执行计划（explain_perf_mode为normal时）。 gaussdb=# EXPLAIN(FORMAT YAML) SELECT * FROM tpcds. customer_address_p1 WHERE ca_address_sk=10000;
+           QUERY PLAN            
+---------------------------------
+ - Plan:                        +
+     Node Type: "Data Node Scan"+
+     Startup Cost: 0.00         +
+     Total Cost: 0.00           +
+     Plan Rows: 0               +
+     Plan Width: 0              +
+     Node/s: "dn_6005_6006"
+(1 row)
+
+--禁止开销估计的执行计划。 gaussdb=# EXPLAIN(COSTS FALSE) SELECT * FROM tpcds. customer_address_p1 WHERE ca_address_sk=10000;
+       QUERY PLAN       
+------------------------
+ Data Node Scan
+   Node/s: dn_6005_6006
+(2 rows)
+
+--带有聚集函数查询的执行计划。 gaussdb=# EXPLAIN SELECT SUM(ca_address_sk) FROM tpcds. customer_address_p1 WHERE ca_address_sk<10000;
+                                      QUERY PLAN                                       
+---------------------------------------------------------------------------------------
+ Aggregate  (cost=18.19..14.32 rows=1 width=4)
+   ->  Streaming (type: GATHER)  (cost=18.19..14.32 rows=3 width=4)
+         Node/s: All dbnode s
+         ->  Aggregate  (cost=14.19..14.20 rows=3 width=4)
+               ->  Seq Scan on customer_address_p1  (cost=0.00..14.18 rows=10 width=4)
+                     Filter: (ca_address_sk < 10000)
+(6 rows)
+
+
+--创建一个二级分区表。 gaussdb=# CREATE TABLE range_list
+(
+    month_code VARCHAR2 ( 30 ) NOT NULL ,
+    dept_code  VARCHAR2 ( 30 ) NOT NULL ,
+    user_no    VARCHAR2 ( 30 ) NOT NULL ,
+    sales_amt  int
+)
+PARTITION BY RANGE (month_code) SUBPARTITION BY LIST (dept_code)
+(
+  PARTITION p_201901 VALUES LESS THAN( '201903' )
+  (
+    SUBPARTITION p_201901_a values ('1'),
+    SUBPARTITION p_201901_b values ('2')
+  ),
+  PARTITION p_201902 VALUES LESS THAN( '201910' )
+  (
+    SUBPARTITION p_201902_a values ('1'),
+    SUBPARTITION p_201902_b values ('2')
+  )
+);
+
+--执行带有二级分区表的查询语句。
+--Iterations 和 Sub Iterations分别标识遍历了几个一级分区和二级分区。
+--Selected Partitions标识哪些一级分区被实际扫描，Selected Subpartitions: (p:s)标识第p个一级分区下s个二级分区被实际扫描，如果一级分区下所有二级分区都被扫描则s显示为ALL。 gaussdb=# EXPLAIN SELECT * FROM range_list WHERE dept_code = '1';
+                                  QUERY PLAN
+-------------------------------------------------------------------------------
+ Partition Iterator  (cost=0.00..13.81 rows=2 width=238)
+   Iterations: 2, Sub Iterations: 2
+   ->  Partitioned Seq Scan on range_list  (cost=0.00..13.81 rows=2 width=238)
+         Filter: ((dept_code)::text = '1'::text)
+         Selected Partitions:  1..2
+         Selected Subpartitions:  1:1, 2:1
+(6 rows)
+
+--删除表 tpcds. customer_address_p1。 gaussdb=# DROP TABLE tpcds. customer_address_p1;
+
+--删除表tpcds.customer_address。 gaussdb=# DROP TABLE tpcds.customer_address;
+
+--删除表range_list。 gaussdb=# DROP TABLE range_list;
+
+--删除SCHEMA。 gaussdb=# DROP SCHEMA tpcds CASCADE; 示例2 --创建tb_a，tb_b。 gaussdb=# CREATE TABLE tb_a(c1 int); gaussdb=# INSERT INTO tb_a VALUES(1),(2),(3); gaussdb=# CREATE TABLE tb_b AS SELECT * FROM tb_a; gaussdb=# EXPLAIN (OPTEVAL on )SELECT * FROM tb_a a, tb_b b WHERE a.c1=b.c1 AND a.c1=1;
+ id |                    operation                     | E-rows | E-width |    E-costs
+----+--------------------------------------------------+--------+---------+----------------
+  1 | ->  Nested Loop (2,3)                            |   2401 |      30 | 0.000..312.321
+  2 |    ->  Index Scan using tb_a_idx_c1 on tb_a a    |     49 |      15 | 0.000..141.090
+  3 |    ->  Materialize                               |     49 |      15 | 0.000..141.342
+  4 |       ->  Index Scan using tb_b_idx_c1 on tb_b b |     49 |      15 | 0.000..141.097
+(4 rows)
+
+ Predicate Information (identified by plan id)
+-----------------------------------------------
+   2 --Index Scan using tb_a_idx_c1 on tb_a a
+         Index Cond: (c1 = 1)
+   4 --Index Scan using tb_b_idx_c1 on tb_b b
+         Index Cond: (c1 = 1)
+(4 rows)
+
+                                                       Cost Evaluation Info (identified by plan id)
+-----------------------------------------------------------------------------------------------------------------------------------------------------------
+   2 --Index Scan using tb_a_idx_c1 on tb_a a(id=#2#, rpages=1.00, ipages=1.00, selec=0.00488000, ml=0, iscost=1, lossy=0, uidx=0)
+        -> Seq Scan on tb_a a(id=#1#)
+             Filter: (c1 = 1)
+             Cost Info: (cost=0.00..180.00 tuples=10000.00, rpages=55.00, ipages=-1.00, selec=-1.00000000, ml=0, iscost=0, lossy=0, uidx=0)
+        -> Bitmap Heap Scan on tb_a a(id=#3#)
+             Recheck Cond: (c1 = 1)
+             Cost Info: (cost=10000000004.63..1000000006104.52 tuples=49.00, rpages=34.00, ipages=0.00, selec=0.00488000, ml=0, iscost=0, lossy=0, uidx=0)
+             -> Bitmap Index Scan using tb_a_idx_c1(id=#2#)
+                  Index Cond: (c1 = 1)
+                  Cost Info: (cost=0.00..4.62 tuples=49.00, rpages=1.00, ipages=1.00, selec=0.00488000, ml=0, iscost=1, lossy=0, uidx=0)
+   4 --Index Scan using tb_b_idx_c1 on tb_b b(id=#5#, rpages=1.00, ipages=1.00, selec=0.00491949, ml=1, iscost=1, lossy=0, uidx=0)
+        -> Seq Scan on tb_b b(id=#4#)
+             Filter: (c1 = 1)
+             Cost Info: (cost=0.00..180.00 tuples=10000.00, rpages=55.00, ipages=-1.00, selec=-1.00000000, ml=0, iscost=0, lossy=0, uidx=0)
+        -> Bitmap Heap Scan on tb_b b(id=#6#)
+             Recheck Cond: (c1 = 1)
+             Cost Info: (cost=10000000004.63..1000000006104.52 tuples=49.00, rpages=34.00, ipages=0.00, selec=0.00491949, ml=0, iscost=0, lossy=0, uidx=0)
+             -> Bitmap Index Scan using tb_b_idx_c1(id=#5#)
+                  Index Cond: (c1 = 1)
+                  Cost Info: (cost=0.00..4.62 tuples=49.00, rpages=1.00, ipages=1.00, selec=0.00491949, ml=1, iscost=1, lossy=0, uidx=0)
+(20 rows)
+--删除表tb_a，tb_b。 gaussdb=# DROP TABLE tb_a; gaussdb=# DROP TABLE tb_b; 针对Cost Evaluation Info (identified by plan id)计划块： “2 --”与“4 --”所在行表示的是当前胜选算子，它们各自下面的缩进计划块表示的是当前胜选算子直接淘汰的算子。如算子2淘汰的算子有Seq Scan算子和Bitmap Heap Scan算子。 如上所示，对上述看到的关键参数进行说明： id表示当前算子从指定id的path转换而来，该值主要用于在debug2日志中方便定位某一条路径。 rpage表示在代价模型计算过程中使用的基表的页面数。 ipage表示在代价模型计算过程中使用的索引的页面数。 tuples表示在代价模型计算过程中使用的tuple的数量。 selec表示在代价模型计算过程中使用的索引选择率，-1表示当前算子的索引选率无效。 ml表示在代价模型计算过程中，当前触发的ML模型事件，1表示effective_cache_size指定的缓存足够，2表示effective_cache_size指定的缓存不足，3表示effective_cache_size指定的缓存严重不足。 iscost表示在模型代价计算过程中是否发生过忽略启动代价的事件。 lossy表示在代价模型计算过程中是否触发bitmap heap scan的lossy机制。 uidx表示在代价模型计算过程中是否触发唯一索引优先规则。 相关链接 ANALYZE | ANALYSE 父主题： E 版权所有 © 华为技术有限公司

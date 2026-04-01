@@ -1,0 +1,36 @@
+{
+  "topic": "常见问题及定位手段",
+  "term_count": 6,
+  "terms": [
+    {
+      "term": "snapshot",
+      "content": "snapshot too old snapshot too old 查询SQL执行时间过长或者其他一些原因，Undo无法保存太久的历史数据就可能因为历史版本被强制回收报错。一般情况下需要扩容回滚段空间，但具体问题需要具体分析。 长事务阻塞Undo空间回收 大量回滚事务拖慢Undo空间回收",
+      "source_file": "4398_snapshot too old.txt"
+    },
+    {
+      "term": "snapshot",
+      "content": "snapshot too old snapshot too old 查询SQL执行时间过长或者其它一些原因，Undo无法保存太久的历史数据就可能因为历史版本被强制回收报错。一般情况下需要扩容回滚段空间，但具体问题需要具体分析。 长事务阻塞Undo空间回收 大量回滚事务拖慢Undo空间回收",
+      "source_file": "4658_snapshot too old.txt"
+    },
+    {
+      "term": "storage",
+      "content": "storage test error storage test error 业务执行过程中，数据页、索引或者Undo页面发生变更后，该页面放锁之前会主动进行逻辑损坏检测，发现页面损坏问题后会输出包含“storage test error”关键字的日志信息到数据库运行日志（pg_log文件），执行事务回滚，页面会恢复到修改前的状态。 问题现象 pg_log中打印“storage test error”关键字。 处理方法 请联系华为技术支持解决。",
+      "source_file": "4661_storage test error.txt"
+    },
+    {
+      "term": "备机读业务报错:\"UBTreeSearch::read_page",
+      "content": "备机读业务报错:\"UBTreeSearch::read_page has conflict with recovery, please try again later\" 备机读业务报错:\"UBTreeSearch::read_page has conflict with recovery, please try again later\" 问题现象 业务在使用备机读时，出现报错（错误码43244），错误信息中包含“UBTreeSearch::read_page has conflict with recovery, please try again later”关键字。 问题分析 在开启并行回放或串行回放的情况下（查询GUC参数recovery_parse_workers和recovery_max_workers均是1为串行回放；recovery_parse_workers是1，recovery_max_workers大于1为并行回放），备机的查询线程在做索引扫描时，会先对索引页面加读锁，每当扫到一个元组时会去判可见性，如果该元组对应的事务处于committing状态，需要等待该事务提交后再判断。而备机上的事务提交是依赖日志回放线程推进的，这个过程中会对索引页面进行修改，因此需要加锁。查询线程在等待过程中会释放索引页面的锁，否则会出现查询线程等待回放线程进行事务提交，而回放线程在等待查询线程释放锁。 该报错仅出现在查询与回放都需要访问同一个索引页面的场景下，查询线程在释放锁并等待事务结束过程中，访问的页面出现被修改的情况。具体流程图如下图1所示： 备机查询在扫到committing状态的元组时，需要等待事务提交是因为事务提交的顺序与产生日志的顺序可能是乱序的，例如主机上tx_1的事务比tx_2先提交，而备机上tx_1的commit日志在tx_2的commit日志之后回放，按照事务提交顺序来看tx_1对tx_2应当是可见的，所以需要等待事务提交。 备机查询在扫描索引页面时，发现页面元组数量（包含死元组）发生变化后不可重试，是因为在扫描时可能为正向或反向扫描，而举例来说页面发生分裂后一部分元组移动到右页面，在反向扫描的情况下即使重试只能向左扫描读取，无法再保证结果的正确性，并且由于无法分辨发生分裂或者插入，所以不可重试。 图1 问题分析 处理方法 出现报错时，建议重试查询。另外建议选择非频繁更新的索引字段、采用软删除的方式（物理删除操作在业务低谷期执行），可以降低出现该报错的概率。",
+      "source_file": "4662___UBTreeSearch__read_page has conflict with recovery, please try again later_.txt"
+    },
+    {
+      "term": "storage",
+      "content": "storage test error storage test error 业务执行过程中，数据页、索引或者Undo页面发生变更后，该页面放锁之前会主动进行逻辑损坏检测，发现页面损坏问题后会输出包含“storage test error”关键字的日志信息到数据库运行日志（pg_log文件），执行事务回滚，页面会恢复到修改前的状态。 问题现象 pg_log中打印“storage test error”关键字。 处理方法 请联系华为技术支持解决。",
+      "source_file": "4401_storage test error.txt"
+    },
+    {
+      "term": "备机读业务报错:\"UBTreeSearch::read_page",
+      "content": "备机读业务报错:\"UBTreeSearch::read_page has conflict with recovery, please try again later\" 备机读业务报错:\"UBTreeSearch::read_page has conflict with recovery, please try again later\" 问题现象 业务在使用备机读时，出现报错（错误码43244），错误信息中包含“UBTreeSearch::read_page has conflict with recovery, please try again later”关键字。 问题分析 在开启并行回放或串行回放的情况下（查询GUC参数recovery_parse_workers和recovery_max_workers均是1为串行回放；recovery_parse_workers是1，recovery_max_workers大于1为并行回放），备机的查询线程在做索引扫描时，会先对索引页面加读锁，每当扫到一个元组时会去判可见性。如果该元组对应的事务处于committing状态，需要等待该事务提交后再判断。而备机上的事务提交是依赖日志回放线程推进的，这个过程中会对索引页面进行修改，因此需要加锁。查询线程在等待过程中会释放索引页面的锁，否则会出现查询线程等待回放线程进行事务提交，而回放线程在等待查询线程释放锁。 该报错仅出现在查询与回放都需要访问同一个索引页面的场景下，查询线程在释放锁并等待事务结束过程中，访问的页面出现被修改的情况。具体流程图如下图1所示： 备机查询在扫到committing状态的元组时，需要等待事务提交是因为事务提交的顺序与产生日志的顺序可能是乱序的。例如主机上tx_1的事务比tx_2先提交，而备机上tx_1的commit日志在tx_2的commit日志之后回放，按照事务提交顺序来看tx_1对tx_2应当是可见的，所以需要等待事务提交。 备机查询在扫描索引页面时，发现页面元组数量（包含死元组）发生变化后不可重试，是因为在扫描时可能为正向或反向扫描，而举例来说页面发生分裂后一部分元组移动到右页面，在反向扫描的情况下即使重试只能向左扫描读取，无法再保证结果的正确性，并且由于无法分辨发生分裂或者插入，所以不可重试。 图1 问题分析 处理方法 出现报错时，建议重试查询。另外建议选择非频繁更新的索引字段、采用软删除的方式（物理删除操作在业务低谷期执行），可以降低出现该报错的概率。",
+      "source_file": "4402___UBTreeSearch__read_page has conflict with recovery, please try again later_.txt"
+    }
+  ]
+}

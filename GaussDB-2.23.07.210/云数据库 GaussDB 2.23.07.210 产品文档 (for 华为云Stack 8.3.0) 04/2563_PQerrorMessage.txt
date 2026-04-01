@@ -1,0 +1,1 @@
+PQerrorMessage PQerrorMessage 功能描述 返回连接上的错误信息。 原型 char* PQerrorMessage(const PGconn* conn); 参数 表1 关键字 参数说明 conn 连接句柄。 返回值 char类型指针。 父主题： 数据库连接控制函数 版权所有 © 华为技术有限公司

@@ -1,0 +1,1 @@
+WLM_CGROUP_CONFIG WLM_CGROUP_CONFIG WLM_CGROUP_CONFIG视图显示当前执行作业的控制组的信息。 表1 WLM_CGROUP_CONFIG字段 名称 类型 描述 cgoup_name text 控制组的名称。 priority integer 作业的优先级。 usage_pecent integer 控制组占用的百分比。 shares bigint 控制组分配的CPU资源配额。 cpuacct bigint CPU配额分配。 cpuset text CPU限额分配。 relpath text 控制组的相对路径。 valid text 该控制组是否有效。 父主题： Workload Manager 版权所有 © 华为技术有限公司

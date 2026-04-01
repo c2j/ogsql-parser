@@ -1,0 +1,34 @@
+数据透视函数 数据透视函数 tablefunc 描述：扩展接口，用于处理表数据，包括数据透视函数。仅系统管理员可以安装扩展。 需要安装扩展，默认安装到public schema，建议安装到用户schema，create extension tablefunc [schema {user_schema}]。 crosstab(source_sql text [, N int]) 描述：以source_sql的结果为源数据，产生一个数据透视表。 返回值类型：setof record 示例： 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19 gaussdb =# select * from cross_test ; group_ | id | var --------+----+------ group1 | 1 | val1 group1 | 2 | val2 group1 | 4 | val3 group2 | 1 | val1 group2 | 3 | val3 group2 | 4 | val4 ( 6 rows ) gaussdb =# create extension tablefunc ; gaussdb =# select * from crosstab ( 'select group_, id, var from cross_test order by 1, 2;' ) as c ( group_ text , cat1 text , cat2 text , cat3 text ); group_ | cat1 | cat2 | cat3 --------+------+------+------ group1 | val1 | val2 | val3 group2 | val1 | val3 | val4 ( 2 rows ) N是一个废弃参数，不影响函数结果。 crosstabN(source_sql text) 描述：以source_sql的结果为源数据，产生一个 "N+1" 列的数据透视表。crosstabN是一组函数，包括crosstab2、crosstab3、crosstab4。 返回值类型：setof tablefunc_crosstab_N。tablefunc_crosstab_N包括tablefunc_crosstab_2、tablefunc_crosstab_3、tablefunc_crosstab_4。 示例： 1
+2
+3
+4
+5
+6
+7
+8
+9 --crossbatN(source_sql text)中的N为2时，产生一个3列的数据透视表 gaussdb =# create extension tablefunc ; gaussdb =# select * from crosstab2 ( 'select group_, id, var from cross_test order by 1, 2;' ); row_name | category_1 | category_2 ----------+------------+------------ group1 | val1 | val2 group2 | val1 | val3 ( 2 rows ) crosstab(source_sql text, category_sql text) 描述：以source_sql的结果为源数据，根据category_sql的结果分类，产生一个数据透视表。 返回值类型：setof record 示例： 1
+2
+3
+4
+5
+6
+7
+8 gaussdb =# create extension tablefunc ; gaussdb =# select * from crosstab ( 'select group_, id, var from cross_test order by 1, 2;' , 'select generate_series(1, 4)' ) as c ( group_ text , cat1 text , cat2 text , cat3 text , cat4 text ); group_ | cat1 | cat2 | cat3 | cat4 --------+------+------+------+------ group1 | val1 | val2 | | val3 group2 | val1 | | val3 | val4 ( 2 rows ) 父主题： 函数和操作符 版权所有 © 华为技术有限公司

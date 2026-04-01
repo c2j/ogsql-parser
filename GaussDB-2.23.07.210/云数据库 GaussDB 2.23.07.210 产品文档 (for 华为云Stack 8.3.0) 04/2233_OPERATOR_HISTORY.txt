@@ -1,0 +1,1 @@
+OPERATOR_HISTORY OPERATOR_HISTORY OPERATOR_HISTORY视图显示的是当前用户 当前CN 上执行作业结束后的算子的相关记录。内核中的数据会定时被清理，清理周期为3分钟。 父主题： Operator 版权所有 © 华为技术有限公司

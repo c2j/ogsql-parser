@@ -1,0 +1,79 @@
+案例：建立合适的索引 案例：建立合适的索引 现象描述 查询与销售部所有员工的信息： 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24 --建表 CREATE TABLE staffs ( staff_id NUMBER ( 6 ) NOT NULL , first_name VARCHAR2 ( 20 ), last_name VARCHAR2 ( 25 ), employment_id VARCHAR2 ( 10 ), section_id NUMBER ( 4 ), state_name VARCHAR2 ( 10 ), city VARCHAR2 ( 10 )); CREATE TABLE sections ( section_id NUMBER ( 4 ), place_id NUMBER ( 4 ), section_name VARCHAR2 ( 20 )); CREATE TABLE states ( state_id NUMBER ( 4 )); CREATE TABLE places ( place_id NUMBER ( 4 ), state_id NUMBER ( 4 )); --优化前查询 EXPLAIN SELECT staff_id , first_name , last_name , employment_id , state_name , city FROM staffs , sections , states , places WHERE sections . section_name = 'Sales' AND staffs . section_id = sections . section_id AND sections . place_id = places . place_id AND places . state_id = states . state_id ORDER BY staff_id ; --优化后查询 CREATE INDEX loc_id_pk ON places ( place_id ); CREATE INDEX state_c_id_pk ON states ( state_id ); EXPLAIN SELECT staff_id , first_name , last_name , employment_id , state_name , city FROM staffs , sections , states , places WHERE sections . section_name = 'Sales' AND staffs . section_id = sections . section_id AND sections . place_id = places . place_id AND places . state_id = states . state_id ORDER BY staff_id ; 优化分析 在优化前，没有创建places.place_id和states.state_id索引，执行计划如下： 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27
+28
+29 id | operation | E - rows | E - width | E - costs ----+--------------------------------------------------------------+--------+---------+--------- 1 | -> Streaming ( type : GATHER ) | 2 | 254 | 54 . 08 2 | -> Sort | 2 | 254 | 53 . 90 3 | -> Nested Loop ( 4 , 5 ) | 2 | 254 | 53 . 88 4 | -> Seq Scan on staffs | 20 | 266 | 13 . 13 5 | -> Materialize | 4 | 12 | 40 . 37 6 | -> Streaming ( type : BROADCAST ) | 4 | 12 | 40 . 36 7 | -> Nested Loop ( 8 , 9 ) | 2 | 12 | 40 . 20 8 | -> Seq Scan on states | 20 | 12 | 13 . 13 9 | -> Materialize | 2 | 24 | 26 . 69 10 | -> Streaming ( type : REDISTRIBUTE ) | 2 | 24 | 26 . 68 11 | -> Nested Loop ( 12 , 14 ) | 2 | 24 | 26 . 57 12 | -> Streaming ( type : REDISTRIBUTE ) | 1 | 24 | 13 . 28 13 | -> Seq Scan on sections | 1 | 24 | 13 . 16 14 | -> Seq Scan on places | 20 | 24 | 13 . 13 ( 14 rows ) Predicate Information ( identified by plan id ) ---------------------------------------------------------------- 3 --Nested Loop (4,5) Join Filter : ( sections . section_id = staffs . section_id ) 7 --Nested Loop (8,9) Join Filter : ( places . state_id = states . state_id ) 11 --Nested Loop (12,14) Join Filter : ( sections . place_id = places . place_id ) 13 --Seq Scan on sections Filter : (( section_name ):: text = 'Sales' :: text ) ( 8 rows ) 建议在places.place_id和states.state_id列上建立2个索引，执行计划如下： 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27
+28 id | operation | E - rows | E - width | E - costs ----+---------------------------------------------------------------------+--------+---------+--------- 1 | -> Streaming ( type : GATHER ) | 2 | 254 | 42 . 26 2 | -> Sort | 2 | 254 | 42 . 08 3 | -> Nested Loop ( 4 , 5 ) | 2 | 254 | 42 . 06 4 | -> Seq Scan on staffs | 20 | 266 | 13 . 13 5 | -> Materialize | 4 | 12 | 28 . 55 6 | -> Streaming ( type : BROADCAST ) | 4 | 12 | 28 . 54 7 | -> Nested Loop ( 8 , 13 ) | 2 | 12 | 28 . 38 8 | -> Streaming ( type : REDISTRIBUTE ) | 2 | 24 | 21 . 66 9 | -> Nested Loop ( 10 , 12 ) | 2 | 24 | 21 . 56 10 | -> Streaming ( type : REDISTRIBUTE ) | 1 | 24 | 13 . 28 11 | -> Seq Scan on sections | 1 | 24 | 13 . 16 12 | -> Index Scan using loc_id_pk on places | 1 | 24 | 8 . 27 13 | -> Index Only Scan using state_c_id_pk on states | 1 | 12 | 3 . 35 ( 13 rows ) Predicate Information ( identified by plan id ) ---------------------------------------------------------------- 3 --Nested Loop (4,5) Join Filter : ( sections . section_id = staffs . section_id ) 11 --Seq Scan on sections Filter : (( section_name ):: text = 'Sales' :: text ) 12 --Index Scan using loc_id_pk on places Index Cond : ( place_id = sections . place_id ) 13 --Index Only Scan using state_c_id_pk on states Index Cond : ( state_id = places . state_id ) ( 8 rows ) 父主题： 实际调优案例 版权所有 © 华为技术有限公司

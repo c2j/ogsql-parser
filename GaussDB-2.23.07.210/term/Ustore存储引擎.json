@@ -1,0 +1,66 @@
+{
+  "topic": "Ustore存储引擎",
+  "term_count": 12,
+  "terms": [
+    {
+      "term": "存储格式",
+      "content": "存储格式 存储格式 RCR Uheap UBTree Undo",
+      "source_file": "4369_file_4369.txt"
+    },
+    {
+      "term": "Ustore事务模型",
+      "content": "Ustore事务模型 Ustore事务模型 GaussDB 事务基础： 事务启动时不会自动分配XID，该事务中的第一条DML/DDL语句运行时才会真正为该事务分配XID。 事务结束时，会产生代表事务提交状态的CLOG（Commit Log），CLOG共有四种状态：事务运行中、事务提交、事务同步回滚、子事务提交。每个事务的 CLOG状态位为2 bits，CLOG页面上每个字节可以表示四个事务的提交状态。 事务结束时，还会产生代表事务提交顺序的CSN（Commit sequence number），CSN为实例级变量，每个XID都有自己对应的唯一CSN。CSN可以标记事务的以下状态：事务提交中、事务提交、事务回滚、事务已冻结等。 事务提交 事务回滚",
+      "source_file": "4649_Ustore.txt"
+    },
+    {
+      "term": "Ustore简介",
+      "content": "Ustore简介 Ustore简介 Ustore（Unified Storage）是 GaussDB 推出的一款原位更新的存储引擎，其多版本的实现较Astore最大的区别在于最新版本和历史版本的数据是分离存储的，而索引当前还没有分离。Ustore目前已发展为 GaussDB 的默认行存引擎。 使用Ustore的优势 最新版本和历史版本分离存储，相比Astore扫描范围小。去除Astore的HOT chain，非索引列/索引列更新，Heap均可原位更新，ROWID可保持不变。历史版本可批量回收，空间膨胀可控。 B-tree索引增加了事务信息，能够独立进行MVCC。增加了IndexOnlyScan的比例，大大减少回表次数。 不依赖Vacuum进行旧版本清理。独立的空间回收能力，索引与堆表解耦，可独立清理，IO平稳度更优。 大并发更新同一行的场景，相对于Astore的ROWID会偏移，Ustore的原位更新机制保证了元组ROWID稳定，先到先得，更新时延相对稳定。 支持闪回功能。 Ustore DML在修改数据页面时，也需要同步生成Undo，因此更新操作开销会稍大一些。此外单条Tuple扫描开销由于需要复制（Astore返回指针）也会大一些。 Ustore特性与规格 使用Ustore进行测试 Ustore的最佳实践",
+      "source_file": "4619_Ustore.txt"
+    },
+    {
+      "term": "Ustore简介",
+      "content": "Ustore简介 Ustore简介 Ustore（Unified Storage）是 GaussDB 推出的一款原位更新的存储引擎，其多版本的实现较Astore最大的区别在于最新版本和历史版本的数据是分离存储的，而索引当前还没有分离。 使用Ustore的优势 最新版本和历史版本分离存储，相比Astore扫描范围小。去除Astore的HOT chain，非索引列/索引列更新，Heap均可原位更新，ROWID可保持不变。历史版本可批量回收，空间膨胀可控。 B-tree索引增加了事务信息，能够独立进行MVCC，增加了IndexOnlyScan的比例，大大减少回表次数。 不依赖Vacuum进行旧版本清理。独立的空间回收能力，索引与堆表解耦，可独立清理，IO平稳度更优。 大并发更新同一行的场景，相对于Astore的ROWID会偏移，Ustore的原位更新机制保证了元组ROWID稳定，先到先得，更新时延相对稳定。 支持闪回功能。 Ustore DML在修改数据页面时，也需要同步生成Undo，因此更新操作开销会稍大一些。此外单条Tuple扫描开销由于需要复制（Astore返回指针）也会大一些。 Ustore特性与规格 使用Ustore进行测试 Ustore的最佳实践",
+      "source_file": "4359_Ustore.txt"
+    },
+    {
+      "term": "常用视图工具",
+      "content": "常用视图工具 常用视图工具 视图类型 类型 功能描述 使用场景 函数名称 解析 全类型 用于解析指定表页面，并返回存放解析内容的路径。 查看页面信息。 查看元组（非用户数据）信息。 页面或者元组损坏。 元组可见性问题。 校验报错问题。 gs_parse_page_bypath 索引回收队列（URQ） 用于解析UB-tree索引回收队列关键信息。 UB-tree索引空间膨胀。 UB-tree索引空间回收异常。 校验报错问题。 gs_urq_dump_stat 回滚段（Undo） 用于解析指定Undo Record的内容，不包含旧版本元组的数据。 undo空间膨胀。 undo回收异常。 回滚异常。 日常巡检。 校验报错。 可见性判断异常。 修改参数。 gs_undo_dump_record 用于解析指定事务生成的所有Undo Record，不包含旧版本元组的数据。 gs_undo_dump_xid 用于解析指定UndoZone中所有Transaction Slot信息。 gs_undo_translot_dump_slot 用于解析指定事务对应Transaction Slot信息，包括事务XID和该事务生成的Undo Record范围. gs_undo_translot_dump_xid 用于解析指定Undo Zone的元信息，显示Undo Record和Transaction Slot指针使用情况。 gs_undo_meta_dump_zone 用于解析指定Undo Zone对应Undo Space的元信息，显示Undo Record文件使用情况。 gs_undo_meta_dump_spaces 用于解析指定Undo Zone对应Slot Space的元信息，显示Transaction Slot文件使用情况。 gs_undo_meta_dump_slot 用于解析数据页和数据页上数据的所有历史版本，并返回存放解析内容的路径。 gs_undo_dump_parsepage_mv 预写日志 （WAL） 用于解析指定LSN范围之内的xLog日志，并返回存放解析内容的路径。可以通过pg_current_xlog_location()获取当前xLog位置。 WAL日志出错。 日志回放出错。 页面损坏。 gs_xlogdump_lsn 用于解析指定XID的xLog日志，并返回存放解析内容的路径。可以通过txid_current()获取当前事务ID。 gs_xlogdump_xid 用于解析指定表页面对应的日志，并返回存放解析内容的路径。 gs_xlogdump_tablepath 用于解析指定表页面和表页面对应的日志，并返回存放解析内容的路径。可以看做一次执行gs_parse_page_bypath和gs_xlogdump_tablepath。该函数执行的前置条件是表文件存在。如果想查看已删除的表的相关日志，请直接调用gs_xlogdump_tablepath。 gs_xlogdump_parsepage_tablepath 统计 回滚段（Undo） 用于显示Undo模块的统计信息，包括Undo Zone使用情况、Undo链使用情况、Undo模块文件创建删除情况和Undo模块参数设置推荐值。 Undo空间膨胀。 Undo资源监控。 gs_stat_undo 预写日志 （WAL） 用于统计预写日志（WAL）写盘时的内存状态表内容。 WAL写/刷盘监控。 WAL写/刷盘hang住。 gs_stat_wal_entrytable 用于统计预写日志（WAL）刷盘状态、位置统计信息。 gs_walwriter_flush_position 用于统计预写日志（WAL）写刷盘次数频率、数据量以及刷盘文件统计信息。 gs_walwriter_flush_stat 校验 堆表/索引 用于离线校验表或者索引文件磁盘页面数据是否异常。 页面损坏或者元组损坏。 可见性问题。 日志回放出错问题。 ANALYZE VERIFY 用于校验当前实例当前库物理文件是否存在丢失。 文件丢失。 gs_verify_data_file 索引回收队列（URQ） 用于校验UB-tree索引回收队列（潜在队列/可用队列/单页面）数据是否异常。 UB-tree索引空间膨胀。 UB-tree索引空间回收异常。 gs_verify_urq 回滚段（Undo） 用于离线校验Undo Record数据是否存在异常。 Undo Record异常或者损坏。 可见性问题。 回滚出错或者异常。 gs_verify_undo_record 用于离线校验Transaction Slot数据是否存在异常。 Undo Record异常或者损坏。 可见性问题。 回滚出错或者异常。 gs_verify_undo_slot 用于离线校验Undo元信息数据是否存在异常。 因Undo meta引起的节点无法启动问题。 Undo空间回收异常。 Snapshot too old问题。 gs_verify_undo_meta 修复 堆表/索引/Undo文件 用于基于备机修复主机丢失的物理文件。 堆表/索引/Undo文件丢失。 gs_repair_file 堆表/索引/Undo页面 用于校验并基于备机修复主机受损页面。 堆表/索引/Undo页面损坏。 gs_verify_and_tryrepair_page 用于基于备机页面直接修复主机页面。 gs_repair_page 用于基于偏移量对页面的备份进行字节修改。 gs_edit_page_bypath 用于将修改后的页面覆盖写入到目标页面。 gs_repair_page_bypath 回滚段（Undo） 用于重建Undo元信息，如果校验发现Undo元信息没有问题则不重建。 Undo元信息异常或者损坏。 gs_repair_undo_byzone 索引回收队列（URQ） 用于重建UB-tree索引回收队列。 索引回收队列异常或者损坏。 gs_repair_urq",
+      "source_file": "4656_file_4656.txt"
+    },
+    {
+      "term": "存储格式",
+      "content": "存储格式 存储格式 RCR Uheap UBTree Undo",
+      "source_file": "4629_file_4629.txt"
+    },
+    {
+      "term": "常见问题及定位手段",
+      "content": "常见问题及定位手段 常见问题及定位手段 snapshot too old storage test error 备机读业务报错:\"UBTreeSearch::read_page has conflict with recovery, please try again later\"",
+      "source_file": "4397_file_4397.txt"
+    },
+    {
+      "term": "闪回恢复",
+      "content": "闪回恢复 闪回恢复 闪回恢复功能是数据库恢复技术的一环，可以有选择性地撤销一个已提交事务的影响，将数据从人为不正确的操作中进行恢复。在采用闪回技术之前，只能通过备份恢复、PITR等手段找回已提交的数据库修改，恢复时长需要数分钟甚至数小时。采用闪回技术后，通过闪回Drop和闪回Truncate恢复已提交的数据库Drop/Truncate的数据，只需要秒级，而且恢复时间和数据库大小无关。 Astore引擎只支持闪回DROP/TRUNCATE功能。 备机不支持闪回操作。 用户可以根据需要开启闪回功能，开启后会带来一定的性能劣化。 闪回查询 闪回表 闪回DROP/TRUNCATE",
+      "source_file": "4652_file_4652.txt"
+    },
+    {
+      "term": "常用视图工具",
+      "content": "常用视图工具 常用视图工具 视图类型 类型 功能描述 使用场景 函数名称 解析 全类型 用于解析指定表页面，并返回存放解析内容的路径。 查看页面信息。 查看元组（非用户数据）信息。 页面或者元组损坏。 元组可见性问题。 校验报错问题。 gs_parse_page_bypath 索引回收队列（URQ） 用于解析UB-tree索引回收队列关键信息。 UB-tree索引空间膨胀。 UB-tree索引空间回收异常。 校验报错问题。 gs_urq_dump_stat 回滚段（Undo） 用于解析指定Undo Record的内容，不包含旧版本元组的数据。 undo空间膨胀。 undo回收异常。 回滚异常。 日常巡检。 校验报错。 可见性判断异常。 修改参数。 gs_undo_dump_record 用于解析指定事务生成的所有Undo Record，不包含旧版本元组的数据。 gs_undo_dump_xid 用于解析指定UndoZone中所有Transaction Slot信息。 gs_undo_translot_dump_slot 用于解析指定事务对应Transaction Slot信息，包括事务XID和该事务生成的Undo Record范围. gs_undo_translot_dump_xid 用于解析指定Undo Zone的元信息，显示Undo Record和Transaction Slot指针使用情况。 gs_undo_meta_dump_zone 用于解析指定Undo Zone对应Undo Space的元信息，显示Undo Record文件使用情况。 gs_undo_meta_dump_spaces 用于解析指定Undo Zone对应Slot Space的元信息，显示Transaction Slot文件使用情况。 gs_undo_meta_dump_slot 用于解析数据页和数据页上数据的所有历史版本，并返回存放解析内容的路径。 gs_undo_dump_parsepage_mv 预写日志 （WAL） 用于解析指定LSN范围之内的xLog日志，并返回存放解析内容的路径。可以通过pg_current_xlog_location()获取当前xLog位置。 WAL日志出错。 日志回放出错。 页面损坏。 gs_xlogdump_lsn 用于解析指定XID的xLog日志，并返回存放解析内容的路径。可以通过txid_current()获取当前事务ID。 gs_xlogdump_xid 用于解析指定表页面对应的日志，并返回存放解析内容的路径。 gs_xlogdump_tablepath 用于解析指定表页面和表页面对应的日志，并返回存放解析内容的路径。可以看做一次执行gs_parse_page_bypath和gs_xlogdump_tablepath。该函数执行的前置条件是表文件存在。如果想查看已删除的表的相关日志，请直接调用gs_xlogdump_tablepath。 gs_xlogdump_parsepage_tablepath 统计 回滚段（Undo） 用于显示Undo模块的统计信息，包括Undo Zone使用情况、Undo链使用情况、Undo模块文件创建删除情况和Undo模块参数设置推荐值。 Undo空间膨胀。 Undo资源监控。 gs_stat_undo 预写日志 （WAL） 用于统计预写日志（WAL）写盘时的内存状态表内容。 WAL写/刷盘监控。 WAL写/刷盘hang住。 gs_stat_wal_entrytable 用于统计预写日志（WAL）刷盘状态、位置统计信息。 gs_walwriter_flush_position 用于统计预写日志（WAL）写刷盘次数频率、数据量以及刷盘文件统计信息。 gs_walwriter_flush_stat 校验 堆表/索引 用于离线校验表或者索引文件磁盘页面数据是否异常。 页面损坏或者元组损坏。 可见性问题。 日志回放出错问题。 ANALYZE VERIFY 用于校验当前实例当前库物理文件是否存在丢失。 文件丢失。 gs_verify_data_file 索引回收队列（URQ） 用于校验UB-tree索引回收队列（潜在队列/可用队列/单页面）数据是否异常。 UB-tree索引空间膨胀。 UB-tree索引空间回收异常。 gs_verify_urq 回滚段（Undo） 用于离线校验Undo Record数据是否存在异常。 Undo Record异常或者损坏。 可见性问题。 回滚出错或者异常。 gs_verify_undo_record 用于离线校验Transaction Slot数据是否存在异常。 Undo Record异常或者损坏。 可见性问题。 回滚出错或者异常。 gs_verify_undo_slot 用于离线校验Undo元信息数据是否存在异常。 因Undo meta引起的节点无法启动问题。 Undo空间回收异常。 Snapshot too old问题。 gs_verify_undo_meta 修复 堆表/索引/Undo文件 用于基于备机修复主机丢失的物理文件。 堆表/索引/Undo文件丢失。 gs_repair_file 堆表/索引/Undo页面 用于校验并基于备机修复主机受损页面。 堆表/索引/Undo页面损坏。 gs_verify_and_tryrepair_page 用于基于备机页面直接修复主机页面。 gs_repair_page 用于基于偏移量对页面的备份进行字节修改。 gs_edit_page_bypath 用于将修改后的页面覆盖写入到目标页面。 gs_repair_page_bypath 回滚段（Undo） 用于重建Undo元信息，如果校验发现Undo元信息没有问题则不重建。 Undo元信息异常或者损坏。 gs_repair_undo_byzone 索引回收队列（URQ） 用于重建UB-tree索引回收队列。 索引回收队列异常或者损坏。 gs_repair_urq",
+      "source_file": "4396_file_4396.txt"
+    },
+    {
+      "term": "闪回恢复",
+      "content": "闪回恢复 闪回恢复 闪回恢复功能是数据库恢复技术的一环，可以有选择性地撤销一个已提交事务的影响，将数据从人为不正确的操作中进行恢复。在采用闪回技术之前，只能通过备份恢复、PITR等手段找回已提交的数据库修改，恢复时长需要数分钟甚至数小时。采用闪回技术后，通过闪回Drop和闪回Truncate恢复已提交的数据库Drop/Truncate的数据，只需要秒级，而且恢复时间和数据库大小无关。 ASTORE引擎只支持闪回DROP/TRUNCATE功能。 备机不支持闪回操作。 用户可以根据需要开启闪回功能，开启后会带来一定的性能劣化。 闪回查询 闪回表 闪回DROP/TRUNCATE",
+      "source_file": "4392_file_4392.txt"
+    },
+    {
+      "term": "常见问题及定位手段",
+      "content": "常见问题及定位手段 常见问题及定位手段 snapshot too old storage test error 备机读业务报错:\"UBTreeSearch::read_page has conflict with recovery, please try again later\"",
+      "source_file": "4657_file_4657.txt"
+    },
+    {
+      "term": "Ustore事务模型",
+      "content": "Ustore事务模型 Ustore事务模型 GaussDB 事务基础： 事务启动时不会自动分配XID，该事务中的第一条DML/DDL语句运行时才会真正为该事务分配XID。 事务结束时，会产生代表事务提交状态的CLOG（Commit Log），CLOG共有四种状态：事务运行中、事务提交、事务同步回滚、子事务提交。每个事务的 CLOG状态位为2 bits，CLOG页面上每个字节可以表示四个事务的提交状态。 事务结束时，还会产生代表事务提交顺序的CSN（Commit sequence number）。CSN为实例级变量，每个XID都有自己对应的唯一CSN。CSN可以标记事务的以下状态：事务提交中、事务提交、事务回滚、事务已冻结等。 事务提交 事务回滚",
+      "source_file": "4389_Ustore.txt"
+    }
+  ]
+}

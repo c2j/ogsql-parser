@@ -1,0 +1,1 @@
+GS_COLUMN_KEYS_ARGS GS_COLUMN_KEYS_ARGS GS_COLUMN_KEYS_ARGS系统表记录密态等值特性中客户端加密主密钥相关元数据信息，每条记录对应客户端加密主密钥的一个键值对信息。 表1 GS_COLUMN_KEYS_ARGS字段 名称 类型 描述 oid oid 行标识符（隐含字段）。 column_key_id oid 列加密密钥（cek）oid。 function_name name 值为encryption。 key name 列加密密钥（cek）的元数据信息对应的名称。 value bytea 列加密密钥（cek）的元数据信息名称的值。 父主题： 密态等值查询 版权所有 © 华为技术有限公司

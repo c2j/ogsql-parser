@@ -1,0 +1,1 @@
+PGXC_WLM_EC_OPERATOR_STATISTICS PGXC_WLM_EC_OPERATOR_STATISTICS PGXC_WLM_EC_OPERATOR_STATISTICS视图显示所有CN上正在执行的EC（Extension Connector）作业的算子信息。查询该视图需要sysadmin权限。具体的字段请参见 GS_WLM_EC_OPERATOR_STATISTICS 的字段信息。 当查询视图无数据显示时，请联系华为工程师提供技术支撑。 父主题： 系统视图 版权所有 © 华为技术有限公司

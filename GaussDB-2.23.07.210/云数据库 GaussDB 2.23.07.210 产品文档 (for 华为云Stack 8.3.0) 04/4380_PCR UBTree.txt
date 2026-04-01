@@ -1,0 +1,1 @@
+PCR UBTree PCR UBTree 相比于RCR版本的UBTree，PCR版本的UBTree有以下特点。 索引元组的事务信息统一由TD槽进行管理。 增加了Undo操作，插入和删除前需要先写入Undo，事务abort时需要进行回滚操作。 支持闪回。 PCR UBTree通过在创建索引时with选项设置“index_txntype=pcr”或者设置GUC参数“index_txntype=pcr”进行创建。若没有显示指定with选项或者GUC，则默认创建RCR版本的UBTree。当前PCR版本的UBTree不支持在线进行创建、极致RTO回放和备机读的功能。 PCR UBTree多版本管理 PCR UBTree可见性机制 PCR UBTree增删改查 PCR UBTree空间管理 父主题： UBTree 版权所有 © 华为技术有限公司

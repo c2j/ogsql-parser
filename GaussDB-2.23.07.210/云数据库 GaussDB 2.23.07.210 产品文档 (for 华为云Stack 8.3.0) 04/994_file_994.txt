@@ -1,0 +1,80 @@
+算子级调优 算子级调优 算子级调优介绍 一个查询语句要经过多个算子步骤才会输出最终的结果。由于个别算子耗时过长导致整体查询性能下降的情况比较常见。这些算子是整个查询的瓶颈算子。通用的优化手段是EXPLAIN ANALYZE/PERFORMANCE命令查看执行过程的瓶颈算子，然后进行针对性优化。 如下面的执行过程信息中，Hashagg算子的执行时间占总时间的：(51016-13535)/ 56476 ≈66%，此处Hashagg算子就是这个查询的瓶颈算子，在进行性能优化时应当优先考虑此算子的优化。 算子级调优示例 示例1： 基表扫描时，对于点查或者范围扫描等过滤大量数据的查询，如果使用SeqScan全表扫描会比较耗时，可以在条件列上建立索引选择IndexScan进行索引扫描提升扫描效率。 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13 gaussdb =# explain ( analyze on , costs off ) select * from t1 where c2 = 10004 ; id | operation | A - time | A - rows | Peak Memory | A - width ----+------------------------------+-----------------+--------+-------------+--------- 1 | -> Streaming ( type : GATHER ) | 20 . 040 | 5 | 85 KB | 2 | -> Seq Scan on t1 | [ 17 . 239 , 17 . 376 ] | 5 | [ 18 KB , 18 KB ] | ( 2 rows ) Predicate Information ( identified by plan id ) ----------------------------------------------- 2 --Seq Scan on t1 Filter : ( c2 = 10004 ) Rows Removed by Filter : 90002 ( 3 rows ) 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14 gaussdb =# create index idx on t1 ( c2 ); CREATE INDEX gaussdb =# explain ( analyze on , costs off ) select * from t1 where c2 = 10004 ; id | operation | A - time | A - rows | Peak Memory | A - width ----+-----------------------------------+---------------+--------+-------------+--------- 1 | -> Streaming ( type : GATHER ) | 3 . 206 | 5 | 85 KB | 2 | -> Index Scan using idx on t1 | [ 0 . 122 , 0 . 146 ] | 5 | [ 73 KB , 73 KB ] | ( 2 rows ) Predicate Information ( identified by plan id ) ----------------------------------------------- 2 --Index Scan using idx on t1 Index Cond : ( c2 = 10004 ) ( 2 rows ) 上述例子中，全表扫描返回5条数据，过滤掉大量数据，在c2列上建立索引后，使用IndexScan扫描效率显著提高，从20毫秒降低到3毫秒。 示例2： 如果从执行计划中看，两表join选择了NestLoop，而实际行数比较大时，NestLoop Join可能执行比较慢。如下的例子中NestLoop耗时5秒，如果设置参数enable_mergejoin=off关掉Merge Join，同时设置参数enable_nestloop=off关掉NestLoop，让优化器选择HashJoin，则Join耗时降低至86毫秒。 gaussdb=# explain analyze select count(*) from t2,t1 where t1.c1=t2.c2;
+ id |                    operation                     |       A-time        |  A-rows  | E-rows | Peak Memory | A-width | E-width | E-costs 
+----+--------------------------------------------------+---------------------+----------+--------+-------------+---------+---------+---------
+  1 | ->  Aggregate                                    | 5070.296            |        1 |      1 | 14KB        |         |       8 | 2148.49
+  2 |    ->  Streaming (type: GATHER)                  | 5070.219            |        2 |      2 | 81KB        |         |       8 | 2148.49
+  3 |       ->  Aggregate                              | [4828.705,5062.289] |        2 |      2 | [11KB,11KB] |         |       8 | 2148.40
+  4 |          ->  Nested Loop (5,6)                   | [4828.565,5062.142] |      996 |     40 | [4KB,4KB]   |         |       0 | 2148.34
+  5 |             ->  Seq Scan on t1                   | [13.574,14.508]     |    90007 |  20000 | [15KB,15KB] |         |       4 | 184.00
+  6 |             ->  Materialize                      | [1508.956,1579.488] | 22413670 |     20 | [35KB,36KB] |         |       4 | 14.37
+  7 |                ->  Streaming(type: REDISTRIBUTE) | [55.825,56.842]     |      498 |     20 | [44KB,44KB] |         |       4 | 14.31
+  8 |                   ->  Seq Scan on t2             | [0.105,0.132]       |      498 |     20 | [13KB,13KB] |         |       4 | 13.13
+(8 rows)
+ 
+ Predicate Information (identified by plan id) 
+-----------------------------------------------
+   4 --Nested Loop (5,6)
+         Join Filter: (t2.c2 = t1.c1)
+         Rows Removed by Join Filter: 22412672
+(3 rows) 设置参数后： gaussdb=# set enable_mergejoin=off;
+SET gaussdb=# set enable_nestloop=off;
+SET gaussdb=# explain analyze select count(*) from t2,t1 where t1.c1=t2.c2;
+ id |                    operation                     |     A-time      | A-rows | E-rows |  Peak Memory  | A-width | E-width | E-costs 
+----+--------------------------------------------------+-----------------+--------+--------+---------------+---------+---------+---------
+  1 | ->  Aggregate                                    | 92.911          |      1 |      1 | 14KB          |         |       8 | 224.45
+  2 |    ->  Streaming (type: GATHER)                  | 92.855          |      2 |      2 | 81KB          |         |       8 | 224.45
+  3 |       ->  Aggregate                              | [84.295,87.102] |      2 |      2 | [11KB,11KB]   |         |       8 | 224.36
+  4 |          ->  Hash Join (5,6)                     | [84.171,86.966] |    996 |     40 | [6KB,6KB]     |         |       0 | 224.30
+  5 |             ->  Seq Scan on t1                   | [11.885,13.103] |  90007 |  20000 | [15KB,15KB]   |         |       4 | 184.00
+  6 |             ->  Hash                             | [55.895,56.072] |    498 |     21 | [292KB,292KB] | [20,20] |       4 | 14.31
+  7 |                ->  Streaming(type: REDISTRIBUTE) | [55.601,55.771] |    498 |     20 | [44KB,44KB]   |         |       4 | 14.31
+  8 |                   ->  Seq Scan on t2             | [0.118,0.143]   |    498 |     20 | [13KB,13KB]   |         |       4 | 13.13
+(8 rows)
+ 
+ Predicate Information (identified by plan id) 
+-----------------------------------------------
+   4 --Hash Join (5,6)
+         Hash Cond: (t1.c1 = t2.c2)
+(2 rows) 示例3 ：通常情况下Agg选择HashAgg性能较好，如果大结果集选择了Sort+GroupAgg，则需要设置enable_sort=off，HashAgg耗时优于Sort+GroupAgg。 gaussdb=# explain analyze select count(*) from t1 group by c2;
+ id |             operation              |     A-time      | A-rows | E-rows | Peak Memory | E-memory |     A-width     | E-width | E-costs 
+----+------------------------------------+-----------------+--------+--------+-------------+----------+-----------------+---------+---------
+  1 | ->  GroupAggregate                 | 244.817         |  40000 |   5000 | 15KB        |          |                 |      12 | 2131.52
+  2 |    ->  Sort                        | 156.344         |  40000 |  10000 | 5603KB      |          |                 |      12 | 2131.52
+  3 |       ->  Streaming (type: GATHER) | 91.595          |  40000 |  10000 | 82KB        |          |                 |      12 | 1442.14
+  4 |          ->  GroupAggregate        | [90.317,96.852] |  40000 |  10000 | [12KB,12KB] | 16MB     |                 |      12 | 973.39
+  5 |             ->  Sort               | [59.775,64.724] |  90007 |  20000 | [5MB,5MB]   | 16MB     | [896220,903920] |       4 | 873.39
+  6 |                ->  Seq Scan on t1  | [18.092,21.033] |  90007 |  20000 | [12KB,12KB] | 1MB      |                 |       4 | 184.00
+(6 rows) 设置参数后： gaussdb=# set enable_sort=off;
+SET gaussdb=# explain analyze select count(*) from t1 group by c2;
+ id |            operation            |     A-time      | A-rows | E-rows | Peak Memory | E-memory | A-width | E-width | E-costs 
+----+---------------------------------+-----------------+--------+--------+-------------+----------+---------+---------+---------
+  1 | ->  HashAggregate               | 228.260         |  40000 |   5000 | 6663KB      |          |         |      12 | 752.75
+  2 |    ->  Streaming (type: GATHER) | 95.506          |  40000 |  10000 | 82KB        |          |         |      12 | 752.75
+  3 |       ->  HashAggregate         | [63.974,71.290] |  40000 |  10000 | [3MB,3MB]   | 16MB     | [20,20] |      12 | 284.00
+  4 |          ->  Seq Scan on t1     | [17.578,21.204] |  90007 |  20000 | [12KB,12KB] | 1MB      |         |       4 | 184.00
+(4 rows) 父主题： 典型SQL调优点 版权所有 © 华为技术有限公司

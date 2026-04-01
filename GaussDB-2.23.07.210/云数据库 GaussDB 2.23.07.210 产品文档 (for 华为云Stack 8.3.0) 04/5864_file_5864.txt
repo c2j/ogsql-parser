@@ -1,0 +1,193 @@
+查询集群状态 查询集群状态 命令格式 cm_ctl query [-v [-C [-s] [-S] [-d] [-i] [-F] [-L ALL] [-x] [-p] [-z ALL]] | [-r]] [--minorityAz=AZ_NAME] [-g] [--ext_ip] [-l FILENAME] [-t SECS] 参数说明 cm_ctl query可单独使用，表示只显示集群状态，也可以根据实际情况和中括号[]内参数结合使用。 -v：显示详细集群状态。 -C：按主备关系成对显示集群状态。-C参数需要和-v参数一起使用。 -s：显示导致各个节点主备实例数量不均衡的实例。-s参数需要和-v以及-C参数一起使用。 -S：显示集群启动时的状态检查结果。-S参数需要和-v以及-C参数一起使用。 -d：显示实例数据目录。-d参数需要和-v以及-C参数一起使用。 -i：显示物理节点ip。-i参数需要和-v以及-C参数一起使用。 -F：显示各个节点Fenced UDF状态。-F参数需要和-v以及-C参数一起使用。 -x：显示集群所有异常实例。-x参数需要和-v以及-C参数一起使用。 -p：显示集群所有CN、DN端口，但是不包含CCN。-p参数需要和-v以及-C参数一起使用。 -z ALL：显示集群所有实例AZ名称。-z参数需要和-v以及-C参数一起使用，并且-z后面需要跟参数ALL。 -r：显示备机redo状态。使用-r时，必须指定-v参数。-r参数需要和-v参数一起使用。 --minorityAz=AZ_NAME：可选参数，只查询指定AZ的cms和etcd，AZ_NAME为指定AZ名称，可通过cm_ctl query -Cvz ALL命令查询到。此参数会忽略非指定AZ的cms、etcd节点，可以在少数派场景提高查询速度。 -g：显示备份和恢复群集信息。 --ext_ip：显示扩展ip状态。 -l FILENAME：结果输出到指定文件，FILENAME为用户设置的文件名称。 -t SECS：指定超时时间。超时后，会退出并报错。不设置该参数时，cm_ctl query命令默认超时时间为60s。 常用命令 按主备关系成对显示集群详细状态信息： cm_ctl query -Cv 执行命令结果如下： [  CMServer State   ]
+
+node             instance state
+---------------------------------
+1  pekphis351066 1        Primary
+2  pekphis351067 2        Standby
+3  pekphis351068 3        Standby
+
+[    ETCD State     ]
+
+node             instance state
+---------------------------------------
+1  pekphis351066 7001     StateLeader
+2  pekphis351067 7002     StateFollower
+3  pekphis351068 7003     StateFollower
+
+[   Cluster State   ]
+
+cluster_state   : Normal
+redistributing  : No
+balanced        : Yes
+current_az      : AZ_ALL
+
+[ Coordinator State ]
+
+node             instance state
+---------------------------------
+1  pekphis351066 5001     Normal
+2  pekphis351067 5002     Normal
+3  pekphis351068 5003     Normal
+
+[ Central Coordinator State ]
+
+node             instance state
+---------------------------------
+2  pekphis351067 5002     Normal
+
+[     GTM State     ]
+
+node             instance state                    sync_state
+-----------------------------------------------------------------
+1  pekphis351066 1001     P Primary Connection ok  Sync
+2  pekphis351067 1002     S Standby Connection ok  Sync
+3  pekphis351068 1003     S Standby Connection ok  Sync
+
+[  Datanode State   ]
+
+node             instance state            | node             instance state            | node             instance state
+---------------------------------------------------------------------------------------------------------------------------------------
+1  pekphis351066 6001     P Primary Normal | 2  pekphis351067 6002     S Standby Normal | 3  pekphis351068 6003     S Standby Normal
+2  pekphis351067 6004     P Primary Normal | 1  pekphis351066 6005     S Standby Normal | 3  pekphis351068 6006     S Standby Normal node列为节点名称，本示例中node分别为1、2、3。 instance列为实例名称，本示例中CMServer组件的instance分别为1、2、3。同理，ETCD组件的instance分别为7001、7002、7003，CN组件的instance分别为5001、5002、5003，GTM组件的instance分别为1001、1002、1003，DN组件的instance分别6001、6002、6003、6004、6005、6006。 state列为各个组件的状态。 集群状态为Cluster State所展示。数据库实例状态分别为：Normal，表示数据库实例可用，且数据有冗余备份，所有进程都在运行，主备关系正常；Degraded，表示数据库实例可用，但数据没有冗余备份；Unavailable，表示数据库实例不可用。 按主备关系成对显示集群详细状态信息，并查询实例目录路径和实例AZ名称： cm_ctl query -Cvdz ALL 执行命令结果如下： [  CMServer State   ]
+
+node                 instance                                  state
+----------------------------------------------------------------------
+AZ1 1  pekphis351066 1    /data1/omm/cluster/data/cm/cm_server Primary
+AZ2 2  pekphis351067 2    /data1/omm/cluster/data/cm/cm_server Standby
+AZ3 3  pekphis351068 3    /data1/omm/cluster/data/cm/cm_server Standby
+
+[    ETCD State     ]
+
+node                 instance                          state
+--------------------------------------------------------------------
+AZ1 1  pekphis351066 7001 /data1/omm/cluster/data/etcd StateLeader
+AZ2 2  pekphis351067 7002 /data1/omm/cluster/data/etcd StateFollower
+AZ3 3  pekphis351068 7003 /data1/omm/cluster/data/etcd StateFollower
+
+[   Cluster State   ]
+
+cluster_state   : Normal
+redistributing  : No
+balanced        : Yes
+current_az      : AZ_ALL
+
+[ Coordinator State ]
+
+node                 instance                                 state
+---------------------------------------------------------------------
+AZ1 1  pekphis351066 5001 /data1/omm/cluster/data/coordinator Normal
+AZ2 2  pekphis351067 5002 /data1/omm/cluster/data/coordinator Normal
+AZ3 3  pekphis351068 5003 /data1/omm/cluster/data/coordinator Normal
+
+[ Central Coordinator State ]
+
+node                 instance                                 state
+---------------------------------------------------------------------
+AZ2 2  pekphis351067 5002 /data1/omm/cluster/data/coordinator Normal
+
+[     GTM State     ]
+
+node                 instance                         state                    sync_state
+---------------------------------------------------------------------------------------------
+AZ1 1  pekphis351066 1001 /data1/omm/cluster/data/gtm P Primary Connection ok  Sync
+AZ2 2  pekphis351067 1002 /data1/omm/cluster/data/gtm S Standby Connection ok  Sync
+AZ3 3  pekphis351068 1003 /data1/omm/cluster/data/gtm S Standby Connection ok  Sync
+
+[  Datanode State   ]
+
+node                 instance                                state            | node                 instance                                state            | node                 instance                                state
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+AZ1 1  pekphis351066 6001 /data1/omm/cluster/data/datanode1p P Primary Normal | AZ2 2  pekphis351067 6002 /data1/omm/cluster/data/datanode1s S Standby Normal | AZ3 3  pekphis351068 6003 /data1/omm/cluster/data/datanode1s S Standby Normal
+AZ2 2  pekphis351067 6004 /data1/omm/cluster/data/datanode2p P Primary Normal | AZ1 1  pekphis351066 6005 /data1/omm/cluster/data/datanode2s S Standby Normal | AZ3 3  pekphis351068 6006 /data1/omm/cluster/data/datanode2s S Standby Normal 和cm_ctl query -Cv命令相比，该命令增加-d和-z ALL参数，查询结果即增加实例目录路径、实例AZ名称信息。 实例目录路径位于instance名称后，本示例中CMServer组件的实例1、2、3的目录路径均为/data1/omm/cluster/data/cm/cm_server。ETCD、CN、GTM、DN组件的目录路径位置展示同理。 实例AZ名称位于node名称前，本示例中AZ分别为AZ1、AZ2、AZ3。 显示备机redo状态： cm_ctl query -rv 执行命令结果如下： -----------------------------------------------------------------------
+
+cluster_state             : Normal
+redistributing            : No
+balanced                  : Yes
+
+-----------------------------------------------------------------------
+
+-----------------------------------------------------------------------
+
+-----------------------------------------------------------------------
+
+node                           : 2
+instance_id                    : 6002
+node_ip                        : 172.31.20.71
+data_path                      : /data1/omm/cluster/data/datanode1s
+type                           : Datanode
+instance_state                 : Standby
+is_by_query                    : 1
+primary_flush_location         : 00000000/100E8AD0
+standby_received_location      : 00000000/100E8AD0
+standby_replay_location        : 00000000/100E8AD0
+static_connections             : 2
+HA_state                       : Normal
+reason                         : Normal
+redo_start_location            : 00000000/05000028
+min_recovery_location          : 00000000/100E8A48
+read_location                  : 00000000/100E8A88
+last_replayed_end_location     : 00000000/100E8AD0
+recovery_done_location         : 00000000/06000058
+local_max_lsn                  : 00000000/100E8AD0
+read_xlog_io_counter           : 220102
+read_xlog_io_total_dur         : 14767657
+read_data_io_counter           : 135
+read_data_io_total_dur         : 2242
+write_data_io_counter          : 0
+write_data_io_total_dur        : 0
+process_pending_counter        : 779630
+process_pending_total_dur      : 888622
+apply_counter                  : 791945
+apply_total_dur                : 67530080
+speed(est.)                    : 0 KB/s
+delay(est.)                    : 0 s
+senderPercent                  : 0%
+receiverPercent                : 100%
+worker_info                    : 
+id  q_use   q_max_use  rec_cnt              
+0   0       4094       351176               
+1   0       255        270636               
+2   0       141        154917               
+3   0       3          2901                 
+
+node                           : 3
+instance_id                    : 6003
+node_ip                        : 172.31.16.100
+data_path                      : /data1/omm/cluster/data/datanode1s
+type                           : Datanode
+instance_state                 : Standby
+is_by_query                    : 1
+primary_flush_location         : 00000000/100E8AD0
+standby_received_location      : 00000000/100E8AD0
+standby_replay_location        : 00000000/100E8AD0
+static_connections             : 2
+HA_state                       : Normal
+reason                         : Normal
+redo_start_location            : 00000000/03876F70
+min_recovery_location          : 00000000/100E8AD0
+read_location                  : 00000000/100E8A88
+last_replayed_end_location     : 00000000/100E8AD0
+recovery_done_location         : 00000000/04000058
+local_max_lsn                  : 00000000/100E8AD0
+read_xlog_io_counter           : 210365
+read_xlog_io_total_dur         : 8463548
+read_data_io_counter           : 135
+read_data_io_total_dur         : 98189
+write_data_io_counter          : 0
+write_data_io_total_dur        : 0
+process_pending_counter        : 779630
+process_pending_total_dur      : 818020
+apply_counter                  : 791950
+apply_total_dur                : 85874445
+speed(est.)                    : 0 KB/s
+delay(est.)                    : 0 s
+senderPercent                  : 0%
+receiverPercent                : 100%
+worker_info                    : 
+id  q_use   q_max_use  rec_cnt              
+0   0       4094       351176               
+1   0       248        270636               
+2   0       422        154917               
+3   0       3          2901
+                 
+----------------------------------------------------------------------- 执行命令参数说明如下表所示。 参数 参数说明 is_by_query 是否通过SQL查询。 primary_flush_location 主机下刷日志的位置。 standby_received_location 备机收到日志的位置。 standby_replay_location 备机回放日志的位置。 static_connections 连接统计。 redo_start_location 回放开始的位置。 min_recovery_location 最小恢复点位置。 read_location 当前回放读取日志的位置。 last_replayed_end_location 上一次回放到的位置。 recovery_done_location 回放结束的位置。 local_max_lsn 本地最大日志位置。 read_xlog_io_counter 读日志的次数。 read_xlog_io_total_dur 读日志的总耗时。 read_data_io_counter 读数据的次数。 read_data_io_total_dur 读数据的总耗时。 write_data_io_counter 写数据的次数。 write_data_io_total_dur 写数据的总耗时。 process_pending_counter 回放主线程日志分发的次数。 process_pending_total_dur 回放主线程日志分发的总耗时。 apply_counter 日志回放同步的次数。 apply_total_dur 日志回放同步的总耗时。 worker_info 回放线程的信息。 id 回放线程序号。 q_use 回放线程队列的使用量。 q_max_use 回放线程队列的最大容量。 rec_cnt 回放线程处理日志总个数。 父主题： cm_ctl工具使用指南 版权所有 © 华为技术有限公司

@@ -1,0 +1,33 @@
+执行SQL语句 执行SQL语句 创建一个表： EXEC SQL CREATE TABLE foo (a int, b varchar); 插入一行： EXEC SQL INSERT INTO foo VALUES (5, 'abc'); 删除一行： EXEC SQL DELETE FROM foo WHERE a = 5; 更新表数据： EXEC SQL UPDATE foo SET b = 'gdp' WHERE a = 7; 单行查询数据： EXEC SQL SELECT a INTO :var_a FROM foo WHERE b = 'def'; 完整使用示例： #include <stdlib.h>
+#include <string.h>
+#include <stdio.h>
+
+int main ()
+{
+    ECPGdebug (1, stderr);
+
+    EXEC SQL BEGIN DECLARE SECTION;
+    int var_a;
+    EXEC SQL END DECLARE SECTION;
+
+    EXEC SQL CONNECT TO postgres;
+    // 创建一个表
+    EXEC SQL CREATE TABLE foo (a int, b varchar);
+    // 插入数据
+    EXEC SQL INSERT INTO foo VALUES (5, 'abc');
+    EXEC SQL INSERT INTO foo VALUES (6, 'def');
+    EXEC SQL INSERT INTO foo VALUES (7, 'ghi');
+
+    // 删除一行
+    EXEC SQL DELETE FROM foo WHERE a = 5;
+    // 更新表数据
+    EXEC SQL UPDATE foo SET b = 'gdp' WHERE a = 7;
+    // 单行查询表数据
+    EXEC SQL SELECT a INTO :var_a FROM foo WHERE b = 'def';
+    // 打印查询结果
+    printf("select res is %d\n", var_a);
+
+    EXEC SQL DISCONNECT;
+
+    return 0;
+} 父主题： 执行SQL命令 版权所有 © 华为技术有限公司

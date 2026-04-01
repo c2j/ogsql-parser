@@ -1,0 +1,36 @@
+SELECT INTO SELECT INTO 功能描述 SELECT INTO用于根据查询结果创建一个新表，并且将查询到的数据插入到新表中。 数据并不返回给客户端，这一点和普通的SELECT不同。新表的字段具有和SELECT的输出字段相同的名称和数据类型。 注意事项 CREATE TABLE AS的作用和SELECT INTO类似，且提供了SELECT INTO所提供功能的超集。建议使用CREATE TABLE AS语法替代SELECT INTO，因为SELECT INTO不能在存储过程中使用。 语法格式 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15 [ WITH [ RECURSIVE ] with_query [, ...] ] SELECT [ ALL | DISTINCT [ ON ( expression [, ...] ) ] ] { * | { expression [ [ AS ] output_name ] } [, ...] } INTO [ UNLOGGED ] [ TABLE ] new_table [ FROM from_item [, ...] ] [ WHERE condition ] [ GROUP BY expression [, ...] ] [ HAVING condition [, ...] ] [ WINDOW { window_name AS ( window_definition ) } [, ...] ] [ { UNION | INTERSECT | EXCEPT | MINUS } [ ALL | DISTINCT ] select ] [ ORDER BY { expression [ [ ASC | DESC | USING operator ] | nlssort_expression_clause ] [ NULLS { FIRST | LAST } ] } [, ...] ] [ LIMIT { count | ALL } ] [ OFFSET start [ ROW | ROWS ] ] [ FETCH { FIRST | NEXT } [ count ] { ROW | ROWS } ONLY ] [ { FOR { UPDATE | SHARE } [ OF table_name [, ...] ] [ NOWAIT | WAIT N ] } [...] ]; 参数说明 INTO [ UNLOGGED ] [ TABLE ] new_table UNLOGGED指定表为非日志表。在非日志表中写入的数据不会被写入到预写日志中，这样就会比普通表快很多。但是，它也是不安全的，非日志表在冲突或异常关机后会被自动删截。非日志表中的内容也不会被复制到备用服务器中。在该类表中创建的索引也不会被自动记录。 new_table指定新建表的名称。 SELECT INTO的其它参数可参考SELECT的 参数说明 。 示例 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22 --创建SCHEMA。 gaussdb =# CREATE SCHEMA tpcds ; --创建表tpcds.reason。 gaussdb =# CREATE TABLE tpcds . reason ( r_reason_sk integer , r_reason_id character ( 16 ), r_reason_desc character ( 100 ) ); --向表中插入多条记录。 gaussdb =# INSERT INTO tpcds . reason values ( 1 , 'AAAAAAAABAAAAAAA' , 'reason 1' ),( 2 , 'AAAAAAAABAAAAAAA' , 'reason 2' ),( 3 , 'AAAAAAAABAAAAAAA' , 'reason 3' ),( 4 , 'AAAAAAAABAAAAAAA' , 'reason 4' ),( 4 , 'AAAAAAAABAAAAAAA' , 'reason 5' ),( 4 , 'AAAAAAAACAAAAAAA' , 'reason 6' ),( 5 , 'AAAAAAAACAAAAAAA' , 'reason 7' ); --将tpcds.reason表中r_reason_sk小于5的值加入到新建表中。 gaussdb =# SELECT * INTO tpcds . reason_t1 FROM tpcds . reason WHERE r_reason_sk < 5 ; INSERT 0 6 --删除表。 gaussdb =# DROP TABLE tpcds . reason_t1 , tpcds . reason ; --删除SCHEMA。 gaussdb =# DROP SCHEMA tpcds CASCADE ; 相关链接 SELECT 父主题： S 版权所有 © 华为技术有限公司

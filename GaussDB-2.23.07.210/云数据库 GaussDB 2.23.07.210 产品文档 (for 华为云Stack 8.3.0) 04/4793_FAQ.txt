@@ -1,0 +1,1 @@
+常见问题FAQ 常见问题FAQ BMS接入交换机放通provision网络 实例下发报错 实例下发init node阶段报错OBS连接异常 实例下发失败报错参数缺失 配置搭建容灾关系参数缺失 创建Dorado容灾关系报错 MO统一日志运行测日志无法下载 BMS实例失败，报错Unable to create the network. No tenant network is available for allocation 创建实例时无法选择新增加的Dorado AZ 高阶服务如果以ECS方式安装，未配置BMS服务地址导致创建实例时失败，报错 父主题： Dorado容灾安装指南 版权所有 © 华为技术有限公司

@@ -1,0 +1,1 @@
+PG_CONTROL_GROUP_CONFIG PG_CONTROL_GROUP_CONFIG PG_CONTROL_GROUP_CONFIG视图显示系统的控制组配置信息。查询该视图需要sysadmin权限。 表1 PG_CONTROL_GROUP_CONFIG字段 名称 类型 描述 pg_control_group_config text 控制组的配置信息。 父主题： 其他系统视图 版权所有 © 华为技术有限公司

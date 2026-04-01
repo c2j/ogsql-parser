@@ -1,0 +1,1 @@
+PG_TS_TEMPLATE PG_TS_TEMPLATE PG_TS_TEMPLATE系统表包含定义文本搜索模板的记录。模板是文本搜索字典的类的实现框架。因为模板必须通过C语言级别的函数实现，索引新模板的创建必须由数据库系统管理员创建。 表1 PG_TS_TEMPLATE字段 名称 类型 引用 描述 oid oid - 行标识符（隐含字段；必须明确选择）。 tmplname name - 文本搜索模板名。 tmplnamespace oid PG_NAMESPACE .oid 包含这个模板的名称空间的OID。 tmplinit regproc PG_PROC .proname 模板的初始化函数名。 tmpllexize regproc PG_PROC .proname 模板的lexize函数名。 父主题： 其他系统表 版权所有 © 华为技术有限公司

@@ -1,0 +1,1 @@
+GS_WLM_REBUILD_USER_RESOURCE_POOL GS_WLM_REBUILD_USER_RESOURCE_POOL 该视图用于在当前连接节点上重建内存中用户的资源池信息。只在资源池信息缺失或错乱时用作补救措施。查询该视图需要sysadmin权限。 当前特性是实验室特性，使用时请联系华为技术工程师提供技术支持。 表1 GS_WLM_REBUILD_USER_RESOURCE_POOL字段 名称 类型 描述 gs_wlm_rebuild_user_resource_pool boolean 重建内存中用户资源池信息结果。t为成功，f为失败。 父主题： 负载管理 版权所有 © 华为技术有限公司

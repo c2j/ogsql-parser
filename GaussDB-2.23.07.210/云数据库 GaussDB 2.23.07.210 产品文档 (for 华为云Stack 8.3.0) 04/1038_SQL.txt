@@ -1,0 +1,18 @@
+案例：改写SQL排除剪枝干扰 案例：改写SQL排除剪枝干扰 现象描述 某局点测试中：ddw_f10_op_cust_asset_mon为分区表，分区键为year_mth，此字段是由年月两个值拼接而成的字符串。 测试SQL如下： 1
+2
+3
+4 select count ( 1 ) from t_ddw_f10_op_cust_asset_mon b1 where b1 . year_mth between to_char ( add_months ( to_date ( '' 20170222 '' , 'yyyymmdd' ), - 11 ), 'yyyymm' ) and substr ( '' 20170222 '' , 1 , 6 ); 测试结果显示此SQL的表Scan耗时长达135s。初步猜测可能是性能瓶颈点。 add_months为本地适配函数: 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12 CREATE OR REPLACE FUNCTION ADD_MONTHS ( date , integer ) RETURNS date AS $$ SELECT CASE WHEN ( EXTRACT ( day FROM $ 1 ) = EXTRACT ( day FROM ( date_trunc ( 'month' , $ 1 ) + INTERVAL '1 month - 1 day' ))) THEN date_trunc ( 'month' , $ 1 ) + CAST ( $ 2 + 1 || ' month - 1 day' as interval ) ELSE $ 1 + CAST ( $ 2 || ' month' as interval ) END $$ LANGUAGE SQL IMMUTABLE ; 优化说明 分析语句的执行计划，发现执行计划中显示的基表filter如下： Filter: (((year_mth)::text <= '201702'::text) AND ((year_mth)::text >= to_char(add_months(to_date('20170222'::text, 'YYYYMMDD'::text), (-11)), 'YYYYMM'::text))) Filter条件中存在表达式to_char(add_months(to_date(''20170222'','yyyymmdd'), -11),'yyyymm')，这种 非常量的表达式是不能用来剪枝的 ，因而会导致查询语句扫描分区表所有数据。 查询pg_proc发现此处的to_date和to_char均为stable类型的函数，根据数据库对函数行为的约定，此类函数不能在预处理阶段转化为Const值，这也是不能导致分区剪枝的根本原因。 根据以上分析，优化表达式使其可以进行分区剪枝是性能优化的关键。根据语意将原SQL等价改写为： 1
+2
+3
+4 select count ( 1 ) from t_ddw_f10_op_cust_asset_mon b1 where b1 . year_mth between ( substr ( ADD_MONTHS ( '20170222' :: date , - 11 ), 1 , 4 ) || substr ( ADD_MONTHS ( '20170222' :: date , - 11 ), 6 , 2 )) and substr ( '' 20170222 '' , 1 , 6 ); 改写之后，SQL执行时间从135s降低至18s。 父主题： 实际调优案例 版权所有 © 华为技术有限公司

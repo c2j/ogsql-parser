@@ -1,0 +1,16 @@
+{
+  "topic": "创建用户组并分配策略",
+  "term_count": 2,
+  "terms": [
+    {
+      "term": "创建用户组并审批",
+      "content": "创建用户组并审批 创建用户组并审批 创建用户组 登录CloudScope，进入CloudOpsAuth页面。 打开链接：https:// {CloudScope域名} /CloudOpsAuth/?locale=zh-cn#/policy/list/all 使用 创建非Admin用户并授权 中创建非admin用户。 在左侧导航选择“用户组”，在“所有用户组”页签下单击“创建用户组”。 参数配置如下图，单击“提交”。 审批 登录CloudScope，进入CloudOpsAuth页面。 打开链接：https:// {CloudScope域名} /CloudOpsAuth/#/order-mgmt/list/my-todo 账户名：admin 在左侧导航栏选择“工单管理 > 我的待办”。 单击目标工单右侧操作列的“批准”完成审批。",
+      "source_file": "5662_file_5662.txt"
+    },
+    {
+      "term": "给用户组分配策略",
+      "content": "给用户组分配策略 给用户组分配策略 登录CloudScope，进入CloudOpsAuth页面。 打开链接：https:// {CloudScope域名} /CloudOpsAuth/?locale=zh-cn#/policy/list/all 使用 创建非Admin用户并授权 中创建非admin用户。 在左侧导航选择“用户组”，进入“我管理的用户组”页签。 单击目标用户组右侧操作列的“申请权限”。 选择策略，单击“下一步”。 配置微服务组。 配置region资源后单击“下一步”。 确认配置并单击“提交”。 参考 审批 进行审批。",
+      "source_file": "5663_file_5663.txt"
+    }
+  ]
+}

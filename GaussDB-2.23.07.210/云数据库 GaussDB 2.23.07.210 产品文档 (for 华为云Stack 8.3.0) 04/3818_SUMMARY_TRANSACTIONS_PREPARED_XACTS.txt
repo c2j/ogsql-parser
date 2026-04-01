@@ -1,0 +1,1 @@
+SUMMARY_TRANSACTIONS_PREPARED_XACTS SUMMARY_TRANSACTIONS_PREPARED_XACTS 显示数据库中 数据库主节点 当前准备好进行两阶段提交的事务的信息。 表1 SUMMARY_TRANSACTIONS_PREPARED_XACTS字段 名称 类型 描述 transaction xid 预备事务的数字事务标识。 gid text 赋予该事务的全局事务标识。 prepared timestamp with time zone 事务准备好提交的时间。 owner name 执行该事务的用户的名称。 database name 执行该事务所在的数据库名。 父主题： Transaction 版权所有 © 华为技术有限公司

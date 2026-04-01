@@ -1,0 +1,1 @@
+PG_APP_WORKLOADGROUP_MAPPING PG_APP_WORKLOADGROUP_MAPPING PG_APP_WORKLOADGROUP_MAPPING系统表提供了数据库负载映射组的信息。 表1 PG_APP_WORKLOADGROUP_MAPPING字段 名称 类型 描述 oid oid 行标识符（隐含字段，必须明确选择）。 appname name 应用名称。 workload_gpname name 映射到的负载组名称。 父主题： 负载管理 版权所有 © 华为技术有限公司

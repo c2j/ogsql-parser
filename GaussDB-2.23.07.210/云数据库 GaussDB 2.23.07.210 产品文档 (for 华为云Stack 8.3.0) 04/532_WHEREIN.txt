@@ -1,0 +1,5 @@
+【建议】WHERE条件中IN的候选子集不为常量，而是表中的列时，建议改写为子查询 【建议】WHERE条件中IN的候选子集不为常量，而是表中的列时，建议改写为子查询 在这种情况下，实际上是一个不等值的JOIN，会通过nestloop计划执行。在表过大时执行效率低下，建议修改为等值JOIN的子查询。 示例 如下代码不推荐使用： SELECT col1, COALESCE (max(col2 - 1), 0) FROM t1, t2 WHERE t1.col1 = ANY ( VALUES (id1), (id2)) GROUP BY col1; 建议修改为： SELECT col1, COALESCE (max(tmp), 0) FROM (
+   ( SELECT col1, (col2-1) AS tmp FROM t1, t2 WHERE t1.col1 = t2.id1 AND t1.col1 != t2.id2
+   ) UNION ALL ( SELECT col1, (col2-1) AS tmp FROM t1, t2 WHERE t1.col1 = t2.id2
+   )
+) GROUP BY col1; 父主题： WHERE 版权所有 © 华为技术有限公司

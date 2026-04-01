@@ -1,0 +1,61 @@
+{
+  "topic": "Dorado容灾安装指南（NOF组网）",
+  "term_count": 11,
+  "terms": [
+    {
+      "term": "GaussDB数据库配置",
+      "content": "GaussDB数据库配置 GaussDB数据库配置 元数据库配置 规格关联 开启特性白名单 启用数据库引擎版本 启用集中式数据库引擎规格参数 MO运营面发放数据库实例 导入Dorado许可",
+      "source_file": "4827_GaussDB.txt"
+    },
+    {
+      "term": "扩容Dorado",
+      "content": "扩容Dorado BMS AZ 扩容Dorado BMS AZ 前提条件 Dorado存储已上架并且配置完成（包括网络配置和Dorado存储配置等） 已获取HCS底座LLD信息 Dorado存储BMC管理IP需要和external_om平面、dmz Service平面互通。 注意事项 扩容Dorado AZ，使该AZ可以使用Dorado存储，和扩容本地存储的BMS AZ相比，适配Dorado存储的AZ需要注意以下几点： 在创建扩容AZ工程的时候，业务存储需要选择NOF SAN，硬件架构为扩容AZ支持的BMS设备架构，虚拟化类型为BMS。其它详细配置项参考《华为云Stack 8.3.0 技术中台与AI数据中台服务软件安装指南》中的“使用HCCI新增 AZ”章节 导出的模板中Dorado方案相关的参数说明（如下参数需要Dorado产品配置完成后提供使用）： business_rest_url格式如下，默认port为8088，如有修改根据实际端口填写 https://ip:8088/deviceManager/rest/ business_storage_pool为Dorado上创建的存储池名称，必须和Dorado存储界面创建的存储池名称保持一致 business_user_name和business_password为登录Dorado存储页面的用户名和密码，实验室上架设备同事处获取。 其他Dorado必填参数根据现网情况自行填写。 对于已经选择本地盘方式扩容的BMS AZ，需要对接Dorado存储，或者已经扩容带Dorado存储的AZ，需要扩容Dorado多池，参考《华为云Stack 8.3.0 裸金属服务最佳实践（Region Type I）》中的”6 （可选）对接裸金属服务后端存储”章节，完成BMS AZ对接Dorado存储。",
+      "source_file": "4822_Dorado BMS AZ.txt"
+    },
+    {
+      "term": "BMS设备入云",
+      "content": "BMS设备入云 BMS设备入云 请参考《华为云Stack 8.3.0 技术中台与AI数据中台服务扩容指南》中“扩容BMS节点”章节。",
+      "source_file": "4824_BMS.txt"
+    },
+    {
+      "term": "前言",
+      "content": "前言 前言 概述 项目方案说明 搭建流程（请严格按照如下流程顺序进行操作）",
+      "source_file": "4805_file_4805.txt"
+    },
+    {
+      "term": "容灾Region创建VPC并打通网络",
+      "content": "容灾Region创建VPC并打通网络 容灾Region创建VPC并打通网络 前提条件 数据库服务租户侧VPC已创建，并且VDC租户已创建。 已经规划主从Region数据库实例的VPC网段信息，并已登录运营面创建对应Region的VPC。 新创建或者已有的VPC网段信息不能和VPC子网网段信息一致（VPC必须指定网段，且小于子网网段，不能完全相同），不然后续无法配置路由，导致主从Region实例网络不通。 VPC创建成功后，需要通过L3GW打通主从Region的VPC网络。 主从Region的VPC网络打通后，可以分别申请主从Region的ECS，然后互Ping验证网络是否连通。 操作步骤 由网络工程师完成网络配置，并测试联通性。",
+      "source_file": "4826_RegionVPC.txt"
+    },
+    {
+      "term": "扩容裸机网关",
+      "content": "扩容裸机网关 扩容裸机网关 扩容网关参考《华为云Stack 8.3.0 技术中台与AI数据中台服务扩容指南》中的“扩容BMS网关节点”章节。 注：扩容网关参数信息中的external_relay_network如果LLD中有多个，必须使用规划给数据库服务网段。",
+      "source_file": "4823_file_4823.txt"
+    },
+    {
+      "term": "搭建前准备",
+      "content": "搭建前准备 搭建前准备 环境依赖检查 规划信息准备 软件包准备 Dorado存储NOF组网配置",
+      "source_file": "4809_file_4809.txt"
+    },
+    {
+      "term": "数据库服务安装",
+      "content": "数据库服务安装 数据库服务安装 前提条件 已获取底座LLD信息。 已扩容AZ，选择服务可用 AZ的CPU类型需要和实际的BMS配置一致。 数据库服务专属的DMZ service网段、DMZ service advance网段、external relay network网段规划完成。 已获取数据库服务和平台的安装包。 操作步骤 安装数据库服务和平台参考《华为云Stack 8.3.0 技术中台与AI数据中台服务软件安装指南》中的章节“云数据库 GaussDB 装指南” 。 下载的模板填写需要相关必填参数从底座信息中查找，其中DMZ service网段、DMZ service advance网段、external relay network网段需要提前找环境管理员规划获取，这些网段要求不能和底座的网络DHCP池子公用，即属于一个网段，但是不在对应网段的DHCP池内。",
+      "source_file": "4825_file_4825.txt"
+    },
+    {
+      "term": "镜像制作与注册",
+      "content": "镜像制作与注册 镜像制作与注册 镜像制作与注册参考如下文档：《云数据库GaussDB 镜像制作指导书》。",
+      "source_file": "4821_file_4821.txt"
+    },
+    {
+      "term": "常见问题FAQ",
+      "content": "常见问题FAQ 常见问题FAQ BMS接入交换机放通provision网络 实例下发init node阶段报错OBS连接异常 实例下发失败报错参数缺失 配置搭建容灾关系参数缺失 创建Dorado容灾关系报错 MO统一日志运行测日志无法下载 BMS实例失败，报错Unable to create the network. No tenant network is available for allocation 创建实例时无法选择新增加的Dorado AZ 高阶服务如果以ECS方式安装，未配置BMS服务地址导致创建实例时失败，报错",
+      "source_file": "4842_FAQ.txt"
+    },
+    {
+      "term": "搭建Dorado数据库实例容灾关系",
+      "content": "搭建Dorado数据库实例容灾关系 搭建Dorado数据库实例容灾关系 参考《云数据库 GaussDB Dorado容灾用户手册（NOF组网）》。",
+      "source_file": "4841_Dorado.txt"
+    }
+  ]
+}

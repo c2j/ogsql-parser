@@ -1,0 +1,46 @@
+CREATE GROUP CREATE GROUP 功能描述 创建一个新用户组。 注意事项 CREATE GROUP是CREATE ROLE的别名，非SQL标准语法，不推荐使用，建议用户直接使用CREATE ROLE替代。 语法格式 CREATE GROUP group_name [ [ WITH ] option [ ... ] ] [ ENCRYPTED | UNENCRYPTED ] { PASSWORD | IDENTIFIED BY } { 'password' [ EXPIRED ] | DISABLE }; 其中可选项option子句语法为： {SYSADMIN | NOSYSADMIN}
+    | {MONADMIN | NOMONADMIN}
+    | {OPRADMIN | NOOPRADMIN}
+    | {POLADMIN | NOPOLADMIN}
+    | {AUDITADMIN | NOAUDITADMIN}
+    | {CREATEDB | NOCREATEDB}
+    | {USEFT | NOUSEFT}
+    | {CREATEROLE | NOCREATEROLE}
+    | {INHERIT | NOINHERIT}
+    | {LOGIN | NOLOGIN}
+    | {REPLICATION | NOREPLICATION}
+    | {VCADMIN | NOVCADMIN}
+    | {PERSISTENCE | NOPERSISTENCE}
+    | CONNECTION LIMIT connlimit
+    | VALID BEGIN 'timestamp'
+    | VALID UNTIL 'timestamp'
+    | RESOURCE POOL 'respool'
+    | USER GROUP 'groupuser'
+    | PERM SPACE 'spacelimit'
+    | TEMP SPACE 'tmpspacelimit'
+    | SPILL SPACE 'spillspacelimit'
+    | NODE GROUP logic_group_name
+    | IN ROLE role_name [, ...]
+    | IN GROUP role_name [, ...]
+    | ROLE role_name [, ...]
+    | ADMIN role_name [, ...]
+    | USER role_name [, ...]
+    | SYSID uid
+    | DEFAULT TABLESPACE tablespace_name
+    | PROFILE DEFAULT
+    | PROFILE profile_name
+    | PGUSER 参数说明 请参考CREATE ROLE的 参数说明 。 示例 --创建用户组。 gaussdb=# CREATE GROUP super_users WITH PASSWORD "********";
+
+--创建用户。 gaussdb=# CREATE ROLE lche WITH PASSWORD "********";
+
+--创建用户。 gaussdb=# CREATE ROLE jim WITH PASSWORD "********";
+
+--向用户组中添加用户。 gaussdb=# ALTER GROUP super_users ADD USER lche, jim;
+
+--从用户组中删除用户。 gaussdb=# ALTER GROUP super_users DROP USER jim;
+
+--修改用户组的名称。 gaussdb=# ALTER GROUP super_users RENAME TO normal_users;
+
+--删除用户。 gaussdb=# DROP ROLE lche, jim;
+
+--删除用户组。 gaussdb=# DROP GROUP normal_users; 相关链接 ALTER GROUP ， DROP GROUP ， CREATE ROLE 父主题： C 版权所有 © 华为技术有限公司

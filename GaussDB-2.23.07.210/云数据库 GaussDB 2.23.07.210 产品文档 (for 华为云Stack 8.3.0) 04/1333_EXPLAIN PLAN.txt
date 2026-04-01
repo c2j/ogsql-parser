@@ -1,0 +1,44 @@
+EXPLAIN PLAN EXPLAIN PLAN 功能描述 通过EXPLAIN PLAN命令可以将查询执行的计划信息存储于PLAN_TABLE表中。与EXPLAIN命令不同的是，EXPLAIN PLAN仅将计划信息进行存储，而不会打印到屏幕。 注意事项 EXPLAIN PLAN不支持在 DN 上执行。 对于执行错误的SQL语句无法进行计划信息的收集。 PLAN_TABLE中的数据是session级生命周期并且session隔离和用户隔离，用户只能看到当前session、当前用户的数据。 PLAN_TABLE无法与GDS外表进行关联查询。 对于不能下推的查询，无法收集到具体的object信息，object只能收集到REMOTE_QUERY或CTE等信息。详见 示例 2 。 EXPLAIN中的PLAN选项表示需要将计划信息存储于PLAN_TABLE中，存储成功将返回“EXPLAIN SUCCESS”。 用户可通过STATEMENT_ID对查询设置标签，输入的标签信息也将存储于PLAN_TABLE中。 语法格式 1
+2
+3 EXPLAIN PLAN [ SET STATEMENT_ID = name ] FOR statement ; 参数说明 name 查询标签。 取值范围：字符串 用户在执行EXPLAIN PLAN时，如果没有设置STATEMENT_ID，则默认为空值。同时，用户可输入的STATEMENT_ID最大长度为30个字节，超过长度将会产生报错。 示例 1 使用EXPLAIN  PLAN收集SQL语句的执行计划，通常包括以下步骤： 执行EXPLAIN PLAN。 执行EXPLAIN PLAN 后会将计划信息自动存储于PLAN_TABLE中，不支持对PLAN_TABLE进行INSERT、UPDATE、ANALYZE等操作。 PLAN_TABLE详细介绍见 PLAN_TABLE 。 1
+2
+3
+4
+5
+6 --创建表foo1,foo2。 gaussdb =# CREATE TABLE foo1 ( f1 int , f2 text , f3 text []); gaussdb =# CREATE TABLE foo2 ( f1 int , f2 text , f3 text []); --执行explain plan。 gaussdb =# EXPLAIN PLAN SET STATEMENT_ID = 'TPCH-Q4' FOR SELECT f1 , count ( * ) FROM foo1 WHERE f1 > 1 AND f1 < 3 AND EXISTS ( SELECT * FROM foo2 ) GROUP BY f1 ; 查询PLAN_TABLE。 gaussdb=# SELECT * FROM plan_table; 清理PLAN_TABLE表中的数据，删除表foo1，foo2。 1
+2
+3 gaussdb =# DELETE FROM plan_table WHERE STATEMENT_ID = 'TPCH-Q4' ; gaussdb =# DROP TABLE foo1 ; gaussdb =# DROP TABLE foo2 ; 示例 2 对于不能下推的查询，执行EXPLAIN PLAN后PLAN_TABLE中object仅收集到REMOTE_QUERY或CTE等信息。 场景一： 优化器生成下发语句的计划，此时仅能收集到REMOTE_QUERY。 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11 --创建表pt_t1,pg_t2 gaussdb =# CREATE TABLE pt_t1 ( a integer , b int , c int ) WITH ( autovacuum_enabled = off ) DISTRIBUTE hash ( c ); gaussdb =# CREATE TABLE pt_t1 ( a int , b int , c int ) WITH ( autovacuum_enabled = off ) DISTRIBUTE hash ( c ); gaussdb =# EXPLAIN PLAN SET statement_id = 'test remote query' FOR SELECT current_user FROM pt_t1 , pt_t2 ; --查询PLAN_TABLE。 gaussdb =# SELECT * FROM plan_table ; --删除表pt_t1,pg_t2 gaussdb =# DROP TABLE pt_t1 ; gaussdb =# DROP TABLE pg_t2 ; 场景二： 对于with recursive场景中不能下推的查询，仅能收集到CTE。 关闭enable_stream_recursive，使得查询不能下推。 1 gaussdb =# SET enable_stream_recursive = off ; 执行explain plan SQL 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25 --创建表chinamap gaussdb =# CREATE TABLE chinamap ( id integer , pid integer , name text ) DISTRIBUTE BY hash ( id ); --plan_table收集的计划 gaussdb =# EXPLAIN PLAN SET statement_id = 'cte can not be push down' FOR WITH RECURSIVE rq AS ( SELECT id , name FROM chinamap WHERE id = 11 UNION ALL SELECT origin . id , rq . name || ' > ' || origin . name FROM rq JOIN chinamap origin ON origin . pid = rq . id ) SELECT id , name FROM rq ORDER BY 1 ; --查询PLAN_TABLE。 gaussdb =# SELECT * FROM plan_table ; --删除表chinamap gaussdb =# DROP TABLE chinamap ; 父主题： E 版权所有 © 华为技术有限公司

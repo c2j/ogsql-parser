@@ -1,0 +1,14 @@
+PG_REPLICATION_SLOTS PG_REPLICATION_SLOTS PG_REPLICATION_SLOTS视图显示复制槽的信息。具体字段信息如 表1 所示。 表1 PG_REPLICATION_SLOTS字段 名称 类型 描述 slot_name text 复制槽的名称 plugin text 逻辑复制槽对应的输出插件名称。 slot_type text 复制槽的类型。 physical：物理复制槽。 logical：逻辑复制槽。 datoid oid 复制槽所在的数据库OID。 database name 复制槽所在的数据库名称。 active boolean 复制槽是否为激活状态。 t（true）：表示是。 f（false）：表示不是。 xmin xid 数据库需要为复制槽保留的最早事务的事务号。 catalog_xmin xid 数据库需要为逻辑复制槽保留的最早的涉及系统表的事务的事务号。 restart_lsn text 复制槽需要的最早xlog的物理位置。 dummy_standby boolean 预留参数。 confirmed_flush text 逻辑复制槽专用，客户端确认接收到的日志位置。 confirmed_csn xid 逻辑复制槽专用，客户端确认接收到的日志中最后一个事务对应的CSN。 示例： --在DN上执行查询。 gaussdb=# SELECT * FROM pg_replication_slots;
+ slot_name |     plugin     | slot_type | datoid | database | active | xmin | catalog_xmin | restart_lsn | dummy_standby | confirmed_flush | confirmed_csn
+-----------+----------------+-----------+--------+----------+--------+------+--------------+-------------+---------------+-----------------+---------------
+ dn_6002   |                | physical  |      0 |          | t      |      |              | 0/3622B528  | f             |                 |
+ dn_6003   |                | physical  |      0 |          | t      |      |              | 0/3622B528  | f             |                 |
+ slot_lsn  | mppdb_decoding | logical   | 131072 | db_test  | f      |      |        66658 | 0/36252350  | f             | 0/362523D0      |
+ slot_test | mppdb_decoding | logical   | 131072 | db_test  | f      |      |        66658 | 0/36251718  | f             |                 |      10025527
+(4 rows)
+
+--在CN上执行查询。 gaussdb=# SELECT * FROM pg_replication_slots;
+ slot_name |     plugin     | slot_type | datoid | database | active | xmin | catalog_xmin | restart_lsn | dummy_standby | confirmed_flush | confirmed_csn
+-----------+----------------+-----------+--------+----------+--------+------+--------------+-------------+---------------+-----------------+---------------
+ slot_test | mppdb_decoding | logical   | 139264 | db_test  | f      |      |              |             | f             |                 |
+(1 row) 在DN上执行查询，LSN序逻辑复制槽的confirmed_csn查询结果为空，CSN序逻辑复制槽的confirmed_flush查询结果为空；在CN上执行查询，CSN序逻辑复制槽的catalog_xmin、restart_lsn、confirmed_flush和confirmed_csn均不予显示，查询结果为空。 父主题： 其他系统视图 版权所有 © 华为技术有限公司

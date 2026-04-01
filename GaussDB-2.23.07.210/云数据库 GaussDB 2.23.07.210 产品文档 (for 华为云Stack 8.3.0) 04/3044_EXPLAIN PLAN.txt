@@ -1,0 +1,7 @@
+EXPLAIN PLAN EXPLAIN PLAN 功能描述 通过EXPLAIN PLAN命令可以将查询执行的计划信息存储于PLAN_TABLE表中。与EXPLAIN命令不同的是，EXPLAIN PLAN仅将计划信息进行存储，而不会打印到屏幕。 注意事项 数据库节点 对于执行错误的SQL无法进行计划信息的收集。 PLAN_TABLE中的数据是session级生命周期并且session隔离和用户隔离，用户只能看到当前session、当前用户的数据。 EXPLAIN中的PLAN选项表示需要将计划信息存储于PLAN_TABLE中，存储成功将返回“EXPLAIN SUCCESS”。 STATEMENT_ID用户可以对查询设置标签，输入的标签信息也将存储于PLAN_TABLE中。 语法格式 EXPLAIN PLAN
+[ SET STATEMENT_ID = name ]
+FOR statement ; 参数说明 name 查询标签。 取值范围：字符串 用户在执行EXPLAIN PLAN时，如果没有进行SET  STATEMENT_ID，则默认为空值。同时，用户可输入的STATEMENT_ID最大长度为30个字节，超过长度将会产生报错。 示例 使用EXPLAIN  PLAN收集SQL语句的执行计划，通常包括以下步骤： 执行EXPLAIN PLAN。 执行EXPLAIN PLAN 后会将计划信息自动存储于PLAN_TABLE中，不支持对PLAN_TABLE进行INSERT、UPDATE、ANALYZE等操作。 PLAN_TABLE详细介绍见 PLAN_TABLE 。 --创建表foo1,foo2。 gaussdb=# CREATE TABLE foo1(f1 int, f2 text, f3 text[]); gaussdb=# CREATE TABLE foo2(f1 int, f2 text, f3 text[]);
+
+--执行explain plan。 gaussdb=# EXPLAIN PLAN SET STATEMENT_ID = 'TPCH-Q4' FOR SELECT f1, count(*) FROM foo1 WHERE f1 > 1 AND f1 < 3 AND EXISTS (SELECT * FROM foo2) GROUP BY f1; 查询PLAN_TABLE。 gaussdb=# SELECT * FROM plan_table; 清理PLAN_TABLE表中的数据。 1
+2
+3 gaussdb =# DELETE FROM plan_table WHERE STATEMENT_ID = 'TPCH-Q4' ; gaussdb =# DROP TABLE foo1 ; gaussdb =# DROP TABLE foo2 ; 父主题： E 版权所有 © 华为技术有限公司

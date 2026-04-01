@@ -1,0 +1,5 @@
+DROP SERVER DROP SERVER 功能描述 删除现有的一个数据服务器。 注意事项 只有server的所有者或者被授予了server的DROP权限的用户才可以删除，系统管理员默认拥有该权限。 语法格式 DROP SERVER [ IF EXISTS ] server_name [ CASCADE | RESTRICT ]; 参数描述 IF EXISTS 如果指定的数据服务器不存在，则发出一个notice而不是抛出一个错误。 server_name 服务器名称。 CASCADE | RESTRICT CASCADE：级联删除依赖于server的对象 。 RESTRICT（缺省值）：如果存在依赖对象，则拒绝删除该server。 示例 --创建server。 gaussdb=# CREATE SERVER my_server FOREIGN DATA WRAPPER log_fdw;
+CREATE SERVER
+
+--删除my_server。 gaussdb=# DROP SERVER my_server;
+DROP SERVER 相关链接 ALTER SERVER ， CREATE SERVER 父主题： D 版权所有 © 华为技术有限公司

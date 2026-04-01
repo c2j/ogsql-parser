@@ -1,0 +1,444 @@
+gs_expand gs_expand 背景信息 GaussDB 提供了gs_expand工具来帮助用户在业务发展和数据量增加的情况下，集群性能和存储等方面出现瓶颈后，可以使用gs_expand工具增加主机来提升集群的性能及存储。 扩容（扩分片）前提条件 集群状态必须为Normal或者Degraded状态，集群Degraded状态只是实例异常引起的集群状态异常，不支持VM异常引起的集群状态异常（VM异常指非软件类异常，例如：磁盘故障、通信故障），请确保实例状态异常节点的网络正常。 实例状态：CN全部正常，GTM、CMS至少有主节点存活，ETCD实例状态满足多数正常；DN实例状态有以下三种情况：两副本集群单个分片内至少主DN实例正常；两AZ集群DN实例单个分片至少存活一主一备；除了以上两种之外的其他情况DN实例单个分片异常数量小于一半。 如当前集群有异常但是不满足以上约束条件的，请参考《工具参考》中的“服务端工具 > gs_replace”章节内容进行修复。 集群扩容要求整个集群没有被锁定，集群配置文件的配置信息正确并且和当前集群配置一致。 已按照扩容的集群配置文件执行过前置脚本 gs_preinstall 。 新增主机和现有集群之间通信已经建立，网络正常。 扩容前需保证集群所有CN可连接，可以在集群用户下执行gs_check -i CheckDBConnection命令检查CN是否可连接。 扩容前需做ANALYZE（保证扩容进度准确性时需要执行）。 重分布资源管控对象redisuser、redisrespool、redisclass、redisgrp不能被占用。 重分布过程中不能将其他用户绑定到重分布专用的资源池redisrespool上；不能用gs_cgroup -M等操作破坏当前Cgroups配置。若用户在Cgroups出现问题时使用gs_cgroup --revert恢复默认配置，则需重启集群才能保证新建立的redisclass和redisgrp生效。 扩容（升副本）前提条件 升副本操作要求在集群normal状态下进行，degraded和unavailable状态不支持升副本。 升副本支持一主多备集群和单副本集群。 一主多备集群升副本操作支持从2副本集群最大扩展到5副本集群；单副本集群无此限制。 分布式不支持升级副本为级联备。 升副本（增加ETCD）操作中需要满足以下集群配置ETCD的节点数。数据库中配置ETCD的节点总个数因为多数派选主，应为单数。 2AZ部署：AZ1中ETCD个数>=2；AZ2中ETCD个数>=1；ETCD总个数=3或5或7。 3AZ部署：AZ1中ETCD个数>=2；AZ2中ETCD个数>=2；AZ3中ETCD个数>=1；ETCD总个数=5或7。 单副本集群升副本至一主多备集群，配置节点时需要满足一主多备集群各实例配置的数量约束： 分布式：GTM 数量 （2-8）个; ETCD 数量（3-7 奇数）个；CMS（2-8）个；DN >=2 个。 注意事项 低版本集群Degraded状态升级后，请先修复升级过程中忽略的节点，集群所有节点版本一致后再扩容，否则会导致扩容失败（请参考《工具参考》中的“服务端工具 > gs_replace”章节内容进行修复）。 集群Degraded状态扩容完成后，请修复异常实例，否则会影响后续操作（请参考《工具参考》中的“服务端工具 > gs_replace”章节内容进行修复）。 集群扩容时，请勿改动$PGHOST下的expandimplolap_step/expandimplolap_step.dat，否则会影响扩容阶段和重分布阶段的重入。 新增主机的操作系统与已有集群主机操作系统在同一个大版本内，支持小版本混搭。 扩容的DN参数配置和分配的物理资源要和现有节点的DN保持一致；当新扩容的服务器有更多资源时，可以配置数量更多的DN。 异构扩容时，同批次扩容服务器的软硬件规格要保持一致（异构扩容是指扩容服务器和现有集群服务器的硬件规格不统一）。 新增主机机器至少满足集群的安装要求（集群安装要求，请参考《安装指南》中“软硬件环境要求”一章）。 新集群整体性能取决于集群中配置最低的机器。 两副本集群新增主机数目大于等于2。 其它类型集群新增主机数目大于等于3。 新增主机的locale、encoding等需要和原有主机上保持一致。 新的主机上已经做了集群安装路径和用户组规划。 使用环境字符集不支持中文类型（zh_CN.UTF-8），可通过locale命令查看。 在前一次扩容结束后才能再次扩容。例如，扩容过程中由于断电等原因导致扩容未完成时，不允许再次进行扩容。需要先修复结束前一次扩容。 在扩容过程中会自动检查集群是否被锁定。如果发现集群被锁定，可以通过以下方式进行解锁。 使用以下命令查询锁定集群的进程ID。 SELECT * FROM pg_stat_activity WHERE query LIKE 'SELECT case (select pgxc_lock_for_backup()) WHEN true then (SELECT pg_sleep(%)::text) end;' or query like 'select case (select count(*) from pg_advisory_lock(65535,65535)) when true then (select pg_sleep(%)::text) end;'; 使用如下命令取消锁定集群的进程。 SELECT pg_cancel_backend(pid); 扩容支持新增主机中只含CN，或者只含DN，或者两者都含场景。 升副本支持新增主机中只含DN，或者包含DN和ETCD，或者包含DN和CMS，或者三者都含场景；不支持不包含DN实例的场景进行升副本操作。 扩容节点不能包含ETCD组件；升副本可以包含ETCD组件（ETCD最大支持7个）和CMS组件（CMS组件最大支持8个）。 扩容前需退出创建了临时表的客户端连接，因为在扩容过程中及扩容成功后临时表会失效，操作临时表也会失败。 为了避免在扩容重分布过程中出现复制表查询结果为空的情况，重分布过程中会自动将参数enable_random_datanode设置为off，重分布结束后恢复为缺省值。 如果数据库中包含的对象数量（数据表、视图、索引）50万以上，为了提高性能且避免出现内存问题，建议通过 gs_guc 设置CN和DN的如下参数（如果参数值大于如下建议值，则无需设置），重启后生效： gs_guc set -N all -Z coordinator -Z datanode -I all -c 'max_prepared_transactions = 1000'
+gs_guc set -N all -Z coordinator -Z datanode -I all -c 'max_locks_per_transaction = 512' 扩容前，需要检查已有集群的comm_max_datanode参数值（使用gsql连接CN执行show comm_max_datanode;），如果comm_max_datanode的值小于扩容后集群的DN数，请先使用如下命令设置comm_max_datanode参数（假如原有集群DN数为128，再新扩128个DN，则应该在扩容前把comm_max_datanode参数设置为256）。 gs_guc set -Z datanode -I all -N all -c 'comm_max_datanode=256'
+gs_guc set -Z coordinator -I all -N all -c 'comm_max_datanode=256'
+gs_om -t stop && gs_om -t start read-only模式的扩容过程中，锁集群后数据库不支持DDL和DCL操作。 insert模式的扩容过程中 （当前特性是实验室特性，使用时请联系华为技术工程师提供技术支持。） ： 集群锁定前数据库支持DDL和DCL操作，如果用户并发事务块中包含DDL操作（create database、create tablespace等），用户DDL操作会报错，事务回滚。 不支持用户并发事务块中包含Temp表创建使用。 扩容完成后到重分布完成前，不支持对database、tablespace进行删除、创建操作。 read-only模式下正在重分布的表只支持DQL操作。 insert模式下重分布过程中： 支持用户进行本地表的DROP、TRUNCATE、TRUNCATE-PARTITION业务，正在重分布的表支持更新、插入和删除数据，重分布阶段不允许执行性能统计查询。重分布过程中本地表DROP操作存在秒级窗口期导致重分布失败，属于正常现象，发生此种错误时重新下发重分布任务即可。 当正在重分布的表进入到最后一轮追增量（表的模式切换为end_catchup）时会锁表，此时正在重分布的表不支持更新、插入和删除数据。 目前已经对重分布过程占用的资源进行了管控，可以在一定程度上降低对用户业务的影响，但不建议在大业务背景下做在线数据重分布。 目前不适用于单表大数据量数据持续入库（频繁增删改）场景（用户单表系统资源占用，超过重分布追增系统资源使用），数据追增阶段会影响用户持续导入与查询失败。 在重分布执行过程中，用户应当避免执行长时间的查询场景。否则可能导致重分布出现等待加锁超时失败。 对于大分区表，重分布阶段时间较长，用户周期性删除分区操作会打断重分布。 Unlogged表无xlog，在线数据重分布阶段，有数据少量丢失风险。 重分布过程中用户可进行正在重分布的本地表跨节点组的关联查询业务。 扩容后，之前创建的临时表将会失效，但扩容后创建的临时表不受影响。 执行重分布前，需对集群剩余容量进行人工检查，条件满足后可进行重分布。 所有DN节点剩余可用空间要大于DN节点的最大单表大小。 扩容执行到新集群启动阶段时，系统无法回滚到扩容前。 扩容完成后，集群中新创建的Node Group的命名方式如下：group_version_时间戳_PID。如：group_version_20180110_093153_37505。 如果扩容前的Node Group下有依赖它的Child Node Group，扩容完成后，集群中新创建的Node Group下也会创建相应数量的Child Node Group，且和扩容前的Child Node Group一一对应。 若新增主机硬件规格（内存、硬盘）低于现有集群，需要逐步将性能较低的服务器替换为性能更好的服务器以满足集群的性能要求。 重分布过程中不能drop public schema。 重分布前会清理回收站，且回收站不记录重分布的闪回表。 扩容过程中系统将关闭“自动剔除故障CN功能”，在扩容完成后系统再次打开该功能。 重分布前，需要保证对应数据库下的data_redis为重分布预留schema，不允许用户操作该schema和其内部表。因为在重分布过程中，会使用到data_redis并且重分布结束后会删除该schema，如果存在用户表，则可能会出现数据误删。 由于重分布过程中，以表为粒度的给扩展表新增了两个bigint列，在交换元数据前，使用drop column接口将增加的列信息删除，目前drop column列接口采用的是标记删除，未真正删除数据，如果需要释放列空间，需要用户手动调用VACUUM FULL接口进行。占用的空间约为：128bit*表的行数。 如果某个表重分布过程中报错，内容类似relation "%s" has no free space to upgrade. Current xid is %lu, please VACUUM FULL this relation!!!，需要手动执行VACUUM FULL。此时必须先连接该用户表所在的数据库，使用\d查询append_mode模式不为off的表，修改其append_mode模式为off，执行VACUUM FULL，成功后，恢复append_mode模式为read_only，再重入重分布。 select oid from pg_class where relname='%s';
+ALTER TABLE %s SET (append_mode=off,rel_cn_oid=%s);
+vacuum full;
+ALTER TABLE %s SET (append_mode=read_only,rel_cn_oid=%s); 在对普通表重分布过程中的交换元信息阶段，需要对其加最高级别锁，如果其他用户正在对此表进行SQL操作，可能会影响重分布因锁冲突而失败。 多DN在用户表上创建唯一索引需要包含所有的分布键，单DN则无此限制。若单DN扩容到多DN，需要保证用户表上创建的唯一索引需要包含所有的分布键，否则会导致扩容失败。若存在此行为，则建议用户先对应创建一个带有分布列的唯一索引，之后再删除不带有分布列的唯一索引。 升副本过程中，可能发生DN主备切换，请合理分配运维窗口期，避免对业务造成影响。 云上环境，扩容结束后关闭peer认证时，会动态查询当前normal状态的cn与dn实例，若已获取完实例信息后实例发生异常导致扩容流程失败，此时扩容主流程实际已完成仅免密关闭失败，需手动关闭免密。 有hashbucket表的集群不支持在线扩容。 扩容后新集群启动阶段若启动失败，此时不支持使用gs_om工具删除CN。 语法 集群扩容 gs_expand -t dilatation -X XMLFILE [-l LOGFILE] [--parallel-jobs=NUMBER] [--time-out=SECS] [--dws-mode] [--dilatation-mode=MODE] {--nodegroup-name=LCGROUPNAME | --addto-elastic-group} [--express] 如果扩容后，在启动新集群时失败，此时扩容已经完成，返回用户扩容成功，用户需根据日志信息排查启动失败原因，在后台再次调用扩容接口，重新执行扩容命令。执行成功后查看集群状态变为Normal或者Degraded、重分布变为Yes后再进行其它业务操作。 如果扩容过程中在等待集群状态变为正常时出现“The cluster status is Abnormal”，需要查看cm_agent日志查找具体故障原因，如果因创建node group失败，排除故障后手动启动集群。详情见示例三。 扩容重分布过程中，为了保障集群业务性能，会为集群创建名为"redisuser"的数据库用户，此用户只在扩容重分布阶段存在，重分布完成后会被删除。此用户会拥有所有管理员权限来执行重分布。 集群扩容过程中不支持ctrl+c停止扩容指令操作，如果误操作导致扩容失败会自动回滚，强制停止扩容操作可通过kill进程实现(不推荐)。 数据重分布 gs_expand -t redistribute  [--parallel-jobs= NUMBER ] [--resource-level=f/h/m/l] [--failure-limit=NUMBER] 
+[--build-redistb] [--redis-mode=MODE] [-l LOGFILE] [--priority-tables=FILE] [--exclude-tables=FILE] 
+[--time-out=SECS] [--dws-mode] [--finish-timeseries] [--max-worker] [--max-dop] [--join-tables=FILE] 回滚 gs_expand -t crashclean -X XMLFILE [-l LOGFILE ] [--dws-mode] [--express] 重分布资源管控 gs_expand -t resourcectl --resource-level=f/h/m/l [--max-worker][--max-dop] 扩容dilatation阶段扩容进度查询 gs_expand -t progress -X XMLFILE 集群升副本 gs_expand -t add_replication -X XMLFILE DCF模式下，升副本后在主DN节点执行如下命令查看dcf_replication_info中角色是否包含PASSIVE： gs_ctl query -D < DATADIR > 上述命令中参数DATADIR是主DN的数据目录。 若上述结果中包含PASSIVE，在主DN节点执行如下命令进行角色切换： cm_ctl changerole --role  FOLLOWER  -n < NODEID > -D < DATADIR > 上述命令中参数NODEID是待切换角色的节点ID，DATADIR是待切换角色DN的数据目录。 重分布参数设置 gs_expand -t parametercfg [--lockwait-timeout=MSEC] [--lockwait-interval=SECS] [--trylock-threshold=NUMBER] [--enable-cancel=Boolean] [--last-catchup-threshold=MSEC] [--catchup-times=NUMBER] [--write-error-mode=Boolean] [--catchup-query-dop=NUMBER] [--parallel-catchup-threshold=NUMBER] [--parallel-reindex-jobs=NUMBER][--redis-retry-times=NUMBER][--redis-retry-interval=NUMBER][--redis-bucket-parse-redo-num=NUMBER][--redis-bucket-workers-per-paser=NUMBER] 显示帮助信息 gs_expand -? | --help 显示版本信息 gs_expand -V | --version 接收数据库管理员密码 echo "password" | gs_expand -t [dilatation|redistribute|crashclean|resourcectl|progress|add_replication|parametercfg] 云上环境中，对于未开启Peer认证方式的数据库系统， 可以使用此方式传入数据库管理员用户的密码，用于连接数据库进行运维操作。 参数说明 gs_expand参数可以分为如下几类： 通用参数： -t gs_expand命令参数类型。 取值范围：dilatation，redistribute，crashclean，progress，resourcectl，nodegroup_migrate，add_replication，parametercfg。 -X 安装配置文件路径。 如果需要修改xml文件名称时，需要将修改后的xml文件分发到集群的其他主机上。 取值范围：clusterconfig.xml的文件路径。 如果-t参数指定的是progress，-X参数传入的是扩容前原始集群的XML配置文件 。 -l 指定日志文件及存放路径。 默认值：$GAUSSLOG/om/gs_expand-YYYY-MM-DD_hhmmss.log --time-out=SECS 超时等待时间。单位：s。 取值范围：≥43200，正整型。 默认值：43200 -?, --help 显示帮助信息。 --dws-mode 指定是否DWS云上扩容。 -V, --version 显示版本号信息。 集群扩容参数： --parallel-jobs=NUMBER 指定集群扩容过程重建实例的并发任务个数。 参考取值：正整数。 集群扩容默认值为20。 --dilatation-mode=MODE 指定扩容执行模式。 取值范围： read-only：只读模式 insert：插入模式 （当前特性是实验室特性，使用时请联系华为技术工程师提供技术支持。） 如果不指定，默认为read-only模式。 --call-thread= 脚本执行调用链ID，可以为空。 数据重分布参数： --parallel-jobs=NUMBER 指定数据重分布过程的并发执行任务个数。 参考取值：正整数（1~8）。数据重分布推荐并发任务数为4。 如果不指定--parallel-jobs参数：数据重分布默认值为1，为非并发执行方式。 --build-redistb 创建pgxc_redistb表，但不进行重分布，此表中记录了本次重分布所有需要进行重分布的表。 --redis-mode=MODE 指定数据重分布的执行模式。 取值范围： read-only：只读模式 insert：插入模式，正在进行重分布的表支持并发插入（insert）以及导入（Gds导入） （当前特性是实验室特性，使用时请联系华为技术工程师提供技术支持。） 。 如果不指定，默认为read-only模式。 --priority-tables=FILE 优先重分布模式，系统将优先执行用户在指定文件中所写表的重分布，默认不选此参数。 取值范围：指定的文件路径，指定文件内容不能超过1000行。 指定文件格式,每一行：database schema tablename 例如： testdb public test testdb "pubLic" test （schema为pubLic） 注意：不支持database、schema、tablename数据对象名称存在空格，schema和tablename名称中存在大写字母或者特殊字符时需要加双引号进行转义。 --exclude-tables=FILE 跳过重分布模式，系统将跳过用户在指定文件中所写表的重分布，默认不选此参数。 与优先重分布模式同时使用时，不允许两个模式中指定的表有重叠。 取值范围：指定的文件路径，指定文件内容不能超过1000行。 指定文件格式,每一行：database schema tablename 例如： testdb public test testdb "pubLic" test （schema为pubLic） 注意：不支持database、schema、tablename数据对象名称存在空格，schema和tablename名称中存在大写字母或者特殊字符时需要加双引号进行转义。 --join-tables= FILE 多表扩容模式，输入为具有join关系的用户表配置文件。 取值范围：指定的文件路径，指定文件内容不能超过1000行。 指定文件格式。每一行格式为：database schema1 tablename1 schema2 tablename2 ...（每行的多张表构成一个分组（group））。例如： testdb public test1 public test2
+testdb public test3 public test4 public test5 注意： 不支持database、schema、tablename数据对象名称存在空格，schema和tablename名称中存在大写字母或者特殊字符时需要加双引号进行转义。 每一行schema tablename必须成对出现，唯一确定一张表。 一张表不能出现在多个分组中，每组的表数量必须大于等于2，小于等于5。 如果存在一个schema里的tablename为其他schema的名字时，会正常处理这张表不会报错。 --call-thread= 脚本执行调用链ID，可以为空。 --failure-limit=NUMBER 跳过重分布失败表模式，系统在未超过用户指定失败数量前不会中断重分布，默认不选此参数。 取值范围：0 ~ 10 指定此参数后，如果未达到失败表数量，重分布不会中断，并且在执行完成后报错，打印出失败表的列表。 当资源管控级别设置为f时，支持表内并发度（--max-worker）和表内扫描（--max-dop）可配置，通过调整以下参数进行： --max-worker 表内并发度。 取值范围：[1,8] 默认值：8 --max-dop 单表query_dop参数值。 取值范围：[1,64] 默认值：4 资源管控参数： --resource-level=RESLEVEL 指定数据重分布的资源等级。 取值范围： f：100%资源 h：50%资源 m：30%资源 l：10%资源 默认值：l 当资源管控参数设置为f时，进入快速扩容场景，会充分使用资源，通过并发操作提升数据重分布的性能。此时，如果shared_buffers参数值设置过小（小于推荐值），会影响此场景下的性能优化效果。 当资源管控级别设置为f时，支持表内并发度（--max-worker）和表内扫描（--max-dop）可配置，通过调整以下参数进行： --max-worker 表内并发度。 取值范围：[1,8] 默认值：8 --max-dop 单表query_dop参数值。 取值范围：[1,64] 默认值：4 调用链接口参数 --trace-id 每次om请求的唯一标识，可根据om操作日志中的trace-id识别调用链从而进行故障定界。可选参数。 取值范围：1-128位的字符串，允许的字符为数字，字母和'-'。 重分布参数设置接口参数 配置对应的全局系统表参数供重分布工具和扩容脚本查询使用，可以在重分布开始前和重分布过程中使用，扩容成功后清除所有参数配置。不设置对应参数则保留上次调用的结果，未设置过的参数重分布开始时写入默认值。对应接口 gs_expand -t parametercfg。 --lockwait-timeout 锁超时时间。如果等锁线程在该时间内无法拿到锁，则报锁超时失败。触发CANCEL模式拿锁时，实际使用的锁超时时间为此参数设置的2倍。扩容期间修改实时生效。 对应参数：lockwait_timeout 取值范围：[1,1200000] 单位：毫秒 默认值：4000 --lockwait-interval 等锁步长。连续拿锁超时的场景，如果此轮等锁超时，间隔该参数指定的时长进行下一轮尝试。 对应参数：lockwait_interval 取值范围：[0,300] 单位：秒 默认值：5 --trylock-threshold 等锁尝试次数上限。需和enable_cancel参数同时使用，如果到达该上限还因为等锁超时无法成功获取到锁，则下次拿锁使用CANCEL模式。未开启enable_cancel不生效。 对应参数：trylock_threshold 取值范围：[1,INT_MAX], -1（无上限） 单位：次 默认值：3 --enable-cancel 是否允许用户业务快速失败。即是否允许达到等锁尝试次数上限或切表事务获取用户表8级锁时，快速失败用户业务从而保证重分布成功拿锁。 对应参数：enable_cancel 取值范围：[false,true] 默认值：true 此模式默认开启，如果用户业务没有连接级重试机制，建议手动关闭此参数。 触发CANCEL模式拿锁时，会发送FATAL级报错，用户业务不是在锁队列中等待而是中断连接。 --last-catchup-threshold 最后一轮追增时间上限。即最后一轮完成delete+insert追增耗时。 对应参数：last_catchup_threshold 取值范围：[1000,60000] 单位：毫秒 默认值：5000 --catchup-times 追增轮次上限。超出上限后强制进行最后一轮追增。 对应参数：catchup_times 取值范围：[1,INT_MAX], -1 单位：次 默认值：-1（表示无上限） --write-error-mode 写报错模式。true表示写报错模式。false表示采用全阻塞模式进行最后一轮追增。 对应参数：write_error_mode 取值范围：[false,true] 默认值：true 此模式默认开启，如果用户业务没有会话级重试机制，建议手动关闭此参数。 开启写报错模式后，用户写业务会有ERROR级报错，而不是在锁队列中等待。 开启此模式后，为避免长时间处于写报错状态，可能触发重分布进程主动退出和自动拉起特性，此时扩容时间会变长，具体见管理员指南中集群扩容章节描述。 --catchup-query-dop 追增并行扫描度。 对应参数：catchup_query_dop 取值范围：[1,32] 单位：个 默认值：4 注：该参数设置过小可能导致追增性能下降，设置过大占用资源较多。 --parallel-catchup-threshold 多表重分布模式中开启并行追增所需的耗时阈值，一个分组中所有表追增耗时小于该值时，开启并行追增。 对应参数：parallel_catchup_threshold 取值范围：[1000,1800000] 单位：毫秒 默认值：300000 --parallel-reindex-jobs 同时临时表创建索引时的并发度，即多少个索引同时创建。 对应参数：parallel_reindex_jobs 取值范围：[1,64] 单位：个 默认值：2 --redis-retry-times 自动拉起重分布进程的次数上限，触发重分布进程主动退出时使用，拉起次数超出上限本轮重分布失败结束。 对应参数：redis_retry_times 取值范围：[0,100] 单位：次 默认值：5 --redis-retry-interval 自动拉起重分布进程的时间间隔，触发重分布进程主动退出时使用。 对应参数：redis_retry_interval 取值范围：[0,36000] 单位：秒 默认值：600 hashbucket扩容参数 --redis-bucket-batchsize MOVE BUCKETS命令最多包含bucket数量。扩容期间修改，会在下一个库的扩容开始时才生效。 取值范围：1~1024 默认值：64 建议值：不含在线业务的场景建议1024，在线扩容场景建议取1~10。 --redis-bucket-sender-concurrency sender并发度。 取值范围：当前版本固定值为1，不支持修改。 --redis-bucket-receiver-concurrency receiver并发度。 取值范围：当前版本固定值为1，不支持修改。 --redis-bucket-log-level gs_redis_bucket日志打印级别。每个级别都包含排在它后面的所有级别中的信息。级别越高，服务器运行日志中记录的消息就越少。扩容期间修改，会在下一个库的扩容开始时才生效。 参数类型：枚举类型 取值范围：1~6。有效值有REDIS_DETAIL、REDIS_DEBUG、REDIS_INFO、REDIS_WARNING、REDIS_ERROR、REDIS_NONE（不打印日志）。 默认值：REDIS_DEBUG --redis-bucket-lockhold-timeout 上线事务持锁超时时间。扩容期间修改实时生效。 取值范围：10~600000 单位：毫秒 默认值：60000 --redis-bucket-timeout-penalty 某个bucket上次拿锁或持锁超时后的一段惩罚时间内该bucket不会再尝试上线（惩罚时间结束后且满足其他上线策略要求后才可能尝试上线）；扩容期间修改，会在下一个库的扩容开始时才生效。 取值范围：0~600000。0表示无惩罚时间。 单位：毫秒 默认值：30000 --redis-bucket-max-lockwait-timeout-retry 每个bucket拿锁超时最大重试次数；扩容期间修改，会在下一个库的扩容开始时才生效。 取值范围：0~100。0表示不允许重试。 默认值：3 建议值：3~20 --redis-bucket-max-lockhold-timeout-retry 每个bucket持锁超时最大重试次数；扩容期间修改，会在下一个库的扩容开始时才生效。 取值范围：0~100。0表示不允许重试。 默认值：3 建议值：3~20 --redis-bucket-strategy-history-capacity gs_redis_bucket对每个bucket记录历史信息的队列长度（每秒一个值）；扩容期间修改，会在下一个库的扩容开始时才生效。 取值范围：10~1000000 默认值：1000 --redis-bucket-strategy-recent-threshold 每个bucket历史信息记录中划定“近期”范围的阈值（策略相关）；扩容期间修改，会在下一个库的扩容开始时才生效。 取值范围：1~strategy-history-capacity -1 默认值：30 --redis-bucket-workload-rule 上线策略业务负载相关判断规则：满足任何一个即满足该条件。扩容期间修改，会在下一个库的扩容开始时才生效。 RSLR(a, b)：计算业务负载的样本量大于b, 且近期业务负载率<a则满足要求。 R2HSRLR(a, b)：计算业务负载的样本量大于b, 且近期业务负载/历史业务负载<a则满足要求。 TR(a)：超时判定，时长最大值为a毫秒。 参数类型：字符串 默认值： RSLR(10000,5) TR：600000 --redis-bucket-lsn-rule 上线策略日志追增剩余相关判断规则；扩容期间修改，会在下一个库的扩容开始时才生效。 LGLR(a)：当前需要追增的日志量<a则满足要求。 TR(a)：超时判定，时长最大值为a毫秒。 参数类型：字符串 默认值： LGLR：5000000 TR：600000 --redis-bucket-tx-bucket-min 上线事务线程中一次上线的bucket最小数量；扩容期间修改，会在下一个库的扩容开始时才生效。 取值范围：1~1024 默认值：16 --redis-bucket-tx-bucket-max 上线事务线程中一次上线的bucket最大数量；扩容期间修改，会在下一个库的扩容开始时才生效。 取值范围：redis-bucket-tx-bucket-min~1024 默认值：64 建议值：不含在线业务的场景建议取1024，在线扩容场景建议取20以内。 --redis-max-expected-tps 预留参数，表示预估业务高峰tps，后续用来校验xid是否重合。扩容期间修改，会在下一个库的扩容开始时才生效。 --redis-bucket-parse-redo-num 扩容回放线程parser的个数（与极致RTO中的recovery_parse_workers对应），扩容期间修改，会在下一次执行move buckets时生效。 取值范围：1~16 默认值：4 --redis-bucket-workers-per-paser 扩容回放线程每个parser对应的worker个数（与极致RTO中的recovery_redo_workers对应），扩容期间修改，会在下一次执行move buckets时生效。 取值范围：1~8 默认值：1 示例 扩容前需要先使用root用户执行前置脚本，准备环境。以扩容的配置文件"clusterconfig_dilatation.xml"为例。 ./gs_preinstall -U omm -G dbgrp -X /opt/software/GaussDB_Kernel /clusterconfig_dilatation.xml --alarm-type=5
+
+
+Parsing the configuration file.
+Successfully parsed the configuration file.
+Installing the tools on the local node.
+Successfully installed the tools on the local node.
+Are you sure you want to create trust for root (yes/no)? yes
+Please enter password for root.
+Password:
+Creating SSH trust for the root permission user.
+Checking network information.
+All nodes in the network are Normal.
+Successfully checked network information.
+Creating SSH trust.
+Creating the local key file.
+Successfully created the local key files.
+Appending local ID to authorized_keys.
+Successfully appended local ID to authorized_keys.
+Updating the known_hosts file.
+Successfully updated the known_hosts file.
+Appending authorized_key on the remote node.
+Successfully appended authorized_key on all remote node.
+Checking common authentication file content.
+Successfully checked common authentication content.
+Distributing SSH trust file to all node.
+Successfully distributed SSH trust file to all node.
+Verifying SSH trust on all hosts.
+Successfully verified SSH trust on all hosts.
+Successfully created SSH trust.
+Successfully created SSH trust for the root permission user.
+Setting pssh path
+Successfully set core path.
+Distributing package.
+Begin to distribute package to tool path.
+Successfully distribute package to tool path.
+Begin to distribute package to package path.
+Successfully distribute package to package path.
+Successfully distributed package.
+Are you sure you want to create the user[omm] and create trust for it (yes/no)? yes
+Preparing SSH service.
+Successfully prepared SSH service.
+Installing the tools in the cluster.
+Successfully installed the tools in the cluster.
+Checking hostname mapping.
+Successfully checked hostname mapping.
+Creating SSH trust for [omm] user.
+Please enter password for current user[omm].
+Password:
+Checking network information.
+All nodes in the network are Normal.
+Successfully checked network information.
+Creating SSH trust.
+Creating the local key file.
+Successfully created the local key files.
+Appending local ID to authorized_keys.
+Successfully appended local ID to authorized_keys.
+Updating the known_hosts file.
+Successfully updated the known_hosts file.
+Appending authorized_key on the remote node.
+Successfully appended authorized_key on all remote node.
+Checking common authentication file content.
+Successfully checked common authentication content.
+Distributing SSH trust file to all node.
+Successfully distributed SSH trust file to all node.
+Verifying SSH trust on all hosts.
+Successfully verified SSH trust on all hosts.
+Successfully created SSH trust.
+Successfully created SSH trust for [omm] user.
+Checking OS version.
+Successfully checked OS version.
+Creating cluster's path.
+Successfully created cluster's path.
+Set and check OS parameter.
+Setting OS parameters.
+Successfully set OS parameters.
+Warning: Installation environment contains some warning messages.
+Please get more details by "/data1/omm/ssh_test/script/gs_checkos -i A -h pekpomdev00062,pekpomdev00061,pekpomdev00060".
+Set and check OS parameter completed.
+Preparing CRON service.
+Successfully prepared CRON service.
+Setting user environmental variables.
+Successfully set user environmental variables.
+Configuring alarms on the cluster nodes.
+Successfully configured alarms on the cluster nodes.
+Setting the dynamic link library.
+Successfully set the dynamic link library.
+Setting pssh path
+Successfully set pssh path.
+Setting Cgroup.
+Successfully set Cgroup.
+Set ARM Optimization.
+Successfully set ARM Optimization.
+Setting finish flag.
+Scene: non-huaweiyun
+Successfully set finish flag.
+Preinstallation succeeded. 示例一： 扩容过程中查询扩容进度（示例一至示例五需集群用户下执行）。 gs_expand -t progress -X /opt/software/GaussDB_Kernel /clusterconfig_install.xml
+Querying current dilatation progress.
+Current expansion progress is:
+Status: Running, Detail: Config new nodes
+
+gs_expand -t progress -X /opt/software/GaussDB_Kernel /clusterconfig_install.xml
+Querying current dilatation progress.
+Current expansion progress is:
+Status: Running, Detail: Start the cluster
+
+gs_expand -t progress -X /opt/software/GaussDB_Kernel /clusterconfig_install.xml
+Querying current dilatation progress.
+Current expansion progress is:
+Status: Dilatation failed, Detail: Install new nodes failed
+
+gs_expand -t progress -X /opt/software/GaussDB_Kernel /clusterconfig_install.xml
+Querying current dilatation progress.
+Current expansion progress is:
+Status: Dilatation failed, Detail: Start cluster failed
+
+gs_expand -t progress -X /opt/software/GaussDB_Kernel /clusterconfig_install.xml
+Querying current dilatation progress.
+Current expansion progress is:
+Status: Dilatation completed, Detail: Dilatation succeed 示例二： 扩容成功，执行重分布操作。 离线扩容成功： gs_expand -t dilatation -X /opt/software/GaussDB_Kernel /clusterconfig_dilatation.xml
+Check cluster version consistency.
+Successfully checked cluster version.
+Distributing cluster dilatation XML file.
+Checking static configuration.
+Static configuration is matched with the old configuration file.
+Checking the cluster status.
+Successfully checked the cluster status.
+Performing health check.
+Health check succeeded.
+Backing up parameter files.
+Successfully backed up parameter files.
+Installing.
+Deleting instances from ['pekpomser00001', 'pekpomser00002', 'pekpomser00003'].
+Uninstalling applications on ['pekpomser00001', 'pekpomser00002', 'pekpomser00003'].
+Successfully uninstalled applications on ['pekpomser00001', 'pekpomser00002', 'pekpomser00003'].
+Checking installation environment on all nodes.
+Installing applications on all nodes.
+Synchronizing cgroup configuration to new nodes.
+Successfully synchronized cgroup configuration to new nodes.
+Synchronizing alarmItem configuration to new nodes.
+Successfully synchronized alarmItem configuration to new nodes.
+Installation is completed.
+Configuring.
+Configuring new nodes.
+Checking node configuration on all nodes.
+Initializing instances on all nodes.
+Configuring pg_hba on all nodes.
+Successfully configured new nodes.
+Begin scpCertFile.
+Rebuilding new nodes.
+Locking cluster.
+Successfully locked cluster.
+Restoring new nodes.
+Successfully restored new nodes.
+Successfully rebuild new nodes.
+Configuration is completed.
+Starting new nodes.
+Successfully started new nodes.
+Synchronizing.
+Updating cluster configuration.
+Successfully updated cluster configuration.
+Synchronization is completed.
+Successfully enable node whiteList.
+Update resource control config file result: Not found resource config file on this node.
+Starting new cluster.
+Waiting for the cluster status to become available.
+......
+The cluster status is Degraded.
+Unlocking cluster.
+Successfully unlocked cluster.
+Creating new node group.
+Successfully created new node group.
+Waiting for the redistributing status to become yes.
+.
+The cluster redistributing status is yes.
+Successfully started new cluster.
+Successfully disabled delay xlog recycle.
+Starting timeseries table redistribute.
+Dilatation succeed.
+. 在线扩容成功： gs_expand -t dilatation -X /opt/software/GaussDB_Kernel /clusterconfig_dilatation.xml --dilatation-mode=insert
+Check cluster version consistency.
+Successfully checked cluster version.
+Distributing cluster dilatation XML file.
+Checking static configuration.
+Static configuration is matched with the old configuration file.
+Checking the cluster status.
+Successfully checked the cluster status.
+Performing health check.
+Health check succeeded.
+Backing up parameter files.
+Successfully backed up parameter files.
+Installing.
+Deleting instances from ['pekpomser00001', 'pekpomser00002', 'pekpomser00003'].
+Uninstalling applications on ['pekpomser00001', 'pekpomser00002', 'pekpomser00003'].
+Successfully uninstalled applications on ['pekpomser00001', 'pekpomser00002', 'pekpomser00003'].
+Checking installation environment on all nodes.
+Installing applications on all nodes.
+Synchronizing cgroup configuration to new nodes.
+Successfully synchronized cgroup configuration to new nodes.
+Synchronizing alarmItem configuration to new nodes.
+Successfully synchronized alarmItem configuration to new nodes.
+Installation is completed.
+Configuring.
+Configuring new nodes.
+Checking node configuration on all nodes.
+Initializing instances on all nodes.
+Configuring pg_hba on all nodes.
+Successfully configured new nodes.
+Begin scpCertFile.
+Rebuilding new nodes.
+Locking cluster.
+Successfully locked cluster.
+Restoring new nodes.
+Successfully restored new nodes.
+Successfully rebuild new nodes.
+Configuration is completed.
+Starting new nodes.
+Successfully started new nodes.
+Synchronizing.
+Updating cluster configuration.
+Successfully updated cluster configuration.
+Synchronization is completed.
+Successfully enable node whiteList.
+Update resource control config file result: Not found resource config file on this node.
+Starting new cluster.
+Waiting for the cluster status to become available.
+......
+The cluster status is Degraded.
+Unlocking cluster.
+Successfully unlocked cluster.
+Creating new node group.
+Successfully created new node group.
+Waiting for the redistributing status to become yes.
+.
+The cluster redistributing status is yes.
+Successfully started new cluster.
+Successfully disabled delay xlog recycle.
+Starting timeseries table redistribute.
+Dilatation succeed. 扩容重分布： gs_expand -t redistribute  --redis-mode=insert
+Last time end with Begin redistribute.
+Checking the cluster status.
+Redistribution
+If you want to check the progress of redistribution, please check the log file on pekpomser00003: /var/log/gaussdb/perfadm/bin/gs_redis/gs_redis-2020-05-20_004303.log.
+Warning! Command to get the cgroup redisclass was cleared.
+Successfully clear resource control.
+No need to do timeseries redistribute.
+Redistribution succeeded. 重分布资源管控（需保证之前执行过gs_expand -t redistribute，且提示“Successfully setup resource control.”,需提前将参数"bypass_workload_manager"设置为on）： gs_expand -t resourcectl --resource-level=l
+Resource control for redistribution succeeds, now the resource level is:
+--------------------------------------------------
+Resource Level: l
+-------------------------------------------------- 每个表的重分布执行时间（redis_progress_detail）： 由于该表由重分布线程创建记录，当重分布异常退出或者session连接异常时可能导致记录的时间不准确，只能作为参考，需要获取准确时间需要通过日志进行读取； 当用户表在pgxc_redistb中的redistributed字段为'y'时，用户再修改表名，该表中的table_name不会再进行更新。 gaussdb=# select * from redis_progress_detail;
+  dbname  | table_name  |       start_time        |       finish_time       |  size
+----------+-------------+-------------------------+-------------------------+-------------+--------
+ testdb | sch1.test11 | 2018-01-30 10:53:52.695 | 2018-01-30 10:53:53.341 | 491520
+ testdb | sch1.test25 | 2018-01-30 10:53:53.458 | 2018-01-30 10:53:54.083 | 491520
+ testdb | sch1.test5  | 2018-01-30 10:53:54.192 | 2018-01-30 10:53:54.791 | 491520
+ testdb | sch1.test21 | 2018-01-30 10:53:54.898 | 2018-01-30 10:53:55.501 | 491520
+ testdb | sch1.test3  | 2018-01-30 10:53:55.609 | 2018-01-30 10:53:56.216 | 491520
+ testdb | sch1.test29 | 2018-01-30 10:53:56.324 | 2018-01-30 10:53:56.92? | 491520
+(6 rows) 示例三： 扩容过程中集群状态异常而导致扩容失败。 gs_expand -t dilatation -X /opt/software/GaussDB_Kernel /clusterconfig_dilatation.xml
+Check cluster version consistency.
+Successfully checked cluster version.
+Distributing cluster dilatation XML file.
+Checking static configuration.
+Static configuration is matched with the old configuration file.
+Checking the cluster status.
+Successfully checked the cluster status.
+Performing health check.
+Health check succeeded.
+Backing up parameter files.
+Successfully backed up parameter files.
+Installing.
+Deleting instances from ['pekpomser00001', 'pekpomser00002', 'pekpomser00003'].
+Uninstalling applications on ['pekpomser00001', 'pekpomser00002', 'pekpomser00003'].
+Successfully uninstalled applications on ['pekpomser00001', 'pekpomser00002', 'pekpomser00003'].
+Checking installation environment on all nodes.
+Installing applications on all nodes.
+Synchronizing cgroup configuration to new nodes.
+Successfully synchronized cgroup configuration to new nodes.
+Synchronizing alarmItem configuration to new nodes.
+Successfully synchronized alarmItem configuration to new nodes.
+Installation is completed.
+Configuring.
+Configuring new nodes.
+Checking node configuration on all nodes.
+Initializing instances on all nodes.
+Configuring pg_hba on all nodes.
+Successfully configured new nodes.
+Begin scpCertFile.Rebuilding new nodes.
+Locking cluster.
+Successfully locked cluster.
+Restoring new nodes.
+Successfully restored new nodes.
+Successfully rebuild new nodes.
+Configuration is completed.
+Starting new nodes.
+Successfully started new nodes.
+Synchronizing.
+Updating cluster configuration.
+Successfully updated cluster configuration.
+Synchronization is completed.
+Successfully enable node whiteList.
+Update resource control config file result: Not found resource config file on this node.
+Starting new cluster.
+Waiting for the cluster status to become available.
+...
+The cluster status is available.
+Unlocking cluster.
+Successfully unlocked cluster.
+Creating new node group.
+Successfully created new node group.
+Waiting for the redistributing status to become yes.
+............
+............
+............
+............
+............
+[GAUSS-51607] : Failed to start cluster.
+Warning: Dilatation is completed, but failed to start and config cluster. Please check the log to find the reason.
+Solve the above problem and invoke the following command to continue the dilatation process.
+gs_expand -t dilatation -X xmlfile [--dws-mode] 查看CM_Agent日志，报创建node group时失败，排除错误。如本例是由于pg_xlog权限不足，权限修改成功后系统自动创建node group成功。 cd /var/log/perfadm/gaussdb/gaussdba/cm/cm_agent>
+vi cm_agent-2017-02-11_171343-current.log
+
+2017-02-11 17:13:43.425 tid=96633 StartAndStop LOG: create new group ok, old group name is:(group_version1), create new group cmd is:(CREATE NODE GROUP group_version2 WITH ( dn_6001_6002,dnperfadm@plat2:/var/log/perfadm/gaussdb/perfadm/cm/cm_agent> 12 ); ).
+2017-02-11 17:13:43.425 tid=96633 StartAndStop LOG: select pgxc_pool_reload().
+2017-02-11 17:13:43.777 tid=96633 StartAndStop ERROR:  execute command(commit;) is failed, errMsg is: PANIC:  could not open file "pg_xlog/000000010000000000000001" (log file 0, segment 1): Permission denied
+PANIC:  could not open file "pg_xlog/000000010000000000000001" (log file 0, segment 1): Permission denied
+!
+2017-02-11 17:13:43.777 tid=96633 StartAndStop ERROR: failed to commit. 示例五： 扩容失败，执行扩容回滚操作。 gs_expand -t crashclean -X /opt/software/GaussDB_Kernel /clusterconfig_dilatation.xml
+Distributing cluster dilatation XML file.
+Checking static configuration.
+Static configuration is matched with the old configuration file.Crash clean for extansion.
+Last time end with Install new nodes.
+Rolling back.
+Uninstalling applications on all nodes.
+Successfully uninstalled applications on all nodes.
+Rollback is completed
+Cleaning  backuped cluster parameter file.
+Successfully cleaned backuped cluster parameter file.
+Crashclean succeed. 手动启动集群。 gs_om -t stop
+Stopping cluster.
+=========================================
+Successfully stopped cluster.
+=========================================
+End stop cluster. gs_om -t start
+Starting cluster.
+======================================================================
+Successfully started primary instance. Wait for standby instance.
+======================================================================
+.
+Successfully started cluster.
+======================================================================
+cluster_state      : Normal
+redistributing     : No
+node_count         : 6
+Coordinator State
+    normal         : 4
+    abnormal       : 0
+GTM State
+    primary        : 1
+    standby        : 1
+    abnormal       : 0
+    down           : 0
+Datanode State
+    primary        : 15
+    standby        : 15
+    secondary      : 15
+    building       : 0
+    abnormal       : 0
+    down           : 0
+
+Successfully started cluster. 示例六： 升副本操作。 gs_expand -t add_replication -X /usr/local/tool/clusterConfig.xml
+Ready to restore local static config file.
+Restore local static config file successfully.
+Current cluster replication number is 3
+Init global successfully.
+Ready to create step directory: /usr/local/temp/add_replication_step
+Successfully to create step directory: /usr/local/temp/add_replication_step
+From 3 replication to 4 replication.
+Start check new nodes in XML.
+New nodes are added to the cluster ['10.30.58.219'].
+Check new nodes successfully.
+Stage begin: Start backup file stage.
+Stage finish: Successfully backup config file stage.
+Transport XML file successfully. /usr/local/tool/clusterConfig.xml
+Successfully generate static config file on new instance nodes.
+Stage begin: Start install app on new nodes stage.
+Start clean new nodes.
+Uninstalling applications on ['10.30.58.219'].
+Successfully uninstalled applications on ['10.30.58.219'].
+Clean new nodes [['10.30.58.219']] successfully.
+Stage finish: Install stage perform successfully.
+Start copying license file and so file.
+Copy cert files and so files successfully.
+Start compress tar ball.
+Start decompress tar ball on remote new node.
+Distribute tar file successfully.
+Start to config new DN instances.
+Initializing instances on new instances.
+Init new instances successfully.
+Start to build cm_agent on new nodes.
+Transport cm_agent config file to new nodes successfully.
+Start rebuild new datanode instance.
+Rebuild new datanode instance successfully.
+New instance config successfully.
+Start to configure all data node instances stage.
+Start configure postgresql.conf on origin DN instance.
+Stage finish: Successfully config postgresql.conf file stage.
+Cluster type is single-inst, no need to build pgxc_node.
+Update dcf_config for dcf successfully.
+Cm start reload configure.
+Start new node begin.
+New node Start successfully.
+Wait for cluster to normal.
+Starting to check replication information.
+Cluster state is [Degraded].Please check repair cluster to Normal.
+Cluster wait to build DN. Time spent 0.0886058807373s
+Starting to check replication information.
+Cluster state is [Degraded].Please check repair cluster to Normal.
+Cluster wait to build DN. Time spent 10.1608610153s
+Starting to check replication information.
+Cluster state is [Degraded].Please check repair cluster to Normal.
+Cluster wait to build DN. Time spent 20.2248330116s
+Starting to check replication information.
+Cluster state is [Degraded].Please check repair cluster to Normal.
+Cluster wait to build DN. Time spent 30.2797150612s
+Starting to check replication information.
+Cluster state is [Normal].
+Cluster state is : [Normal]
+Start Clean backup files
+Clean backup files successfully.
+Add replication perform successfully.Current replication number is 5 示例7：重分布参数设置 gs_expand -t parametercfg --lockwait-timeout=8000 --lockwait-interval=0 --trylock-threshold=-1 --enable-cancel=false --last-catchup-threshold=5000 --catchup-times=-1 --write-error-mode=true
+Creating a redis parameter file.
+Succeeded in creating the redis parameter file.
+Redis parameters are set successfully. 相关命令 gs_shrink 父主题： 系统内部调用的工具 版权所有 © 华为技术有限公司

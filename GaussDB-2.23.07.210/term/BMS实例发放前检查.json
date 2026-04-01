@@ -1,0 +1,176 @@
+{
+  "topic": "BMS实例发放前检查",
+  "term_count": 34,
+  "terms": [
+    {
+      "term": "BMS",
+      "content": "BMS PXE是否打开 BMS PXE是否打开 目的 确认BMS PXE是否打开。 前提条件 BMS物理机入云完成。 操作步骤 登录ManageOne运维面页面。 在右下角常用链接处登录CPS页面。 登录后点击左侧 配置 > 裸金属管理 > 在页面右侧点击部署裸金属服务。 查看裸金属PXE服务开关状态。 预期结果 裸金属PXE服务状态已开。",
+      "source_file": "111_BMS PXE.txt"
+    },
+    {
+      "term": "BMS高速网络与低速网络vlan分配数量检查",
+      "content": "BMS高速网络与低速网络vlan分配数量检查 BMS高速网络与低速网络vlan分配数量检查 目的 确认BMS高速网络与低速网络vlan分配充足。 前提条件 底座已安装。 操作步骤 登录cps首节点后台。 从底座LLD \"Protal\" 页签，获取FusionSphere OpenStack安装部署界面（CPS）的IP，后台登录。 密码从账户一览表中“A类（后台）”页签，FusionSphere OpenStack对应的fsp账号密码。 登录后切换root用户。 su - root 输入source set_env 导入环境变量 在页面选择框中输入 1 输入环境变量1密码，密码从账户一览表 “B类（FusionSphere OpenStack）”页签，OpenStack节点对应的dc_admin用户对应的密码 执行“cps provider-list”查看当前环境里规划的BMS高速网络与低速网络vlan数量。 cps provider-list 预期结果 BMS高速网络与低速网络vlan分配充足。",
+      "source_file": "056_BMSvlan.txt"
+    },
+    {
+      "term": "BMS机器网卡检查",
+      "content": "BMS机器网卡检查 BMS机器网卡检查 目的 确认BMS机器网卡正常且组装bond成功。 前提条件 已申请BMS实例。 操作步骤 租户用户登录ManageOne运营面。 进入“ > 计算 > 裸金属服务器”页面，单击申请的裸金属服务器，查看网卡信息。 预期结果 BMS机器网卡信息显示绑定的ip信息。",
+      "source_file": "113_BMS.txt"
+    },
+    {
+      "term": "BMS",
+      "content": "BMS JBOD模式禁用检查 BMS JBOD模式禁用检查 目的 确认BMS已禁用JBOD模式。 前提条件 BMS物理机入云完成。 操作步骤 登录每一台BMS服务器的IBMC页面。 登录Service OM。 选择“首页 > 服务列表 > 裸金属资源”， 获取BMC IP地址。 登录服务器iBMC系统，对故障主机进行下电操作。 登录地址：https://步骤b获取的获取BMC IP地址。 默认帐户和密码请联系环境管理员获取。 根据不同机型，查看JBOD模式启用情况（以下面几种机型为例）。 RH2288H V3机型，点击“信息 -> 系统信息 -> 存储 -> 视图”，JBOD模式显示N/A。 RH2288H V5机型，点击系统管理 -> 存储管理，JBOD模式显示已禁用。 预期结果 所有机器JBOD模式已禁用。",
+      "source_file": "110_BMS JBOD.txt"
+    },
+    {
+      "term": "BMS裸金属发放验证和回收",
+      "content": "BMS裸金属发放验证和回收 BMS裸金属发放验证和回收 目的 BMS裸金属实例发放和删除验证。 前提条件 系统存在“可部署”状态可申请的裸金属服务器。 系统存在可用裸金属服务器规格。 系统已注册可用的裸金属服务器镜像。 系统存在可用的网络。 租户用户配额及系统资源充足。 操作步骤 租户用户登录ManageOne运营面。 进入“ > 计算 > 裸金属服务器”页面，单击“申请裸金属服务器”。 选择一款产品，单击“立即申请”（如果没有镜像选择，尝试从ServiceOM页面手动注册一个镜像）。 发放后选删除裸金属实例。 预期结果 发放成功后，实例状态变为“运行中”。 删除实例后，裸金属节点在Service OM显示节点为“可部署”状态。",
+      "source_file": "108_BMS.txt"
+    },
+    {
+      "term": "管理区到BMS网络测试",
+      "content": "管理区到BMS网络测试 管理区到BMS网络测试 目的 DMZ_service_advance与BMS实例网络连通。 前提条件 已发放BMS实例。 操作步骤 登录发放的BMS实例后台，ping任意管理节点的DMZ_service_advance网段IP。 实例后台账号密码从账户一览表中数据库页签，租户镜像默认密码对应的账户密码 DMZ_service_advance 网段从ServiceOM -> 服务列表 -> 网络资源 -> 虚拟网络 中搜索获取对应网段，然后到serviceOM -> 服务列表 -> 计算资源 -> 虚拟机 按IP段搜索管理节点，ping其中任意节点。 预期结果 网络互通。",
+      "source_file": "060_BMS.txt"
+    },
+    {
+      "term": "数据库可用AZ命名与BMS可用分区一致",
+      "content": "数据库可用AZ命名与BMS可用分区一致 数据库可用AZ命名与BMS可用分区一致 目的 检查新增AZ与扩容AZ的名称是否一致。 前提条件 BMS对应AZ扩容完成，已在后台新增AZ。 操作步骤 进入serviceOM -> 服务列表 -> 裸金属资源 –>可用分区，记录可用分区。 进入serviceCM -> 自助开发平台 –> dbs-ops ->实例运维 -> 配置管理 ->  AZ管理。 对比AZ名称是否一致。 预期结果 BMS新增AZ与dbs-ops平台AZ名称一致，且一一对应。",
+      "source_file": "063_AZBMS.txt"
+    },
+    {
+      "term": "BMS高速网络平面两中心互通（两地三中心检查）",
+      "content": "BMS高速网络平面两中心互通（两地三中心检查） BMS高速网络平面两中心互通（两地三中心检查） 目的 BMS高速网络两中心互通。 前提条件 申请两台BMS实例。 两台实例各挂载一个在同一高速网络平面的网卡。 操作步骤 租户用户登录ManageOne运营面。 进入“ > 计算 > 裸金属服务器”页面，单击“申请裸金属服务器”。 选择增加高速网卡，使用已规划好的高速网卡。 从BMS实例1 高速网络IP 到BMS实例2 ping测试。 预期结果 发放成功后，实例状态变为“运行中”。 从BMS实例1 高速网络IP 到BMS实例2 ping测试成功。",
+      "source_file": "109_BMS.txt"
+    },
+    {
+      "term": "检查数据库VPC所在资源空间",
+      "content": "检查数据库VPC所在资源空间 检查数据库VPC所在资源空间 目的 检查数据库VPC所在资源空间名称是否满足region_id开头要求。 前提条件 已创建数据库所需VPC。 操作步骤 登录ManageOne运营面页面。 点击上方导航栏 资源-> 弹出页面点击左侧已分配资源-> 选择右侧虚拟私有云。 查看显示的所属资源空间名称，是否都是以region_id开头。 预期结果 所有显示的所属资源空间，都是以region_id开头。",
+      "source_file": "061_VPC.txt"
+    },
+    {
+      "term": "BMS机器网卡检查",
+      "content": "BMS机器网卡检查 BMS机器网卡检查 目的 确认BMS机器网卡正常且组装bond成功。 前提条件 已申请BMS实例。 操作步骤 租户用户登录ManageOne运营面。 进入“ > 计算 > 裸金属服务器”页面，单击申请的裸金属服务器，查看网卡信息。 预期结果 BMS机器网卡信息显示绑定的ip信息。",
+      "source_file": "057_BMS.txt"
+    },
+    {
+      "term": "BMS裸金属发放验证和回收",
+      "content": "BMS裸金属发放验证和回收 BMS裸金属发放验证和回收 目的 BMS裸金属实例发放和删除验证。 前提条件 系统存在“可部署”状态可申请的裸金属服务器。 系统存在可用裸金属服务器规格。 系统已注册可用的裸金属服务器镜像。 系统存在可用的网络。 租户用户配额及系统资源充足。 操作步骤 租户用户登录ManageOne运营面。 进入“ > 计算 > 裸金属服务器”页面，单击“申请裸金属服务器”。 选择一款产品，单击“立即申请”（如果没有镜像选择，尝试从ServiceOM页面手动注册一个镜像）。 发放后选删除裸金属实例。 预期结果 发放成功后，实例状态变为“运行中”。 删除实例后，裸金属节点在Service OM显示节点为“可部署”状态。",
+      "source_file": "052_BMS.txt"
+    },
+    {
+      "term": "BMS管控规格关联度检查",
+      "content": "BMS管控规格关联度检查 BMS管控规格关联度检查 目的 确认BMS资源与管控规格关联完成。 前提条件 BMS物理机入云完成，已完成批量配置以及底层BMS规格创建。 操作步骤 进入serviceOM -> 服务列表 -> 裸金属资源 –> 规格。 选中创建的与物理机配置相同的规格，页面拉到下方查看规格管理的裸金属服务器信息。 预期结果 规格中显示的裸金属服务器总量与扩容入云的总量相同。",
+      "source_file": "064_BMS.txt"
+    },
+    {
+      "term": "管理面通信矩阵放通检查",
+      "content": "管理面通信矩阵放通检查 管理面通信矩阵放通检查 目的 管理面通信矩阵放通检查。 前提条件 已安装 GaussDB 服务。 操作步骤 获取《数据库服务 8.3.0 防火墙配置指引》文档，在“单Region Public<->DMZ”sheet处获取 GaussDB 管理面需要打通的网络平面。 登录实例管理节点后台。 依次curl通信矩阵中需要打通的网络平面内已分配IP与端口。（从SrcIP列中的节点，curl Dst IP 列中的节点的对应Dst Port列中端口） 预期结果 网络互通。",
+      "source_file": "118_file_118.txt"
+    },
+    {
+      "term": "引擎、规格与BMS可用分区绑定检查",
+      "content": "引擎、规格与BMS可用分区绑定检查 引擎、规格与BMS可用分区绑定检查 目的 检查引擎、规格与BMS可用分区绑定。 前提条件 BMS对应AZ扩容完成，底层规格创建完成。 操作步骤 在ManageOne运维面页面的“常用链接”栏中单击“ServiceCM”，跳转到ServiceCM插件列表界面。 在ServiceCM插件列表界面，单击“自助开发平台 > dbs-ops”，进入DBS运维管理平台。 进入实例运维 > 配置管理 > 规格管理。 在页面搜索对应的BMS规格。 在结果中单击查看引擎关联关系。 勾选BMS所用AZ。 查看是否有已建立关联关系。 不同形态需要关联的规格见 表1 。 表1 规格 形态 volume规格 ee规格 etcd规格 1主2备 gaussdb.opengauss.volume.localssd.3.ha gaussdb.opengauss.ee.bms.{规格ID}.ha - 1主3备 gaussdb.opengauss.volume.localssd.4.ha gaussdb.opengauss.ee.bms.{规格ID}.ha - 金融版（数据计算型） gaussdb.opengauss.volume.localssd.4.co gaussdb.opengauss.volume.localssd.2.co gaussdb.opengauss.ee.bms.{规格ID}.co gaussdb.opengauss.ee.etcd.bms.{规格ID}.co 企业版 gaussdb.opengauss.volume.localssd.3.co gaussdb.opengauss.ee.bms.{规格ID}.co gaussdb.opengauss.ee.etcd.bms.{规格ID}.co 金融版（标准型） gaussdb.opengauss.volume.localssd.4.co gaussdb.opengauss.ee.bms.{规格ID}.co gaussdb.opengauss.ee.etcd.bms.{规格ID}.co 其中：{规格ID} 取值： ？xlarge  表示cpu核数， 其中 ？*4 = cpu核数。 arm8 与 x868 表示arm/x86 实例部署架构。 in/ co/ha 表示部署形态： 独立部署、混合部署、主备版。 bms/ ld 表示机器类型：BMS机器。 例如：“gaussdb.opengauss.ee.bms.15xlarge.x868.ha”表示主备版部署形态，机器采用x86架构60U规格的bms裸金属机器。 搜索部署形态相关的volume规格，同上一步，查看AZ关联关系。 预期结果 当前局点需要使用的规格都已经建立相关的引擎关系。",
+      "source_file": "065_BMS.txt"
+    },
+    {
+      "term": "L3GW网络测试（两地三中心检查）",
+      "content": "L3GW网络测试（两地三中心检查） L3GW网络测试（两地三中心检查） 目的 BMS业务网络测试。 前提条件 申请两台BMS实例 两中心各申请一台实例分别在VPC1 VPC2网卡(不能是自己新建VPC网卡，是已经配置好的预设的网卡）。 操作步骤 租户用户登录ManageOne运营面。 进入“ > 计算 > 裸金属服务器”页面，单击“申请裸金属服务器”，选择对应的网卡。 从BMS实例1 到BMS实例2 ping两个VPC的连通性。 预期结果 发放成功后，实例状态变为“运行中”。 从BMS实例1 VPC1网络到BMS实例2 VPC2网络ping测试成功。",
+      "source_file": "115_L3GW.txt"
+    },
+    {
+      "term": "BMS",
+      "content": "BMS PXE是否打开 BMS PXE是否打开 目的 确认BMS PXE是否打开。 前提条件 BMS物理机入云完成。 操作步骤 登录ManageOne运维面页面。 在右下角常用链接处登录CPS页面。 登录后点击左侧 配置 > 裸金属管理 > 在页面右侧点击部署裸金属服务。 查看裸金属PXE服务开关状态。 预期结果 裸金属PXE服务状态已开。",
+      "source_file": "055_BMS PXE.txt"
+    },
+    {
+      "term": "BMS",
+      "content": "BMS JBOD模式禁用检查 BMS JBOD模式禁用检查 目的 确认BMS已禁用JBOD模式。 前提条件 BMS物理机入云完成。 操作步骤 登录每一台BMS服务器的IBMC页面。 登录Service OM。 选择“首页 > 服务列表 > 裸金属资源”， 获取BMC IP地址。 登录服务器iBMC系统，对故障主机进行下电操作。 登录地址：https://步骤b获取的获取BMC IP地址。 默认帐户和密码请联系环境管理员获取。 根据不同机型，查看JBOD模式启用情况（以下面几种机型为例）。 RH2288H V3机型，点击“信息 -> 系统信息 -> 存储 -> 视图”，JBOD模式显示N/A。 RH2288H V5机型，点击系统管理 -> 存储管理，JBOD模式显示已禁用。 预期结果 所有机器JBOD模式已禁用。",
+      "source_file": "054_BMS JBOD.txt"
+    },
+    {
+      "term": "检查BMS节点磁盘和管控磁盘大小",
+      "content": "检查BMS节点磁盘和管控磁盘大小 检查BMS节点磁盘和管控磁盘大小 目的 检查BMS节点磁盘和管控磁盘大小。 前提条件 底层规格创建完成，服务器已入云。 操作步骤 进入ServiceOM。 选择服务列表 -> 裸金属资源。 左侧列表展开规格 -> 选中需要使用的规格码， 右侧查看对应的磁盘大小并记录。 复制规格ID。 在ServiceCM插件列表界面，单击“自助开发平台 > dbs-ops”，进入DBS运维管理平台。 进入实例管理 -> 配置管理 -> 规格管理。 在计算资源规格码输入规格ID。 点击更多 > 查看属性，对比属性中磁盘的值。 所有结果都需要对比。 预期结果 底层规格的磁盘容量大于管控规格中的磁盘容量 （至少大1.2倍以上）。",
+      "source_file": "122_BMS.txt"
+    },
+    {
+      "term": "BMS高速网络与低速网络vlan分配数量检查",
+      "content": "BMS高速网络与低速网络vlan分配数量检查 BMS高速网络与低速网络vlan分配数量检查 目的 确认BMS高速网络与低速网络vlan分配充足。 前提条件 底座已安装。 操作步骤 登录cps首节点后台。 从底座LLD \"Protal\" 页签，获取FusionSphere OpenStack安装部署界面（CPS）的IP，后台登录。 密码从账户一览表中“A类（后台）”页签，FusionSphere OpenStack对应的fsp账号密码。 登录后切换root用户。 su - root 输入source set_env 导入环境变量 在页面选择框中输入 1 输入环境变量1密码，密码从账户一览表 “B类（FusionSphere OpenStack）”页签，OpenStack节点对应的dc_admin用户对应的密码 执行“cps provider-list”查看当前环境里规划的BMS高速网络与低速网络vlan数量。 cps provider-list 预期结果 BMS高速网络与低速网络vlan分配充足。",
+      "source_file": "112_BMSvlan.txt"
+    },
+    {
+      "term": "BMS高速网络平面两中心间带宽（两地三中心检查）",
+      "content": "BMS高速网络平面两中心间带宽（两地三中心检查） BMS高速网络平面两中心间带宽（两地三中心检查） 目的 BMS高速网络两中心间带宽80Gb。 前提条件 两中心各申请三台BMS实例。 各实例挂载一个在同一高速网络平面的网卡。 操作步骤 租户用户登录ManageOne运营面。 进入“ > 计算 > 裸金属服务器”页面，单击“申请裸金属服务器”，选择对应高速平面。 其中一中心，3台BMS通过高速平面同时分别打流到另一中心的3台BMS，网络侧观察两中心间高速网络带宽。 打流操作： 1. 下载对应版本的iPerf工具，并且在需要测试的服务器上解压（测试的都需要）。 2. 在目的端服务器执行以下命令： cd {path} iperf3 ip {port} -s {path} 为工具在服务器上解压后的文件目录 {port} 为监听端口，一般linux为22，注意防火墙设置，需提供一个已经放通的端口 3. 在源端服务器执行以下命令 cd {path} iperf3 -c {ip} -p {port} -t {time} {ip} 目的端IP {port} 目的端端口 {time} 测试时间 4. iperf客户端连接到iperf服务端成功后会进行带宽（Bandwidth）测试，测试结束后查看结果即可 预期结果 网络侧观察两中心间高速网络带宽约为80Gb。",
+      "source_file": "114_BMS.txt"
+    },
+    {
+      "term": "管理面通信矩阵放通检查",
+      "content": "管理面通信矩阵放通检查 管理面通信矩阵放通检查 目的 管理面通信矩阵放通检查。 前提条件 已安装 GaussDB 服务。 操作步骤 获取《数据库服务 8.3.0 防火墙配置指引》文档，在“单Region Public<->DMZ”sheet处获取 GaussDB 管理面需要打通的网络平面。 登录实例管理节点后台。 依次curl通信矩阵中需要打通的网络平面内已分配IP与端口。（从SrcIP列中的节点，curl Dst IP 列中的节点的对应Dst Port列中端口） 预期结果 网络互通。",
+      "source_file": "062_file_62.txt"
+    },
+    {
+      "term": "BMS高速网络平面两中心互通（两地三中心检查）",
+      "content": "BMS高速网络平面两中心互通（两地三中心检查） BMS高速网络平面两中心互通（两地三中心检查） 目的 BMS高速网络两中心互通。 前提条件 申请两台BMS实例。 两台实例各挂载一个在同一高速网络平面的网卡。 操作步骤 租户用户登录ManageOne运营面。 进入“ > 计算 > 裸金属服务器”页面，单击“申请裸金属服务器”。 选择增加高速网卡，使用已规划好的高速网卡。 从BMS实例1 高速网络IP 到BMS实例2 ping测试。 预期结果 发放成功后，实例状态变为“运行中”。 从BMS实例1 高速网络IP 到BMS实例2 ping测试成功。",
+      "source_file": "053_BMS.txt"
+    },
+    {
+      "term": "检查底层规格与物理机绑定情况",
+      "content": "检查底层规格与物理机绑定情况 检查底层规格与物理机绑定情况 目的 检查底层规格是否和物理机完成绑定。 前提条件 底层规格创建完成，服务器已入云并且已经进行批量配置。 操作步骤 进入Service OM。 选择服务列表 -> 裸金属服务器。 左侧列表展开规格，选中需要使用的规格码，右侧下拉页面。 在规格关联的裸金属服务器及实例信息栏，查看绑定的服务器数量。 预期结果 规格中显示的服务器数量，和新扩容进去的对应规格机器数量相等, 且该规格未部署机器满足部署形态要求。 形态相关规格： 部署形态 console显示 volume规格 参数组名称 solution值 部署形态 BMS个数 主备 1主2备 gaussdb.opengauss.volume.localssd.3.ha Default-Enterprise-Edition-GaussDB triset 1+1+1 3 1主3备 gaussdb.opengauss.volume.localssd.4.ha Default-Enterprise-Edition-GaussDB quadruset 2+2+1 5 单副本 gaussdb.opengauss.volume.localssd.1.ha Default-Enterprise-Edition-GaussDB single 1 1 1主1备 gaussdb.opengauss.volume.localssd.2.ha Default-Enterprise-Edition-GaussDB double 1+1 2 分布式 金融版（数据计算型） gaussdb.opengauss.volume.localssd.2.co Default-Computation-Edition-GaussDB hcs4 2+2+1 5 企业版 gaussdb.opengauss.volume.localssd.3.co Default-Enterprise-Edition-GaussDB hcs2 1+1+1 3 金融版（标准型） gaussdb.opengauss.volume.localssd.4.co Default-Finance-Edition-GaussDB hcs1 4+4+1 9 企业版 灾备实例 gaussdb.opengauss.volume.localssd.1.co Default-Single-Replica-Disaster-GaussDB hcs6 1 1",
+      "source_file": "067_file_67.txt"
+    },
+    {
+      "term": "BMS管控规格关联度检查",
+      "content": "BMS管控规格关联度检查 BMS管控规格关联度检查 目的 确认BMS资源与管控规格关联完成。 前提条件 BMS物理机入云完成，已完成批量配置以及底层BMS规格创建。 操作步骤 进入serviceOM -> 服务列表 -> 裸金属资源 –> 规格。 选中创建的与物理机配置相同的规格，页面拉到下方查看规格管理的裸金属服务器信息。 预期结果 规格中显示的裸金属服务器总量与扩容入云的总量相同。",
+      "source_file": "120_BMS.txt"
+    },
+    {
+      "term": "BMS高速网络平面两中心间带宽（两地三中心检查）",
+      "content": "BMS高速网络平面两中心间带宽（两地三中心检查） BMS高速网络平面两中心间带宽（两地三中心检查） 目的 BMS高速网络两中心间带宽80Gb。 前提条件 两中心各申请三台BMS实例。 各实例挂载一个在同一高速网络平面的网卡。 操作步骤 租户用户登录ManageOne运营面。 进入“ > 计算 > 裸金属服务器”页面，单击“申请裸金属服务器”，选择对应高速平面。 其中一中心，3台BMS通过高速平面同时分别打流到另一中心的3台BMS，网络侧观察两中心间高速网络带宽。 打流操作： 1. 下载对应版本的iPerf工具，并且在需要测试的服务器上解压（测试的都需要）。 2. 在目的端服务器执行以下命令： cd {path} iperf3 ip {port} -s {path} 为工具在服务器上解压后的文件目录 {port} 为监听端口，一般linux为22，注意防火墙设置，需提供一个已经放通的端口 3. 在源端服务器执行以下命令 cd {path} iperf3 -c {ip} -p {port} -t {time} {ip} 目的端IP {port} 目的端端口 {time} 测试时间 4. iperf客户端连接到iperf服务端成功后会进行带宽（Bandwidth）测试，测试结束后查看结果即可 预期结果 网络侧观察两中心间高速网络带宽约为80Gb。",
+      "source_file": "058_BMS.txt"
+    },
+    {
+      "term": "L3GW网络测试（两地三中心检查）",
+      "content": "L3GW网络测试（两地三中心检查） L3GW网络测试（两地三中心检查） 目的 BMS业务网络测试。 前提条件 申请两台BMS实例 两中心各申请一台实例分别在VPC1 VPC2网卡(不能是自己新建VPC网卡，是已经配置好的预设的网卡）。 操作步骤 租户用户登录ManageOne运营面。 进入“ > 计算 > 裸金属服务器”页面，单击“申请裸金属服务器”，选择对应的网卡。 从BMS实例1 到BMS实例2 ping两个VPC的连通性。 预期结果 发放成功后，实例状态变为“运行中”。 从BMS实例1 VPC1网络到BMS实例2 VPC2网络ping测试成功。",
+      "source_file": "059_L3GW.txt"
+    },
+    {
+      "term": "管理区到BMS网络测试",
+      "content": "管理区到BMS网络测试 管理区到BMS网络测试 目的 DMZ_service_advance与BMS实例网络连通。 前提条件 已发放BMS实例。 操作步骤 登录发放的BMS实例后台，ping任意管理节点的DMZ_service_advance网段IP。 实例后台账号密码从账户一览表中数据库页签，租户镜像默认密码对应的账户密码 DMZ_service_advance 网段从ServiceOM -> 服务列表 -> 网络资源 -> 虚拟网络 中搜索获取对应网段，然后到serviceOM -> 服务列表 -> 计算资源 -> 虚拟机 按IP段搜索管理节点，ping其中任意节点。 预期结果 网络互通。",
+      "source_file": "116_BMS.txt"
+    },
+    {
+      "term": "BMS资源满足度检查",
+      "content": "BMS资源满足度检查 BMS资源满足度检查 目的 BMS资源满足度：数量、规格满足实例发放。 前提条件 完成BMS入云。 操作步骤 使用浏览器，登录ManageOne运维面。 登录地址：https:// ManageOne运维面主页的访问地址 :31943。例如，https://oc.type.com:31943。 默认帐号：bss_admin。默认密码可在《华为云Stack 8.3.0 帐户一览表》中“A类Portal”页签，产品名称为“ManageOne”，帐户登录界面名称为“ManageOne运维面”获取。 为了您的帐户安全，请定期修改密码。 在页面的“常用链接”导航栏中，单击“Service OM”，选择区域后进入Service OM界面。 选择服务列表 > 资源 > 裸金属资源，查看各个AZ下可部署资源数量。 检查每台可部署裸金属服务器规格。 预期结果 根据前期规划的集群数量和部署形态，查看各AZ内BMS资源（规格和数量）是否满足需求（建议3AZ部署）。不同部署形态所需的BMS数量如下： 部署形态 部署模式 部署形态 BMS个数 主备 1主2备 1+1+1 3 1主3备 2+2+1 5 单副本 1 1 1主1备 1+1 2 分布式 金融版（数据计算型） 2+2+1 5 企业版 1+1+1 3 金融版（标准型） 4+4+1 9 企业版 灾备实例 1 1",
+      "source_file": "051_BMS.txt"
+    },
+    {
+      "term": "BMS资源满足度检查",
+      "content": "BMS资源满足度检查 BMS资源满足度检查 目的 BMS资源满足度：数量、规格满足实例发放。 前提条件 完成BMS入云。 操作步骤 使用浏览器，登录ManageOne运维面。 登录地址：https:// ManageOne运维面主页的访问地址 :31943。例如，https://oc.type.com:31943。 默认帐号：bss_admin。默认密码可在《华为云Stack 8.3.0 帐户一览表》中“A类Portal”页签，产品名称为“ManageOne”，帐户登录界面名称为“ManageOne运维面”获取。 为了您的帐户安全，请定期修改密码。 在页面的“常用链接”导航栏中，单击“Service OM”，选择区域后进入Service OM界面。 选择服务列表 > 资源 > 裸金属资源，查看各个AZ下可部署资源数量。 检查每台可部署裸金属服务器规格。 预期结果 根据前期规划的集群数量和部署形态，查看各AZ内BMS资源（规格和数量）是否满足需求（建议3AZ部署）。不同部署形态所需的BMS数量如下： 部署形态 部署模式 部署形态 BMS个数 主备 1主2备 1+1+1 3 1主3备 2+2+1 5 单副本 1 1 1主1备 1+1 2 分布式 金融版（数据计算型） 2+2+1 5 企业版 1+1+1 3 金融版（标准型） 4+4+1 9 企业版 灾备实例 1 1",
+      "source_file": "107_BMS.txt"
+    },
+    {
+      "term": "数据库可用AZ命名与BMS可用分区一致",
+      "content": "数据库可用AZ命名与BMS可用分区一致 数据库可用AZ命名与BMS可用分区一致 目的 检查新增AZ与扩容AZ的名称是否一致。 前提条件 BMS对应AZ扩容完成，已在后台新增AZ。 操作步骤 进入serviceOM -> 服务列表 -> 裸金属资源 –>可用分区，记录可用分区。 进入serviceCM -> 自助开发平台 –> dbs-ops ->实例运维 -> 配置管理 ->  AZ管理。 对比AZ名称是否一致。 预期结果 BMS新增AZ与dbs-ops平台AZ名称一致，且一一对应。",
+      "source_file": "119_AZBMS.txt"
+    },
+    {
+      "term": "检查底层规格与物理机绑定情况",
+      "content": "检查底层规格与物理机绑定情况 检查底层规格与物理机绑定情况 目的 检查底层规格是否和物理机完成绑定。 前提条件 底层规格创建完成，服务器已入云并且已经进行批量配置。 操作步骤 进入Service OM。 选择服务列表 -> 裸金属服务器。 左侧列表展开规格，选中需要使用的规格码，右侧下拉页面。 在规格关联的裸金属服务器及实例信息栏，查看绑定的服务器数量。 预期结果 规格中显示的服务器数量，和新扩容进去的对应规格机器数量相等, 且该规格未部署机器满足部署形态要求。 形态相关规格： 部署形态 console显示 volume规格 参数组名称 solution值 部署形态 BMS个数 主备 1主2备 gaussdb.opengauss.volume.localssd.3.ha Default-Enterprise-Edition-GaussDB triset 1+1+1 3 1主3备 gaussdb.opengauss.volume.localssd.4.ha Default-Enterprise-Edition-GaussDB quadruset 2+2+1 5 单副本 gaussdb.opengauss.volume.localssd.1.ha Default-Enterprise-Edition-GaussDB single 1 1 1主1备 gaussdb.opengauss.volume.localssd.2.ha Default-Enterprise-Edition-GaussDB double 1+1 2 分布式 金融版（数据计算型） gaussdb.opengauss.volume.localssd.2.co Default-Computation-Edition-GaussDB hcs4 2+2+1 5 企业版 gaussdb.opengauss.volume.localssd.3.co Default-Enterprise-Edition-GaussDB hcs2 1+1+1 3 金融版（标准型） gaussdb.opengauss.volume.localssd.4.co Default-Finance-Edition-GaussDB hcs1 4+4+1 9 企业版 灾备实例 gaussdb.opengauss.volume.localssd.1.co Default-Single-Replica-Disaster-GaussDB hcs6 1 1",
+      "source_file": "123_file_123.txt"
+    },
+    {
+      "term": "检查BMS节点磁盘和管控磁盘大小",
+      "content": "检查BMS节点磁盘和管控磁盘大小 检查BMS节点磁盘和管控磁盘大小 目的 检查BMS节点磁盘和管控磁盘大小。 前提条件 底层规格创建完成，服务器已入云。 操作步骤 进入ServiceOM。 选择服务列表 -> 裸金属资源。 左侧列表展开规格 -> 选中需要使用的规格码， 右侧查看对应的磁盘大小并记录。 复制规格ID。 在ServiceCM插件列表界面，单击“自助开发平台 > dbs-ops”，进入DBS运维管理平台。 进入实例管理 -> 配置管理 -> 规格管理。 在计算资源规格码输入规格ID。 点击更多 > 查看属性，对比属性中磁盘的值。 所有结果都需要对比。 预期结果 底层规格的磁盘容量大于管控规格中的磁盘容量 （至少大1.2倍以上）。",
+      "source_file": "066_BMS.txt"
+    },
+    {
+      "term": "检查数据库VPC所在资源空间",
+      "content": "检查数据库VPC所在资源空间 检查数据库VPC所在资源空间 目的 检查数据库VPC所在资源空间名称是否满足region_id开头要求。 前提条件 已创建数据库所需VPC。 操作步骤 登录ManageOne运营面页面。 点击上方导航栏 资源-> 弹出页面点击左侧已分配资源-> 选择右侧虚拟私有云。 查看显示的所属资源空间名称，是否都是以region_id开头。 预期结果 所有显示的所属资源空间，都是以region_id开头。",
+      "source_file": "117_VPC.txt"
+    },
+    {
+      "term": "引擎、规格与BMS可用分区绑定检查",
+      "content": "引擎、规格与BMS可用分区绑定检查 引擎、规格与BMS可用分区绑定检查 目的 检查引擎、规格与BMS可用分区绑定。 前提条件 BMS对应AZ扩容完成，底层规格创建完成。 操作步骤 在ManageOne运维面页面的“常用链接”栏中单击“ServiceCM”，跳转到ServiceCM插件列表界面。 在ServiceCM插件列表界面，单击“自助开发平台 > dbs-ops”，进入DBS运维管理平台。 进入实例运维 > 配置管理 > 规格管理。 在页面搜索对应的BMS规格。 在结果中单击查看引擎关联关系。 勾选BMS所用AZ。 查看是否有已建立关联关系。 不同形态需要关联的规格见 表1 。 表1 规格 形态 volume规格 ee规格 etcd规格 1主2备 gaussdb.opengauss.volume.localssd.3.ha gaussdb.opengauss.ee.bms.{规格ID}.ha - 1主3备 gaussdb.opengauss.volume.localssd.4.ha gaussdb.opengauss.ee.bms.{规格ID}.ha - 金融版（数据计算型） gaussdb.opengauss.volume.localssd.4.co gaussdb.opengauss.volume.localssd.2.co gaussdb.opengauss.ee.bms.{规格ID}.co gaussdb.opengauss.ee.etcd.bms.{规格ID}.co 企业版 gaussdb.opengauss.volume.localssd.3.co gaussdb.opengauss.ee.bms.{规格ID}.co gaussdb.opengauss.ee.etcd.bms.{规格ID}.co 金融版（标准型） gaussdb.opengauss.volume.localssd.4.co gaussdb.opengauss.ee.bms.{规格ID}.co gaussdb.opengauss.ee.etcd.bms.{规格ID}.co 其中：{规格ID} 取值： ？xlarge  表示cpu核数， 其中 ？*4 = cpu核数。 arm8 与 x868 表示arm/x86 实例部署架构。 in/ co/ha 表示部署形态： 独立部署、混合部署、主备版。 bms/ ld 表示机器类型：BMS机器。 例如：“gaussdb.opengauss.ee.bms.15xlarge.x868.ha”表示主备版部署形态，机器采用x86架构60U规格的bms裸金属机器。 搜索部署形态相关的volume规格，同上一步，查看AZ关联关系。 预期结果 当前局点需要使用的规格都已经建立相关的引擎关系。",
+      "source_file": "121_BMS.txt"
+    }
+  ]
+}

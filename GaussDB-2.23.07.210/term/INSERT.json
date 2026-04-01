@@ -1,0 +1,36 @@
+{
+  "topic": "INSERT",
+  "term_count": 6,
+  "terms": [
+    {
+      "term": "【建议】对于批量插入的情况，建议使用executeBatch执行INSERT",
+      "content": "【建议】对于批量插入的情况，建议使用executeBatch执行INSERT INTO VALUES (?)，执行效率将高于执行多条INSERT INTO VALUES(?)或INSERT INTO VALUES(?),...,(?) 【建议】对于批量插入的情况，建议使用executeBatch执行INSERT INTO VALUES (?)，执行效率将高于执行多条INSERT INTO VALUES(?)或INSERT INTO VALUES(?),...,(?)",
+      "source_file": "545_executeBatchINSERT INTO VALUES (_)INSERT INTO VALUES(_)INSERT INTO VALUES(_),....txt"
+    },
+    {
+      "term": "【规则】对存在多个唯一约束的表执行INSERT",
+      "content": "【规则】对存在多个唯一约束的表执行INSERT ON DUPLICATE KEY UPDATE 【规则】对存在多个唯一约束的表执行INSERT ON DUPLICATE KEY UPDATE 表中存在多个唯一约束包括存在多个唯一索引，或既存在主键（PRIMARY KEY），又存在唯一索引(UNQUE INDEX)两种情况。 当存在多个唯一约束时，会默认检查所有的唯一约束条件，只要任何一个约束存在冲突，就会对冲突行进行更新，即可能更新多条记录，与业务预期不相符。业务应给予更加明确的插入更新条件。",
+      "source_file": "544_INSERT ON DUPLICATE KEY UPDATE.txt"
+    },
+    {
+      "term": "【规格】INSERT",
+      "content": "【规格】INSERT ON DUPLICATE KEY UPDATE不支持对主键或唯一约束的列上执行UPDATE 【规格】INSERT ON DUPLICATE KEY UPDATE不支持对主键或唯一约束的列上执行UPDATE INSERT ON DUPLICATE KEY UPDATE的语义是对唯一约束冲突的行进行更新，这个过程中不应对约束的值进行更新。",
+      "source_file": "543_INSERT ON DUPLICATE KEY UPDATEUPDATE.txt"
+    },
+    {
+      "term": "【规格】INSERT",
+      "content": "【规格】INSERT ON DUPLICATE KEY UPDATE不支持对主键或唯一约束的列上执行UPDATE 【规格】INSERT ON DUPLICATE KEY UPDATE不支持对主键或唯一约束的列上执行UPDATE INSERT ON DUPLICATE KEY UPDATE的语义是对唯一约束冲突的行进行更新，这个过程中不应对约束的值进行更新。",
+      "source_file": "682_INSERT ON DUPLICATE KEY UPDATEUPDATE.txt"
+    },
+    {
+      "term": "【建议】对于批量插入的情况，建议使用executeBatch执行INSERT",
+      "content": "【建议】对于批量插入的情况，建议使用executeBatch执行INSERT INTO VALUES (?)，执行效率将高于执行多条INSERT INTO VALUES(?)或INSERT INTO VALUES(?),...,(?) 【建议】对于批量插入的情况，建议使用executeBatch执行INSERT INTO VALUES (?)，执行效率将高于执行多条INSERT INTO VALUES(?)或INSERT INTO VALUES(?),...,(?)",
+      "source_file": "684_executeBatchINSERT INTO VALUES (_)INSERT INTO VALUES(_)INSERT INTO VALUES(_),....txt"
+    },
+    {
+      "term": "【规则】对存在多个唯一约束的表执行INSERT",
+      "content": "【规则】对存在多个唯一约束的表执行INSERT ON DUPLICATE KEY UPDATE 【规则】对存在多个唯一约束的表执行INSERT ON DUPLICATE KEY UPDATE 表中存在多个唯一约束包括存在多个唯一索引，或既存在主键（PRIMARY KEY），又存在唯一索引(UNQUE INDEX)两种情况。 当存在多个唯一约束时，会默认检查所有的唯一约束条件，只要任何一个约束存在冲突，就会对冲突行进行更新，即可能更新多条记录，与业务预期不相符。业务应给予更加明确的插入更新条件。",
+      "source_file": "683_INSERT ON DUPLICATE KEY UPDATE.txt"
+    }
+  ]
+}

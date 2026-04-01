@@ -1,0 +1,1 @@
+PG_GTT_ATTACHED_PIDS PG_GTT_ATTACHED_PIDS PG_GTT_ATTACHED_PIDS视图可用来查看哪些会话正在使用全局临时表，调用pg_get_attached_pid()函数。 表1 PG_GTT_ATTACHED_PIDS字段 名称 类型 描述 schemaname name schema名称。 tablename name 全局临时表名称。 relid oid 全局临时表的oid。 pids bigint[] 线程pid列表。 sessionids bigint[] 会话id列表。 父主题： 其他系统视图 版权所有 © 华为技术有限公司

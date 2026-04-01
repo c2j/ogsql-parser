@@ -1,0 +1,1 @@
+WDR Snapshot Schema WDR Snapshot Schema WDR Snapshot在启动后（打开GUC参数 enable_wdr_snapshot ）,会在用户表空间“pg_default”，数据库“postgres”下的Snapshot Schema中创建对象，用于持久化WDR快照数据，默认初始化用户或监控管理员用户可以访问和操作Snapshot Schema下的对象。 根据GUC参数 wdr_snapshot_retention_days 来自动管理快照的生命周期。 WDR Snapshot原信息 WDR Snapshot数据表 父主题： Schema 版权所有 © 华为技术有限公司

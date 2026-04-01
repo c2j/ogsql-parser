@@ -1,0 +1,106 @@
+{
+  "topic": "Psycopg接口参考",
+  "term_count": 20,
+  "terms": [
+    {
+      "term": "cursor.fetchone()",
+      "content": "cursor.fetchone() cursor.fetchone() 功能描述 此方法提取查询结果集的下一行，并返回一个元组。 原型 cursor.fetchone() 参数 无。 返回值 单个元组，为结果集的第一条结果，当没有更多数据可用时，返回为“None”。 示例 请参见 示例：常用操作 。",
+      "source_file": "2603_cursor.fetchone().txt"
+    },
+    {
+      "term": "connection.cursor()",
+      "content": "connection.cursor() connection.cursor() 功能描述 此方法用于返回新的cursor对象。 原型 cursor(name=None, cursor_factory=None, scrollable=None, withhold=False) 参数 表1 connection.cursor参数 关键字 参数说明 name cursor名称，默认为None。 cursor_factory 用于创造非标准cursor，默认为None。 scrollable 设置SCROLL选项，默认为None。 withhold 设置HOLD选项，默认为False。 返回值 cursor对象（用于整个数据库使用Python编程的cursor）。 示例 请参见 示例：常用操作 。",
+      "source_file": "2598_connection.cursor().txt"
+    },
+    {
+      "term": "connection.rollback()",
+      "content": "connection.rollback() connection.rollback() 功能描述 此方法回滚当前挂起事务。 执行关闭连接“close()”而不先提交更改“commit()”将导致执行隐式回滚。 原型 connection.rollback() 参数 无。 返回值 无。 示例 请参见 示例：常用操作 。",
+      "source_file": "2602_connection.rollback().txt"
+    },
+    {
+      "term": "cursor.fetchone()",
+      "content": "cursor.fetchone() cursor.fetchone() 功能描述 此方法提取查询结果集的下一行，并返回一个元组。 原型 cursor.fetchone() 参数 无 返回值 单个元组，为结果集的第一条结果，当没有更多数据可用时，返回为“None”。 示例 请参见 示例：常用操作 。",
+      "source_file": "892_cursor.fetchone().txt"
+    },
+    {
+      "term": "connection.rollback()",
+      "content": "connection.rollback() connection.rollback() 功能描述 此方法回滚当前挂起事务。 执行关闭连接“close()”而不先提交更改“commit()”将导致执行隐式回滚。 原型 connection.rollback() 参数 无 返回值 无 示例 请参见 示例：常用操作 。",
+      "source_file": "891_connection.rollback().txt"
+    },
+    {
+      "term": "psycopg2.connect()",
+      "content": "psycopg2.connect() psycopg2.connect() 功能描述 此方法创建新的数据库会话并返回新的connection对象。 原型 import os conn=psycopg2.connect(dbname=\"test\",user=os.getenv('user'),password=os.getenv('password'),host=\"127.0.0.1\",port=\"5432\") 参数 表1 psycopg2.connect参数 关键字 参数说明 dbname 数据库名称。 user 用户名。 password 密码。 host 数据库IP地址，可指定多IP，IP间以逗号隔开，默认为UNIX socket类型。 port 连接端口号，默认为5432。host为多IP时，如端口号相同，指定一个端口号；否则，端口号与IP一一对应，以逗号隔开。 sslmode ssl模式，ssl连接时用。 sslcert 客户端证书路径，ssl连接时用。 sslkey 客户端密钥路径，ssl连接时用。 sslrootcert 根证书路径，ssl连接时用。 hostaddr 数据库IP地址。 connect_timeout 客户端连接超时时间。 client_encoding 客户端编码格式。 application_name application_name的参数值。 fallback_application_name application_name参数的回退值。 keepalives 控制是否客户端TCP保持连接，默认为1，表示打开；值为0时，表示关闭。若UNIX域套接字连接，则忽略。 options 连接开始时发送给服务器的命令行选项。 keepalives_idle 控制向服务器发送keepalive消息之前不活动的描述，若keepalive被禁用，则忽略此参数。 keepalives_interval 控制未得到服务器确认的keepalive消息应重新传输的描述，若keepalive被禁用，则忽略此参数。 keepalives_count 控制客户端与服务端连接断开之前可能丢失的tcp保持连接的数量。 replication 确认连接使用的是复制协议而不是普通协议。 requiressl 支持sslmode设置。 sslcompression ssl压缩。设置为1，则通过ssl连接发送的数据将被压缩；设置为0，则禁用压缩。若没有建立ssl的连接，则忽略此参数。 sslcrl 证书吊销列表文件路径，验证ssl服务端证书是否可用。 requirepeer 指定服务器的操作系统用户名。 target_session_attrs 设定连接的主机的类型。主机的类型和设定的值一致时才能连接成功。指定多IP时才会校验此参数。target_session_attrs的设置规则如下： any：可以对所有类型的主机进行连接。 read-write：当连接的主机允许可读可写时，才进行连接。 read-only：仅对可读的主机进行连接。 primary（默认值）：仅对主备系统中的主机能进行连接。 standby: 仅对主备系统中的备机进行连接。 prefer-standby：首先尝试找到一个备机进行连接。如果对hosts列表的所有机器都连接失败，那么尝试“any”模式进行连接。 返回值 connection对象（连接数据库实例的对象）。 示例 请参见 示例：常用操作 。",
+      "source_file": "886_psycopg2.connect().txt"
+    },
+    {
+      "term": "connection.commit()",
+      "content": "connection.commit() connection.commit() 功能描述 此方法将当前挂起的事务提交到数据库。 默认情况下，Psycopg在执行第一个命令之前打开一个事务：如果不调用commit()，任何数据操作的效果都将丢失。 原型 connection.commit() 参数 无 返回值 无 示例 请参见 示例：常用操作 。",
+      "source_file": "890_connection.commit().txt"
+    },
+    {
+      "term": "connection.commit()",
+      "content": "connection.commit() connection.commit() 功能描述 此方法将当前挂起的事务提交到数据库。 默认情况下，Psycopg在执行第一个命令之前打开一个事务：如果不调用commit()，任何数据操作的效果都将丢失。 原型 connection.commit() 参数 无 返回值 无 示例 请参见 示例：常用操作 。",
+      "source_file": "2601_connection.commit().txt"
+    },
+    {
+      "term": "connection.close()",
+      "content": "connection.close() connection.close() 功能描述 此方法关闭数据库连接。 此方法关闭数据库连接，并不自动调用commit()。如果只是关闭数据库连接而不调用commit()方法，那么所有更改将会丢失。 原型 connection.close() 参数 无。 返回值 无。 示例 请参见 示例：常用操作 。",
+      "source_file": "2606_connection.close().txt"
+    },
+    {
+      "term": "cursor.fetchall()",
+      "content": "cursor.fetchall() cursor.fetchall() 功能描述 此方法获取查询结果的所有（剩余）行，并将它们作为元组列表返回。 原型 cursor.fetchall() 参数 无 返回值 元组列表，为结果集的所有结果。空行时则返回空列表。 示例 请参见 示例：常用操作 。",
+      "source_file": "893_cursor.fetchall().txt"
+    },
+    {
+      "term": "curs",
+      "content": "cursor.executemany(query,vars_list) curs o r.executemany(query,vars_list) 功能描述 此方法执行SQL命令所有参数序列或序列中的SQL映射。 原型 cur so r.executemany(query,vars_list) 参数 表1 cur so r.executemany参数 关键字 参数说明 query 待执行的SQL语句。 vars_list 变量列表，匹配query中%s占位符。 返回值 无 示例 请参见 示例：常用操作 。",
+      "source_file": "2600_cursor.executemany(query,vars_list).txt"
+    },
+    {
+      "term": "connection.close()",
+      "content": "connection.close() connection.close() 功能描述 此方法关闭数据库连接。 此方法关闭数据库连接，并不自动调用commit()。如果只是关闭数据库连接而不调用commit()方法，那么所有更改将会丢失。 原型 connection.close() 参数 无 返回值 无 示例 请参见 示例：常用操作 。",
+      "source_file": "895_connection.close().txt"
+    },
+    {
+      "term": "curs",
+      "content": "cursor.executemany(query,vars_list) curs o r.executemany(query,vars_list) 功能描述 此方法执行SQL命令所有参数序列或序列中的SQL映射。 原型 cur so r.executemany(query,vars_list) 参数 表1 cur so r.executemany参数 关键字 参数说明 query 待执行的SQL语句。 vars_list 变量列表，匹配query中%s占位符。 返回值 无 示例 请参见 示例：常用操作 。",
+      "source_file": "889_cursor.executemany(query,vars_list).txt"
+    },
+    {
+      "term": "cursor.close()",
+      "content": "cursor.close() cursor.close() 功能描述 此方法关闭当前连接的游标。 原型 cursor.close() 参数 无 返回值 无 示例 请参见 示例：常用操作 。",
+      "source_file": "894_cursor.close().txt"
+    },
+    {
+      "term": "cursor.fetchall()",
+      "content": "cursor.fetchall() cursor.fetchall() 功能描述 此方法获取查询结果的所有（剩余）行，并将它们作为元组列表返回。 原型 cursor.fetchall() 参数 无。 返回值 元组列表，为结果集的所有结果。空行时则返回空列表。 示例 请参见 示例：常用操作 。",
+      "source_file": "2604_cursor.fetchall().txt"
+    },
+    {
+      "term": "cursor.execute(query,vars_list)",
+      "content": "cursor.execute(query,vars_list) cursor.execute(query,vars_list) 功能描述 此方法执行被参数化的SQL语句（即占位符，而不是SQL文字）。psycopg2模块支持用％s标志的占位符。 原型 curs o r.execute(query,vars_list) 参数 表1 curs o r.execute参数 关键字 参数说明 query 待执行的SQL语句。 vars_list 变量列表，匹配query中%s占位符。 返回值 无 示例 请参见 示例：常用操作 。",
+      "source_file": "2599_cursor.execute(query,vars_list).txt"
+    },
+    {
+      "term": "cursor.close()",
+      "content": "cursor.close() cursor.close() 功能描述 此方法关闭当前连接的游标。 原型 cursor.close() 参数 无。 返回值 无。 示例 请参见 示例：常用操作 。",
+      "source_file": "2605_cursor.close().txt"
+    },
+    {
+      "term": "psycopg2.connect()",
+      "content": "psycopg2.connect() psycopg2.connect() 功能描述 此方法创建新的数据库会话并返回新的connection对象。 原型 import os conn=psycopg2.connect(dbname=\"test\",user=os.getenv('user'),password=os.getenv('password'),host=\"127.0.0.1\",port=\"5432\") 参数 表1 psycopg2.connect参数 关键字 参数说明 dbname 数据库名称。 user 用户名。 password 密码。 host 数据库IP地址，可指定多IP，IP间以逗号隔开，默认为UNIX socket类型。 port 连接端口号，默认为5432。host为多IP时，如端口号相同，指定一个端口号；否则，端口号与IP一一对应，以逗号隔开。 sslmode ssl模式，ssl连接时用。 sslcert 客户端证书路径，ssl连接时用。 sslkey 客户端密钥路径，ssl连接时用。 sslrootcert 根证书路径，ssl连接时用。 hostaddr 数据库IP地址。 connect_timeout 客户端连接超时时间。 client_encoding 客户端编码格式。 application_name application_name的参数值。 fallback_application_name application_name参数的回退值。 keepalives 控制是否客户端TCP保持连接，默认为1，表示打开；值为0时，表示关闭。若UNIX域套接字连接，则忽略。 options 连接开始时发送给服务器的命令行选项。 keepalives_idle 控制向服务器发送keepalive消息之前不活动的描述，若keepalive被禁用，则忽略此参数。 keepalives_interval 控制未得到服务器确认的keepalive消息应重新传输的描述，若keepalive被禁用，则忽略此参数。 keepalives_count 控制客户端与服务端连接断开之前可能丢失的tcp保持连接的数量。 replication 确认连接使用的是复制协议而不是普通协议。 requiressl 支持sslmode设置。 sslcompression ssl压缩。设置为1，则通过ssl连接发送的数据将被压缩；设置为0，则禁用压缩。若没有建立ssl的连接，则忽略此参数。 sslcrl 证书吊销列表文件路径，验证ssl服务端证书是否可用。 requirepeer 指定服务器的操作系统用户名。 target_session_attrs 设定连接的主机的类型。主机的类型和设定的值一致时才能连接成功。指定多IP时才会校验此参数。target_session_attrs的设置规则如下： any：可以对所有类型的主机进行连接。 read-write：当连接的主机允许可读可写时，才进行连接。 read-only：仅对可读的主机进行连接。 primary（默认值）：仅对主备系统中的主机能进行连接。 standby: 仅对主备系统中的备机进行连接。 prefer-standby：首先尝试找到一个备机进行连接。如果对hosts列表的所有机器都连接失败，那么尝试“any”模式进行连接。 返回值 connection对象（连接数据库实例的对象）。 示例 请参见 示例：常用操作 。",
+      "source_file": "2597_psycopg2.connect().txt"
+    },
+    {
+      "term": "cursor.execute(query,vars_list)",
+      "content": "cursor.execute(query,vars_list) cursor.execute(query,vars_list) 功能描述 此方法执行被参数化的SQL语句（即占位符，而不是SQL文字）。psycopg2模块支持用％s标志的占位符。 原型 curs o r.execute(query,vars_list) 参数 表1 curs o r.execute参数 关键字 参数说明 query 待执行的SQL语句。 vars_list 变量列表，匹配query中%s占位符。 返回值 无 示例 请参见 示例：常用操作 。",
+      "source_file": "888_cursor.execute(query,vars_list).txt"
+    },
+    {
+      "term": "connection.cursor()",
+      "content": "connection.cursor() connection.cursor() 功能描述 此方法用于返回新的cursor对象。 原型 cursor(name=None, cursor_factory=None, scrollable=None, withhold=False) 参数 表1 connection.cursor参数 关键字 参数说明 name cursor名称，默认为None。 cursor_factory 用于创造非标准cursor，默认为None。 scrollable 设置SCROLL选项，默认为None。 withhold 设置HOLD选项，默认为False。 返回值 cursor对象（用于整个数据库使用Python编程的cursor）。 示例 请参见 示例：常用操作 。",
+      "source_file": "887_connection.cursor().txt"
+    }
+  ]
+}

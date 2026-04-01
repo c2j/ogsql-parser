@@ -1,0 +1,8 @@
+CREATE CONVERSION CREATE CONVERSION 功能描述 定义一种两个字符集编码之间的新转换。 该功能为内部使用功能，不建议用户使用。 注意事项 参数DEFAULT将在客户端和服务器之间默认执行源编码到目标编码之间的转换。要支持这个用法，需要定义双向转换，即从A到B和从B到A之间的转换。 创建转换需拥有函数的EXECUTE权限及目标模式的CREATE权限。 源编码和目标编码都不可以使用SQL_ASCII，因为在涉及SQL_ASCII “encoding”的情况下，服务器的行为是硬连接的。 使用DROP CONVERSION可以移除用户定义的转换。 语法格式 CREATE [ DEFAULT ] CONVERSION name
+    FOR 'source_encoding' TO 'dest_encoding' FROM function_name; 参数说明 DEFAULT DEFAULT子句表示这个转换是从源编码到目标编码的默认转换。在一个模式中对于每一个编码对，只应该有一个默认转换。 name 转换的名称，可以被模式限定。如果没有被模式限定，该转换被定义在当前模式中。在一个模式中，转换名称必须唯一。 source_encoding 源编码名称。 dest_encoding 目标编码名称。 function_name 被用来执行转换的函数。函数名可以被模式限定。如果没有，将在路径中查找该函数。 该函数必须具有以下格式： conv_proc(
+    integer, -- 原编码ID
+    integer, -- 目标编码ID
+    cstring, -- 源字符串（空值终止的C字符串）
+    internal,-- 目标（用一个空值终止的C字符串填充）
+    integer  -- 源字符串长度
+) RETURNS void; 目前仅支持系统内部创建，用户无法创建。 父主题： C 版权所有 © 华为技术有限公司

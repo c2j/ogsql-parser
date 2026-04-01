@@ -1,0 +1,38 @@
+CREATE NODE CREATE NODE 功能描述 创建一个新的集群节点。 注意事项 CREATE NODE是集群管理工具封装的接口，用来实现集群管理。该接口不建议用户直接使用，以免对集群状态造成影响。管理员用户才有权限使用该接口。 语法格式 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15 CREATE NODE nodename WITH ( [ TYPE = nodetype ,] [ HOST = hostname ,] [ PORT = portnum ,] [ HOST1 = 'hostname' ,] [ PORT1 = portnum ,] [ HOSTPRIMARY [ = boolean ],] [ PRIMARY [ = boolean ],] [ PREFERRED [ = boolean ],] [ SCTP_PORT = portnum ,] [ CONTROL_PORT = portnum ,] [ SCTP_PORT1 = portnum ,] [ CONTROL_PORT1 = portnum ] ); 参数说明 nodename 节点名称。 取值范围：字符串，要符合 标识符命名规范 。 TYPE = nodetype 指定节点的类型。 取值范围： 'coordinator' 'datanode' HOST = hostname 指定节点对应的主机名称或者IP地址。 PORT = portnum 指定节点绑定的主机端口号。 HOST1 = hostname 指定节点对应的备机名称或者IP地址。 PORT1 = portnum 指定节点绑定的备机端口号。 HOSTPRIMARY PRIMARY = boolean 声明该节点是否为主节点。主节点允许做读写操作，否则只允许读操作。 取值范围： true false（默认值） PREFERRED = boolean 声明该节点是否为读操作的首选节点。 取值范围： true false（默认值） SCTP_PORT = portnum 主机TCP代理通信库使用的数据传输通道侦听端口，使用TCP协议侦听连接。 CONTROL_PORT = portnum 主机TCP代理通信库使用的控制传输通道侦听端口，使用TCP协议侦听连接。 SCTP_PORT1 = portnum 备机TCP代理通信库使用的数据传输通道侦听端口，使用TCP协议侦听连接。 CONTROL_PORT 1= portnum 备机TCP代理通信库使用的控制传输通道侦听端口，使用TCP协议侦听连接。 示例 -- 创建集群节点。 gaussdb=# CREATE NODE datanode1 WITH(
+   TYPE = datanode,
+   PREFERRED = false
+); gaussdb=# CREATE NODE datanode2 WITH(
+   TYPE = datanode,
+   PREFERRED = false
+);
+
+-- 查询集群DN初始状态。 gaussdb=# SELECT node_name, nodeis_preferred FROM pgxc_node WHERE node_type = 'D' ORDER BY 1;
+ node_name | nodeis_preferred
+-----------+------------------
+ datanode1 | f
+ datanode2 | f
+(2 rows)
+
+-- 将datanode1设为preferred DN。 gaussdb=# ALTER NODE datanode1 WITH(preferred = true);
+-- 查询集群DN变更后状态。 gaussdb=# SELECT node_name, nodeis_preferred FROM pgxc_node WHERE node_type = 'D' ORDER BY 1;
+ node_name | nodeis_preferred
+-----------+------------------
+ datanode1 | t
+ datanode2 | f
+(2 rows)
+
+-- 删除集群节点。 gaussdb=# DROP NODE datanode1; gaussdb=# DROP NODE datanode2; 相关链接 ALTER NODE ， DROP NODE 。 父主题： C 版权所有 © 华为技术有限公司

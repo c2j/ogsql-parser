@@ -1,0 +1,1 @@
+提示信息函数 提示信息函数 report_application_error() 描述：PL执行过程中，可以使用此函数来抛ERROR。 返回值类型：void 表1 report_application_error参数说明 参数 类型 说明 是否必选 log text error消息的内容。 是 code int4 error消息对应的error code，范围为：-20999 ~ -20000。 否 父主题： 函数和操作符 版权所有 © 华为技术有限公司

@@ -1,0 +1,326 @@
+DBE_FILE DBE_FILE DBE_FILE包为存储过程提供了读、写操作系统文本文件的能力。 注意事项 DBE_FILE要求以DBE_FILE.FOPEN打开的文件是以数据库字符集编码，如果打开的文件未按预期的字符集编码，在使用DBE_FILE.READ_LINE读取文件时，会发生编码校验错误；DBE_FILE要求以DBE_FILE.FOPEN_NCHAR打开的文件是以UTF-8字符集编码，如果打开的文件未按预期的字符集编码，在使用DBE_FILE.READ_LINE_NCHAR读取文件时，会发生编码校验错误。 当使用DBE_OUTPUT.PUT_LINE打印DBE_FILE.READ_LINE_NCHAR接口得到的结果时，需要确保UTF-8字符集编码能够转换成当前数据库字符集编码，满足上述条件后可以正常输出结果。DBE_OUTPUT.PRINT_LINE不支持该功能。 DBE_FILE要求客户端字符集编码与数据库字符集编码保持一致。 当数据库字符集编码为ASCII编码，客户端字符集编码为支持中文的编码，且在客户端调用DBE_FILE.WRITE_NCHAR或DBE_FILE.WRITE_LINE_NCHAR接口写入中文相关内容时，若输入的内容为UTF-8编码格式，无法保证写入的内容按UTF-8格式编码。这可能会导致后续使用DBE_FILE.READ_LINE_NCHAR时报错。 数据类型介绍 DBE_FILE.FILE_TYPE DBE_FILE.FILE_TYPE类型定义了DBE_FILE包中文件的表示方式，DBE_FILE.FILE_TYPE中的字段是DBE_FILE包的私有字段，请不要直接修改DBE_FILE.FILE_TYPE类型对象中字段的值。 1
+2
+3
+4
+5 CREATE TYPE DBE_FILE . FILE_TYPE AS ( id INTEGER , datatype INTEGER , byte_mode BOOLEAN ); 表1 DBE_FILE.FILE_TYPE字段说明 参数 描述 id 文件句柄。 datatype 表明文件是CHAR文件还是NCHAR文件或者二进制文件，目前支持CHAR文件和NCHAR文件。CHAR文件返回1，NCHAR文件返回2。 byte_mode 表明文件是以二进制模式打开（TRUE）还是以文本模式打开（FALSE）。 接口介绍 高级功能包DBE_FILE支持的所有接口请参见 表2 。 表2 DBE_FILE 接口名称 描述 DBE_FILE.OPEN 根据指定的目录和文件名打开一个文件，返回对应的文件句柄或者封装了文件句柄的DBE_FILE.FILE_TYPE类型对象。 DBE_FILE.IS_CLOSE 检测一个文件句柄是否关闭。 DBE_FILE.IS_OPEN 检测一个文件句柄是否打开。 DBE_FILE.READ_LINE 从一个打开的文件句柄中读取一行指定长度的数据。 DBE_FILE.WRITE 将数据写入到一个打开的文件的缓冲区中。 DBE_FILE.NEW_LINE 将一个或者多个行终结符写入到一个打开的文件的缓冲区中。 DBE_FILE.WRITE_LINE 将数据写入到一个打开的文件的缓冲区中，并自动追加一个行终结符。 DBE_FILE.FORMAT_WRITE 将数据按指定格式写入到一个打开的文件的缓冲区中。 DBE_FILE.GET_RAW 从一个打开的文件中读取指定字节数的RAW类型数据。 DBE_FILE.PUT_RAW 将RAW类型数据写入到一个打开的文件的缓冲区中。 DBE_FILE.FLUSH 将缓存区中的数据写入到物理文件中。 DBE_FILE.CLOSE 关闭一个打开的文件句柄。 DBE_FILE.CLOSE_ALL 关闭一个会话中打开的所有的文件句柄。 DBE_FILE.REMOVE 根据指定的目录和文件名删除一个磁盘文件，操作的时候需要有充分的权限。 DBE_FILE.RENAME 重命名一个磁盘文件，类似UNIX的mv指令。 DBE_FILE.COPY 拷贝一个连续的区域内容到一个新创建的文件中，如果忽略了start_line和end_line会拷贝整个文件。 DBE_FILE.GET_ATTR 读取并返回磁盘文件的属性。 DBE_FILE.SEEK 根据用户指定的字节数向前或者向后调整文件指针的位置。 DBE_FILE.GET_POS 以字节为单位返回文件当前的偏移量。 DBE_FILE.FOPEN_NCHAR 以NCHAR模式根据指定的目录和文件名打开一个文件。 DBE_FILE.WRITE_NCHAR 将NVARCHAR2类型的数据写入到一个打开的NCHAR模式文件缓冲区中。 DBE_FILE.WRITE_LINE_NCHAR 将NVARCHAR2类型的数据写入到一个打开的NCHAR模式文件缓冲区中，并自动追加一个行终结符。 DBE_FILE.FORMAT_WRITE_NCHAR 将NVARCHAR2类型的数据按指定格式写入到一个打开的NCHAR模式文件缓冲区中，允许格式化的DBE_FILE.WRITE_NCHAR接口。 DBE_FILE.READ_LINE_NCHAR 从一个打开的NCHAR模式文件中读取一行指定长度的数据。 DBE_FILE.OPEN/DBE_FILE.FOPEN 函数DBE_FILE.OPEN用来打开一个文件，可以指定文件每行的最大字节数，一个会话内最多可以同时打开50个文件。该函数返回一个INTEGER类型的文件句柄。函数DBE_FILE.FOPEN功能和DBE_FILE.OPEN类似，返回一个DBE_FILE.FILE_TYPE类型的对象。 DBE_FILE.OPEN和DBE_FILE.FOPEN函数原型为： 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13 DBE_FILE . OPEN ( dir IN TEXT , file_name IN TEXT , open_mode IN TEXT , max_line_size IN INTEGER DEFAULT 1024 ) RETURN INTEGER ; DBE_FILE . FOPEN ( dir IN TEXT , file_name IN TEXT , open_mode IN TEXT , max_line_size IN INTEGER DEFAULT 1024 ) RETURN DBE_FILE . FILE_TYPE ; 表3 DBE_FILE.OPEN接口参数说明 参数 类型 入参/出参 是否可以为空 描述 dir text IN 否 文件的目录位置，这个字符串是一个目录对象名。 说明： 文件目录的位置，需要添加到系统表 PG_DIRECTORY 中，如果传入的路径和 PG_DIRECTORY 中的路径不匹配，会报路径不存在的错误。 在打开guc参数safe_data_path时，用户只能通过高级包读写safe_data_path指定文件路径下的文件。 file_name text IN 否 文件名，包含扩展（文件类型），不包括路径名。如果文件名中包含路径，在OPEN中会被忽略，在Unix系统中，文件名不能以/.结尾。 open_mode text IN 否 指定文件的打开模式，包含： r：read text w：write text a：append text rb：read byte wb：write byte ab：append byte 说明： 对于写操作，会检测写入文件类型，如果为elf类型文件，会报错退出。 max_line_size integer IN 是 每行的最大字节数，包含换行符（最小值是1，最大值是32767）。如果没有指定或指定该参数为空，会使用默认值1024。 DBE_FILE.IS_CLOSE 函数DBE_FILE.IS_CLOSE用于检测一个文件句柄是否已经关闭，返回布尔值，异常情况是INVALID_FILEHANDLE。 DBE_FILE.IS_CLOSE函数原型为： 1
+2
+3
+4
+5
+6
+7 DBE_FILE . IS_CLOSE ( file IN INTEGER ) RETURN BOOLEAN ; DBE_FILE . IS_CLOSE ( file IN DBE_FILE . FILE_TYPE ) RETURN BOOLEAN ; 表4 DBE_FILE.IS_CLOSE接口参数说明 参数 类型 入参/出参 是否可以为空 描述 file integer或dbe_file.file_type IN 是 待检测的文件句柄或DBE_FILE.FILE_TYPE类型的对象，为空时DBE_FILE.IS_CLOSE接口返回空。 DBE_FILE.IS_OPEN 函数DBE_FILE.IS_OPEN用于检测一个文件句柄是否已经打开，返回布尔值，异常情况是INVALID_FILEHANDLE。 DBE_FILE.IS_OPEN函数原型为： 1
+2
+3
+4
+5
+6
+7 DBE_FILE . IS_OPEN ( file IN INTEGER ) RETURN BOOLEAN ; DBE_FILE . IS_OPEN ( file IN DBE_FILE . FILE_TYPE ) RETURN BOOLEAN ; 表5 DBE_FILE.IS_OPEN接口参数说明 参数 类型 入参/出参 是否可以为空 描述 file integer或dbe_file.file_type IN 是 待检测的文件句柄或DBE_FILE.FILE_TYPE类型的对象，为空时DBE_FILE.IS_OPEN接口返回false。 DBE_FILE.READ_LINE 函数DBE_FILE.READ_LINE从一个打开的文件读取数据，并把读取的结果存放到buffer中。读取的时候会读取到行尾，但不包含行终结符，或者读取到文件末尾，或者读取到len参数指定的大小。读取的长度不能超过OPEN的时候指定的max_line_size。 DBE_FILE.READ_LINE函数原型为： 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11 DBE_FILE . READ_LINE ( file IN INTEGER , buffer OUT TEXT , len IN INTEGER DEFAULT NULL ) RETURN TEXT ; DBE_FILE . READ_LINE ( file IN DBE_FILE . FILE_TYPE , buffer OUT TEXT , len IN INTEGER DEFAULT NULL ) RETURN TEXT ; 表6 DBE_FILE.READ_LINE接口参数说明 参数 类型 入参/出参 是否可以为空 描述 file integer或dbe_file.file_type IN 否 通过OPEN打开的文件句柄或者FOPEN打开的DBE_FILE.FILE_TYPE类型的对象，文件必须以读模式打开，否则会抛出INVALID_OPERATION的异常。 buffer text OUT 否 接收数据的buffer。 len integer IN 是 从文件中读取的字节数，默认是NULL。如果是默认NULL，会使用max_linesize来指定大小。 DBE_FILE.WRITE 函数DBE_FILE.WRITE用于向文件对应的缓冲区中写入buffer中的数据，文件必须以写模式打开，这个操作不会写入行终结符。 DBE_FILE.WRITE函数原型为： 1
+2
+3
+4
+5
+6
+7
+8
+9 DBE_FILE . WRITE ( file IN INTEGER , buffer IN TEXT ) RETURN BOOLEAN ; DBE_FILE . WRITE ( file IN DBE_FILE . FILE_TYPE , buffer IN TEXT ) RETURN VOID ; 表7 DBE_FILE.WRITE接口参数说明 参数 类型 入参/出参 是否可以为空 描述 file integer或dbe_file.file_type IN 否 通过OPEN打开的文件句柄或者FOPEN打开的DBE_FILE.FILE_TYPE类型的对象，要写入的文件必须以写模式打开，这个操作不会写入行终结符。 buffer text IN 是 写入文件的文本数据。每行的累计写入长度不能大于或等于OPEN或FOPEN时指定或默认的max_line_size，否则会在刷新到文件时报错，该参数为空时接口会直接返回。 说明： 对于写操作，会检测写入文件类型，如果为elf类型文件，会报错退出。 DBE_FILE.NEW_LINE 函数DBE_FILE.WRITE_LINE用于向文件对应的缓冲区中写入一个或者多个行终结符，行终结符和平台相关。 DBE_FILE.NEW_LINE函数原型为： 1
+2
+3
+4
+5
+6
+7
+8
+9 DBE_FILE . NEW_LINE ( file IN INTEGER , line_nums IN INTEGER DEFAULT 1 ) RETURN BOOLEAN ; DBE_FILE . NEW_LINE ( file IN DBE_FILE . FILE_TYPE , line_nums IN INTEGER DEFAULT 1 ) RETURN VOID ; 表8 DBE_FILE.NEW_LINE接口参数说明 参数 类型 入参/出参 是否可以为空 描述 file integer或dbe_file.file_type IN 否 通过OPEN打开的文件句柄或者FOPEN打开的DBE_FILE.FILE_TYPE类型的对象，要写入的文件必须以写模式打开，这个操作不会写入行终结符。 line_nums integer IN 是 写入到文件中的行终结符的数量，默认值为1，指定为空时不写入行终结符。 DBE_FILE.WRITE_LINE 函数DBE_FILE.WRITE_LINE用于向文件对应的缓冲区中写入buffer中的数据，文件必须以写模式打开，这个操作会自动追加行终结符。 DBE_FILE.WRITE_LINE函数原型为： 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11 DBE_FILE . WRITE_LINE ( file IN INTEGER , buffer IN TEXT , flush IN BOOLEAN DEFAULT FALSE ) RETURN BOOLEAN ; DBE_FILE . WRITE_LINE ( file IN DBE_FILE . FILE_TYPE , buffer IN TEXT , flush IN BOOLEAN DEFAULT FALSE ) RETURN VOID ; 表9 DBE_FILE.WRITE_LINE接口参数说明 参数 类型 入参/出参 是否可以为空 描述 file integer IN 否 通过OPEN打开的文件句柄或者FOPEN打开的DBE_FILE.FILE_TYPE类型的对象。 buffer text IN 是 要写入文件的文本数据，每行的长度（包含换行符）不能大于OPEN或FOPEN时指定或默认的max_line_size，否则会在刷新到文件时报错。 说明： 对于写操作，会检测写入文件类型，如果为elf类型文件，会报错退出。 flush boolean IN 是 在WRITE_LINE后是否要将文件对应缓冲区中的数据刷到磁盘，默认值或者该参数为空时为FALSE。 DBE_FILE.FORMAT_WRITE 函数DBE_FILE.FORMAT_WRITE将格式化数据写入到一个打开的文件对应的缓冲区中，是允许格式化的DBE_FILE.WRITE接口。 DBE_FILE.FORMAT_WRITE函数原型为： 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15 DBE_FILE . FORMAT_WRITE ( file IN INTEGER , format IN TEXT , arg1 IN TEXT DEFAULT NULL , . . . arg6 IN TEXT DEFAULT NULL ) RETURN BOOLEAN ; DBE_FILE . FORMAT_WRITE ( file IN DBE_FILE . FILE_TYPE , format IN TEXT , arg1 IN TEXT DEFAULT NULL , . . . arg6 IN TEXT DEFAULT NULL ) RETURN VOID ; 表10 DBE_FILE.FORMAT_WRITE接口参数说明 参数 类型 入参/出参 是否可以为空 描述 file integer或dbe_file.file_type IN 否 通过OPEN打开的文件句柄或者FOPEN打开的DBE_FILE.FILE_TYPE类型的对象。 format text IN 是 格式化的字符串，包含文本和格式符\n和%s。若指定为空时，则不写入任何数据。 [arg1. . .arg6] text IN 是 1到6个可选的参数串，参数和格式化字符的位置是一一对应的，如果存在格式化字符而没有提供参数或者参数为空，会使用空串来替代%s。 DBE_FILE.GET_RAW 函数DBE_FILE.GET_RAW从一个打开的文件读取RAW类型数据，并把读取的结果存放到buffer中，从r中返回。 DBE_FILE.GET_RAW函数原型为： 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11 DBE_FILE . GET_RAW ( file IN INTEGER , r OUT RAW , length IN INTEGER DEFAULT NULL ) RETURN RAW ; DBE_FILE . GET_RAW ( file IN DBE_FILE . FILE_TYPE , r OUT RAW , length IN INTEGER DEFAULT NULL ) RETURN BOOLEAN ; 表11 DBE_FILE.GET_RAW接口参数说明 参数 类型 入参/出参 是否可以为空 描述 file integer IN 否 通过OPEN打开的文件句柄或者FOPEN打开的DBE_FILE.FILE_TYPE类型的对象。 r raw OUT 否 接收RAW类型数据的buffer。 length integer IN 是 从文件中读取的字节数，默认值为NULL，如果是NULL，会使用RAW类型最大长度来指定大小。 DBE_FILE.PUT_RAW 函数DBE_FILE.PUT_RAW用于向文件对应的缓冲区中写入RAW类型数据。 DBE_FILE.PUT_RAW函数原型为： 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11 DBE_FILE . PUT_RAW ( file IN INTEGER , r IN RAW , flush IN BOOLEAN DEFAULT FALSE ) RETURN BOOLEAN ; DBE_FILE . PUT_RAW ( file IN DBE_FILE . FILE_TYPE , r IN RAW , flush IN BOOLEAN DEFAULT FALSE ) RETURN VOID ; 表12 DBE_FILE.PUT_RAW接口参数说明 参数 类型 入参/出参 是否可以为空 描述 file integer或dbe_file.file_type IN 否 通过OPEN打开的文件句柄或者FOPEN打开的DBE_FILE.FILE_TYPE类型的对象。 r raw IN 否 写入文件的RAW类型数据。 说明： 对于写操作，会检测写入文件类型，如果为elf类型文件，会报错退出。 flush boolean IN 是 在PUT_RAW后是否要刷到磁盘，不指定或指定为空时采用FALSE。 DBE_FILE.FLUSH 函数DBE_FILE.FLUSH将缓冲区中的数据写入到物理文件中，缓存中的数据必须要有一个行终结符。该函数可以将缓冲区的数据及时写入到对应的物理文件中。 DBE_FILE.FLUSH函数原型为： 1
+2
+3
+4
+5
+6
+7 DBE_FILE . FLUSH ( file IN INTEGER ) RETURN VOID ; DBE_FILE . FLUSH ( file IN DBE_FILE . FILE_TYPE ) RETURN VOID ; 表13 DBE_FILE.FLUSH接口参数说明 参数 类型 入参/出参 是否可以为空 描述 file integer或dbe_file.file_type IN 否 通过OPEN打开的文件句柄或者FOPEN打开的DBE_FILE.FILE_TYPE类型的对象。 DBE_FILE.CLOSE 函数DBE_FILE.CLOSE用于关闭一个打开的文件句柄，当调用这个函数的时候，如果还有等待写入的缓存的数据，可能会收到异常信息，正常关闭返回TRUE。 DBE_FILE.CLOSE函数原型为： 1
+2
+3
+4
+5
+6
+7 DBE_FILE . CLOSE ( file IN INTEGER ) RETURN BOOLEAN ; DBE_FILE . CLOSE ( file IN DBE_FILE . FILE_TYPE ) RETURN BOOLEAN ; 表14 DBE_FILE.CLOSE接口参数说明 参数 类型 入参/出参 是否可以为空 描述 file integer或dbe_file.file_type IN 否 通过OPEN打开的文件句柄或者FOPEN打开的DBE_FILE.FILE_TYPE类型的对象。 DBE_FILE.CLOSE_ALL 函数DBE_FILE.CLOSE_ALL关闭一个会话中打开的所有的文件句柄，可用于紧急的清理操作。 DBE_FILE.CLOSE_ALL函数原型为： 1
+2 DBE_FILE . CLOSE_ALL () RETRUN VOID ; DBE_FILE.REMOVE 函数DBE_FILE.REMOVE删除一个磁盘文件，使用的时候需要有充分的权限。 DBE_FILE.REMOVE函数原型为： 1
+2
+3
+4 DBE_FILE . REMOVE ( dir IN TEXT , file_name IN TEXT ) RETURN VOID ; 表15 DBE_FILE.REMOVE接口参数说明 参数 类型 入参/出参 是否可以为空 描述 dir text IN 否 文件所在的目录位置。 说明： 文件目录的位置，需要添加到系统表 PG_DIRECTORY 中，如果传入的路径和 PG_DIRECTORY 中的路径不匹配，会报路径不存在的错误。 在打开guc参数safe_data_path时，用户只能通过高级包操作safe_data_path指定文件路径下的文件。 file_name text IN 否 文件名。 DBE_FILE.RENAME 函数DBE_FILE.RENAME重命名一个磁盘文件，类似UNIX的mv指令。 DBE_FILE.RENAME函数原型为： 1
+2
+3
+4
+5
+6
+7 DBE_FILE . RENAME ( src_dir IN TEXT , src_file_name IN TEXT , dest_dir IN TEXT , dest_file_name IN TEXT , overwrite IN BOOLEAN DEFAULT FALSE ) RETURN VOID ; 表16 DBE_FILE.RENAME接口参数说明 参数 类型 入参/出参 是否可以为空 描述 src_dir text IN 否 源文件的目录位置（大小写敏感）。 说明： 文件目录的位置，需要添加到系统表 PG_DIRECTORY 中，如果传入的路径和 PG_DIRECTORY 中的路径不匹配，会报路径不存在的错误。 在打开guc参数safe_data_path时，用户只能通过高级包操作safe_data_path指定文件路径下的文件。 src_file_name text IN 否 要进行命名的源文件。 dest_dir text IN 否 目的目录位置（大小写敏感）。 说明： 文件目录的位置，需要添加到系统表 PG_DIRECTORY 中，如果传入的路径和 PG_DIRECTORY 中的路径不匹配，会报路径不存在的错误。 在打开guc参数safe_data_path时，用户只能通过高级包操作safe_data_path指定文件路径下的文件。 dest_file_name text IN 否 新的文件名。 overwrite boolean IN 是 是否重写，参数指定为空或者不指定时表示不重写。在不重写的情况下，如果目的目录下已存在同名文件会报错。 DBE_FILE.COPY 函数DBE_FILE.COPY拷贝一个连续区域的内容到一个新创建的文件中，如果忽略了start_line和end_line会拷贝整个文件。 DBE_FILE.COPY函数原型为： 1
+2
+3
+4
+5
+6
+7
+8 DBE_FILE . COPY ( src_dir IN TEXT , src_file_name IN TEXT , dest_dir IN TEXT , dest_file_name IN TEXT , start_line IN INTEGER DEFAULT 1 , end_line IN INTEGER DEFAULT NULL ) RETURN VOID ; 表17 DBE_FILE.COPY接口参数说明 参数 类型 入参/出参 是否可以为空 描述 src_dir text IN 否 源文件所在的目录。 说明： 文件目录的位置，需要添加到系统表 PG_DIRECTORY 中，如果传入的路径和 PG_DIRECTORY 中的路径不匹配，会报路径不存在的错误。 在打开guc参数safe_data_path时，用户只能通过高级包操作safe_data_path指定文件路径下的文件。 src_file_name text IN 否 要拷贝的源文件名。 dest_dir text IN 否 目的文件所在的目录。 说明： 文件目录的位置，需要添加到系统表 PG_DIRECTORY 中，如果传入的路径和 PG_DIRECTORY 中的路径不匹配，会报路径不存在的错误。 在打开guc参数safe_data_path时，用户只能通过高级包操作safe_data_path指定文件路径下的文件。 dest_file_name text IN 否 目的文件名。 说明： 对于写操作，会检测写入文件类型，如果为elf类型文件，会报错退出。 start_line text IN 否 拷贝开始的行号，默认是1。 end_line text IN 是 拷贝结束的行号，默认是NULL，如果是NULL，则指定到文件尾。 DBE_FILE.GET_ATTR 函数DBE_FILE.GET_ATTR读取并返回一个磁盘文件的属性。 DBE_FILE.GET_ATTR函数原型为： 1
+2
+3
+4
+5
+6
+7 DBE_FILE . GET_ATTR ( location IN TEXT , filename IN TEXT , fexists OUT BOOLEAN , file_length OUT BIGINT , block_size OUT INTEGER ) RETURN RECORD ; 表18 DBE_FILE.GET_ATTR接口参数说明 参数 类型 入参/出参 是否可以为空 描述 location text IN 否 文件所在的目录。 说明： 文件目录的位置，需要添加到系统表 PG_DIRECTORY 中，如果传入的路径和 PG_DIRECTORY 中的路径不匹配，会报路径不存在的错误。 在打开guc参数safe_data_path时，用户只能通过高级包操作safe_data_path指定文件路径下的文件。 filename text IN 否 文件名。 fexists boolean OUT 否 文件是否存在。 file_length bigint OUT 否 文件的字节长度，如果文件不存在返回NULL。 block_size integer OUT 否 文件系统的块大小（单位字节），如果文件不存在返回NULL。 DBE_FILE.SEEK 函数DBE_FILE.SEEK根据用户指定的字节数向前或者向后调整文件指针的位置。 DBE_FILE.SEEK函数原型为： 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11 DBE_FILE . SEEK ( file IN INTEGER , absolute_start IN BIGINT DEFAULT NULL , relative_start IN BIGINT DEFAULT NULL ) RETURN VOID ; DBE_FILE . SEEK ( file IN DBE_FILE . FILE_TYPE , absolute_start IN BIGINT DEFAULT NULL , relative_start IN BIGINT DEFAULT NULL ) RETURN VOID ; 表19 DBE_FILE.SEEK接口参数说明 参数 类型 入参/出参 是否可以为空 描述 file integer或dbe_file.file_type IN 否 通过OPEN打开的文件句柄或者FOPEN打开的DBE_FILE.FILE_TYPE类型的对象。 absolute_start bigint IN 是 文件偏移的绝对位置，这个默认值为NULL。 relative_start bigint IN 是 文件偏移的相对位置。如果这个值是正数，向前偏移；如果是负数，向后偏移；默认值为NULL。如果和absolute_start参数同时指定，以absolute_start参数为准。 DBE_FILE.GET_POS 函数DBE_FILE.GET_POS以字节为单位返回文件当前的偏移量。 DBE_FILE.FGETPOS函数原型为： 1
+2
+3
+4
+5
+6
+7 DBE_FILE . GET_POS ( file IN INTEGER ) RETURN BIGINT ; DBE_FILE . GET_POS ( file IN DBE_FILE . FILE_TYPE ) RETURN BIGINT ; 表20 DBE_FILE.GET_POS接口参数说明 参数 类型 入参/出参 是否可以为空 描述 file integer或dbe_file.file_type IN 否 通过OPEN打开的文件句柄或者FOPEN打开的DBE_FILE.FILE_TYPE类型的对象。 DBE_FILE.FOPEN_NCHAR 函数DBE_FILE.FOPEN_NCHAR用来打开一个文件，可以指定文件每行的最大字节数，一个会话内最多可以同时打开50个文件。该函数返回一个封装了文件句柄的DBE_FILE.FILE_TYPE类型对象。该函数以国家字符集模式打开文件以进行输入或输出。 DBE_FILE.FOPEN_NCHAR函数原型为： 1
+2
+3
+4
+5
+6 DBE_FILE . FOPEN_NCHAR ( dir IN TEXT , file_name IN TEXT , open_mode IN TEXT , max_line_size IN INTEGER DEFAULT 1024 ) RETURN DBE_FILE . FILE_TYPE ; 表21 DBE_FILE.FOPEN_NCHAR接口参数说明 参数 类型 入参/出参 是否可以为空 描述 dir text IN 否 文件的目录位置，这个字符串是一个目录对象名。 说明： 文件目录的位置，需要添加到系统表 PG_DIRECTORY 中，如果传入的路径和 PG_DIRECTORY 中的路径不匹配，会报路径不存在的错误。 在打开guc参数safe_data_path时，用户只能通过高级包读写safe_data_path指定文件路径下的文件。 file_name text IN 否 文件名，包含扩展（文件类型），不包括路径名。如果文件名中包含路径，在FOPEN_NCHAR中会被忽略，在Unix系统中，文件名不能以/.结尾。 open_mode text IN 否 指定文件的打开模式，包含： r：read text w：write text a：append text rb：read byte wb：write byte ab：append byte 说明： 对于写操作，会检测写入文件类型，如果为elf类型文件，会报错退出。 max_line_size integer IN 是 每行的最大字节数，包含换行符（最小值是1，最大值是32767）。如果没有指定或指定该参数为空，会使用默认值1024。 DBE_FILE.WRITE_NCHAR 函数DBE_FILE.WRITE_NCHAR用于向文件的缓冲区中写入buffer中的数据，文件必须以国家字符集模式和写模式打开，这个操作不会写入行终结符。文本字符串将以UTF8字符集格式写入。 DBE_FILE.WRITE_NCHAR函数原型为： 1
+2
+3
+4 DBE_FILE . WRITE_NCHAR ( file IN DBE_FILE . FILE_TYPE , buffer IN NVARCHAR2 ) RETURN VOID ; 表22 DBE_FILE.WRITE接口参数说明 参数 类型 入参/出参 是否可以为空 描述 file dbe_file.file_type IN 否 通过FOPEN_NCHAR打开的DBE_FILE.FILE_TYPE类型的对象，要写入的文件必须以写模式打开，这个操作不会写入行终结符。 buffer nvarchar2 IN 是 写入文件的文本数据。每行的累计写入长度不能大于或等于FOPEN_NCHAR时指定或默认的max_line_size，否则会在刷新到文件时报错。 说明： 对于写操作，会检测写入文件类型，如果为elf类型文件，会报错退出。 DBE_FILE.WRITE_LINE_NCHAR 函数DBE_FILE.WRITE_LINE_NCHAR用于向文件的缓冲区中写入buffer中的数据，文件必须以国家字符集模式和写模式打开，这个操作会自动追加行终结符。文本字符串将以UTF8字符集格式写入。 DBE_FILE.WRITE_LINE_NCHAR函数原型为： 1
+2
+3
+4 DBE_FILE . WRITE_LINE_NCHAR ( file IN DBE_FILE . FILE_TYPE , buffer IN NVARCHAR2 ) RETURN VOID ; 表23 DBE_FILE.WRITE_LINE接口参数说明 参数 类型 入参/出参 是否可以为空 描述 file dbe_file.file_type IN 否 通过FOPEN_NCHAR打开的DBE_FILE.FILE_TYPE类型的对象。 buffer nvarchar2 IN 是 要写入文件的文本数据，每行的长度（包含换行符）不能大于FOPEN_NCHAR时指定或默认的max_line_size，否则会在刷新到文件时报错。 说明： 对于写操作，会检测写入文件类型，如果为elf类型文件，会报错退出。 DBE_FILE.FORMAT_WRITE_NCHAR 函数DBE_FILE.FORMAT_WRITE_NCHAR将格式化数据写入到一个打开的文件的缓冲区中，是允许格式化的DBE_FILE.WRITE_NCHAR接口。 DBE_FILE.FORMAT_WRITE_NCHAR函数原型为： 1
+2
+3
+4
+5
+6
+7 DBE_FILE . FORMAT_WRITE_NCHAR ( file IN DBE_FILE . FILE_TYPE , format IN NVARCHAR2 , arg1 IN NVARCHAR2 DEFAULT NULL , . . . arg5 IN NVARCHAR2 DEFAULT NULL ) RETURN VOID ; 表24 DBE_FILE.FORMAT_WRITE_NCHAR接口参数说明 参数 类型 入参/出参 是否可以为空 描述 file dbe_file.file_type IN 否 通过FOPEN_NCHAR打开的DBE_FILE.FILE_TYPE类型的对象。 format nvarchar2 IN 是 格式化的字符串，包含文本和格式符\n和%s。 [arg1. . .arg5] nvarchar2 IN 是 1到5个可选的参数串，参数和格式化字符的位置是一一对应的，如果存在格式化字符而没有提供参数，会使用空串来替代%s。 DBE_FILE.READ_LINE_NCHAR 函数DBE_FILE.READ_LINE_NCHAR从一个打开的文件读取数据，并把读取的结果存放到buffer中。读取的时候会读取到行尾，但不包含行终结符，或者读取到文件末尾，或者读取到len参数指定的大小。读取的长度不能超过FOPEN_NCHAR的时候指定的max_line_size。 DBE_FILE.READ_LINE_NCHAR存储过程原型为： 1
+2
+3
+4
+5 DBE_FILE . READ_LINE_NCHAR ( file IN DBE_FILE . FILE_TYPE , buffer OUT NVARCHAR2 , len IN INTEGER DEFAULT NULL ) RETURN NVARCHAR2 ; 表25 DBE_FILE.READ_LINE接口参数说明 参数 类型 入参/出参 是否可以为空 描述 file dbe_file.file_type IN 否 通过FOPEN_NCHAR打开的DBE_FILE.FILE_TYPE类型的对象，文件必须以读模式打开，否则会抛出INVALID_OPERATION的异常。 buffer nvarchar2 OUT 否 接收数据的buffer。 len integer IN 是 从文件中读取的字节数，默认值为NULL。如果是NULL，会使用max_line_size来指定大小。 示例 1
+  2
+  3
+  4
+  5
+  6
+  7
+  8
+  9
+ 10
+ 11
+ 12
+ 13
+ 14
+ 15
+ 16
+ 17
+ 18
+ 19
+ 20
+ 21
+ 22
+ 23
+ 24
+ 25
+ 26
+ 27
+ 28
+ 29
+ 30
+ 31
+ 32
+ 33
+ 34
+ 35
+ 36
+ 37
+ 38
+ 39
+ 40
+ 41
+ 42
+ 43
+ 44
+ 45
+ 46
+ 47
+ 48
+ 49
+ 50
+ 51
+ 52
+ 53
+ 54
+ 55
+ 56
+ 57
+ 58
+ 59
+ 60
+ 61
+ 62
+ 63
+ 64
+ 65
+ 66
+ 67
+ 68
+ 69
+ 70
+ 71
+ 72
+ 73
+ 74
+ 75
+ 76
+ 77
+ 78
+ 79
+ 80
+ 81
+ 82
+ 83
+ 84
+ 85
+ 86
+ 87
+ 88
+ 89
+ 90
+ 91
+ 92
+ 93
+ 94
+ 95
+ 96
+ 97
+ 98
+ 99
+100
+101
+102
+103
+104
+105
+106
+107
+108
+109
+110
+111
+112
+113
+114
+115
+116
+117
+118
+119
+120
+121
+122
+123
+124
+125
+126
+127
+128
+129
+130
+131
+132
+133
+134
+135
+136
+137
+138
+139
+140
+141
+142
+143
+144
+145
+146
+147
+148
+149
+150
+151
+152
+153
+154
+155
+156 --系统管理员向PG_DIRECTORY系统表中加入目录/tmp/： CREATE OR REPLACE DIRECTORY dir AS '/tmp/' ; -- 执行结果 CREATE DIRECTORY -- 使用DBE_FILE高级包 DECLARE f INTEGER ; buffer VARCHAR2 ; raw_buffer RAW ; f1 DBE_FILE . FILE_TYPE ; f2 DBE_FILE . FILE_TYPE ; fexists BOOLEAN ; file_length BIGINT ; block_size INTEGER ; pos BIGINT ; nvarchar_buffer nvarchar2 ; f_nchar DBE_FILE . FILE_TYPE ; BEGIN -- 打开文件 f : = DBE_FILE . OPEN ( 'dir' , 'sample.txt' , 'w' ); IF DBE_FILE . IS_OPEN ( f ) = true THEN DBE_OUTPUT . PRINT_LINE ( 'file opened' ); END IF ; -- 关闭文件 DBE_FILE . CLOSE ( f ); IF DBE_FILE . IS_CLOSE ( f ) = true THEN DBE_OUTPUT . PRINT_LINE ( 'file closed' ); END IF ; f : = DBE_FILE . OPEN ( 'dir' , 'sample.txt' , 'w' ); -- 写文件 DBE_FILE . WRITE ( f , 'A' ); DBE_FILE . NEW_LINE ( f ); DBE_FILE . WRITE ( f , 'B' ); DBE_FILE . WRITE ( f , 'C' ); DBE_FILE . NEW_LINE ( f , 2 ); DBE_FILE . WRITE_LINE ( f , 'ABC' ); DBE_FILE . FORMAT_WRITE ( f , '[1 -> %s, 2 -> %s]\n' , 'GaussDB' , 'DBE_FILE' ); DBE_FILE . PUT_RAW ( f , '414243' ); DBE_FILE . NEW_LINE ( f ); DBE_FILE . CLOSE ( f ); -- 新建sample_copy.txt并拷贝sample.txt的内容 DBE_FILE . COPY ( 'dir' , 'sample.txt' , 'dir' , 'sample_copy.txt' ); -- 以读模式打开文件 f : = DBE_FILE . OPEN ( 'dir' , 'sample_copy.txt' , 'r' ); -- 读文件 DBE_FILE . READ_LINE ( f , buffer ); -- A DBE_OUTPUT . PRINT_LINE ( buffer ); DBE_FILE . READ_LINE ( f , buffer ); -- BC DBE_OUTPUT . PRINT_LINE ( buffer ); DBE_FILE . READ_LINE ( f , buffer ); DBE_FILE . READ_LINE ( f , buffer ); -- ABC DBE_OUTPUT . PRINT_LINE ( buffer ); DBE_FILE . READ_LINE ( f , buffer ); -- [1 -> GaussDB, 2 -> DBE_FILE] DBE_OUTPUT . PRINT_LINE ( buffer ); DBE_FILE . READ_LINE ( f , buffer ); -- RAW 414243 --> ABC DBE_OUTPUT . PRINT_LINE ( buffer ); -- 关闭文件 DBE_FILE . CLOSE ( f ); f1 : = DBE_FILE . FOPEN ( 'dir' , 'sample1.txt' , 'w' ); f2 : = DBE_FILE . FOPEN ( 'dir' , 'sample2.txt' , 'w' ); DBE_FILE . CLOSE_ALL (); IF DBE_FILE . IS_CLOSE ( f1 ) = true and DBE_FILE . IS_CLOSE ( f2 ) = true THEN DBE_OUTPUT . PRINT_LINE ( 'f1 and f2 all closed' ); END IF ; -- 删除文件 DBE_FILE . REMOVE ( 'dir' , 'sample1.txt' ); DBE_FILE . REMOVE ( 'dir' , 'sample2.txt' ); DBE_FILE . REMOVE ( 'dir' , 'sample_copy.txt' ); -- 打开文件，清理sample.txt里的数据 f : = DBE_FILE . OPEN ( 'dir' , 'sample.txt' , 'w' ); DBE_FILE . WRITE_LINE ( f , 'ABC' ); DBE_FILE . CLOSE ( f ); f : = DBE_FILE . OPEN ( 'dir' , 'sample.txt' , 'r' ); -- GET_RAW DBE_FILE . GET_RAW ( f , raw_buffer ); -- 4142430A 0A是换行符 DBE_OUTPUT . PRINT_LINE ( raw_buffer ); DBE_FILE . CLOSE ( f ); -- 获取文件属性 DBE_FILE . GET_ATTR ( 'dir' , 'sample.txt' , fexists , file_length , block_size ); IF fexists = true THEN DBE_OUTPUT . PRINT_LINE ( 'file length: ' || file_length ); END IF ; -- 修改文件名 DBE_FILE . RENAME ( 'dir' , 'sample.txt' , 'dir' , 'sample_rename.txt' , true ); f1 : = DBE_FILE . FOPEN ( 'dir' , 'sample_rename.txt' , 'r' ); DBE_FILE . SEEK ( f1 , 1 , null ); pos : = DBE_FILE . GET_POS ( f1 ); DBE_OUTPUT . PRINT_LINE ( 'position is: ' || pos ); DBE_FILE . READ_LINE ( f1 , buffer ); -- BC DBE_OUTPUT . PRINT_LINE ( buffer ); DBE_FILE . CLOSE ( f1 ); -- FLUSH f1 : = DBE_FILE . FOPEN ( 'dir' , 'sample_rename.txt' , 'w' ); DBE_FILE . WRITE_LINE ( f1 , 'ABCEFG' ); DBE_FILE . FLUSH ( f1 ); f2 : = DBE_FILE . FOPEN ( 'dir' , 'sample_rename.txt' , 'r' ); DBE_FILE . READ_LINE ( f2 , buffer ); -- ABCEFG DBE_OUTPUT . PRINT_LINE ( buffer ); DBE_FILE . CLOSE ( f1 ); DBE_FILE . CLOSE ( f2 ); DBE_FILE . REMOVE ( 'dir' , 'sample_rename.txt' ); -- NCHAR函数 f_nchar : = DBE_FILE . FOPEN_NCHAR ( 'dir' , 'sample_nchar.txt' , 'w' ); DBE_FILE . WRITE_NCHAR ( f_nchar , 'ABCDE' ); DBE_FILE . WRITE_LINE_NCHAR ( f_nchar , 'ABCDE' ); DBE_FILE . FORMAT_WRITE_NCHAR ( f_nchar , '%s, %s' , 'hello' , 'world' ); DBE_FILE . CLOSE ( f_nchar ); f_nchar : = DBE_FILE . FOPEN_NCHAR ( 'dir' , 'sample_nchar.txt' , 'r' ); DBE_FILE . READ_LINE_NCHAR ( f_nchar , nvarchar_buffer ); -- ABCDEABCDE DBE_OUTPUT . PRINT_LINE ( nvarchar_buffer ); DBE_FILE . READ_LINE_NCHAR ( f_nchar , nvarchar_buffer ); -- hello, world DBE_OUTPUT . PRINT_LINE ( nvarchar_buffer ); DBE_FILE . CLOSE ( f_nchar ); DBE_FILE . REMOVE ( 'dir' , 'sample_nchar.txt' ); END ; / -- 执行结果为 file opened file closed A BC ABC [ 1 -> GaussDB , 2 -> DBE_FILE ] ABC f1 and f2 all closed 4142430 A file length : 4 position is : 1 BC ABCEFG ABCDEABCDE hello , world ANONYMOUS BLOCK EXECUTE 父主题： 二次封装接口(推荐) 版权所有 © 华为技术有限公司

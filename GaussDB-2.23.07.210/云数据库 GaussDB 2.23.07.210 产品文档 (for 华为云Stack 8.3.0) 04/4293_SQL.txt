@@ -1,0 +1,19 @@
+使用SQL函数接口进行逻辑解码 使用SQL函数接口进行逻辑解码 GaussDB 可以通过调用SQL函数，进行创建、删除、推进逻辑复制槽，获取解码后的事务日志。 操作步骤 以具有REPLICATION权限的用户登录 GaussDB 集群任一主DN。 使用如下命令通过DN端口连接数据库。 gsql -U user1 -d gaussdb -p 40000 -r 其中，user1为用户名，gaussdb为需要连接的数据库名称，40000为数据库DN端口号，用户可根据实际情况替换。复制槽是建立在DN上的，因此需要通过DN端口连接数据库。 创建名称为slot1的逻辑复制槽。 1
+2
+3
+4
+5 gaussdb => SELECT * FROM pg_create_logical_replication_slot ( 'slot1' , 'mppdb_decoding' ); slotname | xlog_position ----------+--------------- slot1 | 0 / 601 C150 ( 1 row ) 在数据库中创建表t，并向表t中插入数据。 1
+2 gaussdb => CREATE TABLE t ( a int PRIMARY KEY , b int ); gaussdb => INSERT INTO t VALUES ( 3 , 3 ); 读取复制槽slot1解码结果，解码条数为4096。 逻辑解码选项可参考 逻辑解码选项 。 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10 gaussdb => SELECT * FROM pg_logical_slot_peek_changes ( 'slot1' , NULL , 4096 ); location | xid | data -----------+-------+------------------------------------------------------------------------------------------------------------------------------------------------- ------------------------------------------- 0 / 601 C188 | 1010023 | BEGIN 1010023 0 / 601 ED60 | 1010023 | COMMIT 1010023 ( at 2023 - 09 - 14 16 : 03 : 51 . 394287 + 08 ) CSN 1010022 0 / 601 ED60 | 1010024 | BEGIN 1010024 0 / 601 ED60 | 1010024 | { "table_name" : "public.t" , "op_type" : "INSERT" , "columns_name" :[ "a" , "b" ], "columns_type" :[ "integer" , "integer" ], "columns_val" :[ "3" , "3" ], "old_keys_name" :[], "old_keys_type" :[], "old_keys_val" :[] } 0 / 601 EED8 | 1010024 | COMMIT 1010024 ( at 2023 - 09 - 14 16 : 03 : 57 . 239821 + 08 ) CSN 1010023 ( 5 rows ) 删除逻辑复制槽slot1。 1
+2
+3
+4
+5 gaussdb => SELECT * FROM pg_drop_replication_slot ( 'slot1' ); pg_drop_replication_slot -------------------------- ( 1 row ) 父主题： 逻辑解码 版权所有 © 华为技术有限公司

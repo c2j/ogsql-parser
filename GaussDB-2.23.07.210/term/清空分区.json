@@ -1,0 +1,21 @@
+{
+  "topic": "清空分区",
+  "term_count": 3,
+  "terms": [
+    {
+      "term": "对二级分区表清空二级分区",
+      "content": "对二级分区表清空二级分区 对二级分区表清空二级分区 使用ALTER TABLE TRUNCATE SUBPARTITION可以清空二级分区表的一个二级分区。 例如，通过指定分区名清空二级分区表range_list_sales的二级分区date_202005_channel1，并更新Global索引。 ALTER TABLE range_list_sales TRUNCATE SUBPARTITION date_202005_channel1 UPDATE GLOBAL INDEX; 或者，通过指定分区值来清空二级分区表range_list_sales中('2020-05-08', '0')所对应的二级分区。由于不带UPDATE GLOBAL INDEX子句，执行该命令后Global索引会失效。 ALTER TABLE range_list_sales TRUNCATE SUBPARTITION FOR ('2020-05-08', '0');",
+      "source_file": "4576_file_4576.txt"
+    },
+    {
+      "term": "对二级分区表清空一级分区",
+      "content": "对二级分区表清空一级分区 对二级分区表清空一级分区 使用ALTER TABLE TRUNCATE PARTITION可以清空二级分区表的一个一级分区，数据库会将这个一级分区下的所有二级分区都进行清空。 例如，通过指定分区名清空二级分区表range_list_sales的一级分区date_202005，并更新Global索引。 ALTER TABLE range_list_sales TRUNCATE PARTITION date_202005 UPDATE GLOBAL INDEX; 或者，通过指定分区值来清空二级分区表range_list_sales中('2020-05-08')所对应的一级分区。由于不带UPDATE GLOBAL INDEX子句，执行该命令后Global索引会失效。 ALTER TABLE range_list_sales TRUNCATE PARTITION FOR ('2020-05-08');",
+      "source_file": "4575_file_4575.txt"
+    },
+    {
+      "term": "对一级分区表清空分区",
+      "content": "对一级分区表清空分区 对一级分区表清空分区 使用ALTER TABLE TRUNCATE PARTITION可以清空指定分区表的任何一个分区。 例如，通过指定分区名清空范围分区表range_sales的分区date_202005，并更新Global索引。 ALTER TABLE range_sales TRUNCATE PARTITION date_202005 UPDATE GLOBAL INDEX; 或者，通过指定分区值来清空范围分区表range_sales中'2020-05-08'所对应的分区。由于不带UPDATE GLOBAL INDEX子句，执行该命令后Global索引会失效。 ALTER TABLE range_sales TRUNCATE PARTITION FOR ('2020-05-08');",
+      "source_file": "4574_file_4574.txt"
+    }
+  ]
+}

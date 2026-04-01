@@ -1,0 +1,141 @@
+{
+  "topic": "JDBC",
+  "term_count": 27,
+  "terms": [
+    {
+      "term": "【规格】目前仅支持对CREATE/ALTER",
+      "content": "【规格】目前仅支持对CREATE/ALTER TABLE中列的DEFAULT值进行参数化设置，其他DDL使用Prepare Execute执行方式进行参数设置无效 【规格】目前仅支持对CREATE/ALTER TABLE中列的DEFAULT值进行参数化设置，其他DDL使用Prepare Execute执行方式进行参数设置无效",
+      "source_file": "717_CREATE_ALTER TABLEDEFAULTDDLPrepare Execute.txt"
+    },
+    {
+      "term": "【建议】建议设置连接参数batch",
+      "content": "【建议】建议设置连接参数batchMode=on，使用batch模式连接，提高执行性能 【建议】建议设置连接参数batch M ode= on ，使用batch模式连接，提高执行性能",
+      "source_file": "726_batchMode=onbatch.txt"
+    },
+    {
+      "term": "【规则】在同一个事务中，应逐条执行SQL语句，避免拼接多条SQL作为一条语句发送",
+      "content": "【规则】在同一个事务中，应逐条执行SQL语句，避免拼接多条SQL作为一条语句发送 【规则】在同一个事务中，应逐条执行SQL语句，避免拼接多条SQL作为一条语句发送 参考 【规则】通过JDBC接入数据库时，避免拼接多条SQL为一条语句发送执行",
+      "source_file": "588_SQLSQL.txt"
+    },
+    {
+      "term": "【建议】应根据业务上层请求超时时间合理设置JDBC连接超时时间，避免作业完成或超",
+      "content": "【建议】应根据业务上层请求超时时间合理设置JDBC连接超时时间，避免作业完成或超长作业持续占用数据库资源 【建议】应根据业务上层请求超时时间合理设置JDBC连接超时时间，避免作业完成或超 长 作业持续占用数据库资源 超时参数包括loginTimeout、connectTimeout、socketTimeout等。 ● loginTimeout：Integer类型。指建立数据库连接的等待时间。超时时间单位为秒。默认值为0，表示已禁用，timeout不发生。 ● connectTimeout：Integer类型。用于连接服务器操作的超时值。如果连接到服务器花费的时间超过此值，则连接断开。超时时间单位为秒，默认值为0，表示已禁用，timeout不发生。 ● socketTimeout：Integer类型。用于socket读取操作的超时值。如果从服务器读取所花费的时间超过此值，则连接关闭。超时时间单位为秒，默认值为0，表示已禁用，timeout不发生。 ● cancelSignalTimeout：Integer类型。发送取消消息本身可能会阻塞，此属性控制用于取消命令的“connect超时”和“socket超时”。超时时间单位为秒，默认值为10秒。 ● tcpKeepAlive：Boolean类型。启用或禁用TCP保活探测功能。默认值为false。",
+      "source_file": "727_JDBC.txt"
+    },
+    {
+      "term": "【规则】使用默认GUC参数，避免通过JDBC发送SET请求修改GUC参数",
+      "content": "【规则】使用默认GUC参数，避免通过JDBC发送SET请求修改GUC参数 【规则】使用默认GUC参数，避免通过JDBC发送SET请求修改GUC参数 参考 【规则】客户端（如JDBC）应使用默认参数执行查询，如果需要修改会话级别的GUC参数，应谨慎评估",
+      "source_file": "586_GUCJDBCSETGUC.txt"
+    },
+    {
+      "term": "【建议】建议设置连接参数auto",
+      "content": "【建议】建议设置连接参数autoBalance=true，开启CN负载均衡功能，并中设置多个CN连接地址（使用逗号分隔） 【建议】建议设置连接参数auto B alance=true，开启CN负载均衡功能，并中设置多个CN连接地址（使用逗号分隔） 一旦开启autobalance，JDBC DRIVER会尝试将JDBC connection分配到不同的CN节点上。 设置多个CN连接地址的目的是避免JDBC DRIVER在首次获取集群CN列表时，因所设置的CN节点故障而失败。 一旦首次成功获取，便不会再依赖连接参数中指定的CN列表，而是根据实时获取的集群CN列表，每隔一段时间，选取连接其中有效的CN获取最新的CN列表。",
+      "source_file": "592_autoBalance=trueCNCN.txt"
+    },
+    {
+      "term": "【规格】单条SQL语句的长度不允许超过2G字节，业务应考虑通信成本，建议单条SQL语句不超过5K",
+      "content": "【规格】单条SQL语句的长度不允许超过2G字节，业务应考虑通信成本，建议单条SQL语句不超过5K 【规格】单条SQL语句的长度不允许超过2G字节，业务应考虑通信成本，建议单条SQL语句不超过5K",
+      "source_file": "716_SQL2GSQL5K.txt"
+    },
+    {
+      "term": "【规格】JDBC实例必须指定数据库，一旦实例创建，无法切换数据库",
+      "content": "【规格】JDBC实例必须指定数据库，一旦实例创建，无法切换数据库 【规格】JDBC实例必须指定数据库，一旦实例创建，无法切换数据库",
+      "source_file": "715_JDBC.txt"
+    },
+    {
+      "term": "【规则】JDBC每条PreparedStatement语句中的参数不可超过32767个",
+      "content": "【规则】JDBC每条PreparedStatement语句中的参数不可超过32767个 【规则】JDBC每条PreparedStatement语句中的参数不可超过32767个",
+      "source_file": "584_JDBCPreparedStatement32767.txt"
+    },
+    {
+      "term": "【规格】目前仅支持对CREATE/ALTER",
+      "content": "【规格】目前仅支持对CREATE/ALTER TABLE中列的DEFAULT值进行参数化设置，其他DDL使用Prepare Execute执行方式进行参数设置无效 【规格】目前仅支持对CREATE/ALTER TABLE中列的DEFAULT值进行参数化设置，其他DDL使用Prepare Execute执行方式进行参数设置无效",
+      "source_file": "583_CREATE_ALTER TABLEDEFAULTDDLPrepare Execute.txt"
+    },
+    {
+      "term": "【建议】建议设置连接参数batch",
+      "content": "【建议】建议设置连接参数batchMode=on，使用batch模式连接，提高执行性能 【建议】建议设置连接参数batch M ode= on ，使用batch模式连接，提高执行性能",
+      "source_file": "593_batchMode=onbatch.txt"
+    },
+    {
+      "term": "【规则】JDBC每条PreparedStatement语句中的参数不可超过32767个",
+      "content": "【规则】JDBC每条PreparedStatement语句中的参数不可超过32767个 【规则】JDBC每条PreparedStatement语句中的参数不可超过32767个",
+      "source_file": "718_JDBCPreparedStatement32767.txt"
+    },
+    {
+      "term": "【规格】JDBC实例必须指定数据库，一旦实例创建，无法切换数据库",
+      "content": "【规格】JDBC实例必须指定数据库，一旦实例创建，无法切换数据库 【规格】JDBC实例必须指定数据库，一旦实例创建，无法切换数据库",
+      "source_file": "581_JDBC.txt"
+    },
+    {
+      "term": "【建议】必须使用Prepare",
+      "content": "【建议】必须使用Prepare Execute方式执行查询语句，提高执行效率 【建议】必须使用Prepare Execute方式执行查询语句，提高执行效率",
+      "source_file": "721_Prepare Execute.txt"
+    },
+    {
+      "term": "【规则】使用Prepare",
+      "content": "【规则】使用Prepare Execute方式执行查询语句，提高执行效率 【规则】使用Prepare Execute方式执行查询语句，提高执行效率",
+      "source_file": "587_Prepare Execute.txt"
+    },
+    {
+      "term": "【规格】连接参数fetchsize必须要在autocommit关闭情况下使用，否则fetchsize配置无效",
+      "content": "【规格】连接参数fetchsize必须要在autocommit关闭情况下使用，否则fetchsize配置无效 【规格】连接参数fetchsize必须要在autocommit关闭情况下使用，否则fetchsize配置无效",
+      "source_file": "719_fetchsizeautocommitfetchsize.txt"
+    },
+    {
+      "term": "【规则】如果在连接中创建了临时表，那么在将连接归还给连接池之前，必须将临时表删除，避免业务出错",
+      "content": "【规则】如果在连接中创建了临时表，那么在将连接归还给连接池之前，必须将临时表删除，避免业务出错 【规则】如果在连接中创建了临时表，那么在将连接归还给连接池之前，必须将临时表删除，避免业务出错",
+      "source_file": "590_file_590.txt"
+    },
+    {
+      "term": "【规格】单条SQL语句的长度不允许超过2G字节，业务应考虑通信成本，建议单条SQL语句不超过5K",
+      "content": "【规格】单条SQL语句的长度不允许超过2G字节，业务应考虑通信成本，建议单条SQL语句不超过5K 【规格】单条SQL语句的长度不允许超过2G字节，业务应考虑通信成本，建议单条SQL语句不超过5K",
+      "source_file": "582_SQL2GSQL5K.txt"
+    },
+    {
+      "term": "【规则】在同一个事务中，应逐条执行SQL语句，避免拼接多条SQL作为一条语句发送",
+      "content": "【规则】在同一个事务中，应逐条执行SQL语句，避免拼接多条SQL作为一条语句发送 【规则】在同一个事务中，应逐条执行SQL语句，避免拼接多条SQL作为一条语句发送 参考 【规则】通过JDBC接入数据库时，避免拼接多条SQL为一条语句发送执行",
+      "source_file": "722_SQLSQL.txt"
+    },
+    {
+      "term": "【建议】合理设置prepareThreshold，如果query语句十分固定，建议设置为1",
+      "content": "【建议】合理设置prepareThreshold，如果query语句十分固定，建议设置为1 【建议】合理设置prepareThreshold，如果query语句十分固定，建议设置为1",
+      "source_file": "591_prepareThresholdquery1.txt"
+    },
+    {
+      "term": "【规则】如果在连接中创建了临时表，那么在将连接归还给连接池之前，必须将临时表删除，避免业务出错",
+      "content": "【规则】如果在连接中创建了临时表，那么在将连接归还给连接池之前，必须将临时表删除，避免业务出错 【规则】如果在连接中创建了临时表，那么在将连接归还给连接池之前，必须将临时表删除，避免业务出错",
+      "source_file": "724_file_724.txt"
+    },
+    {
+      "term": "【规则】使用默认GUC参数，避免通过JDBC发送SET请求修改GUC参数",
+      "content": "【规则】使用默认GUC参数，避免通过JDBC发送SET请求修改GUC参数 【规则】使用默认GUC参数，避免通过JDBC发送SET请求修改GUC参数 参考 【规则】客户端（如JDBC）应使用默认参数执行查询，如果需要修改会话级别的GUC参数，应谨慎评估",
+      "source_file": "720_GUCJDBCSETGUC.txt"
+    },
+    {
+      "term": "【规则】JDBC客户端所在主机时区、数据库集群所在主机时区和集群配置过程中的时区，三者应保持一致",
+      "content": "【规则】JDBC客户端所在主机时区、数据库集群所在主机时区和集群配置过程中的时区，三者应保持一致 【规则】JDBC客户端所在主机时区、数据库集群所在主机时区和集群配置过程中的时区，三者应保持一致",
+      "source_file": "589_JDBC.txt"
+    },
+    {
+      "term": "【规格】连接参数fetchsize必须要在autocommit关闭情况下使用，否则fetchsize配置无效",
+      "content": "【规格】连接参数fetchsize必须要在autocommit关闭情况下使用，否则fetchsize配置无效 【规格】连接参数fetchsize必须要在autocommit关闭情况下使用，否则fetchsize配置无效",
+      "source_file": "585_fetchsizeautocommitfetchsize.txt"
+    },
+    {
+      "term": "【建议】应根据业务上层请求超时时间合理设置JDBC连接超时时间，避免作业完成或超",
+      "content": "【建议】应根据业务上层请求超时时间合理设置JDBC连接超时时间，避免作业完成或超长作业持续占用数据库资源 【建议】应根据业务上层请求超时时间合理设置JDBC连接超时时间，避免作业完成或超 长 作业持续占用数据库资源 超时参数包括loginTimeout、connectTimeout、socketTimeout等。 ● loginTimeout：Integer类型。指建立数据库连接的等待时间。超时时间单位为秒。默认值为0，表示已禁用，timeout不发生。 ● connectTimeout：Integer类型。用于连接服务器操作的超时值。如果连接到服务器花费的时间超过此值，则连接断开。超时时间单位为秒，默认值为0，表示已禁用，timeout不发生。 ● socketTimeout：Integer类型。用于socket读取操作的超时值。如果从服务器读取所花费的时间超过此值，则连接关闭。超时时间单位为秒，默认值为0，表示已禁用，timeout不发生。 ● cancelSignalTimeout：Integer类型。发送取消消息本身可能会阻塞，此属性控制用于取消命令的“connect超时”和“socket超时”。超时时间单位为秒，默认值为10秒。 ● tcpKeepAlive：Boolean类型。启用或禁用TCP保活探测功能。默认值为false。",
+      "source_file": "594_JDBC.txt"
+    },
+    {
+      "term": "【建议】合理设置prepareThreshold，如果query语句十分固定，建议设置为1",
+      "content": "【建议】合理设置prepareThreshold，如果query语句十分固定，建议设置为1 【建议】合理设置prepareThreshold，如果query语句十分固定，建议设置为1",
+      "source_file": "725_prepareThresholdquery1.txt"
+    },
+    {
+      "term": "【规则】JDBC客户端所在主机时区、数据库所在主机时区和数据库配置过程中的时区，三者应保持一致",
+      "content": "【规则】JDBC客户端所在主机时区、数据库所在主机时区和数据库配置过程中的时区，三者应保持一致 【规则】JDBC客户端所在主机时区、数据库所在主机时区和数据库配置过程中的时区，三者应保持一致",
+      "source_file": "723_JDBC.txt"
+    }
+  ]
+}

@@ -1,0 +1,1 @@
+GLOBAL_SHARED_MEMORY_DETAIL GLOBAL_SHARED_MEMORY_DETAIL 查询数据库中所有正常节点下的共享内存上下文的使用信息。 表1 GLOBAL_SHARED_MEMORY_DETAIL字段 名称 类型 描述 node_name name 节点名称。 contextname text 内存上下文的名称。 level smallint 内存上下文的级别。 parent text 上级内存上下文。 totalsize bigint 共享内存总大小（单位：字节）。 freesize bigint 共享内存剩余大小（单位：字节）。 usedsize bigint 共享内存使用大小（单位：字节）。 父主题： Memory 版权所有 © 华为技术有限公司

@@ -1,0 +1,16 @@
+{
+  "topic": "工具参考",
+  "term_count": 2,
+  "terms": [
+    {
+      "term": "主备版",
+      "content": "主备版 主备版 简介 客户端工具 服务端工具 系统内部调用的工具 统一数据库管理工具 FAQ gs_collector工具支持收集的系统表和视图列表",
+      "source_file": "5887_file_5887.txt"
+    },
+    {
+      "term": "分布式版",
+      "content": "分布式版 分布式版 简介 客户端工具 服务端工具 系统内部调用的工具 统一集群管理工具 FAQ gs_collector工具支持收集的系统表和视图列表",
+      "source_file": "5774_file_5774.txt"
+    }
+  ]
+}

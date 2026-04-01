@@ -1,0 +1,26 @@
+{
+  "topic": "GaussDB安装(OBS方式）",
+  "term_count": 4,
+  "terms": [
+    {
+      "term": "安装后调测",
+      "content": "安装后调测 安装后调测 使用FusionCare自动化调测 手动调测",
+      "source_file": "068_file_68.txt"
+    },
+    {
+      "term": "安装后检查",
+      "content": "安装后检查 安装后检查 检查BMS启动方式 手动关闭GuestOS_Agent自动升级 数据库容灾服务安装后配置 BMS实例发放前检查",
+      "source_file": "046_file_46.txt"
+    },
+    {
+      "term": "安装过程（自动化部署工程）",
+      "content": "安装过程（自动化部署工程） 安装过程（自动化部署工程） 上传云服务软件包 使用HCC Turnkey自动化安装云服务",
+      "source_file": "043_file_43.txt"
+    },
+    {
+      "term": "安装前准备",
+      "content": "安装前准备 安装前准备 文档、工具和软件包 安装前检查项 检查数据库服务依赖项 检查BMS形态依赖项 申请或更新许可 安装或检查HCC Turnkey 检查RAID状态 双出口或单出口网络配置检查 管理节点地址规划 使用HCC Turnkey新增 AZ 扩容BMS网关节点",
+      "source_file": "019_file_19.txt"
+    }
+  ]
+}

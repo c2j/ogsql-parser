@@ -1,0 +1,16 @@
+{
+  "topic": "创建非Admin用户并授权",
+  "term_count": 2,
+  "terms": [
+    {
+      "term": "创建用户",
+      "content": "创建用户 创建用户 登录CloudScope，进入CloudOpsAuth页面。 打开链接：https:// {CloudScope域名} /CloudOpsAuth/#/order-mgmt/list/my-todo 账户名：admin 在左侧导航栏选择“用户”，单击“创建”。 基本信息参考如下，单击“下一步”。 选择默认的时间策略，单击“确定”。",
+      "source_file": "5658_file_5658.txt"
+    },
+    {
+      "term": "用户授权",
+      "content": "用户授权 用户授权 登录CloudScope，进入CloudOpsAuth页面。 打开链接：https:// {CloudScope域名} /CloudOpsAuth/#/order-mgmt/list/my-todo 账户名：admin 在左侧导航栏选择“用户组”。 单击目标用户组右侧操作列的“更多 > 添加成员”。 选择目标用户，单击“确定”进行授权。 重复上述步骤对用户授予如下群组的权限。",
+      "source_file": "5659_file_5659.txt"
+    }
+  ]
+}

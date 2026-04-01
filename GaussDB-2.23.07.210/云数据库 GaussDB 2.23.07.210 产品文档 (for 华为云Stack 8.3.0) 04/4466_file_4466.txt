@@ -1,0 +1,1 @@
+常见问题处理 常见问题处理 提示No recommended results for distribution key and replication table。检查数据库参数或 schema参数 是否输入正确。 获取WDR报告为空，检查时间参数格式是否正确，或者确认指定用户是否有monitor admin权限。 父主题： 外部工具 版权所有 © 华为技术有限公司

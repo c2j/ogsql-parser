@@ -1,0 +1,1 @@
+DB_TRIGGERS DB_TRIGGERS DB_TRIGGERS视图显示当前用户能访问到的触发器的信息。该视图同时存在于PG_CATALOG和SYS Schema下。 表1 DB_TRIGGERS字段 名称 类型 描述 trigger_name character varying(64) 触发器名称。 table_name character varying(64) 关系表名称。 table_owner character varying(64) 角色名称。 status character varying(64) O：触发器在“origin”和“local”模式下触发。 D：触发器被禁用。 R：触发器在“replica”模式下触发。 A：触发器始终触发。 父主题： 其他系统视图 版权所有 © 华为技术有限公司

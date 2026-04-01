@@ -1,0 +1,43 @@
+GET DESCRIPTOR GET DESCRIPTOR 功能描述 检索查询结果集的信息，并且将它存储到宿主变量中。在使用该命令将信息传递给宿主语言变量之前通常使用FETCH或者SELECT填充标识符区域。该命令有两种形式： 检索描述符的“头部”项，适用于全面查看结果集。 列号作为附加参数，检索特定列的信息。 语法格式 GET DESCRIPTOR descriptor_name VALUE column_number :cvariable = descriptor_item [, ... ]
+GET DESCRIPTOR descriptor_name:cvariable = descriptor_header_item [, ... ] 参数说明 descriptor_name 描述符名称。 descriptor_header_item 标识要检索哪一个头部项信息。当前仅支持用于得到结果集中列数的COUNT。 column_number 关于被检索的列数信息。计数从1开始。 descriptor_item 标记识别检索列的信息项。 cvariable 宿主变量将接收从描述符区域检索的数据。 示例 检索结果集中列数： EXEC SQL GET DESCRIPTOR d :d_count = COUNT; 在第一列中检索数据长度： EXEC SQL GET DESCRIPTOR d VALUE 1 :d_returned_octet_length = RETURNED_OCTET_LENGTH; 检索作为字符串第二列的数据主体： EXEC SQL GET DESCRIPTOR d VALUE 2 :d_data = DATA; 执行SELECT current_database();并且显示列数、列数据长度和列数据的完整过程示例： #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+int main(void) 
+{ 
+EXEC SQL BEGIN DECLARE SECTION; 
+    int  d_count; 
+    char d_data[1024]; 
+    int  d_returned_octet_length; 
+EXEC SQL END DECLARE SECTION; 
+    EXEC SQL CONNECT TO testdb AS con1 USER testuser; 
+    EXEC SQL SELECT pg_catalog.set_config('search_path', '', false); EXEC SQL COMMIT; 
+    EXEC SQL ALLOCATE DESCRIPTOR d; 
+
+    /* 描述、打开一个游标，并且分配一个描述符给该游标  */ 
+    EXEC SQL DECLARE cur CURSOR FOR SELECT current_database(); 
+    EXEC SQL OPEN cur; 
+    EXEC SQL FETCH NEXT FROM cur INTO SQL DESCRIPTOR d; 
+  
+    /* 得到全部列的数量 */ 
+    EXEC SQL GET DESCRIPTOR d :d_count = COUNT; 
+    printf("d_count = %d\n", d_count); 
+
+    /* 得到一个返回列的长度 */ 
+    EXEC SQL GET DESCRIPTOR d VALUE 1 :d_returned_octet_length = RETURNED_OCTET_LENGTH; 
+    printf("d_returned_octet_length = %d\n", d_returned_octet_length); 
+
+    /* 将返回的列取出成一个字符串 */ 
+    EXEC SQL GET DESCRIPTOR d VALUE 1 :d_data = DATA; 
+    printf("d_data = %s\n", d_data); 
+
+    /* 关闭 */ 
+    EXEC SQL CLOSE cur; 
+    EXEC SQL COMMIT; 
+  
+    EXEC SQL DEALLOCATE DESCRIPTOR d; 
+    EXEC SQL DISCONNECT ALL; 
+    return 0; 
+} 该示例执行结果为： d_count                 = 1 
+d_returned_octet_length = 6 
+d_data                  = testdb 相关链接 ALLOCATE DESCRIPTOR ， DEALLOCATE DESCRIPTOR ， SET DESCRIPTOR 父主题： 嵌入式SQL命令 版权所有 © 华为技术有限公司

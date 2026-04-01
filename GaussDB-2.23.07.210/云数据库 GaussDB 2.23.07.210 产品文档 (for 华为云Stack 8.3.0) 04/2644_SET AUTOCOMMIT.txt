@@ -1,0 +1,1 @@
+SET AUTOCOMMIT SET AUTOCOMMIT 功能描述 设置当前数据库会话的自动提交行为。默认情况下，嵌入式SQL程序不自动提交，因此需要显式地发出COMMIT。这个命令可以把会话改成自动提交模式，这样每一个单独的语句都会被隐式提交。 语法格式 SET AUTOCOMMIT { = | TO } { ON | OFF } 父主题： 嵌入式SQL命令 版权所有 © 华为技术有限公司

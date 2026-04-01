@@ -1,0 +1,2 @@
+DBE_PLDEBUGGER.turn_off DBE_PLDEBUGGER.turn_off 仅用于去掉当前session被turn_on添加的调试标记，返回值表示成功或失败。可通过DBE_PLDEBUGGER.local_debug_server_info查找已经turn_on的存储过程oid。 函数原型为： 1
+2 DBE_PLDEBUGGER . turn_off ( Oid ) RETURN boolean ; 表1 turn_off 入参和返回值列表 名称 类型 描述 func_oid IN oid 函数oid turn_off OUT boolean turn off是否成功 父主题： DBE_PLDEBUGGER Schema 版权所有 © 华为技术有限公司

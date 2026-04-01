@@ -1,0 +1,106 @@
+{
+  "topic": "分区表运维管理",
+  "term_count": 20,
+  "terms": [
+    {
+      "term": "删除分区",
+      "content": "删除分区 删除分区 用户可以使用删除分区的命令来移除不需要的分区。删除分区可以通过指定分区名或者分区值来进行。 删除分区不能作用于HASH分区上。 执行删除分区命令会使得Global索引失效，可以通过UPDATE GLOBAL INDEX子句来同步更新Global索引，或者用户自行重建Global索引。 删除分区时，如果该分区上带有仅属于当前分区的分类索引时，则会级联删除分类索引。 对一级分区表删除分区 对二级分区表删除一级分区 对二级分区表删除二级分区",
+      "source_file": "4566_file_4566.txt"
+    },
+    {
+      "term": "分区表索引重建/不可用",
+      "content": "分区表索引重建/不可用 分区表索引重建/不可用 用户可以通过命令使得一个分区表索引或者一个索引分区不可用，此时该索引/索引分区不再维护；使用重建索引命令可以重建分区表索引，恢复索引的正常功能。 此外，部分分区级DDL操作也会使得Global索引失效，包括删除drop、交换exchange、清空truncate、分割split、合并merge，如果在DDL操作中带UPDATE GLOBAL INDEX子句，则会同步更新Global索引，否则需要用户自行重建索引。 索引重建/不可用 Local索引分区重建/不可用",
+      "source_file": "4340__.txt"
+    },
+    {
+      "term": "删除分区",
+      "content": "删除分区 删除分区 用户可以使用删除分区的命令来移除不需要的分区。删除分区可以通过指定分区名或者分区值来进行。 删除分区不能作用于HASH分区上。 执行删除分区命令会使得Global索引失效，可以通过UPDATE GLOBAL INDEX子句来同步更新Global索引，或者用户自行重建Global索引。 删除分区时，如果该分区上带有仅属于当前分区的分类索引时，则会级联删除分类索引。 使用ALTER TABLE DROP PARTITION可以删除指定分区表的任何一个分区，这个行为可以作用在范围分区表、列表分区表上。 例如，通过指定分区名删除范围分区表range_sales的分区date_202005，并更新Global索引。 ALTER TABLE range_sales DROP PARTITION date_202005 UPDATE GLOBAL INDEX; 或者，通过指定分区值来删除范围分区表range_sales中'2020-05-08'所对应的分区。由于不带UPDATE GLOBAL INDEX子句，执行该命令后Global索引会失效。 ALTER TABLE range_sales DROP PARTITION FOR ('2020-05-08'); 当分区表只有一个分区时，不支持通过ALTER TABLE DROP PARTITION命令删除分区。 当分区表为哈希分区表时，不支持通过ALTER TABLE DROP PARTITION命令删除分区。",
+      "source_file": "4328_file_4328.txt"
+    },
+    {
+      "term": "合并分区",
+      "content": "合并分区 合并分区 用户可以使用合并分区的命令来将多个分区合并为一个分区。合并分区只能通过指定分区名来进行，不支持指定分区值的写法。 合并分区不能作用于哈希分区上。 执行合并分区命令会使得Global索引失效，可以通过UPDATE GLOBAL INDEX子句来同步更新Global索引，或者用户自行重建Global索引。 合并前的分区如果包含分类索引则不支持合并。 合并后的新分区，对于范围/间隔分区，可以与最后一个源分区名字相同，比如将p1,p2合并为p2；对于列表分区，可以与任一源分区名字相同，比如将p1,p2合并为p1。 如果新分区与源分区名字相同，数据库会将新分区视为对源分区的继承，这会影响合并期间对源分区查询的行为，具体参考 DQL/DML-DDL并发 。 对一级分区表合并分区 对二级分区表合并二级分区",
+      "source_file": "4583_file_4583.txt"
+    },
+    {
+      "term": "分区表行迁移",
+      "content": "分区表行迁移 分区表行迁移 用户可以使用ALTER TABLE ENABLE/DISABLE ROW MOVEMENT来开启/关闭分区表行迁移。 开启行迁移时，允许通过更新操作将一个分区中的数据迁移到另一个分区中；关闭行迁移时，如果出现这种更新行为，则业务报错。 如果业务明确不允许对分区键所在列进行更新操作，建议关闭分区表行迁移。 例如，创建列表分区表，并开启分区表行迁移，此时可以跨分区更新分区键所在列；关闭分区表行迁移后，对分区键所在列进行跨分区更新会业务报错。 CREATE TABLE list_sales\n(\n    product_id     INT4 NOT NULL,\n    customer_id    INT4 PRIMARY KEY,\n    time_id        DATE,\n    channel_id     CHAR(1),\n    type_id        INT4,\n    quantity_sold  NUMERIC(3),\n    amount_sold    NUMERIC(10,2)\n)\nPARTITION BY LIST (channel_id)\n(\n    PARTITION channel1 VALUES ('0', '1', '2'),\n    PARTITION channel2 VALUES ('3', '4', '5'),\n    PARTITION channel3 VALUES ('6', '7'),\n    PARTITION channel4 VALUES ('8', '9')\n) ENABLE ROW MOVEMENT;\nINSERT INTO list_sales VALUES (153241,65143129,'2021-05-07','0',864134,89,34);\n--跨分区更新成功，数据从分区channel1迁移到分区channel2\nUPDATE list_sales SET channel_id = '3' WHERE channel_id = '0';\n--关闭分区表行迁移\nALTER TABLE list_sales DISABLE ROW MOVEMENT;\n--跨分区更新失败，报错fail to update partitioned table \"list_sales\"\nUPDATE list_sales SET channel_id = '0' WHERE channel_id = '3';\n--分区内更新依然成功\nUPDATE list_sales SET channel_id = '4' WHERE channel_id = '3';",
+      "source_file": "4594_file_4594.txt"
+    },
+    {
+      "term": "清空分区",
+      "content": "清空分区 清空分区 用户可以使用清空分区的命令来快速清空分区的数据。与删除分区功能类似，区别在于清空分区只会删除分区中的数据，分区的定义和物理文件都会保留。清空分区可以通过指定分区名或者分区值来进行。 执行清空分区命令会使得Global索引失效，可以通过UPDATE GLOBAL INDEX子句来同步更新Global索引，或者用户自行重建Global索引。 使用ALTER TABLE TRUNCATE PARTITION可以清空指定分区表的任何一个分区。 例如，通过指定分区名清空范围分区表range_sales的分区date_202005，并更新Global索引。 ALTER TABLE range_sales TRUNCATE PARTITION date_202005 UPDATE GLOBAL INDEX; 或者，通过指定分区值来清空范围分区表range_sales中'2020-05-08'所对应的分区。由于不带UPDATE GLOBAL INDEX子句，执行该命令后Global索引会失效。 ALTER TABLE range_sales TRUNCATE PARTITION FOR ('2020-05-08');",
+      "source_file": "4330_file_4330.txt"
+    },
+    {
+      "term": "合并分区",
+      "content": "合并分区 合并分区 用户可以使用合并分区的命令来将多个分区合并为一个分区。合并分区只能通过指定分区名来进行，不支持指定分区值的写法。 合并分区不能作用于哈希分区上。 执行合并分区命令会使得Global索引失效，可以通过UPDATE GLOBAL INDEX子句来同步更新Global索引，或者用户自行重建Global索引。 合并前的分区如果包含分类索引则不支持合并。 合并后的新分区，对于范围分区，可以与最后一个源分区名字相同，比如将p1,p2合并为p2；对于列表分区，可以与任一源分区名字相同，比如将p1,p2合并为p1。 如果新分区与源分区名字相同，数据库会将新分区视为对源分区的继承。 使用ALTER TABLE MERGE PARTITIONS可以将多个分区合并为一个分区。 例如，将范围分区表range_sales的分区date_202001和date_202002合并为一个新的分区，并更新Global索引。 ALTER TABLE range_sales MERGE PARTITIONS date_202001, date_202002 INTO\n    PARTITION date_2020_old UPDATE GLOBAL INDEX;",
+      "source_file": "4334_file_4334.txt"
+    },
+    {
+      "term": "分区表索引重建/不可用",
+      "content": "分区表索引重建/不可用 分区表索引重建/不可用 用户可以通过命令使得一个分区表索引或者一个索引分区不可用，此时该索引/索引分区不再维护；使用重建索引命令可以重建分区表索引，恢复索引的正常功能。 此外，部分分区级DDL操作也会使得Global索引失效，包括删除drop、交换exchange、清空truncate、分割split、合并merge，如果在DDL操作中带UPDATE GLOBAL INDEX子句，则会同步更新Global索引，否则需要用户自行重建索引。 索引重建/不可用 Local索引分区重建/不可用",
+      "source_file": "4595__.txt"
+    },
+    {
+      "term": "重命名分区",
+      "content": "重命名分区 重命名分区 用户可以使用重命名分区的命令来将一个分区命名为新的名称。重命名分区可以通过指定分区名或者分区值来进行。 对一级分区表重命名分区 对二级分区表重命名一级分区 对二级分区表重命名二级分区 对Local索引重命名索引分区",
+      "source_file": "4589_file_4589.txt"
+    },
+    {
+      "term": "新增分区",
+      "content": "新增分区 新增分区 用户可以在已建立的分区表中新增分区，来维护新业务的进行。当前各种分区表支持的分区上限为1048575，如果达到了上限则不能继续添加分区。同时需要考虑分区占用内存的开销，分区表使用内存大致为（分区数 * 3 / 1024）MB，分区占用内存不允许大于local_syscache_threshold的值，同时还需要预留部分空间以供其他功能使用。 新增分区不能作用于HASH分区上。 新增分区不继承表上的分类索引属性。 向范围分区表新增分区 向列表分区表新增分区",
+      "source_file": "4325_file_4325.txt"
+    },
+    {
+      "term": "移动分区",
+      "content": "移动分区 移动分区 用户可以使用移动分区的命令来将一个分区移动到新的表空间中。移动分区可以通过指定分区名或者分区值来进行。 使用ALTER TABLE MOVE PARTITION可以对分区表移动分区。 例如，通过指定分区名将范围分区表range_sales的分区date_202001移动到表空间tb1中。 ALTER TABLE range_sales MOVE PARTITION date_202001 TABLESPACE tb1; 或者，通过指定分区值将列表分区表list_sales中'0'所对应的分区移动到表空间tb1中。 ALTER TABLE list_sales MOVE PARTITION FOR ('0') TABLESPACE tb1;",
+      "source_file": "4335_file_4335.txt"
+    },
+    {
+      "term": "分割分区",
+      "content": "分割分区 分割分区 用户可以使用分割分区的命令来将一个分区分割为两个或多个新分区。当分区数据太大，或者需要对有MAXVALUE的范围分区/DEFAULT的列表分区新增分区时，可以考虑执行该操作。分割分区可以指定分割点将一个分区分割为两个新分区，也可以不指定分割点将一个分区分割为多个新分区。分割分区可以通过指定分区名或者分区值来进行。 分割分区不能作用于哈希分区上。 执行分割分区命令会使得Global索引失效，可以通过UPDATE GLOBAL INDEX子句来同步更新Global索引，或者用户自行重建Global索引。 分割的目标分区如果包含分类索引时，该分区不支持分割。 分割后的新分区，可以与源分区名字相同，比如将分区p1分割为p1,p2。但数据库不会将分割前后相同名的分区视为同一个分区。 对范围分区表分割分区 对列表分区表分割分区",
+      "source_file": "4331_file_4331.txt"
+    },
+    {
+      "term": "重命名分区",
+      "content": "重命名分区 重命名分区 用户可以使用重命名分区的命令来将一个分区命名为新的名称。重命名分区可以通过指定分区名或者分区值来进行。 对分区表重命名分区 对Local索引重命名索引分区",
+      "source_file": "4336_file_4336.txt"
+    },
+    {
+      "term": "分区表行迁移",
+      "content": "分区表行迁移 分区表行迁移 用户可以使用ALTER TABLE ENABLE/DISABLE ROW MOVEMENT来开启/关闭分区表行迁移。 开启行迁移时，允许通过更新操作将一个分区中的数据迁移到另一个分区中；关闭行迁移时，如果出现这种更新行为，则业务报错。 如果业务明确不允许对分区键所在列进行更新操作，建议关闭分区表行迁移。 例如，创建列表分区表，并开启分区表行迁移，此时可以跨分区更新分区键所在列；关闭分区表行迁移后，对分区键所在列进行跨分区更新会业务报错。 CREATE TABLE list_sales\n(\n    product_id     INT4 NOT NULL,\n    customer_id    INT4 PRIMARY KEY,\n    time_id        DATE,\n    channel_id     CHAR(1),\n    type_id        INT4,\n    quantity_sold  NUMERIC(3),\n    amount_sold    NUMERIC(10,2)\n)\nPARTITION BY LIST (channel_id)\n(\n    PARTITION channel1 VALUES ('0', '1', '2'),\n    PARTITION channel2 VALUES ('3', '4', '5'),\n    PARTITION channel3 VALUES ('6', '7'),\n    PARTITION channel4 VALUES ('8', '9')\n) ENABLE ROW MOVEMENT;\nINSERT INTO list_sales VALUES (153241,65143129,'2021-05-07','0',864134,89,34);\n--跨分区更新成功，数据从分区channel1迁移到分区channel2\nUPDATE list_sales SET channel_id = '3' WHERE channel_id = '0';\n--关闭分区表行迁移\nALTER TABLE list_sales DISABLE ROW MOVEMENT;\n--跨分区更新失败，报错fail to update partitioned table \"list_sales\"\nUPDATE list_sales SET channel_id = '0' WHERE channel_id = '3';\n--分区内更新依然成功\nUPDATE list_sales SET channel_id = '4' WHERE channel_id = '3';",
+      "source_file": "4339_file_4339.txt"
+    },
+    {
+      "term": "交换分区",
+      "content": "交换分区 交换分区 用户可以使用交换分区的命令来将分区与普通表的数据进行交换。交换分区可以快速将数据导入/导出分区表，实现数据高效加载的目的。在业务迁移的场景，使用交换分区比常规导入会快很多。交换分区可以通过指定分区名或者分区值来进行。 执行交换分区命令会使得Global索引失效，可以通过UPDATE GLOBAL INDEX子句来同步更新Global索引，或者用户自行重建Global索引。 执行交换分区时，可以申明WITH/WITHOUT VALIDATION，表明是否校验普通表数据满足目标分区的分区键约束规则（默认校验）。数据校验活动开销较大，如果能确保交换的数据属于目标分区，可以申明WITHOUT VALIDATION来提高交换性能。 可以申明WITH VALIDATION VERBOSE，此时数据库会校验普通表的每一行，将不满足目标分区的分区键约束规则的数据，插入到分区表的其他分区中，最后再进行普通表与目标分区的交换。 例如，给出如下分区定义和普通表exchange_sales的数据分布，并将分区DATE_202001和普通表exchange_sales做交换，则根据申明子句的不同，存在以下三种行为： 申明WITHOUT VALIDATION，数据全部交换到分区DATE_202001中，由于'2020-02-03', '2020-04-08'不满足分区DATE_202001的范围约束，后续业务可能会出现异常。 申明WITH VALIDATION，由于'2020-02-03', '2020-04-08'不满足分区DATE_202001的范围约束，数据库给出相应的报错。 申明WITH VALIDATION VERBOSE，数据库会将'2020-02-03'插入分区DATE_202002，将'2020-04-08'插入分区DATE_202004，再将剩下的数据交换到分区DATE_202001中。 --分区定义\nPARTITION DATE_202001 VALUES LESS THAN ('2020-02-01'),\nPARTITION DATE_202002 VALUES LESS THAN ('2020-03-01'),\nPARTITION DATE_202003 VALUES LESS THAN ('2020-04-01'),\nPARTITION DATE_202004 VALUES LESS THAN ('2020-05-01')\n-- exchange_sales的数据分布\n('2020-01-15', '2020-01-17', '2020-01-23', '2020-02-03', '2020-04-08') 如果交换的数据不完全属于目标分区，请不要申明WITHOUT VALIDATION交换分区，否则会破坏分区约束规则，导致分区表后续DML业务结果异常。 进行交换的普通表和分区必须满足如下条件： 普通表和分区的列数目相同，对应列的信息严格一致。 普通表和分区的表压缩信息严格一致。 普通表索引和分区Local索引个数相同，且对应索引的信息严格一致。 普通表和分区的表约束个数相同，且对应表约束的信息严格一致。 普通表不可以是临时表。 普通表和分区表上不可以有动态数据脱敏，行访问控制约束。 使用ALTER TABLE EXCHANGE PARTITION可以对分区表交换分区。 例如，通过指定分区名将范围分区表range_sales的分区date_202001和普通表exchange_sales进行交换，不进行分区键校验，并更新Global索引。 ALTER TABLE range_sales EXCHANGE PARTITION (date_202001) WITH TABLE exchange_sales WITHOUT VALIDATION UPDATE GLOBAL INDEX; 或者，通过指定分区值将范围分区表range_sales中'2020-01-08'所对应的分区和普通表exchange_sales进行交换，进行分区校验并将不满足目标分区约束的数据插入到分区表的其他分区中。由于不带UPDATE GLOBAL INDEX子句，执行该命令后Global索引会失效。 ALTER TABLE range_sales EXCHANGE PARTITION FOR ('2020-01-08') WITH TABLE exchange_sales WITH VALIDATION VERBOSE;",
+      "source_file": "4329_file_4329.txt"
+    },
+    {
+      "term": "清空分区",
+      "content": "清空分区 清空分区 用户可以使用清空分区的命令来快速清空分区的数据。与删除分区功能类似，区别在于清空分区只会删除分区中的数据，分区的定义和物理文件都会保留。清空分区可以通过指定分区名或者分区值来进行。 执行清空分区命令会使得Global索引失效，可以通过UPDATE GLOBAL INDEX子句来同步更新Global索引，或者用户自行重建Global索引。 对一级分区表清空分区 对二级分区表清空一级分区 对二级分区表清空二级分区",
+      "source_file": "4573_file_4573.txt"
+    },
+    {
+      "term": "分割分区",
+      "content": "分割分区 分割分区 用户可以使用分割分区的命令来将一个分区分割为两个或多个新分区。当分区数据太大，或者需要对有MAXVALUE的范围分区/DEFAULT的列表分区新增分区时，可以考虑执行该操作。分割分区可以指定分割点将一个分区分割为两个新分区，也可以不指定分割点将一个分区分割为多个新分区。分割分区可以通过指定分区名或者分区值来进行。 分割分区不能作用于哈希分区上。 不支持对二级分区表的一级分区进行分割。 执行分割分区命令会使得Global索引失效，可以通过UPDATE GLOBAL INDEX子句来同步更新Global索引，或者用户自行重建Global索引。 分割的目标分区如果包含分类索引时，该分区不支持分割。 分割后的新分区，可以与源分区名字相同，比如将分区p1分割为p1,p2。但数据库不会将分割前后相同名的分区视为同一个分区，这会影响分割期间对源分区p1查询，具体参考 DQL/DML-DDL并发 。 对范围分区表分割分区 对间隔分区表分割分区 对列表分区表分割分区 对*-RANGE二级分区表分割二级分区 对*-LIST二级分区表分割二级分区",
+      "source_file": "4577_file_4577.txt"
+    },
+    {
+      "term": "新增分区",
+      "content": "新增分区 新增分区 用户可以在已建立的分区表中新增分区，来维护新业务的进行。当前各种分区表支持的分区上限为1048575，如果达到了上限则不能继续添加分区。同时需要考虑分区占用内存的开销，分区表使用内存大致为（分区数 * 3 / 1024）MB，分区占用内存不允许大于local_syscache_threshold的值，同时还需要预留部分空间以供其他功能使用。 新增分区不能作用于HASH分区上。 新增分区不继承表上的分类索引属性。 向范围分区表新增分区 向间隔分区表新增分区 向列表分区表新增分区 向二级分区表新增一级分区 向二级分区表新增二级分区",
+      "source_file": "4560_file_4560.txt"
+    },
+    {
+      "term": "交换分区",
+      "content": "交换分区 交换分区 用户可以使用交换分区的命令来将分区与普通表的数据进行交换。交换分区可以快速将数据导入/导出分区表，实现数据高效加载的目的。在业务迁移的场景，使用交换分区比常规导入会快很多。交换分区可以通过指定分区名或者分区值来进行。 执行交换分区命令会使得Global索引失效，可以通过UPDATE GLOBAL INDEX子句来同步更新Global索引，或者用户自行重建Global索引。 执行交换分区时，可以申明WITH/WITHOUT VALIDATION，表明是否校验普通表数据满足目标分区的分区键约束规则（默认校验）。数据校验活动开销较大，如果能确保交换的数据属于目标分区，可以申明WITHOUT VALIDATION来提高交换性能。 可以申明WITH VALIDATION VERBOSE，此时数据库会校验普通表的每一行，将不满足目标分区的分区键约束规则的数据，插入到分区表的其他分区中，最后再进行普通表与目标分区的交换。 例如，给出如下分区定义和普通表exchange_sales的数据分布，并将分区DATE_202001和普通表exchange_sales做交换，则根据申明子句的不同，存在以下三种行为： 申明WITHOUT VALIDATION，数据全部交换到分区DATE_202001中，由于'2020-02-03', '2020-04-08'不满足分区DATE_202001的范围约束，后续业务可能会出现异常。 申明WITH VALIDATION，由于'2020-02-03', '2020-04-08'不满足分区DATE_202001的范围约束，数据库给出相应的报错。 申明WITH VALIDATION VERBOSE，数据库会将'2020-02-03'插入分区DATE_202002，将'2020-04-08'插入分区DATE_202004，再将剩下的数据交换到分区DATE_202001中。 --分区定义\nPARTITION DATE_202001 VALUES LESS THAN ('2020-02-01'),\nPARTITION DATE_202002 VALUES LESS THAN ('2020-03-01'),\nPARTITION DATE_202003 VALUES LESS THAN ('2020-04-01'),\nPARTITION DATE_202004 VALUES LESS THAN ('2020-05-01')\n-- exchange_sales的数据分布\n('2020-01-15', '2020-01-17', '2020-01-23', '2020-02-03', '2020-04-08') 如果交换的数据不完全属于目标分区，请不要申明WITHOUT VALIDATION交换分区，否则会破坏分区约束规则，导致分区表后续DML业务结果异常。 进行交换的普通表和分区必须满足如下条件： 普通表和分区的列数目相同，对应列的信息严格一致。 普通表和分区的表压缩信息严格一致。 普通表索引和分区Local索引个数相同，且对应索引的信息严格一致。 普通表和分区的表约束个数相同，且对应表约束的信息严格一致。 普通表不可以是临时表。 普通表和分区表上不可以有动态数据脱敏，行访问控制约束。 对一级分区表交换分区 对二级分区表交换二级分区",
+      "source_file": "4570_file_4570.txt"
+    },
+    {
+      "term": "移动分区",
+      "content": "移动分区 移动分区 用户可以使用移动分区的命令来将一个分区移动到新的表空间中。移动分区可以通过指定分区名或者分区值来进行。 对一级分区表移动分区 对二级分区表移动二级分区",
+      "source_file": "4586_file_4586.txt"
+    }
+  ]
+}

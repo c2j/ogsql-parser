@@ -1,0 +1,1 @@
+V$VERSION V$VERSION V$VERSION视图显示数据库的版本号。所有用户都可以访问，该视图同时存在于PG_CATALOG和SYS Schema下。具体字段信息如 表1 所示。 表1 V$VERSION字段 名称 类型 描述 banner character varying(80) 组件名称和版本号。 banner_full character varying(160) 显示数据库版本和版本号。 banner_legacy character varying(80) 显示数据库版本。 con_id numeric 暂不支持，值为0。 父主题： 其他系统视图 版权所有 © 华为技术有限公司

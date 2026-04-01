@@ -1,0 +1,1 @@
+PG_JOB_PROC PG_JOB_PROC PG_JOB_PROC系统表对应PG_JOB表中每个任务的作业内容（包括：PL/SQL代码块、匿名块）。将存储过程信息独立出来，如果放到PG_JOB中，被加载到共享内存的时候，会占用不必要的空间，所以在使用的时候再进行查询获取。普通用户需授权才能访问。 表1 PG_JOB_PROC字段 名称 类型 描述 oid oid 行标识符（隐含属性，必须明确选择）。 job_id integer 外键，关联pg_job表中的job_id。 what text 作业内容，DBE_SCHEDULER定时任务中的程序内容。 job_name text DBE_SCHEDULER定时任务专用，定时任务或程序名称。 父主题： 其他系统表 版权所有 © 华为技术有限公司

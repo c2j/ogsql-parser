@@ -1,0 +1,1 @@
+ALLOCATE DESCRIPTOR ALLOCATE DESCRIPTOR 功能描述 分配一个新命名的SQL描述符区域。 语法格式 ALLOCATE DESCRIPTOR name 参数说明 name SQL描述符名称。大小写敏感，是一个SQL标识或者一个宿主变量。 示例 EXEC SQL ALLOCATE DESCRIPTOR mydesc; 相关链接 DEALLOCATE DESCRIPTOR ， GET DESCRIPTOR ， SET DESCRIPTOR 父主题： 嵌入式SQL命令 版权所有 © 华为技术有限公司

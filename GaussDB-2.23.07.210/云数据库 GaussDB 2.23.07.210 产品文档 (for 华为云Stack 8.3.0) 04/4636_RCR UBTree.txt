@@ -1,0 +1,1 @@
+RCR UBTree多版本管理 RCR UBTree多版本管理 RCR(Row Consistency Read) UBtree的多版本管理是基于数据行的行级多版本管理，将XID记录在了数据行上，会增加Key的大小，索引会有5-20%左右的膨胀。最新版本和历史版本均在btree上，索引没有记录Undo信息。插入或者删除key时按照key + TID的顺序排列，索引列相同的元组按照对应元组的TID作为第二关键字进行排序。会将xmin、xmax追加到key的后面。索引分裂时，多版本信息随着key的迁移而迁移。 父主题： RCR UBTree 版权所有 © 华为技术有限公司

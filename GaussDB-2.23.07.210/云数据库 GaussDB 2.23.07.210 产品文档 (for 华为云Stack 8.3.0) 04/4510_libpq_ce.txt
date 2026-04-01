@@ -1,0 +1,30 @@
+使用libpq_ce操作内存解密逃生通道 使用libpq_ce操作内存解密逃生通道 libpq_ce.so为密态特性动态库，包含libpq.so的所有内容和密态客户端解析、加密的相关功能。使用libpq_ce操作内存解密逃生通道，需要设置连接参数enable_ce=3。 #include "libpq-fe.h"
+int main()
+{
+    char *conninfo = "dbname=postgres port=8000 host='localhost' application_name=test user='testuser' password=****** enable_ce=3";
+    PGconn *conn = PQconnectdb(conninfo);
+    if (PQstatus(conn) != CONNECTION_OK) {
+        printf("conn err\n");
+        return 0;
+    }
+    send_clear_token(conn);
+    return 0;
+} 传输和销毁密钥示例 创建好客户端加密主密钥（CMK）和数据加密密钥（CEK）后，可以通过PQenableTrustedDomain()传输和销毁密钥： void send_clear_token(PGconn *conn)
+{      
+    // 传输密钥，将该用户有权限使用的密钥传输到服务端
+    if (PQenableTrustedDomain(conn, true)) {
+        printf("send ok\n");
+    } else {
+        printf("%s\n", PQerrorMessage(conn));
+        printf("send failed\n");
+    }
+    // 销毁密钥，清零传输到服务端的密钥
+    if (PQenableTrustedDomain(conn, false)) {
+        printf("clear ok\n");
+    } else {
+        printf("%s\n", PQerrorMessage(conn));
+        printf("clear failed\n");
+    }
+    PQfinish(conn);
+    return;
+} 父主题： 内存解密逃生通道 版权所有 © 华为技术有限公司

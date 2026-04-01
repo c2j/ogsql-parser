@@ -1,0 +1,76 @@
+{
+  "topic": "Workload Manager",
+  "term_count": 14,
+  "terms": [
+    {
+      "term": "WLM_CONTROLGROUP_NG_CONFIG",
+      "content": "WLM_CONTROLGROUP_NG_CONFIG WLM_CONTROLGROUP_NG_CONFIG WLM_CONTROLGROUP_NG_CONFIG视图显示数据库内所有的逻辑集群 （当前特性是实验室特性，使用时请联系华为技术工程师提供技术支持。） 的控制组信息。 表1 WLM_CONTROLGROUP_NG_CONFIG字段 名称 类型 描述 group_name text 控制组的名称。 group_type text 控制组的类型。 gid bigint 控制组ID。 classgid bigint Workload所属Class的控制组ID。 class text Class控制组。 group_workload text Workload控制组。 shares bigint 控制组分配的CPU资源配额。 limits bigint 控制组分配的CPU资源限额。 wdlevel bigint Workload控制组层级。 cpucores text 控制组使用的CPU核的信息。 nodegroup text 逻辑集群名称。 group_kind text node group类型，取值包括i，n，v和e： i：表示installation node group。 n：表示普通非逻辑集群node group。 v：表示逻辑集群node group。 e：表示弹性集群。",
+      "source_file": "2245_WLM_CONTROLGROUP_NG_CONFIG.txt"
+    },
+    {
+      "term": "GLOBAL_WLM_WORKLOAD_RUNTIME",
+      "content": "GLOBAL_WLM_WORKLOAD_RUNTIME GLOBAL_WLM_WORKLOAD_RUNTIME 显示当前用户在每个CN上执行作业时在CN上的状态信息。需要有监控管理员权限才可以访问。 表1 GLOBAL_WAL_WORKLOAD_RUNTIME字段 名称 类型 描述 node_name text 作业执行所在的CN的名称。 thread_id bigint 后端线程ID。 processid integer 线程的lwpid。 time_stamp bigint 语句执行的开始时间。 username name 登录到该后端的用户名。 memory integer 语句所需的内存大小。 active_points integer 语句在资源池上消耗的资源点数。 max_points integer 资源在资源池上的最大资源数。 priority integer 作业的优先级。 resource_pool text 作业所在资源池。 status text 作业执行的状态，包括： pending： 阻塞状态。 running：执行状态。 finished：结束状态。 aborted：终止状态。 unkown：未知状态。 control_group name 作业所使用的Cgroups。 enqueue text 作业的排队信息，包括： GLOBAL：全局排队。 RESPOOL：资源池排队。 ACTIVE：不排队。 query text 正在执行的语句。",
+      "source_file": "2251_GLOBAL_WLM_WORKLOAD_RUNTIME.txt"
+    },
+    {
+      "term": "WLM_RESOURCEPOOL_RUNTIME",
+      "content": "WLM_RESOURCEPOOL_RUNTIME WLM_RESOURCEPOOL_RUNTIME WLM_RESOURCEPOOL_RUNTIME视图显示资源池上的一些统计信息。 表1 WLM_RESOURCEPOOL_RUNTIME的字段 名称 类型 描述 rpoid oid 资源池的OID。 respool name 资源池的名称。 control_group name 资源池的控制组。 parentid oid 父资源池的OID。 ref_count integer 关联到该资源池上的作业数量。 active_points integer 资源池上已经使用的点数。 running_count integer 正在资源池上运行的作业数量。 waiting_count integer 正在资源池上排队的作业数量。 io_limits integer 资源池的iops上限。 io_priority integer 资源池的I/O优先级。",
+      "source_file": "2246_WLM_RESOURCEPOOL_RUNTIME.txt"
+    },
+    {
+      "term": "WLM_WORKLOAD_RUNTIME",
+      "content": "WLM_WORKLOAD_RUNTIME WLM_WORKLOAD_RUNTIME WLM_WORKLOAD_RUNTIME视图显示当前用户在CN上执行作业时当前CN的作业状态信息。 表1 WLM_WORKLOAD_RUNTIME字段 名称 类型 描述 node_name text 作业执行所在CN的名称。 thread_id bigint 后端线程ID。 processid integer 后端线程的pid。 time_stamp bigint 语句执行的开始时间。 username name 登录到该后端的用户名。 memory integer 语句所需的内存大小。 active_points integer 语句在资源池上消耗的资源点数。 max_points integer 语句在资源池上消耗的总资源点数。 priority integer 作业的优先级。 resource_pool text 作业所在资源池。 status text 作业执行的状态，包括： pending： 阻塞状态。 running：执行状态。 finished：结束状态。 aborted：终止状态。 unknown：未知状态。 control_group text 作业所使用的Cgroups。 enqueue text 作业的排队信息，包括： GLOBAL：全局排队。 RESPOOL：资源池排队。 ACTIVE：不排队。 query text 正在执行的语句。",
+      "source_file": "2250_WLM_WORKLOAD_RUNTIME.txt"
+    },
+    {
+      "term": "WLM_USER_RESOURCE_RUNTIME",
+      "content": "WLM_USER_RESOURCE_RUNTIME WLM_USER_RESOURCE_RUNTIME WLM_USER_RESOURCE_RUNTIME视图显示所有用户资源使用情况，需要使用管理员用户进行查询。此视图在GUC参数 “use_workload_manager” 为 “on” 时才有效。 表1 WLM_USER_RESOURCE_RUNTIME字段 名称 类型 描述 username name 用户名。 used_memory integer 正在使用的内存大小，单位MB。 total_memory integer 可以使用的内存大小，单位MB。值为0表示未限制最大可用内存，其限制取决于数据库最大可用内存。 used_cpu integer 正在使用的CPU核数。 total_cpu integer 在该机器节点上，用户关联控制组的CPU核数总和。 used_space bigint 已使用的存储空间大小，单位KB。 total_space bigint 可使用的存储空间大小，单位KB，值为-1表示未限制最大存储空间。 used_temp_space bigint 已使用的临时空间大小(预留字段，暂未使用)，单位KB。 total_temp_space bigint 可使用的临时空间大小(预留字段，暂未使用)，单位KB，值为-1表示未限制最大临时存储空间。 used_spill_space bigint 已使用的下盘空间大小(预留字段，暂未使用)，单位KB。 total_spill_space bigint 可使用的下盘空间大小(预留字段，暂未使用)，单位KB，值为-1表示未限制最大下盘空间。",
+      "source_file": "2248_WLM_USER_RESOURCE_RUNTIME.txt"
+    },
+    {
+      "term": "WLM_CLUSTER_RESOURCE_RUNTIME",
+      "content": "WLM_CLUSTER_RESOURCE_RUNTIME WLM_CLUSTER_RESOURCE_RUNTIME WLM_CLUSTER_RESOURCE_RUNTIME视图显示的是所有DN资源的汇总信息字段。 表1 WLM_CLUSTER_RESOURCE_RUNTIME字段 名称 类型 描述 min_mem_util integer DN最小内存使用率。 max_mem_util integer DN最大内存使用率。 min_cpu_util integer DN最小CPU使用率。 max_cpu_util integer DN最大CPU使用率。 min_io_util integer DN最小I/O使用率。 max_io_util integer DN最大I/O使用率。 used_mem_rate integer 物理节点最大内存使用率。",
+      "source_file": "2243_WLM_CLUSTER_RESOURCE_RUNTIME.txt"
+    },
+    {
+      "term": "WLM_USER_RESOURCE_CONFIG",
+      "content": "WLM_USER_RESOURCE_CONFIG WLM_USER_RESOURCE_CONFIG WLM_USER_RESOURCE_CONFIG视图显示用户的资源配置信息。 表1 WLM_USER_RESOURCE_CONFIG字段 名称 类型 描述 userid oid 用户oid。 username name 用户名称。 sysadmin boolean 是否是sysadmin。 rpoid oid 资源池的oid。 respool name 资源池的名称。 parentid oid 父用户的oid。 totalspace bigint 占用总空间大小。 spacelimit bigint 空间大上限。 childcount integer 子用户数量。 childlist texto 子用户的列表。",
+      "source_file": "2247_WLM_USER_RESOURCE_CONFIG.txt"
+    },
+    {
+      "term": "WLM_WORKLOAD_HISTORY_INFO",
+      "content": "WLM_WORKLOAD_HISTORY_INFO WLM_WORKLOAD_HISTORY_INFO WLM_WORKLOAD_HISTORY_INFO视图显示作业结束后或已被处理异常后的负载管理 （当前特性是实验室特性，使用时请联系华为技术工程师提供技术支持。） 相关信息。 表1 WLM_WORKLOAD_HISTORY_INFO字段 名称 类型 描述 statement text 执行了异常处理的语句。 block_time bigint 语句执行前的阻塞时间。 elapsed_time bigint 语句的实际执行时间。 total_cpu_time bigint 语句执行异常处理时DN上CPU使用的总时间。 qualification_time bigint 语句检查倾斜率的时间周期。 cpu_skew_percent integer 语句在执行异常处理时DN上CPU使用的倾斜率。 control_group text 语句执行异常处理时所使用的Cgroups。 status text 语句执行异常处理后的状态，包括： pending：执行前预备状态。 running：执行进行状态。 finished：执行正常结束。 abort：执行异常终止。 action text 语句执行的异常处理动作，包括： abort：执行终止操作。 adjust：执行Cgroups调整操作，目前只有降级操作。 finish：正常结束。",
+      "source_file": "2249_WLM_WORKLOAD_HISTORY_INFO.txt"
+    },
+    {
+      "term": "WLM_CONTROLGROUP_CONFIG",
+      "content": "WLM_CONTROLGROUP_CONFIG WLM_CONTROLGROUP_CONFIG WLM_CONTROLGROUP_CONFIG视图显示数据库内所有的控制组信息。 表1 WLM_CONTROLGROUP_CONFIG字段 名称 类型 描述 name text 控制组的名称。 type text 控制组的类型。 gid bigint 控制组ID。 classgid bigint Workload所属Class的控制组ID。 class text Class控制组。 workload text Workload控制组。 shares bigint 控制组分配的CPU资源配额。 limits bigint 控制组分配的CPU资源限额。 wdlevel bigint Workload控制组层级。 cpucores text 控制组使用的CPU核的信息。",
+      "source_file": "2244_WLM_CONTROLGROUP_CONFIG.txt"
+    },
+    {
+      "term": "GLOBAL_IO_WAIT_INFO",
+      "content": "GLOBAL_IO_WAIT_INFO GLOBAL_IO_WAIT_INFO 显示所有节点I/O管控的实时统计信息。 表1 GLOBAL_IO_WAIT_INFO字段 名称 类型 描述 node_name text 节点名称。 device_name text 节点挂载的数据磁盘名称。 read_per_second float 读完成每秒次数。 write_per_second float 写完成每秒次数。 write_ratio float 写磁盘占总的I/O使用的比例。 io_util float 每秒I/O所占CPU总时间的百分比。 total_io_util integer 过去三次I/O所占CPU总时间的等级（取值为0~6）。 tick_count integer 更新磁盘I/O信息的周期，固定为1秒，每次读取数据前都会被清零。 io_wait_list_len integer I/O请求线程等待队列的大小，若为0，则表示当前没有I/O被管控。",
+      "source_file": "2253_GLOBAL_IO_WAIT_INFO.txt"
+    },
+    {
+      "term": "LOCAL_IO_WAIT_INFO",
+      "content": "LOCAL_IO_WAIT_INFO LOCAL_IO_WAIT_INFO 显示当前节点I/O管控的实时统计信息。 表1 LOCAL_IO_WAIT_INFO字段 名称 类型 描述 node_name text 节点名称。 device_name text 节点挂载的数据磁盘名称。 read_per_second float 读完成每秒次数。 write_per_second float 写完成每秒次数。 write_ratio float 写磁盘占总的I/O使用的比例。 io_util float 每秒I/O所占CPU总时间的百分比。 total_io_util integer 过去三次I/O所占CPU总时间的等级（取值为0~6）。 tick_count integer 更新磁盘I/O信息的周期，固定为1秒，每次读取数据前都会被清零。 io_wait_list_len integer I/O请求线程等待队列的大小，若为0，则表示当前没有I/O被管控。",
+      "source_file": "2252_LOCAL_IO_WAIT_INFO.txt"
+    },
+    {
+      "term": "WLM_CGROUP_CONFIG",
+      "content": "WLM_CGROUP_CONFIG WLM_CGROUP_CONFIG WLM_CGROUP_CONFIG视图显示当前执行作业的控制组的信息。 表1 WLM_CGROUP_CONFIG字段 名称 类型 描述 cgoup_name text 控制组的名称。 priority integer 作业的优先级。 usage_pecent integer 控制组占用的百分比。 shares bigint 控制组分配的CPU资源配额。 cpuacct bigint CPU配额分配。 cpuset text CPU限额分配。 relpath text 控制组的相对路径。 valid text 该控制组是否有效。",
+      "source_file": "2242_WLM_CGROUP_CONFIG.txt"
+    },
+    {
+      "term": "WLM_USER_RESOURCE_RUNTIME",
+      "content": "WLM_USER_RESOURCE_RUNTIME WLM_USER_RESOURCE_RUNTIME WLM_USER_RESOURCE_RUNTIME视图显示所有用户资源使用情况，需要使用管理员用户进行查询。此视图在GUC参数 “use_workload_manager” 为 “on” 时才有效。 表1 WLM_USER_RESOURCE_RUNTIME字段 名称 类型 描述 username name 用户名。 used_memory integer 正在使用的内存大小，单位MB。 total_memory integer 可以使用的内存大小，单位MB。值为0表示未限制最大可用内存，其限制取决于数据库最大可用内存。 used_cpu integer 正在使用的CPU核数。 total_cpu integer 在该机器节点上，用户关联控制组的CPU核数总和。 used_space bigint 已使用的存储空间大小，单位KB。 total_space bigint 可使用的存储空间大小，单位KB。值为-1表示未限制最大存储空间。 used_temp_space bigint 已使用的临时空间大小（预留字段，暂未使用），单位KB。 total_temp_space bigint 可使用的临时空间大小（预留字段，暂未使用），单位KB。值为-1表示未限制最大临时存储空间。 used_spill_space bigint 已使用的下盘空间大小（预留字段，暂未使用），单位KB。 total_spill_space bigint 可使用的下盘空间大小（预留字段，暂未使用），单位KB。值为-1表示未限制最大下盘空间。",
+      "source_file": "3912_WLM_USER_RESOURCE_RUNTIME.txt"
+    },
+    {
+      "term": "WLM_USER_RESOURCE_CONFIG",
+      "content": "WLM_USER_RESOURCE_CONFIG WLM_USER_RESOURCE_CONFIG WLM_USER_RESOURCE_CONFIG视图显示用户的资源配置信息。 表1 WLM_USER_RESOURCE_CONFIG字段 名称 类型 描述 userid oid 用户oid。 username name 用户名称。 sysadmin boolean 是否是sysadmin。 rpoid oid 资源池的oid。 respool name 资源池的名称。 parentid oid 父用户的oid。 totalspace bigint 占用总空间大小。 spacelimit bigint 空间大上限。 childcount integer 子用户数量。 childlist text 子用户的列表。",
+      "source_file": "3911_WLM_USER_RESOURCE_CONFIG.txt"
+    }
+  ]
+}

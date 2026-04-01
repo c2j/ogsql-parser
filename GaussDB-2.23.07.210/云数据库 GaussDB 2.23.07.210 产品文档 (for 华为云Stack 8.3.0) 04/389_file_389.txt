@@ -1,0 +1,4 @@
+创建数据库用户 创建数据库用户 功能介绍 在指定实例中创建数据库用户。 调用接口前，您需要提前 获取终端节点 ，即下文中的Endpoint值。 约束限制 实例在创建、变更规格、冻结、异常等状态下不能执行该操作。 该接口只支持创建单个用户接口。 URI URI格式 POST https://{ Endpoint }/gaussdb/v3/{project_id}/instances/{instance_id}/db-user URI样例 https://gaussdb.sa-fb-2.hcsglobal.com/gaussdb/v3/0483b6b16e954cb88930a360d2c4e663/instances/{instance_id}/db-user 参数说明 表1 参数说明 名称 是否必选 说明 project_id 是 租户在某一region下的project ID。 获取方法请参见 获取项目ID/名称 。 instance_id 是 实例ID。 请求消息 参数说明 表2 参数说明 名称 是否必选 参数类型 说明 name 是 String 数据库用户名称。 数据库用户名称在1到63个字符之间，由字母、数字、或下划线组成，不能包含其他特殊字符，不能以“pg”和数字开头，不能和系统用户名称相同。 系统用户包括“rdsAdmin”,“ rdsMetric”, “rdsBackup”, “rdsRepl”, “root”。 password 是 String 数据库用户密码。 取值范围：非空，密码长度在8到32个字符之间，至少包含大写字母、小写字母、数字、特殊字符~!@#%^*-_=+?,三种字符的组合，不能和数据库帐号“name”或“name”的逆序相同。 建议您输入高强度密码，以提高安全性，防止出现密码被暴力破解等安全风险。 请求示例 创建一个GaussDB数据库用户，用户名为dbs。 { 
+   "name" : "dbs", 
+   "password" : "******" 
+ } 响应消息 正常响应样例 无。 异常响应 请参见 异常请求结果 。 状态码 正常 200 异常 请参见 状态码 。 错误码 请参见 错误码 。 父主题： 管理数据库和用户 版权所有 © 华为技术有限公司

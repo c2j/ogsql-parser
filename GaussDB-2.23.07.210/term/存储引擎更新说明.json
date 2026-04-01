@@ -1,0 +1,36 @@
+{
+  "topic": "存储引擎更新说明",
+  "term_count": 6,
+  "terms": [
+    {
+      "term": "GaussDB",
+      "content": "GaussDB内核505版本 GaussDB 内核505版本 - Ustore增加索引自适应PCR技术。 - Ustore增加冷热分离TP压缩技术。",
+      "source_file": "4613_GaussDB505.txt"
+    },
+    {
+      "term": "GaussDB",
+      "content": "GaussDB内核503版本 GaussDB 内核503版本 - Ustore适配分布式/并行查询/Global Temp Table/Vacuum full/列约束DEFERRABLE以及INITIALLY DEFERRED。 - Ustore增加在线重建索引。 - Ustore增加增强版本B-tree空页面估算，提升优化器代价估算准确度。 - Ustore增加存储引擎可靠性验证框架，Dignose Page/Page Verify。 - Ustore增强存储引擎相关的解析/检测/修复视图。 - Ustore增强基于WAL日志的定位能力，新增gs_redo_upage系统视图，支持对单页面的不断重放，获取并打印该页面的任何一个历史版本，加速页面损坏类问题的定位。 - Ustore扩展事务槽TD物理格式，为事务内空间复用做好铺垫。 - Ustore增加在线创建索引。 - Ustore适配闪回功能（for Ustore）/极致RTO。",
+      "source_file": "4614_GaussDB503.txt"
+    },
+    {
+      "term": "GaussDB",
+      "content": "GaussDB内核R2版本 GaussDB 内核R2版本 - Ustore增加新的基于原位更新的行存储引擎Ustore，首次实现新、旧版本的记录的分离存储。 - Ustore增加回滚段模块。 - Ustore增加回滚过程，支持同步/异步/页内模式。 - Ustore增加支持事务的增强版本B-tree。 - Astore增加闪回功能，支持闪回表/闪回查询/闪回Drop/闪回Truncate。 - Ustore不支持的特性包括分布式并行查询/Table Sampling/Global Temp Table/在线创建/重建索引/极致RTO/Vacuum Full/列约束DEFERRABLE以及INITIALLY DEFERRED。",
+      "source_file": "4615_GaussDBR2.txt"
+    },
+    {
+      "term": "GaussDB",
+      "content": "GaussDB内核503版本 GaussDB 内核503版本 - Ustore适配分布式/并行查询/Global Temp Table/Vacuum full/列约束DEFERRABLE以及INITIALLY DEFERRED。 - Ustore增加在线重建索引。 - Ustore增加增强版本B-tree空页面估算，提升优化器代价估算准确度。 - Ustore增加存储引擎可靠性验证框架，Dignose Page/Page Verify。 - Ustore增强存储引擎相关的解析/检测/修复视图。 - Ustore增强基于WAL日志的定位能力，新增gs_redo_upage系统视图，支持对单页面的不断重放，获取并打印该页面的任何一个历史版本，加速页面损坏类问题的定位。 - Ustore扩展事务槽TD物理格式，为事务内空间复用做好铺垫。 - Ustore增加在线创建索引。 - Ustore适配闪回功能（for Ustore）/极致RTO。",
+      "source_file": "4354_GaussDB503.txt"
+    },
+    {
+      "term": "GaussDB",
+      "content": "GaussDB内核R2版本 GaussDB 内核R2版本 - Ustore增加新的基于原位更新的行存储引擎Ustore，首次实现新旧版本的记录的分离存储。 - Ustore增加回滚段模块。 - Ustore增加回滚过程，支持同步/异步/页内模式。 - Ustore增加支持事务的增强版本B-tree。 - Astore增加闪回功能，支持闪回表/闪回查询/闪回Drop/闪回Truncate。 - Ustore不支持的特性包括：分布式/并行查询/Table Sampling/Global Temp Table/在线创建/重建索引/极致RTO/Vacuum Full/列约束DEFERRABLE以及INITIALLY DEFERRED。",
+      "source_file": "4355_GaussDBR2.txt"
+    },
+    {
+      "term": "GaussDB",
+      "content": "GaussDB内核505版本 GaussDB 内核505版本 - Ustore增加索引自适应PCR技术。 - Ustore增加冷热分离TP压缩技术。",
+      "source_file": "4353_GaussDB505.txt"
+    }
+  ]
+}

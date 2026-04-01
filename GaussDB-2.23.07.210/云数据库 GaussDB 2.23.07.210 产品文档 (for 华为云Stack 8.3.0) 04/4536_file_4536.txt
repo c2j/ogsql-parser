@@ -1,0 +1,18 @@
+间隔分区 间隔分区 间隔分区（Interval Partition）可以看成是范围分区的一种增强和扩展方式，相比之下间隔分区定义分区时无需为新增的每个分区指定上限和下限值，只需要确定每个分区的长度，实际插入的过程中会自动进行分区的创建和扩展。间隔分区在创建初始时必须至少指定一个范围分区，范围分区键值确定范围分区的高值称为转换点，数据库为值超出该转换点的数据自动创建间隔分区。每个区间分区的下边界是先前范围或区间分区的非包容性上边界。示例如下： CREATE TABLE interval_sales
+(
+    prod_id       NUMBER(6),
+    cust_id       NUMBER,
+    time_id       DATE,
+    channel_id    CHAR(1),
+    promo_id      NUMBER(6),
+    quantity_sold NUMBER(3),
+    amount_sold   NUMBER(10, 2)
+)
+PARTITION BY RANGE (time_id) INTERVAL ('1 month')
+(
+    PARTITION date_2015 VALUES LESS THAN ('2016-01-01'),
+    PARTITION date_2016 VALUES LESS THAN ('2017-01-01'),
+    PARTITION date_2017 VALUES LESS THAN ('2018-01-01'),
+    PARTITION date_2018 VALUES LESS THAN ('2019-01-01'),
+    PARTITION date_2019 VALUES LESS THAN ('2020-01-01')
+); 上述例子中，初始创建分区以2015年到2019年以年为单位创建分区，当数据插入到2020-01-01以后的数据时，由于超过的预先定义Range分区的上边界，会自动创建一个分区。 间隔分区仅支持日期和时间类型，如Date、Time、Timestamp。 父主题： 分区策略 版权所有 © 华为技术有限公司

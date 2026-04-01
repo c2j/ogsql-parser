@@ -1,0 +1,36 @@
+{
+  "topic": "存储引擎体系架构",
+  "term_count": 6,
+  "terms": [
+    {
+      "term": "存储引擎体系架构概述",
+      "content": "存储引擎体系架构概述 存储引擎体系架构概述 静态编译架构 通用数据库服务层",
+      "source_file": "4608_file_4608.txt"
+    },
+    {
+      "term": "存储引擎体系架构概述",
+      "content": "存储引擎体系架构概述 存储引擎体系架构概述 静态编译架构 通用数据库服务层",
+      "source_file": "4348_file_4348.txt"
+    },
+    {
+      "term": "设置存储引擎",
+      "content": "设置存储引擎 设置存储引擎 存储引擎会对数据库整体效率和性能具有巨大影响，请根据实际需求选择适当的存储引擎。用户可使用WITH ( [ORIENTATION | STORAGE_TYPE] [= value] [, ... ] )为表或索引指定一个可选的存储参数。参数的详细描述如下所示： ORIENTATION STORAGE_TYPE ROW（缺省值）：表的数据将以行式存储。 [USTORE(缺省值)|ASTORE|空] 如果ORIENTATION指定为ROW，且STORAGE_TYPE为空的情况下创建出的表类型取决于GUC参数enable_default_ustore_table（取值为on/off，默认情况为on，参数详情请参见《管理员指南》中“配置运行参数 > GUC参数说明”章节）：如果参数设置为on，创建出的表为Ustore类型；如果为off，创建出的表为Astore类型。 具体示例如下： gaussdb=# CREATE TABLE TEST(a int);\ngaussdb=# \\d+ test\n                         Table \"public.test\"\n Column |  Type   | Modifiers | Storage | Stats target | Description\n--------+---------+-----------+---------+--------------+-------------\n a      | integer |           | plain   |              |\nHas OIDs: no\nOptions: orientation=row, compression=no, storage_type=USTORE\n\ngaussdb=# CREATE TABLE TEST1(a int) with(orientation=row, storage_type=ustore);\ngaussdb=# \\d+ test1\nTable \"public.test1\"\n Column |  Type   | Modifiers | Storage | Stats target | Description\n--------+---------+-----------+---------+--------------+-------------\n a      | integer |           | plain   |              |\nHas OIDs: no\nOptions: orientation=row, storage_type=ustore, compression=no\n\ngaussdb=# CREATE TABLE TEST2(a int) with(orientation=row, storage_type=astore);\ngaussdb=# \\d+ test2\nTable \"public.test2\"\n Column |  Type   | Modifiers | Storage | Stats target | Description\n--------+---------+-----------+---------+--------------+-------------\n a      | integer |           | plain   |              |\nHas OIDs: no\nOptions: orientation=row, storage_type=astore, compression=no\n\ngaussdb=# create table test4(a int) with(orientation=row);\ngaussdb=# \\d+\n                                                 List of relations\n Schema | Name  | Type  |   Owner   |  Size   |                       Storage                        | Description\n--------+-------+-------+-----------+---------+------------------------------------------------------+-------------\n public | test4 | table | l30048445 | 0 bytes | {orientation=row,compression=no,storage_type=USTORE} |\n(1 row)\n\ngaussdb=# show enable_default_ustore_table;\n enable_default_ustore_table\n-----------------------------\n on\n(1 row)",
+      "source_file": "4611_file_4611.txt"
+    },
+    {
+      "term": "存储引擎更新说明",
+      "content": "存储引擎更新说明 存储引擎更新说明 GaussDB内核505版本 GaussDB内核503版本 GaussDB内核R2版本",
+      "source_file": "4612_file_4612.txt"
+    },
+    {
+      "term": "设置存储引擎",
+      "content": "设置存储引擎 设置存储引擎 存储引擎会对数据库整体效率和性能具有巨大影响，请根据实际需求选择适当的存储引擎。用户可使用WITH ( [ORIENTATION | STORAGE_TYPE] [= value] [, ... ] )为表或索引指定一个可选的存储参数。参数的详细描述如下所示： ORIENTATION STORAGE_TYPE ROW（缺省值）：表的数据将以行式存储。 [USTORE(缺省值)|ASTORE|空] 如果ORIENTATION指定为ROW，且STORAGE_TYPE为空的情况下创建出的表类型取决于GUC参数enable_default_ustore_table（取值为on/off，默认情况为on，参数详情请参见《管理员指南》中“配置运行参数 > GUC参数说明”章节）：如果参数设置为on，创建出的表为Ustore类型；如果为off，创建出的表为Astore类型。 具体示例如下： gaussdb=# CREATE TABLE TEST(a int);\ngaussdb=# \\d+ test\n                         Table \"public.test\"\n Column |  Type   | Modifiers | Storage | Stats target | Description\n--------+---------+-----------+---------+--------------+-------------\n a      | integer |           | plain   |              |\nHas OIDs: no\nOptions: orientation=row, compression=no, storage_type=USTORE\n\ngaussdb=# CREATE TABLE TEST1(a int) with(orientation=row, storage_type=ustore);\ngaussdb=# \\d+ test1\nTable \"public.test1\"\n Column |  Type   | Modifiers | Storage | Stats target | Description\n--------+---------+-----------+---------+--------------+-------------\n a      | integer |           | plain   |              |\nHas OIDs: no\nOptions: orientation=row, storage_type=ustore, compression=no\n\ngaussdb=# CREATE TABLE TEST2(a int) with(orientation=row, storage_type=astore);\ngaussdb=# \\d+ test2\nTable \"public.test2\"\n Column |  Type   | Modifiers | Storage | Stats target | Description\n--------+---------+-----------+---------+--------------+-------------\n a      | integer |           | plain   |              |\nHas OIDs: no\nOptions: orientation=row, storage_type=astore, compression=no\n\ngaussdb=# create table test4(a int) with(orientation=row);\ngaussdb=# \\d+\n                                                 List of relations\n Schema | Name  | Type  |   Owner   |  Size   |                       Storage                        | Description\n--------+-------+-------+-----------+---------+------------------------------------------------------+-------------\n public | test4 | table | l30048445 | 0 bytes | {orientation=row,compression=no,storage_type=USTORE} |\n(1 row)\n\ngaussdb=# show enable_default_ustore_table;\n enable_default_ustore_table\n-----------------------------\n on\n(1 row)",
+      "source_file": "4351_file_4351.txt"
+    },
+    {
+      "term": "存储引擎更新说明",
+      "content": "存储引擎更新说明 存储引擎更新说明 GaussDB内核505版本 GaussDB内核503版本 GaussDB内核R2版本",
+      "source_file": "4352_file_4352.txt"
+    }
+  ]
+}

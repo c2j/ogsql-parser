@@ -1,0 +1,1 @@
+执行命令报错“Failed to obtain the GPHOME” 执行命令报错“Failed to obtain the GPHOME” 问题现象 如果在root用户下执行工具命令时，出现如下信息： Failed to obtain the GPHOME. 原因分析 可能是环境变量中GPHOME变量没有配置正确。需要检查环境变量GPHOME是否包含数据库XML中gaussdbToolPath路径。 操作步骤 使用如下命令检查$GPHOME路径。 echo $GPHOME 如果不是安装时默认的路径，请在配置文件中修改GPHOME的路径。 vim /etc/profile 父主题： FAQ 版权所有 © 华为技术有限公司

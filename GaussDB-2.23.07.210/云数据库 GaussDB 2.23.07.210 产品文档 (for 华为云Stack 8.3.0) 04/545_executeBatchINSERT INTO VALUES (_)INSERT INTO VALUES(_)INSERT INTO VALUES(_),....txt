@@ -1,0 +1,1 @@
+【建议】对于批量插入的情况，建议使用executeBatch执行INSERT INTO VALUES (?)，执行效率将高于执行多条INSERT INTO VALUES(?)或INSERT INTO VALUES(?),...,(?) 【建议】对于批量插入的情况，建议使用executeBatch执行INSERT INTO VALUES (?)，执行效率将高于执行多条INSERT INTO VALUES(?)或INSERT INTO VALUES(?),...,(?) 父主题： INSERT 版权所有 © 华为技术有限公司

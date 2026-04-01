@@ -1,0 +1,1 @@
+GS_DEPENDENCIES_OBJ GS_DEPENDENCIES_OBJ GS_DEPENDENCIES_OBJ系统表记录对象的被依赖项详细信息。 表1 GS_DEPENDENCIES_OBJ字段 名称 类型 描述 schemaname name 名称空间的名称。 packagename name package的名称。 type integer 被依赖体的类型。 1：未知类型。 2：变量。 3：类型。 4：函数。 5：视图。 6：函数头。 name text 被依赖体名称。 objnode pg_node_tree 被依赖体的详细信息。 父主题： 其他系统表 版权所有 © 华为技术有限公司

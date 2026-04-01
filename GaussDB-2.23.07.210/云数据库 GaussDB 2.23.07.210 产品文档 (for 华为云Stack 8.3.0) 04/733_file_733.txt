@@ -1,0 +1,60 @@
+管理事务 管理事务 事务是用户定义的一个数据库操作序列，这些操作要么全做要么全不做，是一个不可分割的工作单位。 GaussDB 数据库支持的事务控制命令有启动、设置、提交、回滚。 GaussDB 数据库支持的事务隔离级别有READ COMMITTED、REPEATABLE READ和SERIALIZABLE，SERIALIZABLE等价于REPEATABLE READ。 事务控制 以下是数据库支持的事务命令： 启动事务 用户可以使用START TRANSACTION或者BEGIN语法启动事务，详细操作请参考 START TRANSACTION 和 BEGIN 。 设置事务 用户可以使用SET TRANSACTION或者SET LOCAL TRANSACTION语法设置事务，详细操作请参考 SET TRANSACTION 。 提交事务 用户可以使用COMMIT或者END可完成提交事务的功能，即提交事务的所有操作，详细操作请参考 COMMIT | END 。 回滚事务 回滚是在事务运行的过程中发生了某种故障，事务不能继续执行，系统将事务中对数据库的所有已完成的操作全部撤销，详细操作请参考 ROLLBACK 。 事务隔离级别 事务隔离级别，它决定多个事务并发操作同一个对象时的处理方式。 在事务中第一个数据操作语句（SELECT，INSERT，DELETE，UPDATE，FETCH，COPY）执行之后，事务隔离级别就不能再次设置。 READ COMMITTED ：读已提交隔离级别，事务只能读到已提交的数据而不会读到未提交的数据，这是缺省值。 实际上，SELECT查询会查看到在查询开始运行的瞬间该数据库的一个快照。不过，SELECT能查看到其自身所在事务中先前修改的执行结果。即使先前修改尚未提交。请注意，在同一个事务里两个相邻的SELECT命令可能会查看到不同的快照，因为其它事务会在第一个SELECT执行期间提交。 因为在读已提交模式里，每个新的命令都是从一个新的快照开始的，而这个快照包含所有到该时刻为止已提交的事务，因此同一事务中后面的命令将看到任何已提交的其它事务的效果。这里关心的问题是在单个命令里是否看到数据库里完全一致的视图。 读已提交模式提供的部分事务隔离对于许多应用而言是足够的，并且这个模式速度快，使用简单。不过，对于做复杂查询和更新的应用，可能需要保证数据库有比读已提交模式更加严格的一致性视图。 REPEATABLE READ ：事务可重复读隔离级别，事务只能读到事务开始之前已提交的数据，不能读到未提交的数据以及事务执行期间其它并发事务提交的修改（但是，查询能查看到自身所在事务中先前修改的执行结果，即使先前修改尚未提交）。这个级别和读已提交是不一样的，因为可重复读事务中的查询看到的是事务开始时的快照，不是该事务内部当前查询开始时的快照，就是说，单个事务内部的select命令总是查看到同样的数据，查看不到自身事务开始之后其他并发事务修改后提交的数据。使用该级别的应用必须准备好重试事务，因为可能会发生串行化失败。 SERIALIZABLE ： GaussDB 目前功能上不支持此隔离级别，设置该隔离级别时，等价于REPEATABLE READ。 REPEATABLE READ基于多版本快照实现，可能出现写偏斜的场景，如果需要避免该场景出现，请先对事务涉及的行进行SELECT FOR UPDATE操作，写偏斜的场景示例如下： 场景一：表a拥有id、value两个字段，类型均为int，插入两条数据，假定表a业务逻辑上需要满足两条数据value和小于等于10。并发开启两个事务，基于读取的值进行更新并修改相应值，修改后在事务内均满足value和小于等于10，提交后，最终value和等于12，违反a的业务逻辑假定。 gaussdb=# create table a(id int, value int);
+CREATE TABLE gaussdb=# insert into a values(1,4);
+INSERT 0 1 gaussdb=# insert into a values(2,4);
+INSERT 0 1
+session1 : gaussdb=# start transaction isolation level repeatable read;
+START TRANSACTION gaussdb=# select * from a;
+id | value
+----+-------
+1 |     4
+2 |     4
+(2 rows) gaussdb=# update a set value = 6 where id = 1;
+UPDATE 1 gaussdb=# select * from a;
+id | value
+----+-------
+1 |     6
+2 |     4
+(2 rows)
+session2: gaussdb=# start transaction isolation level repeatable read;
+START TRANSACTION gaussdb=# select * from a;
+id | value
+----+-------
+1 |     4
+2 |     4
+(2 rows) gaussdb=# update a set value = 6 where id = 2;
+UPDATE 1 gaussdb=# select * from a;
+id | value
+----+-------
+1 |     4
+2 |     6
+(2 rows)
+session1： gaussdb=# commit;
+COMMIT
+session2: gaussdb=# commit;
+COMMIT gaussdb=# select * from a;
+id | value
+----+-------
+1 |     6
+2 |     6
+(2 rows) 场景二：表a拥有两个字段id、value，类型均为int，其中id为主键，并发主键删除插入，事务内可能读到两条主键的值，违反主键约束。 gaussdb=# create table a(id int primary key, value int);
+NOTICE:  CREATE TABLE / PRIMARY KEY will create implicit index "a_pkey" for table "a"
+CREATE TABLE gaussdb=# insert into a values(1,10);
+INSERT 0 1
+session1: gaussdb=# start transaction isolation level repeatable read;
+START TRANSACTION gaussdb=# delete a where id = 1;
+DELETE 1
+session2: gaussdb=# start transaction isolation level repeatable read;
+START TRANSACTION gaussdb=# select * from a;
+id | value
+----+-------
+1 |    10
+(1 row)
+session1: gaussdb=# commit;
+COMMIT
+session2: gaussdb=# insert into a values(1, 100);
+INSERT 0 1 gaussdb=# select * from a;
+id | value
+----+-------
+1 |    10
+1 |   100
+(2 rows) 父主题： 数据库系统概述 版权所有 © 华为技术有限公司

@@ -1,0 +1,1 @@
+backUpAgent 配置指南 backUpAgent 配置指南 本章节提供XBSA备份特性组件backUpAgent的配置方法，包括安装backUpAgent组件、配置XBSA协议动态库文件、配置SSL双向认证证书文件以及启动backUpAgent组件。 安装backUpAgent组件 配置SSL双向认证证书文件 启动backUpAgent 备份恢复常见问题 父主题： XBSA配置最佳实践 版权所有 © 华为技术有限公司

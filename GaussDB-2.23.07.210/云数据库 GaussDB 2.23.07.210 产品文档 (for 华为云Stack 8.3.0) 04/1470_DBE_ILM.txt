@@ -1,0 +1,68 @@
+DBE_ILM DBE_ILM 接口介绍 服务于ILM策略实施，实现ADO Task的手动触发与停用接口。 表1 DBE_ILM 接口名称 描述 EXECUTE_ILM 根据参数执行对指定的数据和ILM策略进行评估，评估通过则会生成对应的压缩Job。 STOP_ILM 根据参数停止正在执行的压缩Job。 DBE_ILM.EXECUTE_ILM 根据参数执行对指定的数据和ILM策略进行评估，评估通过则会生成对应的压缩Job，原型为： 1
+2
+3
+4
+5
+6
+7 DBE_ILM . EXECUTE_ILM ( schema_name IN VARCHAR2 , object_name IN VARCHAR2 , task_id OUT Oid , subobject_name IN VARCHAR2 DEFAULT NULL , policy_name IN VARCHAR2 DEFAULT ILM_ALL_POLICIES , execution_mode IN NUMBER DEFAULT ILM_EXECUTION_ONLINE ); 表2 DBE_ILM.EXECUTE_ILM接口参数说明 参数 描述 schema_name 对象所属Schema。 object_name 对象名称。 task_id 输出生成ADO task的描述符ID。 subobject_name 子对象名称。 policy_name 策略名称，通过查询GS_ADM_ILMOBJECTS视图可知，默认DBE_ILM.ILM_ALL_POLICIES代表该对象上所有策略。 execution_mode 执行模式，当前版本不支持该参数，仅做预留。 DBE_ILM.STOP_ILM 根据参数停止正在执行的ILM策略，原型为： 1
+2
+3
+4 DBE_ILM . STOP_ILM ( TASK_ID IN NUMBER DEFAULT - 1 , P_DROP_RUNNING_JOBS IN BOOLEAN DEFAULT FALSE , P_JOBNAME IN VARCHAR2 DEFAULT NULL ); 表3 DBE_ILM.STOP_ILM接口参数说明 参数 描述 TASK_ID ADO task的描述符ID。 P_DROP_RUNNING_JOBS 是否停止正在执行中的任务，true为强制停止，false为不停止正在执行的任务。 P_JOBNAME 任务名称 当并发量较大时，执行DBE_ILM.STOP_ILM可能会提示资源繁忙，稍后重试即可。提示内容为“Resources are busy, please try again later.”。 示例 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27
+28
+29
+30
+31
+32
+33
+34
+35
+36
+37
+38
+39
+40
+41
+42
+43
+44
+45
+46
+47
+48
+49
+50
+51
+52
+53
+54
+55
+56
+57
+58
+59 gaussdb =# CREATE DATABASE ilmtabledb with dbcompatibility = 'ORA' ; gaussdb =# \ c ilmtabledb gaussdb =# ALTER DATABASE set ilm = on ; gaussdb =# CREATE Schema ILM_DATA ; gaussdb =# SET current_schema = ILM_DATA ; gaussdb =# CREATE SEQUENCE ILM_DATA . ORDER_TABLE_SE_ORDER_ID MINVALUE 1 ; gaussdb =# CREATE OR REPLACE PROCEDURE ILM_DATA . ORDER_TABLE_CREATE_DATA ( NUM INTEGER ) IS BEGIN FOR X IN 1 .. NUM LOOP INSERT INTO ORDER_TABLE VALUES ( ORDER_TABLE_SE_ORDER_ID . nextval , '零食大礼包A' , NOW ()); END LOOP ; COMMIT ; END ; / gaussdb =# CREATE TABLE ILM_DATA . ORDER_TABLE ( ORDER_ID INT , GOODS_NAME TEXT , CREATE_TIME TIMESTAMP ) WITH ( STORAGE_TYPE = ASTORE ) ILM ADD POLICY ROW STORE COMPRESS ADVANCED ROW AFTER 1 DAYS OF NO MODIFICATION ; NOTICE : The 'DISTRIBUTE BY' clause is not specified . Using 'order_id' as the distribution column by default . HINT : Please use 'DISTRIBUTE BY' clause to specify suitable data distribution column . BEGIN ILM_DATA . ORDER_TABLE_CREATE_DATA ( 100 ); PERFORM PG_SLEEP ( 2 ); END ; / DECLARE v_taskid number ; BEGIN DBE_ILM . EXECUTE_ILM ( OWNER => 'ilm_data' , OBJECT_NAME => 'order_table' , TASK_ID => v_taskid , SUBOBJECT_NAME => NULL , POLICY_NAME => 'ALL POLICIES' , EXECUTION_MODE => 2 ); RAISE INFO 'Task ID is:%' , v_taskid ; END ; / INFO : Task ID is : 1 SELECT * FROM pg_sleep ( 3 ); pg_sleep ---------- ( 1 row ) gaussdb =# EXECUTE DIRECT ON DATANODES 'SELECT A.DBNAME, A.JOB_STATUS, A.ENABLE, A.FAILURE_MSG FROM PG_JOB A WHERE A.DBNAME = ''ilmtabledb'' AND A.JOB_NAME LIKE ''ilmjob$_%'' ORDER BY A.JOB_NAME DESC LIMIT 1' ; dbname | job_status | enable | failure_msg ----------+------------+--------+------------- dbeilmdb | s | f | dbeilmdb | s | f | dbeilmdb | s | f | dbeilmdb | s | f | dbeilmdb | s | f | dbeilmdb | s | f | ( 6 rows ) gaussdb =# CALL DBE_ILM . STOP_ILM ( - 1 , true , NULL ); stop_ilm ---------- ( 1 row ) -- 分布式在参数异常时不报错，直接返回空 父主题： 二次封装接口(推荐) 版权所有 © 华为技术有限公司

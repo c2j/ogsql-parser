@@ -1,0 +1,1 @@
+GS_LABELS GS_LABELS GS_LABELS视图显示所有已配置的资源标签信息。需要有系统管理员或安全策略管理员权限才可以访问此视图。 表1 GS_LABELS字段 名称 类型 描述 labelname name 资源标签的名称。 labeltype name 资源标签的类型。对应系统表 GS_POLICY_LABEL 中的labeltype字段。 fqdntype name 数据库资源的类型。如table、schema、index等。 schemaname name 数据库资源所属的schema名称。 fqdnname name 数据库资源名称。 columnname name 数据库资源列名称，若标记的数据库资源不为表的列则该项为空。 父主题： 用户和权限管理 版权所有 © 华为技术有限公司

@@ -1,0 +1,1 @@
+gaussmaster gaussmaster 背景信息 在Linux系统下，gaussmaster是gaussdb的一个符号链接，具体用法参见 gaussdb 。 语法 gaussmaster [OPTION]... 父主题： 系统内部调用的工具 版权所有 © 华为技术有限公司

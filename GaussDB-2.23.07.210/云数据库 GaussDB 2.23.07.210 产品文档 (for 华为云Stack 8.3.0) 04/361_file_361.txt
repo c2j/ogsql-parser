@@ -1,0 +1,38 @@
+获取参数模板列表 获取参数模板列表 功能介绍 获取参数模板列表，包括所有数据库的默认参数模板和用户创建的参数模板。 调用接口前，您需要提前 获取终端节点 ，即下文中的Endpoint值。 URI URI格式 GET https://{ Endpoint }/gaussdb/v3.1/{project_id}/configurations?offset={offset}&limit={limit} URI样例 https://gaussdb.sa-fb-2.hcsglobal.com/gaussdb/v3.1/054ea741f700d4a32f1bc00f5c80dd4c/configurations?offset=1&limit=3 参数说明 表1 参数说明 参数 是否必选 参数类型 描述 project_id 是 String 租户在某一region下的project ID。 获取方法请参见 获取项目ID/名称 。 offset 否 Integer 索引位置，偏移量。从第一条数据偏移offset条数据后开始查询，默认为0（偏移0条数据，表示从第一条数据开始查询），必须为数字，不能为负数。例如：该参数指定为0，limit指定为10，则只展示第1-10条数据。 limit 否 Integer 查询记录数。默认为100，不能为负数，最小值为1，最大值为100。例如该参数设定为10，则查询结果最多只显示10条记录。 请求消息 无。 响应消息 正常响应要素说明 表2 参数说明 参数 参数类型 描述 configurations Array of objects 参数模板信息，具体参数请参考 表3 。 count Integer 总记录数。 表3 configurations字段数据结构说明 参数 参数类型 描述 id String 参数组ID。 name String 参数组名称。 description String 参数组描述。 datastore_version String 引擎版本。 datastore_name String 引擎名称。 ha_mode String 实例类型。 created String 创建时间，格式为"yyyy-MM-dd HH:mm:ss"。 updated String 更新时间，格式为"yyyy-MM-dd HH:mm:ss"。 user_defined Boolean 是否是用户自定义参数模板： false，表示为系统默认参数模板。 true，表示为用户自定义参数模板。 正常响应样例 {
+    "count": 3,
+    "configurations": [
+        {
+            "id": "b000d7c91f1749da87315700793a11d4pr14",
+            "name": "Default-GaussDB-EE-1.0-Dist-Combined (4 replicas)",
+            "description": "Default parameter template for GaussDB-Enterprise Edition-1.0-Distributed-combined (4 replicas)",
+            "created": "2022-03-23 07:20:11",
+            "updated": "2022-03-23 07:20:11",
+            "datastore_version": "1.0",
+            "datastore_name": " GaussDB ",
+            "ha_mode": "combined",
+            "user_defined": false
+        },
+        {
+            "id": "8d99f260ea1b4493a1b349e7abce5c09pr14",
+            "name": "Default-Finance-Edition-GaussDB-1.3-Combined",
+            "description": "Default parameter template for Finance Edition GaussDB 1.3-Combined",
+            "created": "2022-03-23 07:20:11",
+            "updated": "2022-03-23 07:20:11",
+            "datastore_version": "1.1",
+            "datastore_name": " GaussDB ",
+            "ha_mode": "combined",
+            "user_defined": false
+        },
+        {
+            "id": "0f44b65521a8414d8b8811df810d94ccpr14",
+            "name": "Default-Finance-Disaster-GaussDB-1.3-Combined",
+            "description": "Default parameter template for Finance Disaster GaussDB 1.3-Combined",
+            "created": "2022-03-23 07:20:11",
+            "updated": "2022-03-23 07:20:11",
+            "datastore_version": "1.2",
+            "datastore_name": " GaussDB ",
+            "ha_mode": "combined",
+            "user_defined": false
+        }
+	]
+} 异常响应 请参见 异常请求结果 。 状态码 正常 200 异常 请参见 状态码 。 错误码 请参见 错误码 。 父主题： 参数配置 版权所有 © 华为技术有限公司

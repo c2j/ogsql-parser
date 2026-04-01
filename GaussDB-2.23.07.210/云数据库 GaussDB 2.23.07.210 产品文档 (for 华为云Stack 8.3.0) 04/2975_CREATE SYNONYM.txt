@@ -1,0 +1,34 @@
+CREATE SYNONYM CREATE SYNONYM 功能描述 创建一个同义词对象。同义词是数据库对象的别名，用于记录与其他数据库对象名间的映射关系，用户可以使用同义词访问关联的数据库对象。 注意事项 定义同义词的用户成为其所有者。 若指定模式名称，则同义词在指定模式中创建。否则，在当前模式创建。 支持通过同义词访问的数据库对象包括：表、视图、类型、包、函数和存储过程。 使用同义词时，用户需要具有对关联对象的相应权限。 支持使用同义词的DML语句包括：SELECT、INSERT、UPDATE、DELETE、EXPLAIN、CALL。 不建议对临时表创建同义词。如果需要创建的话，需要指定同义词的目标临时表的模式名，否则无法正常使用改同义词，并且在当前会话结束前执行DROP SYNONYM命令。 删除原对象后，与之关联同义词不会被级联删除，继续访问该同义词会报错，对于表提示已失效，对于函数、存储过程、包的等会提示对象不存在。 被授予了CREATE ANY SYNONYM权限的用户能够在用户模式下创建同义词。 同义词关联的对象可以是package，不支持同义词关联package下的函数。 同义词的SCHEMA是用户所在SCHEMA时，该同义词OWNER为SCHEMA的OWNER，其他场景同义词OWNER默认为同义词的创建者。 设置SEARCH_PATH，未指定同义词SCHEMA情况下，存储过程和函数会优先按照名称检索PG_PROC表，在没有同名函数时，检索同义词，最后按照SEARCH_PATH检索；其他对象优先检索SEARCH_PATH，同SCHEMA下，本名的对象优先于同义词被访问。 不支持通过DDL语句CREATE、DROP、ALTER操作同义词的方式访问同义词所关联的对象。 语法格式 CREATE [ OR REPLACE ] SYNONYM synonym_name 
+    FOR object_name; 参数说明 synonym 创建的同义词名字，可以带模式名。 取值范围：字符串，要符合 标识符命名规范 。 object_name 关联的对象名字，可以带模式名。 取值范围：字符串，要符合 标识符命名规范 。 object_name可以是不存在的对象名称。 object_name可以是使用DATABASE LINK方式访问远程对象。DATABASE LINK详细使用方式请参见 DATABASE LINK 。 避免对包含口令等敏感信息的函数，如加解密类函数gs_encrypt、gs_decrypt、gs_encrypt_bytera、gs_decrypt_bytea等创建别名并且使用别名调用，防止敏感信息泄露。 示例 --创建模式ot。 gaussdb=# CREATE SCHEMA ot;
+
+--创建表ot.t1及其同义词t1。 gaussdb=# CREATE TABLE ot.t1(id int, name varchar2(10)); gaussdb=# CREATE OR REPLACE SYNONYM t1 FOR ot.t1;
+
+--使用同义词t1。 gaussdb=# SELECT * FROM t1; gaussdb=# INSERT INTO t1 VALUES (1, 'ada'), (2, 'bob'); gaussdb=# UPDATE t1 SET t1.name = 'cici' WHERE t1.id = 2;
+
+--创建同义词v1及其关联视图ot.v_t1。 gaussdb=# CREATE SYNONYM v1 FOR ot.v_t1; gaussdb=# CREATE VIEW ot.v_t1 AS SELECT * FROM ot.t1;
+
+--使用同义词v1。 gaussdb=# SELECT * FROM v1;
+
+--创建重载函数ot.add及其同义词add。 gaussdb=# CREATE OR REPLACE FUNCTION ot.add(a integer, b integer) RETURNS integer AS
+$$
+SELECT $1 + $2
+$$
+LANGUAGE sql; gaussdb=# CREATE OR REPLACE FUNCTION ot.add(a decimal(5,2), b decimal(5,2)) RETURNS decimal(5,2) AS
+$$
+SELECT $1 + $2
+$$
+LANGUAGE sql; gaussdb=# CREATE OR REPLACE SYNONYM add FOR ot.add;
+
+--使用同义词add。 gaussdb=# SELECT add(1,2); gaussdb=# SELECT add(1.2,2.3);
+
+--创建存储过程ot.register及其同义词register。 gaussdb=# CREATE PROCEDURE ot.register(n_id integer, n_name varchar2(10))
+SECURITY INVOKER
+AS
+BEGIN
+    INSERT INTO ot.t1 VALUES(n_id, n_name);
+END;
+/ gaussdb=# CREATE OR REPLACE SYNONYM register FOR ot.register;
+
+--使用同义词register，调用存储过程。 gaussdb=# CALL register(3,'mia');
+
+--删除同义词。 gaussdb=# DROP SYNONYM t1; gaussdb=# DROP SYNONYM IF EXISTS v1; gaussdb=# DROP SYNONYM IF EXISTS add; gaussdb=# DROP SYNONYM register; gaussdb=# DROP SCHEMA ot CASCADE; 相关链接 ALTER SYNONYM ， DROP SYNONYM 父主题： C 版权所有 © 华为技术有限公司

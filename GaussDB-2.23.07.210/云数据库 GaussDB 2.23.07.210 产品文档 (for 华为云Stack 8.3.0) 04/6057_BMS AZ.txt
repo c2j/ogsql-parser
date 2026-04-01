@@ -1,0 +1,1 @@
+扩容剩余BMS AZ 扩容剩余BMS AZ 按照预先规划AZ数量，参考 BMS新增首AZ ，扩容剩余BMS AZ。GaussDB支持多AZ部署，一般建议至少需要扩容3个AZ。 父主题： BMS最佳实践 版权所有 © 华为技术有限公司

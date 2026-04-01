@@ -1,0 +1,28 @@
+DBE_SESSION DBE_SESSION 接口介绍 高级功能包DBE_SESSION支持的所有接口请参见 表1 。DBE_SESSION作用范围是会话级别。 表1 DBE_SESSION 接口名称 描述 DBE_SESSION.SET_CONTEXT 设置指定context下，某一属性(attribute)的值(value)。 DBE_SESSION.CLEAR_CONTEXT 清除指定context下，某一属性(attribute)的值(value)。 DBE_SESSION.SEARCH_CONTEXT 查找指定context下，某一属性(attribute)的值(value)。 DBE_SESSION.MODIFY_PACKAGE_STATE 用于修改当前会话的PL/SQL的状态。 DBE_SESSION.SET_CONTEXT 向指定namespace(context)下，设置某一属性(attribute)的值(value)。DBE_SESSION.SET_CONTEXT函数原型为： 1
+2
+3
+4
+5 DBE_SESSION . SET_CONTEXT ( namespace text , attribute text , value text ) returns void ; 表2 DBE_SESSION.SET_CONTEXT接口参数说明 参数 类型 入参/出参 是否可以为空 描述 namespace TEXT IN 否 需要设置的context名称，当context不存在时，新建context，最长支持128个字节，超长时将会截断。 attribute TEXT IN 否 属性名称，最长支持1024个字节，超长时将会截断。 value TEXT IN 否 要设置的值的名称，最长支持1024个字节，超长时将会截断。 DBE_SESSION.CLEAR_CONTEXT 清除指定namespace(context)下，某一属性(attribute)的值(value)。DBE_SESSION.CLEAR_CONTEXT函数原型为： 1
+2
+3
+4
+5 DBE_SESSION . CLEAR_CONTEXT ( namespace text , client_identifier text default null , attribute text default null ) returns void ; 表3 DBE_SESSION.CLEAR_CONTEXT接口参数说明 参数 类型 入参/出参 是否可以为空 描述 namespace TEXT IN 否 用户指定的context，最长支持128个字节，超长时将会截断。 client_identifier TEXT IN 是 客户端认证，默认值null，通常情况用户无需手动设置。 attribute TEXT IN 是 要清除的属性，默认值null，表示清除指定context的所有的属性，最长支持1024个字节，超长时将会截断。 注意：为了保证前向兼容，参数值为字符串'null'时也会清除指定context的所有属性。 DBE_SESSION.SEARCH_CONTEXT 查找指定namespace(context)下，某一属性(attribute)的值(value)。DBE_SESSION.SEARCH_CONTEXT函数原型为： 1
+2
+3
+4 DBE_SESSION . SEARCH_CONTEXT ( namespace text , attribute text ) returns text ; 表4 DBE_SESSION.SEARCH_CONTEXT接口参数说明 参数 类型 入参/出参 是否可以为空 描述 namespace TEXT IN 否 用户指定的context，最长支持128个字节，超长时将会截断。 attribute TEXT IN 否 要查找的属性，最长支持1024个字节，超长时将会截断。 示例： 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12 DECLARE a text ; BEGIN DBE_SESSION . set_context ( 'test' , 'gaussdb' , 'one' ); --设置名为test的context下属性为gaussdb的值为one a : = DBE_SESSION . search_context ( 'test' , 'gaussdb' ); DBE_OUTPUT . PRINT_LINE ( a ); DBE_SESSION . clear_context ( 'test' , 'test' , 'gaussdb' ); END ; / -- 预期结果为： one ANONYMOUS BLOCK EXECUTE DBE_SESSION.MODIFY_PACKAGE_STATE 用于修改当前会话的PL/SQL的状态。DBE_SESSION.MODIFY_PACKAGE_STATE函数原型为： 1
+2 DBE_SESSION . MODIFY_PACKAGE_STATE ( flags int ); 表5 DBE_SESSION.MODIFY_PACKAGE_STATE接口参数说明 参数 类型 入参/出参 是否可以为空 描述 flags INT IN 否 对PL/SQL采取的操作的位标志。 当flags=1时，在执行完最顶层的PL/SQL后，会释放会话中目前运行的PL/SQL的会话缓存。清除任何包全局的当前值并关闭缓存的游标。在后续使用时，PL/SQL将重新实例化，并重新初始化包全局。 不支持其他位标志。 示例： 1
+2
+3
+4
+5 CALL dbe_session . modify_package_state ( 1 ); modify_package_state ---------------------- ( 1 row ) 父主题： 二次封装接口(推荐) 版权所有 © 华为技术有限公司

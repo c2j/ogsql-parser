@@ -1,0 +1,1 @@
+ADM_DATA_FILES ADM_DATA_FILES ADM_DATA_FILES视图显示关于数据库文件的描述。默认只有系统管理员权限才可以访问，普通用户需要授权才可以访问。该视图同时存在于PG_CATALOG和SYS Schema下。 表1 ADM_DATA_FILES字段 名称 类型 描述 tablespace_name name 文件所属的表空间的名称。 bytes double precision 文件的字节长度。 父主题： 其他系统视图 版权所有 © 华为技术有限公司

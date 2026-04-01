@@ -1,0 +1,12 @@
+预备语句 预备语句 当传递给SQL语句的值在编译时未知或者同一语句将被使用多次时，可以使用预备语句。 使用命令PREPARE准备语句。对于未知的值使用占位符"?"： EXEC SQL PREPARE stmt1 FROM "SELECT oid, datname FROM pg_database WHERE oid = ?"; 如果一个语句返回单行，应用程序可以在PREPARE执行语句之后调用EXECUTE，同时使用USING子句为占位符提供实际值： EXEC SQL EXECUTE stmt1 INTO :dboid, :dbname USING 1; 如果一个语句返回多行，应用程序可以使用基于预备语句声明的游标。为了绑定输入参数，必须使用USING子句打开游标： EXEC SQL PREPARE stmt1 FROM "SELECT oid,datname FROM pg_database WHERE oid > ?";
+EXEC SQL DECLARE foo_bar CURSOR FOR stmt1;
+/* 当结果集达到最后时，跳出while循环 */
+EXEC SQL WHENEVER NOT FOUND DO BREAK;
+EXEC SQL OPEN foo_bar USING 100;
+...
+while (1)
+{
+    EXEC SQL FETCH NEXT FROM foo_bar INTO :dboid, :dbname;
+    ...
+}
+EXEC SQL CLOSE foo_bar; 当不再需要预备语句的时候，应释放语句。 EXEC SQL DEALLOCATE PREPARE name; 父主题： 执行SQL命令 版权所有 © 华为技术有限公司

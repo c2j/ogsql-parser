@@ -1,0 +1,608 @@
+CREATE TABLE PARTITION CREATE TABLE PARTITION 功能描述 创建分区表。分区表是把逻辑上的一张表根据某种方案分成几张物理块进行存储，这张逻辑上的表称之为分区表，物理块称之为分区。分区表是一张逻辑表，不存储数据，数据实际是存储在分区上的。 常见的分区方案有范围分区（Range Partitioning）、间隔分区（Interval Partitioning）、哈希分区（Hash Partitioning）、列表分区（List Partitioning）、数值分区（Value Partition）等。目前行存表支持范围分区、哈希分区、列表分区。 范围分区是根据表的一列或者多列，将要插入表的记录分为若干个范围，这些范围在不同的分区里没有重叠。为每个范围创建一个分区，用来存储相应的数据。 范围分区的分区策略是指记录插入分区的方式。 范围分区策略：根据分区键值将记录映射到已创建的某个分区上，如果可以映射到已创建的某一分区上，则把记录插入到对应的分区上，否则给出报错和提示信息。这是最常用的分区策略。 哈希分区是根据表的一列，为每个分区指定模数和余数，将要插入表的记录划分到对应的分区中，每个分区所持有的行都需要满足条件：分区键的值除以为其指定的模数将产生为其指定的余数。 哈希分区策略：根据分区键值将记录映射到已创建的某个分区上，如果可以映射到已创建的某一分区上，则把记录插入到对应的分区上，否则返回报错和提示信息。 列表分区是根据表的一列，将要插入表的记录通过每一个分区中出现的键值划分到对应的分区中，这些键值在不同的分区里没有重叠。为每组键值创建一个分区，用来存储相应的数据。 列表分区策略：根据分区键值将记录映射到已创建的某个分区上，如果可以映射到已创建的某一分区上，则把记录插入到对应的分区上，否则给出报错和提示信息。 分区可以提供若干好处： 某些类型的查询性能可以得到极大提升。特别是表中访问率较高的行位于一个单独分区或少数几个分区上的情况下。分区可以减少数据的搜索空间，提高数据访问效率。 当查询或更新一个分区的大部分记录时，连续扫描那个分区而不是访问整个表可以获得巨大的性能提升。 如果需要大量加载或者删除的记录位于单独的分区上，则可以通过直接读取或删除那个分区以获得巨大的性能提升，同时还可以避免由于大量DELETE导致的VACUUM超载。 注意事项 唯一约束和主键约束的约束键包含所有分区键将为约束创建LOCAL索引，否则创建GLOBAL索引。 目前哈希分区仅支持单列构建分区键，暂不支持多列构建分区键。 对于分区表PARTITION FOR (values)语法，values只能是常量。 对于分区表PARTITION FOR (values)语法，values在需要数据类型转换时，建议使用强制类型转换，以防隐式类型转换结果与预期不符。 分区数最大值为1048575个，一般情况下业务不可能创建这么多分区，这样会导致内存不足。应参照参数local_syscache_threshold的值合理创建分区，分区表使用内存大致为（分区数 * 3 / 1024）MB。理论上分区占用内存不允许大于local_syscache_threshold的值，同时还需要预留部分空间以供其他功能使用。 当分区数太多导致内存不足时，会间接导致性能急剧下降。 指定分区语句目前不能走全局索引扫描。 不支持XML类型数据作为分区键、二级分区键。 对于分区表进行UPDATE/DELETE时，如果生成的计划不是FQS或Stream计划，语句执行效率会比较差。建议排查语句，消除不可下推因素，从而生成FQS或Stream计划。 在为数据对象增加或者变更ILM策略的时候，如果追加了行级表达式，需要注意行表达式目前只支持白名单中列出的函数。具体白名单函数列表参考 行表达式函数白名单 。 语法格式 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24 CREATE TABLE [ IF NOT EXISTS ] partition_table_name ( [ { column_name data_type [ CHARACTER SET | CHARSET charset ] [ COLLATE collation ] [ column_constraint [ ... ] ] | table_constraint | LIKE source_table [ like_option [...] ] } [, ... ] ] ) [ table_option [ [ , ] ... ] ] [ WITH ( { storage_parameter = value } [, ... ] ) ] [ COMPRESS | NOCOMPRESS ] [ ILM ADD POLICY ROW STORE { COMPRESS ADVANCED } { ROW } AFTER n { day | month | year } OF { NO MODIFICATION } [ ON ( EXPR )]] [ TABLESPACE tablespace_name ] [ DISTRIBUTE BY { REPLICATION | HASH ( column_name [, ...] ) | RANGE ( column_name [, ...] ) { SLICE REFERENCES tablename | ( slice_less_than_item [, ...] ) | ( slice_start_end_item [, ...] ) } | LIST ( column_name [, ...] ) { SLICE REFERENCES tablename | ( slice_values_item [, ...] ) } } ] [ TO { GROUP groupname | NODE ( nodename [, ... ] ) } ] PARTITION BY { { RANGE [ COLUMNS ] ( partition_key ) [ PARTITIONS integer ] ( partition_less_than_item [, ... ] ) } | { RANGE [ COLUMNS ] ( partition_key ) [ PARTITIONS integer ] ( partition_start_end_item [, ... ] ) } | { LIST [ COLUMNS ] ( partition_key ) [ PARTITIONS integer ] ( PARTITION partition_name VALUES [ IN ] ( list_values ) [ ILM ADD POLICY ROW STORE { COMPRESS ADVANCED } { ROW } AFTER n { day | month | year } OF { NO MODIFICATION } [ ON ( EXPR )]] [ TABLESPACE [ = ] tablespace_name ][, ... ] ）} | { HASH ( partition_key ) [ PARTITIONS integer ] ( PARTITION partition_name [ ILM ADD POLICY ROW STORE { COMPRESS ADVANCED } { ROW } AFTER n { day | month | year } OF { NO MODIFICATION } [ ON ( EXPR )]] [ TABLESPACE [ = ] tablespace_name ][, ... ] ）} } [ { ENABLE | DISABLE } ROW MOVEMENT ]; 其中table_option为： { COMMENT [ = ] 'string' |
+  [ DEFAULT ] CHARACTER SET | CHARSET [ = ] default_charset |
+  [ DEFAULT ] COLLATE [ = ] default_collation } 列约束column_constraint： 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10 [ CONSTRAINT constraint_name ] { NOT NULL | NULL | CHECK ( expression ) | COMMENT 'string' | DEFAULT default_expr | ON UPDATE update_expr | UNIQUE [ KEY ] [ index_parameters ] | PRIMARY KEY [ index_parameters ] } [ DEFERRABLE | NOT DEFERRABLE ][ INITIALLY DEFERRED | INITIALLY IMMEDIATE ] 表约束table_constraint： [ CONSTRAINT constraint_name ]
+{ CHECK ( expression ) | 
+  UNIQUE ( column_name [, ... ] ) [ index_parameters ] | 
+  PRIMARY KEY ( column_name [, ... ] ) [ index_parameters]}
+[ DEFERRABLE | NOT DEFERRABLE ][ INITIALLY DEFERRED | INITIALLY IMMEDIATE ]
+{ [ COMMENT 'string' ] [ ... ] } like选项like_option： 1 { INCLUDING | EXCLUDING } { DEFAULTS | CONSTRAINTS | INDEXES | STORAGE | COMMENTS | RELOPTIONS | DISTRIBUTION | UPDATE | ALL } 索引存储参数index_parameters： 1
+2 [ WITH ( { storage_parameter = value } [, ... ] ) ] [ USING INDEX TABLESPACE tablespace_name ] partition_less_than_item： 1 PARTITION partition_name VALUES LESS THAN ( { partition_value | MAXVALUE } ) [ ILM ADD POLICY ROW STORE { COMPRESS ADVANCED } { ROW } AFTER n { day | month | year } OF { NO MODIFICATION } [ ON ( EXPR )]] [ TABLESPACE tablespace_name ] partition_start_end_item： 1
+2
+3
+4
+5
+6 PARTITION partition_name { { START ( partition_value ) END ( partition_value ) EVERY ( interval_value ) } | { START ( partition_value ) END ( { partition_value | MAXVALUE } ) } | { START ( partition_value ) } | { END ( { partition_value | MAXVALUE } ) } } [ ILM ADD POLICY ROW STORE { COMPRESS ADVANCED } { ROW } AFTER n { day | month | year } OF { NO MODIFICATION } [ ON ( EXPR )]] [ TABLESPACE tablespace_name ] 其中update_expr为： { CURRENT_TIMESTAMP | LOCALTIMESTAMP | NOW() } 参数说明 IF NOT EXISTS 如果已经存在相同名称的表，不会抛出一个错误，而会发出一个通知，告知表关系已存在。 partition_table_name 分区表的名称。 取值范围：字符串，要符合 标识符命名规范 。 column_name 新表中要创建的字段名。 取值范围：字符串，要符合 标识符命名规范 。 data_type 字段的数据类型。 COLLATE  collation COLLATE子句指定列的排序规则（该列必须是可排列的数据类型）。如果没有指定，则使用默认的排序规则。 CONSTRAINT constraint_name 列约束或表约束的名称。可选的约束子句用于声明约束，新行或者更新的行必须满足这些约束才能成功插入或更新。排序规则可以使用“select * from pg_collation”命令从pg_collation系统表中查询，默认的排序规则为查询结果中以default开始的行。 定义约束有两种方法： 列约束：作为一个列定义的一部分，仅影响该列。 表约束：不和某个列绑在一起，可以作用于多个列。 LIKE source_table [ like_option ... ] LIKE子句声明一个表，新表自动从这个表里面继承所有字段名及其数据类型和非空约束。 和INHERITS不同，新表与原来的表之间在创建动作完毕之后是完全无关的。在源表做的任何修改都不会传播到新表中，并且也不可能在扫描源表的时候包含新表的数据。 字段缺省表达式只有在声明了INCLUDING DEFAULTS之后才会包含进来。缺省是不包含缺省表达式的，即新表中所有字段的缺省值都是NULL。 非空约束将总是复制到新表中，CHECK约束则仅在指定了INCLUDING CONSTRAINTS的时候才复制，而其他类型的约束则永远也不会被复制。此规则同时适用于表约束和列约束。 和INHERITS不同，被复制的列和约束并不使用相同的名称进行融合。如果明确的指定了相同的名称或者在另外一个LIKE子句中，将会报错。 如果指定了INCLUDING UPDATE，则源表列的ON UPDATE CURRENT_TIMESTAMP属性会复制到新表列中。默认不复制该属性。 如果指定了INCLUDING INDEXES，则源表上的索引也将在新表上创建，默认不建立索引。 如果指定了INCLUDING STORAGE，则源表列的STORAGE设置也将被拷贝，默认情况下不包含STORAGE设置。 如果指定了INCLUDING COMMENTS，则源表列、约束和索引的注释也会被拷贝过来。默认情况下，不拷贝源表的注释。 如果指定了INCLUDING RELOPTIONS，则源表的存储参数（即源表的WITH子句）也将拷贝至新表。默认情况下，不拷贝源表的存储参数。 如果指定了INCLUDING DISTRIBUTION，则新表将拷贝源表的分布信息，包括分布类型和分布列，同时新表将不能再使用DISTRIBUTE BY子句。默认情况下，不拷贝源表的分布信息。 INCLUDING ALL是INCLUDING DEFAULTS、INCLUDING UPDATE、INCLUDING CONSTRAINTS、INCLUDING INDEXES、INCLUDING STORAGE、INCLUDING COMMENTS、INCLUDING RELOPTIONS和INCLUDING DISTRIBUTION的简写形式。 COMMENT [ = ] 'string' COMMENT [ = ] 'string'子句表示给表添加注释。 在column_constraint中的COMMENT 'string'表示给列添加注释。 在table_constraint中的COMMENT 'string'表示给主键和唯一键对应的索引添加注释。 具体请参见： •COMMENT [ = ] 'string' CHARACTER SET | CHARSET charset 指定表字段的字符集。单独指定时会将字段的字符序设置为指定的字符集的默认字符序。 仅在MYSQL模式数据库下（即sql_compatibility = 'MYSQL'）支持该语法，其他模式数据库不支持。 COLLATE collation COLLATE子句指定列的排序规则（该列必须是可排列的数据类型）。如果没有指定，则使用默认的排序规则。排序规则可以使用“select * from pg_collation”命令从pg_collation系统表中查询，默认的排序规则为查询结果中以default开始的行。对于MYSQL模式数据库下（即sql_compatibility = 'MYSQL'）还支持utf8mb4_bin、utf8mb4_general_ci、utf8mb4_unicode_ci、binary、gbk_chinese_ci、gbk_bin、gb18030_chinese_ci、gb18030_bin字符序。 WITH ( storage_parameter [= value] [, ... ] ) 这个子句为表或索引指定一个可选的存储参数。参数的详细描述如下所示： FILLFACTOR 一个表的填充因子（fillfactor）是一个介于10和100之间的百分数。100（完全填充）是默认值。如果指定了较小的填充因子，INSERT操作仅按照填充因子指定的百分率填充表页。每个页上的剩余空间将用于在该页上更新行，这就使得UPDATE有机会在同一页上放置同一条记录的新版本，这比把新版本放置在其他页上更有效。对于一个从不更新的表将填充因子设为100是最佳选择，但是对于频繁更新的表，选择较小的填充因子则更加合适。 取值范围：10~100 ORIENTATION 决定了表的数据的存储方式。 取值范围： ROW（缺省值）：表的数据将以行式存储。 orientation不支持修改。 COMPRESSION 行存表不支持压缩。 statistic_granularity 记录该表在分析统计信息时的默认partition_mode，partition_mode说明详见 ANALYZE | ANALYSE参数说明 ，此参数对非分区表设置无效。 取值范围：见partition_mode取值范围。 默认值：AUTO。 hashbucket 创建hash bucket存储。本参数仅支持行存表和行存range表。 取值范围：on/off 默认值：off 当前特性是实验室特性，使用时请联系华为工程师提供技术支持。当前版本hashbucket表相关DDL操作性能受限，不建议频繁对hashbucket表进行DDL操作。 COMPRESS / NOCOMPRESS 创建一个新表时，需要在创建表语句中指定关键字COMPRESS，这样，当对该表进行批量插入时就会触发压缩特性。该特性会在页范围内扫描所有元组数据，生成字典、压缩元组数据并进行存储。指定关键字NOCOMPRESS则不对表进行压缩。 缺省值为NOCOMPRESS，即不对元组数据进行压缩。行存表不支持压缩。 TABLESPACE tablespace_name 指定新表将要在tablespace_name表空间内创建。如果没有声明，将使用默认表空间。 DISTRIBUTE BY 指定表如何在节点之间分布或者复制。 取值范围及详细信息见 •DISTRIBUTE BY 一节。 TO { GROUP groupname | NODE ( nodename [, ... ] ) } TO GROUP指定创建表所在的Node Group用。TO NODE主要供内部扩容工具使用，一般用户不应该使用。 PARTITION BY RANGE(partition_key) 创建范围分区。partition_key为分区键的名称。 （1）对于从句是VALUES LESS THAN的语法格式： 对于从句是VALUE LESS THAN的语法格式，范围分区策略的分区键最多支持16列。 该情形下，分区键支持的数据类型为：TINYINT、SMALLINT、INTEGER、BIGINT、DECIMAL、NUMERIC、REAL、FLOAT4、FLOAT8、DOUBLE PRECISION、CHARACTER VARYING(n)、VARCHAR(n)、CHARACTER(n)、CHAR(n)、CHARACTER、CHAR、TEXT、NVARCHAR2、NAME、TIMESTAMP[(p)] [WITHOUT TIME ZONE]、TIMESTAMP[(p)] [WITH TIME ZONE]、DATE。 （2）对于从句是START END的语法格式： 对于从句是START END的语法格式，范围分区策略的分区键仅支持1列。 该情形下，分区键支持的数据类型为：TINYINT、SMALLINT、INTEGER、BIGINT、DECIMAL、NUMERIC、REAL、FLOAT4、FLOAT8、DOUBLE PRECISION、TIMESTAMP[(p)] [WITHOUT TIME ZONE]、TIMESTAMP[(p)] [WITH TIME ZONE]、DATE。 PARTITION partition_name VALUES LESS THAN ( { partition_value | MAXVALUE } ) 指定各分区的信息。partition_name为范围分区的名称。partition_value为范围分区的上边界，取值依赖于partition_key的类型。MAXVALUE表示分区的上边界，它通常用于设置最后一个范围分区的上边界。 每个分区都需要指定一个上边界。 分区上边界的类型应当和分区键的类型一致。 分区列表是按照分区上边界升序排列的，值较小的分区位于值较大的分区之前。 PARTITION partition_name {START (partition_value) END (partition_value) EVERY (interval_value) } | {START (partition_value) END (partition_value|MAXVALUE)} | {START(partition_value)} | {END (partition_value | MAXVALUE) } 指定各分区的信息，各参数意义如下： partition_name：范围分区的名称或名称前缀，除以下情形外（假定其中的partition_name是p1），均为分区的名称。 若该定义是START+END+EVERY从句，则语义上定义的分区的名称依次为p1_1, p1_2, ...。例如对于定义“PARTITION p1 START(1) END(4) EVERY(1)”，则生成的分区是：[1, 2), [2, 3) 和 [3, 4)，名称依次为p1_1, p1_2和p1_3，即此处的p1是名称前缀。 若该定义是第一个分区定义，且该定义有START值，则范围（MINVALUE, START）将自动作为第一个实际分区，其名称为p1_0，然后该定义语义描述的分区名称依次为p1_1, p1_2, ...。例如对于完整定义“PARTITION p1 START(1), PARTITION p2 START(2)”，则生成的分区是：(MINVALUE, 1), [1, 2) 和 [2, MAXVALUE)，其名称依次为p1_0, p1_1和p2，即此处p1是名称前缀，p2是分区名称。这里MINVALUE表示最小值。 partition_value：范围分区的端点值（起始或终点），取值依赖于partition_key的类型，不可是MAXVALUE。 interval_value：对[START，END) 表示的范围进行切分，interval_value是指定切分后每个分区的宽度，不可是MAXVALUE；如果（END-START）值不能整除以EVERY值，则仅最后一个分区的宽度小于EVERY值。 MAXVALUE：表示最大值，它通常用于设置最后一个范围分区的上边界。 在创建分区表若第一个分区定义含START值，则范围（MINVALUE，START）将自动作为实际的第一个分区。 START END语法需要遵循以下限制： 每个partition_start_end_item中的START值（如果有的话，下同）必须小于其END值； 相邻的两个partition_start_end_item，第一个的END值必须等于第二个的START值； 每个partition_start_end_item中的EVERY值必须是正向递增的，且必须小于（END-START）值； 每个分区包含起始值，不包含终点值，即形如：[起始值，终点值)，起始值是MINVALUE时则不包含； 一个partition_start_end_item创建的每个分区所属的TABLESPACE一样； partition_name作为分区名称前缀时，其长度不要超过57字节，超过时自动截断； 在创建、修改分区表时请注意分区表的分区总数不可超过最大限制（1048575）； 在创建分区表时START END与LESS THAN语法不可混合使用。 即使创建分区表时使用START END语法，备份（gs_dump）出的SQL语句也是VALUES LESS THAN语法格式。 PARTITION BY LIST [COLUMNS] (partition_key) 创建列表分区。partition_key为分区键的名称。 COLUMNS关键字只能在sql_compatibility='MYSQL'时使用，“PARTITION BY LIST COLUMNS” 语义同 “PARTITION BY LIST”。 对于partition_key，列表分区策略的分区键最多支持16列。 对于从句是VALUES [IN] (list_values)的语法格式，list_values中包含了对应分区存在的键值，每个分区的键值数量不超过64个。 分区键支持的数据类型为：TINYINT、SMALLINT、INTEGER、BIGINT、NUMERIC、VARCHAR(n)、CHAR、BPCHAR、NVARCHAR2、TIMESTAMP[(p)] [WITHOUT TIME ZONE]、TIMESTAMP[(p)] [WITH TIME ZONE]、DATE。分区个数不能超过1048575个。 PARTITION BY HASH(partition_key) 创建哈希分区。partition_key为分区键的名称。 对于partition_key，哈希分区策略的分区键仅支持1列。 分区键支持的数据类型为：TINYINT、SMALLINT、INTEGER、BIGINT、NUMERIC、VARCHAR(n)、CHAR、BPCHAR、TEXT、NVARCHAR2、TIMESTAMP[(p)] [WITHOUT TIME ZONE]、TIMESTAMP[(p)] [WITH TIME ZONE]、DATE。分区个数不能超过1048575个。 PARTITIONS integer 指定分区个数。 integer为分区数，必须为大于0的整数，且不得大于1048575。 当在RANGE和LIST分区后指定此子句时，必须显式定义每个分区，且定义分区的数量必须与integer值相等。只能在sql_compatibility='MYSQL'时在RANGE和LIST分区后指定此子句。 当在HASH和KEY分区后指定此子句时，若不列出各个分区定义，将自动生成integer个分区，自动生成的分区名为“p+数字”，数字依次为0到integer-1，分区的表空间默认为此表的表空间；也可以显式列出每个分区定义，此时定义分区的数量必须与integer值相等。若既不列出分区定义，也不指定分区数量，将创建唯一一个分区。 { ENABLE | DISABLE } ROW MOVEMENT 行迁移开关。 如果进行UPDATE操作时，更新了元组在分区键上的值，造成了该元组所在分区发生变化，就会根据该开关给出报错信息，或者进行元组在分区间的转移。 取值范围： ENABLE：行迁移开关打开。 DISABLE（缺省值）：行迁移开关关闭。 在打开行迁移开关情况下，并发update、delete操作可能会报错，原因如下： update和delete操作对于旧数据都是标记为已删除。在打开行迁移开关情况下，如果更新分区键时，导致了跨分区更新。内核会把旧分区中旧数据标记为已删除，在新分区中新增加一条数据，无法通过旧数据找到新数据。 在update和update并发、delete和delete并发、update和delete并发三个并发场景下，如果并发操作同一行数据时，数据跨分区和非跨分区结果有不同的行为。 对于数据非跨分区结果，第一个操作执行完后，第二个操作不会报错。 如果第一个操作是update，第二个操作能成功找到最新的数据，之后对新数据操作。 如果第一个操作是delete，第二个操作看到当前数据已经被删除而且找不到最新数据，就终止操作。 对于数据跨分区结果，第一个操作执行完后，第二个操作会报错。 如果第一个操作是update，由于新数据在新分区中，第二个操作不能成功找到最新的数据，就无法操作，之后会报错。 如果第一个操作是delete，第二个操作看到当前数据已经被删除而且找不到最新数据，但无法判断删除旧数据的操作是update还是delete。如果是update，报错处理。如果是delete，终止操作。为了保持数据的正确性，只能报错处理。 如果是update和update并发，update和delete并发场景，需要串行执行才能解决问题，如果是delete和delete并发，关闭行迁移开关可以解决问题。 NOT NULL 字段值不允许为NULL。ENABLE用于语法兼容，可省略。 NULL 字段值允许NULL ，这是缺省。 这个子句只是为和非标准SQL数据库兼容。不建议使用。 CHECK (condition) [ NO INHERIT ] CHECK约束声明一个布尔表达式，每次要插入的新行或者要更新的行的新值必须使表达式结果为真或未知才能成功，否则会抛出一个异常并且不会修改数据库。 声明为字段约束的检查约束应该只引用该字段的数值，而在表约束里出现的表达式可以引用多个字段。 用NO INHERIT标记的约束将不会传递到子表中去。 ENABLE用于语法兼容，可省略。 DEFAULT default_expr DEFAULT子句给字段指定缺省值。该数值可以是任何不含变量的表达式(不允许使用子查询和对本表中的其他字段的交叉引用)。缺省表达式的数据类型必须和字段类型匹配。 缺省表达式将被用于任何未声明该字段数值的插入操作。如果没有指定缺省值则缺省值为NULL 。 ON UPDATE update_expr ON UPDATE子句为字段的一种属性约束。 当对表中某元组执行UPDATE操作时，若更新字段的新值和表中旧值不相同，则表中该元组上具有该属性且不在更新字段内的字段值自动更新为当前时间戳；若更新字段的新值和表中旧值相同，则表中该元组上具有该属性且不在更新字段内的字段值不变，保持原有值；若具有该属性的字段在更新字段内，则对应这些字段值直接按指定更新的值更新。 该属性仅支持在MYSQL模式数据库中的5.7版本下指定（即sql_compatibility = 'MYSQL'、b_format_version='5.7'、b_format_dev_version='s1'）。 语法上update_expr支持CURRENT_TIMESTAMP 、LOCALTIMESTAMP 、NOW()三种关键字，也支持关键字带括号指定或不指定精度。例如：ON UPDATE CURRENT_TIMESTAMP()、ON UPDATE CURRENT_TIMESTAMP(5)、ON UPDATE LOCALTIMESTAMP()、ON UPDATE LOCALTIMESTAMP(6)等。不带括号或空括号时精度为0，其中NOW关键字不支持不带括号。三种关键字互为同义词，属性效果相同。 该属性仅支持在如下类型的列上指定: timestamp、datetime、date、time without time zone、smalldatetime、abstime。 CREATE TABLE AS语法不会继承该列属性。 CREATE TABLE LIKE语法可通过INCLUDING UPDATE或EXCLUDING UPDATE来选择继承或排除该约束。 该属性指定的精度和对应列上类型指定的精度可以不一致，通过该属性更新字段值后显示结果按最小精度显示。例如：CREATE TABLE t1 (col1 timestamp(6) ON UPDATE CURRENT_TIMESTAMP(3)); 若UPDATE语法触发该属性生效，则本次更新后col1字段值小数位显示3位。 该属性和生成列约束不能同时指定同一列。 分区表中的分区键不支持指定该属性。 分布式场景中，分布列和主键不支持指定该属性。 UNIQUE [KEY] index_parameters UNIQUE ( column_name [, ... ] ) index_parameters UNIQUE约束表示表里的一个字段或多个字段的组合必须在全表范围内唯一。 对于唯一约束，NULL被认为是互不相等的。 UNIQUE KEY只能在sql_compatibility='MYSQL'时使用，与UNIQUE语义相同。 PRIMARY KEY index_parameters PRIMARY KEY ( column_name [, ... ] ) index_parameters 主键约束声明表中的一个或者多个字段只能包含唯一的非NULL值。 一个表只能声明一个主键。 DEFERRABLE | NOT DEFERRABLE 这两个关键字设置该约束是否可推迟。一个不可推迟的约束将在每条命令之后马上检查。可推迟约束可以推迟到事务结尾使用SET CONSTRAINTS命令检查。缺省是NOT DEFERRABLE。目前，UNIQUE约束和主键约束可以接受这个子句。所有其他约束类型都是不可推迟的。 INITIALLY IMMEDIATE | INITIALLY DEFERRED 如果约束是可推迟的，则这个子句声明检查约束的缺省时间。 如果约束是INITIALLY IMMEDIATE（缺省），则在每条语句执行之后就立即检查它。 如果约束是INITIALLY DEFERRED ，则只有在事务结尾才检查它。 约束检查的时间可以用SET CONSTRAINTS命令修改。 USING INDEX TABLESPACE tablespace_name 为UNIQUE或PRIMARY KEY约束相关的索引声明一个表空间。如果没有提供这个子句，这个索引将在default_tablespace中创建，如果default_tablespace为空，将使用数据库的缺省表空间。 示例 示例1：创建范围分区表 tpcds. web_returns_p1，含有8个分区，分区键为integer类型。  分区的范围分别为：wr_returned_date_sk< 2450815，2450815<= wr_returned_date_sk< 2451179，2451179<=wr_returned_date_sk< 2451544，2451544 <= wr_returned_date_sk< 2451910，2451910 <= wr_returned_date_sk< 2452275，2452275 <= wr_returned_date_sk< 2452640，2452640 <= wr_returned_date_sk< 2453005，wr_returned_date_sk>=2453005。 1
+  2
+  3
+  4
+  5
+  6
+  7
+  8
+  9
+ 10
+ 11
+ 12
+ 13
+ 14
+ 15
+ 16
+ 17
+ 18
+ 19
+ 20
+ 21
+ 22
+ 23
+ 24
+ 25
+ 26
+ 27
+ 28
+ 29
+ 30
+ 31
+ 32
+ 33
+ 34
+ 35
+ 36
+ 37
+ 38
+ 39
+ 40
+ 41
+ 42
+ 43
+ 44
+ 45
+ 46
+ 47
+ 48
+ 49
+ 50
+ 51
+ 52
+ 53
+ 54
+ 55
+ 56
+ 57
+ 58
+ 59
+ 60
+ 61
+ 62
+ 63
+ 64
+ 65
+ 66
+ 67
+ 68
+ 69
+ 70
+ 71
+ 72
+ 73
+ 74
+ 75
+ 76
+ 77
+ 78
+ 79
+ 80
+ 81
+ 82
+ 83
+ 84
+ 85
+ 86
+ 87
+ 88
+ 89
+ 90
+ 91
+ 92
+ 93
+ 94
+ 95
+ 96
+ 97
+ 98
+ 99
+100
+101
+102 -- 创建临时schema。 gaussdb =# CREATE SCHEMA tpcds ; gaussdb =# SET CURRENT_SCHEMA TO tpcds ; --创建表tpcds.web_returns。 gaussdb =# CREATE TABLE tpcds . web_returns ( W_WAREHOUSE_SK INTEGER NOT NULL , W_WAREHOUSE_ID CHAR ( 16 ) NOT NULL , W_WAREHOUSE_NAME VARCHAR ( 20 ) , W_WAREHOUSE_SQ_FT INTEGER , W_STREET_NUMBER CHAR ( 10 ) , W_STREET_NAME VARCHAR ( 60 ) , W_STREET_TYPE CHAR ( 15 ) , W_SUITE_NUMBER CHAR ( 10 ) , W_CITY VARCHAR ( 60 ) , W_COUNTY VARCHAR ( 30 ) , W_STATE CHAR ( 2 ) , W_ZIP CHAR ( 10 ) , W_COUNTRY VARCHAR ( 20 ) , W_GMT_OFFSET DECIMAL ( 5 , 2 ) ); --创建分区表tpcds.web_returns_p1。 gaussdb =# CREATE TABLE tpcds . web_returns_p1 ( WR_RETURNED_DATE_SK INTEGER , WR_RETURNED_TIME_SK INTEGER , WR_ITEM_SK INTEGER NOT NULL , WR_REFUNDED_CUSTOMER_SK INTEGER , WR_REFUNDED_CDEMO_SK INTEGER , WR_REFUNDED_HDEMO_SK INTEGER , WR_REFUNDED_ADDR_SK INTEGER , WR_RETURNING_CUSTOMER_SK INTEGER , WR_RETURNING_CDEMO_SK INTEGER , WR_RETURNING_HDEMO_SK INTEGER , WR_RETURNING_ADDR_SK INTEGER , WR_WEB_PAGE_SK INTEGER , WR_REASON_SK INTEGER , WR_ORDER_NUMBER BIGINT NOT NULL , WR_RETURN_QUANTITY INTEGER , WR_RETURN_AMT DECIMAL ( 7 , 2 ) , WR_RETURN_TAX DECIMAL ( 7 , 2 ) , WR_RETURN_AMT_INC_TAX DECIMAL ( 7 , 2 ) , WR_FEE DECIMAL ( 7 , 2 ) , WR_RETURN_SHIP_COST DECIMAL ( 7 , 2 ) , WR_REFUNDED_CASH DECIMAL ( 7 , 2 ) , WR_REVERSED_CHARGE DECIMAL ( 7 , 2 ) , WR_ACCOUNT_CREDIT DECIMAL ( 7 , 2 ) , WR_NET_LOSS DECIMAL ( 7 , 2 ) ) DISTRIBUTE BY HASH ( WR_ITEM_SK ) PARTITION BY RANGE ( WR_RETURNED_DATE_SK ) ( PARTITION P1 VALUES LESS THAN ( 2450815 ), PARTITION P2 VALUES LESS THAN ( 2451179 ), PARTITION P3 VALUES LESS THAN ( 2451544 ), PARTITION P4 VALUES LESS THAN ( 2451910 ), PARTITION P5 VALUES LESS THAN ( 2452275 ), PARTITION P6 VALUES LESS THAN ( 2452640 ), PARTITION P7 VALUES LESS THAN ( 2453005 ), PARTITION P8 VALUES LESS THAN ( MAXVALUE ) ); --从示例数据表导入数据。 gaussdb =# INSERT INTO tpcds . web_returns_p1 SELECT * FROM tpcds . web_returns ; --删除分区P8。 gaussdb =# ALTER TABLE tpcds . web_returns_p1 DROP PARTITION P8 ; --增加分区WR_RETURNED_DATE_SK介于2453005和2453105之间。 gaussdb =# ALTER TABLE tpcds . web_returns_p1 ADD PARTITION P8 VALUES LESS THAN ( 2453105 ); --增加分区WR_RETURNED_DATE_SK介于2453105和MAXVALUE之间。 gaussdb =# ALTER TABLE tpcds . web_returns_p1 ADD PARTITION P9 VALUES LESS THAN ( MAXVALUE ); --删除分区P8。 gaussdb =# ALTER TABLE tpcds . web_returns_p1 DROP PARTITION FOR ( 2453005 ); --分区P7重命名为P10。 gaussdb =# ALTER TABLE tpcds . web_returns_p1 RENAME PARTITION P7 TO P10 ; --分区P6重命名为P11。 gaussdb =# ALTER TABLE tpcds . web_returns_p1 RENAME PARTITION FOR ( 2452639 ) TO P11 ; --查询分区P10的行数。 gaussdb =# SELECT count ( * ) FROM tpcds . web_returns_p1 PARTITION ( P10 ); count -------- 0 ( 1 row ) --查询分区P1的行数。 gaussdb =# SELECT COUNT ( * ) FROM tpcds . web_returns_p1 PARTITION FOR ( 2450815 ); count -------- 0 ( 1 row ) --删除表和表空间。 gaussdb =# DROP TABLE tpcds . web_returns_p1 ; gaussdb =# DROP TABLE tpcds . web_returns ; gaussdb =# DROP SCHEMA tpcds CASCADE ; 示例2：创建范围分区表 tpcds. web_returns_p2，含有8个分区，分区键类型为integer类型，其中第8个分区上边界为MAXVALUE。 八个分区的范围分别为：  wr_returned_date_sk< 2450815，2450815<= wr_returned_date_sk< 2451179，2451179<=wr_returned_date_sk< 2451544，2451544 <= wr_returned_date_sk< 2451910，2451910 <= wr_returned_date_sk< 2452275，2452275 <= wr_returned_date_sk< 2452640，2452640 <= wr_returned_date_sk< 2453005，wr_returned_date_sk>=2453005。 分区表 tpcds. web_returns_p2的表空间为example1；分区P1到P7没有声明表空间，使用采用分区表 tpcds. web_returns_p2的表空间example1；指定分区P8的表空间为example2。 假定CN和DN的数据目录/pg_location/mount1/path1，CN和DN的数据目录/pg_location/mount2/path2，CN和DN的数据目录/pg_location/mount3/path3，CN和DN的数据目录/pg_location/mount4/path4是dwsadmin用户拥有读写权限的空目录。 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27
+28
+29
+30
+31
+32
+33
+34
+35
+36
+37
+38
+39
+40
+41
+42
+43
+44
+45
+46
+47
+48
+49
+50
+51
+52
+53
+54
+55
+56
+57
+58
+59
+60
+61
+62
+63
+64
+65
+66
+67
+68
+69
+70
+71
+72
+73
+74
+75
+76
+77
+78
+79
+80
+81 gaussdb =# CREATE TABLESPACE example1 RELATIVE LOCATION 'tablespace1/tablespace_1' ; gaussdb =# CREATE TABLESPACE example2 RELATIVE LOCATION 'tablespace2/tablespace_2' ; gaussdb =# CREATE TABLESPACE example3 RELATIVE LOCATION 'tablespace3/tablespace_3' ; gaussdb =# CREATE TABLESPACE example4 RELATIVE LOCATION 'tablespace4/tablespace_4' ; -- 创建临时schema。 gaussdb =# CREATE SCHEMA tpcds ; gaussdb =# SET CURRENT_SCHEMA TO tpcds ; gaussdb =# CREATE TABLE tpcds . web_returns_p2 ( WR_RETURNED_DATE_SK INTEGER , WR_RETURNED_TIME_SK INTEGER , WR_ITEM_SK INTEGER NOT NULL , WR_REFUNDED_CUSTOMER_SK INTEGER , WR_REFUNDED_CDEMO_SK INTEGER , WR_REFUNDED_HDEMO_SK INTEGER , WR_REFUNDED_ADDR_SK INTEGER , WR_RETURNING_CUSTOMER_SK INTEGER , WR_RETURNING_CDEMO_SK INTEGER , WR_RETURNING_HDEMO_SK INTEGER , WR_RETURNING_ADDR_SK INTEGER , WR_WEB_PAGE_SK INTEGER , WR_REASON_SK INTEGER , WR_ORDER_NUMBER BIGINT NOT NULL , WR_RETURN_QUANTITY INTEGER , WR_RETURN_AMT DECIMAL ( 7 , 2 ) , WR_RETURN_TAX DECIMAL ( 7 , 2 ) , WR_RETURN_AMT_INC_TAX DECIMAL ( 7 , 2 ) , WR_FEE DECIMAL ( 7 , 2 ) , WR_RETURN_SHIP_COST DECIMAL ( 7 , 2 ) , WR_REFUNDED_CASH DECIMAL ( 7 , 2 ) , WR_REVERSED_CHARGE DECIMAL ( 7 , 2 ) , WR_ACCOUNT_CREDIT DECIMAL ( 7 , 2 ) , WR_NET_LOSS DECIMAL ( 7 , 2 ) ) TABLESPACE example1 DISTRIBUTE BY HASH ( WR_ITEM_SK ) PARTITION BY RANGE ( WR_RETURNED_DATE_SK ) ( PARTITION P1 VALUES LESS THAN ( 2450815 ), PARTITION P2 VALUES LESS THAN ( 2451179 ), PARTITION P3 VALUES LESS THAN ( 2451544 ), PARTITION P4 VALUES LESS THAN ( 2451910 ), PARTITION P5 VALUES LESS THAN ( 2452275 ), PARTITION P6 VALUES LESS THAN ( 2452640 ), PARTITION P7 VALUES LESS THAN ( 2453005 ), PARTITION P8 VALUES LESS THAN ( MAXVALUE ) TABLESPACE example2 ) ENABLE ROW MOVEMENT ; --以like方式创建一个分区表。 gaussdb =# CREATE TABLE tpcds . web_returns_p3 ( LIKE tpcds . web_returns_p2 INCLUDING PARTITION ); --修改分区P1的表空间为example2。 gaussdb =# ALTER TABLE tpcds . web_returns_p2 MOVE PARTITION P1 TABLESPACE example2 ; --修改分区P2的表空间为example3。 gaussdb =# ALTER TABLE tpcds . web_returns_p2 MOVE PARTITION P2 TABLESPACE example3 ; --以2453010为分割点切分P8。 gaussdb =# ALTER TABLE tpcds . web_returns_p2 SPLIT PARTITION P8 AT ( 2453010 ) INTO ( PARTITION P9 , PARTITION P10 ); --将P6，P7合并为一个分区。 gaussdb =# ALTER TABLE tpcds . web_returns_p2 MERGE PARTITIONS P6 , P7 INTO PARTITION P8 ; --修改分区表迁移属性。 gaussdb =# ALTER TABLE tpcds . web_returns_p2 DISABLE ROW MOVEMENT ; --删除表和表空间。 gaussdb =# DROP TABLE tpcds . web_returns_p1 ; gaussdb =# DROP TABLE tpcds . web_returns_p2 ; gaussdb =# DROP TABLE tpcds . web_returns_p3 ; gaussdb =# DROP SCHEMA tpcds CASCADE ; gaussdb =# DROP TABLESPACE example1 ; gaussdb =# DROP TABLESPACE example2 ; gaussdb =# DROP TABLESPACE example3 ; gaussdb =# DROP TABLESPACE example4 ; 示例3：START END语法创建、修改Range分区表。 假定/home/ omm /startend_tbs1，/home/ omm /startend_tbs2，/home/ omm /startend_tbs3，/home/ omm /startend_tbs4是 omm 用户拥有读写权限的空目录。 1
+  2
+  3
+  4
+  5
+  6
+  7
+  8
+  9
+ 10
+ 11
+ 12
+ 13
+ 14
+ 15
+ 16
+ 17
+ 18
+ 19
+ 20
+ 21
+ 22
+ 23
+ 24
+ 25
+ 26
+ 27
+ 28
+ 29
+ 30
+ 31
+ 32
+ 33
+ 34
+ 35
+ 36
+ 37
+ 38
+ 39
+ 40
+ 41
+ 42
+ 43
+ 44
+ 45
+ 46
+ 47
+ 48
+ 49
+ 50
+ 51
+ 52
+ 53
+ 54
+ 55
+ 56
+ 57
+ 58
+ 59
+ 60
+ 61
+ 62
+ 63
+ 64
+ 65
+ 66
+ 67
+ 68
+ 69
+ 70
+ 71
+ 72
+ 73
+ 74
+ 75
+ 76
+ 77
+ 78
+ 79
+ 80
+ 81
+ 82
+ 83
+ 84
+ 85
+ 86
+ 87
+ 88
+ 89
+ 90
+ 91
+ 92
+ 93
+ 94
+ 95
+ 96
+ 97
+ 98
+ 99
+100
+101
+102
+103
+104
+105
+106
+107
+108 -- 创建表空间 gaussdb =# CREATE TABLESPACE startend_tbs1 LOCATION '/home/omm/startend_tbs1' ; gaussdb =# CREATE TABLESPACE startend_tbs2 LOCATION '/home/omm/startend_tbs2' ; gaussdb =# CREATE TABLESPACE startend_tbs3 LOCATION '/home/omm/startend_tbs3' ; gaussdb =# CREATE TABLESPACE startend_tbs4 LOCATION '/home/omm/startend_tbs4' ; -- 创建临时schema gaussdb =# CREATE SCHEMA tpcds ; gaussdb =# SET CURRENT_SCHEMA TO tpcds ; -- 创建分区表，分区键是integer类型 gaussdb =# CREATE TABLE tpcds . startend_pt ( c1 INT , c2 INT ) TABLESPACE startend_tbs1 DISTRIBUTE BY HASH ( c1 ) PARTITION BY RANGE ( c2 ) ( PARTITION p1 START ( 1 ) END ( 1000 ) EVERY ( 200 ) TABLESPACE startend_tbs2 , PARTITION p2 END ( 2000 ), PARTITION p3 START ( 2000 ) END ( 2500 ) TABLESPACE startend_tbs3 , PARTITION p4 START ( 2500 ), PARTITION p5 START ( 3000 ) END ( 5000 ) EVERY ( 1000 ) TABLESPACE startend_tbs4 ) ENABLE ROW MOVEMENT ; -- 查看分区表信息 gaussdb =# SELECT relname , boundaries , spcname FROM pg_partition p JOIN pg_tablespace t ON p . reltablespace = t . oid and p . parentid = 'tpcds.startend_pt' :: regclass ORDER BY 1 ; relname | boundaries | spcname -------------+------------+--------------- p1_0 | { 1 } | startend_tbs2 p1_1 | { 201 } | startend_tbs2 p1_2 | { 401 } | startend_tbs2 p1_3 | { 601 } | startend_tbs2 p1_4 | { 801 } | startend_tbs2 p1_5 | { 1000 } | startend_tbs2 p2 | { 2000 } | startend_tbs1 p3 | { 2500 } | startend_tbs3 p4 | { 3000 } | startend_tbs1 p5_1 | { 4000 } | startend_tbs4 p5_2 | { 5000 } | startend_tbs4 startend_pt | | startend_tbs1 ( 12 rows ) -- 导入数据，查看分区数据量 gaussdb =# INSERT INTO tpcds . startend_pt VALUES ( GENERATE_SERIES ( 0 , 4999 ), GENERATE_SERIES ( 0 , 4999 )); gaussdb =# SELECT COUNT ( * ) FROM tpcds . startend_pt PARTITION FOR ( 0 ); count ------- 1 ( 1 row ) gaussdb =# SELECT COUNT ( * ) FROM tpcds . startend_pt PARTITION ( p3 ); count ------- 500 ( 1 row ) -- 增加分区: [5000, 5300), [5300, 5600), [5600, 5900), [5900, 6000) gaussdb =# ALTER TABLE tpcds . startend_pt ADD PARTITION p6 START ( 5000 ) END ( 6000 ) EVERY ( 300 ) TABLESPACE startend_tbs4 ; -- 增加MAXVALUE分区: p7 gaussdb =# ALTER TABLE tpcds . startend_pt ADD PARTITION p7 END ( MAXVALUE ); -- 重命名分区p7为p8 gaussdb =# ALTER TABLE tpcds . startend_pt RENAME PARTITION p7 TO p8 ; -- 删除分区p8 gaussdb =# ALTER TABLE tpcds . startend_pt DROP PARTITION p8 ; -- 重命名5950所在的分区为：p71 gaussdb =# ALTER TABLE tpcds . startend_pt RENAME PARTITION FOR ( 5950 ) TO p71 ; -- 分裂4500所在的分区[4000, 5000) gaussdb =# ALTER TABLE tpcds . startend_pt SPLIT PARTITION FOR ( 4500 ) INTO ( PARTITION q1 START ( 4000 ) END ( 5000 ) EVERY ( 250 ) TABLESPACE startend_tbs3 ); -- 修改分区p2的表空间为startend_tbs4 gaussdb =# ALTER TABLE tpcds . startend_pt MOVE PARTITION p2 TABLESPACE startend_tbs4 ; -- 查看分区情形 gaussdb =# SELECT relname , boundaries , spcname FROM pg_partition p JOIN pg_tablespace t ON p . reltablespace = t . oid and p . parentid = 'tpcds.startend_pt' :: regclass ORDER BY 1 ; relname | boundaries | spcname -------------+------------+--------------- p1_0 | { 1 } | startend_tbs2 p1_1 | { 201 } | startend_tbs2 p1_2 | { 401 } | startend_tbs2 p1_3 | { 601 } | startend_tbs2 p1_4 | { 801 } | startend_tbs2 p1_5 | { 1000 } | startend_tbs2 p2 | { 2000 } | startend_tbs4 p3 | { 2500 } | startend_tbs3 p4 | { 3000 } | startend_tbs1 p5_1 | { 4000 } | startend_tbs4 p6_1 | { 5300 } | startend_tbs4 p6_2 | { 5600 } | startend_tbs4 p6_3 | { 5900 } | startend_tbs4 p71 | { 6000 } | startend_tbs4 q1_1 | { 4250 } | startend_tbs3 q1_2 | { 4500 } | startend_tbs3 q1_3 | { 4750 } | startend_tbs3 q1_4 | { 5000 } | startend_tbs3 startend_pt | | startend_tbs1 ( 19 rows ) -- 删除表和表空间 gaussdb =# DROP TABLE tpcds . startend_pt ; gaussdb =# DROP SCHEMA tpcds CASCADE ; gaussdb =# DROP TABLESPACE startend_tbs1 ; gaussdb =# DROP TABLESPACE startend_tbs2 ; gaussdb =# DROP TABLESPACE startend_tbs3 ; gaussdb =# DROP TABLESPACE startend_tbs4 ; 示例4：创建LIST分区表test_list，初始包含4个分区，分区键为INT类型。4个分区的范围分别为：2000，3000，4000，5000。 1
+  2
+  3
+  4
+  5
+  6
+  7
+  8
+  9
+ 10
+ 11
+ 12
+ 13
+ 14
+ 15
+ 16
+ 17
+ 18
+ 19
+ 20
+ 21
+ 22
+ 23
+ 24
+ 25
+ 26
+ 27
+ 28
+ 29
+ 30
+ 31
+ 32
+ 33
+ 34
+ 35
+ 36
+ 37
+ 38
+ 39
+ 40
+ 41
+ 42
+ 43
+ 44
+ 45
+ 46
+ 47
+ 48
+ 49
+ 50
+ 51
+ 52
+ 53
+ 54
+ 55
+ 56
+ 57
+ 58
+ 59
+ 60
+ 61
+ 62
+ 63
+ 64
+ 65
+ 66
+ 67
+ 68
+ 69
+ 70
+ 71
+ 72
+ 73
+ 74
+ 75
+ 76
+ 77
+ 78
+ 79
+ 80
+ 81
+ 82
+ 83
+ 84
+ 85
+ 86
+ 87
+ 88
+ 89
+ 90
+ 91
+ 92
+ 93
+ 94
+ 95
+ 96
+ 97
+ 98
+ 99
+100
+101
+102
+103
+104
+105
+106
+107
+108
+109
+110
+111
+112
+113
+114
+115
+116
+117
+118
+119
+120
+121 --创建表test_list gaussdb =# CREATE TABLE test_list ( col1 int , col2 int ) partition by list ( col1 ) ( partition p1 values ( 2000 ), partition p2 values ( 3000 ), partition p3 values ( 4000 ), partition p4 values ( 5000 ) ); -- 数据插入 gaussdb =# INSERT INTO test_list VALUES ( 2000 , 2000 ); INSERT 0 1 gaussdb =# INSERT INTO test_list VALUES ( 3000 , 3000 ); INSERT 0 1 -- 查看分区信息 gaussdb =# SELECT t1 . relname , partstrategy , boundaries FROM pg_partition t1 , pg_class t2 WHERE t1 . parentid = t2 . oid AND t2 . relname = 'test_list' AND t1 . parttype = 'p' ; relname | partstrategy | boundaries ---------+--------------+------------ p1 | l | { 2000 } p2 | l | { 3000 } p3 | l | { 4000 } p4 | l | { 5000 } ( 4 rows ) -- 插入数据没有匹配到分区，报错处理 gaussdb =# INSERT INTO test_list VALUES ( 6000 , 6000 ); ERROR : inserted partition key does not map to any table partition -- 添加分区 gaussdb =# ALTER TABLE test_list add partition p5 values ( 6000 ); ALTER TABLE gaussdb =# SELECT t1 . relname , partstrategy , boundaries FROM pg_partition t1 , pg_class t2 WHERE t1 . parentid = t2 . oid AND t2 . relname = 'test_list' AND t1 . parttype = 'p' ; relname | partstrategy | boundaries ---------+--------------+------------ p5 | l | { 6000 } p4 | l | { 5000 } p1 | l | { 2000 } p2 | l | { 3000 } p3 | l | { 4000 } ( 5 rows ) gaussdb =# INSERT INTO test_list VALUES ( 6000 , 6000 ); INSERT 0 1 -- 分区表和普通表交换数据 gaussdb =# CREATE TABLE t1 ( col1 int , col2 int ); CREATE TABLE gaussdb =# SELECT * FROM test_list partition ( p1 ); col1 | col2 ------+------ 2000 | 2000 ( 1 row ) gaussdb =# ALTER TABLE test_list exchange partition ( p1 ) with table t1 ; ALTER TABLE gaussdb =# SELECT * FROM test_list partition ( p1 ); col1 | col2 ------+------ ( 0 rows ) gaussdb =# SELECT * FROM t1 ; col1 | col2 ------+------ 2000 | 2000 ( 1 row ) -- truncate分区 gaussdb =# SELECT * FROM test_list partition ( p2 ); col1 | col2 ------+------ 3000 | 3000 ( 1 row ) gaussdb =# ALTER TABLE test_list truncate partition p2 ; ALTER TABLE gaussdb =# SELECT * FROM test_list partition ( p2 ); col1 | col2 ------+------ ( 0 rows ) -- 删除分区 gaussdb =# alter table test_list drop partition p5 ; ALTER TABLE gaussdb =# SELECT t1 . relname , partstrategy , boundaries FROM pg_partition t1 , pg_class t2 WHERE t1 . parentid = t2 . oid AND t2 . relname = 'test_list' AND t1 . parttype = 'p' ; relname | partstrategy | boundaries ---------+--------------+------------ p4 | l | { 5000 } p1 | l | { 2000 } p2 | l | { 3000 } p3 | l | { 4000 } ( 4 rows ) gaussdb =# INSERT INTO test_list VALUES ( 6000 , 6000 ); ERROR : inserted partition key does not map to any table partition -- 合并分区 gaussdb =# alter table test_list merge partitions p1 , p2 into partition p2 ; ALTER TABLE gaussdb =# SELECT t1 . relname , partstrategy , boundaries FROM pg_partition t1 , pg_class t2 WHERE t1 . parentid = t2 . oid AND t2 . relname = 'test_list' AND t1 . parttype = 'p' ; relname | partstrategy | boundaries ---------+--------------+------------- p2 | l | { 2000 , 3000 } p4 | l | { 5000 } p3 | l | { 4000 } ( 3 rows ) -- 分割分区 gaussdb =# alter table test_list split partition p2 values ( 2000 ) into ( partition p1 , partition p2 ); ALTER TABLE gaussdb =# SELECT t1 . relname , partstrategy , boundaries FROM pg_partition t1 , pg_class t2 WHERE t1 . parentid = t2 . oid AND t2 . relname = 'test_list' AND t1 . parttype = 'p' ; relname | partstrategy | boundaries ---------+--------------+------------ p2 | l | { 3000 } p1 | l | { 2000 } p4 | l | { 5000 } p3 | l | { 4000 } ( 4 rows ) -- 删除分区表。 gaussdb =# drop table test_list ; -- 删除普通表。 gaussdb =# DROP TABLE t1 ; 示例5：创建HASH分区表test_hash，初始包含2个分区，分区键为INT类型。 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27
+28
+29
+30
+31
+32
+33
+34
+35
+36
+37
+38
+39
+40
+41
+42
+43
+44
+45
+46
+47
+48
+49
+50
+51
+52
+53
+54
+55
+56
+57
+58
+59
+60
+61
+62
+63
+64
+65
+66
+67 --创建表test_hash gaussdb =# create table test_hash ( col1 int , col2 int ) partition by hash ( col1 ) ( partition p1 , partition p2 ); -- 数据插入 gaussdb =# INSERT INTO test_hash VALUES ( 1 , 1 ); INSERT 0 1 gaussdb =# INSERT INTO test_hash VALUES ( 2 , 2 ); INSERT 0 1 gaussdb =# INSERT INTO test_hash VALUES ( 3 , 3 ); INSERT 0 1 gaussdb =# INSERT INTO test_hash VALUES ( 4 , 4 ); INSERT 0 1 -- 查看分区信息 gaussdb =# SELECT t1 . relname , partstrategy , boundaries FROM pg_partition t1 , pg_class t2 WHERE t1 . parentid = t2 . oid AND t2 . relname = 'test_hash' AND t1 . parttype = 'p' ; relname | partstrategy | boundaries ---------+--------------+------------ p1 | h | { 0 } p2 | h | { 1 } ( 2 rows ) -- 查看数据 gaussdb =# select * from test_hash partition ( p1 ); col1 | col2 ------+------ 3 | 3 4 | 4 ( 2 rows ) gaussdb =# select * from test_hash partition ( p2 ); col1 | col2 ------+------ 1 | 1 2 | 2 ( 2 rows ) -- 分区表和普通表交换数据 gaussdb =# create table t1 ( col1 int , col2 int ); CREATE TABLE gaussdb =# alter table test_hash exchange partition ( p1 ) with table t1 ; ALTER TABLE gaussdb =# select * from test_hash partition ( p1 ); col1 | col2 ------+------ ( 0 rows ) gaussdb =# select * from t1 ; col1 | col2 ------+------ 3 | 3 4 | 4 ( 2 rows ) -- truncate分区 gaussdb =# alter table test_hash truncate partition p2 ; ALTER TABLE gaussdb =# select * from test_hash partition ( p2 ); col1 | col2 ------+------ ( 0 rows ) -- 删除分区表 gaussdb =# drop table test_hash ; 示例6：创建LIST分区表t_multi_keys_list，初始包含5个分区，两个分区键分别为INT类型和VARCHAR类型。 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13 --创建表t_multi_keys_list。 gaussdb =# CREATE TABLE t_multi_keys_list ( a int , b varchar ( 4 ), c int ) PARTITION BY LIST ( a , b ) ( PARTITION p1 VALUES ( ( 0 , NULL ) ), PARTITION p2 VALUES ( ( 0 , '1' ), ( 0 , '2' ), ( 0 , '3' ), ( 1 , '1' ), ( 1 , '2' ) ), PARTITION p3 VALUES ( ( NULL , '0' ), ( 2 , '1' ) ), PARTITION p4 VALUES ( ( 3 , '2' ), ( NULL , NULL ) ), PARTITION pd VALUES ( DEFAULT ) ); -- 删除表t_multi_keys_list。 gaussdb =# DROP TABLE t_multi_keys_list ; 示例7：创建一个添加ILM策略的分区表 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14 --创建表ilm_part。 gaussdb =# ALTER DATABASE set ilm = on ; gaussdb =# CREATE TABLE ilm_part ( a int ) ILM ADD POLICY ROW STORE COMPRESS ADVANCED ROW AFTER 3 MONTHS OF NO MODIFICATION PARTITION BY RANGE ( a ) ( PARTITION p1 VALUES LESS THAN ( 10 ) ILM ADD POLICY ROW STORE COMPRESS ADVANCED ROW AFTER 3 MONTHS OF NO MODIFICATION , PARTITION p2 VALUES LESS THAN ( 20 ), PARTITION p3 VALUES LESS THAN ( 30 )); -- 删除表ilm_part。 gaussdb =# DROP TABLE ilm_part ; 示例8：创建一个分区表并修改其ILM策略 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23 --创建表ilm_part 。 gaussdb =# ALTER DATABASE set ilm = on ; gaussdb =# CREATE TABLE ilm_part ( a int ) PARTITION BY RANGE ( a ) ( PARTITION p1 VALUES LESS THAN ( 10 ), PARTITION p2 VALUES LESS THAN ( 20 ), PARTITION p3 VALUES LESS THAN ( 30 )); ALTER TABLE ilm_part MODIFY PARTITION p2 ILM ADD POLICY ROW STORE COMPRESS ADVANCED ROW AFTER 3 MONTHS OF NO MODIFICATION ; ALTER TABLE ilm_part MODIFY PARTITION p2 ILM DISABLE_ALL ; ALTER TABLE ilm_part MODIFY PARTITION p2 ILM ENABLE_ALL ; ALTER TABLE ilm_part MODIFY PARTITION p2 ILM DELETE_ALL ; --删除表ilm_part。 gaussdb =# DROP TABLE ilm_part ; 示例9：创建一个分区表并为其添加ILM策略 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14 --创建表ilm_part。 gaussdb =# ALTER DATABASE set ilm = on ; gaussdb =# CREATE TABLE ilm_part ( a int ) PARTITION BY RANGE ( a ) ( PARTITION p1 VALUES LESS THAN ( 10 ), PARTITION p2 VALUES LESS THAN ( 20 ), PARTITION p3 VALUES LESS THAN ( 30 )); ALTER TABLE ilm_part ADD PARTITION p4 VALUES LESS THAN ( 40 ) ILM ADD POLICY ROW STORE COMPRESS ADVANCED ROW AFTER 3 MONTHS OF NO MODIFICATION ; --删除表ilm_part。 gaussdb =# DROP TABLE ilm_part ; 示例10：创建一个分区表并在split时添加ILM策略 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16 --创建表ilm_part。 gaussdb =# ALTER DATABASE set ilm = on ; gaussdb =# CREATE TABLE ilm_part ( a int ) PARTITION BY RANGE ( a ) ( PARTITION p1 VALUES LESS THAN ( 10 ), PARTITION p2 VALUES LESS THAN ( 20 ), PARTITION p3 VALUES LESS THAN ( 30 )); ALTER TABLE ilm_part SPLIT PARTITION p1 AT ( '5' ) INTO ( PARTITION p1_1 ILM ADD POLICY ROW STORE COMPRESS ADVANCED ROW AFTER 3 MONTHS OF NO MODIFICATION , PARTITION p1_2 ); --删除表ilm_part。 gaussdb =# DROP TABLE ilm_part ; 示例11：创建一个分区表并在merge时添加ILM策略 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14 --创建表ilm_part。 gaussdb =# ALTER DATABASE set ilm = on ; gaussdb =# CREATE TABLE ilm_part ( a int ) PARTITION BY RANGE ( a ) ( PARTITION p1 VALUES LESS THAN ( 10 ), PARTITION p2 VALUES LESS THAN ( 20 ), PARTITION p3 VALUES LESS THAN ( 30 )); ALTER TABLE ilm_part MERGE PARTITIONS p1 , p2 INTO PARTITION p_merged ILM ADD POLICY ROW STORE COMPRESS ADVANCED ROW AFTER 3 MONTHS OF NO MODIFICATION ; --删除表ilm_part。 gaussdb =# DROP TABLE ilm_part ; 相关链接 ALTER TABLE PARTITION ， DROP TABLE 父主题： C 版权所有 © 华为技术有限公司

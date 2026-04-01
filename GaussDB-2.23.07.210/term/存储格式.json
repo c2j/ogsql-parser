@@ -1,0 +1,36 @@
+{
+  "topic": "存储格式",
+  "term_count": 6,
+  "terms": [
+    {
+      "term": "Undo",
+      "content": "Undo Undo 历史版本数据集中存放在$node_dir/undo目录中，其中$node_dir为数据库节点路径，回滚段日志是与单个写事务关联的所有撤销日志的集合。支持permanent/unlogged/temp三种表类型。 回滚段管理 文件组织结构 空间管理",
+      "source_file": "4385_Undo.txt"
+    },
+    {
+      "term": "Undo",
+      "content": "Undo Undo 历史版本数据集中存放在$node_dir/undo目录中，其中$node_dir为数据库节点路径，回滚段日志是与单个写事务关联的所有撤销日志的集合。支持permanent/unlogged/temp三种表类型。 回滚段管理 文件组织结构 空间管理",
+      "source_file": "4645_Undo.txt"
+    },
+    {
+      "term": "RCR",
+      "content": "RCR Uheap RCR Uheap RCR Uheap多版本管理 RCR Uheap可见性机制 RCR Uheap空闲空间管理",
+      "source_file": "4630_RCR Uheap.txt"
+    },
+    {
+      "term": "UBTree",
+      "content": "UBTree UBTree 其使用的btree做了如下重要的增强，简称Ubtree。 Ubtree索引增加了事务信息，能够独立进行MVCC；增加了IndexOnlyScan的比例，大大减少回表次数。 不依赖Vacuum进行旧版本清理。独立的空间回收能力，索引与堆表解耦，可独立清理，IO平稳度更优。 RCR UBTree PCR UBTree",
+      "source_file": "4374_UBTree.txt"
+    },
+    {
+      "term": "RCR",
+      "content": "RCR Uheap RCR Uheap RCR Uheap多版本管理 RCR Uheap可见性机制 RCR Uheap空闲空间管理",
+      "source_file": "4370_RCR Uheap.txt"
+    },
+    {
+      "term": "UBTree",
+      "content": "UBTree UBTree 其使用的btree做了如下重要的增强，简称UBTree。 UBTree索引增加了事务信息，能够独立进行MVCC。增加了IndexOnlyScan的比例，大大减少回表次数。 不依赖Vacuum进行旧版本清理。独立的空间回收能力，索引与堆表解耦，可独立清理，IO平稳度更优。 RCR UBTree PCR UBTree",
+      "source_file": "4634_UBTree.txt"
+    }
+  ]
+}

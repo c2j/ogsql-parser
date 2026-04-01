@@ -1,0 +1,1 @@
+DBS.212017 参数非法 DBS.212017 参数非法 错误码描述 参数非法。 可能原因 因部署升级问题导致参数缺失。 处理建议 查看参数应用历史检查未成功的参数，查看DBS运维平台实例任务流是否正常。 是，执行 2 。 否， 下载管理节点日志 及 下载租户节点日志 ，查看管控api节点和CommonService节点日志或agent日志定位异常原因。 agent日志路径如下： “/home/Ruby/log/agent.log” “/home/Ruby/log/request_agent.log” “/home/Ruby/log/agent_error.log” 联系技术支持 进行协助解决。 父主题： 控制台错误码 版权所有 © 华为技术有限公司

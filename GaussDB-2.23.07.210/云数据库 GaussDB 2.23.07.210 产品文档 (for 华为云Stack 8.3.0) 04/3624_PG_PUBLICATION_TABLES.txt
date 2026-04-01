@@ -1,0 +1,1 @@
+PG_PUBLICATION_TABLES PG_PUBLICATION_TABLES PG_PUBLICATION_TABLES视图提供publication与其所发布的表之间的映射信息。和底层的系统表pg_publication_rel不同，这个视图显示了定义为FOR ALL TABLES的publication的信息，对符合这种定义的publication来说，每一个映射的表都有一行对应的信息。 表1 PG_PUBLICATION_TABLES字段 名称 类型 描述 pubname name 发布的名称。 schemaname name 表的模式名称。 tablename name 表的名称。 父主题： 其他系统视图 版权所有 © 华为技术有限公司

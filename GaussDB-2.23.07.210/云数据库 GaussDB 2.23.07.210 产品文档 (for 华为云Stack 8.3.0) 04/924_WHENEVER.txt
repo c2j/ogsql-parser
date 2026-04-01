@@ -1,0 +1,40 @@
+WHENEVER WHENEVER 功能描述 定义一个行为，它会在SQL执行异常时（行未找到、SQL告警或错误）被调用。 语法格式 WHENEVER { NOT FOUND | SQLERROR | SQLWARNING } action 参数说明 参数描述见 设置回调 章节。 示例 EXEC SQL WHENEVER NOT FOUND CONTINUE; 
+EXEC SQL WHENEVER NOT FOUND DO BREAK; 
+EXEC SQL WHENEVER SQLWARNING SQLPRINT; 
+EXEC SQL WHENEVER SQLWARNING DO warn(); 
+EXEC SQL WHENEVER SQLERROR sqlprint; 
+EXEC SQL WHENEVER SQLERROR SQLCALL print2(); 
+EXEC SQL WHENEVER SQLERROR DO handle_error("select"); 
+EXEC SQL WHENEVER SQLERROR DO sqlnotice(NULL, NONO);
+EXEC SQL WHENEVER SQLERROR DO sqlprint(); 
+EXEC SQL WHENEVER SQLERROR GOTO error_label; 
+EXEC SQL WHENEVER SQLERROR STOP; 使用WHENEVER NOT FOUND BREAK来处理结果集的循环，参考如下完整示例： #include <stdlib.h>
+#include <string.h>
+#include <stdio.h>
+
+int main(void)
+{
+    EXEC SQL CONNECT TO testdb AS con1;
+    EXEC SQL ALLOCATE DESCRIPTOR d;
+    EXEC SQL DECLARE cur CURSOR FOR SELECT current_database(), 'hoge', 256;
+    EXEC SQL OPEN cur;
+    EXEC SQL BEGIN DECLARE SECTION;
+    char* d1;
+    char* d2;
+    EXEC SQL END DECLARE SECTION;
+    /* 当到达结果集末尾时，跳出循环 */
+    EXEC SQL WHENEVER NOT FOUND DO BREAK;
+
+    while (1)
+    {
+        EXEC SQL FETCH NEXT FROM cur INTO SQL DESCRIPTOR d;
+        exec sql get descriptor d value 1 :d1=DATA;
+        exec sql get descriptor d value 2 :d2=DATA;
+        printf("d1 is %s,%s\n", d1, d2) ;
+    }
+     EXEC SQL CLOSE cur;
+     EXEC SQL COMMIT;
+     EXEC SQL DEALLOCATE DESCRIPTOR d;
+     EXEC SQL DISCONNECT ALL;
+     return 0;
+} 父主题： 嵌入式SQL命令 版权所有 © 华为技术有限公司

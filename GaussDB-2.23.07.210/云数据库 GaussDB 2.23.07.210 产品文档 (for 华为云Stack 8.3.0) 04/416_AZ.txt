@@ -1,0 +1,5 @@
+同城切换AZ 同城切换AZ 功能介绍 切换主DN组至对应AZ。 调用接口前，您需要提前 获取终端节点 ，即下文中的Endpoint值。 注意事项 切换完成后，可能会导致集群主备分布不均衡，如果需要将集群重新切回均衡状态，可以参考 实例主备状态重置 ，将集群主备状态切回。 URI URI格式 POST https://{ Endpoint }/opengauss/v3/{project_id}/instances/{instance_id}/switch-az URI样例 https://gaussdb.sa-fb-2.hcsglobal.com/opengauss/v3/0c8243400d37468bb4aed3cc94c2911d/instances/f9b5f9b296ec6808e067in14/switch-az 参数说明 表1 参数说明 名称 是否必选 说明 project_id 是 租户在某一region下的project ID。 获取方法请参见 获取项目ID/名称 。 instance_id 是 实例ID。 请求消息 参数说明 表2 参数说明 名称 是否必选 参数类型 说明 availability_zone 是 String 需要将主DN切换到的AZ。 请求样例 {
+  "availability_zone": "az3.dc0"
+} 响应消息 正常响应要素说明 表3 要素说明 名称 参数类型 说明 job_id String 同城切换AZ的任务ID。 正常响应样例 {
+	"job_id": "e96bbb23-e053-4bd0-b0b7-16ad3f5d9b6d"
+} 异常响应 请参见 异常请求结果 。 状态码 正常 202 异常 请参见 状态码 。 错误码 请参见 错误码 。 父主题： 实例管理 版权所有 © 华为技术有限公司

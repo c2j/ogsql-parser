@@ -1,0 +1,6 @@
+DROP DATA SOURCE DROP DATA SOURCE 当前特性是实验室特性，使用时请联系华为技术工程师提供技术支持。 功能描述 删除一个Data Source对象。 注意事项 只有属主/系统管理员/初始用户才可以删除一个Data Source对象。 语法格式 1 DROP DATA SOURCE [ IF EXISTS ] src_name [ CASCADE | RESTRICT ]; 参数说明 src_name 待删除的Data Source对象名称。 取值范围：字符串，符合 标识符命名规范 。 IF EXISTS 如果指定的Data Source不存在，则发出一个notice而不是报错。 CASCADE | RESTRICT CASCADE ：表示允许级联删除依赖于Data Source的对象 RESTRICT ：表示如果有依赖于该Data Source的对象存在，则该Data Source无法删除。此选项为缺省值。 目前Data Source对象没有被依赖的对象，CASCADE和RESTRICT效果一样，保留此选项是为了向后兼容性。 示例 1
+2
+3
+4
+5
+6 --创建Data Source对象。 gaussdb =# CREATE DATA SOURCE ds_tst1 ; --删除Data Source对象。 gaussdb =# DROP DATA SOURCE ds_tst1 CASCADE ; gaussdb =# DROP DATA SOURCE IF EXISTS ds_tst1 RESTRICT ; 相关链接 CREATE DATA SOURCE ， ALTER DATA SOURCE 父主题： D 版权所有 © 华为技术有限公司

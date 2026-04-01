@@ -1,0 +1,329 @@
+DBE_STATS DBE_STATS 高级包DBE_STATS实现了一些统计信息管理的能力。包括对统计信息的锁定、解锁、回退、清除历史统计信息等。 DBE_STATS高级包不支持临时表。 接口介绍 表1 DBE_STATS接口总览 接口名称 描述 DBE_STATS.LOCK_TABLE_STATS 锁定表级统计信息。 DBE_STATS.LOCK_PARTITION_STATS 锁定分区级统计信息。 DBE_STATS.LOCK_COLUMN_STATS 锁定列级统计信息。 DBE_STATS.LOCK_SCHEMA_STATS 锁定指定schema下所有表相关的统计信息。 DBE_STATS.UNLOCK_TABLE_STATS 解锁表级统计信息。 DBE_STATS.UNLOCK_PARTITION_STATS 解锁分区级统计信息。 DBE_STATS.UNLOCK_COLUMN_STATS 解锁列级统计信息。 DBE_STATS.UNLOCK_SCHEMA_STATS 解锁指定schema下所有表相关的统计信息。 DBE_STATS.RESTORE_TABLE_STATS 回退表级统计信息到指定时间点。 DBE_STATS.RESTORE_PARTITION_STATS 回退分区级统计信息到指定时间点。 DBE_STATS.RESTORE_COLUMN_STATS 回退列级统计信息到指定时间点。 DBE_STATS.RESTORE_SCHEMA_STATS 回退指定schema下所有表相关的统计信息到指定时间点。 DBE_STATS.PURGE_STATS 清除指定时间节点前的所有历史统计信息。 DBE_STATS.GET_STATS_HISTORY_RETENTION 获取历史统计信息的保留时间。 DBE_STATS.GET_STATS_HISTORY_AVAILABILITY 获取最早可用的历史统计信息的时间。 DBE_STATS.LOCK_TABLE_STATS 锁定一个表的统计信息，锁定后，该表的统计信息无法更新，该表下级涉及的索引、分区、列会同步被锁定。该接口无返回值。 DBE_STATS.LOCK_TABLE_STATS的函数原型： DBE_STATS.LOCK_TABLE_STATS(
+   ownname   VARCHAR2,
+   tabname   VARCHAR2
+); 表2 DBE_STATS.LOCK_TABLE_STATS的接口说明 参数 类型 是否允许为空 描述 ownname varchar2 是 要锁定的表所属的schema的名称，该参数为空时，默认为当前schema。 tabname varchar2 否 要锁定的表的名称。 使用该接口时，用户必须对指定的表拥有与ANALYZE命令相同的权限，可以参考 ANALYZE | ANALYSE 。 可查看该表的reloptions中stat_state状态获取该表的锁定状态。 当一个表处于锁定状态时，其统计信息无法更新。 如果要在ownname设置为null时使用当前schema，需提前将behavior_compat_options参数值设置为bind_procedure_searchpath。 示例： -- 建表 gaussdb=# CREATE SCHEMA dbe_stats_lock;
+CREATE SCHEMA gaussdb=# SET CURRENT_SCHEMA=dbe_stats_lock;
+SET gaussdb=# CREATE TABLE t1(a int,b int);
+CREATE TABLE
+
+-- 锁定表，查看其锁定状态 gaussdb=# CALL DBE_STATS.LOCK_TABLE_STATS(ownname=>'dbe_stats_lock',tabname=>'t1');
+ lock_table_stats 
+------------------
+
+(1 row) gaussdb=# SELECT relname,instr(reloptions::text,'stat_state=locked',1,1) <> 0  as exist_lock FROM PG_CLASS WHERE relname='t1' and relnamespace = (SELECT oid FROM PG_NAMESPACE WHERE nspname='dbe_stats_lock');
+ relname | exist_lock 
+---------+------------
+ t1      | t
+(1 row)
+
+-- 锁定后analyze, 发生报错 gaussdb=# ANALYZE t1;
+ERROR:  The statistics is locked, cannot be updated.
+
+-- 删除表、删除命名空间 gaussdb=# DROP TABLE t1;
+DROP TABLE gaussdb=# DROP SCHEMA dbe_stats_lock;
+DROP SCHEMA DBE_STATS.LOCK_PARTITION_STATS 锁定一个分区的统计信息，锁定后，该分区的统计信息无法更新，该分区涉及下级的索引、分区、列会同步锁定。该接口无返回值。 DBE_STATS.LOCK_PARTITION_STATS的函数原型： DBE_STATS.LOCK_PARTITION_STATS(
+    ownname     VARCHAR2,
+    tabname     VARCHAR2,
+    partname    VARCHAR2
+); 表3 DBE_STATS.LOCK_PARTITION_STATS的接口说明 参数 类型 是否允许为空 描述 ownname varchar2 是 要锁定的分区所属的schema的名称，该参数为空时，默认为当前schema。 tabname varchar2 否 要锁定的分区所属的表的名称。 partname varchar2 否 要锁定的分区的名称。 使用该接口时，用户必须对指定的表拥有与ANALYZE命令相同的权限，可以参考 ANALYZE | ANALYSE 。 可查看该分区的reloptions中stat_state状态获取该表的锁定状态。 当该分区或该表所属的表处于锁定状态时，其统计信息无法更新。 如果要在ownname设置为null时使用当前schema，需提前将behavior_compat_options参数值设置为bind_procedure_searchpath。 示例： -- 建表 gaussdb=# CREATE SCHEMA dbe_stats_lock;
+CREATE SCHEMA gaussdb=# SET CURRENT_SCHEMA=dbe_stats_lock;
+SET gaussdb=# CREATE TABLE upart_table(a int, b int, c int) PARTITION BY RANGE(a)
+gaussdb-# (
+gaussdb(#    PARTITION p1 VALUES LESS THAN(1200),
+gaussdb(#    PARTITION p2 VALUES LESS THAN(2400),
+gaussdb(#    PARTITION p3 VALUES LESS THAN(MAXVALUE)
+gaussdb(# );
+CREATE TABLE
+
+-- 锁定一个分区，其他分区及表不受影响 gaussdb=# CALL DBE_STATS.LOCK_PARTITION_STATS(ownname=>'dbe_stats_lock',tabname=>'upart_table',partname=>'p1');
+ lock_partition_stats 
+----------------------
+
+(1 row) gaussdb=# SELECT relname,instr(reloptions::text,'stat_state=locked',1,1) <> 0 as exist_lock FROM PG_CLASS WHERE relname='upart_table';
+   relname   | exist_lock 
+-------------+------------
+ upart_table | f
+(1 row) gaussdb=# SELECT relname,instr(reloptions::text,'stat_state=locked',1,1) <> 0 as exist_lock FROM PG_PARTITION WHERE parentid='upart_table'::REGCLASS;
+   relname   | exist_lock 
+-------------+------------
+ upart_table | f
+ p2          | f
+ p3          | f
+ p1          | t
+(4 rows)
+
+-- 删除表、命名空间 gaussdb=# DROP TABLE upart_table;
+DROP TABLE gaussdb=# DROP SCHEMA dbe_stats_lock;
+DROP SCHEMA DBE_STATS.LOCK_COLUMN_STATS 锁定一个列的统计信息，锁定后，该列的统计信息无法更新。该接口无返回值。 DBE_STATS.LOCK_COLUMN_STATS的函数原型： DBE_STATS.LOCK_COLUMN_STATS(
+    ownname     VARCHAR2,
+    tabname     VARCHAR2,
+    colname     VARCHAR2,
+    partname    VARCHAR2 DEFAULT NULL
+); 表4 DBE_STATS.LOCK_COLUMN_STATS的接口说明 参数 类型 是否允许为空 描述 ownname varchar2 是 要锁定的列所属的schema的名称，该参数为空时，默认为当前schema。 tabname varchar2 否 要锁定的列所属的表的名称。 colname varchar2 否 要锁定的列的名称。 partname varchar2 是 要锁定的列所属的分区的名称，默认为空。 使用该接口时，用户必须对指定的表拥有与ANALYZE命令相同的权限，可以参考 ANALYZE | ANALYSE 。 当partname为空时，默认锁定该列表级统计信息。 若不存在该表的列级统计信息，则锁定可执行成功，但实际未生效。 可查看 PG_STATISTIC / PG_STATISTIC_EXT 中的stastate状态位获取锁定状态。 锁定多列时，需先查询 PG_STATISTIC_EXT 中的staextname字段获取多列别名作为colname入参传入。 当某一列被锁定或其所属的表或分区被锁定时，其统计信息无法更新，但该列被锁定的信息不会回显，需自行在日志里通过DEBUG2级别的DBE_STATS的logging_module查看。 如果要在ownname设置为null时使用当前schema，需提前将behavior_compat_options参数值设置为bind_procedure_searchpath。 示例： -- 建表，收集统计信息 gaussdb=# CREATE SCHEMA dbe_stats_lock;
+CREATE SCHEMA gaussdb=# SET CURRENT_SCHEMA=dbe_stats_lock;
+SET gaussdb=# CREATE TABLE t1(a int,b int);
+CREATE TABLE gaussdb=# INSERT INTO t1 VALUES(generate_series(1,100),1);
+INSERT 0 100 gaussdb=# ANALYZE t1;
+ANALYZE
+
+-- 锁定列后，查看列的锁定状态 gaussdb=# CALL DBE_STATS.LOCK_COLUMN_STATS(ownname=>'dbe_stats_lock',tabname=>'t1',colname=>'a');
+ lock_column_stats 
+-------------------
+
+(1 row) gaussdb=# SELECT staattnum,stastate FROM PG_STATISTIC WHERE starelid='t1'::REGCLASS;
+ staattnum | stastate 
+-----------+----------
+         2 | u
+         1 | l
+(2 rows)
+
+-- 删除表、命名空间 gaussdb=# DROP TABLE t1;
+DROP TABLE gaussdb=# DROP SCHEMA dbe_stats_lock;
+DROP SCHEMA DBE_STATS.LOCK_SCHEMA_STATS 锁定一个指定schema下所有表的统计信息。该接口无返回值。 DBE_STATS.LOCK_SCHEMA_STATS的函数原型： DBE_STATS.LOCK_SCHEMA_STATS(
+    ownname    VARCHAR2
+); 表5 DBE_STATS.LOCK_SCHEMA_STATS的接口说明 参数 类型 是否允许为空 描述 ownname varchar2 是 指定的schema名，该参数为空时，默认为当前schema。 调用该接口时，会锁定该schema下所有当前用户有ANALYZE权限的表，对于没有权限的表直接跳过。 调用该接口需拥有指定schema的USAGE权限。 如果要在ownname设置为null时使用当前schema，需提前将behavior_compat_options参数值设置为bind_procedure_searchpath。 示例： -- 锁定schema的统计信息同锁定表的统计信息用法一致，此处仅展示接口调用方式，具体示例可参 DBE_STATS.LOCK_TABLE_STA... 示例 gaussdb=# CALL DBE_STATS.LOCK_SCHEMA_STATS(ownname=>'dbe_stats_lock');
+ lock_schema_stats 
+-------------------
+
+(1 row) DBE_STATS.UNLOCK_TABLE_STATS 解锁一个表的统计信息，解锁后，该表的统计信息可以更新。该表下级涉及的索引、分区、列会同步解锁。该接口无返回值。 DBE_STATS.UNLOCK_TABLE_STATS的函数原型： DBE_STATS.UNLOCK_TABLE_STATS(
+   ownname   VARCHAR2,
+   tabname   VARCHAR2
+); 表6 DBE_STATS.UNLOCK_TABLE_STATS的接口说明 参数 类型 是否允许为空 描述 ownname varchar2 是 要解锁的表所属的schema的名称，该参数为空时，默认为当前schema。 tabname varchar2 否 要解锁的表的名称。 使用该接口时，用户必须对指定的表拥有与ANALYZE命令相同的权限，可以参考 ANALYZE | ANALYSE 。 可查看该表的reloptions中stat_state状态获取该表的锁定状态。 如果要在ownname设置为null时使用当前schema，需提前将behavior_compat_options参数值设置为bind_procedure_searchpath。 示例： -- 解锁表的统计信息同锁定表的统计信息用法一致，此处仅展示接口调用方式，具体示例可参 DBE_STATS.LOCK_TABLE_STA... 示例 gaussdb=# CALL DBE_STATS.UNLOCK_TABLE_STATS(ownname=>'dbe_stats_lock',tabname=>'t1');
+ unlock_table_stats 
+--------------------
+
+(1 row) DBE_STATS.UNLOCK_PARTITION_STATS 解锁一个分区的统计信息，解锁后，该分区的统计信息可以更新。该分区下级涉及的索引、分区、列会同步解锁。该接口无返回值。 DBE_STATS.UNLOCK_PARTITION_STATS的函数原型： DBE_STATS.UNLOCK_PARTITION_STATS(
+    ownname     VARCHAR2,
+    tabname     VARCHAR2,
+    partname    VARCHAR2
+); 表7 DBE_STATS.UNLOCK_PARTITION_STATS的接口说明 参数 类型 是否允许为空 描述 ownname varchar2 是 要解锁的分区所属的schema的名称，该参数为空时，默认为当前schema。 tabname varchar2 否 要解锁的分区所属的表的名称。 partname varchar2 否 要解锁的分区的名称。 使用该接口时，用户必须对指定的表拥有与ANALYZE命令相同的权限，可以参考 ANALYZE | ANALYSE 。 可查看该分区的reloptions中stat_state状态获取该表的锁定状态。 如果要在ownname设置为null时使用当前schema，需提前将behavior_compat_options参数值设置为bind_procedure_searchpath。 示例： -- 解锁分区的统计信息同锁定分区的统计信息用法一致，此处仅展示接口调用方式，具体示例可参见 DBE_STATS.LOCK_PARTITION_STATS 示例 gaussdb=# CALL DBE_STATS.UNLOCK_PARTITION_STATS(ownname=>'dbe_stats_lock',tabname=>'upart_table',partname=>'p1');
+ unlock_partition_stats 
+------------------------
+
+(1 row) DBE_STATS.UNLOCK_COLUMN_STATS 解锁一个列的统计信息，解锁后，该列的统计信息可以更新。该接口无返回值。 DBE_STATS.UNLOCK_COLUMN_STATS的函数原型： DBE_STATS.LOCK_COLUMN_STATS(
+    ownname     VARCHAR2,
+    tabname     VARCHAR2,
+    colname     VARCHAR2,
+    partname    VARCHAR2 DEFAULT NULL
+); 表8 DBE_STATS.UNLOCK_COLUMN_STATS的接口说明 参数 类型 是否允许为空 描述 ownname varchar2 是 要解锁的列所属的schema的名称，该参数为空时，默认为当前schema。 tabname varchar2 否 要解锁的列所属的表的名称。 colname varchar2 否 要解锁的列的名称。 partname varchar2 是 要解锁的列所属的分区的名称，默认为空。 使用该接口时，用户必须对指定的表拥有与ANALYZE命令相同的权限，可以参考 ANALYZE | ANALYSE 。 当partname为空时，默认解锁该列表级统计信息，以及解锁其级联分区列级统计信息。 可查看 PG_STATISTIC / PG_STATISTIC_EXT 中的stastate状态位获取锁定状态。 解锁多列时，需先查询 PG_STATISTIC_EXT 中的staextname字段获取多列别名作为colname入参传入。 如果要在ownname设置为null时使用当前schema，需提前将behavior_compat_options参数值设置为bind_procedure_searchpath。 示例： -- 解锁列的统计信息同锁定列的统计信息用法一致，此处仅展示接口调用方式，具体示例可参 DBE_STATS.LOCK_COLUMN_ST... 示例 gaussdb=# CALL DBE_STATS.UNLOCK_COLUMN_STATS(ownname=>'dbe_stats_lock',tabname=>'t1',colname=>'a');
+ unlock_column_stats 
+---------------------
+
+(1 row) DBE_STATS.UNLOCK_SCHEMA_STATS 锁定一个指定schema下所有表的统计信息。该接口无返回值。 DBE_STATS.UNLOCK_SCHEMA_STATS的函数原型： DBE_STATS.UNLOCK_SCHEMA_STATS(
+    ownname    VARCHAR2
+); 表9 DBE_STATS.UNLOCK_SCHEMA_STATS的接口说明 参数 类型 是否允许为空 描述 ownname varchar2 是 指定的schema名，该参数为空时，默认为当前schema。 调用该接口时，会解锁该schema下所有当前用户有ANALYZE权限的表，对于没有权限的表直接跳过。 调用该接口需拥有指定schema的USAGE权限。 如果要在ownname设置为null时使用当前schema，需提前将behavior_compat_options参数值设置为bind_procedure_searchpath。 示例： -- 解锁schema的统计信息同解锁表的统计信息用法一致，此处仅展示接口调用方式，具体示例可参 DBE_STATS.LOCK_TABLE_STA... 示例 gaussdb=# CALL DBE_STATS.UNLOCK_SCHEMA_STATS(ownname=>'dbe_stats_lock');
+ unlock_schema_stats 
+---------------------
+
+(1 row) DBE_STATS.RESTORE_TABLE_STATS 将表的统计信息回退到指定的时间节点，选择该时间节点前最后一次收集收的统计信息载入系统表，同时级联其下级未被锁定的分区、索引、列级统计信息。该接口无返回值。 DBE_STATS.RESTORE_TABLE_STATS的函数原型： DBE_STATS.RESTORE_TABLE_STATS(
+    ownname                   VARCHAR2, 
+    tabname                   VARCHAR2, 
+    as_of_timestamp           TIMESTAMPTZ,
+    restore_cluster_index     BOOLEAN DEFAULT NULL,
+    force                     BOOLEAN DEFAULT FALSE,
+    no_invalidate             BOOLEAN DEFAULT NULL
+); 表10 DBE_STATS.RESTORE_TABLE_STATS的接口介绍 参数 类型 是否允许为空 描述 ownname varchar2 是 要回退的表所属的schema名，该参数为空时，默认为当前schema。 tabname varchar2 否 要回退的表的表名。 as_of_timestamp timestamp with time zone 否 要回退的目标时间节点。 restore_cluster_index boolean 是 暂不支持。 force boolean 是 是否在统计信息被锁定时强行回退的标志位，默认为false。 no_invalidate boolean 是 暂不支持。 使用该接口时，用户必须对指定的表拥有与ANALYZE命令相同的权限，可以参考 ANALYZE | ANALYSE 。 调用该接口时，同时回退其下级分区、索引、列的统计信息，如果其下级的分区或列被锁定，则直接跳过。 如果要在ownname设置为null时使用当前schema，需提前将behavior_compat_options参数值设置为bind_procedure_searchpath。 示例： -- 建表，收集两次统计信息 gaussdb=# CREATE SCHEMA dbe_stats_restore;
+CREATE SCHEMA gaussdb=# SET CURRENT_SCHEMA=dbe_stats_restore;
+SET gaussdb=# CREATE TABLE t1(a int, b int);
+CREATE TABLE gaussdb=# INSERT INTO t1 VALUES(1,1);
+INSERT 0 1 gaussdb=# INSERT INTO t1 VALUES(1,1);
+INSERT 0 1 gaussdb=# INSERT INTO t1 VALUES(1,1);
+INSERT 0 1 gaussdb=# ANALYZE t1;
+ANALYZE gaussdb=# INSERT INTO t1 VALUES(2,2);
+INSERT 0 1 gaussdb=# INSERT INTO t1 VALUES(2,2);
+INSERT 0 1 gaussdb=# INSERT INTO t1 VALUES(2,2);
+INSERT 0 1 gaussdb=# ANALYZE t1;
+ANALYZE
+
+-- 查看历史表 gaussdb=# SELECT relname,reltuples FROM GS_TABLESTATS_HISTORY WHERE relname='t1';
+ relname | reltuples 
+---------+-----------
+ t1      |         3
+ t1      |         6
+(2 rows)
+
+-- 查看当前系统表中的统计信息 gaussdb=# SELECT relname,reltuples FROM PG_CLASS WHERE relname='t1' AND relnamespace = (SELECT oid FROM PG_NAMESPACE WHERE nspname='dbe_stats_restore');
+ relname | reltuples 
+---------+-----------
+ t1      |         6
+(1 row)
+
+-- 回退到最早的统计信息，查看系统表 gaussdb=# CALL DBE_STATS.RESTORE_TABLE_STATS(ownname=>'dbe_stats_restore',tabname=>'t1',as_of_timestamp=>((SELECT MIN(reltimestamp) FROM GS_TABLESTATS_HISTORY WHERE relname='t1') + INTERVAL '1 second'));
+ restore_table_stats 
+---------------------
+
+(1 row) gaussdb=# SELECT relname,reltuples FROM PG_CLASS WHERE relname='t1' AND relnamespace = (SELECT oid FROM PG_NAMESPACE WHERE nspname='dbe_stats_restore');
+ relname | reltuples 
+---------+-----------
+ t1      |         3
+(1 row)
+
+-- 删除表、删除命名空间 gaussdb=# DROP TABLE t1;
+DROP TABLE gaussdb=# DROP SCHEMA dbe_stats_restore;
+DROP SCHEMA DBE_STATS.RESTORE_PARTITION_STATS 将分区的统计信息回退到指定的时间节点，选择该时间节点前最后一次收集收的统计信息载入系统表，同时级联其下级未被锁定的分区、索引、列级统计信息。该接口无返回值。 DBE_STATS.RESTORE_PARTITION_STATS的函数原型： DBE_STATS.RESTORE_PARTITION_STATS(
+    ownname                   VARCHAR2, 
+    tabname                   VARCHAR2, 
+    partname                  VARCHAR2, 
+    as_of_timestamp           TIMESTAMPTZ,
+    force                     BOOLEAN DEFAULT FALSE,
+    no_invalidate             BOOLEAN DEFAULT NULL
+); 表11 DBE_STATS.RESTORE_PARTITION_STATS的接口介绍 参数 类型 是否允许为空 描述 ownname varchar2 是 要回退的分区所属的schema名。 tabname varchar2 否 要回退的分区所属的表名。 partname varchar2 否 要回退的分区名。 as_of_timestamp timestamp with time zone 否 要回退的目标时间节点。 force boolean 是 是否在统计信息被锁定时强行回退的标志位。 no_invalidate boolean 是 暂不支持。 使用该接口时，用户必须对指定的表拥有与ANALYZE命令相同的权限，可以参考 ANALYZE | ANALYSE 。 调用该接口时，同时回退其下级分区、索引、列的统计信息。 如果要在ownname设置为null时使用当前schema，需提前将behavior_compat_options参数值设置为bind_procedure_searchpath。 示例： -- 回退分区的统计信息同回退表的统计信息用法一致，此处仅展示接口调用方式，具体示例可参 •DBE_STATS.RESTORE_TABLE... 示例 gaussdb=# CALL DBE_STATS.RESTORE_PARTITION_STATS(ownname=>'dbe_stats_restore',tabname=>'t1',partname=>'p1',as_of_timestamp=>((SELECT MIN(reltimestamp) FROM GS_TABLESTATS_HISTORY WHERE relname='t1') + INTERVAL '1 second'));
+ restore_partition_stats 
+-------------------------
+
+(1 row) DBE_STATS.RESTORE_COLUMN_STATS 将列的统计信息回退到指定的时间节点，选择该时间节点前最后一次收集收的统计信息载入系统表。该接口无返回值。 DBE_STATS.RESTORE_COLUMN_STATS的函数原型： RESTORE_COLUMN_STATS(
+    ownname                   VARCHAR2, 
+    tabname                   VARCHAR2, 
+    colname                   VARCHAR2,
+    partname                  VARCHAR2 DEFAULT NULL,
+    as_of_timestamp           TIMESTAMPTZ,
+    force                     BOOLEAN DEFAULT FALSE,
+    no_invalidate             BOOLEAN DEFAULT NULL
+); 表12 DBE_STATS.RESTORE_COLUMN_STATS的接口介绍 参数 类型 是否允许为空 描述 ownname varchar2 是 要回退的列所属的schema名。 tabname varchar2 否 要回退的列所属的表名。 colname varchar2 否 要回退的列名。 partname varchar2 是 要回退的列所属的分区名。 as_of_timestamp timestamp with time zone 否 要回退的目标时间节点。 force boolean 是 是否在统计信息被锁定时强行回退的标志位。 no_invalidate boolean 是 暂不支持。 使用该接口时，用户必须对指定的表拥有与ANALYZE命令相同的权限，可以参考 ANALYZE | ANALYSE 。 当partname为空时，默认回退该列表级统计信息。 回退多列时，需先查询 PG_STATISTIC_EXT 中的staextname字段获取多列别名作为colname入参传入。 如果要在ownname设置为null时使用当前schema，需提前将behavior_compat_options参数值设置为bind_procedure_searchpath。 示例： -- 建表，收集两次统计信息 gaussdb=# CREATE SCHEMA dbe_stats_restore;
+CREATE SCHEMA gaussdb=# SET CURRENT_SCHEMA=dbe_stats_restore;
+SET gaussdb=# CREATE TABLE t1(a int, b int);
+CREATE TABLE gaussdb=# INSERT INTO t1 VALUES(1,1);
+INSERT 0 1 gaussdb=# INSERT INTO t1 VALUES(1,1);
+INSERT 0 1 gaussdb=# INSERT INTO t1 VALUES(1,1);
+INSERT 0 1 gaussdb=# ANALYZE t1;
+ANALYZE gaussdb=# INSERT INTO t1 VALUES(2,2);
+INSERT 0 1 gaussdb=# INSERT INTO t1 VALUES(2,2);
+INSERT 0 1 gaussdb=# INSERT INTO t1 VALUES(2,2);
+INSERT 0 1 gaussdb=# ANALYZE t1;
+ANALYZE
+
+-- 查看历史表里的统计信息 gaussdb=# SELECT staattnum,stadistinct,stakind1,stanumbers1,stavalues1 FROM GS_STATISTIC_HISTORY WHERE starelid='t1'::REGCLASS ORDER BY statimestamp;
+ staattnum | stadistinct | stakind1 | stanumbers1 | stavalues1 
+-----------+-------------+----------+-------------+------------
+         1 |    -.333333 |        1 | {1}         | {1}
+         2 |    -.333333 |        1 | {1}         | {1}
+         1 |    -.333333 |        1 | {.5,.5}     | {1,2}
+         2 |    -.333333 |        1 | {.5,.5}     | {1,2}
+(4 rows)
+
+-- 查询当前系统表中的统计信息 gaussdb=# SELECT staattnum,stadistinct,stakind1,stanumbers1,stavalues1 FROM PG_STATISTIC WHERE starelid='t1'::REGCLASS;
+ staattnum | stadistinct | stakind1 | stanumbers1 | stavalues1 
+-----------+-------------+----------+-------------+------------
+         1 |    -.333333 |        1 | {.5,.5}     | {1,2}
+         2 |    -.333333 |        1 | {.5,.5}     | {1,2}
+(2 rows)
+
+-- 回退到时间较早的时间节点，查询系统表中的统计信息 gaussdb=# CALL DBE_STATS.RESTORE_COLUMN_STATS(ownname=>'dbe_stats_restore',tabname=>'t1',colname=>'a',as_of_timestamp=>((SELECT MIN(reltimestamp) FROM GS_TABLESTATS_HISTORY WHERE relname='t1') + INTERVAL '1 second'));
+ restore_column_stats 
+----------------------
+
+(1 row) gaussdb=# SELECT staattnum,stadistinct,stakind1,stanumbers1,stavalues1 FROM PG_STATISTIC WHERE starelid='t1'::REGCLASS;
+ staattnum | stadistinct | stakind1 | stanumbers1 | stavalues1 
+-----------+-------------+----------+-------------+------------
+         1 |    -.333333 |        1 | {1}         | {1}
+         2 |    -.333333 |        1 | {.5,.5}     | {1,2}
+(2 rows)
+
+-- 删除表、命名空间 gaussdb=# DROP TABLE t1;
+DROP TABLE gaussdb=# DROP SCHEMA dbe_stats_restore;
+DROP SCHEMA DBE_STATS.RESTORE_SCHEMA_STATS 将指定schema下所有表的统计信息回退到指定时间节点。该接口无返回值。 DBE_STATS.RESTORE_SCHEMA_STATS的函数原型： DBE_STATS.RESTORE_SCHEMA_STATS(
+    ownname                   VARCHAR2, 
+    as_of_timestamp           TIMESTAMPTZ,
+    force                     BOOLEAN DEFAULT FALSE,
+    no_invalidate             BOOLEAN DEFAULT NULL
+); 表13 DBE_STATS.RESTORE_SCHEMA_STATS的接口介绍 参数 类型 是否允许为空 描述 ownname varchar2 是 指定的schema名。 as_of_timestamp timestamp with time zone 否 要回退的目标时间节点。 force boolean 是 是否在统计信息被锁定时强行回退的标志位。 no_invalidate boolean 是 暂不支持。 调用该接口时，会回退该schema下所有当前用户有ANALYZE权限的表，对于没有权限的表直接跳过。 调用该接口需拥有指定schema的USAGE权限。 如果要在ownname设置为null时使用当前schema，需提前将behavior_compat_options参数值设置为bind_procedure_searchpath。 示例： -- 回退schema的统计信息同回退表的统计信息用法一致
+-- 建表，插数据，收集两次统计信息
+gaussdb=#CREATE SCHEMA dbe_stats_restore;
+CREATE SCHEMA
+gaussdb=#SET CURRENT_SCHEMA=dbe_stats_restore;
+SET
+gaussdb=#CREATE TABLE t1(a int, b int);
+CREATE TABLE
+gaussdb=# INSERT INTO t1 VALUES(1,1);
+INSERT 0 1
+gaussdb=#INSERT INTO t1 VALUES(1,1);
+INSERT 0 1
+gaussdb=#INSERT INTO t1 VALUES(1,1);
+INSERT 0 1
+gaussdb=#ANALYZE t1;
+ANALYZE
+gaussdb=#INSERT INTO t1 VALUES(2,2);
+INSERT 0 1
+gaussdb=#INSERT INTO t1 VALUES(2,2);
+INSERT 0 1
+gaussdb=#INSERT INTO t1 VALUES(2,2);
+INSERT 0 1
+gaussdb=#ANALYZE t1;
+ANALYZE
+
+-- 查看系统表
+gaussdb=#SELECT relname,reltuples FROM GS_TABLESTATS_HISTORY WHERE relname='t1';
+ relname | reltuples 
+---------+-----------
+ t1      |         3
+ t1      |         6
+(2 rows
+
+gaussdb=#SELECT relname,reltuples FROM PG_CLASS WHERE relname='t1' AND relnamespace = (SELECT oid FROM PG_NAMESPACE WHERE nspname='dbe_stats_restore');
+ relname | reltuples 
+---------+-----------
+ t1      |         6
+(1 row)
+
+-- 回退
+gaussdb=#CALL DBE_STATS.RESTORE_SCHEMA_STATS(ownname=>'dbe_stats_restore',as_of_timestamp=>((SELECT MIN(reltimestamp) FROM GS_TABLESTATS_HISTORY WHERE relname='t1') + INTERVAL '1 second'));
+ restore_schema_stats 
+----------------------
+
+(1 row)
+
+-- 再次查看系统表
+gaussdb=#SELECT relname,reltuples FROM PG_CLASS WHERE relname='t1' AND relnamespace = (SELECT oid FROM PG_NAMESPACE WHERE nspname='dbe_stats_restore');
+ relname | reltuples 
+---------+-----------
+ t1      |         3
+(1 row)
+
+-- 删除表、命名空间 gaussdb=# DROP TABLE t1;
+DROP TABLE gaussdb=# DROP SCHEMA dbe_stats_restore;
+DROP SCHEMA DBE_STATS.PURGE_STATS 清除指定时间节点之前的所有历史统计信息。该接口无返回值。 DBE_STATS.PURGE_STATS的函数原型： DBE_STATS.PURGE_STATS(
+    before_timestamp       TIMESTAMPTZ
+); 表14 DBE_STATS.PURGE_STATS的接口介绍 参数 类型 是否允许为空 描述 before_timestamp timestamp with time zone 否 指定要清除的时间节点。 只有初始用户可调用该接口。 示例： -- 建表，收集两次统计信息 gaussdb=# CREATE SCHEMA dbe_stats_purge;
+CREATE SCHEMA gaussdb=# SET CURRENT_SCHEMA=dbe_stats_purge;
+SET gaussdb=# CREATE TABLE t1(a int, b int);
+CREATE TABLE gaussdb=# INSERT INTO t1 VALUES(1,1);
+INSERT 0 1 gaussdb=# INSERT INTO t1 VALUES(1,1);
+INSERT 0 1 gaussdb=# INSERT INTO t1 VALUES(1,1);
+INSERT 0 1 gaussdb=# ANALYZE t1;
+ANALYZE gaussdb=# INSERT INTO t1 VALUES(2,2);
+INSERT 0 1 gaussdb=# INSERT INTO t1 VALUES(2,2);
+INSERT 0 1 gaussdb=# INSERT INTO t1 VALUES(2,2);
+INSERT 0 1 gaussdb=# ANALYZE t1;
+ANALYZE
+
+-- 查看历史表 gaussdb=# SELECT relname,reltuples FROM GS_TABLESTATS_HISTORY WHERE relname='t1';
+ relname | reltuples 
+---------+-----------
+ t1      |         3
+ t1      |         6
+(2 rows)
+
+-- 清除时间较早的历史统计信息，查看历史表 gaussdb=# CALL DBE_STATS.PURGE_STATS(before_timestamp=>((SELECT MIN(reltimestamp) FROM GS_TABLESTATS_HISTORY WHERE relname='t1') + INTERVAL '1 second'));
+ purge_stats 
+-------------
+
+(1 row) gaussdb=# SELECT relname,reltuples FROM GS_TABLESTATS_HISTORY WHERE relname='t1';
+ relname | reltuples 
+---------+-----------
+ t1      |         6
+(1 row)
+
+-- 删除表、命名空间 gaussdb=# DROP TABLE t1;
+DROP TABLE gaussdb=# DROP SCHEMA dbe_stats_purge;
+DROP SCHEMA DBE_STATS.GET_STATS_HISTORY_RETENTION 获得当前历史统计信息的保留时间，返回用DBE_STATS.ALTER_STATS_HISTORY_RETENTION接口设置的保留时间。该接口没有入参。 DBE_STATS.GET_STATS_HISTORY_RETENTION的函数原型： DBE_STATS.GET_STATS_HISTORY_RETENTION()
+returns NUMBER; 示例： gaussdb=# CALL DBE_STATS.GET_STATS_HISTORY_RETENTION();
+ get_stats_history_retention 
+-----------------------------
+                          31
+(1 row) DBE_STATS.GET_STATS_HISTORY_AVAILABILITY 获得当前历史统计信息的最早可用时间，返回当前数据库下所有历史统计信息的最早时间。该接口没有入参。 DBE_STATS.GET_STATS_HISTORY_AVAILABILITY的函数原型： DBE_STATS.GET_STATS_HISTORY_AVAILABILITY()
+returns TIMESTAMPTZ; 示例： gaussdb=# ANALYZE;
+ANALYZE gaussdb=# CALL DBE_STATS.GET_STATS_HISTORY_AVAILABILITY();
+ get_stats_history_availability 
+--------------------------------
+ 2023-08-27 02:07:04.065217+08
+(1 row) 以上所有接口函数原型都具备同等数据类型和字段的C_FUNCTION函数原型，命名为DBE_STATS.XXXX_C_FUNCTION。 DBE_STATS高级包接口仅对普通表有效。 父主题： 二次封装接口(推荐) 版权所有 © 华为技术有限公司

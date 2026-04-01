@@ -1,0 +1,32 @@
+使用指导 使用指导 通过巡检相关API实现功能调用： 智能巡检接口 示例： curl -X 'POST' "http://127.0.0.1:8080/v1/api/app/real-time-inspection?inspection_type=real_time_check&start_time=1689210000000&end_time=1689296400000&instance=127.0.0.1:5432" -H 'accept: application/json' -H 'Content-Type: application/json' -d '{"system_resource": ["os_mem_usage"], "instance_status": [], "database_resource": [], "database_performance": [], "diagnosis_optimization": []}' -H "Authorization: bearer xxx" 如果使用HTTPS协议，则查询示例为： curl -X 'POST' "https://127.0.0.1:8080/v1/api/app/real-time-inspection?inspection_type=real_time_check&start_time=1689210000000&end_time=1689296400000&instance=127.0.0.1:5432" -H 'accept: application/json' -H 'Content-Type: application/json' -d '{"system_resource": ["os_mem_usage"], "instance_status": [], "database_resource": [], "database_performance": [], "diagnosis_optimization": []}' -H "Authorization: bearer xxx" --cacert xx.crt --key xx.key --cert xx.crt 返回结构示例如下： {
+	"data": {
+		"conclusion": {
+			"full_score": 0,
+			"health_score": 0.06,
+			"health_status": "bad",
+			"top3": []
+		},
+		"database_performance": {},
+		"database_resource": {},
+		"diagnosis_optimization": {},
+		"instance_status": {},
+		"system_resource": {
+			"os_mem_usage": {
+				"127.0.0.1": {
+					"data": [0.31643905373281667],
+					"statistic": {
+						"avg": 0.311,
+						"max": 0.3166,
+						"min": 0.3057,
+						"the_95th": 0.3153
+					},
+					"timestamps": [1694674713000],
+					"warnings": {
+						"increase_warning": true
+					}
+				}
+			}
+		}
+	},
+	"success": true
+} 展示巡检任务接口示例： curl -X 'GET' "http://127.0.0.1:8080/v1/api/app/real-time-inspection/list?instance=127.0.0.1:5432" -H 'accept: application/json' -H "Authorization: bearer xxx" 如果使用HTTPS协议，则查询示例为： curl -X 'GET' "https://127.0.0.1:8080/v1/api/app/real-time-inspection/list?instance=127.0.0.1:5432" -H 'accept: application/json' -H "Authorization: bearer xxx" --cacert xx.crt --key xx.key --cert xx.crt 返回结构如下： {"data":{"header":["instance","start","end","id","state","cost_time","inspection_type"],"rows":[["127.0.0.1:5432",1689210000000,1689296400000,5,"success",0.033701,"real_time_check"]]},"success":true} 获取指定巡检任务的巡检结果接口示例： curl -X 'GET' "http://127.0.0.1:8080/v1/api/summary/real-time-inspection?spec_id=5&instance=127.0.0.1:5432" -H 'accept: application/json' -H "Authorization: bearer xxx" 如果使用HTTPS协议，则查询示例为： curl -X 'GET' "https://127.0.0.1:8080/v1/api/summary/real-time-inspection?spec_id=5&instance=127.0.0.1:5432" -H 'accept: application/json' -H "Authorization: bearer xxx" --cacert xx.crt --key xx.key --cert xx.crt 返回结构如下： 与智能巡检接口示例一致 删除指定的巡检任务接口示例： curl -X 'DELETE' "http://127.0.0.1:8080/v1/api/app/real-time-inspection? spec_id=5&instance=127.0.0.1:5432" -H 'accept: application/json' -H "Authorization: bearer xxx" 如果使用HTTPS协议，则删除示例为： curl -X 'DELETE' "https://127.0.0.1:8080/v1/api/app/real-time-inspection? spec_id=5&instance=127.0.0.1:5432" -H 'accept: application/json' -H "Authorization: bearer xxx" --cacert xx.crt --key xx.key --cert xx.crt 返回结构如下： {"data":{"success":true},"success":true} 巡检结果会存储到DBMind元数据库中，DBMind会定期清除老数据以避免磁盘膨胀。 父主题： 智能巡检 版权所有 © 华为技术有限公司

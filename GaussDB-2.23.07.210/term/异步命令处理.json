@@ -1,0 +1,56 @@
+{
+  "topic": "异步命令处理",
+  "term_count": 10,
+  "terms": [
+    {
+      "term": "PQsendQuery",
+      "content": "PQsendQuery PQsendQuery 功能描述 向服务器提交一个命令而不等待结果。如果查询成功发送则返回1，否则返回0。 原型 int PQsendQuery(PGconn*conn, const char* query); 参数 表1 PQsendQuery参数 关键字 参数说明 conn 指向包含连接的对象指针。 query 需要执行的查询字符串。 返回值 int：执行结果为1表示成功，0表示失败，失败原因存到conn->errorMessage中。 注意事项 在成功调用PQsendQuery后，调用PQgetResult一次或者多次获取结果。PQgetResult返回空指针表示命令已执行完成，否则不能再次调用PQsendQuery（在同一连接上）。",
+      "source_file": "2582_PQsendQuery.txt"
+    },
+    {
+      "term": "PQsendQueryPrepared",
+      "content": "PQsendQueryPrepared PQsendQueryPrepared 功能描述 发送一个请求执行带有给出参数的预备语句，不等待结果。 原型 int PQsendQueryPrepared(PGconn* conn, const char* stmtName, int nParams, const char* const* paramValues,\n    const int* paramLengths, const int* paramFormats, int resultFormat); 参数 表1 PQsendQueryPrepared参数 关键字 参数说明 conn 指向包含连接信息的对象指针。 stmtName 需要执行的prepare语句。 nParams 参数类型。 paramValues 参数值。 paramLengths 参数长度。 paramFormats 参数格式。 resultFormat 结果的格式。 返回值 int：执行结果为1表示成功，0表示失败，失败原因存到conn->error_message中。 注意事项 该函数类似于PQsendQueryParams，但是要执行的命令是通过命名一个预先准备的语句来指定的，而不是提供一个查询字符串。该函数的参数与PQexecPrepared一样处理。和PQexecPrepared一样，它也不能在2.0协议的连接上工作。",
+      "source_file": "874_PQsendQueryPrepared.txt"
+    },
+    {
+      "term": "PQsendQuery",
+      "content": "PQsendQuery PQsendQuery 功能描述 向服务器提交一个命令而不等待结果。如果查询成功发送则返回1，否则返回0。 原型 int PQsendQuery(PGconn * conn, const char * query); 参数 表1 PQsendQuery参数 关键字 参数说明 conn 指向包含连接的对象指针。 query 需要执行的查询字符串. 返回值 int：执行结果为1表示成功，0表示失败，失败原因存到conn->errorMessage中。 注意事项 在成功调用PQsendQuery后，调用PQgetResult一次或者多次获取结果。PQgetResult返回空指针表示命令已执行完成，否则不能再次调用PQsendQuery（在同一连接上）。",
+      "source_file": "871_PQsendQuery.txt"
+    },
+    {
+      "term": "PQflush",
+      "content": "PQflush PQflush 功能描述 尝试将任何排队的输出数据刷新到服务器。 原型 int PQflush(PGconn* conn); 参数 表1 PQflush参数 关键字 参数说明 conn 指向包含连接信息的对象指针 返回值 int：如果成功（或者如果发送队列为空），则返回0；如果由于某种原因失败，则返回-1；如果发送队列中的所有数据都发送失败，则返回1。（此情况只有在连接为非阻塞时才能发生），失败原因存到conn->error_message中。 注意事项 在非阻塞连接上发送任何命令或数据之后，调用PQflush。如果返回1，则等待套接字变为读或写就绪。如果为写就绪状态，则再次调用PQflush。如果已经读到，调用PQconsumeInput，然后再次调用PQflush。重复，直到PQflush返回0。（必要检查读就绪并使用 PQconsumeInput 耗尽输入，因为服务器可能会阻止尝试向客户端发送数据（例如 NOTICE 消息），并且在客户端读取它的数据之前不会读取客户端的数据。)一旦PQflush返回0，就等待套接字准备好，然后按照上面描述读取响应。",
+      "source_file": "2586_PQflush.txt"
+    },
+    {
+      "term": "PQsendQueryPrepared",
+      "content": "PQsendQueryPrepared PQsendQueryPrepared 功能描述 发送一个请求执行带有给出参数的预备语句，不等待结果。 原型 int PQsendQueryPrepared(PGconn* conn, const char* stmtName, int nParams, const char* const* paramValues,\n    const int* paramLengths, const int* paramFormats, int resultFormat); 参数 表1 PQsendQueryPrepared参数 关键字 参数说明 conn 指向包含连接信息的对象指针。 stmtName 需要执行的prepare名称。 nParams 参数个数。 paramValues 参数值。 paramLengths 参数长度。 paramFormats 参数格式。 resultFormat 结果的格式。 返回值 int：执行结果为1表示成功，0表示失败，失败原因存到conn->error_message中。 注意事项 该函数类似于PQsendQueryParams，但是要执行的命令是通过命名一个预先准备的语句来指定的，而不是提供一个查询字符串。该函数的参数与PQexecPrepared一样处理。和PQexecPrepared一样，它也不能在2.0协议的连接上工作。",
+      "source_file": "2585_PQsendQueryPrepared.txt"
+    },
+    {
+      "term": "PQflush",
+      "content": "PQflush PQflush 功能描述 尝试将任何排队的输出数据刷新到服务器。 原型 int PQflush(PGconn * conn); 参数 表1 PQflush参数 关键字 参数说明 conn 指向包含连接信息的对象指针 返回值 int：如果成功（或者如果发送队列为空），则返回0；如果由于某种原因失败，则返回-1；如果发送队列中的所有数据都发送失败，则返回1。（此情况只有在连接为非阻塞时才能发生），失败原因存到conn->error_message中。 注意事项 在非阻塞连接上发送任何命令或数据之后，调用PQflush。如果返回1，则等待套接字变为读或写就绪。如果为写就绪状态，则再次调用PQflush。如果已经读到，调用PQconsumeInput，然后再次调用PQflush。重复，直到PQflush返回0。（必要检查读就绪并使用 PQconsumeInput 耗尽输入，因为服务器可能会阻止尝试向客户端发送数据（例如 NOTICE 消息），并且在客户端读取它的数据之前不会读取客户端的数据。）一旦PQflush返回0，就等待套接字准备好，然后按照上面描述读取响应。",
+      "source_file": "875_PQflush.txt"
+    },
+    {
+      "term": "PQsendPrepare",
+      "content": "PQsendPrepare PQsendPrepare 功能描述 发送一个请求，创建一个给定参数的预备语句，而不等待结束。 原型 int PQsendPrepare(PGconn* conn, const char* stmtName, const char* query, int nParams, const Oid* paramTypes); 参数 表1 PQsendPrepare参数 关键字 参数说明 conn 指向包含连接的对象指针。 stmtName 需要执行的prepare名称。 query 需要执行的查询字符串。 nParams 参数个数。 paramTypes 声明参数类型的数组。 返回值 int：执行结果为1表示成功，0表示失败，失败原因存到conn->errorMessage中。 注意事项 该函数为PQprepare的异步版本：如果能够分派请求，则返回1，否则返回0。调用成功后，调用PQgetResult判断服务端是否成功创建了preparedStatement。函数的参数与PQprepare一样处理。与PQprepare一样，它也不能在2.0协议的连接上工作。",
+      "source_file": "2584_PQsendPrepare.txt"
+    },
+    {
+      "term": "PQsendQueryParams",
+      "content": "PQsendQueryParams PQsendQueryParams 功能描述 给服务器提交一个命令和分隔的参数，而不等待结果。 原型 int PQsendQueryParams(PGconn* conn, const char* command, int nParams, const Oid* paramTypes,\n    const char* const* paramValues, const int* paramLengths, const int* paramFormats, int resultFormat); 参数 表1 PQsendQueryParams参数 关键字 参数说明 conn 指向包含连接的对象指针。 command 需要执行的查询字符串。 nParams 参数个数。 paramTypes 参数类型。 paramValues 参数值。 paramLengths 参数长度。 paramFormats 参数格式。 resultFormat 结果的格式。 返回值 int：执行结果为1表示成功，0表示失败，失败原因存到conn->errorMessage中。 注意事项 该函数等效于PQsendQuery，只是查询参数可以和查询字符串分开声明。函数的参数处理和PQexecParams类似，它不能在2.0版本的协议连接上工作，并且它只允许在查询字符串里出现一条命令。",
+      "source_file": "872_PQsendQueryParams.txt"
+    },
+    {
+      "term": "PQsendPrepare",
+      "content": "PQsendPrepare PQsendPrepare 功能描述 发送一个请求，创建一个给定参数的预备语句，而不等待结束。 原型 int PQsendPrepare(PGconn* conn, const char* stmtName, const char* query, int nParams, const Oid* paramTypes); 参数 表1 PQsendPrepare参数 关键字 参数说明 conn 指向包含连接的对象指针。 stmtName 需要执行的prepare语句。 query 需要执行的查询字符串。 nParams 参数个数。 paramTypes 声明参数类型的数组。 返回值 int：执行结果为1表示成功，0表示失败，失败原因存到conn->errorMessage中。 注意事项 该函数为PQprepare的异步版本：如果能够分派请求，则返回1，否则返回0。调用成功后，调用PQgetResult判断服务端是否成功创建了preparedStatement。函数的参数与PQprepare一样处理。与PQprepare一样，它也不能在2.0协议的连接上工作。 示例 请参见 示例 章节。",
+      "source_file": "873_PQsendPrepare.txt"
+    },
+    {
+      "term": "PQsendQueryParams",
+      "content": "PQsendQueryParams PQsendQueryParams 功能描述 给服务器提交一个命令和分隔的参数，而不等待结果。 原型 int PQsendQueryParams(PGconn* conn, const char* command, int nParams, const Oid* paramTypes,\n    const char* const* paramValues, const int* paramLengths, const int* paramFormats, int resultFormat); 参数 表1 PQsendQueryParams参数 关键字 参数说明 conn 指向包含连接的对象指针。 command 需要执行的查询字符串。 nParams 参数个数。 paramTypes 参数类型。 paramValues 参数值。 paramLengths 参数长度。 paramFormats 参数格式。 resultFormat 结果的格式。 返回值 int：执行结果为1表示成功，0表示失败，失败原因存到conn->errorMessage中。 注意事项 该函数等效于PQsendQuery，只是查询参数可以和查询字符串分开声明。函数的参数处理和PQexecParams类似，它不能在2.0版本的协议连接上工作，并且它只允许在查询字符串里出现一条命令。",
+      "source_file": "2583_PQsendQueryParams.txt"
+    }
+  ]
+}

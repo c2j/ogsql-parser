@@ -1,0 +1,27 @@
+CREATE PACKAGE CREATE PACKAGE 功能描述 创建一个新的PACKAGE。 注意事项 在package specification中声明过的函数或者存储过程，必须在package body中找到定义。 创建存储过程时，仅对CREATE的存储过程或PACKAGE本身加写锁，仅对执行过程中编译、执行会对函数和函数依赖的PACKAGE均加读锁。 在实例化中，无法调用带有commit/rollback的存储过程。 不能在Trigger中调用package函数。 不能在外部SQL中直接使用package当中的变量。 不允许在package外部调用package的私有变量和存储过程。 不支持其它存储过程不支持的用法，例如，在function中不允许调用commit/rollback，则package的function中同样无法调用commit/rollback。 不支持schema与package同名。 只支持A风格的存储过程和函数定义。 不支持package内有同名变量，包括包内同名参数。 package的全局变量为session级，不同session之间package的变量不共享。 package中调用自治事务的函数，不允许使用package中的cursor变量，以及递归的使用package中cursor变量的函数。 package中不支持声明ref cursor变量。 package默认为SECURITY INVOKER权限，如果想将默认行为改为SECURITY DEFINER权限，需要设置guc参数behavior_compat_options='plsql_security_definer'。 被授予CREATE ANY PACKAGE权限的用户，可以在public模式和用户模式下创建PACKAGE。 如果需要创建带有特殊字符的package名，特殊字符中不能含有空格，并且最好设置GUC参数behavior_compat_options="skip_insert_gs_source",否则可能引起报错。 package创建时依赖未定义对象，如参数behavior_compat_options='plpgsql_dependency'打开，创建可执行，通过WARNING提示；如参数未打开，package创建不可执行。 如package中O风格函数已被视图直接依赖，且参数behavior_compat_options='plpgsql_dependency'打开，再次创建包体后视图可正常访问；如参数未打开，视图访问失败。 创建package函数时，其参数默认值支持含有package内变量，不支持跨package变量。 package中函数复杂调用，如：func(x).a，函数调用返回复合类型，支持跨schema调用，不支持通过database.schema.package.func(x).b的方式调用。 package内创建的带参数游标，可以跨package进行类型引用(%RowType)和打开使用，有以下限制： 暂不支持通过database.schema.package.cursor的方式调用游标。 当游标定义为函数参数时，需要提前设置参数behavior_compat_options='allow_procedure_compile_check'，以支持解析游标的具体类型。 当未设置参数behavior_compat_options='allow_procedure_compile_check'时，cursor%RowType处理成复合类型，即record。设置参数后，支持解析游标的具体类型。 语法格式 CREATE PACKAGE SPECIFICATION语法格式 CREATE [ OR REPLACE ] PACKAGE [ schema ] package_name
+    [ invoker_rights_clause ] { IS | AS } item_list_1 END package_name; invoker_rights_clause可以被声明为AUTHID DEFINER或者AUTHID CURRENT_USER，分别为定义者权限和调用者权限。 item_list_1可以为声明的变量或者存储过程以及函数。 PACKAGE SPECIFICATION（包头）声明了包内的公有变量、函数、异常等，可以被外部函数或者存储过程调用。在PACKAGE SPECIFICATION中只能声明存储过程，函数，不能定义存储过程或者函数。 CREATE PACKAGE BODY语法格式。 CREATE [ OR REPLACE ] PACKAGE BODY [ schema ] package_name
+    { IS | AS } declare_section [ initialize_section ] END package_name; PACKAGE BODY(包体内)定义了包的私有变量，函数等。如果变量或者函数没有在PACKAGE SPECIFICATION中声明过，那么这个变量或者函数则为私有变量或者函数。 PACKAGE BODY也可以声明实例化部分，用来初始化package，详见示例。 示例 CREATE PACKAGE SPECIFICATION示例 gaussdb=# CREATE OR REPLACE PACKAGE emp_bonus IS
+var1 INT:=1;--公有变量
+var2 INT:=2;
+PROCEDURE testpro1(var3 INT);--公有存储过程，可以被外部调用
+END emp_bonus;
+/ CREATE PACKAGE BODY示例 gaussdb=# DROP TABLE IF EXISTS test1; gaussdb=# CREATE OR REPLACE PACKAGE BODY emp_bonus IS
+var3 INT:=3;
+var4 INT:=4;
+PROCEDURE testpro1(var3 INT)
+IS
+BEGIN
+CREATE TABLE IF NOT EXISTS test1(col1 INT);
+INSERT INTO test1 VALUES(var1);
+INSERT INTO test1 VALUES(var4);
+END;
+BEGIN  --实例化开始
+var4:=9;
+testpro1(var4);
+END emp_bonus;
+/ ALTER PACKAGE OWNER示例 gaussdb=# ALTER PACKAGE emp_bonus OWNER TO omm;
+--将PACKAGE emp_bonus的所属者改为omm 调用PACKAGE示例 gaussdb=# CALL emp_bonus.testpro1(1); --使用CALL调用PACKAGE存储过程 gaussdb=# DROP TABLE IF EXISTS test1; gaussdb=# SELECT emp_bonus.testpro1(1); --使用SELECT调用PACKAGE存储过程 gaussdb=# DROP TABLE IF EXISTS test1;
+--匿名块里调用PACKAGE存储过程 gaussdb=# BEGIN
+emp_bonus.testpro1(1);
+END;
+/ gaussdb=# DROP TABLE IF EXISTS test1; gaussdb=# DROP PACKAGE emp_bonus; 相关链接 ALTER PACKAGE ， DROP PACKAGE 父主题： C 版权所有 © 华为技术有限公司

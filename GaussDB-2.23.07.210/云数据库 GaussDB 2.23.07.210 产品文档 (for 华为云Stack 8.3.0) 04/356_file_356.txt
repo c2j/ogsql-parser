@@ -1,0 +1,7 @@
+切换透明加密 切换透明加密 功能介绍 切换实例透明加密状态。 调用接口前，您需要提前 获取终端节点 ，即下文中的Endpoint值。 URI URI格式 PUT  https://{ Endpoint }/gaussdb/v3/{project_id}/instances/{instance_id}/kms-tde/switch URI样例 https://gaussdb.sa-fb-2.hcsglobal.com/gaussdb/v3/054e292c9880d4992f02c0196d3ea468/instances/d8e6ca5a624745bcb546a227aa3ae1cfin14/kms-tde/switch 参数说明 表1 路径参数 参数 是否必选 参数类型 描述 project_id 是 String 租户在某一region下的project ID。 获取方法请参见 获取项目ID/名称 。 instance_id 是 String 实例的ID。 请求消息 参数说明 表2 请求Body参数说明 名称 是否必选 参数类型 说明 kms_tde_key_id 是 String KMS主密钥ID。 kms_tde_status 是 String 需要切换的状态。 枚举值： on ：开启 kms_project_name 是 String GaussDB使用透明加密的KMS主密钥ID所在所在资源空间名称。 获取方法请参见 获取项目ID/名称 请求示例 {
+    "kms_tde_key_id":"ca0da073-20a4-451d-812d-67f35d4d91f1",
+    "kms_tde_status":"on",
+    "kms_project_name":"kms_project_name"
+} 响应消息 正常响应要素说明 表3 参数说明 参数 参数类型 描述 job_id String 异步任务ID。 表4 参数说明 参数 参数类型 描述 error_code String 错误码。 error_msg String 错误消息。 响应示例 { 
+   "job_id" : "bf26cf3c-d046-4080-bb45-f114be7afa5f" 
+ } 异常响应 请参见 异常请求结果 。 状态码 正常 202 异常 请参见 状态码 。 错误码 请参见 错误码 。 父主题： 实例管理 版权所有 © 华为技术有限公司

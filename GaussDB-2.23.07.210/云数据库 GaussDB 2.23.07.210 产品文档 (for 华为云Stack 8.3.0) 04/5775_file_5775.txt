@@ -1,0 +1,1 @@
+简介 简介 GaussDB 提供客户端和服务器端应用程序（call-thread工具），帮助用户更好地维护 GaussDB 。工具位于安装数据库服务器的$GPHOME/script和$GAUSSHOME/bin路径下。 父主题： 分布式版 版权所有 © 华为技术有限公司

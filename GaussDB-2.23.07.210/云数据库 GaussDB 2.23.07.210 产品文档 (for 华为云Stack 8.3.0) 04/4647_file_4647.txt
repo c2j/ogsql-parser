@@ -1,0 +1,5 @@
+文件组织结构 文件组织结构 如需查询当前回滚段使用的存储方式是页式或段页式，可以查询系统表。 当前仅支持页式。 示例： gaussdb=# select * from gs_global_config where name like '%undostoragetype%';
+      name       |  value
+-----------------+---------
+ undostoragetype | page
+(1 row) 当回滚段使用的存储方式为页式： txn page所在文件组织结构： $node_dir/undo/{permanent|unlogged|temp}/$undo_zone_id.meta.$segno undo row所在文件组织结构： $node_dir/undo/{permanent|unlogged|temp}/$undo_zone_id.$segno 父主题： Undo 版权所有 © 华为技术有限公司

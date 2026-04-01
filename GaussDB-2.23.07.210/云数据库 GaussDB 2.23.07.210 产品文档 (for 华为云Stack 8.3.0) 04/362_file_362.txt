@@ -1,0 +1,16 @@
+获取指定实例的参数 获取指定实例的参数 功能介绍 获取指定实例的参数模板。 调用接口前，您需要提前 获取终端节点 ，即下文中的Endpoint值。 URI URI格式 GET https://{ Endpoint }/gaussdb/v3.1/{project_id}/instances/{instance_id}/configurations URI样例 https://gaussdb-api.sa-fb-2.hcsglobal.com/gaussdb/v3.1/054ea741f700d4a32f1bc00f5c80dd4c/instances/dsfae23fsfdsae3435in14/configurations 参数说明 表1 参数说明 参数 是否必选 参数类型 描述 project_id 是 String 租户在某一region下的project ID。 获取方法请参见 获取项目ID/名称 。 instance_id 是 String 实例ID。 请求消息 无。 响应消息 正常响应要素说明 表2 参数说明 参数 参数类型 描述 datastore_version String 引擎版本。 datastore_name String 引擎名称。 created String 创建时间，格式为"yyyy-MM-dd HH:mm:ss"。 updated String 更新时间，格式为"yyyy-MM-ddHH:mm:ss"。 configuration_parameters Array of objects 参数对象，用户基于默认参数模板自定义的参数配置，具体请参考 表3 。 表3 configuration_parameters字段数据结构说明 参数 参数类型 描述 name String 参数名称。 value String 参数值。 restart_required Boolean 修改该参数是否需要重启实例。 value_range String 参数取值范围。 type String 参数类型，取值为“string”、“integer”、“boolean”、“list”或“float”之一。 枚举值： string integer boolean list float description String 参数描述。 响应消息示例 正常响应要素说明 {
+    "created": "2022-04-11 10:46:59",
+    "updated": "2022-04-11 10:46:59",
+    "datastore_version": "2.0",
+    "datastore_name": " GaussDB ",
+    "configuration_parameters": [
+        {
+            "name": "audit_system_object",
+            "value": "12295",
+            "type": "integer",
+            "description": "Determines whether to audit the CREATE, DROP, and ALTER operations on GaussDB Kernel database objects. GaussDB Kernel database objects include databases, users, schemas, and tables. You can change the parameter value to audit only the operations on required database objects. During a forcible primary/standby failover, set audit_system_object to the maximum value and audit all DDL objects. If the parameter value is incorrectly changed, DDL audit logs will be lost. Contact customer service personnel to change it.",
+            "restart_required": false,
+            "value_range": "0-2097151"
+        }
+    ]
+} 异常响应 请参见 异常请求结果 。 状态码 正常 200 异常 请参见 状态码 。 错误码 请参见 错误码 。 父主题： 参数配置 版权所有 © 华为技术有限公司

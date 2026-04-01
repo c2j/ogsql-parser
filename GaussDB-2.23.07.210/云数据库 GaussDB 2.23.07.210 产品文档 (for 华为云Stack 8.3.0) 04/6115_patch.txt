@@ -1,0 +1,1 @@
+上传patch软件安装包 上传patch软件安装包 1）以root用户登录到服务器，将从Support上获取的对应image_patch压缩包拷贝到服务器并解压，进入解压后的image_patch目录； 2）执行命令ifconfig，检查服务器的网卡名称是否为enp3s0，若不是enp3s0，则执行以下命令修改安装脚本中的网卡名称。 例如上面的网卡名称为enp4s0，因此执行以下命令修改安装脚本中的网卡名称（注意：在image_patch目录下执行）： sed -i 's/enp3s0/enp4s0/g' ./gaussdb/deploy/prepare_net_and_ca.sh sed -i 's/enp3s0/enp4s0/g' ./gaussdb/deploy/init_agent_env.sh 父主题： 安装软件 版权所有 © 华为技术有限公司

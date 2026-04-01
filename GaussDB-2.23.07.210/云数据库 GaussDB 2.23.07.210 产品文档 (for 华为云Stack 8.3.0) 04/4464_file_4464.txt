@@ -1,0 +1,19 @@
+使用指导 使用指导 前提条件 数据库运行状态良好，无资源紧张状况。 该特性是以外部工具的形式存在，需要用户在使用工具时提供元数据。 该特性当前仅针对 Hash分布 做推荐。 本特性暂不考虑计算倾斜、访问倾斜。 采用WDR报告中获取业务数据需提前设置guc参数track_stmt_stat_level= 'L0,L0'，并且要求执行节点是CN，以及指定用户具有monitor admin权限。 配置python3.7+环境。 操作步骤 准备好包含有多条DML语句的文件作为输入的workload，对于数据迁移前场景，同时准备数据库相关统计信息的json文件。 数据库相关统计信息的JSON文件数据格式为： { table_name: # 表名
+    {"size": size_value, # 表大小(整型)
+     "rows": rows_value, # 表行数（整型）
+     "primaryKey": "column_value", # 主键第一列（字符串）
+     "column":           # 表列名及该列对应的distinct value值(浮点型)
+         {"col1": col1_distinct_value, 
+          "col2": col2_distinct_value,
+          "col3": col3_distinct_value
+          }      
+     }
+} workload数据格式为： SQL语句文本 运行命令如下： gs_dbmind component dkr [-f FILE] [-m MODE] [-s STATISTICS] [-p PORT] [-d DATABASE] [--schema SCHEMA] [--host HOST] [-U USER] [--dn DN] [--start_time START_TIME] [--end_time END_TIME] [--min_distinct_threshold MIN_DISTINCT_THRESHOLD] [--cost_type COST_TYPE][--max_replication_table_size MAX_REPLICATION_RTABLE_SIZE] [--prior_distribute_transaction] [--standard][--driver] 使用方法示例 当需要将业务数据从其他类型的数据库迁移到GaussDB 分布式数据库时（即“数据迁移前”场景），则可以使用下述命令启动推荐： gs_dbmind component dkr -f test.sql -m offline -s table_info.json --dn 6 --min_distinct_threshold 0.5 --cost_type naive 当业务数据已经迁移到GaussDB 分布式数据库中后，对于需要对分布键进行调优的场景（即“数据迁移后”场景），则可使用下述命令启动推荐： echo huawei.123 | gs_dbmind component dkr -f test.sql -m online -p 53400 -d tpch500high --host linux173 -U dba --dn 6  --min_distinct_threshold 0.5 --cost_type optimizer 运行结果示例如下，其中“CREATE TABLE”表示应该创建分布键的列名，“HINT”提示可以创建为复制表的表名： ################################## Distribution key recommended result ################################
+CREATE TABLE customer(...) DISTRIBUTE BY HASH(c_custkey);
+CREATE TABLE lineitem(...) DISTRIBUTE BY HASH(l_orderkey);
+CREATE TABLE orders(...) DISTRIBUTE BY HASH(o_orderkey);
+CREATE TABLE part(...) DISTRIBUTE BY HASH(p_partkey);
+CREATE TABLE partsupp(...) DISTRIBUTE BY HASH(ps_partkey);
+CREATE TABLE region(...) DISTRIBUTE BY HASH(r_regionkey);
+CREATE TABLE supplier(...) DISTRIBUTE BY HASH(s_suppkey);
+HINT: table nation can be set as a replication table. (table rows = 25) 父主题： 外部工具 版权所有 © 华为技术有限公司

@@ -1,0 +1,1 @@
+PG_TABLESPACE PG_TABLESPACE PG_TABLESPACE系统表存储表空间信息。 表1 PG_TABLESPACE字段 名称 类型 描述 oid oid 行标识符（隐含字段，必须明确选择）。 spcname name 表空间名称。 spcowner oid 表空间的所有者，通常是创建它的人。 spcacl aclitem[] 访问权限。具体请参见 GRANT 和 REVOKE 。 spcoptions text[] 表空间的选项。 spcmaxsize text 可使用的最大磁盘空间大小，单位Byte。 relative boolean 标识表空间指定的存储路径是否为相对路径。 t（true）：表示是。 f（false）：表示不是。 父主题： 其他系统表 版权所有 © 华为技术有限公司

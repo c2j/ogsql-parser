@@ -1,0 +1,236 @@
+{
+  "topic": "分布式版",
+  "term_count": 46,
+  "terms": [
+    {
+      "term": "可维护性",
+      "content": "可维护性 可维护性 热补丁升级 灰度升级 滚动升级 就地升级 支持WDR诊断报告 支持ASP报告 慢SQL诊断 Session性能诊断 系统KPI辅助诊断 支持一键式收集诊断信息 支持热点key快速检测 内置stack工具 支持SQL PATCH 支持设置云服务产品版本号 内置perf工具",
+      "source_file": "4141_file_4141.txt"
+    },
+    {
+      "term": "客户端工具",
+      "content": "客户端工具 客户端工具 数据库在部署成功后，需要通过一些工具来便捷地连接数据库，对数据库进行各种操作和调试。 GaussDB 提供了一些数据库连接工具。通过这些工具可以方便地连接数据库并对数据库进行数据操作。 gsql",
+      "source_file": "5776_file_5776.txt"
+    },
+    {
+      "term": "扩展性",
+      "content": "扩展性 扩展性 支持在线扩容 支持线程池高并发 支持数据分布式存储 分布式事务处理 在线CN缩容 在线DN分片缩容 支持非侵入式备份恢复到REMOTE第三方介质 在线表类型转换",
+      "source_file": "4113_file_4113.txt"
+    },
+    {
+      "term": "存储过程",
+      "content": "存储过程 存储过程 存储过程 数据类型 数据类型转换 数组、集合和record 声明语法 基本语句 动态语句 控制语句 事务语句 其他语句 游标 高级包 Retry管理 PACKAGE 调试",
+      "source_file": "1414_file_1414.txt"
+    },
+    {
+      "term": "ABO优化器",
+      "content": "ABO优化器 ABO优化器 智能基数估计",
+      "source_file": "4478_ABO.txt"
+    },
+    {
+      "term": "AI能力",
+      "content": "AI能力 AI能力 ABO优化器",
+      "source_file": "4176_AI.txt"
+    },
+    {
+      "term": "Foreign",
+      "content": "Foreign Data Wrapper Foreign Data Wrapper GaussDB 的FDW（Foreign Data Wrapper）可以实现各个 GaussDB 数据库及远程服务器（包括数据库、文件系统）之间的跨库操作。目前支持的外部数据封装器类型包括file_fdw。 file_fdw",
+      "source_file": "4485_Foreign Data Wrapper.txt"
+    },
+    {
+      "term": "应用程序开发教程",
+      "content": "应用程序开发教程 应用程序开发教程 开发规范 基于JDBC开发 基于ODBC开发 基于libpq开发 基于Psycopg开发 基于ecpg开发 基于Go驱动开发 调试",
+      "source_file": "781_file_781.txt"
+    },
+    {
+      "term": "简介",
+      "content": "简介 简介 GaussDB 提供客户端和服务器端应用程序（call-thread工具），帮助用户更好地维护 GaussDB 。工具位于安装数据库服务器的$GPHOME/script和$GAUSSHOME/bin路径下。",
+      "source_file": "5775_file_5775.txt"
+    },
+    {
+      "term": "物化视图",
+      "content": "物化视图 物化视图 物化视图实际上就是一种特殊的物理表，物化视图是相对普通视图而言的。普通视图是虚拟表，应用的局限性较大，任何对视图的查询实际上都是转换为对SQL语句的查询，性能并没有实际上提高。而物化视图实际上就是存储SQL所执行语句的结果，起到缓存的效果。物化视图常用的操作包括创建、查询、删除和刷新。 根据创建规则，物化视图分为全量物化视图和增量物化视图。全量物化视图只支持全量刷新；增量物化视图支持全量刷新和增量刷新两种方式。全量刷新会将基表中的数据全部重新刷入物化视图中，而增量刷新只会将两次刷新间隔期间的基表产生的增量数据刷入物化视图中。 目前Ustore引擎不支持创建、使用物化视图。 全量物化视图 增量物化视图",
+      "source_file": "4269_file_4269.txt"
+    },
+    {
+      "term": "系统内部调用的工具",
+      "content": "系统内部调用的工具 系统内部调用的工具 本节所涉及的工具为 GaussDB 进程间运行使用的工具，或者说模块间调用的工具。这些工具只用于满足内部调用场景，未对其他场景下的使用正确性做过验证。因此，不建议用户直接使用这些工具执行业务，以防对系统运行带来影响。 etcd etcdctl gaussdb gaussmaster gs_backup gs_convert gs_expand gs_ctl gs_finishredo_retrieve gs_gtm gs_hotpatch gs_initdb gs_initgtm gs_install gs_postuninstall gs_preinstall gs_redis gs_redis_bucket gs_rescue gs_shrink gs_sshexkey gs_uninstall gs_upgradectl gstrace gtm_ctl kadmin.local kdb5_util kdestroy kinit klist krb5kdc om_monitor pg_config pg_controldata pg_resetxlog omRollback.py pscp pssh py_pstree.py",
+      "source_file": "5817_file_5817.txt"
+    },
+    {
+      "term": "数据库安全",
+      "content": "数据库安全 数据库安全 用户及权限 数据库审计",
+      "source_file": "735_file_735.txt"
+    },
+    {
+      "term": "服务端工具",
+      "content": "服务端工具 服务端工具 在使用 GaussDB 过程中，经常需要对集群进行安装、升级、扩容、卸载，以及对集群进行健康管理。为了简单、方便的维护集群， GaussDB 提供了一系列的集群管理工具。 GaussRoach.py gds gds_ctl.py gs_check gs_checkos gs_clean gs_collector gs_dump gs_dumpall gs_encrypt gs_guc gs_om gs_replace gs_restore gs_roach gs_ssh",
+      "source_file": "5784_file_5784.txt"
+    },
+    {
+      "term": "附录",
+      "content": "附录 附录 WDR报告和ASP报告导出 WDR报告信息介绍 ASP报告信息",
+      "source_file": "2407_file_2407.txt"
+    },
+    {
+      "term": "高可用性",
+      "content": "高可用性 高可用性 主备机 AZ容灾 逻辑复制 高可靠事务处理 CN自动剔除 在线节点替换 物理备份 负载均衡 极致RTO 基于Paxos协议的高可用 两地三中心跨Region容灾 按分片自动升降副本 支持global syscache 并行逻辑解码 支持备机build备机 3AZ多数派故障一键式强启及加回 分布式备机支持读 同城双中心高可用方案",
+      "source_file": "4122_file_4122.txt"
+    },
+    {
+      "term": "统一集群管理工具",
+      "content": "统一集群管理工具 统一集群管理工具 CM（Cluster Manager）是一款集群资源管理软件。支持自定义资源监控，提供了数据库主备的状态监控、网络通信故障监控、文件系统故障监控、故障自动主备切换等能力。提供了丰富的集群管理能力，如集群、节点、实例级的启停，集群状态查询、主备切换、日志管理等。 特性介绍 cm_ctl工具介绍 cm_ctl工具使用指南 安全设计 CM配置参数介绍 CM错误日志信息参考",
+      "source_file": "5860_file_5860.txt"
+    },
+    {
+      "term": "高性能",
+      "content": "高性能 高性能 分布式CBO优化器 全并行分布式执行 高性能事务处理 高速并行数据加载 支持SMP并行技术 Ustore存储引擎 自适应压缩 分区 高级分析函数支持 数据倾斜优化技术 SQL by pass 支持HyperLogLog NUMA架构优化 物化视图 分布式全局二级索引 数据生命周期管理-OLTP表压缩",
+      "source_file": "4096_file_4096.txt"
+    },
+    {
+      "term": "数据库编程规范",
+      "content": "数据库编程规范 数据库编程规范 GUC参数编程规范 对象访问编程规范 WHERE SELECT INSERT UPDATE DELETE 关联查询 子查询 事务",
+      "source_file": "514_file_514.txt"
+    },
+    {
+      "term": "客户端编程规范",
+      "content": "客户端编程规范 客户端编程规范 JDBC",
+      "source_file": "579_file_579.txt"
+    },
+    {
+      "term": "透明数据加密",
+      "content": "透明数据加密 透明数据加密 透明加密提供表级数据加密存储功能。当用户使用本特性提供的语法创建加密表后，数据库向磁盘写入加密表数据前，会自动将其加密；同时，数据库从磁盘读取加密表数据后，会自动将其解密。向加密表中进行数据插入、更新、查询和删除等语法与非加密表一致。 透明加密基本原理详见《特性描述》的“数据库安全 > 透明数据加密”章节。 使用透明加密前需联系管理员配置开启该功能。 查看透明加密基本配置 查看透明加密功能是否已开启 enable_tde取值为on时表示开启，取值为off是表示关闭。该参数由管理员设置。 gaussdb=# SHOW enable_tde;\n enable_tde\n------------\n on\n(1 row) 查看是否已设置访问密钥管理服务的参数 tde_key_info参数为空时表示未设置，tde_key_info不为空时表示已设置。该参数由管理员设置 gaussdb=# show tde_key_info;\n      tde_key_info\n-------------------------\n keyType=... 操作加密表 创建加密表 创建表时，通过在WITH子句中设置enable_tde=on参数，即可设置该表为加密表。 数据库默认使用'AES_128_CTR'算法对加密表进行加密，如需使用其他算法，可通过encrypt_algo参数设置。 gaussdb=# CREATE TABLE t1 (c1 INT, c2 TEXT) WITH (enable_tde = on);\nCREATE TABLE\ngaussdb=# CREATE TABLE t2 (c1 INT, c2 TEXT) WITH (enable_tde = on, encrypt_algo = 'SM4_CTR');\nCREATE TABLE 查看加密表基本信息 加密表基本信息存储在pg_class系统表中的reloptions字段中。其中，dek_cipher为数据密钥密文，由数据库自动生成，并由密钥管理服务加密。每个加密表都有1个独立的数据密钥。 gaussdb=# SELECT relname,reloptions FROM pg_class WHERE relname = 't1';\n relname | reloptions\n---------+-----------------------------------------------------------------------------------------------------------------------\n t1      | {orientation=row,enable_tde=on,encrypt_algo=AES_128_CTR,compression=no,storage_type=USTORE,key_type=...,dek_cipher=... 向加密表写入数据 操作加密表与非加密表的语法一致。数据库将表中数据写入磁盘前，才会自动对加密表的数据进行加密。 gaussdb=# INSERT INTO t1 VALUES (1, 'tde plain 123');\nINSERT 0 1 从加密表查询数据 对于合法用户而言，查询加密表与非加密表的语法一致，加解密操作由数据库自动实现。如果攻击者绕过数据库，直接读取磁盘上加密表对应的数据文件，会发现文件中的数据均已被加密。 gaussdb=# SELECT * FROM t1;\n c1 |      c2\n----+---------------\n  1 | tde plain 123\n(1 row) 轮转加密表的密钥 为提高安全性，建议定期使用以下语法轮转加密表的数据密钥，即使用新的密钥对数据进行加密： gaussdb=# ALTER TABLE t1 ENCRYPTION KEY ROTATION;\nALTER TABLE 轮转密钥后，数据库仍可以正常解密由旧密钥加密的数据。 加密表与非加密表转换 透明加密支持将加密表转换为非加密表，以及将非加密表转换为加密表。建议在每次转换后，手动执行VACUUM FULL命令，以强制同步转换表中所有数据。 gaussdb=# ALTER TABLE t1 SET (enable_tde = off);\nALTER TABLE\ngaussdb=# VACUUM FULL t1;\nVACUUM\ngaussdb=# ALTER TABLE t1 SET (enable_tde = on);\nALTER TABLE\ngaussdb=# VACUUM FULL t1;\nVACUUM 删除加密表 gaussdb=# DROP TABLE t1;\nDROP TABLE",
+      "source_file": "4284_file_4284.txt"
+    },
+    {
+      "term": "最佳实践",
+      "content": "最佳实践 最佳实践 表设计最佳实践 SQL查询最佳实践 数据倾斜查询最佳实践",
+      "source_file": "1399_file_1399.txt"
+    },
+    {
+      "term": "SQL参考",
+      "content": "SQL参考 SQL参考 GaussDB SQL 关键字 数据类型 常量与宏 函数和操作符 表达式 伪列 类型转换 全文检索 系统操作 事务控制 SQL语法 附录",
+      "source_file": "1043_SQL.txt"
+    },
+    {
+      "term": "DBMind:",
+      "content": "DBMind: 数据库自治运维 DBMind: 数据库自治运维 DBMind承载了 GaussDB 的AI  for Database特性，主要用于对数据库进行自治运维和管理，从而帮助数据库运维人员减少运维工作量。在实现上，DBMind具有监控和服务化的性质，同时也提供即时AI工具包，提供开箱即用的AI自治功能（如索引推荐）。DBMind的监控平台以开源Prometheus为主，并提供了数据生产者exporter, 可与Prometheus平台完成对接。DBMind服务架构如下图所示： 图1 DBMind服务架构 图中各关键组件说明： DBMind Service: DBMind后台服务，可用于定期离线计算，包括慢SQL根因分析、时序预测等； Prometheus-server: Prometheus 监控指标存储的服务器； metadatabase: DBMind在离线计算结束后，将计算结果存储在此处，支持 GaussDB 、SQLite等数据库； client: 用户读取DBMind离线计算结果的客户端，目前该客户端仅实现通过命令行操作；若采用 GaussDB 等数据库存储计算DBMind计算结果，则用户可以自行配置Grafana等可视化工具对该结果进行可视化； openGauss-exporter: 用户从 GaussDB 数据库节点上采集监控指标，供DBMind服务进行计算； node-exporter: Prometheus官方提供的exporter, 可用于监控该节点的系统指标，如CPU和内存使用情况； cmd-exporter: 在用户安装数据库的环境上执行命令行，并采集该命令行的执行结果，同时，也尝试将数据库日志内容转化为监控指标；例如通过执行cm_ctl命令，查看数据库集群的状态； reprocessing-exporter: 用于对Prometheus采集到的指标进行二次加工处理，例如计算CPU使用率等。 DBMind支持的场景规格 1. DBMind 目前不支持在元数据库变更的情况下保留原始诊断数据升级； 2. DBMind 不支持纳管容灾集群中的备节点； 3. DBMind 支持纳管多集群，但是随着纳管集群节点越多，消耗的资源也对应增多。需要在DBMind消耗的资源过多时，停止纳管更多节点，以避免CPU和内存资源不足。 4. DBMind实例纳管建议为1个CPU核对应3个节点（例如3个节点（包含主备）的集中式则需要1个CPU核，9个节点（包含CN，DN等）的分布式需要3个CPU核），如果纳管的实例节点数太多，会导致DBMind服务接口超时或服务异常。 5. DBMind只支持文档中写明的场景，对于文档中没有明确的场景、示例中不包括的部署形态、使用方法等超规格使用形式的情况不支持。 6. DBMind服务当前不支持ipv6。 7. DBMind不支持MySQL兼容性。 云侧网络情况和DBMind云上部署说明： 云上的实例节点拥有多层网络结构，分布式节点拥有三层结构：管理层（CM）、数据层（CN）和数据同步层（DN）。 对于DBMind 主程序部署情况说明如下： 启动prometheus，监听在数据层ip。 启动reprocessing_exporter，监听在数据层ip。 启动DBMind，暴露webservice在管理层ip（管理ip是因为接口调用需要走管理面发起，需要保证管理面网络互通）。 对于被纳管的数据库实例，插件部署情况如下： node_exporter、cmd_exporter、opengauss_exporter都监听在数据层ip。 对于仲裁、冷备、offline的节点,只会部署node_exporter、cmd_exporter。 分布式如果节点上无CN组件，只会部署node_exporter、cmd_exporter。 其他情况均会部署node_exporter、cmd_exporter、opengauss_exporter 环境配置 DBMind外置AI功能需要运行在Python 3.7版本以上，当前DBMind独立出包并且包中已包含工具所有三方依赖项，因此用户不用单独安装。如果用户需要自己配置依赖项，DBMind需要的第三方依赖包记录在AI功能根目录的requirements.txt文件中（包括requirements-x86.txt与requirements-arrch64.txt，用户可根据自己平台类型选择）中，可以通过pip install命令安装依赖，如： pip3 install -r requirements-x86.txt 如果用户没有安装齐全所需的依赖，则当用户执行gs_dbmind命令时，会再次提醒用户安装第三方依赖。需要注意，该文件提供了DBMind所需的第三方依赖，若用户环境存在第三方包冲突等情况，可由用户根据实际情况进行处理。 如果pip版本过低，可能会出现装包失败的情况，此时可使用以下命令对pip进行升级： pip3 install --upgrade pip DBMind模式说明 DBMind的支持组件 DBMind的AI子功能",
+      "source_file": "4411_DBMind_ .txt"
+    },
+    {
+      "term": "系统表和系统视图",
+      "content": "系统表和系统视图 系统表和系统视图 系统表和系统视图概述 系统表 系统视图 废弃",
+      "source_file": "1494_file_1494.txt"
+    },
+    {
+      "term": "SQL调优指南",
+      "content": "SQL调优指南 SQL调优指南 SQL调优的唯一目的是“资源利用最大化”，即CPU、内存、磁盘IO、网络IO四种资源利用最大化。所有调优手段都是围绕资源使用开展的。所谓资源利用最大化是指SQL语句尽量高效，节省资源开销，以最小的代价实现最大的效益。比如做典型点查询的时候，可以用seqscan+filter（即读取每一条元组和点查询条件进行匹配）实现，也可以通过indexscan实现，显然indexscan可以以更小的代价实现相同的效果。 根据硬件资源和客户的业务特征确定合理的 集群 部署方案和表定义是数据库在多数情况下满足性能要求的基础。下文的调优说明假设您已根据“软件安装”指引在安装过程中按照合理的 集群 方案完成了安装，且已经根据“开发设计建议”的指引进行了数据库设计。 Query执行流程 SQL执行计划介绍 调优流程 更新统计信息 审视和修改表定义 典型SQL调优点 经验总结：SQL语句改写规则 SQL调优关键参数调整 使用Plan Hint进行调优 检查隐式转换的性能问题 使用向量化执行引擎进行调优 使用SQL PATCH进行调优 实际调优案例",
+      "source_file": "974_SQL.txt"
+    },
+    {
+      "term": "基于标签的强制访问控制",
+      "content": "基于标签的强制访问控制 基于标签的强制访问控制 定义安全标签 应用安全标签 基于标签的强制访问控制检查",
+      "source_file": "4285_file_4285.txt"
+    },
+    {
+      "term": "FAQ",
+      "content": "FAQ FAQ 执行命令报错“Failed to obtain the GPHOME”",
+      "source_file": "5884_FAQ.txt"
+    },
+    {
+      "term": "分区表",
+      "content": "分区表 分区表 本章节围绕分区表在大数据量场景下如何对保存的数据进行“查询优化”和“运维管理”出发，分六个章节以此对分区表使用上进行系统性说明，包含语义、原理、约束限制等方面。 大容量数据库 分区表介绍 分区表查询优化 分区表运维管理 分区表系统视图&DFX",
+      "source_file": "4295_file_4295.txt"
+    },
+    {
+      "term": "Schema",
+      "content": "Schema Schema GaussDB 的Schema如下表所示。 数据库禁止在提供功能接口的Schema下创建用户的业务数据，包括但不限于表、函数等(dbe_*, pkg_*）。 表1 GaussDB 支持的Schema Schema名称 描述 dbe_perf DBE_PERF Schema内视图主要用来诊断性能问题，也是WDR Snapshot的数据来源。数据库安装后，默认只有初始用户和监控管理员具有模式dbe_perf的权限，有权查看该模式下的视图和函数。 snapshot 用于管理WDR snapshot的相关的数据信息，默认初始化用户或监控管理员用户可以访问。 sqladvsior 用于分布列推荐，具体使用方法见 分布列推荐函数 。 sys 用于提供系统信息视图接口。 pg_catalog 用于维护系统的catalog信息，包含系统表和所有内置数据类型、函数、操作符。 pg_toast 用于存储大对象（系统内部使用）。 public 公共模式，用于存储公共对象。search_path参数缺省时，如果存在用户同名的模式则将创建的表（以及其他对象）默认创建到同名模式下，不存在用户同名模式则自动放入public模式。 pkg_service 用于管理package服务相关信息。 pkg_util 用于管理package工具相关信息。 dbe_raw 高级功能包dbe_raw，用于raw类型数据的转化、取子串、求长度等操作。 dbe_session 高级功能包dbe_session，用于设置指定属性的值，并支持用户查询校验。 dbe_lob 高级包功能包dbe_lob，用于大文件（clob/blob）的读取、写入、复制等操作。 dbe_match 高级功能包dbe_match，用于字符串相似度比较。 dbe_task 高级功能包dbe_task，用于作业任务的调度包括提交任务、取消任务、同步任务状态、更新任务信息等可以使数据库定期执行特定的任务。 dbe_sql 高级功能包dbe_sql，用于执行动态sql，可以在应用的运行时间构建查询和其它的命令。 dbe_file 高级功能包dbe_file，用于数据库外部文件的读取、复制、写入、删除、重命名等。 dbe_output 高级功能包dbe_output，用于打印输出信息。 dbe_random 高级功能包dbe_random，用于生成随机种子和随机数。 dbe_application_info 高级功能包dbe_application_info，用于记录客户端信息。 dbe_utility 高级功能包dbe_utility，用于存储过程调用调试工具，例如打印错误堆栈等。 dbe_scheduler 高级功能包dbe_scheduler，用于创建定时任务，通过程序(program)，调度(schedule)使数据库定期执行特定的任务。也可以通过授权、提供证书执行数据库外部任务。 information_schema 用于存储有关当前数据库中定义的对象的信息。 dbe_sql_util SQL运维功能，目前包含SQL Patch的运维接口。 表2 GaussDB 目前禁用的Schema Schema名称 描述 dbe_pldebugger 用于调试PL/SQL函数及存储过程，目前暂不支持，该视图下接口调用报错unsupported。 db4ai 用于管理AI训练中不同版本的数据信息。 dbe_pldeveloper 用户存储过程编译调试。 Information Schema DBE_PERF Schema WDR Snapshot Schema DBE_SQL_UTIL Schema DBE_PLDEBUGGER Schema",
+      "source_file": "2023_Schema.txt"
+    },
+    {
+      "term": "资源管理",
+      "content": "资源管理 资源管理 支持I层高时延逃生能力 并发场景支持抗过载逃生能力 SQL限流能力",
+      "source_file": "4172_file_4172.txt"
+    },
+    {
+      "term": "数据库使用入门",
+      "content": "数据库使用入门 数据库使用入门 连接数据库 操作数据库",
+      "source_file": "746_file_746.txt"
+    },
+    {
+      "term": "数据库设计规范",
+      "content": "数据库设计规范 数据库设计规范 基本规范 部署规范 数据库对象命名规范 数据库设计规范 权限设计规范 字符集设计规范 表设计规范 字段设计规范 索引设计规范 函数/存储过程设计规范",
+      "source_file": "453_file_453.txt"
+    },
+    {
+      "term": "GTM模式",
+      "content": "GTM模式 GTM模式 为适应不同的并发和一致性要求，GaussDB提供了三种不同的GTM模式，GTM、GTM-Lite、GTM-Free。三种模式之间的主要区别是中心事务管理节点GTM的压力和事务处理流程不同，其中GTM模式下，中心事务处理节点的压力最大，比较容易成为性能和并发瓶颈；在GTM-Lite模式下，中心事务处理节点的压力得到减轻，事务处理流程进一步优化，GTM的性能和并发瓶颈得到减轻，在保证一致性的情况下，事务处理能力得到更大限度的提升；在GTM-Free模式下，中心事务管理节点不再参与事务管理，消除了GTM单点瓶颈，可达到更高的事务处理性能，但是在一致性方面，支持所有事务运行完，保证读的外部一致性，不支持分布式事务强一致性读，不支持insert into select * from等依赖于查询结果的事务一致性。 当前版本暂不支持三种模式之间的相互切换，建议使用安装时默认的GTM模式，支持升级前后GTM模式不变化。 相关的GUC参数包括 enable_gtm_free 和 gtm_option ，可通过gsql执行show语句查询当前GTM模式： SHOW enable_gtm_free;\nSHOW gtm_option; 具体模式判断方法如下。 GTM模式：enable_gtm_free=off 且 gtm_option=0； GTM-Lite模式：enable_gtm_free=off 且 gtm_option=1; GTM-Free模式：enable_gtm_free=on 或 gtm_option=2。 GTM-lite模式和GTM模式下，GaussDB支持分布式事务强一致和完整的语法功能。GTM-FREE模式下，由于采用了分布式事务最终一致的执行和并发控制机制，因此约束了部分语法的使用场景和使用方式。如果业务确有使用被限制语法的需求，那么在明确了解最终一致性行为的基础之上，需要对业务进行一定程度的改造。主要涉及的约束语法和改造建议如下： 总体原则：所有用户表必须指定分布键（DISTRIBUTE BY），且选择合理： 考虑数据分布均匀。 尽量选择查询中的关联条件作为分布键，保证关联查询不会引起DN节点之间的数据流动。 考虑将表的主键作为分布键。 SELECT： 表查询时，WHERE条件应包含所有分布键字段等值查询条件。 避免在SELECT目标列中使用子查询，可能导致计划无法下推到DN执行，影响执行性能。 DML: 默认不支持跨节点事务，如果所执行的DML语句包含跨节点事务，会报错处理，具体分为两种场景： 如果用户语句在数据库内部被拆分成多条独立语句执行，会报错：INSERT/UPDATE/DELETE/MERGE contains multiple remote queries under GTM-free mode Unsupport DML two phase commit under gtm free mode. modify your SQL to generate light-proxy or fast-query-shipping plan。这时，需要修改语句，来单节点执行。 举例： insert into t select * from b where b.c = xx; 假设t表和b表的分布键不同，且上述where条件只会过滤出一条数据。在不打开enable_stream_operator的情况下， 上面的查询在数据内部会被拆分成两条独立语句串行执行：首先执行select * from b  where b.c = xx从某个DN节点抽取到目标记录；然后再执行insert into t语句，将抽取的目标记录下发到另一个节点DN节点完成插入。在gtm-free模式下，这样的语句执行方式会返回上述报错。类似的，create table as select * from、带子查询的delete/join/insert等语句，也可能会出现类似报错。 业务改造方案：在业务执行之前，需要加上set enable_stream_operator=on命令，打开流算子，使得业务语句可以被整体下推执行。 如果同一个用户语句在数据库内部涉及多节点执行，会报错：Your SQL needs more than one datanode to be involved in。这时，建议对语句进行修改，使得能够单节点执行。 举例： insert into t values(3,3),(1,1); 假设(3,3)和(1,1)被分布在不同的DN节点上，那么上述语句在数据库内部的执行过程会涉及两个DN节点。在gtm-free模式下，这样的语句执行方式会返回上述报错。 业务改造方式：对于上述语句，如果业务确有需要在多个节点上执行，需要在语句中添加一个hint来避免报错，如下： insert  /*+ multinode */ into t values(3,3),(1,1); 类似的，对delete和update语句也有类似约束，一般建议用户在delete和update语句的where条件中加上分布键等值过滤条件。 建议开发阶段在jdbc连接串内设置application_type=perfect_sharding_type，这样所有跨节点读写操作的SQL都会报错，用来提示开发人员尽早优化语句。",
+      "source_file": "4487_GTM.txt"
+    },
+    {
+      "term": "内存管理",
+      "content": "内存管理 内存管理 Linux内存机制 物理内存 物理可见的硬件，即内存条。 虚拟内存 进程运行时所有内存空间的总和，以32位系统为例，每个进程有4GB的内存空间，各进程的内存空间具有类似的结构。 一个新进程建立的时候，将会建立起自己的内存空间，此进程的数据、代码等从磁盘拷贝到自己的进程空间。那些数据在哪里，都由进程控制表中的task_struct记录。task_struct中记录中一条链表，记录中内存空间的分配情况。哪些地址有数据、哪些地址无数据、哪些可读、哪些可写都可以通过这个链表记录。 每个进程已经分配的内存空间，都与对应的磁盘空间映射。 建议不要对进程虚拟内存大小做限制。 物理内存地址和虚拟内存地址 内存分页机制 虚拟内存中的页（page）和物理内存页帧（page frame）相同大小。 页表（page table）维护虚拟内存页到物理内存页的映射。 页面失效（page fault）功能：操作系统找到一个最少使用的页帧，让它失效，并把它写入磁盘，随后把需要访问的页放到页帧中，并修改页表中的映射。 虚拟内存地址：页号（与页表中的页号关联）和偏移量（页的大小）组成。 虚存寻址：页表中找到页帧号，若失效则调入页，页帧号及偏移量传给内存管理单元，组成一个物理存在的地址，即可访问物理内存数据。 Buffer 根据磁盘的读写设计的，把分散的写操作集中进行，减少磁盘碎片和硬盘的反复寻道，从而提高系统性能。 Linux有一个守护进程定期清空缓冲内容（即写入磁盘），也可以通过sync命令手动清空缓冲。 Cache 读取过的数据保存起来，重新读取时若命中（找到需要的数据）就不要去读硬盘了，若没有命中就读硬盘。其中的数据会根据读取频率进行组织，把最频繁读取的内容放在最容易找到的位置，把不再读的内容不断往后排，直至从中删除。 OOM 内存溢出（Out Of Memory，简称 OOM）是指应用系统中存在无法回收的内存或使用的内存过多，最终使得程序运行要用到的内存大于能提供的最大内存。此时程序就运行不了，系统会提示内存溢出，有时候会自动关闭软件，重启机器或者软件后释放掉一部分内存又可以正常运行该软件，而由系统配置、数据流、用户代码等原因而导致的内存溢出错误，即使用户重新执行任务依然无法避免。 GaussDB 内存资源管理 内存管理简介 GaussDB 的动态内存使用方法均基于内存上下文管理，在内存上下文的机制上，引入了逻辑内存管理机制，同时提供多项视图来追踪内存使用情况。 当前 GaussDB 的内存管理分为两级，分别是： 内存节点级别控制：通过max_process_memory参数限制CN、DN上可以使用的内存上限。 内存作业级别控制：限制单条query语句最大可使用的内存上限。 节点级别内存控制 在Linux操作系统中，内存空间通常由物理内存RAM和虚拟内存Swap组成。其中，物理内存由数据库程序和非数据库程序共同使用；而数据库程序的内存空间由 GaussDB 进程共同使用。 由于非数据库程序也需要使用内存，一般建议 GaussDB 占系统可用内存的80%。 作业级别内存控制 提供query_mem参数，根据能使用的内存量和能同时运行的作业数，指定每个作业执行时能够使用的内存量；提供query_max_mem参数，指定每个作业执行是能够使用的内存上限。 提供work_mem参数，设置内部排序操作和Hash表在开始写入临时磁盘文件之前使用的内存大小；提供maintenance_work_mem参数，设置在维护性操作（比如VACUUM、CREATE INDEX、ALTER TABLE ADD FOREIGN KEY等）中可使用的最大的内存。 逻辑内存管理机制 GaussDB 内存管理是通过逻辑内存管理来实现的。其实现原理是在原始的内存分配之上增加一层逻辑内存管理，通过检查已分配内存是否超过规定的内存来决定是否为作业分配内存。逻辑内存管理没有更改原有的内存资源分配机制，仅在分配内存之前增加一个逻辑判断层，查看是否达到允许使用的内存上限，来决定是否分配内存。 内存分类 GaussDB 的内存使用分类如上所述，其每种类型的说明如下： 动态内存 全局动态内存 全局缓存：全局缓存（Cache）用来提高访问效率，Cache中包括一个系统表元组Cache和一个表模式信息Cache (RelCache)， SysCache中存放的是最近使用过的系统表的元组，而RelCache中包含所有最近访问过的表的模式信息(包含系统表的信息)。RelCache中存放的不是元组，而是RelationData数据结构，每一个RelationData结构表示一个表的模式信息，这些信息都由系统表元组中的信息构造而来。 全局hash表：保存全局的统计信息或其他数据的内存hash结构。 全局其他内存：保存全局变量等内容。 线程/session级动态内存 语句级内存：生命周期为整个SQL语句执行阶段，语句执行前内存被申请，执行结束后内存被回收释放。 事务级内存：生命周期为整个事务内，事务开始前内存被申请，事务结束后内存被回收释放。 算子级内存：生命周期为单个算子有效期内，算子执行结束后内存被释放回收。 临时内存：一些临时变量申请的内存，使用后及时释放。 共享缓存 Shared_buffers 缓存从磁盘读取的数据所使用的内存。 其他缓存 线程所使用的槽位，锁等资源占用的内存。 内存上下文机制 内存上下文介绍 概念：内存上下文用来统一控制内存的申请和释放，内存上下文中记录了其所申请的总内存大小，每一处内存申请的大小，申请内存所在的文件，行号等信息以及与其他内存上下文之间的关联信息。 目的：基于数据库中作业执行逻辑，通过内存上下文管理机制，提升查询内存分配、释放效率。 逻辑内存管理 通过数据库进程内部记账，控制单进程内存使用的上限。 可统计进程总体使用、共享和非共享内存上下文使用及重点模块内存使用（通信库、pooler等）。 逻辑内存的生效机制：enable_memory_limit设置为on，并且max_process_memory减掉缓存等其他预留内存 > 2GB，具体详情请联系管理员。 视图PV_TOTAL_MEMORY_DETAIL查询数据库进程内存使用，便于分析内存失败后问题，具体字段可参考《开发者指南》中“系统表和系统视图 > 系统视图 > PV_TOTAL_MEMORY_DETAIL”章节。",
+      "source_file": "4410_file_4410.txt"
+    },
+    {
+      "term": "存储引擎",
+      "content": "存储引擎 存储引擎 存储引擎体系架构 Astore存储引擎 Ustore存储引擎 数据生命周期管理-OLTP表压缩",
+      "source_file": "4346_file_4346.txt"
+    },
+    {
+      "term": "概述",
+      "content": "概述 概述 简介 术语约定 适用范围",
+      "source_file": "449_file_449.txt"
+    },
+    {
+      "term": "gs_collector工具支持收集的系统表和视图列表",
+      "content": "gs_collector工具支持收集的系统表和视图列表 gs_collector工具支持收集的系统表和视图列表 表1 gs_collector工具支持收集的系统表和视图列表 Class View Name OS pv_os_run_info pg_os_threads pgxc_os_threads Session /Thread pv_session_stat pv_session_time dv_sessions dv_session_longops gs_session_cpu_statistics gs_session_memory_statistics pv_session_memory_context pv_session_memory pv_session_memory_detail pg_stat_activity pv_thread_memory_context pgxc_stat_activity WLM gs_all_control_group_info gs_get_control_group_info gs_cluster_resource_info pg_total_user_resource_info pg_total_user_resource_info_oid gs_wlm_cgroup_info gs_wlm_rebuild_user_resource_pool pgxc_wlm_rebuild_user_respool pg_resource_pool gs_wlm_resource_pool gs_wlm_user_info gs_wlm_workload_records pgxc_wlm_workload_records pg_wlm_statistics pg_app_workloadgroup_mapping Query-AP Operator gs_wlm_operator_info pgxc_wlm_operator_info gs_wlm_operator_history pgxc_wlm_operator_history gs_wlm_operator_statistics pgxc_wlm_operator_statistics Query-AP gs_wlm_session_info_all gs_wlm_session_history pgxc_wlm_session_history gs_wlm_session_info pgxc_wlm_session_info gs_wlm_user_session_info gs_wlm_session_statistics pgxc_wlm_session_statistics pg_session_iostat pg_session_wlmstat Cache I/O pg_statio_all_indexes pg_statio_all_sequences pg_statio_all_tables pg_statio_sys_indexes pg_statio_sys_sequences pg_statio_sys_tables pg_statio_user_indexes pg_statio_user_sequences pg_statio_user_tables gs_stat_db_cu gs_stat_session_cu Memory pg_total_memory_detail pgxc_total_memory_detail gs_total_nodegroup_memory_detail pg_shared_memory_detail pv_total_memory_detail File pv_file_stat pv_redo_stat pg_stat_bad_block pgxc_stat_bad_block Object pg_stat_user_tables pg_stat_user_indexes pg_stat_sys_tables pg_stat_sys_indexes pg_stat_all_tables pg_stat_all_indexes pg_stat_database pg_stat_database_conflicts pg_stat_xact_all_tables pg_stat_xact_sys_tables pg_stat_xact_user_tables pg_stat_xact_user_functions Lock pg_locks Utility pg_stat_replication pg_replication_slots pg_stat_bgwriter pg_pooler_status Transaction pg_running_xacts pgxc_running_xacts pg_prepared_xacts pgxc_prepared_xacts Comm pg_comm_delay pg_comm_recv_stream pg_comm_send_stream pg_comm_status pgxc_comm_delay pgxc_comm_recv_stream pgxc_comm_send_stream pgxc_comm_status Waits pg_thread_wait_status pgxc_thread_wait_status",
+      "source_file": "5886_gs_collector.txt"
+    },
+    {
+      "term": "逻辑复制",
+      "content": "逻辑复制 逻辑复制 GaussDB 对数据复制能力的支持情况为： 支持通过数据迁移工具定期向异构数据库（如Oracle等）进行数据同步，不具备实时数据复制能力，因此不足以支撑与异构数据库间并网运行实时数据同步的诉求。 基于上述情况， GaussDB 提供了逻辑解码功能，通过反解xlog的方式生成逻辑日志。目标数据库解析逻辑日志以实时进行数据复制。具体如 图 逻辑复制 所示。逻辑复制降低了对目标数据库的形态限制，支持异构数据库、同构异形数据库对数据的同步，支持目标库进行数据同步期间的数据可读写，数据同步时延低。 图1 逻辑复制 逻辑复制由两部分组成：逻辑解码和数据复制。逻辑解码会输出以事务为单位组织的逻辑日志。业务或数据库中间件将会对逻辑日志进行解析并最终实现数据复制。 GaussDB 当前只提供逻辑解码功能，因此本章节只涉及逻辑解码的说明。 逻辑解码",
+      "source_file": "4289_file_4289.txt"
+    },
+    {
+      "term": "自治事务",
+      "content": "自治事务 自治事务 自治事务（Autonomous Transaction），在主事务执行过程中新启的独立的事务。自治事务的提交和回滚不会影响主事务已提交的数据，同时自治事务也不受主事务影响。 自治事务在存储过程、函数和匿名块中定义，用PRAGMA AUTONOMOUS_TRANSACTION关键字来声明。 规格约束 存储过程支持自治事务 匿名块支持自治事务 函数支持自治事务 PACKAGE支持自治事务",
+      "source_file": "1488_file_1488.txt"
+    },
+    {
+      "term": "设置密态等值查询",
+      "content": "设置密态等值查询 设置密态等值查询 密态等值查询概述 使用gsql操作密态数据库 使用JDBC操作密态数据库 前向兼容与安全增强 密态支持函数/存储过程",
+      "source_file": "4278_file_4278.txt"
+    },
+    {
+      "term": "配置运行参数",
+      "content": "配置运行参数 配置运行参数 查看参数 设置参数 GUC参数说明",
+      "source_file": "2315_file_2315.txt"
+    },
+    {
+      "term": "开发设计建议",
+      "content": "开发设计建议 开发设计建议 开发设计建议概述 数据库对象命名 数据库对象设计 工具对接 SQL编写",
+      "source_file": "769_file_769.txt"
+    },
+    {
+      "term": "用户自定义函数",
+      "content": "用户自定义函数 用户自定义函数 集群 启动时，除了启动CN、DN之外，还会启动UDF master进程。 当需要执行fenced模式的UDF时，UDF master进程会fork出UDF worker进程，UDF worker进程执行fenced模式的UDF。 C语言函数（实验室特性） PL/SQL语言函数",
+      "source_file": "1411_file_1411.txt"
+    },
+    {
+      "term": "数据库系统概述",
+      "content": "数据库系统概述 数据库系统概述 数据库逻辑结构图 数据查询请求处理过程 管理事务 相关概念",
+      "source_file": "730_file_730.txt"
+    },
+    {
+      "term": "数据库安全",
+      "content": "数据库安全 数据库安全 访问控制模型 数据库认证机制 数据加密存储 数据库审计 网络通信安全 资源标签机制 统一审计机制 动态数据脱敏机制 行级访问控制 用户口令强度校验机制 口令脱敏机制 全密态数据库等值查询 透明数据加密 基于标签的强制访问控制",
+      "source_file": "4157_file_4157.txt"
+    },
+    {
+      "term": "面向应用开发的基本功能",
+      "content": "面向应用开发的基本功能 面向应用开发的基本功能 支持标准SQL 支持标准开发接口 事务支持 函数及存储过程支持 支持SQL hint 数据导入导出 COPY接口支持容错机制",
+      "source_file": "4088_file_4088.txt"
+    }
+  ]
+}

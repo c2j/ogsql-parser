@@ -1,0 +1,1 @@
+ServiceCM权限配置 ServiceCM权限配置 使用非ManageOne的Adminstrator群组用户单点登录跳转进入ServiceCM，CloudOpsAuth权限需要配置，否则用户进入运维插件内部将查看不到任何信息。 配置云服务Owner及运维服务责任人 创建非Admin用户并授权 自定义策略（可选） 创建用户组并分配策略 父主题： 权限配置 版权所有 © 华为技术有限公司

@@ -1,0 +1,34 @@
+使用gsql操作密态数据库 使用gsql操作密态数据库 执行SQL语句 在执行本节的SQL语句之前，请确保已提前生成主密钥，并准备好访问主密钥的参数。 本节以完整的执行流程为例，介绍如何使用密态数据库语法，包括三个阶段：使用DDL阶段、使用DML阶段、清理阶段。 连接数据库，并通过-C参数开启全密态开关 gsql -p PORT -d DATABASE -h HOST -U USER -W PASSWORD -r -C 通过元命令设置访问主密钥的参数 注意：从keyType字符串开始，不要添加换行，不要添加空格，否则gsql工具无法识别完整参数 华为云支持两种认证方式，两种认证方式的参数个数与参数类型不同，选择其中一种方式即可 认证方式一 aksk认证 gaussdb=# \key_info keyType=hcs_kms,kmsProjectId={资源ID},ak={AK},sk={SK} 参数获取： 生成主密钥阶段介绍了如何获取相关参数：项目ID、AK、SK 示例： \key_info keyType=hcs_kms,kmsProjectId=0b59929e8100268a2f22c01429802728,ak=XMAUMJY******DFWLQW,sk=ga6rO8lx1Q4uB*********2gf80muIzUX 认证方式二 账号密码认证 gaussdb=# \key_info keyType=hcs_kms,iamUrl={ IAM服务器地址 },iamUser={用户名},iamPassword={用户密码},iamDomain={所属租户},kmsProject={资源空间名称} 参数获取： 生成主密钥阶段 介绍了如何获取上述提到的5个参数。 示例：\key_info keyType=hcs_kms,iamUrl=https://iam.xxx.com/v3/auth/tokens,iamUser=test_user,iamPassword=*********,iamDomain=test_account,kmsProject=xxx 定义主密钥 在生成主密钥阶段，密钥服务已生成并存储主密钥，执行本语法只是将主密钥的相关信息存储在数据库中，方便以后访问。该语法详细格式参考：《开发者指南》中“SQL参考 > SQL语法 > CREATE CLIENT MASTER KEY”章节。 gaussdb=# CREATE CLIENT MASTER KEY cmk1 WITH ( KEY_STORE = hcs_kms , KEY_PATH = '{KMS服务器地址}/{密钥ID}', ALGORITHM = AES_256); CREATE CLIENT MASTER KEY 参数获取： 生成主密钥阶段 介绍了如何获取如下参数：KMS服务器地址、密钥ID KEY_PATH示例：https://kms-scc-apig.sa-fb-1.console-arm2.com/v1.0/0b59929e8100268a2f22c01429802728/kms/9a262917-8b31-41af-a1e0-a53235f32de9 定义列密钥 列密钥由上一步定义的主密钥加密。详细语法参考：《开发者指南》中“SQL参考 > SQL语法 > CREATE COLUMN ENCRYPTION KEY”章节 gaussdb=# CREATE COLUMN ENCRYPTION KEY cek1 WITH VALUES (CLIENT_MASTER_KEY = cmk1, ALGORITHM  = AES_256_GCM); 定义加密表 本示例中，通过语法指定表中name和credit_card为加密列 gaussdb=# CREATE TABLE creditcard_info ( id_number int, name text encrypted with (column_encryption_key = cek1, encryption_type = DETERMINISTIC), credit_card varchar(19) encrypted with (column_encryption_key = cek1, encryption_type = DETERMINISTIC)); NOTICE:  The 'DISTRIBUTE BY' clause is not specified. Using 'id_number' as the distribution column by default.
+HINT:  Please use 'DISTRIBUTE BY' clause to specify suitable data distribution column.
+CREATE TABLE 对加密表进行其他操作 -- 向加密表写入数据 gaussdb=# INSERT INTO creditcard_info VALUES (1,'joe','6217986500001288393'); INSERT 0 1 gaussdb=# INSERT INTO creditcard_info VALUES (2, 'joy','6219985678349800033'); INSERT 0 1
+
+-- 从加密表中查询数据 gaussdb=# select * from creditcard_info where name = 'joe'; id_number | name |     credit_card
+-----------+------+---------------------
+         1 | joe  | 6217986500001288393
+
+-- 更新加密表中数据 gaussdb=# update creditcard_info set credit_card = '80000000011111111' where name = 'joy'; UPDATE 1
+
+-- 向表中新增一列加密列 gaussdb=# ALTER TABLE creditcard_info ADD COLUMN age int ENCRYPTED WITH (COLUMN_ENCRYPTION_KEY = cek1, ENCRYPTION_TYPE = DETERMINISTIC); ALTER TABLE
+
+-- 从表中删除一列加密列 gaussdb=# ALTER TABLE creditcard_info DROP COLUMN age; ALTER TABLE
+
+-- 从系统表中查询主密钥信息 gaussdb=# SELECT * FROM gs_client_global_keys; global_key_name | key_namespace | key_owner | key_acl |        create_date
+-----------------+---------------+-----------+---------+----------------------------
+ cmk1            |          2200 |        10 |         | 2021-04-21 11:04:00.656617
+(1 rows)
+
+-- 从系统表中查询列密钥信息 gaussdb=# SELECT column_key_name,column_key_distributed_id ,global_key_id,key_owner  FROM gs_column_keys; column_key_name | column_key_distributed_id | global_key_id | key_owner
+-----------------+---------------------------+---------------+-----------
+ cek1            |                 760411027 |         16392 |        10
+(1 rows)
+
+-- 查看表中列的元信息 gaussdb=# \d creditcard_info Table "public.creditcard_info"
+   Column    |       Type        | Modifiers
+-------------+-------------------+------------
+ id_number   | integer           |
+ name        | text              |  encrypted
+ credit_card | character varying |  encrypted 清理阶段 -- 删除加密表 gaussdb=# DROP TABLE creditcard_info; DROP TABLE
+
+-- 删除列密钥 gaussdb=# DROP COLUMN ENCRYPTION KEY cek1; DROP COLUMN ENCRYPTION KEY
+
+-- 删除主密钥 gaussdb=# DROP CLIENT MASTER KEY cmk1; DROP CLIENT MASTER KEY 父主题： 设置密态等值查询 版权所有 © 华为技术有限公司

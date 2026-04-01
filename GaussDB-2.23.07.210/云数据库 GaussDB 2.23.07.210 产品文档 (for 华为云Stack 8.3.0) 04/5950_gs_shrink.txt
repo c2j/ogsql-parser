@@ -1,0 +1,75 @@
+gs_shrink gs_shrink 集中式仅支持降副本操作，且不支持单独调用。 集中式单节点不支持该工具。 背景信息 随着业务场景和数据量的变化，需要数据库实例节点具有可扩展性以及可收缩性。 GaussDB 提供了gs_shrink工具来帮助完成对数据库实例节点进行降副本。 降副本前提条件 数据库实例状态为Normal，重分布状态为No，balanced状态为Yes。如果缩容副本为级联备，实例状态支持Normal或Degraded，约束为除级联备外其他主备正常。 整个数据库实例中的业务已全部停止且不能锁定数据库实例。 语法 物理数据库实例缩容 gs_shrink [-t contraction] {-h HOSTNAME | -f hostfile} [--parallel-jobs=NUMBER] [-l LOGFILE] [--redis-mode=MODE] [--resource-level=LEVL] [--join-tables=FILE] 重分布资源管控 gs_shrink -t resourcectl --resource-level=f/h/m/l 重分布参数设置 gs_shrink -t parametercfg [--lockwait-timeout=MSEC] [--lockwait-interval=SECS] [--trylock-threshold=NUMBER] [--enable-cancel=Boolean] [--last-catchup-threshold=MSEC] [--catchup-times=NUMBER] [--write-error-mode=Boolean] [--catchup-query-dop=NUMBER] [--parallel-catchup-threshold=NUMBER] [--parallel-reindex-jobs=NUMBER][--redis-retry-times=NUMBER][--redis-retry-interval=NUMBER] 逻辑数据库实例缩容 gs_shrink {-h HOSTNAME | -f hostfile} [--parallel-jobs=NUMBER] [-l LOGFILE] [--nodegroup-name=LCGROUPNAME] [--checkdisk] 加速数据库实例缩容 gs_shrink {-h HOSTNAME | -f hostfile} [--parallel-jobs=NUMBER] [-l LOGFILE] [--nodegroup-name=LCGROUPNAME] [--express] [--time-out=SECONDS][--rollback] 加速数据库实例回滚 gs_shrink {-h HOSTNAME | -f hostfile} [-l LOGFILE] [--time-out=SECONDS] --express --rollback 数据库实例降副本 gs_shrink -t reduce --offline [--reduce-ips=IPS] [--reduce-times=1] [--reduce-other] 显示帮助信息 gs_shrink -? | --help 显示版本号信息 gs_shrink -V | --version 接收数据库管理员密码 echo "password" | gs_shrink [-t [ reduce ]] {-h HOSTNAME | -f hostfile} [--parallel-jobs=NUMBER] [-l LOGFILE] 云上环境中，对于未开启Peer认证方式的数据库系统，可以使用此方式传入数据库管理员用户的密码，用于连接数据库进行运维操作。 参数说明 通用参数 -t gs_shrink命令参数类型。 取值范围：reduce（降副本），contraction（缩容），resourcectl（资源管控），parametercfg（重分布参数设置）。 不传入-t参数时，默认执行缩容操作。 -l 指定日志文件及存放路径。 默认值：$GAUSSLOG/om/gs_shrink-YYYY-MM-DD_hhmmss.log -?, --help 显示帮助信息。 -V, --version 显示版本号信息。 调用链接口参数 --trace-id 每次om请求的唯一标识，可根据om操作日志中的trace-id识别调用链从而进行故障定界。可选参数。 取值范围：1-128位的字符串，允许的字符为数字，字母和'-'。 缩容参数 -h HOSTNAME 指定需要缩容的DN环节点名称，中间用逗号分隔。 -f hostfile 指定需要缩容的DN环节点名称文件，文件每行为一个DN环节点名称，中间用逗号分隔。 文件内容如下： host1,host2,host3 host4,host5,host6 -h参数和-f参数只能同时指定一个。 --parallel-jobs=NUMBER 指定数据重分布过程的并发执行任务个数。 如果不指定--parallel-jobs参数，则数据重分布默认值为1，为非并发执行方式。 取值范围：[1, 8]，推荐并发任务数为4。 --join-tables= FILE 多表切换模式，输入为具有join关系的用户表配置文件。 取值范围：指定的文件路径，指定文件内容不能超过1000行。 指定文件格式。每一行格式为：database schema1 tablename1 schema2 tablename2 ...（每行的多张表构成一个分组（group））。例如： testdb public test1 public test2
+testdb public test3 public test4 public test5 注意： 不支持database、schema、tablename数据对象名称存在空格，schema和tablename名称中存在大写字母或者特殊字符时需要加双引号进行转义。 每一行schema tablename必须成对出现，唯一确定一张表。 一张表不能出现在多个分组中，每组的表数量必须大于等于2，小于等于5。 如果存在一个schema里的tablename为其他schema的名字时，会正常处理这张表不会报错。 --redis-mode=MODE 指定数据重分布的执行模式。 取值范围： read-only：只读模式。 insert：插入模式，正在进行重分布的表支持并发插入（insert）以及导入（Gds导入）。 如果不指定，默认为read-only模式。 --nodegroup-name=LCGROUPNAME 资源管控参数： --resource-level=RESLEVEL 指定数据重分布的资源等级。 取值范围： f：100%资源 h：50%资源 m：30%资源 l：10%资源 默认值：l 当资源管控参数设置为f时，进入快速重分布场景，会充分使用资源，通过并发操作提升数据重分布的性能。此时，如果shared_buffers参数值设置过小（小于推荐值），会影响此场景下的性能优化效果。 重分布参数设置接口参数 配置对应的全局系统表参数供重分布工具和缩容脚本查询使用，可以在重分布开始前和重分布过程中使用，缩容成功后清除所有参数配置。不设置对应参数则保留上次调用的结果，未设置过的参数重分布开始时写入默认值。 --lockwait-timeout 锁超时时间。如果等锁线程在该时间内无法拿到锁，则报锁超时失败。触发CANCEL模式拿锁时，实际使用的锁超时时间为此参数设置的2倍。 对应参数：lockwait_timeout 取值范围：[1,1200000] 单位：毫秒 默认值：4000 --lockwait-interval 等锁步长。连续拿锁超时的场景，如果此轮等锁超时，间隔该参数指定的时长进行下一轮尝试。 对应参数：lockwait_interval 取值范围：[0,300] 单位：秒 默认值：5 --trylock-threshold 等锁尝试次数上限。需和enable_cancel参数同时使用，如果到达该上限还因为等锁超时无法成功获取到锁，则下次拿锁使用CANCEL模式。未开启enable_cancel不生效。 对应参数：trylock_threshold 取值范围：[1,INT_MAX], -1（无上限） 单位：次 默认值：3 --enable-cancel 是否允许用户业务快速失败。即是否允许达到等锁尝试次数上限或切表事务获取用户表8级锁时，快速失败用户业务从而保证重分布成功拿锁。 对应参数：enable_cancel 取值范围：[false,true] 默认值：true 此模式默认开启，如果用户业务没有连接级重试机制，建议手动关闭此参数。 触发CANCEL模式拿锁时，会发送FATAL级报错，用户业务不是在锁队列中等待而是中断连接。 --last-catchup-threshold 最后一轮追增时间上限。即最后一轮完成delete+insert追增耗时。 对应参数：last_catchup_threshold 取值范围：[1000,60000] 单位：毫秒 默认值：5000 --catchup-times 追增轮次上限。超出上限后强制进行最后一轮追增。 对应参数：catchup_times 取值范围：[1,INT_MAX], -1 单位：次 默认值：-1（表示无上限） --write-error-mode 写报错模式。true表示写报错模式。false表示采用全阻塞模式进行最后一轮追增。 对应参数：write_error_mode 取值范围：[false,true] 默认值：true 此模式默认开启，如果用户业务没有会话级重试机制，建议手动关闭此参数。 开启写报错模式后，用户写业务会有ERROR级报错，而不是在锁队列中等待。 开启此模式后，为避免长时间处于写报错状态，可能触发重分布进程主动退出和自动拉起特性，此时缩容时间会变长，具体 请联系管理员处理 。 --catchup-query-dop 追增并行扫描度。 对应参数：catchup_query_dop 取值范围：[1,32] 单位：个 默认值：4 注：该参数设置过小可能导致追增性能下降，设置过大占用资源较多。 --parallel-catchup-threshold 多表重分布模式中开启并行追增所需的耗时阈值，一个分组中所有表追增耗时小于该值时，开启并行追增。 对应参数：parallel_catchup_threshold 取值范围：[1000,1800000] 单位：毫秒 默认值：300000 --parallel-reindex-jobs 同时临时表创建索引时的并发度，即多少个索引同时创建。 对应参数：parallel_reindex_jobs 取值范围：[1,64] 单位：个 默认值：2 --redis-retry-times 自动拉起重分布进程的次数上限，触发重分布进程主动退出时使用，拉起次数超出上限本轮重分布失败结束。 对应参数：redis_retry_times 取值范围：[0,100] 单位：次 默认值：5 --redis-retry-interval 自动拉起重分布进程的时间间隔，触发重分布进程主动退出时使用。 对应参数：redis_retry_interval 取值范围：[0,36000] 单位：秒 默认值：600 降副本参数 --offline 降副本模式，表示离线降副本。 --reduce-ips=IPS 被降副本的节点ip范围，多个使用逗号分隔。 --reduce-times=1 降副本次数，默认降1个副本。 --reduce-other 支持删除节点上的ETCD/CMS。 示例 数据库实例降副本操作 ： [Ruby@pekpomdev00063 script]$ gs_shrink -t reduce --offline
+{'action': 'reduce', 'online': False}
+Init global info successfully.
+Create step directory successfully.
+Cluster status is : Normal
+Cluster balanced is : Yes
+Cluster redistributing is : No
+Check reduce replica condition successfully.
+Successfully backup config file.
+Start getting all standby datanode.
+[<gspylib.common.DbClusterInfo.instanceInfo instance at 0x7fbae9872368>, <gspylib.common.DbClusterInfo.instanceInfo instance at 0x7fbae986cdd0>, <gspylib.common.DbClusterInfo.instanceInfo instance at 0x7fbae93f7320>]
+[['10.244.45.69'[['10.244.44.156']][['10.244.44.156', ][, , [['10.244.44.252''10.244.45.69']]]
+'10.244.44.252']
+]]
+Ready to perform sql: select group_members from pgxc_group;
+Ready to perform sql: select group_members from pgxc_group;
+ Ready to perform sql: select group_members from pgxc_group;
+Execute sql command output result is : 16384 16387 16390
+node_name in pgxc_node is: dn_6007_6008_6009
+Ready to perform sql: select oid from pgxc_node where node_name='dn_6007_6008_6009' and node_host='172.31.1.103' and node_type='S';
+Execute sql command output result is : 16384 16387 16390
+node_name in pgxc_node is: dn_6004_6005_6006
+Ready to perform sql: select oid from pgxc_node where node_name='dn_6004_6005_6006' and node_host='172.31.8.236' and node_type='S';
+Execute sql command output result is : 16384 16387 16390
+node_name in pgxc_node is: dn_6001_6002_6003
+Ready to perform sql: select oid from pgxc_node where node_name='dn_6001_6002_6003' and node_host='172.31.8.236' and node_type='S';
+Get node_name nad listen_ip oid in pgxc_node, output result is [16389]
+Get instance [10.244.44.252] oid successfully. [16389]
+Clear async standby datanode.[10.244.44.252]
+Get node_name nad listen_ip oid in pgxc_node, output result is [16386]
+Get instance [10.244.44.252] oid successfully. [16386]
+Clear async standby datanode.[10.244.44.252]
+Get node_name nad listen_ip oid in pgxc_node, output result is [16392]
+Get instance [10.244.45.69] oid successfully. [16392]
+Clear async standby datanode.[10.244.45.69]
+Get reduce datanode successfully.
+ ['10.244.44.252', '10.244.45.69']
+Stop reduce instance [/var/lib/engine/data1/data/dn_5] success.
+Stop reduce instance [/var/lib/engine/data1/data/dn_3] success.
+Stop reduce instance [/var/lib/engine/data1/data/dn_9] success.
+Start generate new cluster_static_config.
+Distribute cluster static config file successfully.
+New cluster static config file distribute successfully.
+Start update postgresql.conf in datanode instance.
+Update postgresql.conf successfully.
+node_name: dn_6007_6008_6009
+listenips: ['172.31.1.103']
+ hasips:['10.244.45.69']
+Ready to perform sql: delete from pgxc_node where node_host='172.31.1.103' and node_name='dn_6007_6008_6009' and node_type='S';
+Clear node in pgxc_node table successfully.
+node_name: dn_6001_6002_6003
+listenips: ['172.31.8.236']
+ hasips:['10.244.44.252']
+Ready to perform sql: delete from pgxc_node where node_host='172.31.8.236' and node_name='dn_6001_6002_6003' and node_type='S';
+Clear node in pgxc_node table successfully.
+node_name: dn_6004_6005_6006
+listenips: ['172.31.8.236']
+ hasips:['10.244.44.252']
+Ready to perform sql: delete from pgxc_node where node_host='172.31.8.236' and node_name='dn_6004_6005_6006' and node_type='S';
+Clear node in pgxc_node table successfully.
+Update pgxc_node table successfully.
+Start update pg_hba.conf .
+Update pg_hba successfully.
+Starting new cluster.
+Clear dynamic config file in cluster successfully.
+Kill cluster manager process successfully.
+...
+Start cluster successfully. Cluster already normal.
+Restart cluster finish.Reset dynamic config file successfully.
+============================
+Reduce replica successfully.
+['10.244.44.252', '10.244.45.69']
+============================
+Clean backup file successfully. 相关命令 gs_expand 父主题： 系统内部调用的工具 版权所有 © 华为技术有限公司

@@ -1,0 +1,33 @@
+执行动态非查询语句 执行动态非查询语句 语法 语法请参见 图1 。 图1 noselect::= using_clause子句的语法参见 图2 。 图2 using_clause::= 对以上语法格式的解释如下： USING IN bind_argument用于指定存放传递给动态SQL值的变量，在dynamic_noselect_string中存在占位符时使用，即动态SQL语句执行时，bind_argument将替换相对应的占位符。要注意的是，bind_argument只能是值、变量或表达式，不能是表名、列名、数据类型等数据库对象。如果存储过程需要通过声明参数传递数据库对象来构造动态SQL语句（常见于执行DDL语句时），建议采用连接运算符“||”拼接dynamic_select_clause。另外，动态语句允许出现重复的占位符，相同占位符只能与唯一一个bind_argument按位置一一对应。当设置guc参数 behavior_compat_options 值为dynamic_sql_compat时，会按照占位符的顺序依次匹配USING子句bind_argument，重复的占位符不会再识别为同一个占位符。 示例 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27
+28
+29
+30
+31
+32
+33 --创建表 gaussdb =# CREATE TABLE sections_t1 ( section NUMBER ( 4 ) , section_name VARCHAR2 ( 30 ), manager_id NUMBER ( 6 ), place_id NUMBER ( 4 ) ); --声明变量 gaussdb =# DECLARE section NUMBER ( 4 ) : = 280 ; section_name VARCHAR2 ( 30 ) : = 'Info support' ; manager_id NUMBER ( 6 ) : = 103 ; place_id NUMBER ( 4 ) : = 1400 ; new_colname VARCHAR2 ( 10 ) : = 'sec_name' ; BEGIN --执行查询 EXECUTE IMMEDIATE 'insert into sections_t1 values(:1, :2, :3, :4)' USING section , section_name , manager_id , place_id ; --执行查询（重复占位符） EXECUTE IMMEDIATE 'insert into sections_t1 values(:1, :2, :3, :1)' USING section , section_name , manager_id ; --执行ALTER语句（建议采用“||”拼接数据库对象构造DDL语句） EXECUTE IMMEDIATE 'alter table sections_t1 rename section_name to ' || new_colname ; END ; / --查询数据 gaussdb =# SELECT * FROM sections_t1 ; --删除表 gaussdb =# DROP TABLE sections_t1 ; 父主题： 动态语句 版权所有 © 华为技术有限公司

@@ -1,0 +1,13 @@
+define和undef指令 define和undef指令 嵌入式SQL具有类似于C语言中#define指令： EXEC SQL DEFINE name;
+EXEC SQL DEFINE name value;
+EXEC SQL UNDEF name; 示例如下： /* 定义名称 */
+EXEC SQL DEFINE HAVE_FEATURE;
+
+/* 定义常量 */
+EXEC SQL DEFINE MYNUMBER 12;
+EXEC SQL DEFINE MYSTRING 'abc';
+
+/* 使用 UNDEF 移除定义 */
+EXEC SQL UNDEF MYNUMBER; 在嵌入式SQL程序中也可以使用C语言版本的#define和#undef。区别在于定义的值会在哪里被计算，如果使用EXEC SQL DEFINE，那么ecpg预处理阶段会计算这些定义并替换值。如下示例，ecpg对其进行替换并且编译器不会解析名为MYNUMBER的任何名称或标识符： EXEC SQL DEFINE MYNUMBER 12; 
+... 
+EXEC SQL UPDATE Tbl SET col = MYNUMBER; 不能把#define用于一个将要在一个嵌入式SQL查询中使用的变量，因为在这种情况下嵌入式SQL预编译器不能看到这个声明。 父主题： 预处理指令 版权所有 © 华为技术有限公司

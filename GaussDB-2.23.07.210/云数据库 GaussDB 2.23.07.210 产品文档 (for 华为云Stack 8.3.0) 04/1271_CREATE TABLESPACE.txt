@@ -1,0 +1,29 @@
+CREATE TABLESPACE CREATE TABLESPACE 功能描述 在数据库中创建一个新的表空间。 注意事项 系统管理员或者继承了内置角色gs_role_tablespace权限的用户可以创建表空间。 不允许在一个事务块内部执行CREATE TABLESPACE。 执行CREATE TABLESPACE失败，如果内部创建目录（文件）操作成功了就会产生残留的目录（文件），重新创建时需要用户手动清理表空间指定的目录下残留的内容。如果在创建过程中涉及到数据目录下的表空间软连接残留，需要先将软连接的残留文件删除，再重新执行OM相关操作。 CREATE TABLESPACE不支持两阶段事务，如果部分节点执行失败，不支持回滚。 创建表空间前的准备工作参考下述参数说明。 在HCS等场景下一般不建议用户使用自定义的表空间。 原因：用户自定义表空间通常配合主存（即默认表空间所在的存储设备，如磁盘）以外的其它存储介质使用，以隔离不同业务可以使用的IO资源，而在HCS等场景下，存储设备都是采用标准化的配置，无其它可用的存储介质，自定义表空间使用不当不利于系统长稳运行以及影响整体性能，因此建议使用默认表空间即可。 语法格式 1
+2
+3 CREATE TABLESPACE tablespace_name [ OWNER user_name ] [ RELATIVE ] LOCATION 'directory' [ MAXSIZE 'space_size' ] [ with_option_clause ]; 其中普通表空间的with_option_clause为： 1
+2
+3 WITH ( { filesystem = { 'general' | "general" | general } | random_page_cost = { 'value ' | value } | seq_page_cost = { 'value ' | value }} [,...]) 参数说明 tablespace_name 要创建的表空间名称。 表空间名称不能和数据 集群 中的其他表空间重名，且名称不能以"pg"开头，这样的名称留给系统表空间使用。 取值范围：字符串，要符合 标识符命名规范 。 OWNER user_name 指定该表空间的所有者。缺省时，新表空间的所有者是当前用户。 只有系统管理员可以创建表空间，但是可以通过OWNER子句把表空间的所有权赋给其他非系统管理员。 取值范围：字符串，已存在的用户。 RELATIVE 若指定该参数，表示使用相对路径，LOCATION目录是相对于各个CN/DN数据目录下的。 目录层次：CN和DN的数据目录/pg_location/相对路径。相对路径最多指定两层。 若没有指定该参数，表示使用绝对表空间路径，LOCATION目录需要使用绝对路径。 LOCATION directory 用于表空间的目录。当创建绝对表空间路径时，对于目录有如下要求： GaussDB 系统用户必须对该目录拥有读写权限，并且目录为空。如果该目录不存在，将由系统自动创建。 目录必须是绝对路径，目录中不得含有特殊字符（如$,> 等）。 目录不允许指定在数据库数据目录下。 目录需为本地路径。 取值范围：字符串，有效的目录。 MAXSIZE 'space_size' 指定表空间在单个 DN 上的最大值。 取值范围：字符串格式为正整数+单位，单位当前支持K/M/G/T/P。解析后的数值以K为单位，且范围不能够超过64比特表示的有符号整数，即1KB~9007199254740991KB。 filesystem 指定表空间使用的文件系统。 取值范围： general：普通文件系统。 hdfs：Hadoop分布式文件系统。当前版本不支持。 默认值：general。 random_page_cost 指定随机读取page的开销。 取值范围：0~1.79769e+308。 默认值：使用GUC参数random_page_cost的值。 seq_page_cost 指定顺序读取page的开销。 取值范围：0~1.79769e+308。 默认值：使用GUC参数seq_page_cost的值。 示例 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25 --创建表空间。 gaussdb =# CREATE TABLESPACE ds_location1 RELATIVE LOCATION 'test_tablespace/test_tablespace_1' ; --创建用户joe。 gaussdb =# CREATE ROLE joe IDENTIFIED BY '********' ; --创建用户jay。 gaussdb =# CREATE ROLE jay IDENTIFIED BY '********' ; --创建表空间，且所有者指定为用户joe。 gaussdb =# CREATE TABLESPACE ds_location2 OWNER joe RELATIVE LOCATION 'test_tablespace/test_tablespace_2' ; --把表空间ds_location1重命名为ds_location3。 gaussdb =# ALTER TABLESPACE ds_location1 RENAME TO ds_location3 ; --改变表空间ds_location2的所有者。 gaussdb =# ALTER TABLESPACE ds_location2 OWNER TO jay ; --删除表空间。 gaussdb =# DROP TABLESPACE ds_location2 ; gaussdb =# DROP TABLESPACE ds_location3 ; --删除用户。 gaussdb =# DROP ROLE joe ; gaussdb =# DROP ROLE jay ; 相关链接 CREATE DATABASE ， CREATE TABLE ， CREATE INDEX ， DROP TABLESPACE ， ALTER TABLESPACE 优化建议 create tablespace 不建议在事务内部创建表空间。 父主题： C 版权所有 © 华为技术有限公司

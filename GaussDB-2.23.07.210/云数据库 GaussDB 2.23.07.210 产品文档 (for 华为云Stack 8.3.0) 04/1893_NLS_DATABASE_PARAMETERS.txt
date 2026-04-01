@@ -1,0 +1,1 @@
+NLS_DATABASE_PARAMETERS NLS_DATABASE_PARAMETERS NLS_DATABASE_PARAMETERS列出数据库服务器端的永久NLS参数。该视图同时存在于PG_CATALOG和SYS Schema下。所有用户都可以访问。由于数据库内核不同、参数的设置格式不同等原因，该视图对相同参数的查询结果可能会和ORA数据库有明显差异。具体字段信息如 表1 所示。 表1 NLS_DATABASE_PARAMETERS字段 名称 类型 描述 parameter character varying(128) 参数名。 value character varying(64) 参数值。 父主题： 其他系统视图 版权所有 © 华为技术有限公司

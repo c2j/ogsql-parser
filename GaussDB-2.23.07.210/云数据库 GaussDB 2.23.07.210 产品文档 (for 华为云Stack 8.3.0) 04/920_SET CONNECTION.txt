@@ -1,0 +1,2 @@
+SET CONNECTION SET CONNECTION 功能描述 设置一个数据库连接。 语法格式 SET CONNECTION [ TO | = ] connection_name 参数说明 connection_name 通过CONNECT命令创建数据库连接名字。 示例 EXEC SQL SET CONNECTION TO con2;
+EXEC SQL SET CONNECTION = con1; 相关链接 CONNECT ， DISCONECT 父主题： 嵌入式SQL命令 版权所有 © 华为技术有限公司

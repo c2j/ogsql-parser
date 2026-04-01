@@ -1,0 +1,2 @@
+ALTER LARGE OBJECT ALTER LARGE OBJECT 功能描述 ALTER LARGE OBJECT用于更改一个large object的定义。它唯一的功能是分配一个新的所有者。 注意事项 使用ALTER LARGE OBJECT必须是系统管理员或者是其所有者。 语法格式 ALTER LARGE OBJECT large_object_oid 
+    OWNER TO new_owner; 参数说明 large_object_oid 要被变large object的OID 。 取值范围：已存在的大对象名。 OWNER TO new_owner large object新的所有者。 取值范围：已存在的用户名/角色名。 示例 无。 父主题： A 版权所有 © 华为技术有限公司

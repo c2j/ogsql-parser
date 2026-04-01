@@ -1,0 +1,15 @@
+BEGIN BEGIN 功能描述 BEGIN可以用于开始一个匿名块，也可以用于开始一个事务。本节描述用BEGIN开始匿名块的语法，以BEGIN开始事务的语法见 START TRANSACTION 。 匿名块是能够动态地创建和执行过程代码的结构，而不需要以持久化的方式将代码作为数据库对象储存在数据库中。 语法格式 开启匿名块 1
+2
+3
+4
+5 [ DECLARE [ declare_statements ]] BEGIN execution_statements END ; / 开启事务 1
+2
+3
+4
+5
+6
+7 BEGIN [ WORK | TRANSACTION ] [ { ISOLATION LEVEL { READ COMMITTED | SERIALIZABLE | REPEATABLE READ } | { READ WRITE | READ ONLY } } [, ...] ]; 参数说明 declare_statements 声明变量，包括变量名和变量类型，如“sales_cnt int”。 execution_statements 匿名块中要执行的语句。 取值范围：已存在的函数名称。 示例 1
+2
+3
+4
+5 --使用匿名块输出字符串。 gaussdb =# BEGIN dbe_output . print_line ( 'Hello' ); END ; / 相关链接 START TRANSACTION 父主题： B 版权所有 © 华为技术有限公司

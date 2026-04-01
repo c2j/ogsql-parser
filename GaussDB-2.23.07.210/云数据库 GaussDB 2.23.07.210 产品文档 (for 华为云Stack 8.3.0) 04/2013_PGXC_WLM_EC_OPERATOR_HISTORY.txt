@@ -1,0 +1,1 @@
+PGXC_WLM_EC_OPERATOR_HISTORY PGXC_WLM_EC_OPERATOR_HISTORY PGXC_WLM_EC_OPERATOR_HISTORY视图显示在所有CN上执行的EC（Extension Connector）作业结束时的算子信息。查询该视图需要sysadmin权限。此视图从数据库中查询的数据，视图中的记录会定时被清理，清理周期为3分钟。具体的字段请参见 GS_WLM_EC_OPERATOR_INFO 的字段。 当查询视图无数据显示时，请联系华为工程师提供技术支撑。 父主题： 系统视图 版权所有 © 华为技术有限公司

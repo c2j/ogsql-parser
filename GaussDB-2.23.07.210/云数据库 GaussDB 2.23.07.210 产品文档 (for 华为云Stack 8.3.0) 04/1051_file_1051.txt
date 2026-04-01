@@ -1,0 +1,42 @@
+二进制类型 二进制类型 GaussDB 支持的二进制类型请参见 表1 。 表1 二进制类型 名称 描述 存储空间 BLOB 二进制大对象。 目前BLOB支持的外部存取接口仅为： DBE_LOB.GET_LENGTH DBE_LOB.READ DBE_LOB.WRITE DBE_LOB.WRITE_APPEND DBE_LOB.COPY DBE_LOB.ERASE 这些接口详细说明请参见 DBE_LOB 。 最大为1GB减去6字节（即1073741818字节）。 当sql_compatibility = 'MYSQL'时，设置参数b_format_version = '5.7'和参数b_format_dev_version = 's1'时，BLOB类型映射为BYTEA类型，别名为BYTEA。 具体存储规格参考BYTEA类型。 TINYBLOB MEDIUMBLOB LONGBLOB 二进制大对象。 具体存储规格参考BYTEA类型。 只有当sql_compatibility = 'MYSQL'时，设置参数b_format_version = '5.7'和参数b_format_dev_version = 's1'时，可以使用此类型，类型映射为BYTEA类型，别名为BYTEA。 RAW 变长的十六进制类型 最大为1GB减去6字节（即1073741818字节）。 BYTEA 变长的二进制字符串 最大为1GB减去(56+24+5+1+前n列总字节数）。比如表为(a int, b bytea); 最长存储为1GB – 56 – 24 -5 -1– 4(int) = 1073741735。 除了每列的大小限制以外，每个元组的总大小也不可超过1GB-53字节（即1073741771字节）。 RAW(n)，n是指字节长度建议值，不会用于校验输入RAW类型的字节长度。 当sql_compatibility = 'MYSQL'时，设置参数b_format_version = '5.7'和参数b_format_dev_version = 's1'时，TINYBLOB、BLOB、MEDIUMBLOB、LONGBLOB类型的表现规格为BYTEA类型，如查询表结构显示为BYTEA类型。 示例: 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27
+28
+29
+30
+31
+32
+33
+34
+35
+36
+37
+38
+39
+40
+41
+42 --创建表。 gaussdb =# CREATE TABLE blob_type_t1 ( BT_COL1 INTEGER , BT_COL2 BLOB , BT_COL3 RAW , BT_COL4 BYTEA ) DISTRIBUTE BY REPLICATION ; --插入数据。 gaussdb =# INSERT INTO blob_type_t1 VALUES ( 10 , empty_blob (), HEXTORAW ( 'DEADBEEF' ), E '\\xDEADBEEF' ); --查询表中的数据。 gaussdb =# SELECT * FROM blob_type_t1 ; bt_col1 | bt_col2 | bt_col3 | bt_col4 ---------+---------+----------+------------ 10 | | DEADBEEF | \ xdeadbeef ( 1 row ) --删除表。 gaussdb =# DROP TABLE blob_type_t1 ; --示例：TINYBLOB MEDIUMBLOB LONGBLOB二进制大对象类型 gaussdb =# CREATE DATABASE gaussdb_m WITH dbcompatibility 'MYSQL' ; gaussdb =# \ c gaussdb_m --设置兼容版本控制参数 gaussdb_m =# SET b_format_version = '5.7' ; gaussdb_m =# SET b_format_dev_version = 's1' ; --创建表 gaussdb_m =# CREATE TABLE t1 ( num int , a tinyblob , b blob , m mediumblob , l longblob ); --插入数据 gaussdb_m =# INSERT INTO t1 VALUES ( 1 , 'tinyblobtest' , 'blobtest' , 'mediumblobtest' , 'longblobtest' ); --查询表中数据 gaussdb_m =# SELECT * FROM t1 ; num | a | b | m | l -----+--------------+----------+----------------+-------------- 1 | tinyblobtest | blobtest | mediumblobtest | longblobtest ( 1 row ) --删除表 gaussdb_m =# DROP TABLE t1 ; 父主题： 数据类型 版权所有 © 华为技术有限公司

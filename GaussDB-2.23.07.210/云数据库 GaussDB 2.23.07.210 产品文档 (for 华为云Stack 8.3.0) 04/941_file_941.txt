@@ -1,0 +1,29 @@
+设置回调 设置回调 设置回调操作，当告警或者错误发生时，直接执行具体操作进行处理，设置回调命令如下： EXEC SQL WHENEVER condition action; condition取值范围： SQLERROR：当在SQL语句执行期间发生错误时，调用指定操作。 SQLWARNING：当在SQL语句执行期间发生告警时，调用指定操作。 NOT FOUND：当SQL语句检索或者影响为零行时，调用指定操作。 action取值范围： CONTINUE：忽略回调错误条件，继续执行，通常可以用来停止break包含条件，为缺省值。 GOTO label/GO TO label：跳转到指定标签（使用C语言goto语句）。 SQLPRINT：输出消息到标准错误。 STOP：调用exit(1)，终止程序。 DO BREAK：执行C语句break，只能在循环中或者switch语句中使用。 示例如下： /* 当出现一个告警时它打印一个消息，发生一个错误时中止程序。 */
+EXEC SQL WHENEVER SQLWARNING SQLPRINT; 
+EXEC SQL WHENEVER SQLERROR STOP; 语句EXEC SQL WHENEVER是SQL预处理器的一个指令，而非一个C语言语句。不管C语言程序的流程如何，该语句设置的错误或告警动作都适用于位于处理程序设置点之后的嵌入式SQL语句，除非第一个EXEC SQL WHENEVER语句和导致错误或告警情况发生的SQL语句之间为同一个情况设置了不同的动作。因此下面的两个C语言程序都不会得到预期的效果： /*  
+ * 错误  
+ */ 
+void func()
+{
+    ...     
+    if (verbose) { 
+        EXEC SQL WHENEVER SQLWARNING SQLPRINT;
+    }
+    ...     
+    EXEC SQL SELECT ...;    
+    ... 
+} /* 
+ * 错误 
+ */ 
+void func()
+{ 
+    ... 
+    set_error_handler(); 
+    ... 
+    EXEC SQL SELECT ...; 
+    ... 
+}  
+static void set_error_handler(void) 
+{ 
+    EXEC SQL WHENEVER SQLERROR STOP; 
+} 当使用DO BREAK时只能用于while/for/switch场景，且用完需要使用CONTINUE语句忽略。 父主题： 错误处理 版权所有 © 华为技术有限公司

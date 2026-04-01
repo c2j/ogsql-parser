@@ -1,0 +1,3 @@
+用户权限设置 用户权限设置 给用户直接授予某对象的权限，请使用 GRANT 。 将Schema中的表或者视图对象授权给其他用户或角色时，需要将表或视图所属Schema的USAGE权限同时授予该用户或角色。否则用户或角色将只能看到这些对象的名称，并不能实际进行对象访问。 例如，下面示例将Schema tpcds的权限赋给用户joe后，将表 tpcds. web_returns的select权限赋给用户joe。 1
+2 gaussdb =# GRANT USAGE ON SCHEMA tpcds TO joe ; gaussdb =# GRANT SELECT ON TABLE tpcds . web_returns to joe ; 给用户指定角色，使用户继承角色所拥有的对象权限。 创建角色。 新建一个角色lily，同时给角色指定系统权限CREATEDB： 1 gaussdb =# CREATE ROLE lily WITH CREATEDB PASSWORD "********" ; 给角色赋予对象权限，请使用 GRANT 。 例如，将模式tpcds的权限赋给角色lily后，将表 tpcds. web_returns的select权限赋给角色lily。 1
+2 gaussdb =# GRANT USAGE ON SCHEMA tpcds TO lily ; gaussdb =# GRANT SELECT ON TABLE tpcds . web_returns to lily ; 将角色的权限赋予用户。 1 gaussdb =# GRANT lily to joe ; 当将角色的权限赋予用户时，角色的属性并不会传递到用户。 回收用户权限，请使用 REVOKE 。 父主题： 用户及权限 版权所有 © 华为技术有限公司

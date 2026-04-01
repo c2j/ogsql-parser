@@ -1,0 +1,108 @@
+EXPLAIN EXPLAIN 功能描述 显示SQL语句的执行计划。 执行计划将显示SQL语句所引用的表会采用什么样的扫描方式，如：简单的顺序扫描、索引扫描等。如果引用了多个表，执行计划还会显示用到的JOIN算法。 执行计划的最关键的部分是语句的预计执行开销，这是计划生成器估算执行该语句将花费多长的时间。 若指定了ANALYZE选项，则该语句会被执行，然后根据实际的运行结果显示统计数据，包括每个计划节点内时间总开销（毫秒为单位）和实际返回的总行数。这对于判断计划生成器的估计值是否接近实际值非常有用。 注意事项 在指定ANALYZE选项时，语句会被执行。如果用户想使用EXPLAIN分析INSERT，UPDATE，DELETE，CREATE TABLE AS或EXECUTE语句，而不想改动数据（执行这些语句会影响数据），请使用这种方法： 1
+2
+3 START TRANSACTION ; EXPLAIN ANALYZE ...; ROLLBACK ; 语法格式 显示SQL语句的执行计划，支持多种选项，对选项顺序无要求。 1 EXPLAIN [ ( option [, ...] ) ] statement ; 其中选项option子句的语法为。 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13 ANALYZE [ boolean ] | ANALYSE [ boolean ] | VERBOSE [ boolean ] | COSTS [ boolean ] | CPU [ boolean ] | DETAIL [ boolean ] | NODES [ boolean ] | NUM_NODES [ boolean ] | BUFFERS [ boolean ] | TIMING [ boolean ] | PLAN [ boolean ] | BLOCKNAME [ boolean ] | FORMAT { TEXT | XML | JSON | YAML } 显示SQL语句的执行计划，且要按顺序给出选项。 1 EXPLAIN { [ ANALYZE | ANALYSE ] [ VERBOSE ] | PERFORMANCE } statement ; 参数说明 statement 指定要分析的SQL语句。 ANALYZE boolean | ANALYSE boolean 显示实际运行时间和其他统计数据。当两个参数同时使用时，在option中排在后面的一个生效。 取值范围： TRUE（缺省值）：显示实际运行时间和其他统计数据。 FALSE：不显示。 VERBOSE boolean 显示有关计划的额外信息。 取值范围： TRUE（缺省值）：显示额外信息。 FALSE：不显示。 COSTS boolean 包括每个规划节点的估计总成本，以及估计的行数和每行的宽度。 取值范围： TRUE（缺省值）：显示估计总成本和宽度。 FALSE：不显示。 CPU boolean 打印CPU的使用情况的信息。需要结合ANALYZE或ANALYSE选项一起使用。 取值范围： TRUE（缺省值）：显示CPU的使用情况。 FALSE：不显示。 DETAIL boolean 打印 DN 上的信息。需要结合ANALYZE或ANALYSE选项一起使用。 取值范围： TRUE（缺省值）：打印 DN 的信息。 FALSE：不打印。 NODES boolean 打印query执行的节点信息。 取值范围： TRUE（缺省值）：打印执行的节点的信息。 FALSE：不打印。 NUM_NODES boolean 打印执行中的节点的个数信息。 取值范围： TRUE（缺省值）：打印 DN 个数的信息。 FALSE：不打印。 BUFFERS boolean 包括缓冲区的使用情况的信息。需要结合ANALYZE或ANALYSE选项一起使用。 取值范围： TRUE：显示缓冲区的使用情况。 FALSE（缺省值）：不显示。 TIMING boolean 包括实际的启动时间和花费在输出节点上的时间信息。需要结合ANALYZE或ANALYSE选项一起使用。 取值范围： TRUE（缺省值）：显示启动时间和花费在输出节点上的时间信息。 FALSE：不显示。 PLAN boolean 是否将执行计划存储在plan_table中。当该选项开启时，会将执行计划存储在plan_table中，不打印到当前屏幕，因此该选项为on时，不能与其他选项同时使用。 取值范围： TRUE（缺省值）：将执行计划存储在plan_table中，不打印到当前屏幕。执行成功返回EXPLAIN SUCCESS。 FALSE：不存储执行计划，将执行计划打印到当前屏幕。 BLOCKNAME boolean 是否显示计划的每个操作所处于的查询块。当该选项开启时，会将每个操作所处于的查询块的名字输出在Query Block列上，方便用户获取查询块名字，并使用Hint修改执行计划： TRUE（缺省值）：显示计划时，将每个操作所处于的查询块的名字输出在新增列Query Block列上。该选项需要在pretty模式下使用。见 指定Hint所处的查询块Queryblock 章节。 FALSE：不对计划显示产生影响。 FORMAT 指定输出格式。 取值范围：TEXT，XML，JSON和YAML。 默认值：TEXT。 PERFORMANCE 使用此选项时，即打印执行中的所有相关信息。下述为部分信息描述： ex c/r：代表平均每行使用cpu周期数，等于（ex cyc）/（ex row）。 ex row：执行行数。 ex cyc：代表使用的cpu周期数。 inc cyc：代表包含子节点使用的总cpu周期数。 shared hit：代表算子的share buffer命中情况。 loops：算子循环执行次数。 total_calls：生成元素总数 remote query poll time stream gather：算子用于侦听各DN数据到达CN的网络poll时间。 deserialize time：反序列化所需时间。 estimated time：估计时间。 示例 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27
+28
+29
+30
+31
+32
+33
+34
+35
+36
+37
+38
+39
+40
+41
+42
+43
+44
+45
+46
+47
+48
+49
+50
+51
+52
+53
+54
+55
+56
+57
+58
+59
+60
+61
+62
+63
+64
+65
+66
+67
+68
+69
+70
+71
+72
+73
+74
+75
+76
+77
+78
+79
+80
+81
+82
+83
+84
+85
+86
+87
+88
+89
+90
+91
+92
+93
+94 --创建SCHEMA。 gaussdb =# CREATE SCHEMA tpcds ; --创建表tpcds.customer_address。 gaussdb =# CREATE TABLE tpcds . customer_address ( ca_address_sk INTEGER NOT NULL , ca_address_id CHARACTER ( 16 ) NOT NULL ); --向表中插入多条记录。 gaussdb =# INSERT INTO tpcds . customer_address VALUES ( 5000 , 'AAAAAAAABAAAAAAA' ),( 10000 , 'AAAAAAAACAAAAAAA' ); --创建一个表tpcds.customer_address_p1。 gaussdb =# CREATE TABLE tpcds . customer_address_p1 AS TABLE tpcds . customer_address ; --修改explain_perf_mode为normal。 gaussdb =# SET explain_perf_mode = normal ; --显示表简单查询的执行计划。 gaussdb =# EXPLAIN SELECT * FROM tpcds . customer_address_p1 ; QUERY PLAN -------------------------------------------------- Data Node Scan ( cost = 0 . 00 .. 0 . 00 rows = 0 width = 0 ) Node / s : All datanodes ( 2 rows ) --以JSON格式输出的执行计划（explain_perf_mode为normal时）。 gaussdb =# EXPLAIN ( FORMAT JSON ) SELECT * FROM tpcds . customer_address_p1 ; QUERY PLAN -------------------------------------- [ + { + "Plan" : { + "Node Type" : "Data Node Scan" , + "Startup Cost" : 0 . 00 , + "Total Cost" : 0 . 00 , + "Plan Rows" : 0 , + "Plan Width" : 0 , + "Node/s" : "All datanodes" + } + } + ] ( 1 row ) --如果有一个索引，当使用一个带索引WHERE条件的查询，可能会显示一个不同的计划。 gaussdb =# EXPLAIN SELECT * FROM tpcds . customer_address_p1 WHERE ca_address_sk = 10000 ; QUERY PLAN -------------------------------------------------- Data Node Scan ( cost = 0 . 00 .. 0 . 00 rows = 0 width = 0 ) Node / s : dn_6005_6006 ( 2 rows ) --以YAML格式输出的执行计划（explain_perf_mode为normal时）。 gaussdb =# EXPLAIN ( FORMAT YAML ) SELECT * FROM tpcds . customer_address_p1 WHERE ca_address_sk = 10000 ; QUERY PLAN --------------------------------- - Plan : + Node Type : "Data Node Scan" + Startup Cost : 0 . 00 + Total Cost : 0 . 00 + Plan Rows : 0 + Plan Width : 0 + Node / s : "dn_6005_6006" ( 1 row ) --禁止开销估计的执行计划。 gaussdb =# EXPLAIN ( COSTS FALSE ) SELECT * FROM tpcds . customer_address_p1 WHERE ca_address_sk = 10000 ; QUERY PLAN ------------------------ Data Node Scan Node / s : dn_6005_6006 ( 2 rows ) --带有聚集函数查询的执行计划。 gaussdb =# EXPLAIN SELECT SUM ( ca_address_sk ) FROM tpcds . customer_address_p1 WHERE ca_address_sk < 10000 ; QUERY PLAN --------------------------------------------------------------------------------------- Aggregate ( cost = 18 . 19 .. 14 . 32 rows = 1 width = 4 ) -> Streaming ( type : GATHER ) ( cost = 18 . 19 .. 14 . 32 rows = 3 width = 4 ) Node / s : All datanodes -> Aggregate ( cost = 14 . 19 .. 14 . 20 rows = 3 width = 4 ) -> Seq Scan on customer_address_p1 ( cost = 0 . 00 .. 14 . 18 rows = 10 width = 4 ) Filter : ( ca_address_sk < 10000 ) ( 6 rows ) --删除表tpcds.customer_address_p1。 gaussdb =# DROP TABLE tpcds . customer_address_p1 ; --删除表tpcds.customer_address。 gaussdb =# DROP TABLE tpcds . customer_address ; --删除SCHEMA。 gaussdb =# DROP SCHEMA tpcds CASCADE ; 相关链接 ANALYZE | ANALYSE 父主题： E 版权所有 © 华为技术有限公司

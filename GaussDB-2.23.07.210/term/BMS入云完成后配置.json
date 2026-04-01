@@ -1,0 +1,36 @@
+{
+  "topic": "BMS入云完成后配置",
+  "term_count": 6,
+  "terms": [
+    {
+      "term": "设置RootAddress",
+      "content": "设置RootAddress 设置RootAddress 操作步骤 登录Service OM 。 进入服务列表->DBS运维平台->配置管理->系统参数管理。 下拉选择DBS_SYSTEM_PARAMETER，搜索内容 bmsRootAddress。 查看对应参数值结果是否为空，若为空，则搜索“ecsRootAddress”，将其中的参数值填写入“bmsRootAddress”中。",
+      "source_file": "6078_RootAddress.txt"
+    },
+    {
+      "term": "设置backup.space",
+      "content": "设置backup.space 和volume 设置backup.space 和volume 操作步骤 登录Service OM 。 进入服务列表->DBS运维平台->配置管理->规格管理。 通过规格码条件搜索  gaussdb.opengauss.backup.space。 在搜索结果中，查看操作列。 在操作列中，单击 “查看引擎关系” 在弹窗中，按如下顺序操作：。 在“可用区”中，点击“全选”。 单击“全选/反选”。 单击“批量关联”。 通过规格码条件搜索  opengauss.volume.localssd。 在搜索结果中，按如下顺序操： 单击列表全选框。 单击“批量操作”。 选中“批量关联引擎规格” 进入批量关联引擎规格弹窗页面中，按如下顺序操作： 在“可用区”中，选中所有BMS AZ。 单击“全选/反选”。 单击“批量关联”。 绑定完成。",
+      "source_file": "6077_backup.space volume.txt"
+    },
+    {
+      "term": "规格与引擎、可用分区绑定",
+      "content": "规格与引擎、可用分区绑定 规格与引擎、可用分区绑定 操作步骤 登录Service OM 。 进入服务列表->DBS运维平台->配置管理->规格管理。 在页面搜索对应的BMS规格。 在搜索结果中，查看当前数据的操作列。 在操作列中，单击查看引擎关系。 设置内容如表格 表1 所示 表1 查看引擎关系的参数设置 参数名 参数值 可用区 对应的BMS AZ 引擎版本 按需选择 单击批量关联 在操作列中，单击更多->查看属性。 设置内容如表格 表2 所示 表2 查看属性参数设置 参数名 参数值 physicalDiskSize 磁盘大小 flavor 规格ID",
+      "source_file": "6076_file_6076.txt"
+    },
+    {
+      "term": "创建BMS规格",
+      "content": "创建BMS规格 创建BMS规格 操作步骤 登录Service OM 。 在页面上方菜单，进入服务列表->裸金属资源。 进入裸金属资源页面，单击左侧菜单规格，进入规格列表页面。 按照规划好的CPU以及内存，在规格列表中查找相同CPU和相同内存规格码，单击操作列中复制。 进入复制规格弹窗中，设置的参数如下表格 表1 要求所示，不在表格内的参数保持默认。 表1 复制规格参数设置 参数名 参数值 CPU架构 按实际架构填写 名称 设置规则：physical.gaussdb.opengauss.xxu.xxg(按批量配置中设置的cpu数量与内存数量) cpu架构arm的话需要带.arm后缀，例如：physical.gaussdb.opengauss.32u.256g.arm 其中32表示设置的cpu，256表示设置的内存大小 显示名称 设置规则：physical.gaussdb.opengauss.xxu.xxg(按批量配置中设置的cpu数量与内存数量) cpu架构arm的话需要带.arm后缀，例如：physical.gaussdb.opengauss.32u.256g.arm 其中32表示设置的cpu，256表示设置的内存大小 增强型网关类型需要在physical后加上enh，例如physical.enh.gaussdb.opengauss.32u.256 可用分区 选择当前扩容的所有AZ cpu个数 设置的cpu 内存 设置的内存大小 磁盘 设置的磁盘大小 网关类型 裸金属配置的网关类型 单击确认。 在创建的规格详情页面中拉到下方查看规格管理的裸金属服务器信息，预期规格中显示的裸金属服务器总量与扩容入云的总量相同，则表示规格绑定裸金属成功。",
+      "source_file": "6075_BMS.txt"
+    },
+    {
+      "term": "增强型网关白名单开启（可选）",
+      "content": "增强型网关白名单开启（可选） 增强型网关白名单开启（可选） 需要使用增强型网关场景下，需开启白名单。 登录Service OM 。 进入服务列表->DBS运维平台->配置管理->特性白名单。 “特性名称”搜索框中输入“gaussdb_feature_supportBmsEnhancedFlavor”。 单击“特性发布”。 选择“发布”。",
+      "source_file": "6079_file_6079.txt"
+    },
+    {
+      "term": "检查BMS规格码是否存在",
+      "content": "检查BMS规格码是否存在 检查BMS规格码是否存在 检查BMS绑定的规格码是否存在。 操作步骤 登录Service OM 。 进入服务列表->裸金属资源->规格，按照规划好的cpu以及内存，进行查看。 按规格名称检索列表匹配数据，参考如下 表1 表1 CPU架构 CPU架构 网关类型 规格码匹配 X86 集中式 physical.gaussdb.opengauss.xxu.xxg (第一个xx表示CPU，第二个xx表示内存) ARM 集中式 physical.gaussdb.opengauss.xxu.xxg.arm X86 增强型 physical.enh.gaussdb.opengauss.xxu.xxg (第一个xx表示CPU，第二个xx表示内存) ARM 增强型 physical.enh.gaussdb.opengauss.xxu.xxg.arm 如果无法检索到数据，则进行 创建BMS规格 。 选中创建的与物理机配置相同的规格，单击规格名称，进入规格详情页。 页面拉到下方查看规格管理的裸金属服务器信息，预期规格中显示的裸金属服务器总量与扩容入云的总量相同。 如果不同，则进行 创建BMS规格 ，创建新的规格。 如果相同， BMS入云完成后配置 即可跳过。",
+      "source_file": "6074_BMS.txt"
+    }
+  ]
+}

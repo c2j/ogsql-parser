@@ -1,0 +1,15 @@
+层次递归查询函数 层次递归查询函数 层次递归查询语句中可使用以下函数返回连接路径上的相关信息。 sys_connect_by_path(col, separator) 描述：仅在层次递归查询中适用，用于返回从根节点到当前行的连接路径。 参数col为在路径中显示的列的名称，只支持类型为CHAR/VARCHAR/NVARCHAR2/TEXT的列，参数separator为路径节点之间的分隔符。 返回值类型：text 示例： 1
+2
+3
+4
+5
+6
+7
+8 gaussdb =# select * , sys_connect_by_path ( name , '-' ) from connect_table start with id = 1 connect by prior id = pid ; id | pid | name | sys_connect_by_path ----+-----+------+--------------------- 1 | 0 | a | - a 2 | 1 | b | - a - b 4 | 1 | d | - a - d 3 | 2 | c | - a - b - c ( 4 rows ) connect_by_root(col) 描述：仅在层次递归查询中适用，用于返回当前行最顶层父亲行中某列的值。 参数col为输出列的名称。 返回值类型：即为所指定列col的数据类型。 示例： 1
+2
+3
+4
+5
+6
+7
+8 gaussdb =# select * , connect_by_root ( name ) from connect_table start with id = 1 connect by prior id = pid ; id | pid | name | connect_by_root ----+-----+------+----------------- 1 | 0 | a | a 2 | 1 | b | a 4 | 1 | d | a 3 | 2 | c | a ( 4 rows ) 父主题： 函数和操作符 版权所有 © 华为技术有限公司

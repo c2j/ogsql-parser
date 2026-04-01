@@ -1,0 +1,226 @@
+{
+  "topic": "系统表",
+  "term_count": 44,
+  "terms": [
+    {
+      "term": "SPM计划管理",
+      "content": "SPM计划管理 SPM计划管理 GS_SPM_SQL GS_SPM_BASELINE GS_SPM_ID_HASH_JOIN GS_SPM_PARAM GS_SPM_EVOLUTION",
+      "source_file": "3233_SPM.txt"
+    },
+    {
+      "term": "DATABASE",
+      "content": "DATABASE LINK DATABASE LINK GS_DATABASE_LINK",
+      "source_file": "3264_DATABASE LINK.txt"
+    },
+    {
+      "term": "其他系统表",
+      "content": "其他系统表 其他系统表 GS_ARCHIVE_STATUS GS_ASP GS_DEPENDENCIES GS_DEPENDENCIES_OBJ GS_GLOBAL_CONFIG GS_JOB_ARGUMENT GS_JOB_ATTRIBUTE GS_PACKAGE GS_PLAN_TRACE GS_POLICY_LABEL GS_RECYCLEBIN GS_SECURITY_LABEL GS_SQL_PATCH GS_STATISTIC_EXT_HISTORY GS_STATISTIC_HISTORY GS_TABLESTATS_HISTORY GS_TXN_SNAPSHOT GS_UID GS_WORKLOAD_RULE PG_AGGREGATE PG_AM PG_AMOP PG_AMPROC PG_ATTRDEF PG_ATTRIBUTE PG_CAST PG_CLASS PG_COLLATION PG_CONSTRAINT PG_CONVERSION PG_DATABASE PG_DEPEND PG_DESCRIPTION PG_DIRECTORY PG_ENUM PG_EXTENSION PG_EXTENSION_DATA_SOURCE PG_FOREIGN_DATA_WRAPPER PG_FOREIGN_SERVER PG_FOREIGN_TABLE PG_HASHBUCKET PG_INDEX PG_INHERITS PG_JOB PG_JOB_PROC PG_LANGUAGE PG_LARGEOBJECT PG_LARGEOBJECT_METADATA PG_NAMESPACE PG_OBJECT PG_OBSSCANINFO PG_OPCLASS PG_OPERATOR PG_OPFAMILY PG_PLTEMPLATE PG_PROC PG_PUBLICATION PG_PUBLICATION_REL PG_RANGE PG_REPLICATION_ORIGIN PG_RESOURCE_POOL PG_REWRITE PG_SHDEPEND PG_SHDESCRIPTION PG_SET PG_STATISTIC PG_STATISTIC_EXT PG_SUBSCRIPTION PG_SYNONYM PG_TABLESPACE PG_TRIGGER PG_TS_CONFIG PG_TS_CONFIG_MAP PG_TS_DICT PG_TS_PARSER PG_TS_TEMPLATE PG_TYPE PGXC_CLASS PGXC_GROUP PGXC_SLICE PLAN_TABLE_DATA STATEMENT_HISTORY STREAMING_STREAM STREAMING_CONT_QUERY STREAMING_REAPER_STATUS",
+      "source_file": "3269_file_3269.txt"
+    },
+    {
+      "term": "负载管理",
+      "content": "负载管理 负载管理 PG_APP_WORKLOADGROUP_MAPPING",
+      "source_file": "3212_file_3212.txt"
+    },
+    {
+      "term": "负载管理",
+      "content": "负载管理 负载管理 PG_APP_WORKLOADGROUP_MAPPING",
+      "source_file": "1499_file_1499.txt"
+    },
+    {
+      "term": "其他系统表",
+      "content": "其他系统表 其他系统表 GS_ARCHIVE_STATUS GS_ASP GS_DEPENDENCIES GS_DEPENDENCIES_OBJ GS_GLOBAL_CONFIG GS_JOB_ATTRIBUTE GS_JOB_ARGUMENT GS_OBSSCANINFO GS_PACKAGE GS_PLAN_TRACE GS_POLICY_LABEL GS_RECYCLEBIN GS_SECURITY_LABEL GS_SQL_PATCH GS_STATISTIC_EXT_HISTORY GS_STATISTIC_HISTORY GS_TABLESTATS_HISTORY GS_TXN_SNAPSHOT GS_UID GS_WORKLOAD_RULE PG_AGGREGATE PG_AM PG_AMOP PG_AMPROC PG_ATTRDEF PG_ATTRIBUTE PG_CAST PG_CLASS PG_COLLATION PG_CONSTRAINT PG_CONVERSION PG_DATABASE PG_DEPEND PG_DESCRIPTION PG_DIRECTORY PG_ENUM PG_EXTENSION PG_EXTENSION_DATA_SOURCE PG_FOREIGN_DATA_WRAPPER PG_FOREIGN_SERVER PG_FOREIGN_TABLE PG_HASHBUCKET PG_INDEX PG_INHERITS PG_JOB PG_JOB_PROC PG_LANGUAGE PG_LARGEOBJECT PG_LARGEOBJECT_METADATA PG_NAMESPACE PG_OBJECT PG_OBSSCANINFO PG_OPCLASS PG_OPERATOR PG_OPFAMILY PG_PLTEMPLATE PG_PROC PG_PUBLICATION PG_PUBLICATION_REL PG_RANGE PG_REPLICATION_ORIGIN PG_RESOURCE_POOL PG_REWRITE PG_SET PG_SHDEPEND PG_SHDESCRIPTION PG_STATISTIC PG_STATISTIC_EXT PG_SUBSCRIPTION PG_SYNONYM PG_TABLESPACE PG_TRIGGER PG_TS_CONFIG PG_TS_CONFIG_MAP PG_TS_DICT PG_TS_PARSER PG_TS_TEMPLATE PG_TYPE PGXC_CLASS PGXC_GROUP PGXC_REDISTB PGXC_SLICE PLAN_TABLE_DATA STATEMENT_HISTORY STREAMING_STREAM STREAMING_CONT_QUERY STREAMING_REAPER_STATUS",
+      "source_file": "1556_file_1556.txt"
+    },
+    {
+      "term": "用户和权限管理",
+      "content": "用户和权限管理 用户和权限管理 GS_DB_PRIVILEGE PG_DB_ROLE_SETTING PG_DEFAULT_ACL PG_RLSPOLICY PG_SECLABEL PG_SHSECLABEL PG_USER_MAPPING PG_USER_STATUS",
+      "source_file": "3247_file_3247.txt"
+    },
+    {
+      "term": "审计",
+      "content": "审计 审计 GS_AUDITING_POLICY GS_AUDITING_POLICY_ACCESS GS_AUDITING_POLICY_FILTERS GS_AUDITING_POLICY_PRIVILEGES",
+      "source_file": "1529_file_1529.txt"
+    },
+    {
+      "term": "GS_WLM_OPERATOR_INFO",
+      "content": "GS_WLM_OPERATOR_INFO GS_WLM_OPERATOR_INFO GS_WLM_OPERATOR_INFO系统表显示执行作业结束后的算子相关的记录。此数据是从内核中转储到系统表中的数据。查询该系统表需要sysadmin权限，且仅在数据库postgres下面查询时有数据。 当查询视图无数据显示时，请联系华为工程师提供技术支撑。 表1 GS_WLM_OPERATOR_INFO的字段 名称 类型 描述 queryid bigint 语句执行使用的内部query_id。 pid bigint 后端线程id。 plan_node_id integer 查询对应的执行计划的plan node id。 plan_node_name text 对应于plan_node_id的算子的名称。 start_time timestamp with time zone 该算子处理第一条数据的开始时间。 duration bigint 该算子到结束时候总的执行时间（ms）。 query_dop integer 当前算子执行时的并行度。 estimated_rows bigint 优化器估算的行数信息。 tuple_processed bigint 当前算子返回的元素个数。 min_peak_memory integer 当前算子在 数据库节点 上的最小内存峰值（MB）。 max_peak_memory integer 当前算子在 数据库节点 上的最大内存峰值（MB)。 average_peak_memory integer 当前算子在数据库节点平均内存峰值（MB）。 memory_skew_percent integer 当前算子在 数据库节点 间的内存使用倾斜率。 min_spill_size integer 若发生下盘，数据库节点盘的最小数据量（MB），默认为0。 max_spill_size integer 若发生下盘， 数据库节点 上下盘的最大数据量（MB)，默认为0。 average_spill_size integer 若发生下盘， 数据库节点 盘的平均数据量（MB)，默认为0。 spill_skew_percent integer 若发生下盘，数据库节点间下盘倾斜率。 min_cpu_time bigint 该算子在 数据库节点 最小执行时间（ms）。 max_cpu_time bigint 该算子在 数据库节点 上的最大执行时间（ms)。 total_cpu_time bigint 该算子在 数据库节点 上的总执行时间（ms）。 cpu_skew_percent integer 数据库节点 间执行时间的倾斜率。 warning text 主要显示如下几类告警信息： Sort/SetOp/HashAgg/HashJoin spill Spill file size large than 256MB Broadcast size large than 100MB Early spill Spill times is greater than 3 Spill on memory adaptive Hash table conflict",
+      "source_file": "3688_GS_WLM_OPERATOR_INFO.txt"
+    },
+    {
+      "term": "GS_WLM_SESSION_QUERY_INFO_ALL",
+      "content": "GS_WLM_SESSION_QUERY_INFO_ALL GS_WLM_SESSION_QUERY_INFO_ALL GS_WLM_SESSION_QUERY_INFO_ALL系统表显示当前数据库实例执行作业结束后的负载管理记录。此数据是从内核中转储到系统表中的数据。当设置GUC参数 enable_resource_record 为on时，系统会定时（周期为3分钟）将内核中query信息导入GS_WLM_SESSION_QUERY_INFO_ALL系统表。查询该系统表需要sysadmin权限，且仅在数据库postgres下面查询时有数据。 当查询视图无数据显示时，请联系华为工程师提供技术支撑。 表1 GS_WLM_SESSION_QUERY_INFO_ALL字段 名称 类型 描述 datid oid 连接后端的数据库OID。 dbname text 连接后端的数据库名称。 schemaname text 模式的名称。 nodename text 语句执行的数据库实例名称。 username text 连接到后端的用户名。 application_name text 连接到后端的应用名。 client_addr inet 连接到后端的客户端的IP地址。 如果此字段是null，它表明通过服务器机器上UNIX套接字连接客户端或者这是内部进程，如autovacuum。 client_hostname text 客户端的主机名，这个字段是通过client_addr的反向DNS查找得到。这个字段只有在启动log_hostname且使用IP连接时才非空。 client_port integer 客户端用于与后端通讯的TCP端口号，如果使用Unix套接字，则为-1。 query_band text 用于标示作业类型，可通过GUC参数query_band进行设置，默认为空字符串。 block_time bigint 语句执行前的阻塞时间，包含语句解析和优化时间，单位ms。 start_time timestamp with time zone 语句执行的开始时间。 finish_time timestamp with time zone 语句执行的结束时间。 duration bigint 语句实际执行的时间，单位ms。 estimate_total_time bigint 语句预估执行时间，单位ms。 status text 语句执行结束状态：正常为finished，异常为aborted。 abort_info text 语句执行结束状态为aborted时显示异常信息。 resource_pool text 用户使用的资源池。 control_group text 语句所使用的Cgroup。 estimate_memory integer 语句估算内存大小。 min_peak_memory integer 语句在数据库实例上的最小内存峰值，单位MB。 max_peak_memory integer 语句在数据库实例上的最大内存峰值，单位MB。 average_peak_memory integer 语句执行过程中的内存使用平均值，单位MB。 memory_skew_percent integer 语句数据库实例间的内存使用倾斜率。 spill_info text 语句在数据库实例上的下盘信息： None：数据库实例均未下盘。 All: 数据库实例均下盘。 [a:b]: 数量为b个数据库实例中有a个数据库实例下盘。 min_spill_size integer 若发生下盘，数据库实例上下盘的最小数据量，单位MB，默认为0。 max_spill_size integer 若发生下盘，数据库实例上下盘的最大数据量，单位MB，默认为0。 average_spill_size integer 若发生下盘，数据库实例上下盘的平均数据量，单位MB，默认为0。 spill_skew_percent integer 若发生下盘，数据库实例间下盘倾斜率。 min_dn_time bigint 语句在数据库实例上的最小执行时间，单位ms。 max_dn_time bigint 语句在数据库实例上的最大执行时间，单位ms。 average_dn_time bigint 语句在数据库实例上的平均执行时间，单位ms。 dntime_skew_percent integer 语句在数据库实例间的执行时间倾斜率。 min_cpu_time bigint 语句在数据库实例上的最小CPU时间，单位ms。 max_cpu_time bigint 语句在数据库实例上的最大CPU时间，单位ms。 total_cpu_time bigint 语句在数据库实例上的CPU总时间，单位ms。 cpu_skew_percent integer 语句在数据库实例间的CPU时间倾斜率。 min_peak_iops integer 语句在数据库实例上的每秒最小IO峰值（单位是万次/s）。 max_peak_iops integer 语句在数据库实例上的每秒最大IO峰值（单位是万次/s）。 average_peak_iops integer 语句在数据库实例上的每秒平均IO峰值（单位是万次/s）。 iops_skew_percent integer 语句在数据库实例间的IO倾斜率。 warning text 主要显示如下几类告警信息： Spill file size large than 256MB Broadcast size large than 100MB Early spill Spill times is greater than 3 Spill on memory adaptive Hash table conflict queryid bigint 语句执行使用的内部query id。 query text 执行的语句。 query_plan text 语句的执行计划。 node_group text 语句所属用户对应的逻辑数据库实例。 cpu_top1_node_name text cpu使用率第1的节点名称。 cpu_top2_node_name text cpu使用率第2的节点名称。 cpu_top3_node_name text cpu使用率第3的节点名称。 cpu_top4_node_name text cpu使用率第4的节点名称。 cpu_top5_node_name text cpu使用率第5的节点名称。 mem_top1_node_name text 内存使用量第1的节点名称。 mem_top2_node_name text 内存使用量第2的节点名称。 mem_top3_node_name text 内存使用量第3的节点名称。 mem_top4_node_name text 内存使用量第4的节点名称。 mem_top5_node_name text 内存使用量第5的节点名称。 cpu_top1_value bigint cpu使用率。 cpu_top2_value bigint cpu使用率。 cpu_top3_value bigint cpu使用率。 cpu_top4_value bigint cpu使用率。 cpu_top5_value bigint cpu使用率。 mem_top1_value bigint 内存使用量。 mem_top2_value bigint 内存使用量。 mem_top3_value bigint 内存使用量。 mem_top4_value bigint 内存使用量。 mem_top5_value bigint 内存使用量。 top_mem_dn text 内存使用量topN信息。 top_cpu_dn text cpu使用量topN信息。 n_returned_rows bigint Select返回的结果集行数。 n_tuples_fetched bigint 随机扫描行数。 n_tuples_returned bigint 顺序扫描行数。 n_tuples_inserted bigint 插入行数。 n_tuples_updated bigint 更新行数。 n_tuples_deleted bigint 删除行数。 n_blocks_fetched bigint Cache加载次数。 n_blocks_hit bigint Cache命中数。 db_time bigint 有效的DB时间花费，多线程将累加（单位：微秒）。 cpu_time bigint CPU时间（单位：微秒）。 execution_time bigint 执行器内执行时间（单位：微秒）。 parse_time bigint SQL解析时间（单位：微秒）。 plan_time bigint SQL生成计划时间（单位：微秒）。 rewrite_time bigint SQL重写时间（单位：微秒）。 pl_execution_time bigint plpgsql上的执行时间（单位：微秒）。 pl_compilation_time bigint plpgsql上的编译时间（单位：微秒）。 net_send_time bigint 网络上的时间花费（单位：微秒）。 data_io_time bigint IO上的时间花费（单位：微秒）。 is_slow_query bigint 标记是否为慢查询。 取值为1时表示其为慢查询。",
+      "source_file": "3689_GS_WLM_SESSION_QUERY_INFO_ALL.txt"
+    },
+    {
+      "term": "GS_WLM_INSTANCE_HISTORY",
+      "content": "GS_WLM_INSTANCE_HISTORY GS_WLM_INSTANCE_HISTORY GS_WLM_INSTANCE_HISTORY系统表存储与实例（数据库主节点或数据库节点）相关的资源使用相关信息。该系统表里每条记录都是对应时间点某实例资源使用情况，包括：内存、CPU核数、磁盘IO、进程物理IO和进程逻辑IO信息。查询该系统表需要sysadmin权限，且仅在数据库postgres下面查询时有数据。 当查询视图无数据显示时，请联系华为工程师提供技术支撑。 表1 GS_WLM_INSTANCE_HISTORY字段 名称 类型 描述 instancename text 实例名称。 timestamp timestamp with time zone 时间戳。 used_cpu integer 实例使用CPU所占用的百分比。 free_mem integer 实例未使用的内存大小，单位MB。 used_mem integer 实例已使用的内存大小，单位MB。 io_await real 实例所使用磁盘的io_wait值（10秒均值）。 io_util real 实例所使用磁盘的io_util值（10秒均值）。 disk_read real 实例所使用磁盘的读速率（10秒均值），单位KB/s。 disk_write real 实例所使用磁盘的写速率（10秒均值），单位KB/s。 process_read bigint 实例对应进程从磁盘读数据的读速率（不包括从磁盘pagecache中读取的字节数，10秒均值），单位KB/s。 process_write bigint 实例对应进程向磁盘写数据的写速率（不包括向磁盘pagecache中写入的字节数，10秒均值），单位KB/s。 logical_read bigint 数据库主节点 实例：不统计。 数据库节点实例：该实例在本次统计间隙（10秒）内逻辑读字节速率，单位KB/s。 logical_write bigint 数据库主节点实例：不统计。 数据库节点实例：该实例在本次统计间隙（10秒）内逻辑写字节速率，单位KB/s。 read_counts bigint 数据库主节点实例：不统计。 数据库节点实例：该实例在本次统计间隙（10秒）内逻辑读操作次数之和，单位次。 write_counts bigint 数据库主节点实例：不统计。 数据库节点实例：该实例在本次统计间隙（10秒）内逻辑写操作次数之和，单位次。",
+      "source_file": "3687_GS_WLM_INSTANCE_HISTORY.txt"
+    },
+    {
+      "term": "物化视图",
+      "content": "物化视图 物化视图 GS_MATVIEW GS_MATVIEW_DEPENDENCY",
+      "source_file": "3266_file_3266.txt"
+    },
+    {
+      "term": "GS_WLM_USER_RESOURCE_HISTORY",
+      "content": "GS_WLM_USER_RESOURCE_HISTORY GS_WLM_USER_RESOURCE_HISTORY GS_WLM_USER_RESOURCE_HISTORY系统表存储与用户使用资源相关的信息。该系统表的每条记录都是对应时间点某用户的资源使用情况，包括：内存、CPU核数、存储空间、临时空间、算子落盘空间、逻辑IO流量、逻辑IO次数和逻辑IO速率信息。其中，内存、CPU、IO相关监控项仅记录用户复杂作业的资源使用情况。对于IO相关监控项，当参数enable_logical_io_statistics为on时才有效；当参数enable_user_metric_persistent为on时，才会开启用户监控数据保存功能。GS_WLM_USER_RESOURCE_HISTORY系统表的数据来源于PG_TOTAL_USER_RESOURCE_INFO视图。查询该系统表需要sysadmin权限，且仅在数据库postgres下面查询时有数据。 当查询视图无数据显示时，请联系华为工程师提供技术支撑。 表1 GS_WLM_USER_RESOURCE_HISTORY 名称 类型 描述 username text 用户名 timestamp timestamp with time zone 时间戳 used_memory integer 正在使用的内存大小，单位MB。 total_memory integer 可以使用的内存大小，单位为MB。值为0表示未限制最大可用内存，其限制取决于数据库最大可用内存。 used_cpu real 正在使用的CPU核数。 total_cpu integer 该机器节点上，用户关联控制组的CPU核数总和。 used_space bigint 已使用的存储空间大小，单位KB。 total_space bigint 可使用的存储空间大小，单位KB，值为-1表示未限制最大存储空间。 used_temp_space bigint 已使用的临时存储空间大小，单位KB。 total_temp_space bigint 可使用的临存储空间大小，单位KB，值为-1表示未限制最大临时存储空间。 used_spill_space bigint 已使用的算子落盘存储空间大小，单位KB。 total_spill_space bigint 可使用的算子落盘存储空间大小，单位KB，值为-1表示未限制最大算子落盘存储空间。 read_kbytes bigint 监控周期内，读操作的字节流量，单位KB。 write_kbytes bigint 监控周期内，写操作的字节流量，单位KB。 read_counts bigint 监控周期内，读操作的次数，单位次。 write_counts bigint 监控周期内，写操作的次数，单位次。 read_speed real 监控周期内，读操作的字节速率，单位KB/s。 write_speed real 监控周期内，写操作的字节速率，单位KB/s。",
+      "source_file": "3690_GS_WLM_USER_RESOURCE_HISTORY.txt"
+    },
+    {
+      "term": "SPM计划管理",
+      "content": "SPM计划管理 SPM计划管理 GS_SPM_SQL GS_SPM_PARAM GS_SPM_BASELINE GS_SPM_EVOLUTION GS_SPM_ID_HASH_JOIN",
+      "source_file": "1520_SPM.txt"
+    },
+    {
+      "term": "账本数据库",
+      "content": "账本数据库 账本数据库 当前特性是实验室特性，使用时请联系华为技术工程师提供技术支持。 GS_GLOBAL_CHAIN",
+      "source_file": "1518_file_1518.txt"
+    },
+    {
+      "term": "PG_WORKLOAD_GROUP",
+      "content": "PG_WORKLOAD_GROUP PG_WORKLOAD_GROUP PG_WORKLOAD_GROUP系统表提供了数据库负载组的信息。具体字段信息如 表1 所示。 表1 PG_WORKLOAD_GROUP字段 名称 类型 描述 oid oid 行标识符（隐含字段，必须明确选择）。 workload_gpname name 负载组名称。 respool_oid oid 绑定到的资源池的id。 act_statements integer 负载组内最大的活跃语句数。",
+      "source_file": "1997_PG_WORKLOAD_GROUP.txt"
+    },
+    {
+      "term": "GS_WLM_INSTANCE_HISTORY",
+      "content": "GS_WLM_INSTANCE_HISTORY GS_WLM_INSTANCE_HISTORY GS_WLM_INSTANCE_HISTORY系统表存储与实例（ CN 或 DN ）相关的资源使用相关信息。该系统表里每条记录都是对应时间点某实例资源使用情况，包括：内存、CPU核数、磁盘I/O、进程物理I/O和进程逻辑I/O信息。查询该系统表需要sysadmin权限，且仅在数据库postgres下面查询时有数据。具体字段信息如 表1 所示。 当前特性是实验室特性，使用时请联系华为技术工程师提供技术支持。 当查询视图无数据显示时，请联系华为工程师提供技术支撑。 表1 GS_WLM_INSTANCE_HISTORY字段 名称 类型 描述 instancename text 实例名称。 timestamp timestamp with time zone 时间戳。 used_cpu integer 实例使用CPU所占用的百分比。 free_mem integer 实例未使用的内存大小，单位MB。 used_mem integer 实例已使用的内存大小，单位MB。 io_await real 实例所使用磁盘的io_wait值（10秒均值）。 io_util real 实例所使用磁盘的io_util值（10秒均值）。 disk_read real 实例所使用磁盘的读速率（10秒均值），单位KB/s。 disk_write real 实例所使用磁盘的写速率（10秒均值），单位KB/s。 process_read bigint 实例对应进程从磁盘读数据的读速率(不包括从磁盘pagecache中读取的字节数，10秒均值)，单位KB/s。 process_write bigint 实例对应进程向磁盘写数据的写速率(不包括向磁盘pagecache中写入的字节数，10秒均值)，单位KB/s。 logical_read bigint CN 实例：不统计。 DN 实例：该实例在本次统计间隙（10秒）内逻辑读字节速率，单位KB/s。 logical_write bigint CN 实例：不统计。 DN 实例：该实例在本次统计间隙（10秒）内逻辑写字节速率，单位KB/s。 read_counts bigint CN 实例：不统计。 DN 实例：该实例在本次统计间隙（10秒）内逻辑读操作次数之和，单位次。 write_counts bigint CN 实例：不统计。 DN 实例：该实例在本次统计间隙（10秒）内逻辑写操作次数之和，单位次。",
+      "source_file": "1993_GS_WLM_INSTANCE_HISTORY.txt"
+    },
+    {
+      "term": "用户和权限管理",
+      "content": "用户和权限管理 用户和权限管理 GS_DB_PRIVILEGE PG_DB_ROLE_SETTING PG_DEFAULT_ACL PG_RLSPOLICY PG_SECLABEL PG_SHSECLABEL PG_USER_MAPPING PG_USER_STATUS",
+      "source_file": "1534_file_1534.txt"
+    },
+    {
+      "term": "密态等值查询",
+      "content": "密态等值查询 密态等值查询 GS_CLIENT_GLOBAL_KEYS GS_CLIENT_GLOBAL_KEYS_ARGS GS_COLUMN_KEYS GS_COLUMN_KEYS_ARGS GS_ENCRYPTED_COLUMNS GS_ENCRYPTED_PROC",
+      "source_file": "1509_file_1509.txt"
+    },
+    {
+      "term": "密态等值查询",
+      "content": "密态等值查询 密态等值查询 GS_CLIENT_GLOBAL_KEYS GS_CLIENT_GLOBAL_KEYS_ARGS GS_COLUMN_KEYS GS_COLUMN_KEYS_ARGS GS_ENCRYPTED_COLUMNS GS_ENCRYPTED_PROC",
+      "source_file": "3222_file_3222.txt"
+    },
+    {
+      "term": "动态脱敏",
+      "content": "动态脱敏 动态脱敏 GS_MASKING_POLICY GS_MASKING_POLICY_ACTIONS GS_MASKING_POLICY_FILTERS",
+      "source_file": "3260_file_3260.txt"
+    },
+    {
+      "term": "OLTP表压缩",
+      "content": "OLTP表压缩 OLTP表压缩 GS_ILM GS_ILM_OBJECT GS_ILM_JOBDETAIL GS_ILM_PARAM GS_ILM_POLICY GS_ILM_TASK GS_ILM_TASKDETAIL",
+      "source_file": "1501_OLTP.txt"
+    },
+    {
+      "term": "DATABASE",
+      "content": "DATABASE LINK DATABASE LINK GS_DATABASE_LINK",
+      "source_file": "1551_DATABASE LINK.txt"
+    },
+    {
+      "term": "GS_WLM_OPERATOR_INFO",
+      "content": "GS_WLM_OPERATOR_INFO GS_WLM_OPERATOR_INFO GS_WLM_OPERATOR_INFO系统表显示执行作业结束后的算子相关的记录。此数据是从内核中转储到系统表中的数据。当设置GUC参数enable_resource_record为on时，系统会定时（周期为3分钟）将 GS_WLM_SESSION_HISTORY 中的记录导入此系统表，开启此功能会占用系统存储空间并对性能有一定影响，不建议用户使用。查询该系统表需要sysadmin权限，且仅在数据库postgres下面查询时有数据。具体字段信息如 表1 所示。 当前特性是实验室特性，使用时请联系华为技术工程师提供技术支持。 当查询视图无数据显示时，请联系华为工程师提供技术支撑。 表1 GS_WLM_OPERATOR_INFO的字段 名称 类型 描述 queryid bigint 语句执行使用的内部query_id。 pid bigint 后端线程id。 plan_node_id integer 查询对应的执行计划的plan node id。 plan_node_name text 对应于plan_node_id的算子的名称。 start_time timestamp with time zone 该算子处理第一条数据的开始时间。 duration bigint 该算子到结束时候总的执行时间(ms)。 query_dop integer 当前算子执行时的并行度。 estimated_rows bigint 优化器估算的行数信息。 tuple_processed bigint 当前算子返回的元素个数。 min_peak_memory integer 当前算子在 所有DN 上的最小内存峰值(MB)。 max_peak_memory integer 当前算子在 所有DN 上的最大内存峰值(MB)。 average_peak_memory integer 当前算子在 所有DN 上的平均内存峰值(MB)。 memory_skew_percent integer 当前算子在 各DN 间的内存使用倾斜率。 min_spill_size integer 若发生下盘， 所有DN 上下盘的最小数据量(MB)，默认为0。 max_spill_size integer 若发生下盘， 所有DN 上下盘的最大数据量(MB)，默认为0。 average_spill_size integer 若发生下盘， 所有DN 上下盘的平均数据量(MB)，默认为0。 spill_skew_percent integer 若发生下盘， DN 间下盘倾斜率。 min_cpu_time bigint 该算子在 所有DN 上的最小执行时间(ms)。 max_cpu_time bigint 该算子在 所有DN 上的最大执行时间(ms)。 total_cpu_time bigint 该算子在 所有DN 上的总执行时间(ms)。 cpu_skew_percent integer DN 间执行时间的倾斜率。 warning text 主要显示如下几类告警信息： Sort/SetOp/HashAgg/HashJoin spill Spill file size large than 256MB Broadcast size large than 100MB Early spill Spill times is greater than 3 Spill on memory adaptive Hash table conflict",
+      "source_file": "1994_GS_WLM_OPERATOR_INFO.txt"
+    },
+    {
+      "term": "分区表",
+      "content": "分区表 分区表 PG_PARTITION",
+      "source_file": "1497_file_1497.txt"
+    },
+    {
+      "term": "AI",
+      "content": "AI AI GS_MODEL_WAREHOUSE GS_OPT_MODEL",
+      "source_file": "3239_AI.txt"
+    },
+    {
+      "term": "GS_WLM_SESSION_QUERY_INFO_ALL",
+      "content": "GS_WLM_SESSION_QUERY_INFO_ALL GS_WLM_SESSION_QUERY_INFO_ALL GS_WLM_SESSION_QUERY_INFO_ALL系统表显示 当前CN 执行作业结束后的负载管理 （当前特性是实验室特性，使用时请联系华为技术工程师提供技术支持。） 记录。此数据是从内核中转储到系统表中的数据。当设置GUC参数enable_resource_record为on时，系统会定时（周期为3分钟）将内核中query信息导入GS_WLM_SESSION_QUERY_INFO_ALL系统表。查询该系统表需要sysadmin权限，仅在数据库postgres下查询时有数据。具体字段信息如 表1 所示。 当查询视图无数据显示时，请联系华为工程师提供技术支撑。 表1 GS_WLM_SESSION_QUERY_INFO_ALL字段 名称 类型 描述 datid oid 连接后端的数据库OID。 dbname text 连接后端的数据库名称。 schemaname text 模式的名称。 nodename text 语句执行的 CN 名称。 username text 连接到后端的用户名。 application_name text 连接到后端的应用名。 client_addr inet 连接到后端的客户端的IP地址。 如果此字段是null，它表明通过服务器机器上UNIX套接字连接客户端或者这是内部进程，如autovacuum。 client_hostname text 客户端的主机名，这个字段是通过client_addr的反向DNS查找得到。这个字段只有在启动log_hostname且使用IP连接时才非空。 client_port integer 客户端用于与后端通讯的TCP端口号，如果使用Unix套接字，则为-1。 query_band text 用于标示作业类型，可通过GUC参数query_band进行设置，默认为空字符串。 block_time bigint 语句执行前的阻塞时间，包含语句解析和优化时间，单位ms。 start_time timestamp with time zone 语句执行的开始时间。 finish_time timestamp with time zone 语句执行的结束时间。 duration bigint 语句实际执行的时间，单位ms。 estimate_total_time bigint 语句预估执行时间，单位ms。 status text 语句执行结束状态：正常为finished，异常为aborted。 abort_info text 语句执行结束状态为aborted时显示异常信息。 resource_pool text 用户使用的资源池。 control_group text 语句所使用的Cgroup。 estimate_memory integer 语句估算内存大小。 min_peak_memory integer 语句在 所有DN 上的最小内存峰值，单位MB。 max_peak_memory integer 语句在 所有DN 上的最大内存峰值，单位MB。 average_peak_memory integer 语句执行过程中的内存使用平均值，单位MB。 memory_skew_percent integer 语句 各DN 间的内存使用倾斜率。 spill_info text 语句在 所有DN 上的下盘信息： None： 所有DN 均未下盘。 All: 所有DN 均下盘。 [a:b]: 数量为b个 DN 中有a个 DN 下盘。 min_spill_size integer 若发生下盘， 所有DN 上下盘的最小数据量，单位MB，默认为0。 max_spill_size integer 若发生下盘， 所有DN 上下盘的最大数据量，单位MB，默认为0。 average_spill_size integer 若发生下盘， 所有DN 上下盘的平均数据量，单位MB，默认为0。 spill_skew_percent integer 若发生下盘， DN 间下盘倾斜率。 min_dn_time bigint 语句在 所有DN 上的最小执行时间，单位ms。 max_dn_time bigint 语句在 所有DN 上的最大执行时间，单位ms。 average_dn_time bigint 语句在 所有DN 上的平均执行时间，单位ms。 dntime_skew_percent integer 语句在 各DN 间的执行时间倾斜率。 min_cpu_time bigint 语句在 所有DN 上的最小CPU时间，单位ms。 max_cpu_time bigint 语句在 所有DN 上的最大CPU时间，单位ms。 total_cpu_time bigint 语句在 所有DN 上的CPU总时间，单位ms。 cpu_skew_percent integer 语句在 DN 间的CPU时间倾斜率。 min_peak_iops integer 语句在 所有DN 上的每秒最小IO峰值（单位是万次/s）。 max_peak_iops integer 语句在 所有DN 上的每秒最大IO峰值（单位是万次/s）。 average_peak_iops integer 语句在 所有DN 上的每秒平均IO峰值（单位是万次/s）。 iops_skew_percent integer 语句在 DN 间的IO倾斜率。 warning text 主要显示如下几类告警信息以及 SQL自诊断 相关告警： Spill file size large than 256MB Broadcast size large than 100MB Early spill Spill times is greater than 3 Spill on memory adaptive Hash table conflict queryid bigint 语句执行使用的内部query id。 query text 执行的语句。 query_plan text 语句的执行计划。 cpu_top1_node_name text cpu使用率第1的节点名称。 cpu_top2_node_name text cpu使用率第2的节点名称。 cpu_top3_node_name text cpu使用率第3的节点名称。 cpu_top4_node_name text cpu使用率第4的节点名称。 cpu_top5_node_name text cpu使用率第5的节点名称。 mem_top1_node_name text 内存使用量第1的节点名称。 mem_top2_node_name text 内存使用量第2的节点名称。 mem_top3_node_name text 内存使用量第3的节点名称。 mem_top4_node_name text 内存使用量第4的节点名称。 mem_top5_node_name text 内存使用量第5的节点名称。 cpu_top1_value bigint cpu使用率。 cpu_top2_value bigint cpu使用率。 cpu_top3_value bigint cpu使用率。 cpu_top4_value bigint cpu使用率。 cpu_top5_value bigint cpu使用率。 mem_top1_value bigint 内存使用量。 mem_top2_value bigint 内存使用量。 mem_top3_value bigint 内存使用量。 mem_top4_value bigint 内存使用量。 mem_top5_value bigint 内存使用量。 top_mem_dn text 内存使用量topN信息。 top_cpu_dn text cpu使用量topN信息。 n_returned_rows bigint Select返回的结果集行数。 n_tuples_fetched bigint 随机扫描行数。 n_tuples_returned bigint 顺序扫描行数。 n_tuples_inserted bigint 插入行数。 n_tuples_updated bigint 更新行数。 n_tuples_deleted bigint 删除行数。 n_blocks_fetched bigint Cache加载次数。 n_blocks_hit bigint Cache命中数。 db_time bigint 有效的DB时间花费，多线程将累加（单位：微秒）。 cpu_time bigint CPU时间（单位：微秒）。 execution_time bigint 执行器内执行时间（单位：微秒）。 parse_time bigint SQL解析时间（单位：微秒）。 plan_time bigint SQL生成计划时间（单位：微秒）。 rewrite_time bigint SQL重写时间（单位：微秒）。 pl_execution_time bigint plpgsql上的执行时间（单位：微秒）。 pl_compilation_time bigint plpgsql上的编译时间（单位：微秒）。 net_send_time bigint 网络上的时间花费（单位：微秒）。 data_io_time bigint IO上的时间花费（单位：微秒）。 is_slow_query bigint 标记是否为慢查询。 取值为1时表示其为慢查询。",
+      "source_file": "1995_GS_WLM_SESSION_QUERY_INFO_ALL.txt"
+    },
+    {
+      "term": "OLTP表压缩",
+      "content": "OLTP表压缩 OLTP表压缩 GS_ILM GS_ILM_JOBDETAIL GS_ILM_OBJECT GS_ILM_PARAM GS_ILM_POLICY GS_ILM_TASK GS_ILM_TASKDETAIL",
+      "source_file": "3214_OLTP.txt"
+    },
+    {
+      "term": "账本数据库",
+      "content": "账本数据库 账本数据库 当前特性是实验室特性，使用时请联系华为技术工程师提供技术支持。 GS_GLOBAL_CHAIN",
+      "source_file": "3231_file_3231.txt"
+    },
+    {
+      "term": "GS_WLM_USER_RESOURCE_HISTORY",
+      "content": "GS_WLM_USER_RESOURCE_HISTORY GS_WLM_USER_RESOURCE_HISTORY GS_WLM_USER_RESOURCE_HISTORY系统表存储与用户使用资源相关的信息，仅在 CN 上有效。该系统表的每条记录都是对应时间点某用户的资源使用情况，包括：内存、CPU核数、存储空间、临时空间、算子落盘空间、逻辑IO流量、逻辑IO次数和逻辑IO速率信息。其中，内存、CPU、IO相关监控项仅记录用户复杂作业的资源使用情况。对于IO相关监控项，当参数enable_logical_io_statistics为on时才有效；当参数enable_user_metric_persistent为on时，才会开启用户监控数据保存功能。GS_WLM_USER_RESOURCE_HISTORY系统表的数据来源于PG_TOTAL_USER_RESOURCE_INFO视图。查询该系统表需要sysadmin权限，仅在数据库postgres下查询时有数据。具体字段信息如 表1 所示。 当前特性是实验室特性，使用时请联系华为技术工程师提供技术支持。 当查询视图无数据显示时，请联系华为工程师提供技术支撑。 表1 GS_WLM_USER_RESOURCE_HISTORY 名称 类型 描述 username text 用户名。 timestamp timestamp with time zone 时间戳。 used_memory integer 正在使用的内存大小，单位MB。 total_memory integer 可以使用的内存大小，单位为MB。值为0表示未限制最大可用内存，其限制取决于数据库最大可用内存。 used_cpu real 正在使用的CPU核数。 total_cpu integer 该机器节点上，用户关联控制组的CPU核数总和。 used_space bigint 已使用的存储空间大小，单位KB。 total_space bigint 可使用的存储空间大小，单位KB，值为-1表示未限制最大存储空间。 used_temp_space bigint 已使用的临时存储空间大小，单位KB。 total_temp_space bigint 可使用的临存储空间大小，单位KB，值为-1表示未限制最大临时存储空间。 used_spill_space bigint 已使用的算子落盘存储空间大小，单位KB。 total_spill_space bigint 可使用的算子落盘存储空间大小，单位KB，值为-1表示未限制最大算子落盘存储空间。 read_kbytes bigint 监控周期内，读操作的字节流量，单位KB。 write_kbytes bigint 监控周期内，写操作的字节流量，单位KB。 read_counts bigint 监控周期内，读操作的次数，单位次。 write_counts bigint 监控周期内，写操作的次数，单位次。 read_speed real 监控周期内，读操作的字节速率，单位KB/s。 write_speed real 监控周期内，写操作的字节速率，单位KB/s。",
+      "source_file": "1996_GS_WLM_USER_RESOURCE_HISTORY.txt"
+    },
+    {
+      "term": "GS_WLM_PLAN_OPERATOR_INFO",
+      "content": "GS_WLM_PLAN_OPERATOR_INFO GS_WLM_PLAN_OPERATOR_INFO GS_WLM_PLAN_OPERATOR_INFO系统表显示执行作业结束后计划算子级的相关的记录。此数据是从内核中转储到系统表中的数据。 当查询视图无数据显示时，请联系华为工程师提供技术支撑。 表1 GS_WLM_PLAN_OPERATOR_INFO的字段 名称 类型 描述 datname name 收集计划信息所在的database名。 queryid bigint 语句执行使用的内部query_id。 plan_node_id integer 查询对应的执行计划的plan node id。 startup_time bigint 该算子处理第一条数据的开始时间。 total_time bigint 该算子到结束时候总的执行时间（ms）。 actual_rows bigint 实际执行的行数信息。 max_peak_memory integer 当前算子在数据库节点上的最大内存峰值（MB）。 query_dop integer 当前算子执行时的并行度。 parent_node_id integer 当前算子的父节点node id。 left_child_id integer 当前算子的左孩子节点node id。 right_child_id integer 当前算子的右孩子节点node id。 operation text 当前算子进行的操作名称。 orientation text 当前算子的对齐方式。 strategy text 当前算子操作的实现方法。 options text 当前算子操作的选择方式。 condition text 当前算子操作的过滤条件。 projection text 当前算子的映射关系。",
+      "source_file": "3692_GS_WLM_PLAN_OPERATOR_INFO.txt"
+    },
+    {
+      "term": "GS_WLM_EC_OPERATOR_INFO",
+      "content": "GS_WLM_EC_OPERATOR_INFO GS_WLM_EC_OPERATOR_INFO GS_WLM_EC_OPERATOR_INFO系统表存储执行EC（Extension Connector）作业结束后的算子相关的记录。当设置GUC参数 enable_resource_record 为on时，系统会每3分钟将GS_WLM_EC_OPERATOR_HISTORY中的记录导入此系统表，开启此功能会占用系统存储空间并对性能有一定影响。查询该系统表需要sysadmin权限。 当查询视图无数据显示时，请联系华为工程师提供技术支撑。 表1 GS_WLM_EC_OPERATOR_INFO的字段 名称 类型 描述 queryid bigint EC语句执行使用的内部query_id。 plan_node_id integer EC算子对应的执行计划的plan node id。 start_time timestamp with time zone EC算子处理第一条数据的开始时间。 duration bigint EC算子到结束时候总的执行时间（ms）。 tuple_processed bigint EC算子返回的元素个数。 min_peak_memory integer EC算子在所有DN上的最小内存峰值（MB）。 max_peak_memory integer EC算子在所有DN上的最大内存峰值（MB)。 average_peak_memory integer EC算子在所有DN上的平均内存峰值（MB）。 ec_status text EC作业的执行状态。 ec_execute_datanode text 执行EC作业的DN名称。 ec_dsn text EC作业所使用的DSN。 ec_username text EC作业访问远端数据库实例的USERNAME（远端数据库实例为SPARK类型时该值为空）。 ec_query text EC作业发送给远端数据库实例执行的语句。 ec_libodbc_type text EC作业使用的unixODBC驱动类型。",
+      "source_file": "3686_GS_WLM_EC_OPERATOR_INFO.txt"
+    },
+    {
+      "term": "AI",
+      "content": "AI AI GS_MODEL_WAREHOUSE GS_OPT_MODEL",
+      "source_file": "1526_AI.txt"
+    },
+    {
+      "term": "连接和认证",
+      "content": "连接和认证 连接和认证 PG_AUTHID PG_AUTH_HISTORY PG_AUTH_MEMBERS",
+      "source_file": "3256_file_3256.txt"
+    },
+    {
+      "term": "动态脱敏",
+      "content": "动态脱敏 动态脱敏 GS_MASKING_POLICY GS_MASKING_POLICY_ACTIONS GS_MASKING_POLICY_FILTERS",
+      "source_file": "1547_file_1547.txt"
+    },
+    {
+      "term": "通信",
+      "content": "通信 通信 PGXC_NODE",
+      "source_file": "3229_file_3229.txt"
+    },
+    {
+      "term": "GS_WLM_PLAN_ENCODING_TABLE",
+      "content": "GS_WLM_PLAN_ENCODING_TABLE GS_WLM_PLAN_ENCODING_TABLE GS_WLM_PLAN_ENCODING_TABLE系统表显示计划算子级的编码信息，为机器学习模型的提供包括startup time, total time, peak memory, rows等标签值的训练、预测集。 当查询视图无数据显示时，请联系华为工程师提供技术支撑。 表1 GS_WLM_PLAN_ENCODING_TABLE的字段 名称 类型 描述 queryid bigint 语句执行使用的内部query_id。 plan_node_id integer 查询对应的执行计划的plan node id。 parent_node_id integer 当前算子的父节点node id。 startup_time bignit 该算子处理第一条数据的开始时间。 total_time bigint 该算子到结束时候总的执行时间（ms）。 rows bigint 当前算子执行的行数信息。 peak_memory integer 当前算子在数据库节点上的最大内存峰值（MB）。 encode text 当前计划算子的编码信息。",
+      "source_file": "3691_GS_WLM_PLAN_ENCODING_TABLE.txt"
+    },
+    {
+      "term": "连接和认证",
+      "content": "连接和认证 连接和认证 PG_AUTHID PG_AUTH_HISTORY PG_AUTH_MEMBERS",
+      "source_file": "1543_file_1543.txt"
+    },
+    {
+      "term": "分区表",
+      "content": "分区表 分区表 PG_PARTITION",
+      "source_file": "3210_file_3210.txt"
+    },
+    {
+      "term": "审计",
+      "content": "审计 审计 GS_AUDITING_POLICY GS_AUDITING_POLICY_ACCESS GS_AUDITING_POLICY_FILTERS GS_AUDITING_POLICY_PRIVILEGES",
+      "source_file": "3242_file_3242.txt"
+    },
+    {
+      "term": "物化视图",
+      "content": "物化视图 物化视图 GS_MATVIEW GS_MATVIEW_DEPENDENCY",
+      "source_file": "1553_file_1553.txt"
+    },
+    {
+      "term": "PG_WORKLOAD_GROUP",
+      "content": "PG_WORKLOAD_GROUP PG_WORKLOAD_GROUP PG_WORKLOAD_GROUP系统表提供了数据库负载组的信息。 表1 PG_WORKLOAD_GROUP字段 名称 类型 描述 oid oid 行标识符（隐含属性，必须明确选择）。 workload_gpname name 负载组名称。 respool_oid oid 绑定到的资源池的id。 act_statements integer 负载组内最大的活跃语句数。",
+      "source_file": "3693_PG_WORKLOAD_GROUP.txt"
+    },
+    {
+      "term": "通信",
+      "content": "通信 通信 PGXC_NODE",
+      "source_file": "1516_file_1516.txt"
+    },
+    {
+      "term": "GS_WLM_EC_OPERATOR_INFO",
+      "content": "GS_WLM_EC_OPERATOR_INFO GS_WLM_EC_OPERATOR_INFO GS_WLM_EC_OPERATOR_INFO系统表存储执行EC（Extension Connector）作业结束后的算子相关的记录。当设置GUC参数enable_resource_record为on时，系统会每3分钟将 GS_WLM_EC_OPERATOR_HISTORY 中的记录导入此系统表，开启此功能会占用系统存储空间并对性能有一定影响。查询该系统表需要sysadmin权限。具体字段信息如 表1 所示。 当查询视图无数据显示时，请联系华为工程师提供技术支撑。 表1 GS_WLM_EC_OPERATOR_INFO的字段 名称 类型 描述 queryid bigint EC语句执行使用的内部query_id。 plan_node_id integer EC算子对应的执行计划的plan node id。 start_time timestamp with time zone EC算子处理第一条数据的开始时间。 duration bigint EC算子到结束时候总的执行时间(ms)。 tuple_processed bigint EC算子返回的元素个数。 min_peak_memory integer EC算子在所有DN上的最小内存峰值(MB)。 max_peak_memory integer EC算子在所有DN上的最大内存峰值(MB)。 average_peak_memory integer EC算子在所有DN上的平均内存峰值(MB)。 ec_status text EC作业的执行状态。 ec_execute_datanode text 执行EC作业的DN名称。 ec_dsn text EC作业所使用的DSN。 ec_username text EC作业访问远端集群的USERNAME（远端集群为SPARK类型时该值为空）。 ec_query text EC作业发送给远端集群执行的语句。 ec_libodbc_type text EC作业使用的unixODBC驱动类型。",
+      "source_file": "1992_GS_WLM_EC_OPERATOR_INFO.txt"
+    }
+  ]
+}

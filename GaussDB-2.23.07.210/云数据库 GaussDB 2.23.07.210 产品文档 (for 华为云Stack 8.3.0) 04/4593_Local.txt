@@ -1,0 +1,1 @@
+对Local索引重命名索引分区 对Local索引重命名索引分区 使用ALTER INDEX RENAME PARTITION可以对Local索引重命名索引分区。具体方法与一级分区表重命名分区相同。 父主题： 重命名分区 版权所有 © 华为技术有限公司

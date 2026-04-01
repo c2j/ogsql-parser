@@ -1,0 +1,1 @@
+PG_INDEXES PG_INDEXES PG_INDEXES视图显示数据库中每个索引的信息。 表1 PG_INDEXES字段 名称 类型 引用 描述 schemaname name PG_NAMESPACE .nspname 包含表和索引的模式的名称。 tablename name PG_CLASS .relname 此索引所在的表的名称。 indexname name PG_CLASS .relname 索引的名称。 tablespace name PG_TABLESPACE .nspname 包含索引的表空间的名称。 indexdef text - 索引定义（一个重建的CREATE INDEX命令）。 父主题： 其他系统视图 版权所有 © 华为技术有限公司

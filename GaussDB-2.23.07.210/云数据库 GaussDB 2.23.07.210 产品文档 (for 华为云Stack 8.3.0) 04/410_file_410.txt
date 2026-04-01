@@ -1,0 +1,15 @@
+获取任务信息 获取任务信息 功能介绍 获取指定任务ID的任务信息。 调用接口前，您需要提前 获取终端节点 ，即下文中的Endpoint值。 URI URI格式 GET https://{ Endpoint }/gaussdb/v3/{project_id}/jobs?id={id} URI样例 https://gaussdb.sa-fb-2.hcsglobal.com/gaussdb/v3/0c8243400d37468bb4aed3cc94c2911d/jobs?id=5cbb8a90-2253-4cff-8a13-49aa8f31dfb5 参数说明 表1 请求参数 名称 类型 是否必选 描述 project_id string 是 租户在某一region下的project ID。 获取方法请参见 获取项目ID/名称 。 id string 是 任务ID。支持通过API接口（除“应用参数模板”、“增备任务”以外的）返回的异步任务id查询任务结果。 请求消息 无 响应消息 正常响应参数说明 表2 参数说明 名称 参数类型 描述 job Object 任务信息，请参见 表job字段数据结构说明 。 表3 job字段数据结构说明 名称 参数类型 描述 id String 任务ID。 name String 任务名称。 status String 任务执行状态。 取值： 值为“Running”，表示任务正在执行。 值为“Completed”，表示任务执行成功。 值为“Failed”，表示任务执行失败。 created String 创建时间，格式为“yyyy-mm-ddThh:mm:ssZ”。 其中，T指某个时间的开始；Z指时区偏移量。 ended String 结束时间，格式为“yyyy-mm-ddThh:mm:ssZ”。 其中，T指某个时间的开始；Z指时区偏移量。 progress String 任务执行进度。 说明： 执行中状态才返回执行进度，例如“60%”，表示任务执行进度为60%，否则返回“”。 instance Object 执行任务的实例信息。 请参见 表4 。 fail_reason String 任务执行失败时的错误信息。 表4 instance字段数据结构说明 名称 参数类型 描述 id String 实例ID。 name String 实例名称。 正常响应样例 参数模板列表： { 
+  "job" : { 
+    "id" : "5cbb8a90-2253-4cff-8a13-49aa8f31dfb5", 
+    "name" : "CreateGaussDBV5Instance", 
+    "status" : "Completed", 
+    "created" : "2021-07-12T09:22:04+0800", 
+    "ended" : "2021-07-12T10:10:13+0800", 
+    "progress" : "", 
+    "instance" : { 
+      "id" : "b34f8c791f2643578510c093aa2351a8in14", 
+      "name" : "gauss-c1a3" 
+    }, 
+    "fail_reason" : null 
+  } 
+} 异常响应 请参见 异常请求结果 。 状态码 正常 200 异常 请参见 状态码 。 错误码 请参见 错误码 。 父主题： 任务管理 版权所有 © 华为技术有限公司

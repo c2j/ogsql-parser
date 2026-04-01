@@ -1,0 +1,1 @@
+DROP EVENT DROP EVENT 功能描述 删除一个定时任务。 注意事项 定时任务相关操作只有sql_compatibility = 'B'时支持。 语法格式 DROP EVENT [IF EXISTS] event_name; 参数说明 IF EXISTS 如果定时任务不存在，会输出一个NOTICE。 示例 请参考CREATE EVENT的 8.12.8.20-示例 。 相关链接 ALTER EVENT ， CREATE EVENT ， SHOW EVENTS 父主题： D 版权所有 © 华为技术有限公司

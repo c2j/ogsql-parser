@@ -1,0 +1,56 @@
+Plan Hint实际调优案例 Plan Hint实际调优案例 当前特性是实验室特性，使用时请联系华为技术工程师提供技术支持。 TPC-DS的建表语句和完整测试集可从TPC官网下载，其中建表语句位于tools目录下。 本节以TPC-DS（Decision Support）标准测试的Q24的部分语句为例，在1000个数据集，24 DN 环境上，说明使用plan hint进行实际调优的过程。示例如下： 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27
+28
+29
+30
+31
+32
+33
+34
+35
+36 gaussdb =# EXPLAIN ANALYZE SELECT avg ( netpaid ) FROM ( select c_last_name , c_first_name , s_store_name , ca_state , s_state , i_color , i_current_price , i_manager_id , i_units , i_size , sum ( ss_sales_price ) netpaid FROM store_sales , store_returns , store , item , customer , customer_address WHERE ss_ticket_number = sr_ticket_number AND ss_item_sk = sr_item_sk AND ss_customer_sk = c_customer_sk AND ss_item_sk = i_item_sk AND ss_store_sk = s_store_sk AND c_birth_country = upper ( ca_country ) AND s_zip = ca_zip AND s_market_id = 7 GROUP BY c_last_name , c_first_name , s_store_name , ca_state , s_state , i_color , i_current_price , i_manager_id , i_units , i_size ); 该语句的初始计划如下，运行时间110s： 该计划中，第10层算子使用broadcast性能较差，由于第11层算子估算行数为2140，比实际行数严重低估。错误行数估算主要来源于第13层算子的行数低估，根因是第13层hashjoin中，使用store_sales的(ss_ticket_number, ss_item_sk)列和store_returns的(sr_ticket_number, sr_item_sk)列进行关联，由于缺少多列相关性的估算导致行数严重低估。 2. 使用如下的rows hint进行调优后，计划如下，运行时间318s： 1
+2 select avg ( netpaid ) from ( select /*+rows(store_sales store_returns * 11270)*/ c_last_name ... 时间反而劣化了，原因是第8层hashjoin过慢引起第9层redistribute时间过慢导致，其中第9层redistribute并没有数据倾斜，hashjoin慢的原因是由于第18层redistribute后数据倾斜导致。 3. 经过实际数据查证，customer_address的两个join列的不同值数目较少，使用其进行join容易出现数据倾斜，故把customer_address放到最后进行join。使用如下的hint进行调优后，计划如下，运行时间116s： 1
+2
+3
+4 select avg ( netpaid ) from ( select /*+rows(store_sales store_returns *11270) leading((store_sales store_returns store item customer) customer_address)*/ c_last_name ... 发现时间基本花在了第6层redistribute算子上，需要进一步优化。 4. 由于最后一层redistribute包含倾斜，所以时间较长。为了避免倾斜，需要将item表放在最后join，由于item表的join并不能使行数减少。修改hint如下并执行，计划如下，运行时间120s： 1
+2
+3
+4 select avg ( netpaid ) from ( select /*+rows(store_sales store_returns *11270) leading((customer_address (store_sales store_returns store customer) item)) c_last_name ... 该计划中的redistribute问题并没有解决，因为第22层item表做了broadcast，导致与customer_address表join后的倾斜并没有被消除掉。 5. 增加如下禁止item表做broadcast的hint，使与customer_address join的表做redistribute（也可以进行join表redistribute的hint），计划如下，运行时间105s： 1
+2
+3
+4
+5 select avg ( netpaid ) from ( select /*+rows(store_sales store_returns *11270) leading((customer_address (store_sales store_returns store customer) item)) no broadcast(item)*/ c_last_name ... 6. 发现最后一层使用单层Agg，但行数缩减较多。使用相同的hint，同时结合参数best_agg_plan=3进行双层Agg调优，最终计划如下图所示，运行时间94s，完成调优。 如果有统计信息变更引起的查询劣化，可以考虑用plan hint来调整到之前的查询计划。这里以TPCH-Q17为例，在收集default_statistics_target设置为–2的统计信息之后，计划相比于默认统计信息发生劣化。 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10 gaussdb =# EXPLAIN ANALYZE SELECT sum ( l_extendedprice ) / 7 . 0 AS avg_yearly FROM lineitem , part WHERE p_partkey = l_partkey AND p_brand = 'Brand#23' AND p_container = 'MED BOX' AND l_quantity < ( SELECT 0 . 2 * avg ( l_quantity ) FROM lineitem WHERE l_partkey = p_partkey ); 1. 默认统计信息（default_statistics_target设置为100）的计划如下： 2. 统计信息变更（default_statistics_target设置为–2）的计划如下： 3. 经过对比，劣化的原因主要为lineitem和part表join时，扫描part表时的stream类型由BroadCast变更为Redistribute导致。可以对语句进行stream方式的hint来调整到之前的计划，例如： 优化后，计划如下所示： 父主题： 使用Plan Hint进行调优 版权所有 © 华为技术有限公司

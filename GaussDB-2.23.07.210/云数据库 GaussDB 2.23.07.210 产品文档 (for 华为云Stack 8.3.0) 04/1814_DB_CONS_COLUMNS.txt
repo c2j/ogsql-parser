@@ -1,0 +1,1 @@
+DB_CONS_COLUMNS DB_CONS_COLUMNS DB_CONS_COLUMNS视图显示当前用户可访问的约束字段的信息。该视图同时存在于PG_CATALOG和SYS Schema下。 表1 DB_CONS_COLUMNS字段 名称 类型 描述 constraint_name character varying(64) 约束名。 table_name character varying(64) 约束相关的表名。 column_name character varying(64) 约束相关的列名。 owner character varying(64) 约束创建者。 position smallint 表中列的位置。 父主题： 其他系统视图 版权所有 © 华为技术有限公司

@@ -1,0 +1,108 @@
+gs_rescue gs_rescue 背景信息 gs_rescue是用于在极端场景下抢救客户数据，将磁盘数据文件输出为COPY命令可识别的数据格式，可将数据导入新数据库实例，供客户选择是否使用。 仅限当数据库数据库实例无法启动，而且无备份、无备机、无其它技术手段使数据库恢复正常情况下使用。 为防止数据泄露，用户需要合理设置抢救数据导出文件的权限，保证权限最小化。 仅解析落盘数据。 离线解析数据无法保证数据一致性。 在解析ustore表数据文件时，若tuple总长度为24字节(等于MIN_UHEAP_TUPLE_SIZE)，当前无法保证数据解析的准确性，会有相关提示"Warning: due to current limitation, for the tuple which size is MIN_UHEAP_TUPLE_SIZE(24), the parsed data may be inaccurate." 不解析xlog/undo内数据。 数据库应处于离线状态。 仅支持astore/ustore普通heap表数据解析，不支持段页式、加密表、压缩表数据等的解析。 仅支持常用数据列类型。 数据库数据文件需可正常访问。 在普通机械盘且IO非瓶颈情况下，解析速度大于20MB/s。 语法 gs_rescue [-abdhiktxy] [-R startblock [endblock]] [-D attrlist] [-T toast_relation_filenode] [-s segsize] [-n segnumber] file 使用解析数据类型参数的顺序需要和创建表时数据类型的顺序一致。 file文件参数需要放在最后面。 参数说明 表1 gs_rescue参数说明 参数 说明 -a 打印数据时使用绝对地址（Page头信息将一直使用相对地址）。 -b 打印数据时直接使用ASCII码形式（该选项会关闭其它打印选项）。 -d 使用十六进制打印块原始数据（该选项会关闭其它打印选项）。 -D attrlist 使用指定数据类型解析Tuple，类型之间使用逗号分隔，具体支持数据类型见 表2 。 -f 解析数据过程中打印Page内容，包含十六进制和字符。 -h 打印帮助信息。 -i 打印解析的元组详细信息，如：XMIN/XMAX/infomask等。 -k 尝试解析crc失败的Page，开启此参数无法保证抢救数据的正确性。 -o 开启此参数，将不会打印此页面的老元组，当前分为两种模式： -o不指定：块上所有数据均抢救。 -o指定：以事务均提交模式抢救块上数据。 -R 指定具体需要解析的Page范围（Page计数从0开始）： [startblock]：开始Page下标。 [endblock]：结束Page下标。 -s segsize 指定segment大小，默认为1GB，单位为字节，用于校验页面checksum值，不建议修改。 -t 是否解析toast表，对于变长字段，如:text/clob等，数据存储于toast表内，非用户指定路径，如果需要解析，则指定此选项。 -T toast_relation_filenode 通常Tuple如果涉及toast，会在Tuple内存储具体的Toast文件信息，但如果toast表被vacuum full过，会造成toast的relfilenode发生改变，这种情况下需要指定toast表的relfilenode。 -v 对于toast表输出额外的信息。 -n segnumber 强制指定segment的编号，用于校验（大于1G文件生成的xxx.1，xxx.2，xxx.3...)文件的checksum是否正确。 -S 强制指定Page大小，当前默认为8K。 -x 强制指定解析为index元组，用于解析索引表。 -y 强制指定解析为heap元组，用于解析普通表，防止文件损坏时不能自动解析heap表。 -m 解析pg_filenode.map文件（其它选项将会被忽略）。 表2 gs_rescue支持的数据类型 类型 数据类型 解析对应类型 备注 数值类型 tinyint tinyint - smallint smallint - integer integer - binary_integer binary_integer - bigint bigint - numeric[(p[,s])] numeric - decimal[(p[,s])] decimal - number[(p[,s])] number - smallserial smallserial - serial serial - bigserial bigserial - real real - float4 float4 - double precision double_precision - float8 float8 - float(p) float4/float8 建表时精度p选择不同，存储空间大小会不同。根据系统表pg_class、pg_attribute、pg_type结合用户表查看typlen大小，4字节使用float4，8字节使用float8。 binary_double float8 - dec[(p[,s])] numeric - integer[(p[,s])] numeric - 货币类型 money money - 布尔类型 boolean boolean/bool boolean或bool参数都可以解析boolean类型。 字符类型 char(n) charn - character(n) charn - nchar(n) charn - varchar(n) varchar - character varying(n) varchar - varchar2(n) varchar2n - nvarchar2(n) nvarchar2n - text text - "char" char - clob clob huge clob暂不支持（超过1GB的clob）。 name name - 二进制类型 blob blob - raw raw - bytea bytea - 日期类型 date timestamp 对于date类型，使用timestamp参数。 time [(p)] [without time zone] time - time [(p)] [with time zone] timetz - timestamp[(p)] [without time zone] timestamp - timestamp[(p)][with time zone] timestamptz - smalldatetime smalldatetime - interval day (l) to second (p) interval - reltime reltime - abstime abstime - interval [fields] [ (p) ] interval - 几何类型 point point - lseg lseg - box box - path path - polygon polygon - circle circle - 网络地址类型 cidr cidr - inet inet - macaddr macaddr - 位串类型 bit(n) bit - bit varying(n) varbit - uuid类型 uuid uuid - 范围类型 int4range int4range - int8range int8range - numrange numrange - tsrange tsrange - tstzrange tstzrange - daterange daterange - 文本搜索类型 tsvector tsvector - tsquery tsquery - json类型 json json - jsonb jsonb - 对象标识类型 oid oid - cid cid - tid tid - xid xid - regconfig regconfig - regdictionary regdictionary - regoper regoper - regoperator regoperator - regproc regproc - regprocedure regprocedure - regclass regclass - regtype regtype - 解析数组时，可使用array_i、array_d参数进行解析。不同数据类型数组的对齐性质可能不同，解析时也需要相应参数。根据系统表pg_class、pg_attribute、pg_type并结合用户表查看该数组的typalign，对齐性质为'i'使用array_i，对齐性质为'd'使用array_d。 针对 date 类型解析的参数，在不同环境下可能存在差异。如在集中式环境下，解析参数为timestamp；在分布式环境下，解析参数为date；在小型化环境下，解析参数为timestamp。如果数据库可用，可以查询pg_type数据表获取该date类型的存储类型做为参数；如果数据库不可用，可以参考示例三中的信息来确定该类型的参数。 示例 示例一：直接解析数据。 gs_rescue -D integer /data1/install/single_node/base/16706/16707
+
+****************************************************************
+* GaussDB File/Block Formatted Dump Utility
+*
+* File: /data1/install/single_node/base/16706/16707
+* Options used: -D integer
+*******************************************************************
+This is an Astore table!
+
+Block    0 ********************************************************
+<Header> -----
+ Block Offset: 0x00000000         Offsets: Lower      48 (0x0030)
+ Block: Size 8192  Version    6            Upper    8128 (0x1fc0)
+ LSN:  logid      0 recoff 0x02f00158      Special  8192 (0x2000)
+ Items:    2                            Free Space: 8080
+ Checksum: 0x2863  Prune XID: 0x00000000  Flags: 0x0040 ()
+ Length (including item array): 48
+
+<Data> -----
+ Item   1 -- Length:   28  Offset: 8160 (0x1fe0)  Flags: NORMAL
+COPY: 1
+
+*** End of File Encountered. Last Block Read: 0 *** 示例二：解析数据，解析后可重定向数据至文件，然后通过copy命令导入新的可用数据库实例。 gs_rescue -D integer /data1/install/single_node/base/16706/16707 | grep COPY | perl -lne 's/^COPY: //g; print;'
+1 示例三：此示例主要描述如何在数据库不启动且未知待抢救表路径、表字段等信息的情况下解析目标表数据的过程。主要流程是通过解析pg_filenode.map文件，来获取系统表的OID和relfilenode，然后继续解析各系统表（pg_database/pg_class/pg_attribute等）来获取用户表的路径、列类型等。 本示例假设用户使用默认表空间。 以下示例假设数据目录为/data1/install/single_node。 通过使用数据目录下global/pg_filenode.map获取pg_database的OID和relfilenode，然后通过relfilenode可获取pg_database的物理路径。 pg_filenode.map文件内存储系统表的oid和filenode的对应关系，常见的系统表的oid如下： pg_tablespace(OID:1213) pg_database(OID:1262) pg_namespace(OID:2615) pg_class(OID:1259) pg_attribute(OID:1249) pg_type(OID:1247) gs_rescue -m ./global/pg_filenode.map
+
+****************************************************************
+* GaussDB File/Block Formatted Dump Utility
+*
+* File: /data1/install/single_node/global/pg_filenode.map
+* Options used: -m
+*******************************************************************
+Magic Number: 0x592718 
+Number Mappings: 68
+Mappings list details:
+  NOTE: listing has been limited to the first 62 mappings
+        (perhaps the file is not a valid pg_filenode.map file?)
+OID: 1262       Filenode: 16702
+OID: 2964       Filenode: 16349
+OID: 1213       Filenode: 16355
+... 上述示例内OID 1262对应的Filenode 16702，从而可获取pg_database的物理路径为：./global/16702。 pg_database存储可用数据库的信息，通过解析pg_database物理文件（./global/16702），获取目标database的详细信息（主要为获取待抢救database的OID）。 gs_rescue -i -D name,oid,integer,name,name,bool,bool,integer,oid,xid32,oid,name,array_i,xid,xid,name ./global/16702
+...
+ Item   8 -- Length:  400  Offset: 6896 (0x1af0)  Flags: NORMAL
+  XMIN: 2  XMAX: 0  CID|XVAC: 0  OID: 17697
+  Block Id: 0  linp Index: 8   Attributes: 16   Size: 32
+  infomask: 0x0909 (HASNULL|HASOID|XMAX_LOCK_ONLY|XMIN_COMMITTED) 
+  t_bits: [0]: 0xff [1]: 0xef 
+
+COPY: gaussdb  10      0       C       C       f       t       -1      17692   7142530613      1663    A       \N      14955   2       PRC
+... 在上述示例内，gaussdb数据库的OID为17697，所以我们可以得到gaussdb数据库的文件路径为：./base/17697，此数据库内的相关系统表（pg_class/pg_attribute/pg_type等）和用户表数据，均存储在此目录下。 解析目标库内系统表信息，因为pg_class系统表存储对应数据库下所有表的信息，可通过本数据库下pg_filenode.map获取pg_class的物理路径，pg_filenode.map的路径为：./base/17697/pg_filenode.map。 gs_rescue -m /data1/install/single_node/base/17697/pg_filenode.map | grep OID
+OID: 1249       Filenode: 17186
+OID: 1259       Filenode: 17206
+OID: 1247       Filenode: 17082
+... pg_class在pg_filenode.map内的OID为1259，所以目标数据库的pg_class路径为：./base/17697/17206。 获取本库下的用户表名称和路径（relfilenode）信息。 gs_rescue -i -D name,oid,oid,oid,oid,oid,oid,oid,float8,float8,integer,oid,oid,oid,oid,oid,oid,bool,bool,char,char,smallint,smallint,bool,bool,bool,bool,bool,tinyint,bool,bool,char,xid32,array_i,array_i
+,char,xid,oid,int2vector,xid ./base/17697/17206  | grep COPY
+...
+ Item  22 -- Length:  280  Offset: 2560 (0x0a00)  Flags: NORMAL
+  XMIN: 16675  XMAX: 16675  CID|XVAC: 6  OID: 34097
+  Block Id: 2  linp Index: 22   Attributes: 40   Size: 32
+  infomask: 0x252b (HASNULL|HASVARWIDTH|HASOID|COMBOCID|XMIN_COMMITTED|UPDATED|KEYS_UPDATED)
+  t_bits: [0]: 0xff [1]: 0xff [2]: 0xff [3]: 0xff
+          [4]: 0x9d
+COPY: t_user    2200    34093   0       10      0       34091   0       0       0       0       0       0       0       0       0       0       f       f   pr       3       0       f       f       f       f       f       1       f       f       n       1627792621      \N      {orientation=row,compression=no}    d16632  
+... 在上述示例内，可以获取待抢救表t_user的： 路径 - ./base/17697/34097 OID - 34091 获取待抢救表t_user的列类型列表。首先需要解析pg_attribute表获取t_user的所有列类型的oid， 然后再通过解析pg_type根据类型oid获取所有列对应的类型名称。 解析表字段信息，pg_attribute系统表存储关于表字段的信息，pg_attribute表在pg_filenode.map内的OID为1249，获得物理路径为：./base/17697/17186，通过目标表t_user的OID 34091，获取在pg_attribute表中关于t_user表的所有列信息。 gs_rescue -D oid,name,oid,integer,smallint,smallint,integer,integer,integer,bool,char,char,bool,bool,bool,bool,tinyint,integer,oid,array_i,array_i,array_i,bytea,tinyint ./base/17697/17186 | grep 34091
+COPY: 34091     id      23      -1      4       1       0       -1      -1      t       p       i       f       f       f       t       127     0       0   \N       \N      \N      \N      0
+COPY: 34091     name    1042    -1      -1      2       0       -1      24      f       x       i       f       f       f       t       127     0   100      \N      \N      \N      \N      0
+COPY: 34091     age     23      -1      4       3       0       -1      -1      t       p       i       f       f       f       t       127     0       0   \N       \N      \N      \N      0
+COPY: 34091     ctid    27      0       6       -1      0       -1      -1      f       p       s       t       f       f       t       0       0       0   \N       \N      \N      \N      0
+COPY: 34091     xmin    28      0       8       -3      0       -1      -1      t       p       d       t       f       f       t       0       0       0   \N       \N      \N      \N      0
+... 在上述示例内，第6列attnum大于0为用户所创建的字段，也是字段编号，可以获取表t_user字段的： 列名称       -     id    name    age 列类型OID -    23    1042     23 解析字段的数据类型信息，pg_type系统表存储数据类型的相关信息，pg_type表在pg_filenode.map内的OID为1247，获得物理路径为：./base/17697/17082，通过目标字段age的OID 23，获取在pg_type表中关于目标字段的数据类型信息。 gs_rescue -i -D name,oid,oid,smallint,bool,char,char,bool,bool,char,oid,oid,oid,regproc,regproc,regproc,regproc,regproc,regproc,regproc,char,char,bool,oid,integer,integer,oid,charn,text,array_i ./base/17697/17082
+...
+Item   9 -- Length:  172  Offset: 6608 (0x19d0)  Flags: NORMAL
+  XMIN: 1  XMAX: 0  CID|XVAC: 0  OID: 23
+  Block Id: 0  linp Index: 9   Attributes: 30   Size: 32
+  infomask: 0x0909 (HASNULL|HASOID|XMAX_LOCK_ONLY|XMIN_COMMITTED)
+  t_bits: [0]: 0xff [1]: 0xff [2]: 0xff [3]: 0x07
+
+COPY: int4  11  10  4   t   b   N   f   t   ,   0   0   1007    42  43  2406    2407    0   0   0   i   p   f   0   -1  0   0   \N  \N  \N
+... 在上述示例内，在解析pg_type表的详情中，通过目标列age的OID查询到数据类型为int4。 通过上述步骤获取的t_user表的路径以及列类型列表，可解析用户表内数据。 -D 后跟随列的解析参数可以是pg_type中的数据类型，也可以是 表2 所对应的解析参数。 gs_rescue -D int4,charn,int4 ./base/17697/34097
+
+****************************************************************
+* GaussDB File/Block Formatted Dump Utility
+*
+* File: 34091
+* Options used: -D int,charn,int
+*******************************************************************
+This is an Astore table!
+
+Block    0 ********************************************************
+<Header> -----
+ Block Offset: 0x00000000         Offsets: Lower      44 (0x002c)
+ Block: Size 8192  Version    6            Upper    8136 (0x1fc8)
+ LSN:  logid      1 recoff 0x610668c0      Special  8192 (0x2000)
+ Items:    1                            Free Space: 8092
+ Checksum: 0xca7f  Prune XID: 0x00000000  Flags: 0x0040 ()
+ Length (including item array): 44
+
+<Data> -----
+ Item   1 -- Length:   56  Offset: 8136 (0x1fc8)  Flags: NORMAL
+COPY: 0 Jack                    21
+
+*** End of File Encountered. Last Block Read: 0 *** 示例四：对数据表的列有变动的情况可参考此示例。 在按照创建表时的数据类型顺序参数解析时，修改列后的数据解析可能会失败，因此对修改列后的数据可以用相应的数据类型顺序参数解析。 如数据表新增了一列，可按照如下步骤解析恢复： 按照创建表时的数据类型顺序参数解析数据重定向至文件file01，按照新增列后数据表的数据类型顺序参数解析数据至文件file02。 在可用数据库中创建original表和amend表，copy file01文件数据至original表，copy file02文件数据至amend表。 将original表数据插入到amend表得到全部数据。 gs_rescue -D integer /data1/install/single_node/base/16706/16708 | grep COPY | perl -lne 's/^COPY: //g; print;' > /data2/file01
+gs_rescue -D integer,integer /data1/install/single_node/base/16706/16708 | grep COPY | perl -lne 's/^COPY: //g; print;' > /data2/file02 gaussdb=# create table original(col1 integer);
+CREATE TABLE gaussdb=# copy original from '/data2/file01';
+COPY 1 gaussdb=# create table amend(col1 integer,col2 integer default 0);
+CREATE TABLE gaussdb=# copy amend from '/data2/file02';
+COPY 1 gaussdb=# insert into amend(col1) select * from original;
+INSERT 0 1 父主题： 系统内部调用的工具 版权所有 © 华为技术有限公司

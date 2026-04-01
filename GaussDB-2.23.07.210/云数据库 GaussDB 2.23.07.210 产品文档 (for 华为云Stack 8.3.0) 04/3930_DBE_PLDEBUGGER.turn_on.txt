@@ -1,0 +1,2 @@
+DBE_PLDEBUGGER.turn_on DBE_PLDEBUGGER.turn_on 该函数用于标记某一存储过程为可调试，执行turn_on后server端可以执行该存储过程来进行调试。需要用户根据系统表PG_PROC手动获取存储过程oid，传入函数中。turn_on后本session内执行该存储过程会停在第一条sql前等待debug端的调试操作。该设置会在session断连后默认被清理掉。目前不支持对启用自治事务的存储过程/函数进行调试。 同时turn_on的存储过程不超过100个。 函数原型为： 1
+2 DBE_PLDEBUGGER . turn_on ( Oid ) RETURN Record ; 表1 turn_on 入参和返回值列表 名称 类型 描述 func_oid IN oid 函数oid nodename OUT text 节点名称 port OUT integer 连接端口号 父主题： DBE_PLDEBUGGER Schema 版权所有 © 华为技术有限公司

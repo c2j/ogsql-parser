@@ -1,0 +1,13 @@
+查询差量备份列表 查询差量备份列表 功能介绍 查询差量备份列表。 调用接口前，您需要提前 获取终端节点 ，即下文中的Endpoint值。 URI URI格式 GET https://{ endpoint }/gaussdb/v3/{project_id}/instances/{instance_id}/differential-backups URI样例 https://gaussdb.sa-fb-2.hcsglobal.com/gaussdb/v3/0c8243400d37468bb4aed3cc94c2911d/instances/2e642f2861004f659bc567858936160ein14/differential-backups 参数说明 表1 参数说明 参数 是否必选 参数类型 描述 project_id 是 String 租户在某一region下的project ID。 获取方法请参见 获取项目ID/名称 。 instance_id 是 String 实例ID。 limit 否 String 查询记录数。默认为10，不能为负数，最小值为1，最大值为100。 最小值：1 最大值：100 offset 否 String 索引位置，偏移量。从第一条数据偏移offset条数据后开始查询，默认为0（偏移0条数据，表示从第一条数据开始查询），必须为数字，不能为负数。 最小值：0 begin_time 否 String 查询开始时间，默认为当前时刻格式为“yyyy-mm-ddThh:mm:ssZ”。其中，T指某个时间的开始；Z指时区偏移量，例如北京时间偏移显示为+0800。 end_time 否 String 查询结束时间，默认为当前时间格式为“yyyy-mm-ddThh:mm:ssZ”，且大于查询开始时间。其中，T指某个时间的开始；Z指时区偏移量，例如北京时间偏移显示为+0800 请求消息 无。 响应消息 正常响应要素说明 表2 响应Body参数 参数 参数类型 描述 differential_backups String 差量备份列表，详情见 表3 。 total_count Integer 查询结果总数。 表3 响应differential_backups参数 参数 参数类型 描述 id String 备份ID。 name String 备份名称。 begin_time String 备份开始时间，格式为"yyyy-mm-ddThh:mm:ssZ"。其中，T指某个时间的开始；Z指时区偏移量，例如北京时间偏移显示为+0800。 end_time String 备份结束时间，格式为“yyyy-mm-ddThh:mm:ssZ”。其中，T指某个时间的开始；Z指时区偏移量，例如北京时间偏移显示为+0800。 status String 备份状态 枚举值： BUILDING：备份中。 COMPLETED：备份完成。 FAILED：备份失败。 size Double 备份大小(单位：MB)。 正常响应样例 {
+    "differential_backups": [
+        {
+            "id": "2fc14f56ef074d9cbc3005626870acddbr14",
+            "name": "hc_test1230",
+            "status": "Active",
+            "size": 0.840538025390625,
+            "begin_time": "2023-03-06T22:28:06+0800",
+            "end_time": "2023-03-06T22:30:12+0800"
+        }
+    ],
+    "total_count": 1
+} 异常响应 请参见 异常请求结果 。 状态码 正常 200 异常 请参见 状态码 。 错误码 请参见 错误码 。 父主题： 备份管理 版权所有 © 华为技术有限公司

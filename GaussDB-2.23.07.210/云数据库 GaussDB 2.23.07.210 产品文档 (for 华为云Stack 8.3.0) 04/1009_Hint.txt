@@ -1,0 +1,30 @@
+参数化路径的Hint 参数化路径的Hint 功能描述 指明参数化路径，条件谓词下推方式。 语法格式 1
+2 predpush ( [ @ queryblock ] src1 src2 ) predpush ( [ @ queryblock ] src , dest ) 参数说明 @queryblock 见 指定Hint所处的查询块Queryblock 章节，可省略，表示在当前查询块生效。 src, src1, src2表示predpush下推candidates一侧表集合。 dest表示predpush下推所指定的dest表也就是目标表。 predpush如果没有逗号表示所有表都是candidates表, 如果有逗号就说明同时指定了candidates表和dest表。 使用predpush hint将过滤表达式尽可能移至靠近数据源的位置以达到查询优化的目的。 使用predpush hint需要确保rewrite_rule GUC参数包含PREDPUSH|REDPUSHFORCE|PREDPUSHNORMAL选项。 subquery_block也可以是视图/物化视图。 示例 灵活使用predpush hint可以大幅提高语句的执行效率。示例如下： CREATE TABLE pt2(a int, b int);
+CREATE TABLE pt3(a int, b int);
+CREATE TABLE pt4(a int, b int);
+CREATE INDEX t4_a_idx on pt4(a);
+CREATE INDEX t3_a_idx on pt3(a, b);
+CREATE INDEX t2_a_idx on pt2(a);
+SET rewrite_rule='predpushforce';
+SET enable_fast_query_shipping = off;
+SET explain_perf_mode=pretty; gaussdb=# EXPLAIN (costs off) SELECT /*+PREDPUSH(pt2 st3) */ *
+FROM pt2,
+    (SELECT /*+ indexscan(pt3) indexscan(pt4)  */sum(pt3.b), pt3.a FROM pt3, pt4 where pt3.a = pt4.a GROUP BY pt3.a) st3
+WHERE st3.a = pt2.a;
+ id |                       operation
+----+-------------------------------------------------------
+  1 | ->  Streaming (type: GATHER)
+  2 |    ->  Nested Loop (3,4)
+  3 |       ->  Seq Scan on pt2
+  4 |       ->  HashAggregate
+  5 |          ->  Nested Loop (6,7)
+  6 |             ->  Index Only Scan using t3_a_idx on pt3
+  7 |             ->  Index Only Scan using t4_a_idx on pt4
+(7 rows)
+ Predicate Information (identified by plan id)
+-----------------------------------------------
+   6 --Index Only Scan using t3_a_idx on pt3
+         Index Cond: (a = pt2.a)
+   7 --Index Only Scan using t4_a_idx on pt4
+         Index Cond: (a = pt2.a)
+(4 rows) 在未使用predpush hint的情况下，子查询中pt3，pt4在做join之前没有经过任何来自query block外的处理，所以返回的结果集较大，造成性能浪费。 然而，如上面计划所示，在使用了predpush hint后，pt3，pt4在做join之前先基于pt2表进行了一次条件过滤，join后返回的结果集较小，可以有效提升性能。 父主题： 使用Plan Hint进行调优 版权所有 © 华为技术有限公司

@@ -1,0 +1,1 @@
+前置条件 前置条件 数据库运行正常，GUC参数enable_ai_stats设置为on，multi_stats_type设置为'BAYESNET'或者'ALL'。 父主题： 智能基数估计 版权所有 © 华为技术有限公司

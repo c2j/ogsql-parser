@@ -1,0 +1,102 @@
+使用库函数 使用库函数 ECPGdebug(int on, FILE *stream)：若函数第一个参数为非0，则开启调试日志，第二个参数表示要打印日志的标准输出流。调试日志在标准输出流上执行，日志包含所有输入的SQL语句以及来自 GaussDB Kernel 服务器的结果。 示例： #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include "sqlca.h"
+
+int main()
+{
+    ECPGdebug(1, stderr);
+    EXEC SQL CONNECT postgres;
+    EXEC SQL SET AUTOCOMMIT TO ON;
+    EXEC SQL CREATE TABLE T1(a int);
+    return (0);
+} ECPGget_PGconn(const char *connection_name)：返回由给定名称标识的数据库连接句柄。如果connection_name设置为NULL，则返回当前连接句柄；如果没有连接句柄可以被识别，则该函数返回NULL。 示例： #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include "sqlca.h"
+
+int main()
+{
+    ECPGdebug(1, stderr);
+    EXEC SQL CONNECT TO postgres as con1;
+    EXEC SQL SET AUTOCOMMIT TO ON;
+    EXEC SQL DROP TABLE IF EXISTS T1;
+    PGconn     *conn;
+    conn = ECPGget_PGconn("con1");
+    printf("conn = %p\n", conn);
+    conn = ECPGget_PGconn(NULL);
+    printf("conn = %p\n", conn);
+    EXEC SQL CREATE TABLE T1(a int);
+    return (0);
+} ECPGtransactionStatus(const char *connection_name)：返回connection_name连接的当前事务状态。可能的返回值包括： PQTRANS_IDLE,    /* connection idle，连接空闲 */
+    PQTRANS_ACTIVE,  /* command in progress，命令正在执行 */
+    PQTRANS_INTRANS, /* idle, within transaction block，空闲，在事务块里 */
+    PQTRANS_INERROR, /* idle, within failed transaction，空闲，在失败的事务里 */
+    PQTRANS_UNKNOWN  /* cannot determine status，未知状态 */ 示例： #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include "sqlca.h"
+
+int main()
+{
+    ECPGdebug(1, stderr);
+    EXEC SQL CONNECT TO postgres as con1;
+    EXEC SQL DROP TABLE IF EXISTS T1;
+    int a = ECPGtransactionStatus("con1");
+    printf("%d\n", a);
+    EXEC SQL CREATE TABLE T1(a int);
+    EXEC SQL COMMIT;
+    return (0);
+} ECPGfree_auto_mem()：释放为输出型宿主变量申请的所有内存，在程序结束时调用（return\exit）。 示例： #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include "sqlca.h"
+
+int main()
+{
+   EXEC SQL BEGIN DECLARE SECTION;
+   int *ip1=0;
+   char **cp2=0;
+   int *ipointer1=0;
+   int *ipointer2=0;
+   int column;
+   EXEC SQL END DECLARE SECTION;
+   int i;
+
+   ECPGdebug(1, stderr);
+
+   EXEC SQL WHENEVER SQLERROR DO sqlprint();
+   EXEC SQL CONNECT TO REGRESSDB1;
+
+   EXEC SQL SET DATESTYLE TO postgres;
+
+   EXEC SQL CREATE TABLE test (a int, b text);
+   EXEC SQL INSERT INTO test VALUES (1, 'one');
+   EXEC SQL INSERT INTO test VALUES (2, 'two');
+   EXEC SQL INSERT INTO test VALUES (NULL, 'three');
+   EXEC SQL INSERT INTO test VALUES (NULL, NULL);
+
+   EXEC SQL ALLOCATE DESCRIPTOR mydesc;
+   EXEC SQL SELECT * INTO SQL DESCRIPTOR mydesc FROM test;
+   EXEC SQL GET DESCRIPTOR mydesc :column=COUNT;
+   EXEC SQL GET DESCRIPTOR mydesc VALUE 1 :ip1=DATA, :ipointer1=INDICATOR;
+   EXEC SQL GET DESCRIPTOR mydesc VALUE 2 :cp2=DATA, :ipointer2=INDICATOR;
+
+   printf("Result (%d columns):\n", column);
+   for (i=0;i < sqlca.sqlerrd[2];++i)
+   {
+      if (ipointer1[i]) printf("NULL, ");
+      else printf("%d, ",ip1[i]);
+
+      if (ipointer2[i]) printf("NULL, ");
+      else printf("'%s', ",cp2[i]);
+      printf("\n");
+   }
+   ECPGfree_auto_mem();
+   printf("\n");
+
+   EXEC SQL DEALLOCATE DESCRIPTOR mydesc;
+   EXEC SQL ROLLBACK;
+   EXEC SQL DISCONNECT;
+   return 0;
+} 父主题： 基于ecpg开发 版权所有 © 华为技术有限公司

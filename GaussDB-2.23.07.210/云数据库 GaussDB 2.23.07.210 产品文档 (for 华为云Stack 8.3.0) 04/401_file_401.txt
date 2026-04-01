@@ -1,0 +1,5 @@
+解除容灾关系 解除容灾关系 功能介绍 解除容灾关系，从容灾主实例端下发。 调用接口前，您需要提前 获取终端节点 ，即下文中的Endpoint值。 约束限制 仅支持从主Region下发解除容灾关系操作。 两地三中心场景下，主实例A和同城备实例B和异地备实例C搭建容灾关系，不能在异地集群C为主的情况下，下发解除容灾操作，需要在异地集群C降备后才能解除。 主实例A和备实例B搭建容灾关系，在备实例B进行容灾演练场景时，禁止在主实例A下发容灾解除操作。 URI URI格式 POST https://{Endpoint}/gaussdb/v3.5/{project_id}/instances/{instance_id}/disaster-recovery/release URI样例 https://gaussdb.sa-fb-2.hcsglobal.com/gaussdb/v3.5/0483b6b16e954cb88930a360d2c4e663/instances/c04c789b6baa4b6dbcc139c5226f3a2cin14/disaster-recovery/release 参数说明 表1 参数说明 名称 是否必选 说明 project_id 是 租户在某一region下的project ID。 获取方法请参见 获取项目ID/名称 。 instance_id 是 实例ID。 请求消息 参数说明 表2 参数说明 名称 是否必选 参数类型 说明 disaster_type 是 String 容灾类型。 枚举值： stream dorado 请求示例 { 
+	"disaster_type" : "stream" 
+} 响应消息 表3 响应Body参数列表 名称 参数类型 说明 job_id String 任务id。 正常响应样例 { 
+    "job_id":"8bf0175e-562e-45f6-942a-2e2c72c577d7" 
+} 异常响应 请参见 异常请求结果 。 状态码 正常 202 异常 请参见 状态码 。 错误码 请参见 错误码 。 父主题： 容灾管理 版权所有 © 华为技术有限公司

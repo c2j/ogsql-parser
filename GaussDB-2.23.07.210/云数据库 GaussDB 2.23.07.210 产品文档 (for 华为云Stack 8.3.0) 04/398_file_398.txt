@@ -1,0 +1,32 @@
+查询容灾关系列表 查询容灾关系列表 功能介绍 查询容灾关系列表。 调用接口前，您需要提前 获取终端节点 ，即下文中的Endpoint值。 URI URI格式 GET https://{ Endpoint }/gaussdb/v3.5/{project_id}/disaster-recovery/relations URI样例 https://gaussdb.sa-fb-2.hcsglobal.com/gaussdb/v3.5/0483b6b16e954cb88930a360d2c4e663/disaster-recovery/relations 参数说明 表1 参数说明 名称 参数类型 是否必选 说明 project_id String 是 租户在某一region下的project ID。 获取方法请参见 获取项目ID/名称 。 instance_name String 否 实例名称，可查询过滤本端实例。 instance_id String 否 实例id，可查询过滤本端实例id。 limit Integer 否 查询记录数。为空时，默认为100。最小值为1，最大值为100。 offset Integer 否 索引位置，偏移量。从第一条数据偏移offset条数据后开始查询，默认为0（偏移0条数据，表示从第一条数据开始查询），必须为数字，不能为负数。 请求示例 https://gaussdb.sa-fb-2.hcsglobal.com/gaussdb/v3.5/4a52a8a8f63d4c6d966dff0e20b69738/disaster-recovery/relations?limit=&offset=0&instance_name=test 请求消息 无 响应消息 表2 响应Body参数列表 名称 参数类型 说明 total Integer 总记录数。 relations Array of Object 容灾关系详情。 表3 relations字段数据结构说明 名称 参数类型 说明 disaster_type String 容灾类型。 枚举值: stream name String 容灾任务名称。 disaster_role String 容灾角色。 枚举值: disaster master created String 创建时间，格式为“yyyy-mm-ddThh:mm:ssZ”。 其中，T指某个时间的开始；Z指时区偏移量，例如北京时间偏移显示为+0800。 updated String 更新时间，格式为“yyyy-mm-ddThh:mm:ssZ”。 其中，T指某个时间的开始；Z指时区偏移量，例如北京时间偏移显示为+0800。 slave_region_instance_info Object 备region实例信息。 master_region_instance_info Object 主region实例信息。 synchronization_id String 容灾关系唯一id。 id String 容灾记录id。 instance_id String 当前region实例id。 instance_name String 当前region实例名称。 instance_status String 当前region实例状态。 precheck_failed_reason String 预校验失败原因。 status String 容灾记录状态。 actions Array of String 实例当前正在执行的action列表。 表4 region_instance_info字段数据结构说明 名称 参数类型 说明 instance_id String 实例id。 project_id String 实例项目id。 project_name String 实例项目名称。 region_code String regionCode编码。 ip_address String 数据ip地址列表“,”分割。 正常响应样例 { 
+   "total" : 1, 
+   "relations" : [ { 
+     "name" : "DR-task-0962", 
+     "created" : "2022-06-16 09:39:51", 
+     "updated" : "2022-06-16 09:44:55", 
+     "id" : "30b74120-4b50-495d-8174-7eeddf7feac5", 
+     "synchronization_id" : "9446f822-ccd2-43dc-929c-0b78ba7fdf64", 
+     "status" : "normal", 
+     "precheck_failed_reason" : "", 
+     "disaster_type" : "stream", 
+     "disaster_role" : "disaster", 
+     "slave_region_instance_info" : { 
+       "region_code" : "sa-fb-1", 
+       "instance_id" : "d1060faf0d3743dd8830b39e7423bc9ain14", 
+       "project_id" : "4a52a8a8f63d4c6d966dff0e20b69738", 
+       "project_name" : "sa-fb-1_GaussDB", 
+       "ip_address" : "172.166.1.192,172.166.0.6,172.166.1.135" 
+     }, 
+     "master_region_instance_info" : { 
+       "region_code" : "sa-fb-1", 
+       "instance_id" : "54d4b9fb131745fcba32cb90a05cabb8in14", 
+       "project_id" : "4a52a8a8f63d4c6d966dff0e20b69738", 
+       "project_name" : "sa-fb-1_GaussDB", 
+       "ip_address" : "172.167.1.86,172.167.0.89,172.167.1.229" 
+     }, 
+     "instance_id" : "d1060faf0d3743dd8830b39e7423bc9ain14", 
+     "instance_name" : "hly-0609-02", 
+     "instance_status" : "normal", 
+     "actions" : [ "STREAM_DISASTER_RELATION_MASTER_TAG" ] 
+   } ] 
+ } 异常响应 请参见 异常请求结果 。 状态码 正常 200 异常 请参见 状态码 。 错误码 请参见 错误码 。 父主题： 容灾管理 版权所有 © 华为技术有限公司

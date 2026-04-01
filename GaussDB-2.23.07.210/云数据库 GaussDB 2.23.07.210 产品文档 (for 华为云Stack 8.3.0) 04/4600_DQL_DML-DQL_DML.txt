@@ -1,0 +1,1 @@
+DQL/DML-DQL/DML并发 DQL/DML-DQL/DML并发 DQL/DML操作会给表和分区施加1~3级别的常规锁，DQL/DML操作自身互不阻塞，支持DQL/DML-DQL/DML并发。 间隔分区表由于INSERT/UPDATE/UPSERT/MERGE INTO/COPY等业务导致的新增分区行为视为一个分区DDL操作。 父主题： 分区并发控制 版权所有 © 华为技术有限公司

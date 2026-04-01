@@ -1,0 +1,1 @@
+javax.naming.spi.InitialContextFactory javax.naming.spi.InitialContextFactory javax.naming.spi.InitialContextFactory是初始连接上下文工厂接口。 表1 对javax.naming.spi.InitialContextFactory的支持情况 方法名 描述 返回值类型 throws 支持JDBC4 getInitialContext(Hashtable<?,?> environment) 为开始名称解析创建初始上下文。此上下文的特殊要求使用环境提供。 Context NamingException Yes 父主题： JDBC接口参考 版权所有 © 华为技术有限公司

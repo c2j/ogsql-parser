@@ -1,0 +1,1 @@
+SQL Detail SQL Detail SQL Detail列名称及描述如下表所示。 表1 SQL Detail报表主要内容 列名称 描述 Unique SQL Id 归一化SQL ID。 Parent Unique SQL Id 父语句的归一化SQL ID，单独执行的语句该值为0。 User Name 用户名称。 Node Name 节点名称。Node模式下不显示该字段。 SQL Text 归一化SQL文本。 父主题： WDR报告信息介绍 版权所有 © 华为技术有限公司

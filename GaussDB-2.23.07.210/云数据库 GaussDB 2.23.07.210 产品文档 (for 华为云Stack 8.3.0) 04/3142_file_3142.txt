@@ -1,0 +1,110 @@
+嵌套的子程序 嵌套的子程序 在PL/SQL块内创建的子程序，支持在匿名块、存储过程、函数、包内的存储过程及函数中，声明并创建子存储过程或子函数。 注意事项 在A兼容性数据库下使用。 最大嵌套层数限制通过GUC参数max_subpro_nested_layers控制（默认值为3，取值范围0~100）。如果嵌套子程序中含有匿名块，匿名块不计算层数，但匿名块内的嵌套子程序计入到总层数计算 嵌套子程序不支持重载、不支持使用SETOF。 嵌套子程序内不支持定义为自治事务，可调用含有自治事务的存储过程或函数。 子函数（FUNCTION）不支持直接调用且必须要有返回值，子存储过程（PROCEDURE）不支持在表达式中调用。 嵌套子程序不支持perform调用，动态语句中不能有嵌套子程序。 当前嵌套子程序的修饰符支持如下，其余修饰符暂不支持： {IMMUTABLE  | STABLE  | VOLATILE }  
+{CALLED ON NULL INPUT | RETURNS NULL ON NULL INPUT | STRICT } 仅支持一个限定符引用嵌套子程序或嵌套子程序的变量。 当子函数（FUNCTION）返回值类型为函数自定义的record类型时，无法使用subfunc().col的方式访问子函数返回值的列属性，执行时会报错。 嵌套子程序的声明必须是在声明部分的最后（在其他变量、游标、类型等声明完成之后再声明嵌套子程序）。 嵌套子程序只能在声明的函数或存储过程内部调用，外部不可使用。 嵌套子程序使用不支持debugger打断点，支持step单步调试。 其余注意事项同存储过程及函数一致。 语法格式 创建子存储过程语法格式： 1
+2
+3
+4
+5
+6
+7
+8 PROCEDURE procedure_name [ ( parameters ) ] [ { IMMUTABLE | STABLE | VOLATILE } | { CALLED ON NULL INPUT | RETURNS NULL ON NULL INPUT | STRICT } ] { IS | AS } [ declarations ] BEGIN plsql_body END ; 创建子函数语法： 1
+2
+3
+4
+5
+6
+7
+8 FUNCTION function_name [ ( parameters ) ] RETURN rettype [ { IMMUTABLE | STABLE | VOLATILE } | { CALLED ON NULL INPUT | RETURNS NULL ON NULL INPUT | STRICT } ] { IS | AS } [ declarations ] BEGIN plsql_body END ; 在declarations 部分可再定义下层的嵌套子程序。 示例： 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22 -- 创建一个存储过程 CREATE OR REPLACE PROCEDURE proc_test () AS -- 声明并定义一个子存储过程 PROCEDURE proc_sub () IS BEGIN dbe_output . put_line ( 'this is subpragram' ); END ; BEGIN dbe_output . put_line ( 'this is a procedure' ); -- 执行块内调用子存储过程 proc_sub (); END ; / -- 外部调用存储过程 BEGIN proc_test ; END ; / -- 输出结果 this is a procedure this is subpragram ANONYMOUS BLOCK EXECUTE 嵌套子程序的声明及定义规则 嵌套子程序不可重复声明，不可重复定义，不支持重载。 嵌套子程序的标识符不可同变量名，关键字同名。 支持先声明后定义，先声明的子程序必须在后续声明块中找到定义。 嵌套子程序的调用规则 嵌套子程序可以调用自身，实现递归调用效果。 嵌套子程序可以调用上层子程序。 嵌套子程序可以调用本地声明的下层子程序，但不可调用下层子程序中的嵌套子程序。 嵌套子程序可以调用同层内先于自身声明的子程序。 示例： 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27
+28
+29
+30
+31
+32
+33
+34
+35
+36
+37
+38
+39
+40
+41
+42
+43
+44
+45
+46
+47
+48
+49
+50
+51
+52
+53
+54
+55
+56
+57
+58
+59
+60
+61
+62
+63
+64
+65
+66
+67
+68
+69
+70
+71
+72
+73
+74 -- 调用自身 CREATE OR REPLACE PROCEDURE proc_test ( var1 int ) AS PROCEDURE proc_sub ( var2 int ) IS BEGIN dbe_output . put_line ( 'var = ' || var2 ); IF var2 > 1 THEN proc_sub ( var2 - 1 ); END IF ; END ; BEGIN proc_sub ( var1 ); END ; / BEGIN proc_test ( 3 ); END ; / --输出结果 var = 3 var = 2 var = 1 --调用上层子程序 CREATE OR REPLACE PROCEDURE proc_test ( var1 int ) AS PROCEDURE procsub_1 ( var2 int ) IS BEGIN proc_test ( var2 - 1 ); END ; BEGIN dbe_output . put_line ( 'proc_test var1 = ' || var1 ); IF var1 > 1 THEN procsub_1 ( var1 ); END IF ; END ; / BEGIN proc_test ( 3 ); END ; / -- 输出结果 proc_test var1 = 3 proc_test var1 = 2 proc_test var1 = 1 -- 调用本地声明的下层子程序 CREATE OR REPLACE PROCEDURE proc_test () AS PROCEDURE proc_sub1 IS PROCEDURE proc_sub2 IS BEGIN dbe_output . put_line ( '--this is subpragram2 begin' ); dbe_output . put_line ( '--this is subpragram2 end' ); END ; BEGIN dbe_output . put_line ( 'this is subpragram1 begin' ); proc_sub2 (); dbe_output . put_line ( 'this is subpragram1 end' ); END ; BEGIN dbe_output . put_line ( 'this is a procedure begin' ); proc_sub1 (); dbe_output . put_line ( 'this is a procedure end' ); END ; / BEGIN proc_test ; END ; / -- 输出结果 this is a procedure begin this is subpragram1 begin --this is subpragram2 begin --this is subpragram2 end this is subpragram1 end this is a procedure end 嵌套子程序的变量 变量类型包括：基础类型，record类型、table of类型、cursor类型、varray类型等其它PL/SQL支持的变量类型。 可访问的变量： 自身声明的变量。 上层子程序声明的变量。 变量的访问规则： 如果变量不带限定符，首先将在本程序内查找变量，如果变量名不存在，则向上层查找变量，以此类推。 如果变量带有限定符，将在限定符的区域查找。目前仅支持一个限定符的调用。 父主题： 子程序 版权所有 © 华为技术有限公司

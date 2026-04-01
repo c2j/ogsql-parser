@@ -1,0 +1,124 @@
+显式游标 显式游标 显式游标主要用于对查询语句的处理，尤其是在查询结果为多条记录的情况下。 处理步骤 显式游标处理需六个PL/SQL步骤： 定义静态游标： 就是定义一个游标名，以及与其相对应的SELECT语句。 定义静态游标的语法图，请参见 图1 。 图1 static_cursor_define::= 或 图2 static_cursor_define::= 参数说明： cursor_name：定义的游标名。 parameter：游标参数，只能为输入参数，参数支持定义默认值，以:=、=、default定义。其格式为： select_statement：查询语句。 根据执行计划的不同，系统会自动判断该游标是否可以用于以倒序的方式检索数据行。 语法上支持parameter为输出参数，但其行为与输入参数保持一致。 定义动态游标： 指ref游标，可以通过一组静态的SQL语句动态的打开游标。首先定义ref游标类型，然后定义该游标类型的游标变量，在打开游标时通过OPEN FOR动态绑定SELECT语句。 定义动态游标的语法图，请参见 图3 和 图4 。 图3 cursor_typename::= 图4 dynamic_cursor_define::= 打开静态游标： 就是执行游标所对应的SELECT语句，将其查询结果放入工作区，并且指针指向工作区的首部，标识游标结果集合。如果游标查询语句中带有FOR UPDATE选项，OPEN语句还将锁定数据库表中游标结果集合对应的数据行。 打开静态游标的语法图，请参见 图5 。 图5 open_static_cursor::= 打开动态游标： 可以通过OPEN FOR语句打开动态游标，动态绑定SQL语句。 打开动态游标的语法图，请参见 图6 。 图6 open_dynamic_cursor::= PL/SQL程序不能用OPEN语句重复打开一个游标。 提取游标数据：检索结果集合中的数据行，放入指定的输出变量中。 提取游标数据的语法图，请参见 图7 。 图7 fetch_cursor::= 对该记录进行处理。 继续处理，直到活动集合中没有记录。 关闭游标：当提取和处理完游标结果集合数据后，应及时关闭游标，以释放该游标所占用的系统资源，并使该游标的工作区变成无效，不能再使用FETCH语句获取其中数据。关闭后的游标可以使用OPEN语句重新打开。 关闭游标的语法图，请参见 图8 。 图8 close_cursor::= 属性 游标的属性用于控制程序流程或者了解程序的状态。当运行DML语句时，PL/SQL打开一个内建游标并处理结果，游标是维护查询结果的内存中的一个区域，游标在运行DML语句时打开，完成后关闭。显式游标的属性为： %FOUND布尔型属性：当最近一次读记录时成功返回，则值为TRUE。 %NOTFOUND布尔型属性：当最近一次读记录时失败返回，则值为TRUE。 %ISOPEN布尔型属性：当游标已打开时返回TRUE。 %ROWCOUNT数值型属性：返回已从游标中读取的记录数。 示例 前置DDL、DML，本节后续示例依赖此用例。 gaussdb=# DROP SCHEMA IF EXISTS hr CASCADE; gaussdb= # CREATE SCHEMA hr; gaussdb= # SET current_schema = hr; gaussdb= # DROP TABLE IF EXISTS sections; gaussdb= # DROP TABLE IF EXISTS staffs; gaussdb= # DROP TABLE IF EXISTS department;
+--创建部门表 gaussdb= # CREATE TABLE sections(
+    section_name varchar(100),
+    place_id     int,
+    section_id   int
+); gaussdb= # INSERT INTO sections VALUES ('hr',1,1);
+
+--创建员工表 gaussdb= # CREATE TABLE staffs(
+    staff_id number(6),
+    salary number(8,2),
+    section_id int,
+    first_name varchar(20)
+); gaussdb= # INSERT INTO staffs VALUES (1,100,1,'Tom');
+
+--创建部门表 gaussdb= # CREATE TABLE department(
+    section_id int
+); 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27
+28
+29
+30
+31
+32
+33
+34
+35
+36
+37
+38
+39
+40
+41
+42
+43
+44
+45
+46
+47
+48
+49
+50
+51
+52
+53
+54 --游标参数的传递方法。 gaussdb =# CREATE OR REPLACE PROCEDURE cursor_proc1 () AS DECLARE DEPT_NAME VARCHAR ( 100 ); DEPT_LOC NUMBER ( 4 ); --定义游标 CURSOR C1 IS SELECT section_name , place_id FROM hr . sections WHERE section_id <= 50 ; CURSOR C2 ( sect_id INTEGER ) IS SELECT section_name , place_id FROM hr . sections WHERE section_id <= sect_id ; TYPE CURSOR_TYPE IS REF CURSOR ; C3 CURSOR_TYPE ; SQL_STR VARCHAR ( 100 ); BEGIN OPEN C1 ; --打开游标 LOOP --通过游标取值 FETCH C1 INTO DEPT_NAME , DEPT_LOC ; EXIT WHEN C1 % NOTFOUND ; DBE_OUTPUT . PRINT_LINE ( DEPT_NAME || '---' || DEPT_LOC ); END LOOP ; CLOSE C1 ; --关闭游标 OPEN C2 ( 10 ); LOOP FETCH C2 INTO DEPT_NAME , DEPT_LOC ; EXIT WHEN C2 % NOTFOUND ; DBE_OUTPUT . PRINT_LINE ( DEPT_NAME || '---' || DEPT_LOC ); END LOOP ; CLOSE C2 ; SQL_STR : = 'SELECT section_name, place_id FROM hr.sections WHERE section_id <= :DEPT_NO;' ; OPEN C3 FOR SQL_STR USING 50 ; LOOP FETCH C3 INTO DEPT_NAME , DEPT_LOC ; EXIT WHEN C3 % NOTFOUND ; DBE_OUTPUT . PRINT_LINE ( DEPT_NAME || '---' || DEPT_LOC ); END LOOP ; CLOSE C3 ; END ; / gaussdb =# CALL cursor_proc1 (); --执行结果 gaussdb =# hr ---1 hr ---1 hr ---1 cursor_proc1 -------------- ( 1 row ) gaussdb =# DROP PROCEDURE cursor_proc1 ; 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27 --给工资低于3000的员工增加工资500。 gaussdb =# CREATE TABLE hr . staffs_t1 AS TABLE hr . staffs ; gaussdb =# CREATE OR REPLACE PROCEDURE cursor_proc2 () AS DECLARE V_EMPNO NUMBER ( 6 ); V_SAL NUMBER ( 8 , 2 ); CURSOR C IS SELECT staff_id , salary FROM hr . staffs_t1 ; BEGIN OPEN C ; LOOP FETCH C INTO V_EMPNO , V_SAL ; EXIT WHEN C % NOTFOUND ; IF V_SAL <= 3000 THEN UPDATE hr . staffs_t1 SET salary = salary + 500 WHERE staff_id = V_EMPNO ; END IF ; END LOOP ; CLOSE C ; END ; / gaussdb =# CALL cursor_proc2 (); --删除存储过程 gaussdb =# DROP PROCEDURE cursor_proc2 ; gaussdb =# DROP TABLE hr . staffs_t1 ; 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27
+28
+29 --SYS_REFCURSOR类型做为函数参数 gaussdb =# CREATE OR REPLACE PROCEDURE proc_sys_ref ( O OUT SYS_REFCURSOR ) IS C1 SYS_REFCURSOR ; BEGIN OPEN C1 FOR SELECT section_id FROM hr . sections ORDER BY section_id ; O : = C1 ; END ; / gaussdb =# DECLARE C1 SYS_REFCURSOR ; TEMP NUMBER ( 4 ); BEGIN proc_sys_ref ( C1 ); LOOP FETCH C1 INTO TEMP ; DBE_OUTPUT . PRINT_LINE ( C1 % ROWCOUNT ); EXIT WHEN C1 % NOTFOUND ; END LOOP ; END ; / --执行结果 gaussdb =# 1 1 ANONYMOUS BLOCK EXECUTE --删除存储过程 gaussdb =# DROP PROCEDURE proc_sys_ref ; 父主题： 游标 版权所有 © 华为技术有限公司

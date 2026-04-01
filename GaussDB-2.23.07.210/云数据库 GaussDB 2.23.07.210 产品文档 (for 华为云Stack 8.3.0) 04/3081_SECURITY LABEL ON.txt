@@ -1,0 +1,24 @@
+SECURITY LABEL ON SECURITY LABEL ON 功能描述 应用更新或取消安全标签。 注意事项 初始用户，具有SYSADMIN权限的用户或者继承了内置角色gs_role_seclabel权限的用户有权限应用更新或取消安全标签。 语法格式 1 SECURITY LABEL ON { ROLE | USER | TABLE | COLUMN } objname IS { 'label_name' | NULL } ; 参数说明 objname 对于ROLE和USER，objname表示用户/角色名。 对于TABLE，objname表示表名，名称前可加上模式名。 对于COLUMN，objname表示表名.列名，名称前可加上模式名。 label_name 安全标签名。 NULL 表示取消安全标签。 示例 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24 --创建安全标签。 gaussdb =# CREATE SECURITY LABEL sec_label 'L1:G4' ; --创建表 gaussdb =# CREATE TABLE tbl ( c1 int , c2 int ); --创建用户 gaussdb =# CREATE USER bob WITH PASSWORD '********' ; --给用户应用安全标签。 gaussdb =# SECURITY LABEL ON ROLE bob IS 'sec_label' ; --给表应用安全标签。 gaussdb =# SECURITY LABEL ON TABLE tbl IS 'sec_label' ; --给表的列应用安全标签。 gaussdb =# SECURITY LABEL ON COLUMN tbl . c1 IS 'sec_label' ; --给用户取消安全标签。 gaussdb =# SECURITY LABEL ON ROLE bob IS NULL ; --给表取消安全标签。 gaussdb =# SECURITY LABEL ON TABLE tbl IS NULL ; --给表的列取消安全标签。 gaussdb =# SECURITY LABEL ON COLUMN tbl . c1 IS NULL ; --删除已存在的安全标签sec_label。 gaussdb =# DROP SECURITY LABEL sec_label ; --删除表tb1。 gaussdb =# DROP TABLE tbl ; --删除用户bob。 gaussdb =# DROP USER bob ; 相关链接 CREATE SECURITY LABEL ， DROP SECURITY LABEL 父主题： S 版权所有 © 华为技术有限公司

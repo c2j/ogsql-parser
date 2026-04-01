@@ -1,0 +1,2 @@
+对一级分区表合并分区 对一级分区表合并分区 使用ALTER TABLE MERGE PARTITIONS可以将多个分区合并为一个分区。 例如，将范围分区表range_sales的分区date_202001和date_202002合并为一个新的分区，并更新Global索引。 ALTER TABLE range_sales MERGE PARTITIONS date_202001, date_202002 INTO
+    PARTITION date_2020_old UPDATE GLOBAL INDEX; 对间隔分区表的间隔分区完成合并分区操作之后，源分区之前的间隔分区会变成范围分区。 父主题： 合并分区 版权所有 © 华为技术有限公司

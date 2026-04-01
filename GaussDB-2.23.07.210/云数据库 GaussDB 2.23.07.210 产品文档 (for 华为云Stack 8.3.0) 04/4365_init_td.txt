@@ -1,0 +1,28 @@
+怎么配置init_td大小 怎么配置init_td大小 TD（Transaction Directory，事务目录）是Ustore表独有的用于存储页面事务信息的结构，TD的数量决定该页面支持的最大并发数。在创建表或索引时可以指定初始的TD大小init_td，默认值为4，即同时支持4个并发事务修改该页面，最大值为128。 用户需要结合业务并发度分析是否需要手动配置init_td。另外也可以结合业务运行过程中“wait available td”等待事件出现的频率来分析是否需要调整，一般“wait available td”等于0。如果“wait available td”一直不为0，就存在等待TD的事件，此时建议增大init_td再进行观察，反复几次，如果大于0的情况属于偶发，不建议调整，多余的TD槽位会占用更多的空间。推荐的增大的方法可以按照倍数进行测试，建议可从小到大尝试8、16、32、48、...、128，并观测对应的等待事件是否有明显减少，尽量取等待事件较少中init_td数量最小的值作为默认值以节省空间。wait available td是wait_status的值之一，wait_status表示当前线程的等待状态，包含等待状态详细信息。通过PG_THREAD_WAIT_STATUS视图可以查询wait_status的值（none表示没在等待任意事件，如果有等待事件即可看到对应wait available td的值），示例如下。init_td的配置和详细描述参见《开发者指南》的“SQL参考 > SQL语法 > CREATE TABLE”章节。init_td查看和修改方法的具体实例如下： gaussdb=# CREATE TABLE test1(name varchar) WITH(storage_type = ustore, init_td=2); gaussdb=# \d+ test1
+                              Table "public.test1"
+ Column |       Type        | Modifiers | Storage  | Stats target | Description
+--------+-------------------+-----------+----------+--------------+-------------
+ name   | character varying |           | extended |              |
+Has OIDs: no
+Options: orientation=row, storage_type=ustore, init_td=2, compression=no, toast.storage_type=ustore gaussdb=# ALTER TABLE test1 SET(init_td=8); gaussdb=# \d+ test1
+                              Table "public.test1"
+ Column |       Type        | Modifiers | Storage  | Stats target | Description
+--------+-------------------+-----------+----------+--------------+-------------
+ name   | character varying |           | extended |              |
+Has OIDs: no
+Options: orientation=row, storage_type=ustore, compression=no, init_td=8, toast.storage_type=ustore gaussdb=# SELECT * FROM pg_thread_wait_status;
+ node_name | db_name  |           thread_name           |    query_id     |       tid       |    sessionid    | lwtid | psessionid | tlevel | smpid | wait_status | wait_event | locktag | lo
+ckmode | block_sessionid | global_sessionid
+-----------+----------+---------------------------------+-----------------+-----------------+-----------------+-------+------------+--------+-------+-------------+------------+---------+---
+-------+-----------------+------------------
+ sgnode    |          | PageWriter                      |               0 | 139769678919424 | 139769678919424 | 16915 |            |      0 |     0 | none        | none       |         |
+       |                 | 0:0#0
+ sgnode    |          | PageWriter                      |               0 | 139769736066816 | 139769736066816 | 16913 |            |      0 |     0 | none        | none       |         |
+       |                 | 0:0#0
+ sgnode    |          | PageWriter                      |               0 | 139769707755264 | 139769707755264 | 16914 |            |      0 |     0 | none        | none       |         |
+       |                 | 0:0#0
+ sgnode    |          | PageWriter                      |               0 | 139769761756928 | 139769761756928 | 16912 |            |      0 |     0 | none        | none       |         |
+       |                 | 0:0#0
+ sgnode    |          | PageWriter                      |               0 | 139769783772928 | 139769783772928 | 16911 |            |      0 |     0 | none        | none       |         |
+       |                 | 0:0#0 gaussdb=# DROP TABLE test1;
+DROP TABLE 父主题： Ustore的最佳实践 版权所有 © 华为技术有限公司

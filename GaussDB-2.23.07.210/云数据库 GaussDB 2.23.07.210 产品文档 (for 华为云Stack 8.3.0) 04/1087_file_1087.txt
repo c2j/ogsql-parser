@@ -1,0 +1,300 @@
+聚集函数 聚集函数 聚集函数 sum(expression) 描述：所有输入行的expression总和。 返回类型： 通常情况下输入数据类型和输出数据类型是相同的，但以下情况会发生类型转换： 对于SMALLINT或INT输入，输出类型为BIGINT。 对于BIGINT输入，输出类型为NUMBER 。 对于浮点数输入，输出类型为DOUBLE PRECISION。 示例： 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11 gaussdb =# CREATE TABLE tab ( a int ); CREATE TABLE gaussdb =# INSERT INTO tab values ( 1 ); INSERT 0 1 gaussdb =# INSERT INTO tab values ( 2 ); INSERT 0 1 gaussdb =# SELECT sum ( a ) FROM tab ; sum ----- 3 ( 1 row ) max(expression) 描述：所有输入行中expression的最大值。 参数类型：任意数组、数值、字符串、日期/时间类型。 返回类型：与参数数据类型相同 示例： 1 gaussdb =# SELECT MAX ( inv_quantity_on_hand ) FROM tpcds . inventory ; min(expression) 描述：所有输入行中expression的最小值。 参数类型：任意数组、数值、字符串、日期/时间类型。 返回类型：与参数数据类型相同 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT MIN ( inv_quantity_on_hand ) FROM tpcds . inventory ; min ----- 0 ( 1 row ) avg(expression) 描述：所有输入值的均值（算术平均）。 返回类型： 对于任何整数类型输入，结果都是NUMBER类型。 对于任何浮点输入，结果都是DOUBLE PRECISION类型。 否则和输入数据类型相同。 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT AVG ( inv_quantity_on_hand ) FROM tpcds . inventory ; avg ---------------------- 500 . 0387129084044604 ( 1 row ) count(expression) 描述：返回表中满足expression不为NULL的行数。 返回类型：BIGINT 支持对XML类型数据操作。 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT COUNT ( inv_quantity_on_hand ) FROM tpcds . inventory ; count ---------- 11158087 ( 1 row ) count(*) 描述：返回表中的记录行数。 返回类型：BIGINT 支持对XML类型数据操作。 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT COUNT ( * ) FROM tpcds . inventory ; count ---------- 11745000 ( 1 row ) array_agg(expression) 描述：将所有输入值（包括空）连接成一个数组。 返回类型：参数类型的数组 支持对XML类型数据操作。 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT ARRAY_AGG ( sr_fee ) FROM tpcds . store_returns WHERE sr_customer_sk = 2 ; array_agg --------------- { 22 . 18 , 63 . 21 } ( 1 row ) string_agg(expression, delimiter) 描述：将输入值连接成为一个字符串，用分隔符分开。 返回类型：和参数数据类型相同。 支持对显示转换成字符类型后的XML类型数据操作。 示例： 1
+2
+3
+4
+5
+6
+7 gaussdb =# SELECT string_agg ( sr_item_sk , ',' ) FROM tpcds . store_returns WHERE sr_item_sk < 3 ; string_agg --------------------------------------------------------------------------------- ------------------------------ 1 , 2 , 1 , 2 , 2 , 1 , 1 , 2 , 2 , 1 , 2 , 1 , 2 , 1 , 1 , 1 , 2 , 1 , 1 , 1 , 1 , 1 , 2 , 1 , 1 , 1 , 1 , 1 , 2 , 2 , 1 , 1 , 1 , 1 , 1 , 1 , 1 , 1 , 1 , 2 , 2 , 1 , 1 , 1 , 1 , 1 , 1 , 2 , 2 , 1 , 1 , 2 , 1 , 1 , 1 ( 1 row ) listagg(expression [, delimiter]) WITHIN GROUP(ORDER BY order-list) 描述：将聚集列数据按WITHIN GROUP指定的排序方式排列，并用delimiter指定的分隔符拼接成一个字符串。 expression：必选。指定聚集列名或基于列的有效表达式，不支持DISTINCT关键字和VARIADIC参数。 delimiter：可选。指定分隔符，可以是字符串常数或基于分组列的确定性表达式，缺省时表示分隔符为空。 order-list：必选。指定分组内的排序方式。 返回类型：text listagg是兼容Oracle 11g2的列转行聚集函数，可以指定OVER子句用作窗口函数。为了避免与函数本身WITHIN GROUP子句的ORDER BY造成二义性，listagg用作窗口函数时，OVER子句不支持ORDER BY的窗口排序或窗口框架。 示例： 聚集列是文本字符集类型。 1
+2
+3
+4
+5
+6
+7 gaussdb =# SELECT deptno , listagg ( ename , ',' ) WITHIN GROUP ( ORDER BY ename ) AS employees FROM emp GROUP BY deptno ; deptno | employees --------+-------------------------------------- 10 | CLARK , KING , MILLER 20 | ADAMS , FORD , JONES , SCOTT , SMITH 30 | ALLEN , BLAKE , JAMES , MARTIN , TURNER , WARD ( 3 rows ) 聚集列是整型。 1
+2
+3
+4
+5
+6
+7 gaussdb =# SELECT deptno , listagg ( mgrno , ',' ) WITHIN GROUP ( ORDER BY mgrno NULLS FIRST ) AS mgrnos FROM emp GROUP BY deptno ; deptno | mgrnos --------+------------------------------- 10 | 7782 , 7839 20 | 7566 , 7566 , 7788 , 7839 , 7902 30 | 7698 , 7698 , 7698 , 7698 , 7698 , 7839 ( 3 rows ) 聚集列是浮点类型。 1
+2
+3
+4
+5
+6
+7
+8
+9 gaussdb =# SELECT job , listagg ( bonus , '($); ' ) WITHIN GROUP ( ORDER BY bonus DESC ) || '($)' AS bonus FROM emp GROUP BY job ; job | bonus ------------+------------------------------------------------- CLERK | 10234 . 21 ( $ ); 2000 . 80 ( $ ); 1100 . 00 ( $ ); 1000 . 22 ( $ ) PRESIDENT | 23011 . 88 ( $ ) ANALYST | 2002 . 12 ( $ ); 1001 . 01 ( $ ) MANAGER | 10000 . 01 ( $ ); 2399 . 50 ( $ ); 999 . 10 ( $ ) SALESMAN | 1000 . 01 ( $ ); 899 . 00 ( $ ); 99 . 99 ( $ ); 9 . 00 ( $ ) ( 5 rows ) 聚集列是时间类型。 1
+2
+3
+4
+5
+6
+7 gaussdb =# SELECT deptno , listagg ( hiredate , ', ' ) WITHIN GROUP ( ORDER BY hiredate DESC ) AS hiredates FROM emp GROUP BY deptno ; deptno | hiredates --------+------------------------------------------------------------------------------------------------------------------------------ 10 | 1982 - 01 - 23 00 : 00 : 00 , 1981 - 11 - 17 00 : 00 : 00 , 1981 - 06 - 09 00 : 00 : 00 20 | 2001 - 04 - 02 00 : 00 : 00 , 1999 - 12 - 17 00 : 00 : 00 , 1987 - 05 - 23 00 : 00 : 00 , 1987 - 04 - 19 00 : 00 : 00 , 1981 - 12 - 03 00 : 00 : 00 30 | 2015 - 02 - 20 00 : 00 : 00 , 2010 - 02 - 22 00 : 00 : 00 , 1997 - 09 - 28 00 : 00 : 00 , 1981 - 12 - 03 00 : 00 : 00 , 1981 - 09 - 08 00 : 00 : 00 , 1981 - 05 - 01 00 : 00 : 00 ( 3 rows ) 聚集列是时间间隔类型。 1
+2
+3
+4
+5
+6
+7 gaussdb =# SELECT deptno , listagg ( vacationTime , '; ' ) WITHIN GROUP ( ORDER BY vacationTime DESC ) AS vacationTime FROM emp GROUP BY deptno ; deptno | vacationtime --------+------------------------------------------------------------------------------------ 10 | 1 year 30 days ; 40 days ; 10 days 20 | 70 days ; 36 days ; 9 days ; 5 days 30 | 1 year 1 mon ; 2 mons 10 days ; 30 days ; 12 days 12 : 00 : 00 ; 4 days 06 : 00 : 00 ; 24 : 00 : 00 ( 3 rows ) 分隔符缺省时，默认为空。 1
+2
+3
+4
+5
+6
+7 gaussdb =# SELECT deptno , listagg ( job ) WITHIN GROUP ( ORDER BY job ) AS jobs FROM emp GROUP BY deptno ; deptno | jobs --------+---------------------------------------------- 10 | CLERKMANAGERPRESIDENT 20 | ANALYSTANALYSTCLERKCLERKMANAGER 30 | CLERKMANAGERSALESMANSALESMANSALESMANSALESMAN ( 3 rows ) listagg作为窗口函数时，OVER子句不支持ORDER BY的窗口排序，listagg列为对应分组的有序聚集。 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17
+18 gaussdb =# SELECT deptno , mgrno , bonus , listagg ( ename , '; ' ) WITHIN GROUP ( ORDER BY hiredate ) OVER ( PARTITION BY deptno ) AS employees FROM emp ; deptno | mgrno | bonus | employees --------+-------+----------+------------------------------------------- 10 | 7839 | 10000 . 01 | CLARK ; KING ; MILLER 10 | | 23011 . 88 | CLARK ; KING ; MILLER 10 | 7782 | 10234 . 21 | CLARK ; KING ; MILLER 20 | 7566 | 2002 . 12 | FORD ; SCOTT ; ADAMS ; SMITH ; JONES 20 | 7566 | 1001 . 01 | FORD ; SCOTT ; ADAMS ; SMITH ; JONES 20 | 7788 | 1100 . 00 | FORD ; SCOTT ; ADAMS ; SMITH ; JONES 20 | 7902 | 2000 . 80 | FORD ; SCOTT ; ADAMS ; SMITH ; JONES 20 | 7839 | 999 . 10 | FORD ; SCOTT ; ADAMS ; SMITH ; JONES 30 | 7839 | 2399 . 50 | BLAKE ; TURNER ; JAMES ; MARTIN ; WARD ; ALLEN 30 | 7698 | 9 . 00 | BLAKE ; TURNER ; JAMES ; MARTIN ; WARD ; ALLEN 30 | 7698 | 1000 . 22 | BLAKE ; TURNER ; JAMES ; MARTIN ; WARD ; ALLEN 30 | 7698 | 99 . 99 | BLAKE ; TURNER ; JAMES ; MARTIN ; WARD ; ALLEN 30 | 7698 | 1000 . 01 | BLAKE ; TURNER ; JAMES ; MARTIN ; WARD ; ALLEN 30 | 7698 | 899 . 00 | BLAKE ; TURNER ; JAMES ; MARTIN ; WARD ; ALLEN ( 14 rows ) group_concat([DISTINCT | ALL] expression [,expression ...] [ORDER BY { expression [ [ ASC | DESC | USING operator ] | nlssort_expression_clause ] [ NULLS { FIRST | LAST } ] } [,...]] [SEPARATOR str_val]) 描述：参数数量不定，可对多列进行拼接，将聚集列数据按照ORDER BY指定的排序方式排列，并用separator指定的分隔符拼接成一个字符串, 不支持作为窗口函数使用。 DISTINCT：可选，表示对每行拼接后结果进行去重。 expression：必选，指定聚集列名或基于列的有效表达式。 ORDER BY: 可选，后跟可变数量表达式及排序规则。group_concat函数中不支持（ORDER BY + 数字）形式。 SEPARATOR子句: 可选，后跟字符或字符串，分组中相邻两行表达式结果使用此分隔符拼接。若不指定，默认使用英文逗号‘,’。 当同时指定DISTINCT和ORDER BY时，ORDER BY表达式必须在distinct表达式中，否则报错。 使用参数group_concat_max_len限制GROUP_CONCAT最大返回长度，超长截断，目前能返回的最大长度是1073741823。 返回类型：text 示例： 使用separator指定分隔符为';'。 1
+2
+3
+4
+5
+6 gaussdb =# SELECT id , group_concat ( v separator ';' ) FROM t GROUP BY id ORDER BY id ASC ; id | group_concat ----+-------------- 1 | A ; C ; A 2 | B ; D ; B ( 2 rows ) 分隔符缺省时，默认为','。 1
+2
+3
+4
+5
+6 gaussdb =# SELECT id , group_concat ( id , v ) FROM t GROUP BY id ORDER BY id ASC ; id | group_concat ----+-------------- 1 | 1 A , 1 C , 1 A 2 | 2 B , 2 D , 2 B ( 2 rows ) 聚集列是文本字符集类型。 1
+2
+3
+4
+5
+6 gaussdb =# SELECT id , group_concat ( v ) FROM t GROUP BY id ORDER BY id ASC ; id | group_concat ----+-------------- 1 | A , C , A 2 | B , D , B ( 2 rows ) 聚集列是整型。 1
+2
+3
+4
+5
+6 gaussdb =# SELECT id , group_concat ( v separator ';' ) FROM t GROUP BY id ORDER BY id ASC ; id | group_concat ----+-------------- 1 | 50 ; 99 2 | 20 ; 100 ( 2 rows ) 聚集列是浮点类型。 1
+2
+3
+4
+5
+6 gaussdb =# SELECT id , group_concat ( v separator ';' ) FROM t GROUP BY id ORDER BY id ASC ; id | group_concat ----+-------------- 1 | 50 . 11 ; 99 . 33 2 | 20 . 22 ; 100 . 44 ( 2 rows ) 聚集列是时间类型。 1
+2
+3
+4
+5
+6 gaussdb =# SELECT id , group_concat ( hiredate separator ';' ) FROM t GROUP BY id ORDER BY id ASC ; id | group_concat ----+------------------------------------------------------- 1 | 2022 - 08 - 22 10 : 51 : 29 . 374948 ; 2022 - 08 - 22 10 : 51 : 29 . 374948 2 | 2022 - 08 - 22 10 : 51 : 29 . 374948 ; 2022 - 08 - 22 10 : 51 : 29 . 374948 ( 2 rows ) 聚集列是二进制类型。 1
+2
+3
+4
+5
+6 gaussdb =# SELECT id , group_concat ( v separator ';' ) FROM t GROUP BY id ORDER BY id ASC ; id | group_concat ----+-------------- 1 | 19 ; 1 B 2 | 1 A ; 1 C ( 2 rows ) 聚集列是时间间隔类型。 1
+2
+3
+4
+5
+6 gaussdb =# SELECT id , group_concat ( vacationt separator ';' ) FROM t GROUP BY id ORDER BY id ASC ; id | group_concat ----+----------------------------------------------------- 1 | 8785 days 11 : 04 : 01 . 510189 ; 8783 days 11 : 04 : 01 . 510189 2 | 8784 days 11 : 04 : 01 . 510189 ; 8782 days 11 : 04 : 01 . 510189 ( 2 rows ) 使用distinct去重。 1
+2
+3
+4
+5
+6 gaussdb =# SELECT id , group_concat ( distinct v ) FROM t GROUP BY id ORDER BY id ASC ; id | group_concat ----+-------------- 1 | A , C 2 | B , D ( 2 rows ) 使用ORDER BY排序。 1
+2
+3
+4
+5
+6 gaussdb =# SELECT id , group_concat ( v ORDER BY v desc ) FROM t GROUP BY id ORDER BY id ASC ; id | group_concat ----+-------------- 1 | C , A , A 2 | D , B , B ( 2 rows ) wm_concat(expression) 描述：将列数据连接成为一个字符串，用','进行分隔。 返回类型：和参数数据类型相同。 wm_concat是ORA兼容性需求，目前ORA最新版本已经取消此函数，在ORA中目前使用listagg函数对功能进行替代。目前此函数功能可使用listagg函数或string_agg进行替代，使用具体方法见上述两函数描述。 covar_pop(Y, X) 描述：总体协方差。 返回类型：double precision 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT COVAR_POP ( sr_fee , sr_net_loss ) FROM tpcds . store_returns WHERE sr_customer_sk < 1000 ; covar_pop ------------------ 829 . 749627587403 ( 1 row ) covar_samp(Y, X) 描述：样本协方差。 返回类型：double precision 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT COVAR_SAMP ( sr_fee , sr_net_loss ) FROM tpcds . store_returns WHERE sr_customer_sk < 1000 ; covar_samp ------------------ 830 . 052235037289 ( 1 row ) stddev_pop(expression) 描述：总体标准差。 返回类型：对于浮点类型的输入返回double precision，其他输入返回numeric。 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT STDDEV_POP ( inv_quantity_on_hand ) FROM tpcds . inventory WHERE inv_warehouse_sk = 1 ; stddev_pop ------------------ 289 . 224294957556 ( 1 row ) stddev_samp(expression) 描述：样本标准差。 返回类型：对于浮点类型的输入返回double precision，其他输入返回numeric。 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT STDDEV_SAMP ( inv_quantity_on_hand ) FROM tpcds . inventory WHERE inv_warehouse_sk = 1 ; stddev_samp ------------------ 289 . 224359757315 ( 1 row ) var_pop(expression) 描述：总体方差（总体标准差的平方） 返回类型：对于浮点类型的输入返回double precision类型，其他输入返回numeric类型。 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT VAR_POP ( inv_quantity_on_hand ) FROM tpcds . inventory WHERE inv_warehouse_sk = 1 ; var_pop -------------------- 83650 . 692793695475 ( 1 row ) var_samp(expression) 描述：样本方差（样本标准差的平方） 返回类型：对于浮点类型的输入返回double precision类型，其他输入返回numeric类型。 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT VAR_SAMP ( inv_quantity_on_hand ) FROM tpcds . inventory WHERE inv_warehouse_sk = 1 ; var_samp -------------------- 83650 . 730277028768 ( 1 row ) bit_and(expression) 描述：所有非NULL输入值的按位与(AND)，如果全部输入值皆为NULL，那么结果也为NULL 。 返回类型：和参数数据类型相同。 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT BIT_AND ( inv_quantity_on_hand ) FROM tpcds . inventory WHERE inv_warehouse_sk = 1 ; bit_and --------- 0 ( 1 row ) bit_or(expression) 描述：所有非NULL输入值的按位或(OR)，如果全部输入值皆为NULL，那么结果也为NULL。 返回类型：和参数数据类型相同 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT BIT_OR ( inv_quantity_on_hand ) FROM tpcds . inventory WHERE inv_warehouse_sk = 1 ; bit_or -------- 1023 ( 1 row ) bool_and(expression) 描述：如果所有输入值都是真，则为真，否则为假。 返回类型：bool 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT bool_and ( 100 < 2500 ); bool_and ---------- t ( 1 row ) bool_or(expression) 描述：如果所有输入值只要有一个为真，则为真，否则为假。 返回类型：bool 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT bool_or ( 100 < 2500 ); bool_or ---------- t ( 1 row ) corr(Y, X) 描述：相关系数 返回类型：double precision 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT CORR ( sr_fee , sr_net_loss ) FROM tpcds . store_returns WHERE sr_customer_sk < 1000 ; corr ------------------- . 0381383624904186 ( 1 row ) every(expression) 描述：等效于bool_and。 返回类型：bool 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT every ( 100 < 2500 ); every ------- t ( 1 row ) rank(expression) 描述：根据expression对不同组内的元组进行跳跃排序。 返回类型：BIGINT 示例： 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27
+28
+29
+30
+31
+32
+33
+34
+35
+36
+37
+38
+39
+40
+41
+42
+43
+44
+45
+46 gaussdb =# SELECT d_moy , d_fy_week_seq , rank () OVER ( PARTITION BY d_moy ORDER BY d_fy_week_seq ) FROM tpcds . date_dim WHERE d_moy < 4 AND d_fy_week_seq < 7 ORDER BY 1 , 2 ; d_moy | d_fy_week_seq | rank -------+---------------+------ 1 | 1 | 1 1 | 1 | 1 1 | 1 | 1 1 | 1 | 1 1 | 1 | 1 1 | 1 | 1 1 | 1 | 1 1 | 2 | 8 1 | 2 | 8 1 | 2 | 8 1 | 2 | 8 1 | 2 | 8 1 | 2 | 8 1 | 2 | 8 1 | 3 | 15 1 | 3 | 15 1 | 3 | 15 1 | 3 | 15 1 | 3 | 15 1 | 3 | 15 1 | 3 | 15 1 | 4 | 22 1 | 4 | 22 1 | 4 | 22 1 | 4 | 22 1 | 4 | 22 1 | 4 | 22 1 | 4 | 22 1 | 5 | 29 1 | 5 | 29 2 | 5 | 1 2 | 5 | 1 2 | 5 | 1 2 | 5 | 1 2 | 5 | 1 2 | 6 | 6 2 | 6 | 6 2 | 6 | 6 2 | 6 | 6 2 | 6 | 6 2 | 6 | 6 2 | 6 | 6 ( 42 rows ) regr_avgx(Y, X) 描述：自变量的平均值 (sum(X)/Y) 返回类型：double precision 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT REGR_AVGX ( sr_fee , sr_net_loss ) FROM tpcds . store_returns WHERE sr_customer_sk < 1000 ; regr_avgx ------------------ 578 . 606576740795 ( 1 row ) regr_avgy(Y, X) 描述：因变量的平均值 (sum(Y)/X) 返回类型：double precision 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT REGR_AVGY ( sr_fee , sr_net_loss ) FROM tpcds . store_returns WHERE sr_customer_sk < 1000 ; regr_avgy ------------------ 50 . 0136711629602 ( 1 row ) regr_count(Y, X) 描述：两个表达式都不为NULL的输入行数。 返回类型：bigint 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT REGR_COUNT ( sr_fee , sr_net_loss ) FROM tpcds . store_returns WHERE sr_customer_sk < 1000 ; regr_count ------------ 2743 ( 1 row ) regr_intercept(Y, X) 描述：根据所有输入的点(X, Y)按照最小二乘法拟合成一个线性方程，然后返回该直线的Y轴截距。 返回类型：double precision 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT REGR_INTERCEPT ( sr_fee , sr_net_loss ) FROM tpcds . store_returns WHERE sr_customer_sk < 1000 ; regr_intercept ------------------ 49 . 2040847848607 ( 1 row ) regr_r2(Y, X) 描述：相关系数的平方 返回类型：double precision 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT REGR_R2 ( sr_fee , sr_net_loss ) FROM store_returns WHERE sr_customer_sk < 1000 ; regr_r2 -------------------- . 00145453469345058 ( 1 row ) regr_slope(Y, X) 描述：根据所有输入的点(X, Y)按照最小二乘法拟合成一个线性方程， 然后返回该直线的斜率。 返回类型：double precision 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT REGR_SLOPE ( sr_fee , sr_net_loss ) FROM tpcds . store_returns WHERE sr_customer_sk < 1000 ; regr_slope -------------------- . 00139920009665259 ( 1 row ) regr_sxx(Y, X) 描述：sum(Y^2) - sum(X)^2/N （自变量的“平方和”） 返回类型：double precision 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT REGR_SXX ( sr_fee , sr_net_loss ) FROM tpcds . store_returns WHERE sr_customer_sk < 1000 ; regr_sxx ------------------ 1626645991 . 46135 ( 1 row ) regr_sxy(Y, X) 描述：sum(X*Y) - sum(X) * sum(Y)/N （自变量和因变量的“乘方积”） 返回类型：double precision 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT REGR_SXY ( sr_fee , sr_net_loss ) FROM tpcds . store_returns WHERE sr_customer_sk < 1000 ; regr_sxy ------------------ 2276003 . 22847225 ( 1 row ) regr_syy(Y, X) 描述：sum(Y^2) - sum(X)^2/N（因变量的"平方和"） 返回类型：double precision 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT REGR_SYY ( sr_fee , sr_net_loss ) FROM tpcds . store_returns WHERE sr_customer_sk < 1000 ; regr_syy ----------------- 2189417 . 6547314 ( 1 row ) stddev(expression) 描述：stddev_samp的别名。 返回类型：对于浮点类型的输入返回double precision，其他输入返回numeric。 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT STDDEV ( inv_quantity_on_hand ) FROM tpcds . inventory WHERE inv_warehouse_sk = 1 ; stddev ------------------ 289 . 224359757315 ( 1 row ) variance(expexpression,ression) 描述：var_samp的别名。 返回类型：对于浮点类型的输入返回double precision类型，其他输入返回numeric类型。 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT VARIANCE ( inv_quantity_on_hand ) FROM tpcds . inventory WHERE inv_warehouse_sk = 1 ; variance -------------------- 83650 . 730277028768 ( 1 row ) spread() 描述：该函数用于计算某段时间内最大和最小值差值。 参数：real 返回值类型：real pivot_func(anyelement) 描述：返回某列中唯一不为NULL的值，如果有超过两个非NULL值则报错。其中value为输入参数，可以为任意类型。 返回类型：与输入参数类型相同。 该聚合函数主要作为pivot语法内部使用。 gaussdb=# SELECT * FROM pivot_func_test;
+ id | val
+----+-----
+ 11 | aaa
+ 11 |
+(2 rows) gaussdb=# SELECT id, pivot_func(val) FROM pivot_func_test GROUP BY id;
+ id | pivot_func
+----+------------
+ 11 | aaa
+(1 row) checksum(expression) 描述：返回所有输入值的CHECKSUM值。使用该函数可以用来验证 GaussDB 数据库（不支持 GaussDB 之外的其他数据库）的备份恢复或者数据迁移操作前后表中的数据是否相同。在备份恢复或者数据迁移操作前后都需要用户通过手工执行SQL命令的方式获取执行结果，通过对比获取的执行结果判断操作前后表中的数据是否相同。 对于大表，CHECKSUM函数可能会需要很长时间。 如果某两表的CHECKSUM值不同，则表明两表的内容是不同的。由于CHECKSUM函数中使用散列函数不能保证无冲突，因此两个不同内容的表可能会得到相同的CHECKSUM值，存在这种情况的可能性较小。对于列进行的CHECKSUM也存在相同的情况。 对于时间类型timestamp, timestamptz和smalldatetime，计算CHECKSUM值时请确保时区设置一致。 若计算某列的CHECKSUM值，且该列类型可以默认转为TEXT类型，则expression为列名。 若计算某列的CHECKSUM值，且该列类型不能默认转为TEXT类型，则expression为列名::TEXT。 若计算所有列的CHECKSUM值，则expression为表名::TEXT。 可以默认转换为TEXT类型的类型包括：char, name, int8, int2, int1, int4, raw, pg_node_tree, float4, float8, bpchar, varchar, nvarchar2, date, timestamp, timestamptz, numeric, smalldatetime，其他类型需要强制转换为TEXT，例如XML类型。 返回类型：numeric。 示例： 表中可以默认转为TEXT类型的某列的CHECKSUM值。 1
+2
+3
+4
+5 gaussdb =# SELECT CHECKSUM ( inv_quantity_on_hand ) FROM tpcds . inventory ; checksum ------------------- 24417258945265247 ( 1 row ) 表中不能默认转为TEXT类型的某列的CHECKSUM值。注意此时CHECKSUM参数是列名::TEXT。 1
+2
+3
+4
+5 gaussdb =# SELECT CHECKSUM ( inv_quantity_on_hand :: TEXT ) FROM tpcds . inventory ; checksum ------------------- 24417258945265247 ( 1 row ) 表中所有列的CHECKSUM值。注意此时CHECKSUM参数是表名::TEXT，且表名前不加Schema。 1
+2
+3
+4
+5 gaussdb =# SELECT CHECKSUM ( inventory :: TEXT ) FROM tpcds . inventory ; checksum ------------------- 25223696246875800 ( 1 row ) 父主题： 函数和操作符 版权所有 © 华为技术有限公司

@@ -1,0 +1,1 @@
+调用说明 调用说明 GaussDB 提供了REST（Representational State Transfer）风格API，支持您通过HTTPS请求调用，调用方法请参见 API概览 。 父主题： 使用前必读 版权所有 © 华为技术有限公司

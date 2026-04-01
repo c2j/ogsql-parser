@@ -1,0 +1,1 @@
+PQgetCancel PQgetCancel 功能描述 创建一个数据结构，其中包含取消通过特定数据库连接发出的命令所需的信息。 原型 PGcancel* PQgetCancel(PGconn* conn); 参数 表1 PQgetCancel参数 关键字 参数说明 conn 指向包含连接信息的对象指针。 返回值 PGcancel：指向包含cancel信息对象的指针。 注意事项 PQgetCancel创建一个给定PGconn连接对象的PGcancel对象。如果给定的conn是NULL或无效连接，它将返回NULL。PGcancel对象是一个不透明的结构，应用程序不能直接访问它；它只能传递给PQcancel或PQfreeCancel。 父主题： 取消正在处理的查询 版权所有 © 华为技术有限公司

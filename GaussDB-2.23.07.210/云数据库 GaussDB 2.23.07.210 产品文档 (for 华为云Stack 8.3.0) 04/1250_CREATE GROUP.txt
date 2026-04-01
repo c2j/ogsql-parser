@@ -1,0 +1,36 @@
+CREATE GROUP CREATE GROUP 功能描述 创建一个新用户组。 注意事项 CREATE GROUP是CREATE ROLE的别名，非SQL标准语法，不推荐使用，建议用户直接使用CREATE ROLE替代。 语法格式 1
+2 CREATE GROUP group_name [ [ WITH ] option [ ... ] ] [ ENCRYPTED | UNENCRYPTED ] { PASSWORD | IDENTIFIED BY } { 'password' [ EXPIRED ] | DISABLE } ; 其中可选项option子句语法为： 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27
+28
+29
+30
+31
+32
+33 where option can be : { SYSADMIN | NOSYSADMIN } | { MONADMIN | NOMONADMIN } | { OPRADMIN | NOOPRADMIN } | { POLADMIN | NOPOLADMIN } | { AUDITADMIN | NOAUDITADMIN } | { CREATEDB | NOCREATEDB } | { USEFT | NOUSEFT } | { CREATEROLE | NOCREATEROLE } | { INHERIT | NOINHERIT } | { LOGIN | NOLOGIN } | { REPLICATION | NOREPLICATION } | { VCADMIN | NOVCADMIN } | { PERSISTENCE | NOPERSISTENCE } | CONNECTION LIMIT connlimit | VALID BEGIN 'timestamp' | VALID UNTIL 'timestamp' | RESOURCE POOL 'respool' | USER GROUP 'groupuser' | PERM SPACE 'spacelimit' | TEMP SPACE 'tmpspacelimit' | SPILL SPACE 'spillspacelimit' | NODE GROUP logic_group_name | IN ROLE role_name [, ...] | IN GROUP role_name [, ...] | ROLE role_name [, ...] | ADMIN role_name [, ...] | USER role_name [, ...] | SYSID uid | DEFAULT TABLESPACE tablespace_name | PROFILE DEFAULT | PROFILE profile_name | PGUSER 参数说明 请参考CREATE ROLE的 参数说明 。 示例 --创建组my_group。 gaussdb=# CREATE GROUP my_group PASSWORD '********';
+
+--删除组。 gaussdb=# DROP GROUP my_group; 相关链接 ALTER GROUP ， DROP GROUP ， CREATE ROLE 父主题： C 版权所有 © 华为技术有限公司

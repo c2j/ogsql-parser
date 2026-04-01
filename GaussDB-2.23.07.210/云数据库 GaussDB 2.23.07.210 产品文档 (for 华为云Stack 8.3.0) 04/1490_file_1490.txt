@@ -1,0 +1,57 @@
+存储过程支持自治事务 存储过程支持自治事务 自治事务可以在存储过程中定义，标识符为PRAGMA AUTONOMOUS_TRANSACTION，其余语法与创建存储过程语法相同，请参见 CREATE PROCEDURE ，示例如下。 --建表
+gaussdb=# CREATE TABLE t2(a INT, b INT);
+NOTICE:  The 'DISTRIBUTE BY' clause is not specified. Using 'a' as the distribution column by default.
+HINT:  Please use 'DISTRIBUTE BY' clause to specify suitable data distribution column.
+CREATE TABLE
+gaussdb=# INSERT INTO t2 VALUES(1,2);
+INSERT 0 1
+gaussdb=# SELECT * FROM t2;
+ a | b 
+---+---
+ 1 | 2
+(1 row)
+
+--创建包含自治事务的存储过程
+gaussdb=# CREATE OR REPLACE PROCEDURE autonomous_4(a INT, b INT)  AS 
+DECLARE 
+	num3 INT := a;
+	num4 INT := b;
+	PRAGMA AUTONOMOUS_TRANSACTION;
+BEGIN
+	INSERT INTO t2 VALUES(num3, num4); 
+	DBE_OUTPUT.PRINT_LINE('JUST USE CALL.');
+END;
+/
+CREATE PROCEDURE
+
+--创建调用自治事务存储过程的普通存储过程
+gaussdb=# CREATE OR REPLACE PROCEDURE autonomous_5(a INT, b INT)  AS 
+DECLARE 
+BEGIN
+	DBE_OUTPUT.PRINT_LINE('JUST NO USE CALL.');
+	INSERT INTO t2 VALUES(666, 666);
+	autonomous_4(a,b);
+	ROLLBACK;
+END;
+/
+CREATE PROCEDURE
+
+--调用普通存储过程
+gaussdb=# SELECT autonomous_5(11,22);
+JUST NO USE CALL.
+JUST USE CALL.
+ autonomous_5 
+--------------
+
+(1 row)
+
+--查看表结果
+gaussdb=# SELECT * FROM t2 ORDER BY a;
+ a  | b  
+----+----
+  1 |  2
+ 11 | 22
+(2 rows)
+
+gaussdb=# DROP TABLE t2;
+DROP TABLE 上述例子，最后在回滚的事务块中执行包含自治事务的存储过程，直接说明了自治事务的特性，即主事务的回滚，不会影响自治事务已经提交的内容。 父主题： 自治事务 版权所有 © 华为技术有限公司

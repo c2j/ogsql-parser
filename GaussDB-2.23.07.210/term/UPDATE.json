@@ -1,0 +1,56 @@
+{
+  "topic": "UPDATE",
+  "term_count": 10,
+  "terms": [
+    {
+      "term": "【规则】UPDATE语句中使用ORDER",
+      "content": "【规则】UPDATE语句中使用ORDER BY、GROUP BY子句，避免不必要的排序 【规则】UPDATE语句中使用ORDER BY、GROUP BY子句，避免不必要的排序",
+      "source_file": "551_UPDATEORDER BYGROUP BY.txt"
+    },
+    {
+      "term": "【规则】UPDATE语句中必须有WHERE子句，避免全表扫描",
+      "content": "【规则】UPDATE语句中必须有WHERE子句，避免全表扫描 【规则】UPDATE语句中必须有WHERE子句，避免全表扫描",
+      "source_file": "549_UPDATEWHERE.txt"
+    },
+    {
+      "term": "【规则】UPDATE语句中使用ORDER",
+      "content": "【规则】UPDATE语句中使用ORDER BY、GROUP BY子句，避免不必要的排序 【规则】UPDATE语句中使用ORDER BY、GROUP BY子句，避免不必要的排序",
+      "source_file": "688_UPDATEORDER BYGROUP BY.txt"
+    },
+    {
+      "term": "【规则】不允许在UPDATE子句同时更新多个列时，被更新列同样是更新源",
+      "content": "【规则】不允许在UPDATE子句同时更新多个列时，被更新列同样是更新源 【规则】不允许在UPDATE子句同时更新多个列时，被更新列同样是更新源 同时更新多列，且更新源相同，在不同的数据库下行为不同，为了避免带来兼容性问题，业务层应避免上述操作。 示例 UPDATE table SET col1 = col2, col3 = col1 WHERE col1 = 1; 该语句在中，col3的值为原col1的值；而MySQL中，col3的值为col2的值（因为col2的值被赋予给了col1）。",
+      "source_file": "550_UPDATE.txt"
+    },
+    {
+      "term": "【规则】不允许在UPDATE子句同时更新多个列时，被更新列同样是更新源",
+      "content": "【规则】不允许在UPDATE子句同时更新多个列时，被更新列同样是更新源 【规则】不允许在UPDATE子句同时更新多个列时，被更新列同样是更新源 同时更新多列，且更新源相同，在不同的数据库下行为不同，为了避免带来兼容性问题，业务层应避免上述操作。 示例 UPDATE table SET col1 = col2, col3 = col1 WHERE col1 = 1; 该语句在中，col3的值为原col1的值；而MySQL中，col3的值为col2的值（因为col2的值被赋予给了col1）。",
+      "source_file": "687_UPDATE.txt"
+    },
+    {
+      "term": "【建议】有主键/索引的表，更新时WHERE条件应结合主键/索引",
+      "content": "【建议】有主键/索引的表，更新时WHERE条件应结合主键/索引 【建议】有主键/索引的表，更新时WHERE条件应结合主键/索引",
+      "source_file": "552__WHERE_.txt"
+    },
+    {
+      "term": "【规格】不支持多表更新",
+      "content": "【规格】不支持多表更新 【规格】不支持多表更新 多表更新即在单条SQL语句中，对多个表进行更新。",
+      "source_file": "548_file_548.txt"
+    },
+    {
+      "term": "【规格】在GTM-FREE模式下，不允许跨节点事务，因此更新HASH分布中数据表时WHERE条件中必须指定分布列等值过滤条件",
+      "content": "【规格】在GTM-FREE模式下，不允许跨节点事务，因此更新HASH分布中数据表时WHERE条件中必须指定分布列等值过滤条件 【规格】在GTM-FREE模式下，不允许跨节点事务，因此更新HASH分布中数据表时WHERE条件中必须指定分布列等值过滤条件",
+      "source_file": "547_GTM-FREEHASHWHERE.txt"
+    },
+    {
+      "term": "【规则】UPDATE语句中必须有WHERE子句，避免全表扫描",
+      "content": "【规则】UPDATE语句中必须有WHERE子句，避免全表扫描 【规则】UPDATE语句中必须有WHERE子句，避免全表扫描",
+      "source_file": "686_UPDATEWHERE.txt"
+    },
+    {
+      "term": "【建议】有主键/索引的表，更新时WHERE条件应结合主键/索引",
+      "content": "【建议】有主键/索引的表，更新时WHERE条件应结合主键/索引 【建议】有主键/索引的表，更新时WHERE条件应结合主键/索引",
+      "source_file": "689__WHERE_.txt"
+    }
+  ]
+}

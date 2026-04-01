@@ -1,0 +1,11 @@
+备份删除命令 备份删除命令 功能 delete命令用于删除磁盘、OBS或NAS上的数据库级备份。它可与级联选项一起使用，用于删除特定备份密钥的所有相关备份。 命令格式 python3 GaussRoach.py
+-t delete --backup-key <backup-key>
+--master-port <master-port>
+--media-type <media-type>
+--media-destination <media-destination-path>
+--metadata-destination <metadata-path>
+--bucket-name <bucket-name>
+--cluster-unique-id <cluster-unique-id>
+--obs-server-ip <obs-server-ip>
+[--cascade]
+[--disable-ssl] 参数说明 表1 自动删除命令行参数列表 完整选项 缩写选项 数据类型 说明 取值范围 缺省值 应用实例 -t 不涉及 字符串 Roach接口支持多种功能。删除期间指定该参数为delete，表示调用删除功能。 -t backup -t stop -t delete -t restore -t genstack -t getobject -t start -t clean -t config -t archive -t snapshot_restore -t version -t help 不涉及 -t delete --backup-key -c 字符串 从磁盘恢复使用的backup key。 不涉及 不涉及 --backup-key 20150315-16103 --master-port 不涉及 整数 Roach主代理进程的执行端口。 1024–65535 不涉及 --master-port 6812 --media-type 不涉及 字符串 介质类型。 Disk（磁盘） OBS NAS Disk OBS NAS 不涉及 --media-type Disk --media- destination 不涉及 字符串 所选介质的目的备份路径。 不涉及 不涉及 --media-destination /home/cam/backup --metadata-destination 不涉及 字符串 指定元数据文件位置 不涉及 不涉及 --metadata-destination/home/username --bucket-name 不涉及 字符串 指定OBS桶名称。 不涉及 不涉及 --bucket-name rdsbucket.resource.user4444 --cluster-unique-id 不涉及 字符串 指定数据库备份时的数据库ID。 不涉及 不涉及 --cluster-unique-id  dws-xlnobs_9732b696-4b6d-4844-a40c-d1f6355aca02 --obs-server-ip 不涉及 IP地址 指定OBS的服务器地址。 x.x.x.x 不涉及 --obs-server-ip x.x.x.x --cascade 不涉及 不涉及 指定备份密钥的所有相关备份也将被删除。 如果指定了参数，则该值为true，否则为false。 不涉及 不涉及 --cascade --disable-ssl 不涉及 布尔型 gs_roach组件的SSL认证默认开启，若想关闭SSL认证，则在命令中指定该参数。 不涉及 False --disable-ssl 使用指南 要删除备份，必须提供介质类型，目标介质、主代理端口和backup key。如果用户没有设置这些参数，Roach工具会显示错误信息。 如果全量备份含有相关增量备份，则只能使用级联选项将其删除。 命令示例 从磁盘删除备份文件。 python3 GaussRoach.py -t delete --media-type Disk --media-destination $HOME/back1 --master-port 6000 --metadata-destination $HOME/back2 --backup-key 20180404_113522 从OBS删除备份文件。 python3 GaussRoach.py -t delete --media-type OBS --media-destination $HOME/back1 --master-port 6000 --metadata-destination $HOME/back2 --obs-server-ip x.x.x.x --bucket-name rdsbucket.resource.user4444 --cluster-unique-id dws-xlnobs_9732b696-4b6d-4844-a40c-d1f6355aca02 --backup-key 20180404_113522 从NAS删除备份文件。 python3 GaussRoach.py -t delete --media-type NAS --media-destination $HOME/back1 --master-port 6000 --metadata-destination $HOME/back2 --cluster-unique-id gaussdb_backup --backup-key 20180404_113522 相关命令 无。 父主题： 命令行参考 版权所有 © 华为技术有限公司

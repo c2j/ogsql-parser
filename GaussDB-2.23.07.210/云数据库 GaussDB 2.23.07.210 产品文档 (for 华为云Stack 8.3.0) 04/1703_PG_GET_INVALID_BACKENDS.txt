@@ -1,0 +1,1 @@
+PG_GET_INVALID_BACKENDS PG_GET_INVALID_BACKENDS PG_GET_INVALID_BACKENDS视图显示 CN 上连接到当前 DN备机 的后台线程信息，只有系统管理员和监控管理员才可以访问。 表1 PG_GET_INVALID_BACKENDS字段 名称 类型 描述 pid bigint 线程ID。 node_name text 后台线程中连接的节点信息。 dbname name 当前连接的数据库。 backend_start timestamp with time zone 后台线程启动的时间。 query text 后台线程正在执行的查询语句。 父主题： 通信 版权所有 © 华为技术有限公司

@@ -1,0 +1,15 @@
+CREATE FOREIGN TABLE CREATE FOREIGN TABLE 功能描述 创建外表。 注意事项 外表中暂不支持使用系统列（如tableoid，ctid等），其中Private和Shared模式的外表，需要初始用户或者运维模式下（operation_mode）的运维管理员权限。 OPTIONS中的敏感字段（如password, secret_access_key）在使用多层引号时，语义和不带引号的场景是不同的，因此不会被识别为敏感字段进行脱敏。 语法格式 CREATE FOREIGN TABLE [ IF NOT EXISTS ] table_name ( [
+    column_name type_name [ OPTIONS ( { option 'value' } [, ... ] ) ] [ COLLATE collation ] [ column_constraint [ ... ] ]
+    [, ... ]
+] )
+  SERVER server_name
+[ OPTIONS ( { option 'value' } [, ... ] ) ]; 其中列约束column_constraint为： [ CONSTRAINT constraint_name ]
+{ NOT NULL |
+  NULL |
+  DEFAULT default_expr } 参数说明 IF NOT EXISTS 如果已经存在相同名称的表，不会抛出一个错误，而会发出一个通知，告知表关系已存在。 table_name 外表的表名。 取值范围：字符串，要符合 标识符命名规范 。 column_name 外表中的字段名。 取值范围：字符串，要符合 标识符命名规范 。 type_name 字段的数据类型。 COLLATE  collation COLLATE子句指定列的排序规则（该列必须是可排列的数据类型）。如果没有指定，则使用默认的排序规则。排序规则可以使用“select * from pg_collation;”命令从pg_collation系统表中查询。 SERVER server_name 外表的server名称。 OPTIONS ( option 'value' [, ... ] ) 选项与新外部表或外部表中的字段有关。允许的选项名称和值，是由每一个外部数据封装器指定的。 也是通过外部数据封装器的验证函数来验证。重复的选项名称是不被允许的（尽管表选项和表字段选项可以有相同的名字）。 file_fdw支持的options包括： filename 指定要读取的文件，必需的参数，且必须是一个绝对路径名。 format 远端server的文件格式，支持text/csv/binary/fixed四种格式，和COPY语句的FORMAT选项相同。 header 指定的文件是否有标题行，与COPY语句的HEADER选项相同。 delimiter 指定文件的分隔符，与COPY的DELIMITER选项相同。 quote 指定文件的引用字符，与COPY的QUOTE选项相同。 escape 指定文件的转义字符，与COPY的ESCAPE选项相同。 null 指定文件的null字符串，与COPY的NULL选项相同。 encoding 指定文件的编码，与COPY的ENCODING选项相同。 force_not_null 这是一个布尔选项。如果为真，则声明字段的值不应该匹配空字符串（文件级别null选项）。与COPY的 FORCE_NOT_NULL选项里的字段相同。 file_fdw更多使用请参见《特性指南》的“Foreign Data Wrapper > file_fdw”章节。 NOT NULL 字段值不允许为NULL。 NULL 字段值允许为NULL。 DEFAULT default_expr DEFAULT子句给字段指定缺省值。该数值可以是任何不含变量的表达式(不允许使用子查询和对本表中的其他字段的交叉引用)。缺省表达式的数据类型必须和字段类型匹配。 缺省表达式将被用于任何未声明该字段数值的插入操作。如果没有指定缺省值则缺省值为NULL 。 示例 --创建server gaussdb=# CREATE SERVER my_server FOREIGN DATA WRAPPER log_fdw;
+
+--创建外表 gaussdb=# CREATE FOREIGN TABLE foreign_tbl (col1 text) SERVER my_server OPTIONS (logtype 'pg_log');
+
+--删除外表 gaussdb=# DROP FOREIGN TABLE foreign_tbl;
+
+--删除server gaussdb=# DROP SERVER my_server; 相关链接 ALTER FOREIGN TABLE ， DROP FOREIGN TABLE 父主题： C 版权所有 © 华为技术有限公司

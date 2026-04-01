@@ -1,0 +1,16 @@
+{
+  "topic": "Distributed-key-advisor",
+  "term_count": 2,
+  "terms": [
+    {
+      "term": "外部工具",
+      "content": "外部工具 外部工具 概述 使用指导 获取帮助 常见问题处理 命令参考",
+      "source_file": "4462_file_4462.txt"
+    },
+    {
+      "term": "SQL内置接口",
+      "content": "SQL内置接口 SQL内置接口 概述 使用指导 命令参考",
+      "source_file": "4468_SQL.txt"
+    }
+  ]
+}

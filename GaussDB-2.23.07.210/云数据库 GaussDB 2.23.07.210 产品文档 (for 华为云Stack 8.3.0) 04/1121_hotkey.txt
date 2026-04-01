@@ -1,0 +1,10 @@
+hotkey特性函数 hotkey特性函数 gs_stat_get_hotkeys_info() 描述：获取本地节点查询的热词信息。 返回值类型：Tuple 示例： 1
+2
+3
+4
+5
+6 gaussdb =# select * from gs_stat_get_hotkeys_info () order by count , hash_value ; database_name | schema_name | table_name | key_value | hash_value | count ---------------+-------------+-------------------+-----------+------------+------- regression | public | hotkey_single_col | { 22 } | 1858004829 | 2 regression | public | hotkey_single_col | { 11 } | 2011968649 | 2 ( 2 rows ) gs_stat_clean_hotkeys() 描述：清理hotkey缓存，重置hotkey状态信息。 返回值类型：bool，恒为true 示例： 1
+2
+3
+4
+5 gaussdb =# select * from gs_stat_clean_hotkeys (); gs_stat_clean_hotkeys ----------------------- t ( 1 row ) 父主题： 函数和操作符 版权所有 © 华为技术有限公司

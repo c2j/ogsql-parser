@@ -1,0 +1,1 @@
+连接和认证 连接和认证 PG_AUTHID PG_AUTH_HISTORY PG_AUTH_MEMBERS 父主题： 系统表 版权所有 © 华为技术有限公司

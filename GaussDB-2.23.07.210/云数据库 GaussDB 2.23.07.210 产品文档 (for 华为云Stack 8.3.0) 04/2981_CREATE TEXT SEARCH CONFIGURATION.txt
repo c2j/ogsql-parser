@@ -1,0 +1,21 @@
+CREATE TEXT SEARCH CONFIGURATION CREATE TEXT SEARCH CONFIGURATION 功能描述 创建新的文本搜索配置。一个文本搜索配置声明一个能将一个字符串划分成符号的文本搜索解析器，加上可以用于确定搜索对哪些标记感兴趣的字典。 当前特性是实验室特性，使用时请联系华为工程师提供技术支持。 注意事项 若仅声明分析器，那么新的文本搜索配置初始没有从符号类型到词典的映射， 因此会忽略所有的单词。后面必须调用ALTER TEXT SEARCH CONFIGURATION命令创建映射使配置生效。如果声明了COPY选项，那么会自动拷贝指定的文本搜索配置的解析器、映射、配置选项等信息。 若模式名称已给出，那么文本搜索配置会在声明的模式中创建。否则会在当前模式创建。 定义文本搜索配置的用户成为其所有者。 PARSER和COPY选项是互相排斥的，因为当一个现有配置被复制，其分析器配置也被复制了。 若仅声明分析器，那么新的文本搜索配置初始没有从符号类型到词典的映射， 因此会忽略所有的单词。 语法格式 CREATE TEXT SEARCH CONFIGURATION name 
+    ( PARSER = parser_name | COPY = source_config )
+    [ WITH ( {configuration_option = value} [, ...] )]; 参数说明 name 要创建的文本搜索配置的名称。该名称可以有模式修饰。 parser_name 用于该配置的文本搜索分析器的名称。 source_config 要复制的现有文本搜索配置的名称。 configuration_option 文本搜索配置的配置参数，主要是针对parser_name执行的解析器，或者source_config隐含的解析器而言的。 取值范围：目前共支持default、ngram两种类型的解析器，其中default类型的解析器没有对应的configuration_option，ngram类型解析器对应的configuration_option如 表1 所示。 表1 ngram类型解析器对应的配置参数 解析器 配置参数 参数描述 取值范围 ngram gram_size 分词长度。 正整数，1~4 默认值：2 punctuation_ignore 是否忽略标点符号。 true（默认值）：忽略标点符号。 false：不忽略标点符号。 grapsymbol_ignore 是否忽略图形化字符。 true：忽略图形化字符。 false（默认值）：不忽略图形化字符。 示例 --创建文本搜索配置。 gaussdb=# CREATE TEXT SEARCH CONFIGURATION ngram2 (parser=ngram) WITH (gram_size = 2, grapsymbol_ignore = false);
+
+--创建文本搜索配置。 gaussdb=# CREATE TEXT SEARCH CONFIGURATION ngram3 (copy=ngram2) WITH (gram_size = 2, grapsymbol_ignore = false);
+
+--添加类型映射。 gaussdb=# ALTER TEXT SEARCH CONFIGURATION ngram2 ADD MAPPING FOR multisymbol WITH simple;
+
+--创建用户joe。 gaussdb=# CREATE USER joe IDENTIFIED BY ' ******** ';
+
+--修改文本搜索配置的所有者。 gaussdb=# ALTER TEXT SEARCH CONFIGURATION ngram2 OWNER TO joe;
+
+--修改文本搜索配置的schema。 gaussdb=# ALTER TEXT SEARCH CONFIGURATION ngram2 SET SCHEMA joe;
+
+--重命名文本搜索配置。 gaussdb=# ALTER TEXT SEARCH CONFIGURATION joe.ngram2 RENAME TO ngram_2;
+
+--删除类型映射。 gaussdb=# ALTER TEXT SEARCH CONFIGURATION joe.ngram_2 DROP MAPPING IF EXISTS FOR multisymbol;
+
+--删除文本搜索配置。 gaussdb=# DROP TEXT SEARCH CONFIGURATION joe.ngram_2; gaussdb=# DROP TEXT SEARCH CONFIGURATION ngram3;
+
+--删除Schema及用户joe。 gaussdb=# DROP SCHEMA IF EXISTS joe CASCADE; gaussdb=# DROP ROLE IF EXISTS joe; 相关链接 ALTER TEXT SEARCH CONFIGURATION ， DROP TEXT SEARCH CONFIGURATION 父主题： C 版权所有 © 华为技术有限公司

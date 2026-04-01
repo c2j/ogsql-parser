@@ -1,0 +1,25 @@
+连接数据库（UDS方式） 连接数据库（UDS方式） Unix domain socket用于同一主机上不同进程间的数据交换，通过添加junixsocket获取套接字工厂使用。 需要引用的jar包有junixsocket-core-XXX.jar、junixsocket-common-XXX.jar、junixsocket-native-common-XXX.jar。同时需要在URL连接串中添加：socketFactory=org.newsclub.net.unix.AFUNIXSocketFactory$FactoryArg&socketFactoryArg= [path-to-the-unix-socket] 。 示例： // 认证用的用户名和密码直接写到代码中有很大的安全风险，建议在配置文件或者环境变量中存放(密码应密文存放，使用时解密)，确保安全； // 本示例以用户名和密码保存在环境变量中为例，运行本示例前请先在本地环境中设置环境变量(环境变量名称请根据自身情况进行设置)EXAMPLE_USERNAME_ENV和EXAMPLE_PASSWORD_ENV。 import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.Statement;
+import java.util.Properties;
+
+public class Test {
+    public static void main(String[] args) {
+        String driver = "org.postgresql.Driver"; String userName = System.getenv("EXAMPLE_USERNAME_ENV"); String password = System.getenv("EXAMPLE_PASSWORD_ENV"); Connection conn;
+        try {
+            Class.forName(driver).newInstance();
+            Properties properties = new Properties();
+            properties.setProperty("user", userName );
+            properties.setProperty("password", password );
+            conn = DriverManager.getConnection("jdbc:postgresql:// $ip:$port /postgres?socketFactory=org.newsclub" +
+                            ".net.unix" +
+                            ".AFUNIXSocketFactory$FactoryArg&socketFactoryArg=/data/tmp/.s.PGSQL. 8000 ",
+                    properties);
+            System.out.println("Connection Successful!");
+            Statement statement = conn.createStatement();
+            statement.executeQuery("select 1");
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+} socketFactoryArg参数配置根据真实路径进行配置，与GUC参数unix_socket_directory的值保持一致。 连接主机名必须设置为“localhost”。 父主题： 基于JDBC开发 版权所有 © 华为技术有限公司

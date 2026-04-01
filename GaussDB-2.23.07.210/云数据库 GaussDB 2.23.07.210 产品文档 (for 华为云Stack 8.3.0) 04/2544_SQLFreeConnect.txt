@@ -1,0 +1,1 @@
+SQLFreeConnect SQLFreeConnect 在ODBC 3.x版本中，ODBC 2.x的函数SQLFreeConnect已被SQLFreeHandle代替。有关详细信息请参阅 SQLFreeHandle 。 父主题： ODBC接口参考 版权所有 © 华为技术有限公司

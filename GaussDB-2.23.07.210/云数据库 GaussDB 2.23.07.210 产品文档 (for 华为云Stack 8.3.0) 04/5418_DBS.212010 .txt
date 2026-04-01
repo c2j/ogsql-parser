@@ -1,0 +1,1 @@
+DBS.212010 绑定正在执行 DBS.212010 绑定正在执行 错误码描述 绑定正在执行。 可能原因 参数组绑定正在执行。 处理建议 等待参数组绑定结束后重试。 重试成功，处理完毕。 若长时间未结束，执行 2 。 通过DBS运维平台查看实例任务流是否正常。 是，执行 3 。 否， 下载管理节点日志 及 下载租户节点日志 ，查看管控api节点和common-service节点日志或agent日志定位异常原因。agent日志路径如下所示： “/home/Ruby/log/agent.log” “/home/Ruby/log/request_agent.log” “/home/Ruby/log/agent_error.log” 联系技术支持 排查绑定详情。 父主题： 控制台错误码 版权所有 © 华为技术有限公司

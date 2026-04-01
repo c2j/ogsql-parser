@@ -1,0 +1,32 @@
+查询结果集 查询结果集 返回单行结果的SELECT语句可以直接使用EXEC SQL执行，可参考 执行SQL命令 章节。 示例： /* 首先建立一个表并插入数据 */
+EXEC SQL CREATE TABLE test_table (number1 integer, number2 integer);
+EXEC SQL INSERT INTO test_table (number1, number2) VALUES (2, 1);
+
+/* 查询结果为单行,:num 为宿主变量 */
+EXEC SQL SELECT number1 INTO :num FROM test_table WHERE number2 = 1; 若要处理多行结果集，则必须使用游标，可参考 使用游标 章节（特殊情况下，应用程序可以一次取出多行结果写入到数组类型的宿主变量中，可参考 使用非初级类型的宿主变量 章节）。 示例： /* 首先建立一个表并插入数据 */
+    EXEC SQL CREATE TABLE test_table (number1 integer, number2 integer);
+    EXEC SQL INSERT INTO test_table (number1, number2) VALUES (2, 1);
+    EXEC SQL INSERT INTO test_table (number1, number2) VALUES (3, 1);
+    EXEC SQL INSERT INTO test_table (number1, number2) VALUES (4, 1);
+    EXEC SQL INSERT INTO test_table (number1, number2) VALUES (5, 1);
+
+/* 定义宿主变量 */
+EXEC SQL BEGIN DECLARE SECTION;
+    int v1;
+    int v2;
+EXEC SQL END DECLARE SECTION;
+
+    /* 声明游标 */
+    EXEC SQL DECLARE test_bar CURSOR FOR SELECT number1, number2 FROM test_table ORDER BY number1;
+    /* 打开游标 */
+    EXEC SQL OPEN test_bar;
+    /* 当游标到达结果集末尾时跳出循环 */
+    EXEC SQL WHENEVER NOT FOUND DO BREAK;
+    /* 获取查询结果集 */
+    while(1)
+    {
+        EXEC SQL FETCH NEXT FROM test_bar INTO :v1, :v2;
+        printf("number1 = %d, number2 = %d\n",v1,v2);
+    }
+    /* 关闭游标 */
+    EXEC SQL CLOSE test_bar; 父主题： 基于ecpg开发 版权所有 © 华为技术有限公司

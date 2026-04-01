@@ -1,0 +1,1 @@
+trace.log/trace.dat trace.log/trace.dat 日志含义 服务的调用链日志，用于记录服务内部api调用情况。非日常运维使用，无需关注该日志，此处不做详细介绍。 日志命名 日志文件名：trace.log/trace.dat 父主题： 公共日志 版权所有 © 华为技术有限公司

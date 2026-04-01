@@ -1,0 +1,1 @@
+用户自定义函数 用户自定义函数 集群 启动时，除了启动CN、DN之外，还会启动UDF master进程。 当需要执行fenced模式的UDF时，UDF master进程会fork出UDF worker进程，UDF worker进程执行fenced模式的UDF。 C语言函数（实验室特性） PL/SQL语言函数 父主题： 分布式版 版权所有 © 华为技术有限公司

@@ -1,0 +1,30 @@
+指定agg算法的Hint 指定agg算法的Hint 功能描述 在进行agg算法时可以指定agg的方法。 语法格式 use_hash_agg[(@queryblock)], use_sort_agg[(@queryblock)] 参数说明 @queryblock 见 指定Hint所处于的查询块Queryblock ，可省略，表示在当前查询块生效，当不指定时，hint没有括号"()"。 示例 使用hash聚集。 gaussdb=# explain (costs off) select c1 from t2 where c1 in( select /*+ use_hash_agg */ t1.c1 from t1,t3 where t1.c1=t3.c1 group by 1);
+                   QUERY PLAN                   
+------------------------------------------------
+ Hash Semi Join
+   Hash Cond: (t2.c1 = t1.c1)
+   ->  Seq Scan on t2
+   ->  Hash
+         ->  HashAggregate
+               Group By Key: t1.c1
+               ->  Hash Join
+                     Hash Cond: (t1.c1 = t3.c1)
+                     ->  Seq Scan on t1
+                     ->  Hash
+                           ->  Seq Scan on t3
+(11 rows) 使用use_sort_agg聚集，mergejoin有序。 gaussdb=# explain (costs off) select c1 from t2 where c1 in( select /*+ use_sort_agg */ t1.c1 from t1,t3 where t1.c1=t3.c1 group by 1);
+                       QUERY PLAN                        
+---------------------------------------------------------
+ Hash Semi Join
+   Hash Cond: (t2.c1 = t1.c1)
+   ->  Seq Scan on t2
+   ->  Hash
+         ->  Group
+               Group By Key: t1.c1
+               ->  Merge Join
+                     Merge Cond: (t1.c1 = t3.c1)
+                     ->  Index Only Scan using it1 on t1
+                     ->  Sort
+                           Sort Key: t3.c1
+                           ->  Seq Scan on t3
+(12 rows) 父主题： 使用Plan Hint进行调优 版权所有 © 华为技术有限公司

@@ -1,0 +1,10 @@
+容灾操作校验 容灾操作校验 功能介绍 容灾操作前校验操作是否可以执行。 调用接口前，您需要提前 获取终端节点 ，即下文中的Endpoint值。 URI URI格式 POST https://{ Endpoint }/gaussdb/v3.1/{project_id}/instances/{instance_id}/disaster/operation-precheck URI样例 https://gaussdb.sa-fb-2.hcsglobal.com/gaussdb/v3.1/0483b6b16e954cb88930a360d2c4e663/instances/a7d62bf77aa04fceb52fbd57181c9e3ein14/disaster/operation-precheck 参数说明 表1 参数说明 名称 是否必选 说明 project_id 是 租户在某一region下的project ID。 获取方法请参见 获取项目ID/名称 。 instance_id 是 实例ID。 请求示例 https://gaussdb.sa-fb-2.hcsglobal.com/gaussdb/v3.1/4a52a8a8f63d4c6d966dff0e20b69738/instances/234b7837d830484890f6a1e55b732401in14/disaster/operation-precheck 请求消息 参数说明 表2 参数说明 名称 是否必选 参数类型 说明 disaster_type 是 String 容灾类型。 dest_region 是 String 对端region。 dest_instance_id 是 String 对端region实例id。 dest_project_id 是 String 对端region项目id。 operate 是 String 操作类型。 枚举值: construct switchover failover stop simulation_start simulation_end dr_log_keep_start dr_log_keep_end 请求示例 { 
+	"disaster_type":"stream", 
+	"dest_region":"sa-fb-1", 
+	"dest_instance_id":"e23ba4d51161428a8b6a0f435aff16d8in13", 
+	"dest_project_id":"4a52a8a8f63d4c6d966dff0e20b69738", 
+	"operate":"construct" 
+} 响应消息 表3 响应Body参数列表 名称 参数类型 说明 enable Boolean 是否可操作。 deny_reason String 不可操作原因。 正常响应样例 { 
+    "enable":true,
+    "deny_reason":""
+} 异常响应 请参见 异常请求结果 。 状态码 正常 200 异常 请参见 状态码 。 错误码 请参见 错误码 。 父主题： 容灾管理（V3.1） 版权所有 © 华为技术有限公司

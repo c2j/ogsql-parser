@@ -1,0 +1,2 @@
+【建议】避免频繁使用下使用count()获取大表行数，该操作资源消耗较大，影响并行作业执行效率 【建议】避免频繁使用下使用count()获取大表行数，该操作资源消耗较大，影响并行作业执行效率 如果不需要实时的行数统计信息，可以尝试使用如下语句来获取表行数。 SELECT reltules FROM pg_class WHERE relname = 'tablename'; pg_class中所记录的表行数信息只会在对该表执行ANALYZE以后才会更新。 目前ANALYZE有两种触发条件: 业务主动发送ANALYZE语句，例如： --分析连接库中所有表 ANALYZE ;
+--分析指定表 ANALYZE tablename; 借助AUTO VACUUM机制，在每间隔一定时间或表的增删达到一定行数时触发。间隔时间和增删比例可通过GUC参数设置。 父主题： SELECT 版权所有 © 华为技术有限公司

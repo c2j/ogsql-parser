@@ -1,0 +1,1 @@
+IMPDP TABLE IMPDP TABLE 功能描述 导入表的执行阶段。 语法格式 IMPDP TABLE [AS table_name] SOURCE = 'directory' OWNER = user; 参数说明 table_name 导入后的新表名，如不指定则导入后保持原表名。 directory 导入的表的数据源目录。 user 导入后表的属主。 示例 --IMPDP TABLE语法用于细粒度备份恢复，由备份恢复工具调用，用户直接调用可能会提示目录不存在等报错，不推荐用户直接调用该SQL。 gaussdb=# IMPDP TABLE SOURCE = '/data1/impdp/table0' OWNER=admin; 父主题： I 版权所有 © 华为技术有限公司

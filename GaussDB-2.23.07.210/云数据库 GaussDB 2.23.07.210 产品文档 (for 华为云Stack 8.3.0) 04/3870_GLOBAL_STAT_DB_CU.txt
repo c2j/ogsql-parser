@@ -1,0 +1,1 @@
+GLOBAL_STAT_DB_CU GLOBAL_STAT_DB_CU 当前特性是实验室特性，使用时请联系华为技术工程师提供技术支持。 GLOBAL_STAT_DB_CU视图用于查询 GaussDB 中每个数据库的CU命中情况。可以通过pg_stat_reset()进行清零。 表1 GLOBAL_STAT_DB_CU字段 名称 类型 描述 node_name1 text 节点名称。 db_name text 数据库名。 mem_hit bigint 内存命中次数。 hdd_sync_read bigint 硬盘同步读次数。 hdd_asyn_read bigint 硬盘异步读次数。 父主题： Cache/IO 版权所有 © 华为技术有限公司

@@ -1,0 +1,26 @@
+{
+  "topic": "安装后调测",
+  "term_count": 4,
+  "terms": [
+    {
+      "term": "使用FusionCare自动化调测",
+      "content": "使用FusionCare自动化调测 使用FusionCare自动化调测 添加节点 添加环境信息 创建自动化验收任务 查看自动化验收任务 查看验收结果",
+      "source_file": "125_FusionCare.txt"
+    },
+    {
+      "term": "手动调测",
+      "content": "手动调测 手动调测 对于未实现自动化调测的用例，请参考 《华为云Stack 8.3.0 验收测试指南》 中的《云数据库 GaussDB 2.23.07.200 验收测试指南 (for 华为云Stack 8.3.0 ) 》执行手动调测。",
+      "source_file": "075_file_75.txt"
+    },
+    {
+      "term": "使用FusionCare自动化调测",
+      "content": "使用FusionCare自动化调测 使用FusionCare自动化调测 添加节点 添加环境信息 创建自动化验收任务 查看自动化验收任务 查看验收结果",
+      "source_file": "069_FusionCare.txt"
+    },
+    {
+      "term": "手动调测",
+      "content": "手动调测 手动调测 对于未实现自动化调测的用例，请参考 《华为云Stack 8.3.0 验收测试指南》 中的《云数据库 GaussDB 2.23.07.200 验收测试指南 (for 华为云Stack 8.3.0 ) 》执行手动调测。",
+      "source_file": "131_file_131.txt"
+    }
+  ]
+}

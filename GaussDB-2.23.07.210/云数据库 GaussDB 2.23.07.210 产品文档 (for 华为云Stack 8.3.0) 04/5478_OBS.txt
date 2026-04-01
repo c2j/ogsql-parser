@@ -1,0 +1,1 @@
+访问实例管理公共OBS桶 访问实例管理公共OBS桶 操作步骤 根据 查看系统参数 方法，选择DBS_SYSTEM_PARAMETER，在搜索框中输入“instance_obs_ak”，获得登录OBS的AK； 继续在搜索框中输入“instance_obs_sk”，获得登录OBS的SK，并使用解密工具解密； 在搜索框中输入“obsEndpoint”，获得登录OBS的域名。 在搜索框中输入“instance_package_bucket”，获得需要访问的桶名。 使用OBS连接工具，登录OBS并访问对应桶。 父主题： 附录 版权所有 © 华为技术有限公司

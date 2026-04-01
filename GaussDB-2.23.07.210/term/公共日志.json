@@ -1,0 +1,36 @@
+{
+  "topic": "公共日志",
+  "term_count": 6,
+  "terms": [
+    {
+      "term": "trace.log/trace.dat",
+      "content": "trace.log/trace.dat trace.log/trace.dat 日志含义 服务的调用链日志，用于记录服务内部api调用情况。非日常运维使用，无需关注该日志，此处不做详细介绍。 日志命名 日志文件名：trace.log/trace.dat",
+      "source_file": "5495_trace.log_trace.dat.txt"
+    },
+    {
+      "term": "gc-xxx-xxx.log",
+      "content": "gc-xxx-xxx.log gc-xxx-xxx.log 日志含义 GC（Garbage Collection)：JAVA/.NET中的垃圾回收器，gc-xxx-xxx.log是java服务发生垃圾回收时的日志。通过查看该日志，可以分析服务的内存使用情况，从而快速定位问题。 日志命名 日志文件名：gc-[YYYYmmdd]-[hhmmss].log 日志格式 [时间] [内容] 日志参数 表1 日志参数 字段名称 字段含义 时间 日志生成的时间，格式：yyyy-mm-dd hh:mm:ss,ms。 内容 日志具体的内容。 日志示例 日志的典型样例： 发生垃圾回收后的日志。 2021-08-17T15:15:07.609+0000: 5.332: [Full GC (Metadata GC Threshold) [PSYoungGen: 59376K->0K(768000K)] [ParOldGen: 11751K->57563K(839680K)] 71128K->57563K(1607680K), [Metaspace: 20560K->20560K(1069056K)], 0.1389335 secs] [Times: user=0.50 sys=0.02, real=0.14 secs]\nHeap\n PSYoungGen      total 768000K, used 661070K [0x00000000cce00000, 0x0000000100000000, 0x0000000100000000)\n  eden space 698368K, 94% used [0x00000000cce00000,0x00000000f5393888,0x00000000f7800000)\n  from space 69632K, 0% used [0x00000000fbc00000,0x00000000fbc00000,0x0000000100000000)\n  to   space 69632K, 0% used [0x00000000f7800000,0x00000000f7800000,0x00000000fbc00000)\n ParOldGen       total 839680K, used 57563K [0x0000000099a00000, 0x00000000cce00000, 0x00000000cce00000)\n  object space 839680K, 6% used [0x0000000099a00000,0x000000009d236f00,0x00000000cce00000)\n Metaspace       used 20692K, capacity 21152K, committed 21504K, reserved 1069056K\n  class space    used 2302K, capacity 2440K, committed 2560K, reserved 1048576K",
+      "source_file": "5491_gc-xxx-xxx.log.txt"
+    },
+    {
+      "term": "localhost_access_log.txt",
+      "content": "localhost_access_log.txt localhost_access_log.txt 日志含义 tomcat访问日志记录，通过查看该日志，可以分析访问Tomcat的请求内容，从而快速定位问题。 日志命名 日志文件名：localhost_access_log.txt 日志格式 [时间] [源IP] [请求接口] [返回码] [源地址] [请求url] [http协议版本] [处理时长] 日志参数 表1 日志参数 字段名称 字段含义 时间 日志生成的时间，格式：dd/mm/YY:HH:MM:SS +ms 源IP 发出请求的IP 请求接口 请求的接口 返回码 请求接口的返回码 源地址 请求接口的源地址 请求url 请求接口的URL http协议版本 请求接口的http协议版本 处理时长 处理该请求所用的时间 日志示例 从本机（127.0.0.1）收到一条“GET /ops-admin/health-status”请求的日志。 [06/Aug/2021:03:52:00 +0000] 127.0.0.1 /ops-admin/health-status 200 127.0.0.1 - - GET /ops-admin/health-status HTTP/1.1 -",
+      "source_file": "5494_localhost_access_log.txt.txt"
+    },
+    {
+      "term": "catalina.out",
+      "content": "catalina.out catalina.out 日志含义 记录Tomcat启动和运行时的日志。通过查看该日志，系统管理人员与系统维护人员可以检查服务是否正常运行，从而快速定位问题。 日志命名 日志文件名：catalina.out 日志格式 日志的格式如下： [级别] [时间] [来源]:[具体内容] 日志参数 表1 日志参数 字段名称 字段含义 级别 日志的级别：分为DEBUG，INFO，WARN，ERROR 时间 日志生成的时间，格式：yyyy-mm-dd hh:mm:ss:ms。 来源 上报日志的线程名。 具体内容 日志具体的内容。 日志示例 日志的典型样例： 下边是Tomcat启动服务成功示例。 [INFO ] 2021-08-17 15:27:01,206 [main]  [] - Starting ProtocolHandler [\"http-nio-127.0.0.1-10013\"] -org.apache.coyote.http11.Http11NioProtocol\n[INFO ] 2021-08-17 15:27:01,319 [main]  [] - Server startup in 74417 ms - org.apache.catalina.startup.Catalina",
+      "source_file": "5490_catalina.out.txt"
+    },
+    {
+      "term": "oom-xxxx-xxxx.log",
+      "content": "oom-xxxx-xxxx.log oom-xxxx-xxxx.log 日志含义 OOM，全称“Out Of Memory”；oom-xxxx-xxxx.log，是服务发生内存不足时产生的日志。通过查看该日志，系统管理人员与系统维护人员可以判断微服务内存资源情况，从而快速定位问题。 日志命名 日志文件名：oom-[YYYYmmdd]-[hhmmss].log 日志格式 日志的格式如下： [级别] [时间] [来源]:具体内容 日志参数 表1 日志参数 字段名称 字段含义 级别 日志的级别：分为DEBUG，INFO，WARN，ERROR 时间 日志生成的时间，格式：yyyy-mm-dd hh:mm:ss:ms。 来源 上报日志的线程名。 具体内容 日志具体的内容。 日志示例 发生oom后，oom日志中会出现大量乱码，此处不作具体展示。",
+      "source_file": "5492_oom-xxxx-xxxx.log.txt"
+    },
+    {
+      "term": "localhost.log",
+      "content": "localhost.log localhost.log 日志含义 记录tomcat运行过程的日志，配合catalina日志，可以快速定位服务启动失败问题。 日志命名 日志文件名：localhost.log 日志格式 日志的格式如下： [级别] [时间] [来源]:具体内容 日志参数 表1 日志参数 字段名称 字段含义 级别 日志的级别：分为DEBUG，INFO，WARN，ERROR 时间 日志生成的时间，格式：yyyy-mm-dd hh:mm:ss:ms。 来源 上报日志的线程名。 具体内容 日志具体的内容。 日志示例 日志的典型样例： 服务启动成功的日志： INFO ] 2021-08-11 07:45:28,063 [localhost-startStop-1]  [] - Initializing Spring root WebApplicationContext -org.apache.catalina.core.ContainerBase.[Catalina].[localhost].[/ops-admin]\n[INFO ] 2021-08-11 07:46:28,789 [localhost-startStop-1]  [] - Initializing Spring FrameworkServlet 'SpringMVC' -org.apache.catalina.core.ContainerBase.[Catalina].[localhost].[/ops-admin] 服务启动失败的其中一种日志。 [ERROR] 2021-08-08 12:25:00,204 [localhost-startStop-1]  [] - Exception sending context initialized event to listener instance of class [org.springframework.web.context.ContextLoaderListener] -org.apache.catalina.core.ContainerBase.[Catalina].[localhost].[/ops-admin]\norg.springframework.beans.factory.UnsatisfiedDependencyException: Error creating bean with name 'engineController': Unsatisfied dependency expressed through field 'engineService'; nested exception is org.springframework.beans.factory.UnsatisfiedDependencyException: Error creating bean with name 'engineService': Unsatisfied dependency expressed through field 'drsManager'; nested exception is org.springframework.beans.factory.UnsatisfiedDependencyException: Error creating bean with name 'drsManager': Unsatisfied dependency expressed through field 'opsRpcService'; nested exception is org.springframework.beans.factory.BeanCreationException: Error creating bean with name 'opsRpcService': FactoryBean threw exception on object creation; nested exception is java.lang.IllegalStateException: Failed to receive INITIALIZED event from zookeeper, pls. check if url zookeeper:// ip /ConfigCenterConfig?check=true&config-file=dubbo.properties&highest-priority=false&timeout=60000 is correct",
+      "source_file": "5493_localhost.log.txt"
+    }
+  ]
+}

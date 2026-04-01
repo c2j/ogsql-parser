@@ -1,0 +1,23 @@
+使用Ustore进行测试 使用Ustore进行测试 创建Ustore表 使用CREATE TABLE语句创建Ustore表。 gaussdb=# CREATE TABLE ustore_table(a INT PRIMARY KEY, b CHAR (20)) WITH (STORAGE_TYPE=USTORE);
+NOTICE:  CREATE TABLE / PRIMARY KEY will create implicit index "ustore_table_pkey" for table "ustore_table"
+CREATE TABLE gaussdb=# \d+ ustore_table
+Table "public.ustore_table"
+Column |     Type      | Modifiers | Storage  | Stats target | Description
+--------+---------------+-----------+----------+--------------+-------------
+a      | integer       | not null  | plain    |              |
+b      | character(20) |           | extended |              |
+Indexes:
+"ustore_table_pkey" PRIMARY KEY, ubtree (a) WITH (storage_type=USTORE) TABLESPACE pg_default
+Has OIDs: no
+Options: orientation= row , storage_type= ustore , compression=no 删除Ustore表 gaussdb=# drop table ustore_table;
+ DROP TABLE 为Ustore表创建索引 Ustore当前仅支持BTree类型的多版本索引。在一些场景中，为了区别于Astore的BTree索引，也会将Ustore表的多版本BTree索引称为UBTree（Ustore BTree，UBTree介绍详见 UBTree 章节）。用户可以参照以下方式使用CREATE INDEX语句为Ustore表的“a”属性创建一个UBTree索引。 Ustore表不指定创建索引类型，默认创建的是UBTree索引。 UBTree索引分为RCR版本和PCR版本，默认创建RCR版本的UBTree。若在创建索引时with选项指定(index_txntype=pcr)或者指定GUC的index_txntype=pcr，则创建的是PCR版本的UBTree。 gaussdb=# CREATE INDEX UB_tree_index ON test(a);
+CREATE INDEX gaussdb=# \d+ test 
+Table "public.test"
+ Column |  Type   | Modifiers | Storage | Stats target | Description
+--------+---------+-----------+---------+--------------+-------------
+ a      | integer |           | plain   |              |
+Indexes:
+    "ub_tree_index" ubtree (a) WITH (storage_type=USTORE) TABLESPACE pg_default
+Has OIDs: no
+Options: orientation=row, compression=no, storage_type=USTORE 删除Ustore表索引 gaussdb=# drop index ub_tree_index;
+DROP INDEX 父主题： Ustore简介 版权所有 © 华为技术有限公司

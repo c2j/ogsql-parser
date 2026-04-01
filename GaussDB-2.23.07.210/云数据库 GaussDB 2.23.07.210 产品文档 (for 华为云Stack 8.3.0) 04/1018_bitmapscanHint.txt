@@ -1,0 +1,17 @@
+支持bitmapscan的Hint 支持bitmapscan的Hint 功能描述 支持在目标表上使用指定的索引生成bitmapscan路径，在原优化器可生成路径的基础上选中符合HINT的路径。 语法格式 [no] bitmapscan([@queryblock] table [index_list]) 参数说明： no 表示hint的scan方式不使用。 @queryblock 见 指定Hint所处的查询块Queryblock 章节，可省略，表示在当前查询块生效。 table为bitmapscan的目标表。 index_list为bitmapscan使用的索引。 示例 gaussdb=# explain(costs off)  select /*+ BitmapScan(t1 it1 it3)*/* from t1 where  (t1.c1 = 5 or t1.c2=6) or (t1.c3=3 or t1.c2=7);
+                              QUERY PLAN                              
+----------------------------------------------------------------------
+ Streaming (type: GATHER)
+   Node/s: All datanodes
+   ->  Bitmap Heap Scan on t1
+         Recheck Cond: ((c1 = 5) OR (c2 = 6) OR (c3 = 3) OR (c2 = 7))
+         ->  BitmapOr
+               ->  Bitmap Index Scan on it1
+                     Index Cond: (c1 = 5)
+               ->  Bitmap Index Scan on it3
+                     Index Cond: (c2 = 6)
+               ->  Bitmap Index Scan on it3
+                     Index Cond: (c3 = 3)
+               ->  Bitmap Index Scan on it3
+                     Index Cond: (c2 = 7)
+(13 rows) bitmapscan仅会根据已有的index路径组合bitmapscan路径时优先选择符合要求的路径，因为索引路径构造空间巨大，优化器存在剪枝，若参与的index路径无法生成，则无法构造。 父主题： 使用Plan Hint进行调优 版权所有 © 华为技术有限公司

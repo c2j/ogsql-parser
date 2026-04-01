@@ -1,0 +1,1 @@
+PG_AVAILABLE_EXTENSIONS PG_AVAILABLE_EXTENSIONS PG_AVAILABLE_EXTENSIONS视图显示数据库中某些特性的扩展信息。具体字段信息如 表1 所示。 该特性为内部使用，不建议用户使用。 表1 PG_AVAILABLE_EXTENSIONS字段 名称 类型 描述 name name 扩展名。 default_version text 缺省版本的名称，如果没有指定则为NULL。 installed_version text 扩展当前安装版本，如果没有安装任何版本则为NULL。 comment text 扩展的控制文件中的评论。 父主题： 其他系统视图 版权所有 © 华为技术有限公司

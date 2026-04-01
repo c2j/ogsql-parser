@@ -1,0 +1,16 @@
+CREATE SERVER CREATE SERVER 功能描述 创建一个外部服务器。 外部服务器是存储其他同构 集群 信息的载体。 注意事项 默认只有系统管理员才可以创建外部服务器，否则需要对所使用的FOREIGN DATA WRAPPER授权才可以创建，授权语法为： GRANT USAGE ON FOREIGN DATA WRAPPER fdw_name TO username 其中fdw_name为FOREIGN DATA WRAPPER的名称，username为创建SERVER的用户名。 OPTIONS中的敏感字段（如password）在使用多层引号时，语义和不带引号的场景是不同的，因此不会被识别为敏感字段进行脱敏。 语法格式 1
+2
+3 CREATE SERVER server_name FOREIGN DATA WRAPPER fdw_name [ OPTIONS ( { option_name ' value ' } [, ...] ) ]; 参数说明 server_name server的名称。 取值范围：长度必须小于等于63。 FOREIGN DATA WRAPPER fdw_name 指定外部数据封装器的名称。 取值范围：fdw_name是数据库初始化时系统创建的数据封装器，对于其他同构 集群 ，fdw_name为gc_fdw。还可以创建dist_fdw、file_fdw、log_fdw。其中log_fdw仅做语法兼容，可以创建外表，无实际使用意义；dist_fdw用于gds导数，由于有内置gsmpp_server，因此不需要手动用dist_fdw创建server。 OPTIONS (  { option_name ' value '  }  [, ...] ) 用于指定外部服务器的各类参数，详细的参数说明如下所示。 address 外部服务器地址。 dbname 外部服务器DB名称。 username 外部服务器用户名。 password 外部服务器密码。 示例 建立一个my_server，其中file_fdw为数据库中存在的foreign data wrapper。 1
+2
+3
+4
+5 --创建my_server。 gaussdb =# CREATE SERVER my_server FOREIGN DATA WRAPPER file_fdw ; --删除my_server。 gaussdb =# DROP SERVER my_server ; 建立另外一个同构 集群 的server，其中gc_fdw为数据库中存在的foreign data wrapper。 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10 --创建server。 gaussdb =# CREATE SERVER server_remote FOREIGN DATA WRAPPER GC_FDW OPTIONS ( address '10.146.187.231:8000,10.180.157.130:8000' , dbname 'test' , username 'test' , password '********' ); --删除server。 gaussdb =# DROP SERVER server_remote ; 相关链接 ALTER SERVER ， DROP SERVER 父主题： C 版权所有 © 华为技术有限公司

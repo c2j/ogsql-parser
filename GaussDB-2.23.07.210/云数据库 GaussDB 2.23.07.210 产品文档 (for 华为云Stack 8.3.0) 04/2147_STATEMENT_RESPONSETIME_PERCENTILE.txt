@@ -1,0 +1,1 @@
+STATEMENT_RESPONSETIME_PERCENTILE STATEMENT_RESPONSETIME_PERCENTILE 获取 集群 SQL响应时间P80，P95分布信息。 表1 STATEMENT_RESPONSETIME_PERCENTILE的字段 名称 类型 描述 p80 bigint 集群 80%的SQL的响应时间（单位：微秒）。 p95 bigint 集群 95%的SQL的响应时间（单位：微秒）。 父主题： Query 版权所有 © 华为技术有限公司

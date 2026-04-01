@@ -1,0 +1,1 @@
+PGXC_WLM_OPERATOR_INFO PGXC_WLM_OPERATOR_INFO PGXC_WLM_OPERATOR_INFO视图显示在所有CN上执行作业结束时的算子信息。查询该视图需要sysadmin权限。 当前特性是实验室特性，使用时请联系华为技术工程师提供技术支持。 此视图的数据直接从系统表 GS_WLM_OPERATOR_INFO 获取。具体的字段请参见 GS_WLM_OPERATOR_INFO 的字段信息。 当查询视图无数据显示时，请联系华为工程师提供技术支撑。 父主题： 系统视图 版权所有 © 华为技术有限公司

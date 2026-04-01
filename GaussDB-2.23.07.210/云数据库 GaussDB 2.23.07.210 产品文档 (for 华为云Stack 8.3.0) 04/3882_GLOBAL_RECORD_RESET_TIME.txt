@@ -1,0 +1,1 @@
+GLOBAL_RECORD_RESET_TIME GLOBAL_RECORD_RESET_TIME GLOBAL_RECORD_RESET_TIME用于重置（重启，主备倒换，数据库删除）汇聚数据库统计信息时间。 表1 GLOBAL_RECORD_RESET_TIME字段 名称 类型 描述 node_name text 节点名称。 reset_time timestamp with time zone 重置时间点。 父主题： Utility 版权所有 © 华为技术有限公司

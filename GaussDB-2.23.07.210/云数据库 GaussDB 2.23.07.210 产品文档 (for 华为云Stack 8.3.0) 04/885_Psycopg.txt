@@ -1,0 +1,1 @@
+Psycopg接口参考 Psycopg接口参考 Psycopg接口是一套提供给用户的API方法，本节将对部分常用接口做具体描述。 psycopg2.connect() connection.cursor() cursor.execute(query,vars_list) cursor.executemany(query,vars_list) connection.commit() connection.rollback() cursor.fetchone() cursor.fetchall() cursor.close() connection.close() 父主题： 基于Psycopg开发 版权所有 © 华为技术有限公司

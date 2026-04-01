@@ -1,0 +1,2 @@
+版本命令 版本命令 功能 version命令用于查询Roach工具的版本号。 命令格式 python3 GaussRoach.py --version | -v 参数说明 完整选项 缩写选项 数据类型 说明 取值范围 缺省值 应用实例 -t -t 字符串 Roach接口支持多种功能。使用version值指定此选项可显示Roach工具版本信息。 -t backup -t stop -t delete -t restore -t genstack -t getobject -t start -t clean -t config -t version -t help 不涉及 -t version 使用指南 无 命令示例 查询Roach工具的版本号。 python3 GaussRoach.py --version 系统回显 champ@BLR1000014692: ~ /db/bin/script> python3 GaussRoach.py --version
+Roach V100R002C10SPC330 上述回显中版本号仅用于举例。最终版本号以实际为准。 相关命令 无 父主题： 命令行参考 版权所有 © 华为技术有限公司

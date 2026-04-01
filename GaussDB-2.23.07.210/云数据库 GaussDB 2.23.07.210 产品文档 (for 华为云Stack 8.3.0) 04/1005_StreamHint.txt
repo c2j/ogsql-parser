@@ -1,0 +1,64 @@
+Stream方式的Hint Stream方式的Hint 功能描述 指明stream使用的方法，可以为broadcast和redistribute，或者直接指定生成gather计划。 语法格式 1
+2 [ no ] broadcast | redistribute ( [ @ queryblock ] table_list ) gather ( [ @ queryblock ] REL | JOIN | ALL ) 参数说明 @queryblock 见 指定Hint所处的查询块Queryblock 章节，可省略，表示在当前查询块生效。 broadcast和redistribute no表示hint的stream方式不使用。 table_list为进行stream操作的单表或多表join结果集，见 参数说明 。 gather gather hint可以指定三种计划生成方式： REL：只生成基于基表的gather路径，然后再在CN上执行剩余计划。 JOIN：尽可能生成基于join的gather路径，在能下推的join子计划上面（join下面不包含重分布节点）添加gather路径，剩余计划在CN上执行。对于需要重分布节点的join计划则生成不出这种基于join的gather路径，会回退生成基于基表的gather路径。 在指定hint(JOIN)后，对于分布表和复制表做连接的情况会导致生成不出来hint(JOIN)期望的计划，因为优化器已经寻找更优的计划进行替代。 ALL：基于最优方式选择Gather Rel或Gather Join路径。 示例 对 示例 中原语句使用如下hint: 1
+2 explain select /*+ no redistribute(store_sales store_returns item store) leading(((store_sales store_returns item store) customer)) */ i_product_name product_name ... 原计划中，(store_sales store_returns item store)和customer做join时，前者做了重分布，此hint表示禁止前者混合表做重分布，但仍然保持join顺序，则生成计划如下所示： 对语句进行Gather Hint指定： 生成基表Gather计划 /* +GATHER(REL)*/。 gaussdb=# explain select /*+ GATHER(REL)*/* from t1, t2, t3 where t1.c2 = t2.c2 and t2.c2 = t3.c2;
+ id |               operation               | E-rows | E-width | E-costs 
+----+---------------------------------------+--------+---------+---------
+  1 | ->  Hash Join (2,8)                   |     20 |      36 | 44.10
+  2 |    ->  Hash Join (3,5)                |     20 |      24 | 29.22
+  3 |       ->  Streaming (type: GATHER)    |     20 |      12 | 14.35
+  4 |          ->  Seq Scan on t1           |     20 |      12 | 13.13
+  5 |       ->  Hash                        |     20 |      12 | 14.35
+  6 |          ->  Streaming (type: GATHER) |     20 |      12 | 14.35
+  7 |             ->  Seq Scan on t2        |     20 |      12 | 13.13
+  8 |    ->  Hash                           |     20 |      12 | 14.35
+  9 |       ->  Streaming (type: GATHER)    |     20 |      12 | 14.35
+ 10 |          ->  Seq Scan on t3           |     20 |      12 | 13.13
+(10 rows)
+
+ Predicate Information (identified by plan id) 
+-----------------------------------------------
+   1 --Hash Join (2,8)
+         Hash Cond: (t1.c2 = t3.c2)
+   2 --Hash Join (3,5)
+         Hash Cond: (t1.c2 = t2.c2)
+(4 rows) 生成可下推计划的Join Gather计划 /*+ GATHER(REL)*/。 gaussdb=# explain select /*+ GATHER(JOIN)*/* from t1, t2, t3 where t1.c1 = t2.c1 and t2.c2 = t3.c2;
+ id |             operation              | E-rows | E-width | E-costs 
+----+------------------------------------+--------+---------+---------
+  1 | ->  Hash Join (2,7)                |     20 |      36 | 42.37
+  2 |    ->  Streaming (type: GATHER)    |     20 |      24 | 27.49
+  3 |       ->  Hash Join (4,5)          |     20 |      24 | 26.56
+  4 |          ->  Seq Scan on t1        |     20 |      12 | 13.13
+  5 |          ->  Hash                  |     21 |      12 | 13.13
+  6 |             ->  Seq Scan on t2     |     20 |      12 | 13.13
+  7 |    ->  Hash                        |     20 |      12 | 14.35
+  8 |       ->  Streaming (type: GATHER) |     20 |      12 | 14.35
+  9 |          ->  Seq Scan on t3        |     20 |      12 | 13.13
+(9 rows)
+
+ Predicate Information (identified by plan id) 
+-----------------------------------------------
+   1 --Hash Join (2,7)
+         Hash Cond: (t2.c2 = t3.c2)
+   3 --Hash Join (4,5)
+         Hash Cond: (t1.c1 = t2.c1)
+(4 rows) 生成最优方式的Gather计划 /*+ GATHER(ALL)*/。 会基于最优方式及规则选择GATHER(REL)或者GATHER(JOIN)路径。 gaussdb=# explain select /*+ GATHER(ALL)*/* from t1, t2, t3 where t1.c1 = t2.c1 and t2.c2 = t3.c2;
+ id |             operation              | E-rows | E-width | E-costs 
+----+------------------------------------+--------+---------+---------
+  1 | ->  Hash Join (2,7)                |     20 |      36 | 42.37
+  2 |    ->  Streaming (type: GATHER)    |     20 |      24 | 27.49
+  3 |       ->  Hash Join (4,5)          |     20 |      24 | 26.56
+  4 |          ->  Seq Scan on t1        |     20 |      12 | 13.13
+  5 |          ->  Hash                  |     21 |      12 | 13.13
+  6 |             ->  Seq Scan on t2     |     20 |      12 | 13.13
+  7 |    ->  Hash                        |     20 |      12 | 14.35
+  8 |       ->  Streaming (type: GATHER) |     20 |      12 | 14.35
+  9 |          ->  Seq Scan on t3        |     20 |      12 | 13.13
+(9 rows)
+
+ Predicate Information (identified by plan id) 
+-----------------------------------------------
+   1 --Hash Join (2,7)
+         Hash Cond: (t2.c2 = t3.c2)
+   3 --Hash Join (4,5)
+         Hash Cond: (t1.c1 = t2.c1)
+(4 rows) 父主题： 使用Plan Hint进行调优 版权所有 © 华为技术有限公司

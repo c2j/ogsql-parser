@@ -1,0 +1,56 @@
+{
+  "topic": "Anomaly detection",
+  "term_count": 10,
+  "terms": [
+    {
+      "term": "获取帮助",
+      "content": "获取帮助 获取帮助 模块命令行说明： gs_dbmind component anomaly_detection --help 显示如下帮助信息： usage: [-h] --action {overview,plot} -c CONF -m METRIC -s START_TIME -e END_TIME [-H HOST] [-a {level_shift,spike,seasonal,volatility_shift}]\n\nWorkload Anomaly detection: Anomaly detection of monitored metric.\n\noptional arguments:\n  -h, --help            show this help message and exit\n  --action {overview,plot}\n                        choose a functionality to perform\n  -c CONF, --conf CONF  set the directory of configuration files\n  -m METRIC, --metric METRIC\n                        set the metric name you want to retrieve\n  -s START_TIME, --start-time START_TIME\n                        set the start time of for retrieving in ms, supporting UNIX-timestamp with microsecond or datetime format\n  -e END_TIME, --end-time END_TIME\n                        set the end time of for retrieving in ms, supporting UNIX-timestamp with microsecond or datetime format\n  -H HOST, --host HOST  set a host of the metric, ip only or ip and port.\n  -a {level_shift,spike,seasonal,volatility_shift}, --anomaly {level_shift,spike,seasonal,volatility_shift}\n                        set a anomaly detector of the metric from: \"level_shift\", \"spike\", \"seasonal\", \"volatility_shift\"",
+      "source_file": "4458_file_4458.txt"
+    },
+    {
+      "term": "获取帮助",
+      "content": "获取帮助 获取帮助 异常检测模块命令行说明： gs_dbmind component anomaly_detection --help 显示如下帮助信息： usage: [-h] --action {overview,plot} -c CONF -m METRIC -s START_TIME -e END_TIME [-H HOST] [-a {level_shift,spike,seasonal,volatility_shift}]\n\nWorkload Anomaly detection: Anomaly detection of monitored metric.\n\noptional arguments:\n  -h, --help            show this help message and exit\n  --action {overview,plot}\n                        choose a functionality to perform\n  -c CONF, --conf CONF  set the directory of configuration files\n  -m METRIC, --metric METRIC\n                        set the metric name you want to retrieve\n  -s START_TIME, --start-time START_TIME\n                        set the start time of for retrieving in ms, supporting UNIX-timestamp with microsecond or datetime format\n  -e END_TIME, --end-time END_TIME\n                        set the end time of for retrieving in ms, supporting UNIX-timestamp with microsecond or datetime format\n  -H HOST, --host HOST  set a host of the metric, ip only or ip and port.\n  -a {level_shift,spike,seasonal,volatility_shift}, --anomaly {level_shift,spike,seasonal,volatility_shift}\n                        set a anomaly detector of the metric from: \"level_shift\", \"spike\", \"seasonal\", \"volatility_shift\"",
+      "source_file": "4718_file_4718.txt"
+    },
+    {
+      "term": "使用指导",
+      "content": "使用指导 使用指导 假设指标采集系统运行正常，并且用户已经初始化了配置文件目录confpath，则可以通过下述命令实现本特性的功能： 异常检测功能 仅启动异常检测功能： gs_dbmind service start --conf confpath --only-run anomaly_detection 对于某一指标，在全部节点上，从timestamps1到timestamps2时间段内的数据进行概览： gs_dbmind component anomaly_detection --conf confpath --action overview --metric metric_name --start-time timestamps1 --end-time timestamps2 对于某一指标，在特定节点上，从timestamps1到timestamps2时间段内的数据进行概览： gs_dbmind component anomaly_detection --conf confpath --action overview --metric metric_name --start-time timestamps1 --end-time timestamps2 --host ip_address 对于某一指标，在全部节点上，从timestamps1到timestamps2时间段内的数据，以特定异常检测方式进行概览： gs_dbmind component anomaly_detection --conf confpath --action overview --metric metric_name --start-time timestamps1 --end-time timestamps2 --anomaly anomaly_type 对于某一指标，在特定节点，从timestamps1到timestamps2时间段内的数据，以特定异常检测方式进行概览： gs_dbmind component anomaly_detection --conf confpath --action overview --metric metric_name --start-time timestamps1 --end-time timestamps2 --host ip_address --anomaly anomaly_type 对于某一指标，在特定节点，从timestamps1到timestamps2时间段内的数据，以特定异常检测方式进行可视化展示： gs_dbmind component anomaly_detection --conf confpath --action plot --metric metric_name --start-time timestamps1 --end-time timestamps2 --host ip_address --anomaly anomaly_type 运行异常诊断后台任务： 参考 Slow Query Diagnosis 中的方法，其对应定时任务为： anomaly_detection 指标异常分析功能 指标异常根因分析接口调用： curl -X 'GET' http://127.0.0.1:8080/v1/api/app/metric-diagnosis/?metric_name=os_cpu_user_usage&metric-filter={\"from_instance\":\"127.0.0.1\",\"from_job\":\"node_exporter\",\"instance\":\"127.0.0.1:8181\",\"job\":\"reprocessing_exporter\"}&alarm-cause=[\"high_cpu_usage\"]&start=1691482728000&end=1691482728000 -H 'accept: application/json' -H 'Content-Type: application/json' -H \"Authorization: bearer xxx\" 如果使用HTTPS协议，则查询示例为： curl -X 'GET' 'https://127.0.0.1:8080/v1/api/app/metric-diagnosis/?metric_name=os_cpu_user_usage&metric-filter={\"from_instance\":\"127.0.0.1\",\"from_job\":\"node_exporter\",\"instance\":\"127.0.0.1:8181\",\"job\":\"reprocessing_exporter\"}&alarm-cause=[\"high_cpu_usage\"]&start=1691482728000&end=1691482728000' -H 'accept: application/json' -H 'Content-Type: application/json' -H \"Authorization: bearer xxx\" --cacert xx.crt --key xx.key --cert xx.crt 返回结果格式参考： {\"data\":{[{'reason1': 0.0, 'reason2': 1.0}, 'conclusion', 'advice']},\"success\":true} 停止已启动的服务： gs_dbmind service stop --conf confpath 在输入anomaly detection的参数时，start-time设置时间至少要早于end-time设置时间30秒以上。 添加检测器或更改检测器参数会将检测器状态变为启用。 异常检测功能的检测器参数保留暂不支持集群状态改变（主备切换、节点替换、扩容和剔除节点）的情况。 指标异常分析支持的场景详细情况如下： 场景1：用户CPU使用率异常 异常判断条件：用户CPU使用率10分钟内持续高于80% 可能的异常根因： 业务压力增大导致 现象：TPS、网络读写、CPU和内存基本存在一定程度的上涨 分析：通过与相关指标进行相关性比对 建议：根据业务量评估CPU、内存等资源是否满足业务需求，是否需要扩容 iowait延时高导致 现象：磁盘的读时延和写时延变长 建议：增加IO吞吐量，排查可以降低IO的进程 场景2：线程池使用率异常 异常判断条件：默认规则线程池使用率10分钟内持续高于80% 可能的异常根因： 磁盘读写时延过高导致 现象：磁盘读写时延增高，导致线程池使用率超过配置的阈值 分析：查看产生报警的节点的数据盘每次读写时间的相关性 建议：若发现磁盘读写时延频繁过高或者有明显劣化趋势，则继续定位是否磁盘硬件故障。 慢SQL导致 现象：期间有明显的statement_responsetime_percentile_p95与statement_responsetime_percentile_p80增高 分析：查看产生报警的节点的数据盘每次读写时间的相关性 建议：如果statement_responsetime_percentile_p95与statement_responsetime_percentile_p80持续高，CPU使用率也一直保持很高，线程池使用率反复超过阈值，没有恢复迹象，则需要联系相关人员进行进一步定位分析 场景3：动态内存使用率异常 异常判断标准：系统内存超过阈值（默认10分钟连续超过80%），再进行动态内存使用率异常分析 可能的异常根因： 会话数上涨导致 现象：在线会话数量指标同时上涨 分析：查看同一时间段内会话数量和内存上涨之间的关系，通过皮尔逊计算相关系数，如果绝对值超过阈值的指标会被认为是相关异常。 建议：停止变更 动态内存泄露导致 现象：动态内存持续上涨 分析：查看内存占用较大的上下文数量，如未发生很大变化则可能是内存泄露 建议：通过pg_terminate_session终止会话或重启DN进程 场景4：共享内存使用率异常 异常判断标准：系统内存超过阈值（默认10分钟连续超过80%），再进行共享内存使用率异常分析 可能的异常根因： 未落盘脏页数过高导致 现象：insert或update操作比例突然增大 分析：分析insert或update操作比例突然增大与共享内存的相关性，通过皮尔逊计算相关系数，如果绝对值超过阈值的指标会被认为是相关异常。 建议：考虑降低pagewriter_sleep参数，加速脏页落盘的速度；考虑降低dirty_page_percent_max参数，降低刷页阈值上限； 共享内存泄露导致 现象：共享内存持续上涨 分析：查看系统内存占用，确认是否有除了gaussdb进程外占用大量内存的进程 建议：手动清理，ipcrm -m shmid（此命令操作危险，请谨慎操作。） 场景5：磁盘空间占用高异常 异常判断标准：磁盘空间占用超过阈值（默认80%） 可能的异常根因： 数据库表空间膨胀导致 现象： 数据库磁盘占用快速上升 分析： 分析insert或update操作比例和磁盘io读写来确定是否脏数据增加过快 建议： 临时情况，无需处理 场景6：磁盘IO读取时延异常 异常判断标准：磁盘IO使用率超过阈值（默认80%） 可能的异常根因： 数据磁盘读写IO使用率超阈值导致 现象： 数据磁盘读写IO使用率接近100% 分析： 分析数据磁盘读写IO使用率和时延之间的关系 建议： 设法降低IO压力，提高磁盘的IO限制",
+      "source_file": "4717_file_4717.txt"
+    },
+    {
+      "term": "使用指导",
+      "content": "使用指导 使用指导 假设指标采集系统运行正常，并且用户已经初始化了配置文件目录confpath，则可以通过下述命令实现本特性的功能： 仅启动异常检测功能： gs_dbmind service start --conf confpath --only-run anomaly_detection 对于某一指标，在全部节点上，从timestamps1到timestamps2时间段内的数据进行概览： gs_dbmind component anomaly_detection --conf confpath --action overview --metric metric_name --start-time timestamps1 --end-time timestamps2 对于某一指标，在特定节点上，从timestamps1到timestamps2时间段内的数据进行概览： gs_dbmind component anomaly_detection --conf confpath --action overview --metric metric_name --start-time timestamps1 --end-time timestamps2 --host ip_address 对于某一指标，在全部节点上，从timestamps1到timestamps2时间段内的数据，以特定异常检测方式进行概览： gs_dbmind component anomaly_detection --conf confpath --action overview --metric metric_name --start-time timestamps1 --end-time timestamps2 --anomaly anomaly_type 对于某一指标，在特定节点，从timestamps1到timestamps2时间段内的数据，以特定异常检测方式进行概览： gs_dbmind component anomaly_detection --conf confpath --action overview --metric metric_name --start-time timestamps1 --end-time timestamps2 --host ip_address --anomaly anomaly_type 对于某一指标，在特定节点，从timestamps1到timestamps2时间段内的数据，以特定异常检测方式进行可视化展示： gs_dbmind component anomaly_detection --conf confpath --action plot --metric metric_name --start-time timestamps1 --end-time timestamps2 --host ip_address --anomaly anomaly_type 运行异常诊断后台任务： 参考10.3.3.3中方法，其对应定时任务为： anomaly_detection 停止已启动的服务： gs_dbmind service stop --conf confpath 在输入anomaly detection的参数时，start-time至少要比end-time早30秒以上。 添加检测器或更改检测器参数会将检测器状态变为启用。 异常检测功能的检测器参数保留暂不支持集群状态改变（主备切换、节点替换、扩容和剔除节点）的情况。",
+      "source_file": "4457_file_4457.txt"
+    },
+    {
+      "term": "概述",
+      "content": "概述 概述 Anomaly detection 异常检测模块主要基于统计方法来实现时序数据来发现数据中存在的可能的异常情况。该模块框架解耦，可以实现不同异常检测算法的灵活替换，而且该模块功能可以根据时序数据的不同特征来自动选择算法，支持异常值检测、阈值检测、箱型图检测、梯度检测、增长率检测、波动率检测和状态转换检测。",
+      "source_file": "4456_file_4456.txt"
+    },
+    {
+      "term": "概述",
+      "content": "概述 概述 Anomaly detection 异常检测模块主要基于统计方法来实现时序数据来发现数据中存在的可能的异常情况。该模块框架解耦，可以实现不同异常检测算法的灵活替换，而且该模块功能可以根据时序数据的不同特征来自动选择算法，支持异常值检测、阈值检测、箱型图检测、梯度检测、增长率检测、波动率检测和状态转换检测。 在异常检测的基础上，DBMind支持对关键指标异常的根因分析功能，其分析模型来源于大量现网场景总结，通过对指标发生异常时其他指标进行关联，输出可能的根因。",
+      "source_file": "4716_file_4716.txt"
+    },
+    {
+      "term": "常见问题处理",
+      "content": "常见问题处理 常见问题处理 概览场景失败：请检查配置文件路径是否正确，且配置文件信息是否完整。检查指标名称是否准确，检查host地址是否正确，检查异常检测类型是否准确，检查起止时间内指标是否存在对应数据。 可视化场景失败：请检查配置文件路径是否正确，且配置文件信息是否完整。检查指标名称是否准确，检查host地址是否正确，检查异常检测类型是否准确，检查起止时间内指标是否存在对应数据。",
+      "source_file": "4460_file_4460.txt"
+    },
+    {
+      "term": "命令参考",
+      "content": "命令参考 命令参考 表1 异常检测命令行参数说明 参数 参数说明 取值范围 -h, --help 帮助命令。 - --action 动作参数。 overview：概览。 plot：可视化。 -c，--conf 配置文件目录。 - -m，--metric 指定显示指标名。 任一能采集到的指标，例如os_mem_usage、os_disk_usage等。 -H, --host 指定数据来源地址信息，通过地址信息进行过滤。 -ip地址或者ip地址加端口号。 -a, --anomaly 指定异常检测方式，用于过滤。 level_shift、spike、seasonal、volatility_shift。 -s, --start-time 显示开始时间的时间戳，单位毫秒；或日期时间格式为%Y-%m-%d %H:%M:%S。 正整数或日期时间格式。 -e, --end-time 显示结束时间的时间戳，单位毫秒；或日期时间格式为%Y-%m-%d %H:%M:%S。 正整数或日期时间格式。 表2 指标异常分析接口 API 请求方法 参数 参数类型 参数范围 功能描述 /v1/api/app/metric-diagnosis GET metric_name：指标名称，必选项 string os_cpu_user_usage，pg_thread_pool_rate，os_mem_usage，os_disk_usage，os_disk_io_read_delay 执行指标异常检测 metric_filter：筛选指标 string 不涉及 alarm_cause：选择分析方法 string high_cpu_usage,  high_thread_pool_rate,  high_dynamic_mem_usage,  high_shared_mem_usage,  high_disk_usage, high_io_delay start_time：分析指标开始时间戳 时间戳（毫秒） 不涉及 end_time：分析指标结束时间戳 时间戳（毫秒） 不涉及",
+      "source_file": "4719_file_4719.txt"
+    },
+    {
+      "term": "常见问题处理",
+      "content": "常见问题处理 常见问题处理 概览场景失败：请检查配置文件路径是否正确，且配置文件信息是否完整。检查指标名称是否准确，检查host地址是否正确，检查异常检测类型是否准确，检查起止时间内指标是否存在对应数据。 可视化场景失败：请检查配置文件路径是否正确，且配置文件信息是否完整。检查指标名称是否准确，检查host地址是否正确，检查异常检测类型是否准确，检查起止时间内指标是否存在对应数据。",
+      "source_file": "4720_file_4720.txt"
+    },
+    {
+      "term": "命令参考",
+      "content": "命令参考 命令参考 表1 命令行参数说明 参数 参数说明 取值范围 -h, --help 帮助命令 - --action 动作参数 overview：概览 plot：可视化 -c，--conf 配置文件目录 - -m，--metric 指定显示指标名 任意能采集到的指标。例如os_mem_usage、os_disk_usage等 -H, --host 指定数据来源地址信息，通过地址信息进行过滤 -ip地址或者ip地址加端口号 -a, --anomaly 指定异常检测方式，用于过滤 level_shift、spike、seasonal、volatility_shift -s, --start-time 显示开始时间的时间戳，单位毫秒；或日期时间格式为 %Y-%m-%d %H:%M:%S. 正整数或日期时间格式 -e, --end-time 显示结束时间的时间戳，单位毫秒；或日期时间格式为 %Y-%m-%d %H:%M:%S. 正整数或日期时间格式",
+      "source_file": "4459_file_4459.txt"
+    }
+  ]
+}

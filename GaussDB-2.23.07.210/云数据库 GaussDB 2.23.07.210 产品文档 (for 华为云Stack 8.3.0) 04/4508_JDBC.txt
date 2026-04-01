@@ -1,0 +1,48 @@
+使用JDBC驱动操作内存解密逃生通道 使用JDBC驱动操作内存解密逃生通道 服务端和客户端仅在 GaussDB 503.1.0.SPC1200版本及以后版本支持JDBC操作内存解密逃生通道。 使用JDBC驱动操作内存解密逃生通道全密态数据库需要完成配置JDBC驱动和密钥配置等相关操作，详细请参见 使用JDBC操作密态数据库 。 全密态数据库开启内存解密逃生通道，JDBC连接需要设置enable_ ce=3参数。 public static Connection getConnect(String username, String passwd)
+    {
+        //驱动类。
+        String driver = "org.postgresql.Driver";
+        //数据库连接描述符。
+        String sourceURL = "jdbc:postgresql://127.0.0.1: 8000 /postgres?enable_ce=3";
+        Connection conn = null;
+        
+        try
+        {
+            //加载驱动。
+            Class.forName(driver);
+        }
+        catch( Exception e )
+        {
+            e.printStackTrace();
+            return null;
+        }
+        
+        try
+        {
+             //创建连接。
+            conn = DriverManager.getConnection(sourceURL, username, passwd);
+            System.out.println("Connection succeed!");
+        }
+        catch(Exception e)
+        {
+            e.printStackTrace();
+            return null;
+        }
+        
+        return conn;
+    }; 设置完成后，可以进行 调用isValid方法刷新缓存 、 执行密态等值密文解密 、 执行加密表的预编译SQL语句 、 执行加密表的批处理操作 。 传输和销毁密钥示例 // 创建客户端连接
+Connection conn1 = DriverManager.getConnection("url","user","password");
+
+// conn1通过调用setClientInfo传输密钥
+try {
+ conn1.setClientInfo("send_token", null);
+} catch (SQLException e) {
+ System.out.println("Failed to cache token in Trusted Domain.\n");
+}
+
+// conn1通过调用setClientInfo销毁密钥
+try {
+ conn1.setClientInfo("clear_token", null);
+} catch (SQLException e) {
+ System.out.println("Failed to clear token in Trusted Domain.\n");
+} 父主题： 内存解密逃生通道 版权所有 © 华为技术有限公司

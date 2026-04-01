@@ -1,0 +1,30 @@
+案例：使排序下推 案例：使排序下推 当前特性是实验室特性，使用时请联系华为技术工程师提供技术支持。 现象描述 在做场景性能测试时，发现某场景大部分时间是CN端在做window agg，占到总执行时间95%以上，系统资源不能充分利用。研究发现该场景的特点是：将两列分别求sum作为一个子查询，外层对两列的和再求和后做trunc，然后排序。 表结构如下所示： 1
+2 CREATE TABLE public . test ( imsi int , L4_DW_THROUGHPUT int , L4_UL_THROUGHPUT int ) with ( orientation = column ) DISTRIBUTE BY hash ( imsi ); 查询语句如下所示： 1
+2
+3
+4
+5
+6
+7 SELECT COUNT ( 1 ) over () AS DATACNT , IMSI AS IMSI_IMSI , CAST ( TRUNC ((( SUM ( L4_UL_THROUGHPUT ) + SUM ( L4_DW_THROUGHPUT ))), 0 ) AS DECIMAL ( 20 )) AS TOTAL_VOLOME_KPIID FROM public . test AS test GROUP BY IMSI order by TOTAL_VOLOME_KPIID DESC ; 执行计划如下： 1
+2
+3
+4
+5
+6
+7
+8
+9 Row Adapter ( cost = 10 . 70 .. 10 . 70 rows = 10 width = 12 ) -> Vector Sort ( cost = 10 . 68 .. 10 . 70 rows = 10 width = 12 ) Sort Key : (( trunc (((( sum ( l4_ul_throughput )) + ( sum ( l4_dw_throughput )))):: numeric , 0 )):: numeric ( 20 , 0 )) -> Vector WindowAgg ( cost = 10 . 09 .. 10 . 51 rows = 10 width = 12 ) -> Vector Streaming ( type : GATHER ) ( cost = 242 . 04 .. 246 . 84 rows = 240 width = 12 ) Node / s : All datanodes -> Vector Hash Aggregate ( cost = 10 . 09 .. 10 . 29 rows = 10 width = 12 ) Group By Key : imsi -> CStore Scan on test ( cost = 0 . 00 .. 10 . 01 rows = 10 width = 12 ) 可以看到window agg和sort全部在CN端执行，耗时非常严重。 优化分析 尝试将语句改写为子查询。 1
+2
+3
+4
+5
+6
+7 SELECT COUNT ( 1 ) over () AS DATACNT , IMSI_IMSI , TOTAL_VOLOME_KPIID FROM ( SELECT IMSI AS IMSI_IMSI , CAST ( TRUNC ((( SUM ( L4_UL_THROUGHPUT ) + SUM ( L4_DW_THROUGHPUT ))), 0 ) AS DECIMAL ( 20 )) AS TOTAL_VOLOME_KPIID FROM public . test AS test GROUP BY IMSI ORDER BY TOTAL_VOLOME_KPIID DESC ); 将trunc两列的和作为一个子查询，然后在子查询的外面做window agg，这样排序就可以下推了，执行计划如下： 1
+2
+3
+4
+5
+6
+7
+8
+9 Row Adapter ( cost = 10 . 70 .. 10 . 70 rows = 10 width = 24 ) -> Vector WindowAgg ( cost = 10 . 45 .. 10 . 70 rows = 10 width = 24 ) -> Vector Streaming ( type : GATHER ) ( cost = 250 . 83 .. 253 . 83 rows = 240 width = 24 ) Node / s : All datanodes -> Vector Sort ( cost = 10 . 45 .. 10 . 48 rows = 10 width = 12 ) Sort Key : (( trunc ((( sum ( test . l4_ul_throughput ) + sum ( test . l4_dw_throughput ))):: numeric , 0 )):: numeric ( 20 , 0 )) -> Vector Hash Aggregate ( cost = 10 . 09 .. 10 . 29 rows = 10 width = 12 ) Group By Key : test . imsi -> CStore Scan on test ( cost = 0 . 00 .. 10 . 01 rows = 10 width = 12 ) 经过SQL改写，性能由120s提升到7s，优化效果明显。 父主题： 实际调优案例 版权所有 © 华为技术有限公司

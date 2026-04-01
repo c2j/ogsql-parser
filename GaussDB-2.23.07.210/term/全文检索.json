@@ -1,0 +1,96 @@
+{
+  "topic": "全文检索",
+  "term_count": 18,
+  "terms": [
+    {
+      "term": "控制文本搜索",
+      "content": "控制文本搜索 控制文本搜索 解析文档 解析查询 排序查询结果 高亮搜索结果",
+      "source_file": "2852_file_2852.txt"
+    },
+    {
+      "term": "词典",
+      "content": "词典 词典 词典概述 停用词 Simple词典 Synonym词典 Thesaurus词典 Ispell词典 Snowball词典",
+      "source_file": "1165_file_1165.txt"
+    },
+    {
+      "term": "控制文本搜索",
+      "content": "控制文本搜索 控制文本搜索 为了执行全文搜索，必须有个函数创建来自文档的tsvector和来自用户查询的tsquery。同时，为了以有效的顺序返回结果，需要一个函数对比文档的查询相关性。同时，能很好地显示结果也是很重要的。 GaussDB 支持所有这些函数。 解析文档 解析查询 排序查询结果 高亮搜索结果",
+      "source_file": "1154_file_1154.txt"
+    },
+    {
+      "term": "词典",
+      "content": "词典 词典 词典概述 停用词 Simple词典 Synonym词典 Thesaurus词典 Ispell词典 Snowball词典",
+      "source_file": "2863_file_2863.txt"
+    },
+    {
+      "term": "表和索引",
+      "content": "表和索引 表和索引 搜索表 创建索引 索引使用约束",
+      "source_file": "1150_file_1150.txt"
+    },
+    {
+      "term": "限制约束",
+      "content": "限制约束 限制约束 GaussDB 的全文检索功能当前限制约束是： 每个分词长度必须小于2K字节。 tsvector结构（分词+位置）的长度必须小于1兆字节。 tsvector的位置值必须大于0，且小于等于16,383。 每个分词在文档中位置数必须小于256，若超过将舍弃后面的位置信息。 tsquery中的关键字及对应运算符最大支持到32768。",
+      "source_file": "2876_file_2876.txt"
+    },
+    {
+      "term": "配置示例",
+      "content": "配置示例 配置示例 文本搜索配置（Text Search Configuration），指定了将文档转换成tsvector过程中所必需的组件： 解析器，用于把文本分解成标记token； 词典列表，用于将每个token转换成词位lexeme。 每次to_tsvector或to_tsquery函数调用时，都需要指定一个文本搜索配置来指定具体的处理过程。GUC参数 default_text_search_config 指定了默认的文本搜索配置，当文本搜索函数中没有显式指定文本搜索配置参数时，将会使用该默认值进行处理。 GaussDB 中预定义有一些可用的文本搜索配置，用户也可创建自定义的文本搜索配置。此外，为了便于管理文本搜索对象，还提供有多个gsql元命令，可以显示有关文本搜索对象的信息（详细请参见《工具参考》中“客户端工具 >元命令参考”章节）。 操作步骤 创建一个文本搜索配置ts_conf，复制预定义的文本搜索配置english。 1\n2 gaussdb =# CREATE TEXT SEARCH CONFIGURATION ts_conf ( COPY = pg_catalog . english ); CREATE TEXT SEARCH CONFIGURATION 创建Synonym词典。 假设同义词词典定义文件gs_dict.syn内容如下： 1\n2 gaussdb gs gauss gs 执行如下语句创建Synonym词典： 1\n2\n3\n4\n5 gaussdb =# CREATE TEXT SEARCH DICTIONARY gs_dict ( TEMPLATE = synonym , SYNONYMS = gs_dict , FILEPATH = 'file:///home/dicts' ); 创建一个Ispell词典english_ispell（词典定义文件来自开源词典）。 1\n2\n3\n4\n5\n6\n7 gaussdb =# CREATE TEXT SEARCH DICTIONARY english_ispell ( TEMPLATE = ispell , DictFile = english , AffFile = english , StopWords = english , FILEPATH = 'file:///home/dicts' ); 设置文本搜索配置ts_conf，修改某些类型的token对应的词典列表。关于token类型的详细信息，请参见 解析器 。 1\n2\n3\n4 gaussdb =# ALTER TEXT SEARCH CONFIGURATION ts_conf ALTER MAPPING FOR asciiword , asciihword , hword_asciipart , word , hword , hword_part WITH gs_dict , english_ispell , english_stem ; 在文本搜索配置中，选择设置不索引或搜索某些token类型。 1\n2 gaussdb =# ALTER TEXT SEARCH CONFIGURATION ts_conf DROP MAPPING FOR email , url , url_path , sfloat , float ; 使用文本检索调测函数ts_debug()对所创建的词典配置ts_conf进行测试。 1\n2\n3\n4\n5 gaussdb =# SELECT * FROM ts_debug ( 'ts_conf' , ' GaussDB, the highly scalable, SQL compliant, open source object-relational database management system, is now undergoing beta testing of the next version of our software. ' ); 可以设置当前session使用ts_conf作为默认的文本搜索配置。此设置仅在当前session有效。 1\n 2\n 3\n 4\n 5\n 6\n 7\n 8\n 9\n10\n11\n12\n13\n14\n15\n16\n17\n18\n19\n20\n21\n22\n23\n24\n25\n26\n27 gaussdb =# \\ dF + ts_conf Text search configuration \"public.ts_conf\" Parser : \"pg_catalog.default\" Token | Dictionaries -----------------+------------------------------------- asciihword | gs_dict , english_ispell , english_stem asciiword | gs_dict , english_ispell , english_stem file | simple host | simple hword | gs_dict , english_ispell , english_stem hword_asciipart | gs_dict , english_ispell , english_stem hword_numpart | simple hword_part | gs_dict , english_ispell , english_stem int | simple numhword | simple numword | simple uint | simple version | simple word | gs_dict , english_ispell , english_stem gaussdb =# SET default_text_search_config = 'public.ts_conf' ; SET gaussdb =# SHOW default_text_search_config ; default_text_search_config ---------------------------- public . ts_conf ( 1 row )",
+      "source_file": "2871_file_2871.txt"
+    },
+    {
+      "term": "表和索引",
+      "content": "表和索引 表和索引 搜索表 创建索引 索引使用约束",
+      "source_file": "2848_file_2848.txt"
+    },
+    {
+      "term": "测试和调试文本搜索",
+      "content": "测试和调试文本搜索 测试和调试文本搜索 分词器测试 解析器测试 词典测试",
+      "source_file": "2872_file_2872.txt"
+    },
+    {
+      "term": "解析器",
+      "content": "解析器 解析器 文本搜索解析器负责将原文档文本分解为多个token，并标识每个token的类型。这里的类型集由解析器本身定义。注意，解析器并不修改文本，它只是确定合理的单词边界。由于这一限制，人们更需要定制词典，而不是为每个应用程序定制解析器。 目前 GaussDB 提供了三个内置的解析器，分别为pg_catalog.default/pg_catalog.ngram/pg_catalog.pound，其中pg_catalog.default适用于英文分词场景，pg_catalog.ngram/pg_catalog.pound是为了支持中文全文检索功能新增的两种解析器，适用于中文及中英混合分词场景。 内置解析器pg_catalog.default，它能识别23种token类型，显示在 表1 中。 表1 默认解析器类型 别名 描述 示例 asciiword Word, all ASCII letters elephant word Word, all letters mañana numword Word, letters and digits beta1 asciihword Hyphenated word, all ASCII up-to-date hword Hyphenated word, all letters lógico-matemática numhword Hyphenated word, letters and digits test-beta1 hword_asciipart Hyphenated word part, all ASCII test in the context test-beta1 hword_part Hyphenated word part, all letters lógico or matemática in the context lógico-matemática hword_numpart Hyphenated word part, letters and digits beta1 in the context test-beta1 email Email address foo@example.com protocol Protocol head http:// url URL example.com/stuff/index.html host Host example.com url_path URL path /stuff/index.html, in the context of a URL file File or path name /usr/local/foo.txt, if not within a URL sfloat Scientific notation -1.23E+56 float Decimal notation -1.234 int Signed integer -1234 uint Unsigned integer 1234 version Version number 8.3.0 tag XML tag <a href=\"dictionaries.html\"> entity XML entity &amp; blank Space symbols (any whitespace or punctuation not otherwise recognized) 注意：对于解析器来说，一个“字母”的概念是由数据库的语言区域设置，即lc_ctype设置决定的。只包含基本ASCII字母的词被报告为一个单独的token类型，因为这类词有时需要被区分出来。大多数欧洲语言中，对token类型word和asciiword的处理方法是类似的。 email不支持某些由RFC 5322定义的有效电子邮件字符。具体来说，可用于email用户名的非字母数字字符仅包含句号、破折号和下划线。 解析器可能对同一内容进行重叠token。例如，包含连字符的单词将作为一个整体进行报告，其组件也会分别被报告： 1\n2\n3\n4\n5\n6\n7\n8\n9 gaussdb =# SELECT alias , description , token FROM ts_debug ( 'english' , 'foo-bar-beta1' ); alias | description | token -----------------+------------------------------------------+--------------- numhword | Hyphenated word , letters and digits | foo - bar - beta1 hword_asciipart | Hyphenated word part , all ASCII | foo blank | Space symbols | - hword_asciipart | Hyphenated word part , all ASCII | bar blank | Space symbols | - hword_numpart | Hyphenated word part , letters and digits | beta1 这种行为是有必要的，因为它支持搜索整个复合词和各组件。这里是另一个例子： 1\n2\n3\n4\n5\n6\n7 gaussdb =# SELECT alias , description , token FROM ts_debug ( 'english' , 'http://example.com/stuff/index.html' ); alias | description | token ----------+---------------+------------------------------ protocol | Protocol head | http : // url | URL | example . com / stuff / index . html host | Host | example . com url_path | URL path | / stuff / index . html N-gram是一种机械分词方法，适用于无语义中文分词场景。N-gram分词法可以保证分词的完备性，但是为了照顾所有可能，把很多不必要的词也加入到索引中，导致索引项增加。N-gram支持中文编码包括GBK、UTF-8。内置6种token类型，如 表2 所示。 表2 token类型 别名 描述 zh_words chinese words en_word english word numeric numeric data alnum alnum string grapsymbol graphic symbol multisymbol multiple symbol Pound是一种固定格式分词方法，适用于无语意但待解析文本以固定分隔符分割开来的中英文分词场景。支持中文编码包括GBK、UTF8，支持英文编码包括ASCII。内置6种token类型，如 表3 所示；支持5种分隔符，如 表4 所示，在用户不进行自定义设置的情况下分隔符默认为“#”。Pound限制单个token长度不能超过256个字符。 表3 token类型 别名 描述 zh_words chinese words en_word english word numeric numeric data alnum alnum string grapsymbol graphic symbol multisymbol multiple symbol 表4 分隔符类型 分隔符 描述 @ Special character # Special character $ Special character % Special character / Special character",
+      "source_file": "2862_file_2862.txt"
+    },
+    {
+      "term": "介绍",
+      "content": "介绍 介绍 全文检索概述 文档概念 基本文本匹配 分词器",
+      "source_file": "1145_file_1145.txt"
+    },
+    {
+      "term": "限制约束",
+      "content": "限制约束 限制约束 GaussDB 的全文检索功能当前限制约束是： 每个分词长度必须小于2K字节。 tsvector结构（分词+位置）的长度必须小于1兆字节。 tsvector的位置值必须大于0，且小于等于16,383。 每个分词在文档中位置数必须小于256，若超过将舍弃后面的位置信息。 tsquery中的关键字及对应运算符最大支持到32768。",
+      "source_file": "1178_file_1178.txt"
+    },
+    {
+      "term": "附加功能",
+      "content": "附加功能 附加功能 处理tsvector 处理查询 查询重写 收集文献统计",
+      "source_file": "2857_file_2857.txt"
+    },
+    {
+      "term": "测试和调试文本搜索",
+      "content": "测试和调试文本搜索 测试和调试文本搜索 自定义文本搜索分词器的行为很容易变得混乱，本节中描述的函数用于对文本搜索对象进行测试。可以测试分词器整体，也可以单独测试解析器和词典。 分词器测试 age解析器测试 词典测试",
+      "source_file": "1174_file_1174.txt"
+    },
+    {
+      "term": "附加功能",
+      "content": "附加功能 附加功能 处理tsvector 处理查询 查询重写 收集文献统计",
+      "source_file": "1159_file_1159.txt"
+    },
+    {
+      "term": "解析器",
+      "content": "解析器 解析器 文本搜索解析器负责将原文档文本分解为多个token，并标识每个token的类型。这里的类型集由解析器本身定义。注意，解析器并不修改文本，它只是确定合理的单词边界。由于这一限制，人们更需要定制词典，而不是为每个应用程序定制解析器。 目前 GaussDB 提供了三个内置的解析器，分别为pg_catalog.default/pg_catalog.ngram/pg_catalog.pound，其中pg_catalog.default适用于英文分词场景，pg_catalog.ngram/pg_catalog.pound是为了支持中文全文检索功能新增的两种解析器，适用于中文及中英混合分词场景。 内置解析器pg_catalog.default，它能识别23种token类型，显示在 表1 中。 表1 默认解析器类型 别名 描述 示例 asciiword Word, all ASCII letters elephant word Word, all letters mañana numword Word, letters and digits beta1 asciihword Hyphenated word, all ASCII up-to-date hword Hyphenated word, all letters lógico-matemática numhword Hyphenated word, letters and digits test-beta1 hword_asciipart Hyphenated word part, all ASCII test in the context test-beta1 hword_part Hyphenated word part, all letters lógico or matemática in the context lógico-matemática hword_numpart Hyphenated word part, letters and digits beta1 in the context test-beta1 email Email address foo@example.com protocol Protocol head http:// url URL example.com/stuff/index.html host Host example.com url_path URL path /stuff/index.html, in the context of a URL file File or path name /usr/local/foo.txt, if not within a URL sfloat Scientific notation -1.23E+56 float Decimal notation -1.234 int Signed integer -1234 uint Unsigned integer 1234 version Version number 8.3.0 tag XML tag <a href=\"dictionaries.html\"> entity XML entity &amp; blank Space symbols (any whitespace or punctuation not otherwise recognized) 注意：对于解析器来说，一个“字母”的概念是由数据库的语言区域设置，即lc_ctype设置决定的。只包含基本ASCII字母的词被报告为一个单独的token类型，因为这类词有时需要被区分出来。大多数欧洲语言中，对token类型word和asciiword的处理方法是类似的。 email不支持某些由RFC 5322定义的有效电子邮件字符。具体来说，可用于email用户名的非字母数字字符仅包含句号、破折号和下划线。 解析器可能对同一内容进行重叠token。例如，包含连字符的单词将作为一个整体进行报告，其组件也会分别被报告： 1\n2\n3\n4\n5\n6\n7\n8\n9 gaussdb =# SELECT alias , description , token FROM ts_debug ( 'english' , 'foo-bar-beta1' ); alias | description | token -----------------+------------------------------------------+--------------- numhword | Hyphenated word , letters and digits | foo - bar - beta1 hword_asciipart | Hyphenated word part , all ASCII | foo blank | Space symbols | - hword_asciipart | Hyphenated word part , all ASCII | bar blank | Space symbols | - hword_numpart | Hyphenated word part , letters and digits | beta1 这种行为是有必要的，因为它支持搜索整个复合词和各组件。这里是另一个例子： 1\n2\n3\n4\n5\n6\n7 gaussdb =# SELECT alias , description , token FROM ts_debug ( 'english' , 'http://example.com/stuff/index.html' ); alias | description | token ----------+---------------+------------------------------ protocol | Protocol head | http : // url | URL | example . com / stuff / index . html host | Host | example . com url_path | URL path | / stuff / index . html N-gram是一种机械分词方法，适用于无语义中文分词场景。N-gram分词法可以保证分词的完备性，但是为了照顾所有可能，把很多不必要的词也加入到索引中，导致索引项增加。N-gram支持中文编码包括GBK、UTF-8。内置6种token类型，如 表2 所示。 表2 token类型 别名 描述 zh_words chinese words en_word english word numeric numeric data alnum alnum string grapsymbol graphic symbol multisymbol multiple symbol Pound是一种固定格式分词方法，适用于无语意但待解析文本以固定分隔符分割开来的中英文分词场景。支持中文编码包括GBK、UTF8，支持英文编码包括ASCII。内置6种token类型，如 表4 token类型 所示；支持5种分隔符，如 表4 所示，在用户不进行自定义设置的情况下分隔符默认为“#”。Pound限制单个token长度不能超过256个字符。 表3 token类型 别名 描述 zh_words chinese words en_word english word numeric numeric data alnum alnum string grapsymbol graphic symbol multisymbol multiple symbol 表4 分隔符类型 分隔符 描述 @ Special character # Special character $ Special character % Special character / Special character",
+      "source_file": "1164_file_1164.txt"
+    },
+    {
+      "term": "介绍",
+      "content": "介绍 介绍 全文检索概述 文档概念 基本文本匹配 分词器",
+      "source_file": "2843_file_2843.txt"
+    },
+    {
+      "term": "配置示例",
+      "content": "配置示例 配置示例 文本搜索配置（Text Search Configuration），指定了将文档转换成tsvector过程中所必需的组件： 解析器，用于把文本分解成标记token； 词典列表，用于将每个token转换成词位lexeme。 每次to_tsvector或to_tsquery函数调用时，都需要指定一个文本搜索配置来指定具体的处理过程。GUC参数 default_text_search_config 指定了默认的文本搜索配置，当文本搜索函数中没有显式指定文本搜索配置参数时，将会使用该默认值进行处理。 GaussDB 中预定义有一些可用的文本搜索配置，用户也可创建自定义的文本搜索配置。此外，为了便于管理文本搜索对象，还提供有多个gsql元命令，可以显示有关文本搜索对象的信息（详细请参见《工具参考》中“客户端工具 >元命令参考”章节）。 操作步骤 创建一个文本搜索配置ts_conf，复制预定义的文本搜索配置english。 1\n2 gaussdb =# CREATE TEXT SEARCH CONFIGURATION ts_conf ( COPY = pg_catalog . english ); CREATE TEXT SEARCH CONFIGURATION 创建Synonym词典。 假设同义词词典定义文件gs_dict.syn内容如下： 1\n2 gaussdb gs gauss gs 执行如下语句创建Synonym词典： 1\n2\n3\n4\n5 gaussdb =# CREATE TEXT SEARCH DICTIONARY gs_dict ( TEMPLATE = synonym , SYNONYMS = gs_dict , FILEPATH = 'file:///home/dicts' ); 创建一个Ispell词典english_ispell（词典定义文件来自开源词典）。 1\n2\n3\n4\n5\n6\n7 gaussdb =# CREATE TEXT SEARCH DICTIONARY english_ispell ( TEMPLATE = ispell , DictFile = english , AffFile = english , StopWords = english , FILEPATH = 'file:///home/dicts' ); 设置文本搜索配置ts_conf，修改某些类型的token对应的词典列表。关于token类型的详细信息，请参见 解析器 。 1\n2\n3\n4 gaussdb =# ALTER TEXT SEARCH CONFIGURATION ts_conf ALTER MAPPING FOR asciiword , asciihword , hword_asciipart , word , hword , hword_part WITH gs_dict , english_ispell , english_stem ; 在文本搜索配置中，选择设置不索引或搜索某些token类型。 1\n2 gaussdb =# ALTER TEXT SEARCH CONFIGURATION ts_conf DROP MAPPING FOR email , url , url_path , sfloat , float ; 使用文本检索调测函数ts_debug()对所创建的词典配置ts_conf进行测试。 1\n2\n3\n4\n5 gaussdb =# SELECT * FROM ts_debug ( 'ts_conf' , ' GaussDB, the highly scalable, SQL compliant, open source object-relational database management system, is now undergoing beta testing of the next version of our software. ' ); 可以设置当前session使用ts_conf作为默认的文本搜索配置。此设置仅在当前session有效。 1\n 2\n 3\n 4\n 5\n 6\n 7\n 8\n 9\n10\n11\n12\n13\n14\n15\n16\n17\n18\n19\n20\n21\n22\n23\n24\n25\n26\n27 gaussdb =# \\ dF + ts_conf Text search configuration \"public.ts_conf\" Parser : \"pg_catalog.default\" Token | Dictionaries -----------------+------------------------------------- asciihword | gs_dict , english_ispell , english_stem asciiword | gs_dict , english_ispell , english_stem file | simple host | simple hword | gs_dict , english_ispell , english_stem hword_asciipart | gs_dict , english_ispell , english_stem hword_numpart | simple hword_part | gs_dict , english_ispell , english_stem int | simple numhword | simple numword | simple uint | simple version | simple word | gs_dict , english_ispell , english_stem gaussdb =# SET default_text_search_config = 'public.ts_conf' ; SET gaussdb =# SHOW default_text_search_config ; default_text_search_config ---------------------------- public . ts_conf ( 1 row )",
+      "source_file": "1173_file_1173.txt"
+    }
+  ]
+}

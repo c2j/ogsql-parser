@@ -1,0 +1,1 @@
+gs_redis_bucket gs_redis_bucket 工具不支持单独调用，需要通过OM或管控下发命令。 gs_redis_bucket工具是 GaussDB 提供的用来对扩容后的集群中的hashbucket表执行数据重分布的工具，主要由OM脚本来调用完成数据重分布。 参数说明 表1 gs_redis_bucket参数说明 参数 说明 -A password 连接数据库的管理员用户密码。 -p port 执行hashbucket重分布的CN的端口号。 -u username 连接数据库的用户名。 -V 版本信息。 --help 帮助信息。 父主题： 系统内部调用的工具 版权所有 © 华为技术有限公司

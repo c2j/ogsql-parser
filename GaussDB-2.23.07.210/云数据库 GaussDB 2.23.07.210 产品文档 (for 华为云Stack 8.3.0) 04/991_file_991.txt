@@ -1,0 +1,324 @@
+语句下推调优 语句下推调优 语句下推介绍 目前， GaussDB 优化器在分布式框架下制定语句的执行策略时，有三种执行计划方式：生成下推语句计划、生成分布式执行计划、生成发送语句的分布式执行计划。 下推语句计划：指直接将完整的查询语句从CN发送到DN进行执行，然后将执行结果返回给CN。 分布式执行计划：指CN对查询语句进行编译和优化，生成计划树，再将计划树发送给DN进行执行，并在执行完毕后返回结果到CN。 发送语句的分布式执行计划：上述两种方式都不可行时，将可下推的查询部分组成查询语句（多为基表扫描语句）下推到DN进行执行，获取中间结果到CN，然后在CN执行剩下的部分。 在第3种策略中，要将大量中间结果从DN发送到CN，并且要在CN运行不能下推的部分语句，会导致CN成为性能瓶颈（带宽、存储、计算等）。在进行性能调优的时候，应尽量避免只能选择第3种策略的查询语句。 执行语句不能下推是因为语句中含有 不支持下推的函数 或者 不支持下推的语法 。一般都可以通过等价改写规避执行计划不能下推的问题。 语句下推典型场景 在 GaussDB 优化器中如果想要支持语句下推需要将GUC参数 enable_fast_query_shipping 设置为on即可。通常而言explain语句后没有显示具体的执行计划算子，执行计划中关键字“Data Node Scan on”出现在第一行（不包含计划格式）则说明语句已下推给DN去执行。下面从三个维度场景介绍下语句下推以及其支持的范围。 1 单表查询语句下推 在分布式数据库中对于单表查询而言，当前语句是否可以下推需要判断CN是否要进一步参与计算而不是简单收集数据。如果CN要进一步对DN结果进行计算则语句不可下推。通常带有agg、windows function、limit/offset、sort、distinct等关键字都不可下推。 可下推：简单查询，无需在CN进一步计算则可以下推。 gaussdb=# explain select * from t where c1 > 1;
+                                 QUERY PLAN                                 
+----------------------------------------------------------------------------
+ Data Node Scan on "__REMOTE_FQS_QUERY__"  (cost=0.00..0.00 rows=0 width=0)
+   Node/s: All datanodes
+(2 rows) 不可下推：带有limit子句，对于CN而言不能简单发语句给DN并收集数据，明显与limit语义不符。 gaussdb=# explain select * from t limit 1;
+                                     QUERY PLAN                                      
+-------------------------------------------------------------------------------------
+ Limit  (cost=0.00..0.00 rows=1 width=12)
+   ->  Data Node Scan on "__REMOTE_LIMIT_QUERY__"  (cost=0.00..0.00 rows=1 width=12)
+         Node/s: All datanodes
+(3 rows) 不可下推：带有聚集函数CN不能简单下推语句，而应该对从DN收集结果进一步聚集运算处理。 gaussdb=# explain select sum(c1), count(*) from t;
+                                     QUERY PLAN                                      
+-------------------------------------------------------------------------------------
+ Aggregate  (cost=0.10..0.11 rows=1 width=20)
+   ->  Data Node Scan on "__REMOTE_GROUP_QUERY__"  (cost=0.00..0.00 rows=20 width=4)
+         Node/s: All datanodes
+(3 rows) 2 多表查询语句下推 多表查询场景下语句能否下推通常与join条件以及分布列有关，即如果join条件与表分布列匹配得上则可下推，否则无法下推。对于复制表来说通常可以下推。 创建两个hash分布表。 gaussdb=# create table t(c1 int, c2 int, c3 int)distribute by hash(c1);
+CREATE TABLE gaussdb=# create table t1(c1 int, c2 int, c3 int)distribute by hash(c1);
+CREATE TABLE 可下推：join条件满足两个表hash分布列属性。 gaussdb=# explain select * from t1 join t on t.c1 = t1.c1;
+                                 QUERY PLAN                                 
+----------------------------------------------------------------------------
+ Data Node Scan on "__REMOTE_FQS_QUERY__"  (cost=0.00..0.00 rows=0 width=0)
+   Node/s: All datanodes
+(2 rows) 不可下推：join条件不满足hash分布列属性，即t1.c2不是t1表的分布列。 gaussdb=# explain select * from t1 join t on t.c1 = t1.c2;
+                                         QUERY PLAN                                         
+--------------------------------------------------------------------------------------------
+ Hash Join  (cost=0.25..0.53 rows=20 width=24)
+   Hash Cond: (t1.c2 = t.c1)
+   ->  Data Node Scan on t1 "_REMOTE_TABLE_QUERY_"  (cost=0.00..0.00 rows=20 width=12)
+         Node/s: All datanodes
+   ->  Hash  (cost=0.00..0.00 rows=20 width=12)
+         ->  Data Node Scan on t "_REMOTE_TABLE_QUERY_"  (cost=0.00..0.00 rows=20 width=12)
+               Node/s: All datanodes
+(7 rows) 3 集合操作、CTE下推 集合操作场景语句能否下推，与左右子查询是否下推有关，规则如下： UNION ALL左右分支都能下推且左右分支分布的DN相同，整个UNION ALL才能下推。 UNION/INTERSECT/INTERSECT ALL/EXCEPT/EXCEPT ALL左右分支都能下推到相同的单个节点，整个集合操作才能下推。 --测试环境包含1个CN和6个DN
+--建表
+gaussdb=# CREATE NODE GROUP ng WITH(datanode1, datanode2, datanode3, datanode4, datanode5, datanode6);
+CREATE NODE GROUP
+gaussdb=# CREATE TABLE t1(a int, b int, c int) DISTRIBUTE BY HASH(a) TO GROUP ng;
+CREATE TABLE
+gaussdb=# CREATE TABLE t2(a int, b int, c int) DISTRIBUTE BY HASH(a) TO GROUP ng;
+CREATE TABLE
+--UNION ALL两边都可以下推，UNION ALL可以下推
+gaussdb=# EXPLAIN (COSTS OFF) SELECT * FROM t1 UNION ALL SELECT * FROM t2;
+       QUERY PLAN
+-------------------------
+ Data Node Scan
+   Node/s: All datanodes
+(2 rows)
+
+--union两边都可以下推，但不是单DN，所以不能下推
+gaussdb=# EXPLAIN (COSTS OFF) SELECT * FROM t1 UNION SELECT * FROM t2;
+               QUERY PLAN
+----------------------------------------
+ Streaming (type: GATHER)
+   Node/s: All datanodes
+   ->  HashAggregate
+         Group By Key: t1.a, t1.b, t1.c
+         ->  Append
+               ->  Seq Scan on t1
+               ->  Seq Scan on t2
+(7 rows)
+
+--UNION两边都可以下推，且是同一个DN，所以能下推
+gaussdb=# EXPLAIN (COSTS OFF) SELECT * FROM t1 WHERE a = 1 UNION SELECT * FROM t2 WHERE a = 1;
+        QUERY PLAN
+--------------------------
+ Data Node Scan
+   Node/s: (ng) datanode5
+(2 rows)
+
+gaussdb=# EXPLAIN (COSTS OFF) SELECT * FROM t1 WHERE a = 1;
+        QUERY PLAN
+--------------------------
+ Data Node Scan
+   Node/s: (ng) datanode5
+(2 rows)
+
+gaussdb=# EXPLAIN (COSTS OFF) SELECT * FROM t2 WHERE a = 3;
+        QUERY PLAN
+--------------------------
+ Data Node Scan
+   Node/s: (ng) datanode4
+(2 rows)
+
+--union两边都可以下推，但不是同一个DN，所以不能下推
+gaussdb=# EXPLAIN (COSTS OFF) SELECT * FROM t1 WHERE a = 1 UNION SELECT * FROM t2 WHERE a = 3;
+                QUERY PLAN
+-------------------------------------------
+ Streaming (type: GATHER)
+   Node/s: (GenGroup) datanode4, datanode5
+   ->  Unique
+         ->  Sort
+               Sort Key: t1.a, t1.b, t1.c
+               ->  Append
+                     ->  Seq Scan on t1
+                           Filter: (a = 1)
+                     ->  Seq Scan on t2
+                           Filter: (a = 3)
+(10 rows) CTE场景语句能否下推，与CTE中的语句是否能够下推有关，规则如下： 对于CTE，只有CTE中的语句能够下推，整个CTE才能下推。 对于Recursive CTE，由于递归部分会自引用CTE，在判断递归部分能否下推时，自引用的CTE的下推信息取决于非递归部分下推信息，即非递归部分的语句可以当做自引用CTE的子查询。 对于Recursive CTE，在满足CTE中的语句能下推的条件下，语句中递归部分和非递归部分都可以下推到相同的DN，整个Recursive CTE才能下推。 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27
+28
+29
+30
+31
+32
+33
+34
+35
+36
+37
+38
+39
+40
+41
+42
+43
+44
+45
+46
+47
+48
+49
+50
+51
+52
+53
+54
+55
+56
+57
+58
+59
+60
+61
+62
+63
+64
+65
+66
+67
+68
+69
+70
+71
+72
+73
+74
+75
+76
+77
+78 --CTE中语句能下推，CTE可以下推 gaussdb =# EXPLAIN ( COSTS OFF ) WITH cte AS ( SELECT * FROM t1 ) SELECT * FROM cte ; QUERY PLAN ------------------------- Data Node Scan Node / s : All datanodes ( 2 rows ) --CTE中语句能下推单个DN，CTE可以下推单个DN gaussdb =# EXPLAIN ( COSTS OFF ) WITH cte AS ( SELECT * FROM t1 WHERE a = 1 ) SELECT * FROM cte ; QUERY PLAN -------------------------- Data Node Scan Node / s : ( ng ) datanode5 ( 2 rows ) --CTE中语句不能下推，CTE不能下推 gaussdb =# EXPLAIN ( COSTS OFF ) WITH cte AS ( SELECT * FROM t1 ORDER BY a ) SELECT * FROM cte ; QUERY PLAN ---------------------------- Streaming ( type : GATHER ) Node / s : All datanodes -> Sort Sort Key : t1 . a -> Seq Scan on t1 ( 5 rows ) --Recursive CTE中语句能下推，且递归部分和非递归部分都可以下推到相同的多个DN，Recursive CTE可以下推多个DN gaussdb =# EXPLAIN ( COSTS OFF ) WITH RECURSIVE cte AS ( SELECT * FROM t1 UNION ALL SELECT t2 . * FROM t2 , cte WHERE cte . a = t2 . a ) SELECT * FROM cte ; QUERY PLAN ------------------------- Data Node Scan Node / s : All datanodes ( 2 rows ) --Recursive CTE中语句能下推，且递归部分和非递归部分都可以到相同的单个DN，Recursive CTE可以下推到单个DN gaussdb =# EXPLAIN ( COSTS OFF ) WITH RECURSIVE cte AS ( SELECT * FROM t1 WHERE a = 1 UNION ALL SELECT t2 . * FROM t2 , cte WHERE cte . a = t2 . a AND t2 . a = 1 ) SELECT * FROM cte ; QUERY PLAN -------------------------- Data Node Scan Node / s : ( ng ) datanode5 ( 2 rows ) --Recursive CTE中语句不能下推，Recursive CTE不能下推 gaussdb =# EXPLAIN ( COSTS OFF ) WITH RECURSIVE cte AS ( SELECT * FROM t1 UNION SELECT t2 . * FROM t2 , cte WHERE cte . a = t2 . a ) SELECT * FROM cte ; QUERY PLAN ----------------------------------------------------------------------- CTE Scan on cte CTE cte -> Recursive Union -> Data Node Scan on t1 "_REMOTE_TABLE_QUERY_" Node / s : All datanodes -> Hash Join Hash Cond : ( cte . a = t2 . a ) -> WorkTable Scan on cte -> Hash -> Data Node Scan on t2 "_REMOTE_TABLE_QUERY_" Node / s : All datanodes ( 11 rows ) gaussdb =# DROP TABLE t1 ; DROP TABLE gaussdb =# DROP TABLE t2 ; DROP TABLE gaussdb =# DROP NODE GROUP ng ; DROP NODE GROUP 4 特殊场景 对于一些特殊场景下推规则和约束如下： 对于带有WITH Recursive CTE、普通CTE、集合操作的非SELECT语句，不支持下推。 语句中带有不支持下推的元素，则不支持下推（如volatile函数、not shippable函数、record类型、agg函数、returnning子句、不下推的trigger等）。 CTE、Recursive CTE、集合操作、子查询、子链接通过常量条件无法进一步裁剪DN（可以通过改写语句，把条件写到CTE、Recursive CTE、集合操作、子查询、子链接中）。 CTE、Recursive CTE、集合操作与主查询进行联合查询时， 只有CTE、Recursive CTE、集合操作与主查询的其它对象分布信息相同且满足下推条件时，整条语句才能下推。 对于多表查询场景，如果分布表含有多列分布列，且查询条件中分布列带有参数，不支持gplan计划下推。 查看执行计划是否下推 执行计划是否下推可以依靠如下方法快速判断： 将GUC参数 enable_fast_query_shipping 设置为off，使查询优化器使用分布式框架策略。 1 SET enable_fast_query_shipping = off ; 查看执行计划。 如果执行计划中有Data Node Scan节点，那么此执行计划是发送语句的分布式执行计划，为不可下推的执行计划；如果执行计划中有Streaming节点，那么计划是可以下推的。 例如如下业务SQL： 1
+2
+3
+4
+5 select count ( ss . ss_sold_date_sk order by ss . ss_sold_date_sk ) c1 from store_sales ss , store_returns sr where sr . sr_customer_sk = ss . ss_customer_sk ; 执行计划如下，可以看出此SQL语句不能下推。 QUERY PLAN
+--------------------------------------------------------------------------
+Aggregate
+->  Hash Join
+Hash Cond: (ss.ss_customer_sk = sr.sr_customer_sk)
+->  Data Node Scan on store_sales "_REMOTE_TABLE_QUERY_"
+Node/s: All datanodes
+->  Hash
+->  Data Node Scan on store_returns "_REMOTE_TABLE_QUERY_"
+Node/s: All datanodes
+(8 rows) 不支持下推的语法 以如下三个表定义说明不支持下推的SQL语法。 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14 gaussdb =# CREATE TABLE CUSTOMER1 ( C_CUSTKEY BIGINT NOT NULL , C_NAME VARCHAR ( 25 ) NOT NULL , C_ADDRESS VARCHAR ( 40 ) NOT NULL , C_NATIONKEY INT NOT NULL , C_PHONE CHAR ( 15 ) NOT NULL , C_ACCTBAL DECIMAL ( 15 , 2 ) NOT NULL , C_MKTSEGMENT CHAR ( 10 ) NOT NULL , C_COMMENT VARCHAR ( 117 ) NOT NULL ) DISTRIBUTE BY hash ( C_CUSTKEY ); gaussdb =# CREATE TABLE test_stream ( a int , b float ); --float不支持重分布 gaussdb =# CREATE TABLE sal_emp ( c1 integer [] ) DISTRIBUTE BY replication ; 不支持returning语句下推 1
+2
+3
+4
+5
+6
+7
+8
+9 gaussdb =# explain update customer1 set C_NAME = 'a' returning c_name ; QUERY PLAN ------------------------------------------------------------------ Update on customer1 ( cost = 0 . 00 .. 0 . 00 rows = 30 width = 187 ) Node / s : All datanodes Node expr : c_custkey -> Data Node Scan on customer1 "_REMOTE_TABLE_QUERY_" ( cost = 0 . 00 .. 0 . 00 rows = 30 width = 187 ) Node / s : All datanodes ( 5 rows ) 不支持聚集函数中使用order by语句的下推 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10 gaussdb =# explain verbose select count ( c_custkey order by c_custkey ) from customer1 ; QUERY PLAN ------------------------------------------------------------------ Aggregate  (cost=2.50..2.51 rows=1 width=8) Output : count ( customer1 . c_custkey ORDER BY customer1 . c_custkey ) -> Data Node Scan on customer1 "_REMOTE_TABLE_QUERY_" ( cost = 0 . 00 .. 0 . 00 rows = 30 width = 8 ) Output : customer1 . c_custkey Node / s : All datanodes Remote query : SELECT c_custkey FROM ONLY public . customer1 WHERE true ( 6 rows ) count(distinct expr)中的字段不支持重分布，则不支持下推 1
+2
+3
+4
+5
+6
+7
+8
+9 gaussdb =# explain verbose select count ( distinct b ) from test_stream ; QUERY PLAN ------------------------------------------------------------------ Aggregate  (cost=2.50..2.51 rows=1 width=8) Output : count ( DISTINCT test_stream . b ) -> Data Node Scan on test_stream "_REMOTE_TABLE_QUERY_" ( cost = 0 . 00 .. 0 . 00 rows = 30 width = 8 ) Output : test_stream . b Node / s : All datanodes Remote query : SELECT b FROM ONLY public . test_stream WHERE true ( 6 rows ) 不支持distinct on用法下推 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12 gaussdb =# explain verbose select distinct on ( c_custkey ) c_custkey from customer1 order by c_custkey ; QUERY PLAN ------------------------------------------------------------------ Unique  (cost=49.83..54.83 rows=30 width=8) Output : customer1 . c_custkey -> Sort ( cost = 49 . 83 .. 52 . 33 rows = 30 width = 8 ) Output : customer1 . c_custkey Sort Key : customer1 . c_custkey -> Data Node Scan on customer1 "_REMOTE_TABLE_QUERY_" ( cost = 0 . 00 .. 0 . 00 rows = 30 width = 8 ) Output : customer1 . c_custkey Node / s : All datanodes Remote query : SELECT c_custkey FROM ONLY public . customer1 WHERE true ( 9 rows ) 不支持数组表达式下推 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11 gaussdb =# explain verbose select array [ c_custkey , 1 ] from customer1 order by c_custkey ; QUERY PLAN ------------------------------------------------------------------ Sort  (cost=49.83..52.33 rows=30 width=8) Output : ( ARRAY [ customer1 . c_custkey , 1 :: bigint ]), customer1 . c_custkey Sort Key : customer1 . c_custkey -> Data Node Scan on "__REMOTE_SORT_QUERY__" ( cost = 0 . 00 .. 0 . 00 rows = 30 width = 8 ) Output : ( ARRAY [ customer1 . c_custkey , 1 :: bigint ]), customer1 . c_custkey Node / s : All datanodes Remote query : SELECT ARRAY [ c_custkey , 1 :: bigint ], c_custkey FROM ONLY public . customer1 WHERE true ORDER BY 2 ( 7 rows ) With Recursive当前版本不支持下推的场景和原因如下： 序号 场景 不下推原因 1 包含外表的查询场景。 LOG:  SQL can't be shipped, reason: RecursiveUnion contains ForeignScan is not shippable（LOG为CN日志中打印的不下推原因，下同） 外表，当前版本暂不支持下推。 2 多nodegroup场景。 LOG:  SQL can't be shipped, reason: With-Recursive under multi-nodegroup scenario is not shippable 基表存储nodegroup不相同，或者计算nodegroup与基表不相同，当前版本暂不支持下推。 3 UNION不带ALL，需要去重。 LOG:  SQL can't be shipped, reason: With-Recursive does not contain "ALL" to bind recursive & none-recursive branches 例如: WITH recursive t_result AS (
+SELECT dm,sj_dm,name,1 as level
+FROM test_rec_part
+WHERE sj_dm > 10
+UNION
+SELECT t2.dm,t2.sj_dm,t2.name||' > '||t1.name,t1.level+1
+FROM t_result t1
+JOIN test_rec_part t2 ON t2.sj_dm = t1.dm
+)
+SELECT * FROM t_result t; 4 基表中有系统表。 LOG:  SQL can't be shipped, reason: With-Recursive contains system table is not shippable 例如： WITH RECURSIVE x(id) AS
+(
+select count(1) from pg_class where oid=1247
+UNION ALL
+SELECT id+1 FROM x WHERE id < 5
+), y(id) AS
+(
+select count(1) from pg_class where oid=1247
+UNION ALL
+SELECT id+1 FROM x WHERE id < 10
+)
+SELECT y.*, x.* FROM y LEFT JOIN x USING (id) ORDER BY 1; 5 基表扫描只有VALUES子句，仅在CN上即可完成执行。 LOG:  SQL can't be shipped, reason: With-Recursive contains only values rte is not shippable 例如： WITH RECURSIVE t(n) AS (
+VALUES (1)
+UNION ALL
+SELECT n+1 FROM t WHERE n < 100
+)
+SELECT sum(n) FROM t; 6 相关子查询的关联条件仅在递归部分，非递归部分无关联条件。 LOG:  SQL can't be shipped, reason: With-Recursive recursive term correlated only is not shippable 例如： select  a.ID,a.Name,
+(
+with recursive cte as (
+select ID, PID, NAME from b where b.ID = 1
+union all
+select parent.ID,parent.PID,parent.NAME
+from cte as child join b as parent on child.pid=parent.id
+where child.ID = a.ID
+)
+select NAME from cte limit 1
+) cName
+from
+(
+select id, name, count(*) as cnt
+from a group by id,name
+) a order by 1,2; 7 非递归部分带limit为Replicate计划，递归部分为 Hash计划，计划存在冲突。 LOG:  SQL can't be shipped, reason: With-Recursive contains conflict distribution in none-recursive(Replicate) recursive(Hash) 例如： WITH recursive t_result AS (
+select * from(
+SELECT dm,sj_dm,name,1 as level
+FROM test_rec_part
+WHERE sj_dm < 10 order by dm limit 6 offset 2)
+UNION all
+SELECT t2.dm,t2.sj_dm,t2.name||' > '||t1.name,t1.level+1
+FROM t_result t1
+JOIN test_rec_part t2 ON t2.sj_dm = t1.dm
+)
+SELECT * FROM t_result t; 8 多层Recursive嵌套，即recursive的递归部分又嵌套另一个recursive查询。 LOG:  SQL can't be shipped, reason: Recursive CTE references recursive CTE "cte" 例如： with recursive cte as
+(
+select * from rec_tb4 where id<4
+union all
+select h.id,h.parentID,h.name from
+(
+with recursive cte as
+(
+select * from rec_tb4 where id<4
+union all
+select h.id,h.parentID,h.name from rec_tb4 h inner join cte c on h.id=c.parentID
+)
+SELECT id ,parentID,name from cte order by parentID
+) h
+inner join cte  c on h.id=c.parentID
+)
+SELECT id ,parentID,name from cte order by parentID,1,2,3; 不支持下推的函数 首先介绍函数的易变性。在 GaussDB 中共分三种形态： IMMUTABLE 表示该函数在给出同样的参数值时总是返回同样的结果。 STABLE 表示该函数不能修改数据库，对相同参数值，在同一次表扫描里，该函数的返回值不变，但是返回值可能在不同SQL语句之间变化。 VOLATILE 表示该函数值可以在一次表扫描内改变，因此不会做任何优化。 函数易变性可以查询pg_proc的provolatile字段获得，i代表IMMUTABLE，s代表STABLE，v代表VOLATILE。另外，在pg_proc中的proshippable字段，取值范围为t/f/NULL，这个字段与provolatile字段一起用于描述函数是否下推。 如果函数的provolatile属性为i，则无论proshippable的值是否为t，则函数始终可以下推。 如果函数的provolatile属性为s或v，则仅当proshippable的值为t时，函数可以下推。 random，exec_hadoop_sql，exec_on_extension如果出现CTE中，也不下推。因为这种场景下下推可能出现结果错误。 对于用户自定义函数，可以在创建函数的时候指定provolatile和proshippable属性的值，详细请参考 CREATE FUNCTION 。 对于函数不能下推的场景： 如果是系统函数，建议根据业务等价替换这个函数。 如果是自定义函数，建议分析客户业务场景，看函数的provolatile和proshippable属性定义是否正确。 实例分析：自定义函数 对于自定义函数，如果对于确定的输入，有确定的输出，则应将函数定义为immutable类型。 利用TPCDS的销售信息举个例子，比如要写一个函数，获取商品的打折情况，需要一个计算折扣的函数，可以将这个函数定义为： 1
+2
+3
+4 CREATE FUNCTION func_percent_2 ( NUMERIC , NUMERIC ) RETURNS NUMERIC AS 'SELECT $1 / $2 WHERE $2 > 0.01' LANGUAGE SQL VOLATILE ; 执行下列语句： 1
+2 SELECT func_percent_2 ( ss_sales_price , ss_list_price ) FROM store_sales ; 其执行计划为： 可见，func_percent_2并没有被下推，而是将ss_sales_price和ss_list_price收到CN上，再进行计算，消耗大量CN的资源，而且计算缓慢。 由于该自定义函数对确定的输入有确定的输出，如果将该自定义函数改为： 1
+2
+3
+4 CREATE FUNCTION func_percent_1 ( NUMERIC , NUMERIC ) RETURNS NUMERIC AS 'SELECT $1 / $2 WHERE $2 > 0.01' LANGUAGE SQL IMMUTABLE ; 执行语句： 1
+2 SELECT func_percent_1 ( ss_sales_price , ss_list_price ) FROM store_sales ; 其执行计划为： 可见函数func_percent_1被下推到DN执行，提升了执行效率（TPCDS 1000X，3CN18DN，查询效率提升100倍以上）。 父主题： 典型SQL调优点 版权所有 © 华为技术有限公司

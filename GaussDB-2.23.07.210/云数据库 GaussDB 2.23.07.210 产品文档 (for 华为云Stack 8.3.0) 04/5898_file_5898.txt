@@ -1,0 +1,1 @@
+服务端工具 服务端工具 在使用 GaussDB 过程中，经常需要对数据库进行安装、升级，以及对数据库进行健康管理。为了简单、方便的维护数据库， GaussDB 提供了一系列的数据库管理工具。 GaussRoach.py gs_cgroup gs_check gs_checkos gs_collector gs_dump gs_dumpall gs_encrypt gs_guc gs_lcctl gs_om gs_replace gs_restore gs_roach gs_ssh 父主题： 主备版 版权所有 © 华为技术有限公司

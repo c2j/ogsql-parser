@@ -1,0 +1,1 @@
+向列表分区表新增分区 向列表分区表新增分区 使用ALTER TABLE ADD PARTITION可以在列表分区表中新增分区，新增分区的枚举值不能与已有的任一个分区的枚举值重复。 例如，对列表分区表list_sales新增一个分区。 ALTER TABLE list_sales ADD PARTITION channel5 VALUES ('X') TABLESPACE tb1; 当列表分区表有DEFAULT分区时，无法新增分区。可以使用ALTER TABLE SPLIT PARTITION命令分割分区。 父主题： 新增分区 版权所有 © 华为技术有限公司

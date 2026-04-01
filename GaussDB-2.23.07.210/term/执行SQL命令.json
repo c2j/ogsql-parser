@@ -1,0 +1,56 @@
+{
+  "topic": "执行SQL命令",
+  "term_count": 10,
+  "terms": [
+    {
+      "term": "嵌入式SQL命令",
+      "content": "嵌入式SQL命令 嵌入式SQL命令 ALLOCATE DESCRIPTOR CONNECT DEALLOCATE DESCRIPTOR DECLARE DESCRIBE DISCONECT EXECUTE IMMEDIATE GET DESCRIPTOR OPEN PREPARE SET AUTOCOMMIT SET CONNECTION SET DESCRIPTOR TYPE VAR WHENEVER",
+      "source_file": "908_SQL.txt"
+    },
+    {
+      "term": "嵌入式SQL命令",
+      "content": "嵌入式SQL命令 嵌入式SQL命令 ALLOCATE DESCRIPTOR CONNECT DEALLOCATE DESCRIPTOR DECLARE DESCRIBE DISCONECT EXECUTE IMMEDIATE GET DESCRIPTOR OPEN PREPARE SET AUTOCOMMIT SET CONNECTION SET DESCRIPTOR TYPE VAR WHENEVER",
+      "source_file": "2633_SQL.txt"
+    },
+    {
+      "term": "使用游标",
+      "content": "使用游标 使用游标 使用游标可以检索出多行的结果集，应用程序必须声明一个游标并且从游标中抓取每一行数据。 声明一个游标： EXEC SQL DECLARE c CURSOR FOR select * from tb1;; 打开游标： EXEC SQL OPEN c; 从游标中抓取一行数据： EXEC SQL FETCH 1 in c into :a, :str; 关闭游标： EXEC SQL CLOSE c; 更多游标的使用细节可参考 DECLARE ，关于FETCH命令的细节可参考 FETCH 。 完整使用示例： #include <string.h>\n#include <stdlib.h>\n\nint main(void)\n{\nexec sql begin declare section;\n    int *a;\n    char *str;\nexec sql end declare section;\n\n    int count = 0;\n    exec sql connect to postgres ;\n    exec sql set autocommit to off;\n    exec sql begin;\n    exec sql drop table if exists tb1;\n    exec sql create table tb1(id int, info text);\n    exec sql insert into tb1 (id, info) select generate_series(1, 100000), 'test';\n    exec sql select count(*) into :a from tb1;\n    printf (\"a is %d\\n\", *a);\n    exec sql commit;\n\n    // 定义游标\n    exec sql declare c cursor for select * from tb1;\n    // 打开游标\n    exec sql open c;\n    exec sql whenever not found do break;\n    while(1) {\n        // 抓取数据\n        exec sql fetch 1 in c into :a, :str;\n        count++;\n        if (count == 100000) {\n            printf(\"Fetch res: a is %d, str is %s\", *a, str);\n        }\n    }\n    // 关闭游标\n    exec sql close c;\n    exec sql set autocommit to on;\n    exec sql drop table tb1;\n    exec sql disconnect;\n\n    ECPGfree_auto_mem();\n    return 0;\n\n}",
+      "source_file": "2630_file_2630.txt"
+    },
+    {
+      "term": "使用游标",
+      "content": "使用游标 使用游标 使用游标可以检索出多行的结果集，应用程序必须声明一个游标并且从游标中抓取每一行数据。 声明一个游标： EXEC SQL DECLARE c CURSOR FOR select * from tb1; 打开游标： EXEC SQL OPEN c; 从游标中抓取一行数据： EXEC SQL FETCH 1 in c into :a, :str; 关闭游标： EXEC SQL CLOSE c; 更多游标的使用细节可参考 DECLARE ，关于FETCH命令的细节可参考 FETCH 。 完整使用示例： #include <string.h>\n#include <stdlib.h>\n\nint main(void)\n{\nexec sql begin declare section;\n    int *a;\n    char *str;\nexec sql end declare section;\n\n    int count = 0;\n    exec sql connect to postgres ;\n    exec sql set autocommit to off;\n    exec sql begin;\n    exec sql drop table if exists tb1;\n    exec sql create table tb1(id int, info text);\n    exec sql insert into tb1 (id, info) select generate_series(1, 100000), 'test';\n    exec sql select count(*) into :a from tb1;\n    printf (\"a is %d\\n\", *a);\n    exec sql commit;\n\n    // 定义游标\n    exec sql declare c cursor for select * from tb1;\n    // 打开游标\n    exec sql open c;\n    exec sql whenever not found do break;\n    while(1) {\n        // 抓取数据\n        exec sql fetch 1 in c into :a, :str;\n        count++;\n        if (count == 100000) {\n            printf(\"Fetch res: a is %d, str is %s\", *a, str);\n        }\n    }\n    // 关闭游标\n    exec sql close c;\n    exec sql set autocommit to on;\n    exec sql drop table tb1;\n    exec sql disconnect;\n\n    ECPGfree_auto_mem();\n    return 0;\n\n}",
+      "source_file": "905_file_905.txt"
+    },
+    {
+      "term": "执行SQL语句",
+      "content": "执行SQL语句 执行SQL语句 创建一个表： EXEC SQL CREATE TABLE foo (a int, b varchar); 插入一行： EXEC SQL INSERT INTO foo VALUES (5, 'abc'); 删除一行： EXEC SQL DELETE FROM foo WHERE a = 5; 更新表数据： EXEC SQL UPDATE foo SET b = 'gdp' WHERE a = 7; 单行查询数据： EXEC SQL SELECT a INTO :var_a FROM foo WHERE b = 'def'; 完整使用示例： #include <stdlib.h>\n#include <string.h>\n#include <stdio.h>\n\nint main ()\n{\n    ECPGdebug (1, stderr);\n\n    EXEC SQL BEGIN DECLARE SECTION;\n    int var_a;\n    EXEC SQL END DECLARE SECTION;\n\n    EXEC SQL CONNECT TO postgres;\n    // 创建一个表\n    EXEC SQL CREATE TABLE foo (a int, b varchar);\n    // 插入数据\n    EXEC SQL INSERT INTO foo VALUES (5, 'abc');\n    EXEC SQL INSERT INTO foo VALUES (6, 'def');\n    EXEC SQL INSERT INTO foo VALUES (7, 'ghi');\n\n    // 删除一行\n    EXEC SQL DELETE FROM foo WHERE a = 5;\n    // 更新表数据\n    EXEC SQL UPDATE foo SET b = 'gdp' WHERE a = 7;\n    // 单行查询表数据\n    EXEC SQL SELECT a INTO :var_a FROM foo WHERE b = 'def';\n    // 打印查询结果\n    printf(\"select res is %d\\n\", var_a);\n\n    EXEC SQL DISCONNECT;\n\n    return 0;\n}",
+      "source_file": "2629_SQL.txt"
+    },
+    {
+      "term": "预备语句",
+      "content": "预备语句 预备语句 当传递给SQL语句的值在编译时未知或者同一语句将被使用多次时，可以使用预备语句。 使用命令PREPARE准备语句。对于未知的值使用占位符\"?\"： EXEC SQL PREPARE stmt1 FROM \"SELECT oid, datname FROM pg_database WHERE oid = ?\"; 如果一个语句返回单行，应用程序可以在PREPARE执行语句之后调用EXECUTE，同时使用USING子句为占位符提供实际值： EXEC SQL EXECUTE stmt1 INTO :dboid, :dbname USING 1; 如果一个语句返回多行，应用程序可以使用基于预备语句声明的游标。为了绑定输入参数，必须使用USING子句打开游标： EXEC SQL PREPARE stmt1 FROM \"SELECT oid,datname FROM pg_database WHERE oid > ?\";\nEXEC SQL DECLARE foo_bar CURSOR FOR stmt1;\n/* 当结果集达到最后时，跳出while循环 */\nEXEC SQL WHENEVER NOT FOUND DO BREAK;\nEXEC SQL OPEN foo_bar USING 100;\n...\nwhile (1)\n{\n    EXEC SQL FETCH NEXT FROM foo_bar INTO :dboid, :dbname;\n    ...\n}\nEXEC SQL CLOSE foo_bar; 当不再需要预备语句的时候，应释放语句。 EXEC SQL DEALLOCATE PREPARE name;",
+      "source_file": "907_file_907.txt"
+    },
+    {
+      "term": "事务管理",
+      "content": "事务管理 事务管理 在ecpg缺省模式下，语句只有在EXEC SQL COMMIT发出的时候才被提交，嵌入的SQL接口也支持事务的自动提交（通过EXEC SQL SET AUTOCOMMIT TO ON语句设置自动提交）。在自动提交模式下，每条命令都是自动提交的，除非它们包围在一个明确的事务块里。自动提交模式可以用EXEC SQL SET AUTOCOMMIT TO OFF语句关闭。 常见事务管理命令如下： EXEC SQL COMMIT：提交正在进行的事务。 EXEC SQL ROLLBACK：回滚正在进行的事务。 EXEC SQL SET AUTOCOMMIT TO ON：启动自动提交模式。 EXEC SQL SET AUTOCOMMIT TO OFF：关闭自动提交模式，缺省模式。",
+      "source_file": "2631_file_2631.txt"
+    },
+    {
+      "term": "事务管理",
+      "content": "事务管理 事务管理 在ecpg缺省模式下，语句只有在EXEC SQL COMMIT发出的时候才被提交，嵌入的SQL接口也支持事务的自动提交（通过EXEC SQL SET AUTOCOMMIT TO ON语句设置自动提交）。在自动提交模式下，每条命令都是自动提交的，除非它们包围在一个明确的事务块里。自动提交模式可以用EXEC SQL SET AUTOCOMMIT TO OFF语句关闭。 常见事务管理命令如下： EXEC SQL COMMIT：提交正在进行的事务。 EXEC SQL ROLLBACK：回滚正在进行的事务。 EXEC SQL SET AUTOCOMMIT TO ON：启动自动提交模式。 EXEC SQL SET AUTOCOMMIT TO OFF：关闭自动提交模式，缺省模式。",
+      "source_file": "906_file_906.txt"
+    },
+    {
+      "term": "执行SQL语句",
+      "content": "执行SQL语句 执行SQL语句 创建一个表： EXEC SQL CREATE TABLE foo (a int, b varchar); 插入一行： EXEC SQL INSERT INTO foo VALUES (5, 'abc'); 删除一行： EXEC SQL DELETE FROM foo WHERE a = 5; 更新表数据： EXEC SQL UPDATE foo SET b = 'gdp' WHERE a = 7; 单行查询数据： EXEC SQL SELECT a INTO :var_a FROM foo WHERE b = 'def'; 完整使用示例： #include <stdlib.h>\n#include <string.h>\n#include <stdio.h>\n\nint main ()\n{\n    ECPGdebug (1, stderr);\n\n    EXEC SQL BEGIN DECLARE SECTION;\n    int var_a;\n    EXEC SQL END DECLARE SECTION;\n\n    EXEC SQL CONNECT TO postgres;\n    // 创建一个表\n    EXEC SQL CREATE TABLE foo (a int, b varchar);\n    // 插入数据\n    EXEC SQL INSERT INTO foo VALUES (5, 'abc');\n    EXEC SQL INSERT INTO foo VALUES (6, 'def');\n    EXEC SQL INSERT INTO foo VALUES (7, 'ghi');\n\n    // 删除一行\n    EXEC SQL DELETE FROM foo WHERE a = 5;\n    // 更新表数据\n    EXEC SQL UPDATE foo SET b = 'gdp' WHERE a = 7;\n    // 单行查询表数据\n    EXEC SQL SELECT a INTO :var_a FROM foo WHERE b = 'def';\n    // 打印查询结果\n    printf(\"select res is %d\\n\", var_a);\n\n    EXEC SQL DISCONNECT;\n\n    return 0;\n}",
+      "source_file": "904_SQL.txt"
+    },
+    {
+      "term": "预备语句",
+      "content": "预备语句 预备语句 当传递给SQL语句的值在编译时未知或者同一语句将被使用多次时，可以使用预备语句。 使用命令PREPARE准备语句。对于未知的值使用占位符\"?\"： EXEC SQL PREPARE stmt1 FROM \"SELECT oid, datname FROM pg_database WHERE oid = ?\"; 如果一个语句返回单行，应用程序可以在PREPARE执行语句之后调用EXECUTE，同时使用USING子句为占位符提供实际值： EXEC SQL EXECUTE stmt1 INTO :dboid, :dbname USING 1; 如果一个语句返回多行，应用程序可以使用基于预备语句声明的游标。为了绑定输入参数，必须使用USING子句打开游标： EXEC SQL PREPARE stmt1 FROM \"SELECT oid,datname FROM pg_database WHERE oid > ?\";\nEXEC SQL DECLARE foo_bar CURSOR FOR stmt1;\n/* 当结果集达到最后时，跳出while循环 */\nEXEC SQL WHENEVER NOT FOUND DO BREAK;\nEXEC SQL OPEN foo_bar USING 100;\n...\nwhile (1)\n{\n    EXEC SQL FETCH NEXT FROM foo_bar INTO :dboid, :dbname;\n    ...\n}\nEXEC SQL CLOSE foo_bar; 当不再需要预备语句的时候，应释放语句。 EXEC SQL DEALLOCATE PREPARE name;",
+      "source_file": "2632_file_2632.txt"
+    }
+  ]
+}

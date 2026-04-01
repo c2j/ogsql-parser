@@ -1,0 +1,1 @@
+cursor.executemany(query,vars_list) curs o r.executemany(query,vars_list) 功能描述 此方法执行SQL命令所有参数序列或序列中的SQL映射。 原型 cur so r.executemany(query,vars_list) 参数 表1 cur so r.executemany参数 关键字 参数说明 query 待执行的SQL语句。 vars_list 变量列表，匹配query中%s占位符。 返回值 无 示例 请参见 示例：常用操作 。 父主题： Psycopg接口参考 版权所有 © 华为技术有限公司

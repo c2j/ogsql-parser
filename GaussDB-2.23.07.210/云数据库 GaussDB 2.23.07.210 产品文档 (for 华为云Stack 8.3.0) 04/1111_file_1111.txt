@@ -1,0 +1,1 @@
+触发器函数 触发器函数 pg_get_triggerdef(oid) 描述：获取触发器的定义信息。 参数：待查触发器的OID。 返回值类型：text pg_get_triggerdef(oid, boolean) 描述：获取触发器的定义信息。 参数：待查触发器的OID及是否以pretty方式展示。 返回值类型：text 父主题： 函数和操作符 版权所有 © 华为技术有限公司

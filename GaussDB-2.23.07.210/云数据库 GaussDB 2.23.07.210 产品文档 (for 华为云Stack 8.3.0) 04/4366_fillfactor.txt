@@ -1,0 +1,20 @@
+怎么配置fillfactor大小 怎么配置fillfactor大小 fillfactor是用于描述页面填充率的参数，该参数与页面能存放的元组数量、大小以及表的物理空间直接相关。Ustore表的默认页面填充率为92%，预留的8%空间用于更新的扩展，也可以用于TD列表的扩展空间。fillfactor的配置和详细描述参见《开发者指南》的“SQL参考 > SQL语法 > CREATE TABLE”章节。 用户需要结合业务分析是否需要手动配置fillfactor。如果表数据导入后只有查询或定长更新操作，可将页面填充率调整为100%。如果数据导入后存在大量非定长更新操作，建议为不调整页面填充率或者将页面填充率数值调整更小，以减少跨页更新带来的性能损耗。fillfactor查看和修改方法具体实例如下： gaussdb=# create table test(a int) with(fillfactor=100);
+gaussdb=# \d+ test
+                         Table "public.test"
+ Column |  Type   | Modifiers | Storage | Stats target | Description
+--------+---------+-----------+---------+--------------+-------------
+ a      | integer |           | plain   |              |
+Has OIDs: no
+Options: orientation=row, fillfactor=100, compression=no, storage_type=USTORE
+
+gaussdb=# alter table test set(fillfactor=92);
+gaussdb=# \d+ test
+                         Table "public.test"
+ Column |  Type   | Modifiers | Storage | Stats target | Description
+--------+---------+-----------+---------+--------------+-------------
+ a      | integer |           | plain   |              |
+Has OIDs: no
+Options: orientation=row, compression=no, storage_type=USTORE, fillfactor=92
+
+gaussdb=# drop table test;
+ DROP TABLE 父主题： Ustore的最佳实践 版权所有 © 华为技术有限公司

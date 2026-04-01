@@ -1,0 +1,238 @@
+示例：常用操作 示例：常用操作 示例1 创建数据库连接、创建表、插入数据 此示例将演示如何基于 GaussDB 提供的JDBC接口开发应用程序。执行示例前，需要加载驱动，驱动的获取和加载方法请参考 JDBC包、驱动类和环境类 。 1
+  2
+  3
+  4
+  5
+  6
+  7
+  8
+  9
+ 10
+ 11
+ 12
+ 13
+ 14
+ 15
+ 16
+ 17
+ 18
+ 19
+ 20
+ 21
+ 22
+ 23
+ 24
+ 25
+ 26
+ 27
+ 28
+ 29
+ 30
+ 31
+ 32
+ 33
+ 34
+ 35
+ 36
+ 37
+ 38
+ 39
+ 40
+ 41
+ 42
+ 43
+ 44
+ 45
+ 46
+ 47
+ 48
+ 49
+ 50
+ 51
+ 52
+ 53
+ 54
+ 55
+ 56
+ 57
+ 58
+ 59
+ 60
+ 61
+ 62
+ 63
+ 64
+ 65
+ 66
+ 67
+ 68
+ 69
+ 70
+ 71
+ 72
+ 73
+ 74
+ 75
+ 76
+ 77
+ 78
+ 79
+ 80
+ 81
+ 82
+ 83
+ 84
+ 85
+ 86
+ 87
+ 88
+ 89
+ 90
+ 91
+ 92
+ 93
+ 94
+ 95
+ 96
+ 97
+ 98
+ 99
+100
+101
+102
+103
+104
+105
+106
+107
+108
+109
+110
+111
+112
+113
+114
+115
+116
+117
+118
+119
+120
+121
+122
+123
+124
+125
+126
+127
+128
+129
+130
+131
+132
+133
+134
+135
+136
+137
+138
+139
+140
+141
+142
+143
+144
+145
+146
+147
+148
+149
+150
+151
+152
+153
+154
+155
+156
+157
+158
+159
+160
+161
+162
+163
+164
+165
+166
+167
+168
+169
+170
+171
+172 //DBTest.java //演示基于JDBC开发的主要步骤，会涉及创建数据库连接、创建表、插入数据等。 // 认证用的用户名和密码直接写到代码中有很大的安全风险，建议在配置文件或者环境变量中存放(密码应密文存放，使用时解密)，确保安全； // 本示例以用户名和密码保存在环境变量中为例，运行本示例前请先在本地环境中设置环境变量(环境变量名称请根据自身情况进行设置)EXAMPLE_USERNAME_ENV和EXAMPLE_PASSWORD_ENV。 import java.sql.Connection ; import java.sql.DriverManager ; import java.sql.PreparedStatement ; import java.sql.SQLException ; import java.sql.Statement ; import java.sql.CallableStatement ; import java.sql.Types ; public class DBTest { //创建数据库连接。 public static Connection GetConnection ( String username , String passwd ) { String driver = "org.postgresql.Driver" ; String sourceURL = "jdbc:postgresql://$ip:$port/postgres" ; Connection conn = null ; try { //加载数据库驱动。 Class . forName ( driver ). newInstance (); } catch ( Exception e ) { e . printStackTrace (); return null ; } try { //创建数据库连接。 conn = DriverManager . getConnection ( sourceURL , username , passwd ); System . out . println ( "Connection succeed!" ); } catch ( Exception e ) { e . printStackTrace (); return null ; } return conn ; }; //执行普通SQL语句，创建customer_t1表。 public static void CreateTable ( Connection conn ) { Statement stmt = null ; try { stmt = conn . createStatement (); //执行普通SQL语句。 int rc = stmt . executeUpdate ( "CREATE TABLE customer_t1(c_customer_sk INTEGER, c_customer_name VARCHAR(32));" ); stmt . close (); } catch ( SQLException e ) { if ( stmt != null ) { try { stmt . close (); } catch ( SQLException e1 ) { e1 . printStackTrace (); } } e . printStackTrace (); } } //执行预处理语句，批量插入数据。 public static void BatchInsertData ( Connection conn ) { PreparedStatement pst = null ; try { //生成预处理语句。 pst = conn . prepareStatement ( "INSERT INTO customer_t1 VALUES (?,?)" ); for ( int i = 0 ; i < 3 ; i ++) { //添加参数。 pst . setInt ( 1 , i ); pst . setString ( 2 , "data " + i ); pst . addBatch (); } //执行批处理。 pst . executeBatch (); pst . close (); } catch ( SQLException e ) { if ( pst != null ) { try { pst . close (); } catch ( SQLException e1 ) { e1 . printStackTrace (); } } e . printStackTrace (); } } //执行预编译语句，更新数据。 public static void ExecPreparedSQL ( Connection conn ) { PreparedStatement pstmt = null ; try { pstmt = conn . prepareStatement ( "UPDATE customer_t1 SET c_customer_name = ? WHERE c_customer_sk = 1" ); pstmt . setString ( 1 , "new Data" ); int rowcount = pstmt . executeUpdate (); pstmt . close (); } catch ( SQLException e ) { if ( pstmt != null ) { try { pstmt . close (); } catch ( SQLException e1 ) { e1 . printStackTrace (); } } e . printStackTrace (); } } //执行存储过程。 public static void ExecCallableSQL ( Connection conn ) { CallableStatement cstmt = null ; try { // 存储过程TESTPROC需提前创建。 cstmt = conn . prepareCall ( "{? = CALL TESTPROC(?,?,?)}" ); cstmt . setInt ( 2 , 50 ); cstmt . setInt ( 1 , 20 ); cstmt . setInt ( 3 , 90 ); cstmt . registerOutParameter ( 4 , Types . INTEGER ); //注册out类型的参数，类型为整型。 cstmt . execute (); int out = cstmt . getInt ( 4 ); //获取out参数 System . out . println ( "The CallableStatment TESTPROC returns:" + out ); cstmt . close (); } catch ( SQLException e ) { if ( cstmt != null ) { try { cstmt . close (); } catch ( SQLException e1 ) { e1 . printStackTrace (); } } e . printStackTrace (); } } /** * 主程序，逐步调用各静态方法。 * @param args */ public static void main ( String [] args ) { //创建数据库连接。 String userName = System . getenv ( "EXAMPLE_USERNAME_ENV" ); String password = System . getenv ( "EXAMPLE_PASSWORD_ENV" ); Connection conn = GetConnection ( userName , password ); //创建表。 CreateTable ( conn ); //批量插入数据。 BatchInsertData ( conn ); //执行预编译语句，更新数据。 ExecPreparedSQL ( conn ); //执行存储过程。 ExecCallableSQL ( conn ); //关闭数据库连接。 try { conn . close (); } catch ( SQLException e ) { e . printStackTrace (); } } } 示例2客户端内存占用过多解决 此示例主要使用setFetchSize来调整客户端内存使用，它的原理是通过数据库游标来分批获取服务器端数据，但它会加大网络交互，可能会损失部分性能。 由于游标事务内有效，故需要先关闭自动提交，最后需要执行手动提交。 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27 // 关闭掉自动提交 conn . setAutoCommit ( false ); Statement st = conn . createStatement (); // 打开游标，每次获取50行数据 st . setFetchSize ( 50 ); ResultSet rs = st . executeQuery ( "SELECT * FROM mytable" ); while ( rs . next ()) { System . out . print ( "a row was returned." ); } conn . commit (); rs . close (); // 关闭服务器游标。 st . setFetchSize ( 0 ); rs = st . executeQuery ( "SELECT * FROM mytable" ); while ( rs . next ()) { System . out . print ( "many rows were returned." ); } conn . commit (); rs . close (); // Close the statement. st . close (); conn . close (); 执行完毕后可使用如下命令恢复自动提交： conn.setAutoCommit(true); 示例3 常用数据类型使用示例 //前置操作
+String createsql = "create table if not exists t_bit(col_bit bit)";
+Statement stmt = conn.createStatement();
+stmt.execute(createsql);
+stmt.close();
+//bit类型使用示例，注意此处bit类型取值范围[0,1]
+Statement st = conn.createStatement();
+String sqlstr = "create or replace function fun_1()\n" +
+    "returns bit AS $$\n" +
+    "select col_bit from t_bit limit 1;\n" +
+    "$$\n" +
+    "LANGUAGE SQL;";
+st.execute(sqlstr);
+CallableStatement c = conn.prepareCall("{ ? = call fun_1() }");
+//注册输出类型，位串类型
+c.registerOutParameter(1, Types.BIT);
+c.execute();
+//使用Boolean类型获取结果
+System.out.println(c.getBoolean(1));
+
+// float8类型使用示例
+st.execute("create table if not exists t_float(col1 float8)");
+PreparedStatement pstm = conn.prepareStatement("insert into t_float values(?)");
+pstm.setDouble(1,123456.123);
+pstm.execute();
+pstm.close();
+
+// 函数返回值为float8的使用示例。
+st.execute("create or replace function func_float() " +
+    "return float8 " +
+    "as declare " +
+    "var1 float8; " +
+    "begin " +
+    " select col1 into var1 from t_float limit 1; " +
+    " return var1; " +
+    "end;");
+CallableStatement cs = conn.prepareCall("{? = call func_float()}");
+cs.registerOutParameter(1,Types.DOUBLE);
+cs.execute();
+System.out.println(cs.getDouble(1));
+st.close(); 示例4 获取驱动版本示例 Driver.getGSVersion(); 对于不同的jar包，Driver的类是不同的。例如：gsjdbc4.jar的Driver主类是org.postgresql.Driver，具体参见 JDBC包 。 父主题： 基于JDBC开发 版权所有 © 华为技术有限公司

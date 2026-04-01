@@ -1,0 +1,26 @@
+{
+  "topic": "Dorado容灾使用指南",
+  "term_count": 4,
+  "terms": [
+    {
+      "term": "Dorado容灾安装指南",
+      "content": "Dorado容灾安装指南 Dorado容灾安装指南 前言 搭建前准备 镜像制作与注册 扩容Dorado BMS AZ 扩容裸机网关 BMS设备入云 数据库服务安装 容灾Region创建VPC并打通网络 GaussDB数据库配置 搭建Dorado数据库实例容灾关系 常见问题FAQ",
+      "source_file": "4755_Dorado.txt"
+    },
+    {
+      "term": "Dorado容灾安装指南（NOF组网）",
+      "content": "Dorado容灾安装指南（NOF组网） Dorado容灾安装指南（NOF组网） 前言 搭建前准备 镜像制作与注册 扩容Dorado BMS AZ 扩容裸机网关 BMS设备入云 数据库服务安装 容灾Region创建VPC并打通网络 GaussDB数据库配置 搭建Dorado数据库实例容灾关系 常见问题FAQ",
+      "source_file": "4804_DoradoNOF.txt"
+    },
+    {
+      "term": "Dorado容灾用户手册（NOF组网）",
+      "content": "Dorado容灾用户手册（NOF组网） Dorado容灾用户手册（NOF组网） Dorado双集群解决方案介绍 使用约束 Dorado双集群容灾配置 Dorado容灾操作手册 Dorado容灾故障手册 Dorado双集群升级 Dorado双集群基本功能列表 FAQ",
+      "source_file": "4897_DoradoNOF.txt"
+    },
+    {
+      "term": "Dorado容灾用户手册",
+      "content": "Dorado容灾用户手册 Dorado容灾用户手册 Dorado双集群解决方案介绍 使用约束 Dorado双集群容灾配置 Dorado容灾操作手册 Dorado容灾故障手册 Dorado双集群升级 dorado双集群基本功能列表 FAQ",
+      "source_file": "4852_Dorado.txt"
+    }
+  ]
+}

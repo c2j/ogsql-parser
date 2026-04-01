@@ -1,0 +1,326 @@
+事务语句 事务语句 存储过程本身会自动处于一个事务中。调用最外围存储过程开始时会自动开启一个事务，同时在调用结束时自动提交或者中间异常时回滚。除了系统自动的事务控制外，也可以使用COMMIT/ROLLBACK来控制存储过程中的事务。在存储过程中调用COMMIT/ROLLBACK命令，将提交/回滚当前事务并自动开启一个新的事务，后续的所有操作都会运行在此新的事务中。 保存点SAVEPOINT是事务中的一个特殊记号，它允许将那些在它建立后执行的命令全部回滚，把事务的状态恢复到保存点所在的时刻。存储过程中允许使用保存点来进行事务管理，当前支持保存点的创建、回滚和释放操作。需要特别注意，存储过程中使用回滚保存点只是回退当前事务的修改，而不会改变存储过程的执行流程，也不会回退存储过程中的局部变量值等。 支持调用的上下文环境： 支持在PL/SQL的存储过程/函数内使用COMMIT/ROLLBACK/SAVEPOINT。 支持含有EXCEPTION的存储过程/函数使用COMMIT/ROLLBACK/SAVEPOINT。 支持在存储过程的EXCEPTION语句内使用COMMIT/ROLLBACK/SAVEPOINT。 支持在事务块里调用含有COMMIT/ROLLBACK/SAVEPOINT的存储过程，即通过BEGIN/START/END等开启控制的外部事务。 支持在子事务中调用含SAVEPOINT的存储过程并使用外部定义的SAVEPOINT，回退事务状态到存储过程外定义的SAVEPOINT位置。 支持在存储过程外部可见存储过程内部定义的SAVEPOINT，即存储过程外可以将事务修改回滚到存储过程中定义SAVEPOINT的位置。 支持多数PL/SQL的上下文和语句内调用COMMIT/ROLLBACK/SAVEPOINT，包括常用的IF/FOR/CURSOR LOOP/WHILE。 支持提交/回滚的内容： 支持DDL在COMMIT/ROLLBACK后的提交/回滚。 支持DML的COMMIT/ROLLBACK后的提交。 支持存储过程内GUC参数的回滚提交。 不支持调用的上下文环境： 不支持除PL/SQL的其他存储过程中调用COMMIT/ROLLBACK/SAVEPOINT，例如PL/JAVA、PL/PYTHON等。 不支持事务块中调用了SAVEPOINT后，调用含有COMMIT/ROLLBACK的存储过程。 不支持TRIGGER中调用含有COMMIT/ROLLBACK/SAVEPOINT语句的存储过程。 不支持EXECUTE语句中调用COMMIT/ROLLBACK/SAVEPOINT语句。 不支持在CURSOR语句中打开一个含有COMMIT/ROLLBACK/SAVEPOINT的存储过程。 不支持带有IMMUTABLE以及SHIPPABLE的存储过程调用COMMIT/ROLLBACK/SAVEPOINT，或调用带有COMMIT/ROLLBACK/SAVEPOINT语句的存储过程。 不支持SQL中调用含有COMMIT/ROLLBACK/SAVEPOINT语句的存储过程，除了SELECT PROC以及CALL PROC。 存储过程头带有GUC参数设置的不允许调用COMMIT/ROLLBACK/SAVEPOINT语句。 不支持CURSOR/EXECUTE语句，以及各类表达式内调用COMMIT/ROLLBACK/SAVEPOINT。 不支持存储过程返回值与表达式计算中调用含有COMMIT/ROLLBACK/SAVEPOINT的存储过程。 不支持存储过程中释放存储过程外部定义的保存点。 存储过程事务和其中的自治事务是两个独立的事务，不能互相使用对方事务中定义的保存点。 不支持高级包通过DBE_SQL调用含有COMMIT/ROLLBACK/SAVEPOINT语句的存储过程。 不支持提交回滚的内容： 不支持存储过程内声明变量以及传入变量的提交/回滚。 不支持存储过程内必须重启生效的GUC参数的提交/回滚。 语法 定义保存点
+    SAVEPOINT savepoint_name;
+回滚保存点
+    ROLLBACK TO [SAVEPOINT] savepoint_name;
+释放保存点
+    RELEASE [SAVEPOINT] savepoint_name; 示例 支持在PL/SQL的存储过程内使用COMMIT/ROLLBACK，后续示例依赖此用例。 gaussdb=# DROP TABLE IF EXISTS EXAMPLE1; gaussdb=# CREATE TABLE EXAMPLE1(COL1 INT); gaussdb=# CREATE OR REPLACE PROCEDURE TRANSACTION_EXAMPLE()
+AS
+BEGIN
+    FOR i IN 0..20 LOOP
+        INSERT INTO EXAMPLE1(COL1) VALUES (i);
+        IF i % 2 = 0 THEN
+            COMMIT;
+        ELSE
+            ROLLBACK;
+        END IF;
+    END LOOP;
+END;
+/ gaussdb=# call TRANSACTION_EXAMPLE(); transaction_example --------------------- (1 row) 支持含有EXCEPTION的存储过程使用COMMIT/ROLLBACK。 支持在存储过程的EXCEPTION语句内使用COMMIT/ROLLBACK。 支持DDL在COMMIT/ROLLBACK后的提交/回滚。 gaussdb=# CREATE OR REPLACE PROCEDURE TEST_COMMIT_INSERT_EXCEPTION_ROLLBACK()
+AS
+BEGIN
+ DROP TABLE IF EXISTS TEST_COMMIT; 
+ CREATE TABLE TEST_COMMIT(A INT, B INT);
+ INSERT INTO TEST_COMMIT SELECT 1, 1;
+ COMMIT;
+        CREATE TABLE TEST_ROLLBACK(A INT, B INT);
+ RAISE EXCEPTION 'RAISE EXCEPTION AFTER COMMIT';
+EXCEPTION
+    WHEN OTHERS THEN
+ INSERT INTO TEST_COMMIT SELECT 2, 2;
+ ROLLBACK;
+END;
+/ gaussdb=# call TEST_COMMIT_INSERT_EXCEPTION_ROLLBACK(); NOTICE:  table "test_commit" does not exist, skipping CONTEXT:  SQL statement "DROP TABLE IF EXISTS TEST_COMMIT" PL/pgSQL function test_commit_insert_exception_rollback() line 3 at SQL statement NOTICE:  The 'DISTRIBUTE BY' clause is not specified. Using 'a' as the distribution column by default. HINT:  Please use 'DISTRIBUTE BY' clause to specify suitable data distribution column. CONTEXT:  SQL statement "CREATE TABLE TEST_COMMIT(A INT, B INT)" PL/pgSQL function test_commit_insert_exception_rollback() line 4 at SQL statement NOTICE:  The 'DISTRIBUTE BY' clause is not specified. Using 'a' as the distribution column by default. HINT:  Please use 'DISTRIBUTE BY' clause to specify suitable data distribution column. CONTEXT:  SQL statement "CREATE TABLE TEST_ROLLBACK(A INT, B INT)" PL/pgSQL function test_commit_insert_exception_rollback() line 7 at SQL statement test_commit_insert_exception_rollback --------------------------------------- (1 row) 支持在事务块里调用含有COMMIT/ROLLBACK的存储过程，即通过BEGIN/START/END等开启控制的外部事务。 gaussdb=# BEGIN;
+    -- TEST_COMMIT_INSERT_EXCEPTION_ROLLBACK定义见示例2
+    CALL TEST_COMMIT_INSERT_EXCEPTION_ROLLBACK();
+NOTICE:  The 'DISTRIBUTE BY' clause is not specified. Using 'a' as the distribution column by default.
+HINT:  Please use 'DISTRIBUTE BY' clause to specify suitable data distribution column.
+CONTEXT:  SQL statement "CREATE TABLE TEST_COMMIT(A INT, B INT)"
+PL/pgSQL function test_commit_insert_exception_rollback() line 4 at SQL statement
+NOTICE:  The 'DISTRIBUTE BY' clause is not specified. Using 'a' as the distribution column by default.
+HINT:  Please use 'DISTRIBUTE BY' clause to specify suitable data distribution column.
+CONTEXT:  SQL statement "CREATE TABLE TEST_ROLLBACK(A INT, B INT)"
+PL/pgSQL function test_commit_insert_exception_rollback() line 7 at SQL statement
+ test_commit_insert_exception_rollback 
+---------------------------------------
+
+(1 row) gaussdb=# END;
+COMMIT 支持多数PL/SQL的上下文和语句内调用COMMIT/ROLLBACK，包括常用的IF/FOR/CURSOR LOOP/WHILE。 gaussdb=# CREATE OR REPLACE PROCEDURE TEST_COMMIT2()
+IS
+BEGIN
+    DROP TABLE IF EXISTS TEST_COMMIT;
+    CREATE TABLE TEST_COMMIT(A INT);
+    FOR I IN REVERSE 3..0 LOOP
+ INSERT INTO TEST_COMMIT SELECT I;
+ COMMIT;
+    END LOOP;
+    FOR I IN REVERSE 2..4 LOOP
+ UPDATE TEST_COMMIT SET A=I;
+ COMMIT;
+    END LOOP;
+EXCEPTION
+WHEN OTHERS THEN   
+ INSERT INTO TEST_COMMIT SELECT 4;
+    COMMIT;
+END;
+/ gaussdb=# call TEST_COMMIT2(); NOTICE:  The 'DISTRIBUTE BY' clause is not specified. Using 'a' as the distribution column by default. HINT:  Please use 'DISTRIBUTE BY' clause to specify suitable data distribution column. CONTEXT:  SQL statement "CREATE TABLE TEST_COMMIT(A INT)" PL/pgSQL function test_commit2() line 4 at SQL statement test_commit2 -------------- (1 row) 支持存储过程内GUC参数的回滚提交。 gaussdb=# SHOW explain_perf_mode; gaussdb=# SHOW enable_force_vector_engine; gaussdb=# CREATE OR REPLACE PROCEDURE GUC_ROLLBACK()
+AS
+BEGIN
+    SET enable_force_vector_engine = on;
+    COMMIT;
+    SET explain_perf_mode TO pretty;
+    ROLLBACK;
+END;
+/ gaussdb=# call GUC_ROLLBACK();
+ guc_rollback 
+--------------
+
+(1 row) gaussdb=# SHOW explain_perf_mode;
+ explain_perf_mode 
+-------------------
+ normal
+(1 row) gaussdb=# SHOW enable_force_vector_engine;
+ enable_force_vector_engine 
+----------------------------
+ on
+(1 row) gaussdb=# SET enable_force_vector_engine = off; 支持在PL/SQL的存储过程内使用保存点回退事务部分修改。 gaussdb=# CREATE OR REPLACE PROCEDURE STP_SAVEPOINT_EXAMPLE1()
+AS
+BEGIN
+    INSERT INTO EXAMPLE1 VALUES(1);
+    SAVEPOINT s1;
+    INSERT INTO EXAMPLE1 VALUES(2);
+    ROLLBACK TO s1;  -- 回退插入记录2
+    INSERT INTO EXAMPLE1 VALUES(3);
+END;
+/ gaussdb=# call STP_SAVEPOINT_EXAMPLE1(); stp_savepoint_example1 ------------------------ (1 row) 支持在PL/SQL的存储过程中使用保存点回退到存储过程外部定义的保存点。 gaussdb=# CREATE OR REPLACE PROCEDURE STP_SAVEPOINT_EXAMPLE2()
+AS
+BEGIN
+    INSERT INTO EXAMPLE1 VALUES(2);
+    ROLLBACK TO s1;  -- 回退插入记录2
+    INSERT INTO EXAMPLE1 VALUES(3);
+END;
+/ gaussdb=# BEGIN;
+INSERT INTO EXAMPLE1 VALUES(1);
+SAVEPOINT s1;
+gaussdb=# CALL STP_SAVEPOINT_EXAMPLE2();
+ stp_savepoint_example2 
+------------------------
+
+(1 row)
+
+gaussdb=# SELECT * FROM EXAMPLE1;
+ col1 
+------
+    0
+    4
+   10
+   14
+   16
+   18
+   20
+    3
+    3
+    3
+    2
+    6
+    8
+   12
+    1
+    1
+(16 rows)
+
+gaussdb=# COMMIT;
+COMMIT 支持在存储过程外部回退到在PL/SQL存储过程内部定义的保存点。 gaussdb=# CREATE OR REPLACE PROCEDURE STP_SAVEPOINT_EXAMPLE3()
+AS
+BEGIN
+    INSERT INTO EXAMPLE1 VALUES(1);
+    SAVEPOINT s1;
+    INSERT INTO EXAMPLE1 VALUES(2);
+END;
+/ gaussdb=# BEGIN;
+gaussdb=# INSERT INTO EXAMPLE1 VALUES(3);
+gaussdb=# CALL STP_SAVEPOINT_EXAMPLE3();
+ stp_savepoint_example3 
+------------------------
+
+(1 row)
+
+gaussdb=# ROLLBACK TO SAVEPOINT s1; --回退存储过程中插入记录2
+ROLLBACK
+gaussdb=# SELECT * FROM EXAMPLE1;
+ col1 
+------
+    0
+    4
+   10
+   14
+   16
+   18
+   20
+    3
+    3
+    3
+    3
+    2
+    6
+    8
+   12
+    1
+    1
+    1
+(18 rows)
+
+gaussdb=# COMMIT;
+COMMIT 支持函数(Function)中调用commit/rollback语句。 gaussdb=# CREATE OR REPLACE FUNCTION FUNCTION_EXAMPLE1() RETURN INT
+AS
+EXP INT;
+BEGIN
+    FOR i IN 0..20 LOOP
+        INSERT INTO EXAMPLE1(col1) VALUES (i);
+        IF i % 2 = 0 THEN
+            COMMIT;
+        ELSE
+            ROLLBACK;
+        END IF;
+    END LOOP;
+    SELECT COUNT(*) FROM EXAMPLE1 INTO EXP;
+    RETURN EXP;
+END;
+/ gaussdb=# call FUNCTION_EXAMPLE1(); function_example1 ------------------- 29 (1 row) 限制场景 在存储过程使用commit/rollback有以下限制场景： 不允许Trigger的存储过程包含COMMIT/ROLLBACK语句、或调用带有COMMIT/ROLLBACK语句的存储过程。 gaussdb=# CREATE OR REPLACE FUNCTION FUNCTION_TRI_EXAMPLE2() RETURN TRIGGER
+AS
+EXP INT;
+BEGIN
+    FOR i IN 0..20 LOOP
+        INSERT INTO EXAMPLE1(col1) VALUES (i);
+        IF i % 2 = 0 THEN
+            COMMIT;
+        ELSE
+            ROLLBACK;
+        END IF;
+    END LOOP;
+    SELECT COUNT(*) FROM EXAMPLE1 INTO EXP;
+END;
+/ gaussdb=# CREATE TRIGGER TRIGGER_EXAMPLE AFTER DELETE ON EXAMPLE1 
+FOR EACH ROW EXECUTE PROCEDURE FUNCTION_TRI_EXAMPLE2(); gaussdb=# DELETE FROM EXAMPLE1; ERROR:  Can not commit/rollback if it's atomic is true: can not use commit rollback in Complex SQL CONTEXT:  PL/pgSQL function function_tri_example2() line 7 at COMMIT 不支持带有IMMUTABLE以及SHIPPABLE的存储过程调用commitrollback，或调用带有commit/rollback语句的存储过程。 gaussdb=# DROP TABLE IF EXISTS EXAMPLE1; gaussdb=# CREATE TABLE EXAMPLE1(COL1 INT); gaussdb=# CREATE OR REPLACE PROCEDURE TRANSACTION_EXAMPLE1()
+IMMUTABLE
+AS
+EXP INT;
+BEGIN
+    FOR i IN 0..20 LOOP
+        SELECT COUNT(*) FROM EXAMPLE1 INTO EXP;
+        IF i % 2 = 0 THEN
+            COMMIT;
+        ELSE
+            ROLLBACK;
+        END IF;
+    END LOOP;
+END;
+/
+gaussdb=# CALL TRANSACTION_EXAMPLE1();
+ERROR:  Can not commit/rollback if it's atomic is true: commit/rollback/savepoint is not allowed in a non-volatile function
+CONTEXT:  PL/pgSQL function transaction_example1() line 7 at COMMIT 不支持存储过程中任何变量的提交，包括存储过程内声明的变量或者传入的参数。 gaussdb=# CREATE OR REPLACE PROCEDURE TRANSACTION_EXAMPLE2(EXP_OUT OUT INT)
+AS
+EXP INT;
+BEGIN
+    EXP_OUT := 0;
+    COMMIT;
+    DBE_OUTPUT.PRINT_LINE('EXP IS:'||EXP);
+    EXP_OUT := 1;
+    ROLLBACK;
+    DBE_OUTPUT.PRINT_LINE('EXP IS:'||EXP);
+END;
+/
+gaussdb=# CALL TRANSACTION_EXAMPLE2(100);
+EXP IS:
+EXP IS:
+ exp_out 
+---------
+       1
+(1 row) 不支持出现在SQL中的调用（除了Select Procedure）。 gaussdb=# CREATE OR REPLACE PROCEDURE TRANSACTION_EXAMPLE3()
+AS
+BEGIN
+    FOR i IN 0..20 LOOP
+        INSERT INTO EXAMPLE1 (col1) VALUES (i);
+        IF i % 2 = 0 THEN
+            EXECUTE IMMEDIATE 'COMMIT';
+        ELSE
+            EXECUTE IMMEDIATE 'ROLLBACK';
+        END IF;
+    END LOOP;
+END;
+/
+gaussdb=# CALL TRANSACTION_EXAMPLE3();
+ERROR:  cannot call transaction statements in EXECUTE IMMEDIATE statement.
+CONTEXT:  PL/pgSQL function transaction_example3() line 6 at EXECUTE statement 存储过程头带有GUC参数设置的不允许调用commit/rollback语句。 gaussdb=# CREATE OR REPLACE PROCEDURE TRANSACTION_EXAMPLE4()
+SET ARRAY_NULLS TO "ON"
+AS
+BEGIN
+    FOR i IN 0..20 LOOP
+        INSERT INTO EXAMPLE1 (col1) VALUES (i);
+        IF i % 2 = 0 THEN
+            COMMIT;
+        ELSE
+            ROLLBACK;
+        END IF;
+    END LOOP;
+END;
+/ gaussdb=# CALL TRANSACTION_EXAMPLE4(); ERROR:  Can not commit/rollback if it's atomic is true: transaction statement in store procedure with GUC setting in option clause is not supported CONTEXT:  PL/pgSQL function transaction_example4() line 6 at COMMIT 游标open的对象不允许为带有commit/rollback语句的存储过程。 gaussdb=# CREATE OR REPLACE PROCEDURE TRANSACTION_EXAMPLE5(INTIN IN INT, INTOUT OUT INT)
+AS
+BEGIN
+INTOUT := INTIN + 1;
+COMMIT;
+END;
+/ gaussdb=# CREATE OR REPLACE PROCEDURE TRANSACTION_EXAMPLE6()
+AS
+CURSOR CURSOR1(EXPIN INT)
+IS SELECT TRANSACTION_EXAMPLE5(EXPIN);
+INTEXP INT;
+BEGIN
+    FOR i IN 0..20 LOOP
+        OPEN CURSOR1(i);
+        FETCH CURSOR1 INTO INTEXP;
+        INSERT INTO EXAMPLE1(COL1) VALUES (INTEXP);
+        IF i % 2 = 0 THEN
+            COMMIT;
+        ELSE
+            ROLLBACK;
+        END IF;
+        CLOSE CURSOR1;
+    END LOOP;
+END; 
+/ gaussdb=# CALL TRANSACTION_EXAMPLE6(); ERROR:  Can not commit/rollback if it's atomic is true: transaction statement in store procedure used as cursor is not supported CONTEXT:  PL/pgSQL function transaction_example5(integer) line 4 at COMMIT referenced column: transaction_example5 PL/pgSQL function transaction_example6() line 8 at FETCH 不支持CURSOR/EXECUTE语句，以及各类表达式内调用COMMIT/ROLLBACK。 gaussdb=# CREATE OR REPLACE PROCEDURE exec_func1()
+AS
+BEGIN
+    CREATE TABLE TEST_exec(A INT);
+COMMIT;
+END;
+/ gaussdb=# CREATE OR REPLACE PROCEDURE exec_func2()
+AS
+BEGIN
+EXECUTE exec_func1();
+COMMIT;
+END;
+/ gaussdb=# CALL exec_func2(); NOTICE:  The 'DISTRIBUTE BY' clause is not specified. Using 'a' as the distribution column by default. HINT:  Please use 'DISTRIBUTE BY' clause to specify suitable data distribution column. CONTEXT:  SQL statement "CREATE TABLE TEST_exec(A INT)" PL/pgSQL function exec_func1() line 3 at SQL statement PL/pgSQL function exec_func2() line 3 at EXECUTE statement ERROR:  Can not commit/rollback if it's atomic is true: transaction statement in store procedure used as a expression is not supported CONTEXT:  PL/pgSQL function exec_func1() line 4 at COMMIT PL/pgSQL function exec_func2() line 3 at EXECUTE statement 不支持存储过程返回值与表达式计算。 gaussdb=# CREATE OR REPLACE PROCEDURE exec_func3(RET_NUM OUT INT)
+AS
+BEGIN
+    RET_NUM := 1+1;
+COMMIT;
+END;
+/ gaussdb=# CREATE OR REPLACE PROCEDURE exec_func4(ADD_NUM IN INT)
+AS
+SUM_NUM INT;
+BEGIN
+SUM_NUM := ADD_NUM + exec_func3();
+COMMIT;
+END;
+/ gaussdb=# CALL exec_func4(1); ERROR:  Can not commit/rollback if it's atomic is true: transaction statement in store procedure used as a expression is not supported CONTEXT:  PL/pgSQL function exec_func3() line 4 at COMMIT PL/pgSQL function exec_func4(integer) line 4 at assignment 不支持存储过程中释放存储过程外部定义的保存点。 gaussdb=# CREATE OR REPLACE PROCEDURE STP_SAVEPOINT_EXAMPLE3()
+AS
+BEGIN
+    INSERT INTO EXAMPLE1 VALUES(2);
+    RELEASE SAVEPOINT s1;  -- 释放存储过程外部定义的保存点
+    INSERT INTO EXAMPLE1 VALUES(3);
+END;
+/ gaussdb=# BEGIN;
+INSERT INTO EXAMPLE1 VALUES(1);
+SAVEPOINT s1;
+CALL STP_SAVEPOINT_EXAMPLE3();
+COMMIT; ERROR:  cannot release outer savepoint CONTEXT:  PL/pgSQL function stp_savepoint_example3() line 4 at RELEASE SAVEPOINT 父主题： 存储过程 版权所有 © 华为技术有限公司

@@ -1,0 +1,1 @@
+事务管理 事务管理 在ecpg缺省模式下，语句只有在EXEC SQL COMMIT发出的时候才被提交，嵌入的SQL接口也支持事务的自动提交（通过EXEC SQL SET AUTOCOMMIT TO ON语句设置自动提交）。在自动提交模式下，每条命令都是自动提交的，除非它们包围在一个明确的事务块里。自动提交模式可以用EXEC SQL SET AUTOCOMMIT TO OFF语句关闭。 常见事务管理命令如下： EXEC SQL COMMIT：提交正在进行的事务。 EXEC SQL ROLLBACK：回滚正在进行的事务。 EXEC SQL SET AUTOCOMMIT TO ON：启动自动提交模式。 EXEC SQL SET AUTOCOMMIT TO OFF：关闭自动提交模式，缺省模式。 父主题： 执行SQL命令 版权所有 © 华为技术有限公司

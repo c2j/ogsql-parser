@@ -1,0 +1,35 @@
+执行SQL语句 执行SQL语句 执行普通SQL语句 应用程序通过执行SQL语句来操作数据库的数据（不用传递参数的语句），需要按以下步骤执行： 支持对XML类型数据进行SELECT、UPDATE、INSERT、DELETE等操作。 调用Connection的createStatement方法创建语句对象。 1
+2
+3
+4
+5
+6 // 认证用的用户名和密码直接写到代码中有很大的安全风险，建议在配置文件或者环境变量中存放(密码应密文存放，使用时解密)，确保安全； // 本示例以用户名和密码保存在环境变量中为例，运行本示例前请先在本地环境中设置环境变量(环境变量名称请根据自身情况进行设置)EXAMPLE_USERNAME_ENV和EXAMPLE_PASSWORD_ENV。 String userName = System . getenv ( "EXAMPLE_USERNAME_ENV" ); String password = System . getenv ( "EXAMPLE_PASSWORD_ENV" ); Connection conn = DriverManager . getConnection ( "url" , userName , password ); Statement stmt = conn . createStatement (); 调用Statement的executeUpdate方法执行SQL语句。 1 int rc = stmt . executeUpdate ( "CREATE TABLE customer_t1(c_customer_sk INTEGER, c_customer_name VARCHAR(32));" ); 数据库中收到的一次执行请求（不在事务块中），如果含有多条语句，将会被打包成一个事务，事务块中不支持vacuum操作。如果其中有一个语句失败，那么整个请求都将会被回滚。 使用Statement执行多语句时应以“;”作为各语句间的分隔符，存储过程、函数、匿名块不支持多语句执行，当preferQueryMode=simple，语句执行不走解析逻辑，此场景下无法使用";"作为多语句间的分隔符。 “/”可用作创建单个存储过程、函数、匿名块、包体的结束符。当preferQueryMode=simple，语句执行不走解析逻辑，此场景下无法使用"/"作为结束符。 在prepareThreshold=1时，因为preferQueryMode默认模式不对statement进行缓存淘汰，所以statement执行的每条SQL都会缓存语句，可能导致内存膨胀。需要调整preferQueryMode=extendedCacheEverything，对statement进行缓存淘汰。 关闭语句对象。 1 stmt . close (); 执行预编译SQL语句 预编译语句是只编译和优化一次，然后可以通过设置不同的参数值多次使用。由于已经预先编译好，后续使用会减少执行时间。因此，如果多次执行一条语句，请选择使用预编译语句。可以按以下步骤执行： 调用Connection的prepareStatement方法创建预编译语句对象。 1 PreparedStatement pstmt = con . prepareStatement ( "UPDATE customer_t1 SET c_customer_name = ? WHERE c_customer_sk = 1" ); 调用PreparedStatement的setShort设置参数。 1 pstmt . setShort ( 1 , ( short ) 2 ); PrepareStatement设置绑定参数后，最终会构建成一个B报文或U报文，在下一步执行SQL语句时发给服务端。但是B报文或U报文有最大长度限制（不能超过1023MB），如果一次绑定数据过大，可能因报文过长导致异常。因此PrepareStatement设置绑定参数时需要注意评估和控制绑定数据的大小，避免出现超出报文上限要求的现象。 调用PreparedStatement的executeUpdate方法执行预编译SQL语句。 1 int rowcount = pstmt . executeUpdate (); 调用PreparedStatement的close方法关闭预编译语句对象。 1 pstmt . close (); 调用存储过程 GaussDB 支持通过JDBC直接调用事先创建的存储过程，步骤如下： 调用Connection的prepareCall方法创建调用语句对象。 1
+2
+3
+4
+5
+6 // 认证用的用户名和密码直接写到代码中有很大的安全风险，建议在配置文件或者环境变量中存放(密码应密文存放，使用时解密)，确保安全； // 本示例以用户名和密码保存在环境变量中为例，运行本示例前请先在本地环境中设置环境变量(环境变量名称请根据自身情况进行设置)EXAMPLE_USERNAME_ENV和EXAMPLE_PASSWORD_ENV。 String userName = System . getenv ( "EXAMPLE_USERNAME_ENV" ); String password = System . getenv ( "EXAMPLE_PASSWORD_ENV" ); Connection myConn = DriverManager . getConnection ( "url" , userName , password ); CallableStatement cstmt = myConn . prepareCall ( "{? = CALL TESTPROC(?,?,?)}" ); 调用CallableStatement的setInt方法设置参数。 1
+2
+3 cstmt . setInt ( 2 , 50 ); cstmt . setInt ( 1 , 20 ); cstmt . setInt ( 3 , 90 ); 调用CallableStatement的registerOutParameter方法注册输出参数。 1 cstmt . registerOutParameter ( 4 , Types . INTEGER ); //注册out类型的参数，类型为整型。 调用CallableStatement的execute执行方法调用。 1 cstmt . execute (); 调用CallableStatement的getInt方法获取输出参数。 1 int out = cstmt . getInt ( 4 ); //获取out参数 示例： 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12 // 在数据库中已创建了如下存储过程，它带有 out 参数。 create or replace procedure testproc ( psv_in1 in integer , psv_in2 in integer , psv_inout inout integer ) as begin psv_inout : = psv_in1 + psv_in2 + psv_inout ; end ; / 调用CallableStatement的close方法关闭调用语句。 1 cstmt . close (); 很多的数据库类如Connection、Statement和ResultSet都有close()方法，在使用完对象后应把它们关闭。要注意的是，Connection的关闭将间接关闭所有与它关联的Statement，Statement的关闭间接关闭了ResultSet。 一些JDBC驱动程序还提供命名参数的方法来设置参数。命名参数的方法允许根据名称而不是顺序来设置参数，若参数有默认值，则可以不用指定参数值就可以使用此参数的默认值。即使存储过程中参数的顺序发生了变更，也不必修改应用程序。目前 GaussDB 数据库的JDBC驱动程序不支持此方法。 GaussDB 数据库不支持带有输出参数的函数，也不支持存储过程和函数参数默认值。 myConn.prepareCall("{? = CALL TESTPROC(?,?,?)}")，执行存储过程绑定参数时，可以按照占位符的顺序绑定参数，注册第一个参数为出参，也可以按照存储过程中的参数顺序绑定参数，注册第四个参数为出参，上述用例为此场景，注册第四个参数为出参。 当游标作为存储过程的返回值时，如果使用JDBC调用该存储过程，返回的游标将不可用。 存储过程不能和普通SQL在同一条语句中执行。 存储过程中inout类型参数必需注册出参。 执行批处理 用一条预处理语句处理多条相似的数据，数据库只创建一次执行计划，节省了语句的编译和优化时间。可以按如下步骤执行： 调用Connection的prepareStatement方法创建预编译语句对象。 1
+2
+3
+4
+5
+6 // 认证用的用户名和密码直接写到代码中有很大的安全风险，建议在配置文件或者环境变量中存放(密码应密文存放，使用时解密)，确保安全； // 本示例以用户名和密码保存在环境变量中为例，运行本示例前请先在本地环境中设置环境变量(环境变量名称请根据自身情况进行设置)EXAMPLE_USERNAME_ENV和EXAMPLE_PASSWORD_ENV。 String userName = System . getenv ( "EXAMPLE_USERNAME_ENV" ); String password = System . getenv ( "EXAMPLE_PASSWORD_ENV" ); Connection conn = DriverManager . getConnection ( "url" , userName , password ); PreparedStatement pstmt = conn . prepareStatement ( "INSERT INTO customer_t1 VALUES (?)" ); 针对每条数据都要调用setShort设置参数，以及调用addBatch确认该条设置完毕。 1
+2 pstmt . setShort ( 1 , ( short ) 2 ); pstmt . addBatch (); 调用PreparedStatement的executeBatch方法执行批处理。 1 int [] rowcount = pstmt . executeBatch (); 调用PreparedStatement的close方法关闭预编译语句对象。 1 pstmt . close (); 在实际的批处理过程中，通常不终止批处理程序的执行，否则会降低数据库的性能。因此在批处理程序时，应该关闭自动提交功能，每几行提交一次。关闭自动提交功能的语句为：    conn.setAutoCommit(false); 在语句中添加单分片执行语法 设置nodeName参数，通过调用Connection对象的setClientInfo("nodeName","dnx")。 Connection conn = getConnection();
+conn.setClientInfo("nodeName","datanode1"); 执行SQL语句，其中包括使用Statement对象的executeQuery(String sql)和execute(String sql)以及PreparedStatement对象的executeQuery()和execute()方法。 PreparedStatement pstm = conn.prepareStatement("select * from test");
+pstm.execute();
+pstm.executeQuery(); Statement stmt=conn.createStatement();
+stmt.execute("select * from test");
+stmt.executeQuery("select * from test"); 关闭参数，将参数值设置为空字符串。 conn.setClientInfo("nodeName",""); 该功能基于内核单分片执行功能进行的适配，所以使用前请确认使用的数据库内核是否支持单分片执行。 参数开启后一定要手动关闭参数，否则会对其他查询语句的执行产生影响。 参数一旦开启，当前连接所有的语句执行都会受到影响，到指定的dn上面去执行。 参数开启后PreparedStatement对象的缓存机制会受到影响，已经缓存的语句会被清空，之后执行的带单分片查询的语句都不再缓存，直到参数关闭后缓存功能恢复。 参数为连接级参数，所以在同一时间只有一个参数会生效，无法通过此接口做到同一时间两条语句到不同的分片上去执行。 父主题： 基于JDBC开发 版权所有 © 华为技术有限公司

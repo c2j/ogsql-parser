@@ -1,0 +1,10 @@
+比较两个参数组模板之间的差异 比较两个参数组模板之间的差异 功能介绍 获取两个参数配置模板的差异列表。 调用接口前，您需要提前 获取终端节点 ，即下文中的Endpoint值。 URI URI格式 POST https://{ Endpoint }/gaussdb/v3/{project_id}/configurations/comparison URI样例 https://gaussdb.sa-fb-2.hcsglobal.com/v3/0483b6b16e954cb88930a360d2c4e663/configurations/comparison 参数说明 表1 参数说明 名称 是否必选 说明 project_id 是 租户在某一region下的project ID。 获取方法请参见 获取项目ID/名称 。 请求消息 参数说明 表2 参数说明 名称 是否必选 参数类型 说明 source_id 是 String 需要进行比较的参数组模板ID。 target_id 是 String 需要进行比较的参数组模板ID。 请求示例 查询两个参数组模板的差异列表。 {
+  "source_id" : "3e9f722f27c9477089bdf576b33f9d8epr14", 
+  "target_id" : "a51fcdde022a4ea8a016a3c4671644f4pr14"
+} 响应消息 正常响应要素说明 表3 参数说明 参数 参数类型 描述 differences Array of objects 参数组之间的差异集合。 详情请参见 表 differences字段数据结构说明 表4 differences字段数据结构说明 参数 参数类型 描述 name String 参数名称。 source_value String 比较参数组的参数值。 target_value String 目标参数组的参数值。 正常响应样例 {
+  "differences" : [ { 
+    "name" : "audit_system_object", 
+    "source_value" : "12289", 
+    "target_value" : "12295" 
+  } ]
+} 异常响应 请参见 异常请求结果 。 状态码 正常 200 异常 请参见 状态码 。 错误码 请参见 错误码 。 父主题： 参数配置 版权所有 © 华为技术有限公司

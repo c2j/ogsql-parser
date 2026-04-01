@@ -1,0 +1,2 @@
+DROP FOREIGN TABLE DROP FOREIGN TABLE 功能描述 删除指定的外表。 注意事项 DROP FOREIGN TABLE会强制删除指定的表，删除表后，依赖该表的索引会被删除，因此引用该表的函数和存储过程将无法执行。 语法格式 DROP FOREIGN TABLE [ IF EXISTS ] 
+    table_name [, ...] [ CASCADE | RESTRICT ]; 参数说明 IF EXISTS 如果指定的表不存在，则发出一个notice而不是抛出一个错误。 table_name 表名称。 取值范围：已存在的表名。 CASCADE | RESTRICT CASCADE：级联删除依赖于表的对象（比如视图）。 RESTRICT：如果存在依赖对象，则拒绝删除该表。此选项为缺省值。 示例 请参考CREATE FOREIGN TABLE的 8.12.8.22-示例 。 相关链接 ALTER FOREIGN TABLE ， CREATE FOREIGN TABLE 父主题： D 版权所有 © 华为技术有限公司

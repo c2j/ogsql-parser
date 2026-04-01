@@ -1,0 +1,1 @@
+数据库执行语句函数 数据库执行语句函数 与数据库服务器的连接成功建立，便可以使用这里描述的函数执行SQL查询和命令。 PQclear PQexec PQexecParams PQexecParamsBatch PQexecPrepared PQexecPreparedBatch PQfname PQgetvalue PQnfields PQntuples PQprepare PQresultStatus 父主题： libpq接口参考 版权所有 © 华为技术有限公司

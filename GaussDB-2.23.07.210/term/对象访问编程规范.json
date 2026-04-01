@@ -1,0 +1,26 @@
+{
+  "topic": "对象访问编程规范",
+  "term_count": 4,
+  "terms": [
+    {
+      "term": "【规则】访问对象（表，函数等）时建议带上SCHEMA名称，即使用schemaname.tablename进行访问",
+      "content": "【规则】访问对象（表，函数等）时建议带上SCHEMA名称，即使用schemaname.tablename进行访问 【规则】访问对象（表，函数等）时建议带上SCHEMA名称，即使用schemaname.tablename进行访问 如果不追加SCHEMA名称前缀，会根据当前search_path中表空间列表，依次搜索所有表空间直到找到匹配的表作为目标表，带来不必要的性能开销。",
+      "source_file": "661_SCHEMAschemaname.tablename.txt"
+    },
+    {
+      "term": "【规则】访问对象（表，函数等）时建议带上SCHEMA名称，即使用schemaname.tablename进行访问",
+      "content": "【规则】访问对象（表，函数等）时建议带上SCHEMA名称，即使用schemaname.tablename进行访问 【规则】访问对象（表，函数等）时建议带上SCHEMA名称，即使用schemaname.tablename进行访问 如果不追加SCHEMA名称前缀，会根据当前search_path中表空间列表，依次搜索所有表空间直到找到匹配的表作为目标表，带来不必要的性能开销。",
+      "source_file": "519_SCHEMAschemaname.tablename.txt"
+    },
+    {
+      "term": "【规则】用户对对象进行操作时，应对该对象拥有操作权限",
+      "content": "【规则】用户对对象进行操作时，应对该对象拥有操作权限 【规则】用户对对象进行操作时，应对该对象拥有操作权限 权限说明请参考《开发者指南》中的“数据库安全 > 用户及权限”章节，并遵循 权限设计规范 。",
+      "source_file": "518_file_518.txt"
+    },
+    {
+      "term": "【规则】用户对对象进行操作时，应对该对象拥有操作权限",
+      "content": "【规则】用户对对象进行操作时，应对该对象拥有操作权限 【规则】用户对对象进行操作时，应对该对象拥有操作权限 权限说明请参考《开发者指南》中的“数据库安全 > 用户及权限”章节，并遵循 权限设计规范 。",
+      "source_file": "660_file_660.txt"
+    }
+  ]
+}

@@ -1,0 +1,1 @@
+DBE_PLDEBUGGER.delete_breakpoint DBE_PLDEBUGGER.delete_breakpoint debug端调试过程中，调用delete_breakpoint删除已有的断点。 表1 delete_breakpoint入参和返回值列表 名称 类型 描述 breakpointno IN integer 断点编号 result OUT bool 是否成功 父主题： DBE_PLDEBUGGER Schema 版权所有 © 华为技术有限公司

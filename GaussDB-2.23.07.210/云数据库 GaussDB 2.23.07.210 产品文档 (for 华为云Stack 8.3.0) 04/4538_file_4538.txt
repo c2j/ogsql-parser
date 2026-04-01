@@ -1,0 +1,19 @@
+列表分区 列表分区 列表分区（List Partition）能够通过在每个分区的描述中为分区键指定离散值列表来显式控制行如何映射到分区。列表分区的优势在于可以以枚举分区值方式对数据进行分区，可以对无序和不相关的数据集进行分组和组织。对于未定义在列表中的分区键值，可以使用默认分区（DEFAULT）来进行数据的保存，这样所有未映射到任何其他分区的行都不会生成错误。示例如下： CREATE TABLE bmsql_order_line (
+    ol_w_id          INTEGER   NOT NULL,
+    ol_d_id          INTEGER   NOT NULL,
+    ol_o_id          INTEGER   NOT NULL,
+    ol_number        INTEGER   NOT NULL,
+    ol_i_id          INTEGER   NOT NULL,
+    ol_delivery_d    TIMESTAMP,
+    ol_amount        DECIMAL(6,2),
+    ol_supply_w_id   INTEGER,
+    ol_quantity      INTEGER,
+    ol_dist_info     CHAR(24)
+)
+PARTITION BY LIST(ol_d_id)
+(
+    PARTITION p0 VALUES (1,4,7),
+    PARTITION p1 VALUES (2,5,8),
+    PARTITION p2 VALUES (3,6,9),
+    PARTITION p3 VALUES (DEFAULT)
+); 上述例子和之前给出的哈希分区的例子类似，同样通过ol_d_id列进行分区，但是在List分区中直接通过对ol_d_id的可能取值范围进行限定，不在列表中的数据会进入p3分区（DEFAULT）。相比哈希分区，List列表分区对分区键的可控性更好，往往能够准确的将目标数据保存在预想的分区中，但是如果列表值较多时在分区定义时变得麻烦，该情况下推荐使用Hash哈希分区。List、Hash分区往往都是处理无序、不相关的数据集进行分组和组织。 列表分区的分区键最多支持16列。如果分区键定义为1列，子分区定义时List列表中的枚举值不允许为NULL值；如果分区键定义为多列，子分区定义时List列表中的枚举值允许有NULL值。 父主题： 分区策略 版权所有 © 华为技术有限公司

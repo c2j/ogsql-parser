@@ -1,0 +1,13 @@
+CREATE DATABASE LINK CREATE DATABASE LINK 功能描述 创建DATABASE LINK对象。DATABASE LINK详细说明请见 DATABASE LINK 。 注意事项 禁止使用DATABASE LINK连接初始用户。 禁止初始用户创建、修改和删除DATABASE LINK对象。 升级未提交情况下无法创建使用DATABASE LINK。 当使用CURRENT_USER或CONNECT TO连接串省略时，使用当前数据库初始用户名和空密码连接，使用时会连接失败。 语法格式 --创建dblink
+CREATE [ PUBLIC ] DATABASE LINK dblink
+  [ CONNECT TO { CURRENT_USER | 'user' IDENTIFIED BY 'password' } ] [ USING ( option 'value' [...]) ]; 参数说明 PUBLIC 指定公共以创建对所有用户可见的公共数据库链接。如果省略此子句，则数据库链接是私有的，仅对当前用户可用。 dblink 要创建的DATABASE LINK的名字。 user 创建的DATABASE LINK连接远端使用的用户名。 password 创建的DATABASE LINK连接远端使用的用户对应的密码。 CURRENT_USER 使用当前数据库初始用户名和空密码连接。 USING  ( option 'value' [, ... ] ) USING可选择指定要连接的数据库的ip地址、端口号、远端的database name等参数 ，支持的options包括： host：指定连接的地址，不支持ipv6地址。支持以 ‘,’分割的字符串来指定多个IP地址，当前不支持密态数据库和ssl设置和证书认证，不指定默认为空。 port：指定连接的端口号，不指定默认为5432。 dbname：指定连接的数据库名称，不指定默认为连接远端使用的用户名。 fetch_size：从远端每次获取数据量大小，fetch_size取值为0到2147483647，默认为100。 USING后的括号可以只选择上述关键字中的一部分去写。 USING关键字也可以不写，同时之后的括号也不要再写。 DATABASE LINK创建的时候不会去验证是否能连接成功，如果缺乏相关的关键字，可能会在使用时报错。 示例 --创建拥有系统管理员权限的用户 gaussdb=# CREATE USER user01 WITH SYSADMIN PASSWORD '********'; gaussdb=# SET ROLE user01 PASSWORD '********';
+
+--创建私有dblink gaussdb=# CREATE DATABASE LINK private_dblink CONNECT TO 'user1' IDENTIFIED BY '********' USING (host '192.168.11.11',port '54399',dbname 'db01');
+
+--删除私有dblink gaussdb=# DROP DATABASE LINK private_dblink;
+
+--创建公共dblink gaussdb=# CREATE PUBLIC DATABASE LINK public_dblink CONNECT TO 'user1' IDENTIFIED BY '********' USING (host '192.168.11.11',port '54399',dbname 'db01');
+
+--删除公共dblink gaussdb=# DROP PUBLIC DATABASE LINK public_dblink;
+
+--删除创建出的用户 gaussdb=# RESET ROLE; gaussdb=# DROP USER user01 CASCADE; 相关链接 ALTER DATABASE LINK ， DROP DATABASE LINK 父主题： C 版权所有 © 华为技术有限公司

@@ -1,0 +1,26 @@
+CREATE VIEW CREATE VIEW 功能描述 创建一个视图。视图与基本表不同，是一个虚拟的表。数据库中仅存放视图的定义，而不存放视图对应的数据，这些数据仍存放在原来的基本表中。若基本表中的数据发生变化，从视图中查询出的数据也随之改变。从这个意义上讲，视图就像一个窗口，透过它可以看到数据库中用户感兴趣的数据及变化。 将经常使用的数据定义为视图，可以将复杂的查询SQL语句进行封装。简化操作。 安全性，用户只能查询视图定义的数据。隐藏基表字段，保护数据库的数据结构。 简化用户权限的管理，只授予用户使用视图的权限。 注意事项 被授予CREATE ANY TABLE权限的用户，可以在public模式和用户模式下创建视图。 语法格式 CREATE [ OR REPLACE ] [ TEMP | TEMPORARY ] VIEW view_name [ ( column_name [, ...] ) ]
+    [ WITH ( {view_option_name [= view_option_value]} [, ... ] ) ]
+    AS query; 创建视图时使用WITH(security_barrier)可以创建一个相对安全的视图，避免攻击者利用低成本函数的RAISE语句打印出隐藏的基表数据。 当视图创建后，不允许使用REPLACE修改本视图当中的列名，也不允许删除列。 参数说明 OR REPLACE 可选。如果视图已存在，则重新定义。 TEMP | TEMPORARY 可选。创建一个临时视图。在当前会话结束时会自动删除掉视图。如果视图引用的任何表是临时表，视图将被创建为临时视图（不管SQL中有没有指定TEMP|TEMPORARY）。 view_name 要创建的视图名称。可以用模式修饰。 取值范围：字符串，符合 标识符命名规范 。 column_name 可选的名称列表，用作视图的字段名。如果没有给出，字段名取自查询中的字段名。 取值范围：字符串，符合 标识符命名规范 。 view_option_name [= view_option_value] 该子句为视图指定一个可选的参数。 目前view_option_name支持的参数仅有security_barrier，当VIEW试图提供行级安全时，应使用该参数。 取值范围： Boolean 类型，TRUE、FALSE query 为视图提供行和列的SELECT或VALUES语句。 若query包含指定分区表分区的子句，创建视图会将所指定分区的OID硬编码到系统表中。如果使用导致指定分区的OID发生变更的分区DDL语法，如DROP/SPLIT/MERGE该分区，则会导致视图不可用。需要重新创建视图。 示例 普通视图 --创建test_tb1表,并向表中插入100条数据。 gaussdb=# CREATE TABLE test_tb1(col1 int, col2 int); gaussdb=# INSERT INTO test_tb1 VALUES (generate_series(1,100),generate_series(1,100));
+--创建一个col1小于5的视图。 gaussdb=# CREATE VIEW test_v1 AS SELECT * FROM test_tb1 WHERE col1 < 3;
+--查看视图。 gaussdb=# SELECT * FROM test_v1;
+ col1 | col2 
+------+------
+    1 |    1
+    2 |    2
+(2 rows)
+
+--删除表和视图。 gaussdb=# DROP VIEW test_v1; gaussdb=# DROP TABLE test_tb1; 临时视图 --创建表和临时视图。 gaussdb=# CREATE TABLE test_tb2(c1 int, c2 int); gaussdb=# CREATE TEMP VIEW test_v2 AS SELECT * FROM test_tb2;
+--查看表和视图信息（临时表所属模式不是public，而是以pg_temp开头的模式）。 gaussdb=# \d
+                                             List of relations
+          Schema          |   Name   | Type  | Owner |                       Storage                        
+--------------------------+----------+-------+-------+------------------------------------------------------
+ pg_temp_dn_6001_1_1_9473 | test_v2  | view  | omm   | 
+ public                   | test_tb2 | table | omm   | {orientation=row,compression=no,storage_type=USTORE}
+(2 rows)
+--退出当前会话重新登录后，再次查看临时视图已经被删除。 gaussdb=# \d List of relations
+ Schema |   Name   | Type  | Owner |                       Storage                        
+--------+----------+-------+-------+------------------------------------------------------
+ public | test_tb2 | table | omm   | {orientation=row,compression=no,storage_type=USTORE}
+(1 row)
+
+--删除视图和表。 gaussdb=# DROP VIEW test_v2 ; gaussdb=# DROP TABLE test_tb2; 相关链接 ALTER VIEW ， DROP VIEW 父主题： C 版权所有 © 华为技术有限公司

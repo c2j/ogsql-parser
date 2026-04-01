@@ -1,0 +1,1 @@
+DBE_PLDEBUGGER.backtrace DBE_PLDEBUGGER.backtrace server端因为存储过程报错断住，可以在debug端调用error_backtrace，查看当前的函数调用堆栈（限制报错断住时使用）。 表1 error_backtrace返回值列表 名称 类型 描述 frameno OUT integer 调用栈编号。 funcname OUT text 函数名。 lineno OUT integer 行号。 query OUT text 断点内容。 funcoid OUT oid 函数oid。 父主题： DBE_PLDEBUGGER Schema 版权所有 © 华为技术有限公司

@@ -1,0 +1,68 @@
+闪回表 闪回表 背景信息 闪回表可以将表恢复至特定时间点，当逻辑损坏仅限于一个或一组表，而不是整个数据库时，此特性可以快速恢复表的数据。闪回表基于MVCC多版本机制，通过删除指定时间点和该时间点之后的增量数据，并找回指定时间点和当前时间点删除的数据，实现表级数据还原。 前提条件 整体方案分为三部分：旧版本保留、快照的维护和旧版本检索。旧版本保留：新增undo_retention_time配置参数，用来设置旧版本保留的时间，超过该时间的旧版本将被回收清理，请联系管理员修改。 语法 TIMECAPSULE TABLE table_name TO { TIMESTAMP | CSN } expression 使用示例 gaussdb=# drop TABLE IF EXISTS "public".flashtest;
+NOTICE:  table "flashtest" does not exist, skipping
+DROP TABLE
+--创建表flashtest
+gaussdb=# CREATE TABLE "public".flashtest (col1 INT,col2 TEXT) with(storage_type=ustore);
+CREATE TABLE
+--查询csn
+gaussdb=# select int8in(xidout(next_csn)) from gs_get_next_xid_csn();
+  int8in  
+----------
+ 79352065
+(1 rows)
+--查询当前时间戳
+gaussdb=# select now();
+              now              
+-------------------------------
+ 2023-09-13 19:46:34.102863+08
+(1 row)
+gaussdb=# SELECT * FROM flashtest;
+ col1 | col2 
+------+------
+(0 rows) --插入数据
+gaussdb=# INSERT INTO flashtest VALUES(1,'INSERT1'),(2,'INSERT2'),(3,'INSERT3'),(4,'INSERT4'),(5,'INSERT5'),(6,'INSERT6');
+INSERT 0 6
+gaussdb=# SELECT * FROM flashtest;
+ col1 |  col2   
+------+---------
+    3 | INSERT3
+    6 | INSERT6
+    1 | INSERT1
+    2 | INSERT2
+    4 | INSERT4
+    5 | INSERT5
+(6 rows)
+--闪回表至特定的时间戳
+gaussdb=# TIMECAPSULE TABLE flashtest TO TIMESTAMP to_timestamp ('2023-09-13 19:52:21.551028', 'YYYY-MM-DD HH24:MI:SS.FF');
+TimeCapsule Table
+gaussdb=# SELECT * FROM flashtest;
+ col1 | col2 
+------+------
+(0 rows)
+gaussdb=# select now();
+              now              
+-------------------------------
+ 2023-09-13 19:54:00.641506+08
+(1 row)
+--插入数据
+gaussdb=# INSERT INTO flashtest VALUES(1,'INSERT1'),(2,'INSERT2'),(3,'INSERT3'),(4,'INSERT4'),(5,'INSERT5'),(6,'INSERT6');
+INSERT 0 6
+gaussdb=# SELECT * FROM flashtest;
+ col1 |  col2   
+------+---------
+    3 | INSERT3
+    6 | INSERT6
+    1 | INSERT1
+    2 | INSERT2
+    4 | INSERT4
+    5 | INSERT5
+(6 rows)
+--闪回表至特定的时间戳
+gaussdb=# TIMECAPSULE TABLE flashtest TO TIMESTAMP '2023-09-13 19:54:00.641506';
+TimeCapsule Table
+gaussdb=# SELECT * FROM flashtest;
+ col1 | col2 
+------+------
+(0 rows)
+gaussdb=# drop TABLE IF EXISTS "public".flashtest;
+DROP TABLE 父主题： 闪回恢复 版权所有 © 华为技术有限公司

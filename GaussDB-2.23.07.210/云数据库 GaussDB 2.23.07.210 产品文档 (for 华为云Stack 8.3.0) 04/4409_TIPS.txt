@@ -1,0 +1,163 @@
+运维TIPS 运维TIPS 手动触发一次压缩（示例中一次压缩102400MB）。 给表加上冷热分离策略： gaussdb=# DROP TABLE IF EXISTS ILM_TABLE; gaussdb=# CREATE TABLE ILM_TABLE(a int); gaussdb=# ALTER TABLE ILM_TABLE ILM ADD POLICY ROW STORE COMPRESS ADVANCED
+    ROW AFTER 3 MONTHS OF NO MODIFICATION; 手动触发压缩： DECLARE
+  v_taskid number;
+BEGIN
+  DBE_ILM_ADMIN.CUSTOMIZE_ILM(11, 1);
+DBE_ILM_ADMIN.CUSTOMIZE_ILM(13, 102400);
+  DBE_ILM.EXECUTE_ILM(OWNER        => '$schema_name',
+                    OBJECT_NAME    => 'ilm_table',
+                    TASK_ID        => v_taskid,
+                    SUBOBJECT_NAME => NULL,
+                    POLICY_NAME    => 'ALL POLICIES',
+                    EXECUTION_MODE => 2);
+  RAISE INFO 'Task ID is:%', v_taskid;
+END;
+/ 查看压缩JOB是否完成，可以看到具体的执行信息： gaussdb=# SELECT * FROM gs_adm_ilmresults ORDER BY task_id desc;
+
+ task_id |                 job_name                 |     start_time      |   completion_time   |                       statistics                       
+---------+------------------------------------------+---------------------+---------------------+--------------------------------------------------------
+   17267 | ilmjob$_2 | 2023-03-29 08:11:25 | 2023-03-29 08:11:25 | SpaceSaving=453048,BoundTime=1680145883,LastBlkNum=128 手动停止压缩。 gaussdb=# DBE_ILM.STOP_ILM (task_id => V_TASK, p_drop_running_Jobs => FALSE, p_Jobname => V_JOBNAME); 表1 DBE_ILM.STOP_ILM输入参数 名称 描述 task_id 指定待停止ADO task的描述符ID。 p_drop_running_Jobs 标识是否停止正在运行的JOB。 p_Jobname 标识待停止的特定JobName，通过GS_MY_ILMEVALUATIONDETAILS视图可以查询。 为表生成策略及后台调度压缩任务。 给表加上冷热分离策略： gaussdb=# DROP TABLE IF EXISTS ILM_TABLE; gaussdb=# CREATE TABLE ILM_TABLE(a int); gaussdb=# ALTER TABLE ILM_TABLE ILM ADD POLICY ROW STORE COMPRESS ADVANCED
+    ROW AFTER 3 MONTHS OF NO MODIFICATION; 设置ILM执行相关参数： BEGIN
+  DBE_ILM_ADMIN.CUSTOMIZE_ILM(11, 1);
+  DBE_ILM_ADMIN.CUSTOMIZE_ILM(12, 10);
+  DBE_ILM_ADMIN.CUSTOMIZE_ILM(1, 1);
+  DBE_ILM_ADMIN.CUSTOMIZE_ILM(13, 512);
+END;
+/ 开启后台的定时调度： gaussdb=# CALL DBE_ILM_ADMIN.DISABLE_ILM(); gaussdb=# CALL DBE_ILM_ADMIN.ENABLE_ILM(); 用户可以根据需要，调用DBE_SCHEDULER.set_attribute设置后台维护窗口的开启时间。当前默认22:00开启。 设置ILM执行相关参数。 控制ADO的条件单位是天还是秒，秒仅用来做测试用。取值为：ILM_POLICY_IN_SECONDS = 1或ILM_POLICY_IN_DAYS = 0（默认值）： gaussdb=# CALL DBE_ILM_ADMIN.CUSTOMIZE_ILM(11, 1); 控制一次ADO Task最多生成多少个ADO Job。取值范围大于等于0小于等于2147483647的整数或浮点数，作用时向下取整： gaussdb=# CALL DBE_ILM_ADMIN.CUSTOMIZE_ILM(12, 10); ADO Task的执行频率，单位分钟，默认值15。取值范围大于等于1小于等于2147483647的整数或浮点数，作用时向下取整： gaussdb=# CALL DBE_ILM_ADMIN.CUSTOMIZE_ILM(1, 1); 控制单个ADO Job可以处理的最大字节数，单位兆。取值范围大于等于0小于等于2147483647的整数或浮点数，作用时向下取整： gaussdb=# CALL DBE_ILM_ADMIN.CUSTOMIZE_ILM(13, 512); 评估一张表是否适合压缩及评估压缩后带来多少收益。 gaussdb=# DBE_COMPRESSION.GET_COMPRESSION_RATIO (
+   scratchtbsname        IN     VARCHAR2, 
+   ownname               IN     VARCHAR2, 
+   objname               IN     VARCHAR2,
+   subobjname            IN     VARCHAR2,
+   comptype              IN     NUMBER,
+   blkcnt_cmp            OUT    PLS_INTEGER,
+   blkcnt_uncmp          OUT    PLS_INTEGER,
+   row_cmp               OUT    PLS_INTEGER,
+   row_uncmp             OUT    PLS_INTEGER,
+   cmp_ratio             OUT    NUMBER,
+   comptype_str          OUT    VARCHAR2,
+   sample_ratio    IN  INTEGER DEFAULT 20,
+   objtype               IN     PLS_INTEGER DEFAULT OBJTYPE_TABLE); 表2 DBE_COMPRESSION.GET_COMPRESSION_RATIO输入参数 名称 描述 scratchtbsname 数据所在空间名称。 ownname 数据对象的拥有者名称。 objname 数据对象名称。 subobjname 数据的分区名称，默认为NULL。 comptype 压缩类型：COMP_NOCOMPRESS和COMP_ADVANCED。 sample_ratio 采样比例，输入为0-100的整数或浮点数，对应为百分之N的采样比例。默认为20，即对20%的行数进行采样。 objtype 对象类型，本期支持的类型为`OBJTYPE_TABLE`。 表3 DBE_COMPRESSION.GET_COMPRESSION_RATIO输出参数 名称 描述 blkcnt_cmp 样本被压缩后占用的块数。 blkcnt_uncmp 样本未压缩占用的块数。 row_cmp 样本被压缩后单个块内可容纳的行数。 row_uncmp 样本未被压缩时单个数据块可容纳的行数。 cmp_ratio 压缩比，blkcnt_uncmp除以blkcnt_cmp。 comptype_str 描述压缩类型的字符串。 示例： 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27
+28
+29
+30
+31
+32
+33
+34
+35
+36
+37
+38
+39
+40
+41
+42
+43
+44 gaussdb =# ALTER DATABASE set ilm = on ; gaussdb =# CREATE user user1 IDENTIFIED BY '********' ; gaussdb =# CREATE user user2 IDENTIFIED BY '********' ; gaussdb =# SET ROLE user1 PASSWORD '********' ; gaussdb =# CREATE TABLE TEST_DATA ( ORDER_ID INT , GOODS_NAME TEXT , CREATE_TIME TIMESTAMP ) ILM ADD POLICY ROW STORE COMPRESS ADVANCED ROW AFTER 1 DAYS OF NO MODIFICATION ; INSERT INTO TEST_DATA VALUES ( 1 , '零食大礼包A' , NOW ()); DECLARE o_blkcnt_cmp integer ; o_blkcnt_uncmp integer ; o_row_cmp integer ; o_row_uncmp integer ; o_cmp_ratio number ; o_comptype_str varchar2 ; begin dbe_compression . get_compression_ratio ( SCRATCHTBSNAME => NULL , OWNNAME => 'user1' , OBJNAME => 'test_data' , SUBOBJNAME => NULL , COMPTYPE => 2 , BLKCNT_CMP => o_blkcnt_cmp , BLKCNT_UNCMP => o_blkcnt_uncmp , ROW_CMP => o_row_cmp , ROW_UNCMP => o_row_uncmp , CMP_RATIO => o_cmp_ratio , COMPTYPE_STR => o_comptype_str , SAMPLE_RATIO => 100 , OBJTYPE => 1 ); RAISE INFO 'Number of blocks used by the compressed sample of the object	    : %' , o_blkcnt_cmp ; RAISE INFO 'Number of blocks used by the uncompressed sample of the object	    : %' , o_blkcnt_uncmp ; RAISE INFO 'Number of rows in a block in compressed sample of the object	    : %' , o_row_cmp ; RAISE INFO 'Number of rows in a block in uncompressed sample of the object	    : %' , o_row_uncmp ; RAISE INFO 'Estimated Compression Ratio of Sample                       	    : %' , o_cmp_ratio ; RAISE INFO 'Compression Type							                        : %' , o_comptype_str ; end ; / INFO : Number of blocks used by the compressed sample of the object : 0 INFO : Number of blocks used by the uncompressed sample of the object : 0 INFO : Number of rows in a block in compressed sample of the object : 0 INFO : Number of rows in a block in uncompressed sample of the object : 0 INFO : Estimated Compression Ratio of Sample : 1 INFO : Compression Type : Compress Advanced 查询每一行的最后修改时间。 gaussdb=# DBE_HEAT_MAP.ROW_HEAT_MAP(
+ owner    IN VARCHAR2,
+ segment_name  IN VARCHAR2,
+ partition_name  IN VARCHAR2 DEFAULT NULL,
+ctid    IN  VARCHAR2,); 表4 DBE_HEAT_MAP.ROW_HEAT_MAP输入参数 名称 描述 owner 数据对象的所有者。 segment_name 数据对象名称。 partition_name 数据对象分区名称，可选参数。 ctid 目标行的ctid，即block_id或row_id。 表5 DBE_HEAT_MAP.ROW_HEAT_MAP输出参数 名称 描述 owner 数据对象的所有者。 segment_name 数据对象名称。 partition_name 数据对象分区名称，可选参数。 tablespace_name 数据所属的表空间名称。 file_id 行所属的绝对文件ID。 relative_fno 行所属的相对文件ID（ GaussDB 中无此逻辑，因此取值同上）。 ctid 行的ctid，即block_id或row_id。 writetime 行的最后修改时间。 示例： 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17 gaussdb =# ALTER DATABASE set ilm = on ; gaussdb =# CREATE Schema HEAT_MAP_DATA ; gaussdb =# SET current_schema = HEAT_MAP_DATA ; gaussdb =# CREATE TABLESPACE example1 RELATIVE LOCATION 'tablespace1' ; gaussdb =# CREATE TABLE HEAT_MAP_DATA . heat_map_table ( id INT , value TEXT ) TABLESPACE example1 ; gaussdb =# INSERT INTO HEAT_MAP_DATA . heat_map_table VALUES ( 1 , 'test_data_row_1' ); gaussdb =# SELECT * from DBE_HEAT_MAP . ROW_HEAT_MAP ( owner => 'heat_map_data' , segment_name => 'heat_map_table' , partition_name => NULL , ctid => '(0,1)' ); owner | segment_name | partition_name | tablespace_name | file_id | relative_fno | ctid | writetime ---------------+----------------+----------------+-----------------+---------+--------------+-------+----------- heat_map_data | heat_map_table | | example1 | 17291 | 17291 | ( 0 , 1 ) | ( 1 row ) 查询ILM调度与执行的相关环境参数。 gaussdb=# SELECT * FROM GS_ADM_ILMPARAMETERS;
+        name        | value 
+--------------------+-------
+ EXECUTION_INTERVAL |    15
+ RETENTION_TIME     |    30
+ ENABLED            |     1
+ POLICY_TIME        |     0
+ ABS_JOBLIMIT       |    10
+ JOB_SIZELIMIT      |   1024
+ WIND_DURATION      |   240
+ BLOCK_LIMITS       |    40
+ (8 rows) 查询ILM策略的概要信息，包含策略名称、类型、启用禁用状态、删除状态。 gaussdb=# SELECT * FROM GS_ADM_ILMPOLICIES;
+policy_name |  policy_type  | tablespace | enabled | deleted 
+-------------+---------------+------------+---------+---------
+ p1          | DATA MOVEMENT |            | YES     | NO gaussdb=# SELECT * FROM GS_MY_ILMPOLICIES;
+ policy_name |  policy_type  | tablespace | enabled | deleted 
+-------------+---------------+------------+---------+---------
+ p1          | DATA MOVEMENT |            | YES     | NO 查询ILM策略的数据移动概要信息，包含策略名称、动作类型、条件等。 gaussdb=# SELECT * FROM GS_ADM_ILMDATAMOVEMENTPOLICIES;
+ policy_name | action_type | scope | compression_level | tier_tablespace | tier_status |     condition_type     | condition_days | custom_function | policy_subtype | action_clause | tier_to 
+-------------+-------------+-------+-------------------+-----------------+-------------+------------------------+----------------+-----------------+----------------+---------------+---------
+ p1          | COMPRESSION | ROW   | ADVANCED          |                 |             | LAST MODIFICATION TIME |             90 |                 |                |               | gaussdb=# SELECT * FROM GS_MY_ILMDATAMOVEMENTPOLICIES;
+ policy_name | action_type | scope | compression_level | tier_tablespace | tier_status |     condition_type     | condition_days | custom_function | policy_subtype | action_clause | tier_to 
+-------------+-------------+-------+-------------------+-----------------+-------------+------------------------+----------------+-----------------+----------------+---------------+---------
+ p1          | COMPRESSION | ROW   | ADVANCED          |                 |             | LAST MODIFICATION TIME |             90 |                 |                |               | 
+(1 row) 查询所有存在ILM策略应用的数据对象与相应策略的概要信息，包含策略名称、数据对象名称、策略的来源、策略的启用删除状态。 gaussdb=# SELECT * FROM  GS_ADM_ILMOBJECTS;
+ policy_name | object_owner | object_name | subobject_name | object_type |    inherited_from    | tbs_inherited_from | enabled | deleted 
+-------------+--------------+-------------+----------------+-------------+----------------------+--------------------+---------+---------
+ p1          | public       | lineitem    |                | TABLE       | POLICY NOT INHERITED |                    | YES     | NO gaussdb=# SELECT * FROM  GS_MY_ILMOBJECTS;
+ policy_name | object_owner | object_name | subobject_name | object_type |    inherited_from    | tbs_inherited_from | enabled | deleted 
+-------------+--------------+-------------+----------------+-------------+----------------------+--------------------+---------+---------
+ p1          | public       | lineitem    |                | TABLE       | POLICY NOT INHERITED |                    | YES     | NO 查询ADO Task的概要信息，包含Task ID，Task Owner，状态以及时间信息。 gaussdb=# SELECT * FROM GS_ADM_ILMTASKS;
+ task_id | task_owner |   state   |         creation_time         |          start_time           |        completion_time        
+---------+------------+-----------+-------------------------------+-------------------------------+-------------------------------
+       1 | omm        | COMPLETED | 2023-10-16 12:03:55.113296+08 | 2023-10-16 12:03:55.113296+08 | 2023-10-16 12:03:56.326864+08
+(1 row) gaussdb=# SELECT * FROM GS_MY_ILMTASKS;
+ task_id | task_owner |   state   |         creation_time         |          start_time           |        completion_time        
+---------+------------+-----------+-------------------------------+-------------------------------+-------------------------------
+       1 | omm        | COMPLETED | 2023-10-16 12:03:55.113296+08 | 2023-10-16 12:03:55.113296+08 | 2023-10-16 12:03:56.326864+08
+(1 row) 查询ADO Task的评估详情信息，包含Task ID，策略信息、对象信息、评估结果以及ADO JOB名称。 gaussdb=# SELECT * FROM GS_ADM_ILMEVALUATIONDETAILS;
+ task_id | policy_name | object_owner | object_name | subobject_name | object_type | selected_for_execution |     job_name      | comments
+
+---------+-------------+--------------+-------------+----------------+-------------+------------------------+-------------------+---------
+-
+       1 | p2          | public       | ilm_table_1 |                | TABLE       | SELECTED FOR EXECUTION | ilmjob$_postgres1 | 
+(1 row) gaussdb=# SELECT * FROM GS_MY_ILMEVALUATIONDETAILS;
+ task_id | policy_name | object_owner | object_name | subobject_name | object_type | selected_for_execution |     job_name      | comments
+
+---------+-------------+--------------+-------------+----------------+-------------+------------------------+-------------------+---------
+-
+       1 | p2          | public       | ilm_table_1 |                | TABLE       | SELECTED FOR EXECUTION | ilmjob$_postgres1 | 
+(1 row) 查询ADO JOB的执行详情信息，包含Task ID，JOB名称、JOB状态、JOB时间信息等。 gaussdb=# SELECT * FROM GS_ADM_ILMRESULTS;
+ task_id |     job_name      |       job_state        |          start_time           |        completion_time        | comments |                    statistics                    
+---------+-------------------+------------------------+-------------------------------+-------------------------------+----------+--------------------------------------------------
+       1 | ilmjob$_postgres1 | COMPLETED SUCCESSFULLY | 2023-10-16 12:03:56.290176+08 | 2023-10-16 12:03:56.319829+08 |          | SpaceSaving=0,BoundTime=1697429033,LastBlkNum=40
+(1 row) gaussdb=# SELECT * FROM GS_MY_ILMRESULTS;
+ task_id | job_name | job_state | start_time | completion_time | comments | statistics 
+---------+----------+-----------+------------+-----------------+----------+------------
+(0 rows)
+ task_id |     job_name      |       job_state        |          start_time           |        completion_time        | comments |                    statistics                    
+---------+-------------------+------------------------+-------------------------------+-------------------------------+----------+--------------------------------------------------
+       1 | ilmjob$_postgres1 | COMPLETED SUCCESSFULLY | 2023-10-16 12:03:56.290176+08 | 2023-10-16 12:03:56.319829+08 |          | SpaceSaving=0,BoundTime=1697429033,LastBlkNum=40
+(1 row) 父主题： 数据生命周期管理-OLTP表压缩 版权所有 © 华为技术有限公司

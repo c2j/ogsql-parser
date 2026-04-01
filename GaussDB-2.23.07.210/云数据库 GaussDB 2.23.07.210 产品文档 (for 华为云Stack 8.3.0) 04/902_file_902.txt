@@ -1,0 +1,30 @@
+管理连接 管理连接 嵌入式SQL程序中的SQL语句默认是在当前连接（也就是最近打开的那一个）上执行。如果一个应用需要管理多个连接，那么有以下两种方法。 方法1：为每个SQL语句明确选择一个连接： EXEC SQL AT connection-name SELECT ...; 适合于应用程序需以混合顺序使用多个连接的情况。 如果应用程序创建多个执行线程，它们不能共享同一个连接，必须明确控制对连接的访问（利用互斥量）或者每个线程使用一个唯一连接。 方法2：执行一个语句来切换连接： EXEC SQL SET CONNECTION connection-name; 适用于许多语句在同一个连接上执行的情况。 管理连接示例如下： #include <stdio.h>  
+EXEC SQL BEGIN DECLARE SECTION;
+    char dbname[1024]; 
+EXEC SQL END DECLARE SECTION;  
+
+int main() 
+{
+     EXEC SQL CONNECT TO testdb1 AS con1 USER testuser;
+     EXEC SQL CONNECT TO testdb2 AS con2 USER testuser;
+     EXEC SQL CONNECT TO testdb3 AS con3 USER testuser;
+
+     /* 这个查询将在最近打开的数据库 "testdb3" 中执行 */
+     EXEC SQL SELECT current_database() INTO :dbname;
+     printf("current=%s (should be testdb3)\n", dbname);
+
+     /* 使用 "AT" 在 "testdb2" 中运行一个查询 */
+     EXEC SQL AT con2 SELECT current_database() INTO :dbname;
+     printf("current=%s (should be testdb2)\n", dbname);
+
+     /* 切换当前连接到 "testdb1" */
+     EXEC SQL SET CONNECTION con1;
+
+     EXEC SQL SELECT current_database() INTO :dbname;
+     printf("current=%s (should be testdb1)\n", dbname);
+
+     EXEC SQL DISCONNECT ALL;
+     return 0; 
+} 示例输出： current=testdb3 (should be testdb3)
+current=testdb2 (should be testdb2) 
+current=testdb1 (should be testdb1) 多线程模式下不支持不同线程使用同一连接名，每个线程连接名唯一。 连接的建立和关闭需要在同一进程或线程进行。 父主题： 管理数据库连接 版权所有 © 华为技术有限公司

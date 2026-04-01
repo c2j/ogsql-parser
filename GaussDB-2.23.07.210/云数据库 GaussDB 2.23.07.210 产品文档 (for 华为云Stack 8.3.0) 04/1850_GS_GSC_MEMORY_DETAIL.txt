@@ -1,0 +1,1 @@
+GS_GSC_MEMORY_DETAIL GS_GSC_MEMORY_DETAIL GS_GSC_MEMORY_DETAIL视图显示当前节点当前进程的全局SysCache的内存占用情况。仅在开启GSC的模式下有数据。具体字段如 表1 所示。 由于这个查询是以数据库内存上下文分隔的，因此会缺少一部分内存的统计，缺失的内存统计对应的内存上下文名称为GlobalSysDBCache。 表1 GS_GSC_MEMORY_DETAIL字段 名称 类型 描述 db_id text 数据库id。 totalsize numeric 共享内存总大小，单位Byte。 freesize numeric 共享内存剩余大小，单位Byte。 usedsize numeric 共享内存使用大小，单位Byte。 父主题： 其他系统视图 版权所有 © 华为技术有限公司

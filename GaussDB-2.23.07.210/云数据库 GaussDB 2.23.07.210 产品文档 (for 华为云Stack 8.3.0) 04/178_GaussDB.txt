@@ -1,0 +1,1 @@
+GaussDB与其他服务的关系 GaussDB 与其他服务的关系 GaussDB 与其他服务的关系如 表1 。 表1 与其他服务的关系 相关服务 交互功能 弹性云服务器 （ECS） GaussDB 服务通过 弹性云服务器 （Elastic Cloud Server，简称ECS）远程连接 GaussDB 可以有效的降低应用响应时间。 虚拟私有云（VPC） 对您的 GaussDB 实例进行网络隔离和访问控制。 对象存储服务（OBS） 存储 GaussDB 实例的自动和手动备份数据。 数据管理服务（DAS） 使用数据管理服务（Data Admin Service，简称DAS），通过专业优质的可视化操作界面，提高数据管理工作的效率和安全。 父主题： 产品介绍 版权所有 © 华为技术有限公司

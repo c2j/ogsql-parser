@@ -1,0 +1,1 @@
+管理区到BMS网络测试 管理区到BMS网络测试 目的 DMZ_service_advance与BMS实例网络连通。 前提条件 已发放BMS实例。 操作步骤 登录发放的BMS实例后台，ping任意管理节点的DMZ_service_advance网段IP。 实例后台账号密码从账户一览表中数据库页签，租户镜像默认密码对应的账户密码 DMZ_service_advance 网段从ServiceOM -> 服务列表 -> 网络资源 -> 虚拟网络 中搜索获取对应网段，然后到serviceOM -> 服务列表 -> 计算资源 -> 虚拟机 按IP段搜索管理节点，ping其中任意节点。 预期结果 网络互通。 父主题： BMS实例发放前检查 版权所有 © 华为技术有限公司

@@ -1,0 +1,1 @@
+DBE_PLDEBUGGER.add_breakpoint DBE_PLDEBUGGER.add_breakpoint debug端调试过程中，调用add_breakpoint增加新的断点。如果返回-1则说明指定的断点不合法，请参见 DBE_PLDEBUGGER.info_code 的canbreak字段确定合适的断点位置。进入内层函数前，外层函数无断点，则不支持在内层函数执行时，给外层函数添加断点。 表1 add_breakpoint入参和返回值列表 名称 类型 描述 funcoid IN text 函数ID lineno IN integer 行号 breakpointno OUT integer 断点编号 父主题： DBE_PLDEBUGGER Schema 版权所有 © 华为技术有限公司

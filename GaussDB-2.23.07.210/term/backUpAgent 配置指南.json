@@ -1,0 +1,26 @@
+{
+  "topic": "backUpAgent 配置指南",
+  "term_count": 4,
+  "terms": [
+    {
+      "term": "配置SSL双向认证证书文件",
+      "content": "配置SSL双向认证证书文件 配置SSL双向认证证书文件 如需开启backUpAgent与GaussDB之间的SSL双向认证功能，需要手动完成SSL证书的生成与配置。SSL证书生成过程包括生成根证书、服务端所需证书及客户端所需证书，生成证书的操作可以在任意服务器的任意位置完成，本章以备份服务器的某一固定位置（/home/myuser/data/sslcert）举例。 在进行备份恢复时，若开启SSL认证，需要确保backUpAgent所在服务端证书与GaussDB内客户端证书由同一根证书颁发。 表1 SSL证书文件 文件名 说明 cacert.pem 根证书。 server.key 服务端私钥，使用密码加密保存。 server.crt 服务端证书。 client.key 客户端私钥，使用密码加密保存。 client.crt 客户端证书。 生成证书文件 配置服务端证书 配置客户端证书",
+      "source_file": "6150_SSL.txt"
+    },
+    {
+      "term": "启动backUpAgent",
+      "content": "启动backUpAgent 启动backUpAgent 注意事项 若在启动 backUpAgent 时开启SSL认证，需要当前机器禁用history功能。 禁用history功能需要配置以下环境变量： export HISTSIZE=0 如果配置在环境配置文件中，在配置后执行如下命令使环境变量生效 source <环境配置文件路径> 操作步骤 确保服务器当前登录用户为 myuser，执行如下命令，进入 /home/myuser/data/backUpAgent/bin目录： cd ~ /data/backUpAgent/bin 执行如下命令，启动 backUpAgent： ./backUpAgent --host= xxx --port= xxx --ssl= true --logPath= /home/myuser/server_log --pass=\" <server_password>\" 参数说明： --host: 需要监听的IP，即当前服务器的IP地址。 --port: 需要监听的端口，请选定某一端口。 --ssl: 指定是否开启SSL认证，当前值设置为true或1为开启，设置为false或0为关闭，默认开启。推荐开启SSL认证，保证身份鉴权和加密通信。 --logPath: 指定日志输出到固定位置，当前以 /home/myuser/server_log 举例，可自行修改，保证当前用户有日志目录的访问权限即可。 --libPath (可选) : 可用作指定 libxbsa.so 动态链接库的绝对路径。 --pass: 输入 3 设定的服务端私钥密码 <server_password>，注意用双引号包括。 backUpAgent启动成功后如图所示：",
+      "source_file": "6154_backUpAgent.txt"
+    },
+    {
+      "term": "备份恢复常见问题",
+      "content": "备份恢复常见问题 备份恢复常见问题 1、[ERROR] Init XBSABackup failed. 问题原因：xbsa协议相关动态链接库缺失。 解决办法：执行 6 ，完成xbsa协议相关动态链接库的配置，或在backUpAgent启动时指定 --libPath参数为 libxbsa.so文件的绝对路径，如：--libPath=/home/myuser/data/backUpAgent/lib/libxbsa.so。 2、[ERROR] Failed to load user private key. 问题原因：启动backUpAgent时输入的服务端私钥密码 --pass=“<server_password>”与生成服务端私钥时设定的密码不一致或服务端私钥已被损坏。 解决办法：修改backUpAgent启动时输入的服务端私钥密码为正确密码。若忘记密码，可以重新执行 3 ，设定新密码，并完成 配置服务端证书 中的配置流程。 3、[ERROR] Could not accept SSL connection. backUpAgent端日志： 高斯集群客户端日志： 问题原因：高斯集群内未配置客户端所需证书文件。 解决办法：执行 配置客户端证书 ，参考《云数据库 GaussDB API参考》“安装三方备份SSL证书”章节，调用API接口，将和当前backUpAgent服务端同版本（由同一个根证书颁发）的客户端所需证书 cacert.pem、client.crt、client.key及<client_password> 传入GaussDB。 4、[ERROR] Could not accept SSL connection: tlsv1 alert unknown ca 问题原因：backUpAgent服务端证书与GaussDB的客户端证书版本不一致，不为同一个根证书所签发。 解决办法：执行 配置客户端证书 ，参考《云数据库 GaussDB API参考》“安装三方备份SSL证书”章节，调用API接口，将和当前backUpAgent服务端同版本（由同一个根证书颁发）的客户端所需证书 cacert.pem、client.crt、client.key及<client_password> 传入GaussDB。",
+      "source_file": "6155_file_6155.txt"
+    },
+    {
+      "term": "安装backUpAgent组件",
+      "content": "安装backUpAgent组件 安装backUpAgent组件 本章提供在第三方服务器安装backUpAgent组件的操作指导。 前提条件 获取驱动包。 获取方法： 运营商：单击 此处 ，选择对应版本后，下载DBS-GaussDB-driver.tar.gz。解压后获取“xbsa_driver.tar.gz”，再次解压后获取“GaussDB-Kernel_503.2.0_Euler_64bit_Xbsa.tar.gz”。 企业网：单击 此处 ，选择对应版本后，下载DBS-GaussDB-driver.tar.gz。解压后获取“xbsa_driver.tar.gz”，再次解压后获取“GaussDB-Kernel_503.2.0_Euler_64bit_Xbsa.tar.gz”。 第三方备份服务器与数据节点之间网络已经打通。 :w 已获取第三方备份服务器管理员账号密码。 已通过第三方厂商获取 XBSA 依赖的动态链接库文件。 操作步骤 以root账户登录备份服务器，执行如下命令，新建用户 myuser 并设置密码（此处用户名以 myuser 为例，用户可创建其他用户名或使用已有用户）： useradd myuser passwd myuser 在/etc/sudoers文件中添加如下文本，为用户 myuser 添加使用sudo的权限： myuser  ALL=(ALL)  ALL 执行如下命令，使用 myuser 用户登录当前服务器并进入 home 目录： su myuser && cd ~ 完成 xbsa.conf 的配置，xbsa.conf 的具体配置方法由第三方厂商提供，请确保 xbsa.conf 中配置的路径当前用户可访问 执行如下命令，创建备份文件夹 /home/myuser/data/backUpAgent。 mkdir -p ~/data/backUpAgent 执行如下命令，解压发布包到 /home/myuser/data/backUpAgent 文件夹。 tar -xzvf GaussDB-Kernel _ 503.2.0 _ Euler_64bit_Xbsa.tar.gz -C ~/data/backUpAgent 执行如下命令，检查解压结果。 ll ~/data/backUpAgent/bin ll ~/data/backUpAgent/lib 解压后，backUpAgent可执行文件及openssl、openssl.cnf在/home/myuser/data/backUpAgent/bin目录下，相关动态链接库文件在/home/myuser/data/backUpAgent/lib目录下，bin目录及lib目录内容分别如下： 将 XBSA 依赖的动态链接库文件拷贝到备份服务器/home/myuser/data/backUpAgent/lib/目录。 在环境配置文件 ~/.bashrc （或用户指定的其他环境配置文件）中，配置以下环境变量。 export LD_LIBRARY_PATH=/home/myuser/data/backUpAgent/lib/:$LD_LIBRARY_PATH 配置后执行如下命令，使环境变量生效。 source <环境配置文件路径>",
+      "source_file": "6149_backUpAgent.txt"
+    }
+  ]
+}

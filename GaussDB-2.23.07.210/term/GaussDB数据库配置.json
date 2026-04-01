@@ -1,0 +1,76 @@
+{
+  "topic": "GaussDB数据库配置",
+  "term_count": 14,
+  "terms": [
+    {
+      "term": "元数据库配置",
+      "content": "元数据库配置 元数据库配置 Dorado连接配置 Dorado存储卷映射配置 Dorado存储池配置",
+      "source_file": "4828_file_4828.txt"
+    },
+    {
+      "term": "启用集中式数据库引擎规格参数",
+      "content": "启用集中式数据库引擎规格参数 启用集中式数据库引擎规格参数 使用浏览器，登录ManageOne运维面。 登录地址：https:// ManageOne运维面主页的访问地址 :31943。例如，https://oc.type.com:31943。 默认帐号：bss_admin，默认密码可在《华为云Stack 8.3.0 账户一览表》中“A类Portal”页签，产品名称为“ManageOne”，账户登录界面名称为“ManageOne运维面”获取。 为了您的账户安全，请定期修改密码。 在页面的“常用链接”导航栏中，单击“ServiceCM”，跳转到ServiceCM插件列表界面。 在ServiceCM插件列表界面，单击“自助开发平台 > dbs-ops”，进入DBS运维管理平台。 启用参数模板数据库版本需要和部署数据库版本保持一致，具体步骤参考截图。",
+      "source_file": "4838_file_4838.txt"
+    },
+    {
+      "term": "启用数据库引擎规格参数",
+      "content": "启用数据库引擎规格参数 启用数据库引擎规格参数 登录DBS运维管理平台。 启用参数模板数据库版本需要和部署数据库版本保持一致，具体步骤参考截图。",
+      "source_file": "4789_file_4789.txt"
+    },
+    {
+      "term": "导入Dorado许可",
+      "content": "导入Dorado许可 导入Dorado许可 在ManageOne导入产品许可，参考《华为云Stack 8.3.0 许可指南》。",
+      "source_file": "4840_Dorado.txt"
+    },
+    {
+      "term": "启用数据库引擎版本",
+      "content": "启用数据库引擎版本 启用数据库引擎版本 使用浏览器，登录ManageOne运维面。 登录地址：https:// ManageOne运维面主页的访问地址 :31943。例如，https://oc.type.com:31943。 默认帐号：bss_admin，默认密码可在《华为云Stack 8.3.0 账户一览表》中“A类Portal”页签，产品名称为“ManageOne”，账户登录界面名称为“ManageOne运维面”获取。 为了您的账户安全，请定期修改密码。 在页面的“常用链接”导航栏中，单击“ServiceCM”，跳转到ServiceCM插件列表界面。 在ServiceCM插件列表界面，单击“自助开发平台 > dbs-ops”，进入DBS运维管理平台。 启用引擎版本号要根据实际情况规划，具体步骤参考截图。",
+      "source_file": "4837_file_4837.txt"
+    },
+    {
+      "term": "规格关联",
+      "content": "规格关联 规格关联 计算规格 存储规格 存储类型关联AZ",
+      "source_file": "4832_file_4832.txt"
+    },
+    {
+      "term": "MO运营面发放数据库实例",
+      "content": "MO运营面发放数据库实例 MO运营面发放数据库实例 登录Console，主从Region分别创建1个实例用于搭建容灾集群。基本参数例如： 性能规格。 其他选项",
+      "source_file": "4790_MO.txt"
+    },
+    {
+      "term": "元数据库配置",
+      "content": "元数据库配置 元数据库配置 Dorado连接配置 Dorado存储卷映射配置 Dorado存储池配置",
+      "source_file": "4779_file_4779.txt"
+    },
+    {
+      "term": "启用数据库引擎版本",
+      "content": "启用数据库引擎版本 启用数据库引擎版本 登录DBS运维管理平台。 启用引擎版本号要根据实际情况规划，具体步骤参考截图。",
+      "source_file": "4788_file_4788.txt"
+    },
+    {
+      "term": "开启特性白名单",
+      "content": "开启特性白名单 开启特性白名单 Dorado实例仅支持麒麟V10 操作系统 + 裸金属服务器部署，在创建实例前，需要开启管理面的特性白名单。特性白名单如下： 白名单名称 说明 gaussdb_feature_supportOsType 支持选择OS类型，选择麒麟（Kylin）OS gaussdb_feature_supportGaussV5Ver_20 GaussDB 是否支持2.0版本 gaussdb_feature_supportGaussDBV5HAScaleStorage GaussDB主备版是否支持磁盘扩容。 说明： 支持场景：主备版实例、 服务器类型为MCS、ECS或磁盘类型是Dorado。 gaussdb_feature_supportDorado 是否支持Dorado容灾管理。 gaussdb_feature_supportDisasterInfoDiskExpansion 是否支持磁盘扩容时下发灾备实例的扩容。 gaussdb_feature_supportDoradoPool 是否支持Dorado存储池。 gaussdb_feature_supportDrClusterFlavorCheck 容灾集群主备规格大小校验。 gaussdb_feature_supportGetMaxVolumeSizeFromApi 是否支持从api获取设置磁盘最大值（创建dorado实例使用） 操作步骤： 使用浏览器，登录ManageOne运维面。 登录地址：https:// ManageOne运维面主页的访问地址 :31943。例如，https://oc.type.com:31943。 默认帐号：bss_admin，默认密码可在《华为云Stack 8.3.0 账户一览表》中“A类Portal”页签，产品名称为“ManageOne”，账户登录界面名称为“ManageOne运维面”获取。 为了您的账户安全，请定期修改密码。 在页面的“常用链接”导航栏中，单击“ServiceCM”，跳转到ServiceCM插件列表界面。 在ServiceCM插件列表界面，单击“自助开发平台 > dbs-ops”，进入DBS运维管理平台。 进入“实例运维 > 配置管理 > 特性白名单”。 在检索框输入特性白名单名称，检索特性开关。 选择对应的特性，在“操作”栏中，单击特性发布，选择“发布”，单击“确定”。 特性发布后，在实例创建页面，可选“麒麟”操作系统和“2.0”数据库版本。",
+      "source_file": "4836_file_4836.txt"
+    },
+    {
+      "term": "开启特性白名单",
+      "content": "开启特性白名单 开启特性白名单 Dorado实例仅支持麒麟V10 操作系统 + 裸金属服务器部署，在创建实例前，需要开启管理面的特性白名单。特性白名单如下： 白名单名称 说明 gaussdb_feature_supportOsType 支持选择OS类型，选择麒麟（Kylin）OS gaussdb_feature_supportGaussV5Ver_20 GaussDB 是否支持2.0版本 gaussdb_feature_supportGaussDBV5HAScaleStorage GaussDB 主备版是否支持磁盘扩容。 说明： 支持场景：主备版实例、 服务器类型为MCS、ECS或磁盘类型是Dorado。 gaussdb_feature_supportDorado 是否支持Dorado容灾管理。 gaussdb_feature_supportDisasterInfoDiskExpansion 是否支持磁盘扩容时下发灾备实例的扩容。 gaussdb_feature_supportDoradoPool 是否支持Dorado存储池。 gaussdb_feature_supportDrClusterFlavorCheck 容灾集群主备规格大小校验。 gaussdb_feature_supportGetMaxVolumeSizeFromApi 是否支持从api获取设置磁盘最大值（创建dorado实例使用） gaussdb_feature_supportShareDoradoVolume 是否支持 dorado 共享卷独立存储 操作步骤 使用浏览器，登录ManageOne运维面。 登录地址：https:// ManageOne运维面主页的访问地址 :31943。例如，https://oc.type.com:31943。 默认帐号：admin，默认密码可在《华为云Stack  账户一览表》中“A类Portal”页签，产品名称为“ManageOne”，账户登录界面名称为“ManageOne运维面”获取。 为了您的账户安全，请定期修改密码。 在页面的“常用链接”导航栏中，单击“ServiceCM”，跳转到ServiceCM插件列表界面。 在ServiceCM插件列表界面，单击“自助开发平台 > dbs-ops”，进入DBS运维管理平台。 进入“实例运维 > 配置管理 > 特性白名单”。 在检索框输入特性白名单名称，检索特性开关。 选择对应的特性，在“操作”栏中，单击特性发布，选择“发布”，单击确定。 特性发布后，在实例创建页面，可选“麒麟”操作系统和“2.0”数据库版本。",
+      "source_file": "4787_file_4787.txt"
+    },
+    {
+      "term": "MO运营面发放数据库实例",
+      "content": "MO运营面发放数据库实例 MO运营面发放数据库实例 登录Console，主从Region分别创建1个实例用于搭建容灾集群。基本参数例如： 性能规格。 其他选项",
+      "source_file": "4839_MO.txt"
+    },
+    {
+      "term": "导入Dorado许可",
+      "content": "导入Dorado许可 导入Dorado许可 在ManageOne导入产品许可，参考《华为云Stack 8.3.0 许可指南》。",
+      "source_file": "4791_Dorado.txt"
+    },
+    {
+      "term": "规格关联",
+      "content": "规格关联 规格关联 计算规格 存储规格 存储类型关联AZ",
+      "source_file": "4783_file_4783.txt"
+    }
+  ]
+}

@@ -1,0 +1,1 @@
+GS_JOB_ARGUMENT GS_JOB_ARGUMENT GS_JOB_ARGUMENT系统表提供了DBE_SCHEDULER定时任务和程序的参数属性。 表1 GS_JOB_ARGUMENT字段 名称 类型 描述 oid oid 行标识符（隐含字段）。 argument_position integer 定时任务或程序的参数位置。 argument_type name 定时任务或程序的参数类型。 job_name text 定时任务或程序名。 argument_name text 定时任务或程序的参数名（定时任务继承了程序的参数名，所以为空）。 argument_value text 定时任务的参数值（程序本身无法绑定值）。 default_value text 程序的参数默认值。 父主题： 其他系统表 版权所有 © 华为技术有限公司

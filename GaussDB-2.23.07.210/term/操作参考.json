@@ -1,0 +1,256 @@
+{
+  "topic": "操作参考",
+  "term_count": 50,
+  "terms": [
+    {
+      "term": "查看实例和节点信息",
+      "content": "查看实例和节点信息 查看实例和节点信息 操作步骤 登录DBS运维管理平台 。 若定位信息为实例ID的，执行 2 。 若定位信息为节点ID的，执行 3 。 在左侧导航树，选择“实例运维 > 实例管理”。 在“实例列表”页签的搜索框中通过实例ID搜索实例信息。 图1 实例列表 单击实例名称，进入实例详情页。在该页面，也可以单击节点名称，查看节点详情。 图2 实例详情 在左侧导航树，选择在“实例运维 > 节点管理”。 在“节点列表”页签的搜索框中输入节点ID搜索节点信息。 图3 节点列表 单击节点名称，进入节点基本信息页面。",
+      "source_file": "5179_file_5179.txt"
+    },
+    {
+      "term": "登录数据库",
+      "content": "登录数据库 登录数据库 操作步骤 登录ManageOne运维面。 在页面的“常用链接”导航栏中，单击“Service OM”，选择区域后进入Service OM界面。 选择“服务列表 > 资源 > 计算资源”，单击“虚拟机”。 在搜索框中输入微服务的节点名称，查询相应管理节点IP。 根据IP使用opsadmin登录。登录完成后，切换root权限。切换至dbadmin用户，执行如下登录命令。 表1 登录命令对应表 微服务 节点名称 登录命令 管理面备份数据库 DBS-GaussBackup gsql -p port -q core -U core-W pwd 默认端口8635 管理面workflow数据库 DBS-GaussBase gsql -p port -q wfs -U wfs -W pwd 默认端口8636 管理面core数据库 DBS-GaussCore gsql -p port -q core -U core-W pwd 默认端口8635 管理面计量、指标数据库 DBS-GaussMetering gsql -p port -q metering -U metering -W pwd gsql -p port -q metric -U metric -W pwd 默认端口8635 port是指数据库端口，pwd是指数据库的用户密码。 用户有可能会变，具体看数据库配置。 用户的默认密码请参考《华为云Stack 8.3.0 账户一览表》中 “数据库” 页签，云服务选择 “DBSPlatform” ，查看对应的账户名称获取密码。 查询数据完毕后，退出数据库。 执行命令： \\q 即可退出数据库。",
+      "source_file": "5169_file_5169.txt"
+    },
+    {
+      "term": "登录数据库管理节点",
+      "content": "登录数据库管理节点 登录数据库管理节点 使用浏览器，通过地址“https:// ManageOne运维面主页的访问地址 :31943”，登录ManageOne运维面，或通过地址“https:// ManageOne主门户的访问地址 ”，登录ManageOne主门户，选择“运维中心（OC）”，进入ManageOne运维面。 密码方式：输入帐号和密码。 默认帐号：bss_admin 如果是升级场景，默认帐号为admin。 默认密码：参见 《华为云Stack 8.3.0 帐户一览表》 的“A类（Portal）”页签中，“ManageOne运维面”帐户对应的默认密码。 USB Key方式：插入已预置用户证书的USB Key，选择设备和用户证书，并输入PIN码 单击“登录”。 在ManageOne运维面“常用链接”栏中单击“Service OM”，并选择相应区域，跳转到对应区域的Service OM界面。 在页面上方的导航栏，选择 “ 服务列表 > 资源 > 计算资源 ” ，进入 “ 计算资源 ” 界面。 单击“虚拟机”，进入虚拟机列表界面。默认查询所有虚拟机。 选择管理节点所在可用区 “manage-az” 和 “dr-manage-az” ， “dr-manage-az” 仅在跨AZ环境下存在。 根据引擎类型查询相应管理节点IP。例如搜索管理面core数据库的虚拟机，搜索框输入 “DBS-GaussCore” 即可。 根据 7 获取的管理节点IP，使用opsadmin帐号以ssh方式登录该节点。如果存在两个IP，则选择第一个IP登录。 默认密码请参考《华为云Stack 8.3.0 帐户一览表》中 “数据库” 页签。根据“云服务”、“帐户所在的管理虚拟机/节点”列，并且帐户名称选择 “opsadmin” 获取。",
+      "source_file": "5592_file_5592.txt"
+    },
+    {
+      "term": "查看任务失败原因",
+      "content": "查看任务失败原因 查看任务失败原因 操作步骤 登录ManageOne运维面。 在当前告警中找到对应告警，单击告警名称，在定位信息中找到告警实例ID、告警ID和工作ID（以实际环境为准，可能没有该ID）。 登录DBS运维管理平台。 在DBS运维管理平台，选择“实例运维 > 任务管理”，在“任务流ID”页签的搜索框中通过工作ID及提前当前时间1周左右的时间段搜索任务。 图1 任务列表 将鼠标悬浮于右侧失败原因处，将会显示具体的任务失败原因，单击“树表”可查看具体失败阶段。 图2 查看任务失败原因 根据失败原因和失败任务初步定位，再根据告警ID查看具体的处理步骤。",
+      "source_file": "5188_file_5188.txt"
+    },
+    {
+      "term": "登录DBS运维管理平台",
+      "content": "登录DBS运维管理平台 登录DBS运维管理平台 使用浏览器，通过地址“https:// ManageOne运维面主页的访问地址 :31943”，登录ManageOne运维面，或通过地址“https:// ManageOne主门户的访问地址 ”，登录ManageOne主门户，选择“运维中心（OC）”，进入ManageOne运维面。 密码方式：输入帐号和密码。 默认帐号：bss_admin 如果是升级场景，默认帐号为admin。 默认密码：参见 《华为云Stack 8.3.0 帐户一览表》 的“A类（Portal）”页签中，“ManageOne运维面”帐户对应的默认密码。 USB Key方式：插入已预置用户证书的USB Key，选择设备和用户证书，并输入PIN码。 在页面左上角 ，选择 “ 云服务 > 数据库 > 云数据库 GaussDB ” 。进入云服务资源管理页面。 单击对应region id(如sa-fb-1)的云服务名称，进入云服务详情页面。 单击左侧的“实例列表 > DBS运维平台”，进入DBS运维管理平台。",
+      "source_file": "5597_DBS.txt"
+    },
+    {
+      "term": "查看告警",
+      "content": "查看告警 查看告警 使用浏览器，通过地址“https:// ManageOne运维面主页的访问地址 :31943”，登录ManageOne运维面，或通过地址“https:// ManageOne主门户的访问地址 ”，登录ManageOne主门户，选择“运维中心（OC）”，进入ManageOne运维面。 密码方式：输入帐号和密码。 默认帐号：bss_admin 如果是升级场景，默认帐号为admin。 默认密码：参见 《华为云Stack 8.3.0 帐户一览表》 的“A类（Portal）”页签中，“ManageOne运维面”帐户对应的默认密码。 USB Key方式：插入已预置用户证书的USB Key，选择设备和用户证书，并输入PIN码 在页面上方，选择“集中监控 > 告警管理 > 当前告警”，进入告警页面。 在告警页面左上角，单击“过滤”，设置过滤条件。建议填入告警ID精准搜索。 单击“确定”，筛选符合条件的告警。",
+      "source_file": "5596_file_5596.txt"
+    },
+    {
+      "term": "查看Agent日志",
+      "content": "查看Agent日志 查看Agent日志 登录DBS运维管理平台。 选择 “ 实例运维 > 日志管理 ” 。 选择 “ Agent日志 ” 页签，输入实例ID，单击查询，可以查看当前可下载的节点日志信息。 若虚拟机未创建成功，则无需查看和下载agent日志。",
+      "source_file": "5174_Agent.txt"
+    },
+    {
+      "term": "清除告警",
+      "content": "清除告警 清除告警 登录ManageOne运维面。 在“集中监控 > 告警管理 > 当前告警”中找到之前处理的告警。 勾选该告警，单击右上角清除，在弹出框单击“是”即可完成告警清除。",
+      "source_file": "5172_file_5172.txt"
+    },
+    {
+      "term": "通过脚本将文件从本地上传至实例节点",
+      "content": "通过脚本将文件从本地上传至实例节点 通过脚本将文件从本地上传至实例节点 数据库服务提供运维紧急处理通道，可以通过生成的节点脚本上传文件到实例节点，也可通过脚本从实例节点下载文件。本章提供上传文件到实例节点和操作指导。 文件从本地上传至服务节点之后，属主为 opsadmin ，而使用脚本上传的文件和文件所在的目录属主都必须为 service ，所以如果属主不是 service ，需要在 root 用户下，切换文件属主为 service。 生成节点脚本 使用浏览器，通过地址“https:// ManageOne运维面主页的访问地址 :31943”，登录ManageOne运维面，或通过地址“https:// ManageOne主门户的访问地址 ”，登录ManageOne主门户，选择“运维中心（OC）”，进入ManageOne运维面。 密码方式：输入帐号和密码。 默认帐号：bss_admin 如果是升级场景，默认帐号为admin。 默认密码：请参见《华为云Stack 8.3.0 帐户一览表》的“A类（Portal）”页签中，“ManageOne运维面”帐户对应的默认密码。 USB Key方式：插入已预置用户证书的USB Key，选择设备和用户证书，并输入PIN码 单击“登录”。 在ManageOne运维页面的“常用链接”栏中单击 “ServiceCM” ，跳转到“ServiceCM”界面。 在ServiceCM插件列表界面，单击 “自助开发平台 > dbs-ops” ，进入DBS运维管理平台。 选择 “实例运维 > 实例管理 > 实例列表” 。 选择需要登录的实例信息，单击右侧“操作”列的 “生成登录脚本” 。 在弹窗中输入或者选择多个节点ID，确认对应的节点名称和类型，单击 “确定” 。 根据返回提示，获取脚本生成的节点IP和路径。例如： generate script or submit script job success, ops-admin ip:{hostIp}/tmp/opsTool/{instanceId} 需要登录到ops-admin所在的后台服务节点hostIp，在指定路径“/tmp/opsTool/{instanceId}”下，使用脚本即可。 登录脚本有效期约2小时，过期后自动删除并重置该节点OS密码信息。 在弹窗中输入或者选择多个节点ID，确认对应的节点名称和类型，单击 “显示命令” ，获取命令示例或者单击 “下载密码” ，获取密码信息（包含命令示例）。 上传文件到实例节点 找到需要登录的节点ID，即为 8 中选择的nodeId。 使用用户opsadmin登录后台服务节点，节点地址为 8 中获取的hostIp。 默认密码请参考《华为云Stack 8.3.0 帐户一览表》中 “数据库” 页签。根据“云服务”、“帐户所在的管理虚拟机/节点”列，并且帐户名称选择 “opsadmin” 获取。 为了您的帐户安全，请定期修改密码。 通过文件传输工具将文件上传至到指定目录，例如“/home/opsadmin”。 执行如下指令，切换到root用户。 su - root 默认密码请参考《华为云Stack 8.3.0 帐户一览表》中 “数据库” 页签。根据“云服务”、“帐户所在的管理虚拟机/节点”列，并且帐户名称选择 “root” 获取。 为了您的帐户安全，请定期修改密码。 执行如下命令，将文件移到脚本文件的目录下。 mv /home/opsadmin/filename /tmp/opsTool 执行如下指令，进入文件所在目录。 cd /tmp/opsTool 执行如下指令，切换文件属主为service。 chown service:servicegroup {filename} 执行如下指令，切换到service用户。 su - service 执行如下指令，进入到脚本所在目录。 cd /tmp/opsTool/ ${instanceId} 执行如下指令，上传文件。 sh connNode.sh nodeId push /tmp/opsTool/ filename /home/Mike $ \" {mngPPh} \" nodeId请替换为实际的节点ID，filename请替换为实际的文件名称。其中，{mngPPh}是 9 中“下载密码”得到的文档里的“Mike密码”的值。 文件从本地上传至实例节点之后，属主为 Mike ，如果需要使用文件，请在 root 用户下，执行如下指令切换属主为 Ruby ： chown Ruby:Ruby {filename}",
+      "source_file": "5606_file_5606.txt"
+    },
+    {
+      "term": "下载管理节点日志",
+      "content": "下载管理节点日志 下载管理节点日志 管理节点日志可通过 “日常运维” 或 “资源监控” 页签中获取，以下两种方式任选其一即可。 日志下载过程中，可能由于系统轮转等原因，日志内容发生改变，导致日志压缩过程失败，遇到压缩失败的情况，请重新下载该节点的日志。 通过ManageOne可下载的管理面日志文件，取决于“采集配置”中已导入的日志模板。 通过资源监控页签获取（推荐） 使用浏览器，通过地址“https:// ManageOne运维面主页的访问地址 :31943”，登录ManageOne运维面，或通过地址“https:// ManageOne主门户的访问地址 ”，登录ManageOne主门户，选择“运维中心（OC）”，进入ManageOne运维面。 密码方式：输入帐号和密码。 默认帐号：bss_admin 如果是升级场景，默认帐号为admin。 默认密码：请参见 《华为云Stack 8.3.0 帐户一览表》 的“A类（Portal）”页签中，“ManageOne运维面”帐户对应的默认密码。 USB Key方式：插入已预置用户证书的USB Key，选择设备和用户证书，并输入PIN码。 单击“登录”。 在页面左上角选择对应云服务，进入云服务资源管理页面。 单击带有对应region id（如sa-fb-1）的云服务名称，进入云服务详情页面。 单击左侧 “运行日志” ，列表中展示预置场景模板、管理面及租户面日志。 选择 “ 管理面 > 节点日志 ” ，上方输入框中可根据时间和日志名称过滤筛选，选择对应节点上的日志，单击 “下载” 。 通过日常运维页签获取 登录ManageOne运维面，选择 “ 日常运维 > 统一日志 > 运行日志 ” 。 在左侧导航树，选择“管理侧运行日志下载”，单击“新增日志下载任务”。填写下列参数： 场景选择自定义 命名任务名称 时间段 区域 在日志文件搜索框中输入“DBS”，选择对应的引擎或者组件服务 单击“确定”。 在运行日志下载栏目中，找到对应任务名称，进度达到100%后，单击文件下载栏目中对应的下载链接，即可下载到对应的管理日志（*.zip）。将对应的日志包、工作ID和实例ID发送给技术人员进行深度的定位。 某些浏览器可能存在拦截日志下载的插件，在浏览器相关处取消相关拦截即可将日志下载下来。",
+      "source_file": "5599_file_5599.txt"
+    },
+    {
+      "term": "检查服务节点到OBS网络是否连通",
+      "content": "检查服务节点到OBS网络是否连通 检查服务节点到OBS网络是否连通 操作步骤 请参考 登录DBS运维管理平台 ，登录DBS运维操作平台。 在左侧导航树，选择 “ 实例运维 > 配置管理 ” 。 选择“系统参数管理”页签，在下拉框中选择“DBS_BACKUP_SYSTEM_PARAMETER”，并搜索系统参数“backup.obsEndpoint”，即可获取OBS的域名地址。 参考 查看日志 ，登录到管理服务节点，执行如下命令： ping <OBS-IP> 如果无法 ping 通，说明服务节点到OBS网络不通，请先排查网络故障。",
+      "source_file": "5184_OBS.txt"
+    },
+    {
+      "term": "登录实例节点",
+      "content": "登录实例节点 登录实例节点 数据库服务提供运维紧急处理通道，可以通过该功能生成登录节点的脚本信息登录数据库后台节点。登录节点脚本生成后，您可以： 登录后台节点。 将数据库文件下载到后台节点。 从后台服务节点上传文件到数据库。 登录脚本有效期约2小时，过期后系统会自动删除。如需使用请重新生成节点登录脚本。 脚本使用说明查看命令： sh connNode.sh 本节介绍如何生成节点脚本和登录数据库节点。 为安全起见，opsadmin将在UTC时间0点清理 “/tmp/opsTool” 路径下的文件。 生成节点脚本 使用浏览器，通过地址“https:// ManageOne运维面主页的访问地址 :31943”，登录ManageOne运维面，或通过地址“https:// ManageOne主门户的访问地址 ”，登录ManageOne主门户，选择“运维中心（OC）”，进入ManageOne运维面。 密码方式：输入帐号和密码。 默认帐号：bss_admin 如果是升级场景，默认帐号为admin。 默认密码：参见 《华为云Stack 8.3.0 帐户一览表》 的“A类（Portal）”页签中，“ManageOne运维面”帐户对应的默认密码。 USB Key方式：插入已预置用户证书的USB Key，选择设备和用户证书，并输入PIN码 单击“登录”。 在ManageOne运维页面的“常用链接”栏中单击 “ServiceCM” ，跳转到“ServiceCM”界面。 在ServiceCM插件列表界面，单击 “自助开发平台 > dbs-ops” ，进入DBS运维管理平台。 选择 “实例运维 > 实例管理 > 实例列表” 。 选择需要登录的实例信息，单击右侧“操作”列的 “生成登录脚本” 。 在弹窗中输入或者选择多个节点ID，确认对应的节点名称和类型，单击 “确定” 。 根据返回提示，获取脚本生成的节点IP和路径。例如： generate script or submit script job success, ops-admin ip:{hostIp}/tmp/opsTool/{instanceId} 需要登录到ops-admin所在的后台服务节点hostIp，在指定路径“/tmp/opsTool/{instanceId}”下，使用脚本即可。 登录脚本有效期约2小时，过期后自动删除并重置该节点OS密码信息。 在弹窗中输入或者选择多个节点ID，确认对应的节点名称和类型，单击 “显示命令” ，获取命令示例或者单击 “下载密码” ，获取密码信息（包含命令示例）。 登录实例节点 使用用户opsadmin登录后台服务节点，节点地址为 8 中获取的hostIp。 默认密码请参考《华为云Stack 8.3.0 帐户一览表》中 “数据库” 页签。选择“云服务”为“DBSPlatform”、“帐户所在的管理虚拟机/节点”为“DBS-OpsAdmin”，获取 “opsadmin” 帐号名对应的密码。 为了您的帐户安全，请定期修改密码。 执行以下命令，切换到root。 sudo su - root 默认密码请参考《华为云Stack 8.3.0 帐户一览表》中 “数据库” 页签。选择“云服务”为“DBSPlatform”、“帐户所在的管理虚拟机/节点”为“DBS-OpsAdmin”，获取 “root” 帐号名对应的密码。 为了您的帐户安全，请定期修改密码。 执行如下指令，切换到service用户。 su - service 进入到脚本目录。 cd /tmp/opsTool/ {instanceId} 此处 {instanceId} 为 生成节点脚本 中 8 返回信息中的instanceId。 登录节点。登录到节点的命令为 9 中获得的命令。例如： sh connNode.sh connect {nodeId} $ \" {mngPPh} \" $ \" {rtPd} \" {nodeId}为登录的节点ID。 {mngPPh}是 9 中“下载密码”得到的“Mike密码”的值。 {rtPd}是 9 中“下载密码”得到的“Root密码”的值。 延伸功能： 从节点拉取文件（将需要拉取的文件复制到/home/Mike目录下，文件权限修改为Mike）： sh connNode.sh ${nodeId} pull /home/Mike / { filename } {local_directory} {mngPPh} 从本地推送文件（本地推送的文件及其所在的目录权限为service）： sh connNode.sh ${nodeId} push {local_directory}/{filename} /home/Mike {mngPPh} 其中，{mngPPh}是 9 中“下载密码”得到的文档里的“Mike密码”的值。 执行如下命令，导入环境变量。 source /home/Ruby/gauss_env_file",
+      "source_file": "5601_file_5601.txt"
+    },
+    {
+      "term": "登录实例节点",
+      "content": "登录实例节点 登录实例节点 数据库服务提供运维紧急处理通道，可以通过该功能生成登录节点的脚本信息登录数据库后台节点。登录节点脚本生成后，您可以： 登录后台节点。 将数据库文件下载到后台节点。 从后台服务节点上传文件到数据库。 登录脚本有效期约2小时，过期后系统会自动删除。如需使用请重新生成节点登录脚本。 脚本使用说明查看命令： sh connNode.sh 本节介绍如何生成节点脚本和登录数据库节点。 为安全起见，opsadmin将在UTC时间0点清理 “/tmp/opsTool” 路径下的文件。 生成节点脚本 使用浏览器，通过地址“https:// ManageOne运维面主页的访问地址 :31943”，登录ManageOne运维面，或通过地址“https:// ManageOne主门户的访问地址 ”，登录ManageOne主门户，选择“运维中心（OC）”，进入ManageOne运维面。 密码方式：输入账号和密码。 默认账号：bss_admin 如果是升级场景，默认账号为admin。 默认密码：参见 《华为云Stack 8.3.0 账户一览表》 的“A类（Portal）”页签中，“ManageOne运维面”账户对应的默认密码。 USB Key方式：插入已预置用户证书的USB Key，选择设备和用户证书，并输入PIN码 单击“登录”。 在ManageOne运维面页面的“常用链接”栏中单击 “ServiceCM” ，跳转到ServiceCM插件列表界面。 在ServiceCM插件列表界面，单击 “自助开发平台 > dbs-ops” ，进入DBS运维管理平台。 选择 “实例运维 > 实例管理 > 实例列表” 。 选择需要登录的实例信息，单击右侧“操作”列的 “生成登录脚本” 。 在弹窗中输入或者选择多个节点ID，确认对应的节点名称和类型，单击 “确定” 。 根据返回提示，获取脚本生成的节点IP和路径。例如： generate script or submit script job success, ops-admin ip:{hostIp}/tmp/opsTool/{instanceId} 需要登录到ops-admin所在的后台服务节点hostIp，在指定路径“/tmp/opsTool/{instanceId}”下，使用脚本即可。 登录脚本有效期约2小时，过期后自动删除并重置该节点OS密码信息。 在弹窗中输入或者选择多个节点ID，确认对应的节点名称和类型，单击 “显示命令” ，获取命令示例或者单击 “下载密码” ，获取密码信息（包含命令示例）。 登录实例节点 使用用户opsadmin登录后台服务节点，节点地址为 8 中获取的hostIp。 默认密码请参考《华为云Stack 8.3.0 账户一览表》中 “数据库” 页签。选择“云服务”为“DBSPlatform”、“账户所在的管理虚拟机/节点”为“DBS-OpsAdmin”，获取 “opsadmin” 账号名对应的密码。 为了您的账户安全，请定期修改密码。 执行以下命令，切换到root。 sudo su - root 默认密码请参考《华为云Stack 8.3.0 账户一览表》中 “数据库” 页签。选择“云服务”为“DBSPlatform”、“账户所在的管理虚拟机/节点”为“DBS-OpsAdmin”，获取 “root” 账号名对应的密码。 为了您的账户安全，请定期修改密码。 执行如下指令，切换到service用户。 su - service 进入到脚本目录。 cd /tmp/opsTool/ {instanceId} 此处 {instanceId} 为 生成节点脚本 中 8 返回信息中的instanceId。 登录节点。登录到节点的命令为 9 中获得的命令。例如： sh connNode.sh connect {nodeId} $ \" {mngPPh} \" $ \" {rtPd} \" {nodeId}为登录的节点ID。 {mngPPh}是 9 中“下载密码”得到的“Mike密码”的值。 {rtPd}是 9 中“下载密码”得到的“Root密码”的值。 延伸功能： 从节点拉取文件（将需要拉取的文件复制到/home/Mike目录下，文件权限修改为Mike）： sh connNode.sh ${nodeId} pull /home/Mike / { filename } {local_directory} {mngPPh} 从本地推送文件（本地推送的文件及其所在的目录权限为service）： sh connNode.sh ${nodeId} push {local_directory}/{filename} /home/Mike {mngPPh} 其中，{mngPPh}是 9 中“下载密码”得到的文档里的“Mike密码”的值。 执行如下命令，导入环境变量。 source /home/Ruby/gauss_env_file",
+      "source_file": "5175_file_5175.txt"
+    },
+    {
+      "term": "登录DBS运维管理平台",
+      "content": "登录DBS运维管理平台 登录DBS运维管理平台 使用浏览器，通过地址“https:// ManageOne运维面主页的访问地址 :31943”，登录ManageOne运维面，或通过地址“https:// ManageOne主门户的访问地址 ”，登录ManageOne主门户，选择“运维中心（OC）”，进入ManageOne运维面。 密码方式：输入帐号和密码。 默认帐号：bss_admin 如果是升级场景，默认帐号为admin。 默认密码：参见 《华为云Stack 8.3.0 帐户一览表》 的“A类（Portal）”页签中，“ManageOne运维面”帐户对应的默认密码。 USB Key方式：插入已预置用户证书的USB Key，选择设备和用户证书，并输入PIN码 在页面左上角 ，选择 “ 云服务 > 数据库 > 云数据库 GaussDB ” 。进入云服务资源管理页面。 单击带有对应region id(如sa-fb-1)的云服务名称，进入云服务详情页面。 单击左侧的“实例管理”，进入DBS运维管理平台。",
+      "source_file": "5652_DBS.txt"
+    },
+    {
+      "term": "登录管理界面后台",
+      "content": "登录管理界面后台 登录管理界面后台 使用浏览器，通过地址“https:// ManageOne运维面主页的访问地址 :31943”，登录ManageOne运维面，或通过地址“https:// ManageOne主门户的访问地址 ”，登录ManageOne主门户，选择“运维中心（OC）”，进入ManageOne运维面。 密码方式：输入账号和密码。 默认账号：bss_admin 如果是升级场景，默认账号为admin。 默认密码：请参见《华为云Stack 8.3.0 账户一览表》的“A类（Portal）”页签中，“ManageOne运维面”账户对应的默认密码。 USB Key方式：插入已预置用户证书的USB Key，选择设备和用户证书，并输入PIN码。 选择“资源拓扑 > 资源管理 > 资源列表”，在“名称”右侧搜索框中输入关键字“DBS”，排查管理节点情况。 图1 管理虚拟机 根据具体服务报错，找到对应的服务节点信息，使用终端连接工具（如xShell）登录对应需要查询的服务节点。",
+      "source_file": "5187_file_5187.txt"
+    },
+    {
+      "term": "查看告警",
+      "content": "查看告警 查看告警 登录ManageOne运维面。 选择“集中监控 > 告警管理 > 当前告警”，进入告警页面。 单击“过滤”，设置过滤条件。建议填入告警ID精准搜索。 单击“确认”，筛选符合条件的告警。",
+      "source_file": "5171_file_5171.txt"
+    },
+    {
+      "term": "查看服务IP信息",
+      "content": "查看服务IP信息 查看服务IP信息 操作步骤 登录ManageOne运维面。 在页面的“常用链接”导航栏中，单击“Service OM”，选择区域后进入Service OM界面。 选择“服务列表 > 资源 > 计算资源”，单击“虚拟机”。 在搜索框中输入微服务的节点名称，查看各服务IP信息。",
+      "source_file": "5170_IP.txt"
+    },
+    {
+      "term": "登录统一运维页面",
+      "content": "登录统一运维页面 登录统一运维页面 使用浏览器，登录ManageOne运维面。 登录地址：https:// ManageOne运维面主页的访问地址 :31943。例如，https://oc.type.com:31943。 默认帐号：bss_admin。 默认密码可在《华为云Stack 8.3.0 帐户一览表》中“A类Portal”页签，产品名称为“ManageOne”，帐户登录界面名称为“ManageOne”获取。 在页面左上角 ，选择 “ 云服务 > 数据库 > 云数据库 GaussDB ” 。进入云服务资源管理页面。 单击带有对应region id(如sa-fb-1)的云服务名称，进入云服务详情页面。",
+      "source_file": "5605_file_5605.txt"
+    },
+    {
+      "term": "查看系统参数",
+      "content": "查看系统参数 查看系统参数 操作步骤 请参考 登录DBS运维管理平台 ，登录DBS运维管理平台。 在左侧导航树，选择“实例运维 > 配置管理”。 选择“系统参数管理”页签，在下拉框中选择参数所在表，搜索具体参数。 图1 系统参数管理",
+      "source_file": "5180_file_5180.txt"
+    },
+    {
+      "term": "增备方式切换",
+      "content": "增备方式切换 增备方式切换 登录ManageOne运维面。 在当前告警中找到对应告警，单击告警名称，在定位信息中找到告警实例ID、告警ID和工作ID（以实际环境为准，可能没有该ID）。 登录DBS运维管理平台。 DBS运维管理平台，选择 “ 实例运维 > 备份管理 > 备份切换 ” ，选择实例对应的引擎类型，和切换前的备份触发方式，在查询框中输入定位信息中的实例ID，单击搜索按钮进行搜索。 在搜索到的实例列表中单击“切换备份方式”操作，进行增量备份方式的切换。",
+      "source_file": "5166_file_5166.txt"
+    },
+    {
+      "term": "下载租户节点日志",
+      "content": "下载租户节点日志 下载租户节点日志 租户节点日志可通过 “日常运维” 或 “资源监控” 页签中获取，以下两种方式任选其一即可。 日志下载过程中，可能由于系统轮转等原因，日志内容发生改变，导致日志压缩过程失败，遇到压缩失败的情况，请重新下载该节点的日志。 由于日志存储服务器大小和带宽限制，单次下载任务只能收集未压缩之前大小不超过1G的日志文件，所以下载日志的时候请选择所需日志和所需时间，不要一次下载所有时间的所有日志。 通过云服务运维页面获取 使用浏览器，通过地址“https:// ManageOne运维面主页的访问地址 :31943”，登录ManageOne运维面，或通过地址“https:// ManageOne主门户的访问地址 ”，登录ManageOne主门户，选择“运维中心（OC）”，进入ManageOne运维面。 密码方式：输入账号和密码。 默认账号：bss_admin 如果是升级场景，默认账号为admin。 默认密码：参见 《华为云Stack 8.3.0 账户一览表》 的“A类（Portal）”页签中，“ManageOne运维面”账户对应的默认密码。 USB Key方式：插入已预置用户证书的USB Key，选择设备和用户证书，并输入PIN码 单击“登录”。 在页面左上角，选择对应云服务，进入云服务资源管理页面。 单击带有对应region id（如sa-fb-1）的云服务名称，进入云服务详情页面。 单击左侧 “运行日志” ，列表中展示预置场景模板、管理面及租户面日志。 选择 “ 租户面 > 节点日志 ” ，左侧列表选择一个或多个虚拟机，右侧选择日志类型,勾选需要下载的日志路径，单击 “下载” 。 图1 下载日志 填写任务名称，选择时间段后，单击“确定”。 通过日常运维页签获取 使用浏览器，通过地址“https:// ManageOne运维面主页的访问地址 :31943”，登录ManageOne运维面，或通过地址“https:// ManageOne主门户的访问地址 ”，登录ManageOne主门户，选择“运维中心（OC）”，进入ManageOne运维面。 密码方式：输入账号和密码。 默认账号：bss_admin 如果是升级场景，默认账号为admin。 默认密码：参见 《华为云Stack 8.3.0 账户一览表》 的“A类（Portal）”页签中，“ManageOne运维面”账户对应的默认密码。 USB Key方式：插入已预置用户证书的USB Key，选择设备和用户证书，并输入PIN码 单击“登录”。 选择 “ 日常运维 > 统一日志 > 运行日志 ” ，单击 “ 租户侧管理节点运行日志下载 > 新增日志下载任务 ” 。 填写任务名称，选择对应云服务、区域、需要下载的组件、合理的时间段、需要收集的日志路径，在虚拟机列表中选择一个或多个虚拟机，单击“确定”，等待任务完成。 合理的时间段：日志的时间段不得大于7天。选择时间段指日志文件最后归档时间，并不是日志产生的时间，如果日志文件尚未归档，选择最近时间段进行下载。 虚拟机：搜索框中按名称、私有IP、ID搜索虚拟机。 完成任务后，在列表页面单击“下载”，即可下载对应的日志。",
+      "source_file": "5176_file_5176.txt"
+    },
+    {
+      "term": "调整CPU复用比",
+      "content": "调整CPU复用比 调整CPU复用比 本章介绍在MCS分布式部署形态因为资源不足创建实例失败后，如何通过调整复用比后成功创建实例。 登录Service OM平台 。 选择“服务列表 > 资源 > 计算资源”，进入弹性云服务器页面。 在左侧导航栏单击“可用分区”，并选择创建实例所在可用区，例如（az1.dc0）。 在主页面选择主机组，单击主机组的名称进入主机组详情页。 在此处可以查看到该AZ下剩余的CPU和内存数。 如果创建一台最小规格的16U128G实例，以下图的部署形态为例，AZ1，AZ2需要128U1024G资源，AZ3需要16U128G的资源。 在主机组基本信息页面选择“配置”，进入主机组配置页面。 在“自定义标签”列后选择“编辑自定义标签”。 根据需要的CPU资源和剩余的CPU资源调整标签值。单击“确认”保存更改。 CPU复用比可以简单的理解为CPU复用，例如：1U的CPU，在复用比为3.0时可以看做3U的CPU。请根据需要调整。 参考 4 - 7 按需修改其他可用区的CPU复用比，使资源满足创建实例所需。",
+      "source_file": "5602_CPU.txt"
+    },
+    {
+      "term": "服务API端口对应表",
+      "content": "服务API端口对应表 服务API端口对应表 服务 API路径 端口 GaussDB /opt/cloud/GaussDB-open-api/logs/ 8002",
+      "source_file": "5594_API.txt"
+    },
+    {
+      "term": "登录Service",
+      "content": "登录Service OM平台 登录Service OM平台 使用浏览器，通过地址“https:// ManageOne运维面主页的访问地址 :31943”，登录ManageOne运维面，或通过地址“https:// ManageOne主门户的访问地址 ”，登录ManageOne主门户，选择“运维中心（OC）”，进入ManageOne运维面。 密码方式：输入帐号和密码。 默认帐号：bss_admin 如果是升级场景，默认帐号为admin。 默认密码：参见 《华为云Stack 8.3.0 帐户一览表》 的“A类（Portal）”页签中，“ManageOne运维面”帐户对应的默认密码。 USB Key方式：插入已预置用户证书的USB Key，选择设备和用户证书，并输入PIN码 在页面的“常用链接”导航栏中，单击“Service OM”，选择区域后进入Service OM界面。",
+      "source_file": "5650_Service OM.txt"
+    },
+    {
+      "term": "查看引擎信息",
+      "content": "查看引擎信息 查看引擎信息 操作步骤 请参考 登录DBS运维管理平台 ，登录DBS运维管理平台。 在左侧导航树，选择“实例运维 > 配置管理”。 选择“引擎资源管理”页签，在引擎名称中选择需要查看的引擎。 图1 引擎资源管理",
+      "source_file": "5181_file_5181.txt"
+    },
+    {
+      "term": "创建并应用新计算规格",
+      "content": "创建并应用新计算规格 创建并应用新计算规格 该操作仅针对MCS部署场景。 在Service OM创建底层计算规格 参考 登录Service OM平台 ，登录Service OM。 选择“服务列表 > 计算资源”。 在“计算资源”界面选择“创建规格”。 填写规格参数，创建8U64G的规格。 其中规格名称使用“gaussdb.opengauss.mcs.kc1.localdisk.new.2xlarge.8” ID使用“gaussdb.opengauss.mcs.kc1.localdisk.new.2xlarge.8”。 单击“下一步”，“NUMA节点数”填写为“2”。其他保持默认。 关联节点可用的主机。 添加自定义标签，标签值填写可参考下表。 表1 自定义标签参考 标签名称 标签值 ecs:instance_architecture arm64 mcs:virtualization_env_types Container cond:image __support_arm=true mcs:generation kc1 huawei:ephemerals_statistics_type local_bdms hw:cpu_cores 4 hw:cpu_sockets 2 mcs:performancetype kunpeng_computing hw:cpu_threads 1 cond:compute autorecovery driver:hybrid docker 标签的配置满足如下的规则： cpu_sockets和 5 处填写的NUMA相同，所以此处“hw:cpu_sockets”填写为“2”。 cpu_cores * cpu_threads * numa= cpu个数，例如 4 * 1 * 2 =  8, 此处 hw:cpu_threads填写为“1”。 其余的标签配置与原规格相同。 单击“下一步”，确认信息。 单击“确认”，完成创建。 参考 登录DBS运维管理平台 ，进入DBS运维管理平台。 选择“实例运维 > 配置管理 > 规格管理”。 在“规格码处”输入“gaussdb.opengauss.ee.ld.2xlarge.arm8.co”，单击“查询”，可以查询到节点8U64G的规格信息。 选择规格条目的“更多 > 查看属性”。 将新创建的底层规格 “gaussdb.opengauss.mcs.kc1.localdisk.new.2xlarge.8”填写入“flavor”属性中。 单击“确定”，完成节点的规格替换。",
+      "source_file": "5603_file_5603.txt"
+    },
+    {
+      "term": "创建关键备份",
+      "content": "创建关键备份 创建关键备份 登录ManageOne运维面。 在当前告警中找到对应告警，单击告警名称，在定位信息中找到告警实例ID、告警ID和工作ID（以实际环境为准，可能没有该ID）。 登录DBS运维管理平台。 在DBS运维管理平台，选择“实例运维 > 实例管理”，在“实例列表”页签的搜索框中通过实例ID搜索实例信息。 单击实例名称，进入实例详情页。 在实例详情页下方“备份设置”处，单击“创建备份”，在弹出框选择是否是关键备份的选项中，选择“True”，单击“确定”，就下发了关键备份操作。 观察实例的状态，是否为“备份中”。 等待备份完成。",
+      "source_file": "5167_file_5167.txt"
+    },
+    {
+      "term": "下载管理节点日志",
+      "content": "下载管理节点日志 下载管理节点日志 租户节点日志可通过 “日常运维” 或 “资源监控” 页签中获取，以下两种方式任选其一即可。 日志下载过程中，可能由于系统轮转等原因，日志内容发生改变，导致日志压缩过程失败，遇到压缩失败的情况，请重新下载该节点的日志。 由于日志存储服务器大小和带宽限制，单次下载任务只能收集未压缩之前大小不超过1G的日志文件，所以下载日志的时候请选择所需日志和所需时间，不要一次下载所有时间的所有日志。 通过云服务运维页面获取 使用浏览器，通过地址“https:// ManageOne运维面主页的访问地址 :31943”，登录ManageOne运维面，或通过地址“https:// ManageOne主门户的访问地址 ”，登录ManageOne主门户，选择“运维中心（OC）”，进入ManageOne运维面。 密码方式：输入账号和密码。 默认账号：bss_admin 如果是升级场景，默认账号为admin。 默认密码：参见 《华为云Stack 8.3.0 账户一览表》 的“A类（Portal）”页签中，“ManageOne运维面”账户对应的默认密码。 USB Key方式：插入已预置用户证书的USB Key，选择设备和用户证书，并输入PIN码 单击“登录”。 在页面左上角，选择对应云服务，进入云服务资源管理页面。 单击带有对应region id（如sa-fb-1）的云服务名称，进入云服务详情页面。 单击左侧 “运行日志” ，列表中展示预置场景模板、管理面及租户面日志。 选择 “ 管理面 > 节点日志 ” ，左侧列表选择一个或多个虚拟机，右侧选择日志类型,勾选需要下载的日志路径，单击 “下载” 。 图1 下载管理节点日志 通过日常运维页签获取 使用浏览器，通过地址“https:// ManageOne运维面主页的访问地址 :31943”，登录ManageOne运维面，或通过地址“https:// ManageOne主门户的访问地址 ”，登录ManageOne主门户，选择“运维中心（OC）”，进入ManageOne运维面。 密码方式：输入账号和密码。 默认账号：bss_admin 如果是升级场景，默认账号为admin。 默认密码：请参见《华为云Stack 8.3.0 账户一览表》的“A类（Portal）”页签中，“ManageOne运维面”账户对应的默认密码。 USB Key方式：插入已预置用户证书的USB Key，选择设备和用户证书，并输入PIN码。 选择 “ 日常运维 > 统一日志 > 运行日志 ” 。 在左侧导航树，选择“管理侧运行日志下载”，单击“新增日志下载任务”。 场景选择自定义 命名任务名称 时间段 区域 在日志文件搜索框中输入“DBS”，选择对应的引擎或者组件服务。 单击“确定”。 在运行日志下载栏目中，找到对应任务名称，进度达到100%后，单击文件下载栏目中对应的下载链接，即可下载到对应的管理日志（*.zip）。将对应的日志包、工作ID和实例ID发送给技术人员进行深度的定位。 某些浏览器可能存在拦截日志下载的插件，在浏览器相关处取消相关拦截即可将日志下载下来。",
+      "source_file": "5177_file_5177.txt"
+    },
+    {
+      "term": "登录ManageOne运维面",
+      "content": "登录ManageOne运维面 登录ManageOne运维面 登录ManageOne运维面 使用浏览器，通过地址“https:// ManageOne运维面主页的访问地址 :31943”，登录ManageOne运维面，或通过地址“https:// ManageOne主门户的访问地址 ”，登录ManageOne主门户，选择“运维中心（OC）”，进入ManageOne运维面。 密码方式：输入账号和密码。 默认账号：bss_admin 如果是升级场景，默认账号为admin。 默认密码：请参见《华为云Stack 8.3.0 账户一览表》的“A类（Portal）”页签中，“ManageOne运维面”账户对应的默认密码。 USB Key方式：插入已预置用户证书的USB Key，选择设备和用户证书，并输入PIN码。 单击“登录”。",
+      "source_file": "5160_ManageOne.txt"
+    },
+    {
+      "term": "登录实例节点",
+      "content": "登录实例节点 登录实例节点 数据库服务提供运维紧急处理通道，可以通过该功能生成登录节点的脚本信息登录数据库后台节点。登录节点脚本生成后，您可以： 登录后台节点。 将数据库文件下载到后台节点。 从后台服务节点上传文件到数据库。 登录脚本有效期约2小时，过期后系统会自动删除。如需使用请重新生成节点登录脚本。 脚本使用说明查看命令： sh connNode.sh 本节介绍如何生成节点脚本和登录数据库节点。 为安全起见，opsadmin将在UTC时间0点清理 “/tmp/opsTool” 路径下的文件。 生成节点脚本 使用浏览器，通过地址“https:// ManageOne运维面主页的访问地址 :31943”，登录ManageOne运维面，或通过地址“https:// ManageOne主门户的访问地址 ”，登录ManageOne主门户，选择“运维中心（OC）”，进入ManageOne运维面。 密码方式：输入帐号和密码。 默认帐号：bss_admin 如果是升级场景，默认帐号为admin。 默认密码：参见 《华为云Stack 8.3.0 帐户一览表》 的“A类（Portal）”页签中，“ManageOne运维面”帐户对应的默认密码。 USB Key方式：插入已预置用户证书的USB Key，选择设备和用户证书，并输入PIN码 单击“登录”。 在ManageOne运维面页面的“常用链接”栏中单击 “ServiceCM” ，跳转到ServiceCM插件列表界面。 在ServiceCM插件列表界面，单击 “自助开发平台 > dbs-ops” ，进入DBS运维管理平台。 选择 “实例运维 > 实例管理 > 实例列表” 。 选择需要登录的实例信息，单击右侧“操作”列的 “生成登录脚本” 。 在弹窗中输入或者选择多个节点ID，确认对应的节点名称和类型，单击 “确定” 。 根据返回提示，获取脚本生成的节点IP和路径。例如： generate script or submit script job success, ops-admin ip:{hostIp}/tmp/opsTool/{instanceId} 需要登录到ops-admin所在的后台服务节点hostIp，在指定路径“/tmp/opsTool/{instanceId}”下，使用脚本即可。 登录脚本有效期约2小时，过期后自动删除并重置该节点OS密码信息。 在弹窗中输入或者选择多个节点ID，确认对应的节点名称和类型，单击 “显示命令” ，获取命令示例或者单击 “下载密码” ，获取密码信息（包含命令示例）。 登录实例节点 使用用户opsadmin登录后台服务节点，节点地址为 生成节点脚本 中 8 获取的hostIp。 默认密码请参考《华为云Stack 8.3.0 帐户一览表》中 “数据库” 页签。选择“云服务”为“DBSPlatform”、“帐户所在的管理虚拟机/节点”为“DBS-OpsAdmin”，获取 “opsadmin” 帐号名对应的密码。 为了您的帐户安全，请定期修改密码。 执行以下命令，切换到root。 sudo su - root 默认密码请参考《华为云Stack 8.3.0 帐户一览表》中 “数据库” 页签。选择“云服务”为“DBSPlatform”、“帐户所在的管理虚拟机/节点”为“DBS-OpsAdmin”，获取 “root” 帐号名对应的密码。 为了您的帐户安全，请定期修改密码。 执行如下指令，切换到service用户。 su - service 进入到脚本目录。 cd /tmp/opsTool/ {instanceId} 此处 {instanceId} 为 生成节点脚本 中 8 返回信息中的instanceId。 登录节点。登录到节点的命令为 生成节点脚本 中 9 中获得的命令。例如： sh connNode.sh connect {nodeId} $ \" {mngPPh} \" $ \" {rtPd} \" {nodeId}为登录的节点ID。 {mngPPh}是 生成节点脚本 中 9 中“下载密码”得到的“Mike密码”的值。 {rtPd}是 生成节点脚本 中 9 中“下载密码”得到的“Root密码”的值。 延伸功能： 从节点拉取文件（将需要拉取的文件复制到/home/Mike目录下，文件权限修改为Mike）： sh connNode.sh ${nodeId} pull /home/Mike / { filename } {local_directory} {mngPPh} 从本地推送文件（本地推送的文件及其所在的目录权限为service）： sh connNode.sh ${nodeId} push {local_directory}/{filename} /home/Mike {mngPPh} 其中，{mngPPh}是 生成节点脚本 中 9 中“下载密码”得到的文档里的“Mike密码”的值。 执行如下命令，导入环境变量。 source /home/Ruby/gauss_env_file",
+      "source_file": "5651_file_5651.txt"
+    },
+    {
+      "term": "生成登录节点脚本",
+      "content": "生成登录节点脚本 生成登录节点脚本 提供运维紧急处理通道，可以通过该功能生成登录节点的脚本信息，为安全起见，ops-admin将在UTC时间0点清理 “/tmp/opsTool” 路径底下的文件。 请参考 登录DBS运维管理平台 ，登录DBS运维管理平台。 在 “实例管理” 页面，选择指定的集群，单击操作列的“更多 > 生成节点登录脚本”，选择需要登录的节点，单击“确定”。 根据返回提示，例如：generate login script success, ops-admin ip:{hostIp}/tmp/opsTool/{instanceId}，需要登录到ops-admin所在的后台服务节点hostIp，在指定路径“/tmp/opsTool/{nodeId}”下，使用脚本即可。 登录脚本有效期约2小时，过期后自动删除并重置该节点OS密码信息。 脚本使用说明查看命令： sh connNode.sh 登录节点命令： sh connNode.sh connect ${nodeId} 从节点拉取文件（注意：文件权限是Mike），示例： sh connNode.sh connect ${nodeId} pull /home/Mike/xxx.log 从本地推送文件，示例： sh connNode.sh connect ${nodeId} push xxx.log /home/Mike",
+      "source_file": "5185_file_5185.txt"
+    },
+    {
+      "term": "登录Service",
+      "content": "登录Service OM平台 登录Service OM平台 操作步骤 使用浏览器，通过地址“https:// ManageOne运维面主页的访问地址 :31943”，登录ManageOne运维面，或通过地址“https:// ManageOne主门户的访问地址 ”，登录ManageOne主门户，选择“运维中心（OC）”，进入ManageOne运维面。 密码方式：输入账号和密码。 默认账号：bss_admin 如果是升级场景，默认账号为admin。 默认密码：请参见《华为云Stack 8.3.0 账户一览表》的“A类（Portal）”页签中，“ManageOne运维面”账户对应的默认密码。 USB Key方式：插入已预置用户证书的USB Key，选择设备和用户证书，并输入PIN码。 在ManageOne运维面右下角“常用链接”栏中单击“Service OM”，并选择相应区域，跳转到对应区域的Service OM界面。",
+      "source_file": "5162_Service OM.txt"
+    },
+    {
+      "term": "查看日志",
+      "content": "查看日志 查看日志 操作步骤 登录数据库 。 执行下列命令查看日志。 cd /opt/cloud/ <服务目录> /logs/ <引擎/服务名> 根据告警信息中获取的工作ID，执行下列命令查看日志。 grep \"工作ID\" <服务目录简写> .info.log* grep \"工作ID\" <服务目录简写> .error.log* grep \"工作ID\" <服务目录简写> .warn.log* grep \"工作ID\" <服务目录简写> .project.log* 表1 服务目录及目录缩写 服务 服务目录 服务目录简写 GaussDB GaussDB -open-api gaussdb-api GaussDB -instancemanager gaussdb GaussDB -backupmanager backup-gaussdb HA rds-ha-admin hamonitor ResourceManager resource-manager resourcemanager Common-Service common-service commonservice Hybrid-API open-api-for-hybrid openapi platform-api-for-hybrid platform Monitor-Service monitor-service monitor Workflow-Service workflow wfs OPS ops-base ops-base ops-admin ops-admin",
+      "source_file": "5173_file_5173.txt"
+    },
+    {
+      "term": "通过脚本将文件从实例节点下载至本地",
+      "content": "通过脚本将文件从实例节点下载至本地 通过脚本将文件从实例节点下载至本地 数据库服务提供运维紧急处理通道，可以通过生成的节点脚本上传文件到实例节点，也可通过脚本从实例节点下载文件。本章提供从实例节点下载文件的操作指导。 生成节点脚本 使用浏览器，通过地址“https:// ManageOne运维面主页的访问地址 :31943”，登录ManageOne运维面，或通过地址“https:// ManageOne主门户的访问地址 ”，登录ManageOne主门户，选择“运维中心（OC）”，进入ManageOne运维面。 密码方式：输入帐号和密码。 默认帐号：bss_admin 如果是升级场景，默认帐号为admin。 默认密码：请参见《华为云Stack 8.3.0 帐户一览表》的“A类（Portal）”页签中，“ManageOne运维面”帐户对应的默认密码。 USB Key方式：插入已预置用户证书的USB Key，选择设备和用户证书，并输入PIN码 单击“登录”。 在ManageOne运维页面的“常用链接”栏中单击 “ServiceCM” ，跳转到“ServiceCM”界面。 在ServiceCM插件列表界面，单击 “自助开发平台 > dbs-ops” ，进入DBS运维管理平台。 选择 “实例运维 > 实例管理 > 实例列表” 。 选择需要登录的实例信息，单击右侧“操作”列的 “生成登录脚本” 。 在弹窗中输入或者选择多个节点ID，确认对应的节点名称和类型，单击 “确定” 。 根据返回提示，获取脚本生成的节点IP和路径。例如： generate script or submit script job success, ops-admin ip:{hostIp}/tmp/opsTool/{instanceId} 需要登录到ops-admin所在的后台服务节点hostIp，在指定路径“/tmp/opsTool/{instanceId}”下，使用脚本即可。 登录脚本有效期约2小时，过期后自动删除并重置该节点OS密码信息。 在弹窗中输入或者选择多个节点ID，确认对应的节点名称和类型，单击 “显示命令” ，获取命令示例或者单击 “下载密码” ，获取密码信息（包含命令示例）。 登录数据库节点 找到需要登录的节点ID，即为 5 中选择的nodeId。 使用用户opsadmin登录后台服务节点，节点地址为 5 中获取的hostIp。 默认密码请参考《华为云Stack 8.3.0 帐户一览表》中 “数据库” 页签。根据“云服务”、“帐户所在的管理虚拟机/节点”列，并且帐户名称选择 “opsadmin” 获取。 为了您的帐户安全，请定期修改密码。 执行以下命令，切换到root。 sudo su - root 默认密码请参考《华为云Stack 8.3.0 帐户一览表》中 “数据库” 页签。根据“云服务”、“帐户所在的管理虚拟机/节点”列，并且帐户名称选择 “root” 获取。 为了您的帐户安全，请定期修改密码。 执行如下指令，切换到service用户。 su - service 进入到脚本目录。 cd /tmp/opsTool/ ${instanceId} 登录到节点上。 sh connNode.sh connect {nodeId} {mngPPh} {rtPd} {nodeId}为登录的节点ID。 {mngPPh}是 9 中“下载密码”得到的“Mike密码”的值。 {rtPd}是 9 中“下载密码”得到的“Root密码”的值。 从数据库节点下载文件至本地 登录数据库节点后，执行以下命令，切换到root用户。 exit 将下载至后台节点的日志文件拷贝至/home/Mike目录下。 cp { directory } / { filename } /home/Mike 更改文件权限。 chown Mike:Mike /home/Mike/ { filename } 退出实例节点，下载至opsadmin后台服务节点。 sh connNode.sh ${nodeId} pull /home/Mike / { filename } {local_directory} $ \" {mngPPh} \" 其中，{mngPPh}是 9 中“下载密码”得到的文档里的“Mike密码”的值。 {local_directory} 目录属主必须为 service ，否则会权限不足。建议设置为/tmp/opsTool。 执行如下指令，将文件转移至/home/opsadmin目录下。 exit mv /tmp/opsTool/ filename /home/opsadmin/ 执行如下指令，切换属主为 opsadmin 。 chown opsadmin:admingroup {filename} 使用文件传输工具，以 opsadmin 登录管理节点，下载文件到本地。",
+      "source_file": "5607_file_5607.txt"
+    },
+    {
+      "term": "查看实例操作失败任务",
+      "content": "查看实例操作失败任务 查看实例操作失败任务 操作步骤 登录ManageOne运维面。 在当前告警中找到对应告警，单击告警名称，在定位信息中找到告警实例ID、告警ID和工作ID（以实际环境为准，可能没有该ID）。 登录DBS运维管理平台。 在DBS运维管理平台，选择 “ 实例运维 > 实例管理 ” ，在“实例列表”页签的搜索框中通过实例ID搜索实例信息。 图1 实例列表 单击实例名称，进入实例详情页。 在实例详情页下方“实例任务”处，如果发现该处为空，在日期框中选择提前当前时间1周左右的时间段，查看失败任务。 图2 实例任务 将鼠标悬浮于右侧 “失败原因” 处，将会显示具体的任务失败原因。 图3 查看任务失败原因 单击操作列“树表”，可以查看实例创建失败的具体阶段。 图4 查看创建失败的任务 根据失败原因和失败任务初步定位，再根据告警ID查看具体的处理步骤。",
+      "source_file": "5163_file_5163.txt"
+    },
+    {
+      "term": "联系技术支持",
+      "content": "联系技术支持 联系技术支持 请通过下列方式反馈您对产品文档、联机帮助、版本说明书的意见和建议。 通过云平台驻当地办事处的热线电话反馈。 通过云平台网站中“联系我们”页面提供的求助方式反馈。",
+      "source_file": "5159_file_5159.txt"
+    },
+    {
+      "term": "下载租户节点日志",
+      "content": "下载租户节点日志 下载租户节点日志 租户节点日志可通过 “日常运维” 或 “资源监控” 页签中获取，以下两种方式任选其一即可。 日志下载过程中，可能由于系统轮转等原因，日志内容发生改变，导致日志压缩过程失败，遇到压缩失败的情况，请重新下载该节点的日志。 由于日志存储服务器大小和带宽限制，单次下载任务只能收集未压缩之前大小不超过1G的日志文件，所以下载日志的时候请选择所需日志和所需时间，不要一次下载所有时间的所有日志。 通过云服务运维页面获取 使用浏览器，通过地址“https:// ManageOne运维面主页的访问地址 :31943”，登录ManageOne运维面，或通过地址“https:// ManageOne主门户的访问地址 ”，登录ManageOne主门户，选择“运维中心（OC）”，进入ManageOne运维面。 密码方式：输入帐号和密码。 默认帐号：bss_admin 如果是升级场景，默认帐号为admin。 默认密码：参见 《华为云Stack 8.3.0 帐户一览表》 的“A类（Portal）”页签中，“ManageOne运维面”帐户对应的默认密码。 USB Key方式：插入已预置用户证书的USB Key，选择设备和用户证书，并输入PIN码 单击“登录”。 在页面左上角，选择对应云服务，进入云服务资源管理页面。 单击带有对应region id（如sa-fb-1）的云服务名称，进入云服务详情页面。 单击左侧 “运行日志” ，列表中展示预置场景模板、管理面及租户面日志。 选择 “ 租户面 > 节点日志 ” ，左侧列表选择一个或多个虚拟机，右侧选择日志类型,勾选需要下载的日志路径，单击 “下载” 。 图1 下载日志 填写任务名称，选择时间段后，单击“确定”。 通过日常运维页签获取 使用浏览器，通过地址“https:// ManageOne运维面主页的访问地址 :31943”，登录ManageOne运维面，或通过地址“https:// ManageOne主门户的访问地址 ”，登录ManageOne主门户，选择“运维中心（OC）”，进入ManageOne运维面。 密码方式：输入帐号和密码。 默认帐号：bss_admin 如果是升级场景，默认帐号为admin。 默认密码：参见 《华为云Stack 8.3.0 帐户一览表》 的“A类（Portal）”页签中，“ManageOne运维面”帐户对应的默认密码。 USB Key方式：插入已预置用户证书的USB Key，选择设备和用户证书，并输入PIN码 单击“登录”。 选择 “ 日常运维 > 统一日志 > 运行日志 ” ，单击 “ 租户侧管理节点运行日志下载 > 新增日志下载任务 ” 。 填写任务名称，选择对应云服务、区域、需要下载的组件、合理的时间段、需要收集的日志路径，在虚拟机列表中选择一个或多个虚拟机，单击“确定”，等待任务完成。 合理的时间段：日志的时间段不得大于7天。选择时间段指日志文件最后归档时间，并不是日志产生的时间，如果日志文件尚未归档，选择最近时间段进行下载。 虚拟机：搜索框中按名称、私有IP、ID搜索虚拟机。 完成任务后，在列表页面单击“下载”，即可下载对应的日志。",
+      "source_file": "5600_file_5600.txt"
+    },
+    {
+      "term": "检查实例到OBS网络是否连通",
+      "content": "检查实例到OBS网络是否连通 检查实例到OBS网络是否连通 操作步骤 登录ManageOne运维面。 在当前告警中找到对应告警，单击告警名称，在定位信息中找到告警实例ID、告警ID和工作ID（以实际环境为准，可能没有该ID）。 登录DBS运维管理平台。 在左侧导航树，选择 “ 实例运维 > 配置管理 ” 。 选择“系统参数管理”页签，在下拉框中选择“DBS_BACKUP_SYSTEM_PARAMETER”，并搜索系统参数“backup.obsEndpoint”，即可获取OBS的地址。 参考 登录实例节点 ，登录到实例节点，执行如下命令： curl <OBS-地址:端口> 如果提示无法连接到指定端口，说明实例到OBS网络不通，请先排查网络故障。 如果出现以下回显，说明返回为空，但实例到OBS网络是互通的。 Empty reply from server",
+      "source_file": "5183_OBS.txt"
+    },
+    {
+      "term": "登录实例节点",
+      "content": "登录实例节点 登录实例节点 数据库服务提供运维紧急处理通道，可以通过该功能生成登录节点的脚本信息登录数据库后台节点。登录节点脚本生成后，您可以： 登录后台节点。 将数据库文件下载到后台节点。 从后台服务节点上传文件到数据库。 登录脚本有效期约2小时，过期后系统会自动删除。如需使用请重新生成节点登录脚本。 脚本使用说明查看命令： sh connNode.sh 本节介绍如何生成节点脚本和登录数据库节点。 为安全起见，opsadmin将在UTC时间0点清理 “/tmp/opsTool” 路径下的文件。 生成节点脚本 使用浏览器，通过地址“https:// ManageOne运维面主页的访问地址 :31943”，登录ManageOne运维面，或通过地址“https:// ManageOne主门户的访问地址 ”，登录ManageOne主门户，选择“运维中心（OC）”，进入ManageOne运维面。 密码方式：输入帐号和密码。 默认帐号：bss_admin 如果是升级场景，默认帐号为admin。 默认密码：参见 《华为云Stack 8.3.0 帐户一览表》 的“A类（Portal）”页签中，“ManageOne运维面”帐户对应的默认密码。 USB Key方式：插入已预置用户证书的USB Key，选择设备和用户证书，并输入PIN码 单击“登录”。 在ManageOne运维面页面的“常用链接”栏中单击 “ServiceCM” ，跳转到ServiceCM插件列表界面。 在ServiceCM插件列表界面，单击 “自助开发平台 > dbs-ops” ，进入DBS运维管理平台。 选择 “实例运维 > 实例管理 > 实例列表” 。 选择需要登录的实例信息，单击右侧“操作”列的 “生成登录脚本” 。 在弹窗中输入或者选择多个节点ID，确认对应的节点名称和类型，单击 “确定” 。 根据返回提示，获取脚本生成的节点IP和路径。例如： generate script or submit script job success, ops-admin ip:{hostIp}/tmp/opsTool/{instanceId} 需要登录到ops-admin所在的后台服务节点hostIp，在指定路径“/tmp/opsTool/{instanceId}”下，使用脚本即可。 登录脚本有效期约2小时，过期后自动删除并重置该节点OS密码信息。 在弹窗中输入或者选择多个节点ID，确认对应的节点名称和类型，单击 “显示命令” ，获取命令示例或者单击 “下载密码” ，获取密码信息（包含命令示例）。 登录实例节点 使用用户opsadmin登录后台服务节点，节点地址为 8 中获取的hostIp。 默认密码请参考《华为云Stack 8.3.0 帐户一览表》中 “数据库” 页签。选择“云服务”为“DBSPlatform”、“帐户所在的管理虚拟机/节点”为“DBS-OpsAdmin”，获取 “opsadmin” 帐号名对应的密码。 为了您的帐户安全，请定期修改密码。 执行以下命令，切换到root。 sudo su - root 默认密码请参考《华为云Stack 8.3.0 帐户一览表》中 “数据库” 页签。选择“云服务”为“DBSPlatform”、“帐户所在的管理虚拟机/节点”为“DBS-OpsAdmin”，获取 “root” 帐号名对应的密码。 为了您的帐户安全，请定期修改密码。 执行如下指令，切换到service用户。 su - service 进入到脚本目录。 cd /tmp/opsTool/ {instanceId} 此处 {instanceId} 为 生成节点脚本 中 8 返回信息中的instanceId。 登录节点。登录到节点的命令为 9 中获得的命令。例如： sh connNode.sh connect {nodeId} $ \" {mngPPh} \" $ \" {rtPd} \" {nodeId}为登录的节点ID。 {mngPPh}是 9 中“下载密码”得到的“Mike密码”的值。 {rtPd}是 9 中“下载密码”得到的“Root密码”的值。 延伸功能： 从节点拉取文件（将需要拉取的文件复制到/home/Mike目录下，文件权限修改为Mike）： sh connNode.sh ${nodeId} pull /home/Mike / { filename } {local_directory} {mngPPh} 从本地推送文件（本地推送的文件及其所在的目录权限为service）： sh connNode.sh ${nodeId} push {local_directory}/{filename} /home/Mike {mngPPh} 其中，{mngPPh}是 9 中“下载密码”得到的文档里的“Mike密码”的值。 执行如下命令，导入环境变量。 source /home/Ruby/gauss_env_file",
+      "source_file": "6121_file_6121.txt"
+    },
+    {
+      "term": "ECS虚拟机管理",
+      "content": "ECS虚拟机管理 ECS虚拟机管理 使用浏览器，通过地址“https:// ManageOne运维面主页的访问地址 :31943”，登录ManageOne运维面，或通过地址“https:// ManageOne主门户的访问地址 ”，登录ManageOne主门户，选择“运维中心（OC）”，进入ManageOne运维面。 密码方式：输入账号和密码。 默认账号：bss_admin 如果是升级场景，默认账号为admin。 默认密码：请参见《华为云Stack 8.3.0 账户一览表》的“A类（Portal）”页签中，“ManageOne运维面”账户对应的默认密码。 USB Key方式：插入已预置用户证书的USB Key，选择设备和用户证书，并输入PIN码。 选择“集中监控 > 告警管理 > 当前告警”，在当前告警中找到对应告警，单击告警名称，在定位信息中找到告警实例ID、告警ID和工作ID。 参考 查看实例和节点信息 章节，获取该实例的实例信息和节点信息。 单击首页，返回ManageOne运维面。 在ManageOne运维面右下角“常用链接”栏中单击“Service OM”，并选择相应区域，跳转到对应区域的Service OM界面。 单击“计算资源 > 虚拟机”进入虚拟机管理页面。 根据实例ID和节点IP信息搜索，找到该实例对应的ECS虚拟机。 单击操作列“VNC登录”或“更多”按钮，对该虚拟机进行管理。",
+      "source_file": "5186_ECS.txt"
+    },
+    {
+      "term": "查看实例版本升级操作失败",
+      "content": "查看实例版本升级操作失败 查看实例版本升级操作失败 操作步骤 登录ManageOne运维面。 在当前告警中找到对应告警，单击告警名称，在定位信息中找到告警实例ID、告警ID和工作ID（以实际环境为准，可能没有该ID）。 登录DBS运维管理平台。 选择 “ 实例运维 > 实例管理 > 版本升级 ” ，在“实例列表”搜索框中通过实例ID搜索实例信息。 单击查看升级版本失败实例，在弹框中查看失败信息。",
+      "source_file": "5178_file_5178.txt"
+    },
+    {
+      "term": "查看可恢复时间段",
+      "content": "查看可恢复时间段 查看可恢复时间段 登录ManageOne运维面。 在当前告警中找到对应告警，单击告警名称，在定位信息中找到告警实例ID、告警ID和工作ID（以实际环境为准，可能没有该ID）。 登录DBS运维管理平台。 DBS运维管理平台，选择 “ 实例运维 > 备份管理 > 备份恢复管理 ” ，在查询框中输入定位信息中的实例ID，单击查询按钮进行搜索。 在实例列表的更多操作中选择“查询可恢复时间段”，即可完成查询。",
+      "source_file": "5168_file_5168.txt"
+    },
+    {
+      "term": "重做task",
+      "content": "重做task 重做task 使用浏览器，通过地址“https:// ManageOne运维面主页的访问地址 :31943”，登录ManageOne运维面，或通过地址“https:// ManageOne主门户的访问地址 ”，登录ManageOne主门户，选择“运维中心（OC）”，进入ManageOne运维面。 密码方式：输入帐号和密码。 默认帐号：bss_admin 如果是升级场景，默认帐号为admin。 默认密码：参见 《华为云Stack 8.3.0 帐户一览表》 的“A类（Portal）”页签中，“ManageOne运维面”帐户对应的默认密码。 USB Key方式：插入已预置用户证书的USB Key，选择设备和用户证书，并输入PIN码。 在页面左上角 ，选择 “ 云服务 > 数据库 > 云数据库 GaussDB ” 。进入云服务资源管理页面。 单击对应region id(如sa-fb-1)的云服务名称，进入云服务详情页面。 单击左侧的“实例列表 > DBS运维平台”，进入DBS运维管理平台。 选择“实例运维 > 任务管理”，在页面右上角输入定位信息中的任务ID，查询任务信息。 单击任务的“树表”操作，进入任务详情。 找到需要重做的task，单击右侧向下箭头，选择重做即可完成重做操作。",
+      "source_file": "5595_task.txt"
+    },
+    {
+      "term": "查询节点ID",
+      "content": "查询节点ID 查询节点ID 登录DBS运维管理平台 ，选择“实例运维 > 实例管理 > 实例列表”， 输入实例ID，执行搜索。 单击 1 中查询的实例名称，进入实例详情，获取所需节点ID，如图所示。",
+      "source_file": "5604_ID.txt"
+    },
+    {
+      "term": "登录DBS运维管理平台",
+      "content": "登录DBS运维管理平台 登录DBS运维管理平台 操作步骤 使用浏览器，通过地址“https:// ManageOne运维面主页的访问地址 :31943”，登录ManageOne运维面，或通过地址“https:// ManageOne主门户的访问地址 ”，登录ManageOne主门户，选择“运维中心（OC）”，进入ManageOne运维面。 密码方式：输入账号和密码。 默认账号：bss_admin 如果是升级场景，默认账号为admin。 默认密码：请参见《华为云Stack 8.3.0 账户一览表》的“A类（Portal）”页签中，“ManageOne运维面”账户对应的默认密码。 USB Key方式：插入已预置用户证书的USB Key，选择设备和用户证书，并输入PIN码。 单击“登录”。 在ManageOne运维面页面的“常用链接”栏中单击 “ServiceCM” ，跳转到ServiceCM插件列表界面。 在ServiceCM插件列表界面，单击 “自助开发平台 > dbs-ops” ，进入DBS运维管理平台。",
+      "source_file": "5161_DBS.txt"
+    },
+    {
+      "term": "重做task",
+      "content": "重做task 重做task 登录ManageOne运维面。 在当前告警中找到对应告警，单击告警名称，在定位信息中找到告警实例ID、告警ID和工作ID（以实际环境为准，可能没有该ID）。 登录DBS运维管理平台。 DBS运维管理平台，选择“实例运维 > 任务管理”，在页面右上角输入定位信息中的任务ID，查询任务信息。 单击任务的“树表”操作，进入任务详情。 找到需要重做的task，单击右侧向下箭头，选择重做即可完成重做操作。",
+      "source_file": "5164_task.txt"
+    },
+    {
+      "term": "修改Workflow的Job",
+      "content": "修改Workflow的Job Context 修改Workflow的Job Context 如果您已经在任务详情页面，请直接执行 6 。 登录ManageOne运维面。 在当前告警中找到对应告警，单击告警名称，在定位信息中找到告警实例ID、告警ID和工作ID（以实际环境为准，可能没有该ID）。 登录DBS运维管理平台。 DBS运维管理平台，选择“实例运维 > 任务管理”，在页面右上角输入定位信息中的任务ID，查询任务信息。 图1 查看任务信息 单击任务的“树表”操作，进入任务详情，在对应任务task对应Job的右上角，选择“操作 > 修改Context”，可以查询和修改对应Job的Context，修改对应的context值，单击确定。",
+      "source_file": "5165_WorkflowJob Context.txt"
+    },
+    {
+      "term": "访问实例管理公共OBS桶",
+      "content": "访问实例管理公共OBS桶 访问实例管理公共OBS桶 操作步骤 根据 查看系统参数 方法，选择DBS_SYSTEM_PARAMETER，在搜索框中输入“instance_obs_ak”，获得登录OBS的AK； 继续在搜索框中输入“instance_obs_sk”，获得登录OBS的SK，并使用解密工具解密。 在搜索框中输入“obsEndpoint”，获得登录OBS的地址。 在搜索框中输入“instance_package_bucket”，获得需要访问的桶名。 使用OBS连接工具，登录OBS并访问对应桶。",
+      "source_file": "5182_OBS.txt"
+    },
+    {
+      "term": "登录Service",
+      "content": "登录Service OM平台 登录Service OM平台 使用浏览器，通过地址“https:// ManageOne运维面主页的访问地址 :31943”，登录ManageOne运维面，或通过地址“https:// ManageOne主门户的访问地址 ”，登录ManageOne主门户，选择“运维中心（OC）”，进入ManageOne运维面。 密码方式：输入帐号和密码。 默认帐号：bss_admin 如果是升级场景，默认帐号为admin。 默认密码：参见 《华为云Stack 8.3.0 帐户一览表》 的“A类（Portal）”页签中，“ManageOne运维面”帐户对应的默认密码。 USB Key方式：插入已预置用户证书的USB Key，选择设备和用户证书，并输入PIN码 在页面的“常用链接”导航栏中，单击“Service OM”，选择区域后进入Service OM界面。",
+      "source_file": "5598_Service OM.txt"
+    },
+    {
+      "term": "服务和节点对应表",
+      "content": "服务和节点对应表 服务和节点对应表 服务 组件 组件所在节点名称前缀 平台（DBS Platform） 管理面备份数据库 DBS-GaussBackup 管理面workflow、opsadmin数据库 DBS-GaussBase 管理面core数据库 DBS-GaussCore 管理面计量数据库 DBS-GaussMetering kafka DBS-Kafka 管理面monitor DBS-Monitor OPS admin DBS-OpsAdmin OPS Base DBS-OpsBase Proxy DBS-Proxy 资源管理 DBS-ResMgnt 工作流 DBS-Workflow zk DBS-Zookeeper GaussDB GaussDB 实例管理、备份 DBS-GaussDB GaussDB API DBS-OPEN-API-For-GaussDB",
+      "source_file": "5593_file_5593.txt"
+    }
+  ]
+}

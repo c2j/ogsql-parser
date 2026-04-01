@@ -1,0 +1,31 @@
+{
+  "topic": "外部工具",
+  "term_count": 5,
+  "terms": [
+    {
+      "term": "获取帮助",
+      "content": "获取帮助 获取帮助 启动调优程序之前，可以通过如下命令获取帮助信息： gs_dbmind component dkr --help 输出帮助信息结果如下： usage:               [-h] [-f FILE] [--standard STANDARD] [-s STATISTICS]\n                     [-m {offline,online}] [--dn DN] [-p PORT] [-d DATABASE]\n                     [--host HOST] [--schema SCHEMA] [-U USER]\n                     [--start_time START_TIME] [--end_time END_TIME]\n                     [--min_distinct_threshold MIN_DISTINCT_THRESHOLD]\n                     [--cost_type {naive,optimizer}]\n                     [--max_replication_table_size MAX_REPLICATION_TABLE_SIZE]\n                     [--prior_distribute_transaction]\n                     [--driver]\n\nGenerate a set of distributed keys for workload. two modes are supported:offline: (--file -m\n-s) online: (--file -p -d --host -U --start_time --end_time --schema)\n\noptional arguments:\n  -h, --help            show this help message and exit\n  -f FILE, --file FILE  File contains workload queries (One query per line) or\n                        oracle stored procedure\n  --standard STANDARD   queries in the file as standard format\n  -s STATISTICS, --statistics STATISTICS\n                        File contains statistical information\n  -m {offline,online}, --mode {offline,online}\n                        the current mode\n  --dn DN               The number of data nodes\n  -p PORT, --port PORT  Port of database\n  -d DATABASE, --database DATABASE\n                        Name of database\n  --host HOST           Host for database\n  --schema SCHEMA       Schema name for the current business data\n  -U USER, --user USER  Username for database log-in\n  --start_time START_TIME\n                        Collect WDR report start time\n  --end_time END_TIME   Collect WDR report end time\n  --min_distinct_threshold MIN_DISTINCT_THRESHOLD\n                        Minimum value of distinct value\n  --cost_type {naive,optimizer}\n                        Which cost estimation algorithm to use\n  --max_replication_table_size MAX_REPLICATION_TABLE_SIZE\n                        Maximum number of rows in the replication table\n  --prior_distribute_transaction\n                        Prioritize the processing of distributed transaction\n  --driver              Whether to employ python-driver",
+      "source_file": "4465_file_4465.txt"
+    },
+    {
+      "term": "常见问题处理",
+      "content": "常见问题处理 常见问题处理 提示No recommended results for distribution key and replication table。检查数据库参数或 schema参数 是否输入正确。 获取WDR报告为空，检查时间参数格式是否正确，或者确认指定用户是否有monitor admin权限。",
+      "source_file": "4466_file_4466.txt"
+    },
+    {
+      "term": "命令参考",
+      "content": "命令参考 命令参考 表1 命令行参数 参数 参数说明 取值范围 MODE 指定当前业务场景。 offline,online STATISTICS 数据迁移前场景下，数据库统计信息文件路径；和UGO对接需要。 - FILE 包含workload语句的文件路径。 - DATABASE 连接数据库的名字。 - SCHEMA （可选）模式名称。 - PORT 连接数据库的端口号。 - DN DN节点个数。 - HOST （可选）连接数据库主机号。 - USER （可选）连接数据库用户名。 - START_TIME （可选）收集WDR报告业务数据开始时间。 timestamp with time zone END_TIME （可选）收集WDR报告业务数据结束时间。 timestamp with time zone MIN_DISTINCT_THRESHOLD （可选）列的distinct value值最低，默认0.5。 - COST_TYPE （可选）代价计算类型，默认naive。 naive,optimizer standard （可选）指定当前业务文件格式与索引推荐章节介绍的extract_log脚本输出文件格式一致。 - max_replication_table_size （可选）指定复制表最大行数。 - prior_distribute_transaction （可选）指定对整个业务优先考虑分布式事物场景。 - driver （可选）指定使用python驱动连接数据库。 -",
+      "source_file": "4467_file_4467.txt"
+    },
+    {
+      "term": "概述",
+      "content": "概述 概述 本分布键推荐功能在数据库内核外部实现， 以独立的工具形式呈现 ，支持数据迁移前与数据迁移后两种场景下的分布键推荐，用户只需提供业务数据与少量相关数据库统计信息。",
+      "source_file": "4463_file_4463.txt"
+    },
+    {
+      "term": "使用指导",
+      "content": "使用指导 使用指导 前提条件 数据库运行状态良好，无资源紧张状况。 该特性是以外部工具的形式存在，需要用户在使用工具时提供元数据。 该特性当前仅针对 Hash分布 做推荐。 本特性暂不考虑计算倾斜、访问倾斜。 采用WDR报告中获取业务数据需提前设置guc参数track_stmt_stat_level= 'L0,L0'，并且要求执行节点是CN，以及指定用户具有monitor admin权限。 配置python3.7+环境。 操作步骤 准备好包含有多条DML语句的文件作为输入的workload，对于数据迁移前场景，同时准备数据库相关统计信息的json文件。 数据库相关统计信息的JSON文件数据格式为： { table_name: # 表名\n    {\"size\": size_value, # 表大小(整型)\n     \"rows\": rows_value, # 表行数（整型）\n     \"primaryKey\": \"column_value\", # 主键第一列（字符串）\n     \"column\":           # 表列名及该列对应的distinct value值(浮点型)\n         {\"col1\": col1_distinct_value, \n          \"col2\": col2_distinct_value,\n          \"col3\": col3_distinct_value\n          }      \n     }\n} workload数据格式为： SQL语句文本 运行命令如下： gs_dbmind component dkr [-f FILE] [-m MODE] [-s STATISTICS] [-p PORT] [-d DATABASE] [--schema SCHEMA] [--host HOST] [-U USER] [--dn DN] [--start_time START_TIME] [--end_time END_TIME] [--min_distinct_threshold MIN_DISTINCT_THRESHOLD] [--cost_type COST_TYPE][--max_replication_table_size MAX_REPLICATION_RTABLE_SIZE] [--prior_distribute_transaction] [--standard][--driver] 使用方法示例 当需要将业务数据从其他类型的数据库迁移到GaussDB 分布式数据库时（即“数据迁移前”场景），则可以使用下述命令启动推荐： gs_dbmind component dkr -f test.sql -m offline -s table_info.json --dn 6 --min_distinct_threshold 0.5 --cost_type naive 当业务数据已经迁移到GaussDB 分布式数据库中后，对于需要对分布键进行调优的场景（即“数据迁移后”场景），则可使用下述命令启动推荐： echo huawei.123 | gs_dbmind component dkr -f test.sql -m online -p 53400 -d tpch500high --host linux173 -U dba --dn 6  --min_distinct_threshold 0.5 --cost_type optimizer 运行结果示例如下，其中“CREATE TABLE”表示应该创建分布键的列名，“HINT”提示可以创建为复制表的表名： ################################## Distribution key recommended result ################################\nCREATE TABLE customer(...) DISTRIBUTE BY HASH(c_custkey);\nCREATE TABLE lineitem(...) DISTRIBUTE BY HASH(l_orderkey);\nCREATE TABLE orders(...) DISTRIBUTE BY HASH(o_orderkey);\nCREATE TABLE part(...) DISTRIBUTE BY HASH(p_partkey);\nCREATE TABLE partsupp(...) DISTRIBUTE BY HASH(ps_partkey);\nCREATE TABLE region(...) DISTRIBUTE BY HASH(r_regionkey);\nCREATE TABLE supplier(...) DISTRIBUTE BY HASH(s_suppkey);\nHINT: table nation can be set as a replication table. (table rows = 25)",
+      "source_file": "4464_file_4464.txt"
+    }
+  ]
+}

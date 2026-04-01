@@ -1,0 +1,412 @@
+类型转换函数 类型转换函数 类型转换函数 cash_words(money) 描述：类型转换函数，将money转换成text。 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT cash_words ( '1.23' ); cash_words ----------------------------------- One dollar and twenty three cents ( 1 row ) convert(expr, type) 描述：类型转换函数，将expr转换成type指定的类型。 参数：第一个参数为一个任意值，第二个参数为类型名称。 返回值类型：返回值类型为输入的type类型。 示例： 1
+2
+3
+4
+5 b_compatible_db =# SELECT convert ( 12 . 5 , text ); text ------ 12 . 5 ( 1 row ) 此函数仅在MYSQL模式数据库中生效。 cast(x as y [DEFAULT z ON CONVERSION ERROR][,fmt]) 描述：类型转换函数，将x转换成y指定的类型。当sql_compatibility = 'MYSQL'时，设置参数b_format_version = '5.7'、b_format_dev_version = 's1'后，当y是char类型时，该函数会将x转成varchar类型。 DEFAULT z ON CONVERSION ERROR：可选参数。当尝试将x转换成y指定的类型失败时，则将z转换成y指定的类型。 fmt：可选参数。当y是以下数据类型时可以指定 fmt 参数： int1/int2/int4/int8/int16/float4/float8/numeric：则可选参数 fmt 的用途与 to_number(expr [,fmt]) 函数相同。 date/timestamp/timestamp with time zone：则可选参数 fmt 的用途与 to_date(string [,fmt])/to_timestamp(string [,fmt]) /to_timestamp_tz(string [,fmt]) 函数相同。 示例： 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22 gaussdb =# SELECT cast ( '22-oct-1997' as timestamp ); timestamp --------------------- 1997 - 10 - 22 00 : 00 : 00 ( 1 row ) gaussdb =# SELECT cast ( '22-ocX-1997' as timestamp DEFAULT '22-oct-1997' ON CONVERSION ERROR , 'DD-Mon-YYYY' ); timestamp --------------------- 1997 - 10 - 22 00 : 00 : 00 ( 1 row ) gaussdb =# CREATE DATABASE gaussdb_m WITH dbcompatibility 'MYSQL' ; gaussdb =# \ c gaussdb_m -- 设置兼容版本控制参数 gaussdb_m =# SET b_format_version = '5.7' ; gaussdb_m =# SET b_format_dev_version = 's1' ; gaussdb_m =# SELECT cast ( 'aaa' as char ); varchar --------- aaa ( 1 row ) 此函数在参数a_format_version值为10c和a_format_dev_version值为s1的情况下，才支持DEFAULT z ON CONVERSION ERROR 及 fmt 语法。 cast(x AS {SIGNED | UNSIGNED} [INT | INTEGER]) 描述：类型转换函数，将x转换成BIGINT SIGNED 或 BIGINT UNSIGNED类型。 返回值类型：BIGINT SIGNED 或 BIGINT UNSIGNED 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT CAST ( 12 AS UNSIGNED ); uint8 ------- 12 ( 1 row ) hextoraw(text) 描述：将一个十六进制构成的字符串转换为raw类型。 返回值类型：raw 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT hextoraw ( '7D' ); hextoraw ---------- 7 D ( 1 row ) numtoday(numeric) 描述：将数字类型的值转换为指定格式的时间戳。 返回值类型：timestamp 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT numtoday ( 2 ); numtoday ---------- 2 days ( 1 row ) rawtohex(string) 描述：将一个二进制构成的字符串转换为十六进制的字符串。 结果为输入字符的ACSII码，以十六进制表示。 返回值类型：varchar 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT rawtohex ( '1234567' ); rawtohex ---------------- 31323334353637 ( 1 row ) to_blob(raw) 描述：将RAW类型转成BLOB类型。 返回值类型：blob 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT to_blob ( '0AADD343CDBBD' :: RAW ( 10 )); to_blob ---------------- 00 AADD343CDBBD ( 1 row ) 在参数a_format_version值为10c和a_format_dev_version值为s2的情况下，才支持to_blob函数。 to_bigint(varchar) 描述：将字符类型转换为bigint类型。 返回值类型：bigint 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT to_bigint ( '123364545554455' ); to_bigint ---------------- 123364545554455 ( 1 row ) to_binary_double(expr) 描述：将expr转换成float8类型的值。 expr：支持number、float4、float8数值类型，以及可以隐式转换为数值类型的字符串。 返回值类型：float8 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT to_binary_double ( '12345678' ); to_binary_double ------------------ 12345678 ( 1 row ) 在参数a_format_version值为10c和a_format_dev_version值为s2的情况下，才支持to_binary_double函数。 to_binary_double(expr, fmt) 描述：将expr经过指定的fmt匹配后转换成float8类型的数值 expr/fmt：支持char、nchar、varchar2、nvarchar2类型的字符串，expr还支持可以隐式转换为字符串类型的数值类型。 返回值类型：float8 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT to_binary_double ( '1,2,3' , '9,9,9' ); to_binary_double ------------------ 123 ( 1 row ) 在参数a_format_version值为10c和a_format_dev_version值为s2的情况下，才支持to_binary_double函数。 to_binary_double(expr default return_value on conversion error) 描述：将expr转换成float8类型的值，若失败则返回默认值return_value。 expr：支持number、float4、float8数值类型，以及可以隐式转换为字符串的数值类型。当expr为非数值类型或非字符串类型，返回信息会提示报错。 返回值类型：float8 示例： 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11 gaussdb =# SELECT to_binary_double ( 1 e2 default 12 on conversion error ); to_binary_double ------------------ 100 ( 1 row ) gaussdb =# SELECT to_binary_double ( 'aa' default 12 on conversion error ); to_binary_double ------------------ 12 ( 1 row ) 在参数a_format_version值为10c和a_format_dev_version值为s2的情况下，才支持to_binary_double函数。 to_binary_double(expr default return_value on conversion error, fmt) 描述：将expr经过指定的fmt匹配后转换成float8类型的数值，若失败则返回默认值return_value。 expr/fmt：支持char、nchar、varchar2、nvarchar2类型的字符串，expr还支持可以隐式转换为字符串的数值类型。 返回类型：float8 示例： 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11 gaussdb =# SELECT to_binary_double ( '12-' default 10 on conversion error , '99S' ); to_binary_double ------------------ - 12 ( 1 row ) gaussdb =# SELECT to_binary_double ( 'aa-' default 12 on conversion error , '99S' ); to_binary_double ------------------ 12 ( 1 row ) 在参数a_format_version值为10c和a_format_dev_version值为s2的情况下，才支持to_binary_double函数。 to_binary_float(expr) 描述：将expr转换成float4类型的值。 expr：支持number、float4、float8数值类型，以及可以隐式转换为数值类型的字符串。 返回值类型：float4 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT to_binary_float ( '12345678' ); to_binary_float ------------------ 1 . 23457 e + 07 ( 1 row ) 在参数a_format_version值为10c和a_format_dev_version值为s2的情况下，才支持to_binary_float函数。 to_binary_float(expr, fmt) 描述：将expr经过指定的fmt匹配后转换成float4类型的数值。 expr/fmt：支持char、nchar、varchar2、nvarchar2类型的字符串，expr还支持可以隐式转换为字符串类型的数值类型。 返回值类型：float4 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT to_binary_float ( '1,2,3' , '9,9,9' ); to_binary_float ------------------ 123 ( 1 row ) 在参数a_format_version值为10c和a_format_dev_version值为s2的情况下，才支持to_binary_float函数。 to_binary_float(expr default return_value on conversion error) 描述：将expr转换成float4类型的值，若失败则返回默认值return_value。 expr：支持number、float4、float8数值类型，以及可以隐式转换为字符串的数值类型。当expr为非数值类型或非字符串类型，返回信息会提示报错。 返回值类型：float4 示例： 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11 gaussdb =# SELECT to_binary_float ( 1 e2 default 12 on conversion error ); to_binary_float ------------------ 100 ( 1 row ) gaussdb =# SELECT to_binary_float ( 'aa' default 12 on conversion error ); to_binary_float ------------------ 12 ( 1 row ) 在参数a_format_version值为10c和a_format_dev_version值为s2的情况下，才支持to_binary_float函数。 to_binary_float(expr default return_value on conversion error, fmt) 描述：将expr经过指定的fmt匹配后转换成float4类型的数值，若失败则返回默认值return_value。 expr/fmt：支持char、nchar、varchar2、nvarchar2类型的字符串，expr还支持可以隐式转换为字符串类型的数值类型。 返回类型：float4 示例： 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11 gaussdb =# SELECT to_binary_float ( '12-' default 10 on conversion error , '99S' ); to_binary_float ------------------ - 12 ( 1 row ) gaussdb =# SELECT to_binary_float ( 'aa-' default 12 on conversion error , '99S' ); to_binary_float ------------------ 12 ( 1 row ) 在参数a_format_version值为10c和a_format_dev_version值为s2的情况下，才支持to_binary_float函数。 to_char (datetime/interval [, fmt]) 描述：将一个DATE、TIMESTAMP、TIMESTAMP WITH TIME ZONE或者TIMESTAMP WITH LOCAL TIME ZONE类型的DATETIME或者INTERVAL值按照fmt指定的格式转换为VARCHAR类型。 可选参数fmt可以为以下几类：日期、时间、星期、季度和世纪。每类都可以有不同的模板，模板之间可以合理组合，常见的模板有：HH、MM、SS、YYYY、MM、DD，详情请参见 表5 。 模板可以有修饰词，常用的修饰词是FM，可以用来抑制前导的零或尾随的空白。 返回值类型：varchar 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT to_char ( current_timestamp , 'HH12:MI:SS' ); to_char ---------- 10 : 19 : 26 ( 1 row ) 1
+2
+3
+4
+5 gaussdb =# SELECT to_char ( current_timestamp , 'FMHH12:FMMI:FMSS' ); to_char ---------- 10 : 19 : 46 ( 1 row ) to_char(double precision/real, text) 描述：将浮点类型的值转换为指定格式的字符串。 返回值类型：text 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT to_char ( 125 . 8 :: real , '999D99' ); to_char --------- 125 . 80 ( 1 row ) to_char (numeric/smallint/integer/bigint/double precision/real[, fmt]) 描述：将一个整型或者浮点类型的值转换为指定格式的字符串。 可选参数fmt可以为以下几类：十进制字符、“分组”符、正负号和货币符号，每类都可以有不同的模板，模板之间可以合理组合，常见的模板有：9、0、,（千分隔符）、.（小数点），详情请参见 表1 。 模板可以有类似FM的修饰词，但FM不抑制由模板0指定而输出的0。 要将整型类型的值转换成对应16进制值的字符串，使用模板X或x。 返回值类型：varchar 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT to_char ( 1485 , '9,999' ); to_char --------- 1 , 485 ( 1 row ) 1
+2
+3
+4
+5 gaussdb =# SELECT to_char ( 1148 . 5 , '9,999.999' ); to_char ------------ 1 , 148 . 500 ( 1 row ) 1
+2
+3
+4
+5 gaussdb =# SELECT to_char ( 148 . 5 , '990999.909' ); to_char ------------- 0148 . 500 ( 1 row ) 1
+2
+3
+4
+5 gaussdb =# SELECT to_char ( 123 , 'XXX' ); to_char --------- 7 B ( 1 row ) 表1 number类型fmt参数 模式 描述 , (comma) 分组（千）分隔符 . (period) 小数点 $ 指定位置输出$ 0 带前导零的值 9 带有指定数值位数的值 B 当整数部分是0时返回空格 C 货币符号（使用区域设置） D 小数点（使用区域设置） EEEE 科学计数法 G 分组分隔符（使用区域设置） L 货币符号（使用区域设置） MI 在指明的位置的负号（如果数字 < 0） PR 尖括号内负值 RN 罗马数字（输入在 1 和 3999 之间） S 带符号的数值（使用区域设置） TM 标准数值与科学计数法 TM9 标准数值与科学计数法 TME 标准数值与科学计数法 U 货币符号（使用区域设置） V 移动指定位（小数） PL 在指明的位置的正号（如果数字 > 0） SG 在指明的位置的正/负号 TH或th 序数后缀 此函数在参数a_format_version值为10c和a_format_dev_version值为s1的情况下，支持$、C、TM、TM9、TME、U格式。同时在该参数下，不支持TH、PL、SG格式的fmt。 to_char(interval, text) 描述：将时间间隔类型的值转换为指定格式的字符串。 返回值类型：text 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT to_char ( interval '15h 2m 12s' , 'HH24:MI:SS' ); to_char ---------- 15 : 02 : 12 ( 1 row ) to_char(integer, text) 描述：将整数类型的值转换为指定格式的字符串。 返回值类型：text 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT to_char ( 125 , '999' ); to_char --------- 125 ( 1 row ) to_char(set) 描述：将SET类型的值转换为字符串。分布式暂不支持SET数据类型。 返回值：text to_char(numeric, text) 描述：将数字类型的值转换为指定格式的字符串。 返回值类型：text 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT to_char ( - 125 . 8 , '999D99S' ); to_char --------- 125 . 80 - ( 1 row ) to_char (string) 描述：将CHAR、VARCHAR、VARCHAR2、CLOB类型转换为VARCHAR类型。 如使用该函数对CLOB类型进行转换，且待转换CLOB类型的值超出目标类型的范围，则返回错误。 返回值类型：varchar 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT to_char ( '01110' ); to_char --------- 01110 ( 1 row ) to_nvarchar2 描述：转换为nvarchar2类型。 参数：numeric 返回值类型：nvarchar2 to_char(timestamp, text) 描述：将时间戳类型的值转换为指定格式的字符串。 返回值类型：text 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT to_char ( current_timestamp , 'HH12:MI:SS' ); to_char ---------- 10 : 55 : 59 ( 1 row ) 在参数a_format_version值为10c和a_format_dev_version值为s1的情况下，to_char函数会对错误的fmt进行报错。 如果不是兼容模式下，to_char函数对于错误的fmt会原样输出，如fmt为FF10，会匹配到FF1进行格式化输出，然后原样输出0。 to_nchar (datetime/interval [, fmt]) 描述：将一个DATE、TIMESTAMP、TIMESTAMP WITH TIME ZONE或者TIMESTAMP WITH LOCAL TIME ZONE类型的DATETIME或者INTERVAL值按照fmt指定的格式转换为text类型。 可选参数fmt可以为以下几类：日期、时间、星期、季度和世纪。每类都可以有不同的模板，模板之间可以合理组合，常见的模板有：HH、MM、SS、YYYY、MM、DD，详情请参见 表5 。 模板可以有修饰词，常用的修饰词是FM，可以用来抑制前导的零或尾随的空白。 返回值类型：text 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT to_nchar ( current_timestamp , 'HH12:MI:SS' ); to_nchar ---------- 10 : 19 : 26 ( 1 row ) 1
+2
+3
+4
+5 gaussdb =# SELECT to_nchar ( current_timestamp , 'FMHH12:FMMI:FMSS' ); to_nchar ---------- 10 : 19 : 46 ( 1 row ) to_nchar(double precision/real, text) 描述：将浮点类型的值转换为指定格式的字符串。 返回值类型：text 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT to_nchar ( 125 . 8 :: real , '999D99' ); to_nchar --------- 125 . 80 ( 1 row ) to_nchar (numeric/smallint/integer/bigint/double precision/real[, fmt]) 描述：将一个整型或者浮点类型的值转换为指定格式的字符串。 可选参数fmt可以为以下几类：十进制字符、“分组”符、正负号和货币符号，每类都可以有不同的模板，模板之间可以合理组合，常见的模板有：9、0、,（千分隔符）、.（小数点），详情请参见 表1 。 模板可以有类似FM的修饰词，但FM不抑制由模板0指定而输出的0。 要将整型类型的值转换成对应16进制值的字符串，使用模板X或x。 返回值类型：text 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT to_nchar ( 1485 , '9,999' ); to_nchar --------- 1 , 485 ( 1 row ) 1
+2
+3
+4
+5 gaussdb =# SELECT to_nchar ( 1148 . 5 , '9,999.999' ); to_nchar ------------ 1 , 148 . 500 ( 1 row ) 1
+2
+3
+4
+5 gaussdb =# SELECT to_nchar ( 148 . 5 , '990999.909' ); to_nchar ------------- 0148 . 500 ( 1 row ) 1
+2
+3
+4
+5 gaussdb =# SELECT to_nchar ( 123 , 'XXX' ); to_nchar --------- 7 B ( 1 row ) 此函数在参数a_format_version值为10c和a_format_dev_version值为s1的情况下，支持$、C、TM、TM9、TME、U格式。同时在该参数下，不支持TH、PL、SG格式的fmt。 to_nchar(interval, text) 描述：将时间间隔类型的值转换为指定格式的字符串。 返回值类型：text 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT to_nchar ( interval '15h 2m 12s' , 'HH24:MI:SS' ); to_nchar ---------- 15 : 02 : 12 ( 1 row ) to_nchar(integer, text) 描述：将整数类型的值转换为指定格式的字符串。 返回值类型：text 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT to_nchar ( 125 , '999' ); to_nchar --------- 125 ( 1 row ) to_nchar(set) 描述：将SET类型的值转换为字符串。分布式暂不支持SET数据类型。 返回值：text to_nchar(numeric, text) 描述：将数字类型的值转换为指定格式的字符串。 返回值类型：text 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT to_nchar ( - 125 . 8 , '999D99S' ); to_nchar --------- 125 . 80 - ( 1 row ) to_nchar (string) 描述：将CHAR、VARCHAR、VARCHAR2、CLOB类型转换为TEXT类型。 如使用该函数对CLOB类型进行转换，且待转换CLOB类型的值超出目标类型的范围，则返回错误。 返回值类型：text 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT to_nchar ( '01110' ); to_nchar --------- 01110 ( 1 row ) to_nchar(timestamp, text) 描述：将时间戳类型的值转换为指定格式的字符串。 返回值类型：text 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT to_nchar ( current_timestamp , 'HH12:MI:SS' ); to_nchar ---------- 10 : 55 : 59 ( 1 row ) to_clob(char/nchar/varchar/nvarchar/varchar2/nvarchar2/text/raw) 描述：将RAW类型或者文本字符集类型CHAR、NCHAR、VARCHAR、VARCHAR2、NVARCHAR2、TEXT转成CLOB类型。 返回值类型：clob 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT to_clob ( 'ABCDEF' :: RAW ( 10 )); to_clob --------- ABCDEF ( 1 row ) 1
+2
+3
+4
+5 gaussdb =# SELECT to_clob ( 'hello111' :: CHAR ( 15 )); to_clob ---------- hello111 ( 1 row ) 1
+2
+3
+4
+5 gaussdb =# SELECT to_clob ( 'gauss123' :: NCHAR ( 10 )); to_clob ---------- gauss123 ( 1 row ) 1
+2
+3
+4
+5 gaussdb =# SELECT to_clob ( 'gauss234' :: VARCHAR ( 10 )); to_clob ---------- gauss234 ( 1 row ) 1
+2
+3
+4
+5 gaussdb =# SELECT to_clob ( 'gauss345' :: VARCHAR2 ( 10 )); to_clob ---------- gauss345 ( 1 row ) 1
+2
+3
+4
+5 gaussdb =# SELECT to_clob ( 'gauss456' :: NVARCHAR2 ( 10 )); to_clob ---------- gauss456 ( 1 row ) 1
+2
+3
+4
+5 gaussdb =# SELECT to_clob ( 'World222!' :: TEXT ); to_clob ----------- World222 ! ( 1 row ) to_date(text) 描述：将文本类型的值转换为指定格式的时间戳。 返回值类型：timestamp without time zone 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT to_date ( '2015-08-14' ); to_date --------------------- 2015 - 08 - 14 00 : 00 : 00 ( 1 row ) 用例执行环境：参数a_format_version值为10c、a_format_dev_version值为s1、nls_timestamp_format值为YYYY-MM-DD HH24:MI:SS。 to_date(text, text) 描述：将字符串类型的值转换为指定格式的日期。 返回值类型：timestamp without time zone 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT to_date ( '05 Dec 2000' , 'DD Mon YYYY' ); to_date --------------------- 2000 - 12 - 05 00 : 00 : 00 ( 1 row ) to_date(text [DEFAULT return_value ON CONVERSION ERROR [, fmt]]) 描述：将字符串text按fmt指定的格式转换成DATE类型的值。不指定fmt时，在参数a_format_version值为10c和a_format_dev_version值为s1的情况下，按参数nls_timestamp_format所指定的格式转换；否则按照固定fmt = 'yyyy-mm-dd hh24-mi-ss'进行转换。 text：任何计算结果为CHAR,VARCHAR2,NCHAR,NVARCHAR2,TEXT类型字符串的表达式。输入null，返回null。 DEFAULT return_value ON CONVERSION ERROR：可选参数。用于当text转换DATE类型失败时指定返回值return_value。return_value可以是表达式或者绑定的变量，必须可以转换为CHAR,VARCHAR2,NCHAR,NVARCHAR2,TEXT类型或者是null。return_value转换为DATE类型数据的方法与text转换为DATE类型数据相同，如果return_value转换为DATE类型数据失败，该函数报错。 fmt：可选参数。指定text的日期时间模型格式。缺省时，text必须符合默认的日期格式。fmt指定为J时，text必须是整数。 返回值类型：timestamp without time zone 示例： 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10 gaussdb =# SELECT to_date ( '2015-08-14' ); to_date --------------------- 2015 - 08 - 14 00 : 00 : 00 ( 1 row ) gaussdb =# SELECT to_date ( '05 Dec 2000' , 'DD Mon YYYY' ); to_date --------------------- 2000 - 12 - 05 00 : 00 : 00 ( 1 row ) gaussdb=# set a_format_version='10c';
+SET gaussdb=# set a_format_dev_version='s1';
+SET gaussdb=# show nls_timestamp_format;
+    nls_timestamp_format    
+----------------------------
+ DD-Mon-YYYY HH:MI:SS.FF AM
+(1 row) gaussdb=# select to_date('12-jan-2022' default '12-apr-2022' on conversion error);
+       to_date       
+---------------------
+ 2022-01-12 00:00:00
+(1 row) gaussdb=# select to_date('12-ja-2022' default '12-apr-2022' on conversion error);
+       to_date       
+---------------------
+ 2022-04-12 00:00:00
+(1 row) gaussdb=# select to_date('2022-12-12' default '2022-01-01' on conversion error, 'yyyy-mm-dd');
+       to_date       
+---------------------
+ 2022-12-12 00:00:00
+(1 row) 在参数a_format_version值为10c和a_format_dev_version值为s1的情况下，才支持DEFAULT return_value ON CONVERSION ERROR语法。 在参数a_format_version值为10c和a_format_dev_version值为s1的情况下，年份的输入超过9999时，系统可能不报错。如to_date('99999-12-12', 'yyyy-mm-dd hh24:mi:ss')结果为9999-09-12 12:00:00。年输入超过9999时，超过4位后面的数字会解析为下一个fmt，to_timestamp同样有此限制。 to_number ( expr [, fmt]) 描述：将expr按指定格式转换为一个NUMBER类型的值。 类型转换格式请参见 表3 。 转换十六进制字符串为十进制数字时，最多支持16个字节的十六进制字符串转换为无符号数。 转换十六进制字符串为十进制数字时，格式字符串中不允许出现除'x'或'X'以外的其他字符，否则报错。 返回值类型：number 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT to_number ( '12,454.8-' , '99G999D9S' ); to_number ----------- - 12454 . 8 ( 1 row ) to_number(text, text) 描述：将字符串类型的值转换为指定格式的数字。 返回值类型：numeric 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT to_number ( '12,454.8-' , '99G999D9S' ); to_number ----------- - 12454 . 8 ( 1 row ) to_number(expr [DEFAULT return_value ON CONVERSION ERROR [, fmt]]) 描述：将字符串expr根据指定fmt格式转换成numeric类型的值。不指定fmt时，text需要为能直接转换成numeric的字符串, 例: '123' , '1e2'。 类型转换格式请参见 表4 expr：支持的类型有CHAR,VARCHAR2,NCHAR,NVARCHAR2,TEXT,INT,FLOAT等可以转换成字符串类型的表达式。输入null，返回null。 DEFAULT return_value ON CONVERSION ERROR：可选参数。用于当expr转换numeric类型失败时指定返回值return_value。return_value同expr一样可以是任何能转换成字符串的类型。return_value的转换方式和expr相同也是根据fmt格式进行转换，会先校验return_value是否会转换失败，如果失败则该函数报错。 fmt：可选参数。指定expr的转换格式。 任意入参为NULL，则返回NULL 返回值类型：numeric 示例： 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27
+28
+29
+30
+31
+32 set a_format_version = '10c' ; set a_format_dev_version = 's1' ; gaussdb =# select to_number ( '1e2' ); to_number ----------- 100 ( 1 row ) gaussdb =# select to_number ( '123.456' ); to_number ----------- 123 . 456 ( 1 row ) gaussdb =# select to_number ( '123' , '999' ); to_number ----------- 123 ( 1 row ) gaussdb =# select to_number ( '123-' , '999MI' ); to_number ----------- - 123 ( 1 row ) gaussdb =# select to_number ( '123' default '456-' on conversion error , '999MI' ); to_number ----------- - 456 ( 1 row ) 在参数a_format_version值为10c和a_format_dev_version值为s1的情况下，才支持DEFAULT return_value ON CONVERSION ERROR语法。 to_timestamp(double precision) 描述：把UNIX纪元转换成时间戳。 返回值类型：timestamp with time zone 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT to_timestamp ( 1284352323 ); to_timestamp ------------------------ 2010 - 09 - 13 12 : 32 : 03 + 08 ( 1 row ) to_timestamp(string [,fmt]) 描述：将字符串string按fmt指定的格式转换成时间戳类型的值。不指定fmt时，按参数nls_timestamp_format所指定的格式转换。 GaussDB 的to_timestamp中， 如果输入的年份YYYY=0，系统报错。 如果输入的年份YYYY<0，在fmt中指定SYYYY，则正确输出公元前绝对值n的年份。 fmt中出现的字符必须与日期/时间格式化的模式相匹配，否则报错。 返回值类型：timestamp without time zone 示例： 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11 gaussdb =# SHOW nls_timestamp_format ; nls_timestamp_format ---------------------------- DD - Mon - YYYY HH : MI : SS . FF AM ( 1 row ) gaussdb =# SELECT to_timestamp ( '12-sep-2014' ); to_timestamp --------------------- 2014 - 09 - 12 00 : 00 : 00 ( 1 row ) 1
+2
+3
+4
+5 gaussdb =# SELECT to_timestamp ( '12-Sep-10 14:10:10.123000' , 'DD-Mon-YY HH24:MI:SS.FF' ); to_timestamp ------------------------- 2010 - 09 - 12 14 : 10 : 10 . 123 ( 1 row ) 1
+2
+3
+4
+5 gaussdb =# SELECT to_timestamp ( '-1' , 'SYYYY' ); to_timestamp ------------------------ 0001 - 01 - 01 00 : 00 : 00 BC ( 1 row ) 1
+2
+3
+4
+5 gaussdb =# SELECT to_timestamp ( '98' , 'RR' ); to_timestamp --------------------- 1998 - 01 - 01 00 : 00 : 00 ( 1 row ) 1
+2
+3
+4
+5 gaussdb =# SELECT to_timestamp ( '01' , 'RR' ); to_timestamp --------------------- 2001 - 01 - 01 00 : 00 : 00 ( 1 row ) 在参数a_format_version值为10c和a_format_dev_version值为s1的情况下fmt支持FF[7-9]，在FF[7-9]的情况下允许转换string中的对应位置长度小于等于FF紧跟的数字，但最终转换结果长度最大保留6位。 不支持current_timestamp函数返回结果作为string参数。 to_timestamp(text [DEFAULT return_value ON CONVERSION ERROR [, fmt]]) 描述：将字符串text按fmt指定的格式转换成DATE类型的值。不指定fmt时，在参数a_format_version值为10c和a_format_dev_version值为s1的情况下，按参数nls_timestamp_format所指定的格式转换；否则按照固定fmt = 'yyyy-mm-dd hh24-mi-ss'进行转换。 text：任何计算结果为CHAR,VARCHAR2,NCHAR,NVARCHAR2,TEXT类型字符串的表达式。输入null，返回null。 DEFAULT return_value ON CONVERSION ERROR：可选参数。用于当text转换DATE类型失败时指定返回值return_value。return_value可以是表达式或者绑定的变量，需可以转换为CHAR、VARCHAR2、NCHAR、NVARCHAR2、TEXT类型或者是null。return_value转换为timestamp类型数据的方法与text转换为timestamp类型数据相同，如果return_value转换为timestamp类型数据失败，该函数报错。 fmt：可选参数。指定text的日期时间模型格式。缺省时，text必须符合默认的日期格式。fmt指定为J时，text必须是整数。 返回值类型：timestamp without time zone 示例： gaussdb=# set a_format_version='10c';
+SET gaussdb=# set a_format_dev_version='s1';
+SET gaussdb=# SELECT to_timestamp('11-Sep-11' DEFAULT '12-Sep-10 14:10:10.123000' ON CONVERSION ERROR,'DD-Mon-YY HH24:MI:SS.FF');
+    to_timestamp     
+---------------------
+ 2011-09-11 00:00:00
+(1 row) gaussdb=# SELECT to_timestamp('12-Sep-10 14:10:10.123000','DD-Mon-YY HH24:MI:SSXFF');
+      to_timestamp       
+-------------------------
+ 2010-09-12 14:10:10.123
+(1 row) 在参数a_format_version值为10c和a_format_dev_version值为s1的情况下，才支持DEFAULT return_value ON CONVERSION ERROR语法。 to_timestamp(text, text) 描述：将字符串类型的值转换为指定格式的时间戳。 返回值类型：timestamp 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT to_timestamp ( '05 Dec 2000' , 'DD Mon YYYY' ); to_timestamp --------------------- 2000 - 12 - 05 00 : 00 : 00 ( 1 row ) to_timestamp_tz(string [DEFAULT return_value ON CONVERSION ERROR] [,fmt]) 描述：将字符串string按fmt指定的格式转换成带时区时间戳类型的值。不指定fmt时，按参数nls_timestamp_tz_format所指定的格式转换。 DEFAULT return_value ON CONVERSION ERROR：可选参数。当string转换成timestamp with time zone类型失败时，则将return_value转换timestamp with time zone类型。 fmt：可选参数。指定string的日期时间模型格式。同to_timestamp函数。 返回值类型：timestamp with time zone 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT to_timestamp_tz ( '05 DeX 2000' DEFAULT '05 Dec 2001' ON CONVERSION ERROR , 'DD Mon YYYY' ); to_timestamp_tz -------------------------- 2001 - 12 - 05 00 : 00 : 00 + 08 : 00 ( 1 row ) 此函数在参数a_format_version值为10c和a_format_dev_version值为s1的情况下有效。 to_timestamp_tz(string [DEFAULT return_value ON CONVERSION ERROR], fmt, nlsparam) 描述：将字符串string按fmt指定的格式转换成带时区时间戳类型的值。当string转换成timestamp with time zone类型失败时，则将return_value转换timestamp with time zone类型。nlsparam指定字符串时间中月份和日的语言，形式为'nls_date_language=language'，目前language只支持ENGLISH和AMERICAN。目前，正确使用nlsparam参数的结果和省略nlsparam参数的结果保持一致。 返回值类型：timestamp with time zone 表2 参数 类型 描述 string text 被用来转换为带时区时间戳类型的字符串。 return_value text 当string转换成timestamp with time zone类型失败时，则将return_value转换进行转换。 fmt text 指定参数string的日期时间模型格式。 nlsparam text 指定参数string中月份和日的语言。 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT to_timestamp_tz ( '05 DeX 2000' DEFAULT '05 Dec 2001' ON CONVERSION ERROR , 'DD Mon YYYY' , 'nls_date_language=AMERICAN' ); to_timestamp_tz -------------------------- 2001 - 12 - 05 00 : 00 : 00 + 08 : 00 ( 1 row ) 该函数在参数a_format_version值为10c和a_format_dev_version值为s4的情况下有效。 to_dsinterval(text) 描述：将字符转换为interval类型。支持SQL兼容格式与ISO格式。 返回值类型：interval 示例： 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11 gaussdb =# select to_dsinterval ( '12 1:2:3.456' ); to_dsinterval ---------------------- 12 days 01 : 02 : 03 . 456 ( 1 row ) gaussdb =# select to_dsinterval ( 'P3DT4H5M6S' ); to_dsinterval ----------------- 3 days 04 : 05 : 06 ( 1 row ) 此函数在参数a_format_version值为10c和a_format_dev_version值为s2的情况下有效。 to_yminterval(text) 描述：将字符转换为interval类型。支持SQL兼容格式与ISO格式。 返回值类型：interval 示例： 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11 gaussdb =# select to_yminterval ( '1-1' ); to_yminterval ----------------- 1 year 1 mon ( 1 row ) gaussdb =# select to_yminterval ( 'P13Y3M4DT4H2M5S' ); to_yminterval ----------------- 13 years 3 mons ( 1 row ) 此函数在参数a_format_version值为10c和a_format_dev_version值为s2的情况下有效。 表3 数值格式化的模版模式 模式 描述 9 带有指定数值位数的值。 0 带前导零的值。 .（句点） 小数点。 ,（逗号） 分组（千）分隔符。 PR 尖括号内负值。 S 带符号的数值（使用区域设置）。 L 货币符号（使用区域设置）。 D 小数点（使用区域设置）。 G 分组分隔符（使用区域设置）。 MI 在指明的位置的负号（如果数字 < 0）。 PL 在指明的位置的正号（如果数字 > 0）。 SG 在指明的位置的正/负号。 RN 罗马数字（输入在 1 和 3999 之间）。 TH或th 序数后缀。 V 移动指定位（小数）。 x或X 16进制转换10进制标识符。 表4 to_number数值格式化的模版模式 模式 描述 9 匹配一个数字，9的数量可以大于等于expr中对应位置的数字的数量。 0 严格匹配一个数字，0的数量要等于expr中数字的数量。 5 匹配一个0或5的数字。 .（句点） 指定位置的小数点。 ,（逗号） 指定位置的分组（千）分隔符，可以在fmt中指定多个逗号。 B 前导空白。 PR <尖括号>中对应负值。空白对应正值。 S 前导减号（-）的负值，返回带有前导加号（+）的正值。返回带有尾随减号（-）的负值，返回带有尾随加号（+）的正值。 MI 尾随-号的负值，尾随空白的正值。 $ 前导美元符号。 L 本地货币符号。 C 指定位置ISO货币符号。 U 双币符号。 D 小数点（使用区域设置）。 G 分组分隔符（ISO标准），可以在fmt中指定多个逗号。 RN / rn 罗马数字（输入在 1 和 3999 之间），to_number不支持该fmt。 V to_number不支持该fmt。 X / x 十六进制与十进制转换。 TM to_number不支持。 FM 在fmt中的最开头才能使用，无任何效果。 EEEE 按照科学计数法模型转换。 在参数a_format_version值为10c和a_format_dev_version值为s1的情况下，fmt功能参考该表格，否则参考上表格。其中该表中国际化ISO的fmt功能受参数LC_MONETARY和LC_NUMERIC影响。 cast_varchar2_to_raw_for_histogram(varchar2) 描述：将varchar2类型转换为raw类型输出。 返回值类型：raw abstime_text 描述：将abstime类型转为text类型输出。 参数：abstime 返回值类型：text abstime_to_smalldatetime 描述：将abstime类型转为smalldatetime类型。 参数：abstime 返回值类型：smalldatetime bigint_tid 描述：将bigint转为tid。 参数：bigint 返回值类型：tid bool_int1 描述：将bool转为int1。 参数：boolean 返回值类型：tinyint bool_int2 描述：将bool转为int2。 参数：boolean 返回值类型：smallint bool_int8 描述：将bool转为int8。 参数：boolean 返回值类型：bigint bpchar_date 描述：将字符串转为日期。 参数：character 返回值类型：date bpchar_float4 描述：将字符串转为float4。 参数：character 返回值类型：real bpchar_float8 描述：将字符串转为float8。 参数：character 返回值类型：double precision bpchar_int4 描述：将字符串转为int4。 参数：character 返回值类型：integer bpchar_int8 描述：将字符串转为int8。 参数：character 返回值类型：bigint bpchar_numeric 描述：将字符串转为numeric。 参数：character 返回值类型：numeric bpchar_timestamp 描述：将字符串转为时间戳。 参数：character 返回值类型：timestamp without time zone bpchar_to_smalldatetime 描述：将字符串转为smalldatetime。 参数：character 返回值类型：smalldatetime complex_array_in 描述：将外部complex_array类型转化为内部anyarray数组类型。 参数：cstring, oid, int2vector 返回值类型：anyarray date_bpchar 描述：将date类型转换为bpchar类型。 参数：date 返回值类型：character date_text 描述：将date类型转换为text类型。 参数：date 返回值类型：text date_varchar 描述：将date类型转换为varchar类型。 参数：date 返回值类型：character varying f4toi1 描述：把float4类型强转为uint8类型。 参数：real 返回值类型：tinyint f8toi1 描述：把float8类型强转为uint8类型。 参数：double precision 返回值类型：tinyint float4_bpchar 描述：float4转换为bpchar。 参数：real 返回值类型：character float4_text 描述：float4转换为text。 参数：real 返回值类型：text float4_varchar 描述：float4转换为varchar。 参数：real 返回值类型：character varying float8_bpchar 描述：float4转换为bpchar。 参数：double precision 返回值类型：character float8_interval 描述：float4转换为interval。 参数：double precision 返回值类型：interval float8_text 描述：float8转换为text。 参数：double precision 返回值类型：text float8_varchar 描述：float8转换为varchar。 参数：double precision 返回值类型：character varying i1tof4 描述：uint8转换为float4。 参数：tinyint 返回值类型：real i1tof8 描述：uint8转换为float8。 参数：tinyint 返回值类型：double precision i1toi2 描述：uint8转换为int16。 参数：tinyint 返回值类型：smallint i1toi4 描述：uint8转换为int32。 参数：tinyint 返回值类型：integer i1toi8 描述：uint8转换为int64。 参数：tinyint 返回值类型：bigint i2toi1 描述：int16转换为uint8。 参数：smallint 返回值类型：tinyint i4toi1 描述：int32转换为uint8。 参数：integer 返回值类型：tinyint i8toi1 描述：int64转换为uint8。 参数：bigint 返回值类型：tinyint int1_avg_accum 描述：将第二个uint8类型参数，加入到第一个参数中，一个参数为bigint类型数组。 参数：bigint[], tinyint 返回值类型：bigint[] int1_bool 描述：uint8转换为bool。 参数：tinyint 返回值类型：boolean int1_bpchar 描述：uint8转换为bpchar。 参数：tinyint 返回值类型：character int1_mul_cash 描述：返回一个int8类型参数和一个cash类型参数的乘积，返回值为cash类型。 参数：tinyint, money 返回值类型：money int1_numeric 描述：uint8转换为numeric。 参数：tinyint 返回值类型：numeric int1_nvarchar2 描述：uint8转换为nvarchar2。 参数：tinyint 返回值类型：nvarchar2 int1_text 描述：uint8转换为text。 参数：tinyint 返回值类型：text int1_varchar 描述：uint8转换为varchar。 参数：tinyint 返回值类型：character varying int1in 描述：字符串转化为无符号一字节整数。 参数：cstring 返回值类型：tinyint int1out 描述：无符号一字节整数转化为字符串。 返回值类型：cstring int1up 描述：输入整数转化为无符号一字节整数。 参数：tinyint 返回值类型：tinyint int2_bool 描述：将有符号二字节整数转化为bool型。 参数：smallint 返回值类型：boolean int2_bpchar 描述：将有符号二字节整数转化为BpChar。 参数：smallint 返回值类型：character int2_text 描述：有符号二字节整数转化为text类型。 参数：smallint 返回值类型：text int2_varchar 描述：有符号二字节整数转化为varchar类型。 参数：smallint 返回值类型：character varying int4_bpchar 描述：有符号四字节整数转化为bpchar。 参数：integer 返回值类型：character int4_text 描述：有符号四字节整数转化为text类型。 参数：integer 返回值类型：text int4_varchar 描述：有符号四字节整数转化为varchar。 参数：integer 返回值类型：character varying int8_bool 描述：有符号八字节整数转化为bool。 参数：bigint 返回值类型：boolean int8_bpchar 描述：有符号八字节整数转化为bpchar。 参数：bigint 返回值类型：character int8_text 描述：有符号八字节整数转化为text类型。 参数：bigint 返回值类型：text int8_varchar 描述：有符号八字节整数转化为varchar。 参数：bigint 返回值类型：character varying intervaltonum 描述：将内部数据类型日期转化为numeric类型。 参数：interval 返回值类型：numeric numeric_bpchar 描述：numeric 转化为bpchar。 参数：numeric 返回值类型：character numeric_int1 描述：numeric 转化为有符号1字节整数。 参数：numeric 返回值类型：tinyint numeric_text 描述：numeric 转化为text。 参数：numeric 返回值类型：text numeric_varchar 描述：numeric 转化为varchar。 参数：numeric 返回值类型：character varying nvarchar2in 描述：将c字符串转化为varchar。 参数：cstring, oid, integer 返回值类型：nvarchar2 nvarchar2out 描述：将text转化为c字符串。 参数：nvarchar2 返回值类型：cstring nvarchar2send 描述：将varchar转化为二进制。 参数：nvarchar2 返回值类型：bytea oidvectorin_extend 描述：将字符串转化为oidvector。 参数：cstring 返回值类型：oidvector_extend oidvectorout_extend 描述：将oidvector转化为字符串。 参数：oidvector_extend 返回值类型：cstring oidvectorsend_extend 描述：将oidvector转化为字符串。 参数：oidvector_extend 返回值类型：bytea reltime_text 描述：reltime转换为text。 参数：reltime 返回值类型：text text_date 描述：text类型转换为date类型。 参数：text 返回值类型：date text_float4 描述：text类型转换为float4类型。 参数：text 返回值类型：real text_float8 描述：text类型转换为float8类型。 参数：text 返回值类型：double precision text_int1 描述：text类型转换为int1类型。 参数：text 返回值类型：tinyint text_int2 描述：text类型转换为int2类型。 参数：text 返回值类型：smallint text_int4 描述：text类型转换为int4类型。 参数：text 返回值类型：integer text_int8 描述：text类型转换为int8类型。 参数：text 返回值类型：bigint text_numeric 描述：text类型转换为numeric类型。 参数：text 返回值类型：numeric text_timestamp 描述：text类型转换为timestamp类型。 参数：text 返回值类型：timestamp without time zone time_text 描述：time类型转换为text类型。 参数：time without time zone 返回值类型：text timestamp_text 描述：timestamp类型转换为text类型。 参数：timestamp without time zone 返回值类型：text timestamp_to_smalldatetime 描述：timestamp类型转换为smalldatetime类型。 参数：timestamp without time zone 返回值类型：smalldatetime timestamp_varchar 描述：timestamp类型转换为varchar类型。 参数：timestamp without time zone 返回值类型：character varying timestamptz_to_smalldatetime 描述：timestamptz类型转换为smalldatetime。 参数：timestamp with time zone 返回值类型：smalldatetime timestampzone_text 描述：timestampzone类型转换为text类型。 参数：timestamp with time zone 返回值类型：text timetz_text 描述：timetz类型转换为text类型。 参数：time with time zone 返回值类型：text to_integer 描述：转换为integer类型。 参数：character varying 返回值类型：integer to_interval 描述：转换为interval类型。 参数：character varying 返回值类型：interval to_numeric 描述：转换为numeric类型。 参数：character varying 返回值类型：numeric to_text 描述：转换为text类型。 参数：smallint 返回值类型：text to_ts 描述：转换为ts类型。 参数：character varying 返回值类型：timestamp without time zone to_varchar2 描述：转换为varchar2类型。 参数：timestamp without time zone 返回值类型：character varying varchar_date 描述：varchar类型转换为date。 参数：character varying 返回值类型：date varchar_float4 描述：varchar类型转换为float4。 参数：character varying 返回值类型：real varchar_float8 描述：varchar类型转换为float8。 参数：character varying 返回值类型：double precision varchar_int4 描述：varchar类型转换为int4。 参数：character varying 返回值类型：integer varchar_int8 描述：varchar类型转换为int8。 参数：character varying 返回值类型：bigint varchar_numeric 描述：varchar类型转换为numeric。 参数：character varying 返回值类型：numeric varchar_timestamp 描述：varchar类型转换为timestamp。 参数：character varying 返回值类型：timestamp without time zone varchar2_to_smlldatetime 描述：varchar2类型转换为smlldatetime。 参数：character varying 返回值类型：smalldatetime xidout4 描述：xid输出为4字节数字。 参数：xid32 返回值类型：cstring xidsend4 描述：xid转换为二进制格式。 参数：xid32 返回值类型：bytea treat(expr AS [JSON | REF] schema.type) 描述：将expr转化为AS后关键字指定的类型（JSON或输入的用户自定义类型）。 返回值类型：JSON或输入的用户自定义类型。 示例： 1
+2
+3
+4
+5
+6
+7 gaussdb =# create table json_doc ( data CLOB ); gaussdb =# insert into json_doc values ( '{"name":"a"}' ); gaussdb =# select treat ( data as json ) from json_doc ; json -------------- { "name" : "a" } ( 1 row ) nesttable_to_array 描述：将一个无索引的集合类型转换成具有相同元素的数组类型。 参数：anynesttable 返回值类型：anyarray 示例： 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23 gaussdb =# create or replace procedure p1 is gaussdb $ # type t1 is table of int ; gaussdb $ # v1 t1 : = t1 ( 1 , 2 , 3 ); gaussdb $ # v2 int [] : = cast ( v1 as int []); gaussdb $ # begin gaussdb $ # raise info '%' , v2 ; gaussdb $ # end ; gaussdb $ # / CREATE PROCEDURE gaussdb =# call p1 (); INFO : { 1 , 2 , 3 } p1 ---- ( 1 row ) gaussdb =# create type t1 is table of int ; CREATE TYPE gaussdb =# select cast ( t1 ( 1 , 2 , 3 ) as int []) result ; result --------- { 1 , 2 , 3 } ( 1 row ) indexbytableint_to_array 描述：将一个索引类型为integer的集合类型转换成具有相同元素的数组类型。 参数：anyindexbytable 返回值类型：anyarray 编码类型转换 convert_to_nocase(text, text) 描述：将字符串转换为指定的编码类型。 返回值类型：bytea 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT convert_to_nocase ( '12345' , 'GBK' ); convert_to_nocase ------------------- \ x3132333435 ( 1 row ) 父主题： 函数和操作符 版权所有 © 华为技术有限公司

@@ -1,0 +1,26 @@
+{
+  "topic": "RTO & RPO",
+  "term_count": 4,
+  "terms": [
+    {
+      "term": "global_streaming_hadr_rto_and_rpo_stat",
+      "content": "global_streaming_hadr_rto_and_rpo_stat global_streaming_hadr_rto_and_rpo_stat global_streaming_hadr_rto_and_rpo_stat视图显示流式容灾的主数据库实例和备数据库实例日志流控信息（只可在主数据库实例的主DN使用，备DN以及备数据库实例上均不可获取到统计信息）。 表1 global_streaming_hadr_rto_and_rpo_stat参数说明 参数 类型 描述 hadr_sender_node_name text 节点的名称，包含主数据库实例和备数据库实例首备。 hadr_receiver_node_name text 备数据库实例首备名称。 current_rto int 流控的信息，当前主备数据库实例的日志rto时间（单位：秒）。 target_rto int 流控的信息，目标主备数据库实例间的rto时间（单位：秒）。 current_rpo int 流控的信息，当前主备数据库实例的日志rpo时间（单位：秒）。 target_rpo int 流控的信息，目标主备数据库实例间的rpo时间（单位：秒）。 rto_sleep_time int RTO流控信息，为了达到目标rto，预期主机walsender所需要的睡眠时间（单位：微秒）。 rpo_sleep_time int RPO流控信息，为了达到目标rpo，预期主机xlogInsert所需要的睡眠时间（单位：微秒）。",
+      "source_file": "3918_global_streaming_hadr_rto_and_rpo_stat.txt"
+    },
+    {
+      "term": "global_streaming_hadr_rto_and_rpo_stat",
+      "content": "global_streaming_hadr_rto_and_rpo_stat global_streaming_hadr_rto_and_rpo_stat global_streaming_hadr_rto_and_rpo_stat视图显示流式容灾的主集群和备集群日志流控信息（只可在主集群的CN使用，DN以及备集群上均不可获取到统计信息）。 表1 global_streaming_hadr_rto_and_rpo_stat参数说明 参数 类型 描述 hadr_sender_node_name text 节点的名称，包含主集群和备集群首备。 hadr_receiver_node_name text 备集群首备名称。 current_rto int 流控的信息，当前主备集群的日志rto时间（单位：秒）。 target_rto int 流控的信息，目标主备集群间的rto时间（单位：秒）。 current_rpo int 流控的信息，当前主备集群的日志rpo时间（单位：秒）。 target_rpo int 流控的信息，目标主备集群间的rpo时间（单位：秒）。 rto_sleep_time int RTO流控信息，为了达到目标RTO，预期主机walsender所需要的睡眠时间（单位：微秒）。 rpo_sleep_time int RPO流控信息，为了达到目标RPO，预期主机xlogInsert所需要的睡眠时间（单位：微妙）。",
+      "source_file": "2261_global_streaming_hadr_rto_and_rpo_stat.txt"
+    },
+    {
+      "term": "global_rto_status",
+      "content": "global_rto_status global_rto_status global_rto_status视图显示关于主机和备机的日志流控信息（本节点除外、备DN上不可使用）。 表1 global_rto_status字段 参数 类型 描述 node_name text 节点的名称，包含主机和备机。 rto_info text 流控的信息，包含了备机当前的日志流控时间（单位：秒），备机通过GUC参数设置的预期流控时间（单位：秒），为了达到这个预期主机所需要的睡眠时间（单位：微秒）。",
+      "source_file": "3917_global_rto_status.txt"
+    },
+    {
+      "term": "global_rto_status",
+      "content": "global_rto_status global_rto_status global_rto_status视图显示关于主机和备机的日志流控信息（本节点除外、DN上不可使用）。 表1 global_rto_status字段 参数 类型 描述 node_name text 节点的名称，包含主机和备机。 rto_info text 流控的信息，包含了备机当前的日志流控时间（单位：秒），备机通过GUC参数设置的预期流控时间（单位：秒），为了达到这个预期主机所需要的睡眠时间（单位：微秒）。",
+      "source_file": "2260_global_rto_status.txt"
+    }
+  ]
+}

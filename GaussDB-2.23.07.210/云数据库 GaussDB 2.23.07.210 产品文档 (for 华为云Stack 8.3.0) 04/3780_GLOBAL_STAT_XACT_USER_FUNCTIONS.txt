@@ -1,0 +1,1 @@
+GLOBAL_STAT_XACT_USER_FUNCTIONS GLOBAL_STAT_XACT_USER_FUNCTIONS 视图包含各节点本事务内函数执行的统计信息。 表1 GLOBAL_STAT_XACT_USER_FUNCTIONS字段 名称 类型 描述 node_name name 节点名称。 funcid oid 函数标识。 schemaname name 模式的名称。 funcname name 函数名称。 calls bigint 函数被调用的次数。 total_time double precision 此函数及其调用的所有其他函数所花费的总时间。 self_time double precision 在此函数本身中花费的总时间（不包括它调用的其他函数）。 父主题： Object 版权所有 © 华为技术有限公司

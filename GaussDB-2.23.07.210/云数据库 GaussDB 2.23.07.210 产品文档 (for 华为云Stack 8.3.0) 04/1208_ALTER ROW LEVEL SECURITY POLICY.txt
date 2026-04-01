@@ -1,0 +1,74 @@
+ALTER ROW LEVEL SECURITY POLICY ALTER ROW LEVEL SECURITY POLICY 功能描述 对已存在的行访问控制策略（包括行访问控制策略的名称，行访问控制指定的用户，行访问控制的策略表达式）进行修改。 注意事项 表的所有者或管理员用户才能进行此操作。 语法格式 修改已存在行访问控制策略的名称 1 ALTER [ ROW LEVEL SECURITY ] POLICY policy_name ON table_name RENAME TO new_policy_name ; 修改已存在行访问控制策略的指定用户、策略表达式 1
+2
+3 ALTER [ ROW LEVEL SECURITY ] POLICY policy_name ON table_name [ TO { role_name | PUBLIC } [, ...] ] [ USING ( using_expression ) ]; 参数说明 policy_name 行访问控制策略名称。 table_name 行访问控制策略的表名。 new_policy_name 新的行访问控制策略名称。 role_name 行访问控制策略应用的数据库用户，可以指定多个用户，PUBLIC表示应用到所有用户。 using_expression 行访问控制策略，形式类似于where子句中的布尔型表达式。 示例 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27
+28
+29
+30
+31
+32
+33
+34
+35
+36
+37
+38
+39
+40
+41
+42
+43
+44
+45
+46
+47
+48
+49
+50
+51
+52
+53
+54
+55
+56
+57
+58
+59
+60
+61
+62
+63
+64
+65
+66
+67
+68
+69
+70
+71
+72 --创建数据表all_data。 gaussdb =# CREATE TABLE all_data ( id int , role varchar ( 100 ), data varchar ( 100 )); --创建行访问控制策略，当前用户只能查看用户自身的数据。 gaussdb =# CREATE ROW LEVEL SECURITY POLICY all_data_rls ON all_data USING ( role = CURRENT_USER ); gaussdb =# \ d + all_data Table "public.all_data" Column | Type | Modifiers | Storage | Stats target | Description --------+------------------------+-----------+----------+--------------+------------- id | integer | | plain | | role | character varying ( 100 ) | | extended | | data | character varying ( 100 ) | | extended | | Row Level Security Policies : POLICY "all_data_rls" FOR ALL TO public USING ((( role ):: name = "current_user" ())) Has OIDs : no Distribute By : HASH ( id ) Location Nodes : ALL DATANODES Options : orientation = row , compression = no --修改行访问控制all_data_rls的名称。 gaussdb =# ALTER ROW LEVEL SECURITY POLICY all_data_rls ON all_data RENAME TO all_data_new_rls ; --创建用户alice, bob。 gaussdb =# CREATE ROLE alice WITH PASSWORD "********" ; gaussdb =# CREATE ROLE bob WITH PASSWORD "********" ; --修改行访问控制策略影响的用户。 gaussdb =# ALTER ROW LEVEL SECURITY POLICY all_data_new_rls ON all_data TO alice , bob ; gaussdb =# \ d + all_data Table "public.all_data" Column | Type | Modifiers | Storage | Stats target | Description --------+------------------------+-----------+----------+--------------+------------- id | integer | | plain | | role | character varying ( 100 ) | | extended | | data | character varying ( 100 ) | | extended | | Row Level Security Policies : POLICY "all_data_new_rls" FOR ALL TO alice , bob USING ((( role ):: name = "current_user" ())) Has OIDs : no Distribute By : HASH ( id ) Location Nodes : ALL DATANODES Options : orientation = row , compression = no , enable_rowsecurity = true --修改行访问控制策略表达式。 gaussdb =# ALTER ROW LEVEL SECURITY POLICY all_data_new_rls ON all_data USING ( id > 100 AND role = current_user ); gaussdb =# \ d + all_data Table "public.all_data" Column | Type | Modifiers | Storage | Stats target | Description --------+------------------------+-----------+----------+--------------+------------- id | integer | | plain | | role | character varying ( 100 ) | | extended | | data | character varying ( 100 ) | | extended | | Row Level Security Policies : POLICY "all_data_new_rls" FOR ALL TO alice , bob USING ((( id > 100 ) AND (( role ):: name = "current_user" ()))) Has OIDs : no Distribute By : HASH ( id ) Location Nodes : ALL DATANODES Options : orientation = row , compression = no , enable_rowsecurity = true --删除访问控制策略。 gaussdb =# DROP ROW LEVEL SECURITY POLICY all_data_new_rls ON all_data ; --删除用户alice, bob。 gaussdb =# DROP ROLE alice , bob ; --删除数据表all_data。 gaussdb =# DROP TABLE all_data ; 相关链接 CREATE ROW LEVEL SECURITY POLICY ， DROP ROW LEVEL SECURITY POLICY 父主题： A 版权所有 © 华为技术有限公司

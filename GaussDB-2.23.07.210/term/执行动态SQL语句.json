@@ -1,0 +1,36 @@
+{
+  "topic": "执行动态SQL语句",
+  "term_count": 6,
+  "terms": [
+    {
+      "term": "执行没有结果集的语句",
+      "content": "执行没有结果集的语句 执行没有结果集的语句 执行EXECUTE IMMEDIATE命令示例如下： EXEC SQL BEGIN DECLARE SECTION;\n    const char *stmt = \"CREATE TABLE test1 (...);\";\nEXEC SQL END DECLARE SECTION;\n    EXEC SQL EXECUTE IMMEDIATE :stmt; EXECUTE IMMEDIATE可以用于不返回结果集的SQL语句，比如：DDL，INSERT，UPDATE，DELETE语句。但不能用这种方式执行检索数据的语句，比如：SELECT语句。",
+      "source_file": "937_file_937.txt"
+    },
+    {
+      "term": "执行没有结果集的语句",
+      "content": "执行没有结果集的语句 执行没有结果集的语句 执行EXECUTE IMMEDIATE命令示例如下： EXEC SQL BEGIN DECLARE SECTION;\n    const char *stmt = \"CREATE TABLE test1 (...);\";\nEXEC SQL END DECLARE SECTION;\n    EXEC SQL EXECUTE IMMEDIATE :stmt; EXECUTE IMMEDIATE可以用于不返回结果集的SQL语句，比如：DDL，INSERT，UPDATE，DELETE语句。但不能用这种方式执行检索数据的语句，比如：SELECT语句。",
+      "source_file": "2662_file_2662.txt"
+    },
+    {
+      "term": "执行带有结果集的语句",
+      "content": "执行带有结果集的语句 执行带有结果集的语句 执行具有单独结果集的SQL语句，可以使用EXECUTE。若要保存结果，则增加INTO子句。示例如下： EXEC SQL BEGIN DECLARE SECTION;\n    const char *stmt = \"SELECT a, b, c FROM test1 WHERE a > ?\";\n    int v1, v2;\n    VARCHAR v3[50];\nEXEC SQL END DECLARE SECTION;\n\n    EXEC SQL PREPARE mystmt FROM :stmt;\n    ...\n    EXEC SQL EXECUTE mystmt INTO :v1, :v2, :v3 USING 37; EXECUTE命令支持INTO子句和USING子句。 如果一个查询可能返回多个结果行，则应使用游标，游标详情可参考 使用游标 章节，示例如下： EXEC SQL BEGIN DECLARE SECTION; \n    char dbaname[128]; \n    char datname[128]; \n    char *stmt = \"SELECT u.usename as dbaname, d.datname \"      \n                 \"  FROM pg_database d, pg_user u \"     \n                 \"  WHERE d.datdba = u.usesysid\"; \nEXEC SQL END DECLARE SECTION;  \n\n    EXEC SQL CONNECT TO testdb AS con1 USER testuser;  \n\n    EXEC SQL PREPARE stmt1 FROM :stmt;  \n\n    EXEC SQL DECLARE cursor1 CURSOR FOR stmt1; \n    EXEC SQL OPEN cursor1;  \n\n    EXEC SQL WHENEVER NOT FOUND DO BREAK;  \n\n    while (1) \n    {     \n        EXEC SQL FETCH cursor1 INTO :dbaname,:datname;\n        printf(\"dbaname=%s, datname=%s\\n\", dbaname, datname); \n    }  \n    EXEC SQL CLOSE cursor1;  \n\n    EXEC SQL COMMIT; \n    EXEC SQL DISCONNECT ALL;",
+      "source_file": "939_file_939.txt"
+    },
+    {
+      "term": "执行具有输入参数的语句",
+      "content": "执行具有输入参数的语句 执行具有输入参数的语句 准备一个普通语句，通过替换参数（在想要替换参数的地方写上问号）执行它的特定版本。使用EXECUTE语句通过USING子句给定参数执行准备语句。示例如下： EXEC SQL BEGIN DECLARE SECTION;\n    const char *stmt = \"INSERT INTO test1 VALUES(?, ?);\";\nEXEC SQL END DECLARE SECTION;\n    /* PREPARE 准备一个语句用于执行 */\n    EXEC SQL PREPARE mystmt FROM :stmt;\n    ...\n    /* 单引号为有效字符，若用字符串需用双引号 */\n    EXEC SQL EXECUTE mystmt USING 42, 'foobar';\n\n    /* 当你不再需要预备语句时，你应该释放它 */\n    EXEC SQL DEALLOCATE PREPARE name;",
+      "source_file": "938_file_938.txt"
+    },
+    {
+      "term": "执行具有输入参数的语句",
+      "content": "执行具有输入参数的语句 执行具有输入参数的语句 准备一个普通语句，通过替换参数（在想要替换参数的地方写上问号）执行它的特定版本。使用EXECUTE语句通过USING子句给定参数执行准备语句。示例如下： EXEC SQL BEGIN DECLARE SECTION;\n    const char *stmt = \"INSERT INTO test1 VALUES(?, ?);\";\nEXEC SQL END DECLARE SECTION;\n    /* PREPARE 准备一个语句用于执行 */\n    EXEC SQL PREPARE mystmt FROM :stmt;\n    ...\n    /* 单引号为有效字符，若用字符串需用双引号 */\n    EXEC SQL EXECUTE mystmt USING 42, 'foobar';\n\n    /* 当你不再需要预备语句时，你应该释放它 */\n    EXEC SQL DEALLOCATE PREPARE name;",
+      "source_file": "2663_file_2663.txt"
+    },
+    {
+      "term": "执行带有结果集的语句",
+      "content": "执行带有结果集的语句 执行带有结果集的语句 执行具有单独结果集的SQL语句，可以使用EXECUTE。若要保存结果，则增加INTO子句。示例如下： EXEC SQL BEGIN DECLARE SECTION;\n    const char *stmt = \"SELECT a, b, c FROM test1 WHERE a > ?\";\n    int v1, v2;\n    VARCHAR v3[50];\nEXEC SQL END DECLARE SECTION;\n\n    EXEC SQL PREPARE mystmt FROM :stmt;\n    ...\n    EXEC SQL EXECUTE mystmt INTO :v1, :v2, :v3 USING 37; EXECUTE命令支持INTO子句和USING子句。 如果一个查询可能返回多个结果行，则应使用游标，游标详情可参考 使用游标 章节，示例如下： EXEC SQL BEGIN DECLARE SECTION; \n    char dbaname[128]; \n    char datname[128]; \n    char *stmt = \"SELECT u.usename as dbaname, d.datname \"      \n                 \"  FROM pg_database d, pg_user u \"     \n                 \"  WHERE d.datdba = u.usesysid\"; \nEXEC SQL END DECLARE SECTION;  \n\n    EXEC SQL CONNECT TO testdb AS con1 USER testuser;  \n\n    EXEC SQL PREPARE stmt1 FROM :stmt;  \n\n    EXEC SQL DECLARE cursor1 CURSOR FOR stmt1; \n    EXEC SQL OPEN cursor1;  \n\n    EXEC SQL WHENEVER NOT FOUND DO BREAK;  \n\n    while (1) \n    {     \n        EXEC SQL FETCH cursor1 INTO :dbaname,:datname;\n        printf(\"dbaname=%s, datname=%s\\n\", dbaname, datname); \n    }  \n    EXEC SQL CLOSE cursor1;  \n\n    EXEC SQL COMMIT; \n    EXEC SQL DISCONNECT ALL;",
+      "source_file": "2664_file_2664.txt"
+    }
+  ]
+}

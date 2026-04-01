@@ -1,0 +1,42 @@
+REPLACE REPLACE 功能描述 在表中插入或者替换新的数据。当插入的数据与原有数据存在主键/唯一键冲突时，执行REPLACE语句会先删除原有数据，再插入新的数据。 REPLACE语句有如下三种形式： 值替换插入。即通过VALUES或VALUE构造一行记录并插入到表中。 查询替换插入。通过SELECT子句返回的结果集构造一行或多行记录插入到表中。 设定指定字段值。与值插入类似，对于没有指定的列取其默认值。 注意事项 执行该语句的用户需要有表的DELETE和INSERT权限。 主键/唯一键不冲突的情况下，可直接插入；对于主键/唯一键冲突的情况，先删除原有数据，再插入新的数据。 REPLACE操作返回格式为REPLACE 0 X，X表示删除和插入的操作数。 REPLACE...SELECT形式，select_list列数必须与待插入的字段数保持一致。 REPLACE...SET语法中： 若col_name有默认值，则SET col_name = col_name + 1等同于SET col_name = col_name的默认值 + 1； 若col_name无默认值且没有NOT NULL约束时，则SET col_name = col_name + 1等同于col_name  = NULL； 若col_name无默认值但存在NOT NULL约束时，支持有默认值的数据类型为：timestamp、timestamp with time zone、time、time with time zone、interval、tinterval、smalldatetime、date、uuid、name、point、polygon、circle、lseg、box、json、jsonb、xml、varbit、numeric、cidr、inet、macaddr、numrange、int8range、int4range、tsrange、tstzrange、daterange、hash16、hash32、bool、bytea、char、bigint、int、smallint、tinyint、text、raw、blob、clob、float4、float8、abstime、reltime、bpchar、varchar、nvarchar、money、uint1、uint2、uint4、uint8、enum。默认值如下表所示： 数据类型 col_name默认值 int8、int4、int2、int1、float8、float4、numeric、uint1、uint2、uint4、uint8 0，如果numeric指定小数位，则显示小数位。如NUMERIC(10, 3)：0.000 text、clob、bpchar、varchar、char、nvarchar2、name、blob、raw、varbit 空字符串 numrange、int8range、int4range、tsrange、tstzrange、daterange empty bytea \x money $0.00 json、jsonb、xml 'null' macaddr 00:00:00:00:00:00 inet 0.0.0.0 cidr 0.0.0.0/32 point (0,0) lseg [(0,0),(0,0)] box (0,0),(0,0) path ((0,0)) polygon ((0,0)) circle <(0,0),0> uuid 00000000-0000-0000-0000-000000000000 hash16 0000000000000000 hash32 00000000000000000000000000000000 bool f abstime abstime '1970-01-01 00:00:00' reltime reltime '00:00:00' interval interval '00:00:00' tinterval tinterval(abstime '1970-01-01 00:00:00',  abstime '1970-01-01 00:00:00') timestamp timestamp '1970-01-01 00:00:00' timestamp with time zone timestamptz '1970-01-01 00:00:00' date date '1970-01-01' time time '00:00:00' time with time zone timetz '00:00:00' smalldatetime smalldatetime '1970-01-01 00:00:00' 枚举类型（ENUM）默认值为第一个元素，如果没有第一个元素，则返回NULL。 ORA模式数据库下（即sql_compatibility = 'ORA'），text、clob、blob、raw、bytea、varchar、nvarchar2、bpchar、char、name、byteawithoutorderwithqualcol、byteawithoutordercol类型的空串等价于NULL，在列有NOT NULL约束时，使用引用列插入表时会报错。 MYSQL模式数据库下（即sql_compatibility = 'MYSQL'），如果b_format_version = '5.7'，b_format_dev_version = 's1'，sql_mode不包含'strict_tans_tables、only_full_group_by、no_zero_in_date、no_zero_date、error_for_division_by_zero'，timestamp和datetime在NOT NULL约束下默认值为0000-00-00 00:00:00，DATE在NOT NULL约束下默认值为0000-00-00。 uint1、uint2、uint4、uint8数据类型仅在MYSQL模式数据库下（即sql_compatibility = 'MYSQL'）支持。 函数表达式的默认值，如果在解析时可计算出结果，则默认值为计算出的常量，否则为NULL。 除以上场景，默认值为NULL。 REPLACE ... SET语法中，后面设置的col_name依赖于前面col_name的值，如果前面没有设置，则取默认值。如SET f1 = f1 + 1, f2 = f1场景下，f1等于f1的默认值（假设为1）+1，f2等于f1计算后的值2。 不支持触发器，不会触发目标表的INSERT或DELETE触发器。 不支持延迟生效（DEFERRABLE）的唯一约束或主键。 如果表中存在多个唯一约束，如果所插入数据违反多个唯一约束， 则会删除所有违反约束的数据，插入新的数据。此场景需要注意，可能会误删不需要删除的数据，该场景需要慎重操作。 如果插入多行，这些行均与表中同一行数据存在唯一约束冲突，则按照执行顺序，依次进行REPLACE操作。 SET col_name = col_name + 1，col_name的长度不支持超过1。如SET col_name = table_name.col_name + 1中，table_name.col_name的长度为2，形如B.A，C.B.A，D.C.B.A格式都不支持。 包含全局二级索引的表不支持REPLACE语法。 浮点型比较时，需要注意浮点型可能存在精度丢失。 如果表上创建了行访问控制策略，则不支持REPLACE INTO。 不支持外表。 不支持密态表。 不支持内存表。 语法格式 值替换插入。 REPLACE [ INTO ] table_name
+    [ PARTITION ( partition_name [, ... ] ) ]
+    [ ( col_name [, ... ] ) ]
+    { VALUES | VALUE } ( value [, ... ] ) [, ... ]; 查询替换插入。 REPLACE [ INTO ] table_name
+    [ PARTITION ( partition_name [, ... ] ) ]
+    [ ( col_name [, ... ] ) ]
+    query; 设置指定字段值。 REPLACE [INTO] table_name
+    [ PARTITION ( partition_name [, ... ] ) ]
+    SET col_name = value [, ... ]; 参数说明 table_name 要插入数据的目标表名。 取值范围：已存在的表名。 col_name 目标表中的字段名。 字段名可以有子字段名或者数组下标修饰。 没有在字段列表中出现的每个字段，将由系统默认值，或者声明时的默认值填充，若都没有则用NULL填充。例如，向一个复合类型中的某些字段插入数据，那么其他字段将是NULL。 目标字段（col_name）可以按顺序排列。如果没有列出任何字段，则默认全部字段，且顺序为表声明时的顺序。 如果VALUE子句和QUERY中只提供了N个字段，则目标字段为前N个字段。 VALUE子句和QUERY提供的值在表中从左到右关联到对应列。 取值范围：已存在的字段名。 PARTITION ( partition_name [, ... ] ) 指定分区插入操作。其中partition_name为分区名。 如果VALUE子句的值和指定分区不一致，结果会提示异常。 value 待插入的值，value格式为： { expression | DEFAULT } expression表示赋予对应列一个有效表达式或值。 向表中字段插入单引号 " ' "时需要使用单引号自身进行转义。 如果插入行的表达式不是正确的数据类型，系统试图进行类型转换，若转换不成功，则插入数据失败，系统返回错误信息。 DEFAULT表示对应字段名的缺省值。如果没有缺省值，则为NULL。 query 一个查询语句（SELECT语句），将查询结果作为插入的数据。 示例 --创建一个新表。 gaussdb=# CREATE TABLE test(f1 int primary key, f2 int, f3 int);
+
+--插入数据。 gaussdb=# INSERT INTO test VALUES(1, 1, 1), (2, 2, 2), (3, 3, 3);
+INSERT 0 3
+
+--值替换插入数据。 gaussdb=# REPLACE INTO test VALUES(1, 11, 11);
+REPLACE 0 2
+
+--查询值替换插入的结果 gaussdb =# SELECT * FROM test WHERE f1 = 1;
+ f1 | f2 | f3
+----+----+----
+  1 | 11 | 11
+(1 row)
+
+--查询替换插入数据。 gaussdb=# REPLACE INTO test SELECT 2, 22, 22; REPLACE 0 2
+
+--查询查询替换插入的结果
+gaussdb=# SELECT * FROM test WHERE f1 = 2;
+ f1 | f2 | f3
+----+----+----
+  2 | 22 | 22
+(1 row)
+
+--设置指定字段替换插入数据。 gaussdb=# REPLACE INTO test SET f1 = f1 + 3, f2 = f1 * 10 + 3, f3 = f2; REPLACE 0 2
+
+--查询设置指定字段替换插入数据的结果
+gaussdb=# SELECT * FROM test WHERE f1 = 3;
+ f1 | f2 | f3
+----+----+----
+  3 | 33 | 33
+(1 row)
+
+--删除表格
+gaussdb=# DROP TABLE test; 父主题： R 版权所有 © 华为技术有限公司

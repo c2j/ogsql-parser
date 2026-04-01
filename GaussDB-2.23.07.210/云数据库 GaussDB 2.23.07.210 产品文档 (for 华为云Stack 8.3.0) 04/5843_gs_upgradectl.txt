@@ -1,0 +1,255 @@
+gs_upgradectl gs_upgradectl 背景信息 用户会根据 GaussDB 提供的新特性，确定是否对现有系统进行升级。 升级分为就地升级、灰度升级和滚动升级。升级方式的策略又分为大版本升级和小版本升级。用户挑选升级方式后，系统会自动判断并选择合适的升级策略。 就地升级：就地升级需要停止业务进行，会一次性升级集群中所有节点。 灰度升级：灰度升级支持全业务操作，可以选择部分节点先升级，进入灰度观察期观察新版本是否运行正常，然后再升级剩余节点，完成全部升级操作。 滚动升级：滚动升级支持全业务操作，对于独立部署模式，采用滚动升级DN分片的方式对集群进行升级；对于混合部署模式，采用滚动升级AZ分片的方式对集群进行升级。用户可以指定部分DN分片或AZ分片先升级，观察升级后的分片是否运行正常，然后再升级剩余分片，完成全部升级操作。也可以一次升级所有分片。 注意事项 就地升级需要停止业务，灰度升级支持全业务操作。 集群运行正常且主DN的数据完全同步到备DN。 升级操作不能和主机替换、扩容、缩容同时执行。不支持虚拟IP。升级过程中不允许打开kerberos开关。 选择灰度升级方式进行升级时，灰度节点升级成功后不支持实例修复、节点修复、roach、增加CN、温备、修改IP、扩容、缩容、单扩CN、hotpatch；全部节点升级成功后提交前不支持温备、修改IP、扩容、缩容、单扩CN、hotpatch。 请不要修改安装包中解压出来的version.cfg文件。 升级成功后，原归档日志文件将失效。 升级成功后，原来的二进制目录将会被删除，请不要在二进制目录中存放个人数据文件。 如果就地升级过程中出现异常导致升级失败，并且自动回滚失败时，需要用户自动执行回滚命令进行手动回滚。如果灰度升级过程中出现异常导致升级失败，需用户手动回滚，并且必须回滚成功后才能进行下一次升级。两种升级方式回滚成功后，升级过程中设置的GUC参数将失效。 升级过程中，不允许对wal_level，max_connections，max_prepared_transactions，max_locks_per_transaction这四个GUC参数的值进行修改。 DN磁盘使用率低于85%时才可以执行升级操作。 在业务压力大的情况下进行灰度升级，建议开启流控。 滚动升级注意事项： 独立部署模式下，滚动升级采用DN分片升级的方式对集群进行升级。 混合部署模式下，滚动升级采用AZ分片升级的方式对集群进行升级，要求输入的节点必须是一个AZ或者多个AZ的所有节点。 滚动升级中，每次升级一个分片都会产生不超过10s的业务中断。 升级支持以下故障场景： 少数派VM故障。 少数派进程故障。 多数派VM故障或者多数派进程故障，支持回滚操作。回滚成功后，不保证集群可用。 因“安装目录\bin”下的gaussdb二进制文件损坏导致的多数派进程故障，支持小版本强制升级（内核版本号不变的升级方式为小版本升级，否则就是大版本升级。内核版本号在升级文件压缩包中的version.cfg的第二行查看）。 少数派VM故障或少数派进程故障升级约束： 下发升级命令之前，需保证集群状态至少为degrade。 需要下发增加“--ignoreVMFaults”参数的升级命令。 升级过程中，若正在进行升级主流程的VM节点故障，升级报错为正常报错，重新将升级命令下发至正常节点即可。 通过增加“--ignoreVMFaults”参数，被隔离的节点不会被升级。升级完成后，需要通过节点替换完成集群修复。被隔离的进程会忽略掉无法启动的错误。 多数派进程故障升级约束： 只支持小版本升级，不支持大版本升级。 升级不带有修复功能，升级后不保证集群一定可用。 强制升级未提交或回滚前，即使集群恢复正常，也无法进行正常的升级操作。 只支持由于“安装目录\bin”下的gaussdb二进制文件损坏导致的集群unavailable，VM级故障导致的集群unavailable不支持升级。 语法 显示帮助信息 gs_upgradectl -? | --help 显示版本号信息 gs_upgradectl -V | --version 选择升级策略 gs_upgradectl -t chose-strategy [-l LOGFILE ] 当前支持就地升级、灰度升级和滚动升级。 自动升级集群 gs_upgradectl -t auto-upgrade -X XMLFILE [-l LOGFILE]  {-g NODENUMBER | -h HOSTNAME | --continue | --inplace | --begin=ShardStartNumber --end=ShardEndNumber | --rolling | --grey | --force} [ --ignoreVMFaults= nodeName1,nodeName2 ,.../instancename1,instancename2,... ] 自动回滚升级 gs_upgradectl -t auto-rollback -X XMLFILE [-l LOGFILE]  [ --ignoreVMFaults= nodeName1,nodeName2 ,.../instancename1,instancename2,... ] [--force] 升级提交 gs_upgradectl -t commit-upgrade -X XMLFILE [-l LOGFILE] [--force_commit] 升级提交操作只适用于华为 GaussDB 数据库的就地升级、灰度升级和滚动升级。 一旦提交操作完成，则不能再执行回滚操作。 接收数据库管理员密码 echo "password" | gs_upgradectl -t [chose-strategy|auto-upgrade|auto-rollback|commit-upgrade] 云上环境中，对于未开启Peer认证方式的数据库系统，可以使用此方式传入数据库管理员用户的密码，用于连接数据库进行运维操作。 参数说明 -t gs_upgradectl命令的类型。 取值范围：chose-strategy、auto-upgrade、auto-rollback和commit-upgrade。 -l 用于记录升级或回滚过程中的日志信息。 取值范围：任意存在的可访问的绝对路径。 默认值：$GAUSSLOG/om/gs_upgradectl-YYYY-MM-DD_hhmmss.log -?, --help 显示帮助信息。 -V, --version 显示版本号信息。 -X 指定集群配置文件。 取值范围：xml文件的存储路径。 -g 指定灰度升级先升级的部分节点个数。 取值范围：选择先灰度升级集群中部分节点时，-g指定节点个数不能超过5；选择灰度升级集群中全部节点时，-g后面指定集群全部节点个数。例如：集群中有7个节点，当选择先灰度升级集群中部分节点时，-g [1-5]；当选择灰度升级集群中全部7个节点时，-g 7。 -h 指定灰度升级先升级的部分节点的主机名称。 取值范围：集群中节点的主机名称，当选择多个节点升级时，用逗号分隔开来。例如：集群中有4个节点，4个节点的主机名称分别为linux1、linux2、linux3和linux4，当选择先灰度升级集群中部分节点linux1和linux2时，-h linux1,linux2即可。 --inplace 使用就地升级方式来进行升级操作。 --continue 使用灰度升级来进行升级操作，在升级完部分节点后，使用该参数升级全部剩余节点。 --force 当集群状态不正常，无法支持正常回滚时，用此参数进行强制回滚操作。 当存在因gaussdb二进制文件损坏导致的多数派进程故障时，用此参数进行小版本强制升级强制。 --rolling 集群为混合部署时，采用AZ升级的方式对集群进行滚动升级。 --grey 分片或者AZ升级时，使用灰度升级方式来进行升级操作。 --force_commit 同城双中心容灾，两地三中心跨Region容灾，使用强制提交方式来提交主集群操作。 --begin 分片升级时，指定本次升级从第几个分片开始。 --end 分片升级时，指定本次升级到第几个分片结束。 --ignoreVMFaults= nodeName1,nodeName2,.../instancename1,instancename2,... 少数派VM或少数派进程存在故障时进行升级，使用该参数提供集群中需要忽略的故障的节点名列表或有进程故障的节点名列表，或者故障的实例名列表。 示例 示例一： 就地升级、灰度升级和滚动升级前使用新包进行前置操作。 ./gs_preinstall -U roach -G users -X /data/xml/3node_3c3d_1m2s_etcd.xml --alarm-type=5
+Parsing the configuration file.
+Successfully parsed the configuration file.
+Installing the tools on the local node.
+Successfully installed the tools on the local node.
+Setting pssh path
+Successfully set core path.
+Distributing package.
+Begin to distribute package to tool path.
+Successfully distribute package to tool path.
+Begin to distribute package to package path.
+Successfully distribute package to package path.
+Successfully distributed package.
+Installing the tools in the cluster.
+Successfully installed the tools in the cluster.
+Checking hostname mapping.
+Successfully checked hostname mapping.
+Checking OS version.
+Successfully checked OS version.
+Creating cluster's path.
+Successfully created cluster's path.
+Set and check OS parameter.
+Setting OS parameters.
+Successfully set OS parameters.
+Set and check OS parameter completed.
+Preparing CRON service.
+Successfully prepared CRON service.
+Preparing SSH service.
+Successfully prepared SSH service.
+Setting user environmental variables.
+Successfully set user environmental variables.
+Configuring alarms on the cluster nodes.
+Successfully configured alarms on the cluster nodes.
+Setting the dynamic link library.
+Successfully set the dynamic link library.
+Setting pssh path
+Successfully set pssh path.
+Setting Cgroup.
+Successfully set Cgroup.
+Set ARM Optimization.
+Successfully set ARM Optimization.
+Setting finish flag.
+Successfully set finish flag.
+Preinstallation succeeded. 示例二： 使用gs_upgradectl脚本执行灰度升级，选择集群中任意一个节点先升级。 gs_upgradectl -t auto-upgrade -X /data/xml/3node_3c3d_1m2s_etcd.xml -g 1
+Static configuration matched with old static configuration files.
+Update the cluster with new product version 'GaussDB300'.
+Old cluster app path is /data/gauss/app_e67b8bcd
+Distributing xml configure file.
+Successfully distributed xml configure file.
+Checking upgrade environment.
+Successfully checked upgrade environment.
+Starting cluster.
+Waiting for the cluster status to become normal.
+The cluster status is normal.
+Start to do health check.
+Successfully checked cluster status.
+Upgrade nodes ['hghproach00003'].
+Performing grey rollback.
+Successfully Cleaned new install path.
+Rollback succeeded.
+The directory /data/gauss/app_e67b8bcd will be deleted after commit-upgrade, please make sure there is no personal data.
+Installing new binary.
+Updating catalog.
+Successfully updated catalog.
+Sync cluster configuration.
+Successfully synced cluster configuration.
+Switch symbolic link to new binary directory.
+Successfully switch symbolic link to new binary directory.
+Create checkpoint before switching.
+Time to create checkpoint: 3s
+Switching all db processes.
+Time to switch all process version: 1m33s
+The nodes ['hghproach00003'] have been successfully upgraded to new version. Then do health check.
+Start to do health check.
+Successfully checked cluster status.
+Successfully upgrade nodes. 示例三： 使用gs_upgradectl脚本执行灰度升级，选择集群中指定的一个节点先升级。 gs_upgradectl -t auto-upgrade -X /data/xml/3node_3c3d_1m2s_etcd.xml -h hghproach00003
+Static configuration matched with old static configuration files.
+Update the cluster with new product version 'GaussDB300'.
+Old cluster app path is /data/gauss/app_e67b8bcd
+Distributing xml configure file.
+Successfully distributed xml configure file.
+Checking upgrade environment.
+Successfully checked upgrade environment.
+Starting cluster.
+Waiting for the cluster status to become normal.
+The cluster status is normal.
+Start to do health check.
+Successfully checked cluster status.
+Upgrade nodes ['hghproach00003'].
+Performing grey rollback.
+Successfully Cleaned new install path.
+Rollback succeeded.
+The directory /data/gauss/app_e67b8bcd will be deleted after commit-upgrade, please make sure there is no personal data.
+Installing new binary.
+Updating catalog.
+Successfully updated catalog.
+Sync cluster configuration.
+Successfully synced cluster configuration.
+Switch symbolic link to new binary directory.
+Successfully switch symbolic link to new binary directory.
+Create checkpoint before switching.
+Time to create checkpoint: 3s
+Switching all db processes.
+Time to switch all process version: 1m33s
+The nodes ['hghproach00003'] have been successfully upgraded to new version. Then do health check.
+Start to do health check.
+Successfully checked cluster status.
+Successfully upgrade nodes. 示例四： 使用gs_upgradectl脚本执行灰度升级，先选择集群中一个节点先升级成功使用--continue参数升级集群所有剩余节点。 gs_upgradectl -t auto-upgrade -X /data/xml/3node_3c3d_1m2s_etcd.xml --continue
+Static configuration matched with old static configuration files.
+Update the cluster with new product version 'GaussDB300'.
+Old cluster app path is /data/gauss/app_e67b8bcd
+Distributing xml configure file.
+Successfully distributed xml configure file.
+Checking upgrade environment.
+Successfully checked upgrade environment.
+Starting cluster.
+Waiting for the cluster status to become normal.
+The cluster status is normal.
+Start to do health check.
+Successfully checked cluster status.
+From this step, you can use -h to upgrade again if failed.
+Sync cluster configuration.
+Successfully synced cluster configuration.
+Successfully backup hotpatch config file.
+Switch symbolic link to new binary directory.
+Successfully switch symbolic link to new binary directory.
+Create checkpoint before switching.
+Time to create checkpoint: 4s
+Switching all db processes.
+Time to switch all process version: 2m9s
+The nodes ['hghproach00001', 'hghproach00002'] have been successfully upgraded to new version. Then do health check.
+Start to do health check.
+Successfully checked cluster status.
+Upgrade main process has been finished, user can do some check now.
+Once the check done, please execute following command to commit upgrade:
+
+    gs_upgradectl -t commit-upgrade -X /data/xml/3node_3c3d_1m2s_etcd.xml
+
+Successfully upgrade nodes. 示例五： 使用gs_upgradectl脚本执行灰度升级自动回滚，撤销已经成功/失败的升级操作（灰度升级回滚）。 gs_upgradectl -t auto-rollback -X /data/xml/3node_3c3d_1m2s_etcd.xml
+Static configuration matched with old static configuration files.
+Old cluster app path is /data/gauss/app_e67b8bcd
+Performing inplace rollback.
+Distributing xml configure file.
+Successfully distributed xml configure file.
+Checking static configuration files.
+Successfully checked static configuration files.
+Switch symbolic link to old binary directory.
+Successfully switch symbolic link to old binary directory.
+Rollbacking catalog.
+Stopping node.
+Successfully stopped node.
+Starting cluster.
+Waiting for the cluster status to become normal.
+The cluster status is normal.
+Stopping node.
+Successfully stopped node.
+Successfully Rollbacked catalog.
+Deleting om_monitor.
+Successfully deleted om_monitor.
+Restoring application and configurations.
+Successfully restored application and configuration.
+Restoring cluster configuration.
+Successfully restored cluster configuration.
+Starting the om_monitor process.
+Successfully started om_monitor process.
+Clean up backup catalog files.
+Starting cluster.
+Waiting for the cluster status to become normal.
+The cluster status is normal.
+Successfully Cleaned new install path.
+Rollback succeeded. 示例六： 使用gs_upgradectl脚本执行灰度升级提交（灰度升级提交）。 gs_upgradectl -t commit-upgrade -X /data/xml/3node_3c3d_1m2s_etcd.xml
+Old cluster app path is /data/gauss/app_e67b8bcd
+Successfully Cleaned old install path.
+Commit binary upgrade succeeded. 示例七： 使用gs_upgradectl脚本执行就地升级。 gs_upgradectl -t auto-upgrade -X /data/xml/3node_3c3d_1m2s_etcd.xml --inplace
+Static configuration matched with old static configuration files.
+Update the cluster with new product version 'GaussDB300'.
+Old cluster app path is /data/gauss/app_e67b8bcd
+Static configuration matched with old static configuration files.
+Distributing xml configure file.
+Successfully distributed xml configure file.
+Performing inplace rollback.
+Distributing xml configure file.
+Successfully distributed xml configure file.
+Rollback succeeded.
+Checking upgrade environment.
+Successfully checked upgrade environment.
+Starting cluster.
+Waiting for the cluster status to become normal.
+The cluster status is normal.
+Start to do health check.
+Successfully checked cluster status.
+Backing up current application and configurations.
+Successfully backed up current application and configurations.
+Stopping old clusters.
+Successfully stopped old clusters.
+Backing up cluster configuration.
+Successfully backed up cluster configuration.
+Installing new binary.
+Restoring cluster configuration.
+Successfully restored cluster configuration.
+Modifying the socket path.
+Successfully modified socket path.
+Starting cluster.
+Waiting for the cluster status to become normal.
+The cluster status is normal.
+Updating catalog.
+Successfully updated catalog.
+Stopping node.
+Successfully stopped node.
+Switch symbolic link to new binary directory.
+Successfully switch symbolic link to new binary directory.
+Starting cluster.
+Waiting for the cluster status to become normal.
+The cluster status is normal.
+Start to do health check.
+Successfully checked cluster status.
+Upgrade main process has been finished, user can do some check now.
+Once the check done, please execute following command to commit upgrade:
+
+    gs_upgradectl -t commit-upgrade -X /data/xml/3node_3c3d_1m2s_etcd.xml 示例八： 使用gs_upgradectl脚本执行自动回滚，撤销已经成功/失败的升级操作（就地升级回滚）。 gs_upgradectl -t auto-rollback -X /data/xml/3node_3c3d_1m2s_etcd.xml
+Static configuration matched with old static configuration files.
+Old cluster app path is /data/gauss/app_e67b8bcd
+Performing inplace rollback.
+Distributing xml configure file.
+Successfully distributed xml configure file.
+Checking static configuration files.
+Successfully checked static configuration files.
+Switch symbolic link to old binary directory.
+Successfully switch symbolic link to old binary directory.
+Rollbacking catalog.
+Stopping node.
+Successfully stopped node.
+Starting cluster.
+Waiting for the cluster status to become normal.
+The cluster status is normal.
+Stopping node.
+Successfully stopped node.
+Successfully Rollbacked catalog.
+Deleting om_monitor.
+Successfully deleted om_monitor.
+Restoring application and configurations.
+Successfully restored application and configuration.
+Restoring cluster configuration.
+Successfully restored cluster configuration.
+Starting the om_monitor process.
+Successfully started om_monitor process.
+Clean up backup catalog files.
+Starting cluster.
+Waiting for the cluster status to become normal.
+The cluster status is normal.
+Successfully Cleaned new install path.
+Rollback succeeded. 示例九： 使用gs_upgradectl脚本执行就地升级后提交（就地升级提交）。 gs_upgradectl -t commit-upgrade -X /data/xml/3node_3c3d_1m2s_etcd.xml
+Old cluster app path is /data/gauss/app_e67b8bcd
+Successfully Cleaned old install path.
+Commit binary upgrade succeeded. 相关命令 无 父主题： 系统内部调用的工具 版权所有 © 华为技术有限公司

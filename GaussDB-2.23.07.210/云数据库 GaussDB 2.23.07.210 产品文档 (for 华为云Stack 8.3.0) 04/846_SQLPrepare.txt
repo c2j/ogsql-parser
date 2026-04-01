@@ -1,0 +1,3 @@
+SQLPrepare SQLPrepare 功能描述 准备一个将要进行的SQL语句。 ODBC发送准备好的语句不支持内核复用计划，会导致每次执行都需要重新生成计划，导致CPU占用率高。如果业务对计划复用有需求，建议优先使用JDBC作为客户端。 原型 1
+2
+3 SQLRETURN SQLPrepare ( SQLHSTMT StatementHandle , SQLCHAR * StatementText , SQLINTEGER TextLength ); 参数 表1 SQLPrepare参数 关键字 参数说明 StatementHandle 语句句柄。 StatementText SQL文本串。 TextLength StatementText的长度。 返回值 SQL_SUCCESS：表示调用正确。 SQL_SUCCESS_WITH_INFO：表示会有一些警告信息。 SQL_ERROR：表示比较严重的错误，如：内存分配失败、建立连接失败等。 SQL_INVALID_HANDLE：表示调用无效句柄。其他API的返回值同理。 SQL_STILL_EXECUTING：表示语句正在执行。 注意事项 当SQLPrepare返回的值为SQL_ERROR或SQL_SUCCESS_WITH_INFO时，通过调用 SQLGetDiagRec 函数，并将HandleType和Handle参数分别设置为SQL_HANDLE_STMT和StatementHandle，可得到一个相关的SQLSTATE值，通过SQLSTATE值可以查出调用此函数的具体信息。 示例 参见： 示例 父主题： ODBC接口参考 版权所有 © 华为技术有限公司

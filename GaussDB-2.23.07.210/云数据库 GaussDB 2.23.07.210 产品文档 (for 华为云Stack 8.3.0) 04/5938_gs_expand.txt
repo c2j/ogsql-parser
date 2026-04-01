@@ -1,0 +1,64 @@
+gs_expand gs_expand 集中式仅支持升副本操作，且不支持单独调用。 集中式单节点不支持该工具。 背景信息 GaussDB 提供了gs_expand工具来帮助用户在业务发展和数据量增加的情况下，数据库实例性能和存储等方面出现瓶颈后，可以使用gs_expand工具增加主机来提升数据库实例的性能及存储。 扩容（升副本）前提条件 升副本操作要求在数据库实例normal状态下进行，degraded和unavailable状态不支持升副本。 升副本支持一主多备集群和单副本集群。 一主多备集群升副本操作支持从2副本集群最大扩展到5副本集群；单副本集群无此限制。 升副本如果是级联备，只支持集中式。 升副本（增加ETCD）操作中需要满足以下数据库配置ETCD的节点数。数据库中配置ETCD的节点总个数因为多数派选主，应为单数。 2AZ部署：AZ1中ETCD个数>=2；AZ2中ETCD个数>=1；ETCD总个数=3或5或7。 3AZ部署：AZ1中ETCD个数>=2；AZ2中ETCD个数>=2；AZ3中ETCD个数>=1；ETCD总个数=5或7。 指定参数增加只读节点前，需要将当前集群中的主备DN的sync_config_strategy参数设置为only_sync_node。 单副本集群升副本至一主多备集群，配置节点时需要满足一主多备集群各实例配置的数量约束： 集中式：ETCD 数量（3-7 奇数）个；CMS（2-8）个；DN >=2 个。 注意事项 新增主机机器至少满足数据库实例的安装要求（数据库实例安装要求，请参考《安装指南》中“软硬件环境要求”一章）。 新数据库实例整体性能取决于数据库实例中配置最低的机器。 新增主机的locale、encoding等需要和原有主机上保持一致。 新的主机上已经做了数据库实例安装路径和用户组规划。 使用环境字符集不支持中文类型（zh_CN.UTF-8），可通过locale命令查看。 升副本支持新增主机中只含DN，或者包含DN和ETCD，或者包含DN和CMS，或者三者都含场景；不支持不包含DN实例的场景进行升副本操作。 若新增主机硬件规格（内存、硬盘）低于现有数据库实例，需要逐步将性能较低的服务器替换为性能更好的服务器以满足数据库实例的性能要求。 升副本过程中，可能发生DN主备切换，请合理分配运维窗口期，避免对业务造成影响。 语法 数据库实例扩容 gs_expand -t dilatation -X XMLFILE [-l LOGFILE] [--parallel-jobs=NUMBER] [--time-out=SECS] [--dws-mode] [--dilatation-mode=MODE] {--nodegroup-name=LCGROUPNAME | --addto-elastic-group} [--express] 数据重分布 gs_expand -t redistribute  [--parallel-jobs= NUMBER ] [--resource-level=f/h/m/l] [--failure-limit=NUMBER] 
+[--build-redistb] [--redis-mode=MODE] [-l LOGFILE] [--priority-tables=FILE] [--exclude-tables=FILE] 
+[--time-out=SECS] [--dws-mode] [--finish-timeseries] [--max-worker] [--max-dop] [--join-tables=FILE] 回滚 gs_expand -t crashclean -X XMLFILE [-l LOGFILE ] [--dws-mode] [--express] 重分布资源管控 gs_expand -t resourcectl --resource-level=f/h/m/l [--max-worker][--max-dop] 扩容dilatation阶段扩容进度查询 gs_expand -t progress -X XMLFILE 数据库实例升副本 集中式仅支持此功能，且不支持单独调用。 DCF模式下，升副本后在主DN节点执行如下命令查看dcf_replication_info中角色是否包含PASSIVE： gs_ctl query -D < DATADIR > 上述命令中参数DATADIR是主DN的数据目录。 若上述结果中包含PASSIVE，在主DN节点执行如下命令进行角色切换： cm_ctl changerole --role  FOLLOWER  -n < NODEID > -D < DATADIR > 上述命令中参数NODEID是待切换角色的节点ID，DATADIR是待切换角色DN的数据目录。 gs_expand -t add_replication -X XMLFILE [--dn-guc] 重分布参数设置 gs_expand -t parametercfg [--lockwait-timeout=MSEC] [--lockwait-interval=SECS] [--trylock-threshold=NUMBER] [--enable-cancel=Boolean] [--last-catchup-threshold=MSEC] [--catchup-times=NUMBER] [--write-error-mode=Boolean] [--catchup-query-dop=NUMBER] [--parallel-catchup-threshold=NUMBER] [--parallel-reindex-jobs=NUMBER] [--redis-retry-times=NUMBER][--redis-retry-interval=NUMBER] 显示帮助信息 gs_expand -? | --help 显示版本信息 gs_expand -V | --version 参数说明 gs_expand参数可以分为如下几类： 通用参数： -t gs_expand命令参数类型。 取值范围：dilatation，redistribute，crashclean，progress，resourcectl，add_replication，parametercfg。 集中式仅支持add_replication。 -X 安装配置文件路径。 如果需要修改xml文件名称时，需要将修改后的xml文件分发到数据库实例的其他主机上。 取值范围：clusterconfig.xml的文件路径。 如果-t参数指定的是progress，-X参数传入的是扩容前原始数据库实例的XML配置文件 。 -l 指定日志文件及存放路径。 默认值：$GAUSSLOG/om/gs_expand-YYYY-MM-DD_hhmmss.log --time-out=SECS 超时等待时间。单位：s。 取值范围：≥43200，正整型。 默认值：43200 -?, --help 显示帮助信息。 --dws-mode 指定是否DWS云上扩容。 -V, --version 显示版本号信息。 数据库实例扩容参数： --parallel-jobs=NUMBER 指定数据库实例扩容过程重建实例的并发任务个数。 参考取值：正整数。 数据库实例扩容默认值为20。 --dilatation-mode=MODE 指定扩容执行模式。 取值范围： read-only：只读模式 insert：插入模式 如果不指定，默认为read-only模式。 --nodegroup-name=LCGROUPNAME 逻辑数据库实例模式时指定要扩容的逻辑数据库实例名称，指定该参数必须同时指定--dilatation-mode=insert参数。 --addto-elastic-group 逻辑数据库实例模式时指定是否给弹性数据库实例扩容，指定该参数必须同时指定--dilatation-mode=insert参数。 --express 指定是否给DWS加速数据库实例扩容。 --call-thread= 脚本执行调用链ID，可以为空。 数据重分布参数： --parallel-jobs=NUMBER 指定数据重分布过程的并发执行任务个数。 参考取值：正整数（1~8）。数据重分布推荐并发任务数为4。 如果不指定--parallel-jobs参数：数据重分布默认值为1，为非并发执行方式。 --build-redistb 创建pgxc_redistb表，但不进行重分布，此表中记录了本次重分布所有需要进行重分布的表。 --redis-mode=MODE 指定数据重分布的执行模式。 取值范围： read-only：只读模式 insert：插入模式，正在进行重分布的表支持并发插入（insert）以及导入（Gds导入）。 如果不指定，默认为read-only模式。 --priority-tables=FILE 优先重分布模式，系统将优先执行用户在指定文件中所写表的重分布，默认不选此参数。 取值范围：指定的文件路径，指定文件内容不能超过1000行。 指定文件格式,每一行：database schema tablename 例如： testdb public test testdb "pubLic" test （schema为pubLic） 注意：不支持database、schema、tablename数据对象名称存在空格，schema和tablename名称中存在大写字母或者特殊字符时需要加双引号进行转义。 --exclude-tables=FILE 跳过重分布模式，系统将跳过用户在指定文件中所写表的重分布，默认不选此参数。 与优先重分布模式同时使用时，不允许两个模式中指定的表有重叠。 取值范围：指定的文件路径，指定文件内容不能超过1000行。 指定文件格式,每一行：database schema tablename 例如： testdb public test testdb "pubLic" test （schema为pubLic） 注意：不支持database、schema、tablename数据对象名称存在空格，schema和tablename名称中存在大写字母或者特殊字符时需要加双引号进行转义。 --translate-table= FILE 数据迁移模式，系统会将用户指定的文件中的表完成数据迁移，默认不选此参数。 取值范围：指定的文件路径，指定文件内容不能超过1000行。 不支持从普通表或段页式表转换为hashbucket表，也不支持hashbucket表转换为其他类型的表。 指定文件格式,每一行：database schema tablename transfertype ，例如： testdb public test t segment 注意：不支持database、schema、tablename数据对象名称存在空格，schema和tablename名称中存在大写字母或者特殊字符时需要加双引号进行转义。 --join-tables= FILE 多表扩容模式，输入为具有join关系的用户表配置文件。 取值范围：指定的文件路径，指定文件内容不能超过1000行。 指定文件格式。每一行格式为：database schema1 tablename1 schema2 tablename2 ...（每行的多张表构成一个分组）。例如： testdb public test1 public test2
+testdb public test3 public test4 public test5 注意： 不支持database、schema、tablename数据对象名称存在空格，schema和tablename名称中存在大写字母或者特殊字符时需要加双引号进行转义。 每一行schema tablename必须成对出现，唯一确定一张表。 一张表不能出现在多个分组中，每组的表数量必须大于等于2，小于等于5。 如果存在一个schema里的tablename为其他schema的名字时，会正常处理这张表不会报错。 --call-thread= 脚本执行调用链ID，可以为空。 --failure-limit=NUMBER 跳过重分布失败表模式，系统在未超过用户指定失败数量前不会中断重分布，默认不选此参数。 取值范围：0 ~ 10 指定此参数后，如果未达到失败表数量，重分布不会中断，并且在执行完成后报错，打印出失败表的列表。 当资源管控级别设置为f时，支持表内并发度（--max-worker）和表内扫描（--max-dop）可配置，通过调整以下参数进行： --max-worker 表内并发度。 取值范围：[1,8] 默认值：8 --max-dop 单表query_dop参数值。 取值范围：[1,64] 默认值：4 资源管控参数： --resource-level=RESLEVEL 指定数据重分布的资源等级。 取值范围： f：100%资源 h：50%资源 m：30%资源 l：10%资源 默认值：l 当资源管控参数设置为f时，进入快速扩容场景，会充分使用资源，通过并发操作提升数据重分布的性能。此时，如果shared_buffers参数值设置过小（小于推荐值），会影响此场景下的性能优化效果。 当资源管控级别设置为f时，支持表内并发度（--max-worker）和表内扫描（--max-dop）可配置，通过调整以下参数进行： --max-worker 表内并发度。 取值范围：[1,8] 默认值：8 --max-dop 单表query_dop参数值。 取值范围：[1,64] 默认值：4 调用链接口参数 --trace-id 每次om请求的唯一标识，可根据om操作日志中的trace-id识别调用链从而进行故障定界。可选参数。 取值范围：1-128位的字符串，允许的字符为数字，字母和'-'。 重分布参数设置接口参数： --lockwait-timeout 锁超时时间。如果等锁线程在该时间内无法拿到锁，则报锁超时失败。 取值范围：[1,1200000] 单位：毫秒 默认值：8000 --lockwait-interval 等锁步长。即使用CANCEL后等锁失败的等锁时间间隔，如果此轮等锁超时，间隔该参数指定的时长进行下一轮尝试。 取值范围：[0,300] 单位：秒 默认值：0 --trylock-threshold 等锁尝试次数上限。如果到达该上限还因为等锁超时无法成功获取到锁，则此表此轮重分布失败。 取值范围：[1,INT_MAX], -1 单位：次 默认值：-1（表示无上限） --enable-cancel 是否允许用户业务快速失败。即是否允许达到等锁尝试次数上限时，快速失败用户业务从而保证重分布成功拿锁。 取值范围：[false,true] 默认值：false --last-catchup-threshold 最后一轮追增时间上限。即最后一轮完成delete+insert追增耗时。 取值范围：[1000,60000] 单位：毫秒 默认值：5000 --catchup-times 追增轮次上限。即追增轮次的上限。 取值范围：[1,INT_MAX], -1 单位：次 默认值：-1（表示无上限） --write-error-mode 写报错模式。true表示写报错模式。false表示采用全阻塞模式进行最后一轮追增。 取值范围：[false,true] 默认值：true --catchup-query-dop 追增并行扫描度。 取值范围：[1,32] 单位：个 默认值：4 该参数设置过小可能导致追增性能下降，设置过大占用资源较多。 --parallel-catchup-threshold 多表重分布模式中开启并行追增所需的耗时阈值，一个分组中所有表追增耗时小于该值时，开启并行追增。 取值范围：[1000,1800000] 单位：毫秒 默认值：300000 --parallel-reindex-jobs 同时临时表创建索引时的并发度，即多少个索引同时创建。 取值范围：[1,64] 单位：个 默认值：2 --redis-retry-times 自动拉起重分布进程的次数上限，触发重分布进程主动退出时使用，拉起次数超出上限本轮重分布失败结束。 对应参数：redis_retry_times 取值范围：[0,100] 单位：次 默认值：5 --redis-retry-interval 自动拉起重分布进程的时间间隔，触发重分布进程主动退出时使用。 对应参数：redis_retry_interval 取值范围：[0,36000] 单位：秒 默认值：600 增加副本参数： --dn-guc 增加只读副本时，可指定--dn-guc参数来设置只读副本的默认GUC参数。 使用方式：gs_expand -t add_replication -X /usr/local/tool/clusterConfig_rep.xml --dn-guc max_process_memory=10485760 --dn-guc wal_file_init_num=0 升副本操作： gs_expand -t add_replication -X /usr/local/tool/clusterConfig.xml
+Ready to restore local static config file.
+Restore local static config file successfully.
+Current cluster replication number is 3
+Init global successfully.
+Ready to create step directory: /usr/local/temp/add_replication_step
+Successfully to create step directory: /usr/local/temp/add_replication_step
+From 3 replication to 4 replication.
+Start check new nodes in XML.
+New nodes are added to the cluster ['10.30.58.219'].
+Check new nodes successfully.
+Stage begin: Start backup file stage.
+Stage finish: Successfully backup config file stage.
+Transport XML file successfully. /usr/local/tool/clusterConfig.xml
+Successfully generate static config file on new instance nodes.
+Stage begin: Start install app on new nodes stage.
+Start clean new nodes.
+Uninstalling applications on ['10.30.58.219'].
+Successfully uninstalled applications on ['10.30.58.219'].
+Clean new nodes [['10.30.58.219']] successfully.
+Stage finish: Install stage perform successfully.
+Start copying license file and so file.
+Copy cert files and so files successfully.
+Start compress tar ball.
+Start decompress tar ball on remote new node.
+Distribute tar file successfully.
+Start to config new DN instances.
+Initializing instances on new instances.
+Init new instances successfully.
+Start to build cm_agent on new nodes.
+Transport cm_agent config file to new nodes successfully.
+Start rebuild new datanode instance.
+Rebuild new datanode instance successfully.
+New instance config successfully.
+Start to configure all data node instances stage.
+Start configure postgresql.conf on origin DN instance.
+Stage finish: Successfully config postgresql.conf file stage.
+Cluster type is single-inst, no need to build pgxc_node.
+Update dcf_config for dcf successfully.
+Cm start reload configure.
+Start new node begin.
+New node Start successfully.
+Wait for cluster to normal.
+Starting to check replication information.
+Cluster state is [Degraded].Please check repair cluster to Normal.
+Cluster wait to build DN. Time spent 0.0886058807373s
+Starting to check replication information.
+Cluster state is [Degraded].Please check repair cluster to Normal.
+Cluster wait to build DN. Time spent 10.1608610153s
+Starting to check replication information.
+Cluster state is [Degraded].Please check repair cluster to Normal.
+Cluster wait to build DN. Time spent 20.2248330116s
+Starting to check replication information.
+Cluster state is [Degraded].Please check repair cluster to Normal.
+Cluster wait to build DN. Time spent 30.2797150612s
+Starting to check replication information.
+Cluster state is [Normal].
+Cluster state is : [Normal]
+Start Clean backup files
+Clean backup files successfully.
+Add replication perform successfully.Current replication number is 5 父主题： 系统内部调用的工具 版权所有 © 华为技术有限公司

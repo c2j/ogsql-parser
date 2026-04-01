@@ -1,0 +1,1 @@
+storage test error storage test error 业务执行过程中，数据页、索引或者Undo页面发生变更后，该页面放锁之前会主动进行逻辑损坏检测，发现页面损坏问题后会输出包含“storage test error”关键字的日志信息到数据库运行日志（pg_log文件），执行事务回滚，页面会恢复到修改前的状态。 问题现象 pg_log中打印“storage test error”关键字。 处理方法 请联系华为技术支持解决。 父主题： 常见问题及定位手段 版权所有 © 华为技术有限公司

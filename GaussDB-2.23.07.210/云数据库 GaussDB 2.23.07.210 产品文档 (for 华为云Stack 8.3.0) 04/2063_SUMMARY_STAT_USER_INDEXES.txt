@@ -1,0 +1,1 @@
+SUMMARY_STAT_USER_INDEXES SUMMARY_STAT_USER_INDEXES 集群 内汇聚所有数据库中用户自定义普通表的索引状态信息。 表1 SUMMARY_STAT_USER_INDEXES字段 名称 类型 描述 schemaname name 索引的模式名。 relname name 索引的表名。 indexrelname name 索引名。 idx_scan numeric 索引上开始的索引扫描数。 idx_tup_read numeric 通过索引上扫描返回的索引项数。 idx_tup_fetch numeric 通过使用索引的简单索引扫描抓取的活表行数。 父主题： Object 版权所有 © 华为技术有限公司

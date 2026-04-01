@@ -1,0 +1,1 @@
+PG_DB_ROLE_SETTING PG_DB_ROLE_SETTING PG_DB_ROLE_SETTING系统表存储数据库运行时每个角色与数据绑定的配置项的默认值 。 表1 PG_DB_ROLE_SETTING字段 名称 类型 描述 setdatabase oid 配置项所对应的数据库，如果未指定数据库，则为0。 setrole oid 配置项所对应的角色，如果未指定角色，则为0。 setconfig text[] 运行时配置项的默认值。配置 请联系管理员处理 。 父主题： 用户和权限管理 版权所有 © 华为技术有限公司

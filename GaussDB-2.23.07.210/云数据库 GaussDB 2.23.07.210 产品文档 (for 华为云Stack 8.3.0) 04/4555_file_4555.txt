@@ -1,0 +1,38 @@
+分区索引 分区索引 分区表上的索引共有三种类型: Global Non-Partitioned Index Global Partitioned Index Local Partitioned Index 目前 GaussDB 支持Global Non-Partitioned Index和Local Partitioned Index类型索引。 图1 Global Non-Partitioned Index 图2 Global Partitioned Index 图3 Local Partitioned Index 约束 分区表索引分为LOCAL索引与GLOBAL索引：LOCAL索引与某个具体分区绑定，而GLOBAL索引则对应整个分区表。 唯一约束和主键约束的约束键包含所有分区键则创建LOCAL索引，否则创建GLOBAL索引。 在创建LOCAL索引时，可以通过FOR { partition_name | ( partition_value [, ...] ) }子句，指定在单个分区上创建LOCAL索引，此类索引在其他分区上不生效，后续新增的分区也不会自动创建该索引。需要注意的是，当前仅静态剪枝到单个分区的计划支持生成分类索引的查询路径。 当查询语句在查询数据涉及多个目标分区时，建议使用GLOBAL索引，反之建议使用LOCAL索引。但需要注意GLOBAL索引在分区维护语法中存在额外的开销。 示例 创建表 CREATE TABLE web_returns_p2
+(
+    ca_address_sk INTEGER NOT NULL ,
+    ca_address_id CHARACTER(16) NOT NULL ,
+    ca_street_number CHARACTER(10) ,
+    ca_street_name CHARACTER VARYING(60) ,
+    ca_street_type CHARACTER(15) ,
+    ca_suite_number CHARACTER(10) ,
+    ca_city CHARACTER VARYING(60) ,
+    ca_county CHARACTER VARYING(30) ,
+    ca_state CHARACTER(2) ,
+    ca_zip CHARACTER(10) ,
+    ca_country CHARACTER VARYING(20) ,
+    ca_gmt_offset NUMERIC(5,2) ,
+    ca_location_type CHARACTER(20)
+)
+PARTITION BY RANGE (ca_address_sk)
+(
+    PARTITION P1 VALUES LESS THAN(5000),
+    PARTITION P2 VALUES LESS THAN(10000),
+    PARTITION P3 VALUES LESS THAN(15000),
+    PARTITION P4 VALUES LESS THAN(20000),
+    PARTITION P5 VALUES LESS THAN(25000),
+    PARTITION P6 VALUES LESS THAN(30000),
+    PARTITION P7 VALUES LESS THAN(40000),
+    PARTITION P8 VALUES LESS THAN(MAXVALUE)
+)
+ENABLE ROW MOVEMENT; 创建索引 创建分区表LOCAL索引tpcds_web_returns_p2_index1，不指定索引分区的名称。 gaussdb=# CREATE INDEX tpcds_web_returns_p2_index1 ON web_returns_p2 (ca_address_id) LOCAL; 当结果显示为如下信息，则表示创建成功。 CREATE INDEX 创建分区表LOCAL索引tpcds_web_returns_p2_index2，并指定索引分区的名称。 gaussdb=# CREATE INDEX tpcds_web_returns_p2_index2 ON web_returns_p2 (ca_address_sk) LOCAL
+(
+    PARTITION web_returns_p2_P1_index,
+    PARTITION web_returns_p2_P2_index TABLESPACE example3,
+    PARTITION web_returns_p2_P3_index TABLESPACE example4,
+    PARTITION web_returns_p2_P4_index,
+    PARTITION web_returns_p2_P5_index,
+    PARTITION web_returns_p2_P6_index,
+    PARTITION web_returns_p2_P7_index,
+    PARTITION web_returns_p2_P8_index
+) TABLESPACE example2; 当结果显示为如下信息，则表示创建成功。 CREATE INDEX 创建分区表GLOBAL索引tpcds_web_returns_p2_global_index。 gaussdb=# CREATE INDEX tpcds_web_returns_p2_global_index ON web_returns_p2 (ca_street_number) GLOBAL; 当结果显示为如下信息，则表示创建成功。 CREATE INDEX 创建分类分区索引 指定分区名： gaussdb=# CREATE INDEX tpcds_web_returns_for_p1 ON web_returns_p2 (ca_address_id) LOCAL(partition ind_part for p1); 指定分区键的值： gaussdb=# CREATE INDEX tpcds_web_returns_for_p2 ON web_returns_p2 (ca_address_id) LOCAL(partition ind_part for (5000)); 当结果显示为如下信息，则表示创建成功。 CREATE INDEX 修改索引分区的表空间 修改索引分区web_returns_p2_P2_index的表空间为example1。 gaussdb=# ALTER INDEX tpcds_web_returns_p2_index2 MOVE PARTITION web_returns_p2_P2_index TABLESPACE example1; 当结果显示为如下信息，则表示修改成功。 ALTER INDEX –修改索引分区web_returns_p2_P3_index的表空间为example2。 gaussdb=# ALTER INDEX tpcds_web_returns_p2_index2 MOVE PARTITION web_returns_p2_P3_index TABLESPACE example2; 当结果显示为如下信息，则表示修改成功。 ALTER INDEX 重命名索引分区 执行如下命令对索引分区web_returns_p2_P8_index重命名web_returns_p2_P8_index_new。 gaussdb=# ALTER INDEX tpcds_web_returns_p2_index2 RENAME PARTITION web_returns_p2_P8_index TO web_returns_p2_P8_index_new; 当结果显示为如下信息，则表示重命名成功。 ALTER INDEX 查询索引 执行如下命令查询系统和用户定义的所有索引。 gaussdb=# SELECT RELNAME FROM PG_CLASS WHERE RELKIND='i' or RELKIND='I'; 执行如下命令查询指定索引的信息。 gaussdb=# \di+ tpcds_web_returns_p2_index2 删除索引 gaussdb=# DROP INDEX tpcds_web_returns_p2_index1; 当结果显示为如下信息，则表示删除成功。 DROP INDEX 父主题： 分区表查询优化 版权所有 © 华为技术有限公司

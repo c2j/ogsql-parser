@@ -1,0 +1,149 @@
+案例：调整查询重写GUC参数rewrite_rule 案例：调整查询重写GUC参数rewrite_rule rewrite_rule包含了多个查询重写规则：magicset、uniquecheck、intargetlist、predpush等。下面简要说明其中重要的几个规则的使用场景： 目标列子查询提升参数intargetlist 通过将目标列中子查询提升，转为JOIN，往往可以极大提升查询性能。举例如下查询： gaussdb=# set rewrite_rule='none';
+SET gaussdb=# create table t1(c1 int,c2 int);
+CREATE TABLE gaussdb=# create table t2(c1 int,c2 int);
+CREATE TABLE gaussdb=# explain (verbose on, costs off) select c1,(select avg(c2) from t2 where t2.c2=t1.c2) from t1 where t1.c1<100 order by t1.c2;
+                  QUERY PLAN
+-----------------------------------------------
+ Sort
+   Output: t1.c1, ((SubPlan 1)), t1.c2
+   Sort Key: t1.c2
+   ->  Seq Scan on public.t1
+         Output: t1.c1, (SubPlan 1), t1.c2
+         Filter: (t1.c1 < 100)
+         SubPlan 1
+           ->  Aggregate
+                 Output: avg(t2.c2)
+                 ->  Seq Scan on public.t2
+                       Output: t2.c1, t2.c2
+                       Filter: (t2.c2 = t1.c2)
+(12 rows) 由于目标列中的相关子查询(select avg(c2) from t2 where t2.c2=t1.c2)无法提升的缘故，导致每扫描t1的一行数据，就会触发子查询的一次执行，效率低下。如果打开intargetlist参数会把子查询提升转为JOIN，来提升查询的性能： gaussdb=# set rewrite_rule='intargetlist';
+SET gaussdb=# explain (verbose on, costs off) select c1,(select avg(c2) from t2 where t2.c2=t1.c2) from t1 where t1.c1<100 order by t1.c2;
+                  QUERY PLAN
+-----------------------------------------------
+ Sort
+   Output: t1.c1, (avg(t2.c2)), t1.c2
+   Sort Key: t1.c2
+   ->  Hash Left Join
+         Output: t1.c1, (avg(t2.c2)), t1.c2
+         Hash Cond: (t1.c2 = t2.c2)
+         ->  Seq Scan on public.t1
+               Output: t1.c1, t1.c2
+               Filter: (t1.c1 < 100)
+         ->  Hash
+               Output: (avg(t2.c2)), t2.c2
+               ->  HashAggregate
+                     Output: avg(t2.c2), t2.c2
+                     Group By Key: t2.c2
+                     ->  Seq Scan on public.t2
+                           Output: t2.c2
+(16 rows) 提升无agg的子查询uniquecheck 子链接提升需要保证对于每个条件只有一行输出，对于有agg的子查询可以自动提升，对于无agg的子查询如： select t1.c1 from t1 where t1.c1 = (select t2.c1 from t2 where t1.c1=t2.c2) ; 重写为： select t1.c1 from t1 join (select t2.c1 from t2 where t2.c1 is not null group by t2.c1(unique check)) tt(c1) on tt.c1=t1.c1; 需注意，上述SQL中的unique check表示t2.c1需要进行检查，非正常SQL表达，该SQL无法直接执行。为了保证语义等价，子查询tt必须保证对于每个group by t2.c1只能有一行输出。打开uniquecheck查询重写参数保证可以提升并且等价，如果在运行时输出了多于一行的数据，就会报错。 gaussdb=# set rewrite_rule='uniquecheck';
+SET gaussdb=# explain verbose select t1.c1 from t1 where t1.c1 = (select t2.c1 from t2 where t1.c1=t2.c1);
+                                     QUERY PLAN
+-------------------------------------------------------------------------------------
+ Hash Join  (cost=43.36..104.40 rows=2149 distinct=[200, 200] width=4)
+   Output: t1.c1
+   Hash Cond: (t1.c1 = subquery."?column?")
+   ->  Seq Scan on public.t1  (cost=0.00..31.49 rows=2149 width=4)
+         Output: t1.c1, t1.c2
+   ->  Hash  (cost=40.86..40.86 rows=200 width=8)
+         Output: subquery."?column?", subquery.c1
+         ->  Subquery Scan on subquery  (cost=36.86..40.86 rows=200 width=8)
+               Output: subquery."?column?", subquery.c1
+               ->  HashAggregate  (cost=36.86..38.86 rows=200 width=4)
+                     Output: t2.c1, t2.c1
+                     Group By Key: t2.c1
+                     Filter: (t2.c1 IS NOT NULL)
+                     Unique Check Required
+                     ->  Seq Scan on public.t2  (cost=0.00..31.49 rows=2149 width=4)
+                           Output: t2.c1
+(16 rows) 注意：因为分组group by t2.c1 unique check发生在过滤条件tt.c1=t1.c1之前，可能导致原来不报错的查询重写之后报错。举例： 有t1,t2表，其中的数据为： gaussdb=# select * from t1 order by c2;
+ c1 | c2
+----+----
+  1 |  1
+  2 |  2
+  3 |  3
+(3 rows) gaussdb=# select * from t2 order by c2;
+ c1 | c2
+----+----
+  1 |  1
+  2 |  2
+  3 |  3
+  4 |  4
+  4 |  4
+  5 |  5
+(6 rows) 分别关闭和打开uniquecheck参数对比，打开之后报错。 gaussdb=# select t1.c1 from t1 where t1.c1 = (select t2.c1 from t2 where t1.c1=t2.c2) ;
+ c1
+----
+  1
+  2
+  3
+(3 rows) gaussdb=# set rewrite_rule='uniquecheck';
+SET gaussdb=# select t1.c1 from t1 where t1.c1 = (select t2.c1 from t2 where t1.c1=t2.c2) ;
+ERROR:  more than one row returned by a subquery used as an expression 消除子查询中的聚集运算参数lazyagg 消除子查询中的聚集运算，以此提高查询效率。举例： gaussdb=# set rewrite_rule =none;
+SET gaussdb=# create table t (a int, b int, c int, d int);
+CREATE TABLE gaussdb=# create table t1 (a int, b int, c int, d int);
+CREATE TABLE gaussdb=# explain (costs off) select t.b, sum(cc) from (select b, sum(c) as cc from t1 group by b) s1, t where s1.b=t.b group by t.b order by 1,2;
+                     QUERY PLAN 
+----------------------------------------------------
+ Sort
+   Sort Key: t.b, (sum(s1.cc))
+   ->  HashAggregate
+         Group By Key: t.b
+         ->  Hash Join
+               Hash Cond: (t.b = s1.b)
+               ->  Seq Scan on t
+               ->  Hash
+                     ->  Subquery Scan on s1
+                           ->  HashAggregate
+                                 Group By Key: t1.b
+                                 ->  Seq Scan on t1
+(12 rows) 子查询与外层查询存在同样的group by条件，两层聚集运算可能导致查询效率低下，打开lazyagg参数，消除子查询中的聚集运算，提升查询性能： gaussdb=# set rewrite_rule = lazyagg;
+SET gaussdb=# explain (costs off) select t.b, sum(cc) from (select b, sum(c) as cc from t1 group by b) s1, t where s1.b=t.b group by t.b order by 1,2;
+               QUERY PLAN
+----------------------------------------
+ Sort
+   Sort Key: t.b, (sum((t1.c)::bigint))
+   ->  HashAggregate
+         Group By Key: t.b
+         ->  Hash Join
+               Hash Cond: (t1.b = t.b)
+               ->  Seq Scan on t1
+               ->  Hash
+                     ->  Seq Scan on t
+(9 rows) 从主查询下推条件到子查询参数magicset 将带有聚集算子的子查询提前和主查询进行关联。举例： gaussdb=# create table t1(a int, b varchar, c int, d int);
+CREATE TABLE gaussdb=# create table t2(a int, b varchar, c int, d int);
+CREATE TABLE gaussdb=# set rewrite_rule = none;
+SET gaussdb=# explain (costs off) select t1 from t1 where t1.b = 10 and t1.c < (select sum(c) from t2 where t1.a = t2.a);
+                QUERY PLAN
+------------------------------------------
+ Hash Join
+   Hash Cond: (t2.a = t1.a)
+   Join Filter: (t1.c < (sum(t2.c)))
+   ->  HashAggregate
+         Group By Key: t2.a
+         ->  Seq Scan on t2
+   ->  Hash
+         ->  Seq Scan on t1
+               Filter: ((b)::bigint = 10)
+(9 rows) 先针对子查询的关联字段进行分组聚集，再和主查询进行关联，减少相关子链接的重复扫描，提升查询效率，修改重写参数后，计划改变： gaussdbset rewrite_rule = magicset;
+SET
+gaussdbexplain (costs off) select t1 from t1 where t1.b = 10 and t1.c < (select sum(c) from t2 where t1.a = t2.a);
+                         QUERY PLAN
+------------------------------------------------------------
+ Hash Join
+   Hash Cond: (t2.a = public.t1.a)
+   Join Filter: (public.t1.c < (sum(t2.c)))
+   ->  HashAggregate
+         Group By Key: t2.a
+         ->  Hash Join
+               Hash Cond: (t2.a = public.t1.a)
+               ->  Seq Scan on t2
+               ->  Hash
+                     ->  HashAggregate
+                           Group By Key: public.t1.a
+                           ->  Seq Scan on t1
+                                 Filter: ((b)::bigint = 10)
+   ->  Hash
+         ->  Seq Scan on t1
+               Filter: ((b)::bigint = 10)
+(16 rows) 父主题： 实际调优案例 版权所有 © 华为技术有限公司

@@ -1,0 +1,1 @@
+分区键 分区键 分区键由一个或多个列组成，分区键值结合对应分区方法能够唯一确定某一元组所在的分区，通常在建表时通过PARTITION BY语句指定： CREATE TABLE table_name (…) PARTITION BY part_strategy ( partition_key ) (…) 范围分区表和列表分区表支持最多16列分区键；其他分区表只支持1列分区键。 父主题： 基本概念 版权所有 © 华为技术有限公司

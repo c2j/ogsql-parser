@@ -1,0 +1,1 @@
+DBMind管理 DBMind管理 DBMind提供了 GaussDB 数据库管理运维能力，包括监控、诊断、优化等，满足用户或者DBA日常开发和运维的绝大部分需求。 图1 DBMind运维功能流程图 图2 DBMind流程图 DBMind实例说明 创建DBMind实例 DBMind实例管理 日志分析 诊断优化 父主题： 操作指南 版权所有 © 华为技术有限公司

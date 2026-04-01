@@ -1,0 +1,10 @@
+查询容灾集群监控状态 查询容灾集群监控状态 功能介绍 查询实例搭建容灾后实时容灾状态。 调用接口前，您需要提前 获取终端节点 ，即下文中的Endpoint值。 URI URI格式 GET https://{ Endpoint }/gaussdb/v3.5/{project_id}/instances/{instance_id}/disaster-recovery/monitor?disaster_type={disaster_type} URI样例 https://gaussdb.sa-fb-2.hcsglobal.com/gaussdb/v3.5/0483b6b16e954cb88930a360d2c4e663/instances/a7d62bf77aa04fceb52fbd57181c9e3ein14/disaster-recovery/monitor?disaster_type={disaster_type} 参数说明 表1 参数说明 名称 是否必选 参数类型 说明 project_id 是 String 租户在某一region下的project ID。 获取方法请参见 获取项目ID/名称 。 instance_id 是 String 实例ID。 disaster_type 是 String 容灾类型： stream dorado 请求消息 https://gaussdb.sa-fb-2.hcsglobal.com/gaussdb/v3.5/4a52a8a8f63d4c6d966dff0e20b69738/instances/4d653d1caf0e4a49b4753713fac679e3in14/disaster-recovery/monitor?disaster_type=stream 响应消息 表2 响应Body参数列表 名称 参数类型 说明 instance_id String 实例id。 status String 容灾状态。 rpo String 数据恢复点目标。 rto String 数据恢复时间目标。 rpo_threshold String rpo阈值。 rto_threshold String rto阈值。 switchover_progress String 主从切换进度。该值为一个百分数。例如：40% failover_progress String 容灾升主进度。该值为一个百分数。例如：40% 正常响应样例 { 
+    "rpo":"0", 
+    "rto":"0", 
+    "status":"archive", 
+    "instance_id":"b3692282395340c5b5421ecf3d7bd6adin14",  
+    "rto_threshold":"900", 
+    "rpo_threshold":"10", 
+    "failover_progress":"", 
+    "switchover_ progress ":""
+} 异常响应 请参见 异常请求结果 。 状态码 正常 200 异常 请参见 状态码 。 错误码 请参见 错误码 。 父主题： 容灾管理 版权所有 © 华为技术有限公司

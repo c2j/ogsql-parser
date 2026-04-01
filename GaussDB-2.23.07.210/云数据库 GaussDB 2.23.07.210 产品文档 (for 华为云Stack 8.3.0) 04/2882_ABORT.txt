@@ -1,0 +1,29 @@
+ABORT ABORT 功能描述 回滚当前事务并且撤销所有当前事务中所做的更改。 作用等同于 ROLLBACK ，早期SQL有用ABORT，现在推荐使用ROLLBACK。 注意事项 在事务外部执行ABORT语句不会影响事务的执行，但会返回一个NOTICE信息。 语法格式 ABORT [ WORK | TRANSACTION ]; 参数说明 WORK | TRANSACTION 可选关键字，除了增加可读性没有其他任何作用。 示例 --创建表customer_demographics_t1。 gaussdb=# CREATE TABLE customer_demographics_t1
+(
+    CD_DEMO_SK                INTEGER               NOT NULL,
+    CD_GENDER                 CHAR(1)                       ,
+    CD_MARITAL_STATUS         CHAR(1)                       ,
+    CD_EDUCATION_STATUS       CHAR(20)                      ,
+    CD_PURCHASE_ESTIMATE      INTEGER                       ,
+    CD_CREDIT_RATING          CHAR(10)                      ,
+    CD_DEP_COUNT              INTEGER                       ,
+    CD_DEP_EMPLOYED_COUNT     INTEGER                       ,
+    CD_DEP_COLLEGE_COUNT      INTEGER
+)
+;
+
+--插入记录。 gaussdb=# INSERT INTO customer_demographics_t1 VALUES(1920801,'M', 'U', 'DOCTOR DEGREE', 200, 'GOOD', 1, 0,0);
+
+--开启事务。 gaussdb=# START TRANSACTION;
+
+--更新字段值。 gaussdb=# UPDATE customer_demographics_t1 SET cd_education_status= 'Unknown';
+
+--终止事务，上面所执行的更新会被撤销掉。 gaussdb=# ABORT; 
+
+--查询数据。 gaussdb=# SELECT * FROM customer_demographics_t1 WHERE cd_demo_sk = 1920801;
+cd_demo_sk | cd_gender | cd_marital_status | cd_education_status  | cd_purchase_estimate | cd_credit_rating | cd_dep_count | cd_dep_employed_count | cd_dep_college_count 
+------------+-----------+-------------------+----------------------+----------------------+------------------+--------------+-----------------------+----------------------
+    1920801 | M         | U                 | DOCTOR DEGREE        |                  200 | GOOD             |            1 |                     0 |                    0
+(1 row)
+
+--删除表。 gaussdb=# DROP TABLE customer_demographics_t1; 相关链接 SET TRANSACTION ， COMMIT | END ， ROLLBACK 父主题： A 版权所有 © 华为技术有限公司

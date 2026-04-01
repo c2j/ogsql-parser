@@ -1,0 +1,17 @@
+分区表（母表） 分区表（母表） 实际对用户体现的表，用户对该表进行常规DML语句的增、删、查、改操作。通常使用在建表DDL语句显式的使用PARTITION BY语句进行定义，创建成功以后在pg_class表中新增一个entry，并且parttype列内容为'p'，表明该entry为分区表的母表。分区母表通常是一个逻辑形态，对应的表文件并不存放数据。 示例1：t1_hash为一个分区表，分区类型为hash： gaussdb=# \d+ t1_hash
+                      Table "public.t1_hash"
+Column |  Type    | Modifiers | Storage | Stats target | Description
+--------+---------+-----------+---------+--------------+-------------
+c1     | integer |              | plain   |                 |
+c2     | integer |              | plain   |                 |
+c3     | integer |              | plain   |                 |
+Partition By HASH(c1)
+Number of partitions: 10 (View pg_partition to check each partition range.)
+Has OIDs: no
+Options: orientation=row, compression=no
+
+--查询t1_hash分区类型 gaussdb=# SELECT relname, parttype FROM pg_class WHERE relname = 't1_hash';
+relname | parttype
+---------+----------
+t1_hash | p           
+(1 row) 父主题： 基本概念 版权所有 © 华为技术有限公司

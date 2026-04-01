@@ -1,0 +1,56 @@
+{
+  "topic": "物化视图",
+  "term_count": 10,
+  "terms": [
+    {
+      "term": "增量物化视图",
+      "content": "增量物化视图 增量物化视图 概述 支持和约束 使用",
+      "source_file": "4494_file_4494.txt"
+    },
+    {
+      "term": "GS_MATVIEW_DEPENDENCY",
+      "content": "GS_MATVIEW_DEPENDENCY GS_MATVIEW_DEPENDENCY GS_MATVIEW_DEPENDENCY系统表提供了关于数据库中每一个增量物化视图、基表和mlog表的关联信息。全量物化视图不存在与基表对应的mlog表，不会写入记录。 表1 GS_MATVIEW_DEPENDENCY字段 名称 类型 描述 oid oid 行标识符（隐含属性，必须明确选择）。 matviewid oid 物化视图的oid。 relid oid 物化视图基表的oid。 mlogid oid 物化视图mlog表的oid，mlog表为物化视图日志表，与基表一一对应。 mxmin integer 保留字段。",
+      "source_file": "3268_GS_MATVIEW_DEPENDENCY.txt"
+    },
+    {
+      "term": "全量物化视图",
+      "content": "全量物化视图 全量物化视图 概述 支持和约束 使用",
+      "source_file": "4490_file_4490.txt"
+    },
+    {
+      "term": "GS_MATVIEWS",
+      "content": "GS_MATVIEWS GS_MATVIEWS GS_MATVIEWS视图显示数据库中每一个物化视图的信息。 表1 GS_MATVIEWS字段 名称 类型 引用 描述 schemaname name PG_NAMESPACE .nspname 物化视图的模式名。 matviewname name PG_CLASS .relname 物化视图名。 matviewowner name PG_AUTHID .rolname 物化视图的所有者。 tablespace name PG_TABLESPACE .spcname 物化视图的表空间名（如果使用数据库默认表空间则为空）。 hasindexes boolean - 如果物化视图有（或者最近有过）任何索引，则此列为真。 definition text - 物化视图的定义（一个重构的SELECT查询）。",
+      "source_file": "3472_GS_MATVIEWS.txt"
+    },
+    {
+      "term": "增量物化视图",
+      "content": "增量物化视图 增量物化视图 概述 支持和约束 使用",
+      "source_file": "4274_file_4274.txt"
+    },
+    {
+      "term": "GS_MATVIEW_DEPENDENCY",
+      "content": "GS_MATVIEW_DEPENDENCY GS_MATVIEW_DEPENDENCY GS_MATVIEW_DEPENDENCY系统表提供了关于数据库中每一个增量物化视图、基表和mlog表的关联信息。全量物化视图不存在与基表对应的mlog表，不会写入记录。 表1 GS_MATVIEW_DEPENDENCY字段 名称 类型 描述 oid oid 行标识符（隐含属性，必须明确选择）。 matviewid oid 物化视图的oid。 relid oid 物化视图基表的oid。 mlogid oid 物化视图mlog表的oid，mlog表为物化视图日志表，与基表一一对应。 mxmin integer 保留字段。",
+      "source_file": "1555_GS_MATVIEW_DEPENDENCY.txt"
+    },
+    {
+      "term": "GS_MATVIEW",
+      "content": "GS_MATVIEW GS_MATVIEW GS_MATVIEW系统表提供了关于数据库中每一个物化视图的信息。 表1 GS_MATVIEW字段 名称 类型 描述 oid oid 行标识符（隐含属性，必须明确选择）。 matviewid oid 物化视图的oid。 mapid oid 物化视图map表的oid，map表为物化视图关联表，与物化视图一一对应。全量物化视图不存在对应的map表，该字段为0。 ivm boolean 物化视图的类型，t为增量物化视图，f为全量物化视图。 needrefresh boolean 保留字段。 refreshtime timestamp without time zone 物化视图上一次刷新时间，若未刷新则为null。仅对增量物化视图维护该字段，全量物化视图为null。",
+      "source_file": "3267_GS_MATVIEW.txt"
+    },
+    {
+      "term": "全量物化视图",
+      "content": "全量物化视图 全量物化视图 概述 支持和约束 使用",
+      "source_file": "4270_file_4270.txt"
+    },
+    {
+      "term": "GS_MATVIEW",
+      "content": "GS_MATVIEW GS_MATVIEW GS_MATVIEW系统表提供了关于数据库中每一个物化视图的信息。 表1 GS_MATVIEW字段 名称 类型 描述 oid oid 行标识符（隐含属性，必须明确选择）。 matviewid oid 物化视图的oid。 mapid oid 物化视图map表的oid，map表为物化视图关联表，与物化视图一一对应。全量物化视图不存在对应的map表，该字段为0。 ivm boolean 物化视图的类型，t为增量物化视图，f为全量物化视图。 needrefresh boolean 保留字段。 refreshtime timestamp without time zone 物化视图上一次刷新时间，若未刷新则为null。仅对DN上的增量物化视图维护该字段，其余情况均为null。",
+      "source_file": "1554_GS_MATVIEW.txt"
+    },
+    {
+      "term": "GS_MATVIEWS",
+      "content": "GS_MATVIEWS GS_MATVIEWS GS_MATVIEWS视图显示数据库中每一个物化视图的信息。 表1 GS_MATVIEWS字段 名称 类型 引用 描述 schemaname name PG_NAMESPACE .nspname 物化视图的模式名。 matviewname name PG_CLASS .relname 物化视图名。 matviewowner name PG_AUTHID .rolname 物化视图的所有者。 tablespace name PG_TABLESPACE .spcname 物化视图的表空间名（如果使用数据库默认表空间则为空）。 hasindexes boolean - 如果物化视图有（或者最近有过）任何索引，则此列为真。 definition text - 物化视图的定义（一个重构的SELECT查询）。",
+      "source_file": "1769_GS_MATVIEWS.txt"
+    }
+  ]
+}

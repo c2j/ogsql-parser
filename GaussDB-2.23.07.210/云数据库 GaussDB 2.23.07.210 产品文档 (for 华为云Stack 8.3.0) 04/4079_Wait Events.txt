@@ -1,0 +1,1 @@
+Wait Events Wait Events Wait Events列名称及描述如下表所示。 表1 Wait Events报表主要内容 列名称 描述 Type Wait Event类别名称： STATUS。 LWLOCK_EVENT。 LOCK_EVENT。 IO_EVENT。 Event Wait Event名称。 Total Wait Time (us) 总Wait时间（us）。 Waits 总Wait次数。 Failed Waits Wait失败次数。 Avg Wait Time (us) 平均Wait时间（us）。 Max Wait Time (us) 最大Wait时间（us）。 父主题： WDR报告信息介绍 版权所有 © 华为技术有限公司

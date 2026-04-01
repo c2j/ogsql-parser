@@ -1,0 +1,26 @@
+{
+  "topic": "NAS配置最佳实践",
+  "term_count": 4,
+  "terms": [
+    {
+      "term": "使用前配置",
+      "content": "使用前配置 使用前配置 前提条件 当前环境存在NAS服务器。 NAS服务器与数据库实例数据节点之间网络已经打通。要求NAS服务器接入租户VPC，具体接入配置需要联系环境的网络配置人员。 NAS服务器挂载目录需要配置相应的权限来存储备份。具体配置方法请参考 NAS服务器共享目录配置 。 约束限制 当前只支持设备新增，设备删除，不支持设备更改。 不允许同一个数据节点同一个目录挂载多个NAS，不允许同一个数据节点挂载同一个NAS的父子级目录。 暂不支持库表级备份恢复功能。 NAS设备故障后，该设备上的备份文件在恢复时会访问不了，导致恢复流程失败。 支持NAS设备切换，但不能切换为之前绑定过的设备。",
+      "source_file": "6124_file_6124.txt"
+    },
+    {
+      "term": "概述",
+      "content": "概述 概述 GaussDB 支持将备份文件存储在NAS设备上。本手册介绍NSA备份的使用方法和注意事项。",
+      "source_file": "6123_file_6123.txt"
+    },
+    {
+      "term": "NAS服务器共享目录配置",
+      "content": "NAS服务器共享目录配置 NAS服务器共享目录配置 数据库备份到NAS服务器，需要NAS服务器挂载目录能被数据库实例的Ruby用户正常访问。配置方式可以参考下面的步骤，以共享目录/home/nfs为例： 以root用户登录NAS服务器。 查看rpcbind状态 systemctl status rpcbind systemctl status nfs 如果该服务为停止状态，需要先启用rpcbind 启动rpcbind： systemctl start rpcbind 再启动nfs： systemctl start nfs 执行如下命令，查看NFS共享主配置文件。 vim /etc/exports 查看是否有/home/nfs目录的共享配置。如果没有，在该文件末尾添加如下一行。 /home/nfs *(insecure,rw,sync,no_subtree_check,all_squash) 其中all_squash表示客户端访问共享目录时会被映射成匿名用户。 执行如下命令，进入挂载目录。 cd /home /home请根据实际挂载点替换。 创建挂载点。 mkdir nfs 当前操作需要是root账户。如已创建挂载点，可忽略该步骤。 执行如下命令，切换nfs的所属用户和权限。 chown nobody:nobody nfs 执行如下命令，授予挂载点目录读写权限。 chmod 755 nfs 执行如下命令，重新共享目录。 exportfs -rv",
+      "source_file": "6125_NAS.txt"
+    },
+    {
+      "term": "NAS设备操作手册",
+      "content": "NAS设备操作手册 NAS设备操作手册 当前版本在管理控制台和DBS运维管理平台都提供NAS设备管理相关操作。 DBS运维管理平台设备管理 管理控制台设备管理",
+      "source_file": "6126_NAS.txt"
+    }
+  ]
+}

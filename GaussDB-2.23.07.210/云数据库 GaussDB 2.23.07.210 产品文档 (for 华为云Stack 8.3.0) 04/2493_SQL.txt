@@ -1,0 +1,196 @@
+示例：重新执行应用SQL 示例：重新执行应用SQL 当主数据库节点故障且10s未恢复时， GaussDB 会将对应的备数据库节点升主，使 数据库 正常运行。备升主期间正在运行的作业会失败；备升主后启动的作业不会再受影响。如果要做到数据库节点主备切换过程中，上层业务不感知，可参考此示例构建业务层SQL重试机制。执行示例前，需要加载驱动，驱动的获取和加载方法请参考 JDBC包、驱动类和环境类 。 1
+  2
+  3
+  4
+  5
+  6
+  7
+  8
+  9
+ 10
+ 11
+ 12
+ 13
+ 14
+ 15
+ 16
+ 17
+ 18
+ 19
+ 20
+ 21
+ 22
+ 23
+ 24
+ 25
+ 26
+ 27
+ 28
+ 29
+ 30
+ 31
+ 32
+ 33
+ 34
+ 35
+ 36
+ 37
+ 38
+ 39
+ 40
+ 41
+ 42
+ 43
+ 44
+ 45
+ 46
+ 47
+ 48
+ 49
+ 50
+ 51
+ 52
+ 53
+ 54
+ 55
+ 56
+ 57
+ 58
+ 59
+ 60
+ 61
+ 62
+ 63
+ 64
+ 65
+ 66
+ 67
+ 68
+ 69
+ 70
+ 71
+ 72
+ 73
+ 74
+ 75
+ 76
+ 77
+ 78
+ 79
+ 80
+ 81
+ 82
+ 83
+ 84
+ 85
+ 86
+ 87
+ 88
+ 89
+ 90
+ 91
+ 92
+ 93
+ 94
+ 95
+ 96
+ 97
+ 98
+ 99
+100
+101
+102
+103
+104
+105
+106
+107
+108
+109
+110
+111
+112
+113
+114
+115
+116
+117
+118
+119
+120
+121
+122
+123
+124
+125
+126
+127
+128
+129
+130
+131
+132
+133
+134
+135
+136
+137
+138
+139
+140
+141
+142
+143
+144
+145
+146
+147
+148
+149
+150
+151
+152
+153
+154
+155
+156
+157
+158
+159
+160
+161
+162
+163
+164
+165
+166
+167
+168
+169
+170
+171
+172
+173
+174
+175
+176
+177
+178
+179
+180
+181
+182
+183
+184
+185
+186
+187
+188
+189
+190
+191
+192
+193
+194
+195
+196 // 认证用的用户名和密码直接写到代码中有很大的安全风险，建议在配置文件或者环境变量中存放(密码应密文存放，使用时解密)，确保安全； // 本示例以用户名和密码保存在环境变量中为例，运行本示例前请先在本地环境中设置环境变量(环境变量名称请根据自身情况进行设置)EXAMPLE_USERNAME_ENV和EXAMPLE_PASSWORD_ENV。 import java.sql.Connection ; import java.sql.DriverManager ; import java.sql.PreparedStatement ; import java.sql.ResultSet ; import java.sql.SQLException ; import java.sql.Statement ; class ExitHandler extends Thread { private Statement cancel_stmt = null ; public ExitHandler ( Statement stmt ) { super ( "Exit Handler" ); this . cancel_stmt = stmt ; } public void run () { System . out . println ( "exit handle" ); try { this . cancel_stmt . cancel (); } catch ( SQLException e ) { System . out . println ( "cancel query failed." ); e . printStackTrace (); } } } public class SQLRetry { //创建数据库连接。 public static Connection GetConnection ( String username , String passwd ) { String driver = "org.postgresql.Driver" ; String sourceURL = "jdbc:postgresql://$ip:$port/postgres" ; Connection conn = null ; try { //加载数据库驱动。 Class . forName ( driver ). newInstance (); } catch ( Exception e ) { e . printStackTrace (); return null ; } try { //创建数据库连接。 conn = DriverManager . getConnection ( sourceURL , username , passwd ); System . out . println ( "Connection succeed!" ); } catch ( Exception e ) { e . printStackTrace (); return null ; } return conn ; } //执行普通SQL语句，创建jdbc_test1表。 public static void CreateTable ( Connection conn ) { Statement stmt = null ; try { stmt = conn . createStatement (); Runtime . getRuntime (). addShutdownHook ( new ExitHandler ( stmt )); //执行普通SQL语句。 int rc2 = stmt . executeUpdate ( "DROP TABLE if exists jdbc_test1;" ); int rc1 = stmt . executeUpdate ( "CREATE TABLE jdbc_test1(col1 INTEGER, col2 VARCHAR(10));" ); stmt . close (); } catch ( SQLException e ) { if ( stmt != null ) { try { stmt . close (); } catch ( SQLException e1 ) { e1 . printStackTrace (); } } e . printStackTrace (); } } //执行预处理语句，批量插入数据。 public static void BatchInsertData ( Connection conn ) { PreparedStatement pst = null ; try { //生成预处理语句。 pst = conn . prepareStatement ( "INSERT INTO jdbc_test1 VALUES (?,?)" ); for ( int i = 0 ; i < 100 ; i ++) { //添加参数。 pst . setInt ( 1 , i ); pst . setString ( 2 , "data " + i ); pst . addBatch (); } //执行批处理。 pst . executeBatch (); pst . close (); } catch ( SQLException e ) { if ( pst != null ) { try { pst . close (); } catch ( SQLException e1 ) { e1 . printStackTrace (); } } e . printStackTrace (); } } //执行预编译语句，更新数据。 private static boolean QueryRedo ( Connection conn ){ PreparedStatement pstmt = null ; boolean retValue = false ; try { pstmt = conn . prepareStatement ( "SELECT col1 FROM jdbc_test1 WHERE col2 = ?" ); pstmt . setString ( 1 , "data 10" ); ResultSet rs = pstmt . executeQuery (); while ( rs . next ()) { System . out . println ( "col1 = " + rs . getString ( "col1" )); } rs . close (); pstmt . close (); retValue = true ; } catch ( SQLException e ) { System . out . println ( "catch...... retValue " + retValue ); if ( pstmt != null ) { try { pstmt . close (); } catch ( SQLException e1 ) { e1 . printStackTrace (); } } e . printStackTrace (); } System . out . println ( "finesh......" ); return retValue ; } //查询语句，执行失败重试，重试次数可配置。 public static void ExecPreparedSQL ( Connection conn ) throws InterruptedException { int maxRetryTime = 50 ; int time = 0 ; String result = null ; do { time ++; try { System . out . println ( "time:" + time ); boolean ret = QueryRedo ( conn ); if ( ret == false ){ System . out . println ( "retry, time:" + time ); Thread . sleep ( 10000 ); QueryRedo ( conn ); } } catch ( Exception e ) { e . printStackTrace (); } } while ( null == result && time < maxRetryTime ); } /** * 主程序，逐步调用各静态方法。 * @param args * @throws InterruptedException */ public static void main ( String [] args ) throws InterruptedException { //创建数据库连接。 String userName = System . getenv ( "EXAMPLE_USERNAME_ENV" ); String password = System . getenv ( "EXAMPLE_PASSWORD_ENV" ); Connection conn = GetConnection ( userName , password ); //创建表。 CreateTable ( conn ); //批量插入数据。 BatchInsertData ( conn ); //执行预编译语句，更新数据。 ExecPreparedSQL ( conn ); //关闭数据库连接。 try { conn . close (); } catch ( SQLException e ) { e . printStackTrace (); } } } 父主题： 基于JDBC开发 版权所有 © 华为技术有限公司

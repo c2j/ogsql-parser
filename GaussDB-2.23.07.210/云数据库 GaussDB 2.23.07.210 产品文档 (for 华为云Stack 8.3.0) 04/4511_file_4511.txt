@@ -1,0 +1,28 @@
+透明数据加密 透明数据加密 透明加密提供表级数据加密存储功能。当用户使用本特性提供的语法创建加密表后，数据库向磁盘写入加密表数据前，会自动将其加密；同时，数据库从磁盘读取加密表数据后，会自动将其解密。向加密表中进行数据插入、更新、查询和删除等语法与非加密表一致。 透明加密基本原理详见《特性描述》的“数据库安全 > 透明数据加密”章节。 使用透明加密前需联系管理员配置开启该功能。 查看透明加密基本配置 查看透明加密功能是否已开启。 enable_tde取值为on时表示开启，取值为off是表示关闭。该参数由管理员设置。 gaussdb=# SHOW enable_tde;
+ enable_tde
+------------
+ on
+(1 row) 查看是否已设置访问密钥管理服务的参数。 tde_key_info参数为空时表示未设置，tde_key_info不为空时表示已设置。该参数由管理员设置 gaussdb=# show tde_key_info;
+      tde_key_info
+-------------------------
+ keyType=... 操作加密表 创建加密表。 创建表时，通过在WITH子句中设置enable_tde=on参数，即可设置该表为加密表。 数据库默认使用'AES_128_CTR'算法对加密表进行加密，如需使用其他算法，可通过encrypt_algo参数设置。 gaussdb=# CREATE TABLE t1 (c1 INT, c2 TEXT) WITH (enable_tde = on);
+CREATE TABLE
+gaussdb=# CREATE TABLE t2 (c1 INT, c2 TEXT) WITH (enable_tde = on, encrypt_algo = 'SM4_CTR');
+CREATE TABLE 查看加密表基本信息。 加密表基本信息存储在pg_class系统表中的reloptions字段中。其中，dek_cipher为数据密钥密文，由数据库自动生成，并由密钥管理服务加密。每个加密表都有1个独立的数据密钥。 gaussdb=# SELECT relname,reloptions FROM pg_class WHERE relname = 't1';
+ relname | reloptions
+---------+-----------------------------------------------------------------------------------------------------------------------
+ t1      | {orientation=row,enable_tde=on,encrypt_algo=AES_128_CTR,compression=no,storage_type=USTORE,key_type=...,dek_cipher=... 向加密表写入数据。 操作加密表与非加密表的语法一致。数据库将表中数据写入磁盘前，才会自动对加密表的数据进行加密。 gaussdb=# INSERT INTO t1 VALUES (1, 'tde plain 123');
+INSERT 0 1 从加密表查询数据。 对于合法用户而言，查询加密表与非加密表的语法一致，加解密操作由数据库自动实现。如果攻击者绕过数据库，直接读取磁盘上加密表对应的数据文件，会发现文件中的数据均已被加密。 gaussdb=# SELECT * FROM t1;
+ c1 |      c2
+----+---------------
+  1 | tde plain 123
+(1 row) 轮转加密表的密钥。 为提高安全性，建议定期使用以下语法轮转加密表的数据密钥，即使用新的密钥对数据进行加密： gaussdb=# ALTER TABLE t1 ENCRYPTION KEY ROTATION;
+ALTER TABLE 轮转密钥后，数据库仍可以正常解密由旧密钥加密的数据。 加密表与非加密表转换。 透明加密支持将加密表转换为非加密表，以及将非加密表转换为加密表。建议在每次转换后，手动执行VACUUM FULL命令，以强制同步转换表中所有数据。 gaussdb=# ALTER TABLE t1 SET (enable_tde = off);
+ALTER TABLE
+gaussdb=# VACUUM FULL t1;
+VACUUM
+gaussdb=# ALTER TABLE t1 SET (enable_tde = on);
+ALTER TABLE
+gaussdb=# VACUUM FULL t1;
+VACUUM 删除加密表。 gaussdb=# DROP TABLE t1;
+DROP TABLE 父主题： 主备版 版权所有 © 华为技术有限公司

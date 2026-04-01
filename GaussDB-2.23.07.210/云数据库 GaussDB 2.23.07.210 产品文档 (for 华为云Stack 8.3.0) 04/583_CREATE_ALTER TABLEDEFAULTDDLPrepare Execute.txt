@@ -1,0 +1,1 @@
+【规格】目前仅支持对CREATE/ALTER TABLE中列的DEFAULT值进行参数化设置，其他DDL使用Prepare Execute执行方式进行参数设置无效 【规格】目前仅支持对CREATE/ALTER TABLE中列的DEFAULT值进行参数化设置，其他DDL使用Prepare Execute执行方式进行参数设置无效 父主题： JDBC 版权所有 © 华为技术有限公司

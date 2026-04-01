@@ -1,0 +1,1 @@
+LOCAL_REL_IOSTAT LOCAL_REL_IOSTAT 获取当前节点中数据文件I/O状态的累计值，显示为所有数据文件I/O状态的总和。 表1 LOCAL_REL_IOSTAT字段 名称 类型 描述 phyrds bigint 读物理文件的数目。 phywrts bigint 写物理文件的数目。 phyblkrd bigint 读物理文件的块的数目。 phyblkwrt bigint 写物理文件的块的数目。 父主题： File 版权所有 © 华为技术有限公司

@@ -1,0 +1,36 @@
+{
+  "topic": "分区表介绍",
+  "term_count": 6,
+  "terms": [
+    {
+      "term": "分区策略",
+      "content": "分区策略 分区策略 分区策略在使用DDL语句建表语句时通过PARTITION BY语句的语法指定，分区策略描述了在分区表中数据和分区路由映射规则。常见的分区类型有基于条件的Range分区/Interval分区、基于哈希散列函数的Hash分区、基于数据枚举的List列表分区： CREATE TABLE table_name (…) PARTITION BY partition_strategy (partition_key) (…) 范围分区 间隔分区 哈希分区 列表分区 二级分区 分区表对导入操作的性能影响",
+      "source_file": "4534_file_4534.txt"
+    },
+    {
+      "term": "分区策略",
+      "content": "分区策略 分区策略 分区策略在使用DDL语句建表语句时通过PARTITION BY语句的语法指定，分区策略描述了在分区表中数据和分区路由映射规则。常见的分区类型有基于条件的Range分区、基于哈希散列函数的Hash分区、基于数据枚举的List列表分区： CREATE TABLE table_name (…) PARTITION BY partition_strategy (partition_key) (…) 范围分区 哈希分区 列表分区 分区表对导入操作的性能影响",
+      "source_file": "4306_file_4306.txt"
+    },
+    {
+      "term": "分区基本使用",
+      "content": "分区基本使用 分区基本使用 创建分区表 分区表DQL/DML",
+      "source_file": "4311_file_4311.txt"
+    },
+    {
+      "term": "基本概念",
+      "content": "基本概念 基本概念 分区表（母表） 分区（分区子表、子分区） 分区键",
+      "source_file": "4530_file_4530.txt"
+    },
+    {
+      "term": "基本概念",
+      "content": "基本概念 基本概念 分区表（母表） 分区（分区子表、子分区） 分区键",
+      "source_file": "4302_file_4302.txt"
+    },
+    {
+      "term": "分区基本使用",
+      "content": "分区基本使用 分区基本使用 创建分区表 分区表DQL/DML",
+      "source_file": "4541_file_4541.txt"
+    }
+  ]
+}

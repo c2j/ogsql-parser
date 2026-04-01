@@ -1,0 +1,1 @@
+DBE_PLDEBUGGER.info_breakpoints DBE_PLDEBUGGER.info_breakpoints debug端调试过程中，调用info_breakpoints，查看当前的函数断点。 表1 info_breakpoints返回值列表 名称 类型 描述 breakpointno OUT integer 断点编号 funcoid OUT oid 函数ID lineno OUT integer 行号 query OUT text 断点内容 enable OUT boolean 是否有效 父主题： DBE_PLDEBUGGER Schema 版权所有 © 华为技术有限公司

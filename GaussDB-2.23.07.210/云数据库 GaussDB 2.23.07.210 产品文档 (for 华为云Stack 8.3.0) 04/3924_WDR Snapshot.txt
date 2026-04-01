@@ -1,0 +1,1 @@
+WDR Snapshot原信息 WDR Snapshot原信息 SNAPSHOT.SNAPSHOT SNAPSHOT.TABLES_SNAP_TIMESTAMP SNAP_SEQ 父主题： WDR Snapshot Schema 版权所有 © 华为技术有限公司

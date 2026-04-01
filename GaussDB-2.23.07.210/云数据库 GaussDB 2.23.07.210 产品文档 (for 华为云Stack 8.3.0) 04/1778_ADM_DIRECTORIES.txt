@@ -1,0 +1,1 @@
+ADM_DIRECTORIES ADM_DIRECTORIES ADM_DIRECTORIES显示数据库中所有目录对象的信息。默认只有系统管理员权限才可以访问，普通用户需要授权才可以访问。该视图同时存在于PG_CATALOG和SYS Schema下。 表1 ADM_DIRECTORIES字段 名称 类型 描述 owner oid 目录的所有者。 directory_name name 目录名称。 directory_path text 目录的操作系统路径名。 origin_con_id character varying(256) 暂不支持，值为NULL。 父主题： 其他系统视图 版权所有 © 华为技术有限公司

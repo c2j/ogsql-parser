@@ -1,0 +1,1 @@
+向范围分区表新增分区 向范围分区表新增分区 使用ALTER TABLE ADD PARTITION可以将分区添加到现有分区表的最后面，新增分区的上界值必须大于当前最后一个分区的上界值。 例如，对范围分区表range_sales新增一个分区。 ALTER TABLE range_sales ADD PARTITION date_202005 VALUES LESS THAN ('2020-06-01') TABLESPACE tb1; 当范围分区表有MAXVALUE分区时，无法新增分区。可以使用ALTER TABLE SPLIT PARTITION命令分割分区。分割分区同样适用于需要在现有分区表的前面/中间添加分区的情形。 父主题： 新增分区 版权所有 © 华为技术有限公司

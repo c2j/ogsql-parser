@@ -1,0 +1,1 @@
+GS_SESSION_TIME GS_SESSION_TIME GS_SESSION_TIME视图显示会话线程的运行时间信息，及各执行阶段所消耗时间。 表1 GS_SESSION_TIME字段 名称 类型 描述 sessid text 线程标识+线程启动时间。 stat_id integer 统计会话编号。 stat_name text 统计会话类型名称。 value bigint 统计会话值。 父主题： 其他系统视图 版权所有 © 华为技术有限公司

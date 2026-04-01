@@ -1,0 +1,58 @@
+连接数据库（以SSL方式） 连接数据库（以SSL方式） 数据库的Go驱动支持SSL连接数据库，当开启SSL模式后，如果Go驱动采用SSL方式连接数据库服务端时，Go驱动默认走TLS 1.3标准协议，支持的tls版本最低为1.2。本小节主要介绍应用程序通过Go驱动如何采用SSL的方式对客户端进行配置（服务端配置请联系管理员）。在使用本小节所描述的方法前，默认用户已经获取了服务端和客户端所需要的证书和私钥文件，关于证书等文件的获取请参考Openssl相关文档和命令。 基于SSL的证书认证方式不需要在连接串里面指定用户密码。 客户端配置 上传证书文件，将在服务端配置（服务端配置请联系管理员）操作中生成的文件client.key、client.crt、cacert.pem放置在客户端。 示例一： package main
+
+//依赖包根据环境中依赖包路径设置
+import (
+	"database/sql"
+	"fmt"
+	_ "gitee.com/opengauss/openGauss-connector-go-pq"
+	"log"
+)
+// 以双向认证为例 ， 本示例以用户名和密码保存在环境变量中为例，运行本示例前请先在本地环境中设置环境变量(环境变量名称请根据自身情况进行设置) func main() { hostip := os.Getenv("GOHOSTIP")   //GOHOSTIP为写入环境变量的IP地址 port := os.Getenv("GOPORT")       //GOPORT为写入环境变量的port usrname := os.Getenv("GOUSRNAME") //GOUSRNAME为写入环境变量的用户名 passwd := os.Getenv("GOPASSWD")   //GOPASSWDW为写入环境变量的用户密码 sslpasswd := os.Getenv("GOSSLPASSWD") //GOSSLPASSWDW为写入环境变量的密码短语 dsnStr := "host=" + hostip + " port=" + port + " user=" + usrname + " password=" + passwd + " sslcert=certs/client.crt sslkey=certs/client.key sslpassword=" + sslpasswd parameters := []string{
+		" sslmode=require",
+		" sslmode=verify-ca sslrootcert=certs/cacert.pem",
+	}
+
+	for _, param := range parameters {
+		db, err := sql.Open("opengauss", dsnStr+param)
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		var f1 int
+		err = db.QueryRow("select 1").Scan(&f1)
+		if err != nil {
+			log.Fatal(err)
+		} else {
+			fmt.Printf("RESULT: select 1: %d\n", f1)
+		}
+
+		db.Close()
+	}
+} 示例二： package main
+
+//依赖包根据环境中依赖包路径设置
+import (
+	"database/sql"
+	_ "gitee.com/opengauss/openGauss-connector-go-pq"
+	"log"
+	"strings"
+)
+// 以验证sslpassword为主 ， 本示例以用户名和密码保存在环境变量中为例，运行本示例前请先在本地环境中设置环境变量(环境变量名称请根据自身情况进行设置) func main() { hostip := os.Getenv("GOHOSTIP")   //GOHOSTIP为写入环境变量的IP地址 port := os.Getenv("GOPORT")       //GOPORT为写入环境变量的port usrname := os.Getenv("GOUSRNAME") //GOUSRNAME为写入环境变量的用户名 passwd := os.Getenv("GOPASSWD")   //GOPASSWDW为写入环境变量的用户密码 dsnStr := "host=" + hostip + " port=" + port + " user=" + usrname + " password=" + passwd + " dbname=postgres" sslpasswd := os.Getenv("GOSSLPASSWD") //GOSSLPASSWDW为写入环境变量的密码短语 connStrs := []string{
+		" sslmode=verify-ca sslcert=certs/client_rsa.crt sslkey=certs/client_rsa.key sslpassword= " + sslpasswd + " sslrootcert=certs/cacert_rsa.pem",
+		" sslmode=verify-ca sslcert=certs/client_ecdsa.crt sslkey=certs/client_ecdsa.key sslpassword= " + sslpasswd + " sslrootcert=certs/cacert_ecdsa.pem",
+	}
+	for _, connStr := range connStrs {
+		db, err := sql.Open("opengauss", dsnStr+connStr)
+		if err != nil {
+			log.Fatal(err)
+		}
+		var f1 int
+		err = db.QueryRow("select 1").Scan(&f1)
+		if err != nil {
+			if !strings.HasPrefix(err.Error(), "connect failed.") {
+				log.Fatal(err)
+			}
+		}
+		db.Close()
+	}
+} 父主题： 基于Go驱动开发 版权所有 © 华为技术有限公司

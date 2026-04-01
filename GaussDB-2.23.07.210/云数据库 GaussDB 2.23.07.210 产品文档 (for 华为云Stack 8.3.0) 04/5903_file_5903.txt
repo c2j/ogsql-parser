@@ -1,0 +1,58 @@
+备份命令 备份命令 功能 backup命令用于备份数据库或表数据，其中数据库备份支持备份到OBS、磁盘、REMOTE第三方介质，物理表级备份支持备份到OBS和NAS。 命令格式 python3 GaussRoach.py
+-t backup --master-port <master-port>
+--media-type <media-type>
+--media-destination <media-destination-path>
+--metadata-destination <metadata-path>
+[--block-dw-flush-timeout] <timeout>
+[--bucket-name <bucketname>]
+[--buffer-block-size <block-size>]
+[--buffer-size <buffer-size>]
+[--cbm-recycle-level <level>]
+[--check-balance-retry-times]
+[--cluster-unique-id <value>]
+[--compression-level <compression-level>]
+[--compression-type <type>]
+[--conf-location <path-name>]
+[--cpu-relinquish-size <cpu-relinquish-size-value>]
+[--cpu-relinquish-time <cpu-relinquish-time-value>]
+[--enable-logging <true/false>]
+[--failure-retry-count <count>]
+[--filesplit-size <file-split-size>]
+[--log-filecount <log-file-count>]
+[--log-filesize <log-file-size>]
+[--logging]
+[--logging-level <logging-level>]
+[--logging-path <logging-path>]
+[--max-backup-io-speed <speed>]
+[--max-memory-usage <maximum-number-of-bytes>]
+[--metadata-file-wait-time <wait-time>]
+[--master-ip <xx.xx.xx.xx>]
+[--obs-server-ip <address>]
+[--parallel-process <process-count>]
+[--password <pass-word>]
+[--pre-disk-space]
+[--prefetch-block <block num>]
+[--prior-backup-key <prior-full-backup-key>]
+[--prior-cluster-unique-id <prior-cluster-unique-id>]
+[--reader-thread-count <number-of-threads>]
+[--reader-thread-file-count <number-of-thread-files>]
+[--reader-thread-file-size <filesize>]
+[--resource-retry-count <count>]
+[--resume-backup]
+[--retry-wait-time <time>]
+[--single]
+[--snapshot-action] <action>
+[--split-local-disk-storage]
+[--standby-mode]
+[--username <user-name>]
+[-W <password>]
+[--verbose]
+[--disable-ssl]
+[--remote-ip]
+[--remote-port]
+[--remote-config]
+[--gbr-table-list] 参数说明 备份命令行参数列表 完整选项 缩写选项 数据类型 说明 取值范围 缺省值 应用实例 -t 不涉及 字符串 Roach接口支持多种功能。指定该参数为backup，表示调用备份功能。 -t backup -t stop -t delete -t restore -t genstack -t getobject -t start -t clean -t config -t archive -t snapshot_restore -t version -t help 不涉及 -t backup --master-port 不涉及 整数 Roach主代理进程的执行端口。 1024-65535 不涉及 --master-port 6812 --media-type 不涉及 字符串 备份所需的介质类型。 Disk（磁盘） OBS NAS REMOTE Disk（磁盘） OBS NAS REMOTE 不涉及 对于磁盘：--media-type Disk 对于OBS： --media-type OBS 对于NAS： --media-type NAS --media- destination 不涉及 字符串 指定介质的目的备份路径。 Disk（磁盘）： REMOTE：样例策略 OBS：不生效 NAS：挂载的NAS共享盘路径 说明： 使用备份数据库到NAS时，确保数据库实例上所有节点的指定路径挂载的是同一个NAS共享盘 不涉及 不涉及 对于磁盘：--media-destination /home/cam/backup 对于NAS：--media-destination /home/cam/backup --metadata-destination 不涉及 字符串 元数据文件位置。 不涉及 不涉及 --metadata-destination /home/username --block-dw-flush-timeout 不涉及 整数 阻塞双写页面刷盘时长。 0-3600（秒） 30 --block-dw-flush-timeout 60 --bucket-name 不涉及 字符串 指定OBS桶名称。 不涉及 不涉及 --bucket-name rdsbucket.resource.user4444 --buffer-block-size 不涉及 整数 单个缓冲块大小，需要是8192的整数倍。 524288–268435456（字节） 非OBS, 非REMOTE：2097152（字节） OBS：67108864（字节） REMOTE：16777216（字节） --buffer-block-size 524288 --buffer-size 不涉及 整数 缓存大小。 256–16384（MB） 非OBS：256（MB） OBS：2048（MB） --buffer-size 10000 --cbm-recycle-level 不涉及 整数 cbmRecycle的等级。 0~2 0：代表不删除cbm文件。 1：代表只在全量备份的时候删除全备之前的cbm文件。 2：代表增备时候删除当前增备之前的cbm文件。 0 --cbm-recycle-level 2 --check-balance-retry-times 不涉及 整数 断点续备或者双数据库备份时检查数据库为balance状态的次数。 整数 4 --check-balance-retry-times 4 --cluster-unique-id 不涉及 字符串 指定数据库备份时的数据库ID。 不涉及 不涉及 --cluster-unique-id dws-xlnobs_9732b696-4b6d-4844-a40c-d1f6355aca02 --compression-level 不涉及 整数 压缩级别。 0代表快速或无压缩。 9代表慢速或最大压缩。 说明： 值越小，压缩越快。值越大，压缩越好。 逻辑表级备份不支持压缩。 0 - 9 1 --compression-level 5 --compression-type 不涉及 整数 压缩类型 1：zlib 2：lz4 1 - 2 2 --compression-type 2 --conf-location -r 字符串 gs_roach.conf 文件的位置。 不涉及 不涉及 --conf-location /home/backup/roach --cpu-relinquish-size 不涉及 整数 数据用量达到该参数指定的值后，Roach必须切换至低CPU使用率一段时间，该时间段由--cpu-relinquish-time指定，单位为秒。 1–10000 （GB） 不涉及 --cpu-relinquish-size 10 GB --cpu-relinquish-time 不涉及 整数 CPU的释放时间。此期间Roach必须切换为低CPU使用率。 说明： 将CPU释放时间设置为60秒或60秒以上以减小CPU使用率。 如果该参数未设置值，执行中会忽略该参数。 0–3600（秒） 不涉及 --cpu-relinquish-time 1000 --enable-logging 不涉及 字符串 是否开启记录到日志文件功能。 建议使用此参数而不是--logging。 True False False --enable-logging True --failure-retry-count 不涉及 整数 配置Roach工具失败后最大重试次数。如果设为n，Roach会进行n-1次重试。 0–256 32 --failure-retry-count 3 --filesplit-size 不涉及 整数 被拆分的备份文件的大小。 0：文件不会被拆分。 1024：被拆分文件最大为1024GB。 说明： 用户必须指定被拆分文件的大小（文件大小应是4的倍数）。 0–1024（GB） 4 （GB） --filesplit-size 40 --log-filecount 不涉及 整数 日志文件最大个数。 5–1024 10 --log-filecount 5 --log-filesize 不涉及 整数 最大日志文件的大小。 5–20（MB） 5（MB） --log-filesize 5 --logging 不涉及 布尔型 是否开启日志文件记录功能。 如果命令中指定了该参数，则参数值为true。否则值为false。 此参数将来会退化，建议使用--enable-logging 不涉及 False --logging --logging-level 不涉及 字符串 日志级别。 FATAL（致命）：导致系统停止工作的、无法恢复的故障。该级别为最严重级别。 ERROR（错误）：重大错误。 WARNING（警告）：异常情况。系统在该情况下可能会继续处理任务。 INFO（提示）：日志记录过程中的提示性日志。 DEBUG（调试）：用于调试的详细信息。 DEBUG2（调试2）：最详细的日志信息，通常会过滤不显示。该级别严重程度最轻。 FATAL ERROR WARNING INFO DEBUG DEBUG2 INFO --logging-level info --logging-path 不涉及 字符串 日志存放路径。 不涉及 $GAUSSLOG/roach/controller --logging-path $GAUSSLOG/roach/controller --max-backup-io-speed 不涉及 整数 备份时，对存储介质的写入速度进行限制 说明： 开启限速时，可以限制的最大写入速度为2GB/s 0-2147483647 (byte/s) 0（不进行限速） --max-backup-io-speed 1073741824 --max-memory-usage 不涉及 无符号整数 Roach可用的内存最大字节数。 说明： Roach默认可以使用系统提供的最大内存。 2–256（单位为GB） 不涉及 --max-memory-usage 2 --metadata-file-wait-time 不涉及 整数 读取元数据文件的等待时长。 60–3600 （秒） 60 （秒） --metadata-file-wait-time 100 --master-ip 不涉及 IP地址 输入当前节点所在数据库的IP地址，即当前登录节点在数据库配置文件中指定的IP地址。 x.x.x.x 不涉及 --master-ip x.x.x.x --obs-server-ip 不涉及 IP地址 指定OBS的服务器地址。 x.x.x.x 不涉及 --obs-server-ip x.x.x.x -W 不涉及 数据库密码 数据库实例初始化用户名密码。 不涉及 不涉及 -W xxxxx --parallel-process 不涉及 整数 Roach可以使用的子进程个数。 1–32 1 --parallel-process 10 --pre-disk-space 不涉及 布尔型 检查是否有足够的磁盘空间完成即将进行的操作。 如果命令中指定了该参数，则参数值为true。否则值为false。 不涉及 False --pre-disk-space --prefetch-block 不涉及 整数 增量备份时读取磁盘上表文件增量修改页面的预取页面个数。 1-8192 不涉及 --prefetch-block 64 --prior-backup-key 不涉及 字符串 表示之前备份使用的 backup key ，增量备份基于该备份执行。 不涉及 不涉及 --prior-backup-key 20170117_041504 --prior-cluster-unique-id 不涉及 字符串 节点替换后做增量备份时，表示前一次备份使用的cluster-unique-id。该参数只有在备份到OBS介质时才会设置。 不涉及 不涉及 --prior-cluster-unique-id DB --reader-thread-count 不涉及 整数 指定要处理的阅读器线程数。 0 - 256 不涉及 --reader-thread-count 8 --reader-thread-file-count 不涉及 整数 指定每个阅读器线程的缓冲区文件数量。 0 - 256 不涉及 --reader-thread-file-count 2 --reader-thread-file-size 不涉及 整数 指定阅读器线程的每个缓冲区文件的缓冲区文件大小（以字节为单位）。 1 - 65535（字节） 不涉及 --reader-thread-file-size 16384 --resource-retry-count 不涉及 整数 Roach工具在资源分配失败后的重试次数。 如果设为n，Roach会进行n-1次重试。 说明： 该参数可用于在高斯工具中系统资源分配失败时进行的任何操作。系统资源包括堆内存、线程、数据库API。对其他失败操作的重试由--failure-retry-count参数控制。 0–256 0 --resource-retry-count 3 --resume-backup 不涉及 布尔型 该参数用于指定本次全量备份是否为断点续做。 当数据较多时，全量备份失败如果不想重头再做，可以在全量备份开始时加上此参数，可在断掉的位置继续做全量备份。 说明： 此参数只用于全量备份，备份介质适用于磁盘、OBS和NAS。 不涉及 False --resume-backup --retry-wait-time 不涉及 整数 配置Roach工具在失败后重试时需要等待的时间。 1–3600（秒） 10（秒） --retry-wait-time 1200 --single 不涉及 布尔型 指定为单数据库模式 不涉及 False -single --snapshot-action 不涉及 字符串 快照备份操作 backup_prepare|backup_xlog 不涉及 --snapshot-action backup_prepare --split-local-disk-storage 不涉及 布尔型 备份的不同的DN数据分开存储。 不涉及 False --split-local-disk-storage --standby-mode 不涉及 布尔型 是否打开备机备份。 不涉及 False --standby-mode --username -U 字符串 数据库实例初始化用户名。 不涉及 不涉及 --username cluster_user -W 不涉及 字符串 数据库安装用户名的密码。出于安全考虑，不建议使用该接口传递密码。建议使用echo和pipe方式来传递密码。 不涉及 不涉及 -W foo_pswd --verbose 不涉及 布尔型 是否启用verbose选项来显示详细信息。 如果命令中指定了该参数，则参数值为true。否则值为false。 不涉及 False --verbose -X -X 字符串 备份的数据库的XML路径。 说明： 数据库内核为Paxos时且备份到本地盘时需要指定此参数。 绝对路径 不涉及 -X /home/*.xml --disable-ssl 不涉及 布尔型 gs_roach组件的SSL认证默认开启，若想关闭SSL认证，则在命令中指定该参数。 不涉及 False --disable-ssl --remote-ip 不涉及 字符串 指定远端第三方存储介质所在服务器IP。 说明： 该值仅在media type参数取值为REMOTE时需要设置。 不涉及 不涉及 --remote-ip x.x.x.x --remote-port 不涉及 整数 指定远端第三方存储介质所在服务器侦听端口。 说明： 该值仅在media type参数取值为REMOTE时需要设置。 不涉及 不涉及 --remote-port “8009” --remote-config 不涉及 字符串 第三方厂商配置参数内容。 说明： 该值仅在media type参数取值为REMOTE时需要设置。 不涉及 不涉及 --remote-config “null” --gbr-table-list 不涉及 字符串 物理备份的表信息对应的json文件路径。json文件示例： { "TableList": [{ "DBName": "db1", "SchemaName": "schema1", "TableName": "t1" },{ "DBName": "db2", "SchemaName": "schema2", "TableName": "t2" }]} 不涉及 不涉及 --gbr-table-list /data/backup_table.json 使用指南 对于数据库实例级备份，必须提供介质类型、目标介质和主代理端口，否则Roach工具会报错。 支持物理表级备份，包括单表和多表备份。 对于物理表级备份，必须提供介质类型、目标介质、主代理端口和表信息对应json文件路径，否则Roach工具会报错。 数据库实例级备份前，请执行如下命令检查数据库运行状态，cluster_state为Normal时表示数据库正常运行，可以备份数据库实例，使用NAS或OBS介质时，处于Degraded时也可以备份数据。 gs_om -t status -----------------------------------------------------------------------
+cluster_state : Normal
+redistributing : No
+balanced : Yes
+----------------------------------------------------------------------- 命令示例 备份数据库到OBS python3 GaussRoach.py -t backup --master-port 6000 --media-destination /home/userA/media --media-type OBS --metadata-destination /home/userA/metadata --obs-server-ip x.x.x.x --bucket-name rdsbucket.resource.user4444 --cluster-unique-id dws-xlnobs_9732b696-4b6d-4844-a40c-d1f6355aca02 备份到OBS，支持数据库实例级备份和表级备份。 执行备份到OBS前，请确定已申请OBS账户，并配置账户权限。 备份数据库到REMOTE python3 GaussRoach.py -t backup --master-port 6000 --media-destination /home/gauss/clusterid/xxx --media-type REMOTE --metadata-destination /home/userA/metadata --remote-ip x.x.x.x --remote-port "8009" --remote-config "null" 备份数据库实例到REMOTE，只支持数据库实例级备份。 执行备份数据库实例到REMOTE前，请确定REMOTE第三方环境中已开启备份程序backUpAgent。 增量备份时间间隔应小于参数max_cbm_retention_time参数所设定时间。 备份数据库到磁盘 python3 GaussRoach.py -t backup --master-port 6000 --media-destination /home/userA/media --media-type DISK --metadata-destination /home/userA/metadata 备份数据库到NAS python3 GaussRoach.py -t backup --master-port 6000 --media-destination /home/userA/media --media-type NAS --metadata-destination /home/userA/metadata --cluster-unique-id gauss_backup 增量备份数据库 python3 GaussRoach.py -t backup --master-port 6000 --media-destination /home/userA/media --media-type Disk --metadata-destination /home/userA/metadata --prior-backup-key 20170313_131629 -- validate-prior-backups force 增量备份数据库到REMOTE python3 GaussRoach.py -t backup --master-port 6000 --media-destination /home/gauss/clusterid/xxx --media-type REMOTE --metadata-destination /home/userA/metadata --remote-ip x.x.x.x --remote-port "8009" --remote-config "null" --prior-backup-key 20210119_161749 物理备份表到OBS python3 GaussRoach.py -t backup --master-port 6000 --media-destination /home/userA/media --media-type OBS --metadata-destination /home/omm/metadata --obs-server-ip x.x.x.x --bucket-name rdsbucket.resource.user4444 --cluster-unique-id dws-xlnobs_9732b696-4b6d-4844-a40c-d1f6355aca02 --gbr-table-list /data/table.json 物理备份表到NAS python3 GaussRoach.py -t backup --master-port 6000 --media-destination /home/userA/media --media-type NAS --metadata-destination /home/omm/metadata --cluster-unique-id gauss_backup --gbr-table-list /data/table.json 相关命令 恢复命令 父主题： 命令行参考 版权所有 © 华为技术有限公司

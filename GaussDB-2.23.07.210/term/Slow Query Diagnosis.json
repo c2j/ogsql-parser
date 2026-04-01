@@ -1,0 +1,66 @@
+{
+  "topic": "Slow Query Diagnosis",
+  "term_count": 12,
+  "terms": [
+    {
+      "term": "概述",
+      "content": "概述 概述 慢SQL一直是数据运维中的痛点问题，如何有效诊断慢SQL根因是当前一大难题，工具结合 GaussDB 自身特点融合了现网DBA慢SQL诊断经验，支持慢SQL根因分析，能同时按照可能性大小输出多个根因并提供针对性的建议。 本功能主要适配集中式部署的数据库，分布式数据库不建议使用，在诊断过程中不会对其执行计划进行分析。当使用diagnosis功能时，会尝试建立数据库连接，从而获取数据库规格。如果是分布式数据库，则会提示不支持。",
+      "source_file": "4437_file_4437.txt"
+    },
+    {
+      "term": "获取帮助",
+      "content": "获取帮助 获取帮助 模块命令行说明： gs_dbmind component slow_query_diagnosis --help usage:  [-h] -c DIRECTORY [--instance INSTANCE] [--database DATABASE] [--schema SCHEMA]\n        [--query SLOW_QUERY] [--start-time TIMESTAMP_IN_MICROSECONDS]\n        [--end-time TIMESTAMP_IN_MICROSECONDS] [--retention-days DAYS]\n        {show,clean,diagnosis}\n\nSlow Query Diagnosis: Analyse the root cause of slow query\n\npositional arguments:\n  {show,clean,diagnosis}\n                        choose a functionality to perform\n\noptional arguments:\n  -h, --help            show this help message and exit\n  -c DIRECTORY, --conf DIRECTORY\n                        set the directory of configuration files  \n  --instance INSTANCE   Set the instance of slow query. Using in show.\n  --database DATABASE   name of database\n  --schema SCHEMA       schema of database\n  --query SLOW_QUERY    set a slow query you want to retrieve\n  --start-time TIMESTAMP_IN_MICROSECONDS\n                        set the start time of a slow SQL diagnosis result to\n                        be retrieved\n  --end-time TIMESTAMP_IN_MICROSECONDS\n                        set the end time of a slow SQL diagnosis result to be\n                        retrieved\n  --retention-days DAYS\n                        clear historical diagnosis results and set the maximum\n                        number of days to retain data",
+      "source_file": "4700_file_4700.txt"
+    },
+    {
+      "term": "使用指导",
+      "content": "使用指导 使用指导 慢SQL根因列表 序号 根因 根因解释 补充说明 1 LOCK_CONTENTION 锁竞争 语句执行期间是否被阻塞，导致单SQL执行较慢 2 MANY_DEAD_TUPLES 死元组数量较大 表中死元组占比超过设定阈值会降低查询效率，导致单SQL执行较慢 3 HEAVY_SCAN_OPERATOR 扫描算子代价较大 执行计划中扫描算子代价较大，导致单SQL执行较慢 4 ABNORMAL_PLAN_TIME 异常执行计划生成时间 SQL生成执行计划时间较长 5 UNUSED_AND_REDUNDANT_INDEX 无用/冗余索引 表中存在无用/冗余索引，影响插入更新语句性能 6 UPDATE_LARGE_DATA 更新大量元组 批量更新大量元组，导致单SQL语句性能较差 7 INSERT_LARGE_DATA 插入大量元组 批量插入大量元组，导致单SQL语句性能较差 8 DELETE_LARGE_DATA 删除大量元组 批量删除大量元组，导致单SQL语句性能较差 9 TOO_MANY_INDEX 表中存在太多索引 表中存在大量索引，影响插入更新语句性能 10 DISK_SPILL 磁盘溢出 由于GUC参数设置不当等原因导致SQL执行期间发生落盘现象 13 WORKLOAD_CONTENTION 数据库负载集中 数据库负载集中导致实例整体执行性能较差 14 CPU_RESOURCE_CONTENTION 系统CPU负载集中 由于外部进程等其他原因导致CPU资源紧张，实例整体SQL执行性能较差 15 IO_RESOURCE_CONTENTION 系统IO资源集中 由于外部进程等其他原因导致IO资源紧张，实例整体SQL执行性能较差 16 MEMORY_RESOURCE_CONTENTION 系统内存资源集中 由于外部进程等其他原因导致内存资源紧张，实例整体SQL执行性能较差 17 ABNORMAL_NETWORK_STATUS 异常网络状态 网络异常，导致SQL执行性能较差 18 OS_RESOURCE_CONTENTION 句柄资源紧张 系统句柄资源紧张影响整体执行性能 19 WAIT_EVENT 等待事件 SQL执行期间的等待事件信息 20 LACK_STATISTIC_INFO 统计信息缺失 没有及时更新表统计信息，可能导致执行计划不优进而影响SQL执行性能 21 MISSING_INDEXES 缺少索引 缺失索引导致单SQL执行性能较差 22 POOR_JOIN_PERFORMANCE join代价较大 JOIN算子代价较大，影响SQL语句执行性能 23 COMPLEX_BOOLEAN_EXPRESSIONS 复杂的bool表达式 主要针对not in (item1, item2, ...)情况，如果元素数量太多可能会导致执行计划较差，从而影响SQL的性能。 24 STRING_MATCHING 字符串匹配 由于不恰当的使用函数等导致索引失效，进而影响SQL性能 25 COMPLEX_EXECUTION_PLAN 复杂的执行计划 执行计划较复杂，执行时间较长 26 CORRELATED_SUBQUERY 关联子查询 有相关子查询导致执行性能较差 27 POOR_AGGREGATION_PERFORMANCE 聚合代价较大 聚合性能较差进而影响SQL执行性能 31 DATABASE_VIEW 系统视图 当前不对系统视图相关的慢SQL进行诊断，统一返回此根因 32 NO_ROOT_CAUSE_FOUND 没有发现根因 没有发现当前慢SQL的根因 假设用户已经初始化配置文件目录confpath，则可以通过下述命令实现本特性的功能： 仅启动慢SQL诊断功能（慢SQL诊断根因数量由算法运行结果决定，数量不固定），启动命令如下（更多用法参考对service子命令的说明）： gs_dbmind service start -c confpath --only-run slow_sql_diagnosis 用户查询慢SQL诊断历史，命令如下： gs_dbmind component slow_query_diagnosis show -c confpath --instance instance --query SQL --start-time timestamps0 --end-time timestamps1 用户交互式诊断慢SQL，命令如下： gs_dbmind component slow_query_diagnosis diagnosis -c confpath --database dbname --schema schema_name --query SQL 启用慢SQL诊断后台任务，首先将opengauss_exporter下的pg_sql_statement_history开启，具体步骤如下： 1、停止opengauss_exporter进程；\n2、进入dbmind/components/opengauss_exporter/yamls/statements.yml中，将该指标的status设置为enable；\n3、重启opengauss_exporter进程；\n4、将slow_query_diagnosis加入到配置文件dbmind.conf下TIMED_TASK的task中，任务之间用逗号隔离，同时该任务运行间隔由配置文件dbmind.conf下TIMED_TASK的slow_query_diagnosis_interval控制，默认120秒，该参数支持用户修改；\n5、运行 gs_dbmind service reload -c confpath 命令，启动慢SQL诊断后台任务； 用户手动清理历史预测结果，命令如下： gs_dbmind component slow_query_diagnosis clean -c confpath --retention-days DAYS 停止已启动的服务，命令如下： gs_dbmind service stop -c confpath",
+      "source_file": "4699_file_4699.txt"
+    },
+    {
+      "term": "环境部署",
+      "content": "环境部署 环境部署 数据库运行正常。 指标采集系统运行正常。",
+      "source_file": "4438_file_4438.txt"
+    },
+    {
+      "term": "获取帮助",
+      "content": "获取帮助 获取帮助 模块命令行说明： gs_dbmind component slow_query_diagnosis --help usage:  [-h] -c DIRECTORY [--instance INSTANCE] [--database DATABASE] [--schema SCHEMA] [--query SLOW_QUERY]\n        [--start-time TIMESTAMP_IN_MICROSECONDS] [--end-time TIMESTAMP_IN_MICROSECONDS]\n        [--retention-days DAYS]\n        {show,clean,diagnosis}\n\nSlow Query Diagnosis: Analyse the root cause of slow query\n\npositional arguments:\n  {show,clean,diagnosis}\n                        choose a functionality to perform\n\noptional arguments:\n  -h, --help            show this help message and exit\n  -c DIRECTORY, --conf DIRECTORY\n                        Set the directory of configuration files\n  --instance INSTANCE   Set the instance of slow query. Using in show.\n  --database DATABASE   Set the name of database\n  --schema SCHEMA       Set the schema of database\n  --query SLOW_QUERY    Set a slow query you want to retrieve\n  --start-time TIMESTAMP_IN_MICROSECONDS\n                        Set the start time of a slow SQL diagnosis result to be retrieved\n  --end-time TIMESTAMP_IN_MICROSECONDS\n                        Set the end time of a slow SQL diagnosis result to be retrieved\n  --retention-days DAYS\n                        clear historical diagnosis results and set the maximum number of days to retain data",
+      "source_file": "4440_file_4440.txt"
+    },
+    {
+      "term": "环境部署",
+      "content": "环境部署 环境部署 数据库运行正常。 指标采集系统运行正常。",
+      "source_file": "4698_file_4698.txt"
+    },
+    {
+      "term": "使用指导",
+      "content": "使用指导 使用指导 假设用户已经初始化配置文件目录confpath，则可以通过下述命令实现本特性的功能： 仅启动慢SQL诊断功能（慢SQL诊断根因数量由算法运行结果决定，数量不固定），启动命令如下（更多用法参考对service子命令的说明）： gs_dbmind service start -c confpath --only-run slow_sql_diagnosis 用户查询慢SQL诊断历史，命令如下： gs_dbmind component slow_query_diagnosis show -c confpath --instance instance --query SQL --start-time timestamps0 --end-time timestamps1 用户交互式诊断慢SQL，命令如下： gs_dbmind component slow_query_diagnosis diagnosis -c confpath --database dbname --schema schema_name --query SQL 启用慢SQL诊断后台任务，首先将opengauss_exporter下的pg_sql_statement_history开启，具体步骤如下： 1、停止opengauss_exporter进程；\n2、进入dbmind/components/opengauss_exporter/yamls/statements.yml中，将该指标的status设置为enable；\n3、将slow_query_diagnosis加入到配置文件dbmind.conf下TIMED_TASK的task中，任务之间用逗号隔离；\n4、重启opengauss_exporter进程；\n5、运行 gs_dbmind service reload -c confpath 命令，启动慢SQL诊断后台任务； 用户手动清理历史预测结果，命令如下： gs_dbmind component slow_query_diagnosis clean -c confpath --retention-days DAYS 停止已启动的服务，命令如下： gs_dbmind service stop -c confpath",
+      "source_file": "4439_file_4439.txt"
+    },
+    {
+      "term": "命令参考",
+      "content": "命令参考 命令参考 表1 gs_dbmind component slow_query_diagnosis 命令行说明 参数 参数说明 取值范围 -h, --help 帮助命令 - action 动作参数 show：结果展示 clean：清理结果 diagnosis：交互诊断 -c，--conf 配置目录 - --instance 慢SQL实例地址，action为show时使用 数据库实例地址，样例： 127.0.0.1:5432 --query 慢SQL文本 * （可选）--start-time 显示开始时间的时间戳，单位毫秒；或日期时间格式为 %Y-%m-%d %H:%M:%S. action为diagnosis或show时使用 正整数或日期时间格式 （可选）--end-time 显示结束时间的时间戳，单位毫秒；或日期时间格式为 %Y-%m-%d %H:%M:%S. action为diagnosis或show时使用 正整数或日期时间格式 --retention-days 清理天数及结果，action为clean时使用 实数（当其小于等于0时，会将结果全部删除） --database 慢SQL关联的数据库 - (可选)--schema 慢SQL关联的schema，默认为public -",
+      "source_file": "4441_file_4441.txt"
+    },
+    {
+      "term": "注意事项说明",
+      "content": "注意事项说明 注意事项说明 DBMind当前支持三种模式的慢SQL诊断能力，分别是：后台定时任务、命令行交互和API调用，下面对这三种方式的注意事项进行说明。 如果没有特别指出具体使用模式，则表示该项三种模式都适用。 当前慢SQL诊断定时任务依赖opengauss_exporter指标采集慢SQL流水，该指标默认关闭，如果该指标采集不启用，则慢SQL诊断功能无法正常运行。启动慢SQL采集的方法是手动先将opengauss_exporter/yamls/statements.yaml中pg_sql_statement_history指标status设置成enable，再重启opengauss_exporter进程。 慢SQL诊断定时任务间隔支持用户配置，用户需要修改配置文件dbmind.conf中TIMED_TASK的slow_query_diagnosis_interval，然后执行reload操作才能生效，命令参考 service子命令 。 慢SQL诊断定时任务依赖dbe_perf.statement_history视图，当其数据量较大时可能出现查询超时，此时慢SQL后台诊断任务不会生成新的诊断结果。用户可以根据数据库状况设置该指标的超时时间timeout，以免超时时间太小不能采集到指标，具体修改的方法可以参见 Prometheus Exporter组件 。 在慢SQL诊断定时任务中，由于慢SQL流水数据源dbe_perf.statement_history视图中的query字段可能会出现截断导致query不完整，此时如果没有提供执行计划则不能进行诊断。 慢SQL诊断定时任务的采集基于opengauss_exporter实现，服务运行时不能保证全量采集，可能会遗漏部分慢SQL数据。 使用慢SQL命令行交互诊断功能时，工具基于RPC和数据采集服务获取必要的数据，因此如果RPC和数据采集服务没启动则无法诊断。 在使用慢SQL交互诊断功能时，工具会对传入的数据库名和schema进行检测，如果数据库或schema不存在则会进行提示，不能正常进行诊断。 在使用慢SQL诊断功能时，工具会对传入的数据库名和schema进行检测，如果其中包含非法字符则会进行提示并拒绝诊断。特殊情况说明：为适配云侧使用场景（将dbe_perf.statement_history作为SQL采集数据源时，其schema可能带'$'字符，例如$user,public），在调用慢SQL诊断API接口时会对该场景进行特殊处理以支持诊断。 慢SQL诊断过程需要获取诊断语句的执行计划，在调用慢SQL诊断API接口时建议传递执行计划（对应query_plan参数），如果前端没有传递执行计划，那么工具会主动获取执行计划内容，此时需要确保执行诊断的用户具有获取query执行计划的权限。另外获取执行计划过程中如果SQL属于归一化SQL，那么工具会基于PBE方式获取执行计划，获取过程中如果由于语法结构不支持、SQL截断等原因导致获取失败则会诊断失败，当SQL不属于归一化SQL时如果SQL截断则也不能正常诊断。 在使用慢SQL诊断API接口时，如果在用户传入的db_name不存在则无法诊断，另外当工具在传入的schema_name下获取执行计划失败时会自动其他schema下尝试获取执行计划直到成功获取为止，否则诊断失败。 当DBMind纳管多个实例时，使用命令行交互式慢SQL诊断功能时会提示用户选择那个实例，然后再进行诊断动作。 当前慢SQL诊断只支持DML语句。 慢SQL诊断每次只能诊断一条语句，如果输入多条则只会对第一条进行诊断。 当前不对系统视图根因进行诊断，根因统一为DATABASE_VIEW。 慢SQL诊断过程中如果用户不传schema信息，则schema默认为public。",
+      "source_file": "4702_file_4702.txt"
+    },
+    {
+      "term": "注意事项说明",
+      "content": "注意事项说明 注意事项说明 DBMind当前支持三种模式的慢SQL诊断能力，分别是：后台定时任务、命令行交互和API调用，下面对这三种方式的注意事项进行说明。 如果没有特别指出具体使用模式，则表示该项三种模式都适用。 当前慢SQL诊断定时任务依赖opengauss_exporter指标采集慢SQL信息，该指标默认关闭，如果该指标采集不启用则慢SQL诊断功能无法正常运行。启动慢SQL采集的方法是手动将opengauss_exporter/yamls/statements.yaml中pg_sql_statement_history指标status设置成enable，再重启opengauss_exporter进程。 慢SQL诊断定时任务间隔支持用户配置，用户需要修改配置文件dbmind.conf中TIMED_TASK的slow_query_diagnosis_interval，然后执行reload操作才能生效，命令参考 service子命令 。 慢SQL诊断定时任务依赖dbe_perf.statement_history视图，当其数据量较大时可能出现查询超时，此时慢SQL后台诊断任务不会生成新的诊断结果。用户可以根据数据库状况设置该指标的超时时间timeout，以免超时时间太小不能采集到指标，具体修改的方法可以参见 Prometheus Exporter组件 。 在慢SQL诊断定时任务中，由于慢SQL流水数据源dbe_perf.statement_history视图中的query字段可能会出现截断导致query不完整，此时如果没有提供执行计划则不能进行诊断。 慢SQL诊断定时任务的采集基于opengauss_exporter实现，服务运行时不能保证全量采集，可能会遗漏部分慢SQL数据。 使用慢SQL命令行交互诊断功能时，工具基于RPC和数据采集服务获取必要的数据，因此如果RPC和数据采集服务没启动则无法诊断。 在使用慢SQL交互诊断功能时，工具会对传入的数据库名和schema进行检测，如果数据库或schema不存在则会进行提示，不能正常进行诊断。 在使用慢SQL诊断功能时，工具会对传入的数据库名和schema进行检测，如果其中包含非法字符则会进行提示并拒绝诊断。特殊情况说明：为适配云侧使用场景（将dbe_perf.statement_history作为SQL采集数据源时，其schema可能带'$'字符，例如$user,public），在调用慢SQL诊断API接口时会对该场景进行特殊处理以支持诊断。 慢SQL诊断过程需要获取诊断语句的执行计划，在调用慢SQL诊断API接口时建议传递执行计划（对应query_plan参数），如果前端没有传递执行计划则工具会主动获取执行计划内容，此时需要确保执行诊断的用户具有获取query执行计划的权限。另外获取执行计划过程中如果SQL属于归一化SQL，则工具会基于PBE方式获取执行计划，获取过程中如果由于语法结构不支持、SQL截断等原因导致获取失败则会诊断失败，当SQL不属于归一化SQL时如果SQL截断则也不能正常诊断。 在使用慢SQL诊断API接口时，如果在用户传入的db_name不存在则无法诊断，另外当工具在传入的schema_name下获取执行计划失败时会自动其他schema下尝试获取执行计划直到成功获取为止，否则诊断失败。 当DBMind纳管多个实例时，使用命令行交互式慢SQL诊断功能时会提示用户选择那个实例，然后再进行诊断动作。 当前慢SQL诊断只支持DML语句。 慢SQL诊断每次只能诊断一条语句，如果输入多条则只会对第一条进行诊断。 当前不对系统视图根因进行诊断，根因统一为DATABASE_VIEW。 慢SQL诊断过程中如果用户不传schema信息，则schema默认为public。",
+      "source_file": "4442_file_4442.txt"
+    },
+    {
+      "term": "命令参考",
+      "content": "命令参考 命令参考 表1 gs_dbmind component slow_query_diagnosis 命令行说明 参数 参数说明 取值范围 -h, --help 帮助命令。 - action 动作参数。 show：结果展示。 clean：清理结果。 diagnosis：交互诊断。 -c，--conf 配置目录。 - --query 慢SQL文本。 * (可选) --start-time 显示开始时间的时间戳，单位毫秒；或日期时间格式为 %Y-%m-%d %H:%M:%S。（action为show时使用） 正整数或日期时间格式。 （可选）--end-time 显示结束时间的时间戳，单位毫秒；或日期时间格式为 %Y-%m-%d %H:%M:%S。（action为show时使用） 正整数或日期时间格式。 --retention-days 清理天数及结果。（action为clean时使用） 实数。（当其小于等于0时，会将结果全部删除） --instance 慢SQL所属实例。（action为show时使用） 格式为IP:PORT。样例：127.0.0.1:5432 --database 慢SQL关联的数据库。 - (可选)--schema 慢SQL关联的schema，默认为public。 -",
+      "source_file": "4701_file_4701.txt"
+    },
+    {
+      "term": "概述",
+      "content": "概述 概述 慢SQL一直是数据运维中的痛点问题，如何有效诊断慢SQL根因是当前一大难题，工具结合 GaussDB 自身特点融合了现网DBA慢SQL诊断经验，支持慢SQL根因分析，能同时按照可能性大小输出多个根因并提供针对性的建议。",
+      "source_file": "4697_file_4697.txt"
+    }
+  ]
+}

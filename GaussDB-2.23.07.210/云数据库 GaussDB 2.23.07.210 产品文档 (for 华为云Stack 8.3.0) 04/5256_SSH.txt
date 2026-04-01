@@ -1,0 +1,13 @@
+SSH无法登录虚拟机 SSH无法登录虚拟机 现象描述 用SSH连接工具（如Xshell等）无法SSH连接到管理面VM。 可能原因 SSH连接工具配置错误。 登录用户没有SSH连接权限。 VM网卡异常。 定位思路 检查SSH连接工具配置是否正确（VM的IP地址、用户名、密码）。 通过Service OM登录到VM。 检查登录用户是否有SSH登录权限。 处理步骤 参考 登录数据库管理节点 ，尝试登录管理节点。 检查SSH连接工具配置信息，下面以Xshell为例。 打开Open，查看主机信息，选择要登录的主机，单击Properties，查看配置信息有无异常（IP地址，用户名，密码或密钥）。如果异常，请修改为正确的信息。 查看用户名，密码是否正确： 如果执行完成后可以通过SSH连接到VM，则跳过后面的步骤。 参考 VNC登录管理面虚拟机 尝试通过VNC的方式登录虚拟机。 执行命令检查网络配置是否正常，下图表示网络配置正常。如果IP、子网掩码、网关有异常的话，需要将其调整正确。 ifconfig ECS网络配置正常，如下图所示，联系技术支持。 BMS网络配置正常，如下图所示，联系技术支持。 网络配置异常，如下图所示，请执行 5 。 如果网络配置异常，则执行下面命令编辑网卡配置文件。 ECS： vim /etc/sysconfig/network-scripts/ifcfg-eth0 DEVICE=eth0
+BOOTPROTO='static'
+IPADDR=xxx.xxx.xxx.xxx
+NETMASK=255.255.255.0
+STARTMODE='auto' BMS联系技术支持。 vim /etc/sysconfig/network-scripts/ifcfg-bond0 TYPE=Bond
+BONDING_MASTER=yes
+BOOTPROTO=dhcp
+NAME=bond0
+UUID=64e33ec2-1eed-41ef-ba9a-a1379f85b4d7
+DEVICE=bond0
+ONBOOT=yes
+NETMASK=255.255.255.0
+IPADDR=xxx.xxx.xxx.xxx 调整完毕后，执行命令重启网卡服务。 service network restart 重启后登录成功，故障处理完成。 重启失败或重启后登录失败，联系技术支持。 父主题： 虚拟机异常 版权所有 © 华为技术有限公司

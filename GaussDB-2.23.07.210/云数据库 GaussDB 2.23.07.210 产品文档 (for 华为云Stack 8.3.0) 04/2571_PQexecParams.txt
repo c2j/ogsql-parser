@@ -1,0 +1,8 @@
+PQexecParams PQexecParams 功能描述 执行一个绑定参数的命令。 原型 PGresult* PQexecParams(PGconn* conn, 
+                       const char* command,
+                       int nParams,
+                       const Oid* paramTypes,
+                       const char* const* paramValues,
+                       const int* paramLengths,
+                       const int* paramFormats, 
+                       int resultFormat); 参数 表1 PQexecParams参数 关键字 参数说明 conn 连接句柄。 command SQL文本串。 nParams 绑定参数的个数 paramTypes 绑定参数类型。 paramValues 绑定参数的值。 paramLengths 参数长度。 paramFormats 参数格式（文本或二进制）。 resultFormat 返回结果格式（文本或二进制）。 返回值 PGresult类型指针。 父主题： 数据库执行语句函数 版权所有 © 华为技术有限公司

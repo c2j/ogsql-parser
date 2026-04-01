@@ -1,0 +1,1 @@
+高性能 高性能 CBO优化器 Ustore存储引擎 自适应压缩 分区 高级分析函数支持 SQL by pass 支持HyperLogLog NUMA架构优化 物化视图 Parallel Page-based Redo For Ustore xLog no Lock Flush SMP并行执行 CLOB/BLOB字段长度拓展 数据生命周期管理-OLTP表压缩 父主题： 主备版 版权所有 © 华为技术有限公司

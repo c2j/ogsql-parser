@@ -1,0 +1,80 @@
+条件表达式 条件表达式 在执行SQL语句时，可通过条件表达式筛选出符合条件的数据。 条件表达式主要有以下几种： CASE CASE表达式是条件表达式，类似于其他编程语言中的CASE语句。 CASE表达式的语法图请参考 图1 。 图1 case::= CASE子句可以用于合法的表达式中。condition是一个返回BOOLEAN数据类型的表达式： 如果结果为真，CASE表达式的结果就是符合该条件所对应的result。 如果结果为假，则以相同方式处理随后的WHEN或ELSE子句。 如果各WHEN  condition都不为真，表达式的结果就是在ELSE子句执行的result。如果省略了ELSE子句且没有匹配的条件，结果为NULL。 支持对XML类型数据操作。 示例： 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21 gaussdb =# CREATE TABLE tpcds . case_when_t1 ( CW_COL1 INT ) DISTRIBUTE BY HASH ( CW_COL1 ); gaussdb =# INSERT INTO tpcds . case_when_t1 VALUES ( 1 ), ( 2 ), ( 3 ); gaussdb =# SELECT * FROM tpcds . case_when_t1 ; a --- 1 2 3 ( 3 rows ) gaussdb =# SELECT CW_COL1 , CASE WHEN CW_COL1 = 1 THEN 'one' WHEN CW_COL1 = 2 THEN 'two' ELSE 'other' END FROM tpcds . case_when_t1 ORDER BY 1 ; cw_col1 | case ---------+------- 1 | one 2 | two 3 | other ( 3 rows ) gaussdb =# DROP TABLE tpcds . case_when_t1 ; DECODE DECODE的语法图请参见 图2 。 图2 decode::= 将表达式base_expr与后面的每个compare(n) 进行比较，如果匹配返回相应的value(n)。如果没有发生匹配，则返回default。 支持对XML类型数据操作。 示例请参见 条件表达式函数 。 1
+2
+3
+4
+5 gaussdb =# SELECT DECODE ( 'A' , 'A' , 1 , 'B' , 2 , 0 ); case ------ 1 ( 1 row ) COALESCE COALESCE的语法图请参见 图3 。 图3 coalesce::= COALESCE返回它的第一个非NULL的参数值。如果参数都为NULL，则返回NULL。它常用于在显示数据时用缺省值替换NULL。和CASE表达式一样，COALESCE只计算用来判断结果的参数，即在第一个非空参数右边的参数不会被计算。 支持对XML类型数据操作。 示例 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17 gaussdb =# CREATE TABLE tpcds . c_tabl ( description varchar ( 10 ), short_description varchar ( 10 ), last_value varchar ( 10 )) DISTRIBUTE BY HASH ( last_value ); gaussdb =# INSERT INTO tpcds . c_tabl VALUES ( 'abc' , 'efg' , '123' ); gaussdb =# INSERT INTO tpcds . c_tabl VALUES ( NULL , 'efg' , '123' ); gaussdb =# INSERT INTO tpcds . c_tabl VALUES ( NULL , NULL , '123' ); gaussdb =# SELECT description , short_description , last_value , COALESCE ( description , short_description , last_value ) FROM tpcds . c_tabl ORDER BY 1 , 2 , 3 , 4 ; description | short_description | last_value | coalesce -------------+-------------------+------------+---------- abc | efg | 123 | abc | efg | 123 | efg | | 123 | 123 ( 3 rows ) gaussdb =# DROP TABLE tpcds . c_tabl ; 如果description不为NULL，则返回description的值，否则计算下一个参数short_description；如果short_description不为NULL，则返回short_description的值，否则计算下一个参数last_value；如果last_value不为NULL，则返回last_value的值，否则返回（none）。 1
+2
+3
+4
+5 gaussdb =# SELECT COALESCE ( NULL , 'Hello World' ); coalesce --------------- Hello World ( 1 row ) NULLIF NULLIF的语法图请参见 图4 。 图4 nullif::= 只有当value1和value2相等时，NULLIF才返回NULL。否则它返回value1。支持对XML类型数据操作。 示例 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16 gaussdb =# CREATE TABLE tpcds . null_if_t1 ( NI_VALUE1 VARCHAR ( 10 ), NI_VALUE2 VARCHAR ( 10 ) ) DISTRIBUTE BY HASH ( NI_VALUE1 ); gaussdb =# INSERT INTO tpcds . null_if_t1 VALUES ( 'abc' , 'abc' ); gaussdb =# INSERT INTO tpcds . null_if_t1 VALUES ( 'abc' , 'efg' ); gaussdb =# SELECT NI_VALUE1 , NI_VALUE2 , NULLIF ( NI_VALUE1 , NI_VALUE2 ) FROM tpcds . null_if_t1 ORDER BY 1 , 2 , 3 ; ni_value1 | ni_value2 | nullif -----------+-----------+-------- abc | abc | abc | efg | abc ( 2 rows ) gaussdb =# DROP TABLE tpcds . null_if_t1 ; 如果value1等于value2则返回NULL，否则返回value1。 1
+2
+3
+4
+5 gaussdb =# SELECT NULLIF ( 'Hello' , 'Hello World' ); nullif -------- Hello ( 1 row ) GREATEST（最大值），LEAST（最小值） GREATEST的语法图请参见 图5 。 图5 greatest::= 从一个任意数字表达式的列表里选取最大的数值。支持对XML类型数据操作。 1
+2
+3
+4
+5 gaussdb =# SELECT greatest ( 9000 , 155555 , 2 . 01 ); greatest ---------- 155555 ( 1 row ) LEAST的语法图请参见 图6 。 图6 least::= 从一个任意数字表达式的列表里选取最小的数值。 以上的数字表达式必须都可以转换成一个普通的数据类型，该数据类型将是结果类型。 列表中的NULL值将被忽略。只有所有表达式的结果都是NULL的时候，结果才是NULL。 支持对XML类型数据操作。 1
+2
+3
+4
+5 gaussdb =# SELECT least ( 9000 , 2 ); least ------- 2 ( 1 row ) 示例请参见 条件表达式函数 。 NVL NVL的语法图请参见 图7 。 图7 nvl::= 如果value1为NULL则返回value2，如果value1非NULL，则返回value1。支持对XML类型数据操作。 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT nvl ( null , 1 ); NVL ----- 1 ( 1 row ) 1
+2
+3
+4
+5 gaussdb =# SELECT nvl ( 'Hello World' , 1 ); nvl --------------- Hello World ( 1 row ) 父主题： 表达式 版权所有 © 华为技术有限公司

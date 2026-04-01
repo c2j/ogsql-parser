@@ -1,0 +1,1 @@
+GLOBAL_THREADPOOL_STATUS GLOBAL_THREADPOOL_STATUS GLOBAL_THREADPOOL_STATUS视图显示在所有节点上的线程池中工作线程及会话的状态信息。具体的字段 表1 。 父主题： Session/Thread 版权所有 © 华为技术有限公司

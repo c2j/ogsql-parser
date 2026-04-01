@@ -1,0 +1,7 @@
+ifdef，ifndef，else，elif和endif指令 ifdef，ifndef，else，elif和endif指令 ecpg提供了ifdef、ifndef、else、elif和endif条件编译指令。在预处理时，按照不同的条件去编译程序的不同部分，使用时，需要添加EXEC SQL前缀关键字。 示例如下： EXEC SQL ifndef TZVAR; 
+EXEC SQL SET TIMEZONE TO 'GMT'; 
+EXEC SQL elif TZNAME; 
+EXEC SQL SET TIMEZONE TO TZNAME; 
+EXEC SQL else; 
+EXEC SQL SET TIMEZONE TO TZVAR; 
+EXEC SQL endif; 父主题： 预处理指令 版权所有 © 华为技术有限公司

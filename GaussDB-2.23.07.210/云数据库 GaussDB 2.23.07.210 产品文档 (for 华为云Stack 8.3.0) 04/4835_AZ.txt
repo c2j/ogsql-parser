@@ -1,0 +1,1 @@
+存储类型关联AZ 存储类型关联AZ 在DBS运维管理平台关联AZ。 规格码搜索opengauss.volume或Dorado，关联Dorado存储规格 父主题： 规格关联 版权所有 © 华为技术有限公司

@@ -1,0 +1,3 @@
+ROLLBACK ROLLBACK 功能描述 回滚当前事务并取消当前事务中的所有更新。 在事务运行的过程中发生了某种故障，事务不能继续执行，系统将事务中对数据库的所有已完成的操作全部撤销，数据库状态回到事务开始时。 注意事项 如果不在一个事务内部发出ROLLBACK不会有问题，但是将抛出一个NOTICE信息。 语法格式 ROLLBACK [ WORK | TRANSACTION ]; 参数说明 WORK | TRANSACTION 可选关键字。除了增加可读性，没有任何其他作用。 示例 --开启一个事务 gaussdb=# START TRANSACTION;
+
+--取消所有更改 gaussdb=# ROLLBACK; 相关链接 COMMIT | END 父主题： R 版权所有 © 华为技术有限公司

@@ -1,0 +1,5 @@
+CREATE SECURITY LABEL CREATE SECURITY LABEL 功能描述 创建安全标签。 注意事项 初始用户，具有SYSADMIN权限的用户或者继承了内置角色gs_role_seclabel权限的用户有权限创建安全标签。 语法格式 1 CREATE SECURITY LABEL label_name 'label context' ; 参数说明 label_name 安全标签名称，需在数据库内唯一。 取值范围：字符串，仅可以使用小写字母（a~z）、 大写字母（A~Z），数字和特殊字符"_"，"$"的组合，且最多为63个字符，若超过63个字符，数据库会截断并保留前63个字符当做安全标签名称。 label context 安全标签内容，要求如下： 安全标签由等级和范围两部分组成，两者中间用冒号分隔，形式如：等级类别:范围类别，其中等级类别有且仅由一个等级组成，范围类别可由多个范围组成，但至少需要有一个范围，例如“L1:G2,G41,G6-G27”。 等级分类中有1024个等级，命名为Li，其中1≤i≤1024，等级满足偏序关系（若i≤ j，则Li ≤ Lj），例如等级L1小于等级L3。 范围分类中有1024个范围，命名为Gi，其中1≤i≤1024，范围之间无法比较大小，但可以进行集合运算，多个范围之间用逗号分隔，连字符表示区间，例如{G2-G5}表示{G2,G3,G4,G5}，集合{G1}是集合{G1,G6}的子集。 等级和范围的首字母L和G均为大写；L和G之后至少要有一个数字字符，且第一位非零，不允许出现其他非数字字符；{Gxxx-Gyyy}形式中数字yyy必须大于等于xxx。 不符合要求的等级和范围均为非法输入，系统会报错。 示例 1
+2
+3
+4
+5 --创建安全标签sec_label。 gaussdb =# CREATE SECURITY LABEL sec_label 'L1:G4' ; --删除已存在的安全标签sec_label。 gaussdb =# DROP SECURITY LABEL sec_label ; 相关链接 DROP SECURITY LABEL ， SECURITY LABEL ON 父主题： C 版权所有 © 华为技术有限公司

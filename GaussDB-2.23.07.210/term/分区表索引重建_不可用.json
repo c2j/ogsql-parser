@@ -1,0 +1,26 @@
+{
+  "topic": "分区表索引重建/不可用",
+  "term_count": 4,
+  "terms": [
+    {
+      "term": "索引重建/不可用",
+      "content": "索引重建/不可用 索引重建/不可用 使用ALTER INDEX可以设置索引是否可用。 例如，假设分区表range_ sales上存在索引range_sales_idx，可以通过如下命令设置其不可用。 ALTER INDEX range_sales_idx UNUSABLE; 可以使用如下命令重建索引range_sales_idx。 ALTER INDEX range_sales_idx REBUILD;",
+      "source_file": "4596__.txt"
+    },
+    {
+      "term": "Local索引分区重建/不可用",
+      "content": "Local索引分区重建/不可用 Local索引分区重建/不可用 使用ALTER INDEX PARTITION可以设置Local索引分区是否可用。 使用ALTER TABLE MODIFY PARTITION可以设置分区表上指定分区的所有索引分区是否可用。这个语法如果作用于二级分区表的一级分区，数据库会将这个一级分区下的所有二级分区均进行设置。 使用ALTER TABLE MODIFY SUBPARTITION可以设置二级分区表上指定二级分区的所有索引分区是否可用。 例如，假设分区表range_sales上存在两张Local索引range_sales_idx1和range_sales_idx2，假设其在分区date_202001上对应的索引分区名分别为range_sales_idx1_part1和range_sales_idx2_part1。 下面给出了维护分区表分区索引的语法： 可以通过如下命令设置分区date_202001上的所有索引分区均不可用。 ALTER TABLE range_sales MODIFY PARTITION date_202001 UNUSABLE LOCAL INDEXES; 或者通过如下命令单独设置分区date_202001上的索引分区range_sales_idx1_part1不可用。 ALTER INDEX range_sales_idx1 MODIFY PARTITION range_sales_idx1_part1 UNUSABLE; 可以通过如下命令重建分区date_202001上的所有索引分区。 ALTER TABLE range_sales MODIFY PARTITION date_202001 REBUILD UNUSABLE LOCAL INDEXES; 或者通过如下命令单独重建分区date_202001上的索引分区range_sales_idx1_part1。 ALTER INDEX range_sales_idx1 REBUILD PARTITION range_sales_idx1_part1; 假设二级分区表list_range_sales上存在两张Local索引list_range_sales_idx1和list_range_sales_idx2，表下有一级分区channel1，其下属二级分区有channel1_product1、channel1_product2、channel1_product3，二级分区channel1_product1上对应的索引分区名分别为channel1_product1_idx1和channel1_product1_idx2。 下面给出了维护二级分区表一级分区索引的语法： 可以通过如下命令设置分区channel1下属二级分区的所有索引分区均不可用，包括二级分区channel1_product1、channel1_product2、channel1_product3。 ALTER TABLE list_range_sales MODIFY PARTITION channel1 UNUSABLE LOCAL INDEXES; 可以通过如下命令重建分区channel1下属二级分区的所有索引分区。 ALTER TABLE list_range_sales MODIFY PARTITION channel1 REBUILD UNUSABLE LOCAL INDEXES; 下面给出了维护二级分区表二级分区索引的语法： 可以通过如下命令单独设置二级分区channel1_product1上的所有索引分区均不可用。 ALTER TABLE list_range_sales MODIFY SUBPARTITION channel1_product1 UNUSABLE LOCAL INDEXES; 可以通过如下命令重建二级分区channel1_product1上的所有索引分区。 ALTER TABLE list_range_sales MODIFY SUBPARTITION channel1_product1 REBUILD UNUSABLE LOCAL INDEXES; 或者通过如下命令单独设置二级分区channel1_product1上的索引分区channel1_product1_idx1不可用。 ALTER INDEX list_range_sales_idx1 MODIFY PARTITION channel1_product1_idx1 UNUSABLE; 通过如下命令单独重建二级分区channel1_product1上的索引分区channel1_product1_idx1。 ALTER INDEX list_range_sales_idx1 REBUILD PARTITION channel1_product1_idx1;",
+      "source_file": "4597_Local_.txt"
+    },
+    {
+      "term": "索引重建/不可用",
+      "content": "索引重建/不可用 索引重建/不可用 使用ALTER INDEX可以设置索引是否可用。 例如，假设分区表range_ sales上存在索引range_sales_idx，可以通过如下命令设置其不可用。 ALTER INDEX range_sales_idx UNUSABLE; 可以使用如下命令重建索引range_sales_idx。 ALTER INDEX range_sales_idx REBUILD;",
+      "source_file": "4341__.txt"
+    },
+    {
+      "term": "Local索引分区重建/不可用",
+      "content": "Local索引分区重建/不可用 Local索引分区重建/不可用 使用ALTER INDEX PARTITION可以设置Local索引分区是否可用。 使用ALTER TABLE MODIFY PARTITION可以设置分区表上指定分区的所有索引分区是否可用。 例如，假设分区表range_sales上存在两张Local索引range_sales_idx1和range_sales_idx2，假设其在分区date_202001上对应的索引分区名分别为range_sales_idx1_part1和range_sales_idx2_part1。 下面给出了维护分区表分区索引的语法： 可以通过如下命令设置分区date_202001上的所有索引分区均不可用。 ALTER TABLE range_sales MODIFY PARTITION date_202001 UNUSABLE LOCAL INDEXES; 或者通过如下命令单独设置分区date_202001上的索引分区range_sales_idx1_part1不可用。 ALTER INDEX range_sales_idx1 MODIFY PARTITION range_sales_idx1_part1 UNUSABLE; 可以通过如下命令重建分区date_202001上的所有索引分区。 ALTER TABLE range_sales MODIFY PARTITION date_202001 REBUILD UNUSABLE LOCAL INDEXES; 或者通过如下命令单独重建分区date_202001上的索引分区range_sales_idx1_part1。 ALTER INDEX range_sales_idx1 REBUILD PARTITION range_sales_idx1_part1;",
+      "source_file": "4342_Local_.txt"
+    }
+  ]
+}

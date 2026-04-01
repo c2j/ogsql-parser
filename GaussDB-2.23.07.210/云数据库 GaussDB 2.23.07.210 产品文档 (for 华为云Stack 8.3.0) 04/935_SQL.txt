@@ -1,0 +1,113 @@
+处理非初级SQL数据类型 处理非初级SQL数据类型 本节介绍如何处理ecpg应用中非标量以及用户定义的SQL级别的数据类型。注意此处和 使用非初级类型的宿主变量 章节中介绍的对于非初级类型的宿主变量的处理不同。 数组 ecpg不直接支持多维SQL级别数组。一维SQL数组可以被映射到C语言数组类型的宿主变量，反之亦然。但是在创建语句时，如果ecpg并不知道列的类型，则将无法检查C语言数组是否是SQL数组的输入。因此在处理SQL语句的输出时，ecpg需要检查两者是否都是数组。 如果查询语句仅仅访问一个数组的元素，那么用一个能被映射到该元素类型的宿主变量即可。例如：假设列的类型是integer数组，可以使用int类型的宿主变量。如果元素类型是varchar或text，可以使用char[]或VARCHAR[]类型的宿主变量。 示例如下： CREATE TABLE t3 ( 
+    ii integer[] 
+);  
+testdb=> SELECT * FROM t3; 
+     ii 
+------------- 
+ {1,2,3,4,5} 
+(1 row) 如下示例检索数组的第四个元素并且把它存储到一个int类型的宿主变量中： EXEC SQL BEGIN DECLARE SECTION; 
+    int ii; 
+EXEC SQL END DECLARE SECTION;  
+
+    EXEC SQL DECLARE cur1 CURSOR FOR SELECT ii[4] FROM t3; 
+    EXEC SQL OPEN cur1;  
+
+    EXEC SQL WHENEVER NOT FOUND DO BREAK;  
+
+    while (1) 
+    { 
+        EXEC SQL FETCH FROM cur1 INTO :ii ; 
+        printf("ii=%d\n", ii); 
+    }  
+    EXEC SQL CLOSE cur1; 示例输出： ii=4 若要把多个数组元素映射到一个数组类型宿主变量中，数组列的每一个元素以及宿主变量数组的每一个元素都需单独处理。例如： EXEC SQL BEGIN DECLARE SECTION; 
+    int ii_a[8]; 
+EXEC SQL END DECLARE SECTION;  
+
+    EXEC SQL DECLARE cur1 CURSOR FOR SELECT ii[1], ii[2], ii[3], ii[4] FROM t3; 
+    EXEC SQL OPEN cur1;  
+
+    EXEC SQL WHENEVER NOT FOUND DO BREAK; 
+    while (1) 
+    { 
+        EXEC SQL FETCH FROM cur1 INTO :ii_a[0], :ii_a[1], :ii_a[2], :ii_a[3]; 
+        ... 
+    } 注意： EXEC SQL BEGIN DECLARE SECTION; 
+    int ii_a[8]; 
+EXEC SQL END DECLARE SECTION;  
+
+    EXEC SQL DECLARE cur1 CURSOR FOR SELECT ii FROM t3; 
+    EXEC SQL OPEN cur1;  
+
+    EXEC SQL WHENEVER NOT FOUND DO BREAK;  
+
+    while (1) 
+    { 
+        /* 错误 */ 
+        EXEC SQL FETCH FROM cur1 INTO :ii_a; 
+        ...
+    } 无法将一个数组类型的查询结果直接映射到数组类型的宿主变量。 组合类型 ecpg不直接支持组合类型，例如：在struct中声明成员变量为date数据类型。但是可以单独访问每一个属性或者使用外部字符串表达。 对于如下示例，可以单独访问每一个属性： CREATE TYPE comp_t AS (intval integer, textval varchar(32)); 
+CREATE TABLE t4 (compval comp_t); 
+INSERT INTO t4 VALUES ( (256, 'PostgreSQL') ); 如下示例程序单独检索类型comp_t的每一个属性： EXEC SQL BEGIN DECLARE SECTION; 
+    int intval; 
+    varchar textval[33]; 
+EXEC SQL END DECLARE SECTION;  
+
+    /* 将组合类型列的每一个元素放在 SELECT 列表中。 */ 
+    EXEC SQL DECLARE cur1 CURSOR FOR SELECT (compval).intval, (compval).textval FROM t4; 
+    EXEC SQL OPEN cur1;  
+
+    EXEC SQL WHENEVER NOT FOUND DO BREAK;  
+    while (1) 
+    { 
+        /* 将组合类型列的每一个元素取到主变量中。 */ 
+        EXEC SQL FETCH FROM cur1 INTO :intval, :textval; 
+        printf("intval=%d, textval=%s\n", intval, textval.arr); 
+    }  
+    EXEC SQL CLOSE cur1; FETCH命令中从SQL语句接收并存储的结果宿主变量可以被集中在一个结构体中。结构体类型的宿主变量的详情可参考 处理字符串 章节。如下示例中两个宿主变量intval和textval变成comp_t结构体的成员，并且该结构体在FETCH命令中被指定： EXEC SQL BEGIN DECLARE SECTION; 
+    typedef struct 
+    { 
+        int intval; 
+        varchar textval[33]; 
+    } comp_t; 
+    comp_t compval; 
+EXEC SQL END DECLARE SECTION;  
+
+    /* 将组合类型列的每一个元素放在 SELECT 列表中。 */ 
+    EXEC SQL DECLARE cur1 CURSOR FOR SELECT (compval).intval, (compval).textval FROM t4; 
+    EXEC SQL OPEN cur1;  
+
+    EXEC SQL WHENEVER NOT FOUND DO BREAK;  
+    while (1) 
+    { 
+        /* 将 SELECT 列表中的所有值放入一个结构。 */ 
+        EXEC SQL FETCH FROM cur1 INTO :compval; 
+        printf("intval=%d, textval=%s\n", compval.intval, compval.textval.arr); 
+    }  
+    EXEC SQL CLOSE cur1; 虽然在FETCH命令中使用了结构体，但SELECT子句中的属性名依然要依次指定，为了更加方便，可以使用一个*来处理该组合类型值的所有属性，示例如下： ... 
+EXEC SQL DECLARE cur1 CURSOR FOR SELECT (compval).* FROM t4; 
+EXEC SQL OPEN cur1;  
+
+EXEC SQL WHENEVER NOT FOUND DO BREAK;  
+
+while (1) 
+{ 
+    /* 将 SELECT 列表中的所有值放入一个结构。 */ 
+    EXEC SQL FETCH FROM cur1 INTO :compval; 
+    printf("intval=%d, textval=%s\n", compval.intval, compval.textval.arr); 
+} 
+... 即便ecpg无法解析组合类型本身，也可以通过上述方法将组合类型映射到结构体中。 用户定义的基础类型 ecpg使用宿主变量来存放查询结果时，只支持ecpg提供的数据类型，不支持自定义的数据类型。对于通过CREATE TYPE创建的数据类型，无法通过宿主变量找到映射关系。 用户自定义类型可以使用外部字符串表达以及char[]或VARCHAR[]类型的宿主变量来处理。 数据类型complex的外部字符串表达是(%lf,%lf)，被定义在函数complex_in()内。如下示例把复杂类型值(1,1)和(3,3)插入到列a和b，并且查询它们的值。 EXEC SQL BEGIN DECLARE SECTION; 
+    varchar a[64]; 
+    varchar b[64];
+EXEC SQL END DECLARE SECTION; 
+    EXEC SQL INSERT INTO test_complex VALUES ('(1,1)', '(3,3)'); 
+    EXEC SQL DECLARE cur1 CURSOR FOR SELECT a, b FROM test_complex; 
+    EXEC SQL OPEN cur1; 
+
+    EXEC SQL WHENEVER NOT FOUND DO BREAK; 
+
+    while (1) 
+    { 
+       EXEC SQL FETCH FROM cur1 INTO :a, :b; 
+       printf("a=%s, b=%s\n", a.arr, b.arr); 
+    } 
+    EXEC SQL CLOSE cur1; 示例输出： a=(1,1), b=(3,3) 父主题： 宿主变量 版权所有 © 华为技术有限公司

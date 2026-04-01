@@ -1,0 +1,1 @@
+PG_STATIO_SYS_SEQUENCES PG_STATIO_SYS_SEQUENCES PG_STATIO_SYS_SEQUENCES视图显示命名空间中所有序列的I/O状态信息。具体字段信息如 表1 所示。 表1 PG_STATIO_SYS_SEQUENCES字段 名称 类型 描述 relid oid 序列OID。 schemaname name 序列的模式名。 relname name 序列名。 blks_read bigint 从序列中读取的磁盘块数。 blks_hit bigint 序列命中缓存数。 父主题： 其他系统视图 版权所有 © 华为技术有限公司

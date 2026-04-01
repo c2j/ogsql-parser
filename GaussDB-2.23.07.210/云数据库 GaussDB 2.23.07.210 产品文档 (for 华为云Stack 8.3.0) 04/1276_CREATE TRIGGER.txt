@@ -1,0 +1,93 @@
+CREATE TRIGGER CREATE TRIGGER 功能描述 创建一个触发器。 触发器将与指定的表或视图关联，并在特定条件下执行指定的函数。 注意事项 当前仅支持在普通行存表上创建触发器，不支持在临时表、unlogged表等类型表上创建触发器。 如果为同一事件定义了多个相同类型的触发器，则按触发器的名称字母顺序触发它们。 触发器常用于多表间数据关联同步场景，对SQL执行性能影响较大，不建议在大数据量同步及对性能要求高的场景中使用。 当触发器满足如下条件时，触发语句能和触发器一起下推到 DN 执行并提升触发器执行性能： GUC参数 enable_trigger_shipping 和 enable_fast_query_shipping 开启。 源表触发器使用的触发器函数为plpgsql类型（推荐类型）。 源表与触发表分布键的类型、数量完全相同，均为行存表，且所属相同的nodegroup。 原INSERT/UPDATE/DELETE语句条件中包含所有分布键与NEW/OLD等值比较表达式。 原INSERT/UPDATE/DELETE语句在没有触发器的情况下原本就能query shipping。 源表上只有INSERT BEFORE FOR EACH ROW/INSERT AFTER FOR EACH ROW/UPDATE BEFORE FOR EACH ROW/UPDATE AFTER FOR EACH ROW/DELETE BEFORE FOR EACH ROW/DELETE AFTER FOR EACH ROW六类触发器，且所有触发器都可下推。 执行触发器语句时是用触发器创建者的身份进行权限判断的。 执行创建触发器操作的用户需要拥有指定表的TRIGGER权限或被授予了CREATE ANY TRIGGER权限。 BEFORE触发的行级触发器函数可以返回一个NULL值，表示忽略对该行的操作，随后的触发器将不再执行，并且不会对该行产生INSERT/UPDATE/DELETE动作。AFTER触发器函数返回值无影响。 DELETE的BEFORE触发器的情况下，触发器函数返回值NEW等于NULL；INSERT的BEFORE触发器的情况下，触发器函数返回值OLD等于NULL；UPDATE的BEFORE触发器的情况下，触发器函数返回值只有显示为NULL才是NULL值。 对于event为INSERT/UPDATE的触发器函数，正常返回值是NEW。如果返回一个非NULL的行，将修改那个插入或者更新的行。对于event为DELETE的触发器函数，正常返回值是OLD。 INSTEAD OF触发器只能作用于视图，其触发器函数同样可以返回NULL值，表示随后的触发器将不再执行。 语法格式 1
+2
+3
+4
+5
+6
+7 CREATE [ CONSTRAINT ] TRIGGER name { BEFORE | AFTER | INSTEAD OF } { event [ OR ... ] } ON table_name [ FROM referenced_table_name ] { NOT DEFERRABLE | [ DEFERRABLE ] { INITIALLY IMMEDIATE | INITIALLY DEFERRED } } [ FOR [ EACH ] { ROW | STATEMENT } ] [ WHEN ( condition ) ] EXECUTE PROCEDURE function_name ( arguments ); 其中event包含以下几种： 1 INSERT UPDATE [ OF column_name [, ... ] ] 1 DELETE 1 TRUNCATE 参数说明 CONSTRAINT 可选项，指定此参数将创建约束触发器，即触发器作为约束来使用。除了可以使用SET CONSTRAINTS调整触发器触发的时间之外，这与常规触发器相同。 约束触发器必须是AFTER ROW触发器。 name 触发器名称，该名称不能限定模式，因为触发器自动继承其所在表的模式，且同一个表的触发器不能重名。 对于约束触发器，使用 SET CONSTRAINTS 修改触发器行为时也使用此名称。 取值范围：符合 标识符命名规范 的字符串，且最大长度不超过63个字符。 BEFORE 触发器函数是在触发事件发生前执行。 AFTER 触发器函数是在触发事件发生后执行，约束触发器只能指定为AFTER。 INSTEAD OF 触发器函数直接替代触发事件。 event 启动触发器的事件，取值范围包括：INSERT、UPDATE、DELETE或TRUNCATE，也可以通过OR同时指定多个触发事件。 对于UPDATE事件类型，可以使用下面语法指定列： UPDATE OF column_name1 [, column_name2 ... ] 表示只有这些列作为UPDATE语句的目标列时，才会启动触发器，但是INSTEAD OF UPDATE类型不支持指定列信息。 table_name 需要创建触发器的表名称。 取值范围：数据库中已经存在的表名称。 referenced_table_name 约束引用的另一个表的名称。 只能为约束触发器指定，常见于外键约束。由于当前不支持外键，因此不建议使用。 取值范围：数据库中已经存在的表名称。 DEFERRABLE | NOT DEFERRABLE 约束触发器的启动时机，仅作用于约束触发器。这两个关键字设置该约束是否可推迟。 详细介绍请参见 CREATE TABLE 。 INITIALLY IMMEDIATE | INITIALLY DEFERRED 如果约束是可推迟的，则这个子句声明检查约束的缺省时间，仅作用于约束触发器。 详细介绍请参见 CREATE TABLE 。 FOR EACH ROW | FOR EACH STATEMENT 触发器的触发频率。 FOR EACH ROW是指该触发器是受触发事件影响的每一行触发一次。 FOR EACH STATEMENT是指该触发器是每个SQL语句只触发一次。 未指定时默认值为FOR EACH STATEMENT。约束触发器只能指定为FOR EACH ROW。 condition 决定是否实际执行触发器函数的条件表达式。当指定WHEN时，只有在条件返回true时才会调用该函数。 在FOR EACH ROW触发器中，WHEN条件可以通过分别写入OLD.column_name或NEW.column_name来引用旧行或新行值的列。INSERT触发器不能引用OLD和DELETE触发器不能引用NEW。 INSTEAD OF触发器不支持WHEN条件。 WHEN表达式不能包含子查询。 对于约束触发器，WHEN条件的评估不会延迟，而是在执行更新操作后立即发生。 如果条件返回值不为true，则触发器不会排队等待延迟执行。 function_name 用户定义的函数，必须声明为不带参数并返回类型为触发器，在触发器触发时执行。 arguments 执行触发器时要提供给函数的可选的以逗号分隔的参数列表。参数是文字字符串常量，简单的名称和数字常量也可以写在这里，但它们都将被转换为字符串。 请检查触发器函数的实现语言的描述，以了解如何在函数内访问这些参数。 关于触发器种类： INSTEAD OF的触发器必须标记为FOR EACH ROW，并且只能在视图上定义。 BEFORE和AFTER触发器作用在视图上时，只能标记为FOR EACH STATEMENT。 TRUNCATE类型触发器仅限FOR EACH STATEMENT。 表1 表和视图上支持的触发器种类： 触发时机 触发事件 行级 语句级 BEFORE INSERT/UPDATE/DELETE 表 表和视图 TRUNCATE 不支持 表 AFTER INSERT/UPDATE/DELETE 表 表和视图 TRUNCATE 不支持 表 INSTEAD OF INSERT/UPDATE/DELETE 视图 不支持 TRUNCATE 不支持 不支持 表2 plpgsql类型触发器函数特殊变量： 变量名 变量含义 NEW INSERT及UPDATE操作涉及tuple信息中的新值，对DELETE为空，并且对于statement级别的触发器此变量也为空。 OLD UPDATE及DELETE操作涉及tuple信息中的旧值，对INSERT为空，并且对于statement级别的触发器此变量也为空。 TG_NAME 触发器名称。 TG_WHEN 触发器触发时机（BEFORE/AFTER/INSTEAD OF）。 TG_LEVEL 触发频率（ROW/STATEMENT）。 TG_OP 触发操作（INSERT/UPDATE/DELETE/TRUNCATE）。 TG_RELID 触发器所在表OID。 TG_RELNAME 触发器所在表名（已废弃，现用TG_TABLE_NAME替代）。 TG_TABLE_NAME 触发器所在表名。 TG_TABLE_SCHEMA 触发器所在表的SCHEMA信息。 TG_NARGS 触发器函数参数个数。 TG_ARGV[] 触发器函数参数列表。 示例 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27
+28
+29
+30
+31
+32
+33
+34
+35
+36
+37
+38
+39
+40
+41
+42
+43
+44
+45
+46
+47
+48
+49
+50
+51
+52
+53
+54
+55
+56
+57
+58
+59
+60
+61
+62
+63
+64
+65
+66
+67
+68
+69
+70
+71
+72
+73
+74
+75
+76
+77
+78
+79
+80
+81
+82
+83
+84
+85
+86
+87 --创建源表及触发表。 gaussdb =# CREATE TABLE test_trigger_src_tbl ( id1 INT , id2 INT , id3 INT ); gaussdb =# CREATE TABLE test_trigger_des_tbl ( id1 INT , id2 INT , id3 INT ); --创建触发器函数。 gaussdb =# CREATE OR REPLACE FUNCTION tri_insert_func () RETURNS TRIGGER AS $$ DECLARE BEGIN INSERT INTO test_trigger_des_tbl VALUES ( NEW . id1 , NEW . id2 , NEW . id3 ); RETURN NEW ; END $$ LANGUAGE plpgsql ; gaussdb =# CREATE OR REPLACE FUNCTION tri_update_func () RETURNS TRIGGER AS $$ DECLARE BEGIN UPDATE test_trigger_des_tbl SET id3 = NEW . id3 WHERE id1 = OLD . id1 ; RETURN OLD ; END $$ LANGUAGE plpgsql ; gaussdb =# CREATE OR REPLACE FUNCTION tri_delete_func () RETURNS TRIGGER AS $$ DECLARE BEGIN DELETE FROM test_trigger_des_tbl WHERE id1 = OLD . id1 ; RETURN OLD ; END $$ LANGUAGE plpgsql ; --创建INSERT触发器。 gaussdb =# CREATE TRIGGER insert_trigger BEFORE INSERT ON test_trigger_src_tbl FOR EACH ROW EXECUTE PROCEDURE tri_insert_func (); --创建UPDATE触发器。 gaussdb =# CREATE TRIGGER update_trigger AFTER UPDATE ON test_trigger_src_tbl FOR EACH ROW EXECUTE PROCEDURE tri_update_func (); --创建DELETE触发器。 gaussdb =# CREATE TRIGGER delete_trigger BEFORE DELETE ON test_trigger_src_tbl FOR EACH ROW EXECUTE PROCEDURE tri_delete_func (); --执行INSERT触发事件并检查触发结果。 gaussdb =# INSERT INTO test_trigger_src_tbl VALUES ( 100 , 200 , 300 ); gaussdb =# SELECT * FROM test_trigger_src_tbl ; gaussdb =# SELECT * FROM test_trigger_des_tbl ; // 查看触发操作是否生效。 --执行UPDATE触发事件并检查触发结果。 gaussdb =# UPDATE test_trigger_src_tbl SET id3 = 400 WHERE id1 = 100 ; gaussdb =# SELECT * FROM test_trigger_src_tbl ; gaussdb =# SELECT * FROM test_trigger_des_tbl ; // 查看触发操作是否生效 --执行DELETE触发事件并检查触发结果。 gaussdb =# DELETE FROM test_trigger_src_tbl WHERE id1 = 100 ; gaussdb =# SELECT * FROM test_trigger_src_tbl ; gaussdb =# SELECT * FROM test_trigger_des_tbl ; // 查看触发操作是否生效 --修改触发器。 gaussdb =# ALTER TRIGGER delete_trigger ON test_trigger_src_tbl RENAME TO delete_trigger_renamed ; --禁用insert_trigger触发器。 gaussdb =# ALTER TABLE test_trigger_src_tbl DISABLE TRIGGER insert_trigger ; --禁用当前表上所有触发器。 gaussdb =# ALTER TABLE test_trigger_src_tbl DISABLE TRIGGER ALL ; --删除触发器。 gaussdb =# DROP TRIGGER insert_trigger ON test_trigger_src_tbl ; gaussdb =# DROP TRIGGER update_trigger ON test_trigger_src_tbl ; gaussdb =# DROP TRIGGER delete_trigger_renamed ON test_trigger_src_tbl ; --删除函数。 gaussdb =# DROP FUNCTION tri_insert_func (); gaussdb =# DROP FUNCTION tri_update_func (); gaussdb =# DROP FUNCTION tri_delete_func (); --删除源表及触发表。 gaussdb =# DROP TABLE test_trigger_src_tbl ; gaussdb =# DROP TABLE test_trigger_des_tbl ; 相关链接 ALTER TRIGGER ， DROP TRIGGER ， ALTER TABLE 父主题： C 版权所有 © 华为技术有限公司

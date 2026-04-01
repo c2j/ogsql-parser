@@ -1,0 +1,14 @@
+对范围分区表分割分区 对范围分区表分割分区 使用ALTER TABLE SPLIT PARTITION可以对范围分区表分割分区。 例如，假设范围分区表range_sales的分区date_202001定义范围为['2020-01-01',  '2020-02-01')。可以指定分割点'2020-01-16'将分区date_202001分割为两个分区，并更新Global索引。 ALTER TABLE range_sales SPLIT PARTITION date_202001 AT ('2020-01-16') INTO
+(
+    PARTITION date_202001_p1, --第一个分区上界是'2020-01-16'
+    PARTITION date_202001_p2  --第二个分区上界是'2020-02-01'
+) UPDATE GLOBAL INDEX; 或者，不指定分割点，将分区date_202001分割为多个分区，并更新Global索引。 ALTER TABLE range_sales SPLIT PARTITION date_202001 INTO
+(
+    PARTITION date_202001_p1 VALUES LESS THAN ('2020-01-11'),
+    PARTITION date_202001_p2 VALUES LESS THAN ('2020-01-21'),
+    PARTITION date_202001_p3 --第三个分区上界是'2020-02-01'
+)UPDATE GLOBAL INDEX; 又或者，通过指定分区值而不是指定分区名来分割分区。 ALTER TABLE range_sales SPLIT PARTITION FOR ('2020-01-15') AT ('2020-01-16') INTO
+(
+    PARTITION date_202001_p1, --第一个分区上界是'2020-01-16'
+    PARTITION date_202001_p2  --第二个分区上界是'2020-02-01'
+) UPDATE GLOBAL INDEX; 若对MAXVALUE分区进行分割，前面几个分区不能申明MAXVALUE范围，最后一个分区会继承MAXVALUE分区范围。 父主题： 分割分区 版权所有 © 华为技术有限公司

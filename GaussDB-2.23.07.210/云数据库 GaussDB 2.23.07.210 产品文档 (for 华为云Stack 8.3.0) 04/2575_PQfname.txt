@@ -1,0 +1,1 @@
+PQfname PQfname 功能描述 返回与给定列号相关联的列名。列号从 0 开始。调用者不应该直接释放该结果。它将在相关的PGresult句柄被传递给PQclear之后被释放。 原型 char* PQfname(const PGresult* res, int field_num); 参数 表1 PQfname参数 关键字 参数说明 res 操作结果句柄。 column_number 列数。 返回值 char类型指针。 父主题： 数据库执行语句函数 版权所有 © 华为技术有限公司

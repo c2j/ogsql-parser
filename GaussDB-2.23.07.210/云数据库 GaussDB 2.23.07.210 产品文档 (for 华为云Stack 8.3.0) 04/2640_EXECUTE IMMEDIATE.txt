@@ -1,0 +1,2 @@
+EXECUTE IMMEDIATE EXECUTE IMMEDIATE 功能描述 预备并且执行动态指定的SQL语句，不检索结果行。 语法格式 EXECUTE IMMEDIATE string 参数说明 string 包含要被执行的SQL语句的C字符串或者宿主变量。 示例 使用EXECUTE IMMEDIATE和名为command的宿主变量执行INSERT语句： sprintf(command, "INSERT INTO test (name, amount, letter) VALUES ('db: ''r1''', 1, 'f')"); 
+EXEC SQL EXECUTE IMMEDIATE :command; 父主题： 嵌入式SQL命令 版权所有 © 华为技术有限公司

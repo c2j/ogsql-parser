@@ -1,0 +1,56 @@
+SAVEPOINT SAVEPOINT 功能描述 SAVEPOINT用于在当前事务里建立一个新的保存点。 保存点是事务中的一个特殊记号，它允许将那些在它建立后执行的命令全部回滚，把事务的状态恢复到保存点所在的时刻。 注意事项 使用ROLLBACK TO SAVEPOINT回滚到一个保存点。使用RELEASE SAVEPOINT删除一个保存点，但是保留该保存点建立后执行的命令的效果。 保存点只能在一个事务块里面建立。在一个事务里面可以定义多个保存点。 由于节点故障或者通信故障引起的分布式节点线程或进程退出导致的报错，以及由于COPY FROM操作中源数据与目标表的表结构不一致导致的报错，均不能正常回滚到保存点之前，而是整个事务回滚。 SQL标准要求，使用SAVEPOINT建立一个同名保存点时，需要自动删除前面那个同名保存点。在 GaussDB 数据库里，将保留旧的保存点，但是在回滚或者释放的时候，只使用最近的那个。释放了新的保存点将导致旧的再次成为ROLLBACK TO SAVEPOINT和RELEASE SAVEPOINT可以访问的保存点。除此之外，SAVEPOINT是完全符合SQL标准的。 语法格式 SAVEPOINT savepoint_name; 参数说明 savepoint_name 新建保存点的名称。 使用SAVEPOINT时，建议及时RELEASE SAVEPOINT，避免子事务的嵌套个数过大，建议嵌套个数不要超过10000，嵌套数过多时，可能引发当前事务性能裂化。 示例 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27
+28
+29
+30
+31
+32
+33
+34
+35
+36
+37
+38
+39
+40
+41
+42
+43
+44
+45
+46
+47
+48
+49
+50
+51
+52
+53
+54
+55
+56 --创建一个新表。 gaussdb =# CREATE TABLE table1 ( a int ); --开启事务。 gaussdb =# START TRANSACTION ; --插入数据。 gaussdb =# INSERT INTO table1 VALUES ( 1 ); --建立保存点。 gaussdb =# SAVEPOINT my_savepoint ; --插入数据。 gaussdb =# INSERT INTO table1 VALUES ( 2 ); --回滚保存点。 gaussdb =# ROLLBACK TO SAVEPOINT my_savepoint ; --插入数据。 gaussdb =# INSERT INTO table1 VALUES ( 3 ); --提交事务。 gaussdb =# COMMIT ; --查询表的内容，会同时看到1和3,不能看到2，因为2被回滚。 gaussdb =# SELECT * FROM table1 ; --删除表。 gaussdb =# DROP TABLE table1 ; --创建一个新表。 gaussdb =# CREATE TABLE table2 ( a int ); --开启事务。 gaussdb =# START TRANSACTION ; --插入数据。 gaussdb =# INSERT INTO table2 VALUES ( 3 ); --建立保存点。 gaussdb =# SAVEPOINT my_savepoint ; --插入数据。 gaussdb =# INSERT INTO table2 VALUES ( 4 ); --回滚保存点。 gaussdb =# RELEASE SAVEPOINT my_savepoint ; --提交事务。 gaussdb =# COMMIT ; --查询表的内容，会同时看到3和4。 gaussdb =# SELECT * FROM table2 ; --删除表。 gaussdb =# DROP TABLE table2 ; 相关链接 RELEASE SAVEPOINT ， ROLLBACK TO SAVEPOINT 父主题： S 版权所有 © 华为技术有限公司

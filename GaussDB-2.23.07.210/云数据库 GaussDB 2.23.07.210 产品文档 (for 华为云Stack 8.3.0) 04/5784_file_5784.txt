@@ -1,0 +1,1 @@
+服务端工具 服务端工具 在使用 GaussDB 过程中，经常需要对集群进行安装、升级、扩容、卸载，以及对集群进行健康管理。为了简单、方便的维护集群， GaussDB 提供了一系列的集群管理工具。 GaussRoach.py gds gds_ctl.py gs_check gs_checkos gs_clean gs_collector gs_dump gs_dumpall gs_encrypt gs_guc gs_om gs_replace gs_restore gs_roach gs_ssh 父主题： 分布式版 版权所有 © 华为技术有限公司

@@ -1,0 +1,1 @@
+DROP GROUP DROP GROUP 功能描述 删除用户组。DROP GROUP是DROP ROLE的别名。 注意事项 仅对有CREATE ROLE权限的用户开放，CREATE ROLE权限通过管理员用户赋予。 语法格式 1 DROP GROUP [ IF EXISTS ] group_name [, ...]; 参数说明 IF EXISTS 如果不存在该角色，不会报出错误，而会发出通知，告知通知该角色不存在。 group_name 要删除的角色名称。 取值范围：已存在的角色。 示例 请参考CREATE GROUP的 示例 。 相关链接 CREATE GROUP ， ALTER GROUP ， DROP ROLE 父主题： D 版权所有 © 华为技术有限公司

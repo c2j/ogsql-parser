@@ -1,0 +1,1 @@
+STATEMENT_COMPLEX_HISTORY_TABLE STATEMENT_COMPLEX_HISTORY_TABLE STATEMENT_COMPLEX_HISTORY_TABLE系统表显示 当前CN 执行作业结束后的负载管理 （当前特性是实验室特性，使用时请联系华为技术工程师提供技术支持。） 记录。此数据是从内核中转储到系统表中的数据。当设置GUC参数 enable_resource_record 为on时，系统会定时（周期为3分钟）将 GS_WLM_SESSION_HISTORY 中的记录导入此系统表，开启此功能会占用系统存储空间并对性能有一定影响，不建议用户使用。具体的字段请参考 表1 。 父主题： Query 版权所有 © 华为技术有限公司

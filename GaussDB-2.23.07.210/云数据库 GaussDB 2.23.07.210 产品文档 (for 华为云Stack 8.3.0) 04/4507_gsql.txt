@@ -1,0 +1,59 @@
+使用gsql操作内存解密逃生通道 使用gsql操作内存解密逃生通道 全密态数据库要开启内存解密逃生通道，gsql需要开启-C3或--enable-client-encryption=3。 使用gsql操作内存解密逃生通道全密态数据库需要完成密钥配置相关操作，请参见 使用gsql操作密态数据库 。 操作步骤 执行以下命令打开密态开关，连接密态数据库。 gsql -p PORT -d gaussdb -h host -U user -W password -r -C3 通过元命令设置访问主密钥的参数 注意：从keyType字符串开始，不要添加换行，不要添加空格，否则gsql工具无法识别完整参数 华为云支持两种认证方式，两种认证方式的参数个数与参数类型不同，选择其中一种方式即可 认证方式一 aksk认证 gaussdb=# \key_info keyType=hcs_kms,kmsProjectId={资源ID},ak={AK},sk={SK} 参数获取： 生成主密钥阶段介绍了如何获取相关参数：项目ID、AK、SK 示例： \key_info keyType=hcs_kms,kmsProjectId=0b59929e8100268a2f22c01429802728,ak=XMAUMJY******DFWLQW,sk=ga6rO8lx1Q4uB*********2gf80muIzUX 认证方式二 账号密码认证 gaussdb=# \key_info keyType=hcs_kms,iamUrl={ IAM服务器地址 },iamUser={用户名},iamPassword={用户密码},iamDomain={所属租户},kmsProject={资源空间名称} 参数获取： 生成主密钥阶段 介绍了如何获取上述提到的5个参数。 示例：\key_info keyType=hcs_kms,iamUrl=https://iam.xxx.com/v3/auth/tokens,iamUser=test_user,iamPassword=*********,iamDomain=test_account,kmsProject=xxx 定义主密钥 在生成主密钥阶段，密钥服务已生成并存储主密钥，执行本语法只是将主密钥的相关信息存储在数据库中，方便以后访问。该语法详细格式参考：《开发者指南》中“SQL参考 > SQL语法 > CREATE CLIENT MASTER KEY”章节。 gaussdb=# CREATE CLIENT MASTER KEY cmk1 WITH ( KEY_STORE = hcs_kms , KEY_PATH = '{KMS服务器地址}/{密钥ID}', ALGORITHM = AES_256); CREATE CLIENT MASTER KEY 参数获取： 生成主密钥阶段 介绍了如何获取如下参数：KMS服务器地址、密钥ID KEY_PATH示例：https://kms-scc-apig.sa-fb-1.console-arm2.com/v1.0/0b59929e8100268a2f22c01429802728/kms/9a262917-8b31-41af-a1e0-a53235f32de9 定义列密钥 列密钥由上一步定义的主密钥加密。详细语法参考：《开发者指南》中“SQL参考 > SQL语法 > CREATE COLUMN ENCRYPTION KEY”章节 gaussdb=# CREATE COLUMN ENCRYPTION KEY cek1 WITH VALUES (CLIENT_MASTER_KEY = cmk1, ALGORITHM  = AES_256_GCM); 创建加密表并向加密表插入数据。 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12 gaussdb =# CREATE TABLE contacts ( id int unique , credit float8 encrypted with ( column_encryption_key = cek1 , encryption_type = DETERMINISTIC ), name text encrypted with ( column_encryption_key = cek1 , encryption_type = DETERMINISTIC )); NOTICE : CREATE TABLE / UNIQUE will create implicit index "contacts_id_key" for table "contacts" CREATE TABLE gaussdb =# CREATE TABLE contacts_plain ( id int unique , credit float8 , name text ); NOTICE : CREATE TABLE / UNIQUE will create implicit index "contacts_plain_id_key" for table "contacts_plain" CREATE TABLE gaussdb =# INSERT INTO contacts VALUES ( 1 , 8000 , 'zhangsan' ); INSERT 0 1 gaussdb =# INSERT INTO contacts VALUES ( 2 , 7056 . 6 , 'lisi' ); INSERT 0 1 gaussdb =# INSERT INTO contacts VALUES ( 3 , 16050 , 'wangwu' ); INSERT 0 1 传输密钥。 \st Token cache enabled in Trusted Domain. 对密文表进行范围查询。 gaussdb=# select id,credit from contacts where credit > 10000; id | credit 
+----+--------
+  3 |  16050
+(1 row) gaussdb=# select id,credit from contacts where credit < 10000; id | credit
+----+--------
+  1 |   8000
+  2 | 7056.6
+(2 row) gaussdb=# select id,credit from contacts where credit >= 8000; id | credit 
+----+--------
+  1 |   8000
+  3 |  16050
+(2 row) gaussdb=# select id,credit from contacts where credit <= 8000; id | credit 
+----+--------
+  1 |   8000
+  2 | 7056.6
+(2 row) 对密文表进行排序。 gaussdb=# select id,credit from contacts order by credit; id | credit 
+----+--------
+  2 | 7056.6
+  1 |   8000
+  3 |  16050
+(3 row) gaussdb=# select id,credit from contacts order by credit DESC; id | credit 
+----+--------
+  3 |  16050
+  1 |   8000
+  2 | 7056.6
+(3 row) 对密文进行计算算子操作。 gaussdb=# select credit*2 from contacts limit 1;
+ ?column? 
+----------
+    16000
+(1 row) 对密文进行聚合计算。 gaussdb=# select sum(credit) from contacts;
+   sum   
+---------
+ 31106.6
+(1 row) 对密文执行case语句操作。 gaussdb=# select case when credit > 9000 then name end from contacts;
+  case  
+--------
+
+
+ wangwu
+(3 rows) 对密文执行显式cast语句操作。 gaussdb=# select credit::text, credit::int from contacts offset 1 limit 1;
+ credit | credit 
+--------+--------
+ 7056.6 |   7057
+(1 row) 对密文执行like语句操作。 gaussdb=# select credit from contacts where name like 'zhang%';
+ credit 
+--------
+   8000
+(1 row) 明文密文列互相迁移。 gaussdb=# insert into contacts_plain (id, name) gaussdb-# select id, gaussdb-#     ce_decrypt_deterministic(name, gaussdb(#         (select column_key_distributed_id from gs_column_keys where column_key_name=' cek1 ')) gaussdb-# gaussdb-# from contacts; INSERT 0 3 gaussdb=# delete from contacts; DELETE 3 gaussdb=# insert into contacts (id, name) gaussdb-# select id, gaussdb-#     ce_encrypt_deterministic(name, gaussdb(#         (select column_key_distributed_id from gs_column_keys where column_key_name=' cek1 ')) gaussdb-# from contacts_plain; INSERT 0 3 删除密钥，清理环境。 \ct Token cache cleared in Trusted Domain. gaussdb=# DROP TABLE contacts, contacts_plain; DROP TABLE gaussdb=# DROP COLUMN ENCRYPTION KEY cek1; DROP COLUMN ENCRYPTION KEY gaussdb=# DROP CLIENT MASTER KEY cmk1; DROP CLIENT MASTER KEY 父主题： 内存解密逃生通道 版权所有 © 华为技术有限公司

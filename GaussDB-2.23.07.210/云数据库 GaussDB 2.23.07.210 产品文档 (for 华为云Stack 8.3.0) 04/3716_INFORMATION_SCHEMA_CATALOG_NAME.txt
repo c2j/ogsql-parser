@@ -1,0 +1,1 @@
+INFORMATION_SCHEMA_CATALOG_NAME INFORMATION_SCHEMA_CATALOG_NAME 用来显示当前所在的database的名称。 表1 INFORMATION_SCHEMA_CATALOG_NAME字段 名称 类型 描述 catalog_name information_schema.sql_identifier 当前database的名称 父主题： Information Schema 版权所有 © 华为技术有限公司

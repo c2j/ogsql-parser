@@ -1,0 +1,3 @@
+手动替换证书步骤 手动替换证书步骤 创建自认证证书 自认证证书生成 请联系管理员处理 。 对私钥密码的保护，使用cm encrypt工具，请参考 cm_ctl工具介绍 。 cm_ctl encrypt [-M MODE] -D DATADIR 生成服务器端密钥因子server.key.cipher、server.key.rand。 cm_ctl encrypt -M server -D DATADIR
+please enter the password:（使用密码需要与服务器私钥的保护密码相同） 生成客户端密钥因子client.key.cipher、client.key.rand。 cm_ctl encrypt -M client -D DATADIR
+please enter the password:（使用密码需要与客户端私钥的保护密码相同） 父主题： 安全设计 版权所有 © 华为技术有限公司

@@ -1,0 +1,1 @@
+对一级分区表移动分区 对一级分区表移动分区 使用ALTER TABLE MOVE PARTITION可以对一级分区表移动分区。 例如，通过指定分区名将范围分区表range_sales的分区date_202001移动到表空间tb1中。 ALTER TABLE range_sales MOVE PARTITION date_202001 TABLESPACE tb1; 或者，通过指定分区值将列表分区表list_sales中'0'所对应的分区移动到表空间tb1中。 ALTER TABLE list_sales MOVE PARTITION FOR ('0') TABLESPACE tb1; 父主题： 移动分区 版权所有 © 华为技术有限公司

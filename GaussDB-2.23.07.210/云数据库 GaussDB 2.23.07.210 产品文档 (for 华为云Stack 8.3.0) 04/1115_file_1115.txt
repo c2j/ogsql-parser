@@ -1,0 +1,1 @@
+重分布函数 重分布函数 以下函数为重分布期间gs_redis工具所用的系统函数，用户不要主动调用： pg_get_redis_rel_end_ctid(text, name, int, int) pg_get_redis_rel_start_ctid(text, name, int, int) pg_enable_redis_proc_cancelable() pg_disable_redis_proc_cancelable() pg_tupleid_get_blocknum(tid) pg_tupleid_get_offset(tid) pg_tupleid_get_ctid_to_bigint(ctid) 父主题： 函数和操作符 版权所有 © 华为技术有限公司

@@ -1,0 +1,3 @@
+包含文件 包含文件 将外部文件包含到嵌入SQL程序中，可使用如下语句： EXEC SQL INCLUDE filename;
+EXEC SQL INCLUDE <filename>;
+EXEC SQL INCLUDE "filename"; ecpg预处理器按照如下顺序搜索文件： 当前目录 /usr/local/include GaussDB Kernel 的目录，在编译时定义 /usr/include EXEC SQL INCLUDE "filename"语句仅搜索当前目录。 在每一个目录中，预处理器首先按照给定的文件名搜索，若没找到则会追加.h到文件名后重试（除非指定的文件名已有该后缀）。 文件名是大小写敏感的。 父主题： 预处理指令 版权所有 © 华为技术有限公司

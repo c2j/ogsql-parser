@@ -1,0 +1,66 @@
+{
+  "topic": "安装软件",
+  "term_count": 12,
+  "terms": [
+    {
+      "term": "安装BMS镜像patch软件",
+      "content": "安装BMS镜像patch软件 安装BMS镜像patch软件 安装设置镜像所需的软件和配置，执行全部过程需要约10~15分钟，建议通过ssh远程操作。 该章节仅限于制作BMS镜像使用。 执行 “sh build_gaussdb_image.sh BMS uos_20_1050e_arm64”命令，如下： sh build_gaussdb_image.sh BMS uos_20_1050e_arm64 最终脚本打印出\"build GaussDB image successfully\"，说明镜像所需的软件和配置已经ok，如下所示",
+      "source_file": "6116_BMSpatch.txt"
+    },
+    {
+      "term": "上传patch软件安装包",
+      "content": "上传patch软件安装包 上传patch软件安装包 1）以root用户登录到服务器，将从Support上获取的对应image_patch压缩包拷贝到服务器并解压，进入解压后的image_patch目录； 2）执行命令ifconfig，检查服务器的网卡名称是否为enp3s0，若不是enp3s0，则执行以下命令修改安装脚本中的网卡名称。 例如上面的网卡名称为enp4s0，因此执行以下命令修改安装脚本中的网卡名称（注意：在image_patch目录下执行）： sed -i 's/enp3s0/enp4s0/g' ./gaussdb/deploy/prepare_net_and_ca.sh sed -i 's/enp3s0/enp4s0/g' ./gaussdb/deploy/init_agent_env.sh",
+      "source_file": "6099_patch.txt"
+    },
+    {
+      "term": "升级麒麟内核版本【可选】",
+      "content": "升级麒麟内核版本【可选】 升级麒麟内核版本【可选】 【注意】BMS镜像的操作系统麒麟V10SP1-20210518版本，可以支持NoF-Dorado存储，需要升级Kernel23.8到23.23版本，其它版本跳过这一步操作。 从官方下载升级麒麟操作系统内核升级包 kernel-4.19.90-23.23.v2101.ky10.aarch64.rpm kernel-core-4.19.90-23.23.v2101.ky10.aarch64.rpm kernel-modules-4.19.90-23.23.v2101.ky10.aarch64.rpm kernel-modules-extra-4.19.90-23.23.v2101.ky10.aarch64.rpm kernel-modules-internal-4.19.90-23.23.v2101.ky10.aarch64.rpm 使用远程登录工具（如Xshell、MobaXterm SSH等），通过虚拟机的ip地址，以root用户登录到虚拟机上，并将上面Kernel升级包拷贝到虚拟机上进行升级。 操作步骤 核对kernel升级包 安装所有rpm包 rpm -ivh kernel-* 重启虚拟机 重启虚拟机，重新登录后执行nkvers查看Kernel版本升级到4.19.90-23.23.v2101.ky10.aarch64后说明升级成功，可进一步进行操作，如下图：",
+      "source_file": "6097_file_6097.txt"
+    },
+    {
+      "term": "修改root用户密码过期时间",
+      "content": "修改root用户密码过期时间 修改root用户密码过期时间 1）以root用户登录到服务器 2）运行命令：chage -M 99999 root 修改root用户密码过期时间 3）运行命令：chage -l root 检查root用户密码过期时间为 never",
+      "source_file": "6114_root.txt"
+    },
+    {
+      "term": "清理安装文件，完成安装",
+      "content": "清理安装文件，完成安装 清理安装文件，完成安装 1）进入到安装目录，删除镜像安装文件压缩包，执行脚本等。 2）清理中间文件，退出登录 rm -f /home/Ruby/CA/agent_server.* rm -f /home/Ruby/process/* 【注意】 不要直接用虚拟机的“VNC登录”登到虚拟机上去执行命令，因为在制作过程会卸载一些UI相关的软件，导致看不到命令执行的情况和结果。",
+      "source_file": "6102_file_6102.txt"
+    },
+    {
+      "term": "安装ECS镜像patch软件",
+      "content": "安装ECS镜像patch软件 安装ECS镜像patch软件 安装设置镜像所需的软件和配置，执行全部过程需要约10~15分钟，建议通过ssh远程操作。 该章节仅限于制作ECS镜像使用。 ECS镜像安装从2.23.01.210版本开始可以支持选择麒麟V10的SP1和SP2版本，详见版本配套表。 选择麒麟V10SP2，执行 “sh build_gaussdb_image.sh”或“sh build_gaussdb_image.sh ECS kylin_v10sp2”命令，如下： 如果选择麒麟V10SP1，则需要执行“sh build_gaussdb_image.sh ECS kylin_v10sp1”命令。 最终脚本打印出\"build GaussDB image successfully\"，说明镜像所需的软件和配置已经ok，如下所示",
+      "source_file": "6101_ECSpatch.txt"
+    },
+    {
+      "term": "修改网卡接口脚本配置",
+      "content": "修改网卡接口脚本配置 修改网卡接口脚本配置 通过ifconfig查看主网卡名称如enp3s0。 1）修改服务器的网络配置为DHCP，添加PERSISTENT_DHCLIENT=yes，并修改ONBOOT为yes，如下",
+      "source_file": "6098_file_6098.txt"
+    },
+    {
+      "term": "安装ECS镜像patch软件",
+      "content": "安装ECS镜像patch软件 安装ECS镜像patch软件 安装设置镜像所需的软件和配置，执行全部过程需要约10~15分钟，建议通过ssh远程操作。 该章节仅限于制作ECS镜像使用。 执行 “sh build_gaussdb_image.sh ECS uos_20_1050e_arm64”命令，如下 sh build_gaussdb_image.sh ECS uos_20_1050e_arm64 最终脚本打印出\"build GaussDB image successfully\"，说明镜像所需的软件和配置已经ok，如下所示",
+      "source_file": "6117_ECSpatch.txt"
+    },
+    {
+      "term": "修改网卡接口脚本配置",
+      "content": "修改网卡接口脚本配置 修改网卡接口脚本配置 1）以root用户登录到服务器 2）通过ifconfig查看主网卡名称如enp3s0。 3）修改服务器的网络配置为DHCP，添加PERSISTENT_DHCLIENT=yes，并修改ONBOOT为yes，如下：",
+      "source_file": "6113_file_6113.txt"
+    },
+    {
+      "term": "安装BMS镜像patch软件",
+      "content": "安装BMS镜像patch软件 安装BMS镜像patch软件 安装设置镜像所需的软件和配置，执行全部过程需要约10~15分钟，建议通过ssh远程操作。 该章节仅限于制作BMS镜像使用。 BMS镜像制作有两个版本可选，通过镜像制作的版本配套，确定镜像Patch包版本号，从而明确以下两个版本对应配套的执行命令。 1）2.6.7.312版本： 执行 sh make_prepare_for_image.sh命令，如下 最终脚本打印出\"make prepare for image successfully\"，说明镜像所需的软件和配置已经ok，如下所示 2）2.23.01.200版本： 执行 sh build_gaussdb_image.sh BMS kylin_v10sp1命令，如下 最终脚本打印出\"build GaussDB image successfully\"，说明镜像所需的软件和配置已经ok，如下所示",
+      "source_file": "6100_BMSpatch.txt"
+    },
+    {
+      "term": "上传patch软件安装包",
+      "content": "上传patch软件安装包 上传patch软件安装包 1）以root用户登录到服务器，将从Support上获取的对应image_patch压缩包拷贝到服务器并解压，进入解压后的image_patch目录； 2）执行命令ifconfig，检查服务器的网卡名称是否为enp3s0，若不是enp3s0，则执行以下命令修改安装脚本中的网卡名称。 例如上面的网卡名称为enp4s0，因此执行以下命令修改安装脚本中的网卡名称（注意：在image_patch目录下执行）： sed -i 's/enp3s0/enp4s0/g' ./gaussdb/deploy/prepare_net_and_ca.sh sed -i 's/enp3s0/enp4s0/g' ./gaussdb/deploy/init_agent_env.sh",
+      "source_file": "6115_patch.txt"
+    },
+    {
+      "term": "清理安装文件，完成安装",
+      "content": "清理安装文件，完成安装 清理安装文件，完成安装 1）进入到安装目录，删除镜像安装文件压缩包，执行脚本等。 删除Patch文件压缩包和解压文件。 2）清理中间文件，退出登录 清理临时证书文件和进程文件： rm -f /home/Ruby/CA/agent_server.* rm -f /home/Ruby/process/* 【注意】 不要直接用虚拟机的“VNC登录”登到虚拟机上去执行命令，因为在制作过程会卸载一些UI相关的软件，导致看不到命令执行的情况和结果。",
+      "source_file": "6118_file_6118.txt"
+    }
+  ]
+}

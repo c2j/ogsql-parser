@@ -1,0 +1,1 @@
+GS_ILM GS_ILM GS_ILM系统表提供了ILM策略的主体信息，其中包括策略名称、策略属主、策略类型、策略编号和策略状态。 表1 GS_ILM字段 名称 类型 描述 pidx integer 策略序号，全局唯一以1开始的流水号。 creator oid 策略属主。 name name 策略名称，目前不支持自定义名称，默认名称为p+pidx。 ptype "char" 策略类型： m：DATA MOVEMENT。 flag smallint 取值范围： 0：策略整体启用状态。 1：策略整体被禁用。 父主题： OLTP表压缩 版权所有 © 华为技术有限公司

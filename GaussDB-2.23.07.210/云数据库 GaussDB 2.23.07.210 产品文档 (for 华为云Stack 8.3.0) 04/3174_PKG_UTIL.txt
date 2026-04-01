@@ -1,0 +1,372 @@
+PKG_UTIL PKG_UTIL PKG_UTIL支持的所有接口请参见 表1 ： 表1 PKG_UTIL 接口名称 描述 PKG_UTIL.LOB_GET_LENGTH 获取lob的长度。 PKG_UTIL.LOB_READ 读取lob对象的一部分。 PKG_UTIL.LOB_WRITE 将源对象按照指定格式写入到目标对象。 PKG_UTIL.LOB_APPEND 将lob源对象追加到目标lob对象。 PKG_UTIL.LOB_COMPARE 根据指定长度比较两个lob对象。 PKG_UTIL.LOB_MATCH 返回一个字符串在LOB中第N次出现的位置。 PKG_UTIL.LOB_RESET 将lob的指定位置重置为指定字符。 PKG_UTIL.LOB_GET_LENGTH 该函数获取并返回指定的LOB类型对象的长度。 PKG_UTIL.LOB_READ_HUGE 根据指定的长度及起始位置偏移读取LOB内容的一部分,并返回读取到的LOB和长度。 PKG_UTIL.LOB_WRITEAPPEND_HUGE 该函数将源blob/clob对象读取指定长度内容，并追加到目标blob/clob对象, 并返回目标对象。 PKG_UTIL.LOB_APPEND_HUGE 该函数将源blob/clob对象追加到目标blob/clob对象, 并返回目标对象。 PKG_UTIL.READ_BFILE_TO_BLOB 该函数将源BFILE文件读取成目标BLOB对象, 并返回目标对象。 PKG_UTIL.LOB_COPY_HUGE 该函数将源blob/clob对象，从指定偏移读取指定长度内容，写入到目标blob/clob对象的指定偏移位置, 并返回目标对象。 PKG_UTIL.BLOB_RESET 该函数将BLOB中一段数据set为value值，返回处理后的BLOB以及实际处理的长度。 PKG_UTIL.CLOB_RESET 该函数将一段数据set为空格，返回处理后的CLOB以及实际处理的长度。 PKG_UTIL.LOADBLOBFROMFILE 将源BFILE对象，从指定偏移读取指定长度内容，写入到目标BLOB对象的指定偏移位置, 并返回目标对象，读取位置，写入位置。 PKG_UTIL.LOADCLOBFROMFILE 将源BFILE对象，从指定偏移读取指定长度内容，写入到目标CLOB对象的指定偏移位置, 并返回目标对象，读取位置，写入位置。 PKG_UTIL.LOB_CONVERTTOBLOB_HUGE 将src_clob从指定偏移位置读取指定长度内容转成BLOB，并写入dest_lob的指定位置，amount为要转换的长度。 PKG_UTIL.LOB_CONVERTTOCLOB_HUGE 将src_clob从指定偏移位置读取指定长度内容转成CLOB，并写入dest_lob的指定位置，amount为要转换的长度。 PKG_UTIL.BFILE_GET_LENGTH 该函数获取并返回指定的BFILE文件的长度。 PKG_UTIL.BFILE_OPEN 该函数打开BFILE文件，返回文件描述符。 PKG_UTIL.BFILE_CLOSE 该函数关闭打开的BFILE文件。 PKG_UTIL.LOB_WRITE_HUGE 将源对象从起始位置读取len长度内容，写入目标LOB对象的指定偏移位置，覆盖该位置原本内容, 并返回目标LOB对象。 PKG_UTIL.IO_PRINT 将字符串打印输出。 PKG_UTIL.RAW_GET_LENGTH 获取raw的长度。 PKG_UTIL.RAW_CAST_FROM_VARCHAR2 将varchar2转化为raw。 •PKG_UTIL.RAW_CAST_FROM_... 将binary integer转化为raw。 •PKG_UTIL.RAW_CAST_TO_BI... 将raw转化为binary integer。 PKG_UTIL.RANDOM_SET_SEED 设置随机种子。 PKG_UTIL.RANDOM_GET_VALUE 返回随机值。 PKG_UTIL.FILE_SET_DIRNAME 设置当前操作的目录。 PKG_UTIL.FILE_OPEN 根据指定文件名和设置的目录打开一个文件。 PKG_UTIL.FILE_SET_MAX_LINE_SIZE 设置写入文件一行的最大长度。 PKG_UTIL.FILE_IS_CLOSE 检测一个文件句柄是否关闭。 PKG_UTIL.FILE_READ 从一个打开的文件句柄中读取指定长度的数据。 PKG_UTIL.FILE_READLINE 从一个打开的文件句柄中读取一行数据。 PKG_UTIL.FILE_WRITE 将buffer中的数据写入到文件中。 PKG_UTIL.FILE_WRITELINE 将buffer写入文件，并追加换行符。 PKG_UTIL.FILE_NEWLINE 新起一行。 PKG_UTIL.FILE_READ_RAW 从一个打开的文件句柄中读取指定长度的二进制数据。 PKG_UTIL.FILE_WRITE_RAW 将二进制数据写入到文件中。 PKG_UTIL.FILE_FLUSH 将一个文件句柄中的数据写入到物理文件中。 PKG_UTIL.FILE_CLOSE 关闭一个打开的文件句柄。 PKG_UTIL.FILE_REMOVE 删除一个物理文件，操作需要有对应权限。 PKG_UTIL.FILE_RENAME 对于磁盘上的文件进行重命名，类似Unix的mv。 PKG_UTIL.FILE_SIZE 返回文件大小。 PKG_UTIL.FILE_BLOCK_SIZE 返回文件含有的块数量。 PKG_UTIL.FILE_EXISTS 判断文件是否存在。 PKG_UTIL.FILE_GETPOS 返回文件的偏移量，单位字节。 PKG_UTIL.FILE_SEEK 设置文件位置为指定偏移。 PKG_UTIL.FILE_CLOSE_ALL 关闭一个会话中打开的所有文件句柄。 PKG_UTIL.EXCEPTION_REPORT_ERROR 抛出一个异常。 PKG_UTIL.RANDOM_SET_SEED 设置一个随机数种子。 PKG_UTIL.APP_READ_CLIENT_INFO 读取client_info信息。 PKG_UTIL.APP_SET_CLIENT_INFO 设置client_info信息。 PKG_UTIL.LOB_CONVERTTOBLOB clob类型转换成blob类型。 PKG_UTIL.LOB_CONVERTTOCLOB blob类型转换成clob类型。 PKG_UTIL.LOB_RAWTOTEXT raw类型转成text类型。 PKG_UTIL.LOB_RESET 清空一个lob类型的数据。 PKG_UTIL.LOB_TEXTTORAW text类型转成raw类型。 PKG_UTIL.LOB_RAWTOTEXT raw类型转成text类型。 PKG_UTIL.LOB_WRITE 将数据写入lob类型。 PKG_UTIL.MATCH_EDIT_DISTANCE_SIMILARITY 计算两个字符串的差距。 PKG_UTIL.RAW_CAST_TO_VARCHAR2 raw类型转成varchar2类型。 PKG_UTIL.SESSION_CLEAR_CONTEXT 清空session_context中的属性值。 PKG_UTIL.SESSION_SEARCH_CONTEXT 查找一个属性值。 PKG_UTIL.SESSION_SET_CONTEXT 设置一个属性值。 PKG_UTIL.UTILITY_FORMAT_CALL_STACK 查看存储过程的调用堆栈。 PKG_UTIL.UTILITY_FORMAT_ERROR_BACKTRACE 查看存储过程的错误堆栈。 PKG_UTIL.UTILITY_FORMAT_ERROR_STACK 查看存储过程的报错信息。 PKG_UTIL.UTILITY_GET_TIME 查看系统unix时间戳。 PKG_UTIL.UTILITY_COMPILE_SCHEMA 重编译指定Schema、PACKAGE、函数和存储过程。当编译到的PL/SQL对象遇到报错时，将直接返回，不再继续编译。该PACKAGE已废弃。推荐使用pkg_util.gs_compile_schema。 PKG_UTIL.GS_COMPILE_SCHEMA 重编译指定Schema、PACKAGE、函数和存储过程。当编译遇到PL/SQL对象报错时，异常将会被捕获，继续编译其它对象，直到全部对象编译成功或者到达尝试次数后停止。通过jdbc执行该高级包，sqlstate会打印00000错误码，00000错误码代表成功完成，错误码说明可查看《错误码参考》中“SQL标准错误码说明”章节。 PKG_UTIL.APP_SET_MODULE 设置module的值。 PKG_UTIL.APP_READ_MODULE 读取module的值。 PKG_UTIL.APP_SET_ACTION 设置action的值。 PKG_UTIL.APP_READ_ACTION 读取action的值。 PKG_UTIL.MODIFY_PACKAGE_STATE 用于修改当前会话的PL/SQL的状态，从会话中释放与以前运行的每个PL/SQL程序关联的所有内存。 PKG_UTIL.LOB_GET_LENGTH 该函数LOB_GET_LENGTH获取输入数据的长度。 PKG_UTIL.LOB_GET_LENGTH函数原型为： 1
+2
+3
+4
+5
+6
+7
+8
+9 PKG_UTIL . LOB_GET_LENGTH ( lob IN CLOB ) RETURN INTEGER ; PKG_UTIL . LOB_GET_LENGTH ( lob IN BLOB ) RETURN INTEGER ; 表2 PKG_UTIL.LOB_GET_LENGTH接口参数说明 参数 类型 入参/出参 是否可以为空 描述 lob CLOB/BLOB IN 否 待获取长度的对象。 PKG_UTIL.LOB_READ 该函数LOB_READ读取一个对象，并返回指定部分。 PKG_UTIL.LOB_READ函数原型为： 1
+2
+3
+4
+5
+6
+7 PKG_UTIL . LOB_READ ( lob IN ANYELEMENT , len IN INT , start IN INT , mode IN INT ) RETURN ANYELEMENT 表3 PKG_UTIL.LOB_READ接口参数说明 参数 类型 入参/出参 是否可以为空 描述 lob CLOB/BLOB IN 否 clob或者blob类型数据。 len INT IN 否 返回结果长度。 start INT IN 否 相较于第一个字符的偏移量。 mode INT IN 否 判断读取操作的类型， 0 ：read; 1 : trim; 2 : substr。 PKG_UTIL.LOB_WRITE 该函数LOB_WRITE将源对象按照指定的参数写入目标对象, 并返回目标对象。 PKG_UTIL.LOB_WRITE函数原型为： 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14 PKG_UTIL . LOB_WRITE ( dest_lob INOUT BLOB , src_lob IN RAW len IN INT , start_pos IN BIGINT ) RETURN BLOB ; PKG_UTIL . LOB_WRITE ( dest_lob INOUT CLOB , src_lob IN VARCHAR2 len IN INT , start_pos IN BIGINT ) RETURN CLOB ; 表4 PKG_UTIL.LOB_WRITE接口参数说明 参数 类型 入参/出参 是否可以为空 描述 dest_lob CLOB/BLOB INOUT 否 写入的目标对象。 src_lob CLOB/BLOB IN 否 被写入的源对象。 len INT IN 否 源对象的写入长度。 start_pos BIGINT IN 否 目标对象的写入起始位置。 PKG_UTIL.LOB_APPEND 该函数LOB_APPEND将源blob/clob对象追加到目标blob/clob对象, 并返回目标对象。 PKG_UTIL.LOB_APPEND函数原型为： 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13 PKG_UTIL . LOB_APPEND ( dest_lob INOUT BLOB , src_lob IN BLOB , len IN INT DEFAULT NULL ) RETURN BLOB ; PKG_UTIL . LOB_APPEND ( dest_lob INOUT CLOB , src_lob IN CLOB , len IN INT DEFAULT NULL ) RETURN CLOB ; 表5 PKG_UTIL.LOB_APPEND接口参数说明 参数 类型 入参/出参 是否可以为空 描述 dest_lob BLOB/CLOB INOUT 否 写入的目标blob/clob对象。 src_lob BLOB/CLOB IN 否 被写入的源blob/clob对象。 len INT IN 是 src中读取并append到dest上的长度，默认null，将src全部append上去。 PKG_UTIL.LOB_COMPARE 该函数LOB_COMPARE按照指定的起始位置、个数比较对象是否相同，lob1大则返回1，lob2大返回-1，相等返回0。 PKG_UTIL.LOB_COMPARE函数原型为： 1
+2
+3
+4
+5
+6
+7
+8 PKG_UTIL . LOB_COMPARE ( lob1 IN ANYELEMENT , lob2 IN ANYELEMENT , len IN INT DEFAULT 1073741771 , start_pos1 IN INT DEFAULT 1 , start_pos2 IN INT DEFAULT 1 ) RETURN INTEGER ; 表6 PKG_UTIL.LOB_COMPARE接口参数说明 参数 类型 入参/出参 是否可以为空 描述 lob1 CLOB/BLOB IN 否 待比较的字符串。 lob2 CLOB/BLOB IN 否 待比较的字符串。 len INT IN 否 比较的长度。 start_pos1 INT IN 否 lob1起始偏移量。 start_pos2 INT IN 否 lob2起始偏移量。 PKG_UTIL.LOB_MATCH 该函数LOB_MATCH返回pattern出现在lob对象中第match_nth次的位置。 PKG_UTIL.LOB_MATCH函数原型为： 1
+2
+3
+4
+5
+6
+7 PKG_UTIL . LOB_MATCH ( lob IN ANYELEMENT , pattern IN ANYELEMENT , start IN INT , match_nth IN INT DEFAULT 1 ) RETURN INTEGER ; 表7 PKG_UTIL.LOB_MATCH接口参数说明 参数 类型 入参/出参 是否可以为空 描述 lob CLOB/BLOB IN 否 待比较的字符串。 pattern CLOB/BLOB IN 否 待匹配的pattern。 start INT IN 否 lob的起始比较位置。 match_nth INT IN 否 第几次匹配到。 PKG_UTIL.LOB_RESET 该函数LOB_RESET清除一段数据为字符value。 PKG_UTIL.LOB_RESET函数原型为： 1
+2
+3
+4
+5
+6
+7 PKG_UTIL . LOB_RESET ( lob INOUT BLOB , len INOUT INT , start IN INT DEFAULT 1 , value IN INT DEFAULT 0 ) RETURN RECORD ; 表8 PKG_UTIL.LOB_RESET接口参数说明 参数 类型 入参/出参 是否可以为空 描述 lob BLOB IN 否 待重置的字符串。 len INT IN 否 重置的长度。 start INT IN 否 重置的起始位置。 value INT IN 是 设置的字符。默认值‘0’。 PKG_UTIL.LOB_GET_LENGTH 该函数获取并返回指定的LOB类型对象的长度。 PKG_UTIL.LOB_GET_LENGTH函数原型为： 1
+2
+3
+4
+5
+6
+7 PKG_UTIL . LOB_GET_LENGTH ( lob IN BLOB ) RETURN BIGINT ; PKG_UTIL . LOB_GET_LENGTH ( lob IN CLOB ) RETURN BIGINT ; 表9 PKG_UTIL.LOB_GET_LENGTH接口参数说明 参数 类型 入参/出参 是否可以为空 描述 lob BLOB/CLOB IN 否 指定的LOB类型对象。 PKG_UTIL.LOB_READ_HUGE 根据指定的长度及起始位置偏移读取LOB内容的一部分,并返回读取到的LOB和长度。 PKG_UTIL.LOB_READ_HUGE函数原型为： 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20 PKG_UTIL . LOB_READ_HUGE ( lob IN CLOB , len IN BIGINT , start_pos IN BIGINT , mode IN INTEGER ) RETURN RECORD ; PKG_UTIL . LOB_READ_HUGE ( lob IN BLOB , len IN BIGINT , start_pos IN BIGINT , mode IN INTEGER ) RETURN RECORD ; PKG_UTIL . LOB_READ_HUGE ( fd IN INTEGER , len IN BIGINT , start_pos IN BIGINT , mode IN INTEGER ) RETURN RECORD ; 表10 PKG_UTIL.LOB_READ_HUGE接口参数说明 参数 类型 入参/出参 是否可以为空 描述 lob/fd BLOB/CLOB/INTEGER IN 否 指定的LOB类型对象/BFILE文件的文件描述符。 len BIGINT IN 否 读取长度。 start_pos BIGINT IN 否 读取起始偏移位置。 mode INTEGER IN 否 read模式（0代表read、1代表trim、2代表substr）。 PKG_UTIL.LOB_WRITEAPPEND_HUGE 该函数LOB_WRITEAPPEND_HUGE将源blob/clob对象读取指定长度内容，并追加到目标blob/clob对象, 并返回目标对象。 PKG_UTIL.LOB_WRITEAPPEND_HUGE函数原型为： 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11 PKG_UTIL . LOB_WRITEAPPEND_HUGE ( dest_lob INOUT CLOB , len IN INTEGER , src_lob IN VARCHAR2 ) RETURN CLOB ; PKG_UTIL . LOB_WRITEAPPEND_HUGE ( dest_lob INOUT BLOB , len IN INTEGER , src_lob IN RAW ) RETURN BLOB ; 表11 PKG_UTIL.LOB_WRITEAPPEND_HUGE接口参数说明 参数 类型 入参/出参 是否可以为空 描述 dest_lob BLOB/CLOB INOUT 否 写入的目标BLOB/CLOB对象。 len INTEGER IN 是 写入源对象的长度，为NULL则默认写入源对象全部。 src_lob VARCHAR2/RAW IN 否 被写入的源BLOB/CLOB对象。 PKG_UTIL.LOB_APPEND_HUGE 该函数LOB_APPEND_HUGE将源blob/clob对象追加到目标blob/clob对象, 并返回目标对象。 PKG_UTIL.LOB_APPEND_HUGE函数原型为： 1
+2
+3
+4 PKG_UTIL . LOB_APPEND_HUGE ( dest_lob INOUT BLOB , src_lob IN BLOB ) RETURN BLOB ; 1
+2
+3
+4 PKG_UTIL . LOB_APPEND_HUGE ( dest_lob INOUT CLOB , src_lob IN CLOB ) RETURN CLOB ; 表12 PKG_UTIL.LOB_APPEND_HUGE接口参数说明 参数 类型 入参/出参 是否可以为空 描述 dest_lob BLOB/CLOB INOUT 否 写入的目标BLOB/CLOB对象。 src_lob BLOB/CLOB IN 否 被写入的源BLOB/CLOB对象。 PKG_UTIL.READ_BFILE_TO_BLOB 该函数READ_BFILE_TO_BLOB将源BFILE文件读取成目标BLOB对象, 并返回目标对象。 PKG_UTIL.READ_BFILE_TO_BLOB函数原型为： 1
+2
+3 PKG_UTIL . READ_BFILE_TO_BLOB ( fd IN INTEGER ) RETURN BLOB ; 表13 PKG_UTIL.READ_BFILE_TO_BLOB接口参数说明 参数 类型 入参/出参 是否可以为空 描述 fd INTEGER IN 否 读取的源BFILE文件。 PKG_UTIL.LOB_COPY_HUGE 该函数LOB_COPY_HUGE将源blob/clob对象，从指定偏移读取指定长度内容，写入到目标blob/clob对象的指定偏移位置, 并返回目标对象。 PKG_UTIL.LOB_COPY_HUGE函数原型为： 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15 PKG_UTIL . LOB_COPY_HUGE ( lob_obj INOUT BLOB , source_obj IN BLOB , amount IN BIGINT , dest_offset IN BIGINT DEFAULT 1 , src_offset IN BIGINT DEFAULT 1 ) RETURN BLOB ; PKG_UTIL . LOB_COPY_HUGE ( lob_obj INOUT CLOB , source_obj IN CLOB , amount IN BIGINT , dest_offset IN BIGINT DEFAULT 1 , src_offset IN BIGINT DEFAULT 1 ) RETURN CLOB ; 表14 PKG_UTIL.LOB_COPY_HUGE接口参数说明 参数 类型 入参/出参 是否可以为空 描述 lob_obj BLOB/CLOB INOUT 否 目标BLOB/CLOB对象。 source_obj BLOB/CLOB IN 否 源BLOB/CLOB对象。 amount BIGINT IN 否 拷贝的长度（BLOB以字节为单位，CLOB以字符为单位）。 dest_offset BIGINT IN 否 目标LOB的载入偏移位置。 src_offset BIGINT IN 否 源LOB的读取偏移位置。 PKG_UTIL.BLOB_RESET 该函数将BLOB中一段数据set为value值，返回处理后的BLOB以及实际处理的长度。 PKG_UTIL.BLOB_RESET函数原型为： 1
+2
+3
+4
+5
+6 PKG_UTIL . BLOB_RESET ( lob INOUT BLOB , len INOUT BIGINT , start_pos IN BIGINT DEFAULT 1 , value IN INTEGER DEFAULT 0 ) RETURN RECORD ； 表15 PKG_UTIL.BLOB_RESET接口参数说明 参数 类型 入参/出参 是否可以为空 描述 lob BLOB INOUT 否 待重置的LOB。 len INTEGER INOUT 否 重置的长度，单位字节。 start INTEGER IN 否 重置的起始位置。 value INTEGER IN 是 设置的字符。默认值‘0’。 PKG_UTIL.CLOB_RESET 该函数将一段数据set为空格。 PKG_UTIL.CLOB_RESET函数原型为： 1
+2
+3
+4
+5 PKG_UTIL . CLOB_RESET ( lob INOUT CLOB , len INOUT BIGINT , start_pos IN BIGINT DEFAULT 1 ) RETURN RECORD ; 表16 PKG_UTIL.CLOB_RESET接口参数说明 参数 类型 入参/出参 是否可以为空 描述 lob CLOB INOUT 否 待重置的LOB。 len INTEGER INOUT 否 重置的长度，单位字符。 start INTEGER IN 否 重置的起始位置，默认为1。 PKG_UTIL.LOADBLOBFROMFILE 该函数LOADBLOBFROMFILE将源BFILE对象，从指定偏移读取指定长度内容，写入到目标BLOB对象的指定偏移位置, 并返回目标对象，读取位置，写入位置。 PKG_UTIL.LOADBLOBFROMFILE函数原型为： 1
+2
+3
+4
+5
+6
+7 PKG_UTIL . LOADBLOBFROMFILE ( dest_lob INOUT BLOB , fd IN INTEGER , amount IN BIGINT , dest_offset INOUT BIGINT , file_offset INOUT BIGINT ) RETURN RECORD ; 表17 PKG_UTIL.LOADBLOBFROMFILE接口参数说明 参数 类型 入参/出参 是否可以为空 描述 dest_lob BLOB INOUT 否 IN参数为目标BLOB对象，OUT参数为写入后的目标BLOB对象。 fd INTEGER IN 否 源BFILE对象的文件描述符。 amount BIGINT IN 否 拷贝的长度（BLOB以字节为单位，CLOB以字符为单位）。 dest_offset BIGINT INOUT 否 IN参数为目标LOB的写入偏移位置，OUT参数为实际写入位置。 src_offset BIGINT INOUT 否 IN参数为源BFILE的读取偏移位置，OUT参数为实际读取位置。 PKG_UTIL.LOADCLOBFROMFILE 该函数LOADCLOBFROMFILE将源BFILE对象，从指定偏移读取指定长度内容，写入到目标CLOB对象的指定偏移位置, 并返回目标对象，读取位置，写入位置。 PKG_UTIL.LOADCLOBFROMFILE函数原型为： 1
+2
+3
+4
+5
+6
+7 PKG_UTIL . LOADCLOBFROMFILE ( dest_lob INOUT CLOB , fd IN INTEGER , amount IN BIGINT , dest_offset INOUT BIGINT , file_offset INOUT BIGINT ) RETURN RECORD ; 表18 PKG_UTIL.LOADCLOBFROMFILE接口参数说明 参数 类型 入参/出参 是否可以为空 描述 dest_lob CLOB INOUT 否 IN参数为目标CLOB对象，OUT参数为写入后的目标CLOB对象。 fd INTEGER IN 否 源BFILE对象的文件描述符。 amount BIGINT IN 否 拷贝的长度（CLOB以字符为单位）。 dest_offset BIGINT INOUT 否 IN参数为目标LOB的写入偏移位置，OUT参数为实际写入位置。 src_offset BIGINT INOUT 否 IN参数为源BFILE的读取偏移位置，OUT参数为实际读取位置。 PKG_UTIL.LOB_CONVERTTOBLOB_HUGE 将src_clob从指定偏移位置读取指定长度内容转成BLOB，并写入dest_lob的指定位置，amount为要转换的长度。 PKG_UTIL.LOB_CONVERTTOBLOB_HUGE函数原型为： 1
+2
+3
+4
+5
+6
+7 PKG_UTIL . LOB_CONVERTTOBLOB_HUGE ( dest_lob INOUT BLOB , src_clob IN CLOB , amount IN BIGINT , dest_offset INOUT BIGINT , src_offset INOUT BIGINT ) ) RETURN RECORD ; 表19 PKG_UTIL.LOB_CONVERTTOBLOB_HUGE接口参数说明 参数 类型 入参/出参 是否可以为空 描述 dest_lob BLOB INOUT 否 目标lob。 src_clob CLOB IN 否 要转换的clob。 amount BIGINT IN 否 转换的长度，字符为单位。 dest_offset BIGINT INOUT 否 IN参数为目标lob的写入起始位置，OUT参数为实际的写入位置。 src_offset BIGINT INOUT 否 IN参数为源clob的读取起始位置，OUT参数为实际的读取起始位置。 PKG_UTIL.LOB_CONVERTTOCLOB_HUGE 将src_clob从指定偏移位置读取指定长度内容转成CLOB，并写入dest_lob的指定位置，amount为要转换的长度。 PKG_UTIL.LOB_CONVERTTOCLOB_HUGE函数原型为： 1
+2
+3
+4
+5
+6
+7 PKG_UTIL . LOB_CONVERTTOCLOB_HUGE ( dest_lob INOUT CLOB , src_blob IN BLOB , amount IN BIGINT , dest_offset INOUT BIGINT , src_offset INOUT BIGINT ) ) RETURN RECORD ; 表20 PKG_UTIL.LOB_CONVERTTOCLOB_HUGE接口参数说明 参数 类型 入参/出参 是否可以为空 描述 dest_lob CLOB INOUT 否 目标lob。 src_blob BLOB IN 否 要转换的blob。 amount BIGINT IN 否 转换的长度，字节为单位。 dest_offset BIGINT INOUT 否 IN参数为目标lob的写入起始位置，OUT参数为实际的写入位置。 src_offset BIGINT INOUT 否 IN参数为源clob的读取起始位置，OUT参数为实际的读取起始位置。 PKG_UTIL.BFILE_GET_LENGTH 该函数获取并返回指定的BFILE文件的长度。 PKG_UTIL.BFILE_GET_LENGTH函数原型为： 1
+2
+3 PKG_UTIL . BFILE_GET_LENGTH ( fd INTEGER ) RETURN BIGINT ; 表21 PKG_UTIL.LOB_GET_LENGTH接口参数说明 参数 类型 入参/出参 是否可以为空 描述 fd INTEGER IN 否 指定的BFILE文件的文件描述符。 PKG_UTIL.BFILE_OPEN 该函数打开BFILE文件，返回文件描述符。 PKG_UTIL.BFILE_OPEN函数原型为： 1
+2
+3
+4 PKG_UTIL . BFILE_OPEN ( file_name TEXT , open_mode TEXT ) RETURN INTEGER ; 表22 PKG_UTIL.BFILE_OPEN接口参数说明 参数 类型 入参/出参 是否可以为空 描述 file_name TEXT IN 否 指定的BFILE文件的文件name。 open_mode TEXT IN 否 打开方式（只支持‘r’，read功能）。 PKG_UTIL.BFILE_CLOSE 该函数关闭打开的BFILE文件。 PKG_UTIL.BFILE_CLOSE函数原型为： 1
+2
+3 PKG_UTIL . BFILE_CLOSE ( fd INTEGER ) RETURN bool ; 表23 PKG_UTIL.BFILE_CLOSE接口参数说明 参数 类型 入参/出参 是否可以为空 描述 fd INTEGER IN 否 指定的BFILE文件的文件描述符。 PKG_UTIL.LOB_WRITE_HUGE 将源对象从起始位置读取len长度内容，写入目标LOB对象的指定偏移位置，覆盖该位置原本内容, 并返回目标LOB对象。 PKG_UTIL.LOB_WRITE_HUGE函数原型为： 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13 PKG_UTIL . LOB_WRITE_HUGE ( dest_lob INOUT BLOB , len IN INTEGER , start_pos IN BIGINT , src_lob IN RAW ) RETURN BLOB ; PKG_UTIL . LOB_WRITE_HUGE ( dest_lob INOUT CLOB , len IN INTEGER , start_pos IN BIGINT , src_lob IN VARCHAR2 ) RETURN CLOB ; 表24 PKG_UTIL.LOB_WRITE_HUGE接口参数说明 参数 类型 入参/出参 是否可以为空 描述 dest_lob BLOB/CLOB INOUT 否 IN参数为待写入的目标LOB，OUT参数为写入内容后的LOB len INTEGER IN 否 待写入的长度（BLOB以字节为单位，CLOB以字符为单位） start_pos BIGINT IN 否 在dest_lob中写入的偏移位置 src_lob RAW/VARCHAR2 IN 否 源LOB对象 PKG_UTIL.IO_PRINT 该函数IO_PRINT将一段字符串打印输出。 PKG_UTIL.IO_PRINT函数原型为： 1
+2
+3
+4
+5 PKG_UTIL . IO_PRINT ( format IN TEXT , is_one_line IN BOOLEAN ) RETURN void ; 表25 PKG_UTIL.IO_PRINT接口参数说明 参数 类型 入参/出参 是否可以为空 描述 format TEXT IN 否 待打印输出的字符串。 is_one_line BOOLEAN IN 否 是否输出为一行。 PKG_UTIL.RAW_GET_LENGTH 该函数RAW_GET_LENGTH获取raw的长度。 PKG_UTIL.RAW_GET_LENGTH函数原型为： 1
+2
+3
+4 PKG_UTIL . RAW_GET_LENGTH ( value IN RAW ) RETURN INTEGER ; 表26 PKG_UTIL.RAW_GET_LENGTH接口参数说明 参数 类型 入参/出参 是否可以为空 描述 raw RAW IN 否 待获取长度的对象。 PKG_UTIL.RAW_CAST_FROM_VARCHAR2 该函数RAW_CAST_FROM_VARCHAR2将VARCHAR2转化为RAW。 PKG_UTIL.RAW_CAST_FROM_VARCHAR2函数原型为： 1
+2
+3
+4 PKG_UTIL . RAW_CAST_FROM_VARCHAR2 ( str IN VARCHAR2 ) RETURN raw ; 表27 PKG_UTIL.RAW_CAST_FROM_VARCHAR2接口参数说明 参数 类型 入参/出参 是否可以为空 描述 str VARCHAR2 IN 否 需要转化的源数据。 PKG_UTIL.RAW_CAST_FROM_BINARY_INTEGER 该函数RAW_CAST_FROM_BINARY_INTEGER将BIGINT转化为RAW。 PKG_UTIL.RAW_CAST_FROM_BINARY_INTEGER函数原型为： 1
+2
+3
+4
+5 PKG_UTIL . RAW_CAST_FROM_BINARY_INTEGER ( value IN BIGINT , endianess IN INTEGER ) RETURN RAW ; 表28 PKG_UTIL.RAW_CAST_FROM_BINARY_INTEGER接口参数说明 参数 类型 入参/出参 是否可以为空 描述 value BIGINT IN 否 需要转化的源数据。 endianess INTEGER IN 否 表示字典序的整型值，现支持1或2或3（1代表BIG_ENDIAN，2代表LITTLE_ENDIAN，3代表MACHINE_ENDIAN）。 PKG_UTIL.RAW_CAST_TO_BINARY_INTEGER 该函数RAW_CAST_TO_BINARY_INTEGER将RAW转化为BINARY_INTEGER。 PKG_UTIL.RAW_CAST_TO_BINARY_INTEGER函数原型为： 1
+2
+3
+4
+5 PKG_UTIL . RAW_CAST_TO_BINARY_INTEGER ( value IN RAW , endianess IN INTEGER ) RETURN INTEGER ; 表29 PKG_UTIL.RAW_CAST_TO_BINARY_INTEGER接口参数说明 参数 类型 入参/出参 是否可以为空 描述 value RAW IN 否 需要转化的源数据。 endianess INTEGER IN 否 表示字典序的整型值，现支持1或2或3（1代表BIG_ENDIAN，2代表LITTLE_ENDIAN，3代表MACHINE_ENDIAN）。 PKG_UTIL.RANDOM_SET_SEED 该函数RANDOM_SET_SEED设置随机数种子。 PKG_UTIL.RANDOM_SET_SEED函数原型为： 1
+2
+3
+4 PKG_UTIL . RANDOM_SET_SEED ( seed IN INT ) RETURN integer ; 表30 PKG_UTIL.RANDOM_SET_SEED接口参数说明 参数 类型 入参/出参 是否可以为空 描述 seed INT IN 否 随机数种子。 PKG_UTIL.RANDOM_GET_VALUE 该函数RANDOM_GET_VALUE返回0~1区间的一个随机数，其有效数字为15位。 PKG_UTIL.RANDOM_GET_VALUE函数原型为： 1
+2
+3 PKG_UTIL . RANDOM_GET_VALUE ( ) RETURN NUMERIC ; PKG_UTIL.FILE_SET_DIRNAME 设置当前操作的目录，基本上所有涉及单个目录的操作，都需要调用此方法先设置操作的目录。 PKG_UTIL.FILE_SET_DIRNAME函数原型为： 1
+2
+3
+4 PKG_UTIL . FILE_SET_DIRNAME ( dir IN TEXT ) RETURN BOOL 表31 PKG_UTIL.FILE_SET_DIRNAME接口参数说明 参数 类型 入参/出参 是否可以为空 描述 dirname TEXT IN 否 文件的目录位置，这个字符串是一个目录对象名。 说明： 文件目录的位置，需要添加到系统表 PG_DIRECTORY 中，如果传入的路径和 PG_DIRECTORY 中的路径不匹配，会报路径不存在的错误，下面的涉及location作为参数的函数也是同样的情况。 PKG_UTIL.FILE_OPEN 该函数用来打开一个文件，最多可以同时打开50个文件。并且该函数返回INTEGER类型的一个句柄。 PKG_UTIL.FILE_OPEN函数原型为： 1
+2
+3 PKG_UTIL . FILE_OPEN ( file_name IN TEXT , open_mode IN INTEGER ) 表32 PKG_UTIL.FILE_OPEN接口参数说明 参数 类型 入参/出参 是否可以为空 描述 file_name TEXT IN 否 文件名，包含扩展（文件类型），不包括路径名。如果文件名中包含路径，在OPEN中会被忽略，在Unix系统中，文件名不能以/.结尾。 open_mode INTEGER IN 否 指定文件的打开模式，包含r：read text，w: write text和a: append text。 说明： 对于写操作，会检测文件类型，如果写入elf文件，将会报错并退出。 PKG_UTIL.FILE_SET_MAX_LINE_SIZE 设置写入文件一行的最大长度。 PKG_UTIL.FILE_SET_MAX_LINE_SIZE函数原型为： 1
+2
+3 PKG_UTIL . FILE_SET_MAX_LINE_SIZE ( max_line_size in INTEGER ) RETURN BOOL 表33 PKG_UTIL.FILE_SET_MAX_LINE_SIZE接口参数说明 参数 类型 入参/出参 是否可以为空 描述 max_line_size INTEGER IN 否 每行最大字符数，包含换行符（最小值是1，最大值是32767）。如果没有指定，会指定一个默认值1024。 PKG_UTIL.FILE_IS_CLOSE 检测一个文件句柄是否关闭。 PKG_UTIL.FILE_IS_CLOSE函数原型为： 1
+2
+3
+4 PKG_UTIL . FILE_IS_CLOSE ( file in INTEGER ) RETURN BOOL 表34 PKG_UTIL.FILE_IS_CLOSE接口参数说明 参数 类型 入参/出参 是否可以为空 描述 file INTEGER IN 否 一个打开的文件句柄。 PKG_UTIL.FILE_READ 根据指定的长度从一个打开的文件句柄中读取出数据。 PKG_UTIL.FILE_READ函数原型为： 1
+2
+3
+4 PKG_UTIL . FILE_READ ( file IN INTEGER , buffer OUT TEXT , len IN BIGINT DEFAULT 1024 ) 表35 PKG_UTIL.FILE_READ接口参数说明 参数 类型 入参/出参 是否可以为空 描述 file INTEGER IN 否 通过调用OPEN打开的文件句柄，文件必须以读的模式打开，否则会抛出INVALID_OPERATION的异常。 buffer TEXT IN 否 用于接收数据的BUFFER。 len BIGINT IN 是 从文件中读取的字节数。 PKG_UTIL.FILE_READLINE 根据指定的长度从一个打开的文件句柄中读取出一行数据。 PKG_UTIL.FILE_READLINE函数原型为： 1
+2
+3
+4 PKG_UTIL . FILE_READLINE ( file IN INTEGER , buffer OUT TEXT , len IN INTEGER DEFAULT NULL ) 表36 PKG_UTIL.FILE_READLINE接口参数说明 参数 类型 入参/出参 是否可以为空 描述 file INTEGER IN 否 通过调用OPEN打开的文件句柄，文件必须以读的模式打开，否则会抛出INVALID_OPERATION的异常。 buffer TEXT IN 否 用于接收数据的BUFFER。 len INTEGER IN 是 从文件中读取的字节数，默认是NULL。如果是默认NULL，会使用max_line_size来指定大小。 PKG_UTIL.FILE_WRITE 将BUFFER中指定的数据写入到文件中。 PKG_UTIL.FILE_WRITE函数原型为： 1
+2
+3
+4
+5 PKG_UTIL . FILE_WRITE ( file IN INTEGER , buffer IN TEXT ) RETURN BOOL 表37 PKG_UTIL.FILE_WRITE接口参数说明 参数 类型 入参/出参 是否可以为空 描述 file INTEGER IN 否 一个打开的文件句柄。 buffer TEXT IN 否 要写入文件的文本数据，BUFFER的最大值是32767个字节。如果没有指定值，默认是1024个字节，没有刷新到文件之前，一系列的PUT操作的BUFFER总和不能超过32767个字节。 说明： 对于写操作，会检测文件类型，如果写入elf文件，将会报错并退出。 PKG_UTIL.FILE_NEWLINE 向一个打开的文件中写入一个行终结符。行终结符和平台相关。 PKG_UTIL.FILE_NEWLINE函数原型为： 1
+2
+3
+4 PKG_UTIL . FILE_NEWLINE ( file IN INTEGER ) RETURN BOOL 表38 PKG_UTIL.FILE_NEWLINE接口参数说明 参数 类型 入参/出参 是否可以为空 描述 file INTEGER IN 否 一个打开的文件句柄。 PKG_UTIL.FILE_WRITELINE 向一个打开的文件中写入一行。 PKG_UTIL.FILE_WRITELINE函数原型为： 1
+2
+3
+4
+5 PKG_UTIL . FILE_WRITELINE ( file IN INTEGER , buffer IN TEXT ) RETURN BOOL 表39 PKG_UTIL.FILE_WRITELINE接口参数说明 参数 类型 入参/出参 是否可以为空 描述 file INTEGER IN 否 一个打开的文件句柄。 buffer TEXT IN 否 要写入的内容。 PKG_UTIL.FILE_READ_RAW 从一个打开的文件句柄中读取指定长度的二进制数据，返回读取的二进制数据，返回类型为RAW。 PKG_UTIL.FILE_READ_RAW函数原型为： 1
+2
+3
+4
+5 PKG_UTIL . FILE_READ_RAW ( file IN INTEGER , length IN INTEGER DEFAULT NULL ) RETURN raw 表40 PKG_UTIL.FILE_READ_RAW接口参数说明 参数 类型 入参/出参 是否可以为空 描述 file INTEGER IN 否 一个打开的文件句柄。 length INTEGER IN 是 要读取的长度，默认为NULL。默认情况下读取文件中所有数据，最大为1G。 PKG_UTIL.FILE_WRITE_RAW 向一个打开的文件中写入传入二进制对象RAW。插入成功返回true。 PKG_UTIL.FILE_WRITE_RAW函数原型为： 1
+2
+3
+4
+5 PKG_UTIL . FILE_WRITE_RAW ( file IN INTEGER , r IN RAW ) RETURN BOOL 表41 PKG_UTIL.FILE_NEWLINE接口参数说明 参数 类型 入参/出参 是否可以为空 描述 file INTEGER IN 否 一个打开的文件句柄。 r RAW IN 是 准备传入文件的数据 说明： 对于写操作，会检测文件类型，如果写入elf文件，将会报错并退出。 PKG_UTIL.FILE_FLUSH 一个文件句柄中的数据要写入到物理文件中，缓冲区中的数据必须要有一个行终结符。当文件必须在打开时读取，刷新非常有用。例如，调试信息可以刷新到文件中，以便立即读取。 PKG_UTIL.FILE_FLUSH函数原型为： 1
+2
+3
+4 PKG_UTIL . FILE_FLUSH （ file IN INTEGER ） RETURN VOID 表42 PKG_UTIL.FILE_FLUSH接口参数说明 参数 类型 入参/出参 是否可以为空 描述 file INTEGER IN 否 一个打开的文件句柄。 PKG_UTIL.FILE_CLOSE 关闭一个打开的文件句柄。 PKG_UTIL.FILE_CLOSE函数原型为： 1
+2
+3
+4 PKG_UTIL . FILE_CLOSE （ file IN INTEGER ） RETURN BOOL 表43 PKG_UTIL.FILE_CLOSE接口参数说明 参数 类型 入参/出参 是否可以为空 描述 file INTEGER IN 否 一个打开的文件句柄。 PKG_UTIL.FILE_REMOVE 删除一个磁盘文件，操作的时候需要有充分的权限。 PKG_UTIL.FILE_REMOVE函数原型为： 1
+2
+3
+4 PKG_UTIL . FILE_REMOVE ( file_name IN TEXT ) RETURN VOID 表44 PKG_UTIL.FILE_REMOVE接口参数说明 参数 类型 入参/出参 是否可以为空 描述 filen_ame TEXT IN 否 要删除的文件名 PKG_UTIL.FILE_RENAME 对于磁盘上的文件进行重命名，类似Unix的mv。 PKG_UTIL.FILE_RENAME函数原型为： 1
+2
+3
+4
+5
+6 PKG_UTIL . FILE_RENAME ( src_dir IN TEXT , src_file_name IN TEXT , dest_dir IN TEXT , dest_file_name IN TEXT , overwrite BOOLEAN DEFAULT FALSE ) 表45 PKG_UTIL.FILE_RENAME接口参数说明 参数 类型 入参/出参 是否可以为空 描述 src_dir TEXT IN 是 源文件目录（大小写敏感）。 说明： 文件目录的位置，需要添加到系统表 PG_DIRECTORY 中，如果传入的路径和 PG_DIRECTORY 中的路径不匹配，会报路径不存在的错误。 在打开guc参数safe_data_path时，用户只能通过高级包操作safe_data_path指定文件路径下的文件。 src_file_name TEXT IN 是 源文件名。 dest_dir TEXT IN 是 目标文件目录（大小写敏感）。 说明： 文件目录的位置，需要添加到系统表 PG_DIRECTORY 中，如果传入的路径和 PG_DIRECTORY 中的路径不匹配，会报路径不存在的错误。 在打开guc参数safe_data_path时，用户只能通过高级包操作safe_data_path指定文件路径下的文件。 dest_file_name TEXT IN 是 目标文件名。 overwrite BOOLEAN IN 否 默认是false，如果目的目录下存在一个同名的文件，不会进行重写。 PKG_UTIL.FILE_SIZE 返回指定的文件大小。 PKG_UTIL.FILE_SIZE函数原型为： 1
+2
+3 BIGINT PKG_UTIL . FILE_SIZE ( file_name IN TEXT ) RETURN BIGINT 表46 PKG_UTIL.FILE_SIZE接口参数说明 参数 类型 入参/出参 是否可以为空 描述 file_name TEXT IN 否 文件名 PKG_UTIL.FILE_BLOCK_SIZE 返回指定的文件含有的块数量。 PKG_UTIL.FILE_BLOCK_SIZE函数原型为： 1
+2
+3 BIGINT PKG_UTIL . FILE_BLOCK_SIZE ( file_name IN TEXT ) RETURN BIGINT 表47 PKG_UTIL.FILE_BLOCK_SIZE接口参数说明 参数 类型 入参/出参 是否可以为空 描述 file_name TEXT IN 否 文件名 PKG_UTIL.FILE_EXISTS 判断指定的文件是否存在。 PKG_UTIL.FILE_EXISTS函数原型为： 1
+2
+3
+4 PKG_UTIL . FILE_EXISTS ( file_name IN TEXT ) RETURN BOOL 表48 PKG_UTIL.FILE_EXISTS接口参数说明 参数 类型 入参/出参 是否可以为空 描述 file_name TEXT IN 否 文件名 PKG_UTIL.FILE_GETPOS 返回文件的偏移量，单位字节。 PKG_UTIL.FILE_GETPOS函数原型为： 1
+2
+3
+4 PKG_UTIL . FILE_GETPOS ( file IN INTEGER ) RETURN BIGINT 表49 PKG_UTIL.FILE_GETPOS接口参数说明 参数 类型 入参/出参 是否可以为空 描述 file INTEGER IN 否 一个打开的文件句柄。 PKG_UTIL.FILE_SEEK 根据用户指定的字节数向前或者向后调整文件指针的位置。 PKG_UTIL.FILE_SEEK函数原型为： 1
+2
+3
+4
+5 VOID PKG_UTIL . FILE_SEEK ( file IN INTEGER , start IN BIGINT ) RETURN VOID 表50 PKG_UTIL.FILE_SEEK接口参数说明 参数 类型 入参/出参 是否可以为空 描述 file INTEGER IN 否 一个打开的文件句柄。 start BIGINT IN 否 文件偏移，字节。 PKG_UTIL.FILE_CLOSE_ALL 关闭一个会话中打开的所有的文件句柄。 PKG_UTIL.FILE_CLOSE_ALL函数原型为： PKG_UTIL.FILE_CLOSE_ALL(
+)
+RETURN VOID 表51 PKG_UTIL.FILE_CLOSE_ALL接口参数说明 参数 类型 入参/出参 是否可以为空 描述 无 无 无 无 无 PKG_UTIL.EXCEPTION_REPORT_ERROR 抛出一个异常。 PKG_UTIL.EXCEPTION_REPORT_ERROR函数原型为： 1
+2
+3
+4
+5
+6 PKG_UTIL . EXCEPTION_REPORT_ERROR ( code INTEGER , log TEXT , flag BOOLEAN DEFAULT FALSE ) RETURN INTEGER 表52 PKG_UTIL.EXCEPTION_REPORT_ERROR接口参数说明 参数 类型 入参/出参 是否可以为空 描述 code INTEGER IN 否 抛异常所打印的错误码。 log TEXT IN 否 抛异常所打印的日志提示信息。 flag BOOLEAN IN 是 保留字段，默认为false。 PKG_UTIL.APP_READ_CLIENT_INFO 读取client_info信息。 PKG_UTIL.app_read_client_info函数原型为： 1
+2
+3 PKG_UTIL . app_read_client_info ( OUT buffer TEXT ) RETURN TEXT 表53 PKG_UTIL.APP_READ_CLIENT_INFO接口参数说明 参数 类型 入参/出参 是否可以为空 描述 buffer TEXT IN 否 返回的client_info信息。 PKG_UTIL.APP_SET_CLIENT_INFO 设置client_info信息。 PKG_UTIL.APP_SET_CLIENT_INFO函数原型为： 1
+2
+3 PKG_UTIL . APP_SET_CLIENT_INFO ( str TEXT ) 表54 PKG_UTIL.APP_SET_CLIENT_INFO接口参数说明 参数 类型 入参/出参 是否可以为空 描述 str TEXT IN 否 要设置的client_info信息。 PKG_UTIL.LOB_CONVERTTOBLOB 将clob转成blob，amount为要转换的长度。 PKG_UTIL.LOB_CONVERTTOBLOB函数原型为： 1
+2
+3
+4
+5
+6
+7 PKG_UTIL . lob_converttoblob ( dest_lob BLOB , src_clob CLOB , amount INTEGER , dest_offset INTEGER , src_offset INTEGER ) RETURN RAW 表55 PKG_UTIL.LOB_CONVERTTOBLOB接口参数说明 参数 类型 入参/出参 是否可以为空 描述 dest_lob BLOB IN 否 目标lob。 src_clob CLOB IN 否 要转换的clob。 amount INTEGER IN 否 转换的长度。 dest_offset INTEGER IN 否 目标lob的起始位置。 src_offset INTEGER IN 否 源clob的起始位置。 PKG_UTIL.LOB_CONVERTTOCLOB 将blob转成clob，amount为要转换的长度。 PKG_UTIL.lob_converttoclob函数原型为： 1
+2
+3
+4
+5
+6
+7 PKG_UTIL . lob_converttoclob ( dest_lob CLOB , src_blob BLOB , amount INTEGER , dest_offset INTEGER , src_offset INTEGER ) RETURN TEXT 表56 PKG_UTIL.LOB_CONVERTTOCLOB接口参数说明 参数 类型 入参/出参 是否可以为空 描述 dest_lob CLOB IN 否 目标lob。 src_blob BLOB IN 否 要转换的blob。 amount INTEGER IN 否 转换的长度。 dest_offset INTEGER IN 否 目标lob的起始位置。 src_offset INTEGER IN 否 源clob的起始位置。 PKG_UTIL.LOB_TEXTTORAW 将TEXT转成RAW。 PKG_UTIL.LOB_TEXTTORAW函数原型为： 1
+2
+3
+4 PKG_UTIL . LOB_TEXTTORAW ( src_lob CLOB ) RETURN RAW 表57 PKG_UTIL.LOB_TEXTTORAW接口参数说明 参数 类型 入参/出参 是否可以为空 描述 src_lob CLOB IN 否 要转换的lob数据。 PKG_UTIL.LOB_RAWTOTEXT 将RAW转成TEXT。 PKG_UTIL.LOB_RAWTOTEXT函数原型为： 1
+2
+3
+4 PKG_UTIL . LOB_RAWTOTEXT ( src_lob IN BLOB ) RETURN TEXT 表58 PKG_UTIL.LOB_RAWTOTEXT接口参数说明 参数 类型 入参/出参 是否可以为空 描述 src_lob BLOB IN 否 要转换的lob数据。 PKG_UTIL.MATCH_EDIT_DISTANCE_SIMILARITY 计算两个字符串的差别。 PKG_UTIL.MATCH_EDIT_DISTANCE_SIMILARITY函数原型为： 1
+2
+3
+4
+5 PKG_UTIL . MATCH_EDIT_DISTANCE_SIMILARITY ( str1 TEXT , str2 TEXT ) RETURN INTEGER 表59 PKG_UTIL.MATCH_EDIT_DISTANCE_SIMILARITY接口参数说明 参数 类型 入参/出参 是否可以为空 描述 str1 TEXT IN 否 第一个字符串。 str2 TEXT IN 否 第二个字符串。 PKG_UTIL.RAW_CAST_TO_VARCHAR2 RAW类型转成VARCHAR2。 PKG_UTIL.RAW_CAST_TO_VARCHAR2函数原型为： 1
+2
+3
+4 PKG_UTIL . RAW_CAST_TO_VARCHAR2 ( str RAW ) RETURN VARCHAR2 表60 PKG_UTIL.RAW_CAST_TO_VARCHAR2接口参数说明 参数 类型 入参/出参 是否可以为空 描述 str RAW IN 否 十六进制字符串 PKG_UTIL.SESSION_CLEAR_CONTEXT 清除session_context信息。 PKG_UTIL.SESSION_CLEAR_CONTEXT函数原型为： 1
+2
+3
+4
+5
+6 PKG_UTIL . SESSION_CLEAR_CONTEXT ( namespace TEXT , client_identifier TEXT , attribute TEXT ) RETURN INTEGER 表61 PKG_UTIL.SESSION_CLEAR_CONTEXT接口参数说明 参数 类型 入参/出参 是否可以为空 描述 namespace TEXT IN 否 属性的命名空间。 client_identifier TEXT IN 否 client_identifier，一般与namespace相同即可，当为null时，默认修改所有namespace。 attribute TEXT IN 否 要清除的属性值。 PKG_UTIL.SESSION_SEARCH_CONTEXT 查找属性值。 PKG_UTIL.SESSION_SEARCH_CONTEXT函数原型为： 1
+2
+3
+4
+5 PKG_UTIL . SESSION_SEARCH_CONTEXT ( namespace TEXT , attribute TEXT ) RETURN INTEGER 表62 PKG_UTIL.SESSION_SEARCH_CONTEXT接口参数说明 参数 类型 入参/出参 是否可以为空 描述 namespace TEXT IN 否 属性的命名空间。 attribute TEXT IN 否 要查找的属性值。 PKG_UTIL.SESSION_SET_CONTEXT 设置属性值。 PKG_UTIL.SESSION_SET_CONTEXT函数原型为： 1
+2
+3
+4
+5
+6 PKG_UTIL . SESSION_SET_CONTEXT ( namespace TEXT , attribute TEXT , value TEXT ) RETURN INTEGER 表63 PKG_UTIL.SESSION_SET_CONTEXT接口参数说明 参数 类型 入参/出参 是否可以为空 描述 namespace TEXT IN 否 属性的命名空间 attribute TEXT IN 否 要设置的属性 value TEXT IN 否 属性对应的值 PKG_UTIL.UTILITY_GET_TIME 打印unix时间戳。 PKG_UTIL.UTILITY_GET_TIME函数原型为： 1
+2 PKG_UTIL . UTILITY_GET_TIME () RETURN BIGINT PKG_UTIL.UTILITY_FORMAT_ERROR_BACKTRACE 查看存储过程的错误堆栈。 PKG_UTIL.UTILITY_FORMAT_ERROR_BACKTRACE函数原型为： 1
+2 PKG_UTIL . UTILITY_FORMAT_ERROR_BACKTRACE () RETURN TEXT PKG_UTIL.UTILITY_FORMAT_ERROR_STACK 查看存储过程的报错信息。 PKG_UTIL.UTILITY_FORMAT_ERROR_STACK函数原型为： 1
+2 PKG_UTIL . UTILITY_FORMAT_ERROR_STACK () RETURN TEXT PKG_UTIL.UTILITY_COMPILE_SCHEMA 重编译指定schema中的包函数和存储过程。 PKG_UTIL.UTILITY_COMPILE_SCHEMA函数原型为： PKG_UTIL.UTILITY_COMPILE_SCHEMA (
+schema IN VARCHAR2,
+compile_all IN BOOLEAN DEFAULT TRUE,
+reuse_settings IN BOOLEAN DEFAULT FALSE
+)
+RETURNS VOID PKG_UTIL.GS_COMPILE_SCHEMA 重编译指定schema中的包函数和存储过程。 PKG_UTIL.GS_COMPILE_SCHEMA存储过程原型为： PKG_UTIL.GS_COMPILE_SCHEMA (
+schema_name IN VARCHAR2 DEFAULT NULL,
+compile_all IN BOOLEAN DEFAULT FALSE,
+retry_times IN INT DEFAULT 10
+) 表64 PKG_UTIL.GS_COMPILE_SCHEMA接口参数说明 参数 类型 入参/出参 是否可以为空 描述 schema_name VARCHAR2 IN 是 命名空间的名称。 compile_all BOOLEAN IN 是 编译所有。 false：编译pg_object表中状态为false的包、函数、存储过程。 true：编译pg_object表中所有的包、函数、存储过程。 retry_times INT IN 是 重试次数。 PKG_UTIL.UTILITY_FORMAT_CALL_STACK 查看存储过程调用堆栈。 PKG_UTIL.UTILITY_FORMAT_CALL_STACK函数原型为： 1
+2 PKG_UTIL . UTILITY_FORMAT_CALL_STACK () RETURN TEXT 示例： -- 删除schema
+drop schema if exists pkg_var_test cascade;
+-- 创建pkg_var_test
+create schema pkg_var_test;
+-- 设置schema和参数
+set current_schema = pkg_var_test;
+set behavior_compat_options ='plpgsql_dependency';
+-- 创建包
+create or replace package test_pkg as
+    referenced_var int;
+    unreferenced_var int;
+end test_pkg;
+/
+-- 创建函数
+create or replace function test_func return int
+is
+begin
+  return 1;
+end;
+/
+-- 创建存储过程
+create or replace procedure test_proc
+is
+  proc_var int;
+begin
+  proc_var := 1;
+end;
+/
+-- 重编译pkg_var_test下的包 函数和存储过程
+call pkg_util.utility_compile_schema('pkg_var_test');
+或者
+call pkg_util.gs_compile_schema(' ',false,2);
+-- 删掉pkg_var_test 
+drop schema if exists pkg_var_test cascade; PKG_UTIL.APP_SET_MODULE 设置module的值。 PKG_UTIL.APP_SET_MODULE存储过程原型为： PKG_UTIL.APP_SET_MODULE (
+    str TEXT)
+RETURNS VOID 表65 PKG_UTIL.APP_SET_MODULE接口参数说明 参数 类型 入参/出参 是否可以为空 描述 text TEXT IN 是 要设置module的值。 示例： CALL PKG_UTIL.APP_SET_MODULE('set module'); PKG_UTIL.APP_READ_MODULE 读取module的值。 PKG_UTIL.APP_READ_MODULE存储过程原型为： PKG_UTIL.APP_READ_MODULE(
+OUT BUFFER TEXT
+) 表66 PKG_UTIL.APP_READ_MODULE接口参数说明 参数 类型 入参/出参 是否可以为空 描述 buffer TEXT OUT 是 返回的module的值。 示例： DECLARE
+      module VARCHAR2(64);
+BEGIN
+      PKG_UTIL.APP_READ_MODULE(module);
+      DBE_OUTPUT.PRINT_LINE(module);
+END;
+/ PKG_UTIL.APP_SET_ACTION 设置action的值。 PKG_UTIL.APP_SET_ACTION存储过程原型为： PKG_UTIL.APP_SET_ACTION (
+    str TEXT)
+RETURNS VOID 表67 PKG_UTIL.APP_SET_ACTION接口参数说明 参数 类型 入参/出参 是否可以为空 描述 text TEXT IN 是 要设置action的值。 示例： CALL PKG_UTIL.APP_SET_ACTION('set action'); PKG_UTIL.APP_READ_ACTION 读取action的值。 PKG_UTIL.APP_READ_ACTION存储过程原型为： PKG_UTIL.APP_READ_ACTION(
+OUT buffer TEXT
+) 表68 PKG_UTIL.APP_READ_ACTION接口参数说明 参数 类型 入参/出参 是否可以为空 描述 buffer TEXT OUT 是 返回的action的值。 示例： DECLARE
+      action VARCHAR2(64);
+BEGIN
+      PKG_UTIL.APP_READ_ACTION(action);
+      DBE_OUTPUT.PRINT_LINE(action);
+END;
+/ PKG_UTIL.MODIFY_PACKAGE_STATE 用于修改当前会话的PL/SQL的状态。 PKG_UTIL.MODIFY_PACKAGE_STATE存储过程原型为： PKG_UTIL.MODIFY_PACKAGE_STATE (
+    flags INT)
+RETURNS VOID 表69 PKG_UTIL.MODIFY_PACKAGE_STATE接口参数说明 参数 类型 入参/出参 是否可以为空 描述 flags INT INT 是 对PL/SQL采取的操作的位标志。 当flags=1时，在执行完最顶层的PL/SQL后，会释放会话中目前运行的PL/SQL的会话缓存。清除任何包全局的当前值并关闭缓存的游标。在后续使用时，PL/SQL将重新实例化，并重新初始化包全局。 不支持其他位标志。 示例： CALL PKG_UTIL.MODIFY_PACKAGE_STATE(1); 父主题： 基础接口 版权所有 © 华为技术有限公司

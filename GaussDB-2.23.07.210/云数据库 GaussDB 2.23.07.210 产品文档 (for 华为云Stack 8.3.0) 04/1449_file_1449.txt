@@ -1,0 +1,19 @@
+空语句 空语句 在PL/SQL程序中，可以用NULL语句来说明“不用做任何事情”，相当于一个占位符，可以使某些语句变得有意义，提高程序的可读性。 语法 空语句的用法如下： 1
+2
+3
+4
+5
+6
+7
+8
+9 DECLARE … BEGIN … IF v_num IS NULL THEN NULL ; -- 不需要处理任何数据。 END IF ; END ; / 参数说明： v_num：变量或表达式。 示例 gaussdb=# DECLARE
+    v_num integer default NULL;
+BEGIN
+    IF v_num IS NOT NULL THEN
+        raise info 'v_num is NULL'; 
+    ELSE
+        NULL; -- 不需要处理任何数据。
+    END IF;
+END;
+/
+ANONYMOUS BLOCK EXECUTE 父主题： 控制语句 版权所有 © 华为技术有限公司

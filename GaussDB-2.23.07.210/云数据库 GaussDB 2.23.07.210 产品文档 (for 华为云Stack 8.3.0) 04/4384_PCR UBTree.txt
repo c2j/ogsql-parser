@@ -1,0 +1,1 @@
+PCR UBTree空间管理 PCR UBTree空间管理 空间管理操作与RCR UBTree基本一致，区别是：PCR UBTree支持闪回，所以页面可回收的时间点由OldestXmin改成了GlobalRecycleXid。 父主题： PCR UBTree 版权所有 © 华为技术有限公司

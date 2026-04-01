@@ -1,0 +1,126 @@
+{
+  "topic": "通信",
+  "term_count": 24,
+  "terms": [
+    {
+      "term": "PGXC_COMM_DELAY",
+      "content": "PGXC_COMM_DELAY PGXC_COMM_DELAY PGXC_COMM_DELAY视图展示所有DN的通信库时延状态，仅system admin和monitor admin可以查看。 表1 PGXC_COMM_DELAY字段 名称 类型 描述 node_name text 节点名称。 remote_name text 连接对端节点的对端节点名称。 remote_host text 连接对端IP的对端地址。 stream_num integer 当前物理连接使用的stream逻辑连接数量。 min_delay integer 当前物理连接一分钟内探测到的最小时延，单位微秒。 说明： 负数结果无效，请重新等待时延状态更新后再执行查询。 average integer 当前物理连接一分钟内探测时延的平均值，单位微秒。 max_delay integer 当前物理连接一分钟内探测到的最大时延，单位微秒。",
+      "source_file": "1705_PGXC_COMM_DELAY.txt"
+    },
+    {
+      "term": "GS_GET_LISTEN_ADDRESS_EXT_INFO",
+      "content": "GS_GET_LISTEN_ADDRESS_EXT_INFO GS_GET_LISTEN_ADDRESS_EXT_INFO GS_GET_LISTEN_ADDRESS_EXT_INFO视图描述了查询当前实例扩展IP配置信息。当前不支持查询该视图。 表1 GS_GET_LISTEN_ADDRESS_EXT_INFO字段 名称 类型 描述 node_name text 当前实例名。 host text 当前实例侦听IP地址。 port bigint 当前实例侦听的port。 ext_listen_ip text 当前实例配置扩展IP地址。",
+      "source_file": "3411_GS_GET_LISTEN_ADDRESS_EXT_INFO.txt"
+    },
+    {
+      "term": "GS_GET_LISTEN_ADDRESS_EXT_INFO",
+      "content": "GS_GET_LISTEN_ADDRESS_EXT_INFO GS_GET_LISTEN_ADDRESS_EXT_INFO GS_GET_LISTEN_ADDRESS_EXT_INFO视图描述了查询当前DN实例扩展IP配置信息。具体使用场景参见 •gs_get_listen_address_ext_info() 。 表1 GS_GET_LISTEN_ADDRESS_EXT_INFO字段 名称 类型 描述 node_name text DN实例名。 host text DN实例侦听IP。 port bigint DN实例侦听的port。 ext_listen_ip text DN实例配置扩展IP。",
+      "source_file": "1697_GS_GET_LISTEN_ADDRESS_EXT_INFO.txt"
+    },
+    {
+      "term": "GS_STATIC_THREADPOOL_CTRL_STATUS",
+      "content": "GS_STATIC_THREADPOOL_CTRL_STATUS GS_STATIC_THREADPOOL_CTRL_STATUS GS_STATIC_THREADPOOL_CTRL_STATUS返回当前实例线程池相关静态线程的统计信息。线程池开启状态下，CN线程池支持该视图查询。连接DN查询返回空行。该视图默认为PUBLIC权限。 表1 GS_STATIC_THREADPOOL_CTRL_STATUS字段 名称 类型 描述 node_name text 实例名。 group_id integer 线程池group组id。 worker_info text 描述当前group组线程池运行中的动态的统计信息。包括如下信息： default、default_s：线程数量。动态线程池默认值，静态线程池默认值。 expect、expect_s：线程数量。动态线程池预期值，静态线程池预期值。 actual：实际运行的线程数量，包括动态池线程和静态池线程。 static threads limit：当前group组配置的静态池线程数。 has static threads：当前group组是否创建静态池。默认为0，表示没有创建。 idle static threads：空闲的静态池线程个数。 wait session num：等待的会话数。",
+      "source_file": "1698_GS_STATIC_THREADPOOL_CTRL_STATUS.txt"
+    },
+    {
+      "term": "PG_COMM_SEND_STREAM",
+      "content": "PG_COMM_SEND_STREAM PG_COMM_SEND_STREAM PG_COMM_SEND_STREAM视图展示单个DN上所有的通信库发送流状态。 表1 PG_COMM_SEND_STREAM字段 名称 类型 描述 node_name text 节点名称。 local_tid bigint 使用此通信流的线程ID。 remote_name text 连接对端节点名称。 remote_tid bigint 连接对端线程ID。 idx integer 通信对端DN在本DN内的标识编号。 sid integer 通信流在物理连接中的标识编号。 tcp_sock integer 通信流所使用的tcp通信socket。 state text 通信流当前的状态。 UNKNOWN：表示当前逻辑连接状态未知。 READY：表示逻辑连接已就绪。 RUN：表示逻辑连接发送报文正常。 HOLD：表示逻辑连接发送报文等待中。 CLOSED：表示关闭逻辑连接。 TO_CLOSED：表示将会关闭逻辑连接。 query_id bigint 通信流对应的debug_query_id编号。 pn_id integer 通信流所执行查询的plan_node_id编号。 send_smp integer 通信流所执行查询send端的smpid编号。 recv_smp integer 通信流所执行查询recv端的smpid编号。 send_bytes bigint 通信流发送的数据总量，单位Byte。 time bigint 通信流当前生命周期使用时长，单位ms。 speed bigint 通信流的平均发送速率，单位Byte/s。 quota bigint 通信流当前的通信配额值，单位Byte。 wait_quota bigint 通信流等待quota值产生的额外时间开销，单位ms。",
+      "source_file": "1701_PG_COMM_SEND_STREAM.txt"
+    },
+    {
+      "term": "PG_COMM_RECV_STREAM",
+      "content": "PG_COMM_RECV_STREAM PG_COMM_RECV_STREAM PG_COMM_RECV_STREAM视图展示单个DN上所有的通信库接收流状态。 表1 PG_COMM_RECV_STREAM字段 名称 类型 描述 node_name text 节点名称。 local_tid bigint 使用此通信流的线程ID。 remote_name text 连接对端节点名称。 remote_tid bigint 连接对端线程ID。 idx integer 通信对端DN在本DN内的标识编号。 sid integer 通信流在物理连接中的标识编号。 tcp_sock integer 通信流所使用的tcp通信socket。 state text 通信流当前的状态。 UNKNOWN：表示当前逻辑连接状态未知。 READY：表示逻辑连接已就绪。 RUN：表示逻辑连接发送报文正常。 HOLD：表示逻辑连接发送报文等待中。 CLOSED：表示关闭逻辑连接。 TO_CLOSED：表示将会关闭逻辑连接。 query_id bigint 通信流对应的debug_query_id编号。 pn_id integer 通信流所执行查询的plan_node_id编号。 send_smp integer 通信流所执行查询send端的smpid编号。 recv_smp integer 通信流所执行查询recv端的smpid编号。 recv_bytes bigint 通信流接收的数据总量，单位Byte。 time bigint 通信流当前生命周期使用时长，单位ms。 speed bigint 通信流的平均接收速率，单位Byte/s。 quota bigint 通信流当前的通信配额值，单位Byte。 buff_usize bigint 通信流当前缓存的数据大小，单位Byte。",
+      "source_file": "3413_PG_COMM_RECV_STREAM.txt"
+    },
+    {
+      "term": "PGXC_NODE",
+      "content": "PGXC_NODE PGXC_NODE PGXC_NODE系统表存储数据库实例节点信息。PGXC_NODE系统表仅在分布式场景下有具体含义，集中式只能查询表定义。 表1 PGXC_NODE字段 名称 类型 描述 oid oid 行标识符（隐含字段，必须明确选择）。 node_name name 节点名称。 node_type \"char\" 节点类型。 C：协调节点。 D：数据节点。 S：数据节点的备节点。 node_port integer 节点的端口号。 node_host name 节点的主机名称或者IP（如配置为虚拟IP，则为虚拟IP）。 node_port1 integer 复制节点的端口号。 node_host1 name 复制节点的主机名称或者IP（如配置为虚拟IP，则为虚拟IP）。 hostis_primary boolean 表明当前节点是否发生主备切换。 t（true）：表示发生。 f（false）：表示不发生。 nodeis_primary boolean 在replication表下，是否优选当前节点作为优先执行的节点进行非查询操作。 t（true）：表示优选。 f（false）：表示不优选。 nodeis_preferred boolean 在replication表下，是否优选当前节点作为首选的节点进行查询。 t（true）：表示优选。 f（false）：表示不优选。 node_id integer 节点标志符。由node_name经过hash函数计算后得到。 sctp_port integer 主节点使用TCP代理通信库的数据通道侦听端口（当前版本已经不再支持SCTP通信库）。 control_port integer 主节点使用TCP代理通信库的控制通道侦听端口。 sctp_port1 integer 备节点使用TCP代理通信库的数据通道侦听端口（当前版本已经不再支持SCTP通信库）。 control_port1 integer 备节点使用TCP代理通信库的控制通道侦听端口。 nodeis_central boolean 表明当前节点是否为中心控制节点，对DN无效。 t（true）：表示是。 f（false）：表示不是。 nodeis_active boolean 表明当前节点是否是正常状态，对DN无效。 t（true）：表示是。 f（false）：表示不是。",
+      "source_file": "3230_PGXC_NODE.txt"
+    },
+    {
+      "term": "GS_COMM_LISTEN_ADDRESS_EXT_INFO",
+      "content": "GS_COMM_LISTEN_ADDRESS_EXT_INFO GS_COMM_LISTEN_ADDRESS_EXT_INFO GS_COMM_LISTEN_ADDRESS_EXT_INFO描述了查询连接扩展IP的相关线程、会话、sockect等DFX信息。当前不支持查询该视图。 表1 GS_COMM_LISTEN_ADDRESS_EXT_INFO字段 名称 类型 描述 node_name text 当前实例名。 app text 当前连接DN的客户端。 tid bigint 当前线程的线程号。 lwtid integer 当前线程的轻量级线程号。 query_id bigint 当前线程的查询ID。 socket integer 当前物理连接的socket fd。 remote_ip text 当前连接对端IP。 remote_port text 当前连接对端port。 local_ip text 当前连接本端IP。 local_port text 当前连接本端port。",
+      "source_file": "3410_GS_COMM_LISTEN_ADDRESS_EXT_INFO.txt"
+    },
+    {
+      "term": "PG_COMM_RECV_STREAM",
+      "content": "PG_COMM_RECV_STREAM PG_COMM_RECV_STREAM PG_COMM_RECV_STREAM视图展示单个DN上所有的通信库接收流状态。 表1 PG_COMM_RECV_STREAM字段 名称 类型 描述 node_name text 节点名称。 local_tid bigint 使用此通信流的线程ID。 remote_name text 连接对端节点名称。 remote_tid bigint 连接对端线程ID。 idx integer 通信对端DN在本DN内的标识编号。 sid integer 通信流在物理连接中的标识编号。 tcp_sock integer 通信流所使用的tcp通信socket。 state text 通信流当前的状态。 UNKNOWN：表示当前逻辑连接状态未知。 READY：表示逻辑连接已就绪。 RUN：表示逻辑连接发送报文正常。 HOLD：表示逻辑连接发送报文等待中。 CLOSED：表示关闭逻辑连接。 TO_CLOSED：表示将会关闭逻辑连接。 query_id bigint 通信流对应的debug_query_id编号。 pn_id integer 通信流所执行查询的plan_node_id编号。 send_smp integer 通信流所执行查询send端的smpid编号。 recv_smp integer 通信流所执行查询recv端的smpid编号。 recv_bytes bigint 通信流接收的数据总量，单位Byte。 time bigint 通信流当前生命周期使用时长，单位ms。 speed bigint 通信流的平均接收速率，单位Byte/s。 quota bigint 通信流当前的通信配额值，单位Byte。 buff_usize bigint 通信流当前缓存的数据大小，单位Byte。",
+      "source_file": "1700_PG_COMM_RECV_STREAM.txt"
+    },
+    {
+      "term": "PG_GET_INVALID_BACKENDS",
+      "content": "PG_GET_INVALID_BACKENDS PG_GET_INVALID_BACKENDS PG_GET_INVALID_BACKENDS视图显示 CN 上连接到当前 DN备机 的后台线程信息，只有系统管理员和监控管理员才可以访问。 表1 PG_GET_INVALID_BACKENDS字段 名称 类型 描述 pid bigint 线程ID。 node_name text 后台线程中连接的节点信息。 dbname name 当前连接的数据库。 backend_start timestamp with time zone 后台线程启动的时间。 query text 后台线程正在执行的查询语句。",
+      "source_file": "1703_PG_GET_INVALID_BACKENDS.txt"
+    },
+    {
+      "term": "GS_COMM_LISTEN_ADDRESS_EXT_INFO",
+      "content": "GS_COMM_LISTEN_ADDRESS_EXT_INFO GS_COMM_LISTEN_ADDRESS_EXT_INFO GS_COMM_LISTEN_ADDRESS_EXT_INFO描述了查询连接当前DN扩展IP的相关线程、会话、sockect等DFX信息。使用场景参见系统函数描述 •gs_comm_listen_address_ext_info() 。 表1 GS_COMM_LISTEN_ADDRESS_EXT_INFO字段 名称 类型 描述 node_name text 当前实例名。 app text 当前连接DN的客户端。 tid bigint 当前线程的线程号。 lwtid integer 当前线程的轻量级线程号。 query_id bigint 当前线程的查询ID。 socket integer 当前物理连接的socket fd。 remote_ip text 当前连接对端IP。 remote_port text 当前连接对端port。 local_ip text 当前连接本端IP。 local_port text 当前连接本端port。",
+      "source_file": "1696_GS_COMM_LISTEN_ADDRESS_EXT_INFO.txt"
+    },
+    {
+      "term": "PGXC_COMM_RECV_STREAM",
+      "content": "PGXC_COMM_RECV_STREAM PGXC_COMM_RECV_STREAM PGXC_COMM_RECV_STREAM视图展示所有DN上的通信库接收流状态。 表1 PGXC_COMM_RECV_STREAM字段 名称 类型 描述 node_name text 节点名称。 local_tid bigint 使用此通信流的线程ID。 remote_name text 连接对端节点名称。 remote_tid bigint 连接对端线程ID。 idx integer 通信对端DN在本DN内的标识编号。 sid integer 通信流在物理连接中的标识编号。 tcp_sock integer 通信流所使用的tcp通信socket。 state text 通信流当前的状态。 UNKNOWN：表示当前逻辑连接状态未知。 READY：表示逻辑连接已就绪。 RUN：表示逻辑连接发送报文正常。 HOLD：表示逻辑连接发送报文等待中。 CLOSED：表示关闭逻辑连接。 TO_CLOSED：表示将会关闭逻辑连接。 query_id bigint 通信流对应的debug_query_id编号。 pn_id integer 通信流所执行查询的plan_node_id编号。 send_smp integer 通信流所执行查询send端的smpid编号。 recv_smp integer 通信流所执行查询recv端的smpid编号。 recv_bytes bigint 通信流接收的数据总量，单位Byte。 time bigint 通信流当前生命周期使用时长，单位ms。 speed bigint 通信流的平均接收速率，单位Byte/s。 quota bigint 通信流当前的通信配额值，单位Byte。 buff_usize bigint 通信流当前缓存的数据大小，单位Byte。",
+      "source_file": "1706_PGXC_COMM_RECV_STREAM.txt"
+    },
+    {
+      "term": "PG_COMM_DELAY",
+      "content": "PG_COMM_DELAY PG_COMM_DELAY PG_COMM_DELAY视图展示单个DN的通信库时延状态。 表1 PG_COMM_DELAY字段 名称 类型 描述 node_name text 节点名称。 remote_name text 连接对端节点名称。 remote_host text 连接对端IP地址。 stream_num integer 当前物理连接使用的stream逻辑连接数量。 min_delay integer 当前物理连接一分钟内探测到的最小时延，单位微秒。 说明： 负数结果无效，请重新等待时延状态更新后再执行。 average integer 当前物理连接一分钟内探测时延的平均值，单位微秒。 max_delay integer 当前物理连接一分钟内探测到的最大时延，单位微秒。",
+      "source_file": "1699_PG_COMM_DELAY.txt"
+    },
+    {
+      "term": "GLOBAL_COMM_CLIENT_INFO",
+      "content": "GLOBAL_COMM_CLIENT_INFO GLOBAL_COMM_CLIENT_INFO GLOBAL_COMM_CLIENT_INFO用来查询整个集群全局节点活跃的客户端连接信息，默认只有系统管理员权限才可以访问此系统视图。 表1 GLOBAL_COMM_CLIENT_INFO字段 名称 类型 描述 node_name text 当前节点的名称。 app text app tid bigint 当前线程的线程号。 lwtid integer 当前线程的轻量级线程号。 query_id bigint 查询ID，对应debug_query_id。 socket integer 如果是物理连接，显示socket。 remote_ip text 对端节点IP。 remote_port text 对端节点port。 logic_id integer 如果是逻辑连接，显示sid。",
+      "source_file": "1695_GLOBAL_COMM_CLIENT_INFO.txt"
+    },
+    {
+      "term": "PG_COMM_SEND_STREAM",
+      "content": "PG_COMM_SEND_STREAM PG_COMM_SEND_STREAM PG_COMM_SEND_STREAM视图展示单个DN上所有的通信库发送流状态。 表1 PG_COMM_SEND_STREAM字段 名称 类型 描述 node_name text 节点名称。 local_tid bigint 使用此通信流的线程ID。 remote_name text 连接对端节点名称。 remote_tid bigint 连接对端线程ID。 idx integer 通信对端DN在本DN内的标识编号。 sid integer 通信流在物理连接中的标识编号。 tcp_sock integer 通信流所使用的tcp通信socket。 state text 通信流当前的状态。 UNKNOWN：表示当前逻辑连接状态未知。 READY：表示逻辑连接已就绪。 RUN：表示逻辑连接发送报文正常。 HOLD：表示逻辑连接发送报文等待中。 CLOSED：表示关闭逻辑连接。 TO_CLOSED：表示将会关闭逻辑连接。 query_id bigint 通信流对应的debug_query_id编号。 pn_id integer 通信流所执行查询的plan_node_id编号。 send_smp integer 通信流所执行查询send端的smpid编号。 recv_smp integer 通信流所执行查询recv端的smpid编号。 send_bytes bigint 通信流发送的数据总量，单位Byte。 time bigint 通信流当前生命周期使用时长，单位ms。 speed bigint 通信流的平均发送速率，单位Byte/s。 quota bigint 通信流当前的通信配额值，单位Byte。 wait_quota bigint 通信流等待quota值产生的额外时间开销，单位ms。",
+      "source_file": "3414_PG_COMM_SEND_STREAM.txt"
+    },
+    {
+      "term": "PG_COMM_STATUS",
+      "content": "PG_COMM_STATUS PG_COMM_STATUS PG_COMM_STATUS视图展示单个DN的通信库状态。 表1 PG_COMM_STATUS字段 名称 类型 描述 node_name text 节点名称。 rxpck_rate integer 节点通信库接收速率，单位Byte/s。 txpck_rate integer 节点通信库发送速率，单位Byte/s。 rxkbyte_rate bigint 节点通信库接收速率，单位KByte/s。 txkbyte_rate bigint 节点通信库发送速率，单位KByte/s。 buffer bigint cmailbox的buffer大小。 memkbyte_libcomm bigint libcomm进程通信内存大小，单位Byte。 memkbyte_libpq bigint libpq进程通信内存大小，单位Byte。 used_pm integer postmaster线程实时使用率。 used_sflow integer gs_sender_flow_controller线程实时使用率。 used_rflow integer gs_receiver_flow_controller线程实时使用率。 used_rloop integer 多个gs_receivers_loop线程中高的实时使用率。 stream integer 当前使用的逻辑连接总数。",
+      "source_file": "1702_PG_COMM_STATUS.txt"
+    },
+    {
+      "term": "PGXC_COMM_SEND_STREAM",
+      "content": "PGXC_COMM_SEND_STREAM PGXC_COMM_SEND_STREAM PGXC_COMM_SEND_STREAM视图展示所有DN上的通信库发送流状态。 表1 PGXC_COMM_SEND_STREAM字段 名称 类型 描述 node_name text 节点名称。 local_tid bigint 使用此通信流的线程ID。 remote_name text 连接对端节点名称。 remote_tid bigint 连接对端线程ID。 idx integer 通信对端DN在本DN内的标识编号。 sid integer 通信流在物理连接中的标识编号。 tcp_sock integer 通信流所使用的tcp通信socket。 state text 通信流当前的状态。 状态值选择如下： UNKNOWN：表示当前连接状态未知。 READY：表示连接已就绪。 RUN：表示连接当前正常发送报文。 HOLD：表示连接正在等待报文发送。 CLOSED：表示连接关闭。 TO_CLOSED：表示将会关闭连接。 query_id bigint 通信流对应的debug_query_id编号。 pn_id integer 通信流所执行查询的plan_node_id编号。 send_smp integer 通信流所执行查询send端的smpid编号。 recv_smp integer 通信流所执行查询recv端的smpid编号。 send_bytes bigint 通信流发送的数据总量，单位Byte。 time bigint 通信流当前生命周期使用时长，单位ms。 speed bigint 通信流的平均发送速率，单位Byte/s。 quota bigint 通信流当前的通信配额值，单位Byte。 wait_quota bigint 通信流等待quota值产生的额外时间开销，单位ms。",
+      "source_file": "1707_PGXC_COMM_SEND_STREAM.txt"
+    },
+    {
+      "term": "PG_COMM_DELAY",
+      "content": "PG_COMM_DELAY PG_COMM_DELAY PG_COMM_DELAY视图展示单个DN的通信库时延状态。 表1 PG_COMM_DELAY字段 名称 类型 描述 node_name text 节点名称。 remote_name text 连接对端节点名称。 remote_host text 连接对端IP地址。 stream_num integer 当前物理连接使用的stream逻辑连接数量。 min_delay integer 当前物理连接一分钟内探测到的最小时延，单位微秒。 说明： 负数结果无效，请重新等待时延状态更新后再执行。 average integer 当前物理连接一分钟内探测时延的平均值，单位微秒。 max_delay integer 当前物理连接一分钟内探测到的最大时延，单位微秒。",
+      "source_file": "3412_PG_COMM_DELAY.txt"
+    },
+    {
+      "term": "PGXC_NODE",
+      "content": "PGXC_NODE PGXC_NODE PGXC_NODE系统表存储集群节点信息。 PGXC_NODE系统表存储数据库实例节点信息。PGXC_NODE系统表仅在CN下有具体含义且数据有效正确。 在DN节点查询PGXC_NODE系统表结果数据中只有node_id字段是有意义。其他字段值没有意义且无效数据。 表1 PGXC_NODE字段 名称 类型 描述 oid oid 行标识符（隐含字段，必须明确选择）。 node_name name 节点名称。 node_type \"char\" 节点类型。 C：协调节点。 D：数据节点。 S：数据节点的备节点。 node_port integer 节点的端口号。 node_host name 节点的主机名称或者IP（如配置为虚拟IP，则为虚拟IP）。 node_port1 integer 复制节点的端口号。 node_host1 name 复制节点的主机名称或者IP（如配置为虚拟IP，则为虚拟IP）。 hostis_primary boolean 表明当前节点是否发生主备切换。 t（true）：表示发生。 f（false）：表示不发生。 nodeis_primary boolean 在replication表下，是否优选当前节点作为优先执行的节点进行非查询操作。 t（true）：表示优选。 f（false）：表示不优选。 nodeis_preferred boolean 在replication表下，是否优选当前节点作为首选的节点进行查询。 t（true）：表示优选。 f（false）：表示不优选。 node_id integer 节点标志符。由node_name经过hash函数计算后得到。 sctp_port integer 主节点使用TCP代理通信库的数据通道侦听端口（当前版本已经不再支持SCTP通信库）。 control_port integer 主节点使用TCP代理通信库的控制通道侦听端口。 sctp_port1 integer 备节点使用TCP代理通信库的数据通道侦听端口（当前版本已经不再支持SCTP通信库）。 control_port1 integer 备节点使用TCP代理通信库的控制通道侦听端口。 nodeis_central boolean 表明当前节点是否为中心控制节点，只用于CN，对DN无效。 t（true）：表示是。 f（false）：表示不是。 nodeis_active boolean 表明当前节点是否是正常状态，用于标记CN是否被剔除，对DN无效。 t（true）：表示是。 f（false）：表示不是。",
+      "source_file": "1517_PGXC_NODE.txt"
+    },
+    {
+      "term": "PG_COMM_STATUS",
+      "content": "PG_COMM_STATUS PG_COMM_STATUS PG_COMM_STATUS视图展示单个DN的通信库状态。 表1 PG_COMM_STATUS字段 名称 类型 描述 node_name text 节点名称。 rxpck_rate integer 节点通信库接收速率，单位Byte/s。 txpck_rate integer 节点通信库发送速率，单位Byte/s。 rxkbyte_rate bigint 节点通信库接收速率，单位KByte/s。 txkbyte_rate bigint 节点通信库发送速率，单位KByte/s。 buffer bigint cmailbox的buffer大小。 memkbyte_libcomm bigint libcomm进程通信内存大小，单位Byte。 memkbyte_libpq bigint libpq进程通信内存大小，单位Byte。 used_pm integer postmaster线程实时使用率。 used_sflow integer gs_sender_flow_controller线程实时使用率。 used_rflow integer gs_receiver_flow_controller线程实时使用率。 used_rloop integer 多个gs_receivers_loop线程中高的实时使用率。 stream integer 当前使用的逻辑连接总数。",
+      "source_file": "3415_PG_COMM_STATUS.txt"
+    },
+    {
+      "term": "COMM_CLIENT_INFO",
+      "content": "COMM_CLIENT_INFO COMM_CLIENT_INFO COMM_CLIENT_INFO视图显示单个节点活跃的客户端连接信息（DN上查询该视图显示CN连接DN的信息），默认只有系统管理员权限才可以访问此系统视图。 表1 COMM_CLIENT_INFO字段 名称 类型 描述 node_name text 当前DN节点的名称，如dn_6001_6002_6003。 app text DN上查询该视图，app显示为连接当前DN的客户端，如coordinator(CN)、GTM、DN等。 tid bigint 当前线程的线程号。 lwtid integer 当前线程的轻量级线程号。 query_id bigint 查询ID，对应debug_query_id。 socket integer 如果是物理连接，显示socket fd。 remote_ip text 对端节点IP。 remote_port text 对端节点port。 logic_id integer 如果是逻辑连接，显示sid。",
+      "source_file": "1694_COMM_CLIENT_INFO.txt"
+    },
+    {
+      "term": "PG_POOLER_STATUS",
+      "content": "PG_POOLER_STATUS PG_POOLER_STATUS PG_POOLER_STATUS视图查询pooler中的缓存连接状态。该视图只能在CN上查询，显示本地CN的pooler模块的连接缓存信息。 表1 PG_POOLER_STATUS字段 名称 类型 描述 database text 数据库名称。 user_name text 用户名。 tid bigint 非线程池逻辑下为连接CN的线程id，线程池逻辑下为连接CN的sessionid。 node_oid bigint 连接的实例节点OID。 node_name name 连接的实例节点名称。 in_use boolean 连接是否正被使用。 t（true）：表示连接正在使用。 f（false）：表示连接没有使用。 node_port integer 连接的实例节点端口号。 fdsock bigint 对端socket。 remote_pid bigint 对端线程号。 session_params text 由此连接下发的GUC session参数。 used_count bigint 该连接的复用次数。 idx bigint 连接的实例节点逻辑连接id。 streamid bigint 每个逻辑连接对应的流标识id。",
+      "source_file": "1704_PG_POOLER_STATUS.txt"
+    },
+    {
+      "term": "PGXC_COMM_STATUS",
+      "content": "PGXC_COMM_STATUS PGXC_COMM_STATUS PGXC_COMM_STATUS视图展示所有DN的通信库状态。 表1 PGXC_COMM_STATUS字段 名称 类型 描述 node_name text 节点名称。 rxpck_rate integer 节点通信库接收速率，单位Byte/s。 txpck_rate integer 节点通信库发送速率，单位Byte/s。 rxkbyte_rate bigint bigint节点通信库接收速率，单位KByte/s。 txkbyte_rate bigint bigint节点通信库发送速率，单位KByte/s。 buffer bigint cmailbox的buffer大小。 memkbyte_libcomm bigint libcomm进程通信内存大小，单位Byte。 memkbyte_libpq bigint libpq进程通信内存大小，单位Byte。 used_pm integer postmaster线程实时使用率。 used_sflow integer gs_sender_flow_controller线程实时使用率。 used_rflow integer gs_receiver_flow_controller线程实时使用率。 used_rloop integer 多个gs_receivers_loop线程中高的实时使用率。 stream integer 当前使用的逻辑连接总数。",
+      "source_file": "1708_PGXC_COMM_STATUS.txt"
+    },
+    {
+      "term": "PG_GET_INVALID_BACKENDS",
+      "content": "PG_GET_INVALID_BACKENDS PG_GET_INVALID_BACKENDS 不支持查询该视图，报错提示：“Un-support feature”。",
+      "source_file": "3416_PG_GET_INVALID_BACKENDS.txt"
+    }
+  ]
+}

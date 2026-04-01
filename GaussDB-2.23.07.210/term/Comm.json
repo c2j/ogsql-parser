@@ -1,0 +1,46 @@
+{
+  "topic": "Comm",
+  "term_count": 8,
+  "terms": [
+    {
+      "term": "COMM_SEND_STREAM",
+      "content": "COMM_SEND_STREAM COMM_SEND_STREAM COMM_SEND_STREAM展示单个DN上所有的TCP代理通信库发送流状态。 表1 COMM_SEND_STREAM字段 名称 类型 描述 node_name text 节点名称。 local_tid bigint 使用此通信流的线程ID。 remote_name text 连接对端节点名称。 remote_tid bigint 连接对端线程ID。 idx integer 通信对端DN在本DN内的标识编号。 sid integer 通信流在物理连接中的标识编号。 tcp_sock integer 通信流所使用的tcp通信socket。 state text 通信流当前的状态。 query_id bigint 通信流对应的debug_query_id编号。 pn_id integer 通信流所执行查询的plan_node_id编号。 send_smp integer 通信流所执行查询send端的smpid编号。 recv_smp integer 通信流所执行查询recv端的smpid编号。 send_bytes bigint 通信流发送的数据总量（单位：Byte）。 time bigint 通信流当前生命周期使用时长（单位：ms）。 speed bigint 通信流的平均发送速率（单位：Byte/s）。 quota bigint 通信流当前的通信配额值（单位：Byte）。 wait_quota bigint 通信流等待quota值产生的额外时间开销（单位：毫秒）。",
+      "source_file": "2188_COMM_SEND_STREAM.txt"
+    },
+    {
+      "term": "GLOBAL_COMM_RECV_STREAM",
+      "content": "GLOBAL_COMM_RECV_STREAM GLOBAL_COMM_RECV_STREAM GLOBAL_COMM_RECV_STREAM视图展示所有DN上所有的TCP代理通信库接收流状态。 表1 GLOBAL_COMM_RECV_STREAM字段 名称 类型 描述 node_name text 节点名称。 local_tid bigint 使用此通信流的线程ID。 remote_name text 连接对端节点名称。 remote_tid bigint 连接对端线程ID。 idx integer 通信对端DN在本DN内的标识编号。 sid integer 通信流在物理连接中的标识编号。 tcp_sock integer 通信流所使用的tcp通信socket。 state text 通信流当前的状态。 query_id bigint 通信流对应的debug_query_id编号。 pn_id integer 通信流所执行查询的plan_node_id编号。 send_smp integer 通信流所执行查询send端的smpid编号。 recv_smp integer 通信流所执行查询recv端的smpid编号。 recv_bytes bigint 通信流接收的数据总量（单位：Byte）。 time bigint 通信流当前生命周期使用时长（单位：毫秒）。 speed bigint 通信流的平均接收速率（单位：Byte/s）。 quota bigint 通信流当前的通信配额值（单位：Byte）。 buff_usize bigint 通信流当前缓存的数据大小（单位：Byte）。",
+      "source_file": "2187_GLOBAL_COMM_RECV_STREAM.txt"
+    },
+    {
+      "term": "COMM_DELAY",
+      "content": "COMM_DELAY COMM_DELAY COMM_DELAY视图展示单个DN的TCP代理通信库时延状态。 表1 COMM_DELAY字段 名称 类型 描述 node_name text 节点名称。 remote_name text 连接对端节点名称。 remote_host text 连接对端IP地址。 stream_num integer 当前物理连接使用的stream逻辑连接数量。 min_delay integer 当前物理连接一分钟内探测到的最小时延（单位：微秒）。 说明： 负数结果无效，请重新等待时延状态更新后再执行。 average integer 当前物理连接一分钟内探测时延的平均值（单位：微秒）。 max_delay integer 当前物理连接一分钟内探测到的最大时延（单位：微秒）。",
+      "source_file": "2184_COMM_DELAY.txt"
+    },
+    {
+      "term": "GLOBAL_COMM_SEND_STREAM",
+      "content": "GLOBAL_COMM_SEND_STREAM GLOBAL_COMM_SEND_STREAM GLOBAL_COMM_SEND_STREAM视图展示所有DN上所有的TCP代理通信库发送流状态。 表1 GLOBAL_COMM_SEND_STREAM字段 名称 类型 描述 node_name text 节点名称。 local_tid bigint 使用此通信流的线程ID。 remote_name text 连接对端节点名称。 remote_tid bigint 连接对端线程ID。 idx integer 通信对端DN在本DN内的标识编号。 sid integer 通信流在物理连接中的标识编号。 tcp_sock integer 通信流所使用的tcp通信socket。 state text 通信流当前的状态。 query_id bigint 通信流对应的debug_query_id编号。 pn_id integer 通信流所执行查询的plan_node_id编号。 send_smp integer 通信流所执行查询send端的smpid编号。 recv_smp integer 通信流所执行查询recv端的smpid编号。 send_bytes bigint 通信流发送的数据总量（单位：Byte）。 time bigint 通信流当前生命周期使用时长（单位：毫秒）。 speed bigint 通信流的平均发送速率（单位：Byte/s）。 quota bigint 通信流当前的通信配额值（单位：Byte）。 wait_quota bigint 通信流等待quota值产生的额外时间开销（单位：毫秒）。",
+      "source_file": "2189_GLOBAL_COMM_SEND_STREAM.txt"
+    },
+    {
+      "term": "COMM_RECV_STREAM",
+      "content": "COMM_RECV_STREAM COMM_RECV_STREAM COMM_RECV_STREAM视图展示单个DN上所有的TCP代理通信库接收流状态。 表1 COMM_RECV_STREAM字段 名称 类型 描述 node_name text 节点名称。 local_tid bigint 使用此通信流的线程ID。 remote_name text 连接对端节点名称。 remote_tid bigint 连接对端线程ID。 idx integer 通信对端DN在本DN内的标识编号。 sid integer 通信流在物理连接中的标识编号。 tcp_sock integer 通信流所使用的tcp通信socket。 state text 通信流当前的状态。 query_id bigint 通信流对应的debug_query_id编号。 pn_id integer 通信流所执行查询的plan_node_id编号。 send_smp integer 通信流所执行查询send端的smpid编号。 recv_smp integer 通信流所执行查询recv端的smpid编号。 recv_bytes bigint 通信流接收的数据总量（单位：Byte）。 time bigint 通信流当前生命周期使用时长（单位：毫秒）。 speed bigint 通信流的平均接收速率（单位：Byte/s）。 quota bigint 通信流当前的通信配额值（单位：Byte）。 buff_usize bigint 通信流当前缓存的数据大小（单位：Byte）。",
+      "source_file": "2186_COMM_RECV_STREAM.txt"
+    },
+    {
+      "term": "GLOBAL_COMM_STATUS",
+      "content": "GLOBAL_COMM_STATUS GLOBAL_COMM_STATUS GLOBAL_COMM_STATUS视图展示所有DN的TCP代理通信库状态。 表1 GLOBAL_COMM_STATUS字段 名称 类型 描述 node_name text 节点名称。 rxpck_rate integer 节点通信库接收速率，单位Byte/s。 txpck_rate integer 节点通信库发送速率，单位Byte/s。 rxkbyte_rate bigint bigint节点通信库接收速率，单位KByte/s。 txkbyte_rate bigint bigint节点通信库发送速率，单位KByte/s。 buffer bigint cmailbox的buffer大小。 memkbyte_libcomm bigint libcomm进程通信内存大小，单位Byte。 memkbyte_libpq bigint libpq进程通信内存大小，单位Byte。 used_pm integer postmaster线程实时使用率。 used_sflow integer gs_sender_flow_controller线程实时使用率。 used_rflow integer gs_receiver_flow_controller线程实时使用率。 used_rloop integer 多个gs_receivers_loop线程中高的实时使用率。 stream integer 当前使用的逻辑连接总数。",
+      "source_file": "2191_GLOBAL_COMM_STATUS.txt"
+    },
+    {
+      "term": "GLOBAL_COMM_DELAY",
+      "content": "GLOBAL_COMM_DELAY GLOBAL_COMM_DELAY GLOBAL_COMM_DELAY视图展示所有DN的TCP代理通信库时延状态。 表1 GLOBAL_COMM_DELAY字段 名称 类型 描述 node_name text 节点名称。 remote_name text 连接对端节点名称。 remote_host text 连接对端IP地址。 stream_num integer 当前物理连接使用的stream逻辑连接数量。 min_delay integer 当前物理连接一分钟内探测到的最小时延（单位：微秒）。 说明： 负数结果无效，请重新等待时延状态更新后再执行。 average integer 当前物理连接一分钟内探测时延的平均值（单位：微秒）。 max_delay integer 当前物理连接一分钟内探测到的最大时延（单位：微秒）。",
+      "source_file": "2185_GLOBAL_COMM_DELAY.txt"
+    },
+    {
+      "term": "COMM_STATUS",
+      "content": "COMM_STATUS COMM_STATUS COMM_STATUS视图展示单个DN的TCP代理通信库状态。 表1 COMM_STATUS字段 名称 类型 描述 node_name text 节点名称。 rxpck_rate integer 节点通信库接收速率，单位Byte/s。 txpck_rate integer 节点通信库发送速率，单位Byte/s。 rxkbyte_rate bigint bigint节点通信库接收速率，单位KByte/s。 txkbyte_rate bigint bigint节点通信库发送速率，单位KByte/s。 buffer bigint cmailbox的buffer大小。 memkbyte_libcomm bigint libcomm进程通信内存大小，单位Byte。 memkbyte_libpq bigint libpq进程通信内存大小，单位Byte。 used_pm integer postmaster线程实时使用率。 used_sflow integer gs_sender_flow_controller线程实时使用率。 used_rflow integer gs_receiver_flow_controller线程实时使用率。 used_rloop integer 多个gs_receivers_loop线程中高的实时使用率。 stream integer 当前使用的逻辑连接总数。",
+      "source_file": "2190_COMM_STATUS.txt"
+    }
+  ]
+}

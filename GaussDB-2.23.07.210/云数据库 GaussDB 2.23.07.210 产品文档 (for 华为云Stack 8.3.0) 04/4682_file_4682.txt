@@ -1,0 +1,158 @@
+命令参考 命令参考 reprocessing-exporter的使用帮助详情： gs_dbmind component reprocessing_exporter --help
+usage:  [-h] [--prometheus-auth-user PROMETHEUS_AUTH_USER]
+        [--prometheus-auth-password PROMETHEUS_AUTH_PASSWORD]
+        [--disable-https] [--ssl-keyfile SSL_KEYFILE]
+        [--ssl-certfile SSL_CERTFILE] [--ssl-ca-file SSL_CA_FILE]
+        [--tsdb-ssl-keyfile TSDB_SSL_KEYFILE] [--tsdb-ssl-certfile TSDB_SSL_CERTFILE] 
+        [--tsdb-ssl-ca-file TSDB_SSL_CA_FILE] 
+        [--web.listen-address WEB.LISTEN_ADDRESS]
+        [--web.listen-port WEB.LISTEN_PORT]
+        [--collector.config COLLECTOR.CONFIG] [--log.filepath LOG.FILEPATH]
+        [--log.level {debug,info,warn,error,fatal}] [-v]
+        prometheus_host prometheus_port
+
+Reprocessing Exporter: A re-processing module for metrics stored in the
+Prometheus server.
+
+positional arguments:
+  prometheus_host       from which host to pull data
+  prometheus_port       the port to connect to the Prometheus host
+
+optional arguments:
+  -h, --help            show this help message and exit
+  --prometheus-auth-user PROMETHEUS_AUTH_USER
+                        use this user for basic authorization to connect to
+                        the Prometheus server
+  --prometheus-auth-password PROMETHEUS_AUTH_PASSWORD
+                        use this password for basic authorization to connect
+                        to the Prometheus server
+  --disable-https       disable Https scheme
+  --ssl-keyfile SSL_KEYFILE
+                        set the path of ssl key file
+  --ssl-certfile SSL_CERTFILE
+                        set the path of ssl certificate file
+  --ssl-ca-file SSL_CA_FILE
+                        set the path of ssl ca file
+  --tsdb-ssl-keyfile TSDB_SSL_KEYFILE
+                        set the path of tsdb ssl key file
+  --tsdb-ssl-certfile TSDB_SSL_CERTFILE
+                        set the path of tsdb ssl certificate file
+  --tsdb-ssl-ca-file TSDB_SSL_CA_FILE
+                        set the path of tsdb ssl ca file
+  --web.listen-address WEB.LISTEN_ADDRESS
+                        address on which to expose metrics and web interface
+  --web.listen-port WEB.LISTEN_PORT
+                        listen port to expose metrics and web interface
+  --collector.config COLLECTOR.CONFIG, --config COLLECTOR.CONFIG
+                        according to the content of the yaml file for metric
+                        collection
+  --log.filepath LOG.FILEPATH
+                        the path to log
+  --log.level {debug,info,warn,error,fatal}
+                        only log messages with the given severity or above.
+                        Valid levels: [debug, info, warn, error, fatal]
+  -v, --version         show program's version number and exit 表1 reprocessing-exporter的命令行参数详情表 参数 参数说明 取值范围 prometheus_host Prometheus-server的IP地址。 - prometheus_port Prometheus-server的服务侦听端口号。 1024-65535。 -h, --help 帮助选项。 - --prometheus-auth-user prometheus用户名称。 - --prometheus-auth-password prometheus用户密码。 - --disable-https 禁用HTTPS协议。 - --ssl-keyfile HTTPS协议使用的证书私钥文件路径，如果为密文私钥，需要通过管道传入私钥密码，为json格式，ssl-keyfile-password字段。如：`echo {"ssl-keyfile-password":"password"} | gs_dbmind component reprocessing_exporter ...`。 - --ssl-certfile HTTPS协议使用的证书文件路径。 - --ssl-ca-file HTTPS协议使用的CA证书文件路径。 - --tsdb-ssl-keyfile TSDB数据库使用的HTTPS协议证书私钥文件路径。 - --tsdb-ssl-certfile TSDB数据库使用的HTTPS协议证书文件路径。 - --tsdb-ssl-ca-file TSDB数据库使用的HTTPS协议CA证书文件路径。 - --web.listen-address 该exporter服务的绑定IP。 - --web.listen-port 该exporter服务的侦听端口。 1024-65535。 --collector.config 显性指定的待采集指标配置文件路径。 - --log.filepath 日志文件保存路径，默认保存在当前目录下。 - --log.level 日志文件的打印级别，默认为INFO级别。 debug、info、warn、error、fatal。 --version 显示版本信息。 - openGauss-exporter的使用帮助详情： gs_dbmind component opengauss_exporter --help
+usage:  [-h] --url URL [--config-file CONFIG_FILE]
+        [--include-databases INCLUDE_DATABASES]
+        [--exclude-databases EXCLUDE_DATABASES]
+        [--constant-labels CONSTANT_LABELS]
+        [--scrape-interval-seconds SCRAPE_INTERVAL_SECONDS]
+        [--web.listen-address WEB.LISTEN_ADDRESS]
+        [--web.listen-port WEB.LISTEN_PORT] [--disable-cache]
+        [--disable-settings-metrics] [--disable-statement-history-metrics]
+        [--disable-https] [--disable-agent] [--ssl-keyfile SSL_KEYFILE]
+        [--ssl-certfile SSL_CERTFILE] [--ssl-ca-file SSL_CA_FILE]
+        [--parallel PARALLEL] [--connection-pool-size CONNECTION_POOL_SIZE]
+        [--log.filepath LOG.FILEPATH]
+        [--log.level {debug,info,warn,error,fatal}] [-v]
+
+openGauss Exporter (DBMind): Monitoring or controlling for openGauss.
+
+optional arguments:
+  -h, --help            show this help message and exit
+  --url URL, --dsn URL  openGauss database target url. It is recommended to
+                        connect to the postgres database through this URL, so
+                        that the exporter can actively discover and monitor
+                        other databases.
+  --config-file CONFIG_FILE, --config CONFIG_FILE
+                        path to config file.
+  --include-databases INCLUDE_DATABASES
+                        only scrape metrics from the given database list. a
+                        list of database name (format is label=dbname or
+                        dbname) separated by comma(,).
+  --exclude-databases EXCLUDE_DATABASES
+                        scrape metrics from the all auto-discovered databases
+                        excluding the list of database. a list of database
+                        name (format is label=dbname or dbname) separated by
+                        comma(,).
+  --constant-labels CONSTANT_LABELS
+                        a list of label=value separated by comma(,).
+  --scrape-interval-seconds SCRAPE_INTERVAL_SECONDS
+                        specify the scrape interval in seconds to reduce
+                        redundant results. If set 0, it means automatically
+                        calculate.
+  --web.listen-address WEB.LISTEN_ADDRESS
+                        address on which to expose metrics and web interface
+  --web.listen-port WEB.LISTEN_PORT
+                        listen port to expose metrics and web interface
+  --disable-cache       force not using cache.
+  --disable-settings-metrics
+                        not collect pg_settings.yml metrics.
+  --disable-statement-history-metrics
+                        not collect statement-history metrics (including slow
+                        queries).
+  --disable-https       disable Https scheme
+  --disable-agent       by default, this exporter also assumes the role of
+                        DBMind-Agent, that is, executing database operation
+                        and maintenance actions issued by the DBMind service.
+                        With this argument, users can disable the agent
+                        functionality, thereby prohibiting the DBMind service
+                        from making changes to the database.
+  --ssl-keyfile SSL_KEYFILE
+                        set the path of ssl key file
+  --ssl-certfile SSL_CERTFILE
+                        set the path of ssl certificate file
+  --ssl-ca-file SSL_CA_FILE
+                        set the path of ssl ca file
+  --parallel PARALLEL   number of parallels for metrics scrape.
+  --connection-pool-size CONNECTION_POOL_SIZE
+                        size of connection pool for each database. Set zero to
+                        disable connection pool.
+  --log.filepath LOG.FILEPATH
+                        the path to log
+  --log.level {debug,info,warn,error,fatal}
+                        only log messages with the given severity or above.
+                        Valid levels: [debug, info, warn, error, fatal]
+  -v, --version         show program's version number and exit 表2 openGauss-exporter的命令行参数详情表 参数 参数说明 取值范围 --url 数据库server的连接地址，例如 postgres://user:pwd@host:port/dbname。 密码字段为空时，需要通过管道密码，为json格式，db-password字段。如：`echo {"db-password":"password"} | gs_dbmind component opengauss_exporter ...`。 如果该url涉及到的各字段URL包含特殊字符（如@,  /等），则需要通过URL编码进行转义，例如密码中的"@"应转义为%40, "/"应转义为%2F. 否则各字段的含义会被错误识别和切分，具体转义规则可以参考URL编码的转义规则, 该URL地址规则遵循 RFC-1738 标准。 --constant-labels 常量列表，k=v格式，用逗号隔开，表明该exporter自带的常量标签。 格式如“cluster_name=demo,cluster_id=1”。设置v为空时，如“cluster_id= ”，时序数据库不会显示该字段。 -h, --help 帮助选项。 - --disable-https 禁用HTTPS协议。 - --ssl-keyfile HTTPS协议使用的证书私钥文件路径，如果为密文私钥，需要通过管道传入私钥密码，为json格式，ssl-keyfile-password字段。如：`echo {"ssl-keyfile-password":"password"} | gs_dbmind component opengauss_exporter ...`。 - --ssl-certfile HTTPS协议使用的证书文件路径。 - --ssl-ca-file HTTPS协议使用的CA证书文件路径。 - --web.listen-address 该exporter服务的绑定IP。 - --web.listen-port 该exporter服务的侦听端口。 1024-65535。 --config, --config-file 显性指定的待采集指标配置文件路径。 - --log.filepath 日志文件保存路径，默认保存在当前目录下。 - --log.level 日志文件的打印级别，默认为INFO级别。 debug、info、warn、error、fatal。 --version 显示版本信息。 - --disable-cache 禁止使用缓存。 - --disable-settings-metrics 禁止采集pg_settings表的值。 - --disable-statement-history-metrics 禁止收集statement_history表中的慢SQL信息。 - --disable-agent 禁止agent行为。 - --include-databases 显性表明仅采集的数据库名，指定多个数据库时用逗号（,）隔开。 - --exclude-databases 显性表明不监控的数据库名，指定多个数据库时用逗号（,）隔开。 - --parallel 连接到 GaussDB 的数据库连接池的大小。 正整数。 --scrape-interval-seconds 明确抓取间隔避免重复采集指标。 正整数。 --connection-pool-size 数据库的连接池大小。 >=0的整数，如果为0，则不采用连接池连接。 cmd-exporter的使用帮助详情： gs_dbmind component cmd_exporter --help
+usage:  [-h] [--constant-labels CONSTANT_LABELS] [--web.listen-address WEB.LISTEN_ADDRESS] [--web.listen-port WEB.LISTEN_PORT] [--disable-https]
+        [--config CONFIG] [--ssl-keyfile SSL_KEYFILE] [--ssl-certfile SSL_CERTFILE] [--ssl-ca-file SSL_CA_FILE] [--parallel PARALLEL]
+        [--pg-log-dir PG_LOG_DIR] [--disable-log-exporter] [--log.filepath LOG.FILEPATH] [--log.level {debug,info,warn,error,fatal}] [-v]
+
+Command Exporter (DBMind): scrape metrics by performing shell commands.
+
+optional arguments:
+  -h, --help            show this help message and exit
+  --constant-labels CONSTANT_LABELS
+                        a list of label=value separated by comma(,).
+  --web.listen-address WEB.LISTEN_ADDRESS
+                        address on which to expose metrics and web interface
+  --web.listen-port WEB.LISTEN_PORT
+                        listen port to expose metrics and web interface
+  --disable-https       disable Https scheme
+  --config CONFIG       path to config dir or file.
+  --ssl-keyfile SSL_KEYFILE
+                        set the path of ssl key file
+  --ssl-certfile SSL_CERTFILE
+                        set the path of ssl certificate file
+  --ssl-ca-file SSL_CA_FILE
+                        set the path of ssl ca file
+  --parallel PARALLEL   performing shell command in parallel.
+  --pg-log-dir PG_LOG_DIR
+                        set the directory path of PGLOG, default value is  $GAUSSLOG.
+  --disable-log-exporter
+                        disable log analysis
+  --log.filepath LOG.FILEPATH
+                        the path to log
+  --log.level {debug,info,warn,error,fatal}
+                        only log messages with the given severity or above. Valid levels: [debug, info, warn, error, fatal]
+  -v, --version         show program's version number and exit 表3 cmd-exporter的命令行参数详情表 参数 参数说明 取值范围 -h, --help 帮助选项 - --disable-https 禁用HTTPS协议 - --ssl-keyfile HTTPS协议使用的证书私钥文件路径，如果为密文私钥，需要通过管道传入私钥密码，为json格式，ssl-keyfile-password字段。如：`echo {"ssl-keyfile-password":"password"} | gs_dbmind component cmd_exporter ...` - --ssl-certfile HTTPS协议使用的证书文件路径 - --ssl-ca-file HTTPS协议使用的CA证书文件路径 - --web.listen-address 该exporter服务的绑定IP - --web.listen-port 该exporter服务的侦听端口 1024-65535 --config 显性指定的待采集指标配置文件路径 默认是该功能yamls目录下的default.yml文件，可以参考该配置文件格式，错误配置会报错 --log.filepath 日志文件保存路径，默认保存在当前目录下 - --log.level 日志文件的打印级别，默认为INFO级别 debug, info, warn, error, fatal --parallel 并行执行shell命令的并发度 正整数 --pg-log-dir 日志侦听路径，默认路径为${GAUSSLOG}/pg_log - --disable-log-exporter 禁用日志采集功能 - --constant-labels 常量列表，k=v格式，用逗号隔开，表明该exporter自带的常量标签 格式如cluster_name=demo,cluster_id=1 --version 显示版本信息 - 当启用日志监测功能时，当监控的日志路径发生变动时，请重启cmd_exporter进程。 cmd_exporter进程对容器化环境部分支持。 父主题： Prometheus Exporter组件 版权所有 © 华为技术有限公司

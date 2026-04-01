@@ -1,0 +1,2 @@
+gs_persist gs_persist 功能介绍 gs_persist工具用来在共享存储设备上实现注册、预留和抢占写权限等功能。该工具是系统内部工具，由DN实例自动调用，不建议用户使用。 前提条件 确保存储设备支持SCSI-3协议。 语法 执行gs_persist命令：。 gs_persist [DEVICEPATH] [KEY] [ACTION] 显示帮助信息。 gs_persist
+-? | --help 参数说明 DEVICEPATH 共享存储设备的路径。 KEY 指定的注册字符串，不同机器需使用不同的字符串作为KEY。 ACTION 指定执行的操作： -I：查询预留信息。 -R：进行预留抢占。 -C：清理预留。 -?,--help 打印帮助信息。 父主题： 系统内部调用的工具 版权所有 © 华为技术有限公司

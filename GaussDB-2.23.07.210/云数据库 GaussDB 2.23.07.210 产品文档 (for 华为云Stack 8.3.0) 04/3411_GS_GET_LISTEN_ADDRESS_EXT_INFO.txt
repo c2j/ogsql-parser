@@ -1,0 +1,1 @@
+GS_GET_LISTEN_ADDRESS_EXT_INFO GS_GET_LISTEN_ADDRESS_EXT_INFO GS_GET_LISTEN_ADDRESS_EXT_INFO视图描述了查询当前实例扩展IP配置信息。当前不支持查询该视图。 表1 GS_GET_LISTEN_ADDRESS_EXT_INFO字段 名称 类型 描述 node_name text 当前实例名。 host text 当前实例侦听IP地址。 port bigint 当前实例侦听的port。 ext_listen_ip text 当前实例配置扩展IP地址。 父主题： 通信 版权所有 © 华为技术有限公司

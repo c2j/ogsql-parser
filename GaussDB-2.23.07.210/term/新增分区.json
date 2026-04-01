@@ -1,0 +1,41 @@
+{
+  "topic": "新增分区",
+  "term_count": 7,
+  "terms": [
+    {
+      "term": "向范围分区表新增分区",
+      "content": "向范围分区表新增分区 向范围分区表新增分区 使用ALTER TABLE ADD PARTITION可以将分区添加到现有分区表的最后面，新增分区的上界值必须大于当前最后一个分区的上界值。 例如，对范围分区表range_sales新增一个分区。 ALTER TABLE range_sales ADD PARTITION date_202005 VALUES LESS THAN ('2020-06-01') TABLESPACE tb1; 当范围分区表有MAXVALUE分区时，无法新增分区。可以使用ALTER TABLE SPLIT PARTITION命令分割分区。分割分区同样适用于需要在现有分区表的前面/中间添加分区的情形。",
+      "source_file": "4561_file_4561.txt"
+    },
+    {
+      "term": "向二级分区表新增二级分区",
+      "content": "向二级分区表新增二级分区 向二级分区表新增二级分区 使用ALTER TABLE MODIFY PARTITION ADD SUBPARTITION可以在二级分区表中新增一个二级分区，这个行为可以作用在二级分区策略为RANGE或者LIST的情况。 例如，对二级分区表range_list_sales的date_202004新增一个二级分区。 ALTER TABLE range_list_sales MODIFY PARTITION date_202004 ADD SUBPARTITION date_202004_channel5 VALUES ('X') TABLESPACE tb2; 当二级分区表的二级分区策略为HASH时，不支持通过ALTER TABLE MODIFY PARTITION ADD SUBPARTITION命令新增二级分区。",
+      "source_file": "4565_file_4565.txt"
+    },
+    {
+      "term": "向间隔分区表新增分区",
+      "content": "向间隔分区表新增分区 向间隔分区表新增分区 不支持通过ALTER TABLE ADD PARTITION命令向间隔分区表新增分区。当用户插入数据超出现有间隔分区表范围时，数据库会自动根据间隔分区的INTERVAL值创建一个分区。 例如，对间隔分区表interval_sales插入如下数据后，数据库会创建一个分区，该分区范围为['2020-07-01', '2020-08-01')，间隔分区的新增分区命名从sys_p1开始递增。 INSERT INTO interval_sales VALUES (263722,42819872,'2020-07-09','E',432072,213,17);",
+      "source_file": "4562_file_4562.txt"
+    },
+    {
+      "term": "向列表分区表新增分区",
+      "content": "向列表分区表新增分区 向列表分区表新增分区 使用ALTER TABLE ADD PARTITION可以在列表分区表中新增分区，新增分区的枚举值不能与已有的任一个分区的枚举值重复。 例如，对列表分区表list_sales新增一个分区。 ALTER TABLE list_sales ADD PARTITION channel5 VALUES ('X') TABLESPACE tb1; 当列表分区表有DEFAULT分区时，无法新增分区。可以使用ALTER TABLE SPLIT PARTITION命令分割分区。",
+      "source_file": "4327_file_4327.txt"
+    },
+    {
+      "term": "向范围分区表新增分区",
+      "content": "向范围分区表新增分区 向范围分区表新增分区 使用ALTER TABLE ADD PARTITION可以将分区添加到现有分区表的最后面，新增分区的上界值必须大于当前最后一个分区的上界值。 例如，对范围分区表range_sales新增一个分区。 ALTER TABLE range_sales ADD PARTITION date_202005 VALUES LESS THAN ('2020-06-01') TABLESPACE tb1; 当范围分区表有MAXVALUE分区时，无法新增分区。可以使用ALTER TABLE SPLIT PARTITION命令分割分区。分割分区同样适用于需要在现有分区表的前面/中间添加分区的情形。",
+      "source_file": "4326_file_4326.txt"
+    },
+    {
+      "term": "向二级分区表新增一级分区",
+      "content": "向二级分区表新增一级分区 向二级分区表新增一级分区 使用ALTER TABLE ADD PARTITION可以在二级分区表中新增一个一级分区，这个行为可以作用在一级分区策略为RANGE或者LIST的情况。如果这个新增一级分区下申明了二级分区定义，则数据库会根据定义创建对应的二级分区；如果这个新增一级分区下没有申明二级分区定义，则数据库会自动创建一个默认的二级分区。 例如，对二级分区表range_list_sales新增一个一级分区，并在下面创建四个二级分区。 ALTER TABLE range_list_sales ADD PARTITION date_202005 VALUES LESS THAN ('2020-06-01') TABLESPACE tb1\n(\n    SUBPARTITION date_202005_channel1 VALUES ('0', '1', '2'),\n    SUBPARTITION date_202005_channel2 VALUES ('3', '4', '5') TABLESPACE tb2,\n    SUBPARTITION date_202005_channel3 VALUES ('6', '7'),\n    SUBPARTITION date_202005_channel4 VALUES ('8', '9')\n); 或者对二级分区表range_list_sales只进行新增一级分区操作。 ALTER TABLE range_list_sales ADD PARTITION date_202005 VALUES LESS THAN ('2020-06-01') TABLESPACE tb1; 上面这种行为与如下SQL语句等价。 ALTER TABLE range_list_sales ADD PARTITION date_202005 VALUES LESS THAN ('2020-06-01') TABLESPACE tb1\n(\n    SUBPARTITION date_202005_channel1 VALUES (DEFAULT)\n); 当二级分区表的一级分区策略为HASH时，不支持通过ALTER TABLE ADD PARTITION命令新增一级分区。",
+      "source_file": "4564_file_4564.txt"
+    },
+    {
+      "term": "向列表分区表新增分区",
+      "content": "向列表分区表新增分区 向列表分区表新增分区 使用ALTER TABLE ADD PARTITION可以在列表分区表中新增分区，新增分区的枚举值不能与已有的任一个分区的枚举值重复。 例如，对列表分区表list_sales新增一个分区。 ALTER TABLE list_sales ADD PARTITION channel5 VALUES ('X') TABLESPACE tb1; 当列表分区表有DEFAULT分区时，无法新增分区。可以使用ALTER TABLE SPLIT PARTITION命令分割分区。",
+      "source_file": "4563_file_4563.txt"
+    }
+  ]
+}

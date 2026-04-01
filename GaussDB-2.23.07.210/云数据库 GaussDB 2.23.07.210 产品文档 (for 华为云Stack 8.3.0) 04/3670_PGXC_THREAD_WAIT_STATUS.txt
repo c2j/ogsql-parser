@@ -1,0 +1,1 @@
+PGXC_THREAD_WAIT_STATUS PGXC_THREAD_WAIT_STATUS 集中式不支持该视图。 父主题： 其他系统视图 版权所有 © 华为技术有限公司

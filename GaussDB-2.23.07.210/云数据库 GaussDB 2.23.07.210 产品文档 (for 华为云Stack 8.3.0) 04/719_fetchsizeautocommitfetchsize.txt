@@ -1,0 +1,1 @@
+【规格】连接参数fetchsize必须要在autocommit关闭情况下使用，否则fetchsize配置无效 【规格】连接参数fetchsize必须要在autocommit关闭情况下使用，否则fetchsize配置无效 父主题： JDBC 版权所有 © 华为技术有限公司

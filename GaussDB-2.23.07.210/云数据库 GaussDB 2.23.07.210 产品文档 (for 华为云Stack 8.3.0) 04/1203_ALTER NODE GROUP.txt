@@ -1,0 +1,12 @@
+ALTER NODE GROUP ALTER NODE GROUP 功能描述 修改一个node group的信息。 注意事项 只有系统管理员或者被授予了node group的ALTER权限的用户可以修改node group信息。 修改node group操作都是系统内部操作，除了SET DEFAULT语法之外，其他操作都需要在维护模式下（调用set xc_maintenance_mode=on;）。 ALTER NODE GROUP语法仅仅应该在数据库内部使用，使用者不应该手动调用这些SQL语句，否则会导致数据库系统数据不一致。 语法格式 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12 ALTER NODE GROUP groupname { SET DEFAULT | RENAME TO new_group_name | SET VCGROUP RENAME TO new_group_name | SET NOT VCGROUP | SET TABLE GROUP new_group_name | COPY BUCKETS FROM src_group_name | ADD NODE ( nodename [, ... ] ) | DELETE NODE ( nodename [, ... ] ) | RESIZE TO dest_group_name | SET VCGROUP WITH GROUP new_group_name } ; 参数说明 g roupname 需要修改的node group名称。 取值范围：字符串，要符合 标识符命名规范 。 SET DEFAULT 将系统中除了groupname指定的node group之外的其他node group对象的in_redistribution字段设置为'y'。考虑到兼容以前版本，该语法仍然保留，且不需要设置维护模式。 RENAME TO new_group_name 将groupname指定的node group的名称修改为new_group_name。 SET TABLE GROUP new_group_name 将所有CN节点的pgxc_class表中pgroup字段是group_name的记录修改为new_group_name。 COPY BUCKETS FROM src_group_name 从src_group_name表示的NodeGroup中，将group_members字段和group_buckets字段的内容拷贝到groupname所表示的NodeGroup中。 ADD NODE ( nodename [, ... ] ) 从groupname指定的NodeGroup中增加指定的节点，这些新增节点在 PGXC_NODE 系统表中存在。该语句仅仅修改系统表，不会进行实际的节点添加和数据重分布，用户不应该直接调用该SQL语句。可以在 PGXC_GROUP 系统表中观察该语句的影响。 DELETE NODE ( nodename [, ... ] ) 从groupname指定的NodeGroup中，将指定的节点移除，这些被移除的节点仍然存在于 PGXC_NODE 系统表中。该语句仅仅修改系统表，不会进行实际的节点移除和数据重分布，用户不应该直接调用该SQL语句。可以在 PGXC_GROUP 系统表中观察该语句的影响。 RESIZE TO dest_group_name 设置集群resize操作标志，将groupname所表示的NodeGroup设置为重分布的源NodeGroup，并取消is_installation标志；同时将desst_group_name设置为重分布的目的NodeGroup，并设置is_installation标志。 示例 请参见CREATE NODE GROUP的 示例 。 相关链接 CREATE NODE GROUP ， DROP NODE GROUP 父主题： A 版权所有 © 华为技术有限公司

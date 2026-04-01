@@ -1,0 +1,74 @@
+使用Go驱动操作密态数据库 使用Go驱动操作密态数据库 在执行本节的SQL语句之前，请确保已 提前生成主密钥，并准备好访问主密钥的参数。 本节以完整的执行流程为例，介绍如何使用密态数据库语法，包括三个阶段：连接阶段、使用DDL阶段、使用DML阶段。 连接密态数据库 连接密态数据库需要使用Go驱动包openGauss-connector-go-pq，驱动包当前不支持在线导入，需要将解压缩后的Go驱动源码包放在本地工程，同时需要配置环境变量。具体Go驱动开发请参考《开发者指南》中“应用程序开发教程 > 基于Go驱动开发”章节。另外，需保证环境上已安装7.3以上版本的gcc 。 Go驱动支持密态数据库相关操作，需要设置密态特性参数enable_ce，同时在编译时添加标签-tags=enable_ce，并解压包名为GaussDB-Kernel_数据库版本号_操作系统版本号_64bit_libpq.tar.gz的压缩包解压到指定目录，并将lib文件夹所在目录路径，添加至LD_LIBRARY_PATH环境变量中。密态操作示例如下： // 以单ip:port为例，本示例以用户名和密码保存在环境变量中为例，运行本示例前请先在本地环境中设置环境变量(环境变量名称请根据自身情况进行设置)
+func main() {
+    // 设置访问主密钥的参数 // 此处介绍2种方式，选择其中1种方式即可： // 认证方式一 aksk认证 （生成主密钥阶段介绍了如何获取相关参数：项目ID、AK、SK） kmsarg := "key_info='keyType=hcs_kms, kmsProjectId={项目ID}, ak={AK}, sk={SK}'" // 示例： kmsarg := "key_info='keyType=hcs_kms,kmsProjectId=0b59929e8100268a2f22c01429802728,ak=XMAUMJY******DFWLQW, sk=ga6rO8lx1Q4uB*********2gf80muIzUX'" // 认证方式二 账号密码认证 （ 生成主密钥阶段 介绍了如何获取相关参数：IAM服务器地址、IAM用户名、IAM用户密码、账号名、项目） kmsarg := "key_info='keyType=hcs_kms," + "iamUrl= {IAM服务器地址 } ," + "iamUser={IAM用户名}," + "iamPassword={IAM用户密码}," + "iamDomain={账号名}," + "kmsProject={项目}'" /* 示例： kmsarg := "key_info='keyType=hcs_kms," + "iamUrl=https://iam.xxx.com/v3/auth/tokens," + "iamUser=test," + "iamPassword=*********," + "iamDomain=test_account," + "kmsProject=xxx'"; */
+       
+    hostip := os.Getenv("GOHOSTIP")   //GOHOSTIP为写入环境变量的IP地址
+    port := os.Getenv("GOPORT")       //GOPORT为写入环境变量的port
+    usrname := os.Getenv("GOUSRNAME") //GOUSRNAME为写入环境变量的用户名
+    passwd := os.Getenv("GOPASSWD")   //GOPASSWDW为写入环境变量的用户密码
+    str := "host=" + hostip + " port=" + port + " user=" + usrname + " password=" + passwd + " dbname=postgres enable_ce=1" + kmsarg // DSN连接串
+    // str := "opengauss://" + usrname + ":" + passwd + "@" + hostip + ":" + port + "/postgres?enable_ce=1" + kmsarg  // URL连接串
+
+    // 获取数据库连接池句柄
+    db, err:= sql.Open("opengauss", str)
+    if err != nil {
+        log.Fatal(err)
+    }
+    defer db.Close()
+
+    // Open函数仅是验证参数，Ping方法可检查数据源是否合法
+    err = db.Ping()
+    if err == nil {
+        fmt.Printf("Connection succeed!\n")
+    } else {
+        log.Fatal(err)
+    }
+} 执行密态等值查询相关的创建密钥语句 // 定义主密钥 // 生成主密钥阶段 介绍了如何获取如下参数：KMS服务器地址、密钥ID _, err = db.Exec("CREATE CLIENT MASTER KEY ImgCMK1 WITH ( KEY_STORE = hcs_kms , KEY_PATH = '{KMS服务器地址}/{密钥ID}', ALGORITHM = AES_256);") // KEY_PATH示例：https://kms-scc-apig.sa-fb-1.console-arm2.com/v1.0/0b59929e8100268a2f22c01429802728/kms/9a262917-8b31-41af-a1e0-a53235f32de9 // 解释： 在生成主密钥阶段 ， 密钥服务已生成并存储主密钥，执行本语法只是将主密钥的相关信息存储在数据库中，方便以后访问 // 提示：KEY_PATH格式请参考：《开发者指南》中“SQL参考 > SQL语法 > CREATE CLIENT MASTER KEY”章节 // 定义列密钥
+_, err = db.Exec("CREATE COLUMN ENCRYPTION KEY ImgCEK1 WITH VALUES (CLIENT_MASTER_KEY = ImgCMK1, ALGORITHM = AEAD_AES_256_CBC_HMAC_SHA256);") 执行密态等值查询加密表相关的语句 // 定义加密表
+_, err = db.Exec("CREATE TABLE creditcard_info (id_number int, name varchar(50) encrypted with (column_encryption_key = ImgCEK1, encryption_type = DETERMINISTIC), credit_card varchar(19) encrypted with (column_encryption_key = ImgCEK1, encryption_type = DETERMINISTIC));")
+// 插入数据
+_, err = db.Exec("INSERT INTO creditcard_info VALUES (1,'joe','6217986500001288393'), (2,'mike','6217986500001722485'), (3,'joe','6315892300001244581');");
+var var1 int
+var var2 string
+var var3 string
+// 查询数据
+rows, err := db.Query("select * from creditcard_info where name = 'joe';")
+defer rows.Close()
+// 逐行打印
+for rows.Next() {
+    err = rows.Scan(&var1, &var2, &var3)
+    if err != nil {
+        log.Fatal(err)
+    } else {
+        fmt.Printf("var1:%v, var2:%v, var3:%v\n", var1, var2, var3)
+    }
+} 执行加密表的预编译SQL语句 // 调用DB实例的Prepare方法创建预编译对象
+delete_stmt, err := db.Prepare("delete from creditcard_info where name = $1;")
+defer delete_stmt.Close()
+// 调用预编译对象的Exec方法绑定参数并执行SQL语句
+_, err = delete_stmt.Exec("mike") 执行加密表的Copy In操作 // 调用DB实例的Begin、Prepare方法创建事务对象、预编译对象
+tx, err := db.Begin()
+copy_stmt, err := tx.Prepare("Copy creditcard_info from stdin")
+// 声明并初始化待导入数据
+var records = []struct {
+    field1 int
+    field2 string
+    field3 string
+}{
+    {4, "james", "6217986500001234567"},
+    {
+        field1: 5,
+        field2: "john",
+        field3: "6217986500007654321",
+    },
+}
+// 调用预编译对象的Exec方法绑定参数并执行SQL语句
+for _, record := range records {
+    _, err = copy_stmt.Exec(record.field1, record.field2, record.field3)
+    if err != nil {
+        log.Fatal(err)
+    }
+}
+// 调用事务对象的Commit方法完成事务提交
+err = copy_stmt.Close()
+err = tx.Commit() 当前Go驱动Copy In语句存在强约束，仅能在事务中通过预编译方式执行。 父主题： 设置密态等值查询 版权所有 © 华为技术有限公司

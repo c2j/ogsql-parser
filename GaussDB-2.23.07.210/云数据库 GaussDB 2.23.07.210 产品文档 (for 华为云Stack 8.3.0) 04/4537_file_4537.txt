@@ -1,0 +1,21 @@
+哈希分区 哈希分区 哈希分区（Hash Partition）基于对分区键使用哈希算法将数据映射到分区。使用的哈希算法为 GaussDB 内置哈希算法，在分区键取值范围不倾斜（no data skew）的场景下，哈希算法在分区之间均匀分布行，使分区大小大致相同。因此哈希分区是实现分区间均匀分布数据的理想方法。哈希分区也是范围分区的一种易于使用的替代方法，尤其是当要分区的数据不是历史数据或没有明显的分区键时，示例如下： CREATE TABLE bmsql_order_line (
+    ol_w_id          INTEGER   NOT NULL,
+    ol_d_id          INTEGER   NOT NULL,
+    ol_o_id          INTEGER   NOT NULL,
+    ol_number        INTEGER   NOT NULL,
+    ol_i_id          INTEGER   NOT NULL,
+    ol_delivery_d    TIMESTAMP,
+    ol_amount        DECIMAL(6,2),
+    ol_supply_w_id   INTEGER,
+    ol_quantity      INTEGER,
+    ol_dist_info     CHAR(24)
+)
+--预先定义100个分区
+PARTITION BY HASH(ol_d_id)
+(
+    PARTITION p0,
+    PARTITION p1,
+    PARTITION p2,
+    …
+    PARTITION p99
+); 上述例子中，bmsql_order_line表的ol_d_id进行了分区，ol_d_id列是一个identifier性质的属性列，本身并不带有时间或者某一个特定维度上的区分。使用哈希分区策略来对其进行分表处理则是一个较为理想的选择，相比其他分区类型，除了预先确保分区键没有过多数据倾斜（某一、某几个值重复度高），只需要指定分区键和分区数即可创建分区，同时还能够确保每个分区的数据均匀，提升了分区表的易用性。 父主题： 分区策略 版权所有 © 华为技术有限公司

@@ -1,0 +1,189 @@
+参数化路径动态剪枝 参数化路径动态剪枝 参数化路径动态剪枝支持范围如下所示： 支持分区类型：范围分区、哈希分区、列表分区。 支持算子类型：indexscan、indexonlyscan、bitmapscan。 支持表达式类型：比较表达式（<，<=，=，>=，>）、逻辑表达式。 参数化路径动态剪枝不支持子查询表达式，不支持stable和volatile函数，不支持跨QueryBlock参数化路径，不支持BitmapOr，BitmapAnd算子。 参数化路径动态剪枝支持的典型场景具体示例如下： 比较表达式 --创建分区表和索引
+CREATE TABLE t1 (c1 INT, c2 INT)
+PARTITION BY RANGE (c1)
+(
+    PARTITION p1 VALUES LESS THAN(10),
+    PARTITION p2 VALUES LESS THAN(20),
+    PARTITION p3 VALUES LESS THAN(MAXVALUE)
+);
+CREATE TABLE t2 (c1 INT, c2 INT)
+PARTITION BY RANGE (c1)
+(
+    PARTITION p1 VALUES LESS THAN(10),
+    PARTITION p2 VALUES LESS THAN(20),
+    PARTITION p3 VALUES LESS THAN(MAXVALUE)
+);
+CREATE INDEX t1_c1 ON t1(c1) LOCAL;
+CREATE INDEX t2_c1 ON t2(c1) LOCAL;
+CREATE INDEX t1_c2 ON t1(c2) LOCAL;
+CREATE INDEX t2_c2 ON t2(c2) LOCAL; gaussdb=# EXPLAIN (VERBOSE ON, COSTS OFF) SELECT /*+ nestloop(t1 t2) indexscan(t1) indexscan(t2) */ * FROM t2 JOIN t1 ON t1.c1 = t2.c1;
+                                                                    QUERY PLAN                                                                     
+---------------------------------------------------------------------------------------------------------------------------------------------------
+ Data Node Scan
+   Output: t2.c1, t2.c2, t1.c1, t1.c2
+   Node/s: All datanodes
+   Remote query: SELECT/*+ NestLoop(t1 t2) IndexScan(t1) IndexScan(t2)*/ t2.c1, t2.c2, t1.c1, t1.c2 FROM public.t2 JOIN public.t1 ON t1.c1 = t2.c1
+
+ Remote SQL: SELECT/*+ NestLoop(t1 t2) IndexScan(t1) IndexScan(t2)*/ t2.c1, t2.c2, t1.c1, t1.c2 FROM public.t2 JOIN public.t1 ON t1.c1 = t2.c1
+ Datanode Name: datanode1
+   Nested Loop
+     Output: t2.c1, t2.c2, t1.c1, t1.c2
+     ->  Partition Iterator
+           Output: t2.c1, t2.c2
+           Iterations: 3
+           ->  Partitioned Index Scan using t2_c1 on public.t2
+                 Output: t2.c1, t2.c2
+                 Selected Partitions:  1..3
+     ->  Partition Iterator
+           Output: t1.c1, t1.c2
+           Iterations: PART
+           ->  Partitioned Index Scan using t1_c1 on public.t1
+                 Output: t1.c1, t1.c2
+                 Index Cond: (t1.c1 = t2.c1)
+                 Selected Partitions:  1..3 (ppi-pruning)
+
+(23 rows) gaussdb=# EXPLAIN (VERBOSE ON, COSTS OFF) SELECT /*+ nestloop(t1 t2) indexscan(t1) indexscan(t2) */ * FROM t2 JOIN t1 ON t1.c1 < t2.c1;
+                            QUERY PLAN                             
+-------------------------------------------------------------------
+ Streaming (type: GATHER)
+   Output: t2.c1, t2.c2, t1.c1, t1.c2
+   Node/s: All datanodes
+   ->  Nested Loop
+         Output: t2.c1, t2.c2, t1.c1, t1.c2
+         ->  Streaming(type: BROADCAST)
+               Output: t2.c1, t2.c2
+               Spawn on: All datanodes
+               Consumer Nodes: All datanodes
+               ->  Partition Iterator
+                     Output: t2.c1, t2.c2
+                     Iterations: 3
+                     ->  Partitioned Seq Scan on public.t2
+                           Output: t2.c1, t2.c2
+                           Distribute Key: t2.c1
+                           Selected Partitions:  1..3
+         ->  Partition Iterator
+               Output: t1.c1, t1.c2
+               Iterations: PART
+               ->  Partitioned Index Scan using t1_c1 on public.t1
+                     Output: t1.c1, t1.c2
+                     Distribute Key: t1.c1
+                     Index Cond: (t1.c1 < t2.c1)
+                     Selected Partitions:  1..3 (ppi-pruning)
+(24 rows) gaussdb=# EXPLAIN (VERBOSE ON, COSTS OFF) SELECT /*+ nestloop(t1 t2) indexscan(t1) indexscan(t2) */ * FROM t2 JOIN t1 ON t1.c1 < t2.c1;
+                            QUERY PLAN                             
+-------------------------------------------------------------------
+ Streaming (type: GATHER)
+   Output: t2.c1, t2.c2, t1.c1, t1.c2
+   Node/s: All datanodes
+   ->  Nested Loop
+         Output: t2.c1, t2.c2, t1.c1, t1.c2
+         ->  Streaming(type: BROADCAST)
+               Output: t2.c1, t2.c2
+               Spawn on: All datanodes
+               Consumer Nodes: All datanodes
+               ->  Partition Iterator
+                     Output: t2.c1, t2.c2
+                     Iterations: 3
+                     ->  Partitioned Seq Scan on public.t2
+                           Output: t2.c1, t2.c2
+                           Distribute Key: t2.c1
+                           Selected Partitions:  1..3
+         ->  Partition Iterator
+               Output: t1.c1, t1.c2
+               Iterations: PART
+               ->  Partitioned Index Scan using t1_c1 on public.t1
+                     Output: t1.c1, t1.c2
+                     Distribute Key: t1.c1
+                     Index Cond: (t1.c1 > t2.c1)
+                     Selected Partitions:  1..3 (ppi-pruning)
+(24 rows) 逻辑表达式 gaussdb=# EXPLAIN (VERBOSE ON, COSTS OFF) SELECT /*+ nestloop(t1 t2) indexscan(t1) indexscan(t2) */ * FROM t2 JOIN t1 ON t1.c1 = t2.c1 AND t1.c2 = 2;
+                                                                           QUERY PLAN                                                                            
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Data Node Scan
+   Output: t2.c1, t2.c2, t1.c1, t1.c2
+   Node/s: All datanodes
+   Remote query: SELECT/*+ NestLoop(t1 t2) IndexScan(t1) IndexScan(t2)*/ t2.c1, t2.c2, t1.c1, t1.c2 FROM public.t2 JOIN public.t1 ON t1.c1 = t2.c1 AND t1.c2 = 2
+
+ Remote SQL: SELECT/*+ NestLoop(t1 t2) IndexScan(t1) IndexScan(t2)*/ t2.c1, t2.c2, t1.c1, t1.c2 FROM public.t2 JOIN public.t1 ON t1.c1 = t2.c1 AND t1.c2 = 2
+ Datanode Name: datanode1
+   Nested Loop
+     Output: t2.c1, t2.c2, t1.c1, t1.c2
+     ->  Partition Iterator
+           Output: t1.c1, t1.c2
+           Iterations: 3
+           ->  Partitioned Index Scan using t1_c2 on public.t1
+                 Output: t1.c1, t1.c2
+                 Index Cond: (t1.c2 = 2)
+                 Selected Partitions:  1..3
+     ->  Partition Iterator
+           Output: t2.c1, t2.c2
+           Iterations: PART
+           ->  Partitioned Index Scan using t2_c1 on public.t2
+                 Output: t2.c1, t2.c2
+                 Index Cond: (t2.c1 = t1.c1)
+                 Selected Partitions:  1..3 (ppi-pruning)
+
+(24 rows) 参数化路径动态剪枝不支持的典型场景具体示例如下： BitmapOr/BitmapAnd算子 gaussdb=# set enable_seqscan=off; gaussdb=# EXPLAIN (VERBOSE ON, COSTS OFF) SELECT /*+ nestloop(t1 t2) */ * FROM t2 JOIN t1 ON t1.c1 = t2.c1 OR t1.c2 = 2;
+                              QUERY PLAN                              
+----------------------------------------------------------------------
+ Streaming (type: GATHER)
+   Output: t2.c1, t2.c2, t1.c1, t1.c2
+   Node/s: All datanodes
+   ->  Nested Loop
+         Output: t2.c1, t2.c2, t1.c1, t1.c2
+         ->  Streaming(type: BROADCAST)
+               Output: t2.c1, t2.c2
+               Spawn on: All datanodes
+               Consumer Nodes: All datanodes
+               ->  Partition Iterator
+                     Output: t2.c1, t2.c2
+                     Iterations: 3
+                     ->  Partitioned Seq Scan on public.t2
+                           Output: t2.c1, t2.c2
+                           Distribute Key: t2.c1
+                           Selected Partitions:  1..3
+         ->  Partition Iterator
+               Output: t1.c1, t1.c2
+               Iterations: 3
+               ->  Partitioned Bitmap Heap Scan on public.t1
+                     Output: t1.c1, t1.c2
+                     Distribute Key: t1.c1
+                     Recheck Cond: ((t1.c1 = t2.c1) OR (t1.c2 = 2))
+                     Selected Partitions:  1..3
+                     ->  BitmapOr
+                           ->  Partitioned Bitmap Index Scan on t1_c1
+                                 Index Cond: (t1.c1 = t2.c1)
+                                 Selected Partitions:  1..3
+                           ->  Partitioned Bitmap Index Scan on t1_c2
+                                 Index Cond: (t1.c2 = 2)
+                                 Selected Partitions:  1..3
+(31 rows) 隐式转换 gaussdb=# CREATE TABLE t3(c1 TEXT, c2 INT);
+CREATE TABLE gaussdb=# EXPLAIN (VERBOSE ON, COSTS OFF) SELECT * FROM t1 JOIN t3 ON t1.c1 = t3.c1;
+                         QUERY PLAN                          
+-------------------------------------------------------------
+ Nested Loop
+   Output: t1.c1, t1.c2, t3.c1, t3.c2
+   ->  Seq Scan on public.t3
+         Output: t3.c1, t3.c2
+   ->  Partition Iterator
+         Output: t1.c1, t1.c2
+         Iterations: 3
+         ->  Partitioned Index Scan using t1_c1 on public.t1
+               Output: t1.c1, t1.c2
+               Index Cond: (t1.c1 = (t3.c1)::bigint)
+               Selected Partitions:  1..3
+(11 rows) 函数 gaussdb=# EXPLAIN (VERBOSE ON, COSTS OFF) SELECT * FROM t1 JOIN t3 ON t1.c1 = LENGTHB(t3.c1);
+                         QUERY PLAN                          
+-------------------------------------------------------------
+ Nested Loop
+   Output: t1.c1, t1.c2, t3.c1, t3.c2
+   ->  Seq Scan on public.t3
+         Output: t3.c1, t3.c2
+   ->  Partition Iterator
+         Output: t1.c1, t1.c2
+         Iterations: 3
+         ->  Partitioned Index Scan using t1_c1 on public.t1
+               Output: t1.c1, t1.c2
+               Index Cond: (t1.c1 = lengthb(t3.c1))
+               Selected Partitions:  1..3
+(11 rows) 父主题： 分区表动态剪枝 版权所有 © 华为技术有限公司

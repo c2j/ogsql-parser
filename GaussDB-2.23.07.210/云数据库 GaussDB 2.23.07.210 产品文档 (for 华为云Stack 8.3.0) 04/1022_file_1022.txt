@@ -1,0 +1,6 @@
+检查隐式转换的性能问题 检查隐式转换的性能问题 在某些场景下，数据类型的隐式转换可能会导致潜在的性能问题。请看如下的场景： SET enable_fast_query_shipping = off;
+CREATE TABLE t1(c1 VARCHAR, c2 VARCHAR);
+CREATE INDEX on t1(c1);
+EXPLAIN verbose SELECT * FROM t1 WHERE c1 = 10; 上述查询的执行计划如下： c1的数据类型是varchar，当查询的过滤条件为c1 = 10时，优化器默认将c1隐式转换为bigint类型，导致两个后果： 不能进行DN裁剪，计划下发到所有DN上执行。 计划中不能使用Index Scan方式扫描数据。 这会引起潜在的性能问题。 当知道了问题原因后，可以做针对性的SQL改写。对于上面的场景，只要将过滤条件中的常量显示转换为varchar类型，结果如下： EXPLAIN verbose SELECT * FROM t1 WHERE c1 = 10::varchar; 为了提前识别隐式类型转换可能带来的性能影响， GaussDB 提供了一个guc option：check_implicit_conversions。打开该参数后，对于查询中出现的隐式类型转换的索引列，在路径生成阶段进行检查，如果发现索引列没有生成候选的索引扫描路径，则会通过报错的形式提示给用户。举例如下： SET check_implicit_conversions = on;
+SELECT * FROM t1 WHERE c1 = 10;
+ERROR:  There is no optional index path for index column: "t1"."c1". 参数check_implicit_conversions只用于检查隐式类型转换引起的潜在性能问题，在正式生产环境中请关闭该参数（该参数默认关闭）。 在将check_implicit_conversions打开时，必须同时关闭enable_fast_query_shipping参数，否则由于后一个参数的作用，无法查看对隐式类型转换修复的结果。 一个表的候选路径可能包括seq scan和index scan等多个可能的数据扫描方式，最终执行计划使用的表扫描方式是由执行计划的代价来决定的，因此即使生成了索引扫描的候选路径，也可能生成的最终执行计划中使用其它扫描方式。 父主题： SQL调优指南 版权所有 © 华为技术有限公司

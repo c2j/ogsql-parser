@@ -1,0 +1,21 @@
+{
+  "topic": "Dorado存储NOF组网配置",
+  "term_count": 3,
+  "terms": [
+    {
+      "term": "Dorado存储打开特性白名单",
+      "content": "Dorado存储打开特性白名单 Dorado存储打开特性白名单 使用Dorado存储admin用户ssh登录，执行如下命令切换至开发者模式 change user_mode current_mode user_mode=developer y y 在开发者模式下执行如下命令查询NVMe预留开关是否打开 show tgt_switch nvme_reservation_feature 如果没有打开执行如下命令打开NVMe预留特性开关 change tgt_switch nvme_reservation_feature switch=on 注意：需要主备region的两个dorado同步复制存储打开上述特性白名单。",
+      "source_file": "4820_Dorado.txt"
+    },
+    {
+      "term": "Dorado存储添加远端设备（此步骤仅供参考，详细操作请参考Dorado产品文档）",
+      "content": "Dorado存储添加远端设备（此步骤仅供参考，详细操作请参考Dorado产品文档） Dorado存储添加远端设备（此步骤仅供参考，详细操作请参考Dorado产品文档） 操作场景 搭建容灾环境，需要主从Dorado存储设备之间数据同步。网络连线、zone配置完成之后，需要手动添加远端设备，使主从Dorado数据互通。当前同城机房相连需要通过波分进行打通。 操作步骤 打通数据中心1和数据中心2两个存储NOF的网络。 登录其中一个Dorado存储web页面创建一个远端设备管理员角色的用户。 登录另一台Dorado存储web页面，添加远端设备（使用在步骤2中创建的管理员用户和密码）。 如果远端设备和链路不能正常选择，检查设备连线和zone网络配置。",
+      "source_file": "4819_DoradoDorado.txt"
+    },
+    {
+      "term": "存储设备连线要求",
+      "content": "存储设备连线要求 存储设备连线要求 Dorado存储设备上架配置管理IP后，根据规划的方式连线。 Dorado存储BMC IP，需要external_om平面、dmz Service平面互通。",
+      "source_file": "4818_file_4818.txt"
+    }
+  ]
+}

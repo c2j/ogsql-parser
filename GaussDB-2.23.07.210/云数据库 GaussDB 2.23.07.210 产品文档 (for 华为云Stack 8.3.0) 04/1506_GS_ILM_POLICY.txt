@@ -1,0 +1,1 @@
+GS_ILM_POLICY GS_ILM_POLICY GS_ILM_POLICY系统表提供了记录策略动作类型、判定条件等。 表1 GS_ILM_POLICY字段 名称 类型 描述 pidx integer 策略序号。 action "char" 策略动作，仅支持压缩（‘c’）。 ctype "char" 压缩类型，仅支持高级行压缩（‘a’）。 condition "char" 判定条件类型，仅支持LAST MODIFICATION（‘m’）。 days smallint 判定天数量。 scope "char" 策略作用域，仅支持Row（‘r’）。 predicate pg_node_tree 策略行级表达式。 父主题： OLTP表压缩 版权所有 © 华为技术有限公司

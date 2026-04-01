@@ -1,0 +1,31 @@
+{
+  "topic": "XBSA配置最佳实践",
+  "term_count": 5,
+  "terms": [
+    {
+      "term": "使用前配置",
+      "content": "使用前配置 使用前配置 使用XBSA备份，是指 GaussDB 对接第三方备份平台，并使用XBSA协议传输备份文件的方式。 前提条件 第三方备份服务器与数据库虚机之间网络已经打通。 第三方备份平台已成功对接适配GaussDB备份相关API。 约束限制 XBSA全量、差量备份及备份文件恢复功能仅在 GaussDB 3.200 版本及以上可使用。 XBSA PITR功能仅在 GaussDB 3.301 版本及以上可使用。 已转为XBSA备份的实例无法转换到原有的备份方式，且之前备份方式下存在的备份文件不可用。 采用XBSA备份的实例， GaussDB 的备份策略将会停止，所有备份全部由三方备份系统自定义实现。同时在拓扑发生变更（例如，扩容节点，节点替换等）、新建实例等场景时，不会主动触发全量备份，需要由三方备份系统自主实现，以保证备份的可用性、连续性。 XBSA备份的实例，不再支持原有的备份方式，且不再提供原有备份方式的入口。 XBSA备份实例删除后，无法保留到回收站中。由第三方备份系统提供恢复功能。 在升级版本、节点扩容、扩容重分布、恢复当前实例等操作后，会删除上一次增备至今的所有归档日志。需要触发一次手动全备，否则会导致这些操作后时间点不可恢复。",
+      "source_file": "6143_file_6143.txt"
+    },
+    {
+      "term": "XBSA备份操作手册",
+      "content": "XBSA备份操作手册 XBSA备份操作手册 检查系统参数 设置细粒度权限 API对接流程",
+      "source_file": "6144_XBSA.txt"
+    },
+    {
+      "term": "概述",
+      "content": "概述 概述 GaussDB 支持将备份系统对接外部三方备份系统，并通过XBSA协议将备份文件存储在三方设备上。本手册介绍接入三方备份的使用方法和注意事项。",
+      "source_file": "6141_file_6141.txt"
+    },
+    {
+      "term": "backUpAgent",
+      "content": "backUpAgent 配置指南 backUpAgent 配置指南 本章节提供XBSA备份特性组件backUpAgent的配置方法，包括安装backUpAgent组件、配置XBSA协议动态库文件、配置SSL双向认证证书文件以及启动backUpAgent组件。 安装backUpAgent组件 配置SSL双向认证证书文件 启动backUpAgent 备份恢复常见问题",
+      "source_file": "6148_backUpAgent .txt"
+    },
+    {
+      "term": "XBSA备份部署架构",
+      "content": "XBSA备份部署架构 XBSA备份部署架构 部署场景1 第三方备份Backup Client虚拟机通过管控面APIG网关调用接口来触发备份，走POD区访问APIG。注意：Backup Client虚拟机不能清理租户区TDNS配置，否则会导致所有上层服务的域名解析不对 数据库实例虚机与Backup Client虚拟机网络互通，采用同VPC网络打通。 Backup Client与云外备份服务端通信，通过增强云专线方式进行网络打通。 部署场景2 第三方备份Backup Client虚拟机通过管控面APIG网关调用接口来触发备份， Backup Client和APIG间的网络需要打通。 Backup Client所在虚机需要接入到云内网络，通过增强云专线方式进行网络打通。",
+      "source_file": "6142_XBSA.txt"
+    }
+  ]
+}

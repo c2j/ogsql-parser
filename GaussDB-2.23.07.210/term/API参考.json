@@ -1,0 +1,41 @@
+{
+  "topic": "API参考",
+  "term_count": 7,
+  "terms": [
+    {
+      "term": "如何调用API",
+      "content": "如何调用API 如何调用API 构造请求 认证鉴权 返回结果",
+      "source_file": "338_API.txt"
+    },
+    {
+      "term": "API（推荐）",
+      "content": "API（推荐） API（推荐） 实例管理 参数配置 备份管理 引擎版本和规格 管理数据库和用户 容灾管理 任务管理",
+      "source_file": "342_API.txt"
+    },
+    {
+      "term": "历史API",
+      "content": "历史API 历史API 实例管理 备份管理 容灾管理（V3.1）",
+      "source_file": "411_API.txt"
+    },
+    {
+      "term": "使用前必读",
+      "content": "使用前必读 使用前必读 概述 调用说明 终端节点 约束限制 基本概念",
+      "source_file": "331_file_331.txt"
+    },
+    {
+      "term": "修订记录",
+      "content": "修订记录 修订记录 发布日期 更新特性 2023-03-30 第一次正式发布。",
+      "source_file": "446_file_446.txt"
+    },
+    {
+      "term": "附录",
+      "content": "附录 附录 异常请求结果 状态码 错误码 获取项目ID/名称 获取终端节点 ReplicationMode列表 数据库实例规格",
+      "source_file": "438_file_438.txt"
+    },
+    {
+      "term": "API概览",
+      "content": "API概览 API概览 通过使用 GaussDB 接口，您可以使用 GaussDB 的创建实例、删除实例等功能。 类型 子类型 说明 GaussDB 接口 实例管理 包括创建实例、删除实例、查询实例列表接口。",
+      "source_file": "337_API.txt"
+    }
+  ]
+}

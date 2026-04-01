@@ -1,0 +1,32 @@
+Stream方式的Hint Stream方式的Hint 功能描述 在并行的执行计划中，指定stream的使用方法，可以为broadcast或者redistribute，表示对数据进行广播或者重分布。 语法格式 1 [ no ] broadcast | redistribute ( [ @ queryblock ] table_list ) 参数说明 @queryblock 见 指定Hint所处于的查询块Queryblock ，可省略，表示在当前查询块生效。 broadcast和redistribute。 no表示hint的stream方式不使用。 table_list为进行stream操作的单表或多表，多个表之间使用空格分隔。例如：broadcast(t1)，broadcast(t1 t2)。 示例 CREATE TABLE stream_t1(a int, b int);
+INSERT INTO stream_t1 VALUES(generate_series(1, 1000000), generate_series(1, 1000000));
+ANALYZE stream_t1;
+CREATE TABLE stream_t2(a int, b int);
+INSERT INTO stream_t2 VALUES(generate_series(1, 10000), generate_series(1, 10000));
+ANALYZE stream_t2;
+SET query_dop = 4;
+EXPLAIN (costs off) select/*+ broadcast(stream_t1)*/ * FROM stream_t1 JOIN stream_t2 ON (stream_t1.a = stream_t2.a);
+                          QUERY PLAN
+--------------------------------------------------------------
+ Streaming(type: LOCAL GATHER dop: 1/4)
+   ->  Hash Join
+         Hash Cond: (stream_t1.a = stream_t2.a)
+         ->  Streaming(type: BROADCAST dop: 4/4)
+               ->  Seq Scan on stream_t1
+         ->  Hash
+               ->  Streaming(type: LOCAL ROUNDROBIN dop: 4/1)
+                     ->  Seq Scan on stream_t2
+(8 rows)
+-- 指定stream_t2进行broadcast的执行计划
+EXPLAIN (costs off) SELECT/*+ broadcast(stream_t2)*/ * FROM stream_t1 JOIN stream_t2 ON (stream_t1.a = stream_t2.a);
+                      QUERY PLAN
+-------------------------------------------------------
+ Streaming(type: LOCAL GATHER dop: 1/4)
+   ->  Hash Join
+         Hash Cond: (stream_t1.a = stream_t2.a)
+         ->  Seq Scan on stream_t1
+         ->  Hash
+               ->  Streaming(type: BROADCAST dop: 4/1)
+                     ->  Seq Scan on stream_t2
+(7 rows)
+-- 表示使用将stream_t2的数据进行broadcast之后再和stream_t1进行join。样例开启了4并发，此时broadcast将广播一张表至其他线程进行并行hash join，由于stream_t2表大小比stream_t1表小，广播t2可以带来更低的性能开销。 只有在生成并行的执行计划的时候，stream hint才会生效。 父主题： 使用Plan Hint进行调优 版权所有 © 华为技术有限公司

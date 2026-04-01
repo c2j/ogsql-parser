@@ -1,0 +1,7 @@
+应用安全标签 应用安全标签 前提条件 数据库正常运行，执行操作的用户需要具有SYSADMIN权限或者继承了内置角色gs_role_seclabel的权限。 背景信息 提供系统表pg_seclabel来查看表或表列上的安全标签： SELECT * FROM pg_seclabel; 提供系统表pg_shseclabel来查看用户/角色上的安全标签： SELECT * FROM pg_shseclabel; 提供系统视图pg_seclabels来查看系统中所有的安全标签记录： SELECT * FROM pg_seclabels; 操作步骤 数据库中已有用户user1、user2和数据表tbl。 对用户user1应用安全标签label1，表示用户user1对应的信息等级为公开，范围为二层和四层。 1 gaussdb =# SECURITY LABEL ON USER user1 is 'label1' ; 对用户user2应用安全标签label3，表示用户user2对应的信息等级为绝密，范围为一层到五层。 1 gaussdb =# SECURITY LABEL ON USER user2 is 'label3' ; 对表tbl应用安全标签label2，表示表tbl对应的信息等级为秘密，范围为二层到四层。 1 gaussdb =# SECURITY LABEL ON TABLE tbl is 'label2' ; 查询系统视图pg_seclabels。 1 gaussdb =# SELECT * FROM pg_seclabels ; 查询结果如下： gaussdb=# SELECT * FROM pg_seclabels;
+ objoid | classoid | objsubid | objtype | objnamespace | objname | provider | label
+--------+----------+----------+---------+--------------+---------+----------+--------
+  16399 |     1259 |        0 | table   |         2200 | tbl     | maclabel | label2
+  16391 |     1260 |        0 | role    |              | user1   | maclabel | label1
+  16395 |     1260 |        0 | role    |              | user2   | maclabel | label3
+(3 rows) 父主题： 基于标签的强制访问控制 版权所有 © 华为技术有限公司

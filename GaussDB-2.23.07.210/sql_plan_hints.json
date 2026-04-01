@@ -1,0 +1,645 @@
+{
+  "metadata": {
+    "version": "1.0.0",
+    "created": "2025-01-09",
+    "hint_count": 53,
+    "source": "GaussDB Plan Hint Documentation",
+    "description": "Comprehensive SQL plan hints reference extracted from GaussDB documentation"
+  },
+  "hints": [
+    {
+      "hint": "tablescan",
+      "category": "Scan",
+      "description": "指定表扫描方式为顺序扫描",
+      "syntax": "[no] tablescan([@queryblock] table)",
+      "parameters": [
+        {"name": "no", "description": "表示hint的scan方式不使用"},
+        {"name": "@queryblock", "description": "指定Hint所处于的查询块，可省略"},
+        {"name": "table", "description": "hint指定的表，只能指定一个表，如果表存在别名应优先使用别名"}
+      ],
+      "example": "select /*+ tablescan(t1) */ * from t1",
+      "notes": "支持行存表、hdfs内外表、obs表、子查询表上指定"
+    },
+    {
+      "hint": "indexscan",
+      "category": "Scan",
+      "description": "指定表扫描方式为索引扫描",
+      "syntax": "[no] indexscan([@queryblock] table [index])",
+      "parameters": [
+        {"name": "no", "description": "表示hint的scan方式不使用"},
+        {"name": "@queryblock", "description": "指定Hint所处于的查询块，可省略"},
+        {"name": "table", "description": "hint指定的表，只能指定一个表"},
+        {"name": "index", "description": "指定的索引名称，当前只能指定一个"}
+      ],
+      "example": "select /*+ indexscan(item i) */ * from item where i_item_sk = 100",
+      "notes": "只有hint的索引属于hint的表时，才能使用该hint"
+    },
+    {
+      "hint": "indexonlyscan",
+      "category": "Scan",
+      "description": "指定表扫描方式为仅索引扫描",
+      "syntax": "[no] indexonlyscan([@queryblock] table [index])",
+      "parameters": [
+        {"name": "no", "description": "表示hint的scan方式不使用"},
+        {"name": "@queryblock", "description": "指定Hint所处于的查询块，可省略"},
+        {"name": "table", "description": "hint指定的表，只能指定一个表"},
+        {"name": "index", "description": "指定的索引名称，当前只能指定一个"}
+      ],
+      "example": "select /*+ indexonlyscan(item i) */ i_item_sk from item where i_item_sk = 100",
+      "notes": "只有输出列和谓词条件列仅包含索引列才会使用"
+    },
+    {
+      "hint": "gsi",
+      "category": "Scan",
+      "description": "使用全局二级索引扫描",
+      "syntax": "[no] gsi([@queryblock] table [index])",
+      "parameters": [
+        {"name": "@queryblock", "description": "指定Hint所处于的查询块，可省略"},
+        {"name": "table", "description": "hint指定的表"},
+        {"name": "index", "description": "全局二级索引名称"}
+      ],
+      "example": "select /*+ gsi(t1 gsi_t1_idx) */ * from t1 where c1 = 1",
+      "notes": "集中式不支持gsi hint"
+    },
+    {
+      "hint": "gsitable",
+      "category": "Scan",
+      "description": "使用全局二级索引表扫描",
+      "syntax": "[no] gsitable([@queryblock] table [index])",
+      "parameters": [
+        {"name": "@queryblock", "description": "指定Hint所处于的查询块，可省略"},
+        {"name": "table", "description": "hint指定的表"},
+        {"name": "index", "description": "全局二级索引名称"}
+      ],
+      "example": "select /*+ gsitable(t1 gsi_t1_idx) */ * from t1 where c1 = 1",
+      "notes": "集中式不支持gsitable hint"
+    },
+    {
+      "hint": "bitmapscan",
+      "category": "Scan",
+      "description": "支持在目标表上使用指定的索引生成bitmapscan路径",
+      "syntax": "[no] bitmapscan([@queryblock] table [index_list])",
+      "parameters": [
+        {"name": "no", "description": "表示hint的scan方式不使用"},
+        {"name": "@queryblock", "description": "指定Hint所处于的查询块，可省略"},
+        {"name": "table", "description": "bitmapscan的目标表"},
+        {"name": "index_list", "description": "bitmapscan使用的索引列表"}
+      ],
+      "example": "select /*+ BitmapScan(t1 it1 it3) */ * from t1 where (t1.c1 = 5 or t1.c2=6) or (t1.c3=3 or t1.c2=7)",
+      "notes": "仅会根据已有的index路径组合bitmapscan路径时优先选择符合要求的路径"
+    },
+    {
+      "hint": "nestloop",
+      "category": "Join Method",
+      "description": "指明Join使用Nested Loop方法",
+      "syntax": "[no] nestloop([@queryblock] table_list)",
+      "parameters": [
+        {"name": "no", "description": "表示hint的join方式不使用"},
+        {"name": "@queryblock", "description": "指定Hint所处于的查询块，可省略"},
+        {"name": "table_list", "description": "表示hint表集合的字符串，多个表使用空格分隔"}
+      ],
+      "example": "select /*+ nestloop(t1 t2) */ * from t1 join t2 on t1.a = t2.a",
+      "notes": "此hint只hint最后一次join的join方式"
+    },
+    {
+      "hint": "hashjoin",
+      "category": "Join Method",
+      "description": "指明Join使用Hash Join方法",
+      "syntax": "[no] hashjoin([@queryblock] table_list)",
+      "parameters": [
+        {"name": "no", "description": "表示hint的join方式不使用"},
+        {"name": "@queryblock", "description": "指定Hint所处于的查询块，可省略"},
+        {"name": "table_list", "description": "表示hint表集合的字符串，多个表使用空格分隔"}
+      ],
+      "example": "select /*+ hashjoin(t1 t2) */ * from t1 join t2 on t1.a = t2.a",
+      "notes": "非等值join使用hashjoin hint不会生效"
+    },
+    {
+      "hint": "mergejoin",
+      "category": "Join Method",
+      "description": "指明Join使用Merge Join方法",
+      "syntax": "[no] mergejoin([@queryblock] table_list)",
+      "parameters": [
+        {"name": "no", "description": "表示hint的join方式不使用"},
+        {"name": "@queryblock", "description": "指定Hint所处于的查询块，可省略"},
+        {"name": "table_list", "description": "表示hint表集合的字符串，多个表使用空格分隔"}
+      ],
+      "example": "select /*+ mergejoin(t1 t2) */ * from t1 join t2 on t1.a = t2.a",
+      "notes": "非等值join使用mergejoin hint不会生效"
+    },
+    {
+      "hint": "leading",
+      "category": "Join Order",
+      "description": "指明join的顺序，包括内外表顺序",
+      "syntax": "leading([@queryblock] join_table_list)",
+      "parameters": [
+        {"name": "@queryblock", "description": "指定Hint所处于的查询块，可省略"},
+        {"name": "join_table_list", "description": "表示表join顺序的hint字符串，可以包含当前层的任意个表或别名，表之间使用空格分隔"}
+      ],
+      "example": "select /*+ leading(t1 t2 t3) */ * from t1 join t2 on t1.a = t2.a join t3 on t2.b = t3.b",
+      "notes": "可以用括号指定优先级，如leading((t1 t2) t3)表示t1和t2先join，再和t3 join"
+    },
+    {
+      "hint": "broadcast",
+      "category": "Stream",
+      "description": "在并行的执行计划中，指定对数据进行广播",
+      "syntax": "[no] broadcast([@queryblock] table_list)",
+      "parameters": [
+        {"name": "no", "description": "表示hint的stream方式不使用"},
+        {"name": "@queryblock", "description": "指定Hint所处于的查询块，可省略"},
+        {"name": "table_list", "description": "进行stream操作的单表或多表，多个表之间使用空格分隔"}
+      ],
+      "example": "select /*+ broadcast(stream_t1) */ * from stream_t1 join stream_t2 on stream_t1.a = stream_t2.a",
+      "notes": "只有在生成并行的执行计划的时候，stream hint才会生效"
+    },
+    {
+      "hint": "redistribute",
+      "category": "Stream",
+      "description": "在并行的执行计划中，指定对数据进行重分布",
+      "syntax": "[no] redistribute([@queryblock] table_list)",
+      "parameters": [
+        {"name": "no", "description": "表示hint的stream方式不使用"},
+        {"name": "@queryblock", "description": "指定Hint所处于的查询块，可省略"},
+        {"name": "table_list", "description": "进行stream操作的单表或多表，多个表之间使用空格分隔"}
+      ],
+      "example": "select /*+ redistribute(t1 t2) */ * from t1 join t2 on t1.a = t2.a",
+      "notes": "只有在生成并行的执行计划的时候，stream hint才会生效"
+    },
+    {
+      "hint": "use_hash_agg",
+      "category": "Aggregation",
+      "description": "指定使用Hash Aggregation方法",
+      "syntax": "use_hash_agg[@queryblock]",
+      "parameters": [
+        {"name": "@queryblock", "description": "指定Hint所处于的查询块，可省略"}
+      ],
+      "example": "select /*+ use_hash_agg */ c1 from t1 group by c1",
+      "notes": "适用于大数据量分组场景"
+    },
+    {
+      "hint": "use_sort_agg",
+      "category": "Aggregation",
+      "description": "指定使用Sort Aggregation方法",
+      "syntax": "use_sort_agg[@queryblock]",
+      "parameters": [
+        {"name": "@queryblock", "description": "指定Hint所处于的查询块，可省略"}
+      ],
+      "example": "select /*+ use_sort_agg */ c1 from t1 group by c1",
+      "notes": "适用于数据已排序或小数据量分组场景"
+    },
+    {
+      "hint": "EXPAND_SUBLINK_HAVING",
+      "category": "Query Rewrite",
+      "description": "允许HAVING子句中的子链接提升",
+      "syntax": "EXPAND_SUBLINK_HAVING[@queryblock]",
+      "parameters": [
+        {"name": "@queryblock", "description": "可选参数，指定查询块"}
+      ],
+      "example": "select /*+EXPAND_SUBLINK_HAVING*/ a,sum(b) AS value FROM t1 GROUP BY a HAVING sum(a) >= (SELECT avg(b) FROM t1)",
+      "notes": "与NO_EXPAND_SUBLINK_HAVING互斥，受GUC参数rewrite_rule控制"
+    },
+    {
+      "hint": "NO_EXPAND_SUBLINK_HAVING",
+      "category": "Query Rewrite",
+      "description": "禁止HAVING子句中的子链接提升",
+      "syntax": "NO_EXPAND_SUBLINK_HAVING[@queryblock]",
+      "parameters": [
+        {"name": "@queryblock", "description": "可选参数，指定查询块"}
+      ],
+      "example": "select /*+NO_EXPAND_SUBLINK_HAVING*/ a,sum(b) AS value FROM t1 GROUP BY a HAVING sum(a) >= (SELECT avg(b) FROM t1)",
+      "notes": "与EXPAND_SUBLINK_HAVING互斥，受GUC参数rewrite_rule控制"
+    },
+    {
+      "hint": "EXPAND_SUBLINK",
+      "category": "Query Rewrite",
+      "description": "允许对ANY/EXISTS类型子链接进行提升",
+      "syntax": "EXPAND_SUBLINK[@queryblock]",
+      "parameters": [
+        {"name": "@queryblock", "description": "可选参数，指定查询块"}
+      ],
+      "example": "SELECT * FROM t1 WHERE a > ANY(SELECT /*+EXPAND_SUBLINK*/ a FROM t2)",
+      "notes": "与NO_EXPAND_SUBLINK互斥，hint优先级高于NO_EXPAND"
+    },
+    {
+      "hint": "NO_EXPAND_SUBLINK",
+      "category": "Query Rewrite",
+      "description": "禁止对ANY/EXISTS类型子链接进行提升",
+      "syntax": "NO_EXPAND_SUBLINK[@queryblock]",
+      "parameters": [
+        {"name": "@queryblock", "description": "可选参数，指定查询块"}
+      ],
+      "example": "SELECT * FROM t1 WHERE a > ANY(SELECT /*+NO_EXPAND_SUBLINK*/ a FROM t2)",
+      "notes": "与EXPAND_SUBLINK互斥，该hint与NO_EXPAND hint等效"
+    },
+    {
+      "hint": "EXPAND_SUBLINK_TARGET",
+      "category": "Query Rewrite",
+      "description": "允许TargetList中的子链接进行提升",
+      "syntax": "EXPAND_SUBLINK_TARGET[@queryblock]",
+      "parameters": [
+        {"name": "@queryblock", "description": "可选参数，指定查询块"}
+      ],
+      "example": "SELECT a,(SELECT /*+EXPAND_SUBLINK_TARGET*/ avg(b) FROM t1 WHERE t1.b = t2.b) FROM t2",
+      "notes": "与NO_EXPAND_SUBLINK_TARGET互斥，hint优先级高于NO_EXPAND"
+    },
+    {
+      "hint": "NO_EXPAND_SUBLINK_TARGET",
+      "category": "Query Rewrite",
+      "description": "禁止TargetList中的子链接进行提升",
+      "syntax": "NO_EXPAND_SUBLINK_TARGET[@queryblock]",
+      "parameters": [
+        {"name": "@queryblock", "description": "可选参数，指定查询块"}
+      ],
+      "example": "SELECT a,(SELECT /*+NO_EXPAND_SUBLINK_TARGET*/ avg(b) FROM t1 WHERE t1.b = t2.b) FROM t2",
+      "notes": "与EXPAND_SUBLINK_TARGET互斥，该hint与NO_EXPAND hint等效"
+    },
+    {
+      "hint": "USE_MAGIC_SET",
+      "category": "Query Rewrite",
+      "description": "从主查询下推条件到子查询，先针对子查询的关联字段进行分组聚集，再和主查询进行关联",
+      "syntax": "USE_MAGIC_SET[@queryblock]",
+      "parameters": [
+        {"name": "@queryblock", "description": "可选参数，指定查询块"}
+      ],
+      "example": "SELECT t1 FROM t1 WHERE t1.c < (SELECT /*+USE_MAGIC_SET*/ sum(c) FROM t2 WHERE t1.a = t2.a)",
+      "notes": "减少相关子链接的重复扫描，提升查询效率。与NO_USE_MAGIC_SET互斥"
+    },
+    {
+      "hint": "NO_USE_MAGIC_SET",
+      "category": "Query Rewrite",
+      "description": "禁止从主查询下推条件到子查询，将带有聚集算子的子查询提前和主查询进行关联",
+      "syntax": "NO_USE_MAGIC_SET[@queryblock]",
+      "parameters": [
+        {"name": "@queryblock", "description": "可选参数，指定查询块"}
+      ],
+      "example": "SELECT t1 FROM t1 WHERE t1.c < (SELECT /*+NO_USE_MAGIC_SET*/ sum(c) FROM t2 WHERE t1.a = t2.a)",
+      "notes": "与USE_MAGIC_SET互斥"
+    },
+    {
+      "hint": "EXPAND_SUBLINK_UNIQUE_CHECK",
+      "category": "Query Rewrite",
+      "description": "允许对无agg的子链接进行提升，子链接提升需要保证对于每个条件只有一行输出",
+      "syntax": "EXPAND_SUBLINK_UNIQUE_CHECK[@queryblock]",
+      "parameters": [
+        {"name": "@queryblock", "description": "可选参数，指定查询块"}
+      ],
+      "example": "SELECT t1.a FROM t1 WHERE t1.a = (SELECT /*+EXPAND_SUBLINK_UNIQUE_CHECK*/ t2.a FROM t2 WHERE t1.a = t2.b)",
+      "notes": "与NO_EXPAND_SUBLINK_UNIQUE_CHECK互斥"
+    },
+    {
+      "hint": "NO_EXPAND_SUBLINK_UNIQUE_CHECK",
+      "category": "Query Rewrite",
+      "description": "禁止对无agg的子链接进行提升",
+      "syntax": "NO_EXPAND_SUBLINK_UNIQUE_CHECK[@queryblock]",
+      "parameters": [
+        {"name": "@queryblock", "description": "可选参数，指定查询块"}
+      ],
+      "example": "SELECT t1.a FROM t1 WHERE t1.a = (SELECT /*+NO_EXPAND_SUBLINK_UNIQUE_CHECK*/ t2.a FROM t2 WHERE t1.a = t2.b)",
+      "notes": "与EXPAND_SUBLINK_UNIQUE_CHECK互斥"
+    },
+    {
+      "hint": "NO_SUBLINK_DISABLE_REPLICATED",
+      "category": "Query Rewrite",
+      "description": "不禁止带有复制表的fast query shipping或者Stream场景提升子链接",
+      "syntax": "NO_SUBLINK_DISABLE_REPLICATED[@queryblock]",
+      "parameters": [
+        {"name": "@queryblock", "description": "可选参数，指定查询块"}
+      ],
+      "example": "SELECT * FROM t1 WHERE (0 =(SELECT /*+NO_SUBLINK_DISABLE_REPLICATED*/ count(*) FROM t2 WHERE t2.a = t1.a))",
+      "notes": "与SUBLINK_DISABLE_REPLICATED互斥"
+    },
+    {
+      "hint": "SUBLINK_DISABLE_REPLICATED",
+      "category": "Query Rewrite",
+      "description": "禁止带有复制表的fast query shipping或者Stream场景提升子链接",
+      "syntax": "SUBLINK_DISABLE_REPLICATED[@queryblock]",
+      "parameters": [
+        {"name": "@queryblock", "description": "可选参数，指定查询块"}
+      ],
+      "example": "SELECT * FROM t1 WHERE (0 =(SELECT /*+SUBLINK_DISABLE_REPLICATED*/ count(*) FROM t2 WHERE t2.a = t1.a))",
+      "notes": "与NO_SUBLINK_DISABLE_REPLICATED互斥"
+    },
+    {
+      "hint": "NO_SUBLINK_DISABLE_EXPR",
+      "category": "Query Rewrite",
+      "description": "允许子链接中表达式提升",
+      "syntax": "NO_SUBLINK_DISABLE_EXPR[@queryblock]",
+      "parameters": [
+        {"name": "@queryblock", "description": "可选参数，指定查询块"}
+      ],
+      "example": "SELECT a FROM t1 WHERE t1.b = (SELECT /*+NO_SUBLINK_DISABLE_EXPR*/ max(b) FROM t2 WHERE t2.a = t1.a)",
+      "notes": "与SUBLINK_DISABLE_EXPR互斥"
+    },
+    {
+      "hint": "SUBLINK_DISABLE_EXPR",
+      "category": "Query Rewrite",
+      "description": "禁止子链接中表达式提升",
+      "syntax": "SUBLINK_DISABLE_EXPR[@queryblock]",
+      "parameters": [
+        {"name": "@queryblock", "description": "可选参数，指定查询块"}
+      ],
+      "example": "SELECT a FROM t1 WHERE t1.b = (SELECT /*+SUBLINK_DISABLE_EXPR*/ max(b) FROM t2 WHERE t2.a = t1.a)",
+      "notes": "与NO_SUBLINK_DISABLE_EXPR互斥"
+    },
+    {
+      "hint": "ENABLE_SUBLINK_ENHANCED",
+      "category": "Query Rewrite",
+      "description": "允许子链接提升增强，支持对OR表达式等相关或非相关子链接提升",
+      "syntax": "ENABLE_SUBLINK_ENHANCED[@queryblock]",
+      "parameters": [
+        {"name": "@queryblock", "description": "可选参数，指定查询块"}
+      ],
+      "example": "SELECT * FROM customer WHERE substring(c_phone from 1 for 2) IN ('22', '25') AND c_acctbal > (SELECT /*+ENABLE_SUBLINK_ENHANCED*/ avg(c_acctbal) FROM customer WHERE c_acctbal > 0.00)",
+      "notes": "与NO_ENABLE_SUBLINK_ENHANCED互斥"
+    },
+    {
+      "hint": "NO_ENABLE_SUBLINK_ENHANCED",
+      "category": "Query Rewrite",
+      "description": "禁用子链接提升增强，禁止对OR表达式等相关或非相关子链接提升",
+      "syntax": "NO_ENABLE_SUBLINK_ENHANCED[@queryblock]",
+      "parameters": [
+        {"name": "@queryblock", "description": "可选参数，指定查询块"}
+      ],
+      "example": "SELECT * FROM customer WHERE substring(c_phone from 1 for 2) IN ('22', '25') AND c_acctbal > (SELECT /*+NO_ENABLE_SUBLINK_ENHANCED*/ avg(c_acctbal) FROM customer WHERE c_acctbal > 0.00)",
+      "notes": "与ENABLE_SUBLINK_ENHANCED互斥"
+    },
+    {
+      "hint": "PARTIAL_PUSH",
+      "category": "Query Rewrite",
+      "description": "Stream场景支持对listagg和arrayagg添加gather算子",
+      "syntax": "PARTIAL_PUSH[@queryblock]",
+      "parameters": [
+        {"name": "@queryblock", "description": "可选参数，指定查询块"}
+      ],
+      "example": "SELECT /*+PARTIAL_PUSH*/ listagg((SELECT b FROM t2 WHERE t2.b = t1.b ORDER BY t2.c limit 1), ',') WITHIN GROUP(ORDER BY t1.b) FROM t1",
+      "notes": "与NO_PARTIAL_PUSH互斥"
+    },
+    {
+      "hint": "NO_PARTIAL_PUSH",
+      "category": "Query Rewrite",
+      "description": "Stream场景禁止对listagg和arrayagg添加gather算子",
+      "syntax": "NO_PARTIAL_PUSH[@queryblock]",
+      "parameters": [
+        {"name": "@queryblock", "description": "可选参数，指定查询块"}
+      ],
+      "example": "SELECT /*+NO_PARTIAL_PUSH*/ listagg((SELECT b FROM t2 WHERE t2.b = t1.b ORDER BY t2.c limit 1), ',') WITHIN GROUP(ORDER BY t1.b) FROM t1",
+      "notes": "与PARTIAL_PUSH互斥"
+    },
+    {
+      "hint": "REDUCE_ORDER_BY",
+      "category": "Query Rewrite",
+      "description": "消减不必要的ORDER BY，当外层查询对内层查询结果无排序要求时，可以减少不必要的ORDER BY提升查询效率",
+      "syntax": "REDUCE_ORDER_BY[@queryblock]",
+      "parameters": [
+        {"name": "@queryblock", "description": "可选参数，指定查询块"}
+      ],
+      "example": "SELECT * FROM t1,(SELECT /*+REDUCE_ORDER_BY*/ * FROM t2 ORDER BY a DESC)",
+      "notes": "与NO_REDUCE_ORDER_BY互斥"
+    },
+    {
+      "hint": "NO_REDUCE_ORDER_BY",
+      "category": "Query Rewrite",
+      "description": "禁止消减不必要的ORDER BY",
+      "syntax": "NO_REDUCE_ORDER_BY[@queryblock]",
+      "parameters": [
+        {"name": "@queryblock", "description": "可选参数，指定查询块"}
+      ],
+      "example": "SELECT * FROM t1,(SELECT /*+NO_REDUCE_ORDER_BY*/ * FROM t2 ORDER BY a DESC)",
+      "notes": "与REDUCE_ORDER_BY互斥"
+    },
+    {
+      "hint": "REMOVE_NOT_NULL",
+      "category": "Query Rewrite",
+      "description": "消减不必要的IS NOT NULL条件，当列属性为NOT NULL时可以消减查询条件中的IS NOT NULL判断",
+      "syntax": "REMOVE_NOT_NULL[@queryblock]",
+      "parameters": [
+        {"name": "@queryblock", "description": "可选参数，指定查询块"}
+      ],
+      "example": "SELECT /*+REMOVE_NOT_NULL*/ * FROM t1 WHERE b > 10 OR a IS NOT NULL",
+      "notes": "与NO_REMOVE_NOT_NULL互斥，受GUC参数enable_constraint_optimization控制"
+    },
+    {
+      "hint": "NO_REMOVE_NOT_NULL",
+      "category": "Query Rewrite",
+      "description": "禁止消减不必要的IS NOT NULL条件",
+      "syntax": "NO_REMOVE_NOT_NULL[@queryblock]",
+      "parameters": [
+        {"name": "@queryblock", "description": "可选参数，指定查询块"}
+      ],
+      "example": "SELECT /*+NO_REMOVE_NOT_NULL*/ * FROM t1 WHERE b > 10 OR a IS NOT NULL",
+      "notes": "与REMOVE_NOT_NULL互斥，受GUC参数enable_constraint_optimization控制"
+    },
+    {
+      "hint": "LAZY_AGG",
+      "category": "Query Rewrite",
+      "description": "子查询与外层查询存在同样的GROUP BY条件，两层聚集运算可能导致查询效率低下，消除子查询中的聚集运算，以此提高查询效率",
+      "syntax": "LAZY_AGG[@queryblock]",
+      "parameters": [
+        {"name": "@queryblock", "description": "可选参数，指定查询块"}
+      ],
+      "example": "SELECT t1.b,sum(cc) FROM (SELECT /*+LAZY_AGG*/b,sum(c) AS cc FROM t2 GROUP BY b) s1,t1 WHERE s1.b = t1.b GROUP BY t1.b",
+      "notes": "与NO_LAZY_AGG互斥"
+    },
+    {
+      "hint": "NO_LAZY_AGG",
+      "category": "Query Rewrite",
+      "description": "禁用消除子查询中的聚集运算规则",
+      "syntax": "NO_LAZY_AGG[@queryblock]",
+      "parameters": [
+        {"name": "@queryblock", "description": "可选参数，指定查询块"}
+      ],
+      "example": "SELECT t1.b,sum(cc) FROM (SELECT /*+NO_LAZY_AGG*/b,sum(c) AS cc FROM t2 GROUP BY b) s1,t1 WHERE s1.b = t1.b GROUP BY t1.b",
+      "notes": "与LAZY_AGG互斥"
+    },
+    {
+      "hint": "EXPAND_SUBQUERY",
+      "category": "Query Rewrite",
+      "description": "子查询提升，将子查询提升与上层做join连接，优化查询效率",
+      "syntax": "EXPAND_SUBQUERY[@queryblock]",
+      "parameters": [
+        {"name": "@queryblock", "description": "可选参数，指定查询块"}
+      ],
+      "example": "SELECT * FROM t1,(SELECT /*+EXPAND_SUBQUERY*/ * FROM t2 WHERE a > 1) tt WHERE t1.a = tt.a",
+      "notes": "与NO_EXPAND_SUBQUERY互斥，hint优先级高于NO_EXPAND"
+    },
+    {
+      "hint": "NO_EXPAND_SUBQUERY",
+      "category": "Query Rewrite",
+      "description": "禁用子查询提升",
+      "syntax": "NO_EXPAND_SUBQUERY[@queryblock]",
+      "parameters": [
+        {"name": "@queryblock", "description": "可选参数，指定查询块"}
+      ],
+      "example": "SELECT * FROM t1,(SELECT /*+NO_EXPAND_SUBQUERY*/ * FROM t2 WHERE a > 1) tt WHERE t1.a = tt.a",
+      "notes": "与EXPAND_SUBQUERY互斥，该hint和NO_EXPAND hint等效"
+    },
+    {
+      "hint": "PUSHDOWN_HAVING",
+      "category": "Query Rewrite",
+      "description": "下推HAVING条件表达式",
+      "syntax": "PUSHDOWN_HAVING[@queryblock]",
+      "parameters": [
+        {"name": "@queryblock", "description": "可选参数，指定查询块"}
+      ],
+      "example": "SELECT /*+PUSHDOWN_HAVING*/ sum(a),b,c FROM t1 WHERE b > 0 GROUP BY b,c HAVING sum(a) > 100 AND c > 0",
+      "notes": "与NO_PUSHDOWN_HAVING互斥"
+    },
+    {
+      "hint": "NO_PUSHDOWN_HAVING",
+      "category": "Query Rewrite",
+      "description": "禁止下推HAVING表达式",
+      "syntax": "NO_PUSHDOWN_HAVING[@queryblock]",
+      "parameters": [
+        {"name": "@queryblock", "description": "可选参数，指定查询块"}
+      ],
+      "example": "SELECT /*+NO_PUSHDOWN_HAVING*/ sum(a),b,c FROM t1 WHERE b > 0 GROUP BY b,c HAVING sum(a) > 100 AND c > 0",
+      "notes": "与PUSHDOWN_HAVING互斥"
+    },
+    {
+      "hint": "INLIST_TO_JOIN",
+      "category": "Query Rewrite",
+      "description": "控制使用inlist-to-join对SQL进行改写",
+      "syntax": "INLIST_TO_JOIN[@queryblock threshold]",
+      "parameters": [
+        {"name": "@queryblock", "description": "可选参数，指定查询块"},
+        {"name": "threshold", "description": "可选参数，查询重写阈值，0表示cost_base，1表示rule_base，其他正整数表示查询重写阈值"}
+      ],
+      "example": "SELECT * FROM t5 WHERE slot = '5' AND (name) IN (SELECT /*+INLIST_TO_JOIN*/ name FROM t5 WHERE slot = '5' AND cid IN (5,1000,1001,1002,1003))",
+      "notes": "与NO_INLIST_TO_JOIN互斥，受GUC参数qrw_inlist2join_optmode控制"
+    },
+    {
+      "hint": "NO_INLIST_TO_JOIN",
+      "category": "Query Rewrite",
+      "description": "控制禁止使用inlist-to-join对SQL进行改写",
+      "syntax": "NO_INLIST_TO_JOIN[@queryblock]",
+      "parameters": [
+        {"name": "@queryblock", "description": "可选参数，指定查询块"}
+      ],
+      "example": "SELECT * FROM t5 WHERE slot = '5' AND (name) IN (SELECT /*+NO_INLIST_TO_JOIN*/ name FROM t5 WHERE slot = '5' AND cid IN (5,1000,1001,1002,1003))",
+      "notes": "与INLIST_TO_JOIN互斥，受GUC参数qrw_inlist2join_optmode控制"
+    },
+    {
+      "hint": "ROWNUM_PUSHDOWN",
+      "category": "Query Rewrite",
+      "description": "允许行号下推",
+      "syntax": "ROWNUM_PUSHDOWN[@queryblock]",
+      "parameters": [
+        {"name": "@queryblock", "description": "可选参数，指定查询块"}
+      ],
+      "example": "SELECT * FROM (SELECT /*+ROWNUM_PUSHDOWN*/rownum rn, a FROM t1) WHERE rn BETWEEN 5 AND 10",
+      "notes": "与NO_ROWNUM_PUSHDOWN互斥，受GUC参数rewrite_rule控制"
+    },
+    {
+      "hint": "NO_ROWNUM_PUSHDOWN",
+      "category": "Query Rewrite",
+      "description": "禁止行号下推",
+      "syntax": "NO_ROWNUM_PUSHDOWN[@queryblock]",
+      "parameters": [
+        {"name": "@queryblock", "description": "可选参数，指定查询块"}
+      ],
+      "example": "SELECT * FROM (SELECT /*+NO_ROWNUM_PUSHDOWN*/rownum rn, a FROM t1) WHERE rn BETWEEN 5 AND 10",
+      "notes": "与ROWNUM_PUSHDOWN互斥，受GUC参数rewrite_rule控制"
+    },
+    {
+      "hint": "set",
+      "category": "GUC Parameter",
+      "description": "设置本次查询执行内生效的查询优化相关GUC参数",
+      "syntax": "set([@queryblock] param value)",
+      "parameters": [
+        {"name": "@queryblock", "description": "可选参数，该hint只在指定为最外层的queryblock时才会生效"},
+        {"name": "param", "description": "参数名，支持布尔类、整型类、浮点类参数"},
+        {"name": "value", "description": "参数的取值"}
+      ],
+      "example": "select /*+ set(enable_hashjoin off) */ * from t1 join t2 on t1.a = t2.a",
+      "notes": "GUC参数的hint只在最外层查询生效，子查询内的GUC参数hint不生效"
+    },
+    {
+      "hint": "use_cplan",
+      "category": "Plan Selection",
+      "description": "指定使用Custom Plan执行，对于PBE方式执行的查询语句，强制使用定制计划",
+      "syntax": "use_cplan",
+      "parameters": [],
+      "example": "prepare p as select /*+ use_cplan */ * from t where a = $1; execute p(1)",
+      "notes": "仅对PBE方式执行的SQL语句生效，优先级高于基于代价的选择和plan_cache_mode参数"
+    },
+    {
+      "hint": "use_gplan",
+      "category": "Plan Selection",
+      "description": "指定使用Generic Plan执行，对于PBE方式执行的查询语句，强制使用通用计划",
+      "syntax": "use_gplan",
+      "parameters": [],
+      "example": "prepare p as select /*+ use_gplan */ * from t where a = $1; execute p(1)",
+      "notes": "仅对PBE方式执行的SQL语句生效，优先级高于基于代价的选择和plan_cache_mode参数"
+    },
+    {
+      "hint": "choose_adaptive_gplan",
+      "category": "Plan Selection",
+      "description": "对于以PBE方式执行的查询语句，触发自适应计划选择",
+      "syntax": "choose_adaptive_gplan",
+      "parameters": [],
+      "example": "prepare k as select /*+ choose_adaptive_gplan */ * from t1 where c1=$1 and c2=$2 and c3=$3 and c4=$4",
+      "notes": "仅对PBE方式执行的SQL语句生效，依赖GUC参数enable_cachedplan_mgr开启"
+    },
+    {
+      "hint": "no_gpc",
+      "category": "Global Cache",
+      "description": "指定不使用全局计划缓存，强制单个查询语句不在全局共享计划缓存，只保留会话生命周期的计划缓存",
+      "syntax": "no_gpc",
+      "parameters": [],
+      "example": "prepare p1 as insert /*+ no_gpc*/ into t1 select c1,c2 from t2 where c1=$1",
+      "notes": "仅在enable_global_plancache=on时对PBE执行的语句生效"
+    },
+    {
+      "hint": "material_subplan",
+      "category": "Materialization",
+      "description": "指定内表物化",
+      "syntax": "material_subplan",
+      "parameters": [],
+      "example": "INSERT /*+ material_subplan*/ INTO test_mt_sub SELECT * FROM test_src_mt_sub WHERE NOT EXISTS(SELECT 1 FROM test_mt_sub t1 WHERE t1.a = test_src_mt_sub.a)",
+      "notes": "用于优化子查询的物化，减少重复计算"
+    },
+    {
+      "hint": "BEGIN_OUTLINE_DATA",
+      "category": "Outline",
+      "description": "Outline Hint的开始标记，用于完全复现某一计划而生成的一组hint信息",
+      "syntax": "BEGIN_OUTLINE_DATA",
+      "parameters": [],
+      "example": "SELECT /*+ BEGIN_OUTLINE_DATA HashJoin(@\"sel$1\" t1@\"sel$1\" t2@\"sel$1\") Leading(@\"sel$1\" (t1@\"sel$1\" t2@\"sel$1\")) TableScan(@\"sel$1\" t1@\"sel$1\") TableScan(@\"sel$1\" t2@\"sel$1\") VERSION(\"1.0.0\") END_OUTLINE_DATA */ * FROM t1 JOIN t2 ON t1.a = t2.a",
+      "notes": "与END_OUTLINE_DATA必须成对使用，需要设置set explain_perf_mode = pretty"
+    },
+    {
+      "hint": "END_OUTLINE_DATA",
+      "category": "Outline",
+      "description": "Outline Hint的结束标记",
+      "syntax": "END_OUTLINE_DATA",
+      "parameters": [],
+      "example": "SELECT /*+ BEGIN_OUTLINE_DATA ... END_OUTLINE_DATA */ * FROM t1 JOIN t2 ON t1.a = t2.a",
+      "notes": "与BEGIN_OUTLINE_DATA必须成对使用"
+    },
+    {
+      "hint": "blockname",
+      "category": "Query Block",
+      "description": "指明子链接块的名称，用于指定子链接提升后的hint目标",
+      "syntax": "blockname([@queryblock] table)",
+      "parameters": [
+        {"name": "@queryblock", "description": "指定Hint所处于的查询块，可省略"},
+        {"name": "table", "description": "为该子链接块hint的别名的名称"}
+      ],
+      "example": "select /*+nestloop(store_sales tt) */ * from store_sales where ss_item_sk in ( select /*+blockname(tt)*/ i_item_sk from item group by 1 )",
+      "notes": "仅在对应的子链接块没有提升时才会被上层查询使用"
+    },
+    {
+      "hint": "wlmrule",
+      "category": "WLM",
+      "description": "针对想要进行执行时间/资源管控的SQL语句，设置其被标记为慢SQL的执行时间，最大执行时间，最大IOPS上限",
+      "syntax": "wlmrule(\"time_limit,max_execute_time,max_iops\")",
+      "parameters": [
+        {"name": "time_limit", "description": "SQL语句被标记为慢SQL的执行时长，取值为0-INT_MAX"},
+        {"name": "max_execute_time", "description": "SQL语句的最大执行时间，执行时间超过该时长后被强制cancel退出，取值为0-INT_MAX"},
+        {"name": "max_iops", "description": "SQL语句被标记为慢SQL后最大iops上限，取值范围为：Low，Medium，High，None，0-INT_MAX"}
+      ],
+      "example": "select /*+ wlmrule(\"100,500,1\") */ * from t2 order by b limit 1",
+      "notes": "仅在enable_thread_pool=on时对非sysadmin/monitoradmin用户执行的select类型的语句生效"
+    }
+  ]
+}

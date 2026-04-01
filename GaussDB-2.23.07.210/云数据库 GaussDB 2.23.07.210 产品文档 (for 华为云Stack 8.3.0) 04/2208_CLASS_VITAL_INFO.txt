@@ -1,0 +1,1 @@
+CLASS_VITAL_INFO CLASS_VITAL_INFO CLASS_VITAL_INFO视图用于做WDR时校验相同的表或者索引的Oid是否一致。 表1 CLASS_VITAL_INFO字段 名称 类型 描述 relid oid 表的oid。 schemaname name schema名称。 relname name 表名。 relkind "char" 表示对象类型，取值范围如下： r：表示普通表。 t：表示toast表。 i：表示索引。 G：表示全局二级索引。 父主题： Utility 版权所有 © 华为技术有限公司

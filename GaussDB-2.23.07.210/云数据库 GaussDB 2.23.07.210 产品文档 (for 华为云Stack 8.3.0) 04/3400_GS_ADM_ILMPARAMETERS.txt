@@ -1,0 +1,1 @@
+GS_ADM_ILMPARAMETERS GS_ADM_ILMPARAMETERS GS_ADM_ILMPARAMETERS视图描述ILM调度与执行的相关环境参数，该参数可通过DBE_ILM_ADMIN.CUSTOMIZE_ILM接口进行修改。默认只有系统管理员权限才可以访问此系统视图。 表1 GS_ADM_ILMPARAMETERS字段 名称 类型 描述 name character varying(128) ADO相关的环境参数，通过DBE_ILM_ADMIN.CUSTOMIZE_ILM接口进行修改。 value numeric 参数取值。 父主题： OLTP表压缩 版权所有 © 华为技术有限公司

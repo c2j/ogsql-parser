@@ -1,0 +1,1 @@
+安全停止GaussDB实例业务 安全停止GaussDB实例业务 安全停止 参考 登录实例节点 ，登录实例节点。 在节点上执行命令，确认节点状态符合预期。 cm_ctl query -Cvidp 执行命令，停止实例。 cm_ctl stop 执行命令，确认当前节点状态变为Down。 cm_ctl query -Cvidp 父主题： 系统上下电 版权所有 © 华为技术有限公司

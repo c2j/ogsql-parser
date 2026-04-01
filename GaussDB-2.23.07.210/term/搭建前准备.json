@@ -1,0 +1,46 @@
+{
+  "topic": "搭建前准备",
+  "term_count": 8,
+  "terms": [
+    {
+      "term": "软件包准备",
+      "content": "软件包准备 软件包准备 解压 《华为云Stack 8.3.0 新建和扩容场景软件包下载列表》 压缩包得到《华为云Stack 8.3.0 数据库服务软件包下载列表》，用于获取所需的软件包相关信息。 Dorado对应V6版本的软件包。",
+      "source_file": "4816_file_4816.txt"
+    },
+    {
+      "term": "规划信息准备",
+      "content": "规划信息准备 规划信息准备 申请数据库服务网段 申请云外Dorado存储网段 ManageOne创建租户 网络连通需求",
+      "source_file": "4811_file_4811.txt"
+    },
+    {
+      "term": "软件包准备",
+      "content": "软件包准备 软件包准备 解压《华为云Stack 8.3.0 新建和扩容场景软件包下载列表》压缩包得到《华为云Stack 8.3.0 数据库服务软件包下载列表》，用于获取所需的软件包相关信息。 Dorado对应V6版本的软件包。",
+      "source_file": "4767_file_4767.txt"
+    },
+    {
+      "term": "Dorado存储FC组网配置",
+      "content": "Dorado存储FC组网配置 Dorado存储FC组网配置 存储设备连线要求 配置zone网络 Dorado存储添加远端设备（此步骤仅供参考，详细操作请参考Dorado产品文档）",
+      "source_file": "4768_DoradoFC.txt"
+    },
+    {
+      "term": "Dorado存储NOF组网配置",
+      "content": "Dorado存储NOF组网配置 Dorado存储NOF组网配置 连线及网络配置，请参考《华为云Stack 8.3.0 NOF无损网络配置基线》。 存储设备连线要求 Dorado存储添加远端设备（此步骤仅供参考，详细操作请参考Dorado产品文档） Dorado存储打开特性白名单",
+      "source_file": "4817_DoradoNOF.txt"
+    },
+    {
+      "term": "环境依赖检查",
+      "content": "环境依赖检查 环境依赖检查 HCS 8.3.0底座已安装完成。 FCD已部署。 依赖基础服务已部署，需要确认的基础服务依赖： manageOne ServiceOM DMK LVS Ngnix IAM NTP DNS APIGateway TaskCenter SDR ECS（Apicom、ECS console、弹性云服务器ECS） IMS VPC EP OBS （OBS、OBS console） EVS （） EIP VPC(VPC、VPC console) VPC打通还依赖相关网络服务（cloudConnect（cc-peer）/基础型云专线/增强型云专线（L3GW）） CSDR 依赖的高阶服务已部署, 依赖的高阶服务如下： console framework RegionLB ygg 自动化变更平台（COP、CDK、CloudCMDB、CloudBaseLine、CloudAutoChange、DCM、CloudAgent、kafka、ODK、SDK） 高阶服务所需的裸机、存储、管理面资源已经部署上架，并且裸机和存储已经通过HBA以及FC交换机连接完成。",
+      "source_file": "4761_file_4761.txt"
+    },
+    {
+      "term": "规划信息准备",
+      "content": "规划信息准备 规划信息准备 申请数据库服务网段 申请云外Dorado存储网段 ManageOne创建租户 网络连通需求",
+      "source_file": "4762_file_4762.txt"
+    },
+    {
+      "term": "环境依赖检查",
+      "content": "环境依赖检查 环境依赖检查 HCS 8.3.0 底座已安装完成。 FCD已部署。 依赖基础服务已部署，需要确认的基础服务依赖： manageOne ServiceOM DMK LVS Ngnix IAM NTP DNS APIGateway TaskCenter SDR ECS（Apicom、ECS console、弹性云服务器ECS） IMS OBS （OBS、OBS console） vpcep2.0 EVS EIP VPC(VPC、VPC console) VPC打通还依赖相关网络服务（cloudConnect（cc-peer）/基础型云专线/增强型云专线（L3GW）） 依赖的高阶服务已部署, 依赖的高阶服务如下： console framework RegionLB 自动化变更平台（COP、CDK、CloudCMDB、CloudBaseLine、CloudAutoChange、DCM、CloudAgent、kafka、ODK、SDK） 高阶服务所需的裸机、存储、管理面资源已经部署上架，并且裸机和存储已经通过HBA。 依赖的Dorado版本为OceanStor_Dorado_6.1.6RC1_Software，并且Dorado存储支持升级到此版本，具体请咨询Dorado存储技术支持。 Dorado特性白名单处于打开状态，白名单如下： change tgt_switch nvme_reservation_feature switch=on show tgt_switch nvme_reservation_feature为on即可",
+      "source_file": "4810_file_4810.txt"
+    }
+  ]
+}

@@ -1,0 +1,1 @@
+omRollback.py omRollback.py 功能介绍 omRollback.py是在底层服务使用agent模式（区别于ssh模式的安装集群的方式）下部署集群时，升级过程中回滚代码的工具。 语法 python3 omRollback.py 接收数据库管理员密码 echo "password" |  python3 omRollback.py 云上环境中，对于未开启Peer认证方式的数据库系统，可以使用此方式传入数据库管理员用户的密码，用于连接数据库进行运维操作。 前提条件 集群已经进入升级过程且升级未完成。 集群中不存在故障节点。 集群安装python3.8.5/3.7.4且依赖包齐全。 父主题： 系统内部调用的工具 版权所有 © 华为技术有限公司

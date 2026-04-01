@@ -1,0 +1,26 @@
+{
+  "topic": "权限配置",
+  "term_count": 4,
+  "terms": [
+    {
+      "term": "DBSPlatform_Ops_Console(ServiceCM)切换机机账号的AK/SK",
+      "content": "DBSPlatform_Ops_Console(ServiceCM)切换机机账号的AK/SK DBSPlatform_Ops_Console(ServiceCM)切换机机账号的AK/SK 登录CloudScope。 选择“运维服务 > 变更管理 > CloudCMDB”进入CloudCMDB页面。 选择“服务管理 > 云服务视图”，在云服务视图中搜索“adapter-plugin-dbs-ops”，单击展开的服务树节点右侧的 。 在弹框中单击“确认”，清空adapter-plugin-dbs-ops基线信息。 登录CloudOpsAuth页面。 打开链接：https:// {CloudScope域名} /CloudOpsAuth/#/order-mgmt/list/my-todo 账户名：admin 在左侧导航栏选择“机机账号 > 所有账号”，在搜索框中输入“CLOUDDBS_OPS_MACHINE”查找相关账号。 单击目标账号右侧操作列的“更新AK/SK”，在弹框中单击“确认”后，AK/SK重新生成。 登录HCCTurnKey，同版本部署DBSPlatform_Ops_Console，详情参考《华为云Stack 8.5.0 技术中台与AI数据中台服务软件安装指南》中的“DBSPlatform安装指南 > 安装ServiceCM插件（自动化部署工程）”章节。 adapter-plugin-dbs-ops基线参数重新生成如下图。",
+      "source_file": "5666_DBSPlatform_Ops_Console(ServiceCM)AK_SK.txt"
+    },
+    {
+      "term": "卸载DBS运维管理平台（可选）",
+      "content": "卸载DBS运维管理平台（可选） 卸载DBS运维管理平台（可选） 使用浏览器，通过地址“https:// ManageOne运维面主页的访问地址 :31943”，登录ManageOne运维面，或通过地址“https:// ManageOne主门户的访问地址 ”，登录ManageOne主门户，选择“运维中心（OC）”，进入ManageOne运维面。 密码方式：输入账号和密码。 默认账号：bss_admin 默认密码：请参见 《华为云Stack 8.5.0 账户一览表》 的“A类（Portal）”页签中，“ManageOne运维面”账户对应的默认密码。 USB Key方式：插入已预置用户证书的USB Key，选择设备和用户证书，并输入PIN码。 在ManageOne运维面“首页”页面左下方的“常用链接”导航栏中，单击“Service OM”，选择区域后进入Service OM界面。 选择“系统 > 系统管理 > 适配包”。 在适配包列表中，单击名称为“DBS运维管理平台”适配包右侧操作列的“卸载”。 在弹框中单击“确定”。",
+      "source_file": "5665_DBS.txt"
+    },
+    {
+      "term": "ManageOne单点登录配置",
+      "content": "ManageOne单点登录配置 ManageOne单点登录配置 关于ManageOne单点登录配置及添加ServiceCM常用链接的详细操作，请参见 《华为云Stack 8.5.0 运维指南》 中的“参考信息 > 添加ServiceCM常用链接”章节。 CloudScope单点登录IDP配置操作，请参见 《CloudOpsAuth 7.7.1 工具指导书》 中的“使用指南 > 页面操作 > 系统配置 > 身份提供商”章节。 CloudScope单点登录IDP配置过程中，在CloudScope上创建身份提供商时请在IDP的“URL白名单”原有基础上增加DbsOps，与其他白名单使用“,”分隔。 关联IDP 登录CloudScope，进入CloudOpsAuth页面。 打开链接：https:// {CloudScope域名} /CloudOpsAuth/#/order-mgmt/list/my-todo 账户名：admin IDP创建完成后，在左侧导航栏单击“用户”。 在“用户”页签搜索该用户，单击右侧操作列的“更多 > 关联IDP”。 选择IDP关联，单击“确认”。",
+      "source_file": "5664_ManageOne.txt"
+    },
+    {
+      "term": "ServiceCM权限配置",
+      "content": "ServiceCM权限配置 ServiceCM权限配置 使用非ManageOne的Adminstrator群组用户单点登录跳转进入ServiceCM，CloudOpsAuth权限需要配置，否则用户进入运维插件内部将查看不到任何信息。 配置云服务Owner及运维服务责任人 创建非Admin用户并授权 自定义策略（可选） 创建用户组并分配策略",
+      "source_file": "5655_ServiceCM.txt"
+    }
+  ]
+}

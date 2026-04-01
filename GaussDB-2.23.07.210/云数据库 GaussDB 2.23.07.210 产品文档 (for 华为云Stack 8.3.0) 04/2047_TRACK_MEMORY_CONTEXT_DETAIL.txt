@@ -1,0 +1,1 @@
+TRACK_MEMORY_CONTEXT_DETAIL TRACK_MEMORY_CONTEXT_DETAIL 查询DBE_PERF.track_memory_context设置的内存上下文上的内存申请详细信息。只有初始用户或者具有monadmin权限的用户可以执行该函数。 表1 TRACK_MEMORY_CONTEXT_DETAIL字段 名称 类型 描述 context_name text 内存上下文的名称。 file text 内存申请位置所属的文件。 line integer 内存申请位置的行号。 size bigint 内存申请的总大小（单位：字节）。 父主题： Memory 版权所有 © 华为技术有限公司

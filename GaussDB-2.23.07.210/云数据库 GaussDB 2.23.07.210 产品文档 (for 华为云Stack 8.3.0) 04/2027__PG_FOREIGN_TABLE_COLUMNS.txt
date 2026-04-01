@@ -1,0 +1,1 @@
+_PG_FOREIGN_TABLE_COLUMNS _PG_FOREIGN_TABLE_COLUMNS 显示外部表的列信息。该视图只有sysadmin权限可以查看。 表1 _PG_FOREIGN_TABLE_COLUMNS字段 名称 类型 描述 nspname name schema名称。 relname name 表名称。 attname name 列名称。 attfdwoptions text[] 外部数据封装器的属性选项，使用“keyword=value”格式的字符串。 父主题： Information Schema 版权所有 © 华为技术有限公司

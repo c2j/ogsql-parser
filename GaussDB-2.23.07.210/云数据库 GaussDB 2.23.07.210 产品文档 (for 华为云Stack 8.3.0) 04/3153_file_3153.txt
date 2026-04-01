@@ -1,0 +1,1 @@
+返回语句 返回语句 GaussDB 提供两种方式返回数据：RETURN或RETURN NEXT及RETURN QUERY。其中，RETURN NEXT和RETURN QUERY只适用于函数，不适用存储过程。 RETURN RETURN NEXT及RETURN QUERY 父主题： 控制语句 版权所有 © 华为技术有限公司

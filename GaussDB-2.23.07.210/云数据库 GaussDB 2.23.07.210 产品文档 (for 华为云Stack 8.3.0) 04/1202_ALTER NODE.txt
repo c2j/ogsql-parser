@@ -1,0 +1,16 @@
+ALTER NODE ALTER NODE 功能描述 修改一个现有节点的定义。 注意事项 ALTER NODE是集群管理工具封装的接口，用来实现集群管理，管理员用户才有权限使用该接口。该接口不建议用户直接使用，以免对集群状态造成影响。 语法格式 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16 ALTER NODE nodename WITH ( [ TYPE = nodetype ,] [ HOST = hostname ,] [ PORT = portnum ,] [ HOST1 = 'hostname' ,] [ PORT1 = portnum ,] [ HOSTPRIMARY [ = boolean ],] [ PRIMARY [ = boolean ],] [ PREFERRED [ = boolean ],] [ SCTP_PORT = portnum ,] [ CONTROL_PORT = portnum ,] [ SCTP_PORT1 = portnum ,] [ CONTROL_PORT1 = portnum , ] [ NODEIS_CENTRAL [ = boolean ]] ); PORT选项指定的端口号为节点间内部通信绑定的端口号，不同于外部客户端连接节点的端口号，可通过pgxc_node表查询。 参数说明 请参见CREATE NODE的 参数说明 。 示例 请参见CREATE NODE的 示例 。 相关链接 CREATE NODE ， DROP NODE 父主题： A 版权所有 © 华为技术有限公司

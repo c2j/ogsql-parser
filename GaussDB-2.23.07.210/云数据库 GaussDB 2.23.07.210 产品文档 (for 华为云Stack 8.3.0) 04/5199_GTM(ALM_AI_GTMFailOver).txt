@@ -1,0 +1,9 @@
+GTM失效切换(ALM_AI_GTMFailOver) GTM失效切换(ALM_AI_GTMFailOver) 告警解释 当集群GTM主实例失效，GaussDB将GTM备实例升为GTM主实例时，产生该告警。 告警属性 告警ID 告警级别 告警类型 是否可自动清除 ALM_AI_GTMFailOver major 处理出错 不涉及 告警参数 请参考 告警参数说明 。 对系统的影响 GTM主实例失效切换，GaussDB将备实例升为主实例时，上报的告警信息。 发生GTM主实例失效切换时，原GTM主实例失效，原GTM备实例升为GTM主实例，此时集群进入最大可用模式，仍可对外提供服务。但是，需要尽快修复失效的实例。 失效的实例修复后，会以GTM备实例的身份进入集群。此时，需要考虑整个集群环境的负载，适当通过GTM主备实例切换，调整主备实例所在节点。 系统自处理过程 无。 可能原因 GTM主实例失效，无法对外提供服务。 GTM主备实例断连。 处理步骤 参考 登录实例节点 ，登录数据库节点。 执行如下命令，导入环境变量。 source /home/Ruby/gauss_env_file 执行以下命令检查集群状态。找到GTM状态显示的字段。 cm_ctl query -Cvdipz ALL 在告警发生后，通常state字段会显示GTM主实例异常，GTM备实例升为GTM主实例，且进入最大可用（降级运行）模式。详见下面的正常状态和异常状态对比。 正常状态举例： [     GTM State     ]
+
+node                     node_ip         instance                       state                    sync_state
+---------------------------------------------------------------------------------------------------------------
+az3.dc0 1  25.213.61.150 192.168.0.66    1001 /var/lib/engine/data1/gtm P Primary Connection ok  Sync az4.dc0 2  25.213.10.25  192.168.0.107   1002 /var/lib/engine/data1/gtm S Standby Connection ok  Sync az5.dc0 3  25.213.36.153 192.168.0.170   1003 /var/lib/engine/data1/gtm S Standby Connection ok  Sync 异常状态举例： [     GTM State     ]
+
+node                     node_ip         instance                       state                    sync_state
+---------------------------------------------------------------------------------------------------------------
+az3.dc0 1  25.213.61.150 192.168.0.66    1001 /var/lib/engine/data1/gtm P Down    Unknown        Sync az4.dc0 2  25.213.10.25  192.168.0.107   1002 /var/lib/engine/data1/gtm S Primary Connection bad Most available az5.dc0 3  25.213.36.153 192.168.0.170   1003 /var/lib/engine/data1/gtm S Primary Connection bad Most available 请继续确认原GTM主实例所在节点上是否所有其他实例也异常。如果是，请执行 4 。如果否，请执行 5 。 使用ping命令检查主备实例所在节点是否断连。 ping 25.213.61.150 根据回显判断是否断连，如果断连，修复节点连接 修复损坏的GTM实例。具体方法请参考《应急预案》中的“运维案例库 > 租户面应急案例 > 节点修复”章节。 父主题： GaussDB 内核告警参考 版权所有 © 华为技术有限公司

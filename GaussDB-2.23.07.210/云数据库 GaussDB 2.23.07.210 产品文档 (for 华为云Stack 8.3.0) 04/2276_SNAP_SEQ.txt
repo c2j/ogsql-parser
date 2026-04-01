@@ -1,0 +1,1 @@
+SNAP_SEQ SNAP_SEQ SNAP_SEQ是一个递增的sequence，其为WDR Snapshot提供快照的ID，WDR Snapshot在启动后（打开GUC参数enable_wdr_snapshot）会触发创建该sequence。 父主题： WDR Snapshot原信息 版权所有 © 华为技术有限公司

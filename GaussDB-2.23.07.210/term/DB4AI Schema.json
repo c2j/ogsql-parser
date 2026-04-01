@@ -1,0 +1,61 @@
+{
+  "topic": "DB4AI Schema",
+  "term_count": 11,
+  "terms": [
+    {
+      "term": "DB4AI.PREPARE_SNAPSHOT_INTERNAL",
+      "content": "DB4AI.PREPARE_SNAPSHOT_INTERNAL DB4AI.PREPARE_SNAPSHOT_INTERNAL PREPARE_SNAPSHOT_INTERNAL是db4ai.prepare_snapshot函数的内置执行函数。函数存在信息校验，无法直接调用。 表1 DB4AI.PREPARE_SNAPSHOT_INTERNAL入参和返回值列表 参数 类型 描述 s_id IN  BIGINT 快照ID p_id IN  BIGINT 父快照ID m_id IN  BIGINT 矩阵id r_id IN  BIGINT 根快照ID i_schema IN  NAME 快照模式 i_name IN  NAME 快照名称 i_commands IN  TEXT[] 定义快照修改的DDL和DML命令 i_comment IN  TEXT 快照描述 i_owner IN  NAME 快照所有者 i_idx INOUT  INT exec_cmds的索引 i_exec_cmds INOUT  TEXT[] 用于执行的DDL和DML i_mapping IN  NAME[] 将用户列映射到备份列；如果不为NULL，则生成规则",
+      "source_file": "3957_DB4AI.PREPARE_SNAPSHOT_INTERNAL.txt"
+    },
+    {
+      "term": "DB4AI.PREPARE_SNAPSHOT",
+      "content": "DB4AI.PREPARE_SNAPSHOT DB4AI.PREPARE_SNAPSHOT PREPARE_SNAPSHOT是DB4AI特性中数据准备模型训练和解释快照进行协作。快照为所有应用更改的数据和文档提供了完整的序列。通过语法PREPARE SNAPSHOT调用。 表1 DB4AI.PREPARE_SNAPSHOT入参和返回值列表 参数 类型 描述 i_schema IN  NAME 快照存储的模式名字，默认值是当前用户或者PUBLIC i_parent IN  NAME 父快照名称 i_commands IN  TEXT[] 定义快照修改的DDL和DML命令 i_vers IN  NAME 版本后缀 i_comment IN  TEXT 此数据策展单元的说明 res OUT  db4ai.snapshot_name 结果",
+      "source_file": "3956_DB4AI.PREPARE_SNAPSHOT.txt"
+    },
+    {
+      "term": "DB4AI.PURGE_SNAPSHOT_INTERNAL",
+      "content": "DB4AI.PURGE_SNAPSHOT_INTERNAL DB4AI.PURGE_SNAPSHOT_INTERNAL PURGE_SNAPSHOT_INTERNAL是DB4AI.PURGE_SNAPSHOT函数的内置执行函数。函数存在信息校验，无法直接调用 表1 DB4AI.PURGE_SNAPSHOT_INTERNAL入参和返回值列表 参数 类型 描述 i_schema IN NAME 快照存储的模式名字 i_name IN NAME 快照名称",
+      "source_file": "3963_DB4AI.PURGE_SNAPSHOT_INTERNAL.txt"
+    },
+    {
+      "term": "DB4AI.CREATE_SNAPSHOT",
+      "content": "DB4AI.CREATE_SNAPSHOT DB4AI.CREATE_SNAPSHOT CREATE_SNAPSHOT是DB4AI特性用于创建快照的接口函数。通过语法CREATE SNAPSHOT调用。 表1 DB4AI.CREATE_SNAPSHOT入参和返回值列表 参数 类型 描述 i_schema IN NAME 快照存储的模式名字，默认值是当前用户或者PUBLIC i_name IN NAME 快照名称 i_commands IN TEXT[] 定义数据获取的SQL命令 i_vers IN NAME 版本后缀 i_comment IN TEXT 快照描述 res OUT db4ai.snapshot_name 结果",
+      "source_file": "3954_DB4AI.CREATE_SNAPSHOT.txt"
+    },
+    {
+      "term": "DB4AI.SNAPSHOT",
+      "content": "DB4AI.SNAPSHOT DB4AI.SNAPSHOT SNAPSHOT表记录当前用户通过特性DB4AI.SNAPSHOT存储的快照。 表1 db4ai.snapshot表属性 名称 类型 描述 实例 id bigint 当前快照的ID。 1 parent_id bigint 父快照的ID。 0 matrix_id bigint CSS模式下快照的矩阵ID，否则为NULL。 0 root_id bigint 初始快照的ID，通过db4ai.create_snapshot()从操作数据构建。 0 schema name 导出快照视图的模式。 public name name 快照的名称，包括版本后缀。 example0@1.1.0 owner name 创建此快照的用户的名称。 nw commands text[] 记录如何从其根快照生成到此快照的SQL语句的完整列表。 {DELETE,\"WHERE id > 7\"} comment text 快照说明。 inherits from @1.0.0 published boolean TRUE，当且仅当快照当前已发布。 f archived boolean TRUE，当且仅当快照当前已存档。 f created timestamp without time zone 快照创建日期的时间戳。 2021-08-25 10:59:52.955604 row_count bigint 此快照中的数据行数。 8",
+      "source_file": "3953_DB4AI.SNAPSHOT.txt"
+    },
+    {
+      "term": "DB4AI.ARCHIVE_SNAPSHOT",
+      "content": "DB4AI.ARCHIVE_SNAPSHOT DB4AI.ARCHIVE_SNAPSHOT ARCHIVE_SNAPSHOT是DB4AI特性用于存档快照的接口函数。通过语法ARCHIVE SNAPSHOT调用。生效后的快照无法参与训练等任务。 表1 DB4AI.ARCHIVE_SNAPSHOT入参和返回值列表 参数 类型 描述 i_schema IN NAME 快照存储的模式名字，默认值是当前用户 i_name IN NAME 快照名称 res OUT db4ai.snapshot_name 结果",
+      "source_file": "3958_DB4AI.ARCHIVE_SNAPSHOT.txt"
+    },
+    {
+      "term": "DB4AI.PUBLISH_SNAPSHOT",
+      "content": "DB4AI.PUBLISH_SNAPSHOT DB4AI.PUBLISH_SNAPSHOT PUBLISH_SNAPSHOT是DB4AI特性用于发布快照的接口函数。通过语法PUBLISH SNAPSHOT调用。 表1 DB4AI.PUBLISH_SNAPSHOT入参和返回值列表 参数 类型 描述 i_schema IN NAME 快照存储的模式名字，默认值是当前用户或者PUBLIC i_name IN NAME 快照名称 res OUT db4ai.snapshot_name 结果",
+      "source_file": "3959_DB4AI.PUBLISH_SNAPSHOT.txt"
+    },
+    {
+      "term": "DB4AI.MANAGE_SNAPSHOT_INTERNAL",
+      "content": "DB4AI.MANAGE_SNAPSHOT_INTERNAL DB4AI.MANAGE_SNAPSHOT_INTERNAL MANAGE_SNAPSHOT_INTERNAL是DB4AI.PUBLISH_SNAPSHOT和DB4AI.ARCHIVE_SNAPSHOT函数的内置执行函数。函数存在信息校验，无法直接调用。 表1 DB4AI.MANAGE_SNAPSHOT_INTERNAL入参和返回值列表 参数 类型 描述 i_schema IN NAME 快照存储的模式名字 i_name IN NAME 快照名称 publish IN BOOLEAN 是否是发布状态 res OUT  db4ai.snapshot_name 结果",
+      "source_file": "3960_DB4AI.MANAGE_SNAPSHOT_INTERNAL.txt"
+    },
+    {
+      "term": "DB4AI.CREATE_SNAPSHOT_INTERNAL",
+      "content": "DB4AI.CREATE_SNAPSHOT_INTERNAL DB4AI.CREATE_SNAPSHOT_INTERNAL CREATE_SNAPSHOT_INTERNAL是db4ai.create_snapshot函数的内置执行函数。函数存在信息校验，无法直接调用。 表1 DB4AI.CREATE_SNAPSHOT_INTERNAL入参和返回值列表 参数 类型 描述 s_id IN BIGINT 快照ID i_schema IN NAME 快照存储的名字空间 i_name IN NAME 快照名称 i_commands IN TEXT[] 定义数据获取的SQL命令 i_comment IN TEXT 快照描述 i_owner IN NAME 快照拥有者",
+      "source_file": "3955_DB4AI.CREATE_SNAPSHOT_INTERNAL.txt"
+    },
+    {
+      "term": "DB4AI.PURGE_SNAPSHOT",
+      "content": "DB4AI.PURGE_SNAPSHOT DB4AI.PURGE_SNAPSHOT PURGE_SNAPSHOT是DB4AI特性用于删除快照的接口函数。通过语法PURGE SNAPSHOT调用。 表1 DB4AI.PURGE_SNAPSHOT入参和返回值列表 参数 类型 描述 i_schema IN NAME 快照存储的模式名字 i_name IN NAME 快照名称 res OUT  db4ai.snapshot_name 结果",
+      "source_file": "3962_DB4AI.PURGE_SNAPSHOT.txt"
+    },
+    {
+      "term": "DB4AI.SAMPLE_SNAPSHOT",
+      "content": "DB4AI.SAMPLE_SNAPSHOT DB4AI.SAMPLE_SNAPSHOT SAMPLE_SNAPSHOT是DB4AI特性用于对基数据进行采样生成快照的接口函数。通过语法SAMPLE SNAPSHOT调用。 表1 DB4AI.SAMPLE_SNAPSHOT入参和返回值列表 参数 类型 描述 i_schema IN NAME 快照存储的模式名字 i_parent IN NAME 父快照名称 i_sample_infixes IN NAME[] 示例快照名称中缀 i_sample_ratios IN NUMBER[] 每个样本的大小，作为父集的比率 i_stratify IN NAME[] 分层策略 i_sample_comments IN TEXT[] 示例快照描述 res OUT  db4ai.snapshot_name 结果",
+      "source_file": "3961_DB4AI.SAMPLE_SNAPSHOT.txt"
+    }
+  ]
+}

@@ -1,0 +1,51 @@
+数组类型的使用 数组类型的使用 在使用数组之前，需要自定义一个数组类型。 在存储过程中紧跟AS关键字后面定义数组类型。定义方法为： TYPE array_type IS VARRAY(size) OF data_type; 其中： array_type：要定义的数组类型名。 VARRAY：表示要定义的数组类型。 size：取值为正整数，表示可以容纳的成员的最大数量。 data_type：要创建的数组中成员的类型。 在 GaussDB 中，数组会自动增长，访问越界会返回一个NULL，不会报错。 在存储过程中定义的数组类型，其作用域仅在该存储过程中。 size只支持语法，不支持功能。 data_type也可以为存储过程中定义的record类型（匿名块不支持）、集合类型，但不可以为存储过程中定义的数组类型、游标类型。 data_type为集合类型时，不支持使用多维数组。 不支持NOT NULL语法。 array类型的构造器仅支持在ORA兼容模式下使用。 array类型的构造器不支持作为函数或存储过程参数的默认值。 当数组的元素是集合类型并且数组的data_type为varchar、numeric等可以定义长度和精度的类型时，要校验该数组的元素长度或者将元素转换成对应的精度，需要开启tableof_elem_constraints参数（设置behavior_compat_options参数值为tableof_elem_constraints）。 设置enable_recordtype_check_strict参数值为on后，成员是record类型，且record类型有列具有not null属性或default属性，在存储过程编译时会报错。 GaussDB 支持使用圆括号来访问数组元素，且还支持一些特有的函数，如extend、count、first、last、prior、next、exists、trim、delete来访问数组的内容。 存储过程中如果有DML语句（SELECT、UPDATE、INSERT、DELETE），DML语句只能使用中括号来访问数组元素，这样可以和函数表达式区分开。 示例 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27
+28
+29
+30
+31
+32
+33
+34
+35
+36
+37
+38
+39
+40
+41
+42
+43
+44
+45
+46
+47
+48
+49
+50
+51 --演示在存储过程中对数组进行操作。 gaussdb =# CREATE OR REPLACE PROCEDURE array_proc AS DECLARE TYPE ARRAY_INTEGER IS VARRAY ( 1024 ) OF INTEGER ; --定义数组类型 ARRINT ARRAY_INTEGER : = ARRAY_INTEGER (); --声明数组类型的变量 BEGIN ARRINT . EXTEND ( 10 ); FOR I IN 1 .. 10 LOOP ARRINT ( I ) : = I ; END LOOP ; DBE_OUTPUT . PRINT_LINE ( ARRINT . COUNT ); DBE_OUTPUT . PRINT_LINE ( ARRINT ( 1 )); DBE_OUTPUT . PRINT_LINE ( ARRINT ( 10 )); DBE_OUTPUT . PRINT_LINE ( ARRINT ( ARRINT . FIRST )); DBE_OUTPUT . PRINT_LINE ( ARRINT ( ARRINT . LAST )); DBE_OUTPUT . PRINT_LINE ( ARRINT ( ARRINT . NEXT ( ARRINT . FIRST ))); DBE_OUTPUT . PRINT_LINE ( ARRINT ( ARRINT . PRIOR ( ARRINT . LAST ))); ARRINT . TRIM (); IF ARRINT . EXISTS ( 10 ) THEN DBE_OUTPUT . PRINT_LINE ( 'Exist 10th element' ); ELSE DBE_OUTPUT . PRINT_LINE ( 'Not exist 10th element' ); END IF ; DBE_OUTPUT . PRINT_LINE ( ARRINT . COUNT ); DBE_OUTPUT . PRINT_LINE ( ARRINT ( ARRINT . FIRST )); DBE_OUTPUT . PRINT_LINE ( ARRINT ( ARRINT . LAST )); ARRINT . DELETE (); END ; / --调用该存储过程。 gaussdb =# CALL array_proc (); 10 1 10 1 10 2 9 Not exist 10 th element 9 1 9 array_proc ------------ ( 1 row ) --删除存储过程。 gaussdb =# DROP PROCEDURE array_proc ; 父主题： 数组 版权所有 © 华为技术有限公司

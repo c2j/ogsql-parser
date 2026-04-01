@@ -1,0 +1,1 @@
+BMS接入交换机放通provision网络 BMS接入交换机放通provision网络 从BMS重新入云网络配置 ssh localadmin@84.227.67.40、39 #BMS设备所连接的交换机端口 int 25ge 1/0/9 int 25ge 1/0/10 int 25ge 1/0/11 #vlan 2006为provision平面的VLAN id port default vlan 2006 stp edged-port enable commit save 父主题： 常见问题FAQ 版权所有 © 华为技术有限公司

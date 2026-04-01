@@ -1,0 +1,1 @@
+DROP OPERATOR DROP OPERATOR 删除一个操作符的定义。 语法格式 DROP OPERATOR [ IF EXISTS ]  name ( { left_type | NONE } , { right_type | NONE } ); 参数说明 name 一个现有操作符的名字。 left_type 操作符的左操作数的数据类型；如果没有左操作数，那么写NONE。 right_type 操作符的右操作数的数据类型；如果没有右操作数，那么写NONE。 示例 请参见CREATE OPERATOR的 8.12.8.32-示例 。 相关链接 ALTER OPERATOR ， CREATE OPERATOR ， CREATE OPERATOR CLASS 父主题： D 版权所有 © 华为技术有限公司

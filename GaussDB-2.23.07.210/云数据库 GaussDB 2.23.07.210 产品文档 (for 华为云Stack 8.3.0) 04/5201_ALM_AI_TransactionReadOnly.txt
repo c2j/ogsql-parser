@@ -1,0 +1,17 @@
+数据库只读（ALM_AI_TransactionReadOnly） 数据库只读（ALM_AI_TransactionReadOnly） 告警解释 当检测到磁盘剩余空间小于设置的阈值时将产生此类告警。 告警属性 告警ID 告警级别 告警类型 是否可自动清除 ALM_AI_TransactionReadOnly critical 处理出错 不涉及 告警参数 请参考 告警参数说明 。 对系统的影响 会导致整个数据库系统成为只读模式，导致涉及到写操作的语句无法成功。 系统自处理过程 无。 可能原因 磁盘空间太小 参数datastorage_threshold_value_check设置不合理 Xlog日志没有回收 pg_log日志过多 处理步骤 参考 登录实例节点 ，登录数据库节点。 使用df -h命令查看磁盘已使用的空间。 执行如下命令，导入环境变量。 source /home/Ruby/gauss_env_file 执行以下命令查看CMServer和DN的数据目录。 cm_ctl query -Cvd 结果举例： [  CMServer State   ]
+
+node             instance                                state
+----------------------------------------------------------------
+1  25.213.61.150 1    /var/lib/engine/data1/cm/cm_server Primary
+2  25.213.10.25  2    /var/lib/engine/data1/cm/cm_server Standby
+3  25.213.36.153 3    /var/lib/engine/data1/cm/cm_server Standby
+
+...
+
+[  Datanode State   ]
+
+node             instance                             state            | node             instance                             state            | node             instance                             state
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+1  25.213.61.150 6001 /var/lib/engine/data1/data/dn_1 P Primary Normal | 2  25.213.10.25  6002 /var/lib/engine/data1/data/dn_2 S Standby Normal | 3  25.213.36.153 6003 /var/lib/engine/data1/data/dn_3 S Standby Normal
+2  25.213.10.25  6004 /var/lib/engine/data2/data/dn_5 P Standby Normal | 1  25.213.61.150 6005 /var/lib/engine/data2/data/dn_4 S Standby Normal | 3  25.213.36.153 6006 /var/lib/engine/data2/data/dn_6 S Primary Normal
+3  25.213.36.153 6007 /var/lib/engine/data3/data/dn_9 P Primary Normal | 1  25.213.61.150 6008 /var/lib/engine/data3/data/dn_7 S Standby Normal | 2  25.213.10.25  6009 /var/lib/engine/data3/data/dn_8 S Standby Normal 如上述所示，使用以下命令打开cm_server.conf文件： vi /var/chroot/var/lib/engine/data1/cm/cm_server/cm_server.conf 找到datastorage_threshold_value_check参数查看值的大小，比较已使用的的空间大小与datastorage_threshold_value_check的值的大小，如果超过该值，执行 6 。 如果没有超过阈值，执行以下命令查看内核参数default_transaction_read_only是否为on。 vi /var/chroot/var/lib/engine/data1/cn/postgresql.conf 如果为on则执行如下命令： /usr/sbin/chroot --userspec=Ruby:Ruby /var/chroot /bin/env LD_LIBRARY_PATH="/usr/local/app/lib:/usr/local/app/add-ons" >>/dev/null && source /etc/profile && source ~ /.bashrc gs_guc reload -Z coordinator -N all -I all -c 'default_transaction_read_only = off'; 如上举例，该实例的数据目录为/var/lib/engine/data1/data/，执行以下命令，查看是否有大量的xlog文件。 cd /var/lib/engine/data1/data 再次进入dn_x目录。 cd dn_x /pg_xlog dn_x根据实际情况替代，如果该目录下有大量xlog文件，需进行实例扩容 。 如果问题仍未解决，参考和 收集日志 ，并收集告警信息， 联系技术支持 进行处理。 需要下载的日志信息有： GaussDB Kernel组件下的/var/lib/log/Ruby 父主题： GaussDB 内核告警参考 版权所有 © 华为技术有限公司

@@ -1,0 +1,56 @@
+{
+  "topic": "Dorado双集群解决方案介绍",
+  "term_count": 10,
+  "terms": [
+    {
+      "term": "双活数据中心架构",
+      "content": "双活数据中心架构 双活数据中心架构 同城两个数据中心的双集群部署架构采用了计算节点和存储节点分离的部署方式，计算节点使用BMS，存储节点使用Dorado。 双集群部署方式，即每个数据中心分别部署一套独立的 GaussDB 数据库集群，其中一个数据库集群作为生产集群，提供读和写服务，另一个集群作为灾备集群，不支持读写。 每个数据中心都分别有一个独立的Region和AZ，用来部署 GaussDB 数据库集群。全量build同步通过云内跨Region跨VPC的BMS之间的网络承载，增量日志同步通过Dorado之间的主备复制承载。 数据存储不使用本地盘，而是采用Dorado（全闪存共享存储阵列），即每个 GaussDB 数据库集群都配置一套独立的Dorado作为存储；两套Dorado之间采用主备同步复制，数据复制的模式支持最大保护模式和最大可用模式。 数据中心内部实例级故障时，RPO=0、RTO<=30秒；跨数据中心集群间容灾时，RPO=0、RTO<=120秒。",
+      "source_file": "4854_file_4854.txt"
+    },
+    {
+      "term": "组网方案规划",
+      "content": "组网方案规划 组网方案规划 BMS与BMGW组网规划 网络需求：BMS Provision网络跟external_om互通；BMS Provision网络跟OBS管理面互通；external_om跟bmc平面互通。 连线及网络配置，请参考 《华为云Stack 8.3.0 NOF无损网络配置基线》 。 Dorado组网规划 Dorado存储BMC IP，需要与external_om平面、dmz Service平面互通。 VPC网段要求 1）BMS场景下，主从Region的VPC网段需要大于VPC内子网的网段（即不能等于或不设置VPC网段）。 主从Region中GaussDB实例租户VPC间网络互通要求 需要把主从Region中GaussDB实例所在的VPC间网络通过L3GW打通。 注意：需要提前规划主从region 数据库实例的VPC网段信息，VPC网段信息不能和VPC子网网段信息一致，不然后续无法配置路由，导致主从Region实例网络不通。",
+      "source_file": "4902_file_4902.txt"
+    },
+    {
+      "term": "标准组网介绍",
+      "content": "标准组网介绍 标准组网介绍 搭建 GaussDB 基于Dorado双集群的跨Region容灾服务，至少需要搭建2个Region的 GaussDB 服务，每个Region里部署一套独立的 GaussDB 数据库集群实例。 单Region标准组网图，如下： 三层架构介绍： 4个核心交换机每台独立部署。 业务区同时包含（VM/BMS）、块存储、 VM/BMS各2台Spine。 公共存储区为OBS存储。 管理区为Spine-Leaf结构，交换机采用M-LAG部署。 网络服务区Spine-Leaf结构，Leaf之间部署M-LAG，Spine之间部署M-LAG。 业务区Leaf、Spine部署M-LAG。 数据库区域网络带宽要求： 核心交换机-Spine：带宽大于400Gbps 核心交换机-存储业务leaf：带宽大于200Gbps Spine-裸金属leaf：带宽大于200Gbps BMSGW提供大于120Gbps带宽的能力，网口使用25Gbps",
+      "source_file": "4901_file_4901.txt"
+    },
+    {
+      "term": "组网方案规划",
+      "content": "组网方案规划 组网方案规划 BMS与BMGW组网规划 使用FC SAN作为后端存储时，裸金属服务器需要配置HBA卡，且HBA与对接的后端存储相连；配置存储可用区时，服务默认需要占用4096MB内存和2CPU。 网络需求：BMS Provision网络跟external_om互通；BMS Provision网络跟OBS管理面互通；external_om跟bmc平面互通。 Dorado组网规划 Dorado存储BMC IP，需要与external_om平面、dmz Service平面互通。 VPC网段要求 1）BMS场景下，主从Region的VPC网段需要大于VPC内子网的网段（即不能等于或不设置VPC网段）。 主从Region中GaussDB实例租户VPC间网络互通要求 需要把主从Region中GaussDB实例所在的VPC间网络通过L3GW打通。 注意：需要提前规划主从region 数据库实例的VPC网段信息，VPC网段信息不能和VPC子网网段信息一致，不然后续无法配置路由，导致主从Region实例网络不通。",
+      "source_file": "4857_file_4857.txt"
+    },
+    {
+      "term": "典配清单",
+      "content": "典配清单 典配清单 FC网络 数据中心 分类 设备类型 设备名称/型号 数量（台） Region1 计算节点 BMS服务器 ARM 4路服务器 或 2路服务器 3 集中式网关 X86或ARM 2路服务器 2 管理TOR CE6857 2 业务TOR CE6865 2 存储节点 存储 OceanStor Dorado 5600 V6 1 FC交换机 SNS3096 2 管理交换机 CE6865 2 硬件网关 L3GW CE6865 2 Region2 计算节点 BMS服务器 ARM 4路服务器 或 2路服务器 3 集中式网关 X86或ARM 2路服务器 2 管理TOR CE6857 2 业务TOR CE6865 2 存储节点 存储 OceanStor Dorado 5600 V6 1 FC交换机 SNS3096 2 管理交换机 CE6865 2 硬件网关 L3GW CE6865 2",
+      "source_file": "4858_file_4858.txt"
+    },
+    {
+      "term": "双活数据中心部署",
+      "content": "双活数据中心部署 双活数据中心部署 数据中心1和数据中心2都部署一套 GaussDB 数据库集群，即生产集群和灾备集群；每个数据库集群都采用一主两备的部署方式。 每个数据中心都可以部署业务应用，所有的业务应用都连接到生产集群。 数据库集群的容灾切换需要手工切换。",
+      "source_file": "4900_file_4900.txt"
+    },
+    {
+      "term": "标准组网介绍",
+      "content": "标准组网介绍 标准组网介绍 搭建 GaussDB 基于Dorado双集群的跨Region容灾服务，至少需要搭建2个Region的 GaussDB 服务，每个Region里部署一套独立的 GaussDB 数据库集群实例。 单Region标准组网图，如下： 三层架构介绍： 4个核心交换机每台独立部署。 业务区同时包含（VM/BMS）、块存储、 VM/BMS各2台Spine。 公共存储区为OBS存储。 管理区为Spine-Leaf结构，交换机采用M-LAG部署。 网络服务区Spine-Leaf结构，Leaf之间部署M-LAG，Spine之间部署M-LAG。 业务区Leaf、Spine部署M-LAG。 数据库区域网络带宽要求： 核心交换机-Spine：带宽大于400Gbps 核心交换机-存储业务leaf：带宽大于200Gbps Spine-裸金属leaf：带宽大于200Gbps BMSGW提供大于120Gbps带宽的能力，网口使用25Gbps",
+      "source_file": "4856_file_4856.txt"
+    },
+    {
+      "term": "双活数据中心部署",
+      "content": "双活数据中心部署 双活数据中心部署 Region1和Region2都部署一套 GaussDB 数据库集群，即生产集群和灾备集群；每个数据库集群都采用一主两备的部署方式。 每个数据中心都可以部署业务应用，所有的业务应用都连接到生产集群。 数据库集群的容灾切换需要手工切换。",
+      "source_file": "4855_file_4855.txt"
+    },
+    {
+      "term": "典配清单",
+      "content": "典配清单 典配清单 数据中心 分类 设备类型 设备名称/型号 数量（台） 数据中心1 计算节点 BMS服务器 ARM 4路服务器 或 2路服务器 3 集中式网关 X86或ARM 2路服务器 2 管理TOR CE6857 2 业务TOR CE6865 2 存储节点 存储 OceanStor Dorado 5500/5600/18500 V6 1（存储型号及具体配置依据性能需求测算，请联系存储团队） SAN交换机 CE6860-SAN，CE16800，CE8850-SAN 根据组网方式参考《华为云stack 8.3.0 NOF无损网络配置基线》 管理交换机 CE6865 2 硬件网关 L3GW CE6865 2 数据中心2 计算节点 BMS服务器 ARM 4路服务器 或 2路服务器 3 集中式网关 X86或ARM 2路服务器 2 管理TOR CE6857 2 业务TOR CE6865 2 存储节点 存储 OceanStor Dorado 5500/5600/18500 V6 1（存储型号及具体配置依据性能需求测算，请联系存储团队） SAN交换机 CE6860-SAN，CE16800，CE8850-SAN 根据组网方式参考《华为云stack 8.3.0 NOF无损网络配置基线》 管理交换机 CE6865 2 硬件网关 L3GW CE6865 2",
+      "source_file": "4903_file_4903.txt"
+    },
+    {
+      "term": "双活数据中心架构",
+      "content": "双活数据中心架构 双活数据中心架构 同城两个数据中心的双集群部署架构采用了计算节点和存储节点分离的部署方式，计算节点使用BMS，存储节点使用Dorado。 双集群部署方式，即每个数据中心分别部署一套独立的 GaussDB 数据库集群，其中一个数据库集群作为生产集群，提供读和写服务，另一个集群作为灾备集群，不支持读写。 每个数据中心都分别有一个独立的Region和AZ，用来部署 GaussDB 数据库集群。全量build同步通过云内跨Region跨VPC的BMS之间的网络承载，增量日志同步通过Dorado之间的主备复制承载。 数据存储不使用本地盘，而是采用Dorado（全闪存共享存储阵列），即每个 GaussDB 数据库集群都配置一套独立的Dorado作为存储；两套Dorado之间采用主备同步复制，数据复制的模式支持最大保护模式和最大可用模式。 数据中心内部实例级故障时，RPO=0、RTO<=30秒；跨数据中心集群间容灾时，RPO=0、RTO<=120秒。",
+      "source_file": "4899_file_4899.txt"
+    }
+  ]
+}

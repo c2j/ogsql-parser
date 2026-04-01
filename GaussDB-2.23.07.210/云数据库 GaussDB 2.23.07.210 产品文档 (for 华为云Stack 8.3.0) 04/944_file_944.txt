@@ -1,0 +1,1 @@
+预处理指令 预处理指令 本节介绍ecpg提供的预处理指令，用于处理宏定义、文件包含和条件编译的程序指令。 包含文件 ifdef，ifndef，else，elif和endif指令 define和undef指令 父主题： 基于ecpg开发 版权所有 © 华为技术有限公司

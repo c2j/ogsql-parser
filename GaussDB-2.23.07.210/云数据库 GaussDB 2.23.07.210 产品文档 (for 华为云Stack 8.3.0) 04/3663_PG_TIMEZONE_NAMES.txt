@@ -1,0 +1,1 @@
+PG_TIMEZONE_NAMES PG_TIMEZONE_NAMES PG_TIMEZONE_NAMES视图显示所有能够被SET TIMEZONE语法识别的时区名及其缩写、UTC偏移量、是否实行夏令时。 表1 PG_TIMEZONE_NAMES字段 名称 类型 描述 name text 时区名。 abbrev text 时区名缩写。 utc_offset interval 相对于UTC的偏移量。 is_dst boolean 如果当前正实行夏令时则为TRUE，否则为FALSE。 父主题： 其他系统视图 版权所有 © 华为技术有限公司

@@ -1,0 +1,1692 @@
+DBE_XMLDOM DBE_XMLDOM 接口介绍 高级功能包DBE_XMLDOM用于访问XMLType对象，实现DOM(Document Object Model)，一个用于访问HTML和XML DOCUMENTS API。高级功能包DBE_XMLDOM支持的所有类型请参见 表1 ，DBE_XMLDOM支持的所有接口请参见 表2 。 当在数据库的字符集设置为SQL_ASCII的情况下使用DBE_XMLDOM高级包，传入超出ASCII范围的字符时，会产生报错信息。 表1 DBE_XMLDOM数据类型说明 类型名称 描述 DOMATTR 实现DOM Attribute接口。 DOMDOCUMENT 实现DOM Document接口。 DOMELEMENT 实现DOM Element接口。 DOMNAMEDNODEMAP 实现DOM Named Node Map接口。 DOMNODELIST 实现DOM Node List接口。 DOMNODE 实现DOM Node接口。 DOMTEXT 实现DOM Text接口。 表2 DBE_XMLDOM接口参数说明 接口名称 描述 DBE_XMLDOM.APPENDCHILD 将newchild node添加到parent(n)节点最后面，并返回新添加的Node节点。 DBE_XMLDOM.CREATEELEMENT 创建指定名称的DOMELEMENT对象。 DBE_XMLDOM.CREATETEXTNODE 创建DOMTEXT节点。 DBE_XMLDOM.FREEDOCUMENT 释放DOMDOCUMENT节点相关资源。 DBE_XMLDOM.FREEELEMENT 释放DOMELEMENT节点相关资源。 DBE_XMLDOM.FREENODE 释放DOMNODE节点相关资源。 DBE_XMLDOM.FREENODELIST 释放DOMNODELIST节点相关资源。 DBE_XMLDOM.GETATTRIBUTE 按名称返回DOMELEMENT属性的值。 DBE_XMLDOM.GETATTRIBUTES 将DOMNODE节点属性值作为map返回。 DBE_XMLDOM.GETCHILDNODES 将节点下的若干子节点转换成节点列表。 DBE_XMLDOM.GETCHILDRENBYTAGNAME 按名称返回DOMELEMENT的子节点。 DBE_XMLDOM.GETDOCUMENTELEMENT 返回指定DOCUMENT的首个子节点。 DBE_XMLDOM.GETFIRSTCHILD 返回第一个子节点。 DBE_XMLDOM.GETLASTCHILD 返回最后一个子节点。 DBE_XMLDOM.GETLENGTH 获取给定节点中的节点个数。 DBE_XMLDOM.GETLOCALNAME 检索节点的本地名称。 DBE_XMLDOM.GETNAMEDITEM 检索由名称指定的节点。 DBE_XMLDOM.GETNEXTSIBLING 返回该节点的下一个节点。 DBE_XMLDOM.GETNODENAME 返回节点名称。 DBE_XMLDOM.GETNODETYPE 返回节点类型。 DBE_XMLDOM.GETNODEVALUE 此函数用于获取节点的值，具体取决于其类型。 DBE_XMLDOM.GETPARENTNODE 检索此节点的父节点。 DBE_XMLDOM.GETTAGNAME 返回指定DOMELEMENT的标签名称。 DBE_XMLDOM.HASCHILDNODES 检查DOMNODE对象是否拥有任一子节点。 DBE_XMLDOM.IMPORTNODE 复制节点并为该节点指定所属文档。 DBE_XMLDOM.ISNULL 检测节点是否为空。 DBE_XMLDOM.ITEM 返回映射中与索引参数对应的项。 DBE_XMLDOM.MAKEELEMENT 将DOMNODE对象转换为DOMELEMENT类型。 DBE_XMLDOM.MAKENODE 将节点强制转换为DOMNODE类型。 DBE_XMLDOM.NEWDOMDOCUMENT 返回新的DOMDOCUMENT对象。 DBE_XMLDOM.SETATTRIBUTE 按名称设置DOMELEMENT属性的值。 DBE_XMLDOM.SETCHARSET 设置DOMDOCUMENT的CHATSET字符集。 DBE_XMLDOM.SETDOCTYPE 设置DOMDOCUMENT的外部DTD。 DBE_XMLDOM.SETNODEVALUE 此函数用于向DOMNODE对象中设置节点的值。 DBE_XMLDOM.WRITETOBUFFER 将 XML 节点写入指定缓冲区。 DBE_XMLDOM.WRITETOCLOB 将 XML 节点写入指定CLOB。 DBE_XMLDOM.WRITETOFILE 将 XML 节点写入指定文件。 DBE_XMLDOM.GETSESSIONTREENUM 显示当前session中所有类型的dom树的数量。 DBE_XMLDOM.GETDOCTREESINFO 显示document类型的dom树的内存占用、结点数量等统计信息。 DBE_XMLDOM.GETDETAILDOCTREEINFO 显示特定的document变量的各类型结点数量。 DBE_XMLDOM.GETELEMENTSBYTAGNAME 返回匹配TAGNAME的DOMNODELIST节点列表。 DBE_XMLDOM.APPENDCHILD 将newchild node添加到parent(n)节点最后面,并返回新添加的Node节点。DBE_XMLDOM.APPENDCHILD函数原型为： 1
+2
+3
+4 DBE_XMLDOM . APPENDCHILD ( n IN DOMNode , newchild IN DOMNode ) RETURN DOMNODE ; 表3 DBE_XMLDOM.APPENDCHILD接口参数说明 参数 描述 n 被添加的node。 newchild 添加的新node。 DOCUMENT类型节点下APPEND ATTR类型节点会报“operation not support”错误，A数据库在此场景下不报错，但实际并没有挂载成功； ATTR类型节点下APPEND ATTR类型节点会报“operation not support”错误，A数据库在此场景下不报错，但实际并没有挂载成功； 父节点在添加多个ATTR类型子节点时，不允许KEY值相同的子节点同时存在于同一个父节点下。 示例： 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27
+28
+29
+30
+31
+32
+33
+34
+35
+36 --为指定的DOC树添加DOMNODE节点，并通过DBE_XMLDOM.HASCHILDNODES()验证子节点是否添加成功。 DECLARE doc DBE_XMLDOM . DOMDocument ; doc1 DBE_XMLDOM . DOMDocument ; root DBE_XMLDOM . DOMElement ; rootnode DBE_XMLDOM . DOMNode ; child1 DBE_XMLDOM . DOMElement ; child2 DBE_XMLDOM . DOMElement ; attr DBE_XMLDOM . DOMAttr ; text DBE_XMLDOM . DOMTEXT ; node DBE_XMLDOM . DOMNode ; child1_node DBE_XMLDOM . DOMNode ; attr_node DBE_XMLDOM . DOMNode ; parent DBE_XMLDOM . DOMNode ; buf varchar2 ( 1000 ); BEGIN doc : = DBE_XMLDOM . newDOMDocument (); root : = DBE_XMLDOM . createElement ( doc , 'root' ); rootnode : = DBE_xmldom . makeNode ( root ); node : = DBE_XMLDOM . appendChild ( DBE_xmldom . makeNode ( doc ), rootnode ); child1 : = DBE_XMLDOM . createElement ( doc , 'child1' ); child1_node : = DBE_XMLDOM . makeNode ( child1 ); node : = DBE_XMLDOM . appendChild ( rootnode , child1_node ); attr : = DBE_XMLDOM . createAttribute ( doc , 'abc' ); attr_node : = DBE_XMLDOM . makeNode ( attr ); node : = DBE_XMLDOM . appendChild ( child1_node , attr_node ); IF DBE_XMLDOM . HASCHILDNODES ( child1_node ) THEN DBE_OUTPUT . print_line ( 'HAS CHILD NODES' ); ELSE DBE_OUTPUT . print_line ( 'NOT HAS CHILD NODES ' ); END IF ; parent : = DBE_XMLDOM . GETPARENTNODE ( attr_node ); buf : = DBE_XMLDOM . GETNODENAME ( parent ); DBE_OUTPUT . print_line ( buf ); END ; / DBE_XMLDOM.CREATEELEMENT 返回创建指定名称的DOMELEMENT对象。DBE_XMLDOM.CREATEELEMENT的函数原型为： DBE_XMLDOM.CREATEELEMENT(
+   doc        IN      DOMDOCUMENT,
+   tagName    IN      VARCHAR2)
+ RETURN DOMELEMENT; 返回创建指定名称和命名空间的DOMELEMENT对象。DBE_XMLDOM.CREATEELEMENT的函数原型为： DBE_XMLDOM.CREATEELEMENT(
+   doc        IN     DOMDOCUMENT,
+   tagName    IN     VARCHAR2,
+   ns         IN     VARCHAR2)
+ RETURN DOMELEMENT; 表4 DBE_XMLDOM.CREATEELEMENT接口参数说明 参数 描述 doc 指定的DOMDOCUMENT对象。 tagName 新建的DOMELEMENT名称。 ns 命名空间。 tagName参数传入NULL和空字符串时，都会抛出异常 "NULL or invalid TagName argument specified"。 tagName和ns默认的最大长度为32767，超过该长度会抛出异常。 示例： 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27
+28
+29
+30
+31
+32
+33
+34
+35
+36
+37
+38
+39
+40
+41
+42 --1. 创建指定名称的DOMELEMENT对象。 DECLARE doc dbe_xmldom . domdocument ; attr DBE_XMLDOM . DOMATTR ; elem DBE_XMLDOM . DOMELEMENT ; ans DBE_XMLDOM . DOMATTR ; buf varchar2 ( 1010 ); BEGIN doc : = dbe_xmldom . newdomdocument ( '<?xml version="1.0" encoding="UTF-8"?> <computer size="ITX"><cpu>Ryzen 9 3950X</cpu> <ram>32GBx2 DDR4 3200MHz</ram> <motherboard>ROG X570i</motherboard> <gpu>RTX2070 Super</gpu> <ssd>1TB NVMe Toshiba + 2TB NVMe WD Black</ssd> <hdd>12TB WD Digital</hdd> <psu>CORSAIR SF750</psu> <case>LIANLI TU150</case> </computer>' ); elem : = dbe_xmldom . createelement ( doc , 'elem' ); DBE_XMLDOM . WRITETOBUFFER ( dbe_xmldom . makenode ( elem ), buf ); DBE_OUTPUT . print_line ( buf ); END ; / --2. 创建指定名称和命名空间的DOMELEMENT对象。 DECLARE doc dbe_xmldom . domdocument ; attr DBE_XMLDOM . DOMATTR ; elem DBE_XMLDOM . DOMELEMENT ; ans DBE_XMLDOM . DOMNODE ; buf varchar2 ( 1010 ); list DBE_XMLDOM . DOMNODELIST ; node DBE_XMLDOM . DOMNODE ; BEGIN doc : = dbe_xmldom . newdomdocument ( '<h:data xmlns:h="http://www.w3.org/TR/html4/"> <h:da1 len="10">test namespace</h:da1><h:da1>bbbbbbbbbb</h:da1></h:data>' ); elem : = dbe_xmldom . createelement ( doc , 'elem' , 'http://www.w3.org/TR/html5/' ); ans : = DBE_XMLDOM . APPENDCHILD ( dbe_xmldom . makenode ( doc ), dbe_xmldom . makenode ( elem )); DBE_XMLDOM . WRITETOBUFFER ( doc , buf ); DBE_OUTPUT . print_line ( buf ); END ; / DBE_XMLDOM.CREATETEXTNODE 创建并返回DOMTEXT对象。DBE_XMLDOM.CREATETEXTNOD的函数原型为： DBE_XMLDOM.CREATETEXTNODE(
+   doc IN DOMDocument,
+   data IN VARCHAR2)
+RETURN DOMTEXT; 表5 DBE_XMLDOM.CREATETEXTNODE接口参数说明 参数 描述 doc 指定的DOMDOCUMENT。 data DOMText节点的内容。 1.data可以输入空字符串和NULL值。 2.data默认的最大长度为32767，超过该长度会抛出异常。 示例： 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26 --为DOC树添加DOMTEXT节点，并将DOC树打印输出到缓冲区。 DECLARE doc DBE_XMLDOM . DOMDOCUMENT ; doctext DBE_XMLDOM . DOMTEXT ; node DBE_XMLDOM . DOMNODE ; buffer varchar2 ( 1010 ); BEGIN doc : = dbe_xmldom . newdomdocument ( '<?xml version="1.0"?> <!DOCTYPE note [<!ELEMENT note (to,from,heading,body)> <!ELEMENT to (#PCDATA)> <!ELEMENT from (#PCDATA)> <!ELEMENT heading (#PCDATA)> <!ELEMENT body (#PCDATA)>]> <note> <to>中文</to> <from>Jani</from> <heading>Reminder</heading> <body>Don''t forget me this weekend!</body> </note>' ); doctext : = DBE_XMLDOM . CREATETEXTNODE ( doc , 'there is nothing' ); node : = DBE_XMLDOM . MAKENODE ( doctext ); dbe_xmldom . writetobuffer ( node , buffer ); dbe_output . print_line ( 'buffer: ' ); dbe_output . print_line ( buffer ); END ; / DBE_XMLDOM.FREEDOCUMENT 释放DOMDOCUMENT节点。DBE_XMLDOM.FREEDOCUMENT的函数原型为： DBE_XMLDOM.FREEDOCUMENT(
+   doc     IN     DOMDOCUMENT); 表6 DBE_XMLDOM.FREEDOCUMENT接口参数说明 参数 描述 doc 指定的DOMDOCUMENT节点。 示例： 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16 --在DOC树中添加DOMNODE节点后，将整个DOC树的资源释放。 DECLARE doc dbe_xmldom . domdocument ; elem dbe_xmldom . domelement ; doc_node dbe_xmldom . DOMNODE ; root_elmt dbe_xmldom . DOMELEMENT ; root_node dbe_xmldom . DOMNODE ; value varchar ( 1000 ); BEGIN doc : = dbe_xmldom . newdomdocument (); doc_node : = dbe_xmldom . MAKENODE ( doc ); root_elmt : = dbe_xmldom . CREATEELEMENT ( doc , 'staff' ); root_node : = dbe_xmldom . APPENDCHILD ( doc_node , dbe_xmldom . MAKENODE ( root_elmt )); dbe_xmldom . freedocument ( doc ); END ; / DBE_XMLDOM.FREEELEMENT 释放DOMELEMENT节点。DBE_XMLDOM.FREEELEMENT的函数原型为： DBE_XMLDOM.FREEELEMENT(
+   elem     IN     DOMELEMENT); 表7 DBE_XMLDOM.FREEELEMENT接口参数说明 参数 描述 elem 指定的DOMELEMENT节点。 示例： 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27
+28
+29
+30
+31
+32
+33
+34
+35
+36 --从DOC中获取DOMELEMENT节点后对其进行释放，对比其free前后是否为空的情况。 DECLARE doc dbe_xmldom . domdocument ; elem dbe_xmldom . domelement ; node dbe_xmldom . domnode ; node1 dbe_xmldom . domnode ; nodelist DBE_XMLDOM . DOMNODELIST ; len INTEGER ; buffer varchar2 ( 1010 ); BEGIN doc : = dbe_xmldom . newdomdocument ( '<?xml version="1.0"?> <!DOCTYPE note [<!ELEMENT note (to,from,heading,body)> <!ELEMENT to (#PCDATA)> <!ELEMENT from (#PCDATA)> <!ELEMENT heading (#PCDATA)> <!ELEMENT body (#PCDATA)>]> <note> <to>中文</to> <from>Jani</from> <heading>Reminder</heading> <body>Don''t forget me this weekend!</body> </note>' ); elem : = dbe_xmldom . GETDOCUMENTELEMENT ( doc ); IF DBE_XMLDOM . ISNULL ( elem ) THEN dbe_output . print_line ( 'IS NULL' ); ELSE dbe_output . print_line ( 'NOT NULL' ); END IF ; dbe_xmldom . FREEELEMENT ( elem ); IF DBE_XMLDOM . ISNULL ( elem ) THEN dbe_output . print_line ( 'IS NULL' ); ELSE dbe_output . print_line ( 'NOT NULL' ); END IF ; END ; / DBE_XMLDOM.FREENODE 释放DOMNODE节点。DBE_XMLDOM.FREENODE的函数原型为： DBE_XMLDOM.FREENODE(
+   n IN DOMNODE); 表8 DBE_XMLDOM.FREENODE接口参数说明 参数 描述 n 指定的DOMNODE节点。 GaussDB 进行FREENODE操作后，被释放的节点不会出现重新可用的情况；A数据库在FREENODE后存在被释放的节点重新可用并变成其他结点的情况。 其他接口在调用被释放的DOMNOD节点时与A数据库存在差异。 示例： 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27
+28
+29
+30
+31
+32
+33
+34
+35
+36 --从DOC树中获取一个DOMNODE节点后对其进行释放，对比其free前后是否为空的情况。 DECLARE doc dbe_xmldom . domdocument ; node dbe_xmldom . domnode ; node1 dbe_xmldom . domnode ; nodelist DBE_XMLDOM . DOMNODELIST ; len INTEGER ; buffer1 varchar2 ( 1010 ); BEGIN doc : = dbe_xmldom . newdomdocument ( '<?xml version="1.0"?> <!DOCTYPE note [<!ELEMENT note (to,from,heading,body)> <!ELEMENT to (#PCDATA)> <!ELEMENT from (#PCDATA)> <!ELEMENT heading (#PCDATA)> <!ELEMENT body (#PCDATA)>]> <note> <to>中文</to> <from>Jani</from> <heading>Reminder</heading> <body>Don''t forget me this weekend!</body> </note>' ); node : = dbe_xmldom . makenode ( doc ); node : = dbe_xmldom . GETFIRSTCHILD ( node ); IF DBE_XMLDOM . ISNULL ( node ) THEN dbe_output . print_line ( 'IS NULL' ); ELSE dbe_output . print_line ( 'NOT NULL' ); END IF ; DBE_XMLDOM . FREENODE ( node ); IF DBE_XMLDOM . ISNULL ( node ) THEN dbe_output . print_line ( 'IS NULL' ); ELSE dbe_output . print_line ( 'NOT NULL' ); END IF ; END ; / DBE_XMLDOM.FREENODELIST 释放DOMNODELIST节点。DBE_XMLDOM.FREENODE的函数原型为： DBE_XMLDOM.GETLENGTH(
+   nl     IN    DOMNODELIST); 表9 DBE_XMLDOM.FREENODELIST接口参数说明 参数 描述 nl 指定的DOMNODELIST节点。 FREENODELIST会彻底释放NODELIST。 其他接口在调用被释放的DOMNODELIST节点时与A数据库存在差异。 freenodelist不允许空值入参。 示例： 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27
+28
+29
+30
+31 --从DOC树中获取一个DOMNODELIST节点后对其进行释放，对比其free前后的长度。 DECLARE doc dbe_xmldom . domdocument ; node dbe_xmldom . domnode ; node1 dbe_xmldom . domnode ; nodelist DBE_XMLDOM . DOMNODELIST ; len INTEGER ; buffer1 varchar2 ( 1010 ); BEGIN doc : = dbe_xmldom . newdomdocument ( '<?xml version="1.0"?> <!DOCTYPE note [<!ELEMENT note (to,from,heading,body)> <!ELEMENT to (#PCDATA)> <!ELEMENT from (#PCDATA)> <!ELEMENT heading (#PCDATA)> <!ELEMENT body (#PCDATA)>]> <note> <to>中文</to> <from>Jani</from> <heading>Reminder</heading> <body>Don''t forget me this weekend!</body> </note>' ); node : = dbe_xmldom . makenode ( doc ); node : = dbe_xmldom . GETFIRSTCHILD ( node ); nodelist : = DBE_XMLDOM . GETCHILDNODES ( node ); len : = DBE_XMLDOM . GETLENGTH ( nodelist ); RAISE NOTICE 'len :  %' , len ; DBE_XMLDOM . FREENODELIST ( nodelist ); len : = DBE_XMLDOM . GETLENGTH ( nodelist ); RAISE NOTICE 'len :  %' , len ; END ; / DBE_XMLDOM.GETATTRIBUTE 按名称返回DOMELEMENT属性的值。DBE_XMLDOM.GETATTRIBUTE的函数原型为： DBE_XMLDOM.GETATTRIBUTE(
+   elem       IN      DOMELEMENT,
+   name       IN      VARCHAR2)
+RETURN VARCHAR2; 按名称和命名空间URI返回DOMELEMENT属性的值。DBE_XMLDOM.GETATTRIBUTE的函数原型为： DBE_XMLDOM.GETATTRIBUTE(
+   elem      IN     DOMELEMENT,
+   name      IN     VARCHAR2,
+   ns        IN     VARCHAR2)
+RETURN VARCHAR2; 表10 DBE_XMLDOM.GETATTRIBUTE接口参数说明 参数 描述 elem 指定的DOMELEMENT节点。 name 属性名称。 ns 命名空间。 DBE_XMLDOM.GETATTRIBUTE接口的参数ns不支持传入参数" * "。 GaussDB 不支持将命名空间前缀作为属性，不允许通过DBE_XMLDOM.GETATTRIBUTE接口查询该前缀的值。 示例： 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27
+28
+29
+30
+31
+32
+33
+34
+35
+36
+37
+38
+39
+40
+41
+42 --1. 按名称返回DOMELEMENT属性的值。 DECLARE doc dbe_xmldom . domdocument ; elem dbe_xmldom . domelement ; docnode DBE_XMLDOM . DOMNode ; buffer varchar2 ( 1010 ); value varchar2 ( 1000 ); BEGIN doc : = dbe_xmldom . newDOMDocument (); elem : = DBE_XMLDOM . CREATEELEMENT ( doc , 'root' ); DBE_XMLDOM . setattribute ( elem , 'len' , '50cm' ); docnode : = DBE_XMLDOM . appendChild ( DBE_XMLDOM . makeNode ( doc ), DBE_XMLDOM . makeNode ( elem )); value : = DBE_XMLDOM . getattribute ( elem , 'len' ); dbe_output . print_line ( 'value: ' ); dbe_output . print_line ( value ); dbe_xmldom . writetobuffer ( doc , buffer ); dbe_output . print_line ( 'buffer: ' ); dbe_output . print_line ( buffer ); END ; / --2. 按名称和命名空间URI返回DOMELEMENT属性的值。 DECLARE doc dbe_xmldom . domdocument ; elem dbe_xmldom . domelement ; docnode DBE_XMLDOM . DOMNode ; buffer varchar2 ( 1010 ); value varchar ( 1000 ); BEGIN doc : = dbe_xmldom . newDOMDocument (); elem : = DBE_XMLDOM . CREATEELEMENT ( doc , 'root' ); DBE_XMLDOM . setattribute ( elem , 'len' , '50cm' , 'www.huawei.com' ); docnode : = DBE_XMLDOM . appendChild ( DBE_XMLDOM . makeNode ( doc ), DBE_XMLDOM . makeNode ( elem )); value : = DBE_XMLDOM . getattribute ( elem , 'len' , 'www.huawei.com' ); dbe_output . print_line ( 'value: ' ); dbe_output . print_line ( value ); dbe_xmldom . writetobuffer ( doc , buffer ); dbe_output . print_line ( 'buffer: ' ); dbe_output . print_line ( buffer ); END ; / DBE_XMLDOM.GETATTRIBUTES 将DOMNode节点属性值作为map返回。DBE_XMLDOM.GETATTRIBUTES的函数原型为： DBE_XMLDOM.GETATTRIBUTES(
+   n IN DOMNode)
+RETURN DOMNAMEDNODEMAP; 表11 DBE_XMLDOM.GETATTRIBUTES接口参数说明 参数 描述 n 指定的DOMNODE节点。 示例： 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27
+28
+29
+30
+31
+32 --获取DOMNODE节点下的属性值并返回DOMNAMEDNODEMAP类型，输出DOMNAMEDNODEMAP的长度和第一个节点值。 DECLARE doc dbe_xmldom . domdocument ; node dbe_xmldom . domnode ; node1 dbe_xmldom . domnode ; len INTEGER ; map DBE_XMLDOM . DOMNAMEDNODEMAP ; buffer1 varchar2 ( 1010 ); BEGIN doc : = dbe_xmldom . newdomdocument ( '<?xml version="1.0"?> <note a="16" b="176" c="asd"> <to>中文</to> <from>Jani</from> <heading>Reminder</heading> <body>Don''t forget me this weekend!</body> </note>' ); node : = dbe_xmldom . makenode ( doc ); node : = dbe_xmldom . GETFIRSTCHILD ( node ); map : = DBE_XMLDOM . GETATTRIBUTES ( node ); IF DBE_XMLDOM . ISNULL ( map ) THEN dbe_output . print_line ( 'IS NULL' ); ELSE dbe_output . print_line ( 'NOT NULL' ); END IF ; len : = DBE_XMLDOM . GETLENGTH ( map ); RAISE NOTICE 'len :  %' , len ; node1 : = DBE_XMLDOM . ITEM ( map , 0 ); dbe_xmldom . writetobuffer ( node1 , buffer1 ); dbe_output . print_line ( 'buffer1: ' ); dbe_output . print_line ( buffer1 ); END ; / DBE_XMLDOM.GETCHILDNODES 函数将节点下的若干子节点转换成节点列表。DBE_XMLDOM.GETCHILDNODES的函数原型为： DBE_XMLDOM.GETCHILDNODES(
+   n IN DOMNode)
+RETURN DOMNodeList; 表12 DBE_XMLDOM.GETCHILDNODES接口参数说明 参数 描述 n 指定的DOMNODE节点。 示例： 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27
+28
+29 --获取DOC树的第一个子节点后，将节点下的若干子节点转换成节点列表，输出其长度信息。 DECLARE doc dbe_xmldom . domdocument ; doc_node dbe_xmldom . domnode ; root_node dbe_xmldom . domnode ; node_list dbe_xmldom . domnodelist ; list_len integer ; node_name varchar2 ( 1000 ); node_type integer ; buffer varchar2 ( 1010 ); BEGIN doc : = dbe_xmldom . newdomdocument ( '<?xml version="1.0"?> <note> <to>中文</to> <from>Jani</from> <heading>Reminder</heading> <body>Don''t forget me this weekend!</body> </note>' ); doc_node : = DBE_XMLDOM . MAKENODE ( doc ); root_node : = DBE_XMLDOM . GETFIRSTCHILD ( doc_node ); node_name : = DBE_XMLDOM . GETNODENAME ( root_node ); node_type : = DBE_XMLDOM . GETNODETYPE ( root_node ); dbe_output . print_line ( node_name ); dbe_output . print_line ( node_type ); node_list : = DBE_XMLDOM . GETCHILDNODES ( root_node ); list_len : = DBE_XMLDOM . GETLENGTH ( node_list ); dbe_output . print_line ( list_len ); END ; / DBE_XMLDOM.GETCHILDRENBYTAGNAME 按名称返回DOMELEMENT的子节点。DBE_XMLDOM.GETCHILDRENBYTAGNAME的函数原型为： DBE_XMLDOM.GETCHILDRENBYTAGNAME (
+   elem       IN      DOMELEMENT,
+   name       IN      VARCHAR2)
+RETURN DOMNODELIST; 按名称和命名空间返回DOMELEMENT的子节点。DBE_XMLDOM.GETCHILDRENBYTAGNAME的函数原型为： DBE_XMLDOM.GETCHILDRENBYTAGNAME (
+   elem      IN     DOMELEMENT,
+   name      IN     VARCHAR2,
+   ns        IN     VARCHAR2)
+ RETURN DOMNODELIST; 表13 DBE_XMLDOM.GETCHILDRENBYTAGNAME接口参数说明 参数 描述 elem 指定的DOMELEMENT节点。 name 属性名称。 ns 命名空间。 DBE_XMLDOM.GETCHILDRENBYTAGNAME接口的参数ns不支持传入参数" * "，如需获取节点下全部属性，可使用DBE_XMLDOM.GETCHILDNODES接口。 示例： 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27
+28
+29
+30
+31
+32
+33
+34
+35
+36
+37
+38
+39
+40
+41
+42
+43
+44
+45
+46
+47
+48
+49
+50
+51
+52
+53
+54
+55
+56
+57
+58 --1. 按名称返回DOMELEMENT的子节点。 DECLARE doc dbe_xmldom . domdocument ; elem dbe_xmldom . domelement ; docnodelist dbe_xmldom . domnodelist ; node_elem dbe_xmldom . domelement ; node dbe_xmldom . domnode ; buffer varchar2 ( 1010 ); value varchar2 ( 1000 ); BEGIN doc : = dbe_xmldom . newdomdocument ( '<?xml version="1.0" encoding="UTF-8"?> <students age="16" hight="176"> <student> <name>Jerry</name><age>519</age><sex>man</sex><abc>12345</abc> </student> <student> <name>Bob</name><age>245</age><sex>woman</sex><abc>54321</abc> </student> </students>' ); elem : = dbe_xmldom . GETDOCUMENTELEMENT ( doc ); docnodelist : = dbe_xmldom . GETCHILDRENBYTAGNAME ( elem , 'student' ); node : = dbe_xmldom . ITEM ( docnodelist , 0 ); node_elem : = dbe_xmldom . makeelement ( node ); value : = DBE_XMLDOM . gettagname ( node_elem ); dbe_output . print_line ( 'value: ' ); dbe_output . print_line ( value ); dbe_xmldom . writetobuffer ( doc , buffer ); dbe_output . print_line ( 'buffer: ' ); dbe_output . print_line ( buffer ); END ; / --2. 按名称和命名空间返回DOMELEMENT的子节点。 DECLARE doc dbe_xmldom . domdocument ; elem dbe_xmldom . domelement ; node dbe_xmldom . domnode ; node_elem dbe_xmldom . domelement ; docnodelist dbe_xmldom . domnodelist ; buffer varchar2 ( 1010 ); value varchar2 ( 1000 ); BEGIN doc : = dbe_xmldom . newdomdocument ( ' <note xmlns:h="www.huawei.com"> <h:to h:len="50cm">中文</h:to> <from>Jani</from> <heading>Reminder</heading> <body>Don''t forget me this weekend!</body> </note>' ); elem : = dbe_xmldom . GETDOCUMENTELEMENT ( doc ); docnodelist : = dbe_xmldom . GETCHILDRENBYTAGNAME ( elem , 'to' , 'www.huawei.com' ); node : = dbe_xmldom . ITEM ( docnodelist , 0 ); node_elem : = dbe_xmldom . makeelement ( node ); value : = DBE_XMLDOM . getattribute ( node_elem , 'len' ); dbe_output . print_line ( 'value: ' ); dbe_output . print_line ( value ); END ; / DBE_XMLDOM.GETDOCUMENTELEMENT 返回指定DOCUMENT的首个子节点。DBE_XMLDOM.GETDOCUMENTELEMENT的函数原型为： DBE_XMLDOM.GETDOCUMENTELEMENT(
+   doc      IN      DOMDOCUMENT)
+ RETURN DOMELEMENT; 表14 DBE_XMLDOM.GETDOCUMENTELEMENT接口参数说明 参数 描述 doc 指定的DOMDOCUMENT节点。 示例： 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17
+18 --获取DOC树中的首个子节点，并输出该节点的名称。 DECLARE doc dbe_xmldom . domdocument ; elem dbe_xmldom . domelement ; doc_node dbe_xmldom . DOMNODE ; root_elmt dbe_xmldom . DOMELEMENT ; root_node dbe_xmldom . DOMNODE ; value varchar ( 1000 ); BEGIN doc : = dbe_xmldom . newdomdocument (); doc_node : = dbe_xmldom . MAKENODE ( doc ); root_elmt : = dbe_xmldom . CREATEELEMENT ( doc , 'staff' ); root_node : = dbe_xmldom . APPENDCHILD ( doc_node , dbe_xmldom . MAKENODE ( root_elmt )); elem : = dbe_xmldom . GETDOCUMENTELEMENT ( doc ); value : = DBE_XMLDOM . gettagname ( elem ); dbe_output . print_line ( value ); END ; / DBE_XMLDOM.GETFIRSTCHILD 返回节点的第一个子节点。DBE_XMLDOM.GETFIRSTCHILD的函数原型为： DBE_XMLDOM.GETFIRSTCHILD(
+   n IN DOMNODE)
+RETURN DOMNODE; 表15 DBE_XMLDOM.GETFIRSTCHILD接口参数说明 参数 描述 n 指定的DOMNODE节点。 示例： 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27
+28
+29 --获取DOC转后成DOMNODE类型后的第一个子节点后输出其名称和类型；在获取到的第一个子节点基础上，获取该DOMNODE的第一个子节点并输出其名称。 DECLARE doc dbe_xmldom . domdocument ; doc_node dbe_xmldom . domnode ; root_node dbe_xmldom . domnode ; inside_node dbe_xmldom . domnode ; node_name varchar2 ( 1000 ); node_type integer ; BEGIN doc : = dbe_xmldom . newdomdocument ( '<?xml version="1.0" encoding="UTF-8"?> <students age="16" hight="176"> <student1> <name>Jerry</name><age>519</age><sex>man</sex><abc>12345</abc> </student1> <student2> <name>Bob</name><age>245</age><sex>woman</sex><abc>54321</abc> </student2> </students>' ); doc_node : = DBE_XMLDOM . MAKENODE ( doc ); root_node : = DBE_XMLDOM . GETFIRSTCHILD ( doc_node ); node_name : = DBE_XMLDOM . GETNODENAME ( root_node ); node_type : = DBE_XMLDOM . GETNODETYPE ( root_node ); dbe_output . print_line ( node_name ); dbe_output . print_line ( node_type ); inside_node : = DBE_XMLDOM . GETFIRSTCHILD ( root_node ); node_name : = DBE_XMLDOM . GETNODENAME ( inside_node ); dbe_output . print_line ( node_name ); END ; / DBE_XMLDOM.GETLASTCHILD 返回节点的最后一个子节点。DBE_XMLDOM.GETLASTCHILD的函数原型为： DBE_XMLDOM.GETLASTCHILD(
+   n IN DOMNODE)
+RETURN DOMNODE; 表16 DBE_XMLDOM.GETLASTCHILD接口参数说明 参数 描述 n 指定的DOMNODE节点。 示例： 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27
+28
+29 --获取DOC转后成DOMNODE类型后的最后一个子节点后输出其名称和类型；在获取到的最后一个子节点基础上，获取该DOMNODE的最后一个子节点并输出其名称。 DECLARE doc dbe_xmldom . domdocument ; doc_node dbe_xmldom . domnode ; root_node dbe_xmldom . domnode ; inside_node dbe_xmldom . domnode ; node_name varchar2 ( 1000 ); node_type integer ; BEGIN doc : = dbe_xmldom . newdomdocument ( '<?xml version="1.0" encoding="UTF-8"?> <students age="16" hight="176"> <student1> <name>Jerry</name><age>519</age><sex>man</sex><abc>12345</abc> </student1> <student2> <name>Bob</name><age>245</age><sex>woman</sex><abc>54321</abc> </student2> </students>' ); doc_node : = DBE_XMLDOM . MAKENODE ( doc ); root_node : = DBE_XMLDOM . GETFIRSTCHILD ( doc_node ); node_name : = DBE_XMLDOM . GETNODENAME ( root_node ); node_type : = DBE_XMLDOM . GETNODETYPE ( root_node ); dbe_output . print_line ( node_name ); dbe_output . print_line ( node_type ); inside_node : = DBE_XMLDOM . GETLASTCHILD ( root_node ); node_name : = DBE_XMLDOM . GETNODENAME ( inside_node ); dbe_output . print_line ( node_name ); END ; / DBE_XMLDOM.GETLENGTH 返回DOMNAMEDNODEMAP类型节点中的节点数。DBE_XMLDOM.GETLENGTH的函数原型为： DBE_XMLDOM.GETLENGTH(
+   nnm      IN     DOMNAMEDNODEMAP)
+ RETURN NUMBER; 返回DOMNODELIST类型节点中的节点数。DBE_XMLDOM.GETLENGTH的函数原型为： DBE_XMLDOM.GETLENGTH(
+   nl     IN    DOMNODELIST)
+ RETURN NUMBER; 表17 DBE_XMLDOM.GETLENGTH接口参数说明 参数 描述 nnm 指定的DOMNAMEDNODEMAP类型节点。 nl 指定的DOMNODELIST类型节点。 示例： 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27
+28
+29
+30
+31
+32
+33
+34
+35
+36
+37
+38
+39
+40
+41
+42
+43
+44
+45
+46
+47
+48
+49
+50
+51 --1. DOMNAMEDNODEMAP类型作为函数参数。 DECLARE doc DBE_XMLDOM . DOMDocument ; elem DBE_XMLDOM . DOMElement ; map DBE_XMLDOM . DOMNAMEDNODEMAP ; node DBE_XMLDOM . DOMNODE ; buf varchar2 ( 10000 ); len INTEGER ; BEGIN doc : = dbe_xmldom . newdomdocument ( '<?xml version="1.0"?> <bookstore category="web" cover="paperback"> <book category="cooking"> <title lang="en">Everyday Italian</title> <author>Giada De Laurentiis</author> <year>2005</year> <price>30.00</price> </book> </bookstore>' ); elem : = DBE_XMLDOM . GETDOCUMENTELEMENT ( doc ); node : = DBE_XMLDOM . MAKENODE ( elem ); map : = DBE_XMLDOM . GETATTRIBUTES ( node ); len : = DBE_XMLDOM . GETLENGTH ( map ); DBE_OUTPUT . print_line ( len ); END ; / --2. Nodelist类型作为函数参数。 DECLARE doc dbe_xmldom . domdocument ; node dbe_xmldom . domnode ; node1 dbe_xmldom . domnode ; nodelist DBE_XMLDOM . DOMNODELIST ; len INTEGER ; buffer1 varchar2 ( 1010 ); BEGIN doc : = dbe_xmldom . newdomdocument ( '<?xml version="1.0" encoding="UTF-8"?> <students age="16" hight="176"> <student> <name>Jerry</name><age>519</age><sex>man</sex><abc>12345</abc> </student> <student> <name>Jerry</name><age>519</age><sex>man</sex><abc>12345</abc> </student> </students>' ); node : = dbe_xmldom . makenode ( doc ); node : = dbe_xmldom . GETFIRSTCHILD ( node ); nodelist : = DBE_XMLDOM . GETCHILDNODES ( node ); len : = DBE_XMLDOM . GETLENGTH ( nodelist ); RAISE NOTICE 'len :  %' , len ; END ; / DBE_XMLDOM.GETLOCALNAME 函数返回给定的DOMATTR类型节点的本地名称。DBE_XMLDOM.MAKENODE的函数原型为： DBE_XMLDOM.GETLOCALNAME(
+   a       IN     DOMATTR)
+RETURN VARCHAR2; 函数返回给定的DOMELEMENT类型节点的本地名称。DBE_XMLDOM.MAKENODE的函数原型为 DBE_XMLDOM.GETLOCALNAME(
+   elem       IN     DOMELEMENT)
+RETURN VARCHAR2; 存储过程返回给定的DOMNODE类型节点的本地名称。DBE_XMLDOM.MAKENODE的函数原型为 DBE_XMLDOM.GETLOCALNAME(
+   n      IN     DOMNODE,
+   data   OUT    VARCHAR2); 表18 DBE_XMLDOM.GETLOCALNAME接口参数说明 参数 描述 a 指定的DOMATTR类型节点。 elem 指定的DOMELEMENT类型节点。 n 指定的DOMNODE类型节点。 data 返回的本地名称。 示例： 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27
+28
+29
+30
+31
+32
+33
+34
+35
+36
+37
+38
+39
+40
+41
+42
+43
+44
+45
+46
+47
+48
+49
+50
+51
+52
+53
+54
+55 --1. createAttribute函数生成attr节点，获取它的本地名称。 DECLARE doc DBE_XMLDOM . DOMDocument ; root DBE_XMLDOM . DOMElement ; attr1 DBE_XMLDOM . DOMATTR ; value VARCHAR2 ( 1000 ); BEGIN doc : = DBE_xmldom . newdomdocument ( '<?xml version="1.0"?> <!DOCTYPE note [<!ELEMENT note (to,from,heading,body)> <!ELEMENT to (#PCDATA)> <!ELEMENT from (#PCDATA)> <!ELEMENT heading (#PCDATA)> <!ELEMENT body (#PCDATA)>]> <note><to>中文</to> <from>Jani</from> <heading>Reminder</heading> <body>Don''t forget me this weekend!</body> </note>' ); attr1 : = DBE_XMLDOM . createAttribute ( doc , 'len' ); value : = DBE_XMLDOM . getlocalname ( attr1 ); DBE_output . print_line ( 'value: ' ); DBE_output . print_line ( value ); END ; / --2. createElement函数生成elem节点，获取它的本地名称。 DECLARE doc DBE_xmldom . domdocument ; elem DBE_xmldom . domelement ; value varchar2 ( 10000 ); BEGIN doc : = DBE_xmldom . newdomdocument (); elem : = DBE_XMLDOM . createELEMENT ( doc , 'root' ); value : = DBE_XMLDOM . getlocalname ( elem ); DBE_output . print_line ( 'value: ' ); DBE_output . print_line ( value ); END ; / --3. Element节点转换成node节点后，取其本地名称。 DECLARE doc DBE_xmldom . domdocument ; elem DBE_xmldom . domelement ; node DBE_xmldom . domnode ; value varchar2 ( 100 ); buf varchar2 ( 100 ); BEGIN doc : = DBE_xmldom . newdomdocument (); elem : = DBE_XMLDOM . createELEMENT ( doc , 'root' ); node : = DBE_xmldom . makenode ( elem ); DBE_XMLDOM . getlocalname ( node , buf ); DBE_output . print_line ( 'buf: ' ); DBE_output . print_line ( buf ); END ; / DBE_XMLDOM.GETNAMEDITEM 检索由名称指定的节点。DBE_XMLDOM.GETNAMEDITEM的函数原型为： DBE_XMLDOM.GETNAMEDITEM(
+   nnm IN DOMNAMEDNODEMAP,
+   name IN VARCHAR2)
+RETURN DOMNODE; 检索由名称和命名空间指定的节点。DBE_XMLDOM.GETNAMEDITEM的函数原型为： DBE_XMLDOM.GETNAMEDITEM(
+   nnm IN DOMNAMEDNODEMAP,
+   name IN VARCHAR2,
+   ns IN VARCHAR2)
+RETURN DOMNODE; 表19 DBE_XMLDOM.GETNAMEDITEM接口参数说明 参数 描述 nnm DOMNAMEDNODEMAP。 name 要检索的元素的名称。 ns 命名空间。 name和nnm可以输入NULL值，但不可不入参。 name和ns默认的最大长度为32767，超出该长度会报错。 name和ns可输入int类型，长度可超出127位。 示例： 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27
+28
+29
+30
+31
+32
+33
+34
+35
+36
+37
+38
+39
+40
+41
+42
+43
+44
+45 --1. 检索由名称指定的节点。 DECLARE doc DBE_XMLDOM . DOMDocument ; elem DBE_XMLDOM . DOMElement ; map DBE_XMLDOM . DOMNAMEDNODEMAP ; node DBE_XMLDOM . DOMNODE ; node2 DBE_XMLDOM . DOMNODE ; buf varchar2 ( 1000 ); buf2 varchar2 ( 1000 ); BEGIN doc : = dbe_xmldom . newdomdocument ( '<bookstore category="web" cover="paperback"> <book category="cooking"><title lang="en">Everyday Italian</title> <author>Giada De Laurentiis</author><year>2005</year> <price>30.00</price></book></bookstore>' ); elem : = DBE_XMLDOM . GETDOCUMENTELEMENT ( doc ); node : = DBE_XMLDOM . MAKENODE ( elem ); map : = DBE_XMLDOM . GETATTRIBUTES ( node ); node2 : = DBE_XMLDOM . GETNAMEDITEM ( map , 'category' ); DBE_XMLDOM . writeToBuffer ( node2 , buf2 ); dbe_output . print_line ( buf2 ); END ; / --2. 检索由名称和命名空间指定的节点 DECLARE doc DBE_XMLDOM . DOMDocument ; root DBE_XMLDOM . DOMElement ; elem DBE_XMLDOM . DOMElement ; map DBE_XMLDOM . DOMNAMEDNODEMAP ; node DBE_XMLDOM . DOMNODE ; buf varchar2 ( 1000 ); buf2 varchar2 ( 1000 ); BEGIN doc : = dbe_xmldom . newdomdocument ( '<h:table xmlns:h="http://www.w3.org/TR/html4/"> <h:tr h:id="10"><h:td >Apples</h:td> <h:td>Bananas</h:td></h:tr></h:table>' ); root : = DBE_XMLDOM . getDocumentElement ( doc ); node : = DBE_XMLDOM . MAKENODE ( root ); node : = dbe_xmldom . GETFIRSTCHILD ( node ); map : = DBE_XMLDOM . GETATTRIBUTES ( node ); node : = DBE_XMLDOM . GETNAMEDITEM ( map , 'id' , 'http://www.w3.org/TR/html4/' ); DBE_XMLDOM . writeToBuffer ( node , buf2 ); dbe_output . print_line ( buf2 ); END ; / DBE_XMLDOM.GETNEXTSIBLING 返回下一个节点。DBE_XMLDOM.GETNEXTSIBLING的函数原型为： DBE_XMLDOM.GETNEXTSIBLING(
+   n  IN  DOMNODE)
+RETURN DOMNODE; 表20 DBE_XMLDOM.GETNEXTSIBLING接口参数说明 参数 描述 n 指定的DOMNODE节点。 示例： 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27
+28 --首先获取DOC转后成DOMNODE类型后的第一个子节点；在获取到的第一个子节点基础上，获取该DOMNODE的第一个子节点；通过DBE_XMLDOM.GETNEXTSIBLING获取该节点的下一个节点，并输出下一个节点的名称。 DECLARE doc dbe_xmldom . domdocument ; doc_node dbe_xmldom . domnode ; root_node dbe_xmldom . domnode ; inside_node dbe_xmldom . domnode ; node_name varchar2 ( 1000 ); node_type integer ; BEGIN doc : = dbe_xmldom . newdomdocument ( '<computer size="ITX"> <cpu>Ryzen 9 3950X</cpu> <ram>32GBx2 DDR4 3200MHz</ram> <motherboard>X570i</motherboard> </computer>' ); doc_node : = DBE_XMLDOM . MAKENODE ( doc ); root_node : = DBE_XMLDOM . GETFIRSTCHILD ( doc_node ); node_name : = DBE_XMLDOM . GETNODENAME ( root_node ); node_type : = DBE_XMLDOM . GETNODETYPE ( root_node ); dbe_output . print_line ( node_name ); dbe_output . print_line ( node_type ); inside_node : = DBE_XMLDOM . GETFIRSTCHILD ( root_node ); node_name : = DBE_XMLDOM . GETNODENAME ( inside_node ); dbe_output . print_line ( node_name ); inside_node : = DBE_XMLDOM . GETNEXTSIBLING ( inside_node ); node_name : = DBE_XMLDOM . GETNODENAME ( inside_node ); dbe_output . print_line ( node_name ); END ; / DBE_XMLDOM.GETNODENAME 返回NODE节点的名称。DBE_XMLDOM.GETNODENAME的函数原型为： DBE_XMLDOM.GETNODENAME(
+   n  IN  DOMNODE)
+RETURN  VARCHAR2; 表21 DBE_XMLDOM.GETNODENAME接口参数说明 参数 描述 n 指定的DOMNODE节点。 示例： 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19 --在DOC树中获取DOMNODE节点，输出该节点的名称。 DECLARE doc DBE_XMLDOM . DOMDocument ; root DBE_XMLDOM . DOMElement ; root_node DBE_XMLDOM . DOMNode ; inside_node DBE_XMLDOM . DOMNode ; buf VARCHAR2 ( 1000 ); BEGIN doc : = dbe_xmldom . newdomdocument ( '<bookstore category="web" cover="paperback"> <book category="cooking"><title lang="en">Everyday Italian</title> <author>Giada De Laurentiis</author><year>2005</year> <price>30.00</price></book></bookstore>' ); root : = DBE_XMLDOM . getDocumentElement ( doc ); root_node : = DBE_XMLDOM . MAKENODE ( root ); inside_node : = DBE_XMLDOM . GETFIRSTCHILD ( root_node ); buf : = DBE_XMLDOM . GETNODENAME ( inside_node ); dbe_output . print_line ( buf ); END ; / DBE_XMLDOM.GETNODETYPE 返回NODE节点的类型。DBE_XMLDOM.GETNODETYPE的函数原型为： DBE_XMLDOM.GETNODETYPE(
+   n  IN  DOMNODE)
+RETURN  NUMBER; 表22 DBE_XMLDOM.GETNODETYPE接口参数说明 参数 描述 n 指定的DOMNODE节点。 示例： 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17
+18 --在DOC树中获取DOMNODE节点，输出该节点的类型值。 DECLARE doc DBE_XMLDOM . DOMDocument ; doc_node DBE_XMLDOM . DOMNode ; num number ; buf varchar2 ( 1000 ); BEGIN doc : = dbe_xmldom . newdomdocument ( '<bookstore category="web" cover="paperback"> <book category="cooking"><title lang="en">Everyday Italian</title> <author>Giada De Laurentiis</author><year>2005</year> <price>30.00</price></book></bookstore>' ); doc_node : = DBE_XMLDOM . makeNode ( doc ); num : = DBE_XMLDOM . GETNODETYPE ( doc_node ); dbe_output . print_line ( num ); buf : = DBE_XMLDOM . GETNODENAME ( doc_node ); dbe_output . print_line ( buf ); END ; / DBE_XMLDOM.GETNODEVALUE 返回NODE节点的值。DBE_XMLDOM.GETNODEVALUE的函数原型为： DBE_XMLDOM.GETNODEVALUE(
+   n  IN  DOMNODE)
+RETURN  VARCHAR2; 表23 DBE_XMLDOM.GETNODEVALUE接口参数说明 参数 描述 n 指定的DOMNODE对象。 示例： 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15 --将DOMTEXT类型节点转换为DOMNODE类型后获取该节点的值并输出。 DECLARE buf VARCHAR2 ( 1000 ); doc DBE_XMLDOM . DOMDocument ; text DBE_XMLDOM . DOMText ; elem2 DBE_XMLDOM . DOMElement ; node DBE_XMLDOM . DOMNode ; begin doc : = DBE_XMLDOM . NEWDOMDOCUMENT (); text : = DBE_XMLDOM . createTextNode ( doc , 'aaa' ); DBE_XMLDOM . SETNODEVALUE ( DBE_XMLDOM . makeNode ( text ), 'ccc' ); buf : = DBE_XMLDOM . GETNODEVALUE ( DBE_XMLDOM . makeNode ( text )); DBE_OUTPUT . print_line ( buf ); end ; / DBE_XMLDOM.GETPARENTNODE 返回给定NODE节点的父节点。DBE_XMLDOM.GETPARENTNODE的函数原型为： DBE_XMLDOM.GETPARENTNODE(
+   n  IN  DOMNODE)
+RETURN  DOMNODE; 表24 DBE_XMLDOM.GETPARENTNODE接口参数说明 参数 描述 n 指定的DOMNODE对象。 示例： 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25 --向DOC树中添加子节点后，获取该子节点的父节点，输出父节点的名称。 DECLARE doc DBE_XMLDOM . DOMDocument ; doc1 DBE_XMLDOM . DOMDocument ; root DBE_XMLDOM . DOMElement ; child1 DBE_XMLDOM . DOMElement ; child2 DBE_XMLDOM . DOMElement ; attr DBE_XMLDOM . DOMAttr ; text DBE_XMLDOM . DOMTEXT ; node DBE_XMLDOM . DOMNode ; parent DBE_XMLDOM . DOMNode ; buf varchar2 ( 1000 ); BEGIN doc : = DBE_XMLDOM . newDOMDocument (); root : = DBE_XMLDOM . createElement ( doc , 'root' ); node : = DBE_XMLDOM . appendChild ( DBE_xmldom . makeNode ( doc ), DBE_xmldom . makeNode ( root )); child1 : = DBE_XMLDOM . createElement ( doc , 'child1' ); node : = DBE_XMLDOM . appendChild ( DBE_XMLDOM . makeNode ( root ), DBE_XMLDOM . makeNode ( child1 )); child2 : = DBE_XMLDOM . createElement ( doc , 'child2' ); node : = DBE_XMLDOM . appendChild ( DBE_XMLDOM . makeNode ( child1 ), DBE_XMLDOM . makeNode ( child2 )); parent : = DBE_XMLDOM . GETPARENTNODE ( DBE_XMLDOM . makeNode ( child2 )); buf : = DBE_XMLDOM . GETNODENAME ( parent ); DBE_OUTPUT . print_line ( buf ); END ; / DBE_XMLDOM.GETTAGNAME 返回指定DOMELEMENT的标签名称。DBE_XMLDOM.GETTAGNAME的函数原型为： DBE_XMLDOM.GETTAGNAME(
+   elem  IN  DOMELEMENT)
+RETURN  VARCHAR2; 表25 DBE_XMLDOM.GETTAGNAME接口参数说明 参数 描述 elem 指定的DOMELEMENT节点。 示例： 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17 --创建DOMELEMENT节点后，输出其标签名称。 DECLARE doc dbe_xmldom . domdocument ; elem dbe_xmldom . domelement ; buffer varchar2 ( 1010 ); value varchar ( 1000 ); BEGIN doc : = dbe_xmldom . newDOMDocument (); elem : = DBE_XMLDOM . CREATEELEMENT ( DBE_XMLDOM . NEWDOMDOCUMENT (), 'root' ); value : = DBE_XMLDOM . gettagname ( elem ); dbe_output . print_line ( 'value: ' ); dbe_output . print_line ( value ); dbe_xmldom . writetobuffer ( doc , buffer ); dbe_output . print_line ( 'buffer: ' ); dbe_output . print_line ( buffer ); END ; / DBE_XMLDOM.HASCHILDNODES 检查DOMNODE对象是否拥有任一子节点。DBE_XMLDOM.HASCHILDNODES的函数原型为： DBE_XMLDOM.HASCHILDNODES(
+   n  IN  DOMNODE)
+RETURN  BOOLEAN; 表26 DBE_XMLDOM.HASCHILDNODES接口参数说明 参数 描述 n 指定的DOMNODE对象。 示例： 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26 --创建节点child1并将其挂载到DOC树中，为child1节点添加子节点后，判断其是否拥有任一子节点。 DECLARE doc DBE_XMLDOM . DOMDocument ; doc1 DBE_XMLDOM . DOMDocument ; root DBE_XMLDOM . DOMElement ; child1 DBE_XMLDOM . DOMElement ; child2 DBE_XMLDOM . DOMElement ; attr DBE_XMLDOM . DOMAttr ; text DBE_XMLDOM . DOMTEXT ; node DBE_XMLDOM . DOMNode ; buf varchar2 ( 1000 ); BEGIN doc : = DBE_XMLDOM . newDOMDocument (); root : = DBE_XMLDOM . createElement ( doc , 'root' ); node : = DBE_XMLDOM . appendChild ( DBE_xmldom . makeNode ( doc ), DBE_xmldom . makeNode ( root )); child1 : = DBE_XMLDOM . createElement ( doc , 'child1' ); node : = DBE_XMLDOM . appendChild ( DBE_XMLDOM . makeNode ( root ), DBE_XMLDOM . makeNode ( child1 )); child2 : = DBE_XMLDOM . createElement ( doc , 'child2' ); node : = DBE_XMLDOM . appendChild ( DBE_XMLDOM . makeNode ( child1 ), DBE_XMLDOM . makeNode ( child2 )); IF DBE_XMLDOM . HASCHILDNODES ( DBE_XMLDOM . makeNode ( child1 )) THEN DBE_OUTPUT . print_line ( 'HAS CHILD NODES' ); ELSE DBE_OUTPUT . print_line ( 'NOT HAS CHILD NODES ' ); END IF ; END ; / DBE_XMLDOM.IMPORTNODE 该函数将节点复制到另一节点中，并将复制后的节点挂载到指定document中。若被复制节点的类型不属于xmldom的constants所规定的12种类型，则直接抛出类型不支持异常。DBE_XMLDOM.IMPORTNODE的函数原型为： DBE_XMLDOM.IMPORTNODE(
+   doc IN DOMDOCUMENT,
+   importedNode IN DOMNODE,
+   deep IN BOOLEAN)
+RETURN DOMNODE; 表27 DBE_XMLDOM.IMPORTNODE接口参数说明 参数 描述 doc 节点挂载的文档。 importedNode 将要导入的节点。 deep 设置递归导入： 如果为TRUE，则导入该节点及其所有子节点。 如果为FALSE，则指导入节点本身。 示例： 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27
+28
+29 --获取将DOC2树中的节点root2_node，并将其复制并挂载到DOC树中。 DECLARE doc dbe_xmldom . domdocument ; doc2 dbe_xmldom . domdocument ; doc_node dbe_xmldom . domnode ; doc2_node dbe_xmldom . domnode ; root_node dbe_xmldom . domnode ; root2_node dbe_xmldom . domnode ; import_node dbe_xmldom . domnode ; result_node dbe_xmldom . domnode ; buffer varchar2 ( 1010 ); BEGIN doc : = dbe_xmldom . newdomdocument ( '<bookstore category="web" cover="paperback"> <book category="cooking"><title lang="en">Everyday Italian</title> <author>Giada De Laurentiis</author><year>2005</year> <price>30.00</price></book></bookstore>' ); doc2 : = dbe_xmldom . newdomdocument ( '<case>LIANLI TU150</case>' ); doc_node : = DBE_XMLDOM . MAKENODE ( doc ); doc2_node : = DBE_XMLDOM . MAKENODE ( doc2 ); root_node : = DBE_XMLDOM . GETFIRSTCHILD ( doc_node ); root2_node : = DBE_XMLDOM . GETFIRSTCHILD ( doc2_node ); DBE_XMLDOM . WRITETOBUFFER ( doc , buffer ); dbe_output . print_line ( buffer ); import_node : = DBE_XMLDOM . IMPORTNODE ( doc , root2_node , TRUE ); result_node : = DBE_XMLDOM . APPENDCHILD ( root_node , import_node ); DBE_XMLDOM . WRITETOBUFFER ( doc , buffer ); dbe_output . print_line ( buffer ); END ; / DBE_XMLDOM.ISNULL 检测给定的DOMATTR类型节点是否为NULL。如果是返回TRUE，否则返回FALSE。DBE_XMLDOM.ISNULL的函数原型为： DBE_XMLDOM.ISNULL(
+   a       IN     DOMATTR)
+RETURN BOOLEAN; 检测给定的DOMDOCUMENT类型节点是否为NULL。如果是返回TRUE，否则返回FALSE。DBE_XMLDOM.ISNULL的函数原型为： DBE_XMLDOM.ISNULL(
+   doc       IN     DOMDOCUMENT)
+RETURN BOOLEAN; 检测给定的DOMELEMENT类型节点是否为NULL。如果是返回TRUE，否则返回FALSE。DBE_XMLDOM.ISNULL的函数原型为： DBE_XMLDOM.ISNULL(
+   elem     IN     DOMELEMENT)
+RETURN BOOLEAN; 检测给定的DOMNAMEDNODEMAP类型节点是否为NULL。如果是返回TRUE，否则返回FALSE。DBE_XMLDOM.ISNULL的函数原型为： DBE_XMLDOM.ISNULL(
+   nnm       IN     DOMNAMEDNODEMAP)
+RETURN BOOLEAN; 检测给定的DOMNODE类型节点是否为NULL。如果是返回TRUE，否则返回FALSE。DBE_XMLDOM.ISNULL的函数原型为： DBE_XMLDOM.ISNULL(
+   n      IN     DOMNODE)
+RETURN BOOLEAN; 检测给定的DOMNODELIST类型节点是否为NULL。如果是返回TRUE，否则返回FALSE。DBE_XMLDOM.ISNULL的函数原型为： DBE_XMLDOM.ISNULL(
+   nl       IN     DOMNODELIST)
+RETURN BOOLEAN; 检测给定的DOMTEXT类型节点是否为NULL。如果是返回TRUE，否则返回FALSE。DBE_XMLDOM.ISNULL的函数原型为： DBE_XMLDOM.ISNULL(
+   t       IN     DOMTEXT)
+RETURN BOOLEAN; 表28 DBE_XMLDOM.ISNULL接口参数说明 参数 描述 a 指定的DOMATTR类型节点。 doc 指定的DOMDOCUMENT类型节点。 elem 指定的DOMELEMENT类型节点。 nnm 指定的DOMNAMEDNODEMAP类型节点。 n 指定的DOMNODE类型节点。 nl 指定的DOMNODELIST类型节点。 t 指定的DOMTEXT类型节点。 由于DBE_XMLDOM.FREEDOCUMENT的实现差异，DBE_XMLDOM.ISNULL接口在调用释放后的DOMDOCUMENT节点时会发生报错。 示例： 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27
+28
+29
+30
+31
+32
+33
+34
+35
+36
+37
+38
+39
+40
+41
+42
+43
+44
+45
+46
+47
+48
+49
+50
+51
+52
+53
+54
+55
+56
+57
+58
+59
+60
+61 --1. 通过createAttribute创建DOMATTR节点，并判断其是否为空。 DECLARE doc DBE_XMLDOM . DOMDocument ; attr DBE_XMLDOM . DOMATTR ; buf VARCHAR2 ( 1000 ); BEGIN doc : = DBE_xmldom . newdomdocument ( '<?xml version="1.0"?> <!DOCTYPE note [<!ELEMENT note (to,from,heading,body)> <!ATTLIST note color CDATA #REQUIRED> <!ELEMENT to (#PCDATA)> <!ELEMENT from (#PCDATA)> <!ELEMENT heading (#PCDATA)> <!ELEMENT body (#PCDATA)>]> <note color="red"><to>中文</to> <from>Jani</from> <heading>Reminder</heading> <body>Don''t forget me this weekend!</body> </note>' ); attr : = DBE_XMLDOM . CREATEATTRIBUTE ( doc , 'length' ); if DBE_XMLDOM . ISNULL ( attr ) then DBE_OUTPUT . print_line ( 'null' ); else DBE_OUTPUT . print_line ( 'not null' ); end if ; END ; / --2. DOMELEMENT仅声明不初始化，并判断其是否为空。 DECLARE docelem DBE_XMLDOM . DOMElement ; BEGIN if DBE_XMLDOM . ISNULL ( docelem ) then DBE_OUTPUT . print_line ( 'null' ); else DBE_OUTPUT . print_line ( 'not null' ); end if ; END ; / --3. 通过newDomdocument构建良构的DOMDOCUMENT节点，判断其是否为空。 Declare doc dbe_xmldom . domdocument ; BEGIN doc : = DBE_xmldom . newdomdocument ( '<?xml version="1.0"?> <!DOCTYPE note [<!ELEMENT note (to,from,heading,body)> <!ATTLIST note color CDATA #REQUIRED> <!ELEMENT to (#PCDATA)> <!ELEMENT from (#PCDATA)> <!ELEMENT heading (#PCDATA)> <!ELEMENT body (#PCDATA)>]> <note color="red"><to>中文</to> <from>Jani</from> <heading>Reminder</heading> <body>Don''t forget me this weekend!</body> </note>' ); if DBE_XMLDOM . ISNULL ( doc ) then DBE_OUTPUT . print_line ( 'null' ); else DBE_OUTPUT . print_line ( 'not null' ); end if ; END ; / DBE_XMLDOM.ITEM 根据索引返回list中与索引对应的元素。DBE_XMLDOM.ITEM的函数原型为： DBE_XMLDOM.ITEM(
+   nl IN DOMNODELIST,
+   index IN NUMBER)
+RETURN DOMNODE; 根据索引返回map中与索引对应的元素。DBE_XMLDOM.ITEM的函数原型为： DBE_XMLDOM.ITEM(
+   nnm IN DOMNAMEDNODEMAP,
+   index IN NUMBER)
+RETURN DOMNODE; 表29 DBE_XMLDOM.ITEM接口参数说明 参数 描述 nl DOMNODELIST。 nnm DOMNAMEDNODEMAP。 index 要检索的元素的索引。 map类型函数item对不合理的输入参数如bool、clob，会默认指向第一个index的值。 示例： 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27
+28
+29
+30
+31
+32
+33
+34
+35
+36
+37
+38
+39
+40
+41
+42
+43
+44
+45
+46
+47
+48
+49
+50
+51
+52 --1. 根据索引返回map中与索引对应的元素。 DECLARE doc DBE_XMLDOM . DOMDocument ; elem DBE_XMLDOM . DOMElement ; map DBE_XMLDOM . DOMNAMEDNODEMAP ; node DBE_XMLDOM . DOMNODE ; node2 DBE_XMLDOM . DOMNODE ; buf varchar2 ( 1000 ); BEGIN doc : = dbe_xmldom . newdomdocument ( '<bookstore category="web" cover="paperback"><book category="cooking"> <title lang="en">Everyday Italian</title><author>Giada De Laurentiis</author> <year>2005</year><price>30.00</price></book></bookstore>' ); elem : = DBE_XMLDOM . GETDOCUMENTELEMENT ( doc ); node : = DBE_XMLDOM . MAKENODE ( elem ); map : = DBE_XMLDOM . GETATTRIBUTES ( DBE_XMLDOM . getFirstChild ( node )); node2 : = DBE_XMLDOM . item ( map , 0 ); DBE_XMLDOM . writeToBuffer ( node2 , buf ); dbe_output . print_line ( buf ); dbe_xmldom . freedocument ( doc ); RAISE NOTICE '%' , buf ; END ; / --2. 根据索引返回list中与索引对应的元素。 DECLARE doc dbe_xmldom . domdocument ; node dbe_xmldom . domnode ; node1 dbe_xmldom . domnode ; nodelist DBE_XMLDOM . DOMNODELIST ; len INTEGER ; buffer1 varchar2 ( 1010 ); BEGIN doc : = dbe_xmldom . newdomdocument ( '<bookstore category="web" cover="paperback"><book category="cooking"> <title lang="en">Everyday Italian</title><author>Giada De Laurentiis</author> <year>2005</year><price>30.00</price></book></bookstore>' ); node : = dbe_xmldom . makenode ( doc ); node : = dbe_xmldom . GETFIRSTCHILD ( node ); node : = dbe_xmldom . GETFIRSTCHILD ( node ); nodelist : = DBE_XMLDOM . GETCHILDNODES ( node ); len : = DBE_XMLDOM . GETLENGTH ( nodelist ); RAISE NOTICE 'len :  %' , len ; node1 : = DBE_XMLDOM . ITEM ( nodelist , 0 ); IF DBE_XMLDOM . ISNULL ( node1 ) THEN dbe_output . print_line ( 'IS NULL' ); ELSE dbe_output . print_line ( 'NOT NULL' ); END IF ; dbe_xmldom . writetobuffer ( node1 , buffer1 ); dbe_output . print_line ( 'buffer1: ' ); dbe_output . print_line ( buffer1 ); END ; / DBE_XMLDOM.MAKEELEMENT 返回转换后的DOMELEMENT对象。DBE_XMLDOM.MAKEELEMENT的函数原型为： DBE_XMLDOM.MAKEELEMENT(
+   n IN DOMNODE)
+RETURN DOMELEMENT; 表30 DBE_XMLDOM.MAKEELEMENT接口参数说明 参数 描述 n 指定的DOMNODE对象。 示例： 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16 --将DOMELEMENT类型转换后的DOMNODE类型节点node强制转换回DOMELEMENT类型。 DECLARE buf VARCHAR2 ( 1000 ); doc DBE_XMLDOM . DOMDocument ; elem DBE_XMLDOM . DOMElement ; elem2 DBE_XMLDOM . DOMElement ; node DBE_XMLDOM . DOMNode ; BEGIN doc : = DBE_XMLDOM . NEWDOMDOCUMENT (); elem : = DBE_XMLDOM . createElement ( doc , 'aaa' ); node : = DBE_XMLDOM . makeNode ( elem ); elem2 : = DBE_XMLDOM . makeElement ( node ); buf : = DBE_XMLDOM . GETNODENAME ( DBE_XMLDOM . makeNode ( elem2 )); DBE_OUTPUT . print_line ( buf ); END ; / DBE_XMLDOM.MAKENODE 将给定的DOMATTR类型节点强制转换为DOMNODE类型，返回DOMNODE节点。DBE_XMLDOM.MAKENODE的函数原型为： DBE_XMLDOM.MAKENODE(
+   a        IN     DOMATTR)
+ RETURN DOMNODE; 将给定的DOMDOCUMENT类型节点强制转换为DOMNODE类型，返回DOMNODE节点。DBE_XMLDOM.MAKENODE的函数原型为： DBE_XMLDOM.MAKENODE(
+   doc      IN     DOMDOCUMENT)
+ RETURN DOMNODE; 将给定的DOMELEMENT类型节点强制转换为DOMNODE类型，返回DOMNODE节点。DBE_XMLDOM.MAKENODE的函数原型为： DBE_XMLDOM.MAKENODE(
+   elem       IN     DOMELEMENT)
+ RETURN DOMNODE; 将给定的DOMTEXT类型节点强制转换为DOMNODE类型，返回DOMNODE节点。DBE_XMLDOM.MAKENODE的函数原型为： DBE_XMLDOM.MAKENODE(
+   t       IN     DOMTEXT)
+ RETURN DOMNODE; 表31 DBE_XMLDOM.MAKENODE接口参数说明 参数 描述 a 指定的DOMATTR类型节点。 doc 指定的DOMDOCUMENT类型节点。 elem 指定的DOMELEMENT类型节点。 t 指定的DOMTEXT类型节点。 由于语法限制，DBE_XMLDOM.MAKENODE作为函数返回值时，不能直接通过如下命令实现： return DBE_XMLDOM.MAKENODE(doc); 建议写为： tmp_node := DBE_XMLDOM.MAKENODE(doc );
+return tmp_node; 示例： 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27
+28
+29
+30
+31
+32
+33
+34
+35
+36
+37
+38
+39
+40
+41
+42
+43
+44
+45
+46
+47
+48
+49
+50
+51
+52
+53
+54
+55
+56
+57
+58
+59
+60
+61
+62
+63
+64
+65
+66
+67
+68
+69
+70
+71
+72
+73
+74
+75
+76
+77
+78
+79
+80
+81
+82
+83
+84
+85
+86
+87
+88
+89 --1. createattr生成ATTR,将其转换为node。 DECLARE doc DBE_XMLDOM . DOMDocument ; attr DBE_XMLDOM . DOMATTR ; dom_node DBE_XMLDOM . DOMNode ; buf VARCHAR2 ( 1000 ); BEGIN doc : = DBE_xmldom . newdomdocument ( '<?xml version="1.0"?> <!DOCTYPE note [<!ELEMENT note (to,from,heading,body)> <!ELEMENT to (#PCDATA)> <!ELEMENT from (#PCDATA)> <!ELEMENT heading (#PCDATA)> <!ELEMENT body (#PCDATA)>]> <note><to>中文</to> <from>Jani</from> <heading>Reminder</heading> <body>Don''t forget me this weekend!</body> </note>' ); attr : = DBE_XMLDOM . CREATEATTRIBUTE ( doc , 'length' ); dom_node : = DBE_XMLDOM . makeNode ( attr ); buf : = DBE_XMLDOM . getNodeName ( dom_node ); DBE_OUTPUT . print_line ( buf ); END ; / --2. getdocumentelement函数生成elem节点后进行makenode。 DECLARE doc DBE_XMLDOM . DOMDocument ; root DBE_XMLDOM . DOMElement ; attr DBE_XMLDOM . DOMATTR ; node DBE_XMLDOM . DOMNODE ; buf VARCHAR2 ( 1000 ); BEGIN doc : = DBE_xmldom . newdomdocument ( '<?xml version="1.0"?> <!DOCTYPE note [<!ELEMENT note (to,from,heading,body)> <!ATTLIST note color CDATA #REQUIRED> <!ELEMENT to (#PCDATA)> <!ELEMENT from (#PCDATA)> <!ELEMENT heading (#PCDATA)> <!ELEMENT body (#PCDATA)>]> <note color="red"><to>中文</to> <from>Jani</from> <heading>Reminder</heading> <body>Don''t forget me this weekend!</body> </note>' ); root : = DBE_XMLDOM . getDocumentElement ( doc ); node : = DBE_XMLDOM . makenode ( root ); DBE_OUTPUT . print_line ( DBE_XMLDOM . GETNODENAME ( node )); END ; / --3. 通过newdomdocument创建DOMDOCUMENT类型参数，非空内容，并作为MAKENODE的输入参数。 DECLARE doc DBE_XMLDOM . DOMDocument ; buf VARCHAR2 ( 1000 ); dom_node DBE_XMLDOM . DOMNODE ; BEGIN doc : = DBE_xmldom . newdomdocument ( '<?xml version="1.0"?> <!DOCTYPE note [<!ELEMENT note (to,from,heading,body)> <!ELEMENT to (#PCDATA)> <!ELEMENT from (#PCDATA)> <!ELEMENT heading (#PCDATA)> <!ELEMENT body (#PCDATA)>]> <note><to>中文</to> <from>Jani</from> <heading>Reminder</heading> <body>Don''t forget me this weekend!</body> </note>' ); DBE_OUTPUT . print_line ( 'doc.id: ' ); DBE_OUTPUT . print_line ( doc . id ); dom_node : = DBE_XMLDOM . makeNode ( doc ); DBE_OUTPUT . print_line ( 'dom_node.id: ' ); DBE_OUTPUT . print_line ( dom_node . id ); buf : = DBE_XMLDOM . GETNODENAME ( dom_node ); DBE_OUTPUT . print_line ( buf ); END ; / --4. DOMTEXT声明变量，不初始化, 并作为MAKENODE的输入参数。 DECLARE text DBE_XMLDOM . DOMTEXT ; buf VARCHAR2 ( 1000 ); dom_node DBE_XMLDOM . DOMNODE ; BEGIN dom_node : = DBE_XMLDOM . makeNode ( text ); buf : = DBE_XMLDOM . GETNODENAME ( dom_node ); DBE_OUTPUT . print_line ( buf ); END ; / DBE_XMLDOM.NEWDOMDOCUMENT 返回新的DOMDOCUMENT对象。DBE_XMLDOM.NEWDOMDOCUMENT的函数原型为： DBE_XMLDOM.NEWDOMDOCUMENT
+RETURN DOMDOCUMENT; 返回从指定的XMLType类型创建的新DOMDOCUMENT实例对象。DBE_XMLDOM.NEWDOMDOCUMENT的函数原型为： DBE_XMLDOM.NEWDOMDOCUMENT(
+   xmldoc    IN SYS.XMLTYPE)
+RETURN DOMDOCUMENT; 返回从指定的CLOB类型创建的新DOMDOCUMENT实例对象。DBE_XMLDOM.NEWDOMDOCUMENT的函数原型为 DBE_XMLDOM.NEWDOMDOCUMENT(
+   cl       IN    CLOB)
+RETURN DOMDOCUMENT; 表32 DBE_XMLDOM.NEWDOMDOCUMENT接口参数说明 参数 描述 xmldoc 指定的XMLType类型。 cl 指定的CLOB类型。 入参大小需限制在2GB以内。 目前暂不支持外部DTD解析。 newdomdocument创建的doc，默认UTF-8字符集。 从同一个xmltype实例中解析出的每一个doc都是独立的，对doc的修改也不会影响到xmltype。 与A数据库差异参见 DBE_XMLPARSER.PARSECLOB 。 示例： 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27
+28
+29
+30
+31
+32
+33
+34
+35
+36
+37
+38
+39
+40
+41
+42
+43
+44
+45
+46 --1. 返回新的DOMDOCUMENT对象。 DECLARE doc dbe_xmldom . domdocument ; buffer varchar2 ( 1010 ); BEGIN doc : = dbe_xmldom . newdomdocument (); dbe_xmldom . setdoctype ( doc , 'note' , 'sysid' , 'pubid' ); dbe_xmldom . writetobuffer ( doc , buffer ); dbe_output . print_line ( 'buffer: ' ); dbe_output . print_line ( buffer ); dbe_xmldom . freedocument ( doc ); END ; / --2. 返回从指定的CLOB类型创建的新DOMDOCUMENT实例对象。 DECLARE doc dbe_xmldom . domdocument ; buffer varchar2 ( 1010 ); BEGIN doc : = dbe_xmldom . newdomdocument ( '<?xml version="1.0"?> <note><to>test</to><from>Jani</from><heading>Reminder</heading> <body>Don''t forget me this weekend!</body></note>' ); dbe_xmldom . writetobuffer ( doc , buffer ); dbe_output . print_line ( 'buffer: ' ); dbe_output . print_line ( buffer ); dbe_xmldom . freedocument ( doc ); END ; / --3. 返回从指定的XMLType类型创建的新DOMDOCUMENT实例对象。 DECLARE doc dbe_xmldom . domdocument ; xt xmltype ; buffer varchar2 ( 1010 ); BEGIN xt : = xmltype ( '<h:data xmlns:h="http://www.w3.org/TR/html4/"> <h:da1 len="10">test namespace</h:da1> <h:da1>bbbbbbbbbb</h:da1> </h:data>' ); doc : = dbe_xmldom . newdomdocument ( xt ); dbe_xmldom . writetobuffer ( doc , buffer ); dbe_output . print_line ( 'buffer: ' ); dbe_output . print_line ( buffer ); dbe_xmldom . freedocument ( doc ); END ; / DBE_XMLDOM.SETATTRIBUTE 按名称设置DOMELEMENT属性的值。DBE_XMLDOM.SETATTRIBUTE的函数原型为： DBE_XMLDOM.SETATTRIBUTE(
+   elem    IN  DOMELEMENT,
+   name    IN  VARCHAR2,
+   value   IN  VARCHAR2); 按名称和命名空间URI设置DOMELEMENT属性的值。DBE_XMLDOM.SETATTRIBUTE的函数原型为： DBE_XMLDOM.SETATTRIBUTE(
+   elem    IN  DOMELEMENT,
+   name    IN  VARCHAR2,
+   value   IN  VARCHAR2,
+   ns      IN  VARCHAR2); 表33 DBE_XMLDOM.SETATTRIBUTE接口参数说明 参数 描述 elem 指定的DOMELEMENT节点。 name 属性名称。 value 属性值。 ns 命名空间。 DBE_XMLDOM.SETATTRIBUTE接口可以添加多个属性，属性名称不可以为null，且同一个DOMELEMENT节点不能出现同名属性。如需添加同名属性，应显示地为每个同名属性设置命名空间，但是应尽量避免此类操作。如果属性存在于某命名空间下，当修改属性时，应显示指定命名空间，否则视为添加同名属性。 示例： 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27
+28
+29
+30
+31
+32
+33
+34
+35
+36
+37
+38
+39
+40
+41
+42
+43
+44
+45
+46
+47
+48
+49
+50
+51
+52
+53
+54
+55
+56
+57
+58
+59
+60
+61
+62
+63
+64
+65
+66
+67
+68
+69
+70
+71
+72
+73 --1. 按名称设置DOMELEMENT属性的值。 DECLARE doc dbe_xmldom . domdocument ; elem dbe_xmldom . domelement ; docnode DBE_XMLDOM . DOMNode ; buffer varchar2 ( 1010 ); value varchar ( 1000 ); BEGIN doc : = dbe_xmldom . newDOMDocument (); elem : = DBE_XMLDOM . CREATEELEMENT ( doc , 'root' ); DBE_XMLDOM . setattribute ( elem , 'len' , '50cm' ); docnode : = DBE_XMLDOM . appendChild ( DBE_XMLDOM . makeNode ( doc ), DBE_XMLDOM . makeNode ( elem )); dbe_xmldom . writetobuffer ( doc , buffer ); dbe_output . print_line ( 'buffer: ' ); dbe_output . print_line ( buffer ); END ; / --2. 按名称和命名空间URI设置DOMELEMENT属性的值。 DECLARE doc dbe_xmldom . domdocument ; elem dbe_xmldom . domelement ; docnode DBE_XMLDOM . DOMNode ; buffer varchar2 ( 1010 ); value varchar ( 1000 ); begin doc : = dbe_xmldom . newDOMDocument (); elem : = DBE_XMLDOM . CREATEELEMENT ( doc , 'root' ); DBE_XMLDOM . setattribute ( elem , 'len' , '50cm' , 'www.huawei.com' ); docnode : = DBE_XMLDOM . appendChild ( DBE_XMLDOM . makeNode ( doc ), DBE_XMLDOM . makeNode ( elem )); dbe_xmldom . writetobuffer ( doc , buffer ); dbe_output . print_line ( 'buffer: ' ); dbe_output . print_line ( buffer ); END ; / --3. 按名称修改DOMELEMENT属性的值。 DECLARE doc dbe_xmldom . domdocument ; elem dbe_xmldom . domelement ; docnode DBE_XMLDOM . DOMNode ; buffer varchar2 ( 1010 ); value varchar ( 1000 ); BEGIN doc : = dbe_xmldom . newDOMDocument (); elem : = DBE_XMLDOM . CREATEELEMENT ( doc , 'root' ); DBE_XMLDOM . setattribute ( elem , 'len' , '50cm' ); DBE_XMLDOM . setattribute ( elem , 'len' , '55cm' ); docnode : = DBE_XMLDOM . appendChild ( DBE_XMLDOM . makeNode ( doc ), DBE_XMLDOM . makeNode ( elem )); dbe_xmldom . writetobuffer ( doc , buffer ); dbe_output . print_line ( 'buffer: ' ); dbe_output . print_line ( buffer ); END ; / --4. 按名称和命名空间URI修改DOMELEMENT属性的值。 DECLARE doc dbe_xmldom . domdocument ; elem dbe_xmldom . domelement ; docnode DBE_XMLDOM . DOMNode ; buffer varchar2 ( 1010 ); value varchar ( 1000 ); begin doc : = dbe_xmldom . newDOMDocument (); elem : = DBE_XMLDOM . CREATEELEMENT ( doc , 'root' ); DBE_XMLDOM . setattribute ( elem , 'len' , '50cm' , 'www.huawei.com' ); DBE_XMLDOM . setattribute ( elem , 'len' , '55cm' , 'www.huawei.com' ); docnode : = DBE_XMLDOM . appendChild ( DBE_XMLDOM . makeNode ( doc ), DBE_XMLDOM . makeNode ( elem )); dbe_xmldom . writetobuffer ( doc , buffer ); dbe_output . print_line ( 'buffer: ' ); dbe_output . print_line ( buffer ); END ; / DBE_XMLDOM.SETCHARSET 设置DOMDOCUMENT的CHATSET字符集。DBE_XMLDOM.SETCHARSET的函数原型为： DBE_XMLDOM.SETCHARSET(
+   doc       IN     DOMDocument,
+   charset   IN     VARCHAR2); 表34 DBE_XMLDOM.SETCHARSET接口参数说明 参数 描述 doc 指定的DOMDOCUMENT节点 charset 字符集 charset限制为60个字节以内。 目前支持的字符集有：UTF-8、UTF-16、UCS-4、UCS-2、ISO-8859-1、ISO-8859-2、ISO-8859-3、ISO-8859-4、ISO-8859-5、ISO-8859-6、ISO-8859-7、ISO-8859-8、ISO-8859-9、ISO-2022-JP、Shift_JIS、EUC-JP、ASCII。输入其他字符集会报错或者可能导致输出乱码。 示例： 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17 --为DOC树设置UTF-16字符集后，将DOC树输出到缓冲区。 DECLARE doc dbe_xmldom . domdocument ; buffer varchar2 ( 1010 ); BEGIN doc : = dbe_xmldom . newdomdocument ( '<?xml version="1.0"?> <!DOCTYPE note [<!ELEMENT note (to,from,heading,body)><!ELEMENT to (#PCDATA)> <!ELEMENT from (#PCDATA)><!ELEMENT heading (#PCDATA)><!ELEMENT body (#PCDATA)>]> <note><to>test</to><from>Jani</from><heading>Reminder</heading> <body>Don''t forget me this weekend!</body></note>' ); dbe_xmldom . setcharset ( doc , 'utf-16' ); dbe_xmldom . writetobuffer ( doc , buffer ); dbe_output . print_line ( 'buffer: ' ); dbe_output . print_line ( buffer ); dbe_xmldom . freedocument ( doc ); END ; / DBE_XMLDOM.SETDOCTYPE 设置DOMDOCUMENT的外部DTD。DBE_XMLDOM.SETDOCTYPE的函数原型为： DBE_XMLDOM.SETDOCTYPE(
+  doc     IN   DOMDocument, 
+  name    IN   VARCHAR2,
+  sysid   IN   VARCHAR2, 
+  pubid   IN   VARCHAR2); 表35 DBE_XMLDOM.SETDOCTYPE接口参数说明 参数 描述 doc 指定的DOMDOCUMENT节点。 name 需要初始化doctype的名称。 sysid 需要初始化doctype的system ID。 pubid 需要初始化doctype的public ID。 name、sysid、pubid的总长度限制在32500个字节以内。 示例： 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23 --为DOMDOCUMENT的外部DTD分别设置初始化的system ID、public ID和名称后，分别将每次修改后的DOC树输出到缓冲区。 DECLARE doc dbe_xmldom . domdocument ; buffer varchar2 ( 1010 ); begin doc : = dbe_xmldom . newdomdocument ( '<?xml version="1.0"?> <!DOCTYPE note [<!ELEMENT note (to,from,heading,body)><!ELEMENT to (#PCDATA)> <!ELEMENT from (#PCDATA)><!ELEMENT heading (#PCDATA)><!ELEMENT body (#PCDATA)>]> <note><to>test</to><from>Jani</from><heading>Reminder</heading> <body>Don''t forget me this weekend!</body></note>' ); dbe_xmldom . setdoctype ( doc , 'note' , 'sysid' , 'pubid' ); dbe_xmldom . writetobuffer ( doc , buffer ); dbe_output . print_line ( 'buffer: ' ); dbe_output . print_line ( buffer ); dbe_output . print_line ( '------------------------------------------------' ); dbe_xmldom . setdoctype ( doc , 'n0te' , NULL , '' ); dbe_xmldom . setdoctype ( doc , 'n0t1e' , NULL , '' ); dbe_xmldom . writetobuffer ( doc , buffer ); dbe_output . print_line ( 'buffer: ' ); dbe_output . print_line ( buffer ); dbe_xmldom . freedocument ( doc ); END ; / DBE_XMLDOM.SETNODEVALUE 此函数用于向DOMNODE对象中设置节点的值。DBE_XMLDOM.SETNODEVALUE的函数原型为： DBE_XMLDOM.SETNODEVALUE(
+ n IN DOMNODE,
+ nodeValue IN VARCHAR2); 表36 DBE_XMLDOM.SETNODEVALUE接口参数说明 参数 描述 n 指定的DOMNODE对象。 nodeValue 向DOMNODE对象中设置的字符串。 nodeValue可以输入空字符串和NULL值，但不会对节点值进行修改。 nodeValue暂不支持转义字符'&'，如字符串中包含该转义字符，会清空节点值。 nodeValue默认的最大长度受限于VARCHAR2类型，为32767字节，超过该长度会抛出异常。 示例： 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15 --对DOMTEXT转换后的DOMNODE节点设置与初始值不同的节点值后，获取并输出该节点的值。 DECLARE buf VARCHAR2 ( 1000 ); doc DBE_XMLDOM . DOMDocument ; text DBE_XMLDOM . DOMText ; elem2 DBE_XMLDOM . DOMElement ; node DBE_XMLDOM . DOMNode ; BEGIN doc : = DBE_XMLDOM . NEWDOMDOCUMENT (); text : = DBE_XMLDOM . createTextNode ( doc , 'aaa' ); DBE_XMLDOM . SETNODEVALUE ( DBE_XMLDOM . makeNode ( text ), 'ccc' ); buf : = DBE_XMLDOM . GETNODEVALUE ( DBE_XMLDOM . makeNode ( text )); DBE_OUTPUT . print_line ( buf ); END ; / DBE_XMLDOM.WRITETOBUFFER 使用数据库字符集将 XML 节点写入指定缓冲区。DBE_XMLDOM.WRITETOBUFFER的函数原型为： DBE_XMLDOM.WRITETOBUFFER( 
+   doc       IN      DOMDOCUMENT, 
+   buffer   INOUT  VARCHAR2); 使用数据库字符集将 XML 文档写入指定缓冲区。DBE_XMLDOM.WRITETOBUFFER的函数原型为： DBE_XMLDOM.WRITETOBUFFER( 
+   n        IN      DOMNODE, 
+   buffer   INOUT  VARCHAR2); 表37 DBE_XMLDOM.WRITETOBUFFER接口参数说明 参数 描述 doc 指定的DOMDOCUMENT节点。 buffer 写入操作的缓冲区。 n 指定的DOMNODE节点。 writetobuffer输出buffer限制在1GB以内。 该函数会添加缩进等内容，将输出格式化。输出doc将包含XML声明version和encoding。 默认以UTF-8字符集输出xml。 示例： 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27
+28
+29 --1. 输入DOMNODE类型参数。 DECLARE doc dbe_xmldom . domdocument ; elem DBE_XMLDOM . DOMELEMENT ; buf varchar2 ( 1000 ); BEGIN doc : = dbe_xmldom . newdomdocument (); elem : = dbe_xmldom . createelement ( doc , 'elem' ); DBE_XMLDOM . WRITETOBUFFER ( dbe_xmldom . makenode ( elem ), buf ); DBE_OUTPUT . print_line ( buf ); END ; / --2. 输入DOMDOCUMENT类型参数。 DECLARE doc DBE_XMLDOM . DOMDocument ; buf VARCHAR2 ( 1000 ); BEGIN doc : = dbe_xmldom . newdomdocument ( '<?xml version="1.0"?> <!DOCTYPE note [<!ELEMENT note (to,from,heading,body)><!ELEMENT to (#PCDATA)> <!ELEMENT from (#PCDATA)><!ELEMENT heading (#PCDATA)><!ELEMENT body (#PCDATA)>]> <note><to>test</to><from>Jani</from><heading>Reminder</heading> <body>Don''t forget me this weekend!</body></note>' ); DBE_XMLDOM . WRITETOBUFFER ( doc , buf ); DBE_OUTPUT . print_line ( 'doc: ' ); DBE_OUTPUT . print_line ( buf ); DBE_XMLDOM . FREEDOCUMENT ( doc ); END ; / DBE_XMLDOM.WRITETOCLOB 使用数据库字符集将 XML 节点写入指定的 CLOB。DBE_XMLDOM.WRITETOCLOB的函数原型为： DBE_XMLDOM.WRITETOCLOB(
+   doc     IN      DOMDOCUMENT,  
+   cl      INOUT  CLOB); 使用数据库字符集将 XML 节点写入指定的 CLOB。DBE_XMLDOM.WRITETOCLOB的函数原型为： DBE_XMLDOM.WRITETOCLOB(
+   n       IN      DOMNODE, 
+   cl      INOUT  CLOB); 表38 DBE_XMLDOM.WRITETOCLOB接口参数说明 参数 描述 doc 指定的DOMDOCUMENT节点。 cl 要写入的CLOB。 n 指定的DOMNODE节点。 document入参，writetoclob支持2GB以内。 该函数会添加缩进等内容，将输出格式化。输出doc将包含XML声明version和encoding。 默认以UTF-8字符集输出xml。 示例： 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26 --1. 输入DOMNODE类型参数。 DECLARE CL CLOB ; N DBE_XMLDOM . DOMNODE ; BEGIN DBE_XMLDOM . WRITETOCLOB ( N , CL ); DBE_OUTPUT . PRINT_LINE ( CL ); END ; / --2. 输入DOMDOCUMENT类型参数。 DECLARE doc dbe_xmldom . domdocument ; mclob clob ; BEGIN doc : = dbe_xmldom . newdomdocument ( '<?xml version="1.0"?> <!DOCTYPE note [<!ELEMENT note (to,from,heading,body)><!ELEMENT to (#PCDATA)> <!ELEMENT from (#PCDATA)><!ELEMENT heading (#PCDATA)><!ELEMENT body (#PCDATA)>]> <note><to>test</to><from>Jani</from><heading>Reminder</heading> <body>Don''t forget me this weekend!</body></note>' ); dbe_xmldom . writetoclob ( doc , mclob ); dbe_output . print_line ( 'mclob: ' ); dbe_output . print_line ( mclob ); dbe_xmldom . freedocument ( doc ); END ; / DBE_XMLDOM.WRITETOFILE 使用数据库字符集将 XML 节点写入指定文件。DBE_XMLDOM.WRITETOFILE的函数原型为： DBE_XMLDOM.WRITETOCLOB(
+   doc     IN      DOMDOCUMENT,  
+   fileName   IN      VARCHAR2); 使用数据库字符集将 XML 节点写入指定文件。DBE_XMLDOM.WRITETOFILE的函数原型为： DBE_XMLDOM.WRITETOCLOB(
+   n       IN      DOMNODE, 
+   fileName   IN      VARCHAR2); 使用指定字符集将 XML 文档写入指定文件。DBE_XMLDOM.WRITETOFILE的函数原型为： DBE_XMLDOM.WRITETOCLOB(
+   doc     IN      DOMDOCUMENT,  
+   fileName   IN      VARCHAR2,
+   charset   IN   VARCHAR2); 使用指定字符集将 XML 文档写入指定文件。DBE_XMLDOM.WRITETOFILE的函数原型为： DBE_XMLDOM.WRITETOCLOB(
+   n       IN      DOMNODE, 
+   fileName   IN      VARCHAR2,
+   charset   IN   VARCHAR2); 表39 DBE_XMLDOM.WRITETOFILE接口参数说明 参数 描述 doc 指定的DOMDOCUMENT节点 fileName 要写入的文件。 n 指定的DOMNODE节点 charset 指定字符集 document入参，filename长度限制在255个字节以内，charset限制在60个字节以内，charset支持字符集请参考 DBE_XMLDOM.SETCHARSET 接口。 该函数会添加缩进等内容，将输出格式化。输出doc将包含XML声明version和encoding。 传入newdomdocument()无参创建的doc，在不指定charset时不会报错，默认UTF-8字符集。 filename需要在pg_directory中创建的路径下，filename中的\会被转换成/，只允许存在一个/。文件名格式应为pg_directory_name/file_name.xml，输出文件仅支持xml类型。 在打开guc参数 safe_data_path 时，用户只能通过高级包读写safe_data_path指定文件路径下的文件。 创建目录前需要保证路径为操作系统实际存在的路径，且用户需要拥有该目录的读和写权限。关于目录创建，请参考 CREATE DIRECTORY 。 示例： 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27
+28
+29
+30
+31
+32
+33
+34
+35
+36
+37
+38
+39
+40
+41 --创建目录前需要保证路径为操作系统实际存在的路径，且用户需要拥有该目录的读和写权限 create directory dir as '/tmp' ; --1. 使用数据库字符集将 XML 节点写入指定文件。 DECLARE FPATH VARCHAR2 ( 1000 ); DOC DBE_XMLDOM . DOMDOCUMENT ; BEGIN DOC : = DBE_XMLDOM . NEWDOMDOCUMENT ( '<ROOT> <A ATTR1="A_VALUE"> <ACHILD>ACHILD TXT</ACHILD> </A> <B>B TXT</B> <C/> </ROOT>' ); FPATH : = 'dir/simplexml.xml' ; DBE_XMLDOM . WRITETOFILE ( DOC , FPATH ); END ; / --2. 使用指定字符集将 XML 文档写入指定文件。 DECLARE SRC VARCHAR ( 1000 ); FPATH VARCHAR2 ( 1000 ); DOC DBE_XMLDOM . DOMDOCUMENT ; ELE DBE_XMLDOM . DOMELEMENT ; BEGIN FPATH : = 'dir/simplexml.xml' ; SRC : = '<ROOT> <A ATTR1="A_VALUE"> <ACHILD>ACHILD TXT</ACHILD> </A> <B>B TXT</B> <C/> </ROOT>' ; DOC : = DBE_XMLDOM . NEWDOMDOCUMENT ( SRC ); ELE : = DBE_XMLDOM . GETDOCUMENTELEMENT ( DOC ); DBE_XMLDOM . WRITETOFILE ( DBE_XMLDOM . MAKENODE ( ELE ), FPATH , 'ASCII' ); DBE_XMLDOM . FREEDOCUMENT ( DOC ); END ; / drop directory dir ; DBE_XMLDOM.GETSESSIONTREENUM 查询当前session中所有类型的dom树数量。DBE_XMLDOM.GETSESSIONTREENUM的函数原型为： DBE_XMLDOM.GETSESSIONTREENUM()
+RETURN INTEGER; 对于使用过FREEELEMENT和FREENODE的dom树，该函数依然会将其统计在内。 示例： 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27
+28
+29
+30
+31
+32
+33
+34
+35
+36
+37
+38
+39
+40
+41
+42
+43
+44
+45
+46
+47
+48
+49
+50
+51
+52
+53
+54
+55
+56
+57
+58
+59
+60
+61
+62
+63
+64
+65
+66
+67
+68
+69 -- 创建三个document，并获取当前session中所有dom树的数量 DECLARE doc DBE_XMLDOM . DOMDocument ; doc2 DBE_XMLDOM . DOMDocument ; doc3 DBE_XMLDOM . DOMDocument ; buffer varchar2 ( 1010 ); BEGIN -- 创建三个document doc : = DBE_XMLDOM . NEWDOMDOCUMENT ( '<?xml version="1.0"?> <root> <elem1 attr="attrtest"> <elem2>Im text</elem2> <elem3>Im text too</elem3> </elem1> <elem4>Text</elem4> </root> ' ); doc2 : = DBE_XMLDOM . NEWDOMDOCUMENT ( '<?xml version="1.0"?> <computer size="ITX" price="19999"> <cpu>Ryzen 9 3950X</cpu> <ram>32GBx2 DDR4 3200MHz</ram> <motherboard>ROG X570i</motherboard> <gpu>RTX2070 Super</gpu> <ssd>1TB NVMe Toshiba + 2TB NVMe WD Black</ssd> <hdd>12TB WD Digital</hdd> <psu>CORSAIR SF750</psu> <case>LIANLI TU150</case> </computer> ' ); doc3 : = DBE_XMLDOM . NEWDOMDOCUMENT ( '<?xml version="1.0"?> <bookstore> <book genre="autobiography" publicationdate="1981" ISBN="1-861003-11-0"> <title>The Autobiography of Benjamin Franklin</title> <author> <first-name>Benjamin</first-name> <last-name>Franklin</last-name> </author> <price>8.99</price> </book> <book genre="novel" publicationdate="1967" ISBN="0-201-63361-2"> <title>The Confidence Man</title> <author> <first-name>Herman</first-name> <last-name>Melville</last-name> </author> <price>11.99</price> </book> <book genre="philosophy" publicationdate="1991" ISBN="1-861001-57-6"> <title>The Gorgias</title> <author> <name>Plato</name> </author> <price>9.99</price> </book> </bookstore> ' ); -- 打印id DBE_OUTPUT . PRINT_LINE ( doc . id ); DBE_OUTPUT . PRINT_LINE ( doc2 . id ); DBE_OUTPUT . PRINT_LINE ( doc3 . id ); -- 调用该函数并打印 DBE_OUTPUT . PRINT_LINE ( DBE_XMLDOM . GETSESSIONTREENUM ()); -- 释放document DBE_XMLDOM . FREEDOCUMENT ( doc ); DBE_XMLDOM . FREEDOCUMENT ( doc2 ); DBE_XMLDOM . FREEDOCUMENT ( doc3 ); END ; / DBE_XMLDOM.GETDOCTREESINFO 查询当前session中Document类型的dom树信息，如内存占用等。DBE_XMLDOM.GETDOCTREESINFO的函数原型为： DBE_XMLDOM.GETDOCTREESINFO()
+RETURN VARCHAR2; 该函数只统计Document类型的dom树结点。 示例： 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27
+28
+29
+30
+31
+32
+33
+34
+35
+36
+37
+38
+39
+40
+41
+42
+43
+44
+45
+46
+47
+48
+49
+50
+51
+52
+53
+54
+55
+56
+57
+58
+59
+60
+61
+62
+63
+64
+65
+66
+67
+68
+69 -- 创建三个document，并获取当前session中document类型的树的信息 DECLARE doc DBE_XMLDOM . DOMDocument ; doc2 DBE_XMLDOM . DOMDocument ; doc3 DBE_XMLDOM . DOMDocument ; buffer varchar2 ( 1010 ); BEGIN -- 创建三个document doc : = DBE_XMLDOM . NEWDOMDOCUMENT ( '<?xml version="1.0"?> <root> <elem1 attr="attrtest"> <elem2>Im text</elem2> <elem3>Im text too</elem3> </elem1> <elem4>Text</elem4> </root> ' ); doc2 : = DBE_XMLDOM . NEWDOMDOCUMENT ( '<?xml version="1.0"?> <computer size="ITX" price="19999"> <cpu>Ryzen 9 3950X</cpu> <ram>32GBx2 DDR4 3200MHz</ram> <motherboard>ROG X570i</motherboard> <gpu>RTX2070 Super</gpu> <ssd>1TB NVMe Toshiba + 2TB NVMe WD Black</ssd> <hdd>12TB WD Digital</hdd> <psu>CORSAIR SF750</psu> <case>LIANLI TU150</case> </computer> ' ); doc3 : = DBE_XMLDOM . NEWDOMDOCUMENT ( '<?xml version="1.0"?> <bookstore> <book genre="autobiography" publicationdate="1981" ISBN="1-861003-11-0"> <title>The Autobiography of Benjamin Franklin</title> <author> <first-name>Benjamin</first-name> <last-name>Franklin</last-name> </author> <price>8.99</price> </book> <book genre="novel" publicationdate="1967" ISBN="0-201-63361-2"> <title>The Confidence Man</title> <author> <first-name>Herman</first-name> <last-name>Melville</last-name> </author> <price>11.99</price> </book> <book genre="philosophy" publicationdate="1991" ISBN="1-861001-57-6"> <title>The Gorgias</title> <author> <name>Plato</name> </author> <price>9.99</price> </book> </bookstore> ' ); -- 打印id DBE_OUTPUT . PRINT_LINE ( doc . id ); DBE_OUTPUT . PRINT_LINE ( doc2 . id ); DBE_OUTPUT . PRINT_LINE ( doc3 . id ); -- 调用该函数并打印 DBE_OUTPUT . PRINT_LINE ( DBE_XMLDOM . GETDOCTREESINFO ()); -- 释放document DBE_XMLDOM . FREEDOCUMENT ( doc ); DBE_XMLDOM . FREEDOCUMENT ( doc2 ); DBE_XMLDOM . FREEDOCUMENT ( doc3 ); END ; / DBE_XMLDOM.GETDETAILDOCTREEINFO 查询传入的document内的各类型子结点的数量。DBE_XMLDOM.GETDETAILDOCTREEINFO的函数原型为： DBE_XMLDOM.GETDETAILDOCTREEINFO(
+    doc     IN      DOMDOCUMENT
+)
+RETURN VARCHAR2; 表40 DBE_XMLDOM.GETDETAILDOCTREEINFO接口参数说明 参数 描述 doc 指定的DOMDOCUMENT节点 该函数只统计Document类型的dom树结点。 示例： 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27
+28
+29
+30
+31
+32
+33
+34
+35
+36
+37
+38
+39
+40
+41
+42
+43
+44
+45
+46
+47
+48
+49
+50
+51
+52
+53
+54
+55
+56
+57
+58
+59
+60
+61
+62
+63
+64
+65
+66
+67
+68
+69
+70
+71
+72
+73
+74 -- 创建三个document，并使用该函数分别获取每一个document内的各类型节点数量 DECLARE doc DBE_XMLDOM . DOMDocument ; doc2 DBE_XMLDOM . DOMDocument ; doc3 DBE_XMLDOM . DOMDocument ; buffer varchar2 ( 1010 ); BEGIN -- 创建三个document doc : = DBE_XMLDOM . NEWDOMDOCUMENT ( '<?xml version="1.0"?> <root> <elem1 attr="attrtest"> <elem2>Im text</elem2> <elem3>Im text too</elem3> </elem1> <elem4>Text</elem4> </root> ' ); doc2 : = DBE_XMLDOM . NEWDOMDOCUMENT ( '<?xml version="1.0"?> <computer size="ITX" price="19999"> <cpu>Ryzen 9 3950X</cpu> <ram>32GBx2 DDR4 3200MHz</ram> <motherboard>ROG X570i</motherboard> <gpu>RTX2070 Super</gpu> <ssd>1TB NVMe Toshiba + 2TB NVMe WD Black</ssd> <hdd>12TB WD Digital</hdd> <psu>CORSAIR SF750</psu> <case>LIANLI TU150</case> </computer> ' ); doc3 : = DBE_XMLDOM . NEWDOMDOCUMENT ( '<?xml version="1.0"?> <bookstore> <book genre="autobiography" publicationdate="1981" ISBN="1-861003-11-0"> <title>The Autobiography of Benjamin Franklin</title> <author> <first-name>Benjamin</first-name> <last-name>Franklin</last-name> </author> <price>8.99</price> </book> <book genre="novel" publicationdate="1967" ISBN="0-201-63361-2"> <title>The Confidence Man</title> <author> <first-name>Herman</first-name> <last-name>Melville</last-name> </author> <price>11.99</price> </book> <book genre="philosophy" publicationdate="1991" ISBN="1-861001-57-6"> <title>The Gorgias</title> <author> <name>Plato</name> </author> <price>9.99</price> </book> </bookstore> ' ); -- 打印id DBE_OUTPUT . PRINT_LINE ( doc . id ); DBE_OUTPUT . PRINT_LINE ( doc2 . id ); DBE_OUTPUT . PRINT_LINE ( doc3 . id ); -- 调用该函数并打印 buffer : = DBE_XMLDOM . GETDETAILDOCTREEINFO ( doc ); DBE_OUTPUT . PRINT_LINE ( buffer ); buffer : = DBE_XMLDOM . GETDETAILDOCTREEINFO ( doc2 ); DBE_OUTPUT . PRINT_LINE ( buffer ); buffer : = DBE_XMLDOM . GETDETAILDOCTREEINFO ( doc3 ); DBE_OUTPUT . PRINT_LINE ( buffer ); -- 释放document DBE_XMLDOM . FREEDOCUMENT ( doc ); DBE_XMLDOM . FREEDOCUMENT ( doc2 ); DBE_XMLDOM . FREEDOCUMENT ( doc3 ); END ; / DBE_XMLDOM.GETELEMENTSBYTAGNAME xml中按名称查找返回DOMNODELIST的节点。DBE_XMLDOM.GETELEMENTSBYTAGNAME的函数原型为： DBE_XMLDOM.GETELEMENTSBYTAGNAME(
+   doc        IN      DOMDOCUMENT,
+   tagname    IN      VARCHAR2)
+RETURN DOMNODELIST; xml中按名称查找返回DOMNODELIST的节点。DBE_XMLDOM.GETELEMENTSBYTAGNAME的函数原型为： DBE_XMLDOM.GETELEMENTSBYTAGNAME(
+   elem       IN      DOMELEMENT,
+   tagname       IN      VARCHAR2)
+RETURN DOMNODELIST; xml中按名称和命名空间查找返回DOMNODELIST的节点。DBE_XMLDOM.GETELEMENTSBYTAGNAME的函数原型为： DBE_XMLDOM.GETELEMENTSBYTAGNAME(
+   elem      IN     DOMELEMENT,
+   tagname      IN     VARCHAR2,
+   ns        IN     VARCHAR2)
+ RETURN DOMNODELIST; 表41 DBE_XMLDOM.GETELEMENTSBYTAGNAME接口参数说明 参数 描述 doc 指定的DOMDOCUMENT节点。 elem 指定的DOMELEMENT节点。 tagname 标签名称。使用通配符（*）将匹配任何标签。 ns 命名空间。使用通配符（*）将匹配任何命名空间。 示例： 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27
+28
+29
+30
+31
+32
+33
+34
+35
+36
+37
+38
+39
+40
+41
+42
+43
+44
+45
+46
+47
+48
+49
+50
+51
+52
+53
+54
+55
+56
+57
+58
+59
+60
+61
+62
+63
+64
+65
+66
+67
+68
+69
+70
+71
+72
+73
+74
+75
+76
+77
+78
+79
+80
+81
+82
+83
+84 --1. 在DOMDOCUMENT节点通过TAGNAME匹配查找，返回匹配的DOMNODELIST节点列表。 DECLARE doc DBE_XMLDOM . DOMDocument ; root_elem DBE_XMLDOM . DOMElement ; child_node DBE_XMLDOM . DOMNODE ; node_list DBE_XMLDOM . DOMNODELIST ; buffer VARCHAR2 ( 1000 ); BEGIN doc : = DBE_XMLDOM . NEWDOMDOCUMENT ( '<?xml version="1.0" encoding="UTF-8"?> <computer size="ITX" price="19999"> <cpu>Ryzen 9 3950X</cpu> <cpu>Ryzen 9 5950X_1</cpu> <ram>32GBx2 DDR4 3200MHz<cpu>Ryzen <cpu>Ryzen 9 5950X_2</cpu></cpu></ram> <motherboard>ROG X570i</motherboard> <gpu>RTX2070 Super</gpu> <ssd>1TB NVMe Toshiba + 2TB NVMe WD Black</ssd> <hdd>12TB WD Digital</hdd> <psu>CORSAIR SF750</psu> <case>LIANLI TU150</case> </computer>' ); root_elem : = DBE_XMLDOM . GETDOCUMENTELEMENT ( doc ); node_list : = DBE_XMLDOM . GETELEMENTSBYTAGNAME ( doc , 'cpu' ); child_node : = DBE_XMLDOM . ITEM ( node_list , 2 ); DBE_XMLDOM . WRITETOBUFFER ( child_node , buffer ); DBE_OUTPUT . PRINT_LINE ( buffer ); END ; / --2. 在DOMELEMENT节点通过TAGNAME匹配查找，返回匹配的DOMNODELIST节点列表。 DECLARE doc DBE_XMLDOM . DOMDocument ; root_elem DBE_XMLDOM . DOMElement ; child_node DBE_XMLDOM . DOMNODE ; node_list DBE_XMLDOM . DOMNODELIST ; buffer VARCHAR2 ( 1000 ); BEGIN doc : = DBE_XMLDOM . NEWDOMDOCUMENT ( '<?xml version="1.0" encoding="UTF-8"?> <computer size="ITX" price="19999"> <cpu>Ryzen 9 3950X</cpu> <cpu>Ryzen 9 5950X_1</cpu> <ram>32GBx2 DDR4 3200MHz<cpu>Ryzen 9 5950X_2<cpu>Ryzen 9 5950X_3<cpu>Ryzen 9 5950X_4</cpu></cpu></cpu></ram> <motherboard>ROG X570i</motherboard> <gpu>RTX2070 Super</gpu> <ssd>1TB NVMe Toshiba + 2TB NVMe WD Black</ssd> <hdd>12TB WD Digital</hdd> <psu>CORSAIR SF750</psu> <case>LIANLI TU150</case> </computer>' ); root_elem : = DBE_XMLDOM . GETDOCUMENTELEMENT ( doc ); node_list : = DBE_XMLDOM . GETELEMENTSBYTAGNAME ( root_elem , 'cpu' ); child_node : = DBE_XMLDOM . ITEM ( node_list , 3 ); DBE_XMLDOM . WRITETOBUFFER ( child_node , buffer ); DBE_OUTPUT . PRINT_LINE ( buffer ); END ; / --3. 在DOMELEMENT节点通过TAGNAME以及NAMESPACE匹配查找，返回匹配的DOMNODELIST节点列表。 DECLARE doc DBE_XMLDOM . DOMDocument ; root_elem DBE_XMLDOM . DOMElement ; child_node DBE_XMLDOM . DOMNODE ; node_list DBE_XMLDOM . DOMNODELIST ; buffer VARCHAR2 ( 1000 ); BEGIN doc : = DBE_XMLDOM . NEWDOMDOCUMENT ( '<?xml version="1.0" encoding="UTF-8"?> <computer size="ITX" price="19999" xmlns:h="www.huawei.com"> <cpu>Ryzen 9 3950X</cpu> <cpu>Ryzen 9 5950X_1</cpu> <h:cpu>ns Ryzen 9 5950X_2</h:cpu> <ram>32GBx2 DDR4 3200MHz<cpu>Ryzen 9 5950X_3<cpu>Ryzen 9 5950X_4<cpu>Ryzen 9 5950X_5</cpu></cpu></cpu></ram> <motherboard>ROG X570i</motherboard> <gpu>RTX2070 Super</gpu> <ssd>1TB NVMe Toshiba + 2TB NVMe WD Black</ssd> <hdd>12TB WD Digital</hdd> <psu>CORSAIR SF750</psu> <case>LIANLI TU150</case> </computer>' ); root_elem : = DBE_XMLDOM . GETDOCUMENTELEMENT ( doc ); node_list : = DBE_XMLDOM . GETELEMENTSBYTAGNAME ( root_elem , 'cpu' , 'www.huawei.com' ); child_node : = DBE_XMLDOM . ITEM ( node_list , 0 ); DBE_XMLDOM . WRITETOBUFFER ( child_node , buffer ); DBE_OUTPUT . PRINT_LINE ( buffer ); END ; / 父主题： 二次封装接口(推荐) 版权所有 © 华为技术有限公司

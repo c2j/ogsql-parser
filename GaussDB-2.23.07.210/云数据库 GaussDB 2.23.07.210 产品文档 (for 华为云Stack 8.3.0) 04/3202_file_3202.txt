@@ -1,0 +1,285 @@
+规格约束 规格约束 自治事务执行时，将会在后台启动自治事务session，可以通过max_concurrent_autonomous_transactions设置自治事务执行的最大并行数量，该参数取值范围为0~10000，默认值为10。 当max_concurrent_autonomous_transactions参数设置为0时，自治事务将无法执行。 自治事务新启session后，将使用默认session参数，不共享主session下对象（包括session级别变量，本地临时变量，全局临时表的数据等）。 自治事务理论上限为10000，实际上限为动态值，参考GUC参数max_concurrent_autonomous_transactions描述。 自治事务受通信缓冲区影响，返回给客户端的信息大小受限于通信缓冲区长度，超过通信缓冲区长度时报错。 触发器函数不支持自治事务。 gaussdb=# CREATE TABLE test_trigger_des_tbl(id1 int, id2 int, id3 int);
+CREATE TABLE
+
+gaussdb=# CREATE OR REPLACE FUNCTION tri_insert_func() RETURNS TRIGGER AS
+$$
+DECLARE
+PRAGMA AUTONOMOUS_TRANSACTION;
+BEGIN
+INSERT INTO test_trigger_des_tbl VALUES(new.id1, new.id2, new.id3);
+RETURN new;
+END$$ LANGUAGE plpgsql;
+ERROR:  Triggers do not support autonomous transactions
+DETAIL:  N/A
+CONTEXT:  compilation of PL/pgSQL function "tri_insert_func" near line 4
+
+gaussdb=# DROP TABLE test_trigger_des_tbl;
+DROP TABLE 自治事务不支持非顶层匿名块调用（仅支持顶层自治事务,包括存储过程、函数、匿名块）。 gaussdb=# CREATE TABLE t1(a INT ,b TEXT);
+CREATE TABLE
+
+gaussdb=# DECLARE 
+--PRAGMA AUTONOMOUS_TRANSACTION;
+BEGIN
+DECLARE 
+PRAGMA AUTONOMOUS_TRANSACTION;
+BEGIN
+DBE_OUTPUT.PRINT_LINE('JUST USE CALL.');
+INSERT INTO t1 VALUES(1,'CAN YOU ROLLBACK!');
+END;
+INSERT INTO t1 VALUES(2,'I WILL ROLLBACK!');
+ROLLBACK;
+END;
+/
+JUST USE CALL.
+ANONYMOUS BLOCK EXECUTE
+gaussdb=# SELECT * FROM t1;
+ a | b 
+---+---
+(0 rows)
+
+gaussdb=# DROP TABLE t1;
+DROP TABLE 自治事务仅支持PROCEDURE OUT参数传递ref cursor参数，不支持IN、INOUT以及FUNCTION传递ref cursor参数；仅支持在存储过程中使用自治事务OUT参数传递ref cursor参数，不支持在客户端（如gsql，jdbc）中直接调用。 --创建表
+gaussdb=# CREATE TABLE sections(section_id INT);
+CREATE TABLE
+gaussdb=# INSERT INTO sections VALUES(1);
+INSERT 0 1
+gaussdb=# INSERT INTO sections VALUES(1);
+INSERT 0 1
+gaussdb=# INSERT INTO sections VALUES(1);
+INSERT 0 1
+gaussdb=# INSERT INTO sections VALUES(1);
+INSERT 0 1 PROCEDURE OUT出参传递ref cursor（支持） gaussdb=# CREATE OR REPLACE PROCEDURE proc_sys_ref(OUT c1 REFCURSOR)
+IS
+DECLARE
+  PRAGMA AUTONOMOUS_TRANSACTION;
+BEGIN
+ OPEN c1 FOR SELECT section_id FROM sections ORDER BY section_id;
+
+END;
+/
+CREATE PROCEDURE
+
+gaussdb=# CREATE OR REPLACE PROCEDURE proc_sys_call() AS 
+DECLARE
+  c1 SYS_REFCURSOR;
+  temp NUMBER(4);
+BEGIN
+  proc_sys_ref(c1);
+  IF c1%ISOPEN THEN
+    RAISE NOTICE '%','OK';
+ END IF;
+
+  LOOP
+    FETCH c1 INTO temp;
+    RAISE NOTICE '%',c1%ROWCOUNT;
+    EXIT WHEN c1%NOTFOUND;
+  END LOOP;
+END;
+/
+CREATE PROCEDURE
+
+gaussdb=# CALL proc_sys_call();
+NOTICE:  OK
+NOTICE:  1
+NOTICE:  2
+NOTICE:  3
+NOTICE:  4
+NOTICE:  4
+ proc_sys_call 
+---------------
+
+(1 row)
+gaussdb=# DROP PROCEDURE proc_sys_ref;
+DROP PROCEDURE 
+gaussdb=# DROP PROCEDURE proc_sys_call;
+DROP PROCEDURE PROCEDURE IN或INOUT出参传递REF CURSOR（不支持） gaussdb=# CREATE OR REPLACE PROCEDURE proc_sys_ref(IN c1 REFCURSOR)
+IS
+DECLARE
+  PRAGMA AUTONOMOUS_TRANSACTION;
+  temp NUMBER(4);
+BEGIN
+  IF c1%ISOPEN THEN
+    RAISE NOTICE '%','OK';
+  END IF;
+
+  LOOP
+    FETCH c1 INTO temp;
+    RAISE NOTICE '%',c1%ROWCOUNT;
+    EXIT WHEN c1%NOTFOUND;
+  END LOOP;
+END;
+/
+CREATE PROCEDURE
+
+gaussdb=# CREATE OR REPLACE PROCEDURE proc_sys_call() AS 
+DECLARE
+  c1 SYS_REFCURSOR;
+  temp NUMBER(4);
+BEGIN
+  OPEN c1 FOR SELECT section_id FROM sections ORDER BY section_id;
+  proc_sys_ref(c1);
+END;
+/
+CREATE PROCEDURE
+
+gaussdb=# CALL proc_sys_call();
+ERROR:  Unsupported: ref_cursor parameter is not supported for autonomous transactions.
+CONTEXT:  SQL statement "CALL proc_sys_ref(c1)"
+PL/pgSQL function proc_sys_call() line 7 at PERFORM
+gaussdb=# DROP PROCEDURE proc_sys_ref;
+DROP PROCEDURE FUNCTION RETURN传递ref cursor（不支持） gaussdb=# DROP PROCEDURE IF EXISTS proc_sys_ref;
+gaussdb=# CREATE OR REPLACE FUNCTION proc_sys_ref() RETURN SYS_REFCURSOR IS
+DECLARE
+  PRAGMA AUTONOMOUS_TRANSACTION;
+        c1 SYS_REFCURSOR;
+BEGIN
+ OPEN c1 FOR SELECT section_id FROM sections ORDER BY section_id;
+ return c1;
+END;
+/
+ERROR:  Autonomous function do not support ref cursor as return types or out, inout arguments.
+DETAIL:  N/A
+CONTEXT:  compilation of PL/pgSQL function "proc_sys_ref" near line 5 FUNCTION OUT出参传递ref cursor（不支持） gaussdb=# DROP FUNCTION IF EXISTS proc_sys_ref;
+gaussdb=# CREATE OR REPLACE FUNCTION proc_sys_ref(C1 out SYS_REFCURSOR)
+gaussdb-# return SYS_REFCURSOR
+gaussdb-# IS
+gaussdb$# declare
+gaussdb$#   PRAGMA AUTONOMOUS_TRANSACTION;
+gaussdb$# BEGIN
+gaussdb$#  OPEN C1 FOR SELECT section_ID FROM sections ORDER BY section_ID;
+gaussdb$#  return 1;
+gaussdb$# END;
+gaussdb$# /
+ERROR:  Autonomous function do not support ref cursor as return types or out, inout arguments.
+DETAIL:  N/A
+CONTEXT:  compilation of PL/pgSQL function "proc_sys_ref" near line 4 客户端中（例如gsql，jdbc）直接调用带ref cursor出参的自治事务PROCEDURE（不支持，此时无法读取cursor数据） gaussdb=# CREATE OR REPLACE PROCEDURE proc_sys_ref(OUT c1 REFCURSOR)
+IS
+DECLARE
+PRAGMA AUTONOMOUS_TRANSACTION;
+BEGIN
+OPEN c1 FOR SELECT section_id FROM sections ORDER BY section_id;
+END;
+/
+CREATE PROCEDURE
+gaussdb=# begin;
+BEGIN
+gaussdb=# call proc_sys_ref(null);
+         c1
+--------------------
+ <unnamed portal 1>
+(1 row)
+
+gaussdb=# fetch "<unnamed portal 1>";
+ERROR:  cursor "<unnamed portal 1>" does not exist
+gaussdb=# end;
+ROLLBACK
+gaussdb=# DROP PROCEDURE proc_sys_ref;
+DROP PROCEDURE
+--删除表
+gaussdb=# DROP TABLE sections;
+DROP TABLE 自治事务函数不支持直接返回record类型和out出参&record类型同时返回。 gaussdb=# CREATE TABLE test_in (id INT,a DATE);
+CREATE TABLE
+
+gaussdb=# CREATE OR REPLACE FUNCTION autonomous_out()
+RETURNS RECORD
+LANGUAGE PLPGSQL AS $$
+DECLARE PRAGMA AUTONOMOUS_TRANSACTION;
+         r1 RECORD;
+BEGIN
+    DBE_OUTPUT.PRINT_LINE('THIS IS IN AUTONOMOUS_F_139_7');
+    TRUNCATE test_in;
+    INSERT INTO test_in VALUES (1,'1909-01-01');
+    SELECT * INTO r1 FROM test_in;
+RETURN r1;
+END;
+$$;
+CREATE FUNCTION
+
+gaussdb=# SELECT ok.id,ok.a FROM autonomous_out() AS ok(id INT,a DATE);
+ERROR:  unrecognized return type for PLSQL function.
+
+gaussdb=# CREATE TYPE rec IS (e1 INTEGER, e2 VARCHAR2);
+CREATE TYPE
+gaussdb=# CREATE OR REPLACE FUNCTION func(ele3 INOUT VARCHAR2) RETURN rec AS
+i INTEGER;
+ele1 rec;
+PRAGMA AUTONOMOUS_TRANSACTION;
+BEGIN
+NULL;
+RETURN ele1;
+END;
+/
+CREATE FUNCTION
+
+gaussdb=# CALL func(1);
+ e1 | e2 
+----+----
+    | 
+(1 row)
+
+gaussdb=# DROP TABLE test_in;
+DROP TABLE
+gaussdb=# DROP FUNCTION autonomous_out;
+DROP FUNCTION 
+gaussdb=# DROP FUNCTION func;
+DROP FUNCTION 不支持修改自治事务的隔离级别。 gaussdb=# CREATE OR REPLACE PROCEDURE auto_func(r INT)
+AS
+DECLARE
+  a INT;
+  PRAGMA AUTONOMOUS_TRANSACTION;
+BEGIN
+SET TRANSACTION ISOLATION LEVEL SERIALIZABLE;
+ a:=r;
+END;
+/
+CREATE PROCEDURE
+gaussdb=# call auto_func(1);
+ERROR:  ERROR:  SET TRANSACTION ISOLATION LEVEL must be called before any query
+CONTEXT:  SQL statement "SET TRANSACTION ISOLATION LEVEL SERIALIZABLE"
+PL/pgSQL function auto_func(integer) line 6 at SQL statement
+referenced column: auto_func
+gaussdb=# DROP FUNCTION auto_func;
+DROP FUNCTION 不支持自治事务返回集合类型（setof）。 gaussdb=# CREATE TABLE test_in (id INT,a DATE);
+CREATE TABLE
+gaussdb=# CREATE TABLE test_main (id INT,a DATE);
+CREATE TABLE
+gaussdb=# INSERT INTO test_main VALUES (1111,'2021-01-01'),(2222,'2021-02-02');
+INSERT 0 2
+gaussdb=# TRUNCATE test_in,test_main;
+TRUNCATE TABLE
+gaussdb=# CREATE OR REPLACE FUNCTION autonomous_f_022(num1  INT) RETURNS SETOF test_in
+LANGUAGE PLPGSQL AS $$
+DECLARE
+count INT :=3;
+test_row test_in%ROWTYPE;
+PRAGMA AUTONOMOUS_TRANSACTION;
+BEGIN
+    WHILE TRUE
+    LOOP
+    IF count=3 THEN
+    NULL;
+    ELSE 
+    IF count=2 THEN
+        INSERT INTO test_main VALUES (count,'2021-03-03');
+        GOTO pos1;
+    END IF;                
+    END IF;
+    count=count-1;
+    END LOOP;
+    INSERT INTO test_main VALUES (1000,'2021-04-04');
+     <<pos1>>
+     FOR test_row IN SELECT * FROM test_main
+     LOOP
+        RETURN NEXT test_row;
+       END LOOP;
+      RETURN;
+END;
+$$;
+ERROR:  Autonomous transactions do not support RETURN SETOF.
+DETAIL:  N/A
+CONTEXT:  compilation of PL/pgSQL function "autonomous_f_022" near line 6
+
+gaussdb=# DROP TABLE test_main;
+DROP TABLE
+gaussdb=# DROP TABLE test_in;
+DROP TABLE 父主题： 自治事务 版权所有 © 华为技术有限公司

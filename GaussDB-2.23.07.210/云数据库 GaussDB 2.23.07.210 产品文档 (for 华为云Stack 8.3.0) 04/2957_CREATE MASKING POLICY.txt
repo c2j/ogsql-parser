@@ -1,0 +1,70 @@
+CREATE MASKING POLICY CREATE MASKING POLICY 功能描述 创建脱敏策略。 注意事项 只有poladmin，sysadmin或初始用户能执行此操作。 需要开启安全策略开关，即设置GUC参数enable_security_policy=on，脱敏策略才可以生效。 在使用DATABASE LINK功能的场景下，客户端发起的DATABASE LINK请求，实际的发送方是服务端，发送端ip地址等相关的属性将是服务端的值。具体请参见 DATABASE LINK 。 语法格式 1 CREATE MASKING POLICY policy_name masking_clause [, ...] policy_filter [ ENABLE | DISABLE ]; masking_clause： 1 masking_function ON LABEL ( label_name [, ...]) masking_function： maskall不是预置函数，硬编码在代码中，不支持\df展示。 预置时脱敏方式如下： maskall | randommasking | creditcardmasking | basicemailmasking | fullemailmasking | shufflemasking | alldigitsmasking | regexpmasking policy_filter: 1 FILTER ON { FILTER_TYPE ( filter_value [,...]) } [,...] FILTER_TYPE: 1 IP | APP | ROLES 参数说明 policy_name 审计策略名称，需要唯一，不可重复。 取值范围：字符串，要符合 标识符命名规范 。 label_name 资源标签名称。 masking_clause 指出使用何种脱敏函数对被label_name标签标记的数据库资源进行脱敏，支持用schema.function的方式指定脱敏函数。 policy_filter 指出该脱敏策略对何种身份的用户生效，若为空表示对所有用户生效。 FILTER_TYPE 描述策略过滤的条件类型，包括IP | APP | ROLES。 filter_value 指具体过滤信息内容，例如具体的IP，具体的APP名称，具体的用户名。 ENABLE|DISABLE 可以打开或关闭脱敏策略。若不指定ENABLE|DISABLE，语句默认为ENABLE。 示例 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27
+28
+29
+30
+31
+32
+33
+34
+35
+36
+37
+38
+39
+40
+41
+42
+43
+44
+45
+46
+47
+48
+49
+50
+51
+52
+53
+54
+55
+56
+57
+58
+59
+60
+61
+62
+63
+64
+65
+66
+67
+68
+69
+70 --创建dev_mask和bob_mask用户。 gaussdb =# CREATE USER dev_mask PASSWORD '********' ; gaussdb =# CREATE USER bob_mask PASSWORD '********' ; --创建一个表tb_for_masking。 gaussdb =# CREATE TABLE tb_for_masking ( idx int , col1 text , col2 text , col3 text , col4 text , col5 text , col6 text , col7 text , col8 text ); gaussdb =# INSERT INTO tb_for_masking VALUES ( 1 , '9876543210' , 'usr321usr' , 'abc@huawei.com' , 'abc@huawei.com' , '1234-4567-7890-0123' , 'abcdef 123456 ui 323 jsfd321 j3k2l3' , '4880-9898-4545-2525' , 'this is a llt case' ); gaussdb =# INSERT INTO tb_for_masking VALUES ( 2 , '0123456789' , 'lltc123llt' , 'abc@gmail.com' , 'abc@gmail.com' , '9876-5432-1012-3456' , '1234 abcd ef 56 gh78ijk90lm' , '4856-7654-1234-9865' , 'this,is.a!LLT?case' ); --创建资源标签标记敏感列。 gaussdb =# CREATE RESOURCE LABEL mask_lb1 ADD COLUMN ( tb_for_masking . col1 ); gaussdb =# CREATE RESOURCE LABEL mask_lb2 ADD COLUMN ( tb_for_masking . col2 ); gaussdb =# CREATE RESOURCE LABEL mask_lb3 ADD COLUMN ( tb_for_masking . col3 ); gaussdb =# CREATE RESOURCE LABEL mask_lb4 ADD COLUMN ( tb_for_masking . col4 ); gaussdb =# CREATE RESOURCE LABEL mask_lb5 ADD COLUMN ( tb_for_masking . col5 ); gaussdb =# CREATE RESOURCE LABEL mask_lb6 ADD COLUMN ( tb_for_masking . col6 ); gaussdb =# CREATE RESOURCE LABEL mask_lb7 ADD COLUMN ( tb_for_masking . col7 ); gaussdb =# CREATE RESOURCE LABEL mask_lb8 ADD COLUMN ( tb_for_masking . col8 ); --创建脱敏策略。 gaussdb =# CREATE MASKING POLICY maskpol1 maskall ON LABEL ( mask_lb1 ); gaussdb =# CREATE MASKING POLICY maskpol2 alldigitsmasking ON LABEL ( mask_lb2 ); gaussdb =# CREATE MASKING POLICY maskpol3 basicemailmasking ON LABEL ( mask_lb3 ); gaussdb =# CREATE MASKING POLICY maskpol4 fullemailmasking ON LABEL ( mask_lb4 ); gaussdb =# CREATE MASKING POLICY maskpol5 creditcardmasking ON LABEL ( mask_lb5 ); gaussdb =# CREATE MASKING POLICY maskpol6 shufflemasking ON LABEL ( mask_lb6 ); gaussdb =# CREATE MASKING POLICY maskpol7 regexpmasking ( '[\d+]' , '*' , 2 , 9 ) ON LABEL ( mask_lb7 ); --创建仅对用户dev_mask和bob_mask,客户端工具为gsql，IP地址为'10.20.30.40', '127.0.0.0/24'场景下生效的脱敏策略。 gaussdb =# CREATE MASKING POLICY maskpol8 randommasking ON LABEL ( mask_lb8 ) FILTER ON ROLES ( dev_mask , bob_mask ), APP ( gsql ), IP ( '10.20.30.40' , '127.0.0.0/24' ); --查看脱敏策略生效。 gaussdb =# SELECT * FROM tb_for_masking ; idx | col1 | col2 | col3 | col4 | col5 | col6 | col7 | col8 -----+------------+------------+----------------+----------------+---------------------+-------------------------------------+---------------------+-------------------- 1 | xxxxxxxxxx | usr000usr | xxx @ huawei . com | xxx @ xxxxxx . com | xxxx - xxxx - xxxx - 0123 | s 2 iju1bcjk243df333d61l 22 53 ef3a | 48 **-****-* 545 - 2525 | this is a llt case 2 | xxxxxxxxxx | lltc000llt | xxx @ gmail . com | xxx @ xxxxx . com | xxxx - xxxx - xxxx - 3456 | j 71 fem0l286dbia543 g k9 ch | 48 **-****-* 234 - 9865 | this , is . a ! LLT ? case ( 2 rows ) --使用gsql工具,IP地址为'10.20.30.40',用户dev_mask查看tb_for_masking。 gaussdb =# GRANT ALL PRIVILEGES TO dev_mask ; gaussdb =# GRANT ALL PRIVILEGES TO bob_mask ; gaussdb =# SET role dev_mask PASSWORD '********' ; --使用maskpol8脱敏，结果随机，每次不同。 gaussdb =# SELECT col8 FROM tb_for_masking ; col8 -------------------- 9 f1425b3835cc30d99 9585 b4ea8ea8ddcc5b ( 2 rows ) gaussdb =# SET role bob_mask PASSWORD '********' ; gaussdb =# SELECT col8 FROM tb_for_masking ; col8 -------------------- f29ef3a0769a1f417c 806 aa46409482d838f ( 2 rows ) --删除脱敏策略。 gaussdb =# DROP MASKING POLICY maskpol1 , maskpol2 , maskpol3 , maskpol4 , maskpol5 , maskpol6 , maskpol7 , maskpol8 ; --删除资源标签。 gaussdb =# DROP RESOURCE LABEL mask_lb1 , mask_lb2 , mask_lb3 , mask_lb4 , mask_lb5 , mask_lb6 , mask_lb7 , mask_lb8 ; --删除表tb_for_masking。 gaussdb =# DROP TABLE tb_for_masking ; --删除用户dev_mask和bob_mask。 gaussdb =# DROP USER dev_mask , bob_mask ; 相关链接 ALTER MASKING POLICY ， DROP MASKING POLICY 。 父主题： C 版权所有 © 华为技术有限公司

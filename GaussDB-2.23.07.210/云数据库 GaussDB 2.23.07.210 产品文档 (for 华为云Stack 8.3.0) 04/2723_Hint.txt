@@ -1,0 +1,19 @@
+为子计划结果进行物化的Hint 为子计划结果进行物化的Hint 功能描述 为子计划结果进行物化，暂存查询记录。只在insert语句应用。 在使用INSERT INTO … SELECT语句插入大量数据且有多行重复值时，因索引需多次对比而导致执行时间过长。使用此hint对子计划的结果进行物化，暂存查询记录，减少索引比较次数，缩短语句执行时间。 语法格式 material_subplan 示例 建表并插入数据： CREATE TABLE test_mt_sub(a int, b int) WITH(storage_type = ustore);
+CREATE INDEX ON test_mt_sub(a);
+CREATE TABLE test_src_mt_sub(a int, b int);
+INSERT INTO test_src_mt_sub VALUES(generate_series(1,10), generate_series(1,100000)); 正常的insert into...select语句： INSERT INTO test_mt_sub SELECT /*+ nestloop(test_src_mt_sub t1)*/ * FROM test_src_mt_sub WHERE NOT EXISTS(SELECT 1 FROM test_mt_sub t1 WHERE t1.a = test_src_mt_sub.a); 执行计划： QUERY PLAN                               
+-----------------------------------------------------------------------
+ Insert on test_mt_sub
+   ->  Nested Loop Anti Join
+         ->  Seq Scan on test_src_mt_sub
+         ->  Index Only Scan using test_mt_sub_a_idx on test_mt_sub t1
+               Index Cond: (a = test_src_mt_sub.a)
+(5 rows) 使用material_subplan hint 算子： INSERT /*+ material_subplan*/ INTO test_mt_sub SELECT /*+ nestloop(test_src_mt_sub t1)*/ * FROM test_src_mt_sub WHERE NOT EXISTS(SELECT 1 FROM test_mt_sub t1 WHERE t1.a = test_src_mt_sub.a); 执行计划为： QUERY PLAN                                  
+-----------------------------------------------------------------------------
+ Insert on test_mt_sub
+   ->  Materialize
+         ->  Nested Loop Anti Join
+               ->  Seq Scan on test_src_mt_sub
+               ->  Index Only Scan using test_mt_sub_a_idx on test_mt_sub t1
+                     Index Cond: (a = test_src_mt_sub.a)
+(6 rows) 父主题： 使用Plan Hint进行调优 版权所有 © 华为技术有限公司

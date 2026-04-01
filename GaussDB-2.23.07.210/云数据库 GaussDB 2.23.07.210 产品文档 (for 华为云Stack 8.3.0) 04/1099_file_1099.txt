@@ -1,0 +1,12 @@
+双集群容灾控制函数 双集群容灾控制函数 双集群容灾控制函数可以创建归档槽，归档槽指定了保存物理日志的obs信息。 pg_create_physical_replication_slot_extern(slotname text, dummy_standby bool, extra_content text, need_recycle_xlog bool) 描述：创建OBS/NAS归档槽。slotname 为本次灾备的slotname ，主备必须使用同一个slotname 。dummy_standby 是预留参数 。extra_content包含了归档槽的一些信息。对于OBS归档槽，其格式为"OBS;obs_server_ip;obs_bucket_name;obs_ak;obs_sk;archive_path;is_recovery;is_vote_replicate"，OBS表示归档槽的归档的介质，obs_server_ip为obs的ip，obs_bucket_name为obs的桶名，obs_ak为obs的ak，obs_sk为obs的sk，archive_path为归档的路径i，is_recovery标志是归档槽还是恢复槽，0表示是归档槽，主要是主集群使用；1表示是恢复槽，主要是灾备集群使用。is_vote_replicate标志是否是投票副本优先，0表示同步备机归档优先，1表示投票副本归档优先，当前版本该字段为预留字段，暂未适配。对于NAS归档槽，其格式为"NAS;archive_path;is_recovery;is_vote_replicate"，相比OBS归档槽，缺少了OBS相关的配置信息，其余字段意义相同。 如果是不指定OBS或NAS介质的话，默认指定的是OBS归档槽，其extra_content格式为"obs_server_ip;obs_bucket_name;obs_ak;obs_sk;archive_path;is_recovery;is_vote_replicate"。 need_recycle_xlog标志创建归档槽时是否回收老的归档日志，true表示回收，false表示不回收。 返回值类型：records包含本次灾备的slotname和xlog_position 备注：调用该函数的用户需要具有SYSADMIN权限或具有REPLICATION权限或继承了内置角色gs_role_replication的权限。在正常集群下不要使用is_recovery值为1，否则会创建出恢复槽，导致集群进入恢复不可用。 例如： 创建OBS归档槽： 1
+2
+3
+4
+5 gaussdb =# select * from pg_create_physical_replication_slot_extern ( 'uuid' , false , 'OBS;obs.cn-north-7.ulanqab.huawei.com;dyk;19D772JBCACXX3KWS51D;********;gaussdb_uuid/dn1;0;0' , false ); slotname | xlog_position ----------+--------------- uuid | ( 1 row ) 创建NAS归档槽： 1
+2
+3
+4 gaussdb =# select * from pg_create_physical_replication_slot_extern ( 'uuid' , false , 'NAS;/data/nas/media/gaussdb_uuid/dn1;0;0' , false ); slotname | xlog_position ----------+--------------- uuid | gs_set_obs_delete_location(delete_location text) 描述：设置obs归档日志可删除的位置。delete_location实际为Log Sequence Number ( LSN )，该位置之前的日志在灾备集群已经完成回放并且落盘，可以在obs上进行删除。 返回值类型：xlog_file_name text，表明此次可删除点所在的日志文件名。无论obs删除是否成功，该值都会正常返回。 gaussdb=# select gs_set_obs_delete_location('0/54000000');
+ gs_set_obs_delete_location  
+-----------------------------
+ 000000010000000000000054_00
+(1 row) gs_hadr_do_switchover() 描述：异地容灾集群中主集群在执行计划内switchover过程中截断业务的接口。 返回值类型：bool，表明此次业务截断是否成功，是否可以正常进行switchover流程。 gs_set_obs_delete_location_with_slotname(cstring, cstring ) 描述：设置某个容灾关系上obs归档日志可删除的位置。第一个参数实际为Log Sequence Number ( LSN )，该位置之前的日志在灾备数据库实例已经完成回放并且落盘，可以在obs上进行删除，第二个参数为归档槽的名称。 返回值类型：xlog_file_name text，表明此次可删除点所在的日志文件名。无论obs删除是否成功，该值都会正常返回。 gs_streaming_dr_in_switchover() 描述：基于流式复制的异地容灾解决方案中主集群在执行计划内switchover过程中截断业务的接口。 返回值类型：bool，表明此次业务截断是否成功，是否可以正常进行switchover流程。 父主题： 系统管理函数 版权所有 © 华为技术有限公司

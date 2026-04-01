@@ -1,0 +1,1 @@
+type Result type Result type Result如下表所示。 方法 描述 返回值 (res Result)RowsAffected() 返回insert、delete、update、select、move、fetch、copy操作受影响的行数。 int64, error 父主题： Go接口参考 版权所有 © 华为技术有限公司

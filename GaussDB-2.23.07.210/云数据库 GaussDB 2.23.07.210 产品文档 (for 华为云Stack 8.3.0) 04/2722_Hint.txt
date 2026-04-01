@@ -1,0 +1,1 @@
+自适应计划选择的Hint 自适应计划选择的Hint 功能描述 对于以PBE方式执行的查询语句和DML语句，用户可以通过在查询中加choose_adaptive_gplan hint触发自适应计划选择。 语法格式 针对查询开启自适应计划选择： 1 choose_adaptive_gplan 对于非PBE方式执行的SQL语句，设置本hint不会影响执行方式。 本hint的生效依赖GUC参数enable_cachedplan_mgr开启，否则不生效。 示例 prepare k as select /*+ choose_adaptive_gplan */ * from t1 where c1=$1 and c2=$2 and c3=$3 and c4=$4; 父主题： 使用Plan Hint进行调优 版权所有 © 华为技术有限公司

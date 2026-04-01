@@ -1,0 +1,14 @@
+分片节点主备切换 分片节点主备切换 功能介绍 支持用户对单个或多个DN分片做主备切换，同一分组内只能指定一个新的备节点进行升主操作。 调用接口前，您需要提前 获取终端节点 ，即下文中的Endpoint值。 URI URI格式 POST https://{ Endpoint }/gaussdb/v3/{project_id}/instances/{instance_id}/switch-shard URI样例 https://gaussdb.sa-fb-2.hcsglobal.com/gaussdb/v3/0c8243400d37468bb4aed3cc94c2911d/instances/f9b5f9b296ec6808e067in14/switch-shard 参数说明 表1 参数说明 名称 是否必选 说明 project_id 是 租户在某一region下的project ID。 获取方法请参见 获取项目ID/名称 。 instance_id 是 实例ID。 请求消息 参数说明 表2 参数说明 名称 是否必选 参数类型 说明 shards 是 Array 节点列表，支持对单个或者多个DN分片做主备切换。节点信息为将要升主的备DN分片对应的节点id(node_id)和组件id(component_id)。具体请参考 表3 。 表3 shards参数说明 名称 是否必选 参数类型 说明 node_id 是 String 将要升主的备DN的节点Id。 component_id 是 String 将要升主的备DN的组件Id。最大长度7个字符，不能为null或者空字符串，不能为空格，校验和使用之前会自动过滤掉前后空格。至少包含大写字母（A-Z），小写字母（a-z），数字（0-9），非字母数字字符（限定为_）四类字符中的三类字符。组件id通过 查询实例的组件列表 获取。 请求示例 切换多个DN分片的主备。 {
+    "shards": [
+        {
+            "node_id": "0bc478b4d132494a8f7b804da521b4b2no14",
+            "component_id": "dn_6001"
+        },
+        {
+            "node_id": "53dee94c50574d36a0060db0a6b644f6no14",
+            "component_id": "dn_6004"
+        }
+    ]
+} 响应消息 正常响应要素说明 表4 要素说明 名称 参数类型 说明 job_id String 分片节点主备切换的任务ID。 正常响应样例 {
+	"job_id": "e96bbb23-e053-4bd0-b0b7-16ad3f5d9b6d"
+} 异常响应 请参见 异常请求结果 。 状态码 正常 202 异常 请参见 状态码 。 错误码 请参见 错误码 。 父主题： 实例管理 版权所有 © 华为技术有限公司

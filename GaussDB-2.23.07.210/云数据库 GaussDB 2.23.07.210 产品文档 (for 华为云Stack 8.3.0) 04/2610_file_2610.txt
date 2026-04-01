@@ -1,0 +1,171 @@
+连接数据库 连接数据库 使用Go驱动时，调用Go sql的标准接口open创建数据库连接，返回一个连接对象，传入驱动名称和描述字符串。 函数原型 Go驱动提供了如下的方法用于生成一个数据库连接对象。 func Open(driverName, dataSourceName string) (*DB, error) 参数说明： driverName为驱动的名称，数据库的驱动名称为“opengauss”，兼容“postgres”。 dataSourceName为连接的数据源，支持DSN和URL两种： DSN格式：key1 = value1 key2 = value2 …，每组关键字间使用空格隔开，等号左右的空格是可选的。 URL格式：driverName://[userspec@][hostspec][/dbname][?paramspec]， 其中，driverName为驱动名称，数据库的驱动名称为“opengauss”，兼容“postgres”，“postgresql”。 userspec表示user[:password]，需要注意的是使用URL进行连接时，密码中不可包含URL串中的分隔符。如果密码中包含分隔符的话，建议采用DSN格式。 hostspec表示[host][:port][,…] dbname为数据库名称。注意：不允许使用初始化用户进行远程登录。paramspec为name=value[&…]。 在DSN格式中，对于多IP的场景： 当num(ip) = num(port)时，ip和port是一一对应匹配。 当num(ip) > num(port)时，无法匹配到port的ip均与第一个port匹配。例如，host = ip1, ip2, ip3 port = port1, port2的匹配情况为ip1:port1, ip2:port2, ip3:port1。 当num(ip) < num(port)时，则多余的port被舍弃，即使用不到。例如host = ip1, ip2, ip3 port = port1, port2, port3, port4的匹配情况为ip1:port1, ip2:port2, ip3:port3。 在URL格式中，对于多IP的场景： URL串中ip:port必须成对出现，即num(ip) = num(port)，并以逗号隔开。例如， opengauss://user:password@ip1:port1, ip2:port2, ip3:port3/postgres。 URL串中仅包含多ip，port由环境变量指定或采用默认值5432。例如opengauss://user:password@ip1, ip2, ip3/postgres并设置环境变量PGPORT = "port1, port2"，其匹配情况为ip1:port1, ip2:port2, ip3:port1。未设置环境变量的匹配情况为ip1:5432,ip2:5432,ip3:5432。 参数 表1 数据库连接参数 参数名称 参数说明 host 主机IP地址，也可通过环境变量${PGHOST}来指定。 port 主机服务器的端口号，也可通过环境变量${PGPORT}来指定。 dbname 数据库名，也可通过环境变量${PGDATABASE}来指定。 user 要连接的用户名，也可通过环境变量${PGUSER}来指定。 password 要连接用户对应的连接密码。 connect_timeout 用于连接服务器操作的超时值，也可通过环境变量${PGCONNECT_TIMEOUT}来指定。 sslmode 启用SSL加密的方式，也可通过环境变量${PGSSLMODE}来指定。 参数取值范围： disable：不使用ssl安全连接。 allow：如果数据库服务器要求使用，则可以使用SSL安全加密连接，但不验证数据库服务器的真实性。 prefer：如果数据库支持，那么首选使用SSL安全加密连接，但不验证数据库服务器的真实性。 require：必须使用SSL安全连接，但是只做了数据加密，而并不验证数据库服务器的真实性。 verify-ca：必须使用SSL安全连接，并验证服务器是否具有由可信任的证书机构签发的证书。 verify-full：必须使用SSL安全连接，并且验证服务器是否具有由可信任的证书机构签发的证书，以及验证服务器主机名是否与证书中的一致。 sslkey 指定用于客户端证书的密钥位置，如果需要使用SSL连接，并且该参数未指定，可通过设置环境变量${PGSSLKEY}来指定。 sslcert 指定客户端SSL证书的文件名，或者通过设置环境变量${PGSSLCERT}来指定。 sslrootcert 指定一个包含SSL证书机构（CA）证书的文件名称，或者通过设置环境变量${PGSSLROOTCERT}来指定。 sslcrl 指定ssl证书撤销列表（CRL）的文件名。列在这个文件中的证书如果存在，在尝试认证该服务器证书时会被拒绝，从而连接失败。也可通过环境变量${PGSSLCRL}来指定。 sslpassword 指定对秘钥解密成明文的密码短语，当指定该参数的时候表示sslkey是一个加密存储的文件，当前sslkey支持des/aes加密方式。 说明： DES加密算法安全性低，存在安全风险，建议使用更安全的加密算法。 disable_prepared_binary_result 字符串类型，若设置为yes，表示此连接在从预准备语句接收查询结果时不应使用二进制格式。该参数仅用于调试。 取值范围：yes/no。 binary_parameters 字符串类型，该参数表示是否始终以二进制形式发送[]byte。取值范围：yes/no。若该参数设置为yes，建议绑定参数按照[]byte绑定，可以减少内部类型转换。 target_session_attrs 指定数据库的连接类型，该参数用于识别主备节点，也可通过环境变量${PGTARGETSESSIONATTRS}来指定。默认值为“any”，共有六种：any、master、slave、preferSlave、read-write、read-only。 any：尝试连接URL连接串中的任何一个数据节点。 master：尝试连接到URL连接串中的主节点，如果找不到就抛出异常。 slave：尝试连接到URL连接串中的备节点，如果找不到就抛出异常。 preferSlave：尝试连接到URL连接串中的备数据节点（如果有可用的话），否则连接到主数据节点。 read-write：读写模式，表示只能连接主节点。 read-only：只读模式，表示只能连接备节点。 loggerLevel 日志级别，打印相关调试信息，也可通过环境变量${PGLOGGERLEVEL}来指定。 支持trace/debug/info/warn/error/none，级别从高到低。 application_name 设置正在使用连接的GO驱动的名称。缺省值为go-driver，该参数不建议用户配置。 RuntimeParams 设置连接会话时默认运行的set类型的guc参数的值。例如参数名search_path、application_name、timezone等。各参数的详细介绍参见客户端连接缺省设置，可通过show语法查看参数是否设置成功。 enable_ce 密态数据库开关。enable_ce=1表示go驱动支持密态等值查询基本能力，enable_ce=3表示go驱动支持内存解密逃生通道，不设置或其他值表示不开启密态数据库。 key_info 与enable_ce一起使用，在密态数据库中，用于设置访问外部密钥管理者的参数。 auto_sendtoken 自动传输密钥模式开关。auto_sendtoken=yes表示在DB实例连接池connection初始化时自动触发密钥传输操作，设置为no或不设置表示关闭该模式。注意，该模式无法保证密钥信息及时更新，同时当且仅当设置enable_ce=3时该模式可以被开启。 示例一： package main
+//依赖包根据环境中依赖包路径设置
+import (
+	"database/sql"
+	"fmt"
+	_ "gitee.com/opengauss/openGauss-connector-go-pq"
+	"log"
+	"strings"
+	"time"
+)
+
+// 以下代码以单ip:port为例 ， 本示例以用户名和密码保存在环境变量中为例，运行本示例前请先在本地环境中设置环境变量(环境变量名称请根据自身情况进行设置) func main() { hostip := os.Getenv("GOHOSTIP")   //GOHOSTIP为写入环境变量的IP地址 port := os.Getenv("GOPORT")       //GOPORT为写入环境变量的port usrname := os.Getenv("GOUSRNAME") //GOUSRNAME为写入环境变量的用户名 passwd := os.Getenv("GOPASSWD")   //GOPASSWDW为写入环境变量的用户密码 str := "host=" + hostip + " port=" + port + " user=" + usrname + " password=" + passwd + " dbname=postgres sslmode=disable" // DSN连接串 //str := "opengauss://" + usrname + ":" + passwd + "@" + hostip + ":" + port + "/postgres?sslmode=disable"  // URL连接串 db, err := sql.Open("opengauss", str)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer db.Close()
+
+	err = db.Ping()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	sqls := []string{
+		"drop table if exists testExec",
+		"create table testExec(f1 int, f2 varchar(20), f3 number, f4 timestamptz, f5 boolean)",
+		"insert into testExec values(1, 'abcdefg', 123.3, '2022-02-08 10:30:43.31 +08', true)",
+		"insert into testExec values(:f1, :f2, :f3, :f4, :f5)",
+	}
+
+	inF1 := []int{2, 3, 4, 5, 6}
+	intF2 := []string{"hello world", "华为", "北京", "nanjing", "研究所"}
+	intF3 := []float64{641.43, 431.54, 5423.52, 665537.63, 6503.1}
+	intF4 := []time.Time{
+		time.Date(2022, 2, 8, 10, 35, 43, 623431, time.Local),
+		time.Date(2022, 2, 10, 19, 11, 54, 353431, time.Local),
+		time.Date(2022, 2, 12, 6, 11, 15, 636431, time.Local),
+		time.Date(2022, 2, 14, 4, 51, 22, 747653, time.Local),
+		time.Date(2022, 2, 16, 13, 45, 55, 674636, time.Local),
+	}
+	intF5 := []bool{false, true, false, true, true}
+
+	for _, s := range sqls {
+		if strings.Contains(s, ":f") {
+			for i, _ := range inF1 {
+				_, err := db.Exec(s, inF1[i], intF2[i], intF3[i], intF4[i], intF5[i])
+				if err != nil {
+					log.Fatal(err)
+				}
+			}
+		} else {
+			_, err = db.Exec(s)
+			if err != nil {
+				log.Fatal(err)
+			}
+		}
+	}
+
+	var f1 int
+	var f2 string
+	var f3 float64
+	var f4 time.Time
+	var f5 bool
+	err = db.QueryRow("select * from testExec").Scan(&f1, &f2, &f3, &f4, &f5)
+	if err != nil {
+		log.Fatal(err)
+	} else {
+		fmt.Printf("f1:%v, f2:%v, f3:%v, f4:%v, f5:%v\n", f1, f2, f3, f4, f5)
+	}
+
+	row, err := db.Query("select * from testExec where f1 > :1", 1)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer row.Close()
+
+	for row.Next() {
+		err = row.Scan(&f1, &f2, &f3, &f4, &f5)
+		if err != nil {
+			log.Fatal(err)
+		} else {
+			fmt.Printf("f1:%v, f2:%v, f3:%v, f4:%v, f5:%v\n", f1, f2, f3, f4, f5)
+		}
+	}
+} 示例二： package main
+//依赖包根据环境中依赖包路径设置
+import (
+	"context"
+	"database/sql"
+	"fmt"
+	_ "gitee.com/opengauss/openGauss-connector-go-pq"
+	"log"
+	"strings"
+	"time"
+)
+// 以下代码以多ip:port为例 ， 本示例以用户名和密码保存在环境变量中为例，运行本示例前请先在本地环境中设置环境变量(环境变量名称请根据自身情况进行设置) func main() {
+	ctx := context.Background()
+	ctx2SecondTimeout, cancelFunc2SecondTimeout := context.WithTimeout(ctx, 2*time.Second)
+	defer cancelFunc2SecondTimeout() hostip1 := os.Getenv("GOHOSTIP1")   //GOHOSTIP1为写入环境变量的IP地址 hostip2 := os.Getenv("GOHOSTIP2")   //GOHOSTIP2为写入环境变量的IP地址 hostip3 := os.Getenv("GOHOSTIP3")   //GOHOSTIP3为写入环境变量的IP地址 port1 := os.Getenv("GOPORT1")       //GOPORT1为写入环境变量的port port2 := os.Getenv("GOPORT2")       //GOPORT2为写入环境变量的port usrname := os.Getenv("GOUSRNAME") //GOUSRNAME为写入环境变量的用户名 passwd := os.Getenv("GOPASSWD")   //GOPASSWDW为写入环境变量的用户密码 str := "host="+hostip1+","+hostip2+","+hostip3+" port="+port1+","+port2+" user="+usrname+" password="+passwd+" dbname=postgres sslmode=disable" // DSN连接串 //str := "opengauss://"+usrname+":"+passwd+"@"+hostip1+":"+port1+","+hostip2+":"+port2+","+hostip3+"/postgres?sslmode=disable"  // URL连接串 db, err := sql.Open("opengauss", str)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer db.Close()
+
+	// Ping database connection with 2 second timeout
+	err = db.PingContext(ctx2SecondTimeout)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	sqls := []string{
+		"drop table if exists testExecContext",
+		"create table testExecContext(f1 int, f2 varchar(20), f3 number, f4 timestamptz, f5 boolean)",
+		"insert into testExecContext values(1, 'abcdefg', 123.3, '2022-02-08 10:30:43.31 +08', true)",
+		"insert into testExecContext values(:f1, :f2, :f3, :f4, :f5)",
+	}
+
+	inF1 := []int{2, 3, 4, 5, 6}
+	intF2 := []string{"hello world", "华为", "北京2022冬奥会", "nanjing", "研究所"}
+	intF3 := []float64{641.43, 431.54, 5423.52, 665537.63, 6503.1}
+	intF4 := []time.Time{
+		time.Date(2022, 2, 8, 10, 35, 43, 623431, time.Local),
+		time.Date(2022, 2, 10, 19, 11, 54, 353431, time.Local),
+		time.Date(2022, 2, 12, 6, 11, 15, 636431, time.Local),
+		time.Date(2022, 2, 14, 4, 51, 22, 747653, time.Local),
+		time.Date(2022, 2, 16, 13, 45, 55, 674636, time.Local),
+	}
+	intF5 := []bool{false, true, false, true, true}
+
+	for _, s := range sqls {
+		if strings.Contains(s, ":f") {
+			for i, _ := range inF1 {
+				_, err := db.ExecContext(ctx2SecondTimeout, s, inF1[i], intF2[i], intF3[i], intF4[i], intF5[i])
+				if err != nil {
+					log.Fatal(err)
+				}
+			}
+		} else {
+			_, err = db.ExecContext(ctx2SecondTimeout, s)
+			if err != nil {
+				log.Fatal(err)
+			}
+		}
+	}
+
+	var f1 int
+	var f2 string
+	var f3 float64
+	var f4 time.Time
+	var f5 bool
+	err = db.QueryRowContext(ctx2SecondTimeout, "select * from testExecContext").Scan(&f1, &f2, &f3, &f4, &f5)
+	if err != nil {
+		log.Fatal(err)
+	} else {
+		fmt.Printf("f1:%v, f2:%v, f3:%v, f4:%v, f5:%v\n", f1, f2, f3, f4, f5)
+	}
+
+	row, err := db.QueryContext(ctx2SecondTimeout, "select * from testExecContext where f1 > :1", 1)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer row.Close()
+
+	for row.Next() {
+		err = row.Scan(&f1, &f2, &f3, &f4, &f5)
+		if err != nil {
+			log.Fatal(err)
+		} else {
+			fmt.Printf("f1:%v, f2:%v, f3:%v, f4:%v, f5:%v\n", f1, f2, f3, f4, f5)
+		}
+	}
+} 父主题： 基于Go驱动开发 版权所有 © 华为技术有限公司

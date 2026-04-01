@@ -1,0 +1,132 @@
+record record record类型的变量 创建一个record变量的方式： 定义一个record类型 ，然后使用该类型来声明一个变量。 语法 record类型的语法参见 图1 。 图1 record类型的语法 对以上语法格式的解释如下： record_type：声明的类型名称。 field：record类型中的成员名称。 datatype：record类型中成员的类型。 expression：设置默认值的表达式。 在 GaussDB 中： record类型变量的赋值支持： 在函数或存储过程的声明阶段，声明一个record类型，并且可以在该类型中定义成员变量。 一个record变量到另一个record变量的赋值。 SELECT INTO和FETCH向一个record类型的变量中赋值。 将一个NULL值赋值给一个record变量。 不支持INSERT和UPDATE语句使用record变量进行插入数据和更新数据。 不支持record类型的构造器作为函数或存储过程参数的默认值。 如果成员有复合类型，在声明阶段不支持指定默认值，该行为同声明阶段的变量一样。 如果成员有record类型，则内层record类型的默认值不支持传递至外层record类型中。 set enable_recordtype_check_strict = on;后，成员是record类型，且record类型有列具有not null属性或default属性，在存储过程或PACKAGE编译时会报错。 set enable_recordtype_check_strict = on;后，当PACKAGE里有record类型，且record类型有列具有not null属性或defalut属性会在创建或编译时报错。 set enable_recordtype_check_strict = on;后，存储过程里的record类型not null功能生效。 datatype可以为存储过程中定义record类型、数组类型和集合类型（匿名块不支持）。 打开guc参数 set behavior_compat_options = 'proc_outparam_override' ;后： 带有out出参且返回record的函数，支持在外部SQL使用SELECT、CALL调用，在存储过程内支持使用PERFORM、表达式调用。 在函数直接返回未定义的record类型时，至少需要带有一个out参数；如果返回的是已经定义的record类型，则可以不带out参数。详见示例。 带out出参返回复合类型或record的函数，需要保持函数的预期返回类型与实际返回类型一致。 示例 1
+  2
+  3
+  4
+  5
+  6
+  7
+  8
+  9
+ 10
+ 11
+ 12
+ 13
+ 14
+ 15
+ 16
+ 17
+ 18
+ 19
+ 20
+ 21
+ 22
+ 23
+ 24
+ 25
+ 26
+ 27
+ 28
+ 29
+ 30
+ 31
+ 32
+ 33
+ 34
+ 35
+ 36
+ 37
+ 38
+ 39
+ 40
+ 41
+ 42
+ 43
+ 44
+ 45
+ 46
+ 47
+ 48
+ 49
+ 50
+ 51
+ 52
+ 53
+ 54
+ 55
+ 56
+ 57
+ 58
+ 59
+ 60
+ 61
+ 62
+ 63
+ 64
+ 65
+ 66
+ 67
+ 68
+ 69
+ 70
+ 71
+ 72
+ 73
+ 74
+ 75
+ 76
+ 77
+ 78
+ 79
+ 80
+ 81
+ 82
+ 83
+ 84
+ 85
+ 86
+ 87
+ 88
+ 89
+ 90
+ 91
+ 92
+ 93
+ 94
+ 95
+ 96
+ 97
+ 98
+ 99
+100
+101
+102
+103
+104
+105
+106
+107
+108
+109
+110
+111
+112
+113
+114
+115
+116
+117
+118
+119
+120
+121
+122
+123
+124
+125
+126
+127
+128
+129
+130
+131
+132 --创建一个表，并插入一些数据： gaussdb =# create table emp_rec ( gaussdb ( # empno numeric ( 4 , 0 ) not null , gaussdb ( # ename varchar ( 10 ) gaussdb ( # ); CREATE TABLE gaussdb =# insert into emp_rec values ( 111 , 'aaa' ), ( 222 , 'bbb' ), ( 333 , 'ccc' ); INSERT 0 3 -- 表定义如下： gaussdb =# \ d emp_rec Table "public.emp_rec" Column | Type | Modifiers --------+-----------------------+----------- empno | numeric ( 4 , 0 ) | not null ename | character varying ( 10 ) | --演示在函数中对record进行操作。 gaussdb =# CREATE OR REPLACE FUNCTION regress_record ( p_w VARCHAR2 ) RETURNS VARCHAR2 AS $$ gaussdb $ # DECLARE gaussdb $ # --声明一个record类型. gaussdb $ # type rec_type is record ( name varchar2 ( 100 ), epno int ); gaussdb $ # employer rec_type ; gaussdb $ # --使用%type声明record类型 gaussdb $ # type rec_type1 is record ( name emp_rec . ename % type , epno int : = 10 ); gaussdb $ # employer1 rec_type1 ; gaussdb $ # --声明带有默认值的record类型 gaussdb $ # type rec_type2 is record ( gaussdb $ # name varchar2 not null : = 'SCOTT' , gaussdb $ # epno int not null : = 10 gaussdb $ # ); gaussdb $ # employer2 rec_type2 ; gaussdb $ # CURSOR C1 IS select ename , empno from emp_rec order by 1 limit 1 ; gaussdb $ # BEGIN gaussdb $ # --对一个record类型的变量的成员赋值。 gaussdb $ # employer . name : = 'WARD' ; gaussdb $ # employer . epno = 18 ; gaussdb $ # raise info 'employer name: % , epno:%' , employer . name , employer . epno ; gaussdb $ # gaussdb $ # --将一个record类型的变量赋值给另一个变量。 gaussdb $ # employer1 : = employer ; gaussdb $ # raise info 'employer1 name: % , epno: %' , employer1 . name , employer1 . epno ; gaussdb $ # gaussdb $ # --将一个record类型变量赋值为NULL。 gaussdb $ # employer1 : = NULL ; gaussdb $ # raise info 'employer1 name: % , epno: %' , employer1 . name , employer1 . epno ; gaussdb $ # gaussdb $ # --获取record变量的默认值。 gaussdb $ # raise info 'employer2 name: % ,epno: %' , employer2 . name , employer2 . epno ; gaussdb $ # gaussdb $ # --在for循环中使用record变量 gaussdb $ # for employer in select ename , empno from emp_rec order by 1 limit 1 loop gaussdb $ # raise info 'employer name: % , epno: %' , employer . name , employer . epno ; gaussdb $ # end loop ; gaussdb $ # gaussdb $ # --在select into 中使用record变量。 gaussdb $ # select ename , empno into employer2 from emp_rec order by 1 limit 1 ; gaussdb $ # raise info 'employer name: % , epno: %' , employer2 . name , employer2 . epno ; gaussdb $ # gaussdb $ # --在cursor中使用record变量。 gaussdb $ # OPEN C1 ; gaussdb $ # FETCH C1 INTO employer2 ; gaussdb $ # raise info 'employer name: % , epno: %' , employer2 . name , employer2 . epno ; gaussdb $ # CLOSE C1 ; gaussdb $ # RETURN employer . name ; gaussdb $ # END ; $$ gaussdb -# LANGUAGE plpgsql ; CREATE FUNCTION --调用该函数。 gaussdb =# CALL regress_record ( 'abc' ); INFO : employer name : WARD , epno : 18 INFO : employer1 name : WARD , epno : 18 INFO : employer1 name : < NULL > , epno : < NULL > INFO : employer2 name : SCOTT , epno : 10 INFO : employer name : aaa , epno : 111 INFO : employer name : aaa , epno : 111 INFO : employer name : aaa , epno : 111 regress_record ---------------- aaa ( 1 row ) --删除函数。 gaussdb =# DROP FUNCTION regress_record ; DROP FUNCTION --删除表 gaussdb =# DROP TABLE emp_rec ; DROP TABLE -- 打开兼容性参数proc_outparam_override时，返回已定义的record类型，函数可以不需out参数 gaussdb =# create type rec_type is ( c1 int , c2 int ); CREATE TYPE gaussdb =# set behavior_compat_options = 'proc_outparam_override' ; SET gaussdb =# create or replace function func ( a in int ) return rec_type is gaussdb $ # r rec_type ; gaussdb $ # begin gaussdb $ # r . c1 : = 1 ; gaussdb $ # r . c2 : = 1 ; gaussdb $ # return r ; gaussdb $ # end ; gaussdb $ # / CREATE FUNCTION gaussdb =# call func ( 0 ); c1 | c2 ----+---- 1 | 1 ( 1 row ) gaussdb =# drop function func ; DROP FUNCTION gaussdb =# drop type rec_type ; DROP TYPE -- 打开兼容性参数proc_outparam_override时，函数直接返回未定义的record类型时，至少需要带有一个out参数 gaussdb =# set behavior_compat_options = 'proc_outparam_override' ; SET gaussdb =# create or replace function func ( a out int ) return record is gaussdb $ # type rc is record ( c1 int , c2 int ); gaussdb $ # r rc ; gaussdb $ # begin gaussdb $ # r . c1 : = 1 ; gaussdb $ # r . c2 : = 1 ; gaussdb $ # a : = 999 ; gaussdb $ # return r ; gaussdb $ # end ; gaussdb $ # / CREATE FUNCTION gaussdb =# call func ( 1 ); func | a -------+----- ( 1 , 1 ) | 999 ( 1 row ) gaussdb =# drop function func ; DROP FUNCTION 父主题： 数组、集合和record 版权所有 © 华为技术有限公司

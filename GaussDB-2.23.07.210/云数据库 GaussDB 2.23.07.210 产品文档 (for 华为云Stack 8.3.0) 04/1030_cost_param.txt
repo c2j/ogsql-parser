@@ -1,0 +1,97 @@
+案例：设置cost_param对查询性能优化 案例：设置cost_param对查询性能优化 当前特性是实验室特性，使用时请联系华为技术工程师提供技术支持。 现象描述1 cost_param的bit0(set cost_param=1)值为1时，表示对于求由不等式（!=）条件连接的选择率时选择一种改良机制，此方法在自连接（两个相同的表之间连接）的估算中更加准确。下面查询的例子是cost_param的bit0为1时的优化场景。当前版本已弃用cost_param & 1不为0时的路径，默认选择已优化的估算公式。 注： 选择率是两表join时，满足join条件的行数在join结果集中所占的比率。 表结构如下所示： 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27
+28
+29
+30
+31
+32 CREATE TABLE LINEITEM ( L_ORDERKEY BIGINT NOT NULL , L_PARTKEY BIGINT NOT NULL , L_SUPPKEY BIGINT NOT NULL , L_LINENUMBER BIGINT NOT NULL , L_QUANTITY DECIMAL ( 15 , 2 ) NOT NULL , L_EXTENDEDPRICE DECIMAL ( 15 , 2 ) NOT NULL , L_DISCOUNT DECIMAL ( 15 , 2 ) NOT NULL , L_TAX DECIMAL ( 15 , 2 ) NOT NULL , L_RETURNFLAG CHAR ( 1 ) NOT NULL , L_LINESTATUS CHAR ( 1 ) NOT NULL , L_SHIPDATE DATE NOT NULL , L_COMMITDATE DATE NOT NULL , L_RECEIPTDATE DATE NOT NULL , L_SHIPINSTRUCT CHAR ( 25 ) NOT NULL , L_SHIPMODE CHAR ( 10 ) NOT NULL , L_COMMENT VARCHAR ( 44 ) NOT NULL ) with ( orientation = column , COMPRESSION = MIDDLE ) distribute by hash ( L_ORDERKEY ); CREATE TABLE ORDERS ( O_ORDERKEY BIGINT NOT NULL , O_CUSTKEY BIGINT NOT NULL , O_ORDERSTATUS CHAR ( 1 ) NOT NULL , O_TOTALPRICE DECIMAL ( 15 , 2 ) NOT NULL , O_ORDERDATE DATE NOT NULL , O_ORDERPRIORITY CHAR ( 15 ) NOT NULL , O_CLERK CHAR ( 15 ) NOT NULL , O_SHIPPRIORITY BIGINT NOT NULL , O_COMMENT VARCHAR ( 79 ) NOT NULL ) with ( orientation = column , COMPRESSION = MIDDLE ) distribute by hash ( O_ORDERKEY ); 查询语句如下所示： 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21 explain verbose select count ( * ) as numwait from lineitem l1 , orders where o_orderkey = l1 . l_orderkey and o_orderstatus = 'F' and l1 . l_receiptdate > l1 . l_commitdate and not exists ( select * from lineitem l3 where l3 . l_orderkey = l1 . l_orderkey and l3 . l_suppkey <> l1 . l_suppkey and l3 . l_receiptdate > l3 . l_commitdate ) order by numwait desc ; 执行计划如下图所示：（verbose条件下，新增distinct列，受cost off/on控制，hashjoin行显示内外表的distinct估值，其他行为空） 优化分析1 以上查询为lineitem表自连接的Anti Join，当使用cost_param的bit0为0时，估算Anti Join的行数与实际行数相差很大，导致查询性能下降。可以通过设置cost_param的bit0为1时，使Anti Join的行数估算更准确，从而提高查询性能。优化后的执行计划如下： 现象描述2 当cost_param的bit1(set cost_param=2)为1时，表示求多个过滤条件（Filter）的选择率时，选择最小的作为总的选择率，而非两者乘积，此方法在过滤条件的列之间关联性较强时估算更加准确。下面查询的例子是cost_param的bit1为1时的优化场景。 表结构如下所示： 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25 CREATE TABLE NATION ( N_NATIONKEY INT NOT NULL , N_NAME CHAR ( 25 ) NOT NULL , N_REGIONKEY INT NOT NULL , N_COMMENT VARCHAR ( 152 ) ) distribute by replication ; CREATE TABLE SUPPLIER ( S_SUPPKEY BIGINT NOT NULL , S_NAME CHAR ( 25 ) NOT NULL , S_ADDRESS VARCHAR ( 40 ) NOT NULL , S_NATIONKEY INT NOT NULL , S_PHONE CHAR ( 15 ) NOT NULL , S_ACCTBAL DECIMAL ( 15 , 2 ) NOT NULL , S_COMMENT VARCHAR ( 101 ) NOT NULL ) distribute by hash ( S_SUPPKEY ); CREATE TABLE PARTSUPP ( PS_PARTKEY BIGINT NOT NULL , PS_SUPPKEY BIGINT NOT NULL , PS_AVAILQTY BIGINT NOT NULL , PS_SUPPLYCOST DECIMAL ( 15 , 2 ) NOT NULL , PS_COMMENT VARCHAR ( 199 ) NOT NULL ) distribute by hash ( PS_PARTKEY ); 查询语句如下所示： 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22 set cost_param = 2 ; explain verbose select nation , sum ( amount ) as sum_profit from ( select n_name as nation , l_extendedprice * ( 1 - l_discount ) - ps_supplycost * l_quantity as amount from supplier , lineitem , partsupp , nation where s_suppkey = l_suppkey and ps_suppkey = l_suppkey and ps_partkey = l_partkey and s_nationkey = n_nationkey ) as profit group by nation order by nation ; 当cost_param的bit1为0时，执行计划如下图所示： 优化分析2 在以上查询中，supplier、lineitem、partsupp三表做hashjoin的条件为(lineitem.l_suppkey = supplier.s_suppkey) AND (lineitem.l_partkey = partsupp.ps_partkey)，此hashjoin条件中存在两个过滤条件，这前一个过滤条件中的lineitem.l_suppkey和后一个过滤条件中的lineitem.l_partkey同为lineitem表的两列，这两列存在强相关的关联关系。在这种情况，估算hashjoin条件的选择率时，如果使用cost_param的bit1为0时，实际是将AND的两个过滤条件分别计算的2个选择率的值相乘来得到hashjoin条件的选择率，导致行数估算不准确，查询性能较差。所以需要将cost_param的bit1为1时，选择最小的选择率作为总的选择率估算行数比较准确，查询性能较好，优化后的计划如下图所示： 父主题： 实际调优案例 版权所有 © 华为技术有限公司

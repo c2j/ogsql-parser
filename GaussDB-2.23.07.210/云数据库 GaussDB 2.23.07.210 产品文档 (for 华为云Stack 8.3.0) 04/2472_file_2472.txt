@@ -1,0 +1,55 @@
+表设计 表设计 总体上讲，良好的表设计需要遵循以下原则： 【关注】减少需要扫描的数据量。通过分区表的剪枝机制可以大幅减少数据的扫描量。 【关注】尽量减少随机I/O。通过聚簇可以实现热数据的连续存储，将随机I/O转换为连续I/O，从而减少扫描的I/O代价。 选择分区方案 当表中的数据量很大时，应当对表进行分区，一般需要遵循以下原则： 【建议】使用具有明显区间性的字段进行分区，比如日期、区域等字段上建立分区。 【建议】分区名称应当体现分区的数据特征。例如，关键字+区间特征。 【建议】将分区上边界的分区值定义为MAXVALUE，以防止可能出现的数据溢出。 表1 表的分区方式及使用场景 分区方式 描述 Range 表数据通过范围进行分区。 Interval 表数据通过范围进行分区，超出范围的会自动根据间隔创建新的分区。 List 表数据通过指定列按照具体值进行分区。 Hash 表数据通过Hash散列方式进行分区。 典型的分区表定义如下： 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27
+28
+29
+30
+31
+32
+33
+34
+35
+36
+37
+38
+39
+40
+41
+42
+43
+44
+45
+46
+47
+48
+49
+50
+51
+52
+53
+54
+55 --创建Range分区表 CREATE TABLE staffS_p1 ( staff_ID NUMBER ( 6 ) not null , FIRST_NAME VARCHAR2 ( 20 ), LAST_NAME VARCHAR2 ( 25 ), EMAIL VARCHAR2 ( 25 ), PHONE_NUMBER VARCHAR2 ( 20 ), HIRE_DATE DATE , employment_ID VARCHAR2 ( 10 ), SALARY NUMBER ( 8 , 2 ), COMMISSION_PCT NUMBER ( 4 , 2 ), MANAGER_ID NUMBER ( 6 ), section_ID NUMBER ( 4 ) ) PARTITION BY RANGE ( HIRE_DATE ) ( PARTITION HIRE_19950501 VALUES LESS THAN ( '1995-05-01 00:00:00' ), PARTITION HIRE_19950502 VALUES LESS THAN ( '1995-05-02 00:00:00' ), PARTITION HIRE_maxvalue VALUES LESS THAN ( MAXVALUE ) ); --创建Interval分区表，初始两个分区，插入分区范围外的数据会自动新增分区 CREATE TABLE sales ( prod_id NUMBER ( 6 ), cust_id NUMBER , time_id DATE , channel_id CHAR ( 1 ), promo_id NUMBER ( 6 ), quantity_sold NUMBER ( 3 ), amount_sold NUMBER ( 10 , 2 ) ) PARTITION BY RANGE ( time_id ) INTERVAL ( '1 day' ) ( PARTITION p1 VALUES LESS THAN ( '2019-02-01 00:00:00' ), PARTITION p2 VALUES LESS THAN ( '2019-02-02 00:00:00' ) ); --创建List分区表 CREATE TABLE test_list ( col1 int , col2 int ) partition by list ( col1 ) ( partition p1 values ( 2000 ), partition p2 values ( 3000 ), partition p3 values ( 4000 ), partition p4 values ( 5000 ) ); --创建Hash分区表 CREATE TABLE test_hash ( col1 int , col2 int ) partition by hash ( col1 ) ( partition p1 , partition p2 ); 更多的表分区语法信息参见 CREATE TABLE PARTITION 。 父主题： 数据库对象设计 版权所有 © 华为技术有限公司

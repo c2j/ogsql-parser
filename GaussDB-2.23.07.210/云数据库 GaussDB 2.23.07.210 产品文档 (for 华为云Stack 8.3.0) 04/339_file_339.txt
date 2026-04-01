@@ -1,0 +1,27 @@
+构造请求 构造请求 本节介绍REST API请求的组成，并以调用IAM服务获取用户Token说明如何调用API。该API获取用户的Token，Token可以用于调用其他API时鉴权。 请求URI 请求URI由如下部分组成： {URI-scheme}://{Endpoint}/{resource-path}?{query-string} 尽管请求URI包含在请求消息头中，但大多数语言或框架都要求您从请求消息中单独传递它，所以在此单独强调。 表1 URI中的参数说明 参数 描述 URI-scheme 表示用于传输请求的协议，当前所有API均采用 HTTPS 协议。 Endpoint 指定承载REST服务端点的服务器域名或IP，不同服务不同区域的Endpoint不同，您可以从 获取IAM服务的终端节点 获取。 resource-path 资源路径，即API访问路径。从具体API的URI模块获取，例如 “获取用户Token” API的resource-path为 “/v3/auth/tokens” 。 query-string 查询参数，是可选部分，并不是每个API都有查询参数。查询参数前面需要带一个 “？” ，形式为 “参数名=参数取值” ，例如 “limit=10” ，表示查询不超过10条数据。 为查看方便，在每个具体API的URI部分，只给出resource-path部分，并将请求方法写在一起。这是因为URI-scheme都是HTTPS，而Endpoint在同一个区域也相同，所以简洁起见将这两部分省略。 请求方法 HTTP请求方法（也称为操作或动词），它告诉服务你正在请求什么类型的操作。 表2 HTTP方法 方法 说明 GET 请求服务器返回指定资源。 PUT 请求服务器更新指定资源。 POST 请求服务器新增资源或执行特殊操作。 DELETE 请求服务器删除指定资源，如删除对象等。 在获取用户Token的URI部分，您可以看到其请求方法为 “POST” ，则其请求为： 1 POST https: //{{Endpoint}}/v3/auth/tokens 请求消息头 附加请求头字段，如指定的URI和HTTP方法所要求的字段。例如定义消息体类型的请求头 “Content-Type” ，请求鉴权信息等。 详细的公共请求消息头字段请参见 表3 。 表3 公共请求消息头 名称 描述 是否必选 示例 Host 请求的服务器信息，从服务API的URL中获取。值为hostname[:port]。端口缺省时使用默认的端口，https的默认端口为443。 否 code.test.com or code.test.com:443 Content-Type 发送的实体的MIME类型。推荐用户默认使用application/json，如果API是对象、镜像上传等接口，媒体类型可按照流类型的不同进行确定。 是 application/json Content-Length 请求body长度，单位为Byte。 否 3495 X-Project-Id project id，项目编号。请参考 获取项目ID/名称 章节获取项目编号。 否 e9993fc787d94b6c886cbaa340f9c0f4 X-Auth-Token 用户Token。 用户Token也就是调用获取用户Token接口的响应值，该接口是唯一不需要认证的接口。 请求响应成功后在响应消息头中包含的“X-Subject-Token”的值即为Token值。 否 使用Token认证时该字段必选。 注：以下仅为Token示例片段 MIIPAgYJKoZIhvcNAQcCo...ggg1BBIINPXsidG9rZ 对于获取用户Token接口，由于不需要认证，所以只添加 “Content-Type” 即可，添加消息头后的请求如下所示。 1
+2 POST https: //{{Endpoint}}/v3/auth/tokens Content - Type: application / json 请求消息体（可选） 该部分可选。请求消息体通常以结构化格式（如JSON或XML）发出，与请求消息头中Content-Type对应，传递除请求消息头之外的内容。若请求消息体中的参数支持中文，则中文字符必须为UTF-8编码。 每个接口的请求消息体内容不同，也并不是每个接口都需要有请求消息体（或者说消息体为空），GET、DELETE操作类型的接口就不需要消息体，消息体具体内容需要根据具体接口而定。 对于获取用户Token接口，您可以从接口的请求部分看到所需的请求参数及参数说明。将消息体加入后的请求如下所示，加粗的斜体字段需要根据实际值填写，其中 username 为用户名， domainname 为用户所属的帐号名称， ******** 为用户登录密码， xxxxxxxxxxxxxxxxxx 为project的名称，您可以从管理员处获取。 scope参数定义了Token的作用域，上面示例中获取的Token仅能访问project下的资源。您还可以设置Token的作用域为某个帐号下所有资源或帐号的某个project下的资源，详细定义请参见获取用户Token。 POST https://{{Endpoint}}/v3/auth/tokens
+Content-Type: application/json
+
+{
+    "auth": {
+        "identity": {
+            "methods": [
+                "password"
+            ],
+            "password": {
+                "user": {
+                    "name": " username ",
+                    "password": " ******** ",
+                    "domain": {
+                        "name": " domainname "
+                    }
+                }
+            }
+        },
+        "scope": {
+            "project": {
+                "name": " xxxxxxxxxxxxxxxxxx "
+            }
+        }
+    }
+} 到这里为止这个请求需要的内容就具备齐全了，您可以使用curl、 Postman 或直接编写代码等方式发送请求调用API。对于获取用户Token接口，返回的响应消息头中“x-subject-token”就是需要获取的用户Token。有了Token之后，您就可以使用Token认证调用其他API。 父主题： 如何调用API 版权所有 © 华为技术有限公司

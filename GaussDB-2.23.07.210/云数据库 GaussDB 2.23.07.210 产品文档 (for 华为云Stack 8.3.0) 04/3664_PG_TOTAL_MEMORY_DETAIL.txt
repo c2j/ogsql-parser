@@ -1,0 +1,1 @@
+PG_TOTAL_MEMORY_DETAIL PG_TOTAL_MEMORY_DETAIL PG_TOTAL_MEMORY_DETAIL视图显示某个数据库节点内存使用情况。 表1 PG_TOTAL_MEMORY_DETAIL字段 名称 类型 描述 nodename text 节点名称。 memorytype text 内存的名称。 memorymbytes integer 内存使用的大小，单位为MB。 父主题： 其他系统视图 版权所有 © 华为技术有限公司

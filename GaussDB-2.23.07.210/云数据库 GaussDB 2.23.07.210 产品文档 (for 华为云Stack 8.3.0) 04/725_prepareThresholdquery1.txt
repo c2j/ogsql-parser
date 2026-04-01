@@ -1,0 +1,1 @@
+【建议】合理设置prepareThreshold，如果query语句十分固定，建议设置为1 【建议】合理设置prepareThreshold，如果query语句十分固定，建议设置为1 父主题： JDBC 版权所有 © 华为技术有限公司

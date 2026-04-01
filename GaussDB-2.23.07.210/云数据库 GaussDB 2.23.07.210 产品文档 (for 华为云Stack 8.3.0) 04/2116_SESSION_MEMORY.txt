@@ -1,0 +1,1 @@
+SESSION_MEMORY SESSION_MEMORY 统计Session级别的内存使用情况，包含执行作业在数据节点上gaussdb线程和Stream线程分配的所有内存，单位为MB。 表1 SESSION_MEMORY字段 名称 类型 描述 sessid text 线程启动时间+线程标识。 init_mem integer 当前正在执行作业进入执行器前已分配的内存。 used_mem integer 当前正在执行作业已分配的内存。 peak_mem integer 当前正在执行作业已分配的内存峰值。 父主题： Session/Thread 版权所有 © 华为技术有限公司

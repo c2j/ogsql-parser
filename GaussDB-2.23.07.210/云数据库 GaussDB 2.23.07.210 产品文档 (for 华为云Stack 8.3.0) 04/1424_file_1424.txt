@@ -1,0 +1,507 @@
+集合支持的函数 集合支持的函数 集合操作符 = 参数：nesttable类型。 返回值：true or false，Boolean类型。 功能描述：判断两个集合是否相等。 示例： gaussdb=# declare
+gaussdb-#     type nest is table of int;
+gaussdb-#     a nest := nest(1,2);
+gaussdb-#     b nest := nest(1,2);
+gaussdb-#     flag bool;
+gaussdb-# begin
+gaussdb$#     flag := a = b;
+gaussdb$#     raise info '%', flag;
+gaussdb$# end;
+gaussdb$# /
+INFO:  t
+ANONYMOUS BLOCK EXECUTE <> 参数：nesttable类型。 返回值：true or false，Boolean类型。 功能描述：判断两个集合是否不相等。 示例： gaussdb=# declare
+gaussdb-#     type nest is table of int;
+gaussdb-#     a nest := nest(1,2);
+gaussdb-#     b nest := nest(1,2);
+gaussdb-#     flag bool; 
+gaussdb-# begin
+gaussdb$#     flag := a <> b;
+gaussdb$#     raise info '%', flag;
+gaussdb$# end;
+gaussdb$# /
+INFO:  f
+ANONYMOUS BLOCK EXECUTE 集合MULTISET函数 MULTISET UNION [ALL | DISTINCT] 参数：nesttable类型。 返回值：nesttable类型。 功能描述：两个集合变量的并集，ALL表示不去除重复元素，DISTINCT表示去除重复元素，ALL为默认值。 示例1，求两个集合变量的并集，且不去除重复元素，即MULTISET UNION ALL： gaussdb=# declare
+gaussdb-#     type nest is table of int;
+gaussdb-#     a nest := nest(1,2);
+gaussdb-#     b nest := nest(2,3);
+gaussdb-# begin
+gaussdb$#     a := a MULTISET UNION ALL b;
+gaussdb$#     raise info '%', a;
+gaussdb$# end;
+gaussdb$# /
+INFO:  {1,2,2,3}
+ANONYMOUS BLOCK EXECUTE 示例2，求两个集合变量的并集，且去除重复元素，即MULTISET UNION DISTINCT： gaussdb=# declare
+gaussdb-#     type nest is table of int;
+gaussdb-#     a nest := nest(1,2);
+gaussdb-#     b nest := nest(2,3);
+gaussdb-# begin
+gaussdb$#     a := a MULTISET UNION DISTINCT b;
+gaussdb$#     raise info '%', a;
+gaussdb$# end;
+gaussdb$# /
+INFO:  {1,2,3}
+ANONYMOUS BLOCK EXECUTE MULTISET EXCEPT [ALL | DISTINCT] 参数：nesttable类型。 返回值：nesttable类型。 功能描述：两个集合变量的差集。如A MULTISET EXCEPT B：ALL表示去除A中A具有的元素且B也具有的元素并返回，其中去除动作计算元素个数。例如，对于特定元素，如果A中出现了m次，B中出现了n次，当 m > n时，则去除A中m - n个该元素，当m <= n时，则去除A中m个该元素；DISTINCT表示去除A中A具有的元素且B也具有的元素并返回，其中去除动作不计算元素个数。对于特定元素，如果在A中出现且又在B中出现了，则去除A中所有该元素。ALL为默认值。 示例1，求两个集合变量的差集，去除A中A具有的元素且B也具有的元素并返回，其中去除动作计算元素个数。即MULTISET EXCEPT ALL： gaussdb=# declare
+gaussdb-#     type nest is table of int;
+gaussdb-#     a nest := nest(1,2,2);
+gaussdb-#     b nest := nest(2,3);
+gaussdb-# begin
+gaussdb$#     a := a MULTISET EXCEPT ALL b;
+gaussdb$#     raise info '%', a;
+gaussdb$# end;
+gaussdb$# /
+INFO:  {1,2}
+ANONYMOUS BLOCK EXECUTE 示例2，求两个集合变量的差集，去除A中A具有的元素且B也具有的元素并返回，其中去除动作不计算元素个数。即MULTISET EXCEPT DISTINCT： gaussdb=# declare
+gaussdb-#     type nest is table of int;
+gaussdb-#     a nest := nest(1,2,2);
+gaussdb-#     b nest := nest(2,3);
+gaussdb-# begin
+gaussdb$#     a := a MULTISET EXCEPT DISTINCT b;
+gaussdb$#     raise info '%', a;
+gaussdb$# end;
+gaussdb$# /
+INFO:  {1}
+ANONYMOUS BLOCK EXECUTE MULTISET INTERSECT [ALL | DISTINCT] 参数：nesttable类型。 返回值：nesttable类型。 功能描述：两个集合变量的交集。如 A MULTISET INTERSECT B：ALL表示取A与B所有重复的元素；DISTINCT表示取A与B中重复元素，且去除其中重复元素。ALL为默认值。 示例1，求两个集合变量的交集，不去除重复元素，即MULTISET INTERSECT ALL： gaussdb=# declare
+gaussdb-#     type nest is table of int;
+gaussdb-#     a nest := nest(1,2,2);
+gaussdb-#     b nest := nest(2,2,3);
+gaussdb-# begin
+gaussdb$#     a := a MULTISET INTERSECT ALL b;
+gaussdb$#     raise info '%', a;
+gaussdb$# end;
+gaussdb$# /
+INFO:  {2,2}
+ANONYMOUS BLOCK EXECUTE 示例2，求两个集合变量的交集，去除重复元素，即MULTISET INTERSECT DISTINCT： gaussdb=# declare
+gaussdb-#     type nest is table of int;
+gaussdb-#     a nest := nest(1,2,2);
+gaussdb-#     b nest := nest(2,2,3);
+gaussdb-# begin
+gaussdb$#     a := a MULTISET INTERSECT DISTINCT b;
+gaussdb$#     raise info '%', a;
+gaussdb$# end;
+gaussdb$# /
+INFO:  {2}
+ANONYMOUS BLOCK EXECUTE 集合类型函数 以下函数定义说明里[]中的内容代表可选项，如count[()]表示可以写成count或count()。 exists(idx) 参数：idx为int4类型或varchar类型。 返回值：true or false，Boolean类型。 功能描述：查找指定位置是否存在有效元素。 示例： gaussdb=# declare
+gaussdb-#     type nest is table of varchar2;
+gaussdb-#     a nest := nest('happy','?');
+gaussdb-#     flag bool;
+gaussdb-# begin
+gaussdb$#     flag := a.exists(1);
+gaussdb$#     raise info '%', flag;
+gaussdb$#     flag := a.exists(10);
+gaussdb$#     raise info '%', flag;
+gaussdb$# end;
+gaussdb$# /
+INFO:  t
+INFO:  f
+ANONYMOUS BLOCK EXECUTE gaussdb=# declare
+gaussdb-#     type nest is table of varchar2 index by varchar2;
+gaussdb-#     a nest;
+gaussdb-#     flag bool;
+gaussdb-# begin
+gaussdb$#     a('1') := 'Be';
+gaussdb$#     a('2') := 'happy';
+gaussdb$#     a('3') := '.';
+gaussdb$#     flag := a.exists('1');
+gaussdb$#     raise info '%', flag;
+gaussdb$#     flag := a.exists('ddd');
+gaussdb$#     raise info '%', flag;
+gaussdb$# end;
+gaussdb$# /
+INFO:  t
+INFO:  f
+ANONYMOUS BLOCK EXECUTE extend[(count[, idx])] 参数：idx和count为int4类型。 返回值：无返回值。 功能描述：extend函数仅支持nesttable类型变量使用。在nesttable变量末尾拓展1个或count个元素。存在idx下标元素时，拷贝count个idx下标元素到变量末尾。 示例1，nesttable类型变量扩展1个元素且所扩展的元素值为NULL： gaussdb=# declare
+gaussdb-#     type nest is table of int;
+gaussdb-#     a nest := nest(1);
+gaussdb-# begin
+gaussdb$#     raise info '%', a;
+gaussdb$#     a.extend;
+gaussdb$#     raise info '%', a;
+gaussdb$#     a.extend;
+gaussdb$#     raise info '%', a;
+gaussdb$# end;
+gaussdb$# /
+INFO:  {1}
+INFO:  {1,NULL}
+INFO:  {1,NULL,NULL}
+ANONYMOUS BLOCK EXECUTE 示例2，nesttable类型变量扩展n个元素且所扩展的元素值为NULL： gaussdb=# declare
+gaussdb-#     type nest is table of int;
+gaussdb-#     a nest := nest(1);
+gaussdb-# begin
+gaussdb$#     raise info '%', a;
+gaussdb$#     a.extend(2);
+gaussdb$#     raise info '%', a;
+gaussdb$# end;
+gaussdb$# /
+INFO:  {1}
+INFO:  {1,NULL,NULL}
+ANONYMOUS BLOCK EXECUTE 示例3，nesttable类型变量扩展n个元素且所扩展的元素值为指定下标元素的值： gaussdb=# declare
+gaussdb-#     type nest is table of int;
+gaussdb-#     a nest := nest(9);
+gaussdb-# begin
+gaussdb$#     raise info '%', a;
+gaussdb$#     a.extend(2,1);
+gaussdb$#     raise info '%', a;
+gaussdb$# end;
+gaussdb$# /
+INFO:  {9}
+INFO:  {9,9,9}
+ANONYMOUS BLOCK EXECUTE delete[(idx1[, idx2])] 参数：idx1和idx2为int4类型或varchar2类型。 返回值：无返回值。 功能描述：无参数时，无索引集合nesttable类型变量删除集合类型的所有元素和空间，后续使用需要重新扩展空间，带索引集合indexbytable类型变量删除所有元素内容；一个参数删除指定位置元素（不删除空间）；两个参数则删除下标区间内的所有元素（不删除空间）。 约束：对于无索引集合nesttable类型来说，删除元素而没删除空间，会使该空间处于无效状态，可继续赋值。作为函数返回值或自治事务入参时，会删除无效成员的存储空间，所有成员的下标会相应发生改变。 示例1，无索引集合nesttable类型变量删除集合类型的所有元素和空间： gaussdb=# declare
+gaussdb-#     type nest is table of int;
+gaussdb-#     a nest := nest(1,2,3,4,5);
+gaussdb-# begin
+gaussdb$#     raise info '%', a;
+gaussdb$#     a.delete();
+gaussdb$#     raise info '%', a;
+gaussdb$# end;
+gaussdb$# /
+INFO:  {1,2,3,4,5}
+INFO:  {}
+ANONYMOUS BLOCK EXECUTE 示例2，无索引集合nesttable类型变量删除指定位置元素： gaussdb=# declare
+gaussdb-#     type nest is table of int;
+gaussdb-#     a nest := nest(1,2,3,4,5);
+gaussdb-# begin
+gaussdb$#     raise info '%', a;
+gaussdb$#     a.delete(3);
+gaussdb$#     raise info '%', a;
+gaussdb$#     a(3) := 3;
+gaussdb$#     raise info '%', a;
+gaussdb$# end;
+gaussdb$# /
+INFO:  {1,2,3,4,5}
+INFO:  {1,2,4,5}
+INFO:  {1,2,3,4,5}
+ANONYMOUS BLOCK EXECUTE 示例3，无索引集合nesttable类型变量删除指定区间元素： gaussdb=# declare
+gaussdb-#     type nest is table of int;
+gaussdb-#     a nest := nest(1,2,3,4,5);
+gaussdb-# begin
+gaussdb$#     raise info '%', a;
+gaussdb$#     a.delete(2,4);
+gaussdb$#     raise info '%', a(1);
+gaussdb$#     raise info '%', a(5);
+gaussdb$#     raise info '%', a;
+gaussdb$# end;
+gaussdb$# /
+INFO:  {1,2,3,4,5}
+INFO:  1
+INFO:  5
+INFO:  {1,5}
+ANONYMOUS BLOCK EXECUTE 示例4，带索引集合indexbytable类型变量删除集合类型的所有元素和空间： gaussdb=# declare
+gaussdb-#     type t1 is table of int index by varchar;
+gaussdb-#     v t1 := t1('a' => 1, 'b' => 2, 'c' => 3, 'd' => 4);
+gaussdb-# begin
+gaussdb$#     v.delete();
+gaussdb$#     raise info '%', v.count();
+gaussdb$# end;
+gaussdb$# /
+INFO:  0
+ANONYMOUS BLOCK EXECUTE 示例5，带索引集合indexbytable类型变量删除指定位置元素： gaussdb=# declare
+gaussdb-#     type t1 is table of int index by varchar;
+gaussdb-#     v t1 := t1('a' => 1, 'b' => 2, 'c' => 3, 'd' => 4);
+gaussdb-# begin
+gaussdb$#     raise info '%', v('a');
+gaussdb$#     v.delete('a');
+gaussdb$#     raise info '%', v('a');
+gaussdb$# end;
+gaussdb$# /
+INFO:  1
+ERROR:  no data found
+CONTEXT:  PL/pgSQL function inline_code_block line 6 at RAISE 示例6，带索引集合indexbytable类型变量删除指定区间元素： gaussdb=# declare
+gaussdb-#     type t1 is table of int index by varchar;
+gaussdb-#     v t1 := t1('a' => 1, 'b' => 2, 'c' => 3, 'd' => 4);
+gaussdb-# begin
+gaussdb$#     raise info '%', v('b');
+gaussdb$#     v.delete('a', 'c');
+gaussdb$#     raise info '%', v('b');
+gaussdb$# end;
+gaussdb$# /
+INFO:  2
+ERROR:  no data found
+CONTEXT:  PL/pgSQL function inline_code_block line 6 at RAISE trim[(n)] 参数：n为int4类型。 返回值：无返回值。 功能描述：trim函数仅支持nesttable类型变量使用。无参数时，删除末尾一个元素空间，输入参数合法时，删除末尾指定数量元素空间。 示例： gaussdb=# declare
+gaussdb-#     type nest is table of int;
+gaussdb-#     aa nest := nest(11,22,33,44,55);
+gaussdb-# begin
+gaussdb$#     raise info 'aa:%' ,aa;
+gaussdb$#     aa.trim;  -- 无参数
+gaussdb$#     raise info 'aa:%' ,aa;
+gaussdb$#     aa.trim();  -- 无参数
+gaussdb$#     raise info 'aa:%' ,aa;
+gaussdb$#     aa.trim(2);  -- 参数合法
+gaussdb$#     raise info 'aa:%' ,aa;
+gaussdb$#     aa.trim(2);  -- 集合元素空间不足2, 参数不合法报错
+gaussdb$# end;
+gaussdb$# /
+INFO:  aa:{11,22,33,44,55}
+INFO:  aa:{11,22,33,44}
+INFO:  aa:{11,22,33}
+INFO:  aa:{11}
+ERROR:  Subscript beyond count
+CONTEXT:  PL/pgSQL function inline_code_block line 11 at assignment count[()] 参数：无。 返回值：int类型。 功能描述：返回集合中存在有效元素的个数。 示例1，无索引集合类型变量使用count函数： gaussdb=# declare
+gaussdb-# type nest is table of int;
+gaussdb-# aa nest:=nest(11,22,33,44,55);
+gaussdb-# begin
+gaussdb$# raise info 'count:%' ,aa.count;
+gaussdb$# aa.delete(3);  -- 删除一个元素，下标为3的元素无效
+gaussdb$# raise info 'count:%' ,aa.count();
+gaussdb$# end;
+gaussdb$# /
+INFO:  count:5
+INFO:  count:4
+ANONYMOUS BLOCK EXECUTE 示例2，带索引集合类型变量使用count函数： gaussdb=# declare
+gaussdb-# type t1 is table of int index by int;
+gaussdb-# aa t1;
+gaussdb-# begin
+gaussdb$# aa(1) := 111;
+gaussdb$# aa(2) := 222;
+gaussdb$# aa(3) := 333;
+gaussdb$# raise info 'count:%' ,aa.count();
+gaussdb$# end;
+gaussdb$# /
+INFO:  count:3
+ANONYMOUS BLOCK EXECUTE gaussdb=# declare
+gaussdb-# type t1 is table of int index by varchar;
+gaussdb-# aa t1;
+gaussdb-# begin
+gaussdb$# aa('aaa') := 111;
+gaussdb$# aa('bbb') := 222;
+gaussdb$# aa('ccc') := 333;
+gaussdb$# raise info 'count:%' ,aa.count;
+gaussdb$# end;
+gaussdb$# /
+INFO:  count:3
+ANONYMOUS BLOCK EXECUTE first[()] 参数：无。 返回值：int类型或varchar类型。 功能描述：返回集合中第一个有效元素的下标。 示例1，无索引集合类型变量使用first函数： gaussdb=# declare
+gaussdb-# type nest is table of int;
+gaussdb-# aa nest:=nest(11,22,33,44,55);
+gaussdb-# begin
+gaussdb$# raise info 'first:%' ,aa.first();
+gaussdb$# aa.delete(1);
+gaussdb$# raise info 'first:%' ,aa.first;  -- 下标1的元素无效，第一个有效元素下标为2
+gaussdb$# end;
+gaussdb$# /
+INFO:  first:1
+INFO:  first:2
+ANONYMOUS BLOCK EXECUTE 示例2，带索引集合类型变量使用first函数： gaussdb=# declare
+gaussdb-# type t1 is table of int index by int;
+gaussdb-# aa t1;
+gaussdb-# begin
+gaussdb$# aa(3) := 111;
+gaussdb$# aa(2) := 222;
+gaussdb$# aa(1) := 333;
+gaussdb$# raise info 'first:%' ,aa.first;
+gaussdb$# end;
+gaussdb$# /
+INFO:  first:1
+ANONYMOUS BLOCK EXECUTE gaussdb=# declare
+gaussdb-# type t1 is table of int index by varchar;
+gaussdb-# aa t1;
+gaussdb-# begin
+gaussdb$# aa('aaa') := 111;
+gaussdb$# aa('bbb') := 222;
+gaussdb$# aa('ccc') := 333;
+gaussdb$# raise info 'first:%' ,aa.first;
+gaussdb$# end;
+gaussdb$# /
+INFO:  first:aaa
+ANONYMOUS BLOCK EXECUTE last[()] 参数：无。 返回值：int类型或varchar类型。 功能描述：返回集合中最后一个有效元素的下标。 示例1，无索引集合类型变量使用last函数： gaussdb=# declare
+gaussdb-# type nest is table of int;
+gaussdb-# aa nest:=nest(11,22,33,44,55);
+gaussdb-# begin
+gaussdb$# raise info 'last:%' ,aa.last;
+gaussdb$# aa.delete(5);
+gaussdb$# raise info 'last:%' ,aa.last();  -- 下标5的元素无效，最后一个有效元素下标为4
+gaussdb$# end;
+gaussdb$# /
+INFO:  last:5
+INFO:  last:4
+ANONYMOUS BLOCK EXECUTE 示例2，带索引集合类型变量使用last函数： gaussdb=# declare
+gaussdb-# type t1 is table of int index by varchar;
+gaussdb-# aa t1;
+gaussdb-# begin
+gaussdb$# aa(3) := 111;
+gaussdb$# aa(2) := 222;
+gaussdb$# aa(1) := 333;
+gaussdb$# raise info 'last:%' ,aa.last();
+gaussdb$# end;
+gaussdb$# /
+INFO:  last:3
+ANONYMOUS BLOCK EXECUTE gaussdb=# declare
+gaussdb-# type t1 is table of int index by varchar;
+gaussdb-# aa t1;
+gaussdb-# begin
+gaussdb$# aa('aaa') := 111;
+gaussdb$# aa('bbb') := 222;
+gaussdb$# aa('ccc') := 333;
+gaussdb$# raise info 'last:%' ,aa.last;
+gaussdb$# end;
+gaussdb$# /
+INFO:  last:ccc
+ANONYMOUS BLOCK EXECUTE prior(idx) 参数：idx为int类型或varchar类型。 返回值：int类型或varchar类型。 功能描述：返回集合中给定下标的前一个有效元素下标。 示例1，无索引集合类型变量使用prior函数： gaussdb=# declare
+gaussdb-# type nest is table of int;
+gaussdb-# aa nest:=nest(11,22,33,44,55);
+gaussdb-# begin
+gaussdb$# raise info 'prior:%' ,aa.prior(3);
+gaussdb$# end;
+gaussdb$# /
+INFO:  prior:2
+ANONYMOUS BLOCK EXECUTE 示例2，带索引集合类型变量使用prior函数： gaussdb=# declare
+gaussdb-# type t1 is table of int index by varchar;
+gaussdb-# aa t1;
+gaussdb-# begin
+gaussdb$# aa('ccc') := 111;
+gaussdb$# aa('bbb') := 222;
+gaussdb$# aa('aaa') := 333;
+gaussdb$# raise info 'prior:%' ,aa.prior('bbb');
+gaussdb$# raise info 'prior:%' ,aa.prior('ddd');
+gaussdb$# end;
+gaussdb$# /
+INFO:  prior:aaa
+INFO:  prior:ccc
+ANONYMOUS BLOCK EXECUTE next(idx) 参数：idx为int类型或varchar类型。 返回值：int类型或varchar类型。 功能描述：返回集合中给定下标的后一个有效元素下标。 示例1，无索引集合类型变量使用next函数： gaussdb=# declare
+gaussdb-# type nest is table of int;
+gaussdb-# aa nest:=nest(11,22,33,44,55);
+gaussdb-# begin
+gaussdb$# raise info 'next:%' ,aa.next(3);
+gaussdb$# end;
+gaussdb$# /
+INFO:  next:4
+ANONYMOUS BLOCK EXECUTE 示例2，带索引集合类型变量使用next函数： gaussdb=# declare
+gaussdb-# type t1 is table of int index by int;
+gaussdb-# aa t1;
+gaussdb-# begin
+gaussdb$# aa(3) := 111;
+gaussdb$# aa(2) := 222;
+gaussdb$# aa(1) := 333;
+gaussdb$# raise info 'next:%' ,aa.next(2);
+gaussdb$# raise info 'next:%' ,aa.next(-999);
+gaussdb$# end;
+gaussdb$# /
+INFO:  next:3
+INFO:  next:1
+ANONYMOUS BLOCK EXECUTE limit 参数：无。 返回值：null。 功能描述：仅用于nesttable类型变量，且返回null值。 示例： gaussdb=# declare
+gaussdb-# type nest is table of int;
+gaussdb-# aa nest:=nest(11,22,33,44,55);
+gaussdb-# begin
+gaussdb$# raise info 'limit:%' ,aa.limit;
+gaussdb$# end;
+gaussdb$# /
+INFO:  limit:<NULL>
+ANONYMOUS BLOCK EXECUTE 集合相关函数 unnest_table(anynesttable)或unnest(anynesttable) 参数：任意无索引集合类型。 描述：返回给定nesttable中所有有效元素的结果集，会返回多行数据。 返回类型：setof anyelement。 示例： 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27
+28
+29
+30
+31
+32
+33
+34
+35
+36
+37
+38
+39
+40
+41
+42
+43
+44
+45
+46
+47
+48
+49
+50
+51
+52
+53
+54
+55
+56
+57
+58
+59
+60
+61
+62 gaussdb =# create or replace procedure p1 () gaussdb -# as gaussdb $ # type t1 is table of int ; gaussdb $ # v2 t1 : = t1 ( null , 2 , 3 , 4 , null ); gaussdb $ # tmp int ; gaussdb $ # cursor c1 is select * from unnest_table ( v2 ); gaussdb $ # begin gaussdb $ # open c1 ; gaussdb $ # for i in 1 .. v2 . count loop gaussdb $ # fetch c1 into tmp ; gaussdb $ # if tmp is null then gaussdb $ # dbe_output . print_line ( i || ': is null' ); gaussdb $ # else gaussdb $ # dbe_output . print_line ( i || ': ' || tmp ); gaussdb $ # end if ; gaussdb $ # end loop ; gaussdb $ # close c1 ; gaussdb $ # end ; gaussdb $ # / CREATE PROCEDURE gaussdb =# call p1 (); 1 : is null 2 : 2 3 : 3 4 : 4 5 : is null p1 ---- ( 1 row ) gaussdb =# drop procedure if exists p1 (); DROP PROCEDURE -- nesttable嵌套record类型示例 gaussdb =# create or replace procedure p1 () is gaussdb $ # type rec is record ( c1 int , c2 int ); gaussdb $ # type t1 is table of rec ; gaussdb $ # v t1 : = t1 ( rec ( 1 , 1 ), rec ( 2 , null ), rec ( null , null ), null ); gaussdb $ # v2 t1 : = t1 (); gaussdb $ # cursor cur is select * from unnest ( v ); gaussdb $ # begin gaussdb $ # v2 . extend ( v . count ); gaussdb $ # open cur ; gaussdb $ # for i in 1 .. v . count loop gaussdb $ # fetch cur into v2 ( i ); gaussdb $ # raise info '%' , v2 ( i ); gaussdb $ # end loop ; gaussdb $ # close cur ; gaussdb $ # end ; gaussdb $ # / CREATE PROCEDURE gaussdb =# call p1 (); INFO : ( 1 , 1 ) INFO : ( 2 ,) INFO : (,) INFO : (,) p1 ---- ( 1 row ) gaussdb =# drop procedure if exists p1 (); DROP PROCEDURE 当集合的元素类型为record类型且有元素为NULL时，该元素不会被返回，而是会返回一个非NULL的record值，该record的所有列为NULL，具体可参考示例。 unnest_table(anyindexbytable)或unnest(anyindexbytable) 参数：任意带索引集合类型。 描述：返回给定indexbytable中所有元素根据索引排序后的结果集，会返回多行数据。 返回类型：setof anyelement 约束：只支持index by int类型，不支持index by varchar类型。 示例： 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27
+28
+29
+30
+31
+32
+33
+34
+35
+36
+37
+38
+39
+40
+41
+42
+43
+44
+45
+46
+47
+48
+49
+50
+51
+52
+53
+54
+55
+56
+57
+58
+59
+60 gaussdb =# create or replace procedure p1 () gaussdb -# as gaussdb $ # type t1 is table of int index by int ; gaussdb $ # v2 t1 : = t1 ( 1 => 1 , - 10 => ( - 10 ), 6 => 6 , 4 => null ); gaussdb $ # tmp int ; gaussdb $ # cursor c1 is select * from unnest_table ( v2 ); gaussdb $ # begin gaussdb $ # open c1 ; gaussdb $ # for i in 1 .. v2 . count loop gaussdb $ # fetch c1 into tmp ; gaussdb $ # if tmp is null then gaussdb $ # dbe_output . print_line ( i || ': is null' ); gaussdb $ # else gaussdb $ # dbe_output . print_line ( i || ': ' || tmp ); gaussdb $ # end if ; gaussdb $ # end loop ; gaussdb $ # close c1 ; gaussdb $ # end ; gaussdb $ # / CREATE PROCEDURE gaussdb =# call p1 (); 1 : - 10 2 : 1 3 : is null 4 : 6 p1 ---- ( 1 row ) gaussdb =# drop procedure if exists p1 (); DROP PROCEDURE -- index by table嵌套record类型示例 gaussdb =# create or replace procedure p1 () is gaussdb $ # type rec is record ( c1 int , c2 int ); gaussdb $ # type t1 is table of rec index by int ; gaussdb $ # v t1 : = t1 ( 1 => rec ( 1 , 1 ), 2 => rec ( 2 , null ), 3 => rec ( null , null ), 4 => null ); gaussdb $ # v2 t1 : = t1 (); gaussdb $ # cursor cur is select * from unnest ( v ); gaussdb $ # begin gaussdb $ # open cur ; gaussdb $ # for i in 1 .. v . count loop gaussdb $ # fetch cur into v2 ( i ); gaussdb $ # raise info '%' , v2 ( i ); gaussdb $ # end loop ; gaussdb $ # close cur ; gaussdb $ # end ; gaussdb $ # / CREATE PROCEDURE gaussdb =# call p1 (); INFO : ( 1 , 1 ) INFO : ( 2 ,) INFO : (,) INFO : (,) p1 ---- ( 1 row ) gaussdb =# drop procedure if exists p1 (); DROP PROCEDURE 当集合的元素类型为record类型且有元素为NULL时，该元素不会被返回，而是会返回一个非NULL的record值，该record的所有列为NULL，具体可参考示例。 父主题： 集合 版权所有 © 华为技术有限公司

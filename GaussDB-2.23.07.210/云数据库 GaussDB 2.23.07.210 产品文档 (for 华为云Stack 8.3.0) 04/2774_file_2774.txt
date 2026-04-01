@@ -1,0 +1,946 @@
+时间和日期处理函数和操作符 时间和日期处理函数和操作符 时间日期操作符 用户在使用时间和日期操作符时，对应的操作数请使用明确的类型前缀修饰，以确保数据库在解析操作数的时候能够与用户预期一致，不会产生用户非预期的结果。 比如下面示例没有明确数据类型就会出现异常错误。 1
+2
+3
+4
+5
+6
+7 gaussdb =# SELECT date '2001-10-01' - '7' AS RESULT ; ERROR : GAUSS - 10416 : invalid input syntax for type timestamp : "7" SQLSTATE : 22007 LINE 1 : SELECT date '2001-10-01' - '7' AS RESULT ; ^ CONTEXT : referenced column : result 表1 时间和日期操作符 操作符 示例 + 1
+2
+3
+4
+5 gaussdb =# SELECT date '2001-9-28' + integer '7' AS RESULT ; result --------------------- 2001 - 10 - 05 00 : 00 : 00 ( 1 row ) 说明： 在A兼容模式下，查询结果为2001-10-05 00:00:00。 1
+2
+3
+4
+5 gaussdb =# SELECT date '2001-09-28' + interval '1 hour' AS RESULT ; result --------------------- 2001 - 09 - 28 01 : 00 : 00 ( 1 row ) 1
+2
+3
+4
+5 gaussdb =# SELECT date '2001-09-28' + time '03:00' AS RESULT ; result --------------------- 2001 - 09 - 28 03 : 00 : 00 ( 1 row ) 1
+2
+3
+4
+5 gaussdb =# SELECT interval '1 day' + interval '1 hour' AS RESULT ; result ---------------- 1 day 01 : 00 : 00 ( 1 row ) 1
+2
+3
+4
+5 gaussdb =# SELECT timestamp '2001-09-28 01:00' + interval '23 hours' AS RESULT ; result --------------------- 2001 - 09 - 29 00 : 00 : 00 ( 1 row ) 1
+2
+3
+4
+5 gaussdb =# SELECT time '01:00' + interval '3 hours' AS RESULT ; result ---------- 04 : 00 : 00 ( 1 row ) - 1
+2
+3
+4
+5 gaussdb =# SELECT date '2001-10-01' - date '2001-09-28' AS RESULT ; result -------- 3 days ( 1 row ) 1
+2
+3
+4
+5 gaussdb =# SELECT date '2001-10-01' - integer '7' AS RESULT ; result --------------------- 2001 - 09 - 24 00 : 00 : 00 ( 1 row ) 1
+2
+3
+4
+5 gaussdb =# SELECT date '2001-09-28' - interval '1 hour' AS RESULT ; result --------------------- 2001 - 09 - 27 23 : 00 : 00 ( 1 row ) 1
+2
+3
+4
+5 gaussdb =# SELECT time '05:00' - time '03:00' AS RESULT ; result ---------- 02 : 00 : 00 ( 1 row ) 1
+2
+3
+4
+5 gaussdb =# SELECT time '05:00' - interval '2 hours' AS RESULT ; result ---------- 03 : 00 : 00 ( 1 row ) 1
+2
+3
+4
+5 gaussdb =# SELECT timestamp '2001-09-28 23:00' - interval '23 hours' AS RESULT ; result --------------------- 2001 - 09 - 28 00 : 00 : 00 ( 1 row ) 1
+2
+3
+4
+5 gaussdb =# SELECT interval '1 day' - interval '1 hour' AS RESULT ; result ---------- 23 : 00 : 00 ( 1 row ) 1
+2
+3
+4
+5 gaussdb =# SELECT timestamp '2001-09-29 03:00' - timestamp '2001-09-27 12:00' AS RESULT ; result ---------------- 1 day 15 : 00 : 00 ( 1 row ) * 1
+2
+3
+4
+5 gaussdb =# SELECT 900 * interval '1 second' AS RESULT ; result ---------- 00 : 15 : 00 ( 1 row ) 1
+2
+3
+4
+5 gaussdb =# SELECT 21 * interval '1 day' AS RESULT ; result --------- 21 days ( 1 row ) 1
+2
+3
+4
+5 gaussdb =# SELECT double precision '3.5' * interval '1 hour' AS RESULT ; result ---------- 03 : 30 : 00 ( 1 row ) / 1
+2
+3
+4
+5 gaussdb =# SELECT interval '1 hour' / double precision '1.5' AS RESULT ; result ---------- 00 : 40 : 00 ( 1 row ) 时间/日期函数 age(timestamp, timestamp) 描述：将两个参数相减，并以年、月、日作为返回值。若相减值为负，则函数返回亦为负，入参可以都带timezone或都不带timezone。 返回值类型：interval 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT age ( timestamp '2001-04-10' , timestamp '1957-06-13' ); age ------------------------- 43 years 9 mons 27 days ( 1 row ) age(timestamp) 描述：当前时间和参数相减，入参可以带或者不带timezone。 返回值类型：interval 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT age ( timestamp '1957-06-13' ); age ------------------------- 60 years 2 mons 18 days ( 1 row ) clock_timestamp() 描述：实时时钟的当前时间戳。 返回值类型：timestamp with time zone 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT clock_timestamp (); clock_timestamp ------------------------------- 2017 - 09 - 01 16 : 57 : 36 . 636205 + 08 ( 1 row ) current_date 描述：当前日期。 返回值类型：date 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT current_date ; date ------------ 2017 - 09 - 01 ( 1 row ) 此函数在参数a_format_version值为10c和a_format_dev_version值为s2的情况下返回值类型为timestamp。 该函数在sql_compatibility = 'B'，且参数b_format_version值为5.7、b_format_dev_version值为s1时有如下行为： current_date支持带括号调用。 current_date实际调用的函数为curdate，可以用“\df curdate”指令查询函数详细入参和返回值。 current_time 描述：当前事务的开始时刻的时间。在sql_compatibility = 'B'，且参数b_format_version值为5.7、b_format_dev_version值为s1时，返回SQL执行开始时刻的系统时间 返回值类型：time with time zone，在sql_compatibility = 'B'，且参数b_format_version值为5.7、b_format_dev_version值为s1时，类型是time without time zone。 示例： 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12 gaussdb =# SELECT current_time ; timetz -------------------- 16 : 58 : 07 . 086215 + 08 ( 1 row ) --B模式下打开参数时 gaussdb_m =# SELECT current_time ; current_time -------------- 15 : 14 : 00 ( 1 row ) current_time([precision]) 描述：返回SQL执行开始时刻的系统时间。 参数：表示精度（秒后小数位数），int类型，范围为[0,6]，缺省时默认值为0，无效精度值都报错。 返回值类型：time without time zone 实现方式：映射成系统函数curtime。 示例： gaussdb_m=# SELECT current_time();
+ current_time 
+--------------
+ 15:14:05
+(1 row)
+gaussdb_m=# SELECT current_time(3);
+ current_time 
+--------------
+ 15:14:08.433
+(1 row) 该函数在sql_compatibility = 'B'，且参数b_format_version值为5.7、b_format_dev_version值为s1时有效。curent_time实际调用的函数为curtime，可以用“\df curtime”指令查询函数详细入参和返回值。 current_timestamp 描述： 返回的结果为当前SQL启动的系统时间。语句级别时间，同一个语句内返回结果不变。 返回值类型：B模式库中的5.7版本下（sql_compatibility = 'B'、b_format_version='5.7'、b_format_dev_version='s1'）返回类型为timestamp without time zone，其他场景下返回类型为timestamp with time zone。 示例： 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12 gaussdb =# SELECT current_timestamp ; pg_systimestamp ------------------------------ 2017 - 09 - 01 16 : 58 : 19 . 22173 + 08 ( 1 row ) --B模式库中的5.7版本下 gaussdb =# SELECT current_timestamp ; timestamp --------------------- 2023 - 08 - 21 15 : 08 : 24 ( 1 row ) 该函数在sql_compatibility = 'B'，且参数b_format_version值为5.7、b_format_dev_version值为s1时有如下行为： 返回类型为timestamp without time zone。 返回结果的精度为0。 返回的结果为当前sql启动的时间戳。 该函数通过TYPE转化实现，无实际注册函数，因此通过gsql工具的\df+等相关命令查看的为其他兼容模式下的函数信息，而不是B兼容模式的5.7版本中的函数信息。 current_timestamp() 描述：当前日期及时间。 返回值类型：timestamp without time zone 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT current_timestamp (); timestamp --------------------- 2023 - 08 - 21 14 : 34 : 30 ( 1 row ) 该函数仅支持在sql_compatibility = 'B'，且参数b_format_version值为5.7、b_format_dev_version值为s1时使用，且有如下行为： 返回类型为timestamp without time zone。 返回结果的精度为0。 返回的结果为当前sql启动的时间戳。 该函数通过TYPE转化实现，无实际注册函数，因此通过gsql工具的\df+等相关命令查看的为其他模式下的函数信息，而不是B兼容模式的5.7版本中的函数信息。 current_timestamp(precision) 描述：当前日期及时间，并将结果的微秒圆整为指定小数位。 返回值类型：B模式库中的5.7版本下（sql_compatibility = 'B'、b_format_version='5.7'、b_format_dev_version='s1'）返回类型为timestamp without time zone，其他场景下返回类型为timestamp with time zone。 示例： 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12 gaussdb =# SELECT current_timestamp ( 1 ); timestamptz ------------------------------ 2017 - 09 - 01 16 : 58 : 19 . 2 + 08 ( 1 row ) --B模式库中的5.7版本下 gaussdb =# SELECT current_timestamp ( 1 ); timestamp ----------------------- 2023 - 08 - 21 15 : 09 : 35 . 3 ( 1 row ) 此函数在参数a_format_version值为10c和a_format_dev_version值为s2的情况下，precision参数支持numeric类型的整值，否则仅支持int输入。 微秒末位的0不显示。如 2017-09-01 10:32:19.212000 输出显示为 2017-09-01 10:32:19.212。 该函数在sql_compatibility = 'B'，且参数b_format_version值为5.7、b_format_dev_version值为s1时有如下行为： 返回类型为timestamp without time zone。 返回的结果为当前sql启动的时间戳。 参数精度范围为[0, 6]。若参数大于6，则精度按6处理。 该函数通过TYPE转化实现，无实际注册函数，因此通过gsql工具的\df+等相关命令查看的为其他模式下的函数信息，而不是B兼容模式的5.7版本中的函数信息。 pg_systimestamp() 描述：当前日期和时间(当前语句的开始)。 返回值类型：timestamp with time zone 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT pg_systimestamp (); pg_systimestamp ------------------------------- 2015 - 10 - 14 11 : 21 : 28 . 317367 + 08 ( 1 row ) date_part(text, timestamp) 描述：获取日期/时间值中子域的值，例如年或者小时的值。等效于extract(field from timestamp)。 timestamp类型：abstime、date、interval、reltime、time with time zone、time without time zone、timestamp with time zone、timestamp without time zone。 返回值类型：double precision 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT date_part ( 'hour' , timestamp '2001-02-16 20:38:40' ); date_part ----------- 20 ( 1 row ) date_part(text, interval) 描述：获取日期/时间值中子域的值。获取月份值时，如果月份值大于12，则取与12的模。等效于extract(field from timestamp)。 返回值类型：double precision 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT date_part ( 'month' , interval '2 years 3 months' ); date_part ----------- 3 ( 1 row ) date_trunc(text, timestamp) 描述：截取到参数text指定的精度。 返回值类型：interval、timestamp with time zone、timestamp without time zone 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT date_trunc ( 'hour' , timestamp '2001-02-16 20:38:40' ); date_trunc --------------------- 2001 - 02 - 16 20 : 00 : 00 ( 1 row ) trunc(timestamp) 描述：默认按天截取。 示例： 1
+2
+3
+4 gaussdb =# SELECT trunc ( timestamp '2001-02-16 20:38:40' ); trunc --------------------- 2001 - 02 - 16 00 : 00 : 00 ( 1 row ) trunc(arg1, arg2) 描述：截取到arg2指定的精度。 arg1类型：interval、timestamp with time zone、timestamp without time zone arg2类型：text 返回值类型：interval、timestamp with time zone、timestamp without time zone 示例： 1
+2
+3
+4 gaussdb =# SELECT trunc ( timestamp '2001-02-16 20:38:40' , 'hour' ); trunc --------------------- 2001 - 02 - 16 20 : 00 : 00 ( 1 row ) round(arg1, arg2) 描述：四舍五入到arg2指定的精度。 arg1类型：timestamp without time zone arg2类型：text 返回值类型：timestamp without time zone 示例： 1
+2
+3
+4 gaussdb =# SELECT round ( timestamp '2001-02-16 20:38:40' , 'hour' ); round --------------------- 2001 - 02 - 16 21 : 00 : 00 ( 1 row ) 此函数在参数a_format_version值为10c和a_format_dev_version值为s1的情况下有效。 daterange(arg1, arg2) 描述：获取时间边界信息。arg1和arg2的类型为date。 返回值类型：daterange 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT daterange ( '2000-05-06' , '2000-08-08' ); daterange ------------------------- [ 2000 - 05 - 06 , 2000 - 08 - 08 ) ( 1 row ) daterange(arg1, arg2, text) 描述：获取时间边界信息。arg1和arg2的类型为date，text类型为text。 返回值类型：daterange 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT daterange ( '2000-05-06' , '2000-08-08' , '[]' ); daterange ------------------------- [ 2000 - 05 - 06 , 2000 - 08 - 09 ) ( 1 row ) isfinite(date) 描述： 判断 日期 是否为有限值 ，是则返回t，否则返回f 。 返回值类型： Boolean 示例： 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10 gaussdb =# SELECT isfinite ( date '2001-02-16' ); isfinite ---------- t ( 1 row ) gaussdb =# SELECT isfinite ( date 'infinity' ); isfinite ---------- f ( 1 row ) isfinite(timestamp) 描述： 判断时间 戳是否为有限值 ，是则返回t，否则返回f 。 返回值类型： Boolean 示例： 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10 gaussdb =# SELECT isfinite ( timestamp '2001-02-16 21:28:30' ); isfinite ---------- t ( 1 row ) gaussdb =# SELECT isfinite ( timestamp 'infinity' ); isfinite ---------- f ( 1 row ) isfinite(interval) 描述： 判断时间间隔 是否为有限值 ，是则返回t，暂不支持返回f，输入'infinity'会报错 。 返回值类型： Boolean 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT isfinite ( interval '4 hours' ); isfinite ---------- t ( 1 row ) justify_days(interval) 描述：将时间间隔以月（30天为一月）为单位。 返回值类型：interval 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT justify_days ( interval '35 days' ); justify_days -------------- 1 mon 5 days ( 1 row ) justify_hours(interval) 描述：将时间间隔以天（24小时为一天）为单位。 返回值类型：interval 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT JUSTIFY_HOURS ( INTERVAL '27 HOURS' ); justify_hours ---------------- 1 day 03 : 00 : 00 ( 1 row ) justify_interval(interval) 描述：结合justify_days和justify_hours，调整interval。 返回值类型：interval 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT JUSTIFY_INTERVAL ( INTERVAL '1 MON -1 HOUR' ); justify_interval ------------------ 29 days 23 : 00 : 00 ( 1 row ) localtime 描述：当前事务的开始时刻的时间。在sql_compatibility = 'B'，且参数b_format_version值为5.7、b_format_dev_version值为s1时返回SQL执行开始时刻的系统日期和时间。 返回值类型：time，在sql_compatibility = 'B'，且参数b_format_version值为5.7、b_format_dev_version值为s1时返回类型timestamp without time zone。 示例： 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12 gaussdb =# SELECT localtime AS RESULT ; result ---------------- 16 : 05 : 55 . 664681 ( 1 row ) --B模式，打开兼容性参数后 gaussdb_m =# SELECT localtime ; localtime --------------------- 2023 - 08 - 21 15 : 21 : 57 ( 1 row ) localtime([precision]) 描述：返回SQL执行开始时刻的系统日期和时间。 参数：表示精度（秒后小数位数），int类型，范围为[0,6]，缺省时默认值为0，无效值都报错。 返回值类型：timestamp without time zone 实现方式：注册系统函数localtime。 示例： 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10 gaussdb_m =# SELECT localtime (); localtime --------------------- 2023 - 08 - 21 15 : 23 : 49 ( 1 row ) gaussdb_m =# SELECT localtime ( 3 ); localtime ------------------------- 2023 - 08 - 21 15 : 23 : 51 . 965 ( 1 row ) 该函数在sql_compatibility = 'B'，且参数b_format_version值为5.7、b_format_dev_version值为s1时有效。 localtimestamp 描述：当前事务的开始时刻的日期及时间。在sql_compatibility = 'B'，且参数b_format_version值为5.7、b_format_dev_version值为s1时返回SQL执行开始时刻的系统日期和时间。 返回值类型：timestamp，在sql_compatibility = 'B'，且参数b_format_version值为5.7、b_format_dev_version值为s1时返回类型timestamp without time zone。 示例： 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12 gaussdb =# SELECT localtimestamp ; timestamp ---------------------------- 2017 - 09 - 01 17 : 03 : 30 . 781902 ( 1 row ) --B模式下，打开兼容性参数 gaussdb_m =# SELECT localtimestamp ; timestamp --------------------- 2023 - 08 - 21 15 : 27 : 55 ( 1 row ) localtimestamp([precision]) 描述：返回SQL执行开始时刻的系统日期和时间。 参数：表示精度（秒后小数位数），int类型，范围为[0,6]，缺省时默认值为0，超过6的整型值告警，并取最大值6输出带精度时间值，其他无效值都报错。 返回值类型：timestamp without time zone 实现方式：'now' :: text :: timestamp without time zone表达式获取。 示例： 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10 gaussdb_m =# SELECT localtimestamp (); timestamp --------------------- 2023 - 08 - 21 15 : 27 : 59 ( 1 row ) gaussdb_m =# SELECT localtimestamp ( 3 ); timestamp ------------------------- 2023 - 08 - 21 15 : 28 : 02 . 445 ( 1 row ) 该函数在sql_compatibility = 'B'，且参数b_format_version值为5.7、b_format_dev_version值为s1时有效。 maketime(hour, minute, second) 描述：通过入参hour、minute、second生成对应time类型时间，其中三个入参类型分别为bigint、bigint和numeric。 返回值类型：time 示例： 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11 gaussdb =# SELECT maketime ( 8 , 15 , 26 . 53 ); maketime ------------- 08 : 15 : 26 . 53 ( 1 row ) gaussdb =# SELECT maketime ( - 888 , 15 , 26 . 53 ); maketime ------------ - 838 : 59 : 59 ( 1 row ) 该函数仅支持sql_compatibility = 'B'，GUC参数b_format_version='5.7'、b_format_dev_version='s1'时使用，且有如下行为： 当参数满足如下任一条件时，函数返回NULL。 入参minute < 0 或 minute >= 60。 入参second < 0 或 second >= 60。 任一参数为NULL。 返回的time类型结果保留6位小数，若second超出六位小数，则按照四舍五入进位。 返回time类型值要求在[-838:59:59, 838:59:59]中。若超出范围，则根据hour的正负来返回指定的边界值。 maketime不支持自嵌套。 now() 描述：当前事务的开始时刻的日期及时间。在sql_compatibility = 'B'，且参数b_format_version值为5.7、b_format_dev_version值为s1时返回SQL执行开始时刻的系统日期和时间。 返回值类型：timestamp with time zone，在sql_compatibility = 'B'，且参数b_format_version值为5.7、b_format_dev_version值为s1时返回类型timestamp without time zone。 示例： 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11 gaussdb =# SELECT now (); now ------------------------------- 2017 - 09 - 01 17 : 03 : 42 . 549426 + 08 ( 1 row ) --B模式下，打开兼容性参数 gaussdb_m =# SELECT now (); timestamp --------------------- 2023 - 08 - 21 17 : 17 : 42 ( 1 row ) now(precision) 描述：返回SQL执行开始时刻的系统日期和时间。 参数：表示精度（秒后小数位数），int类型，范围为[0,6]，缺省时默认值为0，超过6的整型值告警，并取最大值6输出带精度时间值，其他无效值都报错。 返回值类型：timestamp without time zone 实现方式：'now' :: text :: timestamp without time zone表达式获取。 示例： 1
+2
+3
+4
+5 gaussdb_m =# SELECT now ( 3 ); timestamp ------------------------- 2023 - 08 - 21 17 : 17 : 48 . 819 ( 1 row ) 该函数在sql_compatibility = 'B'，且参数b_format_version值为5.7、b_format_dev_version值为s1时有效。 timenow() 描述：当前日期及时间。 返回值类型：abstime 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT timenow (); timenow ------------------------ 2020 - 06 - 23 20 : 36 : 56 + 08 ( 1 row ) dbtimezone 描述：当前数据库的时区。 返回值类型：text 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT dbtimezone ; dbtimezone ------------------------ PRC ( 1 row ) 此函数在参数a_format_version值为10c和a_format_dev_version值为s2的情况下有效。 numtodsinterval(num, interval_unit) 描述：将数字转换为interval类型。num为numeric类型数字，interval_unit为固定格式字符串（'DAY' | 'HOUR' | 'MINUTE' | 'SECOND'）。 可以通过设置GUC参数 IntervalStyle 为a，兼容该函数interval输出格式。 返回值类型：interval 示例： 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13 gaussdb =# SELECT numtodsinterval ( 100 , 'HOUR' ); numtodsinterval ----------------- 100 : 00 : 00 ( 1 row ) gaussdb =# SET intervalstyle = a ; SET gaussdb =# SELECT numtodsinterval ( 100 , 'HOUR' ); numtodsinterval ------------------------------- + 000000004 04 : 00 : 00 . 000000000 ( 1 row ) 此函数在参数a_format_version值为10c和a_format_dev_version值为s2的情况下：当参数interval_unit为 'DAY' 时，参数num超过1000000000会报错。 numtoyminterval(num, interval_unit) 描述：将数字转换为interval类型。num为numeric类型数字，interval_unit为固定格式字符串（'YEAR' | 'MONTH'）。 可以通过设置GUC参数 IntervalStyle 为a，兼容该函数interval输出格式。 返回值类型：interval 示例： 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13 gaussdb =# SELECT numtoyminterval ( 100 , 'MONTH' ); numtoyminterval ----------------- 8 years 4 mons ( 1 row ) gaussdb =# SET intervalstyle = oracle ; SET gaussdb =# SELECT numtodsinterval ( 100 , 'MONTH' ); numtoyminterval ----------------- 8 - 4 ( 1 row ) 此函数在参数a_format_version值为10c和a_format_dev_version值为s2的情况下有效。 new_time(date, timezone1,timezone2) 描述：当timezone1所表示时区的日期时间为date的时候，返回此时timezone2所表示时区的日期时间值。 返回值类型：timestamp 示例： 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10 gaussdb =# SELECT new_time ( '1997-10-10' , 'AST' , 'EST' ); new_time --------------------- 1997 - 10 - 09 23 : 00 : 00 ( 1 row ) gaussdb =# SELECT NEW_TIME ( TO_TIMESTAMP ( '10-Sep-02 14:10:10.123000' , 'DD-Mon-RR HH24:MI:SS.FF' ), 'AST' , 'PST' ); new_time ------------------------- 2002 - 09 - 10 10 : 10 : 10 . 123 ( 1 row ) 此函数在参数a_format_version值为10c和a_format_dev_version值为s2的情况下生效。 sessiontimezone 描述：当前会话的时区，无入参。 返回值类型：text。 示例： 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10 gaussdb =# SELECT SESSIONTIMEZONE ; session_time_zone ------------------- PST8PDT ( 1 row ) gaussdb =# SELECT LOWER ( SESSIONTIMEZONE ); lower ----------- @ 8 hours ( 1 row ) 此函数在参数a_format_version值为10c和a_format_dev_version值为s2的情况下生效。 当set session time zone的值为GMT+08:00/GMT-08:00格式时，会校验失败报错，此行为符合预期。如果打开s2开关后，使用JDBC创建连接时报“ERROR:invalid value for parameter "TimeZone" :"GMT-08:00"”的错误时，这说明驱动所在的应用给GaussDB数据库传递了相同的GMT格式的时区参数，可以通过如下两种方法解决： 方法1： 调整应用端操作系统时区，将本地时区设置成地区格式，例如：Asia/Shanghai。 方法2：应用侧更换为和版本匹配的JDBC驱动，JDBC驱动会将GMT格式的时区调整为数据库可识别的时区格式。 sys_extract_utc(timestamp| timestamptz) 描述：从具有时区偏移量或时区区域名称的日期时间值中提取UTC（协调世界时-以前称为格林威治平均时间）。如果未指定时区，则日期时间与会话时区关联。入参有timestamp和timestamptz两种形式。 返回值类型：timestamp。 示例： 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10 gaussdb =# SELECT SYS_EXTRACT_UTC ( TIMESTAMP '2000-03-28 11:30:00.00' ); sys_extract_utc --------------------- 2000 - 03 - 28 03 : 30 : 00 ( 1 row ) gaussdb =# SELECT SYS_EXTRACT_UTC ( TIMESTAMPTZ '2000-03-28 11:30:00.00 -08:00' ); sys_extract_utc --------------------- 2000 - 03 - 28 19 : 30 : 00 ( 1 row ) 此函数在参数a_format_version值为10c和a_format_dev_version值为s2的情况下有效。 tz_offset('time_zone_name' | '(+/-)hh:mi' | SESSIONTIMEZONE | DBTIMEZONE) 描述：入参有以上四种形式，返回入参所表示时区的UTC偏移量。 返回值类型：text。 示例： 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10 gaussdb =# SELECT TZ_OFFSET ( 'US/Pacific' ); tz_offset ----------- - 08 : 00 ( 1 row ) gaussdb =# SELECT TZ_OFFSET ( sessiontimezone ); tz_offset ----------- + 08 : 00 ( 1 row ) 此函数在参数a_format_version值为10c和a_format_dev_version值为s2的情况下生效。 pg_sleep(seconds) 描述：服务器线程延迟时间，单位为秒。 返回值类型：void 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT pg_sleep ( 10 ); pg_sleep ---------- ( 1 row ) statement_timestamp() 描述： 当前日期和时间(当前语句的开始) 。 返回值类型：timestamp with time zone 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT statement_timestamp (); statement_timestamp ------------------------------- 2017 - 09 - 01 17 : 04 : 39 . 119267 + 08 ( 1 row ) sysdate 描述：返回事务执行时刻的日期及时间。 返回值类型：timestamp 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT sysdate ; sysdate --------------------- 2017 - 09 - 01 17 : 04 : 49 ( 1 row ) sysdate([precision]) 描述：返回函数执行时刻的系统日期和时间。 参数：表示时间精度，int类型，范围为[0,6]，缺省时默认值为0。 返回值类型：timestamp without time zone 示例： 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10 gaussdb_m =# SELECT sysdate (); sysdate () --------------------- 2023 - 08 - 21 17 : 17 : 42 ( 1 row ) gaussdb_m =# SELECT sysdate ( 3 ); sysdate ( 3 ) ------------------------- 2023 - 08 - 21 17 : 17 : 48 . 819 ( 1 row ) 该函数在sql_compatibility = 'B'，且参数b_format_version值为5.7、b_format_dev_version值为s1时有效。 current_sysdate 描述：当前日期及时间。 返回值类型：timestamp 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT current_sysdate (); current_sysdate --------------------- 2023 - 06 - 20 20 : 09 : 02 ( 1 row ) timeofday() 描述：当前日期及时间（像clock_timestamp，但是返回时为text）。 返回值类型：text 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT timeofday (); timeofday ------------------------------------- Fri Sep 01 17 : 05 : 01 . 167506 2017 CST ( 1 row ) transaction_timestamp() 描述：当前事务开始的日期及时间。 返回值类型：timestamp with time zone，在sql_compatibility = 'B'，且参数b_format_version值为5.7、b_format_dev_version值为s1时返回timestamp without time zone。 示例： 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11 gaussdb =# SELECT transaction_timestamp (); transaction_timestamp ------------------------------- 2017 - 09 - 01 17 : 05 : 13 . 534454 + 08 ( 1 row ) --B模式下打开兼容性开关 gaussdb =# SELECT transaction_timestamp (); transaction_timestamp ---------------------------- 2023 - 09 - 07 09 : 32 : 09 . 728998 ( 1 row ) add_months(d,n) 描述：用于计算时间点d再加上n个月的时间。 d：timestamp类型的值，以及可以隐式转换为timestamp类型的值。 n：INTEGER类型的值，以及可以隐式转换为INTEGER类型的值。 返回值类型：timestamp 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT add_months ( to_date ( '2017-5-29' , 'yyyy-mm-dd' ), 11 ) FROM sys_dummy ; add_months --------------------- 2018 - 04 - 29 00 : 00 : 00 ( 1 row ) 此函数在参数a_format_version值为10c和a_format_dev_version值为s1的情况下： 当计算结果大于公元9999年时会报错。 参数n入参若为小数则不会被四舍五入，而是被截断。 last_day(d) 描述：用于计算时间点d当月最后一天的时间。 返回值类型：timestamp 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT last_day ( to_date ( '2017-01-01' , 'YYYY-MM-DD' )) AS cal_result ; cal_result --------------------- 2017 - 01 - 31 00 : 00 : 00 ( 1 row ) 该函数在sql_compatibility = 'B'，且参数b_format_version值为5.7、b_format_dev_version值为s1时，使用last_day函数将会调用内置函数b_db_last_day，入参类型可为TEXT、DATE、DATETIME和TIME数据类型。返回值为date类型，支持输入datetime样式数字。 months_between(d1, d2) 描述：用于计算时间点d1和时间点d2的月份差值，如果两个日期都是月末或天数相同，则返回整数，否则返回值带小数，按31天/月计算。 返回值类型：numeric 示例： gaussdb=# SELECT months_between(to_date('2022-10-31', 'yyyy-mm-dd'), to_date('2022-09-30', 'yyyy-mm-dd'));
+ months_between 
+----------------
+             1
+(1 row) gaussdb=# SELECT months_between(to_date('2022-10-30', 'yyyy-mm-dd'), to_date('2022-09-30', 'yyyy-mm-dd'));
+ months_between 
+----------------
+             1
+(1 row) gaussdb=# SELECT months_between(to_date('2022-10-29', 'yyyy-mm-dd'), to_date('2022-09-30', 'yyyy-mm-dd'));
+    months_between     
+-----------------------
+ .96774193548387096774
+(1 row) 此函数在参数a_format_version值为10c和a_format_dev_version值为s1的情况下有效。 next_day(x,y) 描述：用于计算时间点x开始的下一个星期几（y）的时间。 返回值类型：timestamp 示例： 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17 gaussdb =# SELECT next_day ( timestamp '2017-05-25 00:00:00' , 'Sunday' ) AS cal_result ; cal_result --------------------- 2017 - 05 - 28 00 : 00 : 00 ( 1 row ) gaussdb =# SELECT next_day ( timestamp '2024-01-17 00:00:00' , 7 . 9999999 ); ERROR : Week day out of range , the range is 1 ... 7 CONTEXT : referenced column : next_day gaussdb =# SET a_format_version = '10c' ; SET gaussdb =# SET a_format_dev_version = 's1' ; SET gaussdb =# SELECT next_day ( timestamp '2024-01-17 00:00:00' , 7 . 9999999 ); next_day --------------------- 2024 - 01 - 20 00 : 00 : 00 ( 1 row ) 此函数在A兼容模式数据库中参数a_format_version值为10c和a_format_dev_version值为s1的情况下，且第二个参数为浮点数时，其将舍弃小数部分，否则将按照四舍五入计算。 此函数在A兼容模式数据库中，当参数a_format_version值为10c和a_format_dev_version值为s1时，第一个参数的类型才可以是TIMSTAMP WITH TIME ZONE。 tinterval(abstime, abstime) 描述：用两个绝对时间创建时间间隔。 返回值类型：tinterval 示例： 1
+2
+3
+4
+5 gaussdb =# CALL tinterval ( abstime 'May 10, 1947 23:59:12' , abstime 'Mon May  1 00:30:30 1995' ); tinterval ----------------------------------------------------- [ "1947-05-10 23:59:12+09" "1995-05-01 00:30:30+08" ] ( 1 row ) tintervalend(tinterval) 描述：返回tinterval的结束时间。 返回值类型：abstime 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT tintervalend ( '["Sep 4, 1983 23:59:12" "Oct4, 1983 23:59:12"]' ); tintervalend ------------------------ 1983 - 10 - 04 23 : 59 : 12 + 08 ( 1 row ) tintervalrel(tinterval) 描述：计算并返回tinterval的相对时间。 返回值类型：reltime 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT tintervalrel ( '["Sep 4, 1983 23:59:12" "Oct4, 1983 23:59:12"]' ); tintervalrel -------------- 1 mon ( 1 row ) smalldatetime_ge 描述：判断是否第一个参数大于等于第二个参数。 参数：smalldatetime, smalldatetime 返回值类型：boolean smalldatetime_cmp 描述：对比smalldatetime是否相等。 参数：smalldatetime, smalldatetime 返回值类型：integer smalldatetime_eq 描述：对比smalldatetime是否相等。 参数：smalldatetime, smalldatetime 返回值类型：boolean。 smalldatetime_gt 描述：判断是否第一个参数大于第二个参数。 参数：smalldatetime, smalldatetime 返回值类型：boolean smalldatetime_hash 描述：计算timestamp对应的哈希值。 参数：smalldatetime 返回值类型：integer smalldatetime_in 描述：输入timestamp。 参数：cstring, oid, integer 返回值类型：smalldatetime smalldatetime_larger 描述：返回较大的timestamp。 参数：smalldatetime, smalldatetime 返回值类型：smalldatetime smalldatetime_le 描述：判断是否第一个参数小于等于第二个参数。 参数：smalldatetime, smalldatetime 返回值类型：boolean smalldatetime_lt 描述：判断是否第一个参数小于第二个参数。 参数：smalldatetime, smalldatetime 返回值类型：boolean smalldatetime_ne 描述：比较两个timestamp是否不相等。 参数：smalldatetime, smalldatetime 返回值类型：boolean smalldatetime_out 描述：timestamp转换为外部形式。 参数：smalldatetime 返回值类型：cstring smalldatetime_send 描述：timestamp转换为二进制格式。 参数：smalldatetime 返回值类型：bytea smalldatetime_smaller 描述：返回较小的一个smalldatetime。 参数：smalldatetime, smalldatetime 返回值类型：smalldatetime smalldatetime_to_abstime 描述：smalldatetime转换为abstime。 参数：smalldatetime 返回值类型：abstime smalldatetime_to_time 描述：smalldatetime转换为time。 参数：smalldatetime 返回值类型：time without time zone smalldatetime_to_timestamp 描述：smalldatetime转换为timestamp。 参数：smalldatetime 返回值类型：timestamp without time zone smalldatetime_to_timestamptz 描述：smalldatetime转换为timestamptz。 参数：smalldatetime 返回值类型：timestamp with time zone smalldatetime_to_varchar2 描述：smalldatetime转换为varchar2。 参数：smalldatetime 返回值类型：character varying 获取当前时间有多种方式，请根据实际业务从场景选择合适的接口： 以下接口按照当前事务的开始时刻返回值： CURRENT_DATE
+CURRENT_TIME
+CURRENT_TIME(precision)
+CURRENT_TIMESTAMP(precision)
+LOCALTIME
+LOCALTIMESTAMP
+LOCALTIME(precision)
+LOCALTIMESTAMP(precision)
+transaction_timestamp()
+now() 其中CURRENT_TIME和CURRENT_TIMESTAMP(precision)传递带有时区的值；LOCALTIME和LOCALTIMESTAMP传递的值不带时区。CURRENT_TIME、LOCALTIME和LOCALTIMESTAMP可以指定精度参数，这会导致结果在秒字段中四舍五入到小数位数。如果没有精度参数，结果将被给予所能得到的全部精度。 因为这些函数全部都按照当前事务的开始时刻返回结果，所以它们的值在事务运行的整个期间内都不改变。我们认为这是一个特性：目的是为了允许一个事务在“当前”时间上有一致的概念，这样在同一个事务里的多个修改可以保持同样的时间戳。其中transaction_timestamp()等价于CURRENT_TIMESTAMP(precision)，表示当前语句所在事务的开启时间。now()等效于transaction_timestamp()。 在sql_compatibility = 'B'，且参数b_format_version值为5.7、b_format_dev_version值为s1时CURDATE、CURRENT_DATE、CURTIME、CURRENT_TIME、CURRENT_TIMESTAMP、NOW、LOCALTIME、LOCALTIMESTAMP、UTC_TIME、UTC_TIMESTAMP都返回SQL语句开始执行的时间，SYSDATE返回函数调用开始的时间。transaction_timestamp()依然表示事务开始的时间，返回值类型修改为timestamp without time zone。 以下接口返回当前语句开始时间： statement_timestamp() statement_timestamp()返回当前语句的开始时刻（更准确的说是收到客户端最后一条命令的时间）。statement_timestamp()和transaction_timestamp()在一个事务的第一条命令期间返回值相同，但是在随后的命令中却不一定相同。 以下接口返回函数被调用时的真实当前时间： clock_timestamp()
+timeofday() clock_timestamp()返回真正的当前时间，因此它的值甚至在同一条SQL命令中都会变化。timeofday()和clock_timestamp()相似，timeofday()也返回真实的当前时间，但是它的结果是一个格式化的text串，而不是timestamp with time zone值。 convert_tz(dt, from_tz, to_tz) 描述：将时间日期值dt从from_tz时区转换到to_tz时区。 参数：参数介绍见下表。 参数 类型 描述 取值范围 dt datetime、date、text、numeric类型。 时间日期值。 [0000-01-01 00:00:00.000000, 9999-12-31 23:59:59.999999]，精度最高支持6位。 from_tz/to_tz ±hh:mm格式的字符串。 表示相较于UTC时间的偏移，如'+08:00'。 [-15:59, 15:00]。 命名时区。 如'MET'、'UTC'等。 具体请参考 PG_TIMEZONE_NAMES 系统视图。 返回值类型：datetime 示例： 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27
+28
+29
+30
+31
+32
+33
+34
+35
+36
+37
+38
+39
+40
+41
+42
+43
+44
+45
+46
+47 ----创建B兼容性数据库。 gaussdb =# CREATE USER JIM PASSWORD '*********' ; CREATE ROLE gaussdb =# CREATE DATABASE testdb3 OWNER JIM DBCOMPATIBILITY = 'B' ; CREATE DATABASE ---切换至B兼容性数据库testdb3，并设置会话参数。 gaussdb =# \ c testdb3 testdb3 =# SET b_format_dev_version = 's1' ; SET testdb3 =# SET b_format_version = '5.7' ; SET testdb3 =# SELECT convert_tz ( cast ( '2023-01-01 10:10:10' as datetime ), '+00:00' , '+01:00' ); convert_tz --------------------- 2023 - 01 - 01 11 : 10 : 10 ( 1 row ) testdb3 =# SELECT convert_tz ( cast ( '2023-01-01' as date ), '+00:00' , '+01:00' ); convert_tz --------------------- 2023 - 01 - 01 01 : 00 : 00 ( 1 row ) testdb3 =# SELECT convert_tz ( '2023-01-01 10:10:10' , '+00:00' , '+01:00' ); convert_tz --------------------- 2023 - 01 - 01 11 : 10 : 10 ( 1 row ) testdb3 =# SELECT convert_tz ( '2023-01-01' , '+00:00' , '+01:00' ); convert_tz --------------------- 2023 - 01 - 01 01 : 00 : 00 ( 1 row ) testdb3 =# SELECT convert_tz ( 20230101101010 , '+00:00' , '+01:00' ); convert_tz --------------------- 2023 - 01 - 01 11 : 10 : 10 ( 1 row ) testdb3 =# SELECT convert_tz ( 20230101 , '+00:00' , '+01:00' ); convert_tz --------------------- 2023 - 01 - 01 01 : 00 : 00 ( 1 row ) testdb3 =# SELECT convert_tz ( '2023-01-01 10:10:10' , 'UTC' , 'PRC' ); convert_tz --------------------- 2023 - 01 - 01 18 : 10 : 10 ( 1 row ) 该函数在sql_compatibility = 'B'，且参数b_format_version值为5.7、b_format_dev_version值为s1时有效。 sec_to_time(seconds) 描述：将seconds表示的秒数转换为time类型的时间。 参数：参数介绍见下表。 参数 类型 描述 取值范围 seconds numeric、text类型 秒数。 [-3020399, +3020399]，对应time类型范围[-838:59:59, 838:59:59]，对于越界输入会截断到边界值。 返回值类型：time without time zone 示例： 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22 ----创建B兼容性数据库。 gaussdb =# CREATE USER JIM PASSWORD '*********' ; CREATE ROLE gaussdb =# CREATE DATABASE testdb3 OWNER JIM DBCOMPATIBILITY = 'B' ; CREATE DATABASE ---切换至B兼容性数据库testdb3，并设置会话参数。 gaussdb =# \ c testdb3 testdb3 =# SET b_format_dev_version = 's1' ; SET testdb3 =# SET b_format_version = '5.7' ; SET testdb3 =# SELECT sec_to_time ( 2000 ); sec_to_time ------------- 00 : 33 : 20 ( 1 row ) testdb3 =# SELECT sec_to_time ( '-2000' ); sec_to_time ------------- - 00 : 33 : 20 ( 1 row ) 该函数在sql_compatibility = 'B'，且参数b_format_version值为5.7、b_format_dev_version值为s1时有效。 adddate(date, INTERVAL val unit) 描述：将日期加上一定的时间间隔，返回一个新的日期。 参数：参数介绍见下表。 参数 类型 描述 取值范围 date 时间类型表达式、text、datetime、date或time等类型 要加上时间间隔的日期。 和类型范围一致。 val 整数、浮点数、字符串等类型 要加上的时间间隔。 和类型范围一致。 unit 关键字 时间间隔的单位。 YEAR、QUARTER、MONTH、WEEK、DAY、HOUR、MINUTE、SECOND、MICROSECOND等，详见 时间间隔表达式 。 返回值类型：TEXT、DATE、DATETIME或TIME WITHOUT TIMEZONE 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT ADDDATE ( '2018-05-01' , INTERVAL 1 DAY ); adddate ------------ 2018 - 05 - 02 ( 1 row ) 1. 该函数在sql_compatibility = 'B'，且参数b_format_version值为5.7、b_format_dev_version值为s1时有效。 2. 在prepare语句中，adddate的第二个参数为interval表达式，当使用参数$1完全替代时，会导致结果非预期，例如：prepare p1 as select adddate('2023-01-01 10:00:00', $1); execute p1(interval 13 hour);该用例返回非预期结果为'2023-01-01 10:00:00'。 adddate(expr, days) 描述：将日期加上一定的天数值，返回一个新的日期。 参数： expr：指定开始的日期时间，时间类型表达式，TEXT、DATE、DATETIME或TIME等类型。 days：需要加上的天数，int类型。 返回值类型：TEXT、DATE、DATETIME或TIME WITHOUT TIMEZONE。 示例： gaussdb=# SELECT ADDDATE('2018-05-01', 1);
+  adddate   
+------------
+ 2018-05-02
+(1 row) 该函数在sql_compatibility = 'B'，且参数b_format_version值为5.7、b_format_dev_version值为s1时有效。 curdate() 描述：返回本地函数调用开始时刻的系统日期。支持在同一连接内修改时区，返回的日期受时区影响。 返回值类型：date 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT curdate (); curdate ------------ 2023 - 08 - 10 ( 1 row ) 该函数在sql_compatibility = 'B'，且参数b_format_version值为5.7、b_format_dev_version值为s1时有效。 curtime([precision]) 描述：返回SQL调用开始时刻的系统时间。 参数：表示精度（秒后小数的位数），int类型，范围为[0,6]，缺省时默认值为0，能转成范围内整型值可以输出对应精度时间值，其他无效值会报错。 返回值类型：time without time zone 实现方式：注册系统函数curtime。 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT curtime ( 3 ); curtime -------------- 16 : 59 : 57 . 203 ( 1 row ) 该函数在sql_compatibility = 'B'，且参数b_format_version值为5.7、b_format_dev_version值为s1时有效。 date_add(date,INTERVAL val unit) 描述：向指定日期添加一段时间，并返回计算结果。 参数：参数介绍见下表。 参数 类型 描述 取值范围 date 时间类型表达式、text、datetime、date或time等类型 要加上时间间隔的日期。 和类型范围一致。 val 整数、浮点数、字符串等类型 要加上的时间间隔。 和类型范围一致。 unit 关键字 时间间隔的单位。 YEAR、QUARTER、MONTH、WEEK、DAY、HOUR、MINUTE、SECOND、MICROSECOND等，详见 时间间隔表达式 。 返回值类型：单个返回值，具体返回类型描述见下表。 返回值类型 描述 TEXT 当date入参为text类型。 DATE 当date入参为date类型，且unit入参大于等于day（如week、month）。 TIME WITHOUT TIMEZONE 当date入参为time类型。 DATETIME 当date入参为datetime类型；或当date入参为date类型，且unit入参小于day（如hour、second）。 示例： gaussdb=# SELECT DATE_ADD('2018-05-01', INTERVAL 1 DAY);
+  date_add  
+------------
+ 2018-05-02
+(1 row) 该函数在sql_compatibility = 'B'，且参数b_format_version值为5.7、b_format_dev_version值为s1时有效。 在prepare语句中，date_add的第二个参数为interval表达式，不支持使用参数$1替代使用，例如：prepare p1 as select date_add('2023-01-01 10:00:00', $1); date_add(expr, days) 描述：将日期加上一定的天数值，返回一个新的日期。 参数： expr：指定开始的日期时间，时间类型表达式，TEXT、DATE、DATETIME或TIME等类型。 days：需要加上的天数，int类型。 返回值类型：TEXT、DATE、DATETIME或TIME WITHOUT TIMEZONE。 示例： gaussdb=# SELECT DATE_ADD('2018-05-01', 1);
+  date_add  
+------------
+ 2018-05-02
+(1 row) 该函数在sql_compatibility = 'B'，且参数b_format_version值为5.7、b_format_dev_version值为s1时有效。 date_format(date, format) 描述：将日期时间以指定格式输出。 参数介绍见下表。 参数 类型 描述 取值范围 date 时间类型表达式、text、datetime、date或time等类型 需要格式化的日期。 和类型范围一致。 format text 格式化字符串。 参见下方表格 format参数列表如下所示。 %a 星期的缩写（Sun..Sat）。 %b 月份的缩写（Jan..Dec）。 %c 月份数字（0..12）。 %D 带有英语前缀的月份中的每天（0th, 1st, 2nd, 3rd, …）。 %d 月份中的每天的两位数字表示（00..31）。 %e 月份中的每天的数字表示（0..31）。 %f 微秒（000000..999999）。 %H 小时（00..23）。 %h 小时（01..12）。 %I 小时（01..12）。 %i 分钟（00..59）。 %j 一年中的每天（001..366）。 %k 小时（0..23）。 %l 小时（1..12）。 %M 月份名称（January..December）。 %m 两位数字月份（00..12）。 %p AM或者PM。 %r 十二小时制时间（hh:mm:ss后跟AM或PM）。 %S 秒（00..59）。 %s 秒（00..59）。 %T 二十四小时制时间（hh:mm:ss）。 %U 一年中的星期（00..53），每周的开始是星期天。 %u 一年中的星期（00..53），每周的开始是星期一。 %V 一年中的星期（01..53），每周的开始是星期天。 %v 一年中的星期（01..53），每周的开始是星期一。 %W 星期的名称（Sunday..Saturday）。 %w 星期中的每天（0=星期天..6=星期六）。 %X 一年中的星期，每周的开始是星期天，四位数字，用于%V。 %x 一年中的星期，每周的开始是星期一，四位数字，用于%v。 %Y 四位数字年份。 %y 两位数字年份。 返回值类型：text 示例： gaussdb=# SELECT date_format('2023-10-11 12:13:14.151617','%b %c %M %m');    
+     date_format    
+-------------------
+ Oct 10 October 10
+(1 row) 该函数在sql_compatibility = 'B'，且参数b_format_version值为5.7、b_format_dev_version值为s1时有效。 date_sub(date, INTERVAL val unit) 描述：将日期减上一定的时间间隔，返回一个新的日期。 参数：参数介绍见下表。 参数 类型 描述 取值范围 date 时间类型表达式、text、datetime、date或time等类型 要加上时间间隔的日期。 和类型范围一致。 val 整数、浮点数、字符串等类型 要加上的时间间隔。 和类型范围一致。 unit 关键字 时间间隔的单位。 YEAR、QUARTER、MONTH、WEEK、DAY、HOUR、MINUTE、SECOND、MICROSECOND等，详见 时间间隔表达式 。 返回值类型：TEXT、DATE、DATETIME或TIME WITHOUT TIMEZONE。 示例： gaussdb=# SELECT DATE_SUB('2018-05-01', INTERVAL 1 YEAR);
+  date_sub  
+------------
+ 2017-05-01
+(1 row) 1. 该函数在sql_compatibility = 'B'，且参数b_format_version值为5.7、b_format_dev_version值为s1时有效。 2. 在prepare语句中，date_sub的第二个参数为interval表达式，不支持使用参数$1替代使用，例如：prepare p1 as select date_sub('2023-01-01 10:00:00', $1); date_sub(expr, days) 描述：指定开始的日期时间和要从开始的日期时间减去的天数值，返回相减后的日期结果值。 参数： expr：指定开始的日期时间，时间类型表达式，TEXT、DATE、DATETIME或TIME等类型。 days：需要减去的天数，int类型。 返回值类型：TEXT、DATE、DATETIME或TIME WITHOUT TIMEZONE。 示例： gaussdb=# SELECT DATE_SUB('2023-1-1', 20);
+  date_sub  
+------------
+ 2022-12-12
+(1 row) 该函数在sql_compatibility = 'B'，且参数b_format_version值为5.7、b_format_dev_version值为s1时有效。 datediff(expr1, expr2) 描述：返回两个时间表达式之间相差的天数。 参数介绍见下表。 参数 类型 描述 取值范围 expr1 时间类型表达式、text、datetime、date或time等类型 某个时间。 和类型范围一致。 expr2 时间类型表达式、text、datetime、date或time等类型 某个时间。 和类型范围一致。 返回值类型：int 示例： gaussdb=# SELECT datediff('2021-11-12','2021-11-13');
+ datediff 
+----------
+       -1
+(1 row) 该函数在sql_compatibility = 'B'，且参数b_format_version值为5.7、b_format_dev_version值为s1时有效。 day()/dayofmonth() 描述：提取日期时间的天数部分，将结果返回。dayofmonth()是day()的别名，功能完全相同。 参数：入参为指定提取的日期时间，是时间类型表达式、text、datetime、date或time等类型。 返回值类型：int 示例： gaussdb=# SELECT day('2023-01-02');
+ day 
+-----
+   2
+(1 row)
+gaussdb=# SELECT dayofmonth('23-05-22');
+ dayofmonth 
+------------
+         22
+(1 row) 该函数在sql_compatibility = 'B'，且参数b_format_version值为5.7、b_format_dev_version值为s1时有效。 dayname() 描述：返回日期的星期几名称。 参数：入参为时间类型表达式、text、datetime、date或time等类型。 返回值类型：text 示例： gaussdb=# SELECT dayname('2023-10-11');
+  dayname  
+-----------
+ Wednesday
+(1 row) 该函数在sql_compatibility = 'B'，且参数b_format_version值为5.7、b_format_dev_version值为s1时有效。 返回值使用的语言由GUC参数lc_time_names控制。 dayofweek() 描述：返回日期的工作日索引（1=周日，2=周一，…，7=周六）。 参数：时间类型表达式、text、datetime、date或time等类型。 返回值类型：bigint 示例： gaussdb=# SELECT dayofweek('2023-04-16');
+ dayofweek 
+-----------
+         1
+(1 row) 该函数在sql_compatibility = 'B'，且参数b_format_version值为5.7、b_format_dev_version值为s1时有效。 dayofyear() 描述：返回一年中的第几天。 参数：入参为时间类型表达式、text、datetime、date或time等类型。 返回值类型：int，范围1-366。 示例： gaussdb=# SELECT dayofyear('2000-12-31');
+ dayofyear 
+-----------
+       366
+(1 row) 该函数在sql_compatibility = 'B'，且参数b_format_version值为5.7、b_format_dev_version值为s1时有效。 extract(unit FROM date) 描述：提取时间的一部分 ，此函数在其他模式可以使用，但行为差异较大。当sql_compatibility = 'B'时，设置参数b_format_version = '5.7'和参数b_format_dev_version = 's1'时该函数的表现如下所述。 参数： unit：text。 date：date/time/datetime/text等时间类型表达式。 返回值类型：bigint 表2 unit的取值及含义 UNIT 取值 含义 MICROSECOND 微秒 SECOND 秒 MINUTE 分钟 HOUR 小时 DAY 天数 WEEK 周数 MONTH 月份 QUARTER 季度 YEAR 年份 SECOND_MICROSECOND 秒、微秒的拼接值 MINUTE_MICROSECOND 分钟、秒、微秒的拼接值 MINUTE_SECOND 分钟、秒的拼接值 HOUR_MICROSECOND 小时、分钟、秒、微秒的拼接值 HOUR_SECOND 小时、分钟、秒的拼接值 HOUR_MINUTE 小时、分钟的拼接值 DAY_MICROSECOND 天数、小时、分钟、秒、微秒的拼接值 DAY_SECOND 天数、小时、分钟、秒的拼接值 DAY_MINUTE 天数、分钟的拼接值 DAY_HOUR 天数、小时的拼接值 YEAR_MONTH 年份、月份的拼接值 EPOCH 表示自1970-01-01 00:00:00-00 UTC以来的秒数或时间间隔的总秒数 示例： gaussdb=# SELECT extract(YEAR FROM '2023-10-11');
+ extract 
+---------
+    2023
+(1 row)
+ 
+gaussdb=# SELECT extract(QUARTER FROM '2023-10-11');
+ extract 
+---------
+       4
+(1 row)
+ 
+gaussdb=# SELECT extract(MONTH FROM '2023-10-11');
+ extract 
+---------
+      10
+(1 row)
+ 
+gaussdb=# SELECT extract(WEEK FROM '2023-10-11');
+ extract 
+---------
+      41
+(1 row)
+ 
+gaussdb=# SELECT extract(DAY FROM '2023-10-11');
+ extract 
+---------
+      11
+(1 row)
+ 
+gaussdb=# SELECT extract(HOUR FROM '2023-10-11 12:13:14');
+ extract 
+---------
+      12
+(1 row) extract在sql_compatibility = 'B'，且参数b_format_version值为5.7、b_format_dev_version值为s1时，调用的函数实际上注册为b_extract，在其他情况中，实际注册的函数为date_part，可以用“\df b_extract”等指令查询函数详细入参与返回值。 GUC参数default_week_format用于处理特殊周问题，默认值为0。详细描述见下表。 default_week_format 一周的第一天 范围 哪一周是第一周 0 周日 0~53 今年有周日的周。 1 周一 0~53 今年有4天及以上的周。 2 周日 1~53 今年有周日的周。 3 周一 1~53 今年有4天及以上的周。 4 周日 0~53 今年有4天及以上的周。 5 周一 0~53 今年有周一的周。 6 周日 1~53 今年有4天及以上的周。 7 周一 1~53 今年有周一的周。 from_days(days) 描述：给定一个天数，返回相应的日期值。。 参数：入参为时间类型表达式、text、datetime、date或time等类型。 返回值类型：date 示例： gaussdb=# SELECT from_days(36524);--0099-12-31
+ from_days  
+------------
+ 0099-12-31
+(1 row) 该函数在sql_compatibility = 'B'，且参数b_format_version值为5.7、b_format_dev_version值为s1时有效。 对于空字符和0字符，将作为0处理；对于无法正确转换为bigint的入参，将报错。 入参小于366时，返回日期为0000-00-00。 from_unixtime(unix_timestamp[,format]) 描述：将Unix时间戳转换为日期时间格式的函数。Unix时间戳是指从1970年1月1日08:00:00 UTC到指定时间的秒数。 参数： unix_timestamp：unix时间戳，numeric类型。 format：时间格式，text类型。 返回值类型：text/datetime 示例： gaussdb=# SELECT from_unixtime(1111885200);
+    from_unixtime    
+---------------------
+ 2005-03-27 09:00:00
+(1 row) 该函数在sql_compatibility = 'B'，且参数b_format_version值为5.7、b_format_dev_version值为s1时有效。 get_format({DATE | TIME | DATETIME | TIMESTAMP}, {'EUR' | 'USA' | 'JIS' | 'ISO' | 'INTERNAL'}) 描述：将日期或时间或datetime转换为指定格式的时间格式字符串，即不同地区的“年月日 时分秒”格式和排序标准。 参数： DATE|TIME|DATETIME|TIMESTAMP：表示时间类型，为关键字。 'EUR'|'USA'|'JIS'|'ISO'|'INTERNAL'：五种时间格式，text类型。 返回值类型：text 示例： gaussdb=# SELECT get_format(date, 'eur');
+ get_format 
+------------
+ %d.%m.%y
+(1 row)
+gaussdb=# SELECT get_format(date, 'usa');
+ get_format 
+------------
+ %m.%d.%y
+(1 row) 1. 该函数在sql_compatibility = 'B'，且参数b_format_version值为5.7、b_format_dev_version值为s1时有效。 2. 在prepare语句中，get_format的第一个参数为关键字，不支持使用参数$1替代使用，例如：prepare p1 as select get_format($1, 'usa'); hour() 描述：输入一个时间类型，返回对应的时间的小时部分。 参数：时间类型表达式、text、datetime、date或time等类型。 返回值类型：bigint 示例： gaussdb=# SELECT HOUR('10:10:10.1');
+ hour 
+------
+   10
+(1 row) 该函数在sql_compatibility = 'B'，且参数b_format_version值为5.7、b_format_dev_version值为s1时有效。 makedate(year,dayofyear) 描述：根据年份和天数值返回日期。 参数： year：bigint。 dayofyear：bigint，该年的第若干天，允许跨年，小于等于0时返回null。 返回值类型：date 示例： gaussdb=# SELECT makedate(2000, 60);
+  makedate  
+------------
+ 2000-02-29
+(1 row) 该函数在sql_compatibility = 'B'，且参数b_format_version值为5.7、b_format_dev_version值为s1时有效。 microsecond() 描述：输入一个时间类型，返回对应的时间的微秒部分。 参数：时间类型表达式、text、datetime、date或time等类型。 返回值类型：bigint 示例： gaussdb=# SELECT MICROSECOND('2023-5-5 10:10:10.24485');
+ microsecond 
+-------------
+      244850
+(1 row) 该函数在sql_compatibility = 'B'，且参数b_format_version值为5.7、b_format_dev_version值为s1时有效。 minute() 描述：输入一个时间类型，返回对应的时间的分钟部分。 参数：时间类型表达式、text、datetime、date或time等类型。 返回值类型：bigint 示例： gaussdb=# SELECT MINUTE(time'10:10:10');
+ minute 
+--------
+     10
+(1 row) 该函数在sql_compatibility = 'B'，且参数b_format_version值为5.7、b_format_dev_version值为s1时有效。 month() 描述：返回从过去日期开始的月份。 参数：入参为指定提取的日期时间，是时间类型表达式、TEXT、DATETIME、DATE或TIME等类型。 返回值类型：int 示例： gaussdb=# SELECT month('2021-11-30');
+ month 
+-------
+    11
+(1 row) 该函数在sql_compatibility = 'B'，且参数b_format_version值为5.7、b_format_dev_version值为s1时有效。 monthname() 描述：返回日期的月份全名。 参数：入参为时间类型表达式、text、datetime、date或time等类型。 返回值类型：text 示例： gaussdb=# SELECT monthname('2023-02-28');
+ monthname 
+-----------
+ February
+(1 row) 该函数在sql_compatibility = 'B'，且参数b_format_version值为5.7、b_format_dev_version值为s1时有效。 返回值使用的语言由lc_time_names系统变量的值控制。 period_add(period, month_number) 描述：在指定时间段上加上指定的月数，将结果作为时间段返回。 参数： period：bigint，使用YYYYMM或YYMM格式表示的日期。 month_number：bigint，需要加上的月数，允许为负数。 返回值类型：bigint，使用YYYYMM格式表示的日期。 示例： gaussdb=# SELECT period_add(202205, -12);
+ period_add 
+------------
+     202105
+(1 row) 该函数在sql_compatibility = 'B'，且参数b_format_version值为5.7、b_format_dev_version值为s1时有效。 period_diff(p1,p2) 描述：计算两个时间的月份差。 参数：P1，P2均为YYMM或YYYYMM格式的期间，bigint类型。 返回值类型：bigint，月份差。 示例： gaussdb=# SELECT period_diff('202101', '202102'); 
+ period_diff 
+-------------
+          -1
+(1 row) 该函数在sql_compatibility = 'B'，且参数b_format_version值为5.7、b_format_dev_version值为s1时有效。 second() 描述：输入一个时间类型，返回对应的时间的秒部分。 参数：时间类型表达式、text、datetime、date或time等类型。 返回值类型：bigint 示例： gaussdb=# SELECT SECOND('2023-5-5 10:10:10');
+ second 
+--------
+     10
+(1 row) 该函数在sql_compatibility = 'B'，且参数b_format_version值为5.7、b_format_dev_version值为s1时有效。 quarter() 描述：输入一个日期类型，返回对应的日期的季度部分。 参数：入参为指定提取的日期时间，是时间类型表达式、TEXT、DATETIME、DATE或TIME等类型。 返回值类型：bigint 示例： gaussdb=# SELECT QUARTER('2012-1-1');
+ quarter 
+---------
+       1
+(1 row) 该函数在sql_compatibility = 'B'，且参数b_format_version值为5.7、b_format_dev_version值为s1时有效。 str_to_date(str, format) 描述：将指定的字符串根据指定日期格式转为日期/时间。 参数： str：text类型，需要格式化成日期的字符串； format：text类型，格式化字符串。 format参数列表如下所示。 %a 星期的缩写（Sun..Sat）。 %b 月份的缩写（Jan..Dec）。 %c 月份数字（0..12）。 %D 带有英语前缀的月份中的每天（0th, 1st, 2nd, 3rd, …）。 %d 月份中的每天的两位数字表示（00..31）。 %e 月份中的每天的数字表示（0..31）。 %f 微秒（000000..999999）。 %H 小时（00..23）。 %h 小时（01..12）。 %I 小时（01..12）。 %i 分钟（00..59）。 %j 一年中的每天（001..366）。 %k 小时（0..23）。 %l 小时（1..12）。 %M 月份名称（January..December）。 %m 两位数字月份（00..12）。 %p AM或者PM。 %r 十二小时制时间（hh:mm:ss后跟AM或PM）。 %S 秒（00..59）。 %s 秒（00..59）。 %T 二十四小时制时间（hh:mm:ss）。 %U 一年中的星期（00..53），每周的开始是星期天。 %u 一年中的星期（00..53），每周的开始是星期一。 %V 一年中的星期（01..53），每周的开始是星期天。 %v 一年中的星期（01..53），每周的开始是星期一。 %W 星期的名称（Sunday..Saturday）。 %w 星期中的每天（0=星期天..6=星期六）。 %X 一年中的星期，每周的开始是星期天，四位数字，用于%V。 %x 一年中的星期，每周的开始是星期一，四位数字，用于%v。 %Y 四位数字年份。 %y 两位数字年份。 返回值类型：text 示例： gaussdb=# SELECT str_to_date('May 1, 2013','%M %d,%Y');--2013-05-01
+ str_to_date 
+-------------
+ 2013-05-01
+(1 row) 该函数在sql_compatibility = 'B'，且参数b_format_version值为5.7、b_format_dev_version值为s1时有效。 只支持返回YYYY-MM-DD格式的时间。 对于包含0年0月0日的时间或者只包含时分秒的时间，会报警并返回NULL。 subdate(expr, days) 描述：指定开始的日期时间和要从开始的日期时间减去的天数值，返回相减后的日期结果值。 参数： expr：指定开始的日期时间，时间类型表达式，TEXT、DATE、DATETIME或TIME等类型。 days：需要减去的天数，int类型。 返回值类型：TEXT、DATE、DATETIME或TIME WITHOUT TIMEZONE。 示例： gaussdb=# SELECT SUBDATE('2023-1-1', 20);
+  subdate   
+------------
+ 2022-12-12
+(1 row) 该函数在sql_compatibility = 'B'，且参数b_format_version值为5.7、b_format_dev_version值为s1时有效。 subdate(expr,INTERVAL val unit) 描述：指定开始的日期时间和要从开始的日期时间减去的时间间隔，返回相减后的日期结果值。 参数：参数介绍如下表所示。 参数 类型 描述 取值范围 expr 时间类型表达式、text、datetime、date或time等类型 指定开始的日期时间。 和类型范围一致。 val 整数、浮点数、字符串等类型 指定要减去的时间间隔。 和类型范围一致。 unit 关键字 YEAR、QUARTER、MONTH、WEEK、DAY、HOUR、MINUTE、SECOND、MICROSECOND等，详见 时间间隔表达式 。 返回值类型：TEXT、DATE、DATETIME或TIME WITHOUT TIMEZONE。 示例： gaussdb=# SELECT SUBDATE('2018-05-01', INTERVAL 1 YEAR);
+  subdate   
+------------
+ 2017-05-01
+(1 row) 1. 该函数在sql_compatibility = 'B'，且参数b_format_version值为5.7、b_format_dev_version值为s1时有效。 2. 在prepare语句中，subdate的第二个参数为interval表达式，当使用参数$1完全替代时，会导致结果非预期，例如：prepare p1 as select subdate('2023-01-01 10:00:00', $1); execute p1(interval 13 hour);该用例返回非预期结果为'2023-01-01 10:00:00'。 subtime(expr1,expr2) 描述：返回时间或时间日期表达式expr1与时间表达式expr2的差值。 参数： expr1为timestamp without time zone/time类型的表达式，expr2为time表达式。 返回值类型与expr1类型有关，两入参存在text类型则返回text，解析为timestamp without time zone则返回timestamp without time zone，解析为time则返回time。 返回值类型：text、timestamp without time zone或time。 示例： gaussdb=# SELECT subtime('2000-03-01 20:59:59', '22:58');
+       subtime       
+---------------------
+ 2000-02-29 22:01:59
+(1 row) 该函数在sql_compatibility = 'B'，且参数b_format_version值为5.7、b_format_dev_version值为s1时有效。 addtime(expr1,expr2) 描述：返回时间或时间日期表达式expr1与时间表达式expr2的相加后的值，返回值的格式与expr1保持一致。 参数： expr1为timestamp without time zone/time类型的表达式，expr2为time表达式。 返回值类型与expr1类型有关，解析为timestamp without time zone则返回timestamp without time zone，解析为time则返回time。 返回值类型：text、timestamp without time zone或time 示例： gaussdb=# SELECT addtime('2000-03-01 20:59:59', '00:00:01');
+       addtime       
+---------------------
+ 2000-03-01 21:00:00
+(1 row) 该函数在sql_compatibility = 'B'，且参数b_format_version值为5.7、b_format_dev_version值为s1时有效。 time_format(time, format) 描述：根据格式说明符format格式化time入参。 参数： time为时间类型表达式、text、datetime、date或time等类型。 format为text类型，支持格式如下表。 格式 返回值 %f 微秒（000000至999999）。 %H 小时（00到23）。 %h、%I 小时（00到12）。 %l 小时（0到12）。 %k 小时（0到838）。 %i 分钟（00至59）。 %p AM or PM。 %r 时间为12小时AM或PM格式（hh：mm：ss AM / PM）。 %S、%s 秒（00到59）。 %T 24小时格式的时间（hh：mm：ss）。 %a、%b、%D、%j、%M、%U、%u、%V、%v、%W、%w、%X、%x NULL。 %c、%e 0。 %d、%m、%y 00。 %Y 0000。 %其他字符/其他字符，如%A/A 返回字符本身，如A。 %单个字符+字符串s 解析（%单个字符），拼接s。 返回值类型：text 示例： gaussdb=# SELECT TIME_FORMAT('25:30:30', '%T|%r|%H|%h|%I|%i|%S|%f|%p|%k');
+                   time_format                    
+--------------------------------------------------
+ 25:30:30|01:30:30 AM|25|01|01|30|30|000000|AM|25
+(1 row) 该函数在sql_compatibility = 'B'，且参数b_format_version值为5.7、b_format_dev_version值为s1时有效。 time_to_sec() 描述：将time类型入参转化为秒数。 参数：入参为时间类型表达式、text、datetime、date或time等类型。时间表达式按照time来解析。 返回值类型：int 示例： gaussdb=# SELECT time_to_sec('00:00:01');
+ time_to_sec 
+-------------
+           1
+(1 row) 该函数在sql_compatibility = 'B'，且参数b_format_version值为5.7、b_format_dev_version值为s1时有效。 timediff() 描述：计算两个时间之间的差值，并返回一个时间间隔。 参数：有两个参数，为时间类型表达式、text、datetime、date或time等类型 返回值类型：TIME WITHOUT TIMEZONE 示例： gaussdb=# SELECT timediff(date'2022-12-30',20221229);
+ timediff 
+----------
+ 24:00:00
+(1 row) 该函数在sql_compatibility = 'B'，且参数b_format_version值为5.7、b_format_dev_version值为s1时有效。 timestampadd(unit,interval,datetime_expr) 描述：返回一个新的时间戳，该时间戳是通过将unit的多个interval添加到datetime_expr来计算的。 参数：参数介绍见下表。 参数 类型 描述 取值范围 unit 关键字 时间间隔单位。 YEAR、QUARTER、MONTH、WEEK、DAY、HOUR、MINUTE、SECOND、MICROSECOND、Y、MM（月）、D、H、M（分钟）、S、US、YRS、QTR、MON、HRS、MIN、YEARS、WEEKS或HOURS等。 interval numeric 时间间隔数值。 和类型范围一致。 datetime_expr 时间类型表达式、text、datetime、date或time等类型 需要变更的时间日期。若为text类型则返回text，为time则返回time，其他情况返回datetime。 和类型范围一致。 返回值类型：DATETIME/TEXT/TIME WITHOUT TIMEZONE 示例： gaussdb=# SELECT TIMESTAMPADD(DAY,-2,'2022-07-27');
+ timestampadd 
+--------------
+ 2022-07-25
+(1 row) 该函数在sql_compatibility = 'B'，且参数b_format_version值为5.7、b_format_dev_version值为s1时有效。 timestampadd实际注册的函数为timestamp_add，可以用“\df timestamp_add”等指令查询函数详细入参与返回值。 在prepare语句中，timestampadd的第一个参数为关键字，不支持使用参数$1替代使用，例如：prepare p1 as select timestampadd($1, -2, '2023-01-01'); to_days() 描述：返回指定日期从0年开始的天数。 参数：入参为时间类型表达式、text、datetime、date或time等类型。时间表达式按照date来解析。 返回值类型：bigint 示例： gaussdb=# SELECT to_days('2000-1-1');
+ to_days 
+---------
+  730485
+(1 row) 该函数在sql_compatibility = 'B'，且参数b_format_version值为5.7、b_format_dev_version值为s1时有效。 to_seconds() 描述：返回入参自公元0年以来的秒数。 参数：入参为时间类型表达式、text、datetime、date或time等类型。时间表达式按照datetime来解析。 返回值类型：bigint 示例： gaussdb=# SELECT TO_SECONDS('2009-11-29 13:43:32');
+ to_seconds  
+-------------
+ 63426721412
+(1 row) 该函数在sql_compatibility = 'B'，且参数b_format_version值为5.7、b_format_dev_version值为s1时有效。 unix_timestamp([date]) 描述：返回一个UNIX时间戳，表示自“1970-01-01 08:00”UTC以来的秒数。若无入参，则默认值为调用函数时的datetime时间戳。 参数：时间类型表达式、text、datetime、date或time等类型。 返回值类型：numeric 示例： gaussdb=# SELECT UNIX_TIMESTAMP('2022-12-22');
+ unix_timestamp 
+----------------
+     1671638400
+(1 row) 该函数仅在sql_compatibility = 'B'，且参数b_format_version值为5.7和b_format_dev_version值为s1时有效。 utc_date() 描述：将函数执行时的当前UTC日期作为“YYYY-MM-DD”格式的值返回。 返回值类型：date 示例： gaussdb=# SELECT utc_date();
+  utc_date  
+------------
+ 2023-08-10
+(1 row) 该函数仅在sql_compatibility = 'B'，且参数b_format_version值为5.7和b_format_dev_version值为s1时有效。 utc_time() 描述：将函数执行时的当前UTC时间作为“HH:MM:SS”格式的值返回。 参数：表示时间精度，int类型，范围为[0,6]，缺省时默认值为0。 返回值类型：time without time zone 示例： gaussdb=# SELECT utc_time();
+ utc_time
+----------
+ 11:47:53
+(1 row) 该函数仅在sql_compatibility = 'B'，且参数b_format_version值为5.7和b_format_dev_version值为s1时有效。 utc_timestamp() 描述：将函数执行时的当前UTC时间戳作为“YYYY-MM-DD HH:MM:SS”格式的值返回。 参数：表示时间精度，int类型，范围为[0,6]，缺省时默认值为0。 返回值类型：timestamp without time zone 示例： gaussdb=# SELECT utc_timestamp();
+    utc_timestamp
+---------------------
+ 2023-08-21 11:51:19
+(1 row) 该函数仅在sql_compatibility = 'B'，且参数b_format_version值为5.7和b_format_dev_version值为s1时有效。 week(date[, mode]) 描述：返回日期的周数。 参数： 参数date：指定日期时间，时间类型表达式、text、datetime、date或time等类型。 可选参数mode的含义如下表所示，缺省时视为0。 mode 一周的第一天 范围 哪一周是第一周 0 周日 0~53 今年有周日的周。 1 周一 0~53 今年有4天及以上的周。 2 周日 1~53 今年有周日的周。 3 周一 1~53 今年有4天及以上的周。 4 周日 0~53 今年有4天及以上的周。 5 周一 0~53 今年有周一的周。 6 周日 1~53 今年有4天及以上的周。 7 周一 1~53 今年有周一的周。 返回值类型：bigint 示例： gaussdb=# SELECT week(date'2000-01-01', 1);
+ week 
+------
+    0
+(1 row)
+
+gaussdb=# SELECT week('2000-01-01', 2);
+ week 
+------
+   52
+(1 row) 该函数仅在sql_compatibility = 'B'，且参数b_format_version值为5.7和b_format_dev_version值为s1时有效。 weekday() 描述：返回一个日期的工作日索引值，即星期一为0，星期二为1，星期三为2，星期四为3，星期五为4，星期六为5，星期日为6。 参数：时间类型表达式、text、datetime、date或time等类型。 返回值类型：bigint 示例： gaussdb=# SELECT weekday('1970-01-01 12:00:00');
+ weekday 
+---------
+       3
+(1 row) 该函数仅在sql_compatibility = 'B'，且参数b_format_version值为5.7和b_format_dev_version值为s1时有效。 weekofyear(date) 描述：返回日期时间的日历周，范围1~53。等同于week(date, 3)。 参数： date：指定日期时间，时间类型表达式、text、datetime、date或time等类型。 函数等同于week(date, 3)，详见 week(date[, mode]) 。 返回值类型：bigint 示例： gaussdb=# SELECT weekofyear('1970-05-22');
+ weekofyear 
+------------
+         21
+(1 row) 该函数仅在sql_compatibility = 'B'，且参数b_format_version值为5.7和b_format_dev_version值为s1时有效。 year() 描述：提取日期时间的年份部分，将结果返回。 参数：入参为指定提取的日期时间，是时间类型表达式、text、datetime、date或time等类型。 返回值类型：int 示例： gaussdb=# SELECT year('23-05-22');
+ year 
+------
+ 2023
+(1 row) 该函数仅在sql_compatibility = 'B'，且参数b_format_version值为5.7和b_format_dev_version值为s1时有效。 yearweek(date[, mode]) 描述：返回日期的年份和周数。 参数： 参数date：指定日期时间。 date可取的类型：DATE、DATETIME、TIMESTAMP、TIME、TEXT、NUMERIC等。 可选参数mode的含义如下表所示，缺省时视为0。 mode 一周的第一天 范围 哪一周是第一周 0 周日 0~53 今年有周日的周。 1 周一 0~53 今年有4天及以上的周。 2 周日 1~53 今年有周日的周。 3 周一 1~53 今年有4天及以上的周。 4 周日 0~53 今年有4天及以上的周。 5 周一 0~53 今年有周一的周。 6 周日 1~53 今年有4天及以上的周。 7 周一 1~53 今年有周一的周。 返回值类型：bigint 示例： gaussdb=# SELECT yearweek(datetime'2000-01-01', 3);
+ yearweek 
+----------
+   199952
+(1 row) 该函数仅在sql_compatibility = 'B'，且参数b_format_version值为5.7和b_format_dev_version值为s1时有效。 表3 显示了可以用于截断日期和时间值的模板。 表3 用于日期/时间截断的模式 类别 模式 描述 微秒 MICROSECON 截断日期/时间，精确到微秒（000000 - 999999） US USEC USECOND 毫秒 MILLISECON 截断日期/时间，精确到毫秒（000 - 999） MS MSEC MSECOND 秒 S 截断日期/时间，精确到秒（00 - 59） SEC SECOND 分钟 M 截断日期/时间，精确到分钟（00 - 59） MI MIN MINUTE 小时 H 截断日期/时间，精确到小时（00 - 23） HH HOUR HR 天 D 截断日期/时间，精确到天（01-01 - 12-31） DAY DD DDD J 周 W 截断日期/时间，精确到周（本周的第一天） WEEK 月 MM 截断日期/时间，精确到月（本月的第一天） MON MONTH 季度 Q 截断日期/时间，精确到季度（本季度的第一天） QTR QUARTER 年 Y 截断日期/时间，精确到年（本年的第一天） YEAR YR YYYY 十年 DEC 截断日期/时间，精确到十年（本十年的第一天） DECADE 世纪 C 截断日期/时间，精确到世纪（本世纪的第一天） CC CENT CENTURY 千年 MIL 截断日期/时间，精确到千年（本千年的第一天） MILLENNIA MILLENNIUM 表4 用于时间截断和时间四舍五入的参数 类别 模式 描述 分钟 M 截断或四舍五入日期/时间，精确到分钟（00 - 59） MI MIN MINUTE 小时 H 截断或四舍五入日期/时间，精确到小时（00 - 23） HH HOUR HR HH12 HH24 天 DD 截断或四舍五入日期/时间，精确到天（01-01 - 12-31） DDD J ISO周 IW 截断或四舍五入日期/时间，精确到周（本周的第一天,第一天为周一） 周 DAY 截断或四舍五入日期/时间，精确到周（本周的第一天,第一天为周日） DY D 月周 W 截断或四舍五入日期/时间，精确到周（本周的第一天,第一天为本月第一天的周数） 年周 WW 截断或四舍五入日期/时间，精确到周（本周的第一天,第一天为本年第一天的周数） 月 MM 截断或四舍五入日期/时间，精确到月（本月的第一天） MON MONTH RM 季度 Q 截断或四舍五入日期/时间，精确到季度（本季度的第一天） QTR QUARTER 年 Y 截断或四舍五入日期/时间，精确到年（本年的第一天） YEAR YR YYYY SYYYY YYY YY SYEAR 十年 DEC 截断或四舍五入日期/时间，精确到十年（本十年的第一天） DECADE 世纪 C 截断或四舍五入日期/时间，精确到世纪（本世纪的第一天） CC CENT CENTURY SCC 千年 MIL 截断或四舍五入日期/时间，精确到千年（本千年的第一天） MILLENNIA MILLENNIUM 表4 中行为仅在参数a_format_version值为10c和a_format_dev_version值为s1的情况下有效。 timestamp_diff(text, timestamp, timestamp) 描述：计算两个日期时间之间的差值，截取到参数text指定的精度。 返回值类型：bigint 示例： 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27
+28
+29
+30
+31
+32
+33
+34
+35
+36
+37
+38
+39
+40
+41
+42
+43
+44
+45 gaussdb =# SELECT timestamp_diff ( 'year' , '2018-01-01' , '2020-04-01' ); timestamp_diff ---------------- 2 ( 1 row ) gaussdb =# SELECT timestamp_diff ( 'month' , '2018-01-01' , '2020-04-01' ); timestamp_diff ---------------- 27 ( 1 row ) gaussdb =# SELECT timestamp_diff ( 'quarter' , '2018-01-01' , '2020-04-01' ); timestamp_diff ---------------- 9 ( 1 row ) gaussdb =# SELECT timestamp_diff ( 'week' , '2018-01-01' , '2020-04-01' ); timestamp_diff ---------------- 117 ( 1 row ) gaussdb =# SELECT timestamp_diff ( 'day' , '2018-01-01' , '2020-04-01' ); timestamp_diff ---------------- 821 ( 1 row ) gaussdb =# SELECT timestamp_diff ( 'hour' , '2018-01-01 10:10:10' , '2018-01-01 12:12:12' ); timestamp_diff ---------------- 2 ( 1 row ) gaussdb =# SELECT timestamp_diff ( 'minute' , '2018-01-01 10:10:10' , '2018-01-01 12:12:12' ); timestamp_diff ---------------- 122 ( 1 row ) gaussdb =# SELECT timestamp_diff ( 'second' , '2018-01-01 10:10:10' , '2018-01-01 10:12:12' ); timestamp_diff ---------------- 122 ( 1 row ) gaussdb =# SELECT timestamp_diff ( 'microsecond' , '2018-01-01 10:10:10' , '2018-01-01 10:12:12' ); timestamp_diff ---------------- 122000000 ( 1 row ) TIMESTAMPDIFF TIMESTAMPDIFF( unit , timestamp_expr1, timestamp_expr2 ) 描述：timestampdiff函数计算两个时间之间(timestamp_expr2-timestamp_expr1)的差值，并以unit形式返回结果。等效于timestamp_diff(text, timestamp, timestamp)。 参数：timestamp_expr1、timestamp_expr2为时间类型表达式、text、datetime、date或time等类型。unit表示的是两个日期差的单位。 返回值类型：bigint 该函数仅在B模式数据库中有效。 timestampdiff在sql_compatibility = 'B'，且参数b_format_version值为5.7、b_format_dev_version值为s1时，调用的函数实际上注册为b_timestampdiff；在B模式数据库中且未开启guc参数时，调用的函数注册为timestamp_diff，可以用“\df b_timestampdiff”等指令查询函数详细入参与返回值。 year 年份。 1
+2
+3
+4
+5 gaussdb =# SELECT TIMESTAMPDIFF ( YEAR , '2018-01-01' , '2020-01-01' ); timestamp_diff ---------------- 2 ( 1 row ) quarter 季度。 1
+2
+3
+4
+5 gaussdb =# SELECT TIMESTAMPDIFF ( QUARTER , '2018-01-01' , '2020-01-01' ); timestamp_diff ---------------- 8 ( 1 row ) month 月份。 1
+2
+3
+4
+5 gaussdb =# SELECT TIMESTAMPDIFF ( MONTH , '2018-01-01' , '2020-01-01' ); timestamp_diff ---------------- 24 ( 1 row ) week 星期。 1
+2
+3
+4
+5 gaussdb =# SELECT TIMESTAMPDIFF ( WEEK , '2018-01-01' , '2020-01-01' ); timestamp_diff ---------------- 104 ( 1 row ) day 天。 1
+2
+3
+4
+5 gaussdb =# SELECT TIMESTAMPDIFF ( DAY , '2018-01-01' , '2020-01-01' ); timestamp_diff ---------------- 730 ( 1 row ) hour 小时。 1
+2
+3
+4
+5 gaussdb =# SELECT TIMESTAMPDIFF ( HOUR , '2020-01-01 10:10:10' , '2020-01-01 11:11:11' ); timestamp_diff ---------------- 1 ( 1 row ) minute 分钟。 1
+2
+3
+4
+5 gaussdb =# SELECT TIMESTAMPDIFF ( MINUTE , '2020-01-01 10:10:10' , '2020-01-01 11:11:11' ); timestamp_diff ---------------- 61 ( 1 row ) second 秒。 1
+2
+3
+4
+5 gaussdb =# SELECT TIMESTAMPDIFF ( SECOND , '2020-01-01 10:10:10' , '2020-01-01 11:11:11' ); timestamp_diff ---------------- 3661 ( 1 row ) microseconds 秒域（包括小数部分）乘以1,000,000。 1
+2
+3
+4
+5 gaussdb =# SELECT TIMESTAMPDIFF ( MICROSECOND , '2020-01-01 10:10:10.000000' , '2020-01-01 10:10:10.111111' ); timestamp_diff ---------------- 111111 ( 1 row ) EXTRACT EXTRACT( field FROM source ) extract函数从日期或时间的数值里抽取子域，比如年、小时等。source必须是一个timestamp、time或interval类型的值表达式（类型为date的表达式转换为timestamp，因此也可以用）。field是一个标识符或者字符串，它指定从源数据中抽取的域。extract函数返回类型为double precision的数值。field的取值范围如下所示。 century 世纪。 第一个世纪从0001-01-01 00:00:00 AD开始。这个定义适用于所有使用阳历的国家。没有0世纪，直接从公元前1世纪到公元1世纪。 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT EXTRACT ( CENTURY FROM TIMESTAMP '2000-12-16 12:21:13' ); date_part ----------- 20 ( 1 row ) day 如果source为timestamp，表示月份里的日期（1-31）。 1
+2
+3
+4
+5 gaussdb =# SELECT EXTRACT ( DAY FROM TIMESTAMP '2001-02-16 20:38:40' ); date_part ----------- 16 ( 1 row ) 如果source为interval，表示天数。 1
+2
+3
+4
+5 gaussdb =# SELECT EXTRACT ( DAY FROM INTERVAL '40 days 1 minute' ); date_part ----------- 40 ( 1 row ) decade 年份除以10。 1
+2
+3
+4
+5 gaussdb =# SELECT EXTRACT ( DECADE FROM TIMESTAMP '2001-02-16 20:38:40' ); date_part ----------- 200 ( 1 row ) dow 每周的星期几，星期天（0）到星期六（6）。 1
+2
+3
+4
+5 gaussdb =# SELECT EXTRACT ( DOW FROM TIMESTAMP '2001-02-16 20:38:40' ); date_part ----------- 5 ( 1 row ) doy 一年的第几天（1~365/366）。 1
+2
+3
+4
+5 gaussdb =# SELECT EXTRACT ( DOY FROM TIMESTAMP '2001-02-16 20:38:40' ); date_part ----------- 47 ( 1 row ) epoch 如果source为timestamp with time zone，表示自1970-01-01 00:00:00-00 UTC以来的秒数（结果可能是负数）； 如果source为date和timestamp，表示自1970-01-01 00:00:00-00当地时间以来的秒数； 如果source为interval，表示时间间隔的总秒数。 1
+2
+3
+4
+5 gaussdb =# SELECT EXTRACT ( EPOCH FROM TIMESTAMP WITH TIME ZONE '2001-02-16 20:38:40.12-08' ); date_part -------------- 982384720 . 12 ( 1 row ) 1
+2
+3
+4
+5 gaussdb =# SELECT EXTRACT ( EPOCH FROM INTERVAL '5 days 3 hours' ); date_part ----------- 442800 ( 1 row ) 将epoch值转换为时间戳的方法。 1
+2
+3
+4
+5 gaussdb =# SELECT TIMESTAMP WITH TIME ZONE 'epoch' + 982384720 . 12 * INTERVAL '1 second' AS RESULT ; result --------------------------- 2001 - 02 - 17 12 : 38 : 40 . 12 + 08 ( 1 row ) hour 小时域（0-23）。 1
+2
+3
+4
+5 gaussdb =# SELECT EXTRACT ( HOUR FROM TIMESTAMP '2001-02-16 20:38:40' ); date_part ----------- 20 ( 1 row ) isodow 一周的第几天（1-7）。 星期一为1，星期天为7。 除了星期天外，都与dow相同。 1
+2
+3
+4
+5 gaussdb =# SELECT EXTRACT ( ISODOW FROM TIMESTAMP '2001-02-18 20:38:40' ); date_part ----------- 7 ( 1 row ) isoyear 日期中的ISO 8601标准年（不适用于间隔）。 每个带有星期一开始的周中包含1月4日的ISO年，所以在年初的1月或12月下旬的ISO年可能会不同于阳历的年。详细信息请参见后续的 week 描述。 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10 gaussdb =# SELECT EXTRACT ( ISOYEAR FROM DATE '2006-01-01' ); date_part ----------- 2005 ( 1 row ) gaussdb =# SELECT EXTRACT ( WEEK FROM TIMESTAMP '2006-01-01 00:00:40' ); date_part ----------- 52 ( 1 row ) gaussdb=# SELECT EXTRACT(ISOYEAR FROM DATE '2006-01-02');
+ date_part 
+-----------
+      2006
+(1 row)
+gaussdb=# SELECT EXTRACT(WEEK FROM TIMESTAMP '2006-01-02 00:00:40');
+ date_part
+-----------
+         1
+(1 row) microseconds 秒域（包括小数部分）乘以1,000,000。 1
+2
+3
+4
+5 gaussdb =# SELECT EXTRACT ( MICROSECONDS FROM TIME '17:12:28.5' ); date_part ----------- 28500000 ( 1 row ) millennium 千年。 20世纪（19xx年）里面的年份在第二个千年里。第三个千年从2001年1月1日零时开始。 1
+2
+3
+4
+5 gaussdb =# SELECT EXTRACT ( MILLENNIUM FROM TIMESTAMP '2001-02-16 20:38:40' ); date_part ----------- 3 ( 1 row ) milliseconds 秒域（包括小数部分）乘以1000。请注意它包括完整的秒。 1
+2
+3
+4
+5 gaussdb =# SELECT EXTRACT ( MILLISECONDS FROM TIME '17:12:28.5' ); date_part ----------- 28500 ( 1 row ) minute 分钟域（0-59）。 1
+2
+3
+4
+5 gaussdb =# SELECT EXTRACT ( MINUTE FROM TIMESTAMP '2001-02-16 20:38:40' ); date_part ----------- 38 ( 1 row ) month 如果source为timestamp，表示一年里的月份数（1-12）。 1
+2
+3
+4
+5 gaussdb =# SELECT EXTRACT ( MONTH FROM TIMESTAMP '2001-02-16 20:38:40' ); date_part ----------- 2 ( 1 row ) 如果source为interval，表示月的数目，然后对12取模（0-11）。 1
+2
+3
+4
+5 gaussdb =# SELECT EXTRACT ( MONTH FROM INTERVAL '2 years 13 months' ); date_part ----------- 1 ( 1 row ) quarter 该天所在的该年的季度（1-4）。 1
+2
+3
+4
+5 gaussdb =# SELECT EXTRACT ( QUARTER FROM TIMESTAMP '2001-02-16 20:38:40' ); date_part ----------- 1 ( 1 row ) second 秒域，包括小数部分（0-59）。 1
+2
+3
+4
+5 gaussdb =# SELECT EXTRACT ( SECOND FROM TIME '17:12:28.5' ); date_part ----------- 28 . 5 ( 1 row ) timezone 与UTC的时区偏移量，单位为秒。正数对应UTC东边的时区，负数对应UTC西边的时区。 timezone_hour 时区偏移量的小时部分。 timezone_minute 时区偏移量的分钟部分。 week 该天在所在的年份里是第几周。ISO 8601定义一年的第一周包含该年的一月四日（ISO-8601 的周从星期一开始）。换句话说，一年的第一个星期四在第一周。 在ISO定义里，一月的头几天可能是前一年的第52或者第53周，十二月的后几天可能是下一年第一周。比如，2006-01-01是2005年的第52周，而2006-01-02是2006年的第1周。建议 isoyear 字段和week一起使用以得到一致的结果。 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10 gaussdb =# SELECT EXTRACT ( ISOYEAR FROM DATE '2006-01-01' ); date_part ----------- 2005 ( 1 row ) gaussdb =# SELECT EXTRACT ( WEEK FROM TIMESTAMP '2006-01-01 00:00:40' ); date_part ----------- 52 ( 1 row ) gaussdb=# SELECT EXTRACT(ISOYEAR FROM DATE '2006-01-02');
+ date_part 
+-----------
+      2006
+(1 row)
+gaussdb=# SELECT EXTRACT(WEEK FROM TIMESTAMP '2006-01-02 00:00:40');
+ date_part
+-----------
+         1
+(1 row) year 年份域。 1
+2
+3
+4
+5 gaussdb =# SELECT EXTRACT ( YEAR FROM TIMESTAMP '2001-02-16 20:38:40' ); date_part ----------- 2001 ( 1 row ) date_part date_part函数是在传统的Ingres函数的基础上制作的（该函数等效于SQL标准函数extract）： date_part(' field ', source ) 这里的field参数必须是一个字符串，而不是一个名称。有效的field与extract一样，详细信息请参见 EXTRACT 。 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT date_part ( 'day' , TIMESTAMP '2001-02-16 20:38:40' ); date_part ----------- 16 ( 1 row ) 1
+2
+3
+4
+5 gaussdb =# SELECT date_part ( 'hour' , INTERVAL '4 hours 3 minutes' ); date_part ----------- 4 ( 1 row ) 表5 显示了可以用于格式化日期和时间值的格式。 表5 用于日期/时间格式化的格式 类别 格式 描述 小时 HH 一天的小时数（01-12） HH12 一天的小时数（01-12） HH24 一天的小时数（00-23） 分钟 MI 分钟（00-59） 秒 SS 秒（00-59） FF 微秒（000000-999999） FF1 微秒（0-9） FF2 微秒（00-99） FF3 微秒（000-999） FF4 微秒（0000-9999） FF5 微秒（00000-99999） FF6 微秒（000000-999999） SSSSS 午夜后的秒（0-86399） 上、下午 AM或A.M. 上午标识 PM或P.M. 下午标识 年 Y,YYY 带逗号的年（4和更多位） SYYYY 公元前四位年 YYYY 年（4和更多位） YYY 年的后三位 YY 年的后两位 Y 年的最后一位 IYYY ISO年（4位或更多位） IYY ISO年的最后三位 IY ISO年的最后两位 I ISO年的最后一位 RR 年的后两位（可在21世纪存储20世纪的年份） RRRR 可接收4位年或两位年。若是两位，则和RR的返回值相同，若是四位，则和YYYY相同。 BC或B.C. AD或A.D. 纪元标识。BC（公元前），AD（公元后）。 月 MONTH 全长大写月份名（空白填充为9字符） MON 大写缩写月份名（3字符） MM 月份数（01-12） RM 罗马数字的月份（I-XII ；I=JAN）（大写） 天 DAY 全长大写日期名（空白填充为9字符） DY 缩写大写日期名（3字符） DDD 一年里的日（001-366） DD 一个月里的日（01-31） D 一周里的日（1-7 ；周日是 1） 周 W 一个月里的周数（1-5）（第一周从该月第一天开始） WW 一年里的周数（1-53）（第一周从该年的第一天开始） IW ISO一年里的周数（第一个星期四在第一周里） 世纪 CC 世纪（2位）（21 世纪从 2001-01-01 开始） 儒略日 J 儒略日（自公元前 4712 年 1 月 1 日来的天数） 季度 Q 季度 在参数a_format_version值为10c和a_format_dev_version值为s1的情况下新增用于格式化日期和时间值的模式： 表6 新增用于格式化日期和时间值的模式 类别 模式 描述 世纪 SCC 世纪标识，公元前会显示- 年 SYYYY 返回数字型年，公元前会显示- RR 返回日期的2位年份 RRRR 返回日期的4位年份 YEAR 返回字符型年 SYEAR 返回字符型年，公元前会显示- 日期格式 DL 返回指定长日期形式 DS 返回指定短日期 TS 返回指定时间格式 秒 FF7 微秒（0000000-9999990） FF8 微秒（00000000-99999900） FF9 微秒（000000000-999999000） 上表中RR计算年的规则如下： 输入的两位年份在00~49之间： 当前年份的后两位在00~49之间，返回值年份的前两位和当前年份的前两位相同； 当前年份的后两位在50~99之间，返回值年份的前两位是当前年份的前两位加1。 输入的两位年份在50~99之间： 当前年份的后两位在00~49之间，返回值年份的前两位是当前年份的前两位减1； 当前年份的后两位在50~99之间，返回值年份的前两位和当前年份的前两位相同。 在参数a_format_version值为10c和a_format_dev_version值为s1的情况下： to_date, to_timestamp函数支持FX模式（输入和模式严格对应），支持X模式（小数点）。 输入模式不能出现超过一次，表示相同信息的模式不能同时出现。如SYYYY和BC不能同时出现。 模式大小写不敏感。 建议输入和模式之间使用分隔符，否则不保证行为与O完全一致 父主题： 函数和操作符 版权所有 © 华为技术有限公司

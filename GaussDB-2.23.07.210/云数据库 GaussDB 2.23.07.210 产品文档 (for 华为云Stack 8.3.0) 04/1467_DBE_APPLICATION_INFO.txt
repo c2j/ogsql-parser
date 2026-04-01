@@ -1,0 +1,20 @@
+DBE_APPLICATION_INFO DBE_APPLICATION_INFO 接口介绍 高级功能包DBE_APPLICATION_INFO支持的所有接口请参见 表1 。DBE_APPLICATION_INFO作用范围是当前session。 表1 DBE_APPLICATION_INFO 接口名称 描述 DBE_APPLICATION_INFO.SET_CLIENT_INFO 写入客户端信息 DBE_APPLICATION_INFO.READ_CLIENT_INFO 读取客户端信息 DBE_APPLICATION_INFO.SET_MODULE 将当前正在运行的模块的名称设置为新模块。设置module和action。 DBE_APPLICATION_INFO.READ_MODULE 读取当前会话的的模块和操作字段的值。 DBE_APPLICATION_INFO.SET_ACTION 设置当前模块中当前操作的名称，设置action的值。 DBE_APPLICATION_INFO.SET_CLIENT_INFO 写入客户端信息。DBE_APPLICATION_INFO.SET_CLIENT_INFO函数原型为： 1
+2
+3 DBE_APPLICATION_INFO . SET_CLIENT_INFO ( str text ) returns void ; 表2 DBE_APPLICATION_INFO.SET_CLIENT_INFO接口参数说明 参数 描述 str 写入的客户端信息，最长为64字节，超过64字节将被截断。 DBE_APPLICATION_INFO.READ_CLIENT_INFO 读取客户端信息DBE_APPLICATION_INFO.READ_CLIENT_INFO函数原型为： 1
+2 DBE_APPLICATION_INFO . READ_CLIENT_INFO ( OUT client_info text ); 表3 DBE_APPLICATION_INFO.READ_CLIENT_INFO接口参数说明 参数 描述 client_info 客户端信息。 DBE_APPLICATION_INFO.SET_MODULE 将当前正在运行的模块的名称设置为新模块。DBE_APPLICATION_INFO.SET_MODULE函数原型为： 1
+2
+3
+4 DBE_APPLICATION_INFO . SET_MODULE ( IN module_name text , IN action_name text ); 表4 DBE_APPLICATION_INFO.SET_MODULE接口参数说明 参数 描述 module_name 当前正在运行的模块的名称。最长为64字节，超过64字节将被截断。 action_name 当前模块中当前操作的名称。最长为64字节，超过64字节将被截断。 示例： CALL dbe_application_info.set_module('module_name','action_name'); DBE_APPLICATION_INFO.READ_MODULE 读取当前会话的的模块和操作字段的值。DBE_APPLICATION_INFO.READ_MODULE函数原型为： 1
+2
+3
+4 DBE_APPLICATION_INFO . READ_MODULE ( OUT module_name text , OUT action_name text ); 表5 DBE_APPLICATION_INFO.READ_MODULE接口参数说明 参数 描述 module_name 当前正在运行的模块的名称。 action_name 当前模块中当前操作的名称。 示例： DECLARE
+ module varchar2(64);
+ action varchar2(64);
+BEGIN
+ dbe_application_info.read_module(module,action);
+ dbe_output.print_line(module);
+ dbe_output.print_line(action);
+END;
+/ DBE_APPLICATION_INFO.SET_ACTION 设置当前模块中当前操作的名称。DBE_APPLICATION_INFO.SET_ACTION函数原型为： 1
+2
+3 DBE_APPLICATION_INFO . SET_ACTION ( IN action_name text ); 表6 DBE_APPLICATION_INFO.SET_ACTION接口参数说明 参数 描述 action_name 当前模块中当前操作的名称。最长为64字节，超过64字节将被截断。 示例 CALL dbe_application_info.set_action('action_name'); 父主题： 二次封装接口(推荐) 版权所有 © 华为技术有限公司

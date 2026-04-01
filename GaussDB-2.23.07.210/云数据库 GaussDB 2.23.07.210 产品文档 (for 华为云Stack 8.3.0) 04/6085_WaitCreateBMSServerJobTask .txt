@@ -1,0 +1,1 @@
+WaitCreateBMSServerJobTask 工步失败 WaitCreateBMSServerJobTask 工步失败 虚拟机发放超时，需要联系BMS工程师定位具体原因并处理。 一般来说失败会回滚，导致BMS虚拟机被自动删除，无法用来定位，按以下操作步骤，阻止失败虚拟机自动回滚： 登录Service OM 。 进入服务列表->DBS运维平台->配置管理->系统参数管理。 下拉选择DBS_SYSTEM_PARAMETER，搜索内容 “resourcemanagerAutoRollbackWorkflow”。 修改参数值为“false”。 重新下发实例。 成功发放实例后，需要将该参数改回“true”，否则会导致删除实例时，底层资源残留。 父主题： WaitCreateServersTask 工步失败 版权所有 © 华为技术有限公司

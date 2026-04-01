@@ -1,0 +1,36 @@
+{
+  "topic": "基于标签的强制访问控制",
+  "term_count": 6,
+  "terms": [
+    {
+      "term": "基于标签的强制访问控制检查",
+      "content": "基于标签的强制访问控制检查 基于标签的强制访问控制检查 前提条件 数据库正常运行，强制访问控制检查开关（enable_mac_check=on）打开。 执行操作的用户已具有所需要访问表的ACL权限。 背景信息 基于安全标签的强制访问控制策略规则由系统内置设定，用户不能更改： 插入（INSERT）策略：只有主体安全标记等级小于等于客体安全标记等级且主体安全标记范围是客体安全标记范围的子集时才允许插入数据。 查询（SELECT）策略：只有主体安全标记等级大于等于客体安全标记等级且主体安全标记范围是客体安全标记范围的超集时才允许查询数据。 修改（UPDATE）和删除（DELETE）策略：只有主体安全标记等级等于客体安全标记等级且主体安全标记范围等于客体安全标记范围时才允许修改和删除数据。 若客体未标记，则强制访问控制策略对该客体不生效。 若主体未标记，则不能访问任意带有标记的客体。 操作步骤 授予用户user1和user2数据表tbl的SELECT和INSERT操作权限。 1 gaussdb =# GRANT SELECT , INSERT ON tbl TO user1 , user2 ; 用户user1登录数据库执行SELECT和INSERT操作，SELECT失败，INSERT成功，符合强制访问控制策略规则。 1\n 2\n 3\n 4\n 5\n 6\n 7\n 8\n 9\n10 gaussdb => SELECT current_user ; current_user -------------- user1 ( 1 row ) gaussdb => SELECT * FROM tbl ; ERROR : permission denied for relation tbl DETAIL : N / A gaussdb => INSERT INTO tbl VALUES ( 1 ); INSERT 0 1 用户user2登录数据库执行SELECT和INSERT操作，SELECT成功，INSERT失败，符合强制访问控制策略规则。 1\n 2\n 3\n 4\n 5\n 6\n 7\n 8\n 9\n10\n11\n12\n13 gaussdb => SELECT current_user ; current_user -------------- user2 ( 1 row ) gaussdb => SELECT * FROM tbl ; fir ----- 1 ( 1 row ) gaussdb => INSERT INTO tbl VALUES ( 1 ); ERROR : permission denied for relation tbl DETAIL : N / A",
+      "source_file": "4288_file_4288.txt"
+    },
+    {
+      "term": "应用安全标签",
+      "content": "应用安全标签 应用安全标签 前提条件 数据库正常运行，执行操作的用户需要具有SYSADMIN权限或者继承了内置角色gs_role_seclabel的权限。 背景信息 提供系统表pg_seclabel来查看表或表列上的安全标签： SELECT * FROM pg_seclabel; 提供系统表pg_shseclabel来查看用户/角色上的安全标签： SELECT * FROM pg_shseclabel; 提供系统视图pg_seclabels来查看系统中所有的安全标签记录： SELECT * FROM pg_seclabels; 操作步骤 数据库中已有用户user1、user2和数据表tbl。 对用户user1应用安全标签label1，表示用户user1对应的信息等级为公开，范围为二层和四层。 1 gaussdb =# SECURITY LABEL ON USER user1 is 'label1' ; 对用户user2应用安全标签label3，表示用户user2对应的信息等级为绝密，范围为一层到五层。 1 gaussdb =# SECURITY LABEL ON USER user2 is 'label3' ; 对表tbl应用安全标签label2，表示表tbl对应的信息等级为秘密，范围为二层到四层。 1 gaussdb =# SECURITY LABEL ON TABLE tbl is 'label2' ; 查询系统视图pg_seclabels。 1 gaussdb =# SELECT * FROM pg_seclabels ; 查询结果如下： gaussdb=# SELECT * FROM pg_seclabels;\n objoid | classoid | objsubid | objtype | objnamespace | objname | provider | label\n--------+----------+----------+---------+--------------+---------+----------+--------\n  16399 |     1259 |        0 | table   |         2200 | tbl     | maclabel | label2\n  16391 |     1260 |        0 | role    |              | user1   | maclabel | label1\n  16395 |     1260 |        0 | role    |              | user2   | maclabel | label3\n(3 rows)",
+      "source_file": "4287_file_4287.txt"
+    },
+    {
+      "term": "基于标签的强制访问控制检查",
+      "content": "基于标签的强制访问控制检查 基于标签的强制访问控制检查 前提条件 数据库正常运行，强制访问控制检查开关（enable_mac_check=on）打开。 执行操作的用户已具有所需要访问表的ACL权限。 背景信息 基于安全标签的强制访问控制策略规则由系统内置设定，用户不能更改： 插入（INSERT）策略：只有主体安全标记等级小于等于客体安全标记等级且主体安全标记范围是客体安全标记范围的子集时才允许插入数据。 查询（SELECT）策略：只有主体安全标记等级大于等于客体安全标记等级且主体安全标记范围是客体安全标记范围的超集时才允许查询数据。 修改（UPDATE）和删除（DELETE）策略：只有主体安全标记等级等于客体安全标记等级且主体安全标记范围等于客体安全标记范围时才允许修改和删除数据。 若客体未标记，则强制访问控制策略对该客体不生效。 若主体未标记，则不能访问任意带有标记的客体。 操作步骤 授予用户user1和user2数据表tbl的SELECT和INSERT操作权限。 1 gaussdb =# GRANT SELECT , INSERT ON tbl TO user1 , user2 ; 用户user1登录数据库执行SELECT和INSERT操作，SELECT失败，INSERT成功，符合强制访问控制策略规则。 1\n 2\n 3\n 4\n 5\n 6\n 7\n 8\n 9\n10 gaussdb => SELECT current_user ; current_user -------------- user1 ( 1 row ) gaussdb => SELECT * FROM tbl ; ERROR : permission denied for relation tbl DETAIL : N / A gaussdb => INSERT INTO tbl VALUES ( 1 ); INSERT 0 1 用户user2登录数据库执行SELECT和INSERT操作，SELECT成功，INSERT失败，符合强制访问控制策略规则。 1\n 2\n 3\n 4\n 5\n 6\n 7\n 8\n 9\n10\n11\n12\n13 gaussdb => SELECT current_user ; current_user -------------- user2 ( 1 row ) gaussdb => SELECT * FROM tbl ; fir ----- 1 ( 1 row ) gaussdb => INSERT INTO tbl VALUES ( 1 ); ERROR : permission denied for relation tbl DETAIL : N / A",
+      "source_file": "4515_file_4515.txt"
+    },
+    {
+      "term": "定义安全标签",
+      "content": "定义安全标签 定义安全标签 前提条件 数据库正常运行，执行操作的用户需要具有SYSADMIN权限或者继承了内置角色gs_role_seclabel的权限。 背景信息 提供系统表gs_security_label来查看系统中已创建好的安全标签： SELECT * FROM gs_security_label; 操作步骤 以某个实际业务应用举例说明，比如某公司的信息等级为公开，秘密和绝密，那么就可分别对应成等级L1、L2和L3，信息存储范围为一层到五层各层员工的信息，那么可分别对应成范围G1、G2、G3、G4、G5，以此为基础定义安全标签。 创建一个安全标签，标志信息等级为公开，范围为二层和四层。 1 gaussdb =# CREATE SECURITY LABEL label1 'L1:G2,G4' ; 创建一个安全标签，标志信息等级为秘密，范围为二层到四层。 1 gaussdb =# CREATE SECURITY LABEL label2 'L2:G2-G4' ; 创建一个安全标签，标志信息等级为绝密，范围为一层到五层。 1 gaussdb =# CREATE SECURITY LABEL label3 'L3:G1-G5' ; 查询系统表gs_security_label。 1 gaussdb =# SELECT * FROM gs_security_label ; 查询结果如下： gaussdb=# SELECT * FROM gs_security_label;\n label_name | label_content\n------------+---------------\n label1     | L1:G2,G4\n label2     | L2:G2-G4\n label3     | L3:G1-G5\n(3 rows) 删除安全标签。 1\n2\n3 gaussdb =# DROP SECURITY LABEL label1 ; gaussdb =# DROP SECURITY LABEL label2 ; gaussdb =# DROP SECURITY LABEL label3 ;",
+      "source_file": "4513_file_4513.txt"
+    },
+    {
+      "term": "定义安全标签",
+      "content": "定义安全标签 定义安全标签 前提条件 数据库正常运行，执行操作的用户需要具有SYSADMIN权限或者继承了内置角色gs_role_seclabel的权限。 背景信息 提供系统表gs_security_label来查看系统中已创建好的安全标签： SELECT * FROM gs_security_label; 操作步骤 以某个实际业务应用举例说明，比如某公司的信息等级为公开，秘密和绝密，那么就可分别对应成等级L1、L2和L3，信息存储范围为一层到五层各层员工的信息，那么可分别对应成范围G1、G2、G3、G4、G5，以此为基础定义安全标签。 创建一个安全标签，标志信息等级为公开，范围为二层和四层。 1 gaussdb =# CREATE SECURITY LABEL label1 'L1:G2,G4' ; 创建一个安全标签，标志信息等级为秘密，范围为二层到四层。 1 gaussdb =# CREATE SECURITY LABEL label2 'L2:G2-G4' ; 创建一个安全标签，标志信息等级为绝密，范围为一层到五层。 1 gaussdb =# CREATE SECURITY LABEL label3 'L3:G1-G5' ; 查询系统表gs_security_label。 1 gaussdb =# SELECT * FROM gs_security_label ; 查询结果如下： gaussdb=# SELECT * FROM gs_security_label;\n label_name | label_content\n------------+---------------\n label1     | L1:G2,G4\n label2     | L2:G2-G4\n label3     | L3:G1-G5\n(3 rows) 删除安全标签。 若要执行其他安全标签章节的示例，请在执行完之后再执行当前步骤；否则请直接执行当前步骤。 1\n2\n3 gaussdb =# DROP SECURITY LABEL label1 ; gaussdb =# DROP SECURITY LABEL label2 ; gaussdb =# DROP SECURITY LABEL label3 ;",
+      "source_file": "4286_file_4286.txt"
+    },
+    {
+      "term": "应用安全标签",
+      "content": "应用安全标签 应用安全标签 前提条件 数据库正常运行，执行操作的用户需要具有SYSADMIN权限或者继承了内置角色gs_role_seclabel的权限。 背景信息 提供系统表pg_seclabel来查看表或表列上的安全标签： SELECT * FROM pg_seclabel; 提供系统表pg_shseclabel来查看用户/角色上的安全标签： SELECT * FROM pg_shseclabel; 提供系统视图pg_seclabels来查看系统中所有的安全标签记录： SELECT * FROM pg_seclabels; 操作步骤 数据库中已有用户user1、user2和数据表tbl。 对用户user1应用安全标签label1，表示用户user1对应的信息等级为公开，范围为二层和四层。 1 gaussdb =# SECURITY LABEL ON USER user1 is 'label1' ; 对用户user2应用安全标签label3，表示用户user2对应的信息等级为绝密，范围为一层到五层。 1 gaussdb =# SECURITY LABEL ON USER user2 is 'label3' ; 对表tbl应用安全标签label2，表示表tbl对应的信息等级为秘密，范围为二层到四层。 1 gaussdb =# SECURITY LABEL ON TABLE tbl is 'label2' ; 查询系统视图pg_seclabels。 1 gaussdb =# SELECT * FROM pg_seclabels ; 查询结果如下： gaussdb=# SELECT * FROM pg_seclabels;\n objoid | classoid | objsubid | objtype | objnamespace | objname | provider | label\n--------+----------+----------+---------+--------------+---------+----------+--------\n  16399 |     1259 |        0 | table   |         2200 | tbl     | maclabel | label2\n  16391 |     1260 |        0 | role    |              | user1   | maclabel | label1\n  16395 |     1260 |        0 | role    |              | user2   | maclabel | label3\n(3 rows)",
+      "source_file": "4514_file_4514.txt"
+    }
+  ]
+}

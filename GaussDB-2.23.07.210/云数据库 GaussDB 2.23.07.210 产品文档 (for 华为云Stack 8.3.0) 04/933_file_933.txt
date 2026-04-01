@@ -1,0 +1,90 @@
+使用非初级类型的宿主变量 使用非初级类型的宿主变量 非初级类型的宿主变量包括数组，typedef，结构体和指针类型的宿主变量。 数组： 有两种将数组作为宿主变量的情况。第一种情况是在char[]或者VARCHAR[]中存储一些文本字符串。第二种情况是可在检索多行查询结果时不使用游标。如果不使用数组，则处理多行查询结果时必须使用游标以及FETCH命令。但是如果使用数组类型作为宿主变量，则一次可以检索多行。数组长度需能容纳查询结果的所有行，否则可能会发生缓冲区溢出。 下面示例为扫描pg_database系统表并且显示所有可用数据库的OID和名称 #include <stdlib.h>
+#include <stdio.h>
+#include <string.h>
+
+int main(void) 
+{
+EXEC SQL BEGIN DECLARE SECTION;
+    int dbid[8];
+    char dbname[8][16];
+    int i;
+EXEC SQL END DECLARE SECTION;
+
+    memset(dbname, 0, sizeof(char)* 16 * 8);
+    memset(dbid, 0, sizeof(int) * 8);
+   /* 连接到testdb，需提前创建上testdb库 */ 
+    EXEC SQL CONNECT TO testdb; 
+    /* 一次检索多行到数组中。 */ 
+    EXEC SQL SELECT oid,datname INTO :dbid, :dbname FROM pg_database; 
+    for (i = 0; i < 8; i++) 
+        printf("oid=%d, dbname=%s\n", dbid[i], dbname[i]); 
+    EXEC SQL COMMIT; 
+    EXEC SQL DISCONNECT ALL; 
+    return 0; 
+} 示例输出（具体值取决于本地环境）： oid=1, dbname=template1 
+oid=11510, dbname=template0 
+oid=11511, dbname=postgres 
+oid=313780, dbname=testdb 
+oid=0, dbname= 
+oid=0, dbname= 
+oid=0, dbname= 结构体 结构体成员变量可用来匹配查询结果列的名称，该结构能在一个宿主变量中处理多列值。 以下示例从pg_database系统表以及使用pg_database_size()函数检索可用数据库的OID、名称和尺寸。在此示例中，按照结构体的成员名匹配SELECT结果的每一列，从而不必把多个宿主变量放在FETCH语句中。 EXEC SQL BEGIN DECLARE SECTION;
+    typedef struct
+    {
+        int oid;
+        char datname[65];
+        long long int size;
+    } dbinfo_t;
+
+    dbinfo_t dbval;
+EXEC SQL END DECLARE SECTION;
+    memset(&dbval, 0, sizeof(dbinfo_t));
+
+    EXEC SQL DECLARE cur1 CURSOR FOR SELECT oid, datname, pg_database_size(oid) AS size FROM pg_database;     
+    EXEC SQL OPEN cur1;
+
+    /* 在达到结果集末尾时，跳出 while 循环 */     
+    EXEC SQL WHENEVER NOT FOUND DO BREAK;
+
+    while (1)
+    {         
+        /* 将多列取到一个结构体中。 */        
+        EXEC SQL FETCH FROM cur1 INTO :dbval;          
+        /* 打印该结构体的成员。 */         
+        printf("oid=%d, datname=%s, size=%lld\n", dbval.oid, dbval.datname, dbval.size);     
+    }
+    EXEC SQL CLOSE cur1; 示例输出（具体值取决于本地环境）： oid=1, datname=template1, size=4324580 
+oid=11510, datname=template0, size=4243460 
+oid=11511, datname=postgres, size=4324580 
+oid=313780, datname=testdb, size=8183012 结构体宿主变量可将查询结果的部分列转化成结构体字段，其他的查询结果列可以被分配给其它宿主变量。上述的示例也可以使用结构体外部的size宿主变量重新构造： EXEC SQL BEGIN DECLARE SECTION;     
+    typedef struct     
+    {        
+        int oid;        
+        char datname[65];     
+    } dbinfo_t;   
+   
+    dbinfo_t dbval;     
+    long long int size; 
+EXEC SQL END DECLARE SECTION;      
+
+    memset(&dbval, 0, sizeof(dbinfo_t));      
+
+    EXEC SQL DECLARE cur1 CURSOR FOR SELECT oid, datname, pg_database_size(oid) AS size FROM pg_database;     
+    EXEC SQL OPEN cur1;      
+
+    /* 在达到结果集末尾时，跳出 while 循环 */    
+    EXEC SQL WHENEVER NOT FOUND DO BREAK;      
+    while (1)     
+    {         
+        /* 将多列取到一个结构中。 */         
+        EXEC SQL FETCH FROM cur1 INTO :dbval, :size;          
+        /* 打印该结构的成员。 */         
+        printf("oid=%d, datname=%s, size=%lld\n", dbval.oid, dbval.datname, size);     
+    }  
+    
+    EXEC SQL CLOSE cur1; typedef 使用typedef关键字将新类型映射到已有类型： EXEC SQL BEGIN DECLARE SECTION;
+typedef char mychartype[40];
+typedef long serial_t;
+EXEC SQL END DECLARE SECTION; 也可以使用如下命令： EXEC SQL TYPE serial_t IS long; 这种声明不需要写在一个声明段中。 指针 可以声明常见类型的指针： EXEC SQL BEGIN DECLARE SECTION;
+int   *intp;
+char **charp;
+EXEC SQL END DECLARE SECTION; 父主题： 宿主变量 版权所有 © 华为技术有限公司

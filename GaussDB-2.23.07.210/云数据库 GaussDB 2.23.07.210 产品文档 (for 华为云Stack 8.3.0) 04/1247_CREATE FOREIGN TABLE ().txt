@@ -1,0 +1,77 @@
+CREATE FOREIGN TABLE (导入导出) CREATE FOREIGN TABLE (导入导出) 创建GDS外表。 功能描述 在当前数据库创建一个GDS外表，用于数据并行导入导出。GDS外表分为只读外表和只写外表，分别用于数据并行导入和并行导出，缺省为只读外表。 注意事项 外表由命令执行者所有； GDS外表不需要显式指定分布方式，默认支持ROUNDROBIN分布方式； 对于GDS外表指定任何约束（列约束、表约束等）均不生效。 OPTIONS中的敏感字段（如password、secret_access_key）在使用多层引号时，语义和不带引号的场景是不同的，因此不会被识别为敏感字段进行脱敏。 在对建有全局二级索引的基表执行GDS数据导入时，需要开启enable_stream_operator参数，并且设置create_gsi_opt参数值为BUILD，以达到最优数据导入性能。 在当前版本，每次对建有GSI的基表执行GDS数据导入时，将重建GSI，如果基表存量数据较多，待导入数据较少，导入性能将受严重影响。 语法格式 1
+2
+3
+4
+5
+6
+7
+8
+9 CREATE FOREIGN TABLE [ IF NOT EXISTS ] table_name ( [ { column_name type_name POSITION ( offset , length ) | LIKE source_table } [, ...] ] ) SERVER server_name OPTIONS ( { option_name 'value' } [, ...] ) [ WRITE ONLY | READ ONLY ] [ WITH error_table_name | LOG INTO error_table_name ] [ REMOTE LOG 'name' ] [ PER NODE REJECT LIMIT 'value' ] [ TO { GROUP groupname | NODE ( nodename [, ... ] ) } ]; 参数概览 创建外表语法提供了多个参数，常用参数分类如下。 必需参数 table_name column_name type_name POSITION(offset,length) LIKE source_table SERVER server_name OPTIONS可选参数 可选参数 外表的数据源位置参数 location 数据格式参数 format header （仅支持CSV，FIXED格式） fileheader （仅支持CSV，FIXED格式） out_filename_prefix delimiter quote （仅支持CSV格式） escape （仅支持CSV格式） null noescaping （仅支持TEXT格式） encoding eol 容错性参数 fill_missing_fields ignore_extra_data reject_limit compatible_illegal_chars WITH error_table_name LOG INTO error_table_nam... REMOTE LOG 'name' PER NODE REJECT LIMIT 'v... 参数说明 IF NOT EXISTS 如果已经存在相同名称的表，不会抛出一个错误，而会发出一个通知，告知表关系已存在。 table_name 外表的表名。 取值范围：字符串，要符合 标识符命名规范 。 column_name 外表中的字段名。 取值范围：字符串，要符合 标识符命名规范 。 type_name 字段的数据类型。 POSITION(offset,length) 在固定长度模式中，定义每一个字段在数据文件中的位置。 offset为该字段在数据源文件中的起始位置，length为该字段的长度。 取值范围：offset取值不能小于0字节，单位为字节。 每条记录的长度不能大于1GB，文件中没有出现的列默认以空值代替。 LIKE source_table LIKE子句声明一个外表，新的外表自动从这个外表中继承所有字段名及其数据类型。 SERVER server_name 外表的server名称。对于GDS外表，其server是初始数据库默认创建的，即gsmpp_server。 OPTIONS (  { option_name ' value '  }  [, ...] ) 用于指定外表数据的各类参数。 location 外表的数据源位置，目前支持URL和本地文件方式的描述。多个URL和多个本地文件都使用‘|’分割。 对于使用GDS从远端服务器并行导入时的只读外部表（默认为只读）的URL末尾必须指定文件的匹配模式或者文件名。 例如: gsfs://192.168.0.90:5000/*或者file:///data/data.txt或者gsfs:// 192.168.0.90:5000/* | gsfs:// 192.168.0.91:5000/* 对于使用GDS并行导出到远端服务器时的可写外部表，URL不需要指定文件名。当数据源位置为本地时，例如：file:///data/，外部表数据源位置只可指定一个，并且每个节点上都要预先创建好对应目录。当导出数据文件存储位置为远端URL时，例如gsfs:// 192.168.0.90:5000/，则数据源位置可指定多个，此时：若导出数据文件存储位置数量小于等于数据节点数量时，使用此外部表执行导出任务，系统会遍历节点并逐个分配导出数据文件存储位置。一轮分配结束后，系统将从头开始进行下一轮分配，因此，节点数量越多，分配会越均匀；若导出数据存储位置数量大于数据节点数量时，执行导出任务，数据将被平均分配给此位置列表中从前端开始等于数据节点数量的数据源位置下，剩余数据源位置仍会创建数据文件，但文件中不会有任何数据。 对于使用GDS从远端服务器并行导入时的只读外表，URL个数应小于DN个数，且不能使用多个location相同的URL。 当使用gsfss协议，即当URL为“gsfss://”开头，走加密导入导出时，并发不能超过10。 如使用SSL加密传输时，发生证书替换，需重启GDS。 format 外表中数据源文件的格式。 取值范围：CSV、TEXT、FIXED，缺省值为TEXT。 CSV格式的文件，对一些转义序列按照普通字符串进行处理, 因此可以有效处理数据列中的换行符。 TEXT格式的文件，可以有效处理一些转义序列，因此无法正确处理数据列中的换行符。 FIXED格式的文件，适用于每条数据的数据列都比较固定的数据，长度不足的列会添加空格补齐。 转义序列指的是反斜杠开头的字符串，包括：\b（退格）、\f（换页）、\n（换行）、\r（回车）、\t（横向制表）、\v（纵向制表）、\数字（八进制编码）、\x数字（十六进制编码）。TEXT格式可以按照本身含义进行处理，其他格式只能按照普通字符串进行处理。 定长格式（FIXED）定义如下。当为FIXED时，必须为每一列指定POSITION。 每条记录的每个字段长度相同。 长度不足的字段以空格填充，数字类型字段左对齐，字符字段右对齐。 字段和字段之间没有分隔符。 header 指定导出数据文件是否包含标题行，标题行一般用来描述表中每个字段的信息。header只能用于CSV，FIXED格式的文件中。 在导入数据时，如果header选项为on，则数据文本第一行会被识别为标题行，会忽略此行。如果header为off，而数据文件中第一行会被识别为数据。 在导出数据时，如果header选项为on，则需要指定 ▪fileheader 。fileheader用来指定导出头文件的格式。如果header为off，则导出数据文件不包含标题行。 取值范围：true/on，false/off。缺省值为false/off。 fileheader 指定导出数据要包含的标题行定义的文件，文件一般只包含一行用来描述每一列数据信息的字符串。 例如：在包含商品信息的数据前加标题行，定义文件如下 The information of products.\n 标题行定义文件仅在header为on或true的情况下有效，且需要提前写好备用。 在Remote导出模式下，定义文件必须放在GDS的工作目录（即启动gds时指定的-d路径）下。 在Local导出模式下，定义文件必须放在各个节点的相同路径，且fileheader指定的是绝对路径。 定义文件只能包含一行标题信息，并以换行符结尾，多余的行将被丢弃（标题信息不能包含换行符）。 定义文件包括换行符在内长度不超过1M。 out_filename_prefix 指定write only外表导出时，GDS端生成导出数据文件的文件名前缀。 指定文件名前缀需合法，符合GDS部署物理环境使用的文件系统的约束，否则出现文件创建失败： 指定的导出文件名前缀中不含有非法字符，其中非法字符包含但不限于'/', '?', '*', ':', '|', '\\', '<', '>', '@',  '#', '$', '&', '(', ')', '+', '-'，允许的字符范围为[a-z]*[A-Z]*[0-9]*和'_' 指定的导出文件名前缀中不可以是一些Windows和linux预留的特性字段，其中包括但不限于： "con","aux","nul","prn","com0","com1","com2","com3","com4","com5","com6","com7","com8","com9","lpt0","lpt1","lpt2","lpt3","lpt4","lpt5","lpt6","lpt7","lpt8","lpt9" 指定的导出文件名前缀，在与gds –d目录和".dat.x"拼接为绝对路径后必须符合GDS所在的部署文件系统的文件名长度要求 指定的导出文件名前缀，需要可以被数据文件的最终接收方正确解析识别（包括但不限于GDS再次导入库中），对于造成文件名解析问题的指定选项，需要用户自己识别 在多文件同时导出的高并发导出场景下，请确认并发的导出任务不要使用同一个文件名前缀设定，否则从操作系统/文件系统层面可能会出现导出文件的覆盖和丢失。 delimiter 指定数据文件行数据的字段分隔符，不指定则使用默认分隔符，TEXT格式的默认分隔符是水平制表符（tab），CSV格式的默认分隔符为“,”，FIXED格式没有分隔符。 分隔符不能是\r和\n。 分隔符不能和null参数相同，CSV格式数据的分隔符不能和quote参数相同。 TEXT格式数据的分隔符不能包含： \.abcdefghijklmnopqrstuvwxyz0123456789。 数据文件中单行数据长度需<1GB，如果分隔符较长且数据列较多的情况下，会影响导出有效数据的长度。 分隔符推荐使用多字符（例如'$^&'）和不可见字符（例如0x07、0x08、0x1b等）。 取值范围： 支持多字符分隔符，但分隔符不能超过10个字节。 quote 用于设置将CSV格式数据源文件中的什么字符识别为引号字符。缺省值为双引号。 quote参数不能和分隔符、null参数相同。 quote参数只能是单字节的字符。 推荐不可见字符作为quote，例如0x07，0x08，0x1b等。 escape 用来指定CSV格式的数据源文件中，什么字符为逃逸字符。逃逸字符只能指定为单字节字符。 缺省值为双引号。当与quote值相同时，会被替换为'\0'。 null 用来指定数据文件中空值的表示。 null值不能是\r和\n，最大为100个字符。 null值不能和分隔符、quote参数相同。 取值范围： 在TEXT格式下缺省值是\n。 CSV格式下缺省值是一个没有引号的空字符串。 noescaping TEXT格式下，不对'\'和后面的字符进行转义。 noescaping参数只在TEXT格式下有效。 取值范围：true/on，false/off。缺省值为false/off。 encoding 指定数据文件的编码格式名称，即需要以何编码格式对数据文件进行解析和校验/输出文件为何种编码格式。缺省值为当前数据库的默认客户端编码格式，即client_encoding。字符编码取值范围请参考CREATE DATABASE章节的 •ENCODING [ = ] 'encoding' 。 导入外表此处强烈建议指定为文件的编码格式，或根据文件的字符集在导入前对client_encoding进行设置。否则可能会导致不必要的解析、校验错误以及其导致的导入报错回滚，甚至非法数据入库。导出外表同样希望指定此选项，以避免导出采用默认字符集设置时与预期不符。 在创建外表时此选项未指定，会在客户端给出对应Warning信息。 目前GDS导入外表不支持解析带有多种字符集编码格式混合的文件，GDS导出外表不支持写出带有多种字符集编码格式混合的文件。 fill_missing_fields 当数据导入时，若数据源文件中一行的最后一个字段缺失的处理方式。 取值范围：true/on，false/off。缺省值为false/off。 参数为true/on，当数据导入时，若数据源文件中一行数据的最后一个字段缺失，则把最后一个字段的值设置为NULL，不报错。 参数为false/off，如果最后一个字段缺失会显示如下错误信息。 missing data for column "tt" ignore_extra_data 若数据源文件比外表定义列数多，是否会忽略对多出的列。该参数只在数据导入过程中使用。 取值范围：true/on，false/off。缺省值为false/off。 参数为true/on，若数据源文件比外表定义列数多，则忽略行尾多出来的列。 参数为false/off，若数据源文件比外表定义列数多，会显示如下错误信息。 extra data after last expected column 如果行尾换行符丢失，使两行变成一行时，设置此参数为true将导致后一行数据被忽略掉。 reject_limit 指定本次数据导入允许出现的数据格式错误个数，当导入过程中出现的数据格式错误未达到限定值时，本次数据导入可以成功。 此语法建议用PER NODE REJECT LIMIT 'value'替代。 数据格式错误是指缺少或者多出字段值，数据类型错误或者编码错误。对于非数据格式错误，一旦发生就将导致整个数据导入失败。 取值范围：正整型值、unlimited（无限制）。 缺省值为0，有错误信息立即返回。 指定正整型参数时需要添加单引号。 mode 指定数据导入过程中，数据导入策略。 取值范围： Normal（缺省值）：支持所有文件格式(包括CSV、TEXT、FIXED)，数据导入需要在数据服务器上启动Gauss data service协助完成。 Shared：支持TEXT文集格式，此时导入无需Gauss data service的协助，但是需要将用户数据通过NFS或挂载到所有节点的相同路径下。 Private：适用于用户数据已经存放到DN的本地目录下，并且位于相同的路径。 eol 指定导入导出数据文件换行符样式。 取值范围：支持多字符换行符，但换行符不能超过10个字节。常见的换行符，如\r、\n、\r\n（设成0x0D、0x0A、0x0D0A效果是相同的），其他字符或字符串，如$、#。 eol参数只能用于TEXT格式的导入导出，不支持CSV格式和FIXED格式导入。为了兼容原有eol参数，仍然支持导出CSV格式和FIXED格式时指定eol参数为0x0D或0x0D0A。 eol参数不能和分隔符、null参数相同。 eol参数不能包含：.abcdefghijklmnopqrstuvwxyz0123456789。 fix 指定每一行定长格式数据的长度。按字节计算。此语法仅对READ ONLY的外表有效。 取值范围：N >= POSITION指定的总长度（总长度即为表定义最后一个字段的offset与length的和）AND N < 1GB out_fix_alignment 指定定长导出中，指定BYTEAOID、CHAROID、NAMEOID、TEXTOID、BPCHAROID、VARCHAROID、NVARCHAR2OID、CSTRINGOID对应类型所在列的对齐方式 取值范围：align_left、align_right 默认值：align_right 由于bytea数据类型要求十六进制格式（如"\XXXX"）或八进制格式（如"\XXX\XXX\XXX"），导入时需要左对齐（即列数据以两种格式开头，而非空格）。因此若导出文件需要重新以GDS外表入库且数据长度小于外表formatter指定长度，导出时需要指定左对齐，否则会在入库的过程中报错。 date_format 导入对于DATE类型指定格式。此语法仅对READ ONLY的外表有效。 取值范围：合法DATE格式。可参考 时间和日期处理函数和操作符 。 对于指定为ORACLE兼容类型的数据库，则DATE类型内建为TIMESTAMP类型。在导入的时候，若需指定格式，可以参考下面的timestamp_format参数。 time_format 导入对于TIME类型指定格式。此语法仅对READ ONLY的外表有效。 取值范围：合法TIME格式，不支持时区。可参考 时间和日期处理函数和操作符 。 timestamp_format 导入对于TIMESTAMP类型指定格式。此语法仅对READ ONLY的外表有效。 取值范围：合法TIMESTAMP格式，不支持时区。可参考 时间和日期处理函数和操作符 。 smalldatetime_format 导入对于SMALLDATETIME类型指定格式。此语法仅对READ ONLY的外表有效。 取值范围：合法SMALLDATETIME格式。可参考 时间和日期处理函数和操作符 。 compatible_illegal_chars 导入非法字符容错参数。此语法仅对READ ONLY的外表有效。 取值范围：true/on，false/off。缺省值为false/off。 参数为true/on，则导入时遇到非法字符进行容错处理，非法字符转换后入库，不报错，不中断导入。 参数为false/off，导入时遇到非法字符进行报错，中断导入。 导入非法字符容错规则如下： （1）对于'\0'，容错后转换为空格； （2）对于其他非法字符，容错后转换为问号； （3）如果compatible_illegal_chars为true/on标识导入时对于非法字符进行容错处理，如果NULL、DELIMITER、QUOTE、ESCAPE设置为空格或问号则会通过如"illegal chars conversion may confuse COPY escape 0x20"等报错信息提示用户修改可能引起混淆的参数，以避免导入错误。 READ ONLY 外表只读，该参数只供数据导入使用。 WRITE ONLY 外表只写。该参数只供数据导出使用。 WITH error_table_name 数据导入过程中出现的数据格式错误信息将被写入error_table_name指定的错误信息表中，可以在并行导入结束后查询此错误信息表，获取详细的错误信息。此参数只在设置了reject_limit参数时有效。 如果为了兼容postgres开源接口，此语法建议用LOG INTO代替。 取值范围：字符串，要符合 标识符命名规范 。 LOG INTO error_table_name 数据导入过程中出现的数据格式错误信息将被写入error_table_name指定的错误信息表中，可以在并行导入结束后查询此错误信息表，获取详细的错误信息。 若没有指定PER NODE REJECT LIMIT参数，则此参数不起作用。 取值范围：字符串，要符合 标识符命名规范 。 REMOTE LOG 'name' 数据导入过程中出现的数据格式错误信息将被写到GDS端以文件方式保存。name为错误数据文件的文件名前缀。 PER NODE REJECT LIMIT 'value' 指定本次数据导入过程中每个DN实例上允许出现的数据格式错误的数量，如果有一个DN实例上的错误数量大于设定值，本次导入失败，报错退出。 此语法指定的是单个节点的错误容忍度。 数据格式错误是指缺少或者多出字段值，数据类型错误或者编码错误。对于非数据格式错误，一旦发生就将导致整个数据扫描失败。 取值范围：整型值，unlimited（无限），缺省值为0，有错误信息立即返回。 TO { GROUP groupname | NODE ( nodename [, ... ] ) } TO GROUP目前不支持使用。TO NODE主要供内部扩容工具使用，一般用户不应使用。 示例 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27
+28
+29
+30
+31
+32
+33
+34
+35
+36
+37
+38
+39
+40
+41
+42
+43
+44
+45
+46
+47
+48
+49
+50
+51
+52
+53
+54
+55
+56
+57
+58
+59
+60
+61
+62
+63
+64
+65
+66
+67
+68
+69 --建立外表，用来以TEXT格式导入GDS服务器192.168.0.90和192.168.0.91上的数据，导入过程错误信息将记录到err_HR_staffS中。 gaussdb =# CREATE FOREIGN TABLE foreign_HR_staffS ( staff_ID NUMBER ( 6 ) , FIRST_NAME VARCHAR2 ( 20 ), LAST_NAME VARCHAR2 ( 25 ), EMAIL VARCHAR2 ( 25 ), PHONE_NUMBER VARCHAR2 ( 20 ), HIRE_DATE DATE , employment_ID VARCHAR2 ( 10 ), SALARY NUMBER ( 8 , 2 ), COMMISSION_PCT NUMBER ( 2 , 2 ), MANAGER_ID NUMBER ( 6 ), section_ID NUMBER ( 4 ) ) SERVER gsmpp_server OPTIONS ( location 'gsfs://192.168.0.90:5000/* | gsfs://192.168.0.91:5000/*' , format 'TEXT' , delimiter E '\x20' , null '' ) WITH err_HR_staffS ; --建立外表，用来以TEXT格式导入GDS服务器192.168.0.90和192.168.0.91上的数据，导入过程错误信息将记录到err_HR_staffS中。本次数据导入允许出现的数据格式错误个数为2。 gaussdb =# CREATE FOREIGN TABLE foreign_HR_staffS_ft3 ( staff_ID NUMBER ( 6 ) , FIRST_NAME VARCHAR2 ( 20 ), LAST_NAME VARCHAR2 ( 25 ), EMAIL VARCHAR2 ( 25 ), PHONE_NUMBER VARCHAR2 ( 20 ), HIRE_DATE DATE , employment_ID VARCHAR2 ( 10 ), SALARY NUMBER ( 8 , 2 ), COMMISSION_PCT NUMBER ( 2 , 2 ), MANAGER_ID NUMBER ( 6 ), section_ID NUMBER ( 4 ) ) SERVER gsmpp_server OPTIONS ( location 'gsfs://192.168.0.90:5000/* | gsfs://192.168.0.91:5000/*' , format 'TEXT' , delimiter E '\x20' , null '' , reject_limit '2' ) WITH err_HR_staffS_ft3 ; --建立外表，用来以CSV格式导入input_data目录下存放在各个节点名文件下的所有文件。 gaussdb =# CREATE FOREIGN TABLE foreign_HR_staffS_ft1 ( staff_ID NUMBER ( 6 ) , FIRST_NAME VARCHAR2 ( 20 ), LAST_NAME VARCHAR2 ( 25 ), EMAIL VARCHAR2 ( 25 ), PHONE_NUMBER VARCHAR2 ( 20 ), HIRE_DATE DATE , employment_ID VARCHAR2 ( 10 ), SALARY NUMBER ( 8 , 2 ), COMMISSION_PCT NUMBER ( 2 , 2 ), MANAGER_ID NUMBER ( 6 ), section_ID NUMBER ( 4 ) ) SERVER gsmpp_server OPTIONS ( location 'file:///input_data/*' , format 'csv' , mode 'private' , delimiter ',' ) WITH err_HR_staffS_ft1 ; --建立外表，用来以CSV格式导出数据到output_data目录下。 gaussdb =# CREATE FOREIGN TABLE foreign_HR_staffS_ft2 ( staff_ID NUMBER ( 6 ) , FIRST_NAME VARCHAR2 ( 20 ), LAST_NAME VARCHAR2 ( 25 ), EMAIL VARCHAR2 ( 25 ), PHONE_NUMBER VARCHAR2 ( 20 ), HIRE_DATE DATE , employment_ID VARCHAR2 ( 10 ), SALARY NUMBER ( 8 , 2 ), COMMISSION_PCT NUMBER ( 2 , 2 ), MANAGER_ID NUMBER ( 6 ), section_ID NUMBER ( 4 ) ) SERVER gsmpp_server OPTIONS ( location 'file:///output_data/' , format 'csv' , delimiter '|' , header 'on' ) WRITE ONLY ; --删除外表。 gaussdb =# DROP FOREIGN TABLE foreign_HR_staffS ; gaussdb =# DROP FOREIGN TABLE foreign_HR_staffS_ft1 ; gaussdb =# DROP FOREIGN TABLE foreign_HR_staffS_ft2 ; gaussdb =# DROP FOREIGN TABLE foreign_HR_staffS_ft3 ; 相关链接 ALTER FOREIGN TABLE (导入导出) ， DROP FOREIGN TABLE 优化建议 delimiter 分隔符不能是\r和\n，分隔符不能和null参数相同，CSV格式数据的分隔符不能和quote参数相同。 数据文件中单行数据长度需<1GB，如果分隔符较长且数据列较多的情况下，会影响导出有效数据的长度。 分隔符推荐使用多字符（例如'$^&'）和不可见字符（例如0x07、0x08、0x1b等）。 quote quote参数只能是单字节的字符，quote参数不能和分隔符、null参数相同。 推荐不可见字符作为quote，例如0x07，0x08，0x1b等。 mode Normal 支持所有文件格式(包括CSV、TEXT、FIXED)，数据导入需要在数据服务器上启动Gauss data service协助完成。 mode Shared 支持TEXT文集格式，此时导入无需Gauss data service的协助，但是需要将用户数据通过NFS或挂载到所有节点的相同路径下。 mode Private 适用于用户数据已经存放到DN的本地目录下，并且位于相同的路径。 父主题： C 版权所有 © 华为技术有限公司

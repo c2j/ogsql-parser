@@ -1,0 +1,1 @@
+【规则】禁止使用LOCK TABLE语句加锁，使用 SELECT .. FOR UPDATE语句 【规则】禁止使用LOCK TABLE语句加锁，使用 SELECT .. FOR UPDATE语句 LOCK TABLE提供多种锁级别，但如果对数据库原理和业务理解不足，误用表锁可能触发死锁，导致集群不可用。 父主题： SELECT 版权所有 © 华为技术有限公司

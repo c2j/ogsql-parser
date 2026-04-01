@@ -1,0 +1,31 @@
+使用ODBC连接数据库 使用ODBC连接数据库 ODBC（Open Database Connectivity，开放数据库互连）是基于X/OPEN CLI提出的用于访问数据库的应用程序编程接口。应用程序通过ODBC提供的API与数据库进行交互，在避免了应用程序直接操作数据库系统的同时，增强了应用程序的可移植性、扩展性和可维护性。 GaussDB 目前在以下环境中提供对ODBC3.5的支持。 表1 ODBC支持平台 操作系统 平台 EulerOS 2.5 x86_64位 EulerOS 2.8 ARM64位 Kylinv 10 X86_64位 Kylinv 10 ARM64位 Windows 7 x86_32位 Windows 7 x86_64位 Windows Server 2008 x86_32位 Windows Server 2008 x86_64位 UNIX/Linux系统下的驱动程序管理器主要有unixODBC和iODBC，在这选择驱动管理器unixODBC-2.3.0作为连接数据库的组件。 Windows系统自带ODBC驱动程序管理器，在控制面板->管理工具中可以找到数据源（ODBC）选项。 当前数据库ODBC驱动基于开源版本，tinyint、smalldatetime、nvarchar2在获取数据类型的时候，可能会出现不兼容。 获取驱动包 在管理控制台下载对应的软件包。 前提条件 已下载Linux版本的ODBC驱动包和Windows版本的ODBC驱动包，开发应用程序要用到unixODBC提供的头文件（sql.h、sqlext.h等）和库libodbc.so。这些头文件和库可从unixODBC-2.3.0的安装包中获得。 已下载开源unixODBC代码文件，支持版本为2.3.0，下载地址： https://sourceforge.net/projects/unixodbc/files/unixODBC/2.3.0/unixODBC-2.3.0.tar.gz/download 将提供的ODBC DRIVER（psqlodbcw.so）配置到数据源中便可使用。配置数据源需要配置“odbc.ini”和“odbcinst.ini”两个文件（在编译安装unixODBC过程中生成且默认放在“/usr/local/etc”目录下），并在服务器端进行配置。 在Linux下使用ODBC连接数据库 安装unixODBC。如果机器上已经安装了其他版本的unixODBC，可以直接覆盖安装。 目前不支持unixODBC-2.2.1版本。以unixODBC-2.3.0版本为例，在客户端执行如下命令安装unixODBC。默认安装到“/usr/local”目录下，生成数据源文件到“/usr/local/etc”目录下，库文件生成在“/usr/local/lib”目录。 tar zxvf unixODBC-2.3.0.tar.gz
+cd unixODBC-2.3.0
+#修改configure文件，找到LIB_VERSION
+#将它的值修改为"1:0:0"，这样将编译出*.so.1的动态库，与psqlodbcw.so的依赖关系相同。
+vim configure
+
+./configure --enable-gui=no #如果要在鲲鹏服务器上编译，请追加一个configure参数： --build=aarch64-unknown-linux-gnu 
+make
+#安装可能需要root权限
+make install 替换客户端 GaussDB 驱动程序。 将GaussDB-Kernel-VxxxRxxxCxx-EULER-64bit-Odbc.tar.gz解压到“/usr/local/lib”目录下。解压会得到“psqlodbcw.la”和“psqlodbcw.so”两个文件。 配置数据源。 配置ODBC驱动文件。 在“/usr/local/etc/odbcinst.ini”文件中追加以下内容。 [GaussMPP]
+Driver64=/usr/local/lib/psqlodbcw.so
+setup=/usr/local/lib/psqlodbcw.so odbcinst.ini文件中的配置参数说明如 表2 所示。 表2 odbcinst.ini文件配置参数 参数 描述 示例 [DriverName] 驱动器名称，对应数据源DSN中的驱动名。 [DRIVER_N] Driver64 驱动动态库的路径。 Driver64=/xxx/odbc/lib/psqlodbcw.so setup 驱动安装路径，与Driver64中动态库的路径一致。 setup=/xxx/odbc/lib/psqlodbcw.so 配置数据源文件。 在“/usr/local/etc/odbc.ini ”文件中追加以下内容。 [gaussdb]
+Driver=GaussMPP
+Servername=10.10.0.13（数据库Server IP）
+Database=postgres  （数据库名）
+Username=omm  （数据库用户名）
+Password=  （数据库用户密码）
+Port=8000 （数据库侦听端口）
+Sslmode=allow odbc.ini文件配置参数说明如 表3 所示。 表3 odbc.ini文件配置参数 参数 描述 示例 [DSN] 数据源的名称。 [gaussdb] Driver 驱动名，对应odbcinst.ini中的DriverName。 Driver=DRIVER_N Servername 服务器的IP地址。 Servername=10.145.130.26 Database 要连接的数据库的名称。 Database=postgres Username 数据库用户名称。 Username=omm Password 数据库用户密码。 Password= 说明： ODBC驱动本身已经对内存密码进行过清理，以保证用户密码在连接后不会再在内存中保留。 但是如果配置了此参数，由于UnixODBC对数据源文件等进行缓存，可能导致密码长期保留在内存中。 推荐在应用程序连接时，将密码传递给相应API，而非写在数据源配置文件中。同时连接成功后，应当及时清理保存密码的内存段。 Port 服务器的端口号。 Port=8000 Sslmode 开启SSL模式 Sslmode=allow UseServerSidePrepare 是否开启数据库端扩展查询协议。 可选值0或1，默认为1，表示打开扩展查询协议。 UseServerSidePrepare=1 UseBatchProtocol 是否开启批量查询协议（打开可提高DML性能）；可选值0或者1，默认为1。 当此值为0时，不使用批量查询协议（主要用于与早期数据库版本通信兼容）。 当此值为1，并且数据库support_batch_bind参数存在且为on时，将打开批量查询协议。 UseBatchProtocol=1 ConnectionExtraInfo GUC参数connection_info中显示驱动部署路径和进程属主用户的开关。 ConnectionExtraInfo=1 说明： 默认值为0。当设置为1时，ODBC驱动会将当前驱动的部署路径、进程属主用户上报到数据库中，记录在connection_info参数中。 其中关于Sslmode的选项的允许值，具体信息见下表： 表4 sslmode的可选项及其描述 sslmode 是否会启用SSL加密 描述 disable 否 不使用SSL安全连接。 allow 可能 如果数据库服务器要求使用，则可以使用SSL安全加密连接，但不验证数据库服务器的真实性。 prefer 可能 如果数据库支持，那么首选使用SSL安全加密连接，但不验证数据库服务器的真实性。 require 是 必须使用SSL安全连接，但是只做了数据加密，而并不验证数据库服务器的真实性。 verify-ca 是 必须使用SSL安全连接，并且验证数据库是否具有可信证书机构签发的证书。 verify-full 是 必须使用SSL安全连接，在verify-ca的验证范围之外，同时验证数据库所在主机的主机名是否与证书内容一致。如果不一致，需要使用root用户修改/etc/hosts文件，将连接的数据库节点的IP地址和主机名加入。 SSL模式。 声明如下环境变量，同时保证client.key*系列文件为600权限： export PGSSLCERT="/YOUR/PATH/OF/client.crt" #请修改该路径到client.crt的绝对路径
+export PGSSLKEY="/YOUR/PATH/OF/client.key"  #请修改该路径到client.key的绝对路径
+将根证书cacert.pem文件放至客户端用户home目录下的.postgresql目录下（如果没有请创建该目录），并将cacert.pem重命名为root.crt，文件权限设置为600。 同时将数据源中的Sslmode选项调整至“require”。 配置环境变量。 vim ~ /.bashrc 在配置文件中追加以下内容。 export LD_LIBRARY_PATH=/usr/local/lib/:$LD_LIBRARY_PATH
+export ODBCSYSINI=/usr/local/etc
+export ODBCINI=/usr/local/etc/odbc.ini 执行如下命令使设置生效。 source ~ /.bashrc 执行以下命令，开始连接数据库。 isql -v GaussODBC GaussODBC为数据源名称 如果显示如下信息，表明配置正确，连接成功。 +---------------------------------------+
+| Connected!                            |
+|                                       |
+| sql-statement                         |
+| help [tablename]                      |
+| quit                                  |
+|                                       |
++---------------------------------------+
+SQL> 若显示ERROR信息，则表明配置错误。请检查上述配置是否正确。 在Windows下使用ODBC连接数据库 Windows操作系统自带ODBC数据源管理器，无需用户手动安装管理器便可直接进行配置。 替换客户端 GaussDB 驱动程序 将GaussDB-Kernel-VxxxRxxxCxx-Windows-Odbc-X86.tar.gz解压后，根据需要，单击psqlodbc.msi（32位）或者psqlodbc_x64.msi（64 位）进行驱动安装。 打开驱动管理器。 在配置数据源时，请使用对应的驱动管理器（假设操作系统安装盘符为C盘，如果是其他盘符，请对路径做相应修改）： 64 位操作系统上进行 32 位程序开发，安装 32 位驱动程序后，使用 32 位的驱动管理器：C:\Windows\ SysWOW64 \odbcad32.exe 请勿直接使用“控制面板> 管理工具 > 数据源(ODBC)”。 WoW64的全称是"Windows 32-bit on Windows 64-bit"，C:\Windows\SysWOW64\存放的是64位系统上的32位运行环境。而C:\Windows\System32\存放的是与操作系统一致的运行环境，具体的技术信息请查阅Windows的相关技术文档。 64 位操作系统上进行 64 位程序开发，安装 64 位驱动程序后，使用 64 位的驱动管理器：C:\Windows\ System32 \odbcad32.exe 请勿直接使用“控制面板 > 管理工具 > 数据源(ODBC)”。 32位操作系统请使用：C:\Windows\System32\odbcad32.exe 或者单击“计算机 > 控制面板 > 管理工具 > 数据源(ODBC)”打开驱动管理器。 配置数据源。 在打开的驱动管理器上，选择“用户DSN > 添加 > PostgreSQL Unicode”（如果是64位驱动，将会有64位标识），然后进行配置： 此界面上配置的用户名及密码信息，将会被记录在Windows注册表中，再次连接数据库时就不再需要输入认证信息。但是出于安全考虑，建议在单击"Save"按钮保存配置信息前，清空相关敏感信息；在使用ODBC的连接API时，再传入所需的用户名、密码信息。 SSL模式。 将client.crt、client.key、client.key.cipher、client.key.rand文件放至%APPDATA%\postgresql(该目录需手动建立)目录下，并且将文件名中的client改为postgres，例如client.key修改为postgres.key；将cacert.pem文件放至%APPDATA%\postgresql目录，并更名为root.crt。 %APPDATA% 该值在安装时由客户指定，默认位置在C:\Users\[username]\AppData。 同时将步骤2中的设置窗口的“SSL Mode”选项调整至“require”。 表5 sslmode的可选项及其描述 sslmode 是否会启用SSL加密 描述 disable 否 不使用SSL安全连接。 allow 可能 如果数据库服务器要求使用，则可以使用SSL安全加密连接，但不验证数据库服务器的真实性。 prefer 可能 如果数据库支持，那么首选使用SSL安全加密连接，但不验证数据库服务器的真实性。 require 是 必须使用SSL安全连接，但是只做了数据加密，而并不验证数据库服务器的真实性。 verify-ca 是 必须使用SSL安全连接，并且验证数据库是否具有可信证书机构签发的证书。当前windows ODBC不支持cert方式认证。 verify-full 是 必须使用SSL安全连接，在verify-ca的验证范围之外，同时验证数据库所在主机的主机名是否与证书内容一致。当前windows odbc不支持cert方式认证。 单击Test进行测试连接。 如果显示如下，则表明配置正确，连接成功。 若显示ERROR信息，则表明配置错误。请检查上述配置是否正确。 父主题： 使用驱动连接实例 版权所有 © 华为技术有限公司

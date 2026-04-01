@@ -1,0 +1,1 @@
+租户日志 租户日志 日志含义 租户面实例所在虚拟机/裸金属服务器上的运行日志。 日志命名 “XXXX.tar.gz ” 收集日志 agent.log asyncJobResult.dat ops_collector.log request_agent.log watch_dog.log kafka_client.log agent_sudo.log agent_error.log agent_process_monitor.log ops_metric_result.log obs_utils.log ha_check_status.log audit_service.log messages audit.log sysmonitor.log 内核agent日志 内核日志介绍 父主题： 日志参考 版权所有 © 华为技术有限公司

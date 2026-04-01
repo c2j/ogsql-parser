@@ -1,0 +1,5 @@
+Dorado存储池配置 Dorado存储池配置 参考 Dorado连接配置 ，在GaussCore节点执行如下语句： INSERT INTO DBS_DORADO_STORAGE_INFO (ID,CREATED_AT,UPDATED_AT,STORAGE_POOL_NAME,DORADO_DEVICE_ID,AZ_CODE,VOLUME_TYPE) VALUES ('${randomUuid}', now (), now (),'${storagePoolName}', '${doradoDeviceId}','${azCode}','${doradoVolumeType}'); 其中${randomUuid}为自定义生成的uuid。${storagePoolName} : 自定义存储池名称，创建页面显示名称。 ${doradoDeviceId} : 该存储池对应dorado对应设备id,设备id获取方式参考 Dorado连接配置 。 ${azCode}:该存储池对应的azCode。 ${doradoVolumeType} : dorado存储池对应磁盘类型，获取方式参考 Dorado存储卷映射配置 。 uuid生成方式： CREATE OR REPLACE FUNCTION CORE.RANDOMUUID()
+RETURNS CHARACTER VARYING
+LANGUAGE PLPGSQL
+AS $function$
+DECLARE str1 TEXT; str2 TEXT; uuid_str TEXT;BEGIN str1 := array_to_string(array(SELECT SUBSTRING('0123456789abcdef' FROM (ceil(random()*100) % 16 +1) FOR 1) FROM generate_series(1, 32)), '-'); str2 := replace(str1, '-', ''); uuid_str := SUBSTRING(str2,1,8) ||'-'|| SUBSTRING(str2,9,4) ||'-'|| SUBSTRING(str2,13,4) || '-' || SUBSTRING(str2,17,4) || '-' || SUBSTRING(str2,21,12); RETURN CAST(uuid_str as varchar(36));END;$function$ 父主题： 元数据库配置 版权所有 © 华为技术有限公司

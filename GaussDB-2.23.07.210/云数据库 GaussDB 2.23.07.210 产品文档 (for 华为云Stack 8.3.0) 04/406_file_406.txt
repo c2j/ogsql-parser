@@ -1,0 +1,6 @@
+开启日志保持 开启日志保持 功能介绍 主实例开始容灾日志保持。 调用接口前，您需要提前 获取终端节点 ，即下文中的Endpoint值。 约束限制 仅支持数据库版本大于等于3.209的实例。 两地三中心场景下不支持此接口。 URI URI格式 POST https://{ Endpoint }/gaussdb/v3.5/{project_id}/instances/{instance_id}/disaster-recovery/keep-log-start https://gaussdb.sa-fb-2.hcsglobal.com/gaussdb/v3.5/0483b6b16e954cb88930a360d2c4e663/instances/dsfae23fsfdsae3435in14/disaster-recovery/keep-log-start 参数说明 表1 参数说明 名称 是否必选 说明 project_id 是 租户在某一region下的project ID。 获取方法请参见 获取项目ID/名称 。 instance_id 是 实例ID。 请求消息 参数说明 表2 参数说明 名称 是否必选 参数类型 说明 xlog_keep_ratio 否 Integer 主实例默认10： 日志保留空间占可使用剩余磁盘容量的比例, 可设置范围为1-99。 disaster_type 是 String 容灾类型。 枚举值： stream 请求示例 { 
+	"xlog_keep_ratio":50,
+        "disaster_type" : "stream" 
+} 响应消息 表3 响应Body参数列表 名称 参数类型 说明 job_id String 任务id。 正常响应样例 { 
+    "job_id":"8bf0175e-562e-45f6-942a-2e2c72c577d7" 
+} 异常响应 请参见 异常请求结果 。 状态码 正常 202 异常 请参见 状态码 。 错误码 请参见 错误码 。 父主题： 容灾管理 版权所有 © 华为技术有限公司

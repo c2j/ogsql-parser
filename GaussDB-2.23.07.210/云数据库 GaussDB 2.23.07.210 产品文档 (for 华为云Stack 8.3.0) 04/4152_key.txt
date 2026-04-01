@@ -1,0 +1,14 @@
+支持热点key快速检测 支持热点key快速检测 可获得性 本特性自V500R001C20版本开始引入。 特性简介 热点key检测为分布式数据库提供一种直观的判断热点分布情况的方法，可以通过查询系统函数和系统视图查询当前节点和整个集群内热点键值统计信息。 客户价值 热点key统计能够提供被频繁访问的键值所在的database、schema、table以及被访问次数等详细信息，从而帮助客户定位当前时段热点的分布详情，进而进行相应的业务调整。 特性描述 开关开启后，用户通过PBE或者gsql执行业务时，数据库会在优化器生成计划阶段将能够下推到单一DN上的键值进行收集上报，所有被访问的有效键值将通过pgstat线程进行异步处理，通过LRU算法对键值进行更新和淘汰。 GaussDB提供两种维度的接口来进行热点key的检测： 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14 当前节点： gaussdb =# select * from gs_stat_get_hotkeys_info () order by count , hash_value ; database_name | schema_name | table_name | key_value | hash_value | count ---------------+-------------+-------------------+-----------+------------+------- regression | public | hotkey_single_col | { 22 } | 1858004829 | 2 regression | public | hotkey_single_col | { 11 } | 2011968649 | 2 ( 2 rows ) 整个集群： gaussdb =# select * from global_stat_get_hotkeys_info () order by count , hash_value ; database_name | schema_name | table_name | key_value | hash_value | count ---------------+-------------+-------------------+-----------+------------+------- regression | public | hotkey_single_col | { 22 } | 1858004829 | 2 regression | public | hotkey_single_col | { 11 } | 2011968649 | 2 ( 2 rows ) 此外还提供对应维度的清理接口来清理历史统计信息，避免历史遗留信息导致的统计误差。 特性增强 无。 特性约束 只收集分布列以及分布列上有等值过滤条件的，join的复杂查询暂不支持（比如 select * from t where a = 1; 其中a 为分布列，由column - a, column_type - int和value – 1组成的结构体作为一个键值，而且相同的键值结构被访问至少2次才被当做热点key处理）。 只统计value长度小于1M的键值。 只支持能够下发到单一DN上执行的语句。 支持表的类型：hash分布表、List/Range分布表、hashbucket表，不支持系统表、复制表、单DN表、物化视图、临时表、unlogged表。 支持语句类型：Select、Update。 正确结果（统计误差小于5%）。 不支持节点故障重启后数据恢复（pgstat约束）。 当前只支持统计当前节点Top 16的热key（查询整个集群热点key时没有数量限制；查询系统函数时无排序，只有查询视图时才根据count排序）。 键值被访问超过两次才会进入LRU热key队列中。 开关打开时才能进行查询（清理接口不受开关影响）。 只有系统管理员和监控管理员才能调用查询和清理热key接口。 只能在CN上进行热点查询和清理。 增加了键值收集逻辑，打开enable_hotkeys_collection开关开启热key功能会导致一定程度的性能劣化。 依赖关系 无。 父主题： 可维护性 版权所有 © 华为技术有限公司

@@ -1,0 +1,163 @@
+DBE_RAW DBE_RAW 接口介绍 高级功能包DBE_RAW支持的所有接口请参见 表 DBE_RAW 。 表1 DBE_RAW 接口名称 描述 DBE_RAW.CAST_FROM_BINARY_INTEGER_TO_RAW 将INTEGER类型值转换为二进制表示形式（即RAW类型）。 DBE_RAW.CAST_FROM_RAW_TO_BINARY_INTEGER 将二进制表示形式的整型值（即RAW类型）转换为INTEGER类型。 DBE_RAW.GET_LENGTH 获取RAW类型对象的长度。 DBE_RAW.CAST_FROM_VARCHAR2_TO_RAW 将VARCHAR2类型值转化为二进制表示形式（即RAW类型）。 DBE_RAW.CAST_TO_VARCHAR2 将RAW类型值转换成VARCHAR2类型。 DBE_RAW.SUBSTR 求RAW类型子串。 DBE_RAW.BIT_OR RAW类型按位或。 DBE_RAW.BIT_AND 返回RAW类型按位与计算后的结果。 DBE_RAW.BIT_COMPLEMENT 返回RAW类型按位取反计算后的结果。 DBE_RAW.BIT_XOR 返回RAW类型按位异或计算后的结果。 DBE_RAW.CAST_FROM_BINARY_DOUBLE_TO_RAW 将BINARY_DOUBLE类型值转换为RAW类型。 DBE_RAW.CAST_FROM_RAW_TO_BINARY_DOUBLE 将RAW类型值转换为BINARY_DOUBLE类型。 DBE_RAW.CAST_FROM_RAW_TO_BINARY_FLOAT 将RAW类型值转换为FLOAT4类型。 DBE_RAW.CAST_FROM_BINARY_FLOAT_TO_RAW 将FLOAT4类型值转换为RAW类型。 DBE_RAW.CAST_FROM_RAW_TO_NUMBER 将RAW类型值转换为NUMERIC类型。 DBE_RAW.CAST_FROM_NUMBER_TO_RAW 将NUMERIC类型值转换为RAW类型。 DBE_RAW.CAST_FROM_RAW_TO_NVARCHAR2 将RAW类型值转换为NVARCHAR2类型。 DBE_RAW.COMPARE 返回两个RAW类型值首个不相同的位置。 DBE_RAW.CONCAT 将最多12个RAW类型值连接到一个新的RAW类型值中，并返回。 DBE_RAW.CONVERT 将一个RAW类型值从源编码方式from_charset转换为目标编码方式to_charset。 DBE_RAW.COPIES 将一个RAW类型值复制n次，串联在一起，并返回连接后的结果。 DBE_RAW.OVERLAY 用一个RAW类型数据对另一个RAW类型数据进行覆盖，可以指定起始覆盖位置和覆盖长度。 DBE_RAW.REVERSE 将RAW类型数据按字节进行翻转。 DBE_RAW.TRANSLATE 转换或舍弃RAW类型值的指定字节。 DBE_RAW.TRANSLITERATE 转换RAW类型值的指定字节。 DBE_RAW.XRANGE 从一个字节到另一个字节的所有字节拼接后返回。 RAW类型的外部表现形式是十六进制，内部存储形式是二进制。例如一个RAW类型的数据11001011的表现形式为‘CB’，即在实际的类型转换中输入的是‘CB’。 DBE_RAW.CAST_FROM_BINARY_INTEGER_TO_RAW 存储过程CAST_FROM_BINARY_INTEGER_TO_RAW将INTEGER类型值转换为二进制表示形式（即RAW类型）。 DBE_RAW.CAST_FROM_BINARY_INTEGER_TO_RAW函数原型为： 1
+2
+3
+4 DBE_RAW . CAST_FROM_BINARY_INTEGER_TO_RAW ( value IN INTEGER , endianess IN INTEGER DEFAULT 1 ) RETURN RAW ; 表2 DBE_RAW.CAST_FROM_BINARY_INTEGER_TO_RAW接口参数说明 参数 描述 value 待转成RAW类型的整型数值。 endianess 表示字节序的整型值1或2（1代表BIG_ENDIAN，2代表LITTLE-ENDIAN）。 DBE_RAW.CAST_FROM_RAW_TO_BINARY_INTEGER 存储过程CAST_FROM_RAW_TO_BINARY_INTEGER将二进制表示形式的整型值（即RAW类型）转换为INTEGER类型。 DBE_RAW.CAST_FROM_RAW_TO_BINARY_INTEGER函数原型为： 1
+2
+3
+4 DBE_RAW . CAST_FROM_RAW_TO_BINARY_INTEGER ( value IN RAW , endianess IN INTEGER DEFAULT 1 ) RETURN INTEGER ; 表3 DBE_RAW.CAST_FROM_RAW_TO_BINARY_INTEGER接口参数说明 参数 描述 value 二进制表示形式的整型值（即RAW类型）。 endianess 字节序，取值范围：整型值1、2或3（1表示BIG_ENDIAN，2表示LITTLE_ENDIAN，3表示MACHINE_ENDIAN，默认值为BIG_ENDIAN，如果机器默认为BIG_ENDIAN，则函数执行结果MACHINE_ENDIAN和BIG_ENDIAN一致，如果机器默认为LITTLE_ENDIAN，则函数执行结果MACHINE_ENDIAN和LITTLE_ENDIAN一致）。 DBE_RAW.GET_LENGTH 存储过程GET_LENGTH返回RAW类型对象的长度。 DBE_RAW.GET_LENGTH函数原型为： 1
+2
+3 DBE_RAW . GET_LENGTH ( value IN RAW ) RETURN INTEGER ; 表4 DBE_RAW.GET_LENGTH接口参数说明 参数 描述 value RAW类型对象 DBE_RAW.CAST_FROM_VARCHAR2_TO_RAW 存储过程CAST_FROM_VARCHAR2_TO_RAW将VARCHAR2类型的对象转换成RAW类型。 DBE_RAW.CAST_FROM_VARCHAR2_TO_RAW函数原型为： 1
+2
+3 DBE_RAW . CAST_TO_RAW ( str IN VARCHAR2 ) RETURN RAW ; 表5 DBE_RAW.CAST_FROM_VARCHAR2_TO_RAW接口参数说明 参数 描述 str 待转成RAW类型的VARCHAR2类型值。 DBE_RAW.CAST_TO_VARCHAR2 存储过程CAST_TO_VARCHAR2将RAW类型的对象转换成VARCHAR2类型。 DBE_RAW.CAST_TO_VARCHAR2函数原型为： 1
+2
+3 DBE_RAW . CAST_TO_VARCHAR2 ( str IN RAW ) RETURN VARCHAR2 ; 表6 DBE_RAW.CAST_TO_VARCHAR2接口参数说明 参数 描述 str 待转成RAW类型的VARCHAR2类型值。 DBE_RAW.BIT_OR 存储过程BIT_OR求两个RAW按位或的结果。 DBE_RAW.BIT_OR函数原型为： 1
+2
+3
+4 DBE_RAW . BIT_OR ( str1 IN TEXT , str2 IN TEXT ) RETURN TEXT ; 表7 DBE_RAW.BIT_OR接口参数说明 参数 描述 str1 按位或的第一个字符串。 说明： 由于历史原因，该参数被定义为TEXT类型，但是DBE_RAW.SUBSTR接口预期并处理RAW类型值，这里定义为TEXT类型不影响对RAW类型值的处理。 str2 按位或的第二个字符串。 说明： 由于历史原因，该参数被定义为TEXT类型，但是DBE_RAW.SUBSTR接口预期并处理RAW类型值，这里定义为TEXT类型不影响对RAW类型值的处理。 DBE_RAW.SUBSTR 存储过程SUBSTR将RAW类型的对象按起始位和长度截取。 DBE_RAW.SUBSTR函数原型为： 1
+2
+3
+4
+5 DBE_RAW . SUBSTR ( IN lob_loc BLOB , IN off_set INTEGER DEFAULT 1 , IN amount INTEGER DEFAULT 32767 ) RETURN RAW ; 表8 DBE_RAW.SUBSTR接口参数说明 参数 描述 lob_loc 源RAW类型值。 说明： 由于历史原因，该参数被定义为BLOB类型，但是DBE_RAW.SUBSTR接口预期并处理RAW类型值，这里定义为BLOB类型不影响对RAW类型值的处理。 off_set 子串的起始位置，默认值1。 amount 子串的长度，默认值32767。 DBE_RAW.BIT_AND 函数BIT_AND求两个RAW类型按位与的结果。 DBE_RAW.BIT_AND函数原型为： 1
+2
+3
+4 DBE_RAW . BIT_AND ( r1 IN RAW , r2 IN RAW ) RETURN RAW ; 表9 DBE_RAW.BIT_AND接口参数说明 参数 描述 r1 与r2进行按位与的RAW类型值，最大长度不超过32767。 r2 与r1进行按位与的RAW类型值，最大长度不超过32767。 DBE_RAW.BIT_COMPLEMENT 函数BIT_COMPLEMENT求一个RAW类型按位取反的结果。 DBE_RAW.BIT_COMPLEMENT函数原型为： 1
+2
+3 DBE_RAW . BIT_COMPLEMENT ( r IN RAW ) RETURN RAW ; 表10 DBE_RAW.BIT_COMPLEMENT接口参数说明 参数 描述 r 进行按位取反的RAW类型值，最大长度不超过32767。 DBE_RAW.BIT_XOR 函数BIT_XOR求两个RAW类型按位异或的结果。 DBE_RAW.BIT_XOR函数原型为： 1
+2
+3
+4 DBE_RAW . BIT_XOR ( r1 IN RAW , r2 IN RAW ) RETURN RAW ; 表11 DBE_RAW.BIT_XOR接口参数说明 参数 描述 r1 与r2进行按位异或的RAW类型值，最大长度不超过32767。 r2 与r1进行按位异或的RAW类型值，最大长度不超过32767。 DBE_RAW.CAST_FROM_BINARY_DOUBLE_TO_RAW 函数CAST_FROM_BINARY_DOUBLE_TO_RAW将BINARY_DOUBLE类型转换为二进制表示形式的整型值（即RAW类型）。 DBE_RAW.CAST_FROM_BINARY_DOUBLE_TO_RAW函数原型为： 1
+2
+3
+4 DBE_RAW . CAST_FROM_BINARY_DOUBLE_TO_RAW ( n IN BINARY_DOUBLE , endianess IN INTEGER DEFAULT 1 ) RETURN RAW ; 表12 DBE_RAW.CAST_FROM_BINARY_DOUBLE_TO_RAW接口参数说明 参数 描述 n 需要进行转换的BINARY_DOUBLE类型值。 endianess 字节序，取值范围：整型值：1、2或3（1表示BIG_ENDIAN，2表示LITTLE_ENDIAN，3表示MACHINE_ENDIAN，默认值为BIG_ENDIAN，如果机器默认为BIG_ENDIAN，则函数执行结果MACHINE_ENDIAN和BIG_ENDIAN一致，如果机器默认为LITTLE_ENDIAN，则函数执行结果MACHINE_ENDIAN和LITTLE_ENDIAN一致）。 DBE_RAW.CAST_FROM_RAW_TO_BINARY_DOUBLE 函数CAST_FROM_RAW_TO_BINARY_DOUBLE将二进制表示形式的整型值（即RAW类型）转换为BINARY_DOUBLE类型。 DBE_RAW.CAST_FROM_RAW_TO_BINARY_DOUBLE函数原型为： 1
+2
+3
+4 DBE_RAW . CAST_FROM_RAW_TO_BINARY_DOUBLE ( r IN RAW , endianess IN INTEGER DEFAULT 1 ) RETURN BINARY_DOUBLE ; 表13 DBE_RAW.CAST_FROM_RAW_TO_BINARY_DOUBLE接口参数说明 参数 描述 r 需要进行转换的RAW类型值，最短长度不低于8，最大长度不超过32767。 endianess 字节序，取值范围：整型值1、2或3（1表示BIG_ENDIAN，2表示LITTLE_ENDIAN，3表示MACHINE_ENDIAN，默认值为BIG_ENDIAN，如果机器默认为BIG_ENDIAN，则函数执行结果MACHINE_ENDIAN和BIG_ENDIAN一致，如果机器默认为LITTLE_ENDIAN，则函数执行结果MACHINE_ENDIAN和LITTLE_ENDIAN一致）。 DBE_RAW.CAST_FROM_RAW_TO_BINARY_FLOAT 函数CAST_FROM_RAW_TO_BINARY_FLOAT将RAW类型转换为FLOAT4类型。 DBE_RAW.CAST_FROM_RAW_TO_BINARY_FLOAT函数原型为： 1
+2
+3
+4 DBE_RAW . CAST_FROM_RAW_TO_BINARY_FLOAT ( r IN RAW , endianess IN INTEGER DEFAULT 1 ) RETURN FLOAT4 ; 表14 DBE_RAW.CAST_FROM_RAW_TO_BINARY_FLOAT接口参数说明 参数 描述 r 需要进行转换的RAW类型值，最短长度不低于4，最大长度不超过32767。 endianess 字节序，取值范围：整型值1、2或3（1表示BIG_ENDIAN，2表示LITTLE_ENDIAN，3表示MACHINE_ENDIAN，默认值为BIG_ENDIAN，如果机器默认为BIG_ENDIAN，则函数执行结果MACHINE_ENDIAN和BIG_ENDIAN一致，如果机器默认为LITTLE_ENDIAN，则函数执行结果MACHINE_ENDIAN和LITTLE_ENDIAN一致）。 DBE_RAW.CAST_FROM_BINARY_FLOAT_TO_RAW 函数CAST_FROM_BINARY_FLOAT_TO_RAW将FLOAT4类型转换为RAW类型。 DBE_RAW.CAST_FROM_BINARY_FLOAT_TO_RAW函数原型为： 1
+2
+3
+4 DBE_RAW . CAST_FROM_BINARY_FLOAT_TO_RAW ( n IN FLOAT4 , endianess IN INTEGER DEFAULT 1 ) RETURN RAW ; 表15 DBE_RAW.CAST_FROM_BINARY_FLOAT_TO_RAW接口参数说明 参数 描述 n 需要进行转换的FLOAT4类型值。 endianess 字节序，取值范围：整型值1、2或3（1表示BIG_ENDIAN，2表示LITTLE_ENDIAN，3表示MACHINE_ENDIAN，默认值为BIG_ENDIAN，如果机器默认为BIG_ENDIAN，则函数执行结果MACHINE_ENDIAN和BIG_ENDIAN一致，如果机器默认为LITTLE_ENDIAN，则函数执行结果MACHINE_ENDIAN和LITTLE_ENDIAN一致）。 DBE_RAW.CAST_FROM_RAW_TO_NUMBER 函数CAST_FROM_RAW_TO_NUMBER将RAW类型转换为NUMERIC类型。 由于ORA数据库与 GaussDB 的NUMBER数据类型底层实现不同，而RAW类型为数据的底层实现的二进制流的十六进制表示，故该函数在ORA数据库与 GaussDB 的表现不同。用户不能将ORA数据库中的一个NUMBER类型数据对应的RAW类型在 GaussDB 中得到相同的NUMBER类型数据，在 GaussDB 中的表现可参考示例。 DBE_RAW.CAST_FROM_RAW_TO_NUMBER函数原型为： 1
+2
+3 DBE_RAW . CAST_FROM_RAW_TO_NUMBER ( r IN RAW ) RETURN NUMERIC ; 表16 DBE_RAW.CAST_FROM_RAW_TO_NUMBER接口参数说明 参数 描述 r 需要进行转换的RAW类型，最短长度不低于6，最大长度不超过32767。 DBE_RAW.CAST_FROM_NUMBER_TO_RAW 函数CAST_FROM_NUMBER_TO_RAW将NUMERIC类型转换为RAW类型。 由于ORA数据库与 GaussDB 的NUMBER数据类型底层实现不同，而RAW类型为数据的底层实现的二进制流的十六进制表示，故该函数在ORA数据库与 GaussDB 的表现不同。用户不能将ORA数据库的NUMBER类型数据的RAW类型表示在 GaussDB 数据库中还原成ORA原NUMBER类型数值，该函数在 GaussDB 中的表现可参考示例。 DBE_RAW.CAST_FROM_NUMBER_TO_RAW函数原型为： 1
+2
+3 DBE_RAW . CAST_FROM_NUMBER_TO_RAW ( n IN NUMERIC ) RETURN RAW ; 表17 DBE_RAW.CAST_FROM_NUMBER_TO_RAW接口参数说明 参数 描述 n 需要进行转换的NUMERIC类型。 DBE_RAW.CAST_FROM_RAW_TO_NVARCHAR2 函数CAST_FROM_RAW_TO_NVARCHAR2将RAW类型转换为NVARCHAR2类型。 DBE_RAW.CAST_FROM_RAW_TO_NVARCHAR2函数原型为： 1
+2
+3 DBE_RAW . CAST_FROM_RAW_TO_NVARCHAR2 ( r IN RAW ) RETURN NVARCHAR2 ; 表18 DBE_RAW.CAST_FROM_RAW_TO_NVARCHAR2接口参数说明 参数 描述 r 需要进行转换的RAW类型，最大长度不超过32767。 DBE_RAW.COMPARE 函数COMPARE返回两个RAW类型值首个不相同的位置。 DBE_RAW.COMPARE函数原型为： 1
+2
+3
+4
+5 DBE_RAW . COMPARE ( r1 IN RAW , r2 IN RAW , pad IN RAW DEFAULT NULL ) RETURN INTEGER ; 表19 DBE_RAW.COMPARE接口参数说明 参数 描述 r1 要比较的第一个数据，可以为NULL或长度为0，最大长度不超过32767。 r2 要比较的第二个数据，可以为NULL或长度为0，最大长度不超过32767。 pad 取pad的首字节，用于扩展r1或r2中较短的一个，最大长度不超过32767。当该参数为NULL、长度为0或缺省时，扩展值为 0x00。 DBE_RAW.CONCAT 函数CONCAT将最多12个RAW类型值连接到一个新的RAW类型值中，并返回。如果连接后的长度超过32767，则会报错。 DBE_RAW.CONCAT函数原型为： 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14 DBE_RAW . CONCAT ( r1 IN RAW DEFAULT NULL , r2 IN RAW DEFAULT NULL , r3 IN RAW DEFAULT NULL , r4 IN RAW DEFAULT NULL , r5 IN RAW DEFAULT NULL , r6 IN RAW DEFAULT NULL , r7 IN RAW DEFAULT NULL , r8 IN RAW DEFAULT NULL , r9 IN RAW DEFAULT NULL , r10 IN RAW DEFAULT NULL , r11 IN RAW DEFAULT NULL , r12 IN RAW DEFAULT NULL ) RETURN RAW ; 表20 DBE_RAW.CONCAT接口参数说明 参数 描述 r1...r12 需要进行连接的RAW类型值。 DBE_RAW.CONVERT 函数CONVERT将一个RAW类型值从源编码方式from_charset转换为目标编码方式to_charset。 如果源编码格式到目标编码格式的转化规则不存在，则参数r不进行任何转换直接返回，如GBK和LATIN1之间的转换规则是不存在的，具体转换规则可以通过查看系统表pg_conversion获得。 DBE_RAW.CONVERT函数原型为： 1
+2
+3
+4
+5 DBE_RAW . CONVERT ( r IN RAW , to_charset IN VARCHAR2 , from_charset IN VARCHAR2 ) RETURN RAW ; 表21 DBE_RAW.CONVERT接口参数说明 参数 描述 r 需要进行转换的RAW类型值，最大长度不超过32767。 to_charset 目标编码字符集名称。 from_charset 源编码字符集名称，在该编码下，r必须是合法的。 DBE_RAW.COPIES 函数COPIES将一个RAW类型值复制n次，串联在一起，并返回连接后的结果。如果复制后的长度超过32767，则会报错。 DBE_RAW.COPIES函数原型为： 1
+2
+3
+4 DBE_RAW . COPIES ( r IN RAW , n IN NUMERIC ) RETURN RAW ; 表22 DBE_RAW.COPIES接口参数说明 参数 描述 r 需要进行复制的RAW类型值。 n 复制的次数（必须为正数）。 DBE_RAW.OVERLAY 函数OVERLAY用一个RAW类型数据对另一个RAW类型数据进行覆盖，可以指定起始覆盖位置和覆盖长度。 DBE_RAW.OVERLAY函数原型为： 1
+2
+3
+4
+5
+6
+7 DBE_RAW . OVERLAY ( overlay_str IN RAW , target IN RAW , pos IN BINARY_INTEGER DEFAULT 1 , len IN BINARY_INTEGER DEFAULT NULL , pad IN RAW DEFAULT NULL ) RETURN RAW ; 表23 DBE_RAW.OVERLAY接口参数说明 参数 描述 overlay_str 用于覆盖的字节，不能为NULL。 target 被覆盖的源字节串，RAW类型，最大长度不超过32767字节，不能为NULL。 pos 从第几个字节开始覆盖，第一个字节位置为1，限制pos>=1且len+pos<=32767，缺省值为1。 len 要覆盖的长度，限制len>=0且len+pos<=32767，缺省值为覆盖字节（overlay_str）的长度。 pad 填充字节，只有第一个字节有效，缺省值为NULL，为NULL时默认为0x00。 DBE_RAW.REVERSE 函数REVERSE将RAW类型数据按字节进行翻转。 DBE_RAW.REVERSE函数原型为： 1
+2
+3
+4 DBE_RAW . REVERSE ( r IN RAW ) RETURN RAW ; 表24 DBE_RAW.REVERSE接口参数说明 参数 描述 r 需要进行翻转的RAW类型值，最大长度不超过32767字节，如果为NULL则返回NULL。 DBE_RAW.TRANSLATE 函数TRANSLATE将转换或舍弃RAW类型数据的指定字节。 DBE_RAW.TRANSLATE函数原型为： 1
+2
+3
+4
+5 DBE_RAW . TRANSLATE ( r IN RAW , from_set IN RAW , to_set IN RAW ) RETURN RAW ; 表25 DBE_RAW.TRANSLATE接口参数说明 参数 描述 r 要转换的源字节串，RAW类型，最大长度不超过32767字节，不能为NULL。 from_set 源字节串中要转换的字节码，RAW类型，不能为NULL。源字节串中存在于from_set中的字节都将被替换成to_set中对应位置的字节，假如from_set中有多个相同的字节，只会替换成第一个该字节对应的字节。比如：r[x]=from_set[n]，那么r[x]将被替换成to_set[n]；如果from_set[n]对应的to_set[n]不存在（也就是to_set字节数不超过n）时，r[x]将被舍弃。 to_set 对应from_ set字节转换为的字节码，RAW类型，不能为NULL。 DBE_RAW.TRANSLITERATE 函数TRANSLITERATE将RAW类型转换为NUMERIC类型。 DBE_RAW.TRANSLITERATE函数原型为： 1
+2
+3
+4
+5
+6 DBE_RAW . TRANSLITERATE ( r IN RAW , from_set IN RAW DEFAULT NULL , to_set IN RAW DEFAULT NULL , pad IN RAW DEFAULT NULL ) RETURN RAW ; 表26 DBE_RAW.TRANSLITERATE接口参数说明 参数 描述 r 要转换的源字节串，RAW类型，最大长度不超过32767字节，不能为NULL。 to_set 对应from_ set字节转换为的字节码，RAW类型，缺省值为NULL。如果为NULL，则r中的所有存在于from_set中的字节都将被转换成pad。 from_set 源字节串r中要转换的字节码，RAW类型，缺省值为NULL。如果from_set为NULL，则源字节串r的所有字节将被转换成由pad填充的等长数据。否则源字节串r中存在于from_set中的字节都将被替换成to_set中对应位置的字节，比如r[x]=from_set[n]，那么r[x]将被转换成to_set[n]，如果to_set[n]不存在，r[x]将被转换成pad。 pad 填充字节，只有第一个字节有效，缺省值为NULL，为NULL时默认为0x00。 DBE_RAW.XRANGE 函数XRANGE返回包含以指定字节码开始和结束的连续一字节编码的RAW值。 DBE_RAW.XRANGE函数原型为： 1
+2
+3
+4 DBE_RAW . XRANGE ( start_byte IN RAW , end_byte IN RAW ) RETURN RAW ; 表27 DBE_RAW.XRANGE接口参数说明 参数 描述 start_byte 开始字节，只有第一个字节有效，如果为NULL则默认为0x00。 end_byte 结束字节，只有第一个字节有效，如果为NULL则会默认为0xFF。如果end_byte<start_byte，则会从end_byte拼接到0xFF，再从0x00拼接到start_byte。 示例 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27
+28
+29
+30
+31
+32
+33
+34
+35
+36
+37
+38
+39
+40
+41
+42
+43
+44
+45
+46
+47
+48
+49
+50
+51
+52
+53
+54
+55
+56
+57
+58
+59
+60
+61
+62
+63
+64
+65
+66
+67
+68
+69
+70
+71
+72
+73 --在存储过程中操作RAW数据 CREATE OR REPLACE PROCEDURE proc_raw AS str varchar2 ( 100 ) : = 'abcdef' ; source raw ( 100 ); amount integer ; BEGIN source : = dbe_raw . cast_from_varchar2_to_raw ( str ); --类型转换 amount : = dbe_raw . get_length ( source ); --获取长度 dbe_output . print_line ( amount ); END ; / CREATE PROCEDURE --调用存储过程 CALL proc_raw (); 6 proc_raw ---------- ( 1 row ) --删除存储过程 DROP PROCEDURE proc_raw ; DROP PROCEDURE DECLARE v_raw RAW ; v_double BINARY_DOUBLE ; v_float FLOAT4 ; v_numeric NUMERIC ; v_nvarchar2 NVARCHAR2 ; BEGIN -- RAW类型按位与 SELECT DBE_RAW . BIT_AND ( 'AFF' , 'FF0B' ) INTO v_raw ; -- 0A0B -- RAW类型按位取反 SELECT DBE_RAW . BIT_COMPLEMENT ( '0AFF' ) INTO v_raw ; -- F500 -- RAW类型按位异或 SELECT DBE_RAW . BIT_XOR ( 'AFF' , 'FF0B' ) INTO v_raw ; -- F5F4 -- BINARY_DOUBLE类型值转RAW类型 SELECT DBE_RAW . CAST_FROM_BINARY_DOUBLE_TO_RAW ( 1 . 0001 , 1 ) INTO v_raw ; -- 3FF00068DB8BAC71 -- RAW类型值转BINARY_DOUBLE类型 SELECT DBE_RAW . CAST_FROM_RAW_TO_BINARY_DOUBLE ( '3FF00068DB8BAC7' , 1 ) INTO v_double ; -- 1.0001 -- RAW类型转FLOAT4类型 SELECT DBE_RAW . CAST_FROM_RAW_TO_BINARY_FLOAT ( '40200000' , 1 ) INTO v_float ; -- 2.5 -- FLOAT4类型转RAW类型 SELECT DBE_RAW . CAST_FROM_BINARY_FLOAT_TO_RAW ( '2.5' , 1 ) INTO v_raw ; -- 40200000 -- RAW类型转NUMERIC类型 SELECT DBE_RAW . CAST_FROM_RAW_TO_NUMBER ( '808002008813' ) INTO v_numeric ; -- 2.5 -- NUMERIC类型转RAW类型 SELECT DBE_RAW . CAST_FROM_NUMBER_TO_RAW ( '2.5' ) INTO v_raw ; -- 808002008813 -- RAW类型转NVARCHAR2类型 SELECT DBE_RAW . CAST_FROM_RAW_TO_NVARCHAR2 ( '12345678' ) INTO v_nvarchar2 ; -- \x124Vx -- RAW类型COMPARE SELECT DBE_RAW . COMPARE ( 'ABCD' , 'AB' ) INTO v_numeric ; -- 2 -- RAW类型CONCAT SELECT DBE_RAW . CONCAT ( 'ABCD' , 'AB' ) INTO v_raw ; -- ABCDAB -- RAW类型CONVERT SELECT DBE_RAW . CONVERT ( 'E695B0' , 'GBK' , 'UTF8' ) INTO v_raw ; -- CAFD -- RAW类型COPIES SELECT DBE_RAW . COPIES ( 'ABCD' , 2 ) INTO v_raw ; -- ABCDABCD -- RAW类型指定位置和长度进行覆盖 SELECT DBE_RAW . OVERLAY ( 'abcef' , '12345678123456' , 2 , 5 , '9966' ) INTO v_raw ; -- 120ABCEF999956 -- RAW类型按字节翻转 SELECT DBE_RAW . REVERSE ( '12345678' ) INTO v_raw ; -- 78563412 -- RAW类型字节转换（无填充码） SELECT DBE_RAW . TRANSLATE ( '1122112233' , '1133' , '55' ) INTO v_raw ; -- 55225522 -- RAW类型字节转换（有填充码） SELECT DBE_RAW . TRANSLITERATE ( '1122112233' , '55' , '1133' , 'FFEE' ) INTO v_raw ; -- 55225522FF -- RAW类型两个字节间的所有字节 SELECT DBE_RAW . XRANGE ( '00' , '03' ) INTO v_raw ; -- 00010203 END ; / ANONYMOUS BLOCK EXECUTE 父主题： 二次封装接口(推荐) 版权所有 © 华为技术有限公司

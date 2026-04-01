@@ -1,0 +1,1 @@
+PQclear PQclear 功能描述 释放与PGresult相关联的存储空间，任何不再需要的查询结果都应该用PQclear释放掉。 原型 void PQclear(PGresult* res); 参数 表1 PQclear参数 关键字 参数说明 res 包含查询结果的对象指针。 注意事项 PGresult不会自动释放，当提交新的查询时它并不消失，甚至断开连接后也不会。要删除它，必须调用PQclear，否则会有内存泄漏。 示例 请参见 示例 章节。 父主题： 数据库执行语句函数 版权所有 © 华为技术有限公司

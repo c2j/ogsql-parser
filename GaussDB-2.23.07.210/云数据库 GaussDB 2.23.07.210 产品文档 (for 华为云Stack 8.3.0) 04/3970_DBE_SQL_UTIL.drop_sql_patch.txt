@@ -1,0 +1,1 @@
+DBE_SQL_UTIL.drop_sql_patch DBE_SQL_UTIL.drop_sql_patch drop_sql_patch是用于删除SQL PATCH的接口函数，返回执行是否成功。 限制仅初始用户、sysadmin、opradmin、monadmin用户有权限调用。 表1 DBE_SQL_UTIL.drop_sql_patch入参和返回值列表 参数 类型 描述 patch_name IN name PATCH名称。 result OUT bool 执行是否成功。 父主题： DBE_SQL_UTIL Schema 版权所有 © 华为技术有限公司

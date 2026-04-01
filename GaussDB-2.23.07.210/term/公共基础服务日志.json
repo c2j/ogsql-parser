@@ -1,0 +1,31 @@
+{
+  "topic": "公共基础服务日志",
+  "term_count": 5,
+  "terms": [
+    {
+      "term": "cts-sdk-run.log",
+      "content": "cts-sdk-run.log cts-sdk-run.log 日志含义 该日志来源于公共基础（common-service）服务向CloudTrace系统发送信息的任务运行时产生的日志输出，通过查看此日志，可以看到公共基础服务（common-service）与CloudTrace交互任务运行时的相关信息。 日志命名 日志文件名：cts-sdk-run.log.%i %i为日志轮转的数字。 日志格式 通配符形式 : [%d][%m]%n 模块名形式 : [time][logDetail] 日志参数 表1 日志参数 字段名称 字段含义 time [%d] 日志生成的时间，格式样例:Wed Oct 07 23:55:50 UTC 2020 logDetail [%m][%C{1.}.%M(%L)]%n 日志详情(包括日志信息,附加信息和换行符) 日志示例 日志的典型样例： 公共基础服务（common-service）服务日常运行日志如下: [Tue Jul 20 16:16:22 UTC 2021]send-trace-thread send trace success, projectId=056538411200d4cd2f79c003c7606412\n[Tue Jul 20 16:16:23 UTC 2021][1.1.7] cts-sdk send start\n[Tue Jul 20 16:16:24 UTC 2021]CloudTrace traceNotify start, traceName=NoSQLDeleteBackup, projectId=056538411200d4cd2f79c003c7606412",
+      "source_file": "5523_cts-sdk-run.log.txt"
+    },
+    {
+      "term": "commonservice.error.log",
+      "content": "commonservice.error.log commonservice.error.log 日志含义 该日志来源于公共基础（common-service）服务的日志输出，通过查看此日志，可以看到公共基础服务（common-service）运行错误时的日志信息。 日志命名 日志文件名：commonservice.error.log.%i %i为日志轮转的数字。 日志格式 通配符形式 : [%d][%p][${APPNAME}][%X{X-Request-ID}][%thread][%m][%C{1.}.%M(%L)]%n 模块名形式 : [time][logLevel][module][traceId][threadId][logDetail] 日志参数 表1 日志参数 字段名称 字段含义 time [%d] 日志生成的时间，格式：yyyy-MM-dd HH:mm:ss.SSS。GMT logLevel [%p] 日志级别 module [${APPNAME}] 标志当前模块为 commonservice,内容固定为 commonservice traceId [%X{X-Request-ID}] 日志追踪ID,一般为workflowId threadId [%thread] 线程Id logDetail [%m][%C{1.}.%M(%L)]%n 日志详情(包括日志信息,附加信息和换行符) 日志示例 日志的典型样例： 公共基础服务（common-service）服务错误日志如下: [2021-08-19 09:19:35,181][ERROR][commonservice][73bb1408-4cd7-4e98-b852-8570885e1a56][Dubbo-54.60:9001-thread-540][paramName:application_name readonly, current autoAdjustLevel:low jobId:c7bb97ff-be29-4f76-91da-6c4cbf279bd9][c.h.h.d.c.s.u.c.ConfigurationUtil.builderDiffNameValMap(720)]\n  ...(堆栈信息)",
+      "source_file": "5522_commonservice.error.log.txt"
+    },
+    {
+      "term": "commonservice.info.log",
+      "content": "commonservice.info.log commonservice.info.log 日志含义 该日志来源于公共基础（common-service）服务的日志输出, 通过查看此日志，可以看到公共基础服务（common-service）运行的日志信息。 日志命名 日志文件名：commonservice.info.log.%i %i为日志轮转的数字。 日志格式 通配符形式 : [%d][%p][${APPNAME}][%X{X-Request-ID}][%thread][%m][%C{1.}.%M(%L)]%n 模块名形式 : [time][logLevel][module][traceId][threadId][logDetail] 日志参数 表1 日志参数 字段名称 字段含义 time [%d] 日志生成的时间，格式：yyyy-MM-dd HH:mm:ss.SSS。GMT logLevel [%p] 日志级别 module [${APPNAME}] 标志当前模块为 commonservice,内容固定为 commonservice traceId [%X{X-Request-ID}] 日志追踪ID,一般为workflowId threadId [%thread] 线程Id logDetail [%m][%C{1.}.%M(%L)]%n 日志详情(包括日志信息,附加信息和换行符) 日志示例 日志的典型样例： 公共基础服务（common-service）服务日常运行日志如下: [2021-08-25 19:33:49,932][INFO][commonservice][bd2e77bd-480d-4e69-8290-cb86a3e29371][Dubbo-54.60:9001-thread-530][getOpenFeaturesBySite, size: 0, jobId: 1756b154-e177-42d2-b928-c130f226bbaf][c.h.h.d.c.s.i.FeatureServiceImpl.getOpenFeatures(101)]",
+      "source_file": "5520_commonservice.info.log.txt"
+    },
+    {
+      "term": "cts-sdk.log",
+      "content": "cts-sdk.log cts-sdk.log 日志含义 该日志来源于公共基础（common-service）服务与CloudTrace系统交互时的日志输出，通过查看此日志，可以看到公共基础服务（common-service）与CloudTrace交互时的相关信息。 日志命名 日志文件名：cts-sdk.log.%i %i为日志轮转的数字。 日志格式 通配符形式 : [%d][%m]%n 模块名形式 : [time][logDetail] 日志参数 表1 日志参数 字段名称 字段含义 time [%d] 日志生成的时间，格式样例:Wed Oct 07 23:55:50 UTC 2020 logDetail [%m][%C{1.}.%M(%L)]%n 日志详情(包括日志信息,附加信息和换行符) 日志示例 日志的典型样例： 公共基础服务（common-service）服务日常运行日志如下: [Wed Oct 07 23:55:50 UTC 2020]Send to cloudtrace get Exception, projectId=054c14b4d600d55c2f69c00e22910840, e=java.io.IOException: java.net.UnknownHostException: cts-api-open.xianhz.hwclouds.com\ncom.huawei.fusioncloud.koopa.cts.utils.RestClient.send(RestClient.java:134)\ncom.huawei.fusioncloud.koopa.cts.utils.RestClient.post(RestClient.java:212)\ncom.huawei.fusioncloud.koopa.cts.utils.RestClient.doPost(RestClient.java:236)\ncom.huawei.fusioncloud.koopa.cts.service.UserTraceSend.send(UserTraceSend.java:51)\ncom.huawei.fusioncloud.koopa.cts.task.RetrySendTraceTask.reSendTraceRequest(RetrySendTraceTask.java:297)\ncom.huawei.fusioncloud.koopa.cts.task.RetrySendTraceTask.resendTrace(RetrySendTraceTask.java:248)\ncom.huawei.fusioncloud.koopa.cts.task.RetrySendTraceTask.sendReadFile(RetrySendTraceTask.java:189)\ncom.huawei.fusioncloud.koopa.cts.task.RetrySendTraceTask.run(RetrySendTraceTask.java:123)\njava.lang.Thread.run(Thread.java:748)",
+      "source_file": "5524_cts-sdk.log.txt"
+    },
+    {
+      "term": "commonservice.project.log",
+      "content": "commonservice.project.log commonservice.project.log 日志含义 该日志来源于公共基础（common-service）服务的日志输出, 通过查看此日志，可以看到公共基础服务（common-service）项目运行的日志信息。 日志命名 日志文件名：commonservice.project.log.%i %i为日志轮转的数字。 日志格式 通配符形式 : [%d][%p][${APPNAME}][%X{X-Request-ID}][%thread][%m][%C{1.}.%M(%L)]%n 模块名形式 : [time][logLevel][module][traceId][threadId][logDetail] 日志参数 表1 日志参数 字段名称 字段含义 time [%d] 日志生成的时间，格式：yyyy-MM-dd HH:mm:ss.SSS。GMT logLevel [%p] 日志级别 module [${APPNAME}] 标志当前模块为 commonservice,内容固定为 commonservice traceId [%X{X-Request-ID}] 日志追踪ID,一般为workflowId threadId [%thread] 线程Id logDetail [%m][%C{1.}.%M(%L)]%n 日志详情(包括日志信息,附加信息和换行符) 日志示例 日志的典型样例： 公共基础服务（common-service）服务日常项目运行日志如下: [2021-06-12 10:13:57,611][INFO][commonservice][][localhost-startStop-1][The Infrastructure bean definition [Root bean: class [org.apache.dubbo.config.spring.beans.factory.annotation.ReferenceAnnotationBeanPostProcessor]; scope=; abstract=false; lazyInit=false; autowireMode=0; dependencyCheck=0; autowireCandidate=true; primary=false; factoryBeanName=null; factoryMethodName=null; initMethodName=null; destroyMethodName=nullwith name [referenceAnnotationBeanPostProcessor] has been registered.][c.a.s.u.BeanRegistrar.registerInfrastructureBean(67)]",
+      "source_file": "5521_commonservice.project.log.txt"
+    }
+  ]
+}

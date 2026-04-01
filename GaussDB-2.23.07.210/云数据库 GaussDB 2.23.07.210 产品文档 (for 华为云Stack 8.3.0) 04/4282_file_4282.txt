@@ -1,0 +1,11 @@
+前向兼容与安全增强 前向兼容与安全增强 前向兼容 在上文中，支持通过key_info设置访问外部密钥管理的参数： 使用gsql时，通过元命令\key_info xxx设置。 使用JDBC时，通过连接参数conn.setProperty(“key_info”, “xxx”)设置。 为保持前向兼容，还支持通过环境变量等方式设置访问主密钥的参数。 第一次配置使用密态数据库时，可忽略下述方法。如果以前使用下述方法配置密态数据库，建议改用’key_info’配置。 使用系统级环境变量配置的方式如下： export HUAWEI_KMS_INFO='iamUrl=https://iam.{项目}.myhuaweicloud.com/v3/auth/tokens,iamUser={IAM用户名},iamPassword={IAM用户密码},iamDomain={账号名},kmsProject={项目}' 
+# 该方法中操作系统日志可能会记录环境变量中的敏感信息，使用过程中注意及时清理。 当然，还可通过标准库接口设置进程级环境变量，不同语言设置方法如下： C/C++ setenv("HIS_KMS_INFO", "xxx"); GO os.Setenv("HIS_KMS_INFO", "xxx"); 外部密钥服务的身份验证 当数据库驱动访问华为云密钥管理服务时，为避免攻击者伪装为密钥服务，在数据库驱动与密钥服务建立https连接的过程中，可通过CA证书验证密钥服务器的合法性。为此，需提前配置CA证书，如果未配置，将不会验证密钥服务的身份。本节介绍如何下载与配置CA证书。 配置方法 在key_info参数的中，增加证书相关参数即可。 使用gsql时 gaussdb=# \key_info keyType=hcs_kms,iamUrl=https://iam.xxx.com/v3/auth/tokens,iamUser={IAM用户名},iamPassword={IAM用户密码},iamDomain={账号名},kmsProject={项目},iamCaCert=/路径/IAM的CA证书文件,kmsCaCert=/路径/KMS的CA证书文件 gaussdb=# \key_info keyType=hcs_kms,kmsProjectId={项目ID},ak={AK},sk={SK},kmsCaCert=/路径/KMS的CA证书文件 使用JDBC时 conn.setProperty("key_info", "keyType=hcs_kms," +
+    "iamUrl=https://iam.{xxx.com/v3/auth/tokens," +
+    "iamUser={IAM用户名}," +
+    "iamPassword={IAM用户密码}," +
+    "iamDomain={账号名}," +
+    "kmsProject={项目}," +
+    "iamCaCert=/路径/IAM的CA证书文件," +
+    "kmsCaCert=/路径/KMS的CA证书文件");
+
+conn.setProperty("key_info", "keyType=hcs_kms, kmsProjectId={项目ID}, ak={AK}, sk={SK}, kmsCaCert=/路径/KMS的CA证书文件"); 获取证书 大部分浏览器均会自动下载网站对应的CA证书，并提供证书导出功能。虽然，诸如 https://www.ssleye.com/ssltool/certs_down.html 等很多网站也提供自动下载CA证书的功能，但可能因本地环境中存在代理或网关，导致CA证书无法正常使用。所以，建议借助浏览器下载CA证书。下载方式如下： 由于使用restful接口访问密钥服务，当在浏览器输入接口对应的url时，可忽略下述 2 中的失败页面，因为即使在失败的情况下，浏览器也早已提前自动下载CA证书。 输入域名：打开浏览器，在华为云场景中，分别输入IAM服务器地址和KMS服务器地址，地址获取方式参考： 生成主密钥阶段 。 查找证书：在每次输入域名后，找到SSL连接相关信息，单击后会发现证书，继续单击可查看证书内容。 导出证书：在证书查看页面，可能会看到证书分为很多级，仅需要域名的上一级证书即可，选择该证书并单击导出，便可直接生成证书文件，即需要的证书文件。 上传证书：将导出的证书上传至应用端，并配置到上述参数中即可。 父主题： 设置密态等值查询 版权所有 © 华为技术有限公司

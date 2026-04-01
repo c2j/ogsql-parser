@@ -1,0 +1,46 @@
+{
+  "topic": "存储引擎",
+  "term_count": 8,
+  "terms": [
+    {
+      "term": "数据生命周期管理-OLTP表压缩",
+      "content": "数据生命周期管理-OLTP表压缩 数据生命周期管理-OLTP表压缩 特性简介 特性约束 特性规格 使用说明 维护窗口参数配置 运维TIPS",
+      "source_file": "4403_-OLTP.txt"
+    },
+    {
+      "term": "数据生命周期管理-OLTP表压缩",
+      "content": "数据生命周期管理-OLTP表压缩 数据生命周期管理-OLTP表压缩 特性简介 特性约束 特性规格 使用说明 维护窗口参数配置 运维TIPS",
+      "source_file": "4663_-OLTP.txt"
+    },
+    {
+      "term": "存储引擎体系架构",
+      "content": "存储引擎体系架构 存储引擎体系架构 存储引擎体系架构概述 设置存储引擎 存储引擎更新说明",
+      "source_file": "4347_file_4347.txt"
+    },
+    {
+      "term": "Astore存储引擎",
+      "content": "Astore存储引擎 Astore存储引擎 Astore简介",
+      "source_file": "4356_Astore.txt"
+    },
+    {
+      "term": "Astore存储引擎",
+      "content": "Astore存储引擎 Astore存储引擎 Astore简介",
+      "source_file": "4616_Astore.txt"
+    },
+    {
+      "term": "存储引擎体系架构",
+      "content": "存储引擎体系架构 存储引擎体系架构 存储引擎体系架构概述 设置存储引擎 存储引擎更新说明",
+      "source_file": "4607_file_4607.txt"
+    },
+    {
+      "term": "Ustore存储引擎",
+      "content": "Ustore存储引擎 Ustore存储引擎 Ustore简介 存储格式 Ustore事务模型 闪回恢复 常用视图工具 常见问题及定位手段",
+      "source_file": "4618_Ustore.txt"
+    },
+    {
+      "term": "Ustore存储引擎",
+      "content": "Ustore存储引擎 Ustore存储引擎 Ustore简介 存储格式 Ustore事务模型 闪回恢复 常用视图工具 常见问题及定位手段",
+      "source_file": "4358_Ustore.txt"
+    }
+  ]
+}

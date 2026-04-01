@@ -1,0 +1,1 @@
+加密 加密 cm_ctl encrypt用于加密自认证ssl证书的私钥密码，对输入的密码进行加密操作，密码支持8~15位，且必须包含三种字符（数字，字母，符号）。 命令格式 cm_ctl encrypt [-M MODE] -D DATADIR 参数说明 -M：指定加密类型，支持server、client。不设置此参数时，默认类型为server。 -D：指定生成的加密密码文件路径。 常用命令 指定client加密： cm_ctl encrypt -M client -D /data1/omm/cluster/data/datanode1p 父主题： cm_ctl工具使用指南 版权所有 © 华为技术有限公司

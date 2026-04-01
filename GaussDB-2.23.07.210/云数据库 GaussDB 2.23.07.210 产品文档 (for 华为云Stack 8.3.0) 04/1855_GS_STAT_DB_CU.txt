@@ -1,0 +1,1 @@
+GS_STAT_DB_CU GS_STAT_DB_CU GS_STAT_DB_CU视图查询 集群 各个节点中每个数据库的CU命中情况。可以通过gs_stat_reset()进行清零。该视图只有monitor admin和sysadmin权限可以查看。具体字段信息如 表1 所示。 表1 GS_STAT_DB_CU字段 名称 类型 描述 node_name1 text 节点名称。 db_name text 数据库名称。 mem_hit bigint 内存命中次数。 hdd_sync_read bigint 硬盘同步读次数。 hdd_asyn_read bigint 硬盘异步读次数。 父主题： 其他系统视图 版权所有 © 华为技术有限公司

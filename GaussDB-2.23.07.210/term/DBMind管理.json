@@ -1,0 +1,46 @@
+{
+  "topic": "DBMind管理",
+  "term_count": 8,
+  "terms": [
+    {
+      "term": "诊断优化",
+      "content": "诊断优化 诊断优化 SQL视图 SQL诊断 会话管理 性能报告 对象分析 索引推荐 异常诊断 趋势预测",
+      "source_file": "286_file_286.txt"
+    },
+    {
+      "term": "DBMind实例管理",
+      "content": "DBMind实例管理 DBMind实例管理 DBMind实例纳管 DBMind实例解除纳管 DBMind实例再次纳管 DBMind实例删除 DBMind磁盘扩容 DBMind规格变更",
+      "source_file": "278_DBMind.txt"
+    },
+    {
+      "term": "创建DBMind实例",
+      "content": "创建DBMind实例 创建DBMind实例 操作场景 创建DBMind实例后，才能纳管 GaussDB 数据库实例。本章节介绍如何创建DBMind实例。 约束 登录管理控制台前需开启特性白名单gaussdb_feature_supportDbmind。 DBMind实例8.0版本仅支持新创建，不支持从3.300升级到8.0。 操作步骤 登录管理控制台 。 单击管理控制台左上角的 ，选择区域和项目。 在页面左上角单击 ，选择 “ 数据库 > 云数据库 GaussDB ” 。进入 云数据库 GaussDB 信息页面。 在左侧导航栏中单击 “DBMind管理” ，显示 “DBMind管理” 页面。 单击“创建DBMind实例”。 图1 DBMind管理界面 在“创建DBMind实例”页面，填写并选择实例相关信息后，单击“立即申请”。 图2 基本信息 表1 基本信息 参数 描述 区域 当前所在区域。 不同区域的主机无法同时使用。 实例名称 实例名称长度在4个到64个字符之间，必须以字母开头，可以包含字母、数字、中划线或下划线，不能包含其他特殊字符。 版本 DBMind实例目前支持8.0版本。 操作系统 根据注册的主机情况进行展示。当前支持欧拉、麒麟两种系统。 实例类型 主备版。 元数据库实例 用于存储DBMind实例数据。不填时DBMind实例自身作为元数据库。 注意： 选择已有的 GaussDB 实例作为元数据库时，仅支持非单节点主备版实例，且不支持容灾实例；同时DBMind实例需要和元数据库实例保证网络相通。 部署形态 单副本：采用单节点的部署模式，仅包含一个DBMind组件、一个Prometheus组件和一个Reprocessing_exporter组件。 资源类型 裸金属服务器BMS，弹性云服务器ECS。 可用区 可用区只支持部署在一个可用区。 图3 存储与规格 表2 存储与规格 参数 描述 性能规格 实例的CPU和内存。不同性能规格对应不同连接数。 关于性能规格详情，请参见《云数据库 GaussDB 产品介绍》中的“实例说明 > 数据库实例规格”章节。 存储类型 实例的存储类型决定实例的读写速度。最大吞吐量越高，读写速度越快。 本地SSD盘：本地SSD存储是使用本地盘方案，数据库写入并存储在本地数据盘上，能够拥有比云盘更高的写入速度。 存储空间 您申请的存储空间会有必要的文件系统开销，这些开销包括索引节点和保留块，以及数据库运行必需的空间。 图4 网络 表3 网络 参数 描述 虚拟私有云 DBMind实例所在的虚拟专用网络，可以对不同业务进行网络隔离。您需要创建或选择所需的虚拟私有云。如何创建虚拟私有云，请参见《虚拟私有云用户指南》中的“创建虚拟私有云基本信息及默认子网”。 子网 通过子网提供与其他网络隔离的、可以独享的网络资源，以提高网络安全性。子网在可用区内才会有效，创建DBMind实例的子网默认开启DHCP功能，不可关闭。创建实例时DBMind会自动为您配置内网地址。 说明： 如果选择增强型的裸金属实例规格，需要选择“裸金属专用子网”。 内网安全组 控制网络出/入及端口的访问，默认添加了DBMind实例所属的内网安全组访问。 创建主备版实例时，如果需要修改内网安全组，请确保入方向规则TCP协议端口包含：9000。 内网安全组限制实例的安全访问规则，加强DBMind与其他服务间的安全访问。 表4 参数 参数 描述 企业项目 对于已成功关联企业项目的用户，仅需在“企业项目”下拉框中选择目标项目。 图5 参数 确认详细信息。 图6 确认详情信息 如果需要重新选择实例规格，单击“上一步”，回到上个页面修改实例信息。 如果规格确认无误，单击“提交”，完成创建实例的申请。 DBMind实例创建成功后，用户可以在DBMind管理页面对其进行查看和管理。 可依据名称、ID信息进行查询。 单击实例名称下面的 ，可复制已创建的实例ID。 创建DBMind实例过程中，状态显示为“创建中”。 在实例列表的右上角，单击刷新列表，可查看到创建完成的实例状态显示为“正常”。",
+      "source_file": "277_DBMind.txt"
+    },
+    {
+      "term": "DBMind实例说明",
+      "content": "DBMind实例说明 DBMind实例说明 规格配置 镜像管理配置",
+      "source_file": "274_DBMind.txt"
+    },
+    {
+      "term": "DBMind跨子网纳管失败",
+      "content": "DBMind跨子网纳管失败 DBMind跨子网纳管失败 前提条件 DBMind实例跟被纳管数据库实例网络是同VPC下，不同子网，并且vpc主网段未设置。 现象 DBMind纳管实例失败，报错提示网络不通： 解决办法 步骤1：登录运营面，进入服务列表-网络-虚拟私有云，查看被纳管实例的子网信息 步骤2：虚拟私有云下查看DBMind实例的子网信息 步骤3：登录DBMind实例节点后台，参考下面命令手动添加路由 先添加DBMind 直连路由，指向DBMind子网网关(步骤2的网关信息): route add -net 192.168.8.1 netmask 255.255.255.255 eth1 再添加DBMind到实例的路由： route add -net 目标地址 netmask 目标掩码 gw 本地网关 示例： route add -net 192.168.7.0 netmask 255.255.255.0 gw 192.168.8.1 eth1 此时在DBMind节点ping对应实例的数据ip检查路由是否正确 步骤4：登录被纳管实例的节点(除去仲裁、日志节点)，参考下面命令手动添加路由 先添加实例节点 直连路由，指向实例子网网关(步骤1的网关信息): route add -net 192.168.7.1 netmask 255.255.255.255 eth1 再添加实例到DBMind的路由: route add -net 目标地址 netmask 目标掩码 gw 本地网关 示例： route add -net 192.168.8.0 netmask 255.255.255.0 gw 192.168.7.1 eth1 此时在实例节点ping对应DBMind的数据ip检查路由是否正确",
+      "source_file": "5291_DBMind.txt"
+    },
+    {
+      "term": "节点扩容/变更部署形态失败",
+      "content": "节点扩容/变更部署形态失败 节点扩容/变更部署形态失败 现象描述 节点扩容或者变更部署形态失败。在DBS运维管理平台查看任务树，任务失败在“ExpandCnSyncNodeFlowLimitDataTask”，并且报错信息中包含“reseverParseRuleData”信息。 可能原因 SQL限流关键词解析失败。 定位思路 查找并删除解析失败的SQL限流任务。 处理步骤 登录管理控制台。 查看SQL限流任务关键词中是否包含以下几种特殊字符。 字符串内容有 \" 或 \\ 或 {}。 字符串除了首末位，包含空格。 删除原节点包含特殊字符的限流任务。 删除新节点包含特殊字符的限流任务。 a. 登录管理控制台，点击实例进入基本信息页面，找到新增节点nodeId，然后遍历登录 b. 参考 登录实例节点 ，登录实例节点。 c. 执行如下命令，连接实例。 gsql -p 8000 -d postgres -r -U root d. 执行如下语句，查询当前已设定的限流规则。 select * from gs_workload_rule; e. 根据查看表中记录option_val字段里除去外层的大括号是否还包含前面步骤2中 提到的几种特殊字符，如果存在则根据记录的rule_id作为删除条件，执行如下语句清理限流规则数据。 select gs_delete_workload_rule(rule_id) from gs_workload_rule where rule_id in (' rule_id'); 举例：如6.5.3-4.d中查询结果有rule_id 为“2”，“3”，“4”的记录里option_val字段除掉最外层的大括号分别是“\"\\\"asd\"”，“\"asds asdasd\"”，“\"{sdfs}\"”仍都存在特殊字符，则执行语句： select gs_delete_workload_rule(rule_id) from gs_workload_rule where rule_id in ('2','3','4'); 在节点扩容/变更部署形态任务树中重试SQL限流同步工步。",
+      "source_file": "5293__.txt"
+    },
+    {
+      "term": "日志分析",
+      "content": "日志分析 日志分析 操作场景 统计 GaussDB 数据库实例日志中关键事件的次数。 约束 该特性依赖DBMind管理，确保所查看 GaussDB 数据库实例已被DBMind实例纳管。 操作步骤 登录管理控制台 。 单击管理控制台左上角的 ，选择区域和项目。 在页面左上角单击 ，选择 “ 数据库 > 云数据库 GaussDB ” 。进入 云数据库 GaussDB 信息页面。 在左侧导航栏中单击 “DBMind管理” ，显示 “DBMind管理” 页面。 选择指定DBMind实例，单击“纳管数量”。 图1 DBMind管理界面 在“已纳管实例”弹框中单击实例名称，进入实例基本信息页面。 图2 已纳管实例界面 在左侧导航栏中单击 “性能监控” ，单击“日志分析”，则可查看日志指标数据。 图3 日志分析界面 可以选择查看近14天内的 GaussDB 数据库实例日志中关键事件的统计。 可以分别选择查看被纳管的 GaussDB 数据库实例各个节点的日志中关键事件的统计。 表1 日志指标介绍 指标名称 指标解释 死锁 在采集间隔期间发生死锁日志计数。 登录被拒绝 在采集间隔期间拒绝的登录日志计数。 ERROR级别日志总数 日志文件中的错误日志计数。 PANIC级别日志 日志文件中的紧急级别日志计数。 CN和DN断连 CN和DN之间发生断连的日志计数。 节点重启 节点重启日志计数。 节点启动 节点启动日志计数。 CN状态 CN status的日志计数。（只有分布式实例展示）。 DN状态 DN status的日志计数。 GTM状态 GTM status的日志计数。（只有分布式实例展示）。 DN写入故障 DN写入失败的日志计数。 节点心跳超时重启 CMS定期会和CMA进行心跳检测，连续心跳检测没有回应次数超过阈值，就会导致CMS对心跳超时节点发出重启指令日志计数。 节点僵死重启 节点僵死时间过长导致CMS对僵死节点发出重启指令的日志计数。 CN删除 CMS故障的日志计数。（只有分布式实例展示）。 CN重启次数超限 CN重启时间超时日志计数。（只有分布式实例展示）。 节点只读 CN的只读日志计数。 CMS仲裁重启节点 CMS重新启动挂起的日志计数。 节点心跳超时 GTM心跳超时日志计数。 IP地址绑定失败 数据库实例绑定某一IP地址失败日志计数。（主要原因是原地址被占用）。 GTM与主节点断连 GTM节点主备之间断开连接的日志计数。（只有分布式实例展示）。 GTM的PANIC级别日志 GTM致命的日志计数。（只有分布式实例展示）。 CORE告警 数据库内核告警日志计数。",
+      "source_file": "285_file_285.txt"
+    },
+    {
+      "term": "SQL限流任务详情查询、修改、删除失败",
+      "content": "SQL限流任务详情查询、修改、删除失败 SQL限流任务详情查询、修改、删除失败 现象描述 当实例进行完备份恢复、容灾、节点替换之后，可能出现管控侧进行限流任务详情查询、修改、删除会失败。 可能原因 数据分管控层和节点内部，实例进行完备份恢复、容灾、节点替换之后，管控层原限流任务数据并没有更新绑定新的节点，导致管控层的数据和节点内部数据不一致，查询过程中查询不到数据，修改和删除也会出现失败。 定位思路 节点替换等场景出现限流任务详情查询、修改、删除失败，即可参考本章节进行处理。 处理步骤 如果是节点替换后限流任务详情查询、修改、删除失败，修复步骤如下： 在DBS运维管理平台查看节点替换任务树，在CreateNode4ReplaceContainer任务步骤里，点击操作->修改context，查看NODE_ID_LIST的属性值，记录好该节点id，为替换的node_id。 参考 登录实例节点 ，登录实例节点。 执行如下命令，连接实例。 gsql -p 8000 -d postgres -r -U root 执行如下语句，查询当前节点的限流规则。 select * from gs_workload_rule; 参考 登录core库 ，登录core。 执行如下命令，查询当前节点的限流数据。 select DBS_FLOW_LIMIT_TASK.ID, KEY_WORDS,RULE_ID from CORE.DBS_FLOW_LIMIT_TASK left join CORE.DBS_FLOW_LIMIT_TASK_RULE_INFO ON CORE.DBS_FLOW_LIMIT_TASK.ID = CORE.DBS_FLOW_LIMIT_TASK_RULE_INFO.LIMIT_TASK_ID  where CORE.DBS_FLOW_LIMIT_TASK.STATUS != 'DELETED' and CORE.DBS_FLOW_LIMIT_TASK_RULE_INFO.NODE_ID = 替换的node_id; 对比节点和core里数据，如果存在core库的key_words列值和节点option_val值（去除大括号以及转意符，冒号之后的数据）一样，且rule_id不一致，记录节点里的rule_id值和core库的ID值，在core库里执行以下语句保持一致： update  CORE.DBS_FLOW_LIMIT_TASK_RULE_INFO set RULE_ID = rule_id where ID = ID ； 举例：如1.6中查询结果有 ID 为\"ae891757-c62e-48e3-bea4-33824aafe7e7\"的keyword为 \"asssss\"，rule_id为 8，该记录在节点里的option_val值为“{asssss}”，去除括号后与keywords是一致的，但是rule_id却为7，则执行语句： update  CORE.DBS_FLOW_LIMIT_TASK_RULE_INFO set RULE_ID = '7' where ID = 'ae891757-c62e-48e3-bea4-33824aafe7e7' ； 如果是恢复到新实例、容灾倒换导致限流任务详情查询、修改、删除失败，修复步骤如下。 参考 登录core库 ，登录core。 如果是备份恢复到新实例，执行下面更新语句即可完成故障处理： update CORE.DBS_FLOW_LIMIT_TASK set INSTANCE_ID =新实例ID  where INSTANCE_ID = 原实例ID； 如果是容灾倒换，执行步骤2.3-2.6 参考 登录实例节点 ，登录主备版实例主节点，或者需要逐一登录分布式每个CN节点。 执行如下命令，连接实例。 gsql -p 8000 -d postgres -r -U root 执行如下语句，查询当前已设定的限流规则。 select * from gs_workload_rule; 逐个对比，找出与Console页面限流任务不匹配的限流规则，相应删除数据库或Console页面限流规则，根据需要重新创建，具体数据库限流规则删除语句如下。 select gs_delete_workload_rule(rule_id) from gs_workload_rule where rule_id = 'rule_id '; rule_id 需要替换为2.5中获取的rule_id值。如果有多个不匹配的限流规则，则需要多次执行。 举例如下： 如查询结果rule_id为 \"1\"，则执行语句： select gs_delete_workload_rule(rule_id) from gs_workload_rule where rule_id = '1' 如果是恢复到原实例场景导致限流任务详情查询、修改、删除失败数据修复，修复步骤如下： 通过回退从恢复时间到当前时间之间的操作，来恢复限流任务。 登录管理控制台。 在个人中心，单击“我的日志”。 查看在恢复备份的时间点到当前时间内是否存在增删改任务，如果在这个期间存在任务，需要执行后续回退操作。 进入SQL限流任务页面，根据任务更新时间判断是否删除限流任务 如果更新时间在恢复实例的时间点后，则需要删除SQL限流任务。",
+      "source_file": "5292_SQL.txt"
+    }
+  ]
+}

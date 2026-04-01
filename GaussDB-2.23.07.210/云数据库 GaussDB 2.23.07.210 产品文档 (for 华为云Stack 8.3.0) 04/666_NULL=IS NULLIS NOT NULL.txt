@@ -1,0 +1,1 @@
+【规则】查询条件中与NULL做比较时，禁止使用“！=”比较符，应使用IS NULL或IS NOT NULL 【规则】查询条件中与NULL做比较时，禁止使用“！=”比较符，应使用IS NULL或IS NOT NULL 父主题： WHERE 版权所有 © 华为技术有限公司

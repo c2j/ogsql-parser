@@ -1,0 +1,1 @@
+ai_watchdog_detection_warnings ai_watchdog_detection_warnings 表1 ai_watchdog_detection_warnings参数 参数 类型 描述 event text 事件名称。 cause text 事件原因。 details text 事件详情。 time timestamp 报告时刻。 need_to_handle bool 是否需要自动处理。 父主题： AI Watchdog 版权所有 © 华为技术有限公司

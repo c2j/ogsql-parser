@@ -1,0 +1,1 @@
+DB_USERS DB_USERS DB_USERS视图存储记录数据库中所有用户，但不对用户信息进行详细的描述。默认只有系统管理员可以访问。该视图同时存在于PG_CATALOG和SYS Schema下。 表1 DB_USERS字段 名称 类型 描述 user_id oid 用户的OID。 username name 用户的名称。 父主题： 用户和权限管理 版权所有 © 华为技术有限公司

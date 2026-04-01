@@ -1,0 +1,3 @@
+获取帮助 获取帮助 用户可以通过“--help”命令获取Exporter组件启动或停止等操作的帮助信息，例如： gs_dbmind component opengauss_exporter --help
+gs_dbmind component reprocessing_exporter --help
+gs_dbmind component cmd_exporter --help Exporter组件状态查询和修复的RESETful API列表如下： API 入参 参数介绍 请求方法 功能描述与预期返回结果 /v1/api/check-status cmd 组件启动命令，String，必选 POST 获取exporter组件的状态信息并返回状态详情。 /v1/api/repair cmd 组件启动命令，String，必选 POST 修复exporter组件并返回修复结果。 父主题： Prometheus Exporter组件 版权所有 © 华为技术有限公司

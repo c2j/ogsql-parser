@@ -1,0 +1,8 @@
+创建表 创建表 背景信息 表是建立在数据库中的，在不同的数据库中可以存放相同的表。甚至可以通过使用模式在同一个数据库中创建相同名称的表。 如何为业务设计最佳的表，请参考 表设计最佳实践 。 创建表 执行如下命令创建表。 1
+2
+3
+4
+5
+6
+7
+8 gaussdb =# CREATE TABLE customer_t1 ( c_customer_sk integer , c_customer_id char ( 5 ), c_first_name char ( 6 ), c_last_name char ( 8 ) ) distribute by hash ( c_last_name ); 当结果显示为如下信息，则表示创建成功。 1 CREATE TABLE 其中c_customer_sk 、c_customer_id、c_first_name和c_last_name是表的字段名，integer、char(5)、char(6)和char(8)分别是这四个字段名称的类型。 默认情况下，新的数据库对象是创建在“$user”模式下的，例如刚刚新建的表。关于模式的更多信息请参考 创建和管理schema 。 除了创建的表以外，数据库还包含很多系统表。这些系统表包含集群安装信息以及 GaussDB 上运行的各种查询和进程的信息。可以通过查询系统表来收集有关数据库的信息。请参见 查看系统表 。 关于创建表的更多信息请参考 CREATE TABLE 。 父主题： 创建和管理表 版权所有 © 华为技术有限公司

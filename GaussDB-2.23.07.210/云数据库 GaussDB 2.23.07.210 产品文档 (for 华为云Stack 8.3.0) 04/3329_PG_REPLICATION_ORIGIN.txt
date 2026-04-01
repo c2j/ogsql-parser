@@ -1,0 +1,1 @@
+PG_REPLICATION_ORIGIN PG_REPLICATION_ORIGIN PG_REPLICATION_ORIGIN系统表包含所有已创建的复制源，该表为全局共享表，即在每个节点上有只有一份pg_replication_origin，而不是每个数据库一份。 表1 PG_REPLICATION_ORIGIN字段 名称 类型 描述 roident oid 一个数据库实例范围内唯一的复制源标识符。 roname text 外部的由用户定义的复制源名称。 父主题： 其他系统表 版权所有 © 华为技术有限公司

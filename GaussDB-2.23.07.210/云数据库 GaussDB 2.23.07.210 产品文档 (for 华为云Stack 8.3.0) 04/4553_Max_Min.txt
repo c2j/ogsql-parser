@@ -1,0 +1,37 @@
+Max/Min Max/Min 场景描述 当对分区表使用min/max函数时，通常SQL引擎的实现方式是先通过Partition Iterator + PartitionScan对分区表做全量扫描然后进行Sort + Limit操作。如果分区是索引扫描，可以先对每个分区进行Limit操作，求出min/max值，最后在分区表上做Sort + Limit操作。这样分区表上做Sort时，由于每个分区已经求出min/max值，所以Sort的数据量跟分区数相同，这时极大的减少了Sort的开销。 示例 分区表Max/Min优化示例如下： CREATE TABLE test_range_pt (a INT, b INT, c INT)
+PARTITION BY RANGE(a)
+(
+    PARTITION p1 VALUES LESS THAN (2000),
+    PARTITION p2 VALUES LESS THAN (3000),
+    PARTITION p3 VALUES LESS THAN (4000),
+    PARTITION p4 VALUES LESS THAN (5000),
+    PARTITION p5 VALUES LESS THAN (MAXVALUE)
+)ENABLE ROW MOVEMENT;
+CREATE INDEX idx_range_b ON test_range_pt(b) LOCAL;
+INSERT INTO test_range_pt VALUES(generate_series(1,10000), generate_series(1,10000), generate_series(1,10000)); 优化前： gaussdb=# explain  analyze select min(b) from test_range_pt;
+                                                            QUERY PLAN
+-----------------------------------------------------------------------------------------------------------------------------------------
+Aggregate  (cost=164.00..164.01 rows=1 width=8) (actual time=6.779..6.780 rows=1 loops=1)
+  ->  Partition Iterator  (cost=0.00..139.00 rows=10000 width=4) (actual time=0.099..4.588 rows=10000 loops=1)
+      Iterations: 5
+      ->  Partitioned Seq Scan on test_range_pt  (cost=0.00..139.00 rows=10000 width=4) (actual time=0.326..3.516 rows=10000 loops=5)
+          Selected Partitions:  1..5
+ Total runtime: 6.942 ms
+(6 rows) 优化后： gaussdb=# explain  analyze select min(b) from test_range_pt;
+                                                                                  QUERY PLAN                                                   
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Result  (cost=441.25..441.26 rows=1 width=0) (actual time=0.554..0.555 rows=1 loops=1)
+   InitPlan 1 (returns $2)
+     ->  Limit  (cost=441.25..441.25 rows=1 width=4) (actual time=0.547..0.547 rows=1 loops=1)
+           ->  Sort  (cost=441.25..466.25 rows=1 width=4) (actual time=0.544..0.544 rows=1 loops=1)
+                 Sort Key: public.test_range_pt.b
+                 Sort Method: top-N heapsort  Memory: 25kB
+                 ->  Partition Iterator  (cost=0.00..391.25 rows=10000 width=4) (actual time=0.135..0.502 rows=5 loops=1)
+                       Iterations: 5
+                       ->  Limit  (cost=0.00..0.04 rows=1 width=4) (actual time=0.322..0.322 rows=5 loops=5)
+                             ->  Partitioned Index Only Scan using idx_range_b on test_range_pt  (cost=0.00..391.25 rows=1 width=4) (actual time=0.319..0.319 rows=5 loops=5)
+                                   Index Cond: (b IS NOT NULL)
+                                   Heap Fetches: 5
+                                   Selected Partitions:  1..5
+ Total runtime: 0.838 ms
+(14 rows) 优化后时间消耗远小于优化前。 注意事项及约束条件 当分区扫描路径为Index、Index Only时，才支持min/max优化。 当分区索引全部有效且为btree索引时，才支持min/max优化。 父主题： 分区算子执行优化 版权所有 © 华为技术有限公司

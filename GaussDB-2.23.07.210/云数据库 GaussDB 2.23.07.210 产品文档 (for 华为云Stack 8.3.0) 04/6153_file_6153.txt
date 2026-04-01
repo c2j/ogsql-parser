@@ -1,0 +1,3 @@
+配置客户端证书 配置客户端证书 确保当前仍在/home/myuser/data/sslcert目录下，执行如下命令，生成base64编码后的根证书（cacert.pem）、客户端用户证书（client.crt）及客户端用户私钥（client.key），base64编码后的文件名分别为cacert64.pem、client64.crt及client64.key： base64 -w0 cacert.pem > cacert64.pem
+base64 -w0 client.crt > client64.crt
+base64 -w0 client.key > client64.key 将文件 cacert64.pem、client64.crt、client64.key 的文件内容，以及执行 4.2.1生成证书文件 步骤4时输入的客户端私钥密码字符串 <client_password> 通过 安装三方备份 SSL证书 API接口传入GaussDB中。详细API操作见《云数据库 GaussDB API参考》的 “安装三方备份SSL证书”章节。 若开启SSL认证，当一个backUpAgent服务端同时对应多个GaussDB客户端时，需要确保多个GaussDB的客户端证书均与backUpAgent服务端证书由同一个根证书颁发。当同一个GaussDB客户端同时对应多个backUpAgent服务端时，需要保证多个backUpAgent服务端证书均与GaussDB的客户端证书由同一个根证书颁发。 父主题： 配置SSL双向认证证书文件 版权所有 © 华为技术有限公司

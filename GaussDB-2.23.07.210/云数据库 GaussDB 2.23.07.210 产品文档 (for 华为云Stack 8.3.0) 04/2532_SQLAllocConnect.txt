@@ -1,0 +1,1 @@
+SQLAllocConnect SQLAllocConnect 在ODBC 3.x版本中，ODBC 2.x的函数SQLAllocConnect已被SQLAllocHandle代替。有关详细信息请参阅 SQLAllocHandle 。 父主题： ODBC接口参考 版权所有 © 华为技术有限公司

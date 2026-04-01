@@ -1,0 +1,23 @@
+匿名块 匿名块 匿名块（Anonymous Block）一般用于不频繁执行的脚本或不重复进行的活动。它们在一个会话中执行，并不被存储。 语法 匿名块的语法参见 图1 。 图1 anonymous_block::= 对以上语法图的解释如下： 匿名块程序实施部分，以BEGIN语句开始，以END语句停顿，以一个分号结束。输入“/”按回车执行它。 最后的结束符“/”必须独占一行，不能直接跟在END后面。 声明部分包括变量定义、类型、游标定义等。 最简单的匿名块不执行任何命令。但一定要在任意实施块里至少有一个语句，甚至是一个NULL语句。 示例 下面列举了基本的匿名块程序： 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23 --空语句块 gaussdb =# BEGIN NULL ; END ; / --将信息打印到控制台： gaussdb =# BEGIN dbe_output . print_line ( 'hello world!' ); END ; / hello world ! ANONYMOUS BLOCK EXECUTE --将变量内容打印到控制台： gaussdb =# DECLARE my_var VARCHAR2 ( 30 ); BEGIN my_var : = 'world' ; dbe_output . print_line ( 'hello' || my_var ); END ; / helloworld ANONYMOUS BLOCK EXECUTE 父主题： 声明语法 版权所有 © 华为技术有限公司

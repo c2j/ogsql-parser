@@ -1,0 +1,94 @@
+service子命令 service子命令 该子命令可用于对配置目录进行初始化，同时也可以实现启动和停止后台任务。 配置目录初始化 用户可通过 gs_dbmind service setup 子命令进行配置目录的初始化。该配置文件中可包括DBMind的配置文件、日志等内容。该目录中的部分文件说明： dbmind.conf：DBMind的参数配置文件，用户可通过 gs_dbmind set 命令进行修改，也可通过文本编辑器进行手动修改。 dynamic_config.db：DBMind服务保存在本地节点的元信息，主要包括算法的超参数、监控阈值等；该文件为DBMind服务元信息，不可由用户直接配置。 metric_map.conf：监控指标映射表，可用于适配到不同采集平台中。例如，在DBMind中，监控到的系统cpu使用率名为os_cpu_usage, 而用户自行实现的指标采集工具将cpu使用率命名为my_cpu_usage_rate。则在该种情况下，如果想要DBMind代表cpu使用率的指标名为my_cpu_usage_rate, 则需要修改该配置选项。即添加“os_cpu_usage = my_cpu_usage_rate”配置项进行映射。对于普通用户，建议直接使用DBMind配套的采集组件和方案，则不涉及修改该配置文件。 metric_value_range.conf: 指定某些具体监控指标的上下限，以防止对该指标进行预测时，超过合理区间；未在该列表中的指标范围默认为[0, +∞)。 dbmind.pid: 该文件保存正在使用该DBMind配置目录的进程PID。 dbmind.children.pid: 该文件保存DBMind子进程的PID信息，pid之间用逗号隔开。 VERSION: 生成该配置文件目录的DBMind版本，通过验证版本来避免版本不兼容情况下的使用。 logs: 该目录中用于存储DBMind服务产生的日志，请不要手动修改该目录下的日志文件，否则可能会导致日志变为不可写状态，无法继续更新DBMind操作记录。 backtrace.stack: DBMind自身用于定位调试产生的临时文件，包含了当前各个线程的调用栈信息，是通过接收到SIGUSR2信号而产生的。 detectors.yml：DBMind异常检测器配置文件，以集群级别记录检测器配置信息。DBMind进程启动后，系统会自动初始化默认检测器，也可以通过gs_dbmind service reload命令手动触发异常检测器的初始化。初始化的过程会自动补齐配置文件中缺少的默认检测器，配置文件中已有的检测器参数不受影响。Agents检测的定时任务，在检测到DBMind纳管新实例和解除纳管实例时，会自动触发异常检测器初始化，对于新纳管的集群，则添加默认检测器；对于已解除纳管的集群，则删除对应的检测器。当前版本下，在1）主备切换、2）实例先解除后重新纳管的场景，会导致检测器配置丢失；集群扩容、缩容的场景，无法为检测器增加或减少检测器的检测范围，其他集群状态发生改变的场景，均不支持该配置文件的正常刷新与配置保存。 尽管detectors.yml文件有一定程度的自愈能力，但请不要手动更改此文件！若文件YAML格式遭到破坏，则会按照内存中的记录覆写配置文件，部分信息可能会丢失。即使手动修改不涉及YAML结构的破坏，也可能会导致部分信息的丢失。 用户可通过两种方式进行配置目录的初始化，一种为交互式，另一种为非交互式。例如，待初始化的配置目录名为 confpath , 则分别通过下述方法进行配置： 交互式模式 gs_dbmind service setup -c confpath --interactive 执行完毕上述命令后，用户可通过命令行终端对配置项进行交互式配置。 非交互式模式 非交互式模式总共分为三个步骤，即创建配置文件、修改配置项、初始化配置。其中第二个步骤需要用户通过文本编辑器手动编辑配置文件。具体步骤如下： 创建配置文件，执行下述命令： gs_dbmind service setup -c confpath 执行完上述命令后，会在confpath目录下生成dbmind.conf配置文件，用户需要利用文本编辑器进行手动修改。相关参数的说明如下： # METADATABASE 部分用于指定DBMind生成的分析结果的存储位置。
+# 当前支持的数据库类型有SQLite和GaussDB Kernel. 如果使用openGauss数据库，使用时需要注意Python驱动psycopg2的兼容性问题，用户可以选择使用openGauss官方提供的驱动，也可以通过自行编译或修改GUC参数进行适配。
+# 其他信息为连接到该数据库的连接信息，注意用户需要有数据库创建权限。
+[METADATABASE]
+dbtype = sqlite # 元数据库类型，选项：sqlite，postgresql
+host = # 元数据库地址，如果配置多个元数据库地址，需要用逗号(,)分隔。
+port = # 元数据库端口，如果配置多个元数据库地址，且port相同，填写一个port即可。如果port不相同，port数量需要和host数量一致，用逗号(,)分隔。
+username = # 元数据库用户
+password = (null) # 元数据库密码
+database = # 元数据库库名
+
+# WORKER 用于指定DBMind可以使用的worker子进程数量，如果写0则会进行自适应，即尽可能多地使用CPU资源。
+[WORKER]
+process_num = 0  # 本地节点上的工作进程数，小于或等于零表示自适应。
+# AGENT 部分用于指定DBMind连接到openGauss Agent的信息。通过使用该Agent，可以让DBMind获取到被监控实例的即时状态，从而提高分析准确性。同时，也可以向数据库实例下发一些变更动作，如结束某条慢SQL语句（这取决于此处配置的用户是否有足够的权限）。
+# 该master_url 地址即为Agent的地址，由于openGauss-exporter承担了Agent的角色，故改地址也就是openGauss-exporter 的地址。
+# 同时，openGauss-exporter是支持HTTPS协议的，所以，此处也可以根据配置指定SSL证书。
+[AGENT]
+master_url = # 无需配置该参数，即可启动自动发现模式。并且所有在TSDB中注册的代理都会被找到，但是需要配置一套统一的用户名/密码/SSL连接信息。否则，您可以键入主节点的代理 URL。例如，https://127.0.0.1:9187，如果您有多组集群，则应该用逗号（,）分隔它们。
+username =  # 登录监控数据库的用户名。代理凭证。如果配置监控多组集群，且这些集群的用户名和密码不同，则需要输入多组配置用户名，各配置用户名之间用逗号（,）分隔，且需要与上述master_url选项一一对应。
+password = (null) # 监控数据库的登录密码。代理凭证。如果配置监控多个集群，需要用逗号（,）分隔。具体配置方法与上述参数相同。
+ssl_certfile = (null) # ssl 连接的证书文件。这是可选的。如果配置监控多个集群，需要用逗号（,）分隔。具体配置方法与上述参数相同。
+ssl_keyfile = (null) # 证书私钥文件。这是可选的。如果配置监控多个集群，需要用逗号（,）分隔。具体配置方法与上述参数相同。
+ssl_keyfile_password = (null) # ssl 密钥文件的密码。这是可选的。如果配置监控多个集群，需要用逗号（,）分隔。
+ssl_ca_file = (null)  # 用于验证请求的 CA 证书。这是可选的。如果配置监控多个集群，需要用逗号（,）分隔。具体配置方法与上述参数相同。
+
+[TIMED_TASK_LIST]
+explanation = Configure scheduled tasks including start tasks and intervals # 配置计划任务，包括启动任务和间隔
+current_support_task_list = List of currently supported tasks:  # 当前支持的任务列表
+task1 = anomaly_detection         # 1. 指标异常检测.
+task2 = discard_expired_results   # 2. 清理过期数据.
+task3 = knob_recommend            # 3. 参数推荐
+task4 = slow_query_killer         # 4. 慢SQL查杀
+task5 = slow_query_diagnosis      # 5. 慢SQL诊断
+task6 = cluster_diagnose          # 6. 集群故障诊断
+
+TIMED_TASK表示后台任务配置，通过修改参数启动或停止DBMind运行的后台任务以及任务的运行间隔。
+[TIMED_TASK]
+task = discard_expired_results,anomaly_detection, cluster_diagnose
+  # 默认启动数据清理、异常检测和集群故障诊断任务
+anomaly_detection_interval = 180  # 异常检测任务运行间隔，默认180秒
+slow_query_diagnosis_interval = 120  # 慢SQL诊断任务运行间隔，默认120秒
+knob_recommend_interval = 3600  # 参数推荐任务运行间隔，默认一天
+slow_query_killer_interval = 30  # 慢SQL查杀任务运行间隔，默认30秒
+cluster_diagnose_interval = 30  # 集群故障诊断运行间隔，默认30秒
+discard_expired_results_interval = 3600  # 数据清理任务运行间隔，默认一小时
+
+# WEB-SERVICE用于DBMind的前台界面展示
+[WEB-SERVICE]
+ssl = true # 默认使用安全的协议，用户需要提供证书路径，否则DBMind服务不能启动
+host = 127.0.0.1  # DBMind-service监听地址
+port = 8080  # DBMind-service监听端口
+ssl_certfile = (null) # ssl 连接的证书文件路径
+ssl_keyfile = (null) # ssl 连接的私钥文件路径
+ssl_keyfile_password = (null) # 私钥加密密码，如果没加密则忽略
+ssl_ca_file = (null)  # CA证书路径
+
+# LOG表示设置DMBind的日志记录信息
+[LOG]
+maxbytes = 10485760 # 默认值为 10Mb。单个日志文件的最大大小。如果 maxbytes 为零，则文件无限增长
+backupcount = 1 # 日志文件备份数量
+level = INFO  # 日志级别，选项：DEBUG, INFO, WARNING, ERROR
+log_directory = logs # 日志目录
+
+# 下列内容表示给用户进行交互配置时的提示信息，用户无需配置。
+[COMMENT]
+worker = The form of executing compute-intensive tasks. Tasks can be executed locally or distributed to multiple nodes for execution.
+tsdb = Configure the data source for time series data, which come from monitoring the openGauss instance.
+metadatabase = Configure the database to record meta-data, which the database can store meta-data for the forecasting and diagnosis process. The database should be an openGauss instance.
+self-monitoring = Set up parameters for monitoring and diagnosing openGauss instance.
+self-optimization = Set up parameters for openGauss optimization.
+
+[IP_MAP]
+ip_map = (null) # 对于数据ip和管理ip不一致的环境，需要提供对应关系。以下以一主两备集群为例：“primary_data_ip:primary_management_ip,standby1_data_ip:standby1_management_ip,standby2_data_ip:standby2_management_ip” 待用户手动修改完上述参数后，需要执行下述命令进行配置项的初始化。在该阶段中，DBMind会初步检查配置项的正确性、初始化用于存储结果数据的元数据库表结构和内容，同时也加密配置项中出现的明文密码。 gs_dbmind service setup --initialize -c confpath 完成配置目录初始化过程，可基于该配置目录启动DBMind后台服务。 1. 配置文件注释信息用于在交互模式下对用户进行提示，有特殊含义不要手动修改或删除； 2. 需要确保配置项的值与注释信息之间通过空格符分割，否则系统会将注释信息识别为配置项的值； 3. 配置项中的特殊字符，如果需要转义，则通过转义符“百分号”（%）来转义，例如，用户配置的密码为 "password%", 则应通过“百分号”进行转义，即 "password%%"; 4. DBMind Service对外以标准RestfulAPI的方式提供接口，其默认支持https通信，建议用户使用。 5. DBMind云侧部署主机目前最小规格 8U64G，目前云管控支持容灾主集群纳管，不支持容灾备集群纳管。 启动服务 当用户完成配置目录的初始化后，可基于此配置目录启动DBMind后台服务。例如配置目录为confpath，则启动命令如下： gs_dbmind service start -c confpath 当执行上述命令后，会提示服务已启动。在未指定任何附加参数时，该命令默认会启动所有的后台任务。如果用户只想启动某一个后台任务，需要添加参数 --only-run. 例如，用户只想启动慢SQL根因分析服务，则为： gs_dbmind service start -c confpath --only-run slow_query_diagnosis DBMind运行过程中如果想启或停止定时任务，首先将配置文件TIMED_TASK下task中相关功能删除，在执行以下命令，此时DBMind会刷新后台定时任务： gs_dbmind service reload -c confpath 由于DBMind是一个在后台定期执行的服务，故如果用户只是想运行一次DBMind服务进行测试或调试，则可以通过添加 --dry-run 选项，如： gs_dbmind service start -c confpath --dry-run --dry-run 选项可以与 --only-run 选项合用。 如果当前进程已经在运行，用户希望重启启动该DBMind服务，则可以使用重启命令，即： gs_dbmind service restart -c confpath 默认情况下，restart会等待当前DBMind正在执行的任务执行完毕后才会退出并重启服务。如果用户希望强行杀掉当前正在运行的任务，则可以添加 -f 或 --force 选项，例如： gs_dbmind service restart --force -c confpath 关闭服务 关闭服务与启动服务类似，其命令行结构更加简单，只需指定配置目录的地址即可。例如配置目录为confpath，则为： gs_dbmind service stop -c confpath DBMind服务会在后台执行完正在运行的任务后自行退出，如需要强行退出，则使用 --force 或 -f 选项。 DBMind的高可用 DBMind高可用需要在未纳管实例的情况下实现功能，因此接口不需要token认证。应当使用默认的HTTPS协议以进行SSL双向认证，使用HTTP协议则可能引入攻击者直接发起未授权请求的安全风险！ 为保证DBMind云侧使用时的高可靠，DBMind对外提供了服务状态查询和部分异常修复的接口。 DBMind服务状态查询接口示例： curl -X 'POST'"http://127.0.0.1:8080/v1/api/check-status" -H 'accept: application/json' -H 'Content-Type: application/json' -d '{"cmd": "./gs_dbmind service start -c dbmindconf "}' 如果使用HTTPS协议，则查询示例为： curl -X 'POST'"https://127.0.0.1:8080/v1/api/check-status" -H 'accept: application/json' -H 'Content-Type: application/json' -d '{"cmd": "./gs_dbmind service start -c dbmindconf "}' --cacert xx.crt --key xx.key --cert xx.crt 返回结果示例： {"data":{"error_msg":"","result":{},"state":"NORMAL"},"success":true} DBMind异常修复接口示例： curl -X 'POST'"http://127.0.0.1:8080/v1/api/repair" -H 'accept: application/json' -H 'Content-Type: application/json' -d '{"cmd": "./gs_dbmind service start -c dbmindconf "}' 如果使用HTTPS协议，则修复示例为： curl -X 'POST'"https://127.0.0.1:8080/v1/api/repair" -H 'accept: application/json' -H 'Content-Type: application/json' -d '{"cmd": "./gs_dbmind service start -c dbmindconf "}' --cacert xx.crt --key xx.key --cert xx.crt 返回结果示例： {"data":{"error_msg":"","result":{},"state":"SUCCESS"},"success":true} 当前DBMind服务支持查询的异常场景如下： PID文件丢失或文件内容异常：当用户启动服务/组件后，会自动生成*.pid文件来记录进程对应的进程标识符，也就是PID。PID文件用于云管控来判断进程状态，发现进程级别的异常并进行修复。为防止PID文件的误删除与内容的误修改，需要定期判断PID文件是否存在以及其内容是否正确。 日志文件丢失：当用户启动服务/组件后，会自动生成*.log文件来记录进程运行的日志。此日志文件用于快速定位问题的根源、追踪程序执行的过程等。为防止日志文件的误删除，需要定期判断日志文件是否存在。 资源占用异常：DBMind服务会执行索引推荐、指标分析、智能巡检等功能，需要占用系统资源；exporter组件会采集服务器上的指标，用于后续分析，也会占用系统资源；当服务/组件的CPU或内存占用超过阈值时，说明资源占用过高，服务/组件出现异常。因此需要监控服务和组件的资源占用情况。 元数据库主备切换：DBMind支持数据库的主备切换功能，在主服务器发生故障等条件下，自动将备份服务器切换为主服务器，确保系统的持续运行。当数据库出现主备切换时，需要DBMind能够正确识别并访问对应的服务器，需要定期判断数据库是否发生了主备切换。如果配置文件中只配置一个元数据库的ip，不支持主备切换。 元数据库异常：DBMind需要将配置信息、检测到的异常结果、故障信息等内容进行持久化，存储在元数据库中，因此需要确保元数据库的正常运行；如果元数据库发生异常，则可能会导致依赖元数据库存储结果的任务无法向其插入数据，导致数据遗漏。 资源占用阈值及告警设置如下： 内存占用阈值：max(总内存的1%, 200MB)。 CPU多核占用阈值：cmd_exporter 10%，opengauss_exporter 10%，reprocessing_exporter 10%， DBMind 80%。 CPU单核占用阈值：cmd_exporter 50%，opengauss_exporter 50%，reprocessing_exporter 50%，DBMind不做限制。 调用高可用接口会检查资源占用，连续超过3次阈值才会触发资源占用告警。 风险：当占用资源连续超过阈值三次时，会触发告警，管控侧会重启服务，导致正在运行的任务中断。 当前针对DBMind服务异常的修复性说明如下，不在该范围的异常不支持修复： PID文件丢失：可自动修复； 日志文件丢失：可自动修复； 组件资源占用异常：不可通过接口修复； 元数据库主备切换：可自动修复； 元数据库异常：不可通过接口修复； 针对Exporter组件不可修复的异常，需要云侧进行处理，如重启进程。 [METADATABASE]中的元数据库用户需要具有在该数据库下的创表和数据插入更新权限，否则执行时会出现异常。而且，需要用户提前创建好数据库，否则，会提示无法连接到该数据库的错误。 DBMind尝试为每个配置文件目录启动一个DBMind实例，并通过PID文件记录DBMind实例PID，不支持同一配置文件下启动多个服务。 DBMind提供了requirement.txt文件，用户可以通过该文件安装所需的第三方依赖。 DBMind只支持特定场景的异常修复，对于不能修复的异常则需要云侧进行处理。 DBMind支持元数据库主备切换场景的自动修复，但在修复期间对元数据库的业务操作会执行失败，导致数据无法正常插入、查询或更新。 如果用户在配置目录的dbmind.conf中填写了AGENT下的master_url，当调用 DBMind的AI子功能 中/v1/api/agents接口更新agent时，如果参数force=true时则不支持更新，该参数只有mater_url没有填写时支持（会自动查找）。 DBMind当前使用进程池执行特性功能，因此接口侧的响应时间与进程池参数设置和环境等有关，比如用户在confpath目录下的dbmind.conf配置文件中process_num设置不合理或硬件性能较差等，使进程池负载较重导致 DBMind的AI子功能 中部分接口超时，比如/v1/api/risk-analysis/{metric}。 命令参考 用户可以通过 --help 选项获得该模式的帮助信息，例如： gs_dbmind service --help usage:  service [-h] -c DIRECTORY
+                [--only-run {discard_expired_results,anomaly_detection,cluster_diagnose,agent_update_detect,knob_recommend,slow_query_killer,slow_query_diagnosis}] [--dry-run] [-f]
+ [--interactive | --initialize]
+                {setup,start,stop,restart,reload}
+
+positional arguments:
+  {setup,start,stop,restart,reload}
+                        perform an action for service
+
+optional arguments:
+  -h, --help            show this help message and exit
+  -c DIRECTORY, --conf DIRECTORY
+                        set the directory of configuration files
+  --only-run {discard_expired_results,anomaly_detection,cluster_diagnose,agent_update_detect,knob_recommend,slow_query_killer,slow_query_diagnosis}
+                        explicitly set a certain task running in the backend
+  --dry-run             run the backend task(s) once. the task to run can be
+                        specified by the --only-run argument
+  -f, --force           force to stop the process and cancel all in-progress
+                        tasks
+  --interactive         configure and initialize with interactive mode
+  --initialize          initialize and check configurations after configuring. 表1 gs_dbmind service 子命令说明 参数 参数说明 取值范围 action 动作参数 setup：初始化配置目录。 start：服务启动。 restart: 重启服务。 reload: 重新加载配置文件参数 stop：服务停止。 -c，--conf 配置文件目录地址 - --initialize 配置参数初始化 - --interactive 交互式输入配置参数 - --only-run 选择只运行的模块 slow_query_diagnosis：慢SQL根因分析模块。 anomaly_detection：异常检测模块。 slow_query_killer：慢SQL查杀。 cluster_diagnose：集群故障诊断。 agent_update_detect：代理更新。 下列模块也可输入，但是DBMind内部模块使用，无命令行获取接口，对用户透明：knob_recommend、discard_expired_results --dry-run 只跑一次DBMind的任务，任务执行完毕后退出 - -f, --force 强行退出当前正在执行的任务，可用于restart和stop命令中 - -h, --help 帮助命令 - 父主题： DBMind模式说明 版权所有 © 华为技术有限公司

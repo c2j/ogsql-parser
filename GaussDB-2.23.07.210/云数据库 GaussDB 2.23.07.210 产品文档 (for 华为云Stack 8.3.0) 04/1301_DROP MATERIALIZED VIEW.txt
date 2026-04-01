@@ -1,0 +1,8 @@
+DROP MATERIALIZED VIEW DROP MATERIALIZED VIEW 功能描述 删除数据库中已有的物化视图。 注意事项 物化视图的所有者、物化视图所在模式的所有者、被授予了物化视图DROP权限的用户或拥有DROP ANY TABLE权限的用户才有权限执行DROP MATERIALIZED VIEW命令，系统管理员默认拥有此权限。 语法格式 DROP MATERIALIZED VIEW [ IF EXISTS ] mv_name [, ...] [ CASCADE | RESTRICT ]; 参数说明 IF EXISTS 如果指定的物化视图不存在，则发出一个notice而不是抛出一个错误。 mv_name 要删除的物化视图名称。 CASCADE | RESTRICT CASCADE：级联删除依赖此物化视图的对象。 RESTRICT：如果有依赖对象存在，则拒绝删除此物化视图。此选项为缺省值。 示例 --创建表。 gaussdb=# CREATE TABLE my_table (c1 int, c2 int)
+WITH(STORAGE_TYPE=ASTORE);
+
+--创建名为my_mv的物化视图。 gaussdb=# CREATE MATERIALIZED VIEW my_mv AS SELECT * FROM my_table;
+
+--删除名为my_mv的物化视图。 gaussdb=# DROP MATERIALIZED VIEW my_mv;
+
+--删除表。 gaussdb=# DROP TABLE my_table; 相关链接 ALTER MATERIALIZED VIEW ， CREATE INCREMENTAL MATERIALIZED VIEW ， CREATE MATERIALIZED VIEW ， CREATE TABLE ， REFRESH INCREMENTAL MATERIALIZED VIEW ， REFRESH MATERIALIZED VIEW 父主题： D 版权所有 © 华为技术有限公司

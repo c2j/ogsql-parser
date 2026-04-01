@@ -1,0 +1,370 @@
+示例 示例 常用功能示例代码 示例1： 1
+  2
+  3
+  4
+  5
+  6
+  7
+  8
+  9
+ 10
+ 11
+ 12
+ 13
+ 14
+ 15
+ 16
+ 17
+ 18
+ 19
+ 20
+ 21
+ 22
+ 23
+ 24
+ 25
+ 26
+ 27
+ 28
+ 29
+ 30
+ 31
+ 32
+ 33
+ 34
+ 35
+ 36
+ 37
+ 38
+ 39
+ 40
+ 41
+ 42
+ 43
+ 44
+ 45
+ 46
+ 47
+ 48
+ 49
+ 50
+ 51
+ 52
+ 53
+ 54
+ 55
+ 56
+ 57
+ 58
+ 59
+ 60
+ 61
+ 62
+ 63
+ 64
+ 65
+ 66
+ 67
+ 68
+ 69
+ 70
+ 71
+ 72
+ 73
+ 74
+ 75
+ 76
+ 77
+ 78
+ 79
+ 80
+ 81
+ 82
+ 83
+ 84
+ 85
+ 86
+ 87
+ 88
+ 89
+ 90
+ 91
+ 92
+ 93
+ 94
+ 95
+ 96
+ 97
+ 98
+ 99
+100
+101
+102
+103
+104
+105
+106
+107
+108
+109
+110
+111
+112
+113
+114
+115
+116
+117
+118
+119
+120
+121
+122 /* * testlibpq.c */ #include <stdio.h> #include <stdlib.h> #include <libpq-fe.h> #include <string.h> static void exit_nicely ( PGconn * conn ) { PQfinish ( conn ); exit ( 1 ); } int main ( int argc , char ** argv ) { /* 此处user、passwd等变量应从环境变量或配置文件读取，环境变量需用户自己按需配置；非环境变量情况下可直接赋值字符串 */ const char * conninfo ; PGconn * conn ; PGresult * res ; int nFields ; int i , j ; char * passwd = getenv ( "EXAMPLE_PASSWD_ENV" ); char * port = getenv ( "EXAMPLE_PORT_ENV" ); char * host = getenv ( "EXAMPLE_HOST_ENV" ); char * username = getenv ( "EXAMPLE_USERNAME_ENV" ); char * dbname = getenv ( "EXAMPLE_DBNAME_ENV" ); /* * 用户在命令行上提供了conninfo字符串的值时使用该值 * 否则环境变量或者所有其它连接参数 * 都使用缺省值。 */ if ( argc > 1 ) conninfo = argv [ 1 ]; else sprintf ( conninfo , "dbname=%s port=%s host=%s application=test connect_timeout=5 sslmode=allow user=%s password=%s" , dbname , port , host , username , password ); /* 连接数据库 */ conn = PQconnectdb ( conninfo ); /* 检查后端连接成功建立 */ if ( PQstatus ( conn ) != CONNECTION_OK ) { fprintf ( stderr , "Connection to database failed: %s" , PQerrorMessage ( conn )); exit_nicely ( conn ); } /* * 测试实例涉及游标的使用时候必须使用事务块。 *把全部放在一个  "select * from pg_database" * PQexec() 里，过于简单，不推荐使用。 */ /* 开始一个事务块 */ res = PQexec ( conn , "BEGIN" ); if ( PQresultStatus ( res ) != PGRES_COMMAND_OK ) { fprintf ( stderr , "BEGIN command failed: %s" , PQerrorMessage ( conn )); PQclear ( res ); exit_nicely ( conn ); } /* * 在结果不需要的时候PQclear PGresult，以避免内存泄漏 */ PQclear ( res ); /* * 从系统表 pg_database（数据库的系统目录）里抓取数据 */ res = PQexec ( conn , "DECLARE myportal CURSOR FOR select * from pg_database" ); if ( PQresultStatus ( res ) != PGRES_COMMAND_OK ) { fprintf ( stderr , "DECLARE CURSOR failed: %s" , PQerrorMessage ( conn )); PQclear ( res ); exit_nicely ( conn ); } PQclear ( res ); res = PQexec ( conn , "FETCH ALL in myportal" ); if ( PQresultStatus ( res ) != PGRES_TUPLES_OK ) { fprintf ( stderr , "FETCH ALL failed: %s" , PQerrorMessage ( conn )); PQclear ( res ); exit_nicely ( conn ); } /* 打印属性名称 */ nFields = PQnfields ( res ); for ( i = 0 ; i < nFields ; i ++ ) printf ( "%-15s" , PQfname ( res , i )); printf ( " \n\n " ); /* 打印行 */ for ( i = 0 ; i < PQntuples ( res ); i ++ ) { for ( j = 0 ; j < nFields ; j ++ ) printf ( "%-15s" , PQgetvalue ( res , i , j )); printf ( " \n " ); } PQclear ( res ); /* 关闭入口 ... 不用检查错误 ... */ res = PQexec ( conn , "CLOSE myportal" ); PQclear ( res ); /* 结束事务 */ res = PQexec ( conn , "END" ); PQclear ( res ); /* 关闭数据库连接并清理 */ PQfinish ( conn ); return 0 ; } 示例2： 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27
+28
+29
+30
+31
+32
+33
+34
+35
+36
+37
+38
+39
+40
+41
+42
+43
+44
+45
+46
+47
+48
+49
+50
+51
+52
+53
+54
+55
+56
+57
+58
+59
+60
+61
+62
+63
+64
+65
+66
+67
+68
+69
+70
+71
+72
+73
+74
+75
+76
+77
+78
+79
+80
+81
+82
+83
+84
+85
+86
+87
+88
+89
+90
+91
+92
+93
+94
+95 /* * testlibpq2.c 测试PQprepare * 在运行这个例子之前, 可以参考用下面的命令进行建表和插入数据 * create table t01(a int, b int); * insert into t01 values(1, 23); */ #include <stdio.h> #include <stdlib.h> #include <libpq-fe.h> #include <string.h> int main ( int argc , char * argv []) { /* 此处user、passwd等变量应从环境变量或配置文件读取，环境变量需用户自己按需配置；非环境变量情况下可直接赋值字符串 */ PGconn * conn ; PGresult * res ; ConnStatusType pgstatus ; char connstr [ 1024 ]; char cmd_sql [ 2048 ]; int nParams = 0 ; int paramLengths [ 5 ]; int paramFormats [ 5 ]; Oid paramTypes [ 5 ]; char * paramValues [ 5 ]; int i , cnt ; char cid [ 32 ]; int k ; char * passwd = getenv ( "EXAMPLE_PASSWD_ENV" ); char * port = getenv ( "EXAMPLE_PORT_ENV" ); char * hostaddr = getenv ( "EXAMPLE_HOST_ENV" ); char * username = getenv ( "EXAMPLE_USERNAME_ENV" ); char * dbname = getenv ( "EXAMPLE_DBNAME_ENV" ); /* PQconnectdb连接数据库, 详细的连接信息为connstr*/ sprintf ( connstr , "hostaddr=%s dbname=%s port=%s user=%s password=%s" , hostaddr , dbname , port , username , paswswd ); conn = PQconnectdb ( connstr ); pgstatus = PQstatus ( conn ); if ( pgstatus == CONNECTION_OK ) { printf ( "Connect database success! \n " ); } else { printf ( "Connect database fail:%s \n " , PQerrorMessage ( conn )); return - 1 ; } /* 执行cmd_sql查询 */ sprintf ( cmd_sql , "SELECT b FROM t01 WHERE a = $1" ); paramTypes [ 0 ] = 23 ; res = PQprepare ( conn , "pre_name" , cmd_sql , 1 , paramTypes ); if ( PQresultStatus ( res ) != PGRES_COMMAND_OK ) { printf ( "Failed to prepare SQL : %s \n : %s \n " , cmd_sql , PQerrorMessage ( conn )); PQfinish ( conn ); return - 1 ; } PQclear ( res ); paramValues [ 0 ] = cid ; for ( k = 0 ; k < 2 ; k ++ ) { sprintf ( cid , "%d" , 1 ); paramLengths [ 0 ] = 6 ; paramFormats [ 0 ] = 0 ; res = PQexecPrepared ( conn , "pre_name" , 1 , paramValues , paramLengths , paramFormats , 0 ); if ( ( PQresultStatus ( res ) != PGRES_COMMAND_OK ) && ( PQresultStatus ( res ) != PGRES_TUPLES_OK )) { printf ( "%s \n " , PQerrorMessage ( conn )); PQclear ( res ); PQfinish ( conn ); return - 1 ; } cnt = PQntuples ( res ); printf ( "return %d rows \n " , cnt ); for ( i = 0 ; i < cnt ; i ++ ) { printf ( "row %d: %s \n " , i , PQgetvalue ( res , i , 0 )); } PQclear ( res ); } /* 执行结束 关闭连接 */ PQfinish ( conn ); return 0 ; } 示例3： 1
+  2
+  3
+  4
+  5
+  6
+  7
+  8
+  9
+ 10
+ 11
+ 12
+ 13
+ 14
+ 15
+ 16
+ 17
+ 18
+ 19
+ 20
+ 21
+ 22
+ 23
+ 24
+ 25
+ 26
+ 27
+ 28
+ 29
+ 30
+ 31
+ 32
+ 33
+ 34
+ 35
+ 36
+ 37
+ 38
+ 39
+ 40
+ 41
+ 42
+ 43
+ 44
+ 45
+ 46
+ 47
+ 48
+ 49
+ 50
+ 51
+ 52
+ 53
+ 54
+ 55
+ 56
+ 57
+ 58
+ 59
+ 60
+ 61
+ 62
+ 63
+ 64
+ 65
+ 66
+ 67
+ 68
+ 69
+ 70
+ 71
+ 72
+ 73
+ 74
+ 75
+ 76
+ 77
+ 78
+ 79
+ 80
+ 81
+ 82
+ 83
+ 84
+ 85
+ 86
+ 87
+ 88
+ 89
+ 90
+ 91
+ 92
+ 93
+ 94
+ 95
+ 96
+ 97
+ 98
+ 99
+100
+101
+102
+103
+104
+105
+106
+107
+108
+109
+110
+111
+112
+113
+114
+115
+116
+117
+118
+119
+120
+121
+122
+123
+124
+125
+126
+127
+128
+129
+130
+131
+132
+133
+134
+135
+136
+137
+138
+139
+140
+141
+142
+143
+144
+145
+146
+147
+148
+149
+150
+151
+152
+153
+154
+155 /* * testlibpq3.c *      测试外联参数和二进制I/O。 * * 在运行这个例子之前，用下面的命令填充一个数据库 * * * CREATE TABLE test1 (i int4, t text); * * INSERT INTO test1 values (2, 'ho there'); * * 期望的输出是： * * * tuple 0: got *  i = (4 bytes) 2 *  t = (8 bytes) 'ho there' * */ #include <stdio.h> #include <stdlib.h> #include <string.h> #include <sys/types.h> #include <libpq-fe.h> /* for ntohl/htonl */ #include <netinet/in.h> #include <arpa/inet.h> static void exit_nicely ( PGconn * conn ) { PQfinish ( conn ); exit ( 1 ); } /* * 这个函数打印查询结果，这些结果是二进制格式，从上面的 * 注释里面创建的表中抓取出来的。 */ static void show_binary_results ( PGresult * res ) { int i ; int i_fnum , t_fnum ; /* 使用 PQfnumber 来避免对结果中的字段顺序进行假设 */ i_fnum = PQfnumber ( res , "i" ); t_fnum = PQfnumber ( res , "t" ); for ( i = 0 ; i < PQntuples ( res ); i ++ ) { char * iptr ; char * tptr ; int ival ; /* 获取字段值（忽略可能为空的可能） */ iptr = PQgetvalue ( res , i , i_fnum ); tptr = PQgetvalue ( res , i , t_fnum ); /* * INT4 的二进制表现形式是网络字节序， * 建议转换成本地字节序。 */ ival = ntohl ( * (( uint32_t * ) iptr )); /* * TEXT 的二进制表现形式是文本，因此libpq能够给它附加一个字节零， * 把它看做 C 字符串。 * */ printf ( "tuple %d: got \n " , i ); printf ( " i = (%d bytes) %d \n " , PQgetlength ( res , i , i_fnum ), ival ); printf ( " t = (%d bytes) '%s' \n " , PQgetlength ( res , i , t_fnum ), tptr ); printf ( " \n\n " ); } } int main ( int argc , char ** argv ) { /* 此处user、passwd等变量应从环境变量或配置文件读取，环境变量需用户自己按需配置；非环境变量情况下可直接赋值字符串 */ const char * conninfo ; PGconn * conn ; PGresult * res ; const char * paramValues [ 1 ]; int paramLengths [ 1 ]; int paramFormats [ 1 ]; uint32_t binaryIntVal ; char * passwd = getenv ( "EXAMPLE_PASSWD_ENV" ); char * port = getenv ( "EXAMPLE_PORT_ENV" ); char * hostaddr = getenv ( "EXAMPLE_HOST_ENV" ); char * username = getenv ( "EXAMPLE_USERNAME_ENV" ); char * dbname = getenv ( "EXAMPLE_DBNAME_ENV" ); /* * 如果用户在命令行上提供了参数， * 那么使用该值为conninfo 字符串；否则 * 使用环境变量或者缺省值。 */ if ( argc > 1 ) conninfo = argv [ 1 ]; else sprintf ( conninfo , "dbname=%s port=%s host=%s application=test connect_timeout=5 sslmode=allow user=%s password=%s" , dbname , port , hostaddr , username , password ); /* 和数据库建立连接 */ conn = PQconnectdb ( conninfo ); /* 检查与服务器的连接是否成功建立 */ if ( PQstatus ( conn ) != CONNECTION_OK ) { fprintf ( stderr , "Connection to database failed: %s" , PQerrorMessage ( conn )); exit_nicely ( conn ); } /* 把整数值 "2" 转换成网络字节序 */ binaryIntVal = htonl (( uint32_t ) 2 ); /* 为 PQexecParams 设置参数数组 */ paramValues [ 0 ] = ( char * ) & binaryIntVal ; paramLengths [ 0 ] = sizeof ( binaryIntVal ); paramFormats [ 0 ] = 1 ; /* 二进制 */ res = PQexecParams ( conn , "SELECT * FROM test1 WHERE i = $1::int4" , 1 , /* 一个参数 */ NULL , /* 让后端推导参数类型 */ paramValues , paramLengths , paramFormats , 1 ); /* 要求二进制结果 */ if ( PQresultStatus ( res ) != PGRES_TUPLES_OK ) { fprintf ( stderr , "SELECT failed: %s" , PQerrorMessage ( conn )); PQclear ( res ); exit_nicely ( conn ); } show_binary_results ( res ); PQclear ( res ); /* 关闭与数据库的连接并清理 */ PQfinish ( conn ); return 0 ; } 父主题： 基于libpq开发 版权所有 © 华为技术有限公司

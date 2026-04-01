@@ -1,0 +1,242 @@
+帮助命令 帮助命令 功能 help命令用于提供Roach工具支持的命令的帮助信息。 命令格式 python3 GaussRoach.py --help | -h 参数说明 无 使用指南 无 命令示例 查看Roach工具的帮助信息。 python3 GaussRoach.py --help 系统回显 python3 GaussRoach.py --help
+
+GaussRoach.py is a utility to backup GaussDB to DISK, OBS, NAS or REMOTE and restore GaussDB from DISK, OBS, NAS or REMOTE.
+
+Usage:
+  python3 GaussRoach.py -h | --help
+  python3 GaussRoach.py -v | --version
+  python3 GaussRoach.py -t config [-f confFile] [-c confFile] [-p] [--archive ARCHIVEMODE] [--logging-path filepath] [--cluster-timeout timeout] [--max-backup-io-speed speed]
+  python3 GaussRoach.py -t clean [-D] [--logging-path filepath][--restore-new-cluster] [--cluster-timeout timeout]
+  python3 GaussRoach.py -t start [--logging-path filepath] [--parallel-jobs] [--restore-new-cluster -X CONFIGXMLPATH ] [--parallel-restore] [--cluster-timeout timeout] [--standby-build-timeout timeout] [--single] [--pitr]
+  python3 GaussRoach.py -t backup [options]
+  python3 GaussRoach.py -t restore [options]
+  python3 GaussRoach.py -t stop [--stop-object] [-F] [--stop-timeout] [--logging-path filepath] [--pitr] [--single] [--metadata-destination path-name]
+  python3 GaussRoach.py -t delete [options]
+  python3 GaussRoach.py -t backup [--tablename tablename] [options]
+  python3 GaussRoach.py -t restore [--tablename tablename] [options]
+  python3 GaussRoach.py -t show [options]
+  python3 GaussRoach.py -t validate [options]
+  python3 GaussRoach.py -t generate [options]
+  python3 GaussRoach.py -t genstack
+  python3 GaussRoach.py -t getobject [options]
+  python3 GaussRoach.py -t retrieve [options]
+
+  Common options:
+  -t                                            The operation for GaussRoach followed by backup, clean, config, delete, generate, genstack, restore, show, start, stop, validate, getobject.
+  -h  --help                                    Show this help, then exit.
+  -v  --version                                 Display the current roach version.
+  --master-port <master port>                   The port in which master roach should be started.
+  --media-type <media type>                     Mention type of media either DISK, OBS, NAS or REMOTE.
+  --media-destination <media destination>       The path or policy that should be used for backup/restore as per media-type.
+  --buffer-size <size>                          The buffer size that used in one process. In MB, range is [256 ~ 16384].
+  --buffer-block-size<size>                     The buffer size that used in one thread. In byte, range is [524288 ~ 268435456].
+  --parallel-process <count>                    The number of process that should be used. Range is [1 ~ 32].
+  --prefetch-block <block-num>                  The number of prefetch pages for reading incremental modification pages of table files on disk during incremental backup. Range is [1 ~ 8192]
+  --logging-level <logging level>               [FATAL|ERROR|WARNING|INFO|DEBUG|DEBUG2]. Default logging level is warning.
+  --logging                                     Enable logging into log file, will be disabled by default. Use --enable-logging instead.
+  --enable-logging <True/False>                 Enable logging into log file. Default is True.
+  --log-filesize <size>                         The maximum log file size (in MB). Range is [5 ~ 20].
+  --log-filecount <count>                       The maximum number of log files that should be created. Range is [5 ~ 1024].
+  --logging-path  <path-name>                   The location where log files must be created.
+  --verbose                                     Gives details about the command being executed.
+  --failure-retry-count <count>                 The number of times it should retry in case of failure. Range is [0 ~ 256].
+  --retry-wait-time     <time>                  Time it should wait before retrying after failure. In seconds. Range is [1 ~ 3600].
+  --cpu-relinquish-time <time>                  CPU is relinquished for the specified relinquish time. Relinquish time in seconds. Range is [0 ~ 3600].
+  --cpu-relinquish-size <size>                  CPU is relinquished after processing the relinquish size. Range is [1 ~ 10000].
+  --metadata-destination <path-name>            The path where the metadata file is to be kept in backup.
+  --metadata-file-wait-time <time>              Wait time for reading metadata file. Range is [60 ~ 3600].
+  --max-memory-usage <value>                    Maximum allowed memory usage (in GB) for Roach process. Range is [2 ~ 256].
+  --pre-disk-space                              Checks availability of Disk Space before Backup and Restore.
+  --resource-retry-count                        The number of times it should retry for library APIs like fopen, pthread.
+  --master-ip                                   The ip on which master roach should be started.
+  --obs-server-ip <address>                     OBS server ip address or domain name address.
+  --bucket-name <bucketname>                    OBS bucket name.
+  --cluster-unique-id <value>                   Used to indicate the unique identifier of the cluster.
+  --pitr                                        Used to indicate the pitr backup/restore mode
+  --single                                      Used to indicate the single mode
+  --slotname <slotname>                         Backup slot name
+
+Options for config
+  -f                                            The path of gs_roach config file that will be distributed to every host.
+  -c                                            The path of gs_roach template config file that will be created.
+  -p                                            Config environment parameter and archive GUC parameter.
+  --archive  <true/false>                       Decide whether start archive or stop archive. Default is true.
+  --cluster-timeout                             The timeout value for cm_ctl start/stop.
+  --max-backup-io-speed                         Io limit of backup operation, the value will be saved to $GAUSSHOME/bin/io_limit.conf and will effect roach backup speed immediately, runing roach progress are also effected.
+
+Options for start
+  -X                                            The path of the Config XML file used for cluster setup.
+  -U  --username <username>                     User name for the cluster during backup.
+  -W <password>                                 Database password for the user name passed in during backup. Deprecated parameter. Use echo and pipe method instead.
+  --logging-path                                The location where log files must be created.
+  --parallel-jobs                               The number of parallel jobs to be performed for complete sync of standby data nodes from primary data nodes.
+  --restore-new-cluster                         To perform start for restore data to new cluster.
+  --parallel-restore                            To perform start for parallel restore.
+  --cluster-timeout                             The timeout value for cm_ctl start/stop.
+  --standby-build-timeout                       The timeout value for standby instance build.
+  --pitr                                        Used to indicate the pitr backup/restore mode
+  --single                                      Used to indicate the single mode
+  --restore-target-time                         Time(<=) to be used for pitr restore, format Unix Timestamp in seconds. It should be smaller than the timestamp in hadr_barrier_id
+
+Options for clean
+  --logging-path                                The location where log files must be created.
+  --restore-new-cluster                         To perform clean for restore data to new cluster.
+  --cluster-timeout                             The timeout value for cm_ctl start/stop.
+
+Options for backup
+  -r  --conf-location <path-name>               Path for the gs_roach.conf file.
+  -d  --dbname <dbname>                         The name of the database.
+  -U  --username <username>                     User name for the cluster.
+  -W <password>                                 Database password for the user name passed in. Deprecated parameter. Use echo and pipe method instead.
+  --max-backup-io-speed <speed>                 The maximum IO speed that backup can write to media destination per parallel process. Unit: B/s. 0 means no limit.
+  --split-local-disk-storage                    Store media data on different disk partitions of each DN seperately, the default is stored on one disk partition specified by media destination.
+  --compression-level <level>                   The compression level that should be used for backup.
+  --compression-type <type>                     The compression type that should be used for backup.
+  --cbm-recycle-level <level>                   The cbmRecycle level that should be used to recycle cbm files during backup.
+  --filesplit-size <size>                       Approximate file size after which the file will be split.
+  --contrib-config <configFile>                 Path of config file having contrib module info (eg, for HDFS).
+  --validation-type <value>                     Validate the contents of backup. Values "partial" or "full".
+  --prior-backup-key                            Previous full/incremental backup key to be considered as the base for incremental backup.
+  --prior-cluster-unique-id                     Previous full/incremental backup cluster unique id. Used to download metadata info from OBS before backup operation.
+  --validate-prior-backups <value>              Validate all prior backups (if any). One of the two values i.e. "Force" (mandatorily run validate), "Optimistic" (if not validated, it will run validate).
+  --reader-thread-count                         Number of reader threads for processing. Range is [1 ~ 65535].
+  --reader-thread-file-count                    Number of buffer files for each reader thread. Range is [1 ~ 65535].
+  --reader-thread-file-size                     Buffer file size for each buffer file of reader thread. Range is [1 ~ 65535].
+  --table-list <file-name>                      Absolute path of input file name which contains list of tables(separated by new line) to be backed up. Each line contains the format <schema name>.TableName. Default schema is 'public'.
+  --resume-backup                               Start resume backup mode.
+  --resume-restore                              Start resume restore mode.
+  --check-balance-retry-times                   The retry times of checking cluster balance for resume backup
+  --single                                      Used to indicate the single mode
+  --pitr                                        Used to indicate the pitr backup/restore mode
+  --master-port <master port>                   The port in which master roach should be started.
+  --media-type <media type>                     Mention type of media either DISK, OBS, NAS or REMOTE.
+  --media-destination <media destination>       The path or policy that should be used for backup/restore as per media-type.
+  --metadata-destination <path-name>            The path where the metadata file is to be kept in backup.
+  --logging                                     Enable logging into log file, will be disabled by default. Use --enable-logging instead.
+  --logging-level <logging level>               [FATAL|ERROR|WARNING|INFO|DEBUG|DEBUG2]. Default logging level is warning.
+  --skip-delay-ddl                              Skip delay ddl.
+  --single-group-nodeid                         Single cluster group node id.
+  --single-group-datapath                       Single cluster group data path.
+  --standby-mode                                In standby mode, the backup is executed on standby datanodes.
+  --disable-ssl                                 Disable ssl of roach
+  --gbr-table-list <file name>                  Absolute path of input file name which contains list of tables(in json format) to be backed up.
+                                                The contentx example "{"TableList":[{"DBName":"db1","SchemaName":"schema1","TableName":"table1"},{"DBName":"db2","SchemaName":"schema2","TableName":"table2"}]}"
+
+Options for table backup and table restore
+  --tablename  <table name>                     Table name for the backup.
+  --agent-port <agent port>                     The port in which master roach should be started for performing table restore.
+
+Option for multiple table backup and table restore
+  --table-list <file path>                      The file having the list of tables for performing backup/restore.
+  --logical                                     Use this flag if table-list is used for Logical Multi-table backup
+
+Option for table restore
+  --getdata-waittime-afterthreshold <time>      Wait time after buffer threshold. In micro seconds.
+  --clean                                       For Table restore, clean table data before performing restore.
+  --continue                                    Continue table restore on failure.
+  --create                                      Create table before performing table restore.
+  --agent-port <agent port>                     The port in which master roach should be started for performing table restore.
+
+Options for restore
+  --restore-buffer-threshold <buffer-threshold> The percentage of buffer that should be available before restoring the next file.
+  --backup-key <backup key>                     The key used for restore.
+  --clean                                       For cluster restore, performs clean up activity internally.
+  --restore-new-cluster                         Restore data to new cluster.
+  --restore-configs                             Few config files are restored from backup with changed values for IP, Port, Hostname and Path from current cluster.
+  --parallel-restore                            Parallel restore DN, to avoid full build when start cluster, only support OBS.
+  --validation-type <value>                     Validate the backup before doing restore. Values "partial" or "full".
+  --contrib-config                              Path of config file having contrib module info (eg, for HDFS).
+  --restore-target-time                         Time(<=) to be used for restore, format '<YYYY-MM-DD HH:MM:SS>'.
+  --old-cluster-hostname                        Using anyone of hostname in old cluster when restoring to new cluster.
+  --table-list <file-name>                      Absolute path of input file name which contains list of tables(separated by new line) to be restored from Logical Multi-table backup.
+  --dbname <db-name>                            The name of the database.
+  --skip-dependent-backup                       Skip the dependent backups, only the specified backup will be restored.
+  --single                                      Used to indicate the single mode
+  --pitr                                        Used to indicate the pitr backup/restore mode
+  --master-port <master port>                   The port in which master roach should be started.
+  --media-type <media type>                     Mention type of media either DISK, OBS, NAS or REMOTE.
+  --media-destination <media destination>       The path or policy that should be used for backup/restore as per media-type.
+  --metadata-destination <path-name>            The path where the metadata file is to be kept in backup.
+  --logging                                     Enable logging into log file, will be disabled by default. Use --enable-logging instead.
+  --logging-level <logging level>               [FATAL|ERROR|WARNING|INFO|DEBUG|DEBUG2]. Default logging level is warning.
+  --pitr-time                                   Pitr restore target time in Unix Timestamp Format.
+  --disable-ssl                                 Disable ssl of roach
+  --gbr-db-list <db list>                       Db list for fine-grained backup and restoration, separate each db with a comma, format 'db1,db2,db3'
+  --gbr-db-remap <new db list>                  New Db list for fine-grained backup and restoration, separate each db with a comma, format 'newdb1,newdb2,newdb3'
+  --gbr-table-list <file name>                  Absolute path of input file name which contains list of tables(in json format) to be restored.
+                                                The contentx example "{"TableList":[{"DBName":"db1","SchemaName":"schema1","TableName":"table1"},{"DBName":"db2","SchemaName":"schema2","TableName":"table2"}]}"
+  --aux-db-path <aux db path>                   Auxiliary database path for fine-grained backup and restoration.
+  --aux-db-data-path <aux db data path>         Auxiliary database path for fine-grained backup and restoration, if this parameter is specified, the aux db path will link to it.
+  --on-demand-tsp-location                      The fine-grained backup and restoration table space.
+  --origin-cluster                              If restore to origin cluster
+  --gbr-owner                                   The owner of database/table in fine-grained backup and restoration.
+
+Options for show
+  --all-backups                                 Show complete backup catalogue information. Default action if no option given.
+  --backup-key <backup_key>                     Show restore path up to a given backup key.
+  --output-file <file path>                     Absolute file path with filename, where output of the show operation will be stored.
+  --no-display                                  To suppress the output on console, and redirect to the output file silently.
+  --overwrite                                   To overwrite the existing file.
+  --related-backup-keys                         To show all related backups of the provided backup key.
+  --restore-target-time                         To show the latest cluster level full backup and incremental backup before specified time that can be used to restore, format '<YYYY-MM-DD HH:MM:SS>'.
+
+Options for stop
+  --stop-object                                 Stop object, include cluster
+  -F                                            Forcefully stop the object or backup operation.
+  --stop-timeout                                Time after which the stop operation will exit.
+  --pause-resume-backup                         Pause resume backup.
+  --logging-path <filepath>                     The location where log files must be created.
+  --pitr                                        Used to indicate the pitr backup/restore mode
+  --single                                      Used to indicate the single mode
+  --metadata-destination <path-name>            The path where the metadata file is to be kept in backup.
+
+Options for validate
+  [options]                                     Similar options as 'restore'...
+
+Options for generate
+  --backup-topology                             Currently only the value "xml" supported, anything else will give error.
+  --output-file                                 File path for output (Topology) XML file. The dir should be existing and writeable. This is an
+                                                Optional parameter, if not specified it will be considered as "$PWD/clusterTopology_<BKUP_KEY>.xml".
+  --media-type <media type>                     Optional parameter, by default type is "DISK".
+  --media-destination <media destination>       The path for the disk backup used to generate the Topology XML.
+  --generate-force                              Optional parameter, to forcefully overwrite the output file if it already exists.
+
+Options for delete
+  --cascade                                     To delete all descendant backups of the provided backup key.
+  --disable-ssl                                 Disable ssl of roach
+
+Options for pitr
+  --obs-ak                                      The OBS ak.
+  --task-id                                     The archive task id.
+  --archive-mode                                The archive mode.
+  --delete-all-archived-xlog                    To delete all archived xlog
+  --start-time                                  The start time of archive:show.
+  --timezone                                    The timezone out of /var/chroot in PUBLIC_CLOUD scene.
+
+Option for Getobjct
+  --restore-count                               To Count the number of times recovery is required.
+
+Option for snapshot backup/restore
+  --snapshot-action                             The specific operations for snapshot backup/restore, can be backup_config, restore_config, start
+  --backup-config-path                          The path for backup instance configs
+  --block-dw-flush-timeout                      The timeout of block dw flush in snapshot backup prepare
+
+Options for retrieve
+  --media-type                                  retrieve type, now only support OBS/NAS
+  --obs-server-ip                               OBS server ip address or domain name address.
+  --bucket-name                                 OBS bucket name.
+  --media-destination                           The path or policy that should be used for retrieve log in NAS
+  --metadata-destination                        The path where the metadata file is to be kept in backup.
+  --cluster-unique-id                           Used to indicate the unique identifier of the cluster.
+  --task-id                                     The archive task id when retrieve xlog
+  --backup-key                                  Show retrieve path up to a given backup key.
+  --retrieve-inst                               retrieve inst, such as "cn5001" or "dn6002"
+  --retrieve-local-path                         the local filepath in the node which contain retrieve inst
+  --retrieve-type                               the log type to retrieve, now only support "csnlog,clog,xlog"
+  --retrieve-start-lsn                          the start point of lsn range when retrieve several xlog
+  --retrieve-end-lsn                            the end point of lsn range when retrieve several xlog
+  --retrieve-replace                            the bool mark indicate whether replace the retrieve logs with those in current working cluster
+  --retrieve-replace-filelist                   the list record the log to be replaced
+  --retrieve-replace-force                      the mark force to replace regardless of version change
+  --retrieve-clean                              the mark clean all the file in the --retrieve-local-path/roachRetrieve
+### Refer user manual for more details ### 相关命令 无 父主题： 命令行参考 版权所有 © 华为技术有限公司

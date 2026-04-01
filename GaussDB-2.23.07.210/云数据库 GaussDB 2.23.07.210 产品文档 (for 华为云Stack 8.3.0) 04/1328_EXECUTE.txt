@@ -1,0 +1,27 @@
+EXECUTE EXECUTE 功能描述 执行一个前面准备好的预备语句。因为一个预备语句只在会话的生命期里存在，所以预备语句必须是在当前会话的前些时候用PREPARE语句创建的。 注意事项 如果创建预备语句时，PREPARE语句声明了一些参数，那么传递给EXECUTE语句的必须是一个兼容的参数集，否则会出现错误。 语法格式 EXECUTE name [ ( parameter [, ...] ) ]; 参数说明 name 要执行的预备语句的名称。 parameter 给预备语句的参数的具体数值。它必须是一个和生成与创建这个预备语句时指定参数的数据类型相兼容的值的表达式，不支持ROWNUM作为参数。 示例 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27 --创建schema。 gaussdb =# CREATE SCHEMA tpcds ; --创建表reason。 gaussdb =# CREATE TABLE tpcds . reason ( CD_DEMO_SK INTEGER NOT NULL , CD_GENDER character ( 16 ) , CD_MARITAL_STATUS character ( 100 ) ); --插入数据。 gaussdb =# INSERT INTO tpcds . reason VALUES ( 51 , 'AAAAAAAADDAAAAAA' , 'reason 51' ); --创建表reason_t1。 gaussdb =# CREATE TABLE tpcds . reason_t1 AS TABLE tpcds . reason ; --为一个INSERT语句创建一个预备语句然后执行它。 gaussdb =# PREPARE insert_reason ( integer , character ( 16 ), character ( 100 )) AS INSERT INTO tpcds . reason_t1 VALUES ( $ 1 , $ 2 , $ 3 ); gaussdb =# EXECUTE insert_reason ( 52 , 'AAAAAAAADDAAAAAA' , 'reason 52' ); --删除表reason和reason_t1。 gaussdb =# DROP TABLE tpcds . reason ; gaussdb =# DROP TABLE tpcds . reason_t1 ; --删除schema。 gaussdb =# DROP SCHEMA tpcds CASCADE ; 父主题： E 版权所有 © 华为技术有限公司

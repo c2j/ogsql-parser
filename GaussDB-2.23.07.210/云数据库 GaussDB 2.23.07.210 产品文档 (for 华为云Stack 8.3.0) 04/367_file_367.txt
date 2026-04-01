@@ -1,0 +1,6 @@
+复制参数模板 复制参数模板 功能介绍 复制参数模板。 调用接口前，您需要提前 获取终端节点 ，即下文中的Endpoint值。 URI URI格式 POST https://{ Endpoint }/gaussdb/v3/{project_id}/configurations/{config_id}/copy URI样例 https://gaussdb.sa-fb-2.hcsglobal.com/gaussdb/v3/619d3e78f61b4be68bc5aa0b59edcf7b/configurations/3ca44134a16d4bbab8eb701e025b19f7pr14/copy 参数说明 表1 参数说明 参数 是否必选 参数类型 描述 project_id 是 String 租户在某一region下的project ID。 获取方法请参见 获取项目ID/名称 。 config_id 是 String 被复制的参数模板ID。 请求消息 参数说明 表2 参数说明 名称 是否必选 参数类型 说明 name 是 String 复制后的参数模板名称。取值范围：长度1到64位之间，区分大小写字母，可包含字母、数字、中划线、下划线或句点，不能包含其他特殊字符。 description 否 String 参数模板描述，默认为空。 取值范围：长度不能超过256，不能包含回车>!<"&'=等特殊字符。 请求示例 复制一个参数模板 { 
+   "name" : "paramTemplate-1233", 
+   "description" : "描述" 
+} 响应消息 正常响应要素说明 表3 参数说明 参数 参数类型 描述 config_id String 复制后的参数模板ID。 正常响应样例 { 
+  "config_id" : "3ca44134a16d4bbab8eb701e025b19f7pr14" 
+} 异常响应 请参见 异常请求结果 。 状态码 正常 200 异常 请参见 状态码 。 错误码 请参见 错误码 。 父主题： 参数配置 版权所有 © 华为技术有限公司

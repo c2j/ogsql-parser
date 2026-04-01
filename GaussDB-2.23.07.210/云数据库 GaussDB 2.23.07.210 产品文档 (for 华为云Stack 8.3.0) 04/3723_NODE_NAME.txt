@@ -1,0 +1,1 @@
+NODE_NAME NODE_NAME 提供数据库中所有正常节点的名称。 表1 NODE_NAME字段 名称 类型 描述 node_name name 节点名称。 父主题： OS 版权所有 © 华为技术有限公司

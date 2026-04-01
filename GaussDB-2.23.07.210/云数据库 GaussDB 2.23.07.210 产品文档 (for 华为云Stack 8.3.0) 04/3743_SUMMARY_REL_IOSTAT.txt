@@ -1,0 +1,1 @@
+SUMMARY_REL_IOSTAT SUMMARY_REL_IOSTAT 获取所有节点上的数据文件I/O 统计信息。 表1 SUMMARY_REL_IOSTAT字段 名称 类型 描述 phyrds numeric 读物理文件的数目。 phywrts numeric 写物理文件的数目。 phyblkrd numeric 读物理文件的块的数目。 phyblkwrt numeric 写物理文件的块的数目。 父主题： File 版权所有 © 华为技术有限公司

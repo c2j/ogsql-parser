@@ -1,0 +1,4 @@
+SQLSetConnectAttr SQLSetConnectAttr 功能描述 设置控制连接各方面的属性。 原型 1
+2
+3
+4 SQLRETURN SQLSetConnectAttr ( SQLHDBC ConnectionHandle SQLINTEGER Attribute , SQLPOINTER ValuePtr , SQLINTEGER StringLength ); 参数 表1 SQLSetConnectAttr参数 关键字 参数说明 ConnectionHandle 连接句柄。 Attribute 设置属性。 ValuePtr 指向对应Attribute的值。依赖于Attribute的值，ValuePtr是32位无符号整型值，或指向以空结束的字符串，二进制缓冲区，或者驱动定义值。注意，如果ValuePtr参数是驱动程序指定值。ValuePtr可能是有符号的整数。 StringLength 如果ValuePtr指向字符串或二进制缓冲区，这个参数是*ValuePtr长度，如果ValuePtr指向整型，忽略StringLength。 返回值 SQL_SUCCESS：表示调用正确。 SQL_SUCCESS_WITH_INFO：表示会有一些警告信息。 SQL_ERROR：表示比较严重的错误，如：内存分配失败、建立连接失败等。 SQL_INVALID_HANDLE：表示调用无效句柄。其他API的返回值同理。 注意事项 当SQLSetConnectAttr的返回值为SQL_ERROR或SQL_SUCCESS_WITH_INFO时，通过借助SQL_HANDLE_DBC的HandleType和ConnectionHandle的Handle，调用 SQLGetDiagRec 可得到相关的SQLSTATE值，通过SQLSTATE值可以查出调用此函数的具体信息。 示例 参见： 示例 父主题： ODBC接口参考 版权所有 © 华为技术有限公司

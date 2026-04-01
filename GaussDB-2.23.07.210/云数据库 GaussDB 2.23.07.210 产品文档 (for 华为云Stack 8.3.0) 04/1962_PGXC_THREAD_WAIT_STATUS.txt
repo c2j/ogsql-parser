@@ -1,0 +1,38 @@
+PGXC_THREAD_WAIT_STATUS PGXC_THREAD_WAIT_STATUS PGXC_THREAD_WAIT_STATUS视图可用来查看集群全局各个节点上所有SQL语句产生的线程之间的调用层次关系，以及各个线程的阻塞等待状态，从而更容易定位进程停止响应问题以及类似现象的原因。具体字段信息如 表1 所示。 PGXC_THREAD_WAIT_STATUS视图和PG_THREAD_WAIT_STATUS视图列定义完全相同，这是由于PGXC_THREAD_WAIT_STATUS视图本质是到集群中各个节点上查询PG_THREAD_WAIT_STATUS视图汇总的结果。 表1 PGXC_THREAD_WAIT_STATUS字段 名称 类型 描述 node_name text 当前节点的名称。 db_name text 数据库名称。 thread_name text 线程名称。 query_id bigint 查询id，对应debug_query_id。 tid bigint 当前线程的线程号。 sessionid bigint 会话id。 lwtid integer 当前线程的轻量级线程号。 psessionid bigint 父会话id。 tlevel integer streaming线程的层级。 smpid integer 并行线程的id。 wait_status text 当前线程等待状态的详细信息。 wait_event text 当前线程正在等待的事件，请参见 表2 。 locktag text 当前线程正在等待锁的信息。 lockmode text 当前线程正等待获取的锁模式。 block_sessionid bigint 阻塞当前线程获取锁的会话标识。 global_sessionid text 全局会话id。 例如： 在coordinator1执行一条语句之后长时间没有响应。可以创建另外一个连接到coordinator1上，查询coordinator1上的线程状态。 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27
+28
+29
+30
+31
+32
+33
+34
+35
+36
+37
+38 gaussdb =# SELECT * FROM pg_thread_wait_status WHERE query_id > 0 ; - [ RECORD 1 ] ----+-------------------------------------- node_name | cn_5001 db_name | tpcc_row thread_name | PostgreSQL JDBC Driver query_id | 72620544050065400 tid | 140650239031040 sessionid | 11680 lwtid | 26762 psessionid | tlevel | 0 smpid | 0 wait_status | wait node : dn_6007_6008_6009 , total 1 wait_event | wait node locktag | lockmode | block_sessionid | global_sessionid | 1120683504 : 11680 # 0 ( 1 rows ) gaussdb =# SELECT * FROM pgxc_thread_wait_status WHERE query_id > 0 ; - [ RECORD 1 ] ----+-------------------------------------------------- node_name | cn_5001 db_name | tpcc_row thread_name | PostgreSQL JDBC Driver query_id | 72620544050081616 tid | 140648290055936 sessionid | 11680 lwtid | 26839 psessionid | tlevel | 0 smpid | 0 wait_status | wait node : dn_6004_6005_6006 , total 2 wait_event | wait node locktag | lockmode | block_sessionid | global_sessionid | 1120683504 : 11680 # 0 ( 1 rows ) 父主题： 其他系统视图 版权所有 © 华为技术有限公司

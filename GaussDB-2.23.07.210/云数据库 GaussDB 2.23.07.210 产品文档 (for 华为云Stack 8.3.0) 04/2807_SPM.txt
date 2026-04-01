@@ -1,0 +1,38 @@
+SPM计划管理函数 SPM计划管理函数 GS_SPM_EVOLUTE_PLAN(sql_hash, plan_hash) 描述： GS_SPM_EVOLUTE_PLAN属于DBE_SQL_UTIL schema，是SPM特性用于计划演进的接口函数。只要该计划基线相关的表存在，就可以对该计划基线进行演进。 参数： 参数介绍见 表1 表1 GS_SPM_EVOLUTE_PLAN入参和返回值列表 参数 类型 描述 取值范围 sql_hash IN bigint SQL文本的hash值。 - plan_hash IN bigint SQL计划outline文本的hash值。 - evolute_status OUT boolean 演进行为是否正常完成：t表示正常；异常会报错。 t/f 返回值类型： boolean 示例： select * from  dbe_sql_util.gs_spm_evolute_plan(107760189, 2284373089);
+ evolute_status 
+----------------
+ t
+(1 row) GS_SPM_SET_PLAN_STATUS(sql_hash, plan_hash, plan_status) 描述： GS_SPM_SET_PLAN_STATUS属于DBE_SQL_UTIL schema，它是SPM特性用于修改baseline状态的接口函数。 参数 ：参数介绍见 表2 表2 GS_SPM_SET_PLAN_STATUS入参和返回值列表 参数 类型 描述 取值范围 sql_hash IN bigint SQL文本的hash值。 - plan_hash IN bigint SQL计划outline文本的hash值。 - plan_status IN text 计划的状态。 ACC：表示已经接受的计划。 UNACC：表示未接受的计划。 FIXED：一种特殊的ACC状态的计划，计划的匹配优先级高于ACC状态的计划。 execute_status OUT boolean 修改计划状态行为是否正常完成：t表示正常；异常会报错。 t/f 返回值类型 ：boolean 示例： select dbe_sql_util.gs_spm_set_plan_status(sql_hash, plan_hash, 'ACC') from gs_spm_sql_baseline 
+where outline like '%BitmapScan%';
+ gs_spm_set_plan_status 
+------------------------
+ t
+(1 row) GS_SPM_DISPLAY_PLANS(sql_hash) 描述： GS_SPM_DISPLAY_PLANS属于DBE_SQL_UTIL schema，它是SPM特性用于查看单条SQL所有baseline的接口函数。 参数： 参数介绍见 表3 表3 GS_SPM_DISPLAY_PLANS入参和返回值列表 参数 类型 描述 取值范围 sql_hash IN bigint SQL的唯一标识。 - sql_hash OUT bigint SQL文本的hash值。 - plan_hash OUT bigint SQL计划outline文本的hash值。 - outline OUT text 当前计划对应outline的所有Hint的组合字符串。 - cost OUT double 当前计划的代价。 - status OUT text 当前计划的状态。 ACC：表示已经接受的计划。 UNACC：表示未接受的计划。 FIXED：一种特殊的ACC状态的计划，计划的匹配优先级高于ACC状态的计划。 gplan OUT boolean 当前计划是否是gplan。t表示是gplan；异常会报错。 t/f 返回值类型： bigint, text, double, text, boolean 示例 ： select sql_hash, plan_hash, outline, status, gplan from dbe_sql_util.gs_spm_display_plans(107760189) 
+order by status, outline;
+ sql_hash  |  plan_hash   |                    outline                     | status | gplan 
+-----------+------------+------------------------------------------------+--------+-------
+ 107760189 | 2519317082 |  begin_outline_data                           +| ACC    | f
+           |            |  IndexScan(@"sel$1" tb_a@"sel$1" tb_a_idx_c1) +|        | 
+           |            |  version("1.0.0")                             +|        | 
+           |            |  end_outline_data                              |        | 
+ 107760189 | 2686653876 |  begin_outline_data                           +| UNACC  | f
+           |            |  BitmapScan(@"sel$1" tb_a@"sel$1" tb_a_idx_c1)+|        | 
+           |            |  version("1.0.0")                             +|        | 
+           |            |  end_outline_data                              |        | 
+ 107760189 | 2284373089 |  begin_outline_data                           +| UNACC  | f
+           |            |  TableScan(@"sel$1" tb_a@"sel$1")             +|        | 
+           |            |  version("1.0.0")                             +|        | 
+           |            |  end_outline_data                              |        | 
+(3 rows) GS_SPM_RELOAD_PLAN(sql_hash，plan_hash) 描述： GS_SPM_RELOAD_PLAN属于DBE_SQL_UTIL schema，它是SPM特性用于加载baseline系统表中某baseline到SPM global cache中的接口函数。 参数： 参数介绍见 表4 表4 GS_SPM_RELOAD_PLAN入参和返回值列表 参数 类型 描述 取值范围 sql_hash IN bigint SQL文本的hash值。 - plan_hash IN bigint SQL计划outline文本的hash值。 - execute_status OUT boolean baseine的加载行为是否正常完成：t表示正常；异常会报错。 t/f 返回值类型： boolean 示例： select dbe_sql_util.gs_spm_reload_plan(sql_hash, plan_hash) from gs_spm_sql_baseline where outline like '%IndexScan%'; 
+ gs_spm_reload_plan 
+--------------------
+ t
+(1 row) GS_SPM_VALIDATE_PLAN(sql_hash, plan_hash) 描述 ：GS_SPM_VALIDATE_PLAN属于DBE_SQL_UTIL schema，它是SPM特性用于计划可用性验证的接口函数。 参数： 参数介绍见 表5 表5 GS_SPM_VALIDATE_PLAN入参和返回值列表 参数 类型 描 取值范围 sql_hash IN bigint SQL文本的hash值。 - plan_hash IN bigint SQL计划outline文本的hash值。 - execute_status OUT boolean 被验证的计划是否可用： t：被验证的计划可用；f: 被验证的计划不可用 t/f 返回值类型 ：boolean 示例： select dbe_sql_util.gs_spm_validate_plan(sql_hash, plan_hash) from gs_spm_sql_baseline where outline like '%IndexScan%'; 
+ gs_spm_validate_plan 
+----------------------
+ f
+(1 row) GS_SPM_DELETE_PLAN(sql_hash, plan_hash) 描述： GS_SPM_DELETE_PLAN属于DBE_SQL_UTIL schema，它是SPM特性用于计划删除baseline的接口函数。若该函数在执行期间异常中止，可能会导致gs_spm_baseline表中记录数超出GUC参数spm_plan_capture_max_plannum指定的数量。 参数： 参数介绍见 表6 表6 GS_SPM_DELETE_PLAN入参和返回值列表 参数 类型 描述 取值范围 sql_hash IN bigint SQL文本的hash值。 - plan_hash IN bigint SQL计划outline文本的hash值。 - execute_status OUT boolean 计划删除行为是否正常完成：t表示正常；异常会报错。 t/f 返回值类型： boolean 示例： select dbe_sql_util.gs_spm_delete_plan(sql_hash, plan_hash) from gs_spm_sql_baseline where outline like '%IndexScan%'; 
+ gs_spm_delete_plan 
+--------------------
+ t
+(1 row) 父主题： 函数和操作符 版权所有 © 华为技术有限公司

@@ -1,0 +1,104 @@
+查询实例的组件列表 查询实例的组件列表 功能介绍 查询实例的所有组件信息。 调用接口前，您需要提前 获取终端节点 ，即下文中的Endpoint值。 URI URI格式 GET https://{ Endpoint }/gaussdb/v3/{project_id}/instances/{instance_id}/components URI样例 https://gaussdb.sa-fb-2.hcsglobal.com/gaussdb/v3/0483b6b16e954cb88930a360d2c4e663/instances/dd93e98e103b4fc4b5a978a6bd6f03a9in14/components 参数说明 表1 参数说明 名称 参数类型 是否必选 说明 project_id string 是 租户在某一region下的project ID。 获取方法请参见 获取项目ID/名称 。 instance_id string 是 实例ID。 limit integer 否 查询记录数。默认为100，不能为负数，最小值为1，最大值为100。例如该参数设定为10，则查询结果最多只显示10条记录。 offset integer 否 索引位置，偏移量。从第一条数据偏移offset条数据后开始查询，默认为0（偏移0条数据，表示从第一条数据开始查询），必须为数字，不能为负数。例如：该参数指定为0，limit指定为10，则只展示第1-10条数据。 component_type string 否 组件类型，过滤拿到需要的组件类型的组件信息，默认为ALL。传参数会查询对应组件信息， "ALL": 查询所有组件类型。 "CM": 查询CMS组件类型。枚举值： ALL CN DN CM GTM ETCD availability_zone_id string 否 主组件所在可用区编号，筛选符合条件的组件，默认为ALL，查询实例所有可用区上的节点的组件信息。 当调用接口传入可用区编号时： 相对于DN组件，会查询出的DN分片中的主组件在该可用区上的这个分片的所有副本的组件信息。 相对于CN组件，CN组件没有主备关系，会查询出该可用区上的CN组件信息。 相对于其他组件，会查询该可用区上有没有某个组件类型的主组件，有则会返回该组件类型的所有组件信息，没有则不返回该组件类型的信息。 请求消息 无。 响应消息 正常响应要素说明 表2 要素说明 名称 参数类型 说明 nodes Array of objects 组件详情。 详情请参见 表3 。 total_count integer 总记录数。 表3 nodes说明 名称 参数类型 说明 id string 节点id。 components Array of objects 该实例节点下的组件信息列表，详情请参见 查询实例的组件列表 。 name string 节点名字。 availability_zone_id string 节点所在可用区编码。 description string 可用区描述信息。 status string 节点状态。 表4 components说明 名称 参数类型 说明 id string 组件id。 GTM：Global Transaction Manager，全局事务管理器。用于管理事务状态的部件。 CMS：Cluster Management Server，集群管理组件。是用于管理集群状态的部件。 DN：Data Node，和CN对应的概念。负责实际执行表数据的存储、查询操作。 CN：Coordinator Node，负责数据库系统元数据存储、查询任务的分解和部分执行，以及将DN中查询结果汇聚在一起。 ETCD：Editable Text Configuration Daemon，分布式键值存储系统，用于共享配置和服务发现（服务注册和查找）。 role string 节点角色。 master：组件所在节点为主节点。 slave：组件所在节点为备节点。 status string 组件状态。 Primary：该组件为主。 Normal：该组件状态正常。 Down：该组件处于宕机状态。 Standby：该组件为备。 StateFollower：该ETCD为备。 StateLeader：该ETCD为主。 StateCandidate：该ETCD为仲裁。 distributed_id string 分组ID，只有DN组件有分组DN，用于区分是否是同一个分片下的组件。其他组件为空字符串。 type string 节点类型，包括：DN, CN, GTM, CM, ETCD。 detail string 详情。 正常响应样例 {
+    "nodes": [
+        {
+            "components": [
+                {
+                    "id": "cm_1",
+                    "role": "master",
+                    "status": "Primary",
+                    "distributed_id": ""，
+                    "type" : "CM", 
+                    "detail" : "" 
+                },
+                {
+                    "id": "etcd_7001",
+                    "role": "master",
+                    "status": "StateLeader",
+                    "distributed_id": ""，
+                    "type" : "ETCD", 
+                    "detail" : "" 
+                },
+                {
+                    "id": "dn_6001",
+                    "role": "master",
+                    "status": "Primary",
+                    "distributed_id": "60011"，
+                    "type" : "DN", 
+                    "detail" : "Normal" 
+                }
+            ],
+            "id": "7d19f72f8f514564bd92962a6fbddb7dno14",
+            "name": "gauss-9e1a_root_0",
+            "availability_zone_id": "cn-southwest-244a",
+            "description": "az1",
+            "status": "normal"
+        },
+        {
+            "components": [
+                {
+                    "id": "cm_3",
+                    "role": "slave",
+                    "status": "Standby",
+                    "distributed_id": ""，
+                    "type" : "CM", 
+                    "detail" : "" 
+                },
+                {
+                    "id": "etcd_7003",
+                    "role": "slave",
+                    "status": "StateFollower",
+                    "distributed_id": ""，
+                    "type" : "ETCD", 
+                    "detail" : "" 
+                },
+                {
+                    "id": "dn_6003",
+                    "role": "slave",
+                    "status": "Standby",
+                    "distributed_id": "60011"，
+                    "type" : "DN", 
+                    "detail" : "Normal" 
+                }
+            ],
+            "id": "aafc2e14234d4c9eadb481fb0a09a865no14",
+            "name": "gauss-9e1a_root_2",
+            "availability_zone_id": "cn-southwest-244a",
+            "description": "az1",
+            "status": "normal"
+        },
+        {
+            "components": [
+                {
+                    "id": "cm_2",
+                    "role": "slave",
+                    "status": "Standby",
+                    "distributed_id": ""，
+                    "type" : "CM", 
+                    "detail" : "" 
+                },
+                {
+                    "id": "etcd_7002",
+                    "role": "slave",
+                    "status": "StateFollower",
+                    "distributed_id": ""，
+                    "type" : "ETCD", 
+                    "detail" : "" 
+                },
+                {
+                    "id": "dn_6002",
+                    "role": "slave",
+                    "status": "Standby",
+                    "distributed_id": "60011"，
+                    "type" : "DN", 
+                    "detail" : "Normal" 
+                }
+            ],
+            "id": "d6c6c6e6b48c41d79d99d7240751d744no14",
+            "name": "gauss-9e1a_root_1",
+            "availability_zone_id": "cn-southwest-244a",
+            "description": "az1",
+            "status": "normal"
+        }
+    ],
+    "total_count": 3
+} 异常响应 请参见 异常请求结果 。 状态码 正常 200 异常 请参见 状态码 。 错误码 请参见 错误码 。 父主题： 实例管理 版权所有 © 华为技术有限公司

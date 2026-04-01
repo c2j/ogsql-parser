@@ -1,0 +1,57 @@
+位串函数和操作符 位串函数和操作符 位串操作符 除了常用的比较操作符之外，还可以使用以下的操作符。&，|和#的位串操作数必须等长。在位移的时候，保留原始的位串长度（并以0填充）。 || 描述：位串之间进行连接。 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT B '10001' || B '011' AS RESULT ; result ---------- 10001011 ( 1 row ) 单字段内部连续连接操作不能超过180次，若超过需拆分为多个连续连接的字符串，它们之间再做连接操作。 例如：str1||str2||str3||str4 拆分为 (str1||str2)||(str3||str4)。 ORA兼容模式下位串中包含了空字符串，会忽略空字符串连接其他字符串，其他兼容模式下则会返回空串。 例如：str1||NULL||str2，OR兼容模式下返回str1str2，其他兼容模式下返回NULL。 & 描述：位串之间进行“与”操作。 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT B '10001' & B '01101' AS RESULT ; result -------- 00001 ( 1 row ) | 描述：位串之间进行“或”操作。 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT B '10001' | B '01101' AS RESULT ; result -------- 11101 ( 1 row ) # 描述：位串之间如果不一致进行“或”操作。如果两个位串中对应位置都为1或者0，则该位置返回为0。 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT B '10001' # B '01101' AS RESULT ; result -------- 11100 ( 1 row ) ~ 描述：位串之间进行“非”操作。 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT ~ B '10001' AS RESULT ; result ---------- 01110 ( 1 row ) << 描述：位串进行左移操作。 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT B '10001' << 3 AS RESULT ; result ---------- 01000 ( 1 row ) >> 描述：位串进行右移操作。 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT B '10001' >> 2 AS RESULT ; result ---------- 00100 ( 1 row ) 下面的SQL标准函数除了可以用于字符串之外，也可以用于位串：length，bit_length，octet_length，position，substring，overlay。 下面的函数用于位串和二进制字符串：get_bit，set_bit。当用于位串时，这些函数位数从字符串的第一位（最左边）作为0位。 另外，可以在整数和bit之间来回转换。示例： 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27
+28
+29 gaussdb =# SELECT 44 :: bit ( 10 ) AS RESULT ; result ------------ 0000101100 ( 1 row ) gaussdb =# SELECT 44 :: bit ( 3 ) AS RESULT ; result -------- 100 ( 1 row ) gaussdb =# SELECT cast ( - 44 as bit ( 12 )) AS RESULT ; result -------------- 111111010100 ( 1 row ) gaussdb =# SELECT '1110' :: bit ( 4 ):: integer AS RESULT ; result -------- 14 ( 1 row ) gaussdb =# select substring ( '10101111' :: bit ( 8 ), 2 ); substring ----------- 0101111 ( 1 row ) 只是转换为“bit”的意思是转换成bit(1)，因此只会转换成整数的最低位。 父主题： 函数和操作符 版权所有 © 华为技术有限公司

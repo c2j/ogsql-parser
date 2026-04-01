@@ -1,0 +1,89 @@
+GRANT GRANT 功能描述 对角色和用户进行授权操作。 使用GRANT命令进行用户授权包括以下场景： 将系统权限授权给角色或用户 系统权限又称为用户属性，包括SYSADMIN、CREATEDB、CREATEROLE、AUDITADMIN、MONADMIN、OPRADMIN、POLADMIN、INHERIT、REPLICATION、VCADMIN和LOGIN等。 系统权限一般通过CREATE/ALTER ROLE语法来指定。其中，SYSADMIN权限可以通过GRANT/REVOKE ALL PRIVILEGE授予或撤销。但系统权限无法通过ROLE和USER的权限被继承，也无法授予PUBLIC。 将数据库对象授权给角色或用户 将数据库对象（表、视图、指定字段、数据库、函数、模式、表空间等）的相关权限授予特定角色或用户。 GRANT命令将数据库对象的特定权限授予一个或多个角色，这些权限会追加到已有的权限上。 关键字PUBLIC表示该权限要赋予所有角色，包括以后创建的用户。PUBLIC可以看做是一个隐含定义好的组，它总是包括所有角色。任何角色或用户都将拥有通过GRANT直接赋予的权限和所属的权限，再加上PUBLIC的权限。 如果声明了WITH GRANT OPTION，则被授权的用户也可以将此权限赋予他人，否则就不能授权给他人。这个选项不能赋予PUBLIC，这是 GaussDB 特有的属性。 GaussDB 会将某些类型的对象上的权限授予PUBLIC。默认情况下，对表、表字段、序列、外部数据源、外部服务器、模式或表空间对象的权限不会授予PUBLIC，而以下这些对象的权限会授予PUBLIC：数据库的CONNECT权限和CREATE TEMP TABLE权限、函数的EXECUTE特权、语言和数据类型（包括域）的USAGE特权。当然，对象拥有者可以撤销默认授予PUBLIC的权限并专门授予权限给其他用户。为了更安全，建议在同一个事务中创建对象并设置权限，这样其他用户就没有时间窗口使用该对象。这些初始的默认权限可以使用ALTER DEFAULT PRIVILEGES命令修改。 对象的所有者缺省具有该对象上的所有权限，出于安全考虑所有者可以舍弃部分权限，但ALTER、DROP、COMMENT、INDEX、VACUUM以及对象的可再授予权限属于所有者固有的权限，隐式拥有。 将角色或用户的权限授权给其他角色或用户 将一个角色或用户的权限授予一个或多个其他角色或用户。在这种情况下，每个角色或用户都可视为拥有一个或多个数据库权限的集合。 当声明了WITH ADMIN OPTION，被授权的用户可以将该权限再次授予其他角色或用户，以及撤销所有由该角色或用户继承到的权限。当授权的角色或用户发生变更或被撤销时，所有继承该角色或用户权限的用户拥有的权限都会随之发生变更。 三权分立关闭时，系统管理员可以赋予或者撤销任何非永久用户、运维管理员和私用用户角色的权限。安全管理员可以赋予或者撤销任何非系统管理员、内置角色、永久用户、运维管理员和私用用户角色的权限。 将ANY权限授予给角色或用户 将ANY权限授予特定的角色和用户，ANY权限的取值范围参见语法格式。当声明了WITH ADMIN OPTION，被授权的用户可以将该ANY权限再次授予其他角色/用户，或从其他角色/用户处回收该ANY权限。ANY权限可以通过角色被继承，但不能赋予PUBLIC。初始用户和三权分立关闭时的系统管理员用户可以给任何角色/用户授予或撤销ANY权限。 目前支持以下ANY权限：CREATE ANY TABLE、ALTER ANY TABLE、DROP ANY TABLE、SELECT ANY TABLE、INSERT ANY TABLE、UPDATE ANY TABLE、DELETE ANY TABLE、CREATE ANY SEQUENCE、CREATE ANY INDEX、CREATE ANY FUNCTION、EXECUTE ANY FUNCTION、 CREATE ANY TYPE、ALTER ANY TYPE、DROP ANY TYPE、ALTER ANY SEQUENCE、DROP ANY SEQUENCE、SELECT ANY SEQUENCE、ALTER ANY INDEX、DROP ANY INDEX、CREATE ANY SYNONYM、DROP ANY SYNONYM、CREATE ANY TRIGGER、ALTER ANY TRIGGER、DROP ANY TRIGGER。详细的ANY权限范围描述请参见 表1 。 注意事项 不允许将ANY权限授予PUBLIC，也不允许从PUBLIC回收ANY权限。 ANY权限属于数据库内的权限，只对授予该权限的数据库内的对象有效，例如SELECT ANY TABLE只允许用户查看当前数据库内的所有用户表数据，对其他数据库内的用户表无查看权限。 ANY权限与原有的权限相互无影响。 如果用户被授予CREATE ANY TABLE权限，在同名schema下创建表的属主是该同名模式的属主，用户对表进行其他操作时，需要授予相应的操作权限。与此类似的还有CREATE ANY FUNCTION、CREATE ANY TYPE、CREATE ANY SEQUENCE和CREATE ANY INDEX，在同名模式下创建的对象的属主是同名模式的属主；而对于CREATE ANY TRIGGER和CREATE ANY SYNONYM，在同名模式下创建的对象的属主为创建者。 需要谨慎授予用户CREATE ANY FUNCTION的权限，以免其他用户利用DEFINER类型的函数进行权限提升。 通过GRANT授予用户使用表的权限时，如果用户使用不当，可能通过ALTER在表的默认值、约束增加表达式，通过创建索引在INDEX上增加表达式等操作，导致权限被利用的风险。 通过GRANT授予用户使用TRIGGER的权限时，如果用户使用不当，可能通过WHEN条件创建表达式，当触发器被触发时，存在权限被利用的风险。 给用户赋权时，需要特别注意定义者函数，定义者函数会使用函数的owner权限执行，若赋权不当（包括GRANT ROLE TO ROLE），则存在权限被利用风险。 语法格式 将表或视图的访问权限赋予指定的用户或角色。 1
+2
+3
+4
+5
+6 GRANT { { SELECT | INSERT | UPDATE | DELETE | TRUNCATE | REFERENCES | TRIGGER | ALTER | DROP | COMMENT | INDEX | VACUUM } [, ...] | ALL [ PRIVILEGES ] } ON { [ TABLE ] table_name [, ...] | ALL TABLES IN SCHEMA schema_name [, ...] } TO { [ GROUP ] role_name | PUBLIC } [, ...] [ WITH GRANT OPTION ]; 将表中字段的访问权限赋予指定的用户或角色。 1
+2
+3
+4
+5 GRANT { {{ SELECT | INSERT | UPDATE | REFERENCES | COMMENT } ( column_name [, ...] ) } [, ...] | ALL [ PRIVILEGES ] ( column_name [, ...] ) } ON [ TABLE ] table_name [, ...] TO { [ GROUP ] role_name | PUBLIC } [, ...] [ WITH GRANT OPTION ]; 如果拥有表的访问权限，则默认拥有表中所有字段的访问权限。如果要仅赋予表中某个字段的访问权限，需要先撤销所属表的访问权限。 将序列的访问权限赋予指定的用户或角色。 1
+2
+3
+4
+5
+6 GRANT { { SELECT | UPDATE | USAGE | ALTER | DROP | COMMENT } [, ...] | ALL [ PRIVILEGES ] } ON { [ SEQUENCE ] sequence_name [, ...] | ALL SEQUENCES IN SCHEMA schema_name [, ...] } TO { [ GROUP ] role_name | PUBLIC } [, ...] [ WITH GRANT OPTION ]; 将数据库的访问权限赋予指定的用户或角色。 1
+2
+3
+4
+5 GRANT { { CREATE | CONNECT | TEMPORARY | TEMP | ALTER | DROP | COMMENT } [, ...] | ALL [ PRIVILEGES ] } ON DATABASE database_name [, ...] TO { [ GROUP ] role_name | PUBLIC } [, ...] [ WITH GRANT OPTION ]; 将域的访问权限赋予指定的用户或角色。 1
+2
+3
+4 GRANT { USAGE | ALL [ PRIVILEGES ] } ON DOMAIN domain_name [, ...] TO { [ GROUP ] role_name | PUBLIC } [, ...] [ WITH GRANT OPTION ]; 本版本暂时不支持赋予域的访问权限。 将外部数据源的访问权限赋予给指定的用户或角色。 1
+2
+3
+4 GRANT { USAGE | ALL [ PRIVILEGES ] } ON FOREIGN DATA WRAPPER fdw_name [, ...] TO { [ GROUP ] role_name | PUBLIC } [, ...] [ WITH GRANT OPTION ]; 将外部服务器的访问权限赋予给指定的用户或角色。 1
+2
+3
+4 GRANT { { USAGE | ALTER | DROP | COMMENT } [, ...] | ALL [ PRIVILEGES ] } ON FOREIGN SERVER server_name [, ...] TO { [ GROUP ] role_name | PUBLIC } [, ...] [ WITH GRANT OPTION ]; 将函数的访问权限赋予给指定的用户或角色。 1
+2
+3
+4
+5 GRANT { { EXECUTE | ALTER | DROP | COMMENT } [, ...] | ALL [ PRIVILEGES ] } ON { FUNCTION { function_name ( [ { [ argmode ] [ arg_name ] arg_type } [, ...] ] ) } [, ...] | ALL FUNCTIONS IN SCHEMA schema_name [, ...] } TO { [ GROUP ] role_name | PUBLIC } [, ...] [ WITH GRANT OPTION ]; 将存储过程的访问权限赋予给指定的用户或角色。 1
+2
+3
+4 GRANT { { EXECUTE | ALTER | DROP | COMMENT } [, ...] | ALL [ PRIVILEGES ] } ON PROCEDURE { proc_name ( [ { [ argmode ] [ arg_name ] arg_type } [, ...] ] ) } [, ...] TO { [ GROUP ] role_name | PUBLIC } [, ...] [ WITH GRANT OPTION ]; 将过程语言的访问权限赋予给指定的用户或角色。 1
+2
+3
+4 GRANT { USAGE | ALL [ PRIVILEGES ] } ON LANGUAGE lang_name [, ...] TO { [ GROUP ] role_name | PUBLIC } [, ...] [ WITH GRANT OPTION ]; 将子 集群 的访问权限赋予指定的用户或角色。 1
+2
+3
+4 GRANT { { CREATE | USAGE | COMPUTE | ALTER | DROP } [, ...] | ALL [ PRIVILEGES ] } ON NODE GROUP group_name [, ...] TO { [ GROUP ] role_name | PUBLIC } [, ...] [ WITH GRANT OPTION ]; 将子集群的create权限赋予指定用户或角色时，会默认把usage和compute权限赋予指定用户或角色。 将模式的访问权限赋予指定的用户或角色。 1
+2
+3
+4 GRANT { { CREATE | USAGE | ALTER | DROP | COMMENT } [, ...] | ALL [ PRIVILEGES ] } ON SCHEMA schema_name [, ...] TO { [ GROUP ] role_name | PUBLIC } [, ...] [ WITH GRANT OPTION ]; 将模式中的表或者视图对象授权给其他用户时，需要将表或视图所属的模式的USAGE权限同时授予该用户，若没有该权限，则只能看到这些对象的名称，并不能实际进行对象访问。 将大对象的访问权限赋予指定的用户或角色。 1
+2
+3
+4 GRANT { { SELECT | UPDATE } [, ...] | ALL [ PRIVILEGES ] } ON LARGE OBJECT loid [, ...] TO { [ GROUP ] role_name | PUBLIC } [, ...] [ WITH GRANT OPTION ]; 本版本暂时不支持大对象。 将表空间的访问权限赋予指定的用户或角色。 1
+2
+3
+4 GRANT { { CREATE | ALTER | DROP | COMMENT } [, ...] | ALL [ PRIVILEGES ] } ON TABLESPACE tablespace_name [, ...] TO { [ GROUP ] role_name | PUBLIC } [, ...] [ WITH GRANT OPTION ]; 将类型的访问权限赋予指定的用户或角色。 1
+2
+3
+4 GRANT { { USAGE | ALTER | DROP | COMMENT } [, ...] | ALL [ PRIVILEGES ] } ON TYPE type_name [, ...] TO { [ GROUP ] role_name | PUBLIC } [, ...] [ WITH GRANT OPTION ]; 本版本暂时不支持赋予类型的访问权限。 将directory对象的权限赋予指定的角色。 1
+2
+3
+4 GRANT { { READ | WRITE | ALTER | DROP } [, ...] | ALL [ PRIVILEGES ] } ON DIRECTORY directory_name [, ...] TO { [ GROUP ] role_name | PUBLIC } [, ...] [ WITH GRANT OPTION ]; 将角色的权限赋予其他用户或角色的语法。 1
+2
+3 GRANT role_name [, ...] TO role_name [, ...] [ WITH ADMIN OPTION ]; 将sysadmin权限赋予指定的角色。 1
+2 GRANT ALL { PRIVILEGES | PRIVILEGE } TO role_name ; 将ANY权限赋予其他用户或角色的语法。 1
+2
+3
+4
+5
+6
+7
+8
+9 GRANT { CREATE ANY TABLE | ALTER ANY TABLE | DROP ANY TABLE | SELECT ANY TABLE | INSERT ANY TABLE | UPDATE ANY TABLE | DELETE ANY TABLE | CREATE ANY SEQUENCE | CREATE ANY INDEX | CREATE ANY FUNCTION | EXECUTE ANY FUNCTION | CREATE ANY TYPE | ALTER ANY TYPE | DROP ANY TYPE | ALTER ANY SEQUENCE | DROP ANY SEQUENCE | SELECT ANY SEQUENCE | ALTER ANY INDEX | DROP ANY INDEX | CREATE ANY SYNONYM | DROP ANY SYNONYM | CREATE ANY TRIGGER | ALTER ANY TRIGGER | DROP ANY TRIGGER } [, ...] TO [ GROUP ] role_name [, ...] [ WITH ADMIN OPTION ]; 将DATABASE LINK对象权限赋予指定用户。 GRANT { CREATE | ALTER | DROP } [PUBLIC] DATABASE LINK TO role_name; PUBLIC：指定公共以创建对所有用户可见的公共数据库链接。如果省略此子句，则数据库链接是私有的，只作为兼容接口使用，无实际意义。远程数据库上可访问的数据取决于数据库链接在连接到远程数据库时使用的标识。 当赋予用户创建DATABASE LINK对象权限时，相当于许可用户使用服务端DATABASE的IP对远端进行访问。若不希望有此效果，应不要使用GRANT对用户赋权。 现在除DATABASE LINK的直接赋权语句外，还可以通过权限继承和赋予管理员用户获取到DATABASE LINK的相关权限。 DATABASE LINK详细说明请参见 DATABASE LINK 。 参数说明 GRANT的权限分类如下所示。 SELECT 允许对指定的表、视图、序列执行SELECT语句。 INSERT 允许对指定的表执行INSERT语句。 UPDATE 允许对声明的表中任意字段执行UPDATE语句。SELECT… FOR UPDATE和SELECT… FOR SHARE除了需要SELECT权限外，还需要UPDATE权限。 DELETE 允许执行DELETE语句删除指定表中的数据。 TRUNCATE 允许执行TRUNCATE语句删除指定表中的所有记录。 REFERENCES 创建一个外键约束，必须拥有参考表和被参考表的REFERENCES权限，分布式场景暂不支持。 TRIGGER 允许在指定的表上创建触发器。 CREATE 对于数据库，允许在数据库里创建新的模式。 对于模式，允许在模式中创建新的对象。如果要重命名一个对象，用户除了必须是该对象的所有者外，还必须拥有该对象所在模式的CREATE权限。 对于表空间，允许在表空间中创建表，允许在创建数据库和模式的时候把该表空间指定为缺省表空间。 对于子 集群 ，允许在子 集群 中创建表对象。 CONNECT 允许用户连接到指定的数据库。 EXECUTE 允许使用指定的函数，以及利用这些函数实现的操作符。 USAGE 对于过程语言，允许用户在创建函数的时候指定过程语言。 对于模式，USAGE允许访问包含在指定模式中的对象，若没有该权限，则只能看到这些对象的名称。 对于序列，USAGE允许使用nextval函数。 对于子 集群 ， 对包含在指定模式中的对象有访问权限时，USAGE允许访问指定子 集群 下的表对象。 对于密钥对象，USAGE是使用密钥的权限。 COMPUTE 针对计算子 集群 ，允许用户在具有compute权限的计算子 集群 上进行弹性计算。 ALTER 允许用户修改指定对象的属性，但不包括修改对象的所有者和修改对象所在的模式。 DROP 允许用户删除指定的对象。 COMMENT 允许用户定义或修改指定对象的注释。 INDEX 允许用户在指定表上创建索引，并管理指定表上的索引，还允许用户对指定表执行REINDEX和CLUSTER操作。 VACUUM 允许用户对指定的表执行ANALYZE和VACUUM操作。 ALL PRIVILEGES 一次性给指定用户/角色赋予所有可赋予的权限。只有系统管理员有权执行GRANT ALL PRIVILEGES。 GRANT的参数说明如下所示。 role_name 已存在用户名称。 table_name 已存在表名称。 column_name 已存在字段名称。 schema_name 已存在模式名称。 database_name 已存在数据库名称。 function_name 已存在函数名称。 sequence_name 已存在序列名称。 domain_name 已存在域类型名称。 fdw_name 已存在外部数据包名称。 lang_name 已存在语言名称。 type_name 已存在类型名称。 group_name 已存在的子 集群 名称。 argmode 参数模式。 取值范围：字符串，要符合 标识符命名规范 。 arg_name 参数名称。 取值范围：字符串，要符合 标识符命名规范 。 arg_type 参数类型。 取值范围：字符串，要符合 标识符命名规范 。 loid 包含本页的大对象的标识符。 取值范围：字符串，要符合 标识符命名规范 。 tablespace_name 表空间名称。 directory_name 目录名称。 取值范围：字符串，要符合 标识符命名规范 。 WITH GRANT OPTION 如果声明了WITH GRANT OPTION，则被授权的用户也可以将此权限赋予他人，否则就不能授权给他人。这个选项不能赋予PUBLIC。 非对象所有者给其他用户授予对象权限时，命令按照以下规则执行： 如果用户没有该对象上指定的权限，命令立即失败。 如果用户有该对象上的部分权限，则GRANT命令只授予他有授权选项的权限。 如果用户没有可用的授权选项，GRANT ALL PRIVILEGES形式将发出一个警告信息，其他命令形式将发出在命令中提到的且没有授权选项的相关警告信息。 数据库系统管理员可以访问所有对象，而不会受对象的权限设置影响。除了必要的情况外，建议不要总是以系统管理员身份进行操作。 WITH ADMIN OPTION 对于角色，当声明了WITH ADMIN OPTION，被授权的用户可以将该角色再授予其他角色/用户，或从其他角色/用户回收该角色。 对于ANY权限，当声明了WITH ADMIN OPTION，被授权的用户可以将该ANY权限再授予其他角色/用户，或从其他角色/用户回收该ANY权限。 表1 ANY权限列表 ANY权限名称 描述 CREATE ANY TABLE 用户能够在public模式和用户模式下创建表或视图。如果想要创建serial类型列的表，还需要授予创建序列的权限。 ALTER ANY TABLE 用户拥有对public模式和用户模式下表或视图的ALTER权限。如果想要修改表的唯一索引为表增加主键约束或唯一约束，还需要授予该表的索引权限。 DROP ANY TABLE 用户拥有对public模式和用户模式下表或视图的DROP权限。 SELECT ANY TABLE 用户拥有对public模式和用户模式下表或视图的SELECT权限，仍然受行级访问控制限制。 UPDATE ANY TABLE 用户拥有对public模式和用户模式下表或视图的UPDATE权限，仍然受行级访问控制限制。 INSERT ANY TABLE 用户拥有对public模式和用户模式下表或视图的INSERT权限。 DELETE ANY TABLE 用户拥有对public模式和用户模式下表或视图的DELETE权限，仍然受行级访问控制限制。 CREATE ANY FUNCTION 用户能够在用户模式下创建函数或存储过程。 EXECUTE ANY FUNCTION 用户拥有在public模式和用户模式下函数或存储过程的EXECUTE权限。 CREATE ANY PACKAGE 用户能够在public模式和用户模式下创建PACKAGE。 EXECUTE ANY PACKAGE 用户拥有在public模式和用户模式下PACKAGE的EXECUTE权限。 CREATE ANY TYPE 用户能够在public模式和用户模式下创建类型。 CREATE ANY SEQUENCE 用户能够在public模式和用户模式下创建序列。 CREATE ANY INDEX 用户能够在public模式和用户模式下创建索引。如果在某表空间创建分区表索引，需要授予用户该表空间的创建权限。 ALTER ANY TYPE 用户拥有对public模式和用户模式下类型的ALTER权限，但不包括修改类型的所有者或者修改类型的模式。 DROP ANY TYPE 用户拥有对public模式和用户模式下类型的DROP权限。 ALTER ANY SEQUENCE 用户拥有对public模式和用户模式下序列的ALTER权限，但不包括修改序列的所有者。 DROP ANY SEQUENCE 用户拥有对public模式和用户模式下序列的DROP权限。 SELECT ANY SEQUENCE 用户拥有对public模式和用户模式下序列的SELECT、USAGE和UPDATE权限。 ALTER ANY INDEX 用户拥有对public模式和用户模式下索引的ALTER权限。如果要重命名索引，还需要索引所在模式下创建对象的权限。如果涉及表空间的操作，还需要对应表空间的相应操作权限。如果设置索引不可用（UNUSABLE），还需要DROP ANY INDEX权限。 DROP ANY INDEX 用户拥有对public模式和用户模式下索引的DROP权限。 CREATE ANY TRIGGER 用户能够在public模式和用户模式下创建触发器。 ALTER ANY TRIGGER 用户拥有对public模式和用户模式下触发器的ALTER权限。 DROP ANY TRIGGER 用户拥有对public模式和用户模式下触发器的DROP权限。 CREATE ANY SYNONYM 用户能够在用户模式下创建同义词。 DROP ANY SYNONYM 用户拥有对public模式和用户模式下同义词的DROP权限。 用户被授予任何一种ANY权限后，用户对public模式和用户模式具有USAGE权限，对 表1 中除public之外的系统模式没有USAGE权限。 示例 示例1：将系统权限授权给用户或者角色。 创建名为joe的用户，并将sysadmin权限授权给他。 1
+2 gaussdb =# CREATE USER joe PASSWORD 'xxxxxxxxxx' ; gaussdb =# GRANT ALL PRIVILEGES TO joe ; 授权成功后，用户joe会拥有sysadmin的所有权限。 示例2：将对象权限授权给用户或者角色 。 撤销joe用户的sysadmin权限，然后将模式tpcds的使用权限和表 tpcds. reason的所有权限授权给用户joe。 1
+2
+3
+4
+5
+6
+7
+8
+9 gaussdb =# CREATE SCHEMA tpcds ; gaussdb =# CREATE TABLE tpcds . reason ( r_reason_sk INTEGER NOT NULL , r_reason_id CHAR ( 16 ) NOT NULL , r_reason_desc VARCHAR ( 20 ) ); gaussdb =# REVOKE ALL PRIVILEGES FROM joe ; gaussdb =# GRANT USAGE ON SCHEMA tpcds TO joe ; gaussdb =# GRANT ALL PRIVILEGES ON tpcds . reason TO joe ; 授权成功后，joe用户就拥有了 tpcds. reason表的所有权限，包括增删改查等权限。 将 tpcds. reason表中r_reason_sk、r_reason_id、r_reason_desc列的查询权限，r_reason_desc的更新权限授权给joe。 1 gaussdb =# GRANT select ( r_reason_sk , r_reason_id , r_reason_desc ), update ( r_reason_desc ) ON tpcds . reason TO joe ; 授权成功后，用户joe对 tpcds. reason表中r_reason_sk，r_reason_id, r_reason_desc的查询权限会立即生效。如果joe用户需要拥有将这些权限授权给其他用户的权限，可以通过以下语法对joe用户进行授权。 1 gaussdb =# GRANT select ( r_reason_sk , r_reason_id ) ON tpcds . reason TO joe WITH GRANT OPTION ; 将数据库testdb的连接权限授权给用户joe，并给予其在testdb中创建schema的权限，而且允许joe将此权限授权给其他用户。 1
+2 gaussdb =# CREATE DATABASE testdb ; gaussdb =# GRANT create , connect on database testdb TO joe WITH GRANT OPTION ; 创建角色tpcds_manager，将模式tpcds的访问权限授权给角色tpcds_manager，并授予该角色在tpcds下创建对象的权限，不允许该角色中的用户将权限授权给其他人。 1
+2 gaussdb =# CREATE ROLE tpcds_manager PASSWORD 'xxxxxxxxxx' ; gaussdb =# GRANT USAGE , CREATE ON SCHEMA tpcds TO tpcds_manager ; 将表空间tpcds_tbspc的所有权限授权给用户joe，但用户joe无法将权限继续授予其他用户。 1
+2 gaussdb =# CREATE TABLESPACE tpcds_tbspc RELATIVE LOCATION 'tablespace/tablespace_1' ; gaussdb =# GRANT ALL ON TABLESPACE tpcds_tbspc TO joe ; 在模式tpcds下创建函数fun1，并将函数 fun1 的 ALTER权限赋予给joe。 gaussdb=# CREATE or replace FUNCTION tpcds.fun1() RETURN boolean AS
+BEGIN
+SELECT current_user;
+RETURN true;
+END;
+/ gaussdb=# GRANT ALTER ON FUNCTION tpcds.fun1() TO joe; 示例3：将用户或者角色的权限授权给其他用户或角色。 创建角色manager，将joe的权限授权给manager，并允许该角色将权限授权给其他人。 1
+2 gaussdb =# CREATE ROLE manager PASSWORD 'xxxxxxxxxxx' ; gaussdb =# GRANT joe TO manager WITH ADMIN OPTION ; 创建用户senior_manager，将用户manager的权限授权给该用户。 1
+2 gaussdb =# CREATE ROLE senior_manager PASSWORD 'xxxxxxxxxxx' ; gaussdb =# GRANT manager TO senior_manager ; 撤销权限，并清理用户。 1
+2
+3
+4 gaussdb =# REVOKE joe FROM manager ; gaussdb =# REVOKE manager FROM senior_manager ; gaussdb =# DROP USER manager ; gaussdb =# DROP DATABASE testdb ; 相关链接 REVOKE ， ALTER DEFAULT PRIVILEGES 父主题： G 版权所有 © 华为技术有限公司

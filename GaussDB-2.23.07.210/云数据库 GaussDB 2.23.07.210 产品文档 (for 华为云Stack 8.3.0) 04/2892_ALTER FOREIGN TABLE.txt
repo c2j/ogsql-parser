@@ -1,0 +1,15 @@
+ALTER FOREIGN TABLE ALTER FOREIGN TABLE 功能描述 对外表进行修改。 注意事项 OPTIONS中的敏感字段（如password、secret_access_key）在使用多层引号时，语义和不带引号的场景是不同的，因此不会被识别为敏感字段进行脱敏。 语法格式 修改外表属性： ALTER FOREIGN TABLE [ IF EXISTS ]  table_name
+    OPTIONS ( {[ ADD | SET | DROP ] option ['value']}[, ... ]); 修改外表字段选项： ALTER FOREIGN TABLE [ IF EXISTS ] table_name
+    ALTER column_name OPTIONS; 参数说明 table_name 需要修改的外表名称。 取值范围：已存在的外表名。 option 改变外表或者外表字段的选项。ADD、SET和DROP指定执行的操作。如果没有显式设置，那么默认为ADD。选项的名字不允许重复（尽管表选项和表字段选项可以有相同的名字）。选项的名称和值也会通过外部数据封装器的类库进行校验。 file_fdw支持的options包括： filename 指定要读取的文件，必需的参数，且必须是一个绝对路径名。 format 远端server的文件格式，支持text/csv/binary/fixed四种格式，和COPY语句的FORMAT选项相同。 header 指定的文件是否有标题行，与COPY语句的HEADER选项相同。 delimiter 指定文件的分隔符，与COPY的DELIMITER选项相同。 quote 指定文件的引用字符，与COPY的QUOTE选项相同。 escape 指定文件的转义字符，与COPY的ESCAPE选项相同。 null 指定文件的null字符串，与COPY的NULL选项相同。 encoding 指定文件的编码，与COPY的ENCODING选项相同。 force_not_null 这是一个布尔选项。如果为真，则声明字段的值不应该匹配空字符串（也就是， 文件级别null选项）。与COPY的 FORCE_NOT_NULL选项里的字段相同。 file_fdw更多使用请参见《特性指南》的“Foreign Data Wrapper > file_fdw”章节。 value option的新值。 示例 --创建server gaussdb=# CREATE SERVER my_server FOREIGN DATA WRAPPER log_fdw;
+
+--创建外表 gaussdb=# CREATE FOREIGN TABLE foreign_tbl (col1 text) SERVER my_server OPTIONS (logtype 'pg_log');
+
+--修改外表属性 gaussdb=# ALTER FOREIGN TABLE foreign_tbl OPTIONS (ADD latest_files '2');
+gaussdb=# ALTER FOREIGN TABLE foreign_tbl OPTIONS ( SET latest_files '5');
+gaussdb=# ALTER FOREIGN TABLE foreign_tbl OPTIONS ( DROP latest_files);
+
+--删除外表
+gaussdb=# DROP FOREIGN TABLE foreign_tbl;
+
+--删除server
+gaussdb=# DROP SERVER my_server; 相关链接 8.15.72 CREATE FOREIGN TABLE ， DROP FOREIGN TABLE 父主题： A 版权所有 © 华为技术有限公司

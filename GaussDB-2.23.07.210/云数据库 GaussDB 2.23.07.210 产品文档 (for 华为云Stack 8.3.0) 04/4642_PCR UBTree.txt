@@ -1,0 +1,1 @@
+PCR UBTree可见性机制 PCR UBTree可见性机制 PCR UBTree可见性判断是通过把页面回滚到快照可见的时刻得到元组全部可见的页面完成的。 父主题： PCR UBTree 版权所有 © 华为技术有限公司

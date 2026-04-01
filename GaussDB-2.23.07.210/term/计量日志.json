@@ -1,0 +1,26 @@
+{
+  "topic": "计量日志",
+  "term_count": 4,
+  "terms": [
+    {
+      "term": "metering.info.log",
+      "content": "metering.info.log metering.info.log 日志含义 该日志来源于计量（resource）服务的日志输出，通过查看此日志，可以看到计量（resource）运行的日志信息。 日志命名 日志文件名：metering.info.log.%i %i为日志轮转的数字。 日志格式 %d{yyyy-MM-dd HH:mm:ss}:%p %t %c %l - %m%n 日志参数 表1 日志参数 字段名称 字段含义 %date{yyyy-MM-dd HH:mm:ss.SSS} 日志生成的时间，格式：yyyy-MM-dd HH:mm:ss.SSS。GMT %p 日志级别 %t 线程ID %c 当前类的完整类名 %l 代码位置 [%m] 日志内容 %n 换行 日志示例 日志的典型样例： 计量（resource）服务从core库获取话单元数据日志。 2021-08-12 01:10:01:INFO DubboServerHandler-172.100.42.38:8978-thread-19238 com.huawei.hwclouds.dbs.metering.resource.aop.DataSourceAop com.huawei.hwclouds.dbs.metering.resource.aop.DataSourceAop.around(DataSourceAop.java:82) - DataSourceLocal.sourceType:\"CORE\", method:getUsageRecords",
+      "source_file": "5499_metering.info.log.txt"
+    },
+    {
+      "term": "metering.project.log",
+      "content": "metering.project.log metering.project.log 日志含义 该日志来源于计量（service）服务的日志输出，通过查看此日志，可以看到整个计量（service）运行的全部日志信息。 日志命名 日志文件名：metering.project.log.%i %i为日志轮转的数字。 日志格式 %d{yyyy-MM-dd HH:mm:ss}:%p %t %c %l - %m%n 日志参数 表1 日志参数 字段名称 字段含义 %d{yyyy-MM-dd HH:mm:ss.SSS} 日志生成的时间，格式：yyyy-MM-dd HH:mm:ss.SSS。GMT %p 日志级别 %t 线程ID %c 当前类的完整类名 %l 代码位置 [%m] 日志内容 %n 换行 日志示例 日志的典型样例： 计量（service）服务链接重连日志。 2021-05-19 00:21:30:INFO localhost-startStop-1-EventThread org.apache.curator.framework.state.ConnectionStateManager org.apache.curator.framework.state.ConnectionStateManager.postState(ConnectionStateManager.java:251) - State change: RECONNECTED",
+      "source_file": "5498_metering.project.log.txt"
+    },
+    {
+      "term": "metering.warn.log",
+      "content": "metering.warn.log metering.warn.log 日志含义 该日志来源于计量（service）服务的日志输出，通过查看此日志，可以看到计量（service）服务运行是产生的对应告警级别日志信息。 日志命名 metering.warnlog.log.%i %i为日志轮转的数字。 日志格式 %d{yyyy-MM-dd HH:mm:ss}:%p %t %c %l - %m%n 日志参数 表1 日志参数 字段名称 字段含义 %d{yyyy-MM-dd HH:mm:ss.SSS} 日志生成的时间，格式：yyyy-MM-dd HH:mm:ss.SSS。GMT %p 日志级别 %t 线程ID %c 当前类的完整类名 %l 代码位置 %m 日志内容 %n 换行 日志示例 计量（service）服务收集产生话单数据日志。 2020-08-07 02:14:21:WARN mt-5 com.huawei.hwclouds.dbs.metering.service.adapter.billunit.BillUnit4DBSOnSecond com.huawei.hwclouds.dbs.metering.service.adapter.billunit.BillUnit4DBSOnSecond.getResourceByInstanceFromRawLog(BillUnit4DBSOnSecond.java:81) - 6c876113817f4851805aa63208b08f7ein03",
+      "source_file": "5497_metering.warn.log.txt"
+    },
+    {
+      "term": "metering.project.log",
+      "content": "metering.project.log metering.project.log 日志含义 日志来源于计量（resource）服务的日志输出，通过查看此日志，可以看到整个计量（resource）运行的全部日志信息。 日志命名 日志文件名：metering.project.log.%i %i为日志轮转的数字。 日志格式 %d{yyyy-MM-dd HH:mm:ss}:%p %t %c %l - %m%n 日志参数 表1 日志参数 字段名称 字段含义 %date{yyyy-MM-dd HH:mm:ss.SSS} 日志生成的时间，格式：yyyy-MM-dd HH:mm:ss.SSS。GMT %p 日志级别 %t 线程ID %c 当前类的完整类名 %l 代码位置 [%m] 日志内容 %n 换行 日志示例 日志的典型样例： 计量（resource）服务加载配置文件日志。 2021-05-26 00:49:55:INFO DubboServerHandler-172.100.42.38:8978-thread-26 com.huawei.trace.config.TraceConfig com.huawei.trace.config.TraceConfig.loadConfig(TraceConfig.java:336) - load config from file:file:/opt/cloud/metering/webapps/metering-resource/WEB-INF/classes/trace_config.properties",
+      "source_file": "5500_metering.project.log.txt"
+    }
+  ]
+}

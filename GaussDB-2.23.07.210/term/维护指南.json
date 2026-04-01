@@ -1,0 +1,71 @@
+{
+  "topic": "维护指南",
+  "term_count": 13,
+  "terms": [
+    {
+      "term": "告警处理",
+      "content": "告警处理 告警处理 简介 指标告警列表 事件告警列表 告警上报元IP策略配置 5023056 VCPU许可资源即将超量 5023057 VCPU许可资源超量 5012641 警告-监测到有实例跨区域备份长时间未同步 5012823 节点状态异常 5012958 检查到高速网卡IP故障，执行动作前告警 5012959 高速网卡IP故障，修复失败 5101152 云数据库 GaussDB 慢盘故障告警 5012947 云数据库 GaussDB ETCD服务异常 5012948 云数据库 GaussDB CM服务异常 5012949 云数据库 GaussDB GTM服务异常 5012950 云数据库 GaussDB CN服务异常 5012951 云数据库 GaussDB DN服务异常 5012952 云数据库 GaussDB 复制状态异常 5013606 云数据库 GaussDB慢日志下载失败 5013624 同步实例参数失败 5023001 云数据库 GaussDB创建实例业务失败 5023003 云数据库 GaussDB恢复新实例业务失败 5023005 云数据库 GaussDB删除实例业务失败 5023006 云数据库 GaussDB卷扩容业务失败 5023007 云数据库 GaussDB规格变更业务失败 5023012 云数据库 GaussDB版本升级失败 5023018 云数据库 GaussDB重启实例失败 5023029 云数据库 GaussDB水平扩容集群失败 5023043 云数据库 GaussDB清理扩容失败后的资源失败 5023030 云数据库 GaussDB修复节点失败 5023031 云数据库 GaussDB替换集群节点失败 5023034 云数据库 GaussDB版本回退失败 5023038 云数据库 GaussDB集群切换AZ失败 5023039 云数据库 GaussDB集群加回AZ失败 5023040 云数据库 GaussDB集群单AZ强起失败 5023055 云数据库 GaussDB容灾集群查询容灾状态异常 5023070 云数据库 GaussDB流容灾主集群数据同步失败 5023071 云数据库 GaussDB流容灾备集群数据复制失败 5023072 云数据库 GaussDB流容灾容灾升主备集群升主失败 5023073 云数据库 GaussDB流容灾主集群降备失败 5023074 云数据库 GaussDB流容灾主从切换备集群升主失败 5023075 云数据库 GaussDB流容灾集群解除容灾失败 5023079 云数据库 GaussDB挂载NAS备份盘失败 5023080 云数据库 GaussDB卸载NAS备份盘失败 5023081 云数据库 GaussDB容灾跨Region操作下发失败 5023082 【自定义监控】主机流控时间超过阈值 5023083【自定义监控】备机redo进度超过阈值 5023084【自定义监控】活跃会话率超过阈值 5023085【自定义监控】在线会话率超过阈值 5023087 云数据库 GaussDB DN分片主备倒换失败 5023088 云数据库 GaussDB重置管理面帐号密码失败 5023086【自定义监控】动态内存使用率超过阈值 5023091 云数据库 GaussDB重分布参数更新失败 5023092 云数据库 GaussDB切换一致性协议失败 5023100 云数据库 GaussDB扩容参数更新失败 5023101 云数据库 GaussDB容灾演练开始失败 5023102 云数据库 GaussDB容灾演练结束失败 5023103 云数据库 GaussDB容灾日志保持开始失败 5023104 云数据库 GaussDB容灾日志保持结束失败 5023107 云数据库 GaussDB流式容灾回切失败 5012617 云数据库 GaussDB 监测到有实例没有产生增量备份 5023501 云数据库 GaussDB 增量备份失败 5023502 云数据库 GaussDB手动全量备份失败 5023503 云数据库 GaussDB自动全量备份失败 5023504 云数据库 GaussDB差分备份失败 5023505 云数据库 GaussDB根据备份文件恢复失败 5023506 云数据库 GaussDB根据时间点恢复失败 5023510 云数据库 GaussDB删除备份失败 5023511 云数据库 GaussDB清理过期备份失败 5023512 云数据库 GaussDB报送计量失败 5023516 云数据库 GaussDB启动增备失败 5023518 云数据库 GaussDB表备份失败 5023520 云数据库 GaussDB确认恢复到原实例的数据完备失败 5023521 云数据库 GaussDB表级手动全量备份失败 5023522 云数据库 GaussDB表级自动全量备份失败 5023523 云数据库 GaussDB表级自动差分备份失败 5023524 云数据库 GaussDB库级备份文件恢复失败 5023528 云数据库 GaussDB表级备份文件恢复失败 5023529 云数据库 GaussDB库级时间点恢复失败 5023530 云数据库 GaussDB表级时间点恢复失败 5023525 检查跨region同步备份失败 5023526 跨region同步备份失败 5023527 修复跨region备份策略失败 5025003 云数据库 GaussDB DN失效切换 5014998 云数据库 GaussDB内核告警 5014999 OPS巡检-指标告警 5013611 云数据库GaussDB安装内核插件失败 5023093 GaussDB-DBMind创建失败 5023098 GaussDB-DBMind删除失败 5023096 GaussDB-DBMind纳管实例失败 5023097 GaussDB-DBMind解除纳管失败 5023125 切换GaussDB透明加密失败 5023110 云数据库GaussDB 节点CPU使用率过高 5023111云数据库GaussDB节点内存使用率过高 5023112 云数据库GaussDB实例磁盘容量不足 5023113 云数据库GaussDB组件磁盘容量不足 5023114 云数据库GaussDB节点数据磁盘写入变慢 5023115 云数据库GaussDB节点数据磁盘单次平均读取花费时间过长 5023116 云数据库GaussDB组件事务回滚率过高 5023117 云数据库GaussDB实例 80% SQL响应时间变慢 5023118 云数据库GaussDB实例 95% SQL响应时间变慢 5023119 云数据库GaussDB组件事务执行时间过长 5023120 云数据库GaussDB节点磁盘IO带宽占用率过高 5023121 GaussDB-DBMind变更规格失败 5023122 GaussDB-DBMind卷扩容失败 5023123 GaussDB-更新高级特性开关失败 5023129 变更部署形态失败 管理面告警 GaussDB 内核告警参考 附录",
+      "source_file": "4943_file_4943.txt"
+    },
+    {
+      "term": "日志参考",
+      "content": "日志参考 日志参考 概述 管理日志 租户日志",
+      "source_file": "5485_file_5485.txt"
+    },
+    {
+      "term": "应急预案",
+      "content": "应急预案 应急预案 业务流程分析 运维案例库 操作参考",
+      "source_file": "5545_file_5545.txt"
+    },
+    {
+      "term": "错误码参考（管理面）",
+      "content": "错误码参考（管理面） 错误码参考（管理面） 错误码概述 错误码列表 控制台错误码 附录",
+      "source_file": "5318_file_5318.txt"
+    },
+    {
+      "term": "DBS运维管理平台操作指南",
+      "content": "DBS运维管理平台操作指南 DBS运维管理平台操作指南 权限配置 实例管理 备份管理 节点管理 任务管理 日志管理 租户管理 配置管理 监控运维 附录",
+      "source_file": "5653_DBS.txt"
+    },
+    {
+      "term": "系统上下电",
+      "content": "系统上下电 系统上下电 虚拟机分布 当前版本中，以用途来划分 GaussDB 使用的虚拟机。 表1 组网方案 节点名称 虚拟机台数 需配置IP地址 网络 API 2 Region IP Region Workflow 3 Region IP Region Resource Manager 2 Region IP Region Metastore 2 Region IP Region Monitor 3 Region IP Region MySQL Management 2 Region IP Region GaussDBV5 Managment 2 Region IP Region ZK/ops-admin/dubbo-admin 3 Region IP Region OPS 1 OM IP OM 所使用的软件 表2 各节点所使用的软件 节点 软件 全部节点 common-base 全部节点 backup-tool 全部节点 elk-agent 全部节点 zabbix-agent 全部节点 jre Monitor1、Monitor2、Monitor3 logstash 除Gauss和ZK2外的全部节点 tomcat Gauss1、Gauss2 gaussdb ZK3 dubbo-admin ZK1、ZK2、ZK3 kafka ZK1、ZK2、ZK3 zookeeper Monitor1、Monitor2、Monitor3 ha-monitor Monitor1、Monitor2、Monitor3 monitor-service ResMgnt1、ResMgnt2 metering ResMgnt1、ResMgnt2 resource-manager MySQLMgnt1、MySQLMgnt2 mysql-backupmanager MySQLMgnt1、MySQLMgnt2 mysql-instancemanager GaussDBV5Mgnt1、GaussDBV5Mgnt2 gaussdbv5-instancemanager GaussDBV5Mgnt1、GaussDBV5Mgnt2 gaussdbv5-backupmanager API1、API2 open-api API1、API2 platform-api Workflow1、Workflow2、Workflow3 workflow ZK1 ops-admin OpsBase ops-base OpsBase ops-omconsole 简介 安全停止GaussDB实例业务 上电后检查 操作参考",
+      "source_file": "5645_file_5645.txt"
+    },
+    {
+      "term": "高危操作",
+      "content": "高危操作 高危操作 禁用操作一览表 高危操作一览表",
+      "source_file": "5642_file_5642.txt"
+    },
+    {
+      "term": "安全管理",
+      "content": "安全管理 安全管理 安全管理主要介绍与用户帐户和访问证书相关的内容。 建议按照各帐号的密码/密钥修改方法，定期修改帐号密码/密钥，以提高系统安全性，防止出现密码被暴力破解等安全风险。 强烈建议用户定期修改根证书或将预置证书替换成已获取的数字证书，以提高系统安全性，避免被破解的风险。 帐户管理 证书管理",
+      "source_file": "5632_file_5632.txt"
+    },
+    {
+      "term": "巡检指南",
+      "content": "巡检指南 巡检指南 概述 巡检项 巡检过程 邮件配置管理",
+      "source_file": "5608_file_5608.txt"
+    },
+    {
+      "term": "工具参考",
+      "content": "工具参考 工具参考 分布式版 主备版",
+      "source_file": "5773_file_5773.txt"
+    },
+    {
+      "term": "备份与恢复",
+      "content": "备份与恢复 备份与恢复 备份 恢复",
+      "source_file": "5621_file_5621.txt"
+    },
+    {
+      "term": "故障处理",
+      "content": "故障处理 故障处理 概述 信息收集 故障信息是故障处理的重要依据，系统维护人员应尽可能多的收集故障信息，为故障的定位和排除做充分的准备。 预置故障场景 虚拟机异常 业务故障 对于业务场景常见故障，可以根据故障现象进一步分析产生原因，然后采取合理措施进行处理。 数据库故障定位方法 系统异常 附录",
+      "source_file": "5244_file_5244.txt"
+    },
+    {
+      "term": "服务监控",
+      "content": "服务监控 服务监控 概述 查看监控指标 监控指标一览表",
+      "source_file": "5636_file_5636.txt"
+    }
+  ]
+}

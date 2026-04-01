@@ -1,0 +1,1 @@
+PG_LARGEOBJECT_METADATA PG_LARGEOBJECT_METADATA PG_LARGEOBJECT_METADATA系统表存储与大数据相关的元数据。实际的大对象数据存储在PG_LARGEOBJECT里。 表1 PG_LARGEOBJECT_METADATA字段 名称 类型 引用 描述 oid oid - 行标识符（隐含字段，必须明确选择）。 lomowner oid PG_AUTHID .oid 大对象的所有者。 lomacl aclitem[] - 访问权限。 父主题： 其他系统表 版权所有 © 华为技术有限公司

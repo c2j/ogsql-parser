@@ -1,0 +1,26 @@
+{
+  "topic": "高级包",
+  "term_count": 4,
+  "terms": [
+    {
+      "term": "二次封装接口(推荐)",
+      "content": "二次封装接口(推荐) 二次封装接口(推荐) DBE_APPLICATION_INFO DBE_COMPRESSION DBE_FILE DBE_HEAT_MAP DBE_ILM DBE_ILM_ADMIN DBE_LOB DBE_MATCH DBE_OUTPUT DBE_PROFILER DBE_RANDOM DBE_RAW DBE_SCHEDULER DBE_SESSION DBE_SQL DBE_STATS DBE_TASK DBE_UTILITY DBE_XMLDOM DBE_XMLPARSER prvt_ilm",
+      "source_file": "3176_().txt"
+    },
+    {
+      "term": "二次封装接口(推荐)",
+      "content": "二次封装接口(推荐) 二次封装接口(推荐) DBE_APPLICATION_INFO DBE_COMPRESSION DBE_FILE DBE_ILM DBE_ILM_ADMIN DBE_LOB DBE_MATCH DBE_OUTPUT DBE_RANDOM DBE_RAW DBE_SCHEDULER DBE_SESSION DBE_SQL DBE_TASK DBE_UTILITY DBE_XMLDOM DBE_XMLPARSER prvt_ilm",
+      "source_file": "1466_().txt"
+    },
+    {
+      "term": "基础接口",
+      "content": "基础接口 基础接口 PKG_SERVICE PKG_UTIL DBE_XML",
+      "source_file": "1462_file_1462.txt"
+    },
+    {
+      "term": "基础接口",
+      "content": "基础接口 基础接口 PKG_SERVICE PKG_UTIL DBE_XML",
+      "source_file": "3172_file_3172.txt"
+    }
+  ]
+}

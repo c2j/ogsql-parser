@@ -1,0 +1,41 @@
+{
+  "topic": "资源管理服务日志",
+  "term_count": 7,
+  "terms": [
+    {
+      "term": "resourcemanager.dubbo.log",
+      "content": "resourcemanager.dubbo.log resourcemanager.dubbo.log 日志含义 该日志来源于资源管理（resource-manager）服务的日志输出，通过查看此日志，可以看到资源管理（resource-manager）运行时的dubbo调用错误日志信息。 日志命名 日志文件名：resourcemanager.dubbo.log.%i %i为日志轮转的数字。 日志格式 通配符形式 : [%d][%p][${APPNAME}][%X{X-Request-ID}][%thread][%m][%C{1.}.%M(%L)]%n 模块名形式 : [time][logLevel][module][traceId][threadId][logDetail] 日志参数 表1 日志参数 字段名称 字段含义 time [%d] 日志生成的时间，格式：yyyy-MM-dd HH:mm:ss.SSS。GMT logLevel [%p] 日志级别 module [${APPNAME}] 标志当前模块为 rm,内容固定为 rm traceId [%X{X-Request-ID}] 日志追踪ID,一般为workflowId threadId [%thread] 线程Id logDetail [%m][%C{1.}.%M(%L)]%n 日志详情(包括日志信息,附加信息和换行符) 日志示例 日志的典型样例： 资源管理（resource-manager）服务dubbo调用错误信息日志如下: [2021-07-28 12:37:16,182][ERROR][rm][d0e7a048-0c80-4984-9af1-999f1cdb4b89][pool-12-thread-133][ [DUBBO] [dubbo] SCC error log : [com.huawei.seccomponent.crypt.wcc.CryptAES:173][doEnDeCrypt]error:javax.crypto.BadPaddingException: Given final block not properly padded. Such issues can arise if a bad key is used during decryption., dubbo version: 2.7.8-hw-20210722-SNAPSHOT, current host: 192.107.54.45][o.a.d.c.l.l.Log4j2Logger.error(91)]",
+      "source_file": "5508_resourcemanager.dubbo.log.txt"
+    },
+    {
+      "term": "resourcemanager.debug.log",
+      "content": "resourcemanager.debug.log resourcemanager.debug.log 日志含义 该日志来源于资源管理（resource-manager）服务的日志输出，通过查看此日志，可以看到资源管理（resource-manager）运行的调试信息。 日志命名 日志文件名：resourcemanager.debug.log.%i %i为日志轮转的数字。 日志格式 通配符形式 : [%d][%p][${APPNAME}][%X{X-Request-ID}][%thread][%m][%C{1.}.%M(%L)]%n 模块名形式 : [time][logLevel][module][traceId][threadId][logDetail] 日志参数 表1 日志参数 字段名称 字段含义 time [%d] 日志生成的时间，格式：yyyy-MM-dd HH:mm:ss.SSS。GMT logLevel [%p] 日志级别 module [${APPNAME}] 标志当前模块为 rm,内容固定为 rm traceId [%X{X-Request-ID}] 日志追踪ID,一般为workflowId threadId [%thread] 线程Id logDetail [%m][%C{1.}.%M(%L)]%n 日志详情(包括日志信息,附加信息和换行符) 日志示例 日志的典型样例： 资源管理（resource-manager）服务日常运行调试日志如下: [2021-08-24 11:53:37,889][DEBUG][rm][2317e180-e847-416e-861f-757471927a34][pool-14-thread-140][[ReceiveResourceDomainVariableTask(workflowId=a846d5c4-2566-499c-85d0-1b3e4a650c58)] virable XXX : XXX][c.h.h.d.r.s.w.BaseTask.logStartTask(29)]",
+      "source_file": "5506_resourcemanager.debug.log.txt"
+    },
+    {
+      "term": "resourcemanager.project.log",
+      "content": "resourcemanager.project.log resourcemanager.project.log 日志含义 作用与 resourcemanager.spring.log 类似，可以协助判断应用异常运行的原因。 日志命名 日志文件名：resourcemanager.project.log.%i %i为日志轮转的数字。 日志格式 通配符形式 : [%d][%p][${APPNAME}][%X{X-Request-ID}][%thread][%m][%C{1.}.%M(%L)]%n 模块名形式 : [time][logLevel][module][traceId][threadId][logDetail] 日志参数 表1 日志参数 字段名称 字段含义 time [%d] 日志生成的时间，格式：yyyy-MM-dd HH:mm:ss.SSS。GMT logLevel [%p] 日志级别 module [${APPNAME}] 标志当前模块为 rm,内容固定为 rm traceId [%X{X-Request-ID}] 日志追踪ID,一般为workflowId threadId [%thread] 线程Id logDetail [%m][%C{1.}.%M(%L)]%n 日志详情(包括日志信息,附加信息和换行符) 日志示例 日志的典型样例： 资源管理（resource-manager）服务project项目运行信息日志如下: [2021-07-16 03:02:35,664][INFO][rm][][Curator-Framework-0][Unknown event CuratorEventImpl{type=WATCHED, resultCode=-4, path='null', name='null', children=null, context=null, stat=null, data=null, watchedEvent=WatchedEvent state:Disconnected type:None path:null, aclList=null, opResults=null}][o.a.c.f.r.c.TreeCache$TreeNode.processResult(495)]",
+      "source_file": "5510_resourcemanager.project.log.txt"
+    },
+    {
+      "term": "wfsclient.error.log",
+      "content": "wfsclient.error.log wfsclient.error.log 日志含义 此文件为资源管理(resourcemanager)服务日常运行中流程调度的异常信息日志，当出现工作流异常时可以查看此日志进行排查。 日志命名 日志文件名：wfsclient.error.log.%i %i为日志轮转的数字。 日志格式 通配符形式 : [%d][%p][${APPNAME}][%X{X-Request-ID}][%thread][%m][%C{1.}.%M(%L)]%n 模块名形式 : [time][logLevel][module][traceId][threadId][logDetail] 日志参数 表1 日志参数 字段名称 字段含义 time [%d] 日志生成的时间，格式：yyyy-MM-dd HH:mm:ss.SSS。GMT logLevel [%p] 日志级别 module [${APPNAME}] 标志当前模块为 rm,内容固定为 rm traceId [%X{X-Request-ID}] 日志追踪ID,一般为workflowId threadId [%thread] 线程Id logDetail [%m][%C{1.}.%M(%L)]%n 日志详情(包括日志信息,附加信息和换行符) 日志示例 日志的典型样例： 资源管理（resource-manager）服务工作流异常信息日志如下: [2021-08-26 11:48:42,129][ERROR][rm][][poller-2][failed in polling or invoke builtin actor; namespace=ddm-admin][c.h.h.d.w.c.TaskPoller.poll(94)]\ncom.huawei.hwclouds.dbs.wfs.exception.WFSException: namespace=ddm-admin; trackingId=dee7f452-e87f-42f9-868d-a378ac1fc2c1; errorCode=210406;\n ...(堆栈信息)",
+      "source_file": "5511_wfsclient.error.log.txt"
+    },
+    {
+      "term": "resourcemanager.error.log",
+      "content": "resourcemanager.error.log resourcemanager.error.log 日志含义 该日志来源于资源管理（resource-manager）服务的日志输出，通过查看此日志, 可以看到资源管理（resource-manager）运行异常时的错误日志信息。 日志命名 日志文件名：resourcemanager.error.log.%i %i为日志轮转的数字。 日志格式 通配符形式 : [%d][%p][${APPNAME}][%X{X-Request-ID}][%thread][%m][%C{1.}.%M(%L)]%n 模块名形式 : [time][logLevel][module][traceId][threadId][logDetail] 日志参数 表1 日志参数 字段名称 字段含义 time [%d] 日志生成的时间，格式：yyyy-MM-dd HH:mm:ss.SSS。GMT logLevel [%p] 日志级别 module [${APPNAME}] 标志当前模块为 rm,内容固定为 rm traceId [%X{X-Request-ID}] 日志追踪ID,一般为workflowId threadId [%thread] 线程Id logDetail [%m][%C{1.}.%M(%L)]%n 日志详情(包括日志信息,附加信息和换行符) 日志示例 日志的典型样例： 资源管理（resource-manager）服务错误信息日志如下: [2021-08-24 16:53:01,185][ERROR][rm][fb53c4b9-1b0d-4dac-8a77-afa2e76a23b4][pool-14-thread-263][====[WaitServerJobTask.perform] task got exception: ][c.h.h.d.n.e.c.a.NestleTaskLogAop.printTaskLog(41)]\ncom.huawei.hwclouds.dbs.common.exception.DBSInternalException: (workflowId=51188f11-9c3a-42a9-bb33-98ab56bf9ad6, task=WaitServerJobTask)IaaS job is ongoing : iaasJobId=ff8080827aeaddc4017b7913da6a1ada\n\tat com.huawei.hwclouds.dbs.resourcemanager.service.workflow.WaitIaaSJobTask.doWaitIaaSJob(WaitIaaSJobTask.java:71) ~ [classes/:?]\n        ...(堆栈信息)",
+      "source_file": "5507_resourcemanager.error.log.txt"
+    },
+    {
+      "term": "resourcemanager.spring.log",
+      "content": "resourcemanager.spring.log resourcemanager.spring.log 日志含义 该日志来源于资源管理（resource-manager）服务的日志输出, 通过查看此日志，可以看到资源管理（resource-manager）运行时的spring应用程序内部的日志信息。此日志可以协助判断应用异常的原因。 日志命名 日志文件名：resourcemanager.spring.log.%i %i为日志轮转的数字。 日志格式 通配符形式 : [%d][%p][${APPNAME}][%X{X-Request-ID}][%thread][%m][%C{1.}.%M(%L)]%n 模块名形式 : [time][logLevel][module][traceId][threadId][logDetail] 日志参数 表1 日志参数 字段名称 字段含义 time [%d] 日志生成的时间，格式：yyyy-MM-dd HH:mm:ss.SSS。GMT logLevel [%p] 日志级别 module [${APPNAME}] 标志当前模块为 rm,内容固定为 rm traceId [%X{X-Request-ID}] 日志追踪ID,一般为workflowId threadId [%thread] 线程Id logDetail [%m][%C{1.}.%M(%L)]%n 日志详情(包括日志信息,附加信息和换行符) 日志示例 日志的典型样例： 资源管理（resource-manager）服务 spring 应用运行信息日志如下: [2021-08-09 01:32:09,992][INFO][rm][][Thread-10][Closing Root WebApplicationContext: startup date [Fri Aug 06 02:54:19 UTC 2021]; root of context hierarchy][o.s.c.s.AbstractApplicationContext.doClose(985)]",
+      "source_file": "5509_resourcemanager.spring.log.txt"
+    },
+    {
+      "term": "resourcemanager.info.log",
+      "content": "resourcemanager.info.log resourcemanager.info.log 日志含义 该日志来源于资源管理（resource-manager）服务的日志输出，通过查看此日志，可以看到资源管理（resource-manager）运行的日志信息。 日志命名 日志文件名：resourcemanager.info.log.%i %i为日志轮转的数字。 日志格式 通配符形式 : [%d][%p][${APPNAME}][%X{X-Request-ID}][%thread][%m][%C{1.}.%M(%L)]%n 模块名形式 : [time][logLevel][module][traceId][threadId][logDetail] 日志参数 表1 日志参数 字段名称 字段含义 time [%d] 日志生成的时间，格式：yyyy-MM-dd HH:mm:ss.SSS。GMT logLevel [%p] 日志级别 module [${APPNAME}] 标志当前模块为 rm,内容固定为 rm traceId [%X{X-Request-ID}] 日志追踪ID,一般为workflowId threadId [%thread] 线程Id logDetail [%m][%C{1.}.%M(%L)]%n 日志详情(包括日志信息,附加信息和换行符) 日志示例 日志的典型样例： 资源管理（resource-manager）服务日常运行日志如下: [2021-08-24 11:53:37,889][INFO][rm][2317e180-e847-416e-861f-757471927a34][pool-14-thread-140][[ReceiveResourceDomainVariableTask(workflowId=a846d5c4-2566-499c-85d0-1b3e4a650c58)] start to execute.][c.h.h.d.r.s.w.BaseTask.logStartTask(29)]",
+      "source_file": "5505_resourcemanager.info.log.txt"
+    }
+  ]
+}

@@ -1,0 +1,21 @@
+DBE_HEAT_MAP DBE_HEAT_MAP 接口介绍 根据输入的参数，返回目标数据块中行的最后修改时间等信息，用于直观浏览每一行被判定为冷、热行的依据。该接口属于运维类接口，不做可见性判断，即传入的ctid为已删除的行时，该接口依然会返回当前行在页面上最新的状态。 表1 DBE_HEAT_MAP 接口名称 描述 ROW_HEAT_MAP 根据对象所属Schema、数据对象名称、数据对象分区名及ctid获取行的最后修改时间等信息。 DBE_HEAT_MAP.ROW_HEAT_MAP 根据对象所属Schema、数据对象名称、数据对象分区名及ctid获取行的最后修改时间等信息，原型为： 1
+2
+3
+4
+5 DBE_HEAT_MAP . ROW_HEAT_MAP ( owner IN VARCHAR2 , segment_name IN VARCHAR2 , partition_name IN VARCHAR2 DEFAULT NULL , ctid IN TEXT ); 表2 DBE_HEAT_MAP.ROW_HEAT_MAP接口参数说明 参数 描述 owner 数据对象所属Schema。 segment_name 数据对象名称。 partition_name 数据对象分区名，可选参数，默认为 NULL。 ctid 数据行ID。 示例 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17 gaussdb =# ALTER DATABASE set ilm = on ; gaussdb =# CREATE Schema HEAT_MAP_DATA ; gaussdb =# SET current_schema = HEAT_MAP_DATA ; gaussdb =# CREATE TABLESPACE example1 RELATIVE LOCATION 'tablespace1' ; gaussdb =# CREATE TABLE HEAT_MAP_DATA . heat_map_table ( id INT , value TEXT ) TABLESPACE example1 ; gaussdb =# INSERT INTO HEAT_MAP_DATA . heat_map_table VALUES ( 1 , 'test_data_row_1' ); gaussdb =# SELECT * from DBE_HEAT_MAP . ROW_HEAT_MAP ( owner => 'heat_map_data' , segment_name => 'heat_map_table' , partition_name => NULL , ctid => '(0,1)' ); owner | segment_name | partition_name | tablespace_name | file_id | relative_fno | ctid | writetime ---------------+----------------+----------------+-----------------+---------+--------------+-------+----------- heat_map_data | heat_map_table | | example1 | 17291 | 17291 | ( 0 , 1 ) | ( 1 row ) 父主题： 二次封装接口(推荐) 版权所有 © 华为技术有限公司

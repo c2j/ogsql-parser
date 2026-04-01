@@ -1,0 +1,41 @@
+CREATE RESOURCE LABEL CREATE RESOURCE LABEL 功能描述 创建资源标签。 注意事项 只有poladmin，sysadmin或初始用户能正常执行此操作。 语法格式 1 CREATE RESOURCE LABEL [ IF NOT EXISTS ] label_name ADD label_item_list [, ...]; label_item_list： 1 resource_type ( resource_path [, ...]) resource_type： { TABLE | COLUMN | SCHEMA | VIEW | FUNCTION } 参数说明 IF NOT EXISTS 如果已经存在相同名称的资源标签，不会报出错误，而会发出通知，告知通知此资源标签已存在。 label_name 资源标签名称，创建时要求不能与已有标签重名。 取值范围：字符串，要符合 标识符命名规范 。 resource_type 指的是要标记的数据库资源类型。 取值范围：表（TABLE）、列（COLUMN）、模式（SCHEMA）、视图（VIEW）、函数（FUNCTION）。 resource_path 指的是描述具体的数据库资源的路径。 示例 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27
+28
+29
+30
+31
+32
+33
+34
+35
+36
+37
+38
+39
+40
+41 --创建一个表tb_for_label。 gaussdb =# CREATE TABLE tb_for_label ( col1 text , col2 text , col3 text ); --创建一个模式schema_for_label。 gaussdb =# CREATE SCHEMA schema_for_label ; --创建一个视图view_for_label。 gaussdb =# CREATE VIEW view_for_label AS SELECT 1 ; --创建一个函数func_for_label。 gaussdb =# CREATE FUNCTION func_for_label RETURNS TEXT AS $$ SELECT col1 FROM tb_for_label ; $$ LANGUAGE SQL ; --基于表创建资源标签。 gaussdb =# CREATE RESOURCE LABEL IF NOT EXISTS table_label add TABLE ( public . tb_for_label ); --基于列创建资源标签。 gaussdb =# CREATE RESOURCE LABEL IF NOT EXISTS column_label add COLUMN ( public . tb_for_label . col1 ); --基于模式创建资源标签。 gaussdb =# CREATE RESOURCE LABEL IF NOT EXISTS schema_label add SCHEMA ( schema_for_label ); --基于视图创建资源标签。 gaussdb =# CREATE RESOURCE LABEL IF NOT EXISTS view_label add VIEW ( view_for_label ); --基于函数创建资源标签。 gaussdb =# CREATE RESOURCE LABEL IF NOT EXISTS func_label add FUNCTION ( func_for_label ); --删除资源标签。 gaussdb =# DROP RESOURCE LABEL func_label , view_label , schema_label , column_label , table_label ; --删除函数func_for_label。 gaussdb =# DROP FUNCTION func_for_label ; --删除视图view_for_label。 gaussdb =# DROP VIEW view_for_label ; --删除模式schema_for_label。 gaussdb =# DROP SCHEMA schema_for_label ; --删除表tb_for_label。 gaussdb =# DROP TABLE tb_for_label ; 相关链接 ALTER RESOURCE LABEL ， DROP RESOURCE LABEL 。 父主题： C 版权所有 © 华为技术有限公司

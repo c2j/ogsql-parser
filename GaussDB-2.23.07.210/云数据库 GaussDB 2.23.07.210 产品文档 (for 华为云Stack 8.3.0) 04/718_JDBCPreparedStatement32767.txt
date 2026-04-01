@@ -1,0 +1,1 @@
+【规则】JDBC每条PreparedStatement语句中的参数不可超过32767个 【规则】JDBC每条PreparedStatement语句中的参数不可超过32767个 父主题： JDBC 版权所有 © 华为技术有限公司

@@ -1,0 +1,284 @@
+数组函数和操作符 数组函数和操作符 数组操作符 = 描述：两个数组是否相等 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT ARRAY [ 1 . 1 , 2 . 1 , 3 . 1 ]:: int [] = ARRAY [ 1 , 2 , 3 ] AS RESULT ; result -------- t ( 1 row ) <> 描述：两个数组是否不相等 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT ARRAY [ 1 , 2 , 3 ] <> ARRAY [ 1 , 2 , 4 ] AS RESULT ; result -------- t ( 1 row ) < 描述：一个数组是否小于另一个数组 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT ARRAY [ 1 , 2 , 3 ] < ARRAY [ 1 , 2 , 4 ] AS RESULT ; result -------- t ( 1 row ) > 描述：一个数组是否大于另一个数组 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT ARRAY [ 1 , 4 , 3 ] > ARRAY [ 1 , 2 , 4 ] AS RESULT ; result -------- t ( 1 row ) <= 描述：一个数组是否小于或等于另一个数组 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT ARRAY [ 1 , 2 , 3 ] <= ARRAY [ 1 , 2 , 3 ] AS RESULT ; result -------- t ( 1 row ) >= 描述：一个数组是否大于或等于另一个数组 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT ARRAY [ 1 , 4 , 3 ] >= ARRAY [ 1 , 4 , 3 ] AS RESULT ; result -------- t ( 1 row ) @> 描述：一个数组是否包含另一个数组 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT ARRAY [ 1 , 4 , 3 ] @> ARRAY [ 3 , 1 ] AS RESULT ; result -------- t ( 1 row ) <@ 描述：一个数组是否被包含于另一个数组 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT ARRAY [ 2 , 7 ] <@ ARRAY [ 1 , 7 , 4 , 2 , 6 ] AS RESULT ; result -------- t ( 1 row ) && 描述：一个数组是否和另一个数组重叠（有共同元素） 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT ARRAY [ 1 , 4 , 3 ] && ARRAY [ 2 , 1 ] AS RESULT ; result -------- t ( 1 row ) || 描述：数组与数组进行连接 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT ARRAY [ 1 , 2 , 3 ] || ARRAY [ 4 , 5 , 6 ] AS RESULT ; result --------------- { 1 , 2 , 3 , 4 , 5 , 6 } ( 1 row ) 1
+2
+3
+4
+5 gaussdb =# SELECT ARRAY [ 1 , 2 , 3 ] || ARRAY [[ 4 , 5 , 6 ],[ 7 , 8 , 9 ]] AS RESULT ; result --------------------------- {{ 1 , 2 , 3 } , { 4 , 5 , 6 } , { 7 , 8 , 9 }} ( 1 row ) || 描述：元素与数组进行连接 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT 3 || ARRAY [ 4 , 5 , 6 ] AS RESULT ; result ----------- { 3 , 4 , 5 , 6 } ( 1 row ) || 描述：数组与元素进行连接 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT ARRAY [ 4 , 5 , 6 ] || 7 AS RESULT ; result ----------- { 4 , 5 , 6 , 7 } ( 1 row ) 数组比较是使用默认的B-tree比较函数对所有元素逐一进行比较的。多维数组的元素按照行顺序进行访问。如果两个数组的内容相同但维数不等，决定排序顺序的首要因素是维数。 数组函数 array_append(anyarray, anyelement) 描述：向数组末尾添加元素，只支持一维数组。 返回类型：anyarray 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT array_append ( ARRAY [ 1 , 2 ], 3 ) AS RESULT ; result --------- { 1 , 2 , 3 } ( 1 row ) array_prepend(anyelement, anyarray) 描述：向数组开头添加元素，只支持一维数组。 返回类型：anyarray 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT array_prepend ( 1 , ARRAY [ 2 , 3 ]) AS RESULT ; result --------- { 1 , 2 , 3 } ( 1 row ) array_cat(anyarray, anyarray) 描述：连接两个数组，支持多维数组。 返回类型：anyarray 示例： 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11 gaussdb =# SELECT array_cat ( ARRAY [ 1 , 2 , 3 ], ARRAY [ 4 , 5 ]) AS RESULT ; result ------------- { 1 , 2 , 3 , 4 , 5 } ( 1 row ) gaussdb =# SELECT array_cat ( ARRAY [[ 1 , 2 ],[ 4 , 5 ]], ARRAY [ 6 , 7 ]) AS RESULT ; result --------------------- {{ 1 , 2 } , { 4 , 5 } , { 6 , 7 }} ( 1 row ) array_union(anyarray, anyarray) 描述：连接两个数组，只支持一维数组。有入参为NULL时返回另一个入参。 返回类型：anyarray 示例： 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11 gaussdb =# SELECT array_union ( ARRAY [ 1 , 2 , 3 ], ARRAY [ 3 , 4 , 5 ]) AS RESULT ; result ------------- { 1 , 2 , 3 , 3 , 4 , 5 } ( 1 row ) gaussdb =# SELECT array_union ( ARRAY [ 1 , 2 , 3 ], NULL ) AS RESULT ; result --------- { 1 , 2 , 3 } ( 1 row ) array_union_distinct(anyarray, anyarray) 描述：连接两个数组，并去重，只支持一维数组。有入参为NULL时返回另一个入参。 返回类型：anyarray 示例： 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11 gaussdb =# SELECT array_union_distinct ( ARRAY [ 1 , 2 , 3 ], ARRAY [ 3 , 4 , 5 ]) AS RESULT ; result ------------- { 1 , 2 , 3 , 4 , 5 } ( 1 row ) gaussdb =# SELECT array_union_distinct ( ARRAY [ 1 , 2 , 3 ], NULL ) AS RESULT ; result --------- { 1 , 2 , 3 } ( 1 row ) array_intersect(anyarray, anyarray) 描述：两个数组取交集，只支持一维数组。有入参为NULL时返回NULL。 返回类型：anyarray 示例： 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11 gaussdb =# SELECT array_intersect ( ARRAY [ 1 , 2 , 3 ], ARRAY [ 3 , 4 , 5 ]) AS RESULT ; result ------------- { 3 } ( 1 row ) gaussdb =# SELECT array_intersect ( ARRAY [ 1 , 2 , 3 ], NULL ) AS RESULT ; result -------- ( 1 row ) array_intersect_distinct(anyarray, anyarray) 描述：两个数组取交集，并去重，只支持一维数组。有入参为NULL时返回NULL。 返回类型：anyarray 示例： 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11 gaussdb =# SELECT array_intersect_distinct ( ARRAY [ 1 , 2 , 2 ], ARRAY [ 2 , 2 , 4 , 5 ]) AS RESULT ; result ------------- { 2 } ( 1 row ) gaussdb =# SELECT array_intersect_distinct ( ARRAY [ 1 , 2 , 3 ], NULL ) AS RESULT ; result -------- ( 1 row ) array_except(anyarray, anyarray) 描述：两个数组取差，只支持一维数组。第一个入参为NULL时返回NULL, 第二个入参为NULL时返回第一个入参。 返回类型：anyarray 示例： 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17 gaussdb =# SELECT array_except ( ARRAY [ 1 , 2 , 3 ], ARRAY [ 3 , 4 , 5 ]) AS RESULT ; result ------------- { 1 , 2 } ( 1 row ) gaussdb =# SELECT array_except ( ARRAY [ 1 , 2 , 3 ], NULL ) AS RESULT ; result --------- { 1 , 2 , 3 } ( 1 row ) gaussdb =# SELECT array_except ( NULL , ARRAY [ 3 , 4 , 5 ]) AS RESULT ; result -------- ( 1 row ) array_except_distinct(anyarray, anyarray) 描述：两个数组取差，并去重，只支持一维数组。第一个入参为NULL时返回NULL, 第二个入参为NULL时返回第一个入参。 返回类型：anyarray 示例： 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17 gaussdb =# SELECT array_except_distinct ( ARRAY [ 1 , 2 , 2 , 3 ], ARRAY [ 3 , 4 , 5 ]) AS RESULT ; result ------------- { 1 , 2 } ( 1 row ) gaussdb =# SELECT array_except_distinct ( ARRAY [ 1 , 2 , 3 ], NULL ) AS RESULT ; result --------- { 1 , 2 , 3 } ( 1 row ) gaussdb =# SELECT array_except_distinct ( NULL , ARRAY [ 3 , 4 , 5 ]) AS RESULT ; result -------- ( 1 row ) array_ndims(anyarray) 描述：返回数组的维数。 返回类型：int 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT array_ndims ( ARRAY [[ 1 , 2 , 3 ], [ 4 , 5 , 6 ]]) AS RESULT ; result -------- 2 ( 1 row ) array_dims(anyarray) 描述：返回数组各个维度中的低位下标值和高位下标值。 返回类型：text 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT array_dims ( ARRAY [[ 1 , 2 , 3 ], [ 4 , 5 , 6 ]]) AS RESULT ; result ------------ [ 1 : 2 ][ 1 : 3 ] ( 1 row ) array_length(anyarray, int) 描述：返回指定数组维度的长度。int为指定数组维度。 返回类型：int 示例： 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11 gaussdb =# SELECT array_length ( array [ 1 , 2 , 3 ], 1 ) AS RESULT ; result -------- 3 ( 1 row ) gaussdb =# SELECT array_length ( array [[ 1 , 2 , 3 ],[ 4 , 5 , 6 ]], 2 ) AS RESULT ; result -------- 3 ( 1 row ) array_lower(anyarray, int) 描述：返回指定数组维数的下界。int为指定数组维度。 返回类型：int 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT array_lower ( '[0:2]={1,2,3}' :: int [], 1 ) AS RESULT ; result -------- 0 ( 1 row ) 如果第一个参数为null开启参数varray_compat后会报错Reference to uninitialized collection，开启前返回NULL。 array_upper(anyarray, int) 描述：返回指定数组维数的上界。int为指定数组维度。 返回类型：int 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT array_upper ( ARRAY [ 1 , 8 , 3 , 7 ], 1 ) AS RESULT ; result -------- 4 ( 1 row ) 如果第一个参数为null开启参数varray_compat后会报错Reference to uninitialized collection，开启前返回NULL。 array_to_string(anyarray, text [, text]) 描述：使用第一个text作为数组的新分隔符，使用第二个text替换数组值为null的值。 返回类型：text 示例： 1
+2
+3
+4
+5 gaussdb =# SELECT array_to_string ( ARRAY [ 1 , 2 , 3 , NULL , 5 ], ',' , '*' ) AS RESULT ; result ----------- 1 , 2 , 3 , * , 5 ( 1 row ) array_delete(anyarray) 描述：清空数组中的元素并返回一个同类型的空数组。 返回类型：anyarray 示例： gaussdb=# SELECT array_delete(ARRAY[1,8,3,7]) AS RESULT;
+ result 
+--------
+ {}
+(1 row) 如果第一个参数为null开启参数varray_compat后会报错Reference to uninitialized collection，开启前返回NULL。 array_deleteidx(anyarray, int) 描述：从数组中删除指定下标的元素并返回剩余元素组成的数组。 返回类型：anyarray 示例： gaussdb=# SELECT array_deleteidx(ARRAY[1,2,3,4,5], 1) AS RESULT;
+  result
+-----------
+ {2,3,4,5}
+(1 row) array_deleteidx(anyarray, int)此函数在参数a_format_version值为10c和a_format_dev_version值为s1的情况下被禁用。 在开启varray_compat参数后，如果第一个参数为null会报错Reference to uninitialized collection，第二个参数为null返回原数组，未开启该参数时，参数有一个为null则返回null；若第二个参数小于等于0时开启参数后会报错Subscript outside of limit，开启前返回原数组；若第二个参数大于该数组元素数量时(包括0即空数组)开启参数后会报错Subcript outside of count开启前返回原数组。 array_extendnull(anyarray, int) 描述：往数组尾部添加指定个数的null空元素。 返回类型：anyarray 示例： gaussdb=# SELECT array_extendnull(ARRAY[1,8,3,7],1) AS RESULT;
+    result 
+--------------
+{1,8,3,7,null}
+(1 row) 如果第一个参数为null开启参数varray_compat后会报错Reference to uninitialized collection，开启前返回NULL；如果第二个参数为NULL，开启参数前返回NULL，开启后返回原数组；若第二个参数小于0开启参数后报错numeric or value error开启前返回原数组。 array_extendnull(anyarray, int, int) 描述：往数组尾部添加指定个数的指定索引的元素。 返回类型：anyarray 示例： gaussdb=# SELECT array_extendnull(ARRAY[1,8,3,7],2,2) AS RESULT;
+    result 
+--------------
+{1,8,3,7,8,8}
+(1 row) array_extendnull(anyarray, int, int)此函数在参数a_format_version值为10c和a_format_dev_version值为s1的情况下有效。 如果第一个参数为null开启参数varray_compat后会报错Reference to uninitialized collection，开启前返回NULL；如果第二个参数或者第三个参数为NULL，开启参数前返回NULL，开启后返回原数组。 array_trim(anyarray, int) 描述：从数组尾部删除指定个数个元素。 返回类型：anyarray 示例： gaussdb=# SELECT array_trim(ARRAY[1,8,3,7],1) AS RESULT;
+ result
+---------
+ {1,8,3}
+(1 row) 如果第一个参数为null开启参数varray_compat后会报错Reference to uninitialized collection，开启前返回NULL；如果第二个参数为NULL，开启参数前返回NULL，开启后返回原数组；如果第二个参数超过数组元素个数(包括0即空数组)时开启参数后会报错Subscipt outside of count，开启前返回空数组，如果第二个参数小于0开启后报错numeric or value error，开启前返回原数组。 array_exists(anyarray, int) 描述：检查第二个参数是否是数组的合法下标。 返回类型：boolean 示例： gaussdb=# SELECT array_exists(ARRAY[1,8,3,7],1) AS RESULT;
+ result 
+--------
+ t
+(1 row) array_next(anyarray, int) 描述：根据第二个入参返回数组中指定下标元素的下一个元素的下标。 返回类型：int 示例： gaussdb=# SELECT array_next(ARRAY[1,8,3,7],1) AS RESULT;
+ result 
+--------
+      2
+(1 row) 如果第一个参数为null开启参数varray_compat后会报错Reference to uninitialized collection，开启前返回NULL。 array_prior(anyarray, int) 描述：根据第二个入参返回数组中指定下标元素的上一个元素的下标。 返回类型：int 示例： gaussdb=# SELECT array_prior(ARRAY[1,8,3,7],2) AS RESULT;
+ result 
+--------
+  1
+(1 row) 如果第一个参数为null开启参数varray_compat后会报错Reference to uninitialized collection，开启前返回NULL。 string_to_array(text, text [,  text]) 描述：使用第二个text指定分隔符，使用第三个可选的text作为NULL值替换模板，如果分隔后的子串与第三个可选的text完全匹配，则将其替换为NULL。 返回类型：text[] 示例： 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10 gaussdb =# SELECT string_to_array ( 'xx~^~yy~^~zz' , '~^~' , 'yy' ) AS RESULT ; result -------------- { xx , NULL , zz } ( 1 row ) gaussdb =# SELECT string_to_array ( 'xx~^~yy~^~zz' , '~^~' , 'y' ) AS RESULT ; result ------------ { xx , yy , zz } ( 1 row ) unnest(anyarray) 描述：扩大一个数组为一组行。 返回类型：setof anyelement 示例： 1
+2
+3
+4
+5
+6 gaussdb =# SELECT unnest ( ARRAY [ 1 , 2 ]) AS RESULT ; result -------- 1 2 ( 2 rows ) unnest(anynesttable) 描述：返回nesttable中的元素集合。 返回类型：setof anyelement 约束：不支持tableof类型嵌套tableof类型或者tableof嵌套其他类型再嵌套tableof类型的情况。 示例： 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27
+28
+29
+30 create or replace procedure f1 () as type t1 is table of int ; v2 t1 : = t1 ( null , 2 , 3 , 4 , null ); tmp int ; cursor c1 is select * from unnest ( v2 ); begin open c1 ; for i in 1 .. v2 . count loop fetch c1 into tmp ; if tmp is null then dbe_output . print_line ( i || ': is null' ); else dbe_output . print_line ( i || ': ' || tmp ); end if ; end loop ; close c1 ; end ; / gaussdb =# call f1 (); 1 : is null 2 : 2 3 : 3 4 : 4 5 : is null f1 ---- ( 1 row ) unnest(anyindexbytable) 描述：返回table of index by类型根据index排序后的元素集合。 返回类型：setof anyelement 约束：不支持tableof类型嵌套tableof类型或者tableof嵌套其他类型再嵌套tableof类型的情况。只支持index by int类型，不支持index by varchar类型。 示例： 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27
+28
+29 create or replace procedure f1 () as type t1 is table of int index by int ; v2 t1 : = t1 ( 1 => 1 , - 10 => ( - 10 ), 6 => 6 , 4 => null ); tmp int ; cursor c1 is select * from unnest ( v2 ); begin open c1 ; for i in 1 .. v2 . count loop fetch c1 into tmp ; if tmp is null then dbe_output . print_line ( i || ': is null' ); else dbe_output . print_line ( i || ': ' || tmp ); end if ; end loop ; close c1 ; end ; / gaussdb =# call f1 (); 1 : - 10 2 : 1 3 : is null 4 : 6 f1 ---- ( 1 row ) 在string_to_array中，如果分隔符参数是NULL，输入字符串中的每个字符将在结果数组中变成一个独立的元素。如果分隔符是一个空白字符串，则整个输入的字符串将变为一个元素的数组。否则输入字符串将在每个分隔字符串处分开。 在string_to_array中，如果省略null字符串参数或为NULL，将字符串中没有输入内容的子串替换为NULL。 在array_to_string中，如果省略null字符串参数或为NULL，运算中将跳过在数组中的任何null元素，并且不会在输出字符串中出现。 _pg_keysequal 描述：判断两个smallint数组是否相同。 参数：smallint[], smallint[] 返回值类型：boolean cardinality(anyarray) 描述：返回数组中各个维度上元素的总数，如果数组为空则返回0。 返回类型：integer 示例： gaussdb=# SELECT cardinality(array[[1, 2], [3, 4]]);
+ cardinality 
+--------
+  4
+(1 row) array_positions(anyarray, anyelement) 描述：返回作为第一个参数给出的数组中所有出现的第二个参数的下标的数组。 返回类型：int[] 示例： gaussdb=# SELECT array_positions(array[1, 2, 3, 1], 1) AS RESULT;
+ result 
+--------
+ {1,4}
+(1 row) 数组必须是一维的。 第二个参数可以设置为NULL。 如果数组中找不到第二个参数，返回空数组。 父主题： 函数和操作符 版权所有 © 华为技术有限公司

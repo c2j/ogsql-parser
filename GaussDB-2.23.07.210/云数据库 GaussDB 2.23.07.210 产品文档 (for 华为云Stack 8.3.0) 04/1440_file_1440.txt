@@ -1,0 +1,31 @@
+动态调用存储过程 动态调用存储过程 动态调用存储过程必须使用匿名的语句块将存储过程或语句块包在里面，使用EXECUTE IMMEDIATE…USING语句后面带IN、OUT来输入、输出参数。 语法 语法请参见 图1 。 图1 call_procedure::= using_clause子句的语法参见 图2 。 图2 using_clause::= 对以上语法格式的解释如下： CALL procedure_name，调用存储过程。 [:placeholder1，:placeholder2，…]，存储过程参数占位符列表。占位符个数与参数个数相同。 USING  [IN|OUT|IN OUT] bind_argument，用于指定存放传递给存储过程参数值的变量。bind_argument前的修饰符与对应参数的修饰符一致。 不支持调用带有占位符的重载函数或者存储过程。 不支持调用存储过程时使用=>跳过参数进行调用。 示例 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27
+28
+29
+30
+31 --创建存储过程proc_add。 gaussdb =# CREATE OR REPLACE PROCEDURE proc_add ( param1 in INTEGER , param2 out INTEGER , param3 in INTEGER ) AS BEGIN param2 : = param1 + param3 ; END ; / gaussdb =# DECLARE input1 INTEGER : = 1 ; input2 INTEGER : = 2 ; statement VARCHAR2 ( 200 ); param2 INTEGER ; BEGIN --声明调用语句 statement : = 'call proc_add(:col_1, :col_2, :col_3)' ; --执行语句 EXECUTE IMMEDIATE statement USING IN input1 , OUT param2 , IN input2 ; dbe_output . print_line ( 'result is: ' || to_char ( param2 )); END ; / result is : 3 ANONYMOUS BLOCK EXECUTE --删除存储过程 gaussdb =# DROP PROCEDURE proc_add ; 父主题： 动态语句 版权所有 © 华为技术有限公司

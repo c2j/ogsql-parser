@@ -1,0 +1,31 @@
+ALTER GLOBAL CONFIGURATION ALTER GLOBAL CONFIGURATION 功能描述 新增、修改系统表gs_global_config的key-value值。如果修改的参数已经存在，则修改；如果不存在则新增。 注意事项 仅支持数据库初始用户运行此命令。 参数名称不能为weak_password、undostoragetype。 语法格式 ALTER GLOBAL CONFIGURATION with(name=value, name=value...); 参数说明 name 参数名称，text类型，不能为weak_password、undostoragetype，除此之外没有限制。 value 参数值，text类型。 示例 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27
+28
+29
+30
+31 --插入内容。 gaussdb =# ALTER GLOBAL CONFIGURATION with ( redis_is_ok = true ); --查询。 gaussdb =# SELECT * FROM gs_global_config ; name | value -----------------+------- buckets_len | 16384 undostoragetype | page redis_is_ok | true ( 3 rows ) --修改内容。 gaussdb =# ALTER GLOBAL CONFIGURATION with ( redis_is_ok = false ); --查询。 gaussdb =# SELECT * FROM gs_global_config ; name | value -----------------+------- buckets_len | 16384 undostoragetype | page redis_is_ok | false ( 3 rows ) --删除内容。 gaussdb =# DROP GLOBAL CONFIGURATION redis_is_ok ; --查询。 gaussdb =# SELECT * FROM gs_global_config ; name | value -----------------+------- buckets_len | 16384 undostoragetype | page ( 2 rows ) 相关链接 DROP GLOBAL CONFIGURATION 父主题： A 版权所有 © 华为技术有限公司

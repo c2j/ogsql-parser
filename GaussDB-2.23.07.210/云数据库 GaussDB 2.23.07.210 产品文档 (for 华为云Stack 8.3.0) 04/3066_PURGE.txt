@@ -1,0 +1,53 @@
+PURGE PURGE 功能描述 使用PURGE语句可以实现如下功能： 从回收站中清理表或索引，并释放对象相关的全部空间。 清理回收站。 清理回收站中指定表空间的对象。 注意事项 清除（PURGE）操作支持：表（PURGE TABLE）、索引（PURGE INDEX）、回收站（PURGE RECYCLEBIN）。 执行PURGE操作的权限要求如下： PURGE TABLE：用户必须是表的所有者，且用户必须拥有表所在模式的USAGE权限，系统管理员默认拥有此权限。 PURGE INDEX：用户必须是索引的所有者，用户必须拥有索引所在模式的USAGE权限，系统管理员默认拥有此权限。 PURGE RECYCLEBIN：普通用户只能清理回收站中当前用户拥有的对象，且用户必须拥有对象所在模式的USAGE权限，系统管理员默认可以清理回收站所有对象。 前提条件 开启enable_recyclebin参数，启用回收站，参数使用 请联系管理员处理 。 recyclebin_retention_time参数用于设置回收站对象保留时间，超过该时间的回收站对象将被自动清理，参数使用 请联系管理员处理 。 语法格式 PURGE { TABLE [schema_name.]table_name | INDEX index_name | RECYCLEBIN       
+      }; 参数说明 schema_name 模式名。 TABLE [ schema_name. ] table_name 清空回收站中指定的表，可用模式名修饰。 INDEX index_name 清空回收站中指定的索引。 RECYCLEBIN 清空回收站中的对象。 示例 -- 创建角色tpcds。 gaussdb=# CREATE ROLE tpcds IDENTIFIED BY '*********';
+
+-- 创建表空间reason_table_space gaussdb=# CREATE TABLESPACE REASON_TABLE_SPACE1 owner tpcds RELATIVE location 'tablespace/tsp_reason1';
+
+-- 创建SCHEMA。 gaussdb=# CREATE SCHEMA tpcds;
+
+-- 在表空间创建表tpcds.reason_t1 gaussdb=# CREATE TABLE tpcds.reason_t1
+ (
+  r_reason_sk    integer,
+  r_reason_id    character(16),
+  r_reason_desc  character(100)
+  ) tablespace reason_table_space1;
+-- 在表空间创建表tpcds.reason_t2 gaussdb=# CREATE TABLE tpcds.reason_t2
+ (
+  r_reason_sk    integer,
+  r_reason_id    character(16),
+  r_reason_desc  character(100)
+  ) tablespace reason_table_space1;
+-- 在表空间创建表tpcds.reason_t3 gaussdb=# CREATE TABLE tpcds.reason_t3
+ (
+  r_reason_sk    integer,
+  r_reason_id    character(16),
+  r_reason_desc  character(100)
+  ) tablespace reason_table_space1;
+-- 对表tpcds.reason_t1创建索引 gaussdb=# CREATE INDEX index_t1 on tpcds.reason_t1(r_reason_id); gaussdb=# DROP TABLE tpcds.reason_t1; gaussdb=# DROP TABLE tpcds.reason_t2; gaussdb=# DROP TABLE tpcds.reason_t3;
+--查看回收站 gaussdb=# SELECT rcyname,rcyoriginname,rcytablespace FROM GS_RECYCLEBIN;
+        rcyname        | rcyoriginname | rcytablespace 
+-----------------------+---------------+---------------
+ BIN$16409$2CEE988==$0 | reason_t1     |         16408
+ BIN$16412$2CF2188==$0 | reason_t2     |         16408
+ BIN$16415$2CF2EC8==$0 | reason_t3     |         16408
+ BIN$16418$2CF3EC8==$0 | index_t1     |             0
+(4 rows)
+--PURGE清除表 gaussdb=# PURGE TABLE tpcds.reason_t3; gaussdb=# SELECT rcyname,rcyoriginname,rcytablespace FROM GS_RECYCLEBIN;
+        rcyname        | rcyoriginname | rcytablespace 
+-----------------------+---------------+---------------
+ BIN$16409$2CEE988==$0 | reason_t1     |         16408
+ BIN$16412$2CF2188==$0 | reason_t2     |         16408
+ BIN$16418$2CF3EC8==$0 | index_t1     |             0
+(3 rows)
+--PURGE清除索引 gaussdb=# PURGE INDEX tpcds.index_t1; gaussdb=# SELECT rcyname,rcyoriginname,rcytablespace FROM GS_RECYCLEBIN;
+        rcyname        | rcyoriginname | rcytablespace 
+-----------------------+---------------+---------------
+ BIN$16409$2CEE988==$0 | reason_t1     |         16408
+ BIN$16412$2CF2188==$0 | reason_t2     |         16408
+(2 rows)
+--PURGE清除回收站所有对象 gaussdb=# PURGE recyclebin; gaussdb=# SELECT rcyname,rcyoriginname,rcytablespace FROM GS_RECYCLEBIN;
+        rcyname        | rcyoriginname | rcytablespace 
+-----------------------+---------------+---------------
+(0 rows)
+
+-- 删除SCHEMA。 gaussdb=# DROP SCHEMA tpcds CASCADE; 父主题： P 版权所有 © 华为技术有限公司

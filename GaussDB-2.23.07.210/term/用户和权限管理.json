@@ -1,0 +1,316 @@
+{
+  "topic": "用户和权限管理",
+  "term_count": 62,
+  "terms": [
+    {
+      "term": "PG_SHSECLABEL",
+      "content": "PG_SHSECLABEL PG_SHSECLABEL PG_SHSECLABEL系统表存储在共享数据库对象上的安全标签。安全标签可以用SECURITY LABEL命令操作。 查看安全标签的简单点的方法，请参阅 PG_SECLABELS 。 PG_SECLABEL 的作用类似，只是它是用于在单个数据库内部的对象的安全标签的。 不同于大多数的系统表，PG_SHSECLABEL 在一个集群 中的所有数据库中共享：每个 数据库集群 只有一个PG_SHSECLABEL，而不是每个数据库一个。 表1 PG_SHSECLABEL字段 名称 类型 引用 描述 objoid oid 任意OID属性 这个安全标签所属的对象的OID。 classoid oid PG_CLASS .oid 出现这个对象的系统目录的OID。 provider text - 与这个标签相关的标签提供程序。 label text - 应用于这个对象的安全标签。",
+      "source_file": "1540_PG_SHSECLABEL.txt"
+    },
+    {
+      "term": "ROLE_SYS_PRIVS",
+      "content": "ROLE_SYS_PRIVS ROLE_SYS_PRIVS ROLE_SYS_PRIVS视图显示授予角色的系统特权信息，仅提供用户有权访问的角色的信息。默认所有用户都可以访问。该视图同时存在于PG_CATALOG和SYS Schema下。 表1 ROLE_SYS_PRIVS字段 名称 类型 描述 role character varying(128) 角色名称。 privilege character varying(40) 用户拥有的系统权限或ANY权限。 系统权限包括rolsuper、rolinherit、rolcreaterole、rolcreatedb、rolcatupdate、rolcanlogin、rolreplication、rolauditadmin、rolsystemadmin、roluseft、rolmonitoradmin、roloperatoradmin、rolpolicyadmin。 ANY权限的取值请参考 表1 。 admin_option character varying(3) 表示该授权是否包含ADMIN选项。 YES：表示包含ADMIN选项。 NO：表示不包含ADMIN选项。 common character varying(3) 暂不支持，值为NULL。 inherited character varying(3) 暂不支持，值为NULL。",
+      "source_file": "3462_ROLE_SYS_PRIVS.txt"
+    },
+    {
+      "term": "ADM_USERS",
+      "content": "ADM_USERS ADM_USERS ADM_USERS视图显示所有数据库用户的信息。默认只有系统管理员权限才可以访问。该视图同时存在于PG_CATALOG和SYS Schema下。 表1 ADM_USERS字段 名称 类型 描述 username character varying(128) 用户名称。 user_id oid 用户ID。 account_status character varying(32) 账户状态。 null：该账户是拥有最高权限的初始系统管理员。 0：正常状态。 1：由于登录失败次数超过阈值被锁定了一定的时间。 2：被管理员锁定。 lock_date timestamp with time zone 默认显示账户的创建日期，如果账户被管理员锁定，或者登录失败次数超过阈值被锁定，则显示帐户被锁定的日期。初始系统管理员该字段为NULL。 expiry_date timestamp with time zone 账户到期日期。 default_tablespace character varying(4000) 数据的默认表空间。 temporary_tablespace character varying(4000) 临时表的默认表空间的名称或表空间组的名称。 local_temp_tablespace character varying(30) 暂不支持，默认值为NULL。 created timestamp with time zone 用户创建日期。 profile character varying(128) 暂不支持，默认值为NULL。 initial_rsrc_consumer_group character varying(128) 暂不支持，默认值为NULL。 external_name character varying(4000) 暂不支持，默认值为NULL。 password_versions character varying(12) 显示账户密码的加密方式，取值MD5、SHA256或SM3。 editions_enabled character varying(1) 暂不支持，默认值为NULL。 authentication_type text 指示用户的身份验证机制。 proxy_only_connect character varying(1) 暂不支持，默认值为NULL。 common character varying(3) 暂不支持，默认值为NULL。 last_login timestamp with time zone 用户最后一次登录的时间。 oracle_maintained character varying(1) 暂不支持，默认值为NULL。 inherited character varying(3) 暂不支持，默认值为NULL。 default_collation character varying(100) 用户Schema的默认字符序。 implicit character varying(3) 暂不支持，默认值为NULL。 all_shard character varying(3) 暂不支持，默认值为NULL。 password_change_date timestamp with time zone 上次设置用户密码的日期。",
+      "source_file": "3446_ADM_USERS.txt"
+    },
+    {
+      "term": "ADM_ROLE_PRIVS",
+      "content": "ADM_ROLE_PRIVS ADM_ROLE_PRIVS ADM_ROLE_PRIVS视图显示授予所有用户和角色的权限的信息。默认只有系统管理员权限才可以访问此系统视图，普通用户需要授权才可以访问。该视图同时存在于PG_CATALOG和SYS Schema下。 表1 ADM_ROLE_PRIVS字段 名称 类型 描述 grantee character varying(128) 被授予权限的用户或角色名称。 granted_role character varying(128) 被授予的角色。 admin_option character varying(3) 表示该授权是否包含ADMIN选项。 YES：表示包含ADMIN选项。 NO：表示不包含ADMIN选项。 delegate_option character varying(3) 暂不支持，值为NULL。 default_role character varying(3) 暂不支持，值为NULL。 os_granted character varying(3) 暂不支持，值为NULL。 common character varying(3) 暂不支持，值为NULL。 inherited character varying(3) 暂不支持，值为NULL。",
+      "source_file": "1739_ADM_ROLE_PRIVS.txt"
+    },
+    {
+      "term": "ADM_TAB_PRIVS",
+      "content": "ADM_TAB_PRIVS ADM_TAB_PRIVS ADM_TAB_PRIVS视图显示数据库中所有对象的授权信息。默认只有系统管理员权限才可以访问此系统视图，普通用户需要授权才可以访问。该视图同时存在于PG_CATALOG和SYS Schema下。 表1 ADM_TAB_PRIVS字段 名称 类型 描述 grantee character varying(128) 被授予权限的用户或角色的名称。 owner character varying(128) 对象的所有者。 table_name character varying(128) 对象的名称，对象类型包括表、包、索引、序列、等等。 grantor character varying(128) 执行授权的用户名。 privilege character varying(40) 对象上的权限，包括USAGE、UPDATE、DELETE、INSERT、CONNECT、SELECT、EXECUTE。 grantable character varying(3) 表示该授权是否包含GRANT选项。 YES：表示包含GRANT选项。 NO：表示不包含GRANT选项。 type character varying(24) 对象的类型，包括NODE GROUP、COLUMN_ENCRYPTION_KEY、COLUMN、TABLE、VIEW、SEQUENCE、TYPE、INDEX、DATABASE、DIRECTORY、FOREIGN DATA WRAPPER、FOREIGN SERVER、LANGUAGE、LARGE OBJECT、SCHEMA、TEMPLATE、FUNCTION、PROCEDURE、TABLESPACE。 hierarchy character varying(3) 暂不支持，值为NULL。 common character varying(3) 暂不支持，值为NULL。 inherited character varying(3) 暂不支持，值为NULL。",
+      "source_file": "1742_ADM_TAB_PRIVS.txt"
+    },
+    {
+      "term": "PG_SECLABELS",
+      "content": "PG_SECLABELS PG_SECLABELS PG_SECLABELS视图显示安全标签的信息。 表1 PG_SECLABELS字段 名称 类型 引用 描述 objoid oid 任意OID属性 该安全标签所属的对象的OID。 classoid oid PG_CLASS .oid 该安全标签所属的对象所在系统表的OID。 objsubid integer - 对于一个在表字段上的安全标签，是字段序号（引用表本身的objoid和classoid）。对于所有其他对象类型，这个字段为0。 objtype text - 该标签所属的对象的类型，文本格式。例如： table：表类型。 column：列类型。 objnamespace oid PG_NAMESPACE .oid 该对象的名称空间的OID，如果不适用，取值为NULL。 objname text - 该标签所属的对象的名称，文本格式。 provider text PG_SECLABEL .provider 该标签的提供者。 label text PG_SECLABEL .label 安全标签名称。",
+      "source_file": "3457_PG_SECLABELS.txt"
+    },
+    {
+      "term": "DB_TAB_PRIVS",
+      "content": "DB_TAB_PRIVS DB_TAB_PRIVS DB_TAB_PRIVS视图记录当前用户可访问的所有对象的授权信息。所有用户都可以访问该视图。该视图同时存在于PG_CATALOG和SYS Schema下。 表1 DB_TAB_PRIVS字段 名称 类型 描述 grantor character varying(128) 执行授权的用户名。 grantee character varying(128) 被授予权限的用户或角色的名称。 table_schema character varying(128) 对象的模式。 table_name character varying(128) 对象的名称，对象类型包括表、包、索引、序列等。 privilege character varying(40) 对象上的权限，包括USAGE、UPDATE、DELETE、INSERT、CONNECT、SELECT、EXECUTE。 grantable character varying(3) 表示该授权是否包含GRANT选项。 YES：表示包含GRANT选项。 NO：表示不包含GRANT选项。 type character varying(24) 对象的类型，包括NODE GROUP、COLUMN_ENCRYPTION_KEY、COLUMN、TABLE、VIEW、SEQUENCE、TYPE、INDEX、DATABASE、DIRECTORY、FOREIGN DATA WRAPPER、FOREIGN SERVER、LANGUAGE、LARGE OBJECT、SCHEMA、TEMPLATE、FUNCTION、PROCEDURE、TABLESPACE。 hierarchy character varying(3) 暂不支持，值为NULL。 common character varying(3) 暂不支持，值为NULL。 inherited character varying(3) 暂不支持，值为NULL。",
+      "source_file": "1745_DB_TAB_PRIVS.txt"
+    },
+    {
+      "term": "PG_SHSECLABEL",
+      "content": "PG_SHSECLABEL PG_SHSECLABEL PG_SHSECLABEL系统表存储在共享数据库对象上的安全标签。安全标签可以用SECURITY LABEL命令操作。 查看安全标签的简单点的方法，请参阅 PG_SECLABELS 。 PG_SECLABEL 的作用类似，只是它是用于在单个数据库内部的对象的安全标签的。 不同于大多数的系统表，PG_SHSECLABEL 在 GaussDB 中的所有数据库中共享：每个 GaussDB 只有一个PG_SHSECLABEL，而不是每个数据库一个。 表1 PG_SHSECLABEL字段 名称 类型 引用 描述 objoid oid 任意OID属性 这个安全标签所属的对象的OID。 classoid oid PG_CLASS .oid 出现这个对象的系统目录的OID。 provider text - 与这个标签相关的标签提供程序。 label text - 应用于这个对象的安全标签。",
+      "source_file": "3253_PG_SHSECLABEL.txt"
+    },
+    {
+      "term": "GS_DB_PRIVILEGES",
+      "content": "GS_DB_PRIVILEGES GS_DB_PRIVILEGES GS_DB_PRIVILEGES系统视图记录ANY权限的授予情况，每条记录对应一条授权信息。 表1 GS_DB_PRIVILEGES字段 名称 类型 描述 rolename name 用户名。 privilege_type text 用户拥有的ANY权限，取值参考 表1 。 admin_option text 是否具有privilege_type列记录的ANY权限的再授权权限。 yes：表示具有。 no：表示不具有。",
+      "source_file": "3450_GS_DB_PRIVILEGES.txt"
+    },
+    {
+      "term": "PG_DEFAULT_ACL",
+      "content": "PG_DEFAULT_ACL PG_DEFAULT_ACL PG_DEFAULT_ACL系统表存储为新建对象设置的初始权限。 表1 PG_DEFAULT_ACL字段 名称 类型 描述 oid oid 行标识符（隐含字段，必须明确选择）。 defaclrole oid 与此权限相关的角色ID。 defaclnamespace oid 与此权限相关的名称空间，如果没有，则为0。 defaclobjtype \"char\" 此权限的对象类型。 r：表示表或视图。 S：表示序列。 f：表示函数。 T：表示类型。 K：表示客户端主密钥。 k：表示列加密密钥。 defaclacl aclitem[] 创建该类型时所拥有的访问权限。",
+      "source_file": "1537_PG_DEFAULT_ACL.txt"
+    },
+    {
+      "term": "DB_COL_PRIVS",
+      "content": "DB_COL_PRIVS DB_COL_PRIVS DB_COL_PRIVS视图显示以下授权信息： 当前用户作为对象所有者、授予者或被授予者时的列权限授予信息。 已启用角色或PUBLIC角色作为被授予者时的列权限授予信息。 默认所有用户都可以访问。该视图同时存在于PG_CATALOG和SYS Schema下。 表1 DB_COL_PRIVS字段 名称 类型 描述 grantor character varying(128) 执行授权的用户名。 owner character varying(128) 对象的所有者。 grantee character varying(128) 被授予权限的用户或角色的名称。 table_schema character varying(128) 对象的Schema。 table_name character varying(128) 对象的名称。 column_name character varying(128) 列的名称。 privilege character varying(40) 列上的权限。 grantable character varying(3) 表示是否授予特权。 YES：表示授予特权。 NO：表示不授予特权。 common character varying(3) 暂不支持，值为NULL。 inherited character varying(3) 暂不支持，值为NULL。",
+      "source_file": "3447_DB_COL_PRIVS.txt"
+    },
+    {
+      "term": "MY_ROLE_PRIVS",
+      "content": "MY_ROLE_PRIVS MY_ROLE_PRIVS MY_ROLE_PRIVS视图显示授予当前用户角色（包括public角色）的权限的信息。默认所有用户都可以访问。该视图同时存在于PG_CATALOG和SYS Schema下。 表1 MY_ROLE_PRIVS字段 名称 类型 描述 grantee character varying(128) 被授予权限的用户或角色名称。 granted_role character varying(128) 被授予的角色。 admin_option character varying(3) 表示该授权是否包含ADMIN选项。 YES：表示包含ADMIN选项。 NO：表示不包含ADMIN选项。 delegate_option character varying(3) 暂不支持，值为NULL。 default_role character varying(3) 暂不支持，值为NULL。 os_granted character varying(3) 暂不支持，值为NULL。 common character varying(3) 暂不支持，值为NULL。 inherited character varying(3) 暂不支持，值为NULL。",
+      "source_file": "1750_MY_ROLE_PRIVS.txt"
+    },
+    {
+      "term": "PG_SHADOW",
+      "content": "PG_SHADOW PG_SHADOW PG_SHADOW视图显示了所有在 PG_AUTHID 中标记了rolcanlogin的角色的属性，只有系统管理员权限才可以访问此系统视图。 该视图的信息与 PG_USER 是基本一致的，区别在于后者对口令做了敏感化处理，统一显示为********。 表1 PG_SHADOW字段 名称 类型 引用 描述 usename name PG_AUTHID .rolname 用户名。 usesysid oid PG_AUTHID .oid 用户的ID。 usecreatedb boolean - 用户是否可以创建数据库。 t（true）：表示是。 f（false）：表示否。 usesuper boolean - 用户是否是系统管理员。 t（true）：表示是。 f（false）：表示否。 usecatupd boolean - 用户是否可以更新视图。即使是系统管理员，如果这个字段不是真，也不能更新视图。 t（true）：表示是。 f（false）：表示否。 userepl boolean - 用户是否可以复制数据流。 t（true）：表示是。 f（false）：表示否。 passwd text PG_AUTHID .rolpassword 口令密文，如果没有口令，则为NULL。 valbegin timestamp with time zone - 账户的有效开始时间；如果没有设置有效开始时间，则为NULL。 valuntil timestamp with time zone - 账户的有效结束时间；如果没有设置有效结束时间，则为NULL。 respool name - 用户所在的资源池。 parent oid - 父用户OID。 spacelimit text - 永久表存储空间限额，单位KB。 useconfig text[] PG_DB_ROLE_SETTING .setconfig 运行时配置项的默认值。 tempspacelimit text - 临时表存储空间限额，单位KB。 spillspacelimit text - 算子落盘空间限额，单位KB。 usemonitoradmin boolean - 用户是否是监控管理员。 t（true）：表示是。 f（false）：表示否。 useoperatoradmin boolean - 用户是否是运维管理员。 t（true）：表示是。 f（false）：表示否。 usepolicyadmin boolean - 用户是否是安全策略管理员。 t（true）：表示是。 f（false）：表示否。",
+      "source_file": "1755_PG_SHADOW.txt"
+    },
+    {
+      "term": "PG_DB_ROLE_SETTING",
+      "content": "PG_DB_ROLE_SETTING PG_DB_ROLE_SETTING PG_DB_ROLE_SETTING系统表存储数据库运行时每个角色与数据绑定的配置项的默认值 。 表1 PG_DB_ROLE_SETTING字段 名称 类型 描述 setdatabase oid 配置项所对应的数据库，如果未指定数据库，则为0。 setrole oid 配置项所对应的角色，如果未指定角色，则为0。 setconfig text[] 运行时配置项的默认值。配置 请联系管理员处理 。",
+      "source_file": "3249_PG_DB_ROLE_SETTING.txt"
+    },
+    {
+      "term": "MY_COL_PRIVS",
+      "content": "MY_COL_PRIVS MY_COL_PRIVS MY_COL_PRIVS视图显示当前用户作为对象所有者、授权者或被授予者时的列权限授予信息。默认所有用户都可以访问。该视图同时存在于PG_CATALOG和SYS Schema下。 表1 MY_COL_PRIVS字段 名称 类型 描述 grantor character varying(128) 执行授权的用户名。 owner character varying(128) 对象的所有者。 grantee character varying(128) 被授予权限的用户或角色的名称。 table_schema character varying(128) 对象的Schema。 table_name character varying(128) 对象的名称。 column_name character varying(128) 列的名称。 privilege character varying(40) 列上的权限。 grantable character varying(3) 表示是否授予特权。 YES：表示授予特权。 NO：表示不授予特权。 common character varying(3) 暂不支持，值为NULL。 inherited character varying(3) 暂不支持，值为NULL。",
+      "source_file": "3452_MY_COL_PRIVS.txt"
+    },
+    {
+      "term": "PG_DEFAULT_ACL",
+      "content": "PG_DEFAULT_ACL PG_DEFAULT_ACL PG_DEFAULT_ACL系统表存储为新建对象设置的初始权限。 表1 PG_DEFAULT_ACL字段 名称 类型 描述 oid oid 行标识符（隐含属性，必须明确选择）。 defaclrole oid 与此权限相关的角色ID。 defaclnamespace oid 与此权限相关的名称空间，如果没有，则为0。 defaclobjtype \"char\" 此权限的对象类型。 r表示表或视图。 S表示序列。 f表示函数。 T表示类型。 K表示客户端主密钥。 k表示列加密密钥。 defaclacl aclitem[] 创建该类型时所拥有的访问权限。",
+      "source_file": "3250_PG_DEFAULT_ACL.txt"
+    },
+    {
+      "term": "MY_COL_PRIVS",
+      "content": "MY_COL_PRIVS MY_COL_PRIVS MY_COL_PRIVS视图显示当前用户作为对象所有者、授权者或被授予者时的列权限授予信息。默认所有用户都可以访问。该视图同时存在于PG_CATALOG和SYS Schema下。 表1 MY_COL_PRIVS字段 名称 类型 描述 grantor character varying(128) 执行授权的用户名。 owner character varying(128) 对象的所有者。 grantee character varying(128) 被授予权限的用户或角色的名称。 table_schema character varying(128) 对象的Schema。 table_name character varying(128) 对象的名称。 column_name character varying(128) 列的名称。 privilege character varying(40) 列上的权限。 grantable character varying(3) 表示是否授予特权。 YES：表示授予特权。 NO：表示不授予特权。 common character varying(3) 暂不支持，值为NULL。 inherited character varying(3) 暂不支持，值为NULL。",
+      "source_file": "1749_MY_COL_PRIVS.txt"
+    },
+    {
+      "term": "ADM_SYS_PRIVS",
+      "content": "ADM_SYS_PRIVS ADM_SYS_PRIVS ADM_SYS_PRIVS视图显示授予用户和角色的系统权限信息。默认只有系统管理员权限才可以访问此系统视图，普通用户需要授权才可以访问。该视图同时存在于PG_CATALOG和SYS Schema下。 表1 ADM_SYS_PRIVS字段 名称 类型 描述 grantee character varying(128) 被授予权限的用户或角色的名称。 privilege character varying(40) 用户拥有的系统权限或ANY权限。 系统权限包括rolsuper、rolinherit、rolcreaterole、rolcreatedb、rolcatupdate、rolcanlogin、rolreplication、rolauditadmin、rolsystemadmin、roluseft、rolmonitoradmin、roloperatoradmin、rolpolicyadmin。 ANY权限的取值请参考 表1 。 admin_option character varying(3) 表示该授权是否包含ADMIN选项。 YES：表示包含ADMIN选项。 NO：表示不包含ADMIN选项。 common character varying(3) 暂不支持，值为NULL。 inherited character varying(3) 暂不支持，值为NULL。",
+      "source_file": "3444_ADM_SYS_PRIVS.txt"
+    },
+    {
+      "term": "ADM_ROLES",
+      "content": "ADM_ROLES ADM_ROLES ADM_ROLES视图显示数据库角色的相关信息，该视图同时存在于PG_CATALOG和SYS Schema下，默认只有系统管理员权限才可以访问。 表1 ADM_ROLES字段 名称 类型 描述 role character varying(128) 角色名称。 role_id oid 角色ID号。 authentication_type text 表示角色的身份验证机制。 password：需要密码验证。 null：不需要验证。 common character varying(3) 暂不支持，值为NULL。 oracle_maintained character varying(1) 暂不支持，值为NULL。 inherited character varying(3) 暂不支持，值为NULL。 implicit character varying(3) 暂不支持，值为NULL。 external_name character varying(4000) 暂不支持，值为NULL。",
+      "source_file": "1740_ADM_ROLES.txt"
+    },
+    {
+      "term": "ADM_ROLES",
+      "content": "ADM_ROLES ADM_ROLES ADM_ROLES视图显示数据库角色的相关信息，该视图同时存在于PG_CATALOG和SYS Schema下，默认只有系统管理员权限才可以访问。 表1 ADM_ROLES字段 名称 类型 描述 role character varying(128) 角色名称。 role_id oid 角色ID号。 authentication_type text 表示角色的身份验证机制。 password：需要密码验证。 null：不需要验证。 common character varying(3) 暂不支持，值为NULL。 oracle_maintained character varying(1) 暂不支持，值为NULL。 inherited character varying(3) 暂不支持，值为NULL。 implicit character varying(3) 暂不支持，值为NULL。 external_name character varying(4000) 暂不支持，值为NULL。",
+      "source_file": "3443_ADM_ROLES.txt"
+    },
+    {
+      "term": "PG_USER",
+      "content": "PG_USER PG_USER PG_USER视图显示数据库用户的信息，默认只有初始化用户和具有sysadmin属性的用户可以查看，其余用户需要赋权后才可以查看。 表1 PG_USER字段 名称 类型 描述 usename name 用户名。 usesysid oid 用户的ID。 usecreatedb boolean 用户是否可以创建数据库。 t（true）：表示是。 f（false）：表示否。 usesuper boolean 用户是否是拥有最高权限的初始系统管理员。 t（true）：表示是。 f（false）：表示否。 usecatupd boolean 用户是否可以直接更新系统表。只有usesysid=10的初始系统管理员拥有此权限。其他用户无法获得此权限。 t（true）：表示是。 f（false）：表示否。 userepl boolean 用户是否可以复制数据流。 t（true）：表示是。 f（false）：表示否。 passwd text 密文存储后的用户口令，始终为********。 valbegin timestamp with time zone 账户的有效开始时间；如果没有设置有效开始时间，则为NULL。 valuntil timestamp with time zone 账户的有效结束时间；如果没有设置有效结束时间，则为NULL。 respool name 用户所在的资源池。 parent oid 父用户OID。 spacelimit text 永久表存储空间限额，单位KB。 useconfig text[] 运行时配置项的默认值。参考 PG_DB_ROLE_SETTING .setconfig。 nodegroup name 用户关联的逻辑数据库名称，如果该用户没有管理逻辑数据库，则该字段为空。 tempspacelimit text 临时表存储空间限额，单位KB。 spillspacelimit text 算子落盘空间限额，单位KB。 usemonitoradmin boolean 用户是否是监控管理员。 t（true）：表示是。 f（false）：表示否。 useoperatoradmin boolean 用户是否是运维管理员。 t（true）：表示是。 f（false）：表示否。 usepolicyadmin boolean 用户是否是安全策略管理员。 t（true）：表示是。 f（false）：表示否。",
+      "source_file": "3459_PG_USER.txt"
+    },
+    {
+      "term": "PG_USER",
+      "content": "PG_USER PG_USER PG_USER视图显示数据库用户的信息，默认只有初始化用户和具有sysadmin属性的用户可以查看，其余用户需要赋权后才可以查看。 表1 PG_USER字段 名称 类型 描述 usename name 用户名。 usesysid oid 用户的ID。 usecreatedb boolean 用户是否可以创建数据库。 t（true）：表示是。 f（false）：表示否。 usesuper boolean 用户是否是拥有最高权限的初始系统管理员。 t（true）：表示是。 f（false）：表示否。 usecatupd boolean 用户是否可以直接更新系统表。只有usesysid=10的初始系统管理员拥有此权限。其他用户无法获得此权限。 t（true）：表示是。 f（false）：表示否。 userepl boolean 用户是否可以复制数据流。 t（true）：表示是。 f（false）：表示否。 passwd text 密文存储后的用户口令，始终为********。 valbegin timestamp with time zone 账户的有效开始时间；如果没有设置有效开始时间，则为NULL。 valuntil timestamp with time zone 账户的有效结束时间；如果没有设置有效结束时间，则为NULL。 respool name 用户所在的资源池。 parent oid 父用户OID。 spacelimit text 永久表存储空间限额，单位KB。 useconfig text[] 运行时配置项的默认值。参考 PG_DB_ROLE_SETTING .setconfig。 tempspacelimit text 临时表存储空间限额，单位KB。 spillspacelimit text 算子落盘空间限额，单位KB。 usemonitoradmin boolean 用户是否是监控管理员。 t（true）：表示是。 f（false）：表示否。 useoperatoradmin boolean 用户是否是运维管理员。 t（true）：表示是。 f（false）：表示否。 usepolicyadmin boolean 用户是否是安全策略管理员。 t（true）：表示是。 f（false）：表示否。",
+      "source_file": "1756_PG_USER.txt"
+    },
+    {
+      "term": "PG_SHADOW",
+      "content": "PG_SHADOW PG_SHADOW PG_SHADOW视图显示了所有在 PG_AUTHID 中标记了rolcanlogin的角色的属性，只有系统管理员权限才可以访问此系统视图。 该视图的信息与 PG_USER 是基本一致的，区别在于后者对口令做了敏感化处理，统一显示为********。 表1 PG_SHADOW字段 名称 类型 引用 描述 usename name PG_AUTHID .rolname 用户名。 usesysid oid PG_AUTHID .oid 用户的ID。 usecreatedb boolean - 用户是否可以创建数据库。 t（true）：表示是。 f（false）：表示否。 usesuper boolean - 用户是否是系统管理员。 t（true）：表示是。 f（false）：表示否。 usecatupd boolean - 用户是否可以更新视图。即使是系统管理员，如果这个字段不是真，也不能更新视图。 userepl boolean - 用户是否可以复制数据流。 t（true）：表示是。 f（false）：表示否。 passwd text PG_AUTHID .rolpassword 口令密文，如果没有口令，则为NULL。 valbegin timestamp with time zone - 账户的有效开始时间；如果没有设置有效开始时间，则为NULL。 valuntil timestamp with time zone - 账户的有效结束时间；如果没有设置有效结束时间，则为NULL。 respool name - 用户所在的资源池。 parent oid - 父用户OID。 spacelimit text - 永久表存储空间限额，单位KB。 useconfig text[] PG_DB_ROLE_SETTING .setconfig 运行时配置项的默认值。 tempspacelimit text - 临时表存储空间限额，单位KB。 spillspacelimit text - 算子落盘空间限额，单位KB。 usemonitoradmin boolean - 用户是否是监控管理员。 t（true）：表示是。 f（false）：表示否。 useoperatoradmin boolean - 用户是否是运维管理员。 t（true）：表示是。 f（false）：表示否。 usepolicyadmin boolean - 用户是否是安全策略管理员。 t（true）：表示是。 f（false）：表示否。",
+      "source_file": "3458_PG_SHADOW.txt"
+    },
+    {
+      "term": "ADM_COL_PRIVS",
+      "content": "ADM_COL_PRIVS ADM_COL_PRIVS ADM_COL_PRIVS视图显示所有的列权限授予信息。默认只有系统管理员权限才可以访问此系统视图，普通用户需要授权才可以访问。该视图同时存在于PG_CATALOG和SYS Schema下。 表1 ADM_COL_PRIVS字段 名称 类型 描述 grantor character varying(128) 执行授权的用户名。 owner character varying(128) 对象的所有者。 grantee character varying(128) 被授予权限的用户或角色的名称。 table_schema character varying(128) 对象的schema。 table_name character varying(128) 对象的名称。 column_name character varying(128) 列的名称。 privilege character varying(40) 列上的权限。 grantable character varying(3) 表示是否授予特权。 YES：表示授予。 NO：表示不授予。 common character varying(3) 暂不支持，值为NULL。 inherited character varying(3) 暂不支持，值为NULL。",
+      "source_file": "3441_ADM_COL_PRIVS.txt"
+    },
+    {
+      "term": "ROLE_TAB_PRIVS",
+      "content": "ROLE_TAB_PRIVS ROLE_TAB_PRIVS ROLE_TAB_PRIVS视图显示授予角色的对象权限信息，仅提供用户有权访问的角色的信息。默认所有用户都可以访问。该视图同时存在于PG_CATALOG和SYS Schema下。 表1 ROLE_TAB_PRIVS字段 名称 类型 描述 role character varying(128) 角色名称。 owner character varying(128) 对象的所有者。 table_name character varying(128) 对象的名称。对象类型包括表、包、索引、序列等等。 column_name character varying(128) 暂不支持，值为NULL。 privilege character varying(40) 对象上的权限，包括USAGE、UPDATE、DELETE、INSERT、CONNECT、SELECT、EXECUTE。 grantable character varying(3) 表示该授权是否包含GRANT选项。 YES：表示包含GRANT选项。 NO：表示不包含GRANT选项。 common character varying(3) 暂不支持，值为NULL。 inherited character varying(3) 暂不支持，值为NULL。",
+      "source_file": "3463_ROLE_TAB_PRIVS.txt"
+    },
+    {
+      "term": "PG_USER_MAPPING",
+      "content": "PG_USER_MAPPING PG_USER_MAPPING PG_USER_MAPPING系统表存储从本地用户到远程的映射。 需要有系统管理员权限才可以访问此系统表。普通用户可以使用视图 PG_USER_MAPPINGS 进行查询。 表1 PG_USER_MAPPING字段 名称 类型 引用 描述 oid oid - 行标识符（隐含字段，必须明确选择）。 umuser oid PG_AUTHID .oid 被映射的本地用户的OID，如果用户映射是公共的则为0。 umserver oid PG_FOREIGN_SERVER .oid 包含这个映射的外部服务器的OID。 umoptions text[] - 用户映射指定选项，使用“keyword=value”格式的字符串。",
+      "source_file": "1541_PG_USER_MAPPING.txt"
+    },
+    {
+      "term": "PG_SECLABEL",
+      "content": "PG_SECLABEL PG_SECLABEL PG_SECLABEL系统表存储数据对象上的安全标签。 PG_SHSECLABEL 的作用类似，只是它是用于在一个 数据库集群 内共享的数据库对象的安全标签上的。 表1 PG_SECLABEL字段 名称 类型 引用 描述 objoid oid 任意OID属性 这个安全标签所属的对象的OID。 classoid oid PG_CLASS .oid 出现这个对象的系统目录的OID。 objsubid integer - 出现在这个对象中的列的序号。 provider text - 与这个标签相关的标签提供程序。 label text - 应用于这个对象的安全标签。",
+      "source_file": "1539_PG_SECLABEL.txt"
+    },
+    {
+      "term": "PG_USER_MAPPINGS",
+      "content": "PG_USER_MAPPINGS PG_USER_MAPPINGS PG_USER_MAPPINGS视图显示用户映射的信息。所有用户均可查看。 表1 PG_USER_MAPPINGS字段 名称 类型 引用 描述 umid oid PG_USER_MAPPING .oid 用户映射的OID。 srvid oid PG_FOREIGN_SERVER .oid 包含这个映射的外部服务器的OID。 srvname name PG_FOREIGN_SERVER .srvname 外部服务器的名称。 umuser oid PG_AUTHID .oid 被映射的本地角色的OID，如果用户映射是公共的则为0。 usename name - 被映射的本地用户的名称。 umoptions text[] - 如果当前用户是外部服务器的所有者，则为用户映射指定选项， 使用“keyword=value”字符串，否则为null。",
+      "source_file": "1757_PG_USER_MAPPINGS.txt"
+    },
+    {
+      "term": "PG_RLSPOLICY",
+      "content": "PG_RLSPOLICY PG_RLSPOLICY PG_RLSPOLICY系统表存储行级访问控制策略。 表1 PG_RLSPOLICY字段 名称 类型 描述 oid oid 行标识符（隐含字段，必须明确选择）。 polname name 行级访问控制策略的名称。 polrelid oid 行级访问控制策略作用的表对象oid。 polcmd \"char\" 行级访问控制策略影响的SQL操作。 polpermissive boolean 行级访问控制策略的属性，t为表达式OR条件拼接，f为表达式AND条件拼接。 polroles oid[] 行级访问控制策略影响的用户oid列表，不指定表示影响所有的用户。 polqual pg_node_tree 行级访问控制策略的表达式。",
+      "source_file": "1538_PG_RLSPOLICY.txt"
+    },
+    {
+      "term": "ADM_COL_PRIVS",
+      "content": "ADM_COL_PRIVS ADM_COL_PRIVS ADM_COL_PRIVS视图显示所有的列权限授予信息。默认只有系统管理员权限才可以访问此系统视图，普通用户需要授权才可以访问。该视图同时存在于PG_CATALOG和SYS Schema下。 表1 ADM_COL_PRIVS字段 名称 类型 描述 grantor character varying(128) 执行授权的用户名。 owner character varying(128) 对象的所有者。 grantee character varying(128) 被授予权限的用户或角色的名称。 table_schema character varying(128) 对象的Schema。 table_name character varying(128) 对象的名称。 column_name character varying(128) 列的名称。 privilege character varying(40) 列上的权限。 grantable character varying(3) 表示是否授予特权。 YES：表示授予。 NO：表示不授予。 common character varying(3) 暂不支持，值为NULL。 inherited character varying(3) 暂不支持，值为NULL。",
+      "source_file": "1738_ADM_COL_PRIVS.txt"
+    },
+    {
+      "term": "DB_USERS",
+      "content": "DB_USERS DB_USERS DB_USERS视图存储记录数据库中所有用户，但不对用户信息进行详细的描述。默认只有系统管理员可以访问。该视图同时存在于PG_CATALOG和SYS Schema下。 表1 DB_USERS字段 名称 类型 描述 user_id oid 用户的OID。 username name 用户的名称。",
+      "source_file": "3449_DB_USERS.txt"
+    },
+    {
+      "term": "MY_SYS_PRIVS",
+      "content": "MY_SYS_PRIVS MY_SYS_PRIVS MY_SYS_PRIVS视图显示授予当前用户的系统权限信息。默认所有用户都可以访问。该视图同时存在于PG_CATALOG和SYS Schema下。 表1 MY_SYS_PRIVS字段 名称 类型 描述 grantee character varying(128) 被授予权限的用户或角色的名称。 privilege character varying(40) 用户拥有的系统权限或ANY权限。 系统权限包括rolsuper、rolinherit、rolcreaterole、rolcreatedb、rolcatupdate、rolcanlogin、rolreplication、rolauditadmin、rolsystemadmin、roluseft、rolmonitoradmin、roloperatoradmin、rolpolicyadmin。 ANY权限的取值请参考 表1 。 admin_option character varying(3) 表示该授权是否包含ADMIN选项。 YES：表示包含ADMIN选项。 NO：表示不包含ADMIN选项。 common character varying(3) 暂不支持，值为NULL。 inherited character varying(3) 暂不支持，值为NULL。",
+      "source_file": "3454_MY_SYS_PRIVS.txt"
+    },
+    {
+      "term": "ROLE_TAB_PRIVS",
+      "content": "ROLE_TAB_PRIVS ROLE_TAB_PRIVS ROLE_TAB_PRIVS视图显示授予角色的对象权限信息，仅提供用户有权访问的角色的信息。默认所有用户都可以访问。该视图同时存在于PG_CATALOG和SYS Schema下。 表1 ROLE_TAB_PRIVS字段 名称 类型 描述 role character varying(128) 角色名称。 owner character varying(128) 对象的所有者。 table_name character varying(128) 对象的名称，对象类型包括表、包、索引、序列、等等。 column_name character varying(128) 暂不支持，值为NULL。 privilege character varying(40) 对象上的权限，包括USAGE、UPDATE、DELETE、INSERT、CONNECT、SELECT、EXECUTE。 grantable character varying(3) 表示该授权是否包含GRANT选项。 YES：表示包含GRANT选项。 NO：表示不包含GRANT选项。 common character varying(3) 暂不支持，值为NULL。 inherited character varying(3) 暂不支持，值为NULL。",
+      "source_file": "1760_ROLE_TAB_PRIVS.txt"
+    },
+    {
+      "term": "GS_LABELS",
+      "content": "GS_LABELS GS_LABELS GS_LABELS视图显示所有已配置的资源标签信息。需要有系统管理员或安全策略管理员权限才可以访问此视图。 表1 GS_LABELS字段 名称 类型 描述 labelname name 资源标签的名称。 labeltype name 资源标签的类型。对应系统表 GS_POLICY_LABEL 中的labeltype字段。 fqdntype name 数据库资源的类型。如table、schema、index等。 schemaname name 数据库资源所属的schema名称。 fqdnname name 数据库资源名称。 columnname name 数据库资源列名称，若标记的数据库资源不为表的列则该项为空。",
+      "source_file": "1748_GS_LABELS.txt"
+    },
+    {
+      "term": "DB_TAB_PRIVS",
+      "content": "DB_TAB_PRIVS DB_TAB_PRIVS DB_TAB_PRIVS视图记录当前用户可访问的所有对象的授权信息。所有用户都可以访问该视图。该视图同时存在于PG_CATALOG和SYS Schema下。 表1 DB_TAB_PRIVS字段 名称 类型 描述 grantor character varying(128) 执行授权的用户名。 grantee character varying(128) 被授予权限的用户或角色的名称。 table_schema character varying(128) 对象的模式。 table_name character varying(128) 对象的名称，对象类型包括表、包、索引、序列等。 privilege character varying(40) 对象上的权限，包括USAGE、UPDATE、DELETE、INSERT、CONNECT、SELECT、EXECUTE。 grantable character varying(3) 表示该授权是否包含GRANT选项。 YES：表示包含GRANT选项。 NO：表示不包含GRANT选项。 type character varying(24) 对象的类型，包括NODE GROUP、COLUMN_ENCRYPTION_KEY、PACKAGE、COLUMN、TABLE、VIEW、SEQUENCE、TYPE、INDEX、DATABASE、DIRECTORY、FOREIGN DATA WRAPPER、FOREIGN SERVER、LANGUAGE、LARGE OBJECT、SCHEMA、TEMPLATE、FUNCTION、PROCEDURE、TABLESPACE。 hierarchy character varying(3) 暂不支持，值为NULL。 common character varying(3) 暂不支持，值为NULL。 inherited character varying(3) 暂不支持，值为NULL。",
+      "source_file": "3448_DB_TAB_PRIVS.txt"
+    },
+    {
+      "term": "DB_USERS",
+      "content": "DB_USERS DB_USERS DB_USERS视图存储记录数据库中所有用户，但不对用户信息进行详细的描述。默认只有系统管理员可以访问。该视图同时存在于PG_CATALOG和SYS Schema下。 表1 DB_USERS字段 名称 类型 描述 user_id oid 用户的OID。 username name 用户的名称。",
+      "source_file": "1746_DB_USERS.txt"
+    },
+    {
+      "term": "PG_USER_MAPPINGS",
+      "content": "PG_USER_MAPPINGS PG_USER_MAPPINGS PG_USER_MAPPINGS视图显示用户映射的信息。 这个视图只是一个 PG_USER_MAPPING 的可读部分的视图化表现，如果用户无权使用它则查询该表时，有些选项字段会显示为空。普通用户需要授权才可以访问。 表1 PG_USER_MAPPINGS字段 名称 类型 引用 描述 umid oid PG_USER_MAPPING .oid 用户映射的OID。 srvid oid PG_FOREIGN_SERVER .oid 包含这个映射的外部服务器的OID。 srvname name PG_FOREIGN_SERVER .srvname 外部服务器的名称。 umuser oid PG_AUTHID .oid 被映射的本地角色的OID，如果用户映射是公共的则为0。 usename name - 被映射的本地用户的名称。 umoptions text[] - 如果当前用户是外部服务器的所有者，则为用户映射指定选项，使用“keyword=value”字符串，否则为null。",
+      "source_file": "3460_PG_USER_MAPPINGS.txt"
+    },
+    {
+      "term": "ADM_ROLE_PRIVS",
+      "content": "ADM_ROLE_PRIVS ADM_ROLE_PRIVS ADM_ROLE_PRIVS视图显示授予所有用户和角色的权限的信息。默认只有系统管理员权限才可以访问此系统视图，普通用户需要授权才可以访问。该视图同时存在于PG_CATALOG和SYS Schema下。 表1 ADM_ROLE_PRIVS字段 名称 类型 描述 grantee character varying(128) 被授予权限的用户或角色名称。 granted_role character varying(128) 被授予的角色。 admin_option character varying(3) 表示该授权是否包含ADMIN选项。 YES：表示包含ADMIN选项。 NO：表示不包含ADMIN选项。 delegate_option character varying(3) 暂不支持，值为NULL。 default_role character varying(3) 暂不支持，值为NULL。 os_granted character varying(3) 暂不支持，值为NULL。 common character varying(3) 暂不支持，值为NULL。 inherited character varying(3) 暂不支持，值为NULL。",
+      "source_file": "3442_ADM_ROLE_PRIVS.txt"
+    },
+    {
+      "term": "PG_RLSPOLICIES",
+      "content": "PG_RLSPOLICIES PG_RLSPOLICIES PG_RLSPOLICIES视图显示行级访问控制策略的信息。初始化用户和具有sysadmin属性的用户可以查看全部的策略信息，其他用户只能查看自己所拥有表上的策略信息。 表1 PG_RLSPOLICIES字段 名称 类型 描述 schemaname name 行级访问控制策略作用的表对象所属模式名称。 tablename name 行级访问控制策略作用的表对象名称。 policyname name 行级访问控制策略名称。 policypermissive text 行级访问控制策略的表达式拼接方式，可选取值有： PERMISSIVE：宽容性策略，用OR表达式拼接。 RESTRICTIVE：限制性策略，用AND表达式拼接。 policyroles name[] 行级访问控制策略影响的用户列表，不指定表示影响所有的用户。 policycmd text 行级访问控制策略影响的SQL操作。 policyqual text 行级访问控制策略的表达式。",
+      "source_file": "1752_PG_RLSPOLICIES.txt"
+    },
+    {
+      "term": "GS_DB_PRIVILEGE",
+      "content": "GS_DB_PRIVILEGE GS_DB_PRIVILEGE GS_DB_PRIVILEGE系统表记录ANY权限的授予情况，每条记录对应一条授权信息。 表1 GS_DB_PRIVILEGE字段 名称 类型 描述 oid oid 行标识符（隐含字段，必须明确选择）。 roleid oid 用户标识。 privilege_type text 用户拥有的ANY权限，取值参考 表1 。 admin_option boolean 是否具有privilege_type列记录的ANY权限的再授权权限。 t：表示具有。 f：表示不具有。",
+      "source_file": "1535_GS_DB_PRIVILEGE.txt"
+    },
+    {
+      "term": "ROLE_ROLE_PRIVS",
+      "content": "ROLE_ROLE_PRIVS ROLE_ROLE_PRIVS ROLE_ROLE_PRIVS视图显示授予其他角色的角色，仅提供用户有权访问的角色的信息。默认所有用户都可以访问。该视图同时存在于PG_CATALOG和SYS Schema下。 表1 ROLE_ROLE_PRIVS字段 名称 类型 描述 role character varying(128) 角色名称。 granted_role character varying(128) 被授予的角色。 admin_option character varying(3) 表示该授权是否包含ADMIN选项。 YES：表示包含ADMIN选项。 NO：表示不包含ADMIN选项。 common character varying(3) 暂不支持，值为NULL。 inherited character varying(3) 暂不支持，值为NULL。",
+      "source_file": "1758_ROLE_ROLE_PRIVS.txt"
+    },
+    {
+      "term": "PG_ROLES",
+      "content": "PG_ROLES PG_ROLES PG_ROLES视图显示数据库角色的相关信息。初始化用户和具有sysadmin属性或createrole属性的用户可以查看全部角色的信息，其他用户只能查看自己的信息。 表1 PG_ROLES字段 名称 类型 引用 描述 rolname name - 角色名称。 rolsuper boolean - 该角色是否是拥有最高权限的初始系统管理员。 t（true）：表示是。 f（false）：表示否。 rolinherit boolean - 该角色是否继承角色的权限。 t（true）：表示是。 f（false）：表示否。 rolcreaterole boolean - 该角色是否可以创建其他的角色。 t（true）：表示是。 f（false）：表示否。 rolcreatedb boolean - 该角色是否可以创建数据库。 t（true）：表示是。 f（false）：表示否。 rolcatupdate boolean - 该角色是否可以直接更新系统表。只有usesysid=10的初始系统管理员拥有此权限。其他用户无法获得此权限。 t（true）：表示是。 f（false）：表示否。 rolcanlogin boolean - 该角色是否可以登录数据库。 t（true）：表示是。 f（false）：表示否。 rolreplication boolean - 该角色是否可以复制。 t（true）：表示是。 f（false）：表示否。 rolauditadmin boolean - 该角色是否为审计管理员。 t（true）：表示是。 f（false）：表示否。 rolsystemadmin boolean - 该角色是否为系统管理员。 t（true）：表示是。 f（false）：表示否。 rolconnlimit integer - 对于可以登录的角色，这里限制了该角色允许发起的最大并发连接数。 -1表示无限制。 rolpassword text - 密文存储后的用户口令，始终为********。 rolvalidbegin timestamp with time zone - 账户的有效开始时间；如果没有设置有效开始时间，则为NULL。 rolvaliduntil timestamp with time zone - 账户的有效结束时间；如果没有设置有效结束时间，则为NULL。 rolrespool name - 用户所能够使用的resource pool。 rolparentid oid PG_AUTHID .rolparentid 用户所在组用户的OID。 roltabspace text - 用户永久表存储空间限额，单位KB。 rolconfig text[] PG_DB_ROLE_SETTING .setconfig 运行时配置项的默认值。 oid oid PG_AUTHID .oid 角色的ID。 roluseft boolean PG_AUTHID .roluseft 角色是否可以操作外表。 t（true）：表示是。 f（false）：表示否。 rolkind \"char\" - 角色类型。 n：普通用户，即非永久用户。 p：永久用户。 roltempspace text - 用户临时表存储空间限额，单位KB。 rolspillspace text - 用户算子落盘空间限额，单位KB。 rolmonitoradmin boolean - 该角色是否为监控管理员。 t（true）：表示是。 f（false）：表示否。 roloperatoradmin boolean - 该角色是否为运维管理员。 t（true）：表示是。 f（false）：表示否。 rolpolicyadmin boolean - 该角色是否为安全策略管理员。 t（true）：表示是。 f（false）：表示否。",
+      "source_file": "1753_PG_ROLES.txt"
+    },
+    {
+      "term": "ROLE_SYS_PRIVS",
+      "content": "ROLE_SYS_PRIVS ROLE_SYS_PRIVS ROLE_SYS_PRIVS视图显示授予角色的系统特权信息，仅提供用户有权访问的角色的信息。默认所有用户都可以访问。该视图同时存在于PG_CATALOG和SYS Schema下。 表1 ROLE_SYS_PRIVS字段 名称 类型 描述 role character varying(128) 角色名称。 privilege character varying(40) 用户拥有的系统权限或ANY权限。 系统权限包括rolsuper、rolinherit、rolcreaterole、rolcreatedb、rolcatupdate、rolcanlogin、rolreplication、rolauditadmin、rolsystemadmin、roluseft、rolmonitoradmin、roloperatoradmin、rolpolicyadmin。 ANY权限的取值请参考 表1 。 admin_option character varying(3) 表示该授权是否包含ADMIN选项。 YES：表示包含ADMIN选项。 NO：表示不包含ADMIN选项。 common character varying(3) 暂不支持，值为NULL。 inherited character varying(3) 暂不支持，值为NULL。",
+      "source_file": "1759_ROLE_SYS_PRIVS.txt"
+    },
+    {
+      "term": "PG_USER_MAPPING",
+      "content": "PG_USER_MAPPING PG_USER_MAPPING PG_USER_MAPPING系统表存储从本地用户到远程的映射。 需要有系统管理员权限才可以访问此系统表。普通用户可以使用视图 PG_USER_MAPPINGS 进行查询。 表1 PG_USER_MAPPING字段 名称 类型 引用 描述 oid oid - 行标识符（隐含属性，必须明确选择）。 umuser oid PG_AUTHID .oid 被映射的本地用户的OID，如果用户映射是公共的则为0。 umserver oid PG_FOREIGN_SERVER .oid 包含这个映射的外部服务器的OID。 umoptions text[] - 用户映射指定选项，使用“keyword=value”格式的字符串。",
+      "source_file": "3254_PG_USER_MAPPING.txt"
+    },
+    {
+      "term": "PG_USER_STATUS",
+      "content": "PG_USER_STATUS PG_USER_STATUS PG_USER_STATUS系统表提供了访问数据库用户的状态。需要有系统管理员权限才可以访问此系统表 表1 PG_USER_STATUS字段 名称 类型 描述 oid oid 行标识符（隐含字段，必须明确选择）。 roloid oid 角色的标识。 failcount integer 尝试失败次数。 locktime timestamp with time zone 默认显示角色的创建日期，如果角色被管理员锁定，或者登录失败次数超过阈值被锁定，则显示角色被锁定的日期。 rolstatus smallint 角色的状态。 0：正常状态。 1：由于登录失败次数超过阈值被锁定了一定的时间。 2：被管理员锁定。 permspace bigint 角色已经使用的永久表存储空间大小。 tempspace bigint 角色已经使用的临时表存储空间大小。 passwordexpired smallint 密码是否失效。 0：密码有效。 1：密码失效。",
+      "source_file": "3255_PG_USER_STATUS.txt"
+    },
+    {
+      "term": "GS_LABELS",
+      "content": "GS_LABELS GS_LABELS GS_LABELS视图显示所有已配置的资源标签信息。需要有系统管理员或安全策略管理员权限才可以访问此视图。 表1 GS_LABELS字段 名称 类型 描述 labelname name 资源标签的名称。 labeltype name 资源标签的类型。对应系统表 GS_POLICY_LABEL 中的labeltype字段。 fqdntype name 数据库资源的类型。如table、schema、index等。 schemaname name 数据库资源所属的schema名称。 fqdnname name 数据库资源名称。 columnname name 数据库资源列名称，若标记的数据库资源不为表的列则该项为空。",
+      "source_file": "3451_GS_LABELS.txt"
+    },
+    {
+      "term": "PG_DB_ROLE_SETTING",
+      "content": "PG_DB_ROLE_SETTING PG_DB_ROLE_SETTING PG_DB_ROLE_SETTING系统表存储数据库运行时每个角色与数据绑定的配置项的默认值 。 表1 PG_DB_ROLE_SETTING字段 名称 类型 描述 setdatabase oid 配置项所对应的数据库，如果未指定数据库，则为0。 setrole oid 配置项所对应的角色，如果未指定角色，则为0。 setconfig text[] 运行时配置项的默认值。配置 请联系管理员处理 。",
+      "source_file": "1536_PG_DB_ROLE_SETTING.txt"
+    },
+    {
+      "term": "PG_RLSPOLICIES",
+      "content": "PG_RLSPOLICIES PG_RLSPOLICIES PG_RLSPOLICIES视图显示行级访问控制策略的信息。初始化用户和具有sysadmin属性的用户可以查看全部的策略信息，其他用户只能查看自己所拥有表上的策略信息。 表1 PG_RLSPOLICIES字段 名称 类型 描述 schemaname name 行级访问控制策略作用的表对象所属模式名称。 tablename name 行级访问控制策略作用的表对象名称。 policyname name 行级访问控制策略名称。 policypermissive text 行级访问控制策略的表达式拼接方式，可选取值有： PERMISSIVE：宽容性策略，用OR表达式拼接； RESTRICTIVE：限制性策略，用AND表达式拼接。 policyroles name[] 行级访问控制策略影响的用户列表，不指定表示影响所有的用户。 policycmd text 行级访问控制策略影响的SQL操作。 policyqual text 行级访问控制策略的表达式。",
+      "source_file": "3455_PG_RLSPOLICIES.txt"
+    },
+    {
+      "term": "PG_USER_STATUS",
+      "content": "PG_USER_STATUS PG_USER_STATUS PG_USER_STATUS系统表提供了访问数据库用户的状态。需要有系统管理员权限才可以访问此系统表。 表1 PG_USER_STATUS字段 名称 类型 描述 oid oid 行标识符（隐含字段，必须明确选择）。 roloid oid 角色的标识。 failcount integer 尝试失败次数。 locktime timestamp with time zone 默认显示角色的创建日期，如果角色被管理员锁定，或者登录失败次数超过阈值被锁定，则显示角色被锁定的日期。 rolstatus smallint 角色的状态。 0：正常状态。 1：由于登录失败次数超过阈值被锁定了一定的时间。 2：被管理员锁定。 permspace bigint 角色已经使用的永久表存储空间大小。 tempspace bigint 角色已经使用的临时表存储空间大小。 passwordexpired smallint 密码是否失效。 0：密码有效。 1：密码失效。",
+      "source_file": "1542_PG_USER_STATUS.txt"
+    },
+    {
+      "term": "ADM_USERS",
+      "content": "ADM_USERS ADM_USERS ADM_USERS视图显示所有数据库用户的信息。默认只有系统管理员权限可以访问。该视图同时存在于PG_CATALOG和SYS Schema下。 表1 ADM_USERS字段 名称 类型 描述 username character varying(128) 用户名称。 user_id oid 用户ID。 account_status character varying(32) 账户状态。 null：该账户是拥有最高权限的初始系统管理员。 0：正常状态。 1：由于登录失败次数超过阈值被锁定了一定的时间。 2：被管理员锁定。 lock_date timestamp with time zone 默认显示账户的创建日期，如果账户被管理员锁定，或者登录失败次数超过阈值被锁定，则显示帐户被锁定的日期。初始系统管理员该字段为NULL。 expiry_date timestamp with time zone 账户到期日期。 default_tablespace character varying(4000) 数据的默认表空间。 temporary_tablespace character varying(4000) 临时表的默认表空间的名称或表空间组的名称。 local_temp_tablespace character varying(30) 暂不支持，默认值为NULL。 created timestamp with time zone 用户创建日期。 profile character varying(128) 暂不支持，默认值为NULL。 initial_rsrc_consumer_group character varying(128) 暂不支持，默认值为NULL。 external_name character varying(4000) 暂不支持，默认值为NULL。 password_versions character varying(12) 显示账户密码的加密方式，取值MD5、SHA256或SM3。 editions_enabled character varying(1) 暂不支持，默认值为NULL。 authentication_type text 指示用户的身份验证机制。 proxy_only_connect character varying(1) 暂不支持，默认值为NULL。 common character varying(3) 暂不支持，默认值为NULL。 last_login timestamp with time zone 用户最后一次登录的时间。 oracle_maintained character varying(1) 暂不支持，默认值为NULL。 inherited character varying(3) 暂不支持，默认值为NULL。 default_collation character varying(100) 用户Schema的默认字符序。 implicit character varying(3) 暂不支持，默认值为NULL。 all_shard character varying(3) 暂不支持，默认值为NULL。 password_change_date timestamp with time zone 上次设置用户密码的日期。",
+      "source_file": "1743_ADM_USERS.txt"
+    },
+    {
+      "term": "DB_COL_PRIVS",
+      "content": "DB_COL_PRIVS DB_COL_PRIVS DB_COL_PRIVS视图显示以下授权信息： 当前用户作为对象所有者、授予者或被授予者时的列权限授予信息。 已启用角色或PUBLIC角色作为被授予者时的列权限授予信息。 默认所有用户都可以访问。该视图同时存在于PG_CATALOG和SYS Schema下。 表1 DB_COL_PRIVS字段 名称 类型 描述 grantor character varying(128) 执行授权的用户名。 owner character varying(128) 对象的所有者。 grantee character varying(128) 被授予权限的用户或角色的名称。 table_schema character varying(128) 对象的Schema。 table_name character varying(128) 对象的名称。 column_name character varying(128) 列的名称。 privilege character varying(40) 列上的权限。 grantable character varying(3) 表示是否授予特权。 YES：表示授予特权。 NO：表示不授予特权。 common character varying(3) 暂不支持，值为NULL。 inherited character varying(3) 暂不支持，值为NULL。",
+      "source_file": "1744_DB_COL_PRIVS.txt"
+    },
+    {
+      "term": "PG_SECLABEL",
+      "content": "PG_SECLABEL PG_SECLABEL PG_SECLABEL系统表存储数据对象上的安全标签。 PG_SHSECLABEL 的作用类似，只是它是用于在一个数据库内共享的数据库对象的安全标签上的。 表1 PG_SECLABEL字段 名称 类型 引用 描述 objoid oid 任意OID属性 这个安全标签所属的对象的OID。 classoid oid PG_CLASS .oid 出现这个对象的系统目录的OID。 objsubid integer - 出现在这个对象中的列的序号。 provider text - 与这个标签相关的标签提供程序。 label text - 应用于这个对象的安全标签。",
+      "source_file": "3252_PG_SECLABEL.txt"
+    },
+    {
+      "term": "MY_SYS_PRIVS",
+      "content": "MY_SYS_PRIVS MY_SYS_PRIVS MY_SYS_PRIVS视图显示授予当前用户的系统权限信息。默认所有用户都可以访问。该视图同时存在于PG_CATALOG和SYS Schema下。 表1 MY_SYS_PRIVS字段 名称 类型 描述 grantee character varying(128) 被授予权限的用户或角色的名称。 privilege character varying(40) 用户拥有的系统权限或ANY权限。 系统权限包括rolsuper、rolinherit、rolcreaterole、rolcreatedb、rolcatupdate、rolcanlogin、rolreplication、rolauditadmin、rolsystemadmin、roluseft、rolmonitoradmin、roloperatoradmin、rolpolicyadmin。 ANY权限的取值请参考 表1 。 admin_option character varying(3) 表示该授权是否包含ADMIN选项。 YES：表示包含ADMIN选项。 NO：表示不包含ADMIN选项。 common character varying(3) 暂不支持，值为NULL。 inherited character varying(3) 暂不支持，值为NULL。",
+      "source_file": "1751_MY_SYS_PRIVS.txt"
+    },
+    {
+      "term": "GS_DB_PRIVILEGE",
+      "content": "GS_DB_PRIVILEGE GS_DB_PRIVILEGE GS_DB_PRIVILEGE系统表记录ANY权限的授予情况，每条记录对应一条授权信息。 表1 GS_DB_PRIVILEGE字段 名称 类型 描述 oid oid 行标识符（隐含字段，必须明确选择）。 roleid oid 用户标识。 privilege_type text 用户拥有的ANY权限，取值参考 表1 。 admin_option boolean 是否具有privilege_type列记录的ANY权限的再授权权限。 t：表示具有。 f：表示不具有。",
+      "source_file": "3248_GS_DB_PRIVILEGE.txt"
+    },
+    {
+      "term": "PG_ROLES",
+      "content": "PG_ROLES PG_ROLES PG_ROLES视图显示数据库角色的相关信息。初始化用户和具有sysadmin属性或createrole属性的用户可以查看全部角色的信息，其他用户只能查看自己的信息。 表1 PG_ROLES字段 名称 类型 引用 描述 rolname name - 角色名称。 rolsuper boolean - 该角色是否是拥有最高权限的初始系统管理员。 t（true）：表示是。 f（false）：表示否。 rolinherit boolean - 该角色是否继承角色的权限。 t（true）：表示是。 f（false）：表示否。 rolcreaterole boolean - 该角色是否可以创建其他的角色。 t（true）：表示是。 f（false）：表示否。 rolcreatedb boolean - 该角色是否可以创建数据库。 t（true）：表示是。 f（false）：表示否。 rolcatupdate boolean - 该角色是否可以直接更新系统表。只有usesysid=10的初始系统管理员拥有此权限。其他用户无法获得此权限。 t（true）：表示是。 f（false）：表示否。 rolcanlogin boolean - 该角色是否可以登录数据库。 t（true）：表示是。 f（false）：表示否。 rolreplication boolean - 该角色是否可以复制。 t（true）：表示是。 f（false）：表示否。 rolauditadmin boolean - 该角色是否为审计管理员。 t（true）：表示是。 f（false）：表示否。 rolsystemadmin boolean - 该角色是否为系统管理员。 t（true）：表示是。 f（false）：表示否。 rolconnlimit integer - 对于可以登录的角色，这里限制了该角色允许发起的最大并发连接数。 -1表示无限制。 rolpassword text - 密文存储后的用户口令，始终为********。 rolvalidbegin timestamp with time zone - 账户的有效开始时间；如果没有设置有效开始时间，则为NULL。 rolvaliduntil timestamp with time zone - 账户的有效结束时间；如果没有设置有效结束时间，则为NULL。 rolrespool name - 用户所能够使用的resource pool。 rolparentid oid PG_AUTHID .rolparentid 用户所在组用户的OID。 roltabspace text - 用户永久表存储空间限额，单位KB。 rolconfig text[] PG_DB_ROLE_SETTING .setconfig 运行时配置项的默认值。 oid oid PG_AUTHID .oid 角色的ID。 roluseft boolean PG_AUTHID .roluseft 角色是否可以操作外表。 t（true）：表示是。 f（false）：表示否。 rolkind \"char\" - 角色类型。 n：普通用户，即非永久用户。 p：永久用户。 nodegroup name - 该字段不支持。 roltempspace text - 用户临时表存储空间限额，单位为KB。 rolspillspace text - 用户算子落盘空间限额，单位为KB。 rolmonitoradmin boolean - 该角色是否为监控管理员。 t（true）：表示是。 f（false）：表示否。 roloperatoradmin boolean - 该角色是否为运维管理员。 t（true）：表示是。 f（false）：表示否。 rolpolicyadmin boolean - 该角色是否为安全策略管理员。 t（true）：表示是。 f（false）：表示否。",
+      "source_file": "3456_PG_ROLES.txt"
+    },
+    {
+      "term": "GS_DB_PRIVILEGES",
+      "content": "GS_DB_PRIVILEGES GS_DB_PRIVILEGES GS_DB_PRIVILEGES系统视图记录ANY权限的授予情况，每条记录对应一条授权信息。 表1 GS_DB_PRIVILEGES字段 名称 类型 描述 rolename name 用户名。 privilege_type text 用户拥有的ANY权限，取值参考 表1 。 admin_option text 是否具有privilege_type列记录的ANY权限的再授权权限。 yes：表示具有。 no：表示不具有。",
+      "source_file": "1747_GS_DB_PRIVILEGES.txt"
+    },
+    {
+      "term": "ADM_SYS_PRIVS",
+      "content": "ADM_SYS_PRIVS ADM_SYS_PRIVS ADM_SYS_PRIVS视图显示授予用户和角色的系统权限信息。默认只有系统管理员权限才可以访问此系统视图，普通用户需要授权才可以访问。该视图同时存在于PG_CATALOG和SYS Schema下。 表1 ADM_SYS_PRIVS字段 名称 类型 描述 grantee character varying(128) 被授予权限的用户或角色的名称。 privilege character varying(40) 用户拥有的系统权限或ANY权限。 系统权限包括rolsuper、rolinherit、rolcreaterole、rolcreatedb、rolcatupdate、rolcanlogin、rolreplication、rolauditadmin、rolsystemadmin、roluseft、rolmonitoradmin、roloperatoradmin、rolpolicyadmin。 ANY权限的取值请参考 表1 。 admin_option character varying(3) 表示该授权是否包含ADMIN选项。 YES：表示包含ADMIN选项。 NO：表示不包含ADMIN选项。 common character varying(3) 暂不支持，值为NULL。 inherited character varying(3) 暂不支持，值为NULL。",
+      "source_file": "1741_ADM_SYS_PRIVS.txt"
+    },
+    {
+      "term": "ADM_TAB_PRIVS",
+      "content": "ADM_TAB_PRIVS ADM_TAB_PRIVS ADM_TAB_PRIVS视图显示数据库中所有对象的授权信息。默认只有系统管理员权限才可以访问此系统视图，普通用户需要授权才可以访问。该视图同时存在于PG_CATALOG和SYS Schema下。 表1 ADM_TAB_PRIVS字段 名称 类型 描述 grantee character varying(128) 被授予权限的用户或角色的名称。 owner character varying(128) 对象的所有者。 table_name character varying(128) 对象的名称。对象类型包括表、包、索引、序列等。 grantor character varying(128) 执行授权的用户名。 privilege character varying(40) 对象上的权限，包括USAGE、UPDATE、DELETE、INSERT、CONNECT、SELECT、EXECUTE。 grantable character varying(3) 表示该授权是否包含GRANT选项。 YES：表示包含GRANT选项。 NO：表示不包含GRANT选项。 type character varying(24) 对象的类型，包括NODE GROUP、COLUMN_ENCRYPTION_KEY、PACKAGE、COLUMN、TABLE、VIEW、SEQUENCE、TYPE、INDEX、DATABASE、DIRECTORY、FOREIGN DATA WRAPPER、FOREIGN SERVER、LANGUAGE、LARGE OBJECT、SCHEMA、TEMPLATE、FUNCTION、PROCEDURE、TABLESPACE。 hierarchy character varying(3) 暂不支持，值为NULL。 common character varying(3) 暂不支持，值为NULL。 inherited character varying(3) 暂不支持，值为NULL。",
+      "source_file": "3445_ADM_TAB_PRIVS.txt"
+    },
+    {
+      "term": "PG_SECLABELS",
+      "content": "PG_SECLABELS PG_SECLABELS PG_SECLABELS视图显示安全标签的信息。 表1 PG_SECLABELS字段 名称 类型 引用 描述 objoid oid 任意OID属性 该安全标签所属的对象的OID。 classoid oid PG_CLASS .oid 该安全标签所属的对象所在系统表的OID。 objsubid integer - 对于一个在表字段上的安全标签，是字段序号（引用表本身的objoid和classoid）。对于所有其他对象类型，这个字段为0。 objtype text - 该标签所属的对象的类型，文本格式。例如： table：表类型。 column：列类型。 objnamespace oid PG_NAMESPACE .oid 该对象的名称空间的OID，如果不适用，取值为NULL。 objname text - 该标签所属的对象的名称，文本格式。 provider text PG_SECLABEL .provider 该标签的提供者。 label text PG_SECLABEL .label 安全标签名称。",
+      "source_file": "1754_PG_SECLABELS.txt"
+    },
+    {
+      "term": "PG_RLSPOLICY",
+      "content": "PG_RLSPOLICY PG_RLSPOLICY PG_RLSPOLICY系统表存储行级访问控制策略。 表1 PG_RLSPOLICY字段 名称 类型 描述 oid oid 行标识符（隐含属性，必须明确选择）。 polname name 行级访问控制策略的名称。 polrelid oid 行级访问控制策略作用的表对象oid。 polcmd \"char\" 行级访问控制策略影响的SQL操作。 polpermissive boolean 行级访问控制策略的属性，t为表达式OR条件拼接，f为表达式AND条件拼接。 polroles oid[] 行级访问控制策略影响的用户oid列表，不指定表示影响所有的用户。 polqual pg_node_tree 行级访问控制策略的表达式。",
+      "source_file": "3251_PG_RLSPOLICY.txt"
+    },
+    {
+      "term": "ROLE_ROLE_PRIVS",
+      "content": "ROLE_ROLE_PRIVS ROLE_ROLE_PRIVS ROLE_ROLE_PRIVS视图显示授予其他角色的角色，仅提供用户有权访问的角色的信息。默认所有用户都可以访问。该视图同时存在于PG_CATALOG和SYS Schema下。 表1 ROLE_ROLE_PRIVS字段 名称 类型 描述 role character varying(128) 角色名称。 granted_role character varying(128) 被授予的角色。 admin_option character varying(3) 表示该授权是否包含ADMIN选项。 YES：表示包含ADMIN选项。 NO：表示不包含ADMIN选项。 common character varying(3) 暂不支持，值为NULL。 inherited character varying(3) 暂不支持，值为NULL。",
+      "source_file": "3461_ROLE_ROLE_PRIVS.txt"
+    },
+    {
+      "term": "MY_ROLE_PRIVS",
+      "content": "MY_ROLE_PRIVS MY_ROLE_PRIVS MY_ROLE_PRIVS视图显示授予当前用户角色（包括public角色）的权限的信息。默认所有用户都可以访问。该视图同时存在于PG_CATALOG和SYS Schema下。 表1 MY_ROLE_PRIVS字段 名称 类型 描述 grantee character varying(128) 被授予权限的用户或角色名称。 granted_role character varying(128) 被授予的角色。 admin_option character varying(3) 表示该授权是否包含ADMIN选项。 YES：表示包含ADMIN选项。 NO：表示不包含ADMIN选项。 delegate_option character varying(3) 暂不支持，值为NULL。 default_role character varying(3) 暂不支持，值为NULL。 os_granted character varying(3) 暂不支持，值为NULL。 common character varying(3) 暂不支持，值为NULL。 inherited character varying(3) 暂不支持，值为NULL。",
+      "source_file": "3453_MY_ROLE_PRIVS.txt"
+    }
+  ]
+}

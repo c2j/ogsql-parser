@@ -1,0 +1,1 @@
+DROP RESOURCE POOL DROP RESOURCE POOL 功能描述 删除一个资源池。 如果某个角色已关联到该资源池，无法删除。 注意事项 只要用户对当前数据库有DROP权限，就可以删除资源池。 语法格式 DROP RESOURCE POOL [ IF EXISTS ] pool_name; 参数说明 IF EXISTS 如果指定的资源池不存在，发出一个notice而不是抛出一个错误。 pool_name 已创建过的资源池名称。 取值范围：字符串，要符合 标识符命名规范 。 示例 请参见CREATE RESOURCE POOL的 示例 。 相关链接 ALTER RESOURCE POOL ， CREATE RESOURCE POOL 父主题： D 版权所有 © 华为技术有限公司
