@@ -321,6 +321,10 @@ impl Parser {
                 Ok(stmt) => crate::ast::Statement::CreateDatabase(stmt),
                 Err(_) => self.skip_to_semicolon(),
             },
+            Some(Keyword::TABLESPACE) => match self.parse_create_tablespace() {
+                Ok(stmt) => crate::ast::Statement::CreateTablespace(stmt),
+                Err(_) => self.skip_to_semicolon(),
+            },
             _ => self.skip_to_semicolon(),
         }
     }

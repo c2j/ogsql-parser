@@ -1,8 +1,9 @@
 use crate::ast::{
     AlterColumnAction, AlterTableAction, AlterTableStatement, CheckOption, ColumnConstraint,
     ColumnDef, CreateDatabaseStatement, CreateIndexStatement, CreateSchemaStatement,
-    CreateSequenceStatement, CreateTableStatement, CreateViewStatement, DataType, DropStatement,
-    IndexColumn, ObjectType, SchemaElement, TableConstraint, TimeZoneInfo, TruncateStatement,
+    CreateSequenceStatement, CreateTableStatement, CreateTablespaceStatement, CreateViewStatement,
+    DataType, DropStatement, IndexColumn, ObjectType, SchemaElement, TableConstraint, TimeZoneInfo,
+    TruncateStatement,
 };
 use crate::parser::{Parser, ParserError};
 use crate::token::keyword::Keyword;
@@ -963,5 +964,47 @@ impl Parser {
                 got: format!("{:?}", self.peek()),
             }),
         }
+    }
+
+    // ========== CREATE TABLESPACE ==========
+
+    pub(crate) fn parse_create_tablespace(
+        &mut self,
+    ) -> Result<CreateTablespaceStatement, ParserError> {
+        self.expect_keyword(Keyword::TABLESPACE)?;
+
+        let name = self.parse_identifier()?;
+
+        let owner = if self.match_keyword(Keyword::OWNER) {
+            self.advance();
+            Some(self.parse_identifier()?)
+        } else {
+            None
+        };
+
+        self.expect_keyword(Keyword::LOCATION)?;
+        let location = match self.peek().clone() {
+            Token::StringLiteral(s) => {
+                self.advance();
+                s
+            }
+            Token::DollarString(s) => {
+                self.advance();
+                s
+            }
+            _ => {
+                return Err(ParserError::UnexpectedToken {
+                    position: self.pos,
+                    expected: "string literal for location".to_string(),
+                    got: format!("{:?}", self.peek()),
+                });
+            }
+        };
+
+        Ok(CreateTablespaceStatement {
+            name,
+            owner,
+            location,
+        })
     }
 }

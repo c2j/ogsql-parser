@@ -587,8 +587,14 @@ pub struct CreateDatabaseStatement {
     pub is_template: Option<bool>,
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub struct CreateTablespaceStatement {
+    pub name: String,
+    pub owner: Option<String>,
+    pub location: String,
+}
+
 stub_struct!(
-    CreateTablespaceStatement,
     DropDatabaseStatement,
     DropTablespaceStatement,
     CreateFunctionStatement,
