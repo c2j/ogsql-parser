@@ -1,8 +1,8 @@
 use crate::ast::{
     AlterColumnAction, AlterTableAction, AlterTableStatement, CheckOption, ColumnConstraint,
-    ColumnDef, CreateIndexStatement, CreateSchemaStatement, CreateSequenceStatement,
-    CreateTableStatement, CreateViewStatement, DataType, DropStatement, IndexColumn, ObjectType,
-    SchemaElement, TableConstraint, TimeZoneInfo, TruncateStatement,
+    ColumnDef, CreateDatabaseStatement, CreateIndexStatement, CreateSchemaStatement,
+    CreateSequenceStatement, CreateTableStatement, CreateViewStatement, DataType, DropStatement,
+    IndexColumn, ObjectType, SchemaElement, TableConstraint, TimeZoneInfo, TruncateStatement,
 };
 use crate::parser::{Parser, ParserError};
 use crate::token::keyword::Keyword;
@@ -831,5 +831,137 @@ impl Parser {
             authorization,
             elements,
         })
+    }
+
+    // ========== CREATE DATABASE ==========
+
+    pub(crate) fn parse_create_database(&mut self) -> Result<CreateDatabaseStatement, ParserError> {
+        self.expect_keyword(Keyword::DATABASE)?;
+
+        let name = self.parse_identifier()?;
+
+        let mut owner = None;
+        let mut template = None;
+        let mut encoding = None;
+        let mut locale = None;
+        let mut lc_collate = None;
+        let mut lc_ctype = None;
+        let mut tablespace = None;
+        let mut allow_connections = None;
+        let mut connection_limit = None;
+        let mut is_template = None;
+
+        if self.match_keyword(Keyword::WITH) {
+            self.advance();
+        }
+
+        loop {
+            let opt_name = match self.peek() {
+                Token::Ident(s) => s.to_lowercase(),
+                Token::Keyword(kw) => format!("{:?}", kw)
+                    .to_lowercase()
+                    .trim_end_matches("_p")
+                    .to_string(),
+                _ => break,
+            };
+            let saved_pos = self.pos;
+            self.advance();
+
+            if self.match_token(&Token::Eq) {
+                self.advance();
+            }
+
+            match opt_name.as_str() {
+                "owner" => owner = Some(self.parse_identifier()?),
+                "template" => template = Some(self.parse_string_or_ident()?),
+                "encoding" => encoding = Some(self.parse_string_or_ident()?),
+                "locale" => locale = Some(self.parse_string_or_ident()?),
+                "lc_collate" => lc_collate = Some(self.parse_string_or_ident()?),
+                "lc_ctype" => lc_ctype = Some(self.parse_string_or_ident()?),
+                "tablespace" => tablespace = Some(self.parse_identifier()?),
+                "allow_connections" => allow_connections = Some(self.parse_bool_literal()?),
+                "connection_limit" => {
+                    if let Token::Integer(n) = self.peek().clone() {
+                        connection_limit = Some(n as i32);
+                        self.advance();
+                    } else if self.match_keyword(Keyword::MINVALUE) {
+                        self.advance();
+                        connection_limit = Some(-1);
+                    } else {
+                        return Err(ParserError::UnexpectedToken {
+                            position: self.pos,
+                            expected: "integer".to_string(),
+                            got: format!("{:?}", self.peek()),
+                        });
+                    }
+                }
+                "is_template" => is_template = Some(self.parse_bool_literal()?),
+                _ => {
+                    self.pos = saved_pos;
+                    break;
+                }
+            }
+
+            if self.match_token(&Token::Comma) {
+                self.advance();
+            }
+        }
+
+        Ok(CreateDatabaseStatement {
+            name,
+            owner,
+            template,
+            encoding,
+            locale,
+            lc_collate,
+            lc_ctype,
+            tablespace,
+            allow_connections,
+            connection_limit,
+            is_template,
+        })
+    }
+
+    fn parse_string_or_ident(&mut self) -> Result<String, ParserError> {
+        match self.peek().clone() {
+            Token::StringLiteral(s) => {
+                self.advance();
+                Ok(s)
+            }
+            Token::Ident(s) => {
+                self.advance();
+                Ok(s)
+            }
+            Token::Keyword(kw) => {
+                self.advance();
+                Ok(format!("{:?}", kw)
+                    .to_lowercase()
+                    .trim_end_matches("_p")
+                    .to_string())
+            }
+            _ => Err(ParserError::UnexpectedToken {
+                position: self.pos,
+                expected: "string or identifier".to_string(),
+                got: format!("{:?}", self.peek()),
+            }),
+        }
+    }
+
+    fn parse_bool_literal(&mut self) -> Result<bool, ParserError> {
+        match self.peek() {
+            Token::Keyword(Keyword::TRUE_P) => {
+                self.advance();
+                Ok(true)
+            }
+            Token::Keyword(Keyword::FALSE_P) => {
+                self.advance();
+                Ok(false)
+            }
+            _ => Err(ParserError::UnexpectedToken {
+                position: self.pos,
+                expected: "TRUE or FALSE".to_string(),
+                got: format!("{:?}", self.peek()),
+            }),
+        }
     }
 }

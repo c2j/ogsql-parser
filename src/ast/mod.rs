@@ -572,8 +572,22 @@ pub enum SchemaElement {
     Sequence(CreateSequenceStatement),
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub struct CreateDatabaseStatement {
+    pub name: String,
+    pub owner: Option<String>,
+    pub template: Option<String>,
+    pub encoding: Option<String>,
+    pub locale: Option<String>,
+    pub lc_collate: Option<String>,
+    pub lc_ctype: Option<String>,
+    pub tablespace: Option<String>,
+    pub allow_connections: Option<bool>,
+    pub connection_limit: Option<i32>,
+    pub is_template: Option<bool>,
+}
+
 stub_struct!(
-    CreateDatabaseStatement,
     CreateTablespaceStatement,
     DropDatabaseStatement,
     DropTablespaceStatement,

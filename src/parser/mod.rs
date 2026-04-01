@@ -317,6 +317,10 @@ impl Parser {
                 Ok(stmt) => crate::ast::Statement::CreateSchema(stmt),
                 Err(_) => self.skip_to_semicolon(),
             },
+            Some(Keyword::DATABASE) => match self.parse_create_database() {
+                Ok(stmt) => crate::ast::Statement::CreateDatabase(stmt),
+                Err(_) => self.skip_to_semicolon(),
+            },
             _ => self.skip_to_semicolon(),
         }
     }
