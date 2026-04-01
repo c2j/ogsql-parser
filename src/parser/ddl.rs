@@ -717,24 +717,6 @@ impl Parser {
     pub(crate) fn parse_create_view(&mut self) -> Result<CreateViewStatement, ParserError> {
         self.expect_keyword(Keyword::VIEW)?;
 
-        let replace = if self.match_keyword(Keyword::OR) {
-            self.advance();
-            self.expect_keyword(Keyword::REPLACE)?;
-            true
-        } else {
-            false
-        };
-
-        let temporary =
-            if self.match_keyword(Keyword::TEMPORARY) || self.match_keyword(Keyword::TEMP) {
-                self.advance();
-                true
-            } else {
-                false
-            };
-
-        let recursive = self.try_consume_keyword(Keyword::RECURSIVE);
-
         let name = self.parse_object_name()?;
 
         let columns = if self.match_token(&Token::LParen) {
@@ -775,9 +757,9 @@ impl Parser {
         };
 
         Ok(CreateViewStatement {
-            replace,
-            temporary,
-            recursive,
+            replace: false,
+            temporary: false,
+            recursive: false,
             name,
             columns,
             query,

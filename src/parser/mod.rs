@@ -296,6 +296,28 @@ impl Parser {
     }
 
     fn dispatch_create(&mut self) -> crate::ast::Statement {
+        let replace = if self.match_keyword(Keyword::OR) {
+            self.advance();
+            if self.match_keyword(Keyword::REPLACE) {
+                self.advance();
+                true
+            } else {
+                return self.skip_to_semicolon();
+            }
+        } else {
+            false
+        };
+
+        let temporary =
+            if self.match_keyword(Keyword::TEMPORARY) || self.match_keyword(Keyword::TEMP) {
+                self.advance();
+                true
+            } else {
+                false
+            };
+
+        let recursive = self.try_consume_keyword(Keyword::RECURSIVE);
+
         match self.peek_keyword() {
             Some(Keyword::TABLE) => match self.parse_create_table() {
                 Ok(stmt) => crate::ast::Statement::CreateTable(stmt),
@@ -310,7 +332,12 @@ impl Parser {
                 Err(_) => self.skip_to_semicolon(),
             },
             Some(Keyword::VIEW) => match self.parse_create_view() {
-                Ok(stmt) => crate::ast::Statement::CreateView(stmt),
+                Ok(mut stmt) => {
+                    stmt.replace = replace;
+                    stmt.temporary = temporary;
+                    stmt.recursive = recursive;
+                    crate::ast::Statement::CreateView(stmt)
+                }
                 Err(_) => self.skip_to_semicolon(),
             },
             Some(Keyword::SCHEMA) => match self.parse_create_schema() {
@@ -371,3 +398,6 @@ impl Parser {
         crate::ast::Statement::Empty
     }
 }
+
+#[cfg(test)]
+mod tests;
