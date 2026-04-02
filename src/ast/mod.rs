@@ -508,6 +508,70 @@ pub enum MergeAction {
     },
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub struct TransactionStatement {
+    pub kind: TransactionKind,
+    pub modes: Vec<TransactionMode>,
+    pub savepoint_name: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum TransactionKind {
+    Begin,
+    Commit,
+    Rollback,
+    Savepoint,
+    ReleaseSavepoint,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum TransactionMode {
+    IsolationLevel(IsolationLevel),
+    ReadOnly,
+    ReadWrite,
+    Deferrable,
+    NotDeferrable,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum IsolationLevel {
+    ReadUncommitted,
+    ReadCommitted,
+    RepeatableRead,
+    Serializable,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct VariableSetStatement {
+    pub local: bool,
+    pub session: bool,
+    pub name: String,
+    pub value: Vec<Expr>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct VariableShowStatement {
+    pub name: String,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct VariableResetStatement {
+    pub name: String,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct DiscardStatement {
+    pub target: DiscardTarget,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum DiscardTarget {
+    All,
+    Plans,
+    Sequences,
+    Temp,
+}
+
 macro_rules! stub_struct {
     ($($name:ident),+ $(,)?) => {
         $(
@@ -586,13 +650,9 @@ stub_struct!(
     CreateGroupStatement,
     GrantStatement,
     RevokeStatement,
-    TransactionStatement,
     CopyStatement,
     ExplainStatement,
     VacuumStatement,
-    VariableSetStatement,
-    VariableShowStatement,
-    VariableResetStatement,
     DoStatement,
     CallFuncStatement,
     PrepareStatement,
@@ -603,7 +663,6 @@ stub_struct!(
     DeclareCursorStatement,
     ClosePortalStatement,
     FetchStatement,
-    DiscardStatement,
     ClusterStatement,
     ReindexStatement,
     ListenStatement,

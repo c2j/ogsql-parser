@@ -2,6 +2,7 @@ pub mod ddl;
 pub mod dml;
 pub mod expr;
 pub mod select;
+pub mod utility;
 
 use crate::token::keyword::Keyword;
 use crate::token::{Token, TokenWithSpan};
@@ -276,6 +277,91 @@ impl Parser {
             Token::Keyword(Keyword::DROP) => {
                 self.advance();
                 self.dispatch_drop()
+            }
+            Token::Keyword(Keyword::SET) => {
+                self.advance();
+                match self.parse_set() {
+                    Ok(stmt) => {
+                        self.try_consume_semicolon();
+                        crate::ast::Statement::VariableSet(stmt)
+                    }
+                    Err(_) => self.skip_to_semicolon(),
+                }
+            }
+            Token::Keyword(Keyword::SHOW) => {
+                self.advance();
+                match self.parse_show() {
+                    Ok(stmt) => {
+                        self.try_consume_semicolon();
+                        crate::ast::Statement::VariableShow(stmt)
+                    }
+                    Err(_) => self.skip_to_semicolon(),
+                }
+            }
+            Token::Keyword(Keyword::RESET) => {
+                self.advance();
+                match self.parse_reset() {
+                    Ok(stmt) => {
+                        self.try_consume_semicolon();
+                        crate::ast::Statement::VariableReset(stmt)
+                    }
+                    Err(_) => self.skip_to_semicolon(),
+                }
+            }
+            Token::Keyword(Keyword::BEGIN_P) | Token::Keyword(Keyword::START) => {
+                self.advance();
+                match self.parse_transaction_begin() {
+                    Ok(stmt) => {
+                        self.try_consume_semicolon();
+                        crate::ast::Statement::Transaction(stmt)
+                    }
+                    Err(_) => self.skip_to_semicolon(),
+                }
+            }
+            Token::Keyword(Keyword::COMMIT) | Token::Keyword(Keyword::END_P) => {
+                self.advance();
+                match self.parse_transaction_commit() {
+                    Ok(stmt) => {
+                        self.try_consume_semicolon();
+                        crate::ast::Statement::Transaction(stmt)
+                    }
+                    Err(_) => self.skip_to_semicolon(),
+                }
+            }
+            Token::Keyword(Keyword::ROLLBACK) => {
+                self.advance();
+                match self.parse_transaction_rollback() {
+                    Ok(stmt) => {
+                        self.try_consume_semicolon();
+                        crate::ast::Statement::Transaction(stmt)
+                    }
+                    Err(_) => self.skip_to_semicolon(),
+                }
+            }
+            Token::Keyword(Keyword::SAVEPOINT) => {
+                self.advance();
+                match self.parse_savepoint() {
+                    Ok(stmt) => {
+                        self.try_consume_semicolon();
+                        crate::ast::Statement::Transaction(stmt)
+                    }
+                    Err(_) => self.skip_to_semicolon(),
+                }
+            }
+            Token::Keyword(Keyword::DISCARD) => {
+                self.advance();
+                match self.parse_discard() {
+                    Ok(stmt) => {
+                        self.try_consume_semicolon();
+                        crate::ast::Statement::Discard(stmt)
+                    }
+                    Err(_) => self.skip_to_semicolon(),
+                }
+            }
+            Token::Keyword(Keyword::CHECKPOINT) => {
+                self.advance();
+                self.try_consume_semicolon();
+                crate::ast::Statement::Checkpoint
             }
             Token::Keyword(_) => {
                 self.advance();
