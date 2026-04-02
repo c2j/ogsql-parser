@@ -368,7 +368,7 @@ impl Parser {
 
     fn dispatch_drop(&mut self) -> crate::ast::Statement {
         match self.parse_drop() {
-            Ok(stmt) => crate::ast::Statement::DropIndex(stmt),
+            Ok(stmt) => crate::ast::Statement::Drop(stmt),
             Err(_) => self.skip_to_semicolon(),
         }
     }
