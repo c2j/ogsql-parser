@@ -352,3 +352,134 @@ fn test_create_tablespace_with_owner() {
         _ => panic!("expected CREATE TABLESPACE"),
     }
 }
+
+#[test]
+fn test_copy_from_file() {
+    let stmt = parse_one("COPY my_table FROM '/data/file.csv'");
+    match stmt {
+        Statement::Copy(s) => {
+            assert!(s.is_from);
+            assert_eq!(s.filename.as_deref(), Some("/data/file.csv"));
+            assert!(s.relation.is_some());
+            assert!(s.query.is_none());
+        }
+        _ => panic!("expected Copy statement"),
+    }
+}
+
+#[test]
+fn test_copy_to_stdout() {
+    let stmt = parse_one("COPY my_table TO STDOUT");
+    match stmt {
+        Statement::Copy(s) => {
+            assert!(!s.is_from);
+            assert!(s.filename.is_none());
+        }
+        _ => panic!("expected Copy statement"),
+    }
+}
+
+#[test]
+fn test_copy_from_stdin_with_options() {
+    let stmt = parse_one("COPY my_table FROM STDIN WITH (FORMAT csv, DELIMITER ',', HEADER)");
+    match stmt {
+        Statement::Copy(s) => {
+            assert!(s.is_from);
+            assert_eq!(s.options.len(), 3);
+        }
+        _ => panic!("expected Copy statement"),
+    }
+}
+
+#[test]
+fn test_copy_with_columns() {
+    let stmt = parse_one("COPY my_table(col1, col2) FROM STDIN");
+    match stmt {
+        Statement::Copy(s) => {
+            assert!(s.is_from);
+            assert_eq!(s.columns.len(), 2);
+        }
+        _ => panic!("expected Copy statement"),
+    }
+}
+
+#[test]
+fn test_copy_query_to_file() {
+    let stmt = parse_one("COPY (SELECT * FROM foo) TO '/tmp/out.csv'");
+    match stmt {
+        Statement::Copy(s) => {
+            assert!(!s.is_from);
+            assert!(s.query.is_some());
+            assert!(s.relation.is_none());
+        }
+        _ => panic!("expected Copy statement"),
+    }
+}
+
+#[test]
+fn test_explain_simple() {
+    let stmt = parse_one("EXPLAIN SELECT * FROM foo");
+    match stmt {
+        Statement::Explain(s) => {
+            assert!(!s.analyze);
+            assert!(!s.verbose);
+            assert!(!s.performance);
+        }
+        _ => panic!("expected Explain statement"),
+    }
+}
+
+#[test]
+fn test_explain_analyze() {
+    let stmt = parse_one("EXPLAIN ANALYZE SELECT 1");
+    match stmt {
+        Statement::Explain(s) => {
+            assert!(s.analyze);
+        }
+        _ => panic!("expected Explain statement"),
+    }
+}
+
+#[test]
+fn test_explain_with_options() {
+    let stmt = parse_one("EXPLAIN (COSTS OFF, TIMING ON, FORMAT JSON) SELECT 1");
+    match stmt {
+        Statement::Explain(s) => {
+            assert_eq!(s.options.len(), 3);
+        }
+        _ => panic!("expected Explain statement"),
+    }
+}
+
+#[test]
+fn test_call_no_args() {
+    let stmt = parse_one("CALL my_func()");
+    match stmt {
+        Statement::Call(s) => {
+            assert!(s.args.is_empty());
+        }
+        _ => panic!("expected Call statement"),
+    }
+}
+
+#[test]
+fn test_call_with_args() {
+    let stmt = parse_one("CALL my_func(1, 'hello')");
+    match stmt {
+        Statement::Call(s) => {
+            assert_eq!(s.args.len(), 2);
+        }
+        _ => panic!("expected Call statement"),
+    }
+}
+
+#[test]
+fn test_call_qualified_name() {
+    let stmt = parse_one("CALL schema.my_func(1)");
+    match stmt {
+        Statement::Call(s) => {
+            assert_eq!(s.func_name.len(), 2);
+        }
+        _ => panic!("expected Call statement"),
+    }
+}

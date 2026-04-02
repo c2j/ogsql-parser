@@ -363,6 +363,33 @@ impl Parser {
                 self.try_consume_semicolon();
                 crate::ast::Statement::Checkpoint
             }
+            Token::Keyword(Keyword::COPY) => {
+                self.advance();
+                match self.parse_copy() {
+                    Ok(stmt) => {
+                        self.try_consume_semicolon();
+                        crate::ast::Statement::Copy(stmt)
+                    }
+                    Err(_) => self.skip_to_semicolon(),
+                }
+            }
+            Token::Keyword(Keyword::EXPLAIN) => {
+                self.advance();
+                match self.parse_explain() {
+                    Ok(stmt) => crate::ast::Statement::Explain(stmt),
+                    Err(_) => self.skip_to_semicolon(),
+                }
+            }
+            Token::Keyword(Keyword::CALL) => {
+                self.advance();
+                match self.parse_call() {
+                    Ok(stmt) => {
+                        self.try_consume_semicolon();
+                        crate::ast::Statement::Call(stmt)
+                    }
+                    Err(_) => self.skip_to_semicolon(),
+                }
+            }
             Token::Keyword(_) => {
                 self.advance();
                 self.skip_to_semicolon()

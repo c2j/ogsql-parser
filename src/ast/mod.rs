@@ -572,6 +572,62 @@ pub enum DiscardTarget {
     Temp,
 }
 
+// ── COPY statement ──
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct CopyOption {
+    pub name: String,
+    pub value: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct CopyStatement {
+    pub relation: Option<ObjectName>,
+    pub query: Option<SelectStatement>,
+    pub columns: Vec<String>,
+    pub is_from: bool,
+    pub filename: Option<String>,
+    pub is_program: bool,
+    pub options: Vec<CopyOption>,
+}
+
+// ── EXPLAIN statement ──
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct ExplainOption {
+    pub name: String,
+    pub value: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct ExplainStatement {
+    pub analyze: bool,
+    pub verbose: bool,
+    pub performance: bool,
+    pub plan: bool,
+    pub statement_id: Option<String>,
+    pub options: Vec<ExplainOption>,
+    pub query: Box<Statement>,
+}
+
+// ── CALL statement ──
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum CallArg {
+    Positional(Expr),
+    Named {
+        name: String,
+        arg: Expr,
+        uses_arrow: bool,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct CallFuncStatement {
+    pub func_name: ObjectName,
+    pub args: Vec<CallArg>,
+}
+
 macro_rules! stub_struct {
     ($($name:ident),+ $(,)?) => {
         $(
@@ -650,11 +706,8 @@ stub_struct!(
     CreateGroupStatement,
     GrantStatement,
     RevokeStatement,
-    CopyStatement,
-    ExplainStatement,
     VacuumStatement,
     DoStatement,
-    CallFuncStatement,
     PrepareStatement,
     ExecuteStatement,
     DeallocateStatement,
