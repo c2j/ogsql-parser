@@ -718,6 +718,8 @@ pub struct CreateTablespaceStatement {
     pub location: String,
 }
 
+pub mod visitor;
+
 stub_struct!(
     DropDatabaseStatement,
     DropTablespaceStatement,

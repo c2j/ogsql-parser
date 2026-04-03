@@ -726,3 +726,116 @@ fn test_parse_sql_convenience() {
     let stmts = Parser::parse_sql("SELECT 1; SELECT 2").unwrap();
     assert_eq!(stmts.len(), 2);
 }
+
+// ── Visitor tests ──
+
+use crate::ast::visitor::{walk_statement, Visitor, VisitorResult};
+
+struct CountingVisitor {
+    statement_count: usize,
+    expr_count: usize,
+    select_count: usize,
+}
+
+impl Visitor for CountingVisitor {
+    fn visit_statement(&mut self, _stmt: &Statement) -> VisitorResult {
+        self.statement_count += 1;
+        VisitorResult::Continue
+    }
+
+    fn visit_expr(&mut self, _expr: &Expr) -> VisitorResult {
+        self.expr_count += 1;
+        VisitorResult::Continue
+    }
+
+    fn visit_select(&mut self, _select: &SelectStatement) -> VisitorResult {
+        self.select_count += 1;
+        VisitorResult::Continue
+    }
+}
+
+#[test]
+fn test_visitor_counts_statements() {
+    let stmts = parse("SELECT 1; SELECT 2;");
+    let mut visitor = CountingVisitor {
+        statement_count: 0,
+        expr_count: 0,
+        select_count: 0,
+    };
+
+    for stmt in &stmts {
+        walk_statement(&mut visitor, stmt);
+    }
+
+    assert_eq!(visitor.statement_count, 2);
+    assert_eq!(visitor.select_count, 2);
+}
+
+#[test]
+fn test_visitor_counts_exprs() {
+    let stmts = parse("SELECT 1 + 2, 3");
+    let mut visitor = CountingVisitor {
+        statement_count: 0,
+        expr_count: 0,
+        select_count: 0,
+    };
+
+    walk_statement(&mut visitor, &stmts[0]);
+
+    assert_eq!(visitor.statement_count, 1);
+    assert_eq!(visitor.select_count, 1);
+    // 1 (literal) + 2 (literal) + binary op = 3 exprs, plus 3 (literal) = 4
+    assert_eq!(visitor.expr_count, 4);
+}
+
+struct StoppingVisitor {
+    target_count: usize,
+    stop_at: usize,
+}
+
+impl Visitor for StoppingVisitor {
+    fn visit_expr(&mut self, _expr: &Expr) -> VisitorResult {
+        self.target_count += 1;
+        if self.target_count >= self.stop_at {
+            VisitorResult::Stop
+        } else {
+            VisitorResult::Continue
+        }
+    }
+}
+
+#[test]
+fn test_visitor_can_stop_early() {
+    let stmts = parse("SELECT 1 + 2 + 3");
+    let mut visitor = StoppingVisitor {
+        target_count: 0,
+        stop_at: 2,
+    };
+
+    walk_statement(&mut visitor, &stmts[0]);
+
+    // Should stop at expr count 2, not visit all 4 exprs
+    assert_eq!(visitor.target_count, 2);
+}
+
+struct SkippingVisitor {
+    expr_count: usize,
+}
+
+impl Visitor for SkippingVisitor {
+    fn visit_expr(&mut self, _expr: &Expr) -> VisitorResult {
+        self.expr_count += 1;
+        VisitorResult::SkipChildren
+    }
+}
+
+#[test]
+fn test_visitor_skip_children() {
+    let stmts = parse("SELECT 1 + 2");
+    let mut visitor = SkippingVisitor { expr_count: 0 };
+
+    walk_statement(&mut visitor, &stmts[0]);
+
+    // Should count the binary op but not descend into operands
+    assert_eq!(visitor.expr_count, 1);
+}
