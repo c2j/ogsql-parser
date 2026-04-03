@@ -12,6 +12,6 @@ pub use ast::{
     TableConstraint, TableRef, TruncateStatement, UpdateStatement, WindowSpec,
 };
 pub use formatter::SqlFormatter;
-pub use parser::{Parser, ParserError};
+pub use parser::{Parser, ParserError, StatementIter};
 pub use token::tokenizer::{Tokenizer, TokenizerError};
 pub use token::{Keyword, SourceLocation, Span, Token, TokenWithSpan};

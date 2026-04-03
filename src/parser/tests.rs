@@ -839,3 +839,36 @@ fn test_visitor_skip_children() {
     // Should count the binary op but not descend into operands
     assert_eq!(visitor.expr_count, 1);
 }
+
+// ── Streaming API tests ──
+
+use crate::parser::StatementIter;
+
+#[test]
+fn test_statement_iter_parses_multiple() {
+    let tokens = Tokenizer::new("SELECT 1; SELECT 2; SELECT 3")
+        .tokenize()
+        .unwrap();
+    let mut iter = Parser::new(tokens).into_iter();
+
+    let count = iter.by_ref().filter_map(|r| r.ok()).count();
+    assert_eq!(count, 3);
+}
+
+#[test]
+fn test_statement_iter_handles_semicolons() {
+    let tokens = Tokenizer::new("SELECT 1;; SELECT 2;;;").tokenize().unwrap();
+    let mut iter = Parser::new(tokens).into_iter();
+
+    let count = iter.by_ref().filter_map(|r| r.ok()).count();
+    assert_eq!(count, 2);
+}
+
+#[test]
+fn test_parse_next_returns_none_at_eof() {
+    let tokens = Tokenizer::new("").tokenize().unwrap();
+    let mut parser = Parser::new(tokens);
+
+    assert!(parser.parse_next().is_none());
+    assert!(parser.parse_next().is_none());
+}

@@ -100,6 +100,29 @@ impl Parser {
         Ok(stmts)
     }
 
+    pub fn into_iter(self) -> StatementIter {
+        StatementIter {
+            parser: self,
+            done: false,
+        }
+    }
+
+    pub fn parse_next(&mut self) -> Option<Result<crate::ast::Statement, ParserError>> {
+        loop {
+            match self.peek() {
+                Token::Eof => return None,
+                Token::Semicolon => {
+                    self.advance();
+                    continue;
+                }
+                _ => {
+                    let result = self.parse_statement();
+                    return Some(result);
+                }
+            }
+        }
+    }
+
     // ── Token navigation helpers ──
 
     fn peek(&self) -> &Token {
@@ -813,6 +836,28 @@ impl Parser {
             }
         }
         crate::ast::Statement::Empty
+    }
+}
+
+pub struct StatementIter {
+    parser: Parser,
+    done: bool,
+}
+
+impl Iterator for StatementIter {
+    type Item = Result<crate::ast::Statement, ParserError>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.done {
+            return None;
+        }
+        match self.parser.parse_next() {
+            Some(result) => Some(result),
+            None => {
+                self.done = true;
+                None
+            }
+        }
     }
 }
 
