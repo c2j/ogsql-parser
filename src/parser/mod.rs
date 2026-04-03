@@ -390,6 +390,120 @@ impl Parser {
                     Err(_) => self.skip_to_semicolon(),
                 }
             }
+            Token::Keyword(Keyword::GRANT) => {
+                self.advance();
+                self.skip_to_semicolon_as(crate::ast::Statement::Grant(
+                    crate::ast::GrantStatement { _stub: () },
+                ))
+            }
+            Token::Keyword(Keyword::REVOKE) => {
+                self.advance();
+                self.skip_to_semicolon_as(crate::ast::Statement::Revoke(
+                    crate::ast::RevokeStatement { _stub: () },
+                ))
+            }
+            Token::Keyword(Keyword::VACUUM) => {
+                self.advance();
+                self.skip_to_semicolon_as(crate::ast::Statement::Vacuum(
+                    crate::ast::VacuumStatement { _stub: () },
+                ))
+            }
+            Token::Keyword(Keyword::DO) => {
+                self.advance();
+                self.skip_to_semicolon_as(crate::ast::Statement::Do(crate::ast::DoStatement {
+                    _stub: (),
+                }))
+            }
+            Token::Keyword(Keyword::PREPARE) => {
+                self.advance();
+                self.skip_to_semicolon_as(crate::ast::Statement::Prepare(
+                    crate::ast::PrepareStatement { _stub: () },
+                ))
+            }
+            Token::Keyword(Keyword::EXECUTE) => {
+                self.advance();
+                self.skip_to_semicolon_as(crate::ast::Statement::Execute(
+                    crate::ast::ExecuteStatement { _stub: () },
+                ))
+            }
+            Token::Keyword(Keyword::DEALLOCATE) => {
+                self.advance();
+                self.skip_to_semicolon_as(crate::ast::Statement::Deallocate(
+                    crate::ast::DeallocateStatement { _stub: () },
+                ))
+            }
+            Token::Keyword(Keyword::COMMENT) => {
+                self.advance();
+                self.skip_to_semicolon_as(crate::ast::Statement::Comment(
+                    crate::ast::CommentStatement { _stub: () },
+                ))
+            }
+            Token::Keyword(Keyword::LOCK_P) => {
+                self.advance();
+                self.skip_to_semicolon_as(crate::ast::Statement::Lock(crate::ast::LockStatement {
+                    _stub: (),
+                }))
+            }
+            Token::Keyword(Keyword::DECLARE) => {
+                self.advance();
+                self.skip_to_semicolon_as(crate::ast::Statement::DeclareCursor(
+                    crate::ast::DeclareCursorStatement { _stub: () },
+                ))
+            }
+            Token::Keyword(Keyword::CLOSE) => {
+                self.advance();
+                self.skip_to_semicolon_as(crate::ast::Statement::ClosePortal(
+                    crate::ast::ClosePortalStatement { _stub: () },
+                ))
+            }
+            Token::Keyword(Keyword::FETCH) => {
+                self.advance();
+                self.skip_to_semicolon_as(crate::ast::Statement::Fetch(
+                    crate::ast::FetchStatement { _stub: () },
+                ))
+            }
+            Token::Keyword(Keyword::CLUSTER) => {
+                self.advance();
+                self.skip_to_semicolon_as(crate::ast::Statement::Cluster(
+                    crate::ast::ClusterStatement { _stub: () },
+                ))
+            }
+            Token::Keyword(Keyword::REINDEX) => {
+                self.advance();
+                self.skip_to_semicolon_as(crate::ast::Statement::Reindex(
+                    crate::ast::ReindexStatement { _stub: () },
+                ))
+            }
+            Token::Keyword(Keyword::LISTEN) => {
+                self.advance();
+                self.skip_to_semicolon_as(crate::ast::Statement::Listen(
+                    crate::ast::ListenStatement { _stub: () },
+                ))
+            }
+            Token::Keyword(Keyword::NOTIFY) => {
+                self.advance();
+                self.skip_to_semicolon_as(crate::ast::Statement::Notify(
+                    crate::ast::NotifyStatement { _stub: () },
+                ))
+            }
+            Token::Keyword(Keyword::UNLISTEN) => {
+                self.advance();
+                self.skip_to_semicolon_as(crate::ast::Statement::Unlisten(
+                    crate::ast::UnlistenStatement { _stub: () },
+                ))
+            }
+            Token::Keyword(Keyword::RULE) => {
+                self.advance();
+                self.skip_to_semicolon_as(crate::ast::Statement::Rule(crate::ast::RuleStatement {
+                    _stub: (),
+                }))
+            }
+            Token::Keyword(Keyword::ANALYZE) => {
+                self.advance();
+                self.skip_to_semicolon_as(crate::ast::Statement::Analyze(
+                    crate::ast::AnalyzeStatement { _stub: () },
+                ))
+            }
             Token::Keyword(_) => {
                 self.advance();
                 self.skip_to_semicolon()
@@ -465,6 +579,48 @@ impl Parser {
                 Ok(stmt) => crate::ast::Statement::CreateTablespace(stmt),
                 Err(_) => self.skip_to_semicolon(),
             },
+            Some(Keyword::FUNCTION) => {
+                self.skip_to_semicolon_as(crate::ast::Statement::CreateFunction(
+                    crate::ast::CreateFunctionStatement { _stub: () },
+                ))
+            }
+            Some(Keyword::PROCEDURE) => {
+                self.skip_to_semicolon_as(crate::ast::Statement::CreateProcedure(
+                    crate::ast::CreateProcedureStatement { _stub: () },
+                ))
+            }
+            Some(Keyword::TRIGGER) => {
+                self.skip_to_semicolon_as(crate::ast::Statement::CreateTrigger(
+                    crate::ast::CreateTriggerStatement { _stub: () },
+                ))
+            }
+            Some(Keyword::MATERIALIZED) => {
+                self.skip_to_semicolon_as(crate::ast::Statement::CreateMaterializedView(
+                    crate::ast::CreateMaterializedViewStatement { _stub: () },
+                ))
+            }
+            Some(Keyword::EXTENSION) => {
+                self.skip_to_semicolon_as(crate::ast::Statement::CreateExtension(
+                    crate::ast::CreateExtensionStatement { _stub: () },
+                ))
+            }
+            Some(Keyword::ROLE) => self.skip_to_semicolon_as(crate::ast::Statement::CreateRole(
+                crate::ast::CreateRoleStatement { _stub: () },
+            )),
+            Some(Keyword::USER) => self.skip_to_semicolon_as(crate::ast::Statement::CreateUser(
+                crate::ast::CreateUserStatement { _stub: () },
+            )),
+            Some(Keyword::GROUP_P) => self.skip_to_semicolon_as(
+                crate::ast::Statement::CreateGroup(crate::ast::CreateGroupStatement { _stub: () }),
+            ),
+            Some(Keyword::PACKAGE) => {
+                self.skip_to_semicolon_as(crate::ast::Statement::CreatePackage(
+                    crate::ast::CreatePackageStatement { _stub: () },
+                ))
+            }
+            Some(Keyword::TYPE_P) => self.skip_to_semicolon_as(crate::ast::Statement::Empty),
+            Some(Keyword::CAST) => self.skip_to_semicolon_as(crate::ast::Statement::Empty),
+            Some(Keyword::DOMAIN_P) => self.skip_to_semicolon_as(crate::ast::Statement::Empty),
             _ => self.skip_to_semicolon(),
         }
     }
@@ -484,6 +640,31 @@ impl Parser {
             Ok(stmt) => crate::ast::Statement::Drop(stmt),
             Err(_) => self.skip_to_semicolon(),
         }
+    }
+
+    fn skip_to_semicolon_as(&mut self, stmt: crate::ast::Statement) -> crate::ast::Statement {
+        let mut depth = 0i32;
+        loop {
+            match self.peek() {
+                Token::Eof => break,
+                Token::Semicolon if depth == 0 => {
+                    self.advance();
+                    break;
+                }
+                Token::LParen => {
+                    depth += 1;
+                    self.advance();
+                }
+                Token::RParen => {
+                    depth -= 1;
+                    self.advance();
+                }
+                _ => {
+                    self.advance();
+                }
+            }
+        }
+        stmt
     }
 
     fn skip_to_semicolon(&mut self) -> crate::ast::Statement {
