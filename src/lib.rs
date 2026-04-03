@@ -13,4 +13,4 @@ pub use ast::{
 pub use formatter::SqlFormatter;
 pub use parser::{Parser, ParserError};
 pub use token::tokenizer::{Tokenizer, TokenizerError};
-pub use token::{Keyword, Span, Token, TokenWithSpan};
+pub use token::{Keyword, SourceLocation, Span, Token, TokenWithSpan};

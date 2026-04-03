@@ -51,7 +51,7 @@ impl Parser {
             InsertSource::Select(Box::new(self.parse_select_statement()?))
         } else {
             return Err(ParserError::UnexpectedToken {
-                position: self.pos,
+                location: self.current_location(),
                 expected: "VALUES, SELECT, DEFAULT VALUES".to_string(),
                 got: format!("{:?}", self.peek()),
             });
@@ -218,7 +218,7 @@ impl Parser {
                 MergeAction::Insert { columns, values }
             } else {
                 return Err(ParserError::UnexpectedToken {
-                    position: self.pos,
+                    location: self.current_location(),
                     expected: "UPDATE, DELETE, or INSERT".to_string(),
                     got: format!("{:?}", self.peek()),
                 });

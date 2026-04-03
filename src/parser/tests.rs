@@ -689,9 +689,36 @@ fn test_parse_one_success() {
 }
 
 #[test]
-fn test_parse_one_rejects_multiple() {
+fn test_error_reports_line_column() {
     let result = Parser::parse_one("SELECT 1; SELECT 2");
     assert!(result.is_err());
+    let msg = result.unwrap_err().to_string();
+    assert!(msg.contains("line"), "Error should contain line: {}", msg);
+    assert!(
+        msg.contains("column"),
+        "Error should contain column: {}",
+        msg
+    );
+}
+
+#[test]
+fn test_error_multiline_location() {
+    let result = Parser::parse_one("SELECT\n*\nFROM t;\nINSERT INTO t VALUES (1);");
+    assert!(result.is_err());
+    let msg = result.unwrap_err().to_string();
+    assert!(msg.contains("line"), "Error should contain line: {}", msg);
+}
+
+#[test]
+fn test_error_eof_reports_location() {
+    let result = Parser::parse_one("");
+    assert!(result.is_err());
+    let msg = result.unwrap_err().to_string();
+    assert!(
+        msg.contains("line"),
+        "EOF error should contain line: {}",
+        msg
+    );
 }
 
 #[test]

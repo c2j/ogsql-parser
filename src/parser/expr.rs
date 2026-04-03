@@ -335,7 +335,7 @@ impl Parser {
                     return Ok(Expr::Array(elems));
                 }
                 Err(ParserError::UnexpectedToken {
-                    position: self.pos,
+                    location: self.current_location(),
                     expected: "'(' after ARRAY".to_string(),
                     got: format!("{:?}", self.peek()),
                 })
@@ -363,7 +363,7 @@ impl Parser {
                 Ok(Expr::ColumnRef(vec!["*".to_string()]))
             }
             _ => Err(ParserError::UnexpectedToken {
-                position: self.pos,
+                location: self.current_location(),
                 expected: "expression".to_string(),
                 got: format!("{:?}", self.peek()),
             }),

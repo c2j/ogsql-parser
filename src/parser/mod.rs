@@ -5,18 +5,21 @@ pub(crate) mod select;
 pub(crate) mod utility;
 
 use crate::token::keyword::Keyword;
-use crate::token::{Token, TokenWithSpan};
+use crate::token::{SourceLocation, Token, TokenWithSpan};
 
 #[derive(Debug, thiserror::Error)]
 pub enum ParserError {
-    #[error("unexpected token at position {position}: expected {expected}, got {got}")]
+    #[error("unexpected token at line {}, column {}: expected {}, got {}", .location.line, .location.column, expected, got)]
     UnexpectedToken {
-        position: usize,
+        location: SourceLocation,
         expected: String,
         got: String,
     },
-    #[error("unexpected end of input: expected {0}")]
-    UnexpectedEof(String),
+    #[error("unexpected end of input at line {}, column {}: expected {}", .location.line, .location.column, expected)]
+    UnexpectedEof {
+        expected: String,
+        location: SourceLocation,
+    },
     #[error("{0}")]
     TokenizerError(#[from] crate::token::tokenizer::TokenizerError),
 }
@@ -47,10 +50,13 @@ impl Parser {
         let mut parser = Parser::new(tokens);
         let mut stmts = parser.parse()?;
         match stmts.len() {
-            0 => Err(ParserError::UnexpectedEof("statement".to_string())),
+            0 => Err(ParserError::UnexpectedEof {
+                expected: "statement".to_string(),
+                location: parser.current_location(),
+            }),
             1 => Ok(stmts.remove(0)),
             n => Err(ParserError::UnexpectedToken {
-                position: 0,
+                location: parser.current_location(),
                 expected: "single statement".to_string(),
                 got: format!("{} statements", n),
             }),
@@ -67,6 +73,13 @@ impl Parser {
 
     fn add_error(&mut self, error: ParserError) {
         self.errors.push(error);
+    }
+
+    fn current_location(&self) -> SourceLocation {
+        self.tokens
+            .get(self.pos)
+            .map(|t| t.location)
+            .unwrap_or_default()
     }
 
     pub fn parse(&mut self) -> Result<Vec<crate::ast::Statement>, ParserError> {
@@ -112,7 +125,7 @@ impl Parser {
             Ok(())
         } else {
             Err(ParserError::UnexpectedToken {
-                position: self.pos,
+                location: self.current_location(),
                 expected: format!("{:?}", kw),
                 got: format!("{:?}", self.peek()),
             })
@@ -137,7 +150,7 @@ impl Parser {
             Ok(())
         } else {
             Err(ParserError::UnexpectedToken {
-                position: self.pos,
+                location: self.current_location(),
                 expected: format!("{:?}", expected),
                 got: format!("{:?}", self.peek()),
             })
@@ -171,7 +184,7 @@ impl Parser {
                 Ok(s.trim_end_matches("_p").to_string())
             }
             _ => Err(ParserError::UnexpectedToken {
-                position: self.pos,
+                location: self.current_location(),
                 expected: "identifier".to_string(),
                 got: format!("{:?}", self.peek()),
             }),

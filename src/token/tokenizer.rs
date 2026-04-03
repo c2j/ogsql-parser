@@ -1,5 +1,5 @@
 use super::keyword::lookup_keyword;
-use super::{Span, Token, TokenWithSpan};
+use super::{SourceLocation, Span, Token, TokenWithSpan};
 
 #[derive(Debug, thiserror::Error)]
 pub enum TokenizerError {
@@ -19,6 +19,8 @@ pub struct Tokenizer<'a> {
     input: &'a str,
     chars: std::iter::Peekable<std::str::Chars<'a>>,
     pos: usize,
+    line: usize,
+    line_start: usize,
 }
 
 impl<'a> Tokenizer<'a> {
@@ -27,6 +29,16 @@ impl<'a> Tokenizer<'a> {
             input,
             chars: input.chars().peekable(),
             pos: 0,
+            line: 1,
+            line_start: 0,
+        }
+    }
+
+    fn current_location(&self) -> SourceLocation {
+        SourceLocation {
+            line: self.line,
+            column: self.pos - self.line_start + 1,
+            offset: self.pos,
         }
     }
 
@@ -42,6 +54,7 @@ impl<'a> Tokenizer<'a> {
                             start: self.pos,
                             end: self.pos,
                         },
+                        location: self.current_location(),
                     });
                     return Ok(tokens);
                 }
@@ -56,6 +69,10 @@ impl<'a> Tokenizer<'a> {
     fn advance(&mut self) -> Option<char> {
         let c = self.chars.next();
         if let Some(c) = c {
+            if c == '\n' {
+                self.line += 1;
+                self.line_start = self.pos + c.len_utf8();
+            }
             self.pos += c.len_utf8();
         }
         c
@@ -66,6 +83,10 @@ impl<'a> Tokenizer<'a> {
         while let Some(&c) = self.chars.peek() {
             if predicate(c) {
                 self.chars.next();
+                if c == '\n' {
+                    self.line += 1;
+                    self.line_start = self.pos + c.len_utf8();
+                }
                 self.pos += c.len_utf8();
                 s.push(c);
             } else {
@@ -431,6 +452,7 @@ impl<'a> Tokenizer<'a> {
                 start,
                 end: self.pos,
             },
+            location: self.current_location(),
         }))
     }
 

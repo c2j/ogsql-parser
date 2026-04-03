@@ -76,7 +76,7 @@ impl Parser {
             false
         } else {
             return Err(ParserError::UnexpectedToken {
-                position: self.pos,
+                location: self.current_location(),
                 expected: "FROM or TO".to_string(),
                 got: format!("{:?}", self.peek()),
             });
@@ -377,7 +377,7 @@ impl Parser {
                 Ok(val)
             }
             _ => Err(ParserError::UnexpectedToken {
-                position: self.pos,
+                location: self.current_location(),
                 expected: "string literal".to_string(),
                 got: format!("{:?}", self.peek()),
             }),
@@ -393,7 +393,10 @@ impl Parser {
         while depth > 0 {
             match self.peek() {
                 Token::Eof => {
-                    return Err(ParserError::UnexpectedEof("closing paren".to_string()));
+                    return Err(ParserError::UnexpectedEof {
+                        expected: "closing paren".to_string(),
+                        location: self.current_location(),
+                    });
                 }
                 Token::LParen => {
                     depth += 1;
@@ -539,7 +542,7 @@ impl Parser {
                     }
                     _ => {
                         return Err(ParserError::UnexpectedToken {
-                            position: self.pos,
+                            location: self.current_location(),
                             expected: ":= or =>".to_string(),
                             got: format!("{:?}", self.peek()),
                         });
@@ -661,7 +664,7 @@ impl Parser {
             }
             _ => {
                 return Err(ParserError::UnexpectedToken {
-                    position: self.pos,
+                    location: self.current_location(),
                     expected: "ALL, PLANS, SEQUENCES, or TEMP".to_string(),
                     got: format!("{:?}", self.peek()),
                 });
@@ -774,7 +777,7 @@ impl Parser {
                         IsolationLevel::ReadUncommitted
                     } else {
                         return Err(ParserError::UnexpectedToken {
-                            position: self.pos,
+                            location: self.current_location(),
                             expected: "COMMITTED or UNCOMMITTED".to_string(),
                             got: format!("{:?}", self.peek()),
                         });
@@ -782,7 +785,7 @@ impl Parser {
                 }
                 _ => {
                     return Err(ParserError::UnexpectedToken {
-                        position: self.pos,
+                        location: self.current_location(),
                         expected: "isolation level".to_string(),
                         got: format!("{:?}", self.peek()),
                     });

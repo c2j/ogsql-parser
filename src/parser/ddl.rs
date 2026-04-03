@@ -235,7 +235,7 @@ impl Parser {
                 Ok(n)
             }
             _ => Err(ParserError::UnexpectedToken {
-                position: self.pos,
+                location: self.current_location(),
                 expected: "integer literal".to_string(),
                 got: format!("{:?}", self.peek()),
             }),
@@ -251,7 +251,7 @@ impl Parser {
                 Ok(Some(TimeZoneInfo::WithTimeZone))
             } else {
                 Err(ParserError::UnexpectedToken {
-                    position: self.pos,
+                    location: self.current_location(),
                     expected: "TIME".to_string(),
                     got: format!("{:?}", self.peek()),
                 })
@@ -264,7 +264,7 @@ impl Parser {
                 Ok(Some(TimeZoneInfo::WithoutTimeZone))
             } else {
                 Err(ParserError::UnexpectedToken {
-                    position: self.pos,
+                    location: self.current_location(),
                     expected: "TIME".to_string(),
                     got: format!("{:?}", self.peek()),
                 })
@@ -366,7 +366,7 @@ impl Parser {
                 })
             }
             _ => Err(ParserError::UnexpectedToken {
-                position: self.pos,
+                location: self.current_location(),
                 expected: "table constraint".to_string(),
                 got: format!("{:?}", self.peek()),
             }),
@@ -461,7 +461,7 @@ impl Parser {
                 Ok(AlterTableAction::AlterColumn { name, action })
             }
             _ => Err(ParserError::UnexpectedToken {
-                position: self.pos,
+                location: self.current_location(),
                 expected: "ALTER TABLE action".to_string(),
                 got: format!("{:?}", self.peek()),
             }),
@@ -492,7 +492,7 @@ impl Parser {
                         Ok(AlterColumnAction::SetNotNull)
                     } else {
                         Err(ParserError::UnexpectedToken {
-                            position: self.pos,
+                            location: self.current_location(),
                             expected: "ALTER COLUMN SET option".to_string(),
                             got: format!("{:?}", self.peek()),
                         })
@@ -510,14 +510,14 @@ impl Parser {
                     Ok(AlterColumnAction::DropNotNull)
                 } else {
                     Err(ParserError::UnexpectedToken {
-                        position: self.pos,
+                        location: self.current_location(),
                         expected: "DROP DEFAULT or DROP NOT NULL".to_string(),
                         got: format!("{:?}", self.peek()),
                     })
                 }
             }
             _ => Err(ParserError::UnexpectedToken {
-                position: self.pos,
+                location: self.current_location(),
                 expected: "ALTER COLUMN action".to_string(),
                 got: format!("{:?}", self.peek()),
             }),
@@ -553,7 +553,7 @@ impl Parser {
                 self.parse_drop_statement(ObjectType::Database)
             }
             _ => Err(ParserError::UnexpectedToken {
-                position: self.pos,
+                location: self.current_location(),
                 expected: "DROP object type".to_string(),
                 got: format!("{:?}", self.peek()),
             }),
@@ -897,7 +897,7 @@ impl Parser {
                         connection_limit = Some(-1);
                     } else {
                         return Err(ParserError::UnexpectedToken {
-                            position: self.pos,
+                            location: self.current_location(),
                             expected: "integer".to_string(),
                             got: format!("{:?}", self.peek()),
                         });
@@ -948,7 +948,7 @@ impl Parser {
                     .to_string())
             }
             _ => Err(ParserError::UnexpectedToken {
-                position: self.pos,
+                location: self.current_location(),
                 expected: "string or identifier".to_string(),
                 got: format!("{:?}", self.peek()),
             }),
@@ -966,7 +966,7 @@ impl Parser {
                 Ok(false)
             }
             _ => Err(ParserError::UnexpectedToken {
-                position: self.pos,
+                location: self.current_location(),
                 expected: "TRUE or FALSE".to_string(),
                 got: format!("{:?}", self.peek()),
             }),
@@ -1001,7 +1001,7 @@ impl Parser {
             }
             _ => {
                 return Err(ParserError::UnexpectedToken {
-                    position: self.pos,
+                    location: self.current_location(),
                     expected: "string literal for location".to_string(),
                     got: format!("{:?}", self.peek()),
                 });
