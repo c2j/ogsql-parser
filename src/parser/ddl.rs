@@ -195,6 +195,31 @@ impl Parser {
                 self.advance();
                 Ok(DataType::Interval)
             }
+            Some(Keyword::BIT) => {
+                self.advance();
+                if self.match_keyword(Keyword::VARYING) {
+                    self.advance();
+                    let len = if self.match_token(&Token::LParen) {
+                        self.advance();
+                        let n = self.parse_int_literal()?;
+                        self.expect_token(&Token::RParen)?;
+                        Some(n)
+                    } else {
+                        None
+                    };
+                    Ok(DataType::Varbit(len))
+                } else {
+                    let len = if self.match_token(&Token::LParen) {
+                        self.advance();
+                        let n = self.parse_int_literal()?;
+                        self.expect_token(&Token::RParen)?;
+                        Some(n)
+                    } else {
+                        None
+                    };
+                    Ok(DataType::Bit(len))
+                }
+            }
             _ => {
                 let name = self.parse_object_name()?;
                 Ok(DataType::Custom(name))

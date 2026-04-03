@@ -1,4 +1,7 @@
-use crate::ast::{Expr, Literal, ObjectName, SelectStatement, WhenClause};
+use crate::ast::{
+    Expr, Literal, ObjectName, OrderByItem, SelectStatement, WhenClause, WindowFrame,
+    WindowFrameBound, WindowSpec,
+};
 use crate::parser::{Parser, ParserError};
 use crate::token::keyword::Keyword;
 use crate::token::Token;
@@ -371,20 +374,24 @@ impl Parser {
         self.expect_token(&Token::LParen)?;
         if self.match_token(&Token::RParen) {
             self.advance();
+            let over = self.try_parse_over_clause()?;
             return Ok(Expr::FunctionCall {
                 name,
                 args: vec![],
                 distinct: false,
+                over,
             });
         }
         let distinct = self.try_consume_keyword(Keyword::DISTINCT);
         if self.match_token(&Token::Star) {
             self.advance();
             self.expect_token(&Token::RParen)?;
+            let over = self.try_parse_over_clause()?;
             return Ok(Expr::FunctionCall {
                 name,
                 args: vec![Expr::ColumnRef(vec!["*".to_string()])],
                 distinct,
+                over,
             });
         }
         let mut args = vec![self.parse_expr()?];
@@ -393,11 +400,219 @@ impl Parser {
             args.push(self.parse_expr()?);
         }
         self.expect_token(&Token::RParen)?;
+        let over = self.try_parse_over_clause()?;
         Ok(Expr::FunctionCall {
             name,
             args,
             distinct,
+            over,
         })
+    }
+
+    /// Try to parse OVER clause after a function call.
+    /// Returns None if the next token is not OVER.
+    fn try_parse_over_clause(&mut self) -> Result<Option<WindowSpec>, ParserError> {
+        if !self.match_keyword(Keyword::OVER) {
+            return Ok(None);
+        }
+        self.advance();
+
+        if self.match_token(&Token::LParen) {
+            // OVER (window_specification)
+            self.advance();
+            let spec = self.parse_window_specification()?;
+            self.expect_token(&Token::RParen)?;
+            Ok(Some(spec))
+        } else {
+            // OVER window_name (identifier)
+            let name = self.parse_identifier()?;
+            Ok(Some(WindowSpec {
+                partition_by: vec![],
+                order_by: vec![],
+                frame: None,
+                window_name: Some(name),
+            }))
+        }
+    }
+
+    /// Parse the body of a window specification (inside parens).
+    /// Grammar: [existing_window_name] [PARTITION BY expr_list] [ORDER BY sort_clause] [frame_clause]
+    fn parse_window_specification(&mut self) -> Result<WindowSpec, ParserError> {
+        // Try to parse existing window name (an identifier that is NOT PARTITION, ORDER, ROWS, RANGE)
+        let window_name = self.try_parse_window_name();
+
+        // PARTITION BY expr_list
+        let partition_by = if self.match_keyword(Keyword::PARTITION) {
+            self.advance();
+            self.expect_keyword(Keyword::BY)?;
+            let mut items = vec![self.parse_expr()?];
+            while self.match_token(&Token::Comma) {
+                self.advance();
+                items.push(self.parse_expr()?);
+            }
+            items
+        } else {
+            vec![]
+        };
+
+        // ORDER BY sort_clause
+        let order_by = if self.match_keyword(Keyword::ORDER) {
+            self.advance();
+            self.expect_keyword(Keyword::BY)?;
+            let mut items = Vec::new();
+            loop {
+                let expr = self.parse_expr()?;
+                let asc = match self.peek_keyword() {
+                    Some(Keyword::ASC) => {
+                        self.advance();
+                        Some(true)
+                    }
+                    Some(Keyword::DESC) => {
+                        self.advance();
+                        Some(false)
+                    }
+                    _ => None,
+                };
+                let nulls_first = if self.match_keyword(Keyword::NULLS_P) {
+                    self.advance();
+                    if self.match_keyword(Keyword::FIRST_P) {
+                        self.advance();
+                        Some(true)
+                    } else {
+                        self.expect_keyword(Keyword::LAST_P)?;
+                        Some(false)
+                    }
+                } else {
+                    None
+                };
+                items.push(OrderByItem {
+                    expr,
+                    asc,
+                    nulls_first,
+                });
+                if !self.match_token(&Token::Comma) {
+                    break;
+                }
+                self.advance();
+            }
+            items
+        } else {
+            vec![]
+        };
+
+        // Frame clause: ROWS|RANGE frame_extent
+        let frame = if self.match_keyword(Keyword::ROWS) || self.match_keyword(Keyword::RANGE) {
+            let mode = if self.match_keyword(Keyword::ROWS) {
+                self.advance();
+                "ROWS".to_string()
+            } else {
+                self.advance();
+                "RANGE".to_string()
+            };
+            let (start, end) = self.parse_frame_extent()?;
+            Some(WindowFrame { mode, start, end })
+        } else {
+            None
+        };
+
+        Ok(WindowSpec {
+            partition_by,
+            order_by,
+            frame,
+            window_name,
+        })
+    }
+
+    /// Try to parse an existing window name (identifier).
+    /// Returns None if the next token looks like PARTITION, ORDER, ROWS, RANGE, or closing paren.
+    fn try_parse_window_name(&mut self) -> Option<String> {
+        match self.peek_keyword() {
+            Some(Keyword::PARTITION) | Some(Keyword::ORDER) => None,
+            _ => {
+                match self.peek() {
+                    Token::Ident(_) | Token::QuotedIdent(_) => {
+                        // This is a window name if it's followed by something other than
+                        // just more identifiers (i.e., PARTITION/ORDER follows, or RParen)
+                        // Simple heuristic: take it as a window name
+                        let name = match self.peek().clone() {
+                            Token::Ident(s) => s,
+                            Token::QuotedIdent(s) => s,
+                            _ => unreachable!(),
+                        };
+                        self.advance();
+                        Some(name)
+                    }
+                    _ => None,
+                }
+            }
+        }
+    }
+
+    /// Parse frame_extent: BETWEEN frame_bound AND frame_bound | frame_bound
+    fn parse_frame_extent(
+        &mut self,
+    ) -> Result<(Option<WindowFrameBound>, Option<WindowFrameBound>), ParserError> {
+        if self.match_keyword(Keyword::BETWEEN) {
+            self.advance();
+            let start = self.parse_frame_bound()?;
+            self.expect_keyword(Keyword::AND)?;
+            let end = self.parse_frame_bound()?;
+            Ok((Some(start), Some(end)))
+        } else {
+            let start = self.parse_frame_bound()?;
+            Ok((Some(start), None))
+        }
+    }
+
+    /// Parse a single frame bound:
+    ///   UNBOUNDED PRECEDING | UNBOUNDED FOLLOWING | CURRENT ROW
+    ///   n PRECEDING | n FOLLOWING
+    fn parse_frame_bound(&mut self) -> Result<WindowFrameBound, ParserError> {
+        if self.match_keyword(Keyword::UNBOUNDED) {
+            self.advance();
+            if self.match_keyword(Keyword::PRECEDING) {
+                self.advance();
+                Ok(WindowFrameBound {
+                    direction: "UNBOUNDED PRECEDING".to_string(),
+                    offset: None,
+                })
+            } else {
+                self.expect_keyword(Keyword::FOLLOWING)?;
+                Ok(WindowFrameBound {
+                    direction: "UNBOUNDED FOLLOWING".to_string(),
+                    offset: None,
+                })
+            }
+        } else if self.match_keyword(Keyword::CURRENT_P) {
+            self.advance();
+            self.expect_keyword(Keyword::ROW)?;
+            Ok(WindowFrameBound {
+                direction: "CURRENT ROW".to_string(),
+                offset: None,
+            })
+        } else {
+            // numeric offset PRECEDING | FOLLOWING
+            let offset = match self.peek().clone() {
+                Token::Integer(n) => {
+                    self.advance();
+                    Some(n)
+                }
+                _ => None,
+            };
+            if self.match_keyword(Keyword::PRECEDING) {
+                self.advance();
+                Ok(WindowFrameBound {
+                    direction: "PRECEDING".to_string(),
+                    offset,
+                })
+            } else {
+                self.expect_keyword(Keyword::FOLLOWING)?;
+                Ok(WindowFrameBound {
+                    direction: "FOLLOWING".to_string(),
+                    offset,
+                })
+            }
+        }
     }
 
     fn parse_case_expr(&mut self) -> Result<Expr, ParserError> {

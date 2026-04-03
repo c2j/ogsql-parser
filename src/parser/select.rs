@@ -75,6 +75,16 @@ impl Parser {
                 vec![]
             };
             self.expect_keyword(Keyword::AS)?;
+            let materialized = if self.match_keyword(Keyword::NOT) {
+                self.advance();
+                self.expect_keyword(Keyword::MATERIALIZED)?;
+                Some(false)
+            } else if self.match_keyword(Keyword::MATERIALIZED) {
+                self.advance();
+                Some(true)
+            } else {
+                None
+            };
             self.expect_token(&Token::LParen)?;
             let query = self.parse_select_statement()?;
             self.expect_token(&Token::RParen)?;
@@ -82,6 +92,7 @@ impl Parser {
                 name,
                 columns,
                 query: Box::new(query),
+                materialized,
             });
             if !self.match_token(&Token::Comma) {
                 break;

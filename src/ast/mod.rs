@@ -35,6 +35,8 @@ pub enum DataType {
     Json,
     Jsonb,
     Uuid,
+    Bit(Option<u32>),
+    Varbit(Option<u32>),
     Custom(ObjectName),
 }
 
@@ -333,6 +335,8 @@ pub struct Cte {
     pub name: String,
     pub columns: Vec<String>,
     pub query: Box<SelectStatement>,
+    /// None = default, Some(true) = MATERIALIZED, Some(false) = NOT MATERIALIZED
+    pub materialized: Option<bool>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -392,6 +396,7 @@ pub enum Expr {
         name: ObjectName,
         args: Vec<Expr>,
         distinct: bool,
+        over: Option<WindowSpec>,
     },
     Case {
         operand: Option<Box<Expr>>,
@@ -445,6 +450,27 @@ pub enum Literal {
 }
 
 pub type ObjectName = Vec<String>;
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct WindowSpec {
+    pub window_name: Option<String>,
+    pub partition_by: Vec<Expr>,
+    pub order_by: Vec<OrderByItem>,
+    pub frame: Option<WindowFrame>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct WindowFrame {
+    pub mode: String,
+    pub start: Option<WindowFrameBound>,
+    pub end: Option<WindowFrameBound>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct WindowFrameBound {
+    pub direction: String,
+    pub offset: Option<i64>,
+}
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct InsertStatement {

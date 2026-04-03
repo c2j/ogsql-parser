@@ -483,3 +483,169 @@ fn test_call_qualified_name() {
         _ => panic!("expected Call statement"),
     }
 }
+
+// ========== WINDOW FUNCTIONS ==========
+
+#[test]
+fn test_window_function_over_partition_by() {
+    let stmt =
+        parse_one("SELECT ROW_NUMBER() OVER (PARTITION BY dept ORDER BY salary DESC) FROM emp");
+    match stmt {
+        Statement::Select(s) => {
+            assert_eq!(s.targets.len(), 1);
+            if let SelectTarget::Expr(Expr::FunctionCall { name, over, .. }, _) = &s.targets[0] {
+                assert_eq!(name, &vec!["ROW_NUMBER"]);
+                let ws = over.as_ref().expect("expected window spec");
+                assert_eq!(ws.partition_by.len(), 1);
+                assert_eq!(ws.order_by.len(), 1);
+                assert!(ws.frame.is_none());
+            } else {
+                panic!("expected FunctionCall with OVER");
+            }
+        }
+        _ => panic!("expected Select"),
+    }
+}
+
+#[test]
+fn test_window_function_over_window_name() {
+    let stmt = parse_one("SELECT SUM(salary) OVER my_window FROM emp");
+    match stmt {
+        Statement::Select(s) => {
+            if let SelectTarget::Expr(Expr::FunctionCall { name, over, .. }, _) = &s.targets[0] {
+                assert_eq!(name, &vec!["SUM"]);
+                let ws = over.as_ref().expect("expected window spec");
+                assert_eq!(ws.window_name.as_deref(), Some("my_window"));
+                assert!(ws.partition_by.is_empty());
+            } else {
+                panic!("expected FunctionCall with OVER");
+            }
+        }
+        _ => panic!("expected Select"),
+    }
+}
+
+#[test]
+fn test_window_function_rows_between() {
+    let stmt = parse_one(
+        "SELECT AVG(salary) OVER (ORDER BY id ROWS BETWEEN 1 PRECEDING AND 1 FOLLOWING) FROM emp",
+    );
+    match stmt {
+        Statement::Select(s) => {
+            if let SelectTarget::Expr(Expr::FunctionCall { over, .. }, _) = &s.targets[0] {
+                let ws = over.as_ref().expect("expected window spec");
+                let frame = ws.frame.as_ref().expect("expected frame");
+                assert_eq!(frame.mode, "ROWS");
+                assert!(frame.start.is_some());
+                assert!(frame.end.is_some());
+            } else {
+                panic!("expected FunctionCall with OVER");
+            }
+        }
+        _ => panic!("expected Select"),
+    }
+}
+
+#[test]
+fn test_window_function_range_unbounded() {
+    let stmt = parse_one(
+        "SELECT SUM(x) OVER (ORDER BY id RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) FROM t",
+    );
+    match stmt {
+        Statement::Select(s) => {
+            if let SelectTarget::Expr(Expr::FunctionCall { over, .. }, _) = &s.targets[0] {
+                let ws = over.as_ref().expect("expected window spec");
+                let frame = ws.frame.as_ref().expect("expected frame");
+                assert_eq!(frame.mode, "RANGE");
+            } else {
+                panic!("expected FunctionCall with OVER");
+            }
+        }
+        _ => panic!("expected Select"),
+    }
+}
+
+#[test]
+fn test_window_function_no_args_over() {
+    let stmt = parse_one("SELECT COUNT(*) OVER () FROM t");
+    match stmt {
+        Statement::Select(s) => {
+            if let SelectTarget::Expr(Expr::FunctionCall { name, over, .. }, _) = &s.targets[0] {
+                assert_eq!(name, &vec!["COUNT"]);
+                let ws = over.as_ref().expect("expected window spec");
+                assert!(ws.partition_by.is_empty());
+                assert!(ws.order_by.is_empty());
+                assert!(ws.frame.is_none());
+            } else {
+                panic!("expected FunctionCall with OVER");
+            }
+        }
+        _ => panic!("expected Select"),
+    }
+}
+
+// ========== CTE MATERIALIZED ==========
+
+#[test]
+fn test_cte_not_materialized() {
+    let stmt = parse_one("WITH cte AS NOT MATERIALIZED (SELECT * FROM cte) SELECT * FROM cte");
+    match stmt {
+        Statement::Select(s) => {
+            let with = s.with.as_ref().expect("expected WITH clause");
+            assert!(!with.recursive);
+            assert_eq!(with.ctes.len(), 1);
+            assert_eq!(with.ctes[0].materialized, Some(false));
+        }
+        _ => panic!("expected Select"),
+    }
+}
+
+#[test]
+fn test_cte_materialized() {
+    let stmt = parse_one("WITH cte AS MATERIALIZED (SELECT 1) SELECT * FROM cte");
+    match stmt {
+        Statement::Select(s) => {
+            let with = s.with.as_ref().expect("expected WITH clause");
+            assert_eq!(with.ctes[0].materialized, Some(true));
+        }
+        _ => panic!("expected Select"),
+    }
+}
+
+#[test]
+fn test_cte_default_materialized() {
+    let stmt = parse_one("WITH cte AS (SELECT 1) SELECT * FROM cte");
+    match stmt {
+        Statement::Select(s) => {
+            let with = s.with.as_ref().expect("expected WITH clause");
+            assert_eq!(with.ctes[0].materialized, None);
+        }
+        _ => panic!("expected Select"),
+    }
+}
+
+// ========== BIT TYPES ==========
+
+#[test]
+fn test_create_table_bit_type() {
+    let stmt = parse_one("CREATE TABLE t (col BIT(16))");
+    match stmt {
+        Statement::CreateTable(t) => {
+            assert_eq!(t.columns.len(), 1);
+            assert_eq!(t.columns[0].data_type, DataType::Bit(Some(16)));
+        }
+        _ => panic!("expected CreateTable"),
+    }
+}
+
+#[test]
+fn test_create_table_bit_varying() {
+    let stmt = parse_one("CREATE TABLE t (col BIT VARYING(20))");
+    match stmt {
+        Statement::CreateTable(t) => {
+            assert_eq!(t.columns.len(), 1);
+            assert_eq!(t.columns[0].data_type, DataType::Varbit(Some(20)));
+        }
+        _ => panic!("expected CreateTable"),
+    }
+}
