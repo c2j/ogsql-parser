@@ -649,3 +649,53 @@ fn test_create_table_bit_varying() {
         _ => panic!("expected CreateTable"),
     }
 }
+
+// ========== ERROR COLLECTION ==========
+
+#[test]
+fn test_parser_collects_errors() {
+    let sql = "INSERT INTO (; SELECT 1;";
+    let tokens = Tokenizer::new(sql).tokenize().unwrap();
+    let mut parser = Parser::new(tokens);
+    let stmts = parser.parse().unwrap();
+    assert!(parser.has_errors());
+    assert!(!parser.errors().is_empty());
+}
+
+#[test]
+fn test_parser_no_errors_on_valid_sql() {
+    let sql = "SELECT 1; INSERT INTO t VALUES (1);";
+    let tokens = Tokenizer::new(sql).tokenize().unwrap();
+    let mut parser = Parser::new(tokens);
+    let stmts = parser.parse().unwrap();
+    assert!(!parser.has_errors());
+    assert_eq!(stmts.len(), 2);
+}
+
+#[test]
+fn test_parser_error_recovery() {
+    let sql = "INSERT INTO (; SELECT 1;";
+    let tokens = Tokenizer::new(sql).tokenize().unwrap();
+    let mut parser = Parser::new(tokens);
+    let stmts = parser.parse().unwrap();
+    assert!(parser.has_errors());
+    assert_eq!(parser.errors().len(), 1);
+}
+
+#[test]
+fn test_parse_one_success() {
+    let stmt = Parser::parse_one("SELECT 1").unwrap();
+    assert!(matches!(stmt, Statement::Select(_)));
+}
+
+#[test]
+fn test_parse_one_rejects_multiple() {
+    let result = Parser::parse_one("SELECT 1; SELECT 2");
+    assert!(result.is_err());
+}
+
+#[test]
+fn test_parse_sql_convenience() {
+    let stmts = Parser::parse_sql("SELECT 1; SELECT 2").unwrap();
+    assert_eq!(stmts.len(), 2);
+}

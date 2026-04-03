@@ -1,8 +1,8 @@
-pub mod ddl;
-pub mod dml;
-pub mod expr;
-pub mod select;
-pub mod utility;
+pub(crate) mod ddl;
+pub(crate) mod dml;
+pub(crate) mod expr;
+pub(crate) mod select;
+pub(crate) mod utility;
 
 use crate::token::keyword::Keyword;
 use crate::token::{Token, TokenWithSpan};
@@ -24,17 +24,49 @@ pub enum ParserError {
 pub struct Parser {
     tokens: Vec<TokenWithSpan>,
     pos: usize,
+    errors: Vec<ParserError>,
 }
 
 impl Parser {
     pub fn new(tokens: Vec<TokenWithSpan>) -> Self {
-        Self { tokens, pos: 0 }
+        Self {
+            tokens,
+            pos: 0,
+            errors: Vec::new(),
+        }
     }
 
     pub fn parse_sql(input: &str) -> Result<Vec<crate::ast::Statement>, ParserError> {
         let tokens = crate::token::tokenizer::Tokenizer::new(input).tokenize()?;
         let mut parser = Parser::new(tokens);
         parser.parse()
+    }
+
+    pub fn parse_one(input: &str) -> Result<crate::ast::Statement, ParserError> {
+        let tokens = crate::token::tokenizer::Tokenizer::new(input).tokenize()?;
+        let mut parser = Parser::new(tokens);
+        let mut stmts = parser.parse()?;
+        match stmts.len() {
+            0 => Err(ParserError::UnexpectedEof("statement".to_string())),
+            1 => Ok(stmts.remove(0)),
+            n => Err(ParserError::UnexpectedToken {
+                position: 0,
+                expected: "single statement".to_string(),
+                got: format!("{} statements", n),
+            }),
+        }
+    }
+
+    pub fn errors(&self) -> &[ParserError] {
+        &self.errors
+    }
+
+    pub fn has_errors(&self) -> bool {
+        !self.errors.is_empty()
+    }
+
+    fn add_error(&mut self, error: ParserError) {
+        self.errors.push(error);
     }
 
     pub fn parse(&mut self) -> Result<Vec<crate::ast::Statement>, ParserError> {
@@ -212,7 +244,10 @@ impl Parser {
                         self.try_consume_semicolon();
                         crate::ast::Statement::Select(stmt)
                     }
-                    Err(_) => self.skip_to_semicolon(),
+                    Err(e) => {
+                        self.add_error(e);
+                        self.skip_to_semicolon()
+                    }
                 }
             }
             Token::Keyword(Keyword::INSERT) => {
@@ -222,7 +257,10 @@ impl Parser {
                         self.try_consume_semicolon();
                         crate::ast::Statement::Insert(stmt)
                     }
-                    Err(_) => self.skip_to_semicolon(),
+                    Err(e) => {
+                        self.add_error(e);
+                        self.skip_to_semicolon()
+                    }
                 }
             }
             Token::Keyword(Keyword::UPDATE) => {
@@ -232,7 +270,10 @@ impl Parser {
                         self.try_consume_semicolon();
                         crate::ast::Statement::Update(stmt)
                     }
-                    Err(_) => self.skip_to_semicolon(),
+                    Err(e) => {
+                        self.add_error(e);
+                        self.skip_to_semicolon()
+                    }
                 }
             }
             Token::Keyword(Keyword::DELETE_P) => {
@@ -242,7 +283,10 @@ impl Parser {
                         self.try_consume_semicolon();
                         crate::ast::Statement::Delete(stmt)
                     }
-                    Err(_) => self.skip_to_semicolon(),
+                    Err(e) => {
+                        self.add_error(e);
+                        self.skip_to_semicolon()
+                    }
                 }
             }
             Token::Keyword(Keyword::MERGE) => {
@@ -252,7 +296,10 @@ impl Parser {
                         self.try_consume_semicolon();
                         crate::ast::Statement::Merge(stmt)
                     }
-                    Err(_) => self.skip_to_semicolon(),
+                    Err(e) => {
+                        self.add_error(e);
+                        self.skip_to_semicolon()
+                    }
                 }
             }
             Token::Keyword(Keyword::TRUNCATE) => {
@@ -262,7 +309,10 @@ impl Parser {
                         self.try_consume_semicolon();
                         crate::ast::Statement::Truncate(stmt)
                     }
-                    Err(_) => self.skip_to_semicolon(),
+                    Err(e) => {
+                        self.add_error(e);
+                        self.skip_to_semicolon()
+                    }
                 }
             }
             // ── All other statements: skip to semicolon (not yet implemented) ──
@@ -285,7 +335,10 @@ impl Parser {
                         self.try_consume_semicolon();
                         crate::ast::Statement::VariableSet(stmt)
                     }
-                    Err(_) => self.skip_to_semicolon(),
+                    Err(e) => {
+                        self.add_error(e);
+                        self.skip_to_semicolon()
+                    }
                 }
             }
             Token::Keyword(Keyword::SHOW) => {
@@ -295,7 +348,10 @@ impl Parser {
                         self.try_consume_semicolon();
                         crate::ast::Statement::VariableShow(stmt)
                     }
-                    Err(_) => self.skip_to_semicolon(),
+                    Err(e) => {
+                        self.add_error(e);
+                        self.skip_to_semicolon()
+                    }
                 }
             }
             Token::Keyword(Keyword::RESET) => {
@@ -305,7 +361,10 @@ impl Parser {
                         self.try_consume_semicolon();
                         crate::ast::Statement::VariableReset(stmt)
                     }
-                    Err(_) => self.skip_to_semicolon(),
+                    Err(e) => {
+                        self.add_error(e);
+                        self.skip_to_semicolon()
+                    }
                 }
             }
             Token::Keyword(Keyword::BEGIN_P) | Token::Keyword(Keyword::START) => {
@@ -315,7 +374,10 @@ impl Parser {
                         self.try_consume_semicolon();
                         crate::ast::Statement::Transaction(stmt)
                     }
-                    Err(_) => self.skip_to_semicolon(),
+                    Err(e) => {
+                        self.add_error(e);
+                        self.skip_to_semicolon()
+                    }
                 }
             }
             Token::Keyword(Keyword::COMMIT) | Token::Keyword(Keyword::END_P) => {
@@ -325,7 +387,10 @@ impl Parser {
                         self.try_consume_semicolon();
                         crate::ast::Statement::Transaction(stmt)
                     }
-                    Err(_) => self.skip_to_semicolon(),
+                    Err(e) => {
+                        self.add_error(e);
+                        self.skip_to_semicolon()
+                    }
                 }
             }
             Token::Keyword(Keyword::ROLLBACK) => {
@@ -335,7 +400,10 @@ impl Parser {
                         self.try_consume_semicolon();
                         crate::ast::Statement::Transaction(stmt)
                     }
-                    Err(_) => self.skip_to_semicolon(),
+                    Err(e) => {
+                        self.add_error(e);
+                        self.skip_to_semicolon()
+                    }
                 }
             }
             Token::Keyword(Keyword::SAVEPOINT) => {
@@ -345,7 +413,10 @@ impl Parser {
                         self.try_consume_semicolon();
                         crate::ast::Statement::Transaction(stmt)
                     }
-                    Err(_) => self.skip_to_semicolon(),
+                    Err(e) => {
+                        self.add_error(e);
+                        self.skip_to_semicolon()
+                    }
                 }
             }
             Token::Keyword(Keyword::DISCARD) => {
@@ -355,7 +426,10 @@ impl Parser {
                         self.try_consume_semicolon();
                         crate::ast::Statement::Discard(stmt)
                     }
-                    Err(_) => self.skip_to_semicolon(),
+                    Err(e) => {
+                        self.add_error(e);
+                        self.skip_to_semicolon()
+                    }
                 }
             }
             Token::Keyword(Keyword::CHECKPOINT) => {
@@ -370,14 +444,20 @@ impl Parser {
                         self.try_consume_semicolon();
                         crate::ast::Statement::Copy(stmt)
                     }
-                    Err(_) => self.skip_to_semicolon(),
+                    Err(e) => {
+                        self.add_error(e);
+                        self.skip_to_semicolon()
+                    }
                 }
             }
             Token::Keyword(Keyword::EXPLAIN) => {
                 self.advance();
                 match self.parse_explain() {
                     Ok(stmt) => crate::ast::Statement::Explain(stmt),
-                    Err(_) => self.skip_to_semicolon(),
+                    Err(e) => {
+                        self.add_error(e);
+                        self.skip_to_semicolon()
+                    }
                 }
             }
             Token::Keyword(Keyword::CALL) => {
@@ -387,7 +467,10 @@ impl Parser {
                         self.try_consume_semicolon();
                         crate::ast::Statement::Call(stmt)
                     }
-                    Err(_) => self.skip_to_semicolon(),
+                    Err(e) => {
+                        self.add_error(e);
+                        self.skip_to_semicolon()
+                    }
                 }
             }
             Token::Keyword(Keyword::GRANT) => {
@@ -548,15 +631,24 @@ impl Parser {
         match self.peek_keyword() {
             Some(Keyword::TABLE) => match self.parse_create_table() {
                 Ok(stmt) => crate::ast::Statement::CreateTable(stmt),
-                Err(_) => self.skip_to_semicolon(),
+                Err(e) => {
+                    self.add_error(e);
+                    self.skip_to_semicolon()
+                }
             },
             Some(Keyword::INDEX) => match self.parse_create_index() {
                 Ok(stmt) => crate::ast::Statement::CreateIndex(stmt),
-                Err(_) => self.skip_to_semicolon(),
+                Err(e) => {
+                    self.add_error(e);
+                    self.skip_to_semicolon()
+                }
             },
             Some(Keyword::SEQUENCE) => match self.parse_create_sequence() {
                 Ok(stmt) => crate::ast::Statement::CreateSequence(stmt),
-                Err(_) => self.skip_to_semicolon(),
+                Err(e) => {
+                    self.add_error(e);
+                    self.skip_to_semicolon()
+                }
             },
             Some(Keyword::VIEW) => match self.parse_create_view() {
                 Ok(mut stmt) => {
@@ -565,19 +657,31 @@ impl Parser {
                     stmt.recursive = recursive;
                     crate::ast::Statement::CreateView(stmt)
                 }
-                Err(_) => self.skip_to_semicolon(),
+                Err(e) => {
+                    self.add_error(e);
+                    self.skip_to_semicolon()
+                }
             },
             Some(Keyword::SCHEMA) => match self.parse_create_schema() {
                 Ok(stmt) => crate::ast::Statement::CreateSchema(stmt),
-                Err(_) => self.skip_to_semicolon(),
+                Err(e) => {
+                    self.add_error(e);
+                    self.skip_to_semicolon()
+                }
             },
             Some(Keyword::DATABASE) => match self.parse_create_database() {
                 Ok(stmt) => crate::ast::Statement::CreateDatabase(stmt),
-                Err(_) => self.skip_to_semicolon(),
+                Err(e) => {
+                    self.add_error(e);
+                    self.skip_to_semicolon()
+                }
             },
             Some(Keyword::TABLESPACE) => match self.parse_create_tablespace() {
                 Ok(stmt) => crate::ast::Statement::CreateTablespace(stmt),
-                Err(_) => self.skip_to_semicolon(),
+                Err(e) => {
+                    self.add_error(e);
+                    self.skip_to_semicolon()
+                }
             },
             Some(Keyword::FUNCTION) => {
                 self.skip_to_semicolon_as(crate::ast::Statement::CreateFunction(
@@ -629,7 +733,10 @@ impl Parser {
         match self.peek_keyword() {
             Some(Keyword::TABLE) => match self.parse_alter_table() {
                 Ok(stmt) => crate::ast::Statement::AlterTable(stmt),
-                Err(_) => self.skip_to_semicolon(),
+                Err(e) => {
+                    self.add_error(e);
+                    self.skip_to_semicolon()
+                }
             },
             _ => self.skip_to_semicolon(),
         }
@@ -638,7 +745,10 @@ impl Parser {
     fn dispatch_drop(&mut self) -> crate::ast::Statement {
         match self.parse_drop() {
             Ok(stmt) => crate::ast::Statement::Drop(stmt),
-            Err(_) => self.skip_to_semicolon(),
+            Err(e) => {
+                self.add_error(e);
+                self.skip_to_semicolon()
+            }
         }
     }
 

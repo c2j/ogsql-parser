@@ -1,6 +1,16 @@
-pub mod token;
 pub mod ast;
+pub mod formatter;
 pub mod parser;
+pub mod token;
 
-pub use token::{Keyword, Span, Token, TokenWithSpan};
+pub use ast::{
+    AlterTableStatement, ColumnConstraint, ColumnDef, CopyStatement, CreateDatabaseStatement,
+    CreateIndexStatement, CreateSchemaStatement, CreateTableStatement, CreateTablespaceStatement,
+    CreateViewStatement, DataType, DeleteStatement, DropStatement, ExplainStatement, Expr,
+    InsertStatement, Literal, MergeStatement, ObjectName, SelectStatement, Statement,
+    TableConstraint, TableRef, TruncateStatement, UpdateStatement, WindowSpec,
+};
+pub use formatter::SqlFormatter;
+pub use parser::{Parser, ParserError};
 pub use token::tokenizer::{Tokenizer, TokenizerError};
+pub use token::{Keyword, Span, Token, TokenWithSpan};
