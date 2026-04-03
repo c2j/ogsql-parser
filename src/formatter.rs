@@ -38,6 +38,18 @@ impl SqlFormatter {
             Statement::VariableReset(s) => self.format_variable_reset(s),
             Statement::Discard(s) => self.format_discard(s),
             Statement::Call(s) => self.format_call(s),
+            Statement::CreateFdw(s) => self.format_create_fdw(s),
+            Statement::CreateForeignServer(s) => self.format_create_foreign_server(s),
+            Statement::CreateForeignTable(s) => self.format_create_foreign_table(s),
+            Statement::CreatePublication(s) => self.format_create_publication(s),
+            Statement::CreateSubscription(s) => self.format_create_subscription(s),
+            Statement::CreateNode(s) => self.format_create_node(s),
+            Statement::CreateNodeGroup(s) => self.format_create_node_group(s),
+            Statement::CreateResourcePool(s) => self.format_create_resource_pool(s),
+            Statement::CreateWorkloadGroup(s) => self.format_create_workload_group(s),
+            Statement::CreateAuditPolicy(s) => self.format_create_audit_policy(s),
+            Statement::CreateMaskingPolicy(s) => self.format_create_masking_policy(s),
+            Statement::CreateRlsPolicy(s) => self.format_create_rls_policy(s),
             Statement::Empty => String::new(),
             Statement::Checkpoint => self.kw("CHECKPOINT"),
             _ => self.format_stub(stmt),
@@ -1566,6 +1578,145 @@ impl Default for SqlFormatter {
 impl std::fmt::Display for Statement {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         write!(f, "{}", SqlFormatter::new().format_statement(self))
+    }
+}
+
+impl SqlFormatter {
+    fn format_options(&self, options: &[(String, String)]) -> String {
+        if options.is_empty() {
+            return String::new();
+        }
+        let pairs: Vec<String> = options
+            .iter()
+            .map(|(k, v)| format!("{} = '{}'", k, v))
+            .collect();
+        format!(" WITH ({})", pairs.join(", "))
+    }
+
+    fn format_create_fdw(&self, stmt: &CreateFdwStatement) -> String {
+        let mut s = format!("CREATE FOREIGN DATA WRAPPER {}", stmt.name);
+        if let Some(ref h) = stmt.handler {
+            s.push_str(&format!(" HANDLER {}", h));
+        }
+        if let Some(ref v) = stmt.validator {
+            s.push_str(&format!(" VALIDATOR {}", v));
+        }
+        s.push_str(&self.format_options(&stmt.options));
+        s
+    }
+
+    fn format_create_foreign_server(&self, stmt: &CreateForeignServerStatement) -> String {
+        let mut s = format!("CREATE SERVER {}", stmt.name);
+        if let Some(ref t) = stmt.server_type {
+            s.push_str(&format!(" TYPE '{}'", t));
+        }
+        if let Some(ref v) = stmt.version {
+            s.push_str(&format!(" VERSION '{}'", v));
+        }
+        s.push_str(&format!(" FOREIGN DATA WRAPPER {}", stmt.fdw_name));
+        s.push_str(&self.format_options(&stmt.options));
+        s
+    }
+
+    fn format_create_foreign_table(&self, stmt: &CreateForeignTableStatement) -> String {
+        let mut s = format!(
+            "CREATE FOREIGN TABLE {}",
+            self.format_object_name(&stmt.name)
+        );
+        if !stmt.columns.is_empty() {
+            let cols: Vec<String> = stmt
+                .columns
+                .iter()
+                .map(|c| self.format_column_def(c))
+                .collect();
+            s.push_str(&format!(" ({})", cols.join(", ")));
+        }
+        s.push_str(&format!(" SERVER {}", stmt.server_name));
+        s.push_str(&self.format_options(&stmt.options));
+        s
+    }
+
+    fn format_create_publication(&self, stmt: &CreatePublicationStatement) -> String {
+        let mut s = format!("CREATE PUBLICATION {}", stmt.name);
+        if stmt.all_tables {
+            s.push_str(" FOR ALL TABLES");
+        } else if !stmt.tables.is_empty() {
+            let tables: Vec<String> = stmt
+                .tables
+                .iter()
+                .map(|t| self.format_object_name(t))
+                .collect();
+            s.push_str(&format!(" FOR TABLE {}", tables.join(", ")));
+        }
+        s.push_str(&self.format_options(&stmt.options));
+        s
+    }
+
+    fn format_create_subscription(&self, stmt: &CreateSubscriptionStatement) -> String {
+        let mut s = format!("CREATE SUBSCRIPTION {}", stmt.name);
+        s.push_str(&format!(" CONNECTION '{}'", stmt.connection));
+        let pubs = stmt.publications.join(", ");
+        s.push_str(&format!(" PUBLICATION {}", pubs));
+        s.push_str(&self.format_options(&stmt.options));
+        s
+    }
+
+    fn format_create_node(&self, stmt: &CreateNodeStatement) -> String {
+        let mut s = format!("CREATE NODE {}", stmt.name);
+        s.push_str(&self.format_options(&stmt.options));
+        s
+    }
+
+    fn format_create_node_group(&self, stmt: &CreateNodeGroupStatement) -> String {
+        let mut s = format!("CREATE NODE GROUP {}", stmt.name);
+        if !stmt.nodes.is_empty() {
+            s.push_str(&format!(" ({})", stmt.nodes.join(", ")));
+        }
+        s.push_str(&self.format_options(&stmt.options));
+        s
+    }
+
+    fn format_create_resource_pool(&self, stmt: &CreateResourcePoolStatement) -> String {
+        let mut s = format!("CREATE RESOURCE POOL {}", stmt.name);
+        s.push_str(&self.format_options(&stmt.options));
+        s
+    }
+
+    fn format_create_workload_group(&self, stmt: &CreateWorkloadGroupStatement) -> String {
+        let mut s = format!("CREATE WORKLOAD GROUP {}", stmt.name);
+        if let Some(ref p) = stmt.pool_name {
+            s.push_str(&format!(" USING RESOURCE POOL {}", p));
+        }
+        s.push_str(&self.format_options(&stmt.options));
+        s
+    }
+
+    fn format_create_audit_policy(&self, stmt: &CreateAuditPolicyStatement) -> String {
+        let mut s = format!("CREATE AUDIT POLICY {}", stmt.name);
+        s.push_str(&format!(" {}", stmt.policy_type));
+        s.push_str(&self.format_options(&stmt.options));
+        s
+    }
+
+    fn format_create_masking_policy(&self, stmt: &CreateMaskingPolicyStatement) -> String {
+        let mut s = format!("CREATE MASKING POLICY {}", stmt.name);
+        s.push_str(&self.format_options(&stmt.options));
+        s
+    }
+
+    fn format_create_rls_policy(&self, stmt: &CreateRlsPolicyStatement) -> String {
+        let mut s = format!(
+            "CREATE POLICY {} ON {}",
+            stmt.name,
+            self.format_object_name(&stmt.table)
+        );
+        if !stmt.permissive {
+            s.push_str(" AS RESTRICTIVE");
+        }
+        if let Some(ref expr) = stmt.using_expr {
+            s.push_str(&format!(" USING ({})", expr));
+        }
+        s
     }
 }
 

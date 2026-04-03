@@ -954,3 +954,101 @@ fn test_round_trips_multiple_statements() {
         "CREATE TABLE t (id INTEGER); INSERT INTO t VALUES (1); SELECT * FROM t"
     ));
 }
+
+// ── openGauss extension tests (Waves 4-7) ──
+
+#[test]
+fn test_parse_create_fdw() {
+    let stmts = parse("CREATE FOREIGN DATA WRAPPER foo OPTIONS (testing '1', another '2')");
+    assert!(matches!(&stmts[0], Statement::CreateFdw(_)));
+}
+
+#[test]
+fn test_parse_create_server() {
+    let stmts = parse("CREATE SERVER s1 FOREIGN DATA WRAPPER foo OPTIONS (host 'a', dbname 'b')");
+    assert!(matches!(&stmts[0], Statement::CreateForeignServer(_)));
+}
+
+#[test]
+fn test_parse_create_foreign_table() {
+    let stmts =
+        parse("CREATE FOREIGN TABLE ft1 (c1 integer, c2 text) SERVER s0 OPTIONS (delimiter ',')");
+    assert!(matches!(&stmts[0], Statement::CreateForeignTable(_)));
+}
+
+#[test]
+fn test_parse_create_publication() {
+    let stmts = parse("CREATE PUBLICATION pub1 FOR TABLE t1, t2");
+    assert!(matches!(&stmts[0], Statement::CreatePublication(_)));
+}
+
+#[test]
+fn test_parse_create_subscription() {
+    let stmts = parse("CREATE SUBSCRIPTION sub1 CONNECTION 'host=abc' PUBLICATION pub1");
+    assert!(matches!(&stmts[0], Statement::CreateSubscription(_)));
+}
+
+#[test]
+fn test_parse_create_node() {
+    let stmts = parse("CREATE NODE dn1 WITH (TYPE = 'datanode', HOST = 'localhost')");
+    assert!(matches!(&stmts[0], Statement::CreateNode(_)));
+}
+
+#[test]
+fn test_parse_create_node_group() {
+    let stmts = parse("CREATE NODE GROUP grp1 WITH (dn1, dn2)");
+    assert!(matches!(&stmts[0], Statement::CreateNodeGroup(_)));
+}
+
+#[test]
+fn test_parse_create_resource_pool() {
+    let stmts = parse("CREATE RESOURCE POOL rp1 WITH (MEM_PERCENT = 20)");
+    assert!(matches!(&stmts[0], Statement::CreateResourcePool(_)));
+}
+
+#[test]
+fn test_parse_create_workload_group() {
+    let stmts = parse("CREATE WORKLOAD GROUP wg1 USING RESOURCE POOL rp1");
+    assert!(matches!(&stmts[0], Statement::CreateWorkloadGroup(_)));
+}
+
+#[test]
+fn test_parse_create_audit_policy() {
+    let stmts = parse("CREATE AUDIT POLICY ap1 PRIVILEGES SELECT ON TABLE t1");
+    assert!(matches!(&stmts[0], Statement::CreateAuditPolicy(_)));
+}
+
+#[test]
+fn test_parse_create_masking_policy() {
+    let stmts = parse("CREATE MASKING POLICY mp1 WITH (masking_function ON (col1))");
+    assert!(matches!(&stmts[0], Statement::CreateMaskingPolicy(_)));
+}
+
+#[test]
+fn test_parse_create_rls_policy() {
+    let stmts = parse("CREATE POLICY rls1 ON t1 USING (id > 0)");
+    assert!(matches!(&stmts[0], Statement::CreateRlsPolicy(_)));
+}
+
+#[test]
+fn test_format_create_fdw() {
+    let stmts = parse("CREATE FOREIGN DATA WRAPPER foo");
+    let formatted = SqlFormatter::new().format_statement(&stmts[0]);
+    assert!(formatted.contains("FOREIGN DATA WRAPPER"));
+    assert!(formatted.contains("foo"));
+}
+
+#[test]
+fn test_format_create_publication() {
+    let stmts = parse("CREATE PUBLICATION pub1 FOR ALL TABLES");
+    let formatted = SqlFormatter::new().format_statement(&stmts[0]);
+    assert!(formatted.contains("PUBLICATION"));
+    assert!(formatted.contains("FOR ALL TABLES"));
+}
+
+#[test]
+fn test_format_create_node() {
+    let stmts = parse("CREATE NODE dn1 WITH (TYPE = 'datanode')");
+    let formatted = SqlFormatter::new().format_statement(&stmts[0]);
+    assert!(formatted.contains("CREATE NODE"));
+}

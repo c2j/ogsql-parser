@@ -641,6 +641,385 @@ impl Parser {
         }
     }
 
+    fn parse_generic_options(&mut self) -> Vec<(String, String)> {
+        let mut options = Vec::new();
+        if !self.try_consume_keyword(Keyword::WITH) {
+            return options;
+        }
+        if !self.match_token(&Token::LParen) {
+            return options;
+        }
+        self.advance();
+        loop {
+            let key = self.parse_identifier().unwrap_or_default();
+            if self.match_token(&Token::Eq) {
+                self.advance();
+            }
+            let value = match self.peek().clone() {
+                Token::StringLiteral(s) => {
+                    self.advance();
+                    s
+                }
+                Token::Ident(s) => {
+                    self.advance();
+                    s
+                }
+                _ => String::new(),
+            };
+            options.push((key, value));
+            if self.match_token(&Token::Comma) {
+                self.advance();
+            } else {
+                break;
+            }
+        }
+        let _ = self.expect_token(&Token::RParen);
+        options
+    }
+
+    fn parse_create_foreign(&mut self) -> Result<crate::ast::Statement, ParserError> {
+        if self.match_keyword(Keyword::FOREIGN) {
+            self.advance();
+        }
+        match self.peek_keyword() {
+            Some(Keyword::DATA_P) => {
+                self.advance(); // DATA
+                self.expect_keyword(Keyword::WRAPPER)?;
+                let name = self.parse_identifier()?;
+                let mut handler = None;
+                let mut validator = None;
+                if self.try_consume_keyword(Keyword::HANDLER) {
+                    handler = Some(self.parse_identifier()?);
+                }
+                if self.try_consume_keyword(Keyword::NO) {
+                    self.advance(); // skip HANDLER or VALIDATOR after NO
+                    if self.match_keyword(Keyword::HANDLER)
+                        || self.match_keyword(Keyword::VALIDATOR)
+                    {
+                        self.advance();
+                    }
+                }
+                if self.match_keyword(Keyword::VALIDATOR) {
+                    self.advance();
+                    validator = Some(self.parse_identifier()?);
+                }
+                let options = self.parse_generic_options();
+                self.try_consume_semicolon();
+                Ok(crate::ast::Statement::CreateFdw(
+                    crate::ast::CreateFdwStatement {
+                        name,
+                        handler,
+                        validator,
+                        options,
+                    },
+                ))
+            }
+            Some(Keyword::SERVER) => {
+                self.advance(); // SERVER
+                let name = self.parse_identifier()?;
+                let mut server_type = None;
+                let mut version = None;
+                if self.try_consume_keyword(Keyword::TYPE_P) {
+                    self.advance();
+                    server_type = Some(self.parse_identifier()?);
+                }
+                if self.try_consume_keyword(Keyword::VERSION_P) {
+                    self.advance();
+                    version = Some(self.parse_identifier()?);
+                }
+                self.expect_keyword(Keyword::FOREIGN)?;
+                self.expect_keyword(Keyword::DATA_P)?;
+                self.expect_keyword(Keyword::WRAPPER)?;
+                let fdw_name = self.parse_identifier()?;
+                let options = self.parse_generic_options();
+                self.try_consume_semicolon();
+                Ok(crate::ast::Statement::CreateForeignServer(
+                    crate::ast::CreateForeignServerStatement {
+                        name,
+                        server_type,
+                        version,
+                        fdw_name,
+                        options,
+                    },
+                ))
+            }
+            Some(Keyword::TABLE) => {
+                self.advance(); // TABLE
+                let name = self.parse_object_name()?;
+                let mut columns = Vec::new();
+                if self.match_token(&Token::LParen) {
+                    self.advance();
+                    loop {
+                        if self.match_token(&Token::RParen) {
+                            self.advance();
+                            break;
+                        }
+                        let col_name = self.parse_identifier()?;
+                        let _data_type = self.parse_identifier(); // skip type for now
+                        let mut constraints = Vec::new();
+                        if self.try_consume_keyword(Keyword::NOT) {
+                            self.advance(); // NOT NULL
+                            if self.match_keyword(Keyword::NULL_P) {
+                                self.advance();
+                            }
+                        }
+                        columns.push(crate::ast::ColumnDef {
+                            name: col_name,
+                            data_type: crate::ast::DataType::Text,
+                            constraints,
+                        });
+                        if !self.match_token(&Token::Comma) {
+                            if self.match_token(&Token::RParen) {
+                                self.advance();
+                                break;
+                            }
+                            break;
+                        }
+                        self.advance();
+                    }
+                }
+                self.expect_keyword(Keyword::SERVER)?;
+                let server_name = self.parse_identifier()?;
+                let options = self.parse_generic_options();
+                self.try_consume_semicolon();
+                Ok(crate::ast::Statement::CreateForeignTable(
+                    crate::ast::CreateForeignTableStatement {
+                        name,
+                        columns,
+                        server_name,
+                        options,
+                    },
+                ))
+            }
+            _ => Err(ParserError::UnexpectedToken {
+                location: self.current_location(),
+                expected: "TABLE, SERVER, or DATA WRAPPER".to_string(),
+                got: format!("{:?}", self.peek()),
+            }),
+        }
+    }
+
+    fn parse_create_publication(&mut self) -> Result<crate::ast::Statement, ParserError> {
+        self.advance(); // PUBLICATION
+        let name = self.parse_identifier()?;
+        let mut tables = Vec::new();
+        let mut all_tables = false;
+        if self.try_consume_keyword(Keyword::FOR) {
+            if self.try_consume_keyword(Keyword::ALL) {
+                self.expect_keyword(Keyword::TABLES)?;
+                all_tables = true;
+            } else {
+                self.expect_keyword(Keyword::TABLE)?;
+                loop {
+                    tables.push(self.parse_object_name()?);
+                    if !self.match_token(&Token::Comma) {
+                        break;
+                    }
+                    self.advance();
+                }
+            }
+        }
+        let options = self.parse_generic_options();
+        self.try_consume_semicolon();
+        Ok(crate::ast::Statement::CreatePublication(
+            crate::ast::CreatePublicationStatement {
+                name,
+                tables,
+                all_tables,
+                options,
+            },
+        ))
+    }
+
+    fn parse_create_subscription(&mut self) -> Result<crate::ast::Statement, ParserError> {
+        self.advance(); // SUBSCRIPTION
+        let name = self.parse_identifier()?;
+        self.expect_keyword(Keyword::CONNECTION)?;
+        let connection = match self.peek().clone() {
+            Token::StringLiteral(s) => {
+                self.advance();
+                s
+            }
+            _ => {
+                return Err(ParserError::UnexpectedToken {
+                    location: self.current_location(),
+                    expected: "connection string".to_string(),
+                    got: format!("{:?}", self.peek()),
+                })
+            }
+        };
+        self.expect_keyword(Keyword::PUBLICATION)?;
+        let mut publications = Vec::new();
+        loop {
+            publications.push(self.parse_identifier()?);
+            if !self.match_token(&Token::Comma) {
+                break;
+            }
+            self.advance();
+        }
+        let options = self.parse_generic_options();
+        self.try_consume_semicolon();
+        Ok(crate::ast::Statement::CreateSubscription(
+            crate::ast::CreateSubscriptionStatement {
+                name,
+                connection,
+                publications,
+                options,
+            },
+        ))
+    }
+
+    fn parse_create_node_group_inner(&mut self) -> Result<crate::ast::Statement, ParserError> {
+        let name = self.parse_identifier()?;
+        let mut nodes = Vec::new();
+        if self.match_token(&Token::LParen) {
+            self.advance();
+            loop {
+                if self.match_token(&Token::RParen) {
+                    self.advance();
+                    break;
+                }
+                nodes.push(self.parse_identifier()?);
+                if !self.match_token(&Token::Comma) {
+                    if self.match_token(&Token::RParen) {
+                        self.advance();
+                        break;
+                    }
+                    break;
+                }
+                self.advance();
+            }
+        }
+        let options = self.parse_generic_options();
+        self.try_consume_semicolon();
+        Ok(crate::ast::Statement::CreateNodeGroup(
+            crate::ast::CreateNodeGroupStatement {
+                name,
+                nodes,
+                options,
+            },
+        ))
+    }
+
+    fn parse_create_resource_pool(&mut self) -> Result<crate::ast::Statement, ParserError> {
+        self.advance(); // RESOURCE
+        self.expect_keyword(Keyword::POOL)?;
+        let name = self.parse_identifier()?;
+        let options = self.parse_generic_options();
+        self.try_consume_semicolon();
+        Ok(crate::ast::Statement::CreateResourcePool(
+            crate::ast::CreateResourcePoolStatement { name, options },
+        ))
+    }
+
+    fn parse_create_workload_group(&mut self) -> Result<crate::ast::Statement, ParserError> {
+        self.advance(); // WORKLOAD
+        self.expect_keyword(Keyword::GROUP_P)?;
+        let name = self.parse_identifier()?;
+        let mut pool_name = None;
+        if self.try_consume_keyword(Keyword::USING) {
+            self.expect_keyword(Keyword::RESOURCE)?;
+            self.expect_keyword(Keyword::POOL)?;
+            pool_name = Some(self.parse_identifier()?);
+        }
+        let options = self.parse_generic_options();
+        self.try_consume_semicolon();
+        Ok(crate::ast::Statement::CreateWorkloadGroup(
+            crate::ast::CreateWorkloadGroupStatement {
+                name,
+                pool_name,
+                options,
+            },
+        ))
+    }
+
+    fn parse_create_audit_policy(&mut self) -> Result<crate::ast::Statement, ParserError> {
+        self.advance(); // AUDIT
+        self.expect_keyword(Keyword::POLICY)?;
+        let name = self.parse_identifier()?;
+        let policy_type = self.parse_identifier()?;
+        let options = self.parse_generic_options();
+        self.try_consume_semicolon();
+        Ok(crate::ast::Statement::CreateAuditPolicy(
+            crate::ast::CreateAuditPolicyStatement {
+                name,
+                policy_type,
+                options,
+            },
+        ))
+    }
+
+    fn parse_create_masking_policy(&mut self) -> Result<crate::ast::Statement, ParserError> {
+        self.advance(); // MASKING
+        self.expect_keyword(Keyword::POLICY)?;
+        let name = self.parse_identifier()?;
+        let options = self.parse_generic_options();
+        self.try_consume_semicolon();
+        Ok(crate::ast::Statement::CreateMaskingPolicy(
+            crate::ast::CreateMaskingPolicyStatement { name, options },
+        ))
+    }
+
+    fn parse_create_rls_policy(&mut self) -> Result<crate::ast::Statement, ParserError> {
+        self.advance(); // POLICY
+        let name = self.parse_identifier()?;
+        self.expect_keyword(Keyword::ON)?;
+        let table = self.parse_object_name()?;
+        let mut permissive = true;
+        let kw_str = match self.peek() {
+            Token::Ident(s) | Token::QuotedIdent(s) => s.to_lowercase(),
+            _ => String::new(),
+        };
+        if kw_str == "restrictive" {
+            permissive = false;
+            self.advance();
+        } else if kw_str == "permissive" {
+            self.advance();
+        }
+        let mut using_expr = None;
+        if self.try_consume_keyword(Keyword::USING) {
+            using_expr = Some(self.skip_to_paren_end());
+        }
+        self.try_consume_semicolon();
+        Ok(crate::ast::Statement::CreateRlsPolicy(
+            crate::ast::CreateRlsPolicyStatement {
+                name,
+                table,
+                permissive,
+                using_expr,
+            },
+        ))
+    }
+
+    fn skip_to_paren_end(&mut self) -> String {
+        let mut depth = 0;
+        let mut result = String::new();
+        loop {
+            match self.peek() {
+                Token::LParen => {
+                    depth += 1;
+                    result.push('(');
+                    self.advance();
+                }
+                Token::RParen => {
+                    if depth == 0 {
+                        break;
+                    }
+                    depth -= 1;
+                    result.push(')');
+                    self.advance();
+                }
+                Token::Eof => break,
+                Token::Semicolon if depth == 0 => break,
+                t => {
+                    result.push_str(&format!("{:?}", t).to_lowercase());
+                    self.advance();
+                }
+            }
+        }
+        result
+    }
+
     fn dispatch_create(&mut self) -> crate::ast::Statement {
         let replace = if self.match_keyword(Keyword::OR) {
             self.advance();
@@ -761,6 +1140,96 @@ impl Parser {
             Some(Keyword::TYPE_P) => self.skip_to_semicolon_as(crate::ast::Statement::Empty),
             Some(Keyword::CAST) => self.skip_to_semicolon_as(crate::ast::Statement::Empty),
             Some(Keyword::DOMAIN_P) => self.skip_to_semicolon_as(crate::ast::Statement::Empty),
+            Some(Keyword::FOREIGN) => match self.parse_create_foreign() {
+                Ok(stmt) => stmt,
+                Err(e) => {
+                    self.add_error(e);
+                    self.skip_to_semicolon()
+                }
+            },
+            Some(Keyword::SERVER) => match self.parse_create_foreign() {
+                Ok(stmt) => stmt,
+                Err(e) => {
+                    self.add_error(e);
+                    self.skip_to_semicolon()
+                }
+            },
+            Some(Keyword::PUBLICATION) => match self.parse_create_publication() {
+                Ok(stmt) => stmt,
+                Err(e) => {
+                    self.add_error(e);
+                    self.skip_to_semicolon()
+                }
+            },
+            Some(Keyword::SUBSCRIPTION) => match self.parse_create_subscription() {
+                Ok(stmt) => stmt,
+                Err(e) => {
+                    self.add_error(e);
+                    self.skip_to_semicolon()
+                }
+            },
+            Some(Keyword::NODE) => {
+                self.advance();
+                if self.match_keyword(Keyword::GROUP_P) {
+                    self.advance();
+                    match self.parse_create_node_group_inner() {
+                        Ok(stmt) => stmt,
+                        Err(e) => {
+                            self.add_error(e);
+                            self.skip_to_semicolon()
+                        }
+                    }
+                } else {
+                    let name = match self.parse_identifier() {
+                        Ok(n) => n,
+                        Err(e) => {
+                            self.add_error(e);
+                            return self.skip_to_semicolon();
+                        }
+                    };
+                    let options = self.parse_generic_options();
+                    self.try_consume_semicolon();
+                    crate::ast::Statement::CreateNode(crate::ast::CreateNodeStatement {
+                        name,
+                        options,
+                    })
+                }
+            }
+            Some(Keyword::WORKLOAD) => match self.parse_create_workload_group() {
+                Ok(stmt) => stmt,
+                Err(e) => {
+                    self.add_error(e);
+                    self.skip_to_semicolon()
+                }
+            },
+            Some(Keyword::RESOURCE) => match self.parse_create_resource_pool() {
+                Ok(stmt) => stmt,
+                Err(e) => {
+                    self.add_error(e);
+                    self.skip_to_semicolon()
+                }
+            },
+            Some(Keyword::AUDIT) => match self.parse_create_audit_policy() {
+                Ok(stmt) => stmt,
+                Err(e) => {
+                    self.add_error(e);
+                    self.skip_to_semicolon()
+                }
+            },
+            Some(Keyword::MASKING) => match self.parse_create_masking_policy() {
+                Ok(stmt) => stmt,
+                Err(e) => {
+                    self.add_error(e);
+                    self.skip_to_semicolon()
+                }
+            },
+            Some(Keyword::POLICY) => match self.parse_create_rls_policy() {
+                Ok(stmt) => stmt,
+                Err(e) => {
+                    self.add_error(e);
+                    self.skip_to_semicolon()
+                }
+            },
             _ => self.skip_to_semicolon(),
         }
     }

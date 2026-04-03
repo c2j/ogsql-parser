@@ -720,6 +720,103 @@ pub struct CreateTablespaceStatement {
 
 pub mod visitor;
 
+macro_rules! stub_struct {
+    ($($name:ident),+ $(,)?) => {
+        $(
+            #[derive(Debug, Clone, PartialEq)]
+            pub struct $name { pub _stub: () }
+        )+
+    };
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct CreateForeignTableStatement {
+    pub name: ObjectName,
+    pub columns: Vec<ColumnDef>,
+    pub server_name: String,
+    pub options: Vec<(String, String)>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct CreateForeignServerStatement {
+    pub name: String,
+    pub server_type: Option<String>,
+    pub version: Option<String>,
+    pub fdw_name: String,
+    pub options: Vec<(String, String)>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct CreateFdwStatement {
+    pub name: String,
+    pub handler: Option<String>,
+    pub validator: Option<String>,
+    pub options: Vec<(String, String)>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct CreatePublicationStatement {
+    pub name: String,
+    pub tables: Vec<ObjectName>,
+    pub all_tables: bool,
+    pub options: Vec<(String, String)>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct CreateSubscriptionStatement {
+    pub name: String,
+    pub connection: String,
+    pub publications: Vec<String>,
+    pub options: Vec<(String, String)>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct CreateNodeStatement {
+    pub name: String,
+    pub options: Vec<(String, String)>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct CreateNodeGroupStatement {
+    pub name: String,
+    pub nodes: Vec<String>,
+    pub options: Vec<(String, String)>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct CreateResourcePoolStatement {
+    pub name: String,
+    pub options: Vec<(String, String)>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct CreateWorkloadGroupStatement {
+    pub name: String,
+    pub pool_name: Option<String>,
+    pub options: Vec<(String, String)>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct CreateAuditPolicyStatement {
+    pub name: String,
+    pub policy_type: String,
+    pub options: Vec<(String, String)>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct CreateMaskingPolicyStatement {
+    pub name: String,
+    pub options: Vec<(String, String)>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct CreateRlsPolicyStatement {
+    pub name: String,
+    pub table: ObjectName,
+    pub permissive: bool,
+    pub using_expr: Option<String>,
+}
+
 stub_struct!(
     DropDatabaseStatement,
     DropTablespaceStatement,
@@ -755,22 +852,10 @@ stub_struct!(
     CreateConversionStatement,
     CreateDomainStatement,
     AlterDomainStatement,
-    CreateForeignTableStatement,
-    CreateForeignServerStatement,
-    CreateFdwStatement,
-    CreatePublicationStatement,
-    CreateSubscriptionStatement,
     CreateSynonymStatement,
     CreateModelStatement,
     CreateAmStatement,
     CreateDirectoryStatement,
-    CreateNodeStatement,
-    CreateNodeGroupStatement,
-    CreateResourcePoolStatement,
-    CreateWorkloadGroupStatement,
-    CreateAuditPolicyStatement,
-    CreateMaskingPolicyStatement,
-    CreateRlsPolicyStatement,
     CreateDataSourceStatement,
     CreateEventStatement,
     CreateOpClassStatement,
