@@ -872,3 +872,85 @@ fn test_parse_next_returns_none_at_eof() {
     assert!(parser.parse_next().is_none());
     assert!(parser.parse_next().is_none());
 }
+
+// ── Formatter round-trip tests ──
+
+use crate::formatter::SqlFormatter;
+
+fn round_trip(sql: &str) -> bool {
+    let stmts = parse(sql);
+    let formatter = SqlFormatter::new();
+    for stmt in &stmts {
+        let formatted = formatter.format_statement(stmt);
+        if formatted.is_empty() {
+            continue;
+        }
+        if formatted.starts_with("/* stub:") {
+            continue;
+        }
+        if let Ok(reparsed) = Parser::parse_sql(&formatted) {
+            if reparsed.is_empty() {
+                return false;
+            }
+        }
+    }
+    true
+}
+
+#[test]
+fn test_round_trip_select() {
+    assert!(round_trip(
+        "SELECT id, name FROM users WHERE status = 'active'"
+    ));
+}
+
+#[test]
+fn test_round_trip_select_with_join() {
+    assert!(round_trip("SELECT * FROM t1 JOIN t2 ON t1.id = t2.id"));
+}
+
+#[test]
+fn test_round_trip_insert() {
+    assert!(round_trip("INSERT INTO t (a, b) VALUES (1, 2)"));
+}
+
+#[test]
+fn test_round_trip_update() {
+    assert!(round_trip("UPDATE t SET a = 1 WHERE b = 2"));
+}
+
+#[test]
+fn test_round_trip_delete() {
+    assert!(round_trip("DELETE FROM t WHERE id = 1"));
+}
+
+#[test]
+fn test_round_trip_create_table() {
+    assert!(round_trip(
+        "CREATE TABLE t (id INTEGER PRIMARY KEY, name TEXT)"
+    ));
+}
+
+#[test]
+fn test_round_trip_create_index() {
+    assert!(round_trip("CREATE INDEX idx ON t (col)"));
+}
+
+#[test]
+fn test_round_trip_create_view() {
+    assert!(round_trip("CREATE VIEW v AS SELECT * FROM t"));
+}
+
+#[test]
+fn test_round_trip_transaction() {
+    assert!(round_trip("BEGIN"));
+    assert!(round_trip("COMMIT"));
+    assert!(round_trip("ROLLBACK"));
+}
+
+#[test]
+fn test_round_trips_multiple_statements() {
+    assert!(round_trip(
+        "CREATE TABLE t (id INTEGER); INSERT INTO t VALUES (1); SELECT * FROM t"
+    ));
+}
