@@ -6,14 +6,14 @@ pub use encoding::decode_sql_file;
 pub use keyword::Keyword;
 
 /// Span represents a range of bytes in the source SQL text.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
 pub struct Span {
     pub start: usize,
     pub end: usize,
 }
 
 /// Human-readable source location for error reporting.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
 pub struct SourceLocation {
     /// 1-based line number
     pub line: usize,
@@ -34,7 +34,7 @@ impl Default for SourceLocation {
 }
 
 /// A token with its location in the source text.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
 pub struct TokenWithSpan {
     pub token: Token,
     pub span: Span,
@@ -44,7 +44,7 @@ pub struct TokenWithSpan {
 /// SQL token types for the openGauss lexer.
 ///
 /// Based on the token declarations in gram.y and the lexical rules in scan.l.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
 pub enum Token {
     /// End of input
     Eof,

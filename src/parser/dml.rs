@@ -1,6 +1,6 @@
 use crate::ast::{
     DeleteStatement, InsertSource, InsertStatement, MergeAction, MergeStatement, MergeWhenClause,
-    SelectTarget, TableRef, UpdateAssignment, UpdateStatement,
+    OnConflictAction, OnConflictTarget, SelectTarget, TableRef, UpdateAssignment, UpdateStatement,
 };
 use crate::parser::{Parser, ParserError};
 use crate::token::keyword::Keyword;
@@ -56,6 +56,41 @@ impl Parser {
                 got: format!("{:?}", self.peek()),
             });
         };
+        let on_conflict = if self.match_keyword(Keyword::ON) {
+            self.advance();
+            if self.match_keyword(Keyword::DUPLICATE) {
+                self.advance();
+                self.expect_keyword(Keyword::KEY)?;
+                self.expect_keyword(Keyword::UPDATE)?;
+                let mut assignments = Vec::new();
+                loop {
+                    let column = self.parse_object_name()?;
+                    self.expect_token(&Token::Eq)?;
+                    let value = self.parse_expr()?;
+                    assignments.push(UpdateAssignment { column, value });
+                    if !self.match_token(&Token::Comma) {
+                        break;
+                    }
+                    self.advance();
+                }
+                let where_clause = if self.match_keyword(Keyword::WHERE) {
+                    self.advance();
+                    Some(self.parse_expr()?)
+                } else {
+                    None
+                };
+                Some(OnConflictAction::Update {
+                    target: None,
+                    assignments,
+                    where_clause,
+                })
+            } else {
+                self.pos -= 1;
+                None
+            }
+        } else {
+            None
+        };
         let returning = if self.match_keyword(Keyword::RETURNING) {
             self.advance();
             self.parse_target_list()?
@@ -66,6 +101,7 @@ impl Parser {
             table,
             columns,
             source,
+            on_conflict,
             returning,
         })
     }

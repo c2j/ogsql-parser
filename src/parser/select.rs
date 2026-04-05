@@ -1,6 +1,6 @@
 use crate::ast::{
-    Cte, JoinType, ObjectName, OrderByItem, SelectStatement, SelectTarget, SetOperation, TableRef,
-    WithClause,
+    Cte, FetchClause, JoinType, LockClause, ObjectName, OrderByItem, SelectStatement, SelectTarget,
+    SetOperation, TableRef, WithClause,
 };
 use crate::parser::{Parser, ParserError};
 use crate::token::keyword::Keyword;
@@ -159,6 +159,8 @@ impl Parser {
             limit: None,
             offset: None,
             set_operation: None,
+            fetch: None,
+            lock_clause: None,
         })
     }
 
@@ -353,6 +355,111 @@ impl Parser {
             self.advance();
             stmt.offset = Some(self.parse_expr()?);
         }
+        stmt.fetch = self.parse_fetch_clause()?;
+        stmt.lock_clause = self.parse_lock_clause()?;
         Ok(())
+    }
+
+    fn parse_fetch_clause(&mut self) -> Result<Option<FetchClause>, ParserError> {
+        if !self.match_keyword(Keyword::FETCH) {
+            return Ok(None);
+        }
+        self.advance();
+
+        let count = if self.match_keyword(Keyword::FIRST_P) || self.match_keyword(Keyword::NEXT) {
+            self.advance();
+            if self.match_keyword(Keyword::ROW) || self.match_keyword(Keyword::ROWS) {
+                self.advance();
+                None
+            } else {
+                Some(self.parse_expr()?)
+            }
+        } else {
+            None
+        };
+
+        let with_ties = if self.match_keyword(Keyword::WITH) {
+            self.advance();
+            self.expect_keyword(Keyword::TIES)?;
+            true
+        } else {
+            self.try_consume_keyword(Keyword::ONLY);
+            false
+        };
+
+        Ok(Some(FetchClause { count, with_ties }))
+    }
+
+    fn parse_lock_clause(&mut self) -> Result<Option<LockClause>, ParserError> {
+        if !self.match_keyword(Keyword::FOR) {
+            return Ok(None);
+        }
+        self.advance();
+
+        let (lock_type, has_no_key) = if self.match_keyword(Keyword::UPDATE) {
+            self.advance();
+            (0usize, false)
+        } else if self.match_keyword(Keyword::SHARE) {
+            self.advance();
+            (1, false)
+        } else if self.match_keyword(Keyword::NO) {
+            self.advance();
+            self.expect_keyword(Keyword::KEY)?;
+            self.expect_keyword(Keyword::UPDATE)?;
+            (2, true)
+        } else if self.match_keyword(Keyword::KEY) {
+            self.advance();
+            self.expect_keyword(Keyword::SHARE)?;
+            (3, true)
+        } else {
+            return Err(ParserError::UnexpectedToken {
+                location: self.current_location(),
+                expected: "UPDATE, SHARE, NO KEY UPDATE, or KEY SHARE".to_string(),
+                got: format!("{:?}", self.peek()),
+            });
+        };
+
+        let tables = if self.match_keyword(Keyword::OF) {
+            self.advance();
+            let mut tbls = vec![self.parse_object_name()?];
+            while self.match_token(&Token::Comma) {
+                self.advance();
+                tbls.push(self.parse_object_name()?);
+            }
+            tbls
+        } else {
+            vec![]
+        };
+
+        let nowait = self.try_consume_keyword(Keyword::NOWAIT);
+        let skip_locked = self.try_consume_keyword(Keyword::SKIP) && {
+            self.expect_keyword(Keyword::LOCKED)?;
+            true
+        };
+
+        let clause = match lock_type {
+            0 => LockClause::Update {
+                tables,
+                nowait,
+                skip_locked,
+            },
+            1 => LockClause::Share {
+                tables,
+                nowait,
+                skip_locked,
+            },
+            2 => LockClause::NoKeyUpdate {
+                tables,
+                nowait,
+                skip_locked,
+            },
+            _ => LockClause::KeyShare {
+                tables,
+                nowait,
+                skip_locked,
+            },
+        };
+
+        Ok(Some(clause))
     }
 }

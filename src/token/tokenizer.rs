@@ -1,7 +1,7 @@
 use super::keyword::lookup_keyword;
 use super::{SourceLocation, Span, Token, TokenWithSpan};
 
-#[derive(Debug, thiserror::Error)]
+#[derive(Debug, Clone, thiserror::Error, serde::Serialize)]
 pub enum TokenizerError {
     #[error("unterminated string literal at position {0}")]
     UnterminatedString(usize),

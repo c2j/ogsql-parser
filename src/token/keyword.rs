@@ -1,5 +1,5 @@
 #![allow(non_camel_case_types)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize)]
 pub enum Keyword {
     ABORT_P,
     ABSOLUTE_P,

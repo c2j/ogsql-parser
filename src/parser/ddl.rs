@@ -2,8 +2,8 @@ use crate::ast::{
     AlterColumnAction, AlterTableAction, AlterTableStatement, CheckOption, ColumnConstraint,
     ColumnDef, CreateDatabaseStatement, CreateIndexStatement, CreateSchemaStatement,
     CreateSequenceStatement, CreateTableStatement, CreateTablespaceStatement, CreateViewStatement,
-    DataType, DropStatement, IndexColumn, ObjectType, SchemaElement, TableConstraint, TimeZoneInfo,
-    TruncateStatement,
+    DataType, DropStatement, IndexColumn, ObjectType, OnCommitAction, PartitionClause,
+    SchemaElement, TableConstraint, TimeZoneInfo, TruncateStatement,
 };
 use crate::parser::{Parser, ParserError};
 use crate::token::keyword::Keyword;
@@ -12,7 +12,11 @@ use crate::token::Token;
 impl Parser {
     // ========== CREATE TABLE ==========
 
-    pub(crate) fn parse_create_table(&mut self) -> Result<CreateTableStatement, ParserError> {
+    pub(crate) fn parse_create_table(
+        &mut self,
+        temporary: bool,
+        unlogged: bool,
+    ) -> Result<CreateTableStatement, ParserError> {
         self.expect_keyword(Keyword::TABLE)?;
 
         let if_not_exists = self.parse_if_not_exists();
@@ -41,13 +45,132 @@ impl Parser {
         }
 
         self.expect_token(&Token::RParen)?;
-        let options = Vec::new();
+
+        let mut inherits = Vec::new();
+        let mut partition_by = None;
+        let mut tablespace = None;
+        let mut on_commit = None;
+        let mut options = Vec::new();
+
+        loop {
+            if self.match_keyword(Keyword::INHERITS) {
+                self.advance();
+                self.expect_token(&Token::LParen)?;
+                inherits.push(self.parse_object_name()?);
+                while self.match_token(&Token::Comma) {
+                    self.advance();
+                    inherits.push(self.parse_object_name()?);
+                }
+                self.expect_token(&Token::RParen)?;
+            } else if self.match_keyword(Keyword::PARTITION) {
+                self.advance();
+                self.expect_keyword(Keyword::BY)?;
+                let strategy = match self.peek() {
+                    Token::Ident(s) if s.to_uppercase() == "HASH" => {
+                        self.advance();
+                        "hash"
+                    }
+                    _ => match self.peek_keyword() {
+                        Some(Keyword::RANGE) => {
+                            self.advance();
+                            "range"
+                        }
+                        Some(Keyword::LIST) => {
+                            self.advance();
+                            "list"
+                        }
+                        _ => {
+                            return Err(ParserError::UnexpectedToken {
+                                location: self.current_location(),
+                                expected: "RANGE, LIST, or HASH".to_string(),
+                                got: format!("{:?}", self.peek()),
+                            });
+                        }
+                    },
+                };
+                self.expect_token(&Token::LParen)?;
+                let column = self.parse_object_name()?;
+                self.expect_token(&Token::RParen)?;
+                partition_by = Some(match strategy {
+                    "range" => PartitionClause::Range { column },
+                    "list" => PartitionClause::List { column },
+                    _ => PartitionClause::Hash { column },
+                });
+            } else if self.match_keyword(Keyword::TABLESPACE) {
+                self.advance();
+                tablespace = Some(self.parse_identifier()?);
+            } else if self.match_keyword(Keyword::ON) {
+                self.advance();
+                self.expect_keyword(Keyword::COMMIT)?;
+                on_commit = Some(if self.match_keyword(Keyword::PRESERVE) {
+                    self.advance();
+                    self.expect_keyword(Keyword::ROWS)?;
+                    OnCommitAction::PreserveRows
+                } else if self.match_keyword(Keyword::DELETE_P) {
+                    self.advance();
+                    self.expect_keyword(Keyword::ROWS)?;
+                    OnCommitAction::DeleteRows
+                } else {
+                    self.expect_keyword(Keyword::DROP)?;
+                    OnCommitAction::Drop
+                });
+            } else if self.match_keyword(Keyword::WITH) {
+                self.advance();
+                self.expect_token(&Token::LParen)?;
+                loop {
+                    let key = self.parse_identifier()?;
+                    self.expect_token(&Token::Eq)?;
+                    let val = match self.peek().clone() {
+                        Token::StringLiteral(s) => {
+                            self.advance();
+                            s
+                        }
+                        Token::Ident(s) => {
+                            self.advance();
+                            s
+                        }
+                        Token::Integer(n) => {
+                            self.advance();
+                            n.to_string()
+                        }
+                        Token::Keyword(kw) => {
+                            self.advance();
+                            format!("{:?}", kw)
+                                .to_lowercase()
+                                .trim_end_matches("_p")
+                                .to_string()
+                        }
+                        _ => {
+                            return Err(ParserError::UnexpectedToken {
+                                location: self.current_location(),
+                                expected: "option value".to_string(),
+                                got: format!("{:?}", self.peek()),
+                            });
+                        }
+                    };
+                    options.push((key, val));
+                    if !self.match_token(&Token::Comma) {
+                        break;
+                    }
+                    self.advance();
+                }
+                self.expect_token(&Token::RParen)?;
+            } else {
+                break;
+            }
+        }
 
         Ok(CreateTableStatement {
+            temporary,
+            unlogged,
             if_not_exists,
             name,
             columns,
             constraints,
+            inherits,
+            partition_by,
+            tablespace,
+            on_commit,
             options,
         })
     }
@@ -434,22 +557,54 @@ impl Parser {
                         }
                     }
                 }
-                let col = self.parse_column_def()?;
-                Ok(AlterTableAction::AddColumn(col))
+                if self.match_keyword(Keyword::CONSTRAINT)
+                    || self.match_keyword(Keyword::PRIMARY)
+                    || self.match_keyword(Keyword::UNIQUE)
+                    || self.match_keyword(Keyword::CHECK)
+                    || self.match_keyword(Keyword::FOREIGN)
+                {
+                    let name = if self.match_keyword(Keyword::CONSTRAINT) {
+                        self.advance();
+                        Some(self.parse_identifier()?)
+                    } else {
+                        None
+                    };
+                    let constraint = self.parse_table_constraint()?;
+                    Ok(AlterTableAction::AddConstraint { name, constraint })
+                } else {
+                    let col = self.parse_column_def()?;
+                    Ok(AlterTableAction::AddColumn(col))
+                }
             }
             Some(Keyword::DROP) => {
                 self.advance();
                 if self.match_keyword(Keyword::COLUMN) {
                     self.advance();
+                    let if_exists = self.parse_if_exists();
+                    let name = self.parse_identifier()?;
+                    let cascade = self.try_consume_keyword(Keyword::CASCADE);
+                    Ok(AlterTableAction::DropColumn {
+                        name,
+                        if_exists,
+                        cascade,
+                    })
+                } else if self.match_keyword(Keyword::CONSTRAINT) {
+                    self.advance();
+                    let if_exists = self.parse_if_exists();
+                    let name = self.parse_identifier()?;
+                    let cascade = self.try_consume_keyword(Keyword::CASCADE);
+                    Ok(AlterTableAction::DropConstraint {
+                        name,
+                        if_exists,
+                        cascade,
+                    })
+                } else {
+                    Err(ParserError::UnexpectedToken {
+                        location: self.current_location(),
+                        expected: "COLUMN or CONSTRAINT".to_string(),
+                        got: format!("{:?}", self.peek()),
+                    })
                 }
-                let if_exists = self.parse_if_exists();
-                let name = self.parse_identifier()?;
-                let cascade = self.try_consume_keyword(Keyword::CASCADE);
-                Ok(AlterTableAction::DropColumn {
-                    name,
-                    if_exists,
-                    cascade,
-                })
             }
             Some(Keyword::ALTER) => {
                 self.advance();
@@ -459,6 +614,50 @@ impl Parser {
                 let name = self.parse_identifier()?;
                 let action = self.parse_alter_column_action()?;
                 Ok(AlterTableAction::AlterColumn { name, action })
+            }
+            Some(Keyword::RENAME) => {
+                self.advance();
+                if self.match_keyword(Keyword::COLUMN) {
+                    self.advance();
+                    let old = self.parse_identifier()?;
+                    self.expect_keyword(Keyword::TO)?;
+                    let new = self.parse_identifier()?;
+                    Ok(AlterTableAction::RenameColumn { old, new })
+                } else if self.match_keyword(Keyword::CONSTRAINT) {
+                    self.advance();
+                    let _old = self.parse_identifier()?;
+                    self.expect_keyword(Keyword::TO)?;
+                    let _new = self.parse_identifier()?;
+                    Ok(AlterTableAction::DropConstraint {
+                        name: String::new(),
+                        if_exists: false,
+                        cascade: false,
+                    })
+                } else {
+                    self.expect_keyword(Keyword::TO)?;
+                    let new_name = self.parse_identifier()?;
+                    Ok(AlterTableAction::RenameTo { new_name })
+                }
+            }
+            Some(Keyword::OWNER) => {
+                self.advance();
+                self.expect_keyword(Keyword::TO)?;
+                let owner = self.parse_identifier()?;
+                Ok(AlterTableAction::OwnerTo { owner })
+            }
+            Some(Keyword::SET) => {
+                self.advance();
+                if self.match_keyword(Keyword::SCHEMA) {
+                    self.advance();
+                    let schema = self.parse_identifier()?;
+                    Ok(AlterTableAction::SetSchema { schema })
+                } else {
+                    Err(ParserError::UnexpectedToken {
+                        location: self.current_location(),
+                        expected: "SCHEMA".to_string(),
+                        got: format!("{:?}", self.peek()),
+                    })
+                }
             }
             _ => Err(ParserError::UnexpectedToken {
                 location: self.current_location(),
@@ -527,54 +726,94 @@ impl Parser {
     // ========== DROP ==========
 
     pub(crate) fn parse_drop(&mut self) -> Result<DropStatement, ParserError> {
-        match self.peek_keyword() {
+        let obj_type = match self.peek_keyword() {
             Some(Keyword::TABLE) => {
                 self.advance();
-                self.parse_drop_statement(ObjectType::Table)
+                ObjectType::Table
             }
             Some(Keyword::INDEX) => {
                 self.advance();
-                self.parse_drop_statement(ObjectType::Index)
+                ObjectType::Index
             }
             Some(Keyword::SEQUENCE) => {
                 self.advance();
-                self.parse_drop_statement(ObjectType::Sequence)
+                ObjectType::Sequence
             }
             Some(Keyword::VIEW) => {
                 self.advance();
-                self.parse_drop_statement(ObjectType::View)
+                ObjectType::View
             }
             Some(Keyword::SCHEMA) => {
                 self.advance();
-                self.parse_drop_statement(ObjectType::Schema)
+                ObjectType::Schema
             }
             Some(Keyword::DATABASE) => {
                 self.advance();
-                self.parse_drop_statement(ObjectType::Database)
+                ObjectType::Database
             }
-            _ => Err(ParserError::UnexpectedToken {
-                location: self.current_location(),
-                expected: "DROP object type".to_string(),
-                got: format!("{:?}", self.peek()),
-            }),
-        }
+            Some(Keyword::TABLESPACE) => {
+                self.advance();
+                ObjectType::Tablespace
+            }
+            Some(Keyword::MATERIALIZED) => {
+                self.advance();
+                self.expect_keyword(Keyword::VIEW)?;
+                ObjectType::MaterializedView
+            }
+            Some(Keyword::FUNCTION) => {
+                self.advance();
+                ObjectType::Function
+            }
+            Some(Keyword::PROCEDURE) => {
+                self.advance();
+                ObjectType::Procedure
+            }
+            Some(Keyword::TRIGGER) => {
+                self.advance();
+                ObjectType::Trigger
+            }
+            Some(Keyword::EXTENSION) => {
+                self.advance();
+                ObjectType::Extension
+            }
+            Some(Keyword::FOREIGN) => {
+                self.advance();
+                if self.match_keyword(Keyword::TABLE) {
+                    self.advance();
+                    ObjectType::ForeignTable
+                } else if self.match_keyword(Keyword::DATA_P) {
+                    self.advance();
+                    self.expect_keyword(Keyword::WRAPPER)?;
+                    ObjectType::Fdw
+                } else {
+                    self.expect_keyword(Keyword::SERVER)?;
+                    ObjectType::ForeignServer
+                }
+            }
+            _ => {
+                return Err(ParserError::UnexpectedToken {
+                    location: self.current_location(),
+                    expected: "DROP object type".to_string(),
+                    got: format!("{:?}", self.peek()),
+                });
+            }
+        };
+        let if_exists = self.parse_if_exists();
+        self.parse_drop_statement_with_type(obj_type, if_exists)
     }
 
-    fn parse_drop_statement(
+    fn parse_drop_statement_with_type(
         &mut self,
         object_type: ObjectType,
+        if_exists: bool,
     ) -> Result<DropStatement, ParserError> {
-        let if_exists = self.parse_if_exists();
-
         let mut names = vec![self.parse_object_name()?];
         while self.match_token(&Token::Comma) {
             self.advance();
             names.push(self.parse_object_name()?);
         }
-
         let cascade = self.try_consume_keyword(Keyword::CASCADE);
         let purge = self.try_consume_keyword(Keyword::PURGE);
-
         Ok(DropStatement {
             object_type,
             if_exists,
@@ -589,6 +828,7 @@ impl Parser {
     pub(crate) fn parse_create_index(&mut self) -> Result<CreateIndexStatement, ParserError> {
         self.expect_keyword(Keyword::INDEX)?;
 
+        let concurrent = self.try_consume_keyword(Keyword::CONCURRENTLY);
         let unique = self.try_consume_keyword(Keyword::UNIQUE);
         let if_not_exists = self.parse_if_not_exists();
 
@@ -609,19 +849,29 @@ impl Parser {
         }
         self.expect_token(&Token::RParen)?;
 
-        let where_clause = if self.match_keyword(Keyword::WHERE) {
-            self.advance();
-            Some(self.parse_expr()?)
-        } else {
-            None
-        };
+        let mut tablespace = None;
+        let mut where_clause = None;
+
+        loop {
+            if self.match_keyword(Keyword::TABLESPACE) {
+                self.advance();
+                tablespace = Some(self.parse_identifier()?);
+            } else if self.match_keyword(Keyword::WHERE) {
+                self.advance();
+                where_clause = Some(self.parse_expr()?);
+            } else {
+                break;
+            }
+        }
 
         Ok(CreateIndexStatement {
             unique,
             if_not_exists,
+            concurrent,
             name,
             table,
             columns,
+            tablespace,
             where_clause,
         })
     }
@@ -819,7 +1069,9 @@ impl Parser {
             if self.match_keyword(Keyword::CREATE) {
                 self.advance();
                 let element = match self.peek_keyword() {
-                    Some(Keyword::TABLE) => SchemaElement::Table(self.parse_create_table()?),
+                    Some(Keyword::TABLE) => {
+                        SchemaElement::Table(self.parse_create_table(false, false)?)
+                    }
                     Some(Keyword::INDEX) => SchemaElement::Index(self.parse_create_index()?),
                     Some(Keyword::VIEW) => SchemaElement::View(self.parse_create_view()?),
                     Some(Keyword::SEQUENCE) => {

@@ -1,0 +1,496 @@
+use std::io::Read as _;
+
+use clap::{Parser as ClapParser, Subcommand};
+use ogsql_parser::*;
+use serde::{Deserialize, Serialize};
+
+#[derive(ClapParser)]
+#[command(name = "ogsql", version, about = "openGauss/GaussDB SQL Parser")]
+struct Cli {
+    #[command(subcommand)]
+    command: Commands,
+
+    #[arg(short = 'f', long, global = true)]
+    file: Option<String>,
+
+    #[arg(short = 'j', long, global = true)]
+    json: bool,
+}
+
+#[derive(Subcommand)]
+enum Commands {
+    Format,
+    Parse,
+    Tokenize,
+    Validate,
+    #[cfg(feature = "serve")]
+    Serve {
+        #[arg(short, long, default_value_t = 8080)]
+        port: u16,
+        #[arg(short, long, default_value = "127.0.0.1")]
+        host: String,
+    },
+    #[cfg(feature = "tui")]
+    Playground,
+}
+
+macro_rules! die {
+    ($($t:tt)*) => {{ eprintln!($($t)*); std::process::exit(1); }};
+}
+
+fn read_input(file: Option<&str>) -> String {
+    match file {
+        Some(path) => std::fs::read_to_string(path)
+            .unwrap_or_else(|e| die!("Error reading {}: {}", path, e)),
+        None => {
+            let mut buf = String::new();
+            std::io::stdin().read_to_string(&mut buf)
+                .unwrap_or_else(|e| die!("Error reading stdin: {}", e));
+            buf
+        }
+    }
+}
+
+macro_rules! die {
+    ($($t:tt)*) => {{ eprintln!($($t)*); std::process::exit(1); }};
+}
+
+fn parse_input(sql: &str) -> (Vec<Statement>, Vec<ParserError>) {
+    let tokens = match Tokenizer::new(sql).tokenize() {
+        Ok(t) => t,
+        Err(e) => return (vec![], vec![ParserError::TokenizerError(e)]),
+    };
+    let mut parser = Parser::new(tokens);
+    let mut stmts = Vec::new();
+    while let Some(result) = parser.parse_next() {
+        match result {
+            Ok(s) => stmts.push(s),
+            Err(_) => {}
+        }
+    }
+    (stmts, parser.errors().to_vec())
+}
+
+fn token_display(t: &TokenWithSpan) -> (String, String) {
+    match &t.token {
+        Token::Keyword(k) => ("Keyword".into(), format!("{:?}", k)),
+        Token::Ident(s) => ("Ident".into(), s.clone()),
+        Token::Integer(n) => ("Integer".into(), n.to_string()),
+        Token::StringLiteral(s) => ("String".into(), s.clone()),
+        Token::Float(s) => ("Float".into(), s.clone()),
+        Token::Op(s) => ("Op".into(), s.clone()),
+        other => ("Other".into(), format!("{:?}", other)),
+    }
+}
+
+#[derive(Serialize)]
+struct TokenInfo {
+    #[serde(rename = "type")]
+    token_type: String,
+    value: String,
+    line: usize,
+    column: usize,
+}
+
+fn cmd_format(cli: &Cli) {
+    let sql = read_input(cli.file.as_deref());
+    let (stmts, errors) = parse_input(&sql);
+
+    let formatter = SqlFormatter::new();
+    let formatted: Vec<String> = stmts.iter().map(|s| formatter.format_statement(s)).collect();
+
+    if cli.json {
+        let out = serde_json::json!({
+            "statements": formatted,
+            "error_count": errors.len(),
+            "errors": errors,
+        });
+        println!("{}", serde_json::to_string_pretty(&out).unwrap());
+    } else {
+        if !errors.is_empty() {
+            for e in &errors {
+                eprintln!("error: {}", e);
+            }
+        }
+        if !formatted.is_empty() {
+            println!("{}", formatted.join(";\n"));
+            println!(";");
+        }
+    }
+}
+
+fn cmd_parse(cli: &Cli) {
+    let sql = read_input(cli.file.as_deref());
+    let (stmts, errors) = parse_input(&sql);
+
+    if cli.json {
+        let out = serde_json::json!({
+            "statements": stmts,
+            "errors": errors,
+        });
+        println!("{}", serde_json::to_string_pretty(&out).unwrap());
+    } else {
+        for stmt in &stmts {
+            println!("{:#?}", stmt);
+        }
+        if !errors.is_empty() {
+            eprintln!("\n{} error(s):", errors.len());
+            for e in &errors {
+                eprintln!("  {}", e);
+            }
+        }
+    }
+}
+
+fn cmd_tokenize(cli: &Cli) {
+    let sql = read_input(cli.file.as_deref());
+    let tokens = match Tokenizer::new(&sql).tokenize() {
+        Ok(t) => t,
+        Err(e) => die!("Tokenizer error: {}", e),
+    };
+
+    if cli.json {
+        let info: Vec<TokenInfo> = tokens
+            .iter()
+            .map(|t| {
+                let (token_type, value) = token_display(t);
+                TokenInfo {
+                    token_type,
+                    value,
+                    line: t.location.line,
+                    column: t.location.column,
+                }
+            })
+            .collect();
+        println!("{}", serde_json::to_string_pretty(&info).unwrap());
+    } else {
+        for t in &tokens {
+            println!("{:?}", t.token);
+        }
+    }
+}
+
+fn cmd_validate(cli: &Cli) {
+    let sql = read_input(cli.file.as_deref());
+    let (_, errors) = parse_input(&sql);
+
+    if cli.json {
+        let out = serde_json::json!({
+            "valid": errors.is_empty(),
+            "error_count": errors.len(),
+            "errors": errors,
+        });
+        println!("{}", serde_json::to_string_pretty(&out).unwrap());
+    } else {
+        if errors.is_empty() {
+            println!("VALID");
+        } else {
+            println!("INVALID ({} error(s)):", errors.len());
+            for e in &errors {
+                eprintln!("  {}", e);
+            }
+            std::process::exit(1);
+        }
+    }
+}
+
+#[cfg(feature = "serve")]
+fn cmd_serve(host: &str, port: u16) {
+    use axum::Json;
+    use axum::routing::{get, post};
+    use axum::Router;
+
+    #[derive(Deserialize)]
+    struct SqlInput {
+        sql: String,
+    }
+
+    async fn health() -> Json<serde_json::Value> {
+        Json(serde_json::json!({"status": "ok"}))
+    }
+
+    async fn handle_parse(Json(input): Json<SqlInput>) -> Json<serde_json::Value> {
+        let (stmts, errors) = parse_input(&input.sql);
+        Json(serde_json::json!({"statements": stmts, "errors": errors}))
+    }
+
+    async fn handle_format(Json(input): Json<SqlInput>) -> Json<serde_json::Value> {
+        let (stmts, errors) = parse_input(&input.sql);
+        let formatter = SqlFormatter::new();
+        let formatted: Vec<String> = stmts.iter().map(|s| formatter.format_statement(s)).collect();
+        Json(serde_json::json!({
+            "formatted": formatted.join(";\n"),
+            "error_count": errors.len(),
+            "errors": errors,
+        }))
+    }
+
+    async fn handle_tokenize(Json(input): Json<SqlInput>) -> Json<serde_json::Value> {
+        let tokens = match Tokenizer::new(&input.sql).tokenize() {
+            Ok(t) => t,
+            Err(e) => return Json(serde_json::json!({"error": e.to_string()})),
+        };
+        let list: Vec<serde_json::Value> = tokens
+            .iter()
+            .map(|t| {
+                let (token_type, value) = token_display(t);
+                serde_json::json!({
+                    "type": token_type,
+                    "value": value,
+                    "line": t.location.line,
+                    "column": t.location.column,
+                })
+            })
+            .collect();
+        Json(serde_json::json!({"tokens": list}))
+    }
+
+    async fn handle_validate(Json(input): Json<SqlInput>) -> Json<serde_json::Value> {
+        let (_, errors) = parse_input(&input.sql);
+        Json(serde_json::json!({
+            "valid": errors.is_empty(),
+            "error_count": errors.len(),
+            "errors": errors,
+        }))
+    }
+
+    let app = Router::new()
+        .route("/api/health", get(health))
+        .route("/api/parse", post(handle_parse))
+        .route("/api/format", post(handle_format))
+        .route("/api/tokenize", post(handle_tokenize))
+        .route("/api/validate", post(handle_validate));
+
+    let addr = format!("{}:{}", host, port);
+    eprintln!("ogsql server listening on http://{}", addr);
+
+    let rt = tokio::runtime::Runtime::new().expect("Failed to create tokio runtime");
+    rt.block_on(async {
+        let listener = tokio::net::TcpListener::bind(&addr)
+            .await
+            .unwrap_or_else(|e| die!("Failed to bind {}: {}", addr, e));
+        axum::serve(listener, app)
+            .await
+            .unwrap_or_else(|e| die!("Server error: {}", e));
+    });
+}
+
+#[cfg(feature = "tui")]
+fn cmd_playground() {
+    use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyModifiers};
+    use crossterm::terminal::{
+        disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen,
+    };
+    use crossterm::execute;
+    use ratatui::backend::CrosstermBackend;
+    use ratatui::layout::{Constraint, Direction, Layout};
+    use ratatui::style::{Color, Modifier, Style};
+    use ratatui::text::{Line, Span};
+    use ratatui::widgets::{Block, Borders, Paragraph, Tabs, Wrap};
+    use ratatui::Frame;
+    use std::io;
+
+    struct App {
+        input: String,
+        cursor: usize,
+        tab_index: usize,
+        input_scroll: u16,
+        output_scroll: u16,
+    }
+
+    impl App {
+        fn new() -> Self {
+            Self {
+                input: String::from(
+                    "SELECT id, name\nFROM users\nWHERE status = 'active'\nORDER BY id LIMIT 10;",
+                ),
+                cursor: 42,
+                tab_index: 0,
+                input_scroll: 0,
+                output_scroll: 0,
+            }
+        }
+    }
+
+    fn compute_output(app: &App) -> String {
+        let sql = app.input.trim();
+        if sql.is_empty() {
+            return String::new();
+        }
+
+        let tokens = match Tokenizer::new(sql).tokenize() {
+            Ok(t) => t,
+            Err(e) => return format!("Tokenizer error: {}", e),
+        };
+
+        match app.tab_index {
+            1 => tokens
+                .iter()
+                .map(|t| {
+                    let (tt, val) = token_display(t);
+                    format!("{:<16} L{:>3}:C{:>3}  {}", tt, t.location.line, t.location.column, val)
+                })
+                .collect::<Vec<_>>()
+                .join("\n"),
+            2 => {
+                let mut parser = Parser::new(tokens);
+                let mut stmts = Vec::new();
+                while let Some(r) = parser.parse_next() {
+                    if let Ok(s) = r {
+                        stmts.push(s);
+                    }
+                }
+                let fmt = SqlFormatter::new();
+                stmts.iter().map(|s| fmt.format_statement(s)).collect::<Vec<_>>().join(";\n")
+            }
+            _ => {
+                let mut parser = Parser::new(tokens);
+                let mut stmts = Vec::new();
+                while let Some(r) = parser.parse_next() {
+                    if let Ok(s) = r {
+                        stmts.push(s);
+                    }
+                }
+                let errors = parser.errors();
+                let mut out = format!("{:#?}", stmts);
+                if !errors.is_empty() {
+                    out.push_str("\n\nErrors:\n");
+                    for e in errors {
+                        out.push_str(&format!("  {}\n", e));
+                    }
+                }
+                out
+            }
+        }
+    }
+
+    fn draw(f: &mut Frame, app: &App) {
+        let chunks = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([Constraint::Percentage(40), Constraint::Percentage(60)])
+            .split(f.area());
+
+        let input_title = Line::from(vec![
+            Span::styled(" SQL Input ", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
+            Span::raw(" (Esc=quit, Tab=switch view, Shift+Up/Down=scroll output)"),
+        ]);
+        let input_block = Block::default()
+            .title(input_title)
+            .borders(Borders::ALL)
+            .border_style(Style::default().fg(Color::Yellow));
+        let input = Paragraph::new(app.input.as_str())
+            .block(input_block)
+            .scroll((app.input_scroll, 0));
+        f.render_widget(input, chunks[0]);
+
+        let tabs_block = Block::default().borders(Borders::ALL).border_style(Style::default().fg(Color::Cyan));
+        let tabs = Tabs::new(vec!["AST", "Tokens", "Formatted"])
+            .block(tabs_block.clone())
+            .select(app.tab_index)
+            .style(Style::default().fg(Color::DarkGray))
+            .highlight_style(
+                Style::default()
+                    .fg(Color::Cyan)
+                    .add_modifier(Modifier::BOLD),
+            );
+        f.render_widget(&tabs, chunks[1]);
+
+        let output_area = tabs_block.inner(chunks[1]);
+        let output_text = compute_output(app);
+        let output = Paragraph::new(output_text.as_str())
+            .wrap(Wrap { trim: false })
+            .scroll((app.output_scroll, 0));
+        f.render_widget(output, output_area);
+
+        let line_before_cursor = app.input[..app.cursor].matches('\n').count() as u16;
+        let last_col = app.input[..app.cursor]
+            .split('\n')
+            .last()
+            .map(|l| l.len())
+            .unwrap_or(0) as u16;
+        f.set_cursor_position((
+            chunks[0].x + last_col + 1,
+            chunks[0].y + line_before_cursor + 1 - app.input_scroll,
+        ));
+    }
+
+    enable_raw_mode().expect("Failed to enable raw mode");
+    let mut stdout = io::stdout();
+    execute!(stdout, EnterAlternateScreen).expect("Failed to enter alt screen");
+    let backend = CrosstermBackend::new(stdout);
+    let mut terminal = ratatui::Terminal::new(backend).expect("Failed to create terminal");
+
+    let mut app = App::new();
+
+    loop {
+        terminal.draw(|f| draw(f, &app)).expect("Failed to draw");
+
+        match event::read().expect("Failed to read event") {
+            Event::Key(KeyEvent { code, modifiers, .. }) => match code {
+                KeyCode::Esc => break,
+                KeyCode::Tab => app.tab_index = (app.tab_index + 1) % 3,
+                KeyCode::Backspace => {
+                    if app.cursor > 0 {
+                        app.input.remove(app.cursor - 1);
+                        app.cursor -= 1;
+                    }
+                }
+                KeyCode::Delete => {
+                    if app.cursor < app.input.len() {
+                        app.input.remove(app.cursor);
+                    }
+                }
+                KeyCode::Left => {
+                    if app.cursor > 0 {
+                        app.cursor -= 1;
+                    }
+                }
+                KeyCode::Right => {
+                    if app.cursor < app.input.len() {
+                        app.cursor += 1;
+                    }
+                }
+                KeyCode::Up => {
+                    if modifiers.contains(KeyModifiers::SHIFT) {
+                        app.output_scroll = app.output_scroll.saturating_sub(1);
+                    }
+                }
+                KeyCode::Down => {
+                    if modifiers.contains(KeyModifiers::SHIFT) {
+                        app.output_scroll = app.output_scroll.saturating_add(1);
+                    }
+                }
+                KeyCode::Enter => {
+                    app.input.insert(app.cursor, '\n');
+                    app.cursor += 1;
+                }
+                KeyCode::Char(c) => {
+                    app.input.insert(app.cursor, c);
+                    app.cursor += 1;
+                }
+                _ => {}
+            },
+            Event::Resize(_, _) => {}
+            _ => {}
+        }
+    }
+
+    disable_raw_mode().expect("Failed to disable raw mode");
+    execute!(terminal.backend_mut(), LeaveAlternateScreen).expect("Failed to leave alt screen");
+    terminal.show_cursor().unwrap();
+}
+
+fn main() {
+    let cli = Cli::parse();
+
+    match cli.command {
+        Commands::Format => cmd_format(&cli),
+        Commands::Parse => cmd_parse(&cli),
+        Commands::Tokenize => cmd_tokenize(&cli),
+        Commands::Validate => cmd_validate(&cli),
+        #[cfg(feature = "serve")]
+        Commands::Serve { port, host } => cmd_serve(&host, port),
+        #[cfg(feature = "tui")]
+        Commands::Playground => cmd_playground(),
+    }
+}

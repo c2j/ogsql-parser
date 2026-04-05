@@ -1052,3 +1052,1052 @@ fn test_format_create_node() {
     let formatted = SqlFormatter::new().format_statement(&stmts[0]);
     assert!(formatted.contains("CREATE NODE"));
 }
+
+// ========== Wave 1: SELECT FOR UPDATE/SHARE + FETCH FIRST ==========
+
+#[test]
+fn test_select_for_update() {
+    let stmt = parse_one("SELECT * FROM t FOR UPDATE");
+    match stmt {
+        Statement::Select(s) => {
+            assert!(matches!(s.lock_clause, Some(LockClause::Update { .. })));
+            let lc = s.lock_clause.as_ref().unwrap();
+            match lc {
+                LockClause::Update {
+                    tables,
+                    nowait,
+                    skip_locked,
+                } => {
+                    assert!(tables.is_empty());
+                    assert!(!nowait);
+                    assert!(!skip_locked);
+                }
+                _ => panic!("expected Update lock"),
+            }
+        }
+        _ => panic!("expected Select"),
+    }
+}
+
+#[test]
+fn test_select_for_share_of_tables_nowait() {
+    let stmt = parse_one("SELECT * FROM t FOR SHARE OF t1, t2 NOWAIT");
+    match stmt {
+        Statement::Select(s) => match s.lock_clause.as_ref().unwrap() {
+            LockClause::Share { tables, nowait, .. } => {
+                assert_eq!(tables.len(), 2);
+                assert_eq!(tables[0], vec!["t1"]);
+                assert_eq!(tables[1], vec!["t2"]);
+                assert!(*nowait);
+            }
+            _ => panic!("expected Share lock"),
+        },
+        _ => panic!("expected Select"),
+    }
+}
+
+#[test]
+fn test_select_for_key_share_skip_locked() {
+    let stmt = parse_one("SELECT * FROM t FOR KEY SHARE SKIP LOCKED");
+    match stmt {
+        Statement::Select(s) => match s.lock_clause.as_ref().unwrap() {
+            LockClause::KeyShare { skip_locked, .. } => {
+                assert!(*skip_locked);
+            }
+            _ => panic!("expected KeyShare lock"),
+        },
+        _ => panic!("expected Select"),
+    }
+}
+
+#[test]
+fn test_select_for_no_key_update() {
+    let stmt = parse_one("SELECT * FROM t FOR NO KEY UPDATE");
+    match stmt {
+        Statement::Select(s) => {
+            assert!(matches!(
+                s.lock_clause,
+                Some(LockClause::NoKeyUpdate { .. })
+            ));
+        }
+        _ => panic!("expected Select"),
+    }
+}
+
+#[test]
+fn test_select_fetch_first_n_rows() {
+    let stmt = parse_one("SELECT * FROM t FETCH FIRST 10 ROWS ONLY");
+    match stmt {
+        Statement::Select(s) => {
+            let fetch = s.fetch.as_ref().expect("expected fetch clause");
+            assert!(!fetch.with_ties);
+            assert!(fetch.count.is_some());
+        }
+        _ => panic!("expected Select"),
+    }
+}
+
+#[test]
+fn test_select_fetch_first_row_with_ties() {
+    let stmt = parse_one("SELECT * FROM t ORDER BY id FETCH FIRST ROW WITH TIES");
+    match stmt {
+        Statement::Select(s) => {
+            let fetch = s.fetch.as_ref().expect("expected fetch clause");
+            assert!(fetch.with_ties);
+            assert!(fetch.count.is_none());
+        }
+        _ => panic!("expected Select"),
+    }
+}
+
+#[test]
+fn test_select_limit_and_for_update() {
+    let stmt = parse_one("SELECT * FROM t LIMIT 10 OFFSET 5 FOR UPDATE OF t1 NOWAIT");
+    match stmt {
+        Statement::Select(s) => {
+            assert!(s.limit.is_some());
+            assert!(s.offset.is_some());
+            match s.lock_clause.as_ref().unwrap() {
+                LockClause::Update { tables, nowait, .. } => {
+                    assert_eq!(tables.len(), 1);
+                    assert!(*nowait);
+                }
+                _ => panic!("expected Update lock"),
+            }
+        }
+        _ => panic!("expected Select"),
+    }
+}
+
+// ========== Wave 2: INSERT ON DUPLICATE KEY UPDATE ==========
+
+#[test]
+fn test_insert_on_duplicate_key_update() {
+    let stmt = parse_one("INSERT INTO t (a, b) VALUES (1, 2) ON DUPLICATE KEY UPDATE b = 3");
+    match stmt {
+        Statement::Insert(s) => {
+            assert!(s.on_conflict.is_some());
+            match s.on_conflict.as_ref().unwrap() {
+                OnConflictAction::Update {
+                    assignments,
+                    where_clause,
+                    ..
+                } => {
+                    assert_eq!(assignments.len(), 1);
+                    assert!(where_clause.is_none());
+                }
+                _ => panic!("expected Update action"),
+            }
+        }
+        _ => panic!("expected Insert"),
+    }
+}
+
+#[test]
+fn test_insert_on_duplicate_key_update_with_where() {
+    let stmt = parse_one(
+        "INSERT INTO t (a, b) VALUES (1, 2) ON DUPLICATE KEY UPDATE a = a + 1 WHERE t.c > 0",
+    );
+    match stmt {
+        Statement::Insert(s) => match s.on_conflict.as_ref().unwrap() {
+            OnConflictAction::Update { where_clause, .. } => {
+                assert!(where_clause.is_some());
+            }
+            _ => panic!("expected Update action"),
+        },
+        _ => panic!("expected Insert"),
+    }
+}
+
+#[test]
+fn test_insert_no_conflict() {
+    let stmt = parse_one("INSERT INTO t (a) VALUES (1)");
+    match stmt {
+        Statement::Insert(s) => {
+            assert!(s.on_conflict.is_none());
+        }
+        _ => panic!("expected Insert"),
+    }
+}
+
+// ========== Wave 3: CREATE TABLE enhancements ==========
+
+#[test]
+fn test_create_temp_table() {
+    let stmt = parse_one("CREATE TEMP TABLE t (id INT)");
+    match stmt {
+        Statement::CreateTable(s) => {
+            assert!(s.temporary);
+            assert!(!s.unlogged);
+        }
+        _ => panic!("expected CreateTable"),
+    }
+}
+
+#[test]
+fn test_create_unlogged_table() {
+    let stmt = parse_one("CREATE UNLOGGED TABLE t (id INT)");
+    match stmt {
+        Statement::CreateTable(s) => {
+            assert!(!s.temporary);
+            assert!(s.unlogged);
+        }
+        _ => panic!("expected CreateTable"),
+    }
+}
+
+#[test]
+fn test_create_table_with_options() {
+    let stmt =
+        parse_one("CREATE TABLE t (id INT) WITH (fillfactor = 70, autovacuum_enabled = false)");
+    match stmt {
+        Statement::CreateTable(s) => {
+            assert_eq!(s.options.len(), 2);
+            assert_eq!(s.options[0], ("fillfactor".to_string(), "70".to_string()));
+            assert_eq!(
+                s.options[1],
+                ("autovacuum_enabled".to_string(), "false".to_string())
+            );
+        }
+        _ => panic!("expected CreateTable"),
+    }
+}
+
+#[test]
+fn test_create_table_inherits() {
+    let stmt = parse_one("CREATE TABLE t (id INT) INHERITS (parent1, parent2)");
+    match stmt {
+        Statement::CreateTable(s) => {
+            assert_eq!(s.inherits.len(), 2);
+            assert_eq!(s.inherits[0], vec!["parent1"]);
+            assert_eq!(s.inherits[1], vec!["parent2"]);
+        }
+        _ => panic!("expected CreateTable"),
+    }
+}
+
+#[test]
+fn test_create_table_partition_by_range() {
+    let stmt = parse_one("CREATE TABLE t (id INT, dt DATE) PARTITION BY RANGE (dt)");
+    match stmt {
+        Statement::CreateTable(s) => {
+            assert!(s.partition_by.is_some());
+            match s.partition_by.as_ref().unwrap() {
+                PartitionClause::Range { column } => {
+                    assert_eq!(column, &vec!["dt"]);
+                }
+                _ => panic!("expected Range partition"),
+            }
+        }
+        _ => panic!("expected CreateTable"),
+    }
+}
+
+#[test]
+fn test_create_table_partition_by_list() {
+    let stmt = parse_one("CREATE TABLE t (id INT, region TEXT) PARTITION BY LIST (region)");
+    match stmt {
+        Statement::CreateTable(s) => match s.partition_by.as_ref().unwrap() {
+            PartitionClause::List { column } => {
+                assert_eq!(column, &vec!["region"]);
+            }
+            _ => panic!("expected List partition"),
+        },
+        _ => panic!("expected CreateTable"),
+    }
+}
+
+#[test]
+fn test_create_table_tablespace() {
+    let stmt = parse_one("CREATE TABLE t (id INT) TABLESPACE ts1");
+    match stmt {
+        Statement::CreateTable(s) => {
+            assert_eq!(s.tablespace.as_deref(), Some("ts1"));
+        }
+        _ => panic!("expected CreateTable"),
+    }
+}
+
+#[test]
+fn test_create_temp_table_on_commit() {
+    let stmt = parse_one("CREATE TEMP TABLE t (id INT) ON COMMIT DELETE ROWS");
+    match stmt {
+        Statement::CreateTable(s) => {
+            assert!(s.temporary);
+            assert!(matches!(s.on_commit, Some(OnCommitAction::DeleteRows)));
+        }
+        _ => panic!("expected CreateTable"),
+    }
+}
+
+#[test]
+fn test_create_table_combined() {
+    let stmt = parse_one(
+        "CREATE UNLOGGED TABLE IF NOT EXISTS t (id INT PRIMARY KEY) \
+         INHERITS (base) WITH (fillfactor = 90) TABLESPACE ts1",
+    );
+    match stmt {
+        Statement::CreateTable(s) => {
+            assert!(s.unlogged);
+            assert!(s.if_not_exists);
+            assert!(!s.inherits.is_empty());
+            assert!(!s.options.is_empty());
+            assert!(s.tablespace.is_some());
+        }
+        _ => panic!("expected CreateTable"),
+    }
+}
+
+// ========== CREATE FUNCTION ==========
+
+#[test]
+fn test_create_function_simple() {
+    let stmt =
+        parse_one("CREATE FUNCTION my_func() RETURNS integer AS $$ SELECT 1 $$ LANGUAGE sql");
+    match stmt {
+        Statement::CreateFunction(f) => {
+            assert!(!f.replace);
+            assert_eq!(f.name, vec!["my_func"]);
+            assert!(f.parameters.is_empty());
+            assert_eq!(f.return_type, Some("integer".to_string()));
+        }
+        _ => panic!("expected CreateFunction statement"),
+    }
+}
+
+#[test]
+fn test_create_function_with_params() {
+    let stmt = parse_one("CREATE FUNCTION add(a integer, b integer) RETURNS integer AS $$ SELECT a + b $$ LANGUAGE sql");
+    match stmt {
+        Statement::CreateFunction(f) => {
+            assert_eq!(f.name, vec!["add"]);
+            assert_eq!(f.parameters.len(), 2);
+            assert_eq!(f.return_type, Some("integer".to_string()));
+        }
+        _ => panic!("expected CreateFunction statement"),
+    }
+}
+
+// ========== CREATE PROCEDURE ==========
+
+#[test]
+fn test_create_procedure_simple() {
+    let stmt = parse_one("CREATE PROCEDURE my_proc() AS $$ BEGIN NULL; END $$ LANGUAGE plpgsql");
+    match stmt {
+        Statement::CreateProcedure(p) => {
+            assert!(!p.replace);
+            assert_eq!(p.name, vec!["my_proc"]);
+            assert!(p.parameters.is_empty());
+        }
+        _ => panic!("expected CreateProcedure statement"),
+    }
+}
+
+#[test]
+fn test_create_procedure_with_params() {
+    let stmt = parse_one("CREATE PROCEDURE insert_data(x integer, y integer) AS $$ BEGIN INSERT INTO test VALUES (x, y); END $$ LANGUAGE plpgsql");
+    match stmt {
+        Statement::CreateProcedure(p) => {
+            assert_eq!(p.name, vec!["insert_data"]);
+            assert_eq!(p.parameters.len(), 2);
+        }
+        _ => panic!("expected CreateProcedure statement"),
+    }
+}
+
+// ========== Wave 4: ALTER TABLE enhancements ==========
+
+#[test]
+fn test_alter_table_add_constraint() {
+    let stmt = parse_one("ALTER TABLE t ADD CONSTRAINT pk PRIMARY KEY (id)");
+    match stmt {
+        Statement::AlterTable(s) => match &s.actions[0] {
+            AlterTableAction::AddConstraint { name, constraint } => {
+                assert_eq!(name.as_deref(), Some("pk"));
+                assert!(matches!(constraint, TableConstraint::PrimaryKey(_)));
+            }
+            _ => panic!("expected AddConstraint"),
+        },
+        _ => panic!("expected AlterTable"),
+    }
+}
+
+#[test]
+fn test_alter_table_add_unique() {
+    let stmt = parse_one("ALTER TABLE t ADD UNIQUE (email)");
+    match stmt {
+        Statement::AlterTable(s) => match &s.actions[0] {
+            AlterTableAction::AddConstraint { constraint, .. } => {
+                assert!(matches!(constraint, TableConstraint::Unique(_)));
+            }
+            _ => panic!("expected AddConstraint"),
+        },
+        _ => panic!("expected AlterTable"),
+    }
+}
+
+#[test]
+fn test_alter_table_drop_constraint() {
+    let stmt = parse_one("ALTER TABLE t DROP CONSTRAINT ck CASCADE");
+    match stmt {
+        Statement::AlterTable(s) => match &s.actions[0] {
+            AlterTableAction::DropConstraint { name, cascade, .. } => {
+                assert_eq!(name, "ck");
+                assert!(*cascade);
+            }
+            _ => panic!("expected DropConstraint"),
+        },
+        _ => panic!("expected AlterTable"),
+    }
+}
+
+#[test]
+fn test_alter_table_rename_column() {
+    let stmt = parse_one("ALTER TABLE t RENAME COLUMN old_name TO new_name");
+    match stmt {
+        Statement::AlterTable(s) => match &s.actions[0] {
+            AlterTableAction::RenameColumn { old, new } => {
+                assert_eq!(old, "old_name");
+                assert_eq!(new, "new_name");
+            }
+            _ => panic!("expected RenameColumn"),
+        },
+        _ => panic!("expected AlterTable"),
+    }
+}
+
+#[test]
+fn test_alter_table_rename_to() {
+    let stmt = parse_one("ALTER TABLE t RENAME TO new_table");
+    match stmt {
+        Statement::AlterTable(s) => match &s.actions[0] {
+            AlterTableAction::RenameTo { new_name } => {
+                assert_eq!(new_name, "new_table");
+            }
+            _ => panic!("expected RenameTo"),
+        },
+        _ => panic!("expected AlterTable"),
+    }
+}
+
+#[test]
+fn test_alter_table_owner_to() {
+    let stmt = parse_one("ALTER TABLE t OWNER TO admin");
+    match stmt {
+        Statement::AlterTable(s) => match &s.actions[0] {
+            AlterTableAction::OwnerTo { owner } => {
+                assert_eq!(owner, "admin");
+            }
+            _ => panic!("expected OwnerTo"),
+        },
+        _ => panic!("expected AlterTable"),
+    }
+}
+
+#[test]
+fn test_alter_table_set_schema() {
+    let stmt = parse_one("ALTER TABLE t SET SCHEMA new_schema");
+    match stmt {
+        Statement::AlterTable(s) => match &s.actions[0] {
+            AlterTableAction::SetSchema { schema } => {
+                assert_eq!(schema, "new_schema");
+            }
+            _ => panic!("expected SetSchema"),
+        },
+        _ => panic!("expected AlterTable"),
+    }
+}
+
+// ========== Wave 5: DROP more types + CREATE INDEX ==========
+
+#[test]
+fn test_drop_tablespace() {
+    let stmt = parse_one("DROP TABLESPACE ts1");
+    match stmt {
+        Statement::Drop(s) => {
+            assert!(matches!(&s.object_type, ObjectType::Tablespace));
+        }
+        _ => panic!("expected Drop"),
+    }
+}
+
+#[test]
+fn test_drop_function() {
+    let stmt = parse_one("DROP FUNCTION IF EXISTS my_func CASCADE");
+    match stmt {
+        Statement::Drop(s) => {
+            assert!(matches!(&s.object_type, ObjectType::Function));
+            assert!(s.if_exists);
+            assert!(s.cascade);
+        }
+        _ => panic!("expected Drop"),
+    }
+}
+
+#[test]
+fn test_drop_trigger() {
+    let stmt = parse_one("DROP TRIGGER trg1");
+    match stmt {
+        Statement::Drop(s) => {
+            assert!(matches!(&s.object_type, ObjectType::Trigger));
+        }
+        _ => panic!("expected Drop"),
+    }
+}
+
+#[test]
+fn test_drop_materialized_view() {
+    let stmt = parse_one("DROP MATERIALIZED VIEW mv1");
+    match stmt {
+        Statement::Drop(s) => {
+            assert!(matches!(&s.object_type, ObjectType::MaterializedView));
+        }
+        _ => panic!("expected Drop"),
+    }
+}
+
+#[test]
+fn test_create_index_concurrently() {
+    let stmt = parse_one("CREATE INDEX CONCURRENTLY idx ON t (col)");
+    match stmt {
+        Statement::CreateIndex(s) => {
+            assert!(s.concurrent);
+        }
+        _ => panic!("expected CreateIndex"),
+    }
+}
+
+#[test]
+fn test_create_index_tablespace() {
+    let stmt = parse_one("CREATE INDEX idx ON t (col) TABLESPACE ts1");
+    match stmt {
+        Statement::CreateIndex(s) => {
+            assert_eq!(s.tablespace.as_deref(), Some("ts1"));
+        }
+        _ => panic!("expected CreateIndex"),
+    }
+}
+
+// ========== Wave 6: GRANT / REVOKE ==========
+
+#[test]
+fn test_grant_select_insert() {
+    let stmt = parse_one("GRANT SELECT, INSERT ON table1 TO user1, user2");
+    match stmt {
+        Statement::Grant(s) => {
+            assert_eq!(s.privileges.len(), 2);
+            assert!(matches!(&s.privileges[0], Privilege::Select));
+            assert!(matches!(&s.privileges[1], Privilege::Insert));
+            assert_eq!(s.grantees, vec!["user1", "user2"]);
+        }
+        _ => panic!("expected Grant"),
+    }
+}
+
+#[test]
+fn test_grant_all_on_schema() {
+    let stmt = parse_one("GRANT ALL PRIVILEGES ON SCHEMA public TO admin WITH GRANT OPTION");
+    match stmt {
+        Statement::Grant(s) => {
+            assert!(matches!(&s.privileges[0], Privilege::All));
+            assert!(matches!(&s.target, GrantTarget::Schema(_)));
+            assert!(s.with_grant_option);
+        }
+        _ => panic!("expected Grant"),
+    }
+}
+
+#[test]
+fn test_grant_execute_on_function() {
+    let stmt = parse_one("GRANT EXECUTE ON FUNCTION func1(INT) TO public");
+    match stmt {
+        Statement::Grant(s) => {
+            assert!(matches!(&s.privileges[0], Privilege::Execute));
+            assert!(matches!(&s.target, GrantTarget::Function(_)));
+        }
+        _ => panic!("expected Grant"),
+    }
+}
+
+#[test]
+fn test_grant_all_tables_in_schema() {
+    let stmt = parse_one("GRANT SELECT ON ALL TABLES IN SCHEMA public TO reader");
+    match stmt {
+        Statement::Grant(s) => {
+            assert!(matches!(&s.target, GrantTarget::AllTablesInSchema(_)));
+        }
+        _ => panic!("expected Grant"),
+    }
+}
+
+#[test]
+fn test_revoke_insert() {
+    let stmt = parse_one("REVOKE INSERT ON table1 FROM user1");
+    match stmt {
+        Statement::Revoke(s) => {
+            assert!(matches!(&s.privileges[0], Privilege::Insert));
+            assert_eq!(s.grantees, vec!["user1"]);
+            assert!(!s.cascade);
+        }
+        _ => panic!("expected Revoke"),
+    }
+}
+
+#[test]
+fn test_revoke_cascade() {
+    let stmt = parse_one("REVOKE ALL ON SCHEMA public FROM admin CASCADE");
+    match stmt {
+        Statement::Revoke(s) => {
+            assert!(matches!(&s.privileges[0], Privilege::All));
+            assert!(s.cascade);
+        }
+        _ => panic!("expected Revoke"),
+    }
+}
+
+// ========== Wave 8: CREATE TRIGGER + MATERIALIZED VIEW ==========
+
+#[test]
+fn test_create_trigger_insert_update() {
+    let stmt = parse_one(
+        "CREATE TRIGGER trg AFTER INSERT OR UPDATE ON t FOR EACH ROW EXECUTE PROCEDURE func1()",
+    );
+    match stmt {
+        Statement::CreateTrigger(s) => {
+            assert_eq!(s.name, "trg");
+            assert_eq!(s.events.len(), 2);
+            assert!(matches!(&s.events[0], TriggerEvent::Insert));
+            assert!(matches!(&s.events[1], TriggerEvent::Update));
+            assert!(matches!(s.for_each, TriggerForEach::Row));
+        }
+        _ => panic!("expected CreateTrigger"),
+    }
+}
+
+#[test]
+fn test_create_trigger_delete_when() {
+    let stmt = parse_one("CREATE TRIGGER trg BEFORE DELETE ON t FOR EACH ROW WHEN (OLD.status = 'active') EXECUTE PROCEDURE func2()");
+    match stmt {
+        Statement::CreateTrigger(s) => {
+            assert_eq!(s.name, "trg");
+            assert!(s.when.is_some());
+        }
+        _ => panic!("expected CreateTrigger"),
+    }
+}
+
+#[test]
+fn test_create_materialized_view() {
+    let stmt = parse_one("CREATE MATERIALIZED VIEW mv AS SELECT * FROM t WITH DATA");
+    match stmt {
+        Statement::CreateMaterializedView(s) => {
+            assert_eq!(s.name, vec!["mv"]);
+            assert!(s.with_data);
+        }
+        _ => panic!("expected CreateMaterializedView"),
+    }
+}
+
+#[test]
+fn test_refresh_materialized_view() {
+    let stmt = parse_one("REFRESH MATERIALIZED VIEW mv");
+    match stmt {
+        Statement::RefreshMaterializedView(s) => {
+            assert!(!s.concurrent);
+            assert_eq!(s.name, vec!["mv"]);
+        }
+        _ => panic!("expected RefreshMaterializedView"),
+    }
+}
+
+#[test]
+fn test_refresh_materialized_view_concurrently() {
+    let stmt = parse_one("REFRESH MATERIALIZED VIEW CONCURRENTLY mv");
+    match stmt {
+        Statement::RefreshMaterializedView(s) => {
+            assert!(s.concurrent);
+        }
+        _ => panic!("expected RefreshMaterializedView"),
+    }
+}
+
+// ========== Wave 9: VACUUM / ANALYZE / COMMENT ON / LOCK TABLE ==========
+
+#[test]
+fn test_vacuum_simple() {
+    let stmt = parse_one("VACUUM");
+    match stmt {
+        Statement::Vacuum(s) => {
+            assert!(!s.full);
+            assert!(!s.analyze);
+            assert!(s.tables.is_empty());
+        }
+        _ => panic!("expected Vacuum"),
+    }
+}
+
+#[test]
+fn test_vacuum_full_analyze() {
+    let stmt = parse_one("VACUUM FULL VERBOSE ANALYZE t1, t2");
+    match stmt {
+        Statement::Vacuum(s) => {
+            assert!(s.full);
+            assert!(s.verbose);
+            assert!(s.analyze);
+            assert_eq!(s.tables.len(), 2);
+        }
+        _ => panic!("expected Vacuum"),
+    }
+}
+
+#[test]
+fn test_analyze_simple() {
+    let stmt = parse_one("ANALYZE");
+    match stmt {
+        Statement::Analyze(s) => {
+            assert!(!s.verbose);
+        }
+        _ => panic!("expected Analyze"),
+    }
+}
+
+#[test]
+fn test_analyze_verbose() {
+    let stmt = parse_one("ANALYZE VERBOSE t1");
+    match stmt {
+        Statement::Analyze(s) => {
+            assert!(s.verbose);
+            assert_eq!(s.tables.len(), 1);
+        }
+        _ => panic!("expected Analyze"),
+    }
+}
+
+#[test]
+fn test_comment_on_table() {
+    let stmt = parse_one("COMMENT ON TABLE t IS 'my table'");
+    match stmt {
+        Statement::Comment(s) => {
+            assert_eq!(s.object_type, "TABLE");
+            assert_eq!(s.comment, "my table");
+        }
+        _ => panic!("expected Comment"),
+    }
+}
+
+#[test]
+fn test_comment_on_column() {
+    let stmt = parse_one("COMMENT ON COLUMN t.id IS 'primary key'");
+    match stmt {
+        Statement::Comment(s) => {
+            assert_eq!(s.object_type, "COLUMN");
+            assert_eq!(s.comment, "primary key");
+        }
+        _ => panic!("expected Comment"),
+    }
+}
+
+#[test]
+fn test_lock_table() {
+    let stmt = parse_one("LOCK TABLE t1, t2 IN ACCESS EXCLUSIVE MODE NOWAIT");
+    match stmt {
+        Statement::Lock(s) => {
+            assert_eq!(s.tables.len(), 2);
+            assert!(s.nowait);
+        }
+        _ => panic!("expected Lock"),
+    }
+}
+
+// ========== Wave 10: PREPARE / EXECUTE / DEALLOCATE / DO ==========
+
+#[test]
+fn test_prepare() {
+    let stmt = parse_one("PREPARE stmt (INT, TEXT) AS SELECT * FROM t WHERE id = $1");
+    match stmt {
+        Statement::Prepare(s) => {
+            assert_eq!(s.name, "stmt");
+            assert_eq!(s.data_types.len(), 2);
+            assert!(s.statement.to_lowercase().contains("select"));
+        }
+        _ => panic!("expected Prepare"),
+    }
+}
+
+#[test]
+fn test_execute() {
+    let stmt = parse_one("EXECUTE stmt(1, 'test')");
+    match stmt {
+        Statement::Execute(s) => {
+            assert_eq!(s.name, "stmt");
+            assert_eq!(s.params.len(), 2);
+        }
+        _ => panic!("expected Execute"),
+    }
+}
+
+#[test]
+fn test_deallocate() {
+    let stmt = parse_one("DEALLOCATE stmt");
+    match stmt {
+        Statement::Deallocate(s) => {
+            assert_eq!(s.name.as_deref(), Some("stmt"));
+            assert!(!s.all);
+        }
+        _ => panic!("expected Deallocate"),
+    }
+}
+
+#[test]
+fn test_deallocate_all() {
+    let stmt = parse_one("DEALLOCATE ALL");
+    match stmt {
+        Statement::Deallocate(s) => {
+            assert!(s.all);
+        }
+        _ => panic!("expected Deallocate"),
+    }
+}
+
+#[test]
+fn test_do() {
+    let stmt = parse_one("DO $$ BEGIN RAISE NOTICE 'hello'; END $$");
+    match stmt {
+        Statement::Do(s) => {
+            assert!(s.code.contains("BEGIN"));
+        }
+        _ => panic!("expected Do"),
+    }
+}
+
+#[test]
+fn test_do_with_language() {
+    let stmt = parse_one("DO LANGUAGE plpgsql $$ BEGIN RAISE NOTICE 'hello'; END $$");
+    match stmt {
+        Statement::Do(s) => {
+            assert_eq!(s.language.as_deref(), Some("plpgsql"));
+        }
+        _ => panic!("expected Do"),
+    }
+}
+
+// ========== Wave 11: ALTER DATABASE/SCHEMA/SEQUENCE/FUNCTION/ROLE/USER/SYSTEM ==========
+
+#[test]
+fn test_alter_database_set() {
+    let stmt = parse_one("ALTER DATABASE mydb SET search_path TO public");
+    match stmt {
+        Statement::AlterDatabase(s) => {
+            assert_eq!(s.name, "mydb");
+            assert!(matches!(&s.action, AlterDatabaseAction::Set { .. }));
+        }
+        _ => panic!("expected AlterDatabase"),
+    }
+}
+
+#[test]
+fn test_alter_database_rename() {
+    let stmt = parse_one("ALTER DATABASE mydb RENAME TO newdb");
+    match stmt {
+        Statement::AlterDatabase(s) => {
+            assert!(
+                matches!(&s.action, AlterDatabaseAction::RenameTo { ref new_name } if new_name == "newdb")
+            );
+        }
+        _ => panic!("expected AlterDatabase"),
+    }
+}
+
+#[test]
+fn test_alter_schema_rename() {
+    let stmt = parse_one("ALTER SCHEMA myschema RENAME TO newschema");
+    match stmt {
+        Statement::AlterSchema(s) => {
+            assert_eq!(s.name, "myschema");
+            assert!(
+                matches!(&s.action, AlterSchemaAction::RenameTo { ref new_name } if new_name == "newschema")
+            );
+        }
+        _ => panic!("expected AlterSchema"),
+    }
+}
+
+#[test]
+fn test_alter_sequence() {
+    let stmt = parse_one("ALTER SEQUENCE seq INCREMENT BY 2 RESTART WITH 100");
+    match stmt {
+        Statement::AlterSequence(s) => {
+            assert_eq!(s.name, vec!["seq"]);
+            assert_eq!(s.options.len(), 3);
+            assert!(matches!(&s.options[0], SequenceOption::IncrementBy(2)));
+            assert!(matches!(&s.options[1], SequenceOption::Restart(true)));
+            assert!(matches!(&s.options[2], SequenceOption::StartWith(100)));
+        }
+        _ => panic!("expected AlterSequence"),
+    }
+}
+
+#[test]
+fn test_alter_function_rename() {
+    let stmt = parse_one("ALTER FUNCTION add(INT, INT) RENAME TO sum_it");
+    match stmt {
+        Statement::AlterFunction(s) => {
+            assert!(
+                matches!(&s.action, AlterFunctionAction::RenameTo { ref new_name } if new_name == "sum_it")
+            );
+        }
+        _ => panic!("expected AlterFunction"),
+    }
+}
+
+#[test]
+fn test_alter_role() {
+    let stmt = parse_one("ALTER ROLE admin WITH PASSWORD 'secret'");
+    match stmt {
+        Statement::AlterRole(s) => {
+            assert_eq!(s.name, "admin");
+            assert!(s.options.iter().any(|(k, _)| k == "PASSWORD"));
+        }
+        _ => panic!("expected AlterRole"),
+    }
+}
+
+#[test]
+fn test_alter_system_set() {
+    let stmt = parse_one("ALTER SYSTEM SET max_connections = 200");
+    match stmt {
+        Statement::AlterGlobalConfig(s) => {
+            assert!(matches!(&s.action, AlterGlobalConfigAction::Set { .. }));
+        }
+        _ => panic!("expected AlterGlobalConfig"),
+    }
+}
+
+// ========== Wave 12: CURSOR / LISTEN / NOTIFY / RULE / CLUSTER / REINDEX ==========
+
+#[test]
+fn test_declare_cursor() {
+    let stmt = parse_one("DECLARE cur CURSOR FOR SELECT * FROM t");
+    match stmt {
+        Statement::DeclareCursor(s) => {
+            assert_eq!(s.name, "cur");
+        }
+        _ => panic!("expected DeclareCursor"),
+    }
+}
+
+#[test]
+fn test_declare_cursor_scroll_hold() {
+    let stmt = parse_one("DECLARE cur BINARY SCROLL CURSOR WITH HOLD FOR SELECT * FROM t");
+    match stmt {
+        Statement::DeclareCursor(s) => {
+            assert!(s.binary);
+            assert!(s.scroll);
+            assert!(s.hold);
+        }
+        _ => panic!("expected DeclareCursor"),
+    }
+}
+
+#[test]
+fn test_fetch_next() {
+    let stmt = parse_one("FETCH NEXT FROM cur");
+    match stmt {
+        Statement::Fetch(s) => {
+            assert!(matches!(s.direction, FetchDirection::Next));
+            assert_eq!(s.cursor_name, "cur");
+        }
+        _ => panic!("expected Fetch"),
+    }
+}
+
+#[test]
+fn test_fetch_all() {
+    let stmt = parse_one("FETCH ALL FROM cur");
+    match stmt {
+        Statement::Fetch(s) => {
+            assert!(matches!(s.direction, FetchDirection::All));
+        }
+        _ => panic!("expected Fetch"),
+    }
+}
+
+#[test]
+fn test_close_portal() {
+    let stmt = parse_one("CLOSE cur");
+    match stmt {
+        Statement::ClosePortal(s) => {
+            assert_eq!(s.name, "cur");
+        }
+        _ => panic!("expected ClosePortal"),
+    }
+}
+
+#[test]
+fn test_listen() {
+    let stmt = parse_one("LISTEN mychannel");
+    match stmt {
+        Statement::Listen(s) => {
+            assert_eq!(s.channel, "mychannel");
+        }
+        _ => panic!("expected Listen"),
+    }
+}
+
+#[test]
+fn test_notify() {
+    let stmt = parse_one("NOTIFY mychannel, 'payload'");
+    match stmt {
+        Statement::Notify(s) => {
+            assert_eq!(s.channel, "mychannel");
+            assert_eq!(s.payload.as_deref(), Some("payload"));
+        }
+        _ => panic!("expected Notify"),
+    }
+}
+
+#[test]
+fn test_unlisten() {
+    let stmt = parse_one("UNLISTEN mychannel");
+    match stmt {
+        Statement::Unlisten(s) => {
+            assert_eq!(s.channel.as_deref(), Some("mychannel"));
+        }
+        _ => panic!("expected Unlisten"),
+    }
+}
+
+#[test]
+fn test_cluster() {
+    let stmt = parse_one("CLUSTER VERBOSE t1");
+    match stmt {
+        Statement::Cluster(s) => {
+            assert!(s.verbose);
+            assert!(s.table.is_some());
+        }
+        _ => panic!("expected Cluster"),
+    }
+}
+
+#[test]
+fn test_reindex_table() {
+    let stmt = parse_one("REINDEX TABLE t1");
+    match stmt {
+        Statement::Reindex(s) => {
+            assert!(matches!(&s.target, ReindexTarget::Table(_)));
+        }
+        _ => panic!("expected Reindex"),
+    }
+}
+
+#[test]
+fn test_reindex_index_concurrently() {
+    let stmt = parse_one("REINDEX INDEX CONCURRENTLY idx1");
+    match stmt {
+        Statement::Reindex(s) => {
+            assert!(s.concurrent);
+            assert!(matches!(&s.target, ReindexTarget::Index(_)));
+        }
+        _ => panic!("expected Reindex"),
+    }
+}
