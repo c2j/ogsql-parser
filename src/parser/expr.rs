@@ -84,7 +84,7 @@ impl Parser {
             Token::Gt => Some((20, ">".to_string(), false)),
             Token::Op(op) => {
                 let prec = match op.as_str() {
-                    "<=" | ">=" | "<>" | "!=" => 20,
+                    "<=" | ">=" | "<>" | "!=" | "<?>" => 20,
                     "||" => 30,
                     _ => 30,
                 };
@@ -342,13 +342,49 @@ impl Parser {
             }
             Token::Ident(_) | Token::QuotedIdent(_) => {
                 let name = self.parse_object_name()?;
+                // PostgreSQL typecast syntax: typename 'literal'
+                if let Token::StringLiteral(s) = self.peek().clone() {
+                    self.advance();
+                    return Ok(Expr::TypeCast {
+                        expr: Box::new(Expr::Literal(Literal::String(s))),
+                        type_name: name.join("."),
+                    });
+                }
                 if self.match_token(&Token::LParen) {
                     return self.parse_function_call(name);
                 }
                 Ok(Expr::ColumnRef(name))
             }
-            Token::Keyword(_) => {
+            Token::Keyword(kw) => {
+                // CAST(expr AS type) — must handle before generic keyword arm
+                if kw == Keyword::CAST {
+                    self.advance();
+                    self.expect_token(&Token::LParen)?;
+                    let expr = self.parse_expr()?;
+                    if !self.match_keyword(Keyword::AS) {
+                        return Err(ParserError::UnexpectedToken {
+                            location: self.current_location(),
+                            expected: "AS in CAST expression".to_string(),
+                            got: format!("{:?}", self.peek()),
+                        });
+                    }
+                    self.advance();
+                    let type_name = self.parse_object_name()?;
+                    self.expect_token(&Token::RParen)?;
+                    return Ok(Expr::TypeCast {
+                        expr: Box::new(expr),
+                        type_name: type_name.join("."),
+                    });
+                }
                 let name = self.parse_object_name()?;
+                // PostgreSQL typecast syntax: typename 'literal'
+                if let Token::StringLiteral(s) = self.peek().clone() {
+                    self.advance();
+                    return Ok(Expr::TypeCast {
+                        expr: Box::new(Expr::Literal(Literal::String(s))),
+                        type_name: name.join("."),
+                    });
+                }
                 if self.match_token(&Token::LParen) {
                     return self.parse_function_call(name);
                 }

@@ -2,7 +2,7 @@ use std::io::Read as _;
 
 use clap::{Parser as ClapParser, Subcommand};
 use ogsql_parser::*;
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 
 #[derive(ClapParser)]
 #[command(name = "ogsql", version, about = "openGauss/GaussDB SQL Parser")]
@@ -19,18 +19,24 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
+    /// Format SQL statements with standardized keyword casing / 格式化 SQL 语句
     Format,
+    /// Parse SQL into AST and print the abstract syntax tree / 解析 SQL 为 AST
     Parse,
+    /// Tokenize SQL into a list of tokens / 将 SQL 分词为 token 列表
     Tokenize,
+    /// Validate SQL syntax and report errors / 校验 SQL 语法
     Validate,
     #[cfg(feature = "serve")]
+    /// Start an HTTP API server for parsing SQL / 启动 HTTP API 服务器
     Serve {
         #[arg(short, long, default_value_t = 8080)]
         port: u16,
-        #[arg(short, long, default_value = "127.0.0.1")]
+        #[arg(long, default_value = "127.0.0.1")]
         host: String,
     },
     #[cfg(feature = "tui")]
+    /// Launch an interactive terminal UI playground / 启动交互式终端演练场
     Playground,
 }
 
@@ -49,10 +55,6 @@ fn read_input(file: Option<&str>) -> String {
             buf
         }
     }
-}
-
-macro_rules! die {
-    ($($t:tt)*) => {{ eprintln!($($t)*); std::process::exit(1); }};
 }
 
 fn parse_input(sql: &str) -> (Vec<Statement>, Vec<ParserError>) {
@@ -195,28 +197,63 @@ fn cmd_validate(cli: &Cli) {
 }
 
 #[cfg(feature = "serve")]
-fn cmd_serve(host: &str, port: u16) {
+mod api {
     use axum::Json;
     use axum::routing::{get, post};
     use axum::Router;
+    use serde::Deserialize;
+    use utoipa::{OpenApi, ToSchema};
 
-    #[derive(Deserialize)]
-    struct SqlInput {
-        sql: String,
+    #[derive(OpenApi)]
+    #[openapi(
+        paths(health, handle_parse, handle_format, handle_tokenize, handle_validate),
+        components(schemas(SqlInput)),
+        tags(
+            (name = "ogsql", description = "openGauss/GaussDB SQL Parser API")
+        )
+    )]
+    pub struct ApiDoc;
+
+    #[derive(Deserialize, ToSchema)]
+    pub struct SqlInput {
+        pub sql: String,
     }
 
-    async fn health() -> Json<serde_json::Value> {
+    /// Health check endpoint
+    #[utoipa::path(
+        get,
+        path = "/api/health",
+        tag = "ogsql",
+        responses((status = 200, description = "Service is healthy"))
+    )]
+    pub async fn health() -> Json<serde_json::Value> {
         Json(serde_json::json!({"status": "ok"}))
     }
 
-    async fn handle_parse(Json(input): Json<SqlInput>) -> Json<serde_json::Value> {
-        let (stmts, errors) = parse_input(&input.sql);
+    /// Parse SQL into AST
+    #[utoipa::path(
+        post,
+        path = "/api/parse",
+        tag = "ogsql",
+        request_body = SqlInput,
+        responses((status = 200, description = "Parsed AST result"))
+    )]
+    pub async fn handle_parse(Json(input): Json<SqlInput>) -> Json<serde_json::Value> {
+        let (stmts, errors) = super::parse_input(&input.sql);
         Json(serde_json::json!({"statements": stmts, "errors": errors}))
     }
 
-    async fn handle_format(Json(input): Json<SqlInput>) -> Json<serde_json::Value> {
-        let (stmts, errors) = parse_input(&input.sql);
-        let formatter = SqlFormatter::new();
+    /// Format SQL statements
+    #[utoipa::path(
+        post,
+        path = "/api/format",
+        tag = "ogsql",
+        request_body = SqlInput,
+        responses((status = 200, description = "Formatted SQL result"))
+    )]
+    pub async fn handle_format(Json(input): Json<SqlInput>) -> Json<serde_json::Value> {
+        let (stmts, errors) = super::parse_input(&input.sql);
+        let formatter = ogsql_parser::SqlFormatter::new();
         let formatted: Vec<String> = stmts.iter().map(|s| formatter.format_statement(s)).collect();
         Json(serde_json::json!({
             "formatted": formatted.join(";\n"),
@@ -225,15 +262,23 @@ fn cmd_serve(host: &str, port: u16) {
         }))
     }
 
-    async fn handle_tokenize(Json(input): Json<SqlInput>) -> Json<serde_json::Value> {
-        let tokens = match Tokenizer::new(&input.sql).tokenize() {
+    /// Tokenize SQL into tokens
+    #[utoipa::path(
+        post,
+        path = "/api/tokenize",
+        tag = "ogsql",
+        request_body = SqlInput,
+        responses((status = 200, description = "Token list"))
+    )]
+    pub async fn handle_tokenize(Json(input): Json<SqlInput>) -> Json<serde_json::Value> {
+        let tokens = match ogsql_parser::Tokenizer::new(&input.sql).tokenize() {
             Ok(t) => t,
             Err(e) => return Json(serde_json::json!({"error": e.to_string()})),
         };
         let list: Vec<serde_json::Value> = tokens
             .iter()
             .map(|t| {
-                let (token_type, value) = token_display(t);
+                let (token_type, value) = super::token_display(t);
                 serde_json::json!({
                     "type": token_type,
                     "value": value,
@@ -245,8 +290,16 @@ fn cmd_serve(host: &str, port: u16) {
         Json(serde_json::json!({"tokens": list}))
     }
 
-    async fn handle_validate(Json(input): Json<SqlInput>) -> Json<serde_json::Value> {
-        let (_, errors) = parse_input(&input.sql);
+    /// Validate SQL syntax
+    #[utoipa::path(
+        post,
+        path = "/api/validate",
+        tag = "ogsql",
+        request_body = SqlInput,
+        responses((status = 200, description = "Validation result"))
+    )]
+    pub async fn handle_validate(Json(input): Json<SqlInput>) -> Json<serde_json::Value> {
+        let (_, errors) = super::parse_input(&input.sql);
         Json(serde_json::json!({
             "valid": errors.is_empty(),
             "error_count": errors.len(),
@@ -254,25 +307,19 @@ fn cmd_serve(host: &str, port: u16) {
         }))
     }
 
-    let app = Router::new()
-        .route("/api/health", get(health))
-        .route("/api/parse", post(handle_parse))
-        .route("/api/format", post(handle_format))
-        .route("/api/tokenize", post(handle_tokenize))
-        .route("/api/validate", post(handle_validate));
+    async fn openapi_spec() -> Json<utoipa::openapi::OpenApi> {
+        Json(ApiDoc::openapi())
+    }
 
-    let addr = format!("{}:{}", host, port);
-    eprintln!("ogsql server listening on http://{}", addr);
-
-    let rt = tokio::runtime::Runtime::new().expect("Failed to create tokio runtime");
-    rt.block_on(async {
-        let listener = tokio::net::TcpListener::bind(&addr)
-            .await
-            .unwrap_or_else(|e| die!("Failed to bind {}: {}", addr, e));
-        axum::serve(listener, app)
-            .await
-            .unwrap_or_else(|e| die!("Server error: {}", e));
-    });
+    pub fn router() -> Router {
+        Router::new()
+            .route("/api/health", get(health))
+            .route("/api/parse", post(handle_parse))
+            .route("/api/format", post(handle_format))
+            .route("/api/tokenize", post(handle_tokenize))
+            .route("/api/validate", post(handle_validate))
+            .route("/api-docs/openapi.json", get(openapi_spec))
+    }
 }
 
 #[cfg(feature = "tui")]
@@ -489,7 +536,21 @@ fn main() {
         Commands::Tokenize => cmd_tokenize(&cli),
         Commands::Validate => cmd_validate(&cli),
         #[cfg(feature = "serve")]
-        Commands::Serve { port, host } => cmd_serve(&host, port),
+        Commands::Serve { port, host } => {
+            let addr = format!("{}:{}", host, port);
+            eprintln!("ogsql server listening on http://{}", addr);
+            eprintln!("  OpenAPI spec: http://{}/api-docs/openapi.json", addr);
+
+            let rt = tokio::runtime::Runtime::new().expect("Failed to create tokio runtime");
+            rt.block_on(async {
+                let listener = tokio::net::TcpListener::bind(&addr)
+                    .await
+                    .unwrap_or_else(|e| die!("Failed to bind {}: {}", addr, e));
+                axum::serve(listener, api::router())
+                    .await
+                    .unwrap_or_else(|e| die!("Server error: {}", e));
+            });
+        }
         #[cfg(feature = "tui")]
         Commands::Playground => cmd_playground(),
     }

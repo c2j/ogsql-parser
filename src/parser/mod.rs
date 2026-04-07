@@ -40,22 +40,29 @@ impl Parser {
         }
     }
 
-    pub fn parse_sql(input: &str) -> Result<Vec<crate::ast::Statement>, ParserError> {
-        let tokens = crate::token::tokenizer::Tokenizer::new(input).tokenize()?;
-        let mut parser = Parser::new(tokens);
-        parser.parse()
+    pub fn parse_sql(input: &str) -> (Vec<crate::ast::Statement>, Vec<ParserError>) {
+        match crate::token::tokenizer::Tokenizer::new(input).tokenize() {
+            Ok(tokens) => {
+                let mut parser = Parser::new(tokens);
+                let stmts = parser.parse();
+                (stmts, parser.errors().to_vec())
+            }
+            Err(e) => (vec![], vec![ParserError::TokenizerError(e)]),
+        }
     }
 
-    pub fn parse_one(input: &str) -> Result<crate::ast::Statement, ParserError> {
+    pub fn parse_one(
+        input: &str,
+    ) -> Result<(crate::ast::Statement, Vec<ParserError>), ParserError> {
         let tokens = crate::token::tokenizer::Tokenizer::new(input).tokenize()?;
         let mut parser = Parser::new(tokens);
-        let mut stmts = parser.parse()?;
+        let stmts = parser.parse();
         match stmts.len() {
             0 => Err(ParserError::UnexpectedEof {
                 expected: "statement".to_string(),
                 location: parser.current_location(),
             }),
-            1 => Ok(stmts.remove(0)),
+            1 => Ok((stmts.into_iter().next().unwrap(), parser.errors().to_vec())),
             n => Err(ParserError::UnexpectedToken {
                 location: parser.current_location(),
                 expected: "single statement".to_string(),
@@ -83,7 +90,7 @@ impl Parser {
             .unwrap_or_default()
     }
 
-    pub fn parse(&mut self) -> Result<Vec<crate::ast::Statement>, ParserError> {
+    pub fn parse(&mut self) -> Vec<crate::ast::Statement> {
         let mut stmts = Vec::new();
         loop {
             match self.peek() {
@@ -92,13 +99,17 @@ impl Parser {
                     self.advance();
                     continue;
                 }
-                _ => {
-                    let stmt = self.parse_statement()?;
-                    stmts.push(stmt);
-                }
+                _ => match self.parse_statement() {
+                    Ok(stmt) => stmts.push(stmt),
+                    Err(e) => {
+                        self.add_error(e);
+                        self.skip_to_semicolon();
+                        stmts.push(crate::ast::Statement::Empty);
+                    }
+                },
             }
         }
-        Ok(stmts)
+        stmts
     }
 
     pub fn into_iter(self) -> StatementIter {
@@ -1584,7 +1595,7 @@ impl Parser {
         loop {
             match self.peek() {
                 Token::Eof => break,
-                Token::Semicolon if depth == 0 => {
+                Token::Semicolon if depth <= 0 => {
                     self.advance();
                     break;
                 }

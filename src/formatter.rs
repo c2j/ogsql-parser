@@ -2833,7 +2833,7 @@ mod tests {
     fn parse_one(sql: &str) -> Statement {
         let tokens = Tokenizer::new(sql).tokenize().unwrap();
         let mut parser = Parser::new(tokens);
-        let stmts = parser.parse().unwrap();
+        let stmts = parser.parse();
         stmts.into_iter().next().unwrap()
     }
 

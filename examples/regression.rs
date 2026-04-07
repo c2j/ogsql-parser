@@ -67,12 +67,15 @@ fn main() {
             Ok(tokens) => {
                 tokenized_ok += 1;
                 match ogsql_parser::parser::Parser::new(tokens).parse() {
-                    Ok(_stmts) => {
-                        parsed_ok += 1;
-                    }
-                    Err(e) => {
-                        parsed_err += 1;
-                        eprintln!("PARSE_ERR  {} : {}", file, e);
+                    stmts => {
+                        if stmts
+                            .iter()
+                            .any(|s| matches!(s, ogsql_parser::Statement::Empty))
+                        {
+                            parsed_err += 1;
+                        } else {
+                            parsed_ok += 1;
+                        }
                     }
                 }
             }

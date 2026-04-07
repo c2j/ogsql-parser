@@ -5,7 +5,7 @@ use crate::token::tokenizer::Tokenizer;
 
 fn parse(sql: &str) -> Vec<Statement> {
     let tokens = Tokenizer::new(sql).tokenize().unwrap();
-    Parser::new(tokens).parse().unwrap()
+    Parser::new(tokens).parse()
 }
 
 fn parse_one(sql: &str) -> Statement {
@@ -19,7 +19,7 @@ fn parse_one(sql: &str) -> Statement {
 fn parse_err(sql: &str) -> Statement {
     let tokens = Tokenizer::new(sql).tokenize().unwrap();
     let mut parser = Parser::new(tokens);
-    let stmts = parser.parse().unwrap();
+    let stmts = parser.parse();
     stmts.into_iter().next().unwrap()
 }
 
