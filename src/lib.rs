@@ -4,6 +4,7 @@ pub mod parser;
 pub mod token;
 
 pub use ast::visitor::{walk_statement, Visitor, VisitorResult};
+pub use ast::StatementInfo;
 pub use ast::{
     AlterTableStatement, ColumnConstraint, ColumnDef, CopyStatement, CreateDatabaseStatement,
     CreateIndexStatement, CreateSchemaStatement, CreateTableStatement, CreateTablespaceStatement,

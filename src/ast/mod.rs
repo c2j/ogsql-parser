@@ -343,6 +343,13 @@ pub enum Statement {
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize)]
+pub struct StatementInfo {
+    pub sql_text: String,
+    #[serde(flatten)]
+    pub statement: Statement,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
 pub struct SelectStatement {
     pub with: Option<WithClause>,
     pub distinct: bool,

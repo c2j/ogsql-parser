@@ -29,6 +29,7 @@ pub struct Parser {
     tokens: Vec<TokenWithSpan>,
     pos: usize,
     errors: Vec<ParserError>,
+    source: String,
 }
 
 impl Parser {
@@ -37,15 +38,25 @@ impl Parser {
             tokens,
             pos: 0,
             errors: Vec::new(),
+            source: String::new(),
         }
     }
 
-    pub fn parse_sql(input: &str) -> (Vec<crate::ast::Statement>, Vec<ParserError>) {
+    pub fn with_source(tokens: Vec<TokenWithSpan>, source: String) -> Self {
+        Self {
+            tokens,
+            pos: 0,
+            errors: Vec::new(),
+            source,
+        }
+    }
+
+    pub fn parse_sql(input: &str) -> (Vec<crate::ast::StatementInfo>, Vec<ParserError>) {
         match crate::token::tokenizer::Tokenizer::new(input).tokenize() {
             Ok(tokens) => {
-                let mut parser = Parser::new(tokens);
-                let stmts = parser.parse();
-                (stmts, parser.errors().to_vec())
+                let mut parser = Parser::with_source(tokens, input.to_string());
+                let infos = parser.parse_with_text();
+                (infos, parser.errors().to_vec())
             }
             Err(e) => (vec![], vec![ParserError::TokenizerError(e)]),
         }
@@ -53,16 +64,16 @@ impl Parser {
 
     pub fn parse_one(
         input: &str,
-    ) -> Result<(crate::ast::Statement, Vec<ParserError>), ParserError> {
+    ) -> Result<(crate::ast::StatementInfo, Vec<ParserError>), ParserError> {
         let tokens = crate::token::tokenizer::Tokenizer::new(input).tokenize()?;
-        let mut parser = Parser::new(tokens);
-        let stmts = parser.parse();
-        match stmts.len() {
+        let mut parser = Parser::with_source(tokens, input.to_string());
+        let infos = parser.parse_with_text();
+        match infos.len() {
             0 => Err(ParserError::UnexpectedEof {
                 expected: "statement".to_string(),
                 location: parser.current_location(),
             }),
-            1 => Ok((stmts.into_iter().next().unwrap(), parser.errors().to_vec())),
+            1 => Ok((infos.into_iter().next().unwrap(), parser.errors().to_vec())),
             n => Err(ParserError::UnexpectedToken {
                 location: parser.current_location(),
                 expected: "single statement".to_string(),
@@ -90,6 +101,27 @@ impl Parser {
             .unwrap_or_default()
     }
 
+    fn current_start_offset(&self) -> usize {
+        self.tokens.get(self.pos).map(|t| t.span.start).unwrap_or(0)
+    }
+
+    fn prev_end_offset(&self) -> usize {
+        if self.pos == 0 {
+            return 0;
+        }
+        self.tokens
+            .get(self.pos - 1)
+            .map(|t| t.span.end)
+            .unwrap_or(0)
+    }
+
+    fn source_slice(&self, start: usize, end: usize) -> String {
+        if end == 0 || start >= end || end > self.source.len() {
+            return String::new();
+        }
+        self.source[start..end].trim().to_string()
+    }
+
     pub fn parse(&mut self) -> Vec<crate::ast::Statement> {
         let mut stmts = Vec::new();
         loop {
@@ -110,6 +142,43 @@ impl Parser {
             }
         }
         stmts
+    }
+
+    pub fn parse_with_text(&mut self) -> Vec<crate::ast::StatementInfo> {
+        let mut infos = Vec::new();
+        loop {
+            match self.peek() {
+                Token::Eof => break,
+                Token::Semicolon => {
+                    self.advance();
+                    continue;
+                }
+                _ => {
+                    let start = self.current_start_offset();
+                    match self.parse_statement() {
+                        Ok(stmt) => {
+                            let end = self.prev_end_offset();
+                            let sql_text = self.source_slice(start, end);
+                            infos.push(crate::ast::StatementInfo {
+                                sql_text,
+                                statement: stmt,
+                            });
+                        }
+                        Err(e) => {
+                            let end = self.prev_end_offset();
+                            let sql_text = self.source_slice(start, end);
+                            self.add_error(e);
+                            self.skip_to_semicolon();
+                            infos.push(crate::ast::StatementInfo {
+                                sql_text,
+                                statement: crate::ast::Statement::Empty,
+                            });
+                        }
+                    }
+                }
+            }
+        }
+        infos
     }
 
     pub fn into_iter(self) -> StatementIter {
