@@ -190,7 +190,7 @@ impl SqlFormatter {
             Statement::Compile(_) => "COMPILE",
             Statement::GetDiag(_) => "GET DIAGNOSTICS",
             Statement::ShowEvent(_) => "SHOW EVENT",
-            Statement::AnonyBlock(_) => "ANONYMOUS BLOCK",
+            Statement::AnonyBlock(s) => return self.format_anon_block(s),
             Statement::RemovePackage(_) => "REMOVE PACKAGE",
             Statement::SecLabel(_) => "SECURITY LABEL",
             Statement::CreateWeakPasswordDictionary => "CREATE WEAK PASSWORD DICTIONARY",
@@ -1628,6 +1628,445 @@ impl SqlFormatter {
             }
         }
     }
+
+    fn format_anon_block(&self, stmt: &AnonyBlockStatement) -> String {
+        self.format_pl_block(&stmt.block)
+    }
+
+    fn format_pl_block(&self, block: &crate::ast::plpgsql::PlBlock) -> String {
+        use crate::ast::plpgsql::*;
+        let mut s = String::new();
+
+        if let Some(ref label) = block.label {
+            s.push_str(&format!("<<{}>> ", label));
+        }
+
+        if !block.declarations.is_empty() {
+            s.push_str(&format!("{} ", self.kw("DECLARE")));
+            for decl in &block.declarations {
+                s.push_str(&self.format_pl_declaration(decl));
+                s.push(' ');
+            }
+        }
+
+        s.push_str(&self.kw("BEGIN"));
+        for stmt in &block.body {
+            s.push(' ');
+            s.push_str(&self.format_pl_statement(stmt));
+        }
+
+        if let Some(ref exc) = block.exception_block {
+            s.push(' ');
+            s.push_str(&self.kw("EXCEPTION"));
+            for handler in &exc.handlers {
+                s.push_str(&format!(" {} ", self.kw("WHEN")));
+                s.push_str(&handler.conditions.join(" OR "));
+                s.push_str(&format!(" {} ", self.kw("THEN")));
+                for stmt in &handler.statements {
+                    s.push_str(&self.format_pl_statement(stmt));
+                    s.push(' ');
+                }
+            }
+        }
+
+        s.push(' ');
+        s.push_str(&self.kw("END"));
+
+        if let Some(ref label) = block.end_label {
+            s.push_str(&format!(" {}", label));
+        }
+
+        s
+    }
+
+    fn format_pl_declaration(&self, decl: &crate::ast::plpgsql::PlDeclaration) -> String {
+        use crate::ast::plpgsql::*;
+        match decl {
+            PlDeclaration::Variable(v) => {
+                let mut s = v.name.clone();
+                if v.constant {
+                    s.push_str(&format!(" {} ", self.kw("CONSTANT")));
+                }
+                s.push(' ');
+                s.push_str(&self.format_pl_data_type(&v.data_type));
+                if v.not_null {
+                    s.push_str(&format!(" {} ", self.kw("NOT NULL")));
+                }
+                if let Some(ref default) = v.default {
+                    s.push_str(&format!(" := {}", default));
+                }
+                s
+            }
+            PlDeclaration::Cursor(c) => {
+                let mut s = format!("{} {} ", c.name, self.kw("CURSOR"));
+                if !c.arguments.is_empty() {
+                    s.push('(');
+                    s.push_str(
+                        &c.arguments
+                            .iter()
+                            .map(|a| {
+                                format!("{} {}", a.name, self.format_pl_data_type(&a.data_type))
+                            })
+                            .collect::<Vec<_>>()
+                            .join(", "),
+                    );
+                    s.push_str(") ");
+                }
+                if !c.query.is_empty() {
+                    s.push_str(&format!("{} {}", self.kw("FOR"), c.query));
+                }
+                s
+            }
+            PlDeclaration::Record(r) => format!("{} {}", r.name, self.kw("RECORD")),
+            PlDeclaration::Type(t) => {
+                let fields = t
+                    .fields
+                    .iter()
+                    .map(|f| format!("{} {}", f.name, self.format_pl_data_type(&f.data_type)))
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                format!("{} {} ({})", t.name, self.kw("TYPE"), fields)
+            }
+        }
+    }
+
+    fn format_pl_data_type(&self, dt: &crate::ast::plpgsql::PlDataType) -> String {
+        use crate::ast::plpgsql::*;
+        match dt {
+            PlDataType::TypeName(name) => name.clone(),
+            PlDataType::PercentType { table, column } => format!("{}%.{}%", table, column),
+            PlDataType::PercentRowType(table) => format!("{}%ROWTYPE", table),
+            PlDataType::Record => self.kw("RECORD").to_string(),
+            PlDataType::Cursor => self.kw("CURSOR").to_string(),
+            PlDataType::RefCursor => self.kw("REFCURSOR").to_string(),
+        }
+    }
+
+    fn format_pl_statement(&self, stmt: &crate::ast::plpgsql::PlStatement) -> String {
+        use crate::ast::plpgsql::*;
+        match stmt {
+            PlStatement::Block(b) => format!("{};", self.format_pl_block(b)),
+            PlStatement::Assignment { target, expression } => {
+                format!("{} := {};", target, expression)
+            }
+            PlStatement::Null => format!("{};", self.kw("NULL")),
+            PlStatement::If(i) => self.format_pl_if(i),
+            PlStatement::Case(c) => self.format_pl_case(c),
+            PlStatement::Loop(l) => self.format_pl_loop(l),
+            PlStatement::While(w) => self.format_pl_while(w),
+            PlStatement::For(f) => self.format_pl_for(f),
+            PlStatement::ForEach(fe) => self.format_pl_foreach(fe),
+            PlStatement::Exit { label, condition } => {
+                let mut s = self.kw("EXIT").to_string();
+                if let Some(ref lbl) = label {
+                    s.push_str(&format!(" {}", lbl));
+                }
+                if let Some(ref cond) = condition {
+                    s.push_str(&format!(" {} {}", self.kw("WHEN"), cond));
+                }
+                format!("{};", s)
+            }
+            PlStatement::Continue { label, condition } => {
+                let mut s = self.kw("CONTINUE").to_string();
+                if let Some(ref lbl) = label {
+                    s.push_str(&format!(" {}", lbl));
+                }
+                if let Some(ref cond) = condition {
+                    s.push_str(&format!(" {} {}", self.kw("WHEN"), cond));
+                }
+                format!("{};", s)
+            }
+            PlStatement::Return { expression } => {
+                if let Some(ref expr) = expression {
+                    format!("{} {};", self.kw("RETURN"), expr)
+                } else {
+                    format!("{};", self.kw("RETURN"))
+                }
+            }
+            PlStatement::Raise(r) => self.format_pl_raise(r),
+            PlStatement::Execute(e) => {
+                let mut s = format!("{} {}", self.kw("EXECUTE"), e.string_expr);
+                if let Some(ref into) = e.into_target {
+                    s.push_str(&format!(" {} {}", self.kw("INTO"), into));
+                }
+                if !e.using_args.is_empty() {
+                    s.push_str(&format!(
+                        " {} {}",
+                        self.kw("USING"),
+                        e.using_args.join(", ")
+                    ));
+                }
+                format!("{};", s)
+            }
+            PlStatement::Perform { query } => format!("{} {};", self.kw("PERFORM"), query),
+            PlStatement::Open(o) => {
+                let mut s = format!("{} {}", self.kw("OPEN"), o.cursor);
+                match &o.kind {
+                    PlOpenKind::Simple { arguments } => {
+                        if !arguments.is_empty() {
+                            s.push_str(&format!("({})", arguments.join(", ")));
+                        }
+                    }
+                    PlOpenKind::ForQuery { query } => {
+                        s.push_str(&format!(" {} {}", self.kw("FOR"), query));
+                    }
+                    PlOpenKind::ForUsing { expressions } => {
+                        s.push_str(&format!(
+                            " {} {}",
+                            self.kw("FOR USING"),
+                            expressions.join(", ")
+                        ));
+                    }
+                }
+                format!("{};", s)
+            }
+            PlStatement::Fetch(f) => {
+                let mut s = self.kw("FETCH").to_string();
+                if let Some(ref dir) = f.direction {
+                    s.push_str(&format!(" {} ", dir));
+                }
+                s.push_str(&format!("{} {} {};", f.cursor, self.kw("INTO"), f.into));
+                s
+            }
+            PlStatement::Close { cursor } => format!("{} {};", self.kw("CLOSE"), cursor),
+            PlStatement::Move { cursor, direction } => {
+                let mut s = self.kw("MOVE").to_string();
+                if let Some(ref dir) = direction {
+                    s.push_str(&format!(" {} ", dir));
+                }
+                format!("{}{};", s, cursor)
+            }
+            PlStatement::GetDiagnostics(g) => {
+                let mut s = self.kw("GET").to_string();
+                if g.stacked {
+                    s.push_str(&format!(" {}", self.kw("STACKED")));
+                }
+                s.push_str(&format!(" {} ", self.kw("DIAGNOSTICS")));
+                s.push_str(
+                    &g.items
+                        .iter()
+                        .map(|i| format!("{} = {}", i.target, i.item))
+                        .collect::<Vec<_>>()
+                        .join(", "),
+                );
+                format!("{};", s)
+            }
+            PlStatement::Commit => format!("{};", self.kw("COMMIT")),
+            PlStatement::Rollback { to_savepoint } => {
+                if let Some(sp) = to_savepoint {
+                    format!("{} {} {};", self.kw("ROLLBACK"), self.kw("TO"), sp)
+                } else {
+                    format!("{};", self.kw("ROLLBACK"))
+                }
+            }
+            PlStatement::Savepoint { name } => format!("{} {};", self.kw("SAVEPOINT"), name),
+            PlStatement::Goto { label } => format!("{} {};", self.kw("GOTO"), label),
+            PlStatement::Sql(sql) => {
+                if sql.is_empty() {
+                    String::new()
+                } else {
+                    format!("{};", sql)
+                }
+            }
+            PlStatement::ForAll(f) => format!(
+                "{} {} {} {}",
+                self.kw("FORALL"),
+                f.variable,
+                f.bounds,
+                f.body
+            ),
+            PlStatement::PipeRow { expression } => {
+                format!("{}({});", self.kw("PIPE ROW"), expression)
+            }
+        }
+    }
+
+    fn format_pl_if(&self, i: &crate::ast::plpgsql::PlIfStmt) -> String {
+        let mut s = format!("{} {} {} ", self.kw("IF"), i.condition, self.kw("THEN"));
+        for stmt in &i.then_stmts {
+            s.push_str(&self.format_pl_statement(stmt));
+        }
+        for elsif in &i.elsifs {
+            s.push_str(&format!(
+                " {} {} {} ",
+                self.kw("ELSIF"),
+                elsif.condition,
+                self.kw("THEN")
+            ));
+            for stmt in &elsif.stmts {
+                s.push_str(&self.format_pl_statement(stmt));
+            }
+        }
+        if !i.else_stmts.is_empty() {
+            s.push_str(&format!("{} ", self.kw("ELSE")));
+            for stmt in &i.else_stmts {
+                s.push_str(&self.format_pl_statement(stmt));
+            }
+        }
+        s.push_str(&self.kw("END IF"));
+        s
+    }
+
+    fn format_pl_case(&self, c: &crate::ast::plpgsql::PlCaseStmt) -> String {
+        let mut s = self.kw("CASE").to_string();
+        if let Some(ref expr) = c.expression {
+            s.push_str(&format!(" {}", expr));
+        }
+        for when in &c.whens {
+            s.push_str(&format!(
+                " {} {} {} ",
+                self.kw("WHEN"),
+                when.condition,
+                self.kw("THEN")
+            ));
+            for stmt in &when.stmts {
+                s.push_str(&self.format_pl_statement(stmt));
+            }
+        }
+        if !c.else_stmts.is_empty() {
+            s.push_str(&format!("{} ", self.kw("ELSE")));
+            for stmt in &c.else_stmts {
+                s.push_str(&self.format_pl_statement(stmt));
+            }
+        }
+        s.push_str(&format!(" {} {}", self.kw("END"), self.kw("CASE")));
+        s
+    }
+
+    fn format_pl_loop(&self, l: &crate::ast::plpgsql::PlLoopStmt) -> String {
+        let mut s = String::new();
+        if let Some(ref label) = l.label {
+            s.push_str(&format!("<<{}>> ", label));
+        }
+        s.push_str(&self.kw("LOOP"));
+        for stmt in &l.body {
+            s.push(' ');
+            s.push_str(&self.format_pl_statement(stmt));
+        }
+        s.push_str(&format!(" {} {}", self.kw("END"), self.kw("LOOP")));
+        if let Some(ref label) = l.end_label {
+            s.push_str(&format!(" {}", label));
+        }
+        s
+    }
+
+    fn format_pl_while(&self, w: &crate::ast::plpgsql::PlWhileStmt) -> String {
+        let mut s = String::new();
+        if let Some(ref label) = w.label {
+            s.push_str(&format!("<<{}>> ", label));
+        }
+        s.push_str(&format!(
+            "{} {} {} ",
+            self.kw("WHILE"),
+            w.condition,
+            self.kw("LOOP")
+        ));
+        for stmt in &w.body {
+            s.push_str(&self.format_pl_statement(stmt));
+        }
+        s.push_str(&format!(" {} {}", self.kw("END"), self.kw("LOOP")));
+        if let Some(ref label) = w.end_label {
+            s.push_str(&format!(" {}", label));
+        }
+        s
+    }
+
+    fn format_pl_for(&self, f: &crate::ast::plpgsql::PlForStmt) -> String {
+        use crate::ast::plpgsql::PlForKind;
+        let mut s = String::new();
+        if let Some(ref label) = f.label {
+            s.push_str(&format!("<<{}>> ", label));
+        }
+        s.push_str(&format!(
+            "{} {} {} ",
+            self.kw("FOR"),
+            f.variable,
+            self.kw("IN")
+        ));
+        match &f.kind {
+            PlForKind::Range {
+                low,
+                high,
+                step,
+                reverse,
+            } => {
+                if *reverse {
+                    s.push_str(&format!("{} ", self.kw("REVERSE")));
+                }
+                s.push_str(&format!("{}..{}", low, high));
+                if let Some(ref st) = step {
+                    s.push_str(&format!(" {} {}", self.kw("BY"), st));
+                }
+            }
+            PlForKind::Query { query } => {
+                s.push_str(query);
+            }
+            PlForKind::Cursor {
+                cursor_name,
+                arguments,
+            } => {
+                s.push_str(cursor_name);
+                if !arguments.is_empty() {
+                    s.push_str(&format!("({})", arguments.join(", ")));
+                }
+            }
+        }
+        s.push_str(&format!(" {} ", self.kw("LOOP")));
+        for stmt in &f.body {
+            s.push_str(&self.format_pl_statement(stmt));
+        }
+        s.push_str(&format!(" {} {}", self.kw("END"), self.kw("LOOP")));
+        if let Some(ref label) = f.end_label {
+            s.push_str(&format!(" {}", label));
+        }
+        s
+    }
+
+    fn format_pl_foreach(&self, fe: &crate::ast::plpgsql::PlForEachStmt) -> String {
+        let mut s = String::new();
+        if let Some(ref label) = fe.label {
+            s.push_str(&format!("<<{}>> ", label));
+        }
+        s.push_str(&format!(
+            "{} {} {} {} {}",
+            self.kw("FOREACH"),
+            fe.variable,
+            self.kw("IN ARRAY"),
+            fe.expression,
+            self.kw("LOOP")
+        ));
+        if let Some(slice) = fe.slice {
+            s.push_str(&format!(" {} {}", self.kw("SLICE"), slice));
+        }
+        for stmt in &fe.body {
+            s.push_str(&self.format_pl_statement(stmt));
+        }
+        s.push_str(&format!(" {} {}", self.kw("END"), self.kw("LOOP")));
+        if let Some(ref label) = fe.end_label {
+            s.push_str(&format!(" {}", label));
+        }
+        s
+    }
+
+    fn format_pl_raise(&self, r: &crate::ast::plpgsql::PlRaiseStmt) -> String {
+        use crate::ast::plpgsql::RaiseLevel;
+        let mut s = self.kw("RAISE").to_string();
+        if let Some(ref level) = r.level {
+            let level_str = match level {
+                RaiseLevel::Debug => "DEBUG",
+                RaiseLevel::Log => "LOG",
+                RaiseLevel::Info => "INFO",
+                RaiseLevel::Notice => "NOTICE",
+                RaiseLevel::Warning => "WARNING",
+                RaiseLevel::Exception => "EXCEPTION",
+            };
+            s.push_str(&format!(" {} ", level_str));
+        }
+        if let Some(ref msg) = r.message {
+            s.push_str(msg);
+        }
+        format!("{};", s)
+    }
 }
 
 impl Default for SqlFormatter {
@@ -1989,8 +2428,14 @@ impl SqlFormatter {
         if let Some(ref lang) = stmt.language {
             s.push_str(&format!(" {} {}", self.kw("LANGUAGE"), lang));
         }
-        s.push(' ');
-        s.push_str(&stmt.code);
+        if let Some(ref block) = stmt.block {
+            s.push_str(" $$ ");
+            s.push_str(&self.format_pl_block(block));
+            s.push_str(" $$");
+        } else {
+            s.push(' ');
+            s.push_str(&stmt.code);
+        }
         s
     }
 

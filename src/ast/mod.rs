@@ -1,3 +1,5 @@
+pub mod plpgsql;
+
 #[derive(Debug, Clone, PartialEq, serde::Serialize)]
 pub struct CreateTableStatement {
     pub temporary: bool,
@@ -814,6 +816,11 @@ pub struct CreateTablespaceStatement {
     pub location: String,
 }
 
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
+pub struct AnonyBlockStatement {
+    pub block: crate::ast::plpgsql::PlBlock,
+}
+
 pub mod visitor;
 
 macro_rules! stub_struct {
@@ -1091,6 +1098,7 @@ pub struct DeallocateStatement {
 pub struct DoStatement {
     pub language: Option<String>,
     pub code: String,
+    pub block: Option<crate::ast::plpgsql::PlBlock>,
 }
 
 // ========== Wave 11: ALTER DATABASE/SCHEMA/SEQUENCE/FUNCTION/ROLE/USER/SYSTEM ==========
@@ -1337,7 +1345,6 @@ stub_struct!(
     CompileStatement,
     GetDiagStatement,
     ShowEventStatement,
-    AnonyBlockStatement,
     RemovePackageStatement,
     SecLabelStatement,
     CreatePolicyLabelStatement,

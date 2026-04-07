@@ -969,7 +969,7 @@ impl Parser {
         Ok(type_name)
     }
 
-    fn token_to_string(&self) -> String {
+    pub(crate) fn token_to_string(&self) -> String {
         match self.peek() {
             Token::Ident(s) => s.clone(),
             Token::QuotedIdent(s) => format!("\"{}\"", s),
@@ -1894,9 +1894,61 @@ impl Parser {
             language = Some(self.parse_identifier()?);
         }
 
-        let code = self.skip_to_semicolon_and_collect();
+        // Try to extract dollar-quoted body and parse as PL/pgSQL
+        let (code, block) = if matches!(self.peek(), Token::DollarString(_)) {
+            if let Token::DollarString(inner) = self.peek().clone() {
+                self.advance();
+                let inner_str = inner.clone();
+                match Self::parse_pl_block_from_str(&inner_str) {
+                    Ok(block) => (inner_str, Some(block)),
+                    Err(_) => (inner_str, None),
+                }
+            } else {
+                unreachable!()
+            }
+        } else {
+            let code = self.skip_to_semicolon_and_collect();
+            (code, None)
+        };
 
-        Ok(DoStatement { language, code })
+        Ok(DoStatement {
+            language,
+            code,
+            block,
+        })
+    }
+
+    pub(crate) fn parse_pl_block_from_str(
+        input: &str,
+    ) -> Result<crate::ast::plpgsql::PlBlock, ParserError> {
+        let tokens = crate::token::tokenizer::Tokenizer::new(input).tokenize()?;
+        let mut parser = Parser::new(tokens);
+        parser.parse_pl_block()
+    }
+
+    pub(crate) fn is_plpgsql_anon_block_start(&self) -> bool {
+        match self.peek() {
+            Token::DollarString(_) => true,
+            Token::Op(ref op) if op == "<<" => true,
+            Token::Ident(_) => true,
+            Token::Keyword(Keyword::DECLARE) => true,
+            _ => false,
+        }
+    }
+
+    pub(crate) fn parse_anonymous_block(
+        &mut self,
+    ) -> Result<crate::ast::AnonyBlockStatement, ParserError> {
+        if matches!(self.peek(), Token::DollarString(_)) {
+            if let Token::DollarString(inner) = self.peek().clone() {
+                self.advance();
+                let block = Self::parse_pl_block_from_str(&inner)?;
+                return Ok(crate::ast::AnonyBlockStatement { block });
+            }
+        }
+
+        let block = self.parse_pl_block()?;
+        Ok(crate::ast::AnonyBlockStatement { block })
     }
 
     // ── Wave 11: ALTER DATABASE/SCHEMA/SEQUENCE/FUNCTION/ROLE/USER/SYSTEM ──

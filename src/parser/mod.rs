@@ -1,6 +1,7 @@
 pub(crate) mod ddl;
 pub(crate) mod dml;
 pub(crate) mod expr;
+pub(crate) mod plpgsql;
 pub(crate) mod select;
 pub(crate) mod utility;
 
@@ -182,6 +183,34 @@ impl Parser {
 
     fn try_consume_keyword(&mut self, kw: Keyword) -> bool {
         if self.match_keyword(kw) {
+            self.advance();
+            true
+        } else {
+            false
+        }
+    }
+
+    fn peek_ident_str(&self) -> Option<&str> {
+        match self.peek() {
+            Token::Ident(s) => Some(s.as_str()),
+            _ => None,
+        }
+    }
+
+    fn match_ident_str(&self, target: &str) -> bool {
+        match self.peek() {
+            Token::Ident(s) => s.eq_ignore_ascii_case(target),
+            Token::Keyword(kw) => {
+                let s = format!("{:?}", kw).to_lowercase();
+                let trimmed = s.trim_end_matches("_p");
+                trimmed.eq_ignore_ascii_case(target)
+            }
+            _ => false,
+        }
+    }
+
+    fn try_consume_ident_str(&mut self, target: &str) -> bool {
+        if self.match_ident_str(target) {
             self.advance();
             true
         } else {
@@ -403,7 +432,33 @@ impl Parser {
                     }
                 }
             }
-            Token::Keyword(Keyword::BEGIN_P) | Token::Keyword(Keyword::START) => {
+            Token::Keyword(Keyword::BEGIN_P) => {
+                self.advance();
+                if self.is_plpgsql_anon_block_start() {
+                    match self.parse_anonymous_block() {
+                        Ok(stmt) => {
+                            self.try_consume_semicolon();
+                            crate::ast::Statement::AnonyBlock(stmt)
+                        }
+                        Err(e) => {
+                            self.add_error(e);
+                            self.skip_to_semicolon()
+                        }
+                    }
+                } else {
+                    match self.parse_transaction_begin() {
+                        Ok(stmt) => {
+                            self.try_consume_semicolon();
+                            crate::ast::Statement::Transaction(stmt)
+                        }
+                        Err(e) => {
+                            self.add_error(e);
+                            self.skip_to_semicolon()
+                        }
+                    }
+                }
+            }
+            Token::Keyword(Keyword::START) => {
                 self.advance();
                 match self.parse_transaction_begin() {
                     Ok(stmt) => {

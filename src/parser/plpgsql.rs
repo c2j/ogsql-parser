@@ -1,0 +1,1244 @@
+use crate::ast::plpgsql::*;
+use crate::parser::{Parser, ParserError};
+use crate::token::keyword::Keyword;
+use crate::token::Token;
+
+impl Parser {
+    pub(crate) fn parse_pl_block(&mut self) -> Result<PlBlock, ParserError> {
+        let label = self.try_parse_pl_label();
+
+        let declarations = if self.peek_keyword() == Some(Keyword::DECLARE) {
+            self.advance();
+            self.parse_pl_declarations()?
+        } else {
+            Vec::new()
+        };
+
+        self.expect_keyword(Keyword::BEGIN_P)?;
+
+        let mut body = Vec::new();
+        let mut exception_block = None;
+
+        loop {
+            if self.match_ident_str("exception") {
+                self.advance();
+                exception_block = Some(self.parse_pl_exception_block()?);
+            } else if self.peek_keyword() == Some(Keyword::END_P) {
+                self.advance();
+                break;
+            } else {
+                let stmt = self.parse_pl_statement()?;
+                body.push(stmt);
+            }
+        }
+
+        let end_label = self.try_parse_pl_label();
+
+        Ok(PlBlock {
+            label,
+            declarations,
+            body,
+            exception_block,
+            end_label,
+        })
+    }
+
+    fn try_parse_pl_label(&mut self) -> Option<String> {
+        if matches!(self.peek(), Token::Op(ref s) if s == "<<") {
+            self.advance();
+            let label = self.parse_identifier().ok()?;
+            if matches!(self.peek(), Token::Op(ref s) if s == ">>") {
+                self.advance();
+                return Some(label);
+            }
+        }
+        None
+    }
+
+    fn parse_pl_declarations(&mut self) -> Result<Vec<PlDeclaration>, ParserError> {
+        let mut decls = Vec::new();
+        loop {
+            match self.peek_keyword() {
+                Some(Keyword::BEGIN_P) | Some(Keyword::END_P) => break,
+                _ => {
+                    if matches!(self.peek(), Token::Eof) {
+                        break;
+                    }
+                    let decl = self.parse_pl_declaration()?;
+                    decls.push(decl);
+                }
+            }
+        }
+        Ok(decls)
+    }
+
+    fn parse_pl_declaration(&mut self) -> Result<PlDeclaration, ParserError> {
+        let name = self.parse_identifier()?;
+
+        if self.match_ident_str("record") && !self.is_next_token_type_name() {
+            self.advance();
+            return Ok(PlDeclaration::Record(PlRecordDecl { name }));
+        }
+
+        if self.match_ident_str("cursor") {
+            return self.parse_pl_cursor_decl(name);
+        }
+
+        if self.match_keyword(Keyword::TYPE_P) {
+            return self.parse_pl_type_decl(name);
+        }
+
+        self.parse_pl_var_decl(name)
+    }
+
+    fn parse_pl_var_decl(&mut self, name: String) -> Result<PlDeclaration, ParserError> {
+        let mut constant = false;
+        if self.match_ident_str("constant") {
+            self.advance();
+            constant = true;
+        }
+
+        let data_type = self.parse_pl_data_type()?;
+
+        let mut not_null = false;
+        if self.peek_keyword() == Some(Keyword::NOT) {
+            self.advance();
+            self.expect_keyword(Keyword::NULL_P)?;
+            not_null = true;
+        }
+
+        let default = if self.match_token(&Token::ColonEquals) {
+            self.advance();
+            Some(self.skip_to_semicolon_or_keyword())
+        } else if self.match_ident_str("default") {
+            self.advance();
+            Some(self.skip_to_semicolon_or_keyword())
+        } else {
+            None
+        };
+
+        let collate = if self.match_ident_str("collate") {
+            self.advance();
+            Some(self.parse_identifier()?)
+        } else {
+            None
+        };
+
+        self.try_consume_semicolon();
+
+        Ok(PlDeclaration::Variable(PlVarDecl {
+            name,
+            data_type,
+            default,
+            constant,
+            not_null,
+            collate,
+        }))
+    }
+
+    fn is_next_token_type_name(&self) -> bool {
+        matches!(
+            self.peek_keyword(),
+            Some(Keyword::INT_P)
+                | Some(Keyword::INTEGER)
+                | Some(Keyword::TEXT_P)
+                | Some(Keyword::VARCHAR)
+                | Some(Keyword::BOOLEAN_P)
+                | Some(Keyword::NUMERIC)
+                | Some(Keyword::FLOAT_P)
+                | Some(Keyword::DOUBLE_P)
+                | Some(Keyword::DATE_P)
+                | Some(Keyword::TIMESTAMP)
+                | Some(Keyword::TIME)
+                | Some(Keyword::CHAR_P)
+                | Some(Keyword::INT_P)
+                | Some(Keyword::INTEGER)
+                | Some(Keyword::BIGINT)
+                | Some(Keyword::SMALLINT)
+                | Some(Keyword::REAL)
+        )
+    }
+
+    fn parse_pl_data_type(&mut self) -> Result<PlDataType, ParserError> {
+        let name = self.parse_identifier()?;
+
+        if matches!(self.peek(), Token::Percent) {
+            self.advance();
+            if self.match_ident_str("type") {
+                self.advance();
+            }
+            if let Some(dot_pos) = name.rfind('.') {
+                let table = name[..dot_pos].to_string();
+                let column = name[dot_pos + 1..].to_string();
+                return Ok(PlDataType::PercentType { table, column });
+            }
+            return Ok(PlDataType::PercentType {
+                table: name,
+                column: String::new(),
+            });
+        }
+
+        match name.to_uppercase().as_str() {
+            "RECORD" => Ok(PlDataType::Record),
+            "CURSOR" => Ok(PlDataType::Cursor),
+            "REFCURSOR" => Ok(PlDataType::RefCursor),
+            _ => Ok(PlDataType::TypeName(name)),
+        }
+    }
+
+    fn parse_pl_cursor_decl(&mut self, name: String) -> Result<PlDeclaration, ParserError> {
+        self.advance();
+
+        let mut arguments = Vec::new();
+        if self.match_token(&Token::LParen) {
+            self.advance();
+            if !self.match_token(&Token::RParen) {
+                loop {
+                    let arg_name = self.parse_identifier()?;
+                    let arg_mode = if self.match_ident_str("in") {
+                        self.advance();
+                        PlArgMode::In
+                    } else if self.match_ident_str("out") {
+                        self.advance();
+                        PlArgMode::Out
+                    } else {
+                        PlArgMode::In
+                    };
+                    let arg_type = self.parse_pl_data_type()?;
+                    arguments.push(PlCursorArg {
+                        name: arg_name,
+                        data_type: arg_type,
+                        mode: arg_mode,
+                    });
+                    if self.match_token(&Token::Comma) {
+                        self.advance();
+                    } else {
+                        break;
+                    }
+                }
+            }
+            self.expect_token(&Token::RParen)?;
+        }
+
+        let return_type = if self.match_token(&Token::LParen) {
+            let rt = Some(self.parse_pl_data_type()?);
+            self.expect_token(&Token::RParen)?;
+            rt
+        } else {
+            None
+        };
+
+        if self.match_ident_str("scroll") {
+            self.advance();
+        } else if self.match_ident_str("no") {
+            self.advance();
+            self.try_consume_ident_str("scroll");
+        }
+
+        self.expect_keyword(Keyword::FOR)?;
+        let query = self.skip_to_semicolon_or_keyword();
+        self.try_consume_semicolon();
+
+        Ok(PlDeclaration::Cursor(PlCursorDecl {
+            name,
+            arguments,
+            return_type,
+            query,
+            scrollable: false,
+        }))
+    }
+
+    fn parse_pl_type_decl(&mut self, name: String) -> Result<PlDeclaration, ParserError> {
+        self.expect_keyword(Keyword::TYPE_P)?;
+        if self.match_ident_str("is") {
+            self.advance();
+        }
+        self.expect_ident_str("record")?;
+        self.expect_token(&Token::LParen)?;
+
+        let mut fields = Vec::new();
+        if !self.match_token(&Token::RParen) {
+            loop {
+                let field_name = self.parse_identifier()?;
+                let field_type = self.parse_pl_data_type()?;
+                fields.push(PlTypeField {
+                    name: field_name,
+                    data_type: field_type,
+                });
+                if self.match_token(&Token::Comma) {
+                    self.advance();
+                } else {
+                    break;
+                }
+            }
+        }
+
+        self.expect_token(&Token::RParen)?;
+        self.try_consume_semicolon();
+
+        Ok(PlDeclaration::Type(PlTypeDecl { name, fields }))
+    }
+
+    fn expect_ident_str(&mut self, target: &str) -> Result<(), ParserError> {
+        if self.try_consume_ident_str(target) {
+            Ok(())
+        } else {
+            Err(ParserError::UnexpectedToken {
+                location: self.current_location(),
+                expected: target.to_string(),
+                got: format!("{:?}", self.peek()),
+            })
+        }
+    }
+
+    fn skip_to_semicolon_or_keyword(&mut self) -> String {
+        let mut collected = String::new();
+        let mut depth = 0i32;
+
+        loop {
+            match self.peek() {
+                Token::Eof => break,
+                Token::Semicolon if depth == 0 => {
+                    self.advance();
+                    break;
+                }
+                Token::LParen => {
+                    depth += 1;
+                    if !collected.is_empty() {
+                        collected.push(' ');
+                    }
+                    collected.push_str(&self.token_to_string());
+                    self.advance();
+                }
+                Token::RParen => {
+                    if depth > 0 {
+                        depth -= 1;
+                    }
+                    if !collected.is_empty() {
+                        collected.push(' ');
+                    }
+                    collected.push_str(&self.token_to_string());
+                    self.advance();
+                }
+                _ => {
+                    if depth == 0 && is_pl_terminator(self) {
+                        break;
+                    }
+                    if !collected.is_empty() {
+                        collected.push(' ');
+                    }
+                    collected.push_str(&self.token_to_string());
+                    self.advance();
+                }
+            }
+        }
+
+        collected.trim().to_string()
+    }
+
+    fn parse_pl_statements_until(
+        &mut self,
+        terminators: &[&str],
+    ) -> Result<Vec<PlStatement>, ParserError> {
+        let mut stmts = Vec::new();
+        loop {
+            let is_terminator = terminators.iter().any(|t| self.match_ident_str(t));
+            if is_terminator {
+                break;
+            }
+            if self.peek_keyword() == Some(Keyword::END_P) {
+                break;
+            }
+            if matches!(self.peek(), Token::Eof) {
+                break;
+            }
+            let stmt = self.parse_pl_statement()?;
+            stmts.push(stmt);
+        }
+        Ok(stmts)
+    }
+
+    fn parse_pl_statement(&mut self) -> Result<PlStatement, ParserError> {
+        let label = self.try_parse_pl_label();
+
+        let stmt = if self.match_ident_str("if") {
+            self.parse_pl_if()
+        } else if self.match_ident_str("case") {
+            self.parse_pl_case()
+        } else if self.match_ident_str("loop") {
+            self.parse_pl_loop()
+        } else if self.match_ident_str("while") {
+            self.parse_pl_while()
+        } else if self.match_ident_str("for") {
+            self.parse_pl_for()
+        } else if self.match_ident_str("foreach") {
+            self.parse_pl_foreach()
+        } else if self.match_ident_str("exit") {
+            self.parse_pl_exit()
+        } else if self.match_ident_str("continue") {
+            self.parse_pl_continue()
+        } else if self.match_ident_str("return") {
+            self.parse_pl_return()
+        } else if self.match_ident_str("raise") {
+            self.parse_pl_raise()
+        } else if self.match_ident_str("execute") {
+            self.parse_pl_execute()
+        } else if self.match_ident_str("perform") {
+            self.parse_pl_perform()
+        } else if self.match_ident_str("open") {
+            self.parse_pl_open()
+        } else if self.match_ident_str("fetch") {
+            self.parse_pl_fetch()
+        } else if self.match_ident_str("close") {
+            self.parse_pl_close()
+        } else if self.match_ident_str("move") {
+            self.parse_pl_move()
+        } else if self.match_ident_str("get") {
+            self.parse_pl_get_diagnostics()
+        } else if self.match_ident_str("commit") {
+            self.advance();
+            self.try_consume_ident_str("work");
+            self.try_consume_semicolon();
+            Ok(PlStatement::Commit)
+        } else if self.match_ident_str("rollback") {
+            self.parse_pl_rollback()
+        } else if self.match_ident_str("savepoint") {
+            self.advance();
+            let name = self.parse_identifier()?;
+            self.try_consume_semicolon();
+            Ok(PlStatement::Savepoint { name })
+        } else if self.match_ident_str("null") {
+            self.advance();
+            self.try_consume_semicolon();
+            Ok(PlStatement::Null)
+        } else if self.match_ident_str("goto") {
+            self.parse_pl_goto()
+        } else if self.match_ident_str("forall") {
+            self.parse_pl_forall()
+        } else if self.match_ident_str("pipe") {
+            self.parse_pl_pipe_row()
+        } else if self.match_ident_str("begin") {
+            self.advance();
+            let mut body = Vec::new();
+            let mut exception_block = None;
+            loop {
+                if self.match_ident_str("exception") {
+                    self.advance();
+                    exception_block = Some(self.parse_pl_exception_block()?);
+                } else if self.peek_keyword() == Some(Keyword::END_P) {
+                    self.advance();
+                    break;
+                } else {
+                    let stmt = self.parse_pl_statement()?;
+                    body.push(stmt);
+                }
+            }
+            let end_label = self.try_parse_pl_label();
+            Ok(PlStatement::Block(PlBlock {
+                label: None,
+                declarations: Vec::new(),
+                body,
+                exception_block,
+                end_label,
+            }))
+        } else if self.match_ident_str("declare") {
+            self.advance();
+            Ok(PlStatement::Block(
+                self.parse_pl_block_with_declare(label.clone())?,
+            ))
+        } else {
+            self.parse_pl_sql_or_assignment()
+        }?;
+
+        if label.is_some() {
+            Ok(attach_label(stmt, label))
+        } else {
+            Ok(stmt)
+        }
+    }
+
+    fn parse_pl_block_with_declare(
+        &mut self,
+        label: Option<String>,
+    ) -> Result<PlBlock, ParserError> {
+        let declarations = self.parse_pl_declarations()?;
+        self.expect_keyword(Keyword::BEGIN_P)?;
+
+        let mut body = Vec::new();
+        let mut exception_block = None;
+
+        loop {
+            if self.match_ident_str("exception") {
+                self.advance();
+                exception_block = Some(self.parse_pl_exception_block()?);
+            } else if self.peek_keyword() == Some(Keyword::END_P) {
+                self.advance();
+                break;
+            } else {
+                let stmt = self.parse_pl_statement()?;
+                body.push(stmt);
+            }
+        }
+
+        let end_label = self.try_parse_pl_label();
+        Ok(PlBlock {
+            label,
+            declarations,
+            body,
+            exception_block,
+            end_label,
+        })
+    }
+
+    fn parse_pl_sql_or_assignment(&mut self) -> Result<PlStatement, ParserError> {
+        let sql = self.skip_to_semicolon_or_keyword();
+        self.try_consume_semicolon();
+
+        if let Some(pos) = sql.find(":=") {
+            let target = sql[..pos].trim().to_string();
+            let expression = sql[pos + 2..].trim().to_string();
+            return Ok(PlStatement::Assignment { target, expression });
+        }
+
+        Ok(PlStatement::Sql(sql))
+    }
+
+    fn parse_pl_if(&mut self) -> Result<PlStatement, ParserError> {
+        self.advance();
+        let condition = self.collect_until_ident_str("then")?;
+        self.expect_ident_str("then")?;
+
+        let then_stmts = self.parse_pl_statements_until(&["elsif", "else"])?;
+
+        let mut elsifs = Vec::new();
+        while self.match_ident_str("elsif") {
+            self.advance();
+            let elsif_cond = self.collect_until_ident_str("then")?;
+            self.expect_ident_str("then")?;
+            let elsif_stmts = self.parse_pl_statements_until(&["elsif", "else"])?;
+            elsifs.push(PlElsif {
+                condition: elsif_cond,
+                stmts: elsif_stmts,
+            });
+        }
+
+        let else_stmts = if self.match_ident_str("else") {
+            self.advance();
+            self.parse_pl_statements_until(&[])?
+        } else {
+            Vec::new()
+        };
+
+        self.expect_keyword(Keyword::END_P)?;
+        self.expect_ident_str("if")?;
+        self.try_consume_semicolon();
+
+        Ok(PlStatement::If(PlIfStmt {
+            condition,
+            then_stmts,
+            elsifs,
+            else_stmts,
+        }))
+    }
+
+    fn parse_pl_case(&mut self) -> Result<PlStatement, ParserError> {
+        self.advance();
+
+        let expression = if self.match_ident_str("when") {
+            None
+        } else {
+            Some(self.collect_until_ident_str("when")?)
+        };
+
+        let mut whens = Vec::new();
+        while self.match_ident_str("when") {
+            self.advance();
+            let condition = self.collect_until_ident_str("then")?;
+            self.expect_ident_str("then")?;
+            let stmts = self.parse_pl_statements_until(&["when", "else"])?;
+            whens.push(PlCaseWhen { condition, stmts });
+        }
+
+        let else_stmts = if self.match_ident_str("else") {
+            self.advance();
+            self.parse_pl_statements_until(&[])?
+        } else {
+            Vec::new()
+        };
+
+        self.expect_keyword(Keyword::END_P)?;
+        self.expect_ident_str("case")?;
+        self.try_consume_semicolon();
+
+        Ok(PlStatement::Case(PlCaseStmt {
+            expression,
+            whens,
+            else_stmts,
+        }))
+    }
+
+    fn parse_pl_loop(&mut self) -> Result<PlStatement, ParserError> {
+        self.advance();
+        let body = self.parse_pl_statements_until(&[])?;
+        self.expect_keyword(Keyword::END_P)?;
+        self.expect_ident_str("loop")?;
+        let end_label = self.try_parse_pl_label();
+        self.try_consume_semicolon();
+
+        Ok(PlStatement::Loop(PlLoopStmt {
+            label: None,
+            body,
+            end_label,
+        }))
+    }
+
+    fn parse_pl_while(&mut self) -> Result<PlStatement, ParserError> {
+        self.advance();
+        let condition = self.collect_until_ident_str("loop")?;
+        self.expect_ident_str("loop")?;
+        let body = self.parse_pl_statements_until(&[])?;
+        self.expect_keyword(Keyword::END_P)?;
+        self.expect_ident_str("loop")?;
+        let end_label = self.try_parse_pl_label();
+        self.try_consume_semicolon();
+
+        Ok(PlStatement::While(PlWhileStmt {
+            label: None,
+            condition,
+            body,
+            end_label,
+        }))
+    }
+
+    fn parse_pl_for(&mut self) -> Result<PlStatement, ParserError> {
+        self.advance();
+        let variable = self.parse_identifier()?;
+        self.expect_ident_str("in")?;
+
+        let kind = self.parse_pl_for_kind()?;
+
+        self.expect_ident_str("loop")?;
+        let body = self.parse_pl_statements_until(&[])?;
+        self.expect_keyword(Keyword::END_P)?;
+        self.expect_ident_str("loop")?;
+        let end_label = self.try_parse_pl_label();
+        self.try_consume_semicolon();
+
+        Ok(PlStatement::For(PlForStmt {
+            label: None,
+            variable,
+            kind,
+            body,
+            end_label,
+        }))
+    }
+
+    fn parse_pl_for_kind(&mut self) -> Result<PlForKind, ParserError> {
+        let mut reverse = false;
+        if self.match_ident_str("reverse") {
+            self.advance();
+            reverse = true;
+        }
+
+        if self.match_ident_str("execute") || self.match_ident_str("select") {
+            let query = self.collect_until_ident_str("loop")?;
+            return Ok(PlForKind::Query { query });
+        }
+
+        let saved_pos = self.pos;
+        if let Ok(name) = self.parse_identifier() {
+            if self.match_ident_str("loop") || matches!(self.peek(), Token::LParen) {
+                let mut arguments = Vec::new();
+                if self.match_token(&Token::LParen) {
+                    self.advance();
+                    if !self.match_token(&Token::RParen) {
+                        loop {
+                            arguments.push(self.skip_to_comma_or_rparen());
+                            if self.match_token(&Token::Comma) {
+                                self.advance();
+                            } else {
+                                break;
+                            }
+                        }
+                    }
+                    self.expect_token(&Token::RParen)?;
+                }
+                return Ok(PlForKind::Cursor {
+                    cursor_name: name,
+                    arguments,
+                });
+            }
+            self.pos = saved_pos;
+        }
+
+        let low = self.collect_until_token(&Token::DotDot);
+        if matches!(self.peek(), Token::DotDot) {
+            self.advance();
+        }
+        let high = self.collect_until_ident_str("loop")?;
+
+        let step = if self.match_ident_str("by") {
+            self.advance();
+            Some(self.collect_until_ident_str("loop")?)
+        } else {
+            None
+        };
+
+        Ok(PlForKind::Range {
+            low,
+            high,
+            step,
+            reverse,
+        })
+    }
+
+    fn parse_pl_foreach(&mut self) -> Result<PlStatement, ParserError> {
+        self.advance();
+        let variable = self.parse_identifier()?;
+        self.expect_ident_str("in")?;
+        self.expect_ident_str("array")?;
+        let expression = self.collect_until_ident_str("loop")?;
+
+        let slice = if self.match_ident_str("slice") {
+            self.advance();
+            if let Token::Integer(n) = self.peek().clone() {
+                self.advance();
+                Some(n as i32)
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+
+        self.expect_ident_str("loop")?;
+        let body = self.parse_pl_statements_until(&[])?;
+        self.expect_keyword(Keyword::END_P)?;
+        self.expect_ident_str("loop")?;
+        let end_label = self.try_parse_pl_label();
+        self.try_consume_semicolon();
+
+        Ok(PlStatement::ForEach(PlForEachStmt {
+            label: None,
+            variable,
+            expression,
+            slice,
+            body,
+            end_label,
+        }))
+    }
+
+    fn parse_pl_exit(&mut self) -> Result<PlStatement, ParserError> {
+        self.advance();
+
+        let label = if !matches!(self.peek(), Token::Semicolon | Token::Eof)
+            && !self.match_ident_str("when")
+        {
+            Some(self.parse_identifier()?)
+        } else {
+            None
+        };
+
+        let condition = if self.match_ident_str("when") {
+            self.advance();
+            Some(self.skip_to_semicolon_or_keyword())
+        } else {
+            None
+        };
+
+        self.try_consume_semicolon();
+        Ok(PlStatement::Exit { label, condition })
+    }
+
+    fn parse_pl_continue(&mut self) -> Result<PlStatement, ParserError> {
+        self.advance();
+
+        let label = if !matches!(self.peek(), Token::Semicolon | Token::Eof)
+            && !self.match_ident_str("when")
+        {
+            Some(self.parse_identifier()?)
+        } else {
+            None
+        };
+
+        let condition = if self.match_ident_str("when") {
+            self.advance();
+            Some(self.skip_to_semicolon_or_keyword())
+        } else {
+            None
+        };
+
+        self.try_consume_semicolon();
+        Ok(PlStatement::Continue { label, condition })
+    }
+
+    fn parse_pl_return(&mut self) -> Result<PlStatement, ParserError> {
+        self.advance();
+
+        let expression = if matches!(self.peek(), Token::Semicolon | Token::Eof) {
+            None
+        } else {
+            Some(self.skip_to_semicolon_or_keyword())
+        };
+
+        self.try_consume_semicolon();
+        Ok(PlStatement::Return { expression })
+    }
+
+    fn parse_pl_raise(&mut self) -> Result<PlStatement, ParserError> {
+        self.advance();
+
+        if matches!(self.peek(), Token::Semicolon) {
+            self.advance();
+            return Ok(PlStatement::Raise(PlRaiseStmt {
+                level: None,
+                message: None,
+                options: Vec::new(),
+            }));
+        }
+
+        let level = if self.match_ident_str("debug") {
+            Some(RaiseLevel::Debug)
+        } else if self.match_ident_str("log") {
+            Some(RaiseLevel::Log)
+        } else if self.match_ident_str("info") {
+            Some(RaiseLevel::Info)
+        } else if self.match_ident_str("notice") {
+            Some(RaiseLevel::Notice)
+        } else if self.match_ident_str("warning") {
+            Some(RaiseLevel::Warning)
+        } else if self.match_ident_str("exception") {
+            Some(RaiseLevel::Exception)
+        } else {
+            None
+        };
+
+        if level.is_some() {
+            self.advance();
+        }
+
+        if matches!(self.peek(), Token::Semicolon) && level.is_some() {
+            self.advance();
+            return Ok(PlStatement::Raise(PlRaiseStmt {
+                level,
+                message: None,
+                options: Vec::new(),
+            }));
+        }
+
+        let message = Some(self.skip_to_semicolon_or_keyword());
+        self.try_consume_semicolon();
+
+        Ok(PlStatement::Raise(PlRaiseStmt {
+            level,
+            message,
+            options: Vec::new(),
+        }))
+    }
+
+    fn parse_pl_execute(&mut self) -> Result<PlStatement, ParserError> {
+        self.advance();
+        let string_expr = self.skip_to_semicolon_or_keyword();
+        self.try_consume_semicolon();
+
+        Ok(PlStatement::Execute(PlExecuteStmt {
+            string_expr,
+            into_target: None,
+            using_args: Vec::new(),
+        }))
+    }
+
+    fn parse_pl_perform(&mut self) -> Result<PlStatement, ParserError> {
+        self.advance();
+        let query = self.skip_to_semicolon_or_keyword();
+        self.try_consume_semicolon();
+
+        Ok(PlStatement::Perform { query })
+    }
+
+    fn parse_pl_open(&mut self) -> Result<PlStatement, ParserError> {
+        self.advance();
+        let cursor = self.parse_identifier()?;
+
+        let kind = if self.match_token(&Token::LParen) {
+            self.advance();
+            let mut arguments = Vec::new();
+            if !self.match_token(&Token::RParen) {
+                loop {
+                    arguments.push(self.skip_to_comma_or_rparen());
+                    if self.match_token(&Token::Comma) {
+                        self.advance();
+                    } else {
+                        break;
+                    }
+                }
+            }
+            self.expect_token(&Token::RParen)?;
+            PlOpenKind::Simple { arguments }
+        } else if self.match_ident_str("for") {
+            self.advance();
+            if self.match_ident_str("using") {
+                self.advance();
+                let mut expressions = Vec::new();
+                loop {
+                    expressions.push(self.skip_to_comma_or_rparen());
+                    if self.match_token(&Token::Comma) {
+                        self.advance();
+                    } else {
+                        break;
+                    }
+                }
+                PlOpenKind::ForUsing { expressions }
+            } else {
+                let query = self.skip_to_semicolon_or_keyword();
+                PlOpenKind::ForQuery { query }
+            }
+        } else {
+            PlOpenKind::Simple {
+                arguments: Vec::new(),
+            }
+        };
+
+        self.try_consume_semicolon();
+        Ok(PlStatement::Open(PlOpenStmt { cursor, kind }))
+    }
+
+    fn parse_pl_fetch(&mut self) -> Result<PlStatement, ParserError> {
+        self.advance();
+
+        let direction = if self.match_ident_str("next")
+            || self.match_ident_str("prior")
+            || self.match_ident_str("first")
+            || self.match_ident_str("last")
+            || self.match_ident_str("forward")
+            || self.match_ident_str("backward")
+            || self.match_ident_str("absolute")
+            || self.match_ident_str("relative")
+            || self.match_ident_str("all")
+        {
+            let dir = self.token_to_string();
+            self.advance();
+            if self.match_ident_str("from") || self.match_ident_str("in") {
+                self.advance();
+            }
+            Some(dir)
+        } else {
+            None
+        };
+
+        let cursor = self.parse_identifier()?;
+        self.expect_ident_str("into")?;
+        let into = self.skip_to_semicolon_or_keyword();
+        self.try_consume_semicolon();
+
+        Ok(PlStatement::Fetch(PlFetchStmt {
+            cursor,
+            direction,
+            into,
+        }))
+    }
+
+    fn parse_pl_close(&mut self) -> Result<PlStatement, ParserError> {
+        self.advance();
+        let cursor = self.parse_identifier()?;
+        self.try_consume_semicolon();
+
+        Ok(PlStatement::Close { cursor })
+    }
+
+    fn parse_pl_move(&mut self) -> Result<PlStatement, ParserError> {
+        self.advance();
+
+        let direction = if self.match_ident_str("next")
+            || self.match_ident_str("prior")
+            || self.match_ident_str("first")
+            || self.match_ident_str("last")
+            || self.match_ident_str("forward")
+            || self.match_ident_str("backward")
+            || self.match_ident_str("absolute")
+            || self.match_ident_str("relative")
+            || self.match_ident_str("all")
+        {
+            let dir = self.token_to_string();
+            self.advance();
+            if self.match_ident_str("from") || self.match_ident_str("in") {
+                self.advance();
+            }
+            Some(dir)
+        } else {
+            None
+        };
+
+        let cursor = self.parse_identifier()?;
+        self.try_consume_semicolon();
+
+        Ok(PlStatement::Move { cursor, direction })
+    }
+
+    fn parse_pl_get_diagnostics(&mut self) -> Result<PlStatement, ParserError> {
+        self.advance();
+
+        let stacked = if self.match_ident_str("stacked") {
+            self.advance();
+            true
+        } else {
+            false
+        };
+
+        self.expect_ident_str("diagnostics")?;
+
+        let mut items = Vec::new();
+        loop {
+            let target = self.parse_identifier()?;
+            self.expect_token(&Token::Eq)?;
+            let item = self.parse_identifier()?;
+            items.push(PlGetDiagItem { target, item });
+
+            if self.match_token(&Token::Comma) {
+                self.advance();
+            } else {
+                break;
+            }
+        }
+
+        self.try_consume_semicolon();
+        Ok(PlStatement::GetDiagnostics(PlGetDiagStmt {
+            stacked,
+            items,
+        }))
+    }
+
+    fn parse_pl_rollback(&mut self) -> Result<PlStatement, ParserError> {
+        self.advance();
+        self.try_consume_ident_str("work");
+
+        let to_savepoint = if self.match_ident_str("to") {
+            self.advance();
+            Some(self.parse_identifier()?)
+        } else {
+            None
+        };
+
+        self.try_consume_semicolon();
+        Ok(PlStatement::Rollback { to_savepoint })
+    }
+
+    fn parse_pl_goto(&mut self) -> Result<PlStatement, ParserError> {
+        self.advance();
+        let label = self.parse_identifier()?;
+        self.try_consume_semicolon();
+        Ok(PlStatement::Goto { label })
+    }
+
+    fn parse_pl_forall(&mut self) -> Result<PlStatement, ParserError> {
+        self.advance();
+        let variable = self.parse_identifier()?;
+        self.expect_ident_str("in")?;
+        let bounds = self.skip_to_semicolon_or_keyword();
+        self.try_consume_semicolon();
+
+        Ok(PlStatement::ForAll(PlForAllStmt {
+            variable,
+            bounds,
+            body: String::new(),
+        }))
+    }
+
+    fn parse_pl_pipe_row(&mut self) -> Result<PlStatement, ParserError> {
+        self.advance();
+        self.expect_ident_str("row")?;
+        let expression = self.skip_to_semicolon_or_keyword();
+        self.try_consume_semicolon();
+
+        Ok(PlStatement::PipeRow { expression })
+    }
+
+    fn parse_pl_exception_block(&mut self) -> Result<PlExceptionBlock, ParserError> {
+        let mut handlers = Vec::new();
+        loop {
+            if !self.match_ident_str("when") {
+                break;
+            }
+            self.advance();
+
+            let mut conditions = Vec::new();
+            loop {
+                conditions.push(self.parse_identifier()?);
+                if !self.match_ident_str("or") {
+                    break;
+                }
+                self.advance();
+            }
+
+            self.expect_ident_str("then")?;
+            let statements = self.parse_pl_statements_until(&["when"])?;
+
+            handlers.push(PlExceptionHandler {
+                conditions,
+                statements,
+            });
+        }
+        Ok(PlExceptionBlock { handlers })
+    }
+
+    fn collect_until_ident_str(&mut self, target: &str) -> Result<String, ParserError> {
+        let mut collected = String::new();
+        let mut depth = 0i32;
+
+        loop {
+            if depth == 0 && self.match_ident_str(target) {
+                break;
+            }
+            match self.peek() {
+                Token::Eof => break,
+                Token::LParen => {
+                    depth += 1;
+                    if !collected.is_empty() {
+                        collected.push(' ');
+                    }
+                    collected.push_str(&self.token_to_string());
+                    self.advance();
+                }
+                Token::RParen => {
+                    if depth > 0 {
+                        depth -= 1;
+                    }
+                    if !collected.is_empty() {
+                        collected.push(' ');
+                    }
+                    collected.push_str(&self.token_to_string());
+                    self.advance();
+                }
+                _ => {
+                    if !collected.is_empty() {
+                        collected.push(' ');
+                    }
+                    collected.push_str(&self.token_to_string());
+                    self.advance();
+                }
+            }
+        }
+
+        Ok(collected.trim().to_string())
+    }
+
+    fn collect_until_token(&mut self, token: &Token) -> String {
+        let mut collected = String::new();
+        let mut depth = 0i32;
+
+        loop {
+            if self.peek() == token && depth == 0 {
+                break;
+            }
+            match self.peek() {
+                Token::Eof => break,
+                Token::LParen => {
+                    depth += 1;
+                    if !collected.is_empty() {
+                        collected.push(' ');
+                    }
+                    collected.push_str(&self.token_to_string());
+                    self.advance();
+                }
+                Token::RParen => {
+                    if depth > 0 {
+                        depth -= 1;
+                    }
+                    if !collected.is_empty() {
+                        collected.push(' ');
+                    }
+                    collected.push_str(&self.token_to_string());
+                    self.advance();
+                }
+                _ => {
+                    if !collected.is_empty() {
+                        collected.push(' ');
+                    }
+                    collected.push_str(&self.token_to_string());
+                    self.advance();
+                }
+            }
+        }
+
+        collected.trim().to_string()
+    }
+
+    fn skip_to_comma_or_rparen(&mut self) -> String {
+        let mut collected = String::new();
+        let mut depth = 0i32;
+
+        loop {
+            match self.peek() {
+                Token::Eof => break,
+                Token::Comma if depth == 0 => break,
+                Token::RParen if depth == 0 => break,
+                Token::LParen => {
+                    depth += 1;
+                    if !collected.is_empty() {
+                        collected.push(' ');
+                    }
+                    collected.push_str(&self.token_to_string());
+                    self.advance();
+                }
+                Token::RParen => {
+                    depth -= 1;
+                    if !collected.is_empty() {
+                        collected.push(' ');
+                    }
+                    collected.push_str(&self.token_to_string());
+                    self.advance();
+                }
+                _ => {
+                    if !collected.is_empty() {
+                        collected.push(' ');
+                    }
+                    collected.push_str(&self.token_to_string());
+                    self.advance();
+                }
+            }
+        }
+
+        collected.trim().to_string()
+    }
+}
+
+fn is_pl_terminator(p: &Parser) -> bool {
+    let terminators = [
+        "begin",
+        "end",
+        "exception",
+        "when",
+        "then",
+        "else",
+        "elsif",
+        "loop",
+        "declare",
+    ];
+    terminators.iter().any(|t| p.match_ident_str(t))
+}
+
+fn attach_label(stmt: PlStatement, label: Option<String>) -> PlStatement {
+    match stmt {
+        PlStatement::Loop(mut l) => {
+            l.label = label;
+            PlStatement::Loop(l)
+        }
+        PlStatement::While(mut w) => {
+            w.label = label;
+            PlStatement::While(w)
+        }
+        PlStatement::For(mut f) => {
+            f.label = label;
+            PlStatement::For(f)
+        }
+        PlStatement::ForEach(mut fe) => {
+            fe.label = label;
+            PlStatement::ForEach(fe)
+        }
+        PlStatement::Block(mut b) => {
+            b.label = label;
+            PlStatement::Block(b)
+        }
+        _ => stmt,
+    }
+}
