@@ -296,6 +296,22 @@ impl Parser {
             });
         }
         let name = self.parse_object_name()?;
+        if self.match_token(&Token::LParen) {
+            self.advance();
+            let args = if self.match_token(&Token::RParen) {
+                vec![]
+            } else {
+                let mut args = vec![self.parse_expr()?];
+                while self.match_token(&Token::Comma) {
+                    self.advance();
+                    args.push(self.parse_expr()?);
+                }
+                args
+            };
+            self.expect_token(&Token::RParen)?;
+            let alias = self.parse_optional_alias()?;
+            return Ok(TableRef::FunctionCall { name, args, alias });
+        }
         let alias = self.parse_optional_alias()?;
         Ok(TableRef::Table { name, alias })
     }

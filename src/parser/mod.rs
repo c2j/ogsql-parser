@@ -160,6 +160,9 @@ impl Parser {
                     let stmt = match result {
                         Ok(s) => {
                             self.try_consume_semicolon();
+                            if self.current_start_offset() < text_end {
+                                self.recover_to(text_end);
+                            }
                             s
                         }
                         Err(e) => {
@@ -180,18 +183,51 @@ impl Parser {
 
     fn find_statement_end(&self) -> usize {
         let mut depth = 0i32;
+        let mut begin_depth = 0i32;
         for i in self.pos..self.tokens.len() {
             match &self.tokens[i].token {
                 Token::Eof => return self.prev_end_offset_at(i),
                 Token::LParen => depth += 1,
                 Token::RParen => depth = (depth - 1).max(0),
                 Token::DollarString(_) => {}
-                Token::Semicolon if depth <= 0 => return self.tokens[i].span.end,
-                Token::Slash if depth <= 0 => return self.tokens[i].span.end,
+                Token::Keyword(Keyword::BEGIN_P) => begin_depth += 1,
+                Token::Keyword(Keyword::END_P) if begin_depth > 0 => {
+                    let next_is_compound = (i + 1) < self.tokens.len()
+                        && matches!(
+                            self.tokens[i + 1].token,
+                            Token::Keyword(Keyword::LOOP)
+                                | Token::Keyword(Keyword::IF_P)
+                                | Token::Keyword(Keyword::CASE)
+                        );
+                    if !next_is_compound {
+                        begin_depth -= 1;
+                    }
+                }
+                Token::Semicolon if depth <= 0 && begin_depth <= 0 => {
+                    return self.find_delim_end(i, ';')
+                }
+                Token::Slash if depth <= 0 && begin_depth <= 0 => {
+                    return self.find_delim_end(i, '/')
+                }
                 _ => {}
             }
         }
         self.source.len()
+    }
+
+    fn find_delim_end(&self, token_idx: usize, delim: char) -> usize {
+        let span = &self.tokens[token_idx].span;
+        if span.start < self.source.len() && self.source.as_bytes()[span.start] == delim as u8 {
+            return span.end;
+        }
+        // tokenizer span was off — scan forward to find the actual delimiter
+        let search_start = span.start.saturating_sub(2);
+        for (i, b) in self.source.as_bytes()[search_start..].iter().enumerate() {
+            if *b == delim as u8 {
+                return search_start + i + 1;
+            }
+        }
+        span.end
     }
 
     fn prev_end_offset_at(&self, pos: usize) -> usize {

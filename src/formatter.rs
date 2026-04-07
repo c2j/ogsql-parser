@@ -353,6 +353,15 @@ impl SqlFormatter {
                 }
                 result
             }
+            TableRef::FunctionCall { name, args, alias } => {
+                let args_str: Vec<String> = args.iter().map(|a| self.format_expr(a)).collect();
+                let mut result =
+                    format!("{}({})", self.format_object_name(name), args_str.join(", "));
+                if let Some(a) = alias {
+                    result = format!("{} AS {}", result, self.quote_identifier(a));
+                }
+                result
+            }
             TableRef::Subquery { query, alias } => {
                 let result = format!("({})", self.format_select(query));
                 match alias {

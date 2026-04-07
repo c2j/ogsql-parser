@@ -439,6 +439,11 @@ pub enum TableRef {
         name: ObjectName,
         alias: Option<String>,
     },
+    FunctionCall {
+        name: ObjectName,
+        args: Vec<Expr>,
+        alias: Option<String>,
+    },
     Subquery {
         query: Box<SelectStatement>,
         alias: Option<String>,
