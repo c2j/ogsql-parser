@@ -57,20 +57,14 @@ fn read_input(file: Option<&str>) -> String {
     }
 }
 
-fn parse_input(sql: &str) -> (Vec<Statement>, Vec<ParserError>) {
+fn parse_input(sql: &str) -> (Vec<StatementInfo>, Vec<ParserError>) {
     let tokens = match Tokenizer::new(sql).tokenize() {
         Ok(t) => t,
         Err(e) => return (vec![], vec![ParserError::TokenizerError(e)]),
     };
-    let mut parser = Parser::new(tokens);
-    let mut stmts = Vec::new();
-    while let Some(result) = parser.parse_next() {
-        match result {
-            Ok(s) => stmts.push(s),
-            Err(_) => {}
-        }
-    }
-    (stmts, parser.errors().to_vec())
+    let mut parser = Parser::with_source(tokens, sql.to_string());
+    let infos = parser.parse_with_text();
+    (infos, parser.errors().to_vec())
 }
 
 fn token_display(t: &TokenWithSpan) -> (String, String) {
@@ -99,7 +93,7 @@ fn cmd_format(cli: &Cli) {
     let (stmts, errors) = parse_input(&sql);
 
     let formatter = SqlFormatter::new();
-    let formatted: Vec<String> = stmts.iter().map(|s| formatter.format_statement(s)).collect();
+    let formatted: Vec<String> = stmts.iter().map(|si| formatter.format_statement(&si.statement)).collect();
 
     if cli.json {
         let out = serde_json::json!({
@@ -254,7 +248,7 @@ mod api {
     pub async fn handle_format(Json(input): Json<SqlInput>) -> Json<serde_json::Value> {
         let (stmts, errors) = super::parse_input(&input.sql);
         let formatter = ogsql_parser::SqlFormatter::new();
-        let formatted: Vec<String> = stmts.iter().map(|s| formatter.format_statement(s)).collect();
+        let formatted: Vec<String> = stmts.iter().map(|si| formatter.format_statement(&si.statement)).collect();
         Json(serde_json::json!({
             "formatted": formatted.join(";\n"),
             "error_count": errors.len(),

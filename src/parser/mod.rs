@@ -149,36 +149,74 @@ impl Parser {
         loop {
             match self.peek() {
                 Token::Eof => break,
-                Token::Semicolon => {
+                Token::Semicolon | Token::Slash => {
                     self.advance();
                     continue;
                 }
                 _ => {
                     let start = self.current_start_offset();
-                    match self.parse_statement() {
-                        Ok(stmt) => {
-                            let end = self.prev_end_offset();
-                            let sql_text = self.source_slice(start, end);
-                            infos.push(crate::ast::StatementInfo {
-                                sql_text,
-                                statement: stmt,
-                            });
+                    let text_end = self.find_statement_end();
+                    let result = self.parse_statement();
+                    let stmt = match result {
+                        Ok(s) => {
+                            self.try_consume_semicolon();
+                            s
                         }
                         Err(e) => {
-                            let end = self.prev_end_offset();
-                            let sql_text = self.source_slice(start, end);
                             self.add_error(e);
-                            self.skip_to_semicolon();
-                            infos.push(crate::ast::StatementInfo {
-                                sql_text,
-                                statement: crate::ast::Statement::Empty,
-                            });
+                            self.recover_to(text_end);
+                            crate::ast::Statement::Empty
                         }
-                    }
+                    };
+                    infos.push(crate::ast::StatementInfo {
+                        sql_text: self.source_slice(start, text_end),
+                        statement: stmt,
+                    });
                 }
             }
         }
         infos
+    }
+
+    fn find_statement_end(&self) -> usize {
+        let mut depth = 0i32;
+        for i in self.pos..self.tokens.len() {
+            match &self.tokens[i].token {
+                Token::Eof => return self.prev_end_offset_at(i),
+                Token::LParen => depth += 1,
+                Token::RParen => depth = (depth - 1).max(0),
+                Token::DollarString(_) => {}
+                Token::Semicolon if depth <= 0 => return self.tokens[i].span.end,
+                Token::Slash if depth <= 0 => return self.tokens[i].span.end,
+                _ => {}
+            }
+        }
+        self.source.len()
+    }
+
+    fn prev_end_offset_at(&self, pos: usize) -> usize {
+        if pos == 0 {
+            0
+        } else {
+            self.tokens[pos - 1].span.end
+        }
+    }
+
+    fn recover_to(&mut self, byte_offset: usize) {
+        while self.pos < self.tokens.len() {
+            if self.tokens[self.pos].span.start >= byte_offset {
+                break;
+            }
+            if matches!(self.tokens[self.pos].token, Token::Eof) {
+                break;
+            }
+            self.pos += 1;
+        }
+        if self.pos < self.tokens.len()
+            && matches!(self.tokens[self.pos].token, Token::Semicolon | Token::Slash)
+        {
+            self.pos += 1;
+        }
     }
 
     pub fn into_iter(self) -> StatementIter {
