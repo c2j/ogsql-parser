@@ -101,27 +101,6 @@ impl Parser {
             .unwrap_or_default()
     }
 
-    fn current_start_offset(&self) -> usize {
-        self.tokens.get(self.pos).map(|t| t.span.start).unwrap_or(0)
-    }
-
-    fn prev_end_offset(&self) -> usize {
-        if self.pos == 0 {
-            return 0;
-        }
-        self.tokens
-            .get(self.pos - 1)
-            .map(|t| t.span.end)
-            .unwrap_or(0)
-    }
-
-    fn source_slice(&self, start: usize, end: usize) -> String {
-        if end == 0 || start >= end || end > self.source.len() {
-            return String::new();
-        }
-        self.source[start..end].trim().to_string()
-    }
-
     pub fn parse(&mut self) -> Vec<crate::ast::Statement> {
         let mut stmts = Vec::new();
         loop {
@@ -154,25 +133,54 @@ impl Parser {
                     continue;
                 }
                 _ => {
-                    let start = self.current_start_offset();
-                    let text_end = self.find_statement_end();
+                    let start_pos = self.pos;
+                    let end_pos = self.find_statement_end_pos();
                     let result = self.parse_statement();
                     let stmt = match result {
                         Ok(s) => {
                             self.try_consume_semicolon();
-                            if self.current_start_offset() < text_end {
-                                self.recover_to(text_end);
+                            if self.pos <= end_pos {
+                                self.pos = end_pos + 1;
                             }
                             s
                         }
                         Err(e) => {
                             self.add_error(e);
-                            self.recover_to(text_end);
+                            self.pos = end_pos + 1;
                             crate::ast::Statement::Empty
                         }
                     };
+
+                    // span.start/end are byte-exact; location.column points past token (unusable for start)
+                    let start_span = self.tokens[start_pos].span;
+                    let end_token = if end_pos < self.tokens.len() {
+                        &self.tokens[end_pos]
+                    } else {
+                        self.tokens.last().unwrap()
+                    };
+                    let end_span = end_token.span;
+
+                    let source = &self.source;
+                    let byte_start = start_span.start.min(source.len());
+                    let byte_end = end_span.end.min(source.len());
+                    let sql_text = if byte_start < byte_end {
+                        source[byte_start..byte_end].trim().to_string()
+                    } else {
+                        String::new()
+                    };
+
+                    let line_offsets = Self::compute_line_offsets(source);
+                    let (start_line, start_col) =
+                        Self::byte_offset_to_line_col(&line_offsets, byte_start, source);
+                    let (end_line, end_col) =
+                        Self::byte_offset_to_line_col(&line_offsets, byte_end, source);
+
                     infos.push(crate::ast::StatementInfo {
-                        sql_text: self.source_slice(start, text_end),
+                        sql_text,
+                        start_line,
+                        start_col,
+                        end_line,
+                        end_col,
                         statement: stmt,
                     });
                 }
@@ -181,12 +189,12 @@ impl Parser {
         infos
     }
 
-    fn find_statement_end(&self) -> usize {
+    fn find_statement_end_pos(&self) -> usize {
         let mut depth = 0i32;
         let mut begin_depth = 0i32;
         for i in self.pos..self.tokens.len() {
             match &self.tokens[i].token {
-                Token::Eof => return self.prev_end_offset_at(i),
+                Token::Eof => return if i > 0 { i - 1 } else { 0 },
                 Token::LParen => depth += 1,
                 Token::RParen => depth = (depth - 1).max(0),
                 Token::DollarString(_) => {}
@@ -203,56 +211,34 @@ impl Parser {
                         begin_depth -= 1;
                     }
                 }
-                Token::Semicolon if depth <= 0 && begin_depth <= 0 => {
-                    return self.find_delim_end(i, ';')
-                }
-                Token::Slash if depth <= 0 && begin_depth <= 0 => {
-                    return self.find_delim_end(i, '/')
-                }
+                Token::Semicolon if depth <= 0 && begin_depth <= 0 => return i,
+                Token::Slash if depth <= 0 && begin_depth <= 0 => return i,
                 _ => {}
             }
         }
-        self.source.len()
+        self.tokens.len().saturating_sub(1)
     }
 
-    fn find_delim_end(&self, token_idx: usize, delim: char) -> usize {
-        let span = &self.tokens[token_idx].span;
-        if span.start < self.source.len() && self.source.as_bytes()[span.start] == delim as u8 {
-            return span.end;
-        }
-        // tokenizer span was off — scan forward to find the actual delimiter
-        let search_start = span.start.saturating_sub(2);
-        for (i, b) in self.source.as_bytes()[search_start..].iter().enumerate() {
-            if *b == delim as u8 {
-                return search_start + i + 1;
-            }
-        }
-        span.end
+    fn byte_offset_to_line_col(
+        line_offsets: &[usize],
+        byte_offset: usize,
+        source: &str,
+    ) -> (usize, usize) {
+        let offset = byte_offset.min(source.len());
+        let line = line_offsets.partition_point(|&lo| lo <= offset).max(1);
+        let line_start = line_offsets[line - 1];
+        let col = source[line_start..offset].chars().count() + 1;
+        (line, col)
     }
 
-    fn prev_end_offset_at(&self, pos: usize) -> usize {
-        if pos == 0 {
-            0
-        } else {
-            self.tokens[pos - 1].span.end
-        }
-    }
-
-    fn recover_to(&mut self, byte_offset: usize) {
-        while self.pos < self.tokens.len() {
-            if self.tokens[self.pos].span.start >= byte_offset {
-                break;
+    fn compute_line_offsets(source: &str) -> Vec<usize> {
+        let mut offsets = vec![0usize];
+        for (i, c) in source.char_indices() {
+            if c == '\n' {
+                offsets.push(i + 1);
             }
-            if matches!(self.tokens[self.pos].token, Token::Eof) {
-                break;
-            }
-            self.pos += 1;
         }
-        if self.pos < self.tokens.len()
-            && matches!(self.tokens[self.pos].token, Token::Semicolon | Token::Slash)
-        {
-            self.pos += 1;
-        }
+        offsets
     }
 
     pub fn into_iter(self) -> StatementIter {

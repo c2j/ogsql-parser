@@ -345,6 +345,10 @@ pub enum Statement {
 #[derive(Debug, Clone, PartialEq, serde::Serialize)]
 pub struct StatementInfo {
     pub sql_text: String,
+    pub start_line: usize,
+    pub start_col: usize,
+    pub end_line: usize,
+    pub end_col: usize,
     #[serde(flatten)]
     pub statement: Statement,
 }
