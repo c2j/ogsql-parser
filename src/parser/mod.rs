@@ -555,11 +555,24 @@ impl Parser {
 
     // ── Statement dispatch ──
 
+    pub(crate) fn consume_hints(&mut self) -> Vec<String> {
+        let mut hints = Vec::new();
+        while let Token::Hint(h) = self.peek().clone() {
+            hints.push(h);
+            self.advance();
+        }
+        hints
+    }
+
     fn parse_statement(&mut self) -> Result<crate::ast::Statement, ParserError> {
         let stmt = match self.peek().clone() {
             Token::Keyword(Keyword::SELECT) | Token::Keyword(Keyword::WITH) => {
+                let pre_hints = self.consume_hints();
                 match self.parse_select_statement() {
-                    Ok(stmt) => {
+                    Ok(mut stmt) => {
+                        let mut hints = pre_hints;
+                        hints.append(&mut stmt.hints);
+                        stmt.hints = hints;
                         self.try_consume_semicolon();
                         crate::ast::Statement::Select(stmt)
                     }
@@ -570,9 +583,13 @@ impl Parser {
                 }
             }
             Token::Keyword(Keyword::INSERT) => {
+                let pre_hints = self.consume_hints();
                 self.advance();
                 match self.parse_insert() {
-                    Ok(stmt) => {
+                    Ok(mut stmt) => {
+                        let mut hints = pre_hints;
+                        hints.append(&mut stmt.hints);
+                        stmt.hints = hints;
                         self.try_consume_semicolon();
                         crate::ast::Statement::Insert(stmt)
                     }
@@ -583,9 +600,13 @@ impl Parser {
                 }
             }
             Token::Keyword(Keyword::UPDATE) => {
+                let pre_hints = self.consume_hints();
                 self.advance();
                 match self.parse_update() {
-                    Ok(stmt) => {
+                    Ok(mut stmt) => {
+                        let mut hints = pre_hints;
+                        hints.append(&mut stmt.hints);
+                        stmt.hints = hints;
                         self.try_consume_semicolon();
                         crate::ast::Statement::Update(stmt)
                     }
@@ -596,9 +617,13 @@ impl Parser {
                 }
             }
             Token::Keyword(Keyword::DELETE_P) => {
+                let pre_hints = self.consume_hints();
                 self.advance();
                 match self.parse_delete() {
-                    Ok(stmt) => {
+                    Ok(mut stmt) => {
+                        let mut hints = pre_hints;
+                        hints.append(&mut stmt.hints);
+                        stmt.hints = hints;
                         self.try_consume_semicolon();
                         crate::ast::Statement::Delete(stmt)
                     }
@@ -609,9 +634,13 @@ impl Parser {
                 }
             }
             Token::Keyword(Keyword::MERGE) => {
+                let pre_hints = self.consume_hints();
                 self.advance();
                 match self.parse_merge() {
-                    Ok(stmt) => {
+                    Ok(mut stmt) => {
+                        let mut hints = pre_hints;
+                        hints.append(&mut stmt.hints);
+                        stmt.hints = hints;
                         self.try_consume_semicolon();
                         crate::ast::Statement::Merge(stmt)
                     }

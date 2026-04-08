@@ -434,6 +434,7 @@ impl Parser {
         // A full implementation would re-parse the tokens, but for regression
         // tests we just need to not error.
         Ok(SelectStatement {
+            hints: vec![],
             with: None,
             distinct: false,
             targets: vec![SelectTarget::Star(None)],
@@ -1002,6 +1003,7 @@ impl Parser {
             Token::Lt => "<".to_string(),
             Token::Gt => ">".to_string(),
             Token::Eof => String::new(),
+            Token::Hint(h) => format!("/*+ {} */", h),
             _ => String::new(),
         }
     }
@@ -1391,6 +1393,7 @@ impl Parser {
                 Token::Gt => ">".to_string(),
                 Token::Percent => "%".to_string(),
                 Token::Eof => String::new(),
+                Token::Hint(h) => format!("/*+ {} */", h),
                 _ => String::new(),
             })
             .filter(|s| !s.is_empty())

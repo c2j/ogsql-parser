@@ -104,6 +104,7 @@ impl Parser {
 
     fn parse_simple_select(&mut self) -> Result<SelectStatement, ParserError> {
         self.expect_keyword(Keyword::SELECT)?;
+        let hints = self.consume_hints();
         let distinct = if self.match_keyword(Keyword::DISTINCT) {
             self.advance();
             if self.match_keyword(Keyword::ON) {
@@ -148,6 +149,7 @@ impl Parser {
             None
         };
         Ok(SelectStatement {
+            hints,
             with: None,
             distinct,
             targets,

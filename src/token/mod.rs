@@ -116,4 +116,7 @@ pub enum Token {
     // --- Special ---
     /// @@ variable (session/global parameter)
     SetIdent(String),
+
+    /// Optimizer hint: /*+ ... */
+    Hint(String),
 }

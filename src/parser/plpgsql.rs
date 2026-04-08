@@ -493,6 +493,22 @@ impl Parser {
     }
 
     fn try_parse_dml_as_pl_statement(&mut self) -> Option<PlStatement> {
+        let is_dml_or_hint = match self.peek() {
+            Token::Keyword(Keyword::SELECT) | Token::Keyword(Keyword::WITH) => true,
+            Token::Keyword(Keyword::INSERT) => true,
+            Token::Keyword(Keyword::UPDATE) => true,
+            Token::Keyword(Keyword::DELETE_P) => true,
+            Token::Keyword(Keyword::MERGE) => true,
+            Token::Hint(_) => true,
+            _ => false,
+        };
+
+        if !is_dml_or_hint {
+            return None;
+        }
+
+        let hints = self.consume_hints();
+
         let is_dml = match self.peek() {
             Token::Keyword(Keyword::SELECT) | Token::Keyword(Keyword::WITH) => true,
             Token::Keyword(Keyword::INSERT) => true,
@@ -510,35 +526,60 @@ impl Parser {
         let result = match self.peek() {
             Token::Keyword(Keyword::SELECT) | Token::Keyword(Keyword::WITH) => {
                 match self.parse_select_statement() {
-                    Ok(stmt) => Some(crate::ast::Statement::Select(stmt)),
+                    Ok(mut stmt) => {
+                        let mut merged = hints;
+                        merged.append(&mut stmt.hints);
+                        stmt.hints = merged;
+                        Some(crate::ast::Statement::Select(stmt))
+                    }
                     Err(_) => None,
                 }
             }
             Token::Keyword(Keyword::INSERT) => {
                 self.advance();
                 match self.parse_insert() {
-                    Ok(stmt) => Some(crate::ast::Statement::Insert(stmt)),
+                    Ok(mut stmt) => {
+                        let mut merged = hints;
+                        merged.append(&mut stmt.hints);
+                        stmt.hints = merged;
+                        Some(crate::ast::Statement::Insert(stmt))
+                    }
                     Err(_) => None,
                 }
             }
             Token::Keyword(Keyword::UPDATE) => {
                 self.advance();
                 match self.parse_update() {
-                    Ok(stmt) => Some(crate::ast::Statement::Update(stmt)),
+                    Ok(mut stmt) => {
+                        let mut merged = hints;
+                        merged.append(&mut stmt.hints);
+                        stmt.hints = merged;
+                        Some(crate::ast::Statement::Update(stmt))
+                    }
                     Err(_) => None,
                 }
             }
             Token::Keyword(Keyword::DELETE_P) => {
                 self.advance();
                 match self.parse_delete() {
-                    Ok(stmt) => Some(crate::ast::Statement::Delete(stmt)),
+                    Ok(mut stmt) => {
+                        let mut merged = hints;
+                        merged.append(&mut stmt.hints);
+                        stmt.hints = merged;
+                        Some(crate::ast::Statement::Delete(stmt))
+                    }
                     Err(_) => None,
                 }
             }
             Token::Keyword(Keyword::MERGE) => {
                 self.advance();
                 match self.parse_merge() {
-                    Ok(stmt) => Some(crate::ast::Statement::Merge(stmt)),
+                    Ok(mut stmt) => {
+                        let mut merged = hints;
+                        merged.append(&mut stmt.hints);
+                        stmt.hints = merged;
+                        Some(crate::ast::Statement::Merge(stmt))
+                    }
                     Err(_) => None,
                 }
             }

@@ -8,6 +8,7 @@ use crate::token::Token;
 
 impl Parser {
     pub(crate) fn parse_insert(&mut self) -> Result<InsertStatement, ParserError> {
+        let post_hints = self.consume_hints();
         self.try_consume_keyword(Keyword::INTO);
         let table = self.parse_object_name()?;
         let columns = if self.match_token(&Token::LParen) {
@@ -98,6 +99,7 @@ impl Parser {
             vec![]
         };
         Ok(InsertStatement {
+            hints: post_hints,
             table,
             columns,
             source,
@@ -107,6 +109,7 @@ impl Parser {
     }
 
     pub(crate) fn parse_update(&mut self) -> Result<UpdateStatement, ParserError> {
+        let post_hints = self.consume_hints();
         let mut tables = vec![self.parse_table_ref()?];
         while self.match_token(&Token::Comma) {
             self.advance();
@@ -148,6 +151,7 @@ impl Parser {
             vec![]
         };
         Ok(UpdateStatement {
+            hints: post_hints,
             tables,
             assignments,
             from,
@@ -157,6 +161,7 @@ impl Parser {
     }
 
     pub(crate) fn parse_delete(&mut self) -> Result<DeleteStatement, ParserError> {
+        let post_hints = self.consume_hints();
         let has_from = self.try_consume_keyword(Keyword::FROM);
         let mut tables = vec![self.parse_table_ref()?];
         while self.match_token(&Token::Comma) {
@@ -185,6 +190,7 @@ impl Parser {
             vec![]
         };
         Ok(DeleteStatement {
+            hints: post_hints,
             tables,
             using,
             where_clause,
@@ -193,6 +199,7 @@ impl Parser {
     }
 
     pub(crate) fn parse_merge(&mut self) -> Result<MergeStatement, ParserError> {
+        let post_hints = self.consume_hints();
         self.try_consume_keyword(Keyword::INTO);
         let target = self.parse_table_ref()?;
         self.expect_keyword(Keyword::USING)?;
@@ -262,6 +269,7 @@ impl Parser {
             when_clauses.push(MergeWhenClause { matched, action });
         }
         Ok(MergeStatement {
+            hints: post_hints,
             target,
             source,
             on_condition,
