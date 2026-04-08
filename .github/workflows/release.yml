@@ -1,0 +1,159 @@
+name: Build & Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release version (e.g. v0.1.0)"
+        required: true
+
+permissions:
+  contents: write
+
+env:
+  CARGO_TERM_COLOR: always
+  # Change this to adjust which features to build with.
+  # Options: cli (default), serve, tui, full
+  BUILD_FEATURES: "full"
+  BINARY_NAME: ogsql
+
+jobs:
+  build:
+    name: Build ${{ matrix.platform.target }}
+    runs-on: ${{ matrix.platform.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        platform:
+          # --- Linux ---
+          - runner: ubuntu-20.04
+            target: x86_64-unknown-linux-gnu
+            artifact: ogsql-linux-x86_64
+          - runner: ubuntu-20.04
+            target: aarch64-unknown-linux-gnu
+            artifact: ogsql-linux-arm64
+          # --- macOS ---
+          - runner: macos-13
+            target: x86_64-apple-darwin
+            artifact: ogsql-macos-x86_64
+          - runner: macos-14
+            target: aarch64-apple-darwin
+            artifact: ogsql-macos-arm64
+          # --- Windows ---
+          - runner: windows-2022
+            target: x86_64-pc-windows-msvc
+            artifact: ogsql-windows-x86_64
+          - runner: windows-2022
+            target: aarch64-pc-windows-msvc
+            artifact: ogsql-windows-arm64
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.platform.target }}
+
+      # ---------- Linux ARM64 cross-compilation ----------
+      - name: Install AArch64 cross-compiler (Linux ARM64)
+        if: matrix.platform.target == 'aarch64-unknown-linux-gnu'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu
+
+      - name: Configure AArch64 linker (Linux ARM64)
+        if: matrix.platform.target == 'aarch64-unknown-linux-gnu'
+        run: |
+          mkdir -p .cargo
+          cat >> .cargo/config.toml <<'EOF'
+          [target.aarch64-unknown-linux-gnu]
+          linker = "aarch64-linux-gnu-gcc"
+          EOF
+
+      # ---------- Windows ARM64 cross-compilation ----------
+      - name: Install Windows ARM64 linker components
+        if: matrix.platform.target == 'aarch64-pc-windows-msvc'
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: amd64_arm64
+
+      # ---------- Cache ----------
+      - name: Cache Cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ matrix.platform.target }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: ${{ matrix.platform.target }}-cargo-
+
+      # ---------- Build ----------
+      - name: Build
+        run: cargo build --release --features ${{ env.BUILD_FEATURES }} --target ${{ matrix.platform.target }}
+
+      # ---------- Package (Linux / macOS) ----------
+      - name: Strip binary (Linux / macOS)
+        if: "!contains(matrix.platform.target, 'windows')"
+        run: strip --strip-uneeded target/${{ matrix.platform.target }}/release/${{ env.BINARY_NAME }}
+
+      - name: Create tar.gz archive (Linux / macOS)
+        if: "!contains(matrix.platform.target, 'windows')"
+        run: |
+          cd target/${{ matrix.platform.target }}/release
+          tar czf ../../../${{ matrix.platform.artifact }}.tar.gz ${{ env.BINARY_NAME }}
+
+      # ---------- Package (Windows) ----------
+      - name: Create zip archive (Windows)
+        if: contains(matrix.platform.target, 'windows')
+        shell: pwsh
+        run: |
+          Compress-Archive `
+            -Path "target/${{ matrix.platform.target }}/release/${{ env.BINARY_NAME }}.exe" `
+            -DestinationPath "${{ matrix.platform.artifact }}.zip"
+
+      # ---------- Upload ----------
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.platform.artifact }}
+          path: |
+            ${{ matrix.platform.artifact }}.tar.gz
+            ${{ matrix.platform.artifact }}.zip
+          if-no-files-found: error
+
+  release:
+    name: Create GitHub Release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Determine tag
+        id: tag
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            TAG="${{ github.event.inputs.version }}"
+          else
+            TAG="${GITHUB_REF#refs/tags/}"
+          fi
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.tag.outputs.tag }}
+          generate_release_notes: true
+          files: |
+            artifacts/**/*.tar.gz
+            artifacts/**/*.zip
