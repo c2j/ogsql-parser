@@ -990,6 +990,7 @@ pub struct CreatePackageStatement {
     pub replace: bool,
     pub name: ObjectName,
     pub authid: Option<PackageAuthid>,
+    pub items: Vec<PackageItem>,
     pub body: String,
 }
 
@@ -997,7 +998,30 @@ pub struct CreatePackageStatement {
 pub struct CreatePackageBodyStatement {
     pub replace: bool,
     pub name: ObjectName,
+    pub items: Vec<PackageItem>,
     pub body: String,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
+pub enum PackageItem {
+    Procedure(PackageProcedure),
+    Function(PackageFunction),
+    Raw(String),
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
+pub struct PackageProcedure {
+    pub name: ObjectName,
+    pub parameters: Vec<String>,
+    pub block: Option<crate::ast::plpgsql::PlBlock>,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
+pub struct PackageFunction {
+    pub name: ObjectName,
+    pub parameters: Vec<String>,
+    pub return_type: Option<String>,
+    pub block: Option<crate::ast::plpgsql::PlBlock>,
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize)]

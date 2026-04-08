@@ -1877,6 +1877,13 @@ impl SqlFormatter {
                     format!("{};", sql)
                 }
             }
+            PlStatement::SqlStatement {
+                sql_text,
+                statement,
+            } => {
+                let _ = sql_text;
+                self.format_statement(&statement)
+            }
             PlStatement::ForAll(f) => format!(
                 "{} {} {} {}",
                 self.kw("FORALL"),

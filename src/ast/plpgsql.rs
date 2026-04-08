@@ -182,8 +182,14 @@ pub enum PlStatement {
     /// GOTO label
     Goto { label: String },
 
-    /// Raw SQL statement (SELECT, INSERT, UPDATE, DELETE, etc.)
+    #[serde(rename = "sql_text")]
     Sql(String),
+
+    SqlStatement {
+        sql_text: String,
+        #[serde(flatten)]
+        statement: Box<crate::ast::Statement>,
+    },
 
     /// FORALL statement
     ForAll(PlForAllStmt),

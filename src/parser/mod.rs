@@ -190,8 +190,12 @@ impl Parser {
     }
 
     fn find_statement_end_pos(&self) -> usize {
+        let is_package = self.detect_package_context();
         let mut depth = 0i32;
         let mut begin_depth = 0i32;
+        let mut subprog_depth = 0i32;
+        let mut seen_outer_end = false;
+
         for i in self.pos..self.tokens.len() {
             match &self.tokens[i].token {
                 Token::Eof => return if i > 0 { i - 1 } else { 0 },
@@ -199,7 +203,7 @@ impl Parser {
                 Token::RParen => depth = (depth - 1).max(0),
                 Token::DollarString(_) => {}
                 Token::Keyword(Keyword::BEGIN_P) => begin_depth += 1,
-                Token::Keyword(Keyword::END_P) if begin_depth > 0 => {
+                Token::Keyword(Keyword::END_P) => {
                     let next_is_compound = (i + 1) < self.tokens.len()
                         && matches!(
                             self.tokens[i + 1].token,
@@ -207,22 +211,96 @@ impl Parser {
                                 | Token::Keyword(Keyword::IF_P)
                                 | Token::Keyword(Keyword::CASE)
                         );
-                    if !next_is_compound {
+                    if next_is_compound {
+                        // compound END (END IF, END LOOP, END CASE) — no depth change
+                    } else if begin_depth > 0 {
                         begin_depth -= 1;
+                        if begin_depth == 0 && is_package && subprog_depth > 0 {
+                            subprog_depth -= 1;
+                        }
+                    } else if is_package && subprog_depth > 0 {
+                        subprog_depth -= 1;
+                    } else if is_package {
+                        // Package-level END reached
+                        seen_outer_end = true;
+                    }
+                }
+                Token::Keyword(Keyword::PROCEDURE) | Token::Keyword(Keyword::FUNCTION)
+                    if is_package && depth == 0 && begin_depth == 0 && subprog_depth == 0 =>
+                {
+                    if self.looks_like_subprogram_def_at(i) {
+                        subprog_depth += 1;
                     }
                 }
                 Token::Semicolon if depth <= 0 && begin_depth <= 0 => {
-                    // Oracle-style: END; / pattern — skip the ; and look for /
-                    if let Some(slash_pos) = self.find_slash_after(i) {
-                        return slash_pos;
+                    if is_package {
+                        if seen_outer_end {
+                            if let Some(slash_pos) = self.find_slash_after(i) {
+                                return slash_pos;
+                            }
+                            return i;
+                        }
+                        // Semicolon inside package spec/body — not a terminator
+                    } else {
+                        if let Some(slash_pos) = self.find_slash_after(i) {
+                            return slash_pos;
+                        }
+                        return i;
                     }
-                    return i;
                 }
-                Token::Slash if depth <= 0 && begin_depth <= 0 => return i,
+                Token::Slash if depth <= 0 && begin_depth <= 0 => {
+                    if is_package && !seen_outer_end {
+                        // Slash inside package — not a terminator
+                    } else {
+                        return i;
+                    }
+                }
                 _ => {}
             }
         }
         self.tokens.len().saturating_sub(1)
+    }
+
+    /// Check if tokens starting at `self.pos` form `CREATE [OR REPLACE] PACKAGE [BODY]`.
+    fn detect_package_context(&self) -> bool {
+        let mut i = self.pos;
+        if i >= self.tokens.len() {
+            return false;
+        }
+        if !matches!(self.tokens[i].token, Token::Keyword(Keyword::CREATE)) {
+            return false;
+        }
+        i += 1;
+        if i < self.tokens.len() && matches!(self.tokens[i].token, Token::Keyword(Keyword::OR)) {
+            i += 1;
+            if i < self.tokens.len()
+                && matches!(self.tokens[i].token, Token::Keyword(Keyword::REPLACE))
+            {
+                i += 1;
+            }
+        }
+        i < self.tokens.len() && matches!(self.tokens[i].token, Token::Keyword(Keyword::PACKAGE))
+    }
+
+    /// From position `start` (pointing at PROCEDURE or FUNCTION keyword), peek ahead
+    /// to determine if this is a subprogram definition (has IS/AS body) vs a declaration (ends with ;).
+    fn looks_like_subprogram_def_at(&self, start: usize) -> bool {
+        let mut j = start + 1;
+        let mut paren_d = 0i32;
+        while j < self.tokens.len() {
+            match &self.tokens[j].token {
+                Token::LParen => paren_d += 1,
+                Token::RParen => paren_d = (paren_d - 1).max(0),
+                Token::Keyword(Keyword::IS) | Token::Keyword(Keyword::AS) if paren_d == 0 => {
+                    return true;
+                }
+                Token::Semicolon if paren_d == 0 => return false,
+                Token::Eof => return false,
+                _ => {}
+            }
+            j += 1;
+        }
+        false
     }
 
     fn find_slash_after(&self, semicolon_pos: usize) -> Option<usize> {
@@ -549,6 +627,32 @@ impl Parser {
                     Ok(stmt) => {
                         self.try_consume_semicolon();
                         crate::ast::Statement::Truncate(stmt)
+                    }
+                    Err(e) => {
+                        self.add_error(e);
+                        self.skip_to_semicolon()
+                    }
+                }
+            }
+            Token::Keyword(Keyword::PROCEDURE) => {
+                self.advance();
+                match self.parse_create_procedure() {
+                    Ok(stmt) => {
+                        self.try_consume_semicolon();
+                        crate::ast::Statement::CreateProcedure(stmt)
+                    }
+                    Err(e) => {
+                        self.add_error(e);
+                        self.skip_to_semicolon()
+                    }
+                }
+            }
+            Token::Keyword(Keyword::FUNCTION) => {
+                self.advance();
+                match self.parse_create_function() {
+                    Ok(stmt) => {
+                        self.try_consume_semicolon();
+                        crate::ast::Statement::CreateFunction(stmt)
                     }
                     Err(e) => {
                         self.add_error(e);
