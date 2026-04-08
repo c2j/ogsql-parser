@@ -1870,6 +1870,15 @@ impl SqlFormatter {
             }
             PlStatement::Savepoint { name } => format!("{} {};", self.kw("SAVEPOINT"), name),
             PlStatement::Goto { label } => format!("{} {};", self.kw("GOTO"), label),
+            PlStatement::ProcedureCall(call) => {
+                let name = call.name.join(".");
+                let args = call.arguments.join(", ");
+                if args.is_empty() {
+                    format!("{};", name)
+                } else {
+                    format!("{}({});", name, args)
+                }
+            }
             PlStatement::Sql(sql) => {
                 if sql.is_empty() {
                     String::new()

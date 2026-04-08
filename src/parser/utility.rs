@@ -1114,8 +1114,8 @@ impl Parser {
             });
         }
 
+        let (items, body) = self.parse_package_body_items();
         if is_body {
-            let (items, body) = self.parse_package_body_items();
             Ok(Statement::CreatePackageBody(CreatePackageBodyStatement {
                 replace,
                 name,
@@ -1123,156 +1123,14 @@ impl Parser {
                 body,
             }))
         } else {
-            let body = self.collect_until_end_boundary();
             Ok(Statement::CreatePackage(CreatePackageStatement {
                 replace,
                 name,
                 authid,
-                items: vec![],
+                items,
                 body,
             }))
         }
-    }
-
-    fn collect_until_end_boundary(&mut self) -> String {
-        let mut collected = String::new();
-        let mut depth = 0i32;
-        let mut subprog_depth = 0i32;
-
-        loop {
-            match self.peek() {
-                Token::Eof => break,
-                Token::LParen => {
-                    depth += 1;
-                    if !collected.is_empty() {
-                        collected.push(' ');
-                    }
-                    collected.push_str(&self.token_to_string());
-                    self.advance();
-                }
-                Token::RParen => {
-                    depth = (depth - 1).max(0);
-                    if !collected.is_empty() {
-                        collected.push(' ');
-                    }
-                    collected.push_str(&self.token_to_string());
-                    self.advance();
-                }
-                Token::Keyword(Keyword::BEGIN_P) => {
-                    depth += 1;
-                    if !collected.is_empty() {
-                        collected.push(' ');
-                    }
-                    collected.push_str(&self.token_to_string());
-                    self.advance();
-                }
-                Token::Keyword(Keyword::END_P) => {
-                    let next_is_compound = self.lookahead_is_compound_end();
-                    if depth > 0 {
-                        depth -= 1;
-                        if !collected.is_empty() {
-                            collected.push(' ');
-                        }
-                        collected.push_str(&self.token_to_string());
-                        self.advance();
-                        self.try_consume_ident_str("IF");
-                        // In PL/SQL, END closes both BEGIN block and subprogram scope.
-                        // When depth returns to 0 while inside a subprogram,
-                        // the subprogram's END has been reached.
-                        if depth == 0 && subprog_depth > 0 {
-                            subprog_depth -= 1;
-                            loop {
-                                match self.peek() {
-                                    Token::Ident(_) => {
-                                        if !collected.is_empty() {
-                                            collected.push(' ');
-                                        }
-                                        collected.push_str(&self.token_to_string());
-                                        self.advance();
-                                    }
-                                    _ => break,
-                                }
-                            }
-                            if matches!(self.peek(), Token::Semicolon) {
-                                self.advance();
-                            }
-                        }
-                        continue;
-                    }
-                    if next_is_compound {
-                        if !collected.is_empty() {
-                            collected.push(' ');
-                        }
-                        collected.push_str(&self.token_to_string());
-                        self.advance();
-                        continue;
-                    }
-                    if subprog_depth > 0 {
-                        subprog_depth -= 1;
-                        if !collected.is_empty() {
-                            collected.push(' ');
-                        }
-                        collected.push_str(&self.token_to_string());
-                        self.advance();
-                        loop {
-                            match self.peek() {
-                                Token::Ident(_) => {
-                                    if !collected.is_empty() {
-                                        collected.push(' ');
-                                    }
-                                    collected.push_str(&self.token_to_string());
-                                    self.advance();
-                                }
-                                _ => break,
-                            }
-                        }
-                        if matches!(self.peek(), Token::Semicolon) {
-                            self.advance();
-                        }
-                        continue;
-                    }
-                    // Package-level END
-                    self.advance();
-                    self.try_consume_ident_str("IF");
-                    loop {
-                        match self.peek() {
-                            Token::Ident(_) => self.advance(),
-                            _ => break,
-                        }
-                    }
-                    break;
-                }
-                Token::Keyword(Keyword::PROCEDURE) | Token::Keyword(Keyword::FUNCTION)
-                    if depth == 0 && subprog_depth == 0 =>
-                {
-                    if self.is_subprogram_definition_ahead() {
-                        subprog_depth += 1;
-                    }
-                    if !collected.is_empty() {
-                        collected.push(' ');
-                    }
-                    collected.push_str(&self.token_to_string());
-                    self.advance();
-                }
-                Token::Semicolon if depth == 0 => {
-                    self.advance();
-                    // Inside a package, semicolons separate declarations — keep going
-                }
-                Token::Slash if depth == 0 => {
-                    self.advance();
-                    break;
-                }
-                _ => {
-                    if !collected.is_empty() {
-                        collected.push(' ');
-                    }
-                    collected.push_str(&self.token_to_string());
-                    self.advance();
-                }
-            }
-        }
-
-        collected.trim().to_string()
     }
 
     /// Check if the PROCEDURE/FUNCTION token at current pos is followed by

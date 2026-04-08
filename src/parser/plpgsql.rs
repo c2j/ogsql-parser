@@ -602,7 +602,84 @@ impl Parser {
         }
     }
 
+    fn try_parse_pl_procedure_call(&mut self) -> Option<PlStatement> {
+        let save = self.pos;
+
+        let name = match self.parse_object_name() {
+            Ok(n) => n,
+            Err(_) => {
+                self.pos = save;
+                return None;
+            }
+        };
+
+        if !self.match_token(&Token::LParen) {
+            self.pos = save;
+            return None;
+        }
+        self.advance();
+
+        let mut arguments = Vec::new();
+        let mut depth = 0i32;
+        let mut current_arg = String::new();
+
+        loop {
+            match self.peek() {
+                Token::Eof => {
+                    self.pos = save;
+                    return None;
+                }
+                Token::LParen => {
+                    depth += 1;
+                    if !current_arg.is_empty() {
+                        current_arg.push(' ');
+                    }
+                    current_arg.push_str(&self.token_to_string());
+                    self.advance();
+                }
+                Token::RParen => {
+                    if depth > 0 {
+                        depth -= 1;
+                        if !current_arg.is_empty() {
+                            current_arg.push(' ');
+                        }
+                        current_arg.push_str(&self.token_to_string());
+                        self.advance();
+                    } else {
+                        self.advance();
+                        arguments.push(current_arg.trim().to_string());
+                        break;
+                    }
+                }
+                Token::Comma if depth == 0 => {
+                    self.advance();
+                    arguments.push(current_arg.trim().to_string());
+                    current_arg.clear();
+                }
+                _ => {
+                    if !current_arg.is_empty() {
+                        current_arg.push(' ');
+                    }
+                    current_arg.push_str(&self.token_to_string());
+                    self.advance();
+                }
+            }
+        }
+
+        arguments.retain(|a| !a.is_empty());
+
+        Some(PlStatement::ProcedureCall(PlProcedureCall {
+            name,
+            arguments,
+        }))
+    }
+
     fn parse_pl_sql_or_assignment(&mut self) -> Result<PlStatement, ParserError> {
+        if let Some(call) = self.try_parse_pl_procedure_call() {
+            self.try_consume_semicolon();
+            return Ok(call);
+        }
+
         let sql = self.skip_to_semicolon_or_keyword();
         self.try_consume_semicolon();
 
