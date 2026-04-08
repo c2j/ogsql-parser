@@ -98,29 +98,42 @@ impl<'a> Tokenizer<'a> {
 
     fn skip_whitespace_and_comments(&mut self) -> Result<(), TokenizerError> {
         loop {
-            match self.peek() {
+            match self.chars.peek().copied() {
                 None => return Ok(()),
                 Some(c) if c.is_whitespace() => {
                     self.advance();
                 }
                 Some('-') => {
+                    let saved = self.chars.clone();
+                    let saved_pos = self.pos;
+                    let saved_line = self.line;
+                    let saved_line_start = self.line_start;
                     self.advance();
-                    if self.peek() == Some('-') {
+                    if self.chars.peek().copied() == Some('-') {
                         self.advance();
                         self.advance_while(|c| c != '\n');
                     } else {
-                        self.pos -= 1;
+                        self.chars = saved;
+                        self.pos = saved_pos;
+                        self.line = saved_line;
+                        self.line_start = saved_line_start;
                         return Ok(());
                     }
                 }
                 Some('/') => {
+                    let saved = self.chars.clone();
                     let saved_pos = self.pos;
+                    let saved_line = self.line;
+                    let saved_line_start = self.line_start;
                     self.advance();
-                    if self.peek() == Some('*') {
+                    if self.chars.peek().copied() == Some('*') {
                         self.advance();
                         self.skip_block_comment(saved_pos)?;
                     } else {
+                        self.chars = saved;
                         self.pos = saved_pos;
+                        self.line = saved_line;
+                        self.line_start = saved_line_start;
                         return Ok(());
                     }
                 }

@@ -211,12 +211,48 @@ impl Parser {
                         begin_depth -= 1;
                     }
                 }
-                Token::Semicolon if depth <= 0 && begin_depth <= 0 => return i,
+                Token::Semicolon if depth <= 0 && begin_depth <= 0 => {
+                    // Oracle-style: END; / pattern — skip the ; and look for /
+                    if let Some(slash_pos) = self.find_slash_after(i) {
+                        return slash_pos;
+                    }
+                    return i;
+                }
                 Token::Slash if depth <= 0 && begin_depth <= 0 => return i,
                 _ => {}
             }
         }
         self.tokens.len().saturating_sub(1)
+    }
+
+    fn find_slash_after(&self, semicolon_pos: usize) -> Option<usize> {
+        for j in (semicolon_pos + 1)..self.tokens.len() {
+            match &self.tokens[j].token {
+                Token::Slash => return Some(j),
+                Token::Keyword(Keyword::END_P) | Token::Semicolon => return None,
+                _ if !matches!(
+                    self.tokens[j].token,
+                    Token::Keyword(Keyword::END_P) | Token::Ident(_)
+                ) =>
+                {
+                    return None
+                }
+                _ => {}
+            }
+        }
+        None
+    }
+
+    fn lookahead_is_compound_end(&self) -> bool {
+        if self.pos + 1 >= self.tokens.len() {
+            return false;
+        }
+        matches!(
+            self.tokens[self.pos + 1].token,
+            Token::Keyword(Keyword::LOOP)
+                | Token::Keyword(Keyword::IF_P)
+                | Token::Keyword(Keyword::CASE)
+        )
     }
 
     fn byte_offset_to_line_col(
@@ -1696,20 +1732,38 @@ impl Parser {
 
     fn skip_to_semicolon_as(&mut self, stmt: crate::ast::Statement) -> crate::ast::Statement {
         let mut depth = 0i32;
+        let mut begin_depth = 0i32;
         loop {
             match self.peek() {
                 Token::Eof => break,
-                Token::Semicolon if depth == 0 => {
-                    self.advance();
-                    break;
-                }
                 Token::LParen => {
                     depth += 1;
                     self.advance();
                 }
                 Token::RParen => {
-                    depth -= 1;
+                    depth = (depth - 1).max(0);
                     self.advance();
+                }
+                Token::Keyword(Keyword::BEGIN_P) => {
+                    begin_depth += 1;
+                    self.advance();
+                }
+                Token::Keyword(Keyword::END_P) => {
+                    if begin_depth > 0 {
+                        let next_is_compound = self.lookahead_is_compound_end();
+                        if !next_is_compound {
+                            begin_depth -= 1;
+                        }
+                    }
+                    self.advance();
+                }
+                Token::Semicolon if depth == 0 && begin_depth == 0 => {
+                    self.advance();
+                    break;
+                }
+                Token::Slash if depth == 0 && begin_depth == 0 => {
+                    self.advance();
+                    break;
                 }
                 _ => {
                     self.advance();
@@ -1721,20 +1775,38 @@ impl Parser {
 
     fn skip_to_semicolon(&mut self) -> crate::ast::Statement {
         let mut depth = 0i32;
+        let mut begin_depth = 0i32;
         loop {
             match self.peek() {
                 Token::Eof => break,
-                Token::Semicolon if depth <= 0 => {
-                    self.advance();
-                    break;
-                }
                 Token::LParen => {
                     depth += 1;
                     self.advance();
                 }
                 Token::RParen => {
-                    depth -= 1;
+                    depth = (depth - 1).max(0);
                     self.advance();
+                }
+                Token::Keyword(Keyword::BEGIN_P) => {
+                    begin_depth += 1;
+                    self.advance();
+                }
+                Token::Keyword(Keyword::END_P) => {
+                    if begin_depth > 0 {
+                        let next_is_compound = self.lookahead_is_compound_end();
+                        if !next_is_compound {
+                            begin_depth -= 1;
+                        }
+                    }
+                    self.advance();
+                }
+                Token::Semicolon if depth <= 0 && begin_depth <= 0 => {
+                    self.advance();
+                    break;
+                }
+                Token::Slash if depth <= 0 && begin_depth <= 0 => {
+                    self.advance();
+                    break;
                 }
                 _ => {
                     self.advance();
