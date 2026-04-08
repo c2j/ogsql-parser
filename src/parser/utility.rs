@@ -1,4 +1,5 @@
 use crate::ast::*;
+use crate::parser::ddl::format_data_type;
 use crate::parser::{Parser, ParserError};
 use crate::token::keyword::Keyword;
 use crate::token::Token;
@@ -364,7 +365,7 @@ impl Parser {
         Ok(())
     }
 
-    fn parse_string_literal(&mut self) -> Result<String, ParserError> {
+    pub(crate) fn parse_string_literal(&mut self) -> Result<String, ParserError> {
         match self.peek().clone() {
             Token::StringLiteral(s) => {
                 let val = s.clone();
@@ -1077,7 +1078,522 @@ impl Parser {
         })
     }
 
+    pub(crate) fn parse_create_package(&mut self, replace: bool) -> Result<Statement, ParserError> {
+        self.expect_keyword(Keyword::PACKAGE)?;
+        let is_body = if self.match_keyword(Keyword::BODY_P) {
+            self.advance();
+            true
+        } else {
+            false
+        };
+
+        let name = self.parse_object_name()?;
+
+        let authid = if !is_body && self.match_keyword(Keyword::AUTHID) {
+            self.advance();
+            if self.match_keyword(Keyword::CURRENT_USER) {
+                self.advance();
+                Some(PackageAuthid::CurrentUser)
+            } else {
+                self.try_consume_keyword(Keyword::DEFINER);
+                Some(PackageAuthid::Definer)
+            }
+        } else {
+            None
+        };
+
+        if self.match_keyword(Keyword::AS) || self.match_keyword(Keyword::IS) {
+            self.advance();
+        } else {
+            return Err(ParserError::UnexpectedToken {
+                location: self.current_location(),
+                expected: "AS or IS".to_string(),
+                got: format!("{:?}", self.peek()),
+            });
+        }
+
+        let body = self.collect_until_end_boundary();
+
+        if is_body {
+            Ok(Statement::CreatePackageBody(CreatePackageBodyStatement {
+                replace,
+                name,
+                body,
+            }))
+        } else {
+            Ok(Statement::CreatePackage(CreatePackageStatement {
+                replace,
+                name,
+                authid,
+                body,
+            }))
+        }
+    }
+
+    fn collect_until_end_boundary(&mut self) -> String {
+        let mut collected = String::new();
+        let mut depth = 0i32;
+
+        loop {
+            match self.peek() {
+                Token::Eof => break,
+                Token::LParen => {
+                    depth += 1;
+                    if !collected.is_empty() {
+                        collected.push(' ');
+                    }
+                    collected.push_str(&self.token_to_string());
+                    self.advance();
+                }
+                Token::RParen => {
+                    depth = (depth - 1).max(0);
+                    if !collected.is_empty() {
+                        collected.push(' ');
+                    }
+                    collected.push_str(&self.token_to_string());
+                    self.advance();
+                }
+                Token::Keyword(Keyword::BEGIN_P) => {
+                    depth += 1;
+                    if !collected.is_empty() {
+                        collected.push(' ');
+                    }
+                    collected.push_str(&self.token_to_string());
+                    self.advance();
+                }
+                Token::Keyword(Keyword::END_P) => {
+                    if depth > 0 {
+                        depth -= 1;
+                        if !collected.is_empty() {
+                            collected.push(' ');
+                        }
+                        collected.push_str(&self.token_to_string());
+                        self.advance();
+                        self.try_consume_ident_str("IF");
+                        continue;
+                    }
+                    self.advance();
+                    self.try_consume_ident_str("IF");
+                    loop {
+                        match self.peek() {
+                            Token::Ident(_) => self.advance(),
+                            _ => break,
+                        }
+                    }
+                    break;
+                }
+                Token::Semicolon if depth == 0 => {
+                    self.advance();
+                    break;
+                }
+                Token::Slash if depth == 0 => {
+                    self.advance();
+                    break;
+                }
+                _ => {
+                    if !collected.is_empty() {
+                        collected.push(' ');
+                    }
+                    collected.push_str(&self.token_to_string());
+                    self.advance();
+                }
+            }
+        }
+
+        collected.trim().to_string()
+    }
+
+    pub(crate) fn parse_create_extension(
+        &mut self,
+    ) -> Result<CreateExtensionStatement, ParserError> {
+        self.expect_keyword(Keyword::EXTENSION)?;
+        let if_not_exists = self.parse_if_not_exists();
+        let name = self.parse_identifier()?;
+
+        let mut schema = None;
+        let mut version = None;
+        let mut cascade = false;
+
+        if self.match_keyword(Keyword::WITH) {
+            self.advance();
+        }
+        if self.match_keyword(Keyword::SCHEMA) {
+            self.advance();
+            schema = Some(self.parse_identifier()?);
+        }
+        if self.match_ident_str("VERSION") {
+            self.advance();
+            version = Some(if matches!(self.peek(), Token::StringLiteral(_)) {
+                self.parse_string_literal()?
+            } else {
+                self.parse_identifier()?
+            });
+        }
+        if self.match_keyword(Keyword::CASCADE) {
+            self.advance();
+            cascade = true;
+        }
+
+        Ok(CreateExtensionStatement {
+            replace: false,
+            if_not_exists,
+            name,
+            schema,
+            version,
+            cascade,
+        })
+    }
+
+    pub(crate) fn parse_create_domain(&mut self) -> Result<CreateDomainStatement, ParserError> {
+        self.expect_keyword(Keyword::DOMAIN_P)?;
+        let name = self.parse_object_name()?;
+        self.try_consume_keyword(Keyword::AS);
+        let dt = self.parse_data_type()?;
+        let data_type = format_data_type(&dt);
+
+        let mut default_value = None;
+        let mut not_null = false;
+        let mut check = None;
+
+        if self.match_keyword(Keyword::DEFAULT) {
+            self.advance();
+            default_value = Some(self.collect_until_boundary(&[
+                Token::Keyword(Keyword::NOT),
+                Token::Keyword(Keyword::CHECK),
+                Token::Semicolon,
+            ]));
+        }
+        if self.match_keyword(Keyword::NOT) {
+            self.advance();
+            self.expect_keyword(Keyword::NULL_P)?;
+            not_null = true;
+        }
+        if self.match_keyword(Keyword::CHECK) {
+            self.advance();
+            self.expect_token(&Token::LParen)?;
+            check = Some(self.collect_until_balanced_paren());
+        }
+
+        Ok(CreateDomainStatement {
+            name,
+            data_type,
+            default_value,
+            not_null,
+            check,
+        })
+    }
+
+    fn collect_until_boundary(&mut self, stop_tokens: &[Token]) -> String {
+        let mut collected = String::new();
+        loop {
+            let at_stop =
+                stop_tokens.iter().any(|t| *self.peek() == *t) || *self.peek() == Token::Eof;
+            if at_stop {
+                break;
+            }
+            if !collected.is_empty() {
+                collected.push(' ');
+            }
+            collected.push_str(&self.token_to_string());
+            self.advance();
+        }
+        collected.trim().to_string()
+    }
+
+    fn collect_until_balanced_paren(&mut self) -> String {
+        let mut collected = String::new();
+        let mut depth = 1i32;
+        loop {
+            match self.peek() {
+                Token::Eof => break,
+                Token::LParen => {
+                    depth += 1;
+                    if !collected.is_empty() {
+                        collected.push(' ');
+                    }
+                    collected.push_str(&self.token_to_string());
+                    self.advance();
+                }
+                Token::RParen => {
+                    depth -= 1;
+                    if depth == 0 {
+                        self.advance();
+                        break;
+                    }
+                    if !collected.is_empty() {
+                        collected.push(' ');
+                    }
+                    collected.push_str(&self.token_to_string());
+                    self.advance();
+                }
+                _ => {
+                    if !collected.is_empty() {
+                        collected.push(' ');
+                    }
+                    collected.push_str(&self.token_to_string());
+                    self.advance();
+                }
+            }
+        }
+        collected.trim().to_string()
+    }
+
+    pub(crate) fn parse_create_cast(&mut self) -> Result<CreateCastStatement, ParserError> {
+        self.expect_keyword(Keyword::CAST)?;
+        self.expect_token(&Token::LParen)?;
+        let source_type = self.parse_type_name_for_cast()?;
+        self.expect_keyword(Keyword::AS)?;
+        let target_type = self.parse_type_name_for_cast()?;
+        self.expect_token(&Token::RParen)?;
+
+        let method = if self.match_keyword(Keyword::WITHOUT) {
+            self.advance();
+            self.expect_keyword(Keyword::FUNCTION)?;
+            CastMethod::WithoutFunction
+        } else if self.match_keyword(Keyword::WITH) {
+            self.advance();
+            if self.match_keyword(Keyword::INOUT) {
+                self.advance();
+                CastMethod::WithInout
+            } else {
+                self.expect_keyword(Keyword::FUNCTION)?;
+                let func_name =
+                    self.collect_until_boundary(&[Token::Keyword(Keyword::AS), Token::Semicolon]);
+                CastMethod::WithFunction(func_name)
+            }
+        } else {
+            CastMethod::WithoutFunction
+        };
+
+        let context = if self.match_keyword(Keyword::AS) {
+            self.advance();
+            if self.match_keyword(Keyword::IMPLICIT_P) {
+                self.advance();
+                Some(CastContext::Implicit)
+            } else {
+                self.try_consume_keyword(Keyword::ASSIGNMENT);
+                Some(CastContext::Assignment)
+            }
+        } else {
+            None
+        };
+
+        Ok(CreateCastStatement {
+            source_type,
+            target_type,
+            method,
+            context,
+        })
+    }
+
+    fn parse_type_name_for_cast(&mut self) -> Result<String, ParserError> {
+        let mut name = String::new();
+        loop {
+            match self.peek() {
+                Token::Keyword(Keyword::AS) => break,
+                Token::RParen => break,
+                Token::Ident(s) => {
+                    if !name.is_empty() {
+                        name.push(' ');
+                    }
+                    name.push_str(s);
+                    self.advance();
+                }
+                Token::Keyword(kw) => {
+                    if !name.is_empty() {
+                        name.push(' ');
+                    }
+                    name.push_str(&format!("{:?}", kw).trim_end_matches("_P").to_lowercase());
+                    self.advance();
+                }
+                Token::LParen => {
+                    name.push('(');
+                    self.advance();
+                    let inner = self.collect_until_balanced_paren();
+                    let trimmed = inner.trim();
+                    if !trimmed.is_empty() {
+                        name.push_str(trimmed);
+                    }
+                    name.push(')');
+                }
+                _ => break,
+            }
+        }
+        Ok(name.trim().to_string())
+    }
+
     // ── Wave 6: GRANT / REVOKE ──
+
+    pub(crate) fn is_grant_role(&self) -> bool {
+        if self.match_keyword(Keyword::ROLE) || self.match_keyword(Keyword::ROLES) {
+            return true;
+        }
+        // If the next token is not a known privilege keyword and not ALL,
+        // and the token after that is TO or comma, it's GRANT ROLE
+        match self.peek() {
+            Token::Keyword(kw) => {
+                let kw_name = format!("{:?}", kw).trim_end_matches("_P").to_uppercase();
+                let is_priv = matches!(
+                    kw_name.as_str(),
+                    "SELECT"
+                        | "INSERT"
+                        | "UPDATE"
+                        | "DELETE"
+                        | "USAGE"
+                        | "CREATE"
+                        | "CONNECT"
+                        | "TEMPORARY"
+                        | "EXECUTE"
+                        | "TRIGGER"
+                        | "REFERENCES"
+                        | "ALTER"
+                        | "DROP"
+                        | "COMMENT"
+                        | "INDEX"
+                        | "VACUUM"
+                );
+                if is_priv {
+                    return false;
+                }
+                // ALL could be GRANT ALL ON or GRANT ALL PRIVILEGES or GRANT all_roles TO
+                if kw_name == "ALL" {
+                    return false;
+                }
+                // Otherwise, look ahead: if followed by comma or TO, it's GRANT ROLE
+                if self.tokens.len() > self.pos + 1 {
+                    let next = &self.tokens[self.pos + 1].token;
+                    matches!(next, Token::Comma | Token::Keyword(Keyword::TO))
+                } else {
+                    false
+                }
+            }
+            Token::Ident(_) => {
+                if self.tokens.len() > self.pos + 1 {
+                    let next = &self.tokens[self.pos + 1].token;
+                    matches!(next, Token::Comma | Token::Keyword(Keyword::TO))
+                } else {
+                    false
+                }
+            }
+            _ => false,
+        }
+    }
+
+    pub(crate) fn is_revoke_role(&self) -> bool {
+        if self.match_keyword(Keyword::ROLE) || self.match_keyword(Keyword::ROLES) {
+            return true;
+        }
+        match self.peek() {
+            Token::Keyword(kw) => {
+                let kw_name = format!("{:?}", kw).trim_end_matches("_P").to_uppercase();
+                let is_priv = matches!(
+                    kw_name.as_str(),
+                    "SELECT"
+                        | "INSERT"
+                        | "UPDATE"
+                        | "DELETE"
+                        | "USAGE"
+                        | "CREATE"
+                        | "CONNECT"
+                        | "TEMPORARY"
+                        | "EXECUTE"
+                        | "TRIGGER"
+                        | "REFERENCES"
+                        | "ALTER"
+                        | "DROP"
+                        | "COMMENT"
+                        | "INDEX"
+                        | "VACUUM"
+                );
+                if is_priv {
+                    return false;
+                }
+                if kw_name == "ALL" {
+                    return false;
+                }
+                if self.tokens.len() > self.pos + 1 {
+                    let next = &self.tokens[self.pos + 1].token;
+                    matches!(next, Token::Comma | Token::Keyword(Keyword::FROM))
+                } else {
+                    false
+                }
+            }
+            Token::Ident(_) => {
+                if self.tokens.len() > self.pos + 1 {
+                    let next = &self.tokens[self.pos + 1].token;
+                    matches!(next, Token::Comma | Token::Keyword(Keyword::FROM))
+                } else {
+                    false
+                }
+            }
+            _ => false,
+        }
+    }
+
+    pub(crate) fn parse_grant_role(&mut self) -> Result<GrantRoleStatement, ParserError> {
+        if self.match_keyword(Keyword::ROLE) || self.match_keyword(Keyword::ROLES) {
+            self.advance();
+        }
+        let mut roles = vec![self.parse_identifier()?];
+        while self.match_token(&Token::Comma) {
+            self.advance();
+            roles.push(self.parse_identifier()?);
+        }
+        self.expect_keyword(Keyword::TO)?;
+        let mut grantees = vec![self.parse_identifier()?];
+        while self.match_token(&Token::Comma) {
+            self.advance();
+            grantees.push(self.parse_identifier()?);
+        }
+        let mut with_admin_option = false;
+        let mut granted_by = None;
+        if self.try_consume_keyword(Keyword::WITH) {
+            if self.match_keyword(Keyword::ADMIN) || self.match_ident_str("ADMIN") {
+                self.advance();
+                self.expect_keyword(Keyword::OPTION)?;
+                with_admin_option = true;
+            }
+        }
+        if self.try_consume_keyword(Keyword::GRANTED) {
+            self.expect_keyword(Keyword::BY)?;
+            granted_by = Some(self.parse_identifier()?);
+        }
+        Ok(GrantRoleStatement {
+            roles,
+            grantees,
+            with_admin_option,
+            granted_by,
+        })
+    }
+
+    pub(crate) fn parse_revoke_role(&mut self) -> Result<RevokeRoleStatement, ParserError> {
+        if self.match_keyword(Keyword::ROLE) || self.match_keyword(Keyword::ROLES) {
+            self.advance();
+        }
+        let mut roles = vec![self.parse_identifier()?];
+        while self.match_token(&Token::Comma) {
+            self.advance();
+            roles.push(self.parse_identifier()?);
+        }
+        self.expect_keyword(Keyword::FROM)?;
+        let mut grantees = vec![self.parse_identifier()?];
+        while self.match_token(&Token::Comma) {
+            self.advance();
+            grantees.push(self.parse_identifier()?);
+        }
+        let mut granted_by = None;
+        if self.try_consume_keyword(Keyword::GRANTED) {
+            self.expect_keyword(Keyword::BY)?;
+            granted_by = Some(self.parse_identifier()?);
+        }
+        let cascade = self.try_consume_keyword(Keyword::CASCADE);
+        Ok(RevokeRoleStatement {
+            roles,
+            grantees,
+            granted_by,
+            cascade,
+        })
+    }
 
     pub(crate) fn parse_grant(&mut self) -> Result<GrantStatement, ParserError> {
         let mut privileges = Vec::new();
@@ -2113,7 +2629,7 @@ impl Parser {
         Ok(AlterSequenceStatement { name, options })
     }
 
-    fn parse_integer_literal(&mut self) -> Result<i64, ParserError> {
+    pub(crate) fn parse_integer_literal(&mut self) -> Result<i64, ParserError> {
         match self.peek().clone() {
             Token::Integer(i) => {
                 self.advance();

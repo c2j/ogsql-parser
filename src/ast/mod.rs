@@ -208,6 +208,28 @@ pub struct TruncateStatement {
     pub restart_identity: bool,
 }
 
+// ========== CREATE TYPE ==========
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
+pub struct CreateTypeStatement {
+    pub name: ObjectName,
+    pub type_kind: TypeKind,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
+pub enum TypeKind {
+    Composite { attributes: Vec<TypeAttribute> },
+    Enum { labels: Vec<String> },
+    Base { options: Vec<(String, String)> },
+    Shell,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
+pub struct TypeAttribute {
+    pub name: String,
+    pub data_type: String,
+}
+
 #[derive(Debug, Clone, PartialEq, serde::Serialize)]
 pub enum Statement {
     Select(SelectStatement),
@@ -225,6 +247,8 @@ pub enum Statement {
     CreateTablespace(CreateTablespaceStatement),
     CreateFunction(CreateFunctionStatement),
     CreateProcedure(CreateProcedureStatement),
+    CreateType(CreateTypeStatement),
+    AlterIndex(AlterIndexStatement),
     CreatePackage(CreatePackageStatement),
     CreateView(CreateViewStatement),
     CreateMaterializedView(CreateMaterializedViewStatement),
@@ -300,6 +324,8 @@ pub enum Statement {
     AlterSequence(AlterSequenceStatement),
     AlterExtension(AlterExtensionStatement),
     AlterCompositeType(AlterCompositeTypeStatement),
+    AlterView(AlterViewStatement),
+    AlterTrigger(AlterTriggerStatement),
     AlterForeignTable(AlterForeignTableStatement),
     AlterForeignServer(AlterForeignServerStatement),
     AlterFdw(AlterFdwStatement),
@@ -953,6 +979,67 @@ pub struct CreateProcedureStatement {
     pub options: String,
 }
 
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
+pub enum PackageAuthid {
+    CurrentUser,
+    Definer,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
+pub struct CreatePackageStatement {
+    pub replace: bool,
+    pub name: ObjectName,
+    pub authid: Option<PackageAuthid>,
+    pub body: String,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
+pub struct CreatePackageBodyStatement {
+    pub replace: bool,
+    pub name: ObjectName,
+    pub body: String,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
+pub struct CreateExtensionStatement {
+    pub replace: bool,
+    pub if_not_exists: bool,
+    pub name: String,
+    pub schema: Option<String>,
+    pub version: Option<String>,
+    pub cascade: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
+pub struct CreateDomainStatement {
+    pub name: ObjectName,
+    pub data_type: String,
+    pub default_value: Option<String>,
+    pub not_null: bool,
+    pub check: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
+pub enum CastMethod {
+    WithFunction(String),
+    WithoutFunction,
+    WithInout,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
+pub enum CastContext {
+    Implicit,
+    Assignment,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
+pub struct CreateCastStatement {
+    pub source_type: String,
+    pub target_type: String,
+    pub method: CastMethod,
+    pub context: Option<CastContext>,
+}
+
 // ========== Wave 6: GRANT / REVOKE ==========
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize)]
@@ -1306,20 +1393,138 @@ pub enum ReindexTarget {
     System,
 }
 
+// ========== CREATE TYPE ==========
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
+pub struct AlterIndexStatement {
+    pub if_exists: bool,
+    pub name: ObjectName,
+    pub action: AlterIndexAction,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
+pub enum AlterIndexAction {
+    RenameTo(String),
+    SetTablespace(String),
+    Set(Vec<(String, String)>),
+    Reset(Vec<String>),
+    NoOp,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
+pub enum AlterTypeAction {
+    AddAttribute {
+        name: String,
+        data_type: String,
+        cascade: bool,
+    },
+    DropAttribute {
+        name: String,
+        if_exists: bool,
+        cascade: bool,
+    },
+    RenameAttribute {
+        old_name: String,
+        new_name: String,
+        cascade: bool,
+    },
+    RenameTo(String),
+    SetSchema(String),
+    OwnerTo(String),
+    AddEnumValue {
+        value: String,
+        before: Option<String>,
+        after: Option<String>,
+    },
+    RenameEnumValue {
+        old_value: String,
+        new_value: String,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
+pub struct AlterCompositeTypeStatement {
+    pub name: ObjectName,
+    pub action: AlterTypeAction,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
+pub enum AlterViewAction {
+    RenameTo(String),
+    Set(Vec<(String, String)>),
+    Reset(Vec<String>),
+    SetSchema(String),
+    OwnerTo(String),
+    AlterColumnDefault {
+        column: String,
+        set_default: Option<String>,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
+pub struct AlterViewStatement {
+    pub name: ObjectName,
+    pub action: AlterViewAction,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
+pub struct AlterTriggerStatement {
+    pub name: String,
+    pub table: ObjectName,
+    pub new_name: String,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
+pub struct AlterExtensionStatement {
+    pub name: String,
+    pub action: String,
+}
+
 // ========== Remaining stubs (not yet implemented) ==========
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
+pub enum RoleOption {
+    Superuser(bool),
+    CreateDb(bool),
+    CreateRole(bool),
+    Inherit(bool),
+    Login(bool),
+    Replication(bool),
+    BypassRls(bool),
+    ConnectionLimit(i64),
+    EncryptedPassword(String),
+    UnencryptedPassword(String),
+    ValidUntil(String),
+    InRole(Vec<String>),
+    Role(Vec<String>),
+    Admin(Vec<String>),
+    User(Vec<String>),
+    Sysid(i64),
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
+pub struct CreateRoleStatement {
+    pub name: String,
+    pub options: Vec<RoleOption>,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
+pub struct CreateUserStatement {
+    pub name: String,
+    pub options: Vec<RoleOption>,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
+pub struct CreateGroupStatement {
+    pub name: String,
+    pub options: Vec<RoleOption>,
+}
 
 stub_struct!(
     DropDatabaseStatement,
     DropTablespaceStatement,
-    CreatePackageStatement,
-    CreateExtensionStatement,
-    CreateRoleStatement,
-    CreateUserStatement,
-    CreateGroupStatement,
     DropRuleStatement,
-    CreateCastStatement,
     CreateConversionStatement,
-    CreateDomainStatement,
     AlterDomainStatement,
     CreateSynonymStatement,
     CreateModelStatement,
@@ -1332,9 +1537,6 @@ stub_struct!(
     CreateContQueryStatement,
     CreateStreamStatement,
     CreateKeyStatement,
-    CreatePackageBodyStatement,
-    AlterExtensionStatement,
-    AlterCompositeTypeStatement,
     AlterForeignTableStatement,
     AlterForeignServerStatement,
     AlterFdwStatement,
@@ -1366,6 +1568,20 @@ stub_struct!(
     CreatePolicyLabelStatement,
     AlterPolicyLabelStatement,
     DropPolicyLabelStatement,
-    GrantRoleStatement,
-    RevokeRoleStatement,
 );
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
+pub struct GrantRoleStatement {
+    pub roles: Vec<String>,
+    pub grantees: Vec<String>,
+    pub with_admin_option: bool,
+    pub granted_by: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
+pub struct RevokeRoleStatement {
+    pub roles: Vec<String>,
+    pub grantees: Vec<String>,
+    pub granted_by: Option<String>,
+    pub cascade: bool,
+}
