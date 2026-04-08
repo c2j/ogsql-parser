@@ -381,6 +381,7 @@ pub struct StatementInfo {
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize)]
 pub struct SelectStatement {
+    pub hints: Vec<String>,
     pub with: Option<WithClause>,
     pub distinct: bool,
     pub targets: Vec<SelectTarget>,
@@ -597,6 +598,7 @@ pub struct WindowFrameBound {
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize)]
 pub struct InsertStatement {
+    pub hints: Vec<String>,
     pub table: ObjectName,
     pub columns: Vec<String>,
     pub source: InsertSource,
@@ -629,6 +631,7 @@ pub enum InsertSource {
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize)]
 pub struct UpdateStatement {
+    pub hints: Vec<String>,
     pub tables: Vec<TableRef>,
     pub assignments: Vec<UpdateAssignment>,
     pub from: Vec<TableRef>,
@@ -644,6 +647,7 @@ pub struct UpdateAssignment {
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize)]
 pub struct DeleteStatement {
+    pub hints: Vec<String>,
     pub tables: Vec<TableRef>,
     pub using: Vec<TableRef>,
     pub where_clause: Option<Expr>,
@@ -652,6 +656,7 @@ pub struct DeleteStatement {
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize)]
 pub struct MergeStatement {
+    pub hints: Vec<String>,
     pub target: TableRef,
     pub source: TableRef,
     pub on_condition: Expr,
@@ -990,6 +995,7 @@ pub struct CreatePackageStatement {
     pub replace: bool,
     pub name: ObjectName,
     pub authid: Option<PackageAuthid>,
+    pub items: Vec<PackageItem>,
     pub body: String,
 }
 
@@ -997,7 +1003,30 @@ pub struct CreatePackageStatement {
 pub struct CreatePackageBodyStatement {
     pub replace: bool,
     pub name: ObjectName,
+    pub items: Vec<PackageItem>,
     pub body: String,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
+pub enum PackageItem {
+    Procedure(PackageProcedure),
+    Function(PackageFunction),
+    Raw(String),
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
+pub struct PackageProcedure {
+    pub name: ObjectName,
+    pub parameters: Vec<String>,
+    pub block: Option<crate::ast::plpgsql::PlBlock>,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
+pub struct PackageFunction {
+    pub name: ObjectName,
+    pub parameters: Vec<String>,
+    pub return_type: Option<String>,
+    pub block: Option<crate::ast::plpgsql::PlBlock>,
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize)]

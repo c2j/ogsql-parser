@@ -434,6 +434,7 @@ impl Parser {
         // A full implementation would re-parse the tokens, but for regression
         // tests we just need to not error.
         Ok(SelectStatement {
+            hints: vec![],
             with: None,
             distinct: false,
             targets: vec![SelectTarget::Star(None)],
@@ -1002,6 +1003,7 @@ impl Parser {
             Token::Lt => "<".to_string(),
             Token::Gt => ">".to_string(),
             Token::Eof => String::new(),
+            Token::Hint(h) => format!("/*+ {} */", h),
             _ => String::new(),
         }
     }
@@ -1112,12 +1114,12 @@ impl Parser {
             });
         }
 
-        let body = self.collect_until_end_boundary();
-
+        let (items, body) = self.parse_package_body_items();
         if is_body {
             Ok(Statement::CreatePackageBody(CreatePackageBodyStatement {
                 replace,
                 name,
+                items,
                 body,
             }))
         } else {
@@ -1125,81 +1127,257 @@ impl Parser {
                 replace,
                 name,
                 authid,
+                items,
                 body,
             }))
         }
     }
 
-    fn collect_until_end_boundary(&mut self) -> String {
-        let mut collected = String::new();
-        let mut depth = 0i32;
+    /// Check if the PROCEDURE/FUNCTION token at current pos is followed by
+    /// name, optional params, then IS/AS before semicolon (definition with body)
+    /// vs just a declaration (semicolon before IS/AS).
+    fn is_subprogram_definition_ahead(&self) -> bool {
+        let mut i = self.pos + 1;
+        let mut paren_d = 0i32;
+        while i < self.tokens.len() {
+            match &self.tokens[i].token {
+                Token::LParen => paren_d += 1,
+                Token::RParen => paren_d = (paren_d - 1).max(0),
+                Token::Keyword(Keyword::IS) | Token::Keyword(Keyword::AS) if paren_d == 0 => {
+                    return true;
+                }
+                Token::Semicolon if paren_d == 0 => return false,
+                Token::Eof => return false,
+                _ => {}
+            }
+            i += 1;
+        }
+        false
+    }
+
+    pub(crate) fn parse_package_body_items(&mut self) -> (Vec<PackageItem>, String) {
+        let mut items = Vec::new();
+        let mut raw_parts: Vec<String> = Vec::new();
 
         loop {
             match self.peek() {
                 Token::Eof => break,
-                Token::LParen => {
-                    depth += 1;
-                    if !collected.is_empty() {
-                        collected.push(' ');
-                    }
-                    collected.push_str(&self.token_to_string());
-                    self.advance();
-                }
-                Token::RParen => {
-                    depth = (depth - 1).max(0);
-                    if !collected.is_empty() {
-                        collected.push(' ');
-                    }
-                    collected.push_str(&self.token_to_string());
-                    self.advance();
-                }
-                Token::Keyword(Keyword::BEGIN_P) => {
-                    depth += 1;
-                    if !collected.is_empty() {
-                        collected.push(' ');
-                    }
-                    collected.push_str(&self.token_to_string());
-                    self.advance();
-                }
                 Token::Keyword(Keyword::END_P) => {
-                    if depth > 0 {
-                        depth -= 1;
-                        if !collected.is_empty() {
-                            collected.push(' ');
-                        }
-                        collected.push_str(&self.token_to_string());
+                    self.advance();
+                    while matches!(self.peek(), Token::Ident(_) | Token::Keyword(_)) {
                         self.advance();
-                        self.try_consume_ident_str("IF");
-                        continue;
                     }
+                    break;
+                }
+                Token::Keyword(Keyword::PROCEDURE) => {
+                    let start_pos = self.pos;
                     self.advance();
-                    self.try_consume_ident_str("IF");
-                    loop {
-                        match self.peek() {
-                            Token::Ident(_) => self.advance(),
-                            _ => break,
+                    match self.parse_package_sub_procedure() {
+                        Ok(proc) => {
+                            let raw = self.tokens_to_raw_string(start_pos, self.pos);
+                            raw_parts.push(format!("PROCEDURE {}", raw));
+                            items.push(PackageItem::Procedure(proc));
+                        }
+                        Err(_) => {
+                            let raw = self.skip_to_end_subprogram();
+                            if !raw.is_empty() {
+                                raw_parts.push(format!("PROCEDURE {}", raw));
+                                items.push(PackageItem::Raw(raw));
+                            }
                         }
                     }
-                    break;
                 }
-                Token::Semicolon if depth == 0 => {
+                Token::Keyword(Keyword::FUNCTION) => {
+                    let start_pos = self.pos;
                     self.advance();
-                    break;
-                }
-                Token::Slash if depth == 0 => {
-                    self.advance();
-                    break;
+                    match self.parse_package_sub_function() {
+                        Ok(func) => {
+                            let raw = self.tokens_to_raw_string(start_pos, self.pos);
+                            raw_parts.push(format!("FUNCTION {}", raw));
+                            items.push(PackageItem::Function(func));
+                        }
+                        Err(_) => {
+                            let raw = self.skip_to_end_subprogram();
+                            if !raw.is_empty() {
+                                raw_parts.push(format!("FUNCTION {}", raw));
+                                items.push(PackageItem::Raw(raw));
+                            }
+                        }
+                    }
                 }
                 _ => {
-                    if !collected.is_empty() {
-                        collected.push(' ');
-                    }
-                    collected.push_str(&self.token_to_string());
+                    let tok_str = self.token_to_string();
+                    raw_parts.push(tok_str);
                     self.advance();
                 }
             }
         }
 
+        (items, raw_parts.join(" ").trim().to_string())
+    }
+
+    pub(crate) fn tokens_to_raw_string(&self, start: usize, end: usize) -> String {
+        self.tokens[start..end]
+            .iter()
+            .map(|t| match &t.token {
+                Token::Ident(s) => s.clone(),
+                Token::QuotedIdent(s) => format!("\"{}\"", s),
+                Token::Keyword(kw) => format!("{:?}", kw)
+                    .to_lowercase()
+                    .trim_end_matches("_p")
+                    .to_string(),
+                Token::Integer(i) => i.to_string(),
+                Token::Float(f) => f.clone(),
+                Token::StringLiteral(s) => format!("'{}'", s),
+                Token::EscapeString(s) => format!("E'{}'", s),
+                Token::DollarString(s) => format!("$$ {} $$", s),
+                Token::LParen => "(".to_string(),
+                Token::RParen => ")".to_string(),
+                Token::LBracket => "[".to_string(),
+                Token::RBracket => "]".to_string(),
+                Token::Comma => ",".to_string(),
+                Token::Dot => ".".to_string(),
+                Token::Semicolon => ";".to_string(),
+                Token::Colon => ":".to_string(),
+                Token::ColonEquals => ":=".to_string(),
+                Token::ParamEquals => "=>".to_string(),
+                Token::Op(s) => s.clone(),
+                Token::Param(n) => format!("${}", n),
+                Token::Star => "*".to_string(),
+                Token::Eq => "=".to_string(),
+                Token::Plus => "+".to_string(),
+                Token::Minus => "-".to_string(),
+                Token::Lt => "<".to_string(),
+                Token::Gt => ">".to_string(),
+                Token::Percent => "%".to_string(),
+                Token::Eof => String::new(),
+                Token::Hint(h) => format!("/*+ {} */", h),
+                _ => String::new(),
+            })
+            .filter(|s| !s.is_empty())
+            .collect::<Vec<_>>()
+            .join(" ")
+    }
+
+    fn parse_package_sub_procedure(&mut self) -> Result<PackageProcedure, ParserError> {
+        let name = self.parse_object_name()?;
+
+        let mut parameters = Vec::new();
+        if self.match_token(&Token::LParen) {
+            self.advance();
+            if !self.match_token(&Token::RParen) {
+                loop {
+                    let param = self.parse_function_parameter()?;
+                    parameters.push(param);
+                    if self.match_token(&Token::Comma) {
+                        self.advance();
+                    } else {
+                        break;
+                    }
+                }
+            }
+            self.expect_token(&Token::RParen)?;
+        }
+
+        let has_body = if self.match_keyword(Keyword::IS) || self.match_keyword(Keyword::AS) {
+            self.advance();
+            true
+        } else {
+            self.try_consume_semicolon();
+            false
+        };
+
+        let block = if has_body {
+            Some(self.parse_procedure_body()?)
+        } else {
+            None
+        };
+
+        Ok(PackageProcedure {
+            name,
+            parameters,
+            block,
+        })
+    }
+
+    fn parse_package_sub_function(&mut self) -> Result<PackageFunction, ParserError> {
+        let name = self.parse_object_name()?;
+
+        let mut parameters = Vec::new();
+        if self.match_token(&Token::LParen) {
+            self.advance();
+            if !self.match_token(&Token::RParen) {
+                loop {
+                    let param = self.parse_function_parameter()?;
+                    parameters.push(param);
+                    if self.match_token(&Token::Comma) {
+                        self.advance();
+                    } else {
+                        break;
+                    }
+                }
+            }
+            self.expect_token(&Token::RParen)?;
+        }
+
+        let return_type = if self.match_keyword(Keyword::RETURN) {
+            self.advance();
+            Some(self.parse_identifier().unwrap_or_default())
+        } else {
+            None
+        };
+
+        let has_body = if self.match_keyword(Keyword::IS) || self.match_keyword(Keyword::AS) {
+            self.advance();
+            true
+        } else {
+            self.try_consume_semicolon();
+            false
+        };
+
+        let block = if has_body {
+            Some(self.parse_procedure_body()?)
+        } else {
+            None
+        };
+
+        Ok(PackageFunction {
+            name,
+            parameters,
+            return_type,
+            block,
+        })
+    }
+
+    fn skip_to_end_subprogram(&mut self) -> String {
+        let mut collected = String::new();
+        let mut depth = 0i32;
+        loop {
+            match self.peek() {
+                Token::Eof => break,
+                Token::Keyword(Keyword::BEGIN_P) => {
+                    depth += 1;
+                }
+                Token::Keyword(Keyword::END_P) => {
+                    if depth > 0 {
+                        depth -= 1;
+                    } else {
+                        self.advance();
+                        while matches!(self.peek(), Token::Ident(_)) {
+                            self.advance();
+                        }
+                        self.try_consume_semicolon();
+                        break;
+                    }
+                }
+                _ => {}
+            }
+            if !collected.is_empty() {
+                collected.push(' ');
+            }
+            collected.push_str(&self.token_to_string());
+            self.advance();
+        }
         collected.trim().to_string()
     }
 

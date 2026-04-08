@@ -182,8 +182,17 @@ pub enum PlStatement {
     /// GOTO label
     Goto { label: String },
 
-    /// Raw SQL statement (SELECT, INSERT, UPDATE, DELETE, etc.)
+    /// Procedure or function call: name[(args...)]
+    ProcedureCall(PlProcedureCall),
+
+    #[serde(rename = "sql_text")]
     Sql(String),
+
+    SqlStatement {
+        sql_text: String,
+        #[serde(flatten)]
+        statement: Box<crate::ast::Statement>,
+    },
 
     /// FORALL statement
     ForAll(PlForAllStmt),
@@ -193,6 +202,12 @@ pub enum PlStatement {
 }
 
 // ── Statement Detail Types ──
+
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct PlProcedureCall {
+    pub name: crate::ast::ObjectName,
+    pub arguments: Vec<String>,
+}
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct PlIfStmt {

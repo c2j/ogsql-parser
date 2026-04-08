@@ -1178,6 +1178,241 @@ fn test_create_package_body_with_function() {
     }
 }
 
+#[test]
+fn test_create_package_spec_multi_procs() {
+    let sql = "CREATE OR REPLACE PACKAGE my_pkg IS\n\
+               PROCEDURE proc1(i_date IN VARCHAR2, o_flag OUT VARCHAR2);\n\
+               PROCEDURE proc2(i_date IN VARCHAR2);\n\
+               END my_pkg;";
+    let stmt = parse_one(sql);
+    match stmt {
+        Statement::CreatePackage(p) => {
+            assert_eq!(p.name, vec!["my_pkg"]);
+            assert!(p.body.contains("proc1"));
+            assert!(p.body.contains("proc2"));
+        }
+        _ => panic!("expected CreatePackage, got {:?}", stmt),
+    }
+}
+
+#[test]
+fn test_create_package_body_multi_procedures() {
+    let sql = "CREATE OR REPLACE PACKAGE BODY my_pkg IS\n\
+               PROCEDURE proc1(i_date IN VARCHAR2) IS\n\
+                 v_x NUMBER;\n\
+               BEGIN\n\
+                 DELETE FROM t1 WHERE id = 1;\n\
+               END proc1;\n\
+               PROCEDURE proc2 IS\n\
+               BEGIN\n\
+                 INSERT INTO t2 VALUES(1);\n\
+               END proc2;\n\
+               END my_pkg;";
+    let stmt = parse_one(sql);
+    match stmt {
+        Statement::CreatePackageBody(p) => {
+            assert_eq!(p.name, vec!["my_pkg"]);
+            assert!(p.body.contains("proc1"));
+            assert!(p.body.contains("proc2"));
+            assert!(p.body.contains("delete from"));
+            assert!(p.body.contains("insert into"));
+        }
+        _ => panic!("expected CreatePackageBody, got {:?}", stmt),
+    }
+}
+
+#[test]
+fn test_create_package_body_with_function_and_procedure() {
+    let sql = "CREATE OR REPLACE PACKAGE BODY my_pkg IS\n\
+               FUNCTION get_name RETURN VARCHAR2 IS\n\
+               BEGIN\n\
+                 RETURN 'test';\n\
+               END get_name;\n\
+               PROCEDURE do_thing IS\n\
+               BEGIN\n\
+                 NULL;\n\
+               END do_thing;\n\
+               END my_pkg;";
+    let stmt = parse_one(sql);
+    match stmt {
+        Statement::CreatePackageBody(p) => {
+            assert_eq!(p.name, vec!["my_pkg"]);
+            assert!(p.body.contains("get_name"));
+            assert!(p.body.contains("do_thing"));
+        }
+        _ => panic!("expected CreatePackageBody, got {:?}", stmt),
+    }
+}
+
+// ========== P2: Structured Package Body Tests ==========
+
+#[test]
+fn test_package_body_structured_procedure() {
+    let sql = "CREATE OR REPLACE PACKAGE BODY my_pkg IS\n\
+               PROCEDURE proc1(i_date IN VARCHAR2) IS\n\
+                 v_x NUMBER;\n\
+               BEGIN\n\
+                 DELETE FROM t1 WHERE id = 1;\n\
+                 INSERT INTO t2 VALUES(1);\n\
+               END proc1;\n\
+               END my_pkg;";
+    let stmt = parse_one(sql);
+    match stmt {
+        Statement::CreatePackageBody(p) => {
+            assert_eq!(p.name, vec!["my_pkg"]);
+            assert!(!p.items.is_empty(), "should have structured items");
+            let proc = p
+                .items
+                .iter()
+                .find_map(|item| match item {
+                    PackageItem::Procedure(pr) => Some(pr),
+                    _ => None,
+                })
+                .expect("should have a procedure");
+            assert_eq!(proc.name, vec!["proc1"]);
+            assert!(proc.block.is_some(), "procedure should have a body");
+            let block = proc.block.as_ref().unwrap();
+            assert!(
+                !block.body.is_empty(),
+                "procedure body should have statements"
+            );
+            assert!(
+                !block.declarations.is_empty(),
+                "procedure should have variable declarations"
+            );
+        }
+        _ => panic!("expected CreatePackageBody, got {:?}", stmt),
+    }
+}
+
+#[test]
+fn test_package_body_structured_function() {
+    let sql = "CREATE OR REPLACE PACKAGE BODY my_pkg IS\n\
+               FUNCTION get_name RETURN VARCHAR2 IS\n\
+               BEGIN\n\
+                 RETURN 'test';\n\
+               END get_name;\n\
+               END my_pkg;";
+    let stmt = parse_one(sql);
+    match stmt {
+        Statement::CreatePackageBody(p) => {
+            assert!(!p.items.is_empty(), "should have structured items");
+            let func = p
+                .items
+                .iter()
+                .find_map(|item| match item {
+                    PackageItem::Function(f) => Some(f),
+                    _ => None,
+                })
+                .expect("should have a function");
+            assert_eq!(func.name, vec!["get_name"]);
+            assert_eq!(func.return_type.as_deref(), Some("varchar2"));
+            assert!(func.block.is_some(), "function should have a body");
+            let block = func.block.as_ref().unwrap();
+            assert!(
+                !block.body.is_empty(),
+                "function body should have statements"
+            );
+        }
+        _ => panic!("expected CreatePackageBody, got {:?}", stmt),
+    }
+}
+
+#[test]
+fn test_package_body_structured_multi() {
+    let sql = "CREATE OR REPLACE PACKAGE BODY my_pkg IS\n\
+               PROCEDURE proc1(i_date IN VARCHAR2) IS\n\
+               BEGIN\n\
+                 DELETE FROM t1 WHERE id = 1;\n\
+               END proc1;\n\
+               PROCEDURE proc2 IS\n\
+               BEGIN\n\
+                 INSERT INTO t2 VALUES(1);\n\
+               END proc2;\n\
+               END my_pkg;";
+    let stmt = parse_one(sql);
+    match stmt {
+        Statement::CreatePackageBody(p) => {
+            let procs: Vec<_> = p
+                .items
+                .iter()
+                .filter_map(|item| match item {
+                    PackageItem::Procedure(pr) => Some(pr),
+                    _ => None,
+                })
+                .collect();
+            assert_eq!(procs.len(), 2, "should have 2 procedures");
+            assert_eq!(procs[0].name, vec!["proc1"]);
+            assert_eq!(procs[1].name, vec!["proc2"]);
+        }
+        _ => panic!("expected CreatePackageBody, got {:?}", stmt),
+    }
+}
+
+#[test]
+fn test_package_body_structured_mixed() {
+    let sql = "CREATE OR REPLACE PACKAGE BODY my_pkg IS\n\
+               FUNCTION get_name RETURN VARCHAR2 IS\n\
+               BEGIN\n\
+                 RETURN 'test';\n\
+               END get_name;\n\
+               PROCEDURE do_thing IS\n\
+               BEGIN\n\
+                 NULL;\n\
+               END do_thing;\n\
+               END my_pkg;";
+    let stmt = parse_one(sql);
+    match stmt {
+        Statement::CreatePackageBody(p) => {
+            assert!(!p.items.is_empty(), "should have structured items");
+            let has_func = p
+                .items
+                .iter()
+                .any(|item| matches!(item, PackageItem::Function(_)));
+            let has_proc = p
+                .items
+                .iter()
+                .any(|item| matches!(item, PackageItem::Procedure(_)));
+            assert!(has_func, "should have a function");
+            assert!(has_proc, "should have a procedure");
+        }
+        _ => panic!("expected CreatePackageBody, got {:?}", stmt),
+    }
+}
+
+// ========== Bare PROCEDURE / FUNCTION tests ==========
+
+#[test]
+fn test_bare_procedure_definition() {
+    let sql = "PROCEDURE my_proc(i_date IN VARCHAR2) IS\n\
+               v_x NUMBER;\n\
+               BEGIN\n\
+                 DELETE FROM t1 WHERE id = 1;\n\
+               END my_proc;";
+    let stmt = parse_one(sql);
+    match stmt {
+        Statement::CreateProcedure(p) => {
+            assert_eq!(p.name, vec!["my_proc"]);
+        }
+        _ => panic!("expected CreateProcedure, got {:?}", stmt),
+    }
+}
+
+#[test]
+fn test_bare_function_definition() {
+    let sql = "FUNCTION get_name RETURN VARCHAR2 IS\n\
+               BEGIN\n\
+                 RETURN 'test';\n\
+               END get_name;";
+    let stmt = parse_one(sql);
+    match stmt {
+        Statement::CreateFunction(f) => {
+            assert_eq!(f.name, vec!["get_name"]);
+        }
+        _ => panic!("expected CreateFunction, got {:?}", stmt),
+    }
+}
+
 // ========== CREATE EXTENSION / DOMAIN / CAST tests ==========
 
 #[test]

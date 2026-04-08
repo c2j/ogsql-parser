@@ -446,6 +446,8 @@ impl Parser {
             Ok(PlStatement::Block(
                 self.parse_pl_block_with_declare(label.clone())?,
             ))
+        } else if let Some(stmt) = self.try_parse_dml_as_pl_statement() {
+            Ok(stmt)
         } else {
             self.parse_pl_sql_or_assignment()
         }?;
@@ -490,9 +492,201 @@ impl Parser {
         })
     }
 
+    fn try_parse_dml_as_pl_statement(&mut self) -> Option<PlStatement> {
+        let is_dml_or_hint = match self.peek() {
+            Token::Keyword(Keyword::SELECT) | Token::Keyword(Keyword::WITH) => true,
+            Token::Keyword(Keyword::INSERT) => true,
+            Token::Keyword(Keyword::UPDATE) => true,
+            Token::Keyword(Keyword::DELETE_P) => true,
+            Token::Keyword(Keyword::MERGE) => true,
+            Token::Hint(_) => true,
+            _ => false,
+        };
+
+        if !is_dml_or_hint {
+            return None;
+        }
+
+        let hints = self.consume_hints();
+
+        let is_dml = match self.peek() {
+            Token::Keyword(Keyword::SELECT) | Token::Keyword(Keyword::WITH) => true,
+            Token::Keyword(Keyword::INSERT) => true,
+            Token::Keyword(Keyword::UPDATE) => true,
+            Token::Keyword(Keyword::DELETE_P) => true,
+            Token::Keyword(Keyword::MERGE) => true,
+            _ => false,
+        };
+
+        if !is_dml {
+            return None;
+        }
+
+        let save_pos = self.pos;
+        let result = match self.peek() {
+            Token::Keyword(Keyword::SELECT) | Token::Keyword(Keyword::WITH) => {
+                match self.parse_select_statement() {
+                    Ok(mut stmt) => {
+                        let mut merged = hints;
+                        merged.append(&mut stmt.hints);
+                        stmt.hints = merged;
+                        Some(crate::ast::Statement::Select(stmt))
+                    }
+                    Err(_) => None,
+                }
+            }
+            Token::Keyword(Keyword::INSERT) => {
+                self.advance();
+                match self.parse_insert() {
+                    Ok(mut stmt) => {
+                        let mut merged = hints;
+                        merged.append(&mut stmt.hints);
+                        stmt.hints = merged;
+                        Some(crate::ast::Statement::Insert(stmt))
+                    }
+                    Err(_) => None,
+                }
+            }
+            Token::Keyword(Keyword::UPDATE) => {
+                self.advance();
+                match self.parse_update() {
+                    Ok(mut stmt) => {
+                        let mut merged = hints;
+                        merged.append(&mut stmt.hints);
+                        stmt.hints = merged;
+                        Some(crate::ast::Statement::Update(stmt))
+                    }
+                    Err(_) => None,
+                }
+            }
+            Token::Keyword(Keyword::DELETE_P) => {
+                self.advance();
+                match self.parse_delete() {
+                    Ok(mut stmt) => {
+                        let mut merged = hints;
+                        merged.append(&mut stmt.hints);
+                        stmt.hints = merged;
+                        Some(crate::ast::Statement::Delete(stmt))
+                    }
+                    Err(_) => None,
+                }
+            }
+            Token::Keyword(Keyword::MERGE) => {
+                self.advance();
+                match self.parse_merge() {
+                    Ok(mut stmt) => {
+                        let mut merged = hints;
+                        merged.append(&mut stmt.hints);
+                        stmt.hints = merged;
+                        Some(crate::ast::Statement::Merge(stmt))
+                    }
+                    Err(_) => None,
+                }
+            }
+            _ => None,
+        };
+
+        match result {
+            Some(stmt) => {
+                let sql_text = self.tokens_to_raw_string(save_pos, self.pos);
+                self.try_consume_semicolon();
+                Some(PlStatement::SqlStatement {
+                    sql_text,
+                    statement: Box::new(stmt),
+                })
+            }
+            None => {
+                self.pos = save_pos;
+                None
+            }
+        }
+    }
+
+    fn try_parse_pl_procedure_call(&mut self) -> Option<PlStatement> {
+        let save = self.pos;
+
+        let name = match self.parse_object_name() {
+            Ok(n) => n,
+            Err(_) => {
+                self.pos = save;
+                return None;
+            }
+        };
+
+        if !self.match_token(&Token::LParen) {
+            self.pos = save;
+            return None;
+        }
+        self.advance();
+
+        let mut arguments = Vec::new();
+        let mut depth = 0i32;
+        let mut current_arg = String::new();
+
+        loop {
+            match self.peek() {
+                Token::Eof => {
+                    self.pos = save;
+                    return None;
+                }
+                Token::LParen => {
+                    depth += 1;
+                    if !current_arg.is_empty() {
+                        current_arg.push(' ');
+                    }
+                    current_arg.push_str(&self.token_to_string());
+                    self.advance();
+                }
+                Token::RParen => {
+                    if depth > 0 {
+                        depth -= 1;
+                        if !current_arg.is_empty() {
+                            current_arg.push(' ');
+                        }
+                        current_arg.push_str(&self.token_to_string());
+                        self.advance();
+                    } else {
+                        self.advance();
+                        arguments.push(current_arg.trim().to_string());
+                        break;
+                    }
+                }
+                Token::Comma if depth == 0 => {
+                    self.advance();
+                    arguments.push(current_arg.trim().to_string());
+                    current_arg.clear();
+                }
+                _ => {
+                    if !current_arg.is_empty() {
+                        current_arg.push(' ');
+                    }
+                    current_arg.push_str(&self.token_to_string());
+                    self.advance();
+                }
+            }
+        }
+
+        arguments.retain(|a| !a.is_empty());
+
+        Some(PlStatement::ProcedureCall(PlProcedureCall {
+            name,
+            arguments,
+        }))
+    }
+
     fn parse_pl_sql_or_assignment(&mut self) -> Result<PlStatement, ParserError> {
+        if let Some(call) = self.try_parse_pl_procedure_call() {
+            self.try_consume_semicolon();
+            return Ok(call);
+        }
+
         let sql = self.skip_to_semicolon_or_keyword();
         self.try_consume_semicolon();
+
+        if sql.is_empty() {
+            // Stray semicolons produce no statement — return Null as no-op
+            return Ok(PlStatement::Null);
+        }
 
         if let Some(pos) = sql.find(":=") {
             let target = sql[..pos].trim().to_string();
@@ -1240,5 +1434,104 @@ fn attach_label(stmt: PlStatement, label: Option<String>) -> PlStatement {
             PlStatement::Block(b)
         }
         _ => stmt,
+    }
+}
+
+impl Parser {
+    pub(crate) fn parse_procedure_body(&mut self) -> Result<PlBlock, ParserError> {
+        let mut declarations = Vec::new();
+
+        while !self.match_keyword(Keyword::BEGIN_P) && !matches!(self.peek(), Token::Eof) {
+            if let Some(decl) = self.try_parse_oracle_var_decl() {
+                declarations.push(decl);
+            } else {
+                self.advance();
+            }
+        }
+
+        self.expect_keyword(Keyword::BEGIN_P)?;
+
+        let mut body = Vec::new();
+        let mut exception_block = None;
+
+        loop {
+            if self.match_ident_str("exception") {
+                self.advance();
+                exception_block = Some(self.parse_pl_exception_block()?);
+            } else if self.peek_keyword() == Some(Keyword::END_P) {
+                self.advance();
+                while matches!(self.peek(), Token::Ident(_)) {
+                    self.advance();
+                }
+                self.try_consume_semicolon();
+                break;
+            } else if matches!(self.peek(), Token::Eof) {
+                break;
+            } else {
+                let stmt = self.parse_pl_statement()?;
+                body.push(stmt);
+            }
+        }
+
+        Ok(PlBlock {
+            label: None,
+            declarations,
+            body,
+            exception_block,
+            end_label: None,
+        })
+    }
+
+    pub(crate) fn try_parse_oracle_var_decl(&mut self) -> Option<PlDeclaration> {
+        if !matches!(self.peek(), Token::Ident(_)) {
+            return None;
+        }
+
+        let start_pos = self.pos;
+
+        let name = match self.peek() {
+            Token::Ident(s) => s.clone(),
+            _ => return None,
+        };
+
+        if name.eq_ignore_ascii_case("begin")
+            || name.eq_ignore_ascii_case("end")
+            || name.eq_ignore_ascii_case("procedure")
+            || name.eq_ignore_ascii_case("function")
+            || name.eq_ignore_ascii_case("exception")
+        {
+            return None;
+        }
+
+        self.advance();
+
+        let data_type = match self.parse_pl_data_type() {
+            Ok(dt) => dt,
+            Err(_) => {
+                self.pos = start_pos;
+                return None;
+            }
+        };
+
+        let default = if self.match_token(&Token::ColonEquals) {
+            self.advance();
+            Some(self.skip_to_semicolon_or_keyword())
+        } else if self.match_ident_str("default") {
+            self.advance();
+            Some(self.skip_to_semicolon_or_keyword())
+        } else {
+            None
+        };
+
+        self.try_consume_semicolon();
+
+        Some(PlDeclaration::Variable(PlVarDecl {
+            name,
+            data_type,
+            default,
+            constant: false,
+            not_null: false,
+            collate: None,
+        }))
     }
 }

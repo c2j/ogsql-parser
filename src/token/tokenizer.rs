@@ -21,6 +21,7 @@ pub struct Tokenizer<'a> {
     pos: usize,
     line: usize,
     line_start: usize,
+    pending_hint: Option<String>,
 }
 
 impl<'a> Tokenizer<'a> {
@@ -31,6 +32,7 @@ impl<'a> Tokenizer<'a> {
             pos: 0,
             line: 1,
             line_start: 0,
+            pending_hint: None,
         }
     }
 
@@ -128,7 +130,14 @@ impl<'a> Tokenizer<'a> {
                     self.advance();
                     if self.chars.peek().copied() == Some('*') {
                         self.advance();
-                        self.skip_block_comment(saved_pos)?;
+                        if self.chars.peek().copied() == Some('+') {
+                            // Optimizer hint: /*+ ... */
+                            self.advance();
+                            let hint = self.collect_hint_content();
+                            self.pending_hint = Some(hint);
+                        } else {
+                            self.skip_block_comment(saved_pos)?;
+                        }
                     } else {
                         self.chars = saved;
                         self.pos = saved_pos;
@@ -165,8 +174,66 @@ impl<'a> Tokenizer<'a> {
         Ok(())
     }
 
+    fn collect_hint_content(&mut self) -> String {
+        let mut content = String::new();
+        let mut depth = 1;
+        while depth > 0 {
+            match self.advance() {
+                None => break,
+                Some('/') => {
+                    if self.peek() == Some('*') {
+                        self.advance();
+                        depth += 1;
+                        content.push_str("/*");
+                    } else {
+                        content.push('/');
+                    }
+                }
+                Some('*') => {
+                    if self.peek() == Some('/') {
+                        self.advance();
+                        depth -= 1;
+                        if depth > 0 {
+                            content.push_str("*/");
+                        }
+                    } else {
+                        content.push('*');
+                    }
+                }
+                Some(c) => content.push(c),
+            }
+        }
+        content.trim().to_string()
+    }
+
     fn next_token(&mut self) -> Result<Option<TokenWithSpan>, TokenizerError> {
+        if let Some(hint) = self.pending_hint.take() {
+            let start = self.pos;
+            return Ok(Some(TokenWithSpan {
+                token: Token::Hint(hint),
+                span: Span {
+                    start,
+                    end: self.pos,
+                },
+                location: self.current_location(),
+            }));
+        }
+
         self.skip_whitespace_and_comments()?;
+
+        // After skipping whitespace/comments, a hint may have been collected.
+        // Return it before scanning the next real token to preserve correct order.
+        if let Some(hint) = self.pending_hint.take() {
+            let start = self.pos;
+            return Ok(Some(TokenWithSpan {
+                token: Token::Hint(hint),
+                span: Span {
+                    start,
+                    end: self.pos,
+                },
+                location: self.current_location(),
+            }));
+        }
 
         let start = self.pos;
         let c = match self.peek() {
