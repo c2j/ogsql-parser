@@ -35,7 +35,7 @@ jobs:
             target: aarch64-unknown-linux-gnu
             artifact: ogsql-linux-arm64
           # --- macOS ---
-          - runner: macos-13
+          - runner: macos-14
             target: x86_64-apple-darwin
             artifact: ogsql-macos-x86_64
           - runner: macos-14
@@ -97,9 +97,13 @@ jobs:
         run: cargo build --release --features ${{ env.BUILD_FEATURES }} --target ${{ matrix.platform.target }}
 
       # ---------- Package (Linux / macOS) ----------
-      - name: Strip binary (Linux / macOS)
-        if: "!contains(matrix.platform.target, 'windows')"
-        run: strip --strip-uneeded target/${{ matrix.platform.target }}/release/${{ env.BINARY_NAME }}
+      - name: Strip binary (Linux)
+        if: "contains(matrix.platform.target, 'linux')"
+        run: strip --strip-unneeded target/${{ matrix.platform.target }}/release/${{ env.BINARY_NAME }}
+
+      - name: Strip binary (macOS)
+        if: "contains(matrix.platform.target, 'darwin')"
+        run: strip -x target/${{ matrix.platform.target }}/release/${{ env.BINARY_NAME }}
 
       - name: Create tar.gz archive (Linux / macOS)
         if: "!contains(matrix.platform.target, 'windows')"

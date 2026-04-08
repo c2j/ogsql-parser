@@ -670,3 +670,766 @@ fn test_begin_transaction_with_semicolon() {
     let stmt = parse_one("BEGIN;");
     assert!(matches!(stmt, Statement::Transaction(_)));
 }
+
+// ========== CREATE TYPE Tests ==========
+
+#[test]
+fn test_create_shell_type() {
+    let stmt = parse_one("CREATE TYPE complex");
+    match stmt {
+        Statement::CreateType(t) => {
+            assert_eq!(t.name, vec!["complex"]);
+            assert!(matches!(t.type_kind, TypeKind::Shell));
+        }
+        _ => panic!("expected CreateType, got {:?}", stmt),
+    }
+}
+
+#[test]
+fn test_create_composite_type() {
+    let stmt = parse_one("CREATE TYPE compfoo AS (f1 int, f2 text)");
+    match stmt {
+        Statement::CreateType(t) => {
+            assert_eq!(t.name, vec!["compfoo"]);
+            match &t.type_kind {
+                TypeKind::Composite { attributes } => {
+                    assert_eq!(attributes.len(), 2);
+                    assert_eq!(attributes[0].name, "f1");
+                    assert_eq!(attributes[1].name, "f2");
+                }
+                other => panic!("expected Composite, got {:?}", other),
+            }
+        }
+        _ => panic!("expected CreateType, got {:?}", stmt),
+    }
+}
+
+#[test]
+fn test_create_enum_type() {
+    let stmt = parse_one("CREATE TYPE bug_status AS ENUM ('new', 'open', 'closed')");
+    match stmt {
+        Statement::CreateType(t) => {
+            assert_eq!(t.name, vec!["bug_status"]);
+            match &t.type_kind {
+                TypeKind::Enum { labels } => {
+                    assert_eq!(labels.len(), 3);
+                    assert_eq!(labels[0], "new");
+                    assert_eq!(labels[1], "open");
+                    assert_eq!(labels[2], "closed");
+                }
+                other => panic!("expected Enum, got {:?}", other),
+            }
+        }
+        _ => panic!("expected CreateType, got {:?}", stmt),
+    }
+}
+
+#[test]
+fn test_create_base_type() {
+    let stmt = parse_one("CREATE TYPE box (INPUT = box_in, OUTPUT = box_out)");
+    match stmt {
+        Statement::CreateType(t) => {
+            assert_eq!(t.name, vec!["box"]);
+            assert!(matches!(t.type_kind, TypeKind::Base { .. }));
+        }
+        _ => panic!("expected CreateType, got {:?}", stmt),
+    }
+}
+
+#[test]
+fn test_create_role_basic() {
+    let stmt = parse_one("CREATE ROLE admin");
+    match stmt {
+        Statement::CreateRole(r) => {
+            assert_eq!(r.name, "admin");
+            assert!(r.options.is_empty());
+        }
+        _ => panic!("expected CreateRole, got {:?}", stmt),
+    }
+}
+
+#[test]
+fn test_create_role_with_options() {
+    let stmt = parse_one("CREATE ROLE admin WITH SUPERUSER CREATEDB LOGIN PASSWORD 'secret'");
+    match stmt {
+        Statement::CreateRole(r) => {
+            assert_eq!(r.name, "admin");
+            assert!(r
+                .options
+                .iter()
+                .any(|o| matches!(o, RoleOption::Superuser(true))));
+            assert!(r
+                .options
+                .iter()
+                .any(|o| matches!(o, RoleOption::CreateDb(true))));
+            assert!(r
+                .options
+                .iter()
+                .any(|o| matches!(o, RoleOption::Login(true))));
+        }
+        _ => panic!("expected CreateRole, got {:?}", stmt),
+    }
+}
+
+#[test]
+fn test_create_user_with_password() {
+    let stmt = parse_one("CREATE USER davide WITH PASSWORD 'jw8s0F4'");
+    match stmt {
+        Statement::CreateUser(u) => {
+            assert_eq!(u.name, "davide");
+            assert!(u
+                .options
+                .iter()
+                .any(|o| matches!(o, RoleOption::UnencryptedPassword(_))));
+        }
+        _ => panic!("expected CreateUser, got {:?}", stmt),
+    }
+}
+
+#[test]
+fn test_create_group_basic() {
+    let stmt = parse_one("CREATE GROUP staff");
+    match stmt {
+        Statement::CreateGroup(g) => {
+            assert_eq!(g.name, "staff");
+            assert!(g.options.is_empty());
+        }
+        _ => panic!("expected CreateGroup, got {:?}", stmt),
+    }
+}
+
+#[test]
+fn test_grant_role() {
+    let stmt = parse_one("GRANT admin TO davide");
+    match stmt {
+        Statement::GrantRole(g) => {
+            assert_eq!(g.roles, vec!["admin"]);
+            assert_eq!(g.grantees, vec!["davide"]);
+            assert!(!g.with_admin_option);
+        }
+        _ => panic!("expected GrantRole, got {:?}", stmt),
+    }
+}
+
+#[test]
+fn test_grant_role_with_admin() {
+    let stmt = parse_one("GRANT admin TO davide WITH ADMIN OPTION");
+    match stmt {
+        Statement::GrantRole(g) => {
+            assert_eq!(g.roles, vec!["admin"]);
+            assert!(g.with_admin_option);
+        }
+        _ => panic!("expected GrantRole, got {:?}", stmt),
+    }
+}
+
+#[test]
+fn test_revoke_role() {
+    let stmt = parse_one("REVOKE admin FROM davide");
+    match stmt {
+        Statement::RevokeRole(r) => {
+            assert_eq!(r.roles, vec!["admin"]);
+            assert_eq!(r.grantees, vec!["davide"]);
+            assert!(!r.cascade);
+        }
+        _ => panic!("expected RevokeRole, got {:?}", stmt),
+    }
+}
+
+#[test]
+fn test_revoke_role_cascade() {
+    let stmt = parse_one("REVOKE admin FROM davide CASCADE");
+    match stmt {
+        Statement::RevokeRole(r) => {
+            assert!(r.cascade);
+        }
+        _ => panic!("expected RevokeRole, got {:?}", stmt),
+    }
+}
+
+#[test]
+fn test_grant_privilege_still_works() {
+    let stmt = parse_one("GRANT SELECT ON users TO admin");
+    match stmt {
+        Statement::Grant(g) => {
+            assert!(g.privileges.iter().any(|p| matches!(p, Privilege::Select)));
+        }
+        _ => panic!("expected Grant, got {:?}", stmt),
+    }
+}
+
+#[test]
+fn test_alter_index_rename() {
+    let stmt = parse_one("ALTER INDEX distributors RENAME TO suppliers");
+    match stmt {
+        Statement::AlterIndex(a) => {
+            assert_eq!(a.name, vec!["distributors"]);
+            match &a.action {
+                AlterIndexAction::RenameTo(new_name) => assert_eq!(new_name, "suppliers"),
+                other => panic!("expected RenameTo, got {:?}", other),
+            }
+        }
+        _ => panic!("expected AlterIndex, got {:?}", stmt),
+    }
+}
+
+#[test]
+fn test_alter_index_set() {
+    let stmt = parse_one("ALTER INDEX idx SET (fillfactor = 75)");
+    match stmt {
+        Statement::AlterIndex(a) => {
+            assert!(matches!(a.action, AlterIndexAction::Set(_)));
+        }
+        _ => panic!("expected AlterIndex, got {:?}", stmt),
+    }
+}
+
+#[test]
+fn test_alter_index_set_tablespace() {
+    let stmt = parse_one("ALTER INDEX idx SET TABLESPACE fast_tablespace");
+    match stmt {
+        Statement::AlterIndex(a) => {
+            assert!(matches!(a.action, AlterIndexAction::SetTablespace(_)));
+        }
+        _ => panic!("expected AlterIndex, got {:?}", stmt),
+    }
+}
+
+// ========== ALTER TYPE tests ==========
+
+#[test]
+fn test_alter_type_add_attribute() {
+    let stmt = parse_one("ALTER TYPE compfoo ADD ATTRIBUTE f3 text");
+    match stmt {
+        Statement::AlterCompositeType(a) => {
+            assert_eq!(a.name, vec!["compfoo"]);
+            match &a.action {
+                AlterTypeAction::AddAttribute {
+                    name,
+                    data_type,
+                    cascade,
+                } => {
+                    assert_eq!(name, "f3");
+                    assert_eq!(data_type, "text");
+                    assert!(!cascade);
+                }
+                other => panic!("expected AddAttribute, got {:?}", other),
+            }
+        }
+        _ => panic!("expected AlterCompositeType, got {:?}", stmt),
+    }
+}
+
+#[test]
+fn test_alter_type_add_attribute_cascade() {
+    let stmt = parse_one("ALTER TYPE compfoo ADD ATTRIBUTE f3 text CASCADE");
+    match stmt {
+        Statement::AlterCompositeType(a) => match &a.action {
+            AlterTypeAction::AddAttribute { cascade, .. } => assert!(cascade),
+            other => panic!("expected AddAttribute, got {:?}", other),
+        },
+        _ => panic!("expected AlterCompositeType, got {:?}", stmt),
+    }
+}
+
+#[test]
+fn test_alter_type_drop_attribute() {
+    let stmt = parse_one("ALTER TYPE compfoo DROP ATTRIBUTE f2");
+    match stmt {
+        Statement::AlterCompositeType(a) => {
+            assert_eq!(a.name, vec!["compfoo"]);
+            match &a.action {
+                AlterTypeAction::DropAttribute {
+                    name,
+                    if_exists,
+                    cascade,
+                } => {
+                    assert_eq!(name, "f2");
+                    assert!(!if_exists);
+                    assert!(!cascade);
+                }
+                other => panic!("expected DropAttribute, got {:?}", other),
+            }
+        }
+        _ => panic!("expected AlterCompositeType, got {:?}", stmt),
+    }
+}
+
+#[test]
+fn test_alter_type_drop_attribute_if_exists() {
+    let stmt = parse_one("ALTER TYPE compfoo DROP ATTRIBUTE IF EXISTS f2 CASCADE");
+    match stmt {
+        Statement::AlterCompositeType(a) => match &a.action {
+            AlterTypeAction::DropAttribute {
+                name,
+                if_exists,
+                cascade,
+            } => {
+                assert_eq!(name, "f2");
+                assert!(if_exists);
+                assert!(cascade);
+            }
+            other => panic!("expected DropAttribute, got {:?}", other),
+        },
+        _ => panic!("expected AlterCompositeType, got {:?}", stmt),
+    }
+}
+
+#[test]
+fn test_alter_type_rename_attribute() {
+    let stmt = parse_one("ALTER TYPE compfoo RENAME ATTRIBUTE f1 TO f1_new");
+    match stmt {
+        Statement::AlterCompositeType(a) => match &a.action {
+            AlterTypeAction::RenameAttribute {
+                old_name,
+                new_name,
+                cascade,
+            } => {
+                assert_eq!(old_name, "f1");
+                assert_eq!(new_name, "f1_new");
+                assert!(!cascade);
+            }
+            other => panic!("expected RenameAttribute, got {:?}", other),
+        },
+        _ => panic!("expected AlterCompositeType, got {:?}", stmt),
+    }
+}
+
+#[test]
+fn test_alter_type_rename_to() {
+    let stmt = parse_one("ALTER TYPE compfoo RENAME TO new_compfoo");
+    match stmt {
+        Statement::AlterCompositeType(a) => match &a.action {
+            AlterTypeAction::RenameTo(new_name) => assert_eq!(new_name, "new_compfoo"),
+            other => panic!("expected RenameTo, got {:?}", other),
+        },
+        _ => panic!("expected AlterCompositeType, got {:?}", stmt),
+    }
+}
+
+#[test]
+fn test_alter_type_add_enum_value() {
+    let stmt = parse_one("ALTER TYPE bug_status ADD VALUE 'in_progress' BEFORE 'closed'");
+    match stmt {
+        Statement::AlterCompositeType(a) => {
+            assert_eq!(a.name, vec!["bug_status"]);
+            match &a.action {
+                AlterTypeAction::AddEnumValue {
+                    value,
+                    before,
+                    after,
+                } => {
+                    assert_eq!(value, "in_progress");
+                    assert_eq!(before, &Some("closed".to_string()));
+                    assert!(after.is_none());
+                }
+                other => panic!("expected AddEnumValue, got {:?}", other),
+            }
+        }
+        _ => panic!("expected AlterCompositeType, got {:?}", stmt),
+    }
+}
+
+#[test]
+fn test_alter_type_add_enum_value_after() {
+    let stmt = parse_one("ALTER TYPE bug_status ADD VALUE 'in_progress' AFTER 'open'");
+    match stmt {
+        Statement::AlterCompositeType(a) => match &a.action {
+            AlterTypeAction::AddEnumValue {
+                value,
+                before,
+                after,
+            } => {
+                assert_eq!(value, "in_progress");
+                assert!(before.is_none());
+                assert_eq!(after, &Some("open".to_string()));
+            }
+            other => panic!("expected AddEnumValue, got {:?}", other),
+        },
+        _ => panic!("expected AlterCompositeType, got {:?}", stmt),
+    }
+}
+
+#[test]
+fn test_alter_type_rename_enum_value() {
+    let stmt = parse_one("ALTER TYPE bug_status RENAME VALUE 'open' TO 'new_open'");
+    match stmt {
+        Statement::AlterCompositeType(a) => match &a.action {
+            AlterTypeAction::RenameEnumValue {
+                old_value,
+                new_value,
+            } => {
+                assert_eq!(old_value, "open");
+                assert_eq!(new_value, "new_open");
+            }
+            other => panic!("expected RenameEnumValue, got {:?}", other),
+        },
+        _ => panic!("expected AlterCompositeType, got {:?}", stmt),
+    }
+}
+
+#[test]
+fn test_alter_type_set_schema() {
+    let stmt = parse_one("ALTER TYPE compfoo SET SCHEMA myschema");
+    match stmt {
+        Statement::AlterCompositeType(a) => match &a.action {
+            AlterTypeAction::SetSchema(schema) => assert_eq!(schema, "myschema"),
+            other => panic!("expected SetSchema, got {:?}", other),
+        },
+        _ => panic!("expected AlterCompositeType, got {:?}", stmt),
+    }
+}
+
+#[test]
+fn test_alter_type_owner_to() {
+    let stmt = parse_one("ALTER TYPE compfoo OWNER TO postgres");
+    match stmt {
+        Statement::AlterCompositeType(a) => match &a.action {
+            AlterTypeAction::OwnerTo(owner) => assert_eq!(owner, "postgres"),
+            other => panic!("expected OwnerTo, got {:?}", other),
+        },
+        _ => panic!("expected AlterCompositeType, got {:?}", stmt),
+    }
+}
+
+// ========== CREATE PACKAGE tests ==========
+
+#[test]
+fn test_create_package_basic() {
+    let stmt = parse_one("CREATE PACKAGE my_pkg AS END my_pkg;");
+    match stmt {
+        Statement::CreatePackage(p) => {
+            assert!(!p.replace);
+            assert_eq!(p.name, vec!["my_pkg"]);
+            assert!(p.authid.is_none());
+            assert!(p.body.is_empty() || p.body.to_lowercase().contains("end"));
+        }
+        _ => panic!("expected CreatePackage, got {:?}", stmt),
+    }
+}
+
+#[test]
+fn test_create_or_replace_package() {
+    let stmt = parse_one("CREATE OR REPLACE PACKAGE exp_pkg AS user_exp EXCEPTION; END exp_pkg;");
+    match stmt {
+        Statement::CreatePackage(p) => {
+            assert!(p.replace);
+            assert_eq!(p.name, vec!["exp_pkg"]);
+        }
+        _ => panic!("expected CreatePackage, got {:?}", stmt),
+    }
+}
+
+#[test]
+fn test_create_package_with_schema() {
+    let stmt = parse_one("CREATE OR REPLACE PACKAGE dams_ci.pack_log AS PROCEDURE excption_1(in_desc IN varchar); END pack_log;");
+    match stmt {
+        Statement::CreatePackage(p) => {
+            assert_eq!(p.name, vec!["dams_ci", "pack_log"]);
+            assert!(p.body.contains("excption_1"));
+        }
+        _ => panic!("expected CreatePackage, got {:?}", stmt),
+    }
+}
+
+#[test]
+fn test_create_package_authid_current_user() {
+    let stmt = parse_one("CREATE PACKAGE my_pkg AUTHID CURRENT_USER IS END my_pkg;");
+    match stmt {
+        Statement::CreatePackage(p) => {
+            assert_eq!(p.authid, Some(PackageAuthid::CurrentUser));
+        }
+        _ => panic!("expected CreatePackage, got {:?}", stmt),
+    }
+}
+
+#[test]
+fn test_create_package_authid_definer() {
+    let stmt = parse_one("CREATE PACKAGE my_pkg AUTHID DEFINER AS END my_pkg;");
+    match stmt {
+        Statement::CreatePackage(p) => {
+            assert_eq!(p.authid, Some(PackageAuthid::Definer));
+        }
+        _ => panic!("expected CreatePackage, got {:?}", stmt),
+    }
+}
+
+#[test]
+fn test_create_package_body_basic() {
+    let stmt = parse_one("CREATE OR REPLACE PACKAGE BODY exp_pkg AS END exp_pkg;");
+    match stmt {
+        Statement::CreatePackageBody(p) => {
+            assert!(p.replace);
+            assert_eq!(p.name, vec!["exp_pkg"]);
+        }
+        _ => panic!("expected CreatePackageBody, got {:?}", stmt),
+    }
+}
+
+#[test]
+fn test_create_package_body_with_function() {
+    let stmt = parse_one("CREATE OR REPLACE PACKAGE BODY trigger_test AS function tri_insert_func() return trigger as begin insert into test_trigger_des_tbl values(new.id1, new.id2, new.id3); return new; end; end trigger_test;");
+    match stmt {
+        Statement::CreatePackageBody(p) => {
+            assert!(p.body.contains("tri_insert_func"));
+            assert!(p.body.contains("insert into"));
+        }
+        _ => panic!("expected CreatePackageBody, got {:?}", stmt),
+    }
+}
+
+// ========== CREATE EXTENSION / DOMAIN / CAST tests ==========
+
+#[test]
+fn test_create_extension_basic() {
+    let stmt = parse_one("CREATE EXTENSION hstore");
+    match stmt {
+        Statement::CreateExtension(e) => {
+            assert!(!e.if_not_exists);
+            assert_eq!(e.name, "hstore");
+            assert!(e.schema.is_none());
+            assert!(e.version.is_none());
+            assert!(!e.cascade);
+        }
+        _ => panic!("expected CreateExtension, got {:?}", stmt),
+    }
+}
+
+#[test]
+fn test_create_extension_if_not_exists() {
+    let stmt = parse_one("CREATE EXTENSION IF NOT EXISTS gms_debug");
+    match stmt {
+        Statement::CreateExtension(e) => {
+            assert!(e.if_not_exists);
+            assert_eq!(e.name, "gms_debug");
+        }
+        _ => panic!("expected CreateExtension, got {:?}", stmt),
+    }
+}
+
+#[test]
+fn test_create_extension_with_options() {
+    let stmt =
+        parse_one("CREATE EXTENSION IF NOT EXISTS hstore WITH SCHEMA public VERSION '1.0' CASCADE");
+    match stmt {
+        Statement::CreateExtension(e) => {
+            assert!(e.if_not_exists);
+            assert_eq!(e.name, "hstore");
+            assert_eq!(e.schema, Some("public".to_string()));
+            assert_eq!(e.version, Some("1.0".to_string()));
+            assert!(e.cascade);
+        }
+        _ => panic!("expected CreateExtension, got {:?}", stmt),
+    }
+}
+
+#[test]
+fn test_create_domain_basic() {
+    let stmt = parse_one("CREATE DOMAIN domaindroptest int4");
+    match stmt {
+        Statement::CreateDomain(d) => {
+            assert_eq!(d.name, vec!["domaindroptest"]);
+            assert_eq!(d.data_type, "int4");
+            assert!(d.default_value.is_none());
+            assert!(!d.not_null);
+            assert!(d.check.is_none());
+        }
+        _ => panic!("expected CreateDomain, got {:?}", stmt),
+    }
+}
+
+#[test]
+fn test_create_domain_not_null() {
+    let stmt = parse_one("CREATE DOMAIN dnotnull varchar(15) NOT NULL");
+    match stmt {
+        Statement::CreateDomain(d) => {
+            assert_eq!(d.name, vec!["dnotnull"]);
+            assert!(d.not_null);
+        }
+        _ => panic!("expected CreateDomain, got {:?}", stmt),
+    }
+}
+
+#[test]
+fn test_create_domain_with_check() {
+    let stmt =
+        parse_one("CREATE DOMAIN dcheck varchar(15) NOT NULL CHECK (VALUE = 'a' OR VALUE = 'c')");
+    match stmt {
+        Statement::CreateDomain(d) => {
+            assert!(d.not_null);
+            assert!(d.check.is_some());
+            let check = d.check.unwrap();
+            assert!(check.contains("value"));
+        }
+        _ => panic!("expected CreateDomain, got {:?}", stmt),
+    }
+}
+
+#[test]
+fn test_create_domain_with_default() {
+    let stmt = parse_one("CREATE DOMAIN ddef1 int4 DEFAULT 3");
+    match stmt {
+        Statement::CreateDomain(d) => {
+            assert_eq!(d.data_type, "int4");
+            assert_eq!(d.default_value, Some("3".to_string()));
+        }
+        _ => panic!("expected CreateDomain, got {:?}", stmt),
+    }
+}
+
+#[test]
+fn test_create_cast_without_function() {
+    let stmt = parse_one("CREATE CAST (text AS casttesttype) WITHOUT FUNCTION");
+    match stmt {
+        Statement::CreateCast(c) => {
+            assert_eq!(c.source_type, "text");
+            assert_eq!(c.target_type, "casttesttype");
+            assert!(matches!(c.method, CastMethod::WithoutFunction));
+            assert!(c.context.is_none());
+        }
+        _ => panic!("expected CreateCast, got {:?}", stmt),
+    }
+}
+
+#[test]
+fn test_create_cast_without_function_implicit() {
+    let stmt = parse_one("CREATE CAST (text AS casttesttype) WITHOUT FUNCTION AS IMPLICIT");
+    match stmt {
+        Statement::CreateCast(c) => {
+            assert!(matches!(c.method, CastMethod::WithoutFunction));
+            assert_eq!(c.context, Some(CastContext::Implicit));
+        }
+        _ => panic!("expected CreateCast, got {:?}", stmt),
+    }
+}
+
+#[test]
+fn test_create_cast_with_inout() {
+    let stmt = parse_one("CREATE CAST (int4 AS casttesttype) WITH INOUT");
+    match stmt {
+        Statement::CreateCast(c) => {
+            assert!(matches!(c.method, CastMethod::WithInout));
+        }
+        _ => panic!("expected CreateCast, got {:?}", stmt),
+    }
+}
+
+#[test]
+fn test_create_cast_with_function() {
+    let stmt = parse_one(
+        "CREATE CAST (int4 AS casttesttype) WITH FUNCTION int4_casttesttype(int4) AS IMPLICIT",
+    );
+    match stmt {
+        Statement::CreateCast(c) => {
+            match &c.method {
+                CastMethod::WithFunction(func) => {
+                    assert!(func.contains("int4_casttesttype"));
+                }
+                other => panic!("expected WithFunction, got {:?}", other),
+            }
+            assert_eq!(c.context, Some(CastContext::Implicit));
+        }
+        _ => panic!("expected CreateCast, got {:?}", stmt),
+    }
+}
+
+// ========== ALTER VIEW / TRIGGER / EXTENSION tests ==========
+
+#[test]
+fn test_alter_view_rename() {
+    let stmt = parse_one("ALTER VIEW my_view RENAME TO new_view");
+    match stmt {
+        Statement::AlterView(a) => {
+            assert_eq!(a.name, vec!["my_view"]);
+            match &a.action {
+                AlterViewAction::RenameTo(name) => assert_eq!(name, "new_view"),
+                other => panic!("expected RenameTo, got {:?}", other),
+            }
+        }
+        _ => panic!("expected AlterView, got {:?}", stmt),
+    }
+}
+
+#[test]
+fn test_alter_view_set() {
+    let stmt = parse_one("ALTER VIEW my_property_normal SET (security_barrier=true)");
+    match stmt {
+        Statement::AlterView(a) => match &a.action {
+            AlterViewAction::Set(opts) => {
+                assert!(!opts.is_empty());
+            }
+            other => panic!("expected Set, got {:?}", other),
+        },
+        _ => panic!("expected AlterView, got {:?}", stmt),
+    }
+}
+
+#[test]
+fn test_alter_view_reset() {
+    let stmt = parse_one("ALTER VIEW rw_view2 RESET (check_option)");
+    match stmt {
+        Statement::AlterView(a) => match &a.action {
+            AlterViewAction::Reset(names) => {
+                assert!(names.contains(&"check_option".to_string()));
+            }
+            other => panic!("expected Reset, got {:?}", other),
+        },
+        _ => panic!("expected AlterView, got {:?}", stmt),
+    }
+}
+
+#[test]
+fn test_alter_view_set_schema() {
+    let stmt = parse_one("ALTER VIEW test SET SCHEMA target_schema");
+    match stmt {
+        Statement::AlterView(a) => match &a.action {
+            AlterViewAction::SetSchema(schema) => assert_eq!(schema, "target_schema"),
+            other => panic!("expected SetSchema, got {:?}", other),
+        },
+        _ => panic!("expected AlterView, got {:?}", stmt),
+    }
+}
+
+#[test]
+fn test_alter_view_alter_column_default() {
+    let stmt = parse_one("ALTER VIEW rw_view1 ALTER COLUMN bb SET DEFAULT 'View default'");
+    match stmt {
+        Statement::AlterView(a) => match &a.action {
+            AlterViewAction::AlterColumnDefault {
+                column,
+                set_default,
+            } => {
+                assert_eq!(column, "bb");
+                assert!(set_default.is_some());
+            }
+            other => panic!("expected AlterColumnDefault, got {:?}", other),
+        },
+        _ => panic!("expected AlterView, got {:?}", stmt),
+    }
+}
+
+#[test]
+fn test_alter_trigger_rename() {
+    let stmt =
+        parse_one("ALTER TRIGGER repcount_update_row ON my_table RENAME TO repcount_update_row2");
+    match stmt {
+        Statement::AlterTrigger(a) => {
+            assert_eq!(a.name, "repcount_update_row");
+            assert_eq!(a.table, vec!["my_table"]);
+            assert_eq!(a.new_name, "repcount_update_row2");
+        }
+        _ => panic!("expected AlterTrigger, got {:?}", stmt),
+    }
+}
+
+#[test]
+fn test_alter_extension_update() {
+    let stmt = parse_one("ALTER EXTENSION hstore UPDATE TO '1.1'");
+    match stmt {
+        Statement::AlterExtension(a) => {
+            assert_eq!(a.name, "hstore");
+            assert!(a.action.contains("update") || a.action.contains("UPDATE"));
+        }
+        _ => panic!("expected AlterExtension, got {:?}", stmt),
+    }
+}
