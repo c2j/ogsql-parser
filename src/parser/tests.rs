@@ -311,7 +311,7 @@ fn test_plpgsql_for_query() {
         PlStatement::For(f) => {
             assert_eq!(f.variable, "rec");
             match &f.kind {
-                PlForKind::Query { query } => assert_eq!(query, "select 1"),
+                PlForKind::Query { query, .. } => assert_eq!(query, "select 1"),
                 _ => panic!("expected Query kind"),
             }
         }
@@ -669,6 +669,87 @@ fn test_begin_transaction_still_works() {
 fn test_begin_transaction_with_semicolon() {
     let stmt = parse_one("BEGIN;");
     assert!(matches!(stmt, Statement::Transaction(_)));
+}
+
+#[test]
+fn test_begin_transaction_work() {
+    let stmt = parse_one("BEGIN WORK");
+    assert!(matches!(stmt, Statement::Transaction(_)));
+}
+
+#[test]
+fn test_begin_transaction_isolation_level() {
+    let stmt = parse_one("BEGIN ISOLATION LEVEL READ COMMITTED");
+    assert!(matches!(stmt, Statement::Transaction(_)));
+}
+
+#[test]
+fn test_begin_transaction_read_only() {
+    let stmt = parse_one("BEGIN READ ONLY");
+    assert!(matches!(stmt, Statement::Transaction(_)));
+}
+
+#[test]
+fn test_begin_anon_block_with_select() {
+    let stmt = parse_one("BEGIN SELECT 1; END");
+    match stmt {
+        Statement::AnonyBlock(b) => {
+            assert_eq!(b.block.body.len(), 1);
+        }
+        _ => panic!("expected AnonyBlock, got {:?}", stmt),
+    }
+}
+
+#[test]
+fn test_begin_anon_block_with_update() {
+    let stmt = parse_one("BEGIN UPDATE t SET x = 1; END");
+    match stmt {
+        Statement::AnonyBlock(b) => {
+            assert_eq!(b.block.body.len(), 1);
+        }
+        _ => panic!("expected AnonyBlock, got {:?}", stmt),
+    }
+}
+
+#[test]
+fn test_begin_anon_block_with_if() {
+    let stmt = parse_one("BEGIN IF true THEN NULL; END IF; END");
+    match stmt {
+        Statement::AnonyBlock(b) => {
+            assert_eq!(b.block.body.len(), 1);
+            match &b.block.body[0] {
+                PlStatement::If(_) => {}
+                other => panic!("expected If, got {:?}", other),
+            }
+        }
+        _ => panic!("expected AnonyBlock, got {:?}", stmt),
+    }
+}
+
+#[test]
+fn test_begin_anon_block_with_insert_and_exception() {
+    let sql = "BEGIN INSERT INTO t VALUES (1); EXCEPTION WHEN OTHERS THEN NULL; END";
+    let stmt = parse_one(sql);
+    match stmt {
+        Statement::AnonyBlock(b) => {
+            assert_eq!(b.block.body.len(), 1);
+            assert!(b.block.exception_block.is_some());
+        }
+        _ => panic!("expected AnonyBlock, got {:?}", stmt),
+    }
+}
+
+#[test]
+fn test_begin_anon_block_with_multiple_statements() {
+    let sql = "BEGIN SELECT 1; SELECT 2; COMMIT; END";
+    let stmt = parse_one(sql);
+    match stmt {
+        Statement::AnonyBlock(b) => {
+            assert_eq!(b.block.body.len(), 3);
+            assert!(matches!(b.block.body[2], PlStatement::Commit));
+        }
+        _ => panic!("expected AnonyBlock, got {:?}", stmt),
+    }
 }
 
 // ========== CREATE TYPE Tests ==========
@@ -1413,6 +1494,90 @@ fn test_bare_function_definition() {
     }
 }
 
+#[test]
+fn test_create_procedure_with_structured_body() {
+    let sql = "CREATE PROCEDURE my_proc(p_id IN INTEGER)\n\
+               AS BEGIN\n\
+                 DELETE FROM t1 WHERE id = 1;\n\
+                 INSERT INTO t1 VALUES(2);\n\
+               END;";
+    let stmt = parse_one(sql);
+    match stmt {
+        Statement::CreateProcedure(p) => {
+            assert_eq!(p.name, vec!["my_proc"]);
+            assert_eq!(p.parameters.len(), 1);
+            let block = p.block.as_ref().expect("expected block to be parsed");
+            assert!(
+                block.body.len() >= 2,
+                "expected at least 2 statements in body, got {}",
+                block.body.len()
+            );
+        }
+        _ => panic!("expected CreateProcedure, got {:?}", stmt),
+    }
+}
+
+#[test]
+fn test_create_procedure_with_declare_and_exception() {
+    let sql = "CREATE PROCEDURE complex_proc\n\
+               IS\n\
+                 v_count INTEGER;\n\
+               BEGIN\n\
+                 SELECT count(*) INTO v_count FROM t1;\n\
+                 IF v_count > 0 THEN\n\
+                   DELETE FROM t1;\n\
+                 END IF;\n\
+               END;";
+    let stmt = parse_one(sql);
+    match stmt {
+        Statement::CreateProcedure(p) => {
+            assert_eq!(p.name, vec!["complex_proc"]);
+            let block = p.block.as_ref().expect("expected block to be parsed");
+            assert!(!block.declarations.is_empty(), "expected declarations");
+            assert!(block.body.len() >= 2, "expected at least 2 body statements");
+        }
+        _ => panic!("expected CreateProcedure, got {:?}", stmt),
+    }
+}
+
+#[test]
+fn test_create_function_with_structured_body() {
+    let sql = "CREATE FUNCTION get_name(id INTEGER) RETURN VARCHAR2\n\
+               IS\n\
+               BEGIN\n\
+                 RETURN 'test';\n\
+               END;";
+    let stmt = parse_one(sql);
+    match stmt {
+        Statement::CreateFunction(f) => {
+            assert_eq!(f.name, vec!["get_name"]);
+            let block = f.block.as_ref().expect("expected block to be parsed");
+            assert!(!block.body.is_empty(), "expected body statements");
+        }
+        _ => panic!("expected CreateFunction, got {:?}", stmt),
+    }
+}
+
+#[test]
+fn test_create_procedure_without_body_falls_back() {
+    let sql = "CREATE PROCEDURE java_proc LANGUAGE JAVA NAME 'com.example.proc()'";
+    let stmt = parse_one(sql);
+    match stmt {
+        Statement::CreateProcedure(p) => {
+            assert_eq!(p.name, vec!["java_proc"]);
+            assert!(
+                p.block.is_none(),
+                "expected no block for LANGUAGE JAVA style"
+            );
+            assert!(
+                !p.options.is_empty(),
+                "expected options string for fallback case"
+            );
+        }
+        _ => panic!("expected CreateProcedure, got {:?}", stmt),
+    }
+}
+
 // ========== CREATE EXTENSION / DOMAIN / CAST tests ==========
 
 #[test]
@@ -1666,5 +1831,141 @@ fn test_alter_extension_update() {
             assert!(a.action.contains("update") || a.action.contains("UPDATE"));
         }
         _ => panic!("expected AlterExtension, got {:?}", stmt),
+    }
+}
+
+// ========== Cursor/Query parsed_query tests ==========
+
+#[test]
+fn test_cursor_decl_with_parsed_select() {
+    let sql = "DO $$ DECLARE cur1 CURSOR FOR SELECT id, name FROM users WHERE active = 1; BEGIN OPEN cur1; END $$";
+    let stmt = parse_one(sql);
+    match stmt {
+        Statement::Do(d) => {
+            let block = d.block.as_ref().expect("DO block should be parsed");
+            assert_eq!(block.declarations.len(), 1);
+            match &block.declarations[0] {
+                PlDeclaration::Cursor(c) => {
+                    assert_eq!(c.name, "cur1");
+                    assert!(c.parsed_query.is_some(), "cursor query should be parsed");
+                    let parsed = c.parsed_query.as_ref().unwrap();
+                    match parsed.as_ref() {
+                        crate::ast::Statement::Select(sel) => {
+                            assert_eq!(sel.targets.len(), 2);
+                        }
+                        other => panic!("expected Select, got {:?}", other),
+                    }
+                }
+                other => panic!("expected Cursor decl, got {:?}", other),
+            }
+        }
+        other => panic!("expected Do, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_open_for_with_parsed_select() {
+    let sql = r#"
+        BEGIN
+            OPEN cur1 FOR SELECT id, name FROM users;
+        END
+    "#;
+    let stmt = parse_one(sql);
+    match stmt {
+        Statement::AnonyBlock(ab) => {
+            assert_eq!(ab.block.body.len(), 1);
+            match &ab.block.body[0] {
+                PlStatement::Open(open_stmt) => match &open_stmt.kind {
+                    PlOpenKind::ForQuery {
+                        query,
+                        parsed_query,
+                    } => {
+                        assert!(!query.is_empty());
+                        assert!(parsed_query.is_some(), "OPEN FOR query should be parsed");
+                        let parsed = parsed_query.as_ref().unwrap();
+                        match parsed.as_ref() {
+                            crate::ast::Statement::Select(sel) => {
+                                assert_eq!(sel.targets.len(), 2);
+                            }
+                            other => panic!("expected Select, got {:?}", other),
+                        }
+                    }
+                    other => panic!("expected ForQuery, got {:?}", other),
+                },
+                other => panic!("expected Open, got {:?}", other),
+            }
+        }
+        other => panic!("expected AnonyBlock, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_for_in_query_with_parsed_select() {
+    let sql = "BEGIN FOR rec IN SELECT id FROM users LOOP NULL; END LOOP; END";
+    let stmt = parse_one(sql);
+    match stmt {
+        Statement::AnonyBlock(ab) => {
+            assert_eq!(ab.block.body.len(), 1);
+            match &ab.block.body[0] {
+                PlStatement::For(for_stmt) => match &for_stmt.kind {
+                    PlForKind::Query {
+                        query,
+                        parsed_query,
+                    } => {
+                        assert!(!query.is_empty());
+                        assert!(parsed_query.is_some(), "FOR IN query should be parsed");
+                        let parsed = parsed_query.as_ref().unwrap();
+                        match parsed.as_ref() {
+                            crate::ast::Statement::Select(sel) => {
+                                assert_eq!(sel.targets.len(), 1);
+                            }
+                            other => panic!("expected Select, got {:?}", other),
+                        }
+                    }
+                    other => panic!("expected Query kind, got {:?}", other),
+                },
+                other => panic!("expected For, got {:?}", other),
+            }
+        }
+        other => panic!("expected AnonyBlock, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_nested_procedure_declaration() {
+    let sql = "CREATE OR REPLACE PROCEDURE outer_proc(p1 IN NUMBER) AS \
+               v_count NUMBER := 0; \
+               PROCEDURE inner_proc(p2 IN NUMBER) AS \
+                 v_inner NUMBER; \
+               BEGIN \
+                 v_inner := p2 + 1; \
+               END inner_proc; \
+               BEGIN \
+                 v_count := p1; \
+                 inner_proc(v_count); \
+               END";
+    let stmt = parse_one(sql);
+    match stmt {
+        Statement::CreateProcedure(proc) => {
+            assert_eq!(proc.name, vec!["outer_proc"]);
+            let block = proc.block.as_ref().expect("outer block should be parsed");
+            let nested = block
+                .declarations
+                .iter()
+                .filter_map(|d| match d {
+                    PlDeclaration::NestedProcedure(p) => Some(p),
+                    _ => None,
+                })
+                .collect::<Vec<_>>();
+            assert_eq!(nested.len(), 1, "should have 1 nested procedure");
+            assert_eq!(nested[0].name, vec!["inner_proc"]);
+            let inner_block = nested[0]
+                .block
+                .as_ref()
+                .expect("inner block should be parsed");
+            assert_eq!(inner_block.declarations.len(), 1);
+            assert!(inner_block.body.len() > 0, "inner block should have body");
+        }
+        other => panic!("expected CreateProcedure, got {:?}", other),
     }
 }

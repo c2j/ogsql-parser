@@ -742,12 +742,12 @@ impl Parser {
                 }
             }
             Token::Keyword(Keyword::BEGIN_P) => {
-                self.advance();
-                if self.is_plpgsql_anon_block_start() {
-                    match self.parse_anonymous_block() {
+                if self.is_transaction_begin() {
+                    self.advance();
+                    match self.parse_transaction_begin() {
                         Ok(stmt) => {
                             self.try_consume_semicolon();
-                            crate::ast::Statement::AnonyBlock(stmt)
+                            crate::ast::Statement::Transaction(stmt)
                         }
                         Err(e) => {
                             self.add_error(e);
@@ -755,10 +755,11 @@ impl Parser {
                         }
                     }
                 } else {
-                    match self.parse_transaction_begin() {
+                    self.advance();
+                    match self.parse_anonymous_block() {
                         Ok(stmt) => {
                             self.try_consume_semicolon();
-                            crate::ast::Statement::Transaction(stmt)
+                            crate::ast::Statement::AnonyBlock(stmt)
                         }
                         Err(e) => {
                             self.add_error(e);

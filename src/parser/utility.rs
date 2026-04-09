@@ -841,14 +841,28 @@ impl Parser {
             self.expect_token(&Token::RParen)?;
         }
 
-        let return_type = if self.match_keyword(Keyword::RETURNS) {
+        let return_type =
+            if self.match_keyword(Keyword::RETURNS) || self.match_keyword(Keyword::RETURN) {
+                self.advance();
+                Some(self.parse_type_name()?)
+            } else {
+                None
+            };
+
+        let has_body = if self.match_keyword(Keyword::IS) || self.match_keyword(Keyword::AS) {
             self.advance();
-            Some(self.parse_type_name()?)
+            true
         } else {
-            None
+            false
         };
 
-        let options = self.skip_to_semicolon_and_collect();
+        let (block, options) = if has_body {
+            let block = self.parse_procedure_body()?;
+            (Some(block), String::new())
+        } else {
+            let options = self.skip_to_semicolon_and_collect();
+            (None, options)
+        };
 
         Ok(CreateFunctionStatement {
             replace: false,
@@ -856,6 +870,7 @@ impl Parser {
             parameters,
             return_type,
             options,
+            block,
         })
     }
 
@@ -895,7 +910,7 @@ impl Parser {
 
         loop {
             match self.peek() {
-                Token::Keyword(Keyword::AS) => break,
+                Token::Keyword(Keyword::AS) | Token::Keyword(Keyword::IS) => break,
                 Token::Ident(s) => {
                     if !type_name.is_empty() {
                         type_name.push(' ');
@@ -1070,13 +1085,27 @@ impl Parser {
             self.expect_token(&Token::RParen)?;
         }
 
-        let options = self.skip_to_semicolon_and_collect();
+        let has_body = if self.match_keyword(Keyword::IS) || self.match_keyword(Keyword::AS) {
+            self.advance();
+            true
+        } else {
+            false
+        };
+
+        let (block, options) = if has_body {
+            let block = self.parse_procedure_body()?;
+            (Some(block), String::new())
+        } else {
+            let options = self.skip_to_semicolon_and_collect();
+            (None, options)
+        };
 
         Ok(CreateProcedureStatement {
             replace: false,
             name,
             parameters,
             options,
+            block,
         })
     }
 
@@ -1259,7 +1288,7 @@ impl Parser {
             .join(" ")
     }
 
-    fn parse_package_sub_procedure(&mut self) -> Result<PackageProcedure, ParserError> {
+    pub(crate) fn parse_package_sub_procedure(&mut self) -> Result<PackageProcedure, ParserError> {
         let name = self.parse_object_name()?;
 
         let mut parameters = Vec::new();
@@ -1300,7 +1329,7 @@ impl Parser {
         })
     }
 
-    fn parse_package_sub_function(&mut self) -> Result<PackageFunction, ParserError> {
+    pub(crate) fn parse_package_sub_function(&mut self) -> Result<PackageFunction, ParserError> {
         let name = self.parse_object_name()?;
 
         let mut parameters = Vec::new();
@@ -2620,12 +2649,26 @@ impl Parser {
         parser.parse_pl_block()
     }
 
-    pub(crate) fn is_plpgsql_anon_block_start(&self) -> bool {
-        match self.peek() {
-            Token::DollarString(_) => true,
-            Token::Op(ref op) if op == "<<" => true,
-            Token::Ident(_) => true,
-            Token::Keyword(Keyword::DECLARE) => true,
+    pub(crate) fn is_transaction_begin(&self) -> bool {
+        let next = match self.tokens.get(self.pos + 1) {
+            Some(tw) => &tw.token,
+            None => return true,
+        };
+        match next {
+            Token::Eof => true,
+            Token::Semicolon => true,
+            Token::Slash => true,
+            Token::Keyword(Keyword::WORK) => true,
+            Token::Keyword(Keyword::TRANSACTION) => true,
+            Token::Keyword(Keyword::ISOLATION) => true,
+            Token::Keyword(Keyword::DEFERRABLE) => true,
+            Token::Keyword(Keyword::NOT) => true,
+            Token::Keyword(Keyword::READ) => self.tokens.get(self.pos + 2).map_or(false, |t| {
+                matches!(
+                    t.token,
+                    Token::Keyword(Keyword::ONLY) | Token::Keyword(Keyword::WRITE)
+                )
+            }),
             _ => false,
         }
     }
@@ -2641,7 +2684,7 @@ impl Parser {
             }
         }
 
-        let block = self.parse_pl_block()?;
+        let block = self.parse_pl_block_body(None, Vec::new())?;
         Ok(crate::ast::AnonyBlockStatement { block })
     }
 

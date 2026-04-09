@@ -1736,6 +1736,52 @@ impl SqlFormatter {
                     .join(", ");
                 format!("{} {} ({})", t.name, self.kw("TYPE"), fields)
             }
+            PlDeclaration::NestedProcedure(p) => {
+                let mut s = format!(
+                    "{} {} ",
+                    self.kw("PROCEDURE"),
+                    self.format_object_name(&p.name)
+                );
+                if !p.parameters.is_empty() {
+                    s.push_str(&format!("({})", p.parameters.join(", ")));
+                }
+                if let Some(ref block) = p.block {
+                    s.push_str(&format!(
+                        " {} {}",
+                        self.kw("AS"),
+                        self.format_pl_block(block)
+                    ));
+                }
+                s
+            }
+            PlDeclaration::NestedFunction(f) => {
+                let mut s = format!(
+                    "{} {} ",
+                    self.kw("FUNCTION"),
+                    self.format_object_name(&f.name)
+                );
+                if !f.parameters.is_empty() {
+                    s.push_str(&format!("({})", f.parameters.join(", ")));
+                }
+                if let Some(ref rt) = f.return_type {
+                    s.push_str(&format!(" {} {}", self.kw("RETURN"), rt));
+                }
+                if let Some(ref block) = f.block {
+                    s.push_str(&format!(
+                        " {} {}",
+                        self.kw("AS"),
+                        self.format_pl_block(block)
+                    ));
+                }
+                s
+            }
+            PlDeclaration::Pragma { name, arguments } => {
+                if arguments.is_empty() {
+                    format!("{} {}", self.kw("PRAGMA"), name)
+                } else {
+                    format!("{} {}({})", self.kw("PRAGMA"), name, arguments)
+                }
+            }
         }
     }
 
@@ -1807,7 +1853,7 @@ impl SqlFormatter {
                 }
                 format!("{};", s)
             }
-            PlStatement::Perform { query } => format!("{} {};", self.kw("PERFORM"), query),
+            PlStatement::Perform { query, .. } => format!("{} {};", self.kw("PERFORM"), query),
             PlStatement::Open(o) => {
                 let mut s = format!("{} {}", self.kw("OPEN"), o.cursor);
                 match &o.kind {
@@ -1816,7 +1862,7 @@ impl SqlFormatter {
                             s.push_str(&format!("({})", arguments.join(", ")));
                         }
                     }
-                    PlOpenKind::ForQuery { query } => {
+                    PlOpenKind::ForQuery { query, .. } => {
                         s.push_str(&format!(" {} {}", self.kw("FOR"), query));
                     }
                     PlOpenKind::ForUsing { expressions } => {
@@ -2023,7 +2069,7 @@ impl SqlFormatter {
                     s.push_str(&format!(" {} {}", self.kw("BY"), st));
                 }
             }
-            PlForKind::Query { query } => {
+            PlForKind::Query { query, .. } => {
                 s.push_str(query);
             }
             PlForKind::Cursor {

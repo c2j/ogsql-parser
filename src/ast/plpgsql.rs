@@ -23,6 +23,9 @@ pub enum PlDeclaration {
     Cursor(PlCursorDecl),
     Record(PlRecordDecl),
     Type(PlTypeDecl),
+    NestedProcedure(crate::ast::PackageProcedure),
+    NestedFunction(crate::ast::PackageFunction),
+    Pragma { name: String, arguments: String },
 }
 
 /// Variable declaration: name [CONSTANT] type [NOT NULL] [:= expr | DEFAULT expr] [COLLATE name]
@@ -60,6 +63,8 @@ pub struct PlCursorDecl {
     pub arguments: Vec<PlCursorArg>,
     pub return_type: Option<PlDataType>,
     pub query: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub parsed_query: Option<Box<crate::ast::Statement>>,
     pub scrollable: bool,
 }
 
@@ -147,7 +152,11 @@ pub enum PlStatement {
     Execute(PlExecuteStmt),
 
     /// PERFORM query
-    Perform { query: String },
+    Perform {
+        query: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        parsed_query: Option<Box<crate::ast::Statement>>,
+    },
 
     /// OPEN cursor (simple, for query, or for using)
     Open(PlOpenStmt),
@@ -271,7 +280,11 @@ pub enum PlForKind {
         reverse: bool,
     },
     /// FOR rec IN query LOOP
-    Query { query: String },
+    Query {
+        query: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        parsed_query: Option<Box<crate::ast::Statement>>,
+    },
     /// FOR rec IN cursor_name [([args])] LOOP
     Cursor {
         cursor_name: String,
@@ -337,7 +350,11 @@ pub enum PlOpenKind {
     /// OPEN cursor [([args])]
     Simple { arguments: Vec<String> },
     /// OPEN cursor FOR query
-    ForQuery { query: String },
+    ForQuery {
+        query: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        parsed_query: Option<Box<crate::ast::Statement>>,
+    },
     /// OPEN cursor FOR USING expr, ...
     ForUsing { expressions: Vec<String> },
 }

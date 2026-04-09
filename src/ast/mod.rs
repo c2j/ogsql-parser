@@ -974,6 +974,7 @@ pub struct CreateFunctionStatement {
     pub parameters: Vec<String>,
     pub return_type: Option<String>,
     pub options: String,
+    pub block: Option<crate::ast::plpgsql::PlBlock>,
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize)]
@@ -982,6 +983,7 @@ pub struct CreateProcedureStatement {
     pub name: ObjectName,
     pub parameters: Vec<String>,
     pub options: String,
+    pub block: Option<crate::ast::plpgsql::PlBlock>,
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize)]
