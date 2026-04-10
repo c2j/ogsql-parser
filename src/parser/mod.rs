@@ -1329,7 +1329,8 @@ impl Parser {
                             break;
                         }
                         let col_name = self.parse_identifier()?;
-                        let _data_type = self.parse_identifier(); // skip type for now
+                        let data_type =
+                            self.parse_data_type().unwrap_or(crate::ast::DataType::Text);
                         let mut constraints = Vec::new();
                         if self.try_consume_keyword(Keyword::NOT) {
                             self.advance(); // NOT NULL
@@ -1339,7 +1340,7 @@ impl Parser {
                         }
                         columns.push(crate::ast::ColumnDef {
                             name: col_name,
-                            data_type: crate::ast::DataType::Text,
+                            data_type,
                             constraints,
                         });
                         if !self.match_token(&Token::Comma) {

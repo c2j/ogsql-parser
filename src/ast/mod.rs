@@ -385,6 +385,8 @@ pub struct SelectStatement {
     pub with: Option<WithClause>,
     pub distinct: bool,
     pub targets: Vec<SelectTarget>,
+    /// PL/pgSQL extension: `SELECT ... INTO var1, var2 FROM ...`
+    pub into_targets: Option<Vec<SelectTarget>>,
     pub from: Vec<TableRef>,
     pub where_clause: Option<Expr>,
     pub group_by: Vec<Expr>,
@@ -1134,9 +1136,9 @@ pub struct CreateTriggerStatement {
     pub table: ObjectName,
     pub events: Vec<TriggerEvent>,
     pub for_each: TriggerForEach,
-    pub when: Option<String>,
+    pub when: Option<Expr>,
     pub func_name: ObjectName,
-    pub func_args: Vec<String>,
+    pub func_args: Vec<Expr>,
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize)]
@@ -1159,7 +1161,7 @@ pub struct CreateMaterializedViewStatement {
     pub if_not_exists: bool,
     pub name: ObjectName,
     pub columns: Vec<String>,
-    pub query: String,
+    pub query: Box<SelectStatement>,
     pub tablespace: Option<String>,
     pub with_data: bool,
 }
@@ -1219,7 +1221,7 @@ pub struct PrepareStatement {
 #[derive(Debug, Clone, PartialEq, serde::Serialize)]
 pub struct ExecuteStatement {
     pub name: String,
-    pub params: Vec<String>,
+    pub params: Vec<Expr>,
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize)]
@@ -1346,7 +1348,7 @@ pub struct DeclareCursorStatement {
     pub binary: bool,
     pub scroll: bool,
     pub hold: bool,
-    pub query: String,
+    pub query: Box<SelectStatement>,
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize)]

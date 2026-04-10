@@ -438,6 +438,7 @@ impl Parser {
             with: None,
             distinct: false,
             targets: vec![SelectTarget::Star(None)],
+            into_targets: None,
             from: vec![],
             where_clause: None,
             group_by: vec![],
@@ -2208,10 +2209,15 @@ impl Parser {
         };
 
         let when = if self.try_consume_keyword(Keyword::WHEN) {
-            self.expect_token(&Token::LParen)?;
-            let expr = self.skip_balanced_expr()?;
-            self.expect_token(&Token::RParen)?;
-            Some(expr)
+            self.expect_token(&Token::LParen).ok();
+            let expr = self.parse_expr().ok();
+            while !matches!(self.peek(), Token::RParen | Token::Eof) {
+                self.advance();
+            }
+            if self.match_token(&Token::RParen) {
+                self.advance();
+            }
+            expr
         } else {
             None
         };
@@ -2225,7 +2231,7 @@ impl Parser {
             self.advance();
             if !self.match_token(&Token::RParen) {
                 loop {
-                    let arg = self.skip_balanced_expr()?;
+                    let arg = self.parse_expr()?;
                     func_args.push(arg);
                     if self.match_token(&Token::Comma) {
                         self.advance();
@@ -2310,20 +2316,22 @@ impl Parser {
 
         self.expect_keyword(Keyword::AS)?;
 
-        let query = self.skip_to_semicolon_and_collect();
+        let query = Box::new(self.parse_select_statement()?);
 
         let mut tablespace = None;
-        let mut with_data = true;
-
-        if query.contains("TABLESPACE") {
-            let parts: Vec<&str> = query.splitn(2, "TABLESPACE").collect();
-            if parts.len() == 2 {
-                tablespace = Some(parts[1].trim().to_string());
-            }
+        if self.try_consume_keyword(Keyword::TABLESPACE) {
+            tablespace = Some(self.parse_identifier()?);
         }
 
-        if query.contains("WITH NO DATA") {
-            with_data = false;
+        let mut with_data = true;
+        if self.try_consume_keyword(Keyword::WITH) {
+            if self.try_consume_keyword(Keyword::NO) {
+                self.try_consume_keyword(Keyword::DATA_P);
+                with_data = false;
+            } else {
+                self.try_consume_keyword(Keyword::DATA_P);
+                with_data = true;
+            }
         }
 
         Ok(CreateMaterializedViewStatement {
@@ -2577,7 +2585,7 @@ impl Parser {
             self.advance();
             if !self.match_token(&Token::RParen) {
                 loop {
-                    let p = self.skip_balanced_expr()?;
+                    let p = self.parse_expr()?;
                     params.push(p);
                     if self.match_token(&Token::Comma) {
                         self.advance();
@@ -3152,7 +3160,7 @@ impl Parser {
 
         self.expect_keyword(Keyword::FOR)?;
 
-        let query = self.skip_to_semicolon_and_collect();
+        let query = Box::new(self.parse_select_statement()?);
 
         Ok(DeclareCursorStatement {
             name,

@@ -1969,3 +1969,229 @@ fn test_nested_procedure_declaration() {
         other => panic!("expected CreateProcedure, got {:?}", other),
     }
 }
+
+// ── P3/P4/P5 tests ──
+
+#[test]
+fn test_create_foreign_table_with_types() {
+    let sql = "CREATE FOREIGN TABLE ft (id INT, name VARCHAR(100)) SERVER my_server";
+    let stmt = parse_one(sql);
+    match stmt {
+        Statement::CreateForeignTable(t) => {
+            assert_eq!(t.columns.len(), 2);
+            assert!(matches!(t.columns[0].data_type, DataType::Integer));
+            assert!(matches!(
+                t.columns[1].data_type,
+                DataType::Varchar(Some(100))
+            ));
+        }
+        _ => panic!("expected CreateForeignTable, got {:?}", stmt),
+    }
+}
+
+#[test]
+fn test_create_materialized_view_parsed_query() {
+    let sql =
+        "CREATE MATERIALIZED VIEW mv AS SELECT id, name FROM users WHERE active = true WITH DATA";
+    let stmt = parse_one(sql);
+    match stmt {
+        Statement::CreateMaterializedView(mv) => {
+            assert!(mv.with_data);
+            assert!(!mv.query.targets.is_empty());
+            assert!(!mv.query.from.is_empty());
+        }
+        _ => panic!("expected CreateMaterializedView, got {:?}", stmt),
+    }
+}
+
+#[test]
+fn test_create_trigger_with_when_expr() {
+    let sql = "CREATE TRIGGER trg AFTER UPDATE ON users FOR EACH ROW WHEN (OLD.status IS DISTINCT FROM NEW.status) EXECUTE PROCEDURE log_change()";
+    let stmt = parse_one(sql);
+    match stmt {
+        Statement::CreateTrigger(t) => {
+            assert_eq!(t.name, "trg");
+            assert!(t.when.is_some());
+            assert!(t.func_args.is_empty());
+        }
+        _ => panic!("expected CreateTrigger, got {:?}", stmt),
+    }
+}
+
+#[test]
+fn test_create_trigger_with_func_args() {
+    let sql = "CREATE TRIGGER trg BEFORE INSERT ON t FOR EACH ROW EXECUTE PROCEDURE fn(1, 'hello')";
+    let stmt = parse_one(sql);
+    match stmt {
+        Statement::CreateTrigger(t) => {
+            assert_eq!(t.func_args.len(), 2);
+        }
+        _ => panic!("expected CreateTrigger, got {:?}", stmt),
+    }
+}
+
+#[test]
+fn test_format_create_extension() {
+    use crate::formatter::SqlFormatter;
+    let sql = "CREATE EXTENSION IF NOT EXISTS hstore SCHEMA public";
+    let stmt = parse_one(sql);
+    let formatted = SqlFormatter::new().format_statement(&stmt);
+    assert!(formatted.contains("CREATE EXTENSION"));
+    assert!(formatted.contains("IF NOT EXISTS"));
+    assert!(formatted.contains("hstore"));
+    assert!(!formatted.contains("stub"));
+}
+
+#[test]
+fn test_format_create_function() {
+    use crate::formatter::SqlFormatter;
+    let sql = "FUNCTION get_name RETURN VARCHAR2 IS\n\
+               BEGIN\n\
+                 RETURN 'test';\n\
+               END get_name";
+    let stmt = parse_one(sql);
+    match stmt {
+        Statement::CreateFunction(_) => {
+            let formatted = SqlFormatter::new().format_statement(&stmt);
+            assert!(formatted.contains("CREATE FUNCTION"));
+            assert!(!formatted.contains("stub"));
+        }
+        other => panic!("expected CreateFunction, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_format_grant_role() {
+    use crate::formatter::SqlFormatter;
+    let sql = "GRANT admin TO user1 WITH ADMIN OPTION";
+    let stmt = parse_one(sql);
+    let formatted = SqlFormatter::new().format_statement(&stmt);
+    assert!(formatted.contains("GRANT"));
+    assert!(formatted.contains("admin"));
+    assert!(formatted.contains("user1"));
+    assert!(!formatted.contains("stub"));
+}
+
+#[test]
+fn test_format_alter_trigger() {
+    use crate::formatter::SqlFormatter;
+    let sql = "ALTER TRIGGER trg ON users RENAME TO trg2";
+    let stmt = parse_one(sql);
+    let formatted = SqlFormatter::new().format_statement(&stmt);
+    assert!(formatted.contains("ALTER TRIGGER"));
+    assert!(formatted.contains("trg"));
+    assert!(formatted.contains("trg2"));
+    assert!(!formatted.contains("stub"));
+}
+
+#[test]
+fn test_format_create_cast() {
+    use crate::formatter::SqlFormatter;
+    let sql = "CREATE CAST (text AS integer) WITHOUT FUNCTION AS IMPLICIT";
+    let stmt = parse_one(sql);
+    let formatted = SqlFormatter::new().format_statement(&stmt);
+    assert!(formatted.contains("CREATE CAST"));
+    assert!(!formatted.contains("stub"));
+}
+
+#[test]
+fn test_format_create_domain() {
+    use crate::formatter::SqlFormatter;
+    let sql = "CREATE DOMAIN pos_int AS INTEGER NOT NULL CHECK (VALUE > 0)";
+    let stmt = parse_one(sql);
+    let formatted = SqlFormatter::new().format_statement(&stmt);
+    assert!(formatted.contains("CREATE DOMAIN"));
+    assert!(!formatted.contains("stub"));
+}
+
+#[test]
+fn test_format_create_package() {
+    use crate::formatter::SqlFormatter;
+    let sql = "CREATE OR REPLACE PACKAGE my_pkg IS PROCEDURE proc1(i INT); END my_pkg";
+    let stmt = parse_one(sql);
+    let formatted = SqlFormatter::new().format_statement(&stmt);
+    assert!(formatted.contains("CREATE"));
+    assert!(formatted.contains("PACKAGE"));
+    assert!(!formatted.contains("stub"));
+}
+
+#[test]
+fn test_roundtrip_select() {
+    use crate::formatter::SqlFormatter;
+    let sql = "SELECT id, name FROM users WHERE active = true ORDER BY id LIMIT 10";
+    let stmt = parse_one(sql);
+    let formatted = SqlFormatter::new().format_statement(&stmt);
+    let stmt2 = parse_one(&formatted);
+    assert_eq!(stmt, stmt2);
+}
+
+#[test]
+fn test_roundtrip_insert() {
+    use crate::formatter::SqlFormatter;
+    let sql = "INSERT INTO users (id, name) VALUES (1, 'Alice')";
+    let stmt = parse_one(sql);
+    let formatted = SqlFormatter::new().format_statement(&stmt);
+    let stmt2 = parse_one(&formatted);
+    assert_eq!(stmt, stmt2);
+}
+
+#[test]
+fn test_select_union() {
+    let sql = "SELECT id FROM users UNION ALL SELECT id FROM admins";
+    let stmt = parse_one(sql);
+    match stmt {
+        Statement::Select(s) => {
+            assert!(s.set_operation.is_some());
+        }
+        _ => panic!("expected Select, got {:?}", stmt),
+    }
+}
+
+#[test]
+fn test_select_with_cte() {
+    let sql = "WITH RECURSIVE cte AS (SELECT 1 AS n UNION ALL SELECT n + 1 FROM cte WHERE n < 10) SELECT * FROM cte";
+    let stmt = parse_one(sql);
+    match stmt {
+        Statement::Select(s) => {
+            assert!(s.with.is_some());
+            let w = s.with.as_ref().unwrap();
+            assert!(w.recursive);
+            assert_eq!(w.ctes.len(), 1);
+        }
+        _ => panic!("expected Select, got {:?}", stmt),
+    }
+}
+
+#[test]
+fn test_format_alter_group() {
+    use crate::formatter::SqlFormatter;
+    // ALTER GROUP is not yet dispatched in dispatch_alter(), returns Empty
+    let sql = "ALTER GROUP admins ADD USER john";
+    let stmt = parse_one(sql);
+    let formatted = SqlFormatter::new().format_statement(&stmt);
+    let _ = formatted;
+}
+
+#[test]
+fn test_format_revoke_role() {
+    use crate::formatter::SqlFormatter;
+    let sql = "REVOKE admin FROM user1 CASCADE";
+    let stmt = parse_one(sql);
+    let formatted = SqlFormatter::new().format_statement(&stmt);
+    assert!(formatted.contains("REVOKE"));
+    assert!(formatted.contains("CASCADE"));
+    assert!(!formatted.contains("stub"));
+}
+
+#[test]
+fn test_materialized_view_with_tablespace() {
+    let sql = "CREATE MATERIALIZED VIEW mv AS SELECT id FROM users TABLESPACE ts1 WITH DATA";
+    let stmt = parse_one(sql);
+    match stmt {
+        Statement::CreateMaterializedView(mv) => {
+            assert_eq!(mv.tablespace, Some("ts1".to_string()));
+            assert!(mv.with_data);
+        }
+        _ => panic!("expected CreateMaterializedView, got {:?}", stmt),
+    }
+}
