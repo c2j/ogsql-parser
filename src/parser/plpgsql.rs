@@ -1123,6 +1123,14 @@ impl Parser {
 
         let string_expr = self.parse_expr()?;
 
+        let parsed_query = match &string_expr {
+            Expr::Literal(Literal::String(s)) => Self::parse_statement_from_str(s),
+            Expr::Literal(Literal::DollarString { body, .. }) => {
+                Self::parse_statement_from_str(body)
+            }
+            _ => None,
+        };
+
         let mut into_targets = Vec::new();
         if self.match_ident_str("into") {
             self.advance();
@@ -1173,6 +1181,7 @@ impl Parser {
             string_expr,
             into_targets,
             using_args,
+            parsed_query,
         }))
     }
 

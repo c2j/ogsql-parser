@@ -366,6 +366,8 @@ pub struct PlExecuteStmt {
     /// USING arguments with IN/OUT/INOUT mode
     #[serde(default)]
     pub using_args: Vec<PlUsingArg>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub parsed_query: Option<Box<crate::ast::Statement>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

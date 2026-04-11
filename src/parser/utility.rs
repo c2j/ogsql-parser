@@ -2808,6 +2808,19 @@ impl Parser {
         parser.parse_pl_block()
     }
 
+    pub(crate) fn parse_statement_from_str(input: &str) -> Option<Box<crate::ast::Statement>> {
+        let tokens = match crate::token::tokenizer::Tokenizer::new(input).tokenize() {
+            Ok(t) => t,
+            Err(_) => return None,
+        };
+        let mut parser = Parser::new(tokens);
+        match parser.parse_statement() {
+            Ok(crate::ast::Statement::Empty) => None,
+            Ok(stmt) => Some(Box::new(stmt)),
+            Err(_) => None,
+        }
+    }
+
     pub(crate) fn is_transaction_begin(&self) -> bool {
         let next = match self.tokens.get(self.pos + 1) {
             Some(tw) => &tw.token,

@@ -588,6 +588,87 @@ fn test_plpgsql_for_in_execute_using() {
     }
 }
 
+#[test]
+fn test_plpgsql_execute_string_literal_parsed() {
+    let block =
+        parse_do_block("DO $$ BEGIN EXECUTE IMMEDIATE 'call calc_stats($1, $1, $2, $1)'; END $$");
+    match &block.body[0] {
+        PlStatement::Execute(e) => {
+            assert!(e.immediate);
+            assert!(
+                e.parsed_query.is_some(),
+                "string literal should be re-parsed"
+            );
+            let inner = e.parsed_query.as_ref().unwrap();
+            match inner.as_ref() {
+                crate::ast::Statement::Call(c) => {
+                    assert_eq!(c.func_name, vec!["calc_stats".to_string()]);
+                    assert_eq!(c.args.len(), 4);
+                }
+                other => panic!("expected Call statement, got {:?}", other),
+            }
+        }
+        _ => panic!("expected Execute"),
+    }
+}
+
+#[test]
+fn test_plpgsql_execute_variable_not_parsed() {
+    let block = parse_do_block("DO $$ BEGIN EXECUTE IMMEDIATE plsql_block USING a, b; END $$");
+    match &block.body[0] {
+        PlStatement::Execute(e) => {
+            assert!(e.immediate);
+            assert!(e.parsed_query.is_none(), "variable should NOT be re-parsed");
+        }
+        _ => panic!("expected Execute"),
+    }
+}
+
+#[test]
+fn test_plpgsql_execute_concat_not_parsed() {
+    let block =
+        parse_do_block("DO $$ BEGIN EXECUTE IMMEDIATE 'SELECT * FROM ' || tab_name; END $$");
+    match &block.body[0] {
+        PlStatement::Execute(e) => {
+            assert!(e.immediate);
+            assert!(
+                e.parsed_query.is_none(),
+                "concatenation should NOT be re-parsed"
+            );
+        }
+        _ => panic!("expected Execute"),
+    }
+}
+
+#[test]
+fn test_plpgsql_execute_dml_string_parsed() {
+    let block =
+        parse_do_block("DO $$ BEGIN EXECUTE 'SELECT id, name FROM users WHERE id = 1'; END $$");
+    match &block.body[0] {
+        PlStatement::Execute(e) => {
+            assert!(!e.immediate);
+            assert!(e.parsed_query.is_some());
+            let inner = e.parsed_query.as_ref().unwrap();
+            assert!(matches!(inner.as_ref(), crate::ast::Statement::Select(_)));
+        }
+        _ => panic!("expected Execute"),
+    }
+}
+
+#[test]
+fn test_plpgsql_execute_invalid_sql_string_not_parsed() {
+    let block = parse_do_block("DO $$ BEGIN EXECUTE 'not valid sql at all !!!'; END $$");
+    match &block.body[0] {
+        PlStatement::Execute(e) => {
+            assert!(
+                e.parsed_query.is_none(),
+                "invalid SQL should gracefully fall back to None"
+            );
+        }
+        _ => panic!("expected Execute"),
+    }
+}
+
 // --- PERFORM ---
 
 #[test]
