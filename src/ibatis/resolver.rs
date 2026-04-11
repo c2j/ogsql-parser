@@ -113,6 +113,12 @@ fn resolve_node(
                 children: resolved_children,
             })
         }
+        SqlNode::Sequence { children } => {
+            let resolved_children = resolve_children(children, fragments, &mut visited)?;
+            Ok(SqlNode::Sequence {
+                children: resolved_children,
+            })
+        }
         other => Ok(other.clone()),
     }
 }
@@ -213,5 +219,6 @@ fn node_to_flat_text(node: &SqlNode) -> String {
         SqlNode::Trim { children, .. } => children.iter().map(node_to_flat_text).collect(),
         SqlNode::ForEach { children, .. } => children.iter().map(node_to_flat_text).collect(),
         SqlNode::Bind { .. } => String::new(),
+        SqlNode::Sequence { children } => children.iter().map(node_to_flat_text).collect(),
     }
 }

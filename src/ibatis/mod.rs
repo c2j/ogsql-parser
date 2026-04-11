@@ -75,6 +75,7 @@ pub fn parse_mapper_bytes(xml: &[u8]) -> ParsedMapper {
 fn has_dynamic_elements(node: &SqlNode) -> bool {
     match node {
         SqlNode::Text { .. } | SqlNode::Parameter { .. } | SqlNode::RawExpr { .. } => false,
+        SqlNode::Sequence { children } => children.iter().any(has_dynamic_elements),
         SqlNode::If { .. }
         | SqlNode::Choose { .. }
         | SqlNode::Where { .. }

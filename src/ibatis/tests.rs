@@ -149,6 +149,25 @@ fn test_preserves_whitespace_in_sql() {
     }
 }
 
+fn node_text(node: &SqlNode) -> String {
+    match node {
+        SqlNode::Text { content } => content.clone(),
+        SqlNode::Sequence { children } => children.iter().map(node_text).collect(),
+        SqlNode::Parameter { name } => format!("#{{{}}}", name),
+        SqlNode::RawExpr { expr } => format!("${{{}}}", expr),
+        SqlNode::If { children, .. } => children.iter().map(node_text).collect(),
+        SqlNode::Choose { branches } => branches
+            .iter()
+            .flat_map(|(_, ch)| ch.iter().map(node_text))
+            .collect(),
+        SqlNode::Where { children } => children.iter().map(node_text).collect(),
+        SqlNode::Set { children } => children.iter().map(node_text).collect(),
+        SqlNode::Trim { children, .. } => children.iter().map(node_text).collect(),
+        SqlNode::ForEach { children, .. } => children.iter().map(node_text).collect(),
+        SqlNode::Bind { .. } => String::new(),
+    }
+}
+
 // ── Include Resolution Tests ──
 
 #[test]
@@ -164,13 +183,10 @@ fn test_include_resolution_basic() {
         .iter()
         .find(|s| s.id == "findAll")
         .unwrap();
-    if let SqlNode::Text { content } = &stmt.body {
-        assert!(content.contains("id, name, email"), "got: {}", content);
-        assert!(content.contains("SELECT"));
-        assert!(content.contains("FROM users"));
-    } else {
-        panic!("expected Text node");
-    }
+    let content = node_text(&stmt.body);
+    assert!(content.contains("id, name, email"), "got: {}", content);
+    assert!(content.contains("SELECT"));
+    assert!(content.contains("FROM users"));
 }
 
 #[test]
@@ -183,15 +199,12 @@ fn test_include_resolution_chained() {
     let mapper = crate::ibatis::parser::parse_xml(xml).unwrap();
     let resolved = crate::ibatis::resolver::resolve_includes(&mapper).unwrap();
     let stmt = &resolved.statements[0];
-    if let SqlNode::Text { content } = &stmt.body {
-        assert!(
-            content.contains("users"),
-            "chained include should expand, got: {}",
-            content
-        );
-    } else {
-        panic!("expected Text node");
-    }
+    let content = node_text(&stmt.body);
+    assert!(
+        content.contains("users"),
+        "chained include should expand, got: {}",
+        content
+    );
 }
 
 #[test]
@@ -235,9 +248,8 @@ fn test_no_includes() {
     </mapper>"#;
     let mapper = crate::ibatis::parser::parse_xml(xml).unwrap();
     let resolved = crate::ibatis::resolver::resolve_includes(&mapper).unwrap();
-    if let SqlNode::Text { content } = &resolved.statements[0].body {
-        assert_eq!(content.trim(), "SELECT 1");
-    }
+    let content = node_text(&resolved.statements[0].body);
+    assert_eq!(content.trim(), "SELECT 1");
 }
 
 // ── End-to-End Pipeline Tests ──
@@ -325,4 +337,133 @@ fn test_e2e_multiple_statements() {
     assert_eq!(result.statements[1].kind, StatementKind::Insert);
     assert_eq!(result.statements[2].kind, StatementKind::Update);
     assert_eq!(result.statements[3].kind, StatementKind::Delete);
+}
+
+// ── Dynamic SQL Tests ──
+
+#[test]
+fn test_dynamic_if() {
+    let xml = br#"<mapper namespace="test">
+        <select id="findUser">
+            SELECT * FROM users
+            <where>
+                <if test="name != null">AND name = #{name}</if>
+                <if test="age != null">AND age = #{age}</if>
+            </where>
+        </select>
+    </mapper>"#;
+    let result = super::parse_mapper_bytes(xml);
+    assert!(result.errors.is_empty(), "errors: {:?}", result.errors);
+    let stmt = &result.statements[0];
+    assert!(stmt.flat_sql.contains("SELECT * FROM users"));
+    assert!(
+        stmt.flat_sql.contains("WHERE"),
+        "should have WHERE, got: {}",
+        stmt.flat_sql
+    );
+    assert!(stmt.has_dynamic_elements);
+}
+
+#[test]
+fn test_dynamic_where_strips_leading_and() {
+    let xml = br#"<mapper namespace="test">
+        <select id="find">
+            SELECT * FROM users
+            <where>
+                <if test="name != null">AND name = #{name}</if>
+            </where>
+        </select>
+    </mapper>"#;
+    let result = super::parse_mapper_bytes(xml);
+    let sql = &result.statements[0].flat_sql;
+    assert!(!sql.contains("WHERE AND"), "got: {}", sql);
+    assert!(sql.contains("WHERE"), "should have WHERE, got: {}", sql);
+}
+
+#[test]
+fn test_dynamic_set_strips_trailing_comma() {
+    let xml = br#"<mapper namespace="test">
+        <update id="updateUser">
+            UPDATE users
+            <set>
+                <if test="name != null">name = #{name},</if>
+                <if test="email != null">email = #{email},</if>
+            </set>
+            WHERE id = #{id}
+        </update>
+    </mapper>"#;
+    let result = super::parse_mapper_bytes(xml);
+    let sql = &result.statements[0].flat_sql;
+    assert!(sql.contains("SET"), "should have SET, got: {}", sql);
+}
+
+#[test]
+fn test_dynamic_foreach() {
+    let xml = br#"<mapper namespace="test">
+        <select id="findByIds">
+            SELECT * FROM users WHERE id IN
+            <foreach collection="ids" item="id" open="(" separator="," close=")">
+                #{id}
+            </foreach>
+        </select>
+    </mapper>"#;
+    let result = super::parse_mapper_bytes(xml);
+    let sql = &result.statements[0].flat_sql;
+    assert!(sql.contains("IN"), "should have IN, got: {}", sql);
+    assert!(sql.contains("("), "should have open paren, got: {}", sql);
+    assert!(sql.contains(")"), "should have close paren, got: {}", sql);
+}
+
+#[test]
+fn test_dynamic_choose() {
+    let xml = br#"<mapper namespace="test">
+        <select id="find">
+            SELECT * FROM users
+            <where>
+                <choose>
+                    <when test="id != null">AND id = #{id}</when>
+                    <otherwise>AND status = 'ACTIVE'</otherwise>
+                </choose>
+            </where>
+        </select>
+    </mapper>"#;
+    let result = super::parse_mapper_bytes(xml);
+    assert!(result.errors.is_empty(), "errors: {:?}", result.errors);
+    assert!(result.statements[0].has_dynamic_elements);
+}
+
+#[test]
+fn test_dynamic_trim_custom() {
+    let xml = br#"<mapper namespace="test">
+        <select id="find">
+            SELECT * FROM users
+            <trim prefix="WHERE" prefixOverrides="AND |OR ">
+                <if test="name != null">AND name = #{name}</if>
+            </trim>
+        </select>
+    </mapper>"#;
+    let result = super::parse_mapper_bytes(xml);
+    let sql = &result.statements[0].flat_sql;
+    assert!(sql.contains("WHERE"), "should have WHERE, got: {}", sql);
+    assert!(
+        !sql.contains("WHERE AND"),
+        "prefix override should strip AND, got: {}",
+        sql
+    );
+}
+
+#[test]
+fn test_dynamic_bind() {
+    let xml = br#"<mapper namespace="test">
+        <select id="search">
+            SELECT * FROM users
+            <where>
+                <bind name="pattern" value="'%' + name + '%'"/>
+                name LIKE #{pattern}
+            </where>
+        </select>
+    </mapper>"#;
+    let result = super::parse_mapper_bytes(xml);
+    assert!(result.errors.is_empty(), "errors: {:?}", result.errors);
+    assert!(result.statements[0].has_dynamic_elements);
 }

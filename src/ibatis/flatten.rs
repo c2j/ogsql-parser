@@ -15,7 +15,7 @@ const DOLLAR_SUFFIX: &str = "__";
 pub fn flatten_sql(node: &SqlNode) -> String {
     match node {
         SqlNode::Text { content } => replace_params(content),
-        SqlNode::Parameter { .. } => "?".to_string(),
+        SqlNode::Parameter { .. } => "$1".to_string(),
         SqlNode::RawExpr { expr } => format!("{}{}{}", DOLLAR_PREFIX, expr, DOLLAR_SUFFIX),
         // 动态元素: "最完整"策略，取所有内容
         SqlNode::If { children, .. } => flatten_children(children),
@@ -64,6 +64,7 @@ pub fn flatten_sql(node: &SqlNode) -> String {
             format!("{}{}{}", open_str, content, close_str)
         }
         SqlNode::Bind { .. } => String::new(),
+        SqlNode::Sequence { children } => flatten_children(children),
     }
 }
 

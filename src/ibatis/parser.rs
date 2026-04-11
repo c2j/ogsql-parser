@@ -30,23 +30,23 @@ pub fn parse_xml(xml: &[u8]) -> Result<MapperFile, IbatisError> {
                     namespace = get_attr(&e, "namespace").unwrap_or_default();
                 } else if tag.as_ref().eq_ignore_ascii_case(b"sql") {
                     let id = get_attr(&e, "id").unwrap_or_default();
-                    let body_text = read_text_content(&mut reader, b"sql");
+                    let children = read_node_tree(&mut reader, b"sql");
                     fragments.push(SqlFragment {
                         id,
-                        body: SqlNode::Text { content: body_text },
+                        body: merge_children(children),
                     });
                 } else if let Some(kind) = statement_kind(tag.as_ref()) {
                     let id = get_attr(&e, "id").unwrap_or_default();
                     let parameter_type = get_attr(&e, "parameterType");
                     let result_type =
                         get_attr(&e, "resultType").or_else(|| get_attr(&e, "resultMap"));
-                    let body_text = read_text_content(&mut reader, tag.as_ref());
+                    let children = read_node_tree(&mut reader, tag.as_ref());
                     statements.push(MapperStatement {
                         kind,
                         id,
                         parameter_type,
                         result_type,
-                        body: SqlNode::Text { content: body_text },
+                        body: merge_children(children),
                     });
                 } else if is_skip_tag(tag.as_ref()) {
                     skip_content(&mut reader, tag.as_ref());
@@ -102,9 +102,9 @@ fn is_skip_tag(tag: &[u8]) -> bool {
         .any(|t| tag.eq_ignore_ascii_case(t.as_bytes()))
 }
 
-fn read_text_content(reader: &mut Reader<&[u8]>, end_tag: &[u8]) -> String {
-    let mut content = String::new();
-    let mut depth: u32 = 1;
+fn read_node_tree(reader: &mut Reader<&[u8]>, end_tag: &[u8]) -> Vec<SqlNode> {
+    let mut nodes = Vec::new();
+    let mut text_buf = String::new();
     let mut buf = Vec::new();
 
     loop {
@@ -116,38 +116,255 @@ fn read_text_content(reader: &mut Reader<&[u8]>, end_tag: &[u8]) -> String {
                     Ok(cow) => cow.into_owned(),
                     Err(_) => raw,
                 };
-                content.push_str(&text);
+                text_buf.push_str(&text);
             }
             Ok(Event::CData(e)) => {
-                content.push_str(&String::from_utf8_lossy(&e));
+                text_buf.push_str(&String::from_utf8_lossy(&e));
             }
             Ok(Event::Start(e)) => {
-                depth += 1;
+                flush_text_to_nodes(&mut text_buf, &mut nodes);
                 let ln = e.local_name();
-                let tag_name = String::from_utf8_lossy(ln.as_ref());
-                let attrs = format_attributes(&e);
-                content.push_str(&format!("<{}{}>", tag_name, attrs));
-            }
-            Ok(Event::End(e)) => {
-                depth -= 1;
-                let ln = e.local_name();
-                if depth == 0 && ln.as_ref().eq_ignore_ascii_case(end_tag) {
-                    break;
+                if let Some(node) = parse_dynamic_element(reader, ln.as_ref(), &e) {
+                    nodes.push(node);
+                } else {
+                    let tag_name = String::from_utf8_lossy(ln.as_ref());
+                    let attrs = format_attributes(&e);
+                    let inner = read_node_tree(reader, ln.as_ref());
+                    text_buf.push_str(&format!("<{}{}>", tag_name, attrs));
+                    for child in &inner {
+                        text_buf.push_str(&node_to_raw_text(child));
+                    }
+                    text_buf.push_str(&format!("</{}>", tag_name));
+                    flush_text_to_nodes(&mut text_buf, &mut nodes);
                 }
-                let tag_name = String::from_utf8_lossy(ln.as_ref());
-                content.push_str(&format!("</{}>", tag_name));
             }
             Ok(Event::Empty(e)) => {
+                flush_text_to_nodes(&mut text_buf, &mut nodes);
                 let ln = e.local_name();
-                let tag_name = String::from_utf8_lossy(ln.as_ref());
-                let attrs = format_attributes(&e);
-                content.push_str(&format!("<{}{}/>", tag_name, attrs));
+                if ln.as_ref().eq_ignore_ascii_case(b"include") {
+                    if let Some(refid) = get_attr(&e, "refid") {
+                        nodes.push(SqlNode::Text {
+                            content: format!("<include refid=\"{}\"/>", refid),
+                        });
+                    }
+                } else if ln.as_ref().eq_ignore_ascii_case(b"bind") {
+                    nodes.push(SqlNode::Bind {
+                        name: get_attr(&e, "name").unwrap_or_default(),
+                        value: get_attr(&e, "value").unwrap_or_default(),
+                    });
+                } else {
+                    let tag_name = String::from_utf8_lossy(ln.as_ref());
+                    let attrs = format_attributes(&e);
+                    text_buf.push_str(&format!("<{}{}/>", tag_name, attrs));
+                }
             }
-            Ok(Event::Eof) => break,
+            Ok(Event::End(e)) => {
+                let ln = e.local_name();
+                if ln.as_ref().eq_ignore_ascii_case(end_tag) {
+                    flush_text_to_nodes(&mut text_buf, &mut nodes);
+                    break;
+                }
+            }
+            Ok(Event::Eof) => {
+                flush_text_to_nodes(&mut text_buf, &mut nodes);
+                break;
+            }
             _ => {}
         }
     }
-    content
+    nodes
+}
+
+fn flush_text_to_nodes(text_buf: &mut String, nodes: &mut Vec<SqlNode>) {
+    if text_buf.is_empty() {
+        return;
+    }
+    let text = std::mem::take(text_buf);
+    nodes.extend(parse_text_to_nodes(&text));
+}
+
+fn parse_text_to_nodes(text: &str) -> Vec<SqlNode> {
+    let mut nodes = Vec::new();
+    let mut current_text = String::new();
+    let chars: Vec<char> = text.chars().collect();
+    let len = chars.len();
+    let mut i = 0;
+
+    while i < len {
+        if chars[i] == '#' && i + 1 < len && chars[i + 1] == '{' {
+            if let Some(end) = find_closing_brace(&chars, i + 2) {
+                if !current_text.is_empty() {
+                    nodes.push(SqlNode::Text {
+                        content: std::mem::take(&mut current_text),
+                    });
+                }
+                let param: String = chars[i + 2..end].iter().collect();
+                let name = param.split(',').next().unwrap_or("").trim().to_string();
+                nodes.push(SqlNode::Parameter { name });
+                i = end + 1;
+                continue;
+            }
+        }
+        if chars[i] == '$' && i + 1 < len && chars[i + 1] == '{' {
+            if let Some(end) = find_closing_brace(&chars, i + 2) {
+                if !current_text.is_empty() {
+                    nodes.push(SqlNode::Text {
+                        content: std::mem::take(&mut current_text),
+                    });
+                }
+                let expr: String = chars[i + 2..end].iter().collect();
+                nodes.push(SqlNode::RawExpr { expr });
+                i = end + 1;
+                continue;
+            }
+        }
+        current_text.push(chars[i]);
+        i += 1;
+    }
+    if !current_text.is_empty() {
+        nodes.push(SqlNode::Text {
+            content: current_text,
+        });
+    }
+    nodes
+}
+
+fn find_closing_brace(chars: &[char], start: usize) -> Option<usize> {
+    let mut depth = 1;
+    let mut i = start;
+    while i < chars.len() {
+        match chars[i] {
+            '{' => depth += 1,
+            '}' => {
+                depth -= 1;
+                if depth == 0 {
+                    return Some(i);
+                }
+            }
+            _ => {}
+        }
+        i += 1;
+    }
+    None
+}
+
+fn parse_dynamic_element(
+    reader: &mut Reader<&[u8]>,
+    tag: &[u8],
+    element: &quick_xml::events::BytesStart<'_>,
+) -> Option<SqlNode> {
+    if tag.eq_ignore_ascii_case(b"if") {
+        let test = get_attr(element, "test").unwrap_or_default();
+        let children = read_node_tree(reader, b"if");
+        Some(SqlNode::If { test, children })
+    } else if tag.eq_ignore_ascii_case(b"where") {
+        let children = read_node_tree(reader, b"where");
+        Some(SqlNode::Where { children })
+    } else if tag.eq_ignore_ascii_case(b"set") {
+        let children = read_node_tree(reader, b"set");
+        Some(SqlNode::Set { children })
+    } else if tag.eq_ignore_ascii_case(b"trim") {
+        let children = read_node_tree(reader, b"trim");
+        Some(SqlNode::Trim {
+            prefix: get_attr(element, "prefix"),
+            suffix: get_attr(element, "suffix"),
+            prefix_overrides: get_attr(element, "prefixOverrides"),
+            suffix_overrides: get_attr(element, "suffixOverrides"),
+            children,
+        })
+    } else if tag.eq_ignore_ascii_case(b"foreach") {
+        let children = read_node_tree(reader, b"foreach");
+        Some(SqlNode::ForEach {
+            collection: get_attr(element, "collection").unwrap_or_default(),
+            item: get_attr(element, "item").unwrap_or_else(|| "item".to_string()),
+            index: get_attr(element, "index"),
+            open: get_attr(element, "open"),
+            separator: get_attr(element, "separator"),
+            close: get_attr(element, "close"),
+            children,
+        })
+    } else if tag.eq_ignore_ascii_case(b"choose") {
+        let children = read_node_tree(reader, b"choose");
+        let branches = parse_choose_branches(children);
+        Some(SqlNode::Choose { branches })
+    } else if tag.eq_ignore_ascii_case(b"when") {
+        let test = get_attr(element, "test").unwrap_or_default();
+        let children = read_node_tree(reader, b"when");
+        Some(SqlNode::If { test, children })
+    } else if tag.eq_ignore_ascii_case(b"otherwise") {
+        let children = read_node_tree(reader, b"otherwise");
+        Some(SqlNode::If {
+            test: String::new(),
+            children,
+        })
+    } else {
+        None
+    }
+}
+
+fn parse_choose_branches(children: Vec<SqlNode>) -> Vec<(Option<String>, Vec<SqlNode>)> {
+    let mut branches = Vec::new();
+    for child in children {
+        match child {
+            SqlNode::If { test, children } => {
+                if test.is_empty() {
+                    branches.push((None, children));
+                } else {
+                    branches.push((Some(test), children));
+                }
+            }
+            other => {
+                if let Some(last) = branches.last_mut() {
+                    last.1.push(other);
+                }
+            }
+        }
+    }
+    branches
+}
+
+fn merge_children(children: Vec<SqlNode>) -> SqlNode {
+    match children.len() {
+        0 => SqlNode::Text {
+            content: String::new(),
+        },
+        1 => children.into_iter().next().unwrap(),
+        _ => SqlNode::Sequence { children },
+    }
+}
+
+fn node_to_raw_text(node: &SqlNode) -> String {
+    match node {
+        SqlNode::Text { content } => content.clone(),
+        SqlNode::Parameter { name } => format!("#{{{}}}", name),
+        SqlNode::RawExpr { expr } => format!("${{{}}}", expr),
+        SqlNode::If { test, children } => {
+            let inner: String = children.iter().map(node_to_raw_text).collect();
+            if test.is_empty() {
+                inner
+            } else {
+                format!("<if test=\"{}\">{}</if>", test, inner)
+            }
+        }
+        SqlNode::Choose { branches } => {
+            let mut s = String::new();
+            for (test, ch) in branches {
+                let inner: String = ch.iter().map(node_to_raw_text).collect();
+                if let Some(t) = test {
+                    s.push_str(&inner);
+                } else {
+                    s.push_str(&inner);
+                }
+            }
+            s
+        }
+        SqlNode::Where { children } => children.iter().map(node_to_raw_text).collect(),
+        SqlNode::Set { children } => children.iter().map(node_to_raw_text).collect(),
+        SqlNode::Trim { children, .. } => children.iter().map(node_to_raw_text).collect(),
+        SqlNode::ForEach { children, .. } => children.iter().map(node_to_raw_text).collect(),
+        SqlNode::Bind { .. } => String::new(),
+        SqlNode::Sequence { children } => children.iter().map(node_to_raw_text).collect(),
+    }
 }
 
 fn skip_content(reader: &mut Reader<&[u8]>, end_tag: &[u8]) {

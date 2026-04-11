@@ -56,6 +56,10 @@ pub enum SqlNode {
     Choose {
         branches: Vec<(Option<String>, Vec<SqlNode>)>,
     },
+    /// 多节点序列（SQL 文本 + 动态元素混合的顶层容器）
+    Sequence {
+        children: Vec<SqlNode>,
+    },
     Where {
         children: Vec<SqlNode>,
     },
