@@ -23,8 +23,9 @@ This project implements a complete SQL parser for openGauss/GaussDB (an enterpri
 | Multi-encoding support / 多字符集支持 | ✅ Complete | UTF-8, EUC-JP, EUC-KR, GB18030, BIG5, UTF-16 |
 | AST / 抽象语法树 | ✅ Complete | 150+ statement types defined |
 | Parser dispatcher / 解析器分发 | ✅ Complete | Top-level statement routing |
-| Unit tests / 单元测试 | ✅ Complete | 93 tests |
+| Unit tests / 单元测试 | ✅ Complete | 230 tests |
 | Regression tests / 回归测试 | ✅ Complete | 1409/1409 — All openGauss regression tests passing |
+| JSON serde / JSON 序列化 | ✅ Complete | Full serde::Serialize + Deserialize on all AST types |
 
 ### Phase 2: Core DML / 第二阶段：核心DML
 
@@ -99,7 +100,7 @@ ogsql-parser-by-rust/
 │       ├── expr.rs          # Expression parser (Pratt)
 │       ├── plpgsql.rs       # PL/pgSQL parser (25+ statement types)
 │       ├── utility.rs       # Utility parsers (types, constraints, etc.)
-│       └── tests.rs         # 93 unit tests
+│       └── tests.rs         # 230 unit tests
 ├── examples/
 │   └── regression.rs       # Run regression tests
 ├── lib/
@@ -134,7 +135,7 @@ cargo build --release --features full
 ### Run Tests / 运行测试
 
 ```bash
-# Unit tests (93 tests)
+# Unit tests (230 tests)
 cargo test
 
 # Regression tests against openGauss test suite
@@ -152,6 +153,7 @@ Usage: ogsql [OPTIONS] <COMMAND>
 Commands:
   format      Format SQL statements with standardized keyword casing / 格式化 SQL 语句
   parse       Parse SQL into AST and print the abstract syntax tree / 解析 SQL 为 AST
+  json2sql    Convert JSON (from `parse -j`) back to SQL / 将 JSON 还原为 SQL
   tokenize    Tokenize SQL into a list of tokens / 将 SQL 分词为 token 列表
   validate    Validate SQL syntax and report errors / 校验 SQL 语法
   serve       Start an HTTP API server for parsing SQL [requires: serve feature]
@@ -176,6 +178,12 @@ echo "SELECT * FROM users" | ogsql parse
 # Parse SQL to AST (JSON format)
 echo "SELECT * FROM users" | ogsql parse -j
 
+# SQL → JSON → SQL round-trip
+echo "SELECT id FROM users WHERE id = 1" | ogsql parse -j | ogsql json2sql
+
+# Convert JSON file back to SQL
+ogsql -f ast.json json2sql
+
 # Format SQL
 echo "select * from users where id = 1" | ogsql format
 
@@ -196,12 +204,15 @@ When built with `--features serve`, the following endpoints are available:
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | GET | `/api/health` | Health check |
-| POST | `/api/parse` | Parse SQL → AST (JSON body: `{"sql": "..."}`) |
-| POST | `/api/format` | Format SQL (JSON body: `{"sql": "..."}`) |
-| POST | `/api/tokenize` | Tokenize SQL (JSON body: `{"sql": "..."}`) |
-| POST | `/api/validate` | Validate SQL (JSON body: `{"sql": "..."}`) |
+| POST | `/api/parse` | Parse SQL → AST JSON (body: `{"sql": "..."}`) |
+| POST | `/api/json2sql` | JSON → SQL (body: `{"json": "..."}`) |
+| POST | `/api/format` | Format SQL (body: `{"sql": "..."}`) |
+| POST | `/api/tokenize` | Tokenize SQL (body: `{"sql": "..."}`) |
+| POST | `/api/validate` | Validate SQL (body: `{"sql": "..."}`) |
 
 ### Use as Library / 作为库使用
+
+#### Basic Parsing / 基本解析
 
 ```rust
 use ogsql_parser::{Tokenizer, parser::Parser};
@@ -221,6 +232,73 @@ fn main() {
 }
 ```
 
+#### JSON Round-Trip (SQL ↔ JSON) / JSON 往返转换
+
+All AST types implement `serde::Serialize` and `serde::Deserialize`, enabling lossless semantic round-tripping: parse SQL to AST, serialize to JSON, deserialize back to AST, and format back to semantically equivalent SQL.
+
+所有 AST 类型实现了 `serde::Serialize` 和 `serde::Deserialize`，支持无损语义往返：将 SQL 解析为 AST，序列化为 JSON，反序列化回 AST，再格式化为语义等价的 SQL。
+
+```
+SQL ──parse──▶ AST ──serialize──▶ JSON ──deserialize──▶ AST ──format──▶ SQL'
+                                    │                                       │
+                                    └──────── semantically equivalent ────────┘
+```
+
+```rust
+use ogsql_parser::{Tokenizer, Parser, SqlFormatter, Statement};
+
+fn roundtrip(sql: &str) -> String {
+    // 1. SQL → AST
+    let tokens = Tokenizer::new(sql).tokenize().unwrap();
+    let stmts = Parser::new(tokens).parse().unwrap();
+
+    // 2. AST → JSON
+    let json = serde_json::to_string(&stmts).unwrap();
+
+    // 3. JSON → AST
+    let restored: Vec<Statement> = serde_json::from_str(&json).unwrap();
+
+    // 4. AST → SQL
+    let formatter = SqlFormatter::new();
+    let output: Vec<String> = restored.iter()
+        .map(|s| formatter.format_statement(s))
+        .collect();
+
+    output.join(";\n")
+}
+
+fn main() {
+    // DML round-trip
+    let sql = "SELECT id, name FROM users WHERE status = 'active'";
+    assert_eq!(roundtrip(sql), "SELECT id, name FROM users WHERE status = 'active'");
+
+    // Special literal types are preserved (E'', B'', X'', N'', $$ $$)
+    let sql2 = "SELECT E'\\ttext', B'1010', X'FF', N'unicode'";
+    assert_eq!(roundtrip(sql2), "SELECT E'\\ttext', B'1010', X'FF', N'unicode'");
+
+    // DDL round-trip
+    let sql3 = "CREATE TABLE t (id INTEGER PRIMARY KEY, name VARCHAR(100) NOT NULL)";
+    assert_eq!(roundtrip(sql3), "CREATE TABLE t (id INTEGER PRIMARY KEY, name VARCHAR(100) NOT NULL)");
+
+    // Window functions with frame clauses
+    let sql4 = "SELECT ROW_NUMBER() OVER (ORDER BY id ROWS BETWEEN 1 PRECEDING AND 1 FOLLOWING)";
+    assert_eq!(roundtrip(sql4), "SELECT ROW_NUMBER() OVER (ORDER BY id ROWS BETWEEN 1 PRECEDING AND 1 FOLLOWING)");
+}
+```
+
+**What is preserved / 保留内容：**
+- All SQL semantics (operators, expressions, subqueries, joins)
+- Special literal types: escape strings (`E'...'`), bit strings (`B'...'`), hex strings (`X'...'`), national strings (`N'...'`), dollar-quoted strings (`$$...$$` / `$tag$...$tag$`)
+- Type casts with parameterized types (`NUMERIC(10,2)`, `VARCHAR(100)`, `TIMESTAMP(3) WITH TIME ZONE`)
+- Window frame specifications (`ROWS BETWEEN ... AND ...`)
+- PL/pgSQL control flow (IF/WHILE/CASE/FOR/FOREACH conditions as structured expressions)
+- DDL column types, constraints, domain definitions, cast types, RLS policy expressions
+
+**What is NOT preserved / 不保留内容：**
+- Comments and whitespace (non-semantic)
+- Original keyword casing (formatter normalizes to uppercase)
+- Original formatting/layout
+
 ---
 
 ## Architecture Overview / 架构概览
@@ -232,8 +310,16 @@ SQL Input
 +---------------+     +------------------+     +---------------+     +--------+     +-----------+
 |  Tokenizer    | --> |  Token Stream    | --> |    Parser     | --> |  AST   | --> | Formatter |
 |  (Lexer)      |     |  (Vec<Token>)    |     |  (Recursive   |     |        |     |           |
-|               |     |                  |     |   Descent)    |     |        |     |           |
+|               |     |                  |     |   Descent)    |     |  serde |     |           |
 +---------------+     +------------------+     +---------------+     +--------+     +-----------+
+                                                                          │  ▲
+                                                                          │  │
+                                                                    JSON serialize/deserialize
+                                                                          │  │
+                                                                          ▼  │
+                                                                    +-----------+
+                                                                    |   JSON    |
+                                                                    +-----------+
 ```
 
 ### Key Design Decisions / 关键设计决策
@@ -252,6 +338,9 @@ SQL Input
 
 5. **Unified parser core / 统一解析器核心**  
    All interfaces (CLI, HTTP API, TUI) share the same parser core
+
+6. **Full serde support / 完整 serde 支持**  
+   All AST types derive `Serialize` + `Deserialize`, enabling lossless JSON round-trip (SQL → JSON → SQL)
 
 ---
 
@@ -308,5 +397,5 @@ This is an active development project. Phases 1-3 are complete, Phase 4 (DDL) is
 
 ---
 
-**Status / 状态**: Phase 3 Complete (PL/pgSQL support) / 第三阶段完成（PL/pgSQL支持）  
-**Last Updated / 最后更新**: 2026-04-07
+**Status / 状态**: Phase 3 Complete + JSON Round-Trip / 第三阶段完成 + JSON 往返转换  
+**Last Updated / 最后更新**: 2026-04-11

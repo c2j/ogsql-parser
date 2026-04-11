@@ -1,7 +1,7 @@
 use super::keyword::lookup_keyword;
 use super::{SourceLocation, Span, Token, TokenWithSpan};
 
-#[derive(Debug, Clone, thiserror::Error, serde::Serialize)]
+#[derive(Debug, Clone, thiserror::Error, serde::Serialize, serde::Deserialize)]
 pub enum TokenizerError {
     #[error("unterminated string literal at position {0}")]
     UnterminatedString(usize),
@@ -634,7 +634,11 @@ impl<'a> Tokenizer<'a> {
             self.advance(); // consume closing $ of delimiter
             let delimiter = format!("${}$", tag);
             let content = self.scan_dollar_string_content(&delimiter);
-            Token::DollarString(content)
+            let tag_opt = if tag.is_empty() { None } else { Some(tag) };
+            Token::DollarString {
+                tag: tag_opt,
+                body: content,
+            }
         } else {
             // Just a $ followed by an identifier-like thing
             if tag.is_empty() {
@@ -923,13 +927,17 @@ mod tests {
     #[test]
     fn test_dollar_quoted_string() {
         let tokens = tokens_as_vec("$$hello world$$");
-        assert!(matches!(&tokens[0], Token::DollarString(s) if s == "hello world"));
+        assert!(
+            matches!(&tokens[0], Token::DollarString { tag: None, body } if body == "hello world")
+        );
     }
 
     #[test]
     fn test_tagged_dollar_string() {
         let tokens = tokens_as_vec("$tag$hello world$tag$");
-        assert!(matches!(&tokens[0], Token::DollarString(s) if s == "hello world"));
+        assert!(
+            matches!(&tokens[0], Token::DollarString { tag: Some(t), body } if t == "tag" && body == "hello world")
+        );
     }
 
     #[test]

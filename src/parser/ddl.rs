@@ -1278,7 +1278,7 @@ impl Parser {
                 self.advance();
                 s
             }
-            Token::DollarString(s) => {
+            Token::DollarString { body: s, .. } => {
                 self.advance();
                 s
             }
@@ -1333,11 +1333,10 @@ impl Parser {
                 let mut attributes = Vec::new();
                 loop {
                     let attr_name = self.parse_identifier()?;
-                    let dt = self.parse_data_type()?;
-                    let type_str = format_data_type(&dt);
+                    let data_type = self.parse_data_type()?;
                     attributes.push(TypeAttribute {
                         name: attr_name,
-                        data_type: type_str,
+                        data_type,
                     });
                     if !self.match_token(&Token::Comma) {
                         break;

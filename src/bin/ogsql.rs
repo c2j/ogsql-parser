@@ -23,6 +23,9 @@ enum Commands {
     Format,
     /// Parse SQL into AST and print the abstract syntax tree / 解析 SQL 为 AST
     Parse,
+    /// Convert JSON (from `parse -j`) back to SQL / 将 JSON（parse -j 的输出）还原为 SQL
+    #[command(name = "json2sql")]
+    JsonToSql,
     /// Tokenize SQL into a list of tokens / 将 SQL 分词为 token 列表
     Tokenize,
     /// Validate SQL syntax and report errors / 校验 SQL 语法
@@ -46,8 +49,13 @@ macro_rules! die {
 
 fn read_input(file: Option<&str>) -> String {
     match file {
-        Some(path) => std::fs::read_to_string(path)
-            .unwrap_or_else(|e| die!("Error reading {}: {}", path, e)),
+        Some(path) => {
+            let bytes = std::fs::read(path)
+                .unwrap_or_else(|e| die!("Error reading {}: {}", path, e));
+            token::decode_sql_file(&bytes)
+                .unwrap_or_else(|e| die!("Error decoding {}: {}", path, e))
+                .0
+        }
         None => {
             let mut buf = String::new();
             std::io::stdin().read_to_string(&mut buf)
@@ -166,6 +174,50 @@ fn cmd_tokenize(cli: &Cli) {
     }
 }
 
+fn cmd_json2sql(cli: &Cli) {
+    let input = read_input(cli.file.as_deref());
+
+    let json_value: serde_json::Value = match serde_json::from_str(&input) {
+        Ok(v) => v,
+        Err(e) => die!("Invalid JSON: {}", e),
+    };
+
+    let arr = match json_value.get("statements") {
+        Some(v) => v,
+        None => die!("Expected JSON object with \"statements\" array"),
+    };
+
+    let statements: Vec<Statement> = if let serde_json::Value::Array(items) = arr {
+        items.iter().filter_map(|v| {
+            if v.get("sql_text").is_some() {
+                serde_json::from_value::<StatementInfo>(v.clone()).ok().map(|si| si.statement)
+            } else {
+                serde_json::from_value::<Statement>(v.clone()).ok()
+            }
+        }).collect()
+    } else {
+        die!("\"statements\" must be an array");
+    };
+
+    if statements.is_empty() {
+        die!("No valid statements found in JSON");
+    }
+
+    let formatter = SqlFormatter::new();
+    let formatted: Vec<String> = statements.iter().map(|s| formatter.format_statement(s)).collect();
+
+    if cli.json {
+        let out = serde_json::json!({
+            "statements": formatted,
+            "count": formatted.len(),
+        });
+        println!("{}", serde_json::to_string_pretty(&out).unwrap());
+    } else {
+        println!("{}", formatted.join(";\n"));
+        println!(";");
+    }
+}
+
 fn cmd_validate(cli: &Cli) {
     let sql = read_input(cli.file.as_deref());
     let (_, errors) = parse_input(&sql);
@@ -200,8 +252,8 @@ mod api {
 
     #[derive(OpenApi)]
     #[openapi(
-        paths(health, handle_parse, handle_format, handle_tokenize, handle_validate),
-        components(schemas(SqlInput)),
+        paths(health, handle_parse, handle_format, handle_tokenize, handle_validate, handle_json2sql),
+        components(schemas(SqlInput, JsonInput)),
         tags(
             (name = "ogsql", description = "openGauss/GaussDB SQL Parser API")
         )
@@ -211,6 +263,11 @@ mod api {
     #[derive(Deserialize, ToSchema)]
     pub struct SqlInput {
         pub sql: String,
+    }
+
+    #[derive(Deserialize, ToSchema)]
+    pub struct JsonInput {
+        pub json: String,
     }
 
     /// Health check endpoint
@@ -301,6 +358,41 @@ mod api {
         }))
     }
 
+    /// Convert JSON (from /api/parse) back to SQL
+    #[utoipa::path(
+        post,
+        path = "/api/json2sql",
+        tag = "ogsql",
+        request_body = JsonInput,
+        responses((status = 200, description = "Reconstructed SQL"))
+    )]
+    pub async fn handle_json2sql(Json(input): Json<JsonInput>) -> Json<serde_json::Value> {
+        let json_value: serde_json::Value = match serde_json::from_str(&input.json) {
+            Ok(v) => v,
+            Err(e) => return Json(serde_json::json!({"error": format!("Invalid JSON: {}", e)})),
+        };
+
+        let statements: Vec<ogsql_parser::Statement> = if let Some(arr) = json_value.get("statements") {
+            match serde_json::from_value(arr.clone()) {
+                Ok(s) => s,
+                Err(e) => return Json(serde_json::json!({"error": format!("Failed to deserialize statements: {}", e)})),
+            }
+        } else {
+            match serde_json::from_value(json_value) {
+                Ok(s) => s,
+                Err(e) => return Json(serde_json::json!({"error": format!("Failed to deserialize: {}", e)})),
+            }
+        };
+
+        let formatter = ogsql_parser::SqlFormatter::new();
+        let formatted: Vec<String> = statements.iter().map(|s| formatter.format_statement(s)).collect();
+
+        Json(serde_json::json!({
+            "statements": formatted,
+            "count": formatted.len(),
+        }))
+    }
+
     async fn openapi_spec() -> Json<utoipa::openapi::OpenApi> {
         Json(ApiDoc::openapi())
     }
@@ -309,6 +401,7 @@ mod api {
         Router::new()
             .route("/api/health", get(health))
             .route("/api/parse", post(handle_parse))
+            .route("/api/json2sql", post(handle_json2sql))
             .route("/api/format", post(handle_format))
             .route("/api/tokenize", post(handle_tokenize))
             .route("/api/validate", post(handle_validate))
@@ -527,6 +620,7 @@ fn main() {
     match cli.command {
         Commands::Format => cmd_format(&cli),
         Commands::Parse => cmd_parse(&cli),
+        Commands::JsonToSql => cmd_json2sql(&cli),
         Commands::Tokenize => cmd_tokenize(&cli),
         Commands::Validate => cmd_validate(&cli),
         #[cfg(feature = "serve")]
