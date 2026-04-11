@@ -1,7 +1,10 @@
+pub mod analyzer;
 pub mod ast;
 pub mod formatter;
 pub mod parser;
 pub mod token;
+
+pub use analyzer::{analyze_pl_block, DynamicSqlReport};
 
 pub use ast::visitor::{walk_statement, Visitor, VisitorResult};
 pub use ast::StatementInfo;
