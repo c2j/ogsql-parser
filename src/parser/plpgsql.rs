@@ -921,6 +921,7 @@ impl Parser {
             return Ok(PlForKind::Query {
                 query,
                 parsed_query,
+                using_args: Vec::new(),
             });
         }
 
@@ -1116,14 +1117,62 @@ impl Parser {
     }
 
     fn parse_pl_execute(&mut self) -> Result<PlStatement, ParserError> {
-        self.advance();
+        self.advance(); // consume "execute"
+
+        let immediate = self.try_consume_ident_str("immediate");
+
         let string_expr = self.parse_expr()?;
+
+        let mut into_targets = Vec::new();
+        if self.match_ident_str("into") {
+            self.advance();
+            loop {
+                into_targets.push(self.parse_expr()?);
+                if self.match_token(&Token::Comma) {
+                    self.advance();
+                } else {
+                    break;
+                }
+            }
+        }
+
+        let mut using_args = Vec::new();
+        if self.match_ident_str("using") {
+            self.advance();
+            loop {
+                let mode = if self.match_ident_str("in") {
+                    self.advance();
+                    if self.match_ident_str("out") {
+                        self.advance();
+                        PlUsingMode::InOut
+                    } else {
+                        PlUsingMode::In
+                    }
+                } else if self.match_ident_str("out") {
+                    self.advance();
+                    PlUsingMode::Out
+                } else {
+                    PlUsingMode::In
+                };
+                using_args.push(PlUsingArg {
+                    mode,
+                    argument: self.parse_expr()?,
+                });
+                if self.match_token(&Token::Comma) {
+                    self.advance();
+                } else {
+                    break;
+                }
+            }
+        }
+
         self.try_consume_semicolon();
 
         Ok(PlStatement::Execute(PlExecuteStmt {
+            immediate,
             string_expr,
-            into_target: None,
-            using_args: Vec::new(),
+            into_targets,
+            using_args,
         }))
     }
 

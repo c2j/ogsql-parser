@@ -448,8 +448,143 @@ fn test_plpgsql_execute() {
             assert!(
                 matches!(&e.string_expr, Expr::Literal(Literal::String(s)) if s.contains("SELECT 1"))
             );
+            assert!(!e.immediate);
+            assert!(e.into_targets.is_empty());
+            assert!(e.using_args.is_empty());
         }
         _ => panic!("expected Execute"),
+    }
+}
+
+#[test]
+fn test_plpgsql_execute_immediate_simple() {
+    let block = parse_do_block(
+        "DO $$ BEGIN EXECUTE IMMEDIATE 'INSERT INTO t VALUES(:1, :2)' USING a, b; END $$",
+    );
+    match &block.body[0] {
+        PlStatement::Execute(e) => {
+            assert!(e.immediate);
+            assert!(e.into_targets.is_empty());
+            assert_eq!(e.using_args.len(), 2);
+            assert!(matches!(e.using_args[0].mode, PlUsingMode::In));
+            assert!(matches!(e.using_args[1].mode, PlUsingMode::In));
+        }
+        _ => panic!("expected Execute"),
+    }
+}
+
+#[test]
+fn test_plpgsql_execute_immediate_into() {
+    let block = parse_do_block(
+        "DO $$ BEGIN EXECUTE IMMEDIATE 'SELECT count(*) FROM t' INTO v_count; END $$",
+    );
+    match &block.body[0] {
+        PlStatement::Execute(e) => {
+            assert!(e.immediate);
+            assert_eq!(e.into_targets.len(), 1);
+            assert!(e.using_args.is_empty());
+        }
+        _ => panic!("expected Execute"),
+    }
+}
+
+#[test]
+fn test_plpgsql_execute_immediate_into_using() {
+    let block = parse_do_block(
+        "DO $$ BEGIN EXECUTE IMMEDIATE 'SELECT name FROM t WHERE id=:1' INTO v_name USING IN v_id; END $$"
+    );
+    match &block.body[0] {
+        PlStatement::Execute(e) => {
+            assert!(e.immediate);
+            assert_eq!(e.into_targets.len(), 1);
+            assert_eq!(e.using_args.len(), 1);
+            assert!(matches!(e.using_args[0].mode, PlUsingMode::In));
+        }
+        _ => panic!("expected Execute"),
+    }
+}
+
+#[test]
+fn test_plpgsql_execute_immediate_using_in_out() {
+    let block =
+        parse_do_block("DO $$ BEGIN EXECUTE IMMEDIATE stmt USING OUT v1, IN v2, IN OUT v3; END $$");
+    match &block.body[0] {
+        PlStatement::Execute(e) => {
+            assert!(e.immediate);
+            assert!(e.into_targets.is_empty());
+            assert_eq!(e.using_args.len(), 3);
+            assert!(matches!(e.using_args[0].mode, PlUsingMode::Out));
+            assert!(matches!(e.using_args[1].mode, PlUsingMode::In));
+            assert!(matches!(e.using_args[2].mode, PlUsingMode::InOut));
+        }
+        _ => panic!("expected Execute"),
+    }
+}
+
+#[test]
+fn test_plpgsql_execute_immediate_multi_into() {
+    let block = parse_do_block(
+        "DO $$ BEGIN EXECUTE IMMEDIATE 'SELECT name, salary FROM t WHERE id=:1' INTO v_name, v_salary USING v_id; END $$"
+    );
+    match &block.body[0] {
+        PlStatement::Execute(e) => {
+            assert!(e.immediate);
+            assert_eq!(e.into_targets.len(), 2);
+            assert_eq!(e.using_args.len(), 1);
+        }
+        _ => panic!("expected Execute"),
+    }
+}
+
+#[test]
+fn test_plpgsql_execute_concat_expr() {
+    let block = parse_do_block(
+        "DO $$ BEGIN EXECUTE IMMEDIATE 'ALTER TABLE ' || tab_name || ' ADD COLUMN c INT'; END $$",
+    );
+    match &block.body[0] {
+        PlStatement::Execute(e) => {
+            assert!(e.immediate);
+            assert!(matches!(e.string_expr, Expr::BinaryOp { .. }));
+        }
+        _ => panic!("expected Execute"),
+    }
+}
+
+#[test]
+fn test_plpgsql_for_in_execute() {
+    let block = parse_do_block(
+        "DO $$ BEGIN FOR rec IN EXECUTE 'SELECT * FROM ' || tab_name LOOP NULL; END LOOP; END $$",
+    );
+    match &block.body[0] {
+        PlStatement::For(f) => match &f.kind {
+            PlForKind::Query {
+                query, using_args, ..
+            } => {
+                assert!(query.to_lowercase().contains("execute"));
+                assert!(using_args.is_empty());
+            }
+            _ => panic!("expected Query kind"),
+        },
+        _ => panic!("expected For"),
+    }
+}
+
+#[test]
+fn test_plpgsql_for_in_execute_using() {
+    let block = parse_do_block(
+        "DO $$ BEGIN FOR rec IN EXECUTE 'SELECT * FROM t WHERE id=:1' USING v_id LOOP NULL; END LOOP; END $$"
+    );
+    match &block.body[0] {
+        PlStatement::For(f) => match &f.kind {
+            PlForKind::Query {
+                query, using_args, ..
+            } => {
+                assert!(query.to_lowercase().contains("using"));
+                assert!(using_args.is_empty());
+            }
+            _ => panic!("expected Query kind"),
+        },
+        _ => panic!("expected For"),
     }
 }
 
@@ -1997,6 +2132,7 @@ fn test_for_in_query_with_parsed_select() {
                     PlForKind::Query {
                         query,
                         parsed_query,
+                        ..
                     } => {
                         assert!(!query.is_empty());
                         assert!(parsed_query.is_some(), "FOR IN query should be parsed");

@@ -1,3 +1,4 @@
+use crate::ast::plpgsql::PlUsingMode;
 use crate::ast::*;
 
 pub struct SqlFormatter {
@@ -1869,17 +1870,32 @@ impl SqlFormatter {
             }
             PlStatement::Raise(r) => self.format_pl_raise(r),
             PlStatement::Execute(e) => {
-                let mut s = format!(
-                    "{} {}",
-                    self.kw("EXECUTE"),
-                    self.format_expr(&e.string_expr)
-                );
-                if let Some(ref into) = e.into_target {
-                    s.push_str(&format!(" {} {}", self.kw("INTO"), self.format_expr(into)));
+                let mut s = if e.immediate {
+                    format!("{} {}", self.kw("EXECUTE"), self.kw("IMMEDIATE"))
+                } else {
+                    self.kw("EXECUTE").to_string()
+                };
+                s.push_str(&format!(" {}", self.format_expr(&e.string_expr)));
+                if !e.into_targets.is_empty() {
+                    let targets: Vec<String> =
+                        e.into_targets.iter().map(|t| self.format_expr(t)).collect();
+                    s.push_str(&format!(" {} {}", self.kw("INTO"), targets.join(", ")));
                 }
                 if !e.using_args.is_empty() {
-                    let args: Vec<String> =
-                        e.using_args.iter().map(|a| self.format_expr(a)).collect();
+                    let args: Vec<String> = e
+                        .using_args
+                        .iter()
+                        .map(|a| {
+                            let mode = match a.mode {
+                                PlUsingMode::In => format!("{} ", self.kw("IN")),
+                                PlUsingMode::Out => format!("{} ", self.kw("OUT")),
+                                PlUsingMode::InOut => {
+                                    format!("{} {} ", self.kw("IN"), self.kw("OUT"))
+                                }
+                            };
+                            format!("{}{}", mode, self.format_expr(&a.argument))
+                        })
+                        .collect();
                     s.push_str(&format!(" {} {}", self.kw("USING"), args.join(", ")));
                 }
                 format!("{};", s)
