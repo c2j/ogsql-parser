@@ -128,29 +128,26 @@ fn cmd_parse(cli: &Cli) {
     let (stmts, errors) = parse_input(&sql);
 
     if cli.json {
-        let mut dynamic_sql_reports: Vec<serde_json::Value> = Vec::new();
-        for (i, si) in stmts.iter().enumerate() {
-            if let Some(block) = extract_pl_block(&si.statement) {
-                let report = ogsql_parser::analyze_pl_block(block);
-                if !report.execute_findings.is_empty() {
-                    dynamic_sql_reports.push(serde_json::json!({
-                        "statement_index": i,
-                        "dynamic_sql_analysis": report,
-                    }));
+        let stmt_values: Vec<serde_json::Value> = stmts
+            .iter()
+            .map(|si| {
+                let mut obj = serde_json::to_value(si).unwrap();
+                if let Some(block) = extract_pl_block(&si.statement) {
+                    let report = ogsql_parser::analyze_pl_block(block);
+                    if !report.execute_findings.is_empty() {
+                        obj.as_object_mut()
+                            .unwrap()
+                            .insert("dynamic_sql_analysis".to_string(), serde_json::json!(report));
+                    }
                 }
-            }
-        }
+                obj
+            })
+            .collect();
 
-        let mut out = serde_json::json!({
-            "statements": stmts,
+        let out = serde_json::json!({
+            "statements": stmt_values,
             "errors": errors,
         });
-        if !dynamic_sql_reports.is_empty() {
-            out.as_object_mut().unwrap().insert(
-                "dynamic_sql_analysis".to_string(),
-                serde_json::json!(dynamic_sql_reports),
-            );
-        }
         println!("{}", serde_json::to_string_pretty(&out).unwrap());
     } else {
         for stmt in &stmts {
