@@ -128,10 +128,29 @@ fn cmd_parse(cli: &Cli) {
     let (stmts, errors) = parse_input(&sql);
 
     if cli.json {
-        let out = serde_json::json!({
+        let mut dynamic_sql_reports: Vec<serde_json::Value> = Vec::new();
+        for (i, si) in stmts.iter().enumerate() {
+            if let Some(block) = extract_pl_block(&si.statement) {
+                let report = ogsql_parser::analyze_pl_block(block);
+                if !report.execute_findings.is_empty() {
+                    dynamic_sql_reports.push(serde_json::json!({
+                        "statement_index": i,
+                        "dynamic_sql_analysis": report,
+                    }));
+                }
+            }
+        }
+
+        let mut out = serde_json::json!({
             "statements": stmts,
             "errors": errors,
         });
+        if !dynamic_sql_reports.is_empty() {
+            out.as_object_mut().unwrap().insert(
+                "dynamic_sql_analysis".to_string(),
+                serde_json::json!(dynamic_sql_reports),
+            );
+        }
         println!("{}", serde_json::to_string_pretty(&out).unwrap());
     } else {
         for stmt in &stmts {
@@ -143,6 +162,17 @@ fn cmd_parse(cli: &Cli) {
                 eprintln!("  {}", e);
             }
         }
+    }
+}
+
+fn extract_pl_block(stmt: &ogsql_parser::Statement) -> Option<&ogsql_parser::ast::plpgsql::PlBlock> {
+    use ogsql_parser::Statement;
+    match stmt {
+        Statement::Do(d) => d.block.as_ref(),
+        Statement::AnonyBlock(ab) => Some(&ab.block),
+        Statement::CreateFunction(cf) => cf.block.as_ref(),
+        Statement::CreateProcedure(cp) => cp.block.as_ref(),
+        _ => None,
     }
 }
 
