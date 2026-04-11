@@ -41,6 +41,10 @@ enum Commands {
     #[cfg(feature = "tui")]
     /// Launch an interactive terminal UI playground / 启动交互式终端演练场
     Playground,
+    #[cfg(feature = "ibatis")]
+    /// Parse iBatis/MyBatis XML mapper file / 解析 iBatis XML mapper 文件
+    #[command(name = "parse-xml")]
+    ParseXml,
 }
 
 macro_rules! die {
@@ -641,6 +645,55 @@ fn cmd_playground() {
     terminal.show_cursor().unwrap();
 }
 
+#[cfg(feature = "ibatis")]
+fn cmd_parse_xml(cli: &Cli) {
+    let input = match cli.file.as_deref() {
+        Some(path) => {
+            std::fs::read(path).unwrap_or_else(|e| die!("Error reading {}: {}", path, e))
+        }
+        None => {
+            let mut buf = Vec::new();
+            std::io::stdin().read_to_end(&mut buf)
+                .unwrap_or_else(|e| die!("Error reading stdin: {}", e));
+            buf
+        }
+    };
+
+    let result = ogsql_parser::ibatis::parse_mapper_bytes(&input);
+
+    if cli.json {
+        println!("{}", serde_json::to_string_pretty(&result).unwrap());
+    } else {
+        if !result.errors.is_empty() {
+            eprintln!("{} error(s):", result.errors.len());
+            for e in &result.errors {
+                eprintln!("  {}", e);
+            }
+        }
+
+        for stmt in &result.statements {
+            println!("── {} ({:?}) ──", stmt.id, stmt.kind);
+            println!("{}", stmt.flat_sql.trim());
+            if stmt.has_dynamic_elements {
+                println!("  [contains dynamic SQL elements]");
+            }
+            if let Some((infos, errors)) = &stmt.parse_result {
+                if !errors.is_empty() {
+                    eprintln!("  {} parse error(s):", errors.len());
+                    for e in errors {
+                        eprintln!("    {}", e);
+                    }
+                } else {
+                    println!("  ✓ Parsed successfully ({} statement(s))", infos.len());
+                }
+            }
+            println!();
+        }
+
+        println!("Total: {} statement(s) in namespace '{}'", result.statements.len(), result.namespace);
+    }
+}
+
 fn main() {
     let cli = Cli::parse();
 
@@ -668,5 +721,7 @@ fn main() {
         }
         #[cfg(feature = "tui")]
         Commands::Playground => cmd_playground(),
+        #[cfg(feature = "ibatis")]
+        Commands::ParseXml => cmd_parse_xml(&cli),
     }
 }
