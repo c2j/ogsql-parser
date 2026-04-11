@@ -438,6 +438,7 @@ impl Parser {
             with: None,
             distinct: false,
             targets: vec![SelectTarget::Star(None)],
+            into_targets: None,
             from: vec![],
             where_clause: None,
             group_by: vec![],
@@ -841,14 +842,39 @@ impl Parser {
             self.expect_token(&Token::RParen)?;
         }
 
-        let return_type = if self.match_keyword(Keyword::RETURNS) {
+        let return_type =
+            if self.match_keyword(Keyword::RETURNS) || self.match_keyword(Keyword::RETURN) {
+                self.advance();
+                Some(self.parse_type_name()?)
+            } else {
+                None
+            };
+
+        let has_body = if self.match_keyword(Keyword::IS) || self.match_keyword(Keyword::AS) {
             self.advance();
-            Some(self.parse_type_name()?)
+            true
         } else {
-            None
+            false
         };
 
-        let options = self.skip_to_semicolon_and_collect();
+        let (block, options) = if has_body {
+            if matches!(self.peek(), Token::DollarString { .. }) {
+                if let Token::DollarString { body: inner, .. } = self.peek().clone() {
+                    self.advance();
+                    let block = Self::parse_pl_block_from_str(&inner).ok();
+                    let opts = self.skip_to_semicolon_and_collect();
+                    (block, opts)
+                } else {
+                    unreachable!()
+                }
+            } else {
+                let block = self.parse_procedure_body()?;
+                (Some(block), String::new())
+            }
+        } else {
+            let options = self.skip_to_semicolon_and_collect();
+            (None, options)
+        };
 
         Ok(CreateFunctionStatement {
             replace: false,
@@ -856,38 +882,160 @@ impl Parser {
             parameters,
             return_type,
             options,
+            block,
         })
     }
 
-    fn parse_function_parameter(&mut self) -> Result<String, ParserError> {
-        let mut param = String::new();
-        let mut depth = 0;
+    fn parse_function_parameter(&mut self) -> Result<RoutineParam, ParserError> {
+        let name = self.parse_identifier()?;
+        let mode = self.parse_param_mode();
+        let data_type = self.parse_param_data_type()?;
+        let default_value = self.parse_param_default()?;
+
+        Ok(RoutineParam {
+            name,
+            mode,
+            data_type,
+            default_value,
+        })
+    }
+
+    fn parse_param_mode(&mut self) -> Option<String> {
+        if self.match_keyword(Keyword::INOUT) {
+            self.advance();
+            return Some("INOUT".to_string());
+        }
+        if self.match_keyword(Keyword::IN_P) {
+            self.advance();
+            if self.match_keyword(Keyword::OUT_P) {
+                self.advance();
+                return Some("IN OUT".to_string());
+            }
+            return Some("IN".to_string());
+        }
+        if self.match_keyword(Keyword::OUT_P) {
+            self.advance();
+            return Some("OUT".to_string());
+        }
+        None
+    }
+
+    fn parse_param_data_type(&mut self) -> Result<String, ParserError> {
+        let mut type_name = String::new();
+        let mut depth = 0i32;
 
         loop {
             match self.peek() {
-                Token::Comma if depth == 0 => break,
-                Token::RParen if depth == 0 => break,
+                Token::Comma | Token::RParen if depth == 0 => break,
+                Token::Keyword(Keyword::DEFAULT) if depth == 0 => break,
+                Token::ColonEquals if depth == 0 => break,
                 Token::LParen => {
                     depth += 1;
-                    param.push_str(&self.token_to_string());
+                    type_name.push('(');
                     self.advance();
                 }
                 Token::RParen => {
                     depth -= 1;
-                    param.push_str(&self.token_to_string());
+                    type_name.push(')');
+                    self.advance();
+                }
+                Token::Comma => {
+                    type_name.push_str(", ");
+                    self.advance();
+                }
+                Token::Dot => {
+                    type_name.push('.');
+                    self.advance();
+                }
+                Token::LBracket => {
+                    type_name.push('[');
+                    self.advance();
+                    let mut bracket_depth = 1i32;
+                    while bracket_depth > 0 {
+                        match self.peek() {
+                            Token::LBracket => {
+                                bracket_depth += 1;
+                                type_name.push('[');
+                                self.advance();
+                            }
+                            Token::RBracket => {
+                                bracket_depth -= 1;
+                                type_name.push(']');
+                                self.advance();
+                            }
+                            _ => {
+                                type_name.push_str(&self.token_to_string());
+                                self.advance();
+                            }
+                        }
+                    }
+                }
+                Token::Percent => {
+                    type_name.push('%');
                     self.advance();
                 }
                 _ => {
-                    if !param.is_empty() {
-                        param.push(' ');
+                    let tok_str = self.token_to_string();
+                    if !type_name.is_empty()
+                        && !type_name.ends_with('(')
+                        && !type_name.ends_with('[')
+                        && !type_name.ends_with('.')
+                        && !type_name.ends_with('%')
+                    {
+                        type_name.push(' ');
                     }
-                    param.push_str(&self.token_to_string());
+                    type_name.push_str(&tok_str);
                     self.advance();
                 }
             }
         }
 
-        Ok(param.trim().to_string())
+        Ok(type_name.trim().to_string())
+    }
+
+    fn parse_param_default(&mut self) -> Result<Option<String>, ParserError> {
+        let has_default = if self.match_keyword(Keyword::DEFAULT) {
+            self.advance();
+            true
+        } else if matches!(self.peek(), Token::ColonEquals) {
+            self.advance();
+            true
+        } else {
+            false
+        };
+
+        if !has_default {
+            return Ok(None);
+        }
+
+        let mut default_val = String::new();
+        let mut depth = 0i32;
+
+        loop {
+            match self.peek() {
+                Token::Comma | Token::RParen if depth == 0 => break,
+                Token::LParen => {
+                    depth += 1;
+                    default_val.push('(');
+                    self.advance();
+                }
+                Token::RParen => {
+                    depth -= 1;
+                    default_val.push(')');
+                    self.advance();
+                }
+                _ => {
+                    let tok_str = self.token_to_string();
+                    if !default_val.is_empty() && !default_val.ends_with('(') {
+                        default_val.push(' ');
+                    }
+                    default_val.push_str(&tok_str);
+                    self.advance();
+                }
+            }
+        }
+
+        Ok(Some(default_val.trim().to_string()))
     }
 
     fn parse_type_name(&mut self) -> Result<String, ParserError> {
@@ -895,7 +1043,7 @@ impl Parser {
 
         loop {
             match self.peek() {
-                Token::Keyword(Keyword::AS) => break,
+                Token::Keyword(Keyword::AS) | Token::Keyword(Keyword::IS) => break,
                 Token::Ident(s) => {
                     if !type_name.is_empty() {
                         type_name.push(' ');
@@ -983,7 +1131,7 @@ impl Parser {
             Token::Float(f) => f.clone(),
             Token::StringLiteral(s) => format!("'{}'", s),
             Token::EscapeString(s) => format!("E'{}'", s),
-            Token::DollarString(s) => format!("$$ {} $$", s),
+            Token::DollarString { body, .. } => format!("$$ {} $$", body),
             Token::LParen => "(".to_string(),
             Token::RParen => ")".to_string(),
             Token::LBracket => "[".to_string(),
@@ -1070,13 +1218,38 @@ impl Parser {
             self.expect_token(&Token::RParen)?;
         }
 
-        let options = self.skip_to_semicolon_and_collect();
+        let has_body = if self.match_keyword(Keyword::IS) || self.match_keyword(Keyword::AS) {
+            self.advance();
+            true
+        } else {
+            false
+        };
+
+        let (block, options) = if has_body {
+            if matches!(self.peek(), Token::DollarString { .. }) {
+                if let Token::DollarString { body: inner, .. } = self.peek().clone() {
+                    self.advance();
+                    let block = Self::parse_pl_block_from_str(&inner).ok();
+                    let opts = self.skip_to_semicolon_and_collect();
+                    (block, opts)
+                } else {
+                    unreachable!()
+                }
+            } else {
+                let block = self.parse_procedure_body()?;
+                (Some(block), String::new())
+            }
+        } else {
+            let options = self.skip_to_semicolon_and_collect();
+            (None, options)
+        };
 
         Ok(CreateProcedureStatement {
             replace: false,
             name,
             parameters,
             options,
+            block,
         })
     }
 
@@ -1175,7 +1348,7 @@ impl Parser {
                     match self.parse_package_sub_procedure() {
                         Ok(proc) => {
                             let raw = self.tokens_to_raw_string(start_pos, self.pos);
-                            raw_parts.push(format!("PROCEDURE {}", raw));
+                            raw_parts.push(raw);
                             items.push(PackageItem::Procedure(proc));
                         }
                         Err(_) => {
@@ -1193,7 +1366,7 @@ impl Parser {
                     match self.parse_package_sub_function() {
                         Ok(func) => {
                             let raw = self.tokens_to_raw_string(start_pos, self.pos);
-                            raw_parts.push(format!("FUNCTION {}", raw));
+                            raw_parts.push(raw);
                             items.push(PackageItem::Function(func));
                         }
                         Err(_) => {
@@ -1230,7 +1403,7 @@ impl Parser {
                 Token::Float(f) => f.clone(),
                 Token::StringLiteral(s) => format!("'{}'", s),
                 Token::EscapeString(s) => format!("E'{}'", s),
-                Token::DollarString(s) => format!("$$ {} $$", s),
+                Token::DollarString { body, .. } => format!("$$ {} $$", body),
                 Token::LParen => "(".to_string(),
                 Token::RParen => ")".to_string(),
                 Token::LBracket => "[".to_string(),
@@ -1259,7 +1432,7 @@ impl Parser {
             .join(" ")
     }
 
-    fn parse_package_sub_procedure(&mut self) -> Result<PackageProcedure, ParserError> {
+    pub(crate) fn parse_package_sub_procedure(&mut self) -> Result<PackageProcedure, ParserError> {
         let name = self.parse_object_name()?;
 
         let mut parameters = Vec::new();
@@ -1300,7 +1473,7 @@ impl Parser {
         })
     }
 
-    fn parse_package_sub_function(&mut self) -> Result<PackageFunction, ParserError> {
+    pub(crate) fn parse_package_sub_function(&mut self) -> Result<PackageFunction, ParserError> {
         let name = self.parse_object_name()?;
 
         let mut parameters = Vec::new();
@@ -1426,8 +1599,7 @@ impl Parser {
         self.expect_keyword(Keyword::DOMAIN_P)?;
         let name = self.parse_object_name()?;
         self.try_consume_keyword(Keyword::AS);
-        let dt = self.parse_data_type()?;
-        let data_type = format_data_type(&dt);
+        let data_type = self.parse_data_type()?;
 
         let mut default_value = None;
         let mut not_null = false;
@@ -1435,11 +1607,7 @@ impl Parser {
 
         if self.match_keyword(Keyword::DEFAULT) {
             self.advance();
-            default_value = Some(self.collect_until_boundary(&[
-                Token::Keyword(Keyword::NOT),
-                Token::Keyword(Keyword::CHECK),
-                Token::Semicolon,
-            ]));
+            default_value = Some(self.parse_expr()?);
         }
         if self.match_keyword(Keyword::NOT) {
             self.advance();
@@ -1449,7 +1617,8 @@ impl Parser {
         if self.match_keyword(Keyword::CHECK) {
             self.advance();
             self.expect_token(&Token::LParen)?;
-            check = Some(self.collect_until_balanced_paren());
+            check = Some(self.parse_expr()?);
+            self.expect_token(&Token::RParen)?;
         }
 
         Ok(CreateDomainStatement {
@@ -1519,9 +1688,9 @@ impl Parser {
     pub(crate) fn parse_create_cast(&mut self) -> Result<CreateCastStatement, ParserError> {
         self.expect_keyword(Keyword::CAST)?;
         self.expect_token(&Token::LParen)?;
-        let source_type = self.parse_type_name_for_cast()?;
+        let source_type = self.parse_data_type()?;
         self.expect_keyword(Keyword::AS)?;
-        let target_type = self.parse_type_name_for_cast()?;
+        let target_type = self.parse_data_type()?;
         self.expect_token(&Token::RParen)?;
 
         let method = if self.match_keyword(Keyword::WITHOUT) {
@@ -2179,10 +2348,15 @@ impl Parser {
         };
 
         let when = if self.try_consume_keyword(Keyword::WHEN) {
-            self.expect_token(&Token::LParen)?;
-            let expr = self.skip_balanced_expr()?;
-            self.expect_token(&Token::RParen)?;
-            Some(expr)
+            self.expect_token(&Token::LParen).ok();
+            let expr = self.parse_expr().ok();
+            while !matches!(self.peek(), Token::RParen | Token::Eof) {
+                self.advance();
+            }
+            if self.match_token(&Token::RParen) {
+                self.advance();
+            }
+            expr
         } else {
             None
         };
@@ -2196,7 +2370,7 @@ impl Parser {
             self.advance();
             if !self.match_token(&Token::RParen) {
                 loop {
-                    let arg = self.skip_balanced_expr()?;
+                    let arg = self.parse_expr()?;
                     func_args.push(arg);
                     if self.match_token(&Token::Comma) {
                         self.advance();
@@ -2281,20 +2455,22 @@ impl Parser {
 
         self.expect_keyword(Keyword::AS)?;
 
-        let query = self.skip_to_semicolon_and_collect();
+        let query = Box::new(self.parse_select_statement()?);
 
         let mut tablespace = None;
-        let mut with_data = true;
-
-        if query.contains("TABLESPACE") {
-            let parts: Vec<&str> = query.splitn(2, "TABLESPACE").collect();
-            if parts.len() == 2 {
-                tablespace = Some(parts[1].trim().to_string());
-            }
+        if self.try_consume_keyword(Keyword::TABLESPACE) {
+            tablespace = Some(self.parse_identifier()?);
         }
 
-        if query.contains("WITH NO DATA") {
-            with_data = false;
+        let mut with_data = true;
+        if self.try_consume_keyword(Keyword::WITH) {
+            if self.try_consume_keyword(Keyword::NO) {
+                self.try_consume_keyword(Keyword::DATA_P);
+                with_data = false;
+            } else {
+                self.try_consume_keyword(Keyword::DATA_P);
+                with_data = true;
+            }
         }
 
         Ok(CreateMaterializedViewStatement {
@@ -2531,12 +2707,24 @@ impl Parser {
 
         self.expect_keyword(Keyword::AS)?;
 
-        let statement = self.skip_to_semicolon_and_collect();
+        let (statement, parsed_statement) = {
+            let save_pos = self.pos;
+            if let Some(stmt) = self.try_parse_dml_statement() {
+                let raw = self.tokens_to_raw_string(save_pos, self.pos);
+                self.try_consume_semicolon();
+                (raw, Some(stmt))
+            } else {
+                self.pos = save_pos;
+                let raw = self.skip_to_semicolon_and_collect();
+                (raw, None)
+            }
+        };
 
         Ok(PrepareStatement {
             name,
             data_types,
             statement,
+            parsed_statement,
         })
     }
 
@@ -2548,7 +2736,7 @@ impl Parser {
             self.advance();
             if !self.match_token(&Token::RParen) {
                 loop {
-                    let p = self.skip_balanced_expr()?;
+                    let p = self.parse_expr()?;
                     params.push(p);
                     if self.match_token(&Token::Comma) {
                         self.advance();
@@ -2589,8 +2777,8 @@ impl Parser {
         }
 
         // Try to extract dollar-quoted body and parse as PL/pgSQL
-        let (code, block) = if matches!(self.peek(), Token::DollarString(_)) {
-            if let Token::DollarString(inner) = self.peek().clone() {
+        let (code, block) = if matches!(self.peek(), Token::DollarString { .. }) {
+            if let Token::DollarString { body: inner, .. } = self.peek().clone() {
                 self.advance();
                 let inner_str = inner.clone();
                 match Self::parse_pl_block_from_str(&inner_str) {
@@ -2620,12 +2808,26 @@ impl Parser {
         parser.parse_pl_block()
     }
 
-    pub(crate) fn is_plpgsql_anon_block_start(&self) -> bool {
-        match self.peek() {
-            Token::DollarString(_) => true,
-            Token::Op(ref op) if op == "<<" => true,
-            Token::Ident(_) => true,
-            Token::Keyword(Keyword::DECLARE) => true,
+    pub(crate) fn is_transaction_begin(&self) -> bool {
+        let next = match self.tokens.get(self.pos + 1) {
+            Some(tw) => &tw.token,
+            None => return true,
+        };
+        match next {
+            Token::Eof => true,
+            Token::Semicolon => true,
+            Token::Slash => true,
+            Token::Keyword(Keyword::WORK) => true,
+            Token::Keyword(Keyword::TRANSACTION) => true,
+            Token::Keyword(Keyword::ISOLATION) => true,
+            Token::Keyword(Keyword::DEFERRABLE) => true,
+            Token::Keyword(Keyword::NOT) => true,
+            Token::Keyword(Keyword::READ) => self.tokens.get(self.pos + 2).map_or(false, |t| {
+                matches!(
+                    t.token,
+                    Token::Keyword(Keyword::ONLY) | Token::Keyword(Keyword::WRITE)
+                )
+            }),
             _ => false,
         }
     }
@@ -2633,15 +2835,15 @@ impl Parser {
     pub(crate) fn parse_anonymous_block(
         &mut self,
     ) -> Result<crate::ast::AnonyBlockStatement, ParserError> {
-        if matches!(self.peek(), Token::DollarString(_)) {
-            if let Token::DollarString(inner) = self.peek().clone() {
+        if matches!(self.peek(), Token::DollarString { .. }) {
+            if let Token::DollarString { body: inner, .. } = self.peek().clone() {
                 self.advance();
                 let block = Self::parse_pl_block_from_str(&inner)?;
                 return Ok(crate::ast::AnonyBlockStatement { block });
             }
         }
 
-        let block = self.parse_pl_block()?;
+        let block = self.parse_pl_block_body(None, Vec::new())?;
         Ok(crate::ast::AnonyBlockStatement { block })
     }
 
@@ -3109,7 +3311,7 @@ impl Parser {
 
         self.expect_keyword(Keyword::FOR)?;
 
-        let query = self.skip_to_semicolon_and_collect();
+        let query = Box::new(self.parse_select_statement()?);
 
         Ok(DeclareCursorStatement {
             name,
@@ -3227,14 +3429,29 @@ impl Parser {
         self.expect_keyword(Keyword::AS)?;
         self.expect_keyword(Keyword::ON)?;
 
-        let event = self.parse_identifier()?;
+        let event = if self.try_consume_keyword(Keyword::SELECT) {
+            RuleEvent::Select
+        } else if self.try_consume_keyword(Keyword::INSERT) {
+            RuleEvent::Insert
+        } else if self.try_consume_keyword(Keyword::UPDATE) {
+            RuleEvent::Update
+        } else if self.try_consume_keyword(Keyword::DELETE_P) {
+            RuleEvent::Delete
+        } else {
+            let loc = self.current_location();
+            return Err(ParserError::UnexpectedToken {
+                location: loc,
+                expected: "SELECT, INSERT, UPDATE, or DELETE".to_string(),
+                got: self.token_to_string(),
+            });
+        };
 
         self.expect_keyword(Keyword::TO)?;
         let table = self.parse_object_name()?;
 
         let mut condition = None;
         if self.try_consume_keyword(Keyword::WHERE) {
-            condition = Some(self.skip_balanced_expr()?);
+            condition = Some(self.parse_expr()?);
         }
 
         let mut instead = false;
@@ -3272,6 +3489,7 @@ impl Parser {
             condition,
             instead,
             actions,
+            parsed_actions: None,
         })
     }
 

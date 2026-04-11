@@ -123,6 +123,12 @@ impl Parser {
             false
         };
         let targets = self.parse_target_list()?;
+        let into_targets = if self.match_keyword(Keyword::INTO) {
+            self.advance();
+            Some(self.parse_target_list()?)
+        } else {
+            None
+        };
         let from = self.parse_from_clause()?;
         let where_clause = if self.match_keyword(Keyword::WHERE) {
             self.advance();
@@ -153,6 +159,7 @@ impl Parser {
             with: None,
             distinct,
             targets,
+            into_targets,
             from,
             where_clause,
             group_by,

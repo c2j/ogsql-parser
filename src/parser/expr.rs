@@ -1,6 +1,6 @@
 use crate::ast::{
-    Expr, Literal, ObjectName, OrderByItem, SelectStatement, WhenClause, WindowFrame,
-    WindowFrameBound, WindowSpec,
+    DataType, Expr, Literal, ObjectName, OrderByItem, SelectStatement, WhenClause, WindowFrame,
+    WindowFrameBound, WindowFrameDirection, WindowFrameMode, WindowSpec,
 };
 use crate::parser::{Parser, ParserError};
 use crate::token::keyword::Keyword;
@@ -15,6 +15,13 @@ impl Parser {
         let mut left = self.parse_unary_expr()?;
 
         loop {
+            // Try postfix operators first — they bind tighter than any infix operator.
+            // This must be inside the loop so that after consuming e.g. "IS NULL",
+            // we continue and can still pick up subsequent infix operators like "OR".
+            if self.try_postfix_op(&mut left)? {
+                continue;
+            }
+
             let (op_prec, op_str, is_right_assoc) = match self.get_infix_operator() {
                 Some(info) => info,
                 None => break,
@@ -39,7 +46,6 @@ impl Parser {
             };
         }
 
-        left = self.parse_postfix_ops(left)?;
         Ok(left)
     }
 
@@ -101,123 +107,135 @@ impl Parser {
         }
     }
 
-    fn parse_postfix_ops(&mut self, mut left: Expr) -> Result<Expr, ParserError> {
-        loop {
-            match self.peek() {
-                Token::Keyword(Keyword::IS) => {
-                    self.advance();
-                    if self.match_keyword(Keyword::NOT) {
-                        self.advance();
-                        if self.match_keyword(Keyword::NULL_P) {
+    fn try_postfix_op(&mut self, left: &mut Expr) -> Result<bool, ParserError> {
+        match self.peek() {
+            Token::Keyword(Keyword::IS) => {
+                if let Some(next) = self.tokens.get(self.pos + 1) {
+                    match &next.token {
+                        Token::Keyword(Keyword::NULL_P) => {
                             self.advance();
-                            left = Expr::IsNull {
-                                expr: Box::new(left),
+                            self.advance();
+                            *left = Expr::IsNull {
+                                expr: Box::new(std::mem::replace(left, Expr::Default)),
+                                negated: false,
+                            };
+                            return Ok(true);
+                        }
+                        Token::Keyword(Keyword::NOT) => {
+                            if let Some(next2) = self.tokens.get(self.pos + 2) {
+                                if matches!(&next2.token, Token::Keyword(Keyword::NULL_P)) {
+                                    self.advance();
+                                    self.advance();
+                                    self.advance();
+                                    *left = Expr::IsNull {
+                                        expr: Box::new(std::mem::replace(left, Expr::Default)),
+                                        negated: true,
+                                    };
+                                    return Ok(true);
+                                }
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+                Ok(false)
+            }
+            Token::Keyword(Keyword::ISNULL) => {
+                self.advance();
+                *left = Expr::IsNull {
+                    expr: Box::new(std::mem::replace(left, Expr::Default)),
+                    negated: false,
+                };
+                Ok(true)
+            }
+            Token::Keyword(Keyword::NOTNULL) => {
+                self.advance();
+                *left = Expr::IsNull {
+                    expr: Box::new(std::mem::replace(left, Expr::Default)),
+                    negated: true,
+                };
+                Ok(true)
+            }
+            Token::Keyword(Keyword::BETWEEN) => {
+                self.advance();
+                let low = self.parse_expr_with_precedence(40)?;
+                self.expect_keyword(Keyword::AND)?;
+                let high = self.parse_expr_with_precedence(40)?;
+                *left = Expr::Between {
+                    expr: Box::new(std::mem::replace(left, Expr::Default)),
+                    low: Box::new(low),
+                    high: Box::new(high),
+                    negated: false,
+                };
+                Ok(true)
+            }
+            Token::Keyword(Keyword::NOT) => {
+                if let Some(tws) = self.tokens.get(self.pos + 1) {
+                    match &tws.token {
+                        Token::Keyword(Keyword::BETWEEN) => {
+                            self.advance();
+                            self.advance();
+                            let low = self.parse_expr_with_precedence(40)?;
+                            self.expect_keyword(Keyword::AND)?;
+                            let high = self.parse_expr_with_precedence(40)?;
+                            *left = Expr::Between {
+                                expr: Box::new(std::mem::replace(left, Expr::Default)),
+                                low: Box::new(low),
+                                high: Box::new(high),
                                 negated: true,
                             };
-                        } else {
-                            break;
+                            return Ok(true);
                         }
-                    } else if self.match_keyword(Keyword::NULL_P) {
-                        self.advance();
-                        left = Expr::IsNull {
-                            expr: Box::new(left),
-                            negated: false,
-                        };
-                    } else {
-                        break;
+                        Token::Keyword(Keyword::IN_P) => {
+                            self.advance();
+                            self.advance();
+                            *left =
+                                self.parse_in_expr(std::mem::replace(left, Expr::Default), true)?;
+                            return Ok(true);
+                        }
+                        Token::Keyword(Keyword::LIKE) => {
+                            self.advance();
+                            self.advance();
+                            let pattern = self.parse_expr()?;
+                            *left = Expr::BinaryOp {
+                                left: Box::new(std::mem::replace(left, Expr::Default)),
+                                op: "NOT LIKE".to_string(),
+                                right: Box::new(pattern),
+                            };
+                            return Ok(true);
+                        }
+                        _ => {}
                     }
                 }
-                Token::Keyword(Keyword::ISNULL) => {
-                    self.advance();
-                    left = Expr::IsNull {
-                        expr: Box::new(left),
-                        negated: false,
-                    };
-                }
-                Token::Keyword(Keyword::NOTNULL) => {
-                    self.advance();
-                    left = Expr::IsNull {
-                        expr: Box::new(left),
-                        negated: true,
-                    };
-                }
-                Token::Keyword(Keyword::BETWEEN) => {
-                    self.advance();
-                    let low = self.parse_expr_with_precedence(40)?;
-                    self.expect_keyword(Keyword::AND)?;
-                    let high = self.parse_expr_with_precedence(40)?;
-                    left = Expr::Between {
-                        expr: Box::new(left),
-                        low: Box::new(low),
-                        high: Box::new(high),
-                        negated: false,
-                    };
-                }
-                Token::Keyword(Keyword::NOT) => {
-                    if let Some(tws) = self.tokens.get(self.pos + 1) {
-                        match &tws.token {
-                            Token::Keyword(Keyword::BETWEEN) => {
-                                self.advance();
-                                self.advance();
-                                let low = self.parse_expr_with_precedence(40)?;
-                                self.expect_keyword(Keyword::AND)?;
-                                let high = self.parse_expr_with_precedence(40)?;
-                                left = Expr::Between {
-                                    expr: Box::new(left),
-                                    low: Box::new(low),
-                                    high: Box::new(high),
-                                    negated: true,
-                                };
-                                continue;
-                            }
-                            Token::Keyword(Keyword::IN_P) => {
-                                self.advance();
-                                self.advance();
-                                left = self.parse_in_expr(left, true)?;
-                                continue;
-                            }
-                            Token::Keyword(Keyword::LIKE) => {
-                                self.advance();
-                                self.advance();
-                                let pattern = self.parse_expr()?;
-                                left = Expr::BinaryOp {
-                                    left: Box::new(left),
-                                    op: "NOT LIKE".to_string(),
-                                    right: Box::new(pattern),
-                                };
-                                continue;
-                            }
-                            _ => break,
-                        }
-                    }
-                    break;
-                }
-                Token::Keyword(Keyword::IN_P) => {
-                    self.advance();
-                    left = self.parse_in_expr(left, false)?;
-                }
-                Token::Keyword(Keyword::LIKE) => {
-                    self.advance();
-                    let pattern = self.parse_expr()?;
-                    left = Expr::BinaryOp {
-                        left: Box::new(left),
-                        op: "LIKE".to_string(),
-                        right: Box::new(pattern),
-                    };
-                }
-                Token::Keyword(Keyword::ILIKE) => {
-                    self.advance();
-                    let pattern = self.parse_expr()?;
-                    left = Expr::BinaryOp {
-                        left: Box::new(left),
-                        op: "ILIKE".to_string(),
-                        right: Box::new(pattern),
-                    };
-                }
-                _ => break,
+                Ok(false)
             }
+            Token::Keyword(Keyword::IN_P) => {
+                self.advance();
+                *left = self.parse_in_expr(std::mem::replace(left, Expr::Default), false)?;
+                Ok(true)
+            }
+            Token::Keyword(Keyword::LIKE) => {
+                self.advance();
+                let pattern = self.parse_expr()?;
+                *left = Expr::BinaryOp {
+                    left: Box::new(std::mem::replace(left, Expr::Default)),
+                    op: "LIKE".to_string(),
+                    right: Box::new(pattern),
+                };
+                Ok(true)
+            }
+            Token::Keyword(Keyword::ILIKE) => {
+                self.advance();
+                let pattern = self.parse_expr()?;
+                *left = Expr::BinaryOp {
+                    left: Box::new(std::mem::replace(left, Expr::Default)),
+                    op: "ILIKE".to_string(),
+                    right: Box::new(pattern),
+                };
+                Ok(true)
+            }
+            _ => Ok(false),
         }
-        Ok(left)
     }
 
     fn parse_in_expr(&mut self, left: Expr, negated: bool) -> Result<Expr, ParserError> {
@@ -260,23 +278,23 @@ impl Parser {
             }
             Token::EscapeString(s) => {
                 self.advance();
-                Ok(Expr::Literal(Literal::String(s)))
+                Ok(Expr::Literal(Literal::EscapeString(s)))
             }
             Token::BitString(s) => {
                 self.advance();
-                Ok(Expr::Literal(Literal::String(s)))
+                Ok(Expr::Literal(Literal::BitString(s)))
             }
             Token::HexString(s) => {
                 self.advance();
-                Ok(Expr::Literal(Literal::String(s)))
+                Ok(Expr::Literal(Literal::HexString(s)))
             }
             Token::NationalString(s) => {
                 self.advance();
-                Ok(Expr::Literal(Literal::String(s)))
+                Ok(Expr::Literal(Literal::NationalString(s)))
             }
-            Token::DollarString(s) => {
+            Token::DollarString { tag, body } => {
                 self.advance();
-                Ok(Expr::Literal(Literal::String(s)))
+                Ok(Expr::Literal(Literal::DollarString { tag, body }))
             }
             Token::Keyword(Keyword::TRUE_P) => {
                 self.advance();
@@ -315,7 +333,7 @@ impl Parser {
                 }
                 let expr = self.parse_expr()?;
                 self.expect_token(&Token::RParen)?;
-                Ok(expr)
+                Ok(Expr::Parenthesized(Box::new(expr)))
             }
             Token::Keyword(Keyword::ARRAY) => {
                 self.advance();
@@ -347,7 +365,7 @@ impl Parser {
                     self.advance();
                     return Ok(Expr::TypeCast {
                         expr: Box::new(Expr::Literal(Literal::String(s))),
-                        type_name: name.join("."),
+                        type_name: DataType::Custom(name),
                     });
                 }
                 if self.match_token(&Token::LParen) {
@@ -369,11 +387,11 @@ impl Parser {
                         });
                     }
                     self.advance();
-                    let type_name = self.parse_object_name()?;
+                    let type_name = self.parse_data_type()?;
                     self.expect_token(&Token::RParen)?;
                     return Ok(Expr::TypeCast {
                         expr: Box::new(expr),
-                        type_name: type_name.join("."),
+                        type_name,
                     });
                 }
                 let name = self.parse_object_name()?;
@@ -382,7 +400,7 @@ impl Parser {
                     self.advance();
                     return Ok(Expr::TypeCast {
                         expr: Box::new(Expr::Literal(Literal::String(s))),
-                        type_name: name.join("."),
+                        type_name: DataType::Custom(name),
                     });
                 }
                 if self.match_token(&Token::LParen) {
@@ -540,10 +558,10 @@ impl Parser {
         let frame = if self.match_keyword(Keyword::ROWS) || self.match_keyword(Keyword::RANGE) {
             let mode = if self.match_keyword(Keyword::ROWS) {
                 self.advance();
-                "ROWS".to_string()
+                WindowFrameMode::Rows
             } else {
                 self.advance();
-                "RANGE".to_string()
+                WindowFrameMode::Range
             };
             let (start, end) = self.parse_frame_extent()?;
             Some(WindowFrame { mode, start, end })
@@ -609,43 +627,38 @@ impl Parser {
             if self.match_keyword(Keyword::PRECEDING) {
                 self.advance();
                 Ok(WindowFrameBound {
-                    direction: "UNBOUNDED PRECEDING".to_string(),
-                    offset: None,
+                    direction: WindowFrameDirection::UnboundedPreceding,
                 })
             } else {
                 self.expect_keyword(Keyword::FOLLOWING)?;
                 Ok(WindowFrameBound {
-                    direction: "UNBOUNDED FOLLOWING".to_string(),
-                    offset: None,
+                    direction: WindowFrameDirection::UnboundedFollowing,
                 })
             }
         } else if self.match_keyword(Keyword::CURRENT_P) {
             self.advance();
             self.expect_keyword(Keyword::ROW)?;
             Ok(WindowFrameBound {
-                direction: "CURRENT ROW".to_string(),
-                offset: None,
+                direction: WindowFrameDirection::CurrentRow,
             })
         } else {
             // numeric offset PRECEDING | FOLLOWING
             let offset = match self.peek().clone() {
                 Token::Integer(n) => {
                     self.advance();
-                    Some(n)
+                    n
                 }
-                _ => None,
+                _ => 0,
             };
             if self.match_keyword(Keyword::PRECEDING) {
                 self.advance();
                 Ok(WindowFrameBound {
-                    direction: "PRECEDING".to_string(),
-                    offset,
+                    direction: WindowFrameDirection::Preceding(offset),
                 })
             } else {
                 self.expect_keyword(Keyword::FOLLOWING)?;
                 Ok(WindowFrameBound {
-                    direction: "FOLLOWING".to_string(),
-                    offset,
+                    direction: WindowFrameDirection::Following(offset),
                 })
             }
         }

@@ -8,7 +8,7 @@ pub(crate) mod utility;
 use crate::token::keyword::Keyword;
 use crate::token::{SourceLocation, Token, TokenWithSpan};
 
-#[derive(Debug, Clone, thiserror::Error, serde::Serialize)]
+#[derive(Debug, Clone, thiserror::Error, serde::Serialize, serde::Deserialize)]
 pub enum ParserError {
     #[error("unexpected token at line {}, column {}: expected {}, got {}", .location.line, .location.column, expected, got)]
     UnexpectedToken {
@@ -201,7 +201,7 @@ impl Parser {
                 Token::Eof => return if i > 0 { i - 1 } else { 0 },
                 Token::LParen => depth += 1,
                 Token::RParen => depth = (depth - 1).max(0),
-                Token::DollarString(_) => {}
+                Token::DollarString { .. } => {}
                 Token::Keyword(Keyword::BEGIN_P) => begin_depth += 1,
                 Token::Keyword(Keyword::END_P) => {
                     let next_is_compound = (i + 1) < self.tokens.len()
@@ -531,7 +531,7 @@ impl Parser {
                 | Token::BitString(_)
                 | Token::HexString(_)
                 | Token::NationalString(_)
-                | Token::DollarString(_)
+                | Token::DollarString { .. }
                 | Token::Ident(_)
                 | Token::QuotedIdent(_)
                 | Token::Param(_)
@@ -742,12 +742,12 @@ impl Parser {
                 }
             }
             Token::Keyword(Keyword::BEGIN_P) => {
-                self.advance();
-                if self.is_plpgsql_anon_block_start() {
-                    match self.parse_anonymous_block() {
+                if self.is_transaction_begin() {
+                    self.advance();
+                    match self.parse_transaction_begin() {
                         Ok(stmt) => {
                             self.try_consume_semicolon();
-                            crate::ast::Statement::AnonyBlock(stmt)
+                            crate::ast::Statement::Transaction(stmt)
                         }
                         Err(e) => {
                             self.add_error(e);
@@ -755,10 +755,11 @@ impl Parser {
                         }
                     }
                 } else {
-                    match self.parse_transaction_begin() {
+                    self.advance();
+                    match self.parse_anonymous_block() {
                         Ok(stmt) => {
                             self.try_consume_semicolon();
-                            crate::ast::Statement::Transaction(stmt)
+                            crate::ast::Statement::AnonyBlock(stmt)
                         }
                         Err(e) => {
                             self.add_error(e);
@@ -1328,7 +1329,8 @@ impl Parser {
                             break;
                         }
                         let col_name = self.parse_identifier()?;
-                        let _data_type = self.parse_identifier(); // skip type for now
+                        let data_type =
+                            self.parse_data_type().unwrap_or(crate::ast::DataType::Text);
                         let mut constraints = Vec::new();
                         if self.try_consume_keyword(Keyword::NOT) {
                             self.advance(); // NOT NULL
@@ -1338,7 +1340,7 @@ impl Parser {
                         }
                         columns.push(crate::ast::ColumnDef {
                             name: col_name,
-                            data_type: crate::ast::DataType::Text,
+                            data_type,
                             constraints,
                         });
                         if !self.match_token(&Token::Comma) {
@@ -1551,7 +1553,9 @@ impl Parser {
         }
         let mut using_expr = None;
         if self.try_consume_keyword(Keyword::USING) {
-            using_expr = Some(self.skip_to_paren_end());
+            self.expect_token(&Token::LParen)?;
+            using_expr = Some(self.parse_expr()?);
+            self.expect_token(&Token::RParen)?;
         }
         self.try_consume_semicolon();
         Ok(crate::ast::Statement::CreateRlsPolicy(
@@ -1670,14 +1674,22 @@ impl Parser {
             Some(Keyword::FUNCTION) => {
                 self.advance();
                 match self.parse_create_function() {
-                    Ok(stmt) => crate::ast::Statement::CreateFunction(stmt),
+                    Ok(mut stmt) => {
+                        stmt.replace = replace;
+                        self.try_consume_semicolon();
+                        crate::ast::Statement::CreateFunction(stmt)
+                    }
                     Err(_) => self.skip_to_semicolon(),
                 }
             }
             Some(Keyword::PROCEDURE) => {
                 self.advance();
                 match self.parse_create_procedure() {
-                    Ok(stmt) => crate::ast::Statement::CreateProcedure(stmt),
+                    Ok(mut stmt) => {
+                        stmt.replace = replace;
+                        self.try_consume_semicolon();
+                        crate::ast::Statement::CreateProcedure(stmt)
+                    }
                     Err(_) => self.skip_to_semicolon(),
                 }
             }

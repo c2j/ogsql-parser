@@ -1,4 +1,5 @@
-use crate::ast::plpgsql::*;
+use crate::ast::plpgsql::{FetchDirection, GetDiagItemKind, *};
+use crate::ast::{Expr, Literal};
 use crate::parser::{Parser, ParserError};
 use crate::token::keyword::Keyword;
 use crate::token::Token;
@@ -16,6 +17,14 @@ impl Parser {
 
         self.expect_keyword(Keyword::BEGIN_P)?;
 
+        self.parse_pl_block_body(label, declarations)
+    }
+
+    pub(crate) fn parse_pl_block_body(
+        &mut self,
+        label: Option<String>,
+        declarations: Vec<PlDeclaration>,
+    ) -> Result<PlBlock, ParserError> {
         let mut body = Vec::new();
         let mut exception_block = None;
 
@@ -109,10 +118,10 @@ impl Parser {
 
         let default = if self.match_token(&Token::ColonEquals) {
             self.advance();
-            Some(self.skip_to_semicolon_or_keyword())
+            Some(self.parse_expr()?)
         } else if self.match_ident_str("default") {
             self.advance();
-            Some(self.skip_to_semicolon_or_keyword())
+            Some(self.parse_expr()?)
         } else {
             None
         };
@@ -181,7 +190,7 @@ impl Parser {
         match name.to_uppercase().as_str() {
             "RECORD" => Ok(PlDataType::Record),
             "CURSOR" => Ok(PlDataType::Cursor),
-            "REFCURSOR" => Ok(PlDataType::RefCursor),
+            "REFCURSOR" | "SYS_REFCURSOR" => Ok(PlDataType::RefCursor),
             _ => Ok(PlDataType::TypeName(name)),
         }
     }
@@ -236,7 +245,21 @@ impl Parser {
         }
 
         self.expect_keyword(Keyword::FOR)?;
-        let query = self.skip_to_semicolon_or_keyword();
+
+        let (query, parsed_query) = {
+            let save_pos = self.pos;
+            if let Some(stmt) = self.try_parse_dml_statement() {
+                if matches!(self.peek(), Token::Semicolon) {
+                    let raw = self.tokens_to_raw_string(save_pos, self.pos);
+                    (raw, Some(stmt))
+                } else {
+                    self.pos = save_pos;
+                    (self.skip_to_semicolon_or_keyword(), None)
+                }
+            } else {
+                (self.skip_to_semicolon_or_keyword(), None)
+            }
+        };
         self.try_consume_semicolon();
 
         Ok(PlDeclaration::Cursor(PlCursorDecl {
@@ -244,6 +267,7 @@ impl Parser {
             arguments,
             return_type,
             query,
+            parsed_query,
             scrollable: false,
         }))
     }
@@ -602,6 +626,58 @@ impl Parser {
         }
     }
 
+    /// Try to parse a DML statement at current position without consuming trailing semicolon.
+    /// On failure, restores position and returns `None`.
+    pub(crate) fn try_parse_dml_statement(&mut self) -> Option<Box<crate::ast::Statement>> {
+        let save_pos = self.pos;
+
+        let result = match self.peek() {
+            Token::Keyword(Keyword::SELECT) | Token::Keyword(Keyword::WITH) => {
+                match self.parse_select_statement() {
+                    Ok(stmt) => Some(crate::ast::Statement::Select(stmt)),
+                    Err(_) => None,
+                }
+            }
+            Token::Keyword(Keyword::INSERT) => {
+                self.advance();
+                match self.parse_insert() {
+                    Ok(stmt) => Some(crate::ast::Statement::Insert(stmt)),
+                    Err(_) => None,
+                }
+            }
+            Token::Keyword(Keyword::UPDATE) => {
+                self.advance();
+                match self.parse_update() {
+                    Ok(stmt) => Some(crate::ast::Statement::Update(stmt)),
+                    Err(_) => None,
+                }
+            }
+            Token::Keyword(Keyword::DELETE_P) => {
+                self.advance();
+                match self.parse_delete() {
+                    Ok(stmt) => Some(crate::ast::Statement::Delete(stmt)),
+                    Err(_) => None,
+                }
+            }
+            Token::Keyword(Keyword::MERGE) => {
+                self.advance();
+                match self.parse_merge() {
+                    Ok(stmt) => Some(crate::ast::Statement::Merge(stmt)),
+                    Err(_) => None,
+                }
+            }
+            _ => None,
+        };
+
+        match result {
+            Some(stmt) => Some(Box::new(stmt)),
+            None => {
+                self.pos = save_pos;
+                None
+            }
+        }
+    }
+
     fn try_parse_pl_procedure_call(&mut self) -> Option<PlStatement> {
         let save = self.pos;
 
@@ -620,53 +696,30 @@ impl Parser {
         self.advance();
 
         let mut arguments = Vec::new();
-        let mut depth = 0i32;
-        let mut current_arg = String::new();
-
-        loop {
-            match self.peek() {
-                Token::Eof => {
-                    self.pos = save;
-                    return None;
-                }
-                Token::LParen => {
-                    depth += 1;
-                    if !current_arg.is_empty() {
-                        current_arg.push(' ');
-                    }
-                    current_arg.push_str(&self.token_to_string());
-                    self.advance();
-                }
-                Token::RParen => {
-                    if depth > 0 {
-                        depth -= 1;
-                        if !current_arg.is_empty() {
-                            current_arg.push(' ');
-                        }
-                        current_arg.push_str(&self.token_to_string());
-                        self.advance();
-                    } else {
-                        self.advance();
-                        arguments.push(current_arg.trim().to_string());
-                        break;
+        if !self.match_token(&Token::RParen) {
+            loop {
+                match self.parse_expr() {
+                    Ok(arg) => arguments.push(arg),
+                    Err(_) => {
+                        self.pos = save;
+                        return None;
                     }
                 }
-                Token::Comma if depth == 0 => {
+                if self.match_token(&Token::Comma) {
                     self.advance();
-                    arguments.push(current_arg.trim().to_string());
-                    current_arg.clear();
-                }
-                _ => {
-                    if !current_arg.is_empty() {
-                        current_arg.push(' ');
-                    }
-                    current_arg.push_str(&self.token_to_string());
-                    self.advance();
+                } else {
+                    break;
                 }
             }
         }
 
-        arguments.retain(|a| !a.is_empty());
+        if !self.match_token(&Token::RParen) {
+            self.pos = save;
+            return None;
+        }
+        self.advance();
+
+        arguments.retain(|a| !matches!(a, Expr::Default));
 
         Some(PlStatement::ProcedureCall(PlProcedureCall {
             name,
@@ -675,6 +728,21 @@ impl Parser {
     }
 
     fn parse_pl_sql_or_assignment(&mut self) -> Result<PlStatement, ParserError> {
+        let save = self.pos;
+        if matches!(self.peek(), Token::Ident(_) | Token::QuotedIdent(_)) {
+            let name = self.parse_identifier().unwrap_or_default();
+            if self.match_token(&Token::ColonEquals) {
+                self.advance();
+                let expression = self.parse_expr()?;
+                self.try_consume_semicolon();
+                return Ok(PlStatement::Assignment {
+                    target: name,
+                    expression,
+                });
+            }
+            self.pos = save;
+        }
+
         if let Some(call) = self.try_parse_pl_procedure_call() {
             self.try_consume_semicolon();
             return Ok(call);
@@ -684,14 +752,7 @@ impl Parser {
         self.try_consume_semicolon();
 
         if sql.is_empty() {
-            // Stray semicolons produce no statement — return Null as no-op
             return Ok(PlStatement::Null);
-        }
-
-        if let Some(pos) = sql.find(":=") {
-            let target = sql[..pos].trim().to_string();
-            let expression = sql[pos + 2..].trim().to_string();
-            return Ok(PlStatement::Assignment { target, expression });
         }
 
         Ok(PlStatement::Sql(sql))
@@ -699,7 +760,7 @@ impl Parser {
 
     fn parse_pl_if(&mut self) -> Result<PlStatement, ParserError> {
         self.advance();
-        let condition = self.collect_until_ident_str("then")?;
+        let condition = self.parse_expr()?;
         self.expect_ident_str("then")?;
 
         let then_stmts = self.parse_pl_statements_until(&["elsif", "else"])?;
@@ -707,7 +768,7 @@ impl Parser {
         let mut elsifs = Vec::new();
         while self.match_ident_str("elsif") {
             self.advance();
-            let elsif_cond = self.collect_until_ident_str("then")?;
+            let elsif_cond = self.parse_expr()?;
             self.expect_ident_str("then")?;
             let elsif_stmts = self.parse_pl_statements_until(&["elsif", "else"])?;
             elsifs.push(PlElsif {
@@ -741,13 +802,13 @@ impl Parser {
         let expression = if self.match_ident_str("when") {
             None
         } else {
-            Some(self.collect_until_ident_str("when")?)
+            Some(self.parse_expr()?)
         };
 
         let mut whens = Vec::new();
         while self.match_ident_str("when") {
             self.advance();
-            let condition = self.collect_until_ident_str("then")?;
+            let condition = self.parse_expr()?;
             self.expect_ident_str("then")?;
             let stmts = self.parse_pl_statements_until(&["when", "else"])?;
             whens.push(PlCaseWhen { condition, stmts });
@@ -788,7 +849,7 @@ impl Parser {
 
     fn parse_pl_while(&mut self) -> Result<PlStatement, ParserError> {
         self.advance();
-        let condition = self.collect_until_ident_str("loop")?;
+        let condition = self.parse_expr()?;
         self.expect_ident_str("loop")?;
         let body = self.parse_pl_statements_until(&[])?;
         self.expect_keyword(Keyword::END_P)?;
@@ -835,8 +896,32 @@ impl Parser {
         }
 
         if self.match_ident_str("execute") || self.match_ident_str("select") {
-            let query = self.collect_until_ident_str("loop")?;
-            return Ok(PlForKind::Query { query });
+            let (query, parsed_query) = {
+                let save_pos = self.pos;
+                if self.match_ident_str("select") {
+                    if let Some(stmt) = self.try_parse_dml_statement() {
+                        if self.match_ident_str("loop") {
+                            let raw = self.tokens_to_raw_string(save_pos, self.pos);
+                            (raw, Some(stmt))
+                        } else {
+                            self.pos = save_pos;
+                            self.advance(); // re-consume "select"
+                            (self.collect_until_ident_str("loop")?, None)
+                        }
+                    } else {
+                        self.pos = save_pos;
+                        self.advance(); // re-consume "select"
+                        (self.collect_until_ident_str("loop")?, None)
+                    }
+                } else {
+                    // "execute" — dynamic SQL, skip structured parse
+                    (self.collect_until_ident_str("loop")?, None)
+                }
+            };
+            return Ok(PlForKind::Query {
+                query,
+                parsed_query,
+            });
         }
 
         let saved_pos = self.pos;
@@ -847,7 +932,7 @@ impl Parser {
                     self.advance();
                     if !self.match_token(&Token::RParen) {
                         loop {
-                            arguments.push(self.skip_to_comma_or_rparen());
+                            arguments.push(self.parse_expr()?);
                             if self.match_token(&Token::Comma) {
                                 self.advance();
                             } else {
@@ -865,15 +950,15 @@ impl Parser {
             self.pos = saved_pos;
         }
 
-        let low = self.collect_until_token(&Token::DotDot);
+        let low = self.parse_expr()?;
         if matches!(self.peek(), Token::DotDot) {
             self.advance();
         }
-        let high = self.collect_until_ident_str("loop")?;
+        let high = self.parse_expr()?;
 
         let step = if self.match_ident_str("by") {
             self.advance();
-            Some(self.collect_until_ident_str("loop")?)
+            Some(self.parse_expr()?)
         } else {
             None
         };
@@ -891,7 +976,7 @@ impl Parser {
         let variable = self.parse_identifier()?;
         self.expect_ident_str("in")?;
         self.expect_ident_str("array")?;
-        let expression = self.collect_until_ident_str("loop")?;
+        let expression = self.parse_expr()?;
 
         let slice = if self.match_ident_str("slice") {
             self.advance();
@@ -935,7 +1020,7 @@ impl Parser {
 
         let condition = if self.match_ident_str("when") {
             self.advance();
-            Some(self.skip_to_semicolon_or_keyword())
+            Some(self.parse_expr()?)
         } else {
             None
         };
@@ -957,7 +1042,7 @@ impl Parser {
 
         let condition = if self.match_ident_str("when") {
             self.advance();
-            Some(self.skip_to_semicolon_or_keyword())
+            Some(self.parse_expr()?)
         } else {
             None
         };
@@ -972,7 +1057,7 @@ impl Parser {
         let expression = if matches!(self.peek(), Token::Semicolon | Token::Eof) {
             None
         } else {
-            Some(self.skip_to_semicolon_or_keyword())
+            Some(self.parse_expr()?)
         };
 
         self.try_consume_semicolon();
@@ -1032,7 +1117,7 @@ impl Parser {
 
     fn parse_pl_execute(&mut self) -> Result<PlStatement, ParserError> {
         self.advance();
-        let string_expr = self.skip_to_semicolon_or_keyword();
+        let string_expr = self.parse_expr()?;
         self.try_consume_semicolon();
 
         Ok(PlStatement::Execute(PlExecuteStmt {
@@ -1044,10 +1129,27 @@ impl Parser {
 
     fn parse_pl_perform(&mut self) -> Result<PlStatement, ParserError> {
         self.advance();
-        let query = self.skip_to_semicolon_or_keyword();
+
+        let (query, parsed_query) = {
+            let save_pos = self.pos;
+            if let Some(stmt) = self.try_parse_dml_statement() {
+                if matches!(self.peek(), Token::Semicolon) {
+                    let raw = self.tokens_to_raw_string(save_pos, self.pos);
+                    (raw, Some(stmt))
+                } else {
+                    self.pos = save_pos;
+                    (self.skip_to_semicolon_or_keyword(), None)
+                }
+            } else {
+                (self.skip_to_semicolon_or_keyword(), None)
+            }
+        };
         self.try_consume_semicolon();
 
-        Ok(PlStatement::Perform { query })
+        Ok(PlStatement::Perform {
+            query,
+            parsed_query,
+        })
     }
 
     fn parse_pl_open(&mut self) -> Result<PlStatement, ParserError> {
@@ -1059,7 +1161,7 @@ impl Parser {
             let mut arguments = Vec::new();
             if !self.match_token(&Token::RParen) {
                 loop {
-                    arguments.push(self.skip_to_comma_or_rparen());
+                    arguments.push(self.parse_expr()?);
                     if self.match_token(&Token::Comma) {
                         self.advance();
                     } else {
@@ -1075,7 +1177,7 @@ impl Parser {
                 self.advance();
                 let mut expressions = Vec::new();
                 loop {
-                    expressions.push(self.skip_to_comma_or_rparen());
+                    expressions.push(self.parse_expr()?);
                     if self.match_token(&Token::Comma) {
                         self.advance();
                     } else {
@@ -1084,8 +1186,24 @@ impl Parser {
                 }
                 PlOpenKind::ForUsing { expressions }
             } else {
-                let query = self.skip_to_semicolon_or_keyword();
-                PlOpenKind::ForQuery { query }
+                let (query, parsed_query) = {
+                    let save_pos = self.pos;
+                    if let Some(stmt) = self.try_parse_dml_statement() {
+                        if matches!(self.peek(), Token::Semicolon) {
+                            let raw = self.tokens_to_raw_string(save_pos, self.pos);
+                            (raw, Some(stmt))
+                        } else {
+                            self.pos = save_pos;
+                            (self.skip_to_semicolon_or_keyword(), None)
+                        }
+                    } else {
+                        (self.skip_to_semicolon_or_keyword(), None)
+                    }
+                };
+                PlOpenKind::ForQuery {
+                    query,
+                    parsed_query,
+                }
             }
         } else {
             PlOpenKind::Simple {
@@ -1110,7 +1228,7 @@ impl Parser {
             || self.match_ident_str("relative")
             || self.match_ident_str("all")
         {
-            let dir = self.token_to_string();
+            let dir = self.parse_fetch_direction_from_token();
             self.advance();
             if self.match_ident_str("from") || self.match_ident_str("in") {
                 self.advance();
@@ -1122,7 +1240,7 @@ impl Parser {
 
         let cursor = self.parse_identifier()?;
         self.expect_ident_str("into")?;
-        let into = self.skip_to_semicolon_or_keyword();
+        let into = self.parse_expr()?;
         self.try_consume_semicolon();
 
         Ok(PlStatement::Fetch(PlFetchStmt {
@@ -1130,6 +1248,22 @@ impl Parser {
             direction,
             into,
         }))
+    }
+
+    fn parse_fetch_direction_from_token(&self) -> FetchDirection {
+        let dir = self.token_to_string();
+        match dir.to_uppercase().as_str() {
+            "NEXT" => FetchDirection::Next,
+            "PRIOR" => FetchDirection::Prior,
+            "FIRST" => FetchDirection::First,
+            "LAST" => FetchDirection::Last,
+            "FORWARD" => FetchDirection::Forward,
+            "BACKWARD" => FetchDirection::Backward,
+            "ABSOLUTE" => FetchDirection::Absolute,
+            "RELATIVE" => FetchDirection::Relative,
+            "ALL" => FetchDirection::All,
+            _ => unreachable!("invalid fetch direction: {}", dir),
+        }
     }
 
     fn parse_pl_close(&mut self) -> Result<PlStatement, ParserError> {
@@ -1153,7 +1287,7 @@ impl Parser {
             || self.match_ident_str("relative")
             || self.match_ident_str("all")
         {
-            let dir = self.token_to_string();
+            let dir = self.parse_fetch_direction_from_token();
             self.advance();
             if self.match_ident_str("from") || self.match_ident_str("in") {
                 self.advance();
@@ -1185,7 +1319,23 @@ impl Parser {
         loop {
             let target = self.parse_identifier()?;
             self.expect_token(&Token::Eq)?;
-            let item = self.parse_identifier()?;
+            let item_str = self.parse_identifier()?;
+            let item = match item_str.to_uppercase().as_str() {
+                "ROW_COUNT" => GetDiagItemKind::RowCount,
+                "RESULT_STATUS" => GetDiagItemKind::ResultStatus,
+                "RETURNED_SQLSTATE" => GetDiagItemKind::ReturnedSqlstate,
+                "MESSAGE_TEXT" => GetDiagItemKind::MessageText,
+                "DETAIL" => GetDiagItemKind::Detail,
+                "HINT" => GetDiagItemKind::Hint,
+                "CONTEXT" => GetDiagItemKind::Context,
+                "SCHEMA_NAME" => GetDiagItemKind::SchemaName,
+                "TABLE_NAME" => GetDiagItemKind::TableName,
+                "COLUMN_NAME" => GetDiagItemKind::ColumnName,
+                "DATATYPE_NAME" => GetDiagItemKind::DatatypeName,
+                "CONSTRAINT_NAME" => GetDiagItemKind::ConstraintName,
+                "PG_EXCEPTION_CONTEXT" => GetDiagItemKind::PgExceptionContext,
+                _ => panic!("unknown GET DIAGNOSTICS item: {}", item_str),
+            };
             items.push(PlGetDiagItem { target, item });
 
             if self.match_token(&Token::Comma) {
@@ -1241,7 +1391,7 @@ impl Parser {
     fn parse_pl_pipe_row(&mut self) -> Result<PlStatement, ParserError> {
         self.advance();
         self.expect_ident_str("row")?;
-        let expression = self.skip_to_semicolon_or_keyword();
+        let expression = self.parse_expr()?;
         self.try_consume_semicolon();
 
         Ok(PlStatement::PipeRow { expression })
@@ -1442,7 +1592,23 @@ impl Parser {
         let mut declarations = Vec::new();
 
         while !self.match_keyword(Keyword::BEGIN_P) && !matches!(self.peek(), Token::Eof) {
-            if let Some(decl) = self.try_parse_oracle_var_decl() {
+            if self.match_ident_str("procedure") {
+                self.advance();
+                match self.parse_package_sub_procedure() {
+                    Ok(proc) => declarations.push(PlDeclaration::NestedProcedure(proc)),
+                    Err(_) => self.advance(),
+                }
+            } else if self.match_ident_str("function") {
+                self.advance();
+                match self.parse_package_sub_function() {
+                    Ok(func) => declarations.push(PlDeclaration::NestedFunction(func)),
+                    Err(_) => self.advance(),
+                }
+            } else if self.match_ident_str("pragma") {
+                self.advance();
+                let pragma = self.parse_pragma_declaration();
+                declarations.push(pragma);
+            } else if let Some(decl) = self.try_parse_oracle_var_decl() {
                 declarations.push(decl);
             } else {
                 self.advance();
@@ -1515,10 +1681,22 @@ impl Parser {
 
         let default = if self.match_token(&Token::ColonEquals) {
             self.advance();
-            Some(self.skip_to_semicolon_or_keyword())
+            match self.parse_expr() {
+                Ok(e) => Some(e),
+                Err(_) => {
+                    self.pos = start_pos;
+                    return None;
+                }
+            }
         } else if self.match_ident_str("default") {
             self.advance();
-            Some(self.skip_to_semicolon_or_keyword())
+            match self.parse_expr() {
+                Ok(e) => Some(e),
+                Err(_) => {
+                    self.pos = start_pos;
+                    return None;
+                }
+            }
         } else {
             None
         };
@@ -1533,5 +1711,60 @@ impl Parser {
             not_null: false,
             collate: None,
         }))
+    }
+
+    fn parse_pragma_declaration(&mut self) -> PlDeclaration {
+        let name = match self.peek() {
+            Token::Ident(s) => {
+                let n = s.clone();
+                self.advance();
+                n
+            }
+            _ => {
+                return PlDeclaration::Pragma {
+                    name: String::new(),
+                    arguments: String::new(),
+                }
+            }
+        };
+
+        let arguments = if self.match_token(&Token::LParen) {
+            self.advance();
+            let mut depth = 0i32;
+            let mut args = String::new();
+            loop {
+                match self.peek() {
+                    Token::Eof => break,
+                    Token::RParen => {
+                        if depth == 0 {
+                            self.advance();
+                            break;
+                        }
+                        depth -= 1;
+                        args.push(')');
+                        self.advance();
+                    }
+                    Token::LParen => {
+                        depth += 1;
+                        args.push('(');
+                        self.advance();
+                    }
+                    _ => {
+                        if !args.is_empty() {
+                            args.push(' ');
+                        }
+                        args.push_str(&self.token_to_string());
+                        self.advance();
+                    }
+                }
+            }
+            args
+        } else {
+            String::new()
+        };
+
+        self.try_consume_semicolon();
+
+        PlDeclaration::Pragma { name, arguments }
     }
 }
