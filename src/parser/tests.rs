@@ -3527,6 +3527,66 @@ fn test_create_table_range_partition_with_values() {
 }
 
 #[test]
+fn test_filter_clause() {
+    let stmt = parse_one("SELECT COUNT(*) FILTER (WHERE status = 'active') FROM users");
+    match stmt {
+        Statement::Select(s) => {
+            assert_eq!(s.targets.len(), 1);
+            match &s.targets[0] {
+                SelectTarget::Expr(expr, _) => match expr {
+                    Expr::FunctionCall { filter, .. } => {
+                        assert!(filter.is_some());
+                    }
+                    _ => panic!("expected FunctionCall"),
+                },
+                _ => panic!("expected Expr target"),
+            }
+        }
+        _ => panic!("expected Select"),
+    }
+}
+
+#[test]
+fn test_within_group() {
+    let stmt = parse_one("SELECT PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY salary) FROM emp");
+    match stmt {
+        Statement::Select(s) => {
+            assert_eq!(s.targets.len(), 1);
+            match &s.targets[0] {
+                SelectTarget::Expr(expr, _) => match expr {
+                    Expr::FunctionCall { within_group, .. } => {
+                        assert_eq!(within_group.len(), 1);
+                    }
+                    _ => panic!("expected FunctionCall"),
+                },
+                _ => panic!("expected Expr target"),
+            }
+        }
+        _ => panic!("expected Select"),
+    }
+}
+
+#[test]
+fn test_filter_with_over() {
+    let stmt = parse_one(
+        "SELECT COUNT(*) FILTER (WHERE status = 'active') OVER (PARTITION BY dept) FROM users",
+    );
+    match stmt {
+        Statement::Select(s) => match &s.targets[0] {
+            SelectTarget::Expr(expr, _) => match expr {
+                Expr::FunctionCall { filter, over, .. } => {
+                    assert!(filter.is_some());
+                    assert!(over.is_some());
+                }
+                _ => panic!("expected FunctionCall"),
+            },
+            _ => panic!("expected Expr target"),
+        },
+        _ => panic!("expected Select"),
+    }
+}
+
+#[test]
 fn test_create_table_interval_partition() {
     let stmt = parse_one(
         "CREATE TABLE t (id INT, created DATE) PARTITION BY RANGE (created) INTERVAL ('1 month') (PARTITION p0 VALUES LESS THAN ('2025-01-01'))",

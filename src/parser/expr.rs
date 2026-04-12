@@ -433,24 +433,32 @@ impl Parser {
         self.expect_token(&Token::LParen)?;
         if self.match_token(&Token::RParen) {
             self.advance();
+            let filter = self.try_parse_filter()?;
+            let within_group = self.try_parse_within_group()?;
             let over = self.try_parse_over_clause()?;
             return Ok(Expr::FunctionCall {
                 name,
                 args: vec![],
                 distinct: false,
                 over,
+                filter,
+                within_group,
             });
         }
         let distinct = self.try_consume_keyword(Keyword::DISTINCT);
         if self.match_token(&Token::Star) {
             self.advance();
             self.expect_token(&Token::RParen)?;
+            let filter = self.try_parse_filter()?;
+            let within_group = self.try_parse_within_group()?;
             let over = self.try_parse_over_clause()?;
             return Ok(Expr::FunctionCall {
                 name,
                 args: vec![Expr::ColumnRef(vec!["*".to_string()])],
                 distinct,
                 over,
+                filter,
+                within_group,
             });
         }
         let mut args = vec![self.parse_expr()?];
@@ -459,13 +467,68 @@ impl Parser {
             args.push(self.parse_expr()?);
         }
         self.expect_token(&Token::RParen)?;
+        let filter = self.try_parse_filter()?;
+        let within_group = self.try_parse_within_group()?;
         let over = self.try_parse_over_clause()?;
         Ok(Expr::FunctionCall {
             name,
             args,
             distinct,
             over,
+            filter,
+            within_group,
         })
+    }
+
+    fn try_parse_filter(&mut self) -> Result<Option<Box<Expr>>, ParserError> {
+        if self.match_ident_str("FILTER") {
+            self.advance();
+            self.expect_token(&Token::LParen)?;
+            self.expect_keyword(Keyword::WHERE)?;
+            let expr = self.parse_expr()?;
+            self.expect_token(&Token::RParen)?;
+            Ok(Some(Box::new(expr)))
+        } else {
+            Ok(None)
+        }
+    }
+
+    fn try_parse_within_group(&mut self) -> Result<Vec<OrderByItem>, ParserError> {
+        if self.match_keyword(Keyword::WITHIN) {
+            self.advance();
+            self.expect_keyword(Keyword::GROUP_P)?;
+            self.expect_token(&Token::LParen)?;
+            self.expect_keyword(Keyword::ORDER)?;
+            self.expect_keyword(Keyword::BY)?;
+            let mut items = Vec::new();
+            loop {
+                let expr = self.parse_expr()?;
+                let asc = match self.peek_keyword() {
+                    Some(Keyword::ASC) => {
+                        self.advance();
+                        Some(true)
+                    }
+                    Some(Keyword::DESC) => {
+                        self.advance();
+                        Some(false)
+                    }
+                    _ => None,
+                };
+                items.push(OrderByItem {
+                    expr,
+                    asc,
+                    nulls_first: None,
+                });
+                if !self.match_token(&Token::Comma) {
+                    break;
+                }
+                self.advance();
+            }
+            self.expect_token(&Token::RParen)?;
+            Ok(items)
+        } else {
+            Ok(Vec::new())
+        }
     }
 
     /// Try to parse OVER clause after a function call.

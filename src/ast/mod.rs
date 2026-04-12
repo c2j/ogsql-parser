@@ -623,6 +623,8 @@ pub enum Expr {
         args: Vec<Expr>,
         distinct: bool,
         over: Option<WindowSpec>,
+        filter: Option<Box<Expr>>,
+        within_group: Vec<OrderByItem>,
     },
     Case {
         operand: Option<Box<Expr>>,

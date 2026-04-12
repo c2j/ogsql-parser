@@ -515,6 +515,8 @@ impl SqlFormatter {
                 args,
                 distinct,
                 over,
+                filter,
+                within_group,
             } => {
                 let parts: Vec<String> = name
                     .iter()
@@ -526,6 +528,32 @@ impl SqlFormatter {
                 }
                 result.push_str(&self.format_exprs(args));
                 result.push(')');
+                if let Some(f) = filter {
+                    result = format!("{} {} ({})", result, self.kw("FILTER"), self.format_expr(f));
+                }
+                if !within_group.is_empty() {
+                    let items: Vec<String> = within_group
+                        .iter()
+                        .map(|item| {
+                            let mut s = self.format_expr(&item.expr);
+                            if let Some(asc) = item.asc {
+                                s = format!(
+                                    "{} {}",
+                                    s,
+                                    if asc { self.kw("ASC") } else { self.kw("DESC") }
+                                );
+                            }
+                            s
+                        })
+                        .collect();
+                    result = format!(
+                        "{} {} ({} {})",
+                        result,
+                        self.kw("WITHIN GROUP"),
+                        self.kw("ORDER BY"),
+                        items.join(", ")
+                    );
+                }
                 if let Some(ws) = over {
                     result = format!("{} {}", result, self.format_window_spec(ws));
                 }
