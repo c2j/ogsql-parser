@@ -18,6 +18,8 @@ impl SqlFormatter {
         match stmt {
             Statement::Select(s) => self.format_select(s),
             Statement::Insert(s) => self.format_insert(s),
+            Statement::InsertAll(s) => self.format_insert_all(s),
+            Statement::InsertFirst(s) => self.format_insert_first(s),
             Statement::Update(s) => self.format_update(s),
             Statement::Delete(s) => self.format_delete(s),
             Statement::Merge(s) => self.format_merge(s),
@@ -807,6 +809,63 @@ impl SqlFormatter {
             ));
         }
 
+        parts.join(" ")
+    }
+
+    fn format_insert_all_target(&self, target: &InsertAllTarget) -> String {
+        let mut parts = vec![self.kw("INTO"), self.format_object_name(&target.table)];
+        if !target.columns.is_empty() {
+            parts.push(format!("({})", target.columns.join(", ")));
+        }
+        let rows: Vec<String> = target
+            .values
+            .iter()
+            .map(|row| format!("({})", self.format_exprs(row)))
+            .collect();
+        parts.push(format!("{} {}", self.kw("VALUES"), rows.join(", ")));
+        parts.join(" ")
+    }
+
+    fn format_insert_all(&self, stmt: &InsertAllStatement) -> String {
+        let mut parts = vec![self.kw("INSERT ALL")];
+        for target in &stmt.targets {
+            parts.push(self.format_insert_all_target(target));
+        }
+        for cond in &stmt.conditions {
+            parts.push(self.kw("WHEN"));
+            parts.push(self.format_expr(&cond.condition));
+            parts.push(self.kw("THEN"));
+            for target in &cond.targets {
+                parts.push(self.format_insert_all_target(target));
+            }
+        }
+        if !stmt.else_targets.is_empty() {
+            parts.push(self.kw("ELSE"));
+            for target in &stmt.else_targets {
+                parts.push(self.format_insert_all_target(target));
+            }
+        }
+        parts.push(self.format_select(&stmt.source));
+        parts.join(" ")
+    }
+
+    fn format_insert_first(&self, stmt: &InsertFirstStatement) -> String {
+        let mut parts = vec![self.kw("INSERT FIRST")];
+        for cond in &stmt.when_clauses {
+            parts.push(self.kw("WHEN"));
+            parts.push(self.format_expr(&cond.condition));
+            parts.push(self.kw("THEN"));
+            for target in &cond.targets {
+                parts.push(self.format_insert_all_target(target));
+            }
+        }
+        if !stmt.else_targets.is_empty() {
+            parts.push(self.kw("ELSE"));
+            for target in &stmt.else_targets {
+                parts.push(self.format_insert_all_target(target));
+            }
+        }
+        parts.push(self.format_select(&stmt.source));
         parts.join(" ")
     }
 

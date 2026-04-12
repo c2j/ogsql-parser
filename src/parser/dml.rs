@@ -1,6 +1,7 @@
 use crate::ast::{
-    DeleteStatement, InsertSource, InsertStatement, MergeAction, MergeStatement, MergeWhenClause,
-    OnConflictAction, OnConflictTarget, SelectTarget, TableRef, UpdateAssignment, UpdateStatement,
+    DeleteStatement, InsertAllCondition, InsertAllStatement, InsertAllTarget, InsertFirstStatement,
+    InsertSource, InsertStatement, MergeAction, MergeStatement, MergeWhenClause, OnConflictAction,
+    OnConflictTarget, SelectTarget, TableRef, UpdateAssignment, UpdateStatement,
 };
 use crate::parser::{Parser, ParserError};
 use crate::token::keyword::Keyword;
@@ -274,6 +275,127 @@ impl Parser {
             source,
             on_condition,
             when_clauses,
+        })
+    }
+
+    fn parse_insert_all_target(&mut self) -> Result<InsertAllTarget, ParserError> {
+        self.expect_keyword(Keyword::INTO)?;
+        let table = self.parse_object_name()?;
+        let columns = if self.match_token(&Token::LParen) {
+            self.advance();
+            let mut cols = vec![self.parse_identifier()?];
+            while self.match_token(&Token::Comma) {
+                self.advance();
+                cols.push(self.parse_identifier()?);
+            }
+            self.expect_token(&Token::RParen)?;
+            cols
+        } else {
+            vec![]
+        };
+        self.expect_keyword(Keyword::VALUES)?;
+        let mut all_rows = Vec::new();
+        loop {
+            self.expect_token(&Token::LParen)?;
+            let mut row = Vec::new();
+            if !self.match_token(&Token::RParen) {
+                row.push(self.parse_expr()?);
+                while self.match_token(&Token::Comma) {
+                    self.advance();
+                    row.push(self.parse_expr()?);
+                }
+            }
+            self.expect_token(&Token::RParen)?;
+            all_rows.push(row);
+            if !self.match_token(&Token::Comma) {
+                break;
+            }
+            self.advance();
+        }
+        Ok(InsertAllTarget {
+            table,
+            columns,
+            values: all_rows,
+        })
+    }
+
+    pub(crate) fn parse_insert_all(&mut self) -> Result<InsertAllStatement, ParserError> {
+        let mut targets: Vec<InsertAllTarget> = Vec::new();
+        let mut conditions: Vec<InsertAllCondition> = Vec::new();
+        let mut else_targets: Vec<InsertAllTarget> = Vec::new();
+
+        loop {
+            if self.match_keyword(Keyword::WHEN) {
+                self.advance();
+                let condition = self.parse_expr()?;
+                self.expect_keyword(Keyword::THEN)?;
+                let mut cond_targets = vec![self.parse_insert_all_target()?];
+                while self.match_keyword(Keyword::INTO) {
+                    cond_targets.push(self.parse_insert_all_target()?);
+                }
+                conditions.push(InsertAllCondition {
+                    condition,
+                    targets: cond_targets,
+                });
+            } else if self.match_keyword(Keyword::INTO) {
+                targets.push(self.parse_insert_all_target()?);
+            } else if self.match_keyword(Keyword::ELSE) {
+                self.advance();
+                else_targets.push(self.parse_insert_all_target()?);
+                while self.match_keyword(Keyword::INTO) {
+                    else_targets.push(self.parse_insert_all_target()?);
+                }
+                break;
+            } else {
+                break;
+            }
+        }
+
+        let source = Box::new(self.parse_select_statement()?);
+
+        Ok(InsertAllStatement {
+            targets,
+            conditions,
+            else_targets,
+            source,
+        })
+    }
+
+    pub(crate) fn parse_insert_first(&mut self) -> Result<InsertFirstStatement, ParserError> {
+        let mut when_clauses: Vec<InsertAllCondition> = Vec::new();
+        let mut else_targets: Vec<InsertAllTarget> = Vec::new();
+
+        loop {
+            if self.match_keyword(Keyword::WHEN) {
+                self.advance();
+                let condition = self.parse_expr()?;
+                self.expect_keyword(Keyword::THEN)?;
+                let mut cond_targets = vec![self.parse_insert_all_target()?];
+                while self.match_keyword(Keyword::INTO) {
+                    cond_targets.push(self.parse_insert_all_target()?);
+                }
+                when_clauses.push(InsertAllCondition {
+                    condition,
+                    targets: cond_targets,
+                });
+            } else if self.match_keyword(Keyword::ELSE) {
+                self.advance();
+                else_targets.push(self.parse_insert_all_target()?);
+                while self.match_keyword(Keyword::INTO) {
+                    else_targets.push(self.parse_insert_all_target()?);
+                }
+                break;
+            } else {
+                break;
+            }
+        }
+
+        let source = Box::new(self.parse_select_statement()?);
+
+        Ok(InsertFirstStatement {
+            when_clauses,
+            else_targets,
+            source,
         })
     }
 }

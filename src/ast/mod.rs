@@ -234,6 +234,8 @@ pub struct TypeAttribute {
 pub enum Statement {
     Select(SelectStatement),
     Insert(InsertStatement),
+    InsertAll(InsertAllStatement),
+    InsertFirst(InsertFirstStatement),
     Update(UpdateStatement),
     Delete(DeleteStatement),
     Merge(MergeStatement),
@@ -667,6 +669,36 @@ pub enum InsertSource {
     Values(Vec<Vec<Expr>>),
     Select(Box<SelectStatement>),
     DefaultValues,
+}
+
+// INSERT ALL / INSERT FIRST multi-table insert types
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct InsertAllTarget {
+    pub table: ObjectName,
+    pub columns: Vec<String>,
+    pub values: Vec<Vec<Expr>>,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct InsertAllCondition {
+    pub condition: Expr,
+    pub targets: Vec<InsertAllTarget>,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct InsertAllStatement {
+    pub targets: Vec<InsertAllTarget>,
+    pub conditions: Vec<InsertAllCondition>,
+    pub else_targets: Vec<InsertAllTarget>,
+    pub source: Box<SelectStatement>,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct InsertFirstStatement {
+    pub when_clauses: Vec<InsertAllCondition>,
+    pub else_targets: Vec<InsertAllTarget>,
+    pub source: Box<SelectStatement>,
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]

@@ -585,17 +585,43 @@ impl Parser {
             Token::Keyword(Keyword::INSERT) => {
                 let pre_hints = self.consume_hints();
                 self.advance();
-                match self.parse_insert() {
-                    Ok(mut stmt) => {
-                        let mut hints = pre_hints;
-                        hints.append(&mut stmt.hints);
-                        stmt.hints = hints;
-                        self.try_consume_semicolon();
-                        crate::ast::Statement::Insert(stmt)
+                if self.match_keyword(Keyword::ALL) {
+                    self.advance();
+                    match self.parse_insert_all() {
+                        Ok(stmt) => {
+                            self.try_consume_semicolon();
+                            crate::ast::Statement::InsertAll(stmt)
+                        }
+                        Err(e) => {
+                            self.add_error(e);
+                            self.skip_to_semicolon()
+                        }
                     }
-                    Err(e) => {
-                        self.add_error(e);
-                        self.skip_to_semicolon()
+                } else if self.match_keyword(Keyword::FIRST_P) {
+                    self.advance();
+                    match self.parse_insert_first() {
+                        Ok(stmt) => {
+                            self.try_consume_semicolon();
+                            crate::ast::Statement::InsertFirst(stmt)
+                        }
+                        Err(e) => {
+                            self.add_error(e);
+                            self.skip_to_semicolon()
+                        }
+                    }
+                } else {
+                    match self.parse_insert() {
+                        Ok(mut stmt) => {
+                            let mut hints = pre_hints;
+                            hints.append(&mut stmt.hints);
+                            stmt.hints = hints;
+                            self.try_consume_semicolon();
+                            crate::ast::Statement::Insert(stmt)
+                        }
+                        Err(e) => {
+                            self.add_error(e);
+                            self.skip_to_semicolon()
+                        }
                     }
                 }
             }

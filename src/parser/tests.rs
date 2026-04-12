@@ -3205,8 +3205,76 @@ fn test_prior_in_expression() {
     match stmt {
         Statement::Select(s) => {
             assert!(s.connect_by.is_some());
-            // PRIOR in SELECT list should parse as Expr::Prior
         }
         _ => panic!("expected Select"),
+    }
+}
+
+#[test]
+fn test_insert_all_unconditional() {
+    let stmt = parse_one(
+        "INSERT ALL INTO sales_east VALUES (1, 'a') INTO sales_west VALUES (2, 'b') SELECT * FROM source",
+    );
+    match stmt {
+        Statement::InsertAll(ia) => {
+            assert_eq!(ia.targets.len(), 2);
+            assert!(ia.conditions.is_empty());
+            assert!(ia.else_targets.is_empty());
+        }
+        _ => panic!("expected InsertAll, got {:?}", stmt),
+    }
+}
+
+#[test]
+fn test_insert_all_conditional() {
+    let stmt = parse_one(
+        "INSERT ALL WHEN salary > 10000 THEN INTO high_earners VALUES (empno, name) WHEN salary <= 10000 THEN INTO low_earners VALUES (empno, name) SELECT empno, name, salary FROM emp",
+    );
+    match stmt {
+        Statement::InsertAll(ia) => {
+            assert!(ia.targets.is_empty());
+            assert_eq!(ia.conditions.len(), 2);
+        }
+        _ => panic!("expected InsertAll"),
+    }
+}
+
+#[test]
+fn test_insert_all_with_else() {
+    let stmt = parse_one(
+        "INSERT ALL WHEN dept = 'EAST' THEN INTO sales_east VALUES (1, 'a') ELSE INTO sales_other VALUES (3, 'c') SELECT * FROM source",
+    );
+    match stmt {
+        Statement::InsertAll(ia) => {
+            assert_eq!(ia.conditions.len(), 1);
+            assert_eq!(ia.else_targets.len(), 1);
+        }
+        _ => panic!("expected InsertAll"),
+    }
+}
+
+#[test]
+fn test_insert_first() {
+    let stmt = parse_one(
+        "INSERT FIRST WHEN dept = 'EAST' THEN INTO sales_east VALUES (1, 'a') WHEN dept = 'WEST' THEN INTO sales_west VALUES (2, 'b') ELSE INTO sales_other VALUES (3, 'c') SELECT * FROM source",
+    );
+    match stmt {
+        Statement::InsertFirst(if_stmt) => {
+            assert_eq!(if_stmt.when_clauses.len(), 2);
+            assert_eq!(if_stmt.else_targets.len(), 1);
+        }
+        _ => panic!("expected InsertFirst"),
+    }
+}
+
+#[test]
+fn test_insert_all_into_with_columns() {
+    let stmt = parse_one("INSERT ALL INTO t1 (a, b) VALUES (1, 2) SELECT * FROM src");
+    match stmt {
+        Statement::InsertAll(ia) => {
+            assert_eq!(ia.targets.len(), 1);
+            assert_eq!(ia.targets[0].columns, vec!["a", "b"]);
+        }
+        _ => panic!("expected InsertAll"),
     }
 }
