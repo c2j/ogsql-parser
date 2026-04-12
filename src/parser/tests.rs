@@ -3278,3 +3278,93 @@ fn test_insert_all_into_with_columns() {
         _ => panic!("expected InsertAll"),
     }
 }
+
+#[test]
+fn test_pivot() {
+    let stmt = parse_one(
+        "SELECT * FROM sales PIVOT (SUM(amount) FOR quarter IN ('Q1' AS q1, 'Q2' AS q2))",
+    );
+    match stmt {
+        Statement::Select(s) => {
+            assert_eq!(s.from.len(), 1);
+            match &s.from[0] {
+                TableRef::Pivot { source, pivot } => {
+                    assert!(matches!(source.as_ref(), TableRef::Table { .. }));
+                    assert_eq!(pivot.values.len(), 2);
+                    assert_eq!(pivot.values[0].alias.as_deref(), Some("q1"));
+                    assert_eq!(pivot.values[1].alias.as_deref(), Some("q2"));
+                }
+                _ => panic!("expected Pivot TableRef"),
+            }
+        }
+        _ => panic!("expected Select"),
+    }
+}
+
+#[test]
+fn test_unpivot() {
+    let stmt =
+        parse_one("SELECT * FROM pivoted UNPIVOT (amount FOR quarter IN (q1 AS 'Q1', q2 AS 'Q2'))");
+    match stmt {
+        Statement::Select(s) => {
+            assert_eq!(s.from.len(), 1);
+            match &s.from[0] {
+                TableRef::Unpivot { source, unpivot } => {
+                    assert!(matches!(source.as_ref(), TableRef::Table { .. }));
+                    assert_eq!(unpivot.columns.len(), 2);
+                }
+                _ => panic!("expected Unpivot TableRef"),
+            }
+        }
+        _ => panic!("expected Select"),
+    }
+}
+
+#[test]
+fn test_pivot_with_join() {
+    let stmt = parse_one(
+        "SELECT * FROM sales JOIN regions ON sales.region_id = regions.id PIVOT (SUM(amount) FOR quarter IN ('Q1', 'Q2'))",
+    );
+    match stmt {
+        Statement::Select(s) => {
+            assert_eq!(s.from.len(), 1);
+            match &s.from[0] {
+                TableRef::Pivot { source, .. } => {
+                    assert!(matches!(source.as_ref(), TableRef::Join { .. }));
+                }
+                _ => panic!("expected Pivot wrapping a Join"),
+            }
+        }
+        _ => panic!("expected Select"),
+    }
+}
+
+#[test]
+fn test_pivot_without_alias() {
+    let stmt = parse_one("SELECT * FROM sales PIVOT (SUM(amount) FOR quarter IN ('Q1', 'Q2'))");
+    match stmt {
+        Statement::Select(s) => match &s.from[0] {
+            TableRef::Pivot { pivot, .. } => {
+                assert_eq!(pivot.values.len(), 2);
+                assert!(pivot.values[0].alias.is_none());
+            }
+            _ => panic!("expected Pivot"),
+        },
+        _ => panic!("expected Select"),
+    }
+}
+
+#[test]
+fn test_unpivot_without_alias() {
+    let stmt = parse_one("SELECT * FROM pivoted UNPIVOT (amount FOR quarter IN (q1, q2))");
+    match stmt {
+        Statement::Select(s) => match &s.from[0] {
+            TableRef::Unpivot { unpivot, .. } => {
+                assert_eq!(unpivot.columns.len(), 2);
+                assert!(unpivot.columns[0].alias.is_none());
+            }
+            _ => panic!("expected Unpivot"),
+        },
+        _ => panic!("expected Select"),
+    }
+}

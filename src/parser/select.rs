@@ -1,6 +1,7 @@
 use crate::ast::{
     ConnectByClause, Cte, FetchClause, GroupByItem, JoinType, LockClause, ObjectName, OrderByItem,
-    SelectStatement, SelectTarget, SetOperation, TableRef, WithClause,
+    PivotClause, PivotValue, SelectStatement, SelectTarget, SetOperation, TableRef, UnpivotClause,
+    WithClause,
 };
 use crate::parser::{Parser, ParserError};
 use crate::token::keyword::Keyword;
@@ -371,6 +372,21 @@ impl Parser {
                 condition,
             };
         }
+        if self.match_ident_str("PIVOT") {
+            self.advance();
+            let pivot = self.parse_pivot()?;
+            left = TableRef::Pivot {
+                source: Box::new(left),
+                pivot,
+            };
+        } else if self.match_ident_str("UNPIVOT") {
+            self.advance();
+            let unpivot = self.parse_unpivot()?;
+            left = TableRef::Unpivot {
+                source: Box::new(left),
+                unpivot,
+            };
+        }
         Ok(left)
     }
 
@@ -418,7 +434,11 @@ impl Parser {
             let alias = self.parse_optional_alias()?;
             return Ok(TableRef::FunctionCall { name, args, alias });
         }
-        let alias = self.parse_optional_alias()?;
+        let alias = if self.match_ident_str("PIVOT") || self.match_ident_str("UNPIVOT") {
+            None
+        } else {
+            self.parse_optional_alias()?
+        };
         Ok(TableRef::Table { name, alias })
     }
 
@@ -583,5 +603,80 @@ impl Parser {
         };
 
         Ok(Some(clause))
+    }
+
+    fn parse_pivot_alias(&mut self) -> Result<Option<String>, ParserError> {
+        if self.match_keyword(Keyword::AS) {
+            self.advance();
+            let alias = match self.peek().clone() {
+                Token::Ident(_) | Token::QuotedIdent(_) => self.parse_identifier()?,
+                Token::StringLiteral(s) => {
+                    self.advance();
+                    s
+                }
+                _ => {
+                    return Err(ParserError::UnexpectedToken {
+                        location: self.current_location(),
+                        expected: "identifier or string".to_string(),
+                        got: format!("{:?}", self.peek()),
+                    })
+                }
+            };
+            Ok(Some(alias))
+        } else {
+            Ok(None)
+        }
+    }
+
+    fn parse_pivot(&mut self) -> Result<PivotClause, ParserError> {
+        self.expect_token(&Token::LParen)?;
+        let aggregate = self.parse_expr()?;
+        self.expect_keyword(Keyword::FOR)?;
+        let for_column = self.parse_object_name()?;
+        self.expect_keyword(Keyword::IN_P)?;
+        self.expect_token(&Token::LParen)?;
+        let mut values = Vec::new();
+        loop {
+            let value = self.parse_expr()?;
+            let alias = self.parse_pivot_alias()?;
+            values.push(PivotValue { value, alias });
+            if !self.match_token(&Token::Comma) {
+                break;
+            }
+            self.advance();
+        }
+        self.expect_token(&Token::RParen)?;
+        self.expect_token(&Token::RParen)?;
+        Ok(PivotClause {
+            aggregate,
+            for_column,
+            values,
+        })
+    }
+
+    fn parse_unpivot(&mut self) -> Result<UnpivotClause, ParserError> {
+        self.expect_token(&Token::LParen)?;
+        let value_column = self.parse_object_name()?;
+        self.expect_keyword(Keyword::FOR)?;
+        let for_column = self.parse_object_name()?;
+        self.expect_keyword(Keyword::IN_P)?;
+        self.expect_token(&Token::LParen)?;
+        let mut columns = Vec::new();
+        loop {
+            let value = self.parse_expr()?;
+            let alias = self.parse_pivot_alias()?;
+            columns.push(PivotValue { value, alias });
+            if !self.match_token(&Token::Comma) {
+                break;
+            }
+            self.advance();
+        }
+        self.expect_token(&Token::RParen)?;
+        self.expect_token(&Token::RParen)?;
+        Ok(UnpivotClause {
+            value_column,
+            for_column,
+            columns,
+        })
     }
 }

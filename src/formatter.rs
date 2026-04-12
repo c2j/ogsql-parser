@@ -394,6 +394,54 @@ impl SqlFormatter {
                 }
                 result
             }
+            TableRef::Pivot { source, pivot } => {
+                let source_str = self.format_table_ref(source);
+                let values = pivot
+                    .values
+                    .iter()
+                    .map(|v| {
+                        let mut s = self.format_expr(&v.value);
+                        if let Some(a) = &v.alias {
+                            s = format!("{} {} {}", s, self.kw("AS"), a);
+                        }
+                        s
+                    })
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                format!(
+                    "{} {} ({} {} {} ({}))",
+                    source_str,
+                    self.kw("PIVOT"),
+                    self.format_expr(&pivot.aggregate),
+                    self.kw("FOR"),
+                    self.format_object_name(&pivot.for_column),
+                    values
+                )
+            }
+            TableRef::Unpivot { source, unpivot } => {
+                let source_str = self.format_table_ref(source);
+                let columns = unpivot
+                    .columns
+                    .iter()
+                    .map(|v| {
+                        let mut s = self.format_expr(&v.value);
+                        if let Some(a) = &v.alias {
+                            s = format!("{} {} {}", s, self.kw("AS"), a);
+                        }
+                        s
+                    })
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                format!(
+                    "{} {} ({} {} {} ({}))",
+                    source_str,
+                    self.kw("UNPIVOT"),
+                    self.format_object_name(&unpivot.value_column),
+                    self.kw("FOR"),
+                    self.format_object_name(&unpivot.for_column),
+                    columns
+                )
+            }
         }
     }
 

@@ -505,6 +505,34 @@ pub enum TableRef {
         join_type: JoinType,
         condition: Option<Expr>,
     },
+    Pivot {
+        source: Box<TableRef>,
+        pivot: PivotClause,
+    },
+    Unpivot {
+        source: Box<TableRef>,
+        unpivot: UnpivotClause,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct PivotClause {
+    pub aggregate: Expr,
+    pub for_column: ObjectName,
+    pub values: Vec<PivotValue>,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct PivotValue {
+    pub value: Expr,
+    pub alias: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct UnpivotClause {
+    pub value_column: ObjectName,
+    pub for_column: ObjectName,
+    pub columns: Vec<PivotValue>,
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
