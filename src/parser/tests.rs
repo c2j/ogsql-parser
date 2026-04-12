@@ -3368,3 +3368,137 @@ fn test_unpivot_without_alias() {
         _ => panic!("expected Select"),
     }
 }
+
+#[test]
+fn test_alter_table_add_partition() {
+    let stmt = parse_one("ALTER TABLE sales ADD PARTITION p202601 VALUES LESS THAN ('2026-02-01')");
+    match stmt {
+        Statement::AlterTable(at) => {
+            assert_eq!(at.actions.len(), 1);
+            match &at.actions[0] {
+                AlterTableAction::AddPartition { name, values, .. } => {
+                    assert_eq!(name, "p202601");
+                    assert!(matches!(values, PartitionValues::LessThan(_)));
+                }
+                _ => panic!("expected AddPartition"),
+            }
+        }
+        _ => panic!("expected AlterTable"),
+    }
+}
+
+#[test]
+fn test_alter_table_drop_partition() {
+    let stmt = parse_one("ALTER TABLE sales DROP PARTITION p202501");
+    match stmt {
+        Statement::AlterTable(at) => {
+            assert_eq!(at.actions.len(), 1);
+            match &at.actions[0] {
+                AlterTableAction::DropPartition { name, if_exists } => {
+                    assert_eq!(name, "p202501");
+                    assert!(!if_exists);
+                }
+                _ => panic!("expected DropPartition"),
+            }
+        }
+        _ => panic!("expected AlterTable"),
+    }
+}
+
+#[test]
+fn test_alter_table_truncate_partition() {
+    let stmt = parse_one("ALTER TABLE sales TRUNCATE PARTITION p202501");
+    match stmt {
+        Statement::AlterTable(at) => {
+            assert_eq!(at.actions.len(), 1);
+            match &at.actions[0] {
+                AlterTableAction::TruncatePartition { name, cascade } => {
+                    assert_eq!(name, "p202501");
+                    assert!(!cascade);
+                }
+                _ => panic!("expected TruncatePartition"),
+            }
+        }
+        _ => panic!("expected AlterTable"),
+    }
+}
+
+#[test]
+fn test_alter_table_merge_partitions() {
+    let stmt =
+        parse_one("ALTER TABLE sales MERGE PARTITIONS p202501, p202502 INTO PARTITION p2025q1");
+    match stmt {
+        Statement::AlterTable(at) => {
+            assert_eq!(at.actions.len(), 1);
+            match &at.actions[0] {
+                AlterTableAction::MergePartitions { names, into_name } => {
+                    assert_eq!(names.len(), 2);
+                    assert_eq!(into_name, "p2025q1");
+                }
+                _ => panic!("expected MergePartitions"),
+            }
+        }
+        _ => panic!("expected AlterTable"),
+    }
+}
+
+#[test]
+fn test_alter_table_split_partition() {
+    let stmt = parse_one(
+        "ALTER TABLE sales SPLIT PARTITION p2025q1 AT ('2025-02-01') INTO (PARTITION p202501, PARTITION p202502)",
+    );
+    match stmt {
+        Statement::AlterTable(at) => {
+            assert_eq!(at.actions.len(), 1);
+            match &at.actions[0] {
+                AlterTableAction::SplitPartition {
+                    name,
+                    at_value,
+                    into,
+                } => {
+                    assert_eq!(name, "p2025q1");
+                    assert!(at_value.is_some());
+                    assert_eq!(into.len(), 2);
+                }
+                _ => panic!("expected SplitPartition"),
+            }
+        }
+        _ => panic!("expected AlterTable"),
+    }
+}
+
+#[test]
+fn test_alter_table_exchange_partition() {
+    let stmt = parse_one("ALTER TABLE sales EXCHANGE PARTITION p202501 WITH TABLE sales_temp");
+    match stmt {
+        Statement::AlterTable(at) => {
+            assert_eq!(at.actions.len(), 1);
+            match &at.actions[0] {
+                AlterTableAction::ExchangePartition { name, table } => {
+                    assert_eq!(name, "p202501");
+                    assert_eq!(table.join("."), "sales_temp");
+                }
+                _ => panic!("expected ExchangePartition"),
+            }
+        }
+        _ => panic!("expected AlterTable"),
+    }
+}
+
+#[test]
+fn test_alter_table_rename_partition() {
+    let stmt = parse_one("ALTER TABLE sales RENAME PARTITION p1 TO p2");
+    match stmt {
+        Statement::AlterTable(at) => {
+            assert_eq!(at.actions.len(), 1);
+            match &at.actions[0] {
+                AlterTableAction::RenamePartition { old_name, new_name } => {
+                    assert_eq!(old_name, "p1");
+                    assert_eq!(new_name, "p2");
+                }
+                _ => panic!("expected RenamePartition"),
+            }
+        }
+        _ => panic!("expected AlterTable"),
+    }
+}

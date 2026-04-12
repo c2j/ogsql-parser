@@ -1305,6 +1305,113 @@ impl SqlFormatter {
                     self.quote_identifier(schema)
                 )
             }
+            AlterTableAction::AddPartition {
+                name,
+                values,
+                tablespace,
+            } => {
+                let mut parts = vec![
+                    self.kw("ADD PARTITION"),
+                    self.quote_identifier(name),
+                    self.format_partition_values(values),
+                ];
+                if let Some(ts) = tablespace {
+                    parts.push(format!("{} {}", self.kw("TABLESPACE"), ts));
+                }
+                parts.join(" ")
+            }
+            AlterTableAction::DropPartition { name, if_exists } => {
+                let mut parts = vec![self.kw("DROP PARTITION")];
+                if *if_exists {
+                    parts.push(self.kw("IF EXISTS"));
+                }
+                parts.push(self.quote_identifier(name));
+                parts.join(" ")
+            }
+            AlterTableAction::TruncatePartition { name, cascade } => {
+                let mut parts = vec![self.kw("TRUNCATE PARTITION"), self.quote_identifier(name)];
+                if *cascade {
+                    parts.push(self.kw("CASCADE"));
+                }
+                parts.join(" ")
+            }
+            AlterTableAction::MergePartitions { names, into_name } => {
+                let name_list: Vec<String> =
+                    names.iter().map(|n| self.quote_identifier(n)).collect();
+                format!(
+                    "{} {} {} {}",
+                    self.kw("MERGE PARTITIONS"),
+                    name_list.join(", "),
+                    self.kw("INTO PARTITION"),
+                    self.quote_identifier(into_name)
+                )
+            }
+            AlterTableAction::SplitPartition {
+                name,
+                at_value,
+                into,
+            } => {
+                let mut parts = vec![self.kw("SPLIT PARTITION"), self.quote_identifier(name)];
+                if let Some(at) = at_value {
+                    parts.push(format!("{} {}", self.kw("AT"), self.format_expr(at)));
+                }
+                let partitions: Vec<String> = into
+                    .iter()
+                    .map(|p| {
+                        let mut s = format!(
+                            "{} {}",
+                            self.kw("PARTITION"),
+                            self.quote_identifier(&p.name)
+                        );
+                        if let Some(v) = &p.values {
+                            s = format!("{} {}", s, self.format_partition_values(v));
+                        }
+                        s
+                    })
+                    .collect();
+                parts.push(format!("{} ({})", self.kw("INTO"), partitions.join(", ")));
+                parts.join(" ")
+            }
+            AlterTableAction::ExchangePartition { name, table } => {
+                format!(
+                    "{} {} {} {}",
+                    self.kw("EXCHANGE PARTITION"),
+                    self.quote_identifier(name),
+                    self.kw("WITH TABLE"),
+                    self.format_object_name(table)
+                )
+            }
+            AlterTableAction::RenamePartition { old_name, new_name } => {
+                format!(
+                    "{} {} {} {}",
+                    self.kw("RENAME PARTITION"),
+                    self.quote_identifier(old_name),
+                    self.kw("TO"),
+                    self.quote_identifier(new_name)
+                )
+            }
+        }
+    }
+
+    fn format_partition_values(&self, values: &PartitionValues) -> String {
+        match values {
+            PartitionValues::LessThan(exprs) => {
+                let formatted: Vec<String> = exprs.iter().map(|e| self.format_expr(e)).collect();
+                format!("{} ({})", self.kw("VALUES LESS THAN"), formatted.join(", "))
+            }
+            PartitionValues::InValues(exprs) => {
+                let formatted: Vec<String> = exprs.iter().map(|e| self.format_expr(e)).collect();
+                format!("{} ({})", self.kw("VALUES IN"), formatted.join(", "))
+            }
+            PartitionValues::StartEnd { start, end } => {
+                format!(
+                    "{} ({}) {} ({})",
+                    self.kw("START"),
+                    self.format_expr(start),
+                    self.kw("END"),
+                    self.format_expr(end)
+                )
+            }
         }
     }
 

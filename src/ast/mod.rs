@@ -132,6 +132,49 @@ pub enum AlterTableAction {
     SetSchema {
         schema: String,
     },
+    AddPartition {
+        name: String,
+        values: PartitionValues,
+        tablespace: Option<String>,
+    },
+    DropPartition {
+        name: String,
+        if_exists: bool,
+    },
+    TruncatePartition {
+        name: String,
+        cascade: bool,
+    },
+    MergePartitions {
+        names: Vec<String>,
+        into_name: String,
+    },
+    SplitPartition {
+        name: String,
+        at_value: Option<Expr>,
+        into: Vec<PartitionDef>,
+    },
+    ExchangePartition {
+        name: String,
+        table: ObjectName,
+    },
+    RenamePartition {
+        old_name: String,
+        new_name: String,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub enum PartitionValues {
+    LessThan(Vec<Expr>),
+    InValues(Vec<Expr>),
+    StartEnd { start: Expr, end: Expr },
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct PartitionDef {
+    pub name: String,
+    pub values: Option<PartitionValues>,
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
