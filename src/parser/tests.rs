@@ -3055,3 +3055,95 @@ fn test_rule_statement_has_parsed_actions_none() {
         _ => panic!("expected Rule"),
     }
 }
+
+// === GROUPING SETS / ROLLUP / CUBE Tests ===
+
+#[test]
+fn test_grouping_sets_basic() {
+    let stmt = parse_one("SELECT dept, region, SUM(salary) FROM emp GROUP BY GROUPING SETS ((dept, region), (dept), (region), ())");
+    match stmt {
+        Statement::Select(s) => {
+            assert_eq!(s.group_by.len(), 1);
+            match &s.group_by[0] {
+                GroupByItem::GroupingSets(sets) => {
+                    assert_eq!(sets.len(), 4);
+                    assert_eq!(sets[0].len(), 2); // (dept, region)
+                    assert_eq!(sets[1].len(), 1); // (dept)
+                    assert_eq!(sets[2].len(), 1); // (region)
+                    assert_eq!(sets[3].len(), 0); // ()
+                }
+                other => panic!("expected GroupingSets, got {:?}", other),
+            }
+        }
+        _ => panic!("expected Select"),
+    }
+}
+
+#[test]
+fn test_rollup() {
+    let stmt =
+        parse_one("SELECT year, month, SUM(amount) FROM sales GROUP BY ROLLUP (year, month)");
+    match stmt {
+        Statement::Select(s) => {
+            assert_eq!(s.group_by.len(), 1);
+            match &s.group_by[0] {
+                GroupByItem::Rollup(cols) => {
+                    assert_eq!(cols.len(), 2);
+                }
+                other => panic!("expected Rollup, got {:?}", other),
+            }
+        }
+        _ => panic!("expected Select"),
+    }
+}
+
+#[test]
+fn test_cube() {
+    let stmt =
+        parse_one("SELECT year, product, SUM(amount) FROM sales GROUP BY CUBE (year, product)");
+    match stmt {
+        Statement::Select(s) => {
+            assert_eq!(s.group_by.len(), 1);
+            match &s.group_by[0] {
+                GroupByItem::Cube(cols) => {
+                    assert_eq!(cols.len(), 2);
+                }
+                other => panic!("expected Cube, got {:?}", other),
+            }
+        }
+        _ => panic!("expected Select"),
+    }
+}
+
+#[test]
+fn test_mixed_group_by() {
+    let stmt =
+        parse_one("SELECT dept, region, SUM(salary) FROM emp GROUP BY dept, ROLLUP (region)");
+    match stmt {
+        Statement::Select(s) => {
+            assert_eq!(s.group_by.len(), 2);
+            match &s.group_by[0] {
+                GroupByItem::Expr(_) => {}
+                other => panic!("expected Expr, got {:?}", other),
+            }
+            match &s.group_by[1] {
+                GroupByItem::Rollup(_) => {}
+                other => panic!("expected Rollup, got {:?}", other),
+            }
+        }
+        _ => panic!("expected Select"),
+    }
+}
+
+#[test]
+fn test_group_by_plain_expr_still_works() {
+    let stmt = parse_one("SELECT dept, COUNT(*) FROM emp GROUP BY dept, region");
+    match stmt {
+        Statement::Select(s) => {
+            assert_eq!(s.group_by.len(), 2);
+            assert!(matches!(&s.group_by[0], GroupByItem::Expr(_)));
+            assert!(matches!(&s.group_by[1], GroupByItem::Expr(_)));
+        }
+        _ => panic!("expected Select"),
+    }
+}

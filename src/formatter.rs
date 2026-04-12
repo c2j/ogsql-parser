@@ -212,7 +212,11 @@ impl SqlFormatter {
             parts.push(format!(
                 "{} {}",
                 self.kw("GROUP BY"),
-                self.format_exprs(&stmt.group_by)
+                stmt.group_by
+                    .iter()
+                    .map(|item| self.format_group_by_item(item))
+                    .collect::<Vec<_>>()
+                    .join(", ")
             ));
         }
 
@@ -370,6 +374,51 @@ impl SqlFormatter {
                     result = format!("{} {} {}", result, self.kw("ON"), self.format_expr(cond));
                 }
                 result
+            }
+        }
+    }
+
+    fn format_group_by_item(&self, item: &GroupByItem) -> String {
+        match item {
+            GroupByItem::Expr(e) => self.format_expr(e),
+            GroupByItem::GroupingSets(sets) => {
+                let inner: Vec<String> = sets
+                    .iter()
+                    .map(|s| {
+                        if s.is_empty() {
+                            "()".to_string()
+                        } else {
+                            format!(
+                                "({})",
+                                s.iter()
+                                    .map(|e| self.format_expr(e))
+                                    .collect::<Vec<_>>()
+                                    .join(", ")
+                            )
+                        }
+                    })
+                    .collect();
+                format!("{} ({})", self.kw("GROUPING SETS"), inner.join(", "))
+            }
+            GroupByItem::Rollup(cols) => {
+                format!(
+                    "{} ({})",
+                    self.kw("ROLLUP"),
+                    cols.iter()
+                        .map(|e| self.format_expr(e))
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                )
+            }
+            GroupByItem::Cube(cols) => {
+                format!(
+                    "{} ({})",
+                    self.kw("CUBE"),
+                    cols.iter()
+                        .map(|e| self.format_expr(e))
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                )
             }
         }
     }

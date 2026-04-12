@@ -22,3 +22,6 @@ pub use token::{Keyword, SourceLocation, Span, Token, TokenWithSpan};
 
 #[cfg(feature = "ibatis")]
 pub mod ibatis;
+
+#[cfg(feature = "java")]
+pub mod java;

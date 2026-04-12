@@ -380,6 +380,14 @@ pub struct StatementInfo {
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub enum GroupByItem {
+    Expr(Expr),
+    GroupingSets(Vec<Vec<Expr>>),
+    Rollup(Vec<Expr>),
+    Cube(Vec<Expr>),
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct SelectStatement {
     pub hints: Vec<String>,
     pub with: Option<WithClause>,
@@ -389,7 +397,7 @@ pub struct SelectStatement {
     pub into_targets: Option<Vec<SelectTarget>>,
     pub from: Vec<TableRef>,
     pub where_clause: Option<Expr>,
-    pub group_by: Vec<Expr>,
+    pub group_by: Vec<GroupByItem>,
     pub having: Option<Expr>,
     pub order_by: Vec<OrderByItem>,
     pub limit: Option<Expr>,
