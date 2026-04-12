@@ -123,10 +123,55 @@ impl Parser {
                 self.expect_token(&Token::LParen)?;
                 let column = self.parse_object_name()?;
                 self.expect_token(&Token::RParen)?;
+
+                let (interval, partitions, partitions_count) = match strategy {
+                    "range" => {
+                        let interval = if self.match_keyword(Keyword::INTERVAL) {
+                            self.advance();
+                            self.expect_token(&Token::LParen)?;
+                            let expr = self.parse_expr()?;
+                            self.expect_token(&Token::RParen)?;
+                            Some(expr)
+                        } else {
+                            None
+                        };
+                        let parts = self.parse_partition_defs()?;
+                        (interval, parts, None)
+                    }
+                    "list" => {
+                        let parts = self.parse_partition_defs()?;
+                        (None, parts, None)
+                    }
+                    _ => {
+                        let count = if self.match_keyword(Keyword::PARTITIONS) {
+                            self.advance();
+                            match self.peek().clone() {
+                                Token::Integer(n) => {
+                                    self.advance();
+                                    Some(n as u32)
+                                }
+                                _ => None,
+                            }
+                        } else {
+                            None
+                        };
+                        let parts = self.parse_partition_defs()?;
+                        (None, parts, count)
+                    }
+                };
+
                 partition_by = Some(match strategy {
-                    "range" => PartitionClause::Range { column },
-                    "list" => PartitionClause::List { column },
-                    _ => PartitionClause::Hash { column },
+                    "range" => PartitionClause::Range {
+                        column,
+                        interval,
+                        partitions,
+                    },
+                    "list" => PartitionClause::List { column, partitions },
+                    _ => PartitionClause::Hash {
+                        column,
+                        partitions_count,
+                        partitions,
+                    },
                 });
             } else if self.match_keyword(Keyword::TABLESPACE) {
                 self.advance();
@@ -865,6 +910,30 @@ impl Parser {
                 got: format!("{:?}", self.peek()),
             })
         }
+    }
+
+    fn parse_partition_defs(&mut self) -> Result<Vec<PartitionDef>, ParserError> {
+        if !self.match_token(&Token::LParen) {
+            return Ok(Vec::new());
+        }
+        self.advance();
+        let mut defs = Vec::new();
+        loop {
+            self.expect_keyword(Keyword::PARTITION)?;
+            let name = self.parse_identifier()?;
+            let values = if self.match_keyword(Keyword::VALUES) {
+                Some(self.parse_partition_values()?)
+            } else {
+                None
+            };
+            defs.push(PartitionDef { name, values });
+            if !self.match_token(&Token::Comma) {
+                break;
+            }
+            self.advance();
+        }
+        self.expect_token(&Token::RParen)?;
+        Ok(defs)
     }
 
     fn parse_alter_column_action(&mut self) -> Result<AlterColumnAction, ParserError> {

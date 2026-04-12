@@ -3502,3 +3502,98 @@ fn test_alter_table_rename_partition() {
         _ => panic!("expected AlterTable"),
     }
 }
+
+#[test]
+fn test_create_table_range_partition_with_values() {
+    let stmt = parse_one(
+        "CREATE TABLE sales (id INT, sale_date DATE, amount DECIMAL) PARTITION BY RANGE (sale_date) (PARTITION p2025 VALUES LESS THAN ('2026-01-01'), PARTITION p2026 VALUES LESS THAN ('2027-01-01'))",
+    );
+    match stmt {
+        Statement::CreateTable(ct) => {
+            assert!(ct.partition_by.is_some());
+            match ct.partition_by.as_ref().unwrap() {
+                PartitionClause::Range {
+                    column, partitions, ..
+                } => {
+                    assert_eq!(column.join("."), "sale_date");
+                    assert_eq!(partitions.len(), 2);
+                    assert_eq!(partitions[0].name, "p2025");
+                }
+                _ => panic!("expected Range"),
+            }
+        }
+        _ => panic!("expected CreateTable"),
+    }
+}
+
+#[test]
+fn test_create_table_interval_partition() {
+    let stmt = parse_one(
+        "CREATE TABLE t (id INT, created DATE) PARTITION BY RANGE (created) INTERVAL ('1 month') (PARTITION p0 VALUES LESS THAN ('2025-01-01'))",
+    );
+    match stmt {
+        Statement::CreateTable(ct) => match ct.partition_by.as_ref().unwrap() {
+            PartitionClause::Range {
+                interval,
+                partitions,
+                ..
+            } => {
+                assert!(interval.is_some());
+                assert_eq!(partitions.len(), 1);
+            }
+            _ => panic!("expected Range"),
+        },
+        _ => panic!("expected CreateTable"),
+    }
+}
+
+#[test]
+fn test_create_table_list_partition() {
+    let stmt = parse_one(
+        "CREATE TABLE region_sales (id INT, region VARCHAR(10)) PARTITION BY LIST (region) (PARTITION p_east VALUES IN ('EAST'), PARTITION p_west VALUES IN ('WEST'))",
+    );
+    match stmt {
+        Statement::CreateTable(ct) => match ct.partition_by.as_ref().unwrap() {
+            PartitionClause::List { column, partitions } => {
+                assert_eq!(column.join("."), "region");
+                assert_eq!(partitions.len(), 2);
+                assert_eq!(partitions[0].name, "p_east");
+            }
+            _ => panic!("expected List"),
+        },
+        _ => panic!("expected CreateTable"),
+    }
+}
+
+#[test]
+fn test_create_table_hash_partition() {
+    let stmt = parse_one("CREATE TABLE t (id INT) PARTITION BY HASH (id) PARTITIONS 4");
+    match stmt {
+        Statement::CreateTable(ct) => match ct.partition_by.as_ref().unwrap() {
+            PartitionClause::Hash {
+                column,
+                partitions_count,
+                ..
+            } => {
+                assert_eq!(column.join("."), "id");
+                assert_eq!(*partitions_count, Some(4));
+            }
+            _ => panic!("expected Hash"),
+        },
+        _ => panic!("expected CreateTable"),
+    }
+}
+
+#[test]
+fn test_create_table_partition_no_defs() {
+    let stmt = parse_one("CREATE TABLE t (id INT, dt DATE) PARTITION BY RANGE (dt)");
+    match stmt {
+        Statement::CreateTable(ct) => match ct.partition_by.as_ref().unwrap() {
+            PartitionClause::Range { partitions, .. } => {
+                assert!(partitions.is_empty());
+            }
+            _ => panic!("expected Range"),
+        },
+        _ => panic!("expected CreateTable"),
+    }
+}

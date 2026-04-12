@@ -1070,7 +1070,107 @@ impl SqlFormatter {
 
         parts.push(format!("({})", inner.join(", ")));
 
+        if let Some(pb) = &stmt.partition_by {
+            parts.push(self.format_partition_clause(pb));
+        }
+
+        if let Some(ts) = &stmt.tablespace {
+            parts.push(format!("{} {}", self.kw("TABLESPACE"), ts));
+        }
+
+        if let Some(oc) = &stmt.on_commit {
+            parts.push(format!(
+                "{} {}",
+                self.kw("ON COMMIT"),
+                match oc {
+                    OnCommitAction::PreserveRows => self.kw("PRESERVE ROWS"),
+                    OnCommitAction::DeleteRows => self.kw("DELETE ROWS"),
+                    OnCommitAction::Drop => self.kw("DROP"),
+                }
+            ));
+        }
+
+        if !stmt.options.is_empty() {
+            let opts: Vec<String> = stmt
+                .options
+                .iter()
+                .map(|(k, v)| format!("{} = {}", k, v))
+                .collect();
+            parts.push(format!("{} ({})", self.kw("WITH"), opts.join(", ")));
+        }
+
         parts.join(" ")
+    }
+
+    fn format_partition_clause(&self, clause: &PartitionClause) -> String {
+        match clause {
+            PartitionClause::Range {
+                column,
+                interval,
+                partitions,
+            } => {
+                let mut parts = vec![
+                    self.kw("PARTITION BY RANGE"),
+                    format!("({})", self.format_object_name(column)),
+                ];
+                if let Some(iv) = interval {
+                    parts.push(format!(
+                        "{} ({})",
+                        self.kw("INTERVAL"),
+                        self.format_expr(iv)
+                    ));
+                }
+                if !partitions.is_empty() {
+                    parts.push(self.format_partition_defs(partitions));
+                }
+                parts.join(" ")
+            }
+            PartitionClause::List { column, partitions } => {
+                let mut parts = vec![
+                    self.kw("PARTITION BY LIST"),
+                    format!("({})", self.format_object_name(column)),
+                ];
+                if !partitions.is_empty() {
+                    parts.push(self.format_partition_defs(partitions));
+                }
+                parts.join(" ")
+            }
+            PartitionClause::Hash {
+                column,
+                partitions_count,
+                partitions,
+            } => {
+                let mut parts = vec![
+                    self.kw("PARTITION BY HASH"),
+                    format!("({})", self.format_object_name(column)),
+                ];
+                if let Some(n) = partitions_count {
+                    parts.push(format!("{} {}", self.kw("PARTITIONS"), n));
+                }
+                if !partitions.is_empty() {
+                    parts.push(self.format_partition_defs(partitions));
+                }
+                parts.join(" ")
+            }
+        }
+    }
+
+    fn format_partition_defs(&self, defs: &[PartitionDef]) -> String {
+        let parts: Vec<String> = defs
+            .iter()
+            .map(|d| {
+                let mut s = format!(
+                    "{} {}",
+                    self.kw("PARTITION"),
+                    self.quote_identifier(&d.name)
+                );
+                if let Some(v) = &d.values {
+                    s = format!("{} {}", s, self.format_partition_values(v));
+                }
+                s
+            })
+            .collect();
+        format!("({})", parts.join(", "))
     }
 
     fn format_column_def(&self, col: &ColumnDef) -> String {

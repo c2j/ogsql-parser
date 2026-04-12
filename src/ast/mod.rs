@@ -17,9 +17,20 @@ pub struct CreateTableStatement {
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum PartitionClause {
-    Range { column: ObjectName },
-    List { column: ObjectName },
-    Hash { column: ObjectName },
+    Range {
+        column: ObjectName,
+        interval: Option<Expr>,
+        partitions: Vec<PartitionDef>,
+    },
+    List {
+        column: ObjectName,
+        partitions: Vec<PartitionDef>,
+    },
+    Hash {
+        column: ObjectName,
+        partitions_count: Option<u32>,
+        partitions: Vec<PartitionDef>,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
