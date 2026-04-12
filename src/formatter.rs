@@ -30,6 +30,7 @@ impl SqlFormatter {
             Statement::CreateIndex(s) => self.format_create_index(s),
             Statement::CreateSchema(s) => self.format_create_schema(s),
             Statement::CreateDatabase(s) => self.format_create_database(s),
+            Statement::CreateDatabaseLink(s) => self.format_create_database_link(s),
             Statement::CreateTablespace(s) => self.format_create_tablespace(s),
             Statement::CreateView(s) => self.format_create_view(s),
             Statement::CreateSequence(s) => self.format_create_sequence(s),
@@ -1851,6 +1852,33 @@ impl SqlFormatter {
             parts.push(format!("{} = {}", self.kw("IS_TEMPLATE"), is_template));
         }
 
+        parts.join(" ")
+    }
+
+    fn format_create_database_link(&self, stmt: &CreateDatabaseLinkStatement) -> String {
+        let mut parts = vec![self.kw("CREATE")];
+        if stmt.public_link {
+            parts.push(self.kw("PUBLIC"));
+        }
+        parts.push(self.kw("DATABASE LINK"));
+        parts.push(self.quote_identifier(&stmt.name));
+        if let Some(user) = &stmt.user {
+            parts.push(format!(
+                "{} {}",
+                self.kw("CONNECT TO"),
+                self.quote_identifier(user)
+            ));
+        }
+        if let Some(pwd) = &stmt.password {
+            parts.push(format!(
+                "{} {}",
+                self.kw("IDENTIFIED BY"),
+                self.quote_string(pwd)
+            ));
+        }
+        if let Some(using) = &stmt.using_clause {
+            parts.push(format!("{} {}", self.kw("USING"), self.quote_string(using)));
+        }
         parts.join(" ")
     }
 

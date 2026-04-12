@@ -2,12 +2,12 @@ use crate::ast::{
     AlterColumnAction, AlterCompositeTypeStatement, AlterExtensionStatement, AlterIndexAction,
     AlterIndexStatement, AlterTableAction, AlterTableStatement, AlterTriggerStatement,
     AlterTypeAction, AlterViewAction, AlterViewStatement, CheckOption, ColumnConstraint, ColumnDef,
-    CreateDatabaseStatement, CreateGroupStatement, CreateIndexStatement, CreateRoleStatement,
-    CreateSchemaStatement, CreateSequenceStatement, CreateTableStatement,
-    CreateTablespaceStatement, CreateTypeStatement, CreateUserStatement, CreateViewStatement,
-    DataType, DropStatement, IndexColumn, ObjectType, OnCommitAction, PartitionClause,
-    PartitionDef, PartitionValues, RoleOption, SchemaElement, TableConstraint, TimeZoneInfo,
-    TruncateStatement, TypeAttribute, TypeKind,
+    CreateDatabaseLinkStatement, CreateDatabaseStatement, CreateGroupStatement,
+    CreateIndexStatement, CreateRoleStatement, CreateSchemaStatement, CreateSequenceStatement,
+    CreateTableStatement, CreateTablespaceStatement, CreateTypeStatement, CreateUserStatement,
+    CreateViewStatement, DataType, DropStatement, IndexColumn, ObjectType, OnCommitAction,
+    PartitionClause, PartitionDef, PartitionValues, RoleOption, SchemaElement, TableConstraint,
+    TimeZoneInfo, TruncateStatement, TypeAttribute, TypeKind,
 };
 use crate::parser::{Parser, ParserError};
 use crate::token::keyword::Keyword;
@@ -1492,6 +1492,46 @@ impl Parser {
                 got: format!("{:?}", self.peek()),
             }),
         }
+    }
+
+    pub(crate) fn parse_create_database_link(
+        &mut self,
+        public_link: bool,
+    ) -> Result<CreateDatabaseLinkStatement, ParserError> {
+        self.expect_keyword(Keyword::DATABASE)?;
+        if !self.match_ident_str("LINK") {
+            return Err(ParserError::UnexpectedToken {
+                location: self.current_location(),
+                expected: "LINK".to_string(),
+                got: format!("{:?}", self.peek()),
+            });
+        }
+        self.advance();
+        let name = self.parse_identifier()?;
+        let mut user = None;
+        let mut password = None;
+        let mut using_clause = None;
+        if self.match_keyword(Keyword::CONNECT) {
+            self.advance();
+            self.expect_keyword(Keyword::TO)?;
+            user = Some(self.parse_identifier()?);
+        }
+        if self.match_keyword(Keyword::IDENTIFIED) {
+            self.advance();
+            self.expect_keyword(Keyword::BY)?;
+            password = Some(self.parse_string_literal()?);
+        }
+        if self.match_keyword(Keyword::USING) {
+            self.advance();
+            using_clause = Some(self.parse_string_literal()?);
+        }
+        Ok(CreateDatabaseLinkStatement {
+            name,
+            public_link,
+            user,
+            password,
+            using_clause,
+        })
     }
 
     // ========== CREATE TABLESPACE ==========

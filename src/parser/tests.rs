@@ -3657,3 +3657,34 @@ fn test_create_table_partition_no_defs() {
         _ => panic!("expected CreateTable"),
     }
 }
+
+#[test]
+fn test_create_database_link() {
+    let stmt = parse_one(
+        "CREATE DATABASE LINK remote_db CONNECT TO user1 IDENTIFIED BY 'pass' USING 'host:port/db'",
+    );
+    match stmt {
+        Statement::CreateDatabaseLink(dbl) => {
+            assert_eq!(dbl.name, "remote_db");
+            assert!(!dbl.public_link);
+            assert_eq!(dbl.user.as_deref(), Some("user1"));
+            assert_eq!(dbl.password.as_deref(), Some("pass"));
+            assert_eq!(dbl.using_clause.as_deref(), Some("host:port/db"));
+        }
+        _ => panic!("expected CreateDatabaseLink, got {:?}", stmt),
+    }
+}
+
+#[test]
+fn test_create_public_database_link() {
+    let stmt = parse_one(
+        "CREATE PUBLIC DATABASE LINK remote_db CONNECT TO admin IDENTIFIED BY 'secret' USING 'oracle_host:1521/orcl'",
+    );
+    match stmt {
+        Statement::CreateDatabaseLink(dbl) => {
+            assert!(dbl.public_link);
+            assert_eq!(dbl.name, "remote_db");
+        }
+        _ => panic!("expected CreateDatabaseLink"),
+    }
+}

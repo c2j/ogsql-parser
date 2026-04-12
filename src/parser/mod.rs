@@ -1642,6 +1642,8 @@ impl Parser {
             self.try_consume_keyword(Keyword::TEMPORARY) || self.try_consume_keyword(Keyword::TEMP);
         let unlogged = self.try_consume_keyword(Keyword::UNLOGGED);
 
+        let is_public = self.try_consume_ident_str("PUBLIC");
+
         match self.peek_keyword() {
             Some(Keyword::TABLE) => match self.parse_create_table(temp, unlogged) {
                 Ok(stmt) => crate::ast::Statement::CreateTable(stmt),
@@ -1683,13 +1685,33 @@ impl Parser {
                     self.skip_to_semicolon()
                 }
             },
-            Some(Keyword::DATABASE) => match self.parse_create_database() {
-                Ok(stmt) => crate::ast::Statement::CreateDatabase(stmt),
-                Err(e) => {
-                    self.add_error(e);
-                    self.skip_to_semicolon()
+            Some(Keyword::DATABASE) => {
+                let is_link = {
+                    let ahead = if self.pos + 1 < self.tokens.len() {
+                        &self.tokens[self.pos + 1].token
+                    } else {
+                        &Token::Eof
+                    };
+                    matches!(ahead, Token::Ident(s) if s.eq_ignore_ascii_case("LINK"))
+                };
+                if is_link {
+                    match self.parse_create_database_link(is_public) {
+                        Ok(stmt) => crate::ast::Statement::CreateDatabaseLink(stmt),
+                        Err(e) => {
+                            self.add_error(e);
+                            self.skip_to_semicolon()
+                        }
+                    }
+                } else {
+                    match self.parse_create_database() {
+                        Ok(stmt) => crate::ast::Statement::CreateDatabase(stmt),
+                        Err(e) => {
+                            self.add_error(e);
+                            self.skip_to_semicolon()
+                        }
+                    }
                 }
-            },
+            }
             Some(Keyword::TABLESPACE) => match self.parse_create_tablespace() {
                 Ok(stmt) => crate::ast::Statement::CreateTablespace(stmt),
                 Err(e) => {

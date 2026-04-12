@@ -300,6 +300,7 @@ pub enum Statement {
     CreateIndex(CreateIndexStatement),
     CreateSchema(CreateSchemaStatement),
     CreateDatabase(CreateDatabaseStatement),
+    CreateDatabaseLink(CreateDatabaseLinkStatement),
     CreateTablespace(CreateTablespaceStatement),
     CreateFunction(CreateFunctionStatement),
     CreateProcedure(CreateProcedureStatement),
@@ -1017,6 +1018,15 @@ pub struct CreateTablespaceStatement {
     pub name: String,
     pub owner: Option<String>,
     pub location: String,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct CreateDatabaseLinkStatement {
+    pub name: String,
+    pub public_link: bool,
+    pub user: Option<String>,
+    pub password: Option<String>,
+    pub using_clause: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
