@@ -3147,3 +3147,66 @@ fn test_group_by_plain_expr_still_works() {
         _ => panic!("expected Select"),
     }
 }
+
+// === CONNECT BY Hierarchical Query Tests ===
+
+#[test]
+fn test_connect_by_simple() {
+    let stmt = parse_one("SELECT * FROM emp CONNECT BY PRIOR empno = mgr");
+    match stmt {
+        Statement::Select(s) => {
+            let cb = s.connect_by.as_ref().expect("should have CONNECT BY");
+            assert!(!cb.nocycle);
+        }
+        _ => panic!("expected Select"),
+    }
+}
+
+#[test]
+fn test_connect_by_with_start_with() {
+    let stmt = parse_one("SELECT * FROM emp START WITH mgr IS NULL CONNECT BY PRIOR empno = mgr");
+    match stmt {
+        Statement::Select(s) => {
+            let cb = s.connect_by.as_ref().expect("should have CONNECT BY");
+            assert!(cb.start_with.is_some());
+        }
+        _ => panic!("expected Select"),
+    }
+}
+
+#[test]
+fn test_connect_by_nocycle() {
+    let stmt = parse_one("SELECT * FROM emp CONNECT BY NOCYCLE PRIOR empno = mgr");
+    match stmt {
+        Statement::Select(s) => {
+            let cb = s.connect_by.as_ref().unwrap();
+            assert!(cb.nocycle);
+        }
+        _ => panic!("expected Select"),
+    }
+}
+
+#[test]
+fn test_connect_by_start_with_after() {
+    // GaussDB also supports START WITH after CONNECT BY
+    let stmt = parse_one("SELECT * FROM emp CONNECT BY PRIOR empno = mgr START WITH mgr IS NULL");
+    match stmt {
+        Statement::Select(s) => {
+            let cb = s.connect_by.as_ref().expect("should have CONNECT BY");
+            assert!(cb.start_with.is_some());
+        }
+        _ => panic!("expected Select"),
+    }
+}
+
+#[test]
+fn test_prior_in_expression() {
+    let stmt = parse_one("SELECT PRIOR ename, empno FROM emp CONNECT BY PRIOR empno = mgr");
+    match stmt {
+        Statement::Select(s) => {
+            assert!(s.connect_by.is_some());
+            // PRIOR in SELECT list should parse as Expr::Prior
+        }
+        _ => panic!("expected Select"),
+    }
+}

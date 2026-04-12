@@ -208,6 +208,23 @@ impl SqlFormatter {
             ));
         }
 
+        if let Some(cb) = &stmt.connect_by {
+            if let Some(sw) = &cb.start_with {
+                parts.push(format!(
+                    "{} {}",
+                    self.kw("START WITH"),
+                    self.format_expr(sw)
+                ));
+            }
+            let nocycle = if cb.nocycle { " NOCYCLE" } else { "" };
+            parts.push(format!(
+                "{}{} {}",
+                self.kw("CONNECT BY"),
+                nocycle,
+                self.format_expr(&cb.condition)
+            ));
+        }
+
         if !stmt.group_by.is_empty() {
             parts.push(format!(
                 "{} {}",
@@ -579,6 +596,7 @@ impl SqlFormatter {
             Expr::Parenthesized(expr) => {
                 format!("({})", self.format_expr(expr))
             }
+            Expr::Prior(e) => format!("{} {}", self.kw("PRIOR"), self.format_expr(e)),
             Expr::Default => self.kw("DEFAULT").to_string(),
         }
     }

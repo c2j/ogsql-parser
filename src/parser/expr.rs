@@ -50,6 +50,11 @@ impl Parser {
     }
 
     fn parse_unary_expr(&mut self) -> Result<Expr, ParserError> {
+        if self.match_keyword(Keyword::PRIOR) {
+            self.advance();
+            let expr = self.parse_expr_with_precedence(15)?;
+            return Ok(Expr::Prior(Box::new(expr)));
+        }
         if self.match_keyword(Keyword::NOT) {
             self.advance();
             let expr = self.parse_expr_with_precedence(12)?;

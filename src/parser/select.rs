@@ -1,6 +1,6 @@
 use crate::ast::{
-    Cte, FetchClause, GroupByItem, JoinType, LockClause, ObjectName, OrderByItem, SelectStatement,
-    SelectTarget, SetOperation, TableRef, WithClause,
+    ConnectByClause, Cte, FetchClause, GroupByItem, JoinType, LockClause, ObjectName, OrderByItem,
+    SelectStatement, SelectTarget, SetOperation, TableRef, WithClause,
 };
 use crate::parser::{Parser, ParserError};
 use crate::token::keyword::Keyword;
@@ -136,6 +136,38 @@ impl Parser {
         } else {
             None
         };
+
+        // START WITH (can appear before CONNECT BY)
+        let start_with = if self.match_keyword(Keyword::START) {
+            self.advance();
+            self.expect_keyword(Keyword::WITH)?;
+            Some(self.parse_expr()?)
+        } else {
+            None
+        };
+
+        // CONNECT BY [NOCYCLE] condition [START WITH ...]
+        let connect_by = if self.match_keyword(Keyword::CONNECT) {
+            self.advance();
+            self.expect_keyword(Keyword::BY)?;
+            let nocycle = self.try_consume_keyword(Keyword::NOCYCLE);
+            let condition = self.parse_expr()?;
+            let sw = if start_with.is_none() && self.match_keyword(Keyword::START) {
+                self.advance();
+                self.expect_keyword(Keyword::WITH)?;
+                Some(self.parse_expr()?)
+            } else {
+                start_with
+            };
+            Some(ConnectByClause {
+                nocycle,
+                condition,
+                start_with: sw,
+            })
+        } else {
+            None
+        };
+
         let group_by = if self.match_keyword(Keyword::GROUP_P) {
             self.advance();
             self.expect_keyword(Keyword::BY)?;
@@ -162,6 +194,7 @@ impl Parser {
             into_targets,
             from,
             where_clause,
+            connect_by,
             group_by,
             having,
             order_by: vec![],

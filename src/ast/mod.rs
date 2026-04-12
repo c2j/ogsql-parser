@@ -388,6 +388,13 @@ pub enum GroupByItem {
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct ConnectByClause {
+    pub nocycle: bool,
+    pub condition: Expr,
+    pub start_with: Option<Expr>,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct SelectStatement {
     pub hints: Vec<String>,
     pub with: Option<WithClause>,
@@ -397,6 +404,7 @@ pub struct SelectStatement {
     pub into_targets: Option<Vec<SelectTarget>>,
     pub from: Vec<TableRef>,
     pub where_clause: Option<Expr>,
+    pub connect_by: Option<ConnectByClause>,
     pub group_by: Vec<GroupByItem>,
     pub having: Option<Expr>,
     pub order_by: Vec<OrderByItem>,
@@ -566,6 +574,7 @@ pub enum Expr {
     Parameter(i32),
     Array(Vec<Expr>),
     Parenthesized(Box<Expr>),
+    Prior(Box<Expr>),
     Default,
 }
 

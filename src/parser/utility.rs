@@ -446,6 +446,7 @@ impl Parser {
             order_by: vec![],
             limit: None,
             offset: None,
+            connect_by: None,
             fetch: None,
             lock_clause: None,
             set_operation: None,
