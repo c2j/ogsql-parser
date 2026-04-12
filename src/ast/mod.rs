@@ -10,9 +10,19 @@ pub struct CreateTableStatement {
     pub constraints: Vec<TableConstraint>,
     pub inherits: Vec<ObjectName>,
     pub partition_by: Option<PartitionClause>,
+    pub distribute_by: Option<DistributeClause>,
+    pub to_group: Option<String>,
     pub tablespace: Option<String>,
     pub on_commit: Option<OnCommitAction>,
     pub options: Vec<(String, String)>,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub enum DistributeClause {
+    Hash { columns: Vec<String> },
+    Replication,
+    RoundRobin { columns: Vec<String> },
+    Modulo { columns: Vec<String> },
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]

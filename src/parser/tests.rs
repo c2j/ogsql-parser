@@ -3688,3 +3688,51 @@ fn test_create_public_database_link() {
         _ => panic!("expected CreateDatabaseLink"),
     }
 }
+
+#[test]
+fn test_create_table_distribute_by_hash() {
+    let stmt = parse_one(
+        "CREATE TABLE t (id INT, name VARCHAR(100)) DISTRIBUTE BY HASH (id) TO GROUP group1",
+    );
+    match stmt {
+        Statement::CreateTable(ct) => {
+            assert!(ct.distribute_by.is_some());
+            assert_eq!(ct.to_group.as_deref(), Some("group1"));
+            match ct.distribute_by.as_ref().unwrap() {
+                DistributeClause::Hash { columns } => {
+                    assert_eq!(*columns, vec!["id"]);
+                }
+                _ => panic!("expected Hash"),
+            }
+        }
+        _ => panic!("expected CreateTable"),
+    }
+}
+
+#[test]
+fn test_create_table_distribute_by_replication() {
+    let stmt = parse_one("CREATE TABLE t (id INT) DISTRIBUTE BY REPLICATION");
+    match stmt {
+        Statement::CreateTable(ct) => {
+            assert!(matches!(
+                ct.distribute_by.as_ref().unwrap(),
+                DistributeClause::Replication
+            ));
+        }
+        _ => panic!("expected CreateTable"),
+    }
+}
+
+#[test]
+fn test_create_table_with_partition_and_distribute() {
+    let stmt = parse_one(
+        "CREATE TABLE sales (id INT, dt DATE) PARTITION BY RANGE (dt) DISTRIBUTE BY HASH (id)",
+    );
+    match stmt {
+        Statement::CreateTable(ct) => {
+            assert!(ct.partition_by.is_some());
+            assert!(ct.distribute_by.is_some());
+        }
+        _ => panic!("expected CreateTable"),
+    }
+}

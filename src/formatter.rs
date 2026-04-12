@@ -1119,6 +1119,14 @@ impl SqlFormatter {
             ));
         }
 
+        if let Some(d) = &stmt.distribute_by {
+            parts.push(self.format_distribute_clause(d));
+        }
+
+        if let Some(g) = &stmt.to_group {
+            parts.push(format!("{} {} {}", self.kw("TO"), self.kw("GROUP"), g));
+        }
+
         if !stmt.options.is_empty() {
             let opts: Vec<String> = stmt
                 .options
@@ -1129,6 +1137,36 @@ impl SqlFormatter {
         }
 
         parts.join(" ")
+    }
+
+    fn format_distribute_clause(&self, clause: &DistributeClause) -> String {
+        match clause {
+            DistributeClause::Hash { columns } => {
+                format!(
+                    "{} {} ({})",
+                    self.kw("DISTRIBUTE BY HASH"),
+                    "",
+                    columns.join(", ")
+                )
+            }
+            DistributeClause::Replication => self.kw("DISTRIBUTE BY REPLICATION"),
+            DistributeClause::RoundRobin { columns } => {
+                format!(
+                    "{} {} ({})",
+                    self.kw("DISTRIBUTE BY ROUNDROBIN"),
+                    "",
+                    columns.join(", ")
+                )
+            }
+            DistributeClause::Modulo { columns } => {
+                format!(
+                    "{} {} ({})",
+                    self.kw("DISTRIBUTE BY MODULO"),
+                    "",
+                    columns.join(", ")
+                )
+            }
+        }
     }
 
     fn format_partition_clause(&self, clause: &PartitionClause) -> String {

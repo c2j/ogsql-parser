@@ -5,9 +5,9 @@ use crate::ast::{
     CreateDatabaseLinkStatement, CreateDatabaseStatement, CreateGroupStatement,
     CreateIndexStatement, CreateRoleStatement, CreateSchemaStatement, CreateSequenceStatement,
     CreateTableStatement, CreateTablespaceStatement, CreateTypeStatement, CreateUserStatement,
-    CreateViewStatement, DataType, DropStatement, IndexColumn, ObjectType, OnCommitAction,
-    PartitionClause, PartitionDef, PartitionValues, RoleOption, SchemaElement, TableConstraint,
-    TimeZoneInfo, TruncateStatement, TypeAttribute, TypeKind,
+    CreateViewStatement, DataType, DistributeClause, DropStatement, IndexColumn, ObjectType,
+    OnCommitAction, PartitionClause, PartitionDef, PartitionValues, RoleOption, SchemaElement,
+    TableConstraint, TimeZoneInfo, TruncateStatement, TypeAttribute, TypeKind,
 };
 use crate::parser::{Parser, ParserError};
 use crate::token::keyword::Keyword;
@@ -80,6 +80,8 @@ impl Parser {
 
         let mut inherits = Vec::new();
         let mut partition_by = None;
+        let mut distribute_by = None;
+        let mut to_group = None;
         let mut tablespace = None;
         let mut on_commit = None;
         let mut options = Vec::new();
@@ -232,6 +234,53 @@ impl Parser {
                     self.advance();
                 }
                 self.expect_token(&Token::RParen)?;
+            } else if self.match_keyword(Keyword::DISTRIBUTE) {
+                self.advance();
+                self.expect_keyword(Keyword::BY)?;
+                distribute_by = Some(if self.match_ident_str("HASH") {
+                    self.advance();
+                    self.expect_token(&Token::LParen)?;
+                    let mut cols = vec![self.parse_identifier()?];
+                    while self.match_token(&Token::Comma) {
+                        self.advance();
+                        cols.push(self.parse_identifier()?);
+                    }
+                    self.expect_token(&Token::RParen)?;
+                    DistributeClause::Hash { columns: cols }
+                } else if self.match_ident_str("REPLICATION") {
+                    self.advance();
+                    DistributeClause::Replication
+                } else if self.match_ident_str("ROUNDROBIN") {
+                    self.advance();
+                    self.expect_token(&Token::LParen)?;
+                    let mut cols = vec![self.parse_identifier()?];
+                    while self.match_token(&Token::Comma) {
+                        self.advance();
+                        cols.push(self.parse_identifier()?);
+                    }
+                    self.expect_token(&Token::RParen)?;
+                    DistributeClause::RoundRobin { columns: cols }
+                } else if self.match_ident_str("MODULO") {
+                    self.advance();
+                    self.expect_token(&Token::LParen)?;
+                    let mut cols = vec![self.parse_identifier()?];
+                    while self.match_token(&Token::Comma) {
+                        self.advance();
+                        cols.push(self.parse_identifier()?);
+                    }
+                    self.expect_token(&Token::RParen)?;
+                    DistributeClause::Modulo { columns: cols }
+                } else {
+                    return Err(ParserError::UnexpectedToken {
+                        location: self.current_location(),
+                        expected: "HASH, REPLICATION, ROUNDROBIN, or MODULO".to_string(),
+                        got: format!("{:?}", self.peek()),
+                    });
+                });
+            } else if self.match_keyword(Keyword::TO) {
+                self.advance();
+                self.expect_keyword(Keyword::GROUP_P)?;
+                to_group = Some(self.parse_identifier()?);
             } else {
                 break;
             }
@@ -246,6 +295,8 @@ impl Parser {
             constraints,
             inherits,
             partition_by,
+            distribute_by,
+            to_group,
             tablespace,
             on_commit,
             options,
