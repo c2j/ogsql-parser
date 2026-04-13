@@ -863,17 +863,30 @@ impl Parser {
                 if let Token::DollarString { body: inner, .. } = self.peek().clone() {
                     self.advance();
                     let block = Self::parse_pl_block_from_str(&inner).ok();
-                    let opts = self.skip_to_semicolon_and_collect();
+                    let opts = self.parse_function_options();
                     (block, opts)
                 } else {
                     unreachable!()
                 }
             } else {
                 let block = self.parse_procedure_body()?;
-                (Some(block), String::new())
+                (
+                    Some(block),
+                    FunctionOptions {
+                        language: None,
+                        volatility: None,
+                        strict: None,
+                        cost: None,
+                        rows: None,
+                        leakproof: None,
+                        security: None,
+                        parallel: None,
+                        extra: String::new(),
+                    },
+                )
             }
         } else {
-            let options = self.skip_to_semicolon_and_collect();
+            let options = self.parse_function_options();
             (None, options)
         };
 
@@ -1157,6 +1170,112 @@ impl Parser {
         }
     }
 
+    fn parse_function_options(&mut self) -> FunctionOptions {
+        let raw = self.skip_to_semicolon_and_collect();
+        let mut opts = FunctionOptions {
+            language: None,
+            volatility: None,
+            strict: None,
+            cost: None,
+            rows: None,
+            leakproof: None,
+            security: None,
+            parallel: None,
+            extra: String::new(),
+        };
+        let parts: Vec<&str> = raw.split_whitespace().collect();
+        let mut i = 0;
+        let mut extra_parts = Vec::new();
+        while i < parts.len() {
+            match parts[i].to_uppercase().as_str() {
+                "LANGUAGE" if i + 1 < parts.len() => {
+                    opts.language = Some(parts[i + 1].to_string());
+                    i += 2;
+                }
+                "IMMUTABLE" => {
+                    opts.volatility = Some(Volatility::Immutable);
+                    i += 1;
+                }
+                "STABLE" => {
+                    opts.volatility = Some(Volatility::Stable);
+                    i += 1;
+                }
+                "VOLATILE" => {
+                    opts.volatility = Some(Volatility::Volatile);
+                    i += 1;
+                }
+                "STRICT" => {
+                    opts.strict = Some(true);
+                    i += 1;
+                }
+                "LEAKPROOF" => {
+                    opts.leakproof = Some(true);
+                    i += 1;
+                }
+                "COST" if i + 1 < parts.len() => {
+                    if let Ok(n) = parts[i + 1].parse::<u32>() {
+                        opts.cost = Some(n);
+                        i += 2;
+                    } else {
+                        extra_parts.push(parts[i]);
+                        i += 1;
+                    }
+                }
+                "ROWS" if i + 1 < parts.len() => {
+                    if let Ok(n) = parts[i + 1].parse::<u32>() {
+                        opts.rows = Some(n);
+                        i += 2;
+                    } else {
+                        extra_parts.push(parts[i]);
+                        i += 1;
+                    }
+                }
+                "PARALLEL" if i + 1 < parts.len() => match parts[i + 1].to_uppercase().as_str() {
+                    "SAFE" => {
+                        opts.parallel = Some(ParallelMode::Safe);
+                        i += 2;
+                    }
+                    "UNSAFE" => {
+                        opts.parallel = Some(ParallelMode::Unsafe);
+                        i += 2;
+                    }
+                    "RESTRICTED" => {
+                        opts.parallel = Some(ParallelMode::Restricted);
+                        i += 2;
+                    }
+                    _ => {
+                        extra_parts.push(parts[i]);
+                        i += 1;
+                    }
+                },
+                "SECURITY" if i + 1 < parts.len() => match parts[i + 1].to_uppercase().as_str() {
+                    "INVOKER" => {
+                        opts.security = Some(SecurityMode::Invoker);
+                        i += 2;
+                    }
+                    "DEFINER" => {
+                        opts.security = Some(SecurityMode::Definer);
+                        i += 2;
+                    }
+                    _ => {
+                        extra_parts.push(parts[i]);
+                        i += 1;
+                    }
+                },
+                "NOT" if i + 1 < parts.len() && parts[i + 1].to_uppercase() == "LEAKPROOF" => {
+                    opts.leakproof = Some(false);
+                    i += 2;
+                }
+                _ => {
+                    extra_parts.push(parts[i]);
+                    i += 1;
+                }
+            }
+        }
+        opts.extra = extra_parts.join(" ");
+        opts
+    }
+
     fn skip_to_semicolon_and_collect(&mut self) -> String {
         let mut collected = String::new();
         let mut depth = 0i32;
@@ -1231,17 +1350,30 @@ impl Parser {
                 if let Token::DollarString { body: inner, .. } = self.peek().clone() {
                     self.advance();
                     let block = Self::parse_pl_block_from_str(&inner).ok();
-                    let opts = self.skip_to_semicolon_and_collect();
+                    let opts = self.parse_function_options();
                     (block, opts)
                 } else {
                     unreachable!()
                 }
             } else {
                 let block = self.parse_procedure_body()?;
-                (Some(block), String::new())
+                (
+                    Some(block),
+                    FunctionOptions {
+                        language: None,
+                        volatility: None,
+                        strict: None,
+                        cost: None,
+                        rows: None,
+                        leakproof: None,
+                        security: None,
+                        parallel: None,
+                        extra: String::new(),
+                    },
+                )
             }
         } else {
-            let options = self.skip_to_semicolon_and_collect();
+            let options = self.parse_function_options();
             (None, options)
         };
 
@@ -3177,6 +3309,10 @@ impl Parser {
 
     pub(crate) fn parse_alter_user(&mut self) -> Result<AlterUserStatement, ParserError> {
         self.expect_keyword(Keyword::USER)?;
+        self.parse_alter_user_inner()
+    }
+
+    pub(crate) fn parse_alter_user_inner(&mut self) -> Result<AlterUserStatement, ParserError> {
         let name = self.parse_identifier()?;
         let mut options = Vec::new();
 
@@ -3572,6 +3708,177 @@ impl Parser {
             target,
             verbose,
             concurrent,
+        })
+    }
+
+    // ── ALTER GROUP ──
+
+    pub(crate) fn parse_alter_group(&mut self) -> Result<AlterGroupStatement, ParserError> {
+        self.expect_keyword(Keyword::GROUP_P)?;
+        let name = self.parse_identifier()?;
+        let action = if self.match_keyword(Keyword::ADD_P) {
+            self.advance();
+            self.expect_keyword(Keyword::USER)?;
+            let user = self.parse_identifier()?;
+            while self.match_token(&Token::Comma) {
+                self.advance();
+                let _ = self.parse_identifier();
+            }
+            AlterGroupAction::AddUser(user)
+        } else if self.match_keyword(Keyword::DROP) {
+            self.advance();
+            self.expect_keyword(Keyword::USER)?;
+            let user = self.parse_identifier()?;
+            while self.match_token(&Token::Comma) {
+                self.advance();
+                let _ = self.parse_identifier();
+            }
+            AlterGroupAction::DropUser(user)
+        } else {
+            return Err(ParserError::UnexpectedToken {
+                location: self.current_location(),
+                expected: "ADD USER or DROP USER".to_string(),
+                got: format!("{:?}", self.peek()),
+            });
+        };
+        Ok(AlterGroupStatement { name, action })
+    }
+
+    pub(crate) fn parse_create_aggregate(
+        &mut self,
+    ) -> Result<CreateAggregateStatement, ParserError> {
+        self.expect_keyword(Keyword::AGGREGATE)?;
+        let name = self.parse_identifier()?;
+        let base_types = if self.match_token(&Token::LParen) {
+            self.advance();
+            if self.match_token(&Token::RParen) {
+                self.advance();
+                Vec::new()
+            } else {
+                let mut types = vec![self.parse_data_type()?];
+                while self.match_token(&Token::Comma) {
+                    self.advance();
+                    types.push(self.parse_data_type()?);
+                }
+                self.expect_token(&Token::RParen)?;
+                types
+            }
+        } else {
+            Vec::new()
+        };
+        let options = self.parse_generic_options_no_with();
+        Ok(CreateAggregateStatement {
+            name,
+            base_types,
+            options,
+        })
+    }
+
+    pub(crate) fn parse_create_operator(&mut self) -> Result<CreateOperatorStatement, ParserError> {
+        self.expect_keyword(Keyword::OPERATOR)?;
+        let name = match self.peek().clone() {
+            Token::Ident(s) => {
+                self.advance();
+                s
+            }
+            Token::Op(s) => {
+                self.advance();
+                s
+            }
+            other => {
+                return Err(ParserError::UnexpectedToken {
+                    location: self.current_location(),
+                    expected: "operator name".to_string(),
+                    got: format!("{:?}", other),
+                });
+            }
+        };
+        let options = self.parse_generic_options_no_with();
+        Ok(CreateOperatorStatement { name, options })
+    }
+
+    pub(crate) fn parse_alter_default_privileges(
+        &mut self,
+    ) -> Result<AlterDefaultPrivilegesStatement, ParserError> {
+        self.expect_keyword(Keyword::PRIVILEGES)?;
+        let mut role = None;
+        let mut schema = None;
+        if self.try_consume_keyword(Keyword::FOR) {
+            self.try_consume_keyword(Keyword::ROLE);
+            role = Some(self.parse_identifier()?);
+        }
+        if self.try_consume_keyword(Keyword::IN_P) {
+            self.try_consume_keyword(Keyword::SCHEMA);
+            schema = Some(self.parse_identifier()?);
+        }
+        let action = if self.match_keyword(Keyword::GRANT) {
+            self.advance();
+            DefaultPrivilegeAction::Grant(self.parse_grant()?)
+        } else if self.match_keyword(Keyword::REVOKE) {
+            self.advance();
+            DefaultPrivilegeAction::Revoke(self.parse_revoke()?)
+        } else {
+            return Err(ParserError::UnexpectedToken {
+                location: self.current_location(),
+                expected: "GRANT or REVOKE".to_string(),
+                got: format!("{:?}", self.peek()),
+            });
+        };
+        Ok(AlterDefaultPrivilegesStatement {
+            role,
+            schema,
+            action,
+        })
+    }
+
+    pub(crate) fn parse_create_user_mapping(
+        &mut self,
+    ) -> Result<CreateUserMappingStatement, ParserError> {
+        let if_not_exists = self.parse_if_not_exists();
+        self.expect_keyword(Keyword::FOR)?;
+        let user_name = self.parse_identifier()?;
+        self.expect_keyword(Keyword::SERVER)?;
+        let server = self.parse_object_name()?;
+        let options = self.parse_generic_options();
+        Ok(CreateUserMappingStatement {
+            if_not_exists,
+            user_name,
+            server,
+            options,
+        })
+    }
+
+    pub(crate) fn parse_alter_user_mapping(
+        &mut self,
+    ) -> Result<AlterUserMappingStatement, ParserError> {
+        self.expect_keyword(Keyword::USER)?;
+        self.expect_keyword(Keyword::MAPPING)?;
+        self.expect_keyword(Keyword::FOR)?;
+        let user_name = self.parse_identifier()?;
+        self.expect_keyword(Keyword::SERVER)?;
+        let server = self.parse_object_name()?;
+        let options = self.parse_generic_options();
+        Ok(AlterUserMappingStatement {
+            user_name,
+            server,
+            options,
+        })
+    }
+
+    pub(crate) fn parse_drop_user_mapping(
+        &mut self,
+    ) -> Result<DropUserMappingStatement, ParserError> {
+        self.expect_keyword(Keyword::USER)?;
+        self.expect_keyword(Keyword::MAPPING)?;
+        let if_exists = self.parse_if_exists();
+        self.expect_keyword(Keyword::FOR)?;
+        let user_name = self.parse_identifier()?;
+        self.expect_keyword(Keyword::SERVER)?;
+        let server = self.parse_object_name()?;
+        Ok(DropUserMappingStatement {
+            if_exists,
+            user_name,
+            server,
         })
     }
 }

@@ -1814,8 +1814,8 @@ fn test_create_procedure_without_body_falls_back() {
                 "expected no block for LANGUAGE JAVA style"
             );
             assert!(
-                !p.options.is_empty(),
-                "expected options string for fallback case"
+                !p.options.extra.is_empty(),
+                "expected options extra for fallback case"
             );
         }
         _ => panic!("expected CreateProcedure, got {:?}", stmt),

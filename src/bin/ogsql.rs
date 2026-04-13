@@ -45,6 +45,10 @@ enum Commands {
     /// Parse iBatis/MyBatis XML mapper file / 解析 iBatis XML mapper 文件
     #[command(name = "parse-xml")]
     ParseXml,
+    #[cfg(feature = "java")]
+    /// Extract and parse SQL from Java source files / 从 Java 源文件中提取并解析 SQL
+    #[command(name = "parse-java")]
+    ParseJava,
 }
 
 macro_rules! die {
@@ -694,6 +698,72 @@ fn cmd_parse_xml(cli: &Cli) {
     }
 }
 
+#[cfg(feature = "java")]
+fn cmd_parse_java(cli: &Cli) {
+    let (source, file_path) = match cli.file.as_deref() {
+        Some(path) => {
+            let bytes = std::fs::read(path).unwrap_or_else(|e| die!("Error reading {}: {}", path, e));
+            let text = String::from_utf8(bytes)
+                .unwrap_or_else(|e| die!("Error decoding {} as UTF-8: {}", path, e));
+            (text, path.to_string())
+        }
+        None => {
+            let mut buf = String::new();
+            std::io::stdin().read_to_string(&mut buf)
+                .unwrap_or_else(|e| die!("Error reading stdin: {}", e));
+            (buf, "<stdin>".to_string())
+        }
+    };
+
+    let result = ogsql_parser::java::extract_sql_from_java(&source, &file_path);
+
+    if cli.json {
+        println!("{}", serde_json::to_string_pretty(&result).unwrap());
+    } else {
+        if !result.errors.is_empty() {
+            eprintln!("{} error(s):", result.errors.len());
+            for e in &result.errors {
+                eprintln!("  {}", e);
+            }
+        }
+
+        if result.extractions.is_empty() {
+            println!("No SQL statements found in {}", file_path);
+        }
+
+        for ext in &result.extractions {
+            let location = match &ext.origin.class_name {
+                Some(cls) => format!("{}::{}", cls, ext.origin.method_name.as_deref().unwrap_or("")),
+                None => file_path.clone(),
+            };
+            println!("── {:?} [{:?}] @ {} L{} ──", ext.origin.method, ext.sql_kind, location, ext.origin.line);
+            println!("{}", ext.sql.trim());
+            if ext.is_concatenated {
+                println!("  [concatenated]");
+            }
+            if ext.is_text_block {
+                println!("  [text block]");
+            }
+            if ext.parameter_style != ogsql_parser::java::ParameterStyle::None {
+                println!("  [params: {:?}]", ext.parameter_style);
+            }
+            if let Some(parse_result) = &ext.parse_result {
+                if !parse_result.errors.is_empty() {
+                    eprintln!("  {} parse error(s):", parse_result.errors.len());
+                    for e in &parse_result.errors {
+                        eprintln!("    {}", e);
+                    }
+                } else {
+                    println!("  ✓ Parsed successfully ({} statement(s))", parse_result.statements.len());
+                }
+            }
+            println!();
+        }
+
+        println!("Total: {} extraction(s) from {}", result.extractions.len(), file_path);
+    }
+}
+
 fn main() {
     let cli = Cli::parse();
 
@@ -723,5 +793,7 @@ fn main() {
         Commands::Playground => cmd_playground(),
         #[cfg(feature = "ibatis")]
         Commands::ParseXml => cmd_parse_xml(&cli),
+        #[cfg(feature = "java")]
+        Commands::ParseJava => cmd_parse_java(&cli),
     }
 }

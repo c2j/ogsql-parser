@@ -10,11 +10,24 @@ pub struct CreateTableStatement {
     pub constraints: Vec<TableConstraint>,
     pub inherits: Vec<ObjectName>,
     pub partition_by: Option<PartitionClause>,
+    pub subpartition_by: Option<PartitionClause>,
+    pub subpartitions_count: Option<u32>,
     pub distribute_by: Option<DistributeClause>,
     pub to_group: Option<String>,
     pub tablespace: Option<String>,
     pub on_commit: Option<OnCommitAction>,
     pub options: Vec<(String, String)>,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct CreateTableAsStatement {
+    pub temporary: bool,
+    pub unlogged: bool,
+    pub if_not_exists: bool,
+    pub name: ObjectName,
+    pub column_names: Vec<String>,
+    pub query: Box<SelectStatement>,
+    pub with_data: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -60,10 +73,12 @@ pub struct ColumnDef {
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum DataType {
     Boolean,
+    TinyInt,
     SmallInt,
     Integer,
     BigInt,
     Real,
+    Float(Option<u32>),
     Double,
     Numeric(Option<u32>, Option<u32>),
     Char(Option<u32>),
@@ -80,6 +95,11 @@ pub enum DataType {
     Uuid,
     Bit(Option<u32>),
     Varbit(Option<u32>),
+    Serial,
+    SmallSerial,
+    BigSerial,
+    BinaryFloat,
+    BinaryDouble,
     Custom(ObjectName),
 }
 
@@ -153,6 +173,16 @@ pub enum AlterTableAction {
     SetSchema {
         schema: String,
     },
+    SetOptions {
+        options: Vec<(String, String)>,
+    },
+    SetTablespace {
+        tablespace: String,
+    },
+    SetWithoutOids,
+    ResetOptions {
+        options: Vec<String>,
+    },
     AddPartition {
         name: String,
         values: PartitionValues,
@@ -183,6 +213,40 @@ pub enum AlterTableAction {
         old_name: String,
         new_name: String,
     },
+    AddSubPartition {
+        partition_name: String,
+        name: String,
+        values: Option<PartitionValues>,
+    },
+    DropSubPartition {
+        name: String,
+        if_exists: bool,
+    },
+    TruncateSubPartition {
+        name: String,
+        cascade: bool,
+    },
+    MergeSubPartitions {
+        names: Vec<String>,
+        into_name: String,
+    },
+    SplitSubPartition {
+        name: String,
+        at_value: Option<Expr>,
+        into: Vec<PartitionDef>,
+    },
+    ExchangeSubPartition {
+        name: String,
+        table: ObjectName,
+    },
+    RenameSubPartition {
+        old_name: String,
+        new_name: String,
+    },
+    MoveSubPartition {
+        name: String,
+        tablespace: String,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -196,6 +260,8 @@ pub enum PartitionValues {
 pub struct PartitionDef {
     pub name: String,
     pub values: Option<PartitionValues>,
+    pub tablespace: Option<String>,
+    pub subpartitions: Vec<PartitionDef>,
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -233,6 +299,18 @@ pub enum ObjectType {
     ForeignTable,
     ForeignServer,
     Fdw,
+    Aggregate,
+    Cast,
+    Conversion,
+    Operator,
+    OperatorClass,
+    OperatorFamily,
+    Rule,
+    Language,
+    TextSearchConfig,
+    TextSearchDict,
+    Domain,
+    Policy,
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -304,6 +382,7 @@ pub enum Statement {
     Delete(DeleteStatement),
     Merge(MergeStatement),
     CreateTable(CreateTableStatement),
+    CreateTableAs(CreateTableAsStatement),
     AlterTable(AlterTableStatement),
     Drop(DropStatement),
     Truncate(TruncateStatement),
@@ -388,6 +467,12 @@ pub enum Statement {
     AlterRole(AlterRoleStatement),
     AlterUser(AlterUserStatement),
     AlterGroup(AlterGroupStatement),
+    CreateAggregate(CreateAggregateStatement),
+    CreateOperator(CreateOperatorStatement),
+    AlterDefaultPrivileges(AlterDefaultPrivilegesStatement),
+    CreateUserMapping(CreateUserMappingStatement),
+    AlterUserMapping(AlterUserMappingStatement),
+    DropUserMapping(DropUserMappingStatement),
     AlterSequence(AlterSequenceStatement),
     AlterExtension(AlterExtensionStatement),
     AlterCompositeType(AlterCompositeTypeStatement),
@@ -1152,12 +1237,45 @@ pub struct RoutineParam {
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct FunctionOptions {
+    pub language: Option<String>,
+    pub volatility: Option<Volatility>,
+    pub strict: Option<bool>,
+    pub cost: Option<u32>,
+    pub rows: Option<u32>,
+    pub leakproof: Option<bool>,
+    pub security: Option<SecurityMode>,
+    pub parallel: Option<ParallelMode>,
+    pub extra: String,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub enum Volatility {
+    Immutable,
+    Stable,
+    Volatile,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub enum SecurityMode {
+    Invoker,
+    Definer,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub enum ParallelMode {
+    Safe,
+    Unsafe,
+    Restricted,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct CreateFunctionStatement {
     pub replace: bool,
     pub name: ObjectName,
     pub parameters: Vec<RoutineParam>,
     pub return_type: Option<String>,
-    pub options: String,
+    pub options: FunctionOptions,
     pub block: Option<crate::ast::plpgsql::PlBlock>,
 }
 
@@ -1166,7 +1284,7 @@ pub struct CreateProcedureStatement {
     pub replace: bool,
     pub name: ObjectName,
     pub parameters: Vec<RoutineParam>,
-    pub options: String,
+    pub options: FunctionOptions,
     pub block: Option<crate::ast::plpgsql::PlBlock>,
 }
 
@@ -1718,6 +1836,54 @@ pub struct AlterTriggerStatement {
 pub struct AlterExtensionStatement {
     pub name: String,
     pub action: String,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct CreateAggregateStatement {
+    pub name: String,
+    pub base_types: Vec<DataType>,
+    pub options: Vec<(String, String)>,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct CreateOperatorStatement {
+    pub name: String,
+    pub options: Vec<(String, String)>,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct AlterDefaultPrivilegesStatement {
+    pub role: Option<String>,
+    pub schema: Option<String>,
+    pub action: DefaultPrivilegeAction,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub enum DefaultPrivilegeAction {
+    Grant(GrantStatement),
+    Revoke(RevokeStatement),
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct CreateUserMappingStatement {
+    pub if_not_exists: bool,
+    pub user_name: String,
+    pub server: ObjectName,
+    pub options: Vec<(String, String)>,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct AlterUserMappingStatement {
+    pub user_name: String,
+    pub server: ObjectName,
+    pub options: Vec<(String, String)>,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct DropUserMappingStatement {
+    pub if_exists: bool,
+    pub user_name: String,
+    pub server: ObjectName,
 }
 
 // ========== Remaining stubs (not yet implemented) ==========

@@ -16,11 +16,19 @@ use crate::token::Token;
 pub(crate) fn format_data_type(dt: &DataType) -> String {
     match dt {
         DataType::Boolean => "boolean".to_string(),
+        DataType::TinyInt => "tinyint".to_string(),
         DataType::SmallInt => "smallint".to_string(),
         DataType::Integer => "integer".to_string(),
         DataType::BigInt => "bigint".to_string(),
         DataType::Real => "real".to_string(),
+        DataType::Float(Some(n)) => format!("float({})", n),
+        DataType::Float(None) => "float".to_string(),
         DataType::Double => "double precision".to_string(),
+        DataType::Serial => "serial".to_string(),
+        DataType::SmallSerial => "smallserial".to_string(),
+        DataType::BigSerial => "bigserial".to_string(),
+        DataType::BinaryFloat => "binary_float".to_string(),
+        DataType::BinaryDouble => "binary_double".to_string(),
         DataType::Text => "text".to_string(),
         DataType::Char(Some(n)) => format!("char({})", n),
         DataType::Char(None) => "char".to_string(),
@@ -80,6 +88,8 @@ impl Parser {
 
         let mut inherits = Vec::new();
         let mut partition_by = None;
+        let mut subpartition_by = None;
+        let mut subpartitions_count = None;
         let mut distribute_by = None;
         let mut to_group = None;
         let mut tablespace = None;
@@ -175,6 +185,70 @@ impl Parser {
                         partitions,
                     },
                 });
+            } else if self.match_keyword(Keyword::SUBPARTITION) {
+                self.advance();
+                self.expect_keyword(Keyword::BY)?;
+                let strategy = match self.peek() {
+                    Token::Ident(s) if s.to_uppercase() == "HASH" => {
+                        self.advance();
+                        "hash"
+                    }
+                    _ => match self.peek_keyword() {
+                        Some(Keyword::RANGE) => {
+                            self.advance();
+                            "range"
+                        }
+                        Some(Keyword::LIST) => {
+                            self.advance();
+                            "list"
+                        }
+                        _ => {
+                            return Err(ParserError::UnexpectedToken {
+                                location: self.current_location(),
+                                expected: "RANGE, LIST, or HASH".to_string(),
+                                got: format!("{:?}", self.peek()),
+                            });
+                        }
+                    },
+                };
+                self.expect_token(&Token::LParen)?;
+                let column = self.parse_object_name()?;
+                self.expect_token(&Token::RParen)?;
+
+                let (sp_parts, sp_count) =
+                    if strategy == "hash" && self.match_keyword(Keyword::SUBPARTITIONS) {
+                        self.advance();
+                        let count = match self.peek().clone() {
+                            Token::Integer(n) => {
+                                self.advance();
+                                Some(n as u32)
+                            }
+                            _ => None,
+                        };
+                        let parts = self.parse_subpartition_defs()?;
+                        (parts, count)
+                    } else {
+                        let parts = self.parse_subpartition_defs()?;
+                        (parts, None)
+                    };
+
+                subpartition_by = Some(match strategy {
+                    "range" => PartitionClause::Range {
+                        column,
+                        interval: None,
+                        partitions: sp_parts,
+                    },
+                    "list" => PartitionClause::List {
+                        column,
+                        partitions: sp_parts,
+                    },
+                    _ => PartitionClause::Hash {
+                        column,
+                        partitions_count: sp_count,
+                        partitions: sp_parts,
+                    },
+                });
+                subpartitions_count = sp_count;
             } else if self.match_keyword(Keyword::TABLESPACE) {
                 self.advance();
                 tablespace = Some(self.parse_identifier()?);
@@ -295,12 +369,50 @@ impl Parser {
             constraints,
             inherits,
             partition_by,
+            subpartition_by,
+            subpartitions_count,
             distribute_by,
             to_group,
             tablespace,
             on_commit,
             options,
         })
+    }
+
+    pub(crate) fn parse_create_table_as(
+        &mut self,
+        temporary: bool,
+        unlogged: bool,
+    ) -> Result<crate::ast::Statement, ParserError> {
+        self.expect_keyword(Keyword::TABLE)?;
+        let if_not_exists = self.parse_if_not_exists();
+        let name = self.parse_object_name()?;
+        self.expect_keyword(Keyword::AS)?;
+        let query = Box::new(self.parse_select_statement()?);
+        let with_data = if self.match_keyword(Keyword::WITH) {
+            self.advance();
+            if self.match_keyword(Keyword::NO) {
+                self.advance();
+                self.expect_keyword(Keyword::DATA_P)?;
+                false
+            } else {
+                self.expect_keyword(Keyword::DATA_P)?;
+                true
+            }
+        } else {
+            true
+        };
+        Ok(crate::ast::Statement::CreateTableAs(
+            crate::ast::CreateTableAsStatement {
+                temporary,
+                unlogged,
+                if_not_exists,
+                name,
+                column_names: Vec::new(),
+                query,
+                with_data,
+            },
+        ))
     }
 
     pub(crate) fn parse_if_not_exists(&mut self) -> bool {
@@ -339,6 +451,10 @@ impl Parser {
                 self.advance();
                 Ok(DataType::Boolean)
             }
+            Some(Keyword::TINYINT) => {
+                self.advance();
+                Ok(DataType::TinyInt)
+            }
             Some(Keyword::SMALLINT) => {
                 self.advance();
                 Ok(DataType::SmallInt)
@@ -351,9 +467,21 @@ impl Parser {
                 self.advance();
                 Ok(DataType::BigInt)
             }
-            Some(Keyword::REAL) | Some(Keyword::FLOAT_P) => {
+            Some(Keyword::REAL) => {
                 self.advance();
                 Ok(DataType::Real)
+            }
+            Some(Keyword::FLOAT_P) => {
+                self.advance();
+                let precision = if self.match_token(&Token::LParen) {
+                    self.advance();
+                    let n = self.parse_int_literal()?;
+                    self.expect_token(&Token::RParen)?;
+                    Some(n)
+                } else {
+                    None
+                };
+                Ok(DataType::Float(precision))
             }
             Some(Keyword::DOUBLE_P) => {
                 self.advance();
@@ -472,6 +600,35 @@ impl Parser {
                 }
             }
             _ => {
+                if let Token::Ident(s) = self.peek().clone() {
+                    match s.to_uppercase().as_str() {
+                        "SERIAL" => {
+                            self.advance();
+                            return Ok(DataType::Serial);
+                        }
+                        "SMALLSERIAL" => {
+                            self.advance();
+                            return Ok(DataType::SmallSerial);
+                        }
+                        "BIGSERIAL" => {
+                            self.advance();
+                            return Ok(DataType::BigSerial);
+                        }
+                        "BINARY_FLOAT" => {
+                            self.advance();
+                            return Ok(DataType::BinaryFloat);
+                        }
+                        "BINARY_DOUBLE" => {
+                            self.advance();
+                            return Ok(DataType::BinaryDouble);
+                        }
+                        "BOOL" => {
+                            self.advance();
+                            return Ok(DataType::Boolean);
+                        }
+                        _ => {}
+                    }
+                }
                 let name = self.parse_object_name()?;
                 Ok(DataType::Custom(name))
             }
@@ -658,7 +815,7 @@ impl Parser {
         })
     }
 
-    fn parse_if_exists(&mut self) -> bool {
+    pub(crate) fn parse_if_exists(&mut self) -> bool {
         if self.match_keyword(Keyword::IF_P) {
             self.advance();
             if self.match_keyword(Keyword::EXISTS) {
@@ -687,6 +844,19 @@ impl Parser {
                         name,
                         values,
                         tablespace,
+                    })
+                } else if self.match_keyword(Keyword::SUBPARTITION) {
+                    self.advance();
+                    let name = self.parse_identifier()?;
+                    let values = if self.match_keyword(Keyword::VALUES) {
+                        Some(self.parse_partition_values()?)
+                    } else {
+                        None
+                    };
+                    Ok(AlterTableAction::AddSubPartition {
+                        partition_name: String::new(),
+                        name,
+                        values,
                     })
                 } else if self.match_keyword(Keyword::COLUMN) {
                     self.advance();
@@ -754,6 +924,11 @@ impl Parser {
                     let if_exists = self.parse_if_exists();
                     let name = self.parse_identifier()?;
                     Ok(AlterTableAction::DropPartition { name, if_exists })
+                } else if self.match_keyword(Keyword::SUBPARTITION) {
+                    self.advance();
+                    let if_exists = self.parse_if_exists();
+                    let name = self.parse_identifier()?;
+                    Ok(AlterTableAction::DropSubPartition { name, if_exists })
                 } else if self.match_keyword(Keyword::COLUMN) {
                     self.advance();
                     let if_exists = self.parse_if_exists();
@@ -793,7 +968,13 @@ impl Parser {
             }
             Some(Keyword::RENAME) => {
                 self.advance();
-                if self.match_keyword(Keyword::PARTITION) {
+                if self.match_keyword(Keyword::SUBPARTITION) {
+                    self.advance();
+                    let old_name = self.parse_identifier()?;
+                    self.expect_keyword(Keyword::TO)?;
+                    let new_name = self.parse_identifier()?;
+                    Ok(AlterTableAction::RenameSubPartition { old_name, new_name })
+                } else if self.match_keyword(Keyword::PARTITION) {
                     self.advance();
                     let old_name = self.parse_identifier()?;
                     self.expect_keyword(Keyword::TO)?;
@@ -833,79 +1014,200 @@ impl Parser {
                     self.advance();
                     let schema = self.parse_identifier()?;
                     Ok(AlterTableAction::SetSchema { schema })
+                } else if self.match_keyword(Keyword::TABLESPACE) {
+                    self.advance();
+                    let tablespace = self.parse_identifier()?;
+                    Ok(AlterTableAction::SetTablespace { tablespace })
+                } else if self.match_keyword(Keyword::WITHOUT) {
+                    self.advance();
+                    self.expect_keyword(Keyword::OIDS)?;
+                    Ok(AlterTableAction::SetWithoutOids)
+                } else if self.match_token(&Token::LParen) {
+                    self.advance();
+                    let mut options = Vec::new();
+                    loop {
+                        let key = self.parse_identifier()?;
+                        self.expect_token(&Token::Eq)?;
+                        let value = self.parse_identifier()?;
+                        options.push((key, value));
+                        if !self.match_token(&Token::Comma) {
+                            break;
+                        }
+                        self.advance();
+                    }
+                    self.expect_token(&Token::RParen)?;
+                    Ok(AlterTableAction::SetOptions { options })
                 } else {
                     Err(ParserError::UnexpectedToken {
                         location: self.current_location(),
-                        expected: "SCHEMA".to_string(),
+                        expected: "SCHEMA, TABLESPACE, WITHOUT OIDS, or (...)".to_string(),
                         got: format!("{:?}", self.peek()),
                     })
                 }
             }
             Some(Keyword::TRUNCATE) => {
                 self.advance();
-                self.expect_keyword(Keyword::PARTITION)?;
-                let name = self.parse_identifier()?;
-                let cascade = self.try_consume_keyword(Keyword::CASCADE);
-                Ok(AlterTableAction::TruncatePartition { name, cascade })
+                if self.match_keyword(Keyword::SUBPARTITION) {
+                    self.advance();
+                    let name = self.parse_identifier()?;
+                    let cascade = self.try_consume_keyword(Keyword::CASCADE);
+                    Ok(AlterTableAction::TruncateSubPartition { name, cascade })
+                } else {
+                    self.expect_keyword(Keyword::PARTITION)?;
+                    let name = self.parse_identifier()?;
+                    let cascade = self.try_consume_keyword(Keyword::CASCADE);
+                    Ok(AlterTableAction::TruncatePartition { name, cascade })
+                }
             }
             Some(Keyword::MERGE) => {
                 self.advance();
-                self.expect_keyword(Keyword::PARTITIONS)?;
-                let mut names = vec![self.parse_identifier()?];
-                while self.match_token(&Token::Comma) {
+                if self.match_keyword(Keyword::SUBPARTITIONS) {
                     self.advance();
-                    names.push(self.parse_identifier()?);
+                    let mut names = vec![self.parse_identifier()?];
+                    while self.match_token(&Token::Comma) {
+                        self.advance();
+                        names.push(self.parse_identifier()?);
+                    }
+                    self.expect_keyword(Keyword::INTO)?;
+                    self.expect_keyword(Keyword::SUBPARTITION)?;
+                    let into_name = self.parse_identifier()?;
+                    Ok(AlterTableAction::MergeSubPartitions { names, into_name })
+                } else {
+                    self.expect_keyword(Keyword::PARTITIONS)?;
+                    let mut names = vec![self.parse_identifier()?];
+                    while self.match_token(&Token::Comma) {
+                        self.advance();
+                        names.push(self.parse_identifier()?);
+                    }
+                    self.expect_keyword(Keyword::INTO)?;
+                    self.expect_keyword(Keyword::PARTITION)?;
+                    let into_name = self.parse_identifier()?;
+                    Ok(AlterTableAction::MergePartitions { names, into_name })
                 }
-                self.expect_keyword(Keyword::INTO)?;
-                self.expect_keyword(Keyword::PARTITION)?;
-                let into_name = self.parse_identifier()?;
-                Ok(AlterTableAction::MergePartitions { names, into_name })
             }
             Some(Keyword::SPLIT) => {
                 self.advance();
-                self.expect_keyword(Keyword::PARTITION)?;
-                let name = self.parse_identifier()?;
-                let at_value = if self.match_keyword(Keyword::AT) {
+                if self.match_keyword(Keyword::SUBPARTITION) {
                     self.advance();
-                    Some(self.parse_expr()?)
-                } else {
-                    None
-                };
-                self.expect_keyword(Keyword::INTO)?;
-                self.expect_token(&Token::LParen)?;
-                let mut partitions = Vec::new();
-                loop {
-                    self.expect_keyword(Keyword::PARTITION)?;
-                    let pname = self.parse_identifier()?;
-                    let values = if self.match_keyword(Keyword::VALUES) {
-                        Some(self.parse_partition_values()?)
+                    let name = self.parse_identifier()?;
+                    let at_value = if self.match_keyword(Keyword::AT) {
+                        self.advance();
+                        Some(self.parse_expr()?)
                     } else {
                         None
                     };
-                    partitions.push(PartitionDef {
-                        name: pname,
-                        values,
-                    });
-                    if !self.match_token(&Token::Comma) {
-                        break;
+                    self.expect_keyword(Keyword::INTO)?;
+                    self.expect_token(&Token::LParen)?;
+                    let mut partitions = Vec::new();
+                    loop {
+                        self.expect_keyword(Keyword::SUBPARTITION)?;
+                        let pname = self.parse_identifier()?;
+                        let values = if self.match_keyword(Keyword::VALUES) {
+                            Some(self.parse_partition_values()?)
+                        } else {
+                            None
+                        };
+                        let tablespace = if self.match_keyword(Keyword::TABLESPACE) {
+                            self.advance();
+                            Some(self.parse_identifier()?)
+                        } else {
+                            None
+                        };
+                        partitions.push(PartitionDef {
+                            name: pname,
+                            values,
+                            tablespace,
+                            subpartitions: Vec::new(),
+                        });
+                        if !self.match_token(&Token::Comma) {
+                            break;
+                        }
+                        self.advance();
                     }
-                    self.advance();
+                    self.expect_token(&Token::RParen)?;
+                    Ok(AlterTableAction::SplitSubPartition {
+                        name,
+                        at_value,
+                        into: partitions,
+                    })
+                } else {
+                    self.expect_keyword(Keyword::PARTITION)?;
+                    let name = self.parse_identifier()?;
+                    let at_value = if self.match_keyword(Keyword::AT) {
+                        self.advance();
+                        Some(self.parse_expr()?)
+                    } else {
+                        None
+                    };
+                    self.expect_keyword(Keyword::INTO)?;
+                    self.expect_token(&Token::LParen)?;
+                    let mut partitions = Vec::new();
+                    loop {
+                        self.expect_keyword(Keyword::PARTITION)?;
+                        let pname = self.parse_identifier()?;
+                        let values = if self.match_keyword(Keyword::VALUES) {
+                            Some(self.parse_partition_values()?)
+                        } else {
+                            None
+                        };
+                        partitions.push(PartitionDef {
+                            name: pname,
+                            values,
+                            tablespace: None,
+                            subpartitions: Vec::new(),
+                        });
+                        if !self.match_token(&Token::Comma) {
+                            break;
+                        }
+                        self.advance();
+                    }
+                    self.expect_token(&Token::RParen)?;
+                    Ok(AlterTableAction::SplitPartition {
+                        name,
+                        at_value,
+                        into: partitions,
+                    })
                 }
-                self.expect_token(&Token::RParen)?;
-                Ok(AlterTableAction::SplitPartition {
-                    name,
-                    at_value,
-                    into: partitions,
-                })
             }
             Some(Keyword::EXCHANGE) => {
                 self.advance();
-                self.expect_keyword(Keyword::PARTITION)?;
-                let name = self.parse_identifier()?;
-                self.expect_keyword(Keyword::WITH)?;
-                self.expect_keyword(Keyword::TABLE)?;
-                let table = self.parse_object_name()?;
-                Ok(AlterTableAction::ExchangePartition { name, table })
+                if self.match_keyword(Keyword::SUBPARTITION) {
+                    self.advance();
+                    let name = self.parse_identifier()?;
+                    self.expect_keyword(Keyword::WITH)?;
+                    self.expect_keyword(Keyword::TABLE)?;
+                    let table = self.parse_object_name()?;
+                    Ok(AlterTableAction::ExchangeSubPartition { name, table })
+                } else {
+                    self.expect_keyword(Keyword::PARTITION)?;
+                    let name = self.parse_identifier()?;
+                    self.expect_keyword(Keyword::WITH)?;
+                    self.expect_keyword(Keyword::TABLE)?;
+                    let table = self.parse_object_name()?;
+                    Ok(AlterTableAction::ExchangePartition { name, table })
+                }
+            }
+            Some(Keyword::RESET) => {
+                self.advance();
+                if self.match_token(&Token::LParen) {
+                    self.advance();
+                    let mut options = Vec::new();
+                    loop {
+                        options.push(self.parse_identifier()?);
+                        if !self.match_token(&Token::Comma) {
+                            break;
+                        }
+                        self.advance();
+                    }
+                    self.expect_token(&Token::RParen)?;
+                    Ok(AlterTableAction::ResetOptions { options })
+                } else {
+                    Err(ParserError::UnexpectedToken {
+                        location: self.current_location(),
+                        expected: "(option, ...)".to_string(),
+                        got: format!("{:?}", self.peek()),
+                    })
+                }
             }
             _ => Err(ParserError::UnexpectedToken {
                 location: self.current_location(),
@@ -977,7 +1279,54 @@ impl Parser {
             } else {
                 None
             };
-            defs.push(PartitionDef { name, values });
+            let tablespace = if self.match_keyword(Keyword::TABLESPACE) {
+                self.advance();
+                Some(self.parse_identifier()?)
+            } else {
+                None
+            };
+            let subpartitions = self.parse_subpartition_defs()?;
+            defs.push(PartitionDef {
+                name,
+                values,
+                tablespace,
+                subpartitions,
+            });
+            if !self.match_token(&Token::Comma) {
+                break;
+            }
+            self.advance();
+        }
+        self.expect_token(&Token::RParen)?;
+        Ok(defs)
+    }
+
+    fn parse_subpartition_defs(&mut self) -> Result<Vec<PartitionDef>, ParserError> {
+        if !self.match_token(&Token::LParen) {
+            return Ok(Vec::new());
+        }
+        self.advance();
+        let mut defs = Vec::new();
+        loop {
+            self.expect_keyword(Keyword::SUBPARTITION)?;
+            let name = self.parse_identifier()?;
+            let values = if self.match_keyword(Keyword::VALUES) {
+                Some(self.parse_partition_values()?)
+            } else {
+                None
+            };
+            let tablespace = if self.match_keyword(Keyword::TABLESPACE) {
+                self.advance();
+                Some(self.parse_identifier()?)
+            } else {
+                None
+            };
+            defs.push(PartitionDef {
+                name,
+                values,
+                tablespace,
+                subpartitions: Vec::new(),
+            });
             if !self.match_token(&Token::Comma) {
                 break;
             }
@@ -1131,6 +1480,35 @@ impl Parser {
         while self.match_token(&Token::Comma) {
             self.advance();
             names.push(self.parse_object_name()?);
+        }
+        match object_type {
+            ObjectType::Aggregate | ObjectType::Operator | ObjectType::Cast => {
+                if self.match_token(&Token::LParen) {
+                    self.advance();
+                    let mut depth = 1;
+                    while depth > 0 && self.pos < self.tokens.len() {
+                        match self.peek() {
+                            Token::LParen => depth += 1,
+                            Token::RParen => depth -= 1,
+                            _ => {}
+                        }
+                        self.advance();
+                    }
+                }
+            }
+            ObjectType::OperatorClass | ObjectType::OperatorFamily => {
+                if self.match_keyword(Keyword::USING) {
+                    self.advance();
+                    let _ = self.parse_identifier();
+                }
+            }
+            ObjectType::Rule => {
+                if self.match_keyword(Keyword::ON) {
+                    self.advance();
+                    let _ = self.parse_object_name();
+                }
+            }
+            _ => {}
         }
         let cascade = self.try_consume_keyword(Keyword::CASCADE);
         let purge = self.try_consume_keyword(Keyword::PURGE);

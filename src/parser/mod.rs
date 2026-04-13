@@ -1645,13 +1645,40 @@ impl Parser {
         let is_public = self.try_consume_ident_str("PUBLIC");
 
         match self.peek_keyword() {
-            Some(Keyword::TABLE) => match self.parse_create_table(temp, unlogged) {
-                Ok(stmt) => crate::ast::Statement::CreateTable(stmt),
-                Err(e) => {
-                    self.add_error(e);
-                    self.skip_to_semicolon()
+            Some(Keyword::TABLE) => {
+                // Check for CREATE TABLE AS (CTAS) via lookahead
+                let is_ctas = {
+                    let mut look = self.pos + 1;
+                    let mut depth = 0usize;
+                    let mut found_as = false;
+                    while look < self.tokens.len() {
+                        match &self.tokens[look].token {
+                            Token::Keyword(Keyword::AS) if depth == 0 => { found_as = true; break; }
+                            Token::Keyword(Keyword::PARTITION) | Token::Keyword(Keyword::DISTRIBUTE)
+                            | Token::Keyword(Keyword::INHERITS) | Token::Keyword(Keyword::TABLESPACE)
+                            | Token::Keyword(Keyword::WITH) | Token::Keyword(Keyword::ON)
+                            | Token::Keyword(Keyword::TO) | Token::Semicolon | Token::Eof => break,
+                            Token::LParen => depth += 1,
+                            Token::RParen => depth = depth.saturating_sub(1),
+                            _ => {}
+                        }
+                        look += 1;
+                        if look > self.pos + 50 { break; }
+                    }
+                    found_as
+                };
+                if is_ctas {
+                    match self.parse_create_table_as(temp, unlogged) {
+                        Ok(stmt) => stmt,
+                        Err(e) => { self.add_error(e); self.skip_to_semicolon() }
+                    }
+                } else {
+                    match self.parse_create_table(temp, unlogged) {
+                        Ok(stmt) => crate::ast::Statement::CreateTable(stmt),
+                        Err(e) => { self.add_error(e); self.skip_to_semicolon() }
+                    }
                 }
-            },
+            }
             Some(Keyword::INDEX) => match self.parse_create_index() {
                 Ok(stmt) => crate::ast::Statement::CreateIndex(stmt),
                 Err(e) => {
@@ -1788,16 +1815,24 @@ impl Parser {
             }
             Some(Keyword::USER) => {
                 self.advance();
-                match self.parse_create_role_options() {
-                    Ok((name, options)) => {
-                        crate::ast::Statement::CreateUser(crate::ast::CreateUserStatement {
-                            name,
-                            options,
-                        })
+                if self.match_keyword(Keyword::MAPPING) {
+                    self.advance();
+                    match self.parse_create_user_mapping() {
+                        Ok(stmt) => { self.try_consume_semicolon(); crate::ast::Statement::CreateUserMapping(stmt) }
+                        Err(e) => { self.add_error(e); self.skip_to_semicolon() }
                     }
-                    Err(e) => {
-                        self.add_error(e);
-                        self.skip_to_semicolon()
+                } else {
+                    match self.parse_create_role_options() {
+                        Ok((name, options)) => {
+                            crate::ast::Statement::CreateUser(crate::ast::CreateUserStatement {
+                                name,
+                                options,
+                            })
+                        }
+                        Err(e) => {
+                            self.add_error(e);
+                            self.skip_to_semicolon()
+                        }
                     }
                 }
             }
@@ -1934,11 +1969,38 @@ impl Parser {
                     self.skip_to_semicolon()
                 }
             },
+            Some(Keyword::AGGREGATE) => {
+                self.advance();
+                match self.parse_create_aggregate() {
+                    Ok(stmt) => { self.try_consume_semicolon(); crate::ast::Statement::CreateAggregate(stmt) }
+                    Err(e) => { self.add_error(e); self.skip_to_semicolon() }
+                }
+            }
+            Some(Keyword::OPERATOR) => {
+                self.advance();
+                match self.parse_create_operator() {
+                    Ok(stmt) => { self.try_consume_semicolon(); crate::ast::Statement::CreateOperator(stmt) }
+                    Err(e) => { self.add_error(e); self.skip_to_semicolon() }
+                }
+            }
             _ => self.skip_to_semicolon(),
         }
     }
 
     fn dispatch_alter(&mut self) -> crate::ast::Statement {
+        if self.match_keyword(Keyword::DEFAULT) {
+            self.advance();
+            match self.parse_alter_default_privileges() {
+                Ok(stmt) => {
+                    self.try_consume_semicolon();
+                    crate::ast::Statement::AlterDefaultPrivileges(stmt)
+                }
+                Err(e) => {
+                    self.add_error(e);
+                    self.skip_to_semicolon()
+                }
+            }
+        } else {
         match self.peek_keyword() {
             Some(Keyword::INDEX) => match self.parse_alter_index() {
                 Ok(stmt) => {
@@ -2020,10 +2082,24 @@ impl Parser {
                     self.skip_to_semicolon()
                 }
             },
-            Some(Keyword::USER) => match self.parse_alter_user() {
+            Some(Keyword::USER) => {
+                self.advance();
+                if self.match_keyword(Keyword::MAPPING) {
+                    match self.parse_alter_user_mapping() {
+                        Ok(stmt) => { self.try_consume_semicolon(); crate::ast::Statement::AlterUserMapping(stmt) }
+                        Err(e) => { self.add_error(e); self.skip_to_semicolon() }
+                    }
+                } else {
+                    match self.parse_alter_user_inner() {
+                        Ok(stmt) => { self.try_consume_semicolon(); crate::ast::Statement::AlterUser(stmt) }
+                        Err(e) => { self.add_error(e); self.skip_to_semicolon() }
+                    }
+                }
+            },
+            Some(Keyword::GROUP_P) => match self.parse_alter_group() {
                 Ok(stmt) => {
                     self.try_consume_semicolon();
-                    crate::ast::Statement::AlterUser(stmt)
+                    crate::ast::Statement::AlterGroup(stmt)
                 }
                 Err(e) => {
                     self.add_error(e);
@@ -2082,9 +2158,28 @@ impl Parser {
             },
             _ => self.skip_to_semicolon(),
         }
+        }
     }
 
     fn dispatch_drop(&mut self) -> crate::ast::Statement {
+        if self.match_keyword(Keyword::USER) {
+            let saved_pos = self.pos;
+            self.advance();
+            if self.match_keyword(Keyword::MAPPING) {
+                self.advance();
+                match self.parse_drop_user_mapping() {
+                    Ok(stmt) => {
+                        self.try_consume_semicolon();
+                        return crate::ast::Statement::DropUserMapping(stmt);
+                    }
+                    Err(e) => {
+                        self.add_error(e);
+                        return self.skip_to_semicolon();
+                    }
+                }
+            }
+            self.pos = saved_pos;
+        }
         match self.parse_drop() {
             Ok(stmt) => crate::ast::Statement::Drop(stmt),
             Err(e) => {

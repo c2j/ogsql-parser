@@ -104,6 +104,13 @@ impl SqlFormatter {
             Statement::AlterTrigger(s) => self.format_alter_trigger(s),
             Statement::AlterExtension(s) => self.format_alter_extension(s),
             Statement::AnonyBlock(s) => self.format_anon_block(s),
+            Statement::CreateTableAs(s) => self.format_create_table_as(s),
+            Statement::CreateAggregate(s) => self.format_create_aggregate(s),
+            Statement::CreateOperator(s) => self.format_create_operator(s),
+            Statement::AlterDefaultPrivileges(s) => self.format_alter_default_privileges(s),
+            Statement::CreateUserMapping(s) => self.format_create_user_mapping(s),
+            Statement::AlterUserMapping(s) => self.format_alter_user_mapping(s),
+            Statement::DropUserMapping(s) => self.format_drop_user_mapping(s),
             _ => self.format_stub(stmt),
         }
     }
@@ -1103,6 +1110,14 @@ impl SqlFormatter {
             parts.push(self.format_partition_clause(pb));
         }
 
+        if let Some(spb) = &stmt.subpartition_by {
+            parts.push(self.format_subpartition_clause(spb));
+        }
+
+        if let Some(n) = stmt.subpartitions_count {
+            parts.push(format!("{} {}", self.kw("SUBPARTITIONS"), n));
+        }
+
         if let Some(ts) = &stmt.tablespace {
             parts.push(format!("{} {}", self.kw("TABLESPACE"), ts));
         }
@@ -1222,6 +1237,50 @@ impl SqlFormatter {
         }
     }
 
+    fn format_subpartition_clause(&self, clause: &PartitionClause) -> String {
+        match clause {
+            PartitionClause::Range {
+                column, partitions, ..
+            } => {
+                let mut parts = vec![
+                    self.kw("SUBPARTITION BY RANGE"),
+                    format!("({})", self.format_object_name(column)),
+                ];
+                if !partitions.is_empty() {
+                    parts.push(self.format_partition_defs(partitions));
+                }
+                parts.join(" ")
+            }
+            PartitionClause::List { column, partitions } => {
+                let mut parts = vec![
+                    self.kw("SUBPARTITION BY LIST"),
+                    format!("({})", self.format_object_name(column)),
+                ];
+                if !partitions.is_empty() {
+                    parts.push(self.format_partition_defs(partitions));
+                }
+                parts.join(" ")
+            }
+            PartitionClause::Hash {
+                column,
+                partitions_count,
+                partitions,
+            } => {
+                let mut parts = vec![
+                    self.kw("SUBPARTITION BY HASH"),
+                    format!("({})", self.format_object_name(column)),
+                ];
+                if let Some(n) = partitions_count {
+                    parts.push(format!("{} {}", self.kw("SUBPARTITIONS"), n));
+                }
+                if !partitions.is_empty() {
+                    parts.push(self.format_partition_defs(partitions));
+                }
+                parts.join(" ")
+            }
+        }
+    }
+
     fn format_partition_defs(&self, defs: &[PartitionDef]) -> String {
         let parts: Vec<String> = defs
             .iter()
@@ -1233,6 +1292,40 @@ impl SqlFormatter {
                 );
                 if let Some(v) = &d.values {
                     s = format!("{} {}", s, self.format_partition_values(v));
+                }
+                if let Some(ts) = &d.tablespace {
+                    s = format!(
+                        "{} {} {}",
+                        s,
+                        self.kw("TABLESPACE"),
+                        self.quote_identifier(ts)
+                    );
+                }
+                if !d.subpartitions.is_empty() {
+                    let subs: Vec<String> = d
+                        .subpartitions
+                        .iter()
+                        .map(|sp| {
+                            let mut ss = format!(
+                                "{} {}",
+                                self.kw("SUBPARTITION"),
+                                self.quote_identifier(&sp.name)
+                            );
+                            if let Some(v) = &sp.values {
+                                ss = format!("{} {}", ss, self.format_partition_values(v));
+                            }
+                            if let Some(ts) = &sp.tablespace {
+                                ss = format!(
+                                    "{} {} {}",
+                                    ss,
+                                    self.kw("TABLESPACE"),
+                                    self.quote_identifier(ts)
+                                );
+                            }
+                            ss
+                        })
+                        .collect();
+                    s = format!("{} ({})", s, subs.join(", "));
                 }
                 s
             })
@@ -1316,6 +1409,16 @@ impl SqlFormatter {
                 Some(len) => format!("BIT VARYING({})", len),
                 None => "BIT VARYING".to_string(),
             },
+            DataType::TinyInt => "TINYINT".to_string(),
+            DataType::Float(n) => match n {
+                Some(len) => format!("FLOAT({})", len),
+                None => "FLOAT".to_string(),
+            },
+            DataType::Serial => "SERIAL".to_string(),
+            DataType::SmallSerial => "SMALLSERIAL".to_string(),
+            DataType::BigSerial => "BIGSERIAL".to_string(),
+            DataType::BinaryFloat => "BINARY_FLOAT".to_string(),
+            DataType::BinaryDouble => "BINARY_DOUBLE".to_string(),
             DataType::Custom(name) => self.format_object_name(name),
         }
     }
@@ -1472,6 +1575,31 @@ impl SqlFormatter {
                     self.quote_identifier(schema)
                 )
             }
+            AlterTableAction::SetOptions { options } => {
+                let pairs: Vec<String> = options
+                    .iter()
+                    .map(|(k, v)| {
+                        format!(
+                            "{} = {}",
+                            self.quote_identifier(k),
+                            self.quote_identifier(v)
+                        )
+                    })
+                    .collect();
+                format!("{} ({})", self.kw("SET"), pairs.join(", "))
+            }
+            AlterTableAction::SetTablespace { tablespace } => {
+                format!(
+                    "{} {}",
+                    self.kw("SET TABLESPACE"),
+                    self.quote_identifier(tablespace)
+                )
+            }
+            AlterTableAction::SetWithoutOids => self.kw("SET WITHOUT OIDS").to_string(),
+            AlterTableAction::ResetOptions { options } => {
+                let names: Vec<String> = options.iter().map(|o| self.quote_identifier(o)).collect();
+                format!("{} ({})", self.kw("RESET"), names.join(", "))
+            }
             AlterTableAction::AddPartition {
                 name,
                 values,
@@ -1557,6 +1685,107 @@ impl SqlFormatter {
                     self.quote_identifier(new_name)
                 )
             }
+            AlterTableAction::AddSubPartition {
+                partition_name: _,
+                name,
+                values,
+            } => {
+                let mut parts = vec![self.kw("ADD SUBPARTITION"), self.quote_identifier(name)];
+                if let Some(v) = values {
+                    parts.push(self.format_partition_values(v));
+                }
+                parts.join(" ")
+            }
+            AlterTableAction::DropSubPartition { name, if_exists } => {
+                let mut parts = vec![self.kw("DROP SUBPARTITION")];
+                if *if_exists {
+                    parts.push(self.kw("IF EXISTS"));
+                }
+                parts.push(self.quote_identifier(name));
+                parts.join(" ")
+            }
+            AlterTableAction::TruncateSubPartition { name, cascade } => {
+                let mut parts = vec![
+                    self.kw("TRUNCATE SUBPARTITION"),
+                    self.quote_identifier(name),
+                ];
+                if *cascade {
+                    parts.push(self.kw("CASCADE"));
+                }
+                parts.join(" ")
+            }
+            AlterTableAction::MergeSubPartitions { names, into_name } => {
+                let name_list: Vec<String> =
+                    names.iter().map(|n| self.quote_identifier(n)).collect();
+                format!(
+                    "{} {} {} {}",
+                    self.kw("MERGE SUBPARTITIONS"),
+                    name_list.join(", "),
+                    self.kw("INTO SUBPARTITION"),
+                    self.quote_identifier(into_name)
+                )
+            }
+            AlterTableAction::SplitSubPartition {
+                name,
+                at_value,
+                into,
+            } => {
+                let mut parts = vec![self.kw("SPLIT SUBPARTITION"), self.quote_identifier(name)];
+                if let Some(at) = at_value {
+                    parts.push(format!("{} {}", self.kw("AT"), self.format_expr(at)));
+                }
+                let subs: Vec<String> = into
+                    .iter()
+                    .map(|p| {
+                        let mut s = format!(
+                            "{} {}",
+                            self.kw("SUBPARTITION"),
+                            self.quote_identifier(&p.name)
+                        );
+                        if let Some(v) = &p.values {
+                            s = format!("{} {}", s, self.format_partition_values(v));
+                        }
+                        if let Some(ts) = &p.tablespace {
+                            s = format!(
+                                "{} {} {}",
+                                s,
+                                self.kw("TABLESPACE"),
+                                self.quote_identifier(ts)
+                            );
+                        }
+                        s
+                    })
+                    .collect();
+                parts.push(format!("{} ({})", self.kw("INTO"), subs.join(", ")));
+                parts.join(" ")
+            }
+            AlterTableAction::ExchangeSubPartition { name, table } => {
+                format!(
+                    "{} {} {} {}",
+                    self.kw("EXCHANGE SUBPARTITION"),
+                    self.quote_identifier(name),
+                    self.kw("WITH TABLE"),
+                    self.format_object_name(table)
+                )
+            }
+            AlterTableAction::RenameSubPartition { old_name, new_name } => {
+                format!(
+                    "{} {} {} {}",
+                    self.kw("RENAME SUBPARTITION"),
+                    self.quote_identifier(old_name),
+                    self.kw("TO"),
+                    self.quote_identifier(new_name)
+                )
+            }
+            AlterTableAction::MoveSubPartition { name, tablespace } => {
+                format!(
+                    "{} {} {} {}",
+                    self.kw("MOVE SUBPARTITION"),
+                    self.quote_identifier(name),
+                    self.kw("TABLESPACE"),
+                    self.quote_identifier(tablespace)
+                )
+            }
         }
     }
 
@@ -1615,6 +1844,18 @@ impl SqlFormatter {
             ObjectType::ForeignTable => "FOREIGN TABLE",
             ObjectType::ForeignServer => "SERVER",
             ObjectType::Fdw => "FOREIGN DATA WRAPPER",
+            ObjectType::Aggregate => "AGGREGATE",
+            ObjectType::Cast => "CAST",
+            ObjectType::Conversion => "CONVERSION",
+            ObjectType::Operator => "OPERATOR",
+            ObjectType::OperatorClass => "OPERATOR CLASS",
+            ObjectType::OperatorFamily => "OPERATOR FAMILY",
+            ObjectType::Rule => "RULE",
+            ObjectType::Language => "LANGUAGE",
+            ObjectType::TextSearchConfig => "TEXT SEARCH CONFIGURATION",
+            ObjectType::TextSearchDict => "TEXT SEARCH DICTIONARY",
+            ObjectType::Domain => "DOMAIN",
+            ObjectType::Policy => "POLICY",
         };
         parts.push(self.kw(obj_type));
 
@@ -3517,8 +3758,10 @@ impl SqlFormatter {
                 self.kw("AS"),
                 self.format_pl_block(block)
             ));
-        } else if !stmt.options.is_empty() {
-            s.push_str(&format!(" {}", stmt.options));
+        }
+        let opts_str = self.format_function_options(&stmt.options);
+        if !opts_str.is_empty() {
+            s.push_str(&format!(" {}", opts_str));
         }
         s
     }
@@ -3545,10 +3788,60 @@ impl SqlFormatter {
                 self.kw("AS"),
                 self.format_pl_block(block)
             ));
-        } else if !stmt.options.is_empty() {
-            s.push_str(&format!(" {}", stmt.options));
+        }
+        let opts_str = self.format_function_options(&stmt.options);
+        if !opts_str.is_empty() {
+            s.push_str(&format!(" {}", opts_str));
         }
         s
+    }
+
+    fn format_function_options(&self, opts: &FunctionOptions) -> String {
+        let mut parts = Vec::new();
+        if let Some(lang) = &opts.language {
+            parts.push(format!("{} {}", self.kw("LANGUAGE"), lang));
+        }
+        match &opts.volatility {
+            Some(Volatility::Immutable) => parts.push(self.kw("IMMUTABLE").to_string()),
+            Some(Volatility::Stable) => parts.push(self.kw("STABLE").to_string()),
+            Some(Volatility::Volatile) => parts.push(self.kw("VOLATILE").to_string()),
+            None => {}
+        }
+        if let Some(strict) = opts.strict {
+            if strict {
+                parts.push(self.kw("STRICT").to_string());
+            }
+        }
+        if let Some(cost) = opts.cost {
+            parts.push(format!("{} {}", self.kw("COST"), cost));
+        }
+        if let Some(rows) = opts.rows {
+            parts.push(format!("{} {}", self.kw("ROWS"), rows));
+        }
+        if let Some(lp) = opts.leakproof {
+            if lp {
+                parts.push(self.kw("LEAKPROOF").to_string());
+            } else {
+                parts.push(format!("{} {}", self.kw("NOT"), self.kw("LEAKPROOF")));
+            }
+        }
+        match &opts.security {
+            Some(SecurityMode::Invoker) => parts.push(self.kw("SECURITY INVOKER").to_string()),
+            Some(SecurityMode::Definer) => parts.push(self.kw("SECURITY DEFINER").to_string()),
+            None => {}
+        }
+        match &opts.parallel {
+            Some(ParallelMode::Safe) => parts.push(self.kw("PARALLEL SAFE").to_string()),
+            Some(ParallelMode::Unsafe) => parts.push(self.kw("PARALLEL UNSAFE").to_string()),
+            Some(ParallelMode::Restricted) => {
+                parts.push(self.kw("PARALLEL RESTRICTED").to_string())
+            }
+            None => {}
+        }
+        if !opts.extra.is_empty() {
+            parts.push(opts.extra.clone());
+        }
+        parts.join(" ")
     }
 
     fn format_create_package(&self, stmt: &CreatePackageStatement) -> String {
@@ -3868,8 +4161,144 @@ impl SqlFormatter {
         }
         s
     }
-}
 
+    fn format_create_table_as(&self, stmt: &CreateTableAsStatement) -> String {
+        let mut s = self.kw("CREATE").to_string();
+        if stmt.temporary {
+            s.push(' ');
+            s.push_str(&self.kw("TEMPORARY"));
+        }
+        if stmt.unlogged {
+            s.push(' ');
+            s.push_str(&self.kw("UNLOGGED"));
+        }
+        s.push(' ');
+        s.push_str(&self.kw("TABLE"));
+        if stmt.if_not_exists {
+            s.push(' ');
+            s.push_str(&self.kw("IF NOT EXISTS"));
+        }
+        s.push(' ');
+        s.push_str(&self.format_object_name(&stmt.name));
+        if !stmt.column_names.is_empty() {
+            s.push_str(&format!(" ({})", stmt.column_names.join(", ")));
+        }
+        s.push(' ');
+        s.push_str(&self.kw("AS"));
+        s.push(' ');
+        s.push_str(&self.format_select(&stmt.query));
+        if !stmt.with_data {
+            s.push(' ');
+            s.push_str(&self.kw("WITH NO DATA"));
+        }
+        s
+    }
+
+    fn format_create_aggregate(&self, stmt: &CreateAggregateStatement) -> String {
+        let mut s = format!("{} {}", self.kw("CREATE"), self.kw("AGGREGATE"));
+        s.push_str(&format!(" {}", stmt.name));
+        if !stmt.base_types.is_empty() {
+            s.push('(');
+            s.push_str(
+                &stmt
+                    .base_types
+                    .iter()
+                    .map(|t| self.format_data_type(t))
+                    .collect::<Vec<_>>()
+                    .join(", "),
+            );
+            s.push(')');
+        }
+        if !stmt.options.is_empty() {
+            let pairs: Vec<String> = stmt
+                .options
+                .iter()
+                .map(|(k, v)| format!("{} = {}", k, v))
+                .collect();
+            s.push_str(&format!(" ({})", pairs.join(", ")));
+        }
+        s
+    }
+
+    fn format_create_operator(&self, stmt: &CreateOperatorStatement) -> String {
+        let mut s = format!("{} {}", self.kw("CREATE"), self.kw("OPERATOR"));
+        s.push_str(&format!(" {}", stmt.name));
+        if !stmt.options.is_empty() {
+            let pairs: Vec<String> = stmt
+                .options
+                .iter()
+                .map(|(k, v)| format!("{} = {}", k, v))
+                .collect();
+            s.push_str(&format!(" ({})", pairs.join(", ")));
+        }
+        s
+    }
+
+    fn format_alter_default_privileges(&self, stmt: &AlterDefaultPrivilegesStatement) -> String {
+        let mut s = format!("{} {}", self.kw("ALTER"), self.kw("DEFAULT PRIVILEGES"));
+        if let Some(role) = &stmt.role {
+            s.push_str(&format!(" {} {} {}", self.kw("FOR"), self.kw("ROLE"), role));
+        }
+        if let Some(schema) = &stmt.schema {
+            s.push_str(&format!(
+                " {} {} {}",
+                self.kw("IN"),
+                self.kw("SCHEMA"),
+                schema
+            ));
+        }
+        s.push(' ');
+        match &stmt.action {
+            DefaultPrivilegeAction::Grant(g) => s.push_str(&self.format_grant(g)),
+            DefaultPrivilegeAction::Revoke(r) => s.push_str(&self.format_revoke(r)),
+        }
+        s
+    }
+
+    fn format_create_user_mapping(&self, stmt: &CreateUserMappingStatement) -> String {
+        let mut s = format!("{} {}", self.kw("CREATE"), self.kw("USER MAPPING"));
+        if stmt.if_not_exists {
+            s.push_str(&format!(" {}", self.kw("IF NOT EXISTS")));
+        }
+        s.push_str(&format!(
+            " {} {} {}",
+            self.kw("FOR"),
+            stmt.user_name,
+            self.kw("SERVER")
+        ));
+        s.push_str(&format!(" {}", self.format_object_name(&stmt.server)));
+        s.push_str(&self.format_options(&stmt.options));
+        s
+    }
+
+    fn format_alter_user_mapping(&self, stmt: &AlterUserMappingStatement) -> String {
+        let mut s = format!("{} {}", self.kw("ALTER"), self.kw("USER MAPPING"));
+        s.push_str(&format!(
+            " {} {} {}",
+            self.kw("FOR"),
+            stmt.user_name,
+            self.kw("SERVER")
+        ));
+        s.push_str(&format!(" {}", self.format_object_name(&stmt.server)));
+        s.push_str(&self.format_options(&stmt.options));
+        s
+    }
+
+    fn format_drop_user_mapping(&self, stmt: &DropUserMappingStatement) -> String {
+        let mut s = format!("{} {}", self.kw("DROP"), self.kw("USER MAPPING"));
+        if stmt.if_exists {
+            s.push_str(&format!(" {}", self.kw("IF EXISTS")));
+        }
+        s.push_str(&format!(
+            " {} {} {}",
+            self.kw("FOR"),
+            stmt.user_name,
+            self.kw("SERVER")
+        ));
+        s.push_str(&format!(" {}", self.format_object_name(&stmt.server)));
+        s
+    }
+}
 #[cfg(test)]
 mod tests {
     use super::*;
