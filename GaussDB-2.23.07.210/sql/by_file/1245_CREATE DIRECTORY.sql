@@ -1,0 +1,7 @@
+-- 来源: 1245_CREATE DIRECTORY.txt
+-- SQL 数量: 2
+
+CREATE OR REPLACE DIRECTORY dir AS '/tmp/' ;
+
+DROP DIRECTORY dir ;
+

@@ -1,0 +1,11 @@
+-- 来源: 1192_ALTER DIRECTORY.txt
+-- SQL 数量: 4
+
+CREATE OR REPLACE DIRECTORY dir as '/tmp/' ;
+
+CREATE USER jim PASSWORD '********' ;
+
+ALTER DIRECTORY dir OWNER TO jim ;
+
+DROP DIRECTORY dir ;
+

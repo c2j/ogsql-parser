@@ -3736,3 +3736,515 @@ fn test_create_table_with_partition_and_distribute() {
         _ => panic!("expected CreateTable"),
     }
 }
+
+// ========== SUBPARTITION Tests ==========
+
+#[test]
+fn test_create_table_subpartition_range_list() {
+    let stmt = parse_one(
+        "CREATE TABLE t (id INT, name TEXT) PARTITION BY RANGE (id) SUBPARTITION BY LIST (name) (PARTITION p1 VALUES LESS THAN (100) (SUBPARTITION sp1 VALUES IN ('A'), SUBPARTITION sp2 VALUES IN ('B')))",
+    );
+    match stmt {
+        Statement::CreateTable(ct) => {
+            assert!(ct.partition_by.is_some());
+            assert!(ct.subpartition_by.is_some());
+            match ct.subpartition_by.as_ref().unwrap() {
+                PartitionClause::List { column, partitions } => {
+                    assert_eq!(column.join("."), "name");
+                    assert!(partitions.is_empty()); // subpartition defs are in partition defs
+                }
+                other => panic!("expected List subpartition, got {:?}", other),
+            }
+            // Check partition defs contain subpartitions
+            match ct.partition_by.as_ref().unwrap() {
+                PartitionClause::Range { partitions, .. } => {
+                    assert_eq!(partitions.len(), 1);
+                    assert_eq!(partitions[0].name, "p1");
+                    assert_eq!(partitions[0].subpartitions.len(), 2);
+                    assert_eq!(partitions[0].subpartitions[0].name, "sp1");
+                    assert_eq!(partitions[0].subpartitions[1].name, "sp2");
+                }
+                other => panic!("expected Range partition, got {:?}", other),
+            }
+        }
+        _ => panic!("expected CreateTable"),
+    }
+}
+
+#[test]
+fn test_create_table_subpartition_hash() {
+    let stmt = parse_one(
+        "CREATE TABLE t (id INT, region VARCHAR(10)) PARTITION BY LIST (region) SUBPARTITION BY HASH (id) SUBPARTITIONS 4 (PARTITION p_east VALUES IN ('EAST') (SUBPARTITION sp1, SUBPARTITION sp2, SUBPARTITION sp3, SUBPARTITION sp4))",
+    );
+    match stmt {
+        Statement::CreateTable(ct) => {
+            assert!(ct.subpartition_by.is_some());
+            assert_eq!(ct.subpartitions_count, Some(4));
+            match ct.subpartition_by.as_ref().unwrap() {
+                PartitionClause::Hash {
+                    column,
+                    partitions_count,
+                    ..
+                } => {
+                    assert_eq!(column.join("."), "id");
+                    assert_eq!(*partitions_count, Some(4));
+                }
+                other => panic!("expected Hash subpartition, got {:?}", other),
+            }
+            match ct.partition_by.as_ref().unwrap() {
+                PartitionClause::List { partitions, .. } => {
+                    assert_eq!(partitions[0].subpartitions.len(), 4);
+                }
+                other => panic!("expected List partition, got {:?}", other),
+            }
+        }
+        _ => panic!("expected CreateTable"),
+    }
+}
+
+#[test]
+fn test_create_table_subpartition_range() {
+    let stmt = parse_one(
+        "CREATE TABLE t (id INT, created DATE) PARTITION BY RANGE (created) SUBPARTITION BY RANGE (id) (PARTITION p2025 VALUES LESS THAN ('2026-01-01') (SUBPARTITION sp1 VALUES LESS THAN (100), SUBPARTITION sp2 VALUES LESS THAN (200)))",
+    );
+    match stmt {
+        Statement::CreateTable(ct) => {
+            assert!(ct.subpartition_by.is_some());
+            match ct.subpartition_by.as_ref().unwrap() {
+                PartitionClause::Range { column, .. } => {
+                    assert_eq!(column.join("."), "id");
+                }
+                other => panic!("expected Range subpartition, got {:?}", other),
+            }
+            match ct.partition_by.as_ref().unwrap() {
+                PartitionClause::Range { partitions, .. } => {
+                    assert_eq!(partitions[0].subpartitions.len(), 2);
+                }
+                other => panic!("expected Range partition, got {:?}", other),
+            }
+        }
+        _ => panic!("expected CreateTable"),
+    }
+}
+
+#[test]
+fn test_alter_table_add_subpartition() {
+    let stmt = parse_one("ALTER TABLE t ADD SUBPARTITION sp1 VALUES LESS THAN (50)");
+    match stmt {
+        Statement::AlterTable(at) => {
+            assert_eq!(at.actions.len(), 1);
+            match &at.actions[0] {
+                AlterTableAction::AddSubPartition { name, values, .. } => {
+                    assert_eq!(name, "sp1");
+                    assert!(values.is_some());
+                }
+                other => panic!("expected AddSubPartition, got {:?}", other),
+            }
+        }
+        _ => panic!("expected AlterTable"),
+    }
+}
+
+#[test]
+fn test_alter_table_drop_subpartition() {
+    let stmt = parse_one("ALTER TABLE t DROP SUBPARTITION sp1");
+    match stmt {
+        Statement::AlterTable(at) => {
+            assert_eq!(at.actions.len(), 1);
+            match &at.actions[0] {
+                AlterTableAction::DropSubPartition { name, if_exists } => {
+                    assert_eq!(name, "sp1");
+                    assert!(!if_exists);
+                }
+                other => panic!("expected DropSubPartition, got {:?}", other),
+            }
+        }
+        _ => panic!("expected AlterTable"),
+    }
+}
+
+#[test]
+fn test_alter_table_drop_subpartition_if_exists() {
+    let stmt = parse_one("ALTER TABLE t DROP SUBPARTITION IF EXISTS sp1");
+    match stmt {
+        Statement::AlterTable(at) => match &at.actions[0] {
+            AlterTableAction::DropSubPartition { name, if_exists } => {
+                assert_eq!(name, "sp1");
+                assert!(if_exists);
+            }
+            other => panic!("expected DropSubPartition, got {:?}", other),
+        },
+        _ => panic!("expected AlterTable"),
+    }
+}
+
+#[test]
+fn test_alter_table_truncate_subpartition() {
+    let stmt = parse_one("ALTER TABLE t TRUNCATE SUBPARTITION sp1");
+    match stmt {
+        Statement::AlterTable(at) => match &at.actions[0] {
+            AlterTableAction::TruncateSubPartition { name, cascade } => {
+                assert_eq!(name, "sp1");
+                assert!(!cascade);
+            }
+            other => panic!("expected TruncateSubPartition, got {:?}", other),
+        },
+        _ => panic!("expected AlterTable"),
+    }
+}
+
+#[test]
+fn test_alter_table_truncate_subpartition_cascade() {
+    let stmt = parse_one("ALTER TABLE t TRUNCATE SUBPARTITION sp1 CASCADE");
+    match stmt {
+        Statement::AlterTable(at) => match &at.actions[0] {
+            AlterTableAction::TruncateSubPartition { name, cascade } => {
+                assert_eq!(name, "sp1");
+                assert!(cascade);
+            }
+            other => panic!("expected TruncateSubPartition, got {:?}", other),
+        },
+        _ => panic!("expected AlterTable"),
+    }
+}
+
+#[test]
+fn test_alter_table_merge_subpartitions() {
+    let stmt = parse_one("ALTER TABLE t MERGE SUBPARTITIONS sp1, sp2 INTO SUBPARTITION sp_merged");
+    match stmt {
+        Statement::AlterTable(at) => match &at.actions[0] {
+            AlterTableAction::MergeSubPartitions { names, into_name } => {
+                assert_eq!(names.len(), 2);
+                assert_eq!(names[0], "sp1");
+                assert_eq!(names[1], "sp2");
+                assert_eq!(into_name, "sp_merged");
+            }
+            other => panic!("expected MergeSubPartitions, got {:?}", other),
+        },
+        _ => panic!("expected AlterTable"),
+    }
+}
+
+#[test]
+fn test_alter_table_split_subpartition() {
+    let stmt = parse_one(
+        "ALTER TABLE t SPLIT SUBPARTITION sp1 AT (50) INTO (SUBPARTITION sp1a VALUES LESS THAN (50), SUBPARTITION sp1b)",
+    );
+    match stmt {
+        Statement::AlterTable(at) => match &at.actions[0] {
+            AlterTableAction::SplitSubPartition {
+                name,
+                at_value,
+                into,
+            } => {
+                assert_eq!(name, "sp1");
+                assert!(at_value.is_some());
+                assert_eq!(into.len(), 2);
+                assert_eq!(into[0].name, "sp1a");
+                assert_eq!(into[1].name, "sp1b");
+            }
+            other => panic!("expected SplitSubPartition, got {:?}", other),
+        },
+        _ => panic!("expected AlterTable"),
+    }
+}
+
+#[test]
+fn test_alter_table_exchange_subpartition() {
+    let stmt = parse_one("ALTER TABLE t EXCHANGE SUBPARTITION sp1 WITH TABLE temp_t");
+    match stmt {
+        Statement::AlterTable(at) => match &at.actions[0] {
+            AlterTableAction::ExchangeSubPartition { name, table } => {
+                assert_eq!(name, "sp1");
+                assert_eq!(table.join("."), "temp_t");
+            }
+            other => panic!("expected ExchangeSubPartition, got {:?}", other),
+        },
+        _ => panic!("expected AlterTable"),
+    }
+}
+
+#[test]
+fn test_alter_table_rename_subpartition() {
+    let stmt = parse_one("ALTER TABLE t RENAME SUBPARTITION sp1 TO sp1_new");
+    match stmt {
+        Statement::AlterTable(at) => match &at.actions[0] {
+            AlterTableAction::RenameSubPartition { old_name, new_name } => {
+                assert_eq!(old_name, "sp1");
+                assert_eq!(new_name, "sp1_new");
+            }
+            other => panic!("expected RenameSubPartition, got {:?}", other),
+        },
+        _ => panic!("expected AlterTable"),
+    }
+}
+
+#[test]
+fn test_alter_table_move_subpartition() {
+    let stmt = parse_one("ALTER TABLE t MOVE SUBPARTITION sp1 TABLESPACE ts1");
+    match stmt {
+        Statement::AlterTable(at) => match &at.actions[0] {
+            AlterTableAction::MoveSubPartition { name, tablespace } => {
+                assert_eq!(name, "sp1");
+                assert_eq!(tablespace, "ts1");
+            }
+            other => panic!("expected MoveSubPartition, got {:?}", other),
+        },
+        _ => panic!("expected AlterTable"),
+    }
+}
+
+#[test]
+fn test_subpartition_format_roundtrip() {
+    use crate::formatter::SqlFormatter;
+    let sql = "CREATE TABLE t (id INT, name TEXT) PARTITION BY RANGE (id) SUBPARTITION BY LIST (name) (PARTITION p1 VALUES LESS THAN (100) (SUBPARTITION sp1 VALUES IN ('A'), SUBPARTITION sp2 VALUES IN ('B')))";
+    let stmt = parse_one(sql);
+    let formatted = SqlFormatter::new().format_statement(&stmt);
+    let stmt2 = parse_one(&formatted);
+    assert_eq!(stmt, stmt2);
+}
+
+#[test]
+fn test_json_roundtrip_subpartition() {
+    let stmt = parse_one(
+        "CREATE TABLE t (id INT, name TEXT) PARTITION BY RANGE (id) SUBPARTITION BY LIST (name) (PARTITION p1 VALUES LESS THAN (100) (SUBPARTITION sp1 VALUES IN ('A'), SUBPARTITION sp2 VALUES IN ('B')))",
+    );
+    assert_eq!(stmt, json_roundtrip(&stmt));
+}
+
+// ========== XML Function Tests ==========
+
+#[test]
+fn test_xmlelement_simple() {
+    let stmt = parse_one("SELECT xmlelement(name foo)");
+    match stmt {
+        Statement::Select(s) => {
+            assert_eq!(s.targets.len(), 1);
+            match &s.targets[0] {
+                SelectTarget::Expr(Expr::XmlElement { name, .. }, _) => {
+                    assert_eq!(name.as_deref(), Some("foo"));
+                }
+                _ => panic!("expected XmlElement"),
+            }
+        }
+        _ => panic!("expected SELECT"),
+    }
+}
+
+#[test]
+fn test_xmlelement_with_attributes() {
+    let stmt = parse_one("SELECT xmlelement(name foo, xmlattributes('bar' as baz))");
+    match stmt {
+        Statement::Select(s) => {
+            assert_eq!(s.targets.len(), 1);
+            match &s.targets[0] {
+                SelectTarget::Expr(
+                    Expr::XmlElement {
+                        attributes: Some(attrs),
+                        ..
+                    },
+                    _,
+                ) => {
+                    assert_eq!(attrs.items.len(), 1);
+                    assert_eq!(attrs.items[0].name.as_deref(), Some("baz"));
+                }
+                _ => panic!("expected XmlElement with attributes"),
+            }
+        }
+        _ => panic!("expected SELECT"),
+    }
+}
+
+#[test]
+fn test_xmlelement_noentityescaping_bug() {
+    let sql = r#"SELECT xmlelement(" entityescaping <> ", xmlattributes(noentityescaping 'entityescaping<>' " entityescaping <> "))"#;
+    let stmts = parse(sql);
+    assert_eq!(stmts.len(), 1);
+    match &stmts[0] {
+        Statement::Select(s) => match &s.targets[0] {
+            SelectTarget::Expr(
+                Expr::XmlElement {
+                    attributes: Some(attrs),
+                    ..
+                },
+                _,
+            ) => {
+                assert_eq!(attrs.entity_escaping, Some(false));
+                assert_eq!(attrs.items.len(), 1);
+            }
+            _ => panic!("expected XmlElement"),
+        },
+        _ => panic!("expected SELECT"),
+    }
+}
+
+#[test]
+fn test_xmlelement_entityescaping() {
+    let sql = r#"SELECT xmlelement(entityescaping "entityescaping<>", 'content')"#;
+    let stmts = parse(sql);
+    assert_eq!(stmts.len(), 1);
+    match &stmts[0] {
+        Statement::Select(s) => match &s.targets[0] {
+            SelectTarget::Expr(
+                Expr::XmlElement {
+                    entity_escaping: Some(true),
+                    name,
+                    content,
+                    ..
+                },
+                _,
+            ) => {
+                assert_eq!(name.as_deref(), Some("entityescaping<>"));
+                assert_eq!(content.len(), 1);
+            }
+            _ => panic!("expected XmlElement"),
+        },
+        _ => panic!("expected SELECT"),
+    }
+}
+
+#[test]
+fn test_xmlconcat() {
+    let stmts = parse("SELECT xmlconcat(x, y, z)");
+    assert_eq!(stmts.len(), 1);
+    match &stmts[0] {
+        Statement::Select(s) => match &s.targets[0] {
+            SelectTarget::Expr(Expr::XmlConcat(exprs), _) => {
+                assert_eq!(exprs.len(), 3);
+            }
+            _ => panic!("expected XmlConcat"),
+        },
+        _ => panic!("expected SELECT"),
+    }
+}
+
+#[test]
+fn test_xmlforest() {
+    let stmts = parse("SELECT xmlforest('abc' AS foo, 123 AS bar)");
+    assert_eq!(stmts.len(), 1);
+    match &stmts[0] {
+        Statement::Select(s) => match &s.targets[0] {
+            SelectTarget::Expr(Expr::XmlForest(items), _) => {
+                assert_eq!(items.len(), 2);
+                assert_eq!(items[0].alias.as_deref(), Some("foo"));
+                assert_eq!(items[1].alias.as_deref(), Some("bar"));
+            }
+            _ => panic!("expected XmlForest"),
+        },
+        _ => panic!("expected SELECT"),
+    }
+}
+
+#[test]
+fn test_xmlparse_document() {
+    let stmts = parse("SELECT xmlparse(document '<foo>bar</foo>')");
+    assert_eq!(stmts.len(), 1);
+    match &stmts[0] {
+        Statement::Select(s) => match &s.targets[0] {
+            SelectTarget::Expr(
+                Expr::XmlParse {
+                    option: XmlOption::Document,
+                    wellformed: false,
+                    ..
+                },
+                _,
+            ) => {}
+            _ => panic!("expected XmlParse"),
+        },
+        _ => panic!("expected SELECT"),
+    }
+}
+
+#[test]
+fn test_xmlparse_content_wellformed() {
+    let stmts = parse("SELECT xmlparse(content '<foo>bar</foo>' wellformed)");
+    assert_eq!(stmts.len(), 1);
+    match &stmts[0] {
+        Statement::Select(s) => match &s.targets[0] {
+            SelectTarget::Expr(
+                Expr::XmlParse {
+                    option: XmlOption::Content,
+                    wellformed: true,
+                    ..
+                },
+                _,
+            ) => {}
+            _ => panic!("expected XmlParse"),
+        },
+        _ => panic!("expected SELECT"),
+    }
+}
+
+#[test]
+fn test_xmlpi() {
+    let stmts = parse("SELECT xmlpi(name php, 'echo hello')");
+    assert_eq!(stmts.len(), 1);
+    match &stmts[0] {
+        Statement::Select(s) => match &s.targets[0] {
+            SelectTarget::Expr(
+                Expr::XmlPi {
+                    name: Some(n),
+                    content: Some(_),
+                },
+                _,
+            ) => {
+                assert_eq!(n, "php");
+            }
+            _ => panic!("expected XmlPi"),
+        },
+        _ => panic!("expected SELECT"),
+    }
+}
+
+#[test]
+fn test_xmlpi_no_content() {
+    let stmts = parse("SELECT xmlpi(name php)");
+    assert_eq!(stmts.len(), 1);
+    match &stmts[0] {
+        Statement::Select(s) => match &s.targets[0] {
+            SelectTarget::Expr(Expr::XmlPi { content: None, .. }, _) => {}
+            _ => panic!("expected XmlPi"),
+        },
+        _ => panic!("expected SELECT"),
+    }
+}
+
+#[test]
+fn test_xmlroot() {
+    let stmts = parse("SELECT xmlroot(x, version '1.0', standalone yes)");
+    assert_eq!(stmts.len(), 1);
+    match &stmts[0] {
+        Statement::Select(s) => match &s.targets[0] {
+            SelectTarget::Expr(
+                Expr::XmlRoot {
+                    version: Some(_),
+                    standalone: Some(Some(true)),
+                    ..
+                },
+                _,
+            ) => {}
+            _ => panic!("expected XmlRoot"),
+        },
+        _ => panic!("expected SELECT"),
+    }
+}
+
+#[test]
+fn test_xmlserialize() {
+    let stmts = parse("SELECT xmlserialize(content x AS text)");
+    assert_eq!(stmts.len(), 1);
+    match &stmts[0] {
+        Statement::Select(s) => match &s.targets[0] {
+            SelectTarget::Expr(
+                Expr::XmlSerialize {
+                    option: XmlOption::Content,
+                    type_name: _,
+                    ..
+                },
+                _,
+            ) => {}
+            _ => panic!("expected XmlSerialize"),
+        },
+        _ => panic!("expected SELECT"),
+    }
+}

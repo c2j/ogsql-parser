@@ -209,6 +209,7 @@ pub enum Keyword {
     ENCRYPTION,
     ENCRYPTION_TYPE,
     END_P,
+    ENTITYESCAPING,
     ENDS,
     ENFORCED,
     ENUM_P,
@@ -218,6 +219,7 @@ pub enum Keyword {
     ESCAPE,
     ESCAPED,
     ESCAPING,
+    EVALNAME,
     EVENT,
     EVENTS,
     EVERY,
@@ -397,6 +399,7 @@ pub enum Keyword {
     NO,
     NOCOMPRESS,
     NOCYCLE,
+    NOENTITYESCAPING,
     NODE,
     NOLOGGING,
     NOMAXVALUE,
@@ -694,6 +697,7 @@ pub enum Keyword {
     WAIT,
     WARNINGS,
     WEAK,
+    WELLFORMED,
     WHEN,
     WHERE,
     WHILE_P,
@@ -934,6 +938,7 @@ impl Keyword {
             Keyword::END_P => "end",
             Keyword::ENDS => "ends",
             Keyword::ENFORCED => "enforced",
+            Keyword::ENTITYESCAPING => "entityescaping",
             Keyword::ENUM_P => "enum",
             Keyword::EOL => "eol",
             Keyword::ERROR_P => "error",
@@ -941,6 +946,7 @@ impl Keyword {
             Keyword::ESCAPE => "escape",
             Keyword::ESCAPED => "escaped",
             Keyword::ESCAPING => "escaping",
+            Keyword::EVALNAME => "evalname",
             Keyword::EVENT => "event",
             Keyword::EVENTS => "events",
             Keyword::EVERY => "every",
@@ -1120,6 +1126,7 @@ impl Keyword {
             Keyword::NO => "no",
             Keyword::NOCOMPRESS => "nocompress",
             Keyword::NOCYCLE => "nocycle",
+            Keyword::NOENTITYESCAPING => "noentityescaping",
             Keyword::NODE => "node",
             Keyword::NOLOGGING => "nologging",
             Keyword::NOMAXVALUE => "nomaxvalue",
@@ -1417,6 +1424,7 @@ impl Keyword {
             Keyword::WAIT => "wait",
             Keyword::WARNINGS => "warnings",
             Keyword::WEAK => "weak",
+            Keyword::WELLFORMED => "wellformed",
             Keyword::WHEN => "when",
             Keyword::WHERE => "where",
             Keyword::WHILE_P => "while",
@@ -1770,6 +1778,7 @@ impl Keyword {
             | Keyword::ENCRYPTION_TYPE
             | Keyword::ENDS
             | Keyword::ENFORCED
+            | Keyword::ENTITYESCAPING
             | Keyword::ENUM_P => KeywordCategory::Unreserved,
             Keyword::EOL
             | Keyword::ERROR_P
@@ -1777,6 +1786,7 @@ impl Keyword {
             | Keyword::ESCAPE
             | Keyword::ESCAPED => KeywordCategory::Unreserved,
             Keyword::ESCAPING
+            | Keyword::EVALNAME
             | Keyword::EVENT
             | Keyword::EVENTS
             | Keyword::EVERY
@@ -1908,6 +1918,7 @@ impl Keyword {
             | Keyword::NO
             | Keyword::NOCOMPRESS
             | Keyword::NODE
+            | Keyword::NOENTITYESCAPING
             | Keyword::NOLOGGING => KeywordCategory::Unreserved,
             Keyword::NOMAXVALUE
             | Keyword::NOMINVALUE
@@ -2133,6 +2144,7 @@ impl Keyword {
             | Keyword::WAIT
             | Keyword::WARNINGS
             | Keyword::WEAK
+            | Keyword::WELLFORMED
             | Keyword::WHILE_P => KeywordCategory::Unreserved,
             Keyword::WHITESPACE_P
             | Keyword::WITHIN
@@ -2367,6 +2379,7 @@ pub fn lookup_keyword(s: &str) -> Option<Keyword> {
         ("end", Keyword::END_P),
         ("ends", Keyword::ENDS),
         ("enforced", Keyword::ENFORCED),
+        ("entityescaping", Keyword::ENTITYESCAPING),
         ("enum", Keyword::ENUM_P),
         ("eol", Keyword::EOL),
         ("error", Keyword::ERROR_P),
@@ -2374,6 +2387,7 @@ pub fn lookup_keyword(s: &str) -> Option<Keyword> {
         ("escape", Keyword::ESCAPE),
         ("escaped", Keyword::ESCAPED),
         ("escaping", Keyword::ESCAPING),
+        ("evalname", Keyword::EVALNAME),
         ("event", Keyword::EVENT),
         ("events", Keyword::EVENTS),
         ("every", Keyword::EVERY),
@@ -2554,6 +2568,7 @@ pub fn lookup_keyword(s: &str) -> Option<Keyword> {
         ("nocompress", Keyword::NOCOMPRESS),
         ("nocycle", Keyword::NOCYCLE),
         ("node", Keyword::NODE),
+        ("noentityescaping", Keyword::NOENTITYESCAPING),
         ("nologging", Keyword::NOLOGGING),
         ("nomaxvalue", Keyword::NOMAXVALUE),
         ("nominvalue", Keyword::NOMINVALUE),
@@ -2850,6 +2865,7 @@ pub fn lookup_keyword(s: &str) -> Option<Keyword> {
         ("wait", Keyword::WAIT),
         ("warnings", Keyword::WARNINGS),
         ("weak", Keyword::WEAK),
+        ("wellformed", Keyword::WELLFORMED),
         ("when", Keyword::WHEN),
         ("where", Keyword::WHERE),
         ("while", Keyword::WHILE_P),

@@ -1,0 +1,7 @@
+-- 来源: 1314_DROP SEQUENCE.txt
+-- SQL 数量: 2
+
+CREATE SEQUENCE serial START 101 ;
+
+DROP SEQUENCE serial ;
+

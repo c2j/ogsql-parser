@@ -1,6 +1,7 @@
 use crate::ast::{
     DataType, Expr, Literal, ObjectName, OrderByItem, SelectStatement, WhenClause, WindowFrame,
-    WindowFrameBound, WindowFrameDirection, WindowFrameMode, WindowSpec,
+    WindowFrameBound, WindowFrameDirection, WindowFrameMode, WindowSpec, XmlAttribute,
+    XmlAttributes, XmlContent, XmlOption,
 };
 use crate::parser::{Parser, ParserError};
 use crate::token::keyword::Keyword;
@@ -399,6 +400,34 @@ impl Parser {
                         type_name,
                     });
                 }
+                if kw == Keyword::XMLELEMENT {
+                    self.advance();
+                    return self.parse_xml_element();
+                }
+                if kw == Keyword::XMLCONCAT {
+                    self.advance();
+                    return self.parse_xml_concat();
+                }
+                if kw == Keyword::XMLFOREST {
+                    self.advance();
+                    return self.parse_xml_forest();
+                }
+                if kw == Keyword::XMLPARSE {
+                    self.advance();
+                    return self.parse_xml_parse();
+                }
+                if kw == Keyword::XMLPI {
+                    self.advance();
+                    return self.parse_xml_pi();
+                }
+                if kw == Keyword::XMLROOT {
+                    self.advance();
+                    return self.parse_xml_root();
+                }
+                if kw == Keyword::XMLSERIALIZE {
+                    self.advance();
+                    return self.parse_xml_serialize();
+                }
                 let name = self.parse_object_name()?;
                 // PostgreSQL typecast syntax: typename 'literal'
                 if let Token::StringLiteral(s) = self.peek().clone() {
@@ -758,6 +787,206 @@ impl Parser {
             operand,
             whens,
             else_expr,
+        })
+    }
+
+    fn parse_xml_element(&mut self) -> Result<Expr, ParserError> {
+        self.expect_token(&Token::LParen)?;
+
+        let entity_escaping = if self.try_consume_keyword(Keyword::ENTITYESCAPING) {
+            Some(true)
+        } else if self.try_consume_keyword(Keyword::NOENTITYESCAPING) {
+            Some(false)
+        } else {
+            None
+        };
+
+        let (evalname, name) = if self.try_consume_keyword(Keyword::EVALNAME) {
+            let expr = self.parse_expr()?;
+            (Some(Box::new(expr)), None)
+        } else {
+            let _ = self.try_consume_keyword(Keyword::NAME_P);
+            (None, Some(self.parse_identifier()?))
+        };
+
+        let mut attributes: Option<XmlAttributes> = None;
+        let mut content: Vec<XmlContent> = Vec::new();
+
+        while self.match_token(&Token::Comma) {
+            self.advance();
+
+            if self.match_keyword(Keyword::XMLATTRIBUTES) && attributes.is_none() {
+                self.advance();
+                attributes = Some(self.parse_xml_attributes_inner()?);
+                continue;
+            }
+
+            let expr = self.parse_expr()?;
+            let alias = self.parse_optional_alias()?;
+            content.push(XmlContent { expr, alias });
+        }
+
+        self.expect_token(&Token::RParen)?;
+
+        Ok(Expr::XmlElement {
+            entity_escaping,
+            evalname,
+            name,
+            attributes,
+            content,
+        })
+    }
+
+    fn parse_xml_attributes_inner(&mut self) -> Result<XmlAttributes, ParserError> {
+        self.expect_token(&Token::LParen)?;
+
+        let entity_escaping = if self.try_consume_keyword(Keyword::ENTITYESCAPING) {
+            Some(true)
+        } else if self.try_consume_keyword(Keyword::NOENTITYESCAPING) {
+            Some(false)
+        } else {
+            None
+        };
+
+        let mut items = Vec::new();
+        loop {
+            let expr = self.parse_expr()?;
+            let name = self.parse_optional_alias()?;
+            items.push(XmlAttribute { value: expr, name });
+            if !self.match_token(&Token::Comma) {
+                break;
+            }
+            self.advance();
+        }
+
+        self.expect_token(&Token::RParen)?;
+        Ok(XmlAttributes {
+            entity_escaping,
+            items,
+        })
+    }
+
+    fn parse_xml_concat(&mut self) -> Result<Expr, ParserError> {
+        self.expect_token(&Token::LParen)?;
+        let mut args = vec![self.parse_expr()?];
+        while self.match_token(&Token::Comma) {
+            self.advance();
+            args.push(self.parse_expr()?);
+        }
+        self.expect_token(&Token::RParen)?;
+        Ok(Expr::XmlConcat(args))
+    }
+
+    fn parse_xml_forest(&mut self) -> Result<Expr, ParserError> {
+        self.expect_token(&Token::LParen)?;
+        let mut items = Vec::new();
+        loop {
+            let expr = self.parse_expr()?;
+            let alias = self.parse_optional_alias()?;
+            items.push(XmlContent { expr, alias });
+            if !self.match_token(&Token::Comma) {
+                break;
+            }
+            self.advance();
+        }
+        self.expect_token(&Token::RParen)?;
+        Ok(Expr::XmlForest(items))
+    }
+
+    fn parse_xml_parse(&mut self) -> Result<Expr, ParserError> {
+        self.expect_token(&Token::LParen)?;
+        let option = if self.match_keyword(Keyword::DOCUMENT_P) {
+            self.advance();
+            XmlOption::Document
+        } else {
+            self.expect_keyword(Keyword::CONTENT_P)?;
+            XmlOption::Content
+        };
+        let expr = self.parse_expr()?;
+        let wellformed = self.try_consume_keyword(Keyword::WELLFORMED);
+        self.expect_token(&Token::RParen)?;
+        Ok(Expr::XmlParse {
+            option,
+            expr: Box::new(expr),
+            wellformed,
+        })
+    }
+
+    fn parse_xml_pi(&mut self) -> Result<Expr, ParserError> {
+        self.expect_token(&Token::LParen)?;
+        let _ = self.try_consume_keyword(Keyword::NAME_P);
+        let name = self.parse_identifier()?;
+        let content = if self.match_token(&Token::Comma) {
+            self.advance();
+            Some(Box::new(self.parse_expr()?))
+        } else {
+            None
+        };
+        self.expect_token(&Token::RParen)?;
+        Ok(Expr::XmlPi {
+            name: Some(name),
+            content,
+        })
+    }
+
+    fn parse_xml_root(&mut self) -> Result<Expr, ParserError> {
+        self.expect_token(&Token::LParen)?;
+        let expr = self.parse_expr()?;
+        self.expect_token(&Token::Comma)?;
+        self.expect_keyword(Keyword::VERSION_P)?;
+        let version = if self.match_keyword(Keyword::NO) {
+            self.advance();
+            if self.try_consume_keyword(Keyword::VALUE_P) {
+                None
+            } else {
+                Some(Box::new(Expr::ColumnRef(vec!["no".to_string()])))
+            }
+        } else {
+            Some(Box::new(self.parse_expr()?))
+        };
+        let standalone = if self.match_token(&Token::Comma) {
+            self.advance();
+            self.expect_keyword(Keyword::STANDALONE_P)?;
+            if self.try_consume_keyword(Keyword::YES_P) {
+                Some(Some(true))
+            } else if self.match_keyword(Keyword::NO) {
+                self.advance();
+                if self.try_consume_keyword(Keyword::VALUE_P) {
+                    Some(None)
+                } else {
+                    Some(Some(false))
+                }
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+        self.expect_token(&Token::RParen)?;
+        Ok(Expr::XmlRoot {
+            expr: Box::new(expr),
+            version,
+            standalone,
+        })
+    }
+
+    fn parse_xml_serialize(&mut self) -> Result<Expr, ParserError> {
+        self.expect_token(&Token::LParen)?;
+        let option = if self.match_keyword(Keyword::DOCUMENT_P) {
+            self.advance();
+            XmlOption::Document
+        } else {
+            self.expect_keyword(Keyword::CONTENT_P)?;
+            XmlOption::Content
+        };
+        let expr = self.parse_expr()?;
+        self.expect_keyword(Keyword::AS)?;
+        let type_name = self.parse_data_type()?;
+        self.expect_token(&Token::RParen)?;
+        Ok(Expr::XmlSerialize {
+            option,
+            expr: Box::new(expr),
+            type_name,
         })
     }
 }

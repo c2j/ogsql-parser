@@ -244,6 +244,71 @@ fn walk_expr(visitor: &mut dyn Visitor, expr: &Expr) -> VisitorResult {
                 }
             }
         }
+        Expr::XmlElement {
+            evalname,
+            attributes,
+            content,
+            ..
+        } => {
+            if let Some(expr) = evalname {
+                if walk_expr(visitor, expr) == VisitorResult::Stop {
+                    return VisitorResult::Stop;
+                }
+            }
+            if let Some(attrs) = attributes {
+                for item in &attrs.items {
+                    if walk_expr(visitor, &item.value) == VisitorResult::Stop {
+                        return VisitorResult::Stop;
+                    }
+                }
+            }
+            for item in content {
+                if walk_expr(visitor, &item.expr) == VisitorResult::Stop {
+                    return VisitorResult::Stop;
+                }
+            }
+        }
+        Expr::XmlConcat(exprs) => {
+            for expr in exprs {
+                if walk_expr(visitor, expr) == VisitorResult::Stop {
+                    return VisitorResult::Stop;
+                }
+            }
+        }
+        Expr::XmlForest(items) => {
+            for item in items {
+                if walk_expr(visitor, &item.expr) == VisitorResult::Stop {
+                    return VisitorResult::Stop;
+                }
+            }
+        }
+        Expr::XmlParse { expr, .. } => {
+            if walk_expr(visitor, expr) == VisitorResult::Stop {
+                return VisitorResult::Stop;
+            }
+        }
+        Expr::XmlPi { content, .. } => {
+            if let Some(c) = content {
+                if walk_expr(visitor, c) == VisitorResult::Stop {
+                    return VisitorResult::Stop;
+                }
+            }
+        }
+        Expr::XmlRoot { expr, version, .. } => {
+            if walk_expr(visitor, expr) == VisitorResult::Stop {
+                return VisitorResult::Stop;
+            }
+            if let Some(v) = version {
+                if walk_expr(visitor, v) == VisitorResult::Stop {
+                    return VisitorResult::Stop;
+                }
+            }
+        }
+        Expr::XmlSerialize { expr, .. } => {
+            if walk_expr(visitor, expr) == VisitorResult::Stop {
+                return VisitorResult::Stop;
+            }
+        }
         _ => {}
     }
 

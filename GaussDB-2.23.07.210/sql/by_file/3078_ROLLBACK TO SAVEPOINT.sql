@@ -1,0 +1,24 @@
+-- 来源: 3078_ROLLBACK TO SAVEPOINT.txt
+-- SQL 数量: 10
+
+START TRANSACTION;
+
+SAVEPOINT my_savepoint;
+
+ROLLBACK TO SAVEPOINT my_savepoint;
+
+--游标位置不受保存点回滚的影响。
+DECLARE foo CURSOR FOR SELECT 1 UNION SELECT 2;
+
+SAVEPOINT foo;
+
+FETCH 1 FROM foo;
+
+ROLLBACK TO SAVEPOINT foo;
+
+FETCH 1 FROM foo;
+
+RELEASE SAVEPOINT my_savepoint;
+
+COMMIT;
+

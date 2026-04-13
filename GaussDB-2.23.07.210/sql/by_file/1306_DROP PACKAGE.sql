@@ -1,0 +1,13 @@
+-- 来源: 1306_DROP PACKAGE.txt
+-- SQL 数量: 4
+
+CREATE DATABASE ora_compat_db DBCOMPATIBILITY 'ORA';
+
+--创建PACKAGE。
+CREATE OR REPLACE PACKAGE emp_bonus IS var1 INT:=1;
+
+--删除PACKAGE。
+DROP PACKAGE emp_bonus;
+
+DROP DATABASE ora_compat_db;
+

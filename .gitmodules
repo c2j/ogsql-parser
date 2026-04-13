@@ -1,6 +1,6 @@
 [submodule "lib/openGauss-server"]
 	path = lib/openGauss-server
-	url = https://gitee.com/opengauss/openGauss-server
+	url = https://gitcode.com/opengauss/openGauss-server.git
 [submodule "lib/mybatis-spring"]
 	path = lib/mybatis-spring
 	url = https://github.com/mybatis/spring.git

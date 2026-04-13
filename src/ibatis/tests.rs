@@ -16,6 +16,12 @@ fn parse_simple_mapper() -> crate::ibatis::types::MapperFile {
         WHERE id = #{id}
     </select>
 
+    <select id="findById" parameterType="int" resultType="User">
+        SELECT <include refid="baseColumns"/>
+        FROM users
+        WHERE id &lt;&gt; #{id}
+    </select>
+
     <insert id="insertUser" parameterType="User">
         INSERT INTO users (name, email) VALUES (#{name}, #{email})
     </insert>

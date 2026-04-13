@@ -1,0 +1,7 @@
+-- 来源: 3010_DROP MASKING POLICY.txt
+-- SQL 数量: 2
+
+DROP MASKING POLICY IF EXISTS maskpol1 ;
+
+DROP MASKING POLICY IF EXISTS maskpol1 , maskpol2 , maskpol3 ;
+

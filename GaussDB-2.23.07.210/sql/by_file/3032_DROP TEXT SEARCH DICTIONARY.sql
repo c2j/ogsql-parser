@@ -1,0 +1,8 @@
+-- 来源: 3032_DROP TEXT SEARCH DICTIONARY.txt
+-- SQL 数量: 2
+
+CREATE TEXT SEARCH DICTIONARY english ( TEMPLATE = simple );
+
+--删除词典english。
+DROP TEXT SEARCH DICTIONARY english;
+

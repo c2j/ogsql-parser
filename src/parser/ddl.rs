@@ -249,6 +249,43 @@ impl Parser {
                     },
                 });
                 subpartitions_count = sp_count;
+
+                // If partition defs haven't been parsed yet (empty in partition_by),
+                // try parsing them now - they may follow the SUBPARTITION BY clause
+                if let Some(ref pb) = partition_by {
+                    let empty = match pb {
+                        PartitionClause::Range { partitions, .. } => partitions.is_empty(),
+                        PartitionClause::List { partitions, .. } => partitions.is_empty(),
+                        PartitionClause::Hash { partitions, .. } => partitions.is_empty(),
+                    };
+                    if empty {
+                        let parts = self.parse_partition_defs()?;
+                        if !parts.is_empty() {
+                            partition_by = Some(match pb.clone() {
+                                PartitionClause::Range {
+                                    column, interval, ..
+                                } => PartitionClause::Range {
+                                    column,
+                                    interval,
+                                    partitions: parts,
+                                },
+                                PartitionClause::List { column, .. } => PartitionClause::List {
+                                    column,
+                                    partitions: parts,
+                                },
+                                PartitionClause::Hash {
+                                    column,
+                                    partitions_count,
+                                    ..
+                                } => PartitionClause::Hash {
+                                    column,
+                                    partitions_count,
+                                    partitions: parts,
+                                },
+                            });
+                        }
+                    }
+                }
             } else if self.match_keyword(Keyword::TABLESPACE) {
                 self.advance();
                 tablespace = Some(self.parse_identifier()?);
@@ -1209,6 +1246,22 @@ impl Parser {
                     })
                 }
             }
+            Some(Keyword::MOVE) => {
+                self.advance();
+                if self.match_keyword(Keyword::SUBPARTITION) {
+                    self.advance();
+                    let name = self.parse_identifier()?;
+                    self.expect_keyword(Keyword::TABLESPACE)?;
+                    let tablespace = self.parse_identifier()?;
+                    Ok(AlterTableAction::MoveSubPartition { name, tablespace })
+                } else {
+                    Err(ParserError::UnexpectedToken {
+                        location: self.current_location(),
+                        expected: "SUBPARTITION".to_string(),
+                        got: format!("{:?}", self.peek()),
+                    })
+                }
+            }
             _ => Err(ParserError::UnexpectedToken {
                 location: self.current_location(),
                 expected: "ALTER TABLE action".to_string(),
@@ -1303,6 +1356,19 @@ impl Parser {
 
     fn parse_subpartition_defs(&mut self) -> Result<Vec<PartitionDef>, ParserError> {
         if !self.match_token(&Token::LParen) {
+            return Ok(Vec::new());
+        }
+        // Peek inside: if starts with PARTITION (not SUBPARTITION), these are partition defs, not subpartition defs
+        if self.pos + 1 < self.tokens.len()
+            && matches!(
+                self.tokens[self.pos + 1].token,
+                Token::Keyword(Keyword::PARTITION)
+            )
+            && !matches!(
+                self.tokens[self.pos + 1].token,
+                Token::Keyword(Keyword::SUBPARTITION)
+            )
+        {
             return Ok(Vec::new());
         }
         self.advance();

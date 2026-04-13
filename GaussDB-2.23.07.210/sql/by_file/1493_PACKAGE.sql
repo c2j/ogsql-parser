@@ -1,0 +1,23 @@
+-- 来源: 1493_PACKAGE.txt
+-- SQL 数量: 10
+
+create database test DBCOMPATIBILITY = 'ORA';
+
+CREATE TABLE t2(a INT, b INT);
+
+INSERT INTO t2 VALUES(1,2);
+
+SELECT * FROM t2;
+
+CREATE OR REPLACE PACKAGE autonomous_pkg AS PROCEDURE autonomous_4(a INT, b INT);
+
+CREATE OR REPLACE PACKAGE BODY autonomous_pkg AS PROCEDURE autonomous_4(a INT, b INT) AS DECLARE num3 INT := a;
+
+CREATE OR REPLACE PROCEDURE autonomous_5(a INT, b INT) AS DECLARE va INT;
+
+SELECT autonomous_5(11,22);
+
+SELECT * FROM t2 ORDER BY a;
+
+DROP TABLE t2;
+

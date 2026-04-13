@@ -758,6 +758,34 @@ pub enum Expr {
     Parenthesized(Box<Expr>),
     Prior(Box<Expr>),
     Default,
+    XmlElement {
+        entity_escaping: Option<bool>,
+        evalname: Option<Box<Expr>>,
+        name: Option<String>,
+        attributes: Option<XmlAttributes>,
+        content: Vec<XmlContent>,
+    },
+    XmlConcat(Vec<Expr>),
+    XmlForest(Vec<XmlContent>),
+    XmlParse {
+        option: XmlOption,
+        expr: Box<Expr>,
+        wellformed: bool,
+    },
+    XmlPi {
+        name: Option<String>,
+        content: Option<Box<Expr>>,
+    },
+    XmlRoot {
+        expr: Box<Expr>,
+        version: Option<Box<Expr>>,
+        standalone: Option<Option<bool>>,
+    },
+    XmlSerialize {
+        option: XmlOption,
+        expr: Box<Expr>,
+        type_name: DataType,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -781,6 +809,30 @@ pub enum Literal {
 }
 
 pub type ObjectName = Vec<String>;
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub enum XmlOption {
+    Document,
+    Content,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct XmlAttributes {
+    pub entity_escaping: Option<bool>,
+    pub items: Vec<XmlAttribute>,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct XmlAttribute {
+    pub value: Expr,
+    pub name: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct XmlContent {
+    pub expr: Expr,
+    pub alias: Option<String>,
+}
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct WindowSpec {

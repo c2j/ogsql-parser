@@ -684,7 +684,155 @@ impl SqlFormatter {
             }
             Expr::Prior(e) => format!("{} {}", self.kw("PRIOR"), self.format_expr(e)),
             Expr::Default => self.kw("DEFAULT").to_string(),
+            Expr::XmlElement {
+                entity_escaping,
+                evalname,
+                name,
+                attributes,
+                content,
+            } => {
+                let mut result = self.kw("XMLELEMENT") + "(";
+                if let Some(true) = entity_escaping {
+                    result = result + &self.kw("ENTITYESCAPING") + " ";
+                } else if let Some(false) = entity_escaping {
+                    result = result + &self.kw("NOENTITYESCAPING") + " ";
+                }
+                if let Some(expr) = evalname {
+                    result = result + &self.kw("EVALNAME") + " " + &self.format_expr(expr);
+                } else if let Some(n) = name {
+                    result = result + &self.quote_identifier_relaxed(n);
+                }
+                if let Some(attrs) = attributes {
+                    result = result + ", " + &self.format_xml_attributes(attrs);
+                }
+                for item in content {
+                    result = result + ", " + &self.format_expr(&item.expr);
+                    if let Some(alias) = &item.alias {
+                        result = result
+                            + " "
+                            + &self.kw("AS")
+                            + " "
+                            + &self.quote_identifier_relaxed(alias);
+                    }
+                }
+                result + ")"
+            }
+            Expr::XmlConcat(exprs) => {
+                format!("{}({})", self.kw("XMLCONCAT"), self.format_exprs(exprs))
+            }
+            Expr::XmlForest(items) => {
+                let parts: Vec<String> = items
+                    .iter()
+                    .map(|item| {
+                        let mut s = self.format_expr(&item.expr);
+                        if let Some(alias) = &item.alias {
+                            s = s
+                                + " "
+                                + &self.kw("AS")
+                                + " "
+                                + &self.quote_identifier_relaxed(alias);
+                        }
+                        s
+                    })
+                    .collect();
+                format!("{}({})", self.kw("XMLFOREST"), parts.join(", "))
+            }
+            Expr::XmlParse {
+                option,
+                expr,
+                wellformed,
+            } => {
+                let opt_str = match option {
+                    XmlOption::Document => self.kw("DOCUMENT"),
+                    XmlOption::Content => self.kw("CONTENT"),
+                };
+                let mut result = format!(
+                    "{}({} {}",
+                    self.kw("XMLPARSE"),
+                    opt_str,
+                    self.format_expr(expr)
+                );
+                if *wellformed {
+                    result = result + " " + &self.kw("WELLFORMED");
+                }
+                result + ")"
+            }
+            Expr::XmlPi { name, content } => {
+                let mut result = self.kw("XMLPI") + "(" + &self.kw("NAME") + " ";
+                if let Some(n) = name {
+                    result = result + &self.quote_identifier_relaxed(n);
+                }
+                if let Some(c) = content {
+                    result = result + ", " + &self.format_expr(c);
+                }
+                result + ")"
+            }
+            Expr::XmlRoot {
+                expr,
+                version,
+                standalone,
+            } => {
+                let mut result = format!(
+                    "{}({}, {}",
+                    self.kw("XMLROOT"),
+                    self.format_expr(expr),
+                    self.kw("VERSION")
+                );
+                if let Some(v) = version {
+                    result = result + " " + &self.format_expr(v);
+                } else {
+                    result = result + " " + &self.kw("NO") + " " + &self.kw("VALUE");
+                }
+                if let Some(s) = standalone {
+                    result = result + ", " + &self.kw("STANDALONE") + " ";
+                    match s {
+                        Some(true) => result = result + &self.kw("YES"),
+                        Some(false) => result = result + &self.kw("NO"),
+                        None => result = result + &self.kw("NO") + " " + &self.kw("VALUE"),
+                    }
+                }
+                result + ")"
+            }
+            Expr::XmlSerialize {
+                option,
+                expr,
+                type_name,
+            } => {
+                let opt_str = match option {
+                    XmlOption::Document => self.kw("DOCUMENT"),
+                    XmlOption::Content => self.kw("CONTENT"),
+                };
+                format!(
+                    "{}({} {} {} {})",
+                    self.kw("XMLSERIALIZE"),
+                    opt_str,
+                    self.format_expr(expr),
+                    self.kw("AS"),
+                    self.format_data_type(type_name)
+                )
+            }
         }
+    }
+
+    fn format_xml_attributes(&self, attrs: &XmlAttributes) -> String {
+        let mut result = self.kw("XMLATTRIBUTES") + "(";
+        if let Some(true) = attrs.entity_escaping {
+            result = result + &self.kw("ENTITYESCAPING") + " ";
+        } else if let Some(false) = attrs.entity_escaping {
+            result = result + &self.kw("NOENTITYESCAPING") + " ";
+        }
+        let parts: Vec<String> = attrs
+            .items
+            .iter()
+            .map(|a| {
+                let mut s = self.format_expr(&a.value);
+                if let Some(name) = &a.name {
+                    s = s + " " + &self.kw("AS") + " " + &self.quote_identifier_relaxed(name);
+                }
+                s
+            })
+            .collect();
+        result + &parts.join(", ") + ")"
     }
 
     fn format_exprs(&self, exprs: &[Expr]) -> String {
