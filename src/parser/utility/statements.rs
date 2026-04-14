@@ -450,7 +450,44 @@ impl Parser {
             self.advance();
             if !self.match_token(&Token::RParen) {
                 loop {
-                    let dt = self.parse_identifier()?;
+                    let mut dt = self.parse_identifier()?;
+                    if self.match_token(&Token::LParen) {
+                        self.advance();
+                        dt.push('(');
+                        let mut first = true;
+                        while !self.match_token(&Token::RParen) {
+                            if !first {
+                                if self.match_token(&Token::Comma) {
+                                    self.advance();
+                                    dt.push_str(", ");
+                                }
+                            }
+                            first = false;
+                            let mut depth = 0i32;
+                            loop {
+                                match self.peek() {
+                                    crate::token::Token::LParen => {
+                                        depth += 1;
+                                        dt.push('(');
+                                        self.advance();
+                                    }
+                                    crate::token::Token::RParen if depth > 0 => {
+                                        depth -= 1;
+                                        dt.push(')');
+                                        self.advance();
+                                    }
+                                    crate::token::Token::RParen => break,
+                                    crate::token::Token::Comma if depth == 0 => break,
+                                    other => {
+                                        dt.push_str(&format!("{:?}", other).trim_matches('"'));
+                                        self.advance();
+                                    }
+                                }
+                            }
+                        }
+                        self.expect_token(&Token::RParen)?;
+                        dt.push(')');
+                    }
                     data_types.push(dt);
                     if self.match_token(&Token::Comma) {
                         self.advance();

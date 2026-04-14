@@ -674,9 +674,17 @@ impl Parser {
 
         let action = if self.match_keyword(Keyword::RENAME) {
             self.advance();
-            self.expect_keyword(Keyword::TO)?;
-            let new_name = self.parse_identifier()?;
-            AlterIndexAction::RenameTo(new_name)
+            if self.match_keyword(Keyword::PARTITION) {
+                self.advance();
+                let old_name = self.parse_identifier()?;
+                self.expect_keyword(Keyword::TO)?;
+                let new_name = self.parse_identifier()?;
+                AlterIndexAction::RenamePartition { old_name, new_name }
+            } else {
+                self.expect_keyword(Keyword::TO)?;
+                let new_name = self.parse_identifier()?;
+                AlterIndexAction::RenameTo(new_name)
+            }
         } else if self.match_keyword(Keyword::SET) {
             self.advance();
             if self.match_keyword(Keyword::TABLESPACE) {

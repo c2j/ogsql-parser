@@ -35,8 +35,29 @@ impl Parser {
                 if is_priv {
                     return false;
                 }
-                // ALL could be GRANT ALL ON or GRANT ALL PRIVILEGES or GRANT all_roles TO
+                // ALL: GRANT ALL ON (privilege), GRANT ALL TO (role), GRANT ALL PRIVILEGES TO (role)
                 if kw_name == "ALL" {
+                    if self.tokens.len() > self.pos + 1 {
+                        let next = &self.tokens[self.pos + 1].token;
+                        if matches!(next, Token::Comma | Token::Keyword(Keyword::TO)) {
+                            return true;
+                        }
+                        // ALL PRIVILEGES TO → role grant (no ON clause)
+                        let is_privileges = match next {
+                            Token::Ident(s) => s.to_uppercase() == "PRIVILEGES",
+                            Token::Keyword(kw) => {
+                                format!("{:?}", kw).trim_end_matches("_P").to_uppercase()
+                                    == "PRIVILEGES"
+                            }
+                            _ => false,
+                        };
+                        if is_privileges && self.tokens.len() > self.pos + 2 {
+                            let after_priv = &self.tokens[self.pos + 2].token;
+                            if matches!(after_priv, Token::Keyword(Keyword::TO)) {
+                                return true;
+                            }
+                        }
+                    }
                     return false;
                 }
                 // Otherwise, look ahead: if followed by comma or TO, it's GRANT ROLE
@@ -93,6 +114,26 @@ impl Parser {
                     return false;
                 }
                 if kw_name == "ALL" {
+                    if self.tokens.len() > self.pos + 1 {
+                        let next = &self.tokens[self.pos + 1].token;
+                        if matches!(next, Token::Comma | Token::Keyword(Keyword::FROM)) {
+                            return true;
+                        }
+                        let is_privileges = match next {
+                            Token::Ident(s) => s.to_uppercase() == "PRIVILEGES",
+                            Token::Keyword(kw) => {
+                                format!("{:?}", kw).trim_end_matches("_P").to_uppercase()
+                                    == "PRIVILEGES"
+                            }
+                            _ => false,
+                        };
+                        if is_privileges && self.tokens.len() > self.pos + 2 {
+                            let after_priv = &self.tokens[self.pos + 2].token;
+                            if matches!(after_priv, Token::Keyword(Keyword::FROM)) {
+                                return true;
+                            }
+                        }
+                    }
                     return false;
                 }
                 if self.tokens.len() > self.pos + 1 {
@@ -122,10 +163,10 @@ impl Parser {
         if self.match_keyword(Keyword::ROLE) || self.match_keyword(Keyword::ROLES) {
             self.advance();
         }
-        let mut roles = vec![self.parse_identifier()?];
+        let mut roles = vec![self.parse_role_identifier()?];
         while self.match_token(&Token::Comma) {
             self.advance();
-            roles.push(self.parse_identifier()?);
+            roles.push(self.parse_role_identifier()?);
         }
         self.expect_keyword(Keyword::TO)?;
         let mut grantees = vec![self.parse_identifier()?];
@@ -158,10 +199,10 @@ impl Parser {
         if self.match_keyword(Keyword::ROLE) || self.match_keyword(Keyword::ROLES) {
             self.advance();
         }
-        let mut roles = vec![self.parse_identifier()?];
+        let mut roles = vec![self.parse_role_identifier()?];
         while self.match_token(&Token::Comma) {
             self.advance();
-            roles.push(self.parse_identifier()?);
+            roles.push(self.parse_role_identifier()?);
         }
         self.expect_keyword(Keyword::FROM)?;
         let mut grantees = vec![self.parse_identifier()?];
@@ -272,21 +313,88 @@ impl Parser {
 
         loop {
             let priv_kind = match self.peek_keyword() {
-                Some(Keyword::SELECT) => Privilege::Select,
-                Some(Keyword::INSERT) => Privilege::Insert,
-                Some(Keyword::UPDATE) => Privilege::Update,
-                Some(Keyword::DELETE_P) => Privilege::Delete,
-                Some(Keyword::CREATE) => Privilege::Create,
-                Some(Keyword::CONNECT) => Privilege::Connect,
-                Some(Keyword::TEMPORARY) | Some(Keyword::TEMP) => Privilege::Temporary,
-                Some(Keyword::EXECUTE) => Privilege::Execute,
-                Some(Keyword::TRIGGER) => Privilege::Trigger,
-                Some(Keyword::REFERENCES) => Privilege::References,
-                Some(Keyword::ALTER) => Privilege::Alter,
-                Some(Keyword::DROP) => Privilege::Drop,
-                Some(Keyword::COMMENT) => Privilege::Comment,
-                Some(Keyword::INDEX) => Privilege::Index,
-                Some(Keyword::VACUUM) => Privilege::Vacuum,
+                Some(Keyword::SELECT) => {
+                    self.advance();
+                    if self.match_token(&Token::LParen) {
+                        self.advance();
+                        let mut cols = vec![self.parse_identifier()?];
+                        while self.match_token(&Token::Comma) {
+                            self.advance();
+                            cols.push(self.parse_identifier()?);
+                        }
+                        self.expect_token(&Token::RParen)?;
+                        Privilege::SelectColumns(cols)
+                    } else {
+                        Privilege::Select
+                    }
+                }
+                Some(Keyword::INSERT) => {
+                    self.advance();
+                    Privilege::Insert
+                }
+                Some(Keyword::UPDATE) => {
+                    self.advance();
+                    if self.match_token(&Token::LParen) {
+                        self.advance();
+                        let mut cols = vec![self.parse_identifier()?];
+                        while self.match_token(&Token::Comma) {
+                            self.advance();
+                            cols.push(self.parse_identifier()?);
+                        }
+                        self.expect_token(&Token::RParen)?;
+                        Privilege::UpdateColumns(cols)
+                    } else {
+                        Privilege::Update
+                    }
+                }
+                Some(Keyword::DELETE_P) => {
+                    self.advance();
+                    Privilege::Delete
+                }
+                Some(Keyword::CREATE) => {
+                    self.advance();
+                    Privilege::Create
+                }
+                Some(Keyword::CONNECT) => {
+                    self.advance();
+                    Privilege::Connect
+                }
+                Some(Keyword::TEMPORARY) | Some(Keyword::TEMP) => {
+                    self.advance();
+                    Privilege::Temporary
+                }
+                Some(Keyword::EXECUTE) => {
+                    self.advance();
+                    Privilege::Execute
+                }
+                Some(Keyword::TRIGGER) => {
+                    self.advance();
+                    Privilege::Trigger
+                }
+                Some(Keyword::REFERENCES) => {
+                    self.advance();
+                    Privilege::References
+                }
+                Some(Keyword::ALTER) => {
+                    self.advance();
+                    Privilege::Alter
+                }
+                Some(Keyword::DROP) => {
+                    self.advance();
+                    Privilege::Drop
+                }
+                Some(Keyword::COMMENT) => {
+                    self.advance();
+                    Privilege::Comment
+                }
+                Some(Keyword::INDEX) => {
+                    self.advance();
+                    Privilege::Index
+                }
+                Some(Keyword::VACUUM) => {
+                    self.advance();
+                    Privilege::Vacuum
+                }
                 _ => {
                     if let Token::Ident(s) = self.peek() {
                         let name = s.to_uppercase();
@@ -318,7 +426,6 @@ impl Parser {
                     }
                 }
             };
-            self.advance();
             privileges.push(priv_kind);
 
             if self.match_token(&Token::Comma) {
@@ -494,6 +601,15 @@ impl Parser {
             grantees.push(self.parse_identifier()?);
         }
         Ok(grantees)
+    }
+
+    fn parse_role_identifier(&mut self) -> Result<String, ParserError> {
+        let name = self.parse_identifier()?;
+        if name.to_uppercase() == "ALL" && self.match_ident_str("PRIVILEGES") {
+            self.advance();
+            return Ok(format!("{} {}", name, "privileges"));
+        }
+        Ok(name)
     }
 
     // ── Wave 8: CREATE TRIGGER + MATERIALIZED VIEW ──

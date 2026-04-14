@@ -387,7 +387,36 @@ impl Parser {
         let if_not_exists = self.parse_if_not_exists();
         let name = self.parse_object_name()?;
         self.expect_keyword(Keyword::AS)?;
-        let query = Box::new(self.parse_select_statement()?);
+
+        let (query, as_table) = if self.match_keyword(Keyword::TABLE) {
+            self.advance();
+            let table_name = self.parse_object_name()?;
+            let synthetic_query = SelectStatement {
+                hints: vec![],
+                with: None,
+                distinct: false,
+                targets: vec![SelectTarget::Star(None)],
+                into_targets: None,
+                from: vec![TableRef::Table {
+                    name: table_name.clone(),
+                    alias: None,
+                }],
+                where_clause: None,
+                connect_by: None,
+                group_by: vec![],
+                having: None,
+                order_by: vec![],
+                limit: None,
+                offset: None,
+                fetch: None,
+                lock_clause: None,
+                set_operation: None,
+            };
+            (Box::new(synthetic_query), Some(table_name))
+        } else {
+            (Box::new(self.parse_select_statement()?), None)
+        };
+
         let with_data = if self.match_keyword(Keyword::WITH) {
             self.advance();
             if self.match_keyword(Keyword::NO) {
@@ -409,6 +438,7 @@ impl Parser {
                 name,
                 column_names: Vec::new(),
                 query,
+                as_table,
                 with_data,
             },
         ))

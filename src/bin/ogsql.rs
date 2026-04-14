@@ -162,9 +162,19 @@ fn cmd_parse(cli: &Cli) {
             println!("{:#?}", stmt);
         }
         if !errors.is_empty() {
-            eprintln!("\n{} error(s):", errors.len());
-            for e in &errors {
-                eprintln!("  {}", e);
+            let warnings: Vec<_> = errors.iter().filter(|e| matches!(e, ogsql_parser::ParserError::Warning { .. })).collect();
+            let real_errors: Vec<_> = errors.iter().filter(|e| !matches!(e, ogsql_parser::ParserError::Warning { .. })).collect();
+            if !real_errors.is_empty() {
+                eprintln!("\n{} error(s):", real_errors.len());
+                for e in &real_errors {
+                    eprintln!("  {}", e);
+                }
+            }
+            if !warnings.is_empty() {
+                eprintln!("\n{} warning(s):", warnings.len());
+                for w in &warnings {
+                    eprintln!("  {}", w);
+                }
             }
         }
     }
@@ -265,12 +275,25 @@ fn cmd_validate(cli: &Cli) {
         });
         println!("{}", serde_json::to_string_pretty(&out).unwrap());
     } else {
-        if errors.is_empty() {
-            println!("VALID");
+        let has_real_errors = errors.iter().any(|e| !matches!(e, ogsql_parser::ParserError::Warning { .. }));
+        if !has_real_errors {
+            if errors.is_empty() {
+                println!("VALID");
+            } else {
+                println!("VALID ({} warning(s)):", errors.len());
+                for e in &errors {
+                    eprintln!("  {}", e);
+                }
+            }
         } else {
-            println!("INVALID ({} error(s)):", errors.len());
-            for e in &errors {
+            let real_errors: Vec<_> = errors.iter().filter(|e| !matches!(e, ogsql_parser::ParserError::Warning { .. })).collect();
+            let warnings: Vec<_> = errors.iter().filter(|e| matches!(e, ogsql_parser::ParserError::Warning { .. })).collect();
+            println!("INVALID ({} error(s), {} warning(s)):", real_errors.len(), warnings.len());
+            for e in &real_errors {
                 eprintln!("  {}", e);
+            }
+            for w in &warnings {
+                eprintln!("  {}", w);
             }
             std::process::exit(1);
         }

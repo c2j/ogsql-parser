@@ -132,8 +132,16 @@ impl Parser {
                 if self.match_keyword(Keyword::PARTITION) {
                     self.advance();
                     let if_exists = self.parse_if_exists();
-                    let name = self.parse_identifier()?;
-                    Ok(AlterTableAction::DropPartition { name, if_exists })
+                    if self.match_keyword(Keyword::FOR) {
+                        self.advance();
+                        self.expect_token(&Token::LParen)?;
+                        let expr = self.parse_expr()?;
+                        self.expect_token(&Token::RParen)?;
+                        Ok(AlterTableAction::DropPartitionFor { expr, if_exists })
+                    } else {
+                        let name = self.parse_identifier()?;
+                        Ok(AlterTableAction::DropPartition { name, if_exists })
+                    }
                 } else if self.match_keyword(Keyword::SUBPARTITION) {
                     self.advance();
                     let if_exists = self.parse_if_exists();
@@ -186,10 +194,20 @@ impl Parser {
                     Ok(AlterTableAction::RenameSubPartition { old_name, new_name })
                 } else if self.match_keyword(Keyword::PARTITION) {
                     self.advance();
-                    let old_name = self.parse_identifier()?;
-                    self.expect_keyword(Keyword::TO)?;
-                    let new_name = self.parse_identifier()?;
-                    Ok(AlterTableAction::RenamePartition { old_name, new_name })
+                    if self.match_keyword(Keyword::FOR) {
+                        self.advance();
+                        self.expect_token(&Token::LParen)?;
+                        let expr = self.parse_expr()?;
+                        self.expect_token(&Token::RParen)?;
+                        self.expect_keyword(Keyword::TO)?;
+                        let new_name = self.parse_identifier()?;
+                        Ok(AlterTableAction::RenamePartitionFor { expr, new_name })
+                    } else {
+                        let old_name = self.parse_identifier()?;
+                        self.expect_keyword(Keyword::TO)?;
+                        let new_name = self.parse_identifier()?;
+                        Ok(AlterTableAction::RenamePartition { old_name, new_name })
+                    }
                 } else if self.match_keyword(Keyword::COLUMN) {
                     self.advance();
                     let old = self.parse_identifier()?;
@@ -390,7 +408,15 @@ impl Parser {
                     Ok(AlterTableAction::ExchangeSubPartition { name, table })
                 } else {
                     self.expect_keyword(Keyword::PARTITION)?;
-                    let name = self.parse_identifier()?;
+                    // Handle both PARTITION name and PARTITION (name) forms
+                    let name = if self.match_token(&Token::LParen) {
+                        self.advance();
+                        let n = self.parse_identifier()?;
+                        self.expect_token(&Token::RParen)?;
+                        n
+                    } else {
+                        self.parse_identifier()?
+                    };
                     self.expect_keyword(Keyword::WITH)?;
                     self.expect_keyword(Keyword::TABLE)?;
                     let table = self.parse_object_name()?;
@@ -427,10 +453,16 @@ impl Parser {
                     self.expect_keyword(Keyword::TABLESPACE)?;
                     let tablespace = self.parse_identifier()?;
                     Ok(AlterTableAction::MoveSubPartition { name, tablespace })
+                } else if self.match_keyword(Keyword::PARTITION) {
+                    self.advance();
+                    let name = self.parse_identifier()?;
+                    self.expect_keyword(Keyword::TABLESPACE)?;
+                    let tablespace = self.parse_identifier()?;
+                    Ok(AlterTableAction::MovePartition { name, tablespace })
                 } else {
                     Err(ParserError::UnexpectedToken {
                         location: self.current_location(),
-                        expected: "SUBPARTITION".to_string(),
+                        expected: "PARTITION or SUBPARTITION".to_string(),
                         got: format!("{:?}", self.peek()),
                     })
                 }
@@ -450,6 +482,41 @@ impl Parser {
                     AlterColumnAction::SetDataType(data_type)
                 };
                 Ok(AlterTableAction::AlterColumn { name, action })
+            }
+            Some(Keyword::ENABLE_P) => {
+                self.advance();
+                if self.match_keyword(Keyword::ROW) {
+                    self.advance();
+                    self.expect_keyword(Keyword::LEVEL)?;
+                    self.expect_keyword(Keyword::SECURITY)?;
+                }
+                Ok(AlterTableAction::EnableRowLevelSecurity)
+            }
+            Some(Keyword::DISABLE_P) => {
+                self.advance();
+                if self.match_keyword(Keyword::ROW) {
+                    self.advance();
+                    self.expect_keyword(Keyword::LEVEL)?;
+                    self.expect_keyword(Keyword::SECURITY)?;
+                }
+                Ok(AlterTableAction::DisableRowLevelSecurity)
+            }
+            Some(Keyword::CHARSET) | Some(Keyword::CHARACTER) => {
+                self.advance();
+                if self.match_keyword(Keyword::SET) {
+                    self.advance();
+                }
+                let charset = self.parse_identifier()?;
+                let collation = if self.match_keyword(Keyword::COLLATE)
+                    || self.match_ident_str("collate")
+                    || self.match_ident_str("COLLATION")
+                {
+                    self.advance();
+                    Some(self.parse_identifier()?)
+                } else {
+                    None
+                };
+                Ok(AlterTableAction::SetCharset { charset, collation })
             }
             _ => Err(ParserError::UnexpectedToken {
                 location: self.current_location(),

@@ -27,6 +27,7 @@ pub struct CreateTableAsStatement {
     pub name: ObjectName,
     pub column_names: Vec<String>,
     pub query: Box<SelectStatement>,
+    pub as_table: Option<ObjectName>,
     pub with_data: bool,
 }
 
@@ -243,9 +244,27 @@ pub enum AlterTableAction {
         old_name: String,
         new_name: String,
     },
+    MovePartition {
+        name: String,
+        tablespace: String,
+    },
     MoveSubPartition {
         name: String,
         tablespace: String,
+    },
+    DropPartitionFor {
+        expr: Expr,
+        if_exists: bool,
+    },
+    RenamePartitionFor {
+        expr: Expr,
+        new_name: String,
+    },
+    EnableRowLevelSecurity,
+    DisableRowLevelSecurity,
+    SetCharset {
+        charset: String,
+        collation: Option<String>,
     },
 }
 
@@ -315,6 +334,7 @@ pub enum ObjectType {
     Role,
     Group,
     ResourcePool,
+    ResourceLabel,
     WorkloadGroup,
     AuditPolicy,
     MaskingPolicy,
@@ -731,6 +751,7 @@ pub struct OrderByItem {
 pub enum Expr {
     Literal(Literal),
     ColumnRef(ObjectName),
+    QualifiedStar(String),
     BinaryOp {
         left: Box<Expr>,
         op: String,
@@ -788,6 +809,7 @@ pub enum Expr {
         index: Box<Expr>,
     },
     Parenthesized(Box<Expr>),
+    RowConstructor(Vec<Expr>),
     Prior(Box<Expr>),
     Default,
     XmlElement {
@@ -911,10 +933,18 @@ pub struct WindowFrameBound {
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub enum DmlPartitionClause {
+    Partition(String),
+    Subpartition(String),
+    PartitionFor(Vec<Expr>),
+    SubpartitionFor(Vec<Expr>),
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct InsertStatement {
     pub hints: Vec<String>,
     pub table: ObjectName,
-    pub partition: Option<String>,
+    pub partition: Option<DmlPartitionClause>,
     pub columns: Vec<String>,
     pub source: InsertSource,
     pub on_conflict: Option<OnConflictAction>,
@@ -978,6 +1008,7 @@ pub struct InsertFirstStatement {
 pub struct UpdateStatement {
     pub hints: Vec<String>,
     pub tables: Vec<TableRef>,
+    pub partition: Option<DmlPartitionClause>,
     pub assignments: Vec<UpdateAssignment>,
     pub from: Vec<TableRef>,
     pub where_clause: Option<Expr>,
@@ -1003,7 +1034,9 @@ pub struct DeleteStatement {
 pub struct MergeStatement {
     pub hints: Vec<String>,
     pub target: TableRef,
+    pub partition: Option<DmlPartitionClause>,
     pub source: TableRef,
+    pub source_partition: Option<DmlPartitionClause>,
     pub on_condition: Expr,
     pub when_clauses: Vec<MergeWhenClause>,
 }
@@ -1484,8 +1517,10 @@ pub struct GrantStatement {
 pub enum Privilege {
     All,
     Select,
+    SelectColumns(Vec<String>),
     Insert,
     Update,
+    UpdateColumns(Vec<String>),
     Delete,
     Usage,
     Create,
@@ -1860,6 +1895,7 @@ pub struct AlterIndexStatement {
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum AlterIndexAction {
     RenameTo(String),
+    RenamePartition { old_name: String, new_name: String },
     SetTablespace(String),
     Set(Vec<(String, String)>),
     Reset(Vec<String>),
@@ -2023,6 +2059,12 @@ pub struct CreateGroupStatement {
     pub options: Vec<RoleOption>,
 }
 
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct AlterResourcePoolStatement {
+    pub name: String,
+    pub options: Vec<(String, String)>,
+}
+
 stub_struct!(
     DropDatabaseStatement,
     DropTablespaceStatement,
@@ -2047,7 +2089,6 @@ stub_struct!(
     AlterSubscriptionStatement,
     AlterNodeStatement,
     AlterNodeGroupStatement,
-    AlterResourcePoolStatement,
     AlterWorkloadGroupStatement,
     AlterAuditPolicyStatement,
     AlterRlsPolicyStatement,
@@ -2097,6 +2138,12 @@ pub enum AlterMaskingPolicyAction {
         function: String,
         labels: Vec<String>,
     },
+    Modify {
+        function: String,
+        labels: Vec<String>,
+    },
+    DropFilter,
+    Disable,
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]

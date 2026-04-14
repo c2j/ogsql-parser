@@ -456,6 +456,32 @@ impl SqlFormatter {
         }
     }
 
+    fn format_table_ref_with_partition(
+        &self,
+        table_ref: &TableRef,
+        partition: Option<&DmlPartitionClause>,
+    ) -> String {
+        match table_ref {
+            TableRef::Table { name, alias } => {
+                let mut parts = vec![self.format_object_name(name)];
+                if let Some(p) = partition {
+                    parts.push(self.format_dml_partition(p));
+                }
+                if let Some(a) = alias {
+                    parts.push(format!("{} {}", self.kw("AS"), self.quote_identifier(a)));
+                }
+                parts.join(" ")
+            }
+            _ => {
+                let mut result = self.format_table_ref(table_ref);
+                if let Some(p) = partition {
+                    result = format!("{} {}", result, self.format_dml_partition(p));
+                }
+                result
+            }
+        }
+    }
+
     fn format_group_by_item(&self, item: &GroupByItem) -> String {
         match item {
             GroupByItem::Expr(e) => self.format_expr(e),
@@ -505,6 +531,7 @@ impl SqlFormatter {
         match expr {
             Expr::Literal(lit) => self.format_literal(lit),
             Expr::ColumnRef(name) => self.format_object_name(name),
+            Expr::QualifiedStar(table) => format!("{}.*", self.quote_identifier_relaxed(table)),
             Expr::BinaryOp { left, op, right } => {
                 format!(
                     "{} {} {}",
@@ -619,6 +646,48 @@ impl SqlFormatter {
                             s.push_str(&self.format_expr(&args[2]));
                         }
                         s.push(')');
+                        s
+                    }
+                    "extract" => {
+                        let mut s = format!("{}(", self.kw("EXTRACT"));
+                        if args.len() >= 1 {
+                            s.push_str(&self.format_expr(&args[0]));
+                        }
+                        if args.len() >= 2 {
+                            s.push_str(&format!(" {} ", self.kw("FROM")));
+                            s.push_str(&self.format_expr(&args[1]));
+                        }
+                        s.push(')');
+                        s
+                    }
+                    "trim" => {
+                        let mut s = format!("{}(", self.kw("TRIM"));
+                        if args.len() == 2 {
+                            s.push_str(&self.format_expr(&args[0]));
+                            s.push_str(&format!(" {} ", self.kw("FROM")));
+                            s.push_str(&self.format_expr(&args[1]));
+                        } else if args.len() >= 3 {
+                            s.push_str(&self.format_expr(&args[0]));
+                            s.push(' ');
+                            s.push_str(&self.format_expr(&args[1]));
+                            s.push_str(&format!(" {} ", self.kw("FROM")));
+                            s.push_str(&self.format_expr(&args[2]));
+                        } else if args.len() == 1 {
+                            s.push_str(&self.format_expr(&args[0]));
+                        }
+                        s.push(')');
+                        s
+                    }
+                    "interval" => {
+                        let mut s = self.kw("INTERVAL");
+                        if args.len() >= 1 {
+                            s.push(' ');
+                            s.push_str(&self.format_expr(&args[0]));
+                        }
+                        if args.len() >= 2 {
+                            s.push(' ');
+                            s.push_str(&self.format_expr(&args[1]));
+                        }
                         s
                     }
                     _ => format!("{}({})", name, self.format_exprs(args)),
@@ -760,6 +829,10 @@ impl SqlFormatter {
             Expr::Parenthesized(expr) => {
                 format!("({})", self.format_expr(expr))
             }
+            Expr::RowConstructor(elems) => {
+                let formatted: Vec<String> = elems.iter().map(|e| self.format_expr(e)).collect();
+                format!("({})", formatted.join(", "))
+            }
             Expr::Prior(e) => format!("{} {}", self.kw("PRIOR"), self.format_expr(e)),
             Expr::Default => self.kw("DEFAULT").to_string(),
             Expr::XmlElement {
@@ -888,9 +961,6 @@ impl SqlFormatter {
                     self.kw("AS"),
                     self.format_data_type(type_name)
                 )
-            }
-            Expr::SpecialFunction { name, args } => {
-                format!("{}({})", name.to_uppercase(), self.format_exprs(args))
             }
         }
     }
@@ -1091,7 +1161,7 @@ impl SqlFormatter {
         parts.push(self.format_object_name(&stmt.table));
 
         if let Some(ref p) = stmt.partition {
-            parts.push(format!("{} ({})", self.kw("PARTITION"), p));
+            parts.push(self.format_dml_partition(p));
         }
 
         if !stmt.columns.is_empty() {
@@ -1190,6 +1260,10 @@ impl SqlFormatter {
         let mut parts = vec![self.kw("UPDATE")];
         parts.push(self.format_table_refs(&stmt.tables));
 
+        if let Some(ref p) = stmt.partition {
+            parts.push(self.format_dml_partition(p));
+        }
+
         let assignments: Vec<String> = stmt
             .assignments
             .iter()
@@ -1263,9 +1337,12 @@ impl SqlFormatter {
 
     fn format_merge(&self, stmt: &MergeStatement) -> String {
         let mut parts = vec![self.kw("MERGE INTO")];
-        parts.push(self.format_table_ref(&stmt.target));
+        parts.push(self.format_table_ref_with_partition(&stmt.target, stmt.partition.as_ref()));
+
         parts.push(self.kw("USING"));
-        parts.push(self.format_table_ref(&stmt.source));
+        parts.push(
+            self.format_table_ref_with_partition(&stmt.source, stmt.source_partition.as_ref()),
+        );
         parts.push(self.kw("ON"));
         parts.push(self.format_expr(&stmt.on_condition));
 
@@ -1412,6 +1489,35 @@ impl SqlFormatter {
                     self.kw("DISTRIBUTE BY MODULO"),
                     "",
                     columns.join(", ")
+                )
+            }
+        }
+    }
+
+    fn format_dml_partition(&self, clause: &DmlPartitionClause) -> String {
+        match clause {
+            DmlPartitionClause::Partition(name) => {
+                format!("{} ({})", self.kw("PARTITION"), name)
+            }
+            DmlPartitionClause::Subpartition(name) => {
+                format!("{} ({})", self.kw("SUBPARTITION"), name)
+            }
+            DmlPartitionClause::PartitionFor(exprs) => {
+                let formatted: Vec<String> = exprs.iter().map(|e| self.format_expr(e)).collect();
+                format!(
+                    "{} {} ({})",
+                    self.kw("PARTITION"),
+                    self.kw("FOR"),
+                    formatted.join(", ")
+                )
+            }
+            DmlPartitionClause::SubpartitionFor(exprs) => {
+                let formatted: Vec<String> = exprs.iter().map(|e| self.format_expr(e)).collect();
+                format!(
+                    "{} {} ({})",
+                    self.kw("SUBPARTITION"),
+                    self.kw("FOR"),
+                    formatted.join(", ")
                 )
             }
         }
@@ -2031,6 +2137,52 @@ impl SqlFormatter {
                     self.quote_identifier(tablespace)
                 )
             }
+            AlterTableAction::MovePartition { name, tablespace } => {
+                format!(
+                    "{} {} {} {}",
+                    self.kw("MOVE PARTITION"),
+                    self.quote_identifier(name),
+                    self.kw("TABLESPACE"),
+                    self.quote_identifier(tablespace)
+                )
+            }
+            AlterTableAction::DropPartitionFor { expr, if_exists } => {
+                let mut s = self.kw("DROP PARTITION").to_string();
+                if *if_exists {
+                    s = format!("{} {}", s, self.kw("IF EXISTS"));
+                }
+                format!("{} {} ({})", s, self.kw("FOR"), self.format_expr(expr))
+            }
+            AlterTableAction::RenamePartitionFor { expr, new_name } => {
+                format!(
+                    "{} {} ({}) {} {}",
+                    self.kw("RENAME PARTITION"),
+                    self.kw("FOR"),
+                    self.format_expr(expr),
+                    self.kw("TO"),
+                    self.quote_identifier(new_name)
+                )
+            }
+            AlterTableAction::EnableRowLevelSecurity => {
+                self.kw("ENABLE ROW LEVEL SECURITY").to_string()
+            }
+            AlterTableAction::DisableRowLevelSecurity => {
+                self.kw("DISABLE ROW LEVEL SECURITY").to_string()
+            }
+            AlterTableAction::SetCharset { charset, collation } => {
+                if let Some(col) = collation {
+                    format!(
+                        "{} {} {} {}",
+                        self.kw("CHARSET"),
+                        self.quote_identifier(charset),
+                        self.kw("COLLATE"),
+                        self.quote_identifier(col)
+                    )
+                } else {
+                    format!("{} {}", self.kw("CHARSET"), self.quote_identifier(charset))
+                }
+            }
+            _ => "...".to_string(),
         }
     }
 
@@ -2105,6 +2257,7 @@ impl SqlFormatter {
             ObjectType::Role => "ROLE",
             ObjectType::Group => "GROUP",
             ObjectType::ResourcePool => "RESOURCE POOL",
+            ObjectType::ResourceLabel => "RESOURCE LABEL",
             ObjectType::WorkloadGroup => "WORKLOAD GROUP",
             ObjectType::AuditPolicy => "AUDIT POLICY",
             ObjectType::MaskingPolicy => "MASKING POLICY",
@@ -3418,6 +3571,19 @@ impl SqlFormatter {
                     labels.join(", ")
                 ));
             }
+            AlterMaskingPolicyAction::Modify { function, labels } => {
+                s.push_str(&format!(
+                    " MODIFY {} ON LABEL ({})",
+                    function,
+                    labels.join(", ")
+                ));
+            }
+            AlterMaskingPolicyAction::DropFilter => {
+                s.push_str(" DROP FILTER");
+            }
+            AlterMaskingPolicyAction::Disable => {
+                s.push_str(" DISABLE");
+            }
         }
         s
     }
@@ -3454,26 +3620,33 @@ impl SqlFormatter {
     }
 
     fn format_privilege(&self, p: &Privilege) -> String {
-        let name = match p {
-            Privilege::All => "ALL PRIVILEGES",
-            Privilege::Select => "SELECT",
-            Privilege::Insert => "INSERT",
-            Privilege::Update => "UPDATE",
-            Privilege::Delete => "DELETE",
-            Privilege::Usage => "USAGE",
-            Privilege::Create => "CREATE",
-            Privilege::Connect => "CONNECT",
-            Privilege::Temporary => "TEMPORARY",
-            Privilege::Execute => "EXECUTE",
-            Privilege::Trigger => "TRIGGER",
-            Privilege::References => "REFERENCES",
-            Privilege::Alter => "ALTER",
-            Privilege::Drop => "DROP",
-            Privilege::Comment => "COMMENT",
-            Privilege::Index => "INDEX",
-            Privilege::Vacuum => "VACUUM",
-        };
-        self.kw(name)
+        match p {
+            Privilege::All => self.kw("ALL PRIVILEGES"),
+            Privilege::Select => self.kw("SELECT"),
+            Privilege::SelectColumns(cols) => {
+                let cols_str: Vec<String> = cols.iter().map(|c| self.quote_identifier(c)).collect();
+                format!("{} ({})", self.kw("SELECT"), cols_str.join(", "))
+            }
+            Privilege::Insert => self.kw("INSERT"),
+            Privilege::Update => self.kw("UPDATE"),
+            Privilege::UpdateColumns(cols) => {
+                let cols_str: Vec<String> = cols.iter().map(|c| self.quote_identifier(c)).collect();
+                format!("{} ({})", self.kw("UPDATE"), cols_str.join(", "))
+            }
+            Privilege::Delete => self.kw("DELETE"),
+            Privilege::Usage => self.kw("USAGE"),
+            Privilege::Create => self.kw("CREATE"),
+            Privilege::Connect => self.kw("CONNECT"),
+            Privilege::Temporary => self.kw("TEMPORARY"),
+            Privilege::Execute => self.kw("EXECUTE"),
+            Privilege::Trigger => self.kw("TRIGGER"),
+            Privilege::References => self.kw("REFERENCES"),
+            Privilege::Alter => self.kw("ALTER"),
+            Privilege::Drop => self.kw("DROP"),
+            Privilege::Comment => self.kw("COMMENT"),
+            Privilege::Index => self.kw("INDEX"),
+            Privilege::Vacuum => self.kw("VACUUM"),
+        }
     }
 
     fn format_grant(&self, stmt: &GrantStatement) -> String {
@@ -4566,8 +4739,15 @@ impl SqlFormatter {
         }
         s.push(' ');
         s.push_str(&self.kw("AS"));
-        s.push(' ');
-        s.push_str(&self.format_select(&stmt.query));
+        if let Some(ref table) = stmt.as_table {
+            s.push(' ');
+            s.push_str(&self.kw("TABLE"));
+            s.push(' ');
+            s.push_str(&self.format_object_name(table));
+        } else {
+            s.push(' ');
+            s.push_str(&self.format_select(&stmt.query));
+        }
         if !stmt.with_data {
             s.push(' ');
             s.push_str(&self.kw("WITH NO DATA"));

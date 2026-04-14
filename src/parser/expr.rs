@@ -275,6 +275,26 @@ impl Parser {
                 };
                 Ok(true)
             }
+            Token::LParen => {
+                if let Some(next) = self.tokens.get(self.pos + 1) {
+                    if matches!(&next.token, Token::Plus) {
+                        if let Some(next2) = self.tokens.get(self.pos + 2) {
+                            if matches!(&next2.token, Token::RParen) {
+                                let loc = self.current_location();
+                                self.advance();
+                                self.advance();
+                                self.advance();
+                                self.add_error(ParserError::Warning {
+                                    message: "Oracle-style outer join operator '(+)' is deprecated, use standard JOIN syntax instead".to_string(),
+                                    location: loc,
+                                });
+                                return Ok(true);
+                            }
+                        }
+                    }
+                }
+                Ok(false)
+            }
             _ => Ok(false),
         }
     }
@@ -410,6 +430,18 @@ impl Parser {
                     return Ok(Expr::Subquery(Box::new(subquery)));
                 }
                 let expr = self.parse_expr()?;
+                if self.match_token(&Token::Comma) {
+                    let mut elems = vec![expr];
+                    loop {
+                        self.advance();
+                        elems.push(self.parse_expr()?);
+                        if !self.match_token(&Token::Comma) {
+                            break;
+                        }
+                    }
+                    self.expect_token(&Token::RParen)?;
+                    return Ok(Expr::RowConstructor(elems));
+                }
                 self.expect_token(&Token::RParen)?;
                 Ok(Expr::Parenthesized(Box::new(expr)))
             }
@@ -451,21 +483,8 @@ impl Parser {
                 })
             }
             Token::Ident(_) | Token::QuotedIdent(_) => {
-                let name = self.parse_object_name()?;
-                // PostgreSQL typecast syntax: typename 'literal'
-                if let Token::StringLiteral(s) = self.peek().clone() {
-                    self.advance();
-                    return Ok(Expr::TypeCast {
-                        expr: Box::new(Expr::Literal(Literal::String(s))),
-                        type_name: DataType::Custom(name, Vec::new()),
-                        default: None,
-                        format: None,
-                    });
-                }
-                if self.match_token(&Token::LParen) {
-                    return self.parse_function_call(name);
-                }
-                Ok(Expr::ColumnRef(name))
+                let name = self.parse_column_ref_or_qualified_star()?;
+                Ok(name)
             }
             Token::Keyword(kw) => {
                 // CAST(expr AS type) — must handle before generic keyword arm
@@ -542,6 +561,46 @@ impl Parser {
                     self.advance();
                     return self.parse_xml_serialize();
                 }
+                if kw == Keyword::INTERVAL {
+                    self.advance();
+                    if let Token::StringLiteral(s) = self.peek().clone() {
+                        self.advance();
+                        return Ok(Expr::TypeCast {
+                            expr: Box::new(Expr::Literal(Literal::String(s))),
+                            type_name: DataType::Custom(vec!["interval".to_string()], Vec::new()),
+                            default: None,
+                            format: None,
+                        });
+                    }
+                    let expr = self.parse_expr()?;
+                    let unit = self.peek_keyword();
+                    if let Some(unit_kw) = unit {
+                        if matches!(
+                            unit_kw,
+                            Keyword::DAY_P
+                                | Keyword::YEAR_P
+                                | Keyword::MONTH_P
+                                | Keyword::HOUR_P
+                                | Keyword::MINUTE_P
+                                | Keyword::SECOND_P
+                                | Keyword::DAY_HOUR_P
+                                | Keyword::DAY_MINUTE_P
+                                | Keyword::DAY_SECOND_P
+                                | Keyword::HOUR_MINUTE_P
+                                | Keyword::HOUR_SECOND_P
+                                | Keyword::MINUTE_SECOND_P
+                                | Keyword::YEAR_MONTH_P
+                        ) {
+                            let unit_name = unit_kw.as_str().to_string();
+                            self.advance();
+                            return Ok(Expr::SpecialFunction {
+                                name: "interval".to_string(),
+                                args: vec![expr, Expr::ColumnRef(vec![unit_name])],
+                            });
+                        }
+                    }
+                    return Ok(expr);
+                }
                 let name = self.parse_object_name()?;
                 // PostgreSQL typecast syntax: typename 'literal'
                 if let Token::StringLiteral(s) = self.peek().clone() {
@@ -584,6 +643,81 @@ impl Parser {
         }
     }
 
+    fn parse_column_ref_or_qualified_star(&mut self) -> Result<Expr, ParserError> {
+        let first = self.parse_identifier()?;
+        if self.match_token(&Token::Dot) {
+            self.advance();
+            if self.match_token(&Token::Star) {
+                self.advance();
+                return Ok(Expr::QualifiedStar(first));
+            }
+            let mut name = vec![first];
+            name.push(self.parse_identifier()?);
+            while self.match_token(&Token::Dot) {
+                self.advance();
+                name.push(self.parse_identifier()?);
+            }
+            let obj_name = name;
+            if let Token::StringLiteral(s) = self.peek().clone() {
+                self.advance();
+                return Ok(Expr::TypeCast {
+                    expr: Box::new(Expr::Literal(Literal::String(s))),
+                    type_name: DataType::Custom(obj_name, Vec::new()),
+                    default: None,
+                    format: None,
+                });
+            }
+            if self.match_token(&Token::LParen) {
+                // Check for Oracle-style outer join (+): LParen at pos, Plus at pos+1, RParen at pos+2
+                if self.tokens.len() > self.pos + 2 {
+                    let next = &self.tokens[self.pos + 1].token;
+                    let next2 = &self.tokens[self.pos + 2].token;
+                    if matches!(next, Token::Plus) && matches!(next2, Token::RParen) {
+                        self.advance();
+                        self.advance();
+                        self.advance();
+                        self.add_error(ParserError::Warning {
+                            message: "Oracle-style outer join operator '(+)' is deprecated, use standard JOIN syntax instead".to_string(),
+                            location: self.current_location(),
+                        });
+                        return Ok(Expr::ColumnRef(obj_name));
+                    }
+                }
+                return self.parse_function_call(obj_name);
+            }
+            return Ok(Expr::ColumnRef(obj_name));
+        }
+        let name = vec![first];
+        if let Token::StringLiteral(s) = self.peek().clone() {
+            self.advance();
+            return Ok(Expr::TypeCast {
+                expr: Box::new(Expr::Literal(Literal::String(s))),
+                type_name: DataType::Custom(name, Vec::new()),
+                default: None,
+                format: None,
+            });
+        }
+        if self.match_token(&Token::LParen) {
+            // Check for Oracle-style outer join (+): LParen at pos, Plus at pos+1, RParen at pos+2
+            if self.tokens.len() > self.pos + 2 {
+                let next = &self.tokens[self.pos + 1].token;
+                let next2 = &self.tokens[self.pos + 2].token;
+                if matches!(next, Token::Plus) && matches!(next2, Token::RParen) {
+                    self.advance();
+                    self.advance();
+                    self.advance();
+                    self.add_error(ParserError::Warning {
+                        message: "Oracle-style outer join operator '(+)' is deprecated, use standard JOIN syntax instead".to_string(),
+                        location: self.current_location(),
+                    });
+                    return Ok(Expr::ColumnRef(name));
+                }
+            }
+            return self.parse_function_call(name);
+        }
+        Ok(Expr::ColumnRef(name))
+    }
+
     fn parse_function_call(&mut self, name: ObjectName) -> Result<Expr, ParserError> {
         self.expect_token(&Token::LParen)?;
 
@@ -596,6 +730,12 @@ impl Parser {
         }
         if lower_name == "substring" || lower_name == "substr" {
             return self.parse_substring_function(name);
+        }
+        if lower_name == "extract" {
+            return self.parse_extract_function(name);
+        }
+        if lower_name == "trim" {
+            return self.parse_trim_function(name);
         }
 
         if self.match_token(&Token::RParen) {
@@ -711,12 +851,96 @@ impl Parser {
             }
         } else if self.try_consume_keyword(Keyword::FOR) {
             args.push(self.parse_expr()?);
+        } else if self.match_token(&Token::Comma) {
+            self.advance();
+            args.push(self.parse_expr()?);
+            if self.match_token(&Token::Comma) {
+                self.advance();
+                args.push(self.parse_expr()?);
+            }
         }
         self.expect_token(&Token::RParen)?;
         Ok(Expr::SpecialFunction {
             name: name.join("."),
             args,
         })
+    }
+
+    fn parse_extract_function(&mut self, name: ObjectName) -> Result<Expr, ParserError> {
+        let field = self.parse_identifier()?;
+        self.expect_keyword(Keyword::FROM)?;
+        let expr = self.parse_expr()?;
+        self.expect_token(&Token::RParen)?;
+        Ok(Expr::SpecialFunction {
+            name: name.join("."),
+            args: vec![Expr::ColumnRef(vec![field]), expr],
+        })
+    }
+
+    fn parse_trim_function(&mut self, name: ObjectName) -> Result<Expr, ParserError> {
+        let direction = if self.match_keyword(Keyword::LEADING)
+            || self.match_keyword(Keyword::TRAILING)
+            || self.match_keyword(Keyword::BOTH)
+        {
+            Some(self.parse_identifier()?)
+        } else {
+            None
+        };
+
+        if let Some(dir) = direction {
+            if self.match_keyword(Keyword::FROM) {
+                // TRIM(direction FROM expr) — no explicit chars
+                self.advance();
+                let source = self.parse_expr()?;
+                self.expect_token(&Token::RParen)?;
+                Ok(Expr::SpecialFunction {
+                    name: name.join("."),
+                    args: vec![Expr::ColumnRef(vec![dir]), source],
+                })
+            } else {
+                // TRIM(direction chars FROM expr)
+                let chars = self.parse_expr()?;
+                self.expect_keyword(Keyword::FROM)?;
+                let source = self.parse_expr()?;
+                self.expect_token(&Token::RParen)?;
+                Ok(Expr::SpecialFunction {
+                    name: name.join("."),
+                    args: vec![Expr::ColumnRef(vec![dir]), chars, source],
+                })
+            }
+        } else {
+            // No direction keyword — could be TRIM(chars FROM expr) or TRIM(expr)
+            let first = self.parse_expr()?;
+            if self.match_keyword(Keyword::FROM) {
+                // TRIM(chars FROM expr)
+                self.advance();
+                let source = self.parse_expr()?;
+                self.expect_token(&Token::RParen)?;
+                Ok(Expr::SpecialFunction {
+                    name: name.join("."),
+                    args: vec![first, source],
+                })
+            } else {
+                // Regular function call: TRIM(expr [, ...])
+                let mut args = vec![first];
+                while self.match_token(&Token::Comma) {
+                    self.advance();
+                    args.push(self.parse_expr()?);
+                }
+                self.expect_token(&Token::RParen)?;
+                let filter = self.try_parse_filter()?;
+                let within_group = self.try_parse_within_group()?;
+                let over = self.try_parse_over_clause()?;
+                Ok(Expr::FunctionCall {
+                    name,
+                    args,
+                    distinct: false,
+                    over,
+                    filter,
+                    within_group,
+                })
+            }
+        }
     }
 
     fn try_parse_filter(&mut self) -> Result<Option<Box<Expr>>, ParserError> {

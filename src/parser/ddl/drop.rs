@@ -83,8 +83,13 @@ impl Parser {
             }
             Some(Keyword::RESOURCE) => {
                 self.advance();
-                self.expect_keyword(Keyword::POOL)?;
-                ObjectType::ResourcePool
+                if self.match_keyword(Keyword::POOL) {
+                    self.advance();
+                    ObjectType::ResourcePool
+                } else {
+                    self.expect_keyword(Keyword::LABEL)?;
+                    ObjectType::ResourceLabel
+                }
             }
             Some(Keyword::WORKLOAD) => {
                 self.advance();

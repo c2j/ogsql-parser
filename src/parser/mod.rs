@@ -21,6 +21,11 @@ pub enum ParserError {
         expected: String,
         location: SourceLocation,
     },
+    #[error("{}", .message)]
+    Warning {
+        message: String,
+        location: SourceLocation,
+    },
     #[error("{0}")]
     TokenizerError(#[from] crate::token::tokenizer::TokenizerError),
 }
@@ -1046,14 +1051,28 @@ impl Parser {
             }
             Token::Keyword(Keyword::REFRESH) => {
                 self.advance();
-                match self.parse_refresh_materialized_view() {
-                    Ok(stmt) => {
-                        self.try_consume_semicolon();
-                        crate::ast::Statement::RefreshMaterializedView(stmt)
+                let incremental = self.try_consume_keyword(Keyword::INCREMENTAL);
+                if incremental {
+                    match self.parse_refresh_materialized_view() {
+                        Ok(stmt) => {
+                            self.try_consume_semicolon();
+                            crate::ast::Statement::RefreshMaterializedView(stmt)
+                        }
+                        Err(e) => {
+                            self.add_error(e);
+                            self.skip_to_semicolon()
+                        }
                     }
-                    Err(e) => {
-                        self.add_error(e);
-                        self.skip_to_semicolon()
+                } else {
+                    match self.parse_refresh_materialized_view() {
+                        Ok(stmt) => {
+                            self.try_consume_semicolon();
+                            crate::ast::Statement::RefreshMaterializedView(stmt)
+                        }
+                        Err(e) => {
+                            self.add_error(e);
+                            self.skip_to_semicolon()
+                        }
                     }
                 }
             }
@@ -1710,10 +1729,33 @@ impl Parser {
             }
             self.expect_token(&Token::RParen)?;
             crate::ast::AlterMaskingPolicyAction::Remove { function, labels }
+        } else if self.match_keyword(Keyword::MODIFY_P) {
+            self.advance();
+            let function = self.parse_identifier()?;
+            self.expect_keyword(Keyword::ON)?;
+            self.expect_keyword(Keyword::LABEL)?;
+            self.expect_token(&Token::LParen)?;
+            let mut labels = Vec::new();
+            loop {
+                labels.push(self.parse_identifier()?);
+                if !self.match_token(&Token::Comma) {
+                    break;
+                }
+                self.advance();
+            }
+            self.expect_token(&Token::RParen)?;
+            crate::ast::AlterMaskingPolicyAction::Modify { function, labels }
+        } else if self.match_keyword(Keyword::DROP) {
+            self.advance();
+            self.expect_keyword(Keyword::FILTER)?;
+            crate::ast::AlterMaskingPolicyAction::DropFilter
+        } else if self.match_keyword(Keyword::DISABLE_P) {
+            self.advance();
+            crate::ast::AlterMaskingPolicyAction::Disable
         } else {
             return Err(ParserError::UnexpectedToken {
                 location: self.current_location(),
-                expected: "COMMENTS, ADD or REMOVE".to_string(),
+                expected: "COMMENTS, ADD, REMOVE, MODIFY, DROP FILTER or DISABLE".to_string(),
                 got: format!("{:?}", self.peek()),
             });
         };
@@ -1759,6 +1801,29 @@ impl Parser {
                 targets,
             },
         ))
+    }
+
+    fn parse_alter_resource_pool(
+        &mut self,
+    ) -> Result<crate::ast::AlterResourcePoolStatement, ParserError> {
+        let name = self.parse_identifier()?;
+        let mut options = Vec::new();
+        if self.match_keyword(Keyword::WITH) {
+            self.advance();
+            self.expect_token(&Token::LParen)?;
+            loop {
+                let key = self.parse_identifier()?;
+                self.expect_token(&Token::Eq)?;
+                let value = self.parse_identifier()?;
+                options.push((key, value));
+                if !self.match_token(&Token::Comma) {
+                    break;
+                }
+                self.advance();
+            }
+            self.expect_token(&Token::RParen)?;
+        }
+        Ok(crate::ast::AlterResourcePoolStatement { name, options })
     }
 
     fn skip_to_paren_end(&mut self) -> String {
@@ -1958,6 +2023,22 @@ impl Parser {
                         self.try_consume_semicolon();
                         crate::ast::Statement::CreateTrigger(stmt)
                     }
+                    Err(e) => {
+                        self.add_error(e);
+                        self.skip_to_semicolon()
+                    }
+                }
+            }
+            Some(Keyword::INCREMENTAL) => {
+                self.advance();
+                match self.expect_keyword(Keyword::MATERIALIZED) {
+                    Ok(()) => match self.parse_create_materialized_view() {
+                        Ok(stmt) => crate::ast::Statement::CreateMaterializedView(stmt),
+                        Err(e) => {
+                            self.add_error(e);
+                            self.skip_to_semicolon()
+                        }
+                    },
                     Err(e) => {
                         self.add_error(e);
                         self.skip_to_semicolon()
@@ -2404,14 +2485,28 @@ impl Parser {
                 }
                 Some(Keyword::RESOURCE) => {
                     self.advance();
-                    match self.parse_alter_resource_label() {
-                        Ok(stmt) => {
-                            self.try_consume_semicolon();
-                            stmt
+                    if self.match_keyword(Keyword::POOL) {
+                        self.advance();
+                        match self.parse_alter_resource_pool() {
+                            Ok(stmt) => {
+                                self.try_consume_semicolon();
+                                crate::ast::Statement::AlterResourcePool(stmt)
+                            }
+                            Err(e) => {
+                                self.add_error(e);
+                                self.skip_to_semicolon()
+                            }
                         }
-                        Err(e) => {
-                            self.add_error(e);
-                            self.skip_to_semicolon()
+                    } else {
+                        match self.parse_alter_resource_label() {
+                            Ok(stmt) => {
+                                self.try_consume_semicolon();
+                                stmt
+                            }
+                            Err(e) => {
+                                self.add_error(e);
+                                self.skip_to_semicolon()
+                            }
                         }
                     }
                 }

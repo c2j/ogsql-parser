@@ -191,7 +191,23 @@ impl Parser {
             Token::Ident(s) => {
                 let v = s.clone();
                 self.advance();
+                if (v == "E" || v == "e") && matches!(self.peek(), Token::StringLiteral(_)) {
+                    if let Token::StringLiteral(inner) = self.peek().clone() {
+                        self.advance();
+                        return Ok(Some(inner));
+                    }
+                }
                 Ok(Some(v))
+            }
+            Token::LParen => {
+                self.advance();
+                let mut cols = vec![self.parse_identifier()?];
+                while self.match_token(&Token::Comma) {
+                    self.advance();
+                    cols.push(self.parse_identifier()?);
+                }
+                self.expect_token(&Token::RParen)?;
+                Ok(Some(format!("({})", cols.join(", "))))
             }
             _ => Ok(None),
         }
@@ -502,7 +518,7 @@ impl Parser {
             plan = true;
             if self.match_keyword(Keyword::SET) {
                 self.advance();
-                self.expect_keyword(Keyword::STATEMENT)?;
+                self.expect_keyword(Keyword::STATEMENT_ID)?;
                 self.expect_token(&Token::Eq)?;
                 statement_id = Some(self.parse_string_literal()?);
             }
