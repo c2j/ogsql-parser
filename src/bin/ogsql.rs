@@ -726,8 +726,8 @@ fn cmd_parse_java(cli: &Cli) {
     let (source, file_path) = match cli.file.as_deref() {
         Some(path) => {
             let bytes = std::fs::read(path).unwrap_or_else(|e| die!("Error reading {}: {}", path, e));
-            let text = String::from_utf8(bytes)
-                .unwrap_or_else(|e| die!("Error decoding {} as UTF-8: {}", path, e));
+            let (text, _encoding) = ogsql_parser::token::decode_sql_file(&bytes)
+                .unwrap_or_else(|e| die!("Error decoding {}: {}", path, e));
             (text, path.to_string())
         }
         None => {
