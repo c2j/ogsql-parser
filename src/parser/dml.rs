@@ -12,6 +12,21 @@ impl Parser {
         let post_hints = self.consume_hints();
         self.try_consume_keyword(Keyword::INTO);
         let table = self.parse_object_name()?;
+        let partition = if self.match_keyword(Keyword::PARTITION) {
+            self.advance();
+            self.expect_token(&Token::LParen)?;
+            let name = self.parse_identifier()?;
+            self.expect_token(&Token::RParen)?;
+            Some(name)
+        } else if self.match_keyword(Keyword::SUBPARTITION) {
+            self.advance();
+            self.expect_token(&Token::LParen)?;
+            let name = self.parse_identifier()?;
+            self.expect_token(&Token::RParen)?;
+            Some(name)
+        } else {
+            None
+        };
         let columns = if self.match_token(&Token::LParen) {
             self.advance();
             let mut cols = vec![self.parse_identifier()?];
@@ -102,6 +117,7 @@ impl Parser {
         Ok(InsertStatement {
             hints: post_hints,
             table,
+            partition,
             columns,
             source,
             on_conflict,

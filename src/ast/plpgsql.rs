@@ -89,11 +89,23 @@ pub struct PlRecordDecl {
     pub name: String,
 }
 
-/// TYPE declaration (composite type): name IS RECORD (fields)
+/// TYPE declaration: name IS RECORD (fields) | name IS TABLE OF type | name IS VARRAY(n) OF type
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct PlTypeDecl {
-    pub name: String,
-    pub fields: Vec<PlTypeField>,
+pub enum PlTypeDecl {
+    Record {
+        name: String,
+        fields: Vec<PlTypeField>,
+    },
+    TableOf {
+        name: String,
+        elem_type: PlDataType,
+        index_by: Option<PlDataType>,
+    },
+    VarrayOf {
+        name: String,
+        size: Box<crate::ast::Expr>,
+        elem_type: PlDataType,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

@@ -54,6 +54,9 @@ impl SqlFormatter {
             Statement::CreateAuditPolicy(s) => self.format_create_audit_policy(s),
             Statement::CreateMaskingPolicy(s) => self.format_create_masking_policy(s),
             Statement::CreateRlsPolicy(s) => self.format_create_rls_policy(s),
+            Statement::CreatePolicyLabel(s) => self.format_create_policy_label(s),
+            Statement::AlterPolicyLabel(s) => self.format_alter_policy_label(s),
+            Statement::AlterMaskingPolicy(s) => self.format_alter_masking_policy(s),
             Statement::Empty => String::new(),
             Statement::Checkpoint => self.kw("CHECKPOINT"),
             Statement::Grant(s) => self.format_grant(s),
@@ -567,6 +570,60 @@ impl SqlFormatter {
                 }
                 result
             }
+            Expr::SpecialFunction { name, args } => {
+                let lower = name.to_lowercase();
+                match lower.as_str() {
+                    "overlay" => {
+                        let mut s = format!("{}(", self.kw("OVERLAY"));
+                        if args.len() >= 1 {
+                            s.push_str(&self.format_expr(&args[0]));
+                        }
+                        if args.len() >= 2 {
+                            s.push_str(&format!(" {} ", self.kw("PLACING")));
+                            s.push_str(&self.format_expr(&args[1]));
+                        }
+                        if args.len() >= 3 {
+                            s.push_str(&format!(" {} ", self.kw("FROM")));
+                            s.push_str(&self.format_expr(&args[2]));
+                        }
+                        if args.len() >= 4 {
+                            s.push_str(&format!(" {} ", self.kw("FOR")));
+                            s.push_str(&self.format_expr(&args[3]));
+                        }
+                        s.push(')');
+                        s
+                    }
+                    "position" => {
+                        let mut s = format!("{}(", self.kw("POSITION"));
+                        if args.len() >= 1 {
+                            s.push_str(&self.format_expr(&args[0]));
+                        }
+                        if args.len() >= 2 {
+                            s.push_str(&format!(" {} ", self.kw("IN")));
+                            s.push_str(&self.format_expr(&args[1]));
+                        }
+                        s.push(')');
+                        s
+                    }
+                    "substring" | "substr" => {
+                        let mut s = format!("{}(", self.kw("SUBSTRING"));
+                        if args.len() >= 1 {
+                            s.push_str(&self.format_expr(&args[0]));
+                        }
+                        if args.len() >= 2 {
+                            s.push_str(&format!(" {} ", self.kw("FROM")));
+                            s.push_str(&self.format_expr(&args[1]));
+                        }
+                        if args.len() >= 3 {
+                            s.push_str(&format!(" {} ", self.kw("FOR")));
+                            s.push_str(&self.format_expr(&args[2]));
+                        }
+                        s.push(')');
+                        s
+                    }
+                    _ => format!("{}({})", name, self.format_exprs(args)),
+                }
+            }
             Expr::Case {
                 operand,
                 whens,
@@ -668,16 +725,37 @@ impl SqlFormatter {
                     self.kw("NULL")
                 )
             }
-            Expr::TypeCast { expr, type_name } => {
-                format!(
+            Expr::TypeCast {
+                expr,
+                type_name,
+                default,
+                format: fmt_expr,
+            } => {
+                let mut result = format!(
                     "{}::{}",
                     self.format_expr(expr),
                     self.format_data_type(type_name)
-                )
+                );
+                if let Some(def) = default {
+                    result = format!(
+                        "{} {} {} {}",
+                        result,
+                        self.kw("DEFAULT"),
+                        self.format_expr(def),
+                        self.kw("ON CONVERSION ERROR")
+                    );
+                }
+                if let Some(fmt) = fmt_expr {
+                    result = format!("{}, {}", result, self.format_expr(fmt));
+                }
+                result
             }
             Expr::Parameter(n) => format!("${}", n),
             Expr::Array(elements) => {
                 format!("{}[{}]", self.kw("ARRAY"), self.format_exprs(elements))
+            }
+            Expr::Subscript { object, index } => {
+                format!("{}[{}]", self.format_expr(object), self.format_expr(index))
             }
             Expr::Parenthesized(expr) => {
                 format!("({})", self.format_expr(expr))
@@ -810,6 +888,9 @@ impl SqlFormatter {
                     self.kw("AS"),
                     self.format_data_type(type_name)
                 )
+            }
+            Expr::SpecialFunction { name, args } => {
+                format!("{}({})", name.to_uppercase(), self.format_exprs(args))
             }
         }
     }
@@ -1008,6 +1089,10 @@ impl SqlFormatter {
     fn format_insert(&self, stmt: &InsertStatement) -> String {
         let mut parts = vec![self.kw("INSERT INTO")];
         parts.push(self.format_object_name(&stmt.table));
+
+        if let Some(ref p) = stmt.partition {
+            parts.push(format!("{} ({})", self.kw("PARTITION"), p));
+        }
 
         if !stmt.columns.is_empty() {
             parts.push(format!("({})", stmt.columns.join(", ")));
@@ -1567,7 +1652,19 @@ impl SqlFormatter {
             DataType::BigSerial => "BIGSERIAL".to_string(),
             DataType::BinaryFloat => "BINARY_FLOAT".to_string(),
             DataType::BinaryDouble => "BINARY_DOUBLE".to_string(),
-            DataType::Custom(name) => self.format_object_name(name),
+            DataType::Custom(name, args) => {
+                let base = self.format_object_name(name);
+                if args.is_empty() {
+                    base
+                } else {
+                    let args_str = args
+                        .iter()
+                        .map(|a| self.format_expr(a))
+                        .collect::<Vec<_>>()
+                        .join(", ");
+                    format!("{}({})", base, args_str)
+                }
+            }
         }
     }
 
@@ -2004,6 +2101,32 @@ impl SqlFormatter {
             ObjectType::TextSearchDict => "TEXT SEARCH DICTIONARY",
             ObjectType::Domain => "DOMAIN",
             ObjectType::Policy => "POLICY",
+            ObjectType::User => "USER",
+            ObjectType::Role => "ROLE",
+            ObjectType::Group => "GROUP",
+            ObjectType::ResourcePool => "RESOURCE POOL",
+            ObjectType::WorkloadGroup => "WORKLOAD GROUP",
+            ObjectType::AuditPolicy => "AUDIT POLICY",
+            ObjectType::MaskingPolicy => "MASKING POLICY",
+            ObjectType::RlsPolicy => "ROW LEVEL SECURITY POLICY",
+            ObjectType::DataSource => "DATA SOURCE",
+            ObjectType::Directory => "DIRECTORY",
+            ObjectType::Event => "EVENT",
+            ObjectType::Publication => "PUBLICATION",
+            ObjectType::Subscription => "SUBSCRIPTION",
+            ObjectType::Synonym => "SYNONYM",
+            ObjectType::Model => "MODEL",
+            ObjectType::SecurityLabel => "SECURITY LABEL",
+            ObjectType::UserMapping => "USER MAPPING",
+            ObjectType::WeakPasswordDictionary => "WEAK PASSWORD DICTIONARY",
+            ObjectType::PolicyLabel => "POLICY LABEL",
+            ObjectType::Node => "NODE",
+            ObjectType::NodeGroup => "NODE GROUP",
+            ObjectType::App => "APP",
+            ObjectType::Global => "GLOBAL",
+            ObjectType::OpClass => "OPERATOR CLASS",
+            ObjectType::OpFamily => "OPERATOR FAMILY",
+            ObjectType::Type => "TYPE",
         };
         parts.push(self.kw(obj_type));
 
@@ -2318,6 +2441,10 @@ impl SqlFormatter {
             parts.push(self.quote_identifier(owner));
         }
 
+        if stmt.relative {
+            parts.push(self.kw("RELATIVE"));
+        }
+
         parts.push(self.kw("LOCATION"));
         parts.push(self.quote_string(&stmt.location));
 
@@ -2611,15 +2738,53 @@ impl SqlFormatter {
                 s
             }
             PlDeclaration::Record(r) => format!("{} {}", r.name, self.kw("RECORD")),
-            PlDeclaration::Type(t) => {
-                let fields = t
-                    .fields
-                    .iter()
-                    .map(|f| format!("{} {}", f.name, self.format_pl_data_type(&f.data_type)))
-                    .collect::<Vec<_>>()
-                    .join(", ");
-                format!("{} {} ({})", t.name, self.kw("TYPE"), fields)
-            }
+            PlDeclaration::Type(t) => match t {
+                PlTypeDecl::Record { name, fields } => {
+                    let fields_str = fields
+                        .iter()
+                        .map(|f| format!("{} {}", f.name, self.format_pl_data_type(&f.data_type)))
+                        .collect::<Vec<_>>()
+                        .join(", ");
+                    format!("{} {} ({})", name, self.kw("TYPE IS RECORD"), fields_str)
+                }
+                PlTypeDecl::TableOf {
+                    name,
+                    elem_type,
+                    index_by,
+                } => {
+                    let mut s = format!(
+                        "{} {} {} {}",
+                        name,
+                        self.kw("TYPE IS TABLE OF"),
+                        self.format_pl_data_type(elem_type),
+                        ""
+                    );
+                    if let Some(idx) = index_by {
+                        s = format!(
+                            "{} {} {} {}",
+                            s.trim(),
+                            self.kw("INDEX BY"),
+                            self.format_pl_data_type(idx),
+                            ""
+                        );
+                    }
+                    s.trim().to_string()
+                }
+                PlTypeDecl::VarrayOf {
+                    name,
+                    size,
+                    elem_type,
+                } => {
+                    format!(
+                        "{} {} ({}) {} {}",
+                        name,
+                        self.kw("TYPE IS VARRAY"),
+                        self.format_expr(size),
+                        self.kw("OF"),
+                        self.format_pl_data_type(elem_type)
+                    )
+                }
+            },
             PlDeclaration::NestedProcedure(p) => {
                 let mut s = format!(
                     "{} {} ",
@@ -3207,8 +3372,70 @@ impl SqlFormatter {
 
     fn format_create_masking_policy(&self, stmt: &CreateMaskingPolicyStatement) -> String {
         let mut s = format!("CREATE MASKING POLICY {}", stmt.name);
+        if let Some(ref func) = stmt.masking_function {
+            s.push_str(&format!(" {}", func));
+        }
+        if !stmt.labels.is_empty() {
+            s.push_str(&format!(" ON LABEL ({})", stmt.labels.join(", ")));
+        }
         s.push_str(&self.format_options(&stmt.options));
         s
+    }
+
+    fn format_create_policy_label(&self, stmt: &CreatePolicyLabelStatement) -> String {
+        let op = if stmt.add { "ADD" } else { "REMOVE" };
+        let targets: Vec<String> = stmt
+            .targets
+            .iter()
+            .map(|t| self.format_object_name(t))
+            .collect();
+        format!(
+            "CREATE RESOURCE LABEL {} {} {} ({})",
+            stmt.name,
+            op,
+            stmt.label_type,
+            targets.join(", ")
+        )
+    }
+
+    fn format_alter_masking_policy(&self, stmt: &AlterMaskingPolicyStatement) -> String {
+        let mut s = format!("ALTER MASKING POLICY {}", stmt.name);
+        match &stmt.action {
+            AlterMaskingPolicyAction::Comments(comment) => {
+                s.push_str(&format!(" COMMENTS '{}'", comment));
+            }
+            AlterMaskingPolicyAction::Add { function, labels } => {
+                s.push_str(&format!(
+                    " ADD {} ON LABEL ({})",
+                    function,
+                    labels.join(", ")
+                ));
+            }
+            AlterMaskingPolicyAction::Remove { function, labels } => {
+                s.push_str(&format!(
+                    " REMOVE {} ON LABEL ({})",
+                    function,
+                    labels.join(", ")
+                ));
+            }
+        }
+        s
+    }
+
+    fn format_alter_policy_label(&self, stmt: &AlterPolicyLabelStatement) -> String {
+        let op = if stmt.add { "ADD" } else { "REMOVE" };
+        let targets: Vec<String> = stmt
+            .targets
+            .iter()
+            .map(|t| self.format_object_name(t))
+            .collect();
+        format!(
+            "ALTER RESOURCE LABEL {} {} {} ({})",
+            stmt.name,
+            op,
+            stmt.label_type,
+            targets.join(", ")
+        )
     }
 
     fn format_create_rls_policy(&self, stmt: &CreateRlsPolicyStatement) -> String {
@@ -3291,6 +3518,9 @@ impl SqlFormatter {
             GrantTarget::AllSequencesInSchema(schemas) => {
                 format!("ALL SEQUENCES IN SCHEMA {}", schemas.join(", "))
             }
+            GrantTarget::Tablespace(tbs) => {
+                format!("TABLESPACE {}", tbs.join(", "))
+            }
         };
         let mut s = format!(
             "{} {} ON {} TO {}",
@@ -3349,6 +3579,9 @@ impl SqlFormatter {
             }
             GrantTarget::AllSequencesInSchema(schemas) => {
                 format!("ALL SEQUENCES IN SCHEMA {}", schemas.join(", "))
+            }
+            GrantTarget::Tablespace(tbs) => {
+                format!("TABLESPACE {}", tbs.join(", "))
             }
         };
         let mut s = format!(

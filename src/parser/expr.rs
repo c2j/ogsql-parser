@@ -34,6 +34,17 @@ impl Parser {
 
             self.advance();
 
+            if op_str == "::" {
+                let type_name = self.parse_data_type()?;
+                left = Expr::TypeCast {
+                    expr: Box::new(left),
+                    type_name,
+                    default: None,
+                    format: None,
+                };
+                continue;
+            }
+
             let right = self.parse_expr_with_precedence(if is_right_assoc {
                 op_prec
             } else {
@@ -83,6 +94,20 @@ impl Parser {
                 op: "@".to_string(),
                 expr: Box::new(expr),
             });
+        }
+        if let Token::Op(op) = self.peek() {
+            if matches!(
+                op.as_str(),
+                "|/" | "||/" | "!!" | "?|" | "?-" | "?-|" | "?||"
+            ) {
+                let op_str = op.clone();
+                self.advance();
+                let expr = self.parse_expr_with_precedence(60)?;
+                return Ok(Expr::UnaryOp {
+                    op: op_str,
+                    expr: Box::new(expr),
+                });
+            }
         }
         self.parse_primary_expr()
     }
@@ -240,6 +265,16 @@ impl Parser {
                 };
                 Ok(true)
             }
+            Token::LBracket => {
+                self.advance();
+                let index = self.parse_expr()?;
+                self.expect_token(&Token::RBracket)?;
+                *left = Expr::Subscript {
+                    object: Box::new(std::mem::replace(left, Expr::Default)),
+                    index: Box::new(index),
+                };
+                Ok(true)
+            }
             _ => Ok(false),
         }
     }
@@ -272,6 +307,29 @@ impl Parser {
         match self.peek().clone() {
             Token::Integer(n) => {
                 self.advance();
+                if self.match_token(&Token::Dot) {
+                    if let Some(next) = self.tokens.get(self.pos + 1) {
+                        if let Token::Integer(frac) = &next.token {
+                            let frac = frac.clone();
+                            self.advance();
+                            self.advance();
+                            let float_str = format!("{}.{}", n, frac);
+                            return Ok(Expr::Literal(Literal::Float(float_str)));
+                        }
+                    }
+                }
+                if let Token::Ident(s) = self.peek() {
+                    let lower = s.to_lowercase();
+                    if lower.starts_with('e')
+                        && lower.len() > 1
+                        && lower[1..].chars().all(|c| c.is_ascii_digit())
+                    {
+                        let exp_str = s.clone();
+                        self.advance();
+                        let float_str = format!("{}{}", n, exp_str);
+                        return Ok(Expr::Literal(Literal::Float(float_str)));
+                    }
+                }
                 Ok(Expr::Literal(Literal::Integer(n)))
             }
             Token::Float(s) => {
@@ -316,7 +374,21 @@ impl Parser {
             }
             Token::Keyword(Keyword::DEFAULT) => {
                 self.advance();
-                Ok(Expr::Default)
+                if !self.match_token(&Token::RParen) && !self.match_token(&Token::Comma) {
+                    let val = self.parse_expr()?;
+                    if self.match_keyword(Keyword::ON) || self.match_ident_str("on") {
+                        self.advance();
+                        if self.match_ident_str("CONVERSION") {
+                            self.advance();
+                        }
+                        if self.match_ident_str("ERROR") {
+                            self.advance();
+                        }
+                    }
+                    Ok(val)
+                } else {
+                    Ok(Expr::Default)
+                }
             }
             Token::Param(n) => {
                 self.advance();
@@ -357,10 +429,24 @@ impl Parser {
                     }
                     self.expect_token(&Token::RParen)?;
                     return Ok(Expr::Array(elems));
+                } else if self.match_token(&Token::LBracket) {
+                    self.advance();
+                    if self.match_keyword(Keyword::SELECT) || self.match_keyword(Keyword::WITH) {
+                        let subquery = self.parse_select_statement()?;
+                        self.expect_token(&Token::RBracket)?;
+                        return Ok(Expr::Subquery(Box::new(subquery)));
+                    }
+                    let mut elems = vec![self.parse_expr()?];
+                    while self.match_token(&Token::Comma) {
+                        self.advance();
+                        elems.push(self.parse_expr()?);
+                    }
+                    self.expect_token(&Token::RBracket)?;
+                    return Ok(Expr::Array(elems));
                 }
                 Err(ParserError::UnexpectedToken {
                     location: self.current_location(),
-                    expected: "'(' after ARRAY".to_string(),
+                    expected: "'(' or '[' after ARRAY".to_string(),
                     got: format!("{:?}", self.peek()),
                 })
             }
@@ -371,7 +457,9 @@ impl Parser {
                     self.advance();
                     return Ok(Expr::TypeCast {
                         expr: Box::new(Expr::Literal(Literal::String(s))),
-                        type_name: DataType::Custom(name),
+                        type_name: DataType::Custom(name, Vec::new()),
+                        default: None,
+                        format: None,
                     });
                 }
                 if self.match_token(&Token::LParen) {
@@ -394,10 +482,36 @@ impl Parser {
                     }
                     self.advance();
                     let type_name = self.parse_data_type()?;
+                    let default = if self.match_keyword(Keyword::DEFAULT)
+                        || self.match_ident_str("default")
+                    {
+                        self.advance();
+                        let val = self.parse_expr()?;
+                        if self.match_keyword(Keyword::ON) || self.match_ident_str("on") {
+                            self.advance();
+                            if self.match_ident_str("CONVERSION") {
+                                self.advance();
+                            }
+                            if self.match_ident_str("ERROR") {
+                                self.advance();
+                            }
+                        }
+                        Some(Box::new(val))
+                    } else {
+                        None
+                    };
+                    let format = if default.is_some() && self.match_token(&Token::Comma) {
+                        self.advance();
+                        Some(Box::new(self.parse_expr()?))
+                    } else {
+                        None
+                    };
                     self.expect_token(&Token::RParen)?;
                     return Ok(Expr::TypeCast {
                         expr: Box::new(expr),
                         type_name,
+                        default,
+                        format,
                     });
                 }
                 if kw == Keyword::XMLELEMENT {
@@ -434,7 +548,9 @@ impl Parser {
                     self.advance();
                     return Ok(Expr::TypeCast {
                         expr: Box::new(Expr::Literal(Literal::String(s))),
-                        type_name: DataType::Custom(name),
+                        type_name: DataType::Custom(name, Vec::new()),
+                        default: None,
+                        format: None,
                     });
                 }
                 if self.match_token(&Token::LParen) {
@@ -450,6 +566,16 @@ impl Parser {
                 self.advance();
                 Ok(Expr::ColumnRef(vec!["*".to_string()]))
             }
+            Token::LBracket => {
+                self.advance();
+                let mut elems = vec![self.parse_expr()?];
+                while self.match_token(&Token::Comma) {
+                    self.advance();
+                    elems.push(self.parse_expr()?);
+                }
+                self.expect_token(&Token::RBracket)?;
+                Ok(Expr::Array(elems))
+            }
             _ => Err(ParserError::UnexpectedToken {
                 location: self.current_location(),
                 expected: "expression".to_string(),
@@ -460,6 +586,18 @@ impl Parser {
 
     fn parse_function_call(&mut self, name: ObjectName) -> Result<Expr, ParserError> {
         self.expect_token(&Token::LParen)?;
+
+        let lower_name = name.last().map(|s| s.to_lowercase()).unwrap_or_default();
+        if lower_name == "overlay" {
+            return self.parse_overlay_function(name);
+        }
+        if lower_name == "position" {
+            return self.parse_position_function(name);
+        }
+        if lower_name == "substring" || lower_name == "substr" {
+            return self.parse_substring_function(name);
+        }
+
         if self.match_token(&Token::RParen) {
             self.advance();
             let filter = self.try_parse_filter()?;
@@ -491,6 +629,23 @@ impl Parser {
             });
         }
         let mut args = vec![self.parse_expr()?];
+        if self.match_keyword(Keyword::DEFAULT) || self.match_ident_str("default") {
+            self.advance();
+            args.push(self.parse_expr()?);
+            if self.match_keyword(Keyword::ON) || self.match_ident_str("on") {
+                self.advance();
+                if self.match_ident_str("CONVERSION") {
+                    self.advance();
+                }
+                if self.match_ident_str("ERROR") {
+                    self.advance();
+                }
+            }
+            if self.match_token(&Token::Comma) {
+                self.advance();
+                args.push(self.parse_expr()?);
+            }
+        }
         while self.match_token(&Token::Comma) {
             self.advance();
             args.push(self.parse_expr()?);
@@ -506,6 +661,61 @@ impl Parser {
             over,
             filter,
             within_group,
+        })
+    }
+
+    fn parse_overlay_function(&mut self, name: ObjectName) -> Result<Expr, ParserError> {
+        let arg1 = self.parse_expr()?;
+        self.expect_keyword(Keyword::PLACING)?;
+        let arg2 = self.parse_expr()?;
+        self.expect_keyword(Keyword::FROM)?;
+        let arg3 = self.parse_expr()?;
+        let arg4 = if self.try_consume_keyword(Keyword::FOR) {
+            Some(self.parse_expr()?)
+        } else {
+            None
+        };
+        self.expect_token(&Token::RParen)?;
+        let mut args = vec![arg1, arg2, arg3];
+        if let Some(a) = arg4 {
+            args.push(a);
+        }
+        Ok(Expr::SpecialFunction {
+            name: name.join("."),
+            args,
+        })
+    }
+
+    fn parse_position_function(&mut self, name: ObjectName) -> Result<Expr, ParserError> {
+        let arg1 = self.parse_primary_expr()?;
+        if self.match_keyword(Keyword::IN_P) {
+            self.advance();
+        } else if self.match_ident_str("IN") {
+            self.advance();
+        }
+        let arg2 = self.parse_primary_expr()?;
+        self.expect_token(&Token::RParen)?;
+        Ok(Expr::SpecialFunction {
+            name: name.join("."),
+            args: vec![arg1, arg2],
+        })
+    }
+
+    fn parse_substring_function(&mut self, name: ObjectName) -> Result<Expr, ParserError> {
+        let arg1 = self.parse_expr()?;
+        let mut args = vec![arg1];
+        if self.try_consume_keyword(Keyword::FROM) {
+            args.push(self.parse_expr()?);
+            if self.try_consume_keyword(Keyword::FOR) {
+                args.push(self.parse_expr()?);
+            }
+        } else if self.try_consume_keyword(Keyword::FOR) {
+            args.push(self.parse_expr()?);
+        }
+        self.expect_token(&Token::RParen)?;
+        Ok(Expr::SpecialFunction {
+            name: name.join("."),
+            args,
         })
     }
 

@@ -1933,7 +1933,7 @@ fn test_create_domain_basic() {
     match stmt {
         Statement::CreateDomain(d) => {
             assert_eq!(d.name, vec!["domaindroptest"]);
-            assert!(matches!(d.data_type, DataType::Custom(_)));
+            assert!(matches!(d.data_type, DataType::Custom(_, _)));
             assert!(d.default_value.is_none());
             assert!(!d.not_null);
             assert!(d.check.is_none());
@@ -1972,7 +1972,7 @@ fn test_create_domain_with_default() {
     let stmt = parse_one("CREATE DOMAIN ddef1 int4 DEFAULT 3");
     match stmt {
         Statement::CreateDomain(d) => {
-            assert!(matches!(d.data_type, DataType::Custom(_)));
+            assert!(matches!(d.data_type, DataType::Custom(_, _)));
             assert!(d.default_value.is_some());
         }
         _ => panic!("expected CreateDomain, got {:?}", stmt),
@@ -1985,7 +1985,7 @@ fn test_create_cast_without_function() {
     match stmt {
         Statement::CreateCast(c) => {
             assert!(matches!(c.source_type, DataType::Text));
-            assert!(matches!(c.target_type, DataType::Custom(_)));
+            assert!(matches!(c.target_type, DataType::Custom(_, _)));
             assert!(matches!(c.method, CastMethod::WithoutFunction));
             assert!(c.context.is_none());
         }
@@ -2991,7 +2991,7 @@ fn test_implicit_typecast_custom_data_type() {
             if let SelectTarget::Expr(expr, _) = &s.targets[0] {
                 match expr {
                     Expr::TypeCast { type_name, .. } => {
-                        assert!(matches!(type_name, DataType::Custom(_)));
+                        assert!(matches!(type_name, DataType::Custom(_, _)));
                     }
                     _ => panic!("expected TypeCast expression"),
                 }

@@ -100,7 +100,7 @@ pub enum DataType {
     BigSerial,
     BinaryFloat,
     BinaryDouble,
-    Custom(ObjectName),
+    Custom(ObjectName, Vec<Expr>),
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -311,6 +311,32 @@ pub enum ObjectType {
     TextSearchDict,
     Domain,
     Policy,
+    User,
+    Role,
+    Group,
+    ResourcePool,
+    WorkloadGroup,
+    AuditPolicy,
+    MaskingPolicy,
+    RlsPolicy,
+    DataSource,
+    Directory,
+    Event,
+    Publication,
+    Subscription,
+    Synonym,
+    Model,
+    SecurityLabel,
+    UserMapping,
+    WeakPasswordDictionary,
+    PolicyLabel,
+    Node,
+    NodeGroup,
+    App,
+    Global,
+    OpClass,
+    OpFamily,
+    Type,
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -752,9 +778,15 @@ pub enum Expr {
     TypeCast {
         expr: Box<Expr>,
         type_name: DataType,
+        default: Option<Box<Expr>>,
+        format: Option<Box<Expr>>,
     },
     Parameter(i32),
     Array(Vec<Expr>),
+    Subscript {
+        object: Box<Expr>,
+        index: Box<Expr>,
+    },
     Parenthesized(Box<Expr>),
     Prior(Box<Expr>),
     Default,
@@ -785,6 +817,14 @@ pub enum Expr {
         option: XmlOption,
         expr: Box<Expr>,
         type_name: DataType,
+    },
+    /// Special SQL functions with keyword-separated syntax instead of commas:
+    /// - overlay(string PLACING string FROM int [FOR int])
+    /// - position(string IN string)
+    /// - substring(string FROM int [FOR int]) / substring(string FOR int)
+    SpecialFunction {
+        name: String,
+        args: Vec<Expr>,
     },
 }
 
@@ -874,6 +914,7 @@ pub struct WindowFrameBound {
 pub struct InsertStatement {
     pub hints: Vec<String>,
     pub table: ObjectName,
+    pub partition: Option<String>,
     pub columns: Vec<String>,
     pub source: InsertSource,
     pub on_conflict: Option<OnConflictAction>,
@@ -1164,6 +1205,7 @@ pub struct CreateDatabaseStatement {
 pub struct CreateTablespaceStatement {
     pub name: String,
     pub owner: Option<String>,
+    pub relative: bool,
     pub location: String,
 }
 
@@ -1269,6 +1311,8 @@ pub struct CreateAuditPolicyStatement {
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct CreateMaskingPolicyStatement {
     pub name: String,
+    pub masking_function: Option<String>,
+    pub labels: Vec<String>,
     pub options: Vec<(String, String)>,
 }
 
@@ -1464,6 +1508,7 @@ pub enum GrantTarget {
     Database(Vec<String>),
     Function(Vec<ObjectName>),
     Sequence(Vec<ObjectName>),
+    Tablespace(Vec<String>),
     AllTablesInSchema(Vec<String>),
     AllFunctionsInSchema(Vec<String>),
     AllSequencesInSchema(Vec<String>),
@@ -2005,7 +2050,6 @@ stub_struct!(
     AlterResourcePoolStatement,
     AlterWorkloadGroupStatement,
     AlterAuditPolicyStatement,
-    AlterMaskingPolicyStatement,
     AlterRlsPolicyStatement,
     AlterDataSourceStatement,
     AlterEventStatement,
@@ -2023,10 +2067,43 @@ stub_struct!(
     ShowEventStatement,
     RemovePackageStatement,
     SecLabelStatement,
-    CreatePolicyLabelStatement,
-    AlterPolicyLabelStatement,
     DropPolicyLabelStatement,
 );
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct CreatePolicyLabelStatement {
+    pub name: String,
+    pub add: bool,
+    pub label_type: String,
+    pub targets: Vec<ObjectName>,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct AlterPolicyLabelStatement {
+    pub name: String,
+    pub add: bool,
+    pub label_type: String,
+    pub targets: Vec<ObjectName>,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub enum AlterMaskingPolicyAction {
+    Comments(String),
+    Add {
+        function: String,
+        labels: Vec<String>,
+    },
+    Remove {
+        function: String,
+        labels: Vec<String>,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct AlterMaskingPolicyStatement {
+    pub name: String,
+    pub action: AlterMaskingPolicyAction,
+}
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct GrantRoleStatement {
