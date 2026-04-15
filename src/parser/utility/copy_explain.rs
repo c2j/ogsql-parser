@@ -260,10 +260,19 @@ impl Parser {
                 });
             } else if self.match_keyword(Keyword::FIXED_P) {
                 self.advance();
-                options.push(CopyOption {
-                    name: "format".to_string(),
-                    value: Some("fixed".to_string()),
-                });
+                if self.match_keyword(Keyword::FORMATTER) {
+                    self.advance();
+                    let formatter_val = self.skip_balanced_parens_as_string()?;
+                    options.push(CopyOption {
+                        name: "fixed_formatter".to_string(),
+                        value: Some(formatter_val),
+                    });
+                } else {
+                    options.push(CopyOption {
+                        name: "format".to_string(),
+                        value: Some("fixed".to_string()),
+                    });
+                }
             } else if self.match_keyword(Keyword::HEADER_P) {
                 self.advance();
                 options.push(CopyOption {
@@ -371,6 +380,13 @@ impl Parser {
                     name: "ignore_extra_data".to_string(),
                     value: None,
                 });
+            } else if self.match_keyword(Keyword::TRANSFORM) {
+                self.advance();
+                let transform_val = self.skip_balanced_parens_as_string()?;
+                options.push(CopyOption {
+                    name: "transform".to_string(),
+                    value: Some(transform_val),
+                });
             } else {
                 break;
             }
@@ -396,6 +412,43 @@ impl Parser {
                 got: format!("{:?}", self.peek()),
             }),
         }
+    }
+
+    fn skip_balanced_parens_as_string(&mut self) -> Result<String, ParserError> {
+        self.expect_token(&Token::LParen)?;
+        let mut result = String::from("(");
+        let mut depth = 1i32;
+        while depth > 0 {
+            match self.peek() {
+                Token::Eof => {
+                    return Err(ParserError::UnexpectedEof {
+                        expected: "closing paren".to_string(),
+                        location: self.current_location(),
+                    });
+                }
+                Token::LParen => {
+                    depth += 1;
+                    result.push_str(&self.token_to_string());
+                    self.advance();
+                }
+                Token::RParen => {
+                    depth -= 1;
+                    if depth > 0 {
+                        result.push_str(&self.token_to_string());
+                    }
+                    self.advance();
+                }
+                _ => {
+                    if !result.ends_with('(') {
+                        result.push(' ');
+                    }
+                    result.push_str(&self.token_to_string());
+                    self.advance();
+                }
+            }
+        }
+        result.push(')');
+        Ok(result)
     }
 
     pub(crate) fn parse_string_or_quoted_ident(&mut self) -> Result<String, ParserError> {
@@ -461,6 +514,7 @@ impl Parser {
             hints: vec![],
             with: None,
             distinct: false,
+            distinct_on: vec![],
             targets: vec![SelectTarget::Star(None)],
             into_targets: None,
             from: vec![],

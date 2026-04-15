@@ -395,6 +395,7 @@ impl Parser {
                 hints: vec![],
                 with: None,
                 distinct: false,
+                distinct_on: vec![],
                 targets: vec![SelectTarget::Star(None)],
                 into_targets: None,
                 from: vec![TableRef::Table {

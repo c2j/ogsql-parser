@@ -8,6 +8,27 @@ use crate::token::keyword::Keyword;
 use crate::token::Token;
 
 impl Parser {
+    fn validate_func(
+        &mut self,
+        name: &ObjectName,
+        arg_count: usize,
+        distinct: bool,
+        has_over: bool,
+    ) {
+        let lower = name.last().map(|s| s.to_lowercase()).unwrap_or_default();
+        let last = lower.split('.').last().unwrap_or_default();
+        let warnings = crate::parser::function_validator::validate_function_call(
+            &last,
+            arg_count,
+            distinct,
+            has_over,
+            self.current_location(),
+        );
+        for w in warnings {
+            self.add_error(w);
+        }
+    }
+
     pub(crate) fn parse_expr(&mut self) -> Result<Expr, ParserError> {
         self.parse_expr_with_precedence(0)
     }
@@ -565,6 +586,36 @@ impl Parser {
                     self.advance();
                     if let Token::StringLiteral(s) = self.peek().clone() {
                         self.advance();
+                        // Check for optional unit keyword: INTERVAL '2' MONTH, INTERVAL '1' YEAR, etc.
+                        let unit = self.peek_keyword();
+                        if let Some(unit_kw) = unit {
+                            if matches!(
+                                unit_kw,
+                                Keyword::DAY_P
+                                    | Keyword::YEAR_P
+                                    | Keyword::MONTH_P
+                                    | Keyword::HOUR_P
+                                    | Keyword::MINUTE_P
+                                    | Keyword::SECOND_P
+                                    | Keyword::DAY_HOUR_P
+                                    | Keyword::DAY_MINUTE_P
+                                    | Keyword::DAY_SECOND_P
+                                    | Keyword::HOUR_MINUTE_P
+                                    | Keyword::HOUR_SECOND_P
+                                    | Keyword::MINUTE_SECOND_P
+                                    | Keyword::YEAR_MONTH_P
+                            ) {
+                                let unit_name = unit_kw.as_str().to_string();
+                                self.advance();
+                                return Ok(Expr::SpecialFunction {
+                                    name: "interval".to_string(),
+                                    args: vec![
+                                        Expr::Literal(Literal::String(s)),
+                                        Expr::ColumnRef(vec![unit_name]),
+                                    ],
+                                });
+                            }
+                        }
                         return Ok(Expr::TypeCast {
                             expr: Box::new(Expr::Literal(Literal::String(s))),
                             type_name: DataType::Custom(vec!["interval".to_string()], Vec::new()),
@@ -718,6 +769,28 @@ impl Parser {
         Ok(Expr::ColumnRef(name))
     }
 
+    fn validate_function_args(
+        &mut self,
+        name: &ObjectName,
+        args: &[Expr],
+        distinct: bool,
+        over: &Option<Box<Expr>>,
+    ) {
+        if let Some(last) = name.last() {
+            let loc = self.current_location();
+            let warnings = crate::parser::function_validator::validate_function_call(
+                last,
+                args.len(),
+                distinct,
+                over.is_some(),
+                loc,
+            );
+            for w in warnings {
+                self.add_error(w);
+            }
+        }
+    }
+
     fn parse_function_call(&mut self, name: ObjectName) -> Result<Expr, ParserError> {
         self.expect_token(&Token::LParen)?;
 
@@ -743,6 +816,7 @@ impl Parser {
             let filter = self.try_parse_filter()?;
             let within_group = self.try_parse_within_group()?;
             let over = self.try_parse_over_clause()?;
+            self.validate_func(&name, 0, false, over.is_some());
             return Ok(Expr::FunctionCall {
                 name,
                 args: vec![],
@@ -759,6 +833,7 @@ impl Parser {
             let filter = self.try_parse_filter()?;
             let within_group = self.try_parse_within_group()?;
             let over = self.try_parse_over_clause()?;
+            self.validate_func(&name, 1, distinct, over.is_some());
             return Ok(Expr::FunctionCall {
                 name,
                 args: vec![Expr::ColumnRef(vec!["*".to_string()])],
@@ -794,6 +869,7 @@ impl Parser {
         let filter = self.try_parse_filter()?;
         let within_group = self.try_parse_within_group()?;
         let over = self.try_parse_over_clause()?;
+        self.validate_func(&name, args.len(), distinct, over.is_some());
         Ok(Expr::FunctionCall {
             name,
             args,
@@ -931,6 +1007,7 @@ impl Parser {
                 let filter = self.try_parse_filter()?;
                 let within_group = self.try_parse_within_group()?;
                 let over = self.try_parse_over_clause()?;
+                self.validate_func(&name, args.len(), false, over.is_some());
                 Ok(Expr::FunctionCall {
                     name,
                     args,
@@ -1086,13 +1163,19 @@ impl Parser {
         };
 
         // Frame clause: ROWS|RANGE frame_extent
-        let frame = if self.match_keyword(Keyword::ROWS) || self.match_keyword(Keyword::RANGE) {
+        let frame = if self.match_keyword(Keyword::ROWS)
+            || self.match_keyword(Keyword::RANGE)
+            || self.match_keyword(Keyword::GROUPS)
+        {
             let mode = if self.match_keyword(Keyword::ROWS) {
                 self.advance();
                 WindowFrameMode::Rows
-            } else {
+            } else if self.match_keyword(Keyword::RANGE) {
                 self.advance();
                 WindowFrameMode::Range
+            } else {
+                self.advance();
+                WindowFrameMode::Groups
             };
             let (start, end) = self.parse_frame_extent()?;
             Some(WindowFrame { mode, start, end })

@@ -162,8 +162,8 @@ fn cmd_parse(cli: &Cli) {
             println!("{:#?}", stmt);
         }
         if !errors.is_empty() {
-            let warnings: Vec<_> = errors.iter().filter(|e| matches!(e, ogsql_parser::ParserError::Warning { .. })).collect();
-            let real_errors: Vec<_> = errors.iter().filter(|e| !matches!(e, ogsql_parser::ParserError::Warning { .. })).collect();
+            let warnings: Vec<_> = errors.iter().filter(|e| is_warning(e)).collect();
+            let real_errors: Vec<_> = errors.iter().filter(|e| !is_warning(e)).collect();
             if !real_errors.is_empty() {
                 eprintln!("\n{} error(s):", real_errors.len());
                 for e in &real_errors {
@@ -263,37 +263,45 @@ fn cmd_json2sql(cli: &Cli) {
     }
 }
 
+fn is_warning(e: &ogsql_parser::ParserError) -> bool {
+    matches!(
+        e,
+        ogsql_parser::ParserError::Warning { .. }
+            | ogsql_parser::ParserError::NonReservedKeywordAsIdentifier { .. }
+    )
+}
+
 fn cmd_validate(cli: &Cli) {
     let sql = read_input(cli.file.as_deref());
     let (_, errors) = parse_input(&sql);
 
     if cli.json {
+        let warnings: Vec<_> = errors.iter().filter(|e| is_warning(e)).collect();
+        let real_errors: Vec<_> = errors.iter().filter(|e| !is_warning(e)).collect();
         let out = serde_json::json!({
-            "valid": errors.is_empty(),
-            "error_count": errors.len(),
+            "valid": real_errors.is_empty(),
+            "error_count": real_errors.len(),
+            "warning_count": warnings.len(),
             "errors": errors,
         });
         println!("{}", serde_json::to_string_pretty(&out).unwrap());
     } else {
-        let has_real_errors = errors.iter().any(|e| !matches!(e, ogsql_parser::ParserError::Warning { .. }));
-        if !has_real_errors {
-            if errors.is_empty() {
-                println!("VALID");
-            } else {
-                println!("VALID ({} warning(s)):", errors.len());
-                for e in &errors {
-                    eprintln!("  {}", e);
-                }
+        let real_errors: Vec<_> = errors.iter().filter(|e| !is_warning(e)).collect();
+        let warnings: Vec<_> = errors.iter().filter(|e| is_warning(e)).collect();
+        if real_errors.is_empty() && warnings.is_empty() {
+            println!("VALID");
+        } else if real_errors.is_empty() {
+            println!("VALID ({} warning(s)):", warnings.len());
+            for w in &warnings {
+                eprintln!("  warning: {}", w);
             }
         } else {
-            let real_errors: Vec<_> = errors.iter().filter(|e| !matches!(e, ogsql_parser::ParserError::Warning { .. })).collect();
-            let warnings: Vec<_> = errors.iter().filter(|e| matches!(e, ogsql_parser::ParserError::Warning { .. })).collect();
             println!("INVALID ({} error(s), {} warning(s)):", real_errors.len(), warnings.len());
             for e in &real_errors {
-                eprintln!("  {}", e);
+                eprintln!("  error: {}", e);
             }
             for w in &warnings {
-                eprintln!("  {}", w);
+                eprintln!("  warning: {}", w);
             }
             std::process::exit(1);
         }
@@ -705,13 +713,22 @@ fn cmd_parse_xml(cli: &Cli) {
                 println!("  [contains dynamic SQL elements]");
             }
             if let Some((infos, errors)) = &stmt.parse_result {
-                if !errors.is_empty() {
-                    eprintln!("  {} parse error(s):", errors.len());
-                    for e in errors {
+                let warnings: Vec<_> = errors.iter().filter(|e| matches!(e, ogsql_parser::ParserError::Warning { .. })).collect();
+                let real_errors: Vec<_> = errors.iter().filter(|e| !matches!(e, ogsql_parser::ParserError::Warning { .. })).collect();
+                if !real_errors.is_empty() {
+                    eprintln!("  {} parse error(s):", real_errors.len());
+                    for e in &real_errors {
                         eprintln!("    {}", e);
                     }
-                } else {
-                    println!("  ✓ Parsed successfully ({} statement(s))", infos.len());
+                }
+                if !warnings.is_empty() {
+                    eprintln!("  {} warning(s):", warnings.len());
+                    for w in &warnings {
+                        eprintln!("    {}", w);
+                    }
+                }
+                if real_errors.is_empty() {
+                    println!("  ✓ Parsed successfully ({} statement(s)){}", infos.len(), if warnings.is_empty() { "" } else { " (with warnings)" });
                 }
             }
             println!();
@@ -771,13 +788,22 @@ fn cmd_parse_java(cli: &Cli) {
                 println!("  [params: {:?}]", ext.parameter_style);
             }
             if let Some(parse_result) = &ext.parse_result {
-                if !parse_result.errors.is_empty() {
-                    eprintln!("  {} parse error(s):", parse_result.errors.len());
-                    for e in &parse_result.errors {
+                let warnings: Vec<_> = parse_result.errors.iter().filter(|e| matches!(e, ogsql_parser::ParserError::Warning { .. })).collect();
+                let real_errors: Vec<_> = parse_result.errors.iter().filter(|e| !matches!(e, ogsql_parser::ParserError::Warning { .. })).collect();
+                if !real_errors.is_empty() {
+                    eprintln!("  {} parse error(s):", real_errors.len());
+                    for e in &real_errors {
                         eprintln!("    {}", e);
                     }
-                } else {
-                    println!("  ✓ Parsed successfully ({} statement(s))", parse_result.statements.len());
+                }
+                if !warnings.is_empty() {
+                    eprintln!("  {} warning(s):", warnings.len());
+                    for w in &warnings {
+                        eprintln!("    {}", w);
+                    }
+                }
+                if real_errors.is_empty() {
+                    println!("  ✓ Parsed successfully ({} statement(s)){}", parse_result.statements.len(), if warnings.is_empty() { "" } else { " (with warnings)" });
                 }
             }
             println!();

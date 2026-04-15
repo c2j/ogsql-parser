@@ -394,6 +394,7 @@ pub struct TruncateStatement {
     pub tables: Vec<ObjectName>,
     pub cascade: bool,
     pub restart_identity: bool,
+    pub continue_identity: bool,
 }
 
 // ========== CREATE TYPE ==========
@@ -597,6 +598,7 @@ pub struct SelectStatement {
     pub hints: Vec<String>,
     pub with: Option<WithClause>,
     pub distinct: bool,
+    pub distinct_on: Vec<Expr>,
     pub targets: Vec<SelectTarget>,
     /// PL/pgSQL extension: `SELECT ... INTO var1, var2 FROM ...`
     pub into_targets: Option<Vec<SelectTarget>>,
@@ -700,6 +702,8 @@ pub enum TableRef {
         right: Box<TableRef>,
         join_type: JoinType,
         condition: Option<Expr>,
+        natural: bool,
+        using_columns: Vec<String>,
     },
     Pivot {
         source: Box<TableRef>,
@@ -944,6 +948,7 @@ pub enum DmlPartitionClause {
 pub struct InsertStatement {
     pub hints: Vec<String>,
     pub table: ObjectName,
+    pub alias: Option<String>,
     pub partition: Option<DmlPartitionClause>,
     pub columns: Vec<String>,
     pub source: InsertSource,
@@ -953,7 +958,9 @@ pub struct InsertStatement {
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum OnConflictAction {
-    Nothing,
+    Nothing {
+        target: Option<OnConflictTarget>,
+    },
     Update {
         target: Option<OnConflictTarget>,
         assignments: Vec<UpdateAssignment>,

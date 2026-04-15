@@ -3,7 +3,6 @@
 //! 使用 quick-xml 流式 event-based API 解析 XML。
 //! 关键: trim_text 始终为 false — SQL 空白有意义。
 
-use quick_xml::escape::unescape;
 use quick_xml::events::Event;
 use quick_xml::Reader;
 
@@ -111,12 +110,22 @@ fn read_node_tree(reader: &mut Reader<&[u8]>, end_tag: &[u8]) -> Vec<SqlNode> {
         buf.clear();
         match reader.read_event_into(&mut buf) {
             Ok(Event::Text(e)) => {
-                let raw = String::from_utf8_lossy(&e).into_owned();
-                let text = match unescape(&raw) {
-                    Ok(cow) => cow.into_owned(),
-                    Err(_) => raw,
+                text_buf.push_str(&String::from_utf8_lossy(&e));
+            }
+            Ok(Event::GeneralRef(e)) => {
+                let name = String::from_utf8_lossy(&e).into_owned();
+                match name.as_str() {
+                    "lt" => text_buf.push('<'),
+                    "gt" => text_buf.push('>'),
+                    "amp" => text_buf.push('&'),
+                    "apos" => text_buf.push('\''),
+                    "quot" => text_buf.push('"'),
+                    other => {
+                        text_buf.push('&');
+                        text_buf.push_str(other);
+                        text_buf.push(';');
+                    }
                 };
-                text_buf.push_str(&text);
             }
             Ok(Event::CData(e)) => {
                 text_buf.push_str(&String::from_utf8_lossy(&e));

@@ -158,12 +158,25 @@ impl Parser {
         }
 
         let cascade = self.try_consume_keyword(Keyword::CASCADE);
-        let restart_identity = self.try_consume_keyword(Keyword::RESTART);
+        let restart_identity = if self.try_consume_keyword(Keyword::RESTART) {
+            self.try_consume_keyword(Keyword::IDENTITY_P);
+            true
+        } else {
+            false
+        };
+        let continue_identity =
+            if !restart_identity && self.try_consume_keyword(Keyword::CONTINUE_P) {
+                self.try_consume_keyword(Keyword::IDENTITY_P);
+                true
+            } else {
+                false
+            };
 
         Ok(TruncateStatement {
             tables,
             cascade,
             restart_identity,
+            continue_identity,
         })
     }
 

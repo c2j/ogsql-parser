@@ -1,6 +1,8 @@
 pub(crate) mod ddl;
 pub(crate) mod dml;
 pub(crate) mod expr;
+pub(crate) mod function_validator;
+pub(crate) mod hint_validator;
 pub(crate) mod plpgsql;
 pub(crate) mod select;
 pub(crate) mod utility;
@@ -24,6 +26,16 @@ pub enum ParserError {
     #[error("{}", .message)]
     Warning {
         message: String,
+        location: SourceLocation,
+    },
+    #[error("reserved keyword \"{}\" cannot be used as identifier at line {}, column {}", .keyword, .location.line, .location.column)]
+    ReservedKeywordAsIdentifier {
+        keyword: String,
+        location: SourceLocation,
+    },
+    #[error("non-reserved keyword \"{}\" is used as identifier at line {}, column {} (this is allowed but not recommended)", .keyword, .location.line, .location.column)]
+    NonReservedKeywordAsIdentifier {
+        keyword: String,
         location: SourceLocation,
     },
     #[error("{0}")]
@@ -478,6 +490,7 @@ impl Parser {
     }
 
     /// Consume an identifier (Ident, QuotedIdent, or Keyword-as-identifier).
+    /// Reserved keywords used as identifiers emit error; non-reserved emit warning.
     fn parse_identifier(&mut self) -> Result<String, ParserError> {
         match self.peek().clone() {
             Token::Ident(s) => {
@@ -489,10 +502,30 @@ impl Parser {
                 Ok(s)
             }
             Token::Keyword(kw) => {
+                let location = self.current_location();
                 self.advance();
                 // Convert keyword to lowercase identifier, stripping _P suffix
                 let s = format!("{:?}", kw).to_lowercase();
-                Ok(s.trim_end_matches("_p").to_string())
+                let name = s.trim_end_matches("_p").to_string();
+
+                use crate::token::keyword::KeywordCategory;
+                match kw.category() {
+                    KeywordCategory::Reserved => {
+                        self.add_error(ParserError::ReservedKeywordAsIdentifier {
+                            keyword: name.clone(),
+                            location,
+                        });
+                    }
+                    KeywordCategory::ColName
+                    | KeywordCategory::TypeFuncName
+                    | KeywordCategory::Unreserved => {
+                        self.add_error(ParserError::NonReservedKeywordAsIdentifier {
+                            keyword: name.clone(),
+                            location,
+                        });
+                    }
+                }
+                Ok(name)
             }
             _ => Err(ParserError::UnexpectedToken {
                 location: self.current_location(),
@@ -563,7 +596,11 @@ impl Parser {
 
     pub(crate) fn consume_hints(&mut self) -> Vec<String> {
         let mut hints = Vec::new();
+        let loc = self.current_location();
         while let Token::Hint(h) = self.peek().clone() {
+            for w in hint_validator::validate_hints(&h, loc.clone()) {
+                self.add_error(w);
+            }
             hints.push(h);
             self.advance();
         }

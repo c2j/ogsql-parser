@@ -13,6 +13,7 @@ impl Parser {
         let post_hints = self.consume_hints();
         self.try_consume_keyword(Keyword::INTO);
         let table = self.parse_object_name()?;
+        let alias = self.parse_optional_alias()?;
         let partition = self.parse_dml_partition()?;
         let columns = if self.match_token(&Token::LParen) {
             self.advance();
@@ -53,6 +54,27 @@ impl Parser {
             InsertSource::Values(rows)
         } else if self.match_keyword(Keyword::SELECT) || self.match_keyword(Keyword::WITH) {
             InsertSource::Select(Box::new(self.parse_select_statement()?))
+        } else if self.match_token(&Token::LParen) {
+            if let Some(Token::Keyword(kw)) = self.tokens.get(self.pos + 1).map(|tws| &tws.token) {
+                if *kw == Keyword::SELECT || *kw == Keyword::WITH {
+                    self.advance();
+                    let select = self.parse_select_statement()?;
+                    self.expect_token(&Token::RParen)?;
+                    InsertSource::Select(Box::new(select))
+                } else {
+                    return Err(ParserError::UnexpectedToken {
+                        location: self.current_location(),
+                        expected: "VALUES, SELECT, DEFAULT VALUES".to_string(),
+                        got: format!("{:?}", self.peek()),
+                    });
+                }
+            } else {
+                return Err(ParserError::UnexpectedToken {
+                    location: self.current_location(),
+                    expected: "VALUES, SELECT, DEFAULT VALUES".to_string(),
+                    got: format!("{:?}", self.peek()),
+                });
+            }
         } else {
             return Err(ParserError::UnexpectedToken {
                 location: self.current_location(),
@@ -88,6 +110,61 @@ impl Parser {
                     assignments,
                     where_clause,
                 })
+            } else if self.match_keyword(Keyword::CONFLICT) {
+                self.advance();
+                let target = if self.match_keyword(Keyword::ON) {
+                    self.advance();
+                    self.expect_keyword(Keyword::CONSTRAINT)?;
+                    let name = self.parse_identifier()?;
+                    Some(OnConflictTarget::OnConstraint(name))
+                } else if self.match_token(&Token::LParen) {
+                    self.advance();
+                    let mut cols = vec![self.parse_identifier()?];
+                    while self.match_token(&Token::Comma) {
+                        self.advance();
+                        cols.push(self.parse_identifier()?);
+                    }
+                    self.expect_token(&Token::RParen)?;
+                    Some(OnConflictTarget::Columns(cols))
+                } else {
+                    None
+                };
+                self.expect_keyword(Keyword::DO)?;
+                if self.match_keyword(Keyword::NOTHING) {
+                    self.advance();
+                    Some(OnConflictAction::Nothing { target })
+                } else if self.match_keyword(Keyword::UPDATE) {
+                    self.advance();
+                    self.expect_keyword(Keyword::SET)?;
+                    let mut assignments = Vec::new();
+                    loop {
+                        let column = self.parse_object_name()?;
+                        self.expect_token(&Token::Eq)?;
+                        let value = self.parse_expr()?;
+                        assignments.push(UpdateAssignment { column, value });
+                        if !self.match_token(&Token::Comma) {
+                            break;
+                        }
+                        self.advance();
+                    }
+                    let where_clause = if self.match_keyword(Keyword::WHERE) {
+                        self.advance();
+                        Some(self.parse_expr()?)
+                    } else {
+                        None
+                    };
+                    Some(OnConflictAction::Update {
+                        target,
+                        assignments,
+                        where_clause,
+                    })
+                } else {
+                    return Err(ParserError::UnexpectedToken {
+                        location: self.current_location(),
+                        expected: "NOTHING or UPDATE".to_string(),
+                        got: format!("{:?}", self.peek()),
+                    });
+                }
             } else {
                 self.pos -= 1;
                 None
@@ -104,6 +181,7 @@ impl Parser {
         Ok(InsertStatement {
             hints: post_hints,
             table,
+            alias,
             partition,
             columns,
             source,

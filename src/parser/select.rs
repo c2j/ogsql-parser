@@ -106,22 +106,27 @@ impl Parser {
     fn parse_simple_select(&mut self) -> Result<SelectStatement, ParserError> {
         self.expect_keyword(Keyword::SELECT)?;
         let hints = self.consume_hints();
-        let distinct = if self.match_keyword(Keyword::DISTINCT) {
+        let (distinct, mut distinct_on) = if self.match_keyword(Keyword::DISTINCT) {
             self.advance();
-            if self.match_keyword(Keyword::ON) {
+            let cols = if self.match_keyword(Keyword::ON) {
                 self.advance();
                 self.expect_token(&Token::LParen)?;
-                while !self.match_token(&Token::RParen) {
+                let mut exprs = vec![self.parse_expr()?];
+                while self.match_token(&Token::Comma) {
                     self.advance();
+                    exprs.push(self.parse_expr()?);
                 }
                 self.expect_token(&Token::RParen)?;
-            }
-            true
+                exprs
+            } else {
+                vec![]
+            };
+            (true, cols)
         } else {
             if self.match_keyword(Keyword::ALL) {
                 self.advance();
             }
-            false
+            (false, vec![])
         };
         let targets = self.parse_target_list()?;
         let into_targets = if self.match_keyword(Keyword::INTO) {
@@ -191,6 +196,7 @@ impl Parser {
             hints,
             with: None,
             distinct,
+            distinct_on,
             targets,
             into_targets,
             from,
@@ -311,6 +317,10 @@ impl Parser {
     pub(crate) fn parse_table_ref(&mut self) -> Result<TableRef, ParserError> {
         let mut left = self.parse_primary_table_ref()?;
         loop {
+            let natural = self.match_keyword(Keyword::NATURAL);
+            if natural {
+                self.advance();
+            }
             let join_type = match self.peek_keyword() {
                 Some(Keyword::JOIN) => {
                     self.advance();
@@ -344,32 +354,41 @@ impl Parser {
                     self.expect_keyword(Keyword::JOIN)?;
                     JoinType::Cross
                 }
-                _ => break,
+                _ => {
+                    if natural {
+                        self.pos -= 1; // put back NATURAL
+                    }
+                    break;
+                }
             };
             let right = self.parse_primary_table_ref()?;
-            let condition = if join_type != JoinType::Cross {
+            let (condition, using_columns) = if !natural && join_type != JoinType::Cross {
                 if self.match_keyword(Keyword::ON) {
                     self.advance();
-                    Some(self.parse_expr()?)
+                    (Some(self.parse_expr()?), vec![])
                 } else if self.match_keyword(Keyword::USING) {
                     self.advance();
                     self.expect_token(&Token::LParen)?;
-                    while !self.match_token(&Token::RParen) {
+                    let mut cols = vec![self.parse_identifier()?];
+                    while self.match_token(&Token::Comma) {
                         self.advance();
+                        cols.push(self.parse_identifier()?);
                     }
                     self.expect_token(&Token::RParen)?;
-                    None
+                    (None, cols)
                 } else {
-                    None
+                    (None, vec![])
                 }
             } else {
-                None
+                (None, vec![])
             };
             left = TableRef::Join {
                 left: Box::new(left),
                 right: Box::new(right),
                 join_type,
                 condition,
+                natural,
+                using_columns,
             };
         }
         if self.match_ident_str("PIVOT") {

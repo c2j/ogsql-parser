@@ -1,6 +1,7 @@
 use crate::ast::plpgsql::*;
 use crate::ast::*;
-use crate::parser::Parser;
+use crate::formatter::SqlFormatter;
+use crate::parser::{Parser, ParserError};
 use crate::token::tokenizer::Tokenizer;
 
 fn parse(sql: &str) -> Vec<Statement> {
@@ -4247,4 +4248,432 @@ fn test_xmlserialize() {
         },
         _ => panic!("expected SELECT"),
     }
+}
+
+// ── Hint Round-Trip Tests ──
+
+#[test]
+fn test_insert_hint_roundtrip() {
+    let sql = "INSERT /*+ set(enable_nestloop off) */ INTO t1 (c1) VALUES (1)";
+    let stmts = parse(sql);
+    let formatter = SqlFormatter::new();
+    let output = formatter.format_statement(&stmts[0]);
+    assert!(
+        output.contains("/*+"),
+        "INSERT hint should be preserved in formatter output: {}",
+        output
+    );
+}
+
+#[test]
+fn test_update_hint_roundtrip() {
+    let sql = "UPDATE /*+ nestloop(t1) */ t1 SET c1 = 1 WHERE c1 > 0";
+    let stmts = parse(sql);
+    let formatter = SqlFormatter::new();
+    let output = formatter.format_statement(&stmts[0]);
+    assert!(
+        output.contains("/*+"),
+        "UPDATE hint should be preserved in formatter output: {}",
+        output
+    );
+}
+
+#[test]
+fn test_delete_hint_roundtrip() {
+    let sql = "DELETE /*+ indexscan(t1 idx_c1) */ FROM t1 WHERE c1 > 0";
+    let stmts = parse(sql);
+    let formatter = SqlFormatter::new();
+    let output = formatter.format_statement(&stmts[0]);
+    assert!(
+        output.contains("/*+"),
+        "DELETE hint should be preserved in formatter output: {}",
+        output
+    );
+}
+
+#[test]
+fn test_merge_hint_roundtrip() {
+    let sql = "MERGE /*+ leading(t1 t2) */ INTO t1 USING t2 ON t1.id = t2.id WHEN MATCHED THEN UPDATE SET t1.val = t2.val";
+    let stmts = parse(sql);
+    let formatter = SqlFormatter::new();
+    let output = formatter.format_statement(&stmts[0]);
+    assert!(
+        output.contains("/*+"),
+        "MERGE hint should be preserved in formatter output: {}",
+        output
+    );
+}
+
+#[test]
+fn test_select_hint_parsed() {
+    let sql = "SELECT /*+ tablescan(t1) */ * FROM t1";
+    let tokens = Tokenizer::new(sql).tokenize().unwrap();
+    let mut parser = Parser::new(tokens);
+    let stmts = parser.parse();
+    match &stmts[0] {
+        Statement::Select(s) => assert_eq!(s.hints, vec!["tablescan(t1)"]),
+        _ => panic!("expected SELECT"),
+    }
+}
+
+#[test]
+fn test_select_multi_hint() {
+    let sql = "SELECT /*+ tablescan(t1) leading(t1 t2) */ * FROM t1, t2 WHERE t1.id = t2.id";
+    let tokens = Tokenizer::new(sql).tokenize().unwrap();
+    let mut parser = Parser::new(tokens);
+    let stmts = parser.parse();
+    match &stmts[0] {
+        Statement::Select(s) => {
+            assert_eq!(s.hints.len(), 1);
+            assert!(s.hints[0].contains("tablescan(t1)"));
+            assert!(s.hints[0].contains("leading(t1 t2)"));
+        }
+        _ => panic!("expected SELECT"),
+    }
+}
+
+#[test]
+fn test_hint_after_select_keyword() {
+    let sql = "SELECT /*+ hashjoin(t1 t2) */ * FROM t1 JOIN t2 ON t1.id = t2.id";
+    let tokens = Tokenizer::new(sql).tokenize().unwrap();
+    let mut parser = Parser::new(tokens);
+    let stmts = parser.parse();
+    match &stmts[0] {
+        Statement::Select(s) => {
+            assert_eq!(s.hints.len(), 1);
+            assert!(s.hints[0].contains("hashjoin"));
+        }
+        _ => panic!("expected SELECT"),
+    }
+}
+
+#[test]
+fn test_hint_with_queryblock() {
+    let sql = "SELECT /*+ tablescan(@sel$1 t1) */ * FROM t1";
+    let tokens = Tokenizer::new(sql).tokenize().unwrap();
+    let mut parser = Parser::new(tokens);
+    let stmts = parser.parse();
+    match &stmts[0] {
+        Statement::Select(s) => assert_eq!(s.hints, vec!["tablescan(@sel$1 t1)"]),
+        _ => panic!("expected SELECT"),
+    }
+}
+
+#[test]
+fn test_hint_set_guc() {
+    let sql = "SELECT /*+ set(enable_hashjoin off) */ * FROM t1";
+    let tokens = Tokenizer::new(sql).tokenize().unwrap();
+    let mut parser = Parser::new(tokens);
+    let stmts = parser.parse();
+    assert!(!stmts.is_empty());
+}
+
+#[test]
+fn test_hint_unknown_warning() {
+    let sql = "SELECT /*+ nonexistent_hint(t1) */ * FROM t1";
+    let tokens = Tokenizer::new(sql).tokenize().unwrap();
+    let mut parser = Parser::new(tokens);
+    let stmts = parser.parse();
+    assert!(!stmts.is_empty());
+    let warnings: Vec<_> = parser
+        .errors()
+        .iter()
+        .filter(|e| matches!(e, ParserError::Warning { .. }))
+        .collect();
+    assert!(!warnings.is_empty(), "Should warn about unknown hint");
+    assert!(warnings[0].to_string().contains("Unknown hint"));
+}
+
+#[test]
+fn test_hint_set_missing_value_warning() {
+    let sql = "SELECT /*+ set(enable_hashjoin) */ * FROM t1";
+    let tokens = Tokenizer::new(sql).tokenize().unwrap();
+    let mut parser = Parser::new(tokens);
+    let stmts = parser.parse();
+    assert!(!stmts.is_empty());
+    let warnings: Vec<_> = parser
+        .errors()
+        .iter()
+        .filter(|e| matches!(e, ParserError::Warning { .. }))
+        .collect();
+    assert!(!warnings.is_empty(), "Should warn about malformed set hint");
+}
+
+#[test]
+fn test_hint_json_roundtrip() {
+    let sql = "SELECT /*+ tablescan(t1) leading(t1 t2) */ * FROM t1, t2 WHERE t1.id = t2.id";
+    let tokens = Tokenizer::new(sql).tokenize().unwrap();
+    let mut parser = Parser::new(tokens);
+    let stmts = parser.parse();
+    let json = serde_json::to_string(&stmts).unwrap();
+    let restored: Vec<Statement> = serde_json::from_str(&json).unwrap();
+    let formatter = SqlFormatter::new();
+    let output = formatter.format_statement(&restored[0]);
+    assert!(
+        output.contains("tablescan(t1)"),
+        "Hint should survive JSON round-trip"
+    );
+    assert!(
+        output.contains("leading(t1 t2)"),
+        "Hint should survive JSON round-trip"
+    );
+}
+
+#[test]
+fn test_func_coalesce_warning() {
+    let sql = "SELECT coalesce(a) FROM t1";
+    let tokens = Tokenizer::new(sql).tokenize().unwrap();
+    let mut parser = Parser::new(tokens);
+    let stmts = parser.parse();
+    assert!(!stmts.is_empty());
+    let warnings: Vec<_> = parser
+        .errors()
+        .iter()
+        .filter(|e| matches!(e, ParserError::Warning { .. }))
+        .collect();
+    assert!(!warnings.is_empty(), "COALESCE with 1 arg should warn");
+}
+
+#[test]
+fn test_func_window_no_over_warning() {
+    let sql = "SELECT row_number() FROM t1";
+    let tokens = Tokenizer::new(sql).tokenize().unwrap();
+    let mut parser = Parser::new(tokens);
+    let stmts = parser.parse();
+    assert!(!stmts.is_empty());
+    let warnings: Vec<_> = parser
+        .errors()
+        .iter()
+        .filter(|e| matches!(e, ParserError::Warning { .. }))
+        .collect();
+    assert!(!warnings.is_empty(), "row_number without OVER should warn");
+}
+
+#[test]
+fn test_func_window_with_over_ok() {
+    let sql = "SELECT row_number() OVER (ORDER BY a) FROM t1";
+    let tokens = Tokenizer::new(sql).tokenize().unwrap();
+    let mut parser = Parser::new(tokens);
+    let stmts = parser.parse();
+    assert!(!stmts.is_empty());
+    let warnings: Vec<_> = parser
+        .errors()
+        .iter()
+        .filter(|e| matches!(e, ParserError::Warning { .. }))
+        .collect();
+    assert!(warnings.is_empty(), "row_number with OVER should not warn");
+}
+
+#[test]
+fn test_on_conflict_do_nothing() {
+    let stmt = parse_one("INSERT INTO t VALUES (1) ON CONFLICT DO NOTHING");
+    match stmt {
+        Statement::Insert(ins) => {
+            let oc = ins.on_conflict.expect("expected on_conflict");
+            assert!(matches!(oc, OnConflictAction::Nothing { target: None }));
+        }
+        _ => panic!("expected Insert"),
+    }
+}
+
+#[test]
+fn test_on_conflict_columns() {
+    let stmt = parse_one("INSERT INTO t VALUES (1) ON CONFLICT (id) DO UPDATE SET name = 'x'");
+    match stmt {
+        Statement::Insert(ins) => {
+            let oc = ins.on_conflict.expect("expected on_conflict");
+            match oc {
+                OnConflictAction::Update {
+                    target,
+                    assignments,
+                    ..
+                } => {
+                    assert!(
+                        matches!(target, Some(OnConflictTarget::Columns(cols)) if cols == vec!["id"])
+                    );
+                    assert_eq!(assignments.len(), 1);
+                }
+                _ => panic!("expected Update action"),
+            }
+        }
+        _ => panic!("expected Insert"),
+    }
+}
+
+#[test]
+fn test_on_conflict_on_constraint() {
+    let stmt = parse_one("INSERT INTO t VALUES (1) ON CONFLICT ON CONSTRAINT pk DO NOTHING");
+    match stmt {
+        Statement::Insert(ins) => {
+            let oc = ins.on_conflict.expect("expected on_conflict");
+            match oc {
+                OnConflictAction::Nothing { target } => {
+                    assert!(
+                        matches!(target, Some(OnConflictTarget::OnConstraint(ref name)) if name == "pk"),
+                        "expected OnConstraint(pk), got {:?}",
+                        target
+                    );
+                }
+                other => panic!("expected Nothing, got {:?}", other),
+            }
+        }
+        _ => panic!("expected Insert"),
+    }
+}
+
+// ── Reserved / Non-reserved keyword as identifier tests ──
+
+#[test]
+fn test_reserved_keyword_as_table_name_error() {
+    let sql = "SELECT * FROM select";
+    let tokens = Tokenizer::new(sql).tokenize().unwrap();
+    let mut parser = Parser::new(tokens);
+    let stmts = parser.parse();
+    assert!(!stmts.is_empty(), "Should still produce AST (soft error)");
+    let reserved_errors: Vec<_> = parser
+        .errors()
+        .iter()
+        .filter(|e| matches!(e, ParserError::ReservedKeywordAsIdentifier { .. }))
+        .collect();
+    assert!(
+        !reserved_errors.is_empty(),
+        "Reserved keyword 'select' used as table name should error"
+    );
+    assert!(reserved_errors[0].to_string().contains("select"));
+}
+
+#[test]
+fn test_reserved_keyword_as_column_name_error() {
+    let sql = "SELECT where FROM t1";
+    let tokens = Tokenizer::new(sql).tokenize().unwrap();
+    let mut parser = Parser::new(tokens);
+    let stmts = parser.parse();
+    assert!(!stmts.is_empty(), "Should still produce AST (soft error)");
+    let reserved_errors: Vec<_> = parser
+        .errors()
+        .iter()
+        .filter(|e| matches!(e, ParserError::ReservedKeywordAsIdentifier { .. }))
+        .collect();
+    assert!(
+        !reserved_errors.is_empty(),
+        "Reserved keyword 'where' used as column name should error"
+    );
+}
+
+#[test]
+fn test_nonreserved_keyword_as_table_name_warning() {
+    let sql = "SELECT * FROM action";
+    let tokens = Tokenizer::new(sql).tokenize().unwrap();
+    let mut parser = Parser::new(tokens);
+    let stmts = parser.parse();
+    assert!(!stmts.is_empty());
+    let warnings: Vec<_> = parser
+        .errors()
+        .iter()
+        .filter(|e| matches!(e, ParserError::NonReservedKeywordAsIdentifier { .. }))
+        .collect();
+    assert!(
+        !warnings.is_empty(),
+        "Non-reserved keyword 'action' used as table name should warn"
+    );
+    assert!(warnings[0].to_string().contains("action"));
+}
+
+#[test]
+fn test_nonreserved_keyword_as_column_name_warning() {
+    let sql = "SELECT commit FROM t1";
+    let tokens = Tokenizer::new(sql).tokenize().unwrap();
+    let mut parser = Parser::new(tokens);
+    let stmts = parser.parse();
+    assert!(!stmts.is_empty());
+    let warnings: Vec<_> = parser
+        .errors()
+        .iter()
+        .filter(|e| matches!(e, ParserError::NonReservedKeywordAsIdentifier { .. }))
+        .collect();
+    assert!(
+        !warnings.is_empty(),
+        "Non-reserved keyword 'commit' used as column name should warn"
+    );
+}
+
+#[test]
+fn test_colname_keyword_as_identifier_warning() {
+    let sql = "SELECT bigint FROM t1";
+    let tokens = Tokenizer::new(sql).tokenize().unwrap();
+    let mut parser = Parser::new(tokens);
+    let stmts = parser.parse();
+    assert!(!stmts.is_empty());
+    let warnings: Vec<_> = parser
+        .errors()
+        .iter()
+        .filter(|e| matches!(e, ParserError::NonReservedKeywordAsIdentifier { .. }))
+        .collect();
+    assert!(
+        !warnings.is_empty(),
+        "ColName keyword 'bigint' used as identifier should warn"
+    );
+}
+
+#[test]
+fn test_quoted_identifier_no_warning() {
+    let sql = "SELECT * FROM \"select\"";
+    let tokens = Tokenizer::new(sql).tokenize().unwrap();
+    let mut parser = Parser::new(tokens);
+    let stmts = parser.parse();
+    assert!(!stmts.is_empty());
+    let keyword_issues: Vec<_> = parser
+        .errors()
+        .iter()
+        .filter(|e| {
+            matches!(e, ParserError::ReservedKeywordAsIdentifier { .. })
+                || matches!(e, ParserError::NonReservedKeywordAsIdentifier { .. })
+        })
+        .collect();
+    assert!(
+        keyword_issues.is_empty(),
+        "Quoted identifier should not trigger keyword warnings"
+    );
+}
+
+#[test]
+fn test_normal_identifier_no_warning() {
+    let sql = "SELECT my_col FROM my_table";
+    let tokens = Tokenizer::new(sql).tokenize().unwrap();
+    let mut parser = Parser::new(tokens);
+    let stmts = parser.parse();
+    assert!(!stmts.is_empty());
+    let keyword_issues: Vec<_> = parser
+        .errors()
+        .iter()
+        .filter(|e| {
+            matches!(e, ParserError::ReservedKeywordAsIdentifier { .. })
+                || matches!(e, ParserError::NonReservedKeywordAsIdentifier { .. })
+        })
+        .collect();
+    assert!(
+        keyword_issues.is_empty(),
+        "Normal identifiers should not trigger keyword warnings"
+    );
+}
+
+#[test]
+fn test_create_table_quoted_reserved_no_error() {
+    let sql = "CREATE TABLE t1 (\"select\" VARCHAR(10), \"from\" INT)";
+    let tokens = Tokenizer::new(sql).tokenize().unwrap();
+    let mut parser = Parser::new(tokens);
+    let stmts = parser.parse();
+    assert!(!stmts.is_empty());
+    let keyword_issues: Vec<_> = parser
+        .errors()
+        .iter()
+        .filter(|e| {
+            matches!(e, ParserError::ReservedKeywordAsIdentifier { .. })
+                || matches!(e, ParserError::NonReservedKeywordAsIdentifier { .. })
+        })
+        .collect();
+    assert!(
+        keyword_issues.is_empty(),
+        "Quoted identifiers in CREATE TABLE should not trigger errors"
+    );
 }

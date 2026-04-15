@@ -186,13 +186,22 @@ impl SqlFormatter {
             parts.push(self.format_with(with));
         }
 
-        let mut select_parts = vec![self.kw("SELECT")];
-        if !stmt.hints.is_empty() {
-            let hints: Vec<String> = stmt.hints.iter().map(|h| format!("/*+ {} */", h)).collect();
-            select_parts.push(hints.join(" "));
+        let mut select_parts = Vec::new();
+        if let Some(hints) = self.format_hints(&stmt.hints) {
+            select_parts.push(hints);
         }
+        select_parts.push(self.kw("SELECT"));
         if stmt.distinct {
-            select_parts.push(self.kw("DISTINCT"));
+            if stmt.distinct_on.is_empty() {
+                select_parts.push(self.kw("DISTINCT"));
+            } else {
+                let cols: Vec<String> = stmt
+                    .distinct_on
+                    .iter()
+                    .map(|e| self.format_expr(e))
+                    .collect();
+                select_parts.push(format!("{} ON ({})", self.kw("DISTINCT"), cols.join(", ")));
+            }
         }
         select_parts.push(self.format_select_targets(&stmt.targets));
         parts.push(select_parts.join(" "));
@@ -389,6 +398,8 @@ impl SqlFormatter {
                 right,
                 join_type,
                 condition,
+                natural,
+                using_columns,
             } => {
                 let left_str = self.format_table_ref(left);
                 let join_kw = match join_type {
@@ -399,9 +410,21 @@ impl SqlFormatter {
                     JoinType::Cross => self.kw("CROSS JOIN"),
                 };
                 let right_str = self.format_table_ref(right);
-                let mut result = format!("{} {} {}", left_str, join_kw, right_str);
+                let natural_kw = if *natural {
+                    format!("{} ", self.kw("NATURAL"))
+                } else {
+                    String::new()
+                };
+                let mut result = format!("{} {}{} {}", left_str, natural_kw, join_kw, right_str);
                 if let Some(cond) = condition {
                     result = format!("{} {} {}", result, self.kw("ON"), self.format_expr(cond));
+                } else if !using_columns.is_empty() {
+                    result = format!(
+                        "{} {} ({})",
+                        result,
+                        self.kw("USING"),
+                        using_columns.join(", ")
+                    );
                 }
                 result
             }
@@ -1156,9 +1179,25 @@ impl SqlFormatter {
         result
     }
 
+    fn format_hints(&self, hints: &[String]) -> Option<String> {
+        if hints.is_empty() {
+            return None;
+        }
+        let formatted: Vec<String> = hints.iter().map(|h| format!("/*+ {} */", h)).collect();
+        Some(formatted.join(" "))
+    }
+
     fn format_insert(&self, stmt: &InsertStatement) -> String {
-        let mut parts = vec![self.kw("INSERT INTO")];
+        let mut parts = Vec::new();
+        if let Some(hints) = self.format_hints(&stmt.hints) {
+            parts.push(hints);
+        }
+        parts.push(self.kw("INSERT INTO"));
         parts.push(self.format_object_name(&stmt.table));
+
+        if let Some(ref alias) = stmt.alias {
+            parts.push(self.quote_identifier(alias));
+        }
 
         if let Some(ref p) = stmt.partition {
             parts.push(self.format_dml_partition(p));
@@ -1185,6 +1224,68 @@ impl SqlFormatter {
             }
             InsertSource::DefaultValues => {
                 parts.push(self.kw("DEFAULT VALUES"));
+            }
+        }
+
+        if let Some(ref conflict) = stmt.on_conflict {
+            match conflict {
+                OnConflictAction::Nothing { target } => {
+                    let mut conflict_parts = vec![self.kw("ON"), self.kw("CONFLICT")];
+                    if let Some(t) = target {
+                        match t {
+                            OnConflictTarget::Columns(cols) => {
+                                conflict_parts.push(format!("({})", cols.join(", ")));
+                            }
+                            OnConflictTarget::OnConstraint(name) => {
+                                conflict_parts.push(self.kw("ON"));
+                                conflict_parts.push(self.kw("CONSTRAINT"));
+                                conflict_parts.push(self.quote_identifier(name));
+                            }
+                        }
+                    }
+                    conflict_parts.push(self.kw("DO"));
+                    conflict_parts.push(self.kw("NOTHING"));
+                    parts.push(conflict_parts.join(" "));
+                }
+                OnConflictAction::Update {
+                    target,
+                    assignments,
+                    where_clause,
+                } => {
+                    let mut conflict_parts = vec![self.kw("ON")];
+                    conflict_parts.push(self.kw("CONFLICT"));
+                    if let Some(t) = target {
+                        match t {
+                            OnConflictTarget::Columns(cols) => {
+                                conflict_parts.push(format!("({})", cols.join(", ")));
+                            }
+                            OnConflictTarget::OnConstraint(name) => {
+                                conflict_parts.push(self.kw("ON"));
+                                conflict_parts.push(self.kw("CONSTRAINT"));
+                                conflict_parts.push(self.quote_identifier(name));
+                            }
+                        }
+                    }
+                    conflict_parts.push(self.kw("DO"));
+                    conflict_parts.push(self.kw("UPDATE"));
+                    conflict_parts.push(self.kw("SET"));
+                    let assign_strs: Vec<String> = assignments
+                        .iter()
+                        .map(|a| {
+                            format!(
+                                "{} = {}",
+                                self.format_object_name(&a.column),
+                                self.format_expr(&a.value)
+                            )
+                        })
+                        .collect();
+                    conflict_parts.push(assign_strs.join(", "));
+                    if let Some(w) = where_clause {
+                        conflict_parts.push(self.kw("WHERE"));
+                        conflict_parts.push(self.format_expr(w));
+                    }
+                    parts.push(conflict_parts.join(" "));
+                }
             }
         }
 
@@ -1257,7 +1358,11 @@ impl SqlFormatter {
     }
 
     fn format_update(&self, stmt: &UpdateStatement) -> String {
-        let mut parts = vec![self.kw("UPDATE")];
+        let mut parts = Vec::new();
+        if let Some(hints) = self.format_hints(&stmt.hints) {
+            parts.push(hints);
+        }
+        parts.push(self.kw("UPDATE"));
         parts.push(self.format_table_refs(&stmt.tables));
 
         if let Some(ref p) = stmt.partition {
@@ -1305,7 +1410,11 @@ impl SqlFormatter {
     }
 
     fn format_delete(&self, stmt: &DeleteStatement) -> String {
-        let mut parts = vec![self.kw("DELETE FROM")];
+        let mut parts = Vec::new();
+        if let Some(hints) = self.format_hints(&stmt.hints) {
+            parts.push(hints);
+        }
+        parts.push(self.kw("DELETE FROM"));
         parts.push(self.format_table_refs(&stmt.tables));
 
         if !stmt.using.is_empty() {
@@ -1336,7 +1445,11 @@ impl SqlFormatter {
     }
 
     fn format_merge(&self, stmt: &MergeStatement) -> String {
-        let mut parts = vec![self.kw("MERGE INTO")];
+        let mut parts = Vec::new();
+        if let Some(hints) = self.format_hints(&stmt.hints) {
+            parts.push(hints);
+        }
+        parts.push(self.kw("MERGE INTO"));
         parts.push(self.format_table_ref_with_partition(&stmt.target, stmt.partition.as_ref()));
 
         parts.push(self.kw("USING"));
@@ -2317,6 +2430,10 @@ impl SqlFormatter {
 
         if stmt.restart_identity {
             parts.push(self.kw("RESTART IDENTITY"));
+        }
+
+        if stmt.continue_identity {
+            parts.push(self.kw("CONTINUE IDENTITY"));
         }
 
         if stmt.cascade {

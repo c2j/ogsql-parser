@@ -1,9 +1,16 @@
 //! Java CST 遍历与 SQL 提取。
 
+use std::collections::HashMap;
+
 use tree_sitter::Node;
 
 use crate::java::error::JavaError;
 use crate::java::types::*;
+
+struct TrackedVar {
+    sql: String,
+    extraction_index: usize,
+}
 
 const SQL_ANNOTATIONS: &[&str] = &["Query", "NamedQuery", "SqlUpdate", "SqlQuery", "Modifying"];
 
@@ -67,6 +74,7 @@ pub fn extract(source: &str, root: Node, file_path: &str) -> JavaExtractResult {
         errors: Vec::new(),
         class_name: None,
         method_name: None,
+        sql_vars: HashMap::new(),
     };
     ctx.visit(root);
     JavaExtractResult {
@@ -83,6 +91,7 @@ struct ExtractContext<'a> {
     errors: Vec<JavaError>,
     class_name: Option<String>,
     method_name: Option<String>,
+    sql_vars: HashMap<String, TrackedVar>,
 }
 
 impl<'a> ExtractContext<'a> {
@@ -105,6 +114,9 @@ impl<'a> ExtractContext<'a> {
             }
             "local_variable_declaration" => {
                 self.visit_local_variable_declaration(node);
+            }
+            "assignment_expression" => {
+                self.visit_assignment_expression(node);
             }
             _ => {
                 let mut cursor = node.walk();
@@ -129,6 +141,7 @@ impl<'a> ExtractContext<'a> {
 
     fn visit_method_declaration(&mut self, node: Node) {
         let old_method = self.method_name.clone();
+        let old_sql_vars = std::mem::take(&mut self.sql_vars);
         if let Some(name_node) = node.child_by_field_name("name") {
             self.method_name = Some(self.node_text(name_node));
         }
@@ -155,6 +168,7 @@ impl<'a> ExtractContext<'a> {
         }
 
         self.method_name = old_method;
+        self.sql_vars = old_sql_vars;
     }
 
     // ── P0: Annotation SQL Extraction ──
@@ -442,14 +456,14 @@ impl<'a> ExtractContext<'a> {
         let parse_result = self.try_parse_sql(&sql_text, sql_kind);
 
         self.extractions.push(ExtractedSql {
-            sql: sql_text,
+            sql: sql_text.clone(),
             origin: SqlOrigin {
                 method: ExtractionMethod::Constant,
                 class_name: self.class_name.clone(),
                 method_name: self.method_name.clone(),
                 annotation_name: None,
                 api_method_name: None,
-                variable_name: Some(var_name),
+                variable_name: Some(var_name.clone()),
                 line: declarator.start_position().row + 1,
                 column: declarator.start_position().column,
             },
@@ -459,6 +473,151 @@ impl<'a> ExtractContext<'a> {
             is_text_block,
             parse_result,
         });
+
+        self.sql_vars.insert(
+            var_name,
+            TrackedVar {
+                sql: sql_text,
+                extraction_index: self.extractions.len() - 1,
+            },
+        );
+    }
+
+    // ── Cross-Statement Concatenation Tracking ──
+
+    fn visit_assignment_expression(&mut self, node: Node) {
+        let left = match node.child_by_field_name("left") {
+            Some(n) if n.kind() == "identifier" => n,
+            _ => {
+                self.recurse(node);
+                return;
+            }
+        };
+        let var_name = self.node_text(left);
+
+        if !self.sql_vars.contains_key(&var_name) {
+            self.recurse(node);
+            return;
+        }
+
+        let operator = node
+            .child_by_field_name("operator")
+            .map(|n| self.node_text(n))
+            .unwrap_or_default();
+
+        let right = match node.child_by_field_name("right") {
+            Some(n) => n,
+            None => {
+                self.recurse(node);
+                return;
+            }
+        };
+
+        let append_parts = match operator.as_str() {
+            "+=" => self.extract_concat_string_parts(right),
+            "=" => self.extract_append_parts_for_var(right, &var_name),
+            _ => None,
+        };
+
+        if let Some(parts) = append_parts {
+            if !parts.is_empty() {
+                self.append_to_tracked_var(&var_name, &parts, node);
+            }
+        }
+
+        self.recurse(node);
+    }
+
+    fn extract_concat_string_parts(&self, node: Node) -> Option<Vec<(String, bool)>> {
+        match node.kind() {
+            "string_literal" => {
+                let raw = self.node_text(node);
+                let is_tb = raw.starts_with("\"\"\"");
+                Some(vec![(self.decode_java_string(&raw, is_tb), is_tb)])
+            }
+            "binary_expression" => {
+                let parts = self.collect_concat_parts(node);
+                if parts.is_empty() {
+                    None
+                } else {
+                    Some(parts)
+                }
+            }
+            _ => Some(vec![("__JAVA_VAR__".to_string(), false)]),
+        }
+    }
+
+    fn extract_append_parts_for_var(
+        &self,
+        rhs: Node,
+        var_name: &str,
+    ) -> Option<Vec<(String, bool)>> {
+        match rhs.kind() {
+            "string_literal" => {
+                let raw = self.node_text(rhs);
+                let is_tb = raw.starts_with("\"\"\"");
+                Some(vec![(self.decode_java_string(&raw, is_tb), is_tb)])
+            }
+            "binary_expression" => {
+                let parts = self.collect_concat_parts(rhs);
+                if parts.is_empty() {
+                    return None;
+                }
+                if self.is_binary_left_identifier(rhs, var_name) {
+                    Some(parts.into_iter().skip(1).collect())
+                } else {
+                    Some(parts)
+                }
+            }
+            _ => None,
+        }
+    }
+
+    fn is_binary_left_identifier(&self, node: Node, var_name: &str) -> bool {
+        let mut current = node;
+        loop {
+            let left = match current.child_by_field_name("left") {
+                Some(n) => n,
+                None => return false,
+            };
+            match left.kind() {
+                "identifier" => return self.node_text(left) == var_name,
+                "binary_expression" => current = left,
+                _ => return false,
+            }
+        }
+    }
+
+    fn append_to_tracked_var(&mut self, var_name: &str, parts: &[(String, bool)], node: Node) {
+        let tracked = match self.sql_vars.get_mut(var_name) {
+            Some(t) => t,
+            None => return,
+        };
+        for (part, _) in parts {
+            tracked.sql.push_str(part);
+        }
+        let idx = tracked.extraction_index;
+        let new_sql = tracked.sql.clone();
+
+        let sql_kind = self.extractions[idx].sql_kind;
+        let parse_result = self.try_parse_sql(&new_sql, sql_kind);
+
+        let ext = match self.extractions.get_mut(idx) {
+            Some(e) => e,
+            None => return,
+        };
+        ext.sql = new_sql;
+        ext.is_concatenated = true;
+        ext.origin.line = node.start_position().row + 1;
+        ext.origin.column = node.start_position().column;
+        ext.parse_result = parse_result;
+    }
+
+    fn recurse(&mut self, node: Node) {
+        let mut cursor = node.walk();
+        for child in node.children(&mut cursor) {
+            self.visit(child);
+        }
     }
 
     // ── String Extraction Helpers ──

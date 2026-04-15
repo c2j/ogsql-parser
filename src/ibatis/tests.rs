@@ -59,7 +59,7 @@ fn test_parse_fragments() {
 #[test]
 fn test_parse_statements_count() {
     let mapper = parse_simple_mapper();
-    assert_eq!(mapper.statements.len(), 4);
+    assert_eq!(mapper.statements.len(), 5);
 }
 
 #[test]
@@ -472,4 +472,21 @@ fn test_dynamic_bind() {
     let result = super::parse_mapper_bytes(xml);
     assert!(result.errors.is_empty(), "errors: {:?}", result.errors);
     assert!(result.statements[0].has_dynamic_elements);
+}
+
+#[test]
+fn test_xml_entity_decoding() {
+    let xml = br#"<?xml version="1.0" encoding="UTF-8"?>
+<mapper namespace="test">
+    <select id="q1">select * from t where id&lt;&gt;1</select>
+    <select id="q2">select * from t where name = 'hello&amp;world'</select>
+    <select id="q3">select * from t where id &gt;= 5 and id &lt;= 10</select>
+</mapper>"#;
+    let result = super::parse_mapper_bytes(xml);
+    assert!(result.errors.is_empty(), "errors: {:?}", result.errors);
+    assert_eq!(result.statements.len(), 3);
+    assert!(result.statements[0].flat_sql.contains("<>"));
+    assert!(result.statements[1].flat_sql.contains("&"));
+    assert!(result.statements[2].flat_sql.contains(">="));
+    assert!(result.statements[2].flat_sql.contains("<="));
 }

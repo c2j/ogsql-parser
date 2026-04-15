@@ -124,6 +124,7 @@ pub enum Keyword {
     CONSTRAINT_NAME,
     CONSTRAINT_SCHEMA,
     CONSTRAINTS,
+    CONFLICT,
     CONSTRUCTOR,
     CONTENT_P,
     CONTINUE_P,
@@ -271,6 +272,7 @@ pub enum Keyword {
     GREATEST,
     GROUP_P,
     GROUPING_P,
+    GROUPS,
     GROUPPARENT,
     HANDLER,
     HAVING,
@@ -850,6 +852,7 @@ impl Keyword {
             Keyword::CONSTRAINT_CATALOG => "constraint_catalog",
             Keyword::CONSTRAINT_NAME => "constraint_name",
             Keyword::CONSTRAINT_SCHEMA => "constraint_schema",
+            Keyword::CONFLICT => "conflict",
             Keyword::CONSTRAINTS => "constraints",
             Keyword::CONSTRUCTOR => "constructor",
             Keyword::CONTENT_P => "content",
@@ -998,6 +1001,7 @@ impl Keyword {
             Keyword::GREATEST => "greatest",
             Keyword::GROUP_P => "group",
             Keyword::GROUPING_P => "grouping",
+            Keyword::GROUPS => "groups",
             Keyword::GROUPPARENT => "groupparent",
             Keyword::HANDLER => "handler",
             Keyword::HAVING => "having",
@@ -1709,7 +1713,8 @@ impl Keyword {
             | Keyword::CONNECTION
             | Keyword::CONSISTENT
             | Keyword::CONSTANT => KeywordCategory::Unreserved,
-            Keyword::CONSTRAINT_CATALOG
+            Keyword::CONFLICT
+            | Keyword::CONSTRAINT_CATALOG
             | Keyword::CONSTRAINT_NAME
             | Keyword::CONSTRAINT_SCHEMA
             | Keyword::CONSTRAINTS
@@ -1820,7 +1825,8 @@ impl Keyword {
             | Keyword::FUNCTIONS
             | Keyword::GENERATED
             | Keyword::GET
-            | Keyword::GLOBAL => KeywordCategory::Unreserved,
+            | Keyword::GLOBAL
+            | Keyword::GROUPS => KeywordCategory::Unreserved,
             Keyword::GRANTED
             | Keyword::HANDLER
             | Keyword::HEADER_P
@@ -2283,6 +2289,7 @@ pub fn lookup_keyword(s: &str) -> Option<Keyword> {
         ("concurrently", Keyword::CONCURRENTLY),
         ("condition", Keyword::CONDITION),
         ("configuration", Keyword::CONFIGURATION),
+        ("conflict", Keyword::CONFLICT),
         ("connect", Keyword::CONNECT),
         ("connection", Keyword::CONNECTION),
         ("consistent", Keyword::CONSISTENT),
@@ -2440,6 +2447,7 @@ pub fn lookup_keyword(s: &str) -> Option<Keyword> {
         ("group", Keyword::GROUP_P),
         ("grouping", Keyword::GROUPING_P),
         ("groupparent", Keyword::GROUPPARENT),
+        ("groups", Keyword::GROUPS),
         ("handler", Keyword::HANDLER),
         ("having", Keyword::HAVING),
         ("hdfsdirectory", Keyword::HDFSDIRECTORY),

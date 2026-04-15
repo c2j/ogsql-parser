@@ -308,3 +308,104 @@ fn test_sql_constant_name_heuristic() {
         .collect();
     assert_eq!(constants.len(), 1);
 }
+
+#[test]
+fn test_cross_statement_concat_assign() {
+    let java = r#"
+        public class Dao {
+            public void query(String mail) {
+                String sql = "select a from t where id=";
+                sql = sql + "'" + mail + "'";
+            }
+        }
+    "#;
+    let result = extract_sql_from_java(java, "Dao.java");
+    assert!(result.errors.is_empty(), "Errors: {:?}", result.errors);
+    assert_eq!(result.extractions.len(), 1);
+    let ext = &result.extractions[0];
+    assert_eq!(ext.sql, "select a from t where id='__JAVA_VAR__'");
+    assert!(ext.is_concatenated);
+    assert!(ext.parse_result.as_ref().map_or(false, |r| r
+        .errors
+        .iter()
+        .all(|e| matches!(e, crate::parser::ParserError::Warning { .. }))));
+}
+
+#[test]
+fn test_cross_statement_concat_plus_eq() {
+    let java = r#"
+        public class Dao {
+            public void query(int id, String name) {
+                String sql = "select * from t where id=";
+                sql += id;
+                sql += " and name='" + name + "'";
+            }
+        }
+    "#;
+    let result = extract_sql_from_java(java, "Dao.java");
+    assert!(result.errors.is_empty(), "Errors: {:?}", result.errors);
+    assert_eq!(result.extractions.len(), 1);
+    let ext = &result.extractions[0];
+    assert_eq!(
+        ext.sql,
+        "select * from t where id=__JAVA_VAR__ and name='__JAVA_VAR__'"
+    );
+    assert!(ext.is_concatenated);
+}
+
+#[test]
+fn test_cross_statement_concat_multi_step() {
+    let java = r#"
+        public class Dao {
+            public void query(int id, String name, String status) {
+                String sql = "select * from t";
+                sql = sql + " where id=" + id;
+                sql = sql + " and name='" + name + "'";
+                sql = sql + " and status='" + status + "'";
+            }
+        }
+    "#;
+    let result = extract_sql_from_java(java, "Dao.java");
+    assert!(result.errors.is_empty(), "Errors: {:?}", result.errors);
+    assert_eq!(result.extractions.len(), 1);
+    let ext = &result.extractions[0];
+    assert_eq!(
+        ext.sql,
+        "select * from t where id=__JAVA_VAR__ and name='__JAVA_VAR__' and status='__JAVA_VAR__'"
+    );
+    assert!(ext.is_concatenated);
+}
+
+#[test]
+fn test_cross_statement_method_scoped() {
+    let java = r#"
+        public class Dao {
+            public void methodA() {
+                String sql = "select * from a";
+            }
+            public void methodB() {
+                String sql = "select * from b";
+                sql = sql + " where id = 1";
+            }
+        }
+    "#;
+    let result = extract_sql_from_java(java, "Dao.java");
+    assert!(result.errors.is_empty(), "Errors: {:?}", result.errors);
+    assert_eq!(result.extractions.len(), 2);
+    assert_eq!(result.extractions[0].sql, "select * from a");
+    assert_eq!(result.extractions[1].sql, "select * from b where id = 1");
+}
+
+#[test]
+fn test_cross_statement_non_tracked_var_ignored() {
+    let java = r#"
+        public class Dao {
+            public void query() {
+                String msg = "hello world";
+                msg = msg + "!";
+            }
+        }
+    "#;
+    let result = extract_sql_from_java(java, "Dao.java");
+    assert!(result.extractions.is_empty());
+}
