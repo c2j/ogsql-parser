@@ -42,7 +42,7 @@ const SQL_KEYWORDS: &[&str] = &[
     "{CALL ",
 ];
 
-const SQL_NAME_KEYWORDS: &[&str] = &["SQL_", "_SQL", "SQLQUERY", "QUERY_"];
+const SQL_NAME_PATTERN: &str = "SQL";
 
 const SQL_STATEMENT_PREFIXES: &[&str] = &[
     "SELECT ",
@@ -170,7 +170,12 @@ impl<'a> ExtractContext<'a> {
                     let mut var_name: Option<String> = None;
                     for pc in child.children(&mut param_cursor) {
                         match pc.kind() {
-                            "type_identifier" | "primitive_type" | "generic_type"
+                            "type_identifier"
+                            | "primitive_type"
+                            | "generic_type"
+                            | "integral_type"
+                            | "floating_point_type"
+                            | "boolean_type"
                             | "array_type" => {
                                 type_name = self.extract_type_name(pc);
                             }
@@ -443,7 +448,13 @@ impl<'a> ExtractContext<'a> {
         let mut type_name: Option<String> = None;
         for child in node.children(&mut cursor) {
             match child.kind() {
-                "type_identifier" | "primitive_type" | "generic_type" | "array_type" => {
+                "type_identifier"
+                | "primitive_type"
+                | "integral_type"
+                | "floating_point_type"
+                | "boolean_type"
+                | "generic_type"
+                | "array_type" => {
                     type_name = self.extract_type_name(child);
                 }
                 "variable_declarator" => {
@@ -489,9 +500,7 @@ impl<'a> ExtractContext<'a> {
         };
 
         let var_name_upper = var_name.to_uppercase();
-        let name_looks_like_sql = SQL_NAME_KEYWORDS
-            .iter()
-            .any(|kw| var_name_upper.contains(kw));
+        let name_looks_like_sql = var_name_upper.contains(SQL_NAME_PATTERN);
 
         let content_looks_like_sql = looks_like_sql(&sql_text);
 
@@ -942,7 +951,11 @@ impl<'a> ExtractContext<'a> {
 
     fn extract_type_name(&self, node: Node) -> Option<String> {
         match node.kind() {
-            "type_identifier" | "primitive_type" => Some(self.node_text(node)),
+            "type_identifier"
+            | "primitive_type"
+            | "integral_type"
+            | "floating_point_type"
+            | "boolean_type" => Some(self.node_text(node)),
             "generic_type" => {
                 let mut cursor = node.walk();
                 for child in node.children(&mut cursor) {
@@ -958,6 +971,9 @@ impl<'a> ExtractContext<'a> {
                     let kind = child.kind();
                     if kind == "type_identifier"
                         || kind == "primitive_type"
+                        || kind == "integral_type"
+                        || kind == "floating_point_type"
+                        || kind == "boolean_type"
                         || kind == "generic_type"
                     {
                         return self.extract_type_name(child);
@@ -970,9 +986,19 @@ impl<'a> ExtractContext<'a> {
     }
 
     fn make_var_placeholder(&self, var_name: &str) -> String {
+        let sanitized: String = var_name
+            .chars()
+            .map(|c| {
+                if c == '.' || c == '(' || c == ')' {
+                    '_'
+                } else {
+                    c
+                }
+            })
+            .collect();
         match self.var_types.get(var_name) {
-            Some(type_name) => format!("__JAVA_VAR_{}_{}__", type_name, var_name),
-            None => format!("__JAVA_VAR_{}__", var_name),
+            Some(type_name) => format!("__JAVA_VAR_{}_{}__", type_name, sanitized),
+            None => format!("__JAVA_VAR_{}__", sanitized),
         }
     }
 
