@@ -1507,6 +1507,7 @@ impl Keyword {
             | Keyword::LIMIT
             | Keyword::LOCALTIME
             | Keyword::LOCALTIMESTAMP
+            | Keyword::MAXVALUE
             | Keyword::MINUS_P => KeywordCategory::Reserved,
             Keyword::MODIFY_P
             | Keyword::NOCYCLE
@@ -1900,11 +1901,9 @@ impl Keyword {
             | Keyword::MATCHED
             | Keyword::MATERIALIZED
             | Keyword::MAXEXTENTS => KeywordCategory::Unreserved,
-            Keyword::MAXSIZE
-            | Keyword::MAXTRANS
-            | Keyword::MAXVALUE
-            | Keyword::MEMBER
-            | Keyword::MERGE => KeywordCategory::Unreserved,
+            Keyword::MAXSIZE | Keyword::MAXTRANS | Keyword::MEMBER | Keyword::MERGE => {
+                KeywordCategory::Unreserved
+            }
             Keyword::MESSAGE_TEXT
             | Keyword::METHOD
             | Keyword::MINEXTENTS

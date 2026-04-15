@@ -264,11 +264,7 @@ fn cmd_json2sql(cli: &Cli) {
 }
 
 fn is_warning(e: &ogsql_parser::ParserError) -> bool {
-    matches!(
-        e,
-        ogsql_parser::ParserError::Warning { .. }
-            | ogsql_parser::ParserError::NonReservedKeywordAsIdentifier { .. }
-    )
+    matches!(e, ogsql_parser::ParserError::Warning { .. })
 }
 
 fn cmd_validate(cli: &Cli) {
@@ -713,8 +709,8 @@ fn cmd_parse_xml(cli: &Cli) {
                 println!("  [contains dynamic SQL elements]");
             }
             if let Some((infos, errors)) = &stmt.parse_result {
-                let warnings: Vec<_> = errors.iter().filter(|e| matches!(e, ogsql_parser::ParserError::Warning { .. })).collect();
-                let real_errors: Vec<_> = errors.iter().filter(|e| !matches!(e, ogsql_parser::ParserError::Warning { .. })).collect();
+                let warnings: Vec<_> = errors.iter().filter(|e| is_warning(e)).collect();
+                let real_errors: Vec<_> = errors.iter().filter(|e| !is_warning(e)).collect();
                 if !real_errors.is_empty() {
                     eprintln!("  {} parse error(s):", real_errors.len());
                     for e in &real_errors {
@@ -788,8 +784,8 @@ fn cmd_parse_java(cli: &Cli) {
                 println!("  [params: {:?}]", ext.parameter_style);
             }
             if let Some(parse_result) = &ext.parse_result {
-                let warnings: Vec<_> = parse_result.errors.iter().filter(|e| matches!(e, ogsql_parser::ParserError::Warning { .. })).collect();
-                let real_errors: Vec<_> = parse_result.errors.iter().filter(|e| !matches!(e, ogsql_parser::ParserError::Warning { .. })).collect();
+                let warnings: Vec<_> = parse_result.errors.iter().filter(|e| is_warning(e)).collect();
+                let real_errors: Vec<_> = parse_result.errors.iter().filter(|e| !is_warning(e)).collect();
                 if !real_errors.is_empty() {
                     eprintln!("  {} parse error(s):", real_errors.len());
                     for e in &real_errors {

@@ -652,6 +652,39 @@ impl Parser {
                     }
                     return Ok(expr);
                 }
+                // Built-in expression keywords that are RESERVED but valid as expressions
+                if matches!(
+                    kw,
+                    Keyword::SYSDATE
+                        | Keyword::ROWNUM
+                        | Keyword::CURRENT_DATE
+                        | Keyword::CURRENT_CATALOG
+                        | Keyword::CURRENT_USER
+                        | Keyword::SESSION_USER
+                ) {
+                    self.advance();
+                    return Ok(Expr::ColumnRef(vec![kw.as_str().to_string()]));
+                }
+                if matches!(
+                    kw,
+                    Keyword::CURRENT_TIME
+                        | Keyword::CURRENT_TIMESTAMP
+                        | Keyword::LOCALTIME
+                        | Keyword::LOCALTIMESTAMP
+                ) {
+                    let name = kw.as_str().to_string();
+                    self.advance();
+                    if self.match_token(&Token::LParen) {
+                        self.advance();
+                        let precision = self.parse_expr()?;
+                        self.expect_token(&Token::RParen)?;
+                        return Ok(Expr::SpecialFunction {
+                            name,
+                            args: vec![precision],
+                        });
+                    }
+                    return Ok(Expr::ColumnRef(vec![name]));
+                }
                 let name = self.parse_object_name()?;
                 // PostgreSQL typecast syntax: typename 'literal'
                 if let Token::StringLiteral(s) = self.peek().clone() {

@@ -33,11 +33,6 @@ pub enum ParserError {
         keyword: String,
         location: SourceLocation,
     },
-    #[error("non-reserved keyword \"{}\" is used as identifier at line {}, column {} (this is allowed but not recommended)", .keyword, .location.line, .location.column)]
-    NonReservedKeywordAsIdentifier {
-        keyword: String,
-        location: SourceLocation,
-    },
     #[error("{0}")]
     TokenizerError(#[from] crate::token::tokenizer::TokenizerError),
 }
@@ -490,7 +485,7 @@ impl Parser {
     }
 
     /// Consume an identifier (Ident, QuotedIdent, or Keyword-as-identifier).
-    /// Reserved keywords used as identifiers emit error; non-reserved emit warning.
+    /// Reserved keywords used as identifiers emit error; non-reserved are silently accepted.
     fn parse_identifier(&mut self) -> Result<String, ParserError> {
         match self.peek().clone() {
             Token::Ident(s) => {
@@ -504,26 +499,14 @@ impl Parser {
             Token::Keyword(kw) => {
                 let location = self.current_location();
                 self.advance();
-                // Convert keyword to lowercase identifier, stripping _P suffix
                 let s = format!("{:?}", kw).to_lowercase();
                 let name = s.trim_end_matches("_p").to_string();
 
-                use crate::token::keyword::KeywordCategory;
-                match kw.category() {
-                    KeywordCategory::Reserved => {
-                        self.add_error(ParserError::ReservedKeywordAsIdentifier {
-                            keyword: name.clone(),
-                            location,
-                        });
-                    }
-                    KeywordCategory::ColName
-                    | KeywordCategory::TypeFuncName
-                    | KeywordCategory::Unreserved => {
-                        self.add_error(ParserError::NonReservedKeywordAsIdentifier {
-                            keyword: name.clone(),
-                            location,
-                        });
-                    }
+                if kw.category() == crate::token::keyword::KeywordCategory::Reserved {
+                    self.add_error(ParserError::ReservedKeywordAsIdentifier {
+                        keyword: name.clone(),
+                        location,
+                    });
                 }
                 Ok(name)
             }

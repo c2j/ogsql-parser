@@ -4561,57 +4561,56 @@ fn test_reserved_keyword_as_column_name_error() {
 }
 
 #[test]
-fn test_nonreserved_keyword_as_table_name_warning() {
+fn test_nonreserved_keyword_as_table_name_no_warning() {
     let sql = "SELECT * FROM action";
     let tokens = Tokenizer::new(sql).tokenize().unwrap();
     let mut parser = Parser::new(tokens);
     let stmts = parser.parse();
     assert!(!stmts.is_empty());
-    let warnings: Vec<_> = parser
+    let keyword_issues: Vec<_> = parser
         .errors()
         .iter()
-        .filter(|e| matches!(e, ParserError::NonReservedKeywordAsIdentifier { .. }))
+        .filter(|e| matches!(e, ParserError::ReservedKeywordAsIdentifier { .. }))
         .collect();
     assert!(
-        !warnings.is_empty(),
-        "Non-reserved keyword 'action' used as table name should warn"
+        keyword_issues.is_empty(),
+        "Non-reserved keyword 'action' as table name should not trigger any warning"
     );
-    assert!(warnings[0].to_string().contains("action"));
 }
 
 #[test]
-fn test_nonreserved_keyword_as_column_name_warning() {
+fn test_nonreserved_keyword_as_column_name_no_warning() {
     let sql = "SELECT commit FROM t1";
     let tokens = Tokenizer::new(sql).tokenize().unwrap();
     let mut parser = Parser::new(tokens);
     let stmts = parser.parse();
     assert!(!stmts.is_empty());
-    let warnings: Vec<_> = parser
+    let keyword_issues: Vec<_> = parser
         .errors()
         .iter()
-        .filter(|e| matches!(e, ParserError::NonReservedKeywordAsIdentifier { .. }))
+        .filter(|e| matches!(e, ParserError::ReservedKeywordAsIdentifier { .. }))
         .collect();
     assert!(
-        !warnings.is_empty(),
-        "Non-reserved keyword 'commit' used as column name should warn"
+        keyword_issues.is_empty(),
+        "Non-reserved keyword 'commit' as column name should not trigger any warning"
     );
 }
 
 #[test]
-fn test_colname_keyword_as_identifier_warning() {
+fn test_colname_keyword_as_identifier_no_warning() {
     let sql = "SELECT bigint FROM t1";
     let tokens = Tokenizer::new(sql).tokenize().unwrap();
     let mut parser = Parser::new(tokens);
     let stmts = parser.parse();
     assert!(!stmts.is_empty());
-    let warnings: Vec<_> = parser
+    let keyword_issues: Vec<_> = parser
         .errors()
         .iter()
-        .filter(|e| matches!(e, ParserError::NonReservedKeywordAsIdentifier { .. }))
+        .filter(|e| matches!(e, ParserError::ReservedKeywordAsIdentifier { .. }))
         .collect();
     assert!(
-        !warnings.is_empty(),
-        "ColName keyword 'bigint' used as identifier should warn"
+        keyword_issues.is_empty(),
+        "ColName keyword 'bigint' as identifier should not trigger any warning"
     );
 }
 
@@ -4625,10 +4624,7 @@ fn test_quoted_identifier_no_warning() {
     let keyword_issues: Vec<_> = parser
         .errors()
         .iter()
-        .filter(|e| {
-            matches!(e, ParserError::ReservedKeywordAsIdentifier { .. })
-                || matches!(e, ParserError::NonReservedKeywordAsIdentifier { .. })
-        })
+        .filter(|e| matches!(e, ParserError::ReservedKeywordAsIdentifier { .. }))
         .collect();
     assert!(
         keyword_issues.is_empty(),
@@ -4646,10 +4642,7 @@ fn test_normal_identifier_no_warning() {
     let keyword_issues: Vec<_> = parser
         .errors()
         .iter()
-        .filter(|e| {
-            matches!(e, ParserError::ReservedKeywordAsIdentifier { .. })
-                || matches!(e, ParserError::NonReservedKeywordAsIdentifier { .. })
-        })
+        .filter(|e| matches!(e, ParserError::ReservedKeywordAsIdentifier { .. }))
         .collect();
     assert!(
         keyword_issues.is_empty(),
@@ -4667,13 +4660,346 @@ fn test_create_table_quoted_reserved_no_error() {
     let keyword_issues: Vec<_> = parser
         .errors()
         .iter()
-        .filter(|e| {
-            matches!(e, ParserError::ReservedKeywordAsIdentifier { .. })
-                || matches!(e, ParserError::NonReservedKeywordAsIdentifier { .. })
-        })
+        .filter(|e| matches!(e, ParserError::ReservedKeywordAsIdentifier { .. }))
         .collect();
     assert!(
         keyword_issues.is_empty(),
         "Quoted identifiers in CREATE TABLE should not trigger errors"
+    );
+}
+
+// ── Keyword category guard tests (verified against kwlist.h) ──
+
+use crate::token::keyword::{Keyword, KeywordCategory};
+
+/// Helper: assert a keyword's category matches expectation.
+fn assert_keyword_category(kw: Keyword, expected: KeywordCategory, label: &str) {
+    assert_eq!(
+        kw.category(),
+        expected,
+        "keyword \"{}\" ({}) should be {:?}, got {:?}",
+        kw.as_str(),
+        label,
+        expected,
+        kw.category()
+    );
+}
+
+#[test]
+fn test_guard_reserved_keywords_from_kwlist() {
+    // Spot-check all RESERVED_KEYWORD entries from kwlist.h that have been
+    // historically problematic or are easy to misclassify.
+    let reserved: Vec<(Keyword, &str)> = vec![
+        (Keyword::ALL, "all"),
+        (Keyword::AND, "and"),
+        (Keyword::ARRAY, "array"),
+        (Keyword::AS, "as"),
+        (Keyword::ASC, "asc"),
+        (Keyword::ASYMMETRIC, "asymmetric"),
+        (Keyword::AUTHID, "authid"),
+        (Keyword::BOTH, "both"),
+        (Keyword::CASE, "case"),
+        (Keyword::CAST, "cast"),
+        (Keyword::CHECK, "check"),
+        (Keyword::COLLATE, "collate"),
+        (Keyword::COLUMN, "column"),
+        (Keyword::CONSTRAINT, "constraint"),
+        (Keyword::CREATE, "create"),
+        (Keyword::CURRENT_CATALOG, "current_catalog"),
+        (Keyword::CURRENT_DATE, "current_date"),
+        (Keyword::CURRENT_ROLE, "current_role"),
+        (Keyword::CURRENT_TIME, "current_time"),
+        (Keyword::CURRENT_TIMESTAMP, "current_timestamp"),
+        (Keyword::CURRENT_USER, "current_user"),
+        (Keyword::DEFAULT, "default"),
+        (Keyword::DEFERRABLE, "deferrable"),
+        (Keyword::DESC, "desc"),
+        (Keyword::DISTINCT, "distinct"),
+        (Keyword::DO, "do"),
+        (Keyword::ELSE, "else"),
+        (Keyword::END_P, "end"),
+        (Keyword::EXCEPT, "except"),
+        (Keyword::FALSE_P, "false"),
+        (Keyword::FETCH, "fetch"),
+        (Keyword::FOR, "for"),
+        (Keyword::FOREIGN, "foreign"),
+        (Keyword::FROM, "from"),
+        (Keyword::GRANT, "grant"),
+        (Keyword::GROUP_P, "group"),
+        (Keyword::HAVING, "having"),
+        (Keyword::IN_P, "in"),
+        (Keyword::INITIALLY, "initially"),
+        (Keyword::INTERSECT, "intersect"),
+        (Keyword::INTO, "into"),
+        (Keyword::IS, "is"),
+        (Keyword::LEADING, "leading"),
+        (Keyword::LESS, "less"),
+        (Keyword::LIMIT, "limit"),
+        (Keyword::LOCALTIME, "localtime"),
+        (Keyword::LOCALTIMESTAMP, "localtimestamp"),
+        // MAXVALUE was previously misclassified as Unreserved — guard it
+        (Keyword::MAXVALUE, "maxvalue"),
+        (Keyword::MINUS_P, "minus"),
+        (Keyword::MODIFY_P, "modify"),
+        (Keyword::NOCYCLE, "nocycle"),
+        (Keyword::NOT, "not"),
+        (Keyword::NULL_P, "null"),
+        (Keyword::OFFSET, "offset"),
+        (Keyword::ON, "on"),
+        (Keyword::ONLY, "only"),
+        (Keyword::OR, "or"),
+        (Keyword::ORDER, "order"),
+        (Keyword::PERFORMANCE, "performance"),
+        (Keyword::PLACING, "placing"),
+        (Keyword::PRIMARY, "primary"),
+        (Keyword::PROCEDURE, "procedure"),
+        (Keyword::REFERENCES, "references"),
+        (Keyword::REJECT_P, "reject"),
+        (Keyword::RETURNING, "returning"),
+        // ROWNUM was in user's test case — guard it
+        (Keyword::ROWNUM, "rownum"),
+        (Keyword::SELECT, "select"),
+        (Keyword::SESSION_USER, "session_user"),
+        (Keyword::SHRINK, "shrink"),
+        (Keyword::SOME, "some"),
+        (Keyword::SYMMETRIC, "symmetric"),
+        // SYSDATE was in user's test case — guard it
+        (Keyword::SYSDATE, "sysdate"),
+        (Keyword::TABLE, "table"),
+        (Keyword::THEN, "then"),
+        (Keyword::TO, "to"),
+        (Keyword::TRAILING, "trailing"),
+        (Keyword::TRUE_P, "true"),
+        (Keyword::UNION, "union"),
+        (Keyword::UNIQUE, "unique"),
+        (Keyword::USER, "user"),
+        (Keyword::USING, "using"),
+        (Keyword::VARIADIC, "variadic"),
+        (Keyword::VERIFY, "verify"),
+        (Keyword::WHEN, "when"),
+        (Keyword::WHERE, "where"),
+        (Keyword::WINDOW, "window"),
+        (Keyword::WITH, "with"),
+    ];
+    for (kw, label) in &reserved {
+        assert_keyword_category(*kw, KeywordCategory::Reserved, label);
+    }
+}
+
+#[test]
+fn test_guard_colname_keywords_from_kwlist() {
+    let colname: Vec<(Keyword, &str)> = vec![
+        (Keyword::BETWEEN, "between"),
+        (Keyword::BIGINT, "bigint"),
+        (Keyword::BIT, "bit"),
+        (Keyword::BOOLEAN_P, "boolean"),
+        (Keyword::CHAR_P, "char"),
+        (Keyword::COALESCE, "coalesce"),
+        (Keyword::DATE_P, "date"),
+        (Keyword::DECIMAL_P, "decimal"),
+        (Keyword::DECODE, "decode"),
+        (Keyword::EXISTS, "exists"),
+        (Keyword::EXTRACT, "extract"),
+        (Keyword::FLOAT_P, "float"),
+        (Keyword::GREATEST, "greatest"),
+        (Keyword::INTEGER, "integer"),
+        (Keyword::INTERVAL, "interval"),
+        (Keyword::LEAST, "least"),
+        // NAME was in user's test case — guard it (UNRESERVED, not COL_NAME)
+        // NVL was in user's test case — guard it
+        (Keyword::NVL, "nvl"),
+        (Keyword::NUMERIC, "numeric"),
+        (Keyword::REAL, "real"),
+        (Keyword::ROW, "row"),
+        (Keyword::SMALLINT, "smallint"),
+        (Keyword::SUBSTRING, "substring"),
+        (Keyword::TIME, "time"),
+        (Keyword::TIMESTAMP, "timestamp"),
+        (Keyword::TREAT, "treat"),
+        (Keyword::TRIM, "trim"),
+        (Keyword::VALUES, "values"),
+        (Keyword::VARCHAR, "varchar"),
+    ];
+    for (kw, label) in &colname {
+        assert_keyword_category(*kw, KeywordCategory::ColName, label);
+    }
+}
+
+#[test]
+fn test_guard_unreserved_keywords_from_kwlist() {
+    let unreserved: Vec<(Keyword, &str)> = vec![
+        (Keyword::ABORT_P, "abort"),
+        (Keyword::ACTION, "action"),
+        (Keyword::COMMIT, "commit"),
+        (Keyword::FUNCTION, "function"),
+        (Keyword::INDEX, "index"),
+        (Keyword::INSERT, "insert"),
+        (Keyword::MERGE, "merge"),
+        // NAME was in user's test case — guard it as UNRESERVED
+        (Keyword::NAME_P, "name"),
+        (Keyword::SCHEMA, "schema"),
+        (Keyword::SET, "set"),
+        (Keyword::UPDATE, "update"),
+        (Keyword::VACUUM, "vacuum"),
+    ];
+    for (kw, label) in &unreserved {
+        assert_keyword_category(*kw, KeywordCategory::Unreserved, label);
+    }
+}
+
+#[test]
+fn test_guard_type_func_name_keywords_from_kwlist() {
+    let typefunc: Vec<(Keyword, &str)> = vec![
+        (Keyword::AUTHORIZATION, "authorization"),
+        (Keyword::CROSS, "cross"),
+        (Keyword::FULL, "full"),
+        (Keyword::ILIKE, "ilike"),
+        (Keyword::INNER_P, "inner"),
+        (Keyword::JOIN, "join"),
+        (Keyword::LEFT, "left"),
+        (Keyword::LIKE, "like"),
+        (Keyword::NATURAL, "natural"),
+        (Keyword::OUTER_P, "outer"),
+        (Keyword::OVERLAPS, "overlaps"),
+        (Keyword::RIGHT, "right"),
+        (Keyword::SIMILAR, "similar"),
+        (Keyword::VERBOSE, "verbose"),
+    ];
+    for (kw, label) in &typefunc {
+        assert_keyword_category(*kw, KeywordCategory::TypeFuncName, label);
+    }
+}
+
+/// Regression guard: user's original test case should produce 0 errors + 0 warnings.
+/// sysdate/rownum are built-in expressions (RESERVED but valid), nvl is a function call
+/// (COL_NAME keyword), name is an alias (UNRESERVED keyword) — all are legitimate uses.
+#[test]
+fn test_user_reported_sql_no_errors_no_warnings() {
+    let sql =
+        r#"select c1 as name, to_char(sysdate,"yyyymmdd"), nvl(c3,"01") from t where rownum=1"#;
+    let tokens = Tokenizer::new(sql).tokenize().unwrap();
+    let mut parser = Parser::new(tokens);
+    let stmts = parser.parse();
+    assert!(!stmts.is_empty(), "Should produce valid AST");
+
+    let keyword_issues: Vec<_> = parser
+        .errors()
+        .iter()
+        .filter(|e| matches!(e, ParserError::ReservedKeywordAsIdentifier { .. }))
+        .collect();
+    assert!(
+        keyword_issues.is_empty(),
+        "User's SQL should produce 0 keyword errors, got: {:?}",
+        keyword_issues
+    );
+}
+
+#[test]
+fn test_sysdate_as_expression_no_error() {
+    let sql = "SELECT sysdate FROM dual";
+    let tokens = Tokenizer::new(sql).tokenize().unwrap();
+    let mut parser = Parser::new(tokens);
+    let stmts = parser.parse();
+    assert!(!stmts.is_empty());
+    let reserved_errors: Vec<_> = parser
+        .errors()
+        .iter()
+        .filter(|e| matches!(e, ParserError::ReservedKeywordAsIdentifier { .. }))
+        .collect();
+    assert!(
+        reserved_errors.is_empty(),
+        "SYSDATE as expression should not produce error, got: {:?}",
+        reserved_errors
+    );
+}
+
+#[test]
+fn test_rownum_in_where_no_error() {
+    let sql = "SELECT * FROM t WHERE rownum <= 10";
+    let tokens = Tokenizer::new(sql).tokenize().unwrap();
+    let mut parser = Parser::new(tokens);
+    let stmts = parser.parse();
+    assert!(!stmts.is_empty());
+    let reserved_errors: Vec<_> = parser
+        .errors()
+        .iter()
+        .filter(|e| matches!(e, ParserError::ReservedKeywordAsIdentifier { .. }))
+        .collect();
+    assert!(
+        reserved_errors.is_empty(),
+        "ROWNUM in WHERE should not produce error, got: {:?}",
+        reserved_errors
+    );
+}
+
+#[test]
+fn test_current_date_as_expression_no_error() {
+    let sql = "SELECT current_date";
+    let tokens = Tokenizer::new(sql).tokenize().unwrap();
+    let mut parser = Parser::new(tokens);
+    let stmts = parser.parse();
+    assert!(!stmts.is_empty());
+    let keyword_issues: Vec<_> = parser
+        .errors()
+        .iter()
+        .filter(|e| matches!(e, ParserError::ReservedKeywordAsIdentifier { .. }))
+        .collect();
+    assert!(
+        keyword_issues.is_empty(),
+        "CURRENT_DATE as expression should not produce error"
+    );
+}
+
+#[test]
+fn test_current_timestamp_with_precision_no_error() {
+    let sql = "SELECT current_timestamp(6)";
+    let tokens = Tokenizer::new(sql).tokenize().unwrap();
+    let mut parser = Parser::new(tokens);
+    let stmts = parser.parse();
+    assert!(!stmts.is_empty());
+    let keyword_issues: Vec<_> = parser
+        .errors()
+        .iter()
+        .filter(|e| matches!(e, ParserError::ReservedKeywordAsIdentifier { .. }))
+        .collect();
+    assert!(
+        keyword_issues.is_empty(),
+        "CURRENT_TIMESTAMP(6) should not produce error"
+    );
+}
+
+#[test]
+fn test_nvl_function_call_no_warning() {
+    let sql = "SELECT nvl(c1, 0) FROM t";
+    let tokens = Tokenizer::new(sql).tokenize().unwrap();
+    let mut parser = Parser::new(tokens);
+    let stmts = parser.parse();
+    assert!(!stmts.is_empty());
+    let keyword_issues: Vec<_> = parser
+        .errors()
+        .iter()
+        .filter(|e| matches!(e, ParserError::ReservedKeywordAsIdentifier { .. }))
+        .collect();
+    assert!(
+        keyword_issues.is_empty(),
+        "nvl() function call should not produce any keyword warning"
+    );
+}
+
+#[test]
+fn test_name_as_alias_no_warning() {
+    let sql = "SELECT c1 AS name FROM t";
+    let tokens = Tokenizer::new(sql).tokenize().unwrap();
+    let mut parser = Parser::new(tokens);
+    let stmts = parser.parse();
+    assert!(!stmts.is_empty());
+    let keyword_issues: Vec<_> = parser
+        .errors()
+        .iter()
+        .filter(|e| matches!(e, ParserError::ReservedKeywordAsIdentifier { .. }))
+        .collect();
+    assert!(
+        keyword_issues.is_empty(),
+        "name as alias should not produce any keyword warning"
     );
 }
