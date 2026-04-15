@@ -541,6 +541,68 @@ impl Parser {
         }
     }
 
+    /// Try to consume an optional column alias: [AS] identifier
+    /// Unlike parse_optional_alias, also accepts non-reserved keywords as implicit aliases.
+    /// Uses 1-token lookahead to avoid consuming keywords that start subsequent clauses
+    /// (e.g., LOOP in PL/pgSQL, CONNECT in hierarchical queries, ON CONFLICT in INSERT).
+    fn parse_optional_column_alias(&mut self) -> Result<Option<String>, ParserError> {
+        if self.match_keyword(Keyword::AS) {
+            self.advance();
+            Ok(Some(self.parse_identifier()?))
+        } else {
+            match self.peek() {
+                Token::Ident(_) | Token::QuotedIdent(_) => Ok(Some(self.parse_identifier()?)),
+                Token::Keyword(kw) => {
+                    if kw.category() != crate::token::keyword::KeywordCategory::Reserved
+                        && self.looks_like_alias()
+                    {
+                        Ok(Some(self.parse_identifier()?))
+                    } else {
+                        Ok(None)
+                    }
+                }
+                _ => Ok(None),
+            }
+        }
+    }
+
+    /// Check if the token *after* the current one confirms the current token is an alias.
+    /// After a valid alias we expect: Comma, FROM, RParen, WHERE, GROUP, ORDER, HAVING,
+    /// LIMIT, OFFSET, UNION, INTERSECT, EXCEPT, MINUS, FOR, EOF, Semicolon, or certain
+    /// keywords that continue the query — NOT keywords like LOOP, CONNECT, ON, etc.
+    fn looks_like_alias(&self) -> bool {
+        if self.pos + 1 >= self.tokens.len() {
+            return true;
+        }
+        match &self.tokens[self.pos + 1].token {
+            Token::Comma | Token::RParen | Token::Semicolon | Token::Eof => true,
+            Token::Keyword(kw) => matches!(
+                kw,
+                Keyword::FROM
+                    | Keyword::WHERE
+                    | Keyword::GROUP_P
+                    | Keyword::ORDER
+                    | Keyword::HAVING
+                    | Keyword::LIMIT
+                    | Keyword::OFFSET
+                    | Keyword::UNION
+                    | Keyword::INTERSECT
+                    | Keyword::EXCEPT
+                    | Keyword::MINUS_P
+                    | Keyword::FOR
+                    | Keyword::INTO
+                    | Keyword::END_P
+                    | Keyword::THEN
+                    | Keyword::ELSE
+                    | Keyword::WHEN
+                    | Keyword::AND
+                    | Keyword::OR
+                    | Keyword::AS
+            ),
+            _ => false,
+        }
+    }
+
     /// Check if the current token starts an expression.
     fn is_expr_start(&self) -> bool {
         matches!(

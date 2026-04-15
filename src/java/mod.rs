@@ -9,8 +9,8 @@ pub mod types;
 
 pub use error::JavaError;
 pub use types::{
-    ExtractedSql, ExtractionMethod, JavaExtractResult, ParameterStyle, SqlKind, SqlOrigin,
-    SqlParseResult,
+    ExtractedSql, ExtractionMethod, JavaExtractConfig, JavaExtractResult, ParameterStyle, SqlKind,
+    SqlOrigin, SqlParseResult,
 };
 
 use tree_sitter::Parser;
@@ -18,7 +18,11 @@ use tree_sitter::Parser;
 /// 从 Java 源码字节提取 SQL。
 ///
 /// 接受 UTF-8 字符串，返回提取结果。
-pub fn extract_sql_from_java(source: &str, file_path: &str) -> JavaExtractResult {
+pub fn extract_sql_from_java(
+    source: &str,
+    file_path: &str,
+    config: &JavaExtractConfig,
+) -> JavaExtractResult {
     let mut parser = Parser::new();
     parser
         .set_language(&tree_sitter_java::LANGUAGE.into())
@@ -37,7 +41,7 @@ pub fn extract_sql_from_java(source: &str, file_path: &str) -> JavaExtractResult
         }
     };
 
-    extract::extract(source, tree.root_node(), file_path)
+    extract::extract(source, tree.root_node(), file_path, config)
 }
 
 #[cfg(test)]

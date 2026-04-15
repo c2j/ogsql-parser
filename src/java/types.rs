@@ -61,3 +61,10 @@ pub enum ParameterStyle {
     NamedHash,
     None,
 }
+
+/// Configuration for Java SQL extraction.
+#[derive(Debug, Clone, Default)]
+pub struct JavaExtractConfig {
+    /// Additional method names to treat as unambiguous SQL carriers.
+    pub extra_sql_methods: Vec<String>,
+}

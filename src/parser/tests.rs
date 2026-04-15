@@ -2,7 +2,9 @@ use crate::ast::plpgsql::*;
 use crate::ast::*;
 use crate::formatter::SqlFormatter;
 use crate::parser::{Parser, ParserError};
+use crate::token::keyword::lookup_keyword;
 use crate::token::tokenizer::Tokenizer;
+use crate::token::Token;
 
 fn parse(sql: &str) -> Vec<Statement> {
     let tokens = Tokenizer::new(sql).tokenize().unwrap();
@@ -5002,4 +5004,578 @@ fn test_name_as_alias_no_warning() {
         keyword_issues.is_empty(),
         "name as alias should not produce any keyword warning"
     );
+}
+
+// ── Keyword classification tests: value, name, rule, null, minus ──
+//
+// Summary:
+//   value  → Keyword::VALUE_P  → Unreserved  (keyword ✓, reserved ✗)
+//   name   → Keyword::NAME_P   → Unreserved  (keyword ✓, reserved ✗)
+//   rule   → Keyword::RULE     → Unreserved  (keyword ✓, reserved ✗)
+//   null   → Keyword::NULL_P   → Reserved    (keyword ✓, reserved ✓)
+//   minus  → Keyword::MINUS_P  → Reserved    (keyword ✓, reserved ✓)
+
+// === Category guard tests ===
+
+#[test]
+fn test_value_keyword_is_unreserved() {
+    assert_keyword_category(Keyword::VALUE_P, KeywordCategory::Unreserved, "value");
+}
+
+#[test]
+fn test_name_keyword_is_unreserved() {
+    assert_keyword_category(Keyword::NAME_P, KeywordCategory::Unreserved, "name");
+}
+
+#[test]
+fn test_rule_keyword_is_unreserved() {
+    assert_keyword_category(Keyword::RULE, KeywordCategory::Unreserved, "rule");
+}
+
+#[test]
+fn test_null_keyword_is_reserved() {
+    assert_keyword_category(Keyword::NULL_P, KeywordCategory::Reserved, "null");
+}
+
+#[test]
+fn test_minus_keyword_is_reserved() {
+    assert_keyword_category(Keyword::MINUS_P, KeywordCategory::Reserved, "minus");
+}
+
+// === Tokenizer recognition tests ===
+
+#[test]
+fn test_tokenize_value_as_keyword() {
+    let tokens = Tokenizer::new("value").tokenize().unwrap();
+    assert!(
+        matches!(&tokens[0].token, Token::Keyword(Keyword::VALUE_P)),
+        "token 'value' should be recognized as VALUE_P keyword"
+    );
+}
+
+#[test]
+fn test_tokenize_name_as_keyword() {
+    let tokens = Tokenizer::new("name").tokenize().unwrap();
+    assert!(
+        matches!(&tokens[0].token, Token::Keyword(Keyword::NAME_P)),
+        "token 'name' should be recognized as NAME_P keyword"
+    );
+}
+
+#[test]
+fn test_tokenize_rule_as_keyword() {
+    let tokens = Tokenizer::new("rule").tokenize().unwrap();
+    assert!(
+        matches!(&tokens[0].token, Token::Keyword(Keyword::RULE)),
+        "token 'rule' should be recognized as RULE keyword"
+    );
+}
+
+#[test]
+fn test_tokenize_null_as_keyword() {
+    let tokens = Tokenizer::new("null").tokenize().unwrap();
+    assert!(
+        matches!(&tokens[0].token, Token::Keyword(Keyword::NULL_P)),
+        "token 'null' should be recognized as NULL_P keyword"
+    );
+}
+
+#[test]
+fn test_tokenize_minus_as_keyword() {
+    let tokens = Tokenizer::new("minus").tokenize().unwrap();
+    assert!(
+        matches!(&tokens[0].token, Token::Keyword(Keyword::MINUS_P)),
+        "token 'minus' should be recognized as MINUS_P keyword"
+    );
+}
+
+// === Unreserved keywords can be used as identifiers (no error) ===
+
+#[test]
+fn test_value_as_table_name_no_error() {
+    // value is Unreserved → can be used as table name without error
+    let sql = "SELECT * FROM value";
+    let tokens = Tokenizer::new(sql).tokenize().unwrap();
+    let mut parser = Parser::new(tokens);
+    let stmts = parser.parse();
+    assert!(!stmts.is_empty());
+    let keyword_issues: Vec<_> = parser
+        .errors()
+        .iter()
+        .filter(|e| matches!(e, ParserError::ReservedKeywordAsIdentifier { .. }))
+        .collect();
+    assert!(
+        keyword_issues.is_empty(),
+        "Unreserved keyword 'value' as table name should not trigger error, got: {:?}",
+        keyword_issues
+    );
+}
+
+#[test]
+fn test_value_as_column_name_no_error() {
+    // value is Unreserved → can be used as column name
+    let sql = "SELECT value FROM t1";
+    let tokens = Tokenizer::new(sql).tokenize().unwrap();
+    let mut parser = Parser::new(tokens);
+    let stmts = parser.parse();
+    assert!(!stmts.is_empty());
+    let keyword_issues: Vec<_> = parser
+        .errors()
+        .iter()
+        .filter(|e| matches!(e, ParserError::ReservedKeywordAsIdentifier { .. }))
+        .collect();
+    assert!(
+        keyword_issues.is_empty(),
+        "Unreserved keyword 'value' as column name should not trigger error"
+    );
+}
+
+#[test]
+fn test_name_as_table_name_no_error() {
+    // name is Unreserved → can be used as table name
+    let sql = "SELECT * FROM name";
+    let tokens = Tokenizer::new(sql).tokenize().unwrap();
+    let mut parser = Parser::new(tokens);
+    let stmts = parser.parse();
+    assert!(!stmts.is_empty());
+    let keyword_issues: Vec<_> = parser
+        .errors()
+        .iter()
+        .filter(|e| matches!(e, ParserError::ReservedKeywordAsIdentifier { .. }))
+        .collect();
+    assert!(
+        keyword_issues.is_empty(),
+        "Unreserved keyword 'name' as table name should not trigger error"
+    );
+}
+
+#[test]
+fn test_rule_as_table_name_no_error() {
+    // rule is Unreserved → can be used as table name
+    let sql = "SELECT * FROM rule";
+    let tokens = Tokenizer::new(sql).tokenize().unwrap();
+    let mut parser = Parser::new(tokens);
+    let stmts = parser.parse();
+    assert!(!stmts.is_empty());
+    let keyword_issues: Vec<_> = parser
+        .errors()
+        .iter()
+        .filter(|e| matches!(e, ParserError::ReservedKeywordAsIdentifier { .. }))
+        .collect();
+    assert!(
+        keyword_issues.is_empty(),
+        "Unreserved keyword 'rule' as table name should not trigger error"
+    );
+}
+
+// === Reserved keywords used as identifiers should produce error ===
+
+#[test]
+fn test_null_as_table_name_reserved_error() {
+    // null is Reserved → used as bare table name should error
+    let sql = "SELECT * FROM null";
+    let tokens = Tokenizer::new(sql).tokenize().unwrap();
+    let mut parser = Parser::new(tokens);
+    let stmts = parser.parse();
+    assert!(!stmts.is_empty(), "Should still produce AST (soft error)");
+    let reserved_errors: Vec<_> = parser
+        .errors()
+        .iter()
+        .filter(|e| matches!(e, ParserError::ReservedKeywordAsIdentifier { .. }))
+        .collect();
+    assert!(
+        !reserved_errors.is_empty(),
+        "Reserved keyword 'null' used as table name should error"
+    );
+    assert!(reserved_errors[0].to_string().contains("null"));
+}
+
+#[test]
+fn test_minus_as_table_name_reserved_error() {
+    // minus is Reserved → used as bare table name should error
+    let sql = "SELECT * FROM minus";
+    let tokens = Tokenizer::new(sql).tokenize().unwrap();
+    let mut parser = Parser::new(tokens);
+    let stmts = parser.parse();
+    assert!(!stmts.is_empty(), "Should still produce AST (soft error)");
+    let reserved_errors: Vec<_> = parser
+        .errors()
+        .iter()
+        .filter(|e| matches!(e, ParserError::ReservedKeywordAsIdentifier { .. }))
+        .collect();
+    assert!(
+        !reserved_errors.is_empty(),
+        "Reserved keyword 'minus' used as table name should error"
+    );
+    assert!(reserved_errors[0].to_string().contains("minus"));
+}
+
+// === Reserved keywords CAN be used when double-quoted ===
+
+#[test]
+fn test_null_quoted_as_table_name_no_error() {
+    // "null" (quoted) is a valid identifier, no error
+    let sql = r#"SELECT * FROM "null""#;
+    let tokens = Tokenizer::new(sql).tokenize().unwrap();
+    let mut parser = Parser::new(tokens);
+    let stmts = parser.parse();
+    assert!(!stmts.is_empty());
+    let keyword_issues: Vec<_> = parser
+        .errors()
+        .iter()
+        .filter(|e| matches!(e, ParserError::ReservedKeywordAsIdentifier { .. }))
+        .collect();
+    assert!(
+        keyword_issues.is_empty(),
+        "Quoted \"null\" should not trigger keyword errors"
+    );
+}
+
+#[test]
+fn test_minus_quoted_as_table_name_no_error() {
+    // "minus" (quoted) is a valid identifier, no error
+    let sql = r#"SELECT * FROM "minus""#;
+    let tokens = Tokenizer::new(sql).tokenize().unwrap();
+    let mut parser = Parser::new(tokens);
+    let stmts = parser.parse();
+    assert!(!stmts.is_empty());
+    let keyword_issues: Vec<_> = parser
+        .errors()
+        .iter()
+        .filter(|e| matches!(e, ParserError::ReservedKeywordAsIdentifier { .. }))
+        .collect();
+    assert!(
+        keyword_issues.is_empty(),
+        "Quoted \"minus\" should not trigger keyword errors"
+    );
+}
+
+// === Semantic usage tests: null/minus in valid SQL contexts ===
+
+#[test]
+fn test_null_in_select_list_no_error() {
+    // NULL as a literal expression (valid use of reserved keyword)
+    let sql = "SELECT NULL";
+    let tokens = Tokenizer::new(sql).tokenize().unwrap();
+    let mut parser = Parser::new(tokens);
+    let stmts = parser.parse();
+    assert!(!stmts.is_empty());
+    let keyword_issues: Vec<_> = parser
+        .errors()
+        .iter()
+        .filter(|e| matches!(e, ParserError::ReservedKeywordAsIdentifier { .. }))
+        .collect();
+    assert!(
+        keyword_issues.is_empty(),
+        "NULL as expression should not produce keyword error"
+    );
+}
+
+#[test]
+fn test_null_in_where_is_null_no_error() {
+    // IS NULL is a valid operator
+    let sql = "SELECT * FROM t WHERE c1 IS NULL";
+    let tokens = Tokenizer::new(sql).tokenize().unwrap();
+    let mut parser = Parser::new(tokens);
+    let stmts = parser.parse();
+    assert!(!stmts.is_empty());
+    let keyword_issues: Vec<_> = parser
+        .errors()
+        .iter()
+        .filter(|e| matches!(e, ParserError::ReservedKeywordAsIdentifier { .. }))
+        .collect();
+    assert!(
+        keyword_issues.is_empty(),
+        "IS NULL should not produce keyword error"
+    );
+}
+
+#[test]
+fn test_minus_as_set_operator_no_error() {
+    // MINUS is a valid set operator (Oracle/GaussDB syntax for EXCEPT)
+    let sql = "SELECT id FROM t1 MINUS SELECT id FROM t2";
+    let tokens = Tokenizer::new(sql).tokenize().unwrap();
+    let mut parser = Parser::new(tokens);
+    let stmts = parser.parse();
+    assert!(!stmts.is_empty());
+    let keyword_issues: Vec<_> = parser
+        .errors()
+        .iter()
+        .filter(|e| matches!(e, ParserError::ReservedKeywordAsIdentifier { .. }))
+        .collect();
+    assert!(
+        keyword_issues.is_empty(),
+        "MINUS as set operator should not produce keyword error"
+    );
+}
+
+// === value/rule in domain/rule statements (valid semantic use) ===
+
+#[test]
+fn test_value_in_domain_check_no_error() {
+    // VALUE is used inside DOMAIN CHECK constraints (valid Unreserved keyword usage)
+    let sql = "CREATE DOMAIN d AS INT CHECK (VALUE > 0)";
+    let tokens = Tokenizer::new(sql).tokenize().unwrap();
+    let mut parser = Parser::new(tokens);
+    let stmts = parser.parse();
+    assert!(!stmts.is_empty());
+    let keyword_issues: Vec<_> = parser
+        .errors()
+        .iter()
+        .filter(|e| matches!(e, ParserError::ReservedKeywordAsIdentifier { .. }))
+        .collect();
+    assert!(
+        keyword_issues.is_empty(),
+        "VALUE in CHECK constraint should not produce keyword error"
+    );
+}
+
+#[test]
+fn test_rule_statement_parsed_correctly() {
+    // RULE is a statement keyword (Unreserved) — used to define rewrite rules
+    let sql = "RULE r1 AS ON SELECT TO users DO INSTEAD NOTHING";
+    let tokens = Tokenizer::new(sql).tokenize().unwrap();
+    let mut parser = Parser::new(tokens);
+    let stmts = parser.parse();
+    assert!(!stmts.is_empty());
+    match &stmts[0] {
+        Statement::Rule(r) => {
+            assert_eq!(r.name, "r1");
+        }
+        _ => panic!("expected Rule statement"),
+    }
+}
+
+// === Case-insensitive lookup verification ===
+
+#[test]
+fn test_keyword_lookup_case_insensitive() {
+    // Verify lookup_keyword works case-insensitively for all 5 keywords
+    assert_eq!(lookup_keyword("value"), Some(Keyword::VALUE_P));
+    assert_eq!(lookup_keyword("VALUE"), Some(Keyword::VALUE_P));
+    assert_eq!(lookup_keyword("Value"), Some(Keyword::VALUE_P));
+
+    assert_eq!(lookup_keyword("name"), Some(Keyword::NAME_P));
+    assert_eq!(lookup_keyword("NAME"), Some(Keyword::NAME_P));
+
+    assert_eq!(lookup_keyword("rule"), Some(Keyword::RULE));
+    assert_eq!(lookup_keyword("RULE"), Some(Keyword::RULE));
+
+    assert_eq!(lookup_keyword("null"), Some(Keyword::NULL_P));
+    assert_eq!(lookup_keyword("NULL"), Some(Keyword::NULL_P));
+
+    assert_eq!(lookup_keyword("minus"), Some(Keyword::MINUS_P));
+    assert_eq!(lookup_keyword("MINUS"), Some(Keyword::MINUS_P));
+}
+
+// ── Implicit alias tests: non-reserved keywords as column aliases (without AS) ──
+
+#[test]
+fn test_unreserved_keyword_name_as_implicit_alias() {
+    let sql = "SELECT c1 name FROM t";
+    let stmt = parse_one(sql);
+    match stmt {
+        Statement::Select(s) => {
+            assert_eq!(s.targets.len(), 1);
+            match &s.targets[0] {
+                SelectTarget::Expr(_, alias) => {
+                    assert_eq!(alias.as_deref(), Some("name"));
+                }
+                other => panic!("expected Expr target, got {:?}", other),
+            }
+        }
+        other => panic!("expected Select, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_unreserved_keyword_value_as_implicit_alias() {
+    let sql = "SELECT c1 value FROM t";
+    let stmt = parse_one(sql);
+    match stmt {
+        Statement::Select(s) => {
+            assert_eq!(s.targets.len(), 1);
+            match &s.targets[0] {
+                SelectTarget::Expr(_, alias) => {
+                    assert_eq!(alias.as_deref(), Some("value"));
+                }
+                other => panic!("expected Expr target, got {:?}", other),
+            }
+        }
+        other => panic!("expected Select, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_unreserved_keyword_result_as_implicit_alias() {
+    let sql = "SELECT c1 result FROM t";
+    let stmt = parse_one(sql);
+    match stmt {
+        Statement::Select(s) => {
+            assert_eq!(s.targets.len(), 1);
+            match &s.targets[0] {
+                SelectTarget::Expr(_, alias) => {
+                    assert_eq!(alias.as_deref(), Some("result"));
+                }
+                other => panic!("expected Expr target, got {:?}", other),
+            }
+        }
+        other => panic!("expected Select, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_unreserved_keyword_rule_as_implicit_alias() {
+    let sql = "SELECT c1 rule FROM t";
+    let stmt = parse_one(sql);
+    match stmt {
+        Statement::Select(s) => {
+            assert_eq!(s.targets.len(), 1);
+            match &s.targets[0] {
+                SelectTarget::Expr(_, alias) => {
+                    assert_eq!(alias.as_deref(), Some("rule"));
+                }
+                other => panic!("expected Expr target, got {:?}", other),
+            }
+        }
+        other => panic!("expected Select, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_multiple_unreserved_keyword_aliases() {
+    let sql = "SELECT c1 name, c2 as value, c3 result FROM t";
+    let stmt = parse_one(sql);
+    match stmt {
+        Statement::Select(s) => {
+            assert_eq!(s.targets.len(), 3);
+            match &s.targets[0] {
+                SelectTarget::Expr(_, alias) => assert_eq!(alias.as_deref(), Some("name")),
+                _ => panic!("expected Expr target"),
+            }
+            match &s.targets[1] {
+                SelectTarget::Expr(_, alias) => assert_eq!(alias.as_deref(), Some("value")),
+                _ => panic!("expected Expr target"),
+            }
+            match &s.targets[2] {
+                SelectTarget::Expr(_, alias) => assert_eq!(alias.as_deref(), Some("result")),
+                _ => panic!("expected Expr target"),
+            }
+        }
+        other => panic!("expected Select, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_subquery_with_unreserved_keyword_aliases() {
+    let sql =
+        "SELECT name1, value, result FROM (SELECT c1 name1, c2 as value, c3 result FROM t) t1";
+    let stmt = parse_one(sql);
+    match stmt {
+        Statement::Select(s) => {
+            assert_eq!(s.targets.len(), 3);
+            assert!(!s.from.is_empty());
+            match &s.from[0] {
+                TableRef::Subquery { alias, .. } => {
+                    assert_eq!(alias.as_deref(), Some("t1"));
+                }
+                other => panic!("expected Subquery, got {:?}", other),
+            }
+        }
+        other => panic!("expected Select, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_unreserved_keyword_as_outer_column_ref() {
+    let sql = "SELECT name, value, result FROM t1";
+    let stmt = parse_one(sql);
+    match stmt {
+        Statement::Select(s) => {
+            assert_eq!(s.targets.len(), 3);
+        }
+        other => panic!("expected Select, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_unreserved_keyword_alias_no_keyword_errors() {
+    let sql = "SELECT c1 name, c2 value, c3 result FROM t";
+    let tokens = Tokenizer::new(sql).tokenize().unwrap();
+    let mut parser = Parser::new(tokens);
+    let stmts = parser.parse();
+    assert!(!stmts.is_empty());
+    let keyword_issues: Vec<_> = parser
+        .errors()
+        .iter()
+        .filter(|e| matches!(e, ParserError::ReservedKeywordAsIdentifier { .. }))
+        .collect();
+    assert!(
+        keyword_issues.is_empty(),
+        "Unreserved keywords as implicit aliases should not trigger errors, got: {:?}",
+        keyword_issues
+    );
+}
+
+#[test]
+fn test_reserved_keyword_null_not_implicit_alias() {
+    // NULL is Reserved — should NOT be accepted as implicit alias
+    // It gets parsed as a separate expression target, not as c1's alias
+    let sql = "SELECT c1 null FROM t";
+    let stmt = parse_one(sql);
+    match stmt {
+        Statement::Select(s) => {
+            // c1 is parsed as target with no alias; null is consumed as NULL literal expression
+            // but since NULL doesn't have FROM after it, the parser stops early
+            assert_eq!(s.targets.len(), 1);
+            match &s.targets[0] {
+                SelectTarget::Expr(_, alias) => {
+                    assert!(
+                        alias.is_none(),
+                        "Reserved keyword 'null' should NOT be treated as implicit alias"
+                    );
+                }
+                other => panic!("expected Expr target, got {:?}", other),
+            }
+        }
+        other => panic!("expected Select, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_colname_keyword_as_implicit_alias() {
+    // BIGINT is ColName category — should be valid implicit alias
+    let sql = "SELECT c1 bigint FROM t";
+    let stmt = parse_one(sql);
+    match stmt {
+        Statement::Select(s) => {
+            assert_eq!(s.targets.len(), 1);
+            match &s.targets[0] {
+                SelectTarget::Expr(_, alias) => {
+                    assert_eq!(alias.as_deref(), Some("bigint"));
+                }
+                other => panic!("expected Expr target, got {:?}", other),
+            }
+        }
+        other => panic!("expected Select, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_typefuncname_keyword_as_implicit_alias() {
+    // CROSS is TypeFuncName category — should be valid implicit alias
+    let sql = "SELECT c1 cross FROM t";
+    let stmt = parse_one(sql);
+    match stmt {
+        Statement::Select(s) => {
+            assert_eq!(s.targets.len(), 1);
+            match &s.targets[0] {
+                SelectTarget::Expr(_, alias) => {
+                    assert_eq!(alias.as_deref(), Some("cross"));
+                }
+                other => panic!("expected Expr target, got {:?}", other),
+            }
+        }
+        other => panic!("expected Select, got {:?}", other),
+    }
 }

@@ -1,4 +1,4 @@
-use crate::java::{extract_sql_from_java, ExtractionMethod, SqlKind};
+use crate::java::{extract_sql_from_java, ExtractionMethod, JavaExtractConfig, SqlKind};
 
 #[test]
 fn test_query_annotation_native_sql() {
@@ -8,7 +8,7 @@ fn test_query_annotation_native_sql() {
             List<User> findByStatus(@Param("status") int status);
         }
     "#;
-    let result = extract_sql_from_java(java, "UserRepository.java");
+    let result = extract_sql_from_java(java, "UserRepository.java", &JavaExtractConfig::default());
     assert!(result.errors.is_empty(), "Errors: {:?}", result.errors);
     assert_eq!(result.extractions.len(), 1);
     let ext = &result.extractions[0];
@@ -26,7 +26,7 @@ fn test_query_annotation_jpql() {
             List<User> findByStatus(@Param("status") int status);
         }
     "#;
-    let result = extract_sql_from_java(java, "UserRepository.java");
+    let result = extract_sql_from_java(java, "UserRepository.java", &JavaExtractConfig::default());
     assert!(result.errors.is_empty());
     assert_eq!(result.extractions.len(), 1);
     assert_eq!(result.extractions[0].sql_kind, SqlKind::Jpql);
@@ -41,7 +41,7 @@ fn test_query_annotation_string_concatenation() {
             List<User> findByStatus(@Param("status") int status);
         }
     "#;
-    let result = extract_sql_from_java(java, "UserRepository.java");
+    let result = extract_sql_from_java(java, "UserRepository.java", &JavaExtractConfig::default());
     assert!(result.errors.is_empty());
     assert_eq!(result.extractions.len(), 1);
     assert_eq!(
@@ -62,7 +62,7 @@ fn test_query_annotation_text_block() {
             List<User> findByStatus(@Param("status") int status);
         }
     "#;
-    let result = extract_sql_from_java(java, "UserRepository.java");
+    let result = extract_sql_from_java(java, "UserRepository.java", &JavaExtractConfig::default());
     assert!(result.errors.is_empty());
     assert_eq!(result.extractions.len(), 1);
     let ext = &result.extractions[0];
@@ -77,7 +77,7 @@ fn test_named_query_annotation() {
         @NamedQuery(name = "User.findById", query = "SELECT u FROM User u WHERE u.id = :id")
         public class User { }
     "#;
-    let result = extract_sql_from_java(java, "User.java");
+    let result = extract_sql_from_java(java, "User.java", &JavaExtractConfig::default());
     assert!(result.errors.is_empty());
     assert_eq!(result.extractions.len(), 1);
     assert_eq!(
@@ -95,7 +95,7 @@ fn test_sql_update_annotation() {
             void insert(@Bind("name") String name, @Bind("email") String email);
         }
     "#;
-    let result = extract_sql_from_java(java, "UserDao.java");
+    let result = extract_sql_from_java(java, "UserDao.java", &JavaExtractConfig::default());
     assert!(result.errors.is_empty());
     assert_eq!(result.extractions.len(), 1);
     let ext = &result.extractions[0];
@@ -118,7 +118,7 @@ fn test_multiple_annotations_in_class() {
             void deactivate(@Bind("id") Long id);
         }
     "#;
-    let result = extract_sql_from_java(java, "UserRepository.java");
+    let result = extract_sql_from_java(java, "UserRepository.java", &JavaExtractConfig::default());
     assert!(result.errors.is_empty());
     assert_eq!(result.extractions.len(), 3);
 }
@@ -130,7 +130,7 @@ fn test_no_sql_in_file() {
             public int add(int a, int b) { return a + b; }
         }
     "#;
-    let result = extract_sql_from_java(java, "Calculator.java");
+    let result = extract_sql_from_java(java, "Calculator.java", &JavaExtractConfig::default());
     assert!(result.errors.is_empty());
     assert!(result.extractions.is_empty());
 }
@@ -148,7 +148,7 @@ fn test_create_native_query() {
             }
         }
     "#;
-    let result = extract_sql_from_java(java, "UserService.java");
+    let result = extract_sql_from_java(java, "UserService.java", &JavaExtractConfig::default());
     assert_eq!(result.extractions.len(), 1);
     let ext = &result.extractions[0];
     assert_eq!(ext.sql.trim(), "SELECT * FROM users WHERE id = ?");
@@ -171,7 +171,7 @@ fn test_prepare_statement() {
             }
         }
     "#;
-    let result = extract_sql_from_java(java, "UserService.java");
+    let result = extract_sql_from_java(java, "UserService.java", &JavaExtractConfig::default());
     assert_eq!(result.extractions.len(), 1);
     let ext = &result.extractions[0];
     assert!(ext.sql.contains("DELETE FROM users"));
@@ -191,7 +191,7 @@ fn test_jdbc_template_query() {
             }
         }
     "#;
-    let result = extract_sql_from_java(java, "UserRepository.java");
+    let result = extract_sql_from_java(java, "UserRepository.java", &JavaExtractConfig::default());
     assert_eq!(result.extractions.len(), 1);
     let ext = &result.extractions[0];
     assert!(ext.sql.contains("SELECT id, name FROM users"));
@@ -207,7 +207,7 @@ fn test_generic_method_name_filtered() {
             }
         }
     "#;
-    let result = extract_sql_from_java(java, "MyService.java");
+    let result = extract_sql_from_java(java, "MyService.java", &JavaExtractConfig::default());
     let method_extractions: Vec<_> = result
         .extractions
         .iter()
@@ -226,7 +226,7 @@ fn test_create_query_jpql() {
             }
         }
     "#;
-    let result = extract_sql_from_java(java, "UserService.java");
+    let result = extract_sql_from_java(java, "UserService.java", &JavaExtractConfig::default());
     assert_eq!(result.extractions.len(), 1);
     assert_eq!(result.extractions[0].sql_kind, SqlKind::Jpql);
 }
@@ -243,7 +243,7 @@ fn test_static_final_sql_constant() {
                 "INSERT INTO users (name, email) VALUES (?, ?)";
         }
     "#;
-    let result = extract_sql_from_java(java, "UserQueries.java");
+    let result = extract_sql_from_java(java, "UserQueries.java", &JavaExtractConfig::default());
     let constants: Vec<_> = result
         .extractions
         .iter()
@@ -264,7 +264,7 @@ fn test_sql_constant_with_concatenation() {
                 "ORDER BY name";
         }
     "#;
-    let result = extract_sql_from_java(java, "UserQueries.java");
+    let result = extract_sql_from_java(java, "UserQueries.java", &JavaExtractConfig::default());
     let constants: Vec<_> = result
         .extractions
         .iter()
@@ -284,7 +284,7 @@ fn test_non_sql_constant_not_extracted() {
             private static final String VERSION = "1.0.0";
         }
     "#;
-    let result = extract_sql_from_java(java, "Config.java");
+    let result = extract_sql_from_java(java, "Config.java", &JavaExtractConfig::default());
     let constants: Vec<_> = result
         .extractions
         .iter()
@@ -300,7 +300,7 @@ fn test_sql_constant_name_heuristic() {
             private static final String DELETE_SQL = "DELETE FROM temp";
         }
     "#;
-    let result = extract_sql_from_java(java, "Q.java");
+    let result = extract_sql_from_java(java, "Q.java", &JavaExtractConfig::default());
     let constants: Vec<_> = result
         .extractions
         .iter()
@@ -319,7 +319,7 @@ fn test_cross_statement_concat_assign() {
             }
         }
     "#;
-    let result = extract_sql_from_java(java, "Dao.java");
+    let result = extract_sql_from_java(java, "Dao.java", &JavaExtractConfig::default());
     assert!(result.errors.is_empty(), "Errors: {:?}", result.errors);
     assert_eq!(result.extractions.len(), 1);
     let ext = &result.extractions[0];
@@ -345,7 +345,7 @@ fn test_cross_statement_concat_plus_eq() {
             }
         }
     "#;
-    let result = extract_sql_from_java(java, "Dao.java");
+    let result = extract_sql_from_java(java, "Dao.java", &JavaExtractConfig::default());
     assert!(result.errors.is_empty(), "Errors: {:?}", result.errors);
     assert_eq!(result.extractions.len(), 1);
     let ext = &result.extractions[0];
@@ -368,7 +368,7 @@ fn test_cross_statement_concat_multi_step() {
             }
         }
     "#;
-    let result = extract_sql_from_java(java, "Dao.java");
+    let result = extract_sql_from_java(java, "Dao.java", &JavaExtractConfig::default());
     assert!(result.errors.is_empty(), "Errors: {:?}", result.errors);
     assert_eq!(result.extractions.len(), 1);
     let ext = &result.extractions[0];
@@ -392,7 +392,7 @@ fn test_cross_statement_method_scoped() {
             }
         }
     "#;
-    let result = extract_sql_from_java(java, "Dao.java");
+    let result = extract_sql_from_java(java, "Dao.java", &JavaExtractConfig::default());
     assert!(result.errors.is_empty(), "Errors: {:?}", result.errors);
     assert_eq!(result.extractions.len(), 2);
     assert_eq!(result.extractions[0].sql, "select * from a");
@@ -409,6 +409,86 @@ fn test_cross_statement_non_tracked_var_ignored() {
             }
         }
     "#;
-    let result = extract_sql_from_java(java, "Dao.java");
+    let result = extract_sql_from_java(java, "Dao.java", &JavaExtractConfig::default());
     assert!(result.extractions.is_empty());
+}
+
+#[test]
+fn test_reassignment_creates_new_extraction() {
+    let java = r#"
+        public class Dao {
+            public void query() {
+                String sql = "select name, value, result from t1";
+                sql = "update t1 set name = 'tom'";
+            }
+        }
+    "#;
+    let result = extract_sql_from_java(java, "Dao.java", &JavaExtractConfig::default());
+    assert!(result.errors.is_empty(), "Errors: {:?}", result.errors);
+    assert_eq!(result.extractions.len(), 2);
+    assert_eq!(
+        result.extractions[0].sql,
+        "select name, value, result from t1"
+    );
+    assert_eq!(result.extractions[1].sql, "update t1 set name = 'tom'");
+}
+
+#[test]
+fn test_reassignment_then_concat() {
+    let java = r#"
+        public class Dao {
+            public void query(int id) {
+                String sql = "select * from t1";
+                sql = "update t1 set name = 'tom'";
+                sql = sql + " where id = " + id;
+            }
+        }
+    "#;
+    let result = extract_sql_from_java(java, "Dao.java", &JavaExtractConfig::default());
+    assert!(result.errors.is_empty(), "Errors: {:?}", result.errors);
+    assert_eq!(result.extractions.len(), 2);
+    assert_eq!(result.extractions[0].sql, "select * from t1");
+    assert!(result.extractions[1]
+        .sql
+        .contains("update t1 set name = 'tom'"));
+    assert!(result.extractions[1].sql.contains("where id = "));
+    assert!(result.extractions[1].is_concatenated);
+}
+
+#[test]
+fn test_extra_sql_methods() {
+    let java = r#"
+        public class CustomDao {
+            public void findUsers() {
+                db.findNativeQuery("SELECT * FROM users WHERE active = 1");
+            }
+        }
+    "#;
+
+    let result = extract_sql_from_java(java, "CustomDao.java", &JavaExtractConfig::default());
+    let method_extractions: Vec<_> = result
+        .extractions
+        .iter()
+        .filter(|e| e.origin.method == ExtractionMethod::MethodCall)
+        .collect();
+    assert!(
+        method_extractions.is_empty(),
+        "Should not extract without extra methods"
+    );
+
+    let config = JavaExtractConfig {
+        extra_sql_methods: vec!["findNativeQuery".to_string()],
+    };
+    let result = extract_sql_from_java(java, "CustomDao.java", &config);
+    let method_extractions: Vec<_> = result
+        .extractions
+        .iter()
+        .filter(|e| e.origin.method == ExtractionMethod::MethodCall)
+        .collect();
+    assert_eq!(method_extractions.len(), 1);
+    assert_eq!(
+        method_extractions[0].origin.api_method_name.as_deref(),
+        Some("findNativeQuery")
+    );
+    assert!(method_extractions[0].sql.contains("SELECT * FROM users"));
 }

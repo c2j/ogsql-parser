@@ -48,7 +48,10 @@ enum Commands {
     #[cfg(feature = "java")]
     /// Extract and parse SQL from Java source files / 从 Java 源文件中提取并解析 SQL
     #[command(name = "parse-java")]
-    ParseJava,
+    ParseJava {
+        #[arg(long = "extra-sql-methods", value_delimiter = ',')]
+        extra_sql_methods: Vec<String>,
+    },
 }
 
 macro_rules! die {
@@ -735,7 +738,7 @@ fn cmd_parse_xml(cli: &Cli) {
 }
 
 #[cfg(feature = "java")]
-fn cmd_parse_java(cli: &Cli) {
+fn cmd_parse_java(cli: &Cli, extra_sql_methods: &[String]) {
     let (source, file_path) = match cli.file.as_deref() {
         Some(path) => {
             let bytes = std::fs::read(path).unwrap_or_else(|e| die!("Error reading {}: {}", path, e));
@@ -751,7 +754,10 @@ fn cmd_parse_java(cli: &Cli) {
         }
     };
 
-    let result = ogsql_parser::java::extract_sql_from_java(&source, &file_path);
+    let config = ogsql_parser::java::JavaExtractConfig {
+        extra_sql_methods: extra_sql_methods.to_vec(),
+    };
+    let result = ogsql_parser::java::extract_sql_from_java(&source, &file_path, &config);
 
     if cli.json {
         println!("{}", serde_json::to_string_pretty(&result).unwrap());
@@ -839,6 +845,6 @@ fn main() {
         #[cfg(feature = "ibatis")]
         Commands::ParseXml => cmd_parse_xml(&cli),
         #[cfg(feature = "java")]
-        Commands::ParseJava => cmd_parse_java(&cli),
+        Commands::ParseJava { ref extra_sql_methods } => cmd_parse_java(&cli, extra_sql_methods),
     }
 }

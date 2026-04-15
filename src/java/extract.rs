@@ -4,6 +4,7 @@ use std::collections::HashMap;
 
 use tree_sitter::Node;
 
+use super::types::JavaExtractConfig;
 use crate::java::error::JavaError;
 use crate::java::types::*;
 
@@ -21,6 +22,7 @@ const SQL_METHOD_UNAMBIGUOUS: &[&str] = &[
     "prepareCall",
     "executeQuery",
     "executeUpdate",
+    "executeProcedure",
 ];
 
 const SQL_METHOD_AMBIGUOUS: &[&str] = &["query", "update", "execute"];
@@ -37,6 +39,7 @@ const SQL_KEYWORDS: &[&str] = &[
     "MERGE ",
     "TRUNCATE ",
     "CALL ",
+    "{CALL ",
 ];
 
 const SQL_NAME_KEYWORDS: &[&str] = &["SQL_", "_SQL", "SQLQUERY", "QUERY_"];
@@ -66,7 +69,12 @@ const SQL_STATEMENT_PREFIXES: &[&str] = &[
     "call ",
 ];
 
-pub fn extract(source: &str, root: Node, file_path: &str) -> JavaExtractResult {
+pub fn extract(
+    source: &str,
+    root: Node,
+    file_path: &str,
+    config: &JavaExtractConfig,
+) -> JavaExtractResult {
     let mut ctx = ExtractContext {
         source,
         file_path,
@@ -76,6 +84,7 @@ pub fn extract(source: &str, root: Node, file_path: &str) -> JavaExtractResult {
         method_name: None,
         sql_vars: HashMap::new(),
         var_types: HashMap::new(),
+        extra_sql_methods: &config.extra_sql_methods,
     };
     ctx.visit(root);
     JavaExtractResult {
@@ -95,6 +104,7 @@ struct ExtractContext<'a> {
     sql_vars: HashMap<String, TrackedVar>,
     /// Maps variable name to Java type name (e.g., "tableName" to "String")
     var_types: HashMap<String, String>,
+    extra_sql_methods: &'a [String],
 }
 
 impl<'a> ExtractContext<'a> {
@@ -347,7 +357,8 @@ impl<'a> ExtractContext<'a> {
         };
         let method_name = self.node_text(name_node);
 
-        let is_unambiguous = SQL_METHOD_UNAMBIGUOUS.contains(&method_name.as_str());
+        let is_unambiguous = SQL_METHOD_UNAMBIGUOUS.contains(&method_name.as_str())
+            || self.extra_sql_methods.iter().any(|m| m == &method_name);
         let is_ambiguous = SQL_METHOD_AMBIGUOUS.contains(&method_name.as_str());
 
         if !is_unambiguous && !is_ambiguous {
@@ -564,16 +575,33 @@ impl<'a> ExtractContext<'a> {
             }
         };
 
-        let append_parts = match operator.as_str() {
-            "+=" => self.extract_concat_string_parts(right),
-            "=" => self.extract_append_parts_for_var(right, &var_name),
-            _ => None,
-        };
-
-        if let Some(parts) = append_parts {
-            if !parts.is_empty() {
-                self.append_to_tracked_var(&var_name, &parts, node);
+        match operator.as_str() {
+            "+=" => {
+                if let Some(parts) = self.extract_concat_string_parts(right) {
+                    if !parts.is_empty() {
+                        self.append_to_tracked_var(&var_name, &parts, node);
+                    }
+                }
             }
+            "=" => {
+                // Distinguish concatenation (sql = sql + "...") from plain
+                // reassignment (sql = "new SQL").  Concatenation appends to
+                // the existing extraction; reassignment creates a brand-new one.
+                if right.kind() == "binary_expression"
+                    && self.is_binary_left_identifier(right, &var_name)
+                {
+                    // Concatenation: sql = sql + "..." → append new parts only
+                    let parts = self.collect_concat_parts(right);
+                    let append_parts: Vec<_> = parts.into_iter().skip(1).collect();
+                    if !append_parts.is_empty() {
+                        self.append_to_tracked_var(&var_name, &append_parts, node);
+                    }
+                } else {
+                    // Reassignment: sql = "new SQL" → create a new extraction
+                    self.reassign_tracked_var(&var_name, right, node);
+                }
+            }
+            _ => {}
         }
 
         self.recurse(node);
@@ -665,6 +693,53 @@ impl<'a> ExtractContext<'a> {
         ext.origin.line = node.start_position().row + 1;
         ext.origin.column = node.start_position().column;
         ext.parse_result = parse_result;
+    }
+
+    fn reassign_tracked_var(&mut self, var_name: &str, rhs: Node, node: Node) {
+        let (sql_text, is_text_block) = match self.extract_string_value(rhs) {
+            Some(v) => v,
+            None => {
+                self.sql_vars.remove(var_name);
+                return;
+            }
+        };
+
+        if !looks_like_sql(&sql_text) {
+            self.sql_vars.remove(var_name);
+            return;
+        }
+
+        let sql_kind = detect_sql_kind_from_content(&sql_text);
+        let param_style = detect_parameter_style(&sql_text);
+        let is_concatenated = rhs.kind() == "binary_expression";
+        let parse_result = self.try_parse_sql(&sql_text, sql_kind);
+
+        self.extractions.push(ExtractedSql {
+            sql: sql_text.clone(),
+            origin: SqlOrigin {
+                method: ExtractionMethod::Constant,
+                class_name: self.class_name.clone(),
+                method_name: self.method_name.clone(),
+                annotation_name: None,
+                api_method_name: None,
+                variable_name: Some(var_name.to_string()),
+                line: node.start_position().row + 1,
+                column: node.start_position().column,
+            },
+            sql_kind,
+            parameter_style: param_style,
+            is_concatenated,
+            is_text_block,
+            parse_result,
+        });
+
+        self.sql_vars.insert(
+            var_name.to_string(),
+            TrackedVar {
+                sql: sql_text,
+                extraction_index: self.extractions.len() - 1,
+            },
+        );
     }
 
     fn recurse(&mut self, node: Node) {

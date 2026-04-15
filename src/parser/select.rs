@@ -296,7 +296,7 @@ impl Parser {
             self.advance();
             Some(self.parse_identifier()?)
         } else {
-            self.parse_optional_alias()?
+            self.parse_optional_column_alias()?
         };
         Ok(SelectTarget::Expr(expr, alias))
     }
