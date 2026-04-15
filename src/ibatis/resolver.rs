@@ -207,7 +207,10 @@ fn extract_refid(tag_text: &str) -> Option<String> {
 fn node_to_flat_text(node: &SqlNode) -> String {
     match node {
         SqlNode::Text { content } => content.clone(),
-        SqlNode::Parameter { name } => format!("#{{{}}}", name),
+        SqlNode::Parameter { name, java_type } => match java_type {
+            Some(t) => format!("#{{{},{}}}", name, format!("javaType={}", t)),
+            None => format!("#{{{}}}", name),
+        },
         SqlNode::RawExpr { expr } => format!("${{{}}}", expr),
         SqlNode::If { children, .. } => children.iter().map(node_to_flat_text).collect(),
         SqlNode::Choose { branches } => branches

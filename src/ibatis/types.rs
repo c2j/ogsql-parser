@@ -45,6 +45,7 @@ pub enum SqlNode {
     },
     Parameter {
         name: String,
+        java_type: Option<String>,
     },
     RawExpr {
         expr: String,

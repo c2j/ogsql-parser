@@ -1,13 +1,15 @@
 //! SqlNode 树 → 扁平 SQL 字符串。
 //!
 //! 遍历 SqlNode 树，将动态 SQL 元素转换为具体 SQL 文本。
-//! - #{param} → $1
-//! - ${expr} → __IBATIS_DOLLAR_expr__
+//! - #{param} → __XML_PARAM_param__
+//! - #{param,javaType=double} → __XML_PARAM_DOUBLE_param__
+//! - ${expr} → __XML_RAW_expr__
 
 use crate::ibatis::types::SqlNode;
 
-const DOLLAR_PREFIX: &str = "__IBATIS_DOLLAR_";
-const DOLLAR_SUFFIX: &str = "__";
+const PARAM_PREFIX: &str = "__XML_PARAM_";
+const RAW_PREFIX: &str = "__XML_RAW_";
+const PLACEHOLDER_SUFFIX: &str = "__";
 
 /// 将 SqlNode 树扁平化为 SQL 字符串。
 ///
@@ -15,8 +17,17 @@ const DOLLAR_SUFFIX: &str = "__";
 pub fn flatten_sql(node: &SqlNode) -> String {
     match node {
         SqlNode::Text { content } => replace_params(content),
-        SqlNode::Parameter { .. } => "$1".to_string(),
-        SqlNode::RawExpr { expr } => format!("{}{}{}", DOLLAR_PREFIX, expr, DOLLAR_SUFFIX),
+        SqlNode::Parameter { name, java_type } => match java_type {
+            Some(t) => format!(
+                "{}{}_{}{}",
+                PARAM_PREFIX,
+                t.to_uppercase(),
+                name,
+                PLACEHOLDER_SUFFIX
+            ),
+            None => format!("{}{}{}", PARAM_PREFIX, name, PLACEHOLDER_SUFFIX),
+        },
+        SqlNode::RawExpr { expr } => format!("{}{}{}", RAW_PREFIX, expr, PLACEHOLDER_SUFFIX),
         // 动态元素: "最完整"策略，取所有内容
         SqlNode::If { children, .. } => flatten_children(children),
         SqlNode::Choose { branches } => {
@@ -133,9 +144,9 @@ fn apply_trim(
 
 /// 替换 SQL 文本中的参数占位符。
 ///
-/// - `#{param}` → `?` (含类型注解时截断: `#{name,javaType=...}` → `?`)
-/// - `${expr}` → `__IBATIS_DOLLAR_expr__`
-/// - `\${...}` → `${...}` (反斜杠转义)
+/// - `#{param}` → `__XML_PARAM_param__`
+/// - `#{name,javaType=double}` → `__XML_PARAM_DOUBLE_name__`
+/// - `${expr}` → `__XML_RAW_expr__`
 /// - `'...'` 内的 `#{}` 和 `${}` 不替换
 fn replace_params(sql: &str) -> String {
     let mut result = String::with_capacity(sql.len());
@@ -175,7 +186,22 @@ fn replace_params(sql: &str) -> String {
         // 处理 #{
         if c == '#' && i + 1 < len && chars[i + 1] == '{' {
             if let Some(end) = find_closing_brace(&chars, i + 2) {
-                result.push_str("$1");
+                let param: String = chars[i + 2..end].iter().collect();
+                let (name, java_type) = parse_param_type(&param);
+                match java_type {
+                    Some(t) => {
+                        result.push_str(PARAM_PREFIX);
+                        result.push_str(&t.to_uppercase());
+                        result.push('_');
+                        result.push_str(&name);
+                        result.push_str(PLACEHOLDER_SUFFIX);
+                    }
+                    None => {
+                        result.push_str(PARAM_PREFIX);
+                        result.push_str(&name);
+                        result.push_str(PLACEHOLDER_SUFFIX);
+                    }
+                }
                 i = end + 1;
                 continue;
             }
@@ -185,9 +211,9 @@ fn replace_params(sql: &str) -> String {
         if c == '$' && i + 1 < len && chars[i + 1] == '{' {
             if let Some(end) = find_closing_brace(&chars, i + 2) {
                 let expr: String = chars[i + 2..end].iter().collect();
-                result.push_str(DOLLAR_PREFIX);
+                result.push_str(RAW_PREFIX);
                 result.push_str(&expr);
-                result.push_str(DOLLAR_SUFFIX);
+                result.push_str(PLACEHOLDER_SUFFIX);
                 i = end + 1;
                 continue;
             }
@@ -220,20 +246,39 @@ fn find_closing_brace(chars: &[char], start: usize) -> Option<usize> {
     None
 }
 
+fn parse_param_type(param: &str) -> (String, Option<String>) {
+    let mut parts = param.split(',');
+    let name = parts.next().unwrap_or("").trim().to_string();
+    let mut java_type: Option<String> = None;
+    let mut jdbc_type: Option<String> = None;
+    for part in parts {
+        let part = part.trim();
+        if let Some(val) = part.strip_prefix("javaType=") {
+            java_type = Some(val.to_string());
+        } else if let Some(val) = part.strip_prefix("jdbcType=") {
+            jdbc_type = Some(val.to_string());
+        }
+    }
+    (name, java_type.or(jdbc_type))
+}
+
 #[cfg(test)]
 mod param_tests {
     use super::*;
 
     #[test]
     fn test_hash_param() {
-        assert_eq!(replace_params("WHERE id = #{id}"), "WHERE id = $1");
+        assert_eq!(
+            replace_params("WHERE id = #{id}"),
+            "WHERE id = __XML_PARAM_id__"
+        );
     }
 
     #[test]
     fn test_dollar_param() {
         assert_eq!(
             replace_params("ORDER BY ${col}"),
-            format!("ORDER BY {}col{}", DOLLAR_PREFIX, DOLLAR_SUFFIX)
+            "ORDER BY __XML_RAW_col__"
         );
     }
 
@@ -241,7 +286,7 @@ mod param_tests {
     fn test_mixed_params() {
         assert_eq!(
             replace_params("WHERE id = #{id} AND name = #{name}"),
-            "WHERE id = $1 AND name = $1"
+            "WHERE id = __XML_PARAM_id__ AND name = __XML_PARAM_name__"
         );
     }
 
@@ -265,7 +310,7 @@ mod param_tests {
     fn test_param_with_type_annotation() {
         assert_eq!(
             replace_params("#{price,javaType=double,jdbcType=NUMERIC}"),
-            "$1"
+            "__XML_PARAM_DOUBLE_price__"
         );
     }
 
@@ -278,7 +323,21 @@ mod param_tests {
     fn test_multiple_hash_and_dollar() {
         let sql = "SELECT * FROM ${table} WHERE id = #{id} AND name LIKE #{name}";
         let result = replace_params(sql);
-        assert!(result.contains("__IBATIS_DOLLAR_table__"));
-        assert_eq!(result.matches("$1").count(), 2);
+        assert!(result.contains("__XML_RAW_table__"));
+        assert!(result.contains("__XML_PARAM_id__"));
+        assert!(result.contains("__XML_PARAM_name__"));
+    }
+
+    #[test]
+    fn test_param_with_jdbc_type_only() {
+        assert_eq!(
+            replace_params("#{name,jdbcType=VARCHAR}"),
+            "__XML_PARAM_VARCHAR_name__"
+        );
+    }
+
+    #[test]
+    fn test_param_no_type() {
+        assert_eq!(replace_params("#{simple}"), "__XML_PARAM_simple__");
     }
 }

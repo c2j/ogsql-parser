@@ -75,6 +75,7 @@ pub fn extract(source: &str, root: Node, file_path: &str) -> JavaExtractResult {
         class_name: None,
         method_name: None,
         sql_vars: HashMap::new(),
+        var_types: HashMap::new(),
     };
     ctx.visit(root);
     JavaExtractResult {
@@ -92,6 +93,8 @@ struct ExtractContext<'a> {
     class_name: Option<String>,
     method_name: Option<String>,
     sql_vars: HashMap<String, TrackedVar>,
+    /// Maps variable name to Java type name (e.g., "tableName" to "String")
+    var_types: HashMap<String, String>,
 }
 
 impl<'a> ExtractContext<'a> {
@@ -142,8 +145,36 @@ impl<'a> ExtractContext<'a> {
     fn visit_method_declaration(&mut self, node: Node) {
         let old_method = self.method_name.clone();
         let old_sql_vars = std::mem::take(&mut self.sql_vars);
+        let old_var_types = std::mem::take(&mut self.var_types);
         if let Some(name_node) = node.child_by_field_name("name") {
             self.method_name = Some(self.node_text(name_node));
+        }
+
+        // extract parameter types
+        if let Some(params_node) = node.child_by_field_name("parameters") {
+            let mut cursor = params_node.walk();
+            for child in params_node.children(&mut cursor) {
+                if child.kind() == "formal_parameter" {
+                    let mut param_cursor = child.walk();
+                    let mut type_name: Option<String> = None;
+                    let mut var_name: Option<String> = None;
+                    for pc in child.children(&mut param_cursor) {
+                        match pc.kind() {
+                            "type_identifier" | "primitive_type" | "generic_type"
+                            | "array_type" => {
+                                type_name = self.extract_type_name(pc);
+                            }
+                            "identifier" => {
+                                var_name = Some(self.node_text(pc));
+                            }
+                            _ => {}
+                        }
+                    }
+                    if let (Some(t), Some(v)) = (type_name, var_name) {
+                        self.var_types.insert(v, t);
+                    }
+                }
+            }
         }
 
         // process annotations — modifiers is not a named field, iterate children
@@ -169,6 +200,7 @@ impl<'a> ExtractContext<'a> {
 
         self.method_name = old_method;
         self.sql_vars = old_sql_vars;
+        self.var_types = old_var_types;
     }
 
     // ── P0: Annotation SQL Extraction ──
@@ -395,6 +427,25 @@ impl<'a> ExtractContext<'a> {
 
     fn visit_local_variable_declaration(&mut self, node: Node) {
         self.check_string_declaration(node);
+
+        let mut cursor = node.walk();
+        let mut type_name: Option<String> = None;
+        for child in node.children(&mut cursor) {
+            match child.kind() {
+                "type_identifier" | "primitive_type" | "generic_type" | "array_type" => {
+                    type_name = self.extract_type_name(child);
+                }
+                "variable_declarator" => {
+                    if let Some(t) = &type_name {
+                        if let Some(name_node) = child.child_by_field_name("name") {
+                            self.var_types.insert(self.node_text(name_node), t.clone());
+                        }
+                    }
+                }
+                _ => {}
+            }
+        }
+
         let mut cursor = node.walk();
         for child in node.children(&mut cursor) {
             self.visit(child);
@@ -543,7 +594,10 @@ impl<'a> ExtractContext<'a> {
                     Some(parts)
                 }
             }
-            _ => Some(vec![("__JAVA_VAR__".to_string(), false)]),
+            _ => {
+                let var_name = self.node_text(node);
+                Some(vec![(self.make_var_placeholder(&var_name), false)])
+            }
         }
     }
 
@@ -663,7 +717,8 @@ impl<'a> ExtractContext<'a> {
                     parts.extend(self.collect_concat_parts(left));
                 }
                 _ => {
-                    parts.push(("__JAVA_VAR__".to_string(), false));
+                    let var_name = self.node_text(left);
+                    parts.push((self.make_var_placeholder(&var_name), false));
                 }
             }
         }
@@ -679,7 +734,8 @@ impl<'a> ExtractContext<'a> {
                     parts.extend(self.collect_concat_parts(right));
                 }
                 _ => {
-                    parts.push(("__JAVA_VAR__".to_string(), false));
+                    let var_name = self.node_text(right);
+                    parts.push((self.make_var_placeholder(&var_name), false));
                 }
             }
         }
@@ -807,6 +863,42 @@ impl<'a> ExtractContext<'a> {
             statements: stmts,
             errors,
         })
+    }
+
+    fn extract_type_name(&self, node: Node) -> Option<String> {
+        match node.kind() {
+            "type_identifier" | "primitive_type" => Some(self.node_text(node)),
+            "generic_type" => {
+                let mut cursor = node.walk();
+                for child in node.children(&mut cursor) {
+                    if child.kind() == "type_identifier" {
+                        return Some(self.node_text(child));
+                    }
+                }
+                None
+            }
+            "array_type" => {
+                let mut cursor = node.walk();
+                for child in node.children(&mut cursor) {
+                    let kind = child.kind();
+                    if kind == "type_identifier"
+                        || kind == "primitive_type"
+                        || kind == "generic_type"
+                    {
+                        return self.extract_type_name(child);
+                    }
+                }
+                None
+            }
+            _ => None,
+        }
+    }
+
+    fn make_var_placeholder(&self, var_name: &str) -> String {
+        match self.var_types.get(var_name) {
+            Some(type_name) => format!("__JAVA_VAR_{}_{}__", type_name, var_name),
+            None => format!("__JAVA_VAR_{}__", var_name),
+        }
     }
 
     fn node_text(&self, node: Node) -> String {

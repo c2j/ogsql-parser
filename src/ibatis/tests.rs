@@ -159,7 +159,10 @@ fn node_text(node: &SqlNode) -> String {
     match node {
         SqlNode::Text { content } => content.clone(),
         SqlNode::Sequence { children } => children.iter().map(node_text).collect(),
-        SqlNode::Parameter { name } => format!("#{{{}}}", name),
+        SqlNode::Parameter { name, java_type } => match java_type {
+            Some(t) => format!("#{{{},{}}}", name, format!("javaType={}", t)),
+            None => format!("#{{{}}}", name),
+        },
         SqlNode::RawExpr { expr } => format!("${{{}}}", expr),
         SqlNode::If { children, .. } => children.iter().map(node_text).collect(),
         SqlNode::Choose { branches } => branches
@@ -274,7 +277,7 @@ fn test_e2e_simple_select() {
     assert_eq!(stmt.id, "findById");
     assert_eq!(stmt.kind, StatementKind::Select);
     assert!(stmt.flat_sql.contains("SELECT"));
-    assert!(stmt.flat_sql.contains("$1"));
+    assert!(stmt.flat_sql.contains("__XML_PARAM_id__"));
 
     if let Some((infos, errors)) = &stmt.parse_result {
         assert!(errors.is_empty(), "parser errors: {:?}", errors);
@@ -315,7 +318,7 @@ fn test_e2e_dollar_param_placeholder() {
     </mapper>"#;
     let result = super::parse_mapper_bytes(xml);
     let stmt = &result.statements[0];
-    assert!(stmt.flat_sql.contains("__IBATIS_DOLLAR_column__"));
+    assert!(stmt.flat_sql.contains("__XML_RAW_column__"));
 }
 
 #[test]

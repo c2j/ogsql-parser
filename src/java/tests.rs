@@ -323,7 +323,10 @@ fn test_cross_statement_concat_assign() {
     assert!(result.errors.is_empty(), "Errors: {:?}", result.errors);
     assert_eq!(result.extractions.len(), 1);
     let ext = &result.extractions[0];
-    assert_eq!(ext.sql, "select a from t where id='__JAVA_VAR__'");
+    assert_eq!(
+        ext.sql,
+        "select a from t where id='__JAVA_VAR_String_mail__'"
+    );
     assert!(ext.is_concatenated);
     assert!(ext.parse_result.as_ref().map_or(false, |r| r
         .errors
@@ -348,7 +351,7 @@ fn test_cross_statement_concat_plus_eq() {
     let ext = &result.extractions[0];
     assert_eq!(
         ext.sql,
-        "select * from t where id=__JAVA_VAR__ and name='__JAVA_VAR__'"
+        "select * from t where id=__JAVA_VAR_int_id__ and name='__JAVA_VAR_String_name__'"
     );
     assert!(ext.is_concatenated);
 }
@@ -371,7 +374,7 @@ fn test_cross_statement_concat_multi_step() {
     let ext = &result.extractions[0];
     assert_eq!(
         ext.sql,
-        "select * from t where id=__JAVA_VAR__ and name='__JAVA_VAR__' and status='__JAVA_VAR__'"
+        "select * from t where id=__JAVA_VAR_int_id__ and name='__JAVA_VAR_String_name__' and status='__JAVA_VAR_String_status__'"
     );
     assert!(ext.is_concatenated);
 }

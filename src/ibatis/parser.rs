@@ -208,8 +208,8 @@ fn parse_text_to_nodes(text: &str) -> Vec<SqlNode> {
                     });
                 }
                 let param: String = chars[i + 2..end].iter().collect();
-                let name = param.split(',').next().unwrap_or("").trim().to_string();
-                nodes.push(SqlNode::Parameter { name });
+                let (name, java_type) = parse_param_type(&param);
+                nodes.push(SqlNode::Parameter { name, java_type });
                 i = end + 1;
                 continue;
             }
@@ -345,7 +345,10 @@ fn merge_children(children: Vec<SqlNode>) -> SqlNode {
 fn node_to_raw_text(node: &SqlNode) -> String {
     match node {
         SqlNode::Text { content } => content.clone(),
-        SqlNode::Parameter { name } => format!("#{{{}}}", name),
+        SqlNode::Parameter { name, java_type } => match java_type {
+            Some(t) => format!("#{{{},{}}}", name, format!("javaType={}", t)),
+            None => format!("#{{{}}}", name),
+        },
         SqlNode::RawExpr { expr } => format!("${{{}}}", expr),
         SqlNode::If { test, children } => {
             let inner: String = children.iter().map(node_to_raw_text).collect();
@@ -431,4 +434,23 @@ fn byte_offset_to_line(source: &[u8], offset: usize) -> usize {
         }
     }
     line
+}
+
+/// Extract name and optional java_type/jdbc_type from a MyBatis param string.
+/// Format: `name` or `name,javaType=double` or `name,jdbcType=NUMERIC` or `name,javaType=double,jdbcType=NUMERIC`.
+/// Prefers javaType over jdbcType.
+fn parse_param_type(param: &str) -> (String, Option<String>) {
+    let mut parts = param.split(',');
+    let name = parts.next().unwrap_or("").trim().to_string();
+    let mut java_type: Option<String> = None;
+    let mut jdbc_type: Option<String> = None;
+    for part in parts {
+        let part = part.trim();
+        if let Some(val) = part.strip_prefix("javaType=") {
+            java_type = Some(val.to_string());
+        } else if let Some(val) = part.strip_prefix("jdbcType=") {
+            jdbc_type = Some(val.to_string());
+        }
+    }
+    (name, java_type.or(jdbc_type))
 }
