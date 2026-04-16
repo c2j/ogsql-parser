@@ -17,12 +17,18 @@ pub use types::{
 
 /// 从 XML 字节解析 mapper 文件。
 pub fn parse_mapper_bytes(xml: &[u8]) -> ParsedMapper {
+    parse_mapper_bytes_with_path(xml, None)
+}
+
+/// 从 XML 字节解析 mapper 文件，附带源文件路径。
+pub fn parse_mapper_bytes_with_path(xml: &[u8], file_path: Option<&str>) -> ParsedMapper {
     let mut errors = Vec::new();
 
     let mapper_file = match parser::parse_xml(xml) {
         Ok(m) => m,
         Err(e) => {
             return ParsedMapper {
+                file_path: file_path.map(|s| s.to_string()),
                 namespace: String::new(),
                 statements: Vec::new(),
                 errors: vec![e],
@@ -35,6 +41,7 @@ pub fn parse_mapper_bytes(xml: &[u8]) -> ParsedMapper {
         Err(e) => {
             errors.push(e);
             return ParsedMapper {
+                file_path: file_path.map(|s| s.to_string()),
                 namespace: mapper_file.namespace,
                 statements: Vec::new(),
                 errors,
@@ -57,6 +64,7 @@ pub fn parse_mapper_bytes(xml: &[u8]) -> ParsedMapper {
             kind: stmt.kind,
             flat_sql,
             has_dynamic_elements: has_dynamic,
+            line: stmt.line,
             parse_result,
         });
     }
@@ -66,6 +74,7 @@ pub fn parse_mapper_bytes(xml: &[u8]) -> ParsedMapper {
     }
 
     ParsedMapper {
+        file_path: file_path.map(|s| s.to_string()),
         namespace: mapper_file.namespace,
         statements,
         errors,

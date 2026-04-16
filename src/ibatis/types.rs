@@ -26,6 +26,8 @@ pub struct MapperStatement {
     pub parameter_type: Option<String>,
     pub result_type: Option<String>,
     pub body: SqlNode,
+    /// 标签在 XML 文件中的行号（1-based）
+    pub line: usize,
 }
 
 /// SQL 语句类型
@@ -101,6 +103,7 @@ pub struct FlattenedStatement {
 /// 完整解析结果。
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct ParsedMapper {
+    pub file_path: Option<String>,
     pub namespace: String,
     pub statements: Vec<ParsedStatement>,
     pub errors: Vec<crate::ibatis::error::IbatisError>,
@@ -113,6 +116,7 @@ pub struct ParsedStatement {
     pub kind: StatementKind,
     pub flat_sql: String,
     pub has_dynamic_elements: bool,
+    pub line: usize,
     pub parse_result: Option<(
         Vec<crate::ast::StatementInfo>,
         Vec<crate::parser::ParserError>,

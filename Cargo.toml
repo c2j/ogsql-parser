@@ -22,15 +22,15 @@ crossterm = { version = "0.28", optional = true }
 quick-xml = { version = "0.39", optional = true }
 tree-sitter = { version = "0.24", optional = true }
 tree-sitter-java = { version = "0.23", optional = true }
+walkdir = { version = "2", optional = true }
 
 [dev-dependencies]
-walkdir = "2"
 
 [features]
 default = ["cli"]
 cli = ["dep:clap"]
-ibatis = ["dep:quick-xml"]
-java = ["dep:tree-sitter", "dep:tree-sitter-java"]
+ibatis = ["dep:quick-xml", "dep:walkdir"]
+java = ["dep:tree-sitter", "dep:tree-sitter-java", "dep:walkdir"]
 serve = ["cli", "dep:axum", "dep:tokio", "dep:tower-http", "dep:utoipa"]
 tui = ["cli", "dep:ratatui", "dep:crossterm"]
 full = ["cli", "ibatis", "java", "serve", "tui"]

@@ -91,12 +91,31 @@ impl Parser {
                         } else {
                             None
                         };
+                        // Intercept UNIQUE USING INDEX pattern (two-token peek-ahead)
+                        if self.peek_keyword() == Some(Keyword::UNIQUE) {
+                            if self.tokens.get(self.pos + 1).map_or(false, |t| {
+                                matches!(t.token, Token::Keyword(Keyword::USING))
+                            }) {
+                                self.advance();
+                                self.advance();
+                                self.expect_keyword(Keyword::INDEX)?;
+                                let index_name = self.parse_identifier()?;
+                                return Ok(AlterTableAction::AddConstraintUsingIndex {
+                                    name: name.clone().unwrap_or_default(),
+                                    index_name,
+                                });
+                            }
+                        }
                         let constraint = self.parse_table_constraint()?;
                         Ok(AlterTableAction::AddConstraint { name, constraint })
                     } else {
                         let col = self.parse_column_def()?;
                         Ok(AlterTableAction::AddColumn(col))
                     }
+                } else if self.match_keyword(Keyword::NODE) {
+                    self.advance();
+                    let node_name = self.parse_identifier()?;
+                    Ok(AlterTableAction::AddNode { node_name })
                 } else {
                     if self.match_keyword(Keyword::IF_P) {
                         self.advance();
@@ -119,6 +138,21 @@ impl Parser {
                         } else {
                             None
                         };
+                        // Intercept UNIQUE USING INDEX pattern (two-token peek-ahead)
+                        if self.peek_keyword() == Some(Keyword::UNIQUE) {
+                            if self.tokens.get(self.pos + 1).map_or(false, |t| {
+                                matches!(t.token, Token::Keyword(Keyword::USING))
+                            }) {
+                                self.advance();
+                                self.advance();
+                                self.expect_keyword(Keyword::INDEX)?;
+                                let index_name = self.parse_identifier()?;
+                                return Ok(AlterTableAction::AddConstraintUsingIndex {
+                                    name: name.clone().unwrap_or_default(),
+                                    index_name,
+                                });
+                            }
+                        }
                         let constraint = self.parse_table_constraint()?;
                         Ok(AlterTableAction::AddConstraint { name, constraint })
                     } else {
@@ -167,10 +201,14 @@ impl Parser {
                         if_exists,
                         cascade,
                     })
+                } else if self.match_keyword(Keyword::NODE) {
+                    self.advance();
+                    let node_name = self.parse_identifier()?;
+                    Ok(AlterTableAction::DeleteNode { node_name })
                 } else {
                     Err(ParserError::UnexpectedToken {
                         location: self.current_location(),
-                        expected: "COLUMN or CONSTRAINT".to_string(),
+                        expected: "COLUMN, CONSTRAINT, or NODE".to_string(),
                         got: format!("{:?}", self.peek()),
                     })
                 }
@@ -246,10 +284,18 @@ impl Parser {
                     self.advance();
                     let tablespace = self.parse_identifier()?;
                     Ok(AlterTableAction::SetTablespace { tablespace })
+                } else if self.match_keyword(Keyword::COMPRESS) {
+                    self.advance();
+                    Ok(AlterTableAction::SetCompress)
                 } else if self.match_keyword(Keyword::WITHOUT) {
                     self.advance();
-                    self.expect_keyword(Keyword::OIDS)?;
-                    Ok(AlterTableAction::SetWithoutOids)
+                    if self.match_keyword(Keyword::CLUSTER) {
+                        self.advance();
+                        Ok(AlterTableAction::SetWithoutCluster)
+                    } else {
+                        self.expect_keyword(Keyword::OIDS)?;
+                        Ok(AlterTableAction::SetWithoutOids)
+                    }
                 } else if self.match_token(&Token::LParen) {
                     self.advance();
                     let mut options = Vec::new();
@@ -268,7 +314,8 @@ impl Parser {
                 } else {
                     Err(ParserError::UnexpectedToken {
                         location: self.current_location(),
-                        expected: "SCHEMA, TABLESPACE, WITHOUT OIDS, or (...)".to_string(),
+                        expected: "SCHEMA, TABLESPACE, COMPRESS, WITHOUT OIDS, or (...)"
+                            .to_string(),
                         got: format!("{:?}", self.peek()),
                     })
                 }
@@ -489,8 +536,20 @@ impl Parser {
                     self.advance();
                     self.expect_keyword(Keyword::LEVEL)?;
                     self.expect_keyword(Keyword::SECURITY)?;
+                    Ok(AlterTableAction::EnableRowLevelSecurity)
+                } else if self.match_keyword(Keyword::TRIGGER) {
+                    self.advance();
+                    let name =
+                        if self.match_keyword(Keyword::ALL) || self.match_keyword(Keyword::USER) {
+                            self.advance();
+                            None
+                        } else {
+                            Some(self.parse_identifier()?)
+                        };
+                    Ok(AlterTableAction::EnableTrigger { name })
+                } else {
+                    Ok(AlterTableAction::EnableRowLevelSecurity)
                 }
-                Ok(AlterTableAction::EnableRowLevelSecurity)
             }
             Some(Keyword::DISABLE_P) => {
                 self.advance();
@@ -498,8 +557,20 @@ impl Parser {
                     self.advance();
                     self.expect_keyword(Keyword::LEVEL)?;
                     self.expect_keyword(Keyword::SECURITY)?;
+                    Ok(AlterTableAction::DisableRowLevelSecurity)
+                } else if self.match_keyword(Keyword::TRIGGER) {
+                    self.advance();
+                    let name =
+                        if self.match_keyword(Keyword::ALL) || self.match_keyword(Keyword::USER) {
+                            self.advance();
+                            None
+                        } else {
+                            Some(self.parse_identifier()?)
+                        };
+                    Ok(AlterTableAction::DisableTrigger { name })
+                } else {
+                    Ok(AlterTableAction::DisableRowLevelSecurity)
                 }
-                Ok(AlterTableAction::DisableRowLevelSecurity)
             }
             Some(Keyword::CHARSET) | Some(Keyword::CHARACTER) => {
                 self.advance();
@@ -517,6 +588,166 @@ impl Parser {
                     None
                 };
                 Ok(AlterTableAction::SetCharset { charset, collation })
+            }
+            Some(Keyword::VALIDATE) => {
+                self.advance();
+                self.expect_keyword(Keyword::CONSTRAINT)?;
+                let name = self.parse_identifier()?;
+                Ok(AlterTableAction::ValidateConstraint { name })
+            }
+            Some(Keyword::INHERIT) => {
+                self.advance();
+                let parent = self.parse_object_name()?;
+                Ok(AlterTableAction::Inherit { parent })
+            }
+            Some(Keyword::NO) => {
+                self.advance();
+                if self.match_keyword(Keyword::INHERIT) {
+                    self.advance();
+                    let parent = self.parse_object_name()?;
+                    Ok(AlterTableAction::NoInherit { parent })
+                } else if self.match_keyword(Keyword::FORCE) {
+                    self.advance();
+                    self.expect_keyword(Keyword::ROW)?;
+                    self.expect_keyword(Keyword::LEVEL)?;
+                    self.expect_keyword(Keyword::SECURITY)?;
+                    Ok(AlterTableAction::NoForceRowLevelSecurity)
+                } else {
+                    Err(ParserError::UnexpectedToken {
+                        location: self.current_location(),
+                        expected: "INHERIT or FORCE after NO".to_string(),
+                        got: format!("{:?}", self.peek()),
+                    })
+                }
+            }
+            Some(Keyword::CLUSTER) => {
+                self.advance();
+                self.expect_keyword(Keyword::ON)?;
+                let index_name = self.parse_identifier()?;
+                Ok(AlterTableAction::ClusterOn { index_name })
+            }
+            Some(Keyword::REPLICA) => {
+                self.advance();
+                self.expect_keyword(Keyword::IDENTITY_P)?;
+                let identity = if self.match_keyword(Keyword::DEFAULT) {
+                    ReplicaIdentity::Default
+                } else if self.match_keyword(Keyword::NOTHING) {
+                    ReplicaIdentity::Nothing
+                } else if self.match_keyword(Keyword::FULL) {
+                    ReplicaIdentity::Full
+                } else if self.match_keyword(Keyword::USING) {
+                    self.advance();
+                    self.expect_keyword(Keyword::INDEX)?;
+                    let name = self.parse_identifier()?;
+                    ReplicaIdentity::Index { name }
+                } else {
+                    return Err(ParserError::UnexpectedToken {
+                        location: self.current_location(),
+                        expected: "DEFAULT, NOTHING, FULL, or USING INDEX".to_string(),
+                        got: format!("{:?}", self.peek()),
+                    });
+                };
+                Ok(AlterTableAction::ReplicaIdentity(identity))
+            }
+            Some(Keyword::NOCOMPRESS) => {
+                self.advance();
+                Ok(AlterTableAction::SetNoCompress)
+            }
+            Some(Keyword::FORCE) => {
+                self.advance();
+                self.expect_keyword(Keyword::ROW)?;
+                self.expect_keyword(Keyword::LEVEL)?;
+                self.expect_keyword(Keyword::SECURITY)?;
+                Ok(AlterTableAction::ForceRowLevelSecurity)
+            }
+            Some(Keyword::NOT) => {
+                self.advance();
+                if self.match_keyword(Keyword::OF) {
+                    self.advance();
+                    let type_name = self.parse_object_name()?;
+                    Ok(AlterTableAction::NotOfType { type_name })
+                } else {
+                    Err(ParserError::UnexpectedToken {
+                        location: self.current_location(),
+                        expected: "OF after NOT".to_string(),
+                        got: format!("{:?}", self.peek()),
+                    })
+                }
+            }
+            Some(Keyword::OF) => {
+                self.advance();
+                let type_name = self.parse_object_name()?;
+                Ok(AlterTableAction::OfType { type_name })
+            }
+            Some(Keyword::COMMENT) => {
+                self.advance();
+                if self.match_token(&Token::Eq) {
+                    self.advance();
+                }
+                let comment = self.parse_string_literal()?;
+                Ok(AlterTableAction::SetComment { comment })
+            }
+            _ if self.match_ident_str("ILM") => {
+                self.advance();
+                if self.match_ident_str("ENABLE") {
+                    self.advance();
+                    if self.match_ident_str("POLICY") {
+                        self.advance();
+                    }
+                    Ok(AlterTableAction::IlmEnablePolicy)
+                } else if self.match_ident_str("DISABLE") {
+                    self.advance();
+                    if self.match_ident_str("POLICY") {
+                        self.advance();
+                    }
+                    Ok(AlterTableAction::IlmDisablePolicy)
+                } else if self.match_ident_str("DELETE") {
+                    self.advance();
+                    if self.match_ident_str("POLICY") {
+                        self.advance();
+                    }
+                    Ok(AlterTableAction::IlmDeletePolicy)
+                } else if self.match_keyword(Keyword::ADD_P) {
+                    self.advance();
+                    if self.match_ident_str("POLICY") {
+                        self.advance();
+                    }
+                    while !self.match_keyword(Keyword::AFTER) && !self.peek().eq(&Token::Eof) {
+                        self.advance();
+                    }
+                    self.expect_keyword(Keyword::AFTER)?;
+                    let after_n: u64 = match self.peek().clone() {
+                        Token::Integer(n) => {
+                            self.advance();
+                            n as u64
+                        }
+                        _ => 0,
+                    };
+                    let unit = self.parse_identifier()?;
+                    self.expect_keyword(Keyword::OF)?;
+                    self.advance(); // NO
+                    self.advance(); // MODIFICATION
+                    let condition = if self.match_keyword(Keyword::ON) {
+                        self.advance();
+                        self.expect_token(&Token::LParen)?;
+                        let expr = self.parse_expr()?;
+                        self.expect_token(&Token::RParen)?;
+                        Some(expr)
+                    } else {
+                        None
+                    };
+                    Ok(AlterTableAction::IlmAddPolicy(IlmPolicy {
+                        after_n,
+                        unit,
+                        condition,
+                    }))
+                } else {
+                    Err(ParserError::UnexpectedToken {
+                        location: self.current_location(),
+                        expected: "ENABLE, DISABLE, DELETE, or ADD after ILM".to_string(),
+                        got: format!("{:?}", self.peek()),
+                    })
+                }
             }
             _ => Err(ParserError::UnexpectedToken {
                 location: self.current_location(),

@@ -25,6 +25,7 @@ impl SqlFormatter {
             Statement::Merge(s) => self.format_merge(s),
             Statement::CreateTable(s) => self.format_create_table(s),
             Statement::AlterTable(s) => self.format_alter_table(s),
+            Statement::AlterTablespace(s) => self.format_alter_tablespace(s),
             Statement::Drop(s) => self.format_drop(s),
             Statement::Truncate(s) => self.format_truncate(s),
             Statement::CreateIndex(s) => self.format_create_index(s),
@@ -1545,6 +1546,12 @@ impl SqlFormatter {
             parts.push(format!("{} {}", self.kw("TABLESPACE"), ts));
         }
 
+        if let Some(true) = stmt.compress {
+            parts.push(self.kw("COMPRESS"));
+        } else if let Some(false) = stmt.compress {
+            parts.push(self.kw("NOCOMPRESS"));
+        }
+
         if let Some(oc) = &stmt.on_commit {
             parts.push(format!(
                 "{} {}",
@@ -1572,6 +1579,21 @@ impl SqlFormatter {
                 .map(|(k, v)| format!("{} = {}", k, v))
                 .collect();
             parts.push(format!("{} ({})", self.kw("WITH"), opts.join(", ")));
+        }
+
+        if let Some(ilm) = &stmt.ilm {
+            let mut ilm_parts = vec![self.kw("ILM ADD POLICY ROW STORE COMPRESS ADVANCED ROW")];
+            ilm_parts.push(self.kw("AFTER"));
+            ilm_parts.push(format!(
+                "{} {} {}",
+                ilm.after_n,
+                ilm.unit,
+                self.kw("OF NO MODIFICATION")
+            ));
+            if let Some(cond) = &ilm.condition {
+                ilm_parts.push(format!("{} ({})", self.kw("ON"), self.format_expr(cond)));
+            }
+            parts.push(ilm_parts.join(" "));
         }
 
         parts.join(" ")
@@ -1788,6 +1810,10 @@ impl SqlFormatter {
     fn format_column_def(&self, col: &ColumnDef) -> String {
         let mut parts = vec![self.quote_identifier(&col.name)];
         parts.push(self.format_data_type(&col.data_type));
+
+        if let Some(cm) = &col.compress_mode {
+            parts.push(cm.to_uppercase());
+        }
 
         for constraint in &col.constraints {
             parts.push(self.format_column_constraint(constraint));
@@ -2295,8 +2321,166 @@ impl SqlFormatter {
                     format!("{} {}", self.kw("CHARSET"), self.quote_identifier(charset))
                 }
             }
+            AlterTableAction::EnableTrigger { name } => {
+                format!(
+                    "{} {}",
+                    self.kw("ENABLE TRIGGER"),
+                    name.as_deref()
+                        .map(|n| self.quote_identifier(n))
+                        .unwrap_or_else(|| self.kw("ALL").to_string())
+                )
+            }
+            AlterTableAction::DisableTrigger { name } => {
+                format!(
+                    "{} {}",
+                    self.kw("DISABLE TRIGGER"),
+                    name.as_deref()
+                        .map(|n| self.quote_identifier(n))
+                        .unwrap_or_else(|| self.kw("ALL").to_string())
+                )
+            }
+            AlterTableAction::ValidateConstraint { name } => {
+                format!(
+                    "{} {}",
+                    self.kw("VALIDATE CONSTRAINT"),
+                    self.quote_identifier(name)
+                )
+            }
+            AlterTableAction::AddConstraintUsingIndex { name, index_name } => {
+                format!(
+                    "{} {} {} {}",
+                    self.kw("ADD CONSTRAINT"),
+                    self.quote_identifier(name),
+                    self.kw("UNIQUE USING INDEX"),
+                    self.quote_identifier(index_name)
+                )
+            }
+            AlterTableAction::Inherit { parent } => {
+                format!("{} {}", self.kw("INHERIT"), self.format_object_name(parent))
+            }
+            AlterTableAction::NoInherit { parent } => {
+                format!(
+                    "{} {}",
+                    self.kw("NO INHERIT"),
+                    self.format_object_name(parent)
+                )
+            }
+            AlterTableAction::ClusterOn { index_name } => {
+                format!(
+                    "{} {}",
+                    self.kw("CLUSTER ON"),
+                    self.quote_identifier(index_name)
+                )
+            }
+            AlterTableAction::SetWithoutCluster => self.kw("SET WITHOUT CLUSTER").to_string(),
+            AlterTableAction::ReplicaIdentity(identity) => match identity {
+                ReplicaIdentity::Default => {
+                    format!("{} {}", self.kw("REPLICA IDENTITY"), self.kw("DEFAULT"))
+                }
+                ReplicaIdentity::Nothing => {
+                    format!("{} {}", self.kw("REPLICA IDENTITY"), self.kw("NOTHING"))
+                }
+                ReplicaIdentity::Full => {
+                    format!("{} {}", self.kw("REPLICA IDENTITY"), self.kw("FULL"))
+                }
+                ReplicaIdentity::Index { name } => {
+                    format!(
+                        "{} {} {}",
+                        self.kw("REPLICA IDENTITY"),
+                        self.kw("USING INDEX"),
+                        self.quote_identifier(name)
+                    )
+                }
+            },
+            AlterTableAction::SetCompress => self.kw("SET COMPRESS").to_string(),
+            AlterTableAction::SetNoCompress => self.kw("NOCOMPRESS").to_string(),
+            AlterTableAction::ForceRowLevelSecurity => {
+                self.kw("FORCE ROW LEVEL SECURITY").to_string()
+            }
+            AlterTableAction::NoForceRowLevelSecurity => {
+                self.kw("NO FORCE ROW LEVEL SECURITY").to_string()
+            }
+            AlterTableAction::OfType { type_name } => {
+                format!("{} {}", self.kw("OF"), self.format_object_name(type_name))
+            }
+            AlterTableAction::NotOfType { type_name } => {
+                format!(
+                    "{} {}",
+                    self.kw("NOT OF"),
+                    self.format_object_name(type_name)
+                )
+            }
+            AlterTableAction::AddNode { node_name } => {
+                format!(
+                    "{} {}",
+                    self.kw("ADD NODE"),
+                    self.quote_identifier(node_name)
+                )
+            }
+            AlterTableAction::DeleteNode { node_name } => {
+                format!(
+                    "{} {}",
+                    self.kw("DELETE NODE"),
+                    self.quote_identifier(node_name)
+                )
+            }
+            AlterTableAction::SetComment { comment } => {
+                format!("{} = {}", self.kw("COMMENT"), self.quote_string(comment))
+            }
+            AlterTableAction::IlmAddPolicy(policy) => {
+                let mut ilm_parts = vec![self.kw("ILM ADD POLICY ROW STORE COMPRESS ADVANCED ROW")];
+                ilm_parts.push(self.kw("AFTER"));
+                ilm_parts.push(format!(
+                    "{} {} {}",
+                    policy.after_n,
+                    policy.unit,
+                    self.kw("OF NO MODIFICATION")
+                ));
+                if let Some(cond) = &policy.condition {
+                    ilm_parts.push(format!("{} ({})", self.kw("ON"), self.format_expr(cond)));
+                }
+                ilm_parts.join(" ")
+            }
+            AlterTableAction::IlmEnablePolicy => self.kw("ILM ENABLE POLICY").to_string(),
+            AlterTableAction::IlmDisablePolicy => self.kw("ILM DISABLE POLICY").to_string(),
+            AlterTableAction::IlmDeletePolicy => self.kw("ILM DELETE POLICY").to_string(),
             _ => "...".to_string(),
         }
+    }
+
+    fn format_alter_tablespace(&self, stmt: &AlterTablespaceStatement) -> String {
+        let mut parts = vec![
+            self.kw("ALTER TABLESPACE"),
+            self.quote_identifier(&stmt.name),
+        ];
+        match &stmt.action {
+            AlterTablespaceAction::RenameTo { new_name } => {
+                parts.push(self.kw("RENAME TO"));
+                parts.push(self.quote_identifier(new_name));
+            }
+            AlterTablespaceAction::OwnerTo { new_owner } => {
+                parts.push(self.kw("OWNER TO"));
+                parts.push(self.quote_identifier(new_owner));
+            }
+            AlterTablespaceAction::SetOptions { options } => {
+                let pairs: Vec<String> = options
+                    .iter()
+                    .map(|(k, v)| {
+                        format!(
+                            "{} = {}",
+                            self.quote_identifier(k),
+                            self.quote_identifier(v)
+                        )
+                    })
+                    .collect();
+                parts.push(format!("{} ({})", self.kw("SET"), pairs.join(", ")));
+            }
+            AlterTablespaceAction::ResetOptions { options } => {
+                let names: Vec<String> = options.iter().map(|o| self.quote_identifier(o)).collect();
+                parts.push(format!("{} ({})", self.kw("RESET"), names.join(", ")));
+            }
+        }
+        parts.join(" ")
     }
 
     fn format_partition_values(&self, values: &PartitionValues) -> String {

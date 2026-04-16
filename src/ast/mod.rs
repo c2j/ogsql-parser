@@ -1,6 +1,13 @@
 pub mod plpgsql;
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct IlmPolicy {
+    pub after_n: u64,
+    pub unit: String,
+    pub condition: Option<Expr>,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct CreateTableStatement {
     pub temporary: bool,
     pub unlogged: bool,
@@ -17,6 +24,8 @@ pub struct CreateTableStatement {
     pub tablespace: Option<String>,
     pub on_commit: Option<OnCommitAction>,
     pub options: Vec<(String, String)>,
+    pub compress: Option<bool>,
+    pub ilm: Option<IlmPolicy>,
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -69,6 +78,7 @@ pub struct ColumnDef {
     pub name: String,
     pub data_type: DataType,
     pub constraints: Vec<ColumnConstraint>,
+    pub compress_mode: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -131,6 +141,20 @@ pub enum TableConstraint {
         ref_table: ObjectName,
         ref_columns: Vec<String>,
     },
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct AlterTablespaceStatement {
+    pub name: String,
+    pub action: AlterTablespaceAction,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub enum AlterTablespaceAction {
+    RenameTo { new_name: String },
+    OwnerTo { new_owner: String },
+    SetOptions { options: Vec<(String, String)> },
+    ResetOptions { options: Vec<String> },
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -266,6 +290,61 @@ pub enum AlterTableAction {
         charset: String,
         collation: Option<String>,
     },
+    EnableTrigger {
+        name: Option<String>,
+    },
+    DisableTrigger {
+        name: Option<String>,
+    },
+    ValidateConstraint {
+        name: String,
+    },
+    AddConstraintUsingIndex {
+        name: String,
+        index_name: String,
+    },
+    Inherit {
+        parent: ObjectName,
+    },
+    NoInherit {
+        parent: ObjectName,
+    },
+    ClusterOn {
+        index_name: String,
+    },
+    SetWithoutCluster,
+    ReplicaIdentity(ReplicaIdentity),
+    SetCompress,
+    SetNoCompress,
+    ForceRowLevelSecurity,
+    NoForceRowLevelSecurity,
+    OfType {
+        type_name: ObjectName,
+    },
+    NotOfType {
+        type_name: ObjectName,
+    },
+    AddNode {
+        node_name: String,
+    },
+    DeleteNode {
+        node_name: String,
+    },
+    SetComment {
+        comment: String,
+    },
+    IlmAddPolicy(IlmPolicy),
+    IlmEnablePolicy,
+    IlmDisablePolicy,
+    IlmDeletePolicy,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub enum ReplicaIdentity {
+    Default,
+    Nothing,
+    Full,
+    Index { name: String },
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -431,6 +510,7 @@ pub enum Statement {
     CreateTable(CreateTableStatement),
     CreateTableAs(CreateTableAsStatement),
     AlterTable(AlterTableStatement),
+    AlterTablespace(AlterTablespaceStatement),
     Drop(DropStatement),
     Truncate(TruncateStatement),
     CreateIndex(CreateIndexStatement),

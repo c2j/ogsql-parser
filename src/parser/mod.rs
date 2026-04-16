@@ -137,6 +137,8 @@ impl Parser {
 
     pub fn parse_with_text(&mut self) -> Vec<crate::ast::StatementInfo> {
         let mut infos = Vec::new();
+        let source = self.source.clone();
+        let line_offsets = Self::compute_line_offsets(&source);
         loop {
             match self.peek() {
                 Token::Eof => break,
@@ -172,7 +174,6 @@ impl Parser {
                     };
                     let end_span = end_token.span;
 
-                    let source = &self.source;
                     let byte_start = start_span.start.min(source.len());
                     let byte_end = end_span.end.min(source.len());
                     let sql_text = if byte_start < byte_end {
@@ -181,11 +182,10 @@ impl Parser {
                         String::new()
                     };
 
-                    let line_offsets = Self::compute_line_offsets(source);
                     let (start_line, start_col) =
-                        Self::byte_offset_to_line_col(&line_offsets, byte_start, source);
+                        Self::byte_offset_to_line_col(&line_offsets, byte_start, &source);
                     let (end_line, end_col) =
-                        Self::byte_offset_to_line_col(&line_offsets, byte_end, source);
+                        Self::byte_offset_to_line_col(&line_offsets, byte_end, &source);
 
                     infos.push(crate::ast::StatementInfo {
                         sql_text,
@@ -1478,6 +1478,7 @@ impl Parser {
                             name: col_name,
                             data_type,
                             constraints,
+                            compress_mode: None,
                         });
                         if !self.match_token(&Token::Comma) {
                             if self.match_token(&Token::RParen) {
@@ -2403,6 +2404,19 @@ impl Parser {
                         self.skip_to_semicolon()
                     }
                 },
+                Some(Keyword::TABLESPACE) => {
+                    self.advance();
+                    match self.parse_alter_tablespace() {
+                        Ok(stmt) => {
+                            self.try_consume_semicolon();
+                            crate::ast::Statement::AlterTablespace(stmt)
+                        }
+                        Err(e) => {
+                            self.add_error(e);
+                            self.skip_to_semicolon()
+                        }
+                    }
+                }
                 Some(Keyword::DATABASE) => match self.parse_alter_database() {
                     Ok(stmt) => {
                         self.try_consume_semicolon();
@@ -2623,6 +2637,59 @@ impl Parser {
                 self.skip_to_semicolon()
             }
         }
+    }
+
+    fn parse_alter_tablespace(
+        &mut self,
+    ) -> Result<crate::ast::AlterTablespaceStatement, ParserError> {
+        let name = self.parse_identifier()?;
+        let action = if self.match_keyword(Keyword::RENAME) {
+            self.advance();
+            self.expect_keyword(Keyword::TO)?;
+            let new_name = self.parse_identifier()?;
+            crate::ast::AlterTablespaceAction::RenameTo { new_name }
+        } else if self.match_keyword(Keyword::OWNER) {
+            self.advance();
+            self.expect_keyword(Keyword::TO)?;
+            let new_owner = self.parse_identifier()?;
+            crate::ast::AlterTablespaceAction::OwnerTo { new_owner }
+        } else if self.match_keyword(Keyword::SET) {
+            self.advance();
+            self.expect_token(&Token::LParen)?;
+            let mut options = Vec::new();
+            loop {
+                let key = self.parse_identifier()?;
+                self.expect_token(&Token::Eq)?;
+                let value = self.parse_identifier()?;
+                options.push((key, value));
+                if !self.match_token(&Token::Comma) {
+                    break;
+                }
+                self.advance();
+            }
+            self.expect_token(&Token::RParen)?;
+            crate::ast::AlterTablespaceAction::SetOptions { options }
+        } else if self.match_keyword(Keyword::RESET) {
+            self.advance();
+            self.expect_token(&Token::LParen)?;
+            let mut options = Vec::new();
+            loop {
+                options.push(self.parse_identifier()?);
+                if !self.match_token(&Token::Comma) {
+                    break;
+                }
+                self.advance();
+            }
+            self.expect_token(&Token::RParen)?;
+            crate::ast::AlterTablespaceAction::ResetOptions { options }
+        } else {
+            return Err(ParserError::UnexpectedToken {
+                location: self.current_location(),
+                expected: "RENAME TO, OWNER TO, SET, or RESET".to_string(),
+                got: format!("{:?}", self.peek()),
+            });
+        };
+        Ok(crate::ast::AlterTablespaceStatement { name, action })
     }
 
     fn skip_to_semicolon_as(&mut self, stmt: crate::ast::Statement) -> crate::ast::Statement {

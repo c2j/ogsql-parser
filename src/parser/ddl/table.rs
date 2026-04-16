@@ -47,6 +47,8 @@ impl Parser {
         let mut tablespace = None;
         let mut on_commit = None;
         let mut options = Vec::new();
+        let mut compress = None;
+        let mut ilm = None;
 
         loop {
             if self.match_keyword(Keyword::INHERITS) {
@@ -58,15 +60,59 @@ impl Parser {
                     inherits.push(self.parse_object_name()?);
                 }
                 self.expect_token(&Token::RParen)?;
+            } else if self.match_keyword(Keyword::COMPRESS) {
+                self.advance();
+                compress = Some(true);
+            } else if self.match_keyword(Keyword::NOCOMPRESS) {
+                self.advance();
+                compress = Some(false);
             } else if self.match_ident_str("ILM") {
                 self.advance();
-                while !self.match_keyword(Keyword::PARTITION)
-                    && !self.match_keyword(Keyword::WITH)
-                    && !self.match_token(&Token::Semicolon)
-                    && !self.match_token(&Token::RParen)
-                    && !self.peek().eq(&Token::Eof)
-                {
+                if self.match_keyword(Keyword::ADD_P) {
                     self.advance();
+                    if self.match_ident_str("POLICY") {
+                        self.advance();
+                    }
+                    // Skip "ROW STORE COMPRESS ADVANCED ROW"
+                    while !self.match_keyword(Keyword::AFTER) && !self.peek().eq(&Token::Eof) {
+                        self.advance();
+                    }
+                    self.expect_keyword(Keyword::AFTER)?;
+                    let after_n: u64 = match self.peek().clone() {
+                        Token::Integer(n) => {
+                            self.advance();
+                            n as u64
+                        }
+                        _ => 0,
+                    };
+                    let unit = self.parse_identifier()?;
+                    self.expect_keyword(Keyword::OF)?;
+                    self.advance(); // NO
+                    self.advance(); // MODIFICATION
+                    let condition = if self.match_keyword(Keyword::ON) {
+                        self.advance();
+                        self.expect_token(&Token::LParen)?;
+                        let expr = self.parse_expr()?;
+                        self.expect_token(&Token::RParen)?;
+                        Some(expr)
+                    } else {
+                        None
+                    };
+                    ilm = Some(IlmPolicy {
+                        after_n,
+                        unit,
+                        condition,
+                    });
+                } else {
+                    // Skip unknown ILM clause
+                    while !self.match_keyword(Keyword::PARTITION)
+                        && !self.match_keyword(Keyword::WITH)
+                        && !self.match_token(&Token::Semicolon)
+                        && !self.match_token(&Token::RParen)
+                        && !self.peek().eq(&Token::Eof)
+                    {
+                        self.advance();
+                    }
                 }
             } else if self.match_keyword(Keyword::PARTITION) {
                 self.advance();
@@ -375,6 +421,8 @@ impl Parser {
             tablespace,
             on_commit,
             options,
+            compress,
+            ilm,
         })
     }
 
@@ -463,6 +511,22 @@ impl Parser {
         let name = self.parse_identifier()?;
         let data_type = self.parse_data_type()?;
 
+        let compress_mode = if self.match_ident_str("DELTA") {
+            self.advance();
+            Some("DELTA".to_string())
+        } else if self.match_ident_str("PREFIX") {
+            self.advance();
+            Some("PREFIX".to_string())
+        } else if self.match_ident_str("DICTIONARY") {
+            self.advance();
+            Some("DICTIONARY".to_string())
+        } else if self.match_ident_str("NUMSTR") {
+            self.advance();
+            Some("NUMSTR".to_string())
+        } else {
+            None
+        };
+
         let mut constraints = Vec::new();
         while let Some(constraint) = self.try_parse_column_constraint()? {
             constraints.push(constraint);
@@ -472,6 +536,7 @@ impl Parser {
             name,
             data_type,
             constraints,
+            compress_mode,
         })
     }
 
