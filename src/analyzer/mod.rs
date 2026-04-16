@@ -29,13 +29,19 @@ pub struct VariableTrace {
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub enum TraceChain {
-    LiteralAssignment { value: String },
+    LiteralAssignment {
+        value: String,
+    },
     VariableCopy {
         source_var: String,
         source_chain: Box<TraceChain>,
     },
-    Concatenation { parts: Vec<TraceChain> },
-    DeclarationDefault { value: String },
+    Concatenation {
+        parts: Vec<TraceChain>,
+    },
+    DeclarationDefault {
+        value: String,
+    },
     Unknown,
 }
 
@@ -201,7 +207,9 @@ impl DynamicSqlAnalyzer {
             },
             Expr::Literal(Literal::DollarString { body, .. }) => VarState {
                 known_value: Some(body.clone()),
-                trace: TraceChain::LiteralAssignment { value: body.clone() },
+                trace: TraceChain::LiteralAssignment {
+                    value: body.clone(),
+                },
             },
             Expr::Literal(Literal::EscapeString(s)) => VarState {
                 known_value: Some(s.clone()),
@@ -227,11 +235,10 @@ impl DynamicSqlAnalyzer {
             Expr::BinaryOp { op, left, right } if op == "||" => {
                 let left_state = self.evaluate_expr(left);
                 let right_state = self.evaluate_expr(right);
-                let known_value =
-                    match (&left_state.known_value, &right_state.known_value) {
-                        (Some(l), Some(r)) => Some(format!("{}{}", l, r)),
-                        _ => None,
-                    };
+                let known_value = match (&left_state.known_value, &right_state.known_value) {
+                    (Some(l), Some(r)) => Some(format!("{}{}", l, r)),
+                    _ => None,
+                };
                 VarState {
                     known_value,
                     trace: TraceChain::Concatenation {

@@ -4,6 +4,17 @@ version = "0.1.0"
 edition = "2021"
 description = "A SQL parser for openGauss/GaussDB written in Rust"
 license = "MIT OR Apache-2.0"
+readme = "README.md"
+keywords = ["sql", "parser", "opengauss", "gaussdb", "database"]
+categories = ["database", "parser-implementations"]
+repository = "https://github.com/User/ogsql-parser"
+include = [
+    "src/**/*.rs",
+    "Cargo.toml",
+    "README.md",
+    "LICENSE-MIT",
+    "LICENSE-APACHE",
+]
 
 [dependencies]
 thiserror = "2"
@@ -22,15 +33,15 @@ crossterm = { version = "0.28", optional = true }
 quick-xml = { version = "0.39", optional = true }
 tree-sitter = { version = "0.24", optional = true }
 tree-sitter-java = { version = "0.23", optional = true }
+walkdir = { version = "2", optional = true }
 
 [dev-dependencies]
-walkdir = "2"
 
 [features]
-default = ["cli"]
+default = []
 cli = ["dep:clap"]
-ibatis = ["dep:quick-xml"]
-java = ["dep:tree-sitter", "dep:tree-sitter-java"]
+ibatis = ["dep:quick-xml", "dep:walkdir"]
+java = ["dep:tree-sitter", "dep:tree-sitter-java", "dep:walkdir"]
 serve = ["cli", "dep:axum", "dep:tokio", "dep:tower-http", "dep:utoipa"]
 tui = ["cli", "dep:ratatui", "dep:crossterm"]
 full = ["cli", "ibatis", "java", "serve", "tui"]
@@ -39,3 +50,7 @@ full = ["cli", "ibatis", "java", "serve", "tui"]
 name = "ogsql"
 path = "src/bin/ogsql.rs"
 required-features = ["cli"]
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]

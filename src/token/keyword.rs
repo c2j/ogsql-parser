@@ -2901,9 +2901,24 @@ pub fn lookup_keyword(s: &str) -> Option<Keyword> {
         ("zone", Keyword::ZONE),
     ];
 
-    let lower = s.to_lowercase();
     KEYWORDS
-        .binary_search_by_key(&lower.as_str(), |(k, _)| k)
+        .binary_search_by(|(k, _)| {
+            let mut k_chars = k.chars();
+            let mut s_chars = s.chars();
+            loop {
+                match (k_chars.next(), s_chars.next()) {
+                    (Some(a), Some(b)) => {
+                        let cmp = a.to_ascii_lowercase().cmp(&b.to_ascii_lowercase());
+                        if cmp != std::cmp::Ordering::Equal {
+                            return cmp;
+                        }
+                    }
+                    (Some(_), None) => return std::cmp::Ordering::Greater,
+                    (None, Some(_)) => return std::cmp::Ordering::Less,
+                    (None, None) => return std::cmp::Ordering::Equal,
+                }
+            }
+        })
         .ok()
         .map(|i| KEYWORDS[i].1)
 }

@@ -517,6 +517,7 @@ impl Parser {
             distinct_on: vec![],
             targets: vec![SelectTarget::Star(None)],
             into_targets: None,
+            into_table: None,
             from: vec![],
             where_clause: None,
             group_by: vec![],

@@ -35,6 +35,7 @@ pub fn parse_xml(xml: &[u8]) -> Result<MapperFile, IbatisError> {
                         body: merge_children(children),
                     });
                 } else if let Some(kind) = statement_kind(tag.as_ref()) {
+                    let line = byte_offset_to_line(xml, reader.buffer_position() as usize);
                     let id = get_attr(&e, "id").unwrap_or_default();
                     let parameter_type = get_attr(&e, "parameterType");
                     let result_type =
@@ -46,6 +47,7 @@ pub fn parse_xml(xml: &[u8]) -> Result<MapperFile, IbatisError> {
                         parameter_type,
                         result_type,
                         body: merge_children(children),
+                        line,
                     });
                 } else if is_skip_tag(tag.as_ref()) {
                     skip_content(&mut reader, tag.as_ref());

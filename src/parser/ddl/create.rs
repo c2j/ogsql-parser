@@ -72,6 +72,246 @@ impl Parser {
         Ok(IndexColumn { name, asc })
     }
 
+    // ========== CREATE GLOBAL INDEX ==========
+
+    pub(crate) fn parse_create_global_index(
+        &mut self,
+    ) -> Result<CreateGlobalIndexStatement, ParserError> {
+        let unique = self.try_consume_keyword(Keyword::UNIQUE);
+        self.expect_keyword(Keyword::INDEX)?;
+
+        let concurrent = self.try_consume_keyword(Keyword::CONCURRENTLY);
+        let if_not_exists = self.parse_if_not_exists();
+
+        let name = if !matches!(self.peek(), Token::Keyword(Keyword::ON)) {
+            Some(self.parse_object_name()?)
+        } else {
+            None
+        };
+
+        self.expect_keyword(Keyword::ON)?;
+        let table = self.parse_object_name()?;
+
+        let using_method = if self.match_keyword(Keyword::USING) {
+            self.advance();
+            Some(self.parse_identifier()?)
+        } else {
+            None
+        };
+
+        self.expect_token(&Token::LParen)?;
+        let mut columns = vec![self.parse_global_index_column()?];
+        while self.match_token(&Token::Comma) {
+            self.advance();
+            columns.push(self.parse_global_index_column()?);
+        }
+        self.expect_token(&Token::RParen)?;
+
+        let mut containing = Vec::new();
+        if self.match_ident_str("CONTAINING") {
+            self.advance();
+            self.expect_token(&Token::LParen)?;
+            containing.push(self.parse_identifier()?);
+            while self.match_token(&Token::Comma) {
+                self.advance();
+                containing.push(self.parse_identifier()?);
+            }
+            self.expect_token(&Token::RParen)?;
+        }
+
+        let mut distribute_by = None;
+        if self.match_keyword(Keyword::DISTRIBUTE) {
+            self.advance();
+            self.expect_keyword(Keyword::BY)?;
+            if !self.try_consume_ident_str("HASH") {
+                return Err(ParserError::UnexpectedToken {
+                    location: self.current_location(),
+                    expected: "HASH".into(),
+                    got: format!("{:?}", self.peek()),
+                });
+            }
+            self.expect_token(&Token::LParen)?;
+            let mut cols = vec![self.parse_identifier()?];
+            while self.match_token(&Token::Comma) {
+                self.advance();
+                cols.push(self.parse_identifier()?);
+            }
+            self.expect_token(&Token::RParen)?;
+            distribute_by = Some(DistributeClause::Hash { columns: cols });
+        }
+
+        let mut with_options = Vec::new();
+        if self.match_keyword(Keyword::WITH) {
+            self.advance();
+            self.expect_token(&Token::LParen)?;
+            loop {
+                let key = self.parse_identifier()?;
+                self.expect_token(&Token::Eq)?;
+                let value = match self.peek().clone() {
+                    Token::Integer(n) => {
+                        self.advance();
+                        n.to_string()
+                    }
+                    Token::StringLiteral(s) => {
+                        self.advance();
+                        format!("'{}'", s)
+                    }
+                    _ => self.parse_identifier()?,
+                };
+                with_options.push((key, value));
+                if !self.match_token(&Token::Comma) {
+                    break;
+                }
+                self.advance();
+            }
+            self.expect_token(&Token::RParen)?;
+        }
+
+        let mut tablespace = None;
+        let mut visible = None;
+        let mut where_clause = None;
+
+        loop {
+            if self.match_keyword(Keyword::TABLESPACE) {
+                self.advance();
+                tablespace = Some(self.parse_identifier()?);
+            } else if self.match_keyword(Keyword::VISIBLE) {
+                self.advance();
+                visible = Some(true);
+            } else if self.match_keyword(Keyword::INVISIBLE) {
+                self.advance();
+                visible = Some(false);
+            } else if self.match_keyword(Keyword::WHERE) {
+                self.advance();
+                where_clause = Some(self.parse_expr()?);
+            } else {
+                break;
+            }
+        }
+
+        Ok(CreateGlobalIndexStatement {
+            unique,
+            concurrent,
+            if_not_exists,
+            name,
+            table,
+            using_method,
+            columns,
+            containing,
+            distribute_by,
+            with_options,
+            tablespace,
+            visible,
+            where_clause,
+        })
+    }
+
+    fn parse_global_index_column(&mut self) -> Result<GlobalIndexColumn, ParserError> {
+        let col_name = self.parse_identifier()?;
+
+        if matches!(self.peek(), Token::LParen) {
+            let next_pos = self.pos + 1;
+            if let Some(Token::Integer(_)) = self.tokens.get(next_pos).map(|t| &t.token) {
+                self.advance();
+                match self.peek().clone() {
+                    Token::Integer(n) => {
+                        self.advance();
+                        self.expect_token(&Token::RParen)?;
+                        return Ok(GlobalIndexColumn {
+                            name: col_name,
+                            length: Some(n as u32),
+                            collation: None,
+                            opclass: None,
+                            ordering: None,
+                            nulls: None,
+                            expression: None,
+                        });
+                    }
+                    _ => {}
+                }
+            }
+        }
+
+        if matches!(self.peek(), Token::LParen) {
+            self.advance();
+            let mut args = Vec::new();
+            if !matches!(self.peek(), Token::RParen) {
+                args.push(self.parse_expr()?);
+                while self.match_token(&Token::Comma) {
+                    self.advance();
+                    args.push(self.parse_expr()?);
+                }
+            }
+            self.expect_token(&Token::RParen)?;
+            return Ok(GlobalIndexColumn {
+                name: String::new(),
+                length: None,
+                collation: None,
+                opclass: None,
+                ordering: None,
+                nulls: None,
+                expression: Some(Expr::FunctionCall {
+                    name: vec![col_name],
+                    args,
+                    distinct: false,
+                    over: None,
+                    filter: None,
+                    within_group: Vec::new(),
+                }),
+            });
+        }
+
+        let collation = if self.match_keyword(Keyword::COLLATE) {
+            self.advance();
+            Some(self.parse_identifier()?)
+        } else {
+            None
+        };
+
+        let opclass = if !self.match_keyword(Keyword::ASC)
+            && !self.match_keyword(Keyword::DESC)
+            && !self.match_keyword(Keyword::NULLS_P)
+            && !matches!(self.peek(), Token::Comma | Token::RParen)
+        {
+            Some(self.parse_identifier()?)
+        } else {
+            None
+        };
+
+        let ordering = if self.match_keyword(Keyword::ASC) {
+            self.advance();
+            Some(IndexOrdering::Asc)
+        } else if self.match_keyword(Keyword::DESC) {
+            self.advance();
+            Some(IndexOrdering::Desc)
+        } else {
+            None
+        };
+
+        let nulls = if self.match_keyword(Keyword::NULLS_P) {
+            self.advance();
+            if self.match_keyword(Keyword::FIRST_P) {
+                self.advance();
+                Some(IndexNulls::First)
+            } else {
+                self.expect_keyword(Keyword::LAST_P)?;
+                Some(IndexNulls::Last)
+            }
+        } else {
+            None
+        };
+
+        Ok(GlobalIndexColumn {
+            name: col_name,
+            length: None,
+            collation,
+            opclass,
+            ordering,
+            nulls,
+            expression: None,
+        })
+    }
+
     // ========== CREATE SEQUENCE ==========
 
     pub(crate) fn parse_create_sequence(&mut self) -> Result<CreateSequenceStatement, ParserError> {
@@ -952,5 +1192,160 @@ impl Parser {
         let name = self.parse_identifier()?;
         let action = self.collect_rest_until_semicolon();
         Ok(AlterExtensionStatement { name, action })
+    }
+
+    // ========== 12 new CREATE statement parsers ==========
+
+    pub(crate) fn parse_create_conversion(
+        &mut self,
+    ) -> Result<CreateConversionStatement, ParserError> {
+        self.expect_keyword(Keyword::CONVERSION_P)?;
+        let name = self.parse_identifier()?;
+        self.expect_keyword(Keyword::FOR)?;
+        let source_encoding = match self.peek().clone() {
+            Token::StringLiteral(s) => {
+                self.advance();
+                s
+            }
+            _ => self.parse_identifier()?,
+        };
+        self.expect_keyword(Keyword::TO)?;
+        let dest_encoding = match self.peek().clone() {
+            Token::StringLiteral(s) => {
+                self.advance();
+                s
+            }
+            _ => self.parse_identifier()?,
+        };
+        self.expect_keyword(Keyword::FROM)?;
+        let function_name = self.parse_identifier()?;
+        self.try_consume_semicolon();
+        Ok(CreateConversionStatement {
+            name,
+            source_encoding,
+            dest_encoding,
+            function_name,
+        })
+    }
+
+    pub(crate) fn parse_create_synonym(
+        &mut self,
+        replace: bool,
+    ) -> Result<CreateSynonymStatement, ParserError> {
+        self.expect_keyword(Keyword::SYNONYM)?;
+        let name = self.parse_object_name()?;
+        self.expect_keyword(Keyword::FOR)?;
+        let target = self.parse_object_name()?;
+        let public = self.try_consume_ident_str("PUBLIC");
+        self.try_consume_semicolon();
+        Ok(CreateSynonymStatement {
+            replace,
+            name,
+            target,
+            public,
+        })
+    }
+
+    pub(crate) fn parse_create_model(&mut self) -> Result<CreateModelStatement, ParserError> {
+        self.expect_keyword(Keyword::MODEL)?;
+        let name = self.parse_identifier()?;
+        let raw_rest = self.skip_to_semicolon_and_collect();
+        Ok(CreateModelStatement { name, raw_rest })
+    }
+
+    pub(crate) fn parse_create_am(&mut self) -> Result<CreateAmStatement, ParserError> {
+        self.expect_keyword(Keyword::ACCESS)?;
+        self.expect_keyword(Keyword::METHOD)?;
+        let name = self.parse_identifier()?;
+        self.expect_keyword(Keyword::TYPE_P)?;
+        let method = self.parse_identifier()?;
+        self.expect_keyword(Keyword::HANDLER)?;
+        let handler = self.parse_identifier()?;
+        self.try_consume_semicolon();
+        Ok(CreateAmStatement {
+            name,
+            method,
+            handler,
+        })
+    }
+
+    pub(crate) fn parse_create_directory(
+        &mut self,
+    ) -> Result<CreateDirectoryStatement, ParserError> {
+        self.expect_keyword(Keyword::DIRECTORY)?;
+        let name = self.parse_identifier()?;
+        if self.try_consume_keyword(Keyword::AS) {
+            let path = match self.peek().clone() {
+                Token::StringLiteral(s) => {
+                    self.advance();
+                    s
+                }
+                _ => self.parse_identifier()?,
+            };
+            self.try_consume_semicolon();
+            Ok(CreateDirectoryStatement { name, path })
+        } else {
+            let path = String::new();
+            self.try_consume_semicolon();
+            Ok(CreateDirectoryStatement { name, path })
+        }
+    }
+
+    pub(crate) fn parse_create_data_source(
+        &mut self,
+    ) -> Result<CreateDataSourceStatement, ParserError> {
+        self.expect_keyword(Keyword::SOURCE_P)?;
+        let name = self.parse_identifier()?;
+        let options = self.parse_generic_options();
+        self.try_consume_semicolon();
+        Ok(CreateDataSourceStatement { name, options })
+    }
+
+    pub(crate) fn parse_create_event(&mut self) -> Result<CreateEventStatement, ParserError> {
+        self.expect_keyword(Keyword::EVENT)?;
+        let name = self.parse_identifier()?;
+        let raw_rest = self.skip_to_semicolon_and_collect();
+        Ok(CreateEventStatement { name, raw_rest })
+    }
+
+    pub(crate) fn parse_create_opclass(&mut self) -> Result<CreateOpClassStatement, ParserError> {
+        self.expect_keyword(Keyword::CLASS)?;
+        let name = self.parse_identifier()?;
+        self.expect_keyword(Keyword::USING)?;
+        let method = self.parse_identifier()?;
+        let raw_rest = self.skip_to_semicolon_and_collect();
+        Ok(CreateOpClassStatement {
+            name,
+            method,
+            raw_rest,
+        })
+    }
+
+    pub(crate) fn parse_create_opfamily(&mut self) -> Result<CreateOpFamilyStatement, ParserError> {
+        self.expect_keyword(Keyword::FAMILY)?;
+        let name = self.parse_identifier()?;
+        self.expect_keyword(Keyword::USING)?;
+        let method = self.parse_identifier()?;
+        self.try_consume_semicolon();
+        Ok(CreateOpFamilyStatement { name, method })
+    }
+
+    pub(crate) fn parse_create_contquery(
+        &mut self,
+    ) -> Result<CreateContQueryStatement, ParserError> {
+        let raw_rest = self.skip_to_semicolon_and_collect();
+        Ok(CreateContQueryStatement { raw_rest })
+    }
+
+    pub(crate) fn parse_create_stream(&mut self) -> Result<CreateStreamStatement, ParserError> {
+        self.expect_keyword(Keyword::STREAM)?;
+        let raw_rest = self.skip_to_semicolon_and_collect();
+        Ok(CreateStreamStatement { raw_rest })
+    }
+
+    pub(crate) fn parse_create_key(&mut self) -> Result<CreateKeyStatement, ParserError> {
+        self.expect_keyword(Keyword::KEY)?;
+        let raw_rest = self.skip_to_semicolon_and_collect();
+        Ok(CreateKeyStatement { raw_rest })
     }
 }

@@ -9,10 +9,12 @@ pub use analyzer::{analyze_pl_block, DynamicSqlReport};
 pub use ast::visitor::{walk_statement, Visitor, VisitorResult};
 pub use ast::StatementInfo;
 pub use ast::{
-    AlterTableStatement, ColumnConstraint, ColumnDef, CopyStatement, CreateDatabaseStatement,
-    CreateIndexStatement, CreateSchemaStatement, CreateTableStatement, CreateTablespaceStatement,
-    CreateViewStatement, DataType, DeleteStatement, DropStatement, ExplainStatement, Expr,
-    InsertStatement, Literal, MergeStatement, ObjectName, SelectStatement, Statement,
+    AlterTableAction, AlterTableStatement, ColumnConstraint, ColumnDef, CopyStatement,
+    CreateDatabaseStatement, CreateGlobalIndexStatement, CreateIndexStatement,
+    CreateSchemaStatement, CreateTableStatement, CreateTablespaceStatement, CreateViewStatement,
+    DataType, DeleteStatement, DistributeClause, DropStatement, ExplainStatement, Expr,
+    GlobalIndexColumn, IndexNulls, IndexOrdering, InsertStatement, Literal, MergeStatement,
+    ObjectName, PartitionClause, PartitionDef, SelectIntoTable, SelectStatement, Statement,
     TableConstraint, TableRef, TruncateStatement, UpdateStatement, WindowSpec,
 };
 pub use formatter::SqlFormatter;

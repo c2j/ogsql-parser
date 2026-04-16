@@ -2161,11 +2161,553 @@ fn test_cursor_decl_with_parsed_select() {
                         other => panic!("expected Select, got {:?}", other),
                     }
                 }
-                other => panic!("expected Cursor decl, got {:?}", other),
+                other => panic!("expected Cursor, got {:?}", other),
             }
         }
         other => panic!("expected Do, got {:?}", other),
     }
+}
+
+#[test]
+fn test_alter_table_drop_partition_update_global_index() {
+    let stmt = parse_one("ALTER TABLE t1 DROP PARTITION p1 UPDATE GLOBAL INDEX");
+    match stmt {
+        Statement::AlterTable(at) => {
+            assert_eq!(at.actions.len(), 1);
+            match &at.actions[0] {
+                AlterTableAction::DropPartition {
+                    name,
+                    if_exists,
+                    update_global_index,
+                    update_distributed_global_index,
+                } => {
+                    assert_eq!(name, "p1");
+                    assert!(!if_exists);
+                    assert!(*update_global_index);
+                    assert!(update_distributed_global_index.is_none());
+                }
+                _ => panic!("expected DropPartition"),
+            }
+        }
+        _ => panic!("expected AlterTable"),
+    }
+}
+
+#[test]
+fn test_alter_table_drop_partition_update_distributed_global_index() {
+    let stmt = parse_one("ALTER TABLE t1 DROP PARTITION p1 UPDATE DISTRIBUTED GLOBAL INDEX");
+    match stmt {
+        Statement::AlterTable(at) => {
+            assert_eq!(at.actions.len(), 1);
+            match &at.actions[0] {
+                AlterTableAction::DropPartition {
+                    name,
+                    update_global_index,
+                    update_distributed_global_index,
+                    ..
+                } => {
+                    assert_eq!(name, "p1");
+                    assert!(!*update_global_index);
+                    assert_eq!(*update_distributed_global_index, Some(true));
+                }
+                _ => panic!("expected DropPartition"),
+            }
+        }
+        _ => panic!("expected AlterTable"),
+    }
+}
+
+#[test]
+fn test_alter_table_merge_partitions_no_update_distributed_global_index() {
+    let stmt = parse_one(
+        "ALTER TABLE t1 MERGE PARTITIONS p1, p2 INTO PARTITION p3 NO UPDATE DISTRIBUTED GLOBAL INDEX",
+    );
+    match stmt {
+        Statement::AlterTable(at) => {
+            assert_eq!(at.actions.len(), 1);
+            match &at.actions[0] {
+                AlterTableAction::MergePartitions {
+                    names,
+                    into_name,
+                    update_global_index,
+                    update_distributed_global_index,
+                } => {
+                    assert_eq!(names, &vec!["p1", "p2"]);
+                    assert_eq!(into_name, "p3");
+                    assert!(!*update_global_index);
+                    assert_eq!(*update_distributed_global_index, Some(false));
+                }
+                _ => panic!("expected MergePartitions"),
+            }
+        }
+        _ => panic!("expected AlterTable"),
+    }
+}
+
+#[test]
+fn test_alter_table_enable_row_movement() {
+    let stmt = parse_one("ALTER TABLE t1 ENABLE ROW MOVEMENT");
+    match stmt {
+        Statement::AlterTable(at) => {
+            assert_eq!(at.actions.len(), 1);
+            assert!(matches!(
+                &at.actions[0],
+                AlterTableAction::EnableRowMovement
+            ));
+        }
+        _ => panic!("expected AlterTable"),
+    }
+}
+
+#[test]
+fn test_alter_table_disable_row_movement() {
+    let stmt = parse_one("ALTER TABLE t1 DISABLE ROW MOVEMENT");
+    match stmt {
+        Statement::AlterTable(at) => {
+            assert_eq!(at.actions.len(), 1);
+            assert!(matches!(
+                &at.actions[0],
+                AlterTableAction::DisableRowMovement
+            ));
+        }
+        _ => panic!("expected AlterTable"),
+    }
+}
+
+#[test]
+fn test_alter_table_move_partition_for() {
+    let stmt = parse_one("ALTER TABLE t1 MOVE PARTITION FOR (100) TABLESPACE ts1");
+    match stmt {
+        Statement::AlterTable(at) => {
+            assert_eq!(at.actions.len(), 1);
+            match &at.actions[0] {
+                AlterTableAction::MovePartitionFor { expr, tablespace } => {
+                    assert_eq!(tablespace, "ts1");
+                    let _ = expr;
+                }
+                _ => panic!("expected MovePartitionFor"),
+            }
+        }
+        _ => panic!("expected AlterTable"),
+    }
+}
+
+#[test]
+fn test_alter_table_split_partition_for() {
+    let stmt = parse_one(
+        "ALTER TABLE t1 SPLIT PARTITION FOR (100) AT (200) INTO (PARTITION p2, PARTITION p3)",
+    );
+    match stmt {
+        Statement::AlterTable(at) => {
+            assert_eq!(at.actions.len(), 1);
+            match &at.actions[0] {
+                AlterTableAction::SplitPartitionFor {
+                    expr,
+                    at_value,
+                    into,
+                    update_global_index,
+                    update_distributed_global_index,
+                } => {
+                    assert!(at_value.is_some());
+                    assert_eq!(into.len(), 2);
+                    assert!(!*update_global_index);
+                    assert!(update_distributed_global_index.is_none());
+                    let _ = expr;
+                }
+                _ => panic!("expected SplitPartitionFor"),
+            }
+        }
+        _ => panic!("expected AlterTable"),
+    }
+}
+
+#[test]
+fn test_alter_table_split_partition_for_update_global_index() {
+    let stmt = parse_one(
+        "ALTER TABLE t1 SPLIT PARTITION FOR (100) AT (200) INTO (PARTITION p2, PARTITION p3) UPDATE GLOBAL INDEX",
+    );
+    match stmt {
+        Statement::AlterTable(at) => match &at.actions[0] {
+            AlterTableAction::SplitPartitionFor {
+                update_global_index,
+                update_distributed_global_index,
+                ..
+            } => {
+                assert!(*update_global_index);
+                assert!(update_distributed_global_index.is_none());
+            }
+            _ => panic!("expected SplitPartitionFor"),
+        },
+        _ => panic!("expected AlterTable"),
+    }
+}
+
+#[test]
+fn test_alter_table_exchange_partition_with_validation() {
+    let stmt =
+        parse_one("ALTER TABLE t1 EXCHANGE PARTITION p1 WITH TABLE t2 WITH VALIDATION VERBOSE");
+    match stmt {
+        Statement::AlterTable(at) => {
+            assert_eq!(at.actions.len(), 1);
+            match &at.actions[0] {
+                AlterTableAction::ExchangePartition {
+                    name,
+                    table,
+                    with_validation,
+                    verbose,
+                    update_global_index,
+                    update_distributed_global_index,
+                } => {
+                    assert_eq!(name, "p1");
+                    assert_eq!(table.join("."), "t2");
+                    assert_eq!(*with_validation, Some(true));
+                    assert!(*verbose);
+                    assert!(!*update_global_index);
+                    assert!(update_distributed_global_index.is_none());
+                }
+                _ => panic!("expected ExchangePartition"),
+            }
+        }
+        _ => panic!("expected AlterTable"),
+    }
+}
+
+#[test]
+fn test_alter_table_exchange_partition_without_validation() {
+    let stmt = parse_one("ALTER TABLE t1 EXCHANGE PARTITION p1 WITH TABLE t2 WITHOUT VALIDATION");
+    match stmt {
+        Statement::AlterTable(at) => match &at.actions[0] {
+            AlterTableAction::ExchangePartition {
+                with_validation,
+                verbose,
+                ..
+            } => {
+                assert_eq!(*with_validation, Some(false));
+                assert!(!*verbose);
+            }
+            _ => panic!("expected ExchangePartition"),
+        },
+        _ => panic!("expected AlterTable"),
+    }
+}
+
+#[test]
+fn test_alter_table_exchange_partition_update_global_index() {
+    let stmt = parse_one("ALTER TABLE t1 EXCHANGE PARTITION p1 WITH TABLE t2 UPDATE GLOBAL INDEX");
+    match stmt {
+        Statement::AlterTable(at) => match &at.actions[0] {
+            AlterTableAction::ExchangePartition {
+                update_global_index,
+                with_validation,
+                verbose,
+                ..
+            } => {
+                assert!(*update_global_index);
+                assert!(with_validation.is_none());
+                assert!(!*verbose);
+            }
+            _ => panic!("expected ExchangePartition"),
+        },
+        _ => panic!("expected AlterTable"),
+    }
+}
+
+#[test]
+fn test_alter_table_truncate_partition_update_distributed_global_index() {
+    let stmt = parse_one("ALTER TABLE t1 TRUNCATE PARTITION p1 UPDATE DISTRIBUTED GLOBAL INDEX");
+    match stmt {
+        Statement::AlterTable(at) => match &at.actions[0] {
+            AlterTableAction::TruncatePartition {
+                name,
+                update_distributed_global_index,
+                ..
+            } => {
+                assert_eq!(name, "p1");
+                assert_eq!(*update_distributed_global_index, Some(true));
+            }
+            _ => panic!("expected TruncatePartition"),
+        },
+        _ => panic!("expected AlterTable"),
+    }
+}
+
+#[test]
+fn test_alter_table_partition_update_index_roundtrip() {
+    use crate::formatter::SqlFormatter;
+    let cases = vec![
+        (
+            "ALTER TABLE t1 DROP PARTITION p1 UPDATE GLOBAL INDEX",
+            "ALTER TABLE t1 DROP PARTITION p1 UPDATE GLOBAL INDEX",
+        ),
+        (
+            "ALTER TABLE t1 SPLIT PARTITION p1 AT (100) INTO (PARTITION p2, PARTITION p3) UPDATE GLOBAL INDEX",
+            "ALTER TABLE t1 SPLIT PARTITION p1 AT (100) INTO (PARTITION p2, PARTITION p3) UPDATE GLOBAL INDEX",
+        ),
+        (
+            "ALTER TABLE t1 EXCHANGE PARTITION p1 WITH TABLE t2 WITH VALIDATION VERBOSE",
+            "ALTER TABLE t1 EXCHANGE PARTITION p1 WITH TABLE t2 WITH VALIDATION VERBOSE",
+        ),
+        (
+            "ALTER TABLE t1 EXCHANGE PARTITION p1 WITH TABLE t2 WITHOUT VALIDATION",
+            "ALTER TABLE t1 EXCHANGE PARTITION p1 WITH TABLE t2 WITHOUT VALIDATION",
+        ),
+        (
+            "ALTER TABLE t1 ENABLE ROW MOVEMENT",
+            "ALTER TABLE t1 ENABLE ROW MOVEMENT",
+        ),
+        (
+            "ALTER TABLE t1 DISABLE ROW MOVEMENT",
+            "ALTER TABLE t1 DISABLE ROW MOVEMENT",
+        ),
+        (
+            "ALTER TABLE t1 MOVE PARTITION FOR (100) TABLESPACE ts1",
+            "ALTER TABLE t1 MOVE PARTITION FOR (100) TABLESPACE ts1",
+        ),
+        (
+            "ALTER TABLE t1 SPLIT PARTITION FOR (100) AT (200) INTO (PARTITION p2, PARTITION p3)",
+            "ALTER TABLE t1 SPLIT PARTITION FOR (100) AT (200) INTO (PARTITION p2, PARTITION p3)",
+        ),
+        (
+            "ALTER TABLE t1 MERGE PARTITIONS p1, p2 INTO PARTITION p3 NO UPDATE DISTRIBUTED GLOBAL INDEX",
+            "ALTER TABLE t1 MERGE PARTITIONS p1, p2 INTO PARTITION p3 NO UPDATE DISTRIBUTED GLOBAL INDEX",
+        ),
+    ];
+    let formatter = SqlFormatter::new();
+    for (input, expected) in cases {
+        let stmt = parse_one(input);
+        let output = formatter.format_statement(&stmt);
+        assert_eq!(output, expected, "roundtrip failed for: {}", input);
+        let stmt2 = parse_one(&output);
+        assert_eq!(stmt, stmt2, "AST mismatch for: {}", input);
+    }
+}
+
+// ========== CREATE GLOBAL INDEX Tests ==========
+
+#[test]
+fn test_create_global_index_basic() {
+    let sql = "CREATE GLOBAL INDEX idx ON t1(col1)";
+    let stmt = parse_one(sql);
+    match stmt {
+        Statement::CreateGlobalIndex(s) => {
+            assert!(!s.unique);
+            assert!(!s.concurrent);
+            assert!(!s.if_not_exists);
+            assert_eq!(s.name.as_ref().unwrap(), &vec!["idx".to_string()]);
+            assert_eq!(s.table, vec!["t1".to_string()]);
+            assert_eq!(s.columns.len(), 1);
+            assert_eq!(s.columns[0].name, "col1");
+            assert!(s.columns[0].expression.is_none());
+            assert!(s.using_method.is_none());
+            assert!(s.containing.is_empty());
+            assert!(s.distribute_by.is_none());
+            assert!(s.with_options.is_empty());
+            assert!(s.tablespace.is_none());
+            assert!(s.visible.is_none());
+            assert!(s.where_clause.is_none());
+        }
+        other => panic!("expected CreateGlobalIndex, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_create_global_index_unique_concurrently() {
+    let sql = "CREATE GLOBAL UNIQUE INDEX CONCURRENTLY IF NOT EXISTS idx ON t1(col1)";
+    let stmt = parse_one(sql);
+    match stmt {
+        Statement::CreateGlobalIndex(s) => {
+            assert!(s.unique);
+            assert!(s.concurrent);
+            assert!(s.if_not_exists);
+            assert_eq!(s.name.as_ref().unwrap(), &vec!["idx".to_string()]);
+        }
+        other => panic!("expected CreateGlobalIndex, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_create_global_index_using_method() {
+    let sql = "CREATE GLOBAL INDEX idx ON t1 USING btree(col1)";
+    let stmt = parse_one(sql);
+    match stmt {
+        Statement::CreateGlobalIndex(s) => {
+            assert_eq!(s.using_method.as_deref(), Some("btree"));
+        }
+        other => panic!("expected CreateGlobalIndex, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_create_global_index_column_options() {
+    let sql = "CREATE GLOBAL INDEX idx ON t1(col1 ASC, col2 DESC NULLS FIRST, col3 COLLATE \"en_US\" NULLS LAST)";
+    let stmt = parse_one(sql);
+    match stmt {
+        Statement::CreateGlobalIndex(s) => {
+            assert_eq!(s.columns.len(), 3);
+
+            // col1 ASC
+            assert_eq!(s.columns[0].name, "col1");
+            assert_eq!(s.columns[0].ordering, Some(IndexOrdering::Asc));
+            assert!(s.columns[0].nulls.is_none());
+
+            // col2 DESC NULLS FIRST
+            assert_eq!(s.columns[1].name, "col2");
+            assert_eq!(s.columns[1].ordering, Some(IndexOrdering::Desc));
+            assert_eq!(s.columns[1].nulls, Some(IndexNulls::First));
+
+            // col3 COLLATE "en_US" NULLS LAST
+            assert_eq!(s.columns[2].name, "col3");
+            assert_eq!(s.columns[2].collation.as_deref(), Some("en_US"));
+            assert_eq!(s.columns[2].nulls, Some(IndexNulls::Last));
+        }
+        other => panic!("expected CreateGlobalIndex, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_create_global_index_prefix_length() {
+    let sql = "CREATE GLOBAL INDEX idx ON t1(col1(10))";
+    let stmt = parse_one(sql);
+    match stmt {
+        Statement::CreateGlobalIndex(s) => {
+            assert_eq!(s.columns.len(), 1);
+            assert_eq!(s.columns[0].name, "col1");
+            assert_eq!(s.columns[0].length, Some(10));
+        }
+        other => panic!("expected CreateGlobalIndex, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_create_global_index_expression() {
+    let sql = "CREATE GLOBAL INDEX idx ON t1(UPPER(name))";
+    let stmt = parse_one(sql);
+    match stmt {
+        Statement::CreateGlobalIndex(s) => {
+            assert_eq!(s.columns.len(), 1);
+            // Expression column: name should be empty, expression should be set
+            assert!(s.columns[0].expression.is_some());
+        }
+        other => panic!("expected CreateGlobalIndex, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_create_global_index_containing() {
+    let sql = "CREATE GLOBAL INDEX idx ON t1(col1) CONTAINING (col2, col3)";
+    let stmt = parse_one(sql);
+    match stmt {
+        Statement::CreateGlobalIndex(s) => {
+            assert_eq!(s.containing, vec!["col2", "col3"]);
+        }
+        other => panic!("expected CreateGlobalIndex, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_create_global_index_distribute_by() {
+    let sql = "CREATE GLOBAL INDEX idx ON t1(col1) DISTRIBUTE BY HASH(col1, col2)";
+    let stmt = parse_one(sql);
+    match stmt {
+        Statement::CreateGlobalIndex(s) => match &s.distribute_by {
+            Some(DistributeClause::Hash { columns }) => {
+                assert_eq!(columns, &vec!["col1", "col2"]);
+            }
+            other => panic!("expected Hash distribute, got {:?}", other),
+        },
+        other => panic!("expected CreateGlobalIndex, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_create_global_index_with_tablespace() {
+    let sql = "CREATE GLOBAL INDEX idx ON t1(col1) WITH (fillfactor = 70) TABLESPACE ts1";
+    let stmt = parse_one(sql);
+    match stmt {
+        Statement::CreateGlobalIndex(s) => {
+            assert_eq!(s.with_options.len(), 1);
+            assert_eq!(
+                s.with_options[0],
+                ("fillfactor".to_string(), "70".to_string())
+            );
+            assert_eq!(s.tablespace.as_deref(), Some("ts1"));
+        }
+        other => panic!("expected CreateGlobalIndex, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_create_global_index_visible_invisible() {
+    let visible_sql = "CREATE GLOBAL INDEX idx ON t1(col1) VISIBLE";
+    let stmt = parse_one(visible_sql);
+    match stmt {
+        Statement::CreateGlobalIndex(s) => {
+            assert_eq!(s.visible, Some(true));
+        }
+        other => panic!("expected CreateGlobalIndex, got {:?}", other),
+    }
+
+    let invisible_sql = "CREATE GLOBAL INDEX idx ON t1(col1) INVISIBLE";
+    let stmt = parse_one(invisible_sql);
+    match stmt {
+        Statement::CreateGlobalIndex(s) => {
+            assert_eq!(s.visible, Some(false));
+        }
+        other => panic!("expected CreateGlobalIndex, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_create_global_index_where_clause() {
+    let sql = "CREATE GLOBAL INDEX idx ON t1(col1) WHERE col1 > 10";
+    let stmt = parse_one(sql);
+    match stmt {
+        Statement::CreateGlobalIndex(s) => {
+            assert!(s.where_clause.is_some());
+        }
+        other => panic!("expected CreateGlobalIndex, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_create_global_index_full() {
+    let sql = "CREATE GLOBAL UNIQUE INDEX CONCURRENTLY IF NOT EXISTS schema1.idx ON schema2.t1 USING btree(col1 ASC, col2 DESC NULLS FIRST) CONTAINING (col3, col4) DISTRIBUTE BY HASH(col1) WITH (fillfactor = 70) TABLESPACE ts1 VISIBLE WHERE col1 > 10";
+    let stmt = parse_one(sql);
+    match stmt {
+        Statement::CreateGlobalIndex(s) => {
+            assert!(s.unique);
+            assert!(s.concurrent);
+            assert!(s.if_not_exists);
+            assert_eq!(s.name.as_ref().unwrap().join("."), "schema1.idx");
+            assert_eq!(s.table.join("."), "schema2.t1");
+            assert_eq!(s.using_method.as_deref(), Some("btree"));
+            assert_eq!(s.columns.len(), 2);
+            assert_eq!(s.columns[0].name, "col1");
+            assert_eq!(s.columns[0].ordering, Some(IndexOrdering::Asc));
+            assert_eq!(s.columns[1].name, "col2");
+            assert_eq!(s.columns[1].ordering, Some(IndexOrdering::Desc));
+            assert_eq!(s.columns[1].nulls, Some(IndexNulls::First));
+            assert_eq!(s.containing, vec!["col3", "col4"]);
+            assert!(matches!(
+                s.distribute_by,
+                Some(DistributeClause::Hash { .. })
+            ));
+            assert_eq!(s.with_options.len(), 1);
+            assert_eq!(s.tablespace.as_deref(), Some("ts1"));
+            assert_eq!(s.visible, Some(true));
+            assert!(s.where_clause.is_some());
+        }
+        other => panic!("expected CreateGlobalIndex, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_create_global_index_roundtrip() {
+    let sql = "CREATE GLOBAL UNIQUE INDEX CONCURRENTLY IF NOT EXISTS idx ON t1 USING btree(col1 ASC, col2 DESC NULLS FIRST) CONTAINING (col3) DISTRIBUTE BY HASH(col1) WITH (fillfactor = 70) TABLESPACE ts1 VISIBLE WHERE col1 > 10";
+    let stmt = parse_one(sql);
+    let formatted = SqlFormatter::new().format_statement(&stmt);
+    let stmt2 = parse_one(&formatted);
+    assert_eq!(stmt, stmt2);
 }
 
 #[test]
@@ -3397,7 +3939,9 @@ fn test_alter_table_drop_partition() {
         Statement::AlterTable(at) => {
             assert_eq!(at.actions.len(), 1);
             match &at.actions[0] {
-                AlterTableAction::DropPartition { name, if_exists } => {
+                AlterTableAction::DropPartition {
+                    name, if_exists, ..
+                } => {
                     assert_eq!(name, "p202501");
                     assert!(!if_exists);
                 }
@@ -3415,7 +3959,7 @@ fn test_alter_table_truncate_partition() {
         Statement::AlterTable(at) => {
             assert_eq!(at.actions.len(), 1);
             match &at.actions[0] {
-                AlterTableAction::TruncatePartition { name, cascade } => {
+                AlterTableAction::TruncatePartition { name, cascade, .. } => {
                     assert_eq!(name, "p202501");
                     assert!(!cascade);
                 }
@@ -3434,7 +3978,9 @@ fn test_alter_table_merge_partitions() {
         Statement::AlterTable(at) => {
             assert_eq!(at.actions.len(), 1);
             match &at.actions[0] {
-                AlterTableAction::MergePartitions { names, into_name } => {
+                AlterTableAction::MergePartitions {
+                    names, into_name, ..
+                } => {
                     assert_eq!(names.len(), 2);
                     assert_eq!(into_name, "p2025q1");
                 }
@@ -3458,6 +4004,7 @@ fn test_alter_table_split_partition() {
                     name,
                     at_value,
                     into,
+                    ..
                 } => {
                     assert_eq!(name, "p2025q1");
                     assert!(at_value.is_some());
@@ -3477,7 +4024,7 @@ fn test_alter_table_exchange_partition() {
         Statement::AlterTable(at) => {
             assert_eq!(at.actions.len(), 1);
             match &at.actions[0] {
-                AlterTableAction::ExchangePartition { name, table } => {
+                AlterTableAction::ExchangePartition { name, table, .. } => {
                     assert_eq!(name, "p202501");
                     assert_eq!(table.join("."), "sales_temp");
                 }
@@ -3617,7 +4164,9 @@ fn test_create_table_list_partition() {
     );
     match stmt {
         Statement::CreateTable(ct) => match ct.partition_by.as_ref().unwrap() {
-            PartitionClause::List { column, partitions } => {
+            PartitionClause::List {
+                column, partitions, ..
+            } => {
                 assert_eq!(column.join("."), "region");
                 assert_eq!(partitions.len(), 2);
                 assert_eq!(partitions[0].name, "p_east");
@@ -3752,7 +4301,9 @@ fn test_create_table_subpartition_range_list() {
             assert!(ct.partition_by.is_some());
             assert!(ct.subpartition_by.is_some());
             match ct.subpartition_by.as_ref().unwrap() {
-                PartitionClause::List { column, partitions } => {
+                PartitionClause::List {
+                    column, partitions, ..
+                } => {
                     assert_eq!(column.join("."), "name");
                     assert!(partitions.is_empty()); // subpartition defs are in partition defs
                 }
@@ -4012,6 +4563,254 @@ fn test_json_roundtrip_subpartition() {
     let stmt = parse_one(
         "CREATE TABLE t (id INT, name TEXT) PARTITION BY RANGE (id) SUBPARTITION BY LIST (name) (PARTITION p1 VALUES LESS THAN (100) (SUBPARTITION sp1 VALUES IN ('A'), SUBPARTITION sp2 VALUES IN ('B')))",
     );
+    assert_eq!(stmt, json_roundtrip(&stmt));
+}
+
+// ========== GaussDB PARTITION Extension Tests ==========
+
+#[test]
+fn test_create_table_partition_range_columns() {
+    let stmt = parse_one(
+        "CREATE TABLE t1 (id INT, name VARCHAR(50)) PARTITION BY RANGE COLUMNS (name) (PARTITION p1 VALUES LESS THAN ('M'), PARTITION p2 VALUES LESS THAN ('Z'))",
+    );
+    match stmt {
+        Statement::CreateTable(ct) => {
+            let pb = ct.partition_by.as_ref().expect("expected partition_by");
+            match pb {
+                PartitionClause::Range {
+                    column,
+                    is_columns,
+                    partitions,
+                    ..
+                } => {
+                    assert_eq!(*is_columns, true);
+                    assert_eq!(column, &vec!["name".to_string()]);
+                    assert_eq!(partitions.len(), 2);
+                }
+                other => panic!("expected Range, got {:?}", other),
+            }
+        }
+        other => panic!("expected CreateTable, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_create_table_partition_list_columns() {
+    let stmt = parse_one(
+        "CREATE TABLE t2 (id INT, region VARCHAR(10)) PARTITION BY LIST COLUMNS (region) (PARTITION p_east VALUES IN ('east'), PARTITION p_west VALUES IN ('west'))",
+    );
+    match stmt {
+        Statement::CreateTable(ct) => {
+            let pb = ct.partition_by.as_ref().expect("expected partition_by");
+            match pb {
+                PartitionClause::List {
+                    column,
+                    is_columns,
+                    partitions,
+                } => {
+                    assert_eq!(*is_columns, true);
+                    assert_eq!(column, &vec!["region".to_string()]);
+                    assert_eq!(partitions.len(), 2);
+                }
+                other => panic!("expected List, got {:?}", other),
+            }
+        }
+        other => panic!("expected CreateTable, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_create_table_partition_range_with_partitions_count() {
+    let stmt = parse_one(
+        "CREATE TABLE t1 (id INT, dt DATE) PARTITION BY RANGE (dt) PARTITIONS 10 (PARTITION p1 VALUES LESS THAN ('2025-01-01'))",
+    );
+    match stmt {
+        Statement::CreateTable(ct) => {
+            let pb = ct.partition_by.as_ref().expect("expected partition_by");
+            match pb {
+                PartitionClause::Range {
+                    partitions_count, ..
+                } => {
+                    assert_eq!(*partitions_count, Some(10));
+                }
+                other => panic!("expected Range, got {:?}", other),
+            }
+        }
+        other => panic!("expected CreateTable, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_create_table_partition_start_end_every() {
+    let stmt = parse_one(
+        "CREATE TABLE t1 (id INT, dt DATE) PARTITION BY RANGE (dt) (PARTITION p1 START('2020-01-01') END('2020-06-01') EVERY('1 month'), PARTITION p2 START('2020-06-01') END('2021-01-01'))",
+    );
+    match stmt {
+        Statement::CreateTable(ct) => {
+            let pb = ct.partition_by.as_ref().expect("expected partition_by");
+            match pb {
+                PartitionClause::Range { partitions, .. } => {
+                    assert_eq!(partitions.len(), 2);
+                    match &partitions[0].values {
+                        Some(PartitionValues::StartEnd { start, end, every }) => {
+                            assert!(every.is_some());
+                        }
+                        other => panic!("expected StartEnd with every, got {:?}", other),
+                    }
+                    match &partitions[1].values {
+                        Some(PartitionValues::StartEnd { every, .. }) => {
+                            assert!(every.is_none());
+                        }
+                        other => panic!("expected StartEnd without every, got {:?}", other),
+                    }
+                }
+                other => panic!("expected Range, got {:?}", other),
+            }
+        }
+        other => panic!("expected CreateTable, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_create_table_partition_list_default() {
+    let stmt = parse_one(
+        "CREATE TABLE t1 (id INT, region VARCHAR(10)) PARTITION BY LIST (region) (PARTITION p_east VALUES IN ('east'), PARTITION p_default VALUES (DEFAULT))",
+    );
+    match stmt {
+        Statement::CreateTable(ct) => {
+            let pb = ct.partition_by.as_ref().expect("expected partition_by");
+            match pb {
+                PartitionClause::List { partitions, .. } => {
+                    assert_eq!(partitions.len(), 2);
+                    match &partitions[1].values {
+                        Some(PartitionValues::InValues(vals)) => {
+                            assert_eq!(vals.len(), 1);
+                            assert_eq!(vals[0], Expr::Default);
+                        }
+                        other => panic!("expected InValues with DEFAULT, got {:?}", other),
+                    }
+                }
+                other => panic!("expected List, got {:?}", other),
+            }
+        }
+        other => panic!("expected CreateTable, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_create_table_partition_values_without_in() {
+    let stmt = parse_one(
+        "CREATE TABLE t1 (id INT, region VARCHAR(10)) PARTITION BY LIST (region) (PARTITION p_east VALUES ('east'), PARTITION p_west VALUES ('west'))",
+    );
+    match stmt {
+        Statement::CreateTable(ct) => {
+            let pb = ct.partition_by.as_ref().expect("expected partition_by");
+            match pb {
+                PartitionClause::List { partitions, .. } => {
+                    assert_eq!(partitions.len(), 2);
+                    match &partitions[0].values {
+                        Some(PartitionValues::InValues(vals)) => {
+                            assert_eq!(vals.len(), 1);
+                        }
+                        other => panic!("expected InValues, got {:?}", other),
+                    }
+                }
+                other => panic!("expected List, got {:?}", other),
+            }
+        }
+        other => panic!("expected CreateTable, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_create_table_enable_row_movement() {
+    let stmt = parse_one("CREATE TABLE t1 (id INT) ENABLE ROW MOVEMENT");
+    match stmt {
+        Statement::CreateTable(ct) => {
+            assert_eq!(ct.row_movement, Some(true));
+        }
+        other => panic!("expected CreateTable, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_create_table_disable_row_movement() {
+    let stmt = parse_one("CREATE TABLE t2 (id INT) DISABLE ROW MOVEMENT");
+    match stmt {
+        Statement::CreateTable(ct) => {
+            assert_eq!(ct.row_movement, Some(false));
+        }
+        other => panic!("expected CreateTable, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_create_table_enable_row_movement_roundtrip() {
+    let sql = "CREATE TABLE t1 (id INTEGER) ENABLE ROW MOVEMENT";
+    let stmt = parse_one(sql);
+    let formatted = SqlFormatter::new().format_statement(&stmt);
+    let stmt2 = parse_one(&formatted);
+    assert_eq!(stmt, stmt2);
+}
+
+#[test]
+fn test_create_table_disable_row_movement_roundtrip() {
+    let sql = "CREATE TABLE t2 (id INTEGER) DISABLE ROW MOVEMENT";
+    let stmt = parse_one(sql);
+    let formatted = SqlFormatter::new().format_statement(&stmt);
+    let stmt2 = parse_one(&formatted);
+    assert_eq!(stmt, stmt2);
+}
+
+#[test]
+fn test_create_table_range_columns_roundtrip() {
+    let sql = "CREATE TABLE t1 (id INTEGER, name VARCHAR(50)) PARTITION BY RANGE COLUMNS (name) (PARTITION p1 VALUES LESS THAN ('M'))";
+    let stmt = parse_one(sql);
+    let formatted = SqlFormatter::new().format_statement(&stmt);
+    let stmt2 = parse_one(&formatted);
+    assert_eq!(stmt, stmt2);
+}
+
+#[test]
+fn test_create_table_list_columns_roundtrip() {
+    let sql = "CREATE TABLE t2 (id INTEGER, region VARCHAR(10)) PARTITION BY LIST COLUMNS (region) (PARTITION p_east VALUES IN ('east'))";
+    let stmt = parse_one(sql);
+    let formatted = SqlFormatter::new().format_statement(&stmt);
+    let stmt2 = parse_one(&formatted);
+    assert_eq!(stmt, stmt2);
+}
+
+#[test]
+fn test_create_table_start_end_every_roundtrip() {
+    let sql = "CREATE TABLE t1 (id INTEGER, dt DATE) PARTITION BY RANGE (dt) (PARTITION p1 START('2020-01-01') END('2020-06-01') EVERY('1 month'))";
+    let stmt = parse_one(sql);
+    let formatted = SqlFormatter::new().format_statement(&stmt);
+    let stmt2 = parse_one(&formatted);
+    assert_eq!(stmt, stmt2);
+}
+
+#[test]
+fn test_create_table_partition_list_default_roundtrip() {
+    let sql = "CREATE TABLE t1 (id INTEGER, region VARCHAR(10)) PARTITION BY LIST (region) (PARTITION p_east VALUES IN ('east'), PARTITION p_default VALUES (DEFAULT))";
+    let stmt = parse_one(sql);
+    let formatted = SqlFormatter::new().format_statement(&stmt);
+    let stmt2 = parse_one(&formatted);
+    assert_eq!(stmt, stmt2);
+}
+
+#[test]
+fn test_create_table_partition_range_partitions_count_roundtrip() {
+    let sql = "CREATE TABLE t1 (id INTEGER, dt DATE) PARTITION BY RANGE (dt) PARTITIONS 10 (PARTITION p1 VALUES LESS THAN ('2025-01-01'))";
+    let stmt = parse_one(sql);
+    let formatted = SqlFormatter::new().format_statement(&stmt);
+    let stmt2 = parse_one(&formatted);
+    assert_eq!(stmt, stmt2);
+}
+
+#[test]
+fn test_create_table_gaussdb_json_roundtrip() {
+    let sql = "CREATE TABLE t1 (id INTEGER, dt DATE) PARTITION BY RANGE COLUMNS (dt) PARTITIONS 4 ENABLE ROW MOVEMENT (PARTITION p1 START('2020-01-01') END('2020-06-01') EVERY('1 month'))";
+    let stmt = parse_one(sql);
     assert_eq!(stmt, json_roundtrip(&stmt));
 }
 
@@ -5577,5 +6376,644 @@ fn test_typefuncname_keyword_as_implicit_alias() {
             }
         }
         other => panic!("expected Select, got {:?}", other),
+    }
+}
+
+// ========== Work Unit A: Quick Wins (P0-4 + P0-5) ==========
+
+// --- EXPLAIN PLAN (P0-4: Verify existing implementation) ---
+
+#[test]
+fn test_explain_plan_basic() {
+    let sql = "EXPLAIN PLAN FOR SELECT * FROM t";
+    let stmt = parse_one(sql);
+    match stmt {
+        Statement::Explain(e) => {
+            assert!(e.plan);
+            assert!(e.statement_id.is_none());
+            match e.query.as_ref() {
+                Statement::Select(s) => {
+                    assert!(s.targets.len() == 1);
+                }
+                other => panic!("expected inner Select, got {:?}", other),
+            }
+        }
+        other => panic!("expected Explain, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_explain_plan_with_statement_id() {
+    let sql = "EXPLAIN PLAN SET STATEMENT_ID = 'myplan' FOR SELECT * FROM t";
+    let stmt = parse_one(sql);
+    match stmt {
+        Statement::Explain(e) => {
+            assert!(e.plan);
+            assert_eq!(e.statement_id.as_deref(), Some("myplan"));
+            match e.query.as_ref() {
+                Statement::Select(s) => {
+                    assert!(s.targets.len() == 1);
+                }
+                other => panic!("expected inner Select, got {:?}", other),
+            }
+        }
+        other => panic!("expected Explain, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_explain_plan_roundtrip() {
+    let sql = "EXPLAIN PLAN SET STATEMENT_ID = 'test' FOR SELECT * FROM t";
+    let stmt = parse_one(sql);
+    let formatted = SqlFormatter::new().format_statement(&stmt);
+    let stmt2 = parse_one(&formatted);
+    assert_eq!(stmt, stmt2);
+}
+
+// --- SELECT INTO TABLE (P0-5: GaussDB extension) ---
+
+#[test]
+fn test_select_into_table() {
+    let sql = "SELECT * INTO TABLE new_table FROM t";
+    let stmt = parse_one(sql);
+    match stmt {
+        Statement::Select(s) => {
+            assert!(
+                s.into_targets.is_none(),
+                "into_targets should be None for INTO TABLE"
+            );
+            let into_table = s.into_table.as_ref().expect("expected into_table");
+            assert!(!into_table.unlogged);
+            assert_eq!(into_table.table_name, vec!["new_table".to_string()]);
+        }
+        other => panic!("expected Select, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_select_into_unlogged_table() {
+    let sql = "SELECT * INTO UNLOGGED TABLE new_table FROM t WHERE id = 1";
+    let stmt = parse_one(sql);
+    match stmt {
+        Statement::Select(s) => {
+            assert!(s.into_targets.is_none());
+            let into_table = s.into_table.as_ref().expect("expected into_table");
+            assert!(into_table.unlogged);
+            assert_eq!(into_table.table_name, vec!["new_table".to_string()]);
+            assert!(s.where_clause.is_some());
+        }
+        other => panic!("expected Select, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_select_into_table_no_keyword() {
+    // GaussDB allows omitting TABLE keyword: SELECT * INTO new_table FROM t
+    let sql = "SELECT * INTO new_table FROM t";
+    let stmt = parse_one(sql);
+    match stmt {
+        Statement::Select(s) => {
+            assert!(s.into_targets.is_none(), "into_targets should be None");
+            let into_table = s.into_table.as_ref().expect("expected into_table");
+            assert!(!into_table.unlogged);
+            assert_eq!(into_table.table_name, vec!["new_table".to_string()]);
+        }
+        other => panic!("expected Select, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_select_into_table_roundtrip() {
+    let sql = "SELECT * INTO TABLE new_table FROM t";
+    let stmt = parse_one(sql);
+    let formatted = SqlFormatter::new().format_statement(&stmt);
+    let stmt2 = parse_one(&formatted);
+    assert_eq!(stmt, stmt2);
+}
+
+#[test]
+fn test_select_into_unlogged_table_roundtrip() {
+    let sql = "SELECT * INTO UNLOGGED TABLE new_table FROM t WHERE id = 1";
+    let stmt = parse_one(sql);
+    let formatted = SqlFormatter::new().format_statement(&stmt);
+    let stmt2 = parse_one(&formatted);
+    assert_eq!(stmt, stmt2);
+}
+
+#[test]
+fn test_select_into_variables_still_works() {
+    let sql = "SELECT col1, col2 INTO v1, v2 FROM t";
+    let stmt = parse_one(sql);
+    match stmt {
+        Statement::Select(s) => {
+            assert!(
+                s.into_table.is_none(),
+                "into_table should be None for PL/pgSQL INTO"
+            );
+            let into_targets = s.into_targets.as_ref().expect("expected into_targets");
+            assert_eq!(into_targets.len(), 2);
+        }
+        other => panic!("expected Select, got {:?}", other),
+    }
+}
+
+// ========== Utility statement tests ==========
+
+#[test]
+fn test_shutdown_bare() {
+    let stmt = parse_one("SHUTDOWN");
+    match stmt {
+        Statement::Shutdown(s) => assert_eq!(s.mode, None),
+        other => panic!("expected Shutdown, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_shutdown_fast() {
+    let stmt = parse_one("SHUTDOWN FAST");
+    match stmt {
+        Statement::Shutdown(s) => assert_eq!(s.mode.as_deref(), Some("FAST")),
+        other => panic!("expected Shutdown, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_shutdown_immediate() {
+    let stmt = parse_one("SHUTDOWN IMMEDIATE");
+    match stmt {
+        Statement::Shutdown(s) => assert_eq!(s.mode.as_deref(), Some("IMMEDIATE")),
+        other => panic!("expected Shutdown, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_barrier() {
+    let stmt = parse_one("BARRIER my_barrier");
+    match stmt {
+        Statement::Barrier(s) => assert_eq!(s.name, "my_barrier"),
+        other => panic!("expected Barrier, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_purge_table() {
+    let stmt = parse_one("PURGE TABLE my_table");
+    match stmt {
+        Statement::Purge(s) => match s.target {
+            PurgeTarget::Table { ref name } => {
+                assert_eq!(name.join("."), "my_table");
+            }
+            _ => panic!("expected PurgeTarget::Table"),
+        },
+        other => panic!("expected Purge, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_purge_index() {
+    let stmt = parse_one("PURGE INDEX my_idx");
+    match stmt {
+        Statement::Purge(s) => match s.target {
+            PurgeTarget::Index { ref name } => {
+                assert_eq!(name.join("."), "my_idx");
+            }
+            _ => panic!("expected PurgeTarget::Index"),
+        },
+        other => panic!("expected Purge, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_purge_recyclebin() {
+    let stmt = parse_one("PURGE RECYCLEBIN");
+    match stmt {
+        Statement::Purge(s) => assert!(matches!(s.target, PurgeTarget::RecycleBin)),
+        other => panic!("expected Purge, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_snapshot_with_name() {
+    let stmt = parse_one("SNAPSHOT snap1");
+    match stmt {
+        Statement::Snapshot(s) => assert_eq!(s.name.as_deref(), Some("snap1")),
+        other => panic!("expected Snapshot, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_snapshot_bare() {
+    let stmt = parse_one("SNAPSHOT");
+    match stmt {
+        Statement::Snapshot(s) => {
+            assert_eq!(s.name, None);
+            assert!(s.options.is_empty());
+        }
+        other => panic!("expected Snapshot, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_timecapsule_table() {
+    let stmt = parse_one("TIMECAPSULE TABLE t1 TO TIMESTAMP");
+    match stmt {
+        Statement::TimeCapsule(s) => {
+            assert_eq!(s.table_name.join("."), "t1");
+            assert!(!s.action.is_empty());
+        }
+        other => panic!("expected TimeCapsule, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_shrink() {
+    let stmt = parse_one("SHRINK SPACE");
+    match stmt {
+        Statement::Shrink(s) => {
+            assert_eq!(s.target.as_deref(), Some("space"));
+        }
+        other => panic!("expected Shrink, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_verify() {
+    let stmt = parse_one("VERIFY TABLE t1");
+    match stmt {
+        Statement::Verify(s) => assert!(!s.raw_rest.is_empty()),
+        other => panic!("expected Verify, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_compile() {
+    let stmt = parse_one("COMPILE");
+    match stmt {
+        Statement::Compile(s) => assert!(s.raw_rest.is_empty()),
+        other => panic!("expected Compile, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_clean_conn_all() {
+    let stmt = parse_one("CLEAN CONNECTION TO ALL");
+    match stmt {
+        Statement::CleanConn(s) => {
+            assert_eq!(s.target, "all");
+            assert_eq!(s.for_user, None);
+        }
+        other => panic!("expected CleanConn, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_clean_conn_for_user() {
+    let stmt = parse_one("CLEAN CONNECTION TO ALL FOR USER admin");
+    match stmt {
+        Statement::CleanConn(s) => {
+            assert_eq!(s.target, "all");
+            assert_eq!(s.for_user.as_deref(), Some("admin"));
+        }
+        other => panic!("expected CleanConn, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_sec_label() {
+    let stmt = parse_one("SECURITY LABEL TABLE my_table IS 'classified'");
+    match stmt {
+        Statement::SecLabel(s) => {
+            assert_eq!(s.object_type, "table");
+            assert_eq!(s.label.as_deref(), Some("classified"));
+        }
+        other => panic!("expected SecLabel, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_create_conversion() {
+    let stmt = parse_one("CREATE CONVERSION myconv FOR latin1 TO utf8 FROM my_func");
+    match stmt {
+        Statement::CreateConversion(s) => {
+            assert_eq!(s.name, "myconv");
+            assert_eq!(s.source_encoding, "latin1");
+            assert_eq!(s.dest_encoding, "utf8");
+            assert_eq!(s.function_name, "my_func");
+        }
+        other => panic!("expected CreateConversion, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_create_synonym() {
+    let stmt = parse_one("CREATE OR REPLACE SYNONYM mysyn FOR public.my_table PUBLIC");
+    match stmt {
+        Statement::CreateSynonym(s) => {
+            assert!(s.replace);
+            assert_eq!(s.name, vec!["mysyn".to_string()]);
+            assert_eq!(s.target, vec!["public".to_string(), "my_table".to_string()]);
+            assert!(s.public);
+        }
+        other => panic!("expected CreateSynonym, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_create_model() {
+    let stmt = parse_one(
+        "CREATE MODEL mymodel USING linear FEATURES (col1, col2) TARGET col3 FROM mytable",
+    );
+    match stmt {
+        Statement::CreateModel(s) => {
+            assert_eq!(s.name, "mymodel");
+            assert!(s.raw_rest.contains("using"));
+        }
+        other => panic!("expected CreateModel, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_create_am() {
+    let stmt = parse_one("CREATE ACCESS METHOD myam TYPE btree HANDLER my_handler");
+    match stmt {
+        Statement::CreateAm(s) => {
+            assert_eq!(s.name, "myam");
+            assert_eq!(s.method, "btree");
+            assert_eq!(s.handler, "my_handler");
+        }
+        other => panic!("expected CreateAm, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_create_directory() {
+    let stmt = parse_one("CREATE DIRECTORY mydir AS '/tmp/data'");
+    match stmt {
+        Statement::CreateDirectory(s) => {
+            assert_eq!(s.name, "mydir");
+            assert_eq!(s.path, "/tmp/data");
+        }
+        other => panic!("expected CreateDirectory, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_create_data_source() {
+    let stmt = parse_one("CREATE DATA SOURCE myds WITH (url = 'localhost', type = 'mysql')");
+    match stmt {
+        Statement::CreateDataSource(s) => {
+            assert_eq!(s.name, "myds");
+            assert_eq!(s.options.len(), 2);
+        }
+        other => panic!("expected CreateDataSource, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_create_event() {
+    let stmt = parse_one("CREATE EVENT myevent ON SCHEDULE EVERY 1 DAY DO SELECT 1");
+    match stmt {
+        Statement::CreateEvent(s) => {
+            assert_eq!(s.name, "myevent");
+            assert!(s.raw_rest.contains("schedule"));
+        }
+        other => panic!("expected CreateEvent, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_create_opclass() {
+    let stmt = parse_one("CREATE OPERATOR CLASS myop USING btree DEFAULT");
+    match stmt {
+        Statement::CreateOpClass(s) => {
+            assert_eq!(s.name, "myop");
+            assert_eq!(s.method, "btree");
+        }
+        other => panic!("expected CreateOpClass, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_create_opfamily() {
+    let stmt = parse_one("CREATE OPERATOR FAMILY myop USING btree");
+    match stmt {
+        Statement::CreateOpFamily(s) => {
+            assert_eq!(s.name, "myop");
+            assert_eq!(s.method, "btree");
+        }
+        other => panic!("expected CreateOpFamily, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_create_contquery() {
+    let stmt = parse_one("CREATE CONTINUOUS QUERY mycq AS SELECT * FROM my_stream");
+    match stmt {
+        Statement::CreateContQuery(s) => {
+            assert!(s.raw_rest.contains("mycq"));
+        }
+        other => panic!("expected CreateContQuery, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_create_stream() {
+    let stmt = parse_one("CREATE STREAM mystream (id int, name text)");
+    match stmt {
+        Statement::CreateStream(s) => {
+            assert!(s.raw_rest.contains("mystream"));
+        }
+        other => panic!("expected CreateStream, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_create_key() {
+    let stmt = parse_one("CREATE KEY mykey WITH (algorithm = 'RSA')");
+    match stmt {
+        Statement::CreateKey(s) => {
+            assert!(s.raw_rest.contains("mykey"));
+        }
+        other => panic!("expected CreateKey, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_alter_foreign_table() {
+    let stmt = parse_one("ALTER FOREIGN TABLE ft1 ADD COLUMN c1 INT");
+    match stmt {
+        Statement::AlterForeignTable(s) => {
+            assert_eq!(s.name.join("."), "ft1");
+            assert!(!s.raw_rest.is_empty());
+        }
+        other => panic!("expected AlterForeignTable, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_alter_foreign_server() {
+    let stmt = parse_one("ALTER FOREIGN SERVER srv1 OPTIONS (host 'localhost')");
+    match stmt {
+        Statement::AlterForeignServer(s) => {
+            assert_eq!(s.name, "srv1");
+            assert!(!s.raw_rest.is_empty());
+        }
+        other => panic!("expected AlterForeignServer, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_alter_fdw() {
+    let stmt = parse_one("ALTER FOREIGN DATA WRAPPER fdw1 HANDLER new_handler");
+    match stmt {
+        Statement::AlterFdw(s) => {
+            assert_eq!(s.name, "fdw1");
+            assert!(!s.raw_rest.is_empty());
+        }
+        other => panic!("expected AlterFdw, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_alter_publication() {
+    let stmt = parse_one("ALTER PUBLICATION pub1 ADD TABLE t1");
+    match stmt {
+        Statement::AlterPublication(s) => {
+            assert_eq!(s.name, "pub1");
+            assert!(!s.raw_rest.is_empty());
+        }
+        other => panic!("expected AlterPublication, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_alter_subscription() {
+    let stmt = parse_one("ALTER SUBSCRIPTION sub1 CONNECTION 'host=remote'");
+    match stmt {
+        Statement::AlterSubscription(s) => {
+            assert_eq!(s.name, "sub1");
+            assert!(!s.raw_rest.is_empty());
+        }
+        other => panic!("expected AlterSubscription, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_alter_node() {
+    let stmt = parse_one("ALTER NODE node1 WITH (host = '127.0.0.1')");
+    match stmt {
+        Statement::AlterNode(s) => {
+            assert_eq!(s.name, "node1");
+            assert!(!s.raw_rest.is_empty());
+        }
+        other => panic!("expected AlterNode, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_alter_node_group() {
+    let stmt = parse_one("ALTER NODE GROUP grp1 ADD NODE node2");
+    match stmt {
+        Statement::AlterNodeGroup(s) => {
+            assert_eq!(s.name, "grp1");
+            assert!(!s.raw_rest.is_empty());
+        }
+        other => panic!("expected AlterNodeGroup, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_alter_workload_group() {
+    let stmt = parse_one("ALTER WORKLOAD GROUP wg1 SET (cpu_limit = 0.5)");
+    match stmt {
+        Statement::AlterWorkloadGroup(s) => {
+            assert_eq!(s.name, "wg1");
+            assert!(!s.raw_rest.is_empty());
+        }
+        other => panic!("expected AlterWorkloadGroup, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_alter_audit_policy() {
+    let stmt = parse_one("ALTER AUDIT POLICY ap1 COMMENTS 'updated'");
+    match stmt {
+        Statement::AlterAuditPolicy(s) => {
+            assert_eq!(s.name, "ap1");
+            assert!(!s.raw_rest.is_empty());
+        }
+        other => panic!("expected AlterAuditPolicy, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_alter_rls_policy() {
+    let stmt = parse_one("ALTER POLICY rls1 ON t1 WITH CHECK (true)");
+    match stmt {
+        Statement::AlterRlsPolicy(s) => {
+            assert_eq!(s.name, "rls1");
+            assert!(!s.raw_rest.is_empty());
+        }
+        other => panic!("expected AlterRlsPolicy, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_alter_rls_policy_with_prefix() {
+    let stmt = parse_one("ALTER RLS POLICY rls2 ON t2");
+    match stmt {
+        Statement::AlterRlsPolicy(s) => {
+            assert_eq!(s.name, "rls2");
+        }
+        other => panic!("expected AlterRlsPolicy, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_alter_data_source() {
+    let stmt = parse_one("ALTER DATA SOURCE ds1 SET (opt = 'val')");
+    match stmt {
+        Statement::AlterDataSource(s) => {
+            assert_eq!(s.name, "ds1");
+            assert!(!s.raw_rest.is_empty());
+        }
+        other => panic!("expected AlterDataSource, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_alter_event() {
+    let stmt = parse_one("ALTER EVENT evt1 ENABLE");
+    match stmt {
+        Statement::AlterEvent(s) => {
+            assert_eq!(s.name, "evt1");
+            assert!(!s.raw_rest.is_empty());
+        }
+        other => panic!("expected AlterEvent, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_alter_opfamily() {
+    let stmt = parse_one("ALTER OPERATOR FAMILY of1 USING btree ADD FUNCTION 1 foo(bar)");
+    match stmt {
+        Statement::AlterOpFamily(s) => {
+            assert_eq!(s.name, "of1");
+            assert_eq!(s.method, "btree");
+            assert!(!s.raw_rest.is_empty());
+        }
+        other => panic!("expected AlterOpFamily, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_alter_materialized_view() {
+    let stmt = parse_one("ALTER MATERIALIZED VIEW mv1 SET (fillfactor = 50)");
+    match stmt {
+        Statement::AlterMaterializedView(s) => {
+            assert_eq!(s.name.join("."), "mv1");
+            assert!(!s.raw_rest.is_empty());
+        }
+        other => panic!("expected AlterMaterializedView, got {:?}", other),
     }
 }
