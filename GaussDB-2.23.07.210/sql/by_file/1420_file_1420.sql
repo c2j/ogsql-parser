@@ -1,0 +1,9 @@
+-- 来源: 1420_file_1420.txt
+-- SQL 数量: 3
+
+CREATE OR REPLACE PROCEDURE array_proc AS DECLARE TYPE ARRAY_INTEGER IS VARRAY ( 1024 ) OF INTEGER ;
+
+CALL array_proc ();
+
+DROP PROCEDURE array_proc ;
+

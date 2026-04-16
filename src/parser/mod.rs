@@ -1,6 +1,8 @@
 pub(crate) mod ddl;
 pub(crate) mod dml;
 pub(crate) mod expr;
+pub(crate) mod function_validator;
+pub(crate) mod hint_validator;
 pub(crate) mod plpgsql;
 pub(crate) mod select;
 pub(crate) mod utility;
@@ -19,6 +21,16 @@ pub enum ParserError {
     #[error("unexpected end of input at line {}, column {}: expected {}", .location.line, .location.column, expected)]
     UnexpectedEof {
         expected: String,
+        location: SourceLocation,
+    },
+    #[error("{}", .message)]
+    Warning {
+        message: String,
+        location: SourceLocation,
+    },
+    #[error("reserved keyword \"{}\" cannot be used as identifier at line {}, column {}", .keyword, .location.line, .location.column)]
+    ReservedKeywordAsIdentifier {
+        keyword: String,
         location: SourceLocation,
     },
     #[error("{0}")]
@@ -473,6 +485,7 @@ impl Parser {
     }
 
     /// Consume an identifier (Ident, QuotedIdent, or Keyword-as-identifier).
+    /// Reserved keywords used as identifiers emit error; non-reserved are silently accepted.
     fn parse_identifier(&mut self) -> Result<String, ParserError> {
         match self.peek().clone() {
             Token::Ident(s) => {
@@ -484,10 +497,18 @@ impl Parser {
                 Ok(s)
             }
             Token::Keyword(kw) => {
+                let location = self.current_location();
                 self.advance();
-                // Convert keyword to lowercase identifier, stripping _P suffix
                 let s = format!("{:?}", kw).to_lowercase();
-                Ok(s.trim_end_matches("_p").to_string())
+                let name = s.trim_end_matches("_p").to_string();
+
+                if kw.category() == crate::token::keyword::KeywordCategory::Reserved {
+                    self.add_error(ParserError::ReservedKeywordAsIdentifier {
+                        keyword: name.clone(),
+                        location,
+                    });
+                }
+                Ok(name)
             }
             _ => Err(ParserError::UnexpectedToken {
                 location: self.current_location(),
@@ -520,6 +541,68 @@ impl Parser {
         }
     }
 
+    /// Try to consume an optional column alias: [AS] identifier
+    /// Unlike parse_optional_alias, also accepts non-reserved keywords as implicit aliases.
+    /// Uses 1-token lookahead to avoid consuming keywords that start subsequent clauses
+    /// (e.g., LOOP in PL/pgSQL, CONNECT in hierarchical queries, ON CONFLICT in INSERT).
+    fn parse_optional_column_alias(&mut self) -> Result<Option<String>, ParserError> {
+        if self.match_keyword(Keyword::AS) {
+            self.advance();
+            Ok(Some(self.parse_identifier()?))
+        } else {
+            match self.peek() {
+                Token::Ident(_) | Token::QuotedIdent(_) => Ok(Some(self.parse_identifier()?)),
+                Token::Keyword(kw) => {
+                    if kw.category() != crate::token::keyword::KeywordCategory::Reserved
+                        && self.looks_like_alias()
+                    {
+                        Ok(Some(self.parse_identifier()?))
+                    } else {
+                        Ok(None)
+                    }
+                }
+                _ => Ok(None),
+            }
+        }
+    }
+
+    /// Check if the token *after* the current one confirms the current token is an alias.
+    /// After a valid alias we expect: Comma, FROM, RParen, WHERE, GROUP, ORDER, HAVING,
+    /// LIMIT, OFFSET, UNION, INTERSECT, EXCEPT, MINUS, FOR, EOF, Semicolon, or certain
+    /// keywords that continue the query — NOT keywords like LOOP, CONNECT, ON, etc.
+    fn looks_like_alias(&self) -> bool {
+        if self.pos + 1 >= self.tokens.len() {
+            return true;
+        }
+        match &self.tokens[self.pos + 1].token {
+            Token::Comma | Token::RParen | Token::Semicolon | Token::Eof => true,
+            Token::Keyword(kw) => matches!(
+                kw,
+                Keyword::FROM
+                    | Keyword::WHERE
+                    | Keyword::GROUP_P
+                    | Keyword::ORDER
+                    | Keyword::HAVING
+                    | Keyword::LIMIT
+                    | Keyword::OFFSET
+                    | Keyword::UNION
+                    | Keyword::INTERSECT
+                    | Keyword::EXCEPT
+                    | Keyword::MINUS_P
+                    | Keyword::FOR
+                    | Keyword::INTO
+                    | Keyword::END_P
+                    | Keyword::THEN
+                    | Keyword::ELSE
+                    | Keyword::WHEN
+                    | Keyword::AND
+                    | Keyword::OR
+                    | Keyword::AS
+            ),
+            _ => false,
+        }
+    }
+
     /// Check if the current token starts an expression.
     fn is_expr_start(&self) -> bool {
         matches!(
@@ -536,6 +619,7 @@ impl Parser {
                 | Token::QuotedIdent(_)
                 | Token::Param(_)
                 | Token::LParen
+                | Token::LBracket
                 | Token::Minus
                 | Token::Plus
                 | Token::Star
@@ -557,7 +641,11 @@ impl Parser {
 
     pub(crate) fn consume_hints(&mut self) -> Vec<String> {
         let mut hints = Vec::new();
+        let loc = self.current_location();
         while let Token::Hint(h) = self.peek().clone() {
+            for w in hint_validator::validate_hints(&h, loc.clone()) {
+                self.add_error(w);
+            }
             hints.push(h);
             self.advance();
         }
@@ -585,17 +673,43 @@ impl Parser {
             Token::Keyword(Keyword::INSERT) => {
                 let pre_hints = self.consume_hints();
                 self.advance();
-                match self.parse_insert() {
-                    Ok(mut stmt) => {
-                        let mut hints = pre_hints;
-                        hints.append(&mut stmt.hints);
-                        stmt.hints = hints;
-                        self.try_consume_semicolon();
-                        crate::ast::Statement::Insert(stmt)
+                if self.match_keyword(Keyword::ALL) {
+                    self.advance();
+                    match self.parse_insert_all() {
+                        Ok(stmt) => {
+                            self.try_consume_semicolon();
+                            crate::ast::Statement::InsertAll(stmt)
+                        }
+                        Err(e) => {
+                            self.add_error(e);
+                            self.skip_to_semicolon()
+                        }
                     }
-                    Err(e) => {
-                        self.add_error(e);
-                        self.skip_to_semicolon()
+                } else if self.match_keyword(Keyword::FIRST_P) {
+                    self.advance();
+                    match self.parse_insert_first() {
+                        Ok(stmt) => {
+                            self.try_consume_semicolon();
+                            crate::ast::Statement::InsertFirst(stmt)
+                        }
+                        Err(e) => {
+                            self.add_error(e);
+                            self.skip_to_semicolon()
+                        }
+                    }
+                } else {
+                    match self.parse_insert() {
+                        Ok(mut stmt) => {
+                            let mut hints = pre_hints;
+                            hints.append(&mut stmt.hints);
+                            stmt.hints = hints;
+                            self.try_consume_semicolon();
+                            crate::ast::Statement::Insert(stmt)
+                        }
+                        Err(e) => {
+                            self.add_error(e);
+                            self.skip_to_semicolon()
+                        }
                     }
                 }
             }
@@ -1019,14 +1133,28 @@ impl Parser {
             }
             Token::Keyword(Keyword::REFRESH) => {
                 self.advance();
-                match self.parse_refresh_materialized_view() {
-                    Ok(stmt) => {
-                        self.try_consume_semicolon();
-                        crate::ast::Statement::RefreshMaterializedView(stmt)
+                let incremental = self.try_consume_keyword(Keyword::INCREMENTAL);
+                if incremental {
+                    match self.parse_refresh_materialized_view() {
+                        Ok(stmt) => {
+                            self.try_consume_semicolon();
+                            crate::ast::Statement::RefreshMaterializedView(stmt)
+                        }
+                        Err(e) => {
+                            self.add_error(e);
+                            self.skip_to_semicolon()
+                        }
                     }
-                    Err(e) => {
-                        self.add_error(e);
-                        self.skip_to_semicolon()
+                } else {
+                    match self.parse_refresh_materialized_view() {
+                        Ok(stmt) => {
+                            self.try_consume_semicolon();
+                            crate::ast::Statement::RefreshMaterializedView(stmt)
+                        }
+                        Err(e) => {
+                            self.add_error(e);
+                            self.skip_to_semicolon()
+                        }
                     }
                 }
             }
@@ -1045,14 +1173,22 @@ impl Parser {
             }
             Token::Keyword(Keyword::DECLARE) => {
                 self.advance();
-                match self.parse_declare_cursor() {
-                    Ok(stmt) => {
-                        self.try_consume_semicolon();
-                        crate::ast::Statement::DeclareCursor(stmt)
-                    }
-                    Err(e) => {
-                        self.add_error(e);
-                        self.skip_to_semicolon()
+                // Check if this is a bare PL/pgSQL declaration (e.g., "declare type ...")
+                // rather than a DECLARE CURSOR statement
+                if self.match_keyword(Keyword::TYPE_P) || self.match_ident_str("type") {
+                    self.skip_to_semicolon()
+                } else if self.looks_like_variable_decl() {
+                    self.skip_to_semicolon()
+                } else {
+                    match self.parse_declare_cursor() {
+                        Ok(stmt) => {
+                            self.try_consume_semicolon();
+                            crate::ast::Statement::DeclareCursor(stmt)
+                        }
+                        Err(e) => {
+                            self.add_error(e);
+                            self.skip_to_semicolon()
+                        }
                     }
                 }
             }
@@ -1476,9 +1612,14 @@ impl Parser {
         ))
     }
 
-    fn parse_create_resource_pool(&mut self) -> Result<crate::ast::Statement, ParserError> {
-        self.advance(); // RESOURCE
+    fn parse_create_resource_pool_after_resource(
+        &mut self,
+    ) -> Result<crate::ast::Statement, ParserError> {
         self.expect_keyword(Keyword::POOL)?;
+        self.parse_create_resource_pool_inner()
+    }
+
+    fn parse_create_resource_pool_inner(&mut self) -> Result<crate::ast::Statement, ParserError> {
         let name = self.parse_identifier()?;
         let options = self.parse_generic_options();
         self.try_consume_semicolon();
@@ -1528,10 +1669,35 @@ impl Parser {
         self.advance(); // MASKING
         self.expect_keyword(Keyword::POLICY)?;
         let name = self.parse_identifier()?;
+        let mut masking_function = None;
+        let mut labels = Vec::new();
+        if !self.match_keyword(Keyword::WITH)
+            && !matches!(self.peek(), Token::LParen | Token::Semicolon | Token::Eof)
+        {
+            masking_function = Some(self.parse_identifier()?);
+        }
+        if self.match_keyword(Keyword::ON) {
+            self.advance();
+            self.expect_keyword(Keyword::LABEL)?;
+            self.expect_token(&Token::LParen)?;
+            loop {
+                labels.push(self.parse_identifier()?);
+                if !self.match_token(&Token::Comma) {
+                    break;
+                }
+                self.advance();
+            }
+            self.expect_token(&Token::RParen)?;
+        }
         let options = self.parse_generic_options();
         self.try_consume_semicolon();
         Ok(crate::ast::Statement::CreateMaskingPolicy(
-            crate::ast::CreateMaskingPolicyStatement { name, options },
+            crate::ast::CreateMaskingPolicyStatement {
+                name,
+                masking_function,
+                labels,
+                options,
+            },
         ))
     }
 
@@ -1566,6 +1732,180 @@ impl Parser {
                 using_expr,
             },
         ))
+    }
+
+    fn parse_create_resource_label(&mut self) -> Result<crate::ast::Statement, ParserError> {
+        self.advance(); // LABEL
+        let name = self.parse_identifier()?;
+        let add = if self.match_keyword(Keyword::ADD_P) {
+            self.advance();
+            true
+        } else if self.match_keyword(Keyword::REMOVE) {
+            self.advance();
+            false
+        } else {
+            return Err(ParserError::UnexpectedToken {
+                location: self.current_location(),
+                expected: "ADD or REMOVE".to_string(),
+                got: format!("{:?}", self.peek()),
+            });
+        };
+        let label_type = self.parse_identifier()?;
+        self.expect_token(&Token::LParen)?;
+        let mut targets = Vec::new();
+        loop {
+            targets.push(self.parse_object_name()?);
+            if !self.match_token(&Token::Comma) {
+                break;
+            }
+            self.advance();
+        }
+        self.expect_token(&Token::RParen)?;
+        self.try_consume_semicolon();
+        Ok(crate::ast::Statement::CreatePolicyLabel(
+            crate::ast::CreatePolicyLabelStatement {
+                name,
+                add,
+                label_type,
+                targets,
+            },
+        ))
+    }
+
+    fn parse_alter_masking_policy(&mut self) -> Result<crate::ast::Statement, ParserError> {
+        self.expect_keyword(Keyword::POLICY)?;
+        let name = self.parse_identifier()?;
+        let action = if self.match_keyword(Keyword::COMMENTS) {
+            self.advance();
+            let comment = self.parse_string_literal()?;
+            crate::ast::AlterMaskingPolicyAction::Comments(comment)
+        } else if self.match_keyword(Keyword::ADD_P) {
+            self.advance();
+            let function = self.parse_identifier()?;
+            self.expect_keyword(Keyword::ON)?;
+            self.expect_keyword(Keyword::LABEL)?;
+            self.expect_token(&Token::LParen)?;
+            let mut labels = Vec::new();
+            loop {
+                labels.push(self.parse_identifier()?);
+                if !self.match_token(&Token::Comma) {
+                    break;
+                }
+                self.advance();
+            }
+            self.expect_token(&Token::RParen)?;
+            crate::ast::AlterMaskingPolicyAction::Add { function, labels }
+        } else if self.match_keyword(Keyword::REMOVE) {
+            self.advance();
+            let function = self.parse_identifier()?;
+            self.expect_keyword(Keyword::ON)?;
+            self.expect_keyword(Keyword::LABEL)?;
+            self.expect_token(&Token::LParen)?;
+            let mut labels = Vec::new();
+            loop {
+                labels.push(self.parse_identifier()?);
+                if !self.match_token(&Token::Comma) {
+                    break;
+                }
+                self.advance();
+            }
+            self.expect_token(&Token::RParen)?;
+            crate::ast::AlterMaskingPolicyAction::Remove { function, labels }
+        } else if self.match_keyword(Keyword::MODIFY_P) {
+            self.advance();
+            let function = self.parse_identifier()?;
+            self.expect_keyword(Keyword::ON)?;
+            self.expect_keyword(Keyword::LABEL)?;
+            self.expect_token(&Token::LParen)?;
+            let mut labels = Vec::new();
+            loop {
+                labels.push(self.parse_identifier()?);
+                if !self.match_token(&Token::Comma) {
+                    break;
+                }
+                self.advance();
+            }
+            self.expect_token(&Token::RParen)?;
+            crate::ast::AlterMaskingPolicyAction::Modify { function, labels }
+        } else if self.match_keyword(Keyword::DROP) {
+            self.advance();
+            self.expect_keyword(Keyword::FILTER)?;
+            crate::ast::AlterMaskingPolicyAction::DropFilter
+        } else if self.match_keyword(Keyword::DISABLE_P) {
+            self.advance();
+            crate::ast::AlterMaskingPolicyAction::Disable
+        } else {
+            return Err(ParserError::UnexpectedToken {
+                location: self.current_location(),
+                expected: "COMMENTS, ADD, REMOVE, MODIFY, DROP FILTER or DISABLE".to_string(),
+                got: format!("{:?}", self.peek()),
+            });
+        };
+        self.try_consume_semicolon();
+        Ok(crate::ast::Statement::AlterMaskingPolicy(
+            crate::ast::AlterMaskingPolicyStatement { name, action },
+        ))
+    }
+
+    fn parse_alter_resource_label(&mut self) -> Result<crate::ast::Statement, ParserError> {
+        self.expect_keyword(Keyword::LABEL)?;
+        let name = self.parse_identifier()?;
+        let add = if self.match_keyword(Keyword::ADD_P) {
+            self.advance();
+            true
+        } else if self.match_keyword(Keyword::REMOVE) {
+            self.advance();
+            false
+        } else {
+            return Err(ParserError::UnexpectedToken {
+                location: self.current_location(),
+                expected: "ADD or REMOVE".to_string(),
+                got: format!("{:?}", self.peek()),
+            });
+        };
+        let label_type = self.parse_identifier()?;
+        self.expect_token(&Token::LParen)?;
+        let mut targets = Vec::new();
+        loop {
+            targets.push(self.parse_object_name()?);
+            if !self.match_token(&Token::Comma) {
+                break;
+            }
+            self.advance();
+        }
+        self.expect_token(&Token::RParen)?;
+        self.try_consume_semicolon();
+        Ok(crate::ast::Statement::AlterPolicyLabel(
+            crate::ast::AlterPolicyLabelStatement {
+                name,
+                add,
+                label_type,
+                targets,
+            },
+        ))
+    }
+
+    fn parse_alter_resource_pool(
+        &mut self,
+    ) -> Result<crate::ast::AlterResourcePoolStatement, ParserError> {
+        let name = self.parse_identifier()?;
+        let mut options = Vec::new();
+        if self.match_keyword(Keyword::WITH) {
+            self.advance();
+            self.expect_token(&Token::LParen)?;
+            loop {
+                let key = self.parse_identifier()?;
+                self.expect_token(&Token::Eq)?;
+                let value = self.parse_identifier()?;
+                options.push((key, value));
+                if !self.match_token(&Token::Comma) {
+                    break;
+                }
+                self.advance();
+            }
+            self.expect_token(&Token::RParen)?;
+        }
+        Ok(crate::ast::AlterResourcePoolStatement { name, options })
     }
 
     fn skip_to_paren_end(&mut self) -> String {
@@ -1616,14 +1956,59 @@ impl Parser {
             self.try_consume_keyword(Keyword::TEMPORARY) || self.try_consume_keyword(Keyword::TEMP);
         let unlogged = self.try_consume_keyword(Keyword::UNLOGGED);
 
+        let is_public = self.try_consume_ident_str("PUBLIC");
+
         match self.peek_keyword() {
-            Some(Keyword::TABLE) => match self.parse_create_table(temp, unlogged) {
-                Ok(stmt) => crate::ast::Statement::CreateTable(stmt),
-                Err(e) => {
-                    self.add_error(e);
-                    self.skip_to_semicolon()
+            Some(Keyword::TABLE) => {
+                // Check for CREATE TABLE AS (CTAS) via lookahead
+                let is_ctas = {
+                    let mut look = self.pos + 1;
+                    let mut depth = 0usize;
+                    let mut found_as = false;
+                    while look < self.tokens.len() {
+                        match &self.tokens[look].token {
+                            Token::Keyword(Keyword::AS) if depth == 0 => {
+                                found_as = true;
+                                break;
+                            }
+                            Token::Keyword(Keyword::PARTITION)
+                            | Token::Keyword(Keyword::DISTRIBUTE)
+                            | Token::Keyword(Keyword::INHERITS)
+                            | Token::Keyword(Keyword::TABLESPACE)
+                            | Token::Keyword(Keyword::WITH)
+                            | Token::Keyword(Keyword::ON)
+                            | Token::Keyword(Keyword::TO)
+                            | Token::Semicolon
+                            | Token::Eof => break,
+                            Token::LParen => depth += 1,
+                            Token::RParen => depth = depth.saturating_sub(1),
+                            _ => {}
+                        }
+                        look += 1;
+                        if look > self.pos + 50 {
+                            break;
+                        }
+                    }
+                    found_as
+                };
+                if is_ctas {
+                    match self.parse_create_table_as(temp, unlogged) {
+                        Ok(stmt) => stmt,
+                        Err(e) => {
+                            self.add_error(e);
+                            self.skip_to_semicolon()
+                        }
+                    }
+                } else {
+                    match self.parse_create_table(temp, unlogged) {
+                        Ok(stmt) => crate::ast::Statement::CreateTable(stmt),
+                        Err(e) => {
+                            self.add_error(e);
+                            self.skip_to_semicolon()
+                        }
+                    }
                 }
-            },
+            }
             Some(Keyword::INDEX) => match self.parse_create_index() {
                 Ok(stmt) => crate::ast::Statement::CreateIndex(stmt),
                 Err(e) => {
@@ -1657,13 +2042,33 @@ impl Parser {
                     self.skip_to_semicolon()
                 }
             },
-            Some(Keyword::DATABASE) => match self.parse_create_database() {
-                Ok(stmt) => crate::ast::Statement::CreateDatabase(stmt),
-                Err(e) => {
-                    self.add_error(e);
-                    self.skip_to_semicolon()
+            Some(Keyword::DATABASE) => {
+                let is_link = {
+                    let ahead = if self.pos + 1 < self.tokens.len() {
+                        &self.tokens[self.pos + 1].token
+                    } else {
+                        &Token::Eof
+                    };
+                    matches!(ahead, Token::Ident(s) if s.eq_ignore_ascii_case("LINK"))
+                };
+                if is_link {
+                    match self.parse_create_database_link(is_public) {
+                        Ok(stmt) => crate::ast::Statement::CreateDatabaseLink(stmt),
+                        Err(e) => {
+                            self.add_error(e);
+                            self.skip_to_semicolon()
+                        }
+                    }
+                } else {
+                    match self.parse_create_database() {
+                        Ok(stmt) => crate::ast::Statement::CreateDatabase(stmt),
+                        Err(e) => {
+                            self.add_error(e);
+                            self.skip_to_semicolon()
+                        }
+                    }
                 }
-            },
+            }
             Some(Keyword::TABLESPACE) => match self.parse_create_tablespace() {
                 Ok(stmt) => crate::ast::Statement::CreateTablespace(stmt),
                 Err(e) => {
@@ -1706,6 +2111,22 @@ impl Parser {
                     }
                 }
             }
+            Some(Keyword::INCREMENTAL) => {
+                self.advance();
+                match self.expect_keyword(Keyword::MATERIALIZED) {
+                    Ok(()) => match self.parse_create_materialized_view() {
+                        Ok(stmt) => crate::ast::Statement::CreateMaterializedView(stmt),
+                        Err(e) => {
+                            self.add_error(e);
+                            self.skip_to_semicolon()
+                        }
+                    },
+                    Err(e) => {
+                        self.add_error(e);
+                        self.skip_to_semicolon()
+                    }
+                }
+            }
             Some(Keyword::MATERIALIZED) => {
                 self.advance();
                 match self.parse_create_materialized_view() {
@@ -1740,16 +2161,30 @@ impl Parser {
             }
             Some(Keyword::USER) => {
                 self.advance();
-                match self.parse_create_role_options() {
-                    Ok((name, options)) => {
-                        crate::ast::Statement::CreateUser(crate::ast::CreateUserStatement {
-                            name,
-                            options,
-                        })
+                if self.match_keyword(Keyword::MAPPING) {
+                    self.advance();
+                    match self.parse_create_user_mapping() {
+                        Ok(stmt) => {
+                            self.try_consume_semicolon();
+                            crate::ast::Statement::CreateUserMapping(stmt)
+                        }
+                        Err(e) => {
+                            self.add_error(e);
+                            self.skip_to_semicolon()
+                        }
                     }
-                    Err(e) => {
-                        self.add_error(e);
-                        self.skip_to_semicolon()
+                } else {
+                    match self.parse_create_role_options() {
+                        Ok((name, options)) => {
+                            crate::ast::Statement::CreateUser(crate::ast::CreateUserStatement {
+                                name,
+                                options,
+                            })
+                        }
+                        Err(e) => {
+                            self.add_error(e);
+                            self.skip_to_semicolon()
+                        }
                     }
                 }
             }
@@ -1858,13 +2293,33 @@ impl Parser {
                     self.skip_to_semicolon()
                 }
             },
-            Some(Keyword::RESOURCE) => match self.parse_create_resource_pool() {
-                Ok(stmt) => stmt,
-                Err(e) => {
-                    self.add_error(e);
+            Some(Keyword::RESOURCE) => {
+                self.advance(); // RESOURCE
+                if self.match_keyword(Keyword::POOL) {
+                    match self.parse_create_resource_pool_after_resource() {
+                        Ok(stmt) => stmt,
+                        Err(e) => {
+                            self.add_error(e);
+                            self.skip_to_semicolon()
+                        }
+                    }
+                } else if self.match_keyword(Keyword::LABEL) {
+                    match self.parse_create_resource_label() {
+                        Ok(stmt) => stmt,
+                        Err(e) => {
+                            self.add_error(e);
+                            self.skip_to_semicolon()
+                        }
+                    }
+                } else {
+                    self.add_error(ParserError::UnexpectedToken {
+                        location: self.current_location(),
+                        expected: "POOL or LABEL".to_string(),
+                        got: format!("{:?}", self.peek()),
+                    });
                     self.skip_to_semicolon()
                 }
-            },
+            }
             Some(Keyword::AUDIT) => match self.parse_create_audit_policy() {
                 Ok(stmt) => stmt,
                 Err(e) => {
@@ -1886,157 +2341,281 @@ impl Parser {
                     self.skip_to_semicolon()
                 }
             },
+            Some(Keyword::AGGREGATE) => {
+                self.advance();
+                match self.parse_create_aggregate() {
+                    Ok(stmt) => {
+                        self.try_consume_semicolon();
+                        crate::ast::Statement::CreateAggregate(stmt)
+                    }
+                    Err(e) => {
+                        self.add_error(e);
+                        self.skip_to_semicolon()
+                    }
+                }
+            }
+            Some(Keyword::OPERATOR) => {
+                self.advance();
+                match self.parse_create_operator() {
+                    Ok(stmt) => {
+                        self.try_consume_semicolon();
+                        crate::ast::Statement::CreateOperator(stmt)
+                    }
+                    Err(e) => {
+                        self.add_error(e);
+                        self.skip_to_semicolon()
+                    }
+                }
+            }
             _ => self.skip_to_semicolon(),
         }
     }
 
     fn dispatch_alter(&mut self) -> crate::ast::Statement {
-        match self.peek_keyword() {
-            Some(Keyword::INDEX) => match self.parse_alter_index() {
+        if self.match_keyword(Keyword::DEFAULT) {
+            self.advance();
+            match self.parse_alter_default_privileges() {
                 Ok(stmt) => {
                     self.try_consume_semicolon();
-                    crate::ast::Statement::AlterIndex(stmt)
+                    crate::ast::Statement::AlterDefaultPrivileges(stmt)
                 }
                 Err(e) => {
                     self.add_error(e);
                     self.skip_to_semicolon()
                 }
-            },
-            Some(Keyword::TABLE) => match self.parse_alter_table() {
-                Ok(stmt) => crate::ast::Statement::AlterTable(stmt),
-                Err(e) => {
-                    self.add_error(e);
-                    self.skip_to_semicolon()
+            }
+        } else {
+            match self.peek_keyword() {
+                Some(Keyword::INDEX) => match self.parse_alter_index() {
+                    Ok(stmt) => {
+                        self.try_consume_semicolon();
+                        crate::ast::Statement::AlterIndex(stmt)
+                    }
+                    Err(e) => {
+                        self.add_error(e);
+                        self.skip_to_semicolon()
+                    }
+                },
+                Some(Keyword::TABLE) => match self.parse_alter_table() {
+                    Ok(stmt) => crate::ast::Statement::AlterTable(stmt),
+                    Err(e) => {
+                        self.add_error(e);
+                        self.skip_to_semicolon()
+                    }
+                },
+                Some(Keyword::DATABASE) => match self.parse_alter_database() {
+                    Ok(stmt) => {
+                        self.try_consume_semicolon();
+                        crate::ast::Statement::AlterDatabase(stmt)
+                    }
+                    Err(e) => {
+                        self.add_error(e);
+                        self.skip_to_semicolon()
+                    }
+                },
+                Some(Keyword::SCHEMA) => match self.parse_alter_schema() {
+                    Ok(stmt) => {
+                        self.try_consume_semicolon();
+                        crate::ast::Statement::AlterSchema(stmt)
+                    }
+                    Err(e) => {
+                        self.add_error(e);
+                        self.skip_to_semicolon()
+                    }
+                },
+                Some(Keyword::SEQUENCE) => match self.parse_alter_sequence() {
+                    Ok(stmt) => {
+                        self.try_consume_semicolon();
+                        crate::ast::Statement::AlterSequence(stmt)
+                    }
+                    Err(e) => {
+                        self.add_error(e);
+                        self.skip_to_semicolon()
+                    }
+                },
+                Some(Keyword::FUNCTION) => match self.parse_alter_function() {
+                    Ok(stmt) => {
+                        self.try_consume_semicolon();
+                        crate::ast::Statement::AlterFunction(stmt)
+                    }
+                    Err(e) => {
+                        self.add_error(e);
+                        self.skip_to_semicolon()
+                    }
+                },
+                Some(Keyword::PROCEDURE) => match self.parse_alter_function() {
+                    Ok(stmt) => {
+                        self.try_consume_semicolon();
+                        crate::ast::Statement::AlterProcedure(crate::ast::AlterProcedureStatement {
+                            name: stmt.name.clone(),
+                            action: stmt.action,
+                        })
+                    }
+                    Err(e) => {
+                        self.add_error(e);
+                        self.skip_to_semicolon()
+                    }
+                },
+                Some(Keyword::ROLE) => match self.parse_alter_role() {
+                    Ok(stmt) => {
+                        self.try_consume_semicolon();
+                        crate::ast::Statement::AlterRole(stmt)
+                    }
+                    Err(e) => {
+                        self.add_error(e);
+                        self.skip_to_semicolon()
+                    }
+                },
+                Some(Keyword::USER) => {
+                    self.advance();
+                    if self.match_keyword(Keyword::MAPPING) {
+                        match self.parse_alter_user_mapping() {
+                            Ok(stmt) => {
+                                self.try_consume_semicolon();
+                                crate::ast::Statement::AlterUserMapping(stmt)
+                            }
+                            Err(e) => {
+                                self.add_error(e);
+                                self.skip_to_semicolon()
+                            }
+                        }
+                    } else {
+                        match self.parse_alter_user_inner() {
+                            Ok(stmt) => {
+                                self.try_consume_semicolon();
+                                crate::ast::Statement::AlterUser(stmt)
+                            }
+                            Err(e) => {
+                                self.add_error(e);
+                                self.skip_to_semicolon()
+                            }
+                        }
+                    }
                 }
-            },
-            Some(Keyword::DATABASE) => match self.parse_alter_database() {
-                Ok(stmt) => {
-                    self.try_consume_semicolon();
-                    crate::ast::Statement::AlterDatabase(stmt)
+                Some(Keyword::GROUP_P) => match self.parse_alter_group() {
+                    Ok(stmt) => {
+                        self.try_consume_semicolon();
+                        crate::ast::Statement::AlterGroup(stmt)
+                    }
+                    Err(e) => {
+                        self.add_error(e);
+                        self.skip_to_semicolon()
+                    }
+                },
+                Some(Keyword::SYSTEM_P) => match self.parse_alter_global_config() {
+                    Ok(stmt) => {
+                        self.try_consume_semicolon();
+                        crate::ast::Statement::AlterGlobalConfig(stmt)
+                    }
+                    Err(e) => {
+                        self.add_error(e);
+                        self.skip_to_semicolon()
+                    }
+                },
+                Some(Keyword::TYPE_P) => match self.parse_alter_type() {
+                    Ok(stmt) => {
+                        self.try_consume_semicolon();
+                        crate::ast::Statement::AlterCompositeType(stmt)
+                    }
+                    Err(e) => {
+                        self.add_error(e);
+                        self.skip_to_semicolon()
+                    }
+                },
+                Some(Keyword::VIEW) => match self.parse_alter_view() {
+                    Ok(stmt) => {
+                        self.try_consume_semicolon();
+                        crate::ast::Statement::AlterView(stmt)
+                    }
+                    Err(e) => {
+                        self.add_error(e);
+                        self.skip_to_semicolon()
+                    }
+                },
+                Some(Keyword::TRIGGER) => match self.parse_alter_trigger() {
+                    Ok(stmt) => {
+                        self.try_consume_semicolon();
+                        crate::ast::Statement::AlterTrigger(stmt)
+                    }
+                    Err(e) => {
+                        self.add_error(e);
+                        self.skip_to_semicolon()
+                    }
+                },
+                Some(Keyword::EXTENSION) => match self.parse_alter_extension() {
+                    Ok(stmt) => {
+                        self.try_consume_semicolon();
+                        crate::ast::Statement::AlterExtension(stmt)
+                    }
+                    Err(e) => {
+                        self.add_error(e);
+                        self.skip_to_semicolon()
+                    }
+                },
+                Some(Keyword::MASKING) => {
+                    self.advance();
+                    match self.parse_alter_masking_policy() {
+                        Ok(stmt) => {
+                            self.try_consume_semicolon();
+                            stmt
+                        }
+                        Err(e) => {
+                            self.add_error(e);
+                            self.skip_to_semicolon()
+                        }
+                    }
                 }
-                Err(e) => {
-                    self.add_error(e);
-                    self.skip_to_semicolon()
+                Some(Keyword::RESOURCE) => {
+                    self.advance();
+                    if self.match_keyword(Keyword::POOL) {
+                        self.advance();
+                        match self.parse_alter_resource_pool() {
+                            Ok(stmt) => {
+                                self.try_consume_semicolon();
+                                crate::ast::Statement::AlterResourcePool(stmt)
+                            }
+                            Err(e) => {
+                                self.add_error(e);
+                                self.skip_to_semicolon()
+                            }
+                        }
+                    } else {
+                        match self.parse_alter_resource_label() {
+                            Ok(stmt) => {
+                                self.try_consume_semicolon();
+                                stmt
+                            }
+                            Err(e) => {
+                                self.add_error(e);
+                                self.skip_to_semicolon()
+                            }
+                        }
+                    }
                 }
-            },
-            Some(Keyword::SCHEMA) => match self.parse_alter_schema() {
-                Ok(stmt) => {
-                    self.try_consume_semicolon();
-                    crate::ast::Statement::AlterSchema(stmt)
-                }
-                Err(e) => {
-                    self.add_error(e);
-                    self.skip_to_semicolon()
-                }
-            },
-            Some(Keyword::SEQUENCE) => match self.parse_alter_sequence() {
-                Ok(stmt) => {
-                    self.try_consume_semicolon();
-                    crate::ast::Statement::AlterSequence(stmt)
-                }
-                Err(e) => {
-                    self.add_error(e);
-                    self.skip_to_semicolon()
-                }
-            },
-            Some(Keyword::FUNCTION) => match self.parse_alter_function() {
-                Ok(stmt) => {
-                    self.try_consume_semicolon();
-                    crate::ast::Statement::AlterFunction(stmt)
-                }
-                Err(e) => {
-                    self.add_error(e);
-                    self.skip_to_semicolon()
-                }
-            },
-            Some(Keyword::PROCEDURE) => match self.parse_alter_function() {
-                Ok(stmt) => {
-                    self.try_consume_semicolon();
-                    crate::ast::Statement::AlterProcedure(crate::ast::AlterProcedureStatement {
-                        name: stmt.name.clone(),
-                        action: stmt.action,
-                    })
-                }
-                Err(e) => {
-                    self.add_error(e);
-                    self.skip_to_semicolon()
-                }
-            },
-            Some(Keyword::ROLE) => match self.parse_alter_role() {
-                Ok(stmt) => {
-                    self.try_consume_semicolon();
-                    crate::ast::Statement::AlterRole(stmt)
-                }
-                Err(e) => {
-                    self.add_error(e);
-                    self.skip_to_semicolon()
-                }
-            },
-            Some(Keyword::USER) => match self.parse_alter_user() {
-                Ok(stmt) => {
-                    self.try_consume_semicolon();
-                    crate::ast::Statement::AlterUser(stmt)
-                }
-                Err(e) => {
-                    self.add_error(e);
-                    self.skip_to_semicolon()
-                }
-            },
-            Some(Keyword::SYSTEM_P) => match self.parse_alter_global_config() {
-                Ok(stmt) => {
-                    self.try_consume_semicolon();
-                    crate::ast::Statement::AlterGlobalConfig(stmt)
-                }
-                Err(e) => {
-                    self.add_error(e);
-                    self.skip_to_semicolon()
-                }
-            },
-            Some(Keyword::TYPE_P) => match self.parse_alter_type() {
-                Ok(stmt) => {
-                    self.try_consume_semicolon();
-                    crate::ast::Statement::AlterCompositeType(stmt)
-                }
-                Err(e) => {
-                    self.add_error(e);
-                    self.skip_to_semicolon()
-                }
-            },
-            Some(Keyword::VIEW) => match self.parse_alter_view() {
-                Ok(stmt) => {
-                    self.try_consume_semicolon();
-                    crate::ast::Statement::AlterView(stmt)
-                }
-                Err(e) => {
-                    self.add_error(e);
-                    self.skip_to_semicolon()
-                }
-            },
-            Some(Keyword::TRIGGER) => match self.parse_alter_trigger() {
-                Ok(stmt) => {
-                    self.try_consume_semicolon();
-                    crate::ast::Statement::AlterTrigger(stmt)
-                }
-                Err(e) => {
-                    self.add_error(e);
-                    self.skip_to_semicolon()
-                }
-            },
-            Some(Keyword::EXTENSION) => match self.parse_alter_extension() {
-                Ok(stmt) => {
-                    self.try_consume_semicolon();
-                    crate::ast::Statement::AlterExtension(stmt)
-                }
-                Err(e) => {
-                    self.add_error(e);
-                    self.skip_to_semicolon()
-                }
-            },
-            _ => self.skip_to_semicolon(),
+                _ => self.skip_to_semicolon(),
+            }
         }
     }
 
     fn dispatch_drop(&mut self) -> crate::ast::Statement {
+        if self.match_keyword(Keyword::USER) {
+            let saved_pos = self.pos;
+            self.advance();
+            if self.match_keyword(Keyword::MAPPING) {
+                self.advance();
+                match self.parse_drop_user_mapping() {
+                    Ok(stmt) => {
+                        self.try_consume_semicolon();
+                        return crate::ast::Statement::DropUserMapping(stmt);
+                    }
+                    Err(e) => {
+                        self.add_error(e);
+                        return self.skip_to_semicolon();
+                    }
+                }
+            }
+            self.pos = saved_pos;
+        }
         match self.parse_drop() {
             Ok(stmt) => crate::ast::Statement::Drop(stmt),
             Err(e) => {
@@ -2130,6 +2709,47 @@ impl Parser {
             }
         }
         crate::ast::Statement::Empty
+    }
+
+    fn looks_like_variable_decl(&self) -> bool {
+        let mut i = self.pos;
+        if i >= self.tokens.len() {
+            return false;
+        }
+        match &self.tokens[i].token {
+            Token::Ident(_) | Token::QuotedIdent(_) | Token::Keyword(_) => {}
+            _ => return false,
+        }
+        i += 1;
+        if i >= self.tokens.len() {
+            return false;
+        }
+        match &self.tokens[i].token {
+            Token::Ident(_) | Token::QuotedIdent(_) | Token::Keyword(_) => {}
+            _ => return false,
+        }
+        if let Token::Keyword(kw) = &self.tokens[i].token {
+            match kw {
+                Keyword::CURSOR
+                | Keyword::BINARY
+                | Keyword::SCROLL
+                | Keyword::NO
+                | Keyword::WITH
+                | Keyword::WITHOUT
+                | Keyword::INSENSITIVE
+                | Keyword::FOR => {
+                    return false;
+                }
+                _ => {}
+            }
+        }
+        if let Token::Ident(s) = &self.tokens[i].token {
+            let upper = s.to_uppercase();
+            if upper == "CURSOR" || upper == "BINARY" || upper == "SCROLL" {
+                return false;
+            }
+        }
+        true
     }
 }
 

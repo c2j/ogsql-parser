@@ -1,0 +1,7 @@
+-- 来源: 1266_CREATE SECURITY LABEL.txt
+-- SQL 数量: 2
+
+CREATE SECURITY LABEL sec_label 'L1:G4' ;
+
+DROP SECURITY LABEL sec_label ;
+

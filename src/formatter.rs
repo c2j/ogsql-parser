@@ -1,3 +1,4 @@
+use crate::ast::plpgsql::PlUsingMode;
 use crate::ast::*;
 
 pub struct SqlFormatter {
@@ -17,6 +18,8 @@ impl SqlFormatter {
         match stmt {
             Statement::Select(s) => self.format_select(s),
             Statement::Insert(s) => self.format_insert(s),
+            Statement::InsertAll(s) => self.format_insert_all(s),
+            Statement::InsertFirst(s) => self.format_insert_first(s),
             Statement::Update(s) => self.format_update(s),
             Statement::Delete(s) => self.format_delete(s),
             Statement::Merge(s) => self.format_merge(s),
@@ -27,6 +30,7 @@ impl SqlFormatter {
             Statement::CreateIndex(s) => self.format_create_index(s),
             Statement::CreateSchema(s) => self.format_create_schema(s),
             Statement::CreateDatabase(s) => self.format_create_database(s),
+            Statement::CreateDatabaseLink(s) => self.format_create_database_link(s),
             Statement::CreateTablespace(s) => self.format_create_tablespace(s),
             Statement::CreateView(s) => self.format_create_view(s),
             Statement::CreateSequence(s) => self.format_create_sequence(s),
@@ -50,6 +54,9 @@ impl SqlFormatter {
             Statement::CreateAuditPolicy(s) => self.format_create_audit_policy(s),
             Statement::CreateMaskingPolicy(s) => self.format_create_masking_policy(s),
             Statement::CreateRlsPolicy(s) => self.format_create_rls_policy(s),
+            Statement::CreatePolicyLabel(s) => self.format_create_policy_label(s),
+            Statement::AlterPolicyLabel(s) => self.format_alter_policy_label(s),
+            Statement::AlterMaskingPolicy(s) => self.format_alter_masking_policy(s),
             Statement::Empty => String::new(),
             Statement::Checkpoint => self.kw("CHECKPOINT"),
             Statement::Grant(s) => self.format_grant(s),
@@ -100,6 +107,13 @@ impl SqlFormatter {
             Statement::AlterTrigger(s) => self.format_alter_trigger(s),
             Statement::AlterExtension(s) => self.format_alter_extension(s),
             Statement::AnonyBlock(s) => self.format_anon_block(s),
+            Statement::CreateTableAs(s) => self.format_create_table_as(s),
+            Statement::CreateAggregate(s) => self.format_create_aggregate(s),
+            Statement::CreateOperator(s) => self.format_create_operator(s),
+            Statement::AlterDefaultPrivileges(s) => self.format_alter_default_privileges(s),
+            Statement::CreateUserMapping(s) => self.format_create_user_mapping(s),
+            Statement::AlterUserMapping(s) => self.format_alter_user_mapping(s),
+            Statement::DropUserMapping(s) => self.format_drop_user_mapping(s),
             _ => self.format_stub(stmt),
         }
     }
@@ -172,13 +186,22 @@ impl SqlFormatter {
             parts.push(self.format_with(with));
         }
 
-        let mut select_parts = vec![self.kw("SELECT")];
-        if !stmt.hints.is_empty() {
-            let hints: Vec<String> = stmt.hints.iter().map(|h| format!("/*+ {} */", h)).collect();
-            select_parts.push(hints.join(" "));
+        let mut select_parts = Vec::new();
+        if let Some(hints) = self.format_hints(&stmt.hints) {
+            select_parts.push(hints);
         }
+        select_parts.push(self.kw("SELECT"));
         if stmt.distinct {
-            select_parts.push(self.kw("DISTINCT"));
+            if stmt.distinct_on.is_empty() {
+                select_parts.push(self.kw("DISTINCT"));
+            } else {
+                let cols: Vec<String> = stmt
+                    .distinct_on
+                    .iter()
+                    .map(|e| self.format_expr(e))
+                    .collect();
+                select_parts.push(format!("{} ON ({})", self.kw("DISTINCT"), cols.join(", ")));
+            }
         }
         select_parts.push(self.format_select_targets(&stmt.targets));
         parts.push(select_parts.join(" "));
@@ -207,11 +230,32 @@ impl SqlFormatter {
             ));
         }
 
+        if let Some(cb) = &stmt.connect_by {
+            if let Some(sw) = &cb.start_with {
+                parts.push(format!(
+                    "{} {}",
+                    self.kw("START WITH"),
+                    self.format_expr(sw)
+                ));
+            }
+            let nocycle = if cb.nocycle { " NOCYCLE" } else { "" };
+            parts.push(format!(
+                "{}{} {}",
+                self.kw("CONNECT BY"),
+                nocycle,
+                self.format_expr(&cb.condition)
+            ));
+        }
+
         if !stmt.group_by.is_empty() {
             parts.push(format!(
                 "{} {}",
                 self.kw("GROUP BY"),
-                self.format_exprs(&stmt.group_by)
+                stmt.group_by
+                    .iter()
+                    .map(|item| self.format_group_by_item(item))
+                    .collect::<Vec<_>>()
+                    .join(", ")
             ));
         }
 
@@ -354,6 +398,8 @@ impl SqlFormatter {
                 right,
                 join_type,
                 condition,
+                natural,
+                using_columns,
             } => {
                 let left_str = self.format_table_ref(left);
                 let join_kw = match join_type {
@@ -364,11 +410,142 @@ impl SqlFormatter {
                     JoinType::Cross => self.kw("CROSS JOIN"),
                 };
                 let right_str = self.format_table_ref(right);
-                let mut result = format!("{} {} {}", left_str, join_kw, right_str);
+                let natural_kw = if *natural {
+                    format!("{} ", self.kw("NATURAL"))
+                } else {
+                    String::new()
+                };
+                let mut result = format!("{} {}{} {}", left_str, natural_kw, join_kw, right_str);
                 if let Some(cond) = condition {
                     result = format!("{} {} {}", result, self.kw("ON"), self.format_expr(cond));
+                } else if !using_columns.is_empty() {
+                    result = format!(
+                        "{} {} ({})",
+                        result,
+                        self.kw("USING"),
+                        using_columns.join(", ")
+                    );
                 }
                 result
+            }
+            TableRef::Pivot { source, pivot } => {
+                let source_str = self.format_table_ref(source);
+                let values = pivot
+                    .values
+                    .iter()
+                    .map(|v| {
+                        let mut s = self.format_expr(&v.value);
+                        if let Some(a) = &v.alias {
+                            s = format!("{} {} {}", s, self.kw("AS"), a);
+                        }
+                        s
+                    })
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                format!(
+                    "{} {} ({} {} {} ({}))",
+                    source_str,
+                    self.kw("PIVOT"),
+                    self.format_expr(&pivot.aggregate),
+                    self.kw("FOR"),
+                    self.format_object_name(&pivot.for_column),
+                    values
+                )
+            }
+            TableRef::Unpivot { source, unpivot } => {
+                let source_str = self.format_table_ref(source);
+                let columns = unpivot
+                    .columns
+                    .iter()
+                    .map(|v| {
+                        let mut s = self.format_expr(&v.value);
+                        if let Some(a) = &v.alias {
+                            s = format!("{} {} {}", s, self.kw("AS"), a);
+                        }
+                        s
+                    })
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                format!(
+                    "{} {} ({} {} {} ({}))",
+                    source_str,
+                    self.kw("UNPIVOT"),
+                    self.format_object_name(&unpivot.value_column),
+                    self.kw("FOR"),
+                    self.format_object_name(&unpivot.for_column),
+                    columns
+                )
+            }
+        }
+    }
+
+    fn format_table_ref_with_partition(
+        &self,
+        table_ref: &TableRef,
+        partition: Option<&DmlPartitionClause>,
+    ) -> String {
+        match table_ref {
+            TableRef::Table { name, alias } => {
+                let mut parts = vec![self.format_object_name(name)];
+                if let Some(p) = partition {
+                    parts.push(self.format_dml_partition(p));
+                }
+                if let Some(a) = alias {
+                    parts.push(format!("{} {}", self.kw("AS"), self.quote_identifier(a)));
+                }
+                parts.join(" ")
+            }
+            _ => {
+                let mut result = self.format_table_ref(table_ref);
+                if let Some(p) = partition {
+                    result = format!("{} {}", result, self.format_dml_partition(p));
+                }
+                result
+            }
+        }
+    }
+
+    fn format_group_by_item(&self, item: &GroupByItem) -> String {
+        match item {
+            GroupByItem::Expr(e) => self.format_expr(e),
+            GroupByItem::GroupingSets(sets) => {
+                let inner: Vec<String> = sets
+                    .iter()
+                    .map(|s| {
+                        if s.is_empty() {
+                            "()".to_string()
+                        } else {
+                            format!(
+                                "({})",
+                                s.iter()
+                                    .map(|e| self.format_expr(e))
+                                    .collect::<Vec<_>>()
+                                    .join(", ")
+                            )
+                        }
+                    })
+                    .collect();
+                format!("{} ({})", self.kw("GROUPING SETS"), inner.join(", "))
+            }
+            GroupByItem::Rollup(cols) => {
+                format!(
+                    "{} ({})",
+                    self.kw("ROLLUP"),
+                    cols.iter()
+                        .map(|e| self.format_expr(e))
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                )
+            }
+            GroupByItem::Cube(cols) => {
+                format!(
+                    "{} ({})",
+                    self.kw("CUBE"),
+                    cols.iter()
+                        .map(|e| self.format_expr(e))
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                )
             }
         }
     }
@@ -377,6 +554,7 @@ impl SqlFormatter {
         match expr {
             Expr::Literal(lit) => self.format_literal(lit),
             Expr::ColumnRef(name) => self.format_object_name(name),
+            Expr::QualifiedStar(table) => format!("{}.*", self.quote_identifier_relaxed(table)),
             Expr::BinaryOp { left, op, right } => {
                 format!(
                     "{} {} {}",
@@ -398,6 +576,8 @@ impl SqlFormatter {
                 args,
                 distinct,
                 over,
+                filter,
+                within_group,
             } => {
                 let parts: Vec<String> = name
                     .iter()
@@ -409,10 +589,132 @@ impl SqlFormatter {
                 }
                 result.push_str(&self.format_exprs(args));
                 result.push(')');
+                if let Some(f) = filter {
+                    result = format!("{} {} ({})", result, self.kw("FILTER"), self.format_expr(f));
+                }
+                if !within_group.is_empty() {
+                    let items: Vec<String> = within_group
+                        .iter()
+                        .map(|item| {
+                            let mut s = self.format_expr(&item.expr);
+                            if let Some(asc) = item.asc {
+                                s = format!(
+                                    "{} {}",
+                                    s,
+                                    if asc { self.kw("ASC") } else { self.kw("DESC") }
+                                );
+                            }
+                            s
+                        })
+                        .collect();
+                    result = format!(
+                        "{} {} ({} {})",
+                        result,
+                        self.kw("WITHIN GROUP"),
+                        self.kw("ORDER BY"),
+                        items.join(", ")
+                    );
+                }
                 if let Some(ws) = over {
                     result = format!("{} {}", result, self.format_window_spec(ws));
                 }
                 result
+            }
+            Expr::SpecialFunction { name, args } => {
+                let lower = name.to_lowercase();
+                match lower.as_str() {
+                    "overlay" => {
+                        let mut s = format!("{}(", self.kw("OVERLAY"));
+                        if args.len() >= 1 {
+                            s.push_str(&self.format_expr(&args[0]));
+                        }
+                        if args.len() >= 2 {
+                            s.push_str(&format!(" {} ", self.kw("PLACING")));
+                            s.push_str(&self.format_expr(&args[1]));
+                        }
+                        if args.len() >= 3 {
+                            s.push_str(&format!(" {} ", self.kw("FROM")));
+                            s.push_str(&self.format_expr(&args[2]));
+                        }
+                        if args.len() >= 4 {
+                            s.push_str(&format!(" {} ", self.kw("FOR")));
+                            s.push_str(&self.format_expr(&args[3]));
+                        }
+                        s.push(')');
+                        s
+                    }
+                    "position" => {
+                        let mut s = format!("{}(", self.kw("POSITION"));
+                        if args.len() >= 1 {
+                            s.push_str(&self.format_expr(&args[0]));
+                        }
+                        if args.len() >= 2 {
+                            s.push_str(&format!(" {} ", self.kw("IN")));
+                            s.push_str(&self.format_expr(&args[1]));
+                        }
+                        s.push(')');
+                        s
+                    }
+                    "substring" | "substr" => {
+                        let mut s = format!("{}(", self.kw("SUBSTRING"));
+                        if args.len() >= 1 {
+                            s.push_str(&self.format_expr(&args[0]));
+                        }
+                        if args.len() >= 2 {
+                            s.push_str(&format!(" {} ", self.kw("FROM")));
+                            s.push_str(&self.format_expr(&args[1]));
+                        }
+                        if args.len() >= 3 {
+                            s.push_str(&format!(" {} ", self.kw("FOR")));
+                            s.push_str(&self.format_expr(&args[2]));
+                        }
+                        s.push(')');
+                        s
+                    }
+                    "extract" => {
+                        let mut s = format!("{}(", self.kw("EXTRACT"));
+                        if args.len() >= 1 {
+                            s.push_str(&self.format_expr(&args[0]));
+                        }
+                        if args.len() >= 2 {
+                            s.push_str(&format!(" {} ", self.kw("FROM")));
+                            s.push_str(&self.format_expr(&args[1]));
+                        }
+                        s.push(')');
+                        s
+                    }
+                    "trim" => {
+                        let mut s = format!("{}(", self.kw("TRIM"));
+                        if args.len() == 2 {
+                            s.push_str(&self.format_expr(&args[0]));
+                            s.push_str(&format!(" {} ", self.kw("FROM")));
+                            s.push_str(&self.format_expr(&args[1]));
+                        } else if args.len() >= 3 {
+                            s.push_str(&self.format_expr(&args[0]));
+                            s.push(' ');
+                            s.push_str(&self.format_expr(&args[1]));
+                            s.push_str(&format!(" {} ", self.kw("FROM")));
+                            s.push_str(&self.format_expr(&args[2]));
+                        } else if args.len() == 1 {
+                            s.push_str(&self.format_expr(&args[0]));
+                        }
+                        s.push(')');
+                        s
+                    }
+                    "interval" => {
+                        let mut s = self.kw("INTERVAL");
+                        if args.len() >= 1 {
+                            s.push(' ');
+                            s.push_str(&self.format_expr(&args[0]));
+                        }
+                        if args.len() >= 2 {
+                            s.push(' ');
+                            s.push_str(&self.format_expr(&args[1]));
+                        }
+                        s
+                    }
+                    _ => format!("{}({})", name, self.format_exprs(args)),
+                }
             }
             Expr::Case {
                 operand,
@@ -515,22 +817,196 @@ impl SqlFormatter {
                     self.kw("NULL")
                 )
             }
-            Expr::TypeCast { expr, type_name } => {
-                format!(
+            Expr::TypeCast {
+                expr,
+                type_name,
+                default,
+                format: fmt_expr,
+            } => {
+                let mut result = format!(
                     "{}::{}",
                     self.format_expr(expr),
                     self.format_data_type(type_name)
-                )
+                );
+                if let Some(def) = default {
+                    result = format!(
+                        "{} {} {} {}",
+                        result,
+                        self.kw("DEFAULT"),
+                        self.format_expr(def),
+                        self.kw("ON CONVERSION ERROR")
+                    );
+                }
+                if let Some(fmt) = fmt_expr {
+                    result = format!("{}, {}", result, self.format_expr(fmt));
+                }
+                result
             }
             Expr::Parameter(n) => format!("${}", n),
             Expr::Array(elements) => {
                 format!("{}[{}]", self.kw("ARRAY"), self.format_exprs(elements))
             }
+            Expr::Subscript { object, index } => {
+                format!("{}[{}]", self.format_expr(object), self.format_expr(index))
+            }
             Expr::Parenthesized(expr) => {
                 format!("({})", self.format_expr(expr))
             }
+            Expr::RowConstructor(elems) => {
+                let formatted: Vec<String> = elems.iter().map(|e| self.format_expr(e)).collect();
+                format!("({})", formatted.join(", "))
+            }
+            Expr::Prior(e) => format!("{} {}", self.kw("PRIOR"), self.format_expr(e)),
             Expr::Default => self.kw("DEFAULT").to_string(),
+            Expr::XmlElement {
+                entity_escaping,
+                evalname,
+                name,
+                attributes,
+                content,
+            } => {
+                let mut result = self.kw("XMLELEMENT") + "(";
+                if let Some(true) = entity_escaping {
+                    result = result + &self.kw("ENTITYESCAPING") + " ";
+                } else if let Some(false) = entity_escaping {
+                    result = result + &self.kw("NOENTITYESCAPING") + " ";
+                }
+                if let Some(expr) = evalname {
+                    result = result + &self.kw("EVALNAME") + " " + &self.format_expr(expr);
+                } else if let Some(n) = name {
+                    result = result + &self.quote_identifier_relaxed(n);
+                }
+                if let Some(attrs) = attributes {
+                    result = result + ", " + &self.format_xml_attributes(attrs);
+                }
+                for item in content {
+                    result = result + ", " + &self.format_expr(&item.expr);
+                    if let Some(alias) = &item.alias {
+                        result = result
+                            + " "
+                            + &self.kw("AS")
+                            + " "
+                            + &self.quote_identifier_relaxed(alias);
+                    }
+                }
+                result + ")"
+            }
+            Expr::XmlConcat(exprs) => {
+                format!("{}({})", self.kw("XMLCONCAT"), self.format_exprs(exprs))
+            }
+            Expr::XmlForest(items) => {
+                let parts: Vec<String> = items
+                    .iter()
+                    .map(|item| {
+                        let mut s = self.format_expr(&item.expr);
+                        if let Some(alias) = &item.alias {
+                            s = s
+                                + " "
+                                + &self.kw("AS")
+                                + " "
+                                + &self.quote_identifier_relaxed(alias);
+                        }
+                        s
+                    })
+                    .collect();
+                format!("{}({})", self.kw("XMLFOREST"), parts.join(", "))
+            }
+            Expr::XmlParse {
+                option,
+                expr,
+                wellformed,
+            } => {
+                let opt_str = match option {
+                    XmlOption::Document => self.kw("DOCUMENT"),
+                    XmlOption::Content => self.kw("CONTENT"),
+                };
+                let mut result = format!(
+                    "{}({} {}",
+                    self.kw("XMLPARSE"),
+                    opt_str,
+                    self.format_expr(expr)
+                );
+                if *wellformed {
+                    result = result + " " + &self.kw("WELLFORMED");
+                }
+                result + ")"
+            }
+            Expr::XmlPi { name, content } => {
+                let mut result = self.kw("XMLPI") + "(" + &self.kw("NAME") + " ";
+                if let Some(n) = name {
+                    result = result + &self.quote_identifier_relaxed(n);
+                }
+                if let Some(c) = content {
+                    result = result + ", " + &self.format_expr(c);
+                }
+                result + ")"
+            }
+            Expr::XmlRoot {
+                expr,
+                version,
+                standalone,
+            } => {
+                let mut result = format!(
+                    "{}({}, {}",
+                    self.kw("XMLROOT"),
+                    self.format_expr(expr),
+                    self.kw("VERSION")
+                );
+                if let Some(v) = version {
+                    result = result + " " + &self.format_expr(v);
+                } else {
+                    result = result + " " + &self.kw("NO") + " " + &self.kw("VALUE");
+                }
+                if let Some(s) = standalone {
+                    result = result + ", " + &self.kw("STANDALONE") + " ";
+                    match s {
+                        Some(true) => result = result + &self.kw("YES"),
+                        Some(false) => result = result + &self.kw("NO"),
+                        None => result = result + &self.kw("NO") + " " + &self.kw("VALUE"),
+                    }
+                }
+                result + ")"
+            }
+            Expr::XmlSerialize {
+                option,
+                expr,
+                type_name,
+            } => {
+                let opt_str = match option {
+                    XmlOption::Document => self.kw("DOCUMENT"),
+                    XmlOption::Content => self.kw("CONTENT"),
+                };
+                format!(
+                    "{}({} {} {} {})",
+                    self.kw("XMLSERIALIZE"),
+                    opt_str,
+                    self.format_expr(expr),
+                    self.kw("AS"),
+                    self.format_data_type(type_name)
+                )
+            }
         }
+    }
+
+    fn format_xml_attributes(&self, attrs: &XmlAttributes) -> String {
+        let mut result = self.kw("XMLATTRIBUTES") + "(";
+        if let Some(true) = attrs.entity_escaping {
+            result = result + &self.kw("ENTITYESCAPING") + " ";
+        } else if let Some(false) = attrs.entity_escaping {
+            result = result + &self.kw("NOENTITYESCAPING") + " ";
+        }
+        let parts: Vec<String> = attrs
+            .items
+            .iter()
+            .map(|a| {
+                let mut s = self.format_expr(&a.value);
+                if let Some(name) = &a.name {
+                    s = s + " " + &self.kw("AS") + " " + &self.quote_identifier_relaxed(name);
+                }
+                s
+            })
+            .collect();
+        result + &parts.join(", ") + ")"
     }
 
     fn format_exprs(&self, exprs: &[Expr]) -> String {
@@ -703,9 +1179,29 @@ impl SqlFormatter {
         result
     }
 
+    fn format_hints(&self, hints: &[String]) -> Option<String> {
+        if hints.is_empty() {
+            return None;
+        }
+        let formatted: Vec<String> = hints.iter().map(|h| format!("/*+ {} */", h)).collect();
+        Some(formatted.join(" "))
+    }
+
     fn format_insert(&self, stmt: &InsertStatement) -> String {
-        let mut parts = vec![self.kw("INSERT INTO")];
+        let mut parts = Vec::new();
+        if let Some(hints) = self.format_hints(&stmt.hints) {
+            parts.push(hints);
+        }
+        parts.push(self.kw("INSERT INTO"));
         parts.push(self.format_object_name(&stmt.table));
+
+        if let Some(ref alias) = stmt.alias {
+            parts.push(self.quote_identifier(alias));
+        }
+
+        if let Some(ref p) = stmt.partition {
+            parts.push(self.format_dml_partition(p));
+        }
 
         if !stmt.columns.is_empty() {
             parts.push(format!("({})", stmt.columns.join(", ")));
@@ -731,6 +1227,68 @@ impl SqlFormatter {
             }
         }
 
+        if let Some(ref conflict) = stmt.on_conflict {
+            match conflict {
+                OnConflictAction::Nothing { target } => {
+                    let mut conflict_parts = vec![self.kw("ON"), self.kw("CONFLICT")];
+                    if let Some(t) = target {
+                        match t {
+                            OnConflictTarget::Columns(cols) => {
+                                conflict_parts.push(format!("({})", cols.join(", ")));
+                            }
+                            OnConflictTarget::OnConstraint(name) => {
+                                conflict_parts.push(self.kw("ON"));
+                                conflict_parts.push(self.kw("CONSTRAINT"));
+                                conflict_parts.push(self.quote_identifier(name));
+                            }
+                        }
+                    }
+                    conflict_parts.push(self.kw("DO"));
+                    conflict_parts.push(self.kw("NOTHING"));
+                    parts.push(conflict_parts.join(" "));
+                }
+                OnConflictAction::Update {
+                    target,
+                    assignments,
+                    where_clause,
+                } => {
+                    let mut conflict_parts = vec![self.kw("ON")];
+                    conflict_parts.push(self.kw("CONFLICT"));
+                    if let Some(t) = target {
+                        match t {
+                            OnConflictTarget::Columns(cols) => {
+                                conflict_parts.push(format!("({})", cols.join(", ")));
+                            }
+                            OnConflictTarget::OnConstraint(name) => {
+                                conflict_parts.push(self.kw("ON"));
+                                conflict_parts.push(self.kw("CONSTRAINT"));
+                                conflict_parts.push(self.quote_identifier(name));
+                            }
+                        }
+                    }
+                    conflict_parts.push(self.kw("DO"));
+                    conflict_parts.push(self.kw("UPDATE"));
+                    conflict_parts.push(self.kw("SET"));
+                    let assign_strs: Vec<String> = assignments
+                        .iter()
+                        .map(|a| {
+                            format!(
+                                "{} = {}",
+                                self.format_object_name(&a.column),
+                                self.format_expr(&a.value)
+                            )
+                        })
+                        .collect();
+                    conflict_parts.push(assign_strs.join(", "));
+                    if let Some(w) = where_clause {
+                        conflict_parts.push(self.kw("WHERE"));
+                        conflict_parts.push(self.format_expr(w));
+                    }
+                    parts.push(conflict_parts.join(" "));
+                }
+            }
+        }
+
         if !stmt.returning.is_empty() {
             parts.push(format!(
                 "{} {}",
@@ -742,9 +1300,74 @@ impl SqlFormatter {
         parts.join(" ")
     }
 
+    fn format_insert_all_target(&self, target: &InsertAllTarget) -> String {
+        let mut parts = vec![self.kw("INTO"), self.format_object_name(&target.table)];
+        if !target.columns.is_empty() {
+            parts.push(format!("({})", target.columns.join(", ")));
+        }
+        let rows: Vec<String> = target
+            .values
+            .iter()
+            .map(|row| format!("({})", self.format_exprs(row)))
+            .collect();
+        parts.push(format!("{} {}", self.kw("VALUES"), rows.join(", ")));
+        parts.join(" ")
+    }
+
+    fn format_insert_all(&self, stmt: &InsertAllStatement) -> String {
+        let mut parts = vec![self.kw("INSERT ALL")];
+        for target in &stmt.targets {
+            parts.push(self.format_insert_all_target(target));
+        }
+        for cond in &stmt.conditions {
+            parts.push(self.kw("WHEN"));
+            parts.push(self.format_expr(&cond.condition));
+            parts.push(self.kw("THEN"));
+            for target in &cond.targets {
+                parts.push(self.format_insert_all_target(target));
+            }
+        }
+        if !stmt.else_targets.is_empty() {
+            parts.push(self.kw("ELSE"));
+            for target in &stmt.else_targets {
+                parts.push(self.format_insert_all_target(target));
+            }
+        }
+        parts.push(self.format_select(&stmt.source));
+        parts.join(" ")
+    }
+
+    fn format_insert_first(&self, stmt: &InsertFirstStatement) -> String {
+        let mut parts = vec![self.kw("INSERT FIRST")];
+        for cond in &stmt.when_clauses {
+            parts.push(self.kw("WHEN"));
+            parts.push(self.format_expr(&cond.condition));
+            parts.push(self.kw("THEN"));
+            for target in &cond.targets {
+                parts.push(self.format_insert_all_target(target));
+            }
+        }
+        if !stmt.else_targets.is_empty() {
+            parts.push(self.kw("ELSE"));
+            for target in &stmt.else_targets {
+                parts.push(self.format_insert_all_target(target));
+            }
+        }
+        parts.push(self.format_select(&stmt.source));
+        parts.join(" ")
+    }
+
     fn format_update(&self, stmt: &UpdateStatement) -> String {
-        let mut parts = vec![self.kw("UPDATE")];
+        let mut parts = Vec::new();
+        if let Some(hints) = self.format_hints(&stmt.hints) {
+            parts.push(hints);
+        }
+        parts.push(self.kw("UPDATE"));
         parts.push(self.format_table_refs(&stmt.tables));
+
+        if let Some(ref p) = stmt.partition {
+            parts.push(self.format_dml_partition(p));
+        }
 
         let assignments: Vec<String> = stmt
             .assignments
@@ -787,7 +1410,11 @@ impl SqlFormatter {
     }
 
     fn format_delete(&self, stmt: &DeleteStatement) -> String {
-        let mut parts = vec![self.kw("DELETE FROM")];
+        let mut parts = Vec::new();
+        if let Some(hints) = self.format_hints(&stmt.hints) {
+            parts.push(hints);
+        }
+        parts.push(self.kw("DELETE FROM"));
         parts.push(self.format_table_refs(&stmt.tables));
 
         if !stmt.using.is_empty() {
@@ -818,10 +1445,17 @@ impl SqlFormatter {
     }
 
     fn format_merge(&self, stmt: &MergeStatement) -> String {
-        let mut parts = vec![self.kw("MERGE INTO")];
-        parts.push(self.format_table_ref(&stmt.target));
+        let mut parts = Vec::new();
+        if let Some(hints) = self.format_hints(&stmt.hints) {
+            parts.push(hints);
+        }
+        parts.push(self.kw("MERGE INTO"));
+        parts.push(self.format_table_ref_with_partition(&stmt.target, stmt.partition.as_ref()));
+
         parts.push(self.kw("USING"));
-        parts.push(self.format_table_ref(&stmt.source));
+        parts.push(
+            self.format_table_ref_with_partition(&stmt.source, stmt.source_partition.as_ref()),
+        );
         parts.push(self.kw("ON"));
         parts.push(self.format_expr(&stmt.on_condition));
 
@@ -895,7 +1529,260 @@ impl SqlFormatter {
 
         parts.push(format!("({})", inner.join(", ")));
 
+        if let Some(pb) = &stmt.partition_by {
+            parts.push(self.format_partition_clause(pb));
+        }
+
+        if let Some(spb) = &stmt.subpartition_by {
+            parts.push(self.format_subpartition_clause(spb));
+        }
+
+        if let Some(n) = stmt.subpartitions_count {
+            parts.push(format!("{} {}", self.kw("SUBPARTITIONS"), n));
+        }
+
+        if let Some(ts) = &stmt.tablespace {
+            parts.push(format!("{} {}", self.kw("TABLESPACE"), ts));
+        }
+
+        if let Some(oc) = &stmt.on_commit {
+            parts.push(format!(
+                "{} {}",
+                self.kw("ON COMMIT"),
+                match oc {
+                    OnCommitAction::PreserveRows => self.kw("PRESERVE ROWS"),
+                    OnCommitAction::DeleteRows => self.kw("DELETE ROWS"),
+                    OnCommitAction::Drop => self.kw("DROP"),
+                }
+            ));
+        }
+
+        if let Some(d) = &stmt.distribute_by {
+            parts.push(self.format_distribute_clause(d));
+        }
+
+        if let Some(g) = &stmt.to_group {
+            parts.push(format!("{} {} {}", self.kw("TO"), self.kw("GROUP"), g));
+        }
+
+        if !stmt.options.is_empty() {
+            let opts: Vec<String> = stmt
+                .options
+                .iter()
+                .map(|(k, v)| format!("{} = {}", k, v))
+                .collect();
+            parts.push(format!("{} ({})", self.kw("WITH"), opts.join(", ")));
+        }
+
         parts.join(" ")
+    }
+
+    fn format_distribute_clause(&self, clause: &DistributeClause) -> String {
+        match clause {
+            DistributeClause::Hash { columns } => {
+                format!(
+                    "{} {} ({})",
+                    self.kw("DISTRIBUTE BY HASH"),
+                    "",
+                    columns.join(", ")
+                )
+            }
+            DistributeClause::Replication => self.kw("DISTRIBUTE BY REPLICATION"),
+            DistributeClause::RoundRobin { columns } => {
+                format!(
+                    "{} {} ({})",
+                    self.kw("DISTRIBUTE BY ROUNDROBIN"),
+                    "",
+                    columns.join(", ")
+                )
+            }
+            DistributeClause::Modulo { columns } => {
+                format!(
+                    "{} {} ({})",
+                    self.kw("DISTRIBUTE BY MODULO"),
+                    "",
+                    columns.join(", ")
+                )
+            }
+        }
+    }
+
+    fn format_dml_partition(&self, clause: &DmlPartitionClause) -> String {
+        match clause {
+            DmlPartitionClause::Partition(name) => {
+                format!("{} ({})", self.kw("PARTITION"), name)
+            }
+            DmlPartitionClause::Subpartition(name) => {
+                format!("{} ({})", self.kw("SUBPARTITION"), name)
+            }
+            DmlPartitionClause::PartitionFor(exprs) => {
+                let formatted: Vec<String> = exprs.iter().map(|e| self.format_expr(e)).collect();
+                format!(
+                    "{} {} ({})",
+                    self.kw("PARTITION"),
+                    self.kw("FOR"),
+                    formatted.join(", ")
+                )
+            }
+            DmlPartitionClause::SubpartitionFor(exprs) => {
+                let formatted: Vec<String> = exprs.iter().map(|e| self.format_expr(e)).collect();
+                format!(
+                    "{} {} ({})",
+                    self.kw("SUBPARTITION"),
+                    self.kw("FOR"),
+                    formatted.join(", ")
+                )
+            }
+        }
+    }
+
+    fn format_partition_clause(&self, clause: &PartitionClause) -> String {
+        match clause {
+            PartitionClause::Range {
+                column,
+                interval,
+                partitions,
+            } => {
+                let mut parts = vec![
+                    self.kw("PARTITION BY RANGE"),
+                    format!("({})", self.format_object_name(column)),
+                ];
+                if let Some(iv) = interval {
+                    parts.push(format!(
+                        "{} ({})",
+                        self.kw("INTERVAL"),
+                        self.format_expr(iv)
+                    ));
+                }
+                if !partitions.is_empty() {
+                    parts.push(self.format_partition_defs(partitions));
+                }
+                parts.join(" ")
+            }
+            PartitionClause::List { column, partitions } => {
+                let mut parts = vec![
+                    self.kw("PARTITION BY LIST"),
+                    format!("({})", self.format_object_name(column)),
+                ];
+                if !partitions.is_empty() {
+                    parts.push(self.format_partition_defs(partitions));
+                }
+                parts.join(" ")
+            }
+            PartitionClause::Hash {
+                column,
+                partitions_count,
+                partitions,
+            } => {
+                let mut parts = vec![
+                    self.kw("PARTITION BY HASH"),
+                    format!("({})", self.format_object_name(column)),
+                ];
+                if let Some(n) = partitions_count {
+                    parts.push(format!("{} {}", self.kw("PARTITIONS"), n));
+                }
+                if !partitions.is_empty() {
+                    parts.push(self.format_partition_defs(partitions));
+                }
+                parts.join(" ")
+            }
+        }
+    }
+
+    fn format_subpartition_clause(&self, clause: &PartitionClause) -> String {
+        match clause {
+            PartitionClause::Range {
+                column, partitions, ..
+            } => {
+                let mut parts = vec![
+                    self.kw("SUBPARTITION BY RANGE"),
+                    format!("({})", self.format_object_name(column)),
+                ];
+                if !partitions.is_empty() {
+                    parts.push(self.format_partition_defs(partitions));
+                }
+                parts.join(" ")
+            }
+            PartitionClause::List { column, partitions } => {
+                let mut parts = vec![
+                    self.kw("SUBPARTITION BY LIST"),
+                    format!("({})", self.format_object_name(column)),
+                ];
+                if !partitions.is_empty() {
+                    parts.push(self.format_partition_defs(partitions));
+                }
+                parts.join(" ")
+            }
+            PartitionClause::Hash {
+                column,
+                partitions_count,
+                partitions,
+            } => {
+                let mut parts = vec![
+                    self.kw("SUBPARTITION BY HASH"),
+                    format!("({})", self.format_object_name(column)),
+                ];
+                if let Some(n) = partitions_count {
+                    parts.push(format!("{} {}", self.kw("SUBPARTITIONS"), n));
+                }
+                if !partitions.is_empty() {
+                    parts.push(self.format_partition_defs(partitions));
+                }
+                parts.join(" ")
+            }
+        }
+    }
+
+    fn format_partition_defs(&self, defs: &[PartitionDef]) -> String {
+        let parts: Vec<String> = defs
+            .iter()
+            .map(|d| {
+                let mut s = format!(
+                    "{} {}",
+                    self.kw("PARTITION"),
+                    self.quote_identifier(&d.name)
+                );
+                if let Some(v) = &d.values {
+                    s = format!("{} {}", s, self.format_partition_values(v));
+                }
+                if let Some(ts) = &d.tablespace {
+                    s = format!(
+                        "{} {} {}",
+                        s,
+                        self.kw("TABLESPACE"),
+                        self.quote_identifier(ts)
+                    );
+                }
+                if !d.subpartitions.is_empty() {
+                    let subs: Vec<String> = d
+                        .subpartitions
+                        .iter()
+                        .map(|sp| {
+                            let mut ss = format!(
+                                "{} {}",
+                                self.kw("SUBPARTITION"),
+                                self.quote_identifier(&sp.name)
+                            );
+                            if let Some(v) = &sp.values {
+                                ss = format!("{} {}", ss, self.format_partition_values(v));
+                            }
+                            if let Some(ts) = &sp.tablespace {
+                                ss = format!(
+                                    "{} {} {}",
+                                    ss,
+                                    self.kw("TABLESPACE"),
+                                    self.quote_identifier(ts)
+                                );
+                            }
+                            ss
+                        })
+                        .collect();
+                    s = format!("{} ({})", s, subs.join(", "));
+                }
+                s
+            })
+            .collect();
+        format!("({})", parts.join(", "))
     }
 
     fn format_column_def(&self, col: &ColumnDef) -> String {
@@ -974,7 +1861,29 @@ impl SqlFormatter {
                 Some(len) => format!("BIT VARYING({})", len),
                 None => "BIT VARYING".to_string(),
             },
-            DataType::Custom(name) => self.format_object_name(name),
+            DataType::TinyInt => "TINYINT".to_string(),
+            DataType::Float(n) => match n {
+                Some(len) => format!("FLOAT({})", len),
+                None => "FLOAT".to_string(),
+            },
+            DataType::Serial => "SERIAL".to_string(),
+            DataType::SmallSerial => "SMALLSERIAL".to_string(),
+            DataType::BigSerial => "BIGSERIAL".to_string(),
+            DataType::BinaryFloat => "BINARY_FLOAT".to_string(),
+            DataType::BinaryDouble => "BINARY_DOUBLE".to_string(),
+            DataType::Custom(name, args) => {
+                let base = self.format_object_name(name);
+                if args.is_empty() {
+                    base
+                } else {
+                    let args_str = args
+                        .iter()
+                        .map(|a| self.format_expr(a))
+                        .collect::<Vec<_>>()
+                        .join(", ");
+                    format!("{}({})", base, args_str)
+                }
+            }
         }
     }
 
@@ -1130,6 +2039,285 @@ impl SqlFormatter {
                     self.quote_identifier(schema)
                 )
             }
+            AlterTableAction::SetOptions { options } => {
+                let pairs: Vec<String> = options
+                    .iter()
+                    .map(|(k, v)| {
+                        format!(
+                            "{} = {}",
+                            self.quote_identifier(k),
+                            self.quote_identifier(v)
+                        )
+                    })
+                    .collect();
+                format!("{} ({})", self.kw("SET"), pairs.join(", "))
+            }
+            AlterTableAction::SetTablespace { tablespace } => {
+                format!(
+                    "{} {}",
+                    self.kw("SET TABLESPACE"),
+                    self.quote_identifier(tablespace)
+                )
+            }
+            AlterTableAction::SetWithoutOids => self.kw("SET WITHOUT OIDS").to_string(),
+            AlterTableAction::ResetOptions { options } => {
+                let names: Vec<String> = options.iter().map(|o| self.quote_identifier(o)).collect();
+                format!("{} ({})", self.kw("RESET"), names.join(", "))
+            }
+            AlterTableAction::AddPartition {
+                name,
+                values,
+                tablespace,
+            } => {
+                let mut parts = vec![
+                    self.kw("ADD PARTITION"),
+                    self.quote_identifier(name),
+                    self.format_partition_values(values),
+                ];
+                if let Some(ts) = tablespace {
+                    parts.push(format!("{} {}", self.kw("TABLESPACE"), ts));
+                }
+                parts.join(" ")
+            }
+            AlterTableAction::DropPartition { name, if_exists } => {
+                let mut parts = vec![self.kw("DROP PARTITION")];
+                if *if_exists {
+                    parts.push(self.kw("IF EXISTS"));
+                }
+                parts.push(self.quote_identifier(name));
+                parts.join(" ")
+            }
+            AlterTableAction::TruncatePartition { name, cascade } => {
+                let mut parts = vec![self.kw("TRUNCATE PARTITION"), self.quote_identifier(name)];
+                if *cascade {
+                    parts.push(self.kw("CASCADE"));
+                }
+                parts.join(" ")
+            }
+            AlterTableAction::MergePartitions { names, into_name } => {
+                let name_list: Vec<String> =
+                    names.iter().map(|n| self.quote_identifier(n)).collect();
+                format!(
+                    "{} {} {} {}",
+                    self.kw("MERGE PARTITIONS"),
+                    name_list.join(", "),
+                    self.kw("INTO PARTITION"),
+                    self.quote_identifier(into_name)
+                )
+            }
+            AlterTableAction::SplitPartition {
+                name,
+                at_value,
+                into,
+            } => {
+                let mut parts = vec![self.kw("SPLIT PARTITION"), self.quote_identifier(name)];
+                if let Some(at) = at_value {
+                    parts.push(format!("{} {}", self.kw("AT"), self.format_expr(at)));
+                }
+                let partitions: Vec<String> = into
+                    .iter()
+                    .map(|p| {
+                        let mut s = format!(
+                            "{} {}",
+                            self.kw("PARTITION"),
+                            self.quote_identifier(&p.name)
+                        );
+                        if let Some(v) = &p.values {
+                            s = format!("{} {}", s, self.format_partition_values(v));
+                        }
+                        s
+                    })
+                    .collect();
+                parts.push(format!("{} ({})", self.kw("INTO"), partitions.join(", ")));
+                parts.join(" ")
+            }
+            AlterTableAction::ExchangePartition { name, table } => {
+                format!(
+                    "{} {} {} {}",
+                    self.kw("EXCHANGE PARTITION"),
+                    self.quote_identifier(name),
+                    self.kw("WITH TABLE"),
+                    self.format_object_name(table)
+                )
+            }
+            AlterTableAction::RenamePartition { old_name, new_name } => {
+                format!(
+                    "{} {} {} {}",
+                    self.kw("RENAME PARTITION"),
+                    self.quote_identifier(old_name),
+                    self.kw("TO"),
+                    self.quote_identifier(new_name)
+                )
+            }
+            AlterTableAction::AddSubPartition {
+                partition_name: _,
+                name,
+                values,
+            } => {
+                let mut parts = vec![self.kw("ADD SUBPARTITION"), self.quote_identifier(name)];
+                if let Some(v) = values {
+                    parts.push(self.format_partition_values(v));
+                }
+                parts.join(" ")
+            }
+            AlterTableAction::DropSubPartition { name, if_exists } => {
+                let mut parts = vec![self.kw("DROP SUBPARTITION")];
+                if *if_exists {
+                    parts.push(self.kw("IF EXISTS"));
+                }
+                parts.push(self.quote_identifier(name));
+                parts.join(" ")
+            }
+            AlterTableAction::TruncateSubPartition { name, cascade } => {
+                let mut parts = vec![
+                    self.kw("TRUNCATE SUBPARTITION"),
+                    self.quote_identifier(name),
+                ];
+                if *cascade {
+                    parts.push(self.kw("CASCADE"));
+                }
+                parts.join(" ")
+            }
+            AlterTableAction::MergeSubPartitions { names, into_name } => {
+                let name_list: Vec<String> =
+                    names.iter().map(|n| self.quote_identifier(n)).collect();
+                format!(
+                    "{} {} {} {}",
+                    self.kw("MERGE SUBPARTITIONS"),
+                    name_list.join(", "),
+                    self.kw("INTO SUBPARTITION"),
+                    self.quote_identifier(into_name)
+                )
+            }
+            AlterTableAction::SplitSubPartition {
+                name,
+                at_value,
+                into,
+            } => {
+                let mut parts = vec![self.kw("SPLIT SUBPARTITION"), self.quote_identifier(name)];
+                if let Some(at) = at_value {
+                    parts.push(format!("{} {}", self.kw("AT"), self.format_expr(at)));
+                }
+                let subs: Vec<String> = into
+                    .iter()
+                    .map(|p| {
+                        let mut s = format!(
+                            "{} {}",
+                            self.kw("SUBPARTITION"),
+                            self.quote_identifier(&p.name)
+                        );
+                        if let Some(v) = &p.values {
+                            s = format!("{} {}", s, self.format_partition_values(v));
+                        }
+                        if let Some(ts) = &p.tablespace {
+                            s = format!(
+                                "{} {} {}",
+                                s,
+                                self.kw("TABLESPACE"),
+                                self.quote_identifier(ts)
+                            );
+                        }
+                        s
+                    })
+                    .collect();
+                parts.push(format!("{} ({})", self.kw("INTO"), subs.join(", ")));
+                parts.join(" ")
+            }
+            AlterTableAction::ExchangeSubPartition { name, table } => {
+                format!(
+                    "{} {} {} {}",
+                    self.kw("EXCHANGE SUBPARTITION"),
+                    self.quote_identifier(name),
+                    self.kw("WITH TABLE"),
+                    self.format_object_name(table)
+                )
+            }
+            AlterTableAction::RenameSubPartition { old_name, new_name } => {
+                format!(
+                    "{} {} {} {}",
+                    self.kw("RENAME SUBPARTITION"),
+                    self.quote_identifier(old_name),
+                    self.kw("TO"),
+                    self.quote_identifier(new_name)
+                )
+            }
+            AlterTableAction::MoveSubPartition { name, tablespace } => {
+                format!(
+                    "{} {} {} {}",
+                    self.kw("MOVE SUBPARTITION"),
+                    self.quote_identifier(name),
+                    self.kw("TABLESPACE"),
+                    self.quote_identifier(tablespace)
+                )
+            }
+            AlterTableAction::MovePartition { name, tablespace } => {
+                format!(
+                    "{} {} {} {}",
+                    self.kw("MOVE PARTITION"),
+                    self.quote_identifier(name),
+                    self.kw("TABLESPACE"),
+                    self.quote_identifier(tablespace)
+                )
+            }
+            AlterTableAction::DropPartitionFor { expr, if_exists } => {
+                let mut s = self.kw("DROP PARTITION").to_string();
+                if *if_exists {
+                    s = format!("{} {}", s, self.kw("IF EXISTS"));
+                }
+                format!("{} {} ({})", s, self.kw("FOR"), self.format_expr(expr))
+            }
+            AlterTableAction::RenamePartitionFor { expr, new_name } => {
+                format!(
+                    "{} {} ({}) {} {}",
+                    self.kw("RENAME PARTITION"),
+                    self.kw("FOR"),
+                    self.format_expr(expr),
+                    self.kw("TO"),
+                    self.quote_identifier(new_name)
+                )
+            }
+            AlterTableAction::EnableRowLevelSecurity => {
+                self.kw("ENABLE ROW LEVEL SECURITY").to_string()
+            }
+            AlterTableAction::DisableRowLevelSecurity => {
+                self.kw("DISABLE ROW LEVEL SECURITY").to_string()
+            }
+            AlterTableAction::SetCharset { charset, collation } => {
+                if let Some(col) = collation {
+                    format!(
+                        "{} {} {} {}",
+                        self.kw("CHARSET"),
+                        self.quote_identifier(charset),
+                        self.kw("COLLATE"),
+                        self.quote_identifier(col)
+                    )
+                } else {
+                    format!("{} {}", self.kw("CHARSET"), self.quote_identifier(charset))
+                }
+            }
+            _ => "...".to_string(),
+        }
+    }
+
+    fn format_partition_values(&self, values: &PartitionValues) -> String {
+        match values {
+            PartitionValues::LessThan(exprs) => {
+                let formatted: Vec<String> = exprs.iter().map(|e| self.format_expr(e)).collect();
+                format!("{} ({})", self.kw("VALUES LESS THAN"), formatted.join(", "))
+            }
+            PartitionValues::InValues(exprs) => {
+                let formatted: Vec<String> = exprs.iter().map(|e| self.format_expr(e)).collect();
+                format!("{} ({})", self.kw("VALUES IN"), formatted.join(", "))
+            }
+            PartitionValues::StartEnd { start, end } => {
+                format!(
+                    "{} ({}) {} ({})",
+                    self.kw("START"),
+                    self.format_expr(start),
+                    self.kw("END"),
+                    self.format_expr(end)
+                )
+            }
         }
     }
 
@@ -1166,6 +2354,45 @@ impl SqlFormatter {
             ObjectType::ForeignTable => "FOREIGN TABLE",
             ObjectType::ForeignServer => "SERVER",
             ObjectType::Fdw => "FOREIGN DATA WRAPPER",
+            ObjectType::Aggregate => "AGGREGATE",
+            ObjectType::Cast => "CAST",
+            ObjectType::Conversion => "CONVERSION",
+            ObjectType::Operator => "OPERATOR",
+            ObjectType::OperatorClass => "OPERATOR CLASS",
+            ObjectType::OperatorFamily => "OPERATOR FAMILY",
+            ObjectType::Rule => "RULE",
+            ObjectType::Language => "LANGUAGE",
+            ObjectType::TextSearchConfig => "TEXT SEARCH CONFIGURATION",
+            ObjectType::TextSearchDict => "TEXT SEARCH DICTIONARY",
+            ObjectType::Domain => "DOMAIN",
+            ObjectType::Policy => "POLICY",
+            ObjectType::User => "USER",
+            ObjectType::Role => "ROLE",
+            ObjectType::Group => "GROUP",
+            ObjectType::ResourcePool => "RESOURCE POOL",
+            ObjectType::ResourceLabel => "RESOURCE LABEL",
+            ObjectType::WorkloadGroup => "WORKLOAD GROUP",
+            ObjectType::AuditPolicy => "AUDIT POLICY",
+            ObjectType::MaskingPolicy => "MASKING POLICY",
+            ObjectType::RlsPolicy => "ROW LEVEL SECURITY POLICY",
+            ObjectType::DataSource => "DATA SOURCE",
+            ObjectType::Directory => "DIRECTORY",
+            ObjectType::Event => "EVENT",
+            ObjectType::Publication => "PUBLICATION",
+            ObjectType::Subscription => "SUBSCRIPTION",
+            ObjectType::Synonym => "SYNONYM",
+            ObjectType::Model => "MODEL",
+            ObjectType::SecurityLabel => "SECURITY LABEL",
+            ObjectType::UserMapping => "USER MAPPING",
+            ObjectType::WeakPasswordDictionary => "WEAK PASSWORD DICTIONARY",
+            ObjectType::PolicyLabel => "POLICY LABEL",
+            ObjectType::Node => "NODE",
+            ObjectType::NodeGroup => "NODE GROUP",
+            ObjectType::App => "APP",
+            ObjectType::Global => "GLOBAL",
+            ObjectType::OpClass => "OPERATOR CLASS",
+            ObjectType::OpFamily => "OPERATOR FAMILY",
+            ObjectType::Type => "TYPE",
         };
         parts.push(self.kw(obj_type));
 
@@ -1203,6 +2430,10 @@ impl SqlFormatter {
 
         if stmt.restart_identity {
             parts.push(self.kw("RESTART IDENTITY"));
+        }
+
+        if stmt.continue_identity {
+            parts.push(self.kw("CONTINUE IDENTITY"));
         }
 
         if stmt.cascade {
@@ -1444,6 +2675,33 @@ impl SqlFormatter {
         parts.join(" ")
     }
 
+    fn format_create_database_link(&self, stmt: &CreateDatabaseLinkStatement) -> String {
+        let mut parts = vec![self.kw("CREATE")];
+        if stmt.public_link {
+            parts.push(self.kw("PUBLIC"));
+        }
+        parts.push(self.kw("DATABASE LINK"));
+        parts.push(self.quote_identifier(&stmt.name));
+        if let Some(user) = &stmt.user {
+            parts.push(format!(
+                "{} {}",
+                self.kw("CONNECT TO"),
+                self.quote_identifier(user)
+            ));
+        }
+        if let Some(pwd) = &stmt.password {
+            parts.push(format!(
+                "{} {}",
+                self.kw("IDENTIFIED BY"),
+                self.quote_string(pwd)
+            ));
+        }
+        if let Some(using) = &stmt.using_clause {
+            parts.push(format!("{} {}", self.kw("USING"), self.quote_string(using)));
+        }
+        parts.join(" ")
+    }
+
     fn format_create_tablespace(&self, stmt: &CreateTablespaceStatement) -> String {
         let mut parts = vec![self.kw("CREATE TABLESPACE")];
         parts.push(self.quote_identifier(&stmt.name));
@@ -1451,6 +2709,10 @@ impl SqlFormatter {
         if let Some(owner) = &stmt.owner {
             parts.push(self.kw("OWNER"));
             parts.push(self.quote_identifier(owner));
+        }
+
+        if stmt.relative {
+            parts.push(self.kw("RELATIVE"));
         }
 
         parts.push(self.kw("LOCATION"));
@@ -1746,15 +3008,53 @@ impl SqlFormatter {
                 s
             }
             PlDeclaration::Record(r) => format!("{} {}", r.name, self.kw("RECORD")),
-            PlDeclaration::Type(t) => {
-                let fields = t
-                    .fields
-                    .iter()
-                    .map(|f| format!("{} {}", f.name, self.format_pl_data_type(&f.data_type)))
-                    .collect::<Vec<_>>()
-                    .join(", ");
-                format!("{} {} ({})", t.name, self.kw("TYPE"), fields)
-            }
+            PlDeclaration::Type(t) => match t {
+                PlTypeDecl::Record { name, fields } => {
+                    let fields_str = fields
+                        .iter()
+                        .map(|f| format!("{} {}", f.name, self.format_pl_data_type(&f.data_type)))
+                        .collect::<Vec<_>>()
+                        .join(", ");
+                    format!("{} {} ({})", name, self.kw("TYPE IS RECORD"), fields_str)
+                }
+                PlTypeDecl::TableOf {
+                    name,
+                    elem_type,
+                    index_by,
+                } => {
+                    let mut s = format!(
+                        "{} {} {} {}",
+                        name,
+                        self.kw("TYPE IS TABLE OF"),
+                        self.format_pl_data_type(elem_type),
+                        ""
+                    );
+                    if let Some(idx) = index_by {
+                        s = format!(
+                            "{} {} {} {}",
+                            s.trim(),
+                            self.kw("INDEX BY"),
+                            self.format_pl_data_type(idx),
+                            ""
+                        );
+                    }
+                    s.trim().to_string()
+                }
+                PlTypeDecl::VarrayOf {
+                    name,
+                    size,
+                    elem_type,
+                } => {
+                    format!(
+                        "{} {} ({}) {} {}",
+                        name,
+                        self.kw("TYPE IS VARRAY"),
+                        self.format_expr(size),
+                        self.kw("OF"),
+                        self.format_pl_data_type(elem_type)
+                    )
+                }
+            },
             PlDeclaration::NestedProcedure(p) => {
                 let mut s = format!(
                     "{} {} ",
@@ -1869,17 +3169,32 @@ impl SqlFormatter {
             }
             PlStatement::Raise(r) => self.format_pl_raise(r),
             PlStatement::Execute(e) => {
-                let mut s = format!(
-                    "{} {}",
-                    self.kw("EXECUTE"),
-                    self.format_expr(&e.string_expr)
-                );
-                if let Some(ref into) = e.into_target {
-                    s.push_str(&format!(" {} {}", self.kw("INTO"), self.format_expr(into)));
+                let mut s = if e.immediate {
+                    format!("{} {}", self.kw("EXECUTE"), self.kw("IMMEDIATE"))
+                } else {
+                    self.kw("EXECUTE").to_string()
+                };
+                s.push_str(&format!(" {}", self.format_expr(&e.string_expr)));
+                if !e.into_targets.is_empty() {
+                    let targets: Vec<String> =
+                        e.into_targets.iter().map(|t| self.format_expr(t)).collect();
+                    s.push_str(&format!(" {} {}", self.kw("INTO"), targets.join(", ")));
                 }
                 if !e.using_args.is_empty() {
-                    let args: Vec<String> =
-                        e.using_args.iter().map(|a| self.format_expr(a)).collect();
+                    let args: Vec<String> = e
+                        .using_args
+                        .iter()
+                        .map(|a| {
+                            let mode = match a.mode {
+                                PlUsingMode::In => format!("{} ", self.kw("IN")),
+                                PlUsingMode::Out => format!("{} ", self.kw("OUT")),
+                                PlUsingMode::InOut => {
+                                    format!("{} {} ", self.kw("IN"), self.kw("OUT"))
+                                }
+                            };
+                            format!("{}{}", mode, self.format_expr(&a.argument))
+                        })
+                        .collect();
                     s.push_str(&format!(" {} {}", self.kw("USING"), args.join(", ")));
                 }
                 format!("{};", s)
@@ -2327,8 +3642,83 @@ impl SqlFormatter {
 
     fn format_create_masking_policy(&self, stmt: &CreateMaskingPolicyStatement) -> String {
         let mut s = format!("CREATE MASKING POLICY {}", stmt.name);
+        if let Some(ref func) = stmt.masking_function {
+            s.push_str(&format!(" {}", func));
+        }
+        if !stmt.labels.is_empty() {
+            s.push_str(&format!(" ON LABEL ({})", stmt.labels.join(", ")));
+        }
         s.push_str(&self.format_options(&stmt.options));
         s
+    }
+
+    fn format_create_policy_label(&self, stmt: &CreatePolicyLabelStatement) -> String {
+        let op = if stmt.add { "ADD" } else { "REMOVE" };
+        let targets: Vec<String> = stmt
+            .targets
+            .iter()
+            .map(|t| self.format_object_name(t))
+            .collect();
+        format!(
+            "CREATE RESOURCE LABEL {} {} {} ({})",
+            stmt.name,
+            op,
+            stmt.label_type,
+            targets.join(", ")
+        )
+    }
+
+    fn format_alter_masking_policy(&self, stmt: &AlterMaskingPolicyStatement) -> String {
+        let mut s = format!("ALTER MASKING POLICY {}", stmt.name);
+        match &stmt.action {
+            AlterMaskingPolicyAction::Comments(comment) => {
+                s.push_str(&format!(" COMMENTS '{}'", comment));
+            }
+            AlterMaskingPolicyAction::Add { function, labels } => {
+                s.push_str(&format!(
+                    " ADD {} ON LABEL ({})",
+                    function,
+                    labels.join(", ")
+                ));
+            }
+            AlterMaskingPolicyAction::Remove { function, labels } => {
+                s.push_str(&format!(
+                    " REMOVE {} ON LABEL ({})",
+                    function,
+                    labels.join(", ")
+                ));
+            }
+            AlterMaskingPolicyAction::Modify { function, labels } => {
+                s.push_str(&format!(
+                    " MODIFY {} ON LABEL ({})",
+                    function,
+                    labels.join(", ")
+                ));
+            }
+            AlterMaskingPolicyAction::DropFilter => {
+                s.push_str(" DROP FILTER");
+            }
+            AlterMaskingPolicyAction::Disable => {
+                s.push_str(" DISABLE");
+            }
+        }
+        s
+    }
+
+    fn format_alter_policy_label(&self, stmt: &AlterPolicyLabelStatement) -> String {
+        let op = if stmt.add { "ADD" } else { "REMOVE" };
+        let targets: Vec<String> = stmt
+            .targets
+            .iter()
+            .map(|t| self.format_object_name(t))
+            .collect();
+        format!(
+            "ALTER RESOURCE LABEL {} {} {} ({})",
+            stmt.name,
+            op,
+            stmt.label_type,
+            targets.join(", ")
+        )
     }
 
     fn format_create_rls_policy(&self, stmt: &CreateRlsPolicyStatement) -> String {
@@ -2347,26 +3737,33 @@ impl SqlFormatter {
     }
 
     fn format_privilege(&self, p: &Privilege) -> String {
-        let name = match p {
-            Privilege::All => "ALL PRIVILEGES",
-            Privilege::Select => "SELECT",
-            Privilege::Insert => "INSERT",
-            Privilege::Update => "UPDATE",
-            Privilege::Delete => "DELETE",
-            Privilege::Usage => "USAGE",
-            Privilege::Create => "CREATE",
-            Privilege::Connect => "CONNECT",
-            Privilege::Temporary => "TEMPORARY",
-            Privilege::Execute => "EXECUTE",
-            Privilege::Trigger => "TRIGGER",
-            Privilege::References => "REFERENCES",
-            Privilege::Alter => "ALTER",
-            Privilege::Drop => "DROP",
-            Privilege::Comment => "COMMENT",
-            Privilege::Index => "INDEX",
-            Privilege::Vacuum => "VACUUM",
-        };
-        self.kw(name)
+        match p {
+            Privilege::All => self.kw("ALL PRIVILEGES"),
+            Privilege::Select => self.kw("SELECT"),
+            Privilege::SelectColumns(cols) => {
+                let cols_str: Vec<String> = cols.iter().map(|c| self.quote_identifier(c)).collect();
+                format!("{} ({})", self.kw("SELECT"), cols_str.join(", "))
+            }
+            Privilege::Insert => self.kw("INSERT"),
+            Privilege::Update => self.kw("UPDATE"),
+            Privilege::UpdateColumns(cols) => {
+                let cols_str: Vec<String> = cols.iter().map(|c| self.quote_identifier(c)).collect();
+                format!("{} ({})", self.kw("UPDATE"), cols_str.join(", "))
+            }
+            Privilege::Delete => self.kw("DELETE"),
+            Privilege::Usage => self.kw("USAGE"),
+            Privilege::Create => self.kw("CREATE"),
+            Privilege::Connect => self.kw("CONNECT"),
+            Privilege::Temporary => self.kw("TEMPORARY"),
+            Privilege::Execute => self.kw("EXECUTE"),
+            Privilege::Trigger => self.kw("TRIGGER"),
+            Privilege::References => self.kw("REFERENCES"),
+            Privilege::Alter => self.kw("ALTER"),
+            Privilege::Drop => self.kw("DROP"),
+            Privilege::Comment => self.kw("COMMENT"),
+            Privilege::Index => self.kw("INDEX"),
+            Privilege::Vacuum => self.kw("VACUUM"),
+        }
     }
 
     fn format_grant(&self, stmt: &GrantStatement) -> String {
@@ -2410,6 +3807,9 @@ impl SqlFormatter {
             }
             GrantTarget::AllSequencesInSchema(schemas) => {
                 format!("ALL SEQUENCES IN SCHEMA {}", schemas.join(", "))
+            }
+            GrantTarget::Tablespace(tbs) => {
+                format!("TABLESPACE {}", tbs.join(", "))
             }
         };
         let mut s = format!(
@@ -2469,6 +3869,9 @@ impl SqlFormatter {
             }
             GrantTarget::AllSequencesInSchema(schemas) => {
                 format!("ALL SEQUENCES IN SCHEMA {}", schemas.join(", "))
+            }
+            GrantTarget::Tablespace(tbs) => {
+                format!("TABLESPACE {}", tbs.join(", "))
             }
         };
         let mut s = format!(
@@ -3026,8 +4429,10 @@ impl SqlFormatter {
                 self.kw("AS"),
                 self.format_pl_block(block)
             ));
-        } else if !stmt.options.is_empty() {
-            s.push_str(&format!(" {}", stmt.options));
+        }
+        let opts_str = self.format_function_options(&stmt.options);
+        if !opts_str.is_empty() {
+            s.push_str(&format!(" {}", opts_str));
         }
         s
     }
@@ -3054,10 +4459,60 @@ impl SqlFormatter {
                 self.kw("AS"),
                 self.format_pl_block(block)
             ));
-        } else if !stmt.options.is_empty() {
-            s.push_str(&format!(" {}", stmt.options));
+        }
+        let opts_str = self.format_function_options(&stmt.options);
+        if !opts_str.is_empty() {
+            s.push_str(&format!(" {}", opts_str));
         }
         s
+    }
+
+    fn format_function_options(&self, opts: &FunctionOptions) -> String {
+        let mut parts = Vec::new();
+        if let Some(lang) = &opts.language {
+            parts.push(format!("{} {}", self.kw("LANGUAGE"), lang));
+        }
+        match &opts.volatility {
+            Some(Volatility::Immutable) => parts.push(self.kw("IMMUTABLE").to_string()),
+            Some(Volatility::Stable) => parts.push(self.kw("STABLE").to_string()),
+            Some(Volatility::Volatile) => parts.push(self.kw("VOLATILE").to_string()),
+            None => {}
+        }
+        if let Some(strict) = opts.strict {
+            if strict {
+                parts.push(self.kw("STRICT").to_string());
+            }
+        }
+        if let Some(cost) = opts.cost {
+            parts.push(format!("{} {}", self.kw("COST"), cost));
+        }
+        if let Some(rows) = opts.rows {
+            parts.push(format!("{} {}", self.kw("ROWS"), rows));
+        }
+        if let Some(lp) = opts.leakproof {
+            if lp {
+                parts.push(self.kw("LEAKPROOF").to_string());
+            } else {
+                parts.push(format!("{} {}", self.kw("NOT"), self.kw("LEAKPROOF")));
+            }
+        }
+        match &opts.security {
+            Some(SecurityMode::Invoker) => parts.push(self.kw("SECURITY INVOKER").to_string()),
+            Some(SecurityMode::Definer) => parts.push(self.kw("SECURITY DEFINER").to_string()),
+            None => {}
+        }
+        match &opts.parallel {
+            Some(ParallelMode::Safe) => parts.push(self.kw("PARALLEL SAFE").to_string()),
+            Some(ParallelMode::Unsafe) => parts.push(self.kw("PARALLEL UNSAFE").to_string()),
+            Some(ParallelMode::Restricted) => {
+                parts.push(self.kw("PARALLEL RESTRICTED").to_string())
+            }
+            None => {}
+        }
+        if !opts.extra.is_empty() {
+            parts.push(opts.extra.clone());
+        }
+        parts.join(" ")
     }
 
     fn format_create_package(&self, stmt: &CreatePackageStatement) -> String {
@@ -3377,8 +4832,151 @@ impl SqlFormatter {
         }
         s
     }
-}
 
+    fn format_create_table_as(&self, stmt: &CreateTableAsStatement) -> String {
+        let mut s = self.kw("CREATE").to_string();
+        if stmt.temporary {
+            s.push(' ');
+            s.push_str(&self.kw("TEMPORARY"));
+        }
+        if stmt.unlogged {
+            s.push(' ');
+            s.push_str(&self.kw("UNLOGGED"));
+        }
+        s.push(' ');
+        s.push_str(&self.kw("TABLE"));
+        if stmt.if_not_exists {
+            s.push(' ');
+            s.push_str(&self.kw("IF NOT EXISTS"));
+        }
+        s.push(' ');
+        s.push_str(&self.format_object_name(&stmt.name));
+        if !stmt.column_names.is_empty() {
+            s.push_str(&format!(" ({})", stmt.column_names.join(", ")));
+        }
+        s.push(' ');
+        s.push_str(&self.kw("AS"));
+        if let Some(ref table) = stmt.as_table {
+            s.push(' ');
+            s.push_str(&self.kw("TABLE"));
+            s.push(' ');
+            s.push_str(&self.format_object_name(table));
+        } else {
+            s.push(' ');
+            s.push_str(&self.format_select(&stmt.query));
+        }
+        if !stmt.with_data {
+            s.push(' ');
+            s.push_str(&self.kw("WITH NO DATA"));
+        }
+        s
+    }
+
+    fn format_create_aggregate(&self, stmt: &CreateAggregateStatement) -> String {
+        let mut s = format!("{} {}", self.kw("CREATE"), self.kw("AGGREGATE"));
+        s.push_str(&format!(" {}", stmt.name));
+        if !stmt.base_types.is_empty() {
+            s.push('(');
+            s.push_str(
+                &stmt
+                    .base_types
+                    .iter()
+                    .map(|t| self.format_data_type(t))
+                    .collect::<Vec<_>>()
+                    .join(", "),
+            );
+            s.push(')');
+        }
+        if !stmt.options.is_empty() {
+            let pairs: Vec<String> = stmt
+                .options
+                .iter()
+                .map(|(k, v)| format!("{} = {}", k, v))
+                .collect();
+            s.push_str(&format!(" ({})", pairs.join(", ")));
+        }
+        s
+    }
+
+    fn format_create_operator(&self, stmt: &CreateOperatorStatement) -> String {
+        let mut s = format!("{} {}", self.kw("CREATE"), self.kw("OPERATOR"));
+        s.push_str(&format!(" {}", stmt.name));
+        if !stmt.options.is_empty() {
+            let pairs: Vec<String> = stmt
+                .options
+                .iter()
+                .map(|(k, v)| format!("{} = {}", k, v))
+                .collect();
+            s.push_str(&format!(" ({})", pairs.join(", ")));
+        }
+        s
+    }
+
+    fn format_alter_default_privileges(&self, stmt: &AlterDefaultPrivilegesStatement) -> String {
+        let mut s = format!("{} {}", self.kw("ALTER"), self.kw("DEFAULT PRIVILEGES"));
+        if let Some(role) = &stmt.role {
+            s.push_str(&format!(" {} {} {}", self.kw("FOR"), self.kw("ROLE"), role));
+        }
+        if let Some(schema) = &stmt.schema {
+            s.push_str(&format!(
+                " {} {} {}",
+                self.kw("IN"),
+                self.kw("SCHEMA"),
+                schema
+            ));
+        }
+        s.push(' ');
+        match &stmt.action {
+            DefaultPrivilegeAction::Grant(g) => s.push_str(&self.format_grant(g)),
+            DefaultPrivilegeAction::Revoke(r) => s.push_str(&self.format_revoke(r)),
+        }
+        s
+    }
+
+    fn format_create_user_mapping(&self, stmt: &CreateUserMappingStatement) -> String {
+        let mut s = format!("{} {}", self.kw("CREATE"), self.kw("USER MAPPING"));
+        if stmt.if_not_exists {
+            s.push_str(&format!(" {}", self.kw("IF NOT EXISTS")));
+        }
+        s.push_str(&format!(
+            " {} {} {}",
+            self.kw("FOR"),
+            stmt.user_name,
+            self.kw("SERVER")
+        ));
+        s.push_str(&format!(" {}", self.format_object_name(&stmt.server)));
+        s.push_str(&self.format_options(&stmt.options));
+        s
+    }
+
+    fn format_alter_user_mapping(&self, stmt: &AlterUserMappingStatement) -> String {
+        let mut s = format!("{} {}", self.kw("ALTER"), self.kw("USER MAPPING"));
+        s.push_str(&format!(
+            " {} {} {}",
+            self.kw("FOR"),
+            stmt.user_name,
+            self.kw("SERVER")
+        ));
+        s.push_str(&format!(" {}", self.format_object_name(&stmt.server)));
+        s.push_str(&self.format_options(&stmt.options));
+        s
+    }
+
+    fn format_drop_user_mapping(&self, stmt: &DropUserMappingStatement) -> String {
+        let mut s = format!("{} {}", self.kw("DROP"), self.kw("USER MAPPING"));
+        if stmt.if_exists {
+            s.push_str(&format!(" {}", self.kw("IF EXISTS")));
+        }
+        s.push_str(&format!(
+            " {} {} {}",
+            self.kw("FOR"),
+            stmt.user_name,
+            self.kw("SERVER")
+        ));
+        s.push_str(&format!(" {}", self.format_object_name(&stmt.server)));
+        s
+    }
+}
 #[cfg(test)]
 mod tests {
     use super::*;

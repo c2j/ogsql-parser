@@ -1,0 +1,9 @@
+-- 类别: ANALYZE
+-- SQL 语句数量: 2
+
+-- 来源: 3192_DBE_STATS
+ANALYZE t1;
+
+-- 来源: 3192_DBE_STATS
+ANALYZE t1;
+

@@ -1,0 +1,27 @@
+-- 来源: 3081_SECURITY LABEL ON.txt
+-- SQL 数量: 12
+
+CREATE SECURITY LABEL sec_label 'L1:G4' ;
+
+CREATE TABLE tbl ( c1 int , c2 int );
+
+CREATE USER bob WITH PASSWORD '********' ;
+
+SECURITY LABEL ON ROLE bob IS 'sec_label' ;
+
+SECURITY LABEL ON TABLE tbl IS 'sec_label' ;
+
+SECURITY LABEL ON COLUMN tbl . c1 IS 'sec_label' ;
+
+SECURITY LABEL ON ROLE bob IS NULL ;
+
+SECURITY LABEL ON TABLE tbl IS NULL ;
+
+SECURITY LABEL ON COLUMN tbl . c1 IS NULL ;
+
+DROP SECURITY LABEL sec_label ;
+
+DROP TABLE tbl ;
+
+DROP USER bob ;
+

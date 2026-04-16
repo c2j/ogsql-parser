@@ -1,6 +1,7 @@
 use crate::ast::{
-    Cte, FetchClause, JoinType, LockClause, ObjectName, OrderByItem, SelectStatement, SelectTarget,
-    SetOperation, TableRef, WithClause,
+    ConnectByClause, Cte, FetchClause, GroupByItem, JoinType, LockClause, ObjectName, OrderByItem,
+    PivotClause, PivotValue, SelectStatement, SelectTarget, SetOperation, TableRef, UnpivotClause,
+    WithClause,
 };
 use crate::parser::{Parser, ParserError};
 use crate::token::keyword::Keyword;
@@ -105,22 +106,27 @@ impl Parser {
     fn parse_simple_select(&mut self) -> Result<SelectStatement, ParserError> {
         self.expect_keyword(Keyword::SELECT)?;
         let hints = self.consume_hints();
-        let distinct = if self.match_keyword(Keyword::DISTINCT) {
+        let (distinct, mut distinct_on) = if self.match_keyword(Keyword::DISTINCT) {
             self.advance();
-            if self.match_keyword(Keyword::ON) {
+            let cols = if self.match_keyword(Keyword::ON) {
                 self.advance();
                 self.expect_token(&Token::LParen)?;
-                while !self.match_token(&Token::RParen) {
+                let mut exprs = vec![self.parse_expr()?];
+                while self.match_token(&Token::Comma) {
                     self.advance();
+                    exprs.push(self.parse_expr()?);
                 }
                 self.expect_token(&Token::RParen)?;
-            }
-            true
+                exprs
+            } else {
+                vec![]
+            };
+            (true, cols)
         } else {
             if self.match_keyword(Keyword::ALL) {
                 self.advance();
             }
-            false
+            (false, vec![])
         };
         let targets = self.parse_target_list()?;
         let into_targets = if self.match_keyword(Keyword::INTO) {
@@ -136,13 +142,45 @@ impl Parser {
         } else {
             None
         };
+
+        // START WITH (can appear before CONNECT BY)
+        let start_with = if self.match_keyword(Keyword::START) {
+            self.advance();
+            self.expect_keyword(Keyword::WITH)?;
+            Some(self.parse_expr()?)
+        } else {
+            None
+        };
+
+        // CONNECT BY [NOCYCLE] condition [START WITH ...]
+        let connect_by = if self.match_keyword(Keyword::CONNECT) {
+            self.advance();
+            self.expect_keyword(Keyword::BY)?;
+            let nocycle = self.try_consume_keyword(Keyword::NOCYCLE);
+            let condition = self.parse_expr()?;
+            let sw = if start_with.is_none() && self.match_keyword(Keyword::START) {
+                self.advance();
+                self.expect_keyword(Keyword::WITH)?;
+                Some(self.parse_expr()?)
+            } else {
+                start_with
+            };
+            Some(ConnectByClause {
+                nocycle,
+                condition,
+                start_with: sw,
+            })
+        } else {
+            None
+        };
+
         let group_by = if self.match_keyword(Keyword::GROUP_P) {
             self.advance();
             self.expect_keyword(Keyword::BY)?;
-            let mut items = vec![self.parse_expr()?];
+            let mut items = vec![self.parse_group_by_item()?];
             while self.match_token(&Token::Comma) {
                 self.advance();
-                items.push(self.parse_expr()?);
+                items.push(self.parse_group_by_item()?);
             }
             items
         } else {
@@ -158,10 +196,12 @@ impl Parser {
             hints,
             with: None,
             distinct,
+            distinct_on,
             targets,
             into_targets,
             from,
             where_clause,
+            connect_by,
             group_by,
             having,
             order_by: vec![],
@@ -171,6 +211,70 @@ impl Parser {
             fetch: None,
             lock_clause: None,
         })
+    }
+
+    fn parse_group_by_item(&mut self) -> Result<GroupByItem, ParserError> {
+        if self.match_keyword(Keyword::ROLLUP) {
+            self.advance();
+            self.expect_token(&Token::LParen)?;
+            let mut cols = vec![self.parse_expr()?];
+            while self.match_token(&Token::Comma) {
+                self.advance();
+                cols.push(self.parse_expr()?);
+            }
+            self.expect_token(&Token::RParen)?;
+            return Ok(GroupByItem::Rollup(cols));
+        }
+
+        if self.match_keyword(Keyword::CUBE) {
+            self.advance();
+            self.expect_token(&Token::LParen)?;
+            let mut cols = vec![self.parse_expr()?];
+            while self.match_token(&Token::Comma) {
+                self.advance();
+                cols.push(self.parse_expr()?);
+            }
+            self.expect_token(&Token::RParen)?;
+            return Ok(GroupByItem::Cube(cols));
+        }
+
+        if self.match_keyword(Keyword::GROUPING_P) {
+            self.advance();
+            if self.match_keyword(Keyword::SETS) {
+                self.advance();
+                self.expect_token(&Token::LParen)?;
+                let mut sets = Vec::new();
+                loop {
+                    if self.match_token(&Token::LParen) {
+                        self.advance();
+                        let mut group = Vec::new();
+                        if !self.match_token(&Token::RParen) {
+                            group.push(self.parse_expr()?);
+                            while self.match_token(&Token::Comma) {
+                                self.advance();
+                                group.push(self.parse_expr()?);
+                            }
+                        }
+                        self.expect_token(&Token::RParen)?;
+                        sets.push(group);
+                    } else {
+                        let group = vec![self.parse_expr()?];
+                        sets.push(group);
+                    }
+                    if self.match_token(&Token::Comma) {
+                        self.advance();
+                    } else {
+                        break;
+                    }
+                }
+                self.expect_token(&Token::RParen)?;
+                return Ok(GroupByItem::GroupingSets(sets));
+            } else {
+                self.pos -= 1;
+            }
+        }
+
+        Ok(GroupByItem::Expr(self.parse_expr()?))
     }
 
     pub(crate) fn parse_target_list(&mut self) -> Result<Vec<SelectTarget>, ParserError> {
@@ -192,7 +296,7 @@ impl Parser {
             self.advance();
             Some(self.parse_identifier()?)
         } else {
-            self.parse_optional_alias()?
+            self.parse_optional_column_alias()?
         };
         Ok(SelectTarget::Expr(expr, alias))
     }
@@ -213,6 +317,10 @@ impl Parser {
     pub(crate) fn parse_table_ref(&mut self) -> Result<TableRef, ParserError> {
         let mut left = self.parse_primary_table_ref()?;
         loop {
+            let natural = self.match_keyword(Keyword::NATURAL);
+            if natural {
+                self.advance();
+            }
             let join_type = match self.peek_keyword() {
                 Some(Keyword::JOIN) => {
                     self.advance();
@@ -246,32 +354,56 @@ impl Parser {
                     self.expect_keyword(Keyword::JOIN)?;
                     JoinType::Cross
                 }
-                _ => break,
+                _ => {
+                    if natural {
+                        self.pos -= 1; // put back NATURAL
+                    }
+                    break;
+                }
             };
             let right = self.parse_primary_table_ref()?;
-            let condition = if join_type != JoinType::Cross {
+            let (condition, using_columns) = if !natural && join_type != JoinType::Cross {
                 if self.match_keyword(Keyword::ON) {
                     self.advance();
-                    Some(self.parse_expr()?)
+                    (Some(self.parse_expr()?), vec![])
                 } else if self.match_keyword(Keyword::USING) {
                     self.advance();
                     self.expect_token(&Token::LParen)?;
-                    while !self.match_token(&Token::RParen) {
+                    let mut cols = vec![self.parse_identifier()?];
+                    while self.match_token(&Token::Comma) {
                         self.advance();
+                        cols.push(self.parse_identifier()?);
                     }
                     self.expect_token(&Token::RParen)?;
-                    None
+                    (None, cols)
                 } else {
-                    None
+                    (None, vec![])
                 }
             } else {
-                None
+                (None, vec![])
             };
             left = TableRef::Join {
                 left: Box::new(left),
                 right: Box::new(right),
                 join_type,
                 condition,
+                natural,
+                using_columns,
+            };
+        }
+        if self.match_ident_str("PIVOT") {
+            self.advance();
+            let pivot = self.parse_pivot()?;
+            left = TableRef::Pivot {
+                source: Box::new(left),
+                pivot,
+            };
+        } else if self.match_ident_str("UNPIVOT") {
+            self.advance();
+            let unpivot = self.parse_unpivot()?;
+            left = TableRef::Unpivot {
+                source: Box::new(left),
+                unpivot,
             };
         }
         Ok(left)
@@ -321,7 +453,11 @@ impl Parser {
             let alias = self.parse_optional_alias()?;
             return Ok(TableRef::FunctionCall { name, args, alias });
         }
-        let alias = self.parse_optional_alias()?;
+        let alias = if self.match_ident_str("PIVOT") || self.match_ident_str("UNPIVOT") {
+            None
+        } else {
+            self.parse_optional_alias()?
+        };
         Ok(TableRef::Table { name, alias })
     }
 
@@ -486,5 +622,80 @@ impl Parser {
         };
 
         Ok(Some(clause))
+    }
+
+    fn parse_pivot_alias(&mut self) -> Result<Option<String>, ParserError> {
+        if self.match_keyword(Keyword::AS) {
+            self.advance();
+            let alias = match self.peek().clone() {
+                Token::Ident(_) | Token::QuotedIdent(_) => self.parse_identifier()?,
+                Token::StringLiteral(s) => {
+                    self.advance();
+                    s
+                }
+                _ => {
+                    return Err(ParserError::UnexpectedToken {
+                        location: self.current_location(),
+                        expected: "identifier or string".to_string(),
+                        got: format!("{:?}", self.peek()),
+                    })
+                }
+            };
+            Ok(Some(alias))
+        } else {
+            Ok(None)
+        }
+    }
+
+    fn parse_pivot(&mut self) -> Result<PivotClause, ParserError> {
+        self.expect_token(&Token::LParen)?;
+        let aggregate = self.parse_expr()?;
+        self.expect_keyword(Keyword::FOR)?;
+        let for_column = self.parse_object_name()?;
+        self.expect_keyword(Keyword::IN_P)?;
+        self.expect_token(&Token::LParen)?;
+        let mut values = Vec::new();
+        loop {
+            let value = self.parse_expr()?;
+            let alias = self.parse_pivot_alias()?;
+            values.push(PivotValue { value, alias });
+            if !self.match_token(&Token::Comma) {
+                break;
+            }
+            self.advance();
+        }
+        self.expect_token(&Token::RParen)?;
+        self.expect_token(&Token::RParen)?;
+        Ok(PivotClause {
+            aggregate,
+            for_column,
+            values,
+        })
+    }
+
+    fn parse_unpivot(&mut self) -> Result<UnpivotClause, ParserError> {
+        self.expect_token(&Token::LParen)?;
+        let value_column = self.parse_object_name()?;
+        self.expect_keyword(Keyword::FOR)?;
+        let for_column = self.parse_object_name()?;
+        self.expect_keyword(Keyword::IN_P)?;
+        self.expect_token(&Token::LParen)?;
+        let mut columns = Vec::new();
+        loop {
+            let value = self.parse_expr()?;
+            let alias = self.parse_pivot_alias()?;
+            columns.push(PivotValue { value, alias });
+            if !self.match_token(&Token::Comma) {
+                break;
+            }
+            self.advance();
+        }
+        self.expect_token(&Token::RParen)?;
+        self.expect_token(&Token::RParen)?;
+        Ok(UnpivotClause {
+            value_column,
+            for_column,
+            columns,
+        })
     }
 }

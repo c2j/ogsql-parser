@@ -41,6 +41,17 @@ enum Commands {
     #[cfg(feature = "tui")]
     /// Launch an interactive terminal UI playground / 启动交互式终端演练场
     Playground,
+    #[cfg(feature = "ibatis")]
+    /// Parse iBatis/MyBatis XML mapper file / 解析 iBatis XML mapper 文件
+    #[command(name = "parse-xml")]
+    ParseXml,
+    #[cfg(feature = "java")]
+    /// Extract and parse SQL from Java source files / 从 Java 源文件中提取并解析 SQL
+    #[command(name = "parse-java")]
+    ParseJava {
+        #[arg(long = "extra-sql-methods", value_delimiter = ',')]
+        extra_sql_methods: Vec<String>,
+    },
 }
 
 macro_rules! die {
@@ -128,8 +139,24 @@ fn cmd_parse(cli: &Cli) {
     let (stmts, errors) = parse_input(&sql);
 
     if cli.json {
+        let stmt_values: Vec<serde_json::Value> = stmts
+            .iter()
+            .map(|si| {
+                let mut obj = serde_json::to_value(si).unwrap();
+                if let Some(block) = extract_pl_block(&si.statement) {
+                    let report = ogsql_parser::analyze_pl_block(block);
+                    if !report.execute_findings.is_empty() {
+                        obj.as_object_mut()
+                            .unwrap()
+                            .insert("dynamic_sql_analysis".to_string(), serde_json::json!(report));
+                    }
+                }
+                obj
+            })
+            .collect();
+
         let out = serde_json::json!({
-            "statements": stmts,
+            "statements": stmt_values,
             "errors": errors,
         });
         println!("{}", serde_json::to_string_pretty(&out).unwrap());
@@ -138,11 +165,32 @@ fn cmd_parse(cli: &Cli) {
             println!("{:#?}", stmt);
         }
         if !errors.is_empty() {
-            eprintln!("\n{} error(s):", errors.len());
-            for e in &errors {
-                eprintln!("  {}", e);
+            let warnings: Vec<_> = errors.iter().filter(|e| is_warning(e)).collect();
+            let real_errors: Vec<_> = errors.iter().filter(|e| !is_warning(e)).collect();
+            if !real_errors.is_empty() {
+                eprintln!("\n{} error(s):", real_errors.len());
+                for e in &real_errors {
+                    eprintln!("  {}", e);
+                }
+            }
+            if !warnings.is_empty() {
+                eprintln!("\n{} warning(s):", warnings.len());
+                for w in &warnings {
+                    eprintln!("  {}", w);
+                }
             }
         }
+    }
+}
+
+fn extract_pl_block(stmt: &ogsql_parser::Statement) -> Option<&ogsql_parser::ast::plpgsql::PlBlock> {
+    use ogsql_parser::Statement;
+    match stmt {
+        Statement::Do(d) => d.block.as_ref(),
+        Statement::AnonyBlock(ab) => Some(&ab.block),
+        Statement::CreateFunction(cf) => cf.block.as_ref(),
+        Statement::CreateProcedure(cp) => cp.block.as_ref(),
+        _ => None,
     }
 }
 
@@ -218,24 +266,41 @@ fn cmd_json2sql(cli: &Cli) {
     }
 }
 
+fn is_warning(e: &ogsql_parser::ParserError) -> bool {
+    matches!(e, ogsql_parser::ParserError::Warning { .. })
+}
+
 fn cmd_validate(cli: &Cli) {
     let sql = read_input(cli.file.as_deref());
     let (_, errors) = parse_input(&sql);
 
     if cli.json {
+        let warnings: Vec<_> = errors.iter().filter(|e| is_warning(e)).collect();
+        let real_errors: Vec<_> = errors.iter().filter(|e| !is_warning(e)).collect();
         let out = serde_json::json!({
-            "valid": errors.is_empty(),
-            "error_count": errors.len(),
+            "valid": real_errors.is_empty(),
+            "error_count": real_errors.len(),
+            "warning_count": warnings.len(),
             "errors": errors,
         });
         println!("{}", serde_json::to_string_pretty(&out).unwrap());
     } else {
-        if errors.is_empty() {
+        let real_errors: Vec<_> = errors.iter().filter(|e| !is_warning(e)).collect();
+        let warnings: Vec<_> = errors.iter().filter(|e| is_warning(e)).collect();
+        if real_errors.is_empty() && warnings.is_empty() {
             println!("VALID");
+        } else if real_errors.is_empty() {
+            println!("VALID ({} warning(s)):", warnings.len());
+            for w in &warnings {
+                eprintln!("  warning: {}", w);
+            }
         } else {
-            println!("INVALID ({} error(s)):", errors.len());
-            for e in &errors {
-                eprintln!("  {}", e);
+            println!("INVALID ({} error(s), {} warning(s)):", real_errors.len(), warnings.len());
+            for e in &real_errors {
+                eprintln!("  error: {}", e);
+            }
+            for w in &warnings {
+                eprintln!("  warning: {}", w);
             }
             std::process::exit(1);
         }
@@ -614,6 +679,142 @@ fn cmd_playground() {
     terminal.show_cursor().unwrap();
 }
 
+#[cfg(feature = "ibatis")]
+fn cmd_parse_xml(cli: &Cli) {
+    let input = match cli.file.as_deref() {
+        Some(path) => {
+            std::fs::read(path).unwrap_or_else(|e| die!("Error reading {}: {}", path, e))
+        }
+        None => {
+            let mut buf = Vec::new();
+            std::io::stdin().read_to_end(&mut buf)
+                .unwrap_or_else(|e| die!("Error reading stdin: {}", e));
+            buf
+        }
+    };
+
+    let result = ogsql_parser::ibatis::parse_mapper_bytes(&input);
+
+    if cli.json {
+        println!("{}", serde_json::to_string_pretty(&result).unwrap());
+    } else {
+        if !result.errors.is_empty() {
+            eprintln!("{} error(s):", result.errors.len());
+            for e in &result.errors {
+                eprintln!("  {}", e);
+            }
+        }
+
+        for stmt in &result.statements {
+            println!("── {} ({:?}) ──", stmt.id, stmt.kind);
+            println!("{}", stmt.flat_sql.trim());
+            if stmt.has_dynamic_elements {
+                println!("  [contains dynamic SQL elements]");
+            }
+            if let Some((infos, errors)) = &stmt.parse_result {
+                let warnings: Vec<_> = errors.iter().filter(|e| is_warning(e)).collect();
+                let real_errors: Vec<_> = errors.iter().filter(|e| !is_warning(e)).collect();
+                if !real_errors.is_empty() {
+                    eprintln!("  {} parse error(s):", real_errors.len());
+                    for e in &real_errors {
+                        eprintln!("    {}", e);
+                    }
+                }
+                if !warnings.is_empty() {
+                    eprintln!("  {} warning(s):", warnings.len());
+                    for w in &warnings {
+                        eprintln!("    {}", w);
+                    }
+                }
+                if real_errors.is_empty() {
+                    println!("  ✓ Parsed successfully ({} statement(s)){}", infos.len(), if warnings.is_empty() { "" } else { " (with warnings)" });
+                }
+            }
+            println!();
+        }
+
+        println!("Total: {} statement(s) in namespace '{}'", result.statements.len(), result.namespace);
+    }
+}
+
+#[cfg(feature = "java")]
+fn cmd_parse_java(cli: &Cli, extra_sql_methods: &[String]) {
+    let (source, file_path) = match cli.file.as_deref() {
+        Some(path) => {
+            let bytes = std::fs::read(path).unwrap_or_else(|e| die!("Error reading {}: {}", path, e));
+            let (text, _encoding) = ogsql_parser::token::decode_sql_file(&bytes)
+                .unwrap_or_else(|e| die!("Error decoding {}: {}", path, e));
+            (text, path.to_string())
+        }
+        None => {
+            let mut buf = String::new();
+            std::io::stdin().read_to_string(&mut buf)
+                .unwrap_or_else(|e| die!("Error reading stdin: {}", e));
+            (buf, "<stdin>".to_string())
+        }
+    };
+
+    let config = ogsql_parser::java::JavaExtractConfig {
+        extra_sql_methods: extra_sql_methods.to_vec(),
+    };
+    let result = ogsql_parser::java::extract_sql_from_java(&source, &file_path, &config);
+
+    if cli.json {
+        println!("{}", serde_json::to_string_pretty(&result).unwrap());
+    } else {
+        if !result.errors.is_empty() {
+            eprintln!("{} error(s):", result.errors.len());
+            for e in &result.errors {
+                eprintln!("  {}", e);
+            }
+        }
+
+        if result.extractions.is_empty() {
+            println!("No SQL statements found in {}", file_path);
+        }
+
+        for ext in &result.extractions {
+            let location = match &ext.origin.class_name {
+                Some(cls) => format!("{}::{}", cls, ext.origin.method_name.as_deref().unwrap_or("")),
+                None => file_path.clone(),
+            };
+            println!("── {:?} [{:?}] @ {} L{} ──", ext.origin.method, ext.sql_kind, location, ext.origin.line);
+            println!("{}", ext.sql.trim());
+            if ext.is_concatenated {
+                println!("  [concatenated]");
+            }
+            if ext.is_text_block {
+                println!("  [text block]");
+            }
+            if ext.parameter_style != ogsql_parser::java::ParameterStyle::None {
+                println!("  [params: {:?}]", ext.parameter_style);
+            }
+            if let Some(parse_result) = &ext.parse_result {
+                let warnings: Vec<_> = parse_result.errors.iter().filter(|e| is_warning(e)).collect();
+                let real_errors: Vec<_> = parse_result.errors.iter().filter(|e| !is_warning(e)).collect();
+                if !real_errors.is_empty() {
+                    eprintln!("  {} parse error(s):", real_errors.len());
+                    for e in &real_errors {
+                        eprintln!("    {}", e);
+                    }
+                }
+                if !warnings.is_empty() {
+                    eprintln!("  {} warning(s):", warnings.len());
+                    for w in &warnings {
+                        eprintln!("    {}", w);
+                    }
+                }
+                if real_errors.is_empty() {
+                    println!("  ✓ Parsed successfully ({} statement(s)){}", parse_result.statements.len(), if warnings.is_empty() { "" } else { " (with warnings)" });
+                }
+            }
+            println!();
+        }
+
+        println!("Total: {} extraction(s) from {}", result.extractions.len(), file_path);
+    }
+}
+
 fn main() {
     let cli = Cli::parse();
 
@@ -641,5 +842,9 @@ fn main() {
         }
         #[cfg(feature = "tui")]
         Commands::Playground => cmd_playground(),
+        #[cfg(feature = "ibatis")]
+        Commands::ParseXml => cmd_parse_xml(&cli),
+        #[cfg(feature = "java")]
+        Commands::ParseJava { ref extra_sql_methods } => cmd_parse_java(&cli, extra_sql_methods),
     }
 }

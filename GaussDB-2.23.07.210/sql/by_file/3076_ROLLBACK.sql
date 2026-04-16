@@ -1,0 +1,8 @@
+-- 来源: 3076_ROLLBACK.txt
+-- SQL 数量: 2
+
+START TRANSACTION;
+
+--取消所有更改
+ROLLBACK;
+

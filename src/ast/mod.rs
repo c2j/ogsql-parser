@@ -10,16 +10,51 @@ pub struct CreateTableStatement {
     pub constraints: Vec<TableConstraint>,
     pub inherits: Vec<ObjectName>,
     pub partition_by: Option<PartitionClause>,
+    pub subpartition_by: Option<PartitionClause>,
+    pub subpartitions_count: Option<u32>,
+    pub distribute_by: Option<DistributeClause>,
+    pub to_group: Option<String>,
     pub tablespace: Option<String>,
     pub on_commit: Option<OnCommitAction>,
     pub options: Vec<(String, String)>,
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct CreateTableAsStatement {
+    pub temporary: bool,
+    pub unlogged: bool,
+    pub if_not_exists: bool,
+    pub name: ObjectName,
+    pub column_names: Vec<String>,
+    pub query: Box<SelectStatement>,
+    pub as_table: Option<ObjectName>,
+    pub with_data: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub enum DistributeClause {
+    Hash { columns: Vec<String> },
+    Replication,
+    RoundRobin { columns: Vec<String> },
+    Modulo { columns: Vec<String> },
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum PartitionClause {
-    Range { column: ObjectName },
-    List { column: ObjectName },
-    Hash { column: ObjectName },
+    Range {
+        column: ObjectName,
+        interval: Option<Expr>,
+        partitions: Vec<PartitionDef>,
+    },
+    List {
+        column: ObjectName,
+        partitions: Vec<PartitionDef>,
+    },
+    Hash {
+        column: ObjectName,
+        partitions_count: Option<u32>,
+        partitions: Vec<PartitionDef>,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -39,10 +74,12 @@ pub struct ColumnDef {
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum DataType {
     Boolean,
+    TinyInt,
     SmallInt,
     Integer,
     BigInt,
     Real,
+    Float(Option<u32>),
     Double,
     Numeric(Option<u32>, Option<u32>),
     Char(Option<u32>),
@@ -59,7 +96,12 @@ pub enum DataType {
     Uuid,
     Bit(Option<u32>),
     Varbit(Option<u32>),
-    Custom(ObjectName),
+    Serial,
+    SmallSerial,
+    BigSerial,
+    BinaryFloat,
+    BinaryDouble,
+    Custom(ObjectName, Vec<Expr>),
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -132,6 +174,113 @@ pub enum AlterTableAction {
     SetSchema {
         schema: String,
     },
+    SetOptions {
+        options: Vec<(String, String)>,
+    },
+    SetTablespace {
+        tablespace: String,
+    },
+    SetWithoutOids,
+    ResetOptions {
+        options: Vec<String>,
+    },
+    AddPartition {
+        name: String,
+        values: PartitionValues,
+        tablespace: Option<String>,
+    },
+    DropPartition {
+        name: String,
+        if_exists: bool,
+    },
+    TruncatePartition {
+        name: String,
+        cascade: bool,
+    },
+    MergePartitions {
+        names: Vec<String>,
+        into_name: String,
+    },
+    SplitPartition {
+        name: String,
+        at_value: Option<Expr>,
+        into: Vec<PartitionDef>,
+    },
+    ExchangePartition {
+        name: String,
+        table: ObjectName,
+    },
+    RenamePartition {
+        old_name: String,
+        new_name: String,
+    },
+    AddSubPartition {
+        partition_name: String,
+        name: String,
+        values: Option<PartitionValues>,
+    },
+    DropSubPartition {
+        name: String,
+        if_exists: bool,
+    },
+    TruncateSubPartition {
+        name: String,
+        cascade: bool,
+    },
+    MergeSubPartitions {
+        names: Vec<String>,
+        into_name: String,
+    },
+    SplitSubPartition {
+        name: String,
+        at_value: Option<Expr>,
+        into: Vec<PartitionDef>,
+    },
+    ExchangeSubPartition {
+        name: String,
+        table: ObjectName,
+    },
+    RenameSubPartition {
+        old_name: String,
+        new_name: String,
+    },
+    MovePartition {
+        name: String,
+        tablespace: String,
+    },
+    MoveSubPartition {
+        name: String,
+        tablespace: String,
+    },
+    DropPartitionFor {
+        expr: Expr,
+        if_exists: bool,
+    },
+    RenamePartitionFor {
+        expr: Expr,
+        new_name: String,
+    },
+    EnableRowLevelSecurity,
+    DisableRowLevelSecurity,
+    SetCharset {
+        charset: String,
+        collation: Option<String>,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub enum PartitionValues {
+    LessThan(Vec<Expr>),
+    InValues(Vec<Expr>),
+    StartEnd { start: Expr, end: Expr },
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct PartitionDef {
+    pub name: String,
+    pub values: Option<PartitionValues>,
+    pub tablespace: Option<String>,
+    pub subpartitions: Vec<PartitionDef>,
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -169,6 +318,45 @@ pub enum ObjectType {
     ForeignTable,
     ForeignServer,
     Fdw,
+    Aggregate,
+    Cast,
+    Conversion,
+    Operator,
+    OperatorClass,
+    OperatorFamily,
+    Rule,
+    Language,
+    TextSearchConfig,
+    TextSearchDict,
+    Domain,
+    Policy,
+    User,
+    Role,
+    Group,
+    ResourcePool,
+    ResourceLabel,
+    WorkloadGroup,
+    AuditPolicy,
+    MaskingPolicy,
+    RlsPolicy,
+    DataSource,
+    Directory,
+    Event,
+    Publication,
+    Subscription,
+    Synonym,
+    Model,
+    SecurityLabel,
+    UserMapping,
+    WeakPasswordDictionary,
+    PolicyLabel,
+    Node,
+    NodeGroup,
+    App,
+    Global,
+    OpClass,
+    OpFamily,
+    Type,
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -206,6 +394,7 @@ pub struct TruncateStatement {
     pub tables: Vec<ObjectName>,
     pub cascade: bool,
     pub restart_identity: bool,
+    pub continue_identity: bool,
 }
 
 // ========== CREATE TYPE ==========
@@ -234,16 +423,20 @@ pub struct TypeAttribute {
 pub enum Statement {
     Select(SelectStatement),
     Insert(InsertStatement),
+    InsertAll(InsertAllStatement),
+    InsertFirst(InsertFirstStatement),
     Update(UpdateStatement),
     Delete(DeleteStatement),
     Merge(MergeStatement),
     CreateTable(CreateTableStatement),
+    CreateTableAs(CreateTableAsStatement),
     AlterTable(AlterTableStatement),
     Drop(DropStatement),
     Truncate(TruncateStatement),
     CreateIndex(CreateIndexStatement),
     CreateSchema(CreateSchemaStatement),
     CreateDatabase(CreateDatabaseStatement),
+    CreateDatabaseLink(CreateDatabaseLinkStatement),
     CreateTablespace(CreateTablespaceStatement),
     CreateFunction(CreateFunctionStatement),
     CreateProcedure(CreateProcedureStatement),
@@ -321,6 +514,12 @@ pub enum Statement {
     AlterRole(AlterRoleStatement),
     AlterUser(AlterUserStatement),
     AlterGroup(AlterGroupStatement),
+    CreateAggregate(CreateAggregateStatement),
+    CreateOperator(CreateOperatorStatement),
+    AlterDefaultPrivileges(AlterDefaultPrivilegesStatement),
+    CreateUserMapping(CreateUserMappingStatement),
+    AlterUserMapping(AlterUserMappingStatement),
+    DropUserMapping(DropUserMappingStatement),
     AlterSequence(AlterSequenceStatement),
     AlterExtension(AlterExtensionStatement),
     AlterCompositeType(AlterCompositeTypeStatement),
@@ -380,16 +579,33 @@ pub struct StatementInfo {
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub enum GroupByItem {
+    Expr(Expr),
+    GroupingSets(Vec<Vec<Expr>>),
+    Rollup(Vec<Expr>),
+    Cube(Vec<Expr>),
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct ConnectByClause {
+    pub nocycle: bool,
+    pub condition: Expr,
+    pub start_with: Option<Expr>,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct SelectStatement {
     pub hints: Vec<String>,
     pub with: Option<WithClause>,
     pub distinct: bool,
+    pub distinct_on: Vec<Expr>,
     pub targets: Vec<SelectTarget>,
     /// PL/pgSQL extension: `SELECT ... INTO var1, var2 FROM ...`
     pub into_targets: Option<Vec<SelectTarget>>,
     pub from: Vec<TableRef>,
     pub where_clause: Option<Expr>,
-    pub group_by: Vec<Expr>,
+    pub connect_by: Option<ConnectByClause>,
+    pub group_by: Vec<GroupByItem>,
     pub having: Option<Expr>,
     pub order_by: Vec<OrderByItem>,
     pub limit: Option<Expr>,
@@ -486,7 +702,37 @@ pub enum TableRef {
         right: Box<TableRef>,
         join_type: JoinType,
         condition: Option<Expr>,
+        natural: bool,
+        using_columns: Vec<String>,
     },
+    Pivot {
+        source: Box<TableRef>,
+        pivot: PivotClause,
+    },
+    Unpivot {
+        source: Box<TableRef>,
+        unpivot: UnpivotClause,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct PivotClause {
+    pub aggregate: Expr,
+    pub for_column: ObjectName,
+    pub values: Vec<PivotValue>,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct PivotValue {
+    pub value: Expr,
+    pub alias: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct UnpivotClause {
+    pub value_column: ObjectName,
+    pub for_column: ObjectName,
+    pub columns: Vec<PivotValue>,
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -509,6 +755,7 @@ pub struct OrderByItem {
 pub enum Expr {
     Literal(Literal),
     ColumnRef(ObjectName),
+    QualifiedStar(String),
     BinaryOp {
         left: Box<Expr>,
         op: String,
@@ -523,6 +770,8 @@ pub enum Expr {
         args: Vec<Expr>,
         distinct: bool,
         over: Option<WindowSpec>,
+        filter: Option<Box<Expr>>,
+        within_group: Vec<OrderByItem>,
     },
     Case {
         operand: Option<Box<Expr>>,
@@ -554,11 +803,55 @@ pub enum Expr {
     TypeCast {
         expr: Box<Expr>,
         type_name: DataType,
+        default: Option<Box<Expr>>,
+        format: Option<Box<Expr>>,
     },
     Parameter(i32),
     Array(Vec<Expr>),
+    Subscript {
+        object: Box<Expr>,
+        index: Box<Expr>,
+    },
     Parenthesized(Box<Expr>),
+    RowConstructor(Vec<Expr>),
+    Prior(Box<Expr>),
     Default,
+    XmlElement {
+        entity_escaping: Option<bool>,
+        evalname: Option<Box<Expr>>,
+        name: Option<String>,
+        attributes: Option<XmlAttributes>,
+        content: Vec<XmlContent>,
+    },
+    XmlConcat(Vec<Expr>),
+    XmlForest(Vec<XmlContent>),
+    XmlParse {
+        option: XmlOption,
+        expr: Box<Expr>,
+        wellformed: bool,
+    },
+    XmlPi {
+        name: Option<String>,
+        content: Option<Box<Expr>>,
+    },
+    XmlRoot {
+        expr: Box<Expr>,
+        version: Option<Box<Expr>>,
+        standalone: Option<Option<bool>>,
+    },
+    XmlSerialize {
+        option: XmlOption,
+        expr: Box<Expr>,
+        type_name: DataType,
+    },
+    /// Special SQL functions with keyword-separated syntax instead of commas:
+    /// - overlay(string PLACING string FROM int [FOR int])
+    /// - position(string IN string)
+    /// - substring(string FROM int [FOR int]) / substring(string FOR int)
+    SpecialFunction {
+        name: String,
+        args: Vec<Expr>,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -582,6 +875,30 @@ pub enum Literal {
 }
 
 pub type ObjectName = Vec<String>;
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub enum XmlOption {
+    Document,
+    Content,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct XmlAttributes {
+    pub entity_escaping: Option<bool>,
+    pub items: Vec<XmlAttribute>,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct XmlAttribute {
+    pub value: Expr,
+    pub name: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct XmlContent {
+    pub expr: Expr,
+    pub alias: Option<String>,
+}
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct WindowSpec {
@@ -620,9 +937,19 @@ pub struct WindowFrameBound {
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub enum DmlPartitionClause {
+    Partition(String),
+    Subpartition(String),
+    PartitionFor(Vec<Expr>),
+    SubpartitionFor(Vec<Expr>),
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct InsertStatement {
     pub hints: Vec<String>,
     pub table: ObjectName,
+    pub alias: Option<String>,
+    pub partition: Option<DmlPartitionClause>,
     pub columns: Vec<String>,
     pub source: InsertSource,
     pub on_conflict: Option<OnConflictAction>,
@@ -631,7 +958,9 @@ pub struct InsertStatement {
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum OnConflictAction {
-    Nothing,
+    Nothing {
+        target: Option<OnConflictTarget>,
+    },
     Update {
         target: Option<OnConflictTarget>,
         assignments: Vec<UpdateAssignment>,
@@ -652,10 +981,41 @@ pub enum InsertSource {
     DefaultValues,
 }
 
+// INSERT ALL / INSERT FIRST multi-table insert types
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct InsertAllTarget {
+    pub table: ObjectName,
+    pub columns: Vec<String>,
+    pub values: Vec<Vec<Expr>>,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct InsertAllCondition {
+    pub condition: Expr,
+    pub targets: Vec<InsertAllTarget>,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct InsertAllStatement {
+    pub targets: Vec<InsertAllTarget>,
+    pub conditions: Vec<InsertAllCondition>,
+    pub else_targets: Vec<InsertAllTarget>,
+    pub source: Box<SelectStatement>,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct InsertFirstStatement {
+    pub when_clauses: Vec<InsertAllCondition>,
+    pub else_targets: Vec<InsertAllTarget>,
+    pub source: Box<SelectStatement>,
+}
+
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct UpdateStatement {
     pub hints: Vec<String>,
     pub tables: Vec<TableRef>,
+    pub partition: Option<DmlPartitionClause>,
     pub assignments: Vec<UpdateAssignment>,
     pub from: Vec<TableRef>,
     pub where_clause: Option<Expr>,
@@ -681,7 +1041,9 @@ pub struct DeleteStatement {
 pub struct MergeStatement {
     pub hints: Vec<String>,
     pub target: TableRef,
+    pub partition: Option<DmlPartitionClause>,
     pub source: TableRef,
+    pub source_partition: Option<DmlPartitionClause>,
     pub on_condition: Expr,
     pub when_clauses: Vec<MergeWhenClause>,
 }
@@ -883,7 +1245,17 @@ pub struct CreateDatabaseStatement {
 pub struct CreateTablespaceStatement {
     pub name: String,
     pub owner: Option<String>,
+    pub relative: bool,
     pub location: String,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct CreateDatabaseLinkStatement {
+    pub name: String,
+    pub public_link: bool,
+    pub user: Option<String>,
+    pub password: Option<String>,
+    pub using_clause: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -979,6 +1351,8 @@ pub struct CreateAuditPolicyStatement {
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct CreateMaskingPolicyStatement {
     pub name: String,
+    pub masking_function: Option<String>,
+    pub labels: Vec<String>,
     pub options: Vec<(String, String)>,
 }
 
@@ -999,12 +1373,45 @@ pub struct RoutineParam {
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct FunctionOptions {
+    pub language: Option<String>,
+    pub volatility: Option<Volatility>,
+    pub strict: Option<bool>,
+    pub cost: Option<u32>,
+    pub rows: Option<u32>,
+    pub leakproof: Option<bool>,
+    pub security: Option<SecurityMode>,
+    pub parallel: Option<ParallelMode>,
+    pub extra: String,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub enum Volatility {
+    Immutable,
+    Stable,
+    Volatile,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub enum SecurityMode {
+    Invoker,
+    Definer,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub enum ParallelMode {
+    Safe,
+    Unsafe,
+    Restricted,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct CreateFunctionStatement {
     pub replace: bool,
     pub name: ObjectName,
     pub parameters: Vec<RoutineParam>,
     pub return_type: Option<String>,
-    pub options: String,
+    pub options: FunctionOptions,
     pub block: Option<crate::ast::plpgsql::PlBlock>,
 }
 
@@ -1013,7 +1420,7 @@ pub struct CreateProcedureStatement {
     pub replace: bool,
     pub name: ObjectName,
     pub parameters: Vec<RoutineParam>,
-    pub options: String,
+    pub options: FunctionOptions,
     pub block: Option<crate::ast::plpgsql::PlBlock>,
 }
 
@@ -1117,8 +1524,10 @@ pub struct GrantStatement {
 pub enum Privilege {
     All,
     Select,
+    SelectColumns(Vec<String>),
     Insert,
     Update,
+    UpdateColumns(Vec<String>),
     Delete,
     Usage,
     Create,
@@ -1141,6 +1550,7 @@ pub enum GrantTarget {
     Database(Vec<String>),
     Function(Vec<ObjectName>),
     Sequence(Vec<ObjectName>),
+    Tablespace(Vec<String>),
     AllTablesInSchema(Vec<String>),
     AllFunctionsInSchema(Vec<String>),
     AllSequencesInSchema(Vec<String>),
@@ -1492,6 +1902,7 @@ pub struct AlterIndexStatement {
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum AlterIndexAction {
     RenameTo(String),
+    RenamePartition { old_name: String, new_name: String },
     SetTablespace(String),
     Set(Vec<(String, String)>),
     Reset(Vec<String>),
@@ -1567,6 +1978,54 @@ pub struct AlterExtensionStatement {
     pub action: String,
 }
 
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct CreateAggregateStatement {
+    pub name: String,
+    pub base_types: Vec<DataType>,
+    pub options: Vec<(String, String)>,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct CreateOperatorStatement {
+    pub name: String,
+    pub options: Vec<(String, String)>,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct AlterDefaultPrivilegesStatement {
+    pub role: Option<String>,
+    pub schema: Option<String>,
+    pub action: DefaultPrivilegeAction,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub enum DefaultPrivilegeAction {
+    Grant(GrantStatement),
+    Revoke(RevokeStatement),
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct CreateUserMappingStatement {
+    pub if_not_exists: bool,
+    pub user_name: String,
+    pub server: ObjectName,
+    pub options: Vec<(String, String)>,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct AlterUserMappingStatement {
+    pub user_name: String,
+    pub server: ObjectName,
+    pub options: Vec<(String, String)>,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct DropUserMappingStatement {
+    pub if_exists: bool,
+    pub user_name: String,
+    pub server: ObjectName,
+}
+
 // ========== Remaining stubs (not yet implemented) ==========
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -1607,6 +2066,12 @@ pub struct CreateGroupStatement {
     pub options: Vec<RoleOption>,
 }
 
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct AlterResourcePoolStatement {
+    pub name: String,
+    pub options: Vec<(String, String)>,
+}
+
 stub_struct!(
     DropDatabaseStatement,
     DropTablespaceStatement,
@@ -1631,10 +2096,8 @@ stub_struct!(
     AlterSubscriptionStatement,
     AlterNodeStatement,
     AlterNodeGroupStatement,
-    AlterResourcePoolStatement,
     AlterWorkloadGroupStatement,
     AlterAuditPolicyStatement,
-    AlterMaskingPolicyStatement,
     AlterRlsPolicyStatement,
     AlterDataSourceStatement,
     AlterEventStatement,
@@ -1652,10 +2115,49 @@ stub_struct!(
     ShowEventStatement,
     RemovePackageStatement,
     SecLabelStatement,
-    CreatePolicyLabelStatement,
-    AlterPolicyLabelStatement,
     DropPolicyLabelStatement,
 );
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct CreatePolicyLabelStatement {
+    pub name: String,
+    pub add: bool,
+    pub label_type: String,
+    pub targets: Vec<ObjectName>,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct AlterPolicyLabelStatement {
+    pub name: String,
+    pub add: bool,
+    pub label_type: String,
+    pub targets: Vec<ObjectName>,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub enum AlterMaskingPolicyAction {
+    Comments(String),
+    Add {
+        function: String,
+        labels: Vec<String>,
+    },
+    Remove {
+        function: String,
+        labels: Vec<String>,
+    },
+    Modify {
+        function: String,
+        labels: Vec<String>,
+    },
+    DropFilter,
+    Disable,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct AlterMaskingPolicyStatement {
+    pub name: String,
+    pub action: AlterMaskingPolicyAction,
+}
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct GrantRoleStatement {

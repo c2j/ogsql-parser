@@ -1,0 +1,25 @@
+{
+  "total": 10707,
+  "categories": {
+    "CURSOR": 24,
+    "DCL_GRANT": 54,
+    "DCL_REVOKE": 20,
+    "DDL": 3436,
+    "DML_COPY": 24,
+    "DML_DELETE": 45,
+    "DML_INSERT": 775,
+    "DML_MERGE": 6,
+    "DML_TRUNCATE": 11,
+    "DML_UPDATE": 73,
+    "DQL": 4180,
+    "EXPLAIN": 316,
+    "MAINTENANCE": 62,
+    "OTHER": 412,
+    "PLSQL": 634,
+    "PREPARED_STMT": 46,
+    "SESSION": 431,
+    "TCL": 158
+  },
+  "file_count": 737,
+  "source_files": 6155
+}

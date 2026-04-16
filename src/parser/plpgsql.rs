@@ -277,30 +277,68 @@ impl Parser {
         if self.match_ident_str("is") {
             self.advance();
         }
-        self.expect_ident_str("record")?;
-        self.expect_token(&Token::LParen)?;
 
-        let mut fields = Vec::new();
-        if !self.match_token(&Token::RParen) {
-            loop {
-                let field_name = self.parse_identifier()?;
-                let field_type = self.parse_pl_data_type()?;
-                fields.push(PlTypeField {
-                    name: field_name,
-                    data_type: field_type,
-                });
-                if self.match_token(&Token::Comma) {
-                    self.advance();
-                } else {
-                    break;
+        if self.match_ident_str("record") {
+            self.advance();
+            self.expect_token(&Token::LParen)?;
+
+            let mut fields = Vec::new();
+            if !self.match_token(&Token::RParen) {
+                loop {
+                    let field_name = self.parse_identifier()?;
+                    let field_type = self.parse_pl_data_type()?;
+                    fields.push(PlTypeField {
+                        name: field_name,
+                        data_type: field_type,
+                    });
+                    if self.match_token(&Token::Comma) {
+                        self.advance();
+                    } else {
+                        break;
+                    }
                 }
             }
+
+            self.expect_token(&Token::RParen)?;
+            self.try_consume_semicolon();
+
+            Ok(PlDeclaration::Type(PlTypeDecl::Record { name, fields }))
+        } else if self.match_keyword(Keyword::TABLE) {
+            self.advance();
+            self.expect_keyword(Keyword::OF)?;
+            let elem_type = self.parse_pl_data_type()?;
+            let mut index_by = None;
+            if self.match_keyword(Keyword::INDEX) {
+                self.advance();
+                self.expect_keyword(Keyword::BY)?;
+                index_by = Some(self.parse_pl_data_type()?);
+            }
+            self.try_consume_semicolon();
+            Ok(PlDeclaration::Type(PlTypeDecl::TableOf {
+                name,
+                elem_type,
+                index_by,
+            }))
+        } else if self.match_ident_str("varray") {
+            self.advance();
+            self.expect_token(&Token::LParen)?;
+            let size = self.parse_expr()?;
+            self.expect_token(&Token::RParen)?;
+            self.expect_keyword(Keyword::OF)?;
+            let elem_type = self.parse_pl_data_type()?;
+            self.try_consume_semicolon();
+            Ok(PlDeclaration::Type(PlTypeDecl::VarrayOf {
+                name,
+                size: Box::new(size),
+                elem_type,
+            }))
+        } else {
+            Err(ParserError::UnexpectedToken {
+                location: self.current_location(),
+                expected: "RECORD, TABLE, or VARRAY after IS".to_string(),
+                got: format!("{:?}", self.peek()),
+            })
         }
-
-        self.expect_token(&Token::RParen)?;
-        self.try_consume_semicolon();
-
-        Ok(PlDeclaration::Type(PlTypeDecl { name, fields }))
     }
 
     fn expect_ident_str(&mut self, target: &str) -> Result<(), ParserError> {
@@ -921,6 +959,7 @@ impl Parser {
             return Ok(PlForKind::Query {
                 query,
                 parsed_query,
+                using_args: Vec::new(),
             });
         }
 
@@ -1116,14 +1155,71 @@ impl Parser {
     }
 
     fn parse_pl_execute(&mut self) -> Result<PlStatement, ParserError> {
-        self.advance();
+        self.advance(); // consume "execute"
+
+        let immediate = self.try_consume_ident_str("immediate");
+
         let string_expr = self.parse_expr()?;
+
+        let parsed_query = match &string_expr {
+            Expr::Literal(Literal::String(s)) => Self::parse_statement_from_str(s),
+            Expr::Literal(Literal::DollarString { body, .. }) => {
+                Self::parse_statement_from_str(body)
+            }
+            _ => None,
+        };
+
+        let mut into_targets = Vec::new();
+        if self.match_ident_str("into") {
+            self.advance();
+            loop {
+                into_targets.push(self.parse_expr()?);
+                if self.match_token(&Token::Comma) {
+                    self.advance();
+                } else {
+                    break;
+                }
+            }
+        }
+
+        let mut using_args = Vec::new();
+        if self.match_ident_str("using") {
+            self.advance();
+            loop {
+                let mode = if self.match_ident_str("in") {
+                    self.advance();
+                    if self.match_ident_str("out") {
+                        self.advance();
+                        PlUsingMode::InOut
+                    } else {
+                        PlUsingMode::In
+                    }
+                } else if self.match_ident_str("out") {
+                    self.advance();
+                    PlUsingMode::Out
+                } else {
+                    PlUsingMode::In
+                };
+                using_args.push(PlUsingArg {
+                    mode,
+                    argument: self.parse_expr()?,
+                });
+                if self.match_token(&Token::Comma) {
+                    self.advance();
+                } else {
+                    break;
+                }
+            }
+        }
+
         self.try_consume_semicolon();
 
         Ok(PlStatement::Execute(PlExecuteStmt {
+            immediate,
             string_expr,
-            into_target: None,
-            using_args: Vec::new(),
+            into_targets,
+            using_args,
+            parsed_query,
         }))
     }
 

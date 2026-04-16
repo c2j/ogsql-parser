@@ -1,3 +1,21 @@
 [submodule "lib/openGauss-server"]
 	path = lib/openGauss-server
-	url = https://gitee.com/opengauss/openGauss-server
+	url = https://gitcode.com/opengauss/openGauss-server.git
+[submodule "lib/mybatis-spring"]
+	path = lib/mybatis-spring
+	url = https://github.com/mybatis/spring.git
+[submodule "lib/mybatis-crud"]
+	path = lib/mybatis-crud
+	url = https://github.com/cibofdevs/mybatis-crud.git
+[submodule "lib/gaussdb-examples"]
+	path = lib/gaussdb-examples
+	url = https://github.com/HuaweiCloudDeveloper/gaussdb-examples.git
+[submodule "lib/servicecomb-java-chassis"]
+	path = lib/servicecomb-java-chassis
+	url = https://github.com/apache/servicecomb-java-chassis.git
+[submodule "lib/maku-boot"]
+	path = lib/maku-boot
+	url = https://github.com/makunet/maku-boot.git
+[submodule "lib/ruoyi-springboot3-pro"]
+	path = lib/ruoyi-springboot3-pro
+	url = https://github.com/undsky/RuoYi-SpringBoot3-Pro.git

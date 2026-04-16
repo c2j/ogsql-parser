@@ -89,11 +89,23 @@ pub struct PlRecordDecl {
     pub name: String,
 }
 
-/// TYPE declaration (composite type): name IS RECORD (fields)
+/// TYPE declaration: name IS RECORD (fields) | name IS TABLE OF type | name IS VARRAY(n) OF type
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct PlTypeDecl {
-    pub name: String,
-    pub fields: Vec<PlTypeField>,
+pub enum PlTypeDecl {
+    Record {
+        name: String,
+        fields: Vec<PlTypeField>,
+    },
+    TableOf {
+        name: String,
+        elem_type: PlDataType,
+        index_by: Option<PlDataType>,
+    },
+    VarrayOf {
+        name: String,
+        size: Box<crate::ast::Expr>,
+        elem_type: PlDataType,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -289,6 +301,8 @@ pub enum PlForKind {
         query: String,
         #[serde(skip_serializing_if = "Option::is_none")]
         parsed_query: Option<Box<crate::ast::Statement>>,
+        #[serde(default)]
+        using_args: Vec<PlUsingArg>,
     },
     /// FOR rec IN cursor_name [([args])] LOOP
     Cursor {
@@ -337,11 +351,35 @@ pub struct RaiseOption {
     pub value: String,
 }
 
+/// Parameter passing mode for EXECUTE IMMEDIATE ... USING arguments.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum PlUsingMode {
+    In,
+    Out,
+    InOut,
+}
+
+/// A single argument in a USING clause with its passing mode.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct PlUsingArg {
+    pub mode: PlUsingMode,
+    pub argument: crate::ast::Expr,
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct PlExecuteStmt {
+    /// Whether the IMMEDIATE keyword was present
+    pub immediate: bool,
+    /// The dynamic SQL string expression (may be a concatenation)
     pub string_expr: crate::ast::Expr,
-    pub into_target: Option<crate::ast::Expr>,
-    pub using_args: Vec<crate::ast::Expr>,
+    /// INTO target variables for query results
+    #[serde(default)]
+    pub into_targets: Vec<crate::ast::Expr>,
+    /// USING arguments with IN/OUT/INOUT mode
+    #[serde(default)]
+    pub using_args: Vec<PlUsingArg>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub parsed_query: Option<Box<crate::ast::Statement>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

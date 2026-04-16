@@ -1,0 +1,5 @@
+-- 来源: 1246_CREATE EXTENSION.txt
+-- SQL 数量: 1
+
+CREATE EXTENSION IF NOT EXISTS security_plugin;
+

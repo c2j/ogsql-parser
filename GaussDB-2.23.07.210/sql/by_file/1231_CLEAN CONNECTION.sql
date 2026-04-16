@@ -1,0 +1,21 @@
+-- 来源: 1231_CLEAN CONNECTION.txt
+-- SQL 数量: 9
+
+CREATE DATABASE test_clean_connection ;
+
+CREATE USER jack PASSWORD '********' ;
+
+CREATE DATABASE testdb ;
+
+CLEAN CONNECTION TO NODE ( dn_6001_6002 , dn_6003_6004 ) FOR DATABASE template1 ;
+
+CLEAN CONNECTION TO NODE ( dn_6001_6002 ) TO USER jack ;
+
+CLEAN CONNECTION TO ALL FORCE FOR DATABASE testdb ;
+
+DROP DATABASE testdb ;
+
+DROP USER jack ;
+
+DROP DATABASE test_clean_connection ;
+

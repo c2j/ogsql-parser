@@ -1,0 +1,7 @@
+-- 来源: 1365_ROLLBACK.txt
+-- SQL 数量: 2
+
+START TRANSACTION ;
+
+ROLLBACK ;
+

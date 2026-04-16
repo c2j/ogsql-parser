@@ -1,0 +1,10 @@
+-- 来源: 3000_DROP DATA SOURCE.txt
+-- SQL 数量: 3
+
+CREATE DATA SOURCE ds_tst1;
+
+--删除Data Source对象。
+DROP DATA SOURCE ds_tst1 CASCADE;
+
+DROP DATA SOURCE IF EXISTS ds_tst1 RESTRICT;
+

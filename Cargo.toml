@@ -19,6 +19,9 @@ tower-http = { version = "0.6", features = ["cors"], optional = true }
 utoipa = { version = "5", optional = true }
 ratatui = { version = "0.29", optional = true }
 crossterm = { version = "0.28", optional = true }
+quick-xml = { version = "0.39", optional = true }
+tree-sitter = { version = "0.24", optional = true }
+tree-sitter-java = { version = "0.23", optional = true }
 
 [dev-dependencies]
 walkdir = "2"
@@ -26,9 +29,11 @@ walkdir = "2"
 [features]
 default = ["cli"]
 cli = ["dep:clap"]
+ibatis = ["dep:quick-xml"]
+java = ["dep:tree-sitter", "dep:tree-sitter-java"]
 serve = ["cli", "dep:axum", "dep:tokio", "dep:tower-http", "dep:utoipa"]
 tui = ["cli", "dep:ratatui", "dep:crossterm"]
-full = ["cli", "serve", "tui"]
+full = ["cli", "ibatis", "java", "serve", "tui"]
 
 [[bin]]
 name = "ogsql"

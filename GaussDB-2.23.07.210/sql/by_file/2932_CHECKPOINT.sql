@@ -1,0 +1,5 @@
+-- 来源: 2932_CHECKPOINT.txt
+-- SQL 数量: 1
+
+CHECKPOINT;
+
