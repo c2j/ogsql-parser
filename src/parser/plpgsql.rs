@@ -25,6 +25,17 @@ impl Parser {
         label: Option<String>,
         declarations: Vec<PlDeclaration>,
     ) -> Result<PlBlock, ParserError> {
+        self.enter_scope()?;
+        let result = self.parse_pl_block_body_inner(label, declarations);
+        self.leave_scope();
+        result
+    }
+
+    fn parse_pl_block_body_inner(
+        &mut self,
+        label: Option<String>,
+        declarations: Vec<PlDeclaration>,
+    ) -> Result<PlBlock, ParserError> {
         let mut body = Vec::new();
         let mut exception_block = None;
 

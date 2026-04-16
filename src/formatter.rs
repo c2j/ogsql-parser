@@ -29,6 +29,7 @@ impl SqlFormatter {
             Statement::Drop(s) => self.format_drop(s),
             Statement::Truncate(s) => self.format_truncate(s),
             Statement::CreateIndex(s) => self.format_create_index(s),
+            Statement::CreateGlobalIndex(s) => self.format_create_global_index(s),
             Statement::CreateSchema(s) => self.format_create_schema(s),
             Statement::CreateDatabase(s) => self.format_create_database(s),
             Statement::CreateDatabaseLink(s) => self.format_create_database_link(s),
@@ -115,6 +116,42 @@ impl SqlFormatter {
             Statement::CreateUserMapping(s) => self.format_create_user_mapping(s),
             Statement::AlterUserMapping(s) => self.format_alter_user_mapping(s),
             Statement::DropUserMapping(s) => self.format_drop_user_mapping(s),
+            Statement::Shutdown(s) => self.format_shutdown(s),
+            Statement::Barrier(s) => self.format_barrier(s),
+            Statement::Purge(s) => self.format_purge(s),
+            Statement::TimeCapsule(s) => self.format_timecapsule(s),
+            Statement::Snapshot(s) => self.format_snapshot(s),
+            Statement::Shrink(s) => self.format_shrink(s),
+            Statement::Verify(s) => self.format_verify(s),
+            Statement::CleanConn(s) => self.format_clean_conn(s),
+            Statement::Compile(s) => self.format_compile(s),
+            Statement::SecLabel(s) => self.format_sec_label(s),
+            Statement::CreateConversion(s) => self.format_create_conversion(s),
+            Statement::CreateSynonym(s) => self.format_create_synonym(s),
+            Statement::CreateModel(s) => self.format_create_model(s),
+            Statement::CreateAm(s) => self.format_create_am(s),
+            Statement::CreateDirectory(s) => self.format_create_directory(s),
+            Statement::CreateDataSource(s) => self.format_create_data_source(s),
+            Statement::CreateEvent(s) => self.format_create_event(s),
+            Statement::CreateOpClass(s) => self.format_create_opclass(s),
+            Statement::CreateOpFamily(s) => self.format_create_opfamily(s),
+            Statement::CreateContQuery(s) => self.format_create_contquery(s),
+            Statement::CreateStream(s) => self.format_create_stream(s),
+            Statement::CreateKey(s) => self.format_create_key(s),
+            Statement::AlterForeignTable(s) => self.format_alter_foreign_table(s),
+            Statement::AlterForeignServer(s) => self.format_alter_foreign_server(s),
+            Statement::AlterFdw(s) => self.format_alter_fdw(s),
+            Statement::AlterPublication(s) => self.format_alter_publication(s),
+            Statement::AlterSubscription(s) => self.format_alter_subscription(s),
+            Statement::AlterNode(s) => self.format_alter_node(s),
+            Statement::AlterNodeGroup(s) => self.format_alter_node_group(s),
+            Statement::AlterWorkloadGroup(s) => self.format_alter_workload_group(s),
+            Statement::AlterAuditPolicy(s) => self.format_alter_audit_policy(s),
+            Statement::AlterRlsPolicy(s) => self.format_alter_rls_policy(s),
+            Statement::AlterDataSource(s) => self.format_alter_data_source(s),
+            Statement::AlterEvent(s) => self.format_alter_event(s),
+            Statement::AlterOpFamily(s) => self.format_alter_opfamily(s),
+            Statement::AlterMaterializedView(s) => self.format_alter_materialized_view(s),
             _ => self.format_stub(stmt),
         }
     }
@@ -129,47 +166,11 @@ impl SqlFormatter {
 
     fn format_stub(&self, stmt: &Statement) -> String {
         let name = match stmt {
-            Statement::CreateConversion(_) => "CREATE CONVERSION",
             Statement::AlterDomain(_) => "ALTER DOMAIN",
-            Statement::CreateSynonym(_) => "CREATE SYNONYM",
-            Statement::CreateModel(_) => "CREATE MODEL",
-            Statement::CreateAm(_) => "CREATE ACCESS METHOD",
-            Statement::CreateDirectory(_) => "CREATE DIRECTORY",
-            Statement::CreateDataSource(_) => "CREATE DATA SOURCE",
-            Statement::CreateEvent(_) => "CREATE EVENT",
-            Statement::CreateOpClass(_) => "CREATE OPERATOR CLASS",
-            Statement::CreateOpFamily(_) => "CREATE OPERATOR FAMILY",
-            Statement::CreateContQuery(_) => "CREATE CONTINUOUS QUERY",
-            Statement::CreateStream(_) => "CREATE STREAM",
-            Statement::CreateKey(_) => "CREATE KEY",
-            Statement::AlterForeignTable(_) => "ALTER FOREIGN TABLE",
-            Statement::AlterForeignServer(_) => "ALTER SERVER",
-            Statement::AlterFdw(_) => "ALTER FOREIGN DATA WRAPPER",
-            Statement::AlterPublication(_) => "ALTER PUBLICATION",
-            Statement::AlterSubscription(_) => "ALTER SUBSCRIPTION",
-            Statement::AlterNode(_) => "ALTER NODE",
-            Statement::AlterNodeGroup(_) => "ALTER NODE GROUP",
             Statement::AlterResourcePool(_) => "ALTER RESOURCE POOL",
-            Statement::AlterWorkloadGroup(_) => "ALTER WORKLOAD GROUP",
-            Statement::AlterAuditPolicy(_) => "ALTER AUDIT POLICY",
-            Statement::AlterMaskingPolicy(_) => "ALTER MASKING POLICY",
-            Statement::AlterRlsPolicy(_) => "ALTER RLS POLICY",
-            Statement::AlterDataSource(_) => "ALTER DATA SOURCE",
-            Statement::AlterEvent(_) => "ALTER EVENT",
-            Statement::AlterOpFamily(_) => "ALTER OPERATOR FAMILY",
-            Statement::Shutdown(_) => "SHUTDOWN",
-            Statement::Barrier(_) => "BARRIER",
-            Statement::Purge(_) => "PURGE",
-            Statement::TimeCapsule(_) => "TIME CAPSULE",
-            Statement::Snapshot(_) => "SNAPSHOT",
-            Statement::Shrink(_) => "SHRINK",
-            Statement::Verify(_) => "VERIFY",
-            Statement::CleanConn(_) => "CLEAN CONNECTION",
-            Statement::Compile(_) => "COMPILE",
             Statement::GetDiag(_) => "GET DIAGNOSTICS",
             Statement::ShowEvent(_) => "SHOW EVENT",
             Statement::RemovePackage(_) => "REMOVE PACKAGE",
-            Statement::SecLabel(_) => "SECURITY LABEL",
             Statement::CreateWeakPasswordDictionary => "CREATE WEAK PASSWORD DICTIONARY",
             Statement::DropWeakPasswordDictionary => "DROP WEAK PASSWORD DICTIONARY",
             Statement::CreatePolicyLabel(_) => "CREATE POLICY LABEL",
@@ -213,6 +214,16 @@ impl SqlFormatter {
                 self.kw("INTO"),
                 self.format_select_targets(into_targets)
             ));
+        }
+
+        if let Some(into_table) = &stmt.into_table {
+            let mut into_parts = vec![self.kw("INTO")];
+            if into_table.unlogged {
+                into_parts.push(self.kw("UNLOGGED"));
+            }
+            into_parts.push(self.kw("TABLE"));
+            into_parts.push(self.format_object_name(&into_table.table_name));
+            parts.push(into_parts.join(" "));
         }
 
         if !stmt.from.is_empty() {
@@ -1596,6 +1607,14 @@ impl SqlFormatter {
             parts.push(ilm_parts.join(" "));
         }
 
+        if let Some(rm) = stmt.row_movement {
+            if rm {
+                parts.push(self.kw("ENABLE ROW MOVEMENT"));
+            } else {
+                parts.push(self.kw("DISABLE ROW MOVEMENT"));
+            }
+        }
+
         parts.join(" ")
     }
 
@@ -1663,10 +1682,16 @@ impl SqlFormatter {
             PartitionClause::Range {
                 column,
                 interval,
+                is_columns,
+                partitions_count,
                 partitions,
             } => {
                 let mut parts = vec![
-                    self.kw("PARTITION BY RANGE"),
+                    if *is_columns {
+                        self.kw("PARTITION BY RANGE COLUMNS")
+                    } else {
+                        self.kw("PARTITION BY RANGE")
+                    },
                     format!("({})", self.format_object_name(column)),
                 ];
                 if let Some(iv) = interval {
@@ -1676,14 +1701,25 @@ impl SqlFormatter {
                         self.format_expr(iv)
                     ));
                 }
+                if let Some(n) = partitions_count {
+                    parts.push(format!("{} {}", self.kw("PARTITIONS"), n));
+                }
                 if !partitions.is_empty() {
                     parts.push(self.format_partition_defs(partitions));
                 }
                 parts.join(" ")
             }
-            PartitionClause::List { column, partitions } => {
+            PartitionClause::List {
+                column,
+                is_columns,
+                partitions,
+            } => {
                 let mut parts = vec![
-                    self.kw("PARTITION BY LIST"),
+                    if *is_columns {
+                        self.kw("PARTITION BY LIST COLUMNS")
+                    } else {
+                        self.kw("PARTITION BY LIST")
+                    },
                     format!("({})", self.format_object_name(column)),
                 ];
                 if !partitions.is_empty() {
@@ -1714,10 +1750,17 @@ impl SqlFormatter {
     fn format_subpartition_clause(&self, clause: &PartitionClause) -> String {
         match clause {
             PartitionClause::Range {
-                column, partitions, ..
+                column,
+                is_columns,
+                partitions,
+                ..
             } => {
                 let mut parts = vec![
-                    self.kw("SUBPARTITION BY RANGE"),
+                    if *is_columns {
+                        self.kw("SUBPARTITION BY RANGE COLUMNS")
+                    } else {
+                        self.kw("SUBPARTITION BY RANGE")
+                    },
                     format!("({})", self.format_object_name(column)),
                 ];
                 if !partitions.is_empty() {
@@ -1725,9 +1768,17 @@ impl SqlFormatter {
                 }
                 parts.join(" ")
             }
-            PartitionClause::List { column, partitions } => {
+            PartitionClause::List {
+                column,
+                is_columns,
+                partitions,
+            } => {
                 let mut parts = vec![
-                    self.kw("SUBPARTITION BY LIST"),
+                    if *is_columns {
+                        self.kw("SUBPARTITION BY LIST COLUMNS")
+                    } else {
+                        self.kw("SUBPARTITION BY LIST")
+                    },
                     format!("({})", self.format_object_name(column)),
                 ];
                 if !partitions.is_empty() {
@@ -1989,6 +2040,24 @@ impl SqlFormatter {
         parts.join(" ")
     }
 
+    fn append_update_index_clauses(
+        &self,
+        parts: &mut Vec<String>,
+        update_global_index: bool,
+        update_distributed_global_index: Option<bool>,
+    ) {
+        if update_global_index {
+            parts.push(self.kw("UPDATE GLOBAL INDEX"));
+        }
+        if let Some(val) = update_distributed_global_index {
+            if val {
+                parts.push(self.kw("UPDATE DISTRIBUTED GLOBAL INDEX"));
+            } else {
+                parts.push(self.kw("NO UPDATE DISTRIBUTED GLOBAL INDEX"));
+            }
+        }
+    }
+
     fn format_alter_table_action(&self, action: &AlterTableAction) -> String {
         match action {
             AlterTableAction::AddColumn(col) => {
@@ -2105,36 +2174,70 @@ impl SqlFormatter {
                 }
                 parts.join(" ")
             }
-            AlterTableAction::DropPartition { name, if_exists } => {
+            AlterTableAction::DropPartition {
+                name,
+                if_exists,
+                update_global_index,
+                update_distributed_global_index,
+            } => {
                 let mut parts = vec![self.kw("DROP PARTITION")];
                 if *if_exists {
                     parts.push(self.kw("IF EXISTS"));
                 }
                 parts.push(self.quote_identifier(name));
+                self.append_update_index_clauses(
+                    &mut parts,
+                    *update_global_index,
+                    *update_distributed_global_index,
+                );
                 parts.join(" ")
             }
-            AlterTableAction::TruncatePartition { name, cascade } => {
+            AlterTableAction::TruncatePartition {
+                name,
+                cascade,
+                update_global_index,
+                update_distributed_global_index,
+            } => {
                 let mut parts = vec![self.kw("TRUNCATE PARTITION"), self.quote_identifier(name)];
                 if *cascade {
                     parts.push(self.kw("CASCADE"));
                 }
+                self.append_update_index_clauses(
+                    &mut parts,
+                    *update_global_index,
+                    *update_distributed_global_index,
+                );
                 parts.join(" ")
             }
-            AlterTableAction::MergePartitions { names, into_name } => {
+            AlterTableAction::MergePartitions {
+                names,
+                into_name,
+                update_global_index,
+                update_distributed_global_index,
+            } => {
                 let name_list: Vec<String> =
                     names.iter().map(|n| self.quote_identifier(n)).collect();
-                format!(
-                    "{} {} {} {}",
-                    self.kw("MERGE PARTITIONS"),
-                    name_list.join(", "),
-                    self.kw("INTO PARTITION"),
-                    self.quote_identifier(into_name)
-                )
+                let mut parts = vec![
+                    format!("{} {}", self.kw("MERGE PARTITIONS"), name_list.join(", ")),
+                    format!(
+                        "{} {}",
+                        self.kw("INTO PARTITION"),
+                        self.quote_identifier(into_name)
+                    ),
+                ];
+                self.append_update_index_clauses(
+                    &mut parts,
+                    *update_global_index,
+                    *update_distributed_global_index,
+                );
+                parts.join(" ")
             }
             AlterTableAction::SplitPartition {
                 name,
                 at_value,
                 into,
+                update_global_index,
+                update_distributed_global_index,
             } => {
                 let mut parts = vec![self.kw("SPLIT PARTITION"), self.quote_identifier(name)];
                 if let Some(at) = at_value {
@@ -2155,16 +2258,43 @@ impl SqlFormatter {
                     })
                     .collect();
                 parts.push(format!("{} ({})", self.kw("INTO"), partitions.join(", ")));
+                self.append_update_index_clauses(
+                    &mut parts,
+                    *update_global_index,
+                    *update_distributed_global_index,
+                );
                 parts.join(" ")
             }
-            AlterTableAction::ExchangePartition { name, table } => {
-                format!(
-                    "{} {} {} {}",
+            AlterTableAction::ExchangePartition {
+                name,
+                table,
+                update_global_index,
+                update_distributed_global_index,
+                with_validation,
+                verbose,
+            } => {
+                let mut parts = vec![
                     self.kw("EXCHANGE PARTITION"),
                     self.quote_identifier(name),
                     self.kw("WITH TABLE"),
-                    self.format_object_name(table)
-                )
+                    self.format_object_name(table),
+                ];
+                if let Some(wv) = with_validation {
+                    if *wv {
+                        parts.push(self.kw("WITH VALIDATION"));
+                    } else {
+                        parts.push(self.kw("WITHOUT VALIDATION"));
+                    }
+                }
+                if *verbose {
+                    parts.push(self.kw("VERBOSE"));
+                }
+                self.append_update_index_clauses(
+                    &mut parts,
+                    *update_global_index,
+                    *update_distributed_global_index,
+                );
+                parts.join(" ")
             }
             AlterTableAction::RenamePartition { old_name, new_name } => {
                 format!(
@@ -2285,12 +2415,69 @@ impl SqlFormatter {
                     self.quote_identifier(tablespace)
                 )
             }
-            AlterTableAction::DropPartitionFor { expr, if_exists } => {
-                let mut s = self.kw("DROP PARTITION").to_string();
-                if *if_exists {
-                    s = format!("{} {}", s, self.kw("IF EXISTS"));
+            AlterTableAction::MovePartitionFor { expr, tablespace } => {
+                format!(
+                    "{} {} ({}) {} {}",
+                    self.kw("MOVE PARTITION"),
+                    self.kw("FOR"),
+                    self.format_expr(expr),
+                    self.kw("TABLESPACE"),
+                    self.quote_identifier(tablespace)
+                )
+            }
+            AlterTableAction::SplitPartitionFor {
+                expr,
+                at_value,
+                into,
+                update_global_index,
+                update_distributed_global_index,
+            } => {
+                let mut parts = vec![
+                    self.kw("SPLIT PARTITION"),
+                    format!("{} ({})", self.kw("FOR"), self.format_expr(expr)),
+                ];
+                if let Some(at) = at_value {
+                    parts.push(format!("{} {}", self.kw("AT"), self.format_expr(at)));
                 }
-                format!("{} {} ({})", s, self.kw("FOR"), self.format_expr(expr))
+                let partitions: Vec<String> = into
+                    .iter()
+                    .map(|p| {
+                        let mut s = format!(
+                            "{} {}",
+                            self.kw("PARTITION"),
+                            self.quote_identifier(&p.name)
+                        );
+                        if let Some(v) = &p.values {
+                            s = format!("{} {}", s, self.format_partition_values(v));
+                        }
+                        s
+                    })
+                    .collect();
+                parts.push(format!("{} ({})", self.kw("INTO"), partitions.join(", ")));
+                self.append_update_index_clauses(
+                    &mut parts,
+                    *update_global_index,
+                    *update_distributed_global_index,
+                );
+                parts.join(" ")
+            }
+            AlterTableAction::DropPartitionFor {
+                expr,
+                if_exists,
+                update_global_index,
+                update_distributed_global_index,
+            } => {
+                let mut parts = vec![self.kw("DROP PARTITION")];
+                if *if_exists {
+                    parts.push(self.kw("IF EXISTS"));
+                }
+                parts.push(format!("{} ({})", self.kw("FOR"), self.format_expr(expr)));
+                self.append_update_index_clauses(
+                    &mut parts,
+                    *update_global_index,
+                    *update_distributed_global_index,
+                );
+                parts.join(" ")
             }
             AlterTableAction::RenamePartitionFor { expr, new_name } => {
                 format!(
@@ -2308,6 +2495,8 @@ impl SqlFormatter {
             AlterTableAction::DisableRowLevelSecurity => {
                 self.kw("DISABLE ROW LEVEL SECURITY").to_string()
             }
+            AlterTableAction::EnableRowMovement => self.kw("ENABLE ROW MOVEMENT").to_string(),
+            AlterTableAction::DisableRowMovement => self.kw("DISABLE ROW MOVEMENT").to_string(),
             AlterTableAction::SetCharset { charset, collation } => {
                 if let Some(col) = collation {
                     format!(
@@ -2493,14 +2682,18 @@ impl SqlFormatter {
                 let formatted: Vec<String> = exprs.iter().map(|e| self.format_expr(e)).collect();
                 format!("{} ({})", self.kw("VALUES IN"), formatted.join(", "))
             }
-            PartitionValues::StartEnd { start, end } => {
-                format!(
+            PartitionValues::StartEnd { start, end, every } => {
+                let mut s = format!(
                     "{} ({}) {} ({})",
                     self.kw("START"),
                     self.format_expr(start),
                     self.kw("END"),
                     self.format_expr(end)
-                )
+                );
+                if let Some(e) = every {
+                    s = format!("{} {} ({})", s, self.kw("EVERY"), self.format_expr(e));
+                }
+                s
             }
         }
     }
@@ -2659,6 +2852,131 @@ impl SqlFormatter {
             })
             .collect();
         parts.push(format!("({})", cols.join(", ")));
+
+        if let Some(where_clause) = &stmt.where_clause {
+            parts.push(format!(
+                "{} {}",
+                self.kw("WHERE"),
+                self.format_expr(where_clause)
+            ));
+        }
+
+        parts.join(" ")
+    }
+
+    fn format_create_global_index(&self, stmt: &CreateGlobalIndexStatement) -> String {
+        let mut parts = vec![self.kw("CREATE"), self.kw("GLOBAL")];
+
+        if stmt.unique {
+            parts.push(self.kw("UNIQUE"));
+        }
+
+        parts.push(self.kw("INDEX"));
+
+        if stmt.concurrent {
+            parts.push(self.kw("CONCURRENTLY"));
+        }
+
+        if stmt.if_not_exists {
+            parts.push(self.kw("IF NOT EXISTS"));
+        }
+
+        if let Some(name) = &stmt.name {
+            parts.push(self.format_object_name(name));
+        }
+
+        parts.push(self.kw("ON"));
+        parts.push(self.format_object_name(&stmt.table));
+
+        if let Some(method) = &stmt.using_method {
+            parts.push(self.kw("USING"));
+            parts.push(method.clone());
+        }
+
+        let cols: Vec<String> = stmt
+            .columns
+            .iter()
+            .map(|c| {
+                let mut result = if let Some(expr) = &c.expression {
+                    format!("({})", self.format_expr(expr))
+                } else {
+                    let mut r = self.quote_identifier(&c.name);
+                    if let Some(len) = c.length {
+                        r = format!("{}({})", r, len);
+                    }
+                    if let Some(coll) = &c.collation {
+                        r = format!("{} {} {}", r, self.kw("COLLATE"), coll);
+                    }
+                    if let Some(opc) = &c.opclass {
+                        r = format!("{} {}", r, opc);
+                    }
+                    r
+                };
+                if let Some(ord) = &c.ordering {
+                    result = format!(
+                        "{} {}",
+                        result,
+                        match ord {
+                            IndexOrdering::Asc => self.kw("ASC"),
+                            IndexOrdering::Desc => self.kw("DESC"),
+                        }
+                    );
+                }
+                if let Some(n) = &c.nulls {
+                    result = format!(
+                        "{} {} {}",
+                        result,
+                        self.kw("NULLS"),
+                        match n {
+                            IndexNulls::First => self.kw("FIRST"),
+                            IndexNulls::Last => self.kw("LAST"),
+                        }
+                    );
+                }
+                result
+            })
+            .collect();
+        parts.push(format!("({})", cols.join(", ")));
+
+        if !stmt.containing.is_empty() {
+            parts.push(format!(
+                "CONTAINING ({})",
+                stmt.containing
+                    .iter()
+                    .map(|c| self.quote_identifier(c))
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ));
+        }
+
+        if let Some(dist) = &stmt.distribute_by {
+            parts.push(self.format_distribute_clause(dist));
+        }
+
+        if !stmt.with_options.is_empty() {
+            let opts: Vec<String> = stmt
+                .with_options
+                .iter()
+                .map(|(k, v)| format!("{} = {}", k, v))
+                .collect();
+            parts.push(format!("{} ({})", self.kw("WITH"), opts.join(", ")));
+        }
+
+        if let Some(ts) = &stmt.tablespace {
+            parts.push(format!(
+                "{} {}",
+                self.kw("TABLESPACE"),
+                self.quote_identifier(ts)
+            ));
+        }
+
+        if let Some(vis) = stmt.visible {
+            parts.push(if vis {
+                self.kw("VISIBLE")
+            } else {
+                self.kw("INVISIBLE")
+            });
+        }
 
         if let Some(where_clause) = &stmt.where_clause {
             parts.push(format!(
@@ -2905,6 +3223,278 @@ impl SqlFormatter {
         parts.join(" ")
     }
 
+    fn format_create_conversion(&self, stmt: &CreateConversionStatement) -> String {
+        let mut parts = vec![self.kw("CREATE CONVERSION")];
+        parts.push(self.quote_identifier(&stmt.name));
+        parts.push(self.kw("FOR"));
+        parts.push(self.quote_identifier(&stmt.source_encoding));
+        parts.push(self.kw("TO"));
+        parts.push(self.quote_identifier(&stmt.dest_encoding));
+        parts.push(self.kw("FROM"));
+        parts.push(self.quote_identifier(&stmt.function_name));
+        parts.join(" ")
+    }
+
+    fn format_create_synonym(&self, stmt: &CreateSynonymStatement) -> String {
+        let mut parts = vec![self.kw("CREATE")];
+        if stmt.replace {
+            parts.push(self.kw("OR REPLACE"));
+        }
+        parts.push(self.kw("SYNONYM"));
+        parts.push(self.format_object_name(&stmt.name));
+        parts.push(self.kw("FOR"));
+        parts.push(self.format_object_name(&stmt.target));
+        if stmt.public {
+            parts.push(self.kw("PUBLIC"));
+        }
+        parts.join(" ")
+    }
+
+    fn format_create_model(&self, stmt: &CreateModelStatement) -> String {
+        let mut parts = vec![self.kw("CREATE MODEL")];
+        parts.push(self.quote_identifier(&stmt.name));
+        if !stmt.raw_rest.is_empty() {
+            parts.push(stmt.raw_rest.clone());
+        }
+        parts.join(" ")
+    }
+
+    fn format_create_am(&self, stmt: &CreateAmStatement) -> String {
+        let mut parts = vec![self.kw("CREATE ACCESS METHOD")];
+        parts.push(self.quote_identifier(&stmt.name));
+        parts.push(self.kw("TYPE"));
+        parts.push(self.quote_identifier(&stmt.method));
+        parts.push(self.kw("HANDLER"));
+        parts.push(self.quote_identifier(&stmt.handler));
+        parts.join(" ")
+    }
+
+    fn format_create_directory(&self, stmt: &CreateDirectoryStatement) -> String {
+        let mut parts = vec![self.kw("CREATE DIRECTORY")];
+        parts.push(self.quote_identifier(&stmt.name));
+        if !stmt.path.is_empty() {
+            parts.push(self.kw("AS"));
+            parts.push(self.quote_string(&stmt.path));
+        }
+        parts.join(" ")
+    }
+
+    fn format_create_data_source(&self, stmt: &CreateDataSourceStatement) -> String {
+        let mut parts = vec![self.kw("CREATE DATA SOURCE")];
+        parts.push(self.quote_identifier(&stmt.name));
+        if !stmt.options.is_empty() {
+            parts.push(self.kw("WITH"));
+            parts.push("(".to_string());
+            let opts: Vec<String> = stmt
+                .options
+                .iter()
+                .map(|(k, v)| format!("{} = {}", self.quote_identifier(k), self.quote_string(v)))
+                .collect();
+            parts.push(opts.join(", "));
+            parts.push(")".to_string());
+        }
+        parts.join(" ")
+    }
+
+    fn format_create_event(&self, stmt: &CreateEventStatement) -> String {
+        let mut parts = vec![self.kw("CREATE EVENT")];
+        parts.push(self.quote_identifier(&stmt.name));
+        if !stmt.raw_rest.is_empty() {
+            parts.push(stmt.raw_rest.clone());
+        }
+        parts.join(" ")
+    }
+
+    fn format_create_opclass(&self, stmt: &CreateOpClassStatement) -> String {
+        let mut parts = vec![self.kw("CREATE OPERATOR CLASS")];
+        parts.push(self.quote_identifier(&stmt.name));
+        parts.push(self.kw("USING"));
+        parts.push(self.quote_identifier(&stmt.method));
+        if !stmt.raw_rest.is_empty() {
+            parts.push(stmt.raw_rest.clone());
+        }
+        parts.join(" ")
+    }
+
+    fn format_create_opfamily(&self, stmt: &CreateOpFamilyStatement) -> String {
+        let mut parts = vec![self.kw("CREATE OPERATOR FAMILY")];
+        parts.push(self.quote_identifier(&stmt.name));
+        parts.push(self.kw("USING"));
+        parts.push(self.quote_identifier(&stmt.method));
+        parts.join(" ")
+    }
+
+    fn format_create_contquery(&self, stmt: &CreateContQueryStatement) -> String {
+        let mut parts = vec![self.kw("CREATE CONTINUOUS QUERY")];
+        if !stmt.raw_rest.is_empty() {
+            parts.push(stmt.raw_rest.clone());
+        }
+        parts.join(" ")
+    }
+
+    fn format_create_stream(&self, stmt: &CreateStreamStatement) -> String {
+        let mut parts = vec![self.kw("CREATE STREAM")];
+        if !stmt.raw_rest.is_empty() {
+            parts.push(stmt.raw_rest.clone());
+        }
+        parts.join(" ")
+    }
+
+    fn format_create_key(&self, stmt: &CreateKeyStatement) -> String {
+        let mut parts = vec![self.kw("CREATE KEY")];
+        if !stmt.raw_rest.is_empty() {
+            parts.push(stmt.raw_rest.clone());
+        }
+        parts.join(" ")
+    }
+
+    fn format_alter_foreign_table(&self, stmt: &AlterForeignTableStatement) -> String {
+        let mut parts = vec![
+            self.kw("ALTER FOREIGN TABLE"),
+            self.format_object_name(&stmt.name),
+        ];
+        if !stmt.raw_rest.is_empty() {
+            parts.push(stmt.raw_rest.clone());
+        }
+        parts.join(" ")
+    }
+
+    fn format_alter_foreign_server(&self, stmt: &AlterForeignServerStatement) -> String {
+        let mut parts = vec![self.kw("ALTER SERVER"), self.quote_identifier(&stmt.name)];
+        if !stmt.raw_rest.is_empty() {
+            parts.push(stmt.raw_rest.clone());
+        }
+        parts.join(" ")
+    }
+
+    fn format_alter_fdw(&self, stmt: &AlterFdwStatement) -> String {
+        let mut parts = vec![
+            self.kw("ALTER FOREIGN DATA WRAPPER"),
+            self.quote_identifier(&stmt.name),
+        ];
+        if !stmt.raw_rest.is_empty() {
+            parts.push(stmt.raw_rest.clone());
+        }
+        parts.join(" ")
+    }
+
+    fn format_alter_publication(&self, stmt: &AlterPublicationStatement) -> String {
+        let mut parts = vec![
+            self.kw("ALTER PUBLICATION"),
+            self.quote_identifier(&stmt.name),
+        ];
+        if !stmt.raw_rest.is_empty() {
+            parts.push(stmt.raw_rest.clone());
+        }
+        parts.join(" ")
+    }
+
+    fn format_alter_subscription(&self, stmt: &AlterSubscriptionStatement) -> String {
+        let mut parts = vec![
+            self.kw("ALTER SUBSCRIPTION"),
+            self.quote_identifier(&stmt.name),
+        ];
+        if !stmt.raw_rest.is_empty() {
+            parts.push(stmt.raw_rest.clone());
+        }
+        parts.join(" ")
+    }
+
+    fn format_alter_node(&self, stmt: &AlterNodeStatement) -> String {
+        let mut parts = vec![self.kw("ALTER NODE"), self.quote_identifier(&stmt.name)];
+        if !stmt.raw_rest.is_empty() {
+            parts.push(stmt.raw_rest.clone());
+        }
+        parts.join(" ")
+    }
+
+    fn format_alter_node_group(&self, stmt: &AlterNodeGroupStatement) -> String {
+        let mut parts = vec![
+            self.kw("ALTER NODE GROUP"),
+            self.quote_identifier(&stmt.name),
+        ];
+        if !stmt.raw_rest.is_empty() {
+            parts.push(stmt.raw_rest.clone());
+        }
+        parts.join(" ")
+    }
+
+    fn format_alter_workload_group(&self, stmt: &AlterWorkloadGroupStatement) -> String {
+        let mut parts = vec![
+            self.kw("ALTER WORKLOAD GROUP"),
+            self.quote_identifier(&stmt.name),
+        ];
+        if !stmt.raw_rest.is_empty() {
+            parts.push(stmt.raw_rest.clone());
+        }
+        parts.join(" ")
+    }
+
+    fn format_alter_audit_policy(&self, stmt: &AlterAuditPolicyStatement) -> String {
+        let mut parts = vec![
+            self.kw("ALTER AUDIT POLICY"),
+            self.quote_identifier(&stmt.name),
+        ];
+        if !stmt.raw_rest.is_empty() {
+            parts.push(stmt.raw_rest.clone());
+        }
+        parts.join(" ")
+    }
+
+    fn format_alter_rls_policy(&self, stmt: &AlterRlsPolicyStatement) -> String {
+        let mut parts = vec![
+            self.kw("ALTER RLS POLICY"),
+            self.quote_identifier(&stmt.name),
+        ];
+        if !stmt.raw_rest.is_empty() {
+            parts.push(stmt.raw_rest.clone());
+        }
+        parts.join(" ")
+    }
+
+    fn format_alter_data_source(&self, stmt: &AlterDataSourceStatement) -> String {
+        let mut parts = vec![
+            self.kw("ALTER DATA SOURCE"),
+            self.quote_identifier(&stmt.name),
+        ];
+        if !stmt.raw_rest.is_empty() {
+            parts.push(stmt.raw_rest.clone());
+        }
+        parts.join(" ")
+    }
+
+    fn format_alter_event(&self, stmt: &AlterEventStatement) -> String {
+        let mut parts = vec![self.kw("ALTER EVENT"), self.quote_identifier(&stmt.name)];
+        if !stmt.raw_rest.is_empty() {
+            parts.push(stmt.raw_rest.clone());
+        }
+        parts.join(" ")
+    }
+
+    fn format_alter_opfamily(&self, stmt: &AlterOpFamilyStatement) -> String {
+        let mut parts = vec![
+            self.kw("ALTER OPERATOR FAMILY"),
+            self.quote_identifier(&stmt.name),
+            self.kw("USING"),
+            self.quote_identifier(&stmt.method),
+        ];
+        if !stmt.raw_rest.is_empty() {
+            parts.push(stmt.raw_rest.clone());
+        }
+        parts.join(" ")
+    }
+
+    fn format_alter_materialized_view(&self, stmt: &AlterMaterializedViewStatement) -> String {
+        let mut parts = vec![
+            self.kw("ALTER MATERIALIZED VIEW"),
+            self.format_object_name(&stmt.name),
+        ];
+        if !stmt.raw_rest.is_empty() {
+            parts.push(stmt.raw_rest.clone());
+        }
+        parts.join(" ")
+    }
+
     fn format_transaction(&self, stmt: &TransactionStatement) -> String {
         match &stmt.kind {
             TransactionKind::Begin => {
@@ -3057,6 +3647,16 @@ impl SqlFormatter {
 
         if stmt.plan {
             parts.push(self.kw("PLAN"));
+            if let Some(ref sid) = stmt.statement_id {
+                parts.push(format!(
+                    "{} {} {} '{}'",
+                    self.kw("SET"),
+                    self.kw("STATEMENT_ID"),
+                    "=",
+                    sid
+                ));
+            }
+            parts.push(self.kw("FOR"));
         }
 
         if !stmt.options.is_empty() {
@@ -5158,6 +5758,131 @@ impl SqlFormatter {
             self.kw("SERVER")
         ));
         s.push_str(&format!(" {}", self.format_object_name(&stmt.server)));
+        s
+    }
+
+    fn format_shutdown(&self, stmt: &ShutdownStatement) -> String {
+        let mut s = self.kw("SHUTDOWN");
+        if let Some(mode) = &stmt.mode {
+            s.push(' ');
+            s.push_str(&self.kw(mode));
+        }
+        s
+    }
+
+    fn format_barrier(&self, stmt: &BarrierStatement) -> String {
+        format!("{} {}", self.kw("BARRIER"), stmt.name)
+    }
+
+    fn format_purge(&self, stmt: &PurgeStatement) -> String {
+        let mut s = self.kw("PURGE");
+        match &stmt.target {
+            PurgeTarget::Table { name } => {
+                s.push(' ');
+                s.push_str(&self.kw("TABLE"));
+                s.push(' ');
+                s.push_str(&self.format_object_name(name));
+            }
+            PurgeTarget::Index { name } => {
+                s.push(' ');
+                s.push_str(&self.kw("INDEX"));
+                s.push(' ');
+                s.push_str(&self.format_object_name(name));
+            }
+            PurgeTarget::RecycleBin => {
+                s.push(' ');
+                s.push_str(&self.kw("RECYCLEBIN"));
+            }
+        }
+        s
+    }
+
+    fn format_snapshot(&self, stmt: &SnapshotStatement) -> String {
+        let mut s = self.kw("SNAPSHOT");
+        if let Some(name) = &stmt.name {
+            s.push(' ');
+            s.push_str(name);
+        }
+        for (key, value) in &stmt.options {
+            s.push(' ');
+            s.push_str(key);
+            if !value.is_empty() {
+                s.push('=');
+                s.push_str(value);
+            }
+        }
+        s
+    }
+
+    fn format_timecapsule(&self, stmt: &TimeCapsuleStatement) -> String {
+        format!(
+            "{} {} {} {}",
+            self.kw("TIMECAPSULE"),
+            self.kw("TABLE"),
+            self.format_object_name(&stmt.table_name),
+            stmt.action
+        )
+    }
+
+    fn format_shrink(&self, stmt: &ShrinkStatement) -> String {
+        let mut s = self.kw("SHRINK");
+        if let Some(target) = &stmt.target {
+            s.push(' ');
+            s.push_str(target);
+        }
+        if !stmt.raw_rest.is_empty() {
+            s.push(' ');
+            s.push_str(&stmt.raw_rest);
+        }
+        s
+    }
+
+    fn format_verify(&self, stmt: &VerifyStatement) -> String {
+        let mut s = self.kw("VERIFY");
+        if !stmt.raw_rest.is_empty() {
+            s.push(' ');
+            s.push_str(&stmt.raw_rest);
+        }
+        s
+    }
+
+    fn format_clean_conn(&self, stmt: &CleanConnStatement) -> String {
+        let mut s = format!(
+            "{} {} {} {}",
+            self.kw("CLEAN"),
+            self.kw("CONNECTION"),
+            self.kw("TO"),
+            stmt.target
+        );
+        if let Some(user) = &stmt.for_user {
+            s.push_str(&format!(" {} {} {}", self.kw("FOR"), self.kw("USER"), user));
+        }
+        s
+    }
+
+    fn format_compile(&self, stmt: &CompileStatement) -> String {
+        let mut s = self.kw("COMPILE");
+        if !stmt.raw_rest.is_empty() {
+            s.push(' ');
+            s.push_str(&stmt.raw_rest);
+        }
+        s
+    }
+
+    fn format_sec_label(&self, stmt: &SecLabelStatement) -> String {
+        let mut s = format!(
+            "{} {} {}",
+            self.kw("SECURITY"),
+            self.kw("LABEL"),
+            stmt.object_type
+        );
+        s.push_str(&format!(" {}", self.format_object_name(&stmt.name)));
+        if let Some(provider) = &stmt.provider {
+            s.push_str(&format!(" {} {}", self.kw("FOR"), provider));
+        }
+        if let Some(label) = &stmt.label {
+            s.push_str(&format!(" {} '{}'", self.kw("IS"), label));
+        }
         s
     }
 }

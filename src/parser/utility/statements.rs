@@ -1558,4 +1558,137 @@ impl Parser {
             server,
         })
     }
+
+    pub(crate) fn parse_shutdown(&mut self) -> Result<ShutdownStatement, ParserError> {
+        let mode = match self.peek_keyword() {
+            Some(Keyword::FAST) => {
+                self.advance();
+                Some("FAST".to_string())
+            }
+            Some(Keyword::IMMEDIATE) => {
+                self.advance();
+                Some("IMMEDIATE".to_string())
+            }
+            _ => None,
+        };
+        Ok(ShutdownStatement { mode })
+    }
+
+    pub(crate) fn parse_barrier(&mut self) -> Result<BarrierStatement, ParserError> {
+        let name = self.parse_identifier()?;
+        Ok(BarrierStatement { name })
+    }
+
+    pub(crate) fn parse_purge(&mut self) -> Result<PurgeStatement, ParserError> {
+        let target = match self.peek_keyword() {
+            Some(Keyword::TABLE) => {
+                self.advance();
+                let name = self.parse_object_name()?;
+                PurgeTarget::Table { name }
+            }
+            Some(Keyword::INDEX) => {
+                self.advance();
+                let name = self.parse_object_name()?;
+                PurgeTarget::Index { name }
+            }
+            _ => {
+                let id = self.parse_identifier()?;
+                if id.to_uppercase() == "RECYCLEBIN" {
+                    PurgeTarget::RecycleBin
+                } else {
+                    PurgeTarget::RecycleBin
+                }
+            }
+        };
+        Ok(PurgeStatement { target })
+    }
+
+    pub(crate) fn parse_snapshot(&mut self) -> Result<SnapshotStatement, ParserError> {
+        let name = if self.match_token(&Token::Semicolon) || self.match_token(&Token::Eof) {
+            None
+        } else {
+            Some(self.parse_identifier()?)
+        };
+        let mut options = Vec::new();
+        while !self.match_token(&Token::Semicolon) && !self.match_token(&Token::Eof) {
+            let key = self.parse_identifier().unwrap_or_default();
+            let value = if self.match_token(&Token::Eq) {
+                self.advance();
+                self.parse_identifier().unwrap_or_default()
+            } else {
+                String::new()
+            };
+            options.push((key, value));
+        }
+        Ok(SnapshotStatement { name, options })
+    }
+
+    pub(crate) fn parse_timecapsule(&mut self) -> Result<TimeCapsuleStatement, ParserError> {
+        self.expect_keyword(Keyword::TABLE)?;
+        let table_name = self.parse_object_name()?;
+        let action = self.skip_to_semicolon_and_collect();
+        Ok(TimeCapsuleStatement {
+            table_name,
+            action: action.clone(),
+            raw_rest: action,
+        })
+    }
+
+    pub(crate) fn parse_shrink(&mut self) -> Result<ShrinkStatement, ParserError> {
+        let target = if self.match_token(&Token::Semicolon) || self.match_token(&Token::Eof) {
+            None
+        } else {
+            Some(self.parse_identifier()?)
+        };
+        let raw_rest = self.skip_to_semicolon_and_collect();
+        Ok(ShrinkStatement { target, raw_rest })
+    }
+
+    pub(crate) fn parse_verify(&mut self) -> Result<VerifyStatement, ParserError> {
+        let raw_rest = self.skip_to_semicolon_and_collect();
+        Ok(VerifyStatement { raw_rest })
+    }
+
+    pub(crate) fn parse_compile(&mut self) -> Result<CompileStatement, ParserError> {
+        let raw_rest = self.skip_to_semicolon_and_collect();
+        Ok(CompileStatement { raw_rest })
+    }
+
+    pub(crate) fn parse_clean_conn(&mut self) -> Result<CleanConnStatement, ParserError> {
+        self.expect_keyword(Keyword::CONNECTION)?;
+        self.expect_keyword(Keyword::TO)?;
+        let target = self.parse_identifier()?;
+
+        let mut for_user = None;
+        if self.try_consume_keyword(Keyword::FOR) {
+            self.expect_keyword(Keyword::USER)?;
+            for_user = Some(self.parse_identifier()?);
+        }
+        Ok(CleanConnStatement { target, for_user })
+    }
+
+    pub(crate) fn parse_sec_label(&mut self) -> Result<SecLabelStatement, ParserError> {
+        self.expect_keyword(Keyword::LABEL)?;
+
+        let object_type = self.parse_identifier()?;
+        let name = self.parse_object_name()?;
+
+        let mut provider = None;
+        if self.try_consume_keyword(Keyword::FOR) {
+            provider = Some(self.parse_identifier()?);
+        }
+
+        let mut label = None;
+        self.expect_keyword(Keyword::IS)?;
+        if !self.match_token(&Token::Semicolon) && !self.match_token(&Token::Eof) {
+            label = Some(self.parse_string_literal()?);
+        }
+
+        Ok(SecLabelStatement {
+            object_type,
+            name,
+            provider,
+            label,
+        })
+    }
 }

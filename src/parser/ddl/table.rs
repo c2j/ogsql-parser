@@ -49,6 +49,7 @@ impl Parser {
         let mut options = Vec::new();
         let mut compress = None;
         let mut ilm = None;
+        let mut row_movement = None;
 
         loop {
             if self.match_keyword(Keyword::INHERITS) {
@@ -117,19 +118,27 @@ impl Parser {
             } else if self.match_keyword(Keyword::PARTITION) {
                 self.advance();
                 self.expect_keyword(Keyword::BY)?;
-                let strategy = match self.peek() {
+                let (strategy, is_columns) = match self.peek() {
                     Token::Ident(s) if s.to_uppercase() == "HASH" => {
                         self.advance();
-                        "hash"
+                        ("hash", false)
                     }
                     _ => match self.peek_keyword() {
                         Some(Keyword::RANGE) => {
                             self.advance();
-                            "range"
+                            let is_columns = self.match_keyword(Keyword::COLUMNS);
+                            if is_columns {
+                                self.advance();
+                            }
+                            ("range", is_columns)
                         }
                         Some(Keyword::LIST) => {
                             self.advance();
-                            "list"
+                            let is_columns = self.match_keyword(Keyword::COLUMNS);
+                            if is_columns {
+                                self.advance();
+                            }
+                            ("list", is_columns)
                         }
                         _ => {
                             return Err(ParserError::UnexpectedToken {
@@ -155,12 +164,36 @@ impl Parser {
                         } else {
                             None
                         };
+                        let count = if self.match_keyword(Keyword::PARTITIONS) {
+                            self.advance();
+                            match self.peek().clone() {
+                                Token::Integer(n) => {
+                                    self.advance();
+                                    Some(n as u32)
+                                }
+                                _ => None,
+                            }
+                        } else {
+                            None
+                        };
                         let parts = self.parse_partition_defs()?;
-                        (interval, parts, None)
+                        (interval, parts, count)
                     }
                     "list" => {
+                        let count = if self.match_keyword(Keyword::PARTITIONS) {
+                            self.advance();
+                            match self.peek().clone() {
+                                Token::Integer(n) => {
+                                    self.advance();
+                                    Some(n as u32)
+                                }
+                                _ => None,
+                            }
+                        } else {
+                            None
+                        };
                         let parts = self.parse_partition_defs()?;
-                        (None, parts, None)
+                        (None, parts, count)
                     }
                     _ => {
                         let count = if self.match_keyword(Keyword::PARTITIONS) {
@@ -184,9 +217,15 @@ impl Parser {
                     "range" => PartitionClause::Range {
                         column,
                         interval,
+                        is_columns,
+                        partitions_count,
                         partitions,
                     },
-                    "list" => PartitionClause::List { column, partitions },
+                    "list" => PartitionClause::List {
+                        column,
+                        is_columns,
+                        partitions,
+                    },
                     _ => PartitionClause::Hash {
                         column,
                         partitions_count,
@@ -196,19 +235,27 @@ impl Parser {
             } else if self.match_keyword(Keyword::SUBPARTITION) {
                 self.advance();
                 self.expect_keyword(Keyword::BY)?;
-                let strategy = match self.peek() {
+                let (strategy, is_columns) = match self.peek() {
                     Token::Ident(s) if s.to_uppercase() == "HASH" => {
                         self.advance();
-                        "hash"
+                        ("hash", false)
                     }
                     _ => match self.peek_keyword() {
                         Some(Keyword::RANGE) => {
                             self.advance();
-                            "range"
+                            let is_columns = self.match_keyword(Keyword::COLUMNS);
+                            if is_columns {
+                                self.advance();
+                            }
+                            ("range", is_columns)
                         }
                         Some(Keyword::LIST) => {
                             self.advance();
-                            "list"
+                            let is_columns = self.match_keyword(Keyword::COLUMNS);
+                            if is_columns {
+                                self.advance();
+                            }
+                            ("list", is_columns)
                         }
                         _ => {
                             return Err(ParserError::UnexpectedToken {
@@ -244,10 +291,13 @@ impl Parser {
                     "range" => PartitionClause::Range {
                         column,
                         interval: None,
+                        is_columns,
+                        partitions_count: None,
                         partitions: sp_parts,
                     },
                     "list" => PartitionClause::List {
                         column,
+                        is_columns,
                         partitions: sp_parts,
                     },
                     _ => PartitionClause::Hash {
@@ -271,14 +321,23 @@ impl Parser {
                         if !parts.is_empty() {
                             partition_by = Some(match pb.clone() {
                                 PartitionClause::Range {
-                                    column, interval, ..
+                                    column,
+                                    interval,
+                                    is_columns,
+                                    partitions_count,
+                                    ..
                                 } => PartitionClause::Range {
                                     column,
                                     interval,
+                                    is_columns,
+                                    partitions_count,
                                     partitions: parts,
                                 },
-                                PartitionClause::List { column, .. } => PartitionClause::List {
+                                PartitionClause::List {
+                                    column, is_columns, ..
+                                } => PartitionClause::List {
                                     column,
+                                    is_columns,
                                     partitions: parts,
                                 },
                                 PartitionClause::Hash {
@@ -396,6 +455,16 @@ impl Parser {
                         got: format!("{:?}", self.peek()),
                     });
                 });
+            } else if self.match_keyword(Keyword::ENABLE_P) {
+                self.advance();
+                self.expect_keyword(Keyword::ROW)?;
+                self.expect_keyword(Keyword::MOVEMENT)?;
+                row_movement = Some(true);
+            } else if self.match_keyword(Keyword::DISABLE_P) {
+                self.advance();
+                self.expect_keyword(Keyword::ROW)?;
+                self.expect_keyword(Keyword::MOVEMENT)?;
+                row_movement = Some(false);
             } else if self.match_keyword(Keyword::TO) {
                 self.advance();
                 self.expect_keyword(Keyword::GROUP_P)?;
@@ -423,6 +492,7 @@ impl Parser {
             options,
             compress,
             ilm,
+            row_movement,
         })
     }
 
@@ -446,6 +516,7 @@ impl Parser {
                 distinct_on: vec![],
                 targets: vec![SelectTarget::Star(None)],
                 into_targets: None,
+                into_table: None,
                 from: vec![TableRef::Table {
                     name: table_name.clone(),
                     alias: None,

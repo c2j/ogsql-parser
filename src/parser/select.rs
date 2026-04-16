@@ -1,7 +1,7 @@
 use crate::ast::{
     ConnectByClause, Cte, FetchClause, GroupByItem, JoinType, LockClause, ObjectName, OrderByItem,
-    PivotClause, PivotValue, SelectStatement, SelectTarget, SetOperation, TableRef, UnpivotClause,
-    WithClause,
+    PivotClause, PivotValue, SelectIntoTable, SelectStatement, SelectTarget, SetOperation,
+    TableRef, UnpivotClause, WithClause,
 };
 use crate::parser::{Parser, ParserError};
 use crate::token::keyword::Keyword;
@@ -9,6 +9,13 @@ use crate::token::Token;
 
 impl Parser {
     pub(crate) fn parse_select_statement(&mut self) -> Result<SelectStatement, ParserError> {
+        self.enter_scope()?;
+        let result = self.parse_select_statement_inner();
+        self.leave_scope();
+        result
+    }
+
+    fn parse_select_statement_inner(&mut self) -> Result<SelectStatement, ParserError> {
         let with = self.parse_with_clause()?;
         let mut stmt = self.parse_simple_select()?;
         stmt.with = with;
@@ -129,11 +136,48 @@ impl Parser {
             (false, vec![])
         };
         let targets = self.parse_target_list()?;
-        let into_targets = if self.match_keyword(Keyword::INTO) {
+        let (into_targets, into_table) = if self.match_keyword(Keyword::INTO) {
             self.advance();
-            Some(self.parse_target_list()?)
+            let unlogged = if self.match_keyword(Keyword::UNLOGGED) {
+                self.advance();
+                true
+            } else {
+                false
+            };
+            if unlogged || self.match_keyword(Keyword::TABLE) {
+                if self.match_keyword(Keyword::TABLE) {
+                    self.advance();
+                }
+                let table_name = self.parse_object_name()?;
+                (
+                    None,
+                    Some(SelectIntoTable {
+                        unlogged,
+                        table_name,
+                    }),
+                )
+            } else {
+                let save_pos = self.pos;
+                if let Ok(table_name) = self.parse_object_name() {
+                    if self.match_keyword(Keyword::FROM) || self.match_token(&Token::Eof) {
+                        (
+                            None,
+                            Some(SelectIntoTable {
+                                unlogged: false,
+                                table_name,
+                            }),
+                        )
+                    } else {
+                        self.pos = save_pos;
+                        (Some(self.parse_target_list()?), None)
+                    }
+                } else {
+                    self.pos = save_pos;
+                    (Some(self.parse_target_list()?), None)
+                }
+            }
         } else {
-            None
+            (None, None)
         };
         let from = self.parse_from_clause()?;
         let where_clause = if self.match_keyword(Keyword::WHERE) {
@@ -199,6 +243,7 @@ impl Parser {
             distinct_on,
             targets,
             into_targets,
+            into_table,
             from,
             where_clause,
             connect_by,

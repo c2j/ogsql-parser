@@ -81,7 +81,7 @@ impl<'a> Tokenizer<'a> {
     }
 
     fn advance_while<F: Fn(char) -> bool>(&mut self, predicate: F) -> String {
-        let mut s = String::new();
+        let mut s = String::with_capacity(16);
         while let Some(&c) = self.chars.peek() {
             if predicate(c) {
                 self.chars.next();
@@ -96,6 +96,21 @@ impl<'a> Tokenizer<'a> {
             }
         }
         s
+    }
+
+    fn skip_while<F: Fn(char) -> bool>(&mut self, predicate: F) {
+        while let Some(&c) = self.chars.peek() {
+            if predicate(c) {
+                self.chars.next();
+                if c == '\n' {
+                    self.line += 1;
+                    self.line_start = self.pos + c.len_utf8();
+                }
+                self.pos += c.len_utf8();
+            } else {
+                break;
+            }
+        }
     }
 
     fn skip_whitespace_and_comments(&mut self) -> Result<(), TokenizerError> {
@@ -113,7 +128,7 @@ impl<'a> Tokenizer<'a> {
                     self.advance();
                     if self.chars.peek().copied() == Some('-') {
                         self.advance();
-                        self.advance_while(|c| c != '\n');
+                        self.skip_while(|c| c != '\n');
                     } else {
                         self.chars = saved;
                         self.pos = saved_pos;
@@ -650,31 +665,26 @@ impl<'a> Tokenizer<'a> {
     }
 
     fn scan_dollar_string_content(&mut self, delimiter: &str) -> String {
-        let mut result = String::new();
-        let delim_bytes = delimiter.as_bytes();
-        let delim_len = delim_bytes.len();
+        let delim_chars: Vec<char> = delimiter.chars().collect();
+        let delim_len = delim_chars.len();
+        let mut result = String::with_capacity(256);
+        let mut window: std::collections::VecDeque<char> =
+            std::collections::VecDeque::with_capacity(delim_len);
 
-        // Collect characters and check for delimiter match
-        let mut window: Vec<char> = Vec::new();
         loop {
             match self.advance() {
                 None => break,
                 Some(c) => {
-                    window.push(c);
+                    window.push_back(c);
                     if window.len() > delim_len {
-                        let oldest = window.remove(0);
-                        result.push(oldest);
+                        result.push(window.pop_front().unwrap());
                     }
-                    if window.len() == delim_len {
-                        let window_str: String = window.iter().collect();
-                        if window_str == delimiter {
-                            return result;
-                        }
+                    if window.len() == delim_len && window.iter().eq(delim_chars.iter()) {
+                        return result;
                     }
                 }
             }
         }
-        // Unterminated, but return what we have
         result.extend(window);
         result
     }

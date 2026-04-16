@@ -30,7 +30,10 @@ impl Parser {
     }
 
     pub(crate) fn parse_expr(&mut self) -> Result<Expr, ParserError> {
-        self.parse_expr_with_precedence(0)
+        self.enter_scope()?;
+        let result = self.parse_expr_with_precedence(0);
+        self.leave_scope();
+        result
     }
 
     fn parse_expr_with_precedence(&mut self, min_prec: u8) -> Result<Expr, ParserError> {

@@ -171,10 +171,24 @@ impl Parser {
                         self.expect_token(&Token::LParen)?;
                         let expr = self.parse_expr()?;
                         self.expect_token(&Token::RParen)?;
-                        Ok(AlterTableAction::DropPartitionFor { expr, if_exists })
+                        let (update_global_index, update_distributed_global_index) =
+                            self.parse_update_index_clauses()?;
+                        Ok(AlterTableAction::DropPartitionFor {
+                            expr,
+                            if_exists,
+                            update_global_index,
+                            update_distributed_global_index,
+                        })
                     } else {
                         let name = self.parse_identifier()?;
-                        Ok(AlterTableAction::DropPartition { name, if_exists })
+                        let (update_global_index, update_distributed_global_index) =
+                            self.parse_update_index_clauses()?;
+                        Ok(AlterTableAction::DropPartition {
+                            name,
+                            if_exists,
+                            update_global_index,
+                            update_distributed_global_index,
+                        })
                     }
                 } else if self.match_keyword(Keyword::SUBPARTITION) {
                     self.advance();
@@ -331,7 +345,14 @@ impl Parser {
                     self.expect_keyword(Keyword::PARTITION)?;
                     let name = self.parse_identifier()?;
                     let cascade = self.try_consume_keyword(Keyword::CASCADE);
-                    Ok(AlterTableAction::TruncatePartition { name, cascade })
+                    let (update_global_index, update_distributed_global_index) =
+                        self.parse_update_index_clauses()?;
+                    Ok(AlterTableAction::TruncatePartition {
+                        name,
+                        cascade,
+                        update_global_index,
+                        update_distributed_global_index,
+                    })
                 }
             }
             Some(Keyword::MERGE) => {
@@ -357,7 +378,14 @@ impl Parser {
                     self.expect_keyword(Keyword::INTO)?;
                     self.expect_keyword(Keyword::PARTITION)?;
                     let into_name = self.parse_identifier()?;
-                    Ok(AlterTableAction::MergePartitions { names, into_name })
+                    let (update_global_index, update_distributed_global_index) =
+                        self.parse_update_index_clauses()?;
+                    Ok(AlterTableAction::MergePartitions {
+                        names,
+                        into_name,
+                        update_global_index,
+                        update_distributed_global_index,
+                    })
                 }
             }
             Some(Keyword::SPLIT) => {
@@ -407,41 +435,90 @@ impl Parser {
                     })
                 } else {
                     self.expect_keyword(Keyword::PARTITION)?;
-                    let name = self.parse_identifier()?;
-                    let at_value = if self.match_keyword(Keyword::AT) {
+                    if self.match_keyword(Keyword::FOR) {
                         self.advance();
-                        Some(self.parse_expr()?)
-                    } else {
-                        None
-                    };
-                    self.expect_keyword(Keyword::INTO)?;
-                    self.expect_token(&Token::LParen)?;
-                    let mut partitions = Vec::new();
-                    loop {
-                        self.expect_keyword(Keyword::PARTITION)?;
-                        let pname = self.parse_identifier()?;
-                        let values = if self.match_keyword(Keyword::VALUES) {
-                            Some(self.parse_partition_values()?)
+                        self.expect_token(&Token::LParen)?;
+                        let expr = self.parse_expr()?;
+                        self.expect_token(&Token::RParen)?;
+                        let at_value = if self.match_keyword(Keyword::AT) {
+                            self.advance();
+                            Some(self.parse_expr()?)
                         } else {
                             None
                         };
-                        partitions.push(PartitionDef {
-                            name: pname,
-                            values,
-                            tablespace: None,
-                            subpartitions: Vec::new(),
-                        });
-                        if !self.match_token(&Token::Comma) {
-                            break;
+                        self.expect_keyword(Keyword::INTO)?;
+                        self.expect_token(&Token::LParen)?;
+                        let mut partitions = Vec::new();
+                        loop {
+                            self.expect_keyword(Keyword::PARTITION)?;
+                            let pname = self.parse_identifier()?;
+                            let values = if self.match_keyword(Keyword::VALUES) {
+                                Some(self.parse_partition_values()?)
+                            } else {
+                                None
+                            };
+                            partitions.push(PartitionDef {
+                                name: pname,
+                                values,
+                                tablespace: None,
+                                subpartitions: Vec::new(),
+                            });
+                            if !self.match_token(&Token::Comma) {
+                                break;
+                            }
+                            self.advance();
                         }
-                        self.advance();
+                        self.expect_token(&Token::RParen)?;
+                        let (update_global_index, update_distributed_global_index) =
+                            self.parse_update_index_clauses()?;
+                        Ok(AlterTableAction::SplitPartitionFor {
+                            expr,
+                            at_value,
+                            into: partitions,
+                            update_global_index,
+                            update_distributed_global_index,
+                        })
+                    } else {
+                        let name = self.parse_identifier()?;
+                        let at_value = if self.match_keyword(Keyword::AT) {
+                            self.advance();
+                            Some(self.parse_expr()?)
+                        } else {
+                            None
+                        };
+                        self.expect_keyword(Keyword::INTO)?;
+                        self.expect_token(&Token::LParen)?;
+                        let mut partitions = Vec::new();
+                        loop {
+                            self.expect_keyword(Keyword::PARTITION)?;
+                            let pname = self.parse_identifier()?;
+                            let values = if self.match_keyword(Keyword::VALUES) {
+                                Some(self.parse_partition_values()?)
+                            } else {
+                                None
+                            };
+                            partitions.push(PartitionDef {
+                                name: pname,
+                                values,
+                                tablespace: None,
+                                subpartitions: Vec::new(),
+                            });
+                            if !self.match_token(&Token::Comma) {
+                                break;
+                            }
+                            self.advance();
+                        }
+                        self.expect_token(&Token::RParen)?;
+                        let (update_global_index, update_distributed_global_index) =
+                            self.parse_update_index_clauses()?;
+                        Ok(AlterTableAction::SplitPartition {
+                            name,
+                            at_value,
+                            into: partitions,
+                            update_global_index,
+                            update_distributed_global_index,
+                        })
                     }
-                    self.expect_token(&Token::RParen)?;
-                    Ok(AlterTableAction::SplitPartition {
-                        name,
-                        at_value,
-                        into: partitions,
-                    })
                 }
             }
             Some(Keyword::EXCHANGE) => {
@@ -467,7 +544,28 @@ impl Parser {
                     self.expect_keyword(Keyword::WITH)?;
                     self.expect_keyword(Keyword::TABLE)?;
                     let table = self.parse_object_name()?;
-                    Ok(AlterTableAction::ExchangePartition { name, table })
+                    let with_validation = if self.match_keyword(Keyword::WITH) {
+                        self.advance();
+                        self.expect_keyword(Keyword::VALIDATION)?;
+                        Some(true)
+                    } else if self.match_keyword(Keyword::WITHOUT) {
+                        self.advance();
+                        self.expect_keyword(Keyword::VALIDATION)?;
+                        Some(false)
+                    } else {
+                        None
+                    };
+                    let verbose = self.try_consume_keyword(Keyword::VERBOSE);
+                    let (update_global_index, update_distributed_global_index) =
+                        self.parse_update_index_clauses()?;
+                    Ok(AlterTableAction::ExchangePartition {
+                        name,
+                        table,
+                        update_global_index,
+                        update_distributed_global_index,
+                        with_validation,
+                        verbose,
+                    })
                 }
             }
             Some(Keyword::RESET) => {
@@ -502,10 +600,20 @@ impl Parser {
                     Ok(AlterTableAction::MoveSubPartition { name, tablespace })
                 } else if self.match_keyword(Keyword::PARTITION) {
                     self.advance();
-                    let name = self.parse_identifier()?;
-                    self.expect_keyword(Keyword::TABLESPACE)?;
-                    let tablespace = self.parse_identifier()?;
-                    Ok(AlterTableAction::MovePartition { name, tablespace })
+                    if self.match_keyword(Keyword::FOR) {
+                        self.advance();
+                        self.expect_token(&Token::LParen)?;
+                        let expr = self.parse_expr()?;
+                        self.expect_token(&Token::RParen)?;
+                        self.expect_keyword(Keyword::TABLESPACE)?;
+                        let tablespace = self.parse_identifier()?;
+                        Ok(AlterTableAction::MovePartitionFor { expr, tablespace })
+                    } else {
+                        let name = self.parse_identifier()?;
+                        self.expect_keyword(Keyword::TABLESPACE)?;
+                        let tablespace = self.parse_identifier()?;
+                        Ok(AlterTableAction::MovePartition { name, tablespace })
+                    }
                 } else {
                     Err(ParserError::UnexpectedToken {
                         location: self.current_location(),
@@ -534,9 +642,14 @@ impl Parser {
                 self.advance();
                 if self.match_keyword(Keyword::ROW) {
                     self.advance();
-                    self.expect_keyword(Keyword::LEVEL)?;
-                    self.expect_keyword(Keyword::SECURITY)?;
-                    Ok(AlterTableAction::EnableRowLevelSecurity)
+                    if self.match_keyword(Keyword::MOVEMENT) {
+                        self.advance();
+                        Ok(AlterTableAction::EnableRowMovement)
+                    } else {
+                        self.expect_keyword(Keyword::LEVEL)?;
+                        self.expect_keyword(Keyword::SECURITY)?;
+                        Ok(AlterTableAction::EnableRowLevelSecurity)
+                    }
                 } else if self.match_keyword(Keyword::TRIGGER) {
                     self.advance();
                     let name =
@@ -555,9 +668,14 @@ impl Parser {
                 self.advance();
                 if self.match_keyword(Keyword::ROW) {
                     self.advance();
-                    self.expect_keyword(Keyword::LEVEL)?;
-                    self.expect_keyword(Keyword::SECURITY)?;
-                    Ok(AlterTableAction::DisableRowLevelSecurity)
+                    if self.match_keyword(Keyword::MOVEMENT) {
+                        self.advance();
+                        Ok(AlterTableAction::DisableRowMovement)
+                    } else {
+                        self.expect_keyword(Keyword::LEVEL)?;
+                        self.expect_keyword(Keyword::SECURITY)?;
+                        Ok(AlterTableAction::DisableRowLevelSecurity)
+                    }
                 } else if self.match_keyword(Keyword::TRIGGER) {
                     self.advance();
                     let name =
@@ -795,7 +913,16 @@ impl Parser {
             self.expect_token(&Token::LParen)?;
             let end = self.parse_expr()?;
             self.expect_token(&Token::RParen)?;
-            Ok(PartitionValues::StartEnd { start, end })
+            let every = if self.match_keyword(Keyword::EVERY) {
+                self.advance();
+                self.expect_token(&Token::LParen)?;
+                let e = self.parse_expr()?;
+                self.expect_token(&Token::RParen)?;
+                Some(e)
+            } else {
+                None
+            };
+            Ok(PartitionValues::StartEnd { start, end, every })
         } else if self.match_token(&Token::LParen) {
             self.advance();
             let mut vals = Vec::new();
@@ -817,6 +944,27 @@ impl Parser {
         }
     }
 
+    fn parse_start_end_values(&mut self) -> Result<PartitionValues, ParserError> {
+        self.advance();
+        self.expect_token(&Token::LParen)?;
+        let start = self.parse_expr()?;
+        self.expect_token(&Token::RParen)?;
+        self.expect_keyword(Keyword::END_P)?;
+        self.expect_token(&Token::LParen)?;
+        let end = self.parse_expr()?;
+        self.expect_token(&Token::RParen)?;
+        let every = if self.match_keyword(Keyword::EVERY) {
+            self.advance();
+            self.expect_token(&Token::LParen)?;
+            let e = self.parse_expr()?;
+            self.expect_token(&Token::RParen)?;
+            Some(e)
+        } else {
+            None
+        };
+        Ok(PartitionValues::StartEnd { start, end, every })
+    }
+
     pub(crate) fn parse_partition_defs(&mut self) -> Result<Vec<PartitionDef>, ParserError> {
         if !self.match_token(&Token::LParen) {
             return Ok(Vec::new());
@@ -828,6 +976,8 @@ impl Parser {
             let name = self.parse_identifier()?;
             let values = if self.match_keyword(Keyword::VALUES) {
                 Some(self.parse_partition_values()?)
+            } else if self.match_keyword(Keyword::START) {
+                Some(self.parse_start_end_values()?)
             } else {
                 None
             };
@@ -964,6 +1114,198 @@ impl Parser {
                 got: format!("{:?}", self.peek()),
             }),
         }
+    }
+
+    fn parse_update_index_clauses(&mut self) -> Result<(bool, Option<bool>), ParserError> {
+        let mut update_global_index = false;
+
+        if self.match_keyword(Keyword::UPDATE) {
+            let next_is_distributed = self
+                .tokens
+                .get(self.pos + 1)
+                .map(|t| matches!(&t.token, Token::Ident(s) if s.eq_ignore_ascii_case("DISTRIBUTED")))
+                .unwrap_or(false);
+            if next_is_distributed {
+            } else {
+                self.advance();
+                self.expect_keyword(Keyword::GLOBAL)?;
+                self.expect_keyword(Keyword::INDEX)?;
+                update_global_index = true;
+            }
+        }
+
+        let update_distributed_global_index = if self.match_keyword(Keyword::UPDATE) {
+            self.advance();
+            if self.match_ident_str("DISTRIBUTED") {
+                self.advance();
+                self.expect_keyword(Keyword::GLOBAL)?;
+                self.expect_keyword(Keyword::INDEX)?;
+                Some(true)
+            } else {
+                return Err(ParserError::UnexpectedToken {
+                    location: self.current_location(),
+                    expected: "DISTRIBUTED after UPDATE".to_string(),
+                    got: format!("{:?}", self.peek()),
+                });
+            }
+        } else if self.match_keyword(Keyword::NO) {
+            self.advance();
+            self.expect_keyword(Keyword::UPDATE)?;
+            if self.match_ident_str("DISTRIBUTED") {
+                self.advance();
+                self.expect_keyword(Keyword::GLOBAL)?;
+                self.expect_keyword(Keyword::INDEX)?;
+                Some(false)
+            } else {
+                return Err(ParserError::UnexpectedToken {
+                    location: self.current_location(),
+                    expected: "DISTRIBUTED after NO UPDATE".to_string(),
+                    got: format!("{:?}", self.peek()),
+                });
+            }
+        } else {
+            None
+        };
+
+        Ok((update_global_index, update_distributed_global_index))
+    }
+
+    // ========== ALTER FOREIGN TABLE ==========
+
+    pub(crate) fn parse_alter_foreign_table(
+        &mut self,
+    ) -> Result<AlterForeignTableStatement, ParserError> {
+        let name = self.parse_object_name()?;
+        let raw_rest = self.skip_to_semicolon_and_collect();
+        Ok(AlterForeignTableStatement { name, raw_rest })
+    }
+
+    // ========== ALTER FOREIGN SERVER ==========
+
+    pub(crate) fn parse_alter_foreign_server(
+        &mut self,
+    ) -> Result<AlterForeignServerStatement, ParserError> {
+        let name = self.parse_identifier()?;
+        let raw_rest = self.skip_to_semicolon_and_collect();
+        Ok(AlterForeignServerStatement { name, raw_rest })
+    }
+
+    // ========== ALTER FOREIGN DATA WRAPPER ==========
+
+    pub(crate) fn parse_alter_fdw(&mut self) -> Result<AlterFdwStatement, ParserError> {
+        let name = self.parse_identifier()?;
+        let raw_rest = self.skip_to_semicolon_and_collect();
+        Ok(AlterFdwStatement { name, raw_rest })
+    }
+
+    // ========== ALTER PUBLICATION ==========
+
+    pub(crate) fn parse_alter_publication(
+        &mut self,
+    ) -> Result<AlterPublicationStatement, ParserError> {
+        let name = self.parse_identifier()?;
+        let raw_rest = self.skip_to_semicolon_and_collect();
+        Ok(AlterPublicationStatement { name, raw_rest })
+    }
+
+    // ========== ALTER SUBSCRIPTION ==========
+
+    pub(crate) fn parse_alter_subscription(
+        &mut self,
+    ) -> Result<AlterSubscriptionStatement, ParserError> {
+        let name = self.parse_identifier()?;
+        let raw_rest = self.skip_to_semicolon_and_collect();
+        Ok(AlterSubscriptionStatement { name, raw_rest })
+    }
+
+    // ========== ALTER NODE ==========
+
+    pub(crate) fn parse_alter_node(&mut self) -> Result<AlterNodeStatement, ParserError> {
+        let name = self.parse_identifier()?;
+        let raw_rest = self.skip_to_semicolon_and_collect();
+        Ok(AlterNodeStatement { name, raw_rest })
+    }
+
+    // ========== ALTER NODE GROUP ==========
+
+    pub(crate) fn parse_alter_node_group(
+        &mut self,
+    ) -> Result<AlterNodeGroupStatement, ParserError> {
+        let name = self.parse_identifier()?;
+        let raw_rest = self.skip_to_semicolon_and_collect();
+        Ok(AlterNodeGroupStatement { name, raw_rest })
+    }
+
+    // ========== ALTER WORKLOAD GROUP ==========
+
+    pub(crate) fn parse_alter_workload_group(
+        &mut self,
+    ) -> Result<AlterWorkloadGroupStatement, ParserError> {
+        let name = self.parse_identifier()?;
+        let raw_rest = self.skip_to_semicolon_and_collect();
+        Ok(AlterWorkloadGroupStatement { name, raw_rest })
+    }
+
+    // ========== ALTER AUDIT POLICY ==========
+
+    pub(crate) fn parse_alter_audit_policy(
+        &mut self,
+    ) -> Result<AlterAuditPolicyStatement, ParserError> {
+        let name = self.parse_identifier()?;
+        let raw_rest = self.skip_to_semicolon_and_collect();
+        Ok(AlterAuditPolicyStatement { name, raw_rest })
+    }
+
+    // ========== ALTER RLS POLICY ==========
+
+    pub(crate) fn parse_alter_rls_policy(
+        &mut self,
+    ) -> Result<AlterRlsPolicyStatement, ParserError> {
+        let name = self.parse_identifier()?;
+        let raw_rest = self.skip_to_semicolon_and_collect();
+        Ok(AlterRlsPolicyStatement { name, raw_rest })
+    }
+
+    // ========== ALTER DATA SOURCE ==========
+
+    pub(crate) fn parse_alter_data_source(
+        &mut self,
+    ) -> Result<AlterDataSourceStatement, ParserError> {
+        let name = self.parse_identifier()?;
+        let raw_rest = self.skip_to_semicolon_and_collect();
+        Ok(AlterDataSourceStatement { name, raw_rest })
+    }
+
+    // ========== ALTER EVENT ==========
+
+    pub(crate) fn parse_alter_event(&mut self) -> Result<AlterEventStatement, ParserError> {
+        let name = self.parse_identifier()?;
+        let raw_rest = self.skip_to_semicolon_and_collect();
+        Ok(AlterEventStatement { name, raw_rest })
+    }
+
+    // ========== ALTER OPERATOR FAMILY ==========
+
+    pub(crate) fn parse_alter_opfamily(&mut self) -> Result<AlterOpFamilyStatement, ParserError> {
+        let name = self.parse_identifier()?;
+        self.expect_keyword(Keyword::USING)?;
+        let method = self.parse_identifier()?;
+        let raw_rest = self.skip_to_semicolon_and_collect();
+        Ok(AlterOpFamilyStatement {
+            name,
+            method,
+            raw_rest,
+        })
+    }
+
+    // ========== ALTER MATERIALIZED VIEW ==========
+
+    pub(crate) fn parse_alter_materialized_view(
+        &mut self,
+    ) -> Result<AlterMaterializedViewStatement, ParserError> {
+        let name = self.parse_object_name()?;
+        let raw_rest = self.skip_to_semicolon_and_collect();
+        Ok(AlterMaterializedViewStatement { name, raw_rest })
     }
 
     // ========== DROP ==========
