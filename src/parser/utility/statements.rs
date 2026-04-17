@@ -354,9 +354,8 @@ impl Parser {
     pub(crate) fn parse_comment(&mut self) -> Result<CommentStatement, ParserError> {
         self.expect_keyword(Keyword::ON)?;
 
-        let object_type = self.parse_identifier()?;
-
-        if self.try_consume_keyword(Keyword::COLUMN) {
+        if self.match_keyword(Keyword::COLUMN) {
+            self.advance();
             let name = self.parse_object_name()?;
             self.expect_keyword(Keyword::IS)?;
             let comment = self.parse_string_literal()?;
@@ -367,7 +366,8 @@ impl Parser {
             });
         }
 
-        if self.try_consume_keyword(Keyword::AGGREGATE) {
+        if self.match_keyword(Keyword::AGGREGATE) {
+            self.advance();
             let name = self.parse_object_name()?;
             self.expect_keyword(Keyword::IS)?;
             let comment = self.parse_string_literal()?;
@@ -378,6 +378,7 @@ impl Parser {
             });
         }
 
+        let object_type = self.parse_identifier()?;
         let name = self.parse_object_name()?;
         self.expect_keyword(Keyword::IS)?;
         let comment = self.parse_string_literal()?;
@@ -407,7 +408,7 @@ impl Parser {
                         if !mode.is_empty() {
                             mode.push(' ');
                         }
-                        mode.push_str(&format!("{:?}", kw).to_uppercase());
+                        mode.push_str(&kw.as_str().to_uppercase());
                         self.advance();
                         if self.match_keyword(Keyword::MODE) {
                             self.advance();
@@ -846,6 +847,15 @@ impl Parser {
         }
     }
 
+    pub(crate) fn parse_signed_integer(&mut self) -> Result<i64, ParserError> {
+        let neg = self.match_token(&Token::Minus);
+        if neg {
+            self.advance();
+        }
+        let n = self.parse_integer_literal()?;
+        Ok(if neg { -n } else { n })
+    }
+
     pub(crate) fn parse_alter_function(&mut self) -> Result<AlterFunctionStatement, ParserError> {
         self.expect_keyword(Keyword::FUNCTION)?;
         let name = self.parse_object_name()?;
@@ -1064,10 +1074,7 @@ impl Parser {
             }
             Token::Keyword(kw) => {
                 self.advance();
-                Ok(format!("{:?}", kw)
-                    .to_lowercase()
-                    .trim_end_matches("_p")
-                    .to_string())
+                Ok(kw.as_str().to_string())
             }
             Token::Integer(i) => {
                 self.advance();
@@ -1095,8 +1102,11 @@ impl Parser {
         let name = self.parse_identifier()?;
 
         let mut binary = false;
-        let mut scroll = false;
-        let mut hold = false;
+        let mut sensitivity = CursorSensitivity::Sensitive;
+        let mut scrollability = CursorScrollability::Default;
+        let mut holdability = CursorHoldability::Default;
+        let mut returnability = CursorReturnability::Default;
+        let mut return_to = CursorReturnTo::Default;
 
         loop {
             match self.peek_keyword() {
@@ -1104,27 +1114,54 @@ impl Parser {
                     self.advance();
                     binary = true;
                 }
+                Some(Keyword::INSENSITIVE) => {
+                    self.advance();
+                    sensitivity = CursorSensitivity::Insensitive;
+                }
+                Some(Keyword::ASENSITIVE) => {
+                    self.advance();
+                    sensitivity = CursorSensitivity::Asensitive;
+                }
                 Some(Keyword::SCROLL) => {
                     self.advance();
-                    scroll = true;
+                    scrollability = CursorScrollability::Scroll;
                 }
                 Some(Keyword::NO) => {
                     self.advance();
                     self.try_consume_keyword(Keyword::SCROLL);
-                    scroll = false;
-                }
-                Some(Keyword::INSENSITIVE) => {
-                    self.advance();
+                    scrollability = CursorScrollability::NoScroll;
                 }
                 Some(Keyword::WITH) => {
                     self.advance();
-                    self.expect_keyword(Keyword::HOLD)?;
-                    hold = true;
+                    if self.match_keyword(Keyword::HOLD) {
+                        self.advance();
+                        holdability = CursorHoldability::WithHold;
+                    } else if self.match_keyword(Keyword::RETURN) {
+                        self.advance();
+                        returnability = CursorReturnability::WithReturn;
+                        if self.match_keyword(Keyword::TO) {
+                            self.advance();
+                            return_to = self.parse_cursor_return_to()?;
+                        }
+                    } else {
+                        break;
+                    }
                 }
                 Some(Keyword::WITHOUT) => {
                     self.advance();
-                    self.expect_keyword(Keyword::HOLD)?;
-                    hold = false;
+                    if self.match_keyword(Keyword::HOLD) {
+                        self.advance();
+                        holdability = CursorHoldability::WithoutHold;
+                    } else if self.match_keyword(Keyword::RETURN) {
+                        self.advance();
+                        returnability = CursorReturnability::WithoutReturn;
+                        if self.match_keyword(Keyword::TO) {
+                            self.advance();
+                            return_to = self.parse_cursor_return_to()?;
+                        }
+                    } else {
+                        break;
+                    }
                 }
                 Some(Keyword::CURSOR) => {
                     self.advance();
@@ -1143,75 +1180,33 @@ impl Parser {
         Ok(DeclareCursorStatement {
             name,
             binary,
-            scroll,
-            hold,
+            sensitivity,
+            scrollability,
+            holdability,
+            returnability,
+            return_to,
             query,
         })
     }
 
-    pub(crate) fn parse_fetch_cursor(&mut self) -> Result<FetchStatement, ParserError> {
-        let direction = match self.peek_keyword() {
-            Some(Keyword::NEXT) => {
-                self.advance();
-                FetchDirection::Next
-            }
-            Some(Keyword::PRIOR) => {
-                self.advance();
-                FetchDirection::Prior
-            }
-            Some(Keyword::FIRST_P) => {
-                self.advance();
-                FetchDirection::First
-            }
-            Some(Keyword::LAST_P) => {
-                self.advance();
-                FetchDirection::Last
-            }
-            Some(Keyword::ABSOLUTE_P) => {
-                self.advance();
-                let n = self.parse_integer_literal()?;
-                FetchDirection::Absolute(n)
-            }
-            Some(Keyword::RELATIVE_P) => {
-                self.advance();
-                let n = self.parse_integer_literal()?;
-                FetchDirection::Relative(n)
-            }
-            Some(Keyword::FORWARD) => {
-                self.advance();
-                if self.match_keyword(Keyword::ALL) {
-                    self.advance();
-                    FetchDirection::ForwardAll
-                } else {
-                    let n = self.parse_integer_literal()?;
-                    FetchDirection::Forward(n)
-                }
-            }
-            Some(Keyword::BACKWARD) => {
-                self.advance();
-                if self.match_keyword(Keyword::ALL) {
-                    self.advance();
-                    FetchDirection::BackwardAll
-                } else {
-                    let n = self.parse_integer_literal()?;
-                    FetchDirection::Backward(n)
-                }
-            }
-            Some(Keyword::ALL) => {
-                self.advance();
-                FetchDirection::All
-            }
-            _ => {
-                if let Token::Integer(n) = self.peek().clone() {
-                    self.advance();
-                    FetchDirection::Count(n)
-                } else {
-                    FetchDirection::Next
-                }
-            }
-        };
+    fn parse_cursor_return_to(&mut self) -> Result<CursorReturnTo, ParserError> {
+        if self.match_ident_str("caller") {
+            self.advance();
+            Ok(CursorReturnTo::ToCaller)
+        } else if self.match_ident_str("client") {
+            self.advance();
+            Ok(CursorReturnTo::ToClient)
+        } else {
+            Ok(CursorReturnTo::Default)
+        }
+    }
 
-        self.expect_keyword(Keyword::FROM)?;
+    pub(crate) fn parse_fetch_cursor(&mut self) -> Result<FetchStatement, ParserError> {
+        let direction = self.parse_cursor_direction()?;
+
+        if self.match_keyword(Keyword::FROM) || self.match_keyword(Keyword::IN_P) {
+            self.advance();
+        }
 
         let cursor_name = self.parse_identifier()?;
 
@@ -1221,9 +1216,100 @@ impl Parser {
         })
     }
 
+    pub(crate) fn parse_move_cursor(&mut self) -> Result<MoveStatement, ParserError> {
+        let direction = self.parse_cursor_direction()?;
+
+        if self.match_keyword(Keyword::FROM) || self.match_keyword(Keyword::IN_P) {
+            self.advance();
+        }
+
+        let cursor_name = self.parse_identifier()?;
+
+        Ok(MoveStatement {
+            direction,
+            cursor_name,
+        })
+    }
+
+    fn parse_cursor_direction(&mut self) -> Result<FetchDirection, ParserError> {
+        match self.peek_keyword() {
+            Some(Keyword::NEXT) => {
+                self.advance();
+                Ok(FetchDirection::Next)
+            }
+            Some(Keyword::PRIOR) => {
+                self.advance();
+                Ok(FetchDirection::Prior)
+            }
+            Some(Keyword::FIRST_P) => {
+                self.advance();
+                Ok(FetchDirection::First)
+            }
+            Some(Keyword::LAST_P) => {
+                self.advance();
+                Ok(FetchDirection::Last)
+            }
+            Some(Keyword::ABSOLUTE_P) => {
+                self.advance();
+                let n = self.parse_signed_integer()?;
+                Ok(FetchDirection::Absolute(n))
+            }
+            Some(Keyword::RELATIVE_P) => {
+                self.advance();
+                let n = self.parse_signed_integer()?;
+                Ok(FetchDirection::Relative(n))
+            }
+            Some(Keyword::FORWARD) => {
+                self.advance();
+                if self.match_keyword(Keyword::ALL) {
+                    self.advance();
+                    Ok(FetchDirection::ForwardAll)
+                } else if let Token::Integer(n) = self.peek().clone() {
+                    self.advance();
+                    Ok(FetchDirection::ForwardCount(n))
+                } else {
+                    Ok(FetchDirection::Forward)
+                }
+            }
+            Some(Keyword::BACKWARD) => {
+                self.advance();
+                if self.match_keyword(Keyword::ALL) {
+                    self.advance();
+                    Ok(FetchDirection::BackwardAll)
+                } else if let Token::Integer(n) = self.peek().clone() {
+                    self.advance();
+                    Ok(FetchDirection::BackwardCount(n))
+                } else {
+                    Ok(FetchDirection::Backward)
+                }
+            }
+            Some(Keyword::ALL) => {
+                self.advance();
+                Ok(FetchDirection::All)
+            }
+            _ => {
+                if let Token::Integer(n) = self.peek().clone() {
+                    self.advance();
+                    Ok(FetchDirection::Count(n))
+                } else {
+                    Ok(FetchDirection::Next)
+                }
+            }
+        }
+    }
+
     pub(crate) fn parse_close_portal(&mut self) -> Result<ClosePortalStatement, ParserError> {
-        let name = self.parse_identifier()?;
-        Ok(ClosePortalStatement { name })
+        if self.match_keyword(Keyword::ALL) {
+            self.advance();
+            Ok(ClosePortalStatement {
+                target: CloseTarget::All,
+            })
+        } else {
+            let name = self.parse_identifier()?;
+            Ok(ClosePortalStatement {
+                target: CloseTarget::Name(name),
+            })
+        }
     }
 
     pub(crate) fn parse_listen(&mut self) -> Result<ListenStatement, ParserError> {
@@ -1269,7 +1355,7 @@ impl Parser {
             return Err(ParserError::UnexpectedToken {
                 location: loc,
                 expected: "SELECT, INSERT, UPDATE, or DELETE".to_string(),
-                got: self.token_to_string(),
+                got: self.token_to_string().into_owned(),
             });
         };
 
@@ -1690,5 +1776,289 @@ impl Parser {
             provider,
             label,
         })
+    }
+
+    // ── ALTER DATABASE LINK / DIRECTORY / LANGUAGE / LARGE OBJECT / PACKAGE / SESSION / SYSTEM KILL SESSION ──
+
+    pub(crate) fn parse_alter_database_link(
+        &mut self,
+    ) -> Result<AlterDatabaseLinkStatement, ParserError> {
+        let name = self.parse_identifier()?;
+        let action = if self.match_ident_str("connect") {
+            self.advance();
+            self.expect_keyword(Keyword::TO)?;
+            let user = self.parse_identifier()?;
+            if !self.try_consume_ident_str("identified") {
+                return Err(ParserError::UnexpectedToken {
+                    location: self.current_location(),
+                    expected: "IDENTIFIED".to_string(),
+                    got: format!("{:?}", self.peek()),
+                });
+            }
+            self.expect_keyword(Keyword::BY)?;
+            let password = self.parse_identifier()?;
+            let connect_string = if self.match_keyword(Keyword::USING) {
+                self.advance();
+                Some(self.parse_string_literal()?)
+            } else {
+                None
+            };
+            AlterDatabaseLinkAction::ConnectTo {
+                user,
+                password,
+                connect_string,
+            }
+        } else if self.match_keyword(Keyword::RENAME) {
+            self.advance();
+            self.expect_keyword(Keyword::TO)?;
+            let new_name = self.parse_identifier()?;
+            AlterDatabaseLinkAction::RenameTo { new_name }
+        } else {
+            return Err(ParserError::UnexpectedToken {
+                location: self.current_location(),
+                expected: "CONNECT TO or RENAME TO".to_string(),
+                got: format!("{:?}", self.peek()),
+            });
+        };
+        Ok(AlterDatabaseLinkStatement { name, action })
+    }
+
+    pub(crate) fn parse_alter_directory(&mut self) -> Result<AlterDirectoryStatement, ParserError> {
+        let name = self.parse_identifier()?;
+        let raw_rest = self.skip_to_semicolon_and_collect();
+        Ok(AlterDirectoryStatement { name, raw_rest })
+    }
+
+    pub(crate) fn parse_alter_language(&mut self) -> Result<AlterLanguageStatement, ParserError> {
+        self.try_consume_keyword(Keyword::PROCEDURAL);
+        self.expect_keyword(Keyword::LANGUAGE)?;
+        let name = self.parse_identifier()?;
+        let action = if self.match_keyword(Keyword::RENAME) {
+            self.advance();
+            self.expect_keyword(Keyword::TO)?;
+            let new_name = self.parse_identifier()?;
+            AlterLanguageAction::RenameTo(new_name)
+        } else if self.match_keyword(Keyword::OWNER) {
+            self.advance();
+            self.expect_keyword(Keyword::TO)?;
+            let owner = self.parse_identifier()?;
+            AlterLanguageAction::OwnerTo(owner)
+        } else {
+            return Err(ParserError::UnexpectedToken {
+                location: self.current_location(),
+                expected: "RENAME TO or OWNER TO".to_string(),
+                got: format!("{:?}", self.peek()),
+            });
+        };
+        Ok(AlterLanguageStatement { name, action })
+    }
+
+    pub(crate) fn parse_alter_large_object(
+        &mut self,
+    ) -> Result<AlterLargeObjectStatement, ParserError> {
+        self.expect_keyword(Keyword::OBJECT_P)?;
+        let oid = self.parse_identifier()?;
+        self.expect_keyword(Keyword::OWNER)?;
+        self.expect_keyword(Keyword::TO)?;
+        let new_owner = self.parse_identifier()?;
+        Ok(AlterLargeObjectStatement { oid, new_owner })
+    }
+
+    pub(crate) fn parse_alter_package(&mut self) -> Result<AlterPackageStatement, ParserError> {
+        let name = self.parse_identifier()?;
+        let action = if self.match_keyword(Keyword::COMPILE) {
+            self.advance();
+            let debug = self.try_consume_ident_str("debug");
+            let reuse_settings = if self.match_keyword(Keyword::REUSE) {
+                self.advance();
+                if !self.try_consume_ident_str("settings") {
+                    return Err(ParserError::UnexpectedToken {
+                        location: self.current_location(),
+                        expected: "SETTINGS".to_string(),
+                        got: format!("{:?}", self.peek()),
+                    });
+                }
+                true
+            } else {
+                false
+            };
+            AlterPackageAction::Compile {
+                debug,
+                reuse_settings,
+            }
+        } else if self.match_keyword(Keyword::OWNER) {
+            self.advance();
+            self.expect_keyword(Keyword::TO)?;
+            let owner = self.parse_identifier()?;
+            AlterPackageAction::OwnerTo(owner)
+        } else {
+            return Err(ParserError::UnexpectedToken {
+                location: self.current_location(),
+                expected: "COMPILE or OWNER TO".to_string(),
+                got: format!("{:?}", self.peek()),
+            });
+        };
+        Ok(AlterPackageStatement { name, action })
+    }
+
+    pub(crate) fn parse_alter_session(&mut self) -> Result<AlterSessionStatement, ParserError> {
+        let action = if self.match_keyword(Keyword::SET) {
+            self.advance();
+            let parameter = self.parse_identifier()?;
+            if self.match_token(&Token::Eq) {
+                self.advance();
+            } else {
+                self.try_consume_keyword(Keyword::TO);
+            }
+            let value = self.parse_identifier_or_value()?;
+            AlterSessionAction::Set { parameter, value }
+        } else if self.match_keyword(Keyword::CLOSE) {
+            self.advance();
+            self.expect_keyword(Keyword::DATABASE)?;
+            if !self.try_consume_ident_str("link") {
+                return Err(ParserError::UnexpectedToken {
+                    location: self.current_location(),
+                    expected: "LINK".to_string(),
+                    got: format!("{:?}", self.peek()),
+                });
+            }
+            let name = self.parse_identifier()?;
+            AlterSessionAction::CloseDatabaseLink { name }
+        } else {
+            return Err(ParserError::UnexpectedToken {
+                location: self.current_location(),
+                expected: "SET or CLOSE DATABASE LINK".to_string(),
+                got: format!("{:?}", self.peek()),
+            });
+        };
+        Ok(AlterSessionStatement { action })
+    }
+
+    pub(crate) fn parse_alter_system_kill_session(
+        &mut self,
+    ) -> Result<AlterSystemKillSessionStatement, ParserError> {
+        let session_id = self.parse_string_literal()?;
+        let immediate = self.try_consume_keyword(Keyword::IMMEDIATE);
+        Ok(AlterSystemKillSessionStatement {
+            session_id,
+            immediate,
+        })
+    }
+
+    pub(crate) fn parse_create_language(&mut self) -> Result<CreateLanguageStatement, ParserError> {
+        let trusted = self.try_consume_keyword(Keyword::TRUSTED);
+        let name = self.parse_identifier()?;
+        let mut handler = None;
+        let mut inline_func = None;
+        let mut validator = None;
+
+        if self.match_keyword(Keyword::HANDLER) {
+            self.advance();
+            handler = Some(self.parse_identifier()?);
+        }
+        if self.match_keyword(Keyword::INLINE_P) {
+            self.advance();
+            inline_func = Some(self.parse_identifier()?);
+        }
+        if self.match_keyword(Keyword::VALIDATOR) {
+            self.advance();
+            validator = Some(self.parse_identifier()?);
+        } else if self.match_keyword(Keyword::NO) {
+            self.advance();
+            self.expect_keyword(Keyword::VALIDATOR)?;
+        }
+
+        Ok(CreateLanguageStatement {
+            name,
+            trusted,
+            handler,
+            inline_func,
+            validator,
+        })
+    }
+
+    pub(crate) fn parse_alter_domain(&mut self) -> Result<AlterDomainStatement, ParserError> {
+        self.expect_keyword(Keyword::DOMAIN_P)?;
+        let name = self.parse_object_name()?;
+        let action = if self.match_keyword(Keyword::SET) {
+            self.advance();
+            if self.match_keyword(Keyword::DEFAULT) {
+                self.advance();
+                let expr = self.skip_to_semicolon_and_collect();
+                AlterDomainAction::SetDefault { expr }
+            } else if self.match_keyword(Keyword::NOT) {
+                self.advance();
+                self.expect_keyword(Keyword::NULL_P)?;
+                AlterDomainAction::SetNotNull
+            } else {
+                return Err(ParserError::UnexpectedToken {
+                    location: self.current_location(),
+                    expected: "DEFAULT | NOT NULL".to_string(),
+                    got: format!("{:?}", self.peek()),
+                });
+            }
+        } else if self.match_keyword(Keyword::DROP) {
+            self.advance();
+            if self.match_keyword(Keyword::DEFAULT) {
+                self.advance();
+                AlterDomainAction::DropDefault
+            } else if self.match_keyword(Keyword::NOT) {
+                self.advance();
+                self.expect_keyword(Keyword::NULL_P)?;
+                AlterDomainAction::DropNotNull
+            } else if self.match_keyword(Keyword::CONSTRAINT) {
+                self.advance();
+                let cname = self.parse_identifier()?;
+                let cascade = self.try_consume_keyword(Keyword::CASCADE);
+                self.try_consume_keyword(Keyword::RESTRICT);
+                AlterDomainAction::DropConstraint {
+                    name: cname,
+                    cascade,
+                }
+            } else {
+                return Err(ParserError::UnexpectedToken {
+                    location: self.current_location(),
+                    expected: "DEFAULT | NOT NULL | CONSTRAINT".to_string(),
+                    got: format!("{:?}", self.peek()),
+                });
+            }
+        } else if self.match_keyword(Keyword::ADD_P) {
+            self.advance();
+            self.try_consume_keyword(Keyword::CONSTRAINT);
+            let cname = if !self.match_keyword(Keyword::CHECK) && !self.match_keyword(Keyword::NOT)
+            {
+                Some(self.parse_identifier()?)
+            } else {
+                None
+            };
+            self.try_consume_keyword(Keyword::CHECK);
+            let check_expr = self.skip_to_semicolon_and_collect();
+            AlterDomainAction::AddConstraint {
+                name: cname,
+                check_expr,
+            }
+        } else if self.match_keyword(Keyword::OWNER) {
+            self.advance();
+            self.expect_keyword(Keyword::TO)?;
+            let new_owner = self.parse_identifier()?;
+            AlterDomainAction::OwnerTo { new_owner }
+        } else if self.match_keyword(Keyword::RENAME) {
+            self.advance();
+            self.expect_keyword(Keyword::TO)?;
+            let new_name = self.parse_identifier()?;
+            AlterDomainAction::RenameTo { new_name }
+        } else if self.match_keyword(Keyword::VALIDATE) {
+            self.advance();
+            self.expect_keyword(Keyword::CONSTRAINT)?;
+            let cname = self.parse_identifier()?;
+            AlterDomainAction::ValidateConstraint { name: cname }
+        } else {
+            return Err(ParserError::UnexpectedToken {
+                location: self.current_location(),
+                expected: "SET | DROP | ADD | OWNER | RENAME | VALIDATE".to_string(),
+                got: format!("{:?}", self.peek()),
+            });
+        };
+        Ok(AlterDomainStatement { name, action })
     }
 }

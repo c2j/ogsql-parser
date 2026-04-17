@@ -378,10 +378,10 @@ impl Parser {
                 self.advance();
                 let columns = if self.match_token(&Token::LParen) {
                     self.advance();
-                    let mut cols = vec![self.parse_identifier()?];
+                    let mut cols = vec![self.parse_object_name()?];
                     while self.match_token(&Token::Comma) {
                         self.advance();
-                        cols.push(self.parse_identifier()?);
+                        cols.push(self.parse_object_name()?);
                     }
                     self.expect_token(&Token::RParen)?;
                     cols

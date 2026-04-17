@@ -45,7 +45,7 @@ impl<'a> Tokenizer<'a> {
     }
 
     pub fn tokenize(mut self) -> Result<Vec<TokenWithSpan>, TokenizerError> {
-        let mut tokens = Vec::new();
+        let mut tokens = Vec::with_capacity(self.input.len() / 8);
         loop {
             match self.next_token()? {
                 Some(t) => tokens.push(t),

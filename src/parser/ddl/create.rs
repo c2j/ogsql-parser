@@ -464,6 +464,21 @@ impl Parser {
             None
         };
 
+        let security = if self.match_keyword(Keyword::SECURITY) {
+            self.advance();
+            if self.match_keyword(Keyword::BARRIER) {
+                self.advance();
+                Some(ViewSecurity::Barrier)
+            } else if self.match_keyword(Keyword::INVOKER) {
+                self.advance();
+                Some(ViewSecurity::Invoker)
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+
         Ok(CreateViewStatement {
             replace: false,
             temporary: false,
@@ -472,6 +487,7 @@ impl Parser {
             columns,
             query,
             check_option,
+            security,
         })
     }
 
@@ -551,10 +567,7 @@ impl Parser {
         loop {
             let opt_name = match self.peek() {
                 Token::Ident(s) => s.to_lowercase(),
-                Token::Keyword(kw) => format!("{:?}", kw)
-                    .to_lowercase()
-                    .trim_end_matches("_p")
-                    .to_string(),
+                Token::Keyword(kw) => kw.as_str().to_string(),
                 _ => break,
             };
             let saved_pos = self.pos;
@@ -627,10 +640,7 @@ impl Parser {
             }
             Token::Keyword(kw) => {
                 self.advance();
-                Ok(format!("{:?}", kw)
-                    .to_lowercase()
-                    .trim_end_matches("_p")
-                    .to_string())
+                Ok(kw.as_str().to_string())
             }
             _ => Err(ParserError::UnexpectedToken {
                 location: self.current_location(),

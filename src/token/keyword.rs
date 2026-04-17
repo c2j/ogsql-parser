@@ -17,6 +17,7 @@ pub enum Keyword {
     ALSO,
     ALTER,
     ALWAYS,
+    ASENSITIVE,
     ANALYSE,
     ANALYZE,
     AND,
@@ -554,7 +555,6 @@ pub enum Keyword {
     SECOND_P,
     SECURITY,
     SELECT,
-    SELF,
     SEPARATOR_P,
     SEQUENCE,
     SEQUENCES,
@@ -746,6 +746,7 @@ impl Keyword {
             Keyword::ALSO => "also",
             Keyword::ALTER => "alter",
             Keyword::ALWAYS => "always",
+            Keyword::ASENSITIVE => "asensitive",
             Keyword::ANALYSE => "analyse",
             Keyword::ANALYZE => "analyze",
             Keyword::AND => "and",
@@ -1283,7 +1284,6 @@ impl Keyword {
             Keyword::SECOND_P => "second",
             Keyword::SECURITY => "security",
             Keyword::SELECT => "select",
-            Keyword::SELF => "self",
             Keyword::SEPARATOR_P => "separator",
             Keyword::SEQUENCE => "sequence",
             Keyword::SEQUENCES => "sequences",
@@ -1493,11 +1493,9 @@ impl Keyword {
             Keyword::FETCH | Keyword::FOR | Keyword::FOREIGN | Keyword::FROM | Keyword::GRANT => {
                 KeywordCategory::Reserved
             }
-            Keyword::GROUP_P
-            | Keyword::GROUPPARENT
-            | Keyword::HAVING
-            | Keyword::IMCSTORED
-            | Keyword::IN_P => KeywordCategory::Reserved,
+            Keyword::GROUP_P | Keyword::GROUPPARENT | Keyword::HAVING | Keyword::IN_P => {
+                KeywordCategory::Reserved
+            }
             Keyword::INITIALLY
             | Keyword::INTERSECT
             | Keyword::INTO
@@ -1522,24 +1520,18 @@ impl Keyword {
             | Keyword::PROCEDURE
             | Keyword::REFERENCES
             | Keyword::REJECT_P => KeywordCategory::Reserved,
-            Keyword::RETURNING
-            | Keyword::ROWNUM
-            | Keyword::SELECT
-            | Keyword::SELF
-            | Keyword::SESSION_USER => KeywordCategory::Reserved,
-            Keyword::SHARE_MEMORY
-            | Keyword::SHRINK
-            | Keyword::SOME
-            | Keyword::SYMMETRIC
-            | Keyword::SYSDATE => KeywordCategory::Reserved,
+            Keyword::RETURNING | Keyword::ROWNUM | Keyword::SELECT | Keyword::SESSION_USER => {
+                KeywordCategory::Reserved
+            }
+            Keyword::SHRINK | Keyword::SOME | Keyword::SYMMETRIC | Keyword::SYSDATE => {
+                KeywordCategory::Reserved
+            }
             Keyword::TABLE | Keyword::THEN | Keyword::TO | Keyword::TRAILING | Keyword::TRUE_P => {
                 KeywordCategory::Reserved
             }
-            Keyword::UNIMCSTORED
-            | Keyword::UNION
-            | Keyword::UNIQUE
-            | Keyword::USER
-            | Keyword::USING => KeywordCategory::Reserved,
+            Keyword::UNION | Keyword::UNIQUE | Keyword::USER | Keyword::USING => {
+                KeywordCategory::Reserved
+            }
             Keyword::VARIADIC
             | Keyword::VERIFY
             | Keyword::WHEN
@@ -1655,6 +1647,7 @@ impl Keyword {
             | Keyword::ARCHIVE
             | Keyword::ASOF_P
             | Keyword::ASSERTION
+            | Keyword::ASENSITIVE
             | Keyword::ASSIGNMENT => KeywordCategory::Unreserved,
             Keyword::AT
             | Keyword::ATTRIBUTE
@@ -1837,7 +1830,8 @@ impl Keyword {
             | Keyword::HOUR_SECOND_P
             | Keyword::IDENTIFIED
             | Keyword::IDENTITY_P
-            | Keyword::IF_P => KeywordCategory::Unreserved,
+            | Keyword::IF_P
+            | Keyword::IMCSTORED => KeywordCategory::Unreserved,
             Keyword::IGNORE
             | Keyword::IGNORE_EXTRA_DATA
             | Keyword::IMMEDIATE
@@ -2049,6 +2043,7 @@ impl Keyword {
             | Keyword::SET
             | Keyword::SETS
             | Keyword::SHARE
+            | Keyword::SHARE_MEMORY
             | Keyword::SHIPPABLE => KeywordCategory::Unreserved,
             Keyword::SHOW
             | Keyword::SHUTDOWN
@@ -2122,6 +2117,7 @@ impl Keyword {
             | Keyword::UNCOMMITTED => KeywordCategory::Unreserved,
             Keyword::UNDER
             | Keyword::UNENCRYPTED
+            | Keyword::UNIMCSTORED
             | Keyword::UNKNOWN
             | Keyword::UNLIMITED
             | Keyword::UNLISTEN => KeywordCategory::Unreserved,
@@ -2184,6 +2180,7 @@ pub fn lookup_keyword(s: &str) -> Option<Keyword> {
         ("also", Keyword::ALSO),
         ("alter", Keyword::ALTER),
         ("always", Keyword::ALWAYS),
+        ("asensitive", Keyword::ASENSITIVE),
         ("analyse", Keyword::ANALYSE),
         ("analyze", Keyword::ANALYZE),
         ("and", Keyword::AND),
@@ -2727,7 +2724,6 @@ pub fn lookup_keyword(s: &str) -> Option<Keyword> {
         ("second", Keyword::SECOND_P),
         ("security", Keyword::SECURITY),
         ("select", Keyword::SELECT),
-        ("self", Keyword::SELF),
         ("separator", Keyword::SEPARATOR_P),
         ("sequence", Keyword::SEQUENCE),
         ("sequences", Keyword::SEQUENCES),

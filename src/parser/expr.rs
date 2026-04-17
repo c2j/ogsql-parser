@@ -688,6 +688,17 @@ impl Parser {
                     }
                     return Ok(Expr::ColumnRef(vec![name]));
                 }
+                // CURRENT OF cursor_name — positioned UPDATE/DELETE
+                if kw == Keyword::CURRENT_P {
+                    self.advance();
+                    if self.match_keyword(Keyword::OF) {
+                        self.advance();
+                        let cursor_name = self.parse_identifier()?;
+                        return Ok(Expr::CurrentOf { cursor_name });
+                    }
+                    // Not "CURRENT OF" — fall through to treat CURRENT as column ref
+                    return Ok(Expr::ColumnRef(vec!["CURRENT".to_string()]));
+                }
                 let name = self.parse_object_name()?;
                 // PostgreSQL typecast syntax: typename 'literal'
                 if let Token::StringLiteral(s) = self.peek().clone() {

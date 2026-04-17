@@ -2169,6 +2169,76 @@ fn test_cursor_decl_with_parsed_select() {
 }
 
 #[test]
+fn test_cursor_decl_with_is_keyword() {
+    let sql = "DO $$ DECLARE cur1 CURSOR IS SELECT id FROM users; BEGIN OPEN cur1; END $$";
+    let stmt = parse_one(sql);
+    match stmt {
+        Statement::Do(d) => {
+            let block = d
+                .block
+                .as_ref()
+                .expect("DO block should be parsed with IS keyword");
+            assert_eq!(block.declarations.len(), 1);
+            match &block.declarations[0] {
+                PlDeclaration::Cursor(c) => {
+                    assert_eq!(c.name, "cur1");
+                    assert!(c.parsed_query.is_some(), "cursor query should be parsed");
+                }
+                other => panic!("expected Cursor, got {:?}", other),
+            }
+        }
+        other => panic!("expected Do, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_oracle_cursor_in_procedure_body() {
+    let sql = "CREATE OR REPLACE PROCEDURE proc1() AS DECLARE CURSOR cu IS SELECT name FROM users; v_name VARCHAR(50); BEGIN OPEN cu; FETCH cu INTO v_name; CLOSE cu; END; /";
+    let stmt = parse_one(sql);
+    match stmt {
+        Statement::CreateProcedure(p) => {
+            let block = p.block.as_ref().expect("procedure should have a body");
+            assert_eq!(block.declarations.len(), 2);
+            match &block.declarations[0] {
+                PlDeclaration::Cursor(c) => {
+                    assert_eq!(c.name, "cu");
+                    assert!(c.parsed_query.is_some());
+                }
+                other => panic!("expected Cursor, got {:?}", other),
+            }
+            match &block.declarations[1] {
+                PlDeclaration::Variable(v) => {
+                    assert_eq!(v.name, "v_name");
+                }
+                other => panic!("expected Variable, got {:?}", other),
+            }
+            assert_eq!(block.body.len(), 3);
+        }
+        other => panic!("expected CreateProcedure, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_pg_cursor_in_procedure_body() {
+    let sql = "CREATE OR REPLACE PROCEDURE proc2() AS DECLARE cu CURSOR FOR SELECT id FROM t; BEGIN OPEN cu; CLOSE cu; END; /";
+    let stmt = parse_one(sql);
+    match stmt {
+        Statement::CreateProcedure(p) => {
+            let block = p.block.as_ref().expect("procedure should have a body");
+            assert_eq!(block.declarations.len(), 1);
+            match &block.declarations[0] {
+                PlDeclaration::Cursor(c) => {
+                    assert_eq!(c.name, "cu");
+                    assert!(c.parsed_query.is_some());
+                }
+                other => panic!("expected Cursor, got {:?}", other),
+            }
+        }
+        other => panic!("expected CreateProcedure, got {:?}", other),
+    }
+}
+
+#[test]
 fn test_alter_table_drop_partition_update_global_index() {
     let stmt = parse_one("ALTER TABLE t1 DROP PARTITION p1 UPDATE GLOBAL INDEX");
     match stmt {
@@ -2724,9 +2794,11 @@ fn test_open_for_with_parsed_select() {
             match &ab.block.body[0] {
                 PlStatement::Open(open_stmt) => match &open_stmt.kind {
                     PlOpenKind::ForQuery {
+                        scroll,
                         query,
                         parsed_query,
                     } => {
+                        assert_eq!(scroll, &None);
                         assert!(!query.is_empty());
                         assert!(parsed_query.is_some(), "OPEN FOR query should be parsed");
                         let parsed = parsed_query.as_ref().unwrap();
@@ -3361,7 +3433,7 @@ fn test_declare_cursor_with_parsed_select() {
     match stmt {
         Statement::DeclareCursor(c) => {
             assert_eq!(c.name, "cur1");
-            assert!(!c.scroll);
+            assert_eq!(c.scrollability, CursorScrollability::Default);
             assert!(!c.binary);
             // query is now Box<SelectStatement>, not String
             assert!(
@@ -3385,10 +3457,79 @@ fn test_declare_cursor_scroll_with_select() {
     match stmt {
         Statement::DeclareCursor(c) => {
             assert_eq!(c.name, "cur2");
-            assert!(c.scroll);
+            assert_eq!(c.scrollability, CursorScrollability::Scroll);
             assert!(!c.query.targets.is_empty());
         }
         _ => panic!("expected DeclareCursor, got {:?}", stmt),
+    }
+}
+
+#[test]
+fn test_declare_cursor_no_scroll() {
+    let sql = "DECLARE cur NO SCROLL CURSOR FOR SELECT * FROM t";
+    let stmts = parse(sql);
+    match &stmts[0] {
+        Statement::DeclareCursor(c) => {
+            assert_eq!(c.name, "cur");
+            assert_eq!(c.scrollability, CursorScrollability::NoScroll);
+            assert_eq!(c.sensitivity, CursorSensitivity::Sensitive);
+            assert_eq!(c.holdability, CursorHoldability::Default);
+        }
+        _ => panic!("expected DeclareCursor"),
+    }
+}
+
+#[test]
+fn test_declare_cursor_insensitive_scroll_with_hold() {
+    let sql = "DECLARE cur INSENSITIVE SCROLL CURSOR WITH HOLD FOR SELECT * FROM t";
+    let stmts = parse(sql);
+    match &stmts[0] {
+        Statement::DeclareCursor(c) => {
+            assert_eq!(c.sensitivity, CursorSensitivity::Insensitive);
+            assert_eq!(c.scrollability, CursorScrollability::Scroll);
+            assert_eq!(c.holdability, CursorHoldability::WithHold);
+        }
+        _ => panic!("expected DeclareCursor"),
+    }
+}
+
+#[test]
+fn test_declare_cursor_without_hold() {
+    let sql = "DECLARE cur CURSOR WITHOUT HOLD FOR SELECT 1";
+    let stmts = parse(sql);
+    match &stmts[0] {
+        Statement::DeclareCursor(c) => {
+            assert_eq!(c.holdability, CursorHoldability::WithoutHold);
+            assert_eq!(c.scrollability, CursorScrollability::Default);
+        }
+        _ => panic!("expected DeclareCursor"),
+    }
+}
+
+#[test]
+fn test_declare_cursor_with_return_to_caller() {
+    let sql = "DECLARE cur CURSOR WITH RETURN TO CALLER FOR SELECT * FROM t";
+    let stmts = parse(sql);
+    match &stmts[0] {
+        Statement::DeclareCursor(c) => {
+            assert_eq!(c.returnability, CursorReturnability::WithReturn);
+            assert_eq!(c.return_to, CursorReturnTo::ToCaller);
+        }
+        _ => panic!("expected DeclareCursor"),
+    }
+}
+
+#[test]
+fn test_declare_cursor_without_return_to_client() {
+    let sql = "DECLARE cur SCROLL CURSOR WITHOUT RETURN TO CLIENT FOR SELECT 1";
+    let stmts = parse(sql);
+    match &stmts[0] {
+        Statement::DeclareCursor(c) => {
+            assert_eq!(c.scrollability, CursorScrollability::Scroll);
+            assert_eq!(c.returnability, CursorReturnability::WithoutReturn);
+            assert_eq!(c.return_to, CursorReturnTo::ToClient);
+        }
+        _ => panic!("expected DeclareCursor"),
     }
 }
 
@@ -3467,6 +3608,156 @@ fn test_plpgsql_move_with_direction() {
         PlStatement::Move { cursor, direction } => {
             assert_eq!(cursor, "cur");
             assert!(matches!(direction, Some(plpgsql::FetchDirection::Next)));
+        }
+        _ => panic!("expected Move"),
+    }
+}
+
+#[test]
+fn test_plpgsql_fetch_forward_count() {
+    let block = parse_do_block("DO $$ BEGIN FETCH FORWARD 5 FROM cur INTO var; END $$");
+    match &block.body[0] {
+        PlStatement::Fetch(f) => {
+            assert_eq!(f.cursor, "cur");
+            assert!(matches!(
+                &f.direction,
+                Some(plpgsql::FetchDirection::Forward(Some(5)))
+            ));
+        }
+        _ => panic!("expected Fetch"),
+    }
+}
+
+#[test]
+fn test_plpgsql_fetch_forward_bare() {
+    let block = parse_do_block("DO $$ BEGIN FETCH FORWARD FROM cur INTO var; END $$");
+    match &block.body[0] {
+        PlStatement::Fetch(f) => {
+            assert_eq!(f.cursor, "cur");
+            assert!(matches!(
+                &f.direction,
+                Some(plpgsql::FetchDirection::Forward(None))
+            ));
+        }
+        _ => panic!("expected Fetch"),
+    }
+}
+
+#[test]
+fn test_plpgsql_fetch_forward_all() {
+    let block = parse_do_block("DO $$ BEGIN FETCH FORWARD ALL FROM cur INTO var; END $$");
+    match &block.body[0] {
+        PlStatement::Fetch(f) => {
+            assert_eq!(f.cursor, "cur");
+            assert!(matches!(
+                &f.direction,
+                Some(plpgsql::FetchDirection::ForwardAll)
+            ));
+        }
+        _ => panic!("expected Fetch"),
+    }
+}
+
+#[test]
+fn test_plpgsql_fetch_absolute() {
+    let block = parse_do_block("DO $$ BEGIN FETCH ABSOLUTE 10 FROM cur INTO var; END $$");
+    match &block.body[0] {
+        PlStatement::Fetch(f) => {
+            assert_eq!(f.cursor, "cur");
+            assert!(matches!(
+                &f.direction,
+                Some(plpgsql::FetchDirection::Absolute(10))
+            ));
+        }
+        _ => panic!("expected Fetch"),
+    }
+}
+
+#[test]
+fn test_plpgsql_fetch_absolute_negative() {
+    let block = parse_do_block("DO $$ BEGIN FETCH ABSOLUTE -3 FROM cur INTO var; END $$");
+    match &block.body[0] {
+        PlStatement::Fetch(f) => {
+            assert_eq!(f.cursor, "cur");
+            assert!(matches!(
+                &f.direction,
+                Some(plpgsql::FetchDirection::Absolute(-3))
+            ));
+        }
+        _ => panic!("expected Fetch"),
+    }
+}
+
+#[test]
+fn test_plpgsql_fetch_relative() {
+    let block = parse_do_block("DO $$ BEGIN FETCH RELATIVE 5 FROM cur INTO var; END $$");
+    match &block.body[0] {
+        PlStatement::Fetch(f) => {
+            assert_eq!(f.cursor, "cur");
+            assert!(matches!(
+                &f.direction,
+                Some(plpgsql::FetchDirection::Relative(5))
+            ));
+        }
+        _ => panic!("expected Fetch"),
+    }
+}
+
+#[test]
+fn test_plpgsql_fetch_backward_count() {
+    let block = parse_do_block("DO $$ BEGIN FETCH BACKWARD 3 FROM cur INTO var; END $$");
+    match &block.body[0] {
+        PlStatement::Fetch(f) => {
+            assert_eq!(f.cursor, "cur");
+            assert!(matches!(
+                &f.direction,
+                Some(plpgsql::FetchDirection::Backward(Some(3)))
+            ));
+        }
+        _ => panic!("expected Fetch"),
+    }
+}
+
+#[test]
+fn test_plpgsql_fetch_backward_all() {
+    let block = parse_do_block("DO $$ BEGIN FETCH BACKWARD ALL FROM cur INTO var; END $$");
+    match &block.body[0] {
+        PlStatement::Fetch(f) => {
+            assert_eq!(f.cursor, "cur");
+            assert!(matches!(
+                &f.direction,
+                Some(plpgsql::FetchDirection::BackwardAll)
+            ));
+        }
+        _ => panic!("expected Fetch"),
+    }
+}
+
+#[test]
+fn test_plpgsql_move_forward_count() {
+    let block = parse_do_block("DO $$ BEGIN MOVE FORWARD 5 cur; END $$");
+    match &block.body[0] {
+        PlStatement::Move { cursor, direction } => {
+            assert_eq!(cursor, "cur");
+            assert!(matches!(
+                direction,
+                Some(plpgsql::FetchDirection::Forward(Some(5)))
+            ));
+        }
+        _ => panic!("expected Move"),
+    }
+}
+
+#[test]
+fn test_plpgsql_move_absolute() {
+    let block = parse_do_block("DO $$ BEGIN MOVE ABSOLUTE 10 cur; END $$");
+    match &block.body[0] {
+        PlStatement::Move { cursor, direction } => {
+            assert_eq!(cursor, "cur");
+            assert!(matches!(
+                direction,
+                Some(plpgsql::FetchDirection::Absolute(10))
+            ));
         }
         _ => panic!("expected Move"),
     }
@@ -7016,4 +7307,437 @@ fn test_alter_materialized_view() {
         }
         other => panic!("expected AlterMaterializedView, got {:?}", other),
     }
+}
+
+#[test]
+fn test_fetch_in_keyword() {
+    let sql = "FETCH NEXT IN cur1";
+    let stmts = parse(sql);
+    match &stmts[0] {
+        Statement::Fetch(f) => {
+            assert_eq!(f.cursor_name, "cur1");
+            assert_eq!(f.direction, crate::ast::FetchDirection::Next);
+        }
+        _ => panic!("expected Fetch"),
+    }
+}
+
+#[test]
+fn test_fetch_bare_forward() {
+    let sql = "FETCH FORWARD FROM cur1";
+    let stmts = parse(sql);
+    match &stmts[0] {
+        Statement::Fetch(f) => {
+            assert_eq!(f.direction, crate::ast::FetchDirection::Forward);
+        }
+        _ => panic!("expected Fetch"),
+    }
+}
+
+#[test]
+fn test_fetch_bare_backward_in() {
+    let sql = "FETCH BACKWARD IN cur1";
+    let stmts = parse(sql);
+    match &stmts[0] {
+        Statement::Fetch(f) => {
+            assert_eq!(f.direction, crate::ast::FetchDirection::Backward);
+        }
+        _ => panic!("expected Fetch"),
+    }
+}
+
+#[test]
+fn test_fetch_forward_count() {
+    let sql = "FETCH FORWARD 5 FROM cur1";
+    let stmts = parse(sql);
+    match &stmts[0] {
+        Statement::Fetch(f) => {
+            assert_eq!(f.direction, crate::ast::FetchDirection::ForwardCount(5));
+        }
+        _ => panic!("expected Fetch"),
+    }
+}
+
+#[test]
+fn test_move_next_from() {
+    let sql = "MOVE NEXT FROM cur1";
+    let stmts = parse(sql);
+    match &stmts[0] {
+        Statement::Move(m) => {
+            assert_eq!(m.cursor_name, "cur1");
+            assert_eq!(m.direction, crate::ast::FetchDirection::Next);
+        }
+        _ => panic!("expected Move, got {:?}", &stmts[0]),
+    }
+}
+
+#[test]
+fn test_move_forward_5_in() {
+    let sql = "MOVE FORWARD 5 IN cur1";
+    let stmts = parse(sql);
+    match &stmts[0] {
+        Statement::Move(m) => {
+            assert_eq!(m.direction, crate::ast::FetchDirection::ForwardCount(5));
+            assert_eq!(m.cursor_name, "cur1");
+        }
+        _ => panic!("expected Move"),
+    }
+}
+
+#[test]
+fn test_move_all() {
+    let sql = "MOVE ALL FROM cur1";
+    let stmts = parse(sql);
+    match &stmts[0] {
+        Statement::Move(m) => {
+            assert_eq!(m.direction, crate::ast::FetchDirection::All);
+        }
+        _ => panic!("expected Move"),
+    }
+}
+
+#[test]
+fn test_move_absolute_negative() {
+    let sql = "MOVE ABSOLUTE -3 FROM cur1";
+    let stmts = parse(sql);
+    match &stmts[0] {
+        Statement::Move(m) => {
+            assert_eq!(m.direction, crate::ast::FetchDirection::Absolute(-3));
+        }
+        _ => panic!("expected Move"),
+    }
+}
+
+#[test]
+fn test_close_all() {
+    let sql = "CLOSE ALL";
+    let stmts = parse(sql);
+    match &stmts[0] {
+        Statement::ClosePortal(c) => {
+            assert_eq!(c.target, CloseTarget::All);
+        }
+        _ => panic!("expected ClosePortal"),
+    }
+}
+
+#[test]
+fn test_close_named() {
+    let sql = "CLOSE cur1";
+    let stmts = parse(sql);
+    match &stmts[0] {
+        Statement::ClosePortal(c) => {
+            assert_eq!(c.target, CloseTarget::Name("cur1".to_string()));
+        }
+        _ => panic!("expected ClosePortal"),
+    }
+}
+
+#[test]
+fn test_update_where_current_of() {
+    let sql = "UPDATE accounts SET balance = balance + 100 WHERE CURRENT OF cur_account";
+    let stmts = parse(sql);
+    match &stmts[0] {
+        Statement::Update(u) => match &u.where_clause {
+            Some(Expr::CurrentOf { cursor_name }) => {
+                assert_eq!(cursor_name, "cur_account");
+            }
+            other => panic!("expected CurrentOf, got {:?}", other),
+        },
+        _ => panic!("expected Update"),
+    }
+}
+
+#[test]
+fn test_delete_where_current_of() {
+    let sql = "DELETE FROM accounts WHERE CURRENT OF cur_account";
+    let stmts = parse(sql);
+    match &stmts[0] {
+        Statement::Delete(d) => match &d.where_clause {
+            Some(Expr::CurrentOf { cursor_name }) => {
+                assert_eq!(cursor_name, "cur_account");
+            }
+            other => panic!("expected CurrentOf, got {:?}", other),
+        },
+        _ => panic!("expected Delete"),
+    }
+}
+
+#[test]
+fn test_plpgsql_open_for_execute() {
+    let block = parse_do_block("DO $$ BEGIN OPEN cur FOR EXECUTE 'SELECT * FROM t'; END $$");
+    match &block.body[0] {
+        PlStatement::Open(o) => {
+            assert_eq!(o.cursor, "cur");
+            match &o.kind {
+                PlOpenKind::ForExecute { query, using_args } => {
+                    assert!(
+                        matches!(query, Expr::Literal(crate::ast::Literal::String(s)) if s == "SELECT * FROM t")
+                    );
+                    assert!(using_args.is_empty());
+                }
+                other => panic!("expected ForExecute, got {:?}", other),
+            }
+        }
+        _ => panic!("expected Open"),
+    }
+}
+
+#[test]
+fn test_plpgsql_open_for_execute_using() {
+    let block = parse_do_block("DO $$ BEGIN OPEN cur FOR EXECUTE v_query USING 1, 'x'; END $$");
+    match &block.body[0] {
+        PlStatement::Open(o) => {
+            assert_eq!(o.cursor, "cur");
+            match &o.kind {
+                PlOpenKind::ForExecute { query, using_args } => {
+                    assert!(matches!(query, Expr::ColumnRef(_)));
+                    assert_eq!(using_args.len(), 2);
+                }
+                other => panic!("expected ForExecute, got {:?}", other),
+            }
+        }
+        _ => panic!("expected Open"),
+    }
+}
+
+#[test]
+fn test_plpgsql_open_scroll_for() {
+    let block = parse_do_block("DO $$ BEGIN OPEN cur SCROLL FOR SELECT * FROM t; END $$");
+    match &block.body[0] {
+        PlStatement::Open(o) => {
+            assert_eq!(o.cursor, "cur");
+            match &o.kind {
+                PlOpenKind::ForQuery { scroll, query, .. } => {
+                    assert_eq!(scroll, &Some(true));
+                    assert!(!query.is_empty());
+                }
+                other => panic!("expected ForQuery, got {:?}", other),
+            }
+        }
+        _ => panic!("expected Open"),
+    }
+}
+
+#[test]
+fn test_plpgsql_open_no_scroll_for() {
+    let block = parse_do_block("DO $$ BEGIN OPEN cur NO SCROLL FOR SELECT * FROM t; END $$");
+    match &block.body[0] {
+        PlStatement::Open(o) => {
+            assert_eq!(o.cursor, "cur");
+            match &o.kind {
+                PlOpenKind::ForQuery { scroll, query, .. } => {
+                    assert_eq!(scroll, &Some(false));
+                    assert!(!query.is_empty());
+                }
+                other => panic!("expected ForQuery, got {:?}", other),
+            }
+        }
+        _ => panic!("expected Open"),
+    }
+}
+
+// ========== Cursor Round-Trip Tests (SQL → AST → JSON → AST → SQL) ==========
+
+/// Full round-trip helper: parse SQL → AST → JSON → AST → format SQL → re-parse → compare ASTs.
+fn roundtrip_cursor(sql: &str) {
+    let tokens = Tokenizer::new(sql).tokenize().unwrap();
+    let stmts = Parser::new(tokens).parse();
+
+    let json = serde_json::to_string(&stmts).unwrap();
+    let restored: Vec<Statement> = serde_json::from_str(&json).unwrap();
+
+    let formatter = SqlFormatter::new();
+    let output: Vec<String> = restored
+        .iter()
+        .map(|s| formatter.format_statement(s))
+        .collect();
+    let result_sql = output.join(";\n");
+
+    let tokens2 = Tokenizer::new(&result_sql).tokenize().unwrap();
+    let stmts2 = Parser::new(tokens2).parse();
+    assert_eq!(stmts, stmts2, "Round-trip failed for: {}", sql);
+}
+
+#[test]
+fn test_cursor_roundtrip_declare() {
+    let cases = vec![
+        "DECLARE cur CURSOR FOR SELECT * FROM t",
+        "DECLARE cur BINARY SCROLL CURSOR WITH HOLD FOR SELECT id FROM users",
+        "DECLARE cur NO SCROLL INSENSITIVE CURSOR WITHOUT HOLD FOR SELECT 1",
+        "DECLARE cur CURSOR WITH RETURN TO CALLER FOR SELECT * FROM t",
+        "DECLARE cur SCROLL CURSOR WITHOUT RETURN TO CLIENT FOR SELECT id FROM t",
+    ];
+    for sql in cases {
+        roundtrip_cursor(sql);
+    }
+}
+
+#[test]
+fn test_cursor_roundtrip_fetch_move() {
+    let cases = vec![
+        "FETCH NEXT FROM cur1",
+        "FETCH FORWARD 5 FROM cur1",
+        "FETCH ALL FROM cur1",
+        "FETCH PRIOR FROM cur1",
+        "FETCH ABSOLUTE 10 FROM cur1",
+        "MOVE NEXT FROM cur1",
+        "MOVE FORWARD 5 IN cur1",
+        "MOVE ALL FROM cur1",
+    ];
+    for sql in cases {
+        roundtrip_cursor(sql);
+    }
+}
+
+#[test]
+fn test_cursor_roundtrip_close() {
+    let cases = vec!["CLOSE cur1", "CLOSE ALL"];
+    for sql in cases {
+        roundtrip_cursor(sql);
+    }
+}
+
+#[test]
+fn test_cursor_roundtrip_current_of() {
+    let cases = vec![
+        "UPDATE t SET x = 1 WHERE CURRENT OF cur",
+        "DELETE FROM t WHERE CURRENT OF cur",
+    ];
+    for sql in cases {
+        roundtrip_cursor(sql);
+    }
+}
+
+fn parse_with_errors(sql: &str) -> (Vec<Statement>, Vec<ParserError>) {
+    let tokens = Tokenizer::new(sql).tokenize().unwrap();
+    let mut parser = Parser::new(tokens);
+    let stmts = parser.parse();
+    let reserved_errors: Vec<_> = parser
+        .errors()
+        .iter()
+        .filter(|e| matches!(e, ParserError::ReservedKeywordAsIdentifier { .. }))
+        .cloned()
+        .collect();
+    (stmts, reserved_errors)
+}
+
+#[test]
+fn test_merge_insert_qualified_columns_standalone() {
+    let sql = "MERGE INTO t1 USING t2 ON t1.id = t2.id WHEN MATCHED THEN UPDATE SET t1.val = t2.val WHEN NOT MATCHED THEN INSERT (t1.organ_id, t1.acnt_type) VALUES (t2.organ_id, t2.acnt_type)";
+    let (stmts, errors) = parse_with_errors(sql);
+    assert!(!stmts.is_empty(), "MERGE should produce an AST");
+    assert!(
+        errors.is_empty(),
+        "MERGE INSERT with qualified column names should not produce reserved keyword errors, got: {:?}",
+        errors
+    );
+    match &stmts[0] {
+        Statement::Merge(m) => {
+            assert_eq!(m.when_clauses.len(), 2, "Should have 2 WHEN clauses");
+        }
+        _ => panic!("Expected Merge statement, got: {:?}", stmts[0]),
+    }
+}
+
+#[test]
+fn test_merge_insert_qualified_columns_in_procedure() {
+    let sql = "CREATE OR REPLACE PROCEDURE test_merge(p_o_code OUT VARCHAR2) IS\n\
+               BEGIN\n\
+               MERGE INTO t1 USING t2 ON t1.id = t2.id\n\
+               WHEN MATCHED THEN\n\
+                 UPDATE SET t1.a = t2.a\n\
+               WHEN NOT MATCHED THEN\n\
+                 INSERT (t1.organ_id) VALUES (t2.organ_id);\n\
+               p_o_code := '0';\n\
+               END";
+    let (stmts, errors) = parse_with_errors(sql);
+    assert!(!stmts.is_empty(), "Procedure should produce an AST");
+    assert!(
+        errors.is_empty(),
+        "MERGE WHEN/THEN/NOT in PL/pgSQL should not produce reserved keyword errors, got: {:?}",
+        errors
+    );
+}
+
+#[test]
+fn test_merge_insert_qualified_columns_in_procedure_with_subquery() {
+    let sql =
+        "CREATE OR REPLACE PROCEDURE test_merge(p_i_node VARCHAR2, p_o_code OUT VARCHAR2) IS\n\
+               v_count NUMBER;\n\
+               BEGIN\n\
+               MERGE INTO par_sys_organ_tree_acnt t1\n\
+               USING (SELECT a.organ_id FROM par_sys_organ_tree a WHERE a.node = p_i_node) t2\n\
+               ON (t1.organ_id = t2.organ_id)\n\
+               WHEN MATCHED THEN\n\
+                 UPDATE SET t1.acnt_type = t2.acnt_type, t1.acnt_id = t2.acnt_id\n\
+               WHEN NOT MATCHED THEN\n\
+                 INSERT (t1.organ_id, t1.acnt_type, t1.acnt_id)\n\
+                 VALUES (t2.organ_id, t2.acnt_type, t2.acnt_id);\n\
+               p_o_code := '0';\n\
+               EXCEPTION\n\
+                 WHEN OTHERS THEN\n\
+                   p_o_code := '1';\n\
+               END";
+    let (stmts, errors) = parse_with_errors(sql);
+    assert!(!stmts.is_empty(), "Procedure should produce an AST");
+    assert!(
+        errors.is_empty(),
+        "Full MERGE in procedure should not produce reserved keyword errors, got: {:?}",
+        errors
+    );
+}
+
+#[test]
+fn test_merge_insert_simple_columns_still_works() {
+    let sql = "MERGE INTO t1 USING t2 ON t1.id = t2.id WHEN NOT MATCHED THEN INSERT (organ_id, acnt_type) VALUES (t2.organ_id, t2.acnt_type)";
+    let (stmts, errors) = parse_with_errors(sql);
+    assert!(!stmts.is_empty());
+    assert!(
+        errors.is_empty(),
+        "Simple column names should work fine, got: {:?}",
+        errors
+    );
+}
+
+#[test]
+fn test_merge_insert_no_columns_still_works() {
+    let sql = "MERGE INTO t1 USING t2 ON t1.id = t2.id WHEN NOT MATCHED THEN INSERT VALUES (t2.id, t2.val)";
+    let (stmts, errors) = parse_with_errors(sql);
+    assert!(!stmts.is_empty());
+    assert!(
+        errors.is_empty(),
+        "INSERT without column list should work, got: {:?}",
+        errors
+    );
+}
+
+#[test]
+fn test_merge_multiple_when_clauses_with_delete() {
+    let sql = "MERGE INTO t1 USING t2 ON t1.id = t2.id WHEN MATCHED THEN UPDATE SET t1.val = t2.val WHEN MATCHED AND t1.val IS NULL THEN DELETE";
+    let (stmts, errors) = parse_with_errors(sql);
+    assert!(!stmts.is_empty());
+    let when_then_errors: Vec<_> = errors
+        .iter()
+        .filter(|e| {
+            let s = e.to_string();
+            s.contains("\"when\"") || s.contains("\"then\"")
+        })
+        .collect();
+    assert!(
+        when_then_errors.is_empty(),
+        "WHEN/THEN should not be flagged as reserved keyword misuse: {:?}",
+        when_then_errors
+    );
+}
+
+#[test]
+fn test_reserved_keyword_misuse_still_detected_after_merge_fix() {
+    let sql = "SELECT * FROM select";
+    let (stmts, errors) = parse_with_errors(sql);
+    assert!(!stmts.is_empty(), "Should still produce AST (soft error)");
+    assert!(
+        !errors.is_empty(),
+        "Using reserved keyword 'select' as table name should still be caught"
+    );
+    assert!(errors[0].to_string().contains("select"));
 }

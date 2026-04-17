@@ -17,6 +17,7 @@ impl Parser {
 
         let mut columns = Vec::new();
         let mut constraints = Vec::new();
+        let mut like_clauses = Vec::new();
 
         loop {
             if self.match_keyword(Keyword::CONSTRAINT)
@@ -26,6 +27,9 @@ impl Parser {
                 || self.match_keyword(Keyword::FOREIGN)
             {
                 constraints.push(self.parse_table_constraint()?);
+            } else if self.match_keyword(Keyword::LIKE) {
+                self.advance();
+                like_clauses.push(self.parse_like_clause()?);
             } else {
                 columns.push(self.parse_column_def()?);
             }
@@ -47,6 +51,7 @@ impl Parser {
         let mut tablespace = None;
         let mut on_commit = None;
         let mut options = Vec::new();
+        let mut table_options = Vec::new();
         let mut compress = None;
         let mut ilm = None;
         let mut row_movement = None;
@@ -392,10 +397,7 @@ impl Parser {
                         }
                         Token::Keyword(kw) => {
                             self.advance();
-                            format!("{:?}", kw)
-                                .to_lowercase()
-                                .trim_end_matches("_p")
-                                .to_string()
+                            kw.as_str().to_string()
                         }
                         _ => {
                             return Err(ParserError::UnexpectedToken {
@@ -469,6 +471,132 @@ impl Parser {
                 self.advance();
                 self.expect_keyword(Keyword::GROUP_P)?;
                 to_group = Some(self.parse_identifier()?);
+            } else if self.match_keyword(Keyword::TABLE) {
+                self.advance();
+                self.expect_keyword(Keyword::OPTION)?;
+                self.expect_token(&Token::LParen)?;
+                loop {
+                    let key = self.parse_identifier()?;
+                    if self.match_token(&Token::Eq) {
+                        self.advance();
+                    }
+                    let val = match self.peek().clone() {
+                        Token::StringLiteral(s) => {
+                            self.advance();
+                            s
+                        }
+                        Token::Ident(s) => {
+                            self.advance();
+                            s
+                        }
+                        Token::Integer(n) => {
+                            self.advance();
+                            n.to_string()
+                        }
+                        Token::Keyword(kw) => {
+                            self.advance();
+                            kw.as_str().to_string()
+                        }
+                        _ => {
+                            return Err(ParserError::UnexpectedToken {
+                                location: self.current_location(),
+                                expected: "option value".to_string(),
+                                got: format!("{:?}", self.peek()),
+                            });
+                        }
+                    };
+                    table_options.push((key, val));
+                    if !self.match_token(&Token::Comma) {
+                        break;
+                    }
+                    self.advance();
+                }
+                self.expect_token(&Token::RParen)?;
+            } else if self.match_keyword(Keyword::COMMENT) {
+                self.advance();
+                if self.match_token(&Token::Eq) {
+                    self.advance();
+                }
+                match self.peek().clone() {
+                    Token::StringLiteral(s) => {
+                        self.advance();
+                        table_options.push(("COMMENT".to_string(), s));
+                    }
+                    _ => {
+                        return Err(ParserError::UnexpectedToken {
+                            location: self.current_location(),
+                            expected: "string literal".to_string(),
+                            got: format!("{:?}", self.peek()),
+                        });
+                    }
+                }
+            } else if self.match_keyword(Keyword::DEFAULT) && {
+                // Lookahead: DEFAULT CHARACTER SET or DEFAULT COLLATE
+                let pos = self.pos;
+                self.advance();
+                let is_charset =
+                    self.match_keyword(Keyword::CHARACTER) || self.match_keyword(Keyword::CHARSET);
+                let is_collate = self.match_keyword(Keyword::COLLATE);
+                self.pos = pos;
+                is_charset || is_collate
+            } {
+                self.advance(); // consumed DEFAULT
+                if self.match_keyword(Keyword::CHARACTER) {
+                    self.advance();
+                    if self.match_keyword(Keyword::SET) {
+                        self.advance();
+                    }
+                    if self.match_token(&Token::Eq) {
+                        self.advance();
+                    }
+                    let val = self.parse_identifier()?;
+                    table_options.push(("CHARACTER SET".to_string(), val));
+                } else if self.match_keyword(Keyword::CHARSET) {
+                    self.advance();
+                    if self.match_token(&Token::Eq) {
+                        self.advance();
+                    }
+                    let val = self.parse_identifier()?;
+                    table_options.push(("CHARSET".to_string(), val));
+                } else if self.match_keyword(Keyword::COLLATE) {
+                    self.advance();
+                    if self.match_token(&Token::Eq) {
+                        self.advance();
+                    }
+                    let val = self.parse_identifier()?;
+                    table_options.push(("COLLATE".to_string(), val));
+                }
+            } else if self.match_keyword(Keyword::CHARACTER) {
+                self.advance();
+                if self.match_keyword(Keyword::SET) {
+                    self.advance();
+                }
+                if self.match_token(&Token::Eq) {
+                    self.advance();
+                }
+                let val = self.parse_identifier()?;
+                table_options.push(("CHARACTER SET".to_string(), val));
+            } else if self.match_keyword(Keyword::CHARSET) {
+                self.advance();
+                if self.match_token(&Token::Eq) {
+                    self.advance();
+                }
+                let val = self.parse_identifier()?;
+                table_options.push(("CHARSET".to_string(), val));
+            } else if self.match_keyword(Keyword::COLLATE) {
+                self.advance();
+                if self.match_token(&Token::Eq) {
+                    self.advance();
+                }
+                let val = self.parse_identifier()?;
+                table_options.push(("COLLATE".to_string(), val));
+            } else if self.match_keyword(Keyword::ENCRYPTION) {
+                self.advance();
+                if self.match_keyword(Keyword::COLUMN) {
+                    self.advance();
+                }
+                let spec = self.parse_identifier()?;
+                table_options.push(("ENCRYPTION COLUMN".to_string(), spec));
             } else {
                 break;
             }
@@ -481,6 +609,7 @@ impl Parser {
             name,
             columns,
             constraints,
+            like_clauses,
             inherits,
             partition_by,
             subpartition_by,
@@ -490,6 +619,7 @@ impl Parser {
             tablespace,
             on_commit,
             options,
+            table_options,
             compress,
             ilm,
             row_movement,
@@ -578,6 +708,57 @@ impl Parser {
         false
     }
 
+    fn parse_like_clause(&mut self) -> Result<LikeClause, ParserError> {
+        let source_table = self.parse_object_name()?;
+        let mut options = Vec::new();
+        loop {
+            let is_including = if self.match_keyword(Keyword::INCLUDING) {
+                self.advance();
+                true
+            } else if self.match_keyword(Keyword::EXCLUDING) {
+                self.advance();
+                false
+            } else {
+                break;
+            };
+            let option_name = if self.match_keyword(Keyword::DEFAULTS) {
+                self.advance();
+                "DEFAULTS".to_string()
+            } else if self.match_keyword(Keyword::CONSTRAINTS) {
+                self.advance();
+                "CONSTRAINTS".to_string()
+            } else if self.match_keyword(Keyword::INDEXES) {
+                self.advance();
+                "INDEXES".to_string()
+            } else if self.match_keyword(Keyword::STORAGE) {
+                self.advance();
+                "STORAGE".to_string()
+            } else if self.match_keyword(Keyword::COMMENTS) {
+                self.advance();
+                "COMMENTS".to_string()
+            } else if self.match_keyword(Keyword::PARTITION) {
+                self.advance();
+                "PARTITION".to_string()
+            } else if self.match_keyword(Keyword::RELOPTIONS) {
+                self.advance();
+                "RELOPTIONS".to_string()
+            } else if self.match_keyword(Keyword::DISTRIBUTION) {
+                self.advance();
+                "DISTRIBUTION".to_string()
+            } else if self.match_keyword(Keyword::ALL) {
+                self.advance();
+                "ALL".to_string()
+            } else {
+                break;
+            };
+            options.push((is_including, option_name));
+        }
+        Ok(LikeClause {
+            source_table,
+            options,
+        })
+    }
+
     pub(crate) fn parse_column_def(&mut self) -> Result<ColumnDef, ParserError> {
         let name = self.parse_identifier()?;
         let data_type = self.parse_data_type()?;
@@ -598,9 +779,81 @@ impl Parser {
             None
         };
 
+        let mut charset = None;
+        let mut collate = None;
+
+        if self.match_keyword(Keyword::CHARACTER) || self.match_keyword(Keyword::CHARSET) {
+            let is_charset_keyword = self.match_keyword(Keyword::CHARSET);
+            self.advance();
+            if !is_charset_keyword && self.match_keyword(Keyword::SET) {
+                self.advance();
+            }
+            if self.match_token(&Token::Eq) {
+                self.advance();
+            }
+            charset = Some(self.parse_identifier()?);
+        }
+
+        if self.match_keyword(Keyword::COLLATE) {
+            self.advance();
+            if self.match_token(&Token::Eq) {
+                self.advance();
+            }
+            collate = Some(self.parse_identifier()?);
+        }
+
         let mut constraints = Vec::new();
         while let Some(constraint) = self.try_parse_column_constraint()? {
             constraints.push(constraint);
+        }
+
+        if charset.is_none()
+            && (self.match_keyword(Keyword::CHARACTER) || self.match_keyword(Keyword::CHARSET))
+        {
+            let is_charset_keyword = self.match_keyword(Keyword::CHARSET);
+            self.advance();
+            if !is_charset_keyword && self.match_keyword(Keyword::SET) {
+                self.advance();
+            }
+            if self.match_token(&Token::Eq) {
+                self.advance();
+            }
+            charset = Some(self.parse_identifier()?);
+        }
+
+        if collate.is_none() && self.match_keyword(Keyword::COLLATE) {
+            self.advance();
+            if self.match_token(&Token::Eq) {
+                self.advance();
+            }
+            collate = Some(self.parse_identifier()?);
+        }
+
+        let mut on_update = None;
+        if self.match_keyword(Keyword::ON) {
+            let pos = self.pos;
+            self.advance();
+            if self.match_keyword(Keyword::UPDATE) {
+                self.advance();
+                let expr = if self.match_keyword(Keyword::CURRENT_TIMESTAMP) {
+                    self.advance();
+                    "CURRENT_TIMESTAMP".to_string()
+                } else if self.match_ident_str("LOCALTIMESTAMP") {
+                    self.advance();
+                    "LOCALTIMESTAMP".to_string()
+                } else if self.match_ident_str("NOW") {
+                    self.advance();
+                    self.expect_token(&Token::LParen)?;
+                    self.advance();
+                    self.expect_token(&Token::RParen)?;
+                    "NOW()".to_string()
+                } else {
+                    self.parse_identifier()?
+                };
+                on_update = Some(expr);
+            } else {
+                self.pos = pos;
+            }
         }
 
         Ok(ColumnDef {
@@ -608,6 +861,9 @@ impl Parser {
             data_type,
             constraints,
             compress_mode,
+            charset,
+            collate,
+            on_update,
         })
     }
 

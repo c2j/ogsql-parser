@@ -184,7 +184,7 @@ impl Parser {
                 Ok(Some(v))
             }
             Token::Keyword(kw) => {
-                let v = format!("{:?}", kw).to_lowercase();
+                let v = kw.as_str().to_string();
                 self.advance();
                 Ok(Some(v))
             }
@@ -776,6 +776,7 @@ impl Parser {
             kind: TransactionKind::Begin,
             modes,
             savepoint_name: None,
+            transaction_id: None,
         })
     }
 
@@ -790,6 +791,7 @@ impl Parser {
             kind: TransactionKind::Commit,
             modes: vec![],
             savepoint_name: None,
+            transaction_id: None,
         })
     }
 
@@ -816,6 +818,7 @@ impl Parser {
             kind: TransactionKind::Rollback,
             modes: vec![],
             savepoint_name,
+            transaction_id: None,
         })
     }
 
@@ -825,6 +828,7 @@ impl Parser {
             kind: TransactionKind::Savepoint,
             modes: vec![],
             savepoint_name: Some(name),
+            transaction_id: None,
         })
     }
 
@@ -835,6 +839,7 @@ impl Parser {
             kind: TransactionKind::ReleaseSavepoint,
             modes: vec![],
             savepoint_name: Some(name),
+            transaction_id: None,
         })
     }
 

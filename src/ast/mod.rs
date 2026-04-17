@@ -15,6 +15,8 @@ pub struct CreateTableStatement {
     pub name: ObjectName,
     pub columns: Vec<ColumnDef>,
     pub constraints: Vec<TableConstraint>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub like_clauses: Vec<LikeClause>,
     pub inherits: Vec<ObjectName>,
     pub partition_by: Option<PartitionClause>,
     pub subpartition_by: Option<PartitionClause>,
@@ -24,9 +26,22 @@ pub struct CreateTableStatement {
     pub tablespace: Option<String>,
     pub on_commit: Option<OnCommitAction>,
     pub options: Vec<(String, String)>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub table_options: Vec<(String, String)>,
     pub compress: Option<bool>,
     pub ilm: Option<IlmPolicy>,
     pub row_movement: Option<bool>,
+}
+
+/// LIKE source_table clause inside CREATE TABLE column list.
+/// Syntax: `LIKE source_table [like_option ...]`
+/// like_option: `{ INCLUDING | EXCLUDING } { DEFAULTS | CONSTRAINTS | INDEXES | STORAGE | COMMENTS | PARTITION | RELOPTIONS | DISTRIBUTION | ALL }`
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct LikeClause {
+    pub source_table: ObjectName,
+    /// Each option is (is_including, option_name).
+    /// is_including: true = INCLUDING, false = EXCLUDING
+    pub options: Vec<(bool, String)>,
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -81,8 +96,16 @@ pub enum OnCommitAction {
 pub struct ColumnDef {
     pub name: String,
     pub data_type: DataType,
+    #[serde(default)]
     pub constraints: Vec<ColumnConstraint>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub compress_mode: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub charset: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub collate: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub on_update: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -368,6 +391,51 @@ pub enum AlterTableAction {
     IlmEnablePolicy,
     IlmDisablePolicy,
     IlmDeletePolicy,
+    // Multi-column MODIFY
+    ModifyColumns(Vec<ModifyColumnInfo>),
+    // Multi-column ADD
+    AddColumns(Vec<ColumnDef>),
+    // Statistics operations
+    StatisticsOp {
+        op: StatisticsOpKind,
+        columns: Vec<String>,
+    },
+    // ALTER COLUMN ... SET STATISTICS [PERCENT] integer
+    AlterColumnStatistics {
+        column: String,
+        percent: bool,
+        value: i64,
+    },
+    // ALTER COLUMN ... SET STORAGE { PLAIN | EXTERNAL | EXTENDED | MAIN }
+    AlterColumnStorage {
+        column: String,
+        storage: String,
+    },
+    // GSIWAITALL
+    GsiWaitAll,
+    // ENCRYPTION KEY ROTATION
+    EncryptionKeyRotation,
+    // ENABLE/DISABLE RULE
+    SetRule {
+        enable: bool,
+        mode: Option<String>,
+        name: String,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct ModifyColumnInfo {
+    pub name: String,
+    pub data_type: DataType,
+    pub nullability: Option<bool>,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub enum StatisticsOpKind {
+    Add,
+    Delete,
+    Enable,
+    Disable,
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -471,6 +539,7 @@ pub enum ObjectType {
     OpClass,
     OpFamily,
     Type,
+    Package,
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -721,6 +790,40 @@ pub enum Statement {
     GrantRole(GrantRoleStatement),
     RevokeRole(RevokeRoleStatement),
     Analyze(AnalyzeStatement),
+    Abort,
+    Values(ValuesStatement),
+    ExecuteDirect(ExecuteDirectStatement),
+    AlterSynonym(AlterSynonymStatement),
+    AlterTextSearchConfig(AlterTextSearchConfigStatement),
+    AlterTextSearchDict(AlterTextSearchDictStatement),
+    AlterCoordinator(AlterCoordinatorStatement),
+    AlterAppWorkloadGroupMapping(AlterAppWorkloadGroupMappingStatement),
+    AlterDatabaseLink(AlterDatabaseLinkStatement),
+    AlterDirectory(AlterDirectoryStatement),
+    AlterLanguage(AlterLanguageStatement),
+    AlterLargeObject(AlterLargeObjectStatement),
+    AlterPackage(AlterPackageStatement),
+    AlterSession(AlterSessionStatement),
+    AlterSystemKillSession(AlterSystemKillSessionStatement),
+    CreateLanguage(CreateLanguageStatement),
+    CreateWeakPasswordDictionaryWithValues(CreateWeakPasswordDictStatement),
+    PredictBy(PredictByStatement),
+    Replace(InsertStatement),
+    Move(MoveStatement),
+    LockBuckets(LockBucketsStatement),
+    MarkBuckets(MarkBucketsStatement),
+    SetSessionAuthorization(SetSessionAuthorizationStatement),
+    CreateAppWorkloadGroupMapping(CreateAppWorkloadGroupMappingStatement),
+    DropAppWorkloadGroupMapping(DropAppWorkloadGroupMappingStatement),
+    CreateTextSearchConfig(CreateTextSearchConfigStatement),
+    CreateTextSearchDict(CreateTextSearchDictStatement),
+    AlterTextSearchConfigFull(AlterTextSearchConfigFullStatement),
+    AlterTextSearchDictFull(AlterTextSearchDictFullStatement),
+    ExpdpDatabase(ExpdpDatabaseStatement),
+    ExpdpTable(ExpdpTableStatement),
+    ImpdpDatabase(ImpdpDatabaseStatement),
+    ImpdpTable(ImpdpTableStatement),
+    ReassignOwned(ReassignOwnedStatement),
     Empty,
 }
 
@@ -1017,6 +1120,10 @@ pub enum Expr {
         name: String,
         args: Vec<Expr>,
     },
+    /// WHERE CURRENT OF cursor_name — for positioned UPDATE/DELETE
+    CurrentOf {
+        cursor_name: String,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -1224,7 +1331,7 @@ pub enum MergeAction {
     Update(Vec<UpdateAssignment>),
     Delete,
     Insert {
-        columns: Vec<String>,
+        columns: Vec<ObjectName>,
         values: Vec<Expr>,
     },
 }
@@ -1234,6 +1341,8 @@ pub struct TransactionStatement {
     pub kind: TransactionKind,
     pub modes: Vec<TransactionMode>,
     pub savepoint_name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub transaction_id: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -1243,6 +1352,9 @@ pub enum TransactionKind {
     Rollback,
     Savepoint,
     ReleaseSavepoint,
+    PrepareTransaction,
+    CommitPrepared,
+    RollbackPrepared,
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -1367,12 +1479,19 @@ pub struct CreateViewStatement {
     pub columns: Vec<String>,
     pub query: Box<SelectStatement>,
     pub check_option: Option<CheckOption>,
+    pub security: Option<ViewSecurity>,
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum CheckOption {
     Local,
     Cascaded,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub enum ViewSecurity {
+    Barrier,
+    Invoker,
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -1547,6 +1666,8 @@ pub struct FunctionOptions {
     pub leakproof: Option<bool>,
     pub security: Option<SecurityMode>,
     pub parallel: Option<ParallelMode>,
+    pub fenced: Option<bool>,
+    pub shippable: Option<bool>,
     pub extra: String,
 }
 
@@ -1719,6 +1840,9 @@ pub enum GrantTarget {
     AllTablesInSchema(Vec<String>),
     AllFunctionsInSchema(Vec<String>),
     AllSequencesInSchema(Vec<String>),
+    Language(Vec<String>),
+    LargeObject(Vec<String>),
+    Type(Vec<ObjectName>),
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -1828,6 +1952,23 @@ pub struct PrepareStatement {
 pub struct ExecuteStatement {
     pub name: String,
     pub params: Vec<Expr>,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct ExecuteDirectStatement {
+    pub node_name: String,
+    pub query: String,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct ValuesStatement {
+    pub rows: Vec<Vec<Expr>>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub order_by: Vec<OrderByItem>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub limit: Option<Expr>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub offset: Option<Expr>,
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -1949,11 +2090,49 @@ pub enum AlterGlobalConfigAction {
 // ========== Wave 12: CURSOR / LISTEN / NOTIFY / RULE / CLUSTER / REINDEX ==========
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub enum CursorSensitivity {
+    Sensitive,
+    Insensitive,
+    Asensitive,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub enum CursorScrollability {
+    Default,
+    Scroll,
+    NoScroll,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub enum CursorHoldability {
+    Default,
+    WithHold,
+    WithoutHold,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub enum CursorReturnability {
+    Default,
+    WithReturn,
+    WithoutReturn,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub enum CursorReturnTo {
+    Default,
+    ToCaller,
+    ToClient,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct DeclareCursorStatement {
     pub name: String,
     pub binary: bool,
-    pub scroll: bool,
-    pub hold: bool,
+    pub sensitivity: CursorSensitivity,
+    pub scrollability: CursorScrollability,
+    pub holdability: CursorHoldability,
+    pub returnability: CursorReturnability,
+    pub return_to: CursorReturnTo,
     pub query: Box<SelectStatement>,
 }
 
@@ -1971,17 +2150,25 @@ pub enum FetchDirection {
     Last,
     Absolute(i64),
     Relative(i64),
+    Forward,
+    ForwardCount(i64),
     ForwardAll,
+    Backward,
+    BackwardCount(i64),
     BackwardAll,
-    Forward(i64),
-    Backward(i64),
     Count(i64),
     All,
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub enum CloseTarget {
+    Name(String),
+    All,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct ClosePortalStatement {
-    pub name: String,
+    pub target: CloseTarget,
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -2399,18 +2586,96 @@ pub struct AlterMaterializedViewStatement {
     pub raw_rest: String,
 }
 
+// ========== ALTER SYNONYM ==========
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct AlterSynonymStatement {
+    pub name: String,
+    pub action: AlterSynonymAction,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub enum AlterSynonymAction {
+    Compile { debug: bool },
+    OwnerTo { new_owner: String },
+}
+
+// ========== ALTER TEXT SEARCH CONFIGURATION ==========
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct AlterTextSearchConfigStatement {
+    pub name: ObjectName,
+    pub raw_rest: String,
+}
+
+// ========== ALTER TEXT SEARCH DICTIONARY ==========
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct AlterTextSearchDictStatement {
+    pub name: ObjectName,
+    pub options: Vec<(String, String)>,
+}
+
+// ========== ALTER COORDINATOR ==========
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct AlterCoordinatorStatement {
+    pub name: String,
+    pub raw_rest: String,
+}
+
+// ========== ALTER APP WORKLOAD GROUP MAPPING ==========
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct AlterAppWorkloadGroupMappingStatement {
+    pub name: String,
+    pub raw_rest: String,
+}
+
 // ========== Remaining stubs ==========
 
 stub_struct!(
     DropDatabaseStatement,
     DropTablespaceStatement,
     DropRuleStatement,
-    AlterDomainStatement,
     GetDiagStatement,
     ShowEventStatement,
     RemovePackageStatement,
     DropPolicyLabelStatement,
 );
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct AlterDomainStatement {
+    pub name: ObjectName,
+    pub action: AlterDomainAction,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub enum AlterDomainAction {
+    SetDefault {
+        expr: String,
+    },
+    DropDefault,
+    SetNotNull,
+    DropNotNull,
+    AddConstraint {
+        name: Option<String>,
+        check_expr: String,
+    },
+    DropConstraint {
+        name: String,
+        cascade: bool,
+    },
+    OwnerTo {
+        new_owner: String,
+    },
+    RenameTo {
+        new_name: String,
+    },
+    ValidateConstraint {
+        name: String,
+    },
+}
 
 // ========== Real implementations for 10 utility statements ==========
 
@@ -2534,4 +2799,182 @@ pub struct RevokeRoleStatement {
     pub grantees: Vec<String>,
     pub granted_by: Option<String>,
     pub cascade: bool,
+}
+
+// ========== ALTER DATABASE LINK / DIRECTORY / LANGUAGE / LARGE OBJECT / PACKAGE / SESSION / SYSTEM KILL SESSION ==========
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct AlterDatabaseLinkStatement {
+    pub name: String,
+    pub action: AlterDatabaseLinkAction,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub enum AlterDatabaseLinkAction {
+    ConnectTo {
+        user: String,
+        password: String,
+        connect_string: Option<String>,
+    },
+    RenameTo {
+        new_name: String,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct AlterDirectoryStatement {
+    pub name: String,
+    pub raw_rest: String,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct AlterLanguageStatement {
+    pub name: String,
+    pub action: AlterLanguageAction,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub enum AlterLanguageAction {
+    RenameTo(String),
+    OwnerTo(String),
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct AlterLargeObjectStatement {
+    pub oid: String,
+    pub new_owner: String,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct AlterPackageStatement {
+    pub name: String,
+    pub action: AlterPackageAction,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub enum AlterPackageAction {
+    Compile { debug: bool, reuse_settings: bool },
+    OwnerTo(String),
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct AlterSessionStatement {
+    pub action: AlterSessionAction,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub enum AlterSessionAction {
+    Set { parameter: String, value: String },
+    CloseDatabaseLink { name: String },
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct AlterSystemKillSessionStatement {
+    pub session_id: String,
+    pub immediate: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct CreateLanguageStatement {
+    pub name: String,
+    pub trusted: bool,
+    pub handler: Option<String>,
+    pub inline_func: Option<String>,
+    pub validator: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct CreateWeakPasswordDictStatement {
+    pub values: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct PredictByStatement {
+    pub model: String,
+    pub features: Vec<String>,
+    pub using_clause: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct MoveStatement {
+    pub direction: FetchDirection,
+    pub cursor_name: String,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct LockBucketsStatement {
+    pub raw_rest: String,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct MarkBucketsStatement {
+    pub raw_rest: String,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct SetSessionAuthorizationStatement {
+    pub user: Option<String>,
+    pub is_default: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct CreateAppWorkloadGroupMappingStatement {
+    pub name: String,
+    pub raw_rest: String,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct DropAppWorkloadGroupMappingStatement {
+    pub name: String,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct CreateTextSearchConfigStatement {
+    pub name: ObjectName,
+    pub parser_name: Option<ObjectName>,
+    pub raw_rest: String,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct CreateTextSearchDictStatement {
+    pub name: ObjectName,
+    pub options: Vec<(String, String)>,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct AlterTextSearchConfigFullStatement {
+    pub name: ObjectName,
+    pub raw_rest: String,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct AlterTextSearchDictFullStatement {
+    pub name: ObjectName,
+    pub options: Vec<(String, String)>,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct ExpdpDatabaseStatement {
+    pub raw_rest: String,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct ExpdpTableStatement {
+    pub raw_rest: String,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct ImpdpDatabaseStatement {
+    pub raw_rest: String,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct ImpdpTableStatement {
+    pub raw_rest: String,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct ReassignOwnedStatement {
+    pub old_role: String,
+    pub new_role: String,
 }

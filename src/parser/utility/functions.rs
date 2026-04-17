@@ -62,6 +62,8 @@ impl Parser {
                         leakproof: None,
                         security: None,
                         parallel: None,
+                        fenced: None,
+                        shippable: None,
                         extra: String::new(),
                     },
                 )
@@ -250,7 +252,7 @@ impl Parser {
                     if !type_name.is_empty() {
                         type_name.push(' ');
                     }
-                    type_name.push_str(&format!("{:?}", kw).to_lowercase().trim_end_matches("_p"));
+                    type_name.push_str(kw.as_str());
                     self.advance();
                 }
                 Token::LParen => {
@@ -314,40 +316,39 @@ impl Parser {
         Ok(type_name)
     }
 
-    pub(crate) fn token_to_string(&self) -> String {
+    pub(crate) fn token_to_string(&self) -> std::borrow::Cow<'static, str> {
+        use std::borrow::Cow;
         match self.peek() {
-            Token::Ident(s) => s.clone(),
-            Token::QuotedIdent(s) => format!("\"{}\"", s),
-            Token::Keyword(kw) => format!("{:?}", kw)
-                .to_lowercase()
-                .trim_end_matches("_p")
-                .to_string(),
-            Token::Integer(i) => i.to_string(),
-            Token::Float(f) => f.clone(),
-            Token::StringLiteral(s) => format!("'{}'", s),
-            Token::EscapeString(s) => format!("E'{}'", s),
-            Token::DollarString { body, .. } => format!("$$ {} $$", body),
-            Token::LParen => "(".to_string(),
-            Token::RParen => ")".to_string(),
-            Token::LBracket => "[".to_string(),
-            Token::RBracket => "]".to_string(),
-            Token::Comma => ",".to_string(),
-            Token::Dot => ".".to_string(),
-            Token::Semicolon => ";".to_string(),
-            Token::Colon => ":".to_string(),
-            Token::ColonEquals => ":=".to_string(),
-            Token::ParamEquals => "=>".to_string(),
-            Token::Op(s) => s.clone(),
-            Token::Param(n) => format!("${}", n),
-            Token::Star => "*".to_string(),
-            Token::Eq => "=".to_string(),
-            Token::Plus => "+".to_string(),
-            Token::Minus => "-".to_string(),
-            Token::Lt => "<".to_string(),
-            Token::Gt => ">".to_string(),
-            Token::Eof => String::new(),
-            Token::Hint(h) => format!("/*+ {} */", h),
-            _ => String::new(),
+            Token::Ident(s) => Cow::Owned(s.clone()),
+            Token::QuotedIdent(s) => Cow::Owned(format!("\"{}\"", s)),
+            Token::Keyword(kw) => Cow::Borrowed(kw.as_str()),
+            Token::Integer(i) => Cow::Owned(i.to_string()),
+            Token::Float(f) => Cow::Owned(f.clone()),
+            Token::StringLiteral(s) => Cow::Owned(format!("'{}'", s)),
+            Token::EscapeString(s) => Cow::Owned(format!("E'{}'", s)),
+            Token::DollarString { body, .. } => Cow::Owned(format!("$$ {} $$", body)),
+            Token::LParen => Cow::Borrowed("("),
+            Token::RParen => Cow::Borrowed(")"),
+            Token::LBracket => Cow::Borrowed("["),
+            Token::RBracket => Cow::Borrowed("]"),
+            Token::Comma => Cow::Borrowed(","),
+            Token::Dot => Cow::Borrowed("."),
+            Token::Semicolon => Cow::Borrowed(";"),
+            Token::Colon => Cow::Borrowed(":"),
+            Token::ColonEquals => Cow::Borrowed(":="),
+            Token::ParamEquals => Cow::Borrowed("=>"),
+            Token::Op(s) => Cow::Owned(s.clone()),
+            Token::Param(n) => Cow::Owned(format!("${}", n)),
+            Token::Star => Cow::Borrowed("*"),
+            Token::Eq => Cow::Borrowed("="),
+            Token::Plus => Cow::Borrowed("+"),
+            Token::Minus => Cow::Borrowed("-"),
+            Token::Lt => Cow::Borrowed("<"),
+            Token::Gt => Cow::Borrowed(">"),
+            Token::Percent => Cow::Borrowed("%"),
+            Token::Eof => Cow::Borrowed(""),
+            Token::Hint(h) => Cow::Owned(format!("/*+ {} */", h)),
+            _ => Cow::Borrowed(""),
         }
     }
 
@@ -362,6 +363,8 @@ impl Parser {
             leakproof: None,
             security: None,
             parallel: None,
+            fenced: None,
+            shippable: None,
             extra: String::new(),
         };
         let parts: Vec<&str> = raw.split_whitespace().collect();
@@ -445,6 +448,22 @@ impl Parser {
                 },
                 "NOT" if i + 1 < parts.len() && parts[i + 1].to_uppercase() == "LEAKPROOF" => {
                     opts.leakproof = Some(false);
+                    i += 2;
+                }
+                "FENCED" => {
+                    opts.fenced = Some(true);
+                    i += 1;
+                }
+                "NOT" if i + 1 < parts.len() && parts[i + 1].to_uppercase() == "FENCED" => {
+                    opts.fenced = Some(false);
+                    i += 2;
+                }
+                "SHIPPABLE" => {
+                    opts.shippable = Some(true);
+                    i += 1;
+                }
+                "NOT" if i + 1 < parts.len() && parts[i + 1].to_uppercase() == "SHIPPABLE" => {
+                    opts.shippable = Some(false);
                     i += 2;
                 }
                 _ => {
@@ -549,6 +568,8 @@ impl Parser {
                         leakproof: None,
                         security: None,
                         parallel: None,
+                        fenced: None,
+                        shippable: None,
                         extra: String::new(),
                     },
                 )
@@ -645,16 +666,30 @@ impl Parser {
     pub(crate) fn parse_package_body_items(&mut self) -> (Vec<PackageItem>, String) {
         let mut items = Vec::new();
         let mut raw_parts: Vec<String> = Vec::new();
+        let mut depth = 0i32;
 
         loop {
             match self.peek() {
                 Token::Eof => break,
-                Token::Keyword(Keyword::END_P) => {
+                Token::Keyword(Keyword::BEGIN_P) => {
+                    depth += 1;
+                    let tok_str = self.token_to_string();
+                    raw_parts.push(tok_str.into_owned());
                     self.advance();
-                    while matches!(self.peek(), Token::Ident(_) | Token::Keyword(_)) {
+                }
+                Token::Keyword(Keyword::END_P) => {
+                    if depth > 0 {
+                        depth -= 1;
+                        let tok_str = self.token_to_string();
+                        raw_parts.push(tok_str.into_owned());
                         self.advance();
+                    } else {
+                        self.advance();
+                        while matches!(self.peek(), Token::Ident(_) | Token::Keyword(_)) {
+                            self.advance();
+                        }
+                        break;
                     }
-                    break;
                 }
                 Token::Keyword(Keyword::PROCEDURE) => {
                     let start_pos = self.pos;
@@ -694,7 +729,7 @@ impl Parser {
                 }
                 _ => {
                     let tok_str = self.token_to_string();
-                    raw_parts.push(tok_str);
+                    raw_parts.push(tok_str.into_owned());
                     self.advance();
                 }
             }
@@ -704,15 +739,25 @@ impl Parser {
     }
 
     pub(crate) fn tokens_to_raw_string(&self, start: usize, end: usize) -> String {
+        // Fast path: slice from source text using token spans
+        if !self.source.is_empty() && start < end && start < self.tokens.len() {
+            let byte_start = self.tokens[start].span.start;
+            let end_idx = (end - 1).min(self.tokens.len().saturating_sub(1));
+            let byte_end = self.tokens[end_idx].span.end;
+            let source = &self.source;
+            let byte_start = byte_start.min(source.len());
+            let byte_end = byte_end.min(source.len());
+            if byte_start < byte_end {
+                return source[byte_start..byte_end].trim().to_string();
+            }
+        }
+        // Fallback: reconstruct from tokens (used when source is empty)
         self.tokens[start..end]
             .iter()
             .map(|t| match &t.token {
                 Token::Ident(s) => s.clone(),
                 Token::QuotedIdent(s) => format!("\"{}\"", s),
-                Token::Keyword(kw) => format!("{:?}", kw)
-                    .to_lowercase()
-                    .trim_end_matches("_p")
-                    .to_string(),
+                Token::Keyword(kw) => kw.as_str().to_string(),
                 Token::Integer(i) => i.to_string(),
                 Token::Float(f) => f.clone(),
                 Token::StringLiteral(s) => format!("'{}'", s),
@@ -809,7 +854,10 @@ impl Parser {
 
         let return_type = if self.match_keyword(Keyword::RETURN) {
             self.advance();
-            Some(self.parse_identifier().unwrap_or_default())
+            match self.parse_object_name() {
+                Ok(parts) => Some(parts.join(".")),
+                Err(_) => Some(self.parse_identifier().unwrap_or_default()),
+            }
         } else {
             None
         };
@@ -1064,7 +1112,7 @@ impl Parser {
                     if !name.is_empty() {
                         name.push(' ');
                     }
-                    name.push_str(&format!("{:?}", kw).trim_end_matches("_P").to_lowercase());
+                    name.push_str(kw.as_str());
                     self.advance();
                 }
                 Token::LParen => {

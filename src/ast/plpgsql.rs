@@ -392,11 +392,19 @@ pub struct PlOpenStmt {
 pub enum PlOpenKind {
     /// OPEN cursor [([args])]
     Simple { arguments: Vec<crate::ast::Expr> },
-    /// OPEN cursor FOR query
+    /// OPEN cursor [NO] SCROLL FOR query
     ForQuery {
+        #[serde(skip_serializing_if = "Option::is_none")]
+        scroll: Option<bool>,
         query: String,
         #[serde(skip_serializing_if = "Option::is_none")]
         parsed_query: Option<Box<crate::ast::Statement>>,
+    },
+    /// OPEN cursor FOR EXECUTE query_string [USING expr, ...]
+    ForExecute {
+        query: crate::ast::Expr,
+        #[serde(skip_serializing_if = "Vec::is_empty")]
+        using_args: Vec<crate::ast::Expr>,
     },
     /// OPEN cursor FOR USING expr, ...
     ForUsing { expressions: Vec<crate::ast::Expr> },
@@ -409,10 +417,12 @@ pub enum FetchDirection {
     Prior,
     First,
     Last,
-    Forward,
-    Backward,
-    Absolute,
-    Relative,
+    Absolute(i64),
+    Relative(i64),
+    Forward(Option<i64>),  // None = bare FORWARD
+    Backward(Option<i64>), // None = bare BACKWARD
+    ForwardAll,
+    BackwardAll,
     All,
 }
 
@@ -423,10 +433,14 @@ impl fmt::Display for FetchDirection {
             FetchDirection::Prior => write!(f, "PRIOR"),
             FetchDirection::First => write!(f, "FIRST"),
             FetchDirection::Last => write!(f, "LAST"),
-            FetchDirection::Forward => write!(f, "FORWARD"),
-            FetchDirection::Backward => write!(f, "BACKWARD"),
-            FetchDirection::Absolute => write!(f, "ABSOLUTE"),
-            FetchDirection::Relative => write!(f, "RELATIVE"),
+            FetchDirection::Absolute(n) => write!(f, "ABSOLUTE {}", n),
+            FetchDirection::Relative(n) => write!(f, "RELATIVE {}", n),
+            FetchDirection::Forward(None) => write!(f, "FORWARD"),
+            FetchDirection::Forward(Some(n)) => write!(f, "FORWARD {}", n),
+            FetchDirection::Backward(None) => write!(f, "BACKWARD"),
+            FetchDirection::Backward(Some(n)) => write!(f, "BACKWARD {}", n),
+            FetchDirection::ForwardAll => write!(f, "FORWARD ALL"),
+            FetchDirection::BackwardAll => write!(f, "BACKWARD ALL"),
             FetchDirection::All => write!(f, "ALL"),
         }
     }

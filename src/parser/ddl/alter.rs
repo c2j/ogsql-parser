@@ -40,7 +40,22 @@ impl Parser {
         match self.peek_keyword() {
             Some(Keyword::ADD_P) => {
                 self.advance();
-                if self.match_keyword(Keyword::PARTITION) {
+                if self.match_token(&Token::LParen) {
+                    self.advance();
+                    let mut cols = Vec::new();
+                    loop {
+                        cols.push(self.parse_column_def()?);
+                        if !self.match_token(&Token::Comma) {
+                            break;
+                        }
+                        self.advance();
+                    }
+                    self.expect_token(&Token::RParen)?;
+                    Ok(AlterTableAction::AddColumns(cols))
+                } else if self.match_keyword(Keyword::STATISTICS) {
+                    self.advance();
+                    self.parse_statistics_columns(StatisticsOpKind::Add)
+                } else if self.match_keyword(Keyword::PARTITION) {
                     self.advance();
                     let name = self.parse_identifier()?;
                     let values = self.parse_partition_values()?;
@@ -91,20 +106,40 @@ impl Parser {
                         } else {
                             None
                         };
-                        // Intercept UNIQUE USING INDEX pattern (two-token peek-ahead)
-                        if self.peek_keyword() == Some(Keyword::UNIQUE) {
-                            if self.tokens.get(self.pos + 1).map_or(false, |t| {
+                        // UNIQUE USING INDEX
+                        if self.peek_keyword() == Some(Keyword::UNIQUE)
+                            && self.tokens.get(self.pos + 1).map_or(false, |t| {
                                 matches!(t.token, Token::Keyword(Keyword::USING))
-                            }) {
-                                self.advance();
-                                self.advance();
-                                self.expect_keyword(Keyword::INDEX)?;
-                                let index_name = self.parse_identifier()?;
-                                return Ok(AlterTableAction::AddConstraintUsingIndex {
-                                    name: name.clone().unwrap_or_default(),
-                                    index_name,
-                                });
-                            }
+                            })
+                        {
+                            self.advance();
+                            self.advance();
+                            self.expect_keyword(Keyword::INDEX)?;
+                            let index_name = self.parse_identifier()?;
+                            return Ok(AlterTableAction::AddConstraintUsingIndex {
+                                name: name.clone().unwrap_or_default(),
+                                index_name,
+                            });
+                        }
+                        // PRIMARY KEY USING INDEX
+                        if self.peek_keyword() == Some(Keyword::PRIMARY)
+                            && self
+                                .tokens
+                                .get(self.pos + 1)
+                                .map_or(false, |t| matches!(t.token, Token::Keyword(Keyword::KEY)))
+                            && self.tokens.get(self.pos + 2).map_or(false, |t| {
+                                matches!(t.token, Token::Keyword(Keyword::USING))
+                            })
+                        {
+                            self.advance();
+                            self.advance();
+                            self.advance();
+                            self.expect_keyword(Keyword::INDEX)?;
+                            let index_name = self.parse_identifier()?;
+                            return Ok(AlterTableAction::AddConstraintUsingIndex {
+                                name: name.clone().unwrap_or_default(),
+                                index_name,
+                            });
                         }
                         let constraint = self.parse_table_constraint()?;
                         Ok(AlterTableAction::AddConstraint { name, constraint })
@@ -138,20 +173,40 @@ impl Parser {
                         } else {
                             None
                         };
-                        // Intercept UNIQUE USING INDEX pattern (two-token peek-ahead)
-                        if self.peek_keyword() == Some(Keyword::UNIQUE) {
-                            if self.tokens.get(self.pos + 1).map_or(false, |t| {
+                        // UNIQUE USING INDEX
+                        if self.peek_keyword() == Some(Keyword::UNIQUE)
+                            && self.tokens.get(self.pos + 1).map_or(false, |t| {
                                 matches!(t.token, Token::Keyword(Keyword::USING))
-                            }) {
-                                self.advance();
-                                self.advance();
-                                self.expect_keyword(Keyword::INDEX)?;
-                                let index_name = self.parse_identifier()?;
-                                return Ok(AlterTableAction::AddConstraintUsingIndex {
-                                    name: name.clone().unwrap_or_default(),
-                                    index_name,
-                                });
-                            }
+                            })
+                        {
+                            self.advance();
+                            self.advance();
+                            self.expect_keyword(Keyword::INDEX)?;
+                            let index_name = self.parse_identifier()?;
+                            return Ok(AlterTableAction::AddConstraintUsingIndex {
+                                name: name.clone().unwrap_or_default(),
+                                index_name,
+                            });
+                        }
+                        // PRIMARY KEY USING INDEX
+                        if self.peek_keyword() == Some(Keyword::PRIMARY)
+                            && self
+                                .tokens
+                                .get(self.pos + 1)
+                                .map_or(false, |t| matches!(t.token, Token::Keyword(Keyword::KEY)))
+                            && self.tokens.get(self.pos + 2).map_or(false, |t| {
+                                matches!(t.token, Token::Keyword(Keyword::USING))
+                            })
+                        {
+                            self.advance();
+                            self.advance();
+                            self.advance();
+                            self.expect_keyword(Keyword::INDEX)?;
+                            let index_name = self.parse_identifier()?;
+                            return Ok(AlterTableAction::AddConstraintUsingIndex {
+                                name: name.clone().unwrap_or_default(),
+                                index_name,
+                            });
                         }
                         let constraint = self.parse_table_constraint()?;
                         Ok(AlterTableAction::AddConstraint { name, constraint })
@@ -233,6 +288,32 @@ impl Parser {
                     self.advance();
                 }
                 let name = self.parse_identifier()?;
+                if self.match_keyword(Keyword::SET) {
+                    if self.tokens.get(self.pos + 1).map_or(false, |t| {
+                        matches!(t.token, Token::Keyword(Keyword::STATISTICS))
+                    }) {
+                        self.advance();
+                        self.expect_keyword(Keyword::STATISTICS)?;
+                        let percent = self.try_consume_keyword(Keyword::PERCENT);
+                        let value = self.parse_integer_literal()?;
+                        return Ok(AlterTableAction::AlterColumnStatistics {
+                            column: name,
+                            percent,
+                            value,
+                        });
+                    }
+                    if self.tokens.get(self.pos + 1).map_or(false, |t| {
+                        matches!(t.token, Token::Keyword(Keyword::STORAGE))
+                    }) {
+                        self.advance();
+                        self.expect_keyword(Keyword::STORAGE)?;
+                        let storage = self.parse_identifier()?;
+                        return Ok(AlterTableAction::AlterColumnStorage {
+                            column: name,
+                            storage,
+                        });
+                    }
+                }
                 let action = self.parse_alter_column_action()?;
                 Ok(AlterTableAction::AlterColumn { name, action })
             }
@@ -624,19 +705,51 @@ impl Parser {
             }
             Some(Keyword::MODIFY_P) => {
                 self.advance();
-                let name = self.parse_identifier()?;
-                let action = if self.match_keyword(Keyword::NOT) {
+                // Multi-column: MODIFY (col1 type1, col2 type2, ...)
+                if self.match_token(&Token::LParen) {
                     self.advance();
-                    self.expect_keyword(Keyword::NULL_P)?;
-                    AlterColumnAction::SetNotNull
-                } else if self.match_keyword(Keyword::NULL_P) {
-                    self.advance();
-                    AlterColumnAction::DropNotNull
+                    let mut cols = Vec::new();
+                    loop {
+                        let name = self.parse_identifier()?;
+                        let data_type = self.parse_data_type()?;
+                        let nullability = if self.match_keyword(Keyword::NOT) {
+                            self.advance();
+                            self.expect_keyword(Keyword::NULL_P)?;
+                            Some(false)
+                        } else if self.match_keyword(Keyword::NULL_P) {
+                            self.advance();
+                            Some(true)
+                        } else {
+                            None
+                        };
+                        cols.push(ModifyColumnInfo {
+                            name,
+                            data_type,
+                            nullability,
+                        });
+                        if !self.match_token(&Token::Comma) {
+                            break;
+                        }
+                        self.advance();
+                    }
+                    self.expect_token(&Token::RParen)?;
+                    Ok(AlterTableAction::ModifyColumns(cols))
                 } else {
-                    let data_type = self.parse_data_type()?;
-                    AlterColumnAction::SetDataType(data_type)
-                };
-                Ok(AlterTableAction::AlterColumn { name, action })
+                    // Single-column: MODIFY colname ...
+                    let name = self.parse_identifier()?;
+                    let action = if self.match_keyword(Keyword::NOT) {
+                        self.advance();
+                        self.expect_keyword(Keyword::NULL_P)?;
+                        AlterColumnAction::SetNotNull
+                    } else if self.match_keyword(Keyword::NULL_P) {
+                        self.advance();
+                        AlterColumnAction::DropNotNull
+                    } else {
+                        let data_type = self.parse_data_type()?;
+                        AlterColumnAction::SetDataType(data_type)
+                    };
+                    Ok(AlterTableAction::AlterColumn { name, action })
+                }
             }
             Some(Keyword::ENABLE_P) => {
                 self.advance();
@@ -660,8 +773,38 @@ impl Parser {
                             Some(self.parse_identifier()?)
                         };
                     Ok(AlterTableAction::EnableTrigger { name })
+                } else if self.match_keyword(Keyword::RULE) {
+                    self.advance();
+                    let name = self.parse_identifier()?;
+                    Ok(AlterTableAction::SetRule {
+                        enable: true,
+                        mode: None,
+                        name,
+                    })
+                } else if self.match_keyword(Keyword::STATISTICS) {
+                    self.advance();
+                    self.parse_statistics_columns(StatisticsOpKind::Enable)
                 } else {
-                    Ok(AlterTableAction::EnableRowLevelSecurity)
+                    let mode = if self.match_keyword(Keyword::REPLICA) {
+                        self.advance();
+                        Some("REPLICA".to_string())
+                    } else if self.match_keyword(Keyword::ALWAYS) {
+                        self.advance();
+                        Some("ALWAYS".to_string())
+                    } else {
+                        None
+                    };
+                    if self.match_keyword(Keyword::RULE) {
+                        self.advance();
+                        let name = self.parse_identifier()?;
+                        Ok(AlterTableAction::SetRule {
+                            enable: true,
+                            mode,
+                            name,
+                        })
+                    } else {
+                        Ok(AlterTableAction::EnableRowLevelSecurity)
+                    }
                 }
             }
             Some(Keyword::DISABLE_P) => {
@@ -686,8 +829,38 @@ impl Parser {
                             Some(self.parse_identifier()?)
                         };
                     Ok(AlterTableAction::DisableTrigger { name })
+                } else if self.match_keyword(Keyword::RULE) {
+                    self.advance();
+                    let name = self.parse_identifier()?;
+                    Ok(AlterTableAction::SetRule {
+                        enable: false,
+                        mode: None,
+                        name,
+                    })
+                } else if self.match_keyword(Keyword::STATISTICS) {
+                    self.advance();
+                    self.parse_statistics_columns(StatisticsOpKind::Disable)
                 } else {
-                    Ok(AlterTableAction::DisableRowLevelSecurity)
+                    let mode = if self.match_keyword(Keyword::REPLICA) {
+                        self.advance();
+                        Some("REPLICA".to_string())
+                    } else if self.match_keyword(Keyword::ALWAYS) {
+                        self.advance();
+                        Some("ALWAYS".to_string())
+                    } else {
+                        None
+                    };
+                    if self.match_keyword(Keyword::RULE) {
+                        self.advance();
+                        let name = self.parse_identifier()?;
+                        Ok(AlterTableAction::SetRule {
+                            enable: false,
+                            mode,
+                            name,
+                        })
+                    } else {
+                        Ok(AlterTableAction::DisableRowLevelSecurity)
+                    }
                 }
             }
             Some(Keyword::CHARSET) | Some(Keyword::CHARACTER) => {
@@ -866,6 +1039,21 @@ impl Parser {
                         got: format!("{:?}", self.peek()),
                     })
                 }
+            }
+            Some(Keyword::ENCRYPTION) => {
+                self.advance();
+                self.expect_keyword(Keyword::KEY)?;
+                self.expect_keyword(Keyword::ROTATION)?;
+                Ok(AlterTableAction::EncryptionKeyRotation)
+            }
+            _ if self.match_ident_str("GSIWAITALL") => {
+                self.advance();
+                Ok(AlterTableAction::GsiWaitAll)
+            }
+            Some(Keyword::DELETE_P) => {
+                self.advance();
+                self.expect_keyword(Keyword::STATISTICS)?;
+                self.parse_statistics_columns(StatisticsOpKind::Delete)
             }
             _ => Err(ParserError::UnexpectedToken {
                 location: self.current_location(),
@@ -1116,6 +1304,25 @@ impl Parser {
         }
     }
 
+    fn parse_statistics_columns(
+        &mut self,
+        op: StatisticsOpKind,
+    ) -> Result<AlterTableAction, ParserError> {
+        self.expect_token(&Token::LParen)?;
+        self.expect_token(&Token::LParen)?;
+        let mut columns = Vec::new();
+        loop {
+            columns.push(self.parse_identifier()?);
+            if !self.match_token(&Token::Comma) {
+                break;
+            }
+            self.advance();
+        }
+        self.expect_token(&Token::RParen)?;
+        self.expect_token(&Token::RParen)?;
+        Ok(AlterTableAction::StatisticsOp { op, columns })
+    }
+
     fn parse_update_index_clauses(&mut self) -> Result<(bool, Option<bool>), ParserError> {
         let mut update_global_index = false;
 
@@ -1306,6 +1513,85 @@ impl Parser {
         let name = self.parse_object_name()?;
         let raw_rest = self.skip_to_semicolon_and_collect();
         Ok(AlterMaterializedViewStatement { name, raw_rest })
+    }
+
+    // ========== ALTER SYNONYM ==========
+
+    pub(crate) fn parse_alter_synonym(&mut self) -> Result<AlterSynonymStatement, ParserError> {
+        let name = self.parse_identifier()?;
+        let action = if self.try_consume_keyword(Keyword::COMPILE) {
+            let debug = self.match_ident_str("DEBUG");
+            if debug {
+                self.advance();
+            }
+            AlterSynonymAction::Compile { debug }
+        } else if self.try_consume_keyword(Keyword::OWNER) {
+            self.expect_keyword(Keyword::TO)?;
+            let new_owner = self.parse_identifier()?;
+            AlterSynonymAction::OwnerTo { new_owner }
+        } else {
+            let raw_rest = self.skip_to_semicolon_and_collect();
+            return Err(ParserError::UnexpectedToken {
+                location: self.current_location(),
+                expected: "COMPILE or OWNER after ALTER SYNONYM name".to_string(),
+                got: raw_rest,
+            });
+        };
+        Ok(AlterSynonymStatement { name, action })
+    }
+
+    // ========== ALTER TEXT SEARCH CONFIGURATION ==========
+
+    pub(crate) fn parse_alter_text_search_config(
+        &mut self,
+    ) -> Result<AlterTextSearchConfigStatement, ParserError> {
+        let name = self.parse_object_name()?;
+        let raw_rest = self.skip_to_semicolon_and_collect();
+        Ok(AlterTextSearchConfigStatement { name, raw_rest })
+    }
+
+    // ========== ALTER TEXT SEARCH DICTIONARY ==========
+
+    pub(crate) fn parse_alter_text_search_dict(
+        &mut self,
+    ) -> Result<AlterTextSearchDictStatement, ParserError> {
+        let name = self.parse_object_name()?;
+        let mut options = Vec::new();
+        if self.match_token(&Token::LParen) {
+            self.advance();
+            loop {
+                let key = self.parse_identifier()?;
+                self.expect_token(&Token::Eq)?;
+                let value = self.parse_identifier()?;
+                options.push((key, value));
+                if !self.match_token(&Token::Comma) {
+                    break;
+                }
+                self.advance();
+            }
+            self.expect_token(&Token::RParen)?;
+        }
+        Ok(AlterTextSearchDictStatement { name, options })
+    }
+
+    // ========== ALTER COORDINATOR ==========
+
+    pub(crate) fn parse_alter_coordinator(
+        &mut self,
+    ) -> Result<AlterCoordinatorStatement, ParserError> {
+        let name = self.parse_identifier()?;
+        let raw_rest = self.skip_to_semicolon_and_collect();
+        Ok(AlterCoordinatorStatement { name, raw_rest })
+    }
+
+    // ========== ALTER APP WORKLOAD GROUP MAPPING ==========
+
+    pub(crate) fn parse_alter_app_workload_group_mapping(
+        &mut self,
+    ) -> Result<AlterAppWorkloadGroupMappingStatement, ParserError> {
+        let name = self.parse_identifier()?;
+        let raw_rest = self.skip_to_semicolon_and_collect();
+        Ok(AlterAppWorkloadGroupMappingStatement { name, raw_rest })
     }
 
     // ========== DROP ==========

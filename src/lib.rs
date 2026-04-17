@@ -11,11 +11,13 @@ pub use ast::StatementInfo;
 pub use ast::{
     AlterTableAction, AlterTableStatement, ColumnConstraint, ColumnDef, CopyStatement,
     CreateDatabaseStatement, CreateGlobalIndexStatement, CreateIndexStatement,
-    CreateSchemaStatement, CreateTableStatement, CreateTablespaceStatement, CreateViewStatement,
-    DataType, DeleteStatement, DistributeClause, DropStatement, ExplainStatement, Expr,
-    GlobalIndexColumn, IndexNulls, IndexOrdering, InsertStatement, Literal, MergeStatement,
-    ObjectName, PartitionClause, PartitionDef, SelectIntoTable, SelectStatement, Statement,
-    TableConstraint, TableRef, TruncateStatement, UpdateStatement, WindowSpec,
+    CreateLanguageStatement, CreateSchemaStatement, CreateTableStatement,
+    CreateTablespaceStatement, CreateViewStatement, CreateWeakPasswordDictStatement, DataType,
+    DeleteStatement, DistributeClause, DropStatement, ExecuteDirectStatement, ExplainStatement,
+    Expr, GlobalIndexColumn, IndexNulls, IndexOrdering, InsertStatement, Literal, MergeStatement,
+    MoveStatement, ObjectName, PartitionClause, PartitionDef, PredictByStatement, SelectIntoTable,
+    SelectStatement, Statement, TableConstraint, TableRef, TransactionKind, TransactionStatement,
+    TruncateStatement, UpdateStatement, ValuesStatement, WindowSpec,
 };
 pub use formatter::SqlFormatter;
 pub use parser::{Parser, ParserError, StatementIter};

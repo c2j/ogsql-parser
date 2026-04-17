@@ -152,6 +152,182 @@ impl SqlFormatter {
             Statement::AlterEvent(s) => self.format_alter_event(s),
             Statement::AlterOpFamily(s) => self.format_alter_opfamily(s),
             Statement::AlterMaterializedView(s) => self.format_alter_materialized_view(s),
+            Statement::Abort => self.kw("ABORT"),
+            Statement::Values(s) => self.format_values(s),
+            Statement::ExecuteDirect(s) => self.format_execute_direct(s),
+            Statement::CreateLanguage(s) => self.format_create_language(s),
+            Statement::CreateWeakPasswordDictionaryWithValues(s) => {
+                let mut r = self.kw("CREATE WEAK PASSWORD DICTIONARY");
+                if !s.values.is_empty() {
+                    r.push_str(&format!(
+                        " WITH VALUES ({})",
+                        s.values
+                            .iter()
+                            .map(|v| format!("'{}'", v))
+                            .collect::<Vec<_>>()
+                            .join(", ")
+                    ));
+                }
+                r
+            }
+            Statement::PredictBy(s) => {
+                let mut r = format!("{} {}", self.kw("PREDICT"), self.kw("BY"));
+                r.push_str(&format!(" {}", s.model));
+                r.push_str(&format!(
+                    " {} ({})",
+                    self.kw("FEATURES"),
+                    s.features.join(", ")
+                ));
+                if let Some(ref u) = s.using_clause {
+                    r.push_str(&format!(" {} {}", self.kw("USING"), u));
+                }
+                r
+            }
+            Statement::Replace(s) => {
+                let mut r = self.kw("REPLACE");
+                r.push_str(&format!(" {}", self.format_insert(s)));
+                r
+            }
+            Statement::Move(s) => self.format_move(s),
+            Statement::LockBuckets(s) => {
+                format!("{} {}", self.kw("LOCK BUCKETS"), s.raw_rest)
+            }
+            Statement::MarkBuckets(s) => {
+                format!("{} {}", self.kw("MARK BUCKETS"), s.raw_rest)
+            }
+            Statement::SetSessionAuthorization(s) => {
+                if s.is_default {
+                    self.kw("SET SESSION AUTHORIZATION DEFAULT").to_string()
+                } else if let Some(ref u) = s.user {
+                    format!("{} {}", self.kw("SET SESSION AUTHORIZATION"), u)
+                } else {
+                    self.kw("SET SESSION AUTHORIZATION").to_string()
+                }
+            }
+            Statement::CreateAppWorkloadGroupMapping(s) => {
+                format!(
+                    "{} {} {}",
+                    self.kw("CREATE APP WORKLOAD GROUP MAPPING"),
+                    s.name,
+                    s.raw_rest
+                )
+            }
+            Statement::DropAppWorkloadGroupMapping(s) => {
+                format!("{} {}", self.kw("DROP APP WORKLOAD GROUP MAPPING"), s.name)
+            }
+            Statement::CreateTextSearchConfig(s) => {
+                format!(
+                    "{} {} {}",
+                    self.kw("CREATE TEXT SEARCH CONFIGURATION"),
+                    self.format_object_name(&s.name),
+                    s.raw_rest
+                )
+            }
+            Statement::CreateTextSearchDict(s) => {
+                let opts: Vec<String> = s
+                    .options
+                    .iter()
+                    .map(|(k, v)| format!("{} = {}", k, v))
+                    .collect();
+                format!(
+                    "{} {} ({})",
+                    self.kw("CREATE TEXT SEARCH DICTIONARY"),
+                    self.format_object_name(&s.name),
+                    opts.join(", ")
+                )
+            }
+            Statement::AlterTextSearchConfigFull(s) => {
+                format!(
+                    "{} {} {}",
+                    self.kw("ALTER TEXT SEARCH CONFIGURATION"),
+                    self.format_object_name(&s.name),
+                    s.raw_rest
+                )
+            }
+            Statement::AlterTextSearchDictFull(s) => {
+                let opts: Vec<String> = s
+                    .options
+                    .iter()
+                    .map(|(k, v)| format!("{} = {}", k, v))
+                    .collect();
+                format!(
+                    "{} {} ({})",
+                    self.kw("ALTER TEXT SEARCH DICTIONARY"),
+                    self.format_object_name(&s.name),
+                    opts.join(", ")
+                )
+            }
+            Statement::ExpdpDatabase(s) => {
+                format!("{} {}", self.kw("EXPDP DATABASE"), s.raw_rest)
+            }
+            Statement::ExpdpTable(s) => {
+                format!("{} {}", self.kw("EXPDP TABLE"), s.raw_rest)
+            }
+            Statement::ImpdpDatabase(s) => {
+                format!("{} {}", self.kw("IMPDP DATABASE"), s.raw_rest)
+            }
+            Statement::ImpdpTable(s) => {
+                format!("{} {}", self.kw("IMPDP TABLE"), s.raw_rest)
+            }
+            Statement::ReassignOwned(s) => {
+                format!(
+                    "{} {} {} {}",
+                    self.kw("REASSIGN OWNED BY"),
+                    s.old_role,
+                    self.kw("TO"),
+                    s.new_role
+                )
+            }
+            Statement::AlterDomain(s) => {
+                let mut r = format!(
+                    "{} {}",
+                    self.kw("ALTER DOMAIN"),
+                    self.format_object_name(&s.name)
+                );
+                match &s.action {
+                    AlterDomainAction::SetDefault { expr } => {
+                        r.push_str(&format!(" {} {}", self.kw("SET DEFAULT"), expr))
+                    }
+                    AlterDomainAction::DropDefault => {
+                        r.push_str(&format!(" {}", self.kw("DROP DEFAULT")))
+                    }
+                    AlterDomainAction::SetNotNull => {
+                        r.push_str(&format!(" {}", self.kw("SET NOT NULL")))
+                    }
+                    AlterDomainAction::DropNotNull => {
+                        r.push_str(&format!(" {}", self.kw("DROP NOT NULL")))
+                    }
+                    AlterDomainAction::AddConstraint { name, check_expr } => {
+                        r.push_str(&format!(" {}", self.kw("ADD")));
+                        if let Some(n) = name {
+                            r.push_str(&format!(" {} {}", self.kw("CONSTRAINT"), n));
+                        }
+                        r.push_str(&format!(" {} {}", self.kw("CHECK"), check_expr));
+                    }
+                    AlterDomainAction::DropConstraint { name, cascade } => {
+                        r.push_str(&format!(
+                            " {} {} {}",
+                            self.kw("DROP CONSTRAINT"),
+                            name,
+                            if *cascade {
+                                self.kw("CASCADE")
+                            } else {
+                                String::new()
+                            }
+                        ));
+                    }
+                    AlterDomainAction::OwnerTo { new_owner } => {
+                        r.push_str(&format!(" {} {}", self.kw("OWNER TO"), new_owner))
+                    }
+                    AlterDomainAction::RenameTo { new_name } => {
+                        r.push_str(&format!(" {} {}", self.kw("RENAME TO"), new_name))
+                    }
+                    AlterDomainAction::ValidateConstraint { name } => {
+                        r.push_str(&format!(" {} {}", self.kw("VALIDATE CONSTRAINT"), name))
+                    }
+                }
+                r
+            }
             _ => self.format_stub(stmt),
         }
     }
@@ -727,6 +903,9 @@ impl SqlFormatter {
                     }
                     _ => format!("{}({})", name, self.format_exprs(args)),
                 }
+            }
+            Expr::CurrentOf { cursor_name } => {
+                format!("{} {} {}", self.kw("CURRENT"), self.kw("OF"), cursor_name)
             }
             Expr::Case {
                 operand,
@@ -1510,7 +1689,9 @@ impl SqlFormatter {
             MergeAction::Insert { columns, values } => {
                 let mut parts = vec![self.kw("INSERT")];
                 if !columns.is_empty() {
-                    parts.push(format!("({})", columns.join(", ")));
+                    let col_strs: Vec<String> =
+                        columns.iter().map(|c| self.format_object_name(c)).collect();
+                    parts.push(format!("({})", col_strs.join(", ")));
                 }
                 parts.push(format!(
                     "{} ({})",
@@ -1537,6 +1718,9 @@ impl SqlFormatter {
         }
         for constraint in &stmt.constraints {
             inner.push(self.format_table_constraint(constraint));
+        }
+        for like in &stmt.like_clauses {
+            inner.push(self.format_like_clause(like));
         }
 
         parts.push(format!("({})", inner.join(", ")));
@@ -1590,6 +1774,15 @@ impl SqlFormatter {
                 .map(|(k, v)| format!("{} = {}", k, v))
                 .collect();
             parts.push(format!("{} ({})", self.kw("WITH"), opts.join(", ")));
+        }
+
+        if !stmt.table_options.is_empty() {
+            let opts: Vec<String> = stmt
+                .table_options
+                .iter()
+                .map(|(k, v)| format!("{} = {}", k, v))
+                .collect();
+            parts.push(format!("{} ({})", self.kw("TABLE OPTION"), opts.join(", ")));
         }
 
         if let Some(ilm) = &stmt.ilm {
@@ -1866,8 +2059,20 @@ impl SqlFormatter {
             parts.push(cm.to_uppercase());
         }
 
+        if let Some(cs) = &col.charset {
+            parts.push(format!("{} {}", self.kw("CHARSET"), cs));
+        }
+
+        if let Some(co) = &col.collate {
+            parts.push(format!("{} {}", self.kw("COLLATE"), co));
+        }
+
         for constraint in &col.constraints {
             parts.push(self.format_column_constraint(constraint));
+        }
+
+        if let Some(ou) = &col.on_update {
+            parts.push(format!("{} {} {}", self.kw("ON"), self.kw("UPDATE"), ou));
         }
 
         parts.join(" ")
@@ -1988,6 +2193,18 @@ impl SqlFormatter {
                 result
             }
         }
+    }
+
+    fn format_like_clause(&self, like: &LikeClause) -> String {
+        let mut parts = vec![self.kw("LIKE"), self.format_object_name(&like.source_table)];
+        for (is_including, opt) in &like.options {
+            if *is_including {
+                parts.push(format!("{} {}", self.kw("INCLUDING"), opt));
+            } else {
+                parts.push(format!("{} {}", self.kw("EXCLUDING"), opt));
+            }
+        }
+        parts.join(" ")
     }
 
     fn format_table_constraint(&self, c: &TableConstraint) -> String {
@@ -2633,6 +2850,94 @@ impl SqlFormatter {
             AlterTableAction::IlmEnablePolicy => self.kw("ILM ENABLE POLICY").to_string(),
             AlterTableAction::IlmDisablePolicy => self.kw("ILM DISABLE POLICY").to_string(),
             AlterTableAction::IlmDeletePolicy => self.kw("ILM DELETE POLICY").to_string(),
+            AlterTableAction::ModifyColumns(cols) => {
+                let defs: Vec<String> = cols
+                    .iter()
+                    .map(|c| {
+                        let mut s = format!(
+                            "{} {}",
+                            self.quote_identifier(&c.name),
+                            self.format_data_type(&c.data_type)
+                        );
+                        match c.nullability {
+                            Some(false) => s = format!("{} {}", s, self.kw("NOT NULL")),
+                            Some(true) => s = format!("{} {}", s, self.kw("NULL")),
+                            None => {}
+                        }
+                        s
+                    })
+                    .collect();
+                format!("{} ({})", self.kw("MODIFY"), defs.join(", "))
+            }
+            AlterTableAction::AddColumns(cols) => {
+                let defs: Vec<String> = cols.iter().map(|c| self.format_column_def(c)).collect();
+                format!("{} ({})", self.kw("ADD"), defs.join(", "))
+            }
+            AlterTableAction::StatisticsOp { op, columns } => {
+                let op_str = match op {
+                    StatisticsOpKind::Add => self.kw("ADD"),
+                    StatisticsOpKind::Delete => self.kw("DELETE"),
+                    StatisticsOpKind::Enable => self.kw("ENABLE"),
+                    StatisticsOpKind::Disable => self.kw("DISABLE"),
+                };
+                let cols: Vec<String> = columns.iter().map(|c| self.quote_identifier(c)).collect();
+                format!(
+                    "{} {} (({}))",
+                    op_str,
+                    self.kw("STATISTICS"),
+                    cols.join(", ")
+                )
+            }
+            AlterTableAction::AlterColumnStatistics {
+                column,
+                percent,
+                value,
+            } => {
+                if *percent {
+                    format!(
+                        "{} {} {} {}",
+                        self.kw("ALTER COLUMN"),
+                        self.quote_identifier(column),
+                        self.kw("SET STATISTICS PERCENT"),
+                        value
+                    )
+                } else {
+                    format!(
+                        "{} {} {} {}",
+                        self.kw("ALTER COLUMN"),
+                        self.quote_identifier(column),
+                        self.kw("SET STATISTICS"),
+                        value
+                    )
+                }
+            }
+            AlterTableAction::AlterColumnStorage { column, storage } => {
+                format!(
+                    "{} {} {} {}",
+                    self.kw("ALTER COLUMN"),
+                    self.quote_identifier(column),
+                    self.kw("SET STORAGE"),
+                    storage.to_uppercase()
+                )
+            }
+            AlterTableAction::GsiWaitAll => self.kw("GSIWAITALL").to_string(),
+            AlterTableAction::EncryptionKeyRotation => {
+                self.kw("ENCRYPTION KEY ROTATION").to_string()
+            }
+            AlterTableAction::SetRule { enable, mode, name } => {
+                let mut parts = vec![];
+                if *enable {
+                    parts.push(self.kw("ENABLE").to_string());
+                } else {
+                    parts.push(self.kw("DISABLE").to_string());
+                }
+                if let Some(m) = mode {
+                    parts.push(m.to_uppercase());
+                }
+                parts.push(self.kw("RULE").to_string());
+                parts.push(self.quote_identifier(name));
+                parts.join(" ")
+            }
             _ => "...".to_string(),
         }
     }
@@ -2770,6 +3075,7 @@ impl SqlFormatter {
             ObjectType::OpClass => "OPERATOR CLASS",
             ObjectType::OpFamily => "OPERATOR FAMILY",
             ObjectType::Type => "TYPE",
+            ObjectType::Package => "PACKAGE",
         };
         parts.push(self.kw(obj_type));
 
@@ -3019,6 +3325,13 @@ impl SqlFormatter {
             match check {
                 CheckOption::Local => parts.push(self.kw("LOCAL CHECK OPTION")),
                 CheckOption::Cascaded => parts.push(self.kw("CASCADED CHECK OPTION")),
+            }
+        }
+
+        if let Some(security) = &stmt.security {
+            match security {
+                ViewSecurity::Barrier => parts.push(self.kw("SECURITY BARRIER")),
+                ViewSecurity::Invoker => parts.push(self.kw("SECURITY INVOKER")),
             }
         }
 
@@ -3521,6 +3834,30 @@ impl SqlFormatter {
                     self.quote_identifier(stmt.savepoint_name.as_ref().unwrap())
                 )
             }
+            TransactionKind::PrepareTransaction => {
+                format!(
+                    "{} {} '{}'",
+                    self.kw("PREPARE"),
+                    self.kw("TRANSACTION"),
+                    stmt.transaction_id.as_ref().unwrap()
+                )
+            }
+            TransactionKind::CommitPrepared => {
+                format!(
+                    "{} {} '{}'",
+                    self.kw("COMMIT"),
+                    self.kw("PREPARED"),
+                    stmt.transaction_id.as_ref().unwrap()
+                )
+            }
+            TransactionKind::RollbackPrepared => {
+                format!(
+                    "{} {} '{}'",
+                    self.kw("ROLLBACK"),
+                    self.kw("PREPARED"),
+                    stmt.transaction_id.as_ref().unwrap()
+                )
+            }
         }
     }
 
@@ -3994,8 +4331,27 @@ impl SqlFormatter {
                             s.push_str(&format!("({})", args.join(", ")));
                         }
                     }
-                    PlOpenKind::ForQuery { query, .. } => {
+                    PlOpenKind::ForQuery { scroll, query, .. } => {
+                        if let Some(sc) = scroll {
+                            if *sc {
+                                s.push_str(&format!(" {}", self.kw("SCROLL")));
+                            } else {
+                                s.push_str(&format!(" {} {}", self.kw("NO"), self.kw("SCROLL")));
+                            }
+                        }
                         s.push_str(&format!(" {} {}", self.kw("FOR"), query));
+                    }
+                    PlOpenKind::ForExecute { query, using_args } => {
+                        s.push_str(&format!(
+                            " {} {}",
+                            self.kw("FOR EXECUTE"),
+                            self.format_expr(query)
+                        ));
+                        if !using_args.is_empty() {
+                            let args: Vec<String> =
+                                using_args.iter().map(|a| self.format_expr(a)).collect();
+                            s.push_str(&format!(" {} {}", self.kw("USING"), args.join(", ")));
+                        }
                     }
                     PlOpenKind::ForUsing { expressions } => {
                         let exprs: Vec<String> =
@@ -4595,6 +4951,22 @@ impl SqlFormatter {
             GrantTarget::Tablespace(tbs) => {
                 format!("TABLESPACE {}", tbs.join(", "))
             }
+            GrantTarget::Language(names) => {
+                format!("LANGUAGE {}", names.join(", "))
+            }
+            GrantTarget::LargeObject(names) => {
+                format!("LARGE OBJECT {}", names.join(", "))
+            }
+            GrantTarget::Type(types) => {
+                format!(
+                    "TYPE {}",
+                    types
+                        .iter()
+                        .map(|t| self.format_object_name(t))
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                )
+            }
         };
         let mut s = format!(
             "{} {} ON {} TO {}",
@@ -4656,6 +5028,22 @@ impl SqlFormatter {
             }
             GrantTarget::Tablespace(tbs) => {
                 format!("TABLESPACE {}", tbs.join(", "))
+            }
+            GrantTarget::Language(names) => {
+                format!("LANGUAGE {}", names.join(", "))
+            }
+            GrantTarget::LargeObject(names) => {
+                format!("LARGE OBJECT {}", names.join(", "))
+            }
+            GrantTarget::Type(types) => {
+                format!(
+                    "TYPE {}",
+                    types
+                        .iter()
+                        .map(|t| self.format_object_name(t))
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                )
             }
         };
         let mut s = format!(
@@ -4782,6 +5170,54 @@ impl SqlFormatter {
         s
     }
 
+    fn format_execute_direct(&self, stmt: &ExecuteDirectStatement) -> String {
+        format!(
+            "{} {} {} ({}) '{}'",
+            self.kw("EXECUTE"),
+            self.kw("DIRECT"),
+            self.kw("ON"),
+            self.quote_identifier(&stmt.node_name),
+            stmt.query
+        )
+    }
+
+    fn format_values(&self, stmt: &ValuesStatement) -> String {
+        let rows: Vec<String> = stmt
+            .rows
+            .iter()
+            .map(|row| {
+                let exprs: Vec<String> = row.iter().map(|e| self.format_expr(e)).collect();
+                format!("({})", exprs.join(", "))
+            })
+            .collect();
+        let mut s = format!("{} {}", self.kw("VALUES"), rows.join(", "));
+        if !stmt.order_by.is_empty() {
+            let items: Vec<String> = stmt
+                .order_by
+                .iter()
+                .map(|o| self.format_order_by_item(o))
+                .collect();
+            s.push_str(&format!(" {} {}", self.kw("ORDER"), self.kw("BY")));
+            s.push(' ');
+            s.push_str(&items.join(", "));
+        }
+        if let Some(ref limit) = stmt.limit {
+            s.push_str(&format!(
+                " {} {}",
+                self.kw("LIMIT"),
+                self.format_expr(limit)
+            ));
+        }
+        if let Some(ref offset) = stmt.offset {
+            s.push_str(&format!(
+                " {} {}",
+                self.kw("OFFSET"),
+                self.format_expr(offset)
+            ));
+        }
+        s
+    }
+
     fn format_deallocate(&self, stmt: &DeallocateStatement) -> String {
         if stmt.all {
             self.kw("DEALLOCATE ALL").to_string()
@@ -4792,6 +5228,40 @@ impl SqlFormatter {
                 stmt.name.as_deref().unwrap_or("")
             )
         }
+    }
+
+    fn format_create_language(&self, stmt: &CreateLanguageStatement) -> String {
+        let mut r = self.kw("CREATE").to_string();
+        if stmt.trusted {
+            r.push(' ');
+            r.push_str(&self.kw("TRUSTED"));
+        }
+        r.push(' ');
+        r.push_str(&self.kw("LANGUAGE"));
+        r.push(' ');
+        r.push_str(&self.quote_identifier(&stmt.name));
+        if let Some(ref h) = stmt.handler {
+            r.push_str(&format!(
+                " {} {}",
+                self.kw("HANDLER"),
+                self.quote_identifier(h)
+            ));
+        }
+        if let Some(ref i) = stmt.inline_func {
+            r.push_str(&format!(
+                " {} {}",
+                self.kw("INLINE"),
+                self.quote_identifier(i)
+            ));
+        }
+        if let Some(ref v) = stmt.validator {
+            r.push_str(&format!(
+                " {} {}",
+                self.kw("VALIDATOR"),
+                self.quote_identifier(v)
+            ));
+        }
+        r
     }
 
     fn format_comment(&self, stmt: &CommentStatement) -> String {
@@ -4836,12 +5306,53 @@ impl SqlFormatter {
             s.push(' ');
             s.push_str(&self.kw("BINARY"));
         }
-        if stmt.scroll {
-            s.push(' ');
-            s.push_str(&self.kw("SCROLL"));
+        match stmt.sensitivity {
+            CursorSensitivity::Insensitive => {
+                s.push(' ');
+                s.push_str(&self.kw("INSENSITIVE"));
+            }
+            CursorSensitivity::Asensitive => {
+                s.push(' ');
+                s.push_str(&self.kw("ASENSITIVE"));
+            }
+            CursorSensitivity::Sensitive => {}
         }
-        if stmt.hold {
-            s.push_str(&format!(" {} {}", self.kw("WITH"), self.kw("HOLD")));
+        match stmt.scrollability {
+            CursorScrollability::Scroll => {
+                s.push(' ');
+                s.push_str(&self.kw("SCROLL"));
+            }
+            CursorScrollability::NoScroll => {
+                s.push_str(&format!(" {} {}", self.kw("NO"), self.kw("SCROLL")));
+            }
+            CursorScrollability::Default => {}
+        }
+        match stmt.holdability {
+            CursorHoldability::WithHold => {
+                s.push_str(&format!(" {} {}", self.kw("WITH"), self.kw("HOLD")));
+            }
+            CursorHoldability::WithoutHold => {
+                s.push_str(&format!(" {} {}", self.kw("WITHOUT"), self.kw("HOLD")));
+            }
+            CursorHoldability::Default => {}
+        }
+        match &stmt.returnability {
+            CursorReturnability::WithReturn => {
+                s.push_str(&format!(" {} {}", self.kw("WITH"), self.kw("RETURN")));
+            }
+            CursorReturnability::WithoutReturn => {
+                s.push_str(&format!(" {} {}", self.kw("WITHOUT"), self.kw("RETURN")));
+            }
+            CursorReturnability::Default => {}
+        }
+        match &stmt.return_to {
+            CursorReturnTo::ToCaller => {
+                s.push_str(&format!(" {} {}", self.kw("TO"), self.kw("CALLER")));
+            }
+            CursorReturnTo::ToClient => {
+                s.push_str(&format!(" {} {}", self.kw("TO"), self.kw("CLIENT")));
+            }
+            CursorReturnTo::Default => {}
         }
         s.push_str(&format!(
             " {} {}",
@@ -4852,25 +5363,51 @@ impl SqlFormatter {
     }
 
     fn format_close_portal(&self, stmt: &ClosePortalStatement) -> String {
-        format!("{} {}", self.kw("CLOSE"), stmt.name)
+        match &stmt.target {
+            CloseTarget::Name(name) => format!("{} {}", self.kw("CLOSE"), name),
+            CloseTarget::All => format!("{} {}", self.kw("CLOSE"), self.kw("ALL")),
+        }
     }
 
     fn format_fetch(&self, stmt: &FetchStatement) -> String {
-        let dir = match &stmt.direction {
+        let dir = self.format_direction(&stmt.direction);
+        format!(
+            "{} {} {} {}",
+            self.kw("FETCH"),
+            dir,
+            self.kw("FROM"),
+            stmt.cursor_name
+        )
+    }
+
+    fn format_move(&self, stmt: &MoveStatement) -> String {
+        let dir = self.format_direction(&stmt.direction);
+        format!(
+            "{} {} {} {}",
+            self.kw("MOVE"),
+            dir,
+            self.kw("FROM"),
+            stmt.cursor_name
+        )
+    }
+
+    fn format_direction(&self, direction: &FetchDirection) -> String {
+        match direction {
             FetchDirection::Next => self.kw("NEXT").to_string(),
             FetchDirection::Prior => self.kw("PRIOR").to_string(),
             FetchDirection::First => self.kw("FIRST").to_string(),
             FetchDirection::Last => self.kw("LAST").to_string(),
             FetchDirection::Absolute(n) => format!("{} {}", self.kw("ABSOLUTE"), n),
             FetchDirection::Relative(n) => format!("{} {}", self.kw("RELATIVE"), n),
+            FetchDirection::Forward => self.kw("FORWARD").to_string(),
+            FetchDirection::ForwardCount(n) => format!("{} {}", self.kw("FORWARD"), n),
             FetchDirection::ForwardAll => format!("{} {}", self.kw("FORWARD"), self.kw("ALL")),
+            FetchDirection::Backward => self.kw("BACKWARD").to_string(),
+            FetchDirection::BackwardCount(n) => format!("{} {}", self.kw("BACKWARD"), n),
             FetchDirection::BackwardAll => format!("{} {}", self.kw("BACKWARD"), self.kw("ALL")),
-            FetchDirection::Forward(n) => format!("{} {}", self.kw("FORWARD"), n),
-            FetchDirection::Backward(n) => format!("{} {}", self.kw("BACKWARD"), n),
             FetchDirection::Count(n) => n.to_string(),
             FetchDirection::All => self.kw("ALL").to_string(),
-        };
-        format!("{} {} {}", dir, self.kw("FROM"), stmt.cursor_name)
+        }
     }
 
     fn format_cluster(&self, stmt: &ClusterStatement) -> String {
@@ -5292,6 +5829,20 @@ impl SqlFormatter {
                 parts.push(self.kw("PARALLEL RESTRICTED").to_string())
             }
             None => {}
+        }
+        if let Some(fenced) = opts.fenced {
+            if fenced {
+                parts.push(self.kw("FENCED").to_string());
+            } else {
+                parts.push(format!("{} {}", self.kw("NOT"), self.kw("FENCED")));
+            }
+        }
+        if let Some(shippable) = opts.shippable {
+            if shippable {
+                parts.push(self.kw("SHIPPABLE").to_string());
+            } else {
+                parts.push(format!("{} {}", self.kw("NOT"), self.kw("SHIPPABLE")));
+            }
         }
         if !opts.extra.is_empty() {
             parts.push(opts.extra.clone());

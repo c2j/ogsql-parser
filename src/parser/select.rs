@@ -1,7 +1,7 @@
 use crate::ast::{
     ConnectByClause, Cte, FetchClause, GroupByItem, JoinType, LockClause, ObjectName, OrderByItem,
     PivotClause, PivotValue, SelectIntoTable, SelectStatement, SelectTarget, SetOperation,
-    TableRef, UnpivotClause, WithClause,
+    TableRef, UnpivotClause, ValuesStatement, WithClause,
 };
 use crate::parser::{Parser, ParserError};
 use crate::token::keyword::Keyword;
@@ -741,6 +741,98 @@ impl Parser {
             value_column,
             for_column,
             columns,
+        })
+    }
+
+    pub(crate) fn parse_values_statement(&mut self) -> Result<ValuesStatement, ParserError> {
+        let mut rows = Vec::new();
+        loop {
+            self.expect_token(&Token::LParen)?;
+            let mut row = Vec::new();
+            if !self.match_token(&Token::RParen) {
+                loop {
+                    row.push(self.parse_expr()?);
+                    if self.match_token(&Token::Comma) {
+                        self.advance();
+                    } else {
+                        break;
+                    }
+                }
+            }
+            self.expect_token(&Token::RParen)?;
+            rows.push(row);
+            if self.match_token(&Token::Comma) {
+                self.advance();
+            } else {
+                break;
+            }
+        }
+
+        let mut order_by = Vec::new();
+        if self.match_keyword(Keyword::ORDER) {
+            self.advance();
+            self.expect_keyword(Keyword::BY)?;
+            loop {
+                let expr = self.parse_expr()?;
+                let asc = match self.peek_keyword() {
+                    Some(Keyword::ASC) => {
+                        self.advance();
+                        Some(true)
+                    }
+                    Some(Keyword::DESC) => {
+                        self.advance();
+                        Some(false)
+                    }
+                    _ => None,
+                };
+                let nulls_first = if self.match_keyword(Keyword::NULLS_P) {
+                    self.advance();
+                    if self.match_keyword(Keyword::FIRST_P) {
+                        self.advance();
+                        Some(true)
+                    } else {
+                        self.expect_keyword(Keyword::LAST_P)?;
+                        Some(false)
+                    }
+                } else {
+                    None
+                };
+                order_by.push(OrderByItem {
+                    expr,
+                    asc,
+                    nulls_first,
+                });
+                if !self.match_token(&Token::Comma) {
+                    break;
+                }
+                self.advance();
+            }
+        }
+
+        let limit = if self.match_keyword(Keyword::LIMIT) {
+            self.advance();
+            if self.match_keyword(Keyword::ALL) {
+                self.advance();
+                None
+            } else {
+                Some(self.parse_expr()?)
+            }
+        } else {
+            None
+        };
+
+        let offset = if self.match_keyword(Keyword::OFFSET) {
+            self.advance();
+            Some(self.parse_expr()?)
+        } else {
+            None
+        };
+
+        Ok(ValuesStatement {
+            rows,
+            order_by,
+            limit,
+            offset,
         })
     }
 }

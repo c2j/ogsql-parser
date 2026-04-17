@@ -122,6 +122,10 @@ impl Parser {
                 self.advance();
                 ObjectType::Directory
             }
+            Some(Keyword::PACKAGE) => {
+                self.advance();
+                ObjectType::Package
+            }
             Some(Keyword::EVENT) => {
                 self.advance();
                 ObjectType::Event
@@ -271,7 +275,34 @@ impl Parser {
             }
             _ if self.match_ident_str("app") => {
                 self.advance();
-                ObjectType::App
+                if self.match_keyword(Keyword::WORKLOAD) && {
+                    let saved = self.pos;
+                    self.advance();
+                    let is_wgm = self.match_keyword(Keyword::GROUP_P) && {
+                        let saved2 = self.pos;
+                        self.advance();
+                        let is_mapping = self.match_ident_str("mapping");
+                        if !is_mapping {
+                            self.pos = saved2;
+                        }
+                        is_mapping
+                    };
+                    if !is_wgm {
+                        self.pos = saved;
+                    }
+                    is_wgm
+                } {
+                    self.advance();
+                    if self.match_keyword(Keyword::GROUP_P) {
+                        self.advance();
+                    }
+                    if self.match_ident_str("mapping") {
+                        self.advance();
+                    }
+                    ObjectType::App
+                } else {
+                    ObjectType::App
+                }
             }
             _ if self.match_ident_str("global") => {
                 self.advance();

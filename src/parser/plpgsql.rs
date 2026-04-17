@@ -100,8 +100,16 @@ impl Parser {
             return Ok(PlDeclaration::Record(PlRecordDecl { name }));
         }
 
+        // PostgreSQL style: name CURSOR FOR/IS ...
         if self.match_ident_str("cursor") {
+            self.advance();
             return self.parse_pl_cursor_decl(name);
+        }
+
+        // Oracle style: CURSOR name IS ... (first ident was "CURSOR", read actual name)
+        if name.eq_ignore_ascii_case("cursor") {
+            let real_name = self.parse_identifier()?;
+            return self.parse_pl_cursor_decl(real_name);
         }
 
         if self.match_keyword(Keyword::TYPE_P) {
@@ -207,8 +215,6 @@ impl Parser {
     }
 
     fn parse_pl_cursor_decl(&mut self, name: String) -> Result<PlDeclaration, ParserError> {
-        self.advance();
-
         let mut arguments = Vec::new();
         if self.match_token(&Token::LParen) {
             self.advance();
@@ -255,7 +261,15 @@ impl Parser {
             self.try_consume_ident_str("scroll");
         }
 
-        self.expect_keyword(Keyword::FOR)?;
+        // Accept both FOR (PostgreSQL) and IS (Oracle-compatible)
+        if !self.match_keyword(Keyword::FOR) && !self.match_keyword(Keyword::IS) {
+            return Err(ParserError::UnexpectedToken {
+                expected: "FOR or IS".to_string(),
+                got: format!("{:?}", self.peek()),
+                location: self.current_location(),
+            });
+        }
+        self.advance();
 
         let (query, parsed_query) = {
             let save_pos = self.pos;
@@ -432,6 +446,7 @@ impl Parser {
     }
 
     fn parse_pl_statement(&mut self) -> Result<PlStatement, ParserError> {
+        let before_pos = self.pos;
         let label = self.try_parse_pl_label();
 
         let stmt = if self.match_ident_str("if") {
@@ -524,6 +539,10 @@ impl Parser {
         } else {
             self.parse_pl_sql_or_assignment()
         }?;
+
+        if self.pos == before_pos {
+            self.advance();
+        }
 
         if label.is_some() {
             Ok(attach_label(stmt, label))
@@ -661,10 +680,9 @@ impl Parser {
 
         match result {
             Some(stmt) => {
-                let sql_text = self.tokens_to_raw_string(save_pos, self.pos);
                 self.try_consume_semicolon();
                 Some(PlStatement::SqlStatement {
-                    sql_text,
+                    sql_text: String::new(),
                     statement: Box::new(stmt),
                 })
             }
@@ -974,6 +992,34 @@ impl Parser {
             });
         }
 
+        // Handle parenthesized query: FOR var IN (SELECT ... | WITH ...) LOOP
+        if matches!(self.peek(), Token::LParen) {
+            let save_pos = self.pos;
+            self.advance(); // consume (
+
+            let is_query = matches!(
+                self.peek_keyword(),
+                Some(Keyword::SELECT) | Some(Keyword::WITH)
+            );
+
+            if is_query {
+                if let Some(stmt) = self.try_parse_dml_statement() {
+                    if matches!(self.peek(), Token::RParen) {
+                        self.advance(); // consume )
+                        let raw = self.tokens_to_raw_string(save_pos, self.pos);
+                        return Ok(PlForKind::Query {
+                            query: raw,
+                            parsed_query: Some(stmt),
+                            using_args: Vec::new(),
+                        });
+                    }
+                }
+            }
+
+            // Backtrack if it wasn't a parenthesized query
+            self.pos = save_pos;
+        }
+
         let saved_pos = self.pos;
         if let Ok(name) = self.parse_identifier() {
             if self.match_ident_str("loop") || matches!(self.peek(), Token::LParen) {
@@ -1278,43 +1324,75 @@ impl Parser {
             }
             self.expect_token(&Token::RParen)?;
             PlOpenKind::Simple { arguments }
-        } else if self.match_ident_str("for") {
-            self.advance();
-            if self.match_ident_str("using") {
+        } else {
+            let scroll = if self.match_ident_str("scroll") {
                 self.advance();
-                let mut expressions = Vec::new();
-                loop {
-                    expressions.push(self.parse_expr()?);
-                    if self.match_token(&Token::Comma) {
-                        self.advance();
-                    } else {
-                        break;
-                    }
+                Some(true)
+            } else if self.match_ident_str("no") {
+                self.advance();
+                if self.match_ident_str("scroll") {
+                    self.advance();
                 }
-                PlOpenKind::ForUsing { expressions }
+                Some(false)
             } else {
-                let (query, parsed_query) = {
-                    let save_pos = self.pos;
-                    if let Some(stmt) = self.try_parse_dml_statement() {
-                        if matches!(self.peek(), Token::Semicolon) {
-                            let raw = self.tokens_to_raw_string(save_pos, self.pos);
-                            (raw, Some(stmt))
+                None
+            };
+
+            if self.match_ident_str("for") {
+                self.advance();
+                if self.match_ident_str("execute") {
+                    self.advance();
+                    let query = self.parse_expr()?;
+                    let mut using_args = Vec::new();
+                    if self.match_ident_str("using") {
+                        self.advance();
+                        loop {
+                            using_args.push(self.parse_expr()?);
+                            if self.match_token(&Token::Comma) {
+                                self.advance();
+                            } else {
+                                break;
+                            }
+                        }
+                    }
+                    PlOpenKind::ForExecute { query, using_args }
+                } else if self.match_ident_str("using") {
+                    self.advance();
+                    let mut expressions = Vec::new();
+                    loop {
+                        expressions.push(self.parse_expr()?);
+                        if self.match_token(&Token::Comma) {
+                            self.advance();
                         } else {
-                            self.pos = save_pos;
+                            break;
+                        }
+                    }
+                    PlOpenKind::ForUsing { expressions }
+                } else {
+                    let (query, parsed_query) = {
+                        let save_pos = self.pos;
+                        if let Some(stmt) = self.try_parse_dml_statement() {
+                            if matches!(self.peek(), Token::Semicolon) {
+                                let raw = self.tokens_to_raw_string(save_pos, self.pos);
+                                (raw, Some(stmt))
+                            } else {
+                                self.pos = save_pos;
+                                (self.skip_to_semicolon_or_keyword(), None)
+                            }
+                        } else {
                             (self.skip_to_semicolon_or_keyword(), None)
                         }
-                    } else {
-                        (self.skip_to_semicolon_or_keyword(), None)
+                    };
+                    PlOpenKind::ForQuery {
+                        scroll,
+                        query,
+                        parsed_query,
                     }
-                };
-                PlOpenKind::ForQuery {
-                    query,
-                    parsed_query,
                 }
-            }
-        } else {
-            PlOpenKind::Simple {
-                arguments: Vec::new(),
+            } else {
+                PlOpenKind::Simple {
+                    arguments: Vec::new(),
+                }
             }
         };
 
@@ -1335,8 +1413,7 @@ impl Parser {
             || self.match_ident_str("relative")
             || self.match_ident_str("all")
         {
-            let dir = self.parse_fetch_direction_from_token();
-            self.advance();
+            let dir = self.parse_pl_cursor_direction()?;
             if self.match_ident_str("from") || self.match_ident_str("in") {
                 self.advance();
             }
@@ -1357,19 +1434,73 @@ impl Parser {
         }))
     }
 
-    fn parse_fetch_direction_from_token(&self) -> FetchDirection {
-        let dir = self.token_to_string();
-        match dir.to_uppercase().as_str() {
-            "NEXT" => FetchDirection::Next,
-            "PRIOR" => FetchDirection::Prior,
-            "FIRST" => FetchDirection::First,
-            "LAST" => FetchDirection::Last,
-            "FORWARD" => FetchDirection::Forward,
-            "BACKWARD" => FetchDirection::Backward,
-            "ABSOLUTE" => FetchDirection::Absolute,
-            "RELATIVE" => FetchDirection::Relative,
-            "ALL" => FetchDirection::All,
-            _ => unreachable!("invalid fetch direction: {}", dir),
+    fn parse_pl_cursor_direction(&mut self) -> Result<FetchDirection, ParserError> {
+        let dir_str = self.token_to_string();
+        self.advance();
+        match dir_str.to_uppercase().as_str() {
+            "NEXT" => Ok(FetchDirection::Next),
+            "PRIOR" => Ok(FetchDirection::Prior),
+            "FIRST" => Ok(FetchDirection::First),
+            "LAST" => Ok(FetchDirection::Last),
+            "ABSOLUTE" => {
+                let n = self.parse_pl_signed_integer();
+                Ok(FetchDirection::Absolute(n))
+            }
+            "RELATIVE" => {
+                let n = self.parse_pl_signed_integer();
+                Ok(FetchDirection::Relative(n))
+            }
+            "FORWARD" => {
+                if self.match_ident_str("all") {
+                    self.advance();
+                    Ok(FetchDirection::ForwardAll)
+                } else if let Some(n) = self.try_parse_pl_integer() {
+                    Ok(FetchDirection::Forward(Some(n)))
+                } else {
+                    Ok(FetchDirection::Forward(None))
+                }
+            }
+            "BACKWARD" => {
+                if self.match_ident_str("all") {
+                    self.advance();
+                    Ok(FetchDirection::BackwardAll)
+                } else if let Some(n) = self.try_parse_pl_integer() {
+                    Ok(FetchDirection::Backward(Some(n)))
+                } else {
+                    Ok(FetchDirection::Backward(None))
+                }
+            }
+            "ALL" => Ok(FetchDirection::All),
+            _ => unreachable!("invalid fetch direction: {}", dir_str),
+        }
+    }
+
+    fn parse_pl_signed_integer(&mut self) -> i64 {
+        let neg = if matches!(self.peek(), Token::Minus) {
+            self.advance();
+            true
+        } else {
+            false
+        };
+        let n = if let Token::Integer(i) = self.peek().clone() {
+            self.advance();
+            i
+        } else {
+            0
+        };
+        if neg {
+            -n
+        } else {
+            n
+        }
+    }
+
+    fn try_parse_pl_integer(&mut self) -> Option<i64> {
+        if let Token::Integer(i) = self.peek().clone() {
+            self.advance();
+            Some(i)
+        } else {
+            None
         }
     }
 
@@ -1394,8 +1525,7 @@ impl Parser {
             || self.match_ident_str("relative")
             || self.match_ident_str("all")
         {
-            let dir = self.parse_fetch_direction_from_token();
-            self.advance();
+            let dir = self.parse_pl_cursor_direction()?;
             if self.match_ident_str("from") || self.match_ident_str("in") {
                 self.advance();
             }
@@ -1715,6 +1845,11 @@ impl Parser {
                 self.advance();
                 let pragma = self.parse_pragma_declaration();
                 declarations.push(pragma);
+            } else if self.match_ident_str("cursor") {
+                self.advance();
+                let cursor_name = self.parse_identifier()?;
+                let decl = self.parse_pl_cursor_decl(cursor_name)?;
+                declarations.push(decl);
             } else if let Some(decl) = self.try_parse_oracle_var_decl() {
                 declarations.push(decl);
             } else {
@@ -1777,6 +1912,17 @@ impl Parser {
         }
 
         self.advance();
+
+        if self.match_ident_str("cursor") {
+            self.advance();
+            return match self.parse_pl_cursor_decl(name) {
+                Ok(decl) => Some(decl),
+                Err(_) => {
+                    self.pos = start_pos;
+                    None
+                }
+            };
+        }
 
         let data_type = match self.parse_pl_data_type() {
             Ok(dt) => dt,
