@@ -17,7 +17,7 @@ impl Parser {
     ) {
         let lower = name.last().map(|s| s.to_lowercase()).unwrap_or_default();
         let last = lower.split('.').last().unwrap_or_default();
-        let warnings = crate::parser::function_validator::validate_function_call(
+        let warnings = crate::parser::function_registry::validate_function_call(
             &last,
             arg_count,
             distinct,
@@ -825,7 +825,7 @@ impl Parser {
     ) {
         if let Some(last) = name.last() {
             let loc = self.current_location();
-            let warnings = crate::parser::function_validator::validate_function_call(
+            let warnings = crate::parser::function_registry::validate_function_call(
                 last,
                 args.len(),
                 distinct,

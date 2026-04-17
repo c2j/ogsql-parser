@@ -71,6 +71,42 @@ macro_rules! die {
     ($($t:tt)*) => {{ eprintln!($($t)*); std::process::exit(1); }};
 }
 
+fn annotate_builtin_functions(value: &mut serde_json::Value) {
+    match value {
+        serde_json::Value::Object(map) => {
+            if let Some(fc) = map.get_mut("FunctionCall") {
+                if let serde_json::Value::Object(fc_map) = fc {
+                    if let Some(serde_json::Value::Array(name_arr)) = fc_map.get("name") {
+                        if let Some(serde_json::Value::String(last)) = name_arr.last() {
+                            if let Some(meta) =
+                                ogsql_parser::parser::function_registry::lookup_function(last)
+                            {
+                                fc_map.insert(
+                                    "_meta".to_string(),
+                                    serde_json::json!({
+                                        "builtin": true,
+                                        "category": meta.category,
+                                        "domain": meta.domain,
+                                    }),
+                                );
+                            }
+                        }
+                    }
+                }
+            }
+            for v in map.values_mut() {
+                annotate_builtin_functions(v);
+            }
+        }
+        serde_json::Value::Array(arr) => {
+            for v in arr {
+                annotate_builtin_functions(v);
+            }
+        }
+        _ => {}
+    }
+}
+
 fn read_input(file: Option<&str>) -> String {
     match file {
         Some(path) => {
@@ -164,6 +200,7 @@ fn cmd_parse(cli: &Cli) {
                             .insert("dynamic_sql_analysis".to_string(), serde_json::json!(report));
                     }
                 }
+                annotate_builtin_functions(&mut obj);
                 obj
             })
             .collect();

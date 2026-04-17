@@ -1,7 +1,7 @@
 pub(crate) mod ddl;
 pub(crate) mod dml;
 pub(crate) mod expr;
-pub(crate) mod function_validator;
+pub mod function_registry;
 pub(crate) mod hint_validator;
 pub(crate) mod plpgsql;
 pub(crate) mod select;
