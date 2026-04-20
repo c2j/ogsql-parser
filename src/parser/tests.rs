@@ -1343,6 +1343,7 @@ fn test_alter_type_add_enum_value() {
             assert_eq!(a.name, vec!["bug_status"]);
             match &a.action {
                 AlterTypeAction::AddEnumValue {
+                    if_not_exists: _,
                     value,
                     before,
                     after,
@@ -1364,6 +1365,7 @@ fn test_alter_type_add_enum_value_after() {
     match stmt {
         Statement::AlterCompositeType(a) => match &a.action {
             AlterTypeAction::AddEnumValue {
+                if_not_exists: _,
                 value,
                 before,
                 after,
@@ -2899,7 +2901,7 @@ fn test_create_foreign_table_with_types() {
     match stmt {
         Statement::CreateForeignTable(t) => {
             assert_eq!(t.columns.len(), 2);
-            assert!(matches!(t.columns[0].data_type, DataType::Integer));
+            assert!(matches!(t.columns[0].data_type, DataType::Integer(_)));
             assert!(matches!(
                 t.columns[1].data_type,
                 DataType::Varchar(Some(100))
@@ -3808,7 +3810,7 @@ fn test_cast_with_integer_data_type() {
             if let SelectTarget::Expr(expr, _) = &s.targets[0] {
                 match expr {
                     Expr::TypeCast { type_name, .. } => {
-                        assert!(matches!(type_name, DataType::Integer));
+                        assert!(matches!(type_name, DataType::Integer(_)));
                     }
                     _ => panic!("expected TypeCast expression"),
                 }
@@ -6950,24 +6952,25 @@ fn test_clean_conn_all() {
     let stmt = parse_one("CLEAN CONNECTION TO ALL");
     match stmt {
         Statement::CleanConn(s) => {
-            assert_eq!(s.target, "all");
-            assert_eq!(s.for_user, None);
+            assert!(!s.force);
+            assert!(s.for_database.is_none());
+            assert!(s.to_user.is_none());
         }
         other => panic!("expected CleanConn, got {:?}", other),
     }
 }
 
 #[test]
-fn test_clean_conn_for_user() {
-    let stmt = parse_one("CLEAN CONNECTION TO ALL FOR USER admin");
-    match stmt {
-        Statement::CleanConn(s) => {
-            assert_eq!(s.target, "all");
-            assert_eq!(s.for_user.as_deref(), Some("admin"));
-        }
-        other => panic!("expected CleanConn, got {:?}", other),
-    }
-}
+ fn test_clean_conn_for_user() {
+     let stmt = parse_one("CLEAN CONNECTION TO ALL FOR USER admin");
+     match stmt {
+         Statement::CleanConn(s) => {
+             assert!(!s.force);
+             assert_eq!(s.to_user.as_deref(), Some("admin"));
+         }
+         other => panic!("expected CleanConn, got {:?}", other),
+     }
+ }
 
 #[test]
 fn test_sec_label() {
@@ -7740,4 +7743,2240 @@ fn test_reserved_keyword_misuse_still_detected_after_merge_fix() {
         "Using reserved keyword 'select' as table name should still be caught"
     );
     assert!(errors[0].to_string().contains("select"));
+}
+
+#[test]
+fn test_scalar_sublink_any() {
+    let sql = "SELECT * FROM t1 WHERE a > ANY(SELECT b FROM t2)";
+    let stmt = parse_one(sql);
+    match stmt {
+        Statement::Select(s) => match &s.where_clause {
+            Some(Expr::ScalarSublink {
+                sublink_type: ScalarSublinkType::Any,
+                op,
+                ..
+            }) => assert_eq!(op, ">"),
+            other => panic!("expected ScalarSublink(Any), got {:?}", other),
+        },
+        other => panic!("expected Select, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_scalar_sublink_all() {
+    let sql = "SELECT * FROM t1 WHERE a <= ALL(SELECT b FROM t2)";
+    let stmt = parse_one(sql);
+    match stmt {
+        Statement::Select(s) => match &s.where_clause {
+            Some(Expr::ScalarSublink {
+                sublink_type: ScalarSublinkType::All,
+                op,
+                ..
+            }) => assert_eq!(op, "<="),
+            other => panic!("expected ScalarSublink(All), got {:?}", other),
+        },
+        other => panic!("expected Select, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_scalar_sublink_some() {
+    let sql = "SELECT * FROM t1 WHERE a = SOME(SELECT b FROM t2)";
+    let stmt = parse_one(sql);
+    match stmt {
+        Statement::Select(s) => match &s.where_clause {
+            Some(Expr::ScalarSublink {
+                sublink_type: ScalarSublinkType::Some,
+                op,
+                ..
+            }) => assert_eq!(op, "="),
+            other => panic!("expected ScalarSublink(Some), got {:?}", other),
+        },
+        other => panic!("expected Select, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_scalar_sublink_with_hint() {
+    let sql = "SELECT * FROM t1 WHERE a > ANY(SELECT /*+EXPAND_SUBLINK*/ a FROM t2)";
+    let stmt = parse_one(sql);
+    match stmt {
+        Statement::Select(s) => match &s.where_clause {
+            Some(Expr::ScalarSublink {
+                sublink_type: ScalarSublinkType::Any,
+                ..
+            }) => {}
+            other => panic!("expected ScalarSublink(Any), got {:?}", other),
+        },
+        other => panic!("expected Select, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_scalar_sublink_multiple_in_where() {
+    let sql = "SELECT * FROM t1 WHERE a > ANY(SELECT a FROM t2) AND b > ANY(SELECT a FROM t3)";
+    let stmt = parse_one(sql);
+    match stmt {
+        Statement::Select(s) => match &s.where_clause {
+            Some(Expr::BinaryOp { op, .. }) => assert_eq!(op, "AND"),
+            other => panic!("expected BinaryOp(AND), got {:?}", other),
+        },
+        other => panic!("expected Select, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_scalar_sublink_format_roundtrip() {
+    let sql = "SELECT * FROM t1 WHERE a > ANY(SELECT a FROM t2)";
+    let stmt = parse_one(sql);
+    let formatter = SqlFormatter::new();
+    let formatted = formatter.format_statement(&stmt);
+    assert!(
+        formatted.contains("ANY"),
+        "formatted should contain ANY: {}",
+        formatted
+    );
+    assert!(
+        formatted.contains("SELECT a FROM t2"),
+        "formatted should contain subquery: {}",
+        formatted
+    );
+}
+
+#[test]
+fn test_column_constraint_enable_disable() {
+    let cases = vec![
+        ("CREATE TABLE t (a INT NOT NULL ENABLE)", "NOT NULL ENABLE"),
+        ("CREATE TABLE t (a INT NOT NULL DISABLE)", "NOT NULL DISABLE"),
+        ("CREATE TABLE t (a INT NULL ENABLE)", "NULL ENABLE"),
+        ("CREATE TABLE t (a INT UNIQUE ENABLE)", "UNIQUE ENABLE"),
+        ("CREATE TABLE t (a INT PRIMARY KEY ENABLE)", "PRIMARY KEY ENABLE"),
+        ("CREATE TABLE t (a INT CHECK (a > 0) ENABLE)", "CHECK ENABLE"),
+        (
+            "CREATE TABLE tpcds.reason (r_reason_sk INTEGER NOT NULL ENABLE, r_reason_id CHARACTER(16) NOT NULL ENABLE, r_reason_desc CHARACTER(100))",
+            "TPC-DS schema",
+        ),
+    ];
+    for (sql, label) in cases {
+        let stmts = parse(sql);
+        assert_eq!(
+            stmts.len(),
+            1,
+            "{}: expected 1 statement, got {}",
+            label,
+            stmts.len()
+        );
+        assert!(
+            !matches!(stmts[0], Statement::Empty),
+            "{}: parsed as Empty — constraint with ENABLE/DISABLE failed",
+            label,
+        );
+    }
+}
+
+// ========== Task 3: Factorial operators ! and !! ==========
+
+#[test]
+fn test_postfix_factorial() {
+    let stmt = parse_one("SELECT 5 !");
+    match stmt {
+        Statement::Select(s) => {
+            assert_eq!(s.targets.len(), 1);
+        }
+        _ => panic!("expected Select, got {:?}", stmt),
+    }
+}
+
+#[test]
+fn test_postfix_factorial_with_alias() {
+    let (stmts, errors) = parse_with_errors("SELECT 5 ! AS RESULT");
+    assert!(!stmts.is_empty());
+    let as_errors: Vec<_> = errors
+        .iter()
+        .filter(|e| format!("{:?}", e).contains("as"))
+        .collect();
+    assert!(
+        as_errors.is_empty(),
+        "Should not error on AS, got: {:?}",
+        as_errors
+    );
+}
+
+#[test]
+fn test_prefix_double_bang() {
+    let stmt = parse_one("SELECT !! 5");
+    match stmt {
+        Statement::Select(s) => {
+            assert_eq!(s.targets.len(), 1);
+        }
+        _ => panic!("expected Select, got {:?}", stmt),
+    }
+}
+
+#[test]
+fn test_factorial_in_expression() {
+    let stmt = parse_one("SELECT 4 ! + 1");
+    match stmt {
+        Statement::Select(s) => {
+            assert_eq!(s.targets.len(), 1);
+        }
+        _ => panic!("expected Select, got {:?}", stmt),
+    }
+}
+
+// ========== Task 1: USER as special expression ==========
+
+#[test]
+fn test_select_user() {
+    let stmt = parse_one("SELECT USER");
+    match stmt {
+        Statement::Select(s) => {
+            assert_eq!(s.targets.len(), 1);
+            match &s.targets[0] {
+                SelectTarget::Expr(expr, alias) => {
+                    assert!(alias.is_none());
+                    match expr {
+                        Expr::ColumnRef(parts) => {
+                            assert_eq!(parts, &vec!["user".to_string()]);
+                        }
+                        _ => panic!("expected ColumnRef, got {:?}", expr),
+                    }
+                }
+                _ => panic!("expected Expr target"),
+            }
+        }
+        _ => panic!("expected Select, got {:?}", stmt),
+    }
+}
+
+#[test]
+fn test_select_user_no_reserved_error() {
+    let (stmts, errors) = parse_with_errors("SELECT USER");
+    assert!(!stmts.is_empty(), "should parse SELECT USER");
+    assert!(
+        errors.is_empty(),
+        "USER should not trigger reserved keyword error, got: {:?}",
+        errors
+    );
+}
+
+// ========== Task 2: TRIM direction keywords ==========
+
+#[test]
+fn test_trim_both_no_error() {
+    let (stmts, errors) = parse_with_errors("SELECT trim(BOTH 'x' FROM 'xTomxx')");
+    assert!(!stmts.is_empty());
+    assert!(
+        errors.is_empty(),
+        "BOTH should not trigger reserved keyword error, got: {:?}",
+        errors
+    );
+}
+
+#[test]
+fn test_trim_leading_no_error() {
+    let (stmts, errors) = parse_with_errors("SELECT trim(LEADING 'x' FROM 'xTomxx')");
+    assert!(!stmts.is_empty());
+    assert!(
+        errors.is_empty(),
+        "LEADING should not trigger reserved keyword error, got: {:?}",
+        errors
+    );
+}
+
+#[test]
+fn test_trim_trailing_no_error() {
+    let (stmts, errors) = parse_with_errors("SELECT trim(TRAILING 'x' FROM 'xTomxx')");
+    assert!(!stmts.is_empty());
+    assert!(
+        errors.is_empty(),
+        "TRAILING should not trigger reserved keyword error, got: {:?}",
+        errors
+    );
+}
+
+#[test]
+fn test_trim_both_from_ast() {
+    let stmt = parse_one("SELECT trim(BOTH 'x' FROM 'xTomxx')");
+    match stmt {
+        Statement::Select(s) => {
+            match &s.targets[0] {
+                SelectTarget::Expr(expr, _) => match expr {
+                    Expr::SpecialFunction { name, args } => {
+                        assert_eq!(name, "trim");
+                        assert_eq!(args.len(), 3, "trim(BOTH 'x' FROM 'xTomxx') should have 3 args: [BOTH, 'x', 'xTomxx']");
+                    }
+                    _ => panic!("expected SpecialFunction, got {:?}", expr),
+                },
+                _ => panic!("expected Expr target"),
+            }
+        }
+        _ => panic!("expected Select, got {:?}", stmt),
+    }
+}
+
+#[test]
+fn test_trim_leading_with_chars_ast() {
+    let stmt = parse_one("SELECT trim(LEADING 'x' FROM 'xTomxx')");
+    match stmt {
+        Statement::Select(s) => match &s.targets[0] {
+            SelectTarget::Expr(expr, _) => match expr {
+                Expr::SpecialFunction { name, args } => {
+                    assert_eq!(name, "trim");
+                    assert_eq!(args.len(), 3);
+                }
+                _ => panic!("expected SpecialFunction, got {:?}", expr),
+            },
+            _ => panic!("expected Expr target"),
+        },
+        _ => panic!("expected Select, got {:?}", stmt),
+    }
+}
+
+// ========== Task 4: SIMILAR TO operator ==========
+
+#[test]
+fn test_similar_to() {
+    let stmt = parse_one("SELECT 'abc' SIMILAR TO 'abc'");
+    match stmt {
+        Statement::Select(s) => {
+            assert_eq!(s.targets.len(), 1);
+        }
+        _ => panic!("expected Select, got {:?}", stmt),
+    }
+}
+
+#[test]
+fn test_similar_to_ast() {
+    let stmt = parse_one("SELECT 'abc' SIMILAR TO '%(b|d)%'");
+    match stmt {
+        Statement::Select(s) => match &s.targets[0] {
+            SelectTarget::Expr(expr, _) => match expr {
+                Expr::BinaryOp { op, .. } => {
+                    assert_eq!(op, "SIMILAR TO");
+                }
+                _ => panic!("expected BinaryOp, got {:?}", expr),
+            },
+            _ => panic!("expected Expr target"),
+        },
+        _ => panic!("expected Select, got {:?}", stmt),
+    }
+}
+
+#[test]
+fn test_not_similar_to() {
+    let stmt = parse_one("SELECT 'abc' NOT SIMILAR TO 'a'");
+    match stmt {
+        Statement::Select(s) => {
+            assert_eq!(s.targets.len(), 1);
+            match &s.targets[0] {
+                SelectTarget::Expr(expr, _) => match expr {
+                    Expr::BinaryOp { op, .. } => {
+                        assert_eq!(op, "NOT SIMILAR TO");
+                    }
+                    _ => panic!("expected BinaryOp, got {:?}", expr),
+                },
+                _ => panic!("expected Expr target"),
+            }
+        }
+        _ => panic!("expected Select, got {:?}", stmt),
+    }
+}
+
+#[test]
+fn test_similar_to_no_reserved_error() {
+    let (stmts, errors) = parse_with_errors("SELECT 'abc' SIMILAR TO 'abc'");
+    assert!(!stmts.is_empty());
+    assert!(
+        errors.is_empty(),
+        "SIMILAR TO should not produce errors, got: {:?}",
+        errors
+    );
+}
+
+// ========== Task 5: LIKE ... ESCAPE clause ==========
+
+#[test]
+fn test_like_escape() {
+    let stmt = parse_one("SELECT 'AA_BBCC' LIKE '%A@_B%' ESCAPE '@'");
+    match stmt {
+        Statement::Select(s) => {
+            assert_eq!(s.targets.len(), 1);
+        }
+        _ => panic!("expected Select, got {:?}", stmt),
+    }
+}
+
+#[test]
+fn test_like_escape_ast() {
+    let stmt = parse_one("SELECT 'AA_BBCC' LIKE '%A@_B%' ESCAPE '@'");
+    match stmt {
+        Statement::Select(s) => match &s.targets[0] {
+            SelectTarget::Expr(expr, _) => match expr {
+                Expr::Like {
+                    escape,
+                    negated,
+                    case_insensitive,
+                    ..
+                } => {
+                    assert!(!negated);
+                    assert!(!case_insensitive);
+                    assert!(escape.is_some(), "ESCAPE should be parsed");
+                }
+                _ => panic!("expected Like, got {:?}", expr),
+            },
+            _ => panic!("expected Expr target"),
+        },
+        _ => panic!("expected Select, got {:?}", stmt),
+    }
+}
+
+#[test]
+fn test_not_like_escape() {
+    let stmt = parse_one("SELECT 'abc' NOT LIKE 'a%' ESCAPE '!'");
+    match stmt {
+        Statement::Select(s) => match &s.targets[0] {
+            SelectTarget::Expr(expr, _) => match expr {
+                Expr::Like {
+                    negated, escape, ..
+                } => {
+                    assert!(negated);
+                    assert!(escape.is_some());
+                }
+                _ => panic!("expected Like, got {:?}", expr),
+            },
+            _ => panic!("expected Expr target"),
+        },
+        _ => panic!("expected Select, got {:?}", stmt),
+    }
+}
+
+#[test]
+fn test_ilike_no_escape() {
+    // ILIKE without ESCAPE still works
+    let stmt = parse_one("SELECT 'abc' ILIKE 'ABC'");
+    match stmt {
+        Statement::Select(s) => match &s.targets[0] {
+            SelectTarget::Expr(expr, _) => match expr {
+                Expr::Like {
+                    case_insensitive,
+                    escape,
+                    negated,
+                    ..
+                } => {
+                    assert!(case_insensitive);
+                    assert!(!negated);
+                    assert!(escape.is_none());
+                }
+                _ => panic!("expected Like, got {:?}", expr),
+            },
+            _ => panic!("expected Expr target"),
+        },
+        _ => panic!("expected Select, got {:?}", stmt),
+    }
+}
+
+#[test]
+fn test_like_escape_no_error() {
+    let (stmts, errors) = parse_with_errors("SELECT 'AA_BBCC' LIKE '%A@_B%' ESCAPE '@'");
+    assert!(!stmts.is_empty());
+    assert!(
+        errors.is_empty(),
+        "LIKE ESCAPE should not produce errors, got: {:?}",
+        errors
+    );
+}
+
+// ========== Task 6: WINDOW clause ==========
+
+#[test]
+fn test_window_clause() {
+    let stmt = parse_one("SELECT count(*) OVER w FROM t WINDOW w AS (ORDER BY id)");
+    match stmt {
+        Statement::Select(s) => {
+            assert_eq!(s.targets.len(), 1);
+            assert_eq!(s.window_clause.len(), 1);
+            assert_eq!(s.window_clause[0].name, "w");
+        }
+        _ => panic!("expected Select, got {:?}", stmt),
+    }
+}
+
+#[test]
+fn test_window_clause_multiple() {
+    let stmt = parse_one(
+        "SELECT count(*) OVER w1, avg(x) OVER w2 FROM t WINDOW w1 AS (ORDER BY id), w2 AS (PARTITION BY y)",
+    );
+    match stmt {
+        Statement::Select(s) => {
+            assert_eq!(s.targets.len(), 2);
+            assert_eq!(s.window_clause.len(), 2);
+            assert_eq!(s.window_clause[0].name, "w1");
+            assert_eq!(s.window_clause[1].name, "w2");
+        }
+        _ => panic!("expected Select, got {:?}", stmt),
+    }
+}
+
+#[test]
+fn test_window_clause_with_frame() {
+    let stmt = parse_one(
+        "SELECT count(*) OVER w FROM t WINDOW w AS (ORDER BY date ASC ROWS BETWEEN 1 PRECEDING AND 1 FOLLOWING)",
+    );
+    match stmt {
+        Statement::Select(s) => {
+            assert_eq!(s.window_clause.len(), 1);
+            assert!(s.window_clause[0].spec.frame.is_some());
+        }
+        _ => panic!("expected Select, got {:?}", stmt),
+    }
+}
+
+#[test]
+fn test_window_clause_no_error() {
+    let (stmts, errors) =
+        parse_with_errors("SELECT count(*) OVER w FROM t WINDOW w AS (ORDER BY id)");
+    assert!(!stmts.is_empty());
+    assert!(
+        errors.is_empty(),
+        "WINDOW clause should not produce errors, got: {:?}",
+        errors
+    );
+}
+
+// ========== Task 8: Regex operators ~*, !~, !~* ==========
+
+#[test]
+fn test_regex_tilde_star() {
+    let stmt = parse_one("SELECT 'abc' ~* 'Abc'");
+    match stmt {
+        Statement::Select(s) => assert_eq!(s.targets.len(), 1),
+        _ => panic!("expected Select, got {:?}", stmt),
+    }
+}
+
+#[test]
+fn test_regex_not_match() {
+    let stmt = parse_one("SELECT 'abc' !~ 'Abc'");
+    match stmt {
+        Statement::Select(s) => assert_eq!(s.targets.len(), 1),
+        _ => panic!("expected Select, got {:?}", stmt),
+    }
+}
+
+#[test]
+fn test_regex_not_match_star() {
+    let stmt = parse_one("SELECT 'abc' !~* 'Abc'");
+    match stmt {
+        Statement::Select(s) => assert_eq!(s.targets.len(), 1),
+        _ => panic!("expected Select, got {:?}", stmt),
+    }
+}
+
+#[test]
+fn test_regex_in_where() {
+    let stmt = parse_one("SELECT name FROM users WHERE name ~* '^admin'");
+    match stmt {
+        Statement::Select(s) => {
+            assert!(s.where_clause.is_some());
+        }
+        _ => panic!("expected Select, got {:?}", stmt),
+    }
+}
+
+// ========== Task 7: CONVERT(expr USING charset) ==========
+
+#[test]
+fn test_convert_using() {
+    let stmt = parse_one("SELECT convert('asdas' USING 'gbk')");
+    match stmt {
+        Statement::Select(s) => assert_eq!(s.targets.len(), 1),
+        _ => panic!("expected Select, got {:?}", stmt),
+    }
+}
+
+#[test]
+fn test_convert_using_ast() {
+    let stmt = parse_one("SELECT convert('text_in_utf8' USING 'gbk')");
+    match stmt {
+        Statement::Select(s) => match &s.targets[0] {
+            SelectTarget::Expr(expr, _) => match expr {
+                Expr::SpecialFunction { name, args } => {
+                    assert_eq!(name, "convert");
+                    assert_eq!(args.len(), 2);
+                }
+                _ => panic!("expected SpecialFunction, got {:?}", expr),
+            },
+            _ => panic!("expected Expr target"),
+        },
+        _ => panic!("expected Select, got {:?}", stmt),
+    }
+}
+
+#[test]
+fn test_convert_normal() {
+    let stmt = parse_one("SELECT convert('text', 'UTF8', 'GBK')");
+    match stmt {
+        Statement::Select(s) => assert_eq!(s.targets.len(), 1),
+        _ => panic!("expected Select, got {:?}", stmt),
+    }
+}
+
+// ========== Task 9: WITHIN GROUP / SEPARATOR ==========
+
+#[test]
+fn test_listagg_within_group() {
+    let stmt = parse_one("SELECT deptno, listagg(ename, ',') WITHIN GROUP (ORDER BY ename) AS employees FROM emp GROUP BY deptno");
+    match stmt {
+        Statement::Select(s) => {
+            assert_eq!(s.targets.len(), 2);
+        }
+        _ => panic!("expected Select, got {:?}", stmt),
+    }
+}
+
+#[test]
+fn test_group_concat_separator() {
+    let stmt = parse_one("SELECT id, group_concat(v SEPARATOR '') FROM t GROUP BY id");
+    match stmt {
+        Statement::Select(s) => {
+            assert_eq!(s.targets.len(), 2);
+        }
+        _ => panic!("expected Select, got {:?}", stmt),
+    }
+}
+
+#[test]
+fn test_group_concat_order_by() {
+    let stmt =
+        parse_one("SELECT id, group_concat(v ORDER BY v DESC) FROM t GROUP BY id ORDER BY id ASC");
+    match stmt {
+        Statement::Select(s) => {
+            assert_eq!(s.targets.len(), 2);
+        }
+        _ => panic!("expected Select, got {:?}", stmt),
+    }
+}
+
+#[test]
+fn test_group_concat_distinct() {
+    let stmt = parse_one("SELECT id, group_concat(DISTINCT v) FROM t GROUP BY id ORDER BY id ASC");
+    match stmt {
+        Statement::Select(s) => {
+            assert_eq!(s.targets.len(), 2);
+        }
+        _ => panic!("expected Select, got {:?}", stmt),
+    }
+}
+
+#[test]
+fn test_percentile_cont_within_group() {
+    let stmt = parse_one("SELECT percentile_cont(0) WITHIN GROUP (ORDER BY value) FROM t");
+    match stmt {
+        Statement::Select(s) => {
+            assert_eq!(s.targets.len(), 1);
+        }
+        _ => panic!("expected Select, got {:?}", stmt),
+    }
+}
+
+// ========== Task 10: Geometric operators ==========
+
+#[test]
+fn test_geo_distance() {
+    let stmt = parse_one("SELECT circle '((0,0),1)' <-> circle '((5,0),1)'");
+    match stmt {
+        Statement::Select(s) => assert_eq!(s.targets.len(), 1),
+        _ => panic!("expected Select, got {:?}", stmt),
+    }
+}
+
+#[test]
+fn test_geo_overlap() {
+    let stmt = parse_one("SELECT box '((0,0),(1,1))' && box '((0,0),(2,2))'");
+    match stmt {
+        Statement::Select(s) => assert_eq!(s.targets.len(), 1),
+        _ => panic!("expected Select, got {:?}", stmt),
+    }
+}
+
+#[test]
+fn test_geo_left_contains() {
+    let stmt = parse_one("SELECT box '((0,0),(3,3))' <<| box '((3,4),(5,5))'");
+    match stmt {
+        Statement::Select(s) => assert_eq!(s.targets.len(), 1),
+        _ => panic!("expected Select, got {:?}", stmt),
+    }
+}
+
+#[test]
+fn test_geo_right_above() {
+    let stmt = parse_one("SELECT box '((3,4),(5,5))' |>> box '((0,0),(3,3))'");
+    match stmt {
+        Statement::Select(s) => assert_eq!(s.targets.len(), 1),
+        _ => panic!("expected Select, got {:?}", stmt),
+    }
+}
+
+#[test]
+fn test_geo_below_or_equal() {
+    let stmt = parse_one("SELECT box '((0,0),(1,1))' &<| box '((0,0),(2,2))'");
+    match stmt {
+        Statement::Select(s) => assert_eq!(s.targets.len(), 1),
+        _ => panic!("expected Select, got {:?}", stmt),
+    }
+}
+
+#[test]
+fn test_geo_above_or_equal() {
+    let stmt = parse_one("SELECT box '((0,0),(3,3))' |&> box '((0,0),(2,2))'");
+    match stmt {
+        Statement::Select(s) => assert_eq!(s.targets.len(), 1),
+        _ => panic!("expected Select, got {:?}", stmt),
+    }
+}
+
+#[test]
+fn test_geo_tsquery_match() {
+    let stmt = parse_one("SELECT to_tsvector('seriousness') @@ to_tsquery('series:*')");
+    match stmt {
+        Statement::Select(s) => assert_eq!(s.targets.len(), 1),
+        _ => panic!("expected Select, got {:?}", stmt),
+    }
+}
+
+#[test]
+fn test_geo_intersect() {
+    let stmt = parse_one("SELECT lseg '((-1,0),(1,0))' ?# box '((-2,-2),(2,2))'");
+    match stmt {
+        Statement::Select(s) => assert_eq!(s.targets.len(), 1),
+        _ => panic!("expected Select, got {:?}", stmt),
+    }
+}
+
+#[test]
+fn test_geo_same() {
+    let stmt = parse_one("SELECT polygon '((0,0),(1,1))' ~= polygon '((1,1),(0,0))'");
+    match stmt {
+        Statement::Select(s) => assert_eq!(s.targets.len(), 1),
+        _ => panic!("expected Select, got {:?}", stmt),
+    }
+}
+
+#[test]
+fn test_geo_hash_bitwise_xor() {
+    let stmt = parse_one("SELECT 17 # 5");
+    match stmt {
+        Statement::Select(s) => assert_eq!(s.targets.len(), 1),
+        _ => panic!("expected Select, got {:?}", stmt),
+    }
+}
+
+// ========== Task 11: Network/bit operators ==========
+
+#[test]
+fn test_network_shift_left_eq() {
+    let stmt = parse_one("SELECT inet '192.168.1/24' <<= inet '192.168.1/24'");
+    match stmt {
+        Statement::Select(s) => assert_eq!(s.targets.len(), 1),
+        _ => panic!("expected Select, got {:?}", stmt),
+    }
+}
+
+#[test]
+fn test_network_shift_right_eq() {
+    let stmt = parse_one("SELECT inet '192.168.1/24' >>= inet '192.168.1/24'");
+    match stmt {
+        Statement::Select(s) => assert_eq!(s.targets.len(), 1),
+        _ => panic!("expected Select, got {:?}", stmt),
+    }
+}
+
+#[test]
+fn test_range_contains() {
+    let stmt = parse_one("SELECT int4range(10, 20) @> 3");
+    match stmt {
+        Statement::Select(s) => assert_eq!(s.targets.len(), 1),
+        _ => panic!("expected Select, got {:?}", stmt),
+    }
+}
+
+#[test]
+fn test_range_contained_by() {
+    let stmt = parse_one("SELECT 3 <@ int4range(10, 20)");
+    match stmt {
+        Statement::Select(s) => assert_eq!(s.targets.len(), 1),
+        _ => panic!("expected Select, got {:?}", stmt),
+    }
+}
+
+#[test]
+fn test_bitwise_or() {
+    let stmt = parse_one("SELECT B '10001' | B '01101'");
+    match stmt {
+        Statement::Select(s) => assert_eq!(s.targets.len(), 1),
+        _ => panic!("expected Select, got {:?}", stmt),
+    }
+}
+
+#[test]
+fn test_shift_left() {
+    let stmt = parse_one("SELECT 1 << 4");
+    match stmt {
+        Statement::Select(s) => assert_eq!(s.targets.len(), 1),
+        _ => panic!("expected Select, got {:?}", stmt),
+    }
+}
+
+#[test]
+fn test_shift_right() {
+    let stmt = parse_one("SELECT 8 >> 2");
+    match stmt {
+        Statement::Select(s) => assert_eq!(s.targets.len(), 1),
+        _ => panic!("expected Select, got {:?}", stmt),
+    }
+}
+#[test]
+fn test_grant_all_privileges_to_role() {
+    let (stmts, errors) = parse_with_errors("GRANT ALL PRIVILEGES TO dev_mask");
+    assert!(errors.is_empty(), "Expected no errors, got: {:?}", errors);
+    match &stmts[0] {
+        Statement::GrantRole(g) => {
+            assert_eq!(g.roles, vec!["ALL PRIVILEGES"]);
+            assert_eq!(g.grantees, vec!["dev_mask"]);
+        }
+        _ => panic!("expected GrantRole, got {:?}", stmts[0]),
+    }
+}
+
+#[test]
+fn test_grant_all_privileges_on_table() {
+    let stmt = parse_one("GRANT ALL PRIVILEGES ON tpcds.reason TO joe");
+    match stmt {
+        Statement::Grant(g) => {
+            assert!(g.privileges.iter().any(|p| matches!(p, Privilege::All)));
+        }
+        _ => panic!("expected Grant, got {:?}", stmt),
+    }
+}
+
+#[test]
+fn test_grant_column_level_with_grant_option() {
+    let stmt = parse_one(
+        "GRANT SELECT (r_reason_sk, r_reason_id) ON tpcds.reason TO joe WITH GRANT OPTION",
+    );
+    match stmt {
+        Statement::Grant(g) => {
+            assert!(g.with_grant_option);
+            assert!(g
+                .privileges
+                .iter()
+                .any(|p| matches!(p, Privilege::SelectColumns(_))));
+        }
+        _ => panic!("expected Grant, got {:?}", stmt),
+    }
+}
+
+#[test]
+fn test_grant_create_connect_on_database() {
+    let stmt = parse_one("GRANT CREATE,CONNECT ON DATABASE testdb TO joe WITH GRANT OPTION");
+    match stmt {
+        Statement::Grant(g) => {
+            assert!(g.with_grant_option);
+            assert!(g.privileges.iter().any(|p| matches!(p, Privilege::Create)));
+            assert!(g.privileges.iter().any(|p| matches!(p, Privilege::Connect)));
+            match &g.target {
+                GrantTarget::Database(dbs) => assert_eq!(dbs, &vec!["testdb"]),
+                _ => panic!("expected Database target"),
+            }
+        }
+        _ => panic!("expected Grant, got {:?}", stmt),
+    }
+}
+
+#[test]
+fn test_grant_alter_on_function() {
+    let stmt = parse_one("GRANT ALTER ON FUNCTION tpcds.fun1() TO joe");
+    match stmt {
+        Statement::Grant(g) => {
+            assert!(g.privileges.iter().any(|p| matches!(p, Privilege::Alter)));
+            match &g.target {
+                GrantTarget::Function(funcs) => {
+                    assert_eq!(funcs.len(), 1);
+                }
+                _ => panic!("expected Function target"),
+            }
+        }
+        _ => panic!("expected Grant, got {:?}", stmt),
+    }
+}
+
+#[test]
+fn test_grant_all_on_tablespace() {
+    let stmt = parse_one("GRANT ALL ON TABLESPACE tpcds_tbspc TO joe");
+    match stmt {
+        Statement::Grant(g) => {
+            assert!(g.privileges.iter().any(|p| matches!(p, Privilege::All)));
+            match &g.target {
+                GrantTarget::Tablespace(tbs) => assert_eq!(tbs, &vec!["tpcds_tbspc"]),
+                _ => panic!("expected Tablespace target"),
+            }
+        }
+        _ => panic!("expected Grant, got {:?}", stmt),
+    }
+}
+
+#[test]
+fn test_partition_dml_check() {
+    let cases = vec![
+        ("INSERT INTO range_list PARTITION (p_201901) VALUES('201902', '1', '1', 1)", "INSERT PARTITION name"),
+        ("INSERT INTO range_list PARTITION FOR ('201902') VALUES('201902', '1', '1', 1)", "INSERT PARTITION FOR"),
+        ("INSERT INTO range_list SUBPARTITION (p_201901_a) VALUES('201902', '1', '1', 1)", "INSERT SUBPARTITION name"),
+        ("INSERT INTO range_list SUBPARTITION FOR ('201902','1') VALUES('201902', '1', '1', 1)", "INSERT SUBPARTITION FOR"),
+        ("UPDATE range_list PARTITION (p_201901) SET user_no = '2'", "UPDATE PARTITION name"),
+        ("UPDATE range_list PARTITION FOR ('201902') SET user_no = '4'", "UPDATE PARTITION FOR"),
+        ("UPDATE range_list SUBPARTITION (p_201901_a) SET user_no = '3'", "UPDATE SUBPARTITION name"),
+        ("UPDATE range_list SUBPARTITION FOR ('201902','2') SET user_no = '5'", "UPDATE SUBPARTITION FOR"),
+        ("DELETE FROM range_list PARTITION (p_201901)", "DELETE PARTITION name"),
+        ("DELETE FROM range_list PARTITION FOR ('201903')", "DELETE PARTITION FOR"),
+        ("DELETE FROM range_list SUBPARTITION (p_201901_a)", "DELETE SUBPARTITION name"),
+        ("DELETE FROM range_list SUBPARTITION FOR ('201903','2')", "DELETE SUBPARTITION FOR"),
+        ("DELETE FROM range_list AS t PARTITION (p_201901_a, p_201901)", "DELETE alias PARTITION list"),
+        ("SELECT COUNT(*) FROM tpcds.web_returns_p1 PARTITION (P10)", "SELECT PARTITION name"),
+        ("SELECT COUNT(*) FROM tpcds.web_returns_p1 PARTITION FOR (2450815)", "SELECT PARTITION FOR"),
+        ("UPDATE list_02 PARTITION FOR (100) SET data = ''", "UPDATE PARTITION FOR simple"),
+        ("INSERT INTO range_list PARTITION (p_201901) VALUES('201902', '1', '1', 1) ON DUPLICATE KEY UPDATE sales_amt = 5", "INSERT PARTITION ON DUPLICATE"),
+    ];
+
+    let mut failures = Vec::new();
+    for (sql, desc) in &cases {
+        let result = std::panic::catch_unwind(|| parse_one(sql));
+        match result {
+            Ok(stmt) => {
+                if matches!(stmt, Statement::Empty) {
+                    failures.push(format!("FAIL (Empty): {} — {}", desc, sql));
+                } else {
+                    let (_, errors) = parse_with_errors(sql);
+                    if !errors.is_empty() {
+                        failures.push(format!(
+                            "FAIL ({} errors): {} — {}",
+                            errors.len(),
+                            desc,
+                            sql
+                        ));
+                    }
+                }
+            }
+            Err(_) => {
+                failures.push(format!("PANIC: {} — {}", desc, sql));
+            }
+        }
+    }
+
+    if !failures.is_empty() {
+        for f in &failures {
+            eprintln!("{}", f);
+        }
+        panic!("{} PARTITION DML test cases failed", failures.len());
+    }
+}
+
+#[test]
+fn test_set_statements_check() {
+    let cases: Vec<&str> = vec![
+        "SET datestyle = 'YMD'",
+        "SET intervalstyle = a",
+        "SET intervalstyle = oracle",
+        "SET a_format_version = '10c'",
+        "SET a_format_dev_version = 's1'",
+        "set a_format_dev_version='s2'",
+        "set a_format_version='10c'",
+        "SET instr_unique_sql_track_type = 'all'",
+        "SET track_stmt_stat_level = 'L0,L0'",
+        "SET track_stmt_stat_level = 'off,L0'",
+        "SET instr_unique_sql_track_type = 'top'",
+        "set xmloption=content",
+        "set xmloption = document",
+        "SET default_text_search_config = 'ts_conf_1'",
+        "SET default_text_search_config = 'public.ts_conf'",
+        "SET behavior_compat_options ='plpgsql_dependency'",
+        "SET DATESTYLE TO postgres, dmy",
+        "SET behavior_compat_options='proc_outparam_override'",
+        "set default_text_search_config = 'ts_conf_2'",
+        "set plan_cache_mode = 'force_generic_plan'",
+        "set enable_seqscan=off",
+        "SET current_schema = HEAT_MAP_DATA",
+        "set enable_hypo_index = on",
+        "SET partition_iterator_elimination = on",
+        "SET sql_beta_feature = 'disable_merge_append_partition'",
+        "SET default_tablespace = 'fastspace'",
+        "set enable_fast_query_shipping=off",
+        "set enable_mergejoin=off",
+        "set enable_nestloop=off",
+        "set enable_sort=off",
+        "SET behavior_compat_options=''",
+        "set behavior_compat_options = 'rownum_type_compat'",
+        "set behavior_compat_options = 'char_coerce_compat'",
+        "SET behavior_compat_options='truncate_numeric_tail_zero'",
+        "SET behavior_compat_options = 'enable_funcname_with_argsname'",
+        "SET behavior_compat_options='proc_outparam_override,proc_outparam_transfer_length'",
+        "SET behavior_compat_options = 'tableof_elem_constraints'",
+        "set behavior_compat_options='current_sysdate'",
+        "set behavior_compat_options='allow_function_procedure_replace'",
+        "SET behavior_compat_options = 'collection_exception_backcompat'",
+        "SET behavior_compat_options='enable_case_when_alias'",
+        "set session AUTHORIZATION plsql_rollback2 PASSWORD '********'",
+        "set behavior_compat_options='enable_use_ora_timestamptz'",
+        "set gs_format_behavior_compat_options='allow_textconcat_null'",
+    ];
+
+    let mut failures = Vec::new();
+    for sql in &cases {
+        let result = std::panic::catch_unwind(|| parse_one(sql));
+        match result {
+            Ok(stmt) => {
+                if matches!(stmt, Statement::Empty) {
+                    failures.push(format!("FAIL (Empty): {}", sql));
+                } else {
+                    let (_, errors) = parse_with_errors(sql);
+                    if !errors.is_empty() {
+                        failures.push(format!("FAIL ({} errors): {}", errors.len(), sql));
+                    }
+                }
+            }
+            Err(_) => {
+                failures.push(format!("PANIC: {}", sql));
+            }
+        }
+    }
+
+    if !failures.is_empty() {
+        for f in &failures {
+            eprintln!("{}", f);
+        }
+        panic!("{} SET test cases failed", failures.len());
+    }
+}
+
+#[test]
+fn test_set_on_off_values() {
+    let (stmts, errors) = parse_with_errors("SET enable_hypo_index = on");
+    assert!(
+        errors.is_empty(),
+        "Expected no errors for SET ... = on, got: {:?}",
+        errors
+    );
+    match &stmts[0] {
+        Statement::VariableSet(v) => assert_eq!(v.name, "enable_hypo_index"),
+        _ => panic!("expected VariableSet, got {:?}", stmts[0]),
+    }
+
+    let (stmts, errors) = parse_with_errors("SET partition_iterator_elimination = on");
+    assert!(errors.is_empty(), "Expected no errors, got: {:?}", errors);
+    assert!(!stmts.is_empty());
+
+    let (stmts, errors) = parse_with_errors("SET enable_seq_scan = off");
+    assert!(
+        errors.is_empty(),
+        "Expected no errors for SET ... = off, got: {:?}",
+        errors
+    );
+    assert!(!stmts.is_empty());
+}
+
+#[test]
+fn test_set_role_password() {
+    let stmt = parse_one("SET ROLE user01 PASSWORD '********'");
+    match stmt {
+        Statement::VariableSet(v) => assert_eq!(v.name.to_uppercase(), "ROLE"),
+        _ => panic!("expected VariableSet, got {:?}", stmt),
+    }
+}
+
+#[test]
+fn test_set_search_path_to() {
+    let stmt = parse_one("SET SEARCH_PATH TO ds, public");
+    match stmt {
+        Statement::VariableSet(v) => {
+            assert_eq!(v.name.to_uppercase(), "SEARCH_PATH");
+            assert_eq!(v.value.len(), 2);
+        }
+        _ => panic!("expected VariableSet, got {:?}", stmt),
+    }
+}
+
+#[test]
+fn test_set_time_zone() {
+    let stmt = parse_one("SET TIME ZONE 'PST8PDT'");
+    match stmt {
+        Statement::VariableSet(v) => {
+            assert_eq!(v.name.to_uppercase(), "TIME");
+        }
+        _ => panic!("expected VariableSet, got {:?}", stmt),
+    }
+}
+
+#[test]
+fn test_half_sql_baseline() {
+    let sql = std::fs::read_to_string("GaussDB-2.23.07.210/sql/half-sql.sql").unwrap();
+    let tokens = crate::Tokenizer::new(&sql).tokenize().unwrap();
+    let mut parser = crate::parser::Parser::new(tokens);
+    let stmts = parser.parse();
+    let errors = parser.errors();
+
+    let total = stmts.len();
+    let empty = stmts
+        .iter()
+        .filter(|s| matches!(s, crate::ast::Statement::Empty))
+        .count();
+    let ok = total - empty;
+
+    eprintln!(
+        "half-sql.sql: {} total, {} OK, {} Empty, {} parser errors",
+        total,
+        ok,
+        empty,
+        errors.len()
+    );
+
+    assert!(
+        ok >= 470,
+        "At least 470 statements should parse OK, got {}",
+        ok
+    );
+}
+
+#[test]
+fn test_half_sql_categorize_failures() {
+    let sql = std::fs::read_to_string("GaussDB-2.23.07.210/sql/half-sql.sql").unwrap();
+    let tokens = crate::Tokenizer::new(&sql).tokenize().unwrap();
+    let mut parser = crate::parser::Parser::new(tokens);
+    let stmts = parser.parse();
+
+    // Re-tokenize to get line mapping
+    let sql_lines: Vec<&str> = sql.lines().collect();
+
+    // Split SQL into statements by semicolons (approximate)
+    let mut fail_categories: std::collections::HashMap<String, Vec<String>> =
+        std::collections::HashMap::new();
+
+    // Simple approach: split by semicolons
+    let mut pos = 0;
+    let mut stmt_start = 0;
+    let mut in_dollar = false;
+    let mut dollar_tag = String::new();
+
+    for (i, c) in sql.char_indices() {
+        if c == '$' && !in_dollar {
+            // Check for dollar-quote start
+            let rest = &sql[i..];
+            if let Some(end) = rest.find('$') {
+                if end > 0 {
+                    dollar_tag = rest[..end + 1].to_string();
+                    in_dollar = true;
+                    continue;
+                }
+            }
+        }
+        if in_dollar && c == '$' {
+            let rest = &sql[i..];
+            if rest.starts_with(&dollar_tag) {
+                in_dollar = false;
+                dollar_tag.clear();
+            }
+            continue;
+        }
+        if c == ';' && !in_dollar {
+            let stmt_text = sql[stmt_start..i].trim().to_string();
+            if !stmt_text.is_empty() && !stmt_text.starts_with("--") {
+                // Get category (first 3 tokens)
+                let first_line = stmt_text.lines().next().unwrap_or("");
+                let tokens: Vec<&str> = first_line.split_whitespace().take(3).collect();
+                let category = tokens.join(" ").to_uppercase();
+
+                // Check if this was parsed as Empty (approximate - count by position)
+                fail_categories
+                    .entry(category)
+                    .or_default()
+                    .push(stmt_text.chars().take(200).collect());
+            }
+            stmt_start = i + 1;
+        }
+    }
+
+    // Now parse and count actual failures
+    let total = stmts.len();
+    let empty_count = stmts
+        .iter()
+        .filter(|s| matches!(s, crate::ast::Statement::Empty))
+        .count();
+
+    eprintln!("\n=== half-sql.sql Failure Analysis ===");
+    eprintln!(
+        "Total: {}, OK: {}, Empty: {}",
+        total,
+        total - empty_count,
+        empty_count
+    );
+    eprintln!("\nAll statement categories (first 3 tokens):");
+
+    let mut sorted: Vec<_> = fail_categories.iter().collect();
+    sorted.sort_by(|a, b| b.1.len().cmp(&a.1.len()));
+
+    for (cat, stmts_list) in sorted.iter().take(40) {
+        eprintln!("\n  {} ({} stmts)", cat, stmts_list.len());
+        for s in stmts_list.iter().take(2) {
+            eprintln!("    {}", s);
+        }
+    }
+}
+
+#[test]
+fn test_half_sql_failure_categories() {
+    let sql = std::fs::read_to_string("GaussDB-2.23.07.210/sql/half-sql.sql").unwrap();
+
+    let mut categories: std::collections::BTreeMap<String, (usize, Vec<String>)> =
+        std::collections::BTreeMap::new();
+    let mut current = String::new();
+    let mut in_dollar = false;
+    let mut dollar_tag = String::new();
+    let mut stmt_count = 0;
+
+    for line in sql.lines() {
+        let trimmed = line.trim();
+        if trimmed.is_empty() || trimmed.starts_with("--") || trimmed.starts_with("===") {
+            continue;
+        }
+
+        let mut chars = trimmed.chars().collect::<Vec<_>>();
+        let mut i = 0;
+        while i < chars.len() {
+            if chars[i] == '$' {
+                let mut j = i + 1;
+                while j < chars.len() && (chars[j].is_alphabetic() || chars[j] == '_') {
+                    j += 1;
+                }
+                if j < chars.len() && chars[j] == '$' {
+                    let tag: String = chars[i..=j].iter().collect();
+                    if !in_dollar {
+                        in_dollar = true;
+                        dollar_tag = tag;
+                    } else if tag == dollar_tag {
+                        in_dollar = false;
+                        dollar_tag.clear();
+                    }
+                }
+            }
+            i += 1;
+        }
+
+        if !current.is_empty() {
+            current.push(' ');
+        }
+        current.push_str(trimmed);
+
+        if trimmed.ends_with(';') && !in_dollar {
+            let stmt_text = current.trim().to_string();
+            current.clear();
+
+            if stmt_text.is_empty() {
+                continue;
+            }
+
+            let words: Vec<&str> = stmt_text.split_whitespace().take(2).collect();
+            let cat = if words.len() >= 2 {
+                format!("{} {}", words[0].to_uppercase(), words[1].to_uppercase())
+            } else {
+                words[0].to_uppercase()
+            };
+
+            let tok_result = crate::Tokenizer::new(&stmt_text).tokenize();
+            match tok_result {
+                Ok(toks) => {
+                    let mut p = crate::parser::Parser::new(toks);
+                    let ss = p.parse();
+                    let has_empty = ss.iter().any(|s| matches!(s, crate::ast::Statement::Empty));
+                    let errs = p.errors().to_vec();
+                    if has_empty || !errs.is_empty() {
+                        let entry = categories.entry(cat).or_insert((0, Vec::new()));
+                        entry.0 += 1;
+                        if entry.1.len() < 3 {
+                            entry.1.push(stmt_text.chars().take(150).collect());
+                        }
+                    }
+                }
+                Err(_) => {
+                    let entry = categories
+                        .entry(format!("TOKENIZE_ERR: {}", cat))
+                        .or_insert((0, Vec::new()));
+                    entry.0 += 1;
+                }
+            }
+            stmt_count += 1;
+        }
+    }
+
+    eprintln!("\n=== Failing Statement Categories ===");
+    eprintln!("Total statements tested: {}", stmt_count);
+
+    let mut sorted: Vec<_> = categories.iter().collect();
+    sorted.sort_by(|a, b| b.1 .0.cmp(&a.1 .0));
+
+    for (cat, (count, examples)) in sorted.iter().take(30) {
+        eprintln!("\n  [{}] {}", count, cat);
+        for ex in examples.iter() {
+            eprintln!("    {}", ex);
+        }
+    }
+}
+
+#[test]
+fn test_create_index_failures() {
+    let cases = vec![
+        "CREATE INDEX index_sales ON sales(prod_id) LOCAL (PARTITION idx_p1 ,PARTITION idx_p2)",
+        "CREATE INDEX index_part_tab1 ON part_tab1(b) LOCAL ( PARTITION b_index1, PARTITION b_index2, PARTITION b_index 3 )",
+        "CREATE INDEX idx_user_no ON subpart_tab1(user_no) LOCAL",
+        "CREATE INDEX pgweb_idx_1 ON tsearch.pgweb USING gin ( to_tsvector('english', body) )",
+        "CREATE INDEX aa ON test1(col1)",
+        "CREATE INDEX idx_test2_col1 ON test2(col1) LOCAL( PARTITION p1, PARTITION p2 )",
+        "CREATE UNIQUE INDEX pk_test4_c1 ON test_alt4(c1)",
+        "CREATE INDEX idx_test_c1_id ON test_c1 ( id )",
+        "CREATE INDEX idx_test1 ON tbl_test1(name) TABLESPACE tbs_index1",
+        "CREATE UNIQUE INDEX idx_test2 ON tbl_test1(id)",
+        "CREATE INDEX idx_test3 ON tbl_test1(substr(postcode,2))",
+        "CREATE INDEX idx_test4 ON tbl_test1(id) WHERE id IS NOT NULL",
+        "CREATE INDEX idx_student1 ON student(id) LOCAL",
+        "CREATE INDEX idx_student2 ON student(name) GLOBAL",
+        "CREATE INDEX tpcds_web_returns_p2_index1 ON web_returns_p2 (ca_address_id) LOCAL",
+        "CREATE INDEX tpcds_web_returns_p2_index2 ON web_returns_p2 (ca_address_sk) LOCAL ( PARTITION web_returns_p2_P1_index, PARTITION web_returns_p2_P2_index TABLESPACE example3 ) TABLESPACE example2",
+        "CREATE INDEX tpcds_web_returns_p2_global_index ON web_returns_p2 (ca_street_number) GLOBAL",
+        "CREATE INDEX tpcds_web_returns_for_p1 ON web_returns_p2 (ca_address_id) LOCAL(partition ind_part for p1)",
+        "CREATE INDEX tpcds_web_returns_for_p2 ON web_returns_p2 (ca_address_id) LOCAL(partition ind_part for (5000))",
+        "create index t1_range_int_index on t1_range_int(text(c1)) local",
+        "create index idx1 on table1 using gin ( to_tsvector(c_text) )",
+        "CREATE UNIQUE INDEX ds_reason_index1 ON tpcds.reason(r_reason_sk)",
+    ];
+
+    let mut failures = Vec::new();
+    for sql in &cases {
+        let result = std::panic::catch_unwind(|| parse_one(sql));
+        match result {
+            Ok(stmt) => {
+                if matches!(stmt, Statement::Empty) {
+                    failures.push(format!("FAIL (Empty): {}", sql));
+                } else {
+                    let (_, errors) = parse_with_errors(sql);
+                    if !errors.is_empty() {
+                        failures.push(format!("FAIL ({} errors): {}", errors.len(), sql));
+                    }
+                }
+            }
+            Err(_) => {
+                failures.push(format!("PANIC: {}", sql));
+            }
+        }
+    }
+
+    if !failures.is_empty() {
+        for f in &failures {
+            eprintln!("{}", f);
+        }
+        panic!("{} CREATE INDEX test cases failed", failures.len());
+    }
+}
+
+#[test]
+fn test_create_resource_label() {
+    let sql = "CREATE RESOURCE LABEL mask_lb1 ADD COLUMN ( tb_for_masking . col1 )";
+    let (stmts, errors) = parse_with_errors(sql);
+    assert!(errors.is_empty(), "Expected no errors, got: {:?}", errors);
+    match &stmts[0] {
+        Statement::CreatePolicyLabel(p) => {
+            assert_eq!(p.name, "mask_lb1");
+            assert!(p.add);
+        }
+        _ => panic!("expected CreatePolicyLabel, got {:?}", stmts[0]),
+    }
+
+    let sql2 = "ALTER RESOURCE LABEL table_label ADD COLUMN ( table_for_label . col2 )";
+    let (stmts2, errors2) = parse_with_errors(sql2);
+    assert!(errors2.is_empty(), "Expected no errors, got: {:?}", errors2);
+    match &stmts2[0] {
+        Statement::AlterPolicyLabel(p) => {
+            assert_eq!(p.name, "table_label");
+            assert!(p.add);
+        }
+        _ => panic!("expected AlterPolicyLabel, got {:?}", stmts2[0]),
+    }
+}
+
+#[test]
+fn test_alter_index_failures() {
+    let cases = vec![
+        "ALTER INDEX aa RENAME TO idx_test1_col1",
+        "ALTER INDEX IF EXISTS idx_test1_col1 SET TABLESPACE tbs_index1",
+        "ALTER INDEX IF EXISTS idx_test1_col1 SET (FILLFACTOR = 70)",
+        "ALTER INDEX IF EXISTS idx_test1_col1 RESET (FILLFACTOR)",
+        "ALTER INDEX IF EXISTS idx_test1_col1 UNUSABLE",
+        "ALTER INDEX idx_test1_col1 REBUILD",
+        "ALTER INDEX idx_test2_col1 RENAME PARTITION p1 TO p1_test2_idx",
+        "ALTER INDEX idx_test2_col1 MOVE PARTITION p1_test2_idx TABLESPACE tbs_index2",
+        "ALTER INDEX tpcds_web_returns_p2_index2 MOVE PARTITION web_returns_p2_P2_index TABLESPACE example1",
+        "ALTER INDEX tpcds_web_returns_p2_index2 RENAME PARTITION web_returns_p2_P8_index TO web_returns_p2_P8_index_new",
+        "ALTER INDEX tpcds.tpcds_web_returns_p2_index2 MOVE PARTITION web_returns_p2_P2_index TABLESPACE example1",
+    ];
+
+    let mut failures = Vec::new();
+    for sql in &cases {
+        let result = std::panic::catch_unwind(|| parse_one(sql));
+        match result {
+            Ok(stmt) => {
+                if matches!(stmt, Statement::Empty) {
+                    failures.push(format!("FAIL (Empty): {}", sql));
+                } else {
+                    let (_, errors) = parse_with_errors(sql);
+                    if !errors.is_empty() {
+                        failures.push(format!("FAIL ({} errors): {}", errors.len(), sql));
+                    }
+                }
+            }
+            Err(_) => {
+                failures.push(format!("PANIC: {}", sql));
+            }
+        }
+    }
+
+    if !failures.is_empty() {
+        for f in &failures {
+            eprintln!("{}", f);
+        }
+        panic!("{} ALTER INDEX test cases failed", failures.len());
+    }
+}
+
+#[test]
+fn test_select_expr_failures() {
+    let cases = vec![
+        "SELECT 8000 + 500 IN ( 10000 , 9000 ) AS RESULT",
+        "SELECT 8000 + 500 NOT IN ( 10000 , 9000 ) AS RESULT",
+        "SELECT 8000 + 500 < SOME ( array [ 10000 , 9000 ]) AS RESULT",
+        "SELECT 8000 + 500 < ANY ( array [ 10000 , 9000 ]) AS RESULT",
+        "SELECT 8000 + 500 < ALL ( array [ 10000 , 9000 ]) AS RESULT",
+    ];
+
+    let mut failures = Vec::new();
+    for sql in &cases {
+        let result = std::panic::catch_unwind(|| parse_one(sql));
+        match result {
+            Ok(stmt) => {
+                if matches!(stmt, Statement::Empty) {
+                    failures.push(format!("FAIL (Empty): {}", sql));
+                } else {
+                    let (_, errors) = parse_with_errors(sql);
+                    if !errors.is_empty() {
+                        failures.push(format!("FAIL ({} errors): {}", errors.len(), sql));
+                    }
+                }
+            }
+            Err(_) => {
+                failures.push(format!("PANIC: {}", sql));
+            }
+        }
+    }
+
+    if !failures.is_empty() {
+        for f in &failures {
+            eprintln!("{}", f);
+        }
+        panic!("{} SELECT expr test cases failed", failures.len());
+    }
+}
+
+#[test]
+fn test_select_quantified_comparison() {
+    let sql = "SELECT 8000 + 500 < SOME ( array [ 10000 , 9000 ]) AS RESULT";
+    let stmt = parse_one(sql);
+    assert!(!matches!(stmt, Statement::Empty));
+
+    let sql2 = "SELECT 8000 + 500 < ANY ( array [ 10000 , 9000 ]) AS RESULT";
+    let stmt2 = parse_one(sql2);
+    assert!(!matches!(stmt2, Statement::Empty));
+
+    let sql3 = "SELECT 8000 + 500 < ALL ( array [ 10000 , 9000 ]) AS RESULT";
+    let stmt3 = parse_one(sql3);
+    assert!(!matches!(stmt3, Statement::Empty));
+}
+
+#[test]
+fn test_alter_index_set_unusable_rebuild() {
+    let cases = vec![
+        "ALTER INDEX IF EXISTS idx_test1_col1 SET (FILLFACTOR = 70)",
+        "ALTER INDEX IF EXISTS idx_test1_col1 UNUSABLE",
+        "ALTER INDEX idx_test1_col1 REBUILD",
+    ];
+    for sql in &cases {
+        let (stmts, errors) = parse_with_errors(sql);
+        let is_empty = stmts.iter().any(|s| matches!(s, Statement::Empty));
+        if is_empty || !errors.is_empty() {
+            panic!("FAIL: {} — Empty: {}, Errors: {:?}", sql, is_empty, errors);
+        }
+    }
+}
+
+#[test]
+fn test_alter_index_set_options() {
+    let sql = "ALTER INDEX IF EXISTS idx_test1_col1 SET (FILLFACTOR = 70)";
+    let (stmts, errors) = parse_with_errors(sql);
+    assert!(errors.is_empty(), "Expected no errors, got: {:?}", errors);
+    assert_eq!(stmts.len(), 1);
+    match &stmts[0] {
+        Statement::AlterIndex(a) => match &a.action {
+            AlterIndexAction::Set(opts) => {
+                assert_eq!(opts.len(), 1);
+                assert_eq!(opts[0].0, "FILLFACTOR");
+            }
+            other => panic!("expected Set, got {:?}", other),
+        },
+        _ => panic!("expected AlterIndex, got {:?}", stmts[0]),
+    }
+}
+
+#[test]
+fn test_alter_index_unusable_rebuild() {
+    let (stmts, errors) = parse_with_errors("ALTER INDEX IF EXISTS idx_test1_col1 UNUSABLE");
+    assert!(errors.is_empty());
+    match &stmts[0] {
+        Statement::AlterIndex(a) => assert!(matches!(a.action, AlterIndexAction::Unusable)),
+        _ => panic!("expected AlterIndex"),
+    }
+
+    let (stmts, errors) = parse_with_errors("ALTER INDEX idx_test1_col1 REBUILD");
+    assert!(errors.is_empty());
+    match &stmts[0] {
+        Statement::AlterIndex(a) => assert!(matches!(a.action, AlterIndexAction::Rebuild)),
+        _ => panic!("expected AlterIndex"),
+    }
+}
+
+fn test_set_role_with_password() {
+    let sql = "SET ROLE user01 PASSWORD '********'";
+    let (stmts, errors) = parse_with_errors(sql);
+    assert!(errors.is_empty(), "Expected no errors, got: {:?}", errors);
+    match &stmts[0] {
+        Statement::VariableSet(v) => assert_eq!(v.name.to_uppercase(), "ROLE"),
+        _ => panic!("expected VariableSet, got {:?}", stmts[0]),
+    }
+
+    let sql2 = "SET role dev_mask PASSWORD '********'";
+    let (_stmts2, errors2) = parse_with_errors(sql2);
+    assert!(errors2.is_empty(), "Expected no errors, got: {:?}", errors2);
+}
+
+#[test]
+fn test_function_default_on_conversion_error() {
+    use crate::formatter::SqlFormatter;
+    let cases = vec![
+        (
+            "SELECT to_date('12-jan-2022' default '12-apr-2022' on conversion error)",
+            "SELECT to_date('12-jan-2022' DEFAULT '12-apr-2022' ON CONVERSION ERROR)",
+        ),
+        (
+            "SELECT to_date('2022-12-12' default '2022-01-01' on conversion error, 'yyyy-mm-dd')",
+            "SELECT to_date('2022-12-12' DEFAULT '2022-01-01' ON CONVERSION ERROR, 'yyyy-mm-dd')",
+        ),
+        (
+            "SELECT to_number('123' default '456-' on conversion error, '999MI')",
+            "SELECT to_number('123' DEFAULT '456-' ON CONVERSION ERROR, '999MI')",
+        ),
+        (
+            "SELECT to_timestamp('11-Sep-11' DEFAULT '12-Sep-10 14:10:10.123000' ON CONVERSION ERROR, 'DD-Mon-YY HH24:MI:SS.FF')",
+            "SELECT to_timestamp('11-Sep-11' DEFAULT '12-Sep-10 14:10:10.123000' ON CONVERSION ERROR, 'DD-Mon-YY HH24:MI:SS.FF')",
+        ),
+    ];
+    for (input, expected) in cases {
+        let stmt = parse_one(input);
+        let formatted = SqlFormatter::new().format_statement(&stmt);
+        assert_eq!(formatted, expected, "input: {}", input);
+    }
+}
+
+#[test]
+fn test_function_single_arg_overloads() {
+    let cases = vec![
+        "SELECT to_date('2015-08-14')",
+        "SELECT to_char(site) FROM employee",
+        "SELECT to_timestamp(200120400)",
+    ];
+    for sql in cases {
+        let (stmts, errors) = parse_with_errors(sql);
+        assert!(
+            errors.is_empty(),
+            "Unexpected errors for '{}': {:?}",
+            sql,
+            errors
+        );
+        assert_eq!(stmts.len(), 1, "Expected 1 statement for '{}'", sql);
+    }
+}
+
+// ── Array type and CHARACTER VARYING tests ──
+
+#[test]
+fn test_array_types_simple() {
+    let sql = "CREATE TABLE t (a int[], b text[])";
+    let stmt = parse_one(sql);
+    match stmt {
+        Statement::CreateTable(t) => {
+            assert_eq!(t.columns.len(), 2);
+            assert!(matches!(
+                t.columns[0].data_type,
+                DataType::Array(ref inner) if matches!(**inner, DataType::Integer(None))
+            ));
+            assert!(matches!(
+                t.columns[1].data_type,
+                DataType::Array(ref inner) if matches!(**inner, DataType::Text)
+            ));
+        }
+        _ => panic!("expected CreateTable, got {:?}", stmt),
+    }
+}
+
+#[test]
+fn test_array_type_varchar_param() {
+    let sql = "CREATE TABLE t (a varchar(100)[])";
+    let stmt = parse_one(sql);
+    match stmt {
+        Statement::CreateTable(t) => {
+            assert_eq!(t.columns.len(), 1);
+            match &t.columns[0].data_type {
+                DataType::Array(inner) => match **inner {
+                    DataType::Varchar(Some(100)) => {}
+                    ref other => panic!("expected Varchar(Some(100)), got {:?}", other),
+                },
+                other => panic!("expected Array, got {:?}", other),
+            }
+        }
+        _ => panic!("expected CreateTable, got {:?}", stmt),
+    }
+}
+
+#[test]
+fn test_array_type_multi_dimensional() {
+    let sql = "CREATE TABLE t (a int[][])";
+    let stmt = parse_one(sql);
+    match stmt {
+        Statement::CreateTable(t) => {
+            assert_eq!(t.columns.len(), 1);
+            match &t.columns[0].data_type {
+                DataType::Array(outer) => match **outer {
+                    DataType::Array(ref inner) => {
+                        assert!(matches!(**inner, DataType::Integer(None)));
+                    }
+                    ref other => panic!("expected nested Array, got {:?}", other),
+                },
+                other => panic!("expected Array, got {:?}", other),
+            }
+        }
+        _ => panic!("expected CreateTable, got {:?}", stmt),
+    }
+}
+
+#[test]
+fn test_character_type() {
+    let sql = "CREATE TABLE t (a character(10))";
+    let stmt = parse_one(sql);
+    match stmt {
+        Statement::CreateTable(t) => {
+            assert_eq!(t.columns.len(), 1);
+            match &t.columns[0].data_type {
+                DataType::Char(Some(10)) => {}
+                other => panic!("expected Char(Some(10)), got {:?}", other),
+            }
+        }
+        _ => panic!("expected CreateTable, got {:?}", stmt),
+    }
+}
+
+#[test]
+fn test_character_varying() {
+    let sql = "CREATE TABLE t (a character varying(100))";
+    let stmt = parse_one(sql);
+    match stmt {
+        Statement::CreateTable(t) => {
+            assert_eq!(t.columns.len(), 1);
+            match &t.columns[0].data_type {
+                DataType::Varchar(Some(100)) => {}
+                other => panic!("expected Varchar(Some(100)), got {:?}", other),
+            }
+        }
+        _ => panic!("expected CreateTable, got {:?}", stmt),
+    }
+}
+
+#[test]
+fn test_character_varying_no_length() {
+    let sql = "CREATE TABLE t (a character varying)";
+    let stmt = parse_one(sql);
+    match stmt {
+        Statement::CreateTable(t) => {
+            assert_eq!(t.columns.len(), 1);
+            match &t.columns[0].data_type {
+                DataType::Varchar(None) => {}
+                other => panic!("expected Varchar(None), got {:?}", other),
+            }
+        }
+        _ => panic!("expected CreateTable, got {:?}", stmt),
+    }
+}
+
+#[test]
+fn test_character_no_length() {
+    let sql = "CREATE TABLE t (a character)";
+    let stmt = parse_one(sql);
+    match stmt {
+        Statement::CreateTable(t) => {
+            assert_eq!(t.columns.len(), 1);
+            match &t.columns[0].data_type {
+                DataType::Char(None) => {}
+                other => panic!("expected Char(None), got {:?}", other),
+            }
+        }
+        _ => panic!("expected CreateTable, got {:?}", stmt),
+    }
+}
+
+#[test]
+fn test_array_type_formatter_roundtrip() {
+    let cases = vec![
+        ("CREATE TABLE t (a INT[])", "CREATE TABLE t (a INTEGER[])"),
+        ("CREATE TABLE t (a TEXT[])", "CREATE TABLE t (a TEXT[])"),
+        (
+            "CREATE TABLE t (a VARCHAR(100)[])",
+            "CREATE TABLE t (a VARCHAR(100)[])",
+        ),
+    ];
+    for (input, expected) in cases {
+        let stmt = parse_one(input);
+        let formatted = SqlFormatter::new().format_statement(&stmt);
+        assert_eq!(formatted, expected, "input: {}", input);
+    }
+}
+
+#[test]
+fn test_character_varying_formatter_roundtrip() {
+    let cases = vec![
+        (
+            "CREATE TABLE t (a CHARACTER(10))",
+            "CREATE TABLE t (a CHAR(10))",
+        ),
+        (
+            "CREATE TABLE t (a CHARACTER VARYING(100))",
+            "CREATE TABLE t (a VARCHAR(100))",
+        ),
+    ];
+    for (input, expected) in cases {
+        let stmt = parse_one(input);
+        let formatted = SqlFormatter::new().format_statement(&stmt);
+        assert_eq!(formatted, expected, "input: {}", input);
+    }
+}
+
+#[test]
+fn test_cast_array_type() {
+    let sql = "SELECT CAST(x AS int[]) FROM t";
+    let stmt = parse_one(sql);
+    match stmt {
+        Statement::Select(s) => {
+            assert_eq!(s.targets.len(), 1);
+        }
+        _ => panic!("expected Select, got {:?}", stmt),
+    }
+}
+
+#[test]
+fn test_sec_label_on_role() {
+    let stmt = parse_one("SECURITY LABEL ON ROLE bob IS 'sec_label'");
+    match stmt {
+        Statement::SecLabel(s) => {
+            assert_eq!(s.object_type, "role");
+            assert_eq!(s.name, vec!["bob".to_string()]);
+            assert_eq!(s.label.as_deref(), Some("sec_label"));
+        }
+        other => panic!("expected SecLabel, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_sec_label_on_table() {
+    let stmt = parse_one("SECURITY LABEL ON TABLE my_table IS 'classified'");
+    match stmt {
+        Statement::SecLabel(s) => {
+            assert_eq!(s.object_type, "table");
+            assert_eq!(s.name, vec!["my_table".to_string()]);
+            assert_eq!(s.label.as_deref(), Some("classified"));
+        }
+        other => panic!("expected SecLabel, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_prefix_at_at() {
+    let sql = "SELECT @@ circle '((0,0),10)' AS RESULT";
+    let stmt = parse_one(sql);
+    match stmt {
+        Statement::Select(s) => {
+            assert_eq!(s.targets.len(), 1);
+            let target = &s.targets[0];
+            match target {
+                SelectTarget::Expr(expr, _) => match expr {
+                    Expr::UnaryOp { op, .. } => {
+                        assert_eq!(op, "@@");
+                    }
+                    other => panic!("expected UnaryOp, got {:?}", other),
+                },
+                other => panic!("expected Expr target, got {:?}", other),
+            }
+        }
+        other => panic!("expected Select, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_geometric_lt_caret() {
+    let tokens = Tokenizer::new("SELECT box '..' <^ box '..'")
+        .tokenize()
+        .unwrap();
+    let has_op = tokens
+        .iter()
+        .any(|tws| matches!(&tws.token, Token::Op(op) if op == "<^"));
+    assert!(has_op, "expected <^ operator token");
+    let stmt = parse_one("SELECT box '..' <^ box '..' AS RESULT");
+    match stmt {
+        Statement::Select(s) => {
+            assert_eq!(s.targets.len(), 1);
+        }
+        other => panic!("expected Select, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_geometric_gt_caret() {
+    let tokens = Tokenizer::new("SELECT box '..' >^ box '..'")
+        .tokenize()
+        .unwrap();
+    let has_op = tokens
+        .iter()
+        .any(|tws| matches!(&tws.token, Token::Op(op) if op == ">^"));
+    assert!(has_op, "expected >^ operator token");
+    let stmt = parse_one("SELECT box '..' >^ box '..' AS RESULT");
+    match stmt {
+        Statement::Select(s) => {
+            assert_eq!(s.targets.len(), 1);
+        }
+        other => panic!("expected Select, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_range_adjacent_op() {
+    let tokens = Tokenizer::new("SELECT numrange(1.1,2.2) -|- numrange(2.2,3.3)")
+        .tokenize()
+        .unwrap();
+    let has_op = tokens
+        .iter()
+        .any(|tws| matches!(&tws.token, Token::Op(op) if op == "-|-"));
+    assert!(has_op, "expected -|- operator token");
+    let stmt = parse_one("SELECT numrange(1.1,2.2) -|- numrange(2.2,3.3) AS RESULT");
+    match stmt {
+        Statement::Select(s) => {
+            assert_eq!(s.targets.len(), 1);
+        }
+        other => panic!("expected Select, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_values_in_from() {
+    let sql = "SELECT * FROM (VALUES (1), (2)) AS v(value)";
+    let stmt = parse_one(sql);
+    match stmt {
+        Statement::Select(s) => {
+            assert_eq!(s.from.len(), 1);
+            match &s.from[0] {
+                TableRef::Values { alias, .. } => {
+                    assert_eq!(alias.as_deref(), Some("v"));
+                }
+                other => panic!("expected Values table ref, got {:?}", other),
+            }
+        }
+        other => panic!("expected Select, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_values_in_from_multi_row() {
+    let sql = "SELECT * FROM (VALUES (1, 'a'), (2, 'b'), (3, 'c')) AS t(id, name)";
+    let stmt = parse_one(sql);
+    match stmt {
+        Statement::Select(s) => {
+            assert_eq!(s.from.len(), 1);
+            match &s.from[0] {
+                TableRef::Values { values, alias, column_names: _ } => {
+                    assert_eq!(alias.as_deref(), Some("t"));
+                    assert_eq!(values.rows.len(), 3);
+                    assert_eq!(values.rows[0].len(), 2);
+                    assert_eq!(values.rows[1].len(), 2);
+                    assert_eq!(values.rows[2].len(), 2);
+                }
+                other => panic!("expected Values table ref, got {:?}", other),
+            }
+        }
+        other => panic!("expected Select, got {:?}", other),
+    }
+}
+
+// ========== TEMPORARY DEBUG TESTS ==========
+#[test]
+fn test_debug_drop_synonym() {
+    let sql = "DROP SYNONYM t1;";
+    let (infos, errors) = Parser::parse_sql(sql);
+    if !errors.is_empty() {
+        for e in &errors {
+            eprintln!("ERROR: {:?}", e);
+        }
+        panic!("DROP SYNONYM failed");
+    }
+    match &infos[0].statement {
+        Statement::Drop(d) => {
+            assert_eq!(d.object_type, ObjectType::Synonym);
+        }
+        _ => panic!("expected Drop, got {:?}", infos[0].statement),
+    }
+}
+
+#[test]
+fn test_debug_drop_public_database_link() {
+    let sql = "DROP PUBLIC DATABASE LINK public_dblink;";
+    let (infos, errors) = Parser::parse_sql(sql);
+    if !errors.is_empty() {
+        for e in &errors {
+            eprintln!("ERROR: {:?}", e);
+        }
+        panic!("DROP PUBLIC DATABASE LINK failed");
+    }
+}
+
+#[test]
+fn test_debug_drop_database_link() {
+    let sql = "DROP DATABASE LINK private_dblink;";
+    let (infos, errors) = Parser::parse_sql(sql);
+    if !errors.is_empty() {
+        for e in &errors {
+            eprintln!("ERROR: {:?}", e);
+        }
+        panic!("DROP DATABASE LINK failed");
+    }
+}
+
+#[test]
+fn test_debug_drop_user_mapping() {
+    let sql = "DROP USER MAPPING FOR bob SERVER my_server;";
+    let (infos, errors) = Parser::parse_sql(sql);
+    if !errors.is_empty() {
+        for e in &errors {
+            eprintln!("ERROR: {:?}", e);
+        }
+        panic!("DROP USER MAPPING failed");
+    }
+}
+
+#[test]
+fn test_debug_create_public_database_link() {
+    let sql = "CREATE PUBLIC DATABASE LINK public_dblink CONNECT TO 'user1' IDENTIFIED BY '********' USING 'host:port/db';";
+    let (infos, errors) = Parser::parse_sql(sql);
+    if !errors.is_empty() {
+        for e in &errors {
+            eprintln!("ERROR: {:?}", e);
+        }
+        panic!("CREATE PUBLIC DATABASE LINK failed");
+    }
+}
+
+#[test]
+fn test_debug_create_database_link() {
+    let sql = "CREATE DATABASE LINK private_dblink CONNECT TO 'user1' IDENTIFIED BY '********' USING 'host:port/db';";
+    let (infos, errors) = Parser::parse_sql(sql);
+    if !errors.is_empty() {
+        for e in &errors {
+            eprintln!("ERROR: {:?}", e);
+        }
+        panic!("CREATE DATABASE LINK failed");
+    }
+}
+
+#[test]
+fn test_debug_alter_table_modify_first() {
+    let sql = "ALTER TABLE tbl_test MODIFY COLUMN name varchar(25) FIRST;";
+    let (infos, errors) = Parser::parse_sql(sql);
+    if !errors.is_empty() {
+        for e in &errors {
+            eprintln!("ERROR: {:?}", e);
+        }
+        panic!("ALTER TABLE MODIFY COLUMN FIRST failed");
+    }
+}
+
+#[test]
+fn test_debug_alter_table_modify_after() {
+    let sql = "ALTER TABLE tbl_test MODIFY COLUMN name varchar(10) AFTER id;";
+    let (infos, errors) = Parser::parse_sql(sql);
+    if !errors.is_empty() {
+        for e in &errors {
+            eprintln!("ERROR: {:?}", e);
+        }
+        panic!("ALTER TABLE MODIFY COLUMN AFTER failed");
+    }
+}
+
+#[test]
+fn test_debug_alter_table_if_exists_star() {
+    let sql = "ALTER TABLE IF EXISTS tb5 * ADD COLUMN IF NOT EXISTS c2 char(5) after c1;";
+    let (infos, errors) = Parser::parse_sql(sql);
+    if !errors.is_empty() {
+        for e in &errors {
+            eprintln!("ERROR: {:?}", e);
+        }
+        panic!("ALTER TABLE IF EXISTS * failed");
+    }
+}
+
+// ========== CREATE/ALTER MASKING POLICY Tests ==========
+
+#[test]
+fn test_create_masking_policy_with_function_args() {
+    let sql = r"CREATE MASKING POLICY maskpol7 regexpmasking ( '[\d+]' , '*' , 2 , 9 ) ON LABEL ( mask_lb7 );";
+    let stmt = parse_one(sql);
+    match stmt {
+        Statement::CreateMaskingPolicy(s) => {
+            assert_eq!(s.name, "maskpol7");
+            assert_eq!(s.masking_function.as_deref(), Some("regexpmasking"));
+            assert_eq!(s.function_args.len(), 4);
+            assert_eq!(s.labels, vec!["mask_lb7"]);
+        }
+        _ => panic!("expected CreateMaskingPolicy, got {:?}", stmt),
+    }
+}
+
+#[test]
+fn test_create_masking_policy_with_filter() {
+    let sql = "CREATE MASKING POLICY maskpol8 randommasking ON LABEL ( mask_lb8 ) FILTER ON ROLES ( dev_mask , bob_mask ), APP ( gsql ), IP ( '10.20.30.40' , '127.0.0.0/24' );";
+    let stmt = parse_one(sql);
+    match stmt {
+        Statement::CreateMaskingPolicy(s) => {
+            assert_eq!(s.name, "maskpol8");
+            assert_eq!(s.masking_function.as_deref(), Some("randommasking"));
+            assert_eq!(s.labels, vec!["mask_lb8"]);
+            assert_eq!(s.filter_clauses.len(), 3);
+            assert_eq!(s.filter_clauses[0].kind, "ROLES");
+            assert_eq!(s.filter_clauses[0].values, vec!["dev_mask", "bob_mask"]);
+            assert_eq!(s.filter_clauses[1].kind, "APP");
+            assert_eq!(s.filter_clauses[1].values, vec!["gsql"]);
+            assert_eq!(s.filter_clauses[2].kind, "IP");
+            assert_eq!(
+                s.filter_clauses[2].values,
+                vec!["10.20.30.40", "127.0.0.0/24"]
+            );
+        }
+        _ => panic!("expected CreateMaskingPolicy, got {:?}", stmt),
+    }
+}
+
+#[test]
+fn test_alter_masking_policy_modify_filter() {
+    let sql = "ALTER MASKING POLICY maskpol1 MODIFY ( FILTER ON ROLES ( dev_mask , bob_mask ), APP ( gsql ), IP ( '10.20.30.40' , '127.0.0.0/24' ));";
+    let stmt = parse_one(sql);
+    match stmt {
+        Statement::AlterMaskingPolicy(s) => {
+            assert_eq!(s.name, "maskpol1");
+            match &s.action {
+                AlterMaskingPolicyAction::ModifyFilter { filter_clauses } => {
+                    assert_eq!(filter_clauses.len(), 3);
+                    assert_eq!(filter_clauses[0].kind, "ROLES");
+                    assert_eq!(filter_clauses[0].values, vec!["dev_mask", "bob_mask"]);
+                    assert_eq!(filter_clauses[1].kind, "APP");
+                    assert_eq!(filter_clauses[1].values, vec!["gsql"]);
+                    assert_eq!(filter_clauses[2].kind, "IP");
+                    assert_eq!(
+                        filter_clauses[2].values,
+                        vec!["10.20.30.40", "127.0.0.0/24"]
+                    );
+                }
+                other => panic!("expected ModifyFilter action, got {:?}", other),
+            }
+        }
+        _ => panic!("expected AlterMaskingPolicy, got {:?}", stmt),
+    }
+}
+
+#[test]
+fn test_create_masking_policy_basic() {
+    let sql = "CREATE MASKING POLICY maskpol1 maskall ON LABEL ( mask_lb1 );";
+    let stmt = parse_one(sql);
+    match stmt {
+        Statement::CreateMaskingPolicy(s) => {
+            assert_eq!(s.name, "maskpol1");
+            assert_eq!(s.masking_function.as_deref(), Some("maskall"));
+            assert_eq!(s.function_args.len(), 0);
+            assert_eq!(s.labels, vec!["mask_lb1"]);
+            assert_eq!(s.filter_clauses.len(), 0);
+        }
+        _ => panic!("expected CreateMaskingPolicy, got {:?}", stmt),
+    }
+}
+
+// ========== PREDICT BY Expression Tests ==========
+
+#[test]
+fn test_predict_by_basic() {
+    let sql = "SELECT id, PREDICT BY price_model (FEATURES size,lot) FROM houses";
+    let stmt = parse_one(sql);
+    match stmt {
+        Statement::Select(s) => {
+            assert_eq!(s.targets.len(), 2);
+            match &s.targets[1] {
+                SelectTarget::Expr(expr, None) => match expr {
+                    Expr::PredictBy {
+                        model_name,
+                        features,
+                    } => {
+                        assert_eq!(model_name, "price_model");
+                        assert_eq!(features.len(), 2);
+                    }
+                    _ => panic!("expected PredictBy expression"),
+                },
+                _ => panic!("expected Expr target"),
+            }
+        }
+        _ => panic!("expected Select"),
+    }
+}
+
+#[test]
+fn test_predict_by_with_alias() {
+    let sql = r#"SELECT id, PREDICT BY iris_classification (FEATURES sepal_length,sepal_width,petal_length,sepal_width) as "PREDICT" FROM tb_iris limit 3"#;
+    let stmt = parse_one(sql);
+    match stmt {
+        Statement::Select(s) => {
+            assert_eq!(s.targets.len(), 2);
+            match &s.targets[1] {
+                SelectTarget::Expr(expr, alias) => {
+                    assert_eq!(alias.as_deref(), Some("PREDICT"));
+                    match expr {
+                        Expr::PredictBy {
+                            model_name,
+                            features,
+                        } => {
+                            assert_eq!(model_name, "iris_classification");
+                            assert_eq!(features.len(), 4);
+                        }
+                        _ => panic!("expected PredictBy expression"),
+                    }
+                }
+                _ => panic!("expected Expr target with alias"),
+            }
+            match &s.limit {
+                Some(Expr::Literal(Literal::Integer(3))) => {}
+                _ => panic!("expected LIMIT 3"),
+            }
+        }
+        _ => panic!("expected Select"),
+    }
+}
+
+#[test]
+fn test_predict_by_two_features() {
+    let sql = "select id, PREDICT BY patient_logistic_regression (FEATURES second_attack,treatment) FROM patients";
+    let stmt = parse_one(sql);
+    match stmt {
+        Statement::Select(s) => match &s.targets[1] {
+            SelectTarget::Expr(
+                Expr::PredictBy {
+                    model_name,
+                    features,
+                },
+                None,
+            ) => {
+                assert_eq!(model_name, "patient_logistic_regression");
+                assert_eq!(features.len(), 2);
+            }
+            _ => panic!("expected PredictBy with 2 features"),
+        },
+        _ => panic!("expected Select"),
+    }
+}
+
+#[test]
+fn test_predict_by_single_feature() {
+    let sql =
+        "select id, PREDICT BY patient_linear_regression (FEATURES second_attack) FROM patients";
+    let stmt = parse_one(sql);
+    match stmt {
+        Statement::Select(s) => match &s.targets[1] {
+            SelectTarget::Expr(
+                Expr::PredictBy {
+                    model_name,
+                    features,
+                },
+                None,
+            ) => {
+                assert_eq!(model_name, "patient_linear_regression");
+                assert_eq!(features.len(), 1);
+            }
+            _ => panic!("expected PredictBy with 1 feature"),
+        },
+        _ => panic!("expected Select"),
+    }
+}
+
+#[test]
+fn test_predict_by_with_numeric_feature() {
+    let sql = "select id, PREDICT BY patient_linear_regression (FEATURES 1,second_attack,treatment) FROM patients";
+    let stmt = parse_one(sql);
+    match stmt {
+        Statement::Select(s) => {
+            match &s.targets[1] {
+                SelectTarget::Expr(
+                    Expr::PredictBy {
+                        model_name,
+                        features,
+                    },
+                    None,
+                ) => {
+                    assert_eq!(model_name, "patient_linear_regression");
+                    assert_eq!(features.len(), 3);
+                    // First feature is numeric literal
+                    assert!(matches!(&features[0], Expr::Literal(Literal::Integer(1))));
+                }
+                _ => panic!("expected PredictBy with numeric feature"),
+            }
+        }
+        _ => panic!("expected Select"),
+    }
+}
+
+#[test]
+fn test_predict_by_format_roundtrip() {
+    use crate::formatter::SqlFormatter;
+    let sql = "SELECT id, PREDICT BY price_model (FEATURES size, lot) FROM houses";
+    let stmt = parse_one(sql);
+    let formatted = SqlFormatter::new().format_statement(&stmt);
+    let stmt2 = parse_one(&formatted);
+    assert_eq!(stmt, stmt2);
+}
+
+#[test]
+fn test_predict_by_json_roundtrip() {
+    let sql = "SELECT id, PREDICT BY price_model (FEATURES size, lot) FROM houses";
+    let stmt = parse_one(sql);
+    assert_eq!(stmt, json_roundtrip(&stmt));
 }

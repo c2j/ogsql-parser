@@ -69,6 +69,69 @@ impl Parser {
                 continue;
             }
 
+            if matches!(op_str.as_str(), "=" | "<" | ">" | "<=" | ">=" | "<>" | "!=")
+                && matches!(
+                    self.peek(),
+                    Token::Keyword(Keyword::ANY)
+                        | Token::Keyword(Keyword::SOME)
+                        | Token::Keyword(Keyword::ALL)
+                )
+            {
+                let sublink_type = match self.peek() {
+                    Token::Keyword(Keyword::ANY) => crate::ast::ScalarSublinkType::Any,
+                    Token::Keyword(Keyword::SOME) => crate::ast::ScalarSublinkType::Some,
+                    Token::Keyword(Keyword::ALL) => crate::ast::ScalarSublinkType::All,
+                    _ => unreachable!(),
+                };
+                self.advance();
+                self.expect_token(&Token::LParen)?;
+                self.consume_hints();
+                let saved_pos = self.pos;
+                let saved_err_len = self.errors.len();
+                if let Ok(subquery) = self.parse_select_statement() {
+                    self.expect_token(&Token::RParen)?;
+                    left = Expr::ScalarSublink {
+                        expr: Box::new(left),
+                        op: op_str,
+                        sublink_type,
+                        subquery: Box::new(subquery),
+                    };
+                    continue;
+                }
+                self.pos = saved_pos;
+                self.errors.truncate(saved_err_len);
+                let expr_val = self.parse_expr()?;
+                self.expect_token(&Token::RParen)?;
+                left = Expr::ScalarSublink {
+                    expr: Box::new(left),
+                    op: op_str,
+                    sublink_type,
+                    subquery: Box::new(crate::ast::SelectStatement {
+                        targets: vec![crate::ast::SelectTarget::Expr(expr_val, None)],
+                        hints: vec![],
+                        with: None,
+                        distinct: false,
+                        distinct_on: vec![],
+                        into_targets: None,
+                        into_table: None,
+                        from: vec![],
+                        where_clause: None,
+                        connect_by: None,
+                        group_by: vec![],
+                        having: None,
+                        order_by: vec![],
+                        order_siblings: false,
+                        limit: None,
+                        offset: None,
+                        fetch: None,
+                        lock_clause: None,
+                        window_clause: vec![],
+                        set_operation: None,
+                    }),
+                };
+                continue;
+            }
+
             let right = self.parse_expr_with_precedence(if is_right_assoc {
                 op_prec
             } else {
@@ -119,12 +182,12 @@ impl Parser {
                 expr: Box::new(expr),
             });
         }
-        if let Token::Op(op) = self.peek() {
+        if let Some(op) = self.peek().as_op_str() {
             if matches!(
-                op.as_str(),
-                "|/" | "||/" | "!!" | "?|" | "?-" | "?-|" | "?||"
+                op,
+                "|/" | "||/" | "!!" | "?|" | "?-" | "?-|" | "?||" | "#" | "~" | "@@"
             ) {
-                let op_str = op.clone();
+                let op_str = op.to_string();
                 self.advance();
                 let expr = self.parse_expr_with_precedence(60)?;
                 return Ok(Expr::UnaryOp {
@@ -143,10 +206,17 @@ impl Parser {
             Token::Eq => Some((20, "=".to_string(), false)),
             Token::Lt => Some((20, "<".to_string(), false)),
             Token::Gt => Some((20, ">".to_string(), false)),
+            Token::OpLe => Some((20, "<=".to_string(), false)),
+            Token::OpNe => Some((20, "<>".to_string(), false)),
+            Token::OpNe2 => Some((20, "!=".to_string(), false)),
+            Token::OpGe => Some((20, ">=".to_string(), false)),
+            Token::OpShiftL => Some((30, "<<".to_string(), false)),
+            Token::OpShiftR => Some((30, ">>".to_string(), false)),
+            Token::OpDblBang => Some((60, "!!".to_string(), true)),
+            Token::OpConcat => Some((30, "||".to_string(), false)),
             Token::Op(op) => {
                 let prec = match op.as_str() {
-                    "<=" | ">=" | "<>" | "!=" | "<?>" => 20,
-                    "||" => 30,
+                    "<?>" => 20,
                     _ => 30,
                 };
                 Some((prec, op.clone(), false))
@@ -185,6 +255,41 @@ impl Parser {
                                     *left = Expr::IsNull {
                                         expr: Box::new(std::mem::replace(left, Expr::Default)),
                                         negated: true,
+                                    };
+                                    return Ok(true);
+                                }
+                                if matches!(&next2.token, Token::Keyword(Keyword::DISTINCT)) {
+                                    if let Some(next3) = self.tokens.get(self.pos + 3) {
+                                        if matches!(&next3.token, Token::Keyword(Keyword::FROM)) {
+                                            self.advance();
+                                            self.advance();
+                                            self.advance();
+                                            self.advance();
+                                            let right = self.parse_expr_with_precedence(5)?;
+                                            let left_expr = std::mem::replace(left, Expr::Default);
+                                            *left = Expr::BinaryOp {
+                                                left: Box::new(left_expr),
+                                                op: "IS NOT DISTINCT FROM".to_string(),
+                                                right: Box::new(right),
+                                            };
+                                            return Ok(true);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        Token::Keyword(Keyword::DISTINCT) => {
+                            if let Some(next2) = self.tokens.get(self.pos + 2) {
+                                if matches!(&next2.token, Token::Keyword(Keyword::FROM)) {
+                                    self.advance();
+                                    self.advance();
+                                    self.advance();
+                                    let right = self.parse_expr_with_precedence(5)?;
+                                    let left_expr = std::mem::replace(left, Expr::Default);
+                                    *left = Expr::BinaryOp {
+                                        left: Box::new(left_expr),
+                                        op: "IS DISTINCT FROM".to_string(),
+                                        right: Box::new(right),
                                     };
                                     return Ok(true);
                                 }
@@ -252,9 +357,48 @@ impl Parser {
                             self.advance();
                             self.advance();
                             let pattern = self.parse_expr()?;
+                            let escape = if self.match_keyword(Keyword::ESCAPE) {
+                                self.advance();
+                                Some(Box::new(self.parse_expr()?))
+                            } else {
+                                None
+                            };
+                            *left = Expr::Like {
+                                expr: Box::new(std::mem::replace(left, Expr::Default)),
+                                pattern: Box::new(pattern),
+                                escape,
+                                negated: true,
+                                case_insensitive: false,
+                            };
+                            return Ok(true);
+                        }
+                        Token::Keyword(Keyword::ILIKE) => {
+                            self.advance();
+                            self.advance();
+                            let pattern = self.parse_expr()?;
+                            let escape = if self.match_keyword(Keyword::ESCAPE) {
+                                self.advance();
+                                Some(Box::new(self.parse_expr()?))
+                            } else {
+                                None
+                            };
+                            *left = Expr::Like {
+                                expr: Box::new(std::mem::replace(left, Expr::Default)),
+                                pattern: Box::new(pattern),
+                                escape,
+                                negated: true,
+                                case_insensitive: true,
+                            };
+                            return Ok(true);
+                        }
+                        Token::Keyword(Keyword::SIMILAR) => {
+                            self.advance();
+                            self.advance();
+                            self.expect_keyword(Keyword::TO)?;
+                            let pattern = self.parse_expr()?;
                             *left = Expr::BinaryOp {
                                 left: Box::new(std::mem::replace(left, Expr::Default)),
-                                op: "NOT LIKE".to_string(),
+                                op: "NOT SIMILAR TO".to_string(),
                                 right: Box::new(pattern),
                             };
                             return Ok(true);
@@ -272,19 +416,46 @@ impl Parser {
             Token::Keyword(Keyword::LIKE) => {
                 self.advance();
                 let pattern = self.parse_expr()?;
-                *left = Expr::BinaryOp {
-                    left: Box::new(std::mem::replace(left, Expr::Default)),
-                    op: "LIKE".to_string(),
-                    right: Box::new(pattern),
+                let escape = if self.match_keyword(Keyword::ESCAPE) {
+                    self.advance();
+                    Some(Box::new(self.parse_expr()?))
+                } else {
+                    None
+                };
+                *left = Expr::Like {
+                    expr: Box::new(std::mem::replace(left, Expr::Default)),
+                    pattern: Box::new(pattern),
+                    escape,
+                    negated: false,
+                    case_insensitive: false,
                 };
                 Ok(true)
             }
             Token::Keyword(Keyword::ILIKE) => {
                 self.advance();
                 let pattern = self.parse_expr()?;
+                let escape = if self.match_keyword(Keyword::ESCAPE) {
+                    self.advance();
+                    Some(Box::new(self.parse_expr()?))
+                } else {
+                    None
+                };
+                *left = Expr::Like {
+                    expr: Box::new(std::mem::replace(left, Expr::Default)),
+                    pattern: Box::new(pattern),
+                    escape,
+                    negated: false,
+                    case_insensitive: true,
+                };
+                Ok(true)
+            }
+            Token::Keyword(Keyword::SIMILAR) => {
+                self.advance();
+                self.expect_keyword(Keyword::TO)?;
+                let pattern = self.parse_expr()?;
                 *left = Expr::BinaryOp {
                     left: Box::new(std::mem::replace(left, Expr::Default)),
-                    op: "ILIKE".to_string(),
+                    op: "SIMILAR TO".to_string(),
                     right: Box::new(pattern),
                 };
                 Ok(true)
@@ -316,6 +487,58 @@ impl Parser {
                             }
                         }
                     }
+                }
+                Ok(false)
+            }
+            Token::Op(op) if op == "!" => {
+                self.advance();
+                *left = Expr::UnaryOp {
+                    op: "!".to_string(),
+                    expr: Box::new(std::mem::replace(left, Expr::Default)),
+                };
+                Ok(true)
+            }
+            Token::Dot => {
+                if matches!(left, Expr::Parenthesized(_))
+                    || matches!(left, Expr::FunctionCall { .. })
+                    || matches!(left, Expr::FieldAccess { .. })
+                {
+                    self.advance();
+                    let field = self.parse_identifier()?;
+                    if self.match_token(&Token::LParen) {
+                        self.advance();
+                        let args = if self.match_token(&Token::RParen) {
+                            vec![]
+                        } else {
+                            let mut args = vec![self.parse_expr()?];
+                            while self.match_token(&Token::Comma) {
+                                self.advance();
+                                args.push(self.parse_maybe_named_arg()?);
+                            }
+                            args
+                        };
+                        self.expect_token(&Token::RParen)?;
+                        let obj = std::mem::replace(left, Expr::Default);
+                        let mut name_parts = expr_to_dotted_name(obj);
+                        name_parts.push(field);
+                        *left = Expr::FunctionCall {
+                            name: name_parts,
+                            args,
+                            distinct: false,
+                            over: None,
+                            filter: None,
+                            within_group: vec![],
+                            separator: None,
+                            default: None,
+                            conversion_format: None,
+                        };
+                    } else {
+                        *left = Expr::FieldAccess {
+                            object: Box::new(std::mem::replace(left, Expr::Default)),
+                            field,
+                        };
+                    }
+                    return Ok(true);
                 }
                 Ok(false)
             }
@@ -557,6 +780,24 @@ impl Parser {
                         format,
                     });
                 }
+                // PREDICT BY model_name (FEATURES col1, col2, ...) — openGauss ML prediction
+                if kw == Keyword::PREDICT {
+                    self.advance();
+                    self.expect_keyword(Keyword::BY)?;
+                    let model_name = self.parse_identifier()?;
+                    self.expect_token(&Token::LParen)?;
+                    self.expect_keyword(Keyword::FEATURES)?;
+                    let mut features = vec![self.parse_expr()?];
+                    while self.match_token(&Token::Comma) {
+                        self.advance();
+                        features.push(self.parse_expr()?);
+                    }
+                    self.expect_token(&Token::RParen)?;
+                    return Ok(Expr::PredictBy {
+                        model_name,
+                        features,
+                    });
+                }
                 if kw == Keyword::XMLELEMENT {
                     self.advance();
                     return self.parse_xml_element();
@@ -584,6 +825,47 @@ impl Parser {
                 if kw == Keyword::XMLSERIALIZE {
                     self.advance();
                     return self.parse_xml_serialize();
+                }
+                // Type literal: DATE '...', TIME [WITH TIME ZONE] '...', TIMESTAMP [WITH TIME ZONE] '...'
+                if matches!(kw, Keyword::DATE_P | Keyword::TIME | Keyword::TIMESTAMP) {
+                    let type_name = kw.as_str().to_string();
+                    let saved = self.pos;
+                    self.advance();
+                    let mut tz = None;
+                    if self.match_keyword(Keyword::WITH) {
+                        self.advance();
+                        if self.match_keyword(Keyword::TIME) {
+                            self.advance();
+                            if self.match_keyword(Keyword::ZONE) {
+                                self.advance();
+                                tz = Some("WITH TIME ZONE");
+                            }
+                        }
+                    } else if self.match_keyword(Keyword::WITHOUT) {
+                        self.advance();
+                        if self.match_keyword(Keyword::TIME) {
+                            self.advance();
+                            if self.match_keyword(Keyword::ZONE) {
+                                self.advance();
+                                tz = Some("WITHOUT TIME ZONE");
+                            }
+                        }
+                    }
+                    if let Token::StringLiteral(s) = self.peek().clone() {
+                        self.advance();
+                        let full_type = match tz {
+                            Some(t) => format!("{} {}", type_name, t),
+                            None => type_name,
+                        };
+                        return Ok(Expr::TypeCast {
+                            expr: Box::new(Expr::Literal(Literal::String(s))),
+                            type_name: DataType::Custom(vec![full_type], Vec::new()),
+                            default: None,
+                            format: None,
+                        });
+                    }
+                    // Not a type literal, backtrack
+                    self.pos = saved;
                 }
                 if kw == Keyword::INTERVAL {
                     self.advance();
@@ -660,10 +942,12 @@ impl Parser {
                     kw,
                     Keyword::SYSDATE
                         | Keyword::ROWNUM
+                        | Keyword::MAXVALUE
                         | Keyword::CURRENT_DATE
                         | Keyword::CURRENT_CATALOG
                         | Keyword::CURRENT_USER
                         | Keyword::SESSION_USER
+                        | Keyword::USER
                 ) {
                     self.advance();
                     return Ok(Expr::ColumnRef(vec![kw.as_str().to_string()]));
@@ -679,6 +963,10 @@ impl Parser {
                     self.advance();
                     if self.match_token(&Token::LParen) {
                         self.advance();
+                        if self.match_token(&Token::RParen) {
+                            self.advance();
+                            return Ok(Expr::SpecialFunction { name, args: vec![] });
+                        }
                         let precision = self.parse_expr()?;
                         self.expect_token(&Token::RParen)?;
                         return Ok(Expr::SpecialFunction {
@@ -699,8 +987,15 @@ impl Parser {
                     // Not "CURRENT OF" — fall through to treat CURRENT as column ref
                     return Ok(Expr::ColumnRef(vec!["CURRENT".to_string()]));
                 }
+                // Handle multi-word type names before string literals (e.g. double precision 'x')
+                let saved = self.pos;
+                let saved_err_len = self.errors.len();
+                if let Ok(type_name) = self.try_parse_typecast_literal(kw) {
+                    return Ok(type_name);
+                }
+                self.pos = saved;
+                self.errors.truncate(saved_err_len);
                 let name = self.parse_object_name()?;
-                // PostgreSQL typecast syntax: typename 'literal'
                 if let Token::StringLiteral(s) = self.peek().clone() {
                     self.advance();
                     return Ok(Expr::TypeCast {
@@ -838,6 +1133,27 @@ impl Parser {
         }
     }
 
+    pub(crate) fn parse_maybe_named_arg(&mut self) -> Result<Expr, ParserError> {
+        let _ = self.try_consume_keyword(Keyword::VARIADIC);
+        if matches!(self.peek(), Token::Ident(_)) || matches!(self.peek(), Token::Keyword(_)) {
+            if let Some(tws) = self.tokens.get(self.pos + 1) {
+                if matches!(tws.token, Token::ParamEquals) {
+                    let _name = self.consume_any_identifier()?;
+                    self.advance();
+                    return self.parse_expr();
+                }
+            }
+        }
+        let first = self.parse_expr()?;
+        if self.match_token(&Token::ParamEquals) {
+            self.advance();
+            let value = self.parse_expr()?;
+            Ok(value)
+        } else {
+            Ok(first)
+        }
+    }
+
     fn parse_function_call(&mut self, name: ObjectName) -> Result<Expr, ParserError> {
         self.expect_token(&Token::LParen)?;
 
@@ -857,6 +1173,12 @@ impl Parser {
         if lower_name == "trim" {
             return self.parse_trim_function(name);
         }
+        if lower_name == "convert" {
+            return self.parse_convert_function(name);
+        }
+        if lower_name == "group_concat" {
+            return self.parse_group_concat_function(name);
+        }
 
         if self.match_token(&Token::RParen) {
             self.advance();
@@ -871,6 +1193,9 @@ impl Parser {
                 over,
                 filter,
                 within_group,
+                separator: None,
+                default: None,
+                conversion_format: None,
             });
         }
         let distinct = self.try_consume_keyword(Keyword::DISTINCT);
@@ -888,12 +1213,15 @@ impl Parser {
                 over,
                 filter,
                 within_group,
+                separator: None,
+                default: None,
+                conversion_format: None,
             });
         }
-        let mut args = vec![self.parse_expr()?];
-        if self.match_keyword(Keyword::DEFAULT) || self.match_ident_str("default") {
+        let mut args = vec![self.parse_maybe_named_arg()?];
+        let default = if self.match_keyword(Keyword::DEFAULT) || self.match_ident_str("default") {
             self.advance();
-            args.push(self.parse_expr()?);
+            let val = self.parse_expr()?;
             if self.match_keyword(Keyword::ON) || self.match_ident_str("on") {
                 self.advance();
                 if self.match_ident_str("CONVERSION") {
@@ -903,11 +1231,73 @@ impl Parser {
                     self.advance();
                 }
             }
-            if self.match_token(&Token::Comma) {
-                self.advance();
-                args.push(self.parse_expr()?);
-            }
+            Some(Box::new(val))
+        } else {
+            None
+        };
+        let conversion_format = if default.is_some() && self.match_token(&Token::Comma) {
+            self.advance();
+            Some(Box::new(self.parse_expr()?))
+        } else {
+            None
+        };
+        while self.match_token(&Token::Comma) {
+            self.advance();
+            args.push(self.parse_maybe_named_arg()?);
         }
+        let inner_order_by = if self.match_keyword(Keyword::ORDER) {
+            self.advance();
+            self.expect_keyword(Keyword::BY)?;
+            let mut items = Vec::new();
+            loop {
+                let expr = self.parse_expr()?;
+                let asc = match self.peek_keyword() {
+                    Some(Keyword::ASC) => { self.advance(); Some(true) }
+                    Some(Keyword::DESC) => { self.advance(); Some(false) }
+                    _ => None,
+                };
+                items.push(OrderByItem { expr, asc, nulls_first: None });
+                if !self.match_token(&Token::Comma) { break; }
+                self.advance();
+            }
+            items
+        } else {
+            vec![]
+        };
+        self.expect_token(&Token::RParen)?;
+        let filter = self.try_parse_filter()?;
+        let within_group = self.try_parse_within_group()?;
+        let over = self.try_parse_over_clause()?;
+        self.validate_func(&name, args.len(), distinct, over.is_some());
+        let mut wg = inner_order_by;
+        if !within_group.is_empty() {
+            wg.extend(within_group);
+        }
+        Ok(Expr::FunctionCall {
+            name,
+            args,
+            distinct,
+            over,
+            filter,
+            within_group: wg,
+            separator: None,
+            default,
+            conversion_format,
+        })
+    }
+
+    fn parse_convert_function(&mut self, name: ObjectName) -> Result<Expr, ParserError> {
+        let first = self.parse_expr()?;
+        if self.match_keyword(Keyword::USING) {
+            self.advance();
+            let charset = self.parse_expr()?;
+            self.expect_token(&Token::RParen)?;
+            return Ok(Expr::SpecialFunction {
+                name: name.join("."),
+                args: vec![first, charset],
+            });
+        }
+        let mut args = vec![first];
         while self.match_token(&Token::Comma) {
             self.advance();
             args.push(self.parse_expr()?);
@@ -916,6 +1306,73 @@ impl Parser {
         let filter = self.try_parse_filter()?;
         let within_group = self.try_parse_within_group()?;
         let over = self.try_parse_over_clause()?;
+        self.validate_func(&name, args.len(), false, over.is_some());
+        Ok(Expr::FunctionCall {
+            name,
+            args,
+            distinct: false,
+            over,
+            filter,
+            within_group,
+            separator: None,
+            default: None,
+            conversion_format: None,
+        })
+    }
+
+    fn parse_group_concat_function(&mut self, name: ObjectName) -> Result<Expr, ParserError> {
+        let distinct = self.try_consume_keyword(Keyword::DISTINCT);
+        let mut args = vec![self.parse_expr()?];
+        while self.match_token(&Token::Comma) {
+            self.advance();
+            args.push(self.parse_expr()?);
+        }
+        let separator = if self.match_keyword(Keyword::SEPARATOR_P) {
+            self.advance();
+            Some(Box::new(self.parse_expr()?))
+        } else {
+            None
+        };
+        let inner_order_by = if self.match_keyword(Keyword::ORDER) {
+            self.advance();
+            self.expect_keyword(Keyword::BY)?;
+            let mut items = Vec::new();
+            loop {
+                let expr = self.parse_expr()?;
+                let asc = match self.peek_keyword() {
+                    Some(Keyword::ASC) => {
+                        self.advance();
+                        Some(true)
+                    }
+                    Some(Keyword::DESC) => {
+                        self.advance();
+                        Some(false)
+                    }
+                    _ => None,
+                };
+                items.push(OrderByItem {
+                    expr,
+                    asc,
+                    nulls_first: None,
+                });
+                if !self.match_token(&Token::Comma) {
+                    break;
+                }
+                self.advance();
+            }
+            items
+        } else {
+            Vec::new()
+        };
+        self.expect_token(&Token::RParen)?;
+        let filter = self.try_parse_filter()?;
+        let within_group = self.try_parse_within_group()?;
+        let combined_wg = if inner_order_by.is_empty() {
+            within_group
+        } else {
+            inner_order_by
+        };
+        let over = self.try_parse_over_clause()?;
         self.validate_func(&name, args.len(), distinct, over.is_some());
         Ok(Expr::FunctionCall {
             name,
@@ -923,7 +1380,10 @@ impl Parser {
             distinct,
             over,
             filter,
-            within_group,
+            within_group: combined_wg,
+            separator,
+            default: None,
+            conversion_format: None,
         })
     }
 
@@ -950,13 +1410,33 @@ impl Parser {
     }
 
     fn parse_position_function(&mut self, name: ObjectName) -> Result<Expr, ParserError> {
-        let arg1 = self.parse_primary_expr()?;
+        let mut arg1 = self.parse_primary_expr()?;
+        if self.match_token(&Token::Typecast) {
+            self.advance();
+            let type_name = self.parse_data_type()?;
+            arg1 = Expr::TypeCast {
+                expr: Box::new(arg1),
+                type_name,
+                default: None,
+                format: None,
+            };
+        }
         if self.match_keyword(Keyword::IN_P) {
             self.advance();
         } else if self.match_ident_str("IN") {
             self.advance();
         }
-        let arg2 = self.parse_primary_expr()?;
+        let mut arg2 = self.parse_primary_expr()?;
+        if self.match_token(&Token::Typecast) {
+            self.advance();
+            let type_name = self.parse_data_type()?;
+            arg2 = Expr::TypeCast {
+                expr: Box::new(arg2),
+                type_name,
+                default: None,
+                format: None,
+            };
+        }
         self.expect_token(&Token::RParen)?;
         Ok(Expr::SpecialFunction {
             name: name.join("."),
@@ -1001,13 +1481,13 @@ impl Parser {
     }
 
     fn parse_trim_function(&mut self, name: ObjectName) -> Result<Expr, ParserError> {
-        let direction = if self.match_keyword(Keyword::LEADING)
-            || self.match_keyword(Keyword::TRAILING)
-            || self.match_keyword(Keyword::BOTH)
-        {
-            Some(self.parse_identifier()?)
-        } else {
-            None
+        let direction = match self.peek_keyword() {
+            Some(Keyword::LEADING) | Some(Keyword::TRAILING) | Some(Keyword::BOTH) => {
+                let dir = self.peek_keyword().unwrap().as_str().to_string();
+                self.advance();
+                Some(dir)
+            }
+            _ => None,
         };
 
         if let Some(dir) = direction {
@@ -1048,7 +1528,7 @@ impl Parser {
                 let mut args = vec![first];
                 while self.match_token(&Token::Comma) {
                     self.advance();
-                    args.push(self.parse_expr()?);
+                    args.push(self.parse_maybe_named_arg()?);
                 }
                 self.expect_token(&Token::RParen)?;
                 let filter = self.try_parse_filter()?;
@@ -1062,6 +1542,9 @@ impl Parser {
                     over,
                     filter,
                     within_group,
+                    separator: None,
+                    default: None,
+                    conversion_format: None,
                 })
             }
         }
@@ -1101,10 +1584,20 @@ impl Parser {
                     }
                     _ => None,
                 };
+                let nulls_first = if self.try_consume_keyword(Keyword::NULLS_P) {
+                    if self.try_consume_keyword(Keyword::FIRST_P) {
+                        Some(true)
+                    } else {
+                        self.expect_keyword(Keyword::LAST_P)?;
+                        Some(false)
+                    }
+                } else {
+                    None
+                };
                 items.push(OrderByItem {
                     expr,
                     asc,
-                    nulls_first: None,
+                    nulls_first,
                 });
                 if !self.match_token(&Token::Comma) {
                     break;
@@ -1146,7 +1639,7 @@ impl Parser {
 
     /// Parse the body of a window specification (inside parens).
     /// Grammar: [existing_window_name] [PARTITION BY expr_list] [ORDER BY sort_clause] [frame_clause]
-    fn parse_window_specification(&mut self) -> Result<WindowSpec, ParserError> {
+    pub(crate) fn parse_window_specification(&mut self) -> Result<WindowSpec, ParserError> {
         // Try to parse existing window name (an identifier that is NOT PARTITION, ORDER, ROWS, RANGE)
         let window_name = self.try_parse_window_name();
 
@@ -1552,5 +2045,36 @@ impl Parser {
             expr: Box::new(expr),
             type_name,
         })
+    }
+
+    fn try_parse_typecast_literal(&mut self, first_kw: Keyword) -> Result<Expr, ParserError> {
+        let type_name = self.parse_data_type()?;
+        if let Token::StringLiteral(s) = self.peek().clone() {
+            self.advance();
+            return Ok(Expr::TypeCast {
+                expr: Box::new(Expr::Literal(Literal::String(s))),
+                type_name,
+                default: None,
+                format: None,
+            });
+        }
+        Err(ParserError::UnexpectedToken {
+            location: self.current_location(),
+            expected: format!("string literal after type {}", first_kw.as_str()),
+            got: format!("{:?}", self.peek()),
+        })
+    }
+}
+
+fn expr_to_dotted_name(expr: crate::ast::Expr) -> Vec<String> {
+    match expr {
+        crate::ast::Expr::ColumnRef(name) => name,
+        crate::ast::Expr::FunctionCall { name, .. } => name,
+        crate::ast::Expr::FieldAccess { object, field } => {
+            let mut parts = expr_to_dotted_name(*object);
+            parts.push(field);
+            parts
+        }
+        _ => vec![],
     }
 }

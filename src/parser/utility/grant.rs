@@ -629,11 +629,16 @@ impl Parser {
     }
 
     fn parse_role_identifier(&mut self) -> Result<String, ParserError> {
-        let name = self.parse_identifier()?;
-        if name.to_uppercase() == "ALL" && self.match_ident_str("PRIVILEGES") {
+        if self.match_keyword(Keyword::ALL) {
             self.advance();
-            return Ok(format!("{} {}", name, "privileges"));
+            let name = "ALL".to_string();
+            if self.match_ident_str("PRIVILEGES") {
+                self.advance();
+                return Ok(format!("{} PRIVILEGES", name));
+            }
+            return Ok(name);
         }
+        let name = self.parse_identifier()?;
         Ok(name)
     }
 

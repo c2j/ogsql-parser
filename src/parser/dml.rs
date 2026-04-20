@@ -31,6 +31,23 @@ impl Parser {
             self.advance();
             self.expect_keyword(Keyword::VALUES)?;
             InsertSource::DefaultValues
+        } else if self.match_keyword(Keyword::SET) {
+            self.advance();
+            let mut assignments = Vec::new();
+            loop {
+                let col = self.parse_identifier()?;
+                self.expect_token(&Token::Eq)?;
+                let value = self.parse_expr()?;
+                assignments.push(crate::ast::UpdateAssignment {
+                    column: vec![col],
+                    value,
+                });
+                if !self.match_token(&Token::Comma) {
+                    break;
+                }
+                self.advance();
+            }
+            InsertSource::Set(assignments)
         } else if self.match_keyword(Keyword::VALUES) {
             self.advance();
             let mut rows = Vec::new();
@@ -333,6 +350,8 @@ impl Parser {
         let target = TableRef::Table {
             name: target_name,
             alias: target_alias,
+            partition: None,
+            timecapsule: None,
         };
         self.expect_keyword(Keyword::USING)?;
         let mut source = self.parse_table_ref()?;
@@ -404,7 +423,17 @@ impl Parser {
                     got: format!("{:?}", self.peek()),
                 });
             };
-            when_clauses.push(MergeWhenClause { matched, action });
+            let where_clause = if self.match_keyword(Keyword::WHERE) {
+                self.advance();
+                Some(self.parse_expr()?)
+            } else {
+                None
+            };
+            when_clauses.push(MergeWhenClause {
+                matched,
+                action,
+                where_clause,
+            });
         }
         Ok(MergeStatement {
             hints: post_hints,

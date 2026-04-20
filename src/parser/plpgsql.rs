@@ -40,6 +40,13 @@ impl Parser {
         let mut exception_block = None;
 
         loop {
+            if matches!(self.peek(), Token::Eof) {
+                return Err(ParserError::UnexpectedToken {
+                    location: self.current_location(),
+                    expected: "END".to_string(),
+                    got: "EOF".to_string(),
+                });
+            }
             if self.match_ident_str("exception") {
                 self.advance();
                 exception_block = Some(self.parse_pl_exception_block()?);
@@ -64,10 +71,10 @@ impl Parser {
     }
 
     fn try_parse_pl_label(&mut self) -> Option<String> {
-        if matches!(self.peek(), Token::Op(ref s) if s == "<<") {
+        if matches!(self.peek(), Token::OpShiftL) {
             self.advance();
             let label = self.parse_identifier().ok()?;
-            if matches!(self.peek(), Token::Op(ref s) if s == ">>") {
+            if matches!(self.peek(), Token::OpShiftR) {
                 self.advance();
                 return Some(label);
             }
@@ -206,11 +213,75 @@ impl Parser {
             });
         }
 
-        match name.to_uppercase().as_str() {
+        let mut type_name = name;
+        if self.match_token(&Token::LParen) {
+            let mut depth = 1i32;
+            type_name.push('(');
+            self.advance();
+            while depth > 0 && !matches!(self.peek(), Token::Eof) {
+                match self.peek() {
+                    Token::LParen => {
+                        depth += 1;
+                        type_name.push('(');
+                        self.advance();
+                    }
+                    Token::RParen => {
+                        depth -= 1;
+                        if depth >= 0 {
+                            type_name.push(')');
+                            self.advance();
+                        }
+                    }
+                    Token::Comma => {
+                        type_name.push(',');
+                        self.advance();
+                    }
+                    Token::Integer(n) => {
+                        type_name.push_str(&n.to_string());
+                        self.advance();
+                    }
+                    Token::Ident(s) => {
+                        type_name.push_str(s);
+                        self.advance();
+                    }
+                    Token::Keyword(kw) => {
+                        if !type_name.ends_with('(') && !type_name.ends_with(',') {
+                            type_name.push(' ');
+                        }
+                        type_name.push_str(kw.as_str());
+                        self.advance();
+                    }
+                    _ => {
+                        let tok_str = self.token_to_string();
+                        if !type_name.ends_with('(') && !type_name.ends_with(',') {
+                            type_name.push(' ');
+                        }
+                        type_name.push_str(&tok_str);
+                        self.advance();
+                    }
+                }
+            }
+        }
+
+        if self.match_token(&Token::LBracket) {
+            self.advance();
+            type_name.push('[');
+            while !self.match_token(&Token::RBracket) && !matches!(self.peek(), Token::Eof) {
+                let tok_str = self.token_to_string();
+                type_name.push_str(&tok_str);
+                self.advance();
+            }
+            if self.match_token(&Token::RBracket) {
+                self.advance();
+                type_name.push(']');
+            }
+        }
+
+        match type_name.to_uppercase().as_str() {
             "RECORD" => Ok(PlDataType::Record),
             "CURSOR" => Ok(PlDataType::Cursor),
             "REFCURSOR" | "SYS_REFCURSOR" => Ok(PlDataType::RefCursor),
-            _ => Ok(PlDataType::TypeName(name)),
+            _ => Ok(PlDataType::TypeName(type_name)),
         }
     }
 
@@ -299,7 +370,11 @@ impl Parser {
 
     fn parse_pl_type_decl(&mut self, name: String) -> Result<PlDeclaration, ParserError> {
         self.expect_keyword(Keyword::TYPE_P)?;
-        if self.match_ident_str("is") {
+        self.parse_pl_type_decl_body(name)
+    }
+
+    fn parse_pl_type_decl_body(&mut self, name: String) -> Result<PlDeclaration, ParserError> {
+        if self.match_ident_str("is") || self.match_ident_str("as") {
             self.advance();
         }
 
@@ -360,7 +435,7 @@ impl Parser {
         } else {
             Err(ParserError::UnexpectedToken {
                 location: self.current_location(),
-                expected: "RECORD, TABLE, or VARRAY after IS".to_string(),
+                expected: "RECORD, TABLE, or VARRAY after IS/AS".to_string(),
                 got: format!("{:?}", self.peek()),
             })
         }
@@ -510,6 +585,13 @@ impl Parser {
             let mut body = Vec::new();
             let mut exception_block = None;
             loop {
+                if matches!(self.peek(), Token::Eof) {
+                    return Err(ParserError::UnexpectedToken {
+                        location: self.current_location(),
+                        expected: "END".to_string(),
+                        got: "EOF".to_string(),
+                    });
+                }
                 if self.match_ident_str("exception") {
                     self.advance();
                     exception_block = Some(self.parse_pl_exception_block()?);
@@ -566,6 +648,13 @@ impl Parser {
                 self.advance();
                 exception_block = Some(self.parse_pl_exception_block()?);
             } else if self.peek_keyword() == Some(Keyword::END_P) {
+                if self.lookahead_is_compound_end() {
+                    return Err(ParserError::UnexpectedToken {
+                        location: self.current_location(),
+                        expected: "end of declare block".to_string(),
+                        got: format!("{:?}", self.peek()),
+                    });
+                }
                 self.advance();
                 break;
             } else {
@@ -1867,6 +1956,13 @@ impl Parser {
                 self.advance();
                 exception_block = Some(self.parse_pl_exception_block()?);
             } else if self.peek_keyword() == Some(Keyword::END_P) {
+                if self.lookahead_is_compound_end() {
+                    return Err(ParserError::UnexpectedToken {
+                        location: self.current_location(),
+                        expected: "end of procedure body".to_string(),
+                        got: format!("{:?}", self.peek()),
+                    });
+                }
                 self.advance();
                 while matches!(self.peek(), Token::Ident(_)) {
                     self.advance();
@@ -1888,6 +1984,49 @@ impl Parser {
             exception_block,
             end_label: None,
         })
+    }
+
+    pub(crate) fn parse_pl_declarations_until_begin(
+        &mut self,
+    ) -> Result<Vec<PlDeclaration>, ParserError> {
+        let mut declarations = Vec::new();
+        while !self.match_keyword(Keyword::BEGIN_P) && !matches!(self.peek(), Token::Eof) {
+            if self.match_ident_str("procedure") {
+                self.advance();
+                match self.parse_package_sub_procedure() {
+                    Ok(proc) => declarations.push(PlDeclaration::NestedProcedure(proc)),
+                    Err(_) => self.advance(),
+                }
+            } else if self.match_ident_str("function") {
+                self.advance();
+                match self.parse_package_sub_function() {
+                    Ok(func) => declarations.push(PlDeclaration::NestedFunction(func)),
+                    Err(_) => self.advance(),
+                }
+            } else if self.match_ident_str("pragma") {
+                self.advance();
+                let pragma = self.parse_pragma_declaration();
+                declarations.push(pragma);
+            } else if self.match_keyword(Keyword::TYPE_P) {
+                self.advance();
+                let type_name = self.parse_identifier()?;
+                match self.parse_pl_type_decl_body(type_name) {
+                    Ok(decl) => declarations.push(decl),
+                    Err(_) => self.advance(),
+                }
+            } else if self.match_ident_str("cursor") {
+                self.advance();
+                let cursor_name = self.parse_identifier()?;
+                let decl = self.parse_pl_cursor_decl(cursor_name)?;
+                declarations.push(decl);
+            } else if let Some(decl) = self.try_parse_oracle_var_decl() {
+                declarations.push(decl);
+            } else {
+                self.advance();
+            }
+        }
+        self.expect_keyword(Keyword::BEGIN_P)?;
+        Ok(declarations)
     }
 
     pub(crate) fn try_parse_oracle_var_decl(&mut self) -> Option<PlDeclaration> {

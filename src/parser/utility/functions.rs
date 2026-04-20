@@ -338,6 +338,14 @@ impl Parser {
             Token::ColonEquals => Cow::Borrowed(":="),
             Token::ParamEquals => Cow::Borrowed("=>"),
             Token::Op(s) => Cow::Owned(s.clone()),
+            Token::OpLe => Cow::Borrowed("<="),
+            Token::OpNe => Cow::Borrowed("<>"),
+            Token::OpGe => Cow::Borrowed(">="),
+            Token::OpShiftL => Cow::Borrowed("<<"),
+            Token::OpShiftR => Cow::Borrowed(">>"),
+            Token::OpNe2 => Cow::Borrowed("!="),
+            Token::OpDblBang => Cow::Borrowed("!!"),
+            Token::OpConcat => Cow::Borrowed("||"),
             Token::Param(n) => Cow::Owned(format!("${}", n)),
             Token::Star => Cow::Borrowed("*"),
             Token::Eq => Cow::Borrowed("="),
@@ -700,7 +708,8 @@ impl Parser {
                             raw_parts.push(raw);
                             items.push(PackageItem::Procedure(proc));
                         }
-                        Err(_) => {
+                        Err(e) => {
+                            self.add_error(e);
                             let raw = self.skip_to_end_subprogram();
                             if !raw.is_empty() {
                                 raw_parts.push(format!("PROCEDURE {}", raw));
@@ -718,7 +727,8 @@ impl Parser {
                             raw_parts.push(raw);
                             items.push(PackageItem::Function(func));
                         }
-                        Err(_) => {
+                        Err(e) => {
+                            self.add_error(e);
                             let raw = self.skip_to_end_subprogram();
                             if !raw.is_empty() {
                                 raw_parts.push(format!("FUNCTION {}", raw));
@@ -774,6 +784,14 @@ impl Parser {
                 Token::ColonEquals => ":=".to_string(),
                 Token::ParamEquals => "=>".to_string(),
                 Token::Op(s) => s.clone(),
+                Token::OpLe => "<=".to_string(),
+                Token::OpNe => "<>".to_string(),
+                Token::OpGe => ">=".to_string(),
+                Token::OpShiftL => "<<".to_string(),
+                Token::OpShiftR => ">>".to_string(),
+                Token::OpNe2 => "!=".to_string(),
+                Token::OpDblBang => "!!".to_string(),
+                Token::OpConcat => "||".to_string(),
                 Token::Param(n) => format!("${}", n),
                 Token::Star => "*".to_string(),
                 Token::Eq => "=".to_string(),
@@ -896,7 +914,7 @@ impl Parser {
                 Token::Keyword(Keyword::END_P) => {
                     if depth > 0 {
                         depth -= 1;
-                    } else {
+                    } else if !self.lookahead_is_compound_end() {
                         self.advance();
                         while matches!(self.peek(), Token::Ident(_)) {
                             self.advance();

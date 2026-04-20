@@ -1,0 +1,15 @@
+--keyword using
+CREATE TABLE float_type_t2 ( FT_COL1 INTEGER , FT_COL2 FLOAT4 , FT_COL3 FLOAT8 , FT_COL4 FLOAT ( 3 ), FT_COL5 BINARY_DOUBLE , FT_COL6 DECIMAL ( 10 , 4 ), FT_COL7 INTEGER  using index pctfree 10 initrans 2 maxtrans 255 );
+
+
+-- table comment
+comment on table a.b is 'simplest table';
+
+-- local
+create index idx on t1 ( c2 ) local with(fillfactor=90);
+
+create type bf.t1 is table of csbs ;
+
+drop package body if exists bf.myjob;
+
+MERGE INTO products p USING newproducts np ON ( p . product_id = np . product_id ) WHEN MATCHED THEN UPDATE SET p . product_name = np . product_name , p . category = np . category WHERE p . product_name != 'play gym' WHEN NOT MATCHED THEN INSERT VALUES ( np . product_id , np . product_name , np . category ) WHERE np . category = 'books' ;

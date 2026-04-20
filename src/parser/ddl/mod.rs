@@ -8,10 +8,10 @@ use crate::ast::DataType;
 pub(crate) fn format_data_type(dt: &DataType) -> String {
     match dt {
         DataType::Boolean => "boolean".to_string(),
-        DataType::TinyInt => "tinyint".to_string(),
-        DataType::SmallInt => "smallint".to_string(),
-        DataType::Integer => "integer".to_string(),
-        DataType::BigInt => "bigint".to_string(),
+        DataType::TinyInt(p) => format_int_type("tinyint", p),
+        DataType::SmallInt(p) => format_int_type("smallint", p),
+        DataType::Integer(p) => format_int_type("integer", p),
+        DataType::BigInt(p) => format_int_type("bigint", p),
         DataType::Real => "real".to_string(),
         DataType::Float(Some(n)) => format!("float({})", n),
         DataType::Float(None) => "float".to_string(),
@@ -36,7 +36,15 @@ pub(crate) fn format_data_type(dt: &DataType) -> String {
         DataType::Json => "json".to_string(),
         DataType::Jsonb => "jsonb".to_string(),
         DataType::Bytea => "bytea".to_string(),
+        DataType::Array(inner) => format!("{}[]", format_data_type(inner)),
         DataType::Custom(obj, _) => obj.join("."),
         other => format!("{:?}", other).to_lowercase(),
+    }
+}
+
+fn format_int_type(name: &str, precision: &Option<u32>) -> String {
+    match precision {
+        Some(n) => format!("{}({})", name, n),
+        None => name.to_string(),
     }
 }

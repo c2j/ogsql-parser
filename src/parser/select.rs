@@ -250,11 +250,13 @@ impl Parser {
             group_by,
             having,
             order_by: vec![],
+            order_siblings: false,
             limit: None,
             offset: None,
             set_operation: None,
             fetch: None,
             lock_clause: None,
+            window_clause: vec![],
         })
     }
 
@@ -352,11 +354,104 @@ impl Parser {
         }
         self.advance();
         let mut tables = vec![self.parse_table_ref()?];
+        self.try_consume_table_modifiers(&mut tables[0]);
         while self.match_token(&Token::Comma) {
             self.advance();
             tables.push(self.parse_table_ref()?);
+            if let Some(last) = tables.last_mut() {
+                self.try_consume_table_modifiers(last);
+            }
         }
         Ok(tables)
+    }
+
+    fn try_consume_table_modifiers(&mut self, table_ref: &mut TableRef) {
+        if self.match_keyword(Keyword::PARTITION) {
+            if let Ok(Some(p)) = self.try_parse_partition_ref(Keyword::PARTITION) {
+                if let TableRef::Table {
+                    partition: ref mut pp,
+                    ..
+                } = table_ref
+                {
+                    *pp = Some(p);
+                }
+            }
+        }
+        if self.match_keyword(Keyword::SUBPARTITION) {
+            if let Ok(Some(p)) = self.try_parse_partition_ref(Keyword::SUBPARTITION) {
+                if let TableRef::Table {
+                    partition: ref mut pp,
+                    ..
+                } = table_ref
+                {
+                    *pp = Some(p);
+                }
+            }
+        }
+        if self.match_keyword(Keyword::TIMECAPSULE) {
+            if let Ok(tc) = self.try_parse_timecapsule() {
+                if let TableRef::Table {
+                    timecapsule: ref mut tc_field,
+                    ..
+                } = table_ref
+                {
+                    *tc_field = Some(tc);
+                }
+            }
+        }
+    }
+
+    fn try_parse_timecapsule(&mut self) -> Result<crate::ast::Expr, ParserError> {
+        self.expect_keyword(Keyword::TIMECAPSULE)?;
+        if self.match_keyword(Keyword::TIMESTAMP) {
+            self.advance();
+            Ok(self.parse_expr()?)
+        } else if self.match_keyword(Keyword::CSN) {
+            self.advance();
+            Ok(self.parse_expr()?)
+        } else {
+            Err(ParserError::UnexpectedToken {
+                location: self.current_location(),
+                expected: "TIMESTAMP or CSN".to_string(),
+                got: format!("{:?}", self.peek()),
+            })
+        }
+    }
+
+    fn try_parse_partition_ref(
+        &mut self,
+        keyword: Keyword,
+    ) -> Result<Option<crate::ast::TablePartitionRef>, ParserError> {
+        if !self.match_keyword(keyword) {
+            return Ok(None);
+        }
+        self.advance();
+        if self.match_keyword(Keyword::FOR) {
+            self.advance();
+            self.expect_token(&Token::LParen)?;
+            let mut exprs = vec![self.parse_expr()?];
+            while self.match_token(&Token::Comma) {
+                self.advance();
+                exprs.push(self.parse_expr()?);
+            }
+            self.expect_token(&Token::RParen)?;
+            Ok(Some(crate::ast::TablePartitionRef {
+                values: vec![],
+                for_values: Some(exprs),
+            }))
+        } else {
+            self.expect_token(&Token::LParen)?;
+            let mut values = vec![self.parse_identifier()?];
+            while self.match_token(&Token::Comma) {
+                self.advance();
+                values.push(self.parse_identifier()?);
+            }
+            self.expect_token(&Token::RParen)?;
+            Ok(Some(crate::ast::TablePartitionRef {
+                values,
+                for_values: None,
+            }))
+        }
     }
 
     pub(crate) fn parse_table_ref(&mut self) -> Result<TableRef, ParserError> {
@@ -466,6 +561,29 @@ impl Parser {
                     alias,
                 });
             }
+            if self.match_keyword(Keyword::VALUES) {
+                self.advance();
+                let values = self.parse_values_statement()?;
+                self.expect_token(&Token::RParen)?;
+                let alias = self.parse_optional_alias()?;
+                let column_names = if alias.is_some() && self.match_token(&Token::LParen) {
+                    self.advance();
+                    let mut names = vec![self.parse_identifier()?];
+                    while self.match_token(&Token::Comma) {
+                        self.advance();
+                        names.push(self.parse_identifier()?);
+                    }
+                    self.expect_token(&Token::RParen)?;
+                    names
+                } else {
+                    vec![]
+                };
+                return Ok(TableRef::Values {
+                    values: Box::new(values),
+                    alias,
+                    column_names,
+                });
+            }
             let table_ref = self.parse_table_ref()?;
             self.expect_token(&Token::RParen)?;
             return Ok(table_ref);
@@ -487,29 +605,53 @@ impl Parser {
             let args = if self.match_token(&Token::RParen) {
                 vec![]
             } else {
-                let mut args = vec![self.parse_expr()?];
+                let mut args = vec![self.parse_maybe_named_arg()?];
                 while self.match_token(&Token::Comma) {
                     self.advance();
-                    args.push(self.parse_expr()?);
+                    args.push(self.parse_maybe_named_arg()?);
                 }
                 args
             };
             self.expect_token(&Token::RParen)?;
             let alias = self.parse_optional_alias()?;
-            return Ok(TableRef::FunctionCall { name, args, alias });
+            let column_defs = if alias.is_some() && self.match_token(&Token::LParen) {
+                self.advance();
+                let mut defs = vec![self.parse_column_def()?];
+                while self.match_token(&Token::Comma) {
+                    self.advance();
+                    defs.push(self.parse_column_def()?);
+                }
+                self.expect_token(&Token::RParen)?;
+                defs
+            } else {
+                vec![]
+            };
+            return Ok(TableRef::FunctionCall {
+                name,
+                args,
+                alias,
+                column_defs,
+            });
         }
         let alias = if self.match_ident_str("PIVOT") || self.match_ident_str("UNPIVOT") {
             None
         } else {
             self.parse_optional_alias()?
         };
-        Ok(TableRef::Table { name, alias })
+        Ok(TableRef::Table {
+            name,
+            alias,
+            partition: None,
+            timecapsule: None,
+        })
     }
 
     fn parse_order_limit_offset(&mut self, stmt: &mut SelectStatement) -> Result<(), ParserError> {
         if self.match_keyword(Keyword::ORDER) {
             self.advance();
+            let siblings = self.try_consume_keyword(Keyword::SIBLINGS);
             self.expect_keyword(Keyword::BY)?;
+            stmt.order_siblings = siblings;
             let mut items = Vec::new();
             loop {
                 let expr = self.parse_expr()?;
@@ -547,6 +689,23 @@ impl Parser {
                 self.advance();
             }
             stmt.order_by = items;
+        }
+        if self.match_keyword(Keyword::WINDOW) {
+            self.advance();
+            let mut windows = Vec::new();
+            loop {
+                let name = self.parse_identifier()?;
+                self.expect_keyword(Keyword::AS)?;
+                self.expect_token(&Token::LParen)?;
+                let spec = self.parse_window_specification()?;
+                self.expect_token(&Token::RParen)?;
+                windows.push(crate::ast::NamedWindow { name, spec });
+                if !self.match_token(&Token::Comma) {
+                    break;
+                }
+                self.advance();
+            }
+            stmt.window_clause = windows;
         }
         if self.match_keyword(Keyword::LIMIT) {
             self.advance();

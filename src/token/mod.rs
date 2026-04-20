@@ -85,6 +85,22 @@ pub enum Token {
     // --- Operators ---
     /// Multi-character operator (>=, !=, <>, ||, etc.)
     Op(String),
+    /// Less-than-or-equal <=
+    OpLe,
+    /// Not-equal <> (ANSI)
+    OpNe,
+    /// Left shift <<
+    OpShiftL,
+    /// Greater-than-or-equal >=
+    OpGe,
+    /// Right shift >>
+    OpShiftR,
+    /// Not-equal != (non-ANSI)
+    OpNe2,
+    /// Double exclamation !! (factorial prefix)
+    OpDblBang,
+    /// Double-pipe || (string concatenation)
+    OpConcat,
     /// Typecast operator ::
     Typecast,
     /// Range operator ..
@@ -122,4 +138,21 @@ pub enum Token {
 
     /// Optimizer hint: /*+ ... */
     Hint(String),
+}
+
+impl Token {
+    pub fn as_op_str(&self) -> Option<&str> {
+        match self {
+            Token::Op(s) => Some(s),
+            Token::OpLe => Some("<="),
+            Token::OpNe => Some("<>"),
+            Token::OpShiftL => Some("<<"),
+            Token::OpGe => Some(">="),
+            Token::OpShiftR => Some(">>"),
+            Token::OpNe2 => Some("!="),
+            Token::OpDblBang => Some("!!"),
+            Token::OpConcat => Some("||"),
+            _ => None,
+        }
+    }
 }

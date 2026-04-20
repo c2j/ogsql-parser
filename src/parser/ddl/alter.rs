@@ -8,7 +8,12 @@ impl Parser {
         self.expect_keyword(Keyword::TABLE)?;
 
         let if_exists = self.parse_if_exists();
+        self.try_consume_keyword(Keyword::ONLY);
         let name = self.parse_object_name()?;
+
+        if self.match_token(&Token::Star) {
+            self.advance();
+        }
 
         let mut actions = Vec::new();
         actions.push(self.parse_alter_table_action()?);
@@ -145,6 +150,7 @@ impl Parser {
                         Ok(AlterTableAction::AddConstraint { name, constraint })
                     } else {
                         let col = self.parse_column_def()?;
+                        self.consume_column_position();
                         Ok(AlterTableAction::AddColumn(col))
                     }
                 } else if self.match_keyword(Keyword::NODE) {
@@ -212,6 +218,7 @@ impl Parser {
                         Ok(AlterTableAction::AddConstraint { name, constraint })
                     } else {
                         let col = self.parse_column_def()?;
+                        self.consume_column_position();
                         Ok(AlterTableAction::AddColumn(col))
                     }
                 }
@@ -358,9 +365,16 @@ impl Parser {
                         cascade: false,
                     })
                 } else {
-                    self.expect_keyword(Keyword::TO)?;
-                    let new_name = self.parse_identifier()?;
-                    Ok(AlterTableAction::RenameTo { new_name })
+                    if self.match_keyword(Keyword::TO) {
+                        self.advance();
+                        let new_name = self.parse_identifier()?;
+                        Ok(AlterTableAction::RenameTo { new_name })
+                    } else {
+                        let old = self.parse_identifier()?;
+                        self.expect_keyword(Keyword::TO)?;
+                        let new = self.parse_identifier()?;
+                        Ok(AlterTableAction::RenameColumn { old, new })
+                    }
                 }
             }
             Some(Keyword::OWNER) => {
@@ -397,7 +411,23 @@ impl Parser {
                     loop {
                         let key = self.parse_identifier()?;
                         self.expect_token(&Token::Eq)?;
-                        let value = self.parse_identifier()?;
+                        let value =
+                            self.parse_identifier()
+                                .unwrap_or_else(|_| match self.peek().clone() {
+                                    Token::StringLiteral(s) => {
+                                        self.advance();
+                                        s
+                                    }
+                                    Token::Integer(n) => {
+                                        self.advance();
+                                        n.to_string()
+                                    }
+                                    Token::Float(f) => {
+                                        self.advance();
+                                        f
+                                    }
+                                    _ => String::new(),
+                                });
                         options.push((key, value));
                         if !self.match_token(&Token::Comma) {
                             break;
@@ -735,7 +765,9 @@ impl Parser {
                     self.expect_token(&Token::RParen)?;
                     Ok(AlterTableAction::ModifyColumns(cols))
                 } else {
-                    // Single-column: MODIFY colname ...
+                    if self.match_keyword(Keyword::COLUMN) {
+                        self.advance();
+                    }
                     let name = self.parse_identifier()?;
                     let action = if self.match_keyword(Keyword::NOT) {
                         self.advance();
@@ -746,8 +778,25 @@ impl Parser {
                         AlterColumnAction::DropNotNull
                     } else {
                         let data_type = self.parse_data_type()?;
+                        if self.match_keyword(Keyword::FIRST_P) {
+                            self.advance();
+                        } else if self.match_keyword(Keyword::AFTER) {
+                            self.advance();
+                            let _ = self.parse_identifier();
+                        }
                         AlterColumnAction::SetDataType(data_type)
                     };
+                    if self.match_keyword(Keyword::ON) {
+                        self.advance();
+                        self.expect_keyword(Keyword::UPDATE)?;
+                        let _ = self.parse_identifier();
+                    }
+                    if self.match_keyword(Keyword::FIRST_P) {
+                        self.advance();
+                    } else if self.match_keyword(Keyword::AFTER) {
+                        self.advance();
+                        let _ = self.parse_identifier();
+                    }
                     Ok(AlterTableAction::AlterColumn { name, action })
                 }
             }
@@ -1518,6 +1567,7 @@ impl Parser {
     // ========== ALTER SYNONYM ==========
 
     pub(crate) fn parse_alter_synonym(&mut self) -> Result<AlterSynonymStatement, ParserError> {
+        self.expect_keyword(Keyword::SYNONYM)?;
         let name = self.parse_identifier()?;
         let action = if self.try_consume_keyword(Keyword::COMPILE) {
             let debug = self.match_ident_str("DEBUG");
@@ -1560,10 +1610,20 @@ impl Parser {
         if self.match_token(&Token::LParen) {
             self.advance();
             loop {
-                let key = self.parse_identifier()?;
-                self.expect_token(&Token::Eq)?;
-                let value = self.parse_identifier()?;
-                options.push((key, value));
+                let key = self.consume_any_identifier()?;
+                if self.match_token(&Token::Eq) {
+                    self.advance();
+                    let value = match self.peek().clone() {
+                        Token::StringLiteral(s) => {
+                            self.advance();
+                            s
+                        }
+                        _ => self.consume_any_identifier()?,
+                    };
+                    options.push((key, value));
+                } else {
+                    options.push((key, String::new()));
+                }
                 if !self.match_token(&Token::Comma) {
                     break;
                 }
@@ -1592,6 +1652,15 @@ impl Parser {
         let name = self.parse_identifier()?;
         let raw_rest = self.skip_to_semicolon_and_collect();
         Ok(AlterAppWorkloadGroupMappingStatement { name, raw_rest })
+    }
+
+    fn consume_column_position(&mut self) {
+        if self.match_keyword(Keyword::FIRST_P) {
+            self.advance();
+        } else if self.match_keyword(Keyword::AFTER) {
+            self.advance();
+            let _ = self.parse_identifier();
+        }
     }
 
     // ========== DROP ==========

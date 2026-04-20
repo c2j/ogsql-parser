@@ -980,8 +980,8 @@ static FUNCTIONS: &[FuncMeta] = &[
         "listagg",
         FuncCategory::Aggregate,
         FuncDomain::String,
-        2,
-        None,
+        1,
+        Some(2),
         true
     ),
     f!(
@@ -1410,8 +1410,8 @@ static FUNCTIONS: &[FuncMeta] = &[
         "regexp_replace",
         FuncCategory::Scalar,
         FuncDomain::String,
-        3,
-        Some(5),
+        2,
+        Some(6),
         false
     ),
     f!(
@@ -1482,7 +1482,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         "replace",
         FuncCategory::Scalar,
         FuncDomain::String,
-        3,
+        2,
         Some(3),
         false
     ),
@@ -1692,7 +1692,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         "to_char",
         FuncCategory::Scalar,
         FuncDomain::TypeConversion,
-        2,
+        1,
         Some(2),
         false
     ),
@@ -1700,7 +1700,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         "to_date",
         FuncCategory::Scalar,
         FuncDomain::TypeConversion,
-        2,
+        1,
         Some(2),
         false
     ),
@@ -1716,7 +1716,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         "to_number",
         FuncCategory::Scalar,
         FuncDomain::TypeConversion,
-        2,
+        1,
         Some(2),
         false
     ),
@@ -1724,7 +1724,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         "to_timestamp",
         FuncCategory::Scalar,
         FuncDomain::DateTime,
-        2,
+        1,
         Some(2),
         false
     ),
@@ -2089,7 +2089,7 @@ mod tests {
         let meta = lookup_function("replace").expect("replace should be registered");
         assert_eq!(meta.category, FuncCategory::Scalar);
         assert_eq!(meta.domain, FuncDomain::String);
-        assert_eq!(meta.min_args, 3);
+        assert_eq!(meta.min_args, 2);
     }
 
     #[test]

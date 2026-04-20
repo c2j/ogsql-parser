@@ -650,16 +650,20 @@ impl Parser {
                 from: vec![TableRef::Table {
                     name: table_name.clone(),
                     alias: None,
+                    partition: None,
+                    timecapsule: None,
                 }],
                 where_clause: None,
                 connect_by: None,
                 group_by: vec![],
                 having: None,
                 order_by: vec![],
+                order_siblings: false,
                 limit: None,
                 offset: None,
                 fetch: None,
                 lock_clause: None,
+                window_clause: vec![],
                 set_operation: None,
             };
             (Box::new(synthetic_query), Some(table_name))
@@ -807,6 +811,8 @@ impl Parser {
             constraints.push(constraint);
         }
 
+        self.consume_opt_using_index_attrs();
+
         if charset.is_none()
             && (self.match_keyword(Keyword::CHARACTER) || self.match_keyword(Keyword::CHARSET))
         {
@@ -856,6 +862,23 @@ impl Parser {
             }
         }
 
+        let mut comment = None;
+        if self.try_consume_keyword(Keyword::COMMENT) {
+            comment = Some(self.parse_string_literal()?);
+        }
+
+        let mut generated = None;
+        if self.match_keyword(Keyword::GENERATED) {
+            self.advance();
+            self.expect_keyword(Keyword::ALWAYS)?;
+            self.expect_keyword(Keyword::AS)?;
+            self.expect_token(&Token::LParen)?;
+            let expr = self.parse_expr()?;
+            self.expect_token(&Token::RParen)?;
+            let stored = self.try_consume_keyword(Keyword::STORED);
+            generated = Some(crate::ast::GeneratedColumn { expr, stored });
+        }
+
         Ok(ColumnDef {
             name,
             data_type,
@@ -864,34 +887,40 @@ impl Parser {
             charset,
             collate,
             on_update,
+            comment,
+            generated,
         })
     }
 
     pub(crate) fn parse_data_type(&mut self) -> Result<DataType, ParserError> {
-        match self.peek_keyword() {
+        let result = match self.peek_keyword() {
             Some(Keyword::BOOLEAN_P) => {
                 self.advance();
-                Ok(DataType::Boolean)
+                DataType::Boolean
             }
             Some(Keyword::TINYINT) => {
                 self.advance();
-                Ok(DataType::TinyInt)
+                let precision = self.parse_opt_int_precision()?;
+                DataType::TinyInt(precision)
             }
             Some(Keyword::SMALLINT) => {
                 self.advance();
-                Ok(DataType::SmallInt)
+                let precision = self.parse_opt_int_precision()?;
+                DataType::SmallInt(precision)
             }
             Some(Keyword::INTEGER) | Some(Keyword::INT_P) => {
                 self.advance();
-                Ok(DataType::Integer)
+                let precision = self.parse_opt_int_precision()?;
+                DataType::Integer(precision)
             }
             Some(Keyword::BIGINT) => {
                 self.advance();
-                Ok(DataType::BigInt)
+                let precision = self.parse_opt_int_precision()?;
+                DataType::BigInt(precision)
             }
             Some(Keyword::REAL) => {
                 self.advance();
-                Ok(DataType::Real)
+                DataType::Real
             }
             Some(Keyword::FLOAT_P) => {
                 self.advance();
@@ -903,14 +932,14 @@ impl Parser {
                 } else {
                     None
                 };
-                Ok(DataType::Float(precision))
+                DataType::Float(precision)
             }
             Some(Keyword::DOUBLE_P) => {
                 self.advance();
                 if self.match_keyword(Keyword::PRECISION) {
                     self.advance();
                 }
-                Ok(DataType::Double)
+                DataType::Double
             }
             Some(Keyword::NUMERIC) | Some(Keyword::DECIMAL_P) => {
                 self.advance();
@@ -928,19 +957,32 @@ impl Parser {
                 } else {
                     (None, None)
                 };
-                Ok(DataType::Numeric(precision, scale))
+                DataType::Numeric(precision, scale)
             }
-            Some(Keyword::CHAR_P) => {
+            Some(Keyword::CHAR_P) | Some(Keyword::CHARACTER) => {
                 self.advance();
-                let len = if self.match_token(&Token::LParen) {
+                if self.match_keyword(Keyword::VARYING) {
                     self.advance();
-                    let n = self.parse_int_literal()?;
-                    self.expect_token(&Token::RParen)?;
-                    Some(n)
+                    let len = if self.match_token(&Token::LParen) {
+                        self.advance();
+                        let n = self.parse_int_literal()?;
+                        self.expect_token(&Token::RParen)?;
+                        Some(n)
+                    } else {
+                        None
+                    };
+                    DataType::Varchar(len)
                 } else {
-                    None
-                };
-                Ok(DataType::Char(len))
+                    let len = if self.match_token(&Token::LParen) {
+                        self.advance();
+                        let n = self.parse_int_literal()?;
+                        self.expect_token(&Token::RParen)?;
+                        Some(n)
+                    } else {
+                        None
+                    };
+                    DataType::Char(len)
+                }
             }
             Some(Keyword::VARCHAR) => {
                 self.advance();
@@ -952,15 +994,15 @@ impl Parser {
                 } else {
                     None
                 };
-                Ok(DataType::Varchar(len))
+                DataType::Varchar(len)
             }
             Some(Keyword::TEXT_P) => {
                 self.advance();
-                Ok(DataType::Text)
+                DataType::Text
             }
             Some(Keyword::BYTE_P) => {
                 self.advance();
-                Ok(DataType::Bytea)
+                DataType::Bytea
             }
             Some(Keyword::TIMESTAMP) => {
                 self.advance();
@@ -973,11 +1015,11 @@ impl Parser {
                     None
                 };
                 let tz = self.parse_timezone_info()?;
-                Ok(DataType::Timestamp(precision, tz))
+                DataType::Timestamp(precision, tz)
             }
             Some(Keyword::DATE_P) => {
                 self.advance();
-                Ok(DataType::Date)
+                DataType::Date
             }
             Some(Keyword::TIME) => {
                 self.advance();
@@ -990,11 +1032,12 @@ impl Parser {
                     None
                 };
                 let tz = self.parse_timezone_info()?;
-                Ok(DataType::Time(precision, tz))
+                DataType::Time(precision, tz)
             }
             Some(Keyword::INTERVAL) => {
                 self.advance();
-                Ok(DataType::Interval)
+                let it = self.parse_opt_interval_type()?;
+                DataType::Interval(it)
             }
             Some(Keyword::BIT) => {
                 self.advance();
@@ -1008,7 +1051,7 @@ impl Parser {
                     } else {
                         None
                     };
-                    Ok(DataType::Varbit(len))
+                    DataType::Varbit(len)
                 } else {
                     let len = if self.match_token(&Token::LParen) {
                         self.advance();
@@ -1018,7 +1061,7 @@ impl Parser {
                     } else {
                         None
                     };
-                    Ok(DataType::Bit(len))
+                    DataType::Bit(len)
                 }
             }
             _ => {
@@ -1026,51 +1069,79 @@ impl Parser {
                     match s.to_uppercase().as_str() {
                         "SERIAL" => {
                             self.advance();
-                            return Ok(DataType::Serial);
+                            DataType::Serial
                         }
                         "SMALLSERIAL" => {
                             self.advance();
-                            return Ok(DataType::SmallSerial);
+                            DataType::SmallSerial
                         }
                         "BIGSERIAL" => {
                             self.advance();
-                            return Ok(DataType::BigSerial);
+                            DataType::BigSerial
                         }
                         "BINARY_FLOAT" => {
                             self.advance();
-                            return Ok(DataType::BinaryFloat);
+                            DataType::BinaryFloat
                         }
                         "BINARY_DOUBLE" => {
                             self.advance();
-                            return Ok(DataType::BinaryDouble);
+                            DataType::BinaryDouble
                         }
                         "BOOL" => {
                             self.advance();
-                            return Ok(DataType::Boolean);
+                            DataType::Boolean
                         }
-                        _ => {}
-                    }
-                }
-                let name = self.parse_object_name()?;
-                let args = if self.match_token(&Token::LParen) {
-                    self.advance();
-                    let mut args = Vec::new();
-                    loop {
-                        args.push(self.parse_expr()?);
-                        if self.match_token(&Token::Comma) {
-                            self.advance();
-                        } else {
-                            break;
+                        _ => {
+                            let name = self.parse_object_name()?;
+                            let args = if self.match_token(&Token::LParen) {
+                                self.advance();
+                                let mut args = Vec::new();
+                                loop {
+                                    args.push(self.parse_expr()?);
+                                    if self.match_token(&Token::Comma) {
+                                        self.advance();
+                                    } else {
+                                        break;
+                                    }
+                                }
+                                self.expect_token(&Token::RParen)?;
+                                args
+                            } else {
+                                Vec::new()
+                            };
+                            DataType::Custom(name, args)
                         }
                     }
-                    self.expect_token(&Token::RParen)?;
-                    args
                 } else {
-                    Vec::new()
-                };
-                Ok(DataType::Custom(name, args))
+                    let name = self.parse_object_name()?;
+                    let args = if self.match_token(&Token::LParen) {
+                        self.advance();
+                        let mut args = Vec::new();
+                        loop {
+                            args.push(self.parse_expr()?);
+                            if self.match_token(&Token::Comma) {
+                                self.advance();
+                            } else {
+                                break;
+                            }
+                        }
+                        self.expect_token(&Token::RParen)?;
+                        args
+                    } else {
+                        Vec::new()
+                    };
+                    DataType::Custom(name, args)
+                }
             }
+        };
+        // Check for array suffix [] (possibly multiple, for multi-dimensional arrays)
+        let mut result = result;
+        while self.match_token(&Token::LBracket) {
+            self.advance();
+            self.expect_token(&Token::RBracket)?;
+            result = DataType::Array(Box::new(result));
         }
+        Ok(result)
     }
 
     fn parse_int_literal(&mut self) -> Result<u32, ParserError> {
@@ -1085,6 +1156,64 @@ impl Parser {
                 expected: "integer literal".to_string(),
                 got: format!("{:?}", self.peek()),
             }),
+        }
+    }
+
+    fn parse_opt_int_precision(&mut self) -> Result<Option<u32>, ParserError> {
+        if self.match_token(&Token::LParen) {
+            self.advance();
+            let n = self.parse_int_literal()?;
+            self.expect_token(&Token::RParen)?;
+            Ok(Some(n))
+        } else {
+            Ok(None)
+        }
+    }
+
+    fn parse_opt_interval_type(&mut self) -> Result<Option<IntervalType>, ParserError> {
+        let unit = match self.peek_keyword() {
+            Some(Keyword::YEAR_P) => "YEAR",
+            Some(Keyword::MONTH_P) => "MONTH",
+            Some(Keyword::DAY_P) => "DAY",
+            Some(Keyword::HOUR_P) => "HOUR",
+            Some(Keyword::MINUTE_P) => "MINUTE",
+            Some(Keyword::SECOND_P) => "SECOND",
+            _ => return Ok(None),
+        };
+        self.advance();
+        let from_precision = self.parse_opt_int_precision().ok().flatten();
+        if self.match_keyword(Keyword::TO) {
+            self.advance();
+            let to_unit = match self.peek_keyword() {
+                Some(Keyword::YEAR_P) => "YEAR",
+                Some(Keyword::MONTH_P) => "MONTH",
+                Some(Keyword::DAY_P) => "DAY",
+                Some(Keyword::HOUR_P) => "HOUR",
+                Some(Keyword::MINUTE_P) => "MINUTE",
+                Some(Keyword::SECOND_P) => "SECOND",
+                _ => {
+                    return Err(ParserError::UnexpectedToken {
+                        location: self.current_location(),
+                        expected: "interval unit after TO".to_string(),
+                        got: format!("{:?}", self.peek()),
+                    })
+                }
+            };
+            self.advance();
+            let to_precision = self.parse_opt_int_precision().ok().flatten();
+            Ok(Some(IntervalType {
+                from: unit.to_string(),
+                from_precision,
+                to: Some(to_unit.to_string()),
+                to_precision,
+            }))
+        } else {
+            Ok(Some(IntervalType {
+                from: unit.to_string(),
+                from_precision,
+                to: None,
+                to_precision: None,
+            }))
         }
     }
 
@@ -1120,37 +1249,81 @@ impl Parser {
         }
     }
 
+    fn consume_opt_enable_disable(&mut self) {
+        if self.match_keyword(Keyword::ENABLE_P) || self.match_keyword(Keyword::DISABLE_P) {
+            self.advance();
+        }
+    }
+
+    fn consume_opt_using_index_tablespace(&mut self) {
+        if self.match_keyword(Keyword::USING) {
+            self.advance();
+            if self.match_keyword(Keyword::INDEX) {
+                self.advance();
+            }
+            if self.match_keyword(Keyword::TABLESPACE) {
+                self.advance();
+                let _ = self.parse_identifier();
+            }
+        }
+    }
+
+    fn consume_opt_using_index_attrs(&mut self) {
+        if !self.match_keyword(Keyword::USING) {
+            return;
+        }
+        self.advance();
+        if self.match_keyword(Keyword::INDEX) {
+            self.advance();
+        }
+        while let Some(kw) = self.peek_keyword() {
+            match kw {
+                Keyword::PCTFREE
+                | Keyword::INITRANS
+                | Keyword::MAXTRANS
+                | Keyword::STORAGE
+                | Keyword::TABLESPACE => {
+                    self.advance();
+                    let _ = self.parse_expr();
+                }
+                _ => break,
+            }
+        }
+    }
+
     fn try_parse_column_constraint(&mut self) -> Result<Option<ColumnConstraint>, ParserError> {
-        match self.peek_keyword() {
+        let result = match self.peek_keyword() {
             Some(Keyword::NOT) => {
                 self.advance();
                 self.expect_keyword(Keyword::NULL_P)?;
-                Ok(Some(ColumnConstraint::NotNull))
+                Some(ColumnConstraint::NotNull)
             }
             Some(Keyword::NULL_P) => {
                 self.advance();
-                Ok(Some(ColumnConstraint::Null))
+                Some(ColumnConstraint::Null)
             }
             Some(Keyword::DEFAULT) => {
                 self.advance();
                 let expr = self.parse_expr()?;
-                Ok(Some(ColumnConstraint::Default(expr)))
+                Some(ColumnConstraint::Default(expr))
             }
             Some(Keyword::UNIQUE) => {
                 self.advance();
-                Ok(Some(ColumnConstraint::Unique))
+                self.consume_opt_using_index_tablespace();
+                Some(ColumnConstraint::Unique)
             }
             Some(Keyword::PRIMARY) => {
                 self.advance();
                 self.expect_keyword(Keyword::KEY)?;
-                Ok(Some(ColumnConstraint::PrimaryKey))
+                self.consume_opt_using_index_tablespace();
+                Some(ColumnConstraint::PrimaryKey)
             }
             Some(Keyword::CHECK) => {
                 self.advance();
                 self.expect_token(&Token::LParen)?;
                 let expr = self.parse_expr()?;
                 self.expect_token(&Token::RParen)?;
-                Ok(Some(ColumnConstraint::Check(expr)))
+                Some(ColumnConstraint::Check(expr))
             }
             Some(Keyword::REFERENCES) => {
                 self.advance();
@@ -1167,10 +1340,14 @@ impl Parser {
                 } else {
                     Vec::new()
                 };
-                Ok(Some(ColumnConstraint::References(table, columns)))
+                Some(ColumnConstraint::References(table, columns))
             }
-            _ => Ok(None),
+            _ => None,
+        };
+        if result.is_some() {
+            self.consume_opt_enable_disable();
         }
+        Ok(result)
     }
 
     pub(crate) fn parse_table_constraint(&mut self) -> Result<TableConstraint, ParserError> {

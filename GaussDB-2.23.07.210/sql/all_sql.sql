@@ -355,7 +355,7 @@ select b from test_proc_patch where a = 1;
 call mypro();
 
 -- [DQL]
-select unique_query_id, query, query_plan, parent_unique_sql_id from dbe_perf.statement_history where query like '%call mypro();
+select unique_query_id, query, query_plan, parent_unique_sql_id from dbe_perf.statement_history where query like '%call mypro()';
 
 -- [DQL]
 select * from dbe_sql_util.create_abort_sql_patch('patch1',2859505004,2502737203);
@@ -702,7 +702,7 @@ DROP TABLE serial_type_tab ;
 DROP TABLE bigserial_type_tab ;
 
 -- [DDL]
-CREATE TABLE float_type_t2 ( FT_COL1 INTEGER , FT_COL2 FLOAT4 , FT_COL3 FLOAT8 , FT_COL4 FLOAT ( 3 ), FT_COL5 BINARY_DOUBLE , FT_COL6 DECIMAL ( 10 , 4 ), FT_COL7 INTEGER ( 6 , 3 ) ) DISTRIBUTE BY HASH ( ft_col1 );
+CREATE TABLE float_type_t2 ( FT_COL1 INTEGER , FT_COL2 FLOAT4 , FT_COL3 FLOAT8 , FT_COL4 FLOAT ( 3 ), FT_COL5 BINARY_DOUBLE , FT_COL6 DECIMAL ( 10 , 4 ), FT_COL7 INTEGER ( 6 , 3 )  DISTRIBUTE BY HASH ( ft_col1 );
 
 -- [DML_INSERT]
 INSERT INTO float_type_t2 VALUES ( 10 , 10 . 365456 , 123456 . 1234 , 10 . 3214 , 321 . 321 , 123 . 123654 , 123 . 123654 );
@@ -11496,7 +11496,8 @@ IMPDP TABLE PREPARE SOURCE = '/data1/impdp/table0' OWNER=admin;
 CREATE SCHEMA tpcds ;
 
 -- [DDL]
-CREATE TABLE tpcds . reason ( r_reason_sk integer , r_reason_id character ( 16 ), r_reason_desc character ( 100 ) );
+CREATE TABLE tpcds . reason ( r_reason_sk integer not null enable, r_reason_id character ( 16 ) not null enable, r_reason_desc character ( 100 ) );
+
 
 -- [DML_INSERT]
 INSERT INTO tpcds . reason ( r_reason_sk , r_reason_id , r_reason_desc ) VALUES ( 0 , 'AAAAAAAAAAAAAAAA' , 'reason0' );
@@ -11716,6 +11717,7 @@ CREATE TABLE tpcds.reason_t3 ( r_reason_sk integer, r_reason_id character(16), r
 -- 对表tpcds.reason_t1创建索引。
 -- [DDL]
 CREATE INDEX index_t1 on tpcds.reason_t1(r_reason_id);
+CREATE INDEX tpcds.index_t1 on tpcds.reason_t1(r_reason_id);
 
 -- [DDL]
 DROP TABLE tpcds.reason_t1;
@@ -36982,4 +36984,3 @@ select table_skewness ( 'inventory' );
 
 -- [DQL]
 select table_skewness ( 'inventory' );
-

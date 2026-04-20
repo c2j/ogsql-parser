@@ -80,8 +80,8 @@ impl<'a> Tokenizer<'a> {
         c
     }
 
-    fn advance_while<F: Fn(char) -> bool>(&mut self, predicate: F) -> String {
-        let mut s = String::with_capacity(16);
+    fn advance_while_pos<F: Fn(char) -> bool>(&mut self, predicate: F) -> usize {
+        let start = self.pos;
         while let Some(&c) = self.chars.peek() {
             if predicate(c) {
                 self.chars.next();
@@ -90,12 +90,15 @@ impl<'a> Tokenizer<'a> {
                     self.line_start = self.pos + c.len_utf8();
                 }
                 self.pos += c.len_utf8();
-                s.push(c);
             } else {
                 break;
             }
         }
-        s
+        start
+    }
+
+    fn slice_from(&self, start: usize) -> String {
+        self.input[start..self.pos].to_string()
     }
 
     fn skip_while<F: Fn(char) -> bool>(&mut self, predicate: F) {
@@ -121,48 +124,51 @@ impl<'a> Tokenizer<'a> {
                     self.advance();
                 }
                 Some('-') => {
-                    let saved = self.chars.clone();
-                    let saved_pos = self.pos;
-                    let saved_line = self.line;
-                    let saved_line_start = self.line_start;
-                    self.advance();
-                    if self.chars.peek().copied() == Some('-') {
+                    if self.peek_byte_at(1) == Some(b'-') {
+                        self.advance();
                         self.advance();
                         self.skip_while(|c| c != '\n');
                     } else {
-                        self.chars = saved;
-                        self.pos = saved_pos;
-                        self.line = saved_line;
-                        self.line_start = saved_line_start;
                         return Ok(());
                     }
                 }
                 Some('/') => {
-                    let saved = self.chars.clone();
-                    let saved_pos = self.pos;
-                    let saved_line = self.line;
-                    let saved_line_start = self.line_start;
-                    self.advance();
-                    if self.chars.peek().copied() == Some('*') {
+                    if self.peek_byte_at(1) == Some(b'*') {
                         self.advance();
-                        if self.chars.peek().copied() == Some('+') {
-                            // Optimizer hint: /*+ ... */
+                        self.advance();
+                        if self.peek_byte_at(0) == Some(b'+') {
                             self.advance();
                             let hint = self.collect_hint_content();
                             self.pending_hint = Some(hint);
                         } else {
+                            let saved_pos = self.pos;
                             self.skip_block_comment(saved_pos)?;
                         }
                     } else {
-                        self.chars = saved;
-                        self.pos = saved_pos;
-                        self.line = saved_line;
-                        self.line_start = saved_line_start;
                         return Ok(());
                     }
                 }
                 _ => return Ok(()),
             }
+        }
+    }
+
+    fn peek_byte_at(&self, offset: usize) -> Option<u8> {
+        self.input.as_bytes().get(self.pos + offset).copied()
+    }
+
+    fn peek_byte_past_whitespace(&self, start_offset: usize) -> Option<u8> {
+        let mut i = self.pos + start_offset;
+        let bytes = self.input.as_bytes();
+        while i < bytes.len() && bytes[i].is_ascii_whitespace() {
+            i += 1;
+        }
+        bytes.get(i).copied()
+    }
+
+    fn skip_whitespace_in_token(&mut self) {
+        while self.peek().map_or(false, |c| c.is_ascii_whitespace()) {
+            self.advance();
         }
     }
 
@@ -274,7 +280,7 @@ impl<'a> Tokenizer<'a> {
             // Dollar-quoted string or parameter ($1, $2) or $tag$ string
             '$' => {
                 self.advance();
-                self.scan_dollar_or_param()
+                self.scan_dollar_or_param()?
             }
 
             // Numbers
@@ -282,12 +288,17 @@ impl<'a> Tokenizer<'a> {
 
             // National character string N'...'
             'n' | 'N' => {
-                // Check if followed by single quote
-                let mut chars_clone = self.chars.clone();
-                chars_clone.next(); // skip current
-                if chars_clone.next() == Some('\'') {
-                    self.advance(); // consume 'N'
-                    self.advance(); // consume '\''
+                if self.peek_byte_at(1) == Some(b'\'') {
+                    self.advance();
+                    self.advance();
+                    let s = self.scan_string()?;
+                    Token::NationalString(s)
+                } else if self.peek_byte_at(1).map_or(false, |b| b.is_ascii_whitespace())
+                    && self.peek_byte_past_whitespace(2) == Some(b'\'')
+                {
+                    self.advance();
+                    self.skip_whitespace_in_token();
+                    self.advance();
                     let s = self.scan_string()?;
                     Token::NationalString(s)
                 } else {
@@ -295,12 +306,18 @@ impl<'a> Tokenizer<'a> {
                 }
             }
 
-            // Escape string E'...'
+            // Escape String E'...'
             'e' | 'E' => {
-                let mut chars_clone = self.chars.clone();
-                chars_clone.next();
-                if chars_clone.next() == Some('\'') {
+                if self.peek_byte_at(1) == Some(b'\'') {
                     self.advance();
+                    self.advance();
+                    let s = self.scan_escape_string()?;
+                    Token::EscapeString(s)
+                } else if self.peek_byte_at(1).map_or(false, |b| b.is_ascii_whitespace())
+                    && self.peek_byte_past_whitespace(2) == Some(b'\'')
+                {
+                    self.advance();
+                    self.skip_whitespace_in_token();
                     self.advance();
                     let s = self.scan_escape_string()?;
                     Token::EscapeString(s)
@@ -311,10 +328,16 @@ impl<'a> Tokenizer<'a> {
 
             // Bit string B'...' or b'...'
             'b' | 'B' => {
-                let mut chars_clone = self.chars.clone();
-                chars_clone.next();
-                if chars_clone.next() == Some('\'') {
+                if self.peek_byte_at(1) == Some(b'\'') {
                     self.advance();
+                    self.advance();
+                    let s = self.scan_string()?;
+                    Token::BitString(s)
+                } else if self.peek_byte_at(1).map_or(false, |b| b.is_ascii_whitespace())
+                    && self.peek_byte_past_whitespace(2) == Some(b'\'')
+                {
+                    self.advance();
+                    self.skip_whitespace_in_token();
                     self.advance();
                     let s = self.scan_string()?;
                     Token::BitString(s)
@@ -325,10 +348,16 @@ impl<'a> Tokenizer<'a> {
 
             // Hex string X'...' or x'...'
             'x' | 'X' => {
-                let mut chars_clone = self.chars.clone();
-                chars_clone.next();
-                if chars_clone.next() == Some('\'') {
+                if self.peek_byte_at(1) == Some(b'\'') {
                     self.advance();
+                    self.advance();
+                    let s = self.scan_string()?;
+                    Token::HexString(s)
+                } else if self.peek_byte_at(1).map_or(false, |b| b.is_ascii_whitespace())
+                    && self.peek_byte_past_whitespace(2) == Some(b'\'')
+                {
+                    self.advance();
+                    self.skip_whitespace_in_token();
                     self.advance();
                     let s = self.scan_string()?;
                     Token::HexString(s)
@@ -342,9 +371,19 @@ impl<'a> Tokenizer<'a> {
                 self.advance();
                 if self.peek() == Some('@') {
                     self.advance();
-                    let ident = self
-                        .advance_while(|c| c.is_alphanumeric() || c == '_' || c == '.' || c == '$');
-                    Token::SetIdent(ident)
+                    if self.chars.peek().map_or(false, |c| {
+                        c.is_alphanumeric() || *c == '_' || *c == '.' || *c == '$'
+                    }) {
+                        let start = self.advance_while_pos(|c| {
+                            c.is_alphanumeric() || c == '_' || c == '.' || c == '$'
+                        });
+                        Token::SetIdent(self.slice_from(start))
+                    } else {
+                        Token::Op("@@".to_string())
+                    }
+                } else if self.peek() == Some('>') {
+                    self.advance();
+                    Token::Op("@>".to_string())
                 } else {
                     Token::At
                 }
@@ -405,15 +444,15 @@ impl<'a> Tokenizer<'a> {
                     Token::DotDot
                 } else if self.peek().map_or(false, |c| c.is_ascii_digit()) {
                     // Number starting with dot: .123
-                    let frac = self.advance_while(|c| c.is_ascii_digit());
-                    // Check for exponent
-                    let mut full = format!(".{}", frac);
+                    let frac_start = self.advance_while_pos(|c| c.is_ascii_digit());
+                    let mut full = format!(".{}", &self.input[frac_start..self.pos]);
                     if self.peek() == Some('e') || self.peek() == Some('E') {
                         full.push(self.advance().unwrap());
                         if self.peek() == Some('+') || self.peek() == Some('-') {
                             full.push(self.advance().unwrap());
                         }
-                        full.push_str(&self.advance_while(|c| c.is_ascii_digit()));
+                        let exp_start = self.advance_while_pos(|c| c.is_ascii_digit());
+                        full.push_str(&self.input[exp_start..self.pos]);
                     }
                     // Check for f/d suffix
                     if self.peek() == Some('f')
@@ -436,7 +475,18 @@ impl<'a> Tokenizer<'a> {
 
             '-' => {
                 self.advance();
-                Token::Minus
+                if self.peek() == Some('|') {
+                    let chars: Vec<char> = self.chars.clone().collect();
+                    if chars.len() >= 2 && chars[0] == '|' && chars[1] == '-' {
+                        self.advance(); // consume '|'
+                        self.advance(); // consume '-'
+                        Token::Op("-|-".to_string())
+                    } else {
+                        Token::Minus
+                    }
+                } else {
+                    Token::Minus
+                }
             }
 
             '*' => {
@@ -453,15 +503,47 @@ impl<'a> Tokenizer<'a> {
                 match self.peek() {
                     Some('=') => {
                         self.advance();
-                        Token::Op("<=".to_string())
+                        if self.peek() == Some('>') {
+                            self.advance();
+                            Token::Op("<=>".to_string())
+                        } else {
+                            Token::OpLe
+                        }
+                    }
+                    Some('-') => {
+                        // Lookahead: current peek is '-', check if char after is '>'
+                        let chars: Vec<char> = self.chars.clone().collect();
+                        if chars.len() >= 2 && chars[0] == '-' && chars[1] == '>' {
+                            self.advance(); // consume '-'
+                            self.advance(); // consume '>'
+                            Token::Op("<->".to_string())
+                        } else {
+                            Token::Lt
+                        }
                     }
                     Some('>') => {
                         self.advance();
-                        Token::Op("<>".to_string())
+                        Token::OpNe
                     }
                     Some('<') => {
                         self.advance();
-                        Token::Op("<<".to_string())
+                        if self.peek() == Some('|') {
+                            self.advance();
+                            Token::Op("<<|".to_string())
+                        } else if self.peek() == Some('=') {
+                            self.advance();
+                            Token::Op("<<=".to_string())
+                        } else {
+                            Token::OpShiftL
+                        }
+                    }
+                    Some('@') => {
+                        self.advance();
+                        Token::Op("<@".to_string())
+                    }
+                    Some('^') => {
+                        self.advance();
+                        Token::Op("<^".to_string())
                     }
                     _ => Token::Lt,
                 }
@@ -472,11 +554,20 @@ impl<'a> Tokenizer<'a> {
                 match self.peek() {
                     Some('=') => {
                         self.advance();
-                        Token::Op(">=".to_string())
+                        Token::OpGe
                     }
                     Some('>') => {
                         self.advance();
-                        Token::Op(">>".to_string())
+                        if self.peek() == Some('=') {
+                            self.advance();
+                            Token::Op(">>=".to_string())
+                        } else {
+                            Token::OpShiftR
+                        }
+                    }
+                    Some('^') => {
+                        self.advance();
+                        Token::Op(">^".to_string())
                     }
                     _ => Token::Gt,
                 }
@@ -496,10 +587,18 @@ impl<'a> Tokenizer<'a> {
                 self.advance();
                 if self.peek() == Some('=') {
                     self.advance();
-                    Token::Op("!=".to_string())
+                    Token::OpNe2
                 } else if self.peek() == Some('!') {
                     self.advance();
-                    Token::Op("!!".to_string())
+                    Token::OpDblBang
+                } else if self.peek() == Some('~') {
+                    self.advance();
+                    if self.peek() == Some('*') {
+                        self.advance();
+                        Token::Op("!~*".to_string())
+                    } else {
+                        Token::Op("!~".to_string())
+                    }
                 } else {
                     Token::Op("!".to_string())
                 }
@@ -507,19 +606,21 @@ impl<'a> Tokenizer<'a> {
 
             '~' | '&' | '|' | '`' | '#' | '?' => {
                 self.advance();
-                let mut op = String::new();
-                op.push(c);
-                // Consume more operator chars
+                let start = self.pos - c.len_utf8();
                 while let Some(&nc) = self.chars.peek() {
                     if is_op_char(nc) {
                         self.chars.next();
                         self.pos += nc.len_utf8();
-                        op.push(nc);
                     } else {
                         break;
                     }
                 }
-                Token::Op(op)
+                let op_str = &self.input[start..self.pos];
+                if op_str == "||" {
+                    Token::OpConcat
+                } else {
+                    Token::Op(op_str.to_string())
+                }
             }
 
             '\\' => {
@@ -596,9 +697,10 @@ impl<'a> Tokenizer<'a> {
                     Some('b') => result.push('\x08'),
                     Some('f') => result.push('\x0c'),
                     Some('x') => {
-                        let hex: String = self.advance_while(|c| c.is_ascii_hexdigit());
+                        let hex_start = self.advance_while_pos(|c| c.is_ascii_hexdigit());
+                        let hex = &self.input[hex_start..self.pos];
                         if !hex.is_empty() {
-                            if let Ok(byte) = u8::from_str_radix(&hex, 16) {
+                            if let Ok(byte) = u8::from_str_radix(hex, 16) {
                                 result.push(byte as char);
                             }
                         }
@@ -613,6 +715,7 @@ impl<'a> Tokenizer<'a> {
     fn scan_quoted_identifier(&mut self) -> Result<String, TokenizerError> {
         let mut result = String::new();
         let start = self.pos;
+        let start_line = self.line;
         loop {
             match self.advance() {
                 None => return Err(TokenizerError::UnterminatedQuotedIdentifier(start)),
@@ -624,47 +727,53 @@ impl<'a> Tokenizer<'a> {
                         return Ok(result);
                     }
                 }
+                Some('\n') => {
+                    // Deliberately deviate from PostgreSQL: require same-line closure
+                    // to prevent cascade misparse. Remove this branch to allow multi-line.
+                    return Err(TokenizerError::UnterminatedQuotedIdentifier(start));
+                }
                 Some(c) => result.push(c),
             }
         }
     }
 
-    fn scan_dollar_or_param(&mut self) -> Token {
-        // Check if it's a parameter: $1, $2, etc.
+    fn scan_dollar_or_param(&mut self) -> Result<Token, TokenizerError> {
         if let Some(&c) = self.chars.peek() {
             if c.is_ascii_digit() {
-                let num: String = self.advance_while(|c| c.is_ascii_digit());
+                let start = self.advance_while_pos(|c| c.is_ascii_digit());
+                let num = &self.input[start..self.pos];
                 if let Ok(n) = num.parse::<i32>() {
-                    return Token::Param(n);
+                    return Ok(Token::Param(n));
                 }
-                // If parse fails, treat as identifier starting with $
-                return Token::Ident(format!("${}", num));
+                return Ok(Token::Ident(format!("${}", num)));
             }
         }
 
-        // Check for dollar-quoted string: $$text$$ or $tag$text$tag$
-        // We need to find the end of the opening delimiter (next $)
-        let tag = self.advance_while(|c| c != '$' && c != '\0');
+        // Per openGauss scan.l: tag chars must be valid identifier chars (no spaces, #, etc.)
+        let tag_start = self
+            .advance_while_pos(|c| c.is_ascii_alphanumeric() || c == '_' || (c as u32) >= 0x200);
         if self.peek() == Some('$') {
-            self.advance(); // consume closing $ of delimiter
+            self.advance();
+            let tag = self.input[tag_start..self.pos - 1].to_string();
             let delimiter = format!("${}$", tag);
-            let content = self.scan_dollar_string_content(&delimiter);
+            let content = self.scan_dollar_string_content(&delimiter)?;
             let tag_opt = if tag.is_empty() { None } else { Some(tag) };
-            Token::DollarString {
+            Ok(Token::DollarString {
                 tag: tag_opt,
                 body: content,
-            }
+            })
         } else {
-            // Just a $ followed by an identifier-like thing
+            let tag = &self.input[tag_start..self.pos];
             if tag.is_empty() {
-                Token::Op("$".to_string())
+                Ok(Token::Op("$".to_string()))
             } else {
-                Token::Ident(format!("${}", tag))
+                Ok(Token::Ident(format!("${}", tag)))
             }
         }
     }
 
-    fn scan_dollar_string_content(&mut self, delimiter: &str) -> String {
+    fn scan_dollar_string_content(&mut self, delimiter: &str) -> Result<String, TokenizerError> {
+        let start = self.pos;
         let delim_chars: Vec<char> = delimiter.chars().collect();
         let delim_len = delim_chars.len();
         let mut result = String::with_capacity(256);
@@ -673,20 +782,18 @@ impl<'a> Tokenizer<'a> {
 
         loop {
             match self.advance() {
-                None => break,
+                None => return Err(TokenizerError::UnterminatedDollarString(start)),
                 Some(c) => {
                     window.push_back(c);
                     if window.len() > delim_len {
                         result.push(window.pop_front().unwrap());
                     }
                     if window.len() == delim_len && window.iter().eq(delim_chars.iter()) {
-                        return result;
+                        return Ok(result);
                     }
                 }
             }
         }
-        result.extend(window);
-        result
     }
 
     fn scan_number(&mut self) -> Token {
@@ -699,22 +806,21 @@ impl<'a> Tokenizer<'a> {
             if self.peek() == Some('x') || self.peek() == Some('X') {
                 self.advance();
                 num.push('x');
-                let hex = self.advance_while(|c| c.is_ascii_hexdigit());
-                num.push_str(&hex);
-                return Token::Integer(i64::from_str_radix(&hex, 16).unwrap_or(0));
+                let hex_start = self.advance_while_pos(|c| c.is_ascii_hexdigit());
+                let hex = &self.input[hex_start..self.pos];
+                num.push_str(hex);
+                return Token::Integer(i64::from_str_radix(hex, 16).unwrap_or(0));
             }
             // Continue with decimal
         }
 
         // Integer part
-        num.push_str(&self.advance_while(|c| c.is_ascii_digit()));
+        let int_start = self.advance_while_pos(|c| c.is_ascii_digit());
+        num.push_str(&self.input[int_start..self.pos]);
 
         // Check for ".." (1..10 should be 1 DOT_DOT 10)
         if self.peek() == Some('.') {
-            let mut chars_clone = self.chars.clone();
-            chars_clone.next();
-            if chars_clone.next() == Some('.') {
-                // It's a ".." range, don't consume the dot
+            if self.peek_byte_at(1) == Some(b'.') {
                 if let Ok(n) = num.parse::<i64>() {
                     return Token::Integer(n);
                 }
@@ -726,7 +832,8 @@ impl<'a> Tokenizer<'a> {
         if self.peek() == Some('.') {
             self.advance();
             num.push('.');
-            num.push_str(&self.advance_while(|c| c.is_ascii_digit()));
+            let frac_start = self.advance_while_pos(|c| c.is_ascii_digit());
+            num.push_str(&self.input[frac_start..self.pos]);
         }
 
         // Exponent part
@@ -735,7 +842,8 @@ impl<'a> Tokenizer<'a> {
             if self.peek() == Some('+') || self.peek() == Some('-') {
                 num.push(self.advance().unwrap());
             }
-            num.push_str(&self.advance_while(|c| c.is_ascii_digit()));
+            let exp_start = self.advance_while_pos(|c| c.is_ascii_digit());
+            num.push_str(&self.input[exp_start..self.pos]);
             // f/d suffix after scientific notation
             if self.peek() == Some('f')
                 || self.peek() == Some('F')
@@ -768,15 +876,26 @@ impl<'a> Tokenizer<'a> {
     }
 
     fn scan_ident_or_keyword(&mut self) -> Token {
-        let mut ident = String::new();
-        ident.push(self.advance().unwrap());
-        ident.push_str(&self.advance_while(is_ident_cont));
+        let start = self.pos;
+        self.advance(); // consume first char
+        while let Some(&c) = self.chars.peek() {
+            if is_ident_cont(c) {
+                self.chars.next();
+                if c == '\n' {
+                    self.line += 1;
+                    self.line_start = self.pos + c.len_utf8();
+                }
+                self.pos += c.len_utf8();
+            } else {
+                break;
+            }
+        }
 
-        // Check if it's a keyword
-        if let Some(kw) = lookup_keyword(&ident) {
+        let ident = &self.input[start..self.pos];
+        if let Some(kw) = lookup_keyword(ident) {
             Token::Keyword(kw)
         } else {
-            Token::Ident(ident)
+            Token::Ident(ident.to_string())
         }
     }
 }
@@ -871,9 +990,9 @@ mod tests {
     #[test]
     fn test_operators() {
         let tokens = tokens_as_vec(">= <> <=");
-        assert!(matches!(&tokens[0], Token::Op(s) if s == ">="));
-        assert!(matches!(&tokens[1], Token::Op(s) if s == "<>"));
-        assert!(matches!(&tokens[2], Token::Op(s) if s == "<="));
+        assert!(matches!(tokens[0], Token::OpGe));
+        assert!(matches!(tokens[1], Token::OpNe));
+        assert!(matches!(tokens[2], Token::OpLe));
     }
 
     #[test]

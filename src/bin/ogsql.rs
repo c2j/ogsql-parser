@@ -143,6 +143,14 @@ fn token_display(t: &TokenWithSpan) -> (String, String) {
         Token::StringLiteral(s) => ("String".into(), s.clone()),
         Token::Float(s) => ("Float".into(), s.clone()),
         Token::Op(s) => ("Op".into(), s.clone()),
+        Token::OpLe => ("Op".into(), "<=".into()),
+        Token::OpNe => ("Op".into(), "<>".into()),
+        Token::OpGe => ("Op".into(), ">=".into()),
+        Token::OpShiftL => ("Op".into(), "<<".into()),
+        Token::OpShiftR => ("Op".into(), ">>".into()),
+        Token::OpNe2 => ("Op".into(), "!=".into()),
+        Token::OpDblBang => ("Op".into(), "!!".into()),
+        Token::OpConcat => ("Op".into(), "||".into()),
         other => ("Other".into(), format!("{:?}", other)),
     }
 }
@@ -317,7 +325,11 @@ fn cmd_json2sql(cli: &Cli) {
 }
 
 fn is_warning(e: &ogsql_parser::ParserError) -> bool {
-    matches!(e, ogsql_parser::ParserError::Warning { .. })
+    matches!(
+        e,
+        ogsql_parser::ParserError::Warning { .. }
+            | ogsql_parser::ParserError::ReservedKeywordAsIdentifier { .. }
+    )
 }
 
 fn cmd_validate(cli: &Cli) {
