@@ -649,11 +649,8 @@ impl Parser {
                 exception_block = Some(self.parse_pl_exception_block()?);
             } else if self.peek_keyword() == Some(Keyword::END_P) {
                 if self.lookahead_is_compound_end() {
-                    return Err(ParserError::UnexpectedToken {
-                        location: self.current_location(),
-                        expected: "end of declare block".to_string(),
-                        got: format!("{:?}", self.peek()),
-                    });
+                    self.advance();
+                    break;
                 }
                 self.advance();
                 break;
@@ -769,6 +766,10 @@ impl Parser {
 
         match result {
             Some(stmt) => {
+                if self.match_keyword(Keyword::INTO) {
+                    self.advance();
+                    let _ = self.consume_any_identifier();
+                }
                 self.try_consume_semicolon();
                 Some(PlStatement::SqlStatement {
                     sql_text: String::new(),
@@ -1733,7 +1734,18 @@ impl Parser {
 
             let mut conditions = Vec::new();
             loop {
-                conditions.push(self.parse_identifier()?);
+                let cond = self.parse_identifier()?;
+                let cond = if cond.eq_ignore_ascii_case("sqlstate") {
+                    if let Token::StringLiteral(s) = self.peek().clone() {
+                        self.advance();
+                        format!("SQLSTATE '{}'", s)
+                    } else {
+                        cond
+                    }
+                } else {
+                    cond
+                };
+                conditions.push(cond);
                 if !self.match_ident_str("or") {
                     break;
                 }

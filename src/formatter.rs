@@ -2490,11 +2490,22 @@ impl SqlFormatter {
 
     fn format_table_constraint(&self, c: &TableConstraint) -> String {
         match c {
-            TableConstraint::PrimaryKey(cols) => {
-                format!("{} ({})", self.kw("PRIMARY KEY"), cols.join(", "))
+            TableConstraint::PrimaryKey { columns, using_index } => {
+                let mut s = format!("{} ({})", self.kw("PRIMARY KEY"), columns.join(", "));
+                if let Some(ui) = using_index {
+                    s = format!("{} {} {}", s, self.kw("USING INDEX"), ui);
+                }
+                s
             }
-            TableConstraint::Unique(cols) => {
-                format!("{} ({})", self.kw("UNIQUE"), cols.join(", "))
+            TableConstraint::Unique { columns, deferrable, with_options } => {
+                let mut s = format!("{} ({})", self.kw("UNIQUE"), columns.join(", "));
+                if *deferrable {
+                    s = format!("{} {}", s, self.kw("DEFERRABLE"));
+                }
+                if !with_options.is_empty() {
+                    s = format!("{} {}", s, self.format_options(with_options));
+                }
+                s
             }
             TableConstraint::Check(expr) => {
                 format!("{} ({})", self.kw("CHECK"), self.format_expr(expr))

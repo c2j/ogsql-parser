@@ -29,3 +29,47 @@ ALTER TABLE PAR_FUND_PRE_LIQUIDATION
    MINEXTENTS 1
    MAXEXTENTS UNLIMITED
  )*/;
+
+
+ ALTER TABLE PAR_FUND_PRE_LIQUIDATION
+  ADD CONSTRAINT PK_PAR_FUND_PRE_LIQUIDATION PRIMARY KEY (FUND_CODE)
+  USING index
+  /*TABLESPACE BIGFUND_IND*/
+  PCTFREE 10
+  INITRANS 2
+  MAXTRANS 255
+  /*STORAGE
+  (
+    INITIAL 64K
+    NEXT 1M
+    MINEXTENTS 1
+    MAXEXTENTS UNLIMITED
+  )*/;
+
+
+
+create index ind1 on t1 (part_id)
+   INITRANS 2
+   MAXTRANS 255;
+
+  create table t1(
+      id varchar(2) not null,
+      code varchar(1)
+  )
+  pctfree 10
+  initrans 1
+  maxtrans 255;
+
+  create index ind1 on t1 (part_id)
+     INITRANS 2
+     MAXTRANS 255;
+
+create table t2(
+        id varchar(2) not null,
+        code varchar(1),
+        CONSTRAINT PK_A PRIMARY Key (id)
+        using index pctfree 10 initrans 2 maxtrans 255
+    ) nocompress
+    pctfree 10
+    initrans 1
+    maxtrans 255;

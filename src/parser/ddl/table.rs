@@ -605,6 +605,38 @@ impl Parser {
                 }
                 let spec = self.parse_identifier()?;
                 table_options.push(("ENCRYPTION COLUMN".to_string(), spec));
+            } else if matches!(self.peek_keyword(), Some(Keyword::PCTFREE) | Some(Keyword::INITRANS) | Some(Keyword::MAXTRANS))
+                || self.match_ident_str("PCTUSED")
+            {
+                let key = self.consume_any_identifier()?;
+                let val = self.consume_any_identifier().unwrap_or_else(|_| match self.peek().clone() {
+                    Token::Integer(n) => { self.advance(); n.to_string() }
+                    _ => String::new(),
+                });
+                table_options.push((key.to_uppercase(), val));
+            } else if self.match_keyword(Keyword::STORAGE) {
+                self.advance();
+                let raw = self.collect_until_boundary(&[
+                    Token::Semicolon,
+                    Token::Keyword(Keyword::PARTITION),
+                    Token::Keyword(Keyword::WITH),
+                    Token::Keyword(Keyword::TABLESPACE),
+                    Token::Keyword(Keyword::COMPRESS),
+                    Token::Keyword(Keyword::NOCOMPRESS),
+                    Token::Keyword(Keyword::DISTRIBUTE),
+                    Token::Keyword(Keyword::ENABLE_P),
+                    Token::Keyword(Keyword::DISABLE_P),
+                    Token::Keyword(Keyword::COMMENT),
+                    Token::Keyword(Keyword::DEFAULT),
+                    Token::Keyword(Keyword::CHARACTER),
+                    Token::Keyword(Keyword::CHARSET),
+                    Token::Keyword(Keyword::COLLATE),
+                    Token::Keyword(Keyword::ENCRYPTION),
+                    Token::Keyword(Keyword::PCTFREE),
+                    Token::Keyword(Keyword::INITRANS),
+                    Token::Keyword(Keyword::MAXTRANS),
+                ]);
+                table_options.push(("STORAGE".to_string(), raw));
             } else {
                 break;
             }
@@ -1455,24 +1487,65 @@ impl Parser {
             }
         }
 
-        match self.peek_keyword() {
+         match self.peek_keyword() {
             Some(Keyword::PRIMARY) => {
                 self.advance();
                 self.expect_keyword(Keyword::KEY)?;
                 if self.try_consume_keyword(Keyword::USING) {
-                    let _ = self.parse_identifier();
+                    let _ = self.consume_any_identifier();
                 }
                 let columns = self.parse_column_list()?;
-                Ok(TableConstraint::PrimaryKey(columns))
+                let mut using_index = None;
+                if self.try_consume_keyword(Keyword::USING) {
+                    self.try_consume_keyword(Keyword::INDEX);
+                    let index_name = if !matches!(self.peek_keyword(), Some(Keyword::PCTFREE) | Some(Keyword::INITRANS) | Some(Keyword::MAXTRANS))
+                        && !self.match_keyword(Keyword::STORAGE)
+                        && !self.match_keyword(Keyword::TABLESPACE)
+                    {
+                        self.consume_any_identifier().ok()
+                    } else {
+                        None
+                    };
+                    let mut parts = Vec::new();
+                    if let Some(n) = index_name {
+                        parts.push(n);
+                    }
+                    loop {
+                        if matches!(self.peek_keyword(), Some(Keyword::PCTFREE) | Some(Keyword::INITRANS) | Some(Keyword::MAXTRANS)) {
+                            let key = self.consume_any_identifier()?;
+                            let val = self.consume_any_identifier().unwrap_or_else(|_| match self.peek().clone() {
+                                Token::Integer(n) => { self.advance(); n.to_string() }
+                                _ => String::new(),
+                            });
+                            parts.push(format!("{} {}", key, val));
+                        } else if self.match_keyword(Keyword::STORAGE) {
+                            self.advance();
+                            let raw = self.collect_until_balanced_paren();
+                            parts.push(format!("STORAGE ({})", raw));
+                        } else if self.match_keyword(Keyword::TABLESPACE) {
+                            self.advance();
+                            let ts = self.consume_any_identifier().unwrap_or_default();
+                            parts.push(format!("TABLESPACE {}", ts));
+                        } else {
+                            break;
+                        }
+                    }
+                    using_index = if parts.is_empty() { None } else { Some(parts.join(" ")) };
+                }
+                Ok(TableConstraint::PrimaryKey { columns, using_index })
             }
             Some(Keyword::UNIQUE) => {
                 self.advance();
                 let columns = self.parse_column_list()?;
-                self.try_consume_keyword(Keyword::DEFERRABLE);
-                if self.match_keyword(Keyword::WITH) {
-                    let _ = self.parse_generic_options();
+                let mut deferrable = false;
+                if self.try_consume_keyword(Keyword::DEFERRABLE) {
+                    deferrable = true;
                 }
-                Ok(TableConstraint::Unique(columns))
+                let mut with_options = Vec::new();
+                if self.match_keyword(Keyword::WITH) {
+                    with_options = self.parse_generic_options();
+                }
+                Ok(TableConstraint::Unique { columns, deferrable, with_options })
             }
             Some(Keyword::CHECK) => {
                 self.advance();

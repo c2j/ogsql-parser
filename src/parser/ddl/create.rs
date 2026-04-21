@@ -84,6 +84,15 @@ impl Parser {
             } else if self.match_keyword(Keyword::WHERE) {
                 self.advance();
                 where_clause = Some(self.parse_expr()?);
+            } else if matches!(self.peek_keyword(), Some(Keyword::PCTFREE) | Some(Keyword::INITRANS) | Some(Keyword::MAXTRANS)) {
+                self.advance();
+                let _ = self.parse_expr();
+            } else if self.match_keyword(Keyword::STORAGE) {
+                self.advance();
+                let _ = self.collect_until_balanced_paren();
+            } else if self.match_ident_str("PCTUSED") {
+                self.advance();
+                let _ = self.parse_expr();
             } else {
                 break;
             }
@@ -1245,6 +1254,21 @@ impl Parser {
                 partition_name,
                 tablespace,
             }
+        } else if matches!(self.peek_keyword(), Some(Keyword::PCTFREE) | Some(Keyword::INITRANS) | Some(Keyword::MAXTRANS))
+            || self.match_ident_str("PCTUSED")
+            || self.match_keyword(Keyword::STORAGE)
+        {
+            while matches!(self.peek_keyword(), Some(Keyword::PCTFREE) | Some(Keyword::INITRANS) | Some(Keyword::MAXTRANS))
+                || self.match_ident_str("PCTUSED")
+            {
+                self.advance();
+                let _ = self.parse_expr();
+            }
+            if self.match_keyword(Keyword::STORAGE) {
+                self.advance();
+                let _ = self.collect_until_balanced_paren();
+            }
+            AlterIndexAction::NoOp
         } else {
             AlterIndexAction::NoOp
         };

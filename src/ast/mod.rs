@@ -187,8 +187,15 @@ pub enum ColumnConstraint {
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum TableConstraint {
-    PrimaryKey(Vec<String>),
-    Unique(Vec<String>),
+    PrimaryKey {
+        columns: Vec<String>,
+        using_index: Option<String>,
+    },
+    Unique {
+        columns: Vec<String>,
+        deferrable: bool,
+        with_options: Vec<(String, String)>,
+    },
     Check(Expr),
     ForeignKey {
         columns: Vec<String>,

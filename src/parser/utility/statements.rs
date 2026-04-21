@@ -1405,14 +1405,16 @@ impl Parser {
                 Some(Keyword::CURSOR) => {
                     self.advance();
                 }
-                Some(Keyword::FOR) => {
+                Some(Keyword::FOR) | Some(Keyword::IS) => {
                     break;
                 }
                 _ => break,
             }
         }
 
-        self.expect_keyword(Keyword::FOR)?;
+        if !self.try_consume_keyword(Keyword::FOR) && !self.try_consume_keyword(Keyword::IS) {
+            self.expect_keyword(Keyword::FOR)?;
+        }
 
         let query = if self.match_keyword(Keyword::VALUES) {
             self.advance();

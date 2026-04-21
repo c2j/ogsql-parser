@@ -10225,3 +10225,104 @@ fn test_true_reserved_keyword_as_column_name_still_warns() {
         "True misuse: 'where' as column name should still warn"
     );
 }
+
+#[test]
+fn test_alter_table_add_constraint_pk_using_index() {
+    let sql = "ALTER TABLE t ADD CONSTRAINT pk_t PRIMARY KEY (id) USING INDEX idx_t PCTFREE 10 INITRANS 2 MAXTRANS 255";
+    let stmt = parse_one(sql);
+    match stmt {
+        Statement::AlterTable(AlterTableStatement { actions, .. }) => {
+            assert_eq!(actions.len(), 1);
+            match &actions[0] {
+                AlterTableAction::AddConstraint { name, constraint } => {
+                    assert_eq!(name.as_deref(), Some("pk_t"));
+                    match constraint {
+                        TableConstraint::PrimaryKey { columns, using_index } => {
+                            assert_eq!(*columns, vec!["id".to_string()]);
+                            assert!(using_index.is_some());
+                            assert!(using_index.as_ref().unwrap().contains("idx_t"));
+                        }
+                        _ => panic!("expected PrimaryKey, got {:?}", constraint),
+                    }
+                }
+                _ => panic!("expected AddConstraint, got {:?}", actions[0]),
+            }
+        }
+        _ => panic!("expected AlterTable, got {:?}", stmt),
+    }
+}
+
+#[test]
+fn test_create_table_with_storage_params() {
+    let sql = "CREATE TABLE t (id INT, code VARCHAR(1)) PCTFREE 10 INITRANS 2 MAXTRANS 255";
+    let stmt = parse_one(sql);
+    match stmt {
+        Statement::CreateTable(CreateTableStatement { table_options, .. }) => {
+            let keys: Vec<&str> = table_options.iter().map(|(k, _)| k.as_str()).collect();
+            assert!(keys.contains(&"PCTFREE"), "expected PCTFREE in table_options");
+            assert!(keys.contains(&"INITRANS"), "expected INITRANS in table_options");
+            assert!(keys.contains(&"MAXTRANS"), "expected MAXTRANS in table_options");
+        }
+        _ => panic!("expected CreateTable, got {:?}", stmt),
+    }
+}
+
+#[test]
+fn test_create_index_with_storage_params() {
+    let sql = "CREATE INDEX ind1 ON t1 (part_id) INITRANS 2 MAXTRANS 255";
+    let stmt = parse_one(sql);
+    match stmt {
+        Statement::CreateIndex(CreateIndexStatement { table, columns, .. }) => {
+            assert_eq!(table, vec!["t1".to_string()]);
+            assert_eq!(columns.len(), 1);
+        }
+        _ => panic!("expected CreateIndex, got {:?}", stmt),
+    }
+}
+
+#[test]
+fn test_create_index_with_pctfree_and_tablespace() {
+    let sql = "CREATE INDEX idx ON t1 (c1) PCTFREE 20 TABLESPACE pg_default";
+    let stmt = parse_one(sql);
+    match stmt {
+        Statement::CreateIndex(CreateIndexStatement { tablespace, .. }) => {
+            assert!(tablespace.is_some());
+        }
+        _ => panic!("expected CreateIndex, got {:?}", stmt),
+    }
+}
+
+#[test]
+fn test_alter_index_storage_params() {
+    let sql = "ALTER INDEX idx PCTFREE 20 INITRANS 4 MAXTRANS 255";
+    let stmt = parse_one(sql);
+    match stmt {
+        Statement::AlterIndex(AlterIndexStatement { name, action, .. }) => {
+            assert_eq!(name, vec!["idx".to_string()]);
+            assert!(matches!(action, AlterIndexAction::NoOp));
+        }
+        _ => panic!("expected AlterIndex, got {:?}", stmt),
+    }
+}
+
+#[test]
+fn test_create_table_inline_constraint_using_index_no_name() {
+    let sql = "CREATE TABLE t2 (id INT, CONSTRAINT PK_A PRIMARY KEY (id) USING INDEX PCTFREE 10 INITRANS 2 MAXTRANS 255) NOCOMPRESS";
+    let stmt = parse_one(sql);
+    match stmt {
+        Statement::CreateTable(CreateTableStatement { constraints, compress, .. }) => {
+            assert_eq!(constraints.len(), 1);
+            match &constraints[0] {
+                TableConstraint::PrimaryKey { columns, using_index } => {
+                    assert_eq!(*columns, vec!["id".to_string()]);
+                    let ui = using_index.as_ref().unwrap();
+                    assert!(ui.to_uppercase().contains("PCTFREE 10"), "using_index: {}", ui);
+                    assert!(ui.to_uppercase().contains("INITRANS 2"), "using_index: {}", ui);
+                }
+                _ => panic!("expected PrimaryKey"),
+            }
+            assert_eq!(compress, Some(false));
+        }
+        _ => panic!("expected CreateTable, got {:?}", stmt),
+    }
+}

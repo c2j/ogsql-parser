@@ -1010,7 +1010,7 @@ impl Parser {
         })
     }
 
-    fn collect_until_boundary(&mut self, stop_tokens: &[Token]) -> String {
+    pub(crate) fn collect_until_boundary(&mut self, stop_tokens: &[Token]) -> String {
         let mut collected = String::new();
         loop {
             let at_stop =
