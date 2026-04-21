@@ -127,6 +127,7 @@ impl Parser {
                         lock_clause: None,
                         window_clause: vec![],
                         set_operation: None,
+                        raw_body: None,
                     }),
                 };
                 continue;
@@ -780,6 +781,30 @@ impl Parser {
                         format,
                     });
                 }
+                if self.match_ident_str("TREAT") {
+                    self.advance();
+                    self.expect_token(&Token::LParen)?;
+                    let expr = self.parse_expr()?;
+                    self.expect_keyword(Keyword::AS)?;
+                    let type_name = self.parse_data_type()?;
+                    self.expect_token(&Token::RParen)?;
+                    return Ok(Expr::Treat {
+                        expr: Box::new(expr),
+                        type_name,
+                    });
+                }
+                if kw == Keyword::COLLATION {
+                    if self.tokens.get(self.pos + 1).map_or(false, |t| matches!(t.token, Token::Keyword(Keyword::FOR))) {
+                        self.advance();
+                        self.advance();
+                        self.expect_token(&Token::LParen)?;
+                        let expr = self.parse_expr()?;
+                        self.expect_token(&Token::RParen)?;
+                        return Ok(Expr::CollationFor {
+                            expr: Box::new(expr),
+                        });
+                    }
+                }
                 // PREDICT BY model_name (FEATURES col1, col2, ...) — openGauss ML prediction
                 if kw == Keyword::PREDICT {
                     self.advance();
@@ -871,7 +896,6 @@ impl Parser {
                     self.advance();
                     if let Token::StringLiteral(s) = self.peek().clone() {
                         self.advance();
-                        // Check for optional unit keyword: INTERVAL '2' MONTH, INTERVAL '1' YEAR, etc.
                         let unit = self.peek_keyword();
                         if let Some(unit_kw) = unit {
                             if matches!(
@@ -908,34 +932,37 @@ impl Parser {
                             format: None,
                         });
                     }
-                    let expr = self.parse_expr()?;
-                    let unit = self.peek_keyword();
-                    if let Some(unit_kw) = unit {
-                        if matches!(
-                            unit_kw,
-                            Keyword::DAY_P
-                                | Keyword::YEAR_P
-                                | Keyword::MONTH_P
-                                | Keyword::HOUR_P
-                                | Keyword::MINUTE_P
-                                | Keyword::SECOND_P
-                                | Keyword::DAY_HOUR_P
-                                | Keyword::DAY_MINUTE_P
-                                | Keyword::DAY_SECOND_P
-                                | Keyword::HOUR_MINUTE_P
-                                | Keyword::HOUR_SECOND_P
-                                | Keyword::MINUTE_SECOND_P
-                                | Keyword::YEAR_MONTH_P
-                        ) {
-                            let unit_name = unit_kw.as_str().to_string();
-                            self.advance();
-                            return Ok(Expr::SpecialFunction {
-                                name: "interval".to_string(),
-                                args: vec![expr, Expr::ColumnRef(vec![unit_name])],
-                            });
+                    if self.is_expr_start() {
+                        let expr = self.parse_expr()?;
+                        let unit = self.peek_keyword();
+                        if let Some(unit_kw) = unit {
+                            if matches!(
+                                unit_kw,
+                                Keyword::DAY_P
+                                    | Keyword::YEAR_P
+                                    | Keyword::MONTH_P
+                                    | Keyword::HOUR_P
+                                    | Keyword::MINUTE_P
+                                    | Keyword::SECOND_P
+                                    | Keyword::DAY_HOUR_P
+                                    | Keyword::DAY_MINUTE_P
+                                    | Keyword::DAY_SECOND_P
+                                    | Keyword::HOUR_MINUTE_P
+                                    | Keyword::HOUR_SECOND_P
+                                    | Keyword::MINUTE_SECOND_P
+                                    | Keyword::YEAR_MONTH_P
+                            ) {
+                                let unit_name = unit_kw.as_str().to_string();
+                                self.advance();
+                                return Ok(Expr::SpecialFunction {
+                                    name: "interval".to_string(),
+                                    args: vec![expr, Expr::ColumnRef(vec![unit_name])],
+                                });
+                            }
                         }
+                        return Ok(expr);
                     }
-                    return Ok(expr);
+                    return Ok(Expr::ColumnRef(vec!["interval".to_string()]));
                 }
                 // Built-in expression keywords that are RESERVED but valid as expressions
                 if matches!(
@@ -946,6 +973,7 @@ impl Parser {
                         | Keyword::CURRENT_DATE
                         | Keyword::CURRENT_CATALOG
                         | Keyword::CURRENT_USER
+                        | Keyword::CURRENT_ROLE
                         | Keyword::SESSION_USER
                         | Keyword::USER
                 ) {
@@ -1037,7 +1065,21 @@ impl Parser {
     }
 
     fn parse_column_ref_or_qualified_star(&mut self) -> Result<Expr, ParserError> {
-        let first = self.parse_identifier()?;
+        let mut first = self.parse_identifier()?;
+        if self.match_token(&Token::At) {
+            self.advance();
+            let version = self.consume_any_identifier()
+                .or_else(|_| match self.peek().clone() {
+                    Token::Integer(n) => { self.advance(); Ok(n.to_string()) }
+                    Token::Float(f) => { self.advance(); Ok(f) }
+                    other => Err(ParserError::UnexpectedToken {
+                        location: self.current_location(),
+                        expected: "version after @".to_string(),
+                        got: format!("{:?}", other),
+                    }),
+                })?;
+            first = format!("{}@{}", first, version);
+        }
         if self.match_token(&Token::Dot) {
             self.advance();
             if self.match_token(&Token::Star) {
@@ -1145,7 +1187,11 @@ impl Parser {
             }
         }
         let first = self.parse_expr()?;
-        if self.match_token(&Token::ParamEquals) {
+        if self.match_keyword(Keyword::AS) {
+            self.advance();
+            let _alias = self.parse_expr()?;
+            Ok(first)
+        } else if self.match_token(&Token::ParamEquals) {
             self.advance();
             let value = self.parse_expr()?;
             Ok(value)
@@ -1244,6 +1290,21 @@ impl Parser {
         while self.match_token(&Token::Comma) {
             self.advance();
             args.push(self.parse_maybe_named_arg()?);
+        }
+        if self.match_keyword(Keyword::PASSING) {
+            self.advance();
+            if self.match_keyword(Keyword::BY) {
+                self.advance();
+                let _ = self.try_consume_keyword(Keyword::REF);
+                if self.match_ident_str("VALUE") {
+                    self.advance();
+                }
+            }
+            args.push(self.parse_maybe_named_arg()?);
+            while self.match_token(&Token::Comma) {
+                self.advance();
+                args.push(self.parse_maybe_named_arg()?);
+            }
         }
         let inner_order_by = if self.match_keyword(Keyword::ORDER) {
             self.advance();

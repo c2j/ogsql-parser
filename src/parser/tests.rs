@@ -4356,9 +4356,9 @@ fn test_create_table_range_partition_with_values() {
             assert!(ct.partition_by.is_some());
             match ct.partition_by.as_ref().unwrap() {
                 PartitionClause::Range {
-                    column, partitions, ..
+                    columns, partitions, ..
                 } => {
-                    assert_eq!(column.join("."), "sale_date");
+                    assert_eq!(columns[0].join("."), "sale_date");
                     assert_eq!(partitions.len(), 2);
                     assert_eq!(partitions[0].name, "p2025");
                 }
@@ -4458,9 +4458,9 @@ fn test_create_table_list_partition() {
     match stmt {
         Statement::CreateTable(ct) => match ct.partition_by.as_ref().unwrap() {
             PartitionClause::List {
-                column, partitions, ..
+                columns, partitions, ..
             } => {
-                assert_eq!(column.join("."), "region");
+                assert_eq!(columns[0].join("."), "region");
                 assert_eq!(partitions.len(), 2);
                 assert_eq!(partitions[0].name, "p_east");
             }
@@ -4476,11 +4476,11 @@ fn test_create_table_hash_partition() {
     match stmt {
         Statement::CreateTable(ct) => match ct.partition_by.as_ref().unwrap() {
             PartitionClause::Hash {
-                column,
+                columns,
                 partitions_count,
                 ..
             } => {
-                assert_eq!(column.join("."), "id");
+                assert_eq!(columns[0].join("."), "id");
                 assert_eq!(*partitions_count, Some(4));
             }
             _ => panic!("expected Hash"),
@@ -4595,9 +4595,9 @@ fn test_create_table_subpartition_range_list() {
             assert!(ct.subpartition_by.is_some());
             match ct.subpartition_by.as_ref().unwrap() {
                 PartitionClause::List {
-                    column, partitions, ..
+                    columns, partitions, ..
                 } => {
-                    assert_eq!(column.join("."), "name");
+                    assert_eq!(columns[0].join("."), "name");
                     assert!(partitions.is_empty()); // subpartition defs are in partition defs
                 }
                 other => panic!("expected List subpartition, got {:?}", other),
@@ -4629,11 +4629,11 @@ fn test_create_table_subpartition_hash() {
             assert_eq!(ct.subpartitions_count, Some(4));
             match ct.subpartition_by.as_ref().unwrap() {
                 PartitionClause::Hash {
-                    column,
+                    columns,
                     partitions_count,
                     ..
                 } => {
-                    assert_eq!(column.join("."), "id");
+                    assert_eq!(columns[0].join("."), "id");
                     assert_eq!(*partitions_count, Some(4));
                 }
                 other => panic!("expected Hash subpartition, got {:?}", other),
@@ -4658,8 +4658,8 @@ fn test_create_table_subpartition_range() {
         Statement::CreateTable(ct) => {
             assert!(ct.subpartition_by.is_some());
             match ct.subpartition_by.as_ref().unwrap() {
-                PartitionClause::Range { column, .. } => {
-                    assert_eq!(column.join("."), "id");
+                PartitionClause::Range { columns, .. } => {
+                    assert_eq!(columns[0].join("."), "id");
                 }
                 other => panic!("expected Range subpartition, got {:?}", other),
             }
@@ -4842,6 +4842,42 @@ fn test_alter_table_move_subpartition() {
 }
 
 #[test]
+fn test_alter_table_ilm_enable_all() {
+    let stmt = parse_one("ALTER TABLE t ILM ENABLE_ALL");
+    match stmt {
+        Statement::AlterTable(at) => {
+            assert_eq!(at.actions.len(), 1);
+            assert!(matches!(at.actions[0], AlterTableAction::IlmEnableAllPolicies));
+        }
+        _ => panic!("expected AlterTable"),
+    }
+}
+
+#[test]
+fn test_alter_table_ilm_disable_all() {
+    let stmt = parse_one("ALTER TABLE t ILM DISABLE_ALL");
+    match stmt {
+        Statement::AlterTable(at) => {
+            assert_eq!(at.actions.len(), 1);
+            assert!(matches!(at.actions[0], AlterTableAction::IlmDisableAllPolicies));
+        }
+        _ => panic!("expected AlterTable"),
+    }
+}
+
+#[test]
+fn test_alter_table_ilm_delete_all() {
+    let stmt = parse_one("ALTER TABLE t ILM DELETE_ALL");
+    match stmt {
+        Statement::AlterTable(at) => {
+            assert_eq!(at.actions.len(), 1);
+            assert!(matches!(at.actions[0], AlterTableAction::IlmDeleteAllPolicies));
+        }
+        _ => panic!("expected AlterTable"),
+    }
+}
+
+#[test]
 fn test_subpartition_format_roundtrip() {
     use crate::formatter::SqlFormatter;
     let sql = "CREATE TABLE t (id INT, name TEXT) PARTITION BY RANGE (id) SUBPARTITION BY LIST (name) (PARTITION p1 VALUES LESS THAN (100) (SUBPARTITION sp1 VALUES IN ('A'), SUBPARTITION sp2 VALUES IN ('B')))";
@@ -4871,13 +4907,13 @@ fn test_create_table_partition_range_columns() {
             let pb = ct.partition_by.as_ref().expect("expected partition_by");
             match pb {
                 PartitionClause::Range {
-                    column,
+                    columns,
                     is_columns,
                     partitions,
                     ..
                 } => {
                     assert_eq!(*is_columns, true);
-                    assert_eq!(column, &vec!["name".to_string()]);
+                    assert_eq!(columns, &vec![vec!["name".to_string()]]);
                     assert_eq!(partitions.len(), 2);
                 }
                 other => panic!("expected Range, got {:?}", other),
@@ -4897,12 +4933,12 @@ fn test_create_table_partition_list_columns() {
             let pb = ct.partition_by.as_ref().expect("expected partition_by");
             match pb {
                 PartitionClause::List {
-                    column,
+                    columns,
                     is_columns,
                     partitions,
                 } => {
                     assert_eq!(*is_columns, true);
-                    assert_eq!(column, &vec!["region".to_string()]);
+                    assert_eq!(columns, &vec![vec!["region".to_string()]]);
                     assert_eq!(partitions.len(), 2);
                 }
                 other => panic!("expected List, got {:?}", other),
@@ -7466,6 +7502,110 @@ fn test_delete_where_current_of() {
 }
 
 #[test]
+fn test_delete_partition() {
+    let sql = "DELETE FROM range_list PARTITION (p_201901)";
+    let stmt = parse_one(sql);
+    match stmt {
+        Statement::Delete(d) => {
+            assert_eq!(d.tables.len(), 1);
+            match &d.tables[0] {
+                TableRef::Table { name, partition, .. } => {
+                    assert_eq!(name.join("."), "range_list");
+                    assert!(partition.is_some());
+                    let p = partition.as_ref().unwrap();
+                    assert_eq!(p.values, vec!["p_201901"]);
+                    assert!(p.for_values.is_none());
+                }
+                _ => panic!("expected Table"),
+            }
+        }
+        _ => panic!("expected Delete"),
+    }
+}
+
+#[test]
+fn test_delete_partition_for() {
+    let sql = "DELETE FROM range_list PARTITION FOR ('201903')";
+    let stmt = parse_one(sql);
+    match stmt {
+        Statement::Delete(d) => {
+            assert_eq!(d.tables.len(), 1);
+            match &d.tables[0] {
+                TableRef::Table { partition, .. } => {
+                    assert!(partition.is_some());
+                    let p = partition.as_ref().unwrap();
+                    assert!(p.for_values.is_some());
+                    assert_eq!(p.values.len(), 0);
+                }
+                _ => panic!("expected Table"),
+            }
+        }
+        _ => panic!("expected Delete"),
+    }
+}
+
+#[test]
+fn test_delete_subpartition() {
+    let sql = "DELETE FROM range_list SUBPARTITION (p_201901_a)";
+    let stmt = parse_one(sql);
+    match stmt {
+        Statement::Delete(d) => {
+            assert_eq!(d.tables.len(), 1);
+            match &d.tables[0] {
+                TableRef::Table { partition, .. } => {
+                    assert!(partition.is_some());
+                    let p = partition.as_ref().unwrap();
+                    assert_eq!(p.values, vec!["p_201901_a"]);
+                }
+                _ => panic!("expected Table"),
+            }
+        }
+        _ => panic!("expected Delete"),
+    }
+}
+
+#[test]
+fn test_delete_partition_multiple() {
+    let sql = "DELETE FROM range_list PARTITION (p_201901_a, p_201901)";
+    let stmt = parse_one(sql);
+    match stmt {
+        Statement::Delete(d) => {
+            assert_eq!(d.tables.len(), 1);
+            match &d.tables[0] {
+                TableRef::Table { partition, .. } => {
+                    assert!(partition.is_some());
+                    let p = partition.as_ref().unwrap();
+                    assert_eq!(p.values, vec!["p_201901_a", "p_201901"]);
+                }
+                _ => panic!("expected Table"),
+            }
+        }
+        _ => panic!("expected Delete"),
+    }
+}
+
+#[test]
+fn test_delete_with_alias_partition() {
+    let sql = "DELETE FROM range_list AS t PARTITION (p_201901_a, p_201901)";
+    let stmt = parse_one(sql);
+    match stmt {
+        Statement::Delete(d) => {
+            assert_eq!(d.tables.len(), 1);
+            match &d.tables[0] {
+                TableRef::Table { alias, partition, .. } => {
+                    assert_eq!(alias.as_deref(), Some("t"));
+                    assert!(partition.is_some());
+                    let p = partition.as_ref().unwrap();
+                    assert_eq!(p.values, vec!["p_201901_a", "p_201901"]);
+                }
+                _ => panic!("expected Table"),
+            }
+        }
+        _ => panic!("expected Delete"),
+    }
+}
+
+#[test]
 fn test_plpgsql_open_for_execute() {
     let block = parse_do_block("DO $$ BEGIN OPEN cur FOR EXECUTE 'SELECT * FROM t'; END $$");
     match &block.body[0] {
@@ -9979,4 +10119,109 @@ fn test_predict_by_json_roundtrip() {
     let sql = "SELECT id, PREDICT BY price_model (FEATURES size, lot) FROM houses";
     let stmt = parse_one(sql);
     assert_eq!(stmt, json_roundtrip(&stmt));
+}
+
+// ── False-positive reserved keyword warning suppression tests ──
+
+fn assert_no_reserved_keyword_warnings(sql: &str) {
+    let tokens = Tokenizer::new(sql).tokenize().unwrap();
+    let mut parser = Parser::new(tokens);
+    let stmts = parser.parse();
+    assert!(!stmts.is_empty(), "Should produce AST: {}", sql);
+    let reserved_warnings: Vec<_> = parser
+        .errors()
+        .iter()
+        .filter(|e| matches!(e, ParserError::ReservedKeywordAsIdentifier { .. }))
+        .collect();
+    assert!(
+        reserved_warnings.is_empty(),
+        "Unexpected reserved keyword warnings for: {}\nWarnings: {:?}",
+        sql,
+        reserved_warnings
+    );
+}
+
+#[test]
+fn test_set_option_on_not_warning() {
+    assert_no_reserved_keyword_warnings("ALTER TABLE t1 SET (enable_tde = on)");
+}
+
+#[test]
+fn test_security_label_user_not_warning() {
+    assert_no_reserved_keyword_warnings("SECURITY LABEL ON USER user1 IS 'label1'");
+}
+
+#[test]
+fn test_analyze_with_all_not_warning() {
+    assert_no_reserved_keyword_warnings("ANALYZE t1_range_int WITH all");
+}
+
+#[test]
+fn test_alter_modify_on_update_localtimestamp_not_warning() {
+    assert_no_reserved_keyword_warnings(
+        "ALTER TABLE tb2 MODIFY COLUMN c2 time without time zone ON UPDATE LOCALTIMESTAMP",
+    );
+}
+
+#[test]
+fn test_explain_analyze_on_not_warning() {
+    assert_no_reserved_keyword_warnings("EXPLAIN (analyze on, costs off) SELECT * FROM t1");
+}
+
+#[test]
+fn test_select_current_role_not_warning() {
+    assert_no_reserved_keyword_warnings("SELECT CURRENT_ROLE");
+}
+
+#[test]
+fn test_create_user_mapping_options_user_not_warning() {
+    assert_no_reserved_keyword_warnings(
+        "CREATE USER MAPPING FOR bob SERVER my_server OPTIONS (user 'bob', password 'secret')",
+    );
+}
+
+#[test]
+fn test_set_option_off_not_warning() {
+    assert_no_reserved_keyword_warnings("ALTER TABLE t1 SET (enable_tde = off)");
+}
+
+#[test]
+fn test_generic_options_with_reserved_keyword_key() {
+    assert_no_reserved_keyword_warnings("CREATE SERVER my_server FOREIGN DATA WRAPPER fdw OPTIONS (user 'bob')");
+}
+
+#[test]
+fn test_true_reserved_keyword_as_table_name_still_warns() {
+    let sql = "SELECT * FROM select";
+    let tokens = Tokenizer::new(sql).tokenize().unwrap();
+    let mut parser = Parser::new(tokens);
+    let stmts = parser.parse();
+    assert!(!stmts.is_empty());
+    let reserved_errors: Vec<_> = parser
+        .errors()
+        .iter()
+        .filter(|e| matches!(e, ParserError::ReservedKeywordAsIdentifier { .. }))
+        .collect();
+    assert!(
+        !reserved_errors.is_empty(),
+        "True misuse: 'select' as table name should still warn"
+    );
+}
+
+#[test]
+fn test_true_reserved_keyword_as_column_name_still_warns() {
+    let sql = "SELECT where FROM t1";
+    let tokens = Tokenizer::new(sql).tokenize().unwrap();
+    let mut parser = Parser::new(tokens);
+    let stmts = parser.parse();
+    assert!(!stmts.is_empty());
+    let reserved_errors: Vec<_> = parser
+        .errors()
+        .iter()
+        .filter(|e| matches!(e, ParserError::ReservedKeywordAsIdentifier { .. }))
+        .collect();
+    assert!(
+        !reserved_errors.is_empty(),
+        "True misuse: 'where' as column name should still warn"
+    );
 }

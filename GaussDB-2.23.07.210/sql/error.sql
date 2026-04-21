@@ -13,3 +13,19 @@ create type bf.t1 is table of csbs ;
 drop package body if exists bf.myjob;
 
 MERGE INTO products p USING newproducts np ON ( p . product_id = np . product_id ) WHEN MATCHED THEN UPDATE SET p . product_name = np . product_name , p . category = np . category WHERE p . product_name != 'play gym' WHEN NOT MATCHED THEN INSERT VALUES ( np . product_id , np . product_name , np . category ) WHERE np . category = 'books' ;
+
+
+ALTER TABLE PAR_FUND_PRE_LIQUIDATION
+ ADD CONSTRAINT PK_PAR_FUND_PRE_LIQUIDATION PRIMARY KEY (FUND_CODE)
+ USING index
+ /*TABLESPACE BIGFUND_IND*/
+ PCTFREE 10
+ INITRANS 2
+ MAXTRANS 255
+ /*STORAGE
+ (
+   INITIAL 64K
+   NEXT 1M
+   MINEXTENTS 1
+   MAXEXTENTS UNLIMITED
+ )*/;

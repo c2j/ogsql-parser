@@ -263,7 +263,7 @@ impl Parser {
         // Disambiguate: VACUUM (VERBOSE, ANALYZE) table vs VACUUM table(col)
         if self.match_token(&Token::LParen) {
             let is_option_list = matches!(
-                self.peek_keyword(),
+                self.peek_keyword_at(1),
                 Some(Keyword::FULL) | Some(Keyword::VERBOSE) | Some(Keyword::ANALYZE) | Some(Keyword::FREEZE)
             );
             if is_option_list {
@@ -374,7 +374,7 @@ impl Parser {
         let mut options = Vec::new();
         if self.try_consume_keyword(Keyword::WITH) {
             loop {
-                let opt = self.parse_identifier()?;
+                let opt = self.consume_any_identifier()?;
                 options.push(opt);
                 if !self.match_token(&Token::Comma) {
                     break;
@@ -792,7 +792,18 @@ impl Parser {
                 } else if self.match_token(&Token::Eq) {
                     self.advance();
                 }
-                let value = self.parse_identifier()?;
+                // SET values can be reserved keywords (ON, OFF, etc.)
+                let value = match self.peek().clone() {
+                    Token::Ident(s) | Token::QuotedIdent(s) => {
+                        self.advance();
+                        s
+                    }
+                    Token::Keyword(kw) => {
+                        self.advance();
+                        kw.as_str().to_string()
+                    }
+                    _ => self.parse_identifier()?,
+                };
                 Ok(AlterDatabaseAction::Set { parameter, value })
             }
             Some(Keyword::RESET) => {
@@ -1146,6 +1157,17 @@ impl Parser {
                     let value = self.parse_string_literal()?;
                     options.push(("PASSWORD".to_string(), Some(value)));
                 }
+                Some(Keyword::IDENTIFIED) => {
+                    self.advance();
+                    self.expect_keyword(Keyword::BY)?;
+                    let value = self.parse_string_literal()?;
+                    options.push(("IDENTIFIED BY".to_string(), Some(value)));
+                }
+                Some(Keyword::REPLACE) => {
+                    self.advance();
+                    let value = self.parse_string_literal()?;
+                    options.push(("REPLACE".to_string(), Some(value)));
+                }
                 Some(Keyword::ENCRYPTED) => {
                     self.advance();
                     options.push(("ENCRYPTED".to_string(), None));
@@ -1392,7 +1414,39 @@ impl Parser {
 
         self.expect_keyword(Keyword::FOR)?;
 
-        let query = Box::new(self.parse_select_statement()?);
+        let query = if self.match_keyword(Keyword::VALUES) {
+            self.advance();
+            let values_stmt = self.parse_values_statement()?;
+            Box::new(SelectStatement {
+                hints: vec![],
+                with: None,
+                distinct: false,
+                distinct_on: vec![],
+                targets: vec![],
+                into_targets: None,
+                into_table: None,
+                from: vec![TableRef::Values {
+                    values: Box::new(values_stmt),
+                    alias: None,
+                    column_names: vec![],
+                }],
+                where_clause: None,
+                connect_by: None,
+                group_by: vec![],
+                having: None,
+                order_by: vec![],
+                order_siblings: false,
+                limit: None,
+                offset: None,
+                fetch: None,
+                lock_clause: None,
+                window_clause: vec![],
+                set_operation: None,
+                raw_body: None,
+            })
+        } else {
+            Box::new(self.parse_select_statement()?)
+        };
 
         Ok(DeclareCursorStatement {
             name,
@@ -1750,8 +1804,7 @@ impl Parser {
     pub(crate) fn parse_create_aggregate(
         &mut self,
     ) -> Result<CreateAggregateStatement, ParserError> {
-        self.expect_keyword(Keyword::AGGREGATE)?;
-        let name = self.parse_identifier()?;
+        let name = self.consume_any_identifier()?;
         let base_types = if self.match_token(&Token::LParen) {
             self.advance();
             if self.match_token(&Token::RParen) {
@@ -1927,6 +1980,11 @@ impl Parser {
                 let name = self.parse_object_name()?;
                 PurgeTarget::Index { name }
             }
+            Some(Keyword::SNAPSHOT) => {
+                self.advance();
+                let name = self.parse_snapshot_qualified_name()?;
+                PurgeTarget::Snapshot { name }
+            }
             _ => {
                 let id = self.parse_identifier()?;
                 if id.to_uppercase() == "RECYCLEBIN" {
@@ -2054,6 +2112,9 @@ impl Parser {
         } else if self.match_keyword(Keyword::VIEW) {
             self.advance();
             "view".to_string()
+        } else if self.match_keyword(Keyword::USER) {
+            self.advance();
+            "user".to_string()
         } else if self.match_keyword(Keyword::MATERIALIZED) {
             self.advance();
             "materialized view".to_string()
@@ -2365,5 +2426,20 @@ impl Parser {
             });
         };
         Ok(AlterDomainStatement { name, action })
+    }
+
+    fn parse_snapshot_qualified_name(&mut self) -> Result<String, ParserError> {
+        let mut name = self.parse_identifier()?;
+        if self.match_token(&Token::At) {
+            self.advance();
+            let version = match &self.tokens.get(self.pos).map(|t| t.token.clone()).unwrap_or(Token::Eof) {
+                Token::Float(f) => { self.advance(); f.clone() }
+                Token::Integer(i) => { self.advance(); i.to_string() }
+                Token::Ident(s) => { self.advance(); s.clone() }
+                _ => self.parse_identifier()?,
+            };
+            name = format!("{}@{}", name, version);
+        }
+        Ok(name)
     }
 }

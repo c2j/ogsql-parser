@@ -83,6 +83,16 @@ impl Parser {
                     } else {
                         None
                     };
+                    if self.match_ident_str("ILM") {
+                        self.advance();
+                        while !self.match_token(&Token::Semicolon)
+                            && !self.peek().eq(&Token::Eof)
+                            && !self.match_keyword(Keyword::TABLESPACE)
+                            && !self.match_keyword(Keyword::UPDATE)
+                        {
+                            self.advance();
+                        }
+                    }
                     Ok(AlterTableAction::AddSubPartition {
                         partition_name: String::new(),
                         name,
@@ -409,10 +419,10 @@ impl Parser {
                     self.advance();
                     let mut options = Vec::new();
                     loop {
-                        let key = self.parse_identifier()?;
+                        let key = self.consume_any_identifier()?;
                         self.expect_token(&Token::Eq)?;
                         let value =
-                            self.parse_identifier()
+                            self.consume_any_identifier()
                                 .unwrap_or_else(|_| match self.peek().clone() {
                                     Token::StringLiteral(s) => {
                                         self.advance();
@@ -454,12 +464,25 @@ impl Parser {
                     Ok(AlterTableAction::TruncateSubPartition { name, cascade })
                 } else {
                     self.expect_keyword(Keyword::PARTITION)?;
-                    let name = self.parse_identifier()?;
+                    let (name, for_values) = if self.match_keyword(Keyword::FOR) {
+                        self.advance();
+                        self.expect_token(&Token::LParen)?;
+                        let mut vals = vec![self.parse_expr()?];
+                        while self.match_token(&Token::Comma) {
+                            self.advance();
+                            vals.push(self.parse_expr()?);
+                        }
+                        self.expect_token(&Token::RParen)?;
+                        (String::new(), Some(vals))
+                    } else {
+                        (self.parse_identifier()?, None)
+                    };
                     let cascade = self.try_consume_keyword(Keyword::CASCADE);
                     let (update_global_index, update_distributed_global_index) =
                         self.parse_update_index_clauses()?;
                     Ok(AlterTableAction::TruncatePartition {
                         name,
+                        for_values,
                         cascade,
                         update_global_index,
                         update_distributed_global_index,
@@ -507,6 +530,12 @@ impl Parser {
                     let at_value = if self.match_keyword(Keyword::AT) {
                         self.advance();
                         Some(self.parse_expr()?)
+                    } else if self.match_keyword(Keyword::VALUES) {
+                        self.advance();
+                        self.expect_token(&Token::LParen)?;
+                        let val = self.parse_expr()?;
+                        self.expect_token(&Token::RParen)?;
+                        Some(val)
                     } else {
                         None
                     };
@@ -527,6 +556,15 @@ impl Parser {
                         } else {
                             None
                         };
+                        if self.match_ident_str("ILM") {
+                            self.advance();
+                            while !self.match_token(&Token::Comma)
+                                && !self.match_token(&Token::RParen)
+                                && !self.peek().eq(&Token::Eof)
+                            {
+                                self.advance();
+                            }
+                        }
                         partitions.push(PartitionDef {
                             name: pname,
                             values,
@@ -565,13 +603,36 @@ impl Parser {
                             let pname = self.parse_identifier()?;
                             let values = if self.match_keyword(Keyword::VALUES) {
                                 Some(self.parse_partition_values()?)
+                            } else if self.match_keyword(Keyword::START) {
+                                Some(self.parse_start_end_values()?)
+                            } else if self.match_keyword(Keyword::END_P) {
+                                self.advance();
+                                self.expect_token(&Token::LParen)?;
+                                let end = self.parse_expr()?;
+                                self.expect_token(&Token::RParen)?;
+                                let every = if self.match_keyword(Keyword::EVERY) {
+                                    self.advance();
+                                    self.expect_token(&Token::LParen)?;
+                                    let e = self.parse_expr()?;
+                                    self.expect_token(&Token::RParen)?;
+                                    Some(e)
+                                } else {
+                                    None
+                                };
+                                Some(PartitionValues::EndOnly { end, every })
+                            } else {
+                                None
+                            };
+                            let tablespace = if self.match_keyword(Keyword::TABLESPACE) {
+                                self.advance();
+                                Some(self.parse_identifier()?)
                             } else {
                                 None
                             };
                             partitions.push(PartitionDef {
                                 name: pname,
                                 values,
-                                tablespace: None,
+                                tablespace,
                                 subpartitions: Vec::new(),
                             });
                             if !self.match_token(&Token::Comma) {
@@ -594,6 +655,12 @@ impl Parser {
                         let at_value = if self.match_keyword(Keyword::AT) {
                             self.advance();
                             Some(self.parse_expr()?)
+                        } else if self.match_keyword(Keyword::VALUES) {
+                            self.advance();
+                            self.expect_token(&Token::LParen)?;
+                            let val = self.parse_expr()?;
+                            self.expect_token(&Token::RParen)?;
+                            Some(val)
                         } else {
                             None
                         };
@@ -735,8 +802,17 @@ impl Parser {
             }
             Some(Keyword::MODIFY_P) => {
                 self.advance();
-                // Multi-column: MODIFY (col1 type1, col2 type2, ...)
-                if self.match_token(&Token::LParen) {
+                if self.match_keyword(Keyword::PARTITION) {
+                    self.advance();
+                    let name = self.parse_identifier()?;
+                    let action = self.parse_alter_table_action()?;
+                    Ok(AlterTableAction::ModifyPartition { name, action: Box::new(action) })
+                } else if self.match_keyword(Keyword::SUBPARTITION) {
+                    self.advance();
+                    let name = self.parse_identifier()?;
+                    let action = self.parse_alter_table_action()?;
+                    Ok(AlterTableAction::ModifySubPartition { name, action: Box::new(action) })
+                } else if self.match_token(&Token::LParen) {
                     self.advance();
                     let mut cols = Vec::new();
                     loop {
@@ -789,11 +865,9 @@ impl Parser {
                     if self.match_keyword(Keyword::ON) {
                         self.advance();
                         self.expect_keyword(Keyword::UPDATE)?;
-                        let _ = self.parse_identifier();
+                        let _ = self.consume_any_identifier();
                     }
                     if self.match_keyword(Keyword::FIRST_P) {
-                        self.advance();
-                    } else if self.match_keyword(Keyword::AFTER) {
                         self.advance();
                         let _ = self.parse_identifier();
                     }
@@ -1035,18 +1109,27 @@ impl Parser {
                         self.advance();
                     }
                     Ok(AlterTableAction::IlmEnablePolicy)
+                } else if self.match_ident_str("DISABLE_ALL") {
+                    self.advance();
+                    Ok(AlterTableAction::IlmDisableAllPolicies)
                 } else if self.match_ident_str("DISABLE") {
                     self.advance();
                     if self.match_ident_str("POLICY") {
                         self.advance();
                     }
                     Ok(AlterTableAction::IlmDisablePolicy)
+                } else if self.match_ident_str("DELETE_ALL") {
+                    self.advance();
+                    Ok(AlterTableAction::IlmDeleteAllPolicies)
                 } else if self.match_ident_str("DELETE") {
                     self.advance();
                     if self.match_ident_str("POLICY") {
                         self.advance();
                     }
                     Ok(AlterTableAction::IlmDeletePolicy)
+                } else if self.match_ident_str("ENABLE_ALL") {
+                    self.advance();
+                    Ok(AlterTableAction::IlmEnableAllPolicies)
                 } else if self.match_keyword(Keyword::ADD_P) {
                     self.advance();
                     if self.match_ident_str("POLICY") {
@@ -1113,7 +1196,7 @@ impl Parser {
     }
 
     fn parse_partition_values(&mut self) -> Result<PartitionValues, ParserError> {
-        self.expect_keyword(Keyword::VALUES)?;
+        self.try_consume_keyword(Keyword::VALUES);
         if self.match_keyword(Keyword::LESS) {
             self.advance();
             self.expect_keyword(Keyword::THAN)?;
@@ -1160,14 +1243,29 @@ impl Parser {
                 None
             };
             Ok(PartitionValues::StartEnd { start, end, every })
+        } else if self.match_keyword(Keyword::END_P) {
+            self.advance();
+            self.expect_token(&Token::LParen)?;
+            let end = self.parse_expr()?;
+            self.expect_token(&Token::RParen)?;
+            let every = if self.match_keyword(Keyword::EVERY) {
+                self.advance();
+                self.expect_token(&Token::LParen)?;
+                let e = self.parse_expr()?;
+                self.expect_token(&Token::RParen)?;
+                Some(e)
+            } else {
+                None
+            };
+            Ok(PartitionValues::EndOnly { end, every })
         } else if self.match_token(&Token::LParen) {
             self.advance();
             let mut vals = Vec::new();
             if !self.match_token(&Token::RParen) {
-                vals.push(self.parse_expr()?);
+                vals.push(self.parse_partition_value_item()?);
                 while self.match_token(&Token::Comma) {
                     self.advance();
-                    vals.push(self.parse_expr()?);
+                    vals.push(self.parse_partition_value_item()?);
                 }
                 self.expect_token(&Token::RParen)?;
             }
@@ -1181,25 +1279,54 @@ impl Parser {
         }
     }
 
+    fn parse_partition_value_item(&mut self) -> Result<Expr, ParserError> {
+        use crate::ast::Expr;
+        if self.match_token(&Token::LParen) {
+            self.advance();
+            let first = self.parse_expr()?;
+            if self.match_token(&Token::Comma) {
+                let mut elems = vec![first];
+                loop {
+                    self.advance();
+                    elems.push(self.parse_expr()?);
+                    if !self.match_token(&Token::Comma) {
+                        break;
+                    }
+                }
+                self.expect_token(&Token::RParen)?;
+                Ok(Expr::RowConstructor(elems))
+            } else {
+                self.expect_token(&Token::RParen)?;
+                Ok(Expr::Parenthesized(Box::new(first)))
+            }
+        } else {
+            self.parse_expr()
+        }
+    }
+
     fn parse_start_end_values(&mut self) -> Result<PartitionValues, ParserError> {
         self.advance();
         self.expect_token(&Token::LParen)?;
         let start = self.parse_expr()?;
         self.expect_token(&Token::RParen)?;
-        self.expect_keyword(Keyword::END_P)?;
-        self.expect_token(&Token::LParen)?;
-        let end = self.parse_expr()?;
-        self.expect_token(&Token::RParen)?;
-        let every = if self.match_keyword(Keyword::EVERY) {
+        if self.match_keyword(Keyword::END_P) {
             self.advance();
             self.expect_token(&Token::LParen)?;
-            let e = self.parse_expr()?;
+            let end = self.parse_expr()?;
             self.expect_token(&Token::RParen)?;
-            Some(e)
+            let every = if self.match_keyword(Keyword::EVERY) {
+                self.advance();
+                self.expect_token(&Token::LParen)?;
+                let e = self.parse_expr()?;
+                self.expect_token(&Token::RParen)?;
+                Some(e)
+            } else {
+                None
+            };
+            Ok(PartitionValues::StartEnd { start, end, every })
         } else {
-            None
-        };
-        Ok(PartitionValues::StartEnd { start, end, every })
+            Ok(PartitionValues::StartOnly { start })
+        }
     }
 
     pub(crate) fn parse_partition_defs(&mut self) -> Result<Vec<PartitionDef>, ParserError> {
@@ -1215,6 +1342,21 @@ impl Parser {
                 Some(self.parse_partition_values()?)
             } else if self.match_keyword(Keyword::START) {
                 Some(self.parse_start_end_values()?)
+            } else if self.match_keyword(Keyword::END_P) {
+                self.advance();
+                self.expect_token(&Token::LParen)?;
+                let end = self.parse_expr()?;
+                self.expect_token(&Token::RParen)?;
+                let every = if self.match_keyword(Keyword::EVERY) {
+                    self.advance();
+                    self.expect_token(&Token::LParen)?;
+                    let e = self.parse_expr()?;
+                    self.expect_token(&Token::RParen)?;
+                    Some(e)
+                } else {
+                    None
+                };
+                Some(PartitionValues::EndOnly { end, every })
             } else {
                 None
             };
@@ -1282,6 +1424,15 @@ impl Parser {
             } else {
                 None
             };
+            if self.match_ident_str("ILM") {
+                self.advance();
+                while !self.match_token(&Token::Comma)
+                    && !self.match_token(&Token::RParen)
+                    && !self.peek().eq(&Token::Eof)
+                {
+                    self.advance();
+                }
+            }
             defs.push(PartitionDef {
                 name,
                 values,

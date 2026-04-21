@@ -531,6 +531,7 @@ impl Parser {
             lock_clause: None,
             window_clause: vec![],
             set_operation: None,
+            raw_body: None,
         })
     }
 
@@ -560,7 +561,7 @@ impl Parser {
         } else if self.match_token(&Token::LParen) {
             self.advance();
             loop {
-                let name = self.parse_identifier()?;
+                let name = self.consume_any_identifier()?;
                 let value = self.try_parse_copy_option_value()?;
                 options.push(ExplainOption { name, value });
                 if self.match_token(&Token::Comma) {
@@ -716,6 +717,20 @@ impl Parser {
             if self.match_keyword(Keyword::PASSWORD) {
                 self.advance();
                 values.push(self.parse_expr()?);
+            }
+            return Ok(VariableSetStatement {
+                local,
+                session,
+                global,
+                name,
+                value: values,
+            });
+        }
+
+        if name.to_uppercase() == "CONSTRAINTS" {
+            let mut values = Vec::new();
+            while !self.match_token(&Token::Semicolon) && !self.peek().eq(&Token::Eof) {
+                values.push(Expr::ColumnRef(vec![self.consume_any_identifier()?]));
             }
             return Ok(VariableSetStatement {
                 local,

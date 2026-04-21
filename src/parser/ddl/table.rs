@@ -155,7 +155,11 @@ impl Parser {
                     },
                 };
                 self.expect_token(&Token::LParen)?;
-                let column = self.parse_object_name()?;
+                let mut columns = vec![self.parse_object_name()?];
+                while self.match_token(&Token::Comma) {
+                    self.advance();
+                    columns.push(self.parse_object_name()?);
+                }
                 self.expect_token(&Token::RParen)?;
 
                 let (interval, partitions, partitions_count) = match strategy {
@@ -220,19 +224,19 @@ impl Parser {
 
                 partition_by = Some(match strategy {
                     "range" => PartitionClause::Range {
-                        column,
+                        columns,
                         interval,
                         is_columns,
                         partitions_count,
                         partitions,
                     },
                     "list" => PartitionClause::List {
-                        column,
+                        columns,
                         is_columns,
                         partitions,
                     },
                     _ => PartitionClause::Hash {
-                        column,
+                        columns,
                         partitions_count,
                         partitions,
                     },
@@ -272,7 +276,11 @@ impl Parser {
                     },
                 };
                 self.expect_token(&Token::LParen)?;
-                let column = self.parse_object_name()?;
+                let mut columns = vec![self.parse_object_name()?];
+                while self.match_token(&Token::Comma) {
+                    self.advance();
+                    columns.push(self.parse_object_name()?);
+                }
                 self.expect_token(&Token::RParen)?;
 
                 let (sp_parts, sp_count) =
@@ -294,19 +302,19 @@ impl Parser {
 
                 subpartition_by = Some(match strategy {
                     "range" => PartitionClause::Range {
-                        column,
+                        columns,
                         interval: None,
                         is_columns,
                         partitions_count: None,
                         partitions: sp_parts,
                     },
                     "list" => PartitionClause::List {
-                        column,
+                        columns,
                         is_columns,
                         partitions: sp_parts,
                     },
                     _ => PartitionClause::Hash {
-                        column,
+                        columns,
                         partitions_count: sp_count,
                         partitions: sp_parts,
                     },
@@ -326,31 +334,31 @@ impl Parser {
                         if !parts.is_empty() {
                             partition_by = Some(match pb.clone() {
                                 PartitionClause::Range {
-                                    column,
+                                    columns,
                                     interval,
                                     is_columns,
                                     partitions_count,
                                     ..
                                 } => PartitionClause::Range {
-                                    column,
+                                    columns,
                                     interval,
                                     is_columns,
                                     partitions_count,
                                     partitions: parts,
                                 },
                                 PartitionClause::List {
-                                    column, is_columns, ..
+                                    columns, is_columns, ..
                                 } => PartitionClause::List {
-                                    column,
+                                    columns,
                                     is_columns,
                                     partitions: parts,
                                 },
                                 PartitionClause::Hash {
-                                    column,
+                                    columns,
                                     partitions_count,
                                     ..
                                 } => PartitionClause::Hash {
-                                    column,
+                                    columns,
                                     partitions_count,
                                     partitions: parts,
                                 },
@@ -634,6 +642,20 @@ impl Parser {
         self.expect_keyword(Keyword::TABLE)?;
         let if_not_exists = self.parse_if_not_exists();
         let name = self.parse_object_name()?;
+
+        let column_names = if self.match_token(&Token::LParen) {
+            self.advance();
+            let mut cols = vec![self.parse_identifier()?];
+            while self.match_token(&Token::Comma) {
+                self.advance();
+                cols.push(self.parse_identifier()?);
+            }
+            self.expect_token(&Token::RParen)?;
+            cols
+        } else {
+            vec![]
+        };
+
         self.expect_keyword(Keyword::AS)?;
 
         let (query, as_table) = if self.match_keyword(Keyword::TABLE) {
@@ -665,6 +687,7 @@ impl Parser {
                 lock_clause: None,
                 window_clause: vec![],
                 set_operation: None,
+                raw_body: None,
             };
             (Box::new(synthetic_query), Some(table_name))
         } else {
@@ -690,7 +713,7 @@ impl Parser {
                 unlogged,
                 if_not_exists,
                 name,
-                column_names: Vec::new(),
+                column_names,
                 query,
                 as_table,
                 with_data,
@@ -870,14 +893,71 @@ impl Parser {
         let mut generated = None;
         if self.match_keyword(Keyword::GENERATED) {
             self.advance();
-            self.expect_keyword(Keyword::ALWAYS)?;
-            self.expect_keyword(Keyword::AS)?;
-            self.expect_token(&Token::LParen)?;
-            let expr = self.parse_expr()?;
-            self.expect_token(&Token::RParen)?;
-            let stored = self.try_consume_keyword(Keyword::STORED);
-            generated = Some(crate::ast::GeneratedColumn { expr, stored });
+            if self.try_consume_keyword(Keyword::ALWAYS) {
+                self.expect_keyword(Keyword::AS)?;
+                if self.match_token(&Token::LParen) {
+                    self.advance();
+                    let expr = self.parse_expr()?;
+                    self.expect_token(&Token::RParen)?;
+                    let stored = self.try_consume_keyword(Keyword::STORED);
+                    generated = Some(crate::ast::GeneratedColumn { expr, stored });
+                } else if self.try_consume_keyword(Keyword::IDENTITY_P) {
+                    if self.match_token(&Token::LParen) {
+                        self.advance();
+                        while !self.match_token(&Token::RParen) && !self.peek().eq(&Token::Eof) {
+                            self.advance();
+                        }
+                        if self.match_token(&Token::RParen) {
+                            self.advance();
+                        }
+                    }
+                }
+            } else if self.try_consume_keyword(Keyword::BY) {
+                self.expect_keyword(Keyword::DEFAULT)?;
+                self.try_consume_keyword(Keyword::ON);
+                self.try_consume_keyword(Keyword::NULL_P);
+                self.expect_keyword(Keyword::AS)?;
+                self.expect_keyword(Keyword::IDENTITY_P)?;
+                if self.match_token(&Token::LParen) {
+                    self.advance();
+                    while !self.match_token(&Token::RParen) && !self.peek().eq(&Token::Eof) {
+                        self.advance();
+                    }
+                    if self.match_token(&Token::RParen) {
+                        self.advance();
+                    }
+                }
+            }
         }
+
+        let encrypted_with = if self.match_keyword(Keyword::ENCRYPTED) {
+            self.advance();
+            self.expect_keyword(Keyword::WITH)?;
+            self.expect_token(&Token::LParen)?;
+            let mut column_encryption_key = None;
+            let mut encryption_type = None;
+            loop {
+                let key = self.consume_any_identifier()?;
+                self.expect_token(&Token::Eq)?;
+                let value = self.consume_any_identifier()?;
+                match key.to_uppercase().as_str() {
+                    "COLUMN_ENCRYPTION_KEY" => column_encryption_key = Some(value),
+                    "ENCRYPTION_TYPE" => encryption_type = Some(value),
+                    _ => {}
+                }
+                if !self.match_token(&Token::Comma) {
+                    break;
+                }
+                self.advance();
+            }
+            self.expect_token(&Token::RParen)?;
+            Some(crate::ast::EncryptedWith {
+                column_encryption_key: column_encryption_key.unwrap_or_default(),
+                encryption_type: encryption_type.unwrap_or_default(),
+            })
+        } else {
+            None
+        };
 
         Ok(ColumnDef {
             name,
@@ -889,6 +969,7 @@ impl Parser {
             on_update,
             comment,
             generated,
+            encrypted_with,
         })
     }
 
@@ -1163,6 +1244,10 @@ impl Parser {
         if self.match_token(&Token::LParen) {
             self.advance();
             let n = self.parse_int_literal()?;
+            if self.match_token(&Token::Comma) {
+                self.advance();
+                let _scale = self.parse_int_literal()?;
+            }
             self.expect_token(&Token::RParen)?;
             Ok(Some(n))
         } else {
@@ -1310,12 +1395,20 @@ impl Parser {
             Some(Keyword::UNIQUE) => {
                 self.advance();
                 self.consume_opt_using_index_tablespace();
+                self.try_consume_keyword(Keyword::DEFERRABLE);
+                if self.match_keyword(Keyword::WITH) {
+                    let _ = self.parse_generic_options();
+                }
                 Some(ColumnConstraint::Unique)
             }
             Some(Keyword::PRIMARY) => {
                 self.advance();
                 self.expect_keyword(Keyword::KEY)?;
                 self.consume_opt_using_index_tablespace();
+                self.try_consume_keyword(Keyword::DEFERRABLE);
+                if self.match_keyword(Keyword::WITH) {
+                    let _ = self.parse_generic_options();
+                }
                 Some(ColumnConstraint::PrimaryKey)
             }
             Some(Keyword::CHECK) => {
@@ -1353,19 +1446,32 @@ impl Parser {
     pub(crate) fn parse_table_constraint(&mut self) -> Result<TableConstraint, ParserError> {
         if self.match_keyword(Keyword::CONSTRAINT) {
             self.advance();
-            let _name = self.parse_identifier()?;
+            if !self.match_keyword(Keyword::PRIMARY)
+                && !self.match_keyword(Keyword::UNIQUE)
+                && !self.match_keyword(Keyword::CHECK)
+                && !self.match_keyword(Keyword::FOREIGN)
+            {
+                let _name = self.parse_identifier()?;
+            }
         }
 
         match self.peek_keyword() {
             Some(Keyword::PRIMARY) => {
                 self.advance();
                 self.expect_keyword(Keyword::KEY)?;
+                if self.try_consume_keyword(Keyword::USING) {
+                    let _ = self.parse_identifier();
+                }
                 let columns = self.parse_column_list()?;
                 Ok(TableConstraint::PrimaryKey(columns))
             }
             Some(Keyword::UNIQUE) => {
                 self.advance();
                 let columns = self.parse_column_list()?;
+                self.try_consume_keyword(Keyword::DEFERRABLE);
+                if self.match_keyword(Keyword::WITH) {
+                    let _ = self.parse_generic_options();
+                }
                 Ok(TableConstraint::Unique(columns))
             }
             Some(Keyword::CHECK) => {
@@ -1399,9 +1505,15 @@ impl Parser {
     fn parse_column_list(&mut self) -> Result<Vec<String>, ParserError> {
         self.expect_token(&Token::LParen)?;
         let mut columns = vec![self.parse_identifier()?];
+        if self.match_keyword(Keyword::ASC) || self.match_keyword(Keyword::DESC) {
+            self.advance();
+        }
         while self.match_token(&Token::Comma) {
             self.advance();
             columns.push(self.parse_identifier()?);
+            if self.match_keyword(Keyword::ASC) || self.match_keyword(Keyword::DESC) {
+                self.advance();
+            }
         }
         self.expect_token(&Token::RParen)?;
         Ok(columns)

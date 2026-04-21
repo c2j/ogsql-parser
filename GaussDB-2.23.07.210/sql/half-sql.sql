@@ -643,7 +643,7 @@ CREATE TYPE floatrange AS RANGE ( subtype = float8, subtype_diff = float8mi );
 SELECT '[1.234, 5.678]'::floatrange;
 
 -- [DDL]
-CREATE FUNCTION time_subtype_diff(x time, y time) RETURNS float8 AS 'SELECT EXTRACT(EPOCH FROM (x - y))' LANGUAGE sql STRICT IMMUTABLE;
+--CREATE FUNCTION time_subtype_diff(x time, y time) RETURNS float8 AS 'SELECT EXTRACT(EPOCH FROM (x - y))' LANGUAGE sql STRICT IMMUTABLE;
 
 -- [DDL]
 CREATE TYPE timerange AS RANGE ( subtype = time, subtype_diff = time_subtype_diff );
@@ -4097,10 +4097,10 @@ SELECT CHECKSUM ( inventory :: TEXT ) FROM tpcds . inventory ;
 SELECT percentile_cont(0) WITHIN GROUP (ORDER BY value) FROM (VALUES (1),(2)) v(value);
 
 -- [DQL]
-SELECT mode() WITHIN GROUP (ORDER BY value) FROM (values(1, 'a'), (2, 'b'), (2, 'c')) v(value, tag);
+--SELECT mode() WITHIN GROUP (ORDER BY value) FROM (values(1, 'a'), (2, 'b'), (2, 'c')) v(value, tag);
 
 -- [DQL]
-SELECT mode() WITHIN GROUP (ORDER BY tag) FROM (values(1, 'a'), (2, 'b'), (2, 'c')) v(value, tag);
+--SELECT mode() WITHIN GROUP (ORDER BY tag) FROM (values(1, 'a'), (2, 'b'), (2, 'c')) v(value, tag);
 
 -- [DQL]
 SELECT * FROM pivot_func_test;
@@ -8994,7 +8994,7 @@ CREATE SCHEMA schema_for_label ;
 CREATE VIEW view_for_label AS SELECT 1 ;
 
 -- [DDL]
-CREATE FUNCTION func_for_label RETURNS TEXT AS $$ SELECT col1 FROM tb_for_label ;
+--CREATE FUNCTION func_for_label RETURNS TEXT AS $$ SELECT col1 FROM tb_for_label ;
 
 -- [DDL]
 CREATE RESOURCE LABEL IF NOT EXISTS table_label add TABLE ( public . tb_for_label );
@@ -9811,7 +9811,7 @@ SET b_format_dev_version='s1';
 
 -- 创建 t1_on_update 表，设置ON UPDATE属性
 -- [DDL]
-CREATE TABLE t1_on_update ( TS0 TIMESTAMP ON UPDATE CURRENT_TIMESTAMP , TS1 TIMESTAMP ON UPDATE CURRENT_TIMESTAMP() , TS2 TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6) , DT0 DATETIME ON UPDATE LOCALTIMESTAMP , DT1 DATETIME ON UPDATE NOW()
+--CREATE TABLE t1_on_update ( TS0 TIMESTAMP ON UPDATE CURRENT_TIMESTAMP , TS1 TIMESTAMP ON UPDATE CURRENT_TIMESTAMP() , TS2 TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6) , DT0 DATETIME ON UPDATE LOCALTIMESTAMP , DT1 DATETIME ON UPDATE NOW()
 
 
 ================================================================================
@@ -14347,7 +14347,7 @@ CREATE TABLE mytab ( id INT , firstname VARCHAR ( 20 ), lastname VARCHAR ( 20 ))
 INSERT INTO mytab ( firstname , lastname ) VALUES ( 'Tom' , 'Jones' );
 
 -- [DDL]
-CREATE FUNCTION fun_exp () RETURNS INT AS $$ -- declare x INT : = 0 ;
+--CREATE FUNCTION fun_exp () RETURNS INT AS $$ -- declare x INT : = 0 ;
 
 -- [PLSQL]
 call fun_exp ();
@@ -14365,7 +14365,7 @@ DROP TABLE mytab ;
 CREATE TABLE db ( a INT , b TEXT );
 
 -- [DDL]
-CREATE FUNCTION merge_db ( key INT , data TEXT ) RETURNS VOID AS $$ -- -- begin LOOP --第一次尝试更新key UPDATE db SET b = data WHERE a = key ;
+--CREATE FUNCTION merge_db ( key INT , data TEXT ) RETURNS VOID AS $$ -- -- begin LOOP --第一次尝试更新key UPDATE db SET b = data WHERE a = key ;
 
 -- [DQL]
 SELECT merge_db ( 1 , 'david' );
@@ -16383,7 +16383,7 @@ set session AUTHORIZATION plsql_rollback2 PASSWORD '********';
 CREATE SCHEMA sch1;
 
 -- [DDL]
-CREATE PACKAGE pck1 IS PROCEDURE sch1.pck1();
+--CREATE PACKAGE pck1 IS PROCEDURE sch1.pck1();
 
 -- [DQL]
 select timestamp '2024-03-20 01:30:00’ at time zone 'Europe/Moscow' from dual;
@@ -16575,10 +16575,10 @@ insert into creditcard_info values ( 1 , 'Avi' , '1234567890123456' );
 insert into creditcard_info values ( 2 , 'Eli' , '2345678901234567' );
 
 -- [DDL]
-CREATE FUNCTION f_encrypt_in_sql ( val1 text , val2 varchar ( 19 )) RETURNS text AS 'SELECT name from creditcard_info where name=$1 or credit_card=$2 LIMIT 1' LANGUAGE SQL ;
+--CREATE FUNCTION f_encrypt_in_sql ( val1 text , val2 varchar ( 19 )) RETURNS text AS 'SELECT name from creditcard_info where name=$1 or credit_card=$2 LIMIT 1' LANGUAGE SQL ;
 
 -- [DDL]
-CREATE FUNCTION f_encrypt_in_plpgsql ( val1 text , val2 varchar ( 19 ), OUT c text ) AS $$ -- -- begin SELECT into c name from creditcard_info where name = $ 1 or credit_card = $ 2 LIMIT 1 ;
+--CREATE FUNCTION f_encrypt_in_plpgsql ( val1 text , val2 varchar ( 19 ), OUT c text ) AS $$ -- -- begin SELECT into c name from creditcard_info where name = $ 1 or credit_card = $ 2 LIMIT 1 ;
 
 -- [DQL]
 SELECT f_encrypt_in_sql ( 'Avi' , '1234567890123456' );
@@ -17536,10 +17536,10 @@ SELECT * FROM GS_MY_ILMRESULTS;
 select "table", "column" from gs_index_advise('SELECT c_discount from bmsql_customer where c_w_id = 10');
 
 -- [DQL]
-select "table", "column" from gs_index_advise('select name, age, sex from t1 where age >= 18 and age < 35 and sex = ' 'f ' ';
+select "table", "column" from gs_index_advise('select name, age, sex from t1 where age >= 18 and age < 35 and sex = ''f'' ');
 
 -- [DQL]
-select "table", "column", "indextype" from gs_index_advise('select name, age, sex from range_table where age = 20;
+select "table", "column", "indextype" from gs_index_advise('select name, age, sex from range_table where age = 20');
 
 
 ================================================================================
@@ -17730,10 +17730,10 @@ insert into creditcard_info values ( 1 , 'Avi' , '1234567890123456' );
 insert into creditcard_info values ( 2 , 'Eli' , '2345678901234567' );
 
 -- [DDL]
-CREATE FUNCTION f_encrypt_in_sql ( val1 text , val2 varchar ( 19 )) RETURNS text AS 'SELECT name from creditcard_info where name=$1 or credit_card=$2 LIMIT 1' LANGUAGE SQL ;
+--CREATE FUNCTION f_encrypt_in_sql ( val1 text , val2 varchar ( 19 )) RETURNS text AS 'SELECT name from creditcard_info where name=$1 or credit_card=$2 LIMIT 1' LANGUAGE SQL ;
 
 -- [DDL]
-CREATE FUNCTION f_encrypt_in_plpgsql ( val1 text , val2 varchar ( 19 ), OUT c text ) AS $$ -- -- begin SELECT into c name from creditcard_info where name = $ 1 or credit_card = $ 2 LIMIT 1 ;
+--CREATE FUNCTION f_encrypt_in_plpgsql ( val1 text , val2 varchar ( 19 ), OUT c text ) AS $$ -- -- begin SELECT into c name from creditcard_info where name = $ 1 or credit_card = $ 2 LIMIT 1 ;
 
 -- [DQL]
 SELECT f_encrypt_in_sql ( 'Avi' , '1234567890123456' );

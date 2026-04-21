@@ -1027,7 +1027,7 @@ impl Parser {
         collected.trim().to_string()
     }
 
-    fn collect_until_balanced_paren(&mut self) -> String {
+    pub(crate) fn collect_until_balanced_paren(&mut self) -> String {
         let mut collected = String::new();
         let mut depth = 1i32;
         loop {

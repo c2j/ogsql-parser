@@ -393,6 +393,7 @@ impl Parser {
         let mut max_value = None;
         let mut cache = None;
         let mut cycle = false;
+        let mut owned_by = None;
 
         loop {
             match self.peek_keyword() {
@@ -435,6 +436,11 @@ impl Parser {
                         max_value = None;
                     }
                 }
+                Some(Keyword::OWNED) => {
+                    self.advance();
+                    self.expect_keyword(Keyword::BY)?;
+                    owned_by = Some(self.parse_object_name()?);
+                }
                 _ => break,
             }
         }
@@ -448,6 +454,7 @@ impl Parser {
             max_value,
             cache,
             cycle,
+            owned_by,
         })
     }
 
@@ -580,6 +587,20 @@ impl Parser {
             (schema_name, auth)
         };
 
+        let character_set = if self.match_keyword(Keyword::CHARACTER) {
+            self.advance();
+            self.expect_keyword(Keyword::SET)?;
+            Some(self.parse_identifier()?)
+        } else {
+            None
+        };
+        let collate = if self.match_keyword(Keyword::COLLATE) {
+            self.advance();
+            Some(self.parse_identifier()?)
+        } else {
+            None
+        };
+
         let mut elements = Vec::new();
         loop {
             if self.match_keyword(Keyword::CREATE) {
@@ -605,6 +626,8 @@ impl Parser {
             if_not_exists,
             name,
             authorization,
+            character_set,
+            collate,
             elements,
         })
     }
@@ -822,11 +845,19 @@ impl Parser {
             }
         };
 
+        let maxsize = if self.match_keyword(Keyword::MAXSIZE) {
+            self.advance();
+            Some(self.parse_string_literal().unwrap_or_default())
+        } else {
+            None
+        };
+
         Ok(CreateTablespaceStatement {
             name,
             owner,
             relative,
             location,
+            maxsize,
         })
     }
 
@@ -978,9 +1009,11 @@ impl Parser {
                     options.push(RoleOption::UnencryptedPassword(pwd));
                 } else if self.match_keyword(Keyword::VALID) {
                     self.advance();
-                    self.expect_keyword(Keyword::UNTIL)?;
-                    let until = self.parse_string_literal()?;
-                    options.push(RoleOption::ValidUntil(until));
+                    if self.match_keyword(Keyword::UNTIL) {
+                        self.advance();
+                        let until = self.parse_string_literal()?;
+                        options.push(RoleOption::ValidUntil(until));
+                    }
                 } else if self.match_keyword(Keyword::IN_P) {
                     self.advance();
                     if self.match_keyword(Keyword::ROLE) || self.match_ident_str("ROLE") {

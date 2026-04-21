@@ -167,6 +167,12 @@ impl Parser {
                     self.advance();
                     continue;
                 }
+                Token::Eq => {
+                    if self.is_separator_line() {
+                        self.skip_separator_line();
+                        continue;
+                    }
+                }
                 _ => {
                     let start_pos = self.pos;
                     let end_pos = self.find_statement_end_pos();
@@ -203,7 +209,19 @@ impl Parser {
                         }
                     };
                     // Always reset to statement boundary to prevent cascading into next statement
-                    self.pos = end_pos + 1;
+                    if matches!(stmt, crate::ast::Statement::Empty) && end_pos - start_pos > 500 {
+                        // When parsing fails and the estimated boundary is far away,
+                        // the statement splitter was confused (e.g. unmatched paren).
+                        // Fall back to the first semicolon after start_pos to avoid
+                        // swallowing hundreds of subsequent statements.
+                        if let Some(fallback) = self.find_next_semicolon_from(start_pos) {
+                            self.pos = fallback + 1;
+                        } else {
+                            self.pos = end_pos + 1;
+                        }
+                    } else {
+                        self.pos = end_pos + 1;
+                    }
 
                     let start_span = self.tokens[start_pos].span;
                     let end_token = if end_pos < self.tokens.len() {
@@ -336,6 +354,35 @@ impl Parser {
         self.tokens.len().saturating_sub(1)
     }
 
+    fn is_separator_line(&self) -> bool {
+        let mut count = 0;
+        for i in self.pos..self.tokens.len() {
+            match &self.tokens[i].token {
+                Token::Eq => count += 1,
+                _ => break,
+            }
+            if count >= 10 {
+                return true;
+            }
+        }
+        false
+    }
+
+    fn skip_separator_line(&mut self) {
+        while self.pos < self.tokens.len() && matches!(self.tokens[self.pos].token, Token::Eq) {
+            self.advance();
+        }
+    }
+
+    fn find_next_semicolon_from(&self, start: usize) -> Option<usize> {
+        for i in start..self.tokens.len() {
+            if matches!(self.tokens[i].token, Token::Semicolon) {
+                return Some(i);
+            }
+        }
+        None
+    }
+
     fn has_begin_after_declare(&self, declare_pos: usize) -> bool {
         let mut depth = 0i32;
         for i in (declare_pos + 1)..self.tokens.len().min(declare_pos + 500) {
@@ -365,6 +412,41 @@ impl Parser {
             } else {
                 return false;
             }
+        }
+        false
+    }
+
+    fn is_with_dml_at(&self, pos: usize) -> bool {
+        let mut i = pos + 1;
+        if i < self.tokens.len() && matches!(self.tokens[i].token, Token::Keyword(Keyword::RECURSIVE)) {
+            i += 1;
+        }
+        while i < self.tokens.len() {
+            match &self.tokens[i].token {
+                Token::Keyword(Keyword::INSERT) | Token::Keyword(Keyword::UPDATE) | Token::Keyword(Keyword::DELETE_P) => {
+                    return true;
+                }
+                Token::Semicolon => return false,
+                Token::Keyword(Keyword::SELECT) => return false,
+                Token::LParen => {
+                    i += 1;
+                    let mut depth = 1i32;
+                    while i < self.tokens.len() {
+                        match &self.tokens[i].token {
+                            Token::LParen => depth += 1,
+                            Token::RParen => {
+                                depth -= 1;
+                                if depth == 0 { break; }
+                            }
+                            Token::Semicolon => return false,
+                            _ => {}
+                        }
+                        i += 1;
+                    }
+                }
+                _ => {}
+            }
+            i += 1;
         }
         false
     }
@@ -720,7 +802,7 @@ impl Parser {
     }
 
     /// Check if the current token starts an expression.
-    fn is_expr_start(&self) -> bool {
+    pub(crate) fn is_expr_start(&self) -> bool {
         matches!(
             self.peek(),
             Token::Integer(_)
@@ -770,7 +852,7 @@ impl Parser {
 
     fn parse_statement(&mut self) -> Result<crate::ast::Statement, ParserError> {
         let stmt = match self.peek().clone() {
-            Token::Keyword(Keyword::SELECT) | Token::Keyword(Keyword::WITH) => {
+            Token::Keyword(Keyword::SELECT) => {
                 let pre_hints = self.consume_hints();
                 match self.parse_select_statement() {
                     Ok(mut stmt) => {
@@ -783,6 +865,85 @@ impl Parser {
                     Err(e) => {
                         self.add_error(e);
                         self.skip_to_semicolon()
+                    }
+                }
+            }
+            Token::Keyword(Keyword::WITH) => {
+                if self.is_with_dml_at(self.pos) {
+                    let with = match self.parse_with_clause() {
+                        Ok(Some(w)) => w,
+                        Ok(None) => unreachable!("is_with_dml_at confirmed WITH"),
+                        Err(e) => {
+                            self.add_error(e);
+                            return Ok(self.skip_to_semicolon());
+                        }
+                    };
+                    match self.peek_keyword() {
+                        Some(Keyword::INSERT) => {
+                            self.advance();
+                            match self.parse_insert() {
+                                Ok(mut stmt) => {
+                                    stmt.with = Some(with);
+                                    self.try_consume_semicolon();
+                                    crate::ast::Statement::Insert(stmt)
+                                }
+                                Err(e) => {
+                                    self.add_error(e);
+                                    self.skip_to_semicolon()
+                                }
+                            }
+                        }
+                        Some(Keyword::UPDATE) => {
+                            self.advance();
+                            match self.parse_update() {
+                                Ok(mut stmt) => {
+                                    stmt.with = Some(with);
+                                    self.try_consume_semicolon();
+                                    crate::ast::Statement::Update(stmt)
+                                }
+                                Err(e) => {
+                                    self.add_error(e);
+                                    self.skip_to_semicolon()
+                                }
+                            }
+                        }
+                        Some(Keyword::DELETE_P) => {
+                            self.advance();
+                            match self.parse_delete() {
+                                Ok(mut stmt) => {
+                                    stmt.with = Some(with);
+                                    self.try_consume_semicolon();
+                                    crate::ast::Statement::Delete(stmt)
+                                }
+                                Err(e) => {
+                                    self.add_error(e);
+                                    self.skip_to_semicolon()
+                                }
+                            }
+                        }
+                        _ => {
+                            self.add_error(ParserError::UnexpectedToken {
+                                location: self.current_location(),
+                                expected: "INSERT, UPDATE, or DELETE after WITH clause".to_string(),
+                                got: format!("{:?}", self.peek()),
+                            });
+                            self.skip_to_semicolon()
+                        }
+                    }
+                } else {
+                    let pre_hints = self.consume_hints();
+                    match self.parse_select_statement() {
+                        Ok(mut stmt) => {
+                            let mut hints = pre_hints;
+                            hints.append(&mut stmt.hints);
+                            stmt.hints = hints;
+                            self.try_consume_semicolon();
+                            crate::ast::Statement::Select(stmt)
+                        }
+                        Err(e) => {
+                            self.add_error(e);
+                            self.skip_to_semicolon()
+                        }
                     }
                 }
             }
@@ -1360,12 +1521,7 @@ impl Parser {
                     }
                 } else {
                     self.advance();
-                    self.add_error(ParserError::UnexpectedToken {
-                        location: self.current_location(),
-                        expected: "CURSOR or BEGIN after DECLARE".to_string(),
-                        got: format!("{:?}", self.peek()),
-                    });
-                    self.skip_to_semicolon()
+                    crate::ast::Statement::Empty
                 }
             }
             Token::Keyword(Keyword::CLOSE) => {
@@ -1816,12 +1972,12 @@ impl Parser {
         }
         self.advance();
         loop {
-            let key = self.parse_identifier().unwrap_or_default();
+            let key = self.consume_any_identifier().unwrap_or_default();
             if self.match_token(&Token::Eq) {
                 self.advance();
             }
             let value = match self.peek().clone() {
-                Token::StringLiteral(s) => {
+                Token::StringLiteral(s) | Token::QuotedIdent(s) => {
                     self.advance();
                     s
                 }
@@ -1861,7 +2017,7 @@ impl Parser {
         }
         self.advance();
         loop {
-            let key = self.parse_identifier().unwrap_or_default();
+            let key = self.consume_any_identifier().unwrap_or_default();
             if self.match_token(&Token::Eq) {
                 self.advance();
             }
@@ -1872,11 +2028,23 @@ impl Parser {
                 }
                 Token::Ident(s) => {
                     self.advance();
-                    s
+                    let mut val = s;
+                    while self.match_token(&Token::Dot) {
+                        self.advance();
+                        val.push('.');
+                        val.push_str(&self.consume_any_identifier().unwrap_or_default());
+                    }
+                    val
                 }
                 Token::Keyword(kw) => {
                     self.advance();
-                    kw.as_str().to_string()
+                    let mut val = kw.as_str().to_string();
+                    while self.match_token(&Token::Dot) {
+                        self.advance();
+                        val.push('.');
+                        val.push_str(&self.consume_any_identifier().unwrap_or_default());
+                    }
+                    val
                 }
                 Token::Integer(n) => {
                     self.advance();
@@ -1924,7 +2092,7 @@ impl Parser {
             } else {
                 String::new()
             };
-            let key = self.parse_identifier().unwrap_or_default();
+            let key = self.consume_any_identifier().unwrap_or_default();
             let full_key = if action.is_empty() {
                 key
             } else {
@@ -2063,6 +2231,7 @@ impl Parser {
                             on_update: None,
                             comment: None,
                             generated: None,
+                            encrypted_with: None,
                         });
                         if !self.match_token(&Token::Comma) {
                             if self.match_token(&Token::RParen) {
@@ -2243,9 +2412,20 @@ impl Parser {
         let mut labels = Vec::new();
 
         loop {
-            if let Ok(privilege) = self.parse_identifier() {
-                privileges.push(privilege);
-            }
+            // Privilege names can be reserved keywords (CREATE, SELECT, etc.)
+            // Consume without emitting reserved-keyword warning
+            let privilege = match self.peek().clone() {
+                Token::Ident(s) | Token::QuotedIdent(s) => {
+                    self.advance();
+                    s
+                }
+                Token::Keyword(kw) => {
+                    self.advance();
+                    kw.as_str().to_string()
+                }
+                _ => break,
+            };
+            privileges.push(privilege);
 
             if self.try_consume_keyword(Keyword::ON) {
                 self.expect_keyword(Keyword::LABEL)?;
@@ -2436,6 +2616,7 @@ impl Parser {
 
     fn parse_create_resource_label(&mut self) -> Result<crate::ast::Statement, ParserError> {
         self.advance(); // LABEL
+        let if_not_exists = self.parse_if_not_exists();
         let name = self.parse_identifier()?;
         let add = if self.match_keyword(Keyword::ADD_P) {
             self.advance();
@@ -2450,7 +2631,18 @@ impl Parser {
                 got: format!("{:?}", self.peek()),
             });
         };
-        let label_type = self.consume_any_identifier()?;
+        let label_type = match self.peek_keyword() {
+            Some(Keyword::TABLE)
+            | Some(Keyword::COLUMN)
+            | Some(Keyword::SCHEMA)
+            | Some(Keyword::VIEW)
+            | Some(Keyword::FUNCTION) => {
+                let kw = self.peek_keyword().unwrap();
+                self.advance();
+                kw.as_str().to_string()
+            }
+            _ => self.consume_any_identifier()?,
+        };
         self.expect_token(&Token::LParen)?;
         let mut targets = Vec::new();
         loop {
@@ -2464,6 +2656,7 @@ impl Parser {
         self.try_consume_semicolon();
         Ok(crate::ast::Statement::CreatePolicyLabel(
             crate::ast::CreatePolicyLabelStatement {
+                if_not_exists,
                 name,
                 add,
                 label_type,
@@ -2725,11 +2918,24 @@ impl Parser {
             }
             Some(Keyword::GLOBAL) => {
                 self.advance();
-                match self.parse_create_global_index() {
-                    Ok(stmt) => crate::ast::Statement::CreateGlobalIndex(stmt),
-                    Err(e) => {
-                        self.add_error(e);
-                        self.skip_to_semicolon()
+                // Check for GLOBAL TEMPORARY TABLE
+                if self.try_consume_keyword(Keyword::TEMPORARY)
+                    || self.try_consume_keyword(Keyword::TEMP)
+                {
+                    match self.parse_create_table(true, unlogged) {
+                        Ok(stmt) => crate::ast::Statement::CreateTable(stmt),
+                        Err(e) => {
+                            self.add_error(e);
+                            self.skip_to_semicolon()
+                        }
+                    }
+                } else {
+                    match self.parse_create_global_index() {
+                        Ok(stmt) => crate::ast::Statement::CreateGlobalIndex(stmt),
+                        Err(e) => {
+                            self.add_error(e);
+                            self.skip_to_semicolon()
+                        }
                     }
                 }
             }
@@ -3900,12 +4106,40 @@ impl Parser {
                             }
                         }
                     } else {
-                        self.add_error(ParserError::UnexpectedToken {
-                            location: self.current_location(),
-                            expected: "FAMILY or CLASS after OPERATOR".to_string(),
-                            got: format!("{:?}", self.peek()),
-                        });
-                        self.skip_to_semicolon()
+                        let op_name = match self.peek().clone() {
+                            Token::Op(s) => { self.advance(); s }
+                            Token::Ident(s) => { self.advance(); s }
+                            tok @ (Token::OpLe | Token::OpNe | Token::OpGe | Token::OpShiftL | Token::OpShiftR | Token::OpNe2 | Token::OpDblBang | Token::OpConcat) => {
+                                self.advance();
+                                tok.as_op_str().unwrap().to_string()
+                            }
+                            other => {
+                                self.add_error(ParserError::UnexpectedToken {
+                                    location: self.current_location(),
+                                    expected: "operator name".to_string(),
+                                    got: format!("{:?}", other),
+                                });
+                                return self.skip_to_semicolon();
+                            }
+                        };
+                        let mut left_type = String::new();
+                        let mut right_type = None;
+                        if self.match_token(&Token::LParen) {
+                            self.advance();
+                            left_type = self.consume_any_identifier().unwrap_or_default();
+                            if self.match_token(&Token::Comma) {
+                                self.advance();
+                                right_type = Some(self.consume_any_identifier().unwrap_or_default());
+                            }
+                            self.expect_token(&Token::RParen).unwrap_or(());
+                        }
+                        let raw_rest = self.skip_to_semicolon_and_collect();
+                        crate::ast::Statement::AlterOperator(crate::ast::AlterOperatorStatement {
+                            name: op_name,
+                            left_type,
+                            right_type,
+                            raw_rest,
+                        })
                     }
                 }
                 Some(Keyword::MATERIALIZED) => {

@@ -67,19 +67,19 @@ pub enum DistributeClause {
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum PartitionClause {
     Range {
-        column: ObjectName,
+        columns: Vec<ObjectName>,
         interval: Option<Expr>,
         is_columns: bool,
         partitions_count: Option<u32>,
         partitions: Vec<PartitionDef>,
     },
     List {
-        column: ObjectName,
+        columns: Vec<ObjectName>,
         is_columns: bool,
         partitions: Vec<PartitionDef>,
     },
     Hash {
-        column: ObjectName,
+        columns: Vec<ObjectName>,
         partitions_count: Option<u32>,
         partitions: Vec<PartitionDef>,
     },
@@ -116,6 +116,14 @@ pub struct ColumnDef {
     pub comment: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub generated: Option<GeneratedColumn>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub encrypted_with: Option<EncryptedWith>,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct EncryptedWith {
+    pub column_encryption_key: String,
+    pub encryption_type: String,
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -267,6 +275,7 @@ pub enum AlterTableAction {
     },
     TruncatePartition {
         name: String,
+        for_values: Option<Vec<Expr>>,
         cascade: bool,
         update_global_index: bool,
         update_distributed_global_index: Option<bool>,
@@ -408,10 +417,21 @@ pub enum AlterTableAction {
     },
     IlmAddPolicy(IlmPolicy),
     IlmEnablePolicy,
+    IlmEnableAllPolicies,
     IlmDisablePolicy,
+    IlmDisableAllPolicies,
     IlmDeletePolicy,
+    IlmDeleteAllPolicies,
     // Multi-column MODIFY
     ModifyColumns(Vec<ModifyColumnInfo>),
+    ModifyPartition {
+        name: String,
+        action: Box<AlterTableAction>,
+    },
+    ModifySubPartition {
+        name: String,
+        action: Box<AlterTableAction>,
+    },
     // Multi-column ADD
     AddColumns(Vec<ColumnDef>),
     // Statistics operations
@@ -471,6 +491,13 @@ pub enum PartitionValues {
     InValues(Vec<Expr>),
     StartEnd {
         start: Expr,
+        end: Expr,
+        every: Option<Expr>,
+    },
+    StartOnly {
+        start: Expr,
+    },
+    EndOnly {
         end: Expr,
         every: Option<Expr>,
     },
@@ -632,6 +659,7 @@ pub struct CreateSequenceStatement {
     pub max_value: Option<Expr>,
     pub cache: Option<Expr>,
     pub cycle: bool,
+    pub owned_by: Option<ObjectName>,
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -789,6 +817,7 @@ pub enum Statement {
     AlterDataSource(AlterDataSourceStatement),
     AlterEvent(AlterEventStatement),
     AlterOpFamily(AlterOpFamilyStatement),
+    AlterOperator(AlterOperatorStatement),
     AlterMaterializedView(AlterMaterializedViewStatement),
     AlterGlobalConfig(AlterGlobalConfigStatement),
     RefreshMaterializedView(RefreshMatViewStatement),
@@ -883,16 +912,14 @@ pub struct SelectIntoTable {
     pub table_name: ObjectName,
 }
 
-#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, PartialEq, Default, serde::Serialize, serde::Deserialize)]
 pub struct SelectStatement {
     pub hints: Vec<String>,
     pub with: Option<WithClause>,
     pub distinct: bool,
     pub distinct_on: Vec<Expr>,
     pub targets: Vec<SelectTarget>,
-    /// PL/pgSQL extension: `SELECT ... INTO var1, var2 FROM ...`
     pub into_targets: Option<Vec<SelectTarget>>,
-    /// GaussDB extension: `SELECT ... INTO [UNLOGGED] [TABLE] new_table FROM ...`
     pub into_table: Option<SelectIntoTable>,
     pub from: Vec<TableRef>,
     pub where_clause: Option<Expr>,
@@ -907,6 +934,7 @@ pub struct SelectStatement {
     pub lock_clause: Option<LockClause>,
     pub window_clause: Vec<NamedWindow>,
     pub set_operation: Option<SetOperation>,
+    pub raw_body: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -966,7 +994,7 @@ pub struct Cte {
     pub name: String,
     pub columns: Vec<String>,
     pub query: Box<SelectStatement>,
-    /// None = default, Some(true) = MATERIALIZED, Some(false) = NOT MATERIALIZED
+    pub raw_body: Option<String>,
     pub materialized: Option<bool>,
 }
 
@@ -1137,6 +1165,13 @@ pub enum Expr {
         default: Option<Box<Expr>>,
         format: Option<Box<Expr>>,
     },
+    Treat {
+        expr: Box<Expr>,
+        type_name: DataType,
+    },
+    CollationFor {
+        expr: Box<Expr>,
+    },
     Parameter(i32),
     Array(Vec<Expr>),
     Subscript {
@@ -1288,8 +1323,8 @@ pub struct NamedWindow {
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum DmlPartitionClause {
-    Partition(String),
-    Subpartition(String),
+    Partition(Vec<String>),
+    Subpartition(Vec<String>),
     PartitionFor(Vec<Expr>),
     SubpartitionFor(Vec<Expr>),
 }
@@ -1297,6 +1332,7 @@ pub enum DmlPartitionClause {
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct InsertStatement {
     pub hints: Vec<String>,
+    pub with: Option<WithClause>,
     pub table: ObjectName,
     pub alias: Option<String>,
     pub partition: Option<DmlPartitionClause>,
@@ -1365,6 +1401,7 @@ pub struct InsertFirstStatement {
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct UpdateStatement {
     pub hints: Vec<String>,
+    pub with: Option<WithClause>,
     pub tables: Vec<TableRef>,
     pub partition: Option<DmlPartitionClause>,
     pub assignments: Vec<UpdateAssignment>,
@@ -1382,6 +1419,7 @@ pub struct UpdateAssignment {
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct DeleteStatement {
     pub hints: Vec<String>,
+    pub with: Option<WithClause>,
     pub tables: Vec<TableRef>,
     pub using: Vec<TableRef>,
     pub where_clause: Option<Expr>,
@@ -1582,6 +1620,8 @@ pub struct CreateSchemaStatement {
     pub if_not_exists: bool,
     pub name: Option<String>,
     pub authorization: Option<String>,
+    pub character_set: Option<String>,
+    pub collate: Option<String>,
     pub elements: Vec<SchemaElement>,
 }
 
@@ -1614,6 +1654,7 @@ pub struct CreateTablespaceStatement {
     pub owner: Option<String>,
     pub relative: bool,
     pub location: String,
+    pub maxsize: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -2718,6 +2759,14 @@ pub struct AlterOpFamilyStatement {
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct AlterOperatorStatement {
+    pub name: String,
+    pub left_type: String,
+    pub right_type: Option<String>,
+    pub raw_rest: String,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct AlterMaterializedViewStatement {
     pub name: ObjectName,
     pub raw_rest: String,
@@ -2831,6 +2880,7 @@ pub enum PurgeTarget {
     Table { name: ObjectName },
     Index { name: ObjectName },
     RecycleBin,
+    Snapshot { name: String },
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -2884,6 +2934,7 @@ pub struct SecLabelStatement {
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct CreatePolicyLabelStatement {
+    pub if_not_exists: bool,
     pub name: String,
     pub add: bool,
     pub label_type: String,

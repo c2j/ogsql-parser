@@ -61,7 +61,7 @@ impl Parser {
         Ok(stmt)
     }
 
-    fn parse_with_clause(&mut self) -> Result<Option<WithClause>, ParserError> {
+    pub(crate) fn parse_with_clause(&mut self) -> Result<Option<WithClause>, ParserError> {
         if !self.match_keyword(Keyword::WITH) {
             return Ok(None);
         }
@@ -94,12 +94,27 @@ impl Parser {
                 None
             };
             self.expect_token(&Token::LParen)?;
-            let query = self.parse_select_statement()?;
-            self.expect_token(&Token::RParen)?;
+            let query = if self.match_keyword(Keyword::VALUES) {
+                let raw_body = self.collect_until_balanced_paren();
+                let mut s = SelectStatement::default();
+                s.raw_body = Some(raw_body);
+                s
+            } else if matches!(self.peek_keyword(), Some(Keyword::UPDATE) | Some(Keyword::INSERT) | Some(Keyword::DELETE_P)) {
+                let raw_body = self.collect_until_balanced_paren();
+                let mut s = SelectStatement::default();
+                s.raw_body = Some(raw_body);
+                s
+            } else {
+                self.parse_select_statement()?
+            };
+            if !query.raw_body.is_some() {
+                self.expect_token(&Token::RParen)?;
+            }
             ctes.push(Cte {
                 name,
                 columns,
                 query: Box::new(query),
+                raw_body: None,
                 materialized,
             });
             if !self.match_token(&Token::Comma) {
@@ -257,6 +272,7 @@ impl Parser {
             fetch: None,
             lock_clause: None,
             window_clause: vec![],
+            raw_body: None,
         })
     }
 
@@ -613,16 +629,27 @@ impl Parser {
                 args
             };
             self.expect_token(&Token::RParen)?;
-            let alias = self.parse_optional_alias()?;
+            let alias = self.parse_optional_column_alias()?;
             let column_defs = if alias.is_some() && self.match_token(&Token::LParen) {
                 self.advance();
-                let mut defs = vec![self.parse_column_def()?];
+                let mut defs = vec![(self.parse_identifier()?, self.parse_optional_func_col_type()?)];
                 while self.match_token(&Token::Comma) {
                     self.advance();
-                    defs.push(self.parse_column_def()?);
+                    defs.push((self.parse_identifier()?, self.parse_optional_func_col_type()?));
                 }
                 self.expect_token(&Token::RParen)?;
-                defs
+                defs.into_iter().map(|(name, data_type)| crate::ast::ColumnDef {
+                    name,
+                    data_type,
+                    constraints: vec![],
+                    compress_mode: None,
+                    charset: None,
+                    collate: None,
+                    on_update: None,
+                    comment: None,
+                    generated: None,
+                    encrypted_with: None,
+                }).collect()
             } else {
                 vec![]
             };
@@ -719,6 +746,14 @@ impl Parser {
         if self.match_keyword(Keyword::OFFSET) {
             self.advance();
             stmt.offset = Some(self.parse_expr()?);
+        }
+        if stmt.limit.is_none() && self.match_keyword(Keyword::LIMIT) {
+            self.advance();
+            if self.match_keyword(Keyword::ALL) {
+                self.advance();
+            } else {
+                stmt.limit = Some(self.parse_expr()?);
+            }
         }
         stmt.fetch = self.parse_fetch_clause()?;
         stmt.lock_clause = self.parse_lock_clause()?;
@@ -993,5 +1028,13 @@ impl Parser {
             limit,
             offset,
         })
+    }
+
+    fn parse_optional_func_col_type(&mut self) -> Result<crate::ast::DataType, ParserError> {
+        use crate::ast::DataType;
+        if self.match_token(&Token::Comma) || self.match_token(&Token::RParen) {
+            return Ok(DataType::Text);
+        }
+        self.parse_data_type()
     }
 }

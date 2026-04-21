@@ -659,12 +659,19 @@ impl<'a> Tokenizer<'a> {
             match self.advance() {
                 None => return Err(TokenizerError::UnterminatedString(start)),
                 Some('\'') => {
-                    // Check for doubled quote ''
                     if self.peek() == Some('\'') {
                         self.advance();
                         result.push('\'');
                     } else {
                         return Ok(result);
+                    }
+                }
+                Some('\\') => {
+                    if self.peek() == Some('\'') {
+                        self.advance();
+                        result.push('\'');
+                    } else {
+                        result.push('\\');
                     }
                 }
                 Some(c) => result.push(c),

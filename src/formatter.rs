@@ -1162,6 +1162,23 @@ impl SqlFormatter {
                 }
                 result
             }
+            Expr::Treat { expr, type_name } => {
+                format!(
+                    "{}({} {} {})",
+                    self.kw("TREAT"),
+                    self.format_expr(expr),
+                    self.kw("AS"),
+                    self.format_data_type(type_name)
+                )
+            }
+            Expr::CollationFor { expr } => {
+                format!(
+                    "{} {} ({})",
+                    self.kw("COLLATION"),
+                    self.kw("FOR"),
+                    self.format_expr(expr)
+                )
+            }
             Expr::Parameter(n) => format!("${}", n),
             Expr::Array(elements) => {
                 format!("{}[{}]", self.kw("ARRAY"), self.format_exprs(elements))
@@ -1533,6 +1550,9 @@ impl SqlFormatter {
 
     fn format_insert(&self, stmt: &InsertStatement) -> String {
         let mut parts = Vec::new();
+        if let Some(ref w) = stmt.with {
+            parts.push(self.format_with(w));
+        }
         if let Some(hints) = self.format_hints(&stmt.hints) {
             parts.push(hints);
         }
@@ -2007,11 +2027,11 @@ impl SqlFormatter {
 
     fn format_dml_partition(&self, clause: &DmlPartitionClause) -> String {
         match clause {
-            DmlPartitionClause::Partition(name) => {
-                format!("{} ({})", self.kw("PARTITION"), name)
+            DmlPartitionClause::Partition(names) => {
+                format!("{} ({})", self.kw("PARTITION"), names.join(", "))
             }
-            DmlPartitionClause::Subpartition(name) => {
-                format!("{} ({})", self.kw("SUBPARTITION"), name)
+            DmlPartitionClause::Subpartition(names) => {
+                format!("{} ({})", self.kw("SUBPARTITION"), names.join(", "))
             }
             DmlPartitionClause::PartitionFor(exprs) => {
                 let formatted: Vec<String> = exprs.iter().map(|e| self.format_expr(e)).collect();
@@ -2037,7 +2057,7 @@ impl SqlFormatter {
     fn format_partition_clause(&self, clause: &PartitionClause) -> String {
         match clause {
             PartitionClause::Range {
-                column,
+                columns,
                 interval,
                 is_columns,
                 partitions_count,
@@ -2049,7 +2069,14 @@ impl SqlFormatter {
                     } else {
                         self.kw("PARTITION BY RANGE")
                     },
-                    format!("({})", self.format_object_name(column)),
+                    format!(
+                        "({})",
+                        columns
+                            .iter()
+                            .map(|c| self.format_object_name(c))
+                            .collect::<Vec<_>>()
+                            .join(", ")
+                    ),
                 ];
                 if let Some(iv) = interval {
                     parts.push(format!(
@@ -2067,7 +2094,7 @@ impl SqlFormatter {
                 parts.join(" ")
             }
             PartitionClause::List {
-                column,
+                columns,
                 is_columns,
                 partitions,
             } => {
@@ -2077,7 +2104,14 @@ impl SqlFormatter {
                     } else {
                         self.kw("PARTITION BY LIST")
                     },
-                    format!("({})", self.format_object_name(column)),
+                    format!(
+                        "({})",
+                        columns
+                            .iter()
+                            .map(|c| self.format_object_name(c))
+                            .collect::<Vec<_>>()
+                            .join(", ")
+                    ),
                 ];
                 if !partitions.is_empty() {
                     parts.push(self.format_partition_defs(partitions));
@@ -2085,13 +2119,20 @@ impl SqlFormatter {
                 parts.join(" ")
             }
             PartitionClause::Hash {
-                column,
+                columns,
                 partitions_count,
                 partitions,
             } => {
                 let mut parts = vec![
                     self.kw("PARTITION BY HASH"),
-                    format!("({})", self.format_object_name(column)),
+                    format!(
+                        "({})",
+                        columns
+                            .iter()
+                            .map(|c| self.format_object_name(c))
+                            .collect::<Vec<_>>()
+                            .join(", ")
+                    ),
                 ];
                 if let Some(n) = partitions_count {
                     parts.push(format!("{} {}", self.kw("PARTITIONS"), n));
@@ -2107,7 +2148,7 @@ impl SqlFormatter {
     fn format_subpartition_clause(&self, clause: &PartitionClause) -> String {
         match clause {
             PartitionClause::Range {
-                column,
+                columns,
                 is_columns,
                 partitions,
                 ..
@@ -2118,7 +2159,14 @@ impl SqlFormatter {
                     } else {
                         self.kw("SUBPARTITION BY RANGE")
                     },
-                    format!("({})", self.format_object_name(column)),
+                    format!(
+                        "({})",
+                        columns
+                            .iter()
+                            .map(|c| self.format_object_name(c))
+                            .collect::<Vec<_>>()
+                            .join(", ")
+                    ),
                 ];
                 if !partitions.is_empty() {
                     parts.push(self.format_partition_defs(partitions));
@@ -2126,7 +2174,7 @@ impl SqlFormatter {
                 parts.join(" ")
             }
             PartitionClause::List {
-                column,
+                columns,
                 is_columns,
                 partitions,
             } => {
@@ -2136,7 +2184,14 @@ impl SqlFormatter {
                     } else {
                         self.kw("SUBPARTITION BY LIST")
                     },
-                    format!("({})", self.format_object_name(column)),
+                    format!(
+                        "({})",
+                        columns
+                            .iter()
+                            .map(|c| self.format_object_name(c))
+                            .collect::<Vec<_>>()
+                            .join(", ")
+                    ),
                 ];
                 if !partitions.is_empty() {
                     parts.push(self.format_partition_defs(partitions));
@@ -2144,13 +2199,20 @@ impl SqlFormatter {
                 parts.join(" ")
             }
             PartitionClause::Hash {
-                column,
+                columns,
                 partitions_count,
                 partitions,
             } => {
                 let mut parts = vec![
                     self.kw("SUBPARTITION BY HASH"),
-                    format!("({})", self.format_object_name(column)),
+                    format!(
+                        "({})",
+                        columns
+                            .iter()
+                            .map(|c| self.format_object_name(c))
+                            .collect::<Vec<_>>()
+                            .join(", ")
+                    ),
                 ];
                 if let Some(n) = partitions_count {
                     parts.push(format!("{} {}", self.kw("SUBPARTITIONS"), n));
@@ -2256,6 +2318,18 @@ impl SqlFormatter {
                 self.kw("AS"),
                 self.format_expr(&g.expr),
                 stored_str
+            ));
+        }
+
+        if let Some(ew) = &col.encrypted_with {
+            parts.push(format!(
+                "{} {} ({} = {}, {} = {})",
+                self.kw("ENCRYPTED"),
+                self.kw("WITH"),
+                "COLUMN_ENCRYPTION_KEY",
+                ew.column_encryption_key,
+                "ENCRYPTION_TYPE",
+                ew.encryption_type
             ));
         }
 
@@ -2618,11 +2692,18 @@ impl SqlFormatter {
             }
             AlterTableAction::TruncatePartition {
                 name,
+                for_values,
                 cascade,
                 update_global_index,
                 update_distributed_global_index,
             } => {
-                let mut parts = vec![self.kw("TRUNCATE PARTITION"), self.quote_identifier(name)];
+                let partition_ref = if let Some(vals) = for_values {
+                    let val_strs: Vec<String> = vals.iter().map(|v| self.format_expr(v)).collect();
+                    format!("{} FOR ({})", self.kw("TRUNCATE PARTITION"), val_strs.join(", "))
+                } else {
+                    format!("{} {}", self.kw("TRUNCATE PARTITION"), self.quote_identifier(name))
+                };
+                let mut parts = vec![partition_ref];
                 if *cascade {
                     parts.push(self.kw("CASCADE"));
                 }
@@ -3055,8 +3136,11 @@ impl SqlFormatter {
                 ilm_parts.join(" ")
             }
             AlterTableAction::IlmEnablePolicy => self.kw("ILM ENABLE POLICY").to_string(),
+            AlterTableAction::IlmEnableAllPolicies => self.kw("ILM ENABLE_ALL").to_string(),
             AlterTableAction::IlmDisablePolicy => self.kw("ILM DISABLE POLICY").to_string(),
+            AlterTableAction::IlmDisableAllPolicies => self.kw("ILM DISABLE_ALL").to_string(),
             AlterTableAction::IlmDeletePolicy => self.kw("ILM DELETE POLICY").to_string(),
+            AlterTableAction::IlmDeleteAllPolicies => self.kw("ILM DELETE_ALL").to_string(),
             AlterTableAction::ModifyColumns(cols) => {
                 let defs: Vec<String> = cols
                     .iter()
@@ -3075,6 +3159,24 @@ impl SqlFormatter {
                     })
                     .collect();
                 format!("{} ({})", self.kw("MODIFY"), defs.join(", "))
+            }
+            AlterTableAction::ModifyPartition { name, action } => {
+                format!(
+                    "{} {} {} {}",
+                    self.kw("MODIFY"),
+                    self.kw("PARTITION"),
+                    self.quote_identifier(name),
+                    self.format_alter_table_action(action)
+                )
+            }
+            AlterTableAction::ModifySubPartition { name, action } => {
+                format!(
+                    "{} {} {} {}",
+                    self.kw("MODIFY"),
+                    self.kw("SUBPARTITION"),
+                    self.quote_identifier(name),
+                    self.format_alter_table_action(action)
+                )
             }
             AlterTableAction::AddColumns(cols) => {
                 let defs: Vec<String> = cols.iter().map(|c| self.format_column_def(c)).collect();
@@ -3202,6 +3304,16 @@ impl SqlFormatter {
                     self.kw("END"),
                     self.format_expr(end)
                 );
+                if let Some(e) = every {
+                    s = format!("{} {} ({})", s, self.kw("EVERY"), self.format_expr(e));
+                }
+                s
+            }
+            PartitionValues::StartOnly { start } => {
+                format!("{} ({})", self.kw("START"), self.format_expr(start))
+            }
+            PartitionValues::EndOnly { end, every } => {
+                let mut s = format!("{} ({})", self.kw("END"), self.format_expr(end));
                 if let Some(e) = every {
                     s = format!("{} {} ({})", s, self.kw("EVERY"), self.format_expr(e));
                 }
@@ -3601,6 +3713,15 @@ impl SqlFormatter {
             parts.push(self.kw("CYCLE"));
         }
 
+        if let Some(owned) = &stmt.owned_by {
+            parts.push(format!(
+                "{} {} {}",
+                self.kw("OWNED"),
+                self.kw("BY"),
+                self.format_object_name(owned)
+            ));
+        }
+
         parts.join(" ")
     }
 
@@ -3618,6 +3739,16 @@ impl SqlFormatter {
         if let Some(auth) = &stmt.authorization {
             parts.push(self.kw("AUTHORIZATION"));
             parts.push(self.quote_identifier(auth));
+        }
+
+        if let Some(cs) = &stmt.character_set {
+            parts.push(self.kw("CHARACTER SET"));
+            parts.push(self.quote_identifier(cs));
+        }
+
+        if let Some(coll) = &stmt.collate {
+            parts.push(self.kw("COLLATE"));
+            parts.push(self.quote_identifier(coll));
         }
 
         parts.join(" ")
@@ -3754,6 +3885,11 @@ impl SqlFormatter {
 
         parts.push(self.kw("LOCATION"));
         parts.push(self.quote_string(&stmt.location));
+
+        if let Some(maxsize) = &stmt.maxsize {
+            parts.push(self.kw("MAXSIZE"));
+            parts.push(self.quote_string(maxsize));
+        }
 
         parts.join(" ")
     }
@@ -5062,13 +5198,15 @@ impl SqlFormatter {
             .iter()
             .map(|t| self.format_object_name(t))
             .collect();
-        format!(
-            "CREATE RESOURCE LABEL {} {} {} ({})",
-            stmt.name,
-            op,
-            stmt.label_type,
-            targets.join(", ")
-        )
+        let mut s = format!("CREATE RESOURCE LABEL");
+        if stmt.if_not_exists {
+            s.push_str(" IF NOT EXISTS");
+        }
+        s.push_str(&format!(
+            " {} {} {} ({})",
+            stmt.name, op, stmt.label_type, targets.join(", ")
+        ));
+        s
     }
 
     fn format_alter_masking_policy(&self, stmt: &AlterMaskingPolicyStatement) -> String {
@@ -6722,6 +6860,12 @@ impl SqlFormatter {
                 s.push(' ');
                 s.push_str(&self.kw("RECYCLEBIN"));
             }
+            PurgeTarget::Snapshot { name } => {
+                s.push(' ');
+                s.push_str(&self.kw("SNAPSHOT"));
+                s.push(' ');
+                s.push_str(name);
+            }
         }
         s
     }
@@ -6821,6 +6965,7 @@ impl SqlFormatter {
         s
     }
 }
+
 #[cfg(test)]
 mod tests {
     use super::*;
