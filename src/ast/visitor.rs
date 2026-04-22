@@ -122,6 +122,13 @@ fn walk_insert(visitor: &mut dyn Visitor, insert: &InsertStatement) -> VisitorRe
             }
         }
         InsertSource::DefaultValues => {}
+        InsertSource::Set(assignments) => {
+            for a in assignments {
+                if walk_expr(visitor, &a.value) == VisitorResult::Stop {
+                    return VisitorResult::Stop;
+                }
+            }
+        }
     }
 
     VisitorResult::Continue
@@ -307,6 +314,13 @@ fn walk_expr(visitor: &mut dyn Visitor, expr: &Expr) -> VisitorResult {
         Expr::XmlSerialize { expr, .. } => {
             if walk_expr(visitor, expr) == VisitorResult::Stop {
                 return VisitorResult::Stop;
+            }
+        }
+        Expr::PredictBy { features, .. } => {
+            for f in features {
+                if walk_expr(visitor, f) == VisitorResult::Stop {
+                    return VisitorResult::Stop;
+                }
             }
         }
         _ => {}

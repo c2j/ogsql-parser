@@ -17,6 +17,7 @@ impl Parser {
 
         let mut columns = Vec::new();
         let mut constraints = Vec::new();
+        let mut like_clauses = Vec::new();
 
         loop {
             if self.match_keyword(Keyword::CONSTRAINT)
@@ -26,6 +27,9 @@ impl Parser {
                 || self.match_keyword(Keyword::FOREIGN)
             {
                 constraints.push(self.parse_table_constraint()?);
+            } else if self.match_keyword(Keyword::LIKE) {
+                self.advance();
+                like_clauses.push(self.parse_like_clause()?);
             } else {
                 columns.push(self.parse_column_def()?);
             }
@@ -47,6 +51,7 @@ impl Parser {
         let mut tablespace = None;
         let mut on_commit = None;
         let mut options = Vec::new();
+        let mut table_options = Vec::new();
         let mut compress = None;
         let mut ilm = None;
         let mut row_movement = None;
@@ -150,7 +155,11 @@ impl Parser {
                     },
                 };
                 self.expect_token(&Token::LParen)?;
-                let column = self.parse_object_name()?;
+                let mut columns = vec![self.parse_object_name()?];
+                while self.match_token(&Token::Comma) {
+                    self.advance();
+                    columns.push(self.parse_object_name()?);
+                }
                 self.expect_token(&Token::RParen)?;
 
                 let (interval, partitions, partitions_count) = match strategy {
@@ -215,19 +224,19 @@ impl Parser {
 
                 partition_by = Some(match strategy {
                     "range" => PartitionClause::Range {
-                        column,
+                        columns,
                         interval,
                         is_columns,
                         partitions_count,
                         partitions,
                     },
                     "list" => PartitionClause::List {
-                        column,
+                        columns,
                         is_columns,
                         partitions,
                     },
                     _ => PartitionClause::Hash {
-                        column,
+                        columns,
                         partitions_count,
                         partitions,
                     },
@@ -267,7 +276,11 @@ impl Parser {
                     },
                 };
                 self.expect_token(&Token::LParen)?;
-                let column = self.parse_object_name()?;
+                let mut columns = vec![self.parse_object_name()?];
+                while self.match_token(&Token::Comma) {
+                    self.advance();
+                    columns.push(self.parse_object_name()?);
+                }
                 self.expect_token(&Token::RParen)?;
 
                 let (sp_parts, sp_count) =
@@ -289,19 +302,19 @@ impl Parser {
 
                 subpartition_by = Some(match strategy {
                     "range" => PartitionClause::Range {
-                        column,
+                        columns,
                         interval: None,
                         is_columns,
                         partitions_count: None,
                         partitions: sp_parts,
                     },
                     "list" => PartitionClause::List {
-                        column,
+                        columns,
                         is_columns,
                         partitions: sp_parts,
                     },
                     _ => PartitionClause::Hash {
-                        column,
+                        columns,
                         partitions_count: sp_count,
                         partitions: sp_parts,
                     },
@@ -321,31 +334,33 @@ impl Parser {
                         if !parts.is_empty() {
                             partition_by = Some(match pb.clone() {
                                 PartitionClause::Range {
-                                    column,
+                                    columns,
                                     interval,
                                     is_columns,
                                     partitions_count,
                                     ..
                                 } => PartitionClause::Range {
-                                    column,
+                                    columns,
                                     interval,
                                     is_columns,
                                     partitions_count,
                                     partitions: parts,
                                 },
                                 PartitionClause::List {
-                                    column, is_columns, ..
+                                    columns,
+                                    is_columns,
+                                    ..
                                 } => PartitionClause::List {
-                                    column,
+                                    columns,
                                     is_columns,
                                     partitions: parts,
                                 },
                                 PartitionClause::Hash {
-                                    column,
+                                    columns,
                                     partitions_count,
                                     ..
                                 } => PartitionClause::Hash {
-                                    column,
+                                    columns,
                                     partitions_count,
                                     partitions: parts,
                                 },
@@ -392,10 +407,7 @@ impl Parser {
                         }
                         Token::Keyword(kw) => {
                             self.advance();
-                            format!("{:?}", kw)
-                                .to_lowercase()
-                                .trim_end_matches("_p")
-                                .to_string()
+                            kw.as_str().to_string()
                         }
                         _ => {
                             return Err(ParserError::UnexpectedToken {
@@ -469,6 +481,171 @@ impl Parser {
                 self.advance();
                 self.expect_keyword(Keyword::GROUP_P)?;
                 to_group = Some(self.parse_identifier()?);
+            } else if self.match_keyword(Keyword::TABLE) {
+                self.advance();
+                self.expect_keyword(Keyword::OPTION)?;
+                self.expect_token(&Token::LParen)?;
+                loop {
+                    let key = self.parse_identifier()?;
+                    if self.match_token(&Token::Eq) {
+                        self.advance();
+                    }
+                    let val = match self.peek().clone() {
+                        Token::StringLiteral(s) => {
+                            self.advance();
+                            s
+                        }
+                        Token::Ident(s) => {
+                            self.advance();
+                            s
+                        }
+                        Token::Integer(n) => {
+                            self.advance();
+                            n.to_string()
+                        }
+                        Token::Keyword(kw) => {
+                            self.advance();
+                            kw.as_str().to_string()
+                        }
+                        _ => {
+                            return Err(ParserError::UnexpectedToken {
+                                location: self.current_location(),
+                                expected: "option value".to_string(),
+                                got: format!("{:?}", self.peek()),
+                            });
+                        }
+                    };
+                    table_options.push((key, val));
+                    if !self.match_token(&Token::Comma) {
+                        break;
+                    }
+                    self.advance();
+                }
+                self.expect_token(&Token::RParen)?;
+            } else if self.match_keyword(Keyword::COMMENT) {
+                self.advance();
+                if self.match_token(&Token::Eq) {
+                    self.advance();
+                }
+                match self.peek().clone() {
+                    Token::StringLiteral(s) => {
+                        self.advance();
+                        table_options.push(("COMMENT".to_string(), s));
+                    }
+                    _ => {
+                        return Err(ParserError::UnexpectedToken {
+                            location: self.current_location(),
+                            expected: "string literal".to_string(),
+                            got: format!("{:?}", self.peek()),
+                        });
+                    }
+                }
+            } else if self.match_keyword(Keyword::DEFAULT) && {
+                // Lookahead: DEFAULT CHARACTER SET or DEFAULT COLLATE
+                let pos = self.pos;
+                self.advance();
+                let is_charset =
+                    self.match_keyword(Keyword::CHARACTER) || self.match_keyword(Keyword::CHARSET);
+                let is_collate = self.match_keyword(Keyword::COLLATE);
+                self.pos = pos;
+                is_charset || is_collate
+            } {
+                self.advance(); // consumed DEFAULT
+                if self.match_keyword(Keyword::CHARACTER) {
+                    self.advance();
+                    if self.match_keyword(Keyword::SET) {
+                        self.advance();
+                    }
+                    if self.match_token(&Token::Eq) {
+                        self.advance();
+                    }
+                    let val = self.parse_identifier()?;
+                    table_options.push(("CHARACTER SET".to_string(), val));
+                } else if self.match_keyword(Keyword::CHARSET) {
+                    self.advance();
+                    if self.match_token(&Token::Eq) {
+                        self.advance();
+                    }
+                    let val = self.parse_identifier()?;
+                    table_options.push(("CHARSET".to_string(), val));
+                } else if self.match_keyword(Keyword::COLLATE) {
+                    self.advance();
+                    if self.match_token(&Token::Eq) {
+                        self.advance();
+                    }
+                    let val = self.parse_identifier()?;
+                    table_options.push(("COLLATE".to_string(), val));
+                }
+            } else if self.match_keyword(Keyword::CHARACTER) {
+                self.advance();
+                if self.match_keyword(Keyword::SET) {
+                    self.advance();
+                }
+                if self.match_token(&Token::Eq) {
+                    self.advance();
+                }
+                let val = self.parse_identifier()?;
+                table_options.push(("CHARACTER SET".to_string(), val));
+            } else if self.match_keyword(Keyword::CHARSET) {
+                self.advance();
+                if self.match_token(&Token::Eq) {
+                    self.advance();
+                }
+                let val = self.parse_identifier()?;
+                table_options.push(("CHARSET".to_string(), val));
+            } else if self.match_keyword(Keyword::COLLATE) {
+                self.advance();
+                if self.match_token(&Token::Eq) {
+                    self.advance();
+                }
+                let val = self.parse_identifier()?;
+                table_options.push(("COLLATE".to_string(), val));
+            } else if self.match_keyword(Keyword::ENCRYPTION) {
+                self.advance();
+                if self.match_keyword(Keyword::COLUMN) {
+                    self.advance();
+                }
+                let spec = self.parse_identifier()?;
+                table_options.push(("ENCRYPTION COLUMN".to_string(), spec));
+            } else if matches!(
+                self.peek_keyword(),
+                Some(Keyword::PCTFREE) | Some(Keyword::INITRANS) | Some(Keyword::MAXTRANS)
+            ) || self.match_ident_str("PCTUSED")
+            {
+                let key = self.consume_any_identifier()?;
+                let val =
+                    self.consume_any_identifier()
+                        .unwrap_or_else(|_| match self.peek().clone() {
+                            Token::Integer(n) => {
+                                self.advance();
+                                n.to_string()
+                            }
+                            _ => String::new(),
+                        });
+                table_options.push((key.to_uppercase(), val));
+            } else if self.match_keyword(Keyword::STORAGE) {
+                self.advance();
+                let raw = self.collect_until_boundary(&[
+                    Token::Semicolon,
+                    Token::Keyword(Keyword::PARTITION),
+                    Token::Keyword(Keyword::WITH),
+                    Token::Keyword(Keyword::TABLESPACE),
+                    Token::Keyword(Keyword::COMPRESS),
+                    Token::Keyword(Keyword::NOCOMPRESS),
+                    Token::Keyword(Keyword::DISTRIBUTE),
+                    Token::Keyword(Keyword::ENABLE_P),
+                    Token::Keyword(Keyword::DISABLE_P),
+                    Token::Keyword(Keyword::COMMENT),
+                    Token::Keyword(Keyword::DEFAULT),
+                    Token::Keyword(Keyword::CHARACTER),
+                    Token::Keyword(Keyword::CHARSET),
+                    Token::Keyword(Keyword::COLLATE),
+                    Token::Keyword(Keyword::ENCRYPTION),
+                    Token::Keyword(Keyword::PCTFREE),
+                    Token::Keyword(Keyword::INITRANS),
+                    Token::Keyword(Keyword::MAXTRANS),
+                ]);
+                table_options.push(("STORAGE".to_string(), raw));
             } else {
                 break;
             }
@@ -481,6 +658,7 @@ impl Parser {
             name,
             columns,
             constraints,
+            like_clauses,
             inherits,
             partition_by,
             subpartition_by,
@@ -490,6 +668,7 @@ impl Parser {
             tablespace,
             on_commit,
             options,
+            table_options,
             compress,
             ilm,
             row_movement,
@@ -504,6 +683,20 @@ impl Parser {
         self.expect_keyword(Keyword::TABLE)?;
         let if_not_exists = self.parse_if_not_exists();
         let name = self.parse_object_name()?;
+
+        let column_names = if self.match_token(&Token::LParen) {
+            self.advance();
+            let mut cols = vec![self.parse_identifier()?];
+            while self.match_token(&Token::Comma) {
+                self.advance();
+                cols.push(self.parse_identifier()?);
+            }
+            self.expect_token(&Token::RParen)?;
+            cols
+        } else {
+            vec![]
+        };
+
         self.expect_keyword(Keyword::AS)?;
 
         let (query, as_table) = if self.match_keyword(Keyword::TABLE) {
@@ -520,17 +713,22 @@ impl Parser {
                 from: vec![TableRef::Table {
                     name: table_name.clone(),
                     alias: None,
+                    partition: None,
+                    timecapsule: None,
                 }],
                 where_clause: None,
                 connect_by: None,
                 group_by: vec![],
                 having: None,
                 order_by: vec![],
+                order_siblings: false,
                 limit: None,
                 offset: None,
                 fetch: None,
                 lock_clause: None,
+                window_clause: vec![],
                 set_operation: None,
+                raw_body: None,
             };
             (Box::new(synthetic_query), Some(table_name))
         } else {
@@ -556,7 +754,7 @@ impl Parser {
                 unlogged,
                 if_not_exists,
                 name,
-                column_names: Vec::new(),
+                column_names,
                 query,
                 as_table,
                 with_data,
@@ -576,6 +774,57 @@ impl Parser {
             }
         }
         false
+    }
+
+    fn parse_like_clause(&mut self) -> Result<LikeClause, ParserError> {
+        let source_table = self.parse_object_name()?;
+        let mut options = Vec::new();
+        loop {
+            let is_including = if self.match_keyword(Keyword::INCLUDING) {
+                self.advance();
+                true
+            } else if self.match_keyword(Keyword::EXCLUDING) {
+                self.advance();
+                false
+            } else {
+                break;
+            };
+            let option_name = if self.match_keyword(Keyword::DEFAULTS) {
+                self.advance();
+                "DEFAULTS".to_string()
+            } else if self.match_keyword(Keyword::CONSTRAINTS) {
+                self.advance();
+                "CONSTRAINTS".to_string()
+            } else if self.match_keyword(Keyword::INDEXES) {
+                self.advance();
+                "INDEXES".to_string()
+            } else if self.match_keyword(Keyword::STORAGE) {
+                self.advance();
+                "STORAGE".to_string()
+            } else if self.match_keyword(Keyword::COMMENTS) {
+                self.advance();
+                "COMMENTS".to_string()
+            } else if self.match_keyword(Keyword::PARTITION) {
+                self.advance();
+                "PARTITION".to_string()
+            } else if self.match_keyword(Keyword::RELOPTIONS) {
+                self.advance();
+                "RELOPTIONS".to_string()
+            } else if self.match_keyword(Keyword::DISTRIBUTION) {
+                self.advance();
+                "DISTRIBUTION".to_string()
+            } else if self.match_keyword(Keyword::ALL) {
+                self.advance();
+                "ALL".to_string()
+            } else {
+                break;
+            };
+            options.push((is_including, option_name));
+        }
+        Ok(LikeClause {
+            source_table,
+            options,
+        })
     }
 
     pub(crate) fn parse_column_def(&mut self) -> Result<ColumnDef, ParserError> {
@@ -598,44 +847,202 @@ impl Parser {
             None
         };
 
+        let mut charset = None;
+        let mut collate = None;
+
+        if self.match_keyword(Keyword::CHARACTER) || self.match_keyword(Keyword::CHARSET) {
+            let is_charset_keyword = self.match_keyword(Keyword::CHARSET);
+            self.advance();
+            if !is_charset_keyword && self.match_keyword(Keyword::SET) {
+                self.advance();
+            }
+            if self.match_token(&Token::Eq) {
+                self.advance();
+            }
+            charset = Some(self.parse_identifier()?);
+        }
+
+        if self.match_keyword(Keyword::COLLATE) {
+            self.advance();
+            if self.match_token(&Token::Eq) {
+                self.advance();
+            }
+            collate = Some(self.parse_identifier()?);
+        }
+
         let mut constraints = Vec::new();
         while let Some(constraint) = self.try_parse_column_constraint()? {
             constraints.push(constraint);
         }
+
+        self.consume_opt_using_index_attrs();
+
+        if charset.is_none()
+            && (self.match_keyword(Keyword::CHARACTER) || self.match_keyword(Keyword::CHARSET))
+        {
+            let is_charset_keyword = self.match_keyword(Keyword::CHARSET);
+            self.advance();
+            if !is_charset_keyword && self.match_keyword(Keyword::SET) {
+                self.advance();
+            }
+            if self.match_token(&Token::Eq) {
+                self.advance();
+            }
+            charset = Some(self.parse_identifier()?);
+        }
+
+        if collate.is_none() && self.match_keyword(Keyword::COLLATE) {
+            self.advance();
+            if self.match_token(&Token::Eq) {
+                self.advance();
+            }
+            collate = Some(self.parse_identifier()?);
+        }
+
+        let mut on_update = None;
+        if self.match_keyword(Keyword::ON) {
+            let pos = self.pos;
+            self.advance();
+            if self.match_keyword(Keyword::UPDATE) {
+                self.advance();
+                let expr = if self.match_keyword(Keyword::CURRENT_TIMESTAMP) {
+                    self.advance();
+                    "CURRENT_TIMESTAMP".to_string()
+                } else if self.match_ident_str("LOCALTIMESTAMP") {
+                    self.advance();
+                    "LOCALTIMESTAMP".to_string()
+                } else if self.match_ident_str("NOW") {
+                    self.advance();
+                    self.expect_token(&Token::LParen)?;
+                    self.advance();
+                    self.expect_token(&Token::RParen)?;
+                    "NOW()".to_string()
+                } else {
+                    self.parse_identifier()?
+                };
+                on_update = Some(expr);
+            } else {
+                self.pos = pos;
+            }
+        }
+
+        let mut comment = None;
+        if self.try_consume_keyword(Keyword::COMMENT) {
+            comment = Some(self.parse_string_literal()?);
+        }
+
+        let mut generated = None;
+        if self.match_keyword(Keyword::GENERATED) {
+            self.advance();
+            if self.try_consume_keyword(Keyword::ALWAYS) {
+                self.expect_keyword(Keyword::AS)?;
+                if self.match_token(&Token::LParen) {
+                    self.advance();
+                    let expr = self.parse_expr()?;
+                    self.expect_token(&Token::RParen)?;
+                    let stored = self.try_consume_keyword(Keyword::STORED);
+                    generated = Some(crate::ast::GeneratedColumn { expr, stored });
+                } else if self.try_consume_keyword(Keyword::IDENTITY_P) {
+                    if self.match_token(&Token::LParen) {
+                        self.advance();
+                        while !self.match_token(&Token::RParen) && !self.peek().eq(&Token::Eof) {
+                            self.advance();
+                        }
+                        if self.match_token(&Token::RParen) {
+                            self.advance();
+                        }
+                    }
+                }
+            } else if self.try_consume_keyword(Keyword::BY) {
+                self.expect_keyword(Keyword::DEFAULT)?;
+                self.try_consume_keyword(Keyword::ON);
+                self.try_consume_keyword(Keyword::NULL_P);
+                self.expect_keyword(Keyword::AS)?;
+                self.expect_keyword(Keyword::IDENTITY_P)?;
+                if self.match_token(&Token::LParen) {
+                    self.advance();
+                    while !self.match_token(&Token::RParen) && !self.peek().eq(&Token::Eof) {
+                        self.advance();
+                    }
+                    if self.match_token(&Token::RParen) {
+                        self.advance();
+                    }
+                }
+            }
+        }
+
+        let encrypted_with = if self.match_keyword(Keyword::ENCRYPTED) {
+            self.advance();
+            self.expect_keyword(Keyword::WITH)?;
+            self.expect_token(&Token::LParen)?;
+            let mut column_encryption_key = None;
+            let mut encryption_type = None;
+            loop {
+                let key = self.consume_any_identifier()?;
+                self.expect_token(&Token::Eq)?;
+                let value = self.consume_any_identifier()?;
+                match key.to_uppercase().as_str() {
+                    "COLUMN_ENCRYPTION_KEY" => column_encryption_key = Some(value),
+                    "ENCRYPTION_TYPE" => encryption_type = Some(value),
+                    _ => {}
+                }
+                if !self.match_token(&Token::Comma) {
+                    break;
+                }
+                self.advance();
+            }
+            self.expect_token(&Token::RParen)?;
+            Some(crate::ast::EncryptedWith {
+                column_encryption_key: column_encryption_key.unwrap_or_default(),
+                encryption_type: encryption_type.unwrap_or_default(),
+            })
+        } else {
+            None
+        };
 
         Ok(ColumnDef {
             name,
             data_type,
             constraints,
             compress_mode,
+            charset,
+            collate,
+            on_update,
+            comment,
+            generated,
+            encrypted_with,
         })
     }
 
     pub(crate) fn parse_data_type(&mut self) -> Result<DataType, ParserError> {
-        match self.peek_keyword() {
+        let result = match self.peek_keyword() {
             Some(Keyword::BOOLEAN_P) => {
                 self.advance();
-                Ok(DataType::Boolean)
+                DataType::Boolean
             }
             Some(Keyword::TINYINT) => {
                 self.advance();
-                Ok(DataType::TinyInt)
+                let precision = self.parse_opt_int_precision()?;
+                DataType::TinyInt(precision)
             }
             Some(Keyword::SMALLINT) => {
                 self.advance();
-                Ok(DataType::SmallInt)
+                let precision = self.parse_opt_int_precision()?;
+                DataType::SmallInt(precision)
             }
             Some(Keyword::INTEGER) | Some(Keyword::INT_P) => {
                 self.advance();
-                Ok(DataType::Integer)
+                let precision = self.parse_opt_int_precision()?;
+                DataType::Integer(precision)
             }
             Some(Keyword::BIGINT) => {
                 self.advance();
-                Ok(DataType::BigInt)
+                let precision = self.parse_opt_int_precision()?;
+                DataType::BigInt(precision)
             }
             Some(Keyword::REAL) => {
                 self.advance();
-                Ok(DataType::Real)
+                DataType::Real
             }
             Some(Keyword::FLOAT_P) => {
                 self.advance();
@@ -647,14 +1054,14 @@ impl Parser {
                 } else {
                     None
                 };
-                Ok(DataType::Float(precision))
+                DataType::Float(precision)
             }
             Some(Keyword::DOUBLE_P) => {
                 self.advance();
                 if self.match_keyword(Keyword::PRECISION) {
                     self.advance();
                 }
-                Ok(DataType::Double)
+                DataType::Double
             }
             Some(Keyword::NUMERIC) | Some(Keyword::DECIMAL_P) => {
                 self.advance();
@@ -672,19 +1079,32 @@ impl Parser {
                 } else {
                     (None, None)
                 };
-                Ok(DataType::Numeric(precision, scale))
+                DataType::Numeric(precision, scale)
             }
-            Some(Keyword::CHAR_P) => {
+            Some(Keyword::CHAR_P) | Some(Keyword::CHARACTER) => {
                 self.advance();
-                let len = if self.match_token(&Token::LParen) {
+                if self.match_keyword(Keyword::VARYING) {
                     self.advance();
-                    let n = self.parse_int_literal()?;
-                    self.expect_token(&Token::RParen)?;
-                    Some(n)
+                    let len = if self.match_token(&Token::LParen) {
+                        self.advance();
+                        let n = self.parse_int_literal()?;
+                        self.expect_token(&Token::RParen)?;
+                        Some(n)
+                    } else {
+                        None
+                    };
+                    DataType::Varchar(len)
                 } else {
-                    None
-                };
-                Ok(DataType::Char(len))
+                    let len = if self.match_token(&Token::LParen) {
+                        self.advance();
+                        let n = self.parse_int_literal()?;
+                        self.expect_token(&Token::RParen)?;
+                        Some(n)
+                    } else {
+                        None
+                    };
+                    DataType::Char(len)
+                }
             }
             Some(Keyword::VARCHAR) => {
                 self.advance();
@@ -696,15 +1116,15 @@ impl Parser {
                 } else {
                     None
                 };
-                Ok(DataType::Varchar(len))
+                DataType::Varchar(len)
             }
             Some(Keyword::TEXT_P) => {
                 self.advance();
-                Ok(DataType::Text)
+                DataType::Text
             }
             Some(Keyword::BYTE_P) => {
                 self.advance();
-                Ok(DataType::Bytea)
+                DataType::Bytea
             }
             Some(Keyword::TIMESTAMP) => {
                 self.advance();
@@ -717,11 +1137,11 @@ impl Parser {
                     None
                 };
                 let tz = self.parse_timezone_info()?;
-                Ok(DataType::Timestamp(precision, tz))
+                DataType::Timestamp(precision, tz)
             }
             Some(Keyword::DATE_P) => {
                 self.advance();
-                Ok(DataType::Date)
+                DataType::Date
             }
             Some(Keyword::TIME) => {
                 self.advance();
@@ -734,11 +1154,12 @@ impl Parser {
                     None
                 };
                 let tz = self.parse_timezone_info()?;
-                Ok(DataType::Time(precision, tz))
+                DataType::Time(precision, tz)
             }
             Some(Keyword::INTERVAL) => {
                 self.advance();
-                Ok(DataType::Interval)
+                let it = self.parse_opt_interval_type()?;
+                DataType::Interval(it)
             }
             Some(Keyword::BIT) => {
                 self.advance();
@@ -752,7 +1173,7 @@ impl Parser {
                     } else {
                         None
                     };
-                    Ok(DataType::Varbit(len))
+                    DataType::Varbit(len)
                 } else {
                     let len = if self.match_token(&Token::LParen) {
                         self.advance();
@@ -762,7 +1183,7 @@ impl Parser {
                     } else {
                         None
                     };
-                    Ok(DataType::Bit(len))
+                    DataType::Bit(len)
                 }
             }
             _ => {
@@ -770,51 +1191,79 @@ impl Parser {
                     match s.to_uppercase().as_str() {
                         "SERIAL" => {
                             self.advance();
-                            return Ok(DataType::Serial);
+                            DataType::Serial
                         }
                         "SMALLSERIAL" => {
                             self.advance();
-                            return Ok(DataType::SmallSerial);
+                            DataType::SmallSerial
                         }
                         "BIGSERIAL" => {
                             self.advance();
-                            return Ok(DataType::BigSerial);
+                            DataType::BigSerial
                         }
                         "BINARY_FLOAT" => {
                             self.advance();
-                            return Ok(DataType::BinaryFloat);
+                            DataType::BinaryFloat
                         }
                         "BINARY_DOUBLE" => {
                             self.advance();
-                            return Ok(DataType::BinaryDouble);
+                            DataType::BinaryDouble
                         }
                         "BOOL" => {
                             self.advance();
-                            return Ok(DataType::Boolean);
+                            DataType::Boolean
                         }
-                        _ => {}
-                    }
-                }
-                let name = self.parse_object_name()?;
-                let args = if self.match_token(&Token::LParen) {
-                    self.advance();
-                    let mut args = Vec::new();
-                    loop {
-                        args.push(self.parse_expr()?);
-                        if self.match_token(&Token::Comma) {
-                            self.advance();
-                        } else {
-                            break;
+                        _ => {
+                            let name = self.parse_object_name()?;
+                            let args = if self.match_token(&Token::LParen) {
+                                self.advance();
+                                let mut args = Vec::new();
+                                loop {
+                                    args.push(self.parse_expr()?);
+                                    if self.match_token(&Token::Comma) {
+                                        self.advance();
+                                    } else {
+                                        break;
+                                    }
+                                }
+                                self.expect_token(&Token::RParen)?;
+                                args
+                            } else {
+                                Vec::new()
+                            };
+                            DataType::Custom(name, args)
                         }
                     }
-                    self.expect_token(&Token::RParen)?;
-                    args
                 } else {
-                    Vec::new()
-                };
-                Ok(DataType::Custom(name, args))
+                    let name = self.parse_object_name()?;
+                    let args = if self.match_token(&Token::LParen) {
+                        self.advance();
+                        let mut args = Vec::new();
+                        loop {
+                            args.push(self.parse_expr()?);
+                            if self.match_token(&Token::Comma) {
+                                self.advance();
+                            } else {
+                                break;
+                            }
+                        }
+                        self.expect_token(&Token::RParen)?;
+                        args
+                    } else {
+                        Vec::new()
+                    };
+                    DataType::Custom(name, args)
+                }
             }
+        };
+        // Check for array suffix [] (possibly multiple, for multi-dimensional arrays)
+        let mut result = result;
+        while self.match_token(&Token::LBracket) {
+            self.advance();
+            self.expect_token(&Token::RBracket)?;
+            result = DataType::Array(Box::new(result));
         }
+        Ok(result)
     }
 
     fn parse_int_literal(&mut self) -> Result<u32, ParserError> {
@@ -829,6 +1278,68 @@ impl Parser {
                 expected: "integer literal".to_string(),
                 got: format!("{:?}", self.peek()),
             }),
+        }
+    }
+
+    fn parse_opt_int_precision(&mut self) -> Result<Option<u32>, ParserError> {
+        if self.match_token(&Token::LParen) {
+            self.advance();
+            let n = self.parse_int_literal()?;
+            if self.match_token(&Token::Comma) {
+                self.advance();
+                let _scale = self.parse_int_literal()?;
+            }
+            self.expect_token(&Token::RParen)?;
+            Ok(Some(n))
+        } else {
+            Ok(None)
+        }
+    }
+
+    fn parse_opt_interval_type(&mut self) -> Result<Option<IntervalType>, ParserError> {
+        let unit = match self.peek_keyword() {
+            Some(Keyword::YEAR_P) => "YEAR",
+            Some(Keyword::MONTH_P) => "MONTH",
+            Some(Keyword::DAY_P) => "DAY",
+            Some(Keyword::HOUR_P) => "HOUR",
+            Some(Keyword::MINUTE_P) => "MINUTE",
+            Some(Keyword::SECOND_P) => "SECOND",
+            _ => return Ok(None),
+        };
+        self.advance();
+        let from_precision = self.parse_opt_int_precision().ok().flatten();
+        if self.match_keyword(Keyword::TO) {
+            self.advance();
+            let to_unit = match self.peek_keyword() {
+                Some(Keyword::YEAR_P) => "YEAR",
+                Some(Keyword::MONTH_P) => "MONTH",
+                Some(Keyword::DAY_P) => "DAY",
+                Some(Keyword::HOUR_P) => "HOUR",
+                Some(Keyword::MINUTE_P) => "MINUTE",
+                Some(Keyword::SECOND_P) => "SECOND",
+                _ => {
+                    return Err(ParserError::UnexpectedToken {
+                        location: self.current_location(),
+                        expected: "interval unit after TO".to_string(),
+                        got: format!("{:?}", self.peek()),
+                    })
+                }
+            };
+            self.advance();
+            let to_precision = self.parse_opt_int_precision().ok().flatten();
+            Ok(Some(IntervalType {
+                from: unit.to_string(),
+                from_precision,
+                to: Some(to_unit.to_string()),
+                to_precision,
+            }))
+        } else {
+            Ok(Some(IntervalType {
+                from: unit.to_string(),
+                from_precision,
+                to: None,
+                to_precision: None,
+            }))
         }
     }
 
@@ -864,37 +1375,89 @@ impl Parser {
         }
     }
 
+    fn consume_opt_enable_disable(&mut self) {
+        if self.match_keyword(Keyword::ENABLE_P) || self.match_keyword(Keyword::DISABLE_P) {
+            self.advance();
+        }
+    }
+
+    fn consume_opt_using_index_tablespace(&mut self) {
+        if self.match_keyword(Keyword::USING) {
+            self.advance();
+            if self.match_keyword(Keyword::INDEX) {
+                self.advance();
+            }
+            if self.match_keyword(Keyword::TABLESPACE) {
+                self.advance();
+                let _ = self.parse_identifier();
+            }
+        }
+    }
+
+    fn consume_opt_using_index_attrs(&mut self) {
+        if !self.match_keyword(Keyword::USING) {
+            return;
+        }
+        self.advance();
+        if self.match_keyword(Keyword::INDEX) {
+            self.advance();
+        }
+        while let Some(kw) = self.peek_keyword() {
+            match kw {
+                Keyword::PCTFREE
+                | Keyword::INITRANS
+                | Keyword::MAXTRANS
+                | Keyword::STORAGE
+                | Keyword::TABLESPACE => {
+                    self.advance();
+                    let _ = self.parse_expr();
+                }
+                _ => break,
+            }
+        }
+    }
+
     fn try_parse_column_constraint(&mut self) -> Result<Option<ColumnConstraint>, ParserError> {
-        match self.peek_keyword() {
+        let result = match self.peek_keyword() {
             Some(Keyword::NOT) => {
                 self.advance();
                 self.expect_keyword(Keyword::NULL_P)?;
-                Ok(Some(ColumnConstraint::NotNull))
+                Some(ColumnConstraint::NotNull)
             }
             Some(Keyword::NULL_P) => {
                 self.advance();
-                Ok(Some(ColumnConstraint::Null))
+                Some(ColumnConstraint::Null)
             }
             Some(Keyword::DEFAULT) => {
                 self.advance();
                 let expr = self.parse_expr()?;
-                Ok(Some(ColumnConstraint::Default(expr)))
+                Some(ColumnConstraint::Default(expr))
             }
             Some(Keyword::UNIQUE) => {
                 self.advance();
-                Ok(Some(ColumnConstraint::Unique))
+                self.consume_opt_using_index_tablespace();
+                self.try_consume_keyword(Keyword::DEFERRABLE);
+                if self.match_keyword(Keyword::WITH) {
+                    let _ = self.parse_generic_options();
+                }
+                Some(ColumnConstraint::Unique)
             }
             Some(Keyword::PRIMARY) => {
                 self.advance();
                 self.expect_keyword(Keyword::KEY)?;
-                Ok(Some(ColumnConstraint::PrimaryKey))
+                self.consume_opt_using_index_tablespace();
+                self.try_consume_keyword(Keyword::DEFERRABLE);
+                if self.match_keyword(Keyword::WITH) {
+                    let _ = self.parse_generic_options();
+                }
+                Some(ColumnConstraint::PrimaryKey)
             }
             Some(Keyword::CHECK) => {
                 self.advance();
                 self.expect_token(&Token::LParen)?;
                 let expr = self.parse_expr()?;
                 self.expect_token(&Token::RParen)?;
-                Ok(Some(ColumnConstraint::Check(expr)))
+                Some(ColumnConstraint::Check(expr))
             }
             Some(Keyword::REFERENCES) => {
                 self.advance();
@@ -911,29 +1474,111 @@ impl Parser {
                 } else {
                     Vec::new()
                 };
-                Ok(Some(ColumnConstraint::References(table, columns)))
+                Some(ColumnConstraint::References(table, columns))
             }
-            _ => Ok(None),
+            _ => None,
+        };
+        if result.is_some() {
+            self.consume_opt_enable_disable();
         }
+        Ok(result)
     }
 
     pub(crate) fn parse_table_constraint(&mut self) -> Result<TableConstraint, ParserError> {
         if self.match_keyword(Keyword::CONSTRAINT) {
             self.advance();
-            let _name = self.parse_identifier()?;
+            if !self.match_keyword(Keyword::PRIMARY)
+                && !self.match_keyword(Keyword::UNIQUE)
+                && !self.match_keyword(Keyword::CHECK)
+                && !self.match_keyword(Keyword::FOREIGN)
+            {
+                let _name = self.parse_identifier()?;
+            }
         }
 
         match self.peek_keyword() {
             Some(Keyword::PRIMARY) => {
                 self.advance();
                 self.expect_keyword(Keyword::KEY)?;
+                if self.try_consume_keyword(Keyword::USING) {
+                    let _ = self.consume_any_identifier();
+                }
                 let columns = self.parse_column_list()?;
-                Ok(TableConstraint::PrimaryKey(columns))
+                let mut using_index = None;
+                if self.try_consume_keyword(Keyword::USING) {
+                    self.try_consume_keyword(Keyword::INDEX);
+                    let index_name = if !matches!(
+                        self.peek_keyword(),
+                        Some(Keyword::PCTFREE) | Some(Keyword::INITRANS) | Some(Keyword::MAXTRANS)
+                    ) && !self.match_keyword(Keyword::STORAGE)
+                        && !self.match_keyword(Keyword::TABLESPACE)
+                    {
+                        self.consume_any_identifier().ok()
+                    } else {
+                        None
+                    };
+                    let mut parts = Vec::new();
+                    if let Some(n) = index_name {
+                        parts.push(n);
+                    }
+                    loop {
+                        if matches!(
+                            self.peek_keyword(),
+                            Some(Keyword::PCTFREE)
+                                | Some(Keyword::INITRANS)
+                                | Some(Keyword::MAXTRANS)
+                        ) {
+                            let key = self.consume_any_identifier()?;
+                            let val = self.consume_any_identifier().unwrap_or_else(|_| match self
+                                .peek()
+                                .clone()
+                            {
+                                Token::Integer(n) => {
+                                    self.advance();
+                                    n.to_string()
+                                }
+                                _ => String::new(),
+                            });
+                            parts.push(format!("{} {}", key, val));
+                        } else if self.match_keyword(Keyword::STORAGE) {
+                            self.advance();
+                            let raw = self.collect_until_balanced_paren();
+                            parts.push(format!("STORAGE ({})", raw));
+                        } else if self.match_keyword(Keyword::TABLESPACE) {
+                            self.advance();
+                            let ts = self.consume_any_identifier().unwrap_or_default();
+                            parts.push(format!("TABLESPACE {}", ts));
+                        } else {
+                            break;
+                        }
+                    }
+                    using_index = if parts.is_empty() {
+                        None
+                    } else {
+                        Some(parts.join(" "))
+                    };
+                }
+                Ok(TableConstraint::PrimaryKey {
+                    columns,
+                    using_index,
+                })
             }
             Some(Keyword::UNIQUE) => {
                 self.advance();
                 let columns = self.parse_column_list()?;
-                Ok(TableConstraint::Unique(columns))
+                let mut deferrable = false;
+                if self.try_consume_keyword(Keyword::DEFERRABLE) {
+                    deferrable = true;
+                }
+                let mut with_options = Vec::new();
+                if self.match_keyword(Keyword::WITH) {
+                    with_options = self.parse_generic_options();
+                }
+                Ok(TableConstraint::Unique {
+                    columns,
+                    deferrable,
+                    with_options,
+                })
             }
             Some(Keyword::CHECK) => {
                 self.advance();
@@ -966,9 +1611,15 @@ impl Parser {
     fn parse_column_list(&mut self) -> Result<Vec<String>, ParserError> {
         self.expect_token(&Token::LParen)?;
         let mut columns = vec![self.parse_identifier()?];
+        if self.match_keyword(Keyword::ASC) || self.match_keyword(Keyword::DESC) {
+            self.advance();
+        }
         while self.match_token(&Token::Comma) {
             self.advance();
             columns.push(self.parse_identifier()?);
+            if self.match_keyword(Keyword::ASC) || self.match_keyword(Keyword::DESC) {
+                self.advance();
+            }
         }
         self.expect_token(&Token::RParen)?;
         Ok(columns)

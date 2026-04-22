@@ -1,5 +1,14 @@
 pub mod plpgsql;
 
+// ── Builtin Function Metadata ──
+
+/// Metadata for a recognized built-in function, attached to `FunctionCall` AST nodes.
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct BuiltinFuncMeta {
+    pub category: String,
+    pub domain: String,
+}
+
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct IlmPolicy {
     pub after_n: u64,
@@ -15,6 +24,8 @@ pub struct CreateTableStatement {
     pub name: ObjectName,
     pub columns: Vec<ColumnDef>,
     pub constraints: Vec<TableConstraint>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub like_clauses: Vec<LikeClause>,
     pub inherits: Vec<ObjectName>,
     pub partition_by: Option<PartitionClause>,
     pub subpartition_by: Option<PartitionClause>,
@@ -24,9 +35,22 @@ pub struct CreateTableStatement {
     pub tablespace: Option<String>,
     pub on_commit: Option<OnCommitAction>,
     pub options: Vec<(String, String)>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub table_options: Vec<(String, String)>,
     pub compress: Option<bool>,
     pub ilm: Option<IlmPolicy>,
     pub row_movement: Option<bool>,
+}
+
+/// LIKE source_table clause inside CREATE TABLE column list.
+/// Syntax: `LIKE source_table [like_option ...]`
+/// like_option: `{ INCLUDING | EXCLUDING } { DEFAULTS | CONSTRAINTS | INDEXES | STORAGE | COMMENTS | PARTITION | RELOPTIONS | DISTRIBUTION | ALL }`
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct LikeClause {
+    pub source_table: ObjectName,
+    /// Each option is (is_including, option_name).
+    /// is_including: true = INCLUDING, false = EXCLUDING
+    pub options: Vec<(bool, String)>,
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -52,19 +76,19 @@ pub enum DistributeClause {
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum PartitionClause {
     Range {
-        column: ObjectName,
+        columns: Vec<ObjectName>,
         interval: Option<Expr>,
         is_columns: bool,
         partitions_count: Option<u32>,
         partitions: Vec<PartitionDef>,
     },
     List {
-        column: ObjectName,
+        columns: Vec<ObjectName>,
         is_columns: bool,
         partitions: Vec<PartitionDef>,
     },
     Hash {
-        column: ObjectName,
+        columns: Vec<ObjectName>,
         partitions_count: Option<u32>,
         partitions: Vec<PartitionDef>,
     },
@@ -78,20 +102,54 @@ pub enum OnCommitAction {
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct GeneratedColumn {
+    pub expr: Expr,
+    pub stored: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct ColumnDef {
     pub name: String,
     pub data_type: DataType,
+    #[serde(default)]
     pub constraints: Vec<ColumnConstraint>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub compress_mode: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub charset: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub collate: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub on_update: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub comment: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub generated: Option<GeneratedColumn>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub encrypted_with: Option<EncryptedWith>,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct EncryptedWith {
+    pub column_encryption_key: String,
+    pub encryption_type: String,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct IntervalType {
+    pub from: String,
+    pub from_precision: Option<u32>,
+    pub to: Option<String>,
+    pub to_precision: Option<u32>,
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum DataType {
     Boolean,
-    TinyInt,
-    SmallInt,
-    Integer,
-    BigInt,
+    TinyInt(Option<u32>),
+    SmallInt(Option<u32>),
+    Integer(Option<u32>),
+    BigInt(Option<u32>),
     Real,
     Float(Option<u32>),
     Double,
@@ -104,7 +162,7 @@ pub enum DataType {
     Timestamptz(Option<u32>),
     Date,
     Time(Option<u32>, Option<TimeZoneInfo>),
-    Interval,
+    Interval(Option<IntervalType>),
     Json,
     Jsonb,
     Uuid,
@@ -115,6 +173,7 @@ pub enum DataType {
     BigSerial,
     BinaryFloat,
     BinaryDouble,
+    Array(Box<DataType>),
     Custom(ObjectName, Vec<Expr>),
 }
 
@@ -137,8 +196,15 @@ pub enum ColumnConstraint {
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum TableConstraint {
-    PrimaryKey(Vec<String>),
-    Unique(Vec<String>),
+    PrimaryKey {
+        columns: Vec<String>,
+        using_index: Option<String>,
+    },
+    Unique {
+        columns: Vec<String>,
+        deferrable: bool,
+        with_options: Vec<(String, String)>,
+    },
     Check(Expr),
     ForeignKey {
         columns: Vec<String>,
@@ -225,6 +291,7 @@ pub enum AlterTableAction {
     },
     TruncatePartition {
         name: String,
+        for_values: Option<Vec<Expr>>,
         cascade: bool,
         update_global_index: bool,
         update_distributed_global_index: Option<bool>,
@@ -366,8 +433,64 @@ pub enum AlterTableAction {
     },
     IlmAddPolicy(IlmPolicy),
     IlmEnablePolicy,
+    IlmEnableAllPolicies,
     IlmDisablePolicy,
+    IlmDisableAllPolicies,
     IlmDeletePolicy,
+    IlmDeleteAllPolicies,
+    // Multi-column MODIFY
+    ModifyColumns(Vec<ModifyColumnInfo>),
+    ModifyPartition {
+        name: String,
+        action: Box<AlterTableAction>,
+    },
+    ModifySubPartition {
+        name: String,
+        action: Box<AlterTableAction>,
+    },
+    // Multi-column ADD
+    AddColumns(Vec<ColumnDef>),
+    // Statistics operations
+    StatisticsOp {
+        op: StatisticsOpKind,
+        columns: Vec<String>,
+    },
+    // ALTER COLUMN ... SET STATISTICS [PERCENT] integer
+    AlterColumnStatistics {
+        column: String,
+        percent: bool,
+        value: i64,
+    },
+    // ALTER COLUMN ... SET STORAGE { PLAIN | EXTERNAL | EXTENDED | MAIN }
+    AlterColumnStorage {
+        column: String,
+        storage: String,
+    },
+    // GSIWAITALL
+    GsiWaitAll,
+    // ENCRYPTION KEY ROTATION
+    EncryptionKeyRotation,
+    // ENABLE/DISABLE RULE
+    SetRule {
+        enable: bool,
+        mode: Option<String>,
+        name: String,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct ModifyColumnInfo {
+    pub name: String,
+    pub data_type: DataType,
+    pub nullability: Option<bool>,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub enum StatisticsOpKind {
+    Add,
+    Delete,
+    Enable,
+    Disable,
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -384,6 +507,13 @@ pub enum PartitionValues {
     InValues(Vec<Expr>),
     StartEnd {
         start: Expr,
+        end: Expr,
+        every: Option<Expr>,
+    },
+    StartOnly {
+        start: Expr,
+    },
+    EndOnly {
         end: Expr,
         every: Option<Expr>,
     },
@@ -471,6 +601,8 @@ pub enum ObjectType {
     OpClass,
     OpFamily,
     Type,
+    Package,
+    DatabaseLink,
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -478,8 +610,9 @@ pub struct CreateIndexStatement {
     pub unique: bool,
     pub if_not_exists: bool,
     pub concurrent: bool,
-    pub name: Option<String>,
+    pub name: Option<ObjectName>,
     pub table: ObjectName,
+    pub using_method: Option<String>,
     pub columns: Vec<IndexColumn>,
     pub tablespace: Option<String>,
     pub where_clause: Option<Expr>,
@@ -487,7 +620,8 @@ pub struct CreateIndexStatement {
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct IndexColumn {
-    pub name: String,
+    pub name: Option<String>,
+    pub expr: Option<Expr>,
     pub asc: Option<bool>,
 }
 
@@ -541,6 +675,7 @@ pub struct CreateSequenceStatement {
     pub max_value: Option<Expr>,
     pub cache: Option<Expr>,
     pub cycle: bool,
+    pub owned_by: Option<ObjectName>,
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -564,6 +699,8 @@ pub enum TypeKind {
     Composite { attributes: Vec<TypeAttribute> },
     Enum { labels: Vec<String> },
     Base { options: Vec<(String, String)> },
+    Table { element_type: String },
+    Range { options: Vec<(String, String)> },
     Shell,
 }
 
@@ -696,6 +833,7 @@ pub enum Statement {
     AlterDataSource(AlterDataSourceStatement),
     AlterEvent(AlterEventStatement),
     AlterOpFamily(AlterOpFamilyStatement),
+    AlterOperator(AlterOperatorStatement),
     AlterMaterializedView(AlterMaterializedViewStatement),
     AlterGlobalConfig(AlterGlobalConfigStatement),
     RefreshMaterializedView(RefreshMatViewStatement),
@@ -721,6 +859,40 @@ pub enum Statement {
     GrantRole(GrantRoleStatement),
     RevokeRole(RevokeRoleStatement),
     Analyze(AnalyzeStatement),
+    Abort,
+    Values(ValuesStatement),
+    ExecuteDirect(ExecuteDirectStatement),
+    AlterSynonym(AlterSynonymStatement),
+    AlterTextSearchConfig(AlterTextSearchConfigStatement),
+    AlterTextSearchDict(AlterTextSearchDictStatement),
+    AlterCoordinator(AlterCoordinatorStatement),
+    AlterAppWorkloadGroupMapping(AlterAppWorkloadGroupMappingStatement),
+    AlterDatabaseLink(AlterDatabaseLinkStatement),
+    AlterDirectory(AlterDirectoryStatement),
+    AlterLanguage(AlterLanguageStatement),
+    AlterLargeObject(AlterLargeObjectStatement),
+    AlterPackage(AlterPackageStatement),
+    AlterSession(AlterSessionStatement),
+    AlterSystemKillSession(AlterSystemKillSessionStatement),
+    CreateLanguage(CreateLanguageStatement),
+    CreateWeakPasswordDictionaryWithValues(CreateWeakPasswordDictStatement),
+    PredictBy(PredictByStatement),
+    Replace(InsertStatement),
+    Move(MoveStatement),
+    LockBuckets(LockBucketsStatement),
+    MarkBuckets(MarkBucketsStatement),
+    SetSessionAuthorization(SetSessionAuthorizationStatement),
+    CreateAppWorkloadGroupMapping(CreateAppWorkloadGroupMappingStatement),
+    DropAppWorkloadGroupMapping(DropAppWorkloadGroupMappingStatement),
+    CreateTextSearchConfig(CreateTextSearchConfigStatement),
+    CreateTextSearchDict(CreateTextSearchDictStatement),
+    AlterTextSearchConfigFull(AlterTextSearchConfigFullStatement),
+    AlterTextSearchDictFull(AlterTextSearchDictFullStatement),
+    ExpdpDatabase(ExpdpDatabaseStatement),
+    ExpdpTable(ExpdpTableStatement),
+    ImpdpDatabase(ImpdpDatabaseStatement),
+    ImpdpTable(ImpdpTableStatement),
+    ReassignOwned(ReassignOwnedStatement),
     Empty,
 }
 
@@ -756,16 +928,14 @@ pub struct SelectIntoTable {
     pub table_name: ObjectName,
 }
 
-#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, PartialEq, Default, serde::Serialize, serde::Deserialize)]
 pub struct SelectStatement {
     pub hints: Vec<String>,
     pub with: Option<WithClause>,
     pub distinct: bool,
     pub distinct_on: Vec<Expr>,
     pub targets: Vec<SelectTarget>,
-    /// PL/pgSQL extension: `SELECT ... INTO var1, var2 FROM ...`
     pub into_targets: Option<Vec<SelectTarget>>,
-    /// GaussDB extension: `SELECT ... INTO [UNLOGGED] [TABLE] new_table FROM ...`
     pub into_table: Option<SelectIntoTable>,
     pub from: Vec<TableRef>,
     pub where_clause: Option<Expr>,
@@ -773,11 +943,14 @@ pub struct SelectStatement {
     pub group_by: Vec<GroupByItem>,
     pub having: Option<Expr>,
     pub order_by: Vec<OrderByItem>,
+    pub order_siblings: bool,
     pub limit: Option<Expr>,
     pub offset: Option<Expr>,
     pub fetch: Option<FetchClause>,
     pub lock_clause: Option<LockClause>,
+    pub window_clause: Vec<NamedWindow>,
     pub set_operation: Option<SetOperation>,
+    pub raw_body: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -837,7 +1010,7 @@ pub struct Cte {
     pub name: String,
     pub columns: Vec<String>,
     pub query: Box<SelectStatement>,
-    /// None = default, Some(true) = MATERIALIZED, Some(false) = NOT MATERIALIZED
+    pub raw_body: Option<String>,
     pub materialized: Option<bool>,
 }
 
@@ -852,15 +1025,25 @@ pub enum TableRef {
     Table {
         name: ObjectName,
         alias: Option<String>,
+        partition: Option<TablePartitionRef>,
+        timecapsule: Option<Expr>,
     },
     FunctionCall {
         name: ObjectName,
         args: Vec<Expr>,
         alias: Option<String>,
+        column_defs: Vec<ColumnDef>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        builtin: Option<BuiltinFuncMeta>,
     },
     Subquery {
         query: Box<SelectStatement>,
         alias: Option<String>,
+    },
+    Values {
+        values: Box<ValuesStatement>,
+        alias: Option<String>,
+        column_names: Vec<String>,
     },
     Join {
         left: Box<TableRef>,
@@ -878,6 +1061,12 @@ pub enum TableRef {
         source: Box<TableRef>,
         unpivot: UnpivotClause,
     },
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct TablePartitionRef {
+    pub for_values: Option<Vec<Expr>>,
+    pub values: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -917,6 +1106,13 @@ pub struct OrderByItem {
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub enum ScalarSublinkType {
+    Any,
+    Some,
+    All,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum Expr {
     Literal(Literal),
     ColumnRef(ObjectName),
@@ -925,6 +1121,13 @@ pub enum Expr {
         left: Box<Expr>,
         op: String,
         right: Box<Expr>,
+    },
+    Like {
+        expr: Box<Expr>,
+        pattern: Box<Expr>,
+        escape: Option<Box<Expr>>,
+        negated: bool,
+        case_insensitive: bool,
     },
     UnaryOp {
         op: String,
@@ -937,6 +1140,11 @@ pub enum Expr {
         over: Option<WindowSpec>,
         filter: Option<Box<Expr>>,
         within_group: Vec<OrderByItem>,
+        separator: Option<Box<Expr>>,
+        default: Option<Box<Expr>>,
+        conversion_format: Option<Box<Expr>>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        builtin: Option<BuiltinFuncMeta>,
     },
     Case {
         operand: Option<Box<Expr>>,
@@ -961,6 +1169,12 @@ pub enum Expr {
     },
     Exists(Box<SelectStatement>),
     Subquery(Box<SelectStatement>),
+    ScalarSublink {
+        expr: Box<Expr>,
+        op: String,
+        sublink_type: ScalarSublinkType,
+        subquery: Box<SelectStatement>,
+    },
     IsNull {
         expr: Box<Expr>,
         negated: bool,
@@ -971,11 +1185,22 @@ pub enum Expr {
         default: Option<Box<Expr>>,
         format: Option<Box<Expr>>,
     },
+    Treat {
+        expr: Box<Expr>,
+        type_name: DataType,
+    },
+    CollationFor {
+        expr: Box<Expr>,
+    },
     Parameter(i32),
     Array(Vec<Expr>),
     Subscript {
         object: Box<Expr>,
         index: Box<Expr>,
+    },
+    FieldAccess {
+        object: Box<Expr>,
+        field: String,
     },
     Parenthesized(Box<Expr>),
     RowConstructor(Vec<Expr>),
@@ -1016,6 +1241,15 @@ pub enum Expr {
     SpecialFunction {
         name: String,
         args: Vec<Expr>,
+    },
+    /// WHERE CURRENT OF cursor_name — for positioned UPDATE/DELETE
+    CurrentOf {
+        cursor_name: String,
+    },
+    /// PREDICT BY model_name (FEATURES col1, col2, ...) — openGauss ML prediction expression
+    PredictBy {
+        model_name: String,
+        features: Vec<Expr>,
     },
 }
 
@@ -1102,9 +1336,15 @@ pub struct WindowFrameBound {
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct NamedWindow {
+    pub name: String,
+    pub spec: WindowSpec,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum DmlPartitionClause {
-    Partition(String),
-    Subpartition(String),
+    Partition(Vec<String>),
+    Subpartition(Vec<String>),
     PartitionFor(Vec<Expr>),
     SubpartitionFor(Vec<Expr>),
 }
@@ -1112,6 +1352,7 @@ pub enum DmlPartitionClause {
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct InsertStatement {
     pub hints: Vec<String>,
+    pub with: Option<WithClause>,
     pub table: ObjectName,
     pub alias: Option<String>,
     pub partition: Option<DmlPartitionClause>,
@@ -1144,6 +1385,7 @@ pub enum InsertSource {
     Values(Vec<Vec<Expr>>),
     Select(Box<SelectStatement>),
     DefaultValues,
+    Set(Vec<UpdateAssignment>),
 }
 
 // INSERT ALL / INSERT FIRST multi-table insert types
@@ -1179,6 +1421,7 @@ pub struct InsertFirstStatement {
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct UpdateStatement {
     pub hints: Vec<String>,
+    pub with: Option<WithClause>,
     pub tables: Vec<TableRef>,
     pub partition: Option<DmlPartitionClause>,
     pub assignments: Vec<UpdateAssignment>,
@@ -1196,6 +1439,7 @@ pub struct UpdateAssignment {
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct DeleteStatement {
     pub hints: Vec<String>,
+    pub with: Option<WithClause>,
     pub tables: Vec<TableRef>,
     pub using: Vec<TableRef>,
     pub where_clause: Option<Expr>,
@@ -1217,6 +1461,8 @@ pub struct MergeStatement {
 pub struct MergeWhenClause {
     pub matched: bool,
     pub action: MergeAction,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub where_clause: Option<Expr>,
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -1224,7 +1470,7 @@ pub enum MergeAction {
     Update(Vec<UpdateAssignment>),
     Delete,
     Insert {
-        columns: Vec<String>,
+        columns: Vec<ObjectName>,
         values: Vec<Expr>,
     },
 }
@@ -1234,6 +1480,8 @@ pub struct TransactionStatement {
     pub kind: TransactionKind,
     pub modes: Vec<TransactionMode>,
     pub savepoint_name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub transaction_id: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -1243,6 +1491,9 @@ pub enum TransactionKind {
     Rollback,
     Savepoint,
     ReleaseSavepoint,
+    PrepareTransaction,
+    CommitPrepared,
+    RollbackPrepared,
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -1266,6 +1517,7 @@ pub enum IsolationLevel {
 pub struct VariableSetStatement {
     pub local: bool,
     pub session: bool,
+    pub global: bool,
     pub name: String,
     pub value: Vec<Expr>,
 }
@@ -1273,6 +1525,7 @@ pub struct VariableSetStatement {
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct VariableShowStatement {
     pub name: String,
+    pub like_pattern: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -1367,6 +1620,7 @@ pub struct CreateViewStatement {
     pub columns: Vec<String>,
     pub query: Box<SelectStatement>,
     pub check_option: Option<CheckOption>,
+    pub security: Option<ViewSecurity>,
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -1376,10 +1630,18 @@ pub enum CheckOption {
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub enum ViewSecurity {
+    Barrier,
+    Invoker,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct CreateSchemaStatement {
     pub if_not_exists: bool,
     pub name: Option<String>,
     pub authorization: Option<String>,
+    pub character_set: Option<String>,
+    pub collate: Option<String>,
     pub elements: Vec<SchemaElement>,
 }
 
@@ -1412,6 +1674,7 @@ pub struct CreateTablespaceStatement {
     pub owner: Option<String>,
     pub relative: bool,
     pub location: String,
+    pub maxsize: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -1510,14 +1773,26 @@ pub struct CreateWorkloadGroupStatement {
 pub struct CreateAuditPolicyStatement {
     pub name: String,
     pub policy_type: String,
+    pub privileges: Vec<String>,
+    pub labels: Vec<String>,
     pub options: Vec<(String, String)>,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct FilterClause {
+    pub kind: String,
+    pub values: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct CreateMaskingPolicyStatement {
     pub name: String,
     pub masking_function: Option<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub function_args: Vec<Expr>,
     pub labels: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub filter_clauses: Vec<FilterClause>,
     pub options: Vec<(String, String)>,
 }
 
@@ -1547,6 +1822,8 @@ pub struct FunctionOptions {
     pub leakproof: Option<bool>,
     pub security: Option<SecurityMode>,
     pub parallel: Option<ParallelMode>,
+    pub fenced: Option<bool>,
+    pub shippable: Option<bool>,
     pub extra: String,
 }
 
@@ -1719,6 +1996,9 @@ pub enum GrantTarget {
     AllTablesInSchema(Vec<String>),
     AllFunctionsInSchema(Vec<String>),
     AllSequencesInSchema(Vec<String>),
+    Language(Vec<String>),
+    LargeObject(Vec<String>),
+    Type(Vec<ObjectName>),
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -1797,6 +2077,7 @@ pub struct VacuumTarget {
 pub struct AnalyzeStatement {
     pub verbose: bool,
     pub tables: Vec<VacuumTarget>,
+    pub options: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -1831,6 +2112,23 @@ pub struct ExecuteStatement {
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct ExecuteDirectStatement {
+    pub node_name: String,
+    pub query: String,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct ValuesStatement {
+    pub rows: Vec<Vec<Expr>>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub order_by: Vec<OrderByItem>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub limit: Option<Expr>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub offset: Option<Expr>,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct DeallocateStatement {
     pub name: Option<String>,
     pub all: bool,
@@ -1857,6 +2155,8 @@ pub enum AlterDatabaseAction {
     Reset { parameter: String },
     RenameTo { new_name: String },
     OwnerTo { owner: String },
+    WithConnectionLimit { limit: i64 },
+    EnablePrivateObject,
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -1867,8 +2167,16 @@ pub struct AlterSchemaStatement {
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum AlterSchemaAction {
-    RenameTo { new_name: String },
-    OwnerTo { owner: String },
+    RenameTo {
+        new_name: String,
+    },
+    OwnerTo {
+        owner: String,
+    },
+    CharacterSet {
+        charset: String,
+        collate: Option<String>,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -1903,6 +2211,16 @@ pub enum AlterFunctionAction {
     SetSchema { schema: String },
     Set { parameter: String, value: String },
     Reset { parameter: String },
+    Compile,
+    Immutable,
+    Stable,
+    Volatile,
+    Leakproof { not: bool },
+    Strict,
+    CalledOnNullInput,
+    ReturnsNullOnNullInput,
+    Shippable { not: bool },
+    Package { not: bool },
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -1933,6 +2251,7 @@ pub struct AlterGroupStatement {
 pub enum AlterGroupAction {
     AddUser(String),
     DropUser(String),
+    RenameTo(String),
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -1949,11 +2268,49 @@ pub enum AlterGlobalConfigAction {
 // ========== Wave 12: CURSOR / LISTEN / NOTIFY / RULE / CLUSTER / REINDEX ==========
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub enum CursorSensitivity {
+    Sensitive,
+    Insensitive,
+    Asensitive,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub enum CursorScrollability {
+    Default,
+    Scroll,
+    NoScroll,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub enum CursorHoldability {
+    Default,
+    WithHold,
+    WithoutHold,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub enum CursorReturnability {
+    Default,
+    WithReturn,
+    WithoutReturn,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub enum CursorReturnTo {
+    Default,
+    ToCaller,
+    ToClient,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct DeclareCursorStatement {
     pub name: String,
     pub binary: bool,
-    pub scroll: bool,
-    pub hold: bool,
+    pub sensitivity: CursorSensitivity,
+    pub scrollability: CursorScrollability,
+    pub holdability: CursorHoldability,
+    pub returnability: CursorReturnability,
+    pub return_to: CursorReturnTo,
     pub query: Box<SelectStatement>,
 }
 
@@ -1971,17 +2328,25 @@ pub enum FetchDirection {
     Last,
     Absolute(i64),
     Relative(i64),
+    Forward,
+    ForwardCount(i64),
     ForwardAll,
+    Backward,
+    BackwardCount(i64),
     BackwardAll,
-    Forward(i64),
-    Backward(i64),
     Count(i64),
     All,
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub enum CloseTarget {
+    Name(String),
+    All,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct ClosePortalStatement {
-    pub name: String,
+    pub target: CloseTarget,
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -2037,6 +2402,8 @@ impl fmt::Display for RuleEvent {
 pub struct ClusterStatement {
     pub table: Option<ObjectName>,
     pub verbose: bool,
+    pub using_index: Option<String>,
+    pub partition: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -2067,10 +2434,19 @@ pub struct AlterIndexStatement {
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum AlterIndexAction {
     RenameTo(String),
-    RenamePartition { old_name: String, new_name: String },
+    RenamePartition {
+        old_name: String,
+        new_name: String,
+    },
     SetTablespace(String),
     Set(Vec<(String, String)>),
     Reset(Vec<String>),
+    Unusable,
+    Rebuild,
+    MovePartition {
+        partition_name: String,
+        tablespace: Option<String>,
+    },
     NoOp,
 }
 
@@ -2095,6 +2471,7 @@ pub enum AlterTypeAction {
     SetSchema(String),
     OwnerTo(String),
     AddEnumValue {
+        if_not_exists: bool,
         value: String,
         before: Option<String>,
         after: Option<String>,
@@ -2211,6 +2588,19 @@ pub enum RoleOption {
     Admin(Vec<String>),
     User(Vec<String>),
     Sysid(i64),
+    DefaultTablespace(String),
+    Tablespace(String),
+    Profile(String),
+    AccountLock(bool),
+    AuditAdmin(bool),
+    MonAdmin(bool),
+    OprAdmin(bool),
+    PolAdmin(bool),
+    Persistence(bool),
+    Independent(bool),
+    Useft(bool),
+    VcAdmin(bool),
+    Permit(bool),
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -2275,6 +2665,8 @@ pub struct CreateDirectoryStatement {
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct CreateDataSourceStatement {
     pub name: String,
+    pub ds_type: Option<String>,
+    pub version: Option<String>,
     pub options: Vec<(String, String)>,
 }
 
@@ -2394,8 +2786,62 @@ pub struct AlterOpFamilyStatement {
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct AlterOperatorStatement {
+    pub name: String,
+    pub left_type: String,
+    pub right_type: Option<String>,
+    pub raw_rest: String,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct AlterMaterializedViewStatement {
     pub name: ObjectName,
+    pub raw_rest: String,
+}
+
+// ========== ALTER SYNONYM ==========
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct AlterSynonymStatement {
+    pub name: String,
+    pub action: AlterSynonymAction,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub enum AlterSynonymAction {
+    Compile { debug: bool },
+    OwnerTo { new_owner: String },
+}
+
+// ========== ALTER TEXT SEARCH CONFIGURATION ==========
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct AlterTextSearchConfigStatement {
+    pub name: ObjectName,
+    pub raw_rest: String,
+}
+
+// ========== ALTER TEXT SEARCH DICTIONARY ==========
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct AlterTextSearchDictStatement {
+    pub name: ObjectName,
+    pub options: Vec<(String, String)>,
+}
+
+// ========== ALTER COORDINATOR ==========
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct AlterCoordinatorStatement {
+    pub name: String,
+    pub raw_rest: String,
+}
+
+// ========== ALTER APP WORKLOAD GROUP MAPPING ==========
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct AlterAppWorkloadGroupMappingStatement {
+    pub name: String,
     pub raw_rest: String,
 }
 
@@ -2405,12 +2851,44 @@ stub_struct!(
     DropDatabaseStatement,
     DropTablespaceStatement,
     DropRuleStatement,
-    AlterDomainStatement,
     GetDiagStatement,
     ShowEventStatement,
     RemovePackageStatement,
     DropPolicyLabelStatement,
 );
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct AlterDomainStatement {
+    pub name: ObjectName,
+    pub action: AlterDomainAction,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub enum AlterDomainAction {
+    SetDefault {
+        expr: String,
+    },
+    DropDefault,
+    SetNotNull,
+    DropNotNull,
+    AddConstraint {
+        name: Option<String>,
+        check_expr: String,
+    },
+    DropConstraint {
+        name: String,
+        cascade: bool,
+    },
+    OwnerTo {
+        new_owner: String,
+    },
+    RenameTo {
+        new_name: String,
+    },
+    ValidateConstraint {
+        name: String,
+    },
+}
 
 // ========== Real implementations for 10 utility statements ==========
 
@@ -2429,6 +2907,7 @@ pub enum PurgeTarget {
     Table { name: ObjectName },
     Index { name: ObjectName },
     RecycleBin,
+    Snapshot { name: String },
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -2467,8 +2946,9 @@ pub struct CompileStatement {
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct CleanConnStatement {
-    pub target: String,
-    pub for_user: Option<String>,
+    pub force: bool,
+    pub for_database: Option<String>,
+    pub to_user: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -2481,6 +2961,7 @@ pub struct SecLabelStatement {
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct CreatePolicyLabelStatement {
+    pub if_not_exists: bool,
     pub name: String,
     pub add: bool,
     pub label_type: String,
@@ -2510,6 +2991,9 @@ pub enum AlterMaskingPolicyAction {
         function: String,
         labels: Vec<String>,
     },
+    ModifyFilter {
+        filter_clauses: Vec<FilterClause>,
+    },
     DropFilter,
     Disable,
 }
@@ -2534,4 +3018,182 @@ pub struct RevokeRoleStatement {
     pub grantees: Vec<String>,
     pub granted_by: Option<String>,
     pub cascade: bool,
+}
+
+// ========== ALTER DATABASE LINK / DIRECTORY / LANGUAGE / LARGE OBJECT / PACKAGE / SESSION / SYSTEM KILL SESSION ==========
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct AlterDatabaseLinkStatement {
+    pub name: String,
+    pub action: AlterDatabaseLinkAction,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub enum AlterDatabaseLinkAction {
+    ConnectTo {
+        user: String,
+        password: String,
+        connect_string: Option<String>,
+    },
+    RenameTo {
+        new_name: String,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct AlterDirectoryStatement {
+    pub name: String,
+    pub raw_rest: String,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct AlterLanguageStatement {
+    pub name: String,
+    pub action: AlterLanguageAction,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub enum AlterLanguageAction {
+    RenameTo(String),
+    OwnerTo(String),
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct AlterLargeObjectStatement {
+    pub oid: String,
+    pub new_owner: String,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct AlterPackageStatement {
+    pub name: String,
+    pub action: AlterPackageAction,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub enum AlterPackageAction {
+    Compile { debug: bool, reuse_settings: bool },
+    OwnerTo(String),
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct AlterSessionStatement {
+    pub action: AlterSessionAction,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub enum AlterSessionAction {
+    Set { parameter: String, value: String },
+    CloseDatabaseLink { name: String },
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct AlterSystemKillSessionStatement {
+    pub session_id: String,
+    pub immediate: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct CreateLanguageStatement {
+    pub name: String,
+    pub trusted: bool,
+    pub handler: Option<String>,
+    pub inline_func: Option<String>,
+    pub validator: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct CreateWeakPasswordDictStatement {
+    pub values: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct PredictByStatement {
+    pub model: String,
+    pub features: Vec<String>,
+    pub using_clause: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct MoveStatement {
+    pub direction: FetchDirection,
+    pub cursor_name: String,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct LockBucketsStatement {
+    pub raw_rest: String,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct MarkBucketsStatement {
+    pub raw_rest: String,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct SetSessionAuthorizationStatement {
+    pub user: Option<String>,
+    pub is_default: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct CreateAppWorkloadGroupMappingStatement {
+    pub name: String,
+    pub raw_rest: String,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct DropAppWorkloadGroupMappingStatement {
+    pub name: String,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct CreateTextSearchConfigStatement {
+    pub name: ObjectName,
+    pub parser_name: Option<ObjectName>,
+    pub raw_rest: String,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct CreateTextSearchDictStatement {
+    pub name: ObjectName,
+    pub options: Vec<(String, String)>,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct AlterTextSearchConfigFullStatement {
+    pub name: ObjectName,
+    pub raw_rest: String,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct AlterTextSearchDictFullStatement {
+    pub name: ObjectName,
+    pub options: Vec<(String, String)>,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct ExpdpDatabaseStatement {
+    pub raw_rest: String,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct ExpdpTableStatement {
+    pub raw_rest: String,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct ImpdpDatabaseStatement {
+    pub raw_rest: String,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct ImpdpTableStatement {
+    pub raw_rest: String,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct ReassignOwnedStatement {
+    pub old_role: String,
+    pub new_role: String,
 }

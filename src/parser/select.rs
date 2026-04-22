@@ -1,7 +1,7 @@
 use crate::ast::{
     ConnectByClause, Cte, FetchClause, GroupByItem, JoinType, LockClause, ObjectName, OrderByItem,
     PivotClause, PivotValue, SelectIntoTable, SelectStatement, SelectTarget, SetOperation,
-    TableRef, UnpivotClause, WithClause,
+    TableRef, UnpivotClause, ValuesStatement, WithClause,
 };
 use crate::parser::{Parser, ParserError};
 use crate::token::keyword::Keyword;
@@ -61,7 +61,7 @@ impl Parser {
         Ok(stmt)
     }
 
-    fn parse_with_clause(&mut self) -> Result<Option<WithClause>, ParserError> {
+    pub(crate) fn parse_with_clause(&mut self) -> Result<Option<WithClause>, ParserError> {
         if !self.match_keyword(Keyword::WITH) {
             return Ok(None);
         }
@@ -94,12 +94,30 @@ impl Parser {
                 None
             };
             self.expect_token(&Token::LParen)?;
-            let query = self.parse_select_statement()?;
-            self.expect_token(&Token::RParen)?;
+            let query = if self.match_keyword(Keyword::VALUES) {
+                let raw_body = self.collect_until_balanced_paren();
+                let mut s = SelectStatement::default();
+                s.raw_body = Some(raw_body);
+                s
+            } else if matches!(
+                self.peek_keyword(),
+                Some(Keyword::UPDATE) | Some(Keyword::INSERT) | Some(Keyword::DELETE_P)
+            ) {
+                let raw_body = self.collect_until_balanced_paren();
+                let mut s = SelectStatement::default();
+                s.raw_body = Some(raw_body);
+                s
+            } else {
+                self.parse_select_statement()?
+            };
+            if !query.raw_body.is_some() {
+                self.expect_token(&Token::RParen)?;
+            }
             ctes.push(Cte {
                 name,
                 columns,
                 query: Box::new(query),
+                raw_body: None,
                 materialized,
             });
             if !self.match_token(&Token::Comma) {
@@ -250,11 +268,14 @@ impl Parser {
             group_by,
             having,
             order_by: vec![],
+            order_siblings: false,
             limit: None,
             offset: None,
             set_operation: None,
             fetch: None,
             lock_clause: None,
+            window_clause: vec![],
+            raw_body: None,
         })
     }
 
@@ -336,6 +357,7 @@ impl Parser {
             self.advance();
             return Ok(SelectTarget::Star(None));
         }
+        let alias_start = self.pos;
         let expr = self.parse_expr()?;
         let alias = if self.match_keyword(Keyword::AS) {
             self.advance();
@@ -343,6 +365,31 @@ impl Parser {
         } else {
             self.parse_optional_column_alias()?
         };
+        // Heuristic: catch tokenizer-level merge of "INTO var" into "INTOvar" (missing space)
+        if let Some(ref alias_str) = alias {
+            let upper = alias_str.to_uppercase();
+            if upper.starts_with("INTO")
+                && upper.len() > 4
+                && upper[4..]
+                    .chars()
+                    .next()
+                    .map_or(false, |c| c.is_ascii_alphabetic())
+            {
+                let loc = self
+                    .tokens
+                    .get(alias_start)
+                    .map(|t| t.location)
+                    .unwrap_or_default();
+                self.add_error(ParserError::Warning {
+                    message: format!(
+                        "alias \"{}\" looks like a typo for \"INTO {}\" — possible missing space",
+                        alias_str,
+                        &alias_str[4..]
+                    ),
+                    location: loc,
+                });
+            }
+        }
         Ok(SelectTarget::Expr(expr, alias))
     }
 
@@ -352,11 +399,104 @@ impl Parser {
         }
         self.advance();
         let mut tables = vec![self.parse_table_ref()?];
+        self.try_consume_table_modifiers(&mut tables[0]);
         while self.match_token(&Token::Comma) {
             self.advance();
             tables.push(self.parse_table_ref()?);
+            if let Some(last) = tables.last_mut() {
+                self.try_consume_table_modifiers(last);
+            }
         }
         Ok(tables)
+    }
+
+    fn try_consume_table_modifiers(&mut self, table_ref: &mut TableRef) {
+        if self.match_keyword(Keyword::PARTITION) {
+            if let Ok(Some(p)) = self.try_parse_partition_ref(Keyword::PARTITION) {
+                if let TableRef::Table {
+                    partition: ref mut pp,
+                    ..
+                } = table_ref
+                {
+                    *pp = Some(p);
+                }
+            }
+        }
+        if self.match_keyword(Keyword::SUBPARTITION) {
+            if let Ok(Some(p)) = self.try_parse_partition_ref(Keyword::SUBPARTITION) {
+                if let TableRef::Table {
+                    partition: ref mut pp,
+                    ..
+                } = table_ref
+                {
+                    *pp = Some(p);
+                }
+            }
+        }
+        if self.match_keyword(Keyword::TIMECAPSULE) {
+            if let Ok(tc) = self.try_parse_timecapsule() {
+                if let TableRef::Table {
+                    timecapsule: ref mut tc_field,
+                    ..
+                } = table_ref
+                {
+                    *tc_field = Some(tc);
+                }
+            }
+        }
+    }
+
+    fn try_parse_timecapsule(&mut self) -> Result<crate::ast::Expr, ParserError> {
+        self.expect_keyword(Keyword::TIMECAPSULE)?;
+        if self.match_keyword(Keyword::TIMESTAMP) {
+            self.advance();
+            Ok(self.parse_expr()?)
+        } else if self.match_keyword(Keyword::CSN) {
+            self.advance();
+            Ok(self.parse_expr()?)
+        } else {
+            Err(ParserError::UnexpectedToken {
+                location: self.current_location(),
+                expected: "TIMESTAMP or CSN".to_string(),
+                got: format!("{:?}", self.peek()),
+            })
+        }
+    }
+
+    fn try_parse_partition_ref(
+        &mut self,
+        keyword: Keyword,
+    ) -> Result<Option<crate::ast::TablePartitionRef>, ParserError> {
+        if !self.match_keyword(keyword) {
+            return Ok(None);
+        }
+        self.advance();
+        if self.match_keyword(Keyword::FOR) {
+            self.advance();
+            self.expect_token(&Token::LParen)?;
+            let mut exprs = vec![self.parse_expr()?];
+            while self.match_token(&Token::Comma) {
+                self.advance();
+                exprs.push(self.parse_expr()?);
+            }
+            self.expect_token(&Token::RParen)?;
+            Ok(Some(crate::ast::TablePartitionRef {
+                values: vec![],
+                for_values: Some(exprs),
+            }))
+        } else {
+            self.expect_token(&Token::LParen)?;
+            let mut values = vec![self.parse_identifier()?];
+            while self.match_token(&Token::Comma) {
+                self.advance();
+                values.push(self.parse_identifier()?);
+            }
+            self.expect_token(&Token::RParen)?;
+            Ok(Some(crate::ast::TablePartitionRef {
+                values,
+                for_values: None,
+            }))
+        }
     }
 
     pub(crate) fn parse_table_ref(&mut self) -> Result<TableRef, ParserError> {
@@ -466,6 +606,29 @@ impl Parser {
                     alias,
                 });
             }
+            if self.match_keyword(Keyword::VALUES) {
+                self.advance();
+                let values = self.parse_values_statement()?;
+                self.expect_token(&Token::RParen)?;
+                let alias = self.parse_optional_alias()?;
+                let column_names = if alias.is_some() && self.match_token(&Token::LParen) {
+                    self.advance();
+                    let mut names = vec![self.parse_identifier()?];
+                    while self.match_token(&Token::Comma) {
+                        self.advance();
+                        names.push(self.parse_identifier()?);
+                    }
+                    self.expect_token(&Token::RParen)?;
+                    names
+                } else {
+                    vec![]
+                };
+                return Ok(TableRef::Values {
+                    values: Box::new(values),
+                    alias,
+                    column_names,
+                });
+            }
             let table_ref = self.parse_table_ref()?;
             self.expect_token(&Token::RParen)?;
             return Ok(table_ref);
@@ -487,29 +650,78 @@ impl Parser {
             let args = if self.match_token(&Token::RParen) {
                 vec![]
             } else {
-                let mut args = vec![self.parse_expr()?];
+                let (first, _) = self.parse_maybe_named_arg()?;
+                let mut args = vec![first];
                 while self.match_token(&Token::Comma) {
                     self.advance();
-                    args.push(self.parse_expr()?);
+                    let (arg, _) = self.parse_maybe_named_arg()?;
+                    args.push(arg);
                 }
                 args
             };
             self.expect_token(&Token::RParen)?;
-            let alias = self.parse_optional_alias()?;
-            return Ok(TableRef::FunctionCall { name, args, alias });
+            let alias = self.parse_optional_column_alias()?;
+            let column_defs = if alias.is_some() && self.match_token(&Token::LParen) {
+                self.advance();
+                let mut defs = vec![(
+                    self.parse_identifier()?,
+                    self.parse_optional_func_col_type()?,
+                )];
+                while self.match_token(&Token::Comma) {
+                    self.advance();
+                    defs.push((
+                        self.parse_identifier()?,
+                        self.parse_optional_func_col_type()?,
+                    ));
+                }
+                self.expect_token(&Token::RParen)?;
+                defs.into_iter()
+                    .map(|(name, data_type)| crate::ast::ColumnDef {
+                        name,
+                        data_type,
+                        constraints: vec![],
+                        compress_mode: None,
+                        charset: None,
+                        collate: None,
+                        on_update: None,
+                        comment: None,
+                        generated: None,
+                        encrypted_with: None,
+                    })
+                    .collect()
+            } else {
+                vec![]
+            };
+            let builtin = crate::parser::function_registry::lookup_builtin_meta(
+                &name.last().cloned().unwrap_or_default(),
+            );
+            return Ok(TableRef::FunctionCall {
+                name,
+                args,
+                alias,
+                column_defs,
+                builtin,
+            });
         }
         let alias = if self.match_ident_str("PIVOT") || self.match_ident_str("UNPIVOT") {
             None
         } else {
             self.parse_optional_alias()?
         };
-        Ok(TableRef::Table { name, alias })
+        Ok(TableRef::Table {
+            name,
+            alias,
+            partition: None,
+            timecapsule: None,
+        })
     }
 
     fn parse_order_limit_offset(&mut self, stmt: &mut SelectStatement) -> Result<(), ParserError> {
         if self.match_keyword(Keyword::ORDER) {
             self.advance();
+            let siblings = self.try_consume_keyword(Keyword::SIBLINGS);
             self.expect_keyword(Keyword::BY)?;
+            stmt.order_siblings = siblings;
             let mut items = Vec::new();
             loop {
                 let expr = self.parse_expr()?;
@@ -548,6 +760,23 @@ impl Parser {
             }
             stmt.order_by = items;
         }
+        if self.match_keyword(Keyword::WINDOW) {
+            self.advance();
+            let mut windows = Vec::new();
+            loop {
+                let name = self.parse_identifier()?;
+                self.expect_keyword(Keyword::AS)?;
+                self.expect_token(&Token::LParen)?;
+                let spec = self.parse_window_specification()?;
+                self.expect_token(&Token::RParen)?;
+                windows.push(crate::ast::NamedWindow { name, spec });
+                if !self.match_token(&Token::Comma) {
+                    break;
+                }
+                self.advance();
+            }
+            stmt.window_clause = windows;
+        }
         if self.match_keyword(Keyword::LIMIT) {
             self.advance();
             if self.match_keyword(Keyword::ALL) {
@@ -560,6 +789,14 @@ impl Parser {
         if self.match_keyword(Keyword::OFFSET) {
             self.advance();
             stmt.offset = Some(self.parse_expr()?);
+        }
+        if stmt.limit.is_none() && self.match_keyword(Keyword::LIMIT) {
+            self.advance();
+            if self.match_keyword(Keyword::ALL) {
+                self.advance();
+            } else {
+                stmt.limit = Some(self.parse_expr()?);
+            }
         }
         stmt.fetch = self.parse_fetch_clause()?;
         stmt.lock_clause = self.parse_lock_clause()?;
@@ -742,5 +979,105 @@ impl Parser {
             for_column,
             columns,
         })
+    }
+
+    pub(crate) fn parse_values_statement(&mut self) -> Result<ValuesStatement, ParserError> {
+        let mut rows = Vec::new();
+        loop {
+            self.expect_token(&Token::LParen)?;
+            let mut row = Vec::new();
+            if !self.match_token(&Token::RParen) {
+                loop {
+                    row.push(self.parse_expr()?);
+                    if self.match_token(&Token::Comma) {
+                        self.advance();
+                    } else {
+                        break;
+                    }
+                }
+            }
+            self.expect_token(&Token::RParen)?;
+            rows.push(row);
+            if self.match_token(&Token::Comma) {
+                self.advance();
+            } else {
+                break;
+            }
+        }
+
+        let mut order_by = Vec::new();
+        if self.match_keyword(Keyword::ORDER) {
+            self.advance();
+            self.expect_keyword(Keyword::BY)?;
+            loop {
+                let expr = self.parse_expr()?;
+                let asc = match self.peek_keyword() {
+                    Some(Keyword::ASC) => {
+                        self.advance();
+                        Some(true)
+                    }
+                    Some(Keyword::DESC) => {
+                        self.advance();
+                        Some(false)
+                    }
+                    _ => None,
+                };
+                let nulls_first = if self.match_keyword(Keyword::NULLS_P) {
+                    self.advance();
+                    if self.match_keyword(Keyword::FIRST_P) {
+                        self.advance();
+                        Some(true)
+                    } else {
+                        self.expect_keyword(Keyword::LAST_P)?;
+                        Some(false)
+                    }
+                } else {
+                    None
+                };
+                order_by.push(OrderByItem {
+                    expr,
+                    asc,
+                    nulls_first,
+                });
+                if !self.match_token(&Token::Comma) {
+                    break;
+                }
+                self.advance();
+            }
+        }
+
+        let limit = if self.match_keyword(Keyword::LIMIT) {
+            self.advance();
+            if self.match_keyword(Keyword::ALL) {
+                self.advance();
+                None
+            } else {
+                Some(self.parse_expr()?)
+            }
+        } else {
+            None
+        };
+
+        let offset = if self.match_keyword(Keyword::OFFSET) {
+            self.advance();
+            Some(self.parse_expr()?)
+        } else {
+            None
+        };
+
+        Ok(ValuesStatement {
+            rows,
+            order_by,
+            limit,
+            offset,
+        })
+    }
+
+    fn parse_optional_func_col_type(&mut self) -> Result<crate::ast::DataType, ParserError> {
+        use crate::ast::DataType;
+        if self.match_token(&Token::Comma) || self.match_token(&Token::RParen) {
+            return Ok(DataType::Text);
+        }
+        self.parse_data_type()
     }
 }

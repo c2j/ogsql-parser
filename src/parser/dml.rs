@@ -1,14 +1,50 @@
 use crate::ast::{
     DeleteStatement, DmlPartitionClause, InsertAllCondition, InsertAllStatement, InsertAllTarget,
     InsertFirstStatement, InsertSource, InsertStatement, MergeAction, MergeStatement,
-    MergeWhenClause, OnConflictAction, OnConflictTarget, SelectTarget, TableRef, UpdateAssignment,
-    UpdateStatement,
+    MergeWhenClause, OnConflictAction, OnConflictTarget, SelectTarget, TablePartitionRef, TableRef,
+    UpdateAssignment, UpdateStatement,
 };
 use crate::parser::{Parser, ParserError};
 use crate::token::keyword::Keyword;
 use crate::token::Token;
 
 impl Parser {
+    fn apply_dml_partition_to_table_ref(table: TableRef, dml: DmlPartitionClause) -> TableRef {
+        match table {
+            TableRef::Table {
+                name,
+                alias,
+                partition: _,
+                timecapsule,
+            } => {
+                let part = match dml {
+                    DmlPartitionClause::Partition(names) => TablePartitionRef {
+                        for_values: None,
+                        values: names,
+                    },
+                    DmlPartitionClause::Subpartition(names) => TablePartitionRef {
+                        for_values: None,
+                        values: names,
+                    },
+                    DmlPartitionClause::PartitionFor(exprs) => TablePartitionRef {
+                        for_values: Some(exprs),
+                        values: vec![],
+                    },
+                    DmlPartitionClause::SubpartitionFor(exprs) => TablePartitionRef {
+                        for_values: Some(exprs),
+                        values: vec![],
+                    },
+                };
+                TableRef::Table {
+                    name,
+                    alias,
+                    partition: Some(part),
+                    timecapsule,
+                }
+            }
+            other => other,
+        }
+    }
     pub(crate) fn parse_insert(&mut self) -> Result<InsertStatement, ParserError> {
         let post_hints = self.consume_hints();
         self.try_consume_keyword(Keyword::INTO);
@@ -31,6 +67,23 @@ impl Parser {
             self.advance();
             self.expect_keyword(Keyword::VALUES)?;
             InsertSource::DefaultValues
+        } else if self.match_keyword(Keyword::SET) {
+            self.advance();
+            let mut assignments = Vec::new();
+            loop {
+                let col = self.parse_identifier()?;
+                self.expect_token(&Token::Eq)?;
+                let value = self.parse_expr()?;
+                assignments.push(crate::ast::UpdateAssignment {
+                    column: vec![col],
+                    value,
+                });
+                if !self.match_token(&Token::Comma) {
+                    break;
+                }
+                self.advance();
+            }
+            InsertSource::Set(assignments)
         } else if self.match_keyword(Keyword::VALUES) {
             self.advance();
             let mut rows = Vec::new();
@@ -180,6 +233,7 @@ impl Parser {
         };
         Ok(InsertStatement {
             hints: post_hints,
+            with: None,
             table,
             alias,
             partition,
@@ -190,7 +244,9 @@ impl Parser {
         })
     }
 
-    fn parse_dml_partition(&mut self) -> Result<Option<DmlPartitionClause>, ParserError> {
+    pub(crate) fn parse_dml_partition(
+        &mut self,
+    ) -> Result<Option<DmlPartitionClause>, ParserError> {
         if self.match_keyword(Keyword::PARTITION) {
             self.advance();
             if self.match_keyword(Keyword::FOR) {
@@ -205,9 +261,13 @@ impl Parser {
                 Ok(Some(DmlPartitionClause::PartitionFor(exprs)))
             } else {
                 self.expect_token(&Token::LParen)?;
-                let name = self.parse_identifier()?;
+                let mut names = vec![self.parse_identifier()?];
+                while self.match_token(&Token::Comma) {
+                    self.advance();
+                    names.push(self.parse_identifier()?);
+                }
                 self.expect_token(&Token::RParen)?;
-                Ok(Some(DmlPartitionClause::Partition(name)))
+                Ok(Some(DmlPartitionClause::Partition(names)))
             }
         } else if self.match_keyword(Keyword::SUBPARTITION) {
             self.advance();
@@ -223,9 +283,13 @@ impl Parser {
                 Ok(Some(DmlPartitionClause::SubpartitionFor(exprs)))
             } else {
                 self.expect_token(&Token::LParen)?;
-                let name = self.parse_identifier()?;
+                let mut names = vec![self.parse_identifier()?];
+                while self.match_token(&Token::Comma) {
+                    self.advance();
+                    names.push(self.parse_identifier()?);
+                }
                 self.expect_token(&Token::RParen)?;
-                Ok(Some(DmlPartitionClause::Subpartition(name)))
+                Ok(Some(DmlPartitionClause::Subpartition(names)))
             }
         } else {
             Ok(None)
@@ -277,6 +341,7 @@ impl Parser {
         };
         Ok(UpdateStatement {
             hints: post_hints,
+            with: None,
             tables,
             partition,
             assignments,
@@ -290,9 +355,19 @@ impl Parser {
         let post_hints = self.consume_hints();
         let has_from = self.try_consume_keyword(Keyword::FROM);
         let mut tables = vec![self.parse_table_ref()?];
+        if let Some(dml_part) = self.parse_dml_partition()? {
+            if let Some(last) = tables.last_mut() {
+                *last = Self::apply_dml_partition_to_table_ref(last.clone(), dml_part);
+            }
+        }
         while self.match_token(&Token::Comma) {
             self.advance();
             tables.push(self.parse_table_ref()?);
+            if let Some(dml_part) = self.parse_dml_partition()? {
+                if let Some(last) = tables.last_mut() {
+                    *last = Self::apply_dml_partition_to_table_ref(last.clone(), dml_part);
+                }
+            }
         }
         let using = if !has_from && self.match_keyword(Keyword::FROM) {
             self.advance();
@@ -317,6 +392,7 @@ impl Parser {
         };
         Ok(DeleteStatement {
             hints: post_hints,
+            with: None,
             tables,
             using,
             where_clause,
@@ -333,6 +409,8 @@ impl Parser {
         let target = TableRef::Table {
             name: target_name,
             alias: target_alias,
+            partition: None,
+            timecapsule: None,
         };
         self.expect_keyword(Keyword::USING)?;
         let mut source = self.parse_table_ref()?;
@@ -378,10 +456,10 @@ impl Parser {
                 self.advance();
                 let columns = if self.match_token(&Token::LParen) {
                     self.advance();
-                    let mut cols = vec![self.parse_identifier()?];
+                    let mut cols = vec![self.parse_object_name()?];
                     while self.match_token(&Token::Comma) {
                         self.advance();
-                        cols.push(self.parse_identifier()?);
+                        cols.push(self.parse_object_name()?);
                     }
                     self.expect_token(&Token::RParen)?;
                     cols
@@ -404,7 +482,17 @@ impl Parser {
                     got: format!("{:?}", self.peek()),
                 });
             };
-            when_clauses.push(MergeWhenClause { matched, action });
+            let where_clause = if self.match_keyword(Keyword::WHERE) {
+                self.advance();
+                Some(self.parse_expr()?)
+            } else {
+                None
+            };
+            when_clauses.push(MergeWhenClause {
+                matched,
+                action,
+                where_clause,
+            });
         }
         Ok(MergeStatement {
             hints: post_hints,

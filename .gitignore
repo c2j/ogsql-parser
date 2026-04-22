@@ -1,4 +1,9 @@
 /target
 /lib/openGauss-server
 /examples/gauss
-
+/lib/mybatis-spring
+/lib/mybatis-crud
+/lib/gaussdb-examples
+/lib/servicecomb-java-chassis
+/lib/maku-boot
+/lib/ruoyi-springboot3-pro

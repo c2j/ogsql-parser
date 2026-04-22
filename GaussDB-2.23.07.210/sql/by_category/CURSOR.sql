@@ -73,6 +73,9 @@ FETCH 4 FROM cursor1;
 -- 来源: 3061_MOVE
 CLOSE cursor1;
 
+cursor c1 is
+select * from t1;
+
 -- 来源: 3078_ROLLBACK TO SAVEPOINT
 FETCH 1 FROM foo;
 
@@ -81,4 +84,3 @@ FETCH 1 FROM foo;
 
 -- 来源: 3202_file_3202
 fetch "<unnamed portal 1>";
-

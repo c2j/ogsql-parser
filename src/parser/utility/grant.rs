@@ -12,7 +12,7 @@ impl Parser {
         // and the token after that is TO or comma, it's GRANT ROLE
         match self.peek() {
             Token::Keyword(kw) => {
-                let kw_name = format!("{:?}", kw).trim_end_matches("_P").to_uppercase();
+                let kw_name = kw.as_str().to_uppercase();
                 let is_priv = matches!(
                     kw_name.as_str(),
                     "SELECT"
@@ -45,10 +45,7 @@ impl Parser {
                         // ALL PRIVILEGES TO → role grant (no ON clause)
                         let is_privileges = match next {
                             Token::Ident(s) => s.to_uppercase() == "PRIVILEGES",
-                            Token::Keyword(kw) => {
-                                format!("{:?}", kw).trim_end_matches("_P").to_uppercase()
-                                    == "PRIVILEGES"
-                            }
+                            Token::Keyword(kw) => kw.as_str().eq_ignore_ascii_case("PRIVILEGES"),
                             _ => false,
                         };
                         if is_privileges && self.tokens.len() > self.pos + 2 {
@@ -90,7 +87,7 @@ impl Parser {
         }
         match self.peek() {
             Token::Keyword(kw) => {
-                let kw_name = format!("{:?}", kw).trim_end_matches("_P").to_uppercase();
+                let kw_name = kw.as_str().to_uppercase();
                 let is_priv = matches!(
                     kw_name.as_str(),
                     "SELECT"
@@ -121,10 +118,7 @@ impl Parser {
                         }
                         let is_privileges = match next {
                             Token::Ident(s) => s.to_uppercase() == "PRIVILEGES",
-                            Token::Keyword(kw) => {
-                                format!("{:?}", kw).trim_end_matches("_P").to_uppercase()
-                                    == "PRIVILEGES"
-                            }
+                            Token::Keyword(kw) => kw.as_str().eq_ignore_ascii_case("PRIVILEGES"),
                             _ => false,
                         };
                         if is_privileges && self.tokens.len() > self.pos + 2 {
@@ -581,6 +575,37 @@ impl Parser {
                 }
                 Ok(GrantTarget::Function(funcs))
             }
+            Some(Keyword::LANGUAGE) => {
+                self.advance();
+                let mut langs = Vec::new();
+                langs.push(self.parse_identifier()?);
+                while self.match_token(&Token::Comma) {
+                    self.advance();
+                    langs.push(self.parse_identifier()?);
+                }
+                Ok(GrantTarget::Language(langs))
+            }
+            Some(Keyword::LARGE_P) => {
+                self.advance();
+                self.expect_keyword(Keyword::OBJECT_P)?;
+                let mut oids = Vec::new();
+                oids.push(self.parse_identifier()?);
+                while self.match_token(&Token::Comma) {
+                    self.advance();
+                    oids.push(self.parse_identifier()?);
+                }
+                Ok(GrantTarget::LargeObject(oids))
+            }
+            Some(Keyword::TYPE_P) => {
+                self.advance();
+                let mut types = Vec::new();
+                types.push(self.parse_object_name()?);
+                while self.match_token(&Token::Comma) {
+                    self.advance();
+                    types.push(self.parse_object_name()?);
+                }
+                Ok(GrantTarget::Type(types))
+            }
             _ => {
                 let mut tables = Vec::new();
                 tables.push(self.parse_object_name()?);
@@ -604,11 +629,16 @@ impl Parser {
     }
 
     fn parse_role_identifier(&mut self) -> Result<String, ParserError> {
-        let name = self.parse_identifier()?;
-        if name.to_uppercase() == "ALL" && self.match_ident_str("PRIVILEGES") {
+        if self.match_keyword(Keyword::ALL) {
             self.advance();
-            return Ok(format!("{} {}", name, "privileges"));
+            let name = "ALL".to_string();
+            if self.match_ident_str("PRIVILEGES") {
+                self.advance();
+                return Ok(format!("{} PRIVILEGES", name));
+            }
+            return Ok(name);
         }
+        let name = self.parse_identifier()?;
         Ok(name)
     }
 

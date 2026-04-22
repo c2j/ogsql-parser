@@ -8,7 +8,12 @@ impl Parser {
         self.expect_keyword(Keyword::TABLE)?;
 
         let if_exists = self.parse_if_exists();
+        self.try_consume_keyword(Keyword::ONLY);
         let name = self.parse_object_name()?;
+
+        if self.match_token(&Token::Star) {
+            self.advance();
+        }
 
         let mut actions = Vec::new();
         actions.push(self.parse_alter_table_action()?);
@@ -40,7 +45,22 @@ impl Parser {
         match self.peek_keyword() {
             Some(Keyword::ADD_P) => {
                 self.advance();
-                if self.match_keyword(Keyword::PARTITION) {
+                if self.match_token(&Token::LParen) {
+                    self.advance();
+                    let mut cols = Vec::new();
+                    loop {
+                        cols.push(self.parse_column_def()?);
+                        if !self.match_token(&Token::Comma) {
+                            break;
+                        }
+                        self.advance();
+                    }
+                    self.expect_token(&Token::RParen)?;
+                    Ok(AlterTableAction::AddColumns(cols))
+                } else if self.match_keyword(Keyword::STATISTICS) {
+                    self.advance();
+                    self.parse_statistics_columns(StatisticsOpKind::Add)
+                } else if self.match_keyword(Keyword::PARTITION) {
                     self.advance();
                     let name = self.parse_identifier()?;
                     let values = self.parse_partition_values()?;
@@ -63,6 +83,16 @@ impl Parser {
                     } else {
                         None
                     };
+                    if self.match_ident_str("ILM") {
+                        self.advance();
+                        while !self.match_token(&Token::Semicolon)
+                            && !self.peek().eq(&Token::Eof)
+                            && !self.match_keyword(Keyword::TABLESPACE)
+                            && !self.match_keyword(Keyword::UPDATE)
+                        {
+                            self.advance();
+                        }
+                    }
                     Ok(AlterTableAction::AddSubPartition {
                         partition_name: String::new(),
                         name,
@@ -91,25 +121,46 @@ impl Parser {
                         } else {
                             None
                         };
-                        // Intercept UNIQUE USING INDEX pattern (two-token peek-ahead)
-                        if self.peek_keyword() == Some(Keyword::UNIQUE) {
-                            if self.tokens.get(self.pos + 1).map_or(false, |t| {
+                        // UNIQUE USING INDEX
+                        if self.peek_keyword() == Some(Keyword::UNIQUE)
+                            && self.tokens.get(self.pos + 1).map_or(false, |t| {
                                 matches!(t.token, Token::Keyword(Keyword::USING))
-                            }) {
-                                self.advance();
-                                self.advance();
-                                self.expect_keyword(Keyword::INDEX)?;
-                                let index_name = self.parse_identifier()?;
-                                return Ok(AlterTableAction::AddConstraintUsingIndex {
-                                    name: name.clone().unwrap_or_default(),
-                                    index_name,
-                                });
-                            }
+                            })
+                        {
+                            self.advance();
+                            self.advance();
+                            self.expect_keyword(Keyword::INDEX)?;
+                            let index_name = self.parse_identifier()?;
+                            return Ok(AlterTableAction::AddConstraintUsingIndex {
+                                name: name.clone().unwrap_or_default(),
+                                index_name,
+                            });
+                        }
+                        // PRIMARY KEY USING INDEX
+                        if self.peek_keyword() == Some(Keyword::PRIMARY)
+                            && self
+                                .tokens
+                                .get(self.pos + 1)
+                                .map_or(false, |t| matches!(t.token, Token::Keyword(Keyword::KEY)))
+                            && self.tokens.get(self.pos + 2).map_or(false, |t| {
+                                matches!(t.token, Token::Keyword(Keyword::USING))
+                            })
+                        {
+                            self.advance();
+                            self.advance();
+                            self.advance();
+                            self.expect_keyword(Keyword::INDEX)?;
+                            let index_name = self.parse_identifier()?;
+                            return Ok(AlterTableAction::AddConstraintUsingIndex {
+                                name: name.clone().unwrap_or_default(),
+                                index_name,
+                            });
                         }
                         let constraint = self.parse_table_constraint()?;
                         Ok(AlterTableAction::AddConstraint { name, constraint })
                     } else {
                         let col = self.parse_column_def()?;
+                        self.consume_column_position();
                         Ok(AlterTableAction::AddColumn(col))
                     }
                 } else if self.match_keyword(Keyword::NODE) {
@@ -138,25 +189,46 @@ impl Parser {
                         } else {
                             None
                         };
-                        // Intercept UNIQUE USING INDEX pattern (two-token peek-ahead)
-                        if self.peek_keyword() == Some(Keyword::UNIQUE) {
-                            if self.tokens.get(self.pos + 1).map_or(false, |t| {
+                        // UNIQUE USING INDEX
+                        if self.peek_keyword() == Some(Keyword::UNIQUE)
+                            && self.tokens.get(self.pos + 1).map_or(false, |t| {
                                 matches!(t.token, Token::Keyword(Keyword::USING))
-                            }) {
-                                self.advance();
-                                self.advance();
-                                self.expect_keyword(Keyword::INDEX)?;
-                                let index_name = self.parse_identifier()?;
-                                return Ok(AlterTableAction::AddConstraintUsingIndex {
-                                    name: name.clone().unwrap_or_default(),
-                                    index_name,
-                                });
-                            }
+                            })
+                        {
+                            self.advance();
+                            self.advance();
+                            self.expect_keyword(Keyword::INDEX)?;
+                            let index_name = self.parse_identifier()?;
+                            return Ok(AlterTableAction::AddConstraintUsingIndex {
+                                name: name.clone().unwrap_or_default(),
+                                index_name,
+                            });
+                        }
+                        // PRIMARY KEY USING INDEX
+                        if self.peek_keyword() == Some(Keyword::PRIMARY)
+                            && self
+                                .tokens
+                                .get(self.pos + 1)
+                                .map_or(false, |t| matches!(t.token, Token::Keyword(Keyword::KEY)))
+                            && self.tokens.get(self.pos + 2).map_or(false, |t| {
+                                matches!(t.token, Token::Keyword(Keyword::USING))
+                            })
+                        {
+                            self.advance();
+                            self.advance();
+                            self.advance();
+                            self.expect_keyword(Keyword::INDEX)?;
+                            let index_name = self.parse_identifier()?;
+                            return Ok(AlterTableAction::AddConstraintUsingIndex {
+                                name: name.clone().unwrap_or_default(),
+                                index_name,
+                            });
                         }
                         let constraint = self.parse_table_constraint()?;
                         Ok(AlterTableAction::AddConstraint { name, constraint })
                     } else {
                         let col = self.parse_column_def()?;
+                        self.consume_column_position();
                         Ok(AlterTableAction::AddColumn(col))
                     }
                 }
@@ -233,6 +305,32 @@ impl Parser {
                     self.advance();
                 }
                 let name = self.parse_identifier()?;
+                if self.match_keyword(Keyword::SET) {
+                    if self.tokens.get(self.pos + 1).map_or(false, |t| {
+                        matches!(t.token, Token::Keyword(Keyword::STATISTICS))
+                    }) {
+                        self.advance();
+                        self.expect_keyword(Keyword::STATISTICS)?;
+                        let percent = self.try_consume_keyword(Keyword::PERCENT);
+                        let value = self.parse_integer_literal()?;
+                        return Ok(AlterTableAction::AlterColumnStatistics {
+                            column: name,
+                            percent,
+                            value,
+                        });
+                    }
+                    if self.tokens.get(self.pos + 1).map_or(false, |t| {
+                        matches!(t.token, Token::Keyword(Keyword::STORAGE))
+                    }) {
+                        self.advance();
+                        self.expect_keyword(Keyword::STORAGE)?;
+                        let storage = self.parse_identifier()?;
+                        return Ok(AlterTableAction::AlterColumnStorage {
+                            column: name,
+                            storage,
+                        });
+                    }
+                }
                 let action = self.parse_alter_column_action()?;
                 Ok(AlterTableAction::AlterColumn { name, action })
             }
@@ -277,9 +375,16 @@ impl Parser {
                         cascade: false,
                     })
                 } else {
-                    self.expect_keyword(Keyword::TO)?;
-                    let new_name = self.parse_identifier()?;
-                    Ok(AlterTableAction::RenameTo { new_name })
+                    if self.match_keyword(Keyword::TO) {
+                        self.advance();
+                        let new_name = self.parse_identifier()?;
+                        Ok(AlterTableAction::RenameTo { new_name })
+                    } else {
+                        let old = self.parse_identifier()?;
+                        self.expect_keyword(Keyword::TO)?;
+                        let new = self.parse_identifier()?;
+                        Ok(AlterTableAction::RenameColumn { old, new })
+                    }
                 }
             }
             Some(Keyword::OWNER) => {
@@ -314,9 +419,25 @@ impl Parser {
                     self.advance();
                     let mut options = Vec::new();
                     loop {
-                        let key = self.parse_identifier()?;
+                        let key = self.consume_any_identifier()?;
                         self.expect_token(&Token::Eq)?;
-                        let value = self.parse_identifier()?;
+                        let value = self.consume_any_identifier().unwrap_or_else(|_| {
+                            match self.peek().clone() {
+                                Token::StringLiteral(s) => {
+                                    self.advance();
+                                    s
+                                }
+                                Token::Integer(n) => {
+                                    self.advance();
+                                    n.to_string()
+                                }
+                                Token::Float(f) => {
+                                    self.advance();
+                                    f
+                                }
+                                _ => String::new(),
+                            }
+                        });
                         options.push((key, value));
                         if !self.match_token(&Token::Comma) {
                             break;
@@ -343,12 +464,25 @@ impl Parser {
                     Ok(AlterTableAction::TruncateSubPartition { name, cascade })
                 } else {
                     self.expect_keyword(Keyword::PARTITION)?;
-                    let name = self.parse_identifier()?;
+                    let (name, for_values) = if self.match_keyword(Keyword::FOR) {
+                        self.advance();
+                        self.expect_token(&Token::LParen)?;
+                        let mut vals = vec![self.parse_expr()?];
+                        while self.match_token(&Token::Comma) {
+                            self.advance();
+                            vals.push(self.parse_expr()?);
+                        }
+                        self.expect_token(&Token::RParen)?;
+                        (String::new(), Some(vals))
+                    } else {
+                        (self.parse_identifier()?, None)
+                    };
                     let cascade = self.try_consume_keyword(Keyword::CASCADE);
                     let (update_global_index, update_distributed_global_index) =
                         self.parse_update_index_clauses()?;
                     Ok(AlterTableAction::TruncatePartition {
                         name,
+                        for_values,
                         cascade,
                         update_global_index,
                         update_distributed_global_index,
@@ -396,6 +530,12 @@ impl Parser {
                     let at_value = if self.match_keyword(Keyword::AT) {
                         self.advance();
                         Some(self.parse_expr()?)
+                    } else if self.match_keyword(Keyword::VALUES) {
+                        self.advance();
+                        self.expect_token(&Token::LParen)?;
+                        let val = self.parse_expr()?;
+                        self.expect_token(&Token::RParen)?;
+                        Some(val)
                     } else {
                         None
                     };
@@ -416,6 +556,15 @@ impl Parser {
                         } else {
                             None
                         };
+                        if self.match_ident_str("ILM") {
+                            self.advance();
+                            while !self.match_token(&Token::Comma)
+                                && !self.match_token(&Token::RParen)
+                                && !self.peek().eq(&Token::Eof)
+                            {
+                                self.advance();
+                            }
+                        }
                         partitions.push(PartitionDef {
                             name: pname,
                             values,
@@ -454,13 +603,36 @@ impl Parser {
                             let pname = self.parse_identifier()?;
                             let values = if self.match_keyword(Keyword::VALUES) {
                                 Some(self.parse_partition_values()?)
+                            } else if self.match_keyword(Keyword::START) {
+                                Some(self.parse_start_end_values()?)
+                            } else if self.match_keyword(Keyword::END_P) {
+                                self.advance();
+                                self.expect_token(&Token::LParen)?;
+                                let end = self.parse_expr()?;
+                                self.expect_token(&Token::RParen)?;
+                                let every = if self.match_keyword(Keyword::EVERY) {
+                                    self.advance();
+                                    self.expect_token(&Token::LParen)?;
+                                    let e = self.parse_expr()?;
+                                    self.expect_token(&Token::RParen)?;
+                                    Some(e)
+                                } else {
+                                    None
+                                };
+                                Some(PartitionValues::EndOnly { end, every })
+                            } else {
+                                None
+                            };
+                            let tablespace = if self.match_keyword(Keyword::TABLESPACE) {
+                                self.advance();
+                                Some(self.parse_identifier()?)
                             } else {
                                 None
                             };
                             partitions.push(PartitionDef {
                                 name: pname,
                                 values,
-                                tablespace: None,
+                                tablespace,
                                 subpartitions: Vec::new(),
                             });
                             if !self.match_token(&Token::Comma) {
@@ -483,6 +655,12 @@ impl Parser {
                         let at_value = if self.match_keyword(Keyword::AT) {
                             self.advance();
                             Some(self.parse_expr()?)
+                        } else if self.match_keyword(Keyword::VALUES) {
+                            self.advance();
+                            self.expect_token(&Token::LParen)?;
+                            let val = self.parse_expr()?;
+                            self.expect_token(&Token::RParen)?;
+                            Some(val)
                         } else {
                             None
                         };
@@ -624,19 +802,83 @@ impl Parser {
             }
             Some(Keyword::MODIFY_P) => {
                 self.advance();
-                let name = self.parse_identifier()?;
-                let action = if self.match_keyword(Keyword::NOT) {
+                if self.match_keyword(Keyword::PARTITION) {
                     self.advance();
-                    self.expect_keyword(Keyword::NULL_P)?;
-                    AlterColumnAction::SetNotNull
-                } else if self.match_keyword(Keyword::NULL_P) {
+                    let name = self.parse_identifier()?;
+                    let action = self.parse_alter_table_action()?;
+                    Ok(AlterTableAction::ModifyPartition {
+                        name,
+                        action: Box::new(action),
+                    })
+                } else if self.match_keyword(Keyword::SUBPARTITION) {
                     self.advance();
-                    AlterColumnAction::DropNotNull
+                    let name = self.parse_identifier()?;
+                    let action = self.parse_alter_table_action()?;
+                    Ok(AlterTableAction::ModifySubPartition {
+                        name,
+                        action: Box::new(action),
+                    })
+                } else if self.match_token(&Token::LParen) {
+                    self.advance();
+                    let mut cols = Vec::new();
+                    loop {
+                        let name = self.parse_identifier()?;
+                        let data_type = self.parse_data_type()?;
+                        let nullability = if self.match_keyword(Keyword::NOT) {
+                            self.advance();
+                            self.expect_keyword(Keyword::NULL_P)?;
+                            Some(false)
+                        } else if self.match_keyword(Keyword::NULL_P) {
+                            self.advance();
+                            Some(true)
+                        } else {
+                            None
+                        };
+                        cols.push(ModifyColumnInfo {
+                            name,
+                            data_type,
+                            nullability,
+                        });
+                        if !self.match_token(&Token::Comma) {
+                            break;
+                        }
+                        self.advance();
+                    }
+                    self.expect_token(&Token::RParen)?;
+                    Ok(AlterTableAction::ModifyColumns(cols))
                 } else {
-                    let data_type = self.parse_data_type()?;
-                    AlterColumnAction::SetDataType(data_type)
-                };
-                Ok(AlterTableAction::AlterColumn { name, action })
+                    if self.match_keyword(Keyword::COLUMN) {
+                        self.advance();
+                    }
+                    let name = self.parse_identifier()?;
+                    let action = if self.match_keyword(Keyword::NOT) {
+                        self.advance();
+                        self.expect_keyword(Keyword::NULL_P)?;
+                        AlterColumnAction::SetNotNull
+                    } else if self.match_keyword(Keyword::NULL_P) {
+                        self.advance();
+                        AlterColumnAction::DropNotNull
+                    } else {
+                        let data_type = self.parse_data_type()?;
+                        if self.match_keyword(Keyword::FIRST_P) {
+                            self.advance();
+                        } else if self.match_keyword(Keyword::AFTER) {
+                            self.advance();
+                            let _ = self.parse_identifier();
+                        }
+                        AlterColumnAction::SetDataType(data_type)
+                    };
+                    if self.match_keyword(Keyword::ON) {
+                        self.advance();
+                        self.expect_keyword(Keyword::UPDATE)?;
+                        let _ = self.consume_any_identifier();
+                    }
+                    if self.match_keyword(Keyword::FIRST_P) {
+                        self.advance();
+                        let _ = self.parse_identifier();
+                    }
+                    Ok(AlterTableAction::AlterColumn { name, action })
+                }
             }
             Some(Keyword::ENABLE_P) => {
                 self.advance();
@@ -660,8 +902,38 @@ impl Parser {
                             Some(self.parse_identifier()?)
                         };
                     Ok(AlterTableAction::EnableTrigger { name })
+                } else if self.match_keyword(Keyword::RULE) {
+                    self.advance();
+                    let name = self.parse_identifier()?;
+                    Ok(AlterTableAction::SetRule {
+                        enable: true,
+                        mode: None,
+                        name,
+                    })
+                } else if self.match_keyword(Keyword::STATISTICS) {
+                    self.advance();
+                    self.parse_statistics_columns(StatisticsOpKind::Enable)
                 } else {
-                    Ok(AlterTableAction::EnableRowLevelSecurity)
+                    let mode = if self.match_keyword(Keyword::REPLICA) {
+                        self.advance();
+                        Some("REPLICA".to_string())
+                    } else if self.match_keyword(Keyword::ALWAYS) {
+                        self.advance();
+                        Some("ALWAYS".to_string())
+                    } else {
+                        None
+                    };
+                    if self.match_keyword(Keyword::RULE) {
+                        self.advance();
+                        let name = self.parse_identifier()?;
+                        Ok(AlterTableAction::SetRule {
+                            enable: true,
+                            mode,
+                            name,
+                        })
+                    } else {
+                        Ok(AlterTableAction::EnableRowLevelSecurity)
+                    }
                 }
             }
             Some(Keyword::DISABLE_P) => {
@@ -686,8 +958,38 @@ impl Parser {
                             Some(self.parse_identifier()?)
                         };
                     Ok(AlterTableAction::DisableTrigger { name })
+                } else if self.match_keyword(Keyword::RULE) {
+                    self.advance();
+                    let name = self.parse_identifier()?;
+                    Ok(AlterTableAction::SetRule {
+                        enable: false,
+                        mode: None,
+                        name,
+                    })
+                } else if self.match_keyword(Keyword::STATISTICS) {
+                    self.advance();
+                    self.parse_statistics_columns(StatisticsOpKind::Disable)
                 } else {
-                    Ok(AlterTableAction::DisableRowLevelSecurity)
+                    let mode = if self.match_keyword(Keyword::REPLICA) {
+                        self.advance();
+                        Some("REPLICA".to_string())
+                    } else if self.match_keyword(Keyword::ALWAYS) {
+                        self.advance();
+                        Some("ALWAYS".to_string())
+                    } else {
+                        None
+                    };
+                    if self.match_keyword(Keyword::RULE) {
+                        self.advance();
+                        let name = self.parse_identifier()?;
+                        Ok(AlterTableAction::SetRule {
+                            enable: false,
+                            mode,
+                            name,
+                        })
+                    } else {
+                        Ok(AlterTableAction::DisableRowLevelSecurity)
+                    }
                 }
             }
             Some(Keyword::CHARSET) | Some(Keyword::CHARACTER) => {
@@ -813,18 +1115,27 @@ impl Parser {
                         self.advance();
                     }
                     Ok(AlterTableAction::IlmEnablePolicy)
+                } else if self.match_ident_str("DISABLE_ALL") {
+                    self.advance();
+                    Ok(AlterTableAction::IlmDisableAllPolicies)
                 } else if self.match_ident_str("DISABLE") {
                     self.advance();
                     if self.match_ident_str("POLICY") {
                         self.advance();
                     }
                     Ok(AlterTableAction::IlmDisablePolicy)
+                } else if self.match_ident_str("DELETE_ALL") {
+                    self.advance();
+                    Ok(AlterTableAction::IlmDeleteAllPolicies)
                 } else if self.match_ident_str("DELETE") {
                     self.advance();
                     if self.match_ident_str("POLICY") {
                         self.advance();
                     }
                     Ok(AlterTableAction::IlmDeletePolicy)
+                } else if self.match_ident_str("ENABLE_ALL") {
+                    self.advance();
+                    Ok(AlterTableAction::IlmEnableAllPolicies)
                 } else if self.match_keyword(Keyword::ADD_P) {
                     self.advance();
                     if self.match_ident_str("POLICY") {
@@ -867,6 +1178,21 @@ impl Parser {
                     })
                 }
             }
+            Some(Keyword::ENCRYPTION) => {
+                self.advance();
+                self.expect_keyword(Keyword::KEY)?;
+                self.expect_keyword(Keyword::ROTATION)?;
+                Ok(AlterTableAction::EncryptionKeyRotation)
+            }
+            _ if self.match_ident_str("GSIWAITALL") => {
+                self.advance();
+                Ok(AlterTableAction::GsiWaitAll)
+            }
+            Some(Keyword::DELETE_P) => {
+                self.advance();
+                self.expect_keyword(Keyword::STATISTICS)?;
+                self.parse_statistics_columns(StatisticsOpKind::Delete)
+            }
             _ => Err(ParserError::UnexpectedToken {
                 location: self.current_location(),
                 expected: "ALTER TABLE action".to_string(),
@@ -876,7 +1202,7 @@ impl Parser {
     }
 
     fn parse_partition_values(&mut self) -> Result<PartitionValues, ParserError> {
-        self.expect_keyword(Keyword::VALUES)?;
+        self.try_consume_keyword(Keyword::VALUES);
         if self.match_keyword(Keyword::LESS) {
             self.advance();
             self.expect_keyword(Keyword::THAN)?;
@@ -923,14 +1249,29 @@ impl Parser {
                 None
             };
             Ok(PartitionValues::StartEnd { start, end, every })
+        } else if self.match_keyword(Keyword::END_P) {
+            self.advance();
+            self.expect_token(&Token::LParen)?;
+            let end = self.parse_expr()?;
+            self.expect_token(&Token::RParen)?;
+            let every = if self.match_keyword(Keyword::EVERY) {
+                self.advance();
+                self.expect_token(&Token::LParen)?;
+                let e = self.parse_expr()?;
+                self.expect_token(&Token::RParen)?;
+                Some(e)
+            } else {
+                None
+            };
+            Ok(PartitionValues::EndOnly { end, every })
         } else if self.match_token(&Token::LParen) {
             self.advance();
             let mut vals = Vec::new();
             if !self.match_token(&Token::RParen) {
-                vals.push(self.parse_expr()?);
+                vals.push(self.parse_partition_value_item()?);
                 while self.match_token(&Token::Comma) {
                     self.advance();
-                    vals.push(self.parse_expr()?);
+                    vals.push(self.parse_partition_value_item()?);
                 }
                 self.expect_token(&Token::RParen)?;
             }
@@ -944,25 +1285,54 @@ impl Parser {
         }
     }
 
+    fn parse_partition_value_item(&mut self) -> Result<Expr, ParserError> {
+        use crate::ast::Expr;
+        if self.match_token(&Token::LParen) {
+            self.advance();
+            let first = self.parse_expr()?;
+            if self.match_token(&Token::Comma) {
+                let mut elems = vec![first];
+                loop {
+                    self.advance();
+                    elems.push(self.parse_expr()?);
+                    if !self.match_token(&Token::Comma) {
+                        break;
+                    }
+                }
+                self.expect_token(&Token::RParen)?;
+                Ok(Expr::RowConstructor(elems))
+            } else {
+                self.expect_token(&Token::RParen)?;
+                Ok(Expr::Parenthesized(Box::new(first)))
+            }
+        } else {
+            self.parse_expr()
+        }
+    }
+
     fn parse_start_end_values(&mut self) -> Result<PartitionValues, ParserError> {
         self.advance();
         self.expect_token(&Token::LParen)?;
         let start = self.parse_expr()?;
         self.expect_token(&Token::RParen)?;
-        self.expect_keyword(Keyword::END_P)?;
-        self.expect_token(&Token::LParen)?;
-        let end = self.parse_expr()?;
-        self.expect_token(&Token::RParen)?;
-        let every = if self.match_keyword(Keyword::EVERY) {
+        if self.match_keyword(Keyword::END_P) {
             self.advance();
             self.expect_token(&Token::LParen)?;
-            let e = self.parse_expr()?;
+            let end = self.parse_expr()?;
             self.expect_token(&Token::RParen)?;
-            Some(e)
+            let every = if self.match_keyword(Keyword::EVERY) {
+                self.advance();
+                self.expect_token(&Token::LParen)?;
+                let e = self.parse_expr()?;
+                self.expect_token(&Token::RParen)?;
+                Some(e)
+            } else {
+                None
+            };
+            Ok(PartitionValues::StartEnd { start, end, every })
         } else {
-            None
-        };
-        Ok(PartitionValues::StartEnd { start, end, every })
+            Ok(PartitionValues::StartOnly { start })
+        }
     }
 
     pub(crate) fn parse_partition_defs(&mut self) -> Result<Vec<PartitionDef>, ParserError> {
@@ -978,6 +1348,21 @@ impl Parser {
                 Some(self.parse_partition_values()?)
             } else if self.match_keyword(Keyword::START) {
                 Some(self.parse_start_end_values()?)
+            } else if self.match_keyword(Keyword::END_P) {
+                self.advance();
+                self.expect_token(&Token::LParen)?;
+                let end = self.parse_expr()?;
+                self.expect_token(&Token::RParen)?;
+                let every = if self.match_keyword(Keyword::EVERY) {
+                    self.advance();
+                    self.expect_token(&Token::LParen)?;
+                    let e = self.parse_expr()?;
+                    self.expect_token(&Token::RParen)?;
+                    Some(e)
+                } else {
+                    None
+                };
+                Some(PartitionValues::EndOnly { end, every })
             } else {
                 None
             };
@@ -1045,6 +1430,15 @@ impl Parser {
             } else {
                 None
             };
+            if self.match_ident_str("ILM") {
+                self.advance();
+                while !self.match_token(&Token::Comma)
+                    && !self.match_token(&Token::RParen)
+                    && !self.peek().eq(&Token::Eof)
+                {
+                    self.advance();
+                }
+            }
             defs.push(PartitionDef {
                 name,
                 values,
@@ -1114,6 +1508,25 @@ impl Parser {
                 got: format!("{:?}", self.peek()),
             }),
         }
+    }
+
+    fn parse_statistics_columns(
+        &mut self,
+        op: StatisticsOpKind,
+    ) -> Result<AlterTableAction, ParserError> {
+        self.expect_token(&Token::LParen)?;
+        self.expect_token(&Token::LParen)?;
+        let mut columns = Vec::new();
+        loop {
+            columns.push(self.parse_identifier()?);
+            if !self.match_token(&Token::Comma) {
+                break;
+            }
+            self.advance();
+        }
+        self.expect_token(&Token::RParen)?;
+        self.expect_token(&Token::RParen)?;
+        Ok(AlterTableAction::StatisticsOp { op, columns })
     }
 
     fn parse_update_index_clauses(&mut self) -> Result<(bool, Option<bool>), ParserError> {
@@ -1306,6 +1719,105 @@ impl Parser {
         let name = self.parse_object_name()?;
         let raw_rest = self.skip_to_semicolon_and_collect();
         Ok(AlterMaterializedViewStatement { name, raw_rest })
+    }
+
+    // ========== ALTER SYNONYM ==========
+
+    pub(crate) fn parse_alter_synonym(&mut self) -> Result<AlterSynonymStatement, ParserError> {
+        self.expect_keyword(Keyword::SYNONYM)?;
+        let name = self.parse_identifier()?;
+        let action = if self.try_consume_keyword(Keyword::COMPILE) {
+            let debug = self.match_ident_str("DEBUG");
+            if debug {
+                self.advance();
+            }
+            AlterSynonymAction::Compile { debug }
+        } else if self.try_consume_keyword(Keyword::OWNER) {
+            self.expect_keyword(Keyword::TO)?;
+            let new_owner = self.parse_identifier()?;
+            AlterSynonymAction::OwnerTo { new_owner }
+        } else {
+            let raw_rest = self.skip_to_semicolon_and_collect();
+            return Err(ParserError::UnexpectedToken {
+                location: self.current_location(),
+                expected: "COMPILE or OWNER after ALTER SYNONYM name".to_string(),
+                got: raw_rest,
+            });
+        };
+        Ok(AlterSynonymStatement { name, action })
+    }
+
+    // ========== ALTER TEXT SEARCH CONFIGURATION ==========
+
+    pub(crate) fn parse_alter_text_search_config(
+        &mut self,
+    ) -> Result<AlterTextSearchConfigStatement, ParserError> {
+        let name = self.parse_object_name()?;
+        let raw_rest = self.skip_to_semicolon_and_collect();
+        Ok(AlterTextSearchConfigStatement { name, raw_rest })
+    }
+
+    // ========== ALTER TEXT SEARCH DICTIONARY ==========
+
+    pub(crate) fn parse_alter_text_search_dict(
+        &mut self,
+    ) -> Result<AlterTextSearchDictStatement, ParserError> {
+        let name = self.parse_object_name()?;
+        let mut options = Vec::new();
+        if self.match_token(&Token::LParen) {
+            self.advance();
+            loop {
+                let key = self.consume_any_identifier()?;
+                if self.match_token(&Token::Eq) {
+                    self.advance();
+                    let value = match self.peek().clone() {
+                        Token::StringLiteral(s) => {
+                            self.advance();
+                            s
+                        }
+                        _ => self.consume_any_identifier()?,
+                    };
+                    options.push((key, value));
+                } else {
+                    options.push((key, String::new()));
+                }
+                if !self.match_token(&Token::Comma) {
+                    break;
+                }
+                self.advance();
+            }
+            self.expect_token(&Token::RParen)?;
+        }
+        Ok(AlterTextSearchDictStatement { name, options })
+    }
+
+    // ========== ALTER COORDINATOR ==========
+
+    pub(crate) fn parse_alter_coordinator(
+        &mut self,
+    ) -> Result<AlterCoordinatorStatement, ParserError> {
+        let name = self.parse_identifier()?;
+        let raw_rest = self.skip_to_semicolon_and_collect();
+        Ok(AlterCoordinatorStatement { name, raw_rest })
+    }
+
+    // ========== ALTER APP WORKLOAD GROUP MAPPING ==========
+
+    pub(crate) fn parse_alter_app_workload_group_mapping(
+        &mut self,
+    ) -> Result<AlterAppWorkloadGroupMappingStatement, ParserError> {
+        let name = self.parse_identifier()?;
+        let raw_rest = self.skip_to_semicolon_and_collect();
+        Ok(AlterAppWorkloadGroupMappingStatement { name, raw_rest })
+    }
+
+    fn consume_column_position(&mut self) {
+        if self.match_keyword(Keyword::FIRST_P) {
+            self.advance();
+        } else if self.match_keyword(Keyword::AFTER) {
+            self.advance();
+            let _ = self.parse_identifier();
+        }
     }
 
     // ========== DROP ==========

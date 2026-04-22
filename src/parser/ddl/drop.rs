@@ -26,9 +26,27 @@ impl Parser {
                 self.advance();
                 ObjectType::Schema
             }
+            Some(Keyword::PUBLIC) => {
+                self.advance();
+                self.expect_keyword(Keyword::DATABASE)?;
+                if !self.match_ident_str("LINK") {
+                    return Err(ParserError::UnexpectedToken {
+                        location: self.current_location(),
+                        expected: "LINK after PUBLIC DATABASE".to_string(),
+                        got: format!("{:?}", self.peek()),
+                    });
+                }
+                self.advance();
+                ObjectType::DatabaseLink
+            }
             Some(Keyword::DATABASE) => {
                 self.advance();
-                ObjectType::Database
+                if self.match_ident_str("LINK") {
+                    self.advance();
+                    ObjectType::DatabaseLink
+                } else {
+                    ObjectType::Database
+                }
             }
             Some(Keyword::TABLESPACE) => {
                 self.advance();
@@ -121,6 +139,13 @@ impl Parser {
             Some(Keyword::DIRECTORY) => {
                 self.advance();
                 ObjectType::Directory
+            }
+            Some(Keyword::PACKAGE) => {
+                self.advance();
+                if self.match_ident_str("body") {
+                    self.advance();
+                }
+                ObjectType::Package
             }
             Some(Keyword::EVENT) => {
                 self.advance();
@@ -271,7 +296,34 @@ impl Parser {
             }
             _ if self.match_ident_str("app") => {
                 self.advance();
-                ObjectType::App
+                if self.match_keyword(Keyword::WORKLOAD) && {
+                    let saved = self.pos;
+                    self.advance();
+                    let is_wgm = self.match_keyword(Keyword::GROUP_P) && {
+                        let saved2 = self.pos;
+                        self.advance();
+                        let is_mapping = self.match_ident_str("mapping");
+                        if !is_mapping {
+                            self.pos = saved2;
+                        }
+                        is_mapping
+                    };
+                    if !is_wgm {
+                        self.pos = saved;
+                    }
+                    is_wgm
+                } {
+                    self.advance();
+                    if self.match_keyword(Keyword::GROUP_P) {
+                        self.advance();
+                    }
+                    if self.match_ident_str("mapping") {
+                        self.advance();
+                    }
+                    ObjectType::App
+                } else {
+                    ObjectType::App
+                }
             }
             _ if self.match_ident_str("global") => {
                 self.advance();
@@ -298,13 +350,53 @@ impl Parser {
         object_type: ObjectType,
         if_exists: bool,
     ) -> Result<DropStatement, ParserError> {
-        let mut names = vec![self.parse_object_name()?];
-        while self.match_token(&Token::Comma) {
+        let names = if matches!(object_type, ObjectType::Cast) && self.match_token(&Token::LParen) {
             self.advance();
-            names.push(self.parse_object_name()?);
-        }
+            let mut depth = 0;
+            let mut name_parts = Vec::new();
+            loop {
+                match self.peek() {
+                    Token::RParen if depth == 0 => {
+                        self.advance();
+                        break;
+                    }
+                    Token::LParen => {
+                        depth += 1;
+                        name_parts.push(self.token_to_string());
+                        self.advance();
+                    }
+                    Token::RParen => {
+                        depth -= 1;
+                        name_parts.push(self.token_to_string());
+                        self.advance();
+                    }
+                    Token::Eof => break,
+                    _ => {
+                        name_parts.push(self.token_to_string());
+                        self.advance();
+                    }
+                }
+            }
+            let raw_rest = name_parts.join(" ");
+            vec![vec![raw_rest]]
+        } else if matches!(object_type, ObjectType::WeakPasswordDictionary)
+            && (self.match_token(&Token::Semicolon) || self.match_token(&Token::Eof))
+        {
+            vec![vec!["__all__".to_string()]]
+        } else {
+            let mut names = vec![self.parse_object_name()?];
+            while self.match_token(&Token::Comma) {
+                self.advance();
+                names.push(self.parse_object_name()?);
+            }
+            names
+        };
         match object_type {
-            ObjectType::Aggregate | ObjectType::Operator | ObjectType::Cast => {
+            ObjectType::Aggregate
+            | ObjectType::Operator
+            | ObjectType::Cast
+            | ObjectType::Function
+            | ObjectType::Procedure => {
                 if self.match_token(&Token::LParen) {
                     self.advance();
                     let mut depth = 1;
@@ -324,7 +416,7 @@ impl Parser {
                     let _ = self.parse_identifier();
                 }
             }
-            ObjectType::Rule => {
+            ObjectType::Rule | ObjectType::Trigger | ObjectType::RlsPolicy => {
                 if self.match_keyword(Keyword::ON) {
                     self.advance();
                     let _ = self.parse_object_name();
@@ -333,6 +425,7 @@ impl Parser {
             _ => {}
         }
         let cascade = self.try_consume_keyword(Keyword::CASCADE);
+        let _ = self.try_consume_keyword(Keyword::RESTRICT);
         let purge = self.try_consume_keyword(Keyword::PURGE);
         Ok(DropStatement {
             object_type,
