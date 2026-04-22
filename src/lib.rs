@@ -6,7 +6,13 @@ pub mod token;
 
 pub use analyzer::{analyze_pl_block, DynamicSqlReport};
 
-pub use ast::visitor::{walk_statement, Visitor, VisitorResult};
+pub use ast::visitor::{
+    walk_statement,
+    walk_pl_block,
+    walk_pl_statement,
+    walk_pl_declaration,
+    Visitor, VisitorResult,
+};
 pub use ast::StatementInfo;
 pub use ast::{
     AlterTableAction, AlterTableStatement, ColumnConstraint, ColumnDef, CopyStatement,
