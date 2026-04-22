@@ -791,9 +791,10 @@ impl Parser {
         };
         let like_pattern = if self.match_keyword(Keyword::LIKE) {
             self.advance();
-            Some(self.parse_identifier().unwrap_or_else(|_| {
-                self.parse_set_variable_name().unwrap_or_default()
-            }))
+            Some(
+                self.parse_identifier()
+                    .unwrap_or_else(|_| self.parse_set_variable_name().unwrap_or_default()),
+            )
         } else {
             None
         };

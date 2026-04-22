@@ -1492,11 +1492,9 @@ impl Keyword {
             | Keyword::EXCEPT
             | Keyword::EXCLUDED
             | Keyword::FALSE_P => KeywordCategory::Reserved,
-            Keyword::FETCH
-            | Keyword::FOR
-            | Keyword::FOREIGN
-            | Keyword::FROM
-            | Keyword::GRANT => KeywordCategory::Reserved,
+            Keyword::FETCH | Keyword::FOR | Keyword::FOREIGN | Keyword::FROM | Keyword::GRANT => {
+                KeywordCategory::Reserved
+            }
             Keyword::GROUP_P | Keyword::GROUPPARENT | Keyword::HAVING | Keyword::IN_P => {
                 KeywordCategory::Reserved
             }

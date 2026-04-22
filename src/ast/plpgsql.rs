@@ -158,10 +158,15 @@ pub enum PlStatement {
         condition: Option<crate::ast::Expr>,
     },
 
-    /// RETURN [expression]
     Return {
         expression: Option<crate::ast::Expr>,
     },
+
+    ReturnNext {
+        expression: crate::ast::Expr,
+    },
+
+    ReturnQuery(PlReturnQueryStmt),
 
     /// RAISE [level] format [, args...] [USING option = value ...]
     Raise(PlRaiseStmt),
@@ -183,7 +188,9 @@ pub enum PlStatement {
     Fetch(PlFetchStmt),
 
     /// CLOSE cursor_name
-    Close { cursor: String },
+    Close {
+        cursor: String,
+    },
 
     /// MOVE [direction [FROM | IN]] cursor
     Move {
@@ -198,16 +205,22 @@ pub enum PlStatement {
     Commit,
 
     /// ROLLBACK [WORK | TO savepoint_name]
-    Rollback { to_savepoint: Option<String> },
+    Rollback {
+        to_savepoint: Option<String>,
+    },
 
-    /// SAVEPOINT name
-    Savepoint { name: String },
-
-    /// NULL statement (no-op)
+    Savepoint {
+        name: String,
+    },
+    ReleaseSavepoint {
+        name: String,
+    },
     Null,
 
     /// GOTO label
-    Goto { label: String },
+    Goto {
+        label: String,
+    },
 
     /// Procedure or function call: name[(args...)]
     ProcedureCall(PlProcedureCall),
@@ -225,7 +238,9 @@ pub enum PlStatement {
     ForAll(PlForAllStmt),
 
     /// PIPE ROW(expr)
-    PipeRow { expression: crate::ast::Expr },
+    PipeRow {
+        expression: crate::ast::Expr,
+    },
 }
 
 // ── Statement Detail Types ──
@@ -325,6 +340,7 @@ pub struct PlForEachStmt {
 pub struct PlForAllStmt {
     pub variable: String,
     pub bounds: String,
+    pub save_exceptions: bool,
     pub body: String,
 }
 
@@ -332,7 +348,10 @@ pub struct PlForAllStmt {
 pub struct PlRaiseStmt {
     pub level: Option<RaiseLevel>,
     pub message: Option<String>,
+    pub params: Vec<crate::ast::Expr>,
     pub options: Vec<RaiseOption>,
+    pub condname: Option<String>,
+    pub sqlstate: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -348,7 +367,7 @@ pub enum RaiseLevel {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct RaiseOption {
     pub name: String,
-    pub value: String,
+    pub value: crate::ast::Expr,
 }
 
 /// Parameter passing mode for EXECUTE IMMEDIATE ... USING arguments.
@@ -380,6 +399,16 @@ pub struct PlExecuteStmt {
     pub using_args: Vec<PlUsingArg>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub parsed_query: Option<Box<crate::ast::Statement>>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct PlReturnQueryStmt {
+    pub query: String,
+    pub is_dynamic: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub dynamic_expr: Option<crate::ast::Expr>,
+    #[serde(default)]
+    pub using_args: Vec<PlUsingArg>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

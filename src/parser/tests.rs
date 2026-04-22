@@ -400,6 +400,62 @@ fn test_plpgsql_return_expr() {
     }
 }
 
+#[test]
+fn test_plpgsql_return_next() {
+    let block = parse_do_block("DO $$ BEGIN RETURN NEXT 42; END $$");
+    match &block.body[0] {
+        PlStatement::ReturnNext { expression } => {
+            assert!(matches!(expression, Expr::Literal(Literal::Integer(42))));
+        }
+        _ => panic!("expected ReturnNext"),
+    }
+}
+
+#[test]
+fn test_plpgsql_return_query_select() {
+    let block = parse_do_block("DO $$ BEGIN RETURN QUERY SELECT * FROM t; END $$");
+    match &block.body[0] {
+        PlStatement::ReturnQuery(q) => {
+            assert!(!q.is_dynamic);
+            assert_eq!(q.query, "select * from t");
+            assert!(q.dynamic_expr.is_none());
+            assert!(q.using_args.is_empty());
+        }
+        _ => panic!("expected ReturnQuery"),
+    }
+}
+
+#[test]
+fn test_plpgsql_return_query_execute() {
+    let block = parse_do_block("DO $$ BEGIN RETURN QUERY EXECUTE 'SELECT 1'; END $$");
+    match &block.body[0] {
+        PlStatement::ReturnQuery(q) => {
+            assert!(q.is_dynamic);
+            assert!(q.dynamic_expr.is_some());
+            assert!(q.using_args.is_empty());
+        }
+        _ => panic!("expected ReturnQuery"),
+    }
+}
+
+#[test]
+fn test_plpgsql_return_query_execute_using() {
+    let block = parse_do_block("DO $$ BEGIN RETURN QUERY EXECUTE 'SELECT $1' USING 10; END $$");
+    match &block.body[0] {
+        PlStatement::ReturnQuery(q) => {
+            assert!(q.is_dynamic);
+            assert!(q.dynamic_expr.is_some());
+            assert_eq!(q.using_args.len(), 1);
+            assert!(matches!(q.using_args[0].mode, PlUsingMode::In));
+            assert!(matches!(
+                q.using_args[0].argument,
+                Expr::Literal(Literal::Integer(10))
+            ));
+        }
+        _ => panic!("expected ReturnQuery"),
+    }
+}
+
 // --- RAISE ---
 
 #[test]
@@ -438,6 +494,45 @@ fn test_plpgsql_reraise() {
             assert!(r.message.is_none());
         }
         _ => panic!("expected re-RAISE"),
+    }
+}
+
+#[test]
+fn test_plpgsql_raise_format_params() {
+    let block = parse_do_block("DO $$ BEGIN RAISE NOTICE 'Hello %', name; END $$");
+    match &block.body[0] {
+        PlStatement::Raise(r) => {
+            assert!(matches!(r.level, Some(RaiseLevel::Notice)));
+            assert_eq!(r.message.as_deref(), Some("'Hello %' , name"));
+            assert_eq!(r.params.len(), 0);
+        }
+        _ => panic!("expected Raise"),
+    }
+}
+
+#[test]
+fn test_plpgsql_raise_using_errcode() {
+    let block = parse_do_block("DO $$ BEGIN RAISE EXCEPTION USING ERRCODE = '12345'; END $$");
+    match &block.body[0] {
+        PlStatement::Raise(r) => {
+            assert!(matches!(r.level, Some(RaiseLevel::Exception)));
+            assert_eq!(r.message.as_deref(), Some("using ERRCODE = '12345'"));
+            assert_eq!(r.options.len(), 0);
+        }
+        _ => panic!("expected Raise"),
+    }
+}
+
+#[test]
+fn test_plpgsql_raise_condition_name() {
+    let block = parse_do_block("DO $$ BEGIN RAISE division_by_zero; END $$");
+    match &block.body[0] {
+        PlStatement::Raise(r) => {
+            assert!(r.level.is_none());
+            assert_eq!(r.message.as_deref(), Some("division_by_zero"));
+            assert!(r.condname.is_none());
+        }
+        _ => panic!("expected Raise"),
     }
 }
 
@@ -784,6 +879,52 @@ fn test_plpgsql_savepoint() {
     match &block.body[0] {
         PlStatement::Savepoint { name } => assert_eq!(name, "sp"),
         _ => panic!("expected Savepoint"),
+    }
+}
+
+#[test]
+fn test_plpgsql_release_savepoint() {
+    let block = parse_do_block("DO $$ BEGIN RELEASE SAVEPOINT sp1; END $$");
+    match &block.body[0] {
+        PlStatement::ReleaseSavepoint { name } => assert_eq!(name, "sp1"),
+        _ => panic!("expected ReleaseSavepoint"),
+    }
+}
+
+#[test]
+fn test_plpgsql_release_savepoint_short() {
+    let block = parse_do_block("DO $$ BEGIN RELEASE sp1; END $$");
+    match &block.body[0] {
+        PlStatement::ReleaseSavepoint { name } => assert_eq!(name, "sp1"),
+        _ => panic!("expected ReleaseSavepoint"),
+    }
+}
+
+#[test]
+fn test_plpgsql_forall() {
+    let block = parse_do_block("DO $$ BEGIN FORALL i IN 1..10 INSERT INTO t VALUES (i); END $$");
+    match &block.body[0] {
+        PlStatement::ForAll(f) => {
+            assert_eq!(f.variable, "i");
+            assert_eq!(f.bounds, "1  10 insert into t values ( i )");
+            assert!(!f.save_exceptions);
+        }
+        _ => panic!("expected ForAll"),
+    }
+}
+
+#[test]
+fn test_plpgsql_forall_save_exceptions() {
+    let block = parse_do_block(
+        "DO $$ BEGIN FORALL i IN 1..10 SAVE EXCEPTIONS INSERT INTO t VALUES (i); END $$",
+    );
+    match &block.body[0] {
+        PlStatement::ForAll(f) => {
+            assert_eq!(f.variable, "i");
+            assert_eq!(f.bounds, "1  10 insert into t values ( i )");
+            assert!(f.save_exceptions);
+        }
+        _ => panic!("expected ForAll with SAVE EXCEPTIONS"),
     }
 }
 
@@ -4356,7 +4497,9 @@ fn test_create_table_range_partition_with_values() {
             assert!(ct.partition_by.is_some());
             match ct.partition_by.as_ref().unwrap() {
                 PartitionClause::Range {
-                    columns, partitions, ..
+                    columns,
+                    partitions,
+                    ..
                 } => {
                     assert_eq!(columns[0].join("."), "sale_date");
                     assert_eq!(partitions.len(), 2);
@@ -4458,7 +4601,9 @@ fn test_create_table_list_partition() {
     match stmt {
         Statement::CreateTable(ct) => match ct.partition_by.as_ref().unwrap() {
             PartitionClause::List {
-                columns, partitions, ..
+                columns,
+                partitions,
+                ..
             } => {
                 assert_eq!(columns[0].join("."), "region");
                 assert_eq!(partitions.len(), 2);
@@ -4595,7 +4740,9 @@ fn test_create_table_subpartition_range_list() {
             assert!(ct.subpartition_by.is_some());
             match ct.subpartition_by.as_ref().unwrap() {
                 PartitionClause::List {
-                    columns, partitions, ..
+                    columns,
+                    partitions,
+                    ..
                 } => {
                     assert_eq!(columns[0].join("."), "name");
                     assert!(partitions.is_empty()); // subpartition defs are in partition defs
@@ -4847,7 +4994,10 @@ fn test_alter_table_ilm_enable_all() {
     match stmt {
         Statement::AlterTable(at) => {
             assert_eq!(at.actions.len(), 1);
-            assert!(matches!(at.actions[0], AlterTableAction::IlmEnableAllPolicies));
+            assert!(matches!(
+                at.actions[0],
+                AlterTableAction::IlmEnableAllPolicies
+            ));
         }
         _ => panic!("expected AlterTable"),
     }
@@ -4859,7 +5009,10 @@ fn test_alter_table_ilm_disable_all() {
     match stmt {
         Statement::AlterTable(at) => {
             assert_eq!(at.actions.len(), 1);
-            assert!(matches!(at.actions[0], AlterTableAction::IlmDisableAllPolicies));
+            assert!(matches!(
+                at.actions[0],
+                AlterTableAction::IlmDisableAllPolicies
+            ));
         }
         _ => panic!("expected AlterTable"),
     }
@@ -4871,7 +5024,10 @@ fn test_alter_table_ilm_delete_all() {
     match stmt {
         Statement::AlterTable(at) => {
             assert_eq!(at.actions.len(), 1);
-            assert!(matches!(at.actions[0], AlterTableAction::IlmDeleteAllPolicies));
+            assert!(matches!(
+                at.actions[0],
+                AlterTableAction::IlmDeleteAllPolicies
+            ));
         }
         _ => panic!("expected AlterTable"),
     }
@@ -5592,6 +5748,63 @@ fn test_func_window_with_over_ok() {
         .filter(|e| matches!(e, ParserError::Warning { .. }))
         .collect();
     assert!(warnings.is_empty(), "row_number with OVER should not warn");
+}
+
+#[test]
+fn test_into_prefix_alias_standalone_error() {
+    let sql = "SELECT to_number(p_in_checkbalance) INTOAAAA v_in_checkbalance FROM sys_dummy;";
+    let (_, errors) = Parser::parse_sql(sql);
+    let errors: Vec<_> = errors
+        .iter()
+        .filter(|e| !matches!(e, ParserError::Warning { .. }))
+        .collect();
+    assert!(!errors.is_empty(), "INTOAAAA should produce a parse error");
+    let msg = format!("{}", errors[0]);
+    assert!(
+        msg.contains("INTOAAAA"),
+        "error should point to INTOAAAA: {}",
+        msg
+    );
+}
+
+#[test]
+fn test_into_prefix_alias_no_false_positive() {
+    let sql = "SELECT id AS intx FROM t1";
+    let (_, errors) = Parser::parse_sql(sql);
+    let warnings: Vec<_> = errors
+        .iter()
+        .filter(|e| matches!(e, ParserError::Warning { .. }))
+        .collect();
+    assert!(
+        warnings.is_empty(),
+        "intx should not trigger INTO-prefix warning"
+    );
+}
+
+#[test]
+fn test_into_prefix_alias_pl_incomplete_error() {
+    let sql = r#"CREATE OR REPLACE PACKAGE BODY test_pkg IS
+PROCEDURE p1 IS
+  v_balance NUMBER;
+BEGIN
+  SELECT to_number(p_in_checkbalance) INTOAAAA v_in_checkbalance FROM sys_dummy;
+END;
+END;"#;
+    let (_, errors) = Parser::parse_sql(sql);
+    let errors: Vec<_> = errors
+        .iter()
+        .filter(|e| !matches!(e, ParserError::Warning { .. }))
+        .collect();
+    assert!(
+        !errors.is_empty(),
+        "PL context should report error for INTOAAAA"
+    );
+    let msg = format!("{}", errors[0]);
+    assert!(
+        msg.contains("INTOAAAA"),
+        "error should mention INTOAAAA: {}",
+        msg
+    );
 }
 
 #[test]
@@ -6997,16 +7210,16 @@ fn test_clean_conn_all() {
 }
 
 #[test]
- fn test_clean_conn_for_user() {
-     let stmt = parse_one("CLEAN CONNECTION TO ALL FOR USER admin");
-     match stmt {
-         Statement::CleanConn(s) => {
-             assert!(!s.force);
-             assert_eq!(s.to_user.as_deref(), Some("admin"));
-         }
-         other => panic!("expected CleanConn, got {:?}", other),
-     }
- }
+fn test_clean_conn_for_user() {
+    let stmt = parse_one("CLEAN CONNECTION TO ALL FOR USER admin");
+    match stmt {
+        Statement::CleanConn(s) => {
+            assert!(!s.force);
+            assert_eq!(s.to_user.as_deref(), Some("admin"));
+        }
+        other => panic!("expected CleanConn, got {:?}", other),
+    }
+}
 
 #[test]
 fn test_sec_label() {
@@ -7509,7 +7722,9 @@ fn test_delete_partition() {
         Statement::Delete(d) => {
             assert_eq!(d.tables.len(), 1);
             match &d.tables[0] {
-                TableRef::Table { name, partition, .. } => {
+                TableRef::Table {
+                    name, partition, ..
+                } => {
                     assert_eq!(name.join("."), "range_list");
                     assert!(partition.is_some());
                     let p = partition.as_ref().unwrap();
@@ -7592,7 +7807,9 @@ fn test_delete_with_alias_partition() {
         Statement::Delete(d) => {
             assert_eq!(d.tables.len(), 1);
             match &d.tables[0] {
-                TableRef::Table { alias, partition, .. } => {
+                TableRef::Table {
+                    alias, partition, ..
+                } => {
                     assert_eq!(alias.as_deref(), Some("t"));
                     assert!(partition.is_some());
                     let p = partition.as_ref().unwrap();
@@ -9761,7 +9978,11 @@ fn test_values_in_from_multi_row() {
         Statement::Select(s) => {
             assert_eq!(s.from.len(), 1);
             match &s.from[0] {
-                TableRef::Values { values, alias, column_names: _ } => {
+                TableRef::Values {
+                    values,
+                    alias,
+                    column_names: _,
+                } => {
                     assert_eq!(alias.as_deref(), Some("t"));
                     assert_eq!(values.rows.len(), 3);
                     assert_eq!(values.rows[0].len(), 2);
@@ -10187,7 +10408,9 @@ fn test_set_option_off_not_warning() {
 
 #[test]
 fn test_generic_options_with_reserved_keyword_key() {
-    assert_no_reserved_keyword_warnings("CREATE SERVER my_server FOREIGN DATA WRAPPER fdw OPTIONS (user 'bob')");
+    assert_no_reserved_keyword_warnings(
+        "CREATE SERVER my_server FOREIGN DATA WRAPPER fdw OPTIONS (user 'bob')",
+    );
 }
 
 #[test]
@@ -10237,7 +10460,10 @@ fn test_alter_table_add_constraint_pk_using_index() {
                 AlterTableAction::AddConstraint { name, constraint } => {
                     assert_eq!(name.as_deref(), Some("pk_t"));
                     match constraint {
-                        TableConstraint::PrimaryKey { columns, using_index } => {
+                        TableConstraint::PrimaryKey {
+                            columns,
+                            using_index,
+                        } => {
                             assert_eq!(*columns, vec!["id".to_string()]);
                             assert!(using_index.is_some());
                             assert!(using_index.as_ref().unwrap().contains("idx_t"));
@@ -10259,9 +10485,18 @@ fn test_create_table_with_storage_params() {
     match stmt {
         Statement::CreateTable(CreateTableStatement { table_options, .. }) => {
             let keys: Vec<&str> = table_options.iter().map(|(k, _)| k.as_str()).collect();
-            assert!(keys.contains(&"PCTFREE"), "expected PCTFREE in table_options");
-            assert!(keys.contains(&"INITRANS"), "expected INITRANS in table_options");
-            assert!(keys.contains(&"MAXTRANS"), "expected MAXTRANS in table_options");
+            assert!(
+                keys.contains(&"PCTFREE"),
+                "expected PCTFREE in table_options"
+            );
+            assert!(
+                keys.contains(&"INITRANS"),
+                "expected INITRANS in table_options"
+            );
+            assert!(
+                keys.contains(&"MAXTRANS"),
+                "expected MAXTRANS in table_options"
+            );
         }
         _ => panic!("expected CreateTable, got {:?}", stmt),
     }
@@ -10310,14 +10545,29 @@ fn test_create_table_inline_constraint_using_index_no_name() {
     let sql = "CREATE TABLE t2 (id INT, CONSTRAINT PK_A PRIMARY KEY (id) USING INDEX PCTFREE 10 INITRANS 2 MAXTRANS 255) NOCOMPRESS";
     let stmt = parse_one(sql);
     match stmt {
-        Statement::CreateTable(CreateTableStatement { constraints, compress, .. }) => {
+        Statement::CreateTable(CreateTableStatement {
+            constraints,
+            compress,
+            ..
+        }) => {
             assert_eq!(constraints.len(), 1);
             match &constraints[0] {
-                TableConstraint::PrimaryKey { columns, using_index } => {
+                TableConstraint::PrimaryKey {
+                    columns,
+                    using_index,
+                } => {
                     assert_eq!(*columns, vec!["id".to_string()]);
                     let ui = using_index.as_ref().unwrap();
-                    assert!(ui.to_uppercase().contains("PCTFREE 10"), "using_index: {}", ui);
-                    assert!(ui.to_uppercase().contains("INITRANS 2"), "using_index: {}", ui);
+                    assert!(
+                        ui.to_uppercase().contains("PCTFREE 10"),
+                        "using_index: {}",
+                        ui
+                    );
+                    assert!(
+                        ui.to_uppercase().contains("INITRANS 2"),
+                        "using_index: {}",
+                        ui
+                    );
                 }
                 _ => panic!("expected PrimaryKey"),
             }

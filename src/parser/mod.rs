@@ -418,12 +418,16 @@ impl Parser {
 
     fn is_with_dml_at(&self, pos: usize) -> bool {
         let mut i = pos + 1;
-        if i < self.tokens.len() && matches!(self.tokens[i].token, Token::Keyword(Keyword::RECURSIVE)) {
+        if i < self.tokens.len()
+            && matches!(self.tokens[i].token, Token::Keyword(Keyword::RECURSIVE))
+        {
             i += 1;
         }
         while i < self.tokens.len() {
             match &self.tokens[i].token {
-                Token::Keyword(Keyword::INSERT) | Token::Keyword(Keyword::UPDATE) | Token::Keyword(Keyword::DELETE_P) => {
+                Token::Keyword(Keyword::INSERT)
+                | Token::Keyword(Keyword::UPDATE)
+                | Token::Keyword(Keyword::DELETE_P) => {
                     return true;
                 }
                 Token::Semicolon => return false,
@@ -436,7 +440,9 @@ impl Parser {
                             Token::LParen => depth += 1,
                             Token::RParen => {
                                 depth -= 1;
-                                if depth == 0 { break; }
+                                if depth == 0 {
+                                    break;
+                                }
                             }
                             Token::Semicolon => return false,
                             _ => {}
@@ -608,7 +614,12 @@ impl Parser {
     }
 
     pub(crate) fn peek_keyword_at(&self, offset: usize) -> Option<Keyword> {
-        if let Token::Keyword(kw) = self.tokens.get(self.pos + offset).map(|t| &t.token).unwrap_or(&Token::Eof) {
+        if let Token::Keyword(kw) = self
+            .tokens
+            .get(self.pos + offset)
+            .map(|t| &t.token)
+            .unwrap_or(&Token::Eof)
+        {
             Some(*kw)
         } else {
             None
@@ -749,7 +760,13 @@ impl Parser {
             Ok(Some(self.parse_identifier()?))
         } else {
             match self.peek() {
-                Token::Ident(_) | Token::QuotedIdent(_) => Ok(Some(self.parse_identifier()?)),
+                Token::Ident(_) | Token::QuotedIdent(_) => {
+                    if self.looks_like_alias() {
+                        Ok(Some(self.parse_identifier()?))
+                    } else {
+                        Ok(None)
+                    }
+                }
                 Token::Keyword(kw) => {
                     if kw.category() != crate::token::keyword::KeywordCategory::Reserved
                         && self.looks_like_alias()
@@ -799,6 +816,20 @@ impl Parser {
             ),
             _ => false,
         }
+    }
+
+    fn is_pl_boundary(&self) -> bool {
+        matches!(self.peek(), Token::Eof | Token::Semicolon)
+            || matches!(
+                self.peek_keyword(),
+                Some(Keyword::END_P)
+                    | Some(Keyword::ELSE)
+                    | Some(Keyword::WHEN)
+                    | Some(Keyword::THEN)
+                    | Some(Keyword::LOOP)
+            )
+            || self.match_ident_str("exception")
+            || self.match_ident_str("elsif")
     }
 
     /// Check if the current token starts an expression.
@@ -1499,9 +1530,7 @@ impl Parser {
                 }
             }
             Token::Keyword(Keyword::DECLARE) => {
-                if !self.is_declare_cursor_at(self.pos)
-                    && self.has_begin_after_declare(self.pos)
-                {
+                if !self.is_declare_cursor_at(self.pos) && self.has_begin_after_declare(self.pos) {
                     self.advance();
                     let declarations = self.parse_pl_declarations_until_begin()?;
                     let block = self.parse_pl_block_body(None, declarations)?;
@@ -4107,9 +4136,22 @@ impl Parser {
                         }
                     } else {
                         let op_name = match self.peek().clone() {
-                            Token::Op(s) => { self.advance(); s }
-                            Token::Ident(s) => { self.advance(); s }
-                            tok @ (Token::OpLe | Token::OpNe | Token::OpGe | Token::OpShiftL | Token::OpShiftR | Token::OpNe2 | Token::OpDblBang | Token::OpConcat) => {
+                            Token::Op(s) => {
+                                self.advance();
+                                s
+                            }
+                            Token::Ident(s) => {
+                                self.advance();
+                                s
+                            }
+                            tok @ (Token::OpLe
+                            | Token::OpNe
+                            | Token::OpGe
+                            | Token::OpShiftL
+                            | Token::OpShiftR
+                            | Token::OpNe2
+                            | Token::OpDblBang
+                            | Token::OpConcat) => {
                                 self.advance();
                                 tok.as_op_str().unwrap().to_string()
                             }
@@ -4129,7 +4171,8 @@ impl Parser {
                             left_type = self.consume_any_identifier().unwrap_or_default();
                             if self.match_token(&Token::Comma) {
                                 self.advance();
-                                right_type = Some(self.consume_any_identifier().unwrap_or_default());
+                                right_type =
+                                    Some(self.consume_any_identifier().unwrap_or_default());
                             }
                             self.expect_token(&Token::RParen).unwrap_or(());
                         }

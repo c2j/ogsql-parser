@@ -14,19 +14,23 @@ impl Parser {
         arg_count: usize,
         distinct: bool,
         has_over: bool,
-    ) {
+        has_variadic: bool,
+    ) -> Option<crate::ast::BuiltinFuncMeta> {
         let lower = name.last().map(|s| s.to_lowercase()).unwrap_or_default();
         let last = lower.split('.').last().unwrap_or_default();
+        let builtin = crate::parser::function_registry::lookup_builtin_meta(&last);
         let warnings = crate::parser::function_registry::validate_function_call(
             &last,
             arg_count,
             distinct,
             has_over,
+            has_variadic,
             self.current_location(),
         );
         for w in warnings {
             self.add_error(w);
         }
+        builtin
     }
 
     pub(crate) fn parse_expr(&mut self) -> Result<Expr, ParserError> {
@@ -514,7 +518,8 @@ impl Parser {
                             let mut args = vec![self.parse_expr()?];
                             while self.match_token(&Token::Comma) {
                                 self.advance();
-                                args.push(self.parse_maybe_named_arg()?);
+                                let (arg, _) = self.parse_maybe_named_arg()?;
+                                args.push(arg);
                             }
                             args
                         };
@@ -532,6 +537,7 @@ impl Parser {
                             separator: None,
                             default: None,
                             conversion_format: None,
+                            builtin: None,
                         };
                     } else {
                         *left = Expr::FieldAccess {
@@ -794,7 +800,11 @@ impl Parser {
                     });
                 }
                 if kw == Keyword::COLLATION {
-                    if self.tokens.get(self.pos + 1).map_or(false, |t| matches!(t.token, Token::Keyword(Keyword::FOR))) {
+                    if self
+                        .tokens
+                        .get(self.pos + 1)
+                        .map_or(false, |t| matches!(t.token, Token::Keyword(Keyword::FOR)))
+                    {
                         self.advance();
                         self.advance();
                         self.expect_token(&Token::LParen)?;
@@ -1068,10 +1078,17 @@ impl Parser {
         let mut first = self.parse_identifier()?;
         if self.match_token(&Token::At) {
             self.advance();
-            let version = self.consume_any_identifier()
+            let version = self
+                .consume_any_identifier()
                 .or_else(|_| match self.peek().clone() {
-                    Token::Integer(n) => { self.advance(); Ok(n.to_string()) }
-                    Token::Float(f) => { self.advance(); Ok(f) }
+                    Token::Integer(n) => {
+                        self.advance();
+                        Ok(n.to_string())
+                    }
+                    Token::Float(f) => {
+                        self.advance();
+                        Ok(f)
+                    }
                     other => Err(ParserError::UnexpectedToken {
                         location: self.current_location(),
                         expected: "version after @".to_string(),
@@ -1167,6 +1184,7 @@ impl Parser {
                 args.len(),
                 distinct,
                 over.is_some(),
+                false,
                 loc,
             );
             for w in warnings {
@@ -1175,14 +1193,15 @@ impl Parser {
         }
     }
 
-    pub(crate) fn parse_maybe_named_arg(&mut self) -> Result<Expr, ParserError> {
-        let _ = self.try_consume_keyword(Keyword::VARIADIC);
+    pub(crate) fn parse_maybe_named_arg(&mut self) -> Result<(Expr, bool), ParserError> {
+        let has_variadic = self.try_consume_keyword(Keyword::VARIADIC);
         if matches!(self.peek(), Token::Ident(_)) || matches!(self.peek(), Token::Keyword(_)) {
             if let Some(tws) = self.tokens.get(self.pos + 1) {
                 if matches!(tws.token, Token::ParamEquals) {
                     let _name = self.consume_any_identifier()?;
                     self.advance();
-                    return self.parse_expr();
+                    let expr = self.parse_expr()?;
+                    return Ok((expr, has_variadic));
                 }
             }
         }
@@ -1190,13 +1209,13 @@ impl Parser {
         if self.match_keyword(Keyword::AS) {
             self.advance();
             let _alias = self.parse_expr()?;
-            Ok(first)
+            Ok((first, has_variadic))
         } else if self.match_token(&Token::ParamEquals) {
             self.advance();
             let value = self.parse_expr()?;
-            Ok(value)
+            Ok((value, has_variadic))
         } else {
-            Ok(first)
+            Ok((first, has_variadic))
         }
     }
 
@@ -1231,7 +1250,7 @@ impl Parser {
             let filter = self.try_parse_filter()?;
             let within_group = self.try_parse_within_group()?;
             let over = self.try_parse_over_clause()?;
-            self.validate_func(&name, 0, false, over.is_some());
+            let builtin = self.validate_func(&name, 0, false, over.is_some(), false);
             return Ok(Expr::FunctionCall {
                 name,
                 args: vec![],
@@ -1242,6 +1261,7 @@ impl Parser {
                 separator: None,
                 default: None,
                 conversion_format: None,
+                builtin,
             });
         }
         let distinct = self.try_consume_keyword(Keyword::DISTINCT);
@@ -1251,7 +1271,7 @@ impl Parser {
             let filter = self.try_parse_filter()?;
             let within_group = self.try_parse_within_group()?;
             let over = self.try_parse_over_clause()?;
-            self.validate_func(&name, 1, distinct, over.is_some());
+            let builtin = self.validate_func(&name, 1, distinct, over.is_some(), false);
             return Ok(Expr::FunctionCall {
                 name,
                 args: vec![Expr::ColumnRef(vec!["*".to_string()])],
@@ -1262,9 +1282,11 @@ impl Parser {
                 separator: None,
                 default: None,
                 conversion_format: None,
+                builtin,
             });
         }
-        let mut args = vec![self.parse_maybe_named_arg()?];
+        let (first_arg, has_variadic) = self.parse_maybe_named_arg()?;
+        let mut args = vec![first_arg];
         let default = if self.match_keyword(Keyword::DEFAULT) || self.match_ident_str("default") {
             self.advance();
             let val = self.parse_expr()?;
@@ -1287,9 +1309,12 @@ impl Parser {
         } else {
             None
         };
+        let mut has_variadic = has_variadic;
         while self.match_token(&Token::Comma) {
             self.advance();
-            args.push(self.parse_maybe_named_arg()?);
+            let (arg, v) = self.parse_maybe_named_arg()?;
+            has_variadic = has_variadic || v;
+            args.push(arg);
         }
         if self.match_keyword(Keyword::PASSING) {
             self.advance();
@@ -1300,10 +1325,14 @@ impl Parser {
                     self.advance();
                 }
             }
-            args.push(self.parse_maybe_named_arg()?);
+            let (arg, v) = self.parse_maybe_named_arg()?;
+            has_variadic = has_variadic || v;
+            args.push(arg);
             while self.match_token(&Token::Comma) {
                 self.advance();
-                args.push(self.parse_maybe_named_arg()?);
+                let (arg, v) = self.parse_maybe_named_arg()?;
+                has_variadic = has_variadic || v;
+                args.push(arg);
             }
         }
         let inner_order_by = if self.match_keyword(Keyword::ORDER) {
@@ -1313,12 +1342,24 @@ impl Parser {
             loop {
                 let expr = self.parse_expr()?;
                 let asc = match self.peek_keyword() {
-                    Some(Keyword::ASC) => { self.advance(); Some(true) }
-                    Some(Keyword::DESC) => { self.advance(); Some(false) }
+                    Some(Keyword::ASC) => {
+                        self.advance();
+                        Some(true)
+                    }
+                    Some(Keyword::DESC) => {
+                        self.advance();
+                        Some(false)
+                    }
                     _ => None,
                 };
-                items.push(OrderByItem { expr, asc, nulls_first: None });
-                if !self.match_token(&Token::Comma) { break; }
+                items.push(OrderByItem {
+                    expr,
+                    asc,
+                    nulls_first: None,
+                });
+                if !self.match_token(&Token::Comma) {
+                    break;
+                }
                 self.advance();
             }
             items
@@ -1329,7 +1370,7 @@ impl Parser {
         let filter = self.try_parse_filter()?;
         let within_group = self.try_parse_within_group()?;
         let over = self.try_parse_over_clause()?;
-        self.validate_func(&name, args.len(), distinct, over.is_some());
+        let builtin = self.validate_func(&name, args.len(), distinct, over.is_some(), has_variadic);
         let mut wg = inner_order_by;
         if !within_group.is_empty() {
             wg.extend(within_group);
@@ -1344,6 +1385,7 @@ impl Parser {
             separator: None,
             default,
             conversion_format,
+            builtin,
         })
     }
 
@@ -1367,7 +1409,7 @@ impl Parser {
         let filter = self.try_parse_filter()?;
         let within_group = self.try_parse_within_group()?;
         let over = self.try_parse_over_clause()?;
-        self.validate_func(&name, args.len(), false, over.is_some());
+        let builtin = self.validate_func(&name, args.len(), false, over.is_some(), false);
         Ok(Expr::FunctionCall {
             name,
             args,
@@ -1378,6 +1420,7 @@ impl Parser {
             separator: None,
             default: None,
             conversion_format: None,
+            builtin,
         })
     }
 
@@ -1434,7 +1477,7 @@ impl Parser {
             inner_order_by
         };
         let over = self.try_parse_over_clause()?;
-        self.validate_func(&name, args.len(), distinct, over.is_some());
+        let builtin = self.validate_func(&name, args.len(), distinct, over.is_some(), false);
         Ok(Expr::FunctionCall {
             name,
             args,
@@ -1445,6 +1488,7 @@ impl Parser {
             separator,
             default: None,
             conversion_format: None,
+            builtin,
         })
     }
 
@@ -1589,13 +1633,14 @@ impl Parser {
                 let mut args = vec![first];
                 while self.match_token(&Token::Comma) {
                     self.advance();
-                    args.push(self.parse_maybe_named_arg()?);
+                    let (arg, _) = self.parse_maybe_named_arg()?;
+                    args.push(arg);
                 }
                 self.expect_token(&Token::RParen)?;
                 let filter = self.try_parse_filter()?;
                 let within_group = self.try_parse_within_group()?;
                 let over = self.try_parse_over_clause()?;
-                self.validate_func(&name, args.len(), false, over.is_some());
+                let builtin = self.validate_func(&name, args.len(), false, over.is_some(), false);
                 Ok(Expr::FunctionCall {
                     name,
                     args,
@@ -1606,6 +1651,7 @@ impl Parser {
                     separator: None,
                     default: None,
                     conversion_format: None,
+                    builtin,
                 })
             }
         }

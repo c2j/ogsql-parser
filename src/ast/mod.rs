@@ -1,5 +1,14 @@
 pub mod plpgsql;
 
+// ── Builtin Function Metadata ──
+
+/// Metadata for a recognized built-in function, attached to `FunctionCall` AST nodes.
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct BuiltinFuncMeta {
+    pub category: String,
+    pub domain: String,
+}
+
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct IlmPolicy {
     pub after_n: u64,
@@ -1024,6 +1033,8 @@ pub enum TableRef {
         args: Vec<Expr>,
         alias: Option<String>,
         column_defs: Vec<ColumnDef>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        builtin: Option<BuiltinFuncMeta>,
     },
     Subquery {
         query: Box<SelectStatement>,
@@ -1132,6 +1143,8 @@ pub enum Expr {
         separator: Option<Box<Expr>>,
         default: Option<Box<Expr>>,
         conversion_format: Option<Box<Expr>>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        builtin: Option<BuiltinFuncMeta>,
     },
     Case {
         operand: Option<Box<Expr>>,
@@ -2154,9 +2167,16 @@ pub struct AlterSchemaStatement {
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum AlterSchemaAction {
-    RenameTo { new_name: String },
-    OwnerTo { owner: String },
-    CharacterSet { charset: String, collate: Option<String> },
+    RenameTo {
+        new_name: String,
+    },
+    OwnerTo {
+        owner: String,
+    },
+    CharacterSet {
+        charset: String,
+        collate: Option<String>,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]

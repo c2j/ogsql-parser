@@ -421,23 +421,23 @@ impl Parser {
                     loop {
                         let key = self.consume_any_identifier()?;
                         self.expect_token(&Token::Eq)?;
-                        let value =
-                            self.consume_any_identifier()
-                                .unwrap_or_else(|_| match self.peek().clone() {
-                                    Token::StringLiteral(s) => {
-                                        self.advance();
-                                        s
-                                    }
-                                    Token::Integer(n) => {
-                                        self.advance();
-                                        n.to_string()
-                                    }
-                                    Token::Float(f) => {
-                                        self.advance();
-                                        f
-                                    }
-                                    _ => String::new(),
-                                });
+                        let value = self.consume_any_identifier().unwrap_or_else(|_| {
+                            match self.peek().clone() {
+                                Token::StringLiteral(s) => {
+                                    self.advance();
+                                    s
+                                }
+                                Token::Integer(n) => {
+                                    self.advance();
+                                    n.to_string()
+                                }
+                                Token::Float(f) => {
+                                    self.advance();
+                                    f
+                                }
+                                _ => String::new(),
+                            }
+                        });
                         options.push((key, value));
                         if !self.match_token(&Token::Comma) {
                             break;
@@ -806,12 +806,18 @@ impl Parser {
                     self.advance();
                     let name = self.parse_identifier()?;
                     let action = self.parse_alter_table_action()?;
-                    Ok(AlterTableAction::ModifyPartition { name, action: Box::new(action) })
+                    Ok(AlterTableAction::ModifyPartition {
+                        name,
+                        action: Box::new(action),
+                    })
                 } else if self.match_keyword(Keyword::SUBPARTITION) {
                     self.advance();
                     let name = self.parse_identifier()?;
                     let action = self.parse_alter_table_action()?;
-                    Ok(AlterTableAction::ModifySubPartition { name, action: Box::new(action) })
+                    Ok(AlterTableAction::ModifySubPartition {
+                        name,
+                        action: Box::new(action),
+                    })
                 } else if self.match_token(&Token::LParen) {
                     self.advance();
                     let mut cols = Vec::new();

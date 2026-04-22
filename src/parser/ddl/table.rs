@@ -347,7 +347,9 @@ impl Parser {
                                     partitions: parts,
                                 },
                                 PartitionClause::List {
-                                    columns, is_columns, ..
+                                    columns,
+                                    is_columns,
+                                    ..
                                 } => PartitionClause::List {
                                     columns,
                                     is_columns,
@@ -605,14 +607,21 @@ impl Parser {
                 }
                 let spec = self.parse_identifier()?;
                 table_options.push(("ENCRYPTION COLUMN".to_string(), spec));
-            } else if matches!(self.peek_keyword(), Some(Keyword::PCTFREE) | Some(Keyword::INITRANS) | Some(Keyword::MAXTRANS))
-                || self.match_ident_str("PCTUSED")
+            } else if matches!(
+                self.peek_keyword(),
+                Some(Keyword::PCTFREE) | Some(Keyword::INITRANS) | Some(Keyword::MAXTRANS)
+            ) || self.match_ident_str("PCTUSED")
             {
                 let key = self.consume_any_identifier()?;
-                let val = self.consume_any_identifier().unwrap_or_else(|_| match self.peek().clone() {
-                    Token::Integer(n) => { self.advance(); n.to_string() }
-                    _ => String::new(),
-                });
+                let val =
+                    self.consume_any_identifier()
+                        .unwrap_or_else(|_| match self.peek().clone() {
+                            Token::Integer(n) => {
+                                self.advance();
+                                n.to_string()
+                            }
+                            _ => String::new(),
+                        });
                 table_options.push((key.to_uppercase(), val));
             } else if self.match_keyword(Keyword::STORAGE) {
                 self.advance();
@@ -1487,7 +1496,7 @@ impl Parser {
             }
         }
 
-         match self.peek_keyword() {
+        match self.peek_keyword() {
             Some(Keyword::PRIMARY) => {
                 self.advance();
                 self.expect_keyword(Keyword::KEY)?;
@@ -1498,8 +1507,10 @@ impl Parser {
                 let mut using_index = None;
                 if self.try_consume_keyword(Keyword::USING) {
                     self.try_consume_keyword(Keyword::INDEX);
-                    let index_name = if !matches!(self.peek_keyword(), Some(Keyword::PCTFREE) | Some(Keyword::INITRANS) | Some(Keyword::MAXTRANS))
-                        && !self.match_keyword(Keyword::STORAGE)
+                    let index_name = if !matches!(
+                        self.peek_keyword(),
+                        Some(Keyword::PCTFREE) | Some(Keyword::INITRANS) | Some(Keyword::MAXTRANS)
+                    ) && !self.match_keyword(Keyword::STORAGE)
                         && !self.match_keyword(Keyword::TABLESPACE)
                     {
                         self.consume_any_identifier().ok()
@@ -1511,10 +1522,21 @@ impl Parser {
                         parts.push(n);
                     }
                     loop {
-                        if matches!(self.peek_keyword(), Some(Keyword::PCTFREE) | Some(Keyword::INITRANS) | Some(Keyword::MAXTRANS)) {
+                        if matches!(
+                            self.peek_keyword(),
+                            Some(Keyword::PCTFREE)
+                                | Some(Keyword::INITRANS)
+                                | Some(Keyword::MAXTRANS)
+                        ) {
                             let key = self.consume_any_identifier()?;
-                            let val = self.consume_any_identifier().unwrap_or_else(|_| match self.peek().clone() {
-                                Token::Integer(n) => { self.advance(); n.to_string() }
+                            let val = self.consume_any_identifier().unwrap_or_else(|_| match self
+                                .peek()
+                                .clone()
+                            {
+                                Token::Integer(n) => {
+                                    self.advance();
+                                    n.to_string()
+                                }
                                 _ => String::new(),
                             });
                             parts.push(format!("{} {}", key, val));
@@ -1530,9 +1552,16 @@ impl Parser {
                             break;
                         }
                     }
-                    using_index = if parts.is_empty() { None } else { Some(parts.join(" ")) };
+                    using_index = if parts.is_empty() {
+                        None
+                    } else {
+                        Some(parts.join(" "))
+                    };
                 }
-                Ok(TableConstraint::PrimaryKey { columns, using_index })
+                Ok(TableConstraint::PrimaryKey {
+                    columns,
+                    using_index,
+                })
             }
             Some(Keyword::UNIQUE) => {
                 self.advance();
@@ -1545,7 +1574,11 @@ impl Parser {
                 if self.match_keyword(Keyword::WITH) {
                     with_options = self.parse_generic_options();
                 }
-                Ok(TableConstraint::Unique { columns, deferrable, with_options })
+                Ok(TableConstraint::Unique {
+                    columns,
+                    deferrable,
+                    with_options,
+                })
             }
             Some(Keyword::CHECK) => {
                 self.advance();

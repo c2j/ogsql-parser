@@ -170,6 +170,7 @@ impl FunctionRegistry {
         arg_count: usize,
         has_distinct: bool,
         has_over: bool,
+        has_variadic: bool,
         location: SourceLocation,
     ) -> Vec<ParserError> {
         let Some(meta) = self.lookup(name) else {
@@ -179,55 +180,58 @@ impl FunctionRegistry {
         let mut warnings = Vec::new();
         let display_name = name;
 
-        match meta.max_args {
-            Some(max) if meta.min_args == max && max == 0 => {
-                if arg_count > 0 {
-                    warnings.push(ParserError::Warning {
-                        message: format!("function {} takes no arguments", display_name),
-                        location: location.clone(),
-                    });
+        if has_variadic {
+        } else {
+            match meta.max_args {
+                Some(max) if meta.min_args == max && max == 0 => {
+                    if arg_count > 0 {
+                        warnings.push(ParserError::Warning {
+                            message: format!("function {} takes no arguments", display_name),
+                            location: location.clone(),
+                        });
+                    }
                 }
-            }
-            Some(max) if meta.min_args == max => {
-                if arg_count != meta.min_args as usize {
-                    warnings.push(ParserError::Warning {
-                        message: format!(
-                            "function {} requires exactly {} argument(s)",
-                            display_name, meta.min_args
-                        ),
-                        location: location.clone(),
-                    });
+                Some(max) if meta.min_args == max => {
+                    if arg_count != meta.min_args as usize {
+                        warnings.push(ParserError::Warning {
+                            message: format!(
+                                "function {} requires exactly {} argument(s)",
+                                display_name, meta.min_args
+                            ),
+                            location: location.clone(),
+                        });
+                    }
                 }
-            }
-            Some(max) => {
-                if arg_count < meta.min_args as usize {
-                    warnings.push(ParserError::Warning {
-                        message: format!(
-                            "function {} requires at least {} argument(s)",
-                            display_name, meta.min_args
-                        ),
-                        location: location.clone(),
-                    });
+                Some(max) => {
+                    if arg_count < meta.min_args as usize {
+                        warnings.push(ParserError::Warning {
+                            message: format!(
+                                "function {} requires at least {} argument(s)",
+                                display_name, meta.min_args
+                            ),
+                            location: location.clone(),
+                        });
+                    }
+                    if arg_count > max as usize {
+                        warnings.push(ParserError::Warning {
+                            message: format!(
+                                "function {} takes at most {} argument(s)",
+                                display_name, max
+                            ),
+                            location: location.clone(),
+                        });
+                    }
                 }
-                if arg_count > max as usize {
-                    warnings.push(ParserError::Warning {
-                        message: format!(
-                            "function {} takes at most {} argument(s)",
-                            display_name, max
-                        ),
-                        location: location.clone(),
-                    });
-                }
-            }
-            None => {
-                if arg_count < meta.min_args as usize {
-                    warnings.push(ParserError::Warning {
-                        message: format!(
-                            "function {} requires at least {} argument(s)",
-                            display_name, meta.min_args
-                        ),
-                        location: location.clone(),
-                    });
+                None => {
+                    if arg_count < meta.min_args as usize {
+                        warnings.push(ParserError::Warning {
+                            message: format!(
+                                "function {} requires at least {} argument(s)",
+                                display_name, meta.min_args
+                            ),
+                            location: location.clone(),
+                        });
+                    }
                 }
             }
         }
@@ -1848,12 +1852,43 @@ pub fn lookup_function(name: &str) -> Option<&'static FuncMeta> {
     }
 }
 
+pub fn lookup_builtin_meta(name: &str) -> Option<crate::ast::BuiltinFuncMeta> {
+    lookup_function(name).map(|m| crate::ast::BuiltinFuncMeta {
+        category: match m.category {
+            FuncCategory::Aggregate => "Aggregate",
+            FuncCategory::Window => "Window",
+            FuncCategory::Scalar => "Scalar",
+            FuncCategory::SetReturning => "SetReturning",
+            FuncCategory::Special => "Special",
+        }.to_string(),
+        domain: match m.domain {
+            FuncDomain::Math => "Math",
+            FuncDomain::String => "String",
+            FuncDomain::DateTime => "DateTime",
+            FuncDomain::Aggregate => "Aggregate",
+            FuncDomain::Window => "Window",
+            FuncDomain::Array => "Array",
+            FuncDomain::Json => "Json",
+            FuncDomain::Network => "Network",
+            FuncDomain::Geometric => "Geometric",
+            FuncDomain::TextSearch => "TextSearch",
+            FuncDomain::Crypto => "Crypto",
+            FuncDomain::System => "System",
+            FuncDomain::TypeConversion => "TypeConversion",
+            FuncDomain::OracleCompat => "OracleCompat",
+            FuncDomain::Ai => "Ai",
+            FuncDomain::Other => "Other",
+        }.to_string(),
+    })
+}
+
 /// Validate a function call and return a list of warnings (if any).
 pub fn validate_function_call(
     name: &str,
     arg_count: usize,
     has_distinct: bool,
     has_over: bool,
+    has_variadic: bool,
     location: SourceLocation,
 ) -> Vec<ParserError> {
     let mut warnings = Vec::new();
@@ -1861,62 +1896,63 @@ pub fn validate_function_call(
         return warnings;
     };
 
-    // Argument count validation
-    match meta.max_args {
-        Some(max) if meta.min_args == max && max == 0 => {
-            // Zero-arg function
-            if arg_count > 0 {
-                warnings.push(ParserError::Warning {
-                    message: format!("function {} takes no arguments", meta.name),
-                    location,
-                });
+    // VARIADIC expands at runtime — argument count validation is not meaningful
+    if !has_variadic {
+        match meta.max_args {
+            Some(max) if meta.min_args == max && max == 0 => {
+                if arg_count > 0 {
+                    warnings.push(ParserError::Warning {
+                        message: format!("function {} takes no arguments", meta.name),
+                        location,
+                    });
+                }
             }
-        }
-        Some(max) if meta.min_args == max => {
-            // Exact arg count required
-            if arg_count != meta.min_args as usize {
-                warnings.push(ParserError::Warning {
-                    message: format!(
-                        "function {} requires exactly {} argument(s)",
-                        meta.name, meta.min_args
-                    ),
-                    location,
-                });
+            Some(max) if meta.min_args == max => {
+                if arg_count != meta.min_args as usize {
+                    warnings.push(ParserError::Warning {
+                        message: format!(
+                            "function {} requires exactly {} argument(s)",
+                            meta.name, meta.min_args
+                        ),
+                        location,
+                    });
+                }
             }
-        }
-        Some(max) => {
-            // Range: min..=max
-            if arg_count < meta.min_args as usize {
-                warnings.push(ParserError::Warning {
-                    message: format!(
-                        "function {} requires at least {} argument(s)",
-                        meta.name, meta.min_args
-                    ),
-                    location,
-                });
+            Some(max) => {
+                if arg_count < meta.min_args as usize {
+                    warnings.push(ParserError::Warning {
+                        message: format!(
+                            "function {} requires at least {} argument(s)",
+                            meta.name, meta.min_args
+                        ),
+                        location,
+                    });
+                }
+                if arg_count > max as usize {
+                    warnings.push(ParserError::Warning {
+                        message: format!(
+                            "function {} takes at most {} argument(s)",
+                            meta.name, max
+                        ),
+                        location,
+                    });
+                }
             }
-            if arg_count > max as usize {
-                warnings.push(ParserError::Warning {
-                    message: format!("function {} takes at most {} argument(s)", meta.name, max),
-                    location,
-                });
-            }
-        }
-        None => {
-            // Variadic: min_args..∞
-            if arg_count < meta.min_args as usize {
-                warnings.push(ParserError::Warning {
-                    message: format!(
-                        "function {} requires at least {} argument(s)",
-                        meta.name, meta.min_args
-                    ),
-                    location,
-                });
+            None => {
+                // Variadic: min_args..∞
+                if arg_count < meta.min_args as usize {
+                    warnings.push(ParserError::Warning {
+                        message: format!(
+                            "function {} requires at least {} argument(s)",
+                            meta.name, meta.min_args
+                        ),
+                        location,
+                    });
+                }
             }
         }
     }
 
-    // DISTINCT not supported
     if has_distinct && !meta.supports_distinct {
         warnings.push(ParserError::Warning {
             message: format!("DISTINCT is not supported for function {}", meta.name),
@@ -2299,24 +2335,24 @@ mod tests {
 
     #[test]
     fn test_validate_coalesce_too_few() {
-        let w = validate_function_call("coalesce", 1, false, false, loc());
+        let w = validate_function_call("coalesce", 1, false, false, false, loc());
         assert!(w.iter().any(|e| e.to_string().contains("at least 2")));
     }
 
     #[test]
     fn test_validate_coalesce_ok() {
-        assert!(validate_function_call("coalesce", 2, false, false, loc()).is_empty());
+        assert!(validate_function_call("coalesce", 2, false, false, false, loc()).is_empty());
     }
 
     #[test]
     fn test_validate_count_no_args() {
-        let w = validate_function_call("count", 0, false, false, loc());
+        let w = validate_function_call("count", 0, false, false, false, loc());
         assert!(w.iter().any(|e| e.to_string().contains("exactly 1")));
     }
 
     #[test]
     fn test_validate_now_with_args() {
-        let w = validate_function_call("now", 1, false, false, loc());
+        let w = validate_function_call("now", 1, false, false, false, loc());
         assert!(w.iter().any(|e| e.to_string().contains("no arguments")));
     }
 
@@ -2324,33 +2360,33 @@ mod tests {
 
     #[test]
     fn test_validate_distinct_on_non_aggregate() {
-        let w = validate_function_call("upper", 1, true, false, loc());
+        let w = validate_function_call("upper", 1, true, false, false, loc());
         assert!(w.iter().any(|e| e.to_string().contains("DISTINCT")));
     }
 
     #[test]
     fn test_validate_distinct_on_aggregate() {
-        assert!(validate_function_call("count", 1, true, false, loc()).is_empty());
+        assert!(validate_function_call("count", 1, true, false, false, loc()).is_empty());
     }
 
     // ── Validation: window function missing OVER ───────────────
 
     #[test]
     fn test_validate_window_no_over() {
-        let w = validate_function_call("row_number", 0, false, false, loc());
+        let w = validate_function_call("row_number", 0, false, false, false, loc());
         assert!(w.iter().any(|e| e.to_string().contains("OVER clause")));
     }
 
     #[test]
     fn test_validate_window_with_over() {
-        assert!(validate_function_call("row_number", 0, false, true, loc()).is_empty());
+        assert!(validate_function_call("row_number", 0, false, true, false, loc()).is_empty());
     }
 
     // ── Validation: unknown function produces no warnings ──────
 
     #[test]
     fn test_validate_unknown_no_warnings() {
-        assert!(validate_function_call("my_func", 5, true, false, loc()).is_empty());
+        assert!(validate_function_call("my_func", 5, true, false, false, loc()).is_empty());
     }
 
     // ── Validation: case insensitivity ─────────────────────────
@@ -2358,7 +2394,7 @@ mod tests {
     #[test]
     fn test_validate_case_insensitive() {
         // UPPER with DISTINCT should warn even if name is lowercase
-        let w = validate_function_call("UPPER", 1, true, false, loc());
+        let w = validate_function_call("UPPER", 1, true, false, false, loc());
         assert!(w.iter().any(|e| e.to_string().contains("DISTINCT")));
     }
 
@@ -2367,12 +2403,12 @@ mod tests {
     #[test]
     fn test_validate_concat_many_args_ok() {
         // concat accepts 2+ args
-        assert!(validate_function_call("concat", 5, false, false, loc()).is_empty());
+        assert!(validate_function_call("concat", 5, false, false, false, loc()).is_empty());
     }
 
     #[test]
     fn test_validate_greatest_many_args_ok() {
-        assert!(validate_function_call("greatest", 10, false, false, loc()).is_empty());
+        assert!(validate_function_call("greatest", 10, false, false, false, loc()).is_empty());
     }
 
     // ══════════════════════════════════════════════════════════════
@@ -2564,7 +2600,7 @@ mod tests {
         let reg = FunctionRegistry::new()
             .with_extensions_from_json(json)
             .unwrap();
-        let w = reg.validate("my_agg", 5, false, false, loc());
+        let w = reg.validate("my_agg", 5, false, false, false, loc());
         assert!(w.iter().any(|e| e.to_string().contains("at most 2")));
     }
 
@@ -2584,14 +2620,14 @@ mod tests {
         let reg = FunctionRegistry::new()
             .with_extensions_from_json(json)
             .unwrap();
-        let w = reg.validate("custom_window", 0, false, false, loc());
+        let w = reg.validate("custom_window", 0, false, false, false, loc());
         assert!(w.iter().any(|e| e.to_string().contains("OVER")));
     }
 
     #[test]
     fn test_registry_validate_core_func_via_registry() {
         let reg = FunctionRegistry::new();
-        let w = reg.validate("upper", 1, true, false, loc());
+        let w = reg.validate("upper", 1, true, false, false, loc());
         assert!(w.iter().any(|e| e.to_string().contains("DISTINCT")));
     }
 
@@ -2599,7 +2635,7 @@ mod tests {
     fn test_registry_validate_unknown_no_warnings() {
         let reg = FunctionRegistry::new();
         assert!(reg
-            .validate("nonexistent_xyz", 5, true, true, loc())
+            .validate("nonexistent_xyz", 5, true, true, false, loc())
             .is_empty());
     }
 }

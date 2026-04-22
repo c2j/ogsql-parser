@@ -84,7 +84,10 @@ impl Parser {
             } else if self.match_keyword(Keyword::WHERE) {
                 self.advance();
                 where_clause = Some(self.parse_expr()?);
-            } else if matches!(self.peek_keyword(), Some(Keyword::PCTFREE) | Some(Keyword::INITRANS) | Some(Keyword::MAXTRANS)) {
+            } else if matches!(
+                self.peek_keyword(),
+                Some(Keyword::PCTFREE) | Some(Keyword::INITRANS) | Some(Keyword::MAXTRANS)
+            ) {
                 self.advance();
                 let _ = self.parse_expr();
             } else if self.match_keyword(Keyword::STORAGE) {
@@ -333,6 +336,7 @@ impl Parser {
                     separator: None,
                     default: None,
                     conversion_format: None,
+                    builtin: None,
                 }),
             });
         }
@@ -1254,12 +1258,16 @@ impl Parser {
                 partition_name,
                 tablespace,
             }
-        } else if matches!(self.peek_keyword(), Some(Keyword::PCTFREE) | Some(Keyword::INITRANS) | Some(Keyword::MAXTRANS))
-            || self.match_ident_str("PCTUSED")
+        } else if matches!(
+            self.peek_keyword(),
+            Some(Keyword::PCTFREE) | Some(Keyword::INITRANS) | Some(Keyword::MAXTRANS)
+        ) || self.match_ident_str("PCTUSED")
             || self.match_keyword(Keyword::STORAGE)
         {
-            while matches!(self.peek_keyword(), Some(Keyword::PCTFREE) | Some(Keyword::INITRANS) | Some(Keyword::MAXTRANS))
-                || self.match_ident_str("PCTUSED")
+            while matches!(
+                self.peek_keyword(),
+                Some(Keyword::PCTFREE) | Some(Keyword::INITRANS) | Some(Keyword::MAXTRANS)
+            ) || self.match_ident_str("PCTUSED")
             {
                 self.advance();
                 let _ = self.parse_expr();
@@ -1299,13 +1307,12 @@ impl Parser {
                 }
             } else if self.match_ident_str("VALUE") {
                 self.advance();
-                let if_not_exists = self.match_keyword(Keyword::IF_P)
-                    && {
-                        self.advance();
-                        self.expect_keyword(Keyword::NOT).unwrap_or(());
-                        self.expect_keyword(Keyword::EXISTS).unwrap_or(());
-                        true
-                    };
+                let if_not_exists = self.match_keyword(Keyword::IF_P) && {
+                    self.advance();
+                    self.expect_keyword(Keyword::NOT).unwrap_or(());
+                    self.expect_keyword(Keyword::EXISTS).unwrap_or(());
+                    true
+                };
                 let value = self.parse_string_literal()?;
                 let mut before = None;
                 let mut after = None;
@@ -1632,7 +1639,12 @@ impl Parser {
 
         let options = self.parse_options_clause();
         self.try_consume_semicolon();
-        Ok(CreateDataSourceStatement { name, ds_type, version, options })
+        Ok(CreateDataSourceStatement {
+            name,
+            ds_type,
+            version,
+            options,
+        })
     }
 
     pub(crate) fn parse_create_event(&mut self) -> Result<CreateEventStatement, ParserError> {

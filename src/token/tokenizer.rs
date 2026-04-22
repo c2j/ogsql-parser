@@ -293,7 +293,9 @@ impl<'a> Tokenizer<'a> {
                     self.advance();
                     let s = self.scan_string()?;
                     Token::NationalString(s)
-                } else if self.peek_byte_at(1).map_or(false, |b| b.is_ascii_whitespace())
+                } else if self
+                    .peek_byte_at(1)
+                    .map_or(false, |b| b.is_ascii_whitespace())
                     && self.peek_byte_past_whitespace(2) == Some(b'\'')
                 {
                     self.advance();
@@ -313,7 +315,9 @@ impl<'a> Tokenizer<'a> {
                     self.advance();
                     let s = self.scan_escape_string()?;
                     Token::EscapeString(s)
-                } else if self.peek_byte_at(1).map_or(false, |b| b.is_ascii_whitespace())
+                } else if self
+                    .peek_byte_at(1)
+                    .map_or(false, |b| b.is_ascii_whitespace())
                     && self.peek_byte_past_whitespace(2) == Some(b'\'')
                 {
                     self.advance();
@@ -333,7 +337,9 @@ impl<'a> Tokenizer<'a> {
                     self.advance();
                     let s = self.scan_string()?;
                     Token::BitString(s)
-                } else if self.peek_byte_at(1).map_or(false, |b| b.is_ascii_whitespace())
+                } else if self
+                    .peek_byte_at(1)
+                    .map_or(false, |b| b.is_ascii_whitespace())
                     && self.peek_byte_past_whitespace(2) == Some(b'\'')
                 {
                     self.advance();
@@ -353,7 +359,9 @@ impl<'a> Tokenizer<'a> {
                     self.advance();
                     let s = self.scan_string()?;
                     Token::HexString(s)
-                } else if self.peek_byte_at(1).map_or(false, |b| b.is_ascii_whitespace())
+                } else if self
+                    .peek_byte_at(1)
+                    .map_or(false, |b| b.is_ascii_whitespace())
                     && self.peek_byte_past_whitespace(2) == Some(b'\'')
                 {
                     self.advance();

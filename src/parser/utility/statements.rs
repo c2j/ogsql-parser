@@ -264,19 +264,36 @@ impl Parser {
         if self.match_token(&Token::LParen) {
             let is_option_list = matches!(
                 self.peek_keyword_at(1),
-                Some(Keyword::FULL) | Some(Keyword::VERBOSE) | Some(Keyword::ANALYZE) | Some(Keyword::FREEZE)
+                Some(Keyword::FULL)
+                    | Some(Keyword::VERBOSE)
+                    | Some(Keyword::ANALYZE)
+                    | Some(Keyword::FREEZE)
             );
             if is_option_list {
                 self.advance();
                 loop {
                     match self.peek_keyword() {
-                        Some(Keyword::FULL) => { self.advance(); full = true; }
-                        Some(Keyword::VERBOSE) => { self.advance(); verbose = true; }
-                        Some(Keyword::ANALYZE) => { self.advance(); analyze = true; }
-                        Some(Keyword::FREEZE) => { self.advance(); freeze = true; }
+                        Some(Keyword::FULL) => {
+                            self.advance();
+                            full = true;
+                        }
+                        Some(Keyword::VERBOSE) => {
+                            self.advance();
+                            verbose = true;
+                        }
+                        Some(Keyword::ANALYZE) => {
+                            self.advance();
+                            analyze = true;
+                        }
+                        Some(Keyword::FREEZE) => {
+                            self.advance();
+                            freeze = true;
+                        }
                         _ => break,
                     }
-                    if !self.match_token(&Token::Comma) { break; }
+                    if !self.match_token(&Token::Comma) {
+                        break;
+                    }
                     self.advance();
                 }
                 self.expect_token(&Token::RParen)?;
@@ -1706,7 +1723,12 @@ impl Parser {
             }
         }
 
-        Ok(ClusterStatement { table, verbose, using_index, partition })
+        Ok(ClusterStatement {
+            table,
+            verbose,
+            using_index,
+            partition,
+        })
     }
 
     pub(crate) fn parse_reindex(&mut self) -> Result<ReindexStatement, ParserError> {
@@ -2083,7 +2105,11 @@ impl Parser {
             }
         }
 
-        Ok(CleanConnStatement { force, for_database, to_user })
+        Ok(CleanConnStatement {
+            force,
+            for_database,
+            to_user,
+        })
     }
 
     pub(crate) fn parse_sec_label(&mut self) -> Result<SecLabelStatement, ParserError> {
@@ -2434,10 +2460,24 @@ impl Parser {
         let mut name = self.parse_identifier()?;
         if self.match_token(&Token::At) {
             self.advance();
-            let version = match &self.tokens.get(self.pos).map(|t| t.token.clone()).unwrap_or(Token::Eof) {
-                Token::Float(f) => { self.advance(); f.clone() }
-                Token::Integer(i) => { self.advance(); i.to_string() }
-                Token::Ident(s) => { self.advance(); s.clone() }
+            let version = match &self
+                .tokens
+                .get(self.pos)
+                .map(|t| t.token.clone())
+                .unwrap_or(Token::Eof)
+            {
+                Token::Float(f) => {
+                    self.advance();
+                    f.clone()
+                }
+                Token::Integer(i) => {
+                    self.advance();
+                    i.to_string()
+                }
+                Token::Ident(s) => {
+                    self.advance();
+                    s.clone()
+                }
                 _ => self.parse_identifier()?,
             };
             name = format!("{}@{}", name, version);

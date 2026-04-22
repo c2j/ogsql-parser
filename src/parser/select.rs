@@ -99,7 +99,10 @@ impl Parser {
                 let mut s = SelectStatement::default();
                 s.raw_body = Some(raw_body);
                 s
-            } else if matches!(self.peek_keyword(), Some(Keyword::UPDATE) | Some(Keyword::INSERT) | Some(Keyword::DELETE_P)) {
+            } else if matches!(
+                self.peek_keyword(),
+                Some(Keyword::UPDATE) | Some(Keyword::INSERT) | Some(Keyword::DELETE_P)
+            ) {
                 let raw_body = self.collect_until_balanced_paren();
                 let mut s = SelectStatement::default();
                 s.raw_body = Some(raw_body);
@@ -354,6 +357,7 @@ impl Parser {
             self.advance();
             return Ok(SelectTarget::Star(None));
         }
+        let alias_start = self.pos;
         let expr = self.parse_expr()?;
         let alias = if self.match_keyword(Keyword::AS) {
             self.advance();
@@ -361,6 +365,31 @@ impl Parser {
         } else {
             self.parse_optional_column_alias()?
         };
+        // Heuristic: catch tokenizer-level merge of "INTO var" into "INTOvar" (missing space)
+        if let Some(ref alias_str) = alias {
+            let upper = alias_str.to_uppercase();
+            if upper.starts_with("INTO")
+                && upper.len() > 4
+                && upper[4..]
+                    .chars()
+                    .next()
+                    .map_or(false, |c| c.is_ascii_alphabetic())
+            {
+                let loc = self
+                    .tokens
+                    .get(alias_start)
+                    .map(|t| t.location)
+                    .unwrap_or_default();
+                self.add_error(ParserError::Warning {
+                    message: format!(
+                        "alias \"{}\" looks like a typo for \"INTO {}\" — possible missing space",
+                        alias_str,
+                        &alias_str[4..]
+                    ),
+                    location: loc,
+                });
+            }
+        }
         Ok(SelectTarget::Expr(expr, alias))
     }
 
@@ -621,10 +650,12 @@ impl Parser {
             let args = if self.match_token(&Token::RParen) {
                 vec![]
             } else {
-                let mut args = vec![self.parse_maybe_named_arg()?];
+                let (first, _) = self.parse_maybe_named_arg()?;
+                let mut args = vec![first];
                 while self.match_token(&Token::Comma) {
                     self.advance();
-                    args.push(self.parse_maybe_named_arg()?);
+                    let (arg, _) = self.parse_maybe_named_arg()?;
+                    args.push(arg);
                 }
                 args
             };
@@ -632,32 +663,44 @@ impl Parser {
             let alias = self.parse_optional_column_alias()?;
             let column_defs = if alias.is_some() && self.match_token(&Token::LParen) {
                 self.advance();
-                let mut defs = vec![(self.parse_identifier()?, self.parse_optional_func_col_type()?)];
+                let mut defs = vec![(
+                    self.parse_identifier()?,
+                    self.parse_optional_func_col_type()?,
+                )];
                 while self.match_token(&Token::Comma) {
                     self.advance();
-                    defs.push((self.parse_identifier()?, self.parse_optional_func_col_type()?));
+                    defs.push((
+                        self.parse_identifier()?,
+                        self.parse_optional_func_col_type()?,
+                    ));
                 }
                 self.expect_token(&Token::RParen)?;
-                defs.into_iter().map(|(name, data_type)| crate::ast::ColumnDef {
-                    name,
-                    data_type,
-                    constraints: vec![],
-                    compress_mode: None,
-                    charset: None,
-                    collate: None,
-                    on_update: None,
-                    comment: None,
-                    generated: None,
-                    encrypted_with: None,
-                }).collect()
+                defs.into_iter()
+                    .map(|(name, data_type)| crate::ast::ColumnDef {
+                        name,
+                        data_type,
+                        constraints: vec![],
+                        compress_mode: None,
+                        charset: None,
+                        collate: None,
+                        on_update: None,
+                        comment: None,
+                        generated: None,
+                        encrypted_with: None,
+                    })
+                    .collect()
             } else {
                 vec![]
             };
+            let builtin = crate::parser::function_registry::lookup_builtin_meta(
+                &name.last().cloned().unwrap_or_default(),
+            );
             return Ok(TableRef::FunctionCall {
                 name,
                 args,
                 alias,
                 column_defs,
+                builtin,
             });
         }
         let alias = if self.match_ident_str("PIVOT") || self.match_ident_str("UNPIVOT") {

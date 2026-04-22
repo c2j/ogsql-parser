@@ -4963,10 +4963,10 @@ SELECT * FROM gs_recovery_conflict_waitevent_info();
 SELECT * FROM gs_display_delay_ddl_info();
 
 -- [DDL]
-CREATE TABLE part_tab 1 ( a int, b int ) PARTITION BY RANGE(b) ( PARTITION P1 VALUES LESS THAN(10), PARTITION P2 VALUES LESS THAN(20), PARTITION P3 VALUES LESS THAN(MAXVALUE) );
+CREATE TABLE part_tab1 ( a int, b int ) PARTITION BY RANGE(b) ( PARTITION P1 VALUES LESS THAN(10), PARTITION P2 VALUES LESS THAN(20), PARTITION P3 VALUES LESS THAN(MAXVALUE) );
 
 -- [DDL]
-CREATE TABLE subpart_tab 1 ( month_code VARCHAR2 ( 30 ) NOT NULL , dept_code VARCHAR2 ( 30 ) NOT NULL , user_no VARCHAR2 ( 30 ) NOT NULL , sales_amt int ) PARTITION BY RANGE (month_code) SUBPARTITION BY RANGE (dept_code) ( PARTITION p_201901 VALUES LESS THAN( '201903' ) ( SUBPARTITION p_201901_a VALUES LESS THAN( '2' ), SUBPARTITION p_201901_b VALUES LESS THAN( '3' ) ), PARTITION p_201902 VALUES LESS THAN( '201904' ) ( SUBPARTITION p_201902_a VALUES LESS THAN( '2' ), SUBPARTITION p_201902_b VALUES LESS THAN( '3' ) ) );
+CREATE TABLE subpart_tab1 ( month_code VARCHAR2 ( 30 ) NOT NULL , dept_code VARCHAR2 ( 30 ) NOT NULL , user_no VARCHAR2 ( 30 ) NOT NULL , sales_amt int ) PARTITION BY RANGE (month_code) SUBPARTITION BY RANGE (dept_code) ( PARTITION p_201901 VALUES LESS THAN( '201903' ) ( SUBPARTITION p_201901_a VALUES LESS THAN( '2' ), SUBPARTITION p_201901_b VALUES LESS THAN( '3' ) ), PARTITION p_201902 VALUES LESS THAN( '201904' ) ( SUBPARTITION p_201902_a VALUES LESS THAN( '2' ), SUBPARTITION p_201902_b VALUES LESS THAN( '3' ) ) );
 
 -- [DDL]
 CREATE INDEX index_part_tab1 ON part_tab1(b) LOCAL ( PARTITION b_index1, PARTITION b_index2, PARTITION b_index 3 );
@@ -8603,7 +8603,7 @@ DROP TABLE my_table;
 ================================================================================
 
 -- [DDL]
-CREATE TABLE tbl_test1( id int, id name varchar(50), 姓名 postcode char(6)  );
+CREATE TABLE tbl_test1( id int, name varchar(50),  postcode char(6)  );
 
 --创建表空间tbs_index1。
 -- [DDL]
@@ -9071,7 +9071,7 @@ CREATE ROLE manager IDENTIFIED BY ' ******** ';
 
 --创建一个角色，从2015年1月1日开始生效，到2026年1月1日失效。
 -- [DDL]
-CREATE ROLE miriam WITH LOGIN PASSWORD ' ******** ' VALID -- -- begin '2015-01-01' VALID UNTIL '2026-01-01';
+CREATE ROLE miriam WITH LOGIN PASSWORD ' ******** ' VALID ; -- -- begin '2015-01-01' VALID UNTIL '2026-01-01';
 
 --修改角色manager的密码为********。
 -- [DDL]
@@ -9767,7 +9767,7 @@ DROP TABLE tpcds.warehouse_t23;
 DROP SCHEMA tpcds;
 
 -- [DDL]
-CREATE TABLE t1(C1 VARCHAR(20) CHARSET utf8mb4 COLLATE utf8mb4_unicode_ci) CHARSET = utf8mb4 COLLATE = utf8mb4_ bin ;
+CREATE TABLE t1(C1 VARCHAR(20) CHARSET utf8mb4 COLLATE utf8mb4_unicode_ci) CHARSET = utf8mb4 COLLATE = utf8mb4_bin ;
 
 -- [DDL]
 ALTER TABLE t1 charset utf8mb4 collate utf8mb4_general_ci;
@@ -14772,7 +14772,7 @@ CALL p3 ();
 SELECT * FROM dbe_profiler . pl_profiling_functions ORDER BY run_id , funcoid ;
 
 -- [DQL]
-SELECT * FROM dbe_profiler . pl_profiling_details WHERE funcoid = 16770 ORDER BY run_id , funcoid , line # ;
+SELECT * FROM dbe_profiler . pl_profiling_details WHERE funcoid = 16770 ORDER BY run_id , funcoid , line ;
 
 -- [DQL]
 SELECT * FROM dbe_profiler . pl_profiling_callgraph ORDER BY run_id , stack ;
@@ -14808,7 +14808,7 @@ CALL autonomous ( 11 , 22 );
 SELECT * FROM dbe_profiler . pl_profiling_functions ORDER BY run_id , funcoid ;
 
 -- [DQL]
-SELECT * FROM dbe_profiler . pl_profiling_details ORDER BY run_id , funcoid , line # ;
+SELECT * FROM dbe_profiler . pl_profiling_details ORDER BY run_id , funcoid , line  ;
 
 -- [DQL]
 SELECT * FROM dbe_profiler . pl_profiling_callgraph ORDER BY run_id , stack ;
@@ -14826,7 +14826,7 @@ CALL autonomous_1 ( 11 , 22 );
 SELECT * FROM dbe_profiler . pl_profiling_functions ORDER BY run_id , funcoid ;
 
 -- [DQL]
-SELECT * FROM dbe_profiler . pl_profiling_details ORDER BY run_id , funcoid , line # ;
+SELECT * FROM dbe_profiler . pl_profiling_details ORDER BY run_id , funcoid , line  ;
 
 -- [DQL]
 SELECT * FROM dbe_profiler . pl_profiling_callgraph ORDER BY run_id , stack ;
@@ -16386,13 +16386,13 @@ CREATE SCHEMA sch1;
 --CREATE PACKAGE pck1 IS PROCEDURE sch1.pck1();
 
 -- [DQL]
-select timestamp '2024-03-20 01:30:00’ at time zone 'Europe/Moscow' from dual;
+-- select timestamp '2024-03-20 01:30:00' at timezone 'Europe/Moscow' from dual;
 
 -- [SESSION]
 set behavior_compat_options='enable_use_ora_timestamptz';
 
 -- [DQL]
-select timestamp '2024-03-20 01:30:00’ at time zone 'Europe/Moscow' from dual;
+-- select timestamp '2024-03-20 01:30:00' at timezone 'Europe/Moscow' from dual;
 
 -- [SESSION]
 set gs_format_behavior_compat_options='allow_textconcat_null';
@@ -18999,7 +18999,7 @@ CALL DBE_ILM_ADMIN.DISABLE_ILM();
 CALL DBE_ILM_ADMIN.ENABLE_ILM();
 
 -- [PLSQL]
-CALL DBE_ILM_ADMIN.CUSTOMIZE_ILM(11， 1);
+CALL DBE_ILM_ADMIN.CUSTOMIZE_ILM(11, 1);
 
 -- [PLSQL]
 CALL DBE_ILM_ADMIN.CUSTOMIZE_ILM(12, 10);

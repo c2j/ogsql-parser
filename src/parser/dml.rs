@@ -11,7 +11,12 @@ use crate::token::Token;
 impl Parser {
     fn apply_dml_partition_to_table_ref(table: TableRef, dml: DmlPartitionClause) -> TableRef {
         match table {
-            TableRef::Table { name, alias, partition: _, timecapsule } => {
+            TableRef::Table {
+                name,
+                alias,
+                partition: _,
+                timecapsule,
+            } => {
                 let part = match dml {
                     DmlPartitionClause::Partition(names) => TablePartitionRef {
                         for_values: None,
@@ -239,7 +244,9 @@ impl Parser {
         })
     }
 
-    pub(crate) fn parse_dml_partition(&mut self) -> Result<Option<DmlPartitionClause>, ParserError> {
+    pub(crate) fn parse_dml_partition(
+        &mut self,
+    ) -> Result<Option<DmlPartitionClause>, ParserError> {
         if self.match_keyword(Keyword::PARTITION) {
             self.advance();
             if self.match_keyword(Keyword::FOR) {

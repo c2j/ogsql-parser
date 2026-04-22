@@ -15,6 +15,9 @@ struct Cli {
 
     #[arg(short = 'j', long, global = true)]
     json: bool,
+
+    #[arg(short = 'v', long, global = true)]
+    verbose: bool,
 }
 
 #[derive(Subcommand)]
@@ -71,54 +74,21 @@ macro_rules! die {
     ($($t:tt)*) => {{ eprintln!($($t)*); std::process::exit(1); }};
 }
 
-fn annotate_builtin_functions(value: &mut serde_json::Value) {
-    match value {
-        serde_json::Value::Object(map) => {
-            if let Some(fc) = map.get_mut("FunctionCall") {
-                if let serde_json::Value::Object(fc_map) = fc {
-                    if let Some(serde_json::Value::Array(name_arr)) = fc_map.get("name") {
-                        if let Some(serde_json::Value::String(last)) = name_arr.last() {
-                            if let Some(meta) =
-                                ogsql_parser::parser::function_registry::lookup_function(last)
-                            {
-                                fc_map.insert(
-                                    "_meta".to_string(),
-                                    serde_json::json!({
-                                        "builtin": true,
-                                        "category": meta.category,
-                                        "domain": meta.domain,
-                                    }),
-                                );
-                            }
-                        }
-                    }
-                }
-            }
-            for v in map.values_mut() {
-                annotate_builtin_functions(v);
-            }
-        }
-        serde_json::Value::Array(arr) => {
-            for v in arr {
-                annotate_builtin_functions(v);
-            }
-        }
-        _ => {}
-    }
-}
+fn annotate_builtin_functions(_value: &mut serde_json::Value) {}
 
 fn read_input(file: Option<&str>) -> String {
     match file {
         Some(path) => {
-            let bytes = std::fs::read(path)
-                .unwrap_or_else(|e| die!("Error reading {}: {}", path, e));
+            let bytes =
+                std::fs::read(path).unwrap_or_else(|e| die!("Error reading {}: {}", path, e));
             token::decode_sql_file(&bytes)
                 .unwrap_or_else(|e| die!("Error decoding {}: {}", path, e))
                 .0
         }
         None => {
             let mut buf = String::new();
-            std::io::stdin().read_to_string(&mut buf)
+            std::io::stdin()
+                .read_to_string(&mut buf)
                 .unwrap_or_else(|e| die!("Error reading stdin: {}", e));
             buf
         }
@@ -169,7 +139,10 @@ fn cmd_format(cli: &Cli) {
     let (stmts, errors) = parse_input(&sql);
 
     let formatter = SqlFormatter::new();
-    let formatted: Vec<String> = stmts.iter().map(|si| formatter.format_statement(&si.statement)).collect();
+    let formatted: Vec<String> = stmts
+        .iter()
+        .map(|si| formatter.format_statement(&si.statement))
+        .collect();
 
     if cli.json {
         let out = serde_json::json!({
@@ -203,9 +176,10 @@ fn cmd_parse(cli: &Cli) {
                 if let Some(block) = extract_pl_block(&si.statement) {
                     let report = ogsql_parser::analyze_pl_block(block);
                     if !report.execute_findings.is_empty() {
-                        obj.as_object_mut()
-                            .unwrap()
-                            .insert("dynamic_sql_analysis".to_string(), serde_json::json!(report));
+                        obj.as_object_mut().unwrap().insert(
+                            "dynamic_sql_analysis".to_string(),
+                            serde_json::json!(report),
+                        );
                     }
                 }
                 annotate_builtin_functions(&mut obj);
@@ -230,6 +204,9 @@ fn cmd_parse(cli: &Cli) {
                 for e in &real_errors {
                     eprintln!("  {}", e);
                 }
+                if cli.verbose {
+                    write_error_log(&stmts, &real_errors);
+                }
             }
             if !warnings.is_empty() {
                 eprintln!("\n{} warning(s):", warnings.len());
@@ -241,7 +218,9 @@ fn cmd_parse(cli: &Cli) {
     }
 }
 
-fn extract_pl_block(stmt: &ogsql_parser::Statement) -> Option<&ogsql_parser::ast::plpgsql::PlBlock> {
+fn extract_pl_block(
+    stmt: &ogsql_parser::Statement,
+) -> Option<&ogsql_parser::ast::plpgsql::PlBlock> {
     use ogsql_parser::Statement;
     match stmt {
         Statement::Do(d) => d.block.as_ref(),
@@ -294,13 +273,18 @@ fn cmd_json2sql(cli: &Cli) {
     };
 
     let statements: Vec<Statement> = if let serde_json::Value::Array(items) = arr {
-        items.iter().filter_map(|v| {
-            if v.get("sql_text").is_some() {
-                serde_json::from_value::<StatementInfo>(v.clone()).ok().map(|si| si.statement)
-            } else {
-                serde_json::from_value::<Statement>(v.clone()).ok()
-            }
-        }).collect()
+        items
+            .iter()
+            .filter_map(|v| {
+                if v.get("sql_text").is_some() {
+                    serde_json::from_value::<StatementInfo>(v.clone())
+                        .ok()
+                        .map(|si| si.statement)
+                } else {
+                    serde_json::from_value::<Statement>(v.clone()).ok()
+                }
+            })
+            .collect()
     } else {
         die!("\"statements\" must be an array");
     };
@@ -310,7 +294,10 @@ fn cmd_json2sql(cli: &Cli) {
     }
 
     let formatter = SqlFormatter::new();
-    let formatted: Vec<String> = statements.iter().map(|s| formatter.format_statement(s)).collect();
+    let formatted: Vec<String> = statements
+        .iter()
+        .map(|s| formatter.format_statement(s))
+        .collect();
 
     if cli.json {
         let out = serde_json::json!({
@@ -334,7 +321,7 @@ fn is_warning(e: &ogsql_parser::ParserError) -> bool {
 
 fn cmd_validate(cli: &Cli) {
     let sql = read_input(cli.file.as_deref());
-    let (_, errors) = parse_input(&sql);
+    let (stmts, errors) = parse_input(&sql);
 
     if cli.json {
         let warnings: Vec<_> = errors.iter().filter(|e| is_warning(e)).collect();
@@ -357,22 +344,67 @@ fn cmd_validate(cli: &Cli) {
                 eprintln!("  warning: {}", w);
             }
         } else {
-            println!("INVALID ({} error(s), {} warning(s)):", real_errors.len(), warnings.len());
+            println!(
+                "INVALID ({} error(s), {} warning(s)):",
+                real_errors.len(),
+                warnings.len()
+            );
             for e in &real_errors {
                 eprintln!("  error: {}", e);
             }
             for w in &warnings {
                 eprintln!("  warning: {}", w);
             }
+            if cli.verbose {
+                write_error_log(&stmts, &real_errors);
+            }
             std::process::exit(1);
         }
     }
 }
 
+fn write_error_log(stmts: &[StatementInfo], errors: &[&ParserError]) {
+    use std::io::Write;
+    let mut file = match std::fs::File::create("error.log") {
+        Ok(f) => f,
+        Err(e) => {
+            eprintln!("  warning: cannot create error.log: {}", e);
+            return;
+        }
+    };
+    for err in errors {
+        let (line, _col) = match err {
+            ParserError::UnexpectedToken { location, .. } => (location.line, location.column),
+            ParserError::TokenizerError(_) => (0, 0),
+            ParserError::ReservedKeywordAsIdentifier { location, .. } => {
+                (location.line, location.column)
+            }
+            _ => (0, 0),
+        };
+        let _ = writeln!(file, "Error: {}", err);
+        if line > 0 {
+            if let Some(si) = stmts
+                .iter()
+                .find(|si| line >= si.start_line && line <= si.end_line)
+            {
+                let _ = writeln!(
+                    file,
+                    "Statement (line {}-{}):\n{}\n",
+                    si.start_line,
+                    si.end_line,
+                    si.sql_text.trim()
+                );
+            }
+        }
+        let _ = writeln!(file, "{}", "-".repeat(60));
+    }
+    eprintln!("  error details written to error.log");
+}
+
 #[cfg(feature = "serve")]
 mod api {
-    use axum::Json;
     use axum::routing::{get, post};
+    use axum::Json;
     use axum::Router;
     use serde::Deserialize;
     use utoipa::{OpenApi, ToSchema};
@@ -432,7 +464,10 @@ mod api {
     pub async fn handle_format(Json(input): Json<SqlInput>) -> Json<serde_json::Value> {
         let (stmts, errors) = super::parse_input(&input.sql);
         let formatter = ogsql_parser::SqlFormatter::new();
-        let formatted: Vec<String> = stmts.iter().map(|si| formatter.format_statement(&si.statement)).collect();
+        let formatted: Vec<String> = stmts
+            .iter()
+            .map(|si| formatter.format_statement(&si.statement))
+            .collect();
         Json(serde_json::json!({
             "formatted": formatted.join(";\n"),
             "error_count": errors.len(),
@@ -499,20 +534,33 @@ mod api {
             Err(e) => return Json(serde_json::json!({"error": format!("Invalid JSON: {}", e)})),
         };
 
-        let statements: Vec<ogsql_parser::Statement> = if let Some(arr) = json_value.get("statements") {
+        let statements: Vec<ogsql_parser::Statement> = if let Some(arr) =
+            json_value.get("statements")
+        {
             match serde_json::from_value(arr.clone()) {
                 Ok(s) => s,
-                Err(e) => return Json(serde_json::json!({"error": format!("Failed to deserialize statements: {}", e)})),
+                Err(e) => {
+                    return Json(
+                        serde_json::json!({"error": format!("Failed to deserialize statements: {}", e)}),
+                    )
+                }
             }
         } else {
             match serde_json::from_value(json_value) {
                 Ok(s) => s,
-                Err(e) => return Json(serde_json::json!({"error": format!("Failed to deserialize: {}", e)})),
+                Err(e) => {
+                    return Json(
+                        serde_json::json!({"error": format!("Failed to deserialize: {}", e)}),
+                    )
+                }
             }
         };
 
         let formatter = ogsql_parser::SqlFormatter::new();
-        let formatted: Vec<String> = statements.iter().map(|s| formatter.format_statement(s)).collect();
+        let formatted: Vec<String> = statements
+            .iter()
+            .map(|s| formatter.format_statement(s))
+            .collect();
 
         Json(serde_json::json!({
             "statements": formatted,
@@ -539,10 +587,10 @@ mod api {
 #[cfg(feature = "tui")]
 fn cmd_playground() {
     use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyModifiers};
+    use crossterm::execute;
     use crossterm::terminal::{
         disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen,
     };
-    use crossterm::execute;
     use ratatui::backend::CrosstermBackend;
     use ratatui::layout::{Constraint, Direction, Layout};
     use ratatui::style::{Color, Modifier, Style};
@@ -589,7 +637,10 @@ fn cmd_playground() {
                 .iter()
                 .map(|t| {
                     let (tt, val) = token_display(t);
-                    format!("{:<16} L{:>3}:C{:>3}  {}", tt, t.location.line, t.location.column, val)
+                    format!(
+                        "{:<16} L{:>3}:C{:>3}  {}",
+                        tt, t.location.line, t.location.column, val
+                    )
                 })
                 .collect::<Vec<_>>()
                 .join("\n"),
@@ -602,7 +653,11 @@ fn cmd_playground() {
                     }
                 }
                 let fmt = SqlFormatter::new();
-                stmts.iter().map(|s| fmt.format_statement(s)).collect::<Vec<_>>().join(";\n")
+                stmts
+                    .iter()
+                    .map(|s| fmt.format_statement(s))
+                    .collect::<Vec<_>>()
+                    .join(";\n")
             }
             _ => {
                 let mut parser = Parser::new(tokens);
@@ -632,7 +687,12 @@ fn cmd_playground() {
             .split(f.area());
 
         let input_title = Line::from(vec![
-            Span::styled(" SQL Input ", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
+            Span::styled(
+                " SQL Input ",
+                Style::default()
+                    .fg(Color::Yellow)
+                    .add_modifier(Modifier::BOLD),
+            ),
             Span::raw(" (Esc=quit, Tab=switch view, Shift+Up/Down=scroll output)"),
         ]);
         let input_block = Block::default()
@@ -644,7 +704,9 @@ fn cmd_playground() {
             .scroll((app.input_scroll, 0));
         f.render_widget(input, chunks[0]);
 
-        let tabs_block = Block::default().borders(Borders::ALL).border_style(Style::default().fg(Color::Cyan));
+        let tabs_block = Block::default()
+            .borders(Borders::ALL)
+            .border_style(Style::default().fg(Color::Cyan));
         let tabs = Tabs::new(vec!["AST", "Tokens", "Formatted"])
             .block(tabs_block.clone())
             .select(app.tab_index)
@@ -687,7 +749,9 @@ fn cmd_playground() {
         terminal.draw(|f| draw(f, &app)).expect("Failed to draw");
 
         match event::read().expect("Failed to read event") {
-            Event::Key(KeyEvent { code, modifiers, .. }) => match code {
+            Event::Key(KeyEvent {
+                code, modifiers, ..
+            }) => match code {
                 KeyCode::Esc => break,
                 KeyCode::Tab => app.tab_index = (app.tab_index + 1) % 3,
                 KeyCode::Backspace => {
@@ -757,12 +821,11 @@ fn cmd_parse_xml(cli: &Cli, dir: Option<&str>, csv: bool) {
 #[cfg(feature = "ibatis")]
 fn cmd_parse_xml_single(cli: &Cli, csv: bool) {
     let input = match cli.file.as_deref() {
-        Some(path) => {
-            std::fs::read(path).unwrap_or_else(|e| die!("Error reading {}: {}", path, e))
-        }
+        Some(path) => std::fs::read(path).unwrap_or_else(|e| die!("Error reading {}: {}", path, e)),
         None => {
             let mut buf = Vec::new();
-            std::io::stdin().read_to_end(&mut buf)
+            std::io::stdin()
+                .read_to_end(&mut buf)
                 .unwrap_or_else(|e| die!("Error reading stdin: {}", e));
             buf
         }
@@ -795,7 +858,10 @@ fn cmd_parse_xml_dir(cli: &Cli, dir_path: &str, csv: bool) {
 
     let mut all_results: Vec<(String, String, ogsql_parser::ibatis::ParsedMapper)> = Vec::new();
 
-    for entry in walkdir::WalkDir::new(dir_path).into_iter().filter_map(|e| e.ok()) {
+    for entry in walkdir::WalkDir::new(dir_path)
+        .into_iter()
+        .filter_map(|e| e.ok())
+    {
         let path = entry.path();
         if !path.is_file() {
             continue;
@@ -813,7 +879,8 @@ fn cmd_parse_xml_dir(cli: &Cli, dir_path: &str, csv: bool) {
             }
         };
 
-        let rel_dir = path.parent()
+        let rel_dir = path
+            .parent()
             .and_then(|p| p.strip_prefix(root).ok())
             .map(|p| p.to_str().unwrap_or("."))
             .unwrap_or(".");
@@ -823,7 +890,10 @@ fn cmd_parse_xml_dir(cli: &Cli, dir_path: &str, csv: bool) {
             Some(&path.to_string_lossy()),
         );
 
-        let file_name = path.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default();
+        let file_name = path
+            .file_name()
+            .map(|n| n.to_string_lossy().to_string())
+            .unwrap_or_default();
         all_results.push((file_name, rel_dir.to_string(), result));
     }
 
@@ -833,15 +903,18 @@ fn cmd_parse_xml_dir(cli: &Cli, dir_path: &str, csv: bool) {
             output_csv_xml_rows(&result.statements, file_name, rel_dir);
         }
     } else if cli.json {
-        let combined: Vec<serde_json::Value> = all_results.iter().map(|(f, d, r)| {
-            serde_json::json!({
-                "file": f,
-                "directory": d,
-                "namespace": r.namespace,
-                "statements": r.statements,
-                "errors": r.errors,
+        let combined: Vec<serde_json::Value> = all_results
+            .iter()
+            .map(|(f, d, r)| {
+                serde_json::json!({
+                    "file": f,
+                    "directory": d,
+                    "namespace": r.namespace,
+                    "statements": r.statements,
+                    "errors": r.errors,
+                })
             })
-        }).collect();
+            .collect();
         println!("{}", serde_json::to_string_pretty(&combined).unwrap());
     } else {
         let mut total = 0usize;
@@ -854,7 +927,10 @@ fn cmd_parse_xml_dir(cli: &Cli, dir_path: &str, csv: bool) {
             }
 
             for stmt in &result.statements {
-                println!("── {} ({:?}) [{} L{}] ──", stmt.id, stmt.kind, file_name, stmt.line);
+                println!(
+                    "── {} ({:?}) [{} L{}] ──",
+                    stmt.id, stmt.kind, file_name, stmt.line
+                );
                 println!("{}", stmt.flat_sql.trim());
                 if stmt.has_dynamic_elements {
                     println!("  [contains dynamic SQL elements]");
@@ -875,14 +951,26 @@ fn cmd_parse_xml_dir(cli: &Cli, dir_path: &str, csv: bool) {
                         }
                     }
                     if real_errors.is_empty() {
-                        println!("  ✓ Parsed successfully ({} statement(s)){}", infos.len(), if warnings.is_empty() { "" } else { " (with warnings)" });
+                        println!(
+                            "  ✓ Parsed successfully ({} statement(s)){}",
+                            infos.len(),
+                            if warnings.is_empty() {
+                                ""
+                            } else {
+                                " (with warnings)"
+                            }
+                        );
                     }
                 }
                 println!();
             }
             total += result.statements.len();
         }
-        println!("Total: {} statement(s) from {} file(s)", total, all_results.len());
+        println!(
+            "Total: {} statement(s) from {} file(s)",
+            total,
+            all_results.len()
+        );
     }
 }
 
@@ -917,13 +1005,25 @@ fn print_xml_text(result: &ogsql_parser::ibatis::ParsedMapper) {
                 }
             }
             if real_errors.is_empty() {
-                println!("  ✓ Parsed successfully ({} statement(s)){}", infos.len(), if warnings.is_empty() { "" } else { " (with warnings)" });
+                println!(
+                    "  ✓ Parsed successfully ({} statement(s)){}",
+                    infos.len(),
+                    if warnings.is_empty() {
+                        ""
+                    } else {
+                        " (with warnings)"
+                    }
+                );
             }
         }
         println!();
     }
 
-    println!("Total: {} statement(s) in namespace '{}'", result.statements.len(), result.namespace);
+    println!(
+        "Total: {} statement(s) in namespace '{}'",
+        result.statements.len(),
+        result.namespace
+    );
 }
 
 #[cfg(feature = "java")]
@@ -943,14 +1043,16 @@ fn cmd_parse_java(cli: &Cli, extra_sql_methods: &[String], dir: Option<&str>, cs
 fn cmd_parse_java_single(cli: &Cli, extra_sql_methods: &[String], csv: bool) {
     let (source, file_path) = match cli.file.as_deref() {
         Some(path) => {
-            let bytes = std::fs::read(path).unwrap_or_else(|e| die!("Error reading {}: {}", path, e));
+            let bytes =
+                std::fs::read(path).unwrap_or_else(|e| die!("Error reading {}: {}", path, e));
             let (text, _encoding) = ogsql_parser::token::decode_sql_file(&bytes)
                 .unwrap_or_else(|e| die!("Error decoding {}: {}", path, e));
             (text, path.to_string())
         }
         None => {
             let mut buf = String::new();
-            std::io::stdin().read_to_string(&mut buf)
+            std::io::stdin()
+                .read_to_string(&mut buf)
                 .unwrap_or_else(|e| die!("Error reading stdin: {}", e));
             (buf, "<stdin>".to_string())
         }
@@ -986,7 +1088,10 @@ fn cmd_parse_java_dir(cli: &Cli, extra_sql_methods: &[String], dir_path: &str, c
 
     let mut all_results: Vec<(String, String, ogsql_parser::java::JavaExtractResult)> = Vec::new();
 
-    for entry in walkdir::WalkDir::new(dir_path).into_iter().filter_map(|e| e.ok()) {
+    for entry in walkdir::WalkDir::new(dir_path)
+        .into_iter()
+        .filter_map(|e| e.ok())
+    {
         let path = entry.path();
         if !path.is_file() {
             continue;
@@ -1015,12 +1120,16 @@ fn cmd_parse_java_dir(cli: &Cli, extra_sql_methods: &[String], dir_path: &str, c
         let file_path_str = path.to_string_lossy().to_string();
         let result = ogsql_parser::java::extract_sql_from_java(&source, &file_path_str, &config);
 
-        let rel_dir = path.parent()
+        let rel_dir = path
+            .parent()
             .and_then(|p| p.strip_prefix(root).ok())
             .map(|p| p.to_str().unwrap_or("."))
             .unwrap_or(".");
 
-        let file_name = path.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default();
+        let file_name = path
+            .file_name()
+            .map(|n| n.to_string_lossy().to_string())
+            .unwrap_or_default();
         all_results.push((file_name, rel_dir.to_string(), result));
     }
 
@@ -1030,14 +1139,17 @@ fn cmd_parse_java_dir(cli: &Cli, extra_sql_methods: &[String], dir_path: &str, c
             output_csv_java_rows(&result.extractions, file_name, rel_dir);
         }
     } else if cli.json {
-        let combined: Vec<serde_json::Value> = all_results.iter().map(|(f, d, r)| {
-            serde_json::json!({
-                "file": f,
-                "directory": d,
-                "extractions": r.extractions,
-                "errors": r.errors,
+        let combined: Vec<serde_json::Value> = all_results
+            .iter()
+            .map(|(f, d, r)| {
+                serde_json::json!({
+                    "file": f,
+                    "directory": d,
+                    "extractions": r.extractions,
+                    "errors": r.errors,
+                })
             })
-        }).collect();
+            .collect();
         println!("{}", serde_json::to_string_pretty(&combined).unwrap());
     } else {
         let mut total = 0usize;
@@ -1051,10 +1163,17 @@ fn cmd_parse_java_dir(cli: &Cli, extra_sql_methods: &[String], dir_path: &str, c
 
             for ext in &result.extractions {
                 let location = match &ext.origin.class_name {
-                    Some(cls) => format!("{}::{}", cls, ext.origin.method_name.as_deref().unwrap_or("")),
+                    Some(cls) => format!(
+                        "{}::{}",
+                        cls,
+                        ext.origin.method_name.as_deref().unwrap_or("")
+                    ),
                     None => file_name.clone(),
                 };
-                println!("── {:?} [{:?}] @ {} L{} [{}] ──", ext.origin.method, ext.sql_kind, location, ext.origin.line, file_name);
+                println!(
+                    "── {:?} [{:?}] @ {} L{} [{}] ──",
+                    ext.origin.method, ext.sql_kind, location, ext.origin.line, file_name
+                );
                 println!("{}", ext.sql.trim());
                 if ext.is_concatenated {
                     println!("  [concatenated]");
@@ -1066,8 +1185,16 @@ fn cmd_parse_java_dir(cli: &Cli, extra_sql_methods: &[String], dir_path: &str, c
                     println!("  [params: {:?}]", ext.parameter_style);
                 }
                 if let Some(parse_result) = &ext.parse_result {
-                    let warnings: Vec<_> = parse_result.errors.iter().filter(|e| is_warning(e)).collect();
-                    let real_errors: Vec<_> = parse_result.errors.iter().filter(|e| !is_warning(e)).collect();
+                    let warnings: Vec<_> = parse_result
+                        .errors
+                        .iter()
+                        .filter(|e| is_warning(e))
+                        .collect();
+                    let real_errors: Vec<_> = parse_result
+                        .errors
+                        .iter()
+                        .filter(|e| !is_warning(e))
+                        .collect();
                     if !real_errors.is_empty() {
                         eprintln!("  {} parse error(s):", real_errors.len());
                         for e in &real_errors {
@@ -1081,14 +1208,26 @@ fn cmd_parse_java_dir(cli: &Cli, extra_sql_methods: &[String], dir_path: &str, c
                         }
                     }
                     if real_errors.is_empty() {
-                        println!("  ✓ Parsed successfully ({} statement(s)){}", parse_result.statements.len(), if warnings.is_empty() { "" } else { " (with warnings)" });
+                        println!(
+                            "  ✓ Parsed successfully ({} statement(s)){}",
+                            parse_result.statements.len(),
+                            if warnings.is_empty() {
+                                ""
+                            } else {
+                                " (with warnings)"
+                            }
+                        );
                     }
                 }
                 println!();
             }
             total += result.extractions.len();
         }
-        println!("Total: {} extraction(s) from {} file(s)", total, all_results.len());
+        println!(
+            "Total: {} extraction(s) from {} file(s)",
+            total,
+            all_results.len()
+        );
     }
 }
 
@@ -1107,10 +1246,17 @@ fn print_java_text(result: &ogsql_parser::java::JavaExtractResult, file_path: &s
 
     for ext in &result.extractions {
         let location = match &ext.origin.class_name {
-            Some(cls) => format!("{}::{}", cls, ext.origin.method_name.as_deref().unwrap_or("")),
+            Some(cls) => format!(
+                "{}::{}",
+                cls,
+                ext.origin.method_name.as_deref().unwrap_or("")
+            ),
             None => file_path.to_string(),
         };
-        println!("── {:?} [{:?}] @ {} L{} ──", ext.origin.method, ext.sql_kind, location, ext.origin.line);
+        println!(
+            "── {:?} [{:?}] @ {} L{} ──",
+            ext.origin.method, ext.sql_kind, location, ext.origin.line
+        );
         println!("{}", ext.sql.trim());
         if ext.is_concatenated {
             println!("  [concatenated]");
@@ -1122,8 +1268,16 @@ fn print_java_text(result: &ogsql_parser::java::JavaExtractResult, file_path: &s
             println!("  [params: {:?}]", ext.parameter_style);
         }
         if let Some(parse_result) = &ext.parse_result {
-            let warnings: Vec<_> = parse_result.errors.iter().filter(|e| is_warning(e)).collect();
-            let real_errors: Vec<_> = parse_result.errors.iter().filter(|e| !is_warning(e)).collect();
+            let warnings: Vec<_> = parse_result
+                .errors
+                .iter()
+                .filter(|e| is_warning(e))
+                .collect();
+            let real_errors: Vec<_> = parse_result
+                .errors
+                .iter()
+                .filter(|e| !is_warning(e))
+                .collect();
             if !real_errors.is_empty() {
                 eprintln!("  {} parse error(s):", real_errors.len());
                 for e in &real_errors {
@@ -1137,13 +1291,25 @@ fn print_java_text(result: &ogsql_parser::java::JavaExtractResult, file_path: &s
                 }
             }
             if real_errors.is_empty() {
-                println!("  ✓ Parsed successfully ({} statement(s)){}", parse_result.statements.len(), if warnings.is_empty() { "" } else { " (with warnings)" });
+                println!(
+                    "  ✓ Parsed successfully ({} statement(s)){}",
+                    parse_result.statements.len(),
+                    if warnings.is_empty() {
+                        ""
+                    } else {
+                        " (with warnings)"
+                    }
+                );
             }
         }
         println!();
     }
 
-    println!("Total: {} extraction(s) from {}", result.extractions.len(), file_path);
+    println!(
+        "Total: {} extraction(s) from {}",
+        result.extractions.len(),
+        file_path
+    );
 }
 
 fn csv_escape(s: &str) -> String {
@@ -1207,11 +1373,13 @@ fn output_csv_xml_rows(
     for stmt in statements {
         let (errors, warnings) = match &stmt.parse_result {
             Some((_, parse_errors)) => {
-                let errs: Vec<String> = parse_errors.iter()
+                let errs: Vec<String> = parse_errors
+                    .iter()
                     .filter(|e| !is_warning(e))
                     .map(|e| e.to_string())
                     .collect();
-                let warns: Vec<String> = parse_errors.iter()
+                let warns: Vec<String> = parse_errors
+                    .iter()
                     .filter(|e| is_warning(e))
                     .map(|e| e.to_string())
                     .collect();
@@ -1257,11 +1425,15 @@ fn output_csv_java_rows(
 
         let (errors, warnings) = match &ext.parse_result {
             Some(parse_result) => {
-                let errs: Vec<String> = parse_result.errors.iter()
+                let errs: Vec<String> = parse_result
+                    .errors
+                    .iter()
                     .filter(|e| !is_warning(e))
                     .map(|e| e.to_string())
                     .collect();
-                let warns: Vec<String> = parse_result.errors.iter()
+                let warns: Vec<String> = parse_result
+                    .errors
+                    .iter()
                     .filter(|e| is_warning(e))
                     .map(|e| e.to_string())
                     .collect();
@@ -1316,8 +1488,10 @@ fn main() {
         #[cfg(feature = "ibatis")]
         Commands::ParseXml { ref dir, csv } => cmd_parse_xml(&cli, dir.as_deref(), csv),
         #[cfg(feature = "java")]
-        Commands::ParseJava { ref extra_sql_methods, ref dir, csv } => {
-            cmd_parse_java(&cli, extra_sql_methods, dir.as_deref(), csv)
-        }
+        Commands::ParseJava {
+            ref extra_sql_methods,
+            ref dir,
+            csv,
+        } => cmd_parse_java(&cli, extra_sql_methods, dir.as_deref(), csv),
     }
 }
