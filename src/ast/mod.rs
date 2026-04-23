@@ -210,7 +210,18 @@ pub enum TableConstraint {
         columns: Vec<String>,
         ref_table: ObjectName,
         ref_columns: Vec<String>,
+        on_delete: Option<ReferentialAction>,
+        on_update: Option<ReferentialAction>,
     },
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub enum ReferentialAction {
+    Cascade,
+    Restrict,
+    SetNull,
+    SetDefault,
+    NoAction,
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -622,7 +633,10 @@ pub struct CreateIndexStatement {
 pub struct IndexColumn {
     pub name: Option<String>,
     pub expr: Option<Expr>,
+    pub collation: Option<String>,
+    pub opclass: Option<String>,
     pub asc: Option<bool>,
+    pub nulls: Option<IndexNulls>,
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
