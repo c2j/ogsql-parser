@@ -867,7 +867,8 @@ impl Parser {
             if self.match_token(&Token::Eq) {
                 self.advance();
             }
-            collate = Some(self.parse_identifier()?);
+            let names = self.parse_object_name()?;
+            collate = Some(names.join("."));
         }
 
         let mut constraints = Vec::new();
@@ -896,7 +897,8 @@ impl Parser {
             if self.match_token(&Token::Eq) {
                 self.advance();
             }
-            collate = Some(self.parse_identifier()?);
+            let names = self.parse_object_name()?;
+            collate = Some(names.join("."));
         }
 
         let mut on_update = None;
@@ -1594,10 +1596,14 @@ impl Parser {
                 self.expect_keyword(Keyword::REFERENCES)?;
                 let ref_table = self.parse_object_name()?;
                 let ref_columns = self.parse_column_list()?;
+                let on_delete = self.parse_referential_action(Keyword::DELETE_P)?;
+                let on_update = self.parse_referential_action(Keyword::UPDATE)?;
                 Ok(TableConstraint::ForeignKey {
                     columns,
                     ref_table,
                     ref_columns,
+                    on_delete,
+                    on_update,
                 })
             }
             _ => Err(ParserError::UnexpectedToken {
@@ -1623,6 +1629,52 @@ impl Parser {
         }
         self.expect_token(&Token::RParen)?;
         Ok(columns)
+    }
+
+    fn parse_referential_action(
+        &mut self,
+        keyword: Keyword,
+    ) -> Result<Option<ReferentialAction>, ParserError> {
+        if self.match_keyword(Keyword::ON) {
+            let pos = self.pos;
+            self.advance();
+            if self.match_keyword(keyword) {
+                self.advance();
+                let action = if self.match_keyword(Keyword::CASCADE) {
+                    self.advance();
+                    ReferentialAction::Cascade
+                } else if self.match_keyword(Keyword::RESTRICT) {
+                    self.advance();
+                    ReferentialAction::Restrict
+                } else if self.match_keyword(Keyword::SET) {
+                    self.advance();
+                    if self.match_keyword(Keyword::NULL_P) {
+                        self.advance();
+                        ReferentialAction::SetNull
+                    } else {
+                        self.expect_keyword(Keyword::DEFAULT)?;
+                        ReferentialAction::SetDefault
+                    }
+                } else if self.match_keyword(Keyword::NO) {
+                    self.advance();
+                    self.expect_keyword(Keyword::ACTION)?;
+                    ReferentialAction::NoAction
+                } else {
+                    return Err(ParserError::UnexpectedToken {
+                        location: self.current_location(),
+                        expected: "CASCADE, RESTRICT, SET NULL, SET DEFAULT, or NO ACTION"
+                            .to_string(),
+                        got: format!("{:?}", self.peek()),
+                    });
+                };
+                Ok(Some(action))
+            } else {
+                self.pos = pos;
+                Ok(None)
+            }
+        } else {
+            Ok(None)
+        }
     }
 
     // ========== ALTER TABLE ==========

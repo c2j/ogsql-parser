@@ -121,6 +121,25 @@ impl Parser {
             (None, Some(self.parse_expr()?))
         };
 
+        let collation = if self.match_keyword(Keyword::COLLATE) {
+            self.advance();
+            let names = self.parse_object_name()?;
+            Some(names.join("."))
+        } else {
+            None
+        };
+
+        let opclass = if !self.match_keyword(Keyword::ASC)
+            && !self.match_keyword(Keyword::DESC)
+            && !self.match_keyword(Keyword::NULLS_P)
+            && !matches!(self.peek(), Token::Comma | Token::RParen)
+        {
+            let names = self.parse_object_name()?;
+            Some(names.join("."))
+        } else {
+            None
+        };
+
         let asc = if self.match_keyword(Keyword::ASC) {
             self.advance();
             Some(true)
@@ -131,7 +150,27 @@ impl Parser {
             None
         };
 
-        Ok(IndexColumn { name, expr, asc })
+        let nulls = if self.match_keyword(Keyword::NULLS_P) {
+            self.advance();
+            if self.match_keyword(Keyword::FIRST_P) {
+                self.advance();
+                Some(IndexNulls::First)
+            } else {
+                self.expect_keyword(Keyword::LAST_P)?;
+                Some(IndexNulls::Last)
+            }
+        } else {
+            None
+        };
+
+        Ok(IndexColumn {
+            name,
+            expr,
+            collation,
+            opclass,
+            asc,
+            nulls,
+        })
     }
 
     fn matches_simple_column_name(&self) -> bool {

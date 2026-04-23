@@ -2531,6 +2531,8 @@ impl SqlFormatter {
                 columns,
                 ref_table,
                 ref_columns,
+                on_delete,
+                on_update,
             } => {
                 let mut result = format!(
                     "{} ({}) {} {}",
@@ -2542,8 +2544,34 @@ impl SqlFormatter {
                 if !ref_columns.is_empty() {
                     result = format!("{} ({})", result, ref_columns.join(", "));
                 }
+                if let Some(action) = on_delete {
+                    result = format!(
+                        "{} {} {}",
+                        result,
+                        self.kw("ON DELETE"),
+                        self.format_referential_action(action)
+                    );
+                }
+                if let Some(action) = on_update {
+                    result = format!(
+                        "{} {} {}",
+                        result,
+                        self.kw("ON UPDATE"),
+                        self.format_referential_action(action)
+                    );
+                }
                 result
             }
+        }
+    }
+
+    fn format_referential_action(&self, action: &ReferentialAction) -> &'static str {
+        match action {
+            ReferentialAction::Cascade => "CASCADE",
+            ReferentialAction::Restrict => "RESTRICT",
+            ReferentialAction::SetNull => "SET NULL",
+            ReferentialAction::SetDefault => "SET DEFAULT",
+            ReferentialAction::NoAction => "NO ACTION",
         }
     }
 
@@ -3521,8 +3549,25 @@ impl SqlFormatter {
                 } else {
                     String::new()
                 };
+                if let Some(collation) = &c.collation {
+                    result = format!("{} {} {}", result, self.kw("COLLATE"), collation);
+                }
+                if let Some(opclass) = &c.opclass {
+                    result = format!("{} {}", result, opclass);
+                }
                 if let Some(asc) = c.asc {
                     result = format!("{} {}", result, if asc { "ASC" } else { "DESC" });
+                }
+                if let Some(nulls) = &c.nulls {
+                    result = format!(
+                        "{} {} {}",
+                        result,
+                        self.kw("NULLS"),
+                        match nulls {
+                            IndexNulls::First => "FIRST",
+                            IndexNulls::Last => "LAST",
+                        }
+                    );
                 }
                 result
             })
