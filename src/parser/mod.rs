@@ -43,6 +43,7 @@ pub struct Parser {
     errors: Vec<ParserError>,
     source: String,
     depth: u32,
+    pl_into_mode: bool,
 }
 
 const MAX_PARSE_DEPTH: u32 = 256;
@@ -55,6 +56,7 @@ impl Parser {
             errors: Vec::new(),
             source: String::new(),
             depth: 0,
+            pl_into_mode: false,
         }
     }
 
@@ -65,6 +67,7 @@ impl Parser {
             errors: Vec::new(),
             source,
             depth: 0,
+            pl_into_mode: false,
         }
     }
 

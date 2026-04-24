@@ -174,6 +174,8 @@ impl Parser {
                         table_name,
                     }),
                 )
+            } else if self.pl_into_mode {
+                (Some(self.parse_target_list()?), None)
             } else {
                 let save_pos = self.pos;
                 if let Ok(table_name) = self.parse_object_name() {

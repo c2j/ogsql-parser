@@ -22,7 +22,7 @@ CREATE OR REPLACE PACKAGE BODY BIGFUND.PKG_BM_2 is
  BEGIN
    p_out_code := 0;
    BEGIN
-     SELECT to_number(p_in_checkBalance) INTO v_in_checkBalance FROM sys_dummy;
+     SELECT to_number(p_in_checkBalance) INTO v_in_checkBalance11 FROM sys_dummy;
     EXCEPTION
      WHEN OTHERS THEN
        v_in_checkBalance := '';

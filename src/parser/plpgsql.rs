@@ -723,7 +723,8 @@ impl Parser {
         let start_pos = self.pos;
         let result = match self.peek() {
             Token::Keyword(Keyword::SELECT) | Token::Keyword(Keyword::WITH) => {
-                match self.parse_select_statement() {
+                self.pl_into_mode = true;
+                let result = match self.parse_select_statement() {
                     Ok(mut stmt) => {
                         let mut merged = hints;
                         merged.append(&mut stmt.hints);
@@ -731,7 +732,9 @@ impl Parser {
                         Some(crate::ast::Statement::Select(stmt))
                     }
                     Err(_) => None,
-                }
+                };
+                self.pl_into_mode = false;
+                result
             }
             Token::Keyword(Keyword::INSERT) => {
                 self.advance();
@@ -787,9 +790,16 @@ impl Parser {
         match result {
             Some(stmt) => {
                 let dml_end_pos = self.pos;
-                if self.match_keyword(Keyword::INTO) {
+                let is_select = matches!(stmt, crate::ast::Statement::Select(_));
+                // For non-SELECT DML (UPDATE/DELETE/INSERT), PL/pgSQL allows
+                // RETURNING ... INTO variable. Consume INTO + target list.
+                if !is_select && self.match_keyword(Keyword::INTO) {
                     self.advance();
-                    let _ = self.consume_any_identifier();
+                    let _ = self.parse_expr();
+                    while self.match_token(&Token::Comma) {
+                        self.advance();
+                        let _ = self.parse_expr();
+                    }
                 }
                 let had_semicolon = self.match_token(&Token::Semicolon);
                 if had_semicolon {

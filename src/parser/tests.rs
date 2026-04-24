@@ -11126,3 +11126,311 @@ fn guard_create_table_unique_using_index() {
     let stmts = parse(sql);
     assert!(!stmts.is_empty(), "should parse without error");
 }
+
+// ========== P6: SELECT INTO context disambiguation ==========
+//
+// In PL/pgSQL context, `SELECT col INTO var FROM table` is variable assignment.
+// In top-level SQL, `SELECT * INTO table FROM table2` is CREATE TABLE AS.
+// The parser must distinguish based on context (PL block vs top-level).
+
+fn parse_do_block_with_source(sql: &str) -> PlBlock {
+    let tokens = Tokenizer::new(sql).tokenize().unwrap();
+    let mut parser = Parser::with_source(tokens, sql.to_string());
+    let stmts = parser.parse();
+    let stmt = stmts.into_iter().next().expect("expected at least one statement");
+    match stmt {
+        Statement::Do(d) => d
+            .block
+            .expect("DO statement should have parsed a PL/pgSQL block"),
+        _ => panic!("expected DO statement"),
+    }
+}
+
+fn extract_sql_statement_from_block(block: &PlBlock) -> Option<&PlStatement> {
+    block.body.iter().find(|s| matches!(s, PlStatement::SqlStatement { .. }))
+}
+
+fn extract_select_from_pl(pl: &PlStatement) -> Option<&SelectStatement> {
+    match pl {
+        PlStatement::SqlStatement { statement, .. } => match statement.as_ref() {
+            Statement::Select(s) => Some(s),
+            _ => None,
+        },
+        _ => None,
+    }
+}
+
+// --- P6-1: PL block — SELECT single col INTO single variable FROM table ---
+
+#[test]
+fn test_pl_select_single_into_variable() {
+    let block = parse_do_block(
+        "DO $$ DECLARE v_status VARCHAR2(30); BEGIN SELECT status INTO v_status FROM users WHERE id = 1; END $$",
+    );
+    let sql_stmt = extract_sql_statement_from_block(&block).expect("should have a SQL statement");
+    let select = extract_select_from_pl(sql_stmt).expect("should have a SELECT");
+    assert!(
+        select.into_table.is_none(),
+        "PL SELECT INTO should NOT parse as SelectIntoTable, got: {:?}",
+        select.into_table
+    );
+    assert!(
+        select.into_targets.is_some(),
+        "PL SELECT INTO should parse into_targets as variable list"
+    );
+    let targets = select.into_targets.as_ref().unwrap();
+    assert_eq!(targets.len(), 1, "should have exactly 1 INTO target variable");
+}
+
+// --- P6-2: PL block — SELECT func(col) INTO variable FROM table (original reproducer) ---
+
+#[test]
+fn test_pl_select_func_into_variable() {
+    let block = parse_do_block(
+        "DO $$ BEGIN SELECT to_number(p_in_checkBalance) INTO v_in_checkBalance FROM sys_dummy; END $$",
+    );
+    let sql_stmt = extract_sql_statement_from_block(&block).expect("should have a SQL statement");
+    let select = extract_select_from_pl(sql_stmt).expect("should have a SELECT");
+    assert!(
+        select.into_table.is_none(),
+        "PL SELECT to_number(..) INTO var FROM table should NOT parse as SelectIntoTable"
+    );
+    assert!(
+        select.into_targets.is_some(),
+        "PL SELECT to_number(..) INTO var FROM table should parse into_targets"
+    );
+}
+
+// --- P6-3: PL block — SELECT multi-col INTO multi-variable FROM table ---
+
+#[test]
+fn test_pl_select_multi_into_variables() {
+    let block = parse_do_block(
+        "DO $$ BEGIN SELECT name, salary INTO v_name, v_salary FROM emp WHERE emp_id = 42; END $$",
+    );
+    let sql_stmt = extract_sql_statement_from_block(&block).expect("should have a SQL statement");
+    let select = extract_select_from_pl(sql_stmt).expect("should have a SELECT");
+    assert!(
+        select.into_table.is_none(),
+        "PL SELECT .. INTO v1, v2 FROM table should NOT parse as SelectIntoTable"
+    );
+    let targets = select.into_targets.as_ref().expect("should have into_targets");
+    assert_eq!(targets.len(), 2, "should have exactly 2 INTO target variables");
+}
+
+// --- P6-4: PL block — SELECT INTO variable with expression target ---
+
+#[test]
+fn test_pl_select_expr_into_variable() {
+    let block = parse_do_block(
+        "DO $$ BEGIN SELECT COUNT(*) INTO v_total FROM orders WHERE status = 'active'; END $$",
+    );
+    let sql_stmt = extract_sql_statement_from_block(&block).expect("should have a SQL statement");
+    let select = extract_select_from_pl(sql_stmt).expect("should have a SELECT");
+    assert!(
+        select.into_table.is_none(),
+        "PL SELECT COUNT(*) INTO var FROM table should NOT parse as SelectIntoTable"
+    );
+    assert!(select.into_targets.is_some());
+}
+
+// --- P6-5: PL block — nested BEGIN with SELECT INTO (scope test) ---
+
+#[test]
+fn test_pl_select_into_in_nested_block() {
+    let block = parse_do_block(
+        "DO $$ BEGIN BEGIN SELECT 1 INTO v_x FROM dual; END; END $$",
+    );
+    // Navigate into the nested block
+    let nested_block = block.body.iter().find_map(|s| match s {
+        PlStatement::Block(b) => Some(b),
+        _ => None,
+    }).expect("should have a nested block");
+    let sql_stmt = extract_sql_statement_from_block(nested_block).expect("nested block should have SQL");
+    let select = extract_select_from_pl(sql_stmt).expect("should have a SELECT");
+    assert!(
+        select.into_table.is_none(),
+        "PL nested block SELECT INTO should NOT parse as SelectIntoTable"
+    );
+    assert!(select.into_targets.is_some());
+}
+
+// --- P6-6: PL block — SELECT INTO in LOOP ---
+
+#[test]
+fn test_pl_select_into_in_loop() {
+    let block = parse_do_block(
+        "DO $$ BEGIN LOOP SELECT balance INTO v_bal FROM accounts WHERE id = v_id; EXIT WHEN v_bal > 100; END LOOP; END $$",
+    );
+    let loop_stmt = block.body.iter().find_map(|s| match s {
+        PlStatement::Loop(l) => Some(l),
+        _ => None,
+    }).expect("should have a LOOP");
+    let sql_stmt = loop_stmt.body.iter().find(|s| matches!(s, PlStatement::SqlStatement { .. }))
+        .expect("loop body should have SQL");
+    let select = extract_select_from_pl(sql_stmt).expect("should have a SELECT");
+    assert!(
+        select.into_table.is_none(),
+        "PL SELECT INTO inside LOOP should NOT parse as SelectIntoTable"
+    );
+}
+
+// --- P6-7: PL block — SELECT INTO in EXCEPTION handler ---
+
+#[test]
+fn test_pl_select_into_in_exception_handler() {
+    let block = parse_do_block(
+        "DO $$ BEGIN SELECT val INTO v FROM t; EXCEPTION WHEN OTHERS THEN SELECT 0 INTO v; END $$",
+    );
+    let handler = block.exception_block.as_ref().expect("should have exception block");
+    let sql_stmt = handler.handlers[0].statements.iter()
+        .find(|s| matches!(s, PlStatement::SqlStatement { .. }))
+        .expect("handler should have SQL");
+    let select = extract_select_from_pl(sql_stmt).expect("should have a SELECT");
+    assert!(
+        select.into_table.is_none(),
+        "PL SELECT INTO in exception handler should NOT parse as SelectIntoTable"
+    );
+}
+
+// --- P6-8: Package body procedure — SELECT INTO variable (original error-sp.sql scenario) ---
+
+#[test]
+fn test_package_body_select_into_variable() {
+    let sql = "CREATE OR REPLACE PACKAGE BODY my_pkg IS\n\
+               PROCEDURE check_balance(p_id IN NUMBER) IS\n\
+                 v_balance NUMBER;\n\
+               BEGIN\n\
+                 SELECT balance INTO v_balance FROM accounts WHERE id = p_id;\n\
+                 IF v_balance < 0 THEN\n\
+                   RAISE EXCEPTION 'negative balance';\n\
+                 END IF;\n\
+               END check_balance;\n\
+               END my_pkg;";
+    let stmt = parse_one(sql);
+    match &stmt {
+        Statement::CreatePackageBody(p) => {
+            let proc = p.items.iter().find_map(|i| match i {
+                PackageItem::Procedure(pr) => Some(pr),
+                _ => None,
+            }).expect("should have a procedure");
+            let block = proc.block.as_ref().expect("procedure should have a block");
+            let sql_stmt = extract_sql_statement_from_block(block).expect("should have SQL");
+            let select = extract_select_from_pl(sql_stmt).expect("should have a SELECT");
+            assert!(
+                select.into_table.is_none(),
+                "Package body SELECT INTO should NOT parse as SelectIntoTable"
+            );
+            assert!(
+                select.into_targets.is_some(),
+                "Package body SELECT INTO should parse into_targets"
+            );
+        }
+        _ => panic!("expected CreatePackageBody, got {:?}", stmt),
+    }
+}
+
+// --- P6-9: Top-level SQL — SELECT INTO TABLE must still work ---
+
+#[test]
+fn test_toplevel_select_into_table_preserved() {
+    let sql = "SELECT * INTO TABLE new_table FROM source_table";
+    let stmt = parse_one(sql);
+    match stmt {
+        Statement::Select(s) => {
+            assert!(s.into_targets.is_none(), "top-level INTO TABLE should NOT have into_targets");
+            let into_table = s.into_table.as_ref().expect("expected into_table");
+            assert_eq!(into_table.table_name, vec!["new_table"]);
+        }
+        other => panic!("expected Select, got {:?}", other),
+    }
+}
+
+// --- P6-10: Top-level SQL — SELECT INTO without TABLE keyword must still work ---
+
+#[test]
+fn test_toplevel_select_into_bare_table_preserved() {
+    let sql = "SELECT * INTO new_table FROM source_table";
+    let stmt = parse_one(sql);
+    match stmt {
+        Statement::Select(s) => {
+            assert!(s.into_targets.is_none());
+            let into_table = s.into_table.as_ref().expect("expected into_table");
+            assert_eq!(into_table.table_name, vec!["new_table"]);
+        }
+        other => panic!("expected Select, got {:?}", other),
+    }
+}
+
+// --- P6-11: Top-level SQL — SELECT INTO UNLOGGED TABLE must still work ---
+
+#[test]
+fn test_toplevel_select_into_unlogged_preserved() {
+    let sql = "SELECT * INTO UNLOGGED TABLE new_table FROM source_table WHERE id > 0";
+    let stmt = parse_one(sql);
+    match stmt {
+        Statement::Select(s) => {
+            assert!(s.into_targets.is_none());
+            let into_table = s.into_table.as_ref().expect("expected into_table");
+            assert!(into_table.unlogged);
+        }
+        other => panic!("expected Select, got {:?}", other),
+    }
+}
+
+// --- P6-12: Complex real-world procedure — multiple SELECT INTO patterns ---
+
+#[test]
+fn test_complex_procedure_multiple_select_into() {
+    let sql = r#"CREATE OR REPLACE PACKAGE BODY bank_pkg IS
+        PROCEDURE transfer(p_from IN NUMBER, p_to IN NUMBER, p_amount IN NUMBER) IS
+            v_from_balance NUMBER;
+            v_to_balance NUMBER;
+            v_count INTEGER;
+            v_status VARCHAR2(30);
+        BEGIN
+            SELECT balance INTO v_from_balance FROM accounts WHERE id = p_from;
+            SELECT balance INTO v_to_balance FROM accounts WHERE id = p_to;
+            SELECT COUNT(*) INTO v_count FROM transactions WHERE account_id = p_from;
+            SELECT status INTO v_status FROM account_status WHERE account_id = p_from;
+            IF v_from_balance < p_amount THEN
+                RAISE EXCEPTION 'insufficient funds';
+            END IF;
+            UPDATE accounts SET balance = balance - p_amount WHERE id = p_from;
+            UPDATE accounts SET balance = balance + p_amount WHERE id = p_to;
+        END transfer;
+    END bank_pkg;"#;
+    let stmt = parse_one(sql);
+    match &stmt {
+        Statement::CreatePackageBody(p) => {
+            let proc = p.items.iter().find_map(|i| match i {
+                PackageItem::Procedure(pr) => Some(pr),
+                _ => None,
+            }).expect("should have transfer procedure");
+            let block = proc.block.as_ref().expect("should have block");
+            let sql_stmts: Vec<_> = block.body.iter()
+                .filter_map(|s| match s {
+                    PlStatement::SqlStatement { statement, .. } => match statement.as_ref() {
+                        Statement::Select(sel) => Some(sel.clone()),
+                        _ => None,
+                    },
+                    _ => None,
+                })
+                .collect();
+            assert!(sql_stmts.len() >= 4, "should have at least 4 SELECT statements, got {}", sql_stmts.len());
+            for (i, sel) in sql_stmts.iter().enumerate() {
+                assert!(
+                    sel.into_table.is_none(),
+                    "SELECT #{} in procedure should NOT have into_table",
+                    i + 1
+                );
+                assert!(
+                    sel.into_targets.is_some(),
+                    "SELECT #{} in procedure should have into_targets",
+                    i + 1
+                );
+            }
+        }
+        _ => panic!("expected CreatePackageBody, got {:?}", stmt),
+    }
+}
