@@ -214,6 +214,19 @@ impl Parser {
         }
 
         let mut type_name = name;
+
+        // Handle compound type names: "character varying", "double precision"
+        let lower = type_name.to_lowercase();
+        if lower == "character" && self.match_keyword(Keyword::VARYING) {
+            type_name.push(' ');
+            type_name.push_str(self.peek_keyword().unwrap().as_str());
+            self.advance();
+        } else if lower == "double" && self.match_keyword(Keyword::PRECISION) {
+            type_name.push(' ');
+            type_name.push_str(self.peek_keyword().unwrap().as_str());
+            self.advance();
+        }
+
         if self.match_token(&Token::LParen) {
             let mut depth = 1i32;
             type_name.push('(');
@@ -707,6 +720,7 @@ impl Parser {
         }
 
         let save_pos = self.pos;
+        let start_pos = self.pos;
         let result = match self.peek() {
             Token::Keyword(Keyword::SELECT) | Token::Keyword(Keyword::WITH) => {
                 match self.parse_select_statement() {
@@ -772,6 +786,7 @@ impl Parser {
 
         match result {
             Some(stmt) => {
+                let dml_end_pos = self.pos;
                 if self.match_keyword(Keyword::INTO) {
                     self.advance();
                     let _ = self.consume_any_identifier();
@@ -789,8 +804,9 @@ impl Parser {
                         got,
                     });
                 }
+                let sql_text = self.tokens_to_raw_string(start_pos, dml_end_pos);
                 Some(PlStatement::SqlStatement {
-                    sql_text: String::new(),
+                    sql_text,
                     statement: Box::new(stmt),
                 })
             }
@@ -1794,7 +1810,13 @@ impl Parser {
                 "DATATYPE_NAME" => GetDiagItemKind::DatatypeName,
                 "CONSTRAINT_NAME" => GetDiagItemKind::ConstraintName,
                 "PG_EXCEPTION_CONTEXT" => GetDiagItemKind::PgExceptionContext,
-                _ => panic!("unknown GET DIAGNOSTICS item: {}", item_str),
+                _ => {
+                    return Err(ParserError::UnexpectedToken {
+                        location: self.current_location(),
+                        expected: "known GET DIAGNOSTICS item".to_string(),
+                        got: item_str,
+                    });
+                }
             };
             items.push(PlGetDiagItem { target, item });
 

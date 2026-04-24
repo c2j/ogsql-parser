@@ -630,13 +630,12 @@ impl Parser {
             });
         }
 
-        let (items, body) = self.parse_package_body_items();
+        let items = self.parse_package_body_items();
         if is_body {
             Ok(Statement::CreatePackageBody(CreatePackageBodyStatement {
                 replace,
                 name,
                 items,
-                body,
             }))
         } else {
             Ok(Statement::CreatePackage(CreatePackageStatement {
@@ -644,7 +643,6 @@ impl Parser {
                 name,
                 authid,
                 items,
-                body,
             }))
         }
     }
@@ -671,9 +669,8 @@ impl Parser {
         false
     }
 
-    pub(crate) fn parse_package_body_items(&mut self) -> (Vec<PackageItem>, String) {
+    pub(crate) fn parse_package_body_items(&mut self) -> Vec<PackageItem> {
         let mut items = Vec::new();
-        let mut raw_parts: Vec<String> = Vec::new();
         let mut depth = 0i32;
 
         loop {
@@ -681,15 +678,11 @@ impl Parser {
                 Token::Eof => break,
                 Token::Keyword(Keyword::BEGIN_P) => {
                     depth += 1;
-                    let tok_str = self.token_to_string();
-                    raw_parts.push(tok_str.into_owned());
                     self.advance();
                 }
                 Token::Keyword(Keyword::END_P) => {
                     if depth > 0 {
                         depth -= 1;
-                        let tok_str = self.token_to_string();
-                        raw_parts.push(tok_str.into_owned());
                         self.advance();
                     } else {
                         self.advance();
@@ -700,52 +693,42 @@ impl Parser {
                     }
                 }
                 Token::Keyword(Keyword::PROCEDURE) => {
-                    let start_pos = self.pos;
                     self.advance();
                     match self.parse_package_sub_procedure() {
                         Ok(proc) => {
-                            let raw = self.tokens_to_raw_string(start_pos, self.pos);
-                            raw_parts.push(raw);
                             items.push(PackageItem::Procedure(proc));
                         }
                         Err(e) => {
                             self.add_error(e);
                             let raw = self.skip_to_end_subprogram();
                             if !raw.is_empty() {
-                                raw_parts.push(format!("PROCEDURE {}", raw));
-                                items.push(PackageItem::Raw(raw));
+                                items.push(PackageItem::Raw(format!("PROCEDURE {}", raw)));
                             }
                         }
                     }
                 }
                 Token::Keyword(Keyword::FUNCTION) => {
-                    let start_pos = self.pos;
                     self.advance();
                     match self.parse_package_sub_function() {
                         Ok(func) => {
-                            let raw = self.tokens_to_raw_string(start_pos, self.pos);
-                            raw_parts.push(raw);
                             items.push(PackageItem::Function(func));
                         }
                         Err(e) => {
                             self.add_error(e);
                             let raw = self.skip_to_end_subprogram();
                             if !raw.is_empty() {
-                                raw_parts.push(format!("FUNCTION {}", raw));
-                                items.push(PackageItem::Raw(raw));
+                                items.push(PackageItem::Raw(format!("FUNCTION {}", raw)));
                             }
                         }
                     }
                 }
                 _ => {
-                    let tok_str = self.token_to_string();
-                    raw_parts.push(tok_str.into_owned());
                     self.advance();
                 }
             }
         }
 
-        (items, raw_parts.join(" ").trim().to_string())
+        items
     }
 
     pub(crate) fn tokens_to_raw_string(&self, start: usize, end: usize) -> String {

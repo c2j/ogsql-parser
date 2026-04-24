@@ -6472,7 +6472,13 @@ impl SqlFormatter {
                 PackageAuthid::Definer => s.push_str(&format!(" {}", self.kw("AUTHID DEFINER"))),
             }
         }
-        s.push_str(&format!(" {} {}", self.kw("AS"), stmt.body));
+        s.push_str(&format!(" {}", self.kw("AS")));
+        for item in &stmt.items {
+            s.push(' ');
+            s.push_str(&self.format_package_item(item));
+        }
+        s.push_str(&format!(" {}", self.kw("END")));
+        s.push(';');
         s
     }
 
@@ -6486,7 +6492,68 @@ impl SqlFormatter {
             self.kw("PACKAGE BODY"),
             self.format_object_name(&stmt.name)
         ));
-        s.push_str(&format!(" {} {}", self.kw("AS"), stmt.body));
+        s.push_str(&format!(" {}", self.kw("AS")));
+        for item in &stmt.items {
+            s.push(' ');
+            s.push_str(&self.format_package_item(item));
+        }
+        s.push_str(&format!(" {}", self.kw("END")));
+        s.push(';');
+        s
+    }
+
+    fn format_package_item(&self, item: &PackageItem) -> String {
+        match item {
+            PackageItem::Procedure(p) => self.format_package_procedure(p),
+            PackageItem::Function(f) => self.format_package_function(f),
+            PackageItem::Raw(s) => s.clone(),
+        }
+    }
+
+    fn format_package_procedure(&self, proc: &PackageProcedure) -> String {
+        let mut s = format!(
+            "{} {}",
+            self.kw("PROCEDURE"),
+            self.format_object_name(&proc.name)
+        );
+        if !proc.parameters.is_empty() {
+            let params: Vec<String> = proc
+                .parameters
+                .iter()
+                .map(|p| self.format_routine_param(p))
+                .collect();
+            s.push_str(&format!("({})", params.join(", ")));
+        }
+        if let Some(ref block) = proc.block {
+            s.push_str(&format!(" {} {}", self.kw("IS"), self.format_pl_block(block)));
+        } else {
+            s.push(';');
+        }
+        s
+    }
+
+    fn format_package_function(&self, func: &PackageFunction) -> String {
+        let mut s = format!(
+            "{} {}",
+            self.kw("FUNCTION"),
+            self.format_object_name(&func.name)
+        );
+        if !func.parameters.is_empty() {
+            let params: Vec<String> = func
+                .parameters
+                .iter()
+                .map(|p| self.format_routine_param(p))
+                .collect();
+            s.push_str(&format!("({})", params.join(", ")));
+        }
+        if let Some(ref rt) = func.return_type {
+            s.push_str(&format!(" {} {}", self.kw("RETURN"), rt));
+        }
+        if let Some(ref block) = func.block {
+            s.push_str(&format!(" {} {}", self.kw("IS"), self.format_pl_block(block)));
+        } else {
+            s.push(';');
+        }
         s
     }
 
@@ -6778,15 +6845,25 @@ impl SqlFormatter {
     }
 
     fn format_alter_trigger(&self, stmt: &AlterTriggerStatement) -> String {
-        format!(
-            "{} {} {} {} {} {}",
-            self.kw("ALTER TRIGGER"),
-            stmt.name,
-            self.kw("ON"),
-            self.format_object_name(&stmt.table),
-            self.kw("RENAME TO"),
-            stmt.new_name
-        )
+        if let Some(enable) = stmt.enable {
+            let action = if enable { "ENABLE" } else { "DISABLE" };
+            format!(
+                "{} {} {}",
+                self.kw("ALTER TRIGGER"),
+                stmt.name,
+                self.kw(action)
+            )
+        } else {
+            format!(
+                "{} {} {} {} {} {}",
+                self.kw("ALTER TRIGGER"),
+                stmt.name,
+                self.kw("ON"),
+                self.format_object_name(stmt.table.as_ref().unwrap()),
+                self.kw("RENAME TO"),
+                stmt.new_name.as_ref().unwrap()
+            )
+        }
     }
 
     fn format_alter_extension(&self, stmt: &AlterExtensionStatement) -> String {
