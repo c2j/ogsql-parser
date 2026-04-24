@@ -1573,7 +1573,6 @@ fn test_create_package_basic() {
             assert!(!p.replace);
             assert_eq!(p.name, vec!["my_pkg"]);
             assert!(p.authid.is_none());
-            assert!(p.body.is_empty() || p.body.to_lowercase().contains("end"));
         }
         _ => panic!("expected CreatePackage, got {:?}", stmt),
     }
@@ -1597,7 +1596,11 @@ fn test_create_package_with_schema() {
     match stmt {
         Statement::CreatePackage(p) => {
             assert_eq!(p.name, vec!["dams_ci", "pack_log"]);
-            assert!(p.body.contains("excption_1"));
+            assert!(p.items.iter().any(|item| match item {
+                PackageItem::Procedure(pr) => pr.name.join(".").contains("excption_1"),
+                PackageItem::Raw(s) => s.contains("excption_1"),
+                _ => false,
+            }), "should contain excption_1 procedure");
         }
         _ => panic!("expected CreatePackage, got {:?}", stmt),
     }
@@ -1642,8 +1645,11 @@ fn test_create_package_body_with_function() {
     let stmt = parse_one("CREATE OR REPLACE PACKAGE BODY trigger_test AS function tri_insert_func() return trigger as begin insert into test_trigger_des_tbl values(new.id1, new.id2, new.id3); return new; end; end trigger_test;");
     match stmt {
         Statement::CreatePackageBody(p) => {
-            assert!(p.body.contains("tri_insert_func"));
-            assert!(p.body.contains("insert into"));
+            assert!(p.items.iter().any(|item| match item {
+                PackageItem::Function(f) => f.name.join(".").contains("tri_insert_func"),
+                PackageItem::Raw(s) => s.contains("tri_insert_func"),
+                _ => false,
+            }), "should contain tri_insert_func");
         }
         _ => panic!("expected CreatePackageBody, got {:?}", stmt),
     }
@@ -1659,8 +1665,12 @@ fn test_create_package_spec_multi_procs() {
     match stmt {
         Statement::CreatePackage(p) => {
             assert_eq!(p.name, vec!["my_pkg"]);
-            assert!(p.body.contains("proc1"));
-            assert!(p.body.contains("proc2"));
+            let proc_names: Vec<String> = p.items.iter().filter_map(|item| match item {
+                PackageItem::Procedure(pr) => Some(pr.name.join(".")),
+                _ => None,
+            }).collect();
+            assert!(proc_names.iter().any(|n| n.contains("proc1")), "should contain proc1, got: {:?}", proc_names);
+            assert!(proc_names.iter().any(|n| n.contains("proc2")), "should contain proc2, got: {:?}", proc_names);
         }
         _ => panic!("expected CreatePackage, got {:?}", stmt),
     }
@@ -1683,10 +1693,12 @@ fn test_create_package_body_multi_procedures() {
     match stmt {
         Statement::CreatePackageBody(p) => {
             assert_eq!(p.name, vec!["my_pkg"]);
-            assert!(p.body.contains("proc1"));
-            assert!(p.body.contains("proc2"));
-            assert!(p.body.contains("delete from"));
-            assert!(p.body.contains("insert into"));
+            let proc_names: Vec<String> = p.items.iter().filter_map(|item| match item {
+                PackageItem::Procedure(pr) => Some(pr.name.join(".")),
+                _ => None,
+            }).collect();
+            assert!(proc_names.iter().any(|n| n.contains("proc1")), "should contain proc1");
+            assert!(proc_names.iter().any(|n| n.contains("proc2")), "should contain proc2");
         }
         _ => panic!("expected CreatePackageBody, got {:?}", stmt),
     }
@@ -1708,8 +1720,16 @@ fn test_create_package_body_with_function_and_procedure() {
     match stmt {
         Statement::CreatePackageBody(p) => {
             assert_eq!(p.name, vec!["my_pkg"]);
-            assert!(p.body.contains("get_name"));
-            assert!(p.body.contains("do_thing"));
+            assert!(p.items.iter().any(|item| match item {
+                PackageItem::Function(f) => f.name.join(".").contains("get_name"),
+                PackageItem::Raw(s) => s.contains("get_name"),
+                _ => false,
+            }), "should contain get_name");
+            assert!(p.items.iter().any(|item| match item {
+                PackageItem::Procedure(pr) => pr.name.join(".").contains("do_thing"),
+                PackageItem::Raw(s) => s.contains("do_thing"),
+                _ => false,
+            }), "should contain do_thing");
         }
         _ => panic!("expected CreatePackageBody, got {:?}", stmt),
     }
@@ -1849,6 +1869,222 @@ fn test_package_body_structured_mixed() {
         }
         _ => panic!("expected CreatePackageBody, got {:?}", stmt),
     }
+}
+
+// ========== P3: No redundant body field in Package ==========
+
+
+#[test]
+fn test_package_body_no_redundant_body_field() {
+    let sql = "CREATE OR REPLACE PACKAGE BODY my_pkg IS\n\
+               PROCEDURE proc1(i_date IN VARCHAR2) IS\n\
+                 v_x NUMBER;\n\
+               BEGIN\n\
+                 DELETE FROM t1 WHERE id = 1;\n\
+               END proc1;\n\
+               END my_pkg;";
+    let stmt = parse_one(sql);
+    match &stmt {
+        Statement::CreatePackageBody(p) => {
+            assert!(!p.items.is_empty());
+            let json = serde_json::to_value(&stmt).unwrap();
+            let pkg = json.get("CreatePackageBody").unwrap();
+            assert!(
+                pkg.get("body").is_none(),
+                "CreatePackageBody should NOT have a 'body' field; it is redundant with items"
+            );
+        }
+        _ => panic!("expected CreatePackageBody, got {:?}", stmt),
+    }
+}
+
+#[test]
+fn test_package_spec_no_redundant_body_field() {
+    let sql = "CREATE OR REPLACE PACKAGE my_pkg IS\n\
+               PROCEDURE proc1(i INT);\n\
+               END my_pkg;";
+    let stmt = parse_one(sql);
+    match &stmt {
+        Statement::CreatePackage(p) => {
+            let json = serde_json::to_value(&stmt).unwrap();
+            let pkg = json.get("CreatePackage").unwrap();
+            assert!(
+                pkg.get("body").is_none(),
+                "CreatePackage should NOT have a 'body' field; it is redundant with items"
+            );
+        }
+        _ => panic!("expected CreatePackage, got {:?}", stmt),
+    }
+}
+
+// ========== P4: Embedded SQL text in PL/pgSQL blocks ==========
+
+#[test]
+fn test_embedded_select_sql_text_not_empty() {
+    let sql = "DO $$ BEGIN SELECT 1 INTO v_x FROM t WHERE id = 1; END $$";
+    let block = parse_do_block(sql);
+    assert!(!block.body.is_empty(), "block should have statements");
+    match &block.body[0] {
+        PlStatement::SqlStatement { sql_text, .. } => {
+            assert!(
+                !sql_text.is_empty(),
+                "SqlStatement.sql_text should contain the original SQL text, but it was empty"
+            );
+            assert!(
+                sql_text.to_uppercase().contains("SELECT"),
+                "sql_text should contain 'SELECT', got: {:?}",
+                sql_text
+            );
+        }
+        other => panic!("expected SqlStatement, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_embedded_insert_sql_text_not_empty() {
+    let sql = "DO $$ BEGIN INSERT INTO t VALUES(1, 'hello'); END $$";
+    let block = parse_do_block(sql);
+    match &block.body[0] {
+        PlStatement::SqlStatement { sql_text, .. } => {
+            assert!(
+                !sql_text.is_empty(),
+                "SqlStatement.sql_text should contain the original INSERT text"
+            );
+            assert!(
+                sql_text.to_uppercase().contains("INSERT"),
+                "sql_text should contain 'INSERT', got: {:?}",
+                sql_text
+            );
+        }
+        other => panic!("expected SqlStatement, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_embedded_delete_sql_text_not_empty() {
+    let sql = "DO $$ BEGIN DELETE FROM t1 WHERE id = 1; END $$";
+    let block = parse_do_block(sql);
+    match &block.body[0] {
+        PlStatement::SqlStatement { sql_text, .. } => {
+            assert!(
+                !sql_text.is_empty(),
+                "SqlStatement.sql_text should contain the original DELETE text"
+            );
+            assert!(
+                sql_text.to_uppercase().contains("DELETE"),
+                "sql_text should contain 'DELETE', got: {:?}",
+                sql_text
+            );
+        }
+        other => panic!("expected SqlStatement, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_embedded_select_in_package_body_sql_text_not_empty() {
+    let sql = "CREATE OR REPLACE PACKAGE BODY my_pkg IS\n\
+               PROCEDURE proc1 IS\n\
+               BEGIN\n\
+                 SELECT 1 INTO v_status FROM user_scheduler_jobs t WHERE t.job_name = 'test';\n\
+               END proc1;\n\
+               END my_pkg;";
+    let stmt = parse_one(sql);
+    match &stmt {
+        Statement::CreatePackageBody(p) => {
+            let proc = p
+                .items
+                .iter()
+                .find_map(|item| match item {
+                    PackageItem::Procedure(pr) => Some(pr),
+                    _ => None,
+                })
+                .expect("should have a procedure");
+            let block = proc.block.as_ref().expect("procedure should have a block");
+            let sql_stmt = block
+                .body
+                .iter()
+                .find_map(|s| match s {
+                    PlStatement::SqlStatement { sql_text, .. } => Some(sql_text.clone()),
+                    _ => None,
+                })
+                .expect("block should contain a SqlStatement");
+            assert!(
+                !sql_stmt.is_empty(),
+                "SqlStatement.sql_text should contain the SELECT text inside package body procedure"
+            );
+            assert!(
+                sql_stmt.to_uppercase().contains("SELECT"),
+                "sql_text should contain 'SELECT', got: {:?}",
+                sql_stmt
+            );
+        }
+        _ => panic!("expected CreatePackageBody, got {:?}", stmt),
+    }
+}
+
+// ========== P5: Formatter round-trip from items (no body field) ==========
+
+#[test]
+fn test_format_package_body_from_items() {
+    let sql = "CREATE OR REPLACE PACKAGE BODY my_pkg IS\n\
+               PROCEDURE proc1(i_date IN VARCHAR2) IS\n\
+                 v_x NUMBER;\n\
+               BEGIN\n\
+                 DELETE FROM t1 WHERE id = 1;\n\
+               END proc1;\n\
+               END my_pkg;";
+    let stmt = parse_one(sql);
+    let formatted = SqlFormatter::new().format_statement(&stmt);
+    assert!(formatted.contains("CREATE"), "formatted should contain CREATE, got: {}", formatted);
+    assert!(formatted.contains("PACKAGE BODY"), "formatted should contain PACKAGE BODY, got: {}", formatted);
+    assert!(formatted.contains("my_pkg"), "formatted should contain package name, got: {}", formatted);
+    assert!(formatted.contains("proc1"), "formatted should contain procedure name, got: {}", formatted);
+    assert!(
+        formatted.to_uppercase().contains("DELETE"),
+        "formatted should contain DELETE statement, got: {}",
+        formatted
+    );
+    assert!(
+        formatted.to_uppercase().contains("END"),
+        "formatted should contain END, got: {}",
+        formatted
+    );
+}
+
+#[test]
+fn test_format_package_body_roundtrip() {
+    let sql = "CREATE OR REPLACE PACKAGE BODY my_pkg IS\n\
+               PROCEDURE proc1(i_date IN VARCHAR2) IS\n\
+               BEGIN\n\
+                 DELETE FROM t1 WHERE id = 1;\n\
+               END proc1;\n\
+               END my_pkg;";
+    let stmt = parse_one(sql);
+    let formatted = SqlFormatter::new().format_statement(&stmt);
+    let stmt2 = parse_one(&formatted);
+    assert_eq!(
+        stmt, stmt2,
+        "round-trip should produce equivalent AST\nOriginal formatted: {}",
+        formatted
+    );
+}
+
+#[test]
+fn test_format_package_body_with_function_roundtrip() {
+    let sql = "CREATE OR REPLACE PACKAGE BODY my_pkg IS\n\
+               FUNCTION get_name RETURN VARCHAR2 IS\n\
+               BEGIN\n\
+                 RETURN 'test';\n\
+               END get_name;\n\
+               END my_pkg;";
+    let stmt = parse_one(sql);
+    let formatted = SqlFormatter::new().format_statement(&stmt);
+    let stmt2 = parse_one(&formatted);
+    assert_eq!(
+        stmt, stmt2,
+        "round-trip should produce equivalent AST\nOriginal formatted: {}",
+        formatted
+    );
 }
 
 // ========== Bare PROCEDURE / FUNCTION tests ==========
@@ -2263,8 +2499,8 @@ fn test_alter_trigger_rename() {
     match stmt {
         Statement::AlterTrigger(a) => {
             assert_eq!(a.name, "repcount_update_row");
-            assert_eq!(a.table, vec!["my_table"]);
-            assert_eq!(a.new_name, "repcount_update_row2");
+            assert_eq!(a.table.as_ref().unwrap(), &vec!["my_table"]);
+            assert_eq!(a.new_name.as_ref().unwrap(), "repcount_update_row2");
         }
         _ => panic!("expected AlterTrigger, got {:?}", stmt),
     }
@@ -10575,4 +10811,318 @@ fn test_create_table_inline_constraint_using_index_no_name() {
         }
         _ => panic!("expected CreateTable, got {:?}", stmt),
     }
+}
+
+// ══ Guard tests: each case was a reported parse error, now fixed ══
+
+#[test]
+fn guard_alter_table_drop_bare_ident() {
+    let sql = "ALTER TABLE t DROP col";
+    match parse_one(sql) {
+        Statement::AlterTable(a) => {
+            let action = a.actions.first().expect("should have action");
+            assert!(matches!(action, AlterTableAction::DropColumn { name, .. } if name == "col"),
+                "expected DropColumn(col), got {:?}", action);
+        }
+        other => panic!("expected AlterTable, got {:?}", other),
+    }
+}
+
+#[test]
+fn guard_alter_table_drop_index() {
+    let sql = "ALTER TABLE t DROP INDEX idx";
+    match parse_one(sql) {
+        Statement::AlterTable(a) => {
+            let action = a.actions.first().expect("should have action");
+            assert!(matches!(action, AlterTableAction::DropIndex { name, if_exists: false } if name == "idx"),
+                "expected DropIndex(idx, false), got {:?}", action);
+        }
+        other => panic!("expected AlterTable, got {:?}", other),
+    }
+}
+
+#[test]
+fn guard_alter_table_drop_index_if_exists() {
+    let sql = "ALTER TABLE t DROP INDEX IF EXISTS idx";
+    match parse_one(sql) {
+        Statement::AlterTable(a) => {
+            let action = a.actions.first().expect("should have action");
+            assert!(matches!(action, AlterTableAction::DropIndex { name, if_exists: true } if name == "idx"),
+                "expected DropIndex(idx, true), got {:?}", action);
+        }
+        other => panic!("expected AlterTable, got {:?}", other),
+    }
+}
+
+#[test]
+fn guard_alter_table_drop_if_exists_index() {
+    let sql = "ALTER TABLE t DROP IF EXISTS INDEX idx";
+    match parse_one(sql) {
+        Statement::AlterTable(a) => {
+            let action = a.actions.first().expect("should have action");
+            assert!(matches!(action, AlterTableAction::DropIndex { name, if_exists: true } if name == "idx"),
+                "expected DropIndex(idx, true), got {:?}", action);
+        }
+        other => panic!("expected AlterTable, got {:?}", other),
+    }
+}
+
+#[test]
+fn guard_alter_table_add_constraint_if_not_exists_pk() {
+    let sql = "ALTER TABLE t ADD CONSTRAINT IF NOT EXISTS pk PRIMARY KEY (id)";
+    match parse_one(sql) {
+        Statement::AlterTable(a) => {
+            let action = a.actions.first().expect("should have action");
+            assert!(matches!(action, AlterTableAction::AddConstraint { .. }),
+                "expected AddConstraint, got {:?}", action);
+        }
+        other => panic!("expected AlterTable, got {:?}", other),
+    }
+}
+
+#[test]
+fn guard_alter_table_add_constraint_if_not_exists_unique() {
+    let sql = "ALTER TABLE t ADD CONSTRAINT IF NOT EXISTS uk UNIQUE (col)";
+    match parse_one(sql) {
+        Statement::AlterTable(a) => {
+            let action = a.actions.first().expect("should have action");
+            assert!(matches!(action, AlterTableAction::AddConstraint { .. }),
+                "expected AddConstraint, got {:?}", action);
+        }
+        other => panic!("expected AlterTable, got {:?}", other),
+    }
+}
+
+#[test]
+fn guard_alter_table_modify_not_null() {
+    let sql = "ALTER TABLE t MODIFY col VARCHAR(100) NOT NULL";
+    match parse_one(sql) {
+        Statement::AlterTable(a) => {
+            let action = a.actions.first().expect("should have action");
+            assert!(matches!(action, AlterTableAction::AlterColumn { .. }),
+                "expected AlterColumn, got {:?}", action);
+        }
+        other => panic!("expected AlterTable, got {:?}", other),
+    }
+}
+
+#[test]
+fn guard_alter_trigger_enable() {
+    let sql = "ALTER TRIGGER trig ENABLE";
+    match parse_one(sql) {
+        Statement::AlterTrigger(t) => {
+            assert_eq!(t.name, "trig");
+            assert_eq!(t.enable, Some(true));
+            assert!(t.table.is_none());
+        }
+        other => panic!("expected AlterTrigger, got {:?}", other),
+    }
+}
+
+#[test]
+fn guard_alter_trigger_disable() {
+    let sql = "ALTER TRIGGER trig DISABLE";
+    match parse_one(sql) {
+        Statement::AlterTrigger(t) => {
+            assert_eq!(t.name, "trig");
+            assert_eq!(t.enable, Some(false));
+            assert!(t.table.is_none());
+        }
+        other => panic!("expected AlterTrigger, got {:?}", other),
+    }
+}
+
+#[test]
+fn guard_alter_trigger_rename() {
+    let sql = "ALTER TRIGGER trig ON tbl RENAME TO trig2";
+    match parse_one(sql) {
+        Statement::AlterTrigger(t) => {
+            assert_eq!(t.name, "trig");
+            assert_eq!(t.table, Some(vec!["tbl".to_string()]));
+            assert_eq!(t.new_name, Some("trig2".to_string()));
+            assert!(t.enable.is_none());
+        }
+        other => panic!("expected AlterTrigger, got {:?}", other),
+    }
+}
+
+#[test]
+fn guard_alter_index_noparallel() {
+    let sql = "ALTER INDEX idx NOPARALLEL";
+    match parse_one(sql) {
+        Statement::AlterIndex(a) => {
+            assert_eq!(a.name, vec!["idx".to_string()]);
+            assert!(matches!(a.action, AlterIndexAction::NoOp));
+        }
+        other => panic!("expected AlterIndex, got {:?}", other),
+    }
+}
+
+#[test]
+fn guard_alter_index_parallel() {
+    let sql = "ALTER INDEX idx PARALLEL";
+    match parse_one(sql) {
+        Statement::AlterIndex(a) => {
+            assert_eq!(a.name, vec!["idx".to_string()]);
+            assert!(matches!(a.action, AlterIndexAction::NoOp));
+        }
+        other => panic!("expected AlterIndex, got {:?}", other),
+    }
+}
+
+#[test]
+fn guard_alter_index_logging() {
+    let sql = "ALTER INDEX idx LOGGING";
+    match parse_one(sql) {
+        Statement::AlterIndex(a) => {
+            assert!(matches!(a.action, AlterIndexAction::NoOp));
+        }
+        other => panic!("expected AlterIndex, got {:?}", other),
+    }
+}
+
+#[test]
+fn guard_alter_index_nologging() {
+    let sql = "ALTER INDEX idx NOLOGGING";
+    match parse_one(sql) {
+        Statement::AlterIndex(a) => {
+            assert!(matches!(a.action, AlterIndexAction::NoOp));
+        }
+        other => panic!("expected AlterIndex, got {:?}", other),
+    }
+}
+
+#[test]
+fn guard_alter_index_rebuild_partition() {
+    let sql = "ALTER INDEX idx REBUILD PARTITION p1";
+    match parse_one(sql) {
+        Statement::AlterIndex(a) => {
+            assert!(matches!(a.action, AlterIndexAction::RebuildPartition { ref partition_name } if partition_name == "p1"),
+                "expected RebuildPartition(p1), got {:?}", a.action);
+        }
+        other => panic!("expected AlterIndex, got {:?}", other),
+    }
+}
+
+#[test]
+fn guard_create_sequence_noorder() {
+    let sql = "CREATE SEQUENCE seq NOORDER";
+    match parse_one(sql) {
+        Statement::CreateSequence(s) => {
+            assert_eq!(s.name, vec!["seq".to_string()]);
+        }
+        other => panic!("expected CreateSequence, got {:?}", other),
+    }
+}
+
+#[test]
+fn guard_create_sequence_order() {
+    let sql = "CREATE SEQUENCE seq ORDER";
+    match parse_one(sql) {
+        Statement::CreateSequence(s) => {
+            assert_eq!(s.name, vec!["seq".to_string()]);
+        }
+        other => panic!("expected CreateSequence, got {:?}", other),
+    }
+}
+
+#[test]
+fn guard_create_type_table_of() {
+    let sql = "CREATE TYPE t AS TABLE OF VARCHAR(100)";
+    match parse_one(sql) {
+        Statement::CreateType(ct) => {
+            match &ct.type_kind {
+                TypeKind::Table { element_type } => {
+                    assert!(element_type.to_lowercase().contains("varchar"), "expected VARCHAR in element_type, got {}", element_type);
+                }
+                other => panic!("expected Table kind, got {:?}", other),
+            }
+        }
+        other => panic!("expected CreateType, got {:?}", other),
+    }
+}
+
+#[test]
+fn guard_drop_large_sequence() {
+    let sql = "DROP LARGE SEQUENCE seq";
+    match parse_one(sql) {
+        Statement::Drop(d) => {
+            assert_eq!(d.object_type, ObjectType::Sequence);
+            assert_eq!(d.names[0], vec!["seq".to_string()]);
+        }
+        other => panic!("expected Drop, got {:?}", other),
+    }
+}
+
+#[test]
+fn guard_create_trigger_update_of_no_parens() {
+    let sql = "CREATE TRIGGER trig BEFORE UPDATE OF col1, col2 ON tbl FOR EACH ROW EXECUTE PROCEDURE func()";
+    match parse_one(sql) {
+        Statement::CreateTrigger(ct) => {
+            assert!(ct.events.iter().any(|e| matches!(e, TriggerEvent::UpdateOf(cols) if cols.len() == 2)),
+                "expected UpdateOf with 2 columns, got {:?}", ct.events);
+        }
+        other => panic!("expected CreateTrigger, got {:?}", other),
+    }
+}
+
+#[test]
+fn guard_unreserved_keyword_table_alias() {
+    let sql = "SELECT * FROM table_name CLIENT";
+    match parse_one(sql) {
+        Statement::Select(s) => {
+            match &s.from[0] {
+                TableRef::Table { alias, name, .. } => {
+                    assert_eq!(name, &vec!["table_name".to_string()]);
+                    assert_eq!(alias, &Some("client".to_string()));
+                }
+                other => panic!("expected Table ref, got {:?}", other),
+            }
+        }
+        other => panic!("expected Select, got {:?}", other),
+    }
+}
+
+#[test]
+fn guard_plpgsql_compound_type_character_varying() {
+    let sql = "DO $$ DECLARE v character varying; BEGIN NULL; END $$";
+    let stmts = parse(sql);
+    assert!(!stmts.is_empty(), "should parse without error");
+}
+
+#[test]
+fn guard_plpgsql_compound_type_double_precision() {
+    let sql = "DO $$ DECLARE v double precision; BEGIN NULL; END $$";
+    let stmts = parse(sql);
+    assert!(!stmts.is_empty(), "should parse without error");
+}
+
+#[test]
+fn guard_qualified_overlay_function() {
+    let sql = "SELECT DBE_RAW.OVERLAY(data, 1, 2, 3) FROM t";
+    match parse_one(sql) {
+        Statement::Select(s) => {
+            assert!(!s.targets.is_empty(), "should have targets");
+        }
+        other => panic!("expected Select, got {:?}", other),
+    }
+}
+
+#[test]
+fn guard_create_table_pk_include() {
+    let sql = "CREATE TABLE t (id INT, PRIMARY KEY (id) INCLUDE (col1))";
+    match parse_one(sql) {
+        Statement::CreateTable(ct) => {
+            assert!(ct.constraints.iter().any(|c| matches!(c, TableConstraint::PrimaryKey { .. })),
+                "expected PrimaryKey constraint");
+        }
+        other => panic!("expected CreateTable, got {:?}", other),
+    }
+}
+
+#[test]
+fn guard_create_table_unique_using_index() {
+    let sql = "CREATE TABLE t (id INT, UNIQUE (id) USING INDEX TABLESPACE ts1)";
+    let stmts = parse(sql);
+    assert!(!stmts.is_empty(), "should parse without error");
 }

@@ -1560,6 +1560,13 @@ impl Parser {
                         Some(parts.join(" "))
                     };
                 }
+                if self.match_keyword(Keyword::INCLUDE) {
+                    self.advance();
+                    if self.match_token(&Token::LParen) {
+                        self.advance();
+                        let _ = self.collect_until_balanced_paren();
+                    }
+                }
                 Ok(TableConstraint::PrimaryKey {
                     columns,
                     using_index,

@@ -745,6 +745,16 @@ impl Parser {
         } else {
             match self.peek() {
                 Token::Ident(_) | Token::QuotedIdent(_) => Ok(Some(self.parse_identifier()?)),
+                Token::Keyword(kw) => {
+                    if kw.category() != crate::token::keyword::KeywordCategory::Reserved
+                        && !self.is_clause_keyword(kw)
+                        && self.looks_like_alias()
+                    {
+                        Ok(Some(self.parse_identifier()?))
+                    } else {
+                        Ok(None)
+                    }
+                }
                 _ => Ok(None),
             }
         }
@@ -779,6 +789,57 @@ impl Parser {
                 _ => Ok(None),
             }
         }
+    }
+
+    /// Check if the keyword is known to start a SQL clause and should never be
+    /// consumed as an implicit table alias (without AS).
+    fn is_clause_keyword(&self, kw: &Keyword) -> bool {
+        matches!(
+            kw,
+            Keyword::PARTITION
+                | Keyword::SUBPARTITION
+                | Keyword::CONNECT
+                | Keyword::START
+                | Keyword::SET
+                | Keyword::VALUES
+                | Keyword::UPDATE
+                | Keyword::DELETE_P
+                | Keyword::INSERT
+                | Keyword::SELECT
+                | Keyword::WITH
+                | Keyword::FROM
+                | Keyword::WHERE
+                | Keyword::RETURNING
+                | Keyword::HAVING
+                | Keyword::GROUP_P
+                | Keyword::ORDER
+                | Keyword::LIMIT
+                | Keyword::OFFSET
+                | Keyword::UNION
+                | Keyword::INTERSECT
+                | Keyword::EXCEPT
+                | Keyword::MINUS_P
+                | Keyword::FOR
+                | Keyword::USING
+                | Keyword::ON
+                | Keyword::WHEN
+                | Keyword::THEN
+                | Keyword::ELSE
+                | Keyword::END_P
+                | Keyword::CASE
+                | Keyword::LOOP
+                | Keyword::WHILE_P
+                | Keyword::IF_P
+                | Keyword::MERGE
+                | Keyword::MATCHED
+                | Keyword::CROSS
+                | Keyword::INNER_P
+                | Keyword::LEFT
+                | Keyword::RIGHT
+                | Keyword::FULL
+                | Keyword::NATURAL
+                | Keyword::JOIN
+        )
     }
 
     /// Check if the token *after* the current one confirms the current token is an alias.

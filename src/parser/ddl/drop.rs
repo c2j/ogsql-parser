@@ -14,6 +14,11 @@ impl Parser {
                 self.advance();
                 ObjectType::Index
             }
+            Some(Keyword::LARGE_P) => {
+                self.advance();
+                self.expect_keyword(Keyword::SEQUENCE)?;
+                ObjectType::Sequence
+            }
             Some(Keyword::SEQUENCE) => {
                 self.advance();
                 ObjectType::Sequence

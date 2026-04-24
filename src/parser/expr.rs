@@ -1223,7 +1223,8 @@ impl Parser {
         self.expect_token(&Token::LParen)?;
 
         let lower_name = name.last().map(|s| s.to_lowercase()).unwrap_or_default();
-        if lower_name == "overlay" {
+        let is_qualified = name.len() > 1;
+        if lower_name == "overlay" && !is_qualified {
             return self.parse_overlay_function(name);
         }
         if lower_name == "position" {

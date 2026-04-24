@@ -117,7 +117,20 @@ impl Parser {
                     {
                         let name = if self.match_keyword(Keyword::CONSTRAINT) {
                             self.advance();
-                            Some(self.parse_identifier()?)
+                            if self.match_keyword(Keyword::IF_P) {
+                                self.advance();
+                                self.try_consume_keyword(Keyword::NOT);
+                                self.try_consume_keyword(Keyword::EXISTS);
+                            }
+                            if self.peek_keyword() == Some(Keyword::PRIMARY)
+                                || self.peek_keyword() == Some(Keyword::UNIQUE)
+                                || self.peek_keyword() == Some(Keyword::CHECK)
+                                || self.peek_keyword() == Some(Keyword::FOREIGN)
+                            {
+                                None
+                            } else {
+                                Some(self.parse_identifier()?)
+                            }
                         } else {
                             None
                         };
@@ -126,6 +139,7 @@ impl Parser {
                             && self.tokens.get(self.pos + 1).map_or(false, |t| {
                                 matches!(t.token, Token::Keyword(Keyword::USING))
                             })
+                            && !matches!(self.peek(), Token::LParen)
                         {
                             self.advance();
                             self.advance();
@@ -175,6 +189,8 @@ impl Parser {
                             if self.match_keyword(Keyword::EXISTS) {
                                 self.advance();
                             }
+                        } else if self.match_keyword(Keyword::EXISTS) {
+                            self.advance();
                         }
                     }
                     if self.match_keyword(Keyword::CONSTRAINT)
@@ -185,7 +201,20 @@ impl Parser {
                     {
                         let name = if self.match_keyword(Keyword::CONSTRAINT) {
                             self.advance();
-                            Some(self.parse_identifier()?)
+                            if self.match_keyword(Keyword::IF_P) {
+                                self.advance();
+                                self.try_consume_keyword(Keyword::NOT);
+                                self.try_consume_keyword(Keyword::EXISTS);
+                            }
+                            if self.peek_keyword() == Some(Keyword::PRIMARY)
+                                || self.peek_keyword() == Some(Keyword::UNIQUE)
+                                || self.peek_keyword() == Some(Keyword::CHECK)
+                                || self.peek_keyword() == Some(Keyword::FOREIGN)
+                            {
+                                None
+                            } else {
+                                Some(self.parse_identifier()?)
+                            }
                         } else {
                             None
                         };
@@ -194,6 +223,7 @@ impl Parser {
                             && self.tokens.get(self.pos + 1).map_or(false, |t| {
                                 matches!(t.token, Token::Keyword(Keyword::USING))
                             })
+                            && !matches!(self.peek(), Token::LParen)
                         {
                             self.advance();
                             self.advance();
@@ -235,6 +265,28 @@ impl Parser {
             }
             Some(Keyword::DROP) => {
                 self.advance();
+                // Handle: DROP IF EXISTS INDEX name
+                if self.match_keyword(Keyword::IF_P) {
+                    self.advance();
+                    if self.match_keyword(Keyword::EXISTS) {
+                        self.advance();
+                        if self.match_keyword(Keyword::INDEX) {
+                            self.advance();
+                            let name = self.parse_identifier()?;
+                            return Ok(AlterTableAction::DropIndex {
+                                name,
+                                if_exists: true,
+                            });
+                        }
+                    }
+                }
+                // Handle: DROP INDEX [IF EXISTS] name
+                if self.match_keyword(Keyword::INDEX) {
+                    self.advance();
+                    let if_exists = self.parse_if_exists();
+                    let name = self.parse_identifier()?;
+                    return Ok(AlterTableAction::DropIndex { name, if_exists });
+                }
                 if self.match_keyword(Keyword::PARTITION) {
                     self.advance();
                     let if_exists = self.parse_if_exists();
@@ -292,10 +344,13 @@ impl Parser {
                     let node_name = self.parse_identifier()?;
                     Ok(AlterTableAction::DeleteNode { node_name })
                 } else {
-                    Err(ParserError::UnexpectedToken {
-                        location: self.current_location(),
-                        expected: "COLUMN, CONSTRAINT, or NODE".to_string(),
-                        got: format!("{:?}", self.peek()),
+                    let if_exists = self.parse_if_exists();
+                    let name = self.parse_identifier()?;
+                    let cascade = self.try_consume_keyword(Keyword::CASCADE);
+                    Ok(AlterTableAction::DropColumn {
+                        name,
+                        if_exists,
+                        cascade,
                     })
                 }
             }
@@ -860,6 +915,10 @@ impl Parser {
                         AlterColumnAction::DropNotNull
                     } else {
                         let data_type = self.parse_data_type()?;
+                        if self.match_keyword(Keyword::NOT) {
+                            self.advance();
+                            self.expect_keyword(Keyword::NULL_P)?;
+                        }
                         if self.match_keyword(Keyword::FIRST_P) {
                             self.advance();
                         } else if self.match_keyword(Keyword::AFTER) {

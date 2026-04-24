@@ -62,7 +62,17 @@ impl Parser {
                 }
                 Some(Keyword::UPDATE) => {
                     self.advance();
-                    if self.match_token(&Token::LParen) {
+                    if self.match_keyword(Keyword::OF) {
+                        // Oracle-style: UPDATE OF col1, col2 (no parens)
+                        self.advance();
+                        let mut cols = Vec::new();
+                        cols.push(self.parse_identifier()?);
+                        while self.match_token(&Token::Comma) {
+                            self.advance();
+                            cols.push(self.parse_identifier()?);
+                        }
+                        events.push(TriggerEvent::UpdateOf(cols));
+                    } else if self.match_token(&Token::LParen) {
                         self.advance();
                         let mut cols = Vec::new();
                         cols.push(self.parse_identifier()?);

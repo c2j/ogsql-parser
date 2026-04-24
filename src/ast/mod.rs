@@ -253,6 +253,10 @@ pub enum AlterTableAction {
         if_exists: bool,
         cascade: bool,
     },
+    DropIndex {
+        name: String,
+        if_exists: bool,
+    },
     AlterColumn {
         name: String,
         action: AlterColumnAction,
@@ -1892,7 +1896,6 @@ pub struct CreatePackageStatement {
     pub name: ObjectName,
     pub authid: Option<PackageAuthid>,
     pub items: Vec<PackageItem>,
-    pub body: String,
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -1900,7 +1903,6 @@ pub struct CreatePackageBodyStatement {
     pub replace: bool,
     pub name: ObjectName,
     pub items: Vec<PackageItem>,
-    pub body: String,
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -2461,6 +2463,9 @@ pub enum AlterIndexAction {
         partition_name: String,
         tablespace: Option<String>,
     },
+    RebuildPartition {
+        partition_name: String,
+    },
     NoOp,
 }
 
@@ -2524,8 +2529,9 @@ pub struct AlterViewStatement {
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct AlterTriggerStatement {
     pub name: String,
-    pub table: ObjectName,
-    pub new_name: String,
+    pub table: Option<ObjectName>,
+    pub new_name: Option<String>,
+    pub enable: Option<bool>,
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]

@@ -493,6 +493,9 @@ impl Parser {
                     self.expect_keyword(Keyword::BY)?;
                     owned_by = Some(self.parse_object_name()?);
                 }
+                _ if self.match_ident_str("NOORDER") || self.match_ident_str("ORDER") => {
+                    self.advance();
+                }
                 _ => break,
             }
         }
@@ -964,9 +967,9 @@ impl Parser {
                 } else if self.match_keyword(Keyword::TABLE) {
                     self.advance();
                     self.expect_keyword(Keyword::OF)?;
-                    let element_type = self.parse_object_name()?;
+                    let dt = self.parse_data_type()?;
                     TypeKind::Table {
-                        element_type: element_type.join("."),
+                        element_type: format_data_type(&dt),
                     }
                 } else if self.match_keyword(Keyword::RANGE) {
                     self.advance();
@@ -1282,7 +1285,13 @@ impl Parser {
             AlterIndexAction::Unusable
         } else if self.match_ident_str("REBUILD") {
             self.advance();
-            AlterIndexAction::Rebuild
+            if self.match_keyword(Keyword::PARTITION) {
+                self.advance();
+                let partition_name = self.parse_identifier()?;
+                AlterIndexAction::RebuildPartition { partition_name }
+            } else {
+                AlterIndexAction::Rebuild
+            }
         } else if self.match_keyword(Keyword::MOVE) {
             self.advance();
             self.expect_keyword(Keyword::PARTITION)?;
@@ -1314,6 +1323,12 @@ impl Parser {
             if self.match_keyword(Keyword::STORAGE) {
                 self.advance();
                 let _ = self.collect_until_balanced_paren();
+            }
+            AlterIndexAction::NoOp
+        } else if self.match_ident_str("NOPARALLEL") || self.match_ident_str("PARALLEL") {
+            self.advance();
+            if self.match_keyword(Keyword::LOGGING) || self.match_keyword(Keyword::NOLOGGING) {
+                self.advance();
             }
             AlterIndexAction::NoOp
         } else {
@@ -1540,6 +1555,27 @@ impl Parser {
     pub(crate) fn parse_alter_trigger(&mut self) -> Result<AlterTriggerStatement, ParserError> {
         self.expect_keyword(Keyword::TRIGGER)?;
         let name = self.parse_identifier()?;
+
+        if self.match_keyword(Keyword::ENABLE_P) {
+            self.advance();
+            return Ok(AlterTriggerStatement {
+                name,
+                table: None,
+                new_name: None,
+                enable: Some(true),
+            });
+        }
+
+        if self.match_keyword(Keyword::DISABLE_P) {
+            self.advance();
+            return Ok(AlterTriggerStatement {
+                name,
+                table: None,
+                new_name: None,
+                enable: Some(false),
+            });
+        }
+
         self.expect_keyword(Keyword::ON)?;
         let table = self.parse_object_name()?;
         self.expect_keyword(Keyword::RENAME)?;
@@ -1547,8 +1583,9 @@ impl Parser {
         let new_name = self.parse_identifier()?;
         Ok(AlterTriggerStatement {
             name,
-            table,
-            new_name,
+            table: Some(table),
+            new_name: Some(new_name),
+            enable: None,
         })
     }
 
