@@ -365,7 +365,11 @@ fn cmd_validate(cli: &Cli) {
 
 fn write_error_log(stmts: &[StatementInfo], errors: &[&ParserError]) {
     use std::io::Write;
-    let mut file = match std::fs::File::create("error.log") {
+    let mut file = match std::fs::OpenOptions::new()
+        .append(true)
+        .create(true)
+        .open("error.log")
+    {
         Ok(f) => f,
         Err(e) => {
             eprintln!("  warning: cannot create error.log: {}", e);
