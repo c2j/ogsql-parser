@@ -1,5 +1,5 @@
 use crate::ast::plpgsql::{FetchDirection, GetDiagItemKind, *};
-use crate::ast::{Expr, Literal};
+use crate::ast::{Expr, Literal, SelectStatement, SelectTarget, Statement};
 use crate::parser::{Parser, ParserError};
 use crate::token::keyword::Keyword;
 use crate::token::Token;
@@ -1482,7 +1482,42 @@ impl Parser {
                     (self.skip_to_semicolon_or_keyword(), None)
                 }
             } else {
-                (self.skip_to_semicolon_or_keyword(), None)
+                self.pos = save_pos;
+                if let Ok(expr) = self.parse_expr() {
+                    if matches!(self.peek(), Token::Semicolon) {
+                        let raw = self.tokens_to_raw_string(save_pos, self.pos);
+                        let select = SelectStatement {
+                            hints: vec![],
+                            with: None,
+                            distinct: false,
+                            distinct_on: vec![],
+                            targets: vec![SelectTarget::Expr(expr, None)],
+                            into_targets: None,
+                            into_table: None,
+                            from: vec![],
+                            where_clause: None,
+                            connect_by: None,
+                            group_by: vec![],
+                            having: None,
+                            order_by: vec![],
+                            order_siblings: false,
+                            limit: None,
+                            offset: None,
+                            fetch: None,
+                            lock_clause: None,
+                            window_clause: vec![],
+                            set_operation: None,
+                            raw_body: None,
+                        };
+                        (raw, Some(Box::new(Statement::Select(select))))
+                    } else {
+                        self.pos = save_pos;
+                        (self.skip_to_semicolon_or_keyword(), None)
+                    }
+                } else {
+                    self.pos = save_pos;
+                    (self.skip_to_semicolon_or_keyword(), None)
+                }
             }
         };
         self.try_consume_semicolon();

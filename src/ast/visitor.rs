@@ -66,6 +66,10 @@ pub trait Visitor {
     fn visit_procedure_call(&mut self, _call: &crate::ast::plpgsql::PlProcedureCall) -> VisitorResult {
         VisitorResult::Continue
     }
+
+    fn visit_table_ref(&mut self, _table_ref: &TableRef) -> VisitorResult {
+        VisitorResult::Continue
+    }
 }
 
 /// Walk a PL/pgSQL block.
@@ -1086,6 +1090,14 @@ fn walk_expr(visitor: &mut dyn Visitor, expr: &Expr) -> VisitorResult {
 }
 
 fn walk_table_ref(visitor: &mut dyn Visitor, table_ref: &TableRef) -> VisitorResult {
+    let result = visitor.visit_table_ref(table_ref);
+    if result == VisitorResult::Stop {
+        return VisitorResult::Stop;
+    }
+    if result == VisitorResult::SkipChildren {
+        return VisitorResult::Continue;
+    }
+
     match table_ref {
         TableRef::Table { timecapsule, .. } => {
             if let Some(ref timecapsule) = timecapsule {
@@ -1216,6 +1228,7 @@ mod visitor_tests {
         calls: Vec<ObjectName>,
         procedure_calls: Vec<ObjectName>,
         selects: usize,
+        table_refs: Vec<String>,
     }
 
     impl Visitor for TestVisitor {
@@ -1261,6 +1274,20 @@ mod visitor_tests {
 
         fn visit_select(&mut self, _select: &SelectStatement) -> VisitorResult {
             self.selects += 1;
+            VisitorResult::Continue
+        }
+
+        fn visit_table_ref(&mut self, table_ref: &TableRef) -> VisitorResult {
+            let name = match table_ref {
+                TableRef::Table { name, .. } => format!("Table({})", name.join(".")),
+                TableRef::FunctionCall { name, .. } => format!("FunctionCall({})", name.join(".")),
+                TableRef::Subquery { .. } => "Subquery".to_string(),
+                TableRef::Values { .. } => "Values".to_string(),
+                TableRef::Join { .. } => "Join".to_string(),
+                TableRef::Pivot { .. } => "Pivot".to_string(),
+                TableRef::Unpivot { .. } => "Unpivot".to_string(),
+            };
+            self.table_refs.push(name);
             VisitorResult::Continue
         }
     }
@@ -1784,5 +1811,141 @@ mod visitor_tests {
         walk_statement(&mut visitor, &stmt);
 
         assert_eq!(visitor.pl_blocks, 2);
+    }
+
+    #[test]
+    fn test_visit_table_ref_function_call_in_from() {
+        let sql = "SELECT * FROM generate_series(1, 10)";
+        let stmt = parse_single(sql);
+
+        let mut visitor = TestVisitor::default();
+        walk_statement(&mut visitor, &stmt);
+
+        assert_eq!(visitor.table_refs.len(), 1);
+        assert!(visitor.table_refs[0].starts_with("FunctionCall("));
+    }
+
+    #[test]
+    fn test_visit_table_ref_regular_table() {
+        let sql = "SELECT * FROM users";
+        let stmt = parse_single(sql);
+
+        let mut visitor = TestVisitor::default();
+        walk_statement(&mut visitor, &stmt);
+
+        assert_eq!(visitor.table_refs.len(), 1);
+        assert!(visitor.table_refs[0].starts_with("Table("));
+    }
+
+    #[test]
+    fn test_visit_table_ref_join() {
+        let sql = "SELECT * FROM a JOIN b ON a.id = b.id";
+        let stmt = parse_single(sql);
+
+        let mut visitor = TestVisitor::default();
+        walk_statement(&mut visitor, &stmt);
+
+        assert!(visitor.table_refs.len() >= 2, "Join should recurse into left and right table refs, got: {:?}", visitor.table_refs);
+    }
+
+    #[test]
+    fn test_visit_table_ref_in_perform() {
+        let sql = "DO $$ BEGIN PERFORM SELECT 1 FROM pkg_audit.log_transfer(1, 2); END $$";
+        let stmt = parse_single(sql);
+
+        let mut visitor = TestVisitor::default();
+        walk_statement(&mut visitor, &stmt);
+
+        let func_refs: Vec<&String> = visitor.table_refs.iter()
+            .filter(|r| r.starts_with("FunctionCall("))
+            .collect();
+        assert_eq!(func_refs.len(), 1, "Expected one FunctionCall table ref from PERFORM, got: {:?}", visitor.table_refs);
+        assert!(func_refs[0].contains("pkg_audit.log_transfer"));
+    }
+
+    #[test]
+    fn test_visit_table_ref_skip_children() {
+        #[derive(Debug, Default)]
+        struct SkipTableRefVisitor {
+            table_refs: usize,
+            exprs: usize,
+        }
+
+        impl Visitor for SkipTableRefVisitor {
+            fn visit_table_ref(&mut self, _table_ref: &TableRef) -> VisitorResult {
+                self.table_refs += 1;
+                VisitorResult::SkipChildren
+            }
+
+            fn visit_expr(&mut self, _expr: &Expr) -> VisitorResult {
+                self.exprs += 1;
+                VisitorResult::Continue
+            }
+        }
+
+        let sql = "SELECT * FROM generate_series(1, 10)";
+        let stmt = parse_single(sql);
+
+        let mut visitor = SkipTableRefVisitor::default();
+        walk_statement(&mut visitor, &stmt);
+
+        assert_eq!(visitor.table_refs, 1, "visit_table_ref should fire");
+        assert_eq!(visitor.exprs, 0, "SkipChildren should skip args of FunctionCall");
+    }
+
+    #[test]
+    fn test_visit_table_ref_stop() {
+        #[derive(Debug, Default)]
+        struct StopTableRefVisitor {
+            table_refs: usize,
+        }
+
+        impl Visitor for StopTableRefVisitor {
+            fn visit_table_ref(&mut self, _table_ref: &TableRef) -> VisitorResult {
+                self.table_refs += 1;
+                VisitorResult::Stop
+            }
+        }
+
+        let sql = "SELECT * FROM generate_series(1, 10) JOIN users ON true";
+        let stmt = parse_single(sql);
+
+        let mut visitor = StopTableRefVisitor::default();
+        let result = walk_statement(&mut visitor, &stmt);
+
+        assert_eq!(result, VisitorResult::Stop);
+        assert!(visitor.table_refs >= 1, "Should have stopped at the first table ref");
+    }
+
+    #[test]
+    fn test_perform_bare_func_call_has_parsed_query() {
+        let sql = "DO $$ BEGIN PERFORM pkg_audit.log_transfer(1, 2); END $$";
+        let stmt = parse_single(sql);
+
+        let block = match &stmt {
+            Statement::Do(DoStatement { block: Some(b), .. }) => b,
+            _ => panic!("Expected DO statement with block"),
+        };
+        let perform = match &block.body[0] {
+            PlStatement::Perform { parsed_query, .. } => parsed_query,
+            _ => panic!("Expected Perform statement"),
+        };
+        assert!(perform.is_some(), "PERFORM func(args) should have parsed_query, got None");
+    }
+
+    #[test]
+    fn test_visit_table_ref_in_perform_bare_func() {
+        let sql = "DO $$ BEGIN PERFORM pkg_audit.log_transfer(1, 2); END $$";
+        let stmt = parse_single(sql);
+
+        let mut visitor = TestVisitor::default();
+        walk_statement(&mut visitor, &stmt);
+
+        let func_exprs: Vec<String> = visitor.exprs.iter()
+            .filter(|_| true)
+            .cloned()
+            .collect();
+        assert!(visitor.selects >= 1, "PERFORM func(args) should produce at least one SELECT visit, got {}", visitor.selects);
+        assert!(visitor.exprs.len() >= 2, "PERFORM func(args) should visit the function args as expressions, got {} exprs", visitor.exprs.len());
     }
 }
