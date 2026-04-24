@@ -1269,6 +1269,8 @@ pub enum Expr {
         model_name: String,
         features: Vec<Expr>,
     },
+    /// PL/pgSQL variable reference
+    PlVariable(ObjectName),
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]

@@ -2177,6 +2177,7 @@ impl Parser {
 fn expr_to_dotted_name(expr: crate::ast::Expr) -> Vec<String> {
     match expr {
         crate::ast::Expr::ColumnRef(name) => name,
+        crate::ast::Expr::PlVariable(name) => name,
         crate::ast::Expr::FunctionCall { name, .. } => name,
         crate::ast::Expr::FieldAccess { object, field } => {
             let mut parts = expr_to_dotted_name(*object);

@@ -7,6 +7,8 @@ pub(crate) mod plpgsql;
 pub(crate) mod select;
 pub(crate) mod utility;
 
+use std::collections::HashSet;
+
 use crate::token::keyword::Keyword;
 use crate::token::{SourceLocation, Token, TokenWithSpan};
 
@@ -44,6 +46,7 @@ pub struct Parser {
     source: String,
     depth: u32,
     pl_into_mode: bool,
+    scope_stack: Vec<HashSet<String>>,
 }
 
 const MAX_PARSE_DEPTH: u32 = 256;
@@ -57,6 +60,7 @@ impl Parser {
             source: String::new(),
             depth: 0,
             pl_into_mode: false,
+            scope_stack: Vec::new(),
         }
     }
 
@@ -68,7 +72,27 @@ impl Parser {
             source,
             depth: 0,
             pl_into_mode: false,
+            scope_stack: Vec::new(),
         }
+    }
+
+    pub fn push_scope(&mut self) {
+        self.scope_stack.push(HashSet::new());
+    }
+
+    pub fn pop_scope(&mut self) -> Option<HashSet<String>> {
+        self.scope_stack.pop()
+    }
+
+    pub fn declare_var(&mut self, name: &str) {
+        if let Some(scope) = self.scope_stack.last_mut() {
+            scope.insert(name.to_lowercase());
+        }
+    }
+
+    pub fn is_var_declared(&self, name: &str) -> bool {
+        let lower = name.to_lowercase();
+        self.scope_stack.iter().rev().any(|scope| scope.contains(&lower))
     }
 
     fn enter_scope(&mut self) -> Result<(), ParserError> {

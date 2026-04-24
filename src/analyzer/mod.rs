@@ -232,6 +232,23 @@ impl DynamicSqlAnalyzer {
                     }
                 }
             }
+            Expr::PlVariable(names) if names.len() == 1 => {
+                let var_name = &names[0];
+                if let Some(state) = self.lookup_var(var_name) {
+                    VarState {
+                        known_value: state.known_value.clone(),
+                        trace: TraceChain::VariableCopy {
+                            source_var: var_name.clone(),
+                            source_chain: Box::new(state.trace.clone()),
+                        },
+                    }
+                } else {
+                    VarState {
+                        known_value: None,
+                        trace: TraceChain::Unknown,
+                    }
+                }
+            }
             Expr::BinaryOp { op, left, right } if op == "||" => {
                 let left_state = self.evaluate_expr(left);
                 let right_state = self.evaluate_expr(right);
@@ -261,6 +278,7 @@ impl DynamicSqlAnalyzer {
     fn expr_to_string(&self, expr: &Expr) -> String {
         match expr {
             Expr::ColumnRef(names) => names.join("."),
+            Expr::PlVariable(names) => names.join("."),
             Expr::Literal(Literal::String(s)) => format!("'{}'", s),
             Expr::BinaryOp {
                 op, left, right, ..

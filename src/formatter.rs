@@ -1356,6 +1356,7 @@ impl SqlFormatter {
                         .join(", ")
                 )
             }
+            Expr::PlVariable(name) => self.format_object_name(name),
         }
     }
 
