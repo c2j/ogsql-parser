@@ -179,7 +179,7 @@ impl Parser {
         loop {
             match self.peek() {
                 Token::Eof => break,
-                Token::Semicolon => {
+                Token::Semicolon | Token::Slash => {
                     self.advance();
                     continue;
                 }
@@ -600,7 +600,7 @@ impl Parser {
         loop {
             match self.peek() {
                 Token::Eof => return None,
-                Token::Semicolon => {
+                Token::Semicolon | Token::Slash => {
                     self.advance();
                     continue;
                 }
