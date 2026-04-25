@@ -326,7 +326,12 @@ impl Parser {
                     let arg_name = self.parse_identifier()?;
                     let arg_mode = if self.match_ident_str("in") {
                         self.advance();
-                        PlArgMode::In
+                        if self.match_ident_str("out") {
+                            self.advance();
+                            PlArgMode::InOut
+                        } else {
+                            PlArgMode::In
+                        }
                     } else if self.match_ident_str("out") {
                         self.advance();
                         PlArgMode::Out
@@ -473,17 +478,7 @@ impl Parser {
         }
     }
 
-    fn expect_ident_str(&mut self, target: &str) -> Result<(), ParserError> {
-        if self.try_consume_ident_str(target) {
-            Ok(())
-        } else {
-            Err(ParserError::UnexpectedToken {
-                location: self.current_location(),
-                expected: target.to_string(),
-                got: format!("{:?}", self.peek()),
-            })
-        }
-    }
+
 
     fn skip_to_semicolon_or_keyword(&mut self) -> String {
         let mut collected = String::new();
@@ -642,6 +637,7 @@ impl Parser {
                 }
             }
             let end_label = self.try_parse_pl_label();
+            self.try_consume_semicolon();
             Ok(PlStatement::Block(PlBlock {
                 label: None,
                 declarations: Vec::new(),
@@ -651,9 +647,11 @@ impl Parser {
             }))
         } else if self.match_ident_str("declare") {
             self.advance();
-            Ok(PlStatement::Block(
+            let result = Ok(PlStatement::Block(
                 self.parse_pl_block_with_declare(label.clone())?,
-            ))
+            ));
+            self.try_consume_semicolon();
+            result
         } else if let Some(stmt) = self.try_parse_dml_as_pl_statement() {
             Ok(stmt)
         } else {
@@ -756,8 +754,9 @@ impl Parser {
                 result
             }
             Token::Keyword(Keyword::INSERT) => {
+                self.pl_into_mode = true;
                 self.advance();
-                match self.parse_insert() {
+                let result = match self.parse_insert() {
                     Ok(mut stmt) => {
                         let mut merged = hints;
                         merged.append(&mut stmt.hints);
@@ -765,11 +764,14 @@ impl Parser {
                         Some(crate::ast::Statement::Insert(stmt))
                     }
                     Err(_) => None,
-                }
+                };
+                self.pl_into_mode = false;
+                result
             }
             Token::Keyword(Keyword::UPDATE) => {
+                self.pl_into_mode = true;
                 self.advance();
-                match self.parse_update() {
+                let result = match self.parse_update() {
                     Ok(mut stmt) => {
                         let mut merged = hints;
                         merged.append(&mut stmt.hints);
@@ -777,11 +779,14 @@ impl Parser {
                         Some(crate::ast::Statement::Update(stmt))
                     }
                     Err(_) => None,
-                }
+                };
+                self.pl_into_mode = false;
+                result
             }
             Token::Keyword(Keyword::DELETE_P) => {
+                self.pl_into_mode = true;
                 self.advance();
-                match self.parse_delete() {
+                let result = match self.parse_delete() {
                     Ok(mut stmt) => {
                         let mut merged = hints;
                         merged.append(&mut stmt.hints);
@@ -789,7 +794,9 @@ impl Parser {
                         Some(crate::ast::Statement::Delete(stmt))
                     }
                     Err(_) => None,
-                }
+                };
+                self.pl_into_mode = false;
+                result
             }
             Token::Keyword(Keyword::MERGE) => {
                 self.advance();
@@ -809,17 +816,6 @@ impl Parser {
         match result {
             Some(stmt) => {
                 let dml_end_pos = self.pos;
-                let is_select = matches!(stmt, crate::ast::Statement::Select(_));
-                // For non-SELECT DML (UPDATE/DELETE/INSERT), PL/pgSQL allows
-                // RETURNING ... INTO variable. Consume INTO + target list.
-                if !is_select && self.match_keyword(Keyword::INTO) {
-                    self.advance();
-                    let _ = self.parse_expr();
-                    while self.match_token(&Token::Comma) {
-                        self.advance();
-                        let _ = self.parse_expr();
-                    }
-                }
                 let had_semicolon = self.match_token(&Token::Semicolon);
                 if had_semicolon {
                     self.advance();
@@ -832,6 +828,7 @@ impl Parser {
                         expected: "end of DML statement".to_string(),
                         got,
                     });
+                    let _ = self.skip_to_semicolon_or_keyword();
                 }
                 let sql_text = self.tokens_to_raw_string(start_pos, dml_end_pos);
                 Some(PlStatement::SqlStatement {
@@ -950,17 +947,27 @@ impl Parser {
     fn parse_pl_sql_or_assignment(&mut self) -> Result<PlStatement, ParserError> {
         let save = self.pos;
         if matches!(self.peek(), Token::Ident(_) | Token::QuotedIdent(_)) {
-            let name = self.parse_identifier().unwrap_or_default();
+            let first = self.parse_identifier().unwrap_or_default();
+            let mut name_parts = vec![first];
+            while self.match_token(&Token::Dot) {
+                self.advance();
+                name_parts.push(self.parse_identifier().unwrap_or_default());
+            }
             if self.match_token(&Token::ColonEquals) {
                 self.advance();
                 let expression = self.parse_expr()?;
                 self.try_consume_semicolon();
-                let target = if !self.scope_stack.is_empty()
-                    && self.is_var_declared(&name.to_lowercase())
-                {
-                    Expr::PlVariable(ObjectName::from(vec![name]))
+                let target = if name_parts.len() == 1 {
+                    let name = &name_parts[0];
+                    if !self.scope_stack.is_empty()
+                        && self.is_var_declared(&name.to_lowercase())
+                    {
+                        Expr::PlVariable(ObjectName::from(name_parts))
+                    } else {
+                        Expr::ColumnRef(ObjectName::from(name_parts))
+                    }
                 } else {
-                    Expr::ColumnRef(ObjectName::from(vec![name]))
+                    Expr::ColumnRef(ObjectName::from(name_parts))
                 };
                 return Ok(PlStatement::Assignment { target, expression });
             }

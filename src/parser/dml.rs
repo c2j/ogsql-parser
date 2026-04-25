@@ -225,11 +225,27 @@ impl Parser {
         } else {
             None
         };
-        let returning = if self.match_keyword(Keyword::RETURNING) {
+        let (returning, into_targets, bulk_collect) = if self.match_keyword(Keyword::RETURNING) {
             self.advance();
-            self.parse_target_list()?
+            let returning = self.parse_target_list()?;
+            let (into_targets, bulk_collect) = if self.pl_into_mode {
+                if self.match_ident_str("bulk") {
+                    self.advance();
+                    self.expect_ident_str("collect")?;
+                    self.expect_keyword(Keyword::INTO)?;
+                    (Some(self.parse_pl_into_target_list()?), true)
+                } else if self.match_keyword(Keyword::INTO) {
+                    self.advance();
+                    (Some(self.parse_pl_into_target_list()?), false)
+                } else {
+                    (None, false)
+                }
+            } else {
+                (None, false)
+            };
+            (returning, into_targets, bulk_collect)
         } else {
-            vec![]
+            (vec![], None, false)
         };
         Ok(InsertStatement {
             hints: post_hints,
@@ -241,6 +257,8 @@ impl Parser {
             source,
             on_conflict,
             returning,
+            into_targets,
+            bulk_collect,
         })
     }
 
@@ -333,11 +351,27 @@ impl Parser {
         } else {
             None
         };
-        let returning = if self.match_keyword(Keyword::RETURNING) {
+        let (returning, into_targets, bulk_collect) = if self.match_keyword(Keyword::RETURNING) {
             self.advance();
-            self.parse_target_list()?
+            let returning = self.parse_target_list()?;
+            let (into_targets, bulk_collect) = if self.pl_into_mode {
+                if self.match_ident_str("bulk") {
+                    self.advance();
+                    self.expect_ident_str("collect")?;
+                    self.expect_keyword(Keyword::INTO)?;
+                    (Some(self.parse_pl_into_target_list()?), true)
+                } else if self.match_keyword(Keyword::INTO) {
+                    self.advance();
+                    (Some(self.parse_pl_into_target_list()?), false)
+                } else {
+                    (None, false)
+                }
+            } else {
+                (None, false)
+            };
+            (returning, into_targets, bulk_collect)
         } else {
-            vec![]
+            (vec![], None, false)
         };
         Ok(UpdateStatement {
             hints: post_hints,
@@ -348,6 +382,8 @@ impl Parser {
             from,
             where_clause,
             returning,
+            into_targets,
+            bulk_collect,
         })
     }
 
@@ -384,11 +420,27 @@ impl Parser {
         } else {
             None
         };
-        let returning = if self.match_keyword(Keyword::RETURNING) {
+        let (returning, into_targets, bulk_collect) = if self.match_keyword(Keyword::RETURNING) {
             self.advance();
-            self.parse_target_list()?
+            let returning = self.parse_target_list()?;
+            let (into_targets, bulk_collect) = if self.pl_into_mode {
+                if self.match_ident_str("bulk") {
+                    self.advance();
+                    self.expect_ident_str("collect")?;
+                    self.expect_keyword(Keyword::INTO)?;
+                    (Some(self.parse_pl_into_target_list()?), true)
+                } else if self.match_keyword(Keyword::INTO) {
+                    self.advance();
+                    (Some(self.parse_pl_into_target_list()?), false)
+                } else {
+                    (None, false)
+                }
+            } else {
+                (None, false)
+            };
+            (returning, into_targets, bulk_collect)
         } else {
-            vec![]
+            (vec![], None, false)
         };
         Ok(DeleteStatement {
             hints: post_hints,
@@ -397,6 +449,8 @@ impl Parser {
             using,
             where_clause,
             returning,
+            into_targets,
+            bulk_collect,
         })
     }
 
