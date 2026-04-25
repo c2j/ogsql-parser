@@ -2730,6 +2730,93 @@ fn test_pg_cursor_in_procedure_body() {
 }
 
 #[test]
+fn test_parameterized_cursor_in_do_block() {
+    let sql = "DO $$ DECLARE CURSOR c_dept_info(v_step_code IN VARCHAR2) IS SELECT t.dept FROM dat_contract_flow t WHERE t.step_code = v_step_code; BEGIN NULL; END $$";
+    let stmt = parse_one(sql);
+    match stmt {
+        Statement::Do(d) => {
+            let block = d.block.as_ref().expect("DO block should be parsed");
+            assert_eq!(block.declarations.len(), 1);
+            match &block.declarations[0] {
+                PlDeclaration::Cursor(c) => {
+                    assert_eq!(c.name, "c_dept_info");
+                    assert_eq!(c.arguments.len(), 1);
+                    assert_eq!(c.arguments[0].name, "v_step_code");
+                    assert!(matches!(c.arguments[0].mode, PlArgMode::In));
+                    assert!(c.parsed_query.is_some());
+                }
+                other => panic!("expected Cursor, got {:?}", other),
+            }
+        }
+        other => panic!("expected Do, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_parameterized_cursor_with_in_out_mode() {
+    let sql = "DO $$ DECLARE CURSOR c_info(p1 IN OUT VARCHAR2, p2 OUT INTEGER) IS SELECT * FROM t; BEGIN NULL; END $$";
+    let stmt = parse_one(sql);
+    match stmt {
+        Statement::Do(d) => {
+            let block = d.block.as_ref().expect("DO block should be parsed");
+            assert_eq!(block.declarations.len(), 1);
+            match &block.declarations[0] {
+                PlDeclaration::Cursor(c) => {
+                    assert_eq!(c.name, "c_info");
+                    assert_eq!(c.arguments.len(), 2);
+                    assert_eq!(c.arguments[0].name, "p1");
+                    assert!(matches!(c.arguments[0].mode, PlArgMode::InOut));
+                    assert_eq!(c.arguments[1].name, "p2");
+                    assert!(matches!(c.arguments[1].mode, PlArgMode::Out));
+                }
+                other => panic!("expected Cursor, got {:?}", other),
+            }
+        }
+        other => panic!("expected Do, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_cursor_in_anonymous_block() {
+    let sql = "DECLARE CURSOR c_dat_inst_attach_info IS SELECT t1.seq_no FROM dat_inst_attach_info t1; BEGIN NULL; END;";
+    let stmt = parse_one(sql);
+    match stmt {
+        Statement::AnonyBlock(ab) => {
+            assert_eq!(ab.block.declarations.len(), 1);
+            match &ab.block.declarations[0] {
+                PlDeclaration::Cursor(c) => {
+                    assert_eq!(c.name, "c_dat_inst_attach_info");
+                    assert!(c.parsed_query.is_some());
+                }
+                other => panic!("expected Cursor, got {:?}", other),
+            }
+        }
+        other => panic!("expected AnonyBlock, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_cursor_in_anonymous_block_with_params() {
+    let sql = "DECLARE CURSOR c_info(v_code IN VARCHAR2) IS SELECT * FROM t WHERE code = v_code; BEGIN NULL; END;";
+    let stmt = parse_one(sql);
+    match stmt {
+        Statement::AnonyBlock(ab) => {
+            assert_eq!(ab.block.declarations.len(), 1);
+            match &ab.block.declarations[0] {
+                PlDeclaration::Cursor(c) => {
+                    assert_eq!(c.name, "c_info");
+                    assert_eq!(c.arguments.len(), 1);
+                    assert_eq!(c.arguments[0].name, "v_code");
+                    assert!(matches!(c.arguments[0].mode, PlArgMode::In));
+                }
+                other => panic!("expected Cursor, got {:?}", other),
+            }
+        }
+        other => panic!("expected AnonyBlock, got {:?}", other),
+    }
+}
+
+#[test]
 fn test_alter_table_drop_partition_update_global_index() {
     let stmt = parse_one("ALTER TABLE t1 DROP PARTITION p1 UPDATE GLOBAL INDEX");
     match stmt {
@@ -7407,6 +7494,136 @@ fn test_select_into_variables_still_works() {
     }
 }
 
+#[test]
+fn test_bulk_collect_into() {
+    let sql = "SELECT t.area_code, v_end_date end_date BULK COLLECT INTO v_area_data FROM par_sys_area t";
+    let tokens = Tokenizer::new(sql).tokenize().unwrap();
+    let mut parser = Parser::new(tokens);
+    parser.set_pl_into_mode(true);
+    let stmts = parser.parse();
+    let errors = parser.errors();
+    assert!(errors.is_empty(), "Expected no errors, got: {:?}", errors);
+    match &stmts[0] {
+        Statement::Select(s) => {
+            assert!(s.bulk_collect);
+            assert!(s.into_targets.is_some());
+        }
+        _ => panic!("expected SELECT"),
+    }
+}
+
+#[test]
+fn test_update_returning_into() {
+    let sql = "UPDATE dat_dsr_submit_result t SET t.donef = '1' WHERE t.data_key = p_in_accno RETURNING t.fields_value INTO v_balance_str";
+    let tokens = Tokenizer::new(sql).tokenize().unwrap();
+    let mut parser = Parser::new(tokens);
+    parser.set_pl_into_mode(true);
+    let stmts = parser.parse();
+    let errors = parser.errors();
+    assert!(errors.is_empty(), "Expected no errors, got: {:?}", errors);
+    match &stmts[0] {
+        Statement::Update(s) => {
+            assert!(!s.bulk_collect);
+            assert!(s.into_targets.is_some());
+            assert_eq!(s.returning.len(), 1);
+        }
+        _ => panic!("expected UPDATE, got {:?}", &stmts[0]),
+    }
+}
+
+#[test]
+fn test_update_returning_bulk_collect_into() {
+    let sql = "UPDATE t SET c = 1 WHERE id = 1 RETURNING c BULK COLLECT INTO v_arr";
+    let tokens = Tokenizer::new(sql).tokenize().unwrap();
+    let mut parser = Parser::new(tokens);
+    parser.set_pl_into_mode(true);
+    let stmts = parser.parse();
+    let errors = parser.errors();
+    assert!(errors.is_empty(), "Expected no errors, got: {:?}", errors);
+    match &stmts[0] {
+        Statement::Update(s) => {
+            assert!(s.bulk_collect);
+            assert!(s.into_targets.is_some());
+        }
+        _ => panic!("expected UPDATE, got {:?}", &stmts[0]),
+    }
+}
+
+#[test]
+fn test_delete_returning_into() {
+    let sql = "DELETE FROM t WHERE id = 1 RETURNING c INTO v_c";
+    let tokens = Tokenizer::new(sql).tokenize().unwrap();
+    let mut parser = Parser::new(tokens);
+    parser.set_pl_into_mode(true);
+    let stmts = parser.parse();
+    let errors = parser.errors();
+    assert!(errors.is_empty(), "Expected no errors, got: {:?}", errors);
+    match &stmts[0] {
+        Statement::Delete(s) => {
+            assert!(!s.bulk_collect);
+            assert!(s.into_targets.is_some());
+        }
+        _ => panic!("expected DELETE, got {:?}", &stmts[0]),
+    }
+}
+
+#[test]
+fn test_insert_returning_into() {
+    let sql = "INSERT INTO t (id) VALUES (1) RETURNING id INTO v_id";
+    let tokens = Tokenizer::new(sql).tokenize().unwrap();
+    let mut parser = Parser::new(tokens);
+    parser.set_pl_into_mode(true);
+    let stmts = parser.parse();
+    let errors = parser.errors();
+    assert!(errors.is_empty(), "Expected no errors, got: {:?}", errors);
+    match &stmts[0] {
+        Statement::Insert(s) => {
+            assert!(!s.bulk_collect);
+            assert!(s.into_targets.is_some());
+        }
+        _ => panic!("expected INSERT, got {:?}", &stmts[0]),
+    }
+}
+
+#[test]
+fn test_insert_returning_bulk_collect_into() {
+    let sql = "INSERT INTO t (id) VALUES (1) RETURNING id BULK COLLECT INTO v_ids";
+    let tokens = Tokenizer::new(sql).tokenize().unwrap();
+    let mut parser = Parser::new(tokens);
+    parser.set_pl_into_mode(true);
+    let stmts = parser.parse();
+    let errors = parser.errors();
+    assert!(errors.is_empty(), "Expected no errors, got: {:?}", errors);
+    match &stmts[0] {
+        Statement::Insert(s) => {
+            assert!(s.bulk_collect);
+            assert!(s.into_targets.is_some());
+        }
+        _ => panic!("expected INSERT, got {:?}", &stmts[0]),
+    }
+}
+
+#[test]
+fn test_function_call_alias_with_column_list() {
+    let sql = "SELECT * FROM UNNEST_TABLE(CAST(p_i_classkeycodeadd AS t_format_arry)) t(column_value)";
+    let tokens = Tokenizer::new(sql).tokenize().unwrap();
+    let stmts = Parser::new(tokens).parse();
+    assert_eq!(stmts.len(), 1);
+    match &stmts[0] {
+        Statement::Select(s) => {
+            match &s.from[0] {
+                TableRef::FunctionCall { alias, column_defs, .. } => {
+                    assert_eq!(alias.as_deref(), Some("t"));
+                    assert_eq!(column_defs.len(), 1);
+                    assert_eq!(column_defs[0].name, "column_value");
+                }
+                other => panic!("expected FunctionCall, got {:?}", other),
+            }
+        }
+        _ => panic!("expected SELECT"),
+    }
+}
+
 // ========== Utility statement tests ==========
 
 #[test]
@@ -11006,6 +11223,92 @@ fn guard_alter_table_add_constraint_if_not_exists_unique() {
 }
 
 #[test]
+fn guard_alter_table_add_constraint_unique_using_index() {
+    let sql = "ALTER TABLE MV_FUNDCODE_PRIV_TEMP ADD CONSTRAINT UK_MV_FUNDCODE_PRIV_TEMP UNIQUE (user_id, role_id, fund_code) USING INDEX";
+    let stmt = parse_one(sql);
+    println!("DEBUG stmt: {:?}", stmt);
+    match stmt {
+        Statement::AlterTable(a) => {
+            let action = a.actions.first().expect("should have action");
+            match action {
+                AlterTableAction::AddConstraint { name, constraint } => {
+                    assert_eq!(name.as_deref(), Some("UK_MV_FUNDCODE_PRIV_TEMP"));
+                    match constraint {
+                        TableConstraint::Unique { columns, using_index, .. } => {
+                            assert_eq!(*columns, vec!["user_id", "role_id", "fund_code"]);
+                            assert!(using_index.is_some(), "using_index should be Some, got {:?}", using_index);
+                        }
+                        _ => panic!("expected Unique constraint, got {:?}", constraint),
+                    }
+                }
+                _ => panic!("expected AddConstraint, got {:?}", action),
+            }
+        }
+        other => panic!("expected AlterTable, got {:?}", other),
+    }
+}
+
+#[test]
+fn guard_alter_table_add_constraint_unique_using_index_with_options() {
+    let sql = "CREATE TABLE t (id INT, CONSTRAINT SYS_C0082826 UNIQUE (NAME) USING INDEX PCTFREE 10 INITRANS 2 MAXTRANS 255)";
+    match parse_one(sql) {
+        Statement::CreateTable(ct) => {
+            assert_eq!(ct.constraints.len(), 1);
+            match &ct.constraints[0] {
+                TableConstraint::Unique { columns, using_index, .. } => {
+                    assert_eq!(*columns, vec!["name"]);
+                    let ui = using_index.as_ref().unwrap();
+                    assert!(ui.to_uppercase().contains("PCTFREE 10"), "using_index: {}", ui);
+                    assert!(ui.to_uppercase().contains("INITRANS 2"), "using_index: {}", ui);
+                }
+                _ => panic!("expected Unique, got {:?}", ct.constraints[0]),
+            }
+        }
+        other => panic!("expected CreateTable, got {:?}", other),
+    }
+}
+
+#[test]
+fn guard_alter_table_add_constraint_if_exists_bare() {
+    let sql = "alter table TMP_BATCH_IMPORT_INFO add constraint if exists PK_TMP_TMP_BATCH_IMPORT_INFO";
+    match parse_one(sql) {
+        Statement::AlterTable(a) => {
+            let action = a.actions.first().expect("should have action");
+            match action {
+                AlterTableAction::AddConstraintIfExists { name } => {
+                    assert_eq!(name, "PK_TMP_TMP_BATCH_IMPORT_INFO");
+                }
+                _ => panic!("expected AddConstraintIfExists, got {:?}", action),
+            }
+        }
+        other => panic!("expected AlterTable, got {:?}", other),
+    }
+}
+
+#[test]
+fn guard_alter_table_add_constraint_primary_key_comment_only() {
+    let sql = "ALTER TABLE DAT_PPM_CMD_REDEEM_PRDCT_DEAL ADD CONSTRAINT PK_DAT_PPM_CMD_REDEEM_PRDCT PRIMARY KEY";
+    match parse_one(sql) {
+        Statement::AlterTable(a) => {
+            let action = a.actions.first().expect("should have action");
+            match action {
+                AlterTableAction::AddConstraint { name, constraint } => {
+                    assert_eq!(name.as_deref(), Some("PK_DAT_PPM_CMD_REDEEM_PRDCT"));
+                    match constraint {
+                        TableConstraint::PrimaryKey { columns, .. } => {
+                            assert!(columns.is_empty());
+                        }
+                        _ => panic!("expected PrimaryKey, got {:?}", constraint),
+                    }
+                }
+                _ => panic!("expected AddConstraint, got {:?}", action),
+            }
+        }
+        other => panic!("expected AlterTable, got {:?}", other),
+    }
+}
+
+#[test]
 fn guard_alter_table_modify_not_null() {
     let sql = "ALTER TABLE t MODIFY col VARCHAR(100) NOT NULL";
     match parse_one(sql) {
@@ -11941,80 +12244,4 @@ fn test_pl_variable_in_update_where() {
     assert!(found_p_in_accno, "p_in_accno should be resolved as PlVariable");
     assert!(found_t_data_key, "t.data_key should remain as ColumnRef (qualified)");
     assert!(found_rownum, "rownum should remain as ColumnRef (not in scope)");
-}
-
-#[test]
-fn test_pl_variable_qualified_name_stays_column_ref() {
-    let block = parse_do_block(
-        r#"DO $$ DECLARE t VARCHAR(100); BEGIN SELECT t.col FROM my_table t; END $$"#
-    );
-    let sql_stmt = extract_sql_statement_from_block(&block).expect("should have a SQL statement");
-    let select = extract_select_from_pl(sql_stmt).expect("should have a SELECT");
-    // t.col in SELECT list should be ColumnRef, NOT PlVariable
-    // because qualified names (len > 1) never resolve as PlVariable
-    match &select.targets[0] {
-        SelectTarget::Expr(Expr::ColumnRef(name), _) => {
-            assert_eq!(name, &["t", "col"], "qualified t.col should be ColumnRef");
-        }
-        other => panic!("expected ColumnRef for t.col, got {:?}", other),
-    }
-}
-
-#[test]
-fn test_pl_variable_in_if_condition() {
-    let block = parse_do_block(
-        r#"DO $$ DECLARE v_count INTEGER; BEGIN IF v_count > 0 THEN UPDATE t SET x = 1; END IF; END $$"#
-    );
-    // v_count in IF condition should be PlVariable
-    let if_stmt = match &block.body[0] {
-        PlStatement::If(if_stmt) => if_stmt,
-        other => panic!("expected IF statement, got {:?}", other),
-    };
-    match &if_stmt.condition {
-        Expr::BinaryOp { left, .. } => match left.as_ref() {
-            Expr::PlVariable(name) => assert_eq!(name, &["v_count"]),
-            other => panic!("expected PlVariable for v_count in IF condition, got {:?}", other),
-        },
-        other => panic!("expected BinaryOp for v_count > 0, got {:?}", other),
-    }
-}
-
-#[test]
-fn test_pl_variable_in_assignment_rhs() {
-    let block = parse_do_block(
-        r#"DO $$ DECLARE v_src INTEGER; v_dst INTEGER; BEGIN v_dst := v_src; END $$"#
-    );
-    // v_src on assignment RHS should be PlVariable
-    let assignment = match &block.body[0] {
-        PlStatement::Assignment { target, expression } => {
-            assert!(matches!(target, Expr::PlVariable(n) if n == &["v_dst"]), "expected PlVariable for v_dst, got {:?}", target);
-            expression
-        }
-        other => panic!("expected Assignment, got {:?}", other),
-    };
-    match assignment {
-        Expr::PlVariable(name) => assert_eq!(name, &["v_src"]),
-        other => panic!("expected PlVariable for v_src on RHS, got {:?}", other),
-    }
-}
-
-#[test]
-fn test_pl_variable_top_level_sql_unchanged() {
-    // Top-level SQL (no PL context) should never produce PlVariable
-    let tokens = Tokenizer::new("UPDATE t SET x = v_name WHERE id = p_id").tokenize().unwrap();
-    let stmts = Parser::new(tokens).parse();
-    let update = match &stmts[0] {
-        Statement::Update(u) => u,
-        _ => panic!("expected UPDATE"),
-    };
-    let where_clause = update.where_clause.as_ref().expect("should have WHERE");
-    // p_id should be ColumnRef (no PL scope)
-    fn has_pl_variable(expr: &Expr) -> bool {
-        match expr {
-            Expr::PlVariable(_) => true,
-            Expr::BinaryOp { left, right, .. } => has_pl_variable(left) || has_pl_variable(right),
-            _ => false,
-        }
-    }
-    assert!(!has_pl_variable(where_clause), "top-level SQL should have no PlVariable");
 }

@@ -385,11 +385,12 @@ impl SqlFormatter {
         parts.push(select_parts.join(" "));
 
         if let Some(into_targets) = &stmt.into_targets {
-            parts.push(format!(
-                "{} {}",
-                self.kw("INTO"),
-                self.format_select_targets(into_targets)
-            ));
+            let prefix = if stmt.bulk_collect {
+                format!("{} {} {}", self.kw("BULK"), self.kw("COLLECT"), self.kw("INTO"))
+            } else {
+                self.kw("INTO").to_string()
+            };
+            parts.push(format!("{} {}", prefix, self.format_select_targets(into_targets)));
         }
 
         if let Some(into_table) = &stmt.into_table {
@@ -1683,6 +1684,15 @@ impl SqlFormatter {
             ));
         }
 
+        if let Some(into_targets) = &stmt.into_targets {
+            let prefix = if stmt.bulk_collect {
+                format!("{} {} {}", self.kw("BULK"), self.kw("COLLECT"), self.kw("INTO"))
+            } else {
+                self.kw("INTO").to_string()
+            };
+            parts.push(format!("{} {}", prefix, self.format_select_targets(into_targets)));
+        }
+
         parts.join(" ")
     }
 
@@ -1792,6 +1802,15 @@ impl SqlFormatter {
             ));
         }
 
+        if let Some(into_targets) = &stmt.into_targets {
+            let prefix = if stmt.bulk_collect {
+                format!("{} {} {}", self.kw("BULK"), self.kw("COLLECT"), self.kw("INTO"))
+            } else {
+                self.kw("INTO").to_string()
+            };
+            parts.push(format!("{} {}", prefix, self.format_select_targets(into_targets)));
+        }
+
         parts.join(" ")
     }
 
@@ -1825,6 +1844,15 @@ impl SqlFormatter {
                 self.kw("RETURNING"),
                 self.format_select_targets(&stmt.returning)
             ));
+        }
+
+        if let Some(into_targets) = &stmt.into_targets {
+            let prefix = if stmt.bulk_collect {
+                format!("{} {} {}", self.kw("BULK"), self.kw("COLLECT"), self.kw("INTO"))
+            } else {
+                self.kw("INTO").to_string()
+            };
+            parts.push(format!("{} {}", prefix, self.format_select_targets(into_targets)));
         }
 
         parts.join(" ")
@@ -2507,7 +2535,11 @@ impl SqlFormatter {
             } => {
                 let mut s = format!("{} ({})", self.kw("PRIMARY KEY"), columns.join(", "));
                 if let Some(ui) = using_index {
-                    s = format!("{} {} {}", s, self.kw("USING INDEX"), ui);
+                    if ui.is_empty() {
+                        s = format!("{} {}", s, self.kw("USING INDEX"));
+                    } else {
+                        s = format!("{} {} {}", s, self.kw("USING INDEX"), ui);
+                    }
                 }
                 s
             }
@@ -2515,6 +2547,7 @@ impl SqlFormatter {
                 columns,
                 deferrable,
                 with_options,
+                using_index,
             } => {
                 let mut s = format!("{} ({})", self.kw("UNIQUE"), columns.join(", "));
                 if *deferrable {
@@ -2522,6 +2555,13 @@ impl SqlFormatter {
                 }
                 if !with_options.is_empty() {
                     s = format!("{} {}", s, self.format_options(with_options));
+                }
+                if let Some(ui) = using_index {
+                    if ui.is_empty() {
+                        s = format!("{} {}", s, self.kw("USING INDEX"));
+                    } else {
+                        s = format!("{} {} {}", s, self.kw("USING INDEX"), ui);
+                    }
                 }
                 s
             }
@@ -2646,6 +2686,15 @@ impl SqlFormatter {
                     "{} {}",
                     self.kw("ADD"),
                     self.format_table_constraint(constraint)
+                )
+            }
+            AlterTableAction::AddConstraintIfExists { name } => {
+                format!(
+                    "{} {} {} {}",
+                    self.kw("ADD CONSTRAINT"),
+                    self.quote_identifier(name),
+                    self.kw("IF"),
+                    self.kw("EXISTS")
                 )
             }
             AlterTableAction::DropConstraint {
@@ -4561,14 +4610,19 @@ impl SqlFormatter {
                 s
             }
             PlDeclaration::Cursor(c) => {
-                let mut s = format!("{} {} ", c.name, self.kw("CURSOR"));
+                let mut s = format!("{} {} ", self.kw("CURSOR"), c.name);
                 if !c.arguments.is_empty() {
                     s.push('(');
                     s.push_str(
                         &c.arguments
                             .iter()
                             .map(|a| {
-                                format!("{} {}", a.name, self.format_pl_data_type(&a.data_type))
+                                let mode_str = match a.mode {
+                                    PlArgMode::In => self.kw("IN"),
+                                    PlArgMode::Out => self.kw("OUT"),
+                                    PlArgMode::InOut => format!("{} {}", self.kw("IN"), self.kw("OUT")),
+                                };
+                                format!("{} {} {}", a.name, mode_str, self.format_pl_data_type(&a.data_type))
                             })
                             .collect::<Vec<_>>()
                             .join(", "),
@@ -4576,7 +4630,7 @@ impl SqlFormatter {
                     s.push_str(") ");
                 }
                 if !c.query.is_empty() {
-                    s.push_str(&format!("{} {}", self.kw("FOR"), c.query));
+                    s.push_str(&format!("{} {}", self.kw("IS"), c.query));
                 }
                 s
             }

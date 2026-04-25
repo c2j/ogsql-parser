@@ -204,6 +204,7 @@ pub enum TableConstraint {
         columns: Vec<String>,
         deferrable: bool,
         with_options: Vec<(String, String)>,
+        using_index: Option<String>,
     },
     Check(Expr),
     ForeignKey {
@@ -264,6 +265,9 @@ pub enum AlterTableAction {
     AddConstraint {
         name: Option<String>,
         constraint: TableConstraint,
+    },
+    AddConstraintIfExists {
+        name: String,
     },
     DropConstraint {
         name: String,
@@ -954,6 +958,7 @@ pub struct SelectStatement {
     pub distinct_on: Vec<Expr>,
     pub targets: Vec<SelectTarget>,
     pub into_targets: Option<Vec<SelectTarget>>,
+    pub bulk_collect: bool,
     pub into_table: Option<SelectIntoTable>,
     pub from: Vec<TableRef>,
     pub where_clause: Option<Expr>,
@@ -1380,6 +1385,11 @@ pub struct InsertStatement {
     pub source: InsertSource,
     pub on_conflict: Option<OnConflictAction>,
     pub returning: Vec<SelectTarget>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default)]
+    pub into_targets: Option<Vec<SelectTarget>>,
+    #[serde(default)]
+    pub bulk_collect: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -1448,6 +1458,11 @@ pub struct UpdateStatement {
     pub from: Vec<TableRef>,
     pub where_clause: Option<Expr>,
     pub returning: Vec<SelectTarget>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default)]
+    pub into_targets: Option<Vec<SelectTarget>>,
+    #[serde(default)]
+    pub bulk_collect: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -1464,6 +1479,11 @@ pub struct DeleteStatement {
     pub using: Vec<TableRef>,
     pub where_clause: Option<Expr>,
     pub returning: Vec<SelectTarget>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default)]
+    pub into_targets: Option<Vec<SelectTarget>>,
+    #[serde(default)]
+    pub bulk_collect: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
