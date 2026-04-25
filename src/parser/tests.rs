@@ -11565,3 +11565,224 @@ fn test_pl_variable_for_loop_implicit_scope() {
         other => panic!("expected Select, got {:?}", other),
     }
 }
+
+// --- Comprehensive PL variable resolution edge case tests ---
+
+#[test]
+fn test_pl_variable_nested_block_scope() {
+    let sql = r#"DO $$
+DECLARE
+    v_outer INTEGER;
+BEGIN
+    BEGIN
+        SELECT id INTO v_outer FROM users;
+    END;
+END;
+$$"#;
+    let block = parse_do_block(sql);
+    let inner_block = block.body.iter().find_map(|s| match s {
+        PlStatement::Block(b) => Some(b),
+        _ => None,
+    }).expect("should have inner block");
+
+    let sql_stmt = inner_block.body.iter().find_map(|s| match s {
+        PlStatement::SqlStatement { statement, .. } => match statement.as_ref() {
+            Statement::Select(sel) => Some(sel.clone()),
+            _ => None,
+        },
+        _ => None,
+    }).expect("should have SELECT statement");
+
+    let into = sql_stmt.into_targets.as_ref().expect("should have into_targets");
+    assert_eq!(into.len(), 1);
+    match &into[0] {
+        SelectTarget::Expr(Expr::PlVariable(name), None) => {
+            assert_eq!(name, &["v_outer"], "v_outer should be PlVariable (inherited from outer block)");
+        }
+        other => panic!("expected PlVariable for v_outer, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_pl_variable_case_insensitive() {
+    let sql = r#"DO $$
+DECLARE
+    V_NAME VARCHAR(100);
+BEGIN
+    SELECT name INTO v_name FROM users;
+END;
+$$"#;
+    let block = parse_do_block(sql);
+    let sql_stmt = extract_sql_statement_from_block(&block).expect("should have a SQL statement");
+    let select = extract_select_from_pl(sql_stmt).expect("should have a SELECT");
+    let into_targets = select.into_targets.as_ref().expect("should have into_targets");
+    assert_eq!(into_targets.len(), 1);
+    match &into_targets[0] {
+        SelectTarget::Expr(Expr::PlVariable(name), None) => {
+            assert_eq!(name, &["v_name"], "case-insensitive: V_NAME declared, v_name resolved");
+        }
+        other => panic!("expected PlVariable for v_name (case-insensitive), got {:?}", other),
+    }
+}
+
+#[test]
+fn test_pl_variable_sql_expressions_remain_column_ref() {
+    let sql = r#"DO $$
+DECLARE
+    v_name VARCHAR(100);
+BEGIN
+    SELECT name INTO v_name FROM users WHERE id = 1;
+END;
+$$"#;
+    let block = parse_do_block(sql);
+    let sql_stmt = extract_sql_statement_from_block(&block).expect("should have a SQL statement");
+    let select = extract_select_from_pl(sql_stmt).expect("should have a SELECT");
+
+    match &select.targets[0] {
+        SelectTarget::Expr(Expr::ColumnRef(name), None) => {
+            assert_eq!(name, &["name"], "SELECT list 'name' should be ColumnRef");
+        }
+        other => panic!("SELECT list 'name' should be ColumnRef, got {:?}", other),
+    }
+
+    let into_targets = select.into_targets.as_ref().expect("should have into_targets");
+    match &into_targets[0] {
+        SelectTarget::Expr(Expr::PlVariable(name), None) => {
+            assert_eq!(name, &["v_name"], "INTO target 'v_name' should be PlVariable");
+        }
+        other => panic!("INTO target should be PlVariable, got {:?}", other),
+    }
+
+    match select.where_clause.as_ref().expect("should have WHERE clause") {
+        Expr::BinaryOp { left, .. } => match left.as_ref() {
+            Expr::ColumnRef(name) => {
+                assert_eq!(name, &["id"], "WHERE clause 'id' should remain ColumnRef");
+            }
+            other => panic!("WHERE left side should be ColumnRef for 'id', got {:?}", other),
+        },
+        other => panic!("WHERE clause should be BinaryOp, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_pl_variable_package_procedure_params() {
+    let sql = r#"CREATE OR REPLACE PACKAGE BODY test_pkg AS
+    PROCEDURE get_user(p_id INTEGER, p_name VARCHAR) IS
+        v_result INTEGER;
+    BEGIN
+        SELECT COUNT(*) INTO v_result FROM users WHERE id = p_id;
+        SELECT name INTO p_name FROM users WHERE id = p_id;
+    END;
+END"#;
+    let stmt = parse_one(sql);
+    match &stmt {
+        Statement::CreatePackageBody(pkg) => {
+            assert_eq!(pkg.name, vec!["test_pkg"]);
+            let proc = pkg.items.iter().find_map(|i| match i {
+                PackageItem::Procedure(pr) => Some(pr),
+                _ => None,
+            }).expect("should have a procedure");
+            assert_eq!(proc.name, vec!["get_user"]);
+            let block = proc.block.as_ref().expect("procedure should have a block");
+
+            let selects: Vec<_> = block.body.iter()
+                .filter_map(|s| match s {
+                    PlStatement::SqlStatement { statement, .. } => match statement.as_ref() {
+                        Statement::Select(sel) => Some(sel.clone()),
+                        _ => None,
+                    },
+                    _ => None,
+                })
+                .collect();
+            assert_eq!(selects.len(), 2, "should have 2 SELECT statements");
+
+            let into0 = selects[0].into_targets.as_ref().expect("first SELECT should have into_targets");
+            match &into0[0] {
+                SelectTarget::Expr(Expr::PlVariable(name), None) => {
+                    assert_eq!(name, &["v_result"], "v_result should be PlVariable (declared locally)");
+                }
+                other => panic!("expected PlVariable for v_result, got {:?}", other),
+            }
+
+            let into1 = selects[1].into_targets.as_ref().expect("second SELECT should have into_targets");
+            match &into1[0] {
+                SelectTarget::Expr(Expr::PlVariable(name), None) => {
+                    assert_eq!(name, &["p_name"], "p_name parameter should be PlVariable in INTO target");
+                }
+                other => panic!("expected PlVariable for p_name, got {:?}", other),
+            }
+        }
+        other => panic!("expected CreatePackageBody, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_pl_variable_foreach_loop() {
+    let sql = r#"DO $$
+BEGIN
+    FOREACH x IN ARRAY ARRAY[1,2,3] LOOP
+        SELECT x INTO x FROM dual;
+    END LOOP;
+END;
+$$"#;
+    let block = parse_do_block(sql);
+    let foreach = block.body.iter().find_map(|s| match s {
+        PlStatement::ForEach(f) => Some(f),
+        _ => None,
+    }).expect("should have a FOREACH statement");
+    assert_eq!(foreach.variable, "x");
+
+    let sql_stmt = foreach.body.iter().find_map(|s| match s {
+        PlStatement::SqlStatement { statement, .. } => Some(statement.as_ref()),
+        _ => None,
+    }).expect("should have SQL in FOREACH body");
+
+    match sql_stmt {
+        Statement::Select(select) => {
+            let into_targets = select.into_targets.as_ref().expect("should have into_targets");
+            assert_eq!(into_targets.len(), 1);
+            match &into_targets[0] {
+                SelectTarget::Expr(Expr::PlVariable(name), None) => {
+                    assert_eq!(name, &["x"], "FOREACH variable x should be PlVariable in INTO");
+                }
+                other => panic!("expected PlVariable for FOREACH x, got {:?}", other),
+            }
+        }
+        other => panic!("expected Select, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_pl_variable_formatter_roundtrip() {
+    let sql = r#"DO $$
+DECLARE
+    v_name VARCHAR(100);
+BEGIN
+    SELECT name INTO v_name FROM users WHERE id = 1;
+END;
+$$"#;
+    let tokens = Tokenizer::new(sql).tokenize().unwrap();
+    let stmts = Parser::new(tokens).parse();
+    let formatter = SqlFormatter::new();
+    let output = stmts.iter()
+        .map(|s| formatter.format_statement(s))
+        .collect::<Vec<_>>()
+        .join(";\n");
+    assert!(output.contains("v_name"), "formatter output should contain 'v_name', got: {}", output);
+}
+
+#[test]
+fn test_pl_variable_json_roundtrip() {
+    let sql = r#"DO $$
+DECLARE
+    v_name VARCHAR(100);
+BEGIN
+    SELECT name INTO v_name FROM users WHERE id = 1;
+END;
+$$"#;
+    let tokens = Tokenizer::new(sql).tokenize().unwrap();
+    let stmts = Parser::new(tokens).parse();
+    let json = serde_json::to_string(&stmts).unwrap();
+    let restored: Vec<Statement> = serde_json::from_str(&json).unwrap();
+    assert_eq!(stmts, restored, "JSON round-trip should produce equal AST");
+}
