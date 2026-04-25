@@ -4811,9 +4811,15 @@ impl SqlFormatter {
                 }
                 format!("{};", s)
             }
-            PlStatement::Perform { query, .. } => format!("{} {};", self.kw("PERFORM"), query),
+            PlStatement::Perform { query, parsed_expr, .. } => {
+                if let Some(ref expr) = parsed_expr {
+                    format!("{} {};", self.kw("PERFORM"), self.format_expr(expr))
+                } else {
+                    format!("{} {};", self.kw("PERFORM"), query)
+                }
+            }
             PlStatement::Open(o) => {
-                let mut s = format!("{} {}", self.kw("OPEN"), o.cursor);
+                let mut s = format!("{} {}", self.kw("OPEN"), self.format_expr(&o.cursor));
                 match &o.kind {
                     PlOpenKind::Simple { arguments } => {
                         if !arguments.is_empty() {
@@ -4859,19 +4865,19 @@ impl SqlFormatter {
                 }
                 s.push_str(&format!(
                     "{} {} {};",
-                    f.cursor,
+                    self.format_expr(&f.cursor),
                     self.kw("INTO"),
                     self.format_expr(&f.into)
                 ));
                 s
             }
-            PlStatement::Close { cursor } => format!("{} {};", self.kw("CLOSE"), cursor),
+            PlStatement::Close { cursor } => format!("{} {};", self.kw("CLOSE"), self.format_expr(cursor)),
             PlStatement::Move { cursor, direction } => {
                 let mut s = self.kw("MOVE").to_string();
                 if let Some(ref dir) = direction {
                     s.push_str(&format!(" {} ", dir));
                 }
-                format!("{}{};", s, cursor)
+                format!("{}{};", s, self.format_expr(cursor))
             }
             PlStatement::GetDiagnostics(g) => {
                 let mut s = self.kw("GET").to_string();

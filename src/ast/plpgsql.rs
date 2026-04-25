@@ -174,11 +174,12 @@ pub enum PlStatement {
     /// EXECUTE format_string [INTO target] [USING expr, ...]
     Execute(PlExecuteStmt),
 
-    /// PERFORM query
     Perform {
         query: String,
         #[serde(skip_serializing_if = "Option::is_none")]
         parsed_query: Option<Box<crate::ast::Statement>>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        parsed_expr: Option<Box<crate::ast::Expr>>,
     },
 
     /// OPEN cursor (simple, for query, or for using)
@@ -189,12 +190,12 @@ pub enum PlStatement {
 
     /// CLOSE cursor_name
     Close {
-        cursor: String,
+        cursor: crate::ast::Expr,
     },
 
     /// MOVE [direction [FROM | IN]] cursor
     Move {
-        cursor: String,
+        cursor: crate::ast::Expr,
         direction: Option<FetchDirection>,
     },
 
@@ -413,7 +414,7 @@ pub struct PlReturnQueryStmt {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct PlOpenStmt {
-    pub cursor: String,
+    pub cursor: crate::ast::Expr,
     pub kind: PlOpenKind,
 }
 
@@ -515,7 +516,7 @@ impl fmt::Display for GetDiagItemKind {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct PlFetchStmt {
-    pub cursor: String,
+    pub cursor: crate::ast::Expr,
     pub direction: Option<FetchDirection>,
     pub into: crate::ast::Expr,
 }

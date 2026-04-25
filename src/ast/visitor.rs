@@ -306,9 +306,14 @@ pub fn walk_pl_statement(visitor: &mut dyn Visitor, stmt: &crate::ast::plpgsql::
                     }
                     VisitorResult::Continue
                 }
-                crate::ast::plpgsql::PlStatement::Perform { parsed_query, .. } => {
+                crate::ast::plpgsql::PlStatement::Perform { parsed_query, parsed_expr, .. } => {
                     if let Some(ref query) = parsed_query {
                         if walk_statement(visitor, query) == VisitorResult::Stop {
+                            return VisitorResult::Stop;
+                        }
+                    }
+                    if let Some(ref expr) = parsed_expr {
+                        if walk_expr(visitor, expr) == VisitorResult::Stop {
                             return VisitorResult::Stop;
                         }
                     }

@@ -1528,52 +1528,36 @@ impl Parser {
     fn parse_pl_perform(&mut self) -> Result<PlStatement, ParserError> {
         self.advance();
 
-        let (query, parsed_query) = {
+        let (query, parsed_query, parsed_expr) = {
             let save_pos = self.pos;
             if let Some(stmt) = self.try_parse_dml_statement() {
                 if matches!(self.peek(), Token::Semicolon) {
                     let raw = self.tokens_to_raw_string(save_pos, self.pos);
-                    (raw, Some(stmt))
+                    (raw, Some(stmt), None)
                 } else {
                     self.pos = save_pos;
-                    (self.skip_to_semicolon_or_keyword(), None)
+                    match self.parse_expr() {
+                        Ok(expr) => {
+                            let raw = self.tokens_to_raw_string(save_pos, self.pos);
+                            (raw, None, Some(Box::new(expr)))
+                        }
+                        Err(_) => {
+                            self.pos = save_pos;
+                            (self.skip_to_semicolon_or_keyword(), None, None)
+                        }
+                    }
                 }
             } else {
                 self.pos = save_pos;
-                if let Ok(expr) = self.parse_expr() {
-                    if matches!(self.peek(), Token::Semicolon) {
+                match self.parse_expr() {
+                    Ok(expr) => {
                         let raw = self.tokens_to_raw_string(save_pos, self.pos);
-                        let select = SelectStatement {
-                            hints: vec![],
-                            with: None,
-                            distinct: false,
-                            distinct_on: vec![],
-                            targets: vec![SelectTarget::Expr(expr, None)],
-                            into_targets: None,
-                            into_table: None,
-                            from: vec![],
-                            where_clause: None,
-                            connect_by: None,
-                            group_by: vec![],
-                            having: None,
-                            order_by: vec![],
-                            order_siblings: false,
-                            limit: None,
-                            offset: None,
-                            fetch: None,
-                            lock_clause: None,
-                            window_clause: vec![],
-                            set_operation: None,
-                            raw_body: None,
-                        };
-                        (raw, Some(Box::new(Statement::Select(select))))
-                    } else {
-                        self.pos = save_pos;
-                        (self.skip_to_semicolon_or_keyword(), None)
+                        (raw, None, Some(Box::new(expr)))
                     }
-                } else {
-                    self.pos = save_pos;
-                    (self.skip_to_semicolon_or_keyword(), None)
+                    Err(_) => {
+                        self.pos = save_pos;
+                        (self.skip_to_semicolon_or_keyword(), None, None)
+                    }
                 }
             }
         };
@@ -1582,12 +1566,13 @@ impl Parser {
         Ok(PlStatement::Perform {
             query,
             parsed_query,
+            parsed_expr,
         })
     }
 
     fn parse_pl_open(&mut self) -> Result<PlStatement, ParserError> {
         self.advance();
-        let cursor = self.parse_identifier()?;
+        let cursor = self.parse_expr()?;
 
         let kind = if self.match_token(&Token::LParen) {
             self.advance();
@@ -1702,7 +1687,7 @@ impl Parser {
             None
         };
 
-        let cursor = self.parse_identifier()?;
+        let cursor = self.parse_expr()?;
         self.expect_ident_str("into")?;
         let into = self.parse_expr()?;
         self.try_consume_semicolon();
@@ -1786,7 +1771,7 @@ impl Parser {
 
     fn parse_pl_close(&mut self) -> Result<PlStatement, ParserError> {
         self.advance();
-        let cursor = self.parse_identifier()?;
+        let cursor = self.parse_expr()?;
         self.try_consume_semicolon();
 
         Ok(PlStatement::Close { cursor })
@@ -1814,7 +1799,7 @@ impl Parser {
             None
         };
 
-        let cursor = self.parse_identifier()?;
+        let cursor = self.parse_expr()?;
         self.try_consume_semicolon();
 
         Ok(PlStatement::Move { cursor, direction })

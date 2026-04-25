@@ -775,6 +775,116 @@ fn test_plpgsql_perform() {
     assert!(matches!(&block.body[0], PlStatement::Perform { .. }));
 }
 
+#[test]
+fn test_plpgsql_perform_expression() {
+    // PERFORM with a simple expression (not DML)
+    let block = parse_do_block("DO $$ BEGIN PERFORM 1; END $$");
+    match &block.body[0] {
+        PlStatement::Perform {
+            query,
+            parsed_query,
+            parsed_expr,
+        } => {
+            assert!(parsed_query.is_none(), "PERFORM 1 should not be a DML");
+            assert!(parsed_expr.is_some(), "PERFORM 1 should parse as expression");
+            let expr = parsed_expr.as_ref().unwrap();
+            assert!(
+                matches!(expr.as_ref(), Expr::Literal(Literal::Integer(1))),
+                "Expected integer literal, got {:?}",
+                expr
+            );
+            // query should still be populated as raw text
+            assert!(!query.is_empty());
+        }
+        _ => panic!("expected Perform"),
+    }
+}
+
+#[test]
+fn test_plpgsql_perform_function_call_with_variable() {
+    // PERFORM func(v_param) where v_param is a declared variable
+    let sql = "DO $$ DECLARE v_param TEXT; BEGIN PERFORM my_func(v_param); END $$";
+    let block = parse_do_block(sql);
+    match &block.body[0] {
+        PlStatement::Perform { parsed_expr, .. } => {
+            assert!(parsed_expr.is_some());
+            let expr = parsed_expr.as_ref().unwrap();
+            match expr.as_ref() {
+                Expr::FunctionCall { name, args, .. } => {
+                    assert_eq!(name.as_slice(), &["my_func"]);
+                    assert_eq!(args.len(), 1);
+                    match &args[0] {
+                        Expr::PlVariable(var_name) => {
+                            assert_eq!(var_name.as_slice(), &["v_param"]);
+                        }
+                        other => panic!("Expected PlVariable for v_param, got {:?}", other),
+                    }
+                }
+                other => panic!("Expected FunctionCall, got {:?}", other),
+            }
+        }
+        _ => panic!("expected Perform"),
+    }
+}
+
+#[test]
+fn test_plpgsql_perform_dml_preserved() {
+    // Existing behavior: PERFORM with DML should use parsed_query
+    let block = parse_do_block("DO $$ BEGIN PERFORM SELECT * FROM t; END $$");
+    match &block.body[0] {
+        PlStatement::Perform {
+            parsed_query,
+            parsed_expr,
+            ..
+        } => {
+            assert!(parsed_query.is_some(), "DML PERFORM should have parsed_query");
+            assert!(parsed_expr.is_none(), "DML PERFORM should not have parsed_expr");
+        }
+        _ => panic!("expected Perform"),
+    }
+}
+
+#[test]
+fn test_plpgsql_perform_parameter_variable() {
+    // PERFORM with procedure parameter
+    let sql = r#"
+        CREATE OR REPLACE PROCEDURE test_proc(p_input VARCHAR)
+        AS
+        BEGIN
+            PERFORM check_status(p_input);
+        END;
+    "#;
+    let tokens = Tokenizer::new(sql).tokenize().unwrap();
+    let stmt = parse_one(sql);
+    match &stmt {
+        Statement::CreateProcedure(p) => {
+            let block = p.block.as_ref().expect("procedure should have a body");
+            match &block.body[0] {
+                PlStatement::Perform { parsed_expr, .. } => {
+                    assert!(parsed_expr.is_some());
+                    let expr = parsed_expr.as_ref().unwrap();
+                    match expr.as_ref() {
+                        Expr::FunctionCall { name, args, .. } => {
+                            assert_eq!(name.as_slice(), &["check_status"]);
+                            match &args[0] {
+                                Expr::PlVariable(var_name) => {
+                                    assert_eq!(var_name.as_slice(), &["p_input"]);
+                                }
+                                other => {
+                                    panic!("Expected PlVariable for p_input, got {:?}", other)
+                                }
+                            }
+                        }
+                        other => panic!("Expected FunctionCall, got {:?}", other),
+                    }
+                }
+                other => panic!("expected Perform, got {:?}", other),
+            }
+        }
+        _ => panic!("expected CreateProcedure"),
+    }
+}
+
 // --- Cursor Operations ---
 
 #[test]
@@ -782,7 +892,7 @@ fn test_plpgsql_open_cursor() {
     let block = parse_do_block("DO $$ BEGIN OPEN cur; END $$");
     match &block.body[0] {
         PlStatement::Open(o) => {
-            assert_eq!(o.cursor, "cur");
+            assert!(matches!(&o.cursor, Expr::ColumnRef(n) if n == &["cur"]));
             assert!(matches!(&o.kind, PlOpenKind::Simple { arguments }));
         }
         _ => panic!("expected Open"),
@@ -794,7 +904,7 @@ fn test_plpgsql_fetch_cursor() {
     let block = parse_do_block("DO $$ BEGIN FETCH cur INTO x; END $$");
     match &block.body[0] {
         PlStatement::Fetch(f) => {
-            assert_eq!(f.cursor, "cur");
+            assert!(matches!(&f.cursor, Expr::ColumnRef(n) if n == &["cur"]));
             assert!(matches!(&f.into, Expr::ColumnRef(name) if name == &["x".to_string()]));
         }
         _ => panic!("expected Fetch"),
@@ -805,7 +915,7 @@ fn test_plpgsql_fetch_cursor() {
 fn test_plpgsql_close_cursor() {
     let block = parse_do_block("DO $$ BEGIN CLOSE cur; END $$");
     match &block.body[0] {
-        PlStatement::Close { cursor } => assert_eq!(cursor, "cur"),
+        PlStatement::Close { cursor } => assert!(matches!(cursor, Expr::ColumnRef(n) if n == &["cur"])),
         _ => panic!("expected Close"),
     }
 }
@@ -3972,7 +4082,7 @@ fn test_plpgsql_fetch_with_direction() {
     let block = parse_do_block("DO $$ BEGIN FETCH NEXT FROM cur INTO x; END $$");
     match &block.body[0] {
         PlStatement::Fetch(f) => {
-            assert_eq!(f.cursor, "cur");
+            assert!(matches!(&f.cursor, Expr::ColumnRef(n) if n == &["cur"]));
             assert!(matches!(f.direction, Some(plpgsql::FetchDirection::Next)));
             assert!(matches!(&f.into, Expr::ColumnRef(name) if name == &["x".to_string()]));
         }
@@ -3985,7 +4095,7 @@ fn test_plpgsql_move_with_direction() {
     let block = parse_do_block("DO $$ BEGIN MOVE NEXT cur; END $$");
     match &block.body[0] {
         PlStatement::Move { cursor, direction } => {
-            assert_eq!(cursor, "cur");
+            assert!(matches!(cursor, Expr::ColumnRef(n) if n == &["cur"]));
             assert!(matches!(direction, Some(plpgsql::FetchDirection::Next)));
         }
         _ => panic!("expected Move"),
@@ -3997,7 +4107,7 @@ fn test_plpgsql_fetch_forward_count() {
     let block = parse_do_block("DO $$ BEGIN FETCH FORWARD 5 FROM cur INTO var; END $$");
     match &block.body[0] {
         PlStatement::Fetch(f) => {
-            assert_eq!(f.cursor, "cur");
+            assert!(matches!(&f.cursor, Expr::ColumnRef(n) if n == &["cur"]));
             assert!(matches!(
                 &f.direction,
                 Some(plpgsql::FetchDirection::Forward(Some(5)))
@@ -4012,7 +4122,7 @@ fn test_plpgsql_fetch_forward_bare() {
     let block = parse_do_block("DO $$ BEGIN FETCH FORWARD FROM cur INTO var; END $$");
     match &block.body[0] {
         PlStatement::Fetch(f) => {
-            assert_eq!(f.cursor, "cur");
+            assert!(matches!(&f.cursor, Expr::ColumnRef(n) if n == &["cur"]));
             assert!(matches!(
                 &f.direction,
                 Some(plpgsql::FetchDirection::Forward(None))
@@ -4027,7 +4137,7 @@ fn test_plpgsql_fetch_forward_all() {
     let block = parse_do_block("DO $$ BEGIN FETCH FORWARD ALL FROM cur INTO var; END $$");
     match &block.body[0] {
         PlStatement::Fetch(f) => {
-            assert_eq!(f.cursor, "cur");
+            assert!(matches!(&f.cursor, Expr::ColumnRef(n) if n == &["cur"]));
             assert!(matches!(
                 &f.direction,
                 Some(plpgsql::FetchDirection::ForwardAll)
@@ -4042,7 +4152,7 @@ fn test_plpgsql_fetch_absolute() {
     let block = parse_do_block("DO $$ BEGIN FETCH ABSOLUTE 10 FROM cur INTO var; END $$");
     match &block.body[0] {
         PlStatement::Fetch(f) => {
-            assert_eq!(f.cursor, "cur");
+            assert!(matches!(&f.cursor, Expr::ColumnRef(n) if n == &["cur"]));
             assert!(matches!(
                 &f.direction,
                 Some(plpgsql::FetchDirection::Absolute(10))
@@ -4057,7 +4167,7 @@ fn test_plpgsql_fetch_absolute_negative() {
     let block = parse_do_block("DO $$ BEGIN FETCH ABSOLUTE -3 FROM cur INTO var; END $$");
     match &block.body[0] {
         PlStatement::Fetch(f) => {
-            assert_eq!(f.cursor, "cur");
+            assert!(matches!(&f.cursor, Expr::ColumnRef(n) if n == &["cur"]));
             assert!(matches!(
                 &f.direction,
                 Some(plpgsql::FetchDirection::Absolute(-3))
@@ -4072,7 +4182,7 @@ fn test_plpgsql_fetch_relative() {
     let block = parse_do_block("DO $$ BEGIN FETCH RELATIVE 5 FROM cur INTO var; END $$");
     match &block.body[0] {
         PlStatement::Fetch(f) => {
-            assert_eq!(f.cursor, "cur");
+            assert!(matches!(&f.cursor, Expr::ColumnRef(n) if n == &["cur"]));
             assert!(matches!(
                 &f.direction,
                 Some(plpgsql::FetchDirection::Relative(5))
@@ -4087,7 +4197,7 @@ fn test_plpgsql_fetch_backward_count() {
     let block = parse_do_block("DO $$ BEGIN FETCH BACKWARD 3 FROM cur INTO var; END $$");
     match &block.body[0] {
         PlStatement::Fetch(f) => {
-            assert_eq!(f.cursor, "cur");
+            assert!(matches!(&f.cursor, Expr::ColumnRef(n) if n == &["cur"]));
             assert!(matches!(
                 &f.direction,
                 Some(plpgsql::FetchDirection::Backward(Some(3)))
@@ -4102,7 +4212,7 @@ fn test_plpgsql_fetch_backward_all() {
     let block = parse_do_block("DO $$ BEGIN FETCH BACKWARD ALL FROM cur INTO var; END $$");
     match &block.body[0] {
         PlStatement::Fetch(f) => {
-            assert_eq!(f.cursor, "cur");
+            assert!(matches!(&f.cursor, Expr::ColumnRef(n) if n == &["cur"]));
             assert!(matches!(
                 &f.direction,
                 Some(plpgsql::FetchDirection::BackwardAll)
@@ -4117,7 +4227,7 @@ fn test_plpgsql_move_forward_count() {
     let block = parse_do_block("DO $$ BEGIN MOVE FORWARD 5 cur; END $$");
     match &block.body[0] {
         PlStatement::Move { cursor, direction } => {
-            assert_eq!(cursor, "cur");
+            assert!(matches!(cursor, Expr::ColumnRef(n) if n == &["cur"]));
             assert!(matches!(
                 direction,
                 Some(plpgsql::FetchDirection::Forward(Some(5)))
@@ -4132,7 +4242,7 @@ fn test_plpgsql_move_absolute() {
     let block = parse_do_block("DO $$ BEGIN MOVE ABSOLUTE 10 cur; END $$");
     match &block.body[0] {
         PlStatement::Move { cursor, direction } => {
-            assert_eq!(cursor, "cur");
+            assert!(matches!(cursor, Expr::ColumnRef(n) if n == &["cur"]));
             assert!(matches!(
                 direction,
                 Some(plpgsql::FetchDirection::Absolute(10))
@@ -8063,7 +8173,7 @@ fn test_plpgsql_open_for_execute() {
     let block = parse_do_block("DO $$ BEGIN OPEN cur FOR EXECUTE 'SELECT * FROM t'; END $$");
     match &block.body[0] {
         PlStatement::Open(o) => {
-            assert_eq!(o.cursor, "cur");
+            assert!(matches!(&o.cursor, Expr::ColumnRef(n) if n == &["cur"]));
             match &o.kind {
                 PlOpenKind::ForExecute { query, using_args } => {
                     assert!(
@@ -8083,7 +8193,7 @@ fn test_plpgsql_open_for_execute_using() {
     let block = parse_do_block("DO $$ BEGIN OPEN cur FOR EXECUTE v_query USING 1, 'x'; END $$");
     match &block.body[0] {
         PlStatement::Open(o) => {
-            assert_eq!(o.cursor, "cur");
+            assert!(matches!(&o.cursor, Expr::ColumnRef(n) if n == &["cur"]));
             match &o.kind {
                 PlOpenKind::ForExecute { query, using_args } => {
                     assert!(matches!(query, Expr::ColumnRef(_)));
@@ -8101,7 +8211,7 @@ fn test_plpgsql_open_scroll_for() {
     let block = parse_do_block("DO $$ BEGIN OPEN cur SCROLL FOR SELECT * FROM t; END $$");
     match &block.body[0] {
         PlStatement::Open(o) => {
-            assert_eq!(o.cursor, "cur");
+            assert!(matches!(&o.cursor, Expr::ColumnRef(n) if n == &["cur"]));
             match &o.kind {
                 PlOpenKind::ForQuery { scroll, query, .. } => {
                     assert_eq!(scroll, &Some(true));
@@ -8119,7 +8229,7 @@ fn test_plpgsql_open_no_scroll_for() {
     let block = parse_do_block("DO $$ BEGIN OPEN cur NO SCROLL FOR SELECT * FROM t; END $$");
     match &block.body[0] {
         PlStatement::Open(o) => {
-            assert_eq!(o.cursor, "cur");
+            assert!(matches!(&o.cursor, Expr::ColumnRef(n) if n == &["cur"]));
             match &o.kind {
                 PlOpenKind::ForQuery { scroll, query, .. } => {
                     assert_eq!(scroll, &Some(false));
