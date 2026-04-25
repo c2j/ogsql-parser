@@ -50,7 +50,8 @@ impl Parser {
                     unreachable!()
                 }
             } else {
-                let block = self.parse_procedure_body()?;
+                let param_names: Vec<String> = parameters.iter().map(|p| p.name.clone()).collect();
+                let block = self.parse_procedure_body(&param_names)?;
                 (
                     Some(block),
                     FunctionOptions {
@@ -564,7 +565,8 @@ impl Parser {
                     unreachable!()
                 }
             } else {
-                let block = self.parse_procedure_body()?;
+                let param_names: Vec<String> = parameters.iter().map(|p| p.name.clone()).collect();
+                let block = self.parse_procedure_body(&param_names)?;
                 (
                     Some(block),
                     FunctionOptions {
@@ -821,7 +823,8 @@ impl Parser {
         };
 
         let block = if has_body {
-            Some(self.parse_procedure_body()?)
+            let param_names: Vec<String> = parameters.iter().map(|p| p.name.clone()).collect();
+            Some(self.parse_procedure_body(&param_names)?)
         } else {
             None
         };
@@ -872,7 +875,8 @@ impl Parser {
         };
 
         let block = if has_body {
-            Some(self.parse_procedure_body()?)
+            let param_names: Vec<String> = parameters.iter().map(|p| p.name.clone()).collect();
+            Some(self.parse_procedure_body(&param_names)?)
         } else {
             None
         };

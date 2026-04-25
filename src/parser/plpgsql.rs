@@ -20,13 +20,32 @@ impl Parser {
         self.parse_pl_block_body(label, declarations)
     }
 
+    fn declaration_name(&self, decl: &PlDeclaration) -> Option<String> {
+        match decl {
+            PlDeclaration::Variable(var) => Some(var.name.clone()),
+            PlDeclaration::Cursor(cursor) => Some(cursor.name.clone()),
+            PlDeclaration::Record(record) => Some(record.name.clone()),
+            PlDeclaration::NestedProcedure(_) => None,
+            PlDeclaration::NestedFunction(_) => None,
+            PlDeclaration::Type(_) => None,
+            PlDeclaration::Pragma { .. } => None,
+        }
+    }
+
     pub(crate) fn parse_pl_block_body(
         &mut self,
         label: Option<String>,
         declarations: Vec<PlDeclaration>,
     ) -> Result<PlBlock, ParserError> {
         self.enter_scope()?;
+        self.push_scope();
+        for decl in &declarations {
+            if let Some(name) = self.declaration_name(decl) {
+                self.declare_var(&name);
+            }
+        }
         let result = self.parse_pl_block_body_inner(label, declarations);
+        self.pop_scope();
         self.leave_scope();
         result
     }
@@ -2145,7 +2164,12 @@ fn attach_label(stmt: PlStatement, label: Option<String>) -> PlStatement {
 }
 
 impl Parser {
-    pub(crate) fn parse_procedure_body(&mut self) -> Result<PlBlock, ParserError> {
+    pub(crate) fn parse_procedure_body(&mut self, param_names: &[String]) -> Result<PlBlock, ParserError> {
+        self.push_scope();
+        for name in param_names {
+            self.declare_var(name);
+        }
+
         let mut declarations = Vec::new();
 
         while !self.match_keyword(Keyword::BEGIN_P) && !matches!(self.peek(), Token::Eof) {
@@ -2179,6 +2203,12 @@ impl Parser {
 
         self.expect_keyword(Keyword::BEGIN_P)?;
 
+        for decl in &declarations {
+            if let Some(name) = self.declaration_name(decl) {
+                self.declare_var(&name);
+            }
+        }
+
         let mut body = Vec::new();
         let mut exception_block = None;
 
@@ -2188,6 +2218,7 @@ impl Parser {
                 exception_block = Some(self.parse_pl_exception_block()?);
             } else if self.peek_keyword() == Some(Keyword::END_P) {
                 if self.lookahead_is_compound_end() {
+                    self.pop_scope();
                     return Err(ParserError::UnexpectedToken {
                         location: self.current_location(),
                         expected: "end of procedure body".to_string(),
@@ -2208,6 +2239,7 @@ impl Parser {
             }
         }
 
+        self.pop_scope();
         Ok(PlBlock {
             label: None,
             declarations,
