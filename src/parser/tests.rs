@@ -2093,6 +2093,45 @@ end pkg_test;";
     assert!(matches!(&stmts[1], Statement::CreatePackageBody(_)));
 }
 
+// ========== Non-SQL text before CREATE PACKAGE (issue #12) ==========
+
+#[test]
+fn test_non_sql_text_before_create_package() {
+    let sql = "some_file.sql
+=========================================
+create or replace package pkg_test is
+ TYPE refcur IS REF CURSOR;
+ PROCEDURE prc_one(p1 in varchar2, out_code OUT VARCHAR2);
+end pkg_test;";
+    let (infos, _errs) = Parser::parse_sql(sql);
+    assert_eq!(infos.len(), 2, "expected 2 statements (garbage + package), got {}", infos.len());
+    assert!(matches!(infos[0].statement, Statement::Empty), "first statement should be Empty (garbage), got {:?}", infos[0].statement);
+    match &infos[1].statement {
+        Statement::CreatePackage(p) => {
+            assert_eq!(p.name, vec!["pkg_test"]);
+            assert_eq!(p.items.len(), 1);
+        }
+        other => panic!("expected CreatePackage, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_clean_create_package_unchanged() {
+    let sql = "create or replace package pkg_test is
+ TYPE refcur IS REF CURSOR;
+ PROCEDURE prc_one(p1 in varchar2, out_code OUT VARCHAR2);
+end pkg_test;";
+    let (infos, _errs) = Parser::parse_sql(sql);
+    assert_eq!(infos.len(), 1, "clean package should produce exactly 1 statement");
+    match &infos[0].statement {
+        Statement::CreatePackage(p) => {
+            assert_eq!(p.name, vec!["pkg_test"]);
+            assert_eq!(p.items.len(), 1);
+        }
+        other => panic!("expected CreatePackage, got {:?}", other),
+    }
+}
+
 // ========== P4: Embedded SQL text in PL/pgSQL blocks ==========
 
 #[test]
