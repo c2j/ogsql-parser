@@ -379,6 +379,7 @@ fn write_error_log(stmts: &[StatementInfo], errors: &[&ParserError]) {
     for err in errors {
         let (line, _col) = match err {
             ParserError::UnexpectedToken { location, .. } => (location.line, location.column),
+            ParserError::UnexpectedEof { location, .. } => (location.line, location.column),
             ParserError::TokenizerError(_) => (0, 0),
             ParserError::ReservedKeywordAsIdentifier { location, .. } => {
                 (location.line, location.column)
@@ -391,18 +392,115 @@ fn write_error_log(stmts: &[StatementInfo], errors: &[&ParserError]) {
                 .iter()
                 .find(|si| line >= si.start_line && line <= si.end_line)
             {
-                let _ = writeln!(
-                    file,
-                    "Statement (line {}-{}):\n{}\n",
-                    si.start_line,
-                    si.end_line,
-                    si.sql_text.trim()
-                );
+                let (sub_name, sub_start, sub_end) = find_error_sub_item(&si.statement, line);
+                let context_radius: usize = 5;
+                let all_lines: Vec<&str> = si.sql_text.lines().collect();
+                let stmt_start = si.start_line;
+
+                let (label_start, label_end, omitted_after) = if sub_start > 0 && sub_end > 0 {
+                    (sub_start, sub_end, sub_end - sub_start + 1)
+                } else {
+                    (si.start_line, si.end_line, all_lines.len())
+                };
+
+                let err_relative = line.saturating_sub(label_start);
+                let label_relative_start = label_start.saturating_sub(stmt_start);
+                let ctx_start = label_relative_start.saturating_sub(context_radius);
+                let ctx_end = (label_relative_start
+                    + (label_end.saturating_sub(label_start) + 1))
+                    .min(all_lines.len());
+                let err_in_ctx = err_relative + (label_relative_start - ctx_start);
+
+                let ctx_lines = &all_lines[ctx_start..ctx_end];
+                let omitted_before = label_relative_start.saturating_sub(ctx_start);
+                let omitted_after_actual = all_lines.len().saturating_sub(ctx_end);
+
+                if let Some(name) = sub_name {
+                    let _ = writeln!(
+                        file,
+                        "In {} (line {}-{} of {}-line statement):",
+                        name, sub_start, sub_end, omitted_after
+                    );
+                } else {
+                    let _ = writeln!(file, "Statement (line {}-{}):", si.start_line, si.end_line);
+                }
+
+                for (i, l) in ctx_lines.iter().enumerate() {
+                    let abs_line = ctx_start + i + stmt_start;
+                    if i == err_in_ctx {
+                        let _ = writeln!(file, "  {:>4} |> {}", abs_line, l);
+                    } else {
+                        let _ = writeln!(file, "  {:>4} |  {}", abs_line, l);
+                    }
+                }
+                if omitted_before > context_radius || omitted_after_actual > context_radius {
+                    let _ = writeln!(
+                        file,
+                        "  ... ({} lines omitted) ...",
+                        omitted_before.saturating_sub(context_radius)
+                            + omitted_after_actual.saturating_sub(context_radius)
+                    );
+                }
             }
         }
         let _ = writeln!(file, "{}", "-".repeat(60));
     }
     eprintln!("  error details written to error.log");
+}
+
+fn find_error_sub_item(stmt: &Statement, error_line: usize) -> (Option<String>, usize, usize) {
+    use ogsql_parser::ast::PackageItem;
+    match stmt {
+        Statement::CreatePackageBody(pkg) => {
+            for item in &pkg.items {
+                match item {
+                    PackageItem::Procedure(p)
+                        if p.start_line > 0
+                            && error_line >= p.start_line
+                            && error_line <= p.end_line =>
+                    {
+                        let name = p.name.join(".");
+                        return (Some(format!("PROCEDURE {}", name)), p.start_line, p.end_line);
+                    }
+                    PackageItem::Function(f)
+                        if f.start_line > 0
+                            && error_line >= f.start_line
+                            && error_line <= f.end_line =>
+                    {
+                        let name = f.name.join(".");
+                        return (Some(format!("FUNCTION {}", name)), f.start_line, f.end_line);
+                    }
+                    _ => {}
+                }
+            }
+            (None, 0, 0)
+        }
+        Statement::CreatePackage(pkg) => {
+            for item in &pkg.items {
+                match item {
+                    PackageItem::Procedure(p)
+                        if p.start_line > 0
+                            && error_line >= p.start_line
+                            && error_line <= p.end_line =>
+                    {
+                        let name = p.name.join(".");
+                        return (Some(format!("PROCEDURE {}", name)), p.start_line, p.end_line);
+                    }
+                    PackageItem::Function(f)
+                        if f.start_line > 0
+                            && error_line >= f.start_line
+                            && error_line <= f.end_line =>
+                    {
+                        let name = f.name.join(".");
+                        return (Some(format!("FUNCTION {}", name)), f.start_line, f.end_line);
+                    }
+                    _ => {}
+                }
+            }
+            (None, 0, 0)
+        }
+        _ => (None, 0, 0),
+    }
 }
 
 #[cfg(feature = "serve")]
