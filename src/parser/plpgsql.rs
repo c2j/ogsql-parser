@@ -1093,7 +1093,13 @@ impl Parser {
         let kind = self.parse_pl_for_kind()?;
 
         self.expect_ident_str("loop")?;
+
+        // Push implicit scope for loop variable
+        self.push_scope();
+        self.declare_var(&variable);
         let body = self.parse_pl_statements_until(&[])?;
+        self.pop_scope();
+
         self.expect_keyword(Keyword::END_P)?;
         self.expect_ident_str("loop")?;
         let end_label = self.try_parse_pl_label();
@@ -1240,7 +1246,13 @@ impl Parser {
         };
 
         self.expect_ident_str("loop")?;
+
+        // Push implicit scope for loop variable
+        self.push_scope();
+        self.declare_var(&variable);
         let body = self.parse_pl_statements_until(&[])?;
+        self.pop_scope();
+
         self.expect_keyword(Keyword::END_P)?;
         self.expect_ident_str("loop")?;
         let end_label = self.try_parse_pl_label();

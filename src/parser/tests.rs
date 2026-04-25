@@ -11535,3 +11535,33 @@ fn test_pl_variable_param_into() {
         other => panic!("expected CreateProcedure, got {:?}", other),
     }
 }
+
+#[test]
+fn test_pl_variable_for_loop_implicit_scope() {
+    let block = parse_do_block(
+        "DO $$ BEGIN FOR rec IN SELECT name FROM users LOOP SELECT name INTO rec FROM dual; END LOOP; END $$",
+    );
+    let for_stmt = block.body.iter().find_map(|s| match s {
+        PlStatement::For(f) => Some(f),
+        _ => None,
+    }).expect("should have FOR statement");
+
+    let sql_stmt = for_stmt.body.iter().find_map(|s| match s {
+        PlStatement::SqlStatement { statement, .. } => Some(statement.as_ref()),
+        _ => None,
+    }).expect("should have SQL statement inside FOR body");
+
+    match sql_stmt {
+        Statement::Select(select) => {
+            let into_targets = select.into_targets.as_ref().expect("should have into_targets");
+            assert_eq!(into_targets.len(), 1);
+            match &into_targets[0] {
+                SelectTarget::Expr(Expr::PlVariable(name), None) => {
+                    assert_eq!(name, &["rec"]);
+                }
+                other => panic!("expected PlVariable for rec (FOR loop implicit scope), got {:?}", other),
+            }
+        }
+        other => panic!("expected Select, got {:?}", other),
+    }
+}
