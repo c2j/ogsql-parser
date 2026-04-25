@@ -695,8 +695,9 @@ impl Parser {
                     }
                 }
                 Token::Keyword(Keyword::PROCEDURE) => {
+                    let sp_start = self.pos;
                     self.advance();
-                    match self.parse_package_sub_procedure() {
+                    match self.parse_package_sub_procedure(sp_start) {
                         Ok(proc) => {
                             items.push(PackageItem::Procedure(proc));
                         }
@@ -710,8 +711,9 @@ impl Parser {
                     }
                 }
                 Token::Keyword(Keyword::FUNCTION) => {
+                    let sp_start = self.pos;
                     self.advance();
-                    match self.parse_package_sub_function() {
+                    match self.parse_package_sub_function(sp_start) {
                         Ok(func) => {
                             items.push(PackageItem::Function(func));
                         }
@@ -794,7 +796,7 @@ impl Parser {
             .join(" ")
     }
 
-    pub(crate) fn parse_package_sub_procedure(&mut self) -> Result<PackageProcedure, ParserError> {
+    pub(crate) fn parse_package_sub_procedure(&mut self, start_pos: usize) -> Result<PackageProcedure, ParserError> {
         let name = self.parse_object_name()?;
 
         let mut parameters = Vec::new();
@@ -829,14 +831,25 @@ impl Parser {
             None
         };
 
+        let start_line = self.tokens.get(start_pos)
+            .map(|t| t.location.line)
+            .unwrap_or(0);
+        let end_line = self.pos.saturating_sub(1)
+            .min(self.tokens.len().saturating_sub(1));
+        let end_line = self.tokens.get(end_line)
+            .map(|t| t.location.line)
+            .unwrap_or(start_line);
+
         Ok(PackageProcedure {
             name,
             parameters,
             block,
+            start_line,
+            end_line,
         })
     }
 
-    pub(crate) fn parse_package_sub_function(&mut self) -> Result<PackageFunction, ParserError> {
+    pub(crate) fn parse_package_sub_function(&mut self, start_pos: usize) -> Result<PackageFunction, ParserError> {
         let name = self.parse_object_name()?;
 
         let mut parameters = Vec::new();
@@ -881,11 +894,22 @@ impl Parser {
             None
         };
 
+        let start_line = self.tokens.get(start_pos)
+            .map(|t| t.location.line)
+            .unwrap_or(0);
+        let end_line = self.pos.saturating_sub(1)
+            .min(self.tokens.len().saturating_sub(1));
+        let end_line = self.tokens.get(end_line)
+            .map(|t| t.location.line)
+            .unwrap_or(start_line);
+
         Ok(PackageFunction {
             name,
             parameters,
             return_type,
             block,
+            start_line,
+            end_line,
         })
     }
 

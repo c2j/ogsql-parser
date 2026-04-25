@@ -2266,13 +2266,15 @@ impl Parser {
         while !self.match_keyword(Keyword::BEGIN_P) && !matches!(self.peek(), Token::Eof) {
             if self.match_ident_str("procedure") {
                 self.advance();
-                match self.parse_package_sub_procedure() {
+                let sp_start = self.pos.saturating_sub(1);
+                match self.parse_package_sub_procedure(sp_start) {
                     Ok(proc) => declarations.push(PlDeclaration::NestedProcedure(proc)),
                     Err(_) => self.advance(),
                 }
             } else if self.match_ident_str("function") {
                 self.advance();
-                match self.parse_package_sub_function() {
+                let sp_start = self.pos.saturating_sub(1);
+                match self.parse_package_sub_function(sp_start) {
                     Ok(func) => declarations.push(PlDeclaration::NestedFunction(func)),
                     Err(_) => self.advance(),
                 }
@@ -2347,13 +2349,15 @@ impl Parser {
         while !self.match_keyword(Keyword::BEGIN_P) && !matches!(self.peek(), Token::Eof) {
             if self.match_ident_str("procedure") {
                 self.advance();
-                match self.parse_package_sub_procedure() {
+                let sp_start = self.pos.saturating_sub(1);
+                match self.parse_package_sub_procedure(sp_start) {
                     Ok(proc) => declarations.push(PlDeclaration::NestedProcedure(proc)),
                     Err(_) => self.advance(),
                 }
             } else if self.match_ident_str("function") {
                 self.advance();
-                match self.parse_package_sub_function() {
+                let sp_start = self.pos.saturating_sub(1);
+                match self.parse_package_sub_function(sp_start) {
                     Ok(func) => declarations.push(PlDeclaration::NestedFunction(func)),
                     Err(_) => self.advance(),
                 }

@@ -1914,19 +1914,44 @@ pub enum PackageItem {
     Raw(String),
 }
 
-#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct PackageProcedure {
     pub name: ObjectName,
     pub parameters: Vec<RoutineParam>,
     pub block: Option<crate::ast::plpgsql::PlBlock>,
+    #[serde(default)]
+    pub start_line: usize,
+    #[serde(default)]
+    pub end_line: usize,
 }
 
-#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+impl PartialEq for PackageProcedure {
+    fn eq(&self, other: &Self) -> bool {
+        self.name == other.name
+            && self.parameters == other.parameters
+            && self.block == other.block
+    }
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct PackageFunction {
     pub name: ObjectName,
     pub parameters: Vec<RoutineParam>,
     pub return_type: Option<String>,
     pub block: Option<crate::ast::plpgsql::PlBlock>,
+    #[serde(default)]
+    pub start_line: usize,
+    #[serde(default)]
+    pub end_line: usize,
+}
+
+impl PartialEq for PackageFunction {
+    fn eq(&self, other: &Self) -> bool {
+        self.name == other.name
+            && self.parameters == other.parameters
+            && self.return_type == other.return_type
+            && self.block == other.block
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
