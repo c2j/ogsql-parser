@@ -22,6 +22,8 @@ pub struct Tokenizer<'a> {
     line: usize,
     line_start: usize,
     pending_hint: Option<String>,
+    preserve_comments: bool,
+    pending_comment: Option<String>,
 }
 
 impl<'a> Tokenizer<'a> {
@@ -33,7 +35,14 @@ impl<'a> Tokenizer<'a> {
             line: 1,
             line_start: 0,
             pending_hint: None,
+            preserve_comments: false,
+            pending_comment: None,
         }
+    }
+
+    pub fn preserve_comments(mut self, yes: bool) -> Self {
+        self.preserve_comments = yes;
+        self
     }
 
     fn current_location(&self) -> SourceLocation {
@@ -125,21 +134,34 @@ impl<'a> Tokenizer<'a> {
                 }
                 Some('-') => {
                     if self.peek_byte_at(1) == Some(b'-') {
+                        let start = self.pos;
                         self.advance();
                         self.advance();
-                        self.skip_while(|c| c != '\n');
+                        if self.preserve_comments {
+                            self.skip_while(|c| c != '\n');
+                            let content = self.input[start..self.pos].to_string();
+                            self.pending_comment = Some(content);
+                            return Ok(());
+                        } else {
+                            self.skip_while(|c| c != '\n');
+                        }
                     } else {
                         return Ok(());
                     }
                 }
                 Some('/') => {
                     if self.peek_byte_at(1) == Some(b'*') {
+                        let start = self.pos;
                         self.advance();
                         self.advance();
                         if self.peek_byte_at(0) == Some(b'+') {
                             self.advance();
                             let hint = self.collect_hint_content();
                             self.pending_hint = Some(hint);
+                        } else if self.preserve_comments {
+                            let content = self.collect_block_comment_content(start);
+                            self.pending_comment = Some(content);
+                            return Ok(());
                         } else {
                             let saved_pos = self.pos;
                             self.skip_block_comment(saved_pos)?;
@@ -195,6 +217,29 @@ impl<'a> Tokenizer<'a> {
         Ok(())
     }
 
+    fn collect_block_comment_content(&mut self, start: usize) -> String {
+        let mut depth = 1;
+        while depth > 0 {
+            match self.advance() {
+                None => break,
+                Some('/') => {
+                    if self.peek() == Some('*') {
+                        self.advance();
+                        depth += 1;
+                    }
+                }
+                Some('*') => {
+                    if self.peek() == Some('/') {
+                        self.advance();
+                        depth -= 1;
+                    }
+                }
+                _ => {}
+            }
+        }
+        self.input[start..self.pos].to_string()
+    }
+
     fn collect_hint_content(&mut self) -> String {
         let mut content = String::new();
         let mut depth = 1;
@@ -240,6 +285,18 @@ impl<'a> Tokenizer<'a> {
             }));
         }
 
+        if let Some(comment) = self.pending_comment.take() {
+            let start = self.pos;
+            return Ok(Some(TokenWithSpan {
+                token: Token::Comment(comment),
+                span: Span {
+                    start,
+                    end: self.pos,
+                },
+                location: self.current_location(),
+            }));
+        }
+
         self.skip_whitespace_and_comments()?;
 
         // After skipping whitespace/comments, a hint may have been collected.
@@ -248,6 +305,18 @@ impl<'a> Tokenizer<'a> {
             let start = self.pos;
             return Ok(Some(TokenWithSpan {
                 token: Token::Hint(hint),
+                span: Span {
+                    start,
+                    end: self.pos,
+                },
+                location: self.current_location(),
+            }));
+        }
+
+        if let Some(comment) = self.pending_comment.take() {
+            let start = self.pos;
+            return Ok(Some(TokenWithSpan {
+                token: Token::Comment(comment),
                 span: Span {
                     start,
                     end: self.pos,
@@ -1134,5 +1203,85 @@ mod tests {
     fn test_hex_integer() {
         let tokens = tokens_as_vec("0xFF");
         assert!(matches!(&tokens[0], Token::Integer(n) if *n == 255));
+    }
+
+    #[test]
+    fn test_comment_not_preserved_by_default() {
+        let tokens = tokens_as_vec("SELECT -- comment\nFROM dual");
+        assert!(!tokens.iter().any(|t| matches!(t, Token::Comment(_))));
+    }
+
+    #[test]
+    fn test_single_line_comment_preserved() {
+        let tokens = Tokenizer::new("SELECT -- this is a comment\nFROM dual")
+            .preserve_comments(true)
+            .tokenize()
+            .unwrap();
+        let tokens: Vec<Token> = tokens.into_iter().map(|t| t.token).collect();
+        let comment = tokens.iter().find(|t| matches!(t, Token::Comment(_)));
+        assert!(comment.is_some(), "Should have a Comment token");
+        if let Some(Token::Comment(content)) = comment {
+            assert!(content.contains("--"), "Comment should include -- prefix");
+            assert!(
+                content.contains("this is a comment"),
+                "Comment should contain the text"
+            );
+        }
+    }
+
+    #[test]
+    fn test_block_comment_preserved() {
+        let tokens = Tokenizer::new("SELECT /* block\ncomment */ FROM dual")
+            .preserve_comments(true)
+            .tokenize()
+            .unwrap();
+        let tokens: Vec<Token> = tokens.into_iter().map(|t| t.token).collect();
+        let comment = tokens.iter().find(|t| matches!(t, Token::Comment(_)));
+        assert!(comment.is_some(), "Should have a Comment token");
+        if let Some(Token::Comment(content)) = comment {
+            assert!(content.starts_with("/*"), "Block comment should start with /*");
+            assert!(content.ends_with("*/"), "Block comment should end with */");
+            assert!(
+                content.contains("block") && content.contains("comment"),
+                "Should contain content"
+            );
+        }
+    }
+
+    #[test]
+    fn test_comment_token_ordering() {
+        let tokens = Tokenizer::new("SELECT /* c1 */ a, /* c2 */ b FROM t")
+            .preserve_comments(true)
+            .tokenize()
+            .unwrap();
+        let select_pos = tokens
+            .iter()
+            .position(|t| matches!(&t.token, Token::Keyword(Keyword::SELECT)))
+            .unwrap();
+        let first_comment_pos = tokens
+            .iter()
+            .position(|t| matches!(&t.token, Token::Comment(_)))
+            .unwrap();
+        assert!(
+            select_pos < first_comment_pos,
+            "SELECT should come before first comment"
+        );
+    }
+
+    #[test]
+    fn test_hint_not_affected_by_comment_preservation() {
+        let tokens = Tokenizer::new("SELECT /*+ INDEX(t idx) */ a FROM t")
+            .preserve_comments(true)
+            .tokenize()
+            .unwrap();
+        let tokens: Vec<Token> = tokens.into_iter().map(|t| t.token).collect();
+        assert!(
+            tokens.iter().any(|t| matches!(t, Token::Hint(_))),
+            "Hints should still be Hint tokens"
+        );
+        assert!(
+            !tokens.iter().any(|t| matches!(t, Token::Comment(c) if c.contains("INDEX"))),
+            "Hints should NOT be Comment tokens"
+        );
     }
 }

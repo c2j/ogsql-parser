@@ -140,6 +140,9 @@ pub enum Token {
 
     /// Optimizer hint: /*+ ... */
     Hint(String),
+
+    /// SQL comment (-- single-line or /* block */)
+    Comment(String),
 }
 
 impl Token {
