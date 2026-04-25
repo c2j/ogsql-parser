@@ -2029,6 +2029,70 @@ fn test_package_spec_no_redundant_body_field() {
     }
 }
 
+// ========== Slash terminator between package spec and body (issue #13) ==========
+
+#[test]
+fn test_slash_between_package_spec_and_body_parse() {
+    let sql = "create or replace package pkg_test is
+ TYPE refcur IS REF CURSOR;
+ PROCEDURE prc_one(p1 in varchar2, out_code OUT VARCHAR2);
+end pkg_test;
+/
+create or replace package body pkg_test is
+ PROCEDURE prc_one(p1 in varchar2, out_code OUT VARCHAR2) IS
+ BEGIN
+   out_code := 0;
+ END prc_one;
+end pkg_test;
+/";
+    let tokens = crate::token::tokenizer::Tokenizer::new(sql).tokenize().unwrap();
+    let mut parser = Parser::new(tokens);
+    let stmts = parser.parse();
+    assert_eq!(stmts.len(), 2, "expected 2 statements (spec + body), got {}", stmts.len());
+    assert!(matches!(&stmts[0], Statement::CreatePackage(p) if p.name == vec!["pkg_test"]),
+        "first should be CreatePackage, got {:?}", &stmts[0]);
+    assert!(matches!(&stmts[1], Statement::CreatePackageBody(b) if b.name == vec!["pkg_test"]),
+        "second should be CreatePackageBody, got {:?}", &stmts[1]);
+}
+
+#[test]
+fn test_slash_between_package_spec_and_body_parse_with_text() {
+    let sql = "create or replace package pkg_test is
+ TYPE refcur IS REF CURSOR;
+ PROCEDURE prc_one(p1 in varchar2, out_code OUT VARCHAR2);
+end pkg_test;
+/
+create or replace package body pkg_test is
+ PROCEDURE prc_one(p1 in varchar2, out_code OUT VARCHAR2) IS
+ BEGIN
+   out_code := 0;
+ END prc_one;
+end pkg_test;
+/";
+    let (infos, _errs) = Parser::parse_sql(sql);
+    assert_eq!(infos.len(), 2, "expected 2 statements (spec + body), got {}", infos.len());
+    assert!(matches!(&infos[0].statement, Statement::CreatePackage(p) if p.name == vec!["pkg_test"]),
+        "first should be CreatePackage, got {:?}", &infos[0].statement);
+    assert!(matches!(&infos[1].statement, Statement::CreatePackageBody(b) if b.name == vec!["pkg_test"]),
+        "second should be CreatePackageBody, got {:?}", &infos[1].statement);
+}
+
+#[test]
+fn test_package_without_slash_unchanged_parse() {
+    let sql = "create or replace package pkg_test is
+ TYPE refcur IS REF CURSOR;
+end pkg_test;
+create or replace package body pkg_test is
+ PROCEDURE prc_one(p1 in varchar2) IS BEGIN NULL; END prc_one;
+end pkg_test;";
+    let tokens = crate::token::tokenizer::Tokenizer::new(sql).tokenize().unwrap();
+    let mut parser = Parser::new(tokens);
+    let stmts = parser.parse();
+    assert_eq!(stmts.len(), 2);
+    assert!(matches!(&stmts[0], Statement::CreatePackage(_)));
+    assert!(matches!(&stmts[1], Statement::CreatePackageBody(_)));
+}
+
 // ========== P4: Embedded SQL text in PL/pgSQL blocks ==========
 
 #[test]
