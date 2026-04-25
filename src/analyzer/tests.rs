@@ -183,3 +183,81 @@ fn test_statement_path_tracking() {
     let report = analyze_pl_block(&block);
     assert_eq!(report.execute_findings[0].statement_path, vec![1]);
 }
+
+#[test]
+fn test_for_loop_variable_in_scope() {
+    let block = parse_block(
+        "DO $$ BEGIN FOR rec IN 1..10 LOOP EXECUTE IMMEDIATE rec; END LOOP; END $$"
+    );
+    let report = analyze_pl_block(&block);
+    assert_eq!(report.execute_findings.len(), 1);
+    // rec is declared in FOR scope but has no known string value
+    assert!(report.execute_findings[0].resolved_value.is_none());
+    // Should NOT be Unknown — it's a declared variable with no known value
+    match &report.execute_findings[0].trace {
+        TraceChain::VariableCopy { source_var, .. } => {
+            assert_eq!(source_var, "rec");
+        }
+        other => panic!("expected VariableCopy for rec, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_variable_no_default_in_scope() {
+    let block = parse_block(
+        "DO $$ DECLARE v_sql VARCHAR(100); BEGIN v_sql := 'SELECT 1'; EXECUTE IMMEDIATE v_sql; END $$"
+    );
+    let report = analyze_pl_block(&block);
+    assert_eq!(report.execute_findings.len(), 1);
+    assert_eq!(
+        report.execute_findings[0].resolved_value.as_deref(),
+        Some("SELECT 1")
+    );
+    match &report.execute_findings[0].trace {
+        TraceChain::VariableCopy { source_var, .. } => {
+            assert_eq!(source_var, "v_sql");
+        }
+        other => panic!("expected VariableCopy for v_sql, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_cursor_declaration_in_scope() {
+    let block = parse_block(
+        "DO $$ DECLARE cur CURSOR FOR SELECT 1; BEGIN NULL; END $$"
+    );
+    // Cursor is registered in scope — no crash, no execute findings
+    let report = analyze_pl_block(&block);
+    assert_eq!(report.execute_findings.len(), 0);
+}
+
+#[test]
+fn test_foreach_loop_variable_in_scope() {
+    let block = parse_block(
+        "DO $$ DECLARE arr INT[]; BEGIN FOREACH item IN ARRAY arr LOOP EXECUTE IMMEDIATE item; END LOOP; END $$"
+    );
+    let report = analyze_pl_block(&block);
+    assert_eq!(report.execute_findings.len(), 1);
+    assert!(report.execute_findings[0].resolved_value.is_none());
+    match &report.execute_findings[0].trace {
+        TraceChain::VariableCopy { source_var, .. } => {
+            assert_eq!(source_var, "item");
+        }
+        other => panic!("expected VariableCopy for item, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_for_loop_variable_does_not_leak() {
+    let block = parse_block(
+        "DO $$ BEGIN FOR rec IN 1..10 LOOP NULL; END LOOP; EXECUTE IMMEDIATE rec; END $$"
+    );
+    let report = analyze_pl_block(&block);
+    assert_eq!(report.execute_findings.len(), 1);
+    // rec should NOT be in scope outside the FOR loop
+    assert!(report.execute_findings[0].resolved_value.is_none());
+    assert!(matches!(
+        report.execute_findings[0].trace,
+        TraceChain::Unknown
+    ));
+}

@@ -104,18 +104,42 @@ impl DynamicSqlAnalyzer {
 
     fn process_declarations(&mut self, declarations: &[PlDeclaration]) {
         for decl in declarations {
-            if let PlDeclaration::Variable(var_decl) = decl {
-                if let Some(expr) = &var_decl.default {
-                    let state = self.evaluate_expr(expr);
-                    if let Some(ref value) = state.known_value {
-                        self.traces.push(VariableTrace {
-                            variable_name: var_decl.name.clone(),
-                            assignment_path: self.path.clone(),
-                            value: value.clone(),
+            match decl {
+                PlDeclaration::Variable(var_decl) => {
+                    if let Some(expr) = &var_decl.default {
+                        let state = self.evaluate_expr(expr);
+                        if let Some(ref value) = state.known_value {
+                            self.traces.push(VariableTrace {
+                                variable_name: var_decl.name.clone(),
+                                assignment_path: self.path.clone(),
+                                value: value.clone(),
+                            });
+                        }
+                        self.set_var(&var_decl.name, state);
+                    } else {
+                        // Register the variable even without a default value
+                        // so it's known in scope (important for PlVariable resolution)
+                        self.set_var(&var_decl.name, VarState {
+                            known_value: None,
+                            trace: TraceChain::Unknown,
                         });
                     }
-                    self.set_var(&var_decl.name, state);
                 }
+                PlDeclaration::Cursor(cursor_decl) => {
+                    // Register cursor name in scope
+                    self.set_var(&cursor_decl.name, VarState {
+                        known_value: None,
+                        trace: TraceChain::Unknown,
+                    });
+                }
+                PlDeclaration::Record(record_decl) => {
+                    // Register record name in scope
+                    self.set_var(&record_decl.name, VarState {
+                        known_value: None,
+                        trace: TraceChain::Unknown,
+                    });
+                }
+                _ => {} // Type, NestedProcedure, NestedFunction, Pragma — not variables
             }
         }
     }
@@ -188,11 +212,23 @@ impl DynamicSqlAnalyzer {
             }
 
             PlStatement::For(for_stmt) => {
+                self.enter_scope();
+                self.set_var(&for_stmt.variable, VarState {
+                    known_value: None,
+                    trace: TraceChain::Unknown,
+                });
                 self.process_statements(&for_stmt.body);
+                self.exit_scope();
             }
 
             PlStatement::ForEach(foreach_stmt) => {
+                self.enter_scope();
+                self.set_var(&foreach_stmt.variable, VarState {
+                    known_value: None,
+                    trace: TraceChain::Unknown,
+                });
                 self.process_statements(&foreach_stmt.body);
+                self.exit_scope();
             }
 
             _ => {}
