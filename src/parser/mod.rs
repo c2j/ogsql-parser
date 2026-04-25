@@ -391,6 +391,13 @@ impl Parser {
                         return i;
                     }
                 }
+                Token::Keyword(Keyword::CREATE)
+                    if !is_package && depth <= 0 && begin_depth <= 0 =>
+                {
+                    if self.detect_package_context_at(i) {
+                        return if i > self.pos { i - 1 } else { i };
+                    }
+                }
                 _ => {}
             }
         }
@@ -501,7 +508,12 @@ impl Parser {
     }
 
     fn detect_package_context(&self) -> bool {
-        let mut i = self.pos;
+        self.detect_package_context_at(self.pos)
+    }
+
+    /// Check if tokens at `pos` form `CREATE [OR REPLACE] PACKAGE [BODY]`.
+    fn detect_package_context_at(&self, pos: usize) -> bool {
+        let mut i = pos;
         if i >= self.tokens.len() {
             return false;
         }
