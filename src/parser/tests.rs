@@ -11434,3 +11434,104 @@ fn test_complex_procedure_multiple_select_into() {
         _ => panic!("expected CreatePackageBody, got {:?}", stmt),
     }
 }
+
+// --- PlVariable resolution in INTO targets ---
+
+#[test]
+fn test_pl_variable_into_single() {
+    let block = parse_do_block(
+        "DO $$ DECLARE v_name VARCHAR(100); BEGIN SELECT name INTO v_name FROM users WHERE id = 1; END $$",
+    );
+    let sql_stmt = extract_sql_statement_from_block(&block).expect("should have a SQL statement");
+    let select = extract_select_from_pl(sql_stmt).expect("should have a SELECT");
+    let into_targets = select.into_targets.as_ref().expect("should have into_targets");
+    assert_eq!(into_targets.len(), 1);
+    match &into_targets[0] {
+        SelectTarget::Expr(Expr::PlVariable(name), None) => {
+            assert_eq!(name, &["v_name"]);
+        }
+        other => panic!("expected PlVariable for v_name, got {:?}", other),
+    }
+    let select_targets = &select.targets;
+    match &select_targets[0] {
+        SelectTarget::Expr(Expr::ColumnRef(_), None) => {}
+        other => panic!("SELECT list 'name' should be ColumnRef, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_pl_variable_into_multiple() {
+    let block = parse_do_block(
+        "DO $$ DECLARE v1 INTEGER; v2 TEXT; BEGIN SELECT c1, c2 INTO v1, v2 FROM t; END $$",
+    );
+    let sql_stmt = extract_sql_statement_from_block(&block).expect("should have a SQL statement");
+    let select = extract_select_from_pl(sql_stmt).expect("should have a SELECT");
+    let into_targets = select.into_targets.as_ref().expect("should have into_targets");
+    assert_eq!(into_targets.len(), 2);
+    match &into_targets[0] {
+        SelectTarget::Expr(Expr::PlVariable(name), None) => {
+            assert_eq!(name, &["v1"]);
+        }
+        other => panic!("expected PlVariable for v1, got {:?}", other),
+    }
+    match &into_targets[1] {
+        SelectTarget::Expr(Expr::PlVariable(name), None) => {
+            assert_eq!(name, &["v2"]);
+        }
+        other => panic!("expected PlVariable for v2, got {:?}", other),
+    }
+    match &select.targets[0] {
+        SelectTarget::Expr(Expr::ColumnRef(_), _) => {}
+        other => panic!("SELECT list c1 should be ColumnRef, got {:?}", other),
+    }
+    match &select.targets[1] {
+        SelectTarget::Expr(Expr::ColumnRef(_), _) => {}
+        other => panic!("SELECT list c2 should be ColumnRef, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_pl_variable_undeclared_stays_column_ref() {
+    let block = parse_do_block(
+        "DO $$ BEGIN SELECT name INTO v_undeclared FROM users WHERE id = 1; END $$",
+    );
+    let sql_stmt = extract_sql_statement_from_block(&block).expect("should have a SQL statement");
+    let select = extract_select_from_pl(sql_stmt).expect("should have a SELECT");
+    let into_targets = select.into_targets.as_ref().expect("should have into_targets");
+    assert_eq!(into_targets.len(), 1);
+    match &into_targets[0] {
+        SelectTarget::Expr(Expr::ColumnRef(name), None) => {
+            assert_eq!(name, &["v_undeclared"]);
+        }
+        other => panic!("undeclared variable should stay ColumnRef, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_pl_variable_param_into() {
+    let sql = "CREATE OR REPLACE PROCEDURE test_proc(p_name VARCHAR) IS BEGIN SELECT name INTO p_name FROM users WHERE id = 1; END;";
+    let stmt = parse_one(sql);
+    match &stmt {
+        Statement::CreateProcedure(proc) => {
+            let block = proc.block.as_ref().expect("should have block");
+            let sql_stmt = block.body.iter().find_map(|s| match s {
+                PlStatement::SqlStatement { statement, .. } => Some(statement.as_ref()),
+                _ => None,
+            }).expect("should have SQL statement");
+            match sql_stmt {
+                Statement::Select(select) => {
+                    let into_targets = select.into_targets.as_ref().expect("should have into_targets");
+                    assert_eq!(into_targets.len(), 1);
+                    match &into_targets[0] {
+                        SelectTarget::Expr(Expr::PlVariable(name), None) => {
+                            assert_eq!(name, &["p_name"]);
+                        }
+                        other => panic!("expected PlVariable for p_name parameter, got {:?}", other),
+                    }
+                }
+                other => panic!("expected Select, got {:?}", other),
+            }
+        }
+        other => panic!("expected CreateProcedure, got {:?}", other),
+    }
+}

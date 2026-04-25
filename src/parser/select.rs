@@ -175,7 +175,7 @@ impl Parser {
                     }),
                 )
             } else if self.pl_into_mode {
-                (Some(self.parse_target_list()?), None)
+                (Some(self.parse_pl_into_target_list()?), None)
             } else {
                 let save_pos = self.pos;
                 if let Ok(table_name) = self.parse_object_name() {
@@ -352,6 +352,20 @@ impl Parser {
             targets.push(self.parse_target_el()?);
         }
         Ok(targets)
+    }
+
+    pub(crate) fn parse_pl_into_target_list(&mut self) -> Result<Vec<SelectTarget>, ParserError> {
+        let mut targets = vec![self.parse_pl_into_target_el()?];
+        while self.match_token(&Token::Comma) {
+            self.advance();
+            targets.push(self.parse_pl_into_target_el()?);
+        }
+        Ok(targets)
+    }
+
+    fn parse_pl_into_target_el(&mut self) -> Result<SelectTarget, ParserError> {
+        let expr = self.parse_pl_variable_or_column()?;
+        Ok(SelectTarget::Expr(expr, None))
     }
 
     fn parse_target_el(&mut self) -> Result<SelectTarget, ParserError> {

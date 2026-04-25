@@ -95,6 +95,18 @@ impl Parser {
         self.scope_stack.iter().rev().any(|scope| scope.contains(&lower))
     }
 
+    /// Parse an identifier in a PL context where it might be a variable.
+    /// If the base identifier is found in the current scope stack, emit PlVariable.
+    /// Otherwise, emit ColumnRef (may be resolved later by the analyzer).
+    pub(crate) fn parse_pl_variable_or_column(&mut self) -> Result<crate::ast::Expr, ParserError> {
+        let name = self.parse_object_name()?;
+        if !name.is_empty() && self.is_var_declared(&name[0]) {
+            Ok(crate::ast::Expr::PlVariable(name))
+        } else {
+            Ok(crate::ast::Expr::ColumnRef(name))
+        }
+    }
+
     fn enter_scope(&mut self) -> Result<(), ParserError> {
         self.depth += 1;
         if self.depth > MAX_PARSE_DEPTH {
