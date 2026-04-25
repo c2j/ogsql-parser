@@ -709,6 +709,7 @@ impl Parser {
                 distinct_on: vec![],
                 targets: vec![SelectTarget::Star(None)],
                 into_targets: None,
+                bulk_collect: false,
                 into_table: None,
                 from: vec![TableRef::Table {
                     name: table_name.clone(),
@@ -1505,7 +1506,11 @@ impl Parser {
                 if self.try_consume_keyword(Keyword::USING) {
                     let _ = self.consume_any_identifier();
                 }
-                let columns = self.parse_column_list()?;
+                let columns = if self.match_token(&Token::Semicolon) || self.peek().eq(&Token::Eof) {
+                    Vec::new()
+                } else {
+                    self.parse_column_list()?
+                };
                 let mut using_index = None;
                 if self.try_consume_keyword(Keyword::USING) {
                     self.try_consume_keyword(Keyword::INDEX);
@@ -1554,11 +1559,7 @@ impl Parser {
                             break;
                         }
                     }
-                    using_index = if parts.is_empty() {
-                        None
-                    } else {
-                        Some(parts.join(" "))
-                    };
+                    using_index = Some(parts.join(" "));
                 }
                 if self.match_keyword(Keyword::INCLUDE) {
                     self.advance();
@@ -1574,7 +1575,11 @@ impl Parser {
             }
             Some(Keyword::UNIQUE) => {
                 self.advance();
-                let columns = self.parse_column_list()?;
+                let columns = if self.match_token(&Token::Semicolon) || self.peek().eq(&Token::Eof) {
+                    Vec::new()
+                } else {
+                    self.parse_column_list()?
+                };
                 let mut deferrable = false;
                 if self.try_consume_keyword(Keyword::DEFERRABLE) {
                     deferrable = true;
@@ -1583,10 +1588,61 @@ impl Parser {
                 if self.match_keyword(Keyword::WITH) {
                     with_options = self.parse_generic_options();
                 }
+                let mut using_index = None;
+                if self.try_consume_keyword(Keyword::USING) {
+                    self.try_consume_keyword(Keyword::INDEX);
+                    let index_name = if !matches!(
+                        self.peek_keyword(),
+                        Some(Keyword::PCTFREE) | Some(Keyword::INITRANS) | Some(Keyword::MAXTRANS)
+                    ) && !self.match_keyword(Keyword::STORAGE)
+                        && !self.match_keyword(Keyword::TABLESPACE)
+                    {
+                        self.consume_any_identifier().ok()
+                    } else {
+                        None
+                    };
+                    let mut parts = Vec::new();
+                    if let Some(n) = index_name {
+                        parts.push(n);
+                    }
+                    loop {
+                        if matches!(
+                            self.peek_keyword(),
+                            Some(Keyword::PCTFREE)
+                                | Some(Keyword::INITRANS)
+                                | Some(Keyword::MAXTRANS)
+                        ) {
+                            let key = self.consume_any_identifier()?;
+                            let val = self.consume_any_identifier().unwrap_or_else(|_| match self
+                                .peek()
+                                .clone()
+                            {
+                                Token::Integer(n) => {
+                                    self.advance();
+                                    n.to_string()
+                                }
+                                _ => String::new(),
+                            });
+                            parts.push(format!("{} {}", key, val));
+                        } else if self.match_keyword(Keyword::STORAGE) {
+                            self.advance();
+                            let raw = self.collect_until_balanced_paren();
+                            parts.push(format!("STORAGE ({})", raw));
+                        } else if self.match_keyword(Keyword::TABLESPACE) {
+                            self.advance();
+                            let ts = self.consume_any_identifier().unwrap_or_default();
+                            parts.push(format!("TABLESPACE {}", ts));
+                        } else {
+                            break;
+                        }
+                    }
+                    using_index = Some(parts.join(" "));
+                }
                 Ok(TableConstraint::Unique {
                     columns,
                     deferrable,
                     with_options,
+                    using_index,
                 })
             }
             Some(Keyword::CHECK) => {

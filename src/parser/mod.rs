@@ -76,6 +76,10 @@ impl Parser {
         }
     }
 
+    pub fn set_pl_into_mode(&mut self, enabled: bool) {
+        self.pl_into_mode = enabled;
+    }
+
     pub fn push_scope(&mut self) {
         self.scope_stack.push(HashSet::new());
     }
@@ -443,7 +447,7 @@ impl Parser {
         for i in 1..=7 {
             if let Some(t) = self.tokens.get(pos + i) {
                 if matches!(t.token, Token::Keyword(Keyword::CURSOR)) {
-                    return true;
+                    return i > 1;
                 }
                 if matches!(t.token, Token::Semicolon | Token::Keyword(Keyword::BEGIN_P)) {
                     return false;
@@ -715,6 +719,18 @@ impl Parser {
         }
     }
 
+    fn expect_ident_str(&mut self, target: &str) -> Result<(), ParserError> {
+        if self.try_consume_ident_str(target) {
+            Ok(())
+        } else {
+            Err(ParserError::UnexpectedToken {
+                location: self.current_location(),
+                expected: target.to_string(),
+                got: format!("{:?}", self.peek()),
+            })
+        }
+    }
+
     fn consume_any_identifier(&mut self) -> Result<String, ParserError> {
         match self.peek().clone() {
             Token::Ident(s) | Token::QuotedIdent(s) => {
@@ -810,7 +826,7 @@ impl Parser {
         } else {
             match self.peek() {
                 Token::Ident(_) | Token::QuotedIdent(_) => {
-                    if self.looks_like_alias() {
+                    if self.looks_like_alias() || self.is_bulk_collect_ahead() {
                         Ok(Some(self.parse_identifier()?))
                     } else {
                         Ok(None)
@@ -818,7 +834,7 @@ impl Parser {
                 }
                 Token::Keyword(kw) => {
                     if kw.category() != crate::token::keyword::KeywordCategory::Reserved
-                        && self.looks_like_alias()
+                        && (self.looks_like_alias() || self.is_bulk_collect_ahead())
                     {
                         Ok(Some(self.parse_identifier()?))
                     } else {
@@ -827,6 +843,25 @@ impl Parser {
                 }
                 _ => Ok(None),
             }
+        }
+    }
+
+    fn is_bulk_collect_ahead(&self) -> bool {
+        if self.pos + 1 >= self.tokens.len() {
+            return false;
+        }
+        let bulk_match = match &self.tokens[self.pos + 1].token {
+            Token::Ident(s) => s.eq_ignore_ascii_case("BULK"),
+            Token::Keyword(kw) => kw.as_str().eq_ignore_ascii_case("BULK"),
+            _ => false,
+        };
+        if !bulk_match || self.pos + 2 >= self.tokens.len() {
+            return false;
+        }
+        match &self.tokens[self.pos + 2].token {
+            Token::Ident(s) => s.eq_ignore_ascii_case("COLLECT"),
+            Token::Keyword(kw) => kw.as_str().eq_ignore_ascii_case("COLLECT"),
+            _ => false,
         }
     }
 
@@ -4249,6 +4284,8 @@ impl Parser {
                             | Token::OpGe
                             | Token::OpShiftL
                             | Token::OpShiftR
+                            | Token::OpArrow
+                            | Token::OpJsonArrow
                             | Token::OpNe2
                             | Token::OpDblBang
                             | Token::OpConcat) => {

@@ -154,7 +154,7 @@ impl Parser {
             (false, vec![])
         };
         let targets = self.parse_target_list()?;
-        let (into_targets, into_table) = if self.match_keyword(Keyword::INTO) {
+        let (into_targets, into_table, bulk_collect) = if self.match_keyword(Keyword::INTO) {
             self.advance();
             let unlogged = if self.match_keyword(Keyword::UNLOGGED) {
                 self.advance();
@@ -173,9 +173,10 @@ impl Parser {
                         unlogged,
                         table_name,
                     }),
+                    false,
                 )
             } else if self.pl_into_mode {
-                (Some(self.parse_pl_into_target_list()?), None)
+                (Some(self.parse_pl_into_target_list()?), None, false)
             } else {
                 let save_pos = self.pos;
                 if let Ok(table_name) = self.parse_object_name() {
@@ -186,18 +187,29 @@ impl Parser {
                                 unlogged: false,
                                 table_name,
                             }),
+                            false,
                         )
                     } else {
                         self.pos = save_pos;
-                        (Some(self.parse_target_list()?), None)
+                        (Some(self.parse_target_list()?), None, false)
                     }
                 } else {
                     self.pos = save_pos;
-                    (Some(self.parse_target_list()?), None)
+                    (Some(self.parse_target_list()?), None, false)
                 }
             }
+        } else if self.match_ident_str("bulk") {
+            self.advance();
+            self.expect_ident_str("collect")?;
+            self.expect_keyword(Keyword::INTO)?;
+            let targets = if self.pl_into_mode {
+                self.parse_pl_into_target_list()?
+            } else {
+                self.parse_target_list()?
+            };
+            (Some(targets), None, true)
         } else {
-            (None, None)
+            (None, None, false)
         };
         let from = self.parse_from_clause()?;
         let where_clause = if self.match_keyword(Keyword::WHERE) {
@@ -263,6 +275,7 @@ impl Parser {
             distinct_on,
             targets,
             into_targets,
+            bulk_collect,
             into_table,
             from,
             where_clause,
@@ -676,8 +689,25 @@ impl Parser {
                 args
             };
             self.expect_token(&Token::RParen)?;
-            let alias = self.parse_optional_column_alias()?;
-            let column_defs = if alias.is_some() && self.match_token(&Token::LParen) {
+            let alias = if self.match_keyword(Keyword::AS) {
+                self.advance();
+                Some(self.parse_identifier()?)
+            } else {
+                match self.peek() {
+                    Token::Ident(_) | Token::QuotedIdent(_) => Some(self.parse_identifier()?),
+                    Token::Keyword(kw) => {
+                        if kw.category() != crate::token::keyword::KeywordCategory::Reserved
+                            && !self.is_clause_keyword(kw)
+                        {
+                            Some(self.parse_identifier()?)
+                        } else {
+                            None
+                        }
+                    }
+                    _ => None,
+                }
+            };
+            let column_defs = if self.match_token(&Token::LParen) {
                 self.advance();
                 let mut defs = vec![(
                     self.parse_identifier()?,

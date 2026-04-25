@@ -1453,6 +1453,7 @@ impl Parser {
                 distinct_on: vec![],
                 targets: vec![],
                 into_targets: None,
+                bulk_collect: false,
                 into_table: None,
                 from: vec![TableRef::Values {
                     values: Box::new(values_stmt),
@@ -1880,6 +1881,8 @@ impl Parser {
             | Token::OpGe
             | Token::OpShiftL
             | Token::OpShiftR
+            | Token::OpArrow
+            | Token::OpJsonArrow
             | Token::OpNe2
             | Token::OpDblBang
             | Token::OpConcat) => {

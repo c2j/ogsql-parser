@@ -492,6 +492,14 @@ impl<'a> Tokenizer<'a> {
                     } else {
                         Token::Minus
                     }
+                } else if self.peek() == Some('>') {
+                    self.advance();
+                    if self.peek() == Some('>') {
+                        self.advance();
+                        Token::OpJsonArrow
+                    } else {
+                        Token::OpArrow
+                    }
                 } else {
                     Token::Minus
                 }

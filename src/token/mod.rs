@@ -95,6 +95,8 @@ pub enum Token {
     OpGe,
     /// Right shift >>
     OpShiftR,
+    OpArrow,
+    OpJsonArrow,
     /// Not-equal != (non-ANSI)
     OpNe2,
     /// Double exclamation !! (factorial prefix)
@@ -149,6 +151,8 @@ impl Token {
             Token::OpShiftL => Some("<<"),
             Token::OpGe => Some(">="),
             Token::OpShiftR => Some(">>"),
+            Token::OpArrow => Some("->"),
+            Token::OpJsonArrow => Some("->>"),
             Token::OpNe2 => Some("!="),
             Token::OpDblBang => Some("!!"),
             Token::OpConcat => Some("||"),

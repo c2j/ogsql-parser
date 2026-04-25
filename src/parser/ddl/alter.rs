@@ -170,6 +170,11 @@ impl Parser {
                                 index_name,
                             });
                         }
+                        if self.match_token(&Token::Semicolon) || self.peek().eq(&Token::Eof) {
+                            return Ok(AlterTableAction::AddConstraintIfExists {
+                                name: name.unwrap_or_default(),
+                            });
+                        }
                         let constraint = self.parse_table_constraint()?;
                         Ok(AlterTableAction::AddConstraint { name, constraint })
                     } else {
@@ -252,6 +257,11 @@ impl Parser {
                             return Ok(AlterTableAction::AddConstraintUsingIndex {
                                 name: name.clone().unwrap_or_default(),
                                 index_name,
+                            });
+                        }
+                        if self.match_token(&Token::Semicolon) || self.peek().eq(&Token::Eof) {
+                            return Ok(AlterTableAction::AddConstraintIfExists {
+                                name: name.unwrap_or_default(),
                             });
                         }
                         let constraint = self.parse_table_constraint()?;

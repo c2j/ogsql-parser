@@ -118,6 +118,8 @@ fn token_display(t: &TokenWithSpan) -> (String, String) {
         Token::OpGe => ("Op".into(), ">=".into()),
         Token::OpShiftL => ("Op".into(), "<<".into()),
         Token::OpShiftR => ("Op".into(), ">>".into()),
+        Token::OpArrow => ("Op".into(), "->".into()),
+        Token::OpJsonArrow => ("Op".into(), "->>".into()),
         Token::OpNe2 => ("Op".into(), "!=".into()),
         Token::OpDblBang => ("Op".into(), "!!".into()),
         Token::OpConcat => ("Op".into(), "||".into()),

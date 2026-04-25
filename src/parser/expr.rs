@@ -117,6 +117,7 @@ impl Parser {
                         distinct: false,
                         distinct_on: vec![],
                         into_targets: None,
+                        bulk_collect: false,
                         into_table: None,
                         from: vec![],
                         where_clause: None,
@@ -217,6 +218,8 @@ impl Parser {
             Token::OpGe => Some((20, ">=".to_string(), false)),
             Token::OpShiftL => Some((30, "<<".to_string(), false)),
             Token::OpShiftR => Some((30, ">>".to_string(), false)),
+            Token::OpArrow => Some((60, "->".to_string(), false)),
+            Token::OpJsonArrow => Some((60, "->>".to_string(), false)),
             Token::OpDblBang => Some((60, "!!".to_string(), true)),
             Token::OpConcat => Some((30, "||".to_string(), false)),
             Token::Op(op) => {
@@ -578,6 +581,8 @@ impl Parser {
     }
 
     pub(crate) fn parse_primary_expr(&mut self) -> Result<Expr, ParserError> {
+        // Skip any optimizer hints that appear mid-expression (e.g., expr + /*+ hint */ more_expr)
+        let _ = self.consume_hints();
         match self.peek().clone() {
             Token::Integer(n) => {
                 self.advance();
