@@ -11786,3 +11786,123 @@ $$"#;
     let restored: Vec<Statement> = serde_json::from_str(&json).unwrap();
     assert_eq!(stmts, restored, "JSON round-trip should produce equal AST");
 }
+
+// --- Option C: PL variable resolution in embedded SQL expressions ---
+
+fn extract_update_from_pl(pl: &PlStatement) -> Option<&UpdateStatement> {
+    match pl {
+        PlStatement::SqlStatement { statement, .. } => match statement.as_ref() {
+            Statement::Update(u) => Some(u),
+            _ => None,
+        },
+        _ => None,
+    }
+}
+
+#[test]
+fn test_pl_variable_in_update_where() {
+    let block = parse_do_block(
+        r#"DO $$ DECLARE p_in_accno VARCHAR(100); BEGIN UPDATE dat_dsr_submit_result t SET t.donef = '1' WHERE t.data_key = p_in_accno AND t.donef = '0' AND rownum = 1; END $$"#
+    );
+    let sql_stmt = extract_sql_statement_from_block(&block).expect("should have a SQL statement");
+    let update = extract_update_from_pl(sql_stmt).expect("should have an UPDATE");
+    let where_clause = update.where_clause.as_ref().expect("should have WHERE");
+    // WHERE is: t.data_key = p_in_accno AND t.donef = '0' AND rownum = 1
+    // The top-level is a BinaryOp chain with AND
+    // Walk the tree to find p_in_accno
+    let mut found_p_in_accno = false;
+    let mut found_t_data_key = false;
+    let mut found_rownum = false;
+    fn walk_expr(expr: &Expr, found_var: &mut bool, found_qualified: &mut bool, found_rownum: &mut bool) {
+        match expr {
+            Expr::PlVariable(name) if name == &["p_in_accno"] => *found_var = true,
+            Expr::ColumnRef(name) if name.len() == 2 && name[0] == "t" && name[1] == "data_key" => *found_qualified = true,
+            Expr::ColumnRef(name) if name == &["rownum"] => *found_rownum = true,
+            Expr::BinaryOp { left, right, .. } => {
+                walk_expr(left, found_var, found_qualified, found_rownum);
+                walk_expr(right, found_var, found_qualified, found_rownum);
+            }
+            _ => {}
+        }
+    }
+    walk_expr(where_clause, &mut found_p_in_accno, &mut found_t_data_key, &mut found_rownum);
+    assert!(found_p_in_accno, "p_in_accno should be resolved as PlVariable");
+    assert!(found_t_data_key, "t.data_key should remain as ColumnRef (qualified)");
+    assert!(found_rownum, "rownum should remain as ColumnRef (not in scope)");
+}
+
+#[test]
+fn test_pl_variable_qualified_name_stays_column_ref() {
+    let block = parse_do_block(
+        r#"DO $$ DECLARE t VARCHAR(100); BEGIN SELECT t.col FROM my_table t; END $$"#
+    );
+    let sql_stmt = extract_sql_statement_from_block(&block).expect("should have a SQL statement");
+    let select = extract_select_from_pl(sql_stmt).expect("should have a SELECT");
+    // t.col in SELECT list should be ColumnRef, NOT PlVariable
+    // because qualified names (len > 1) never resolve as PlVariable
+    match &select.targets[0] {
+        SelectTarget::Expr(Expr::ColumnRef(name), _) => {
+            assert_eq!(name, &["t", "col"], "qualified t.col should be ColumnRef");
+        }
+        other => panic!("expected ColumnRef for t.col, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_pl_variable_in_if_condition() {
+    let block = parse_do_block(
+        r#"DO $$ DECLARE v_count INTEGER; BEGIN IF v_count > 0 THEN UPDATE t SET x = 1; END IF; END $$"#
+    );
+    // v_count in IF condition should be PlVariable
+    let if_stmt = match &block.body[0] {
+        PlStatement::If(if_stmt) => if_stmt,
+        other => panic!("expected IF statement, got {:?}", other),
+    };
+    match &if_stmt.condition {
+        Expr::BinaryOp { left, .. } => match left.as_ref() {
+            Expr::PlVariable(name) => assert_eq!(name, &["v_count"]),
+            other => panic!("expected PlVariable for v_count in IF condition, got {:?}", other),
+        },
+        other => panic!("expected BinaryOp for v_count > 0, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_pl_variable_in_assignment_rhs() {
+    let block = parse_do_block(
+        r#"DO $$ DECLARE v_src INTEGER; v_dst INTEGER; BEGIN v_dst := v_src; END $$"#
+    );
+    // v_src on assignment RHS should be PlVariable
+    let assignment = match &block.body[0] {
+        PlStatement::Assignment { target, expression } => {
+            assert_eq!(target, "v_dst");
+            expression
+        }
+        other => panic!("expected Assignment, got {:?}", other),
+    };
+    match assignment {
+        Expr::PlVariable(name) => assert_eq!(name, &["v_src"]),
+        other => panic!("expected PlVariable for v_src on RHS, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_pl_variable_top_level_sql_unchanged() {
+    // Top-level SQL (no PL context) should never produce PlVariable
+    let tokens = Tokenizer::new("UPDATE t SET x = v_name WHERE id = p_id").tokenize().unwrap();
+    let stmts = Parser::new(tokens).parse();
+    let update = match &stmts[0] {
+        Statement::Update(u) => u,
+        _ => panic!("expected UPDATE"),
+    };
+    let where_clause = update.where_clause.as_ref().expect("should have WHERE");
+    // p_id should be ColumnRef (no PL scope)
+    fn has_pl_variable(expr: &Expr) -> bool {
+        match expr {
+            Expr::PlVariable(_) => true,
+            Expr::BinaryOp { left, right, .. } => has_pl_variable(left) || has_pl_variable(right),
+            _ => false,
+        }
+    }
+    assert!(!has_pl_variable(where_clause), "top-level SQL should have no PlVariable");
+}

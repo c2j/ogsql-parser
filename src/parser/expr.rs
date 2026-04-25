@@ -1046,7 +1046,12 @@ impl Parser {
                 if self.match_token(&Token::LParen) {
                     return self.parse_function_call(name);
                 }
-                Ok(Expr::ColumnRef(name))
+                // PL context: resolve single-part names against scope stack
+                if !self.scope_stack.is_empty() && name.len() == 1 && self.is_var_declared(&name[0]) {
+                    Ok(Expr::PlVariable(name))
+                } else {
+                    Ok(Expr::ColumnRef(name))
+                }
             }
             Token::SetIdent(s) => {
                 self.advance();
@@ -1137,6 +1142,9 @@ impl Parser {
                 }
                 return self.parse_function_call(obj_name);
             }
+            if !self.scope_stack.is_empty() && obj_name.len() == 1 && self.is_var_declared(&obj_name[0]) {
+                return Ok(Expr::PlVariable(obj_name));
+            }
             return Ok(Expr::ColumnRef(obj_name));
         }
         let name = vec![first];
@@ -1167,7 +1175,11 @@ impl Parser {
             }
             return self.parse_function_call(name);
         }
-        Ok(Expr::ColumnRef(name))
+        if !self.scope_stack.is_empty() && self.is_var_declared(&name[0]) {
+            Ok(Expr::PlVariable(name))
+        } else {
+            Ok(Expr::ColumnRef(name))
+        }
     }
 
     fn validate_function_args(
