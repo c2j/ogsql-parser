@@ -115,7 +115,10 @@ pub fn walk_pl_statement(visitor: &mut dyn Visitor, stmt: &crate::ast::plpgsql::
                 crate::ast::plpgsql::PlStatement::Block(block) => {
                     walk_pl_block(visitor, block)
                 }
-                crate::ast::plpgsql::PlStatement::Assignment { expression, .. } => {
+                crate::ast::plpgsql::PlStatement::Assignment { target, expression } => {
+                    if walk_expr(visitor, target) == VisitorResult::Stop {
+                        return VisitorResult::Stop;
+                    }
                     walk_expr(visitor, expression)
                 }
                 crate::ast::plpgsql::PlStatement::If(if_stmt) => {
@@ -213,7 +216,10 @@ pub fn walk_pl_statement(visitor: &mut dyn Visitor, stmt: &crate::ast::plpgsql::
                                 }
                             }
                         }
-                        crate::ast::plpgsql::PlForKind::Cursor { arguments, .. } => {
+                        crate::ast::plpgsql::PlForKind::Cursor { cursor_name, arguments } => {
+                            if walk_expr(visitor, cursor_name) == VisitorResult::Stop {
+                                return VisitorResult::Stop;
+                            }
                             for arg in arguments {
                                 if walk_expr(visitor, arg) == VisitorResult::Stop {
                                     return VisitorResult::Stop;
@@ -1330,7 +1336,7 @@ mod visitor_tests {
             ],
             body: vec![
                 PlStatement::Assignment {
-                    target: "x".to_string(),
+                    target: Expr::ColumnRef(crate::ast::ObjectName::from(vec!["x".to_string()])),
                     expression: Expr::Literal(crate::ast::Literal::Integer(1)),
                 },
             ],
@@ -1352,7 +1358,7 @@ mod visitor_tests {
         assert_eq!(visitor.pl_declarations, 1);
         assert_eq!(visitor.pl_statements, 2);
         assert_eq!(visitor.pl_exception_handlers, 1);
-        assert_eq!(visitor.exprs.len(), 2);
+        assert_eq!(visitor.exprs.len(), 3);
     }
 
     #[test]
@@ -1924,7 +1930,7 @@ mod visitor_tests {
     }
 
     #[test]
-    fn test_perform_bare_func_call_has_parsed_query() {
+    fn test_perform_bare_func_call_has_parsed_expr() {
         let sql = "DO $$ BEGIN PERFORM pkg_audit.log_transfer(1, 2); END $$";
         let stmt = parse_single(sql);
 
@@ -1932,26 +1938,22 @@ mod visitor_tests {
             Statement::Do(DoStatement { block: Some(b), .. }) => b,
             _ => panic!("Expected DO statement with block"),
         };
-        let perform = match &block.body[0] {
-            PlStatement::Perform { parsed_query, .. } => parsed_query,
+        let (parsed_query, parsed_expr) = match &block.body[0] {
+            PlStatement::Perform { parsed_query, parsed_expr, .. } => (parsed_query, parsed_expr),
             _ => panic!("Expected Perform statement"),
         };
-        assert!(perform.is_some(), "PERFORM func(args) should have parsed_query, got None");
+        assert!(parsed_expr.is_some(), "PERFORM func(args) should have parsed_expr, got None");
+        assert!(parsed_query.is_none(), "PERFORM func(args) should not have parsed_query");
     }
 
     #[test]
-    fn test_visit_table_ref_in_perform_bare_func() {
+    fn test_visit_expr_in_perform_bare_func() {
         let sql = "DO $$ BEGIN PERFORM pkg_audit.log_transfer(1, 2); END $$";
         let stmt = parse_single(sql);
 
         let mut visitor = TestVisitor::default();
         walk_statement(&mut visitor, &stmt);
 
-        let func_exprs: Vec<String> = visitor.exprs.iter()
-            .filter(|_| true)
-            .cloned()
-            .collect();
-        assert!(visitor.selects >= 1, "PERFORM func(args) should produce at least one SELECT visit, got {}", visitor.selects);
         assert!(visitor.exprs.len() >= 2, "PERFORM func(args) should visit the function args as expressions, got {} exprs", visitor.exprs.len());
     }
 }

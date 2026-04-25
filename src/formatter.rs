@@ -4704,7 +4704,7 @@ impl SqlFormatter {
         match stmt {
             PlStatement::Block(b) => format!("{};", self.format_pl_block(b)),
             PlStatement::Assignment { target, expression } => {
-                format!("{} := {};", target, self.format_expr(expression))
+                format!("{} := {};", self.format_expr(target), self.format_expr(expression))
             }
             PlStatement::Null => format!("{};", self.kw("NULL")),
             PlStatement::If(i) => self.format_pl_if(i),
@@ -4888,7 +4888,7 @@ impl SqlFormatter {
                 s.push_str(
                     &g.items
                         .iter()
-                        .map(|i| format!("{} = {}", i.target, i.item))
+                        .map(|i| format!("{} = {}", self.format_expr(&i.target), i.item))
                         .collect::<Vec<_>>()
                         .join(", "),
                 );
@@ -5092,7 +5092,7 @@ impl SqlFormatter {
                 cursor_name,
                 arguments,
             } => {
-                s.push_str(cursor_name);
+                s.push_str(&self.format_expr(cursor_name));
                 if !arguments.is_empty() {
                     let args: Vec<String> = arguments.iter().map(|a| self.format_expr(a)).collect();
                     s.push_str(&format!("({})", args.join(", ")));

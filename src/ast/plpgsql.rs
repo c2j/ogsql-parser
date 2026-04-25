@@ -124,7 +124,7 @@ pub enum PlStatement {
 
     /// Assignment: target := expr
     Assignment {
-        target: String,
+        target: crate::ast::Expr,
         expression: crate::ast::Expr,
     },
 
@@ -322,7 +322,7 @@ pub enum PlForKind {
     },
     /// FOR rec IN cursor_name [([args])] LOOP
     Cursor {
-        cursor_name: String,
+        cursor_name: crate::ast::Expr,
         arguments: Vec<crate::ast::Expr>,
     },
 }
@@ -529,7 +529,7 @@ pub struct PlGetDiagStmt {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct PlGetDiagItem {
-    pub target: String,
+    pub target: crate::ast::Expr,
     pub item: GetDiagItemKind,
 }
 

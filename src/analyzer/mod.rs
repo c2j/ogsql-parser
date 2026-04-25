@@ -155,15 +155,21 @@ impl DynamicSqlAnalyzer {
     fn process_statement(&mut self, stmt: &PlStatement) {
         match stmt {
             PlStatement::Assignment { target, expression } => {
+                let target_name = match target {
+                    Expr::PlVariable(n) | Expr::ColumnRef(n) => {
+                        n.last().cloned().unwrap_or_default()
+                    }
+                    _ => String::new(),
+                };
                 let state = self.evaluate_expr(expression);
                 if let Some(ref value) = state.known_value {
                     self.traces.push(VariableTrace {
-                        variable_name: target.clone(),
+                        variable_name: target_name.clone(),
                         assignment_path: self.path.clone(),
                         value: value.clone(),
                     });
                 }
-                self.set_var(target, state);
+                self.set_var(&target_name, state);
             }
 
             PlStatement::Execute(exec) => {

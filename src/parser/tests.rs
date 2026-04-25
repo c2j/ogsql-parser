@@ -118,7 +118,7 @@ fn test_plpgsql_assignment() {
     assert_eq!(block.body.len(), 1);
     match &block.body[0] {
         PlStatement::Assignment { target, expression } => {
-            assert_eq!(target, "x");
+            assert!(matches!(target, Expr::ColumnRef(n) if n == &["x"]), "expected ColumnRef for x, got {:?}", target);
             assert!(matches!(expression, Expr::Literal(Literal::Integer(1))));
         }
         _ => panic!("expected Assignment"),
@@ -503,8 +503,9 @@ fn test_plpgsql_raise_format_params() {
     match &block.body[0] {
         PlStatement::Raise(r) => {
             assert!(matches!(r.level, Some(RaiseLevel::Notice)));
-            assert_eq!(r.message.as_deref(), Some("'Hello %' , name"));
-            assert_eq!(r.params.len(), 0);
+            assert!(r.message.as_deref().unwrap().contains("Hello"), "message should contain format string, got {:?}", r.message);
+            assert_eq!(r.params.len(), 1, "expected 1 param, got {:?}", r.params);
+            assert!(matches!(&r.params[0], Expr::ColumnRef(n) if n == &["name"]), "expected ColumnRef for name, got {:?}", r.params[0]);
         }
         _ => panic!("expected Raise"),
     }
@@ -516,8 +517,8 @@ fn test_plpgsql_raise_using_errcode() {
     match &block.body[0] {
         PlStatement::Raise(r) => {
             assert!(matches!(r.level, Some(RaiseLevel::Exception)));
-            assert_eq!(r.message.as_deref(), Some("using ERRCODE = '12345'"));
-            assert_eq!(r.options.len(), 0);
+            assert_eq!(r.options.len(), 1, "expected 1 option, got {:?}", r.options);
+            assert_eq!(r.options[0].name.to_uppercase(), "ERRCODE");
         }
         _ => panic!("expected Raise"),
     }
@@ -529,8 +530,9 @@ fn test_plpgsql_raise_condition_name() {
     match &block.body[0] {
         PlStatement::Raise(r) => {
             assert!(r.level.is_none());
-            assert_eq!(r.message.as_deref(), Some("division_by_zero"));
-            assert!(r.condname.is_none());
+            assert!(r.condname.is_some(), "expected condname to be set");
+            assert_eq!(r.condname.as_deref(), Some("division_by_zero"));
+            assert!(r.message.is_none());
         }
         _ => panic!("expected Raise"),
     }
@@ -929,7 +931,7 @@ fn test_plpgsql_get_diagnostics() {
         PlStatement::GetDiagnostics(g) => {
             assert!(!g.stacked);
             assert_eq!(g.items.len(), 1);
-            assert_eq!(g.items[0].target, "x");
+            assert!(matches!(&g.items[0].target, Expr::ColumnRef(n) if n == &["x"]));
             assert!(matches!(
                 g.items[0].item,
                 plpgsql::GetDiagItemKind::RowCount
@@ -4259,7 +4261,7 @@ fn test_plpgsql_get_diagnostics_message_text() {
         PlStatement::GetDiagnostics(g) => {
             assert!(!g.stacked);
             assert_eq!(g.items.len(), 1);
-            assert_eq!(g.items[0].target, "msg");
+            assert!(matches!(&g.items[0].target, Expr::ColumnRef(n) if n == &["msg"]));
             assert!(matches!(
                 g.items[0].item,
                 plpgsql::GetDiagItemKind::MessageText
@@ -11985,7 +11987,7 @@ fn test_pl_variable_in_assignment_rhs() {
     // v_src on assignment RHS should be PlVariable
     let assignment = match &block.body[0] {
         PlStatement::Assignment { target, expression } => {
-            assert_eq!(target, "v_dst");
+            assert!(matches!(target, Expr::PlVariable(n) if n == &["v_dst"]), "expected PlVariable for v_dst, got {:?}", target);
             expression
         }
         other => panic!("expected Assignment, got {:?}", other),

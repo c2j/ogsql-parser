@@ -1,5 +1,5 @@
 use crate::ast::plpgsql::{FetchDirection, GetDiagItemKind, *};
-use crate::ast::{Expr, Literal, SelectStatement, SelectTarget, Statement};
+use crate::ast::{Expr, Literal, ObjectName, SelectStatement, SelectTarget, Statement};
 use crate::parser::{Parser, ParserError};
 use crate::token::keyword::Keyword;
 use crate::token::Token;
@@ -955,10 +955,14 @@ impl Parser {
                 self.advance();
                 let expression = self.parse_expr()?;
                 self.try_consume_semicolon();
-                return Ok(PlStatement::Assignment {
-                    target: name,
-                    expression,
-                });
+                let target = if !self.scope_stack.is_empty()
+                    && self.is_var_declared(&name.to_lowercase())
+                {
+                    Expr::PlVariable(ObjectName::from(vec![name]))
+                } else {
+                    Expr::ColumnRef(ObjectName::from(vec![name]))
+                };
+                return Ok(PlStatement::Assignment { target, expression });
             }
             self.pos = save;
         }
@@ -1197,8 +1201,15 @@ impl Parser {
                     }
                     self.expect_token(&Token::RParen)?;
                 }
+                let cursor_name = if !self.scope_stack.is_empty()
+                    && self.is_var_declared(&name.to_lowercase())
+                {
+                    Expr::PlVariable(ObjectName::from(vec![name]))
+                } else {
+                    Expr::ColumnRef(ObjectName::from(vec![name]))
+                };
                 return Ok(PlForKind::Cursor {
-                    cursor_name: name,
+                    cursor_name,
                     arguments,
                 });
             }
@@ -1399,6 +1410,7 @@ impl Parser {
     fn parse_pl_raise(&mut self) -> Result<PlStatement, ParserError> {
         self.advance();
 
+        // Form 1: RAISE; (re-raise in exception handler)
         if matches!(self.peek(), Token::Semicolon) {
             self.advance();
             return Ok(PlStatement::Raise(PlRaiseStmt {
@@ -1431,6 +1443,7 @@ impl Parser {
             self.advance();
         }
 
+        // Form 2: RAISE level; (level-only raise)
         if matches!(self.peek(), Token::Semicolon) && level.is_some() {
             self.advance();
             return Ok(PlStatement::Raise(PlRaiseStmt {
@@ -1443,17 +1456,91 @@ impl Parser {
             }));
         }
 
-        let message = Some(self.skip_to_semicolon_or_keyword());
+        // Form 3: RAISE condition_name; (condition name without level)
+        if level.is_none() {
+            let save_pos = self.pos;
+            if let Ok(name) = self.parse_identifier() {
+                if matches!(self.peek(), Token::Semicolon) {
+                    self.try_consume_semicolon();
+                    return Ok(PlStatement::Raise(PlRaiseStmt {
+                        level: None,
+                        message: None,
+                        params: Vec::new(),
+                        options: Vec::new(),
+                        condname: Some(name),
+                        sqlstate: None,
+                    }));
+                }
+            }
+            self.pos = save_pos;
+        }
+
+        // Form 4: RAISE [level] USING option = expr, ...
+        if self.match_ident_str("using") {
+            self.advance();
+            let options = self.parse_raise_options()?;
+            self.try_consume_semicolon();
+            return Ok(PlStatement::Raise(PlRaiseStmt {
+                level,
+                message: None,
+                params: Vec::new(),
+                options,
+                condname: None,
+                sqlstate: None,
+            }));
+        }
+
+        // Form 5: RAISE [level] 'format', param1, param2 [USING option = expr, ...]
+        let msg_start = self.pos;
+        let _msg_expr = self.parse_expr()?;
+        let message = self.tokens_to_raw_string(msg_start, self.pos);
+
+        let mut params = Vec::new();
+        while self.match_token(&Token::Comma) {
+            self.advance();
+            if self.match_ident_str("using") {
+                self.advance();
+                break;
+            }
+            params.push(self.parse_expr()?);
+        }
+
+        let options = if self.match_ident_str("using") {
+            self.advance();
+            self.parse_raise_options()?
+        } else {
+            Vec::new()
+        };
+
         self.try_consume_semicolon();
 
         Ok(PlStatement::Raise(PlRaiseStmt {
             level,
-            message,
-            options: Vec::new(),
-            params: Vec::new(),
+            message: Some(message),
+            params,
+            options,
             condname: None,
             sqlstate: None,
         }))
+    }
+
+    fn parse_raise_options(&mut self) -> Result<Vec<RaiseOption>, ParserError> {
+        let mut options = Vec::new();
+        loop {
+            let opt_name = self.parse_identifier()?;
+            self.expect_token(&Token::Eq)?;
+            let opt_value = self.parse_expr()?;
+            options.push(RaiseOption {
+                name: opt_name,
+                value: opt_value,
+            });
+            if self.match_token(&Token::Comma) {
+                self.advance();
+            } else {
+                break;
+            }
+        }
+        Ok(options)
     }
 
     fn parse_pl_execute(&mut self) -> Result<PlStatement, ParserError> {
@@ -1819,7 +1906,14 @@ impl Parser {
 
         let mut items = Vec::new();
         loop {
-            let target = self.parse_identifier()?;
+            let target_name = self.parse_identifier()?;
+            let target = if !self.scope_stack.is_empty()
+                && self.is_var_declared(&target_name.to_lowercase())
+            {
+                Expr::PlVariable(ObjectName::from(vec![target_name]))
+            } else {
+                Expr::ColumnRef(ObjectName::from(vec![target_name]))
+            };
             self.expect_token(&Token::Eq)?;
             let item_str = self.parse_identifier()?;
             let item = match item_str.to_uppercase().as_str() {
