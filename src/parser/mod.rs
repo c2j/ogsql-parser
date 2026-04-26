@@ -277,8 +277,23 @@ impl Parser {
                     let source_len = self.source.len();
                     let byte_start = start_span.start.min(source_len);
                     let byte_end = end_span.end.min(source_len);
-                    let sql_text = if byte_start < byte_end {
-                        self.source[byte_start..byte_end].trim().to_string()
+
+                    // Only populate sql_text for top-level DML statements.
+                    // For DDL/package bodies the full source text is not useful
+                    // (inner PlStatement::SqlStatement already captures per-DML text).
+                    let sql_text = if matches!(
+                        stmt,
+                        crate::ast::Statement::Select(_)
+                            | crate::ast::Statement::Insert(_)
+                            | crate::ast::Statement::Update(_)
+                            | crate::ast::Statement::Delete(_)
+                            | crate::ast::Statement::Merge(_)
+                    ) {
+                        if byte_start < byte_end {
+                            self.source[byte_start..byte_end].trim().to_string()
+                        } else {
+                            String::new()
+                        }
                     } else {
                         String::new()
                     };
