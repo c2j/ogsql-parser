@@ -138,30 +138,21 @@ struct TokenInfo {
 
 fn cmd_format(cli: &Cli) {
     let sql = read_input(cli.file.as_deref());
-    let (stmts, errors) = parse_input(&sql);
-
-    let formatter = SqlFormatter::new();
-    let formatted: Vec<String> = stmts
-        .iter()
-        .map(|si| formatter.format_statement(&si.statement))
-        .collect();
+    let tokens = match Tokenizer::new(&sql).preserve_comments(true).tokenize() {
+        Ok(t) => t,
+        Err(e) => die!("Tokenization error: {}", e),
+    };
+    let formatted = token_formatter::TokenFormatter::new(&sql, tokens).format();
 
     if cli.json {
         let out = serde_json::json!({
-            "statements": formatted,
-            "error_count": errors.len(),
-            "errors": errors,
+            "formatted": formatted,
         });
         println!("{}", serde_json::to_string_pretty(&out).unwrap());
     } else {
-        if !errors.is_empty() {
-            for e in &errors {
-                eprintln!("error: {}", e);
-            }
-        }
-        if !formatted.is_empty() {
-            println!("{}", formatted.join(";\n"));
-            println!(";");
+        println!("{}", formatted);
+        if !formatted.ends_with('\n') {
+            println!();
         }
     }
 }

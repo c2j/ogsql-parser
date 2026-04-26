@@ -4550,6 +4550,14 @@ impl SqlFormatter {
     }
 
     fn format_pl_block(&self, block: &crate::ast::plpgsql::PlBlock, indent: usize) -> String {
+        self.format_pl_block_inner(block, indent, false)
+    }
+
+    fn format_pl_block_named(&self, block: &crate::ast::plpgsql::PlBlock, indent: usize) -> String {
+        self.format_pl_block_inner(block, indent, true)
+    }
+
+    fn format_pl_block_inner(&self, block: &crate::ast::plpgsql::PlBlock, indent: usize, named: bool) -> String {
         let mut s = String::new();
 
         if let Some(ref label) = block.label {
@@ -4557,9 +4565,11 @@ impl SqlFormatter {
         }
 
         if !block.declarations.is_empty() {
-            s.push('\n');
-            s.push_str(&Self::pad(indent));
-            s.push_str(&self.kw("DECLARE"));
+            if !named {
+                s.push('\n');
+                s.push_str(&Self::pad(indent));
+                s.push_str(&self.kw("DECLARE"));
+            }
             for decl in &block.declarations {
                 s.push('\n');
                 s.push_str(&Self::pad(indent + 1));
@@ -6466,9 +6476,9 @@ impl SqlFormatter {
         }
         if let Some(block) = &stmt.block {
             s.push_str(&format!(
-                " {} $$ {} $$",
+                " {} {}",
                 self.kw("AS"),
-                self.format_pl_block(block, 0)
+                self.format_pl_block_named(block, 0)
             ));
         }
         let opts_str = self.format_function_options(&stmt.options);
@@ -6496,9 +6506,9 @@ impl SqlFormatter {
         s.push_str(&format!("({})", params.join(", ")));
         if let Some(block) = &stmt.block {
             s.push_str(&format!(
-                " {} $$ {} $$",
+                " {} {}",
                 self.kw("AS"),
-                self.format_pl_block(block, 0)
+                self.format_pl_block_named(block, 0)
             ));
         }
         let opts_str = self.format_function_options(&stmt.options);
@@ -6645,7 +6655,8 @@ impl SqlFormatter {
             s.push_str(&format!("({})", params.join(", ")));
         }
         if let Some(ref block) = proc.block {
-            s.push_str(&format!(" {} {}", self.kw("IS"), self.format_pl_block(block, indent)));
+            s.push_str(&format!(" {} {}", self.kw("IS"), self.format_pl_block_named(block, indent)));
+            s.push(';');
         } else {
             s.push(';');
         }
@@ -6670,7 +6681,8 @@ impl SqlFormatter {
             s.push_str(&format!(" {} {}", self.kw("RETURN"), rt));
         }
         if let Some(ref block) = func.block {
-            s.push_str(&format!(" {} {}", self.kw("IS"), self.format_pl_block(block, indent)));
+            s.push_str(&format!(" {} {}", self.kw("IS"), self.format_pl_block_named(block, indent)));
+            s.push(';');
         } else {
             s.push(';');
         }
