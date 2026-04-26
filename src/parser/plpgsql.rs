@@ -224,6 +224,10 @@ impl Parser {
 
         if matches!(self.peek(), Token::Percent) {
             self.advance();
+            if self.match_ident_str("rowtype") {
+                self.advance();
+                return Ok(PlDataType::PercentRowType(name));
+            }
             if self.match_ident_str("type") {
                 self.advance();
             }

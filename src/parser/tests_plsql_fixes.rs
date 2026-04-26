@@ -263,3 +263,44 @@ END;"#;
         other => panic!("expected CreateProcedure, got {:?}", other),
     }
 }
+
+#[test]
+fn test_percent_rowtype_in_inner_block() {
+    // %ROWTYPE was previously not handled in parse_pl_data_type, causing
+    // ROWTYPE_P keyword to remain unconsumed and cascade parse failures
+    let sql = r#"CREATE OR REPLACE PROCEDURE test_proc IS
+BEGIN
+  DECLARE
+    CURSOR c IS SELECT id, name FROM t;
+    r c%ROWTYPE;
+    w NUMBER;
+  BEGIN
+    SELECT COUNT(1) INTO w FROM t;
+  END;
+END;"#;
+    let stmt = parse_one(sql);
+    match stmt {
+        Statement::CreateProcedure(p) => {
+            let block = p.block.as_ref().expect("procedure should have a body");
+            assert_eq!(block.body.len(), 1);
+            match &block.body[0] {
+                PlStatement::Block(inner) => {
+                    assert_eq!(inner.declarations.len(), 3);
+                    match &inner.declarations[1] {
+                        PlDeclaration::Variable(v) => {
+                            assert_eq!(v.name, "r");
+                            assert!(
+                                matches!(v.data_type, PlDataType::PercentRowType(ref t) if t == "c"),
+                                "expected PercentRowType(\"c\"), got {:?}",
+                                v.data_type
+                            );
+                        }
+                        other => panic!("expected Variable, got {:?}", other),
+                    }
+                }
+                other => panic!("expected Block, got {:?}", other),
+            }
+        }
+        other => panic!("expected CreateProcedure, got {:?}", other),
+    }
+}
