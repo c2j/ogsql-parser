@@ -1805,6 +1805,15 @@ impl Parser {
         };
 
         let cursor = self.parse_expr()?;
+
+        let bulk_collect = if self.match_ident_str("bulk") {
+            self.advance();
+            self.expect_ident_str("collect")?;
+            true
+        } else {
+            false
+        };
+
         self.expect_ident_str("into")?;
         let into = self.parse_expr()?;
         self.try_consume_semicolon();
@@ -1812,6 +1821,7 @@ impl Parser {
         Ok(PlStatement::Fetch(PlFetchStmt {
             cursor,
             direction,
+            bulk_collect,
             into,
         }))
     }

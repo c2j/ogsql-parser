@@ -4948,8 +4948,14 @@ impl SqlFormatter {
                     s.push_str(&format!(" {} ", dir));
                 }
                 s.push_str(&format!(
-                    "{} {} {};",
-                    self.format_expr(&f.cursor),
+                    "{}",
+                    self.format_expr(&f.cursor)
+                ));
+                if f.bulk_collect {
+                    s.push_str(&format!(" {} {}", self.kw("BULK"), self.kw("COLLECT")));
+                }
+                s.push_str(&format!(
+                    " {} {};",
                     self.kw("INTO"),
                     self.format_expr(&f.into)
                 ));

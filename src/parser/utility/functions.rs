@@ -690,8 +690,30 @@ impl Parser {
                         self.advance();
                     } else {
                         self.advance();
-                        while matches!(self.peek(), Token::Ident(_) | Token::Keyword(_)) {
+                        // END IF / END LOOP / END CASE — compound ends, skip them
+                        if self.match_keyword(Keyword::IF_P)
+                            || self.match_keyword(Keyword::LOOP)
+                            || self.match_keyword(Keyword::CASE)
+                        {
                             self.advance();
+                            continue;
+                        }
+                        // END followed by ident and then semicolon/EOF = final END pkg_name;
+                        // END followed by comma or other = CASE alias or similar, keep going
+                        if matches!(self.peek(), Token::Ident(_) | Token::Keyword(_)) {
+                            // Peek further: if the token after the ident is ; or EOF, this is END package_name
+                            let after_name = self.tokens.get(self.pos + 1);
+                            if after_name.is_none()
+                                || matches!(after_name.map(|t| &t.token), Some(Token::Semicolon) | Some(Token::Slash))
+                            {
+                                while matches!(self.peek(), Token::Ident(_) | Token::Keyword(_)) {
+                                    self.advance();
+                                }
+                                break;
+                            }
+                            // Otherwise it's something like END check_type, — skip ident and continue
+                            self.advance();
+                            continue;
                         }
                         break;
                     }

@@ -304,3 +304,79 @@ END;"#;
         other => panic!("expected CreateProcedure, got {:?}", other),
     }
 }
+
+#[test]
+fn test_fetch_bulk_collect_into() {
+    let sql = r#"CREATE OR REPLACE PROCEDURE test_proc IS
+  v_cur SYS_REFCURSOR;
+  v_list VARCHAR2_ARRAY;
+BEGIN
+  OPEN v_cur FOR 'SELECT id FROM t';
+  FETCH v_cur BULK COLLECT INTO v_list;
+  CLOSE v_cur;
+END;"#;
+    let stmt = parse_one(sql);
+    match stmt {
+        Statement::CreateProcedure(p) => {
+            let block = p.block.as_ref().expect("procedure should have a body");
+            match &block.body[1] {
+                PlStatement::Fetch(f) => {
+                    assert!(f.bulk_collect, "expected bulk_collect = true");
+                }
+                other => panic!("expected Fetch, got {:?}", other),
+            }
+        }
+        other => panic!("expected CreateProcedure, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_fetch_bulk_collect_into_multiple_targets() {
+    let sql = r#"CREATE OR REPLACE PROCEDURE test_proc IS
+  v_cur SYS_REFCURSOR;
+  v_ids VARCHAR2_ARRAY;
+  v_names VARCHAR2_ARRAY;
+BEGIN
+  OPEN v_cur FOR 'SELECT id, name FROM t';
+  FETCH v_cur BULK COLLECT INTO v_ids, v_names;
+  CLOSE v_cur;
+END;"#;
+    let stmts = parse(sql);
+    assert_eq!(stmts.len(), 1, "should parse one statement");
+}
+
+#[test]
+fn test_execute_immediate_after_bulk_collect() {
+    let sql = r#"CREATE OR REPLACE PROCEDURE test_proc IS
+  v_sql VARCHAR2(4000);
+BEGIN
+  v_sql := 'UPDATE t SET x = 1';
+  EXECUTE IMMEDIATE v_sql;
+END;"#;
+    let stmt = parse_one(sql);
+    match stmt {
+        Statement::CreateProcedure(p) => {
+            let block = p.block.as_ref().expect("procedure should have a body");
+            match &block.body[1] {
+                PlStatement::Execute(e) => {
+                    assert!(e.immediate, "expected immediate = true");
+                }
+                other => panic!("expected Execute, got {:?}", other),
+            }
+        }
+        other => panic!("expected CreateProcedure, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_case_alias_in_package_spec_cursor() {
+    let sql = r#"CREATE OR REPLACE PACKAGE test_pkg IS
+  CURSOR c_test IS
+    SELECT xwdm,
+           CASE WHEN v = 1 THEN 'A' ELSE 'B' END check_type,
+           '' account_date
+    FROM t1;
+END test_pkg;"#;
+    let stmts = parse(sql);
+    assert_eq!(stmts.len(), 1, "should parse one statement");
+}
