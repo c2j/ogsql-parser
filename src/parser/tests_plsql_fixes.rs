@@ -239,3 +239,27 @@ END;"#;
     let stmts = parse(sql);
     assert_eq!(stmts.len(), 1, "should parse one statement");
 }
+
+#[test]
+fn test_unreserved_keyword_as_variable_name() {
+    // RESULT is an unreserved keyword in openGauss/GaussDB and can be used as a variable name
+    let sql = r#"CREATE OR REPLACE PROCEDURE test_proc IS
+  result INTEGER;
+BEGIN
+  result := 1;
+END;"#;
+    let stmt = parse_one(sql);
+    match stmt {
+        Statement::CreateProcedure(p) => {
+            let block = p.block.as_ref().expect("procedure should have a body");
+            assert_eq!(block.declarations.len(), 1);
+            match &block.declarations[0] {
+                PlDeclaration::Variable(v) => {
+                    assert_eq!(v.name, "result");
+                }
+                other => panic!("expected Var, got {:?}", other),
+            }
+        }
+        other => panic!("expected CreateProcedure, got {:?}", other),
+    }
+}
