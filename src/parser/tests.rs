@@ -72,6 +72,36 @@ fn test_plpgsql_do_multiple_statements() {
 // --- Declarations ---
 
 #[test]
+fn test_type_ref_cursor_decl() {
+    let sql = "CREATE OR REPLACE PROCEDURE test_proc IS\n\
+        TYPE t_refcur IS REF CURSOR;\n\
+        v_cur t_refcur;\n\
+    BEGIN\n\
+        NULL;\n\
+    END;";
+    let stmt = parse_one(sql);
+    match stmt {
+        Statement::CreateProcedure(p) => {
+            let block = p.block.as_ref().expect("procedure should have a body");
+            assert_eq!(block.declarations.len(), 2);
+            match &block.declarations[0] {
+                PlDeclaration::Type(PlTypeDecl::RefCursor { name }) => {
+                    assert_eq!(name, "t_refcur");
+                }
+                other => panic!("expected RefCursor type declaration, got {:?}", other),
+            }
+            match &block.declarations[1] {
+                PlDeclaration::Variable(v) => {
+                    assert_eq!(v.name, "v_cur");
+                }
+                other => panic!("expected variable declaration, got {:?}", other),
+            }
+        }
+        _ => panic!("expected CreateProcedure, got {:?}", stmt),
+    }
+}
+
+#[test]
 fn test_plpgsql_variable_declarations() {
     let block = parse_do_block("DO $$ DECLARE x INTEGER; BEGIN NULL; END $$");
     assert_eq!(block.declarations.len(), 1);
@@ -183,6 +213,100 @@ fn test_plpgsql_nested_if() {
         }
         _ => panic!("expected If"),
     }
+}
+
+#[test]
+fn test_plpgsql_sequential_ifs() {
+    let block = parse_do_block(
+        "DO $$ BEGIN IF a = 1 THEN v := 'one'; END IF; IF a = 2 THEN v := 'two'; END IF; IF a = 3 THEN v := 'three'; END IF; END $$",
+    );
+    assert_eq!(block.body.len(), 3);
+    for (i, stmt) in block.body.iter().enumerate() {
+        match stmt {
+            PlStatement::If(if_stmt) => {
+                assert_eq!(if_stmt.then_stmts.len(), 1);
+                assert!(if_stmt.elsifs.is_empty());
+                assert!(if_stmt.else_stmts.is_empty());
+            }
+            _ => panic!("expected If at index {}, got {:?}", i, stmt),
+        }
+    }
+}
+
+#[test]
+fn test_plpgsql_sequential_ifs_with_elsif_else() {
+    let block = parse_do_block(
+        "DO $$ BEGIN \
+         IF a = 1 THEN v := 1; ELSIF a = 2 THEN v := 2; ELSE v := 0; END IF; \
+         IF b = 1 THEN v := 10; END IF; \
+         IF c = 1 THEN v := 100; ELSIF c = 2 THEN v := 200; END IF; \
+         END $$",
+    );
+    assert_eq!(block.body.len(), 3);
+    match &block.body[0] {
+        PlStatement::If(if_stmt) => {
+            assert_eq!(if_stmt.elsifs.len(), 1);
+            assert_eq!(if_stmt.else_stmts.len(), 1);
+        }
+        _ => panic!("expected first If"),
+    }
+    match &block.body[1] {
+        PlStatement::If(if_stmt) => {
+            assert!(if_stmt.elsifs.is_empty());
+            assert!(if_stmt.else_stmts.is_empty());
+        }
+        _ => panic!("expected second If"),
+    }
+    match &block.body[2] {
+        PlStatement::If(if_stmt) => {
+            assert_eq!(if_stmt.elsifs.len(), 1);
+            assert!(if_stmt.else_stmts.is_empty());
+        }
+        _ => panic!("expected third If"),
+    }
+}
+
+#[test]
+fn test_plpgsql_nested_then_sequential_ifs() {
+    let block = parse_do_block(
+        "DO $$ BEGIN \
+         IF a = 1 THEN \
+             IF b = 1 THEN v := 11; END IF; \
+             IF b = 2 THEN v := 12; END IF; \
+         END IF; \
+         IF c = 3 THEN v := 3; END IF; \
+         END $$",
+    );
+    assert_eq!(block.body.len(), 2);
+    match &block.body[0] {
+        PlStatement::If(if_stmt) => {
+            assert_eq!(if_stmt.then_stmts.len(), 2);
+            assert!(matches!(&if_stmt.then_stmts[0], PlStatement::If(_)));
+            assert!(matches!(&if_stmt.then_stmts[1], PlStatement::If(_)));
+        }
+        _ => panic!("expected outer If"),
+    }
+    match &block.body[1] {
+        PlStatement::If(if_stmt) => {
+            assert_eq!(if_stmt.then_stmts.len(), 1);
+        }
+        _ => panic!("expected second top-level If"),
+    }
+}
+
+#[test]
+fn test_plpgsql_ifs_with_dml_between() {
+    let block = parse_do_block(
+        "DO $$ BEGIN \
+         IF a = 1 THEN INSERT INTO t VALUES (1); END IF; \
+         UPDATE t SET x = 1; \
+         IF a = 2 THEN DELETE FROM t WHERE id = 2; END IF; \
+         END $$",
+    );
+    assert_eq!(block.body.len(), 3);
+    assert!(matches!(&block.body[0], PlStatement::If(_)));
+    assert!(matches!(&block.body[1], PlStatement::SqlStatement { .. }));
+    assert!(matches!(&block.body[2], PlStatement::If(_)));
 }
 
 // --- CASE ---
@@ -12386,68 +12510,6 @@ fn test_issue17_temp_alias_cross_join() {
             }
         }
         other => panic!("expected Select, got {:?}", other),
-    }
-}
-
-// --- Issue #18: CASE WHEN inside PL/SQL SELECT ---
-
-#[test]
-fn test_issue18_case_when_in_package_select() {
-    let sql = r#"CREATE OR REPLACE PACKAGE BODY test_pkg IS
-  PROCEDURE prc_test IS
-  BEGIN
-    OPEN out_cur FOR
-    SELECT t.id,
-      CASE t.status
-        WHEN '1' THEN 'active'
-        WHEN '2' THEN 'inactive'
-        ELSE 'unknown'
-      END AS status_text
-    FROM users t;
-  END;
-END test_pkg;
-/"#;
-    let stmt = parse_one(sql);
-    match &stmt {
-        Statement::CreatePackageBody(pkg) => {
-            let proc = pkg.items.iter().find_map(|i| match i {
-                PackageItem::Procedure(pr) => Some(pr),
-                _ => None,
-            }).expect("should have a procedure");
-            assert_eq!(proc.name, vec!["prc_test"]);
-            let block = proc.block.as_ref().expect("procedure should have a block");
-            assert!(!block.body.is_empty(), "procedure body should not be empty");
-        }
-        other => panic!("expected CreatePackageBody, got {:?}", other),
-    }
-}
-
-#[test]
-fn test_issue18_case_when_select_into() {
-    let sql = r#"CREATE OR REPLACE PACKAGE BODY test_pkg IS
-  PROCEDURE prc_test IS
-  BEGIN
-    SELECT CASE t.status
-        WHEN '1' THEN 'active'
-        WHEN '2' THEN 'inactive'
-        ELSE 'unknown'
-      END AS status_text
-    INTO v_result
-    FROM users t;
-  END;
-END test_pkg;
-/"#;
-    let stmt = parse_one(sql);
-    match &stmt {
-        Statement::CreatePackageBody(pkg) => {
-            let proc = pkg.items.iter().find_map(|i| match i {
-                PackageItem::Procedure(pr) => Some(pr),
-                _ => None,
-            }).expect("should have a procedure");
-            let block = proc.block.as_ref().expect("procedure should have a block");
-            assert!(!block.body.is_empty(), "procedure body should not be empty");
-        }
-        other => panic!("expected CreatePackageBody, got {:?}", other),
     }
 }
 

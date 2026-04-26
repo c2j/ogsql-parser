@@ -214,7 +214,13 @@ impl Parser {
     }
 
     fn parse_pl_data_type(&mut self) -> Result<PlDataType, ParserError> {
-        let name = self.parse_identifier()?;
+        let mut name = self.parse_identifier()?;
+
+        while self.match_token(&Token::Dot) {
+            self.advance();
+            name.push('.');
+            name.push_str(&self.parse_identifier()?);
+        }
 
         if matches!(self.peek(), Token::Percent) {
             self.advance();
@@ -469,6 +475,19 @@ impl Parser {
                 size: Box::new(size),
                 elem_type,
             }))
+        } else if self.match_ident_str("ref") {
+            self.advance();
+            if self.match_ident_str("cursor") || self.match_keyword(Keyword::CURSOR) {
+                self.advance();
+            } else {
+                return Err(ParserError::UnexpectedToken {
+                    location: self.current_location(),
+                    expected: "CURSOR after REF".to_string(),
+                    got: format!("{:?}", self.peek()),
+                });
+            }
+            self.try_consume_semicolon();
+            Ok(PlDeclaration::Type(PlTypeDecl::RefCursor { name }))
         } else {
             Err(ParserError::UnexpectedToken {
                 location: self.current_location(),
@@ -2294,6 +2313,13 @@ impl Parser {
                 let cursor_name = self.parse_identifier()?;
                 let decl = self.parse_pl_cursor_decl(cursor_name)?;
                 declarations.push(decl);
+            } else if self.peek_keyword() == Some(Keyword::TYPE_P) {
+                self.advance();
+                let type_name = self.parse_identifier()?;
+                match self.parse_pl_type_decl_body(type_name) {
+                    Ok(decl) => declarations.push(decl),
+                    Err(_) => self.advance(),
+                }
             } else if let Some(decl) = self.try_parse_oracle_var_decl() {
                 declarations.push(decl);
             } else {
@@ -2420,6 +2446,17 @@ impl Parser {
         if self.match_ident_str("cursor") {
             self.advance();
             return match self.parse_pl_cursor_decl(name) {
+                Ok(decl) => Some(decl),
+                Err(_) => {
+                    self.pos = start_pos;
+                    None
+                }
+            };
+        }
+
+        if self.match_keyword(Keyword::TYPE_P) {
+            self.advance();
+            return match self.parse_pl_type_decl_body(name) {
                 Ok(decl) => Some(decl),
                 Err(_) => {
                     self.pos = start_pos;

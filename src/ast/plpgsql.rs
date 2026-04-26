@@ -106,6 +106,9 @@ pub enum PlTypeDecl {
         size: Box<crate::ast::Expr>,
         elem_type: PlDataType,
     },
+    RefCursor {
+        name: String,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

@@ -210,13 +210,11 @@ impl Parser {
                     self.advance();
                     continue;
                 }
-                Token::Eq => {
-                    if self.is_separator_line() {
+                _ => {
+                    if matches!(self.peek(), Token::Eq) && self.is_separator_line() {
                         self.skip_separator_line();
                         continue;
                     }
-                }
-                _ => {
                     let start_pos = self.pos;
                     let end_pos = self.find_statement_end_pos();
                     let saved_error_count = self.errors.len();
@@ -4758,3 +4756,5 @@ impl Iterator for StatementIter {
 
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod tests_plsql_fixes;
