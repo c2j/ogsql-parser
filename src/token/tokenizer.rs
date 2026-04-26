@@ -1,4 +1,5 @@
 use super::keyword::lookup_keyword;
+use super::Keyword;
 use super::{SourceLocation, Span, Token, TokenWithSpan};
 
 #[derive(Debug, Clone, thiserror::Error, serde::Serialize, serde::Deserialize)]
@@ -24,6 +25,7 @@ pub struct Tokenizer<'a> {
     pending_hint: Option<String>,
     preserve_comments: bool,
     pending_comment: Option<String>,
+    after_dml_keyword: bool,
 }
 
 impl<'a> Tokenizer<'a> {
@@ -37,6 +39,7 @@ impl<'a> Tokenizer<'a> {
             pending_hint: None,
             preserve_comments: false,
             pending_comment: None,
+            after_dml_keyword: false,
         }
     }
 
@@ -156,8 +159,12 @@ impl<'a> Tokenizer<'a> {
                         self.advance();
                         if self.peek_byte_at(0) == Some(b'+') {
                             self.advance();
-                            let hint = self.collect_hint_content();
-                            self.pending_hint = Some(hint);
+                            if self.after_dml_keyword {
+                                let hint = self.collect_hint_content();
+                                self.pending_hint = Some(hint);
+                            } else {
+                                self.collect_hint_content();
+                            }
                         } else if self.preserve_comments {
                             let content = self.collect_block_comment_content(start);
                             self.pending_comment = Some(content);
@@ -726,6 +733,15 @@ impl<'a> Tokenizer<'a> {
                 Token::Op(format!("{}", c))
             }
         };
+
+        self.after_dml_keyword = matches!(
+            &token,
+            Token::Keyword(Keyword::SELECT)
+                | Token::Keyword(Keyword::INSERT)
+                | Token::Keyword(Keyword::UPDATE)
+                | Token::Keyword(Keyword::DELETE_P)
+                | Token::Keyword(Keyword::MERGE)
+        );
 
         Ok(Some(TokenWithSpan {
             token,

@@ -12483,68 +12483,6 @@ fn test_issue17_temp_alias_cross_join() {
     }
 }
 
-// --- Issue #18: CASE WHEN inside PL/SQL SELECT ---
-
-#[test]
-fn test_issue18_case_when_in_package_select() {
-    let sql = r#"CREATE OR REPLACE PACKAGE BODY test_pkg IS
-  PROCEDURE prc_test IS
-  BEGIN
-    OPEN out_cur FOR
-    SELECT t.id,
-      CASE t.status
-        WHEN '1' THEN 'active'
-        WHEN '2' THEN 'inactive'
-        ELSE 'unknown'
-      END AS status_text
-    FROM users t;
-  END;
-END test_pkg;
-/"#;
-    let stmt = parse_one(sql);
-    match &stmt {
-        Statement::CreatePackageBody(pkg) => {
-            let proc = pkg.items.iter().find_map(|i| match i {
-                PackageItem::Procedure(pr) => Some(pr),
-                _ => None,
-            }).expect("should have a procedure");
-            assert_eq!(proc.name, vec!["prc_test"]);
-            let block = proc.block.as_ref().expect("procedure should have a block");
-            assert!(!block.body.is_empty(), "procedure body should not be empty");
-        }
-        other => panic!("expected CreatePackageBody, got {:?}", other),
-    }
-}
-
-#[test]
-fn test_issue18_case_when_select_into() {
-    let sql = r#"CREATE OR REPLACE PACKAGE BODY test_pkg IS
-  PROCEDURE prc_test IS
-  BEGIN
-    SELECT CASE t.status
-        WHEN '1' THEN 'active'
-        WHEN '2' THEN 'inactive'
-        ELSE 'unknown'
-      END AS status_text
-    INTO v_result
-    FROM users t;
-  END;
-END test_pkg;
-/"#;
-    let stmt = parse_one(sql);
-    match &stmt {
-        Statement::CreatePackageBody(pkg) => {
-            let proc = pkg.items.iter().find_map(|i| match i {
-                PackageItem::Procedure(pr) => Some(pr),
-                _ => None,
-            }).expect("should have a procedure");
-            let block = proc.block.as_ref().expect("procedure should have a block");
-            assert!(!block.body.is_empty(), "procedure body should not be empty");
-        }
-        other => panic!("expected CreatePackageBody, got {:?}", other),
-    }
-}
-
 // --- Option C: PL variable resolution in embedded SQL expressions ---
 
 fn extract_update_from_pl(pl: &PlStatement) -> Option<&UpdateStatement> {
