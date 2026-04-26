@@ -214,7 +214,13 @@ impl Parser {
     }
 
     fn parse_pl_data_type(&mut self) -> Result<PlDataType, ParserError> {
-        let name = self.parse_identifier()?;
+        let mut name = self.parse_identifier()?;
+
+        while self.match_token(&Token::Dot) {
+            self.advance();
+            name.push('.');
+            name.push_str(&self.parse_identifier()?);
+        }
 
         if matches!(self.peek(), Token::Percent) {
             self.advance();
