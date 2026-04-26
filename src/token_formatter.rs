@@ -67,29 +67,31 @@ impl<'a> TokenFormatter<'a> {
 
         match token {
             Token::Keyword(Keyword::BEGIN_P) => {
-                self.emit_line_start();
+                self.emit_newline_if_needed();
+                self.emit_indent();
                 self.emit_current_token();
                 self.indent_stack.push(IndentKind::Begin);
-                self.needs_line = true;
                 self.pos += 1;
+                self.needs_line = true;
             }
 
             Token::Keyword(Keyword::THEN) => {
                 self.emit_space();
                 self.emit_current_token();
                 self.indent_stack.push(IndentKind::If);
-                self.needs_line = true;
                 self.pos += 1;
+                self.needs_line = true;
             }
 
             Token::Keyword(Keyword::LOOP) => {
                 let prev_token = self.peek_token_back(1);
                 if !matches!(prev_token, Some(Token::Keyword(Keyword::END_P))) {
-                    self.emit_line_start();
+                    self.emit_newline_if_needed();
+                    self.emit_indent();
                     self.emit_current_token();
                     self.indent_stack.push(IndentKind::Loop);
-                    self.needs_line = true;
                     self.pos += 1;
+                    self.needs_line = true;
                 }
             }
 
@@ -223,6 +225,12 @@ impl<'a> TokenFormatter<'a> {
         } else if !self.output.is_empty() {
             self.output.push('\n');
             self.emit_indent();
+        }
+    }
+
+    fn emit_newline_if_needed(&mut self) {
+        if !self.output.is_empty() && !self.output.ends_with('\n') && !self.output.ends_with(' ') {
+            self.output.push('\n');
         }
     }
 
