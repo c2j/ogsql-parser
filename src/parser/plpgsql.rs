@@ -224,6 +224,10 @@ impl Parser {
 
         if matches!(self.peek(), Token::Percent) {
             self.advance();
+            if self.match_ident_str("rowtype") {
+                self.advance();
+                return Ok(PlDataType::PercentRowType(name));
+            }
             if self.match_ident_str("type") {
                 self.advance();
             }
@@ -1801,6 +1805,15 @@ impl Parser {
         };
 
         let cursor = self.parse_expr()?;
+
+        let bulk_collect = if self.match_ident_str("bulk") {
+            self.advance();
+            self.expect_ident_str("collect")?;
+            true
+        } else {
+            false
+        };
+
         self.expect_ident_str("into")?;
         let into = self.parse_expr()?;
         self.try_consume_semicolon();
@@ -1808,6 +1821,7 @@ impl Parser {
         Ok(PlStatement::Fetch(PlFetchStmt {
             cursor,
             direction,
+            bulk_collect,
             into,
         }))
     }
@@ -2421,7 +2435,8 @@ impl Parser {
     }
 
     pub(crate) fn try_parse_oracle_var_decl(&mut self) -> Option<PlDeclaration> {
-        if !matches!(self.peek(), Token::Ident(_)) {
+        let is_unreserved_kw = matches!(self.peek(), Token::Keyword(kw) if kw.category() == crate::token::keyword::KeywordCategory::Unreserved);
+        if !matches!(self.peek(), Token::Ident(_)) && !is_unreserved_kw {
             return None;
         }
 
@@ -2429,6 +2444,7 @@ impl Parser {
 
         let name = match self.peek() {
             Token::Ident(s) => s.clone(),
+            Token::Keyword(kw) => kw.as_str().to_string(),
             _ => return None,
         };
 
@@ -2437,6 +2453,8 @@ impl Parser {
             || name.eq_ignore_ascii_case("procedure")
             || name.eq_ignore_ascii_case("function")
             || name.eq_ignore_ascii_case("exception")
+            || name.eq_ignore_ascii_case("declare")
+            || name.eq_ignore_ascii_case("cursor")
         {
             return None;
         }

@@ -203,3 +203,180 @@ fn test_package_body_error_recovery_preserves_remaining_items() {
         other => panic!("expected CreatePackageBody, got {:?}", other),
     }
 }
+
+#[test]
+fn test_subscripted_into_target() {
+    let sql = r#"CREATE OR REPLACE PROCEDURE test_proc IS
+  v_value VARCHAR2_ARRAY;
+BEGIN
+  SELECT v_value(1) || to_char(COUNT(1)) || ','
+    INTO v_value(1)
+    FROM tranlog t;
+END;"#;
+    let stmts = parse(sql);
+    assert_eq!(stmts.len(), 1, "should parse one statement");
+}
+
+#[test]
+fn test_subscripted_into_target_simple() {
+    let sql = r#"CREATE OR REPLACE PROCEDURE test_proc IS
+  v_value VARCHAR2_ARRAY;
+BEGIN
+  SELECT 1 INTO v_value(1) FROM dual;
+END;"#;
+    let stmts = parse(sql);
+    assert_eq!(stmts.len(), 1, "should parse one statement");
+}
+
+#[test]
+fn test_subscripted_into_multiple_targets() {
+    let sql = r#"CREATE OR REPLACE PROCEDURE test_proc IS
+  v_arr VARCHAR2_ARRAY;
+  v_cnt NUMBER;
+BEGIN
+  SELECT v_cnt + 1, v_arr(2) INTO v_cnt, v_arr(1) FROM dual;
+END;"#;
+    let stmts = parse(sql);
+    assert_eq!(stmts.len(), 1, "should parse one statement");
+}
+
+#[test]
+fn test_unreserved_keyword_as_variable_name() {
+    // RESULT is an unreserved keyword in openGauss/GaussDB and can be used as a variable name
+    let sql = r#"CREATE OR REPLACE PROCEDURE test_proc IS
+  result INTEGER;
+BEGIN
+  result := 1;
+END;"#;
+    let stmt = parse_one(sql);
+    match stmt {
+        Statement::CreateProcedure(p) => {
+            let block = p.block.as_ref().expect("procedure should have a body");
+            assert_eq!(block.declarations.len(), 1);
+            match &block.declarations[0] {
+                PlDeclaration::Variable(v) => {
+                    assert_eq!(v.name, "result");
+                }
+                other => panic!("expected Var, got {:?}", other),
+            }
+        }
+        other => panic!("expected CreateProcedure, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_percent_rowtype_in_inner_block() {
+    // %ROWTYPE was previously not handled in parse_pl_data_type, causing
+    // ROWTYPE_P keyword to remain unconsumed and cascade parse failures
+    let sql = r#"CREATE OR REPLACE PROCEDURE test_proc IS
+BEGIN
+  DECLARE
+    CURSOR c IS SELECT id, name FROM t;
+    r c%ROWTYPE;
+    w NUMBER;
+  BEGIN
+    SELECT COUNT(1) INTO w FROM t;
+  END;
+END;"#;
+    let stmt = parse_one(sql);
+    match stmt {
+        Statement::CreateProcedure(p) => {
+            let block = p.block.as_ref().expect("procedure should have a body");
+            assert_eq!(block.body.len(), 1);
+            match &block.body[0] {
+                PlStatement::Block(inner) => {
+                    assert_eq!(inner.declarations.len(), 3);
+                    match &inner.declarations[1] {
+                        PlDeclaration::Variable(v) => {
+                            assert_eq!(v.name, "r");
+                            assert!(
+                                matches!(v.data_type, PlDataType::PercentRowType(ref t) if t == "c"),
+                                "expected PercentRowType(\"c\"), got {:?}",
+                                v.data_type
+                            );
+                        }
+                        other => panic!("expected Variable, got {:?}", other),
+                    }
+                }
+                other => panic!("expected Block, got {:?}", other),
+            }
+        }
+        other => panic!("expected CreateProcedure, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_fetch_bulk_collect_into() {
+    let sql = r#"CREATE OR REPLACE PROCEDURE test_proc IS
+  v_cur SYS_REFCURSOR;
+  v_list VARCHAR2_ARRAY;
+BEGIN
+  OPEN v_cur FOR 'SELECT id FROM t';
+  FETCH v_cur BULK COLLECT INTO v_list;
+  CLOSE v_cur;
+END;"#;
+    let stmt = parse_one(sql);
+    match stmt {
+        Statement::CreateProcedure(p) => {
+            let block = p.block.as_ref().expect("procedure should have a body");
+            match &block.body[1] {
+                PlStatement::Fetch(f) => {
+                    assert!(f.bulk_collect, "expected bulk_collect = true");
+                }
+                other => panic!("expected Fetch, got {:?}", other),
+            }
+        }
+        other => panic!("expected CreateProcedure, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_fetch_bulk_collect_into_multiple_targets() {
+    let sql = r#"CREATE OR REPLACE PROCEDURE test_proc IS
+  v_cur SYS_REFCURSOR;
+  v_ids VARCHAR2_ARRAY;
+  v_names VARCHAR2_ARRAY;
+BEGIN
+  OPEN v_cur FOR 'SELECT id, name FROM t';
+  FETCH v_cur BULK COLLECT INTO v_ids, v_names;
+  CLOSE v_cur;
+END;"#;
+    let stmts = parse(sql);
+    assert_eq!(stmts.len(), 1, "should parse one statement");
+}
+
+#[test]
+fn test_execute_immediate_after_bulk_collect() {
+    let sql = r#"CREATE OR REPLACE PROCEDURE test_proc IS
+  v_sql VARCHAR2(4000);
+BEGIN
+  v_sql := 'UPDATE t SET x = 1';
+  EXECUTE IMMEDIATE v_sql;
+END;"#;
+    let stmt = parse_one(sql);
+    match stmt {
+        Statement::CreateProcedure(p) => {
+            let block = p.block.as_ref().expect("procedure should have a body");
+            match &block.body[1] {
+                PlStatement::Execute(e) => {
+                    assert!(e.immediate, "expected immediate = true");
+                }
+                other => panic!("expected Execute, got {:?}", other),
+            }
+        }
+        other => panic!("expected CreateProcedure, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_case_alias_in_package_spec_cursor() {
+    let sql = r#"CREATE OR REPLACE PACKAGE test_pkg IS
+  CURSOR c_test IS
+    SELECT xwdm,
+           CASE WHEN v = 1 THEN 'A' ELSE 'B' END check_type,
+           '' account_date
+    FROM t1;
+END test_pkg;"#;
+    let stmts = parse(sql);
+    assert_eq!(stmts.len(), 1, "should parse one statement");
+}

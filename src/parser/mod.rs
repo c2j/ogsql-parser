@@ -104,11 +104,23 @@ impl Parser {
     /// Otherwise, emit ColumnRef (may be resolved later by the analyzer).
     pub(crate) fn parse_pl_variable_or_column(&mut self) -> Result<crate::ast::Expr, ParserError> {
         let name = self.parse_object_name()?;
-        if !name.is_empty() && self.is_var_declared(&name[0]) {
-            Ok(crate::ast::Expr::PlVariable(name))
+        let base = if !name.is_empty() && self.is_var_declared(&name[0]) {
+            crate::ast::Expr::PlVariable(name)
         } else {
-            Ok(crate::ast::Expr::ColumnRef(name))
+            crate::ast::Expr::ColumnRef(name)
+        };
+
+        let mut expr = base;
+        while self.match_token(&Token::LParen) {
+            self.advance();
+            let index = self.parse_expr()?;
+            self.expect_token(&Token::RParen)?;
+            expr = crate::ast::Expr::Subscript {
+                object: Box::new(expr),
+                index: Box::new(index),
+            };
         }
+        Ok(expr)
     }
 
     fn enter_scope(&mut self) -> Result<(), ParserError> {
