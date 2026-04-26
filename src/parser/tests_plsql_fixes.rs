@@ -203,3 +203,39 @@ fn test_package_body_error_recovery_preserves_remaining_items() {
         other => panic!("expected CreatePackageBody, got {:?}", other),
     }
 }
+
+#[test]
+fn test_subscripted_into_target() {
+    let sql = r#"CREATE OR REPLACE PROCEDURE test_proc IS
+  v_value VARCHAR2_ARRAY;
+BEGIN
+  SELECT v_value(1) || to_char(COUNT(1)) || ','
+    INTO v_value(1)
+    FROM tranlog t;
+END;"#;
+    let stmts = parse(sql);
+    assert_eq!(stmts.len(), 1, "should parse one statement");
+}
+
+#[test]
+fn test_subscripted_into_target_simple() {
+    let sql = r#"CREATE OR REPLACE PROCEDURE test_proc IS
+  v_value VARCHAR2_ARRAY;
+BEGIN
+  SELECT 1 INTO v_value(1) FROM dual;
+END;"#;
+    let stmts = parse(sql);
+    assert_eq!(stmts.len(), 1, "should parse one statement");
+}
+
+#[test]
+fn test_subscripted_into_multiple_targets() {
+    let sql = r#"CREATE OR REPLACE PROCEDURE test_proc IS
+  v_arr VARCHAR2_ARRAY;
+  v_cnt NUMBER;
+BEGIN
+  SELECT v_cnt + 1, v_arr(2) INTO v_cnt, v_arr(1) FROM dual;
+END;"#;
+    let stmts = parse(sql);
+    assert_eq!(stmts.len(), 1, "should parse one statement");
+}
