@@ -185,6 +185,100 @@ fn test_plpgsql_nested_if() {
     }
 }
 
+#[test]
+fn test_plpgsql_sequential_ifs() {
+    let block = parse_do_block(
+        "DO $$ BEGIN IF a = 1 THEN v := 'one'; END IF; IF a = 2 THEN v := 'two'; END IF; IF a = 3 THEN v := 'three'; END IF; END $$",
+    );
+    assert_eq!(block.body.len(), 3);
+    for (i, stmt) in block.body.iter().enumerate() {
+        match stmt {
+            PlStatement::If(if_stmt) => {
+                assert_eq!(if_stmt.then_stmts.len(), 1);
+                assert!(if_stmt.elsifs.is_empty());
+                assert!(if_stmt.else_stmts.is_empty());
+            }
+            _ => panic!("expected If at index {}, got {:?}", i, stmt),
+        }
+    }
+}
+
+#[test]
+fn test_plpgsql_sequential_ifs_with_elsif_else() {
+    let block = parse_do_block(
+        "DO $$ BEGIN \
+         IF a = 1 THEN v := 1; ELSIF a = 2 THEN v := 2; ELSE v := 0; END IF; \
+         IF b = 1 THEN v := 10; END IF; \
+         IF c = 1 THEN v := 100; ELSIF c = 2 THEN v := 200; END IF; \
+         END $$",
+    );
+    assert_eq!(block.body.len(), 3);
+    match &block.body[0] {
+        PlStatement::If(if_stmt) => {
+            assert_eq!(if_stmt.elsifs.len(), 1);
+            assert_eq!(if_stmt.else_stmts.len(), 1);
+        }
+        _ => panic!("expected first If"),
+    }
+    match &block.body[1] {
+        PlStatement::If(if_stmt) => {
+            assert!(if_stmt.elsifs.is_empty());
+            assert!(if_stmt.else_stmts.is_empty());
+        }
+        _ => panic!("expected second If"),
+    }
+    match &block.body[2] {
+        PlStatement::If(if_stmt) => {
+            assert_eq!(if_stmt.elsifs.len(), 1);
+            assert!(if_stmt.else_stmts.is_empty());
+        }
+        _ => panic!("expected third If"),
+    }
+}
+
+#[test]
+fn test_plpgsql_nested_then_sequential_ifs() {
+    let block = parse_do_block(
+        "DO $$ BEGIN \
+         IF a = 1 THEN \
+             IF b = 1 THEN v := 11; END IF; \
+             IF b = 2 THEN v := 12; END IF; \
+         END IF; \
+         IF c = 3 THEN v := 3; END IF; \
+         END $$",
+    );
+    assert_eq!(block.body.len(), 2);
+    match &block.body[0] {
+        PlStatement::If(if_stmt) => {
+            assert_eq!(if_stmt.then_stmts.len(), 2);
+            assert!(matches!(&if_stmt.then_stmts[0], PlStatement::If(_)));
+            assert!(matches!(&if_stmt.then_stmts[1], PlStatement::If(_)));
+        }
+        _ => panic!("expected outer If"),
+    }
+    match &block.body[1] {
+        PlStatement::If(if_stmt) => {
+            assert_eq!(if_stmt.then_stmts.len(), 1);
+        }
+        _ => panic!("expected second top-level If"),
+    }
+}
+
+#[test]
+fn test_plpgsql_ifs_with_dml_between() {
+    let block = parse_do_block(
+        "DO $$ BEGIN \
+         IF a = 1 THEN INSERT INTO t VALUES (1); END IF; \
+         UPDATE t SET x = 1; \
+         IF a = 2 THEN DELETE FROM t WHERE id = 2; END IF; \
+         END $$",
+    );
+    assert_eq!(block.body.len(), 3);
+    assert!(matches!(&block.body[0], PlStatement::If(_)));
+    assert!(matches!(&block.body[1], PlStatement::SqlStatement { .. }));
+    assert!(matches!(&block.body[2], PlStatement::If(_)));
+}
+
 // --- CASE ---
 
 #[test]
