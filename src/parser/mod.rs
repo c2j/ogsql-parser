@@ -975,6 +975,14 @@ impl Parser {
                     | Keyword::AND
                     | Keyword::OR
                     | Keyword::AS
+                    // JOIN keywords — a table alias can be followed by any join clause
+                    | Keyword::LEFT
+                    | Keyword::RIGHT
+                    | Keyword::FULL
+                    | Keyword::INNER_P
+                    | Keyword::JOIN
+                    | Keyword::CROSS
+                    | Keyword::NATURAL
             ),
             _ => false,
         }
