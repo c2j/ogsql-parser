@@ -12305,6 +12305,152 @@ $$"#;
     assert_eq!(stmts, restored, "JSON round-trip should produce equal AST");
 }
 
+// --- Issue #17: subquery alias 'temp' clashes with TEMP keyword ---
+
+#[test]
+fn test_issue17_temp_subquery_alias() {
+    let sql = r#"CREATE OR REPLACE PACKAGE BODY test_pkg IS
+  PROCEDURE prc_first IS
+  BEGIN
+    SELECT COUNT(1) INTO v_n FROM users;
+  END;
+  PROCEDURE prc_second IS
+  BEGIN
+    SELECT COUNT(1)
+    INTO v_count
+    FROM (
+      SELECT t.id
+      FROM users t
+    ) temp
+    LEFT JOIN dept d ON temp.dept_id = d.id;
+  END;
+END test_pkg;
+/"#;
+    let stmt = parse_one(sql);
+    match &stmt {
+        Statement::CreatePackageBody(pkg) => {
+            let procs: Vec<_> = pkg.items.iter().filter_map(|i| match i {
+                PackageItem::Procedure(pr) => Some(pr),
+                _ => None,
+            }).collect();
+            assert_eq!(procs.len(), 2, "both procedures should be parsed, got {} procedures", procs.len());
+            assert_eq!(procs[1].name, vec!["prc_second"]);
+        }
+        other => panic!("expected CreatePackageBody, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_issue17_temp_alias_right_join() {
+    let sql = "SELECT * FROM (SELECT 1) temp RIGHT JOIN t2 ON temp.id = t2.id";
+    let tokens = Tokenizer::new(sql).tokenize().unwrap();
+    let stmts = Parser::new(tokens).parse();
+    assert!(stmts.len() == 1, "should parse one statement");
+    match &stmts[0] {
+        Statement::Select(sel) => {
+            assert_eq!(sel.from.len(), 1, "should have one table ref");
+            match &sel.from[0] {
+                TableRef::Join { left, .. } => {
+                    match left.as_ref() {
+                        TableRef::Subquery { alias, .. } => {
+                            assert_eq!(alias.as_deref(), Some("temp"), "subquery alias should be 'temp'");
+                        }
+                        other => panic!("expected Subquery, got {:?}", other),
+                    }
+                }
+                other => panic!("expected Join, got {:?}", other),
+            }
+        }
+        other => panic!("expected Select, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_issue17_temp_alias_cross_join() {
+    let sql = "SELECT * FROM (SELECT 1) temp CROSS JOIN t2";
+    let tokens = Tokenizer::new(sql).tokenize().unwrap();
+    let stmts = Parser::new(tokens).parse();
+    assert!(stmts.len() == 1, "should parse one statement");
+    match &stmts[0] {
+        Statement::Select(sel) => {
+            match &sel.from[0] {
+                TableRef::Join { left, .. } => {
+                    match left.as_ref() {
+                        TableRef::Subquery { alias, .. } => {
+                            assert_eq!(alias.as_deref(), Some("temp"));
+                        }
+                        other => panic!("expected Subquery, got {:?}", other),
+                    }
+                }
+                other => panic!("expected Join, got {:?}", other),
+            }
+        }
+        other => panic!("expected Select, got {:?}", other),
+    }
+}
+
+// --- Issue #18: CASE WHEN inside PL/SQL SELECT ---
+
+#[test]
+fn test_issue18_case_when_in_package_select() {
+    let sql = r#"CREATE OR REPLACE PACKAGE BODY test_pkg IS
+  PROCEDURE prc_test IS
+  BEGIN
+    OPEN out_cur FOR
+    SELECT t.id,
+      CASE t.status
+        WHEN '1' THEN 'active'
+        WHEN '2' THEN 'inactive'
+        ELSE 'unknown'
+      END AS status_text
+    FROM users t;
+  END;
+END test_pkg;
+/"#;
+    let stmt = parse_one(sql);
+    match &stmt {
+        Statement::CreatePackageBody(pkg) => {
+            let proc = pkg.items.iter().find_map(|i| match i {
+                PackageItem::Procedure(pr) => Some(pr),
+                _ => None,
+            }).expect("should have a procedure");
+            assert_eq!(proc.name, vec!["prc_test"]);
+            let block = proc.block.as_ref().expect("procedure should have a block");
+            assert!(!block.body.is_empty(), "procedure body should not be empty");
+        }
+        other => panic!("expected CreatePackageBody, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_issue18_case_when_select_into() {
+    let sql = r#"CREATE OR REPLACE PACKAGE BODY test_pkg IS
+  PROCEDURE prc_test IS
+  BEGIN
+    SELECT CASE t.status
+        WHEN '1' THEN 'active'
+        WHEN '2' THEN 'inactive'
+        ELSE 'unknown'
+      END AS status_text
+    INTO v_result
+    FROM users t;
+  END;
+END test_pkg;
+/"#;
+    let stmt = parse_one(sql);
+    match &stmt {
+        Statement::CreatePackageBody(pkg) => {
+            let proc = pkg.items.iter().find_map(|i| match i {
+                PackageItem::Procedure(pr) => Some(pr),
+                _ => None,
+            }).expect("should have a procedure");
+            let block = proc.block.as_ref().expect("procedure should have a block");
+            assert!(!block.body.is_empty(), "procedure body should not be empty");
+        }
+        other => panic!("expected CreatePackageBody, got {:?}", other),
+    }
+}
+
 // --- Option C: PL variable resolution in embedded SQL expressions ---
 
 fn extract_update_from_pl(pl: &PlStatement) -> Option<&UpdateStatement> {
