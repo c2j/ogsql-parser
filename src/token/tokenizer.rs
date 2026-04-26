@@ -720,6 +720,12 @@ impl<'a> Tokenizer<'a> {
                 Token::Op("\\".to_string())
             }
 
+            // Fullwidth comma (U+FF0C) — common in Chinese-encoded SQL files
+            '\u{FF0C}' => {
+                self.advance();
+                Token::Comma
+            }
+
             // Identifier or keyword
             _ if is_ident_start(c) => self.scan_ident_or_keyword(),
 
