@@ -4708,6 +4708,9 @@ impl SqlFormatter {
                         self.format_pl_data_type(elem_type)
                     )
                 }
+                PlTypeDecl::RefCursor { name } => {
+                    format!("{} {}", name, self.kw("TYPE IS REF CURSOR"))
+                }
             },
             PlDeclaration::NestedProcedure(p) => {
                 let mut s = format!(
