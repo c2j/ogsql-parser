@@ -72,6 +72,36 @@ fn test_plpgsql_do_multiple_statements() {
 // --- Declarations ---
 
 #[test]
+fn test_type_ref_cursor_decl() {
+    let sql = "CREATE OR REPLACE PROCEDURE test_proc IS\n\
+        TYPE t_refcur IS REF CURSOR;\n\
+        v_cur t_refcur;\n\
+    BEGIN\n\
+        NULL;\n\
+    END;";
+    let stmt = parse_one(sql);
+    match stmt {
+        Statement::CreateProcedure(p) => {
+            let block = p.block.as_ref().expect("procedure should have a body");
+            assert_eq!(block.declarations.len(), 2);
+            match &block.declarations[0] {
+                PlDeclaration::Type(PlTypeDecl::RefCursor { name }) => {
+                    assert_eq!(name, "t_refcur");
+                }
+                other => panic!("expected RefCursor type declaration, got {:?}", other),
+            }
+            match &block.declarations[1] {
+                PlDeclaration::Variable(v) => {
+                    assert_eq!(v.name, "v_cur");
+                }
+                other => panic!("expected variable declaration, got {:?}", other),
+            }
+        }
+        _ => panic!("expected CreateProcedure, got {:?}", stmt),
+    }
+}
+
+#[test]
 fn test_plpgsql_variable_declarations() {
     let block = parse_do_block("DO $$ DECLARE x INTEGER; BEGIN NULL; END $$");
     assert_eq!(block.declarations.len(), 1);
