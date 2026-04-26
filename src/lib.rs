@@ -3,6 +3,7 @@ pub mod ast;
 pub mod formatter;
 pub mod parser;
 pub mod token;
+pub mod token_formatter;
 
 pub use analyzer::{analyze_pl_block, DynamicSqlReport};
 
