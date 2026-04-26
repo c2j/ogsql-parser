@@ -129,6 +129,13 @@ impl Parser {
     }
 
     fn parse_simple_select(&mut self) -> Result<SelectStatement, ParserError> {
+        if self.match_token(&Token::LParen) {
+            self.advance();
+            let inner = self.parse_select_statement_inner()?;
+            self.expect_token(&Token::RParen)?;
+            return Ok(inner);
+        }
+
         self.expect_keyword(Keyword::SELECT)?;
         let hints = self.consume_hints();
         let (distinct, mut distinct_on) = if self.match_keyword(Keyword::DISTINCT) {
