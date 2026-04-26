@@ -37,6 +37,11 @@ impl Parser {
                     let all = self.try_consume_keyword(Keyword::ALL);
                     ("except", all)
                 }
+                Some(Keyword::MINUS_P) => {
+                    self.advance();
+                    let all = self.try_consume_keyword(Keyword::ALL);
+                    ("minus", all)
+                }
                 _ => break,
             };
             let right = self.parse_simple_select()?;
