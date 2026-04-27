@@ -19,22 +19,21 @@ fn parse_one(sql: &str) -> Statement {
         .expect("expected at least one statement")
 }
 
+fn parse_do_block(sql: &str) -> PlBlock {
+    let stmt = parse_one(sql);
+    match stmt {
+        Statement::Do(d) => d.node
+            .block
+            .expect("DO statement should have parsed a PL/pgSQL block"),
+        _ => panic!("expected DO statement"),
+    }
+}
+
 fn parse_err(sql: &str) -> Statement {
     let tokens = Tokenizer::new(sql).tokenize().unwrap();
     let mut parser = Parser::new(tokens);
     let stmts = parser.parse();
     stmts.into_iter().next().unwrap()
-}
-
-fn parse_do_block(sql: &str) -> PlBlock {
-    let stmt = parse_one(sql);
-    match stmt {
-        Statement::Do(d) => d
-            .node
-            .block
-            .expect("DO statement should have parsed a PL/pgSQL block"),
-        _ => panic!("expected DO statement"),
-    }
 }
 
 #[test]
@@ -380,4 +379,24 @@ fn test_case_alias_in_package_spec_cursor() {
 END test_pkg;"#;
     let stmts = parse(sql);
     assert_eq!(stmts.len(), 1, "should parse one statement");
+}
+
+#[test]
+fn test_fetch_into_multiple_variables() {
+    let block = parse_do_block("DO $$ BEGIN FETCH cur INTO x, y, z; END $$");
+    match &block.body[0] {
+        PlStatement::Fetch(f) => {
+            assert_eq!(f.into.len(), 3, "expected 3 INTO targets");
+            assert!(matches!(
+                &f.into[0], Expr::ColumnRef(name) if name == &["x".to_string()]
+            ));
+            assert!(matches!(
+                &f.into[1], Expr::ColumnRef(name) if name == &["y".to_string()]
+            ));
+            assert!(matches!(
+                &f.into[2], Expr::ColumnRef(name) if name == &["z".to_string()]
+            ));
+        }
+        _ => panic!("expected Fetch"),
+    }
 }

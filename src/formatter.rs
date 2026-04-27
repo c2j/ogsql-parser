@@ -4957,7 +4957,7 @@ impl SqlFormatter {
                 s.push_str(&format!(
                     " {} {};",
                     self.kw("INTO"),
-                    self.format_expr(&f.into)
+                    f.into.iter().map(|e| self.format_expr(e)).collect::<Vec<_>>().join(", ")
                 ));
                 s
             }

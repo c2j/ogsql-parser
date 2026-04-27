@@ -362,7 +362,12 @@ pub fn walk_pl_statement(visitor: &mut dyn Visitor, stmt: &crate::ast::plpgsql::
                     VisitorResult::Continue
                 }
                 crate::ast::plpgsql::PlStatement::Fetch(fetch_stmt) => {
-                    walk_expr(visitor, &fetch_stmt.into)
+                    for expr in &fetch_stmt.into {
+                        if walk_expr(visitor, expr) == VisitorResult::Stop {
+                            return VisitorResult::Stop;
+                        }
+                    }
+                    VisitorResult::Continue
                 }
                 crate::ast::plpgsql::PlStatement::ProcedureCall(proc_call) => {
                     if visitor.visit_procedure_call(proc_call) == VisitorResult::Stop {
