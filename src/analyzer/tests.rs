@@ -263,165 +263,104 @@ fn test_for_loop_variable_does_not_leak() {
 }
 
 #[test]
-fn test_parameterized_sql_literal_only() {
-    let block = parse_block("DO $$ BEGIN EXECUTE 'SELECT 1'; END $$");
-    let report = analyze_pl_block(&block);
-    let finding = &report.execute_findings[0];
-    assert_eq!(finding.parameterized_sql.as_deref(), Some("SELECT 1"));
-    assert!(finding.parameter_bindings.is_empty());
-}
-
-#[test]
-fn test_parameterized_sql_simple_variable() {
+fn test_optional_filter_simple() {
     let block = parse_block(
         r#"DO $$
-DECLARE
-    v_sql VARCHAR;
-    p_id VARCHAR;
 BEGIN
-    v_sql := 'SELECT * FROM t WHERE id=''' || p_id || '''';
-    EXECUTE IMMEDIATE v_sql;
+    EXECUTE 'SELECT * FROM t WHERE (p_acnt IS NULL OR accno = p_acnt)';
 END $$"#
     );
     let report = analyze_pl_block(&block);
     assert_eq!(report.execute_findings.len(), 1);
     let finding = &report.execute_findings[0];
-    assert!(finding.resolved_value.is_none());
-    assert!(finding.parameterized_sql.is_some());
-    let psql = finding.parameterized_sql.as_ref().unwrap();
-    assert!(psql.contains(":p_id"), "should contain :p_id, got: {}", psql);
-    assert_eq!(finding.parameter_bindings.len(), 1);
-    assert_eq!(finding.parameter_bindings[0].variable, "p_id");
-    assert_eq!(finding.parameter_bindings[0].wrapping, Some("'...'".to_string()));
+    assert_eq!(finding.optional_filters.len(), 1);
+    let f = &finding.optional_filters[0];
+    assert_eq!(f.parameter, "p_acnt");
+    assert_eq!(f.column, vec!["accno"]);
+    assert_eq!(f.operator, "=");
 }
 
 #[test]
-fn test_parameterized_sql_concat_no_quotes() {
-    // tab_name is undeclared → resolves to Unknown → :? placeholder
-    let block = parse_block(
-        "DO $$ BEGIN v_sql := 'SELECT * FROM ' || tab_name; EXECUTE IMMEDIATE v_sql; END $$"
-    );
-    let report = analyze_pl_block(&block);
-    let finding = &report.execute_findings[0];
-    assert!(finding.parameterized_sql.is_some());
-    let psql = finding.parameterized_sql.as_ref().unwrap();
-    assert!(psql.contains(":?"), "undeclared var should produce :?, got: {}", psql);
-    assert_eq!(finding.parameter_bindings.len(), 0);
-}
-
-#[test]
-fn test_parameterized_sql_declared_unknown_var() {
-    // Declared variable with no default → VariableCopy with Unknown chain → :var placeholder
-    let block = parse_block(
-        "DO $$ DECLARE tab_name VARCHAR; BEGIN v_sql := 'SELECT * FROM ' || tab_name; EXECUTE IMMEDIATE v_sql; END $$"
-    );
-    let report = analyze_pl_block(&block);
-    let finding = &report.execute_findings[0];
-    assert!(finding.parameterized_sql.is_some());
-    let psql = finding.parameterized_sql.as_ref().unwrap();
-    assert!(psql.contains(":tab_name"), "declared unknown var should produce :tab_name, got: {}", psql);
-    assert_eq!(finding.parameter_bindings.len(), 1);
-    assert_eq!(finding.parameter_bindings[0].variable, "tab_name");
-    assert!(finding.parameter_bindings[0].wrapping.is_none());
-}
-
-#[test]
-fn test_parameterized_sql_multiple_vars_with_quotes() {
+fn test_optional_filter_with_table_prefix() {
     let block = parse_block(
         r#"DO $$
-DECLARE
-    v_sql VARCHAR;
-    p_acnt VARCHAR := '12345';
-    p_name VARCHAR := 'test';
 BEGIN
-    v_sql := 'SELECT * FROM t_users WHERE 1=1';
-    v_sql := v_sql || ' AND accno = ''' || p_acnt || '''';
-    v_sql := v_sql || ' AND (''' || p_name || ''' IS NULL OR name = ''' || p_name || ''')';
-    EXECUTE IMMEDIATE v_sql;
+    EXECUTE 'SELECT * FROM t temp WHERE (p_i_qry_acnt IS NULL OR temp.accno = p_i_qry_acnt)';
 END $$"#
     );
     let report = analyze_pl_block(&block);
     assert_eq!(report.execute_findings.len(), 1);
-    let finding = &report.execute_findings[0];
-    assert!(finding.parameterized_sql.is_some());
-    let psql = finding.parameterized_sql.as_ref().unwrap();
-    assert!(psql.contains(":p_acnt"), "should contain :p_acnt, got: {}", psql);
-    assert!(psql.contains(":p_name"), "should contain :p_name, got: {}", psql);
-
-    let acnt_count = finding.parameter_bindings.iter().filter(|b| b.variable == "p_acnt").count();
-    let name_count = finding.parameter_bindings.iter().filter(|b| b.variable == "p_name").count();
-    assert_eq!(acnt_count, 1);
-    assert_eq!(name_count, 2);
-
-    let acnt_binding = finding.parameter_bindings.iter().find(|b| b.variable == "p_acnt").unwrap();
-    assert_eq!(acnt_binding.wrapping, Some("'...'".to_string()));
+    let f = &report.execute_findings[0].optional_filters[0];
+    assert_eq!(f.parameter, "p_i_qry_acnt");
+    assert_eq!(f.column, vec!["temp", "accno"]);
+    assert_eq!(f.operator, "=");
 }
 
 #[test]
-fn test_parameterized_sql_with_null_variable() {
+fn test_optional_filter_like_operator() {
     let block = parse_block(
         r#"DO $$
-DECLARE
-    v_sql VARCHAR;
-    p_acnt VARCHAR := '12345';
-    p_name VARCHAR;
 BEGIN
-    v_sql := 'SELECT * FROM t_users WHERE 1=1';
-    v_sql := v_sql || ' AND accno = ''' || p_acnt || '''';
-    v_sql := v_sql || ' AND (''' || p_name || ''' IS NULL OR name = ''' || p_name || ''')';
-    EXECUTE IMMEDIATE v_sql;
+    EXECUTE 'SELECT * FROM t WHERE (p_name IS NULL OR name LIKE p_name)';
 END $$"#
     );
     let report = analyze_pl_block(&block);
     assert_eq!(report.execute_findings.len(), 1);
-    let finding = &report.execute_findings[0];
-    assert!(finding.resolved_value.is_none());
-    assert!(finding.parameterized_sql.is_some());
-    let psql = finding.parameterized_sql.as_ref().unwrap();
-    assert!(psql.contains(":p_acnt"), "should contain :p_acnt, got: {}", psql);
-    assert!(psql.contains(":p_name"), "should contain :p_name, got: {}", psql);
+    let f = &report.execute_findings[0].optional_filters[0];
+    assert_eq!(f.parameter, "p_name");
+    assert_eq!(f.operator, "LIKE");
 }
 
 #[test]
-fn test_parameterized_sql_deeply_nested() {
-    // a/b/c are intermediate build vars, p_x is the param
-    // All VariableCopy nodes in a Concatenation become placeholders
+fn test_optional_filter_multiple() {
     let block = parse_block(
         r#"DO $$
-DECLARE
-    a VARCHAR;
-    b VARCHAR;
-    c VARCHAR;
-    p_x VARCHAR;
 BEGIN
-    a := 'SELECT *'; b := a || ' FROM t'; c := b || ' WHERE x=''' || p_x || '''';
-    EXECUTE IMMEDIATE c;
+    EXECUTE 'SELECT * FROM t WHERE (p_a IS NULL OR col_a = p_a) AND (p_b IS NULL OR col_b = p_b)';
 END $$"#
     );
     let report = analyze_pl_block(&block);
-    let finding = &report.execute_findings[0];
-    assert!(finding.parameterized_sql.is_some());
-    let psql = finding.parameterized_sql.as_ref().unwrap();
-    // b expands to " :a FROM t", then concat with " WHERE x=' :p_x'"
-    assert!(psql.contains(":p_x"), "should contain :p_x, got: {}", psql);
-    assert!(psql.contains(":a"), "intermediate var a becomes :a, got: {}", psql);
+    assert_eq!(report.execute_findings.len(), 1);
+    assert_eq!(report.execute_findings[0].optional_filters.len(), 2);
+    assert_eq!(report.execute_findings[0].optional_filters[0].parameter, "p_a");
+    assert_eq!(report.execute_findings[0].optional_filters[1].parameter, "p_b");
 }
 
 #[test]
-fn test_parameterized_sql_same_var_multiple_times() {
+fn test_optional_filter_not_detected_for_isNotNull() {
     let block = parse_block(
         r#"DO $$
-DECLARE
-    p_val VARCHAR;
 BEGIN
-    v := 'BETWEEN ''' || p_val || ''' AND ''' || p_val || '''';
-    EXECUTE IMMEDIATE v;
+    EXECUTE 'SELECT * FROM t WHERE (p_acnt IS NOT NULL OR accno = p_acnt)';
 END $$"#
     );
     let report = analyze_pl_block(&block);
-    let finding = &report.execute_findings[0];
-    let psql = finding.parameterized_sql.as_ref().unwrap();
-    assert_eq!(psql.matches(":p_val").count(), 2);
-    assert_eq!(finding.parameter_bindings.len(), 2);
-    assert!(finding.parameter_bindings.iter().all(|b| b.variable == "p_val"));
+    assert_eq!(report.execute_findings.len(), 1);
+    assert!(report.execute_findings[0].optional_filters.is_empty());
+}
+
+#[test]
+fn test_optional_filter_not_detected_for_different_vars() {
+    let block = parse_block(
+        r#"DO $$
+BEGIN
+    EXECUTE 'SELECT * FROM t WHERE (p_a IS NULL OR accno = p_b)';
+END $$"#
+    );
+    let report = analyze_pl_block(&block);
+    assert_eq!(report.execute_findings.len(), 1);
+    assert!(report.execute_findings[0].optional_filters.is_empty());
+}
+
+#[test]
+fn test_optional_filter_no_parentheses() {
+    let block = parse_block(
+        r#"DO $$
+BEGIN
+    EXECUTE 'SELECT * FROM t WHERE p_acnt IS NULL OR accno = p_acnt';
+END $$"#
+    );
+    let report = analyze_pl_block(&block);
+    assert_eq!(report.execute_findings.len(), 1);
+    assert_eq!(report.execute_findings[0].optional_filters.len(), 1);
 }

@@ -21,6 +21,8 @@ pub struct ExecuteFinding {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub parameterized_sql: Option<String>,
     pub parameter_bindings: Vec<ParameterBinding>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub optional_filters: Vec<OptionalFilter>,
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -141,6 +143,122 @@ fn build_concat_part(trace: &TraceChain, bindings: &mut Vec<ParameterBinding>) -
             .map(|p| build_concat_part(p, bindings))
             .collect(),
     }
+}
+
+// ── Optional filter detection ──
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct OptionalFilter {
+    pub parameter: String,
+    pub column: Vec<String>,
+    pub operator: String,
+}
+
+fn extract_where_clause(stmt: &Statement) -> Option<&Expr> {
+    match stmt {
+        Statement::Select(sel) => sel.node.where_clause.as_ref(),
+        Statement::Update(update) => update.node.where_clause.as_ref(),
+        Statement::Delete(delete) => delete.node.where_clause.as_ref(),
+        _ => None,
+    }
+}
+
+fn extract_var_name(expr: &Expr) -> Option<String> {
+    match expr {
+        Expr::PlVariable(names) | Expr::ColumnRef(names) if names.len() == 1 => {
+            Some(names[0].clone())
+        }
+        _ => None,
+    }
+}
+
+fn strip_parens(expr: &Expr) -> &Expr {
+    match expr {
+        Expr::Parenthesized(inner) => strip_parens(inner),
+        _ => expr,
+    }
+}
+
+fn detect_optional_filters(expr: &Expr) -> Vec<OptionalFilter> {
+    let mut filters = Vec::new();
+    collect_optional_filters(expr, &mut filters);
+    filters
+}
+
+fn collect_optional_filters(expr: &Expr, filters: &mut Vec<OptionalFilter>) {
+    match expr {
+        Expr::BinaryOp { op, left, right } if op == "OR" => {
+            if let Some(f) = try_match_optional_filter(left, right) {
+                filters.push(f);
+                return;
+            }
+            if let Some(f) = try_match_optional_filter(right, left) {
+                filters.push(f);
+                return;
+            }
+        }
+        Expr::Parenthesized(inner) => {
+            collect_optional_filters(inner, filters);
+            return;
+        }
+        Expr::BinaryOp { op, left, right } if op == "AND" => {
+            collect_optional_filters(left, filters);
+            collect_optional_filters(right, filters);
+            return;
+        }
+        _ => {}
+    }
+}
+
+fn try_match_optional_filter(is_null_side: &Expr, comparison_side: &Expr) -> Option<OptionalFilter> {
+    let is_null = strip_parens(is_null_side);
+    let comparison = strip_parens(comparison_side);
+
+    if let Expr::IsNull { expr: param_expr, negated: false } = is_null {
+        let param_name = extract_var_name(param_expr)?;
+
+        if let Expr::Like { expr, pattern, negated: false, .. } = comparison {
+            if extract_var_name(pattern).as_ref() == Some(&param_name) {
+                let column = match expr.as_ref() {
+                    Expr::ColumnRef(names) => names.clone(),
+                    _ => return None,
+                };
+                return Some(OptionalFilter {
+                    parameter: param_name,
+                    column,
+                    operator: "LIKE".to_string(),
+                });
+            }
+        }
+
+        if let Expr::BinaryOp { op, left, right } = comparison {
+            if op == "=" || op == ">" || op == "<" || op == ">=" || op == "<=" || op == "<>" {
+                let (col_expr, param_expr2) = if extract_var_name(right).as_ref() == Some(&param_name) {
+                    (left, right)
+                } else if extract_var_name(left).as_ref() == Some(&param_name) {
+                    (right, left)
+                } else {
+                    return None;
+                };
+
+                if extract_var_name(param_expr2)? != param_name {
+                    return None;
+                }
+
+                let column = match col_expr.as_ref() {
+                    Expr::ColumnRef(names) => names.clone(),
+                    _ => return None,
+                };
+
+                return Some(OptionalFilter {
+                    parameter: param_name,
+                    column,
+                    operator: op.clone(),
+                });
+            }
+        }
+    }
+    None
 }
 
 // ── 内部状态 ──
@@ -277,6 +395,13 @@ impl DynamicSqlAnalyzer {
                     .and_then(|s| crate::parser::Parser::parse_statement_from_str(s));
                 let desc = self.expr_to_string(&exec.string_expr);
                 let param_result = parameterize_trace(&trace);
+
+                let optional_filters = parsed
+                    .as_ref()
+                    .and_then(|stmt| extract_where_clause(stmt))
+                    .map(|where_clause| detect_optional_filters(where_clause))
+                    .unwrap_or_default();
+
                 self.findings.push(ExecuteFinding {
                     statement_path: self.path.clone(),
                     expression_desc: desc,
@@ -289,6 +414,7 @@ impl DynamicSqlAnalyzer {
                         Some(param_result.sql)
                     },
                     parameter_bindings: param_result.bindings,
+                    optional_filters,
                 });
             }
 
