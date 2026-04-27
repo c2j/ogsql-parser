@@ -725,5 +725,224 @@ pub fn analyze_pl_block(block: &PlBlock) -> DynamicSqlReport {
     DynamicSqlAnalyzer::new().analyze(block)
 }
 
+// ── Transaction Analysis ──
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct TransactionReport {
+    pub has_explicit_commit: bool,
+    pub has_explicit_rollback: bool,
+    pub has_autonomous_transaction: bool,
+    pub transaction_segments: Vec<TransactionSegment>,
+    pub cross_procedure_calls: Vec<CrossProcedureCall>,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct TransactionSegment {
+    pub index: usize,
+    pub start_reason: String,
+    pub end_reason: String,
+    pub statement_range: (usize, usize),
+    pub sub_transactions: Vec<SubTransaction>,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct SubTransaction {
+    pub block_path: String,
+    pub implicit_savepoint: bool,
+    pub body_range: (usize, usize),
+    pub exception_handlers: Vec<ExceptionHandlerInfo>,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct ExceptionHandlerInfo {
+    pub conditions: Vec<String>,
+    pub statement_count: usize,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct CrossProcedureCall {
+    pub call_path: String,
+    pub callee: String,
+    pub callee_may_commit: bool,
+}
+
+pub fn analyze_transactions(block: &PlBlock) -> TransactionReport {
+    let mut analyzer = TransactionAnalyzer::new();
+    analyzer.analyze_block(block, "body");
+    analyzer.into_report()
+}
+
+struct TransactionAnalyzer {
+    has_commit: bool,
+    has_rollback: bool,
+    has_autonomous: bool,
+    segments: Vec<TransactionSegment>,
+    cross_calls: Vec<CrossProcedureCall>,
+    current_segment_start: usize,
+    current_reason: String,
+    statement_index: usize,
+    block_depth: usize,
+    sub_transactions: Vec<SubTransaction>,
+}
+
+impl TransactionAnalyzer {
+    fn new() -> Self {
+        Self {
+            has_commit: false,
+            has_rollback: false,
+            has_autonomous: false,
+            segments: Vec::new(),
+            cross_calls: Vec::new(),
+            current_segment_start: 0,
+            current_reason: "procedure_entry".to_string(),
+            statement_index: 0,
+            block_depth: 0,
+            sub_transactions: Vec::new(),
+        }
+    }
+
+    fn analyze_block(&mut self, block: &PlBlock, path: &str) {
+        for (i, stmt) in block.body.iter().enumerate() {
+            self.analyze_statement(stmt, i, path);
+            self.statement_index += 1;
+        }
+
+        if block.exception_block.is_some() && self.block_depth > 0 {
+            let exc = block.exception_block.as_ref().unwrap();
+            let handlers: Vec<ExceptionHandlerInfo> = exc.handlers.iter().map(|h| {
+                ExceptionHandlerInfo {
+                    conditions: h.conditions.clone(),
+                    statement_count: h.statements.len(),
+                }
+            }).collect();
+            self.sub_transactions.push(SubTransaction {
+                block_path: path.to_string(),
+                implicit_savepoint: true,
+                body_range: (0, block.body.len().saturating_sub(1)),
+                exception_handlers: handlers,
+            });
+        }
+    }
+
+    fn analyze_statement(&mut self, stmt: &PlStatement, idx: usize, path: &str) {
+        match stmt {
+            PlStatement::Commit { .. } => {
+                self.has_commit = true;
+                self.flush_segment("commit", idx);
+            }
+            PlStatement::Rollback { .. } => {
+                self.has_rollback = true;
+                self.flush_segment("rollback", idx);
+            }
+            PlStatement::Block(inner) => {
+                self.block_depth += 1;
+                self.analyze_block(&inner.node, &format!("{}[{}].Block", path, idx));
+                self.block_depth -= 1;
+            }
+            PlStatement::If(inner) => {
+                for (si, s) in inner.node.then_stmts.iter().enumerate() {
+                    self.statement_index += 1;
+                    self.analyze_statement(s, si, &format!("{}[{}].Then", path, idx));
+                }
+                for (ei, elsif) in inner.node.elsifs.iter().enumerate() {
+                    for (si, s) in elsif.stmts.iter().enumerate() {
+                        self.statement_index += 1;
+                        self.analyze_statement(s, si, &format!("{}[{}].Elsif[{}]", path, idx, ei));
+                    }
+                }
+                for (si, s) in inner.node.else_stmts.iter().enumerate() {
+                    self.statement_index += 1;
+                    self.analyze_statement(s, si, &format!("{}[{}].Else", path, idx));
+                }
+            }
+            PlStatement::Loop(inner) => {
+                self.analyze_statements(&inner.node.body, &format!("{}[{}].Loop", path, idx));
+            }
+            PlStatement::While(inner) => {
+                self.analyze_statements(&inner.node.body, &format!("{}[{}].While", path, idx));
+            }
+            PlStatement::For(inner) => {
+                self.analyze_statements(&inner.node.body, &format!("{}[{}].For", path, idx));
+            }
+            PlStatement::ForEach(inner) => {
+                self.analyze_statements(&inner.node.body, &format!("{}[{}].ForEach", path, idx));
+            }
+            PlStatement::ProcedureCall(call) => {
+                let callee = call.node.name.join(".");
+                self.cross_calls.push(CrossProcedureCall {
+                    call_path: format!("{}[{}].ProcedureCall", path, idx),
+                    callee: callee.clone(),
+                    callee_may_commit: false,
+                });
+            }
+            PlStatement::Execute(inner) => {
+                let expr_str = format!("{:?}", inner.node.string_expr).to_lowercase();
+                if expr_str.contains("commit") || expr_str.contains("rollback") {
+                    self.cross_calls.push(CrossProcedureCall {
+                        call_path: format!("{}[{}].Execute", path, idx),
+                        callee: "dynamic_sql".to_string(),
+                        callee_may_commit: true,
+                    });
+                }
+            }
+            _ => {}
+        }
+    }
+
+    fn analyze_block_with_depth(&mut self, block: &PlBlock, path: &str) {
+        self.block_depth += 1;
+        self.analyze_block(block, path);
+        self.block_depth -= 1;
+    }
+
+    fn analyze_statements(&mut self, stmts: &[PlStatement], path: &str) {
+        for (i, stmt) in stmts.iter().enumerate() {
+            self.statement_index += 1;
+            self.analyze_statement(stmt, i, path);
+        }
+    }
+
+    fn flush_segment(&mut self, end_reason: &str, current_idx: usize) {
+        let end_idx = if current_idx > 0 { current_idx - 1 } else { 0 };
+        if end_idx >= self.current_segment_start || self.segments.is_empty() {
+            self.segments.push(TransactionSegment {
+                index: self.segments.len(),
+                start_reason: self.current_reason.clone(),
+                end_reason: end_reason.to_string(),
+                statement_range: (self.current_segment_start, end_idx),
+                sub_transactions: std::mem::take(&mut self.sub_transactions),
+            });
+        }
+        self.current_segment_start = current_idx + 1;
+        self.current_reason = format!("post_{}", end_reason);
+    }
+
+    fn into_report(mut self) -> TransactionReport {
+        if self.segments.is_empty() || self.current_segment_start <= self.statement_index {
+            let end_idx = if self.statement_index > 0 { self.statement_index - 1 } else { 0 };
+            if self.segments.is_empty() || end_idx >= self.current_segment_start {
+                self.segments.push(TransactionSegment {
+                    index: self.segments.len(),
+                    start_reason: if self.segments.is_empty() {
+                        "procedure_entry".to_string()
+                    } else {
+                        self.current_reason.clone()
+                    },
+                    end_reason: "procedure_exit".to_string(),
+                    statement_range: (self.current_segment_start, end_idx),
+                    sub_transactions: std::mem::take(&mut self.sub_transactions),
+                });
+            }
+        }
+        TransactionReport {
+            has_explicit_commit: self.has_commit,
+            has_explicit_rollback: self.has_rollback,
+            has_autonomous_transaction: self.has_autonomous,
+            transaction_segments: self.segments,
+            cross_procedure_calls: self.cross_calls,
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests;
