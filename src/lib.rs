@@ -5,7 +5,7 @@ pub mod parser;
 pub mod token;
 pub mod token_formatter;
 
-pub use analyzer::{analyze_pl_block, compute_query_fingerprints, DynamicSqlReport, QueryFingerprint};
+pub use analyzer::{analyze_pl_block, analyze_transactions, compute_query_fingerprints, DynamicSqlReport, QueryFingerprint, TransactionReport};
 
 pub use ast::visitor::{
     walk_statement,

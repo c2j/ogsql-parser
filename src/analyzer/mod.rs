@@ -725,5 +725,251 @@ pub fn analyze_pl_block(block: &PlBlock) -> DynamicSqlReport {
     DynamicSqlAnalyzer::new().analyze(block)
 }
 
+// ── Transaction Analysis ──
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct TransactionReport {
+    pub has_explicit_commit: bool,
+    pub has_explicit_rollback: bool,
+    pub has_autonomous_transaction: bool,
+    pub transaction_segments: Vec<TransactionSegment>,
+    pub cross_procedure_calls: Vec<CrossProcedureCall>,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct TransactionSegment {
+    pub index: usize,
+    pub start_reason: TransactionBoundary,
+    pub end_reason: TransactionBoundary,
+    pub statement_range: (usize, usize),
+    pub sub_transactions: Vec<SubTransaction>,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub enum TransactionBoundary {
+    ProcedureEntry,
+    PostCommit,
+    PostRollback,
+    Commit,
+    Rollback,
+    ProcedureExit,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct SubTransaction {
+    pub block_path: Vec<usize>,
+    pub implicit_savepoint: bool,
+    pub body_range: (usize, usize),
+    pub exception_handlers: Vec<ExceptionHandlerInfo>,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct ExceptionHandlerInfo {
+    pub conditions: Vec<String>,
+    pub statement_count: usize,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct CrossProcedureCall {
+    pub call_path: Vec<usize>,
+    pub callee: String,
+    pub callee_may_commit: bool,
+}
+
+pub fn analyze_transactions(block: &PlBlock) -> TransactionReport {
+    let mut analyzer = TransactionAnalyzer::new();
+    analyzer.analyze(block)
+}
+
+struct TransactionAnalyzer {
+    has_explicit_commit: bool,
+    has_explicit_rollback: bool,
+    has_autonomous_transaction: bool,
+    segments: Vec<TransactionSegment>,
+    cross_procedure_calls: Vec<CrossProcedureCall>,
+    current_segment_start: usize,
+    current_segment_start_reason: TransactionBoundary,
+    current_segment_stmts: Vec<(usize, SubTransactionInfo)>,
+    global_idx: usize,
+}
+
+struct SubTransactionInfo {
+    block_path: Vec<usize>,
+    implicit_savepoint: bool,
+    body_range: (usize, usize),
+    handlers: Vec<ExceptionHandlerInfo>,
+}
+
+impl TransactionAnalyzer {
+    fn new() -> Self {
+        Self {
+            has_explicit_commit: false,
+            has_explicit_rollback: false,
+            has_autonomous_transaction: false,
+            segments: Vec::new(),
+            cross_procedure_calls: Vec::new(),
+            current_segment_start: 0,
+            current_segment_start_reason: TransactionBoundary::ProcedureEntry,
+            current_segment_stmts: Vec::new(),
+            global_idx: 0,
+        }
+    }
+
+    fn analyze(&mut self, block: &PlBlock) -> TransactionReport {
+        for decl in &block.declarations {
+            if let PlDeclaration::Pragma { name, .. } = decl {
+                if name.eq_ignore_ascii_case("AUTONOMOUS_TRANSACTION") {
+                    self.has_autonomous_transaction = true;
+                }
+            }
+        }
+        self.scan_statements(&block.body, &[]);
+        self.flush_segment(TransactionBoundary::ProcedureExit);
+        TransactionReport {
+            has_explicit_commit: self.has_explicit_commit,
+            has_explicit_rollback: self.has_explicit_rollback,
+            has_autonomous_transaction: self.has_autonomous_transaction,
+            transaction_segments: std::mem::take(&mut self.segments),
+            cross_procedure_calls: std::mem::take(&mut self.cross_procedure_calls),
+        }
+    }
+
+    fn scan_statements(&mut self, stmts: &[PlStatement], path: &[usize]) {
+        for (i, stmt) in stmts.iter().enumerate() {
+            let mut sub_tx = None;
+            self.scan_statement(stmt, &path.iter().copied().chain(std::iter::once(i)).collect::<Vec<_>>(), &mut sub_tx);
+            self.current_segment_stmts.push((self.global_idx, sub_tx.unwrap_or(SubTransactionInfo {
+                block_path: path.iter().copied().chain(std::iter::once(i)).collect(),
+                implicit_savepoint: false,
+                body_range: (0, 0),
+                handlers: Vec::new(),
+            })));
+            self.global_idx += 1;
+        }
+    }
+
+    fn scan_statement(&mut self, stmt: &PlStatement, path: &[usize], sub_tx: &mut Option<SubTransactionInfo>) {
+        match stmt {
+            PlStatement::Commit { .. } => {
+                self.has_explicit_commit = true;
+                let end = if self.global_idx > 0 { self.global_idx } else { 0 };
+                let sub_transactions = self.drain_sub_transactions();
+                self.segments.push(TransactionSegment {
+                    index: self.segments.len(),
+                    start_reason: std::mem::replace(&mut self.current_segment_start_reason, TransactionBoundary::PostCommit),
+                    end_reason: TransactionBoundary::Commit,
+                    statement_range: (self.current_segment_start, end),
+                    sub_transactions,
+                });
+                self.current_segment_start = self.global_idx + 1;
+            }
+            PlStatement::Rollback { .. } => {
+                self.has_explicit_rollback = true;
+                let end = if self.global_idx > 0 { self.global_idx } else { 0 };
+                let sub_transactions = self.drain_sub_transactions();
+                self.segments.push(TransactionSegment {
+                    index: self.segments.len(),
+                    start_reason: std::mem::replace(&mut self.current_segment_start_reason, TransactionBoundary::PostRollback),
+                    end_reason: TransactionBoundary::Rollback,
+                    statement_range: (self.current_segment_start, end),
+                    sub_transactions,
+                });
+                self.current_segment_start = self.global_idx + 1;
+            }
+            PlStatement::ProcedureCall(call) => {
+                let callee = call.name.join(".");
+                self.cross_procedure_calls.push(CrossProcedureCall {
+                    call_path: path.to_vec(),
+                    callee: callee.clone(),
+                    callee_may_commit: false,
+                });
+            }
+            PlStatement::Block(inner_block) => {
+                if inner_block.exception_block.is_some() {
+                    let handler_count = inner_block.exception_block.as_ref().map_or(0, |eb| eb.handlers.len());
+                    let handlers: Vec<ExceptionHandlerInfo> = inner_block
+                        .exception_block
+                        .as_ref()
+                        .map(|eb| {
+                            eb.handlers
+                                .iter()
+                                .map(|h| ExceptionHandlerInfo {
+                                    conditions: h.conditions.clone(),
+                                    statement_count: h.statements.len(),
+                                })
+                                .collect()
+                        })
+                        .unwrap_or_default();
+                    *sub_tx = Some(SubTransactionInfo {
+                        block_path: path.to_vec(),
+                        implicit_savepoint: true,
+                        body_range: (0, inner_block.body.len().saturating_sub(1)),
+                        handlers,
+                    });
+                }
+                self.scan_statements(&inner_block.body, path);
+            }
+            PlStatement::If(if_stmt) => {
+                self.scan_statements(&if_stmt.then_stmts, path);
+                for elsif in &if_stmt.elsifs {
+                    self.scan_statements(&elsif.stmts, path);
+                }
+                self.scan_statements(&if_stmt.else_stmts, path);
+            }
+            PlStatement::Case(case_stmt) => {
+                for when in &case_stmt.whens {
+                    self.scan_statements(&when.stmts, path);
+                }
+                self.scan_statements(&case_stmt.else_stmts, path);
+            }
+            PlStatement::Loop(loop_stmt) => {
+                self.scan_statements(&loop_stmt.body, path);
+            }
+            PlStatement::While(while_stmt) => {
+                self.scan_statements(&while_stmt.body, path);
+            }
+            PlStatement::For(for_stmt) => {
+                self.scan_statements(&for_stmt.body, path);
+            }
+            PlStatement::ForEach(foreach_stmt) => {
+                self.scan_statements(&foreach_stmt.body, path);
+            }
+            _ => {}
+        }
+    }
+
+    fn drain_sub_transactions(&mut self) -> Vec<SubTransaction> {
+        self.current_segment_stmts
+            .drain(..)
+            .filter_map(|(_, info)| {
+                if info.implicit_savepoint {
+                    Some(SubTransaction {
+                        block_path: info.block_path,
+                        implicit_savepoint: true,
+                        body_range: info.body_range,
+                        exception_handlers: info.handlers,
+                    })
+                } else {
+                    None
+                }
+            })
+            .collect()
+    }
+
+    fn flush_segment(&mut self, end_reason: TransactionBoundary) {
+        if !self.current_segment_stmts.is_empty() || !self.segments.is_empty() {
+            let end = self.global_idx.saturating_sub(1);
+            let sub_transactions = self.drain_sub_transactions();
+            self.segments.push(TransactionSegment {
+                index: self.segments.len(),
+                start_reason: std::mem::replace(&mut self.current_segment_start_reason, TransactionBoundary::ProcedureEntry),
+                end_reason,
+                statement_range: (self.current_segment_start, end),
+                sub_transactions,
+            });
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests;
