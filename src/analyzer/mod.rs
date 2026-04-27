@@ -18,6 +18,17 @@ pub struct ExecuteFinding {
     pub resolved_value: Option<String>,
     pub parsed_statement: Option<Box<Statement>>,
     pub trace: TraceChain,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub parameterized_sql: Option<String>,
+    pub parameter_bindings: Vec<ParameterBinding>,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct ParameterBinding {
+    pub position: usize,
+    pub variable: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub wrapping: Option<String>,
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -43,6 +54,93 @@ pub enum TraceChain {
         value: String,
     },
     Unknown,
+}
+
+// ── 参数化 SQL 生成 ──
+
+struct ParameterizedResult {
+    sql: String,
+    bindings: Vec<ParameterBinding>,
+}
+
+fn parameterize_trace(trace: &TraceChain) -> ParameterizedResult {
+    let mut bindings = Vec::new();
+    let mut sql = build_parameterized_sql(trace, &mut bindings);
+    detect_wrapping_in_sql(&mut sql, &mut bindings);
+    ParameterizedResult { sql, bindings }
+}
+
+fn detect_wrapping_in_sql(sql: &mut String, bindings: &mut Vec<ParameterBinding>) {
+    for binding in bindings.iter_mut() {
+        let placeholder = format!(" :{}", binding.variable);
+        let has_quote_before = sql.contains(&format!("'{}", placeholder));
+        let has_quote_after = sql.contains(&format!("{}'", placeholder));
+        if has_quote_before && has_quote_after {
+            binding.wrapping = Some("'...'".to_string());
+        }
+    }
+    let mut result = sql.clone();
+    for binding in bindings.iter() {
+        if binding.wrapping.is_some() {
+            let placeholder = format!(" :{}", binding.variable);
+            result = result.replace(&format!("'{}", placeholder), &placeholder);
+            result = result.replace(&format!("{}'", placeholder), &placeholder);
+        }
+    }
+    *sql = result;
+}
+
+fn build_parameterized_sql(trace: &TraceChain, bindings: &mut Vec<ParameterBinding>) -> String {
+    match trace {
+        TraceChain::LiteralAssignment { value }
+        | TraceChain::DeclarationDefault { value } => value.clone(),
+
+        TraceChain::VariableCopy { source_chain, .. } => {
+            build_parameterized_sql(source_chain, bindings)
+        }
+
+        TraceChain::Unknown => " :?".to_string(),
+
+        TraceChain::Concatenation { parts } => parts
+            .iter()
+            .map(|p| build_concat_part(p, bindings))
+            .collect(),
+    }
+}
+
+fn build_concat_part(trace: &TraceChain, bindings: &mut Vec<ParameterBinding>) -> String {
+    match trace {
+        TraceChain::LiteralAssignment { value }
+        | TraceChain::DeclarationDefault { value } => value.clone(),
+
+        TraceChain::VariableCopy {
+            source_var,
+            source_chain,
+        } => match source_chain.as_ref() {
+            TraceChain::Concatenation { .. } => {
+                build_parameterized_sql(source_chain, bindings)
+            }
+            TraceChain::VariableCopy { .. } => {
+                build_parameterized_sql(source_chain, bindings)
+            }
+            _ => {
+                let pos = bindings.len() + 1;
+                bindings.push(ParameterBinding {
+                    position: pos,
+                    variable: source_var.clone(),
+                    wrapping: None,
+                });
+                format!(" :{}", source_var)
+            }
+        },
+
+        TraceChain::Unknown => " :?".to_string(),
+
+        TraceChain::Concatenation { parts } => parts
+            .iter()
+            .map(|p| build_concat_part(p, bindings))
+            .collect(),
+    }
 }
 
 // ── 内部状态 ──
@@ -178,12 +276,19 @@ impl DynamicSqlAnalyzer {
                     .as_ref()
                     .and_then(|s| crate::parser::Parser::parse_statement_from_str(s));
                 let desc = self.expr_to_string(&exec.string_expr);
+                let param_result = parameterize_trace(&trace);
                 self.findings.push(ExecuteFinding {
                     statement_path: self.path.clone(),
                     expression_desc: desc,
                     resolved_value: resolved,
                     parsed_statement: parsed,
                     trace,
+                    parameterized_sql: if param_result.sql.trim().is_empty() {
+                        None
+                    } else {
+                        Some(param_result.sql)
+                    },
+                    parameter_bindings: param_result.bindings,
                 });
             }
 
