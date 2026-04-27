@@ -640,18 +640,18 @@ impl Parser {
 
         let items = self.parse_package_body_items();
         if is_body {
-            Ok(Statement::CreatePackageBody(CreatePackageBodyStatement {
+            Ok(Statement::CreatePackageBody(crate::ast::Spanned::new(CreatePackageBodyStatement {
                 replace,
                 name,
                 items,
-            }))
+            }, None)))
         } else {
-            Ok(Statement::CreatePackage(CreatePackageStatement {
+            Ok(Statement::CreatePackage(crate::ast::Spanned::new(CreatePackageStatement {
                 replace,
                 name,
                 authid,
                 items,
-            }))
+            }, None)))
         }
     }
 

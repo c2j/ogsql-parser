@@ -1,5 +1,6 @@
 //! PL/pgSQL AST types for procedural language blocks.
 
+use crate::ast::Spanned;
 use serde::{Deserialize, Serialize};
 use std::fmt;
 
@@ -122,40 +123,25 @@ pub struct PlTypeField {
 /// A PL/pgSQL statement.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum PlStatement {
-    /// Nested block
-    Block(PlBlock),
+    Block(Spanned<PlBlock>),
 
-    /// Assignment: target := expr
     Assignment {
         target: crate::ast::Expr,
         expression: crate::ast::Expr,
     },
 
-    /// IF condition THEN stmts [ELSIF condition THEN stmts]... [ELSE stmts] END IF
-    If(PlIfStmt),
+    If(Spanned<PlIfStmt>),
+    Case(Spanned<PlCaseStmt>),
+    Loop(Spanned<PlLoopStmt>),
+    While(Spanned<PlWhileStmt>),
+    For(Spanned<PlForStmt>),
+    ForEach(Spanned<PlForEachStmt>),
 
-    /// CASE [expr] WHEN condition THEN stmts... [ELSE stmts] END CASE
-    Case(PlCaseStmt),
-
-    /// Basic loop: [label:] LOOP stmts END LOOP [label]
-    Loop(PlLoopStmt),
-
-    /// WHILE loop: [label:] WHILE condition LOOP stmts END LOOP [label]
-    While(PlWhileStmt),
-
-    /// FOR loop (range, query, or cursor)
-    For(PlForStmt),
-
-    /// FOREACH loop: [label:] FOREACH var IN ARRAY expr [SLICE n] LOOP stmts END LOOP [label]
-    ForEach(PlForEachStmt),
-
-    /// EXIT [label] [WHEN condition]
     Exit {
         label: Option<String>,
         condition: Option<crate::ast::Expr>,
     },
 
-    /// CONTINUE [label] [WHEN condition]
     Continue {
         label: Option<String>,
         condition: Option<crate::ast::Expr>,
@@ -169,13 +155,9 @@ pub enum PlStatement {
         expression: crate::ast::Expr,
     },
 
-    ReturnQuery(PlReturnQueryStmt),
-
-    /// RAISE [level] format [, args...] [USING option = value ...]
-    Raise(PlRaiseStmt),
-
-    /// EXECUTE format_string [INTO target] [USING expr, ...]
-    Execute(PlExecuteStmt),
+    ReturnQuery(Spanned<PlReturnQueryStmt>),
+    Raise(Spanned<PlRaiseStmt>),
+    Execute(Spanned<PlExecuteStmt>),
 
     Perform {
         query: String,
@@ -185,34 +167,23 @@ pub enum PlStatement {
         parsed_expr: Option<Box<crate::ast::Expr>>,
     },
 
-    /// OPEN cursor (simple, for query, or for using)
-    Open(PlOpenStmt),
+    Open(Spanned<PlOpenStmt>),
+    Fetch(Spanned<PlFetchStmt>),
 
-    /// FETCH cursor INTO target
-    Fetch(PlFetchStmt),
-
-    /// CLOSE cursor_name
     Close {
         cursor: crate::ast::Expr,
     },
 
-    /// MOVE [direction [FROM | IN]] cursor
     Move {
         cursor: crate::ast::Expr,
         direction: Option<FetchDirection>,
     },
 
-    /// GET [STACKED] DIAGNOSTICS var = item [, var = item ...]
-    GetDiagnostics(PlGetDiagStmt),
-
-    /// COMMIT [WORK]
+    GetDiagnostics(Spanned<PlGetDiagStmt>),
     Commit,
-
-    /// ROLLBACK [WORK | TO savepoint_name]
     Rollback {
         to_savepoint: Option<String>,
     },
-
     Savepoint {
         name: String,
     },
@@ -221,13 +192,11 @@ pub enum PlStatement {
     },
     Null,
 
-    /// GOTO label
     Goto {
         label: String,
     },
 
-    /// Procedure or function call: name[(args...)]
-    ProcedureCall(PlProcedureCall),
+    ProcedureCall(Spanned<PlProcedureCall>),
 
     #[serde(rename = "sql_text")]
     Sql(String),
@@ -238,10 +207,8 @@ pub enum PlStatement {
         statement: Box<crate::ast::Statement>,
     },
 
-    /// FORALL statement
-    ForAll(PlForAllStmt),
+    ForAll(Spanned<PlForAllStmt>),
 
-    /// PIPE ROW(expr)
     PipeRow {
         expression: crate::ast::Expr,
     },

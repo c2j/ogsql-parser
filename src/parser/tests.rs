@@ -11,6 +11,47 @@ fn parse(sql: &str) -> Vec<Statement> {
     Parser::new(tokens).parse()
 }
 
+/// Compare two statements ignoring span information.
+/// Useful for round-trip tests where re-parsing produces different spans.
+fn assert_eq_ignoring_span(left: &Statement, right: &Statement) {
+    // Deserialize both to JSON, remove all "span" keys, then compare strings.
+    // This is robust against any number of Statement variants without needing exhaustive matching.
+    fn to_json_no_span(stmt: &Statement) -> serde_json::Value {
+        let mut val = serde_json::to_value(stmt).expect("serialize");
+        fn remove_spans(val: &mut serde_json::Value) {
+            match val {
+                serde_json::Value::Object(map) => {
+                    map.remove("span");
+                    for v in map.values_mut() {
+                        remove_spans(v);
+                    }
+                }
+                serde_json::Value::Array(arr) => {
+                    for v in arr {
+                        remove_spans(v);
+                    }
+                }
+                _ => {}
+            }
+        }
+        remove_spans(&mut val);
+        val
+    }
+    let left_json = to_json_no_span(left);
+    let right_json = to_json_no_span(right);
+    assert_eq!(left_json, right_json);
+}
+
+/// Compare two Vec<Statement> ignoring span information.
+fn assert_eq_vec_ignoring_span(left: &[Statement], right: &[Statement], msg: &str) {
+    assert_eq!(left.len(), right.len(), "{}: statement count mismatch", msg);
+    for (i, (l, r)) in left.iter().zip(right.iter()).enumerate() {
+        if l != r {
+            assert_eq_ignoring_span(l, r);
+        }
+    }
+}
+
 fn parse_one(sql: &str) -> Statement {
     let stmts = parse(sql);
     stmts
@@ -30,7 +71,7 @@ fn parse_err(sql: &str) -> Statement {
 fn parse_do_block(sql: &str) -> PlBlock {
     let stmt = parse_one(sql);
     match stmt {
-        Statement::Do(d) => d
+        Statement::Do(d) => d.node
             .block
             .expect("DO statement should have parsed a PL/pgSQL block"),
         _ => panic!("expected DO statement"),
@@ -3582,7 +3623,7 @@ fn test_create_global_index_roundtrip() {
     let stmt = parse_one(sql);
     let formatted = SqlFormatter::new().format_statement(&stmt);
     let stmt2 = parse_one(&formatted);
-    assert_eq!(stmt, stmt2);
+    assert_eq_ignoring_span(&stmt, &stmt2);
 }
 
 #[test]
@@ -4740,9 +4781,9 @@ fn test_prepare_with_parsed_select() {
     let stmt = parse_one(sql);
     match stmt {
         Statement::Prepare(p) => {
-            assert_eq!(p.name, "q1");
-            assert!(p.parsed_statement.is_some());
-            let inner = *p.parsed_statement.unwrap();
+            assert_eq!(p.node.name, "q1");
+            assert!(p.node.parsed_statement.is_some());
+            let inner = *p.node.parsed_statement.unwrap();
             assert!(matches!(inner, Statement::Select(_)));
         }
         _ => panic!("expected Prepare"),
@@ -4755,10 +4796,10 @@ fn test_prepare_with_parsed_insert() {
     let stmt = parse_one(sql);
     match stmt {
         Statement::Prepare(p) => {
-            assert_eq!(p.name, "ins");
-            assert_eq!(p.data_types, vec!["int", "text"]);
-            assert!(p.parsed_statement.is_some());
-            let inner = *p.parsed_statement.unwrap();
+            assert_eq!(p.node.name, "ins");
+            assert_eq!(p.node.data_types, vec!["int", "text"]);
+            assert!(p.node.parsed_statement.is_some());
+            let inner = *p.node.parsed_statement.unwrap();
             assert!(matches!(inner, Statement::Insert(_)));
         }
         _ => panic!("expected Prepare"),
@@ -5784,7 +5825,7 @@ fn test_subpartition_format_roundtrip() {
     let stmt = parse_one(sql);
     let formatted = SqlFormatter::new().format_statement(&stmt);
     let stmt2 = parse_one(&formatted);
-    assert_eq!(stmt, stmt2);
+    assert_eq_ignoring_span(&stmt, &stmt2);
 }
 
 #[test]
@@ -6015,7 +6056,7 @@ fn test_create_table_start_end_every_roundtrip() {
     let stmt = parse_one(sql);
     let formatted = SqlFormatter::new().format_statement(&stmt);
     let stmt2 = parse_one(&formatted);
-    assert_eq!(stmt, stmt2);
+    assert_eq_ignoring_span(&stmt, &stmt2);
 }
 
 #[test]
@@ -6024,7 +6065,7 @@ fn test_create_table_partition_list_default_roundtrip() {
     let stmt = parse_one(sql);
     let formatted = SqlFormatter::new().format_statement(&stmt);
     let stmt2 = parse_one(&formatted);
-    assert_eq!(stmt, stmt2);
+    assert_eq_ignoring_span(&stmt, &stmt2);
 }
 
 #[test]
@@ -6556,7 +6597,7 @@ fn test_on_conflict_do_nothing() {
     let stmt = parse_one("INSERT INTO t VALUES (1) ON CONFLICT DO NOTHING");
     match stmt {
         Statement::Insert(ins) => {
-            let oc = ins.on_conflict.expect("expected on_conflict");
+            let oc = ins.node.on_conflict.expect("expected on_conflict");
             assert!(matches!(oc, OnConflictAction::Nothing { target: None }));
         }
         _ => panic!("expected Insert"),
@@ -6568,7 +6609,7 @@ fn test_on_conflict_columns() {
     let stmt = parse_one("INSERT INTO t VALUES (1) ON CONFLICT (id) DO UPDATE SET name = 'x'");
     match stmt {
         Statement::Insert(ins) => {
-            let oc = ins.on_conflict.expect("expected on_conflict");
+            let oc = ins.node.on_conflict.expect("expected on_conflict");
             match oc {
                 OnConflictAction::Update {
                     target,
@@ -6592,7 +6633,7 @@ fn test_on_conflict_on_constraint() {
     let stmt = parse_one("INSERT INTO t VALUES (1) ON CONFLICT ON CONSTRAINT pk DO NOTHING");
     match stmt {
         Statement::Insert(ins) => {
-            let oc = ins.on_conflict.expect("expected on_conflict");
+            let oc = ins.node.on_conflict.expect("expected on_conflict");
             match oc {
                 OnConflictAction::Nothing { target } => {
                     assert!(
@@ -8789,7 +8830,7 @@ fn roundtrip_cursor(sql: &str) {
 
     let tokens2 = Tokenizer::new(&result_sql).tokenize().unwrap();
     let stmts2 = Parser::new(tokens2).parse();
-    assert_eq!(stmts, stmts2, "Round-trip failed for: {}", sql);
+    assert_eq_vec_ignoring_span(&stmts, &stmts2, &format!("Round-trip failed for: {}", sql));
 }
 
 #[test]
@@ -11328,7 +11369,7 @@ fn test_alter_table_add_constraint_pk_using_index() {
     let sql = "ALTER TABLE t ADD CONSTRAINT pk_t PRIMARY KEY (id) USING INDEX idx_t PCTFREE 10 INITRANS 2 MAXTRANS 255";
     let stmt = parse_one(sql);
     match stmt {
-        Statement::AlterTable(AlterTableStatement { actions, .. }) => {
+        Statement::AlterTable(s) => { let AlterTableStatement {  actions, ..  } = &s.node;
             assert_eq!(actions.len(), 1);
             match &actions[0] {
                 AlterTableAction::AddConstraint { name, constraint } => {
@@ -11357,7 +11398,7 @@ fn test_create_table_with_storage_params() {
     let sql = "CREATE TABLE t (id INT, code VARCHAR(1)) PCTFREE 10 INITRANS 2 MAXTRANS 255";
     let stmt = parse_one(sql);
     match stmt {
-        Statement::CreateTable(CreateTableStatement { table_options, .. }) => {
+        Statement::CreateTable(s) => { let CreateTableStatement {  table_options, ..  } = &s.node;
             let keys: Vec<&str> = table_options.iter().map(|(k, _)| k.as_str()).collect();
             assert!(
                 keys.contains(&"PCTFREE"),
@@ -11381,8 +11422,8 @@ fn test_create_index_with_storage_params() {
     let sql = "CREATE INDEX ind1 ON t1 (part_id) INITRANS 2 MAXTRANS 255";
     let stmt = parse_one(sql);
     match stmt {
-        Statement::CreateIndex(CreateIndexStatement { table, columns, .. }) => {
-            assert_eq!(table, vec!["t1".to_string()]);
+        Statement::CreateIndex(s) => { let CreateIndexStatement {  table, columns, ..  } = &s.node;
+            assert_eq!(table.clone(), vec!["t1".to_string()]);
             assert_eq!(columns.len(), 1);
         }
         _ => panic!("expected CreateIndex, got {:?}", stmt),
@@ -11394,7 +11435,7 @@ fn test_create_index_with_pctfree_and_tablespace() {
     let sql = "CREATE INDEX idx ON t1 (c1) PCTFREE 20 TABLESPACE pg_default";
     let stmt = parse_one(sql);
     match stmt {
-        Statement::CreateIndex(CreateIndexStatement { tablespace, .. }) => {
+        Statement::CreateIndex(s) => { let CreateIndexStatement {  tablespace, ..  } = &s.node;
             assert!(tablespace.is_some());
         }
         _ => panic!("expected CreateIndex, got {:?}", stmt),
@@ -11406,8 +11447,8 @@ fn test_alter_index_storage_params() {
     let sql = "ALTER INDEX idx PCTFREE 20 INITRANS 4 MAXTRANS 255";
     let stmt = parse_one(sql);
     match stmt {
-        Statement::AlterIndex(AlterIndexStatement { name, action, .. }) => {
-            assert_eq!(name, vec!["idx".to_string()]);
+        Statement::AlterIndex(s) => { let AlterIndexStatement {  name, action, ..  } = &s.node;
+            assert_eq!(name.clone(), vec!["idx".to_string()]);
             assert!(matches!(action, AlterIndexAction::NoOp));
         }
         _ => panic!("expected AlterIndex, got {:?}", stmt),
@@ -11419,11 +11460,11 @@ fn test_create_table_inline_constraint_using_index_no_name() {
     let sql = "CREATE TABLE t2 (id INT, CONSTRAINT PK_A PRIMARY KEY (id) USING INDEX PCTFREE 10 INITRANS 2 MAXTRANS 255) NOCOMPRESS";
     let stmt = parse_one(sql);
     match stmt {
-        Statement::CreateTable(CreateTableStatement {
+        Statement::CreateTable(s) => { let CreateTableStatement { 
             constraints,
             compress,
             ..
-        }) => {
+         } = &s.node;
             assert_eq!(constraints.len(), 1);
             match &constraints[0] {
                 TableConstraint::PrimaryKey {
@@ -11445,7 +11486,7 @@ fn test_create_table_inline_constraint_using_index_no_name() {
                 }
                 _ => panic!("expected PrimaryKey"),
             }
-            assert_eq!(compress, Some(false));
+            assert_eq!(*compress, Some(false));
         }
         _ => panic!("expected CreateTable, got {:?}", stmt),
     }
@@ -11863,7 +11904,7 @@ fn parse_do_block_with_source(sql: &str) -> PlBlock {
     let stmts = parser.parse();
     let stmt = stmts.into_iter().next().expect("expected at least one statement");
     match stmt {
-        Statement::Do(d) => d
+        Statement::Do(d) => d.node
             .block
             .expect("DO statement should have parsed a PL/pgSQL block"),
         _ => panic!("expected DO statement"),
@@ -12673,6 +12714,43 @@ END test_pkg;
 }
 
 #[test]
+fn test_statement_span_in_json() {
+    let sql = "SELECT id FROM users WHERE id = 1";
+    let stmt = parse_one(sql);
+    match &stmt {
+        Statement::Select(s) => {
+            let span = s.span.as_ref().expect("SELECT should have span");
+            assert_eq!(span.start.line, 1);
+            assert_eq!(span.start.column, 7);
+            assert!(span.start.offset > 0);
+            assert!(span.end.offset > span.start.offset);
+        }
+        _ => panic!("expected Select, got {:?}", stmt),
+    }
+    let json_str = serde_json::to_string(&stmt).unwrap();
+    assert!(json_str.contains("\"span\""), "JSON should contain span field: {}", json_str);
+    let json: serde_json::Value = serde_json::from_str(&json_str).unwrap();
+    let select = json.get("Select").unwrap();
+    let span = select.get("span").unwrap();
+    assert!(span.get("start").unwrap().get("line").is_some());
+    assert!(span.get("end").unwrap().get("line").is_some());
+}
+
+#[test]
+fn test_statement_span_create_function() {
+    let sql = r#"CREATE OR REPLACE FUNCTION foo() RETURNS INTEGER LANGUAGE plpgsql AS $$ BEGIN RETURN 1; END $$"#;
+    let stmt = parse_one(sql);
+    match &stmt {
+        Statement::CreateFunction(s) => {
+            let span = s.span.as_ref().expect("CREATE FUNCTION should have span");
+            assert!(span.start.offset > 0);
+            assert!(span.end.offset > span.start.offset);
+        }
+        _ => panic!("expected CreateFunction, got {:?}", stmt),
+    }
+}
+
+#[test]
 fn test_issue18_case_when_select_into() {
     let sql = r#"CREATE OR REPLACE PACKAGE BODY test_pkg IS
   PROCEDURE prc_test IS
@@ -12698,6 +12776,20 @@ END test_pkg;
             assert!(!block.body.is_empty(), "procedure body should not be empty");
         }
         other => panic!("expected CreatePackageBody, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_statement_span_do_block() {
+    let sql = r#"DO $$ BEGIN RAISE NOTICE 'hello'; END $$"#;
+    let stmt = parse_one(sql);
+    match &stmt {
+        Statement::Do(s) => {
+            let span = s.span.as_ref().expect("DO block should have span");
+            assert!(span.start.offset > 0);
+            assert!(span.end.offset > span.start.offset);
+        }
+        _ => panic!("expected Do, got {:?}", stmt),
     }
 }
 
@@ -12729,5 +12821,19 @@ END test_pkg;
             assert!(!block.body.is_empty(), "procedure body should not be empty");
         }
         other => panic!("expected CreatePackageBody, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_span_preserved_in_json_roundtrip() {
+    let sql = "SELECT 1";
+    let stmt = parse_one(sql);
+    let json = serde_json::to_string(&stmt).unwrap();
+    let restored: Statement = serde_json::from_str(&json).unwrap();
+    match (&stmt, &restored) {
+        (Statement::Select(a), Statement::Select(b)) => {
+            assert_eq!(a.span, b.span, "span should survive JSON round-trip");
+        }
+        _ => panic!("type mismatch"),
     }
 }

@@ -30,6 +30,7 @@ fn parse_do_block(sql: &str) -> PlBlock {
     let stmt = parse_one(sql);
     match stmt {
         Statement::Do(d) => d
+            .node
             .block
             .expect("DO statement should have parsed a PL/pgSQL block"),
         _ => panic!("expected DO statement"),
