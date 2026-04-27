@@ -72,7 +72,12 @@ This project implements a complete SQL parser for openGauss/GaussDB (an enterpri
 | DROP statements | ✅ Complete | DROP TABLE, INDEX, VIEW |
 | TRUNCATE | ✅ Complete | TRUNCATE TABLE |
 | ALTER SYSTEM | ✅ Complete | SET/RESET configuration |
-| Other DDL | 🔄 In Progress | ALTER TABLE, CREATE FUNCTION, CREATE PROCEDURE, etc. |
+| CREATE FUNCTION | ✅ Complete | Full CREATE FUNCTION with parameters, return type, options, PL/pgSQL body |
+| CREATE PROCEDURE | ✅ Complete | Full CREATE PROCEDURE with parameters, options, PL/pgSQL body |
+| CREATE PACKAGE / PACKAGE BODY | ✅ Complete | Oracle-compatible packages with procedures, functions, cursors |
+| CREATE TRIGGER | ✅ Complete | BEFORE/AFTER/INSTEAD OF, events, WHEN condition, EXECUTE |
+| ALTER TABLE | 🔄 In Progress | Column operations, constraints |
+| Other DDL | 🔄 In Progress | ALTER FUNCTION, ALTER PROCEDURE, etc. |
 
 ---
 
@@ -352,7 +357,7 @@ SQL Input
 | Phase 2 | Core DML: SELECT, INSERT, UPDATE, DELETE, MERGE | ✅ Complete |
 | Phase 3 | PL/pgSQL: DO blocks, anonymous blocks, control flow | ✅ Complete |
 | Phase 4 | DDL: CREATE, ALTER, DROP statements | 🔄 In Progress |
-| Phase 5 | Advanced: Function/procedure bodies, packages, triggers | 📋 Planned |
+| Phase 5 | Advanced: Function/procedure bodies, packages, triggers | ✅ Complete |
 | Phase 6 | Optimization: Error recovery, performance | 📋 Planned |
 
 ---
@@ -391,11 +396,11 @@ MIT OR Apache-2.0
 
 ## Contributing / 贡献
 
-This is an active development project. Phases 1-3 are complete, Phase 4 (DDL) is in progress.
+This is an active development project. Phases 1-5 are complete, Phase 4 (DDL) and Phase 6 (Optimization) are in progress.
 
 这是一个活跃的开发项目。第一至第三阶段已完成，第四阶段（DDL）进行中。
 
 ---
 
-**Status / 状态**: Phase 3 Complete + JSON Round-Trip / 第三阶段完成 + JSON 往返转换  
+**Status / 状态**: Phase 5 Complete + JSON Round-Trip / 第五阶段完成 + JSON 往返转换  
 **Last Updated / 最后更新**: 2026-04-11

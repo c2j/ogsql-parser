@@ -6123,13 +6123,18 @@ impl SqlFormatter {
     }
 
     fn format_create_trigger(&self, stmt: &CreateTriggerStatement) -> String {
+        let timing = match stmt.timing {
+            TriggerTiming::Before => "BEFORE",
+            TriggerTiming::After => "AFTER",
+            TriggerTiming::InsteadOf => "INSTEAD OF",
+        };
         let events: Vec<String> = stmt
             .events
             .iter()
             .map(|e| match e {
                 TriggerEvent::Insert => "INSERT".to_string(),
                 TriggerEvent::Update => "UPDATE".to_string(),
-                TriggerEvent::UpdateOf(cols) => format!("UPDATE ({})", cols.join(", ")),
+                TriggerEvent::UpdateOf(cols) => format!("UPDATE OF {}", cols.join(", ")),
                 TriggerEvent::Delete => "DELETE".to_string(),
                 TriggerEvent::Truncate => "TRUNCATE".to_string(),
             })
@@ -6138,21 +6143,26 @@ impl SqlFormatter {
             "{} {} {} {} {} {} {}",
             self.kw("CREATE TRIGGER"),
             stmt.name,
+            self.kw(timing),
+            events.join(" OR "),
             self.kw("ON"),
             self.format_object_name(&stmt.table),
             self.kw("FOR EACH"),
-            match stmt.for_each {
-                TriggerForEach::Row => "ROW",
-                TriggerForEach::Statement => "STATEMENT",
-            },
-            events.join(" OR ")
         );
+        s.push_str(match stmt.for_each {
+            TriggerForEach::Row => " ROW",
+            TriggerForEach::Statement => " STATEMENT",
+        });
         if let Some(ref w) = stmt.when {
             s.push_str(&format!(" {} ({})", self.kw("WHEN"), self.format_expr(w)));
         }
+        let execute_kw = match stmt.execute_kind {
+            ExecuteKind::Function => "EXECUTE FUNCTION",
+            ExecuteKind::Procedure => "EXECUTE PROCEDURE",
+        };
         s.push_str(&format!(
             " {} {} {}",
-            self.kw("EXECUTE PROCEDURE"),
+            self.kw(execute_kw),
             self.format_object_name(&stmt.func_name),
             if stmt.func_args.is_empty() {
                 String::new()

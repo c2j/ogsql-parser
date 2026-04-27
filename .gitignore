@@ -9,4 +9,9 @@
 /lib/ruoyi-springboot3-pro
 .worktrees/
 err-report.txt
-
+error.log
+lib/GenerateInstructionsMapper.xml
+error-latest.log
+error-1.log
+error-2.log
+error-3.log

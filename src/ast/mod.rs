@@ -2080,12 +2080,21 @@ pub struct CreateTriggerStatement {
     pub name: String,
     pub or_replace: bool,
     pub constraint: bool,
+    pub timing: TriggerTiming,
     pub table: ObjectName,
     pub events: Vec<TriggerEvent>,
     pub for_each: TriggerForEach,
     pub when: Option<Expr>,
     pub func_name: ObjectName,
     pub func_args: Vec<Expr>,
+    pub execute_kind: ExecuteKind,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub enum TriggerTiming {
+    Before,
+    After,
+    InsteadOf,
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -2095,6 +2104,12 @@ pub enum TriggerEvent {
     UpdateOf(Vec<String>),
     Delete,
     Truncate,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub enum ExecuteKind {
+    Function,
+    Procedure,
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
