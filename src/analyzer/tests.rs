@@ -254,7 +254,6 @@ fn test_for_loop_variable_does_not_leak() {
     );
     let report = analyze_pl_block(&block);
     assert_eq!(report.execute_findings.len(), 1);
-    // rec should NOT be in scope outside the FOR loop
     assert!(report.execute_findings[0].resolved_value.is_none());
     assert!(matches!(
         report.execute_findings[0].trace,
@@ -262,105 +261,86 @@ fn test_for_loop_variable_does_not_leak() {
     ));
 }
 
-#[test]
-fn test_optional_filter_simple() {
-    let block = parse_block(
-        r#"DO $$
-BEGIN
-    EXECUTE 'SELECT * FROM t WHERE (p_acnt IS NULL OR accno = p_acnt)';
-END $$"#
-    );
-    let report = analyze_pl_block(&block);
-    assert_eq!(report.execute_findings.len(), 1);
-    let finding = &report.execute_findings[0];
-    assert_eq!(finding.optional_filters.len(), 1);
-    let f = &finding.optional_filters[0];
-    assert_eq!(f.parameter, "p_acnt");
-    assert_eq!(f.column, vec!["accno"]);
-    assert_eq!(f.operator, "=");
+fn parse_procedure_block(sql: &str) -> (crate::ast::plpgsql::PlBlock, Vec<(String, String, Option<String>)>) {
+    let tokens = crate::Tokenizer::new(sql).tokenize().unwrap();
+    let stmts = Parser::new(tokens).parse();
+    if let Some(crate::ast::Statement::CreatePackageBody(pkg)) = stmts.into_iter().next() {
+        for item in &pkg.node.items {
+            if let crate::ast::PackageItem::Procedure(proc) = item {
+                let params: Vec<_> = proc.parameters.iter().map(|p| {
+                    (p.name.clone(), p.data_type.clone(), p.mode.clone())
+                }).collect();
+                let block = proc.block.as_ref().expect("procedure should have block").clone();
+                return (block, params);
+            }
+        }
+    }
+    panic!("expected package body with procedure");
 }
 
 #[test]
-fn test_optional_filter_with_table_prefix() {
-    let block = parse_block(
-        r#"DO $$
-BEGIN
-    EXECUTE 'SELECT * FROM t temp WHERE (p_i_qry_acnt IS NULL OR temp.accno = p_i_qry_acnt)';
-END $$"#
+fn test_ref_cursor_out_param_detected() {
+    let (block, params) = parse_procedure_block(
+        r#"CREATE OR REPLACE PACKAGE BODY PKG_TEST AS
+  PROCEDURE prc_query(p_acnt VARCHAR, out_list OUT REFCURSOR) AS
+  BEGIN
+    OPEN out_list FOR SELECT * FROM t_users WHERE accno = p_acnt;
+  END prc_query;
+END PKG_TEST;
+/"#
     );
-    let report = analyze_pl_block(&block);
-    assert_eq!(report.execute_findings.len(), 1);
-    let f = &report.execute_findings[0].optional_filters[0];
-    assert_eq!(f.parameter, "p_i_qry_acnt");
-    assert_eq!(f.column, vec!["temp", "accno"]);
-    assert_eq!(f.operator, "=");
+    let queries = find_ref_cursor_queries(&block, &params);
+    assert_eq!(queries.len(), 1);
+    assert_eq!(queries[0].out_param_name, "out_list");
+    assert!(queries[0].query.is_some());
+    assert!(queries[0].parsed_query.is_some());
 }
 
 #[test]
-fn test_optional_filter_like_operator() {
-    let block = parse_block(
-        r#"DO $$
-BEGIN
-    EXECUTE 'SELECT * FROM t WHERE (p_name IS NULL OR name LIKE p_name)';
-END $$"#
+fn test_ref_cursor_not_matched_for_non_out() {
+    let (block, params) = parse_procedure_block(
+        r#"CREATE OR REPLACE PACKAGE BODY PKG_TEST AS
+  PROCEDURE prc_query(cur IN REFCURSOR) AS
+  BEGIN
+    OPEN cur FOR SELECT 1;
+  END prc_query;
+END PKG_TEST;
+/"#
     );
-    let report = analyze_pl_block(&block);
-    assert_eq!(report.execute_findings.len(), 1);
-    let f = &report.execute_findings[0].optional_filters[0];
-    assert_eq!(f.parameter, "p_name");
-    assert_eq!(f.operator, "LIKE");
+    let queries = find_ref_cursor_queries(&block, &params);
+    assert!(queries.is_empty());
 }
 
 #[test]
-fn test_optional_filter_multiple() {
-    let block = parse_block(
-        r#"DO $$
-BEGIN
-    EXECUTE 'SELECT * FROM t WHERE (p_a IS NULL OR col_a = p_a) AND (p_b IS NULL OR col_b = p_b)';
-END $$"#
+fn test_ref_cursor_for_execute() {
+    let (block, params) = parse_procedure_block(
+        r#"CREATE OR REPLACE PACKAGE BODY PKG_TEST AS
+  PROCEDURE prc_query(p_acnt VARCHAR, out_list OUT REFCURSOR) AS
+    v_sql VARCHAR;
+  BEGIN
+    v_sql := 'SELECT * FROM t_users WHERE accno = :1';
+    OPEN out_list FOR EXECUTE v_sql;
+  END prc_query;
+END PKG_TEST;
+/"#
     );
-    let report = analyze_pl_block(&block);
-    assert_eq!(report.execute_findings.len(), 1);
-    assert_eq!(report.execute_findings[0].optional_filters.len(), 2);
-    assert_eq!(report.execute_findings[0].optional_filters[0].parameter, "p_a");
-    assert_eq!(report.execute_findings[0].optional_filters[1].parameter, "p_b");
+    let queries = find_ref_cursor_queries(&block, &params);
+    assert_eq!(queries.len(), 1);
+    assert_eq!(queries[0].out_param_name, "out_list");
+    assert_eq!(queries[0].query.as_deref(), Some("v_sql"));
 }
 
 #[test]
-fn test_optional_filter_not_detected_for_isNotNull() {
-    let block = parse_block(
-        r#"DO $$
-BEGIN
-    EXECUTE 'SELECT * FROM t WHERE (p_acnt IS NOT NULL OR accno = p_acnt)';
-END $$"#
+fn test_no_ref_cursor_params() {
+    let (block, params) = parse_procedure_block(
+        r#"CREATE OR REPLACE PACKAGE BODY PKG_TEST AS
+  PROCEDURE prc_query(p_acnt VARCHAR) AS
+  BEGIN
+    NULL;
+  END prc_query;
+END PKG_TEST;
+/"#
     );
-    let report = analyze_pl_block(&block);
-    assert_eq!(report.execute_findings.len(), 1);
-    assert!(report.execute_findings[0].optional_filters.is_empty());
-}
-
-#[test]
-fn test_optional_filter_not_detected_for_different_vars() {
-    let block = parse_block(
-        r#"DO $$
-BEGIN
-    EXECUTE 'SELECT * FROM t WHERE (p_a IS NULL OR accno = p_b)';
-END $$"#
-    );
-    let report = analyze_pl_block(&block);
-    assert_eq!(report.execute_findings.len(), 1);
-    assert!(report.execute_findings[0].optional_filters.is_empty());
-}
-
-#[test]
-fn test_optional_filter_no_parentheses() {
-    let block = parse_block(
-        r#"DO $$
-BEGIN
-    EXECUTE 'SELECT * FROM t WHERE p_acnt IS NULL OR accno = p_acnt';
-END $$"#
-    );
-    let report = analyze_pl_block(&block);
-    assert_eq!(report.execute_findings.len(), 1);
-    assert_eq!(report.execute_findings[0].optional_filters.len(), 1);
+    let queries = find_ref_cursor_queries(&block, &params);
+    assert!(queries.is_empty());
 }

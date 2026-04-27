@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::ast::plpgsql::{PlBlock, PlDeclaration, PlStatement};
+use crate::ast::plpgsql::{PlBlock, PlDeclaration, PlOpenKind, PlStatement};
 use crate::ast::{Expr, Literal, Statement};
 
 // ── 报告类型 ──
@@ -9,6 +9,8 @@ use crate::ast::{Expr, Literal, Statement};
 pub struct DynamicSqlReport {
     pub execute_findings: Vec<ExecuteFinding>,
     pub variable_traces: Vec<VariableTrace>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub ref_cursor_queries: Vec<RefCursorQuery>,
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -261,6 +263,103 @@ fn try_match_optional_filter(is_null_side: &Expr, comparison_side: &Expr) -> Opt
     None
 }
 
+// ── REF CURSOR query detection ──
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct RefCursorQuery {
+    pub out_param_name: String,
+    pub query: Option<String>,
+    pub parsed_query: Option<Box<Statement>>,
+}
+
+fn extract_cursor_name(expr: &Expr) -> Option<String> {
+    match expr {
+        Expr::PlVariable(names) | Expr::ColumnRef(names) if names.len() == 1 => {
+            Some(names[0].clone())
+        }
+        _ => None,
+    }
+}
+
+fn collect_ref_cursor_queries(
+    stmts: &[PlStatement],
+    ref_cursor_params: &std::collections::HashSet<String>,
+) -> Vec<RefCursorQuery> {
+    let mut queries = Vec::new();
+    for stmt in stmts {
+        if let PlStatement::Open(open) = stmt {
+            if let Some(cursor_name) = extract_cursor_name(&open.node.cursor) {
+                if ref_cursor_params.contains(&cursor_name) {
+                    match &open.node.kind {
+                        PlOpenKind::ForQuery { query, parsed_query, .. } => {
+                            queries.push(RefCursorQuery {
+                                out_param_name: cursor_name,
+                                query: Some(query.clone()),
+                                parsed_query: parsed_query.clone(),
+                            });
+                        }
+                        PlOpenKind::ForExecute { query: q, .. } => {
+                            let query_str = match q {
+                                Expr::PlVariable(n) | Expr::ColumnRef(n) => Some(n.join(".")),
+                                Expr::Literal(Literal::String(s)) => Some(s.clone()),
+                                _ => None,
+                            };
+                            queries.push(RefCursorQuery {
+                                out_param_name: cursor_name,
+                                query: query_str,
+                                parsed_query: None,
+                            });
+                        }
+                        _ => {}
+                    }
+                }
+            }
+        }
+        match stmt {
+            PlStatement::Block(b) => {
+                queries.extend(collect_ref_cursor_queries(&b.body, ref_cursor_params));
+            }
+            PlStatement::If(i) => {
+                queries.extend(collect_ref_cursor_queries(&i.then_stmts, ref_cursor_params));
+                for elsif in &i.elsifs {
+                    queries.extend(collect_ref_cursor_queries(&elsif.stmts, ref_cursor_params));
+                }
+                queries.extend(collect_ref_cursor_queries(&i.else_stmts, ref_cursor_params));
+            }
+            PlStatement::Loop(l) => {
+                queries.extend(collect_ref_cursor_queries(&l.body, ref_cursor_params));
+            }
+            PlStatement::While(w) => {
+                queries.extend(collect_ref_cursor_queries(&w.body, ref_cursor_params));
+            }
+            PlStatement::For(f) => {
+                queries.extend(collect_ref_cursor_queries(&f.body, ref_cursor_params));
+            }
+            _ => {}
+        }
+    }
+    queries
+}
+
+pub fn find_ref_cursor_queries(
+    block: &PlBlock,
+    params: &[(String, String, Option<String>)],
+) -> Vec<RefCursorQuery> {
+    let ref_cursor_params: std::collections::HashSet<String> = params
+        .iter()
+        .filter(|(_, data_type, mode)| {
+            data_type.to_uppercase().contains("REFCURSOR") && mode.as_deref() == Some("OUT")
+        })
+        .map(|(name, _, _)| name.clone())
+        .collect();
+
+    if ref_cursor_params.is_empty() {
+        return Vec::new();
+    }
+
+    collect_ref_cursor_queries(&block.body, &ref_cursor_params)
+}
+
 // ── 内部状态 ──
 
 struct VarState {
@@ -291,6 +390,7 @@ impl DynamicSqlAnalyzer {
         DynamicSqlReport {
             execute_findings: self.findings,
             variable_traces: self.traces,
+            ref_cursor_queries: Vec::new(),
         }
     }
 
