@@ -174,6 +174,11 @@ fn cmd_parse(cli: &Cli) {
                             serde_json::json!(report),
                         );
                     }
+                    let tx_report = ogsql_parser::analyze_transactions(block);
+                    obj.as_object_mut().unwrap().insert(
+                        "transaction_analysis".to_string(),
+                        serde_json::json!(tx_report),
+                    );
                 }
                 annotate_builtin_functions(&mut obj);
                 obj

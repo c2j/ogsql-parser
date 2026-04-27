@@ -1428,6 +1428,55 @@ fn test_begin_transaction_read_only() {
 }
 
 #[test]
+fn test_set_transaction_isolation_level() {
+    let stmt = parse_one("SET TRANSACTION ISOLATION LEVEL READ COMMITTED");
+    match stmt {
+        Statement::Transaction(s) => {
+            assert_eq!(s.kind, TransactionKind::SetTransaction);
+            assert_eq!(s.modes.len(), 1);
+            assert!(matches!(s.modes[0], TransactionMode::IsolationLevel(IsolationLevel::ReadCommitted)));
+        }
+        _ => panic!("expected Transaction, got {:?}", stmt),
+    }
+}
+
+#[test]
+fn test_set_transaction_serializable() {
+    let stmt = parse_one("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE");
+    match stmt {
+        Statement::Transaction(s) => {
+            assert_eq!(s.kind, TransactionKind::SetTransaction);
+            assert!(matches!(s.modes[0], TransactionMode::IsolationLevel(IsolationLevel::Serializable)));
+        }
+        _ => panic!("expected Transaction, got {:?}", stmt),
+    }
+}
+
+#[test]
+fn test_set_transaction_read_only() {
+    let stmt = parse_one("SET TRANSACTION READ ONLY");
+    match stmt {
+        Statement::Transaction(s) => {
+            assert_eq!(s.kind, TransactionKind::SetTransaction);
+            assert!(matches!(s.modes[0], TransactionMode::ReadOnly));
+        }
+        _ => panic!("expected Transaction, got {:?}", stmt),
+    }
+}
+
+#[test]
+fn test_set_transaction_multi_mode() {
+    let stmt = parse_one("SET TRANSACTION ISOLATION LEVEL READ COMMITTED READ ONLY");
+    match stmt {
+        Statement::Transaction(s) => {
+            assert_eq!(s.kind, TransactionKind::SetTransaction);
+            assert_eq!(s.modes.len(), 2);
+        }
+        _ => panic!("expected Transaction, got {:?}", stmt),
+    }
+}
+
+#[test]
 fn test_begin_anon_block_with_select() {
     let stmt = parse_one("BEGIN SELECT 1; END");
     match stmt {

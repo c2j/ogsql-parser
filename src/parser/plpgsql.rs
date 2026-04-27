@@ -686,6 +686,24 @@ impl Parser {
             let result = Ok(PlStatement::Block(Spanned::new(block, None)));
             self.try_consume_semicolon();
             result
+        } else if self.match_ident_str("set") {
+            let is_set_transaction = self.tokens.get(self.pos + 1).map_or(false, |t| match &t.token {
+                Token::Ident(s) => s.eq_ignore_ascii_case("transaction"),
+                Token::Keyword(kw) => kw.as_str().eq_ignore_ascii_case("transaction"),
+                _ => false,
+            });
+            if is_set_transaction {
+                self.advance();
+                self.advance();
+                self.parse_pl_set_transaction()
+            } else {
+                self.try_parse_dml_as_pl_statement()
+                    .ok_or_else(|| ParserError::UnexpectedToken {
+                        location: self.current_location(),
+                        expected: "statement".to_string(),
+                        got: format!("{:?}", self.peek()),
+                    })
+            }
         } else if let Some(stmt) = self.try_parse_dml_as_pl_statement() {
             Ok(stmt)
         } else if self.match_ident_str("set") && self.lookahead_is_transaction() {

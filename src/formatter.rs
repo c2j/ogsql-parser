@@ -4353,6 +4353,13 @@ impl SqlFormatter {
                     stmt.transaction_id.as_ref().unwrap()
                 )
             }
+            TransactionKind::SetTransaction => {
+                let mut parts = vec![self.kw("SET"), self.kw("TRANSACTION")];
+                if !stmt.modes.is_empty() {
+                    parts.push(self.format_transaction_modes(&stmt.modes));
+                }
+                parts.join(" ")
+            }
         }
     }
 
@@ -5030,6 +5037,36 @@ impl SqlFormatter {
             PlStatement::Savepoint { name } => format!("{} {};", self.kw("SAVEPOINT"), name),
             PlStatement::ReleaseSavepoint { name } => {
                 format!("{} {} {};", self.kw("RELEASE"), self.kw("SAVEPOINT"), name)
+            }
+            PlStatement::SetTransaction { isolation_level, read_only, deferrable } => {
+                let mut parts = vec![self.kw("SET"), self.kw("TRANSACTION")];
+                if let Some(level) = isolation_level {
+                    parts.push(self.kw("ISOLATION"));
+                    parts.push(self.kw("LEVEL"));
+                    parts.push(self.kw(match level {
+                        crate::ast::plpgsql::PlIsolationLevel::ReadCommitted => "READ COMMITTED",
+                        crate::ast::plpgsql::PlIsolationLevel::RepeatableRead => "REPEATABLE READ",
+                        crate::ast::plpgsql::PlIsolationLevel::Serializable => "SERIALIZABLE",
+                    }));
+                }
+                if let Some(ro) = read_only {
+                    if *ro {
+                        parts.push(self.kw("READ"));
+                        parts.push(self.kw("ONLY"));
+                    } else {
+                        parts.push(self.kw("READ"));
+                        parts.push(self.kw("WRITE"));
+                    }
+                }
+                if let Some(d) = deferrable {
+                    if *d {
+                        parts.push(self.kw("DEFERRABLE"));
+                    } else {
+                        parts.push(self.kw("NOT"));
+                        parts.push(self.kw("DEFERRABLE"));
+                    }
+                }
+                format!("{};", parts.join(" "))
             }
             PlStatement::Goto { label } => format!("{} {};", self.kw("GOTO"), label),
             PlStatement::ProcedureCall(call) => {
