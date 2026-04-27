@@ -287,6 +287,10 @@ impl Parser {
                     type_name.push('.');
                     self.advance();
                 }
+                Token::Percent => {
+                    type_name.push('%');
+                    self.advance();
+                }
                 Token::LBracket => {
                     type_name.push('[');
                     self.advance();
