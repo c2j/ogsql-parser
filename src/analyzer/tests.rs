@@ -261,7 +261,7 @@ fn test_for_loop_variable_does_not_leak() {
     ));
 }
 
-fn parse_procedure_block(sql: &str) -> (crate::ast::plpgsql::PlBlock, Vec<(String, String, Option<String>)>) {
+fn parse_proc_block(sql: &str) -> (crate::ast::plpgsql::PlBlock, Vec<(String, String, Option<String>)>) {
     let tokens = crate::Tokenizer::new(sql).tokenize().unwrap();
     let stmts = Parser::new(tokens).parse();
     if let Some(crate::ast::Statement::CreatePackageBody(pkg)) = stmts.into_iter().next() {
@@ -280,7 +280,7 @@ fn parse_procedure_block(sql: &str) -> (crate::ast::plpgsql::PlBlock, Vec<(Strin
 
 #[test]
 fn test_ref_cursor_out_param_detected() {
-    let (block, params) = parse_procedure_block(
+    let (block, params) = parse_proc_block(
         r#"CREATE OR REPLACE PACKAGE BODY PKG_TEST AS
   PROCEDURE prc_query(p_acnt VARCHAR, out_list OUT REFCURSOR) AS
   BEGIN
@@ -298,7 +298,7 @@ END PKG_TEST;
 
 #[test]
 fn test_ref_cursor_not_matched_for_non_out() {
-    let (block, params) = parse_procedure_block(
+    let (block, params) = parse_proc_block(
         r#"CREATE OR REPLACE PACKAGE BODY PKG_TEST AS
   PROCEDURE prc_query(cur IN REFCURSOR) AS
   BEGIN
@@ -313,7 +313,7 @@ END PKG_TEST;
 
 #[test]
 fn test_ref_cursor_for_execute() {
-    let (block, params) = parse_procedure_block(
+    let (block, params) = parse_proc_block(
         r#"CREATE OR REPLACE PACKAGE BODY PKG_TEST AS
   PROCEDURE prc_query(p_acnt VARCHAR, out_list OUT REFCURSOR) AS
     v_sql VARCHAR;
@@ -332,7 +332,7 @@ END PKG_TEST;
 
 #[test]
 fn test_no_ref_cursor_params() {
-    let (block, params) = parse_procedure_block(
+    let (block, params) = parse_proc_block(
         r#"CREATE OR REPLACE PACKAGE BODY PKG_TEST AS
   PROCEDURE prc_query(p_acnt VARCHAR) AS
   BEGIN
@@ -384,4 +384,103 @@ fn test_fingerprint_format() {
     let fps = compute_query_fingerprints(&stmts);
     assert!(fps[0].fingerprint.starts_with("fp_"), "fingerprint should start with fp_ prefix");
     assert_eq!(fps[0].fingerprint.len(), 19, "fingerprint should be fp_ + 16 hex chars");
+}
+
+fn parse_tx_proc_block(sql: &str) -> crate::ast::plpgsql::PlBlock {
+    let tokens = crate::Tokenizer::new(sql).tokenize().unwrap();
+    let stmts = Parser::new(tokens).parse();
+    match &stmts[0] {
+        crate::ast::Statement::CreateProcedure(proc) => {
+            proc.node.block.as_ref().expect("procedure should have a block").clone()
+        }
+        crate::ast::Statement::Do(d) => d.node.block.as_ref().expect("block should parse").clone(),
+        _ => panic!("expected CreateProcedure or DO, got {:?}", stmts[0]),
+    }
+}
+
+#[test]
+fn test_single_segment_no_commit() {
+    let block = parse_block("DO $$ BEGIN INSERT INTO t(id) VALUES(1); UPDATE t SET x = 1; END $$");
+    let report = analyze_transactions(&block);
+    assert!(!report.has_explicit_commit);
+    assert!(!report.has_explicit_rollback);
+    assert!(!report.has_autonomous_transaction);
+    assert_eq!(report.transaction_segments.len(), 1, "single procedure with no COMMIT = 1 segment");
+    assert!(matches!(report.transaction_segments[0].start_reason, TransactionBoundary::ProcedureEntry));
+    assert!(matches!(report.transaction_segments[0].end_reason, TransactionBoundary::ProcedureExit));
+}
+
+#[test]
+fn test_commit_splits_segments() {
+    let block = parse_block("DO $$ BEGIN INSERT INTO t(id) VALUES(1); COMMIT; DELETE FROM t; END $$");
+    let report = analyze_transactions(&block);
+    assert!(report.has_explicit_commit);
+    assert_eq!(report.transaction_segments.len(), 2, "COMMIT should split into 2 segments");
+    assert!(matches!(report.transaction_segments[0].end_reason, TransactionBoundary::Commit));
+    assert!(matches!(report.transaction_segments[1].start_reason, TransactionBoundary::PostCommit));
+    assert!(matches!(report.transaction_segments[1].end_reason, TransactionBoundary::ProcedureExit));
+}
+
+#[test]
+fn test_commit_and_rollback_three_segments() {
+    let block = parse_block("DO $$ BEGIN INSERT INTO t VALUES(1); COMMIT; DELETE FROM t; ROLLBACK; UPDATE t SET x = 1; END $$");
+    let report = analyze_transactions(&block);
+    assert!(report.has_explicit_commit);
+    assert!(report.has_explicit_rollback);
+    assert_eq!(report.transaction_segments.len(), 3);
+    assert!(matches!(report.transaction_segments[0].end_reason, TransactionBoundary::Commit));
+    assert!(matches!(report.transaction_segments[1].end_reason, TransactionBoundary::Rollback));
+    assert!(matches!(report.transaction_segments[2].start_reason, TransactionBoundary::PostRollback));
+}
+
+#[test]
+fn test_exception_block_creates_subtransaction() {
+    let block = parse_tx_proc_block(
+        r#"CREATE OR REPLACE PROCEDURE test_exc()
+AS $$
+BEGIN
+    INSERT INTO t(id) VALUES(1);
+    BEGIN
+        UPDATE t SET x = 1;
+    EXCEPTION
+        WHEN OTHERS THEN
+            INSERT INTO err_log(msg) VALUES('error');
+    END;
+    DELETE FROM t;
+END;
+$$ LANGUAGE plpgsql"#
+    );
+    let report = analyze_transactions(&block);
+    assert_eq!(report.transaction_segments.len(), 1);
+    let seg = &report.transaction_segments[0];
+    assert_eq!(seg.sub_transactions.len(), 1, "EXCEPTION block should create sub-transaction");
+    assert!(seg.sub_transactions[0].implicit_savepoint);
+    assert_eq!(seg.sub_transactions[0].exception_handlers.len(), 1);
+    assert_eq!(seg.sub_transactions[0].exception_handlers[0].conditions, vec!["OTHERS"]);
+}
+
+#[test]
+fn test_pragma_autonomous_transaction_detected() {
+    let block = parse_tx_proc_block(
+        r#"CREATE OR REPLACE PROCEDURE test_auto()
+AS $$
+DECLARE
+    PRAGMA AUTONOMOUS_TRANSACTION;
+BEGIN
+    INSERT INTO t_log(id) VALUES(1);
+    COMMIT;
+END;
+$$ LANGUAGE plpgsql"#
+    );
+    let report = analyze_transactions(&block);
+    assert!(report.has_autonomous_transaction, "PRAGMA AUTONOMOUS_TRANSACTION should be detected");
+    assert!(report.has_explicit_commit);
+}
+
+#[test]
+fn test_cross_procedure_call_tracked() {
+    let block = parse_block("DO $$ BEGIN pkg_tx.commit_inside_proc(); INSERT INTO t VALUES(1); END $$");
+    let report = analyze_transactions(&block);
+    assert_eq!(report.cross_procedure_calls.len(), 1);
+    assert_eq!(report.cross_procedure_calls[0].callee, "pkg_tx.commit_inside_proc");
 }

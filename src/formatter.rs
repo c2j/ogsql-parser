@@ -4797,6 +4797,32 @@ impl SqlFormatter {
             PlStatement::Assignment { target, expression } => {
                 format!("{} := {};", self.format_expr(target), self.format_expr(expression))
             }
+            PlStatement::SetTransaction { isolation_level, read_only, deferrable } => {
+                let mut s = format!("{} {}", self.kw("SET"), self.kw("TRANSACTION"));
+                if let Some(ref il) = isolation_level {
+                    s.push_str(&format!(" {} {}", self.kw("ISOLATION"), self.kw("LEVEL")));
+                    match il {
+                        PlIsolationLevel::ReadCommitted => s.push_str(&format!(" {} {}", self.kw("READ"), self.kw("COMMITTED"))),
+                        PlIsolationLevel::RepeatableRead => s.push_str(&format!(" {} {}", self.kw("REPEATABLE"), self.kw("READ"))),
+                        PlIsolationLevel::Serializable => s.push_str(&format!(" {}", self.kw("SERIALIZABLE"))),
+                    }
+                }
+                if let Some(ro) = read_only {
+                    if *ro {
+                        s.push_str(&format!(" {} {}", self.kw("READ"), self.kw("ONLY")));
+                    } else {
+                        s.push_str(&format!(" {} {}", self.kw("READ"), self.kw("WRITE")));
+                    }
+                }
+                if let Some(d) = deferrable {
+                    if *d {
+                        s.push_str(&format!(" {}", self.kw("DEFERRABLE")));
+                    } else {
+                        s.push_str(&format!(" {} {}", self.kw("NOT"), self.kw("DEFERRABLE")));
+                    }
+                }
+                format!("{};", s)
+            }
             PlStatement::Null => format!("{};", self.kw("NULL")),
             PlStatement::If(i) => self.format_pl_if(i, indent),
             PlStatement::Case(c) => self.format_pl_case(c, indent),
@@ -5012,10 +5038,33 @@ impl SqlFormatter {
             PlStatement::ReleaseSavepoint { name } => {
                 format!("{} {} {};", self.kw("RELEASE"), self.kw("SAVEPOINT"), name)
             }
-            PlStatement::SetTransaction { modes } => {
+            PlStatement::SetTransaction { isolation_level, read_only, deferrable } => {
                 let mut parts = vec![self.kw("SET"), self.kw("TRANSACTION")];
-                if !modes.is_empty() {
-                    parts.push(self.format_transaction_modes(modes));
+                if let Some(level) = isolation_level {
+                    parts.push(self.kw("ISOLATION"));
+                    parts.push(self.kw("LEVEL"));
+                    parts.push(self.kw(match level {
+                        crate::ast::plpgsql::PlIsolationLevel::ReadCommitted => "READ COMMITTED",
+                        crate::ast::plpgsql::PlIsolationLevel::RepeatableRead => "REPEATABLE READ",
+                        crate::ast::plpgsql::PlIsolationLevel::Serializable => "SERIALIZABLE",
+                    }));
+                }
+                if let Some(ro) = read_only {
+                    if *ro {
+                        parts.push(self.kw("READ"));
+                        parts.push(self.kw("ONLY"));
+                    } else {
+                        parts.push(self.kw("READ"));
+                        parts.push(self.kw("WRITE"));
+                    }
+                }
+                if let Some(d) = deferrable {
+                    if *d {
+                        parts.push(self.kw("DEFERRABLE"));
+                    } else {
+                        parts.push(self.kw("NOT"));
+                        parts.push(self.kw("DEFERRABLE"));
+                    }
                 }
                 format!("{};", parts.join(" "))
             }

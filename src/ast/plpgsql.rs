@@ -196,8 +196,9 @@ pub enum PlStatement {
         name: String,
     },
     SetTransaction {
-        #[serde(skip_serializing_if = "Vec::is_empty")]
-        modes: Vec<crate::ast::TransactionMode>,
+        isolation_level: Option<PlIsolationLevel>,
+        read_only: Option<bool>,
+        deferrable: Option<bool>,
     },
     Null,
 
@@ -526,4 +527,11 @@ pub struct PlExceptionBlock {
 pub struct PlExceptionHandler {
     pub conditions: Vec<String>,
     pub statements: Vec<PlStatement>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum PlIsolationLevel {
+    ReadCommitted,
+    RepeatableRead,
+    Serializable,
 }

@@ -450,60 +450,69 @@ $$ LANGUAGE plpgsql"#;
 }
 
 #[test]
-fn test_set_transaction_in_pl_block() {
-    let sql = "DO $$ BEGIN SET TRANSACTION ISOLATION LEVEL READ COMMITTED; END $$";
+fn test_pragma_autonomous_transaction_in_block() {
+    let sql = r#"CREATE OR REPLACE PROCEDURE test_auto()
+AS $$
+DECLARE
+    PRAGMA AUTONOMOUS_TRANSACTION;
+    v_count INTEGER;
+BEGIN
+    INSERT INTO t_log(id, msg) VALUES(1, 'auto');
+END;
+$$ LANGUAGE plpgsql"#;
     let stmts = parse(sql);
     assert_eq!(stmts.len(), 1);
     match &stmts[0] {
-        Statement::Do(d) => {
-            let block = d.block.as_ref().expect("DO should have parsed block");
-            assert_eq!(block.body.len(), 1);
-            match &block.body[0] {
-                PlStatement::SetTransaction { modes } => {
-                    assert_eq!(modes.len(), 1);
-                    assert!(matches!(modes[0], TransactionMode::IsolationLevel(IsolationLevel::ReadCommitted)));
+        Statement::CreateProcedure(proc) => {
+            let block = proc.block.as_ref().expect("block should not be null");
+            assert_eq!(block.declarations.len(), 2, "expected 2 declarations");
+            match &block.declarations[0] {
+                PlDeclaration::Pragma { name, arguments } => {
+                    assert_eq!(name, "AUTONOMOUS_TRANSACTION");
+                    assert!(arguments.is_empty());
                 }
-                other => panic!("expected SetTransaction, got {:?}", other),
+                other => panic!("expected Pragma declaration, got {:?}", other),
             }
         }
-        other => panic!("expected Do, got {:?}", other),
+        other => panic!("expected CreateProcedure, got {:?}", other),
     }
 }
 
 #[test]
-fn test_set_transaction_read_only_in_pl_block() {
-    let sql = "DO $$ BEGIN SET TRANSACTION READ ONLY; END $$";
-    let stmts = parse(sql);
-    assert_eq!(stmts.len(), 1);
-    match &stmts[0] {
-        Statement::Do(d) => {
-            let block = d.block.as_ref().expect("DO should have parsed block");
-            assert_eq!(block.body.len(), 1);
-            match &block.body[0] {
-                PlStatement::SetTransaction { modes } => {
-                    assert_eq!(modes.len(), 1);
-                    assert!(matches!(modes[0], TransactionMode::ReadOnly));
-                }
-                other => panic!("expected SetTransaction, got {:?}", other),
-            }
+fn test_set_transaction_isolation_level() {
+    let block = parse_do_block("DO $$ BEGIN SET TRANSACTION ISOLATION LEVEL READ COMMITTED; END $$");
+    match &block.body[0] {
+        PlStatement::SetTransaction { isolation_level, read_only, deferrable } => {
+            assert!(matches!(isolation_level, Some(PlIsolationLevel::ReadCommitted)));
+            assert!(read_only.is_none());
+            assert!(deferrable.is_none());
         }
-        other => panic!("expected Do, got {:?}", other),
+        other => panic!("expected SetTransaction, got {:?}", other),
     }
 }
 
 #[test]
-fn test_set_transaction_not_captured_as_sql_text() {
-    let sql = "DO $$ BEGIN SET TRANSACTION ISOLATION LEVEL SERIALIZABLE; END $$";
-    let stmts = parse(sql);
-    match &stmts[0] {
-        Statement::Do(d) => {
-            let block = d.block.as_ref().expect("DO should have parsed block");
-            match &block.body[0] {
-                PlStatement::Sql(_) => panic!("SET TRANSACTION should be structured, not sql_text"),
-                PlStatement::SetTransaction { .. } => {}
-                other => panic!("expected SetTransaction, got {:?}", other),
-            }
+fn test_set_transaction_read_only() {
+    let block = parse_do_block("DO $$ BEGIN SET TRANSACTION READ ONLY; END $$");
+    match &block.body[0] {
+        PlStatement::SetTransaction { isolation_level, read_only, deferrable } => {
+            assert!(isolation_level.is_none());
+            assert_eq!(*read_only, Some(true));
+            assert!(deferrable.is_none());
         }
-        other => panic!("expected Do, got {:?}", other),
+        other => panic!("expected SetTransaction, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_set_transaction_serializable_deferrable() {
+    let block = parse_do_block("DO $$ BEGIN SET TRANSACTION ISOLATION LEVEL SERIALIZABLE READ WRITE DEFERRABLE; END $$");
+    match &block.body[0] {
+        PlStatement::SetTransaction { isolation_level, read_only, deferrable } => {
+            assert!(matches!(isolation_level, Some(PlIsolationLevel::Serializable)));
+            assert_eq!(*read_only, Some(false));
+            assert_eq!(*deferrable, Some(true));
+        }
+        other => panic!("expected SetTransaction, got {:?}", other),
     }
 }

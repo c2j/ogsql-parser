@@ -121,6 +121,10 @@ impl Parser {
     fn parse_pl_declaration(&mut self) -> Result<PlDeclaration, ParserError> {
         let name = self.parse_identifier()?;
 
+        if name.eq_ignore_ascii_case("pragma") {
+            return Ok(self.parse_pragma_declaration());
+        }
+
         if self.match_ident_str("record") && !self.is_next_token_type_name() {
             self.advance();
             self.try_consume_semicolon();
@@ -691,9 +695,7 @@ impl Parser {
             if is_set_transaction {
                 self.advance();
                 self.advance();
-                let modes = self.parse_pl_transaction_modes()?;
-                self.try_consume_semicolon();
-                Ok(PlStatement::SetTransaction { modes })
+                self.parse_pl_set_transaction()
             } else {
                 self.try_parse_dml_as_pl_statement()
                     .ok_or_else(|| ParserError::UnexpectedToken {
@@ -704,6 +706,10 @@ impl Parser {
             }
         } else if let Some(stmt) = self.try_parse_dml_as_pl_statement() {
             Ok(stmt)
+        } else if self.match_ident_str("set") && self.lookahead_is_transaction() {
+            self.advance();
+            self.advance();
+            self.parse_pl_set_transaction()
         } else {
             self.parse_pl_sql_or_assignment()
         }?;
@@ -992,6 +998,70 @@ impl Parser {
             name,
             arguments,
         }, None)))
+    }
+
+    fn lookahead_is_transaction(&self) -> bool {
+        if self.pos + 1 >= self.tokens.len() {
+            return false;
+        }
+        match &self.tokens[self.pos + 1] {
+            crate::token::TokenWithSpan { token: Token::Ident(s), .. } => s.eq_ignore_ascii_case("transaction"),
+            crate::token::TokenWithSpan { token: Token::Keyword(kw), .. } => kw.as_str().eq_ignore_ascii_case("transaction"),
+            _ => false,
+        }
+    }
+
+    fn parse_pl_set_transaction(&mut self) -> Result<PlStatement, ParserError> {
+        use crate::ast::plpgsql::PlIsolationLevel;
+
+        let mut isolation_level = None;
+        let mut read_only = None;
+        let mut deferrable = None;
+
+        if self.match_ident_str("isolation") {
+            self.advance();
+            self.expect_ident_str("level")?;
+            if self.match_ident_str("read") {
+                self.advance();
+                if self.match_ident_str("committed") {
+                    self.advance();
+                    isolation_level = Some(PlIsolationLevel::ReadCommitted);
+                } else {
+                    self.expect_ident_str("uncommitted")?;
+                    isolation_level = Some(PlIsolationLevel::ReadCommitted);
+                }
+            } else if self.match_ident_str("repeatable") {
+                self.advance();
+                self.expect_ident_str("read")?;
+                isolation_level = Some(PlIsolationLevel::RepeatableRead);
+            } else if self.match_ident_str("serializable") {
+                self.advance();
+                isolation_level = Some(PlIsolationLevel::Serializable);
+            }
+        }
+
+        if self.match_ident_str("read") {
+            self.advance();
+            if self.match_ident_str("only") {
+                self.advance();
+                read_only = Some(true);
+            } else {
+                self.expect_ident_str("write")?;
+                read_only = Some(false);
+            }
+        }
+
+        if self.match_ident_str("not") {
+            self.advance();
+            self.expect_ident_str("deferrable")?;
+            deferrable = Some(false);
+        } else if self.match_ident_str("deferrable") {
+            self.advance();
+            deferrable = Some(true);
+        }
+
+        self.try_consume_semicolon();
+        Ok(PlStatement::SetTransaction { isolation_level, read_only, deferrable })
     }
 
     fn parse_pl_sql_or_assignment(&mut self) -> Result<PlStatement, ParserError> {
@@ -2053,65 +2123,6 @@ impl Parser {
         let label = self.parse_identifier()?;
         self.try_consume_semicolon();
         Ok(PlStatement::Goto { label })
-    }
-
-    fn parse_pl_transaction_modes(&mut self) -> Result<Vec<crate::ast::TransactionMode>, ParserError> {
-        let mut modes = Vec::new();
-        loop {
-            if self.match_ident_str("isolation") {
-                self.advance();
-                self.try_consume_ident_str("level");
-                let level = if self.match_ident_str("serializable") {
-                    self.advance();
-                    crate::ast::IsolationLevel::Serializable
-                } else if self.match_ident_str("repeatable") {
-                    self.advance();
-                    self.try_consume_ident_str("read");
-                    crate::ast::IsolationLevel::RepeatableRead
-                } else if self.match_ident_str("read") {
-                    self.advance();
-                    if self.match_ident_str("committed") {
-                        self.advance();
-                        crate::ast::IsolationLevel::ReadCommitted
-                    } else if self.match_ident_str("uncommitted") {
-                        self.advance();
-                        crate::ast::IsolationLevel::ReadUncommitted
-                    } else {
-                        return Err(ParserError::UnexpectedToken {
-                            location: self.current_location(),
-                            expected: "COMMITTED or UNCOMMITTED".to_string(),
-                            got: format!("{:?}", self.peek()),
-                        });
-                    }
-                } else {
-                    return Err(ParserError::UnexpectedToken {
-                        location: self.current_location(),
-                        expected: "isolation level".to_string(),
-                        got: format!("{:?}", self.peek()),
-                    });
-                };
-                modes.push(crate::ast::TransactionMode::IsolationLevel(level));
-            } else if self.match_ident_str("read") {
-                self.advance();
-                if self.match_ident_str("only") {
-                    self.advance();
-                    modes.push(crate::ast::TransactionMode::ReadOnly);
-                } else if self.match_ident_str("write") {
-                    self.advance();
-                    modes.push(crate::ast::TransactionMode::ReadWrite);
-                }
-            } else if self.match_ident_str("deferrable") {
-                self.advance();
-                modes.push(crate::ast::TransactionMode::Deferrable);
-            } else if self.match_ident_str("not") {
-                self.advance();
-                self.try_consume_ident_str("deferrable");
-                modes.push(crate::ast::TransactionMode::NotDeferrable);
-            } else {
-                break;
-            }
-        }
-        Ok(modes)
     }
 
     fn parse_pl_forall(&mut self) -> Result<PlStatement, ParserError> {
