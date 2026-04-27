@@ -871,8 +871,11 @@ impl Parser {
         if self.match_keyword(Keyword::TRANSACTION) {
             self.advance();
         }
-        if self.match_keyword(Keyword::CHAIN) {
+        if self.match_keyword(Keyword::AND) {
             self.advance();
+            if self.match_keyword(Keyword::CHAIN) {
+                self.advance();
+            }
         }
         Ok(TransactionStatement {
             kind: TransactionKind::Commit,

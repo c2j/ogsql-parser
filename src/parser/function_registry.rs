@@ -34,6 +34,24 @@ pub enum FuncDomain {
     System,
     TypeConversion,
     OracleCompat,
+    // ── Oracle 兼容包函数域 ──
+    DbeFile,
+    DbeLob,
+    DbeOutput,
+    DbeScheduler,
+    DbeSession,
+    DbeSql,
+    DbeStats,
+    DbeUtility,
+    DbmsLob,
+    DbmsOutput,
+    DbmsScheduler,
+    DbmsSql,
+    DbmsUtility,
+    PkgService,
+    UtlFile,
+    Xml,
+    // ── 其他 ──
     Ai,
     Other,
 }
@@ -275,6 +293,20 @@ macro_rules! f {
 }
 
 macro_rules! fo {
+    ($name:expr, $cat:expr, $dom:expr, $min:expr, $max:expr, $dist:expr) => {
+        FuncMeta {
+            name: $name,
+            category: $cat,
+            domain: $dom,
+            min_args: $min,
+            max_args: $max,
+            supports_distinct: $dist,
+            compat: ORACLE_COMPAT,
+        }
+    };
+}
+
+macro_rules! fop {
     ($name:expr, $cat:expr, $dom:expr, $min:expr, $max:expr, $dist:expr) => {
         FuncMeta {
             name: $name,
@@ -612,6 +644,494 @@ static FUNCTIONS: &[FuncMeta] = &[
         FuncDomain::DateTime,
         2,
         Some(2),
+        false
+    ),
+    fop!(
+        "dbe_file.close",
+        FuncCategory::Scalar,
+        FuncDomain::DbeFile,
+        1,
+        Some(1),
+        false
+    ),
+    fop!(
+        "dbe_file.copy",
+        FuncCategory::Scalar,
+        FuncDomain::DbeFile,
+        3,
+        Some(3),
+        false
+    ),
+    fop!(
+        "dbe_file.open",
+        FuncCategory::Scalar,
+        FuncDomain::DbeFile,
+        2,
+        Some(4),
+        false
+    ),
+    fop!(
+        "dbe_file.read_line",
+        FuncCategory::Scalar,
+        FuncDomain::DbeFile,
+        2,
+        Some(3),
+        false
+    ),
+    fop!(
+        "dbe_file.remove",
+        FuncCategory::Scalar,
+        FuncDomain::DbeFile,
+        2,
+        Some(2),
+        false
+    ),
+    fop!(
+        "dbe_file.rename",
+        FuncCategory::Scalar,
+        FuncDomain::DbeFile,
+        3,
+        Some(3),
+        false
+    ),
+    fop!(
+        "dbe_file.write_line",
+        FuncCategory::Scalar,
+        FuncDomain::DbeFile,
+        2,
+        Some(2),
+        false
+    ),
+    fop!(
+        "dbe_lob.append",
+        FuncCategory::Scalar,
+        FuncDomain::DbeLob,
+        2,
+        Some(2),
+        false
+    ),
+    fop!(
+        "dbe_lob.compare",
+        FuncCategory::Scalar,
+        FuncDomain::DbeLob,
+        2,
+        Some(3),
+        false
+    ),
+    fop!(
+        "dbe_lob.copy",
+        FuncCategory::Scalar,
+        FuncDomain::DbeLob,
+        3,
+        Some(5),
+        false
+    ),
+    fop!(
+        "dbe_lob.createtemporary",
+        FuncCategory::Scalar,
+        FuncDomain::DbeLob,
+        1,
+        Some(3),
+        false
+    ),
+    fop!(
+        "dbe_lob.erase",
+        FuncCategory::Scalar,
+        FuncDomain::DbeLob,
+        2,
+        Some(3),
+        false
+    ),
+    fop!(
+        "dbe_lob.freetemporary",
+        FuncCategory::Scalar,
+        FuncDomain::DbeLob,
+        1,
+        Some(1),
+        false
+    ),
+    fop!(
+        "dbe_lob.getlength",
+        FuncCategory::Scalar,
+        FuncDomain::DbeLob,
+        1,
+        Some(1),
+        false
+    ),
+    fop!(
+        "dbe_lob.instr",
+        FuncCategory::Scalar,
+        FuncDomain::DbeLob,
+        2,
+        Some(4),
+        false
+    ),
+    fop!(
+        "dbe_lob.read",
+        FuncCategory::Scalar,
+        FuncDomain::DbeLob,
+        3,
+        Some(3),
+        false
+    ),
+    fop!(
+        "dbe_lob.substr",
+        FuncCategory::Scalar,
+        FuncDomain::DbeLob,
+        1,
+        Some(3),
+        false
+    ),
+    fop!(
+        "dbe_lob.trim",
+        FuncCategory::Scalar,
+        FuncDomain::DbeLob,
+        2,
+        Some(2),
+        false
+    ),
+    fop!(
+        "dbe_lob.write",
+        FuncCategory::Scalar,
+        FuncDomain::DbeLob,
+        3,
+        Some(3),
+        false
+    ),
+    fop!(
+        "dbe_output.disable",
+        FuncCategory::Scalar,
+        FuncDomain::DbeOutput,
+        0,
+        Some(0),
+        false
+    ),
+    fop!(
+        "dbe_output.enable",
+        FuncCategory::Scalar,
+        FuncDomain::DbeOutput,
+        0,
+        Some(1),
+        false
+    ),
+    fop!(
+        "dbe_output.get_line",
+        FuncCategory::Scalar,
+        FuncDomain::DbeOutput,
+        2,
+        Some(2),
+        false
+    ),
+    fop!(
+        "dbe_output.get_lines",
+        FuncCategory::Scalar,
+        FuncDomain::DbeOutput,
+        2,
+        Some(2),
+        false
+    ),
+    fop!(
+        "dbe_output.new_line",
+        FuncCategory::Scalar,
+        FuncDomain::DbeOutput,
+        0,
+        Some(0),
+        false
+    ),
+    fop!(
+        "dbe_output.print",
+        FuncCategory::Scalar,
+        FuncDomain::DbeOutput,
+        1,
+        Some(1),
+        false
+    ),
+    fop!(
+        "dbe_output.put",
+        FuncCategory::Scalar,
+        FuncDomain::DbeOutput,
+        1,
+        Some(1),
+        false
+    ),
+    fop!(
+        "dbe_output.put_line",
+        FuncCategory::Scalar,
+        FuncDomain::DbeOutput,
+        1,
+        Some(1),
+        false
+    ),
+    fop!(
+        "dbe_scheduler.create_job",
+        FuncCategory::Scalar,
+        FuncDomain::DbeScheduler,
+        1,
+        None,
+        false
+    ),
+    fop!(
+        "dbe_scheduler.drop_job",
+        FuncCategory::Scalar,
+        FuncDomain::DbeScheduler,
+        1,
+        None,
+        false
+    ),
+    fop!(
+        "dbe_scheduler.run_job",
+        FuncCategory::Scalar,
+        FuncDomain::DbeScheduler,
+        1,
+        Some(2),
+        false
+    ),
+    fop!(
+        "dbe_session.clear_context",
+        FuncCategory::Scalar,
+        FuncDomain::DbeSession,
+        2,
+        Some(3),
+        false
+    ),
+    fop!(
+        "dbe_session.set_context",
+        FuncCategory::Scalar,
+        FuncDomain::DbeSession,
+        3,
+        Some(3),
+        false
+    ),
+    fop!(
+        "dbe_sql.close_cursor",
+        FuncCategory::Scalar,
+        FuncDomain::DbeSql,
+        1,
+        Some(1),
+        false
+    ),
+    fop!(
+        "dbe_sql.column_value",
+        FuncCategory::Scalar,
+        FuncDomain::DbeSql,
+        3,
+        Some(3),
+        false
+    ),
+    fop!(
+        "dbe_sql.execute",
+        FuncCategory::Scalar,
+        FuncDomain::DbeSql,
+        1,
+        Some(2),
+        false
+    ),
+    fop!(
+        "dbe_sql.fetch_rows",
+        FuncCategory::Scalar,
+        FuncDomain::DbeSql,
+        1,
+        Some(1),
+        false
+    ),
+    fop!(
+        "dbe_sql.open_cursor",
+        FuncCategory::Scalar,
+        FuncDomain::DbeSql,
+        0,
+        Some(0),
+        false
+    ),
+    fop!(
+        "dbe_sql.register_variable",
+        FuncCategory::Scalar,
+        FuncDomain::DbeSql,
+        3,
+        Some(3),
+        false
+    ),
+    fop!(
+        "dbe_stats.lock_table_stats",
+        FuncCategory::Scalar,
+        FuncDomain::DbeStats,
+        1,
+        Some(1),
+        false
+    ),
+    fop!(
+        "dbe_stats.unlock_table_stats",
+        FuncCategory::Scalar,
+        FuncDomain::DbeStats,
+        1,
+        Some(1),
+        false
+    ),
+    fop!(
+        "dbe_utility.format_error_backtrace",
+        FuncCategory::Scalar,
+        FuncDomain::DbeUtility,
+        0,
+        Some(0),
+        false
+    ),
+    fop!(
+        "dbe_utility.format_error_stack",
+        FuncCategory::Scalar,
+        FuncDomain::DbeUtility,
+        0,
+        Some(0),
+        false
+    ),
+    fop!(
+        "dbe_utility.get_time",
+        FuncCategory::Scalar,
+        FuncDomain::DbeUtility,
+        0,
+        Some(0),
+        false
+    ),
+    fop!(
+        "dbms_lob.append",
+        FuncCategory::Scalar,
+        FuncDomain::DbmsLob,
+        2,
+        Some(2),
+        false
+    ),
+    fop!(
+        "dbms_lob.read",
+        FuncCategory::Scalar,
+        FuncDomain::DbmsLob,
+        3,
+        Some(3),
+        false
+    ),
+    fop!(
+        "dbms_lob.substr",
+        FuncCategory::Scalar,
+        FuncDomain::DbmsLob,
+        1,
+        Some(3),
+        false
+    ),
+    fop!(
+        "dbms_lob.write",
+        FuncCategory::Scalar,
+        FuncDomain::DbmsLob,
+        3,
+        Some(3),
+        false
+    ),
+    fop!(
+        "dbms_output.disable",
+        FuncCategory::Scalar,
+        FuncDomain::DbmsOutput,
+        0,
+        Some(0),
+        false
+    ),
+    fop!(
+        "dbms_output.enable",
+        FuncCategory::Scalar,
+        FuncDomain::DbmsOutput,
+        0,
+        Some(1),
+        false
+    ),
+    fop!(
+        "dbms_output.put",
+        FuncCategory::Scalar,
+        FuncDomain::DbmsOutput,
+        1,
+        Some(1),
+        false
+    ),
+    fop!(
+        "dbms_output.put_line",
+        FuncCategory::Scalar,
+        FuncDomain::DbmsOutput,
+        1,
+        Some(1),
+        false
+    ),
+    fop!(
+        "dbms_scheduler.create_job",
+        FuncCategory::Scalar,
+        FuncDomain::DbmsScheduler,
+        1,
+        None,
+        false
+    ),
+    fop!(
+        "dbms_scheduler.drop_job",
+        FuncCategory::Scalar,
+        FuncDomain::DbmsScheduler,
+        1,
+        None,
+        false
+    ),
+    fop!(
+        "dbms_scheduler.run_job",
+        FuncCategory::Scalar,
+        FuncDomain::DbmsScheduler,
+        1,
+        Some(2),
+        false
+    ),
+    fop!(
+        "dbms_sql.close_cursor",
+        FuncCategory::Scalar,
+        FuncDomain::DbmsSql,
+        1,
+        Some(1),
+        false
+    ),
+    fop!(
+        "dbms_sql.column_value",
+        FuncCategory::Scalar,
+        FuncDomain::DbmsSql,
+        3,
+        Some(3),
+        false
+    ),
+    fop!(
+        "dbms_sql.execute",
+        FuncCategory::Scalar,
+        FuncDomain::DbmsSql,
+        1,
+        Some(2),
+        false
+    ),
+    fop!(
+        "dbms_sql.fetch_rows",
+        FuncCategory::Scalar,
+        FuncDomain::DbmsSql,
+        1,
+        Some(1),
+        false
+    ),
+    fop!(
+        "dbms_sql.open_cursor",
+        FuncCategory::Scalar,
+        FuncDomain::DbmsSql,
+        0,
+        Some(0),
+        false
+    ),
+    fop!(
+        "dbms_utility.format_error_backtrace",
+        FuncCategory::Scalar,
+        FuncDomain::DbmsUtility,
+        0,
+        Some(0),
+        false
+    ),
+    fop!(
+        "dbms_utility.get_time",
+        FuncCategory::Scalar,
+        FuncDomain::DbmsUtility,
+        0,
+        Some(0),
         false
     ),
     fo!(
@@ -1312,6 +1832,14 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(0),
         false
     ),
+    fop!(
+        "pkg_service.sql_cancel",
+        FuncCategory::Scalar,
+        FuncDomain::PkgService,
+        1,
+        Some(1),
+        false
+    ),
     f!(
         "position",
         FuncCategory::Scalar,
@@ -1789,6 +2317,46 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(0),
         false
     ),
+    fop!(
+        "utl_file.fclose",
+        FuncCategory::Scalar,
+        FuncDomain::UtlFile,
+        1,
+        Some(1),
+        false
+    ),
+    fop!(
+        "utl_file.fclose_all",
+        FuncCategory::Scalar,
+        FuncDomain::UtlFile,
+        0,
+        Some(0),
+        false
+    ),
+    fop!(
+        "utl_file.fopen",
+        FuncCategory::Scalar,
+        FuncDomain::UtlFile,
+        2,
+        Some(4),
+        false
+    ),
+    fop!(
+        "utl_file.get_line",
+        FuncCategory::Scalar,
+        FuncDomain::UtlFile,
+        1,
+        Some(2),
+        false
+    ),
+    fop!(
+        "utl_file.put_line",
+        FuncCategory::Scalar,
+        FuncDomain::UtlFile,
+        1,
+        Some(2),
+        false
+    ),
     // ── V ───────────────────────────────────────────────────────
     f!(
         "var_pop",
@@ -1839,6 +2407,94 @@ static FUNCTIONS: &[FuncMeta] = &[
         None,
         true
     ),
+    fop!(
+        "xmlagg",
+        FuncCategory::Aggregate,
+        FuncDomain::Xml,
+        1,
+        Some(1),
+        true
+    ),
+    fop!(
+        "xmlattributes",
+        FuncCategory::Scalar,
+        FuncDomain::Xml,
+        1,
+        None,
+        false
+    ),
+    fop!(
+        "xmlcomment",
+        FuncCategory::Scalar,
+        FuncDomain::Xml,
+        1,
+        Some(1),
+        false
+    ),
+    fop!(
+        "xmlconcat",
+        FuncCategory::Scalar,
+        FuncDomain::Xml,
+        1,
+        None,
+        false
+    ),
+    fop!(
+        "xmlelement",
+        FuncCategory::Scalar,
+        FuncDomain::Xml,
+        1,
+        None,
+        false
+    ),
+    fop!(
+        "xmlforest",
+        FuncCategory::Scalar,
+        FuncDomain::Xml,
+        1,
+        None,
+        false
+    ),
+    fop!(
+        "xmlparse",
+        FuncCategory::Scalar,
+        FuncDomain::Xml,
+        1,
+        Some(2),
+        false
+    ),
+    fop!(
+        "xmlpi",
+        FuncCategory::Scalar,
+        FuncDomain::Xml,
+        1,
+        Some(2),
+        false
+    ),
+    fop!(
+        "xmlquery",
+        FuncCategory::Scalar,
+        FuncDomain::Xml,
+        2,
+        Some(3),
+        false
+    ),
+    fop!(
+        "xmlserialize",
+        FuncCategory::Scalar,
+        FuncDomain::Xml,
+        2,
+        Some(3),
+        false
+    ),
+    fop!(
+        "xmltype",
+        FuncCategory::Scalar,
+        FuncDomain::Xml,
+        1,
+        Some(1),
+        false
+    ),
 ];
 
 /// Look up a built-in function by name (case-insensitive, binary search).
@@ -1876,6 +2532,86 @@ pub fn lookup_builtin_meta(name: &str) -> Option<crate::ast::BuiltinFuncMeta> {
             FuncDomain::System => "System",
             FuncDomain::TypeConversion => "TypeConversion",
             FuncDomain::OracleCompat => "OracleCompat",
+            FuncDomain::DbeFile => "DbeFile",
+            FuncDomain::DbeLob => "DbeLob",
+            FuncDomain::DbeOutput => "DbeOutput",
+            FuncDomain::DbeScheduler => "DbeScheduler",
+            FuncDomain::DbeSession => "DbeSession",
+            FuncDomain::DbeSql => "DbeSql",
+            FuncDomain::DbeStats => "DbeStats",
+            FuncDomain::DbeUtility => "DbeUtility",
+            FuncDomain::DbmsLob => "DbmsLob",
+            FuncDomain::DbmsOutput => "DbmsOutput",
+            FuncDomain::DbmsScheduler => "DbmsScheduler",
+            FuncDomain::DbmsSql => "DbmsSql",
+            FuncDomain::DbmsUtility => "DbmsUtility",
+            FuncDomain::PkgService => "PkgService",
+            FuncDomain::UtlFile => "UtlFile",
+            FuncDomain::Xml => "Xml",
+            FuncDomain::Ai => "Ai",
+            FuncDomain::Other => "Other",
+        }.to_string(),
+    })
+}
+
+/// Two-phase lookup: exact full-qualified name, then fallback to last segment.
+pub fn lookup_function_qualified(full_name: &str) -> Option<&'static FuncMeta> {
+    let lower = full_name.to_ascii_lowercase();
+    let idx = FUNCTIONS.partition_point(|m| m.name < lower.as_str());
+    if idx < FUNCTIONS.len() && FUNCTIONS[idx].name == lower {
+        return Some(&FUNCTIONS[idx]);
+    }
+    let last_seg = lower.split('.').last().unwrap_or(&lower);
+    if last_seg.len() == lower.len() {
+        return None;
+    }
+    let idx2 = FUNCTIONS.partition_point(|m| m.name < last_seg);
+    if idx2 < FUNCTIONS.len() && FUNCTIONS[idx2].name == last_seg {
+        return Some(&FUNCTIONS[idx2]);
+    }
+    None
+}
+
+pub fn lookup_builtin_meta_qualified(full_name: &str) -> Option<crate::ast::BuiltinFuncMeta> {
+    lookup_function_qualified(full_name).map(|m| crate::ast::BuiltinFuncMeta {
+        category: match m.category {
+            FuncCategory::Aggregate => "Aggregate",
+            FuncCategory::Window => "Window",
+            FuncCategory::Scalar => "Scalar",
+            FuncCategory::SetReturning => "SetReturning",
+            FuncCategory::Special => "Special",
+        }.to_string(),
+        domain: match m.domain {
+            FuncDomain::Math => "Math",
+            FuncDomain::String => "String",
+            FuncDomain::DateTime => "DateTime",
+            FuncDomain::Aggregate => "Aggregate",
+            FuncDomain::Window => "Window",
+            FuncDomain::Array => "Array",
+            FuncDomain::Json => "Json",
+            FuncDomain::Network => "Network",
+            FuncDomain::Geometric => "Geometric",
+            FuncDomain::TextSearch => "TextSearch",
+            FuncDomain::Crypto => "Crypto",
+            FuncDomain::System => "System",
+            FuncDomain::TypeConversion => "TypeConversion",
+            FuncDomain::OracleCompat => "OracleCompat",
+            FuncDomain::DbeFile => "DbeFile",
+            FuncDomain::DbeLob => "DbeLob",
+            FuncDomain::DbeOutput => "DbeOutput",
+            FuncDomain::DbeScheduler => "DbeScheduler",
+            FuncDomain::DbeSession => "DbeSession",
+            FuncDomain::DbeSql => "DbeSql",
+            FuncDomain::DbeStats => "DbeStats",
+            FuncDomain::DbeUtility => "DbeUtility",
+            FuncDomain::DbmsLob => "DbmsLob",
+            FuncDomain::DbmsOutput => "DbmsOutput",
+            FuncDomain::DbmsScheduler => "DbmsScheduler",
+            FuncDomain::DbmsSql => "DbmsSql",
+            FuncDomain::DbmsUtility => "DbmsUtility",
+            FuncDomain::PkgService => "PkgService",
+            FuncDomain::UtlFile => "UtlFile",
+            FuncDomain::Xml => "Xml",
             FuncDomain::Ai => "Ai",
             FuncDomain::Other => "Other",
         }.to_string(),
@@ -2637,5 +3373,170 @@ mod tests {
         assert!(reg
             .validate("nonexistent_xyz", 5, true, true, false, loc())
             .is_empty());
+    }
+
+    // ── Oracle Package Function Domain Tests ──
+
+    #[test]
+    fn test_qualified_lookup_dbe_lob_append() {
+        let meta = super::lookup_function_qualified("dbe_lob.append").unwrap();
+        assert_eq!(meta.name, "dbe_lob.append");
+        assert_eq!(meta.domain, FuncDomain::DbeLob);
+        assert_eq!(meta.category, FuncCategory::Scalar);
+    }
+
+    #[test]
+    fn test_qualified_lookup_dbms_lob_append() {
+        let meta = super::lookup_function_qualified("dbms_lob.append").unwrap();
+        assert_eq!(meta.domain, FuncDomain::DbmsLob);
+    }
+
+    #[test]
+    fn test_qualified_lookup_distinguishes_dbe_vs_dbms_lob() {
+        let dbe = super::lookup_function_qualified("dbe_lob.append").unwrap();
+        let dbms = super::lookup_function_qualified("dbms_lob.append").unwrap();
+        assert_ne!(dbe.domain, dbms.domain);
+        assert_eq!(dbe.domain, FuncDomain::DbeLob);
+        assert_eq!(dbms.domain, FuncDomain::DbmsLob);
+    }
+
+    #[test]
+    fn test_qualified_lookup_dbe_output() {
+        let meta = super::lookup_function_qualified("dbe_output.put_line").unwrap();
+        assert_eq!(meta.domain, FuncDomain::DbeOutput);
+    }
+
+    #[test]
+    fn test_qualified_lookup_dbms_output() {
+        let meta = super::lookup_function_qualified("dbms_output.put_line").unwrap();
+        assert_eq!(meta.domain, FuncDomain::DbmsOutput);
+    }
+
+    #[test]
+    fn test_qualified_lookup_dbe_sql() {
+        let meta = super::lookup_function_qualified("dbe_sql.execute").unwrap();
+        assert_eq!(meta.domain, FuncDomain::DbeSql);
+    }
+
+    #[test]
+    fn test_qualified_lookup_dbms_sql() {
+        let meta = super::lookup_function_qualified("dbms_sql.execute").unwrap();
+        assert_eq!(meta.domain, FuncDomain::DbmsSql);
+    }
+
+    #[test]
+    fn test_qualified_lookup_dbe_file() {
+        let meta = super::lookup_function_qualified("dbe_file.open").unwrap();
+        assert_eq!(meta.domain, FuncDomain::DbeFile);
+    }
+
+    #[test]
+    fn test_qualified_lookup_utl_file() {
+        let meta = super::lookup_function_qualified("utl_file.fopen").unwrap();
+        assert_eq!(meta.domain, FuncDomain::UtlFile);
+    }
+
+    #[test]
+    fn test_qualified_lookup_dbe_scheduler() {
+        let meta = super::lookup_function_qualified("dbe_scheduler.create_job").unwrap();
+        assert_eq!(meta.domain, FuncDomain::DbeScheduler);
+    }
+
+    #[test]
+    fn test_qualified_lookup_dbms_scheduler() {
+        let meta = super::lookup_function_qualified("dbms_scheduler.create_job").unwrap();
+        assert_eq!(meta.domain, FuncDomain::DbmsScheduler);
+    }
+
+    #[test]
+    fn test_qualified_lookup_dbe_utility() {
+        let meta = super::lookup_function_qualified("dbe_utility.get_time").unwrap();
+        assert_eq!(meta.domain, FuncDomain::DbeUtility);
+    }
+
+    #[test]
+    fn test_qualified_lookup_dbe_stats() {
+        let meta = super::lookup_function_qualified("dbe_stats.lock_table_stats").unwrap();
+        assert_eq!(meta.domain, FuncDomain::DbeStats);
+    }
+
+    #[test]
+    fn test_qualified_lookup_dbe_session() {
+        let meta = super::lookup_function_qualified("dbe_session.set_context").unwrap();
+        assert_eq!(meta.domain, FuncDomain::DbeSession);
+    }
+
+    #[test]
+    fn test_qualified_lookup_dbms_utility() {
+        let meta = super::lookup_function_qualified("dbms_utility.get_time").unwrap();
+        assert_eq!(meta.domain, FuncDomain::DbmsUtility);
+    }
+
+    #[test]
+    fn test_qualified_lookup_pkg_service() {
+        let meta = super::lookup_function_qualified("pkg_service.sql_cancel").unwrap();
+        assert_eq!(meta.domain, FuncDomain::PkgService);
+    }
+
+    #[test]
+    fn test_lookup_xml_xmlelement() {
+        let meta = lookup_function("xmlelement").unwrap();
+        assert_eq!(meta.domain, FuncDomain::Xml);
+        assert_eq!(meta.category, FuncCategory::Scalar);
+    }
+
+    #[test]
+    fn test_lookup_xml_xmlagg() {
+        let meta = lookup_function("xmlagg").unwrap();
+        assert_eq!(meta.domain, FuncDomain::Xml);
+        assert_eq!(meta.category, FuncCategory::Aggregate);
+        assert!(meta.supports_distinct);
+    }
+
+    #[test]
+    fn test_builtin_meta_xml() {
+        let meta = lookup_builtin_meta("xmlelement").unwrap();
+        assert_eq!(meta.category, "Scalar");
+        assert_eq!(meta.domain, "Xml");
+    }
+
+    #[test]
+    fn test_builtin_meta_qualified_dbe_lob() {
+        let meta = super::lookup_builtin_meta_qualified("dbe_lob.append").unwrap();
+        assert_eq!(meta.category, "Scalar");
+        assert_eq!(meta.domain, "DbeLob");
+    }
+
+    #[test]
+    fn test_qualified_lookup_fallback_to_last_segment() {
+        let meta = super::lookup_function_qualified("some_schema.upper");
+        assert!(meta.is_some());
+        let m = meta.unwrap();
+        assert_eq!(m.domain, FuncDomain::String);
+    }
+
+    #[test]
+    fn test_qualified_lookup_unknown_returns_none() {
+        let meta = super::lookup_function_qualified("nonexistent_pkg.nonexistent_func");
+        assert!(meta.is_none());
+    }
+
+    #[test]
+    fn test_qualified_lookup_no_dot_returns_exact() {
+        let meta = super::lookup_function_qualified("upper");
+        assert!(meta.is_some());
+    }
+
+    #[test]
+    fn test_functions_array_sorting_invariant() {
+        for i in 1..FUNCTIONS.len() {
+            assert!(
+                FUNCTIONS[i - 1].name < FUNCTIONS[i].name,
+                "FUNCTIONS array not sorted: {:?} >= {:?} at index {}",
+                FUNCTIONS[i - 1].name,
+                FUNCTIONS[i].name,
+                i
+            );
+        }
     }
 }
