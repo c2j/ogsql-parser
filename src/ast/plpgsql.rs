@@ -180,9 +180,14 @@ pub enum PlStatement {
     },
 
     GetDiagnostics(Spanned<PlGetDiagStmt>),
-    Commit,
+    Commit {
+        #[serde(default)]
+        and_chain: bool,
+    },
     Rollback {
         to_savepoint: Option<String>,
+        #[serde(default)]
+        and_chain: bool,
     },
     Savepoint {
         name: String,
