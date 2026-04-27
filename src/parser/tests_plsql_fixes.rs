@@ -400,3 +400,51 @@ fn test_fetch_into_multiple_variables() {
         _ => panic!("expected Fetch"),
     }
 }
+
+#[test]
+fn test_for_in_select_loop_in_procedure() {
+    let sql = r#"CREATE OR REPLACE PROCEDURE test_for_query()
+AS $$
+DECLARE
+    v_rec RECORD;
+    v_count INTEGER := 0;
+BEGIN
+    FOR v_rec IN SELECT id, name, amount FROM t_orders WHERE status = 'PENDING' ORDER BY id LOOP
+        v_count := v_count + 1;
+        UPDATE t_orders SET processed = true WHERE id = v_rec.id;
+        INSERT INTO t_audit(order_id, action) VALUES(v_rec.id, 'PROCESSED');
+    END LOOP;
+    INSERT INTO t_log(id, msg) VALUES(1, 'done');
+END;
+$$ LANGUAGE plpgsql"#;
+
+    let stmts = parse(sql);
+    assert_eq!(stmts.len(), 1, "should parse one statement, got {}", stmts.len());
+
+    match &stmts[0] {
+        Statement::CreateProcedure(proc) => {
+            let block = proc.block.as_ref().expect("procedure should have a body (block should not be null)");
+            assert!(block.body.len() >= 1, "block body should have statements");
+
+            // The first statement should be a FOR loop
+            match &block.body[0] {
+                PlStatement::For(for_stmt) => {
+                    assert_eq!(for_stmt.node.variable, "v_rec");
+                    match &for_stmt.node.kind {
+                        PlForKind::Query { query, parsed_query, .. } => {
+                            assert!(query.to_uppercase().contains("SELECT"), "query should contain SELECT, got: {:?}", query);
+                            assert!(parsed_query.is_some(), "parsed_query should be Some");
+                        }
+                        other => panic!("expected PlForKind::Query, got {:?}", other),
+                    }
+                    assert_eq!(for_stmt.node.body.len(), 3, "FOR loop body should have 3 statements");
+                }
+                other => panic!("expected FOR statement, got {:?}", other),
+            }
+
+            // Second statement should be the INSERT after the loop
+            assert!(block.body.len() >= 2, "block should have at least 2 statements (FOR + INSERT)");
+        }
+        other => panic!("expected CreateProcedure, got {:?}", other),
+    }
+}

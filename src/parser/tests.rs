@@ -505,6 +505,56 @@ fn test_plpgsql_for_query() {
     }
 }
 
+#[test]
+fn test_plpgsql_for_query_with_order_by_loop() {
+    let sql = r#"CREATE OR REPLACE PROCEDURE test_for_query()
+AS $$
+DECLARE
+    v_rec RECORD;
+    v_count INTEGER := 0;
+BEGIN
+    FOR v_rec IN SELECT id, name, amount FROM t_orders WHERE status = 'PENDING' ORDER BY id LOOP
+        v_count := v_count + 1;
+        UPDATE t_orders SET processed = true WHERE id = v_rec.id;
+        INSERT INTO t_audit(order_id, action) VALUES(v_rec.id, 'PROCESSED');
+    END LOOP;
+    INSERT INTO t_log(id, msg) VALUES(1, 'done');
+END;
+$$ LANGUAGE plpgsql"#;
+
+    let stmt = parse_one(sql);
+    match stmt {
+        Statement::CreateProcedure(proc) => {
+            let block = proc.node.block.expect("procedure should have a parsed block");
+            assert_eq!(block.body.len(), 2, "expected FOR loop and INSERT after it");
+            match &block.body[0] {
+                PlStatement::For(f) => {
+                    assert_eq!(f.variable, "v_rec");
+                    match &f.kind {
+                        PlForKind::Query { query, parsed_query, .. } => {
+                            assert!(query.to_lowercase().contains("select"));
+                            assert!(query.to_lowercase().contains("order by"));
+                            assert!(
+                                parsed_query.is_some(),
+                                "SELECT should be structurally parsed, not just raw text"
+                            );
+                        }
+                        _ => panic!("expected Query kind, got {:?}", f.kind),
+                    }
+                    assert_eq!(f.body.len(), 3, "expected 3 statements inside loop body");
+                }
+                _ => panic!("expected For statement, got {:?}", block.body[0]),
+            }
+            assert!(
+                matches!(&block.body[1], PlStatement::SqlStatement { .. }),
+                "expected SqlStatement (INSERT) after loop, got {:?}",
+                block.body[1]
+            );
+        }
+        _ => panic!("expected CreateProcedure, got {:?}", stmt),
+    }
+}
+
 // --- EXIT/CONTINUE ---
 
 #[test]

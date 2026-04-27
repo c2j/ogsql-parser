@@ -123,6 +123,7 @@ impl Parser {
 
         if self.match_ident_str("record") && !self.is_next_token_type_name() {
             self.advance();
+            self.try_consume_semicolon();
             return Ok(PlDeclaration::Record(PlRecordDecl { name }));
         }
 
