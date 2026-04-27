@@ -1072,7 +1072,8 @@ fn test_plpgsql_fetch_cursor() {
     match &block.body[0] {
         PlStatement::Fetch(f) => {
             assert!(matches!(&f.cursor, Expr::ColumnRef(n) if n == &["cur"]));
-            assert!(matches!(&f.into, Expr::ColumnRef(name) if name == &["x".to_string()]));
+            assert_eq!(f.into.len(), 1);
+            assert!(matches!(&f.into[0], Expr::ColumnRef(name) if name == &["x".to_string()]));
         }
         _ => panic!("expected Fetch"),
     }
@@ -4523,7 +4524,8 @@ fn test_plpgsql_fetch_with_direction() {
         PlStatement::Fetch(f) => {
             assert!(matches!(&f.cursor, Expr::ColumnRef(n) if n == &["cur"]));
             assert!(matches!(f.direction, Some(plpgsql::FetchDirection::Next)));
-            assert!(matches!(&f.into, Expr::ColumnRef(name) if name == &["x".to_string()]));
+            assert_eq!(f.into.len(), 1);
+            assert!(matches!(&f.into[0], Expr::ColumnRef(name) if name == &["x".to_string()]));
         }
         _ => panic!("expected Fetch"),
     }

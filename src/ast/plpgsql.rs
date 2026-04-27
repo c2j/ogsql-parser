@@ -490,7 +490,8 @@ pub struct PlFetchStmt {
     pub direction: Option<FetchDirection>,
     #[serde(default)]
     pub bulk_collect: bool,
-    pub into: crate::ast::Expr,
+    #[serde(default)]
+    pub into: Vec<crate::ast::Expr>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

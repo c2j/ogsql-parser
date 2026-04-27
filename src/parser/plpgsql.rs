@@ -1814,14 +1814,18 @@ impl Parser {
         };
 
         self.expect_ident_str("into")?;
-        let into = self.parse_expr()?;
+        let mut into_vars = vec![self.parse_expr()?];
+        while self.match_token(&Token::Comma) {
+            self.advance();
+            into_vars.push(self.parse_expr()?);
+        }
         self.try_consume_semicolon();
 
         Ok(PlStatement::Fetch(Spanned::new(PlFetchStmt {
             cursor,
             direction,
             bulk_collect,
-            into,
+            into: into_vars,
         }, None)))
     }
 
