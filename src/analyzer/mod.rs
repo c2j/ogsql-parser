@@ -1,4 +1,6 @@
 use std::collections::HashMap;
+use std::collections::hash_map::DefaultHasher;
+use std::hash::{Hash, Hasher};
 
 use crate::ast::plpgsql::{PlBlock, PlDeclaration, PlOpenKind, PlStatement};
 use crate::ast::{Expr, Literal, Statement};
@@ -358,6 +360,57 @@ pub fn find_ref_cursor_queries(
     }
 
     collect_ref_cursor_queries(&block.body, &ref_cursor_params)
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct QueryFingerprint {
+    pub fingerprint: String,
+    pub occurrences: Vec<FingerprintOccurrence>,
+    pub normalized_sql: String,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct FingerprintOccurrence {
+    pub location: String,
+}
+
+fn fingerprint_statement(stmt: &Statement) -> Option<String> {
+    let formatter = crate::formatter::SqlFormatter::new();
+    let normalized_sql = formatter.format_statement(stmt);
+    let mut hasher = DefaultHasher::new();
+    normalized_sql.hash(&mut hasher);
+    Some(format!("fp_{:016x}", hasher.finish()))
+}
+
+pub fn compute_query_fingerprints(stmts: &[Statement]) -> Vec<QueryFingerprint> {
+    let mut fingerprint_map: HashMap<String, QueryFingerprint> = HashMap::new();
+
+    for (i, stmt) in stmts.iter().enumerate() {
+        collect_fingerprints_recursive(stmt, &format!("statement_{}", i), &mut fingerprint_map);
+    }
+
+    let mut results: Vec<_> = fingerprint_map.into_values().collect();
+    results.sort_by(|a, b| a.fingerprint.cmp(&b.fingerprint));
+    results
+}
+
+fn collect_fingerprints_recursive(
+    stmt: &Statement,
+    location: &str,
+    map: &mut HashMap<String, QueryFingerprint>,
+) {
+    if let Some(fp) = fingerprint_statement(stmt) {
+        let formatter = crate::formatter::SqlFormatter::new();
+        let normalized_sql = formatter.format_statement(stmt);
+        let entry = map.entry(fp.clone()).or_insert_with(|| QueryFingerprint {
+            fingerprint: fp,
+            occurrences: Vec::new(),
+            normalized_sql,
+        });
+        entry.occurrences.push(FingerprintOccurrence {
+            location: location.to_string(),
+        });
+    }
 }
 
 // ── 内部状态 ──

@@ -344,3 +344,44 @@ END PKG_TEST;
     let queries = find_ref_cursor_queries(&block, &params);
     assert!(queries.is_empty());
 }
+
+fn parse_statements(sql: &str) -> Vec<crate::ast::Statement> {
+    let tokens = crate::Tokenizer::new(sql).tokenize().unwrap();
+    crate::parser::Parser::new(tokens).parse()
+}
+
+#[test]
+fn test_fingerprint_identical_queries() {
+    let stmts = parse_statements(
+        "SELECT * FROM t_users WHERE accno = 'admin'; SELECT * FROM t_users WHERE accno = 'admin'"
+    );
+    let fps = compute_query_fingerprints(&stmts);
+    assert_eq!(fps.len(), 1, "identical queries should have same fingerprint");
+    assert_eq!(fps[0].occurrences.len(), 2);
+}
+
+#[test]
+fn test_fingerprint_different_queries() {
+    let stmts = parse_statements(
+        "SELECT * FROM t_users; SELECT * FROM t_orders"
+    );
+    let fps = compute_query_fingerprints(&stmts);
+    assert_eq!(fps.len(), 2, "different queries should have different fingerprints");
+}
+
+#[test]
+fn test_fingerprint_deterministic() {
+    let stmts1 = parse_statements("SELECT id, name FROM users WHERE active = true");
+    let stmts2 = parse_statements("SELECT id, name FROM users WHERE active = true");
+    let fps1 = compute_query_fingerprints(&stmts1);
+    let fps2 = compute_query_fingerprints(&stmts2);
+    assert_eq!(fps1[0].fingerprint, fps2[0].fingerprint, "same SQL should produce same fingerprint");
+}
+
+#[test]
+fn test_fingerprint_format() {
+    let stmts = parse_statements("SELECT 1");
+    let fps = compute_query_fingerprints(&stmts);
+    assert!(fps[0].fingerprint.starts_with("fp_"), "fingerprint should start with fp_ prefix");
+    assert_eq!(fps[0].fingerprint.len(), 19, "fingerprint should be fp_ + 16 hex chars");
+}
