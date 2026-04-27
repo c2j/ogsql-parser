@@ -4984,13 +4984,22 @@ impl SqlFormatter {
                 );
                 format!("{};", s)
             }
-            PlStatement::Commit => format!("{};", self.kw("COMMIT")),
-            PlStatement::Rollback { to_savepoint } => {
-                if let Some(sp) = to_savepoint {
-                    format!("{} {} {};", self.kw("ROLLBACK"), self.kw("TO"), sp)
+            PlStatement::Commit { and_chain } => {
+                if *and_chain {
+                    format!("{} {} {};", self.kw("COMMIT"), self.kw("AND"), self.kw("CHAIN"))
                 } else {
-                    format!("{};", self.kw("ROLLBACK"))
+                    format!("{};", self.kw("COMMIT"))
                 }
+            }
+            PlStatement::Rollback { to_savepoint, and_chain } => {
+                let mut s = self.kw("ROLLBACK").to_string();
+                if let Some(sp) = to_savepoint {
+                    s.push_str(&format!(" {} {}", self.kw("TO"), sp));
+                }
+                if *and_chain {
+                    s.push_str(&format!(" {} {}", self.kw("AND"), self.kw("CHAIN")));
+                }
+                format!("{};", s)
             }
             PlStatement::Savepoint { name } => format!("{} {};", self.kw("SAVEPOINT"), name),
             PlStatement::ReleaseSavepoint { name } => {

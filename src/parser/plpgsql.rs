@@ -612,8 +612,15 @@ impl Parser {
         } else if self.match_ident_str("commit") {
             self.advance();
             self.try_consume_ident_str("work");
+            let and_chain = if self.match_ident_str("and") {
+                self.advance();
+                self.try_consume_ident_str("chain");
+                true
+            } else {
+                false
+            };
             self.try_consume_semicolon();
-            Ok(PlStatement::Commit)
+            Ok(PlStatement::Commit { and_chain })
         } else if self.match_ident_str("rollback") {
             self.parse_pl_rollback()
         } else if self.match_ident_str("savepoint") {
@@ -2009,8 +2016,16 @@ impl Parser {
             None
         };
 
+        let and_chain = if self.match_ident_str("and") {
+            self.advance();
+            self.try_consume_ident_str("chain");
+            true
+        } else {
+            false
+        };
+
         self.try_consume_semicolon();
-        Ok(PlStatement::Rollback { to_savepoint })
+        Ok(PlStatement::Rollback { to_savepoint, and_chain })
     }
 
     fn parse_pl_goto(&mut self) -> Result<PlStatement, ParserError> {

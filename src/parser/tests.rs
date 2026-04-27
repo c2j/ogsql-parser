@@ -1178,14 +1178,14 @@ fn test_plpgsql_get_stacked_diagnostics() {
 #[test]
 fn test_plpgsql_commit() {
     let block = parse_do_block("DO $$ BEGIN COMMIT; END $$");
-    assert!(matches!(&block.body[0], PlStatement::Commit));
+    assert!(matches!(&block.body[0], PlStatement::Commit { .. }));
 }
 
 #[test]
 fn test_plpgsql_rollback() {
     let block = parse_do_block("DO $$ BEGIN ROLLBACK; END $$");
     match &block.body[0] {
-        PlStatement::Rollback { to_savepoint: None } => {}
+        PlStatement::Rollback { to_savepoint: None, .. } => {}
         _ => panic!("expected Rollback"),
     }
 }
@@ -1196,8 +1196,30 @@ fn test_plpgsql_rollback_to_savepoint() {
     match &block.body[0] {
         PlStatement::Rollback {
             to_savepoint: Some(sp),
+            ..
         } => assert_eq!(sp, "sp"),
         _ => panic!("expected Rollback TO"),
+    }
+}
+
+#[test]
+fn test_plpgsql_commit_and_chain() {
+    let block = parse_do_block("DO $$ BEGIN COMMIT AND CHAIN; END $$");
+    match &block.body[0] {
+        PlStatement::Commit { and_chain } => assert!(and_chain, "expected and_chain = true"),
+        _ => panic!("expected Commit"),
+    }
+}
+
+#[test]
+fn test_plpgsql_rollback_and_chain() {
+    let block = parse_do_block("DO $$ BEGIN ROLLBACK AND CHAIN; END $$");
+    match &block.body[0] {
+        PlStatement::Rollback { to_savepoint, and_chain } => {
+            assert!(to_savepoint.is_none());
+            assert!(and_chain, "expected and_chain = true");
+        }
+        _ => panic!("expected Rollback"),
     }
 }
 
@@ -1462,7 +1484,7 @@ fn test_begin_anon_block_with_multiple_statements() {
     match stmt {
         Statement::AnonyBlock(b) => {
             assert_eq!(b.block.body.len(), 3);
-            assert!(matches!(b.block.body[2], PlStatement::Commit));
+            assert!(matches!(b.block.body[2], PlStatement::Commit { .. }));
         }
         _ => panic!("expected AnonyBlock, got {:?}", stmt),
     }
