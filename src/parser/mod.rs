@@ -334,6 +334,7 @@ impl Parser {
         let mut subprog_depth = 0i32;
         let mut case_depth = 0i32;
         let mut seen_outer_end = false;
+        let mut in_routine_decl = false;
         let in_declare_section = self.tokens.get(self.pos).map_or(false, |t| {
             if !matches!(t.token, Token::Keyword(Keyword::DECLARE)) {
                 return false;
@@ -355,6 +356,9 @@ impl Parser {
                 }
                 Token::Keyword(Keyword::BEGIN_P) => {
                     begin_depth += 1;
+                    if in_routine_decl && begin_depth == 1 {
+                        in_routine_decl = false;
+                    }
                 }
                 Token::Keyword(Keyword::END_P) => {
                     let next_is_compound = (i + 1) < self.tokens.len()
@@ -390,8 +394,15 @@ impl Parser {
                         subprog_depth += 1;
                     }
                 }
+                Token::Keyword(Keyword::IS) | Token::Keyword(Keyword::AS)
+                    if !is_package && depth == 0 && begin_depth == 0 && !in_routine_decl =>
+                {
+                    if self.is_routine_body_marker(i) {
+                        in_routine_decl = true;
+                    }
+                }
                 Token::Semicolon if depth <= 0 && begin_depth <= 0 => {
-                    if in_declare_section {
+                    if in_declare_section || in_routine_decl {
                         continue;
                     }
                     if is_package {
@@ -555,6 +566,45 @@ impl Parser {
             }
         }
         i < self.tokens.len() && matches!(self.tokens[i].token, Token::Keyword(Keyword::PACKAGE))
+    }
+
+    /// Check if `IS`/`AS` at position `i` is the body marker for a top-level
+    /// CREATE [OR REPLACE] FUNCTION/PROCEDURE (not inside a package, not CASE..IS, etc).
+    fn is_routine_body_marker(&self, i: usize) -> bool {
+        let mut j = i;
+        // Walk backward looking for CREATE ... FUNCTION/PROCEDURE before this IS/AS.
+        // The pattern: CREATE [OR REPLACE] FUNCTION/PROCEDURE name [(params)] [RETURN type] IS/AS
+        let mut paren_depth = 0i32;
+        while j > 0 {
+            j -= 1;
+            match &self.tokens[j].token {
+                Token::Keyword(Keyword::FUNCTION) | Token::Keyword(Keyword::PROCEDURE)
+                    if paren_depth == 0 =>
+                {
+                    // Check if CREATE [OR REPLACE] precedes this FUNCTION/PROCEDURE
+                    let mut k = j;
+                    if k > 0 && matches!(self.tokens[k - 1].token, Token::Keyword(Keyword::REPLACE)) {
+                        k -= 1;
+                    }
+                    if k > 0 && matches!(self.tokens[k - 1].token, Token::Keyword(Keyword::OR)) {
+                        k -= 1;
+                    }
+                    if k > 0 && matches!(self.tokens[k - 1].token, Token::Keyword(Keyword::CREATE)) {
+                        return true;
+                    }
+                    return false;
+                }
+                Token::LParen => paren_depth += 1,
+                Token::RParen => paren_depth -= 1,
+                Token::Semicolon | Token::Keyword(Keyword::BEGIN_P) | Token::Keyword(Keyword::END_P)
+                    if paren_depth == 0 =>
+                {
+                    return false;
+                }
+                _ => {}
+            }
+        }
+        false
     }
 
     /// From position `start` (pointing at PROCEDURE or FUNCTION keyword), peek ahead
