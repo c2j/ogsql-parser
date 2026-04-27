@@ -3756,6 +3756,88 @@ fn test_create_trigger_with_func_args() {
 }
 
 #[test]
+fn test_create_trigger_timing_before() {
+    let sql = "CREATE TRIGGER trg BEFORE INSERT ON t FOR EACH ROW EXECUTE PROCEDURE fn()";
+    let stmt = parse_one(sql);
+    match stmt {
+        Statement::CreateTrigger(t) => {
+            assert_eq!(t.name, "trg");
+            assert!(matches!(t.timing, TriggerTiming::Before));
+        }
+        _ => panic!("expected CreateTrigger, got {:?}", stmt),
+    }
+}
+
+#[test]
+fn test_create_trigger_timing_after() {
+    let sql = "CREATE TRIGGER trg AFTER UPDATE ON users FOR EACH ROW EXECUTE PROCEDURE log_change()";
+    let stmt = parse_one(sql);
+    match stmt {
+        Statement::CreateTrigger(t) => {
+            assert_eq!(t.name, "trg");
+            assert!(matches!(t.timing, TriggerTiming::After));
+        }
+        _ => panic!("expected CreateTrigger, got {:?}", stmt),
+    }
+}
+
+#[test]
+fn test_create_trigger_timing_instead_of() {
+    let sql = "CREATE TRIGGER trg INSTEAD OF DELETE ON v FOR EACH ROW EXECUTE PROCEDURE fn()";
+    let stmt = parse_one(sql);
+    match stmt {
+        Statement::CreateTrigger(t) => {
+            assert_eq!(t.name, "trg");
+            assert!(matches!(t.timing, TriggerTiming::InsteadOf));
+        }
+        _ => panic!("expected CreateTrigger, got {:?}", stmt),
+    }
+}
+
+#[test]
+fn test_create_trigger_execute_function() {
+    let sql = "CREATE TRIGGER trg BEFORE INSERT ON t FOR EACH ROW EXECUTE FUNCTION fn()";
+    let stmt = parse_one(sql);
+    match stmt {
+        Statement::CreateTrigger(t) => {
+            assert_eq!(t.name, "trg");
+            assert!(matches!(t.execute_kind, ExecuteKind::Function));
+        }
+        _ => panic!("expected CreateTrigger, got {:?}", stmt),
+    }
+}
+
+#[test]
+fn test_create_trigger_execute_procedure() {
+    let sql = "CREATE TRIGGER trg BEFORE INSERT ON t FOR EACH ROW EXECUTE PROCEDURE fn()";
+    let stmt = parse_one(sql);
+    match stmt {
+        Statement::CreateTrigger(t) => {
+            assert_eq!(t.name, "trg");
+            assert!(matches!(t.execute_kind, ExecuteKind::Procedure));
+        }
+        _ => panic!("expected CreateTrigger, got {:?}", stmt),
+    }
+}
+
+#[test]
+fn test_create_trigger_json_roundtrip_timing() {
+    let sql = "CREATE TRIGGER trg AFTER UPDATE ON t FOR EACH ROW EXECUTE PROCEDURE fn()";
+    let tokens = Tokenizer::new(sql).tokenize().unwrap();
+    let stmts = Parser::new(tokens).parse();
+    let json = serde_json::to_string(&stmts).unwrap();
+    let restored: Vec<Statement> = serde_json::from_str(&json).unwrap();
+    match &restored[0] {
+        Statement::CreateTrigger(t) => {
+            assert_eq!(t.name, "trg");
+            assert!(matches!(t.timing, TriggerTiming::After));
+            assert!(matches!(t.execute_kind, ExecuteKind::Procedure));
+        }
+        _ => panic!("expected CreateTrigger, got {:?}", restored[0]),
+    }
+}
+
+#[test]
 fn test_format_create_extension() {
     use crate::formatter::SqlFormatter;
     let sql = "CREATE EXTENSION IF NOT EXISTS hstore SCHEMA public";

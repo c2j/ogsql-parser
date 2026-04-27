@@ -25,16 +25,16 @@ impl Parser {
         let timing = match self.peek_keyword() {
             Some(Keyword::BEFORE) => {
                 self.advance();
-                "BEFORE".to_string()
+                TriggerTiming::Before
             }
             Some(Keyword::AFTER) => {
                 self.advance();
-                "AFTER".to_string()
+                TriggerTiming::After
             }
             Some(Keyword::INSTEAD) => {
                 self.advance();
                 self.expect_keyword(Keyword::OF)?;
-                "INSTEAD OF".to_string()
+                TriggerTiming::InsteadOf
             }
             _ => {
                 return Err(ParserError::UnexpectedToken {
@@ -129,7 +129,12 @@ impl Parser {
         };
 
         self.expect_keyword(Keyword::EXECUTE)?;
-        self.expect_keyword(Keyword::PROCEDURE)?;
+        let execute_kind = if self.try_consume_keyword(Keyword::FUNCTION) {
+            ExecuteKind::Function
+        } else {
+            self.expect_keyword(Keyword::PROCEDURE)?;
+            ExecuteKind::Procedure
+        };
         let func_name = self.parse_object_name()?;
 
         let mut func_args = Vec::new();
@@ -153,12 +158,14 @@ impl Parser {
             name,
             or_replace,
             constraint,
+            timing,
             table,
             events,
             for_each,
             when,
             func_name,
             func_args,
+            execute_kind,
         })
     }
 
