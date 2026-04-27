@@ -1363,7 +1363,7 @@ mod visitor_tests {
 
     #[test]
     fn test_walk_pl_statement_if() {
-        let if_stmt = PlStatement::If(PlIfStmt {
+        let if_stmt = PlStatement::If(crate::ast::Spanned::new(PlIfStmt {
             condition: Expr::Literal(crate::ast::Literal::Boolean(true)),
             then_stmts: vec![PlStatement::Null],
             elsifs: vec![crate::ast::plpgsql::PlElsif {
@@ -1371,7 +1371,7 @@ mod visitor_tests {
                 stmts: vec![PlStatement::Null],
             }],
             else_stmts: vec![PlStatement::Null],
-        });
+        }, None));
 
         let mut visitor = TestVisitor::default();
         walk_pl_statement(&mut visitor, &if_stmt);
@@ -1382,11 +1382,11 @@ mod visitor_tests {
 
     #[test]
     fn test_walk_pl_statement_loop() {
-        let loop_stmt = PlStatement::Loop(PlLoopStmt {
+        let loop_stmt = PlStatement::Loop(crate::ast::Spanned::new(PlLoopStmt {
             label: None,
             body: vec![PlStatement::Null, PlStatement::Null],
             end_label: None,
-        });
+        }, None));
 
         let mut visitor = TestVisitor::default();
         walk_pl_statement(&mut visitor, &loop_stmt);
@@ -1396,12 +1396,12 @@ mod visitor_tests {
 
     #[test]
     fn test_walk_pl_statement_while() {
-        let while_stmt = PlStatement::While(PlWhileStmt {
+        let while_stmt = PlStatement::While(crate::ast::Spanned::new(PlWhileStmt {
             label: None,
             condition: Expr::Literal(crate::ast::Literal::Boolean(true)),
             body: vec![PlStatement::Null],
             end_label: None,
-        });
+        }, None));
 
         let mut visitor = TestVisitor::default();
         walk_pl_statement(&mut visitor, &while_stmt);
@@ -1412,7 +1412,7 @@ mod visitor_tests {
 
     #[test]
     fn test_walk_pl_statement_for_range() {
-        let for_stmt = PlStatement::For(PlForStmt {
+        let for_stmt = PlStatement::For(crate::ast::Spanned::new(PlForStmt {
             label: None,
             variable: "i".to_string(),
             kind: PlForKind::Range {
@@ -1423,7 +1423,7 @@ mod visitor_tests {
             },
             body: vec![PlStatement::Null],
             end_label: None,
-        });
+        }, None));
 
         let mut visitor = TestVisitor::default();
         walk_pl_statement(&mut visitor, &for_stmt);
@@ -1434,13 +1434,13 @@ mod visitor_tests {
 
     #[test]
     fn test_walk_pl_statement_procedure_call() {
-        let proc_call = PlStatement::ProcedureCall(PlProcedureCall {
+        let proc_call = PlStatement::ProcedureCall(crate::ast::Spanned::new(PlProcedureCall {
             name: vec!["schema".to_string(), "proc".to_string()],
             arguments: vec![
                 Expr::Literal(crate::ast::Literal::Integer(1)),
                 Expr::Literal(crate::ast::Literal::Integer(2)),
             ],
-        });
+        }, None));
 
         let mut visitor = TestVisitor::default();
         walk_pl_statement(&mut visitor, &proc_call);
@@ -1935,7 +1935,10 @@ mod visitor_tests {
         let stmt = parse_single(sql);
 
         let block = match &stmt {
-            Statement::Do(DoStatement { block: Some(b), .. }) => b,
+            Statement::Do(s) => match &s.node.block {
+                Some(b) => b,
+                _ => panic!("Expected DO statement with block"),
+            },
             _ => panic!("Expected DO statement with block"),
         };
         let (parsed_query, parsed_expr) = match &block.body[0] {

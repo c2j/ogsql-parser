@@ -1,5 +1,5 @@
 use crate::ast::plpgsql::{FetchDirection, GetDiagItemKind, *};
-use crate::ast::{Expr, Literal, ObjectName, SelectStatement, SelectTarget, Statement};
+use crate::ast::{Expr, Literal, ObjectName, SelectStatement, SelectTarget, Spanned, Statement};
 use crate::parser::{Parser, ParserError};
 use crate::token::keyword::Keyword;
 use crate::token::Token;
@@ -661,18 +661,17 @@ impl Parser {
             }
             let end_label = self.try_parse_pl_label();
             self.try_consume_semicolon();
-            Ok(PlStatement::Block(PlBlock {
+            Ok(PlStatement::Block(Spanned::new(PlBlock {
                 label: None,
                 declarations: Vec::new(),
                 body,
                 exception_block,
                 end_label,
-            }))
+            }, None)))
         } else if self.match_ident_str("declare") {
             self.advance();
-            let result = Ok(PlStatement::Block(
-                self.parse_pl_block_with_declare(label.clone())?,
-            ));
+            let block = self.parse_pl_block_with_declare(label.clone())?;
+            let result = Ok(PlStatement::Block(Spanned::new(block, None)));
             self.try_consume_semicolon();
             result
         } else if let Some(stmt) = self.try_parse_dml_as_pl_statement() {
@@ -761,7 +760,7 @@ impl Parser {
 
         let save_pos = self.pos;
         let start_pos = self.pos;
-        let result = match self.peek() {
+                let result = match self.peek() {
             Token::Keyword(Keyword::SELECT) | Token::Keyword(Keyword::WITH) => {
                 self.pl_into_mode = true;
                 let result = match self.parse_select_statement() {
@@ -769,7 +768,7 @@ impl Parser {
                         let mut merged = hints;
                         merged.append(&mut stmt.hints);
                         stmt.hints = merged;
-                        Some(crate::ast::Statement::Select(stmt))
+                        Some(crate::ast::Statement::Select(crate::ast::Spanned::new(stmt, None)))
                     }
                     Err(_) => None,
                 };
@@ -784,7 +783,7 @@ impl Parser {
                         let mut merged = hints;
                         merged.append(&mut stmt.hints);
                         stmt.hints = merged;
-                        Some(crate::ast::Statement::Insert(stmt))
+                        Some(crate::ast::Statement::Insert(crate::ast::Spanned::new(stmt, None)))
                     }
                     Err(_) => None,
                 };
@@ -799,7 +798,7 @@ impl Parser {
                         let mut merged = hints;
                         merged.append(&mut stmt.hints);
                         stmt.hints = merged;
-                        Some(crate::ast::Statement::Update(stmt))
+                        Some(crate::ast::Statement::Update(crate::ast::Spanned::new(stmt, None)))
                     }
                     Err(_) => None,
                 };
@@ -814,7 +813,7 @@ impl Parser {
                         let mut merged = hints;
                         merged.append(&mut stmt.hints);
                         stmt.hints = merged;
-                        Some(crate::ast::Statement::Delete(stmt))
+                        Some(crate::ast::Statement::Delete(crate::ast::Spanned::new(stmt, None)))
                     }
                     Err(_) => None,
                 };
@@ -828,7 +827,7 @@ impl Parser {
                         let mut merged = hints;
                         merged.append(&mut stmt.hints);
                         stmt.hints = merged;
-                        Some(crate::ast::Statement::Merge(stmt))
+                        Some(crate::ast::Statement::Merge(crate::ast::Spanned::new(stmt, None)))
                     }
                     Err(_) => None,
                 }
@@ -874,35 +873,35 @@ impl Parser {
         let result = match self.peek() {
             Token::Keyword(Keyword::SELECT) | Token::Keyword(Keyword::WITH) => {
                 match self.parse_select_statement() {
-                    Ok(stmt) => Some(crate::ast::Statement::Select(stmt)),
+                    Ok(stmt) => Some(crate::ast::Statement::Select(crate::ast::Spanned::new(stmt, None))),
                     Err(_) => None,
                 }
             }
             Token::Keyword(Keyword::INSERT) => {
                 self.advance();
                 match self.parse_insert() {
-                    Ok(stmt) => Some(crate::ast::Statement::Insert(stmt)),
+                    Ok(stmt) => Some(crate::ast::Statement::Insert(crate::ast::Spanned::new(stmt, None))),
                     Err(_) => None,
                 }
             }
             Token::Keyword(Keyword::UPDATE) => {
                 self.advance();
                 match self.parse_update() {
-                    Ok(stmt) => Some(crate::ast::Statement::Update(stmt)),
+                    Ok(stmt) => Some(crate::ast::Statement::Update(crate::ast::Spanned::new(stmt, None))),
                     Err(_) => None,
                 }
             }
             Token::Keyword(Keyword::DELETE_P) => {
                 self.advance();
                 match self.parse_delete() {
-                    Ok(stmt) => Some(crate::ast::Statement::Delete(stmt)),
+                    Ok(stmt) => Some(crate::ast::Statement::Delete(crate::ast::Spanned::new(stmt, None))),
                     Err(_) => None,
                 }
             }
             Token::Keyword(Keyword::MERGE) => {
                 self.advance();
                 match self.parse_merge() {
-                    Ok(stmt) => Some(crate::ast::Statement::Merge(stmt)),
+                    Ok(stmt) => Some(crate::ast::Statement::Merge(crate::ast::Spanned::new(stmt, None))),
                     Err(_) => None,
                 }
             }
@@ -961,10 +960,10 @@ impl Parser {
 
         arguments.retain(|a| !matches!(a, Expr::Default));
 
-        Some(PlStatement::ProcedureCall(PlProcedureCall {
+        Some(PlStatement::ProcedureCall(Spanned::new(PlProcedureCall {
             name,
             arguments,
-        }))
+        }, None)))
     }
 
     fn parse_pl_sql_or_assignment(&mut self) -> Result<PlStatement, ParserError> {
@@ -1042,12 +1041,12 @@ impl Parser {
         self.expect_ident_str("if")?;
         self.try_consume_semicolon();
 
-        Ok(PlStatement::If(PlIfStmt {
+        Ok(PlStatement::If(Spanned::new(PlIfStmt {
             condition,
             then_stmts,
             elsifs,
             else_stmts,
-        }))
+        }, None)))
     }
 
     fn parse_pl_case(&mut self) -> Result<PlStatement, ParserError> {
@@ -1079,11 +1078,11 @@ impl Parser {
         self.expect_ident_str("case")?;
         self.try_consume_semicolon();
 
-        Ok(PlStatement::Case(PlCaseStmt {
+        Ok(PlStatement::Case(Spanned::new(PlCaseStmt {
             expression,
             whens,
             else_stmts,
-        }))
+        }, None)))
     }
 
     fn parse_pl_loop(&mut self) -> Result<PlStatement, ParserError> {
@@ -1094,11 +1093,11 @@ impl Parser {
         let end_label = self.try_parse_pl_label();
         self.try_consume_semicolon();
 
-        Ok(PlStatement::Loop(PlLoopStmt {
+        Ok(PlStatement::Loop(Spanned::new(PlLoopStmt {
             label: None,
             body,
             end_label,
-        }))
+        }, None)))
     }
 
     fn parse_pl_while(&mut self) -> Result<PlStatement, ParserError> {
@@ -1111,12 +1110,12 @@ impl Parser {
         let end_label = self.try_parse_pl_label();
         self.try_consume_semicolon();
 
-        Ok(PlStatement::While(PlWhileStmt {
+        Ok(PlStatement::While(Spanned::new(PlWhileStmt {
             label: None,
             condition,
             body,
             end_label,
-        }))
+        }, None)))
     }
 
     fn parse_pl_for(&mut self) -> Result<PlStatement, ParserError> {
@@ -1139,13 +1138,13 @@ impl Parser {
         let end_label = self.try_parse_pl_label();
         self.try_consume_semicolon();
 
-        Ok(PlStatement::For(PlForStmt {
+        Ok(PlStatement::For(Spanned::new(PlForStmt {
             label: None,
             variable,
             kind,
             body,
             end_label,
-        }))
+        }, None)))
     }
 
     fn parse_pl_for_kind(&mut self) -> Result<PlForKind, ParserError> {
@@ -1299,14 +1298,14 @@ impl Parser {
         let end_label = self.try_parse_pl_label();
         self.try_consume_semicolon();
 
-        Ok(PlStatement::ForEach(PlForEachStmt {
+        Ok(PlStatement::ForEach(Spanned::new(PlForEachStmt {
             label: None,
             variable,
             expression,
             slice,
             body,
             end_label,
-        }))
+        }, None)))
     }
 
     fn parse_pl_exit(&mut self) -> Result<PlStatement, ParserError> {
@@ -1398,32 +1397,32 @@ impl Parser {
                     }
                 }
                 self.try_consume_semicolon();
-                return Ok(PlStatement::ReturnQuery(PlReturnQueryStmt {
+                return Ok(PlStatement::ReturnQuery(Spanned::new(PlReturnQueryStmt {
                     query: String::new(),
                     is_dynamic: true,
                     dynamic_expr: Some(dynamic_expr),
                     using_args,
-                }));
+                }, None)));
             } else {
                 let save_pos = self.pos;
                 if let Some(stmt) = self.try_parse_dml_statement() {
                     let raw = self.tokens_to_raw_string(save_pos, self.pos);
                     self.try_consume_semicolon();
-                    return Ok(PlStatement::ReturnQuery(PlReturnQueryStmt {
+                    return Ok(PlStatement::ReturnQuery(Spanned::new(PlReturnQueryStmt {
                         query: raw,
                         is_dynamic: false,
                         dynamic_expr: None,
                         using_args: Vec::new(),
-                    }));
+                    }, None)));
                 }
                 let expr = self.parse_expr()?;
                 self.try_consume_semicolon();
-                return Ok(PlStatement::ReturnQuery(PlReturnQueryStmt {
+                return Ok(PlStatement::ReturnQuery(Spanned::new(PlReturnQueryStmt {
                     query: String::new(),
                     is_dynamic: false,
                     dynamic_expr: Some(expr),
                     using_args: Vec::new(),
-                }));
+                }, None)));
             }
         }
 
@@ -1443,14 +1442,14 @@ impl Parser {
         // Form 1: RAISE; (re-raise in exception handler)
         if matches!(self.peek(), Token::Semicolon) {
             self.advance();
-            return Ok(PlStatement::Raise(PlRaiseStmt {
+            return Ok(PlStatement::Raise(Spanned::new(PlRaiseStmt {
                 level: None,
                 message: None,
                 params: Vec::new(),
                 options: Vec::new(),
                 condname: None,
                 sqlstate: None,
-            }));
+            }, None)));
         }
 
         let level = if self.match_ident_str("debug") {
@@ -1476,14 +1475,14 @@ impl Parser {
         // Form 2: RAISE level; (level-only raise)
         if matches!(self.peek(), Token::Semicolon) && level.is_some() {
             self.advance();
-            return Ok(PlStatement::Raise(PlRaiseStmt {
+            return Ok(PlStatement::Raise(Spanned::new(PlRaiseStmt {
                 level,
                 message: None,
                 params: Vec::new(),
                 options: Vec::new(),
                 condname: None,
                 sqlstate: None,
-            }));
+            }, None)));
         }
 
         // Form 3: RAISE condition_name; (condition name without level)
@@ -1492,14 +1491,14 @@ impl Parser {
             if let Ok(name) = self.parse_identifier() {
                 if matches!(self.peek(), Token::Semicolon) {
                     self.try_consume_semicolon();
-                    return Ok(PlStatement::Raise(PlRaiseStmt {
+                    return Ok(PlStatement::Raise(Spanned::new(PlRaiseStmt {
                         level: None,
                         message: None,
                         params: Vec::new(),
                         options: Vec::new(),
                         condname: Some(name),
                         sqlstate: None,
-                    }));
+                    }, None)));
                 }
             }
             self.pos = save_pos;
@@ -1510,14 +1509,14 @@ impl Parser {
             self.advance();
             let options = self.parse_raise_options()?;
             self.try_consume_semicolon();
-            return Ok(PlStatement::Raise(PlRaiseStmt {
+            return Ok(PlStatement::Raise(Spanned::new(PlRaiseStmt {
                 level,
                 message: None,
                 params: Vec::new(),
                 options,
                 condname: None,
                 sqlstate: None,
-            }));
+            }, None)));
         }
 
         // Form 5: RAISE [level] 'format', param1, param2 [USING option = expr, ...]
@@ -1544,14 +1543,14 @@ impl Parser {
 
         self.try_consume_semicolon();
 
-        Ok(PlStatement::Raise(PlRaiseStmt {
+        Ok(PlStatement::Raise(Spanned::new(PlRaiseStmt {
             level,
             message: Some(message),
             params,
             options,
             condname: None,
             sqlstate: None,
-        }))
+        }, None)))
     }
 
     fn parse_raise_options(&mut self) -> Result<Vec<RaiseOption>, ParserError> {
@@ -1633,13 +1632,13 @@ impl Parser {
 
         self.try_consume_semicolon();
 
-        Ok(PlStatement::Execute(PlExecuteStmt {
+        Ok(PlStatement::Execute(Spanned::new(PlExecuteStmt {
             immediate,
             string_expr,
             into_targets,
             using_args,
             parsed_query,
-        }))
+        }, None)))
     }
 
     fn parse_pl_perform(&mut self) -> Result<PlStatement, ParserError> {
@@ -1779,7 +1778,7 @@ impl Parser {
         };
 
         self.try_consume_semicolon();
-        Ok(PlStatement::Open(PlOpenStmt { cursor, kind }))
+        Ok(PlStatement::Open(Spanned::new(PlOpenStmt { cursor, kind }, None)))
     }
 
     fn parse_pl_fetch(&mut self) -> Result<PlStatement, ParserError> {
@@ -1818,12 +1817,12 @@ impl Parser {
         let into = self.parse_expr()?;
         self.try_consume_semicolon();
 
-        Ok(PlStatement::Fetch(PlFetchStmt {
+        Ok(PlStatement::Fetch(Spanned::new(PlFetchStmt {
             cursor,
             direction,
             bulk_collect,
             into,
-        }))
+        }, None)))
     }
 
     fn parse_pl_cursor_direction(&mut self) -> Result<FetchDirection, ParserError> {
@@ -1988,10 +1987,10 @@ impl Parser {
         }
 
         self.try_consume_semicolon();
-        Ok(PlStatement::GetDiagnostics(PlGetDiagStmt {
+        Ok(PlStatement::GetDiagnostics(Spanned::new(PlGetDiagStmt {
             stacked,
             items,
-        }))
+        }, None)))
     }
 
     fn parse_pl_rollback(&mut self) -> Result<PlStatement, ParserError> {
@@ -2076,12 +2075,12 @@ impl Parser {
 
         self.try_consume_semicolon();
 
-        Ok(PlStatement::ForAll(PlForAllStmt {
+        Ok(PlStatement::ForAll(Spanned::new(PlForAllStmt {
             variable,
             bounds: bounds.trim().to_string(),
             save_exceptions,
             body: String::new(),
-        }))
+        }, None)))
     }
 
     fn parse_pl_pipe_row(&mut self) -> Result<PlStatement, ParserError> {
@@ -2268,30 +2267,26 @@ fn is_pl_terminator(p: &Parser) -> bool {
     terminators.iter().any(|t| p.match_ident_str(t))
 }
 
-fn attach_label(stmt: PlStatement, label: Option<String>) -> PlStatement {
-    match stmt {
-        PlStatement::Loop(mut l) => {
-            l.label = label;
-            PlStatement::Loop(l)
+fn attach_label(mut stmt: PlStatement, label: Option<String>) -> PlStatement {
+    match &mut stmt {
+        PlStatement::Loop(s) => {
+            s.node.label = label.clone();
         }
-        PlStatement::While(mut w) => {
-            w.label = label;
-            PlStatement::While(w)
+        PlStatement::While(s) => {
+            s.node.label = label.clone();
         }
-        PlStatement::For(mut f) => {
-            f.label = label;
-            PlStatement::For(f)
+        PlStatement::For(s) => {
+            s.node.label = label.clone();
         }
-        PlStatement::ForEach(mut fe) => {
-            fe.label = label;
-            PlStatement::ForEach(fe)
+        PlStatement::ForEach(s) => {
+            s.node.label = label.clone();
         }
-        PlStatement::Block(mut b) => {
-            b.label = label;
-            PlStatement::Block(b)
+        PlStatement::Block(s) => {
+            s.node.label = label.clone();
         }
-        _ => stmt,
+        _ => {}
     }
+    stmt
 }
 
 impl Parser {

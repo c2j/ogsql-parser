@@ -749,7 +749,7 @@ impl Parser {
         } else {
             true
         };
-        Ok(crate::ast::Statement::CreateTableAs(
+        Ok(crate::ast::Statement::CreateTableAs(crate::ast::Spanned::new(
             crate::ast::CreateTableAsStatement {
                 temporary,
                 unlogged,
@@ -760,7 +760,8 @@ impl Parser {
                 as_table,
                 with_data,
             },
-        ))
+            None,
+        )))
     }
 
     pub(crate) fn parse_if_not_exists(&mut self) -> bool {
