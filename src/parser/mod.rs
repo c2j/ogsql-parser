@@ -104,11 +104,23 @@ impl Parser {
     /// Otherwise, emit ColumnRef (may be resolved later by the analyzer).
     pub(crate) fn parse_pl_variable_or_column(&mut self) -> Result<crate::ast::Expr, ParserError> {
         let name = self.parse_object_name()?;
-        if !name.is_empty() && self.is_var_declared(&name[0]) {
-            Ok(crate::ast::Expr::PlVariable(name))
+        let base = if !name.is_empty() && self.is_var_declared(&name[0]) {
+            crate::ast::Expr::PlVariable(name)
         } else {
-            Ok(crate::ast::Expr::ColumnRef(name))
+            crate::ast::Expr::ColumnRef(name)
+        };
+
+        let mut expr = base;
+        while self.match_token(&Token::LParen) {
+            self.advance();
+            let index = self.parse_expr()?;
+            self.expect_token(&Token::RParen)?;
+            expr = crate::ast::Expr::Subscript {
+                object: Box::new(expr),
+                index: Box::new(index),
+            };
         }
+        Ok(expr)
     }
 
     fn enter_scope(&mut self) -> Result<(), ParserError> {
@@ -210,13 +222,11 @@ impl Parser {
                     self.advance();
                     continue;
                 }
-                Token::Eq => {
-                    if self.is_separator_line() {
+                _ => {
+                    if matches!(self.peek(), Token::Eq) && self.is_separator_line() {
                         self.skip_separator_line();
                         continue;
                     }
-                }
-                _ => {
                     let start_pos = self.pos;
                     let end_pos = self.find_statement_end_pos();
                     let saved_error_count = self.errors.len();
@@ -277,8 +287,23 @@ impl Parser {
                     let source_len = self.source.len();
                     let byte_start = start_span.start.min(source_len);
                     let byte_end = end_span.end.min(source_len);
-                    let sql_text = if byte_start < byte_end {
-                        self.source[byte_start..byte_end].trim().to_string()
+
+                    // Only populate sql_text for top-level DML statements.
+                    // For DDL/package bodies the full source text is not useful
+                    // (inner PlStatement::SqlStatement already captures per-DML text).
+                    let sql_text = if matches!(
+                        stmt,
+                        crate::ast::Statement::Select(_)
+                            | crate::ast::Statement::Insert(_)
+                            | crate::ast::Statement::Update(_)
+                            | crate::ast::Statement::Delete(_)
+                            | crate::ast::Statement::Merge(_)
+                    ) {
+                        if byte_start < byte_end {
+                            self.source[byte_start..byte_end].trim().to_string()
+                        } else {
+                            String::new()
+                        }
                     } else {
                         String::new()
                     };
@@ -309,6 +334,7 @@ impl Parser {
         let mut subprog_depth = 0i32;
         let mut case_depth = 0i32;
         let mut seen_outer_end = false;
+        let mut in_routine_decl = false;
         let in_declare_section = self.tokens.get(self.pos).map_or(false, |t| {
             if !matches!(t.token, Token::Keyword(Keyword::DECLARE)) {
                 return false;
@@ -330,6 +356,9 @@ impl Parser {
                 }
                 Token::Keyword(Keyword::BEGIN_P) => {
                     begin_depth += 1;
+                    if in_routine_decl && begin_depth == 1 {
+                        in_routine_decl = false;
+                    }
                 }
                 Token::Keyword(Keyword::END_P) => {
                     let next_is_compound = (i + 1) < self.tokens.len()
@@ -365,8 +394,15 @@ impl Parser {
                         subprog_depth += 1;
                     }
                 }
+                Token::Keyword(Keyword::IS) | Token::Keyword(Keyword::AS)
+                    if !is_package && depth == 0 && begin_depth == 0 && !in_routine_decl =>
+                {
+                    if self.is_routine_body_marker(i) {
+                        in_routine_decl = true;
+                    }
+                }
                 Token::Semicolon if depth <= 0 && begin_depth <= 0 => {
-                    if in_declare_section {
+                    if in_declare_section || in_routine_decl {
                         continue;
                     }
                     if is_package {
@@ -389,6 +425,13 @@ impl Parser {
                         // Slash inside package — not a terminator
                     } else {
                         return i;
+                    }
+                }
+                Token::Keyword(Keyword::CREATE)
+                    if !is_package && depth <= 0 && begin_depth <= 0 =>
+                {
+                    if self.detect_package_context_at(i) {
+                        return if i > self.pos { i - 1 } else { i };
                     }
                 }
                 _ => {}
@@ -501,7 +544,12 @@ impl Parser {
     }
 
     fn detect_package_context(&self) -> bool {
-        let mut i = self.pos;
+        self.detect_package_context_at(self.pos)
+    }
+
+    /// Check if tokens at `pos` form `CREATE [OR REPLACE] PACKAGE [BODY]`.
+    fn detect_package_context_at(&self, pos: usize) -> bool {
+        let mut i = pos;
         if i >= self.tokens.len() {
             return false;
         }
@@ -518,6 +566,45 @@ impl Parser {
             }
         }
         i < self.tokens.len() && matches!(self.tokens[i].token, Token::Keyword(Keyword::PACKAGE))
+    }
+
+    /// Check if `IS`/`AS` at position `i` is the body marker for a top-level
+    /// CREATE [OR REPLACE] FUNCTION/PROCEDURE (not inside a package, not CASE..IS, etc).
+    fn is_routine_body_marker(&self, i: usize) -> bool {
+        let mut j = i;
+        // Walk backward looking for CREATE ... FUNCTION/PROCEDURE before this IS/AS.
+        // The pattern: CREATE [OR REPLACE] FUNCTION/PROCEDURE name [(params)] [RETURN type] IS/AS
+        let mut paren_depth = 0i32;
+        while j > 0 {
+            j -= 1;
+            match &self.tokens[j].token {
+                Token::Keyword(Keyword::FUNCTION) | Token::Keyword(Keyword::PROCEDURE)
+                    if paren_depth == 0 =>
+                {
+                    // Check if CREATE [OR REPLACE] precedes this FUNCTION/PROCEDURE
+                    let mut k = j;
+                    if k > 0 && matches!(self.tokens[k - 1].token, Token::Keyword(Keyword::REPLACE)) {
+                        k -= 1;
+                    }
+                    if k > 0 && matches!(self.tokens[k - 1].token, Token::Keyword(Keyword::OR)) {
+                        k -= 1;
+                    }
+                    if k > 0 && matches!(self.tokens[k - 1].token, Token::Keyword(Keyword::CREATE)) {
+                        return true;
+                    }
+                    return false;
+                }
+                Token::LParen => paren_depth += 1,
+                Token::RParen => paren_depth -= 1,
+                Token::Semicolon | Token::Keyword(Keyword::BEGIN_P) | Token::Keyword(Keyword::END_P)
+                    if paren_depth == 0 =>
+                {
+                    return false;
+                }
+                _ => {}
+            }
+        }
+        false
     }
 
     /// From position `start` (pointing at PROCEDURE or FUNCTION keyword), peek ahead
@@ -948,6 +1035,14 @@ impl Parser {
                     | Keyword::AND
                     | Keyword::OR
                     | Keyword::AS
+                    // JOIN keywords — a table alias can be followed by any join clause
+                    | Keyword::LEFT
+                    | Keyword::RIGHT
+                    | Keyword::FULL
+                    | Keyword::INNER_P
+                    | Keyword::JOIN
+                    | Keyword::CROSS
+                    | Keyword::NATURAL
             ),
             _ => false,
         }
@@ -4723,3 +4818,5 @@ impl Iterator for StatementIter {
 
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod tests_plsql_fixes;

@@ -106,6 +106,9 @@ pub enum PlTypeDecl {
         size: Box<crate::ast::Expr>,
         elem_type: PlDataType,
     },
+    RefCursor {
+        name: String,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -518,6 +521,8 @@ impl fmt::Display for GetDiagItemKind {
 pub struct PlFetchStmt {
     pub cursor: crate::ast::Expr,
     pub direction: Option<FetchDirection>,
+    #[serde(default)]
+    pub bulk_collect: bool,
     pub into: crate::ast::Expr,
 }
 

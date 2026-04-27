@@ -1,7 +1,7 @@
-use crate::ast::plpgsql::PlUsingMode;
 use crate::ast::*;
 
 pub struct SqlFormatter {
+    #[allow(dead_code)]
     indent: usize,
     uppercase_keywords: bool,
 }
@@ -4542,46 +4542,73 @@ impl SqlFormatter {
     }
 
     fn format_anon_block(&self, stmt: &AnonyBlockStatement) -> String {
-        self.format_pl_block(&stmt.block)
+        self.format_pl_block(&stmt.block, 0)
     }
 
-    fn format_pl_block(&self, block: &crate::ast::plpgsql::PlBlock) -> String {
-        use crate::ast::plpgsql::*;
+    fn pad(indent: usize) -> String {
+        "  ".repeat(indent)
+    }
+
+    fn format_pl_block(&self, block: &crate::ast::plpgsql::PlBlock, indent: usize) -> String {
+        self.format_pl_block_inner(block, indent, false)
+    }
+
+    fn format_pl_block_named(&self, block: &crate::ast::plpgsql::PlBlock, indent: usize) -> String {
+        self.format_pl_block_inner(block, indent, true)
+    }
+
+    fn format_pl_block_inner(&self, block: &crate::ast::plpgsql::PlBlock, indent: usize, named: bool) -> String {
         let mut s = String::new();
 
         if let Some(ref label) = block.label {
-            s.push_str(&format!("<<{}>> ", label));
+            s.push_str(&format!("{}<<{}>> ", Self::pad(indent), label));
         }
 
         if !block.declarations.is_empty() {
-            s.push_str(&format!("{} ", self.kw("DECLARE")));
+            if !named {
+                s.push('\n');
+                s.push_str(&Self::pad(indent));
+                s.push_str(&self.kw("DECLARE"));
+            }
             for decl in &block.declarations {
+                s.push('\n');
+                s.push_str(&Self::pad(indent + 1));
                 s.push_str(&self.format_pl_declaration(decl));
-                s.push(' ');
+                s.push(';');
             }
         }
 
+        s.push('\n');
+        s.push_str(&Self::pad(indent));
         s.push_str(&self.kw("BEGIN"));
         for stmt in &block.body {
-            s.push(' ');
-            s.push_str(&self.format_pl_statement(stmt));
+            s.push('\n');
+            s.push_str(&Self::pad(indent + 1));
+            s.push_str(&self.format_pl_statement(stmt, indent + 1));
         }
 
         if let Some(ref exc) = block.exception_block {
-            s.push(' ');
+            s.push('\n');
+            s.push_str(&Self::pad(indent));
             s.push_str(&self.kw("EXCEPTION"));
             for handler in &exc.handlers {
-                s.push_str(&format!(" {} ", self.kw("WHEN")));
+                s.push('\n');
+                s.push_str(&Self::pad(indent + 1));
+                s.push_str(&self.kw("WHEN"));
+                s.push(' ');
                 s.push_str(&handler.conditions.join(" OR "));
-                s.push_str(&format!(" {} ", self.kw("THEN")));
+                s.push(' ');
+                s.push_str(&self.kw("THEN"));
                 for stmt in &handler.statements {
-                    s.push_str(&self.format_pl_statement(stmt));
-                    s.push(' ');
+                    s.push('\n');
+                    s.push_str(&Self::pad(indent + 2));
+                    s.push_str(&self.format_pl_statement(stmt, indent + 2));
                 }
             }
         }
 
-        s.push(' ');
+        s.push('\n');
+        s.push_str(&Self::pad(indent));
         s.push_str(&self.kw("END"));
 
         if let Some(ref label) = block.end_label {
@@ -4681,6 +4708,9 @@ impl SqlFormatter {
                         self.format_pl_data_type(elem_type)
                     )
                 }
+                PlTypeDecl::RefCursor { name } => {
+                    format!("{} {}", name, self.kw("TYPE IS REF CURSOR"))
+                }
             },
             PlDeclaration::NestedProcedure(p) => {
                 let mut s = format!(
@@ -4700,7 +4730,7 @@ impl SqlFormatter {
                     s.push_str(&format!(
                         " {} {}",
                         self.kw("AS"),
-                        self.format_pl_block(block)
+                        self.format_pl_block(block, 0)
                     ));
                 }
                 s
@@ -4726,7 +4756,7 @@ impl SqlFormatter {
                     s.push_str(&format!(
                         " {} {}",
                         self.kw("AS"),
-                        self.format_pl_block(block)
+                        self.format_pl_block(block, 0)
                     ));
                 }
                 s
@@ -4753,20 +4783,20 @@ impl SqlFormatter {
         }
     }
 
-    fn format_pl_statement(&self, stmt: &crate::ast::plpgsql::PlStatement) -> String {
+    fn format_pl_statement(&self, stmt: &crate::ast::plpgsql::PlStatement, indent: usize) -> String {
         use crate::ast::plpgsql::*;
         match stmt {
-            PlStatement::Block(b) => format!("{};", self.format_pl_block(b)),
+            PlStatement::Block(b) => format!("{};", self.format_pl_block(b, indent)),
             PlStatement::Assignment { target, expression } => {
                 format!("{} := {};", self.format_expr(target), self.format_expr(expression))
             }
             PlStatement::Null => format!("{};", self.kw("NULL")),
-            PlStatement::If(i) => self.format_pl_if(i),
-            PlStatement::Case(c) => self.format_pl_case(c),
-            PlStatement::Loop(l) => self.format_pl_loop(l),
-            PlStatement::While(w) => self.format_pl_while(w),
-            PlStatement::For(f) => self.format_pl_for(f),
-            PlStatement::ForEach(fe) => self.format_pl_foreach(fe),
+            PlStatement::If(i) => self.format_pl_if(i, indent),
+            PlStatement::Case(c) => self.format_pl_case(c, indent),
+            PlStatement::Loop(l) => self.format_pl_loop(l, indent),
+            PlStatement::While(w) => self.format_pl_while(w, indent),
+            PlStatement::For(f) => self.format_pl_for(f, indent),
+            PlStatement::ForEach(fe) => self.format_pl_foreach(fe, indent),
             PlStatement::Exit { label, condition } => {
                 let mut s = self.kw("EXIT").to_string();
                 if let Some(ref lbl) = label {
@@ -4918,8 +4948,14 @@ impl SqlFormatter {
                     s.push_str(&format!(" {} ", dir));
                 }
                 s.push_str(&format!(
-                    "{} {} {};",
-                    self.format_expr(&f.cursor),
+                    "{}",
+                    self.format_expr(&f.cursor)
+                ));
+                if f.bulk_collect {
+                    s.push_str(&format!(" {} {}", self.kw("BULK"), self.kw("COLLECT")));
+                }
+                s.push_str(&format!(
+                    " {} {};",
                     self.kw("INTO"),
                     self.format_expr(&f.into)
                 ));
@@ -4984,7 +5020,7 @@ impl SqlFormatter {
                 statement,
             } => {
                 let _ = sql_text;
-                self.format_statement(&statement)
+                format!("{};", self.format_statement(&statement))
             }
             PlStatement::ForAll(f) => {
                 let save_exceptions = if f.save_exceptions {
@@ -5007,100 +5043,127 @@ impl SqlFormatter {
         }
     }
 
-    fn format_pl_if(&self, i: &crate::ast::plpgsql::PlIfStmt) -> String {
+    fn format_pl_if(&self, i: &crate::ast::plpgsql::PlIfStmt, indent: usize) -> String {
         let mut s = format!(
-            "{} {} {} ",
+            "{} {} {}",
             self.kw("IF"),
             self.format_expr(&i.condition),
             self.kw("THEN")
         );
         for stmt in &i.then_stmts {
-            s.push_str(&self.format_pl_statement(stmt));
-            s.push(' ');
+            s.push('\n');
+            s.push_str(&Self::pad(indent + 1));
+            s.push_str(&self.format_pl_statement(stmt, indent + 1));
         }
         for elsif in &i.elsifs {
+            s.push('\n');
+            s.push_str(&Self::pad(indent));
             s.push_str(&format!(
-                "{} {} {} ",
+                "{} {} {}",
                 self.kw("ELSIF"),
                 self.format_expr(&elsif.condition),
                 self.kw("THEN")
             ));
             for stmt in &elsif.stmts {
-                s.push_str(&self.format_pl_statement(stmt));
-                s.push(' ');
+                s.push('\n');
+                s.push_str(&Self::pad(indent + 1));
+                s.push_str(&self.format_pl_statement(stmt, indent + 1));
             }
         }
         if !i.else_stmts.is_empty() {
-            s.push_str(&format!("{} ", self.kw("ELSE")));
+            s.push('\n');
+            s.push_str(&Self::pad(indent));
+            s.push_str(&self.kw("ELSE"));
             for stmt in &i.else_stmts {
-                s.push_str(&self.format_pl_statement(stmt));
-                s.push(' ');
+                s.push('\n');
+                s.push_str(&Self::pad(indent + 1));
+                s.push_str(&self.format_pl_statement(stmt, indent + 1));
             }
         }
+        s.push('\n');
+        s.push_str(&Self::pad(indent));
         s.push_str(&format!("{};", self.kw("END IF")));
         s
     }
 
-    fn format_pl_case(&self, c: &crate::ast::plpgsql::PlCaseStmt) -> String {
+    fn format_pl_case(&self, c: &crate::ast::plpgsql::PlCaseStmt, indent: usize) -> String {
         let mut s = self.kw("CASE").to_string();
         if let Some(ref expr) = c.expression {
             s.push_str(&format!(" {}", self.format_expr(expr)));
         }
         for when in &c.whens {
+            s.push('\n');
+            s.push_str(&Self::pad(indent + 1));
             s.push_str(&format!(
-                " {} {} {} ",
+                "{} {} {}",
                 self.kw("WHEN"),
                 self.format_expr(&when.condition),
                 self.kw("THEN")
             ));
             for stmt in &when.stmts {
-                s.push_str(&self.format_pl_statement(stmt));
-                s.push(' ');
+                s.push('\n');
+                s.push_str(&Self::pad(indent + 2));
+                s.push_str(&self.format_pl_statement(stmt, indent + 2));
             }
         }
         if !c.else_stmts.is_empty() {
-            s.push_str(&format!("{} ", self.kw("ELSE")));
+            s.push('\n');
+            s.push_str(&Self::pad(indent + 1));
+            s.push_str(&self.kw("ELSE"));
             for stmt in &c.else_stmts {
-                s.push_str(&self.format_pl_statement(stmt));
-                s.push(' ');
+                s.push('\n');
+                s.push_str(&Self::pad(indent + 2));
+                s.push_str(&self.format_pl_statement(stmt, indent + 2));
             }
         }
+        s.push('\n');
+        s.push_str(&Self::pad(indent));
         s.push_str(&format!("{} {};", self.kw("END"), self.kw("CASE")));
         s
     }
 
-    fn format_pl_loop(&self, l: &crate::ast::plpgsql::PlLoopStmt) -> String {
+    fn format_pl_loop(&self, l: &crate::ast::plpgsql::PlLoopStmt, indent: usize) -> String {
         let mut s = String::new();
         if let Some(ref label) = l.label {
-            s.push_str(&format!("<<{}>> ", label));
+            s.push_str(&format!("{}<<{}>> ", Self::pad(indent), label));
+        } else {
+            s.push_str(&Self::pad(indent));
         }
         s.push_str(&self.kw("LOOP"));
         for stmt in &l.body {
-            s.push(' ');
-            s.push_str(&self.format_pl_statement(stmt));
+            s.push('\n');
+            s.push_str(&Self::pad(indent + 1));
+            s.push_str(&self.format_pl_statement(stmt, indent + 1));
         }
-        s.push_str(&format!(" {} {};", self.kw("END"), self.kw("LOOP")));
+        s.push('\n');
+        s.push_str(&Self::pad(indent));
+        s.push_str(&format!("{} {};", self.kw("END"), self.kw("LOOP")));
         if let Some(ref label) = l.end_label {
             s.push_str(&format!(" {}", label));
         }
         s
     }
 
-    fn format_pl_while(&self, w: &crate::ast::plpgsql::PlWhileStmt) -> String {
+    fn format_pl_while(&self, w: &crate::ast::plpgsql::PlWhileStmt, indent: usize) -> String {
         let mut s = String::new();
         if let Some(ref label) = w.label {
-            s.push_str(&format!("<<{}>> ", label));
+            s.push_str(&format!("{}<<{}>> ", Self::pad(indent), label));
+        } else {
+            s.push_str(&Self::pad(indent));
         }
         s.push_str(&format!(
-            "{} {} {} ",
+            "{} {} {}",
             self.kw("WHILE"),
             self.format_expr(&w.condition),
             self.kw("LOOP")
         ));
         for stmt in &w.body {
-            s.push_str(&self.format_pl_statement(stmt));
-            s.push(' ');
+            s.push('\n');
+            s.push_str(&Self::pad(indent + 1));
+            s.push_str(&self.format_pl_statement(stmt, indent + 1));
         }
+        s.push('\n');
+        s.push_str(&Self::pad(indent));
         s.push_str(&format!("{} {};", self.kw("END"), self.kw("LOOP")));
         if let Some(ref label) = w.end_label {
             s.push_str(&format!(" {}", label));
@@ -5108,11 +5171,13 @@ impl SqlFormatter {
         s
     }
 
-    fn format_pl_for(&self, f: &crate::ast::plpgsql::PlForStmt) -> String {
+    fn format_pl_for(&self, f: &crate::ast::plpgsql::PlForStmt, indent: usize) -> String {
         use crate::ast::plpgsql::PlForKind;
         let mut s = String::new();
         if let Some(ref label) = f.label {
-            s.push_str(&format!("<<{}>> ", label));
+            s.push_str(&format!("{}<<{}>> ", Self::pad(indent), label));
+        } else {
+            s.push_str(&Self::pad(indent));
         }
         s.push_str(&format!(
             "{} {} {} ",
@@ -5153,11 +5218,15 @@ impl SqlFormatter {
                 }
             }
         }
-        s.push_str(&format!("{} ", self.kw("LOOP")));
+        s.push(' ');
+        s.push_str(&self.kw("LOOP"));
         for stmt in &f.body {
-            s.push_str(&self.format_pl_statement(stmt));
-            s.push(' ');
+            s.push('\n');
+            s.push_str(&Self::pad(indent + 1));
+            s.push_str(&self.format_pl_statement(stmt, indent + 1));
         }
+        s.push('\n');
+        s.push_str(&Self::pad(indent));
         s.push_str(&format!("{} {};", self.kw("END"), self.kw("LOOP")));
         if let Some(ref label) = f.end_label {
             s.push_str(&format!(" {}", label));
@@ -5165,10 +5234,12 @@ impl SqlFormatter {
         s
     }
 
-    fn format_pl_foreach(&self, fe: &crate::ast::plpgsql::PlForEachStmt) -> String {
+    fn format_pl_foreach(&self, fe: &crate::ast::plpgsql::PlForEachStmt, indent: usize) -> String {
         let mut s = String::new();
         if let Some(ref label) = fe.label {
-            s.push_str(&format!("<<{}>> ", label));
+            s.push_str(&format!("{}<<{}>> ", Self::pad(indent), label));
+        } else {
+            s.push_str(&Self::pad(indent));
         }
         s.push_str(&format!(
             "{} {} {} {} {}",
@@ -5182,9 +5253,12 @@ impl SqlFormatter {
             s.push_str(&format!(" {} {}", self.kw("SLICE"), slice));
         }
         for stmt in &fe.body {
-            s.push_str(&self.format_pl_statement(stmt));
-            s.push(' ');
+            s.push('\n');
+            s.push_str(&Self::pad(indent + 1));
+            s.push_str(&self.format_pl_statement(stmt, indent + 1));
         }
+        s.push('\n');
+        s.push_str(&Self::pad(indent));
         s.push_str(&format!("{} {};", self.kw("END"), self.kw("LOOP")));
         if let Some(ref label) = fe.end_label {
             s.push_str(&format!(" {}", label));
@@ -5756,8 +5830,8 @@ impl SqlFormatter {
             s.push_str(&format!(" {} {}", self.kw("LANGUAGE"), lang));
         }
         if let Some(ref block) = stmt.block {
-            s.push_str(" $$ ");
-            s.push_str(&self.format_pl_block(block));
+            s.push_str(" $$");
+            s.push_str(&self.format_pl_block(block, 0));
             s.push_str(" $$");
         } else {
             s.push(' ');
@@ -6421,9 +6495,9 @@ impl SqlFormatter {
         }
         if let Some(block) = &stmt.block {
             s.push_str(&format!(
-                " {} $$ {} $$",
+                " {} {}",
                 self.kw("AS"),
-                self.format_pl_block(block)
+                self.format_pl_block_named(block, 0)
             ));
         }
         let opts_str = self.format_function_options(&stmt.options);
@@ -6451,9 +6525,9 @@ impl SqlFormatter {
         s.push_str(&format!("({})", params.join(", ")));
         if let Some(block) = &stmt.block {
             s.push_str(&format!(
-                " {} $$ {} $$",
+                " {} {}",
                 self.kw("AS"),
-                self.format_pl_block(block)
+                self.format_pl_block_named(block, 0)
             ));
         }
         let opts_str = self.format_function_options(&stmt.options);
@@ -6545,10 +6619,12 @@ impl SqlFormatter {
         }
         s.push_str(&format!(" {}", self.kw("AS")));
         for item in &stmt.items {
-            s.push(' ');
-            s.push_str(&self.format_package_item(item));
+            s.push('\n');
+            s.push_str(&Self::pad(1));
+            s.push_str(&self.format_package_item(item, 1));
         }
-        s.push_str(&format!(" {}", self.kw("END")));
+        s.push('\n');
+        s.push_str(&format!("{}", self.kw("END")));
         s.push(';');
         s
     }
@@ -6565,23 +6641,25 @@ impl SqlFormatter {
         ));
         s.push_str(&format!(" {}", self.kw("AS")));
         for item in &stmt.items {
-            s.push(' ');
-            s.push_str(&self.format_package_item(item));
+            s.push('\n');
+            s.push_str(&Self::pad(1));
+            s.push_str(&self.format_package_item(item, 1));
         }
-        s.push_str(&format!(" {}", self.kw("END")));
+        s.push('\n');
+        s.push_str(&format!("{}", self.kw("END")));
         s.push(';');
         s
     }
 
-    fn format_package_item(&self, item: &PackageItem) -> String {
+    fn format_package_item(&self, item: &PackageItem, indent: usize) -> String {
         match item {
-            PackageItem::Procedure(p) => self.format_package_procedure(p),
-            PackageItem::Function(f) => self.format_package_function(f),
+            PackageItem::Procedure(p) => self.format_package_procedure(p, indent),
+            PackageItem::Function(f) => self.format_package_function(f, indent),
             PackageItem::Raw(s) => s.clone(),
         }
     }
 
-    fn format_package_procedure(&self, proc: &PackageProcedure) -> String {
+    fn format_package_procedure(&self, proc: &PackageProcedure, indent: usize) -> String {
         let mut s = format!(
             "{} {}",
             self.kw("PROCEDURE"),
@@ -6596,14 +6674,15 @@ impl SqlFormatter {
             s.push_str(&format!("({})", params.join(", ")));
         }
         if let Some(ref block) = proc.block {
-            s.push_str(&format!(" {} {}", self.kw("IS"), self.format_pl_block(block)));
+            s.push_str(&format!(" {} {}", self.kw("IS"), self.format_pl_block_named(block, indent)));
+            s.push(';');
         } else {
             s.push(';');
         }
         s
     }
 
-    fn format_package_function(&self, func: &PackageFunction) -> String {
+    fn format_package_function(&self, func: &PackageFunction, indent: usize) -> String {
         let mut s = format!(
             "{} {}",
             self.kw("FUNCTION"),
@@ -6621,7 +6700,8 @@ impl SqlFormatter {
             s.push_str(&format!(" {} {}", self.kw("RETURN"), rt));
         }
         if let Some(ref block) = func.block {
-            s.push_str(&format!(" {} {}", self.kw("IS"), self.format_pl_block(block)));
+            s.push_str(&format!(" {} {}", self.kw("IS"), self.format_pl_block_named(block, indent)));
+            s.push(';');
         } else {
             s.push(';');
         }

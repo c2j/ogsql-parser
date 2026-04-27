@@ -138,30 +138,21 @@ struct TokenInfo {
 
 fn cmd_format(cli: &Cli) {
     let sql = read_input(cli.file.as_deref());
-    let (stmts, errors) = parse_input(&sql);
-
-    let formatter = SqlFormatter::new();
-    let formatted: Vec<String> = stmts
-        .iter()
-        .map(|si| formatter.format_statement(&si.statement))
-        .collect();
+    let tokens = match Tokenizer::new(&sql).preserve_comments(true).tokenize() {
+        Ok(t) => t,
+        Err(e) => die!("Tokenization error: {}", e),
+    };
+    let formatted = token_formatter::TokenFormatter::new(&sql, tokens).format();
 
     if cli.json {
         let out = serde_json::json!({
-            "statements": formatted,
-            "error_count": errors.len(),
-            "errors": errors,
+            "formatted": formatted,
         });
         println!("{}", serde_json::to_string_pretty(&out).unwrap());
     } else {
-        if !errors.is_empty() {
-            for e in &errors {
-                eprintln!("error: {}", e);
-            }
-        }
-        if !formatted.is_empty() {
-            println!("{}", formatted.join(";\n"));
-            println!(";");
+        println!("{}", formatted);
+        if !formatted.ends_with('\n') {
+            println!();
         }
     }
 }
@@ -207,7 +198,7 @@ fn cmd_parse(cli: &Cli) {
                     eprintln!("  {}", e);
                 }
                 if cli.verbose {
-                    write_error_log(&stmts, &real_errors);
+                    write_error_log(&sql, cli.file.as_deref(), &stmts, &real_errors);
                 }
             }
             if !warnings.is_empty() {
@@ -358,14 +349,19 @@ fn cmd_validate(cli: &Cli) {
                 eprintln!("  warning: {}", w);
             }
             if cli.verbose {
-                write_error_log(&stmts, &real_errors);
+                write_error_log(&sql, cli.file.as_deref(), &stmts, &real_errors);
             }
             std::process::exit(1);
         }
     }
 }
 
-fn write_error_log(stmts: &[StatementInfo], errors: &[&ParserError]) {
+fn write_error_log(
+    source: &str,
+    file_path: Option<&str>,
+    stmts: &[StatementInfo],
+    errors: &[&ParserError],
+) {
     use std::io::Write;
     let mut file = match std::fs::OpenOptions::new()
         .append(true)
@@ -378,7 +374,12 @@ fn write_error_log(stmts: &[StatementInfo], errors: &[&ParserError]) {
             return;
         }
     };
-    for err in errors {
+
+    let source_lines: Vec<&str> = source.lines().collect();
+
+    let mut groups: Vec<(usize, Option<String>, usize, usize, Vec<usize>)> = Vec::new();
+
+    for (err_idx, err) in errors.iter().enumerate() {
         let (line, _col) = match err {
             ParserError::UnexpectedToken { location, .. } => (location.line, location.column),
             ParserError::UnexpectedEof { location, .. } => (location.line, location.column),
@@ -388,66 +389,118 @@ fn write_error_log(stmts: &[StatementInfo], errors: &[&ParserError]) {
             }
             _ => (0, 0),
         };
-        let _ = writeln!(file, "Error: {}", err);
-        if line > 0 {
-            if let Some(si) = stmts
-                .iter()
-                .find(|si| line >= si.start_line && line <= si.end_line)
-            {
-                let (sub_name, sub_start, sub_end) = find_error_sub_item(&si.statement, line);
-                let context_radius: usize = 5;
-                let all_lines: Vec<&str> = si.sql_text.lines().collect();
-                let stmt_start = si.start_line;
+        if line == 0 {
+            groups.push((usize::MAX, None, 0, 0, vec![err_idx])); // sentinel: no line info
+        } else if let Some(si_idx) = stmts
+            .iter()
+            .position(|si| line >= si.start_line && line <= si.end_line)
+        {
+            let si = &stmts[si_idx];
+            let (sub_name, sub_start, sub_end) = find_error_sub_item(&si.statement, line);
+            if let Some(pos) = groups.iter().position(|(idx, sn, ss, se, _)| {
+                *idx == si_idx && *sn == sub_name && *ss == sub_start && *se == sub_end
+            }) {
+                groups[pos].4.push(err_idx);
+            } else {
+                groups.push((si_idx, sub_name, sub_start, sub_end, vec![err_idx]));
+            }
+        } else {
+            groups.push((usize::MAX, None, 0, 0, vec![err_idx])); // sentinel: unmatched line
+        }
+    }
 
-                let (label_start, label_end, omitted_after) = if sub_start > 0 && sub_end > 0 {
-                    (sub_start, sub_end, sub_end - sub_start + 1)
+    let context_radius: usize = 5;
+
+    for (si_idx, sub_name, sub_start, sub_end, err_indices) in &groups {
+        if let Some(fp) = file_path {
+            let _ = writeln!(file, "File: {}", fp);
+        }
+        for &err_idx in err_indices {
+            let _ = writeln!(file, "Error: {}", errors[err_idx]);
+        }
+
+        if *si_idx != usize::MAX {
+            let si = &stmts[*si_idx];
+
+            let all_lines: Vec<&str> = if !si.sql_text.is_empty() {
+                si.sql_text.lines().collect()
+            } else {
+                // sql_text 为空 (Package Body / DDL) 时回退到完整源码
+                let start = si.start_line.saturating_sub(1);
+                let end = si.end_line.min(source_lines.len());
+                source_lines[start..end].to_vec()
+            };
+            let stmt_start = si.start_line;
+
+            let (label_start, label_end, omitted_after) =
+                if *sub_start > 0 && *sub_end > 0 {
+                    (*sub_start, *sub_end, sub_end - sub_start + 1)
                 } else {
                     (si.start_line, si.end_line, all_lines.len())
                 };
 
-                let err_relative = line.saturating_sub(label_start);
-                let label_relative_start = label_start.saturating_sub(stmt_start);
-                let ctx_start = label_relative_start.saturating_sub(context_radius);
-                let ctx_end = (label_relative_start
-                    + (label_end.saturating_sub(label_start) + 1))
-                    .min(all_lines.len());
-                let err_in_ctx = err_relative + (label_relative_start - ctx_start);
+            let error_lines: Vec<usize> = err_indices
+                .iter()
+                .map(|&ei| error_line(errors[ei]))
+                .filter(|&l| l > 0)
+                .collect();
 
-                let ctx_lines = &all_lines[ctx_start..ctx_end];
-                let omitted_before = label_relative_start.saturating_sub(ctx_start);
-                let omitted_after_actual = all_lines.len().saturating_sub(ctx_end);
+            let label_relative_start = label_start.saturating_sub(stmt_start);
+            let label_len = label_end.saturating_sub(label_start) + 1;
 
-                if let Some(name) = sub_name {
-                    let _ = writeln!(
-                        file,
-                        "In {} (line {}-{} of {}-line statement):",
-                        name, sub_start, sub_end, omitted_after
-                    );
+            let mut ctx_start = label_relative_start.saturating_sub(context_radius);
+            let mut ctx_end = (label_relative_start + label_len).min(all_lines.len());
+
+            for &eline in &error_lines {
+                let rel = eline.saturating_sub(stmt_start);
+                ctx_start = ctx_start.min(rel.saturating_sub(context_radius));
+                ctx_end = ctx_end.max((rel + 1).min(all_lines.len()));
+            }
+
+            let ctx_lines = &all_lines[ctx_start..ctx_end];
+            let omitted_before = label_relative_start.saturating_sub(ctx_start);
+            let omitted_after_actual = all_lines.len().saturating_sub(ctx_end);
+
+            if let Some(name) = sub_name {
+                let _ = writeln!(
+                    file,
+                    "In {} (line {}-{} of {}-line statement):",
+                    name, sub_start, sub_end, omitted_after
+                );
+            } else {
+                let _ = writeln!(file, "Statement (line {}-{}):", si.start_line, si.end_line);
+            }
+
+            for (i, l) in ctx_lines.iter().enumerate() {
+                let abs_line = ctx_start + i + stmt_start;
+                if error_lines.contains(&abs_line) {
+                    let _ = writeln!(file, "  {:>4} |> {}", abs_line, l);
                 } else {
-                    let _ = writeln!(file, "Statement (line {}-{}):", si.start_line, si.end_line);
+                    let _ = writeln!(file, "  {:>4} |  {}", abs_line, l);
                 }
-
-                for (i, l) in ctx_lines.iter().enumerate() {
-                    let abs_line = ctx_start + i + stmt_start;
-                    if i == err_in_ctx {
-                        let _ = writeln!(file, "  {:>4} |> {}", abs_line, l);
-                    } else {
-                        let _ = writeln!(file, "  {:>4} |  {}", abs_line, l);
-                    }
-                }
-                if omitted_before > context_radius || omitted_after_actual > context_radius {
-                    let _ = writeln!(
-                        file,
-                        "  ... ({} lines omitted) ...",
-                        omitted_before.saturating_sub(context_radius)
-                            + omitted_after_actual.saturating_sub(context_radius)
-                    );
-                }
+            }
+            if omitted_before > context_radius || omitted_after_actual > context_radius {
+                let _ = writeln!(
+                    file,
+                    "  ... ({} lines omitted) ...",
+                    omitted_before.saturating_sub(context_radius)
+                        + omitted_after_actual.saturating_sub(context_radius)
+                );
             }
         }
         let _ = writeln!(file, "{}", "-".repeat(60));
     }
     eprintln!("  error details written to error.log");
+}
+
+fn error_line(err: &ParserError) -> usize {
+    match err {
+        ParserError::UnexpectedToken { location, .. } => location.line,
+        ParserError::UnexpectedEof { location, .. } => location.line,
+        ParserError::ReservedKeywordAsIdentifier { location, .. } => location.line,
+        ParserError::Warning { location, .. } => location.line,
+        _ => 0,
+    }
 }
 
 fn find_error_sub_item(stmt: &Statement, error_line: usize) -> (Option<String>, usize, usize) {

@@ -37,6 +37,11 @@ impl Parser {
                     let all = self.try_consume_keyword(Keyword::ALL);
                     ("except", all)
                 }
+                Some(Keyword::MINUS_P) => {
+                    self.advance();
+                    let all = self.try_consume_keyword(Keyword::ALL);
+                    ("minus", all)
+                }
                 _ => break,
             };
             let right = self.parse_simple_select()?;
@@ -129,6 +134,13 @@ impl Parser {
     }
 
     fn parse_simple_select(&mut self) -> Result<SelectStatement, ParserError> {
+        if self.match_token(&Token::LParen) {
+            self.advance();
+            let inner = self.parse_select_statement_inner()?;
+            self.expect_token(&Token::RParen)?;
+            return Ok(inner);
+        }
+
         self.expect_keyword(Keyword::SELECT)?;
         let hints = self.consume_hints();
         let (distinct, mut distinct_on) = if self.match_keyword(Keyword::DISTINCT) {
