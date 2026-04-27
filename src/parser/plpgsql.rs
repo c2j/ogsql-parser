@@ -121,6 +121,10 @@ impl Parser {
     fn parse_pl_declaration(&mut self) -> Result<PlDeclaration, ParserError> {
         let name = self.parse_identifier()?;
 
+        if name.eq_ignore_ascii_case("pragma") {
+            return Ok(self.parse_pragma_declaration());
+        }
+
         if self.match_ident_str("record") && !self.is_next_token_type_name() {
             self.advance();
             self.try_consume_semicolon();

@@ -448,3 +448,32 @@ $$ LANGUAGE plpgsql"#;
         other => panic!("expected CreateProcedure, got {:?}", other),
     }
 }
+
+#[test]
+fn test_pragma_autonomous_transaction_in_block() {
+    let sql = r#"CREATE OR REPLACE PROCEDURE test_auto()
+AS $$
+DECLARE
+    PRAGMA AUTONOMOUS_TRANSACTION;
+    v_count INTEGER;
+BEGIN
+    INSERT INTO t_log(id, msg) VALUES(1, 'auto');
+END;
+$$ LANGUAGE plpgsql"#;
+    let stmts = parse(sql);
+    assert_eq!(stmts.len(), 1);
+    match &stmts[0] {
+        Statement::CreateProcedure(proc) => {
+            let block = proc.block.as_ref().expect("block should not be null");
+            assert_eq!(block.declarations.len(), 2, "expected 2 declarations");
+            match &block.declarations[0] {
+                PlDeclaration::Pragma { name, arguments } => {
+                    assert_eq!(name, "AUTONOMOUS_TRANSACTION");
+                    assert!(arguments.is_empty());
+                }
+                other => panic!("expected Pragma declaration, got {:?}", other),
+            }
+        }
+        other => panic!("expected CreateProcedure, got {:?}", other),
+    }
+}
