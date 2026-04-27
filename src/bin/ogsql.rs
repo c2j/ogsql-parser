@@ -180,10 +180,19 @@ fn cmd_parse(cli: &Cli) {
             })
             .collect();
 
-        let out = serde_json::json!({
+        let all_stmts: Vec<_> = stmts.iter().map(|si| si.statement.clone()).collect();
+        let fingerprints = ogsql_parser::compute_query_fingerprints(&all_stmts);
+
+        let mut out = serde_json::json!({
             "statements": stmt_values,
             "errors": errors,
         });
+        if !fingerprints.is_empty() {
+            out.as_object_mut().unwrap().insert(
+                "query_fingerprints".to_string(),
+                serde_json::json!(fingerprints),
+            );
+        }
         println!("{}", serde_json::to_string_pretty(&out).unwrap());
     } else {
         for stmt in &stmts {
@@ -607,7 +616,16 @@ mod api {
     )]
     pub async fn handle_parse(Json(input): Json<SqlInput>) -> Json<serde_json::Value> {
         let (stmts, errors) = super::parse_input(&input.sql);
-        Json(serde_json::json!({"statements": stmts, "errors": errors}))
+        let all_stmts: Vec<_> = stmts.iter().map(|si| si.statement.clone()).collect();
+        let fingerprints = ogsql_parser::compute_query_fingerprints(&all_stmts);
+        let mut out = serde_json::json!({"statements": stmts, "errors": errors});
+        if !fingerprints.is_empty() {
+            out.as_object_mut().unwrap().insert(
+                "query_fingerprints".to_string(),
+                serde_json::json!(fingerprints),
+            );
+        }
+        Json(out)
     }
 
     /// Format SQL statements
