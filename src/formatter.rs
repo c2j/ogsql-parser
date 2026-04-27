@@ -4790,6 +4790,32 @@ impl SqlFormatter {
             PlStatement::Assignment { target, expression } => {
                 format!("{} := {};", self.format_expr(target), self.format_expr(expression))
             }
+            PlStatement::SetTransaction { isolation_level, read_only, deferrable } => {
+                let mut s = format!("{} {}", self.kw("SET"), self.kw("TRANSACTION"));
+                if let Some(ref il) = isolation_level {
+                    s.push_str(&format!(" {} {}", self.kw("ISOLATION"), self.kw("LEVEL")));
+                    match il {
+                        PlIsolationLevel::ReadCommitted => s.push_str(&format!(" {} {}", self.kw("READ"), self.kw("COMMITTED"))),
+                        PlIsolationLevel::RepeatableRead => s.push_str(&format!(" {} {}", self.kw("REPEATABLE"), self.kw("READ"))),
+                        PlIsolationLevel::Serializable => s.push_str(&format!(" {}", self.kw("SERIALIZABLE"))),
+                    }
+                }
+                if let Some(ro) = read_only {
+                    if *ro {
+                        s.push_str(&format!(" {} {}", self.kw("READ"), self.kw("ONLY")));
+                    } else {
+                        s.push_str(&format!(" {} {}", self.kw("READ"), self.kw("WRITE")));
+                    }
+                }
+                if let Some(d) = deferrable {
+                    if *d {
+                        s.push_str(&format!(" {}", self.kw("DEFERRABLE")));
+                    } else {
+                        s.push_str(&format!(" {} {}", self.kw("NOT"), self.kw("DEFERRABLE")));
+                    }
+                }
+                format!("{};", s)
+            }
             PlStatement::Null => format!("{};", self.kw("NULL")),
             PlStatement::If(i) => self.format_pl_if(i, indent),
             PlStatement::Case(c) => self.format_pl_case(c, indent),

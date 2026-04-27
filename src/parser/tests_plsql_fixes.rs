@@ -477,3 +477,42 @@ $$ LANGUAGE plpgsql"#;
         other => panic!("expected CreateProcedure, got {:?}", other),
     }
 }
+
+#[test]
+fn test_set_transaction_isolation_level() {
+    let block = parse_do_block("DO $$ BEGIN SET TRANSACTION ISOLATION LEVEL READ COMMITTED; END $$");
+    match &block.body[0] {
+        PlStatement::SetTransaction { isolation_level, read_only, deferrable } => {
+            assert!(matches!(isolation_level, Some(PlIsolationLevel::ReadCommitted)));
+            assert!(read_only.is_none());
+            assert!(deferrable.is_none());
+        }
+        other => panic!("expected SetTransaction, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_set_transaction_read_only() {
+    let block = parse_do_block("DO $$ BEGIN SET TRANSACTION READ ONLY; END $$");
+    match &block.body[0] {
+        PlStatement::SetTransaction { isolation_level, read_only, deferrable } => {
+            assert!(isolation_level.is_none());
+            assert_eq!(*read_only, Some(true));
+            assert!(deferrable.is_none());
+        }
+        other => panic!("expected SetTransaction, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_set_transaction_serializable_deferrable() {
+    let block = parse_do_block("DO $$ BEGIN SET TRANSACTION ISOLATION LEVEL SERIALIZABLE READ WRITE DEFERRABLE; END $$");
+    match &block.body[0] {
+        PlStatement::SetTransaction { isolation_level, read_only, deferrable } => {
+            assert!(matches!(isolation_level, Some(PlIsolationLevel::Serializable)));
+            assert_eq!(*read_only, Some(false));
+            assert_eq!(*deferrable, Some(true));
+        }
+        other => panic!("expected SetTransaction, got {:?}", other),
+    }
+}
