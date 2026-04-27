@@ -1366,15 +1366,30 @@ impl Parser {
                 self.dispatch_drop()
             }
             Token::Keyword(Keyword::SET) => {
-                self.advance();
-                match self.parse_set() {
-                    Ok(stmt) => {
-                        self.try_consume_semicolon();
-                        crate::ast::Statement::VariableSet(crate::ast::Spanned::new(stmt, Some(crate::ast::SourceSpan { start, end: self.prev_location() })))
+                if self.peek_keyword_at(1) == Some(Keyword::TRANSACTION) {
+                    self.advance();
+                    self.advance();
+                    match self.parse_set_transaction() {
+                        Ok(stmt) => {
+                            self.try_consume_semicolon();
+                            crate::ast::Statement::Transaction(crate::ast::Spanned::new(stmt, Some(crate::ast::SourceSpan { start, end: self.prev_location() })))
+                        }
+                        Err(e) => {
+                            self.add_error(e);
+                            self.skip_to_semicolon()
+                        }
                     }
-                    Err(e) => {
-                        self.add_error(e);
-                        self.skip_to_semicolon()
+                } else {
+                    self.advance();
+                    match self.parse_set() {
+                        Ok(stmt) => {
+                            self.try_consume_semicolon();
+                            crate::ast::Statement::VariableSet(crate::ast::Spanned::new(stmt, Some(crate::ast::SourceSpan { start, end: self.prev_location() })))
+                        }
+                        Err(e) => {
+                            self.add_error(e);
+                            self.skip_to_semicolon()
+                        }
                     }
                 }
             }

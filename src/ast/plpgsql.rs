@@ -195,6 +195,10 @@ pub enum PlStatement {
     ReleaseSavepoint {
         name: String,
     },
+    SetTransaction {
+        #[serde(skip_serializing_if = "Vec::is_empty")]
+        modes: Vec<crate::ast::TransactionMode>,
+    },
     Null,
 
     Goto {

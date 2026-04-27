@@ -1573,6 +1573,7 @@ pub enum TransactionKind {
     PrepareTransaction,
     CommitPrepared,
     RollbackPrepared,
+    SetTransaction,
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]

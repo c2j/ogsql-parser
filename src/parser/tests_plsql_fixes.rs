@@ -448,3 +448,62 @@ $$ LANGUAGE plpgsql"#;
         other => panic!("expected CreateProcedure, got {:?}", other),
     }
 }
+
+#[test]
+fn test_set_transaction_in_pl_block() {
+    let sql = "DO $$ BEGIN SET TRANSACTION ISOLATION LEVEL READ COMMITTED; END $$";
+    let stmts = parse(sql);
+    assert_eq!(stmts.len(), 1);
+    match &stmts[0] {
+        Statement::Do(d) => {
+            let block = d.block.as_ref().expect("DO should have parsed block");
+            assert_eq!(block.body.len(), 1);
+            match &block.body[0] {
+                PlStatement::SetTransaction { modes } => {
+                    assert_eq!(modes.len(), 1);
+                    assert!(matches!(modes[0], TransactionMode::IsolationLevel(IsolationLevel::ReadCommitted)));
+                }
+                other => panic!("expected SetTransaction, got {:?}", other),
+            }
+        }
+        other => panic!("expected Do, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_set_transaction_read_only_in_pl_block() {
+    let sql = "DO $$ BEGIN SET TRANSACTION READ ONLY; END $$";
+    let stmts = parse(sql);
+    assert_eq!(stmts.len(), 1);
+    match &stmts[0] {
+        Statement::Do(d) => {
+            let block = d.block.as_ref().expect("DO should have parsed block");
+            assert_eq!(block.body.len(), 1);
+            match &block.body[0] {
+                PlStatement::SetTransaction { modes } => {
+                    assert_eq!(modes.len(), 1);
+                    assert!(matches!(modes[0], TransactionMode::ReadOnly));
+                }
+                other => panic!("expected SetTransaction, got {:?}", other),
+            }
+        }
+        other => panic!("expected Do, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_set_transaction_not_captured_as_sql_text() {
+    let sql = "DO $$ BEGIN SET TRANSACTION ISOLATION LEVEL SERIALIZABLE; END $$";
+    let stmts = parse(sql);
+    match &stmts[0] {
+        Statement::Do(d) => {
+            let block = d.block.as_ref().expect("DO should have parsed block");
+            match &block.body[0] {
+                PlStatement::Sql(_) => panic!("SET TRANSACTION should be structured, not sql_text"),
+                PlStatement::SetTransaction { .. } => {}
+                other => panic!("expected SetTransaction, got {:?}", other),
+            }
+        }
+        other => panic!("expected Do, got {:?}", other),
+    }
+}

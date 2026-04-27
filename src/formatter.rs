@@ -4353,6 +4353,13 @@ impl SqlFormatter {
                     stmt.transaction_id.as_ref().unwrap()
                 )
             }
+            TransactionKind::SetTransaction => {
+                let mut parts = vec![self.kw("SET"), self.kw("TRANSACTION")];
+                if !stmt.modes.is_empty() {
+                    parts.push(self.format_transaction_modes(&stmt.modes));
+                }
+                parts.join(" ")
+            }
         }
     }
 
@@ -5004,6 +5011,13 @@ impl SqlFormatter {
             PlStatement::Savepoint { name } => format!("{} {};", self.kw("SAVEPOINT"), name),
             PlStatement::ReleaseSavepoint { name } => {
                 format!("{} {} {};", self.kw("RELEASE"), self.kw("SAVEPOINT"), name)
+            }
+            PlStatement::SetTransaction { modes } => {
+                let mut parts = vec![self.kw("SET"), self.kw("TRANSACTION")];
+                if !modes.is_empty() {
+                    parts.push(self.format_transaction_modes(modes));
+                }
+                format!("{};", parts.join(" "))
             }
             PlStatement::Goto { label } => format!("{} {};", self.kw("GOTO"), label),
             PlStatement::ProcedureCall(call) => {

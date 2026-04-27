@@ -682,6 +682,26 @@ impl Parser {
             let result = Ok(PlStatement::Block(Spanned::new(block, None)));
             self.try_consume_semicolon();
             result
+        } else if self.match_ident_str("set") {
+            let is_set_transaction = self.tokens.get(self.pos + 1).map_or(false, |t| match &t.token {
+                Token::Ident(s) => s.eq_ignore_ascii_case("transaction"),
+                Token::Keyword(kw) => kw.as_str().eq_ignore_ascii_case("transaction"),
+                _ => false,
+            });
+            if is_set_transaction {
+                self.advance();
+                self.advance();
+                let modes = self.parse_pl_transaction_modes()?;
+                self.try_consume_semicolon();
+                Ok(PlStatement::SetTransaction { modes })
+            } else {
+                self.try_parse_dml_as_pl_statement()
+                    .ok_or_else(|| ParserError::UnexpectedToken {
+                        location: self.current_location(),
+                        expected: "statement".to_string(),
+                        got: format!("{:?}", self.peek()),
+                    })
+            }
         } else if let Some(stmt) = self.try_parse_dml_as_pl_statement() {
             Ok(stmt)
         } else {
@@ -2033,6 +2053,65 @@ impl Parser {
         let label = self.parse_identifier()?;
         self.try_consume_semicolon();
         Ok(PlStatement::Goto { label })
+    }
+
+    fn parse_pl_transaction_modes(&mut self) -> Result<Vec<crate::ast::TransactionMode>, ParserError> {
+        let mut modes = Vec::new();
+        loop {
+            if self.match_ident_str("isolation") {
+                self.advance();
+                self.try_consume_ident_str("level");
+                let level = if self.match_ident_str("serializable") {
+                    self.advance();
+                    crate::ast::IsolationLevel::Serializable
+                } else if self.match_ident_str("repeatable") {
+                    self.advance();
+                    self.try_consume_ident_str("read");
+                    crate::ast::IsolationLevel::RepeatableRead
+                } else if self.match_ident_str("read") {
+                    self.advance();
+                    if self.match_ident_str("committed") {
+                        self.advance();
+                        crate::ast::IsolationLevel::ReadCommitted
+                    } else if self.match_ident_str("uncommitted") {
+                        self.advance();
+                        crate::ast::IsolationLevel::ReadUncommitted
+                    } else {
+                        return Err(ParserError::UnexpectedToken {
+                            location: self.current_location(),
+                            expected: "COMMITTED or UNCOMMITTED".to_string(),
+                            got: format!("{:?}", self.peek()),
+                        });
+                    }
+                } else {
+                    return Err(ParserError::UnexpectedToken {
+                        location: self.current_location(),
+                        expected: "isolation level".to_string(),
+                        got: format!("{:?}", self.peek()),
+                    });
+                };
+                modes.push(crate::ast::TransactionMode::IsolationLevel(level));
+            } else if self.match_ident_str("read") {
+                self.advance();
+                if self.match_ident_str("only") {
+                    self.advance();
+                    modes.push(crate::ast::TransactionMode::ReadOnly);
+                } else if self.match_ident_str("write") {
+                    self.advance();
+                    modes.push(crate::ast::TransactionMode::ReadWrite);
+                }
+            } else if self.match_ident_str("deferrable") {
+                self.advance();
+                modes.push(crate::ast::TransactionMode::Deferrable);
+            } else if self.match_ident_str("not") {
+                self.advance();
+                self.try_consume_ident_str("deferrable");
+                modes.push(crate::ast::TransactionMode::NotDeferrable);
+            } else {
+                break;
+            }
+        }
+        Ok(modes)
     }
 
     fn parse_pl_forall(&mut self) -> Result<PlStatement, ParserError> {
