@@ -195,6 +195,11 @@ pub enum PlStatement {
     ReleaseSavepoint {
         name: String,
     },
+    SetTransaction {
+        isolation_level: Option<PlIsolationLevel>,
+        read_only: Option<bool>,
+        deferrable: Option<bool>,
+    },
     Null,
 
     Goto {
@@ -522,4 +527,11 @@ pub struct PlExceptionBlock {
 pub struct PlExceptionHandler {
     pub conditions: Vec<String>,
     pub statements: Vec<PlStatement>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum PlIsolationLevel {
+    ReadCommitted,
+    RepeatableRead,
+    Serializable,
 }
