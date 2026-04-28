@@ -6,6 +6,7 @@ pub mod token;
 pub mod token_formatter;
 
 pub use analyzer::{analyze_pl_block, analyze_transactions, compute_query_fingerprints, DynamicSqlReport, QueryFingerprint, TransactionReport};
+pub use analyzer::schema::{SchemaMap, SchemaResolutionReport, load_schema, resolve_schema};
 
 pub use ast::visitor::{
     walk_statement,

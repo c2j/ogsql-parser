@@ -484,3 +484,67 @@ fn test_cross_procedure_call_tracked() {
     assert_eq!(report.cross_procedure_calls.len(), 1);
     assert_eq!(report.cross_procedure_calls[0].callee, "pkg_tx.commit_inside_proc");
 }
+
+#[test]
+fn test_template_extraction_concatenation() {
+    // v_sql := 'SELECT * FROM t WHERE 1=1';
+    // v_sql := v_sql || ' AND status = ' || p_status;
+    // EXECUTE IMMEDIATE v_sql;
+    let trace = TraceChain::Concatenation {
+        parts: vec![
+            TraceChain::VariableCopy {
+                source_var: "v_sql".to_string(),
+                source_chain: Box::new(TraceChain::LiteralAssignment {
+                    value: "SELECT * FROM t WHERE 1=1".to_string(),
+                }),
+            },
+            TraceChain::LiteralAssignment {
+                value: " AND status = ".to_string(),
+            },
+            TraceChain::VariableCopy {
+                source_var: "p_status".to_string(),
+                source_chain: Box::new(TraceChain::Unknown),
+            },
+        ],
+    };
+    let template = extract_template(&trace);
+    assert!(template.is_some());
+    let t = template.unwrap();
+    // v_sql resolves to a known literal, so it's inlined as static text;
+    // only p_status (Unknown source_chain) is a true dynamic parameter
+    assert_eq!(t.static_parts.len(), 2); // "SELECT...1=1 AND status = ", ""
+    assert_eq!(t.dynamic_params.len(), 1); // p_status
+    assert_eq!(t.dynamic_params[0].param_name, "p_status");
+}
+
+#[test]
+fn test_template_extraction_literal_only() {
+    // Pure literal - no template needed
+    let trace = TraceChain::LiteralAssignment {
+        value: "SELECT 1".to_string(),
+    };
+    assert!(extract_template(&trace).is_none());
+}
+
+#[test]
+fn test_template_extraction_unknown() {
+    let trace = TraceChain::Unknown;
+    assert!(extract_template(&trace).is_none());
+}
+
+#[test]
+fn test_template_extraction_all_static_concat() {
+    // Concatenation of only literals - no dynamic params
+    let trace = TraceChain::Concatenation {
+        parts: vec![
+            TraceChain::LiteralAssignment {
+                value: "SELECT ".to_string(),
+            },
+            TraceChain::LiteralAssignment {
+                value: "1".to_string(),
+            },
+        ],
+    };
+    // All static parts, no dynamic params -> None
+    assert!(extract_template(&trace).is_none());
+}

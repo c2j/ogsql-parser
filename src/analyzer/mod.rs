@@ -1,3 +1,5 @@
+pub mod schema;
+
 use std::collections::HashMap;
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
@@ -27,6 +29,8 @@ pub struct ExecuteFinding {
     pub parameter_bindings: Vec<ParameterBinding>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub optional_filters: Vec<OptionalFilter>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub dynamic_template: Option<DynamicTemplate>,
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -60,6 +64,34 @@ pub enum TraceChain {
         value: String,
     },
     Unknown,
+}
+
+// ── Dynamic SQL Template Decomposition ──
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct DynamicTemplate {
+    /// Static SQL fragments interleaved with dynamic params
+    /// Template reconstruction: static_parts[0] + dynamic_params[0] + static_parts[1] + ...
+    pub static_parts: Vec<String>,
+    pub dynamic_params: Vec<DynamicParam>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub conditions: Vec<TemplateCondition>,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct DynamicParam {
+    /// Source variable name or expression
+    pub source: String,
+    /// Parameter name (for MyBatis #{param})
+    pub param_name: String,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct TemplateCondition {
+    /// The variable checked in the IF condition
+    pub param: String,
+    /// The operator: "IS NOT NULL", "IS NULL", "= value", etc.
+    pub operator: String,
 }
 
 // ── 参数化 SQL 生成 ──
@@ -413,6 +445,124 @@ fn collect_fingerprints_recursive(
     }
 }
 
+fn extract_template(trace: &TraceChain) -> Option<DynamicTemplate> {
+    match trace {
+        TraceChain::Concatenation { parts } => {
+            build_template_from_parts(parts)
+        }
+        TraceChain::VariableCopy { source_chain, .. } => {
+            extract_template(source_chain)
+        }
+        _ => None,
+    }
+}
+
+/// Collect static text from a trace chain (recursively flattens literals).
+/// Used when a nested Concatenation has no dynamic params — its static text
+/// must still be appended to the parent template.
+fn collect_static_text(trace: &TraceChain) -> String {
+    match trace {
+        TraceChain::LiteralAssignment { value }
+        | TraceChain::DeclarationDefault { value } => value.clone(),
+        TraceChain::VariableCopy { source_chain, .. } => collect_static_text(source_chain),
+        TraceChain::Concatenation { parts } => {
+            parts.iter().map(|p| collect_static_text(p)).collect()
+        }
+        TraceChain::Unknown => String::new(),
+    }
+}
+
+/// Merge a sub-template's static parts and dynamic params into the parent
+/// template being built. Handles both cases: sub-template present (has dynamic
+/// params) or absent (all-static — collect text only).
+fn merge_sub_template(
+    sub_parts: &[TraceChain],
+    static_parts: &mut Vec<String>,
+    dynamic_params: &mut Vec<DynamicParam>,
+) {
+    if let Some(sub_template) = build_template_from_parts(sub_parts) {
+        if let Some(last) = static_parts.last_mut() {
+            last.push_str(sub_template.static_parts.first().unwrap_or(&String::new()));
+        }
+        for (i, param) in sub_template.dynamic_params.iter().enumerate() {
+            dynamic_params.push(param.clone());
+            if i + 1 < sub_template.static_parts.len() {
+                static_parts.push(sub_template.static_parts[i + 1].clone());
+            } else {
+                static_parts.push(String::new());
+            }
+        }
+    } else {
+        // All-static concatenation: collect literal text and append
+        if let Some(last) = static_parts.last_mut() {
+            let text: String = sub_parts.iter().map(|p| collect_static_text(p)).collect();
+            last.push_str(&text);
+        }
+    }
+}
+
+fn build_template_from_parts(parts: &[TraceChain]) -> Option<DynamicTemplate> {
+    let mut static_parts = Vec::new();
+    let mut dynamic_params = Vec::new();
+
+    static_parts.push(String::new());
+
+    for part in parts {
+        match part {
+            TraceChain::LiteralAssignment { value }
+            | TraceChain::DeclarationDefault { value } => {
+                if let Some(last) = static_parts.last_mut() {
+                    last.push_str(value);
+                }
+            }
+            TraceChain::VariableCopy { source_var, source_chain } => {
+                match source_chain.as_ref() {
+                    TraceChain::LiteralAssignment { value }
+                    | TraceChain::DeclarationDefault { value } => {
+                        if let Some(last) = static_parts.last_mut() {
+                            last.push_str(value);
+                        }
+                    }
+                    TraceChain::Concatenation { parts: sub_parts } => {
+                        merge_sub_template(sub_parts, &mut static_parts, &mut dynamic_params);
+                    }
+                    _ => {
+                        dynamic_params.push(DynamicParam {
+                            source: source_var.clone(),
+                            param_name: source_var.clone(),
+                        });
+                        static_parts.push(String::new());
+                    }
+                }
+            }
+            TraceChain::Concatenation { parts: sub_parts } => {
+                merge_sub_template(sub_parts, &mut static_parts, &mut dynamic_params);
+            }
+            TraceChain::Unknown => {
+                dynamic_params.push(DynamicParam {
+                    source: "?".to_string(),
+                    param_name: "?".to_string(),
+                });
+                static_parts.push(String::new());
+            }
+        }
+    }
+
+    if dynamic_params.is_empty() {
+        return None;
+    }
+
+    for part in &mut static_parts {
+        *part = part.trim().to_string();
+    }
+
+    Some(DynamicTemplate {
+        static_parts,
+        dynamic_params,
+        conditions: Vec::new(),
+    })
+}
+
 // ── 内部状态 ──
 
 struct VarState {
@@ -548,6 +698,7 @@ impl DynamicSqlAnalyzer {
                     .and_then(|s| crate::parser::Parser::parse_statement_from_str(s));
                 let desc = self.expr_to_string(&exec.string_expr);
                 let param_result = parameterize_trace(&trace);
+                let dynamic_template = extract_template(&trace);
 
                 let optional_filters = parsed
                     .as_ref()
@@ -568,6 +719,7 @@ impl DynamicSqlAnalyzer {
                     },
                     parameter_bindings: param_result.bindings,
                     optional_filters,
+                    dynamic_template,
                 });
             }
 
