@@ -1100,6 +1100,8 @@ fn walk_expr(visitor: &mut dyn Visitor, expr: &Expr) -> VisitorResult {
             }
         }
         Expr::PlVariable(_) => {}
+        Expr::SequenceValue { .. } => {}
+        Expr::SysDate => {}
         _ => {}
     }
 

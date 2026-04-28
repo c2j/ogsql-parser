@@ -1175,6 +1175,12 @@ pub enum ScalarSublinkType {
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub enum SequenceFunc {
+    Nextval,
+    Currval,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum Expr {
     Literal(Literal),
     ColumnRef(ObjectName),
@@ -1312,6 +1318,11 @@ pub enum Expr {
     PredictBy {
         model_name: String,
         features: Vec<Expr>,
+    },
+    SysDate,
+    SequenceValue {
+        sequence: ObjectName,
+        function: SequenceFunc,
     },
     /// PL/pgSQL variable reference
     PlVariable(ObjectName),

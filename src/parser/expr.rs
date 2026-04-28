@@ -1,7 +1,7 @@
 use crate::ast::{
-    DataType, Expr, Literal, ObjectName, OrderByItem, SelectStatement, WhenClause, WindowFrame,
-    WindowFrameBound, WindowFrameDirection, WindowFrameMode, WindowSpec, XmlAttribute,
-    XmlAttributes, XmlContent, XmlOption,
+    DataType, Expr, Literal, ObjectName, OrderByItem, SelectStatement, SequenceFunc, WhenClause,
+    WindowFrame, WindowFrameBound, WindowFrameDirection, WindowFrameMode, WindowSpec,
+    XmlAttribute, XmlAttributes, XmlContent, XmlOption,
 };
 use crate::parser::{Parser, ParserError};
 use crate::token::keyword::Keyword;
@@ -987,11 +987,14 @@ impl Parser {
                     }
                     return Ok(Expr::ColumnRef(vec!["interval".to_string()]));
                 }
+                if matches!(kw, Keyword::SYSDATE) {
+                    self.advance();
+                    return Ok(Expr::SysDate);
+                }
                 // Built-in expression keywords that are RESERVED but valid as expressions
                 if matches!(
                     kw,
-                    Keyword::SYSDATE
-                        | Keyword::ROWNUM
+                    Keyword::ROWNUM
                         | Keyword::MAXVALUE
                         | Keyword::CURRENT_DATE
                         | Keyword::CURRENT_CATALOG
@@ -1058,6 +1061,22 @@ impl Parser {
                 }
                 if self.match_token(&Token::LParen) {
                     return self.parse_function_call(name);
+                }
+                if name.len() >= 2 {
+                    let last = name.last().unwrap().to_lowercase();
+                    if last == "nextval" || last == "currval" {
+                        let func = if last == "nextval" {
+                            SequenceFunc::Nextval
+                        } else {
+                            SequenceFunc::Currval
+                        };
+                        let mut seq_parts = name.clone();
+                        seq_parts.pop();
+                        return Ok(Expr::SequenceValue {
+                            sequence: seq_parts,
+                            function: func,
+                        });
+                    }
                 }
                 // PL context: resolve single-part names against scope stack
                 if !self.scope_stack.is_empty() && name.len() == 1 && self.is_var_declared(&name[0]) {
@@ -1128,6 +1147,22 @@ impl Parser {
                 name.push(self.parse_identifier()?);
             }
             let obj_name = name;
+            if obj_name.len() >= 2 {
+                let last = obj_name.last().unwrap().to_lowercase();
+                if last == "nextval" || last == "currval" {
+                    let func = if last == "nextval" {
+                        SequenceFunc::Nextval
+                    } else {
+                        SequenceFunc::Currval
+                    };
+                    let mut seq_parts = obj_name.clone();
+                    seq_parts.pop();
+                    return Ok(Expr::SequenceValue {
+                        sequence: seq_parts,
+                        function: func,
+                    });
+                }
+            }
             if let Token::StringLiteral(s) = self.peek().clone() {
                 self.advance();
                 return Ok(Expr::TypeCast {

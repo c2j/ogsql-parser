@@ -7165,6 +7165,88 @@ fn test_sysdate_as_expression_no_error() {
 }
 
 #[test]
+fn test_sysdate_in_select() {
+    let stmts = parse("SELECT SYSDATE FROM dual");
+    assert_eq!(stmts.len(), 1);
+    let select = match &stmts[0] {
+        Statement::Select(s) => s,
+        _ => panic!("expected SELECT"),
+    };
+    let target = &select.targets[0];
+    match target {
+        SelectTarget::Expr(expr, alias) => {
+            assert_eq!(*alias, None);
+            assert!(
+                matches!(expr, Expr::SysDate),
+                "expected SysDate, got {:?}",
+                expr
+            );
+        }
+        _ => panic!("expected Expr target, got {:?}", target),
+    }
+}
+
+#[test]
+fn test_sysdate_arithmetic() {
+    let stmts = parse("SELECT SYSDATE - 1 FROM dual");
+    assert_eq!(stmts.len(), 1);
+    let select = match &stmts[0] {
+        Statement::Select(s) => s,
+        _ => panic!("expected SELECT"),
+    };
+    let target = &select.targets[0];
+    match target {
+        SelectTarget::Expr(expr, _) => match expr {
+            Expr::BinaryOp { left, op, right } => {
+                assert!(matches!(left.as_ref(), Expr::SysDate), "expected SysDate on left");
+                assert_eq!(op, "-");
+                assert!(
+                    matches!(right.as_ref(), Expr::Literal(Literal::Integer(1))),
+                    "expected Literal(Integer(1)) on right"
+                );
+            }
+            _ => panic!("expected BinaryOp, got {:?}", expr),
+        },
+        _ => panic!("expected Expr target, got {:?}", target),
+    }
+}
+
+#[test]
+fn test_sysdate_in_where() {
+    let stmts = parse("SELECT * FROM t WHERE created_at > SYSDATE");
+    assert_eq!(stmts.len(), 1);
+    let select = match &stmts[0] {
+        Statement::Select(s) => s,
+        _ => panic!("expected SELECT"),
+    };
+    let where_clause = select.where_clause.as_ref().expect("expected WHERE clause");
+    match where_clause {
+        Expr::BinaryOp { left: _, op, right } => {
+            assert_eq!(op, ">");
+            assert!(
+                matches!(right.as_ref(), Expr::SysDate),
+                "expected SysDate on right of >, got {:?}",
+                right
+            );
+        }
+        _ => panic!("expected BinaryOp in WHERE, got {:?}", where_clause),
+    }
+}
+
+#[test]
+fn test_sysdate_json_roundtrip() {
+    let sql = "SELECT SYSDATE FROM dual";
+    let stmts = parse(sql);
+
+    let json = serde_json::to_string(&stmts).unwrap();
+    let restored: Vec<Statement> = serde_json::from_str(&json).unwrap();
+
+    let formatter = SqlFormatter::new();
+    let output = formatter.format_statement(&restored[0]);
+    assert_eq!(output, "SELECT SYSDATE FROM dual");
+}
+
+#[test]
 fn test_rownum_in_where_no_error() {
     let sql = "SELECT * FROM t WHERE rownum <= 10";
     let tokens = Tokenizer::new(sql).tokenize().unwrap();
@@ -10585,6 +10667,98 @@ fn test_select_expr_failures() {
         }
         panic!("{} SELECT expr test cases failed", failures.len());
     }
+}
+
+#[test]
+fn test_select_sequence_value() {
+    let sql = "SELECT seq_name.NEXTVAL FROM t";
+    let stmt = parse_one(sql);
+    match stmt {
+        Statement::Select(s) => {
+            if let SelectTarget::Expr(expr, _) = &s.targets[0] {
+                match expr {
+                    Expr::SequenceValue { sequence, function } => {
+                        assert_eq!(*sequence, vec!["seq_name".to_string()]);
+                        assert!(matches!(function, SequenceFunc::Nextval));
+                    }
+                    other => panic!("expected SequenceValue, got {:?}", other),
+                }
+            } else {
+                panic!("expected Expr target");
+            }
+        }
+        _ => panic!("expected Select"),
+    }
+
+    let sql2 = "SELECT seq_name.CURRVAL FROM t";
+    let stmt2 = parse_one(sql2);
+    match stmt2 {
+        Statement::Select(s) => {
+            if let SelectTarget::Expr(expr, _) = &s.targets[0] {
+                match expr {
+                    Expr::SequenceValue { sequence, function } => {
+                        assert_eq!(*sequence, vec!["seq_name".to_string()]);
+                        assert!(matches!(function, SequenceFunc::Currval));
+                    }
+                    other => panic!("expected SequenceValue, got {:?}", other),
+                }
+            } else {
+                panic!("expected Expr target");
+            }
+        }
+        _ => panic!("expected Select"),
+    }
+
+    let sql3 = "SELECT schema.seq_name.NEXTVAL FROM t";
+    let stmt3 = parse_one(sql3);
+    match stmt3 {
+        Statement::Select(s) => {
+            if let SelectTarget::Expr(expr, _) = &s.targets[0] {
+                match expr {
+                    Expr::SequenceValue { sequence, function } => {
+                        assert_eq!(*sequence, vec!["schema".to_string(), "seq_name".to_string()]);
+                        assert!(matches!(function, SequenceFunc::Nextval));
+                    }
+                    other => panic!("expected SequenceValue, got {:?}", other),
+                }
+            } else {
+                panic!("expected Expr target");
+            }
+        }
+        _ => panic!("expected Select"),
+    }
+}
+
+#[test]
+fn test_select_nextval_function_call_unchanged() {
+    let sql = "SELECT nextval('seq_name') FROM t";
+    let stmt = parse_one(sql);
+    match stmt {
+        Statement::Select(s) => {
+            if let SelectTarget::Expr(expr, _) = &s.targets[0] {
+                match expr {
+                    Expr::FunctionCall { name, args, .. } => {
+                        assert_eq!(name.last().unwrap().to_lowercase(), "nextval");
+                        assert_eq!(args.len(), 1);
+                    }
+                    other => panic!("expected FunctionCall, got {:?}", other),
+                }
+            } else {
+                panic!("expected Expr target");
+            }
+        }
+        _ => panic!("expected Select"),
+    }
+}
+
+#[test]
+fn test_sequence_value_json_roundtrip() {
+    let sql = "SELECT schema.seq_name.NEXTVAL FROM t";
+    let stmt = parse_one(sql);
+    let json = serde_json::to_string(&stmt).unwrap();
+    let restored: Statement = serde_json::from_str(&json).unwrap();
+    let formatted = SqlFormatter::new().format_statement(&restored);
+    assert_eq!(formatted, "SELECT schema.seq_name.NEXTVAL FROM t");
 }
 
 #[test]

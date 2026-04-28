@@ -1357,6 +1357,14 @@ impl SqlFormatter {
                         .join(", ")
                 )
             }
+            Expr::SysDate => self.kw("SYSDATE"),
+            Expr::SequenceValue { sequence, function } => {
+                let func_name = match function {
+                    SequenceFunc::Nextval => "NEXTVAL",
+                    SequenceFunc::Currval => "CURRVAL",
+                };
+                format!("{}.{}", self.format_object_name(sequence), func_name)
+            }
             Expr::PlVariable(name) => self.format_object_name(name),
         }
     }
