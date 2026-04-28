@@ -18,6 +18,9 @@ struct Cli {
 
     #[arg(short = 'v', long, global = true)]
     verbose: bool,
+
+    #[arg(long = "schema-json", global = true)]
+    schema_json: Option<String>,
 }
 
 #[derive(Subcommand)]
@@ -179,6 +182,18 @@ fn cmd_parse(cli: &Cli) {
                         "transaction_analysis".to_string(),
                         serde_json::json!(tx_report),
                     );
+                    if let Some(ref schema_path) = cli.schema_json {
+                        match ogsql_parser::load_schema(schema_path) {
+                            Ok(schema) => {
+                                let schema_report = ogsql_parser::resolve_schema(block, &schema);
+                                obj.as_object_mut().unwrap().insert(
+                                    "schema_resolution".to_string(),
+                                    serde_json::json!(schema_report),
+                                );
+                            }
+                            Err(e) => eprintln!("Warning: {}", e),
+                        }
+                    }
                 }
                 annotate_builtin_functions(&mut obj);
                 obj
