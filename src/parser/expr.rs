@@ -1279,6 +1279,13 @@ impl Parser {
         }
     }
 
+    /// Parse a function call after the opening `(` has been consumed.
+    ///
+    /// Certain functions with keyword-separated syntax (SUBSTRING, OVERLAY, POSITION,
+    /// EXTRACT, TRIM, CONVERT) are routed to dedicated parsers that produce
+    /// `Expr::SpecialFunction` instead of `Expr::FunctionCall`. See the
+    /// [`SpecialFunction`](crate::ast::Expr::SpecialFunction) variant documentation
+    /// for the complete list and rationale.
     fn parse_function_call(&mut self, name: ObjectName) -> Result<Expr, ParserError> {
         self.expect_token(&Token::LParen)?;
 
@@ -1290,6 +1297,9 @@ impl Parser {
         if lower_name == "position" {
             return self.parse_position_function(name);
         }
+        // Both `substring` and `substr` are handled by the same parser.
+        // Even `substr(a, 1, 3)` with pure comma syntax becomes SpecialFunction
+        // to avoid splitting one semantic function across two AST node types.
         if lower_name == "substring" || lower_name == "substr" {
             return self.parse_substring_function(name);
         }
