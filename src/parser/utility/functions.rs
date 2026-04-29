@@ -755,7 +755,13 @@ impl Parser {
                     }
                 }
                 _ => {
-                    self.advance();
+                    if let Some(crate::ast::plpgsql::PlDeclaration::Variable(var)) =
+                        self.try_parse_oracle_var_decl()
+                    {
+                        items.push(PackageItem::Variable(var));
+                    } else {
+                        self.advance();
+                    }
                 }
             }
         }

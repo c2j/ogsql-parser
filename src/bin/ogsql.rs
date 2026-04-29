@@ -554,7 +554,8 @@ fn find_error_sub_item(stmt: &Statement, error_line: usize) -> (Option<String>, 
                         let name = f.name.join(".");
                         return (Some(format!("FUNCTION {}", name)), f.start_line, f.end_line);
                     }
-                    _ => {}
+                    PackageItem::Variable(_)
+                    | PackageItem::Raw(_) => {}
                 }
             }
             (None, 0, 0)
@@ -578,7 +579,8 @@ fn find_error_sub_item(stmt: &Statement, error_line: usize) -> (Option<String>, 
                         let name = f.name.join(".");
                         return (Some(format!("FUNCTION {}", name)), f.start_line, f.end_line);
                     }
-                    _ => {}
+                    PackageItem::Variable(_)
+                    | PackageItem::Raw(_) => {}
                 }
             }
             (None, 0, 0)
