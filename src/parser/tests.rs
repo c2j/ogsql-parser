@@ -13134,3 +13134,188 @@ fn test_span_preserved_in_json_roundtrip() {
         _ => panic!("type mismatch"),
     }
 }
+
+// ========== Package Body Variable Declarations (issue #65) ==========
+
+#[test]
+fn test_package_body_variable_with_default() {
+    let sql = "CREATE OR REPLACE PACKAGE BODY pkg_example AS\n\
+               v_status VARCHAR := 'ACTIVE';\n\
+               v_counter INTEGER := 0;\n\
+               v_max_amount NUMERIC := 99999.99;\n\
+               PROCEDURE prc_check(p_id BIGINT) IS\n\
+                 v_current VARCHAR;\n\
+               BEGIN\n\
+                 v_current := v_status;\n\
+               END;\n\
+               END pkg_example;";
+    let stmt = parse_one(sql);
+    match stmt {
+        Statement::CreatePackageBody(p) => {
+            assert_eq!(p.name, vec!["pkg_example"]);
+            let vars: Vec<_> = p.items.iter().filter_map(|item| match item {
+                PackageItem::Variable(v) => Some(v.clone()),
+                _ => None,
+            }).collect();
+            assert_eq!(vars.len(), 3, "should have 3 variable declarations, got items: {:?}", p.items.iter().map(|i| format!("{:?}", i)).collect::<Vec<_>>());
+
+            assert_eq!(vars[0].name, "v_status");
+            match &vars[0].data_type {
+                PlDataType::TypeName(s) => assert!(s.eq_ignore_ascii_case("VARCHAR"), "expected VARCHAR, got {}", s),
+                other => panic!("expected TypeName, got {:?}", other),
+            }
+            assert!(vars[0].default.is_some());
+
+            assert_eq!(vars[1].name, "v_counter");
+            match &vars[1].data_type {
+                PlDataType::TypeName(s) => assert!(s.eq_ignore_ascii_case("INTEGER"), "expected INTEGER, got {}", s),
+                other => panic!("expected TypeName, got {:?}", other),
+            }
+            assert!(vars[1].default.is_some());
+
+            assert_eq!(vars[2].name, "v_max_amount");
+            match &vars[2].data_type {
+                PlDataType::TypeName(s) => assert!(s.eq_ignore_ascii_case("NUMERIC"), "expected NUMERIC, got {}", s),
+                other => panic!("expected TypeName, got {:?}", other),
+            }
+            assert!(vars[2].default.is_some());
+        }
+        other => panic!("expected CreatePackageBody, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_package_body_variable_no_default() {
+    let sql = "CREATE OR REPLACE PACKAGE BODY pkg_example AS\n\
+               v_buffer VARCHAR;\n\
+               PROCEDURE prc_check IS\n\
+               BEGIN\n\
+                 NULL;\n\
+               END;\n\
+               END pkg_example;";
+    let stmt = parse_one(sql);
+    match stmt {
+        Statement::CreatePackageBody(p) => {
+            let vars: Vec<_> = p.items.iter().filter_map(|item| match item {
+                PackageItem::Variable(v) => Some(v.clone()),
+                _ => None,
+            }).collect();
+            assert_eq!(vars.len(), 1, "should have 1 variable declaration");
+            assert_eq!(vars[0].name, "v_buffer");
+            assert!(vars[0].default.is_none());
+        }
+        other => panic!("expected CreatePackageBody, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_package_body_variable_percent_type() {
+    let sql = "CREATE OR REPLACE PACKAGE BODY BIGFUND.PACK_LOG AS\n\
+               DEFAULT_LOG_LEVEL DB_LOG.LOG_LEVEL%TYPE := '2';\n\
+               LOG_LEVEL_FILTER DB_LOG.LOG_LEVEL%TYPE := '3';\n\
+               PROCEDURE LOG IS\n\
+               BEGIN\n\
+                 NULL;\n\
+               END;\n\
+               END PACK_LOG;";
+    let stmt = parse_one(sql);
+    match stmt {
+        Statement::CreatePackageBody(p) => {
+            let vars: Vec<_> = p.items.iter().filter_map(|item| match item {
+                PackageItem::Variable(v) => Some(v.clone()),
+                _ => None,
+            }).collect();
+            assert_eq!(vars.len(), 2, "should have 2 variable declarations");
+            assert_eq!(vars[0].name, "DEFAULT_LOG_LEVEL");
+            assert!(matches!(vars[0].data_type, PlDataType::PercentType { .. }));
+            assert_eq!(vars[1].name, "LOG_LEVEL_FILTER");
+            assert!(matches!(vars[1].data_type, PlDataType::PercentType { .. }));
+        }
+        other => panic!("expected CreatePackageBody, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_package_body_variable_exception() {
+    let sql = "CREATE OR REPLACE PACKAGE BODY pkg_example AS\n\
+               LOGGING_EXCEPTION EXCEPTION;\n\
+               PROCEDURE prc_check IS\n\
+               BEGIN\n\
+                 NULL;\n\
+               END;\n\
+               END pkg_example;";
+    let stmt = parse_one(sql);
+    match stmt {
+        Statement::CreatePackageBody(p) => {
+            let vars: Vec<_> = p.items.iter().filter_map(|item| match item {
+                PackageItem::Variable(v) => Some(v.clone()),
+                _ => None,
+            }).collect();
+            assert_eq!(vars.len(), 1, "should have 1 variable declaration");
+            assert_eq!(vars[0].name, "LOGGING_EXCEPTION");
+            assert!(matches!(vars[0].data_type, PlDataType::TypeName(ref s) if s.eq_ignore_ascii_case("EXCEPTION")));
+        }
+        other => panic!("expected CreatePackageBody, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_package_body_variable_with_precision() {
+    let sql = "CREATE OR REPLACE PACKAGE BODY pkg_example AS\n\
+               v_sql VARCHAR2(32767) := '';\n\
+               END pkg_example;";
+    let stmt = parse_one(sql);
+    match stmt {
+        Statement::CreatePackageBody(p) => {
+            let vars: Vec<_> = p.items.iter().filter_map(|item| match item {
+                PackageItem::Variable(v) => Some(v.clone()),
+                _ => None,
+            }).collect();
+            assert_eq!(vars.len(), 1, "should have 1 variable declaration");
+            assert_eq!(vars[0].name, "v_sql");
+        }
+        other => panic!("expected CreatePackageBody, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_package_body_mixed_variables_and_procedures() {
+    let sql = "CREATE OR REPLACE PACKAGE BODY pkg_example AS\n\
+               v_status VARCHAR := 'ACTIVE';\n\
+               v_counter INTEGER := 0;\n\
+               PROCEDURE prc_check(p_id BIGINT) IS\n\
+               BEGIN\n\
+                 NULL;\n\
+               END;\n\
+               FUNCTION get_name RETURN VARCHAR2 IS\n\
+               BEGIN\n\
+                 RETURN 'test';\n\
+               END;\n\
+               END pkg_example;";
+    let stmt = parse_one(sql);
+    match stmt {
+        Statement::CreatePackageBody(p) => {
+            assert_eq!(p.items.len(), 4, "should have 4 items (2 vars + 1 proc + 1 func), got {}", p.items.len());
+            assert!(matches!(&p.items[0], PackageItem::Variable(v) if v.name == "v_status"));
+            assert!(matches!(&p.items[1], PackageItem::Variable(v) if v.name == "v_counter"));
+            assert!(matches!(&p.items[2], PackageItem::Procedure(_)));
+            assert!(matches!(&p.items[3], PackageItem::Function(_)));
+        }
+        other => panic!("expected CreatePackageBody, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_package_body_variable_json_serialization() {
+    let sql = "CREATE OR REPLACE PACKAGE BODY pkg_example AS\n\
+               v_status VARCHAR := 'ACTIVE';\n\
+               END pkg_example;";
+    let stmt = parse_one(sql);
+    let json = serde_json::to_value(&stmt).unwrap();
+    let pkg = json.get("CreatePackageBody").unwrap();
+    let items = pkg.get("items").unwrap().as_array().unwrap();
+    assert_eq!(items.len(), 1);
+    let var = &items[0].get("Variable").unwrap();
+    assert_eq!(var.get("name").unwrap().as_str().unwrap(), "v_status");
+    assert!(var.get("default").is_some());
+}
