@@ -141,7 +141,7 @@ Full list of all variants: `Select`, `Insert`, `InsertAll`, `InsertFirst`, `Upda
 | `RowConstructor` | `(1, 'a', TRUE)` | `{ "RowConstructor": [...] }` |
 | `Prior` | `PRIOR x` (hierarchical query) | `{ "Prior": {...} }` |
 | `Default` | `DEFAULT` | `"Default"` |
-| `SpecialFunction` | `EXTRACT(YEAR FROM d)`, `SUBSTRING(s FROM 1 FOR 3)` | `{ "SpecialFunction": { "name": "extract", "args": [...] } }` |
+| `SpecialFunction` | `EXTRACT(YEAR FROM d)`, `SUBSTRING(s FROM 1 FOR 3)`, `SUBSTR('hello', 1, 3)` | `{ "SpecialFunction": { "name": "extract", "args": [...] } }` |
 | `CurrentOf` | `WHERE CURRENT OF cursor` | `{ "CurrentOf": { "cursor_name": "c1" } }` |
 | `XmlElement` | `XMLELEMENT(...)` | `{ "XmlElement": { "name": ..., "content": [...] } }` |
 | `XmlConcat` | `XMLCONCAT(...)` | `{ "XmlConcat": [...] }` |
@@ -155,7 +155,10 @@ Full list of all variants: `Select`, `Insert`, `InsertAll`, `InsertFirst`, `Upda
 
 ## FunctionCall
 
-The most complex and important expression node:
+The most complex and important expression node. Covers all user-defined functions and most
+built-in functions. For functions with keyword-separated syntax (e.g. `EXTRACT`, `SUBSTRING`,
+`SUBSTR`), see [SpecialFunction](#specialfunction) — JSON consumers must handle **both**
+node types when looking for "all function calls".
 
 ```json
 {
@@ -218,17 +221,57 @@ When `window_name` is set, it's a reference to a named window (`OVER w`), and ot
 
 ### SpecialFunction
 
-Functions with keyword-separated syntax (not comma-separated):
+SQL functions that use keyword-separated syntax instead of commas, or have multiple syntax
+forms that must be unified into a single AST type. When walking the AST for "all function
+calls", you **must** handle both `FunctionCall` and `SpecialFunction`.
 
-| Function | SQL Syntax | `name` value |
-|----------|-----------|--------------|
-| `EXTRACT` | `EXTRACT(year FROM date_col)` | `"extract"` |
-| `SUBSTRING` | `SUBSTRING(str FROM 1 FOR 3)` | `"substring"` |
-| `OVERLAY` | `OVERLAY(str PLACING 'x' FROM 2 FOR 1)` | `"overlay"` |
-| `POSITION` | `POSITION('x' IN str)` | `"position"` |
-| `TRIM` | `TRIM(LEADING ' ' FROM str)` | `"trim"` |
+**Why `substr` is SpecialFunction:** `substr` is an alias of `substring`, which supports
+both keyword syntax (`SUBSTRING(str FROM 1 FOR 3)`) and comma syntax (`SUBSTR(str, 1, 3)`).
+To avoid splitting one semantic function across two different AST node types, `substr` is
+always parsed as `SpecialFunction`, even when written with pure comma-separated arguments.
+
+#### Complete List
+
+| Function | `name` value | SQL Syntax | Notes |
+|----------|-------------|------------|-------|
+| `SUBSTRING` / `SUBSTR` | `"substring"` or `"substr"` | `SUBSTRING(str FROM pos [FOR len])` or `SUBSTR(str, pos [, len])` | Both keyword and comma forms → SpecialFunction |
+| `OVERLAY` | `"overlay"` | `OVERLAY(str PLACING repl FROM pos [FOR len])` | |
+| `POSITION` | `"position"` | `POSITION(substr IN str)` | |
+| `EXTRACT` | `"extract"` | `EXTRACT(field FROM expr)` | First arg is the field name as `ColumnRef` |
+| `TRIM` | `"trim"` | `TRIM([LEADING\|TRAILING\|BOTH] [chars] FROM str)` | Only keyword form; `TRIM(expr)` without `FROM` → `FunctionCall` |
+| `CONVERT` | `"convert"` | `CONVERT(expr USING charset)` | Only `USING` form; `CONVERT(a, b)` → `FunctionCall` |
+| `INTERVAL` | `"interval"` | `INTERVAL '1' DAY`, `INTERVAL '2:30' HOUR TO MINUTE` | |
+| `CURRENT_TIME` | `"current_time"` | `CURRENT_TIME` or `CURRENT_TIME(precision)` | Without `()` → `ColumnRef`, not SpecialFunction |
+| `CURRENT_TIMESTAMP` | `"current_timestamp"` | `CURRENT_TIMESTAMP` or `CURRENT_TIMESTAMP(precision)` | Without `()` → `ColumnRef`, not SpecialFunction |
+| `LOCALTIME` | `"localtime"` | `LOCALTIME` or `LOCALTIME(precision)` | Without `()` → `ColumnRef`, not SpecialFunction |
+| `LOCALTIMESTAMP` | `"localtimestamp"` | `LOCALTIMESTAMP` or `LOCALTIMESTAMP(precision)` | Without `()` → `ColumnRef`, not SpecialFunction |
 
 `SpecialFunction` nodes do **not** have `_meta` annotation — they are recognized by the `name` field.
+
+#### Consumer Guidance
+
+To find all function calls in the JSON tree, check for **both** keys:
+
+```javascript
+function isFunctionCall(node) {
+  return node.FunctionCall !== undefined || node.SpecialFunction !== undefined;
+}
+
+function getFunctionName(node) {
+  if (node.FunctionCall) {
+    return node.FunctionCall.name[node.FunctionCall.name.length - 1]; // last element
+  }
+  if (node.SpecialFunction) {
+    return node.SpecialFunction.name;
+  }
+  return null;
+}
+```
+
+**Key differences from `FunctionCall`:**
+- `name` is a **string** (not an array) — these functions are never schema-qualified
+- No `distinct`, `over`, `filter`, `within_group`, `separator` fields
+- No `_meta` annotation — use `function_registry` to check if built-in
 
 ---
 
@@ -335,7 +378,13 @@ Variants: `Union`, `Intersect`, `Except`. Each has `all` (boolean) and `right` (
 
 ### Identify all function calls
 
-Walk the JSON tree recursively. Any object with a `FunctionCall` key contains a function call node. The `name` array's last element is the function name.
+Walk the JSON tree recursively. Any object with a `FunctionCall` **or** `SpecialFunction` key
+contains a function call node. You must handle both — `SpecialFunction` covers functions like
+`SUBSTRING`, `SUBSTR`, `EXTRACT`, `OVERLAY`, `POSITION`, `TRIM` (with `FROM`), `CONVERT` (with
+`USING`), and `INTERVAL`.
+
+- `FunctionCall`: `name` is an array (last element is the function name)
+- `SpecialFunction`: `name` is a string (never schema-qualified)
 
 ### Check if a function is built-in
 

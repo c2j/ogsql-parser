@@ -1201,6 +1201,12 @@ pub enum Expr {
         op: String,
         expr: Box<Expr>,
     },
+    /// Standard function call with comma-separated arguments.
+    ///
+    /// Covers all user-defined functions and most built-in functions.
+    /// For functions with keyword-separated syntax (e.g. `EXTRACT`, `SUBSTRING`),
+    /// see [`SpecialFunction`](Expr::SpecialFunction) — downstream consumers must
+    /// handle **both** variants when looking for "all function calls" in the AST.
     FunctionCall {
         name: ObjectName,
         args: Vec<Expr>,
@@ -1302,10 +1308,53 @@ pub enum Expr {
         expr: Box<Expr>,
         type_name: DataType,
     },
-    /// Special SQL functions with keyword-separated syntax instead of commas:
-    /// - overlay(string PLACING string FROM int [FOR int])
-    /// - position(string IN string)
-    /// - substring(string FROM int [FOR int]) / substring(string FOR int)
+    /// SQL functions that use keyword-separated syntax (or have ambiguous syntax forms)
+    /// and therefore cannot be represented as a regular [`FunctionCall`].
+    ///
+    /// # Why SpecialFunction instead of FunctionCall?
+    ///
+    /// Standard function calls use comma-separated arguments: `func(a, b, c)`.
+    /// Some SQL functions use **keywords** to separate arguments instead of commas,
+    /// e.g. `SUBSTRING(str FROM 1 FOR 3)`, `EXTRACT(year FROM date)`. These require
+    /// dedicated parsing logic and a simplified AST representation that only captures
+    /// positional arguments (the keywords are implied by position).
+    ///
+    /// Additionally, `substr` is treated as an alias of `substring` and always produces
+    /// `SpecialFunction`, even when written with comma syntax (`substr('hello', 1, 3)`).
+    /// This avoids having the same semantic function produce two different AST node types.
+    ///
+    /// # Complete list of functions that produce SpecialFunction
+    ///
+    /// | Function | `name` value | Syntax forms | Notes |
+    /// |----------|-------------|--------------|-------|
+    /// | `SUBSTRING` / `SUBSTR` | `"substring"` or `"substr"` | `FROM`/`FOR` keywords **or** commas | `substr` is always SpecialFunction |
+    /// | `OVERLAY` | `"overlay"` | `PLACING`/`FROM`/`FOR` keywords | |
+    /// | `POSITION` | `"position"` | `IN` keyword | |
+    /// | `EXTRACT` | `"extract"` | `field FROM expr` | |
+    /// | `TRIM` | `"trim"` | `LEADING`/`TRAILING`/`BOTH` + `FROM` | Only when keyword syntax is used; `TRIM(expr)` becomes `FunctionCall` |
+    /// | `CONVERT` | `"convert"` | `expr USING charset` | Only with `USING` keyword; `CONVERT(a, b)` becomes `FunctionCall` |
+    /// | `INTERVAL` | `"interval"` | `'value' unit` | |
+    /// | `CURRENT_TIME` | `"current_time"` | Optional precision `(n)` | Without parentheses → `ColumnRef` |
+    /// | `CURRENT_TIMESTAMP` | `"current_timestamp"` | Optional precision `(n)` | Without parentheses → `ColumnRef` |
+    /// | `LOCALTIME` | `"localtime"` | Optional precision `(n)` | Without parentheses → `ColumnRef` |
+    /// | `LOCALTIMESTAMP` | `"localtimestamp"` | Optional precision `(n)` | Without parentheses → `ColumnRef` |
+    ///
+    /// # Downstream consumer guidance
+    ///
+    /// When walking the AST for "all function calls", you **must** handle both
+    /// `Expr::FunctionCall` and `Expr::SpecialFunction`. For example:
+    ///
+    /// ```rust,ignore
+    /// match expr {
+    ///     Expr::FunctionCall { name, args, .. } => { /* regular function */ }
+    ///     Expr::SpecialFunction { name, args } => { /* special function */ }
+    ///     _ => {}
+    /// }
+    /// ```
+    ///
+    /// `SpecialFunction` does **not** carry `builtin` metadata, `over`, `filter`,
+    /// or `within_group` clauses. If you need to check whether a function is built-in,
+    /// use the `function_registry` module to look up the name.
     SpecialFunction {
         name: String,
         args: Vec<Expr>,
