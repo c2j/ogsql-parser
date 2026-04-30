@@ -21,6 +21,9 @@ struct Cli {
 
     #[arg(long = "schema-json", global = true)]
     schema_json: Option<String>,
+
+    #[arg(long, global = true)]
+    comments: bool,
 }
 
 #[derive(Subcommand)]
@@ -98,14 +101,9 @@ fn read_input(file: Option<&str>) -> String {
     }
 }
 
-fn parse_input(sql: &str) -> (Vec<StatementInfo>, Vec<ParserError>) {
-    let tokens = match Tokenizer::new(sql).tokenize() {
-        Ok(t) => t,
-        Err(e) => return (vec![], vec![ParserError::TokenizerError(e)]),
-    };
-    let mut parser = Parser::with_source(tokens, sql.to_string());
-    let infos = parser.parse_with_text();
-    (infos, parser.errors().to_vec())
+fn parse_input(sql: &str, preserve_comments: bool) -> ogsql_parser::ParseOutput {
+    let options = ogsql_parser::ParseOptions { preserve_comments };
+    ogsql_parser::Parser::parse_sql_with_options(sql, options)
 }
 
 fn token_display(t: &TokenWithSpan) -> (String, String) {
@@ -126,6 +124,7 @@ fn token_display(t: &TokenWithSpan) -> (String, String) {
         Token::OpNe2 => ("Op".into(), "!=".into()),
         Token::OpDblBang => ("Op".into(), "!!".into()),
         Token::OpConcat => ("Op".into(), "||".into()),
+        Token::Comment(s) => ("Comment".into(), s.clone()),
         other => ("Other".into(), format!("{:?}", other)),
     }
 }
@@ -162,10 +161,11 @@ fn cmd_format(cli: &Cli) {
 
 fn cmd_parse(cli: &Cli) {
     let sql = read_input(cli.file.as_deref());
-    let (stmts, errors) = parse_input(&sql);
+    let output = parse_input(&sql, cli.comments);
 
     if cli.json {
-        let stmt_values: Vec<serde_json::Value> = stmts
+        let stmt_values: Vec<serde_json::Value> = output
+            .statements
             .iter()
             .map(|si| {
                 let mut obj = serde_json::to_value(si).unwrap();
@@ -180,7 +180,7 @@ fn cmd_parse(cli: &Cli) {
                     let tx_report = ogsql_parser::analyze_transactions(block);
                     obj.as_object_mut().unwrap().insert(
                         "transaction_analysis".to_string(),
-                        serde_json::json!(tx_report),
+                        serde_json::to_string_pretty(&tx_report).unwrap().into(),
                     );
                     if let Some(ref schema_path) = cli.schema_json {
                         match ogsql_parser::load_schema(schema_path) {
@@ -200,12 +200,12 @@ fn cmd_parse(cli: &Cli) {
             })
             .collect();
 
-        let all_stmts: Vec<_> = stmts.iter().map(|si| si.statement.clone()).collect();
+        let all_stmts: Vec<_> = output.statements.iter().map(|si| si.statement.clone()).collect();
         let fingerprints = ogsql_parser::compute_query_fingerprints(&all_stmts);
 
         let mut out = serde_json::json!({
             "statements": stmt_values,
-            "errors": errors,
+            "errors": output.errors,
         });
         if !fingerprints.is_empty() {
             out.as_object_mut().unwrap().insert(
@@ -213,21 +213,27 @@ fn cmd_parse(cli: &Cli) {
                 serde_json::json!(fingerprints),
             );
         }
+        if !output.comments.is_empty() {
+            out.as_object_mut().unwrap().insert(
+                "comments".to_string(),
+                serde_json::json!(output.comments),
+            );
+        }
         println!("{}", serde_json::to_string_pretty(&out).unwrap());
     } else {
-        for stmt in &stmts {
+        for stmt in &output.statements {
             println!("{:#?}", stmt);
         }
-        if !errors.is_empty() {
-            let warnings: Vec<_> = errors.iter().filter(|e| is_warning(e)).collect();
-            let real_errors: Vec<_> = errors.iter().filter(|e| !is_warning(e)).collect();
+        if !output.errors.is_empty() {
+            let warnings: Vec<_> = output.errors.iter().filter(|e| is_warning(e)).collect();
+            let real_errors: Vec<_> = output.errors.iter().filter(|e| !is_warning(e)).collect();
             if !real_errors.is_empty() {
                 eprintln!("\n{} error(s):", real_errors.len());
                 for e in &real_errors {
                     eprintln!("  {}", e);
                 }
                 if cli.verbose {
-                    write_error_log(&sql, cli.file.as_deref(), &stmts, &real_errors);
+                    write_error_log(&sql, cli.file.as_deref(), &output.statements, &real_errors);
                 }
             }
             if !warnings.is_empty() {
@@ -255,7 +261,11 @@ fn extract_pl_block(
 
 fn cmd_tokenize(cli: &Cli) {
     let sql = read_input(cli.file.as_deref());
-    let tokens = match Tokenizer::new(&sql).tokenize() {
+    let mut tokenizer = Tokenizer::new(&sql);
+    if cli.comments {
+        tokenizer = tokenizer.preserve_comments(true);
+    }
+    let tokens = match tokenizer.tokenize() {
         Ok(t) => t,
         Err(e) => die!("Tokenizer error: {}", e),
     };
@@ -343,7 +353,9 @@ fn is_warning(e: &ogsql_parser::ParserError) -> bool {
 
 fn cmd_validate(cli: &Cli) {
     let sql = read_input(cli.file.as_deref());
-    let (stmts, errors) = parse_input(&sql);
+    let output = parse_input(&sql, false);
+    let stmts = output.statements;
+    let errors = output.errors;
 
     if cli.json {
         let warnings: Vec<_> = errors.iter().filter(|e| is_warning(e)).collect();
@@ -608,6 +620,8 @@ mod api {
     #[derive(Deserialize, ToSchema)]
     pub struct SqlInput {
         pub sql: String,
+        #[serde(default)]
+        pub preserve_comments: bool,
     }
 
     #[derive(Deserialize, ToSchema)]
@@ -635,14 +649,20 @@ mod api {
         responses((status = 200, description = "Parsed AST result"))
     )]
     pub async fn handle_parse(Json(input): Json<SqlInput>) -> Json<serde_json::Value> {
-        let (stmts, errors) = super::parse_input(&input.sql);
-        let all_stmts: Vec<_> = stmts.iter().map(|si| si.statement.clone()).collect();
+        let output = super::parse_input(&input.sql, input.preserve_comments);
+        let all_stmts: Vec<_> = output.statements.iter().map(|si| si.statement.clone()).collect();
         let fingerprints = ogsql_parser::compute_query_fingerprints(&all_stmts);
-        let mut out = serde_json::json!({"statements": stmts, "errors": errors});
+        let mut out = serde_json::json!({"statements": output.statements, "errors": output.errors});
         if !fingerprints.is_empty() {
             out.as_object_mut().unwrap().insert(
                 "query_fingerprints".to_string(),
                 serde_json::json!(fingerprints),
+            );
+        }
+        if !output.comments.is_empty() {
+            out.as_object_mut().unwrap().insert(
+                "comments".to_string(),
+                serde_json::json!(output.comments),
             );
         }
         Json(out)
@@ -657,16 +677,17 @@ mod api {
         responses((status = 200, description = "Formatted SQL result"))
     )]
     pub async fn handle_format(Json(input): Json<SqlInput>) -> Json<serde_json::Value> {
-        let (stmts, errors) = super::parse_input(&input.sql);
+        let output = super::parse_input(&input.sql, false);
         let formatter = ogsql_parser::SqlFormatter::new();
-        let formatted: Vec<String> = stmts
+        let formatted: Vec<String> = output
+            .statements
             .iter()
             .map(|si| formatter.format_statement(&si.statement))
             .collect();
         Json(serde_json::json!({
             "formatted": formatted.join(";\n"),
-            "error_count": errors.len(),
-            "errors": errors,
+            "error_count": output.errors.len(),
+            "errors": output.errors,
         }))
     }
 
@@ -707,11 +728,11 @@ mod api {
         responses((status = 200, description = "Validation result"))
     )]
     pub async fn handle_validate(Json(input): Json<SqlInput>) -> Json<serde_json::Value> {
-        let (_, errors) = super::parse_input(&input.sql);
+        let output = super::parse_input(&input.sql, false);
         Json(serde_json::json!({
-            "valid": errors.is_empty(),
-            "error_count": errors.len(),
-            "errors": errors,
+            "valid": output.errors.is_empty(),
+            "error_count": output.errors.len(),
+            "errors": output.errors,
         }))
     }
 

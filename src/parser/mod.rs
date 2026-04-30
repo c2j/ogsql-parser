@@ -4857,3 +4857,123 @@ impl Iterator for StatementIter {
 mod tests;
 #[cfg(test)]
 mod tests_plsql_fixes;
+
+// ── Comment-preserving parse API (issue #68) ──
+
+/// Options for controlling parse behavior.
+#[derive(Debug, Clone, Default)]
+pub struct ParseOptions {
+    pub preserve_comments: bool,
+}
+
+/// A SQL comment extracted from source with position info.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct CommentInfo {
+    pub text: String,
+    pub line: usize,
+    pub end_line: usize,
+    pub column: usize,
+    #[serde(rename = "type")]
+    pub comment_type: String,
+}
+
+/// Output from `parse_sql_with_options`, includes optional comment information.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct ParseOutput {
+    pub statements: Vec<crate::ast::StatementInfo>,
+    pub errors: Vec<ParserError>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub comments: Vec<CommentInfo>,
+}
+
+impl Parser {
+    /// Parse SQL with options. When `preserve_comments` is true, extracts comments
+    /// from the source (including inside `$$...$$` procedure bodies) and returns them
+    /// alongside the parsed statements.
+    pub fn parse_sql_with_options(
+        input: &str,
+        options: ParseOptions,
+    ) -> ParseOutput {
+        if !options.preserve_comments {
+            let (statements, errors) = Self::parse_sql(input);
+            return ParseOutput { statements, errors, comments: vec![] };
+        }
+
+        let tokens = match crate::token::tokenizer::Tokenizer::new(input)
+            .preserve_comments(true)
+            .tokenize()
+        {
+            Ok(t) => t,
+            Err(e) => {
+                return ParseOutput {
+                    statements: vec![],
+                    errors: vec![ParserError::TokenizerError(e)],
+                    comments: vec![],
+                };
+            }
+        };
+
+        let mut comments = Vec::new();
+        let mut dollar_bodies: Vec<(usize, String)> = Vec::new();
+
+        for t in &tokens {
+            match &t.token {
+                Token::Comment(text) => {
+                    let line_count = text.lines().count().max(1);
+                    let end_line = t.location.line;
+                    comments.push(CommentInfo {
+                        text: text.clone(),
+                        line: end_line - line_count.saturating_sub(1),
+                        end_line,
+                        column: t.location.column,
+                        comment_type: if text.starts_with("/*") { "block".into() } else { "line".into() },
+                    });
+                }
+                Token::DollarString { body, .. } => {
+                    dollar_bodies.push((t.location.line, body.clone()));
+                }
+                _ => {}
+            }
+        }
+
+        for (body_start_line, body) in &dollar_bodies {
+            let body_tokens = match crate::token::tokenizer::Tokenizer::new(body)
+                .preserve_comments(true)
+                .tokenize()
+            {
+                Ok(t) => t,
+                Err(_) => continue,
+            };
+            for t in &body_tokens {
+                if let Token::Comment(text) = &t.token {
+                    let line_count = text.lines().count().max(1);
+                    let inner_end_line = t.location.line;
+                    let abs_end_line = body_start_line + inner_end_line - 1;
+                    comments.push(CommentInfo {
+                        text: text.clone(),
+                        line: abs_end_line - line_count.saturating_sub(1),
+                        end_line: abs_end_line,
+                        column: t.location.column,
+                        comment_type: if text.starts_with("/*") { "block".into() } else { "line".into() },
+                    });
+                }
+            }
+        }
+
+        comments.sort_by_key(|c| (c.line, c.column));
+
+        let clean_tokens: Vec<TokenWithSpan> = tokens
+            .into_iter()
+            .filter(|t| !matches!(t.token, Token::Comment(_)))
+            .collect();
+
+        let mut parser = Parser::with_source(clean_tokens, input.to_string());
+        let statements = parser.parse_with_text();
+
+        ParseOutput {
+            statements,
+            errors: parser.errors().to_vec(),
+            comments,
+        }
+    }
+}
