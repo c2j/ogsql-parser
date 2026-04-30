@@ -13319,3 +13319,86 @@ fn test_package_body_variable_json_serialization() {
     assert_eq!(var.get("name").unwrap().as_str().unwrap(), "v_status");
     assert!(var.get("default").is_some());
 }
+
+// ========== Comment Preservation (issue #68) ==========
+
+fn parse_with_comments(sql: &str) -> crate::parser::ParseOutput {
+    let options = crate::parser::ParseOptions { preserve_comments: true };
+    crate::parser::Parser::parse_sql_with_options(sql, options)
+}
+
+#[test]
+fn test_comments_line_comment() {
+    let sql = "-- header\nSELECT 1;";
+    let output = parse_with_comments(sql);
+    assert_eq!(output.comments.len(), 1);
+    assert_eq!(output.comments[0].text, "-- header");
+    assert_eq!(output.comments[0].line, 1);
+    assert_eq!(output.comments[0].comment_type, "line");
+    assert_eq!(output.statements.len(), 1);
+}
+
+#[test]
+fn test_comments_block_comment() {
+    let sql = "/* block comment */ SELECT 1;";
+    let output = parse_with_comments(sql);
+    assert_eq!(output.comments.len(), 1);
+    assert!(output.comments[0].text.starts_with("/*"));
+    assert_eq!(output.comments[0].comment_type, "block");
+}
+
+#[test]
+fn test_comments_multiline_block() {
+    let sql = "/* line1\nline2\nline3 */ SELECT 1;";
+    let output = parse_with_comments(sql);
+    assert_eq!(output.comments.len(), 1);
+    assert_eq!(output.comments[0].line, 1);
+    assert_eq!(output.comments[0].end_line, 3);
+    assert_eq!(output.comments[0].comment_type, "block");
+}
+
+#[test]
+fn test_comments_multiple() {
+    let sql = "-- header\n-- second line\nSELECT 1; -- trailing";
+    let output = parse_with_comments(sql);
+    assert_eq!(output.comments.len(), 3, "should have 3 comments, got: {:?}", output.comments);
+    assert_eq!(output.comments[0].line, 1);
+    assert_eq!(output.comments[1].line, 2);
+    assert_eq!(output.comments[2].line, 3);
+}
+
+#[test]
+fn test_comments_inside_dollar_string_body() {
+    let sql = "CREATE OR REPLACE PROCEDURE pkg_test.demo() AS $$\nDECLARE\n    v_count INT;  -- record count\nBEGIN\n    -- insert new record\n    INSERT INTO t_test(id) VALUES (1);\n    /* batch update\n       note concurrency */\n    UPDATE t_test SET name = 'x' WHERE id = 1;\nEND;\n$$ LANGUAGE plpgsql;";
+    let output = parse_with_comments(sql);
+    assert!(output.comments.len() >= 3, "should have at least 3 comments from body, got {}: {:?}", output.comments.len(), output.comments);
+
+    let line_comments: Vec<_> = output.comments.iter().filter(|c| c.comment_type == "line").collect();
+    let block_comments: Vec<_> = output.comments.iter().filter(|c| c.comment_type == "block").collect();
+
+    assert!(line_comments.iter().any(|c| c.text.contains("record count")), "missing 'record count' comment");
+    assert!(line_comments.iter().any(|c| c.text.contains("insert new record")), "missing 'insert new record' comment");
+    assert!(block_comments.iter().any(|c| c.text.contains("batch update")), "missing 'batch update' comment");
+
+    let batch = block_comments.iter().find(|c| c.text.contains("batch update")).unwrap();
+    assert!(batch.end_line > batch.line, "multiline block comment should span multiple lines");
+}
+
+#[test]
+fn test_comments_preserve_off_by_default() {
+    let sql = "-- comment\nSELECT 1;";
+    let (stmts, errors) = crate::parser::Parser::parse_sql(sql);
+    assert!(stmts.len() >= 1);
+    assert!(errors.is_empty() || errors.iter().all(|e| matches!(e, crate::parser::ParserError::Warning { .. })));
+}
+
+#[test]
+fn test_comments_json_output() {
+    let sql = "-- header\nSELECT 1;";
+    let output = parse_with_comments(sql);
+    let json = serde_json::to_value(&output).unwrap();
+    let comments = json.get("comments").unwrap().as_array().unwrap();
+    assert_eq!(comments.len(), 1);
+    assert_eq!(comments[0].get("type").unwrap().as_str().unwrap(), "line");
+    assert_eq!(comments[0].get("line").unwrap().as_u64().unwrap(), 1);
+}
