@@ -6735,6 +6735,14 @@ impl SqlFormatter {
         match item {
             PackageItem::Procedure(p) => self.format_package_procedure(p, indent),
             PackageItem::Function(f) => self.format_package_function(f, indent),
+            PackageItem::Variable(v) => {
+                let mut s = format!("{} {}", v.name, self.format_pl_data_type(&v.data_type));
+                if let Some(ref expr) = v.default {
+                    s.push_str(&format!(" := {}", self.format_expr(expr)));
+                }
+                s.push(';');
+                s
+            }
             PackageItem::Raw(s) => s.clone(),
         }
     }

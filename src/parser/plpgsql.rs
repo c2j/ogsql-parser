@@ -2560,6 +2560,8 @@ impl Parser {
             || name.eq_ignore_ascii_case("exception")
             || name.eq_ignore_ascii_case("declare")
             || name.eq_ignore_ascii_case("cursor")
+            || name.eq_ignore_ascii_case("type")
+            || name.eq_ignore_ascii_case("pragma")
         {
             return None;
         }
@@ -2575,6 +2577,11 @@ impl Parser {
                     None
                 }
             };
+        }
+
+        if self.match_keyword(Keyword::IS) || self.match_keyword(Keyword::AS) {
+            self.pos = start_pos;
+            return None;
         }
 
         if self.match_keyword(Keyword::TYPE_P) {

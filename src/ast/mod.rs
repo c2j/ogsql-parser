@@ -2031,6 +2031,7 @@ pub struct CreatePackageBodyStatement {
 pub enum PackageItem {
     Procedure(PackageProcedure),
     Function(PackageFunction),
+    Variable(crate::ast::plpgsql::PlVarDecl),
     Raw(String),
 }
 
