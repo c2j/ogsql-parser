@@ -2752,6 +2752,58 @@ fn test_create_function_dollar_quoted_not_consume_next() {
     assert!(matches!(&stmts[2], Statement::CreateFunction(_)));
 }
 
+// Regression test for #72: parse_sql (parse_with_text) must not swallow
+// statements after a dollar-quoted CREATE FUNCTION/PROCEDURE body.
+// The root cause was find_statement_end_pos() never clearing in_routine_decl
+// when the BEGIN/END pair is inside a DollarString token.
+#[test]
+fn test_issue_72_dollar_quoting_parse_sql_multi_statement() {
+    // Case 1: two CREATE PROCEDURE with $$
+    let sql = r#"CREATE PROCEDURE p1() AS $$
+BEGIN
+    SELECT * FROM aas_account;
+END;
+$$;
+
+CREATE PROCEDURE p2() AS $$
+BEGIN
+    INSERT INTO aas_account VALUES (1);
+END;
+$$;"#;
+    let (infos, errs) = Parser::parse_sql(sql);
+    assert!(errs.is_empty(), "unexpected errors: {:?}", errs);
+    assert_eq!(infos.len(), 2, "expected 2 statements, got {}: {:?}", infos.len(), infos.iter().map(|i| format!("{:?}", std::mem::discriminant(&i.statement))).collect::<Vec<_>>());
+    assert!(matches!(infos[0].statement, Statement::CreateProcedure(_)));
+    assert!(matches!(infos[1].statement, Statement::CreateProcedure(_)));
+
+    // Case 2: CREATE FUNCTION + CREATE TRIGGER
+    let sql2 = r#"CREATE OR REPLACE FUNCTION trg_func() RETURNS TRIGGER AS $$
+BEGIN
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trg_after_insert
+AFTER INSERT ON t_users
+FOR EACH ROW EXECUTE PROCEDURE trg_func();"#;
+    let (infos2, errs2) = Parser::parse_sql(sql2);
+    assert!(errs2.is_empty(), "unexpected errors: {:?}", errs2);
+    assert_eq!(infos2.len(), 2, "expected 2 statements, got {}", infos2.len());
+    assert!(matches!(infos2[0].statement, Statement::CreateFunction(_)));
+    assert!(matches!(infos2[1].statement, Statement::CreateTrigger(_)));
+
+    // Case 3: CREATE FUNCTION + SELECT + CREATE FUNCTION (the original passing test, but via parse_sql)
+    let sql3 = "CREATE FUNCTION f1() RETURNS void AS $$ BEGIN RETURN; END; $$ LANGUAGE plpgsql;\n\
+                SELECT 1;\n\
+                CREATE FUNCTION f2() RETURNS void AS $$ BEGIN RETURN; END; $$ LANGUAGE plpgsql;";
+    let (infos3, errs3) = Parser::parse_sql(sql3);
+    assert!(errs3.is_empty(), "unexpected errors: {:?}", errs3);
+    assert_eq!(infos3.len(), 3, "expected 3 statements, got {}", infos3.len());
+    assert!(matches!(infos3[0].statement, Statement::CreateFunction(_)));
+    assert!(matches!(infos3[1].statement, Statement::Select(_)));
+    assert!(matches!(infos3[2].statement, Statement::CreateFunction(_)));
+}
+
 #[test]
 fn test_create_procedure_dollar_quoted_body() {
     let sql = "CREATE PROCEDURE my_proc() AS $$ BEGIN RETURN; END; $$ LANGUAGE plpgsql";
