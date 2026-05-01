@@ -493,3 +493,53 @@ fn test_xml_entity_decoding() {
     assert!(result.statements[2].flat_sql.contains(">="));
     assert!(result.statements[2].flat_sql.contains("<="));
 }
+
+#[test]
+fn test_cdata_with_xml_entities_issue70() {
+    // Issue #70: parse_mapper_bytes_with_path infinite loop on SQL with &gt;= / &lt;= in CDATA
+    let xml = br#"<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd" >
+<mapper namespace="test">
+    <select id="queryVModeNeedAndVInstNeed" parameterType="map" resultType="map">
+        <![CDATA[
+        	select t.model_need "modelNeed"
+        	from dat_inst_oper_type_mode t where t.operation_no = #{vOperationNo}
+        	and t.inure_begin_date &gt;= #{date} and t.inure_end_date &lt;= #{date}
+        ]]>
+    </select>
+</mapper>"#;
+    let result = super::parse_mapper_bytes(xml);
+    assert_eq!(result.statements.len(), 1, "should parse 1 statement, errors: {:?}", result.errors);
+    assert!(result.errors.is_empty());
+    let sql = &result.statements[0].flat_sql;
+    assert!(sql.contains(">="), "should decode &gt;= to >=, got: {}", sql);
+    assert!(sql.contains("<="), "should decode &lt;= to <=, got: {}", sql);
+}
+
+#[test]
+fn test_cdata_with_actual_operators() {
+    // CDATA with actual >= and <= operators (not entity-encoded)
+    let xml = br#"<mapper namespace="test">
+    <select id="rangeQuery">
+        <![CDATA[SELECT * FROM t WHERE id >= 1 AND id <= 100]]>
+    </select>
+</mapper>"#;
+    let result = super::parse_mapper_bytes(xml);
+    assert_eq!(result.statements.len(), 1, "errors: {:?}", result.errors);
+    assert!(result.statements[0].flat_sql.contains(">="));
+    assert!(result.statements[0].flat_sql.contains("<="));
+}
+
+#[test]
+fn test_entity_outside_cdata_operators() {
+    // Entities outside CDATA (standard MyBatis practice for >= / <=)
+    let xml = br#"<mapper namespace="test">
+    <select id="rangeQuery">
+        SELECT * FROM t WHERE id &gt;= #{min} AND id &lt;= #{max}
+    </select>
+</mapper>"#;
+    let result = super::parse_mapper_bytes(xml);
+    assert_eq!(result.statements.len(), 1, "errors: {:?}", result.errors);
+    assert!(result.statements[0].flat_sql.contains(">="), "got: {}", result.statements[0].flat_sql);
+    assert!(result.statements[0].flat_sql.contains("<="), "got: {}", result.statements[0].flat_sql);
+}
