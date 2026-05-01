@@ -1,6 +1,6 @@
 use crate::ast::{
-    DataType, Expr, Literal, ObjectName, OrderByItem, SelectStatement, SequenceFunc, WhenClause,
-    WindowFrame, WindowFrameBound, WindowFrameDirection, WindowFrameMode, WindowSpec,
+    DataType, Expr, Literal, ObjectName, OrderByItem, SelectStatement, SelectTarget, SequenceFunc,
+    WhenClause, WindowFrame, WindowFrameBound, WindowFrameDirection, WindowFrameMode, WindowSpec,
     XmlAttribute, XmlAttributes, XmlContent, XmlOption,
 };
 use crate::parser::{Parser, ParserError};
@@ -548,6 +548,7 @@ impl Parser {
                             separator: None,
                             default: None,
                             conversion_format: None,
+                            agg_from: None,
                             builtin: None,
                         };
                     } else {
@@ -1332,6 +1333,7 @@ impl Parser {
                 separator: None,
                 default: None,
                 conversion_format: None,
+                agg_from: None,
                 builtin,
             });
         }
@@ -1353,6 +1355,7 @@ impl Parser {
                 separator: None,
                 default: None,
                 conversion_format: None,
+                agg_from: None,
                 builtin,
             });
         }
@@ -1387,6 +1390,51 @@ impl Parser {
             has_variadic = has_variadic || v;
             args.push(arg);
         }
+        let agg_from = if self.match_keyword(Keyword::FROM) {
+            self.advance();
+            let mut from_tables = vec![self.parse_table_ref()?];
+            while self.match_token(&Token::Comma) {
+                self.advance();
+                from_tables.push(self.parse_table_ref()?);
+            }
+            if let Some(Expr::FunctionCall { ref within_group, .. }) = args.last() {
+                if !within_group.is_empty() {
+                    let last_arg = args.pop().unwrap();
+                    let select = SelectStatement {
+                        hints: vec![],
+                        with: None,
+                        distinct: false,
+                        distinct_on: vec![],
+                        targets: vec![SelectTarget::Expr(last_arg, None)],
+                        into_targets: None,
+                        bulk_collect: false,
+                        into_table: None,
+                        from: from_tables,
+                        where_clause: None,
+                        connect_by: None,
+                        group_by: vec![],
+                        having: None,
+                        order_by: vec![],
+                        order_siblings: false,
+                        limit: None,
+                        offset: None,
+                        fetch: None,
+                        lock_clause: None,
+                        window_clause: vec![],
+                        set_operation: None,
+                        raw_body: None,
+                    };
+                    args.push(Expr::Subquery(Box::new(select)));
+                    None
+                } else {
+                    Some(from_tables)
+                }
+            } else {
+                Some(from_tables)
+            }
+        } else {
+            None
+        };
         if self.match_keyword(Keyword::PASSING) {
             self.advance();
             if self.match_keyword(Keyword::BY) {
@@ -1456,6 +1504,7 @@ impl Parser {
             separator: None,
             default,
             conversion_format,
+            agg_from,
             builtin,
         })
     }
@@ -1491,6 +1540,7 @@ impl Parser {
             separator: None,
             default: None,
             conversion_format: None,
+            agg_from: None,
             builtin,
         })
     }
@@ -1559,6 +1609,7 @@ impl Parser {
             separator,
             default: None,
             conversion_format: None,
+            agg_from: None,
             builtin,
         })
     }
@@ -1722,6 +1773,7 @@ impl Parser {
                     separator: None,
                     default: None,
                     conversion_format: None,
+                    agg_from: None,
                     builtin,
                 })
             }

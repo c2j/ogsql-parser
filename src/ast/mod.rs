@@ -1218,6 +1218,8 @@ pub enum Expr {
         default: Option<Box<Expr>>,
         conversion_format: Option<Box<Expr>>,
         #[serde(skip_serializing_if = "Option::is_none")]
+        agg_from: Option<Vec<TableRef>>,
+        #[serde(skip_serializing_if = "Option::is_none")]
         builtin: Option<BuiltinFuncMeta>,
     },
     Case {

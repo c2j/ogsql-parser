@@ -844,7 +844,7 @@ fn walk_expr(visitor: &mut dyn Visitor, expr: &Expr) -> VisitorResult {
                 return VisitorResult::Stop;
             }
         }
-        Expr::FunctionCall { args, over, filter, within_group, separator, default, conversion_format, .. } => {
+        Expr::FunctionCall { args, over, filter, within_group, separator, default, conversion_format, agg_from, .. } => {
             for arg in args {
                 if walk_expr(visitor, arg) == VisitorResult::Stop {
                     return VisitorResult::Stop;
@@ -885,6 +885,13 @@ fn walk_expr(visitor: &mut dyn Visitor, expr: &Expr) -> VisitorResult {
             if let Some(conversion_format) = conversion_format {
                 if walk_expr(visitor, conversion_format) == VisitorResult::Stop {
                     return VisitorResult::Stop;
+                }
+            }
+            if let Some(from_items) = agg_from {
+                for table_ref in from_items {
+                    if walk_table_ref(visitor, table_ref) == VisitorResult::Stop {
+                        return VisitorResult::Stop;
+                    }
                 }
             }
         }
