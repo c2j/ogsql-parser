@@ -360,7 +360,14 @@ impl Parser {
                 Token::Eof => return if i > 0 { i - 1 } else { 0 },
                 Token::LParen => depth += 1,
                 Token::RParen => depth = (depth - 1).max(0),
-                Token::DollarString { .. } => {}
+                Token::DollarString { .. } => {
+                    // Dollar-quoted body contains its own BEGIN/END internally
+                    // (not as separate tokens), so clear in_routine_decl to
+                    // prevent subsequent semicolons from being swallowed.
+                    if in_routine_decl && begin_depth == 0 {
+                        in_routine_decl = false;
+                    }
+                }
                 Token::Keyword(Keyword::CASE) => {
                     case_depth += 1;
                 }
