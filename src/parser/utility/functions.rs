@@ -907,10 +907,7 @@ impl Parser {
 
         let return_type = if self.match_keyword(Keyword::RETURN) {
             self.advance();
-            match self.parse_object_name() {
-                Ok(parts) => Some(parts.join(".")),
-                Err(_) => Some(self.parse_identifier().unwrap_or_default()),
-            }
+            Some(self.parse_type_name()?)
         } else {
             None
         };

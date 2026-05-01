@@ -13444,6 +13444,73 @@ fn test_comments_preserve_off_by_default() {
     assert!(errors.is_empty() || errors.iter().all(|e| matches!(e, crate::parser::ParserError::Warning { .. })));
 }
 
+/// Issue #74: PL/pgSQL CASE statement not parsed inside package body function
+/// when the function has a parameterized return type (e.g. VARCHAR(200)).
+/// Root cause: parse_package_sub_function used parse_object_name() for return type
+/// which doesn't handle parameterized types like VARCHAR(200), leaving (200) unconsumed
+/// and preventing IS from being matched.
+#[test]
+fn test_package_body_function_case_with_parameterized_return_type() {
+    let sql = "CREATE OR REPLACE PACKAGE BODY astro_pkg IS\n\
+               FUNCTION encode_catalog_name(\n\
+                   p_raw_name IN TEXT,\n\
+                   p_scheme IN INT DEFAULT 1\n\
+               ) RETURN VARCHAR(200) IS\n\
+                   v_encoded TEXT;\n\
+               BEGIN\n\
+                   v_encoded := UPPER(p_raw_name);\n\
+                   CASE p_scheme\n\
+                       WHEN 1 THEN\n\
+                           v_encoded := TRANSLATE(v_encoded, ' -', '__');\n\
+                       WHEN 2 THEN\n\
+                           v_encoded := v_encoded || '_2';\n\
+                       ELSE\n\
+                           v_encoded := MD5(v_encoded);\n\
+                   END CASE;\n\
+                   RETURN LEFT(v_encoded, 200);\n\
+               END;\n\
+               END astro_pkg;";
+    let stmt = parse_one(sql);
+    match stmt {
+        Statement::CreatePackageBody(p) => {
+            let func = p
+                .items
+                .iter()
+                .find_map(|item| match item {
+                    PackageItem::Function(f) => Some(f),
+                    _ => None,
+                })
+                .expect("should have a function");
+
+            assert_eq!(
+                func.return_type.as_deref(),
+                Some("varchar(200)"),
+                "return_type should be varchar(200), got {:?}",
+                func.return_type
+            );
+
+            assert!(func.block.is_some(), "function should have a body");
+            let block = func.block.as_ref().unwrap();
+            assert!(
+                !block.body.is_empty(),
+                "function body should have statements"
+            );
+
+            let has_case = block.body.iter().any(|s| matches!(s, PlStatement::Case(_)));
+            let has_return = block.body.iter().any(|s| matches!(s, PlStatement::Return { .. }));
+            assert!(has_case, "body should contain a CASE statement");
+            assert!(has_return, "body should contain a RETURN statement");
+
+            if let Some(PlStatement::Case(case_stmt)) = block.body.iter().find(|s| matches!(s, PlStatement::Case(_))) {
+                assert_eq!(case_stmt.whens.len(), 2, "CASE should have 2 WHEN branches");
+                assert!(!case_stmt.else_stmts.is_empty(), "CASE should have ELSE branch");
+                assert!(case_stmt.expression.is_some(), "CASE should have a selector expression");
+            }
+        }
+        _ => panic!("expected CreatePackageBody, got {:?}", stmt),
+    }
+}
+
 #[test]
 fn test_comments_json_output() {
     let sql = "-- header\nSELECT 1;";
