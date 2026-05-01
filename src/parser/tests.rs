@@ -2396,7 +2396,9 @@ end pkg_test;";
     match &infos[1].statement {
         Statement::CreatePackage(p) => {
             assert_eq!(p.name, vec!["pkg_test"]);
-            assert_eq!(p.items.len(), 1);
+            assert_eq!(p.items.len(), 2, "should have TYPE + PROCEDURE");
+            assert!(matches!(&p.items[0], PackageItem::Type(_)), "first item should be Type");
+            assert!(matches!(&p.items[1], PackageItem::Procedure(_)), "second item should be Procedure");
         }
         other => panic!("expected CreatePackage, got {:?}", other),
     }
@@ -2413,7 +2415,9 @@ end pkg_test;";
     match &infos[0].statement {
         Statement::CreatePackage(p) => {
             assert_eq!(p.name, vec!["pkg_test"]);
-            assert_eq!(p.items.len(), 1);
+            assert_eq!(p.items.len(), 2, "should have TYPE + PROCEDURE");
+            assert!(matches!(&p.items[0], PackageItem::Type(_)), "first item should be Type");
+            assert!(matches!(&p.items[1], PackageItem::Procedure(_)), "second item should be Procedure");
         }
         other => panic!("expected CreatePackage, got {:?}", other),
     }
@@ -13520,4 +13524,106 @@ fn test_comments_json_output() {
     assert_eq!(comments.len(), 1);
     assert_eq!(comments[0].get("type").unwrap().as_str().unwrap(), "line");
     assert_eq!(comments[0].get("line").unwrap().as_u64().unwrap(), 1);
+}
+
+// --- Issue #77: TYPE RECORD and VARRAY declarations in package spec ---
+
+#[test]
+fn test_package_spec_type_record() {
+    let sql = "CREATE OR REPLACE PACKAGE test_pkg AS\n\
+               TYPE t_coord IS RECORD (\n\
+                 ra NUMERIC(15,12),\n\
+                 dec NUMERIC(15,12),\n\
+                 epoch NUMERIC(10,2)\n\
+               );\n\
+               END test_pkg";
+    let stmt = parse_one(sql);
+    match &stmt {
+        Statement::CreatePackage(pkg) => {
+            assert_eq!(pkg.items.len(), 1);
+            match &pkg.items[0] {
+                PackageItem::Type(PlTypeDecl::Record { name, fields }) => {
+                    assert_eq!(name, "t_coord");
+                    assert_eq!(fields.len(), 3);
+                    assert_eq!(fields[0].name, "ra");
+                    assert_eq!(fields[1].name, "dec");
+                    assert_eq!(fields[2].name, "epoch");
+                }
+                other => panic!("expected Type(Record), got {:?}", other),
+            }
+        }
+        other => panic!("expected CreatePackage, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_package_spec_type_varray() {
+    let sql = "CREATE OR REPLACE PACKAGE test_pkg AS\n\
+               TYPE t_arr IS VARRAY(4096) OF FLOAT8;\n\
+               END test_pkg";
+    let stmt = parse_one(sql);
+    match &stmt {
+        Statement::CreatePackage(pkg) => {
+            assert_eq!(pkg.items.len(), 1);
+            match &pkg.items[0] {
+                PackageItem::Type(PlTypeDecl::VarrayOf { name, size, elem_type }) => {
+                    assert_eq!(name, "t_arr");
+                    assert!(matches!(size.as_ref(), Expr::Literal(Literal::Integer(4096))));
+                    match elem_type {
+                        PlDataType::TypeName(t) => assert!(t.eq_ignore_ascii_case("float8")),
+                        other => panic!("expected TypeName, got {:?}", other),
+                    }
+                }
+                other => panic!("expected Type(VarrayOf), got {:?}", other),
+            }
+        }
+        other => panic!("expected CreatePackage, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_package_spec_type_record_and_procedure() {
+    let sql = "CREATE OR REPLACE PACKAGE test_pkg AS\n\
+               TYPE t_rec IS RECORD (id INTEGER, name VARCHAR(100));\n\
+               TYPE t_arr IS VARRAY(10) OF INTEGER;\n\
+               PROCEDURE do_stuff(p1 IN t_rec);\n\
+               END test_pkg";
+    let stmt = parse_one(sql);
+    match &stmt {
+        Statement::CreatePackage(pkg) => {
+            assert_eq!(pkg.items.len(), 3);
+            assert!(matches!(&pkg.items[0], PackageItem::Type(PlTypeDecl::Record { .. })));
+            assert!(matches!(&pkg.items[1], PackageItem::Type(PlTypeDecl::VarrayOf { .. })));
+            assert!(matches!(&pkg.items[2], PackageItem::Procedure(_)));
+        }
+        other => panic!("expected CreatePackage, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_package_body_type_record() {
+    let sql = "CREATE OR REPLACE PACKAGE BODY test_pkg AS\n\
+               TYPE t_rec IS RECORD (id INTEGER, name VARCHAR(100));\n\
+               PROCEDURE do_something IS\n\
+               BEGIN\n\
+                 NULL;\n\
+               END;\n\
+               END test_pkg";
+    let stmt = parse_one(sql);
+    match &stmt {
+        Statement::CreatePackageBody(pkg) => {
+            assert_eq!(pkg.items.len(), 2);
+            match &pkg.items[0] {
+                PackageItem::Type(PlTypeDecl::Record { name, fields }) => {
+                    assert_eq!(name, "t_rec");
+                    assert_eq!(fields.len(), 2);
+                    assert_eq!(fields[0].name, "id");
+                    assert_eq!(fields[1].name, "name");
+                }
+                other => panic!("expected Type(Record), got {:?}", other),
+            }
+            assert!(matches!(&pkg.items[1], PackageItem::Procedure(_)));
+        }
+        other => panic!("expected CreatePackageBody, got {:?}", other),
+    }
 }

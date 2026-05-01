@@ -395,6 +395,13 @@ pub fn walk_pl_statement(visitor: &mut dyn Visitor, stmt: &crate::ast::plpgsql::
 }
 
 /// Walk a PL/pgSQL declaration.
+pub fn walk_pl_type_decl(visitor: &mut dyn Visitor, decl: &crate::ast::plpgsql::PlTypeDecl) -> VisitorResult {
+    match decl {
+        crate::ast::plpgsql::PlTypeDecl::VarrayOf { size, .. } => walk_expr(visitor, size),
+        _ => VisitorResult::Continue,
+    }
+}
+
 pub fn walk_pl_declaration(visitor: &mut dyn Visitor, decl: &crate::ast::plpgsql::PlDeclaration) -> VisitorResult {
     let result = visitor.visit_pl_declaration(decl);
     match result {
@@ -498,6 +505,11 @@ pub fn walk_statement(visitor: &mut dyn Visitor, stmt: &Statement) -> VisitorRes
                                 }
                             }
                         }
+                        crate::ast::PackageItem::Type(t) => {
+                            if walk_pl_type_decl(visitor, t) == VisitorResult::Stop {
+                                return VisitorResult::Stop;
+                            }
+                        }
                         crate::ast::PackageItem::Variable(_) => {}
                         crate::ast::PackageItem::Raw(_) => {}
                     }
@@ -519,6 +531,11 @@ pub fn walk_statement(visitor: &mut dyn Visitor, stmt: &Statement) -> VisitorRes
                                 if walk_pl_block(visitor, block) == VisitorResult::Stop {
                                     return VisitorResult::Stop;
                                 }
+                            }
+                        }
+                        crate::ast::PackageItem::Type(t) => {
+                            if walk_pl_type_decl(visitor, t) == VisitorResult::Stop {
+                                return VisitorResult::Stop;
                             }
                         }
                         crate::ast::PackageItem::Variable(_) => {}

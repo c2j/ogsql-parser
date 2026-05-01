@@ -2032,6 +2032,7 @@ pub enum PackageItem {
     Procedure(PackageProcedure),
     Function(PackageFunction),
     Variable(crate::ast::plpgsql::PlVarDecl),
+    Type(crate::ast::plpgsql::PlTypeDecl),
     Raw(String),
 }
 

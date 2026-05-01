@@ -6732,6 +6732,7 @@ impl SqlFormatter {
     }
 
     fn format_package_item(&self, item: &PackageItem, indent: usize) -> String {
+        use crate::ast::plpgsql::*;
         match item {
             PackageItem::Procedure(p) => self.format_package_procedure(p, indent),
             PackageItem::Function(f) => self.format_package_function(f, indent),
@@ -6742,6 +6743,32 @@ impl SqlFormatter {
                 }
                 s.push(';');
                 s
+            }
+            PackageItem::Type(t) => {
+                let inner = match t {
+                    PlTypeDecl::Record { name, fields } => {
+                        let fields_str = fields
+                            .iter()
+                            .map(|f| format!("{} {}", f.name, self.format_pl_data_type(&f.data_type)))
+                            .collect::<Vec<_>>()
+                            .join(", ");
+                        format!("{} {} {} ({})", self.kw("TYPE"), name, self.kw("IS RECORD"), fields_str)
+                    }
+                    PlTypeDecl::TableOf { name, elem_type, index_by } => {
+                        let mut s = format!("{} {} {} {} {}", self.kw("TYPE"), name, self.kw("IS TABLE OF"), self.format_pl_data_type(elem_type), "");
+                        if let Some(idx) = index_by {
+                            s = format!("{} {} {}", s.trim(), self.kw("INDEX BY"), self.format_pl_data_type(idx));
+                        }
+                        s.trim().to_string()
+                    }
+                    PlTypeDecl::VarrayOf { name, size, elem_type } => {
+                        format!("{} {} {} ({}) {} {}", self.kw("TYPE"), name, self.kw("IS VARRAY"), self.format_expr(size), self.kw("OF"), self.format_pl_data_type(elem_type))
+                    }
+                    PlTypeDecl::RefCursor { name } => {
+                        format!("{} {} {}", self.kw("TYPE"), name, self.kw("IS REF CURSOR"))
+                    }
+                };
+                format!("{};", inner)
             }
             PackageItem::Raw(s) => s.clone(),
         }
