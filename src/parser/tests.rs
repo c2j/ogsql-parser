@@ -9909,6 +9909,72 @@ fn test_percentile_cont_within_group() {
     }
 }
 
+// --- Issue #75: PERCENTILE_CONT WITHIN GROUP inside package body procedure ---
+// Regression test: PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY col) must not
+// cause a parse error that truncates the rest of the procedure (EXCEPTION block).
+
+#[test]
+fn test_percentile_cont_within_group_in_package_body() {
+    let sql = "CREATE OR REPLACE PACKAGE BODY test_pkg AS\n\
+               PROCEDURE proc_with_percentile IS\n\
+                 v_result NUMERIC;\n\
+               BEGIN\n\
+                 v_result := (SELECT PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY val)\n\
+                              FROM unnest(ARRAY[1,2,3,4,5]) AS val);\n\
+                 NULL;\n\
+               EXCEPTION\n\
+                 WHEN OTHERS THEN\n\
+                   NULL;\n\
+               END;\n\
+               END test_pkg";
+    let stmt = parse_one(sql);
+    match &stmt {
+        Statement::CreatePackageBody(pkg) => {
+            let proc = pkg.items.iter().find_map(|i| match i {
+                PackageItem::Procedure(pr) => Some(pr),
+                _ => None,
+            }).expect("should have a procedure");
+            let block = proc.block.as_ref().expect("procedure should have a block");
+
+            // Assignment with PERCENTILE_CONT should be parsed
+            assert!(matches!(block.body.first(), Some(PlStatement::Assignment { .. })),
+                "first statement should be an Assignment");
+
+            // NULL after the assignment
+            assert!(matches!(block.body.get(1), Some(PlStatement::Null)),
+                "second statement should be Null");
+
+            // EXCEPTION block must NOT be lost
+            let exc = block.exception_block.as_ref().expect("EXCEPTION block must be preserved");
+            assert_eq!(exc.handlers.len(), 1, "should have one exception handler");
+        }
+        _ => panic!("expected CreatePackageBody, got {:?}", stmt),
+    }
+}
+
+// --- Issue #75 variant: MODE() WITHIN GROUP in a simple SELECT ---
+
+#[test]
+fn test_mode_within_group() {
+    let sql = "SELECT MODE() WITHIN GROUP (ORDER BY val) FROM unnest(ARRAY[1,2,3]) AS val";
+    let stmt = parse_one(sql);
+    match &stmt {
+        Statement::Select(s) => {
+            match &s.targets[0] {
+                SelectTarget::Expr(expr, _) => match expr {
+                    Expr::FunctionCall { within_group, args, .. } => {
+                        assert!(args.is_empty(), "MODE() should have no arguments");
+                        assert_eq!(within_group.len(), 1, "MODE should have WITHIN GROUP");
+                    }
+                    _ => panic!("expected FunctionCall"),
+                },
+                _ => panic!("expected Expr target"),
+            }
+        }
+        _ => panic!("expected Select, got {:?}", stmt),
+    }
+}
+
 // ========== Task 10: Geometric operators ==========
 
 #[test]
