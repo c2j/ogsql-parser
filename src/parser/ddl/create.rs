@@ -375,6 +375,7 @@ impl Parser {
                     separator: None,
                     default: None,
                     conversion_format: None,
+                    agg_from: None,
                     builtin: None,
                 }),
             });

@@ -867,6 +867,7 @@ impl SqlFormatter {
                 separator,
                 default,
                 conversion_format,
+                agg_from,
                 ..
             } => {
                 let parts: Vec<String> = name
@@ -896,6 +897,12 @@ impl SqlFormatter {
                 }
                 if let Some(fmt) = conversion_format {
                     result.push_str(&format!(", {}", self.format_expr(fmt)));
+                }
+                if let Some(from_items) = agg_from {
+                    result.push_str(" ");
+                    result.push_str(&self.kw("FROM"));
+                    result.push_str(" ");
+                    result.push_str(&self.format_table_refs(from_items));
                 }
                 result.push(')');
                 if let Some(f) = filter {

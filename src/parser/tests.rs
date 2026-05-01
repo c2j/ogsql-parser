@@ -5533,6 +5533,47 @@ fn test_filter_with_over() {
 }
 
 #[test]
+fn test_agg_from_clause() {
+    let stmt = parse_one("SELECT SUM(x * LN(x) FROM generate_series(1, 10) AS i) FROM t");
+    match stmt {
+        Statement::Select(s) => {
+            assert_eq!(s.targets.len(), 1);
+            match &s.targets[0] {
+                SelectTarget::Expr(expr, _) => match expr {
+                    Expr::FunctionCall { agg_from, .. } => {
+                        assert!(agg_from.is_some());
+                        let from_items = agg_from.as_ref().unwrap();
+                        assert_eq!(from_items.len(), 1);
+                    }
+                    _ => panic!("expected FunctionCall"),
+                },
+                _ => panic!("expected Expr target"),
+            }
+        }
+        _ => panic!("expected Select"),
+    }
+}
+
+#[test]
+fn test_bare_agg_from_implicit_select() {
+    let sql = "CREATE OR REPLACE PACKAGE BODY test_pkg AS
+PROCEDURE test_proc IS
+  v_result JSONB;
+BEGIN
+  v_result := jsonb_build_object(
+    'mode', MODE() WITHIN GROUP (ORDER BY UNNEST) FROM UNNEST(ARRAY[1,2,3])
+  );
+END;
+END test_pkg";
+    let stmts = parse(sql);
+    assert_eq!(stmts.len(), 1);
+    match &stmts[0] {
+        Statement::CreatePackageBody(_) => {}
+        _ => panic!("expected CreatePackageBody"),
+    }
+}
+
+#[test]
 fn test_create_table_interval_partition() {
     let stmt = parse_one(
         "CREATE TABLE t (id INT, created DATE) PARTITION BY RANGE (created) INTERVAL ('1 month') (PARTITION p0 VALUES LESS THAN ('2025-01-01'))",
