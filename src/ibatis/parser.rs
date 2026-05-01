@@ -130,7 +130,8 @@ fn read_node_tree(reader: &mut Reader<&[u8]>, end_tag: &[u8]) -> Vec<SqlNode> {
                 };
             }
             Ok(Event::CData(e)) => {
-                text_buf.push_str(&String::from_utf8_lossy(&e));
+                let raw = String::from_utf8_lossy(&e);
+                text_buf.push_str(&decode_xml_entities(&raw));
             }
             Ok(Event::Start(e)) => {
                 flush_text_to_nodes(&mut text_buf, &mut nodes);
@@ -424,6 +425,38 @@ fn format_attributes(element: &quick_xml::events::BytesStart<'_>) -> String {
         let key = String::from_utf8_lossy(ln.as_ref());
         let value = String::from_utf8_lossy(&attr.value);
         result.push_str(&format!(" {}=\"{}\"", key, value));
+    }
+    result
+}
+
+fn decode_xml_entities(s: &str) -> String {
+    let mut result = String::with_capacity(s.len());
+    let mut chars = s.char_indices().peekable();
+    while let Some((i, c)) = chars.next() {
+        if c == '&' {
+            let rest = &s[i..];
+            if let Some(entity) = rest.find(';') {
+                let name = &rest[1..entity];
+                let decoded = match name {
+                    "lt" => Some('<'),
+                    "gt" => Some('>'),
+                    "amp" => Some('&'),
+                    "apos" => Some('\''),
+                    "quot" => Some('"'),
+                    _ => None,
+                };
+                if let Some(ch) = decoded {
+                    result.push(ch);
+                    for _ in 0..entity {
+                        chars.next();
+                    }
+                    continue;
+                }
+            }
+            result.push(c);
+        } else {
+            result.push(c);
+        }
     }
     result
 }
