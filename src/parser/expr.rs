@@ -1384,57 +1384,60 @@ impl Parser {
             None
         };
         let mut has_variadic = has_variadic;
-        while self.match_token(&Token::Comma) {
-            self.advance();
-            let (arg, v) = self.parse_maybe_named_arg()?;
-            has_variadic = has_variadic || v;
-            args.push(arg);
-        }
-        let agg_from = if self.match_keyword(Keyword::FROM) {
-            self.advance();
-            let mut from_tables = vec![self.parse_table_ref()?];
-            while self.match_token(&Token::Comma) {
+        let mut agg_from: Option<Vec<crate::ast::TableRef>> = None;
+        loop {
+            // Check for FROM after last argument
+            if agg_from.is_none() && self.match_keyword(Keyword::FROM) {
                 self.advance();
-                from_tables.push(self.parse_table_ref()?);
-            }
-            if let Some(Expr::FunctionCall { ref within_group, .. }) = args.last() {
-                if !within_group.is_empty() {
-                    let last_arg = args.pop().unwrap();
-                    let select = SelectStatement {
-                        hints: vec![],
-                        with: None,
-                        distinct: false,
-                        distinct_on: vec![],
-                        targets: vec![SelectTarget::Expr(last_arg, None)],
-                        into_targets: None,
-                        bulk_collect: false,
-                        into_table: None,
-                        from: from_tables,
-                        where_clause: None,
-                        connect_by: None,
-                        group_by: vec![],
-                        having: None,
-                        order_by: vec![],
-                        order_siblings: false,
-                        limit: None,
-                        offset: None,
-                        fetch: None,
-                        lock_clause: None,
-                        window_clause: vec![],
-                        set_operation: None,
-                        raw_body: None,
-                    };
-                    args.push(Expr::Subquery(Box::new(select)));
-                    None
+                let from_tables = vec![self.parse_table_ref()?];
+                if let Some(Expr::FunctionCall { ref within_group, .. }) = args.last() {
+                    if !within_group.is_empty() {
+                        // Implicit SELECT: wrap last arg in Subquery (#81)
+                        let last_arg = args.pop().unwrap();
+                        let select = SelectStatement {
+                            hints: vec![],
+                            with: None,
+                            distinct: false,
+                            distinct_on: vec![],
+                            targets: vec![SelectTarget::Expr(last_arg, None)],
+                            into_targets: None,
+                            bulk_collect: false,
+                            into_table: None,
+                            from: from_tables,
+                            where_clause: None,
+                            connect_by: None,
+                            group_by: vec![],
+                            having: None,
+                            order_by: vec![],
+                            order_siblings: false,
+                            limit: None,
+                            offset: None,
+                            fetch: None,
+                            lock_clause: None,
+                            window_clause: vec![],
+                            set_operation: None,
+                            raw_body: None,
+                        };
+                        args.push(Expr::Subquery(Box::new(select)));
+                    } else {
+                        agg_from = Some(from_tables);
+                    }
                 } else {
-                    Some(from_tables)
+                    agg_from = Some(from_tables);
                 }
-            } else {
-                Some(from_tables)
+                // FROM consumed; continue loop to check for more commas
+                continue;
             }
-        } else {
-            None
-        };
+            // Check for comma (more arguments)
+            if self.match_token(&Token::Comma) {
+                self.advance();
+                let (arg, v) = self.parse_maybe_named_arg()?;
+                has_variadic = has_variadic || v;
+                args.push(arg);
+            } else {
+                break;
+            }
+        }
         if self.match_keyword(Keyword::PASSING) {
             self.advance();
             if self.match_keyword(Keyword::BY) {
