@@ -425,7 +425,7 @@ impl Parser {
         self.parse_pl_type_decl_body(name)
     }
 
-    fn parse_pl_type_decl_body(&mut self, name: String) -> Result<PlDeclaration, ParserError> {
+    pub(crate) fn parse_pl_type_decl_body(&mut self, name: String) -> Result<PlDeclaration, ParserError> {
         if self.match_ident_str("is") || self.match_ident_str("as") {
             self.advance();
         }
@@ -508,7 +508,7 @@ impl Parser {
 
 
 
-    fn skip_to_semicolon_or_keyword(&mut self) -> String {
+    pub(crate) fn skip_to_semicolon_or_keyword(&mut self) -> String {
         let mut collected = String::new();
         let mut depth = 0i32;
 
