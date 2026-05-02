@@ -76,6 +76,11 @@ enum IndentKind {
     Select,
     CreateTableBody,
     Subquery,
+    Insert,
+    Update,
+    Merge,
+    Cte,
+    UpdateSet,
 }
 
 // ── TokenFormatter ─────────────────────────────────────────────────────────────
@@ -295,6 +300,22 @@ impl<'a> TokenFormatter<'a> {
         self.indent_stack.iter().any(|k| matches!(k, IndentKind::Begin | IndentKind::If | IndentKind::Loop | IndentKind::Case))
     }
 
+    fn in_insert_context(&self) -> bool {
+        self.indent_stack.iter().any(|k| matches!(k, IndentKind::Insert))
+    }
+
+    fn in_update_context(&self) -> bool {
+        self.indent_stack.iter().any(|k| matches!(k, IndentKind::Update))
+    }
+
+    fn in_merge_context(&self) -> bool {
+        self.indent_stack.iter().any(|k| matches!(k, IndentKind::Merge))
+    }
+
+    fn in_cte_context(&self) -> bool {
+        self.indent_stack.iter().any(|k| matches!(k, IndentKind::Cte))
+    }
+
     fn is_procedure_or_function_context(&self) -> bool {
         let mut i = self.pos;
         while i > 0 {
@@ -401,8 +422,16 @@ impl<'a> TokenFormatter<'a> {
             }
 
             Token::Keyword(Keyword::WHEN) => {
+                if self.in_merge_context() {
+                    self.pop_indent_to(IndentKind::Merge);
+                    self.indent_stack.pop();
+                    self.indent_stack.push(IndentKind::Merge);
+                }
                 self.emit_line_start();
                 self.emit_current_token();
+                if self.in_merge_context() {
+                    self.emit_space();
+                }
                 self.pos += 1;
             }
 
@@ -424,6 +453,10 @@ impl<'a> TokenFormatter<'a> {
             // ── Semicolon ──────────────────────────────────────────────────────
             Token::Semicolon => {
                 self.emit_current_token();
+                // Pop DML/CTE indent contexts, but keep PL/pgSQL block contexts
+                self.indent_stack.retain(|k| {
+                    matches!(k, IndentKind::Begin | IndentKind::If | IndentKind::Loop | IndentKind::Case)
+                });
                 if self.config.semicolon_newline {
                     self.needs_line = true;
                 } else {
@@ -449,8 +482,10 @@ impl<'a> TokenFormatter<'a> {
             Token::Keyword(Keyword::FROM) => {
                 if self.in_select_context() {
                     self.pop_indent_to(IndentKind::Select);
+                    self.emit_line_start();
+                } else {
+                    self.emit_space();
                 }
-                self.emit_line_start();
                 self.emit_current_token();
                 self.pos += 1;
             }
@@ -466,6 +501,9 @@ impl<'a> TokenFormatter<'a> {
             | Token::Keyword(Keyword::EXCEPT) => {
                 if self.in_select_context() {
                     self.pop_indent_to(IndentKind::Select);
+                }
+                if self.in_update_context() {
+                    self.pop_indent_to(IndentKind::Update);
                 }
                 self.emit_line_start();
                 self.emit_current_token();
@@ -501,7 +539,11 @@ impl<'a> TokenFormatter<'a> {
 
             // ── Comma ──────────────────────────────────────────────────────────
             Token::Comma => {
-                if self.config.select_newline || self.in_create_table_body() {
+                if self.config.select_newline
+                    || self.in_create_table_body()
+                    || self.in_insert_context()
+                    || self.in_update_context()
+                {
                     self.handle_list_comma();
                 } else {
                     self.emit_current_token();
@@ -630,6 +672,114 @@ impl<'a> TokenFormatter<'a> {
                 } else {
                     self.emit_default_token();
                 }
+            }
+
+            // ── INSERT INTO ... VALUES ──────────────────────────────────────
+            Token::Keyword(Keyword::INSERT) => {
+                self.emit_line_start();
+                self.emit_current_token();
+                self.emit_space();
+                self.pos += 1;
+                if !self.in_merge_context() {
+                    self.indent_stack.push(IndentKind::Insert);
+                }
+            }
+
+            // ── DELETE FROM ─────────────────────────────────────────────────
+            Token::Keyword(Keyword::DELETE_P) => {
+                self.emit_line_start();
+                self.emit_current_token();
+                self.emit_space();
+                self.pos += 1;
+            }
+
+            // ── UPDATE ... SET ──────────────────────────────────────────────
+            Token::Keyword(Keyword::UPDATE) => {
+                self.emit_line_start();
+                self.emit_current_token();
+                self.emit_space();
+                self.pos += 1;
+                if !self.in_merge_context() {
+                    self.indent_stack.push(IndentKind::Update);
+                }
+            }
+
+            // ── MERGE INTO ... USING ... ON ... WHEN ────────────────────────
+            Token::Keyword(Keyword::MERGE) => {
+                self.emit_line_start();
+                self.emit_current_token();
+                self.emit_space();
+                self.pos += 1;
+                self.indent_stack.push(IndentKind::Merge);
+            }
+
+            // ── WITH (CTE) ─────────────────────────────────────────────────
+            Token::Keyword(Keyword::WITH) => {
+                self.emit_line_start();
+                self.emit_current_token();
+                self.emit_space();
+                self.pos += 1;
+                self.indent_stack.push(IndentKind::Cte);
+            }
+
+            // ── SET (in UPDATE context) ─────────────────────────────────────
+            Token::Keyword(Keyword::SET) => {
+                if self.in_update_context() && !self.in_merge_context() {
+                    self.emit_line_start();
+                    self.emit_current_token();
+                    self.indent_stack.push(IndentKind::UpdateSet);
+                    self.pos += 1;
+                    self.needs_line = true;
+                } else if self.in_merge_context() {
+                    self.emit_space();
+                    self.emit_current_token();
+                    self.emit_space();
+                    self.pos += 1;
+                } else {
+                    self.emit_default_token();
+                }
+            }
+
+            // ── VALUES (in INSERT context) ──────────────────────────────────
+            Token::Keyword(Keyword::VALUES) => {
+                if self.in_insert_context() {
+                    self.emit_line_start();
+                    self.emit_current_token();
+                    self.pos += 1;
+                    self.needs_line = true;
+                } else {
+                    self.emit_default_token();
+                }
+            }
+
+            // ── USING (in MERGE context) ────────────────────────────────────
+            Token::Keyword(Keyword::USING) => {
+                if self.in_merge_context() {
+                    self.emit_line_start();
+                    self.emit_current_token();
+                    self.pos += 1;
+                } else {
+                    self.emit_default_token();
+                }
+            }
+
+            // ── ON (in MERGE context) ───────────────────────────────────────
+            Token::Keyword(Keyword::ON) => {
+                if self.in_merge_context() {
+                    self.emit_line_start();
+                    self.emit_current_token();
+                    self.pos += 1;
+                } else {
+                    self.emit_default_token();
+                }
+            }
+
+            // ── INTO ────────────────────────────────────────────────────────
+            Token::Keyword(Keyword::INTO) => {
+                self.emit_space();
+                self.emit_current_token();
+                self.emit_space();
+                self.pos += 1;
             }
 
             // ── Default ───────────────────────────────────────────────────────
@@ -1032,5 +1182,110 @@ mod tests {
         let output = format_sql_with(input, config);
         let compact: String = output.chars().filter(|c| *c != '\n').collect();
         assert!(compact.len() > 50, "Should not wrap when line_width=0");
+    }
+
+    // ── INSERT formatting ────────────────────────────────────────────────────
+
+    #[test]
+    fn test_insert_columns_and_values() {
+        let input = "INSERT INTO users (id, name, age) VALUES (1, 'Alice', 30)";
+        let output = format_sql(input);
+        assert!(output.contains("INSERT INTO users"), "INSERT header: {:?}", output);
+        assert!(output.contains("VALUES"), "VALUES keyword: {:?}", output);
+        let compact: String = output.chars().filter(|c| c.is_alphanumeric() || *c == '\'').collect();
+        let input_compact: String = input.chars().filter(|c| c.is_alphanumeric() || *c == '\'').collect();
+        assert_eq!(compact, input_compact, "Content preserved: {:?}", output);
+    }
+
+    #[test]
+    fn test_insert_mybatis_params() {
+        let tokens = crate::Tokenizer::new("INSERT INTO t (a, b) VALUES (#{x}, #{y})")
+            .mybatis_params(true)
+            .tokenize()
+            .unwrap();
+        let output = TokenFormatter::new("INSERT INTO t (a, b) VALUES (#{x}, #{y})", tokens).format();
+        assert!(output.contains("#{x}"), "MyBatis param preserved: {:?}", output);
+        assert!(output.contains("#{y}"), "MyBatis param preserved: {:?}", output);
+    }
+
+    // ── DELETE formatting ────────────────────────────────────────────────────
+
+    #[test]
+    fn test_delete_from_where() {
+        let input = "DELETE FROM users WHERE id = 1";
+        let output = format_sql(input);
+        assert!(output.contains("DELETE FROM users"), "DELETE FROM same line: {:?}", output);
+        assert!(output.contains("WHERE id = 1"), "WHERE clause: {:?}", output);
+    }
+
+    #[test]
+    fn test_delete_with_and() {
+        let input = "DELETE FROM users WHERE id = 1 AND name = 'test'";
+        let output = format_sql(input);
+        assert!(output.contains("AND"), "AND preserved: {:?}", output);
+    }
+
+    // ── UPDATE formatting ────────────────────────────────────────────────────
+
+    #[test]
+    fn test_update_set_where() {
+        let input = "UPDATE users SET name = 'Bob', age = 25 WHERE id = 1";
+        let output = format_sql(input);
+        assert!(output.contains("UPDATE users"), "UPDATE header: {:?}", output);
+        assert!(output.contains("SET"), "SET keyword: {:?}", output);
+        assert!(output.contains("name = 'Bob'"), "Assignment 1: {:?}", output);
+        assert!(output.contains("age = 25"), "Assignment 2: {:?}", output);
+        assert!(output.contains("WHERE id = 1"), "WHERE clause: {:?}", output);
+    }
+
+    #[test]
+    fn test_update_single_column() {
+        let input = "UPDATE t SET x = 1";
+        let output = format_sql(input);
+        assert!(output.contains("x = 1"), "Assignment: {:?}", output);
+    }
+
+    // ── MERGE formatting ─────────────────────────────────────────────────────
+
+    #[test]
+    fn test_merge_matched() {
+        let input = "MERGE INTO target t USING source s ON t.id = s.id WHEN MATCHED THEN UPDATE SET t.name = s.name";
+        let output = format_sql(input);
+        assert!(output.contains("MERGE INTO target t"), "MERGE header: {:?}", output);
+        assert!(output.contains("USING source s"), "USING clause: {:?}", output);
+        assert!(output.contains("ON t.id = s.id"), "ON condition: {:?}", output);
+        assert!(output.contains("WHEN MATCHED THEN"), "WHEN MATCHED: {:?}", output);
+        assert!(output.contains("t.name = s.name"), "SET assignment: {:?}", output);
+    }
+
+    #[test]
+    fn test_merge_not_matched() {
+        let input = "MERGE INTO t USING s ON t.id = s.id WHEN NOT MATCHED THEN INSERT (id) VALUES (s.id)";
+        let output = format_sql(input);
+        assert!(output.contains("WHEN NOT MATCHED THEN"), "WHEN NOT MATCHED: {:?}", output);
+        assert!(output.contains("INSERT"), "INSERT keyword: {:?}", output);
+        assert!(output.contains("s.id"), "Value preserved: {:?}", output);
+    }
+
+    // ── WITH (CTE) formatting ────────────────────────────────────────────────
+
+    #[test]
+    fn test_with_cte() {
+        let input = "WITH cte AS (SELECT id FROM users) SELECT * FROM cte WHERE id > 10";
+        let output = format_sql(input);
+        assert!(output.contains("WITH cte AS"), "CTE header: {:?}", output);
+        assert!(output.contains("SELECT"), "Select keyword: {:?}", output);
+        assert!(output.contains("*"), "Star: {:?}", output);
+        assert!(output.contains("FROM cte"), "FROM cte: {:?}", output);
+        assert!(output.contains("WHERE id > 10"), "WHERE clause: {:?}", output);
+    }
+
+    #[test]
+    fn test_with_multiple_ctes() {
+        let input = "WITH a AS (SELECT 1), b AS (SELECT 2) SELECT * FROM a JOIN b ON a.id = b.id";
+        let output = format_sql(input);
+        assert!(output.contains("WITH a AS"), "First CTE: {:?}", output);
+        assert!(output.contains("b AS"), "Second CTE: {:?}", output);
+        assert!(output.contains("JOIN b"), "JOIN preserved: {:?}", output);
     }
 }
