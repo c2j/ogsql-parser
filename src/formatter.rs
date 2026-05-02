@@ -1198,6 +1198,8 @@ impl SqlFormatter {
                 )
             }
             Expr::Parameter(n) => format!("${}", n),
+            Expr::MyBatisParam(content) => format!("#{{{}}}", content),
+            Expr::MyBatisRawExpr(content) => format!("${{{}}}", content),
             Expr::Array(elements) => {
                 format!("{}[{}]", self.kw("ARRAY"), self.format_exprs(elements))
             }

@@ -682,6 +682,14 @@ impl Parser {
                 self.advance();
                 Ok(Expr::Parameter(n))
             }
+            Token::MyBatisParam(content) => {
+                self.advance();
+                Ok(Expr::MyBatisParam(content.clone()))
+            }
+            Token::MyBatisRawExpr(content) => {
+                self.advance();
+                Ok(Expr::MyBatisRawExpr(content.clone()))
+            }
             Token::Keyword(Keyword::EXISTS) => {
                 self.advance();
                 self.expect_token(&Token::LParen)?;

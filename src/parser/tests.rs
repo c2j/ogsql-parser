@@ -13486,7 +13486,7 @@ fn test_package_body_variable_json_serialization() {
 // ========== Comment Preservation (issue #68) ==========
 
 fn parse_with_comments(sql: &str) -> crate::parser::ParseOutput {
-    let options = crate::parser::ParseOptions { preserve_comments: true };
+    let options = crate::parser::ParseOptions { preserve_comments: true, mybatis_params: false };
     crate::parser::Parser::parse_sql_with_options(sql, options)
 }
 

@@ -1094,6 +1094,8 @@ impl Parser {
                 | Token::Ident(_)
                 | Token::QuotedIdent(_)
                 | Token::Param(_)
+                | Token::MyBatisParam(_)
+                | Token::MyBatisRawExpr(_)
                 | Token::LParen
                 | Token::LBracket
                 | Token::Minus
@@ -4871,6 +4873,7 @@ mod tests_plsql_fixes;
 #[derive(Debug, Clone, Default)]
 pub struct ParseOptions {
     pub preserve_comments: bool,
+    pub mybatis_params: bool,
 }
 
 /// A SQL comment extracted from source with position info.
@@ -4901,15 +4904,19 @@ impl Parser {
         input: &str,
         options: ParseOptions,
     ) -> ParseOutput {
-        if !options.preserve_comments {
+        if !options.preserve_comments && !options.mybatis_params {
             let (statements, errors) = Self::parse_sql(input);
             return ParseOutput { statements, errors, comments: vec![] };
         }
 
-        let tokens = match crate::token::tokenizer::Tokenizer::new(input)
-            .preserve_comments(true)
-            .tokenize()
-        {
+        let mut tokenizer = crate::token::tokenizer::Tokenizer::new(input);
+        if options.preserve_comments {
+            tokenizer = tokenizer.preserve_comments(true);
+        }
+        if options.mybatis_params {
+            tokenizer = tokenizer.mybatis_params(true);
+        }
+        let tokens = match tokenizer.tokenize() {
             Ok(t) => t,
             Err(e) => {
                 return ParseOutput {

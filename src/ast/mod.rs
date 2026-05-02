@@ -1269,6 +1269,8 @@ pub enum Expr {
         expr: Box<Expr>,
     },
     Parameter(i32),
+    MyBatisParam(String),
+    MyBatisRawExpr(String),
     Array(Vec<Expr>),
     Subscript {
         object: Box<Expr>,

@@ -26,6 +26,7 @@ pub struct Tokenizer<'a> {
     preserve_comments: bool,
     pending_comment: Option<String>,
     after_dml_keyword: bool,
+    mybatis_params: bool,
 }
 
 impl<'a> Tokenizer<'a> {
@@ -40,7 +41,13 @@ impl<'a> Tokenizer<'a> {
             preserve_comments: false,
             pending_comment: None,
             after_dml_keyword: false,
+            mybatis_params: false,
         }
+    }
+
+    pub fn mybatis_params(mut self, yes: bool) -> Self {
+        self.mybatis_params = yes;
+        self
     }
 
     pub fn preserve_comments(mut self, yes: bool) -> Self {
@@ -696,7 +703,26 @@ impl<'a> Tokenizer<'a> {
                 }
             }
 
-            '~' | '&' | '|' | '`' | '#' | '?' => {
+            '#' => {
+                if self.mybatis_params && self.peek_byte_at(1) == Some(b'{') {
+                    self.scan_mybatis_param()?
+                } else {
+                    self.advance();
+                    let start = self.pos - '#'.len_utf8();
+                    while let Some(&nc) = self.chars.peek() {
+                        if is_op_char(nc) {
+                            self.chars.next();
+                            self.pos += nc.len_utf8();
+                        } else {
+                            break;
+                        }
+                    }
+                    let op_str = &self.input[start..self.pos];
+                    Token::Op(op_str.to_string())
+                }
+            }
+
+            '~' | '&' | '|' | '`' | '?' => {
                 self.advance();
                 let start = self.pos - c.len_utf8();
                 while let Some(&nc) = self.chars.peek() {
@@ -708,11 +734,7 @@ impl<'a> Tokenizer<'a> {
                     }
                 }
                 let op_str = &self.input[start..self.pos];
-                if op_str == "||" {
-                    Token::OpConcat
-                } else {
-                    Token::Op(op_str.to_string())
-                }
+                Token::Op(op_str.to_string())
             }
 
             '\\' => {
@@ -852,6 +874,30 @@ impl<'a> Tokenizer<'a> {
     }
 
     fn scan_dollar_or_param(&mut self) -> Result<Token, TokenizerError> {
+        // MyBatis raw expression: ${expr}
+        if self.mybatis_params && self.peek() == Some('{') {
+            let dollar_pos = self.pos - 1; // position of '$' (already consumed)
+            self.advance(); // consume '{'
+            let content_start = self.pos;
+            let mut depth = 1;
+            while let Some(&c) = self.chars.peek() {
+                self.chars.next();
+                self.pos += c.len_utf8();
+                match c {
+                    '{' => depth += 1,
+                    '}' => {
+                        depth -= 1;
+                        if depth == 0 {
+                            let content = self.input[content_start..self.pos - 1].to_string();
+                            return Ok(Token::MyBatisRawExpr(content));
+                        }
+                    }
+                    _ => {}
+                }
+            }
+            return Err(TokenizerError::UnterminatedString(dollar_pos));
+        }
+
         if let Some(&c) = self.chars.peek() {
             if c.is_ascii_digit() {
                 let start = self.advance_while_pos(|c| c.is_ascii_digit());
@@ -884,6 +930,29 @@ impl<'a> Tokenizer<'a> {
                 Ok(Token::Ident(format!("${}", tag)))
             }
         }
+    }
+
+    fn scan_mybatis_param(&mut self) -> Result<Token, TokenizerError> {
+        let start = self.pos; // position of '#'
+        self.advance(); // consume '#'
+        self.advance(); // consume '{'
+        let mut depth = 1;
+        while let Some(&c) = self.chars.peek() {
+            self.chars.next();
+            self.pos += c.len_utf8();
+            match c {
+                '{' => depth += 1,
+                '}' => {
+                    depth -= 1;
+                    if depth == 0 {
+                        let content = self.input[start + 2..self.pos - 1].to_string();
+                        return Ok(Token::MyBatisParam(content));
+                    }
+                }
+                _ => {}
+            }
+        }
+        Err(TokenizerError::UnterminatedString(start))
     }
 
     fn scan_dollar_string_content(&mut self, delimiter: &str) -> Result<String, TokenizerError> {
@@ -1305,5 +1374,86 @@ mod tests {
             !tokens.iter().any(|t| matches!(t, Token::Comment(c) if c.contains("INDEX"))),
             "Hints should NOT be Comment tokens"
         );
+    }
+
+    #[test]
+    fn test_mybatis_param_simple() {
+        let tokens = Tokenizer::new("SELECT #{id}")
+            .mybatis_params(true)
+            .tokenize()
+            .unwrap();
+        assert!(matches!(&tokens[1].token, Token::MyBatisParam(s) if s == "id"));
+    }
+
+    #[test]
+    fn test_mybatis_param_with_type() {
+        let tokens = Tokenizer::new("SELECT #{name, jdbcType=VARCHAR, javaType=String}")
+            .mybatis_params(true)
+            .tokenize()
+            .unwrap();
+        assert!(matches!(&tokens[1].token, Token::MyBatisParam(s) if s.contains("jdbcType=VARCHAR")));
+    }
+
+    #[test]
+    fn test_mybatis_raw_expr() {
+        let tokens = Tokenizer::new("SELECT ${col}")
+            .mybatis_params(true)
+            .tokenize()
+            .unwrap();
+        assert!(matches!(&tokens[1].token, Token::MyBatisRawExpr(s) if s == "col"));
+    }
+
+    #[test]
+    fn test_mybatis_disabled_hash_is_op() {
+        let tokens = Tokenizer::new("SELECT #{id}")
+            .mybatis_params(false)
+            .tokenize()
+            .unwrap();
+        assert!(tokens.iter().any(|t| matches!(&t.token, Token::Op(s) if s == "#")));
+        assert!(!tokens.iter().any(|t| matches!(&t.token, Token::MyBatisParam(_))));
+    }
+
+    #[test]
+    fn test_mybatis_dollar_param_still_works() {
+        let tokens = Tokenizer::new("SELECT $1")
+            .mybatis_params(true)
+            .tokenize()
+            .unwrap();
+        assert!(matches!(&tokens[1].token, Token::Param(n) if *n == 1));
+    }
+
+    #[test]
+    fn test_mybatis_multiple_params() {
+        let sql = "INSERT INTO t (a, b) VALUES (#{x}, #{y})";
+        let tokens = Tokenizer::new(sql)
+            .mybatis_params(true)
+            .tokenize()
+            .unwrap();
+        let params: Vec<_> = tokens.iter()
+            .filter(|t| matches!(&t.token, Token::MyBatisParam(_)))
+            .collect();
+        assert_eq!(params.len(), 2);
+    }
+
+    #[test]
+    fn test_mybatis_in_string_literal_not_scanned() {
+        let tokens = Tokenizer::new("SELECT 'item = #{price}'")
+            .mybatis_params(true)
+            .tokenize()
+            .unwrap();
+        assert!(tokens.iter().any(|t| matches!(&t.token, Token::StringLiteral(s) if s.contains("#{price}"))));
+        assert!(!tokens.iter().any(|t| matches!(&t.token, Token::MyBatisParam(_))));
+    }
+
+    #[test]
+    fn test_mybatis_param_preserves_source_span() {
+        let sql = "SELECT #{id} FROM t";
+        let tokens = Tokenizer::new(sql)
+            .mybatis_params(true)
+            .tokenize()
+            .unwrap();
+        let param_token = tokens.iter().find(|t| matches!(&t.token, Token::MyBatisParam(_))).unwrap();
+        let span_text = &sql[param_token.span.start..param_token.span.end];
+        assert_eq!(span_text, "#{id}");
     }
 }
