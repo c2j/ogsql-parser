@@ -37,7 +37,7 @@ This project implements a complete SQL parser for openGauss/GaussDB (an enterpri
 | DELETE | ✅ Complete | DELETE with WHERE, RETURNING |
 | MERGE | ✅ Complete | MERGE INTO with WHEN MATCHED/NOT MATCHED |
 | Expressions / 表达式 | ✅ Complete | Pratt parser for full expression support |
-| Formatter / 格式化器 | ✅ Complete | SQL formatter with keyword casing options |
+| Formatter / 格式化器 | ✅ Complete | Configurable SQL formatter: indent, keyword case, comma style, line width, DML/DDL/PL-pgSQL |
 
 ### Phase 3: PL/pgSQL Support / 第三阶段：PL/pgSQL支持
 
@@ -159,7 +159,7 @@ openGauss/GaussDB SQL Parser
 Usage: ogsql [OPTIONS] <COMMAND>
 
 Commands:
-  format      Format SQL statements with standardized keyword casing / 格式化 SQL 语句
+  format      Format SQL statements with configurable options
   parse       Parse SQL into AST and print the abstract syntax tree / 解析 SQL 为 AST
   json2sql    Convert JSON (from `parse -j`) back to SQL / 将 JSON 还原为 SQL
   tokenize    Tokenize SQL into a list of tokens / 将 SQL 分词为 token 列表
@@ -168,10 +168,30 @@ Commands:
   playground  Launch an interactive terminal UI playground [requires: tui feature]
 
 Options:
-  -f, --file <FILE>  Read SQL from file instead of stdin
-  -j, --json         Output in JSON format
-  -h, --help         Print help
-  -V, --version      Print version
+  -f, --file <FILE>   Read SQL from file instead of stdin
+      --mybatis       Enable MyBatis #{param} and ${expr} placeholder support
+  -j, --json          Output in JSON format
+  -h, --help          Print help
+  -V, --version       Print version
+```
+
+#### Format Options / 格式化选项
+
+```
+$ ogsql format --help
+Format SQL statements with configurable indentation, keyword casing, comma style, and line width.
+Supports SELECT, INSERT, DELETE, UPDATE, MERGE, WITH (CTE), CREATE TABLE, and PL/pgSQL.
+
+Options:
+  -i, --indent <INDENT>              Indentation width in spaces [default: 2]
+  -k, --keyword-case <KEYWORD_CASE>  Keyword casing: preserve, upper, lower [default: preserve]
+      --comma <COMMA>                Comma style: trailing, leading [default: trailing]
+  -w, --line-width <LINE_WIDTH>      Maximum line width (0 = unlimited) [default: 120]
+  -u, --uppercase                    Shorthand for --keyword-case upper
+      --no-select-newline            Don't put each SELECT column on its own line
+      --no-logical-newline           Don't put AND/OR on new lines
+      --no-semicolon-newline         Don't put semicolons on their own line
+      --mybatis                      Preserve MyBatis #{param} and ${expr} placeholders
 ```
 
 #### Examples / 示例
@@ -192,8 +212,26 @@ echo "SELECT id FROM users WHERE id = 1" | ogsql parse -j | ogsql json2sql
 # Convert JSON file back to SQL
 ogsql -f ast.json json2sql
 
-# Format SQL
-echo "select * from users where id = 1" | ogsql format
+# Format SQL (default: 2-space indent, keyword casing preserved)
+echo "select id,name from users where id=1" | ogsql format
+
+# Format with uppercase keywords and 4-space indent
+echo "select * from users" | ogsql format -u -i 4
+
+# Format with leading comma style
+echo "SELECT id, name, age FROM users" | ogsql format --comma leading
+
+# Format MyBatis SQL (preserves #{param} placeholders)
+echo "SELECT * FROM users WHERE id = #{userId}" | ogsql format --mybatis
+
+# Format INSERT with MyBatis parameters
+echo "insert into t (a,b) values (#{x},#{y})" | ogsql format --mybatis
+
+# Format DML statements
+echo "update users set name='Bob', age=30 where id=1" | ogsql format
+echo "delete from users where id = 1 and status = 'inactive'" | ogsql format
+echo "merge into target t using source s on t.id=s.id when matched then update set t.name=s.name" | ogsql format
+echo "with cte as (select id from users) select * from cte" | ogsql format
 
 # Validate SQL syntax
 echo "SELECT FROM" | ogsql validate
@@ -214,7 +252,7 @@ When built with `--features serve`, the following endpoints are available:
 | GET | `/api/health` | Health check |
 | POST | `/api/parse` | Parse SQL → AST JSON (body: `{"sql": "..."}`) |
 | POST | `/api/json2sql` | JSON → SQL (body: `{"json": "..."}`) |
-| POST | `/api/format` | Format SQL (body: `{"sql": "..."}`) |
+| POST | `/api/format` | Format SQL with configurable options (body: `{"sql": "...", "indent": 2, "keyword_case": "upper", ...}`) |
 | POST | `/api/tokenize` | Tokenize SQL (body: `{"sql": "..."}`) |
 | POST | `/api/validate` | Validate SQL (body: `{"sql": "..."}`) |
 
@@ -236,7 +274,7 @@ ogsql-mcp
 |------|-------------|
 | `parse` | Parse SQL → AST JSON (with fingerprints, comments, errors) |
 | `tokenize` | SQL → Token list with types, values, positions |
-| `format` | Format SQL with standardized casing |
+| `format` | Format SQL with configurable indent, keyword case, comma style, line width |
 | `validate` | Validate SQL syntax, report errors/warnings |
 | `json2sql` | Convert AST JSON back to SQL |
 | `parse_xml` | Parse iBatis/MyBatis XML mapper → extracted SQL |

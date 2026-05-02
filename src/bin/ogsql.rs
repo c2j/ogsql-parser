@@ -27,13 +27,18 @@ struct Cli {
     comments: bool,
 
     #[arg(long, global = true)]
-    /// Enable MyBatis #{param} and ${expr} placeholder support / 启用 MyBatis 占位符支持
+    /// Enable MyBatis #{param, jdbcType=...} and ${expr} placeholder support.
+    /// Preserves MyBatis placeholders during formatting and tokenization.
+    /// 启用 MyBatis #{param} 和 ${expr} 占位符支持，格式化时保留占位符
     mybatis: bool,
 }
 
 #[derive(Subcommand)]
 enum Commands {
-    /// Format SQL statements with standardized keyword casing / 格式化 SQL 语句
+    /// Format SQL statements with configurable indentation, keyword casing,
+    /// comma style, and line width. Supports SELECT, INSERT, DELETE, UPDATE,
+    /// MERGE, WITH (CTE), CREATE TABLE, and PL/pgSQL.
+    /// 格式化 SQL 语句，支持缩进、关键字大小写、逗号风格、行宽等配置
     Format {
         /// Indentation width in spaces
         #[arg(short = 'i', long, default_value_t = 2)]
