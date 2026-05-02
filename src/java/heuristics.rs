@@ -127,6 +127,23 @@ pub(super) fn convert_placeholders(sql: &str) -> String {
             continue;
         }
 
+        if (chars[i] == '#' || chars[i] == '$') && i + 1 < len && chars[i + 1] == '{' {
+            let brace_start = i + 1;
+            let mut brace_end = brace_start + 1;
+            while brace_end < len && chars[brace_end] != '}' {
+                brace_end += 1;
+            }
+            if brace_end < len {
+                let inner: String = chars[brace_start + 1..brace_end]
+                    .iter()
+                    .map(|c| if c.is_ascii_alphanumeric() || *c == '_' { *c } else { '_' })
+                    .collect();
+                result.push_str(&format!("__JAVA_VAR_{}__", inner));
+                i = brace_end + 1;
+                continue;
+            }
+        }
+
         result.push(chars[i]);
         i += 1;
     }

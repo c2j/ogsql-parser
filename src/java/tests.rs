@@ -1085,3 +1085,36 @@ fn test_placeholder_in_field_constant() {
     assert_eq!(result.extractions.len(), 1);
     assert!(result.extractions[0].sql.contains("__JAVA_VAR_JDBC_PARAM_1__"));
 }
+
+#[test]
+fn test_mybatis_hash_placeholder_converted() {
+    let java = r#"
+        public interface UserMapper {
+            @Select("select * from T_USERS where USER_NAME = #{username}")
+            UserInfo selectUser(@Param("username") String username);
+        }
+    "#;
+    let result = extract_sql_from_java(java, "UserMapper.java", &JavaExtractConfig::default());
+    assert_eq!(result.extractions.len(), 1);
+    assert_eq!(
+        result.extractions[0].sql.trim(),
+        "select * from T_USERS where USER_NAME = __JAVA_VAR_username__"
+    );
+    assert!(result.extractions[0].parse_result.is_some());
+    let parse_result = result.extractions[0].parse_result.as_ref().unwrap();
+    assert!(parse_result.errors.is_empty(), "Parse errors: {:?}", parse_result.errors);
+}
+
+#[test]
+fn test_mybatis_dollar_placeholder_converted() {
+    let java = r#"
+        public interface Mapper {
+            @Select("SELECT * FROM ${tableName} WHERE id = #{id}")
+            List<Map> findAll(@Param("tableName") String table, @Param("id") int id);
+        }
+    "#;
+    let result = extract_sql_from_java(java, "Mapper.java", &JavaExtractConfig::default());
+    assert_eq!(result.extractions.len(), 1);
+    assert!(result.extractions[0].sql.contains("__JAVA_VAR_tableName__"));
+    assert!(result.extractions[0].sql.contains("__JAVA_VAR_id__"));
+}
