@@ -35,6 +35,8 @@ quick-xml = { version = "0.39", optional = true }
 tree-sitter = { version = "0.24", optional = true }
 tree-sitter-java = { version = "0.23", optional = true }
 walkdir = { version = "2", optional = true }
+rmcp = { version = "1.5", features = ["server", "macros", "transport-io", "schemars"], optional = true }
+schemars = { version = "1", optional = true }
 
 [dev-dependencies]
 
@@ -45,12 +47,18 @@ ibatis = ["dep:quick-xml", "dep:walkdir"]
 java = ["dep:tree-sitter", "dep:tree-sitter-java", "dep:walkdir"]
 serve = ["cli", "dep:axum", "dep:tokio", "dep:tower-http", "dep:utoipa"]
 tui = ["cli", "dep:ratatui", "dep:crossterm"]
-full = ["cli", "ibatis", "java", "serve", "tui"]
+mcp = ["dep:rmcp", "dep:schemars", "dep:tokio", "ibatis", "java"]
+full = ["cli", "ibatis", "java", "mcp", "serve", "tui"]
 
 [[bin]]
 name = "ogsql"
 path = "src/bin/ogsql.rs"
 required-features = ["cli"]
+
+[[bin]]
+name = "ogsql-mcp"
+path = "src/bin/ogsql-mcp.rs"
+required-features = ["mcp"]
 
 [package.metadata.docs.rs]
 all-features = true
