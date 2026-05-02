@@ -133,6 +133,9 @@ cargo build --release --features serve
 # With TUI playground
 cargo build --release --features tui
 
+# With MCP server
+cargo build --release --features mcp
+
 # All features
 cargo build --release --features full
 ```
@@ -214,6 +217,44 @@ When built with `--features serve`, the following endpoints are available:
 | POST | `/api/format` | Format SQL (body: `{"sql": "..."}`) |
 | POST | `/api/tokenize` | Tokenize SQL (body: `{"sql": "..."}`) |
 | POST | `/api/validate` | Validate SQL (body: `{"sql": "..."}`) |
+
+#### MCP Server / MCP 服务器
+
+When built with `--features mcp`, an MCP (Model Context Protocol) server binary is available:
+
+```bash
+# Build MCP server
+cargo build --release --features mcp
+
+# Run (stdio transport — for Claude Desktop, Cursor, etc.)
+ogsql-mcp
+```
+
+##### MCP Tools / MCP 工具
+
+| Tool | Description |
+|------|-------------|
+| `parse` | Parse SQL → AST JSON (with fingerprints, comments, errors) |
+| `tokenize` | SQL → Token list with types, values, positions |
+| `format` | Format SQL with standardized casing |
+| `validate` | Validate SQL syntax, report errors/warnings |
+| `json2sql` | Convert AST JSON back to SQL |
+| `parse_xml` | Parse iBatis/MyBatis XML mapper → extracted SQL |
+| `parse_java` | Extract SQL from Java source files |
+
+##### Claude Desktop Configuration
+
+Add to `claude_desktop_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "ogsql": {
+      "command": "/path/to/ogsql-mcp"
+    }
+  }
+}
+```
 
 ### Use as Library / 作为库使用
 

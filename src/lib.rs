@@ -37,3 +37,6 @@ pub mod ibatis;
 
 #[cfg(feature = "java")]
 pub mod java;
+
+#[cfg(feature = "mcp")]
+pub mod mcp;
