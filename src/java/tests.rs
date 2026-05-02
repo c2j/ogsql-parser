@@ -903,3 +903,185 @@ fn test_string_builder_non_sql_ignored() {
     let result = extract_sql_from_java(java, "Dao.java", &JavaExtractConfig::default());
     assert!(result.extractions.is_empty());
 }
+
+// ── Phase 4: Test Coverage Hardening ──
+
+#[test]
+fn test_placeholder_colon_with_underscore() {
+    let java = r#"
+        public interface Repo {
+            @Query(value = "SELECT * FROM t WHERE x = :my_param", nativeQuery = true)
+            List<User> find();
+        }
+    "#;
+    let result = extract_sql_from_java(java, "Repo.java", &JavaExtractConfig::default());
+    assert_eq!(result.extractions.len(), 1);
+    assert!(result.extractions[0].sql.contains("__JAVA_VAR_my_param__"));
+}
+
+#[test]
+fn test_named_native_query_with_query_key() {
+    let java = r#"
+        @NamedNativeQuery(name = "User.findById", query = "SELECT * FROM users WHERE id = ?")
+        public class User {}
+    "#;
+    let result = extract_sql_from_java(java, "User.java", &JavaExtractConfig::default());
+    assert_eq!(result.extractions.len(), 1);
+    assert!(result.extractions[0].sql.contains("__JAVA_VAR_JDBC_PARAM_1__"));
+}
+
+#[test]
+fn test_native_query_false_yields_jpql() {
+    let java = r#"
+        public interface Repo {
+            @Query(value = "SELECT u FROM User u WHERE u.name = :name", nativeQuery = false)
+            List<User> findByName();
+        }
+    "#;
+    let result = extract_sql_from_java(java, "Repo.java", &JavaExtractConfig::default());
+    assert_eq!(result.extractions.len(), 1);
+    assert_eq!(result.extractions[0].sql_kind, SqlKind::Jpql);
+}
+
+#[test]
+fn test_sql_query_annotation() {
+    let java = r#"
+        public class Dao {
+            @SqlQuery("SELECT * FROM users WHERE active = 1")
+            public List<User> findActive() { return null; }
+        }
+    "#;
+    let result = extract_sql_from_java(java, "Dao.java", &JavaExtractConfig::default());
+    assert_eq!(result.extractions.len(), 1);
+    assert!(result.extractions[0].sql.contains("SELECT * FROM users"));
+}
+
+#[test]
+fn test_execute_query() {
+    let java = r#"
+        public class Dao {
+            public void run() {
+                ResultSet rs = stmt.executeQuery("SELECT * FROM products");
+            }
+        }
+    "#;
+    let result = extract_sql_from_java(java, "Dao.java", &JavaExtractConfig::default());
+    assert_eq!(result.extractions.len(), 1);
+    assert!(result.extractions[0].sql.contains("SELECT * FROM products"));
+}
+
+#[test]
+fn test_execute_update() {
+    let java = r#"
+        public class Dao {
+            public void run() {
+                int n = stmt.executeUpdate("DELETE FROM temp_data");
+            }
+        }
+    "#;
+    let result = extract_sql_from_java(java, "Dao.java", &JavaExtractConfig::default());
+    assert_eq!(result.extractions.len(), 1);
+    assert!(result.extractions[0].sql.contains("DELETE FROM temp_data"));
+}
+
+#[test]
+fn test_ambiguous_method_with_sql_content() {
+    let java = r#"
+        public class Dao {
+            public void run() {
+                jdbc.query("SELECT * FROM users");
+            }
+        }
+    "#;
+    let result = extract_sql_from_java(java, "Dao.java", &JavaExtractConfig::default());
+    assert_eq!(result.extractions.len(), 1);
+}
+
+#[test]
+fn test_ambiguous_method_without_sql_content() {
+    let java = r#"
+        public class Dao {
+            public void run() {
+                obj.query("calculateMetrics");
+            }
+        }
+    "#;
+    let result = extract_sql_from_java(java, "Dao.java", &JavaExtractConfig::default());
+    assert!(result.extractions.is_empty());
+}
+
+#[test]
+fn test_interface_declaration() {
+    let java = r#"
+        public interface UserRepository {
+            @Query("SELECT * FROM users WHERE id = :id")
+            User findById(@Param("id") int id);
+        }
+    "#;
+    let result = extract_sql_from_java(java, "UserRepository.java", &JavaExtractConfig::default());
+    assert_eq!(result.extractions.len(), 1);
+    assert!(result.extractions[0].sql.contains("__JAVA_VAR_id__"));
+}
+
+#[test]
+fn test_text_block_indentation() {
+    let java = r#"
+        public class Dao {
+            public void run() {
+                String sql = """
+                    SELECT *
+                    FROM users
+                    WHERE id = 1
+                    """;
+            }
+        }
+    "#;
+    let result = extract_sql_from_java(java, "Dao.java", &JavaExtractConfig::default());
+    assert_eq!(result.extractions.len(), 1);
+    let sql = &result.extractions[0].sql;
+    assert!(sql.contains("SELECT *"));
+    assert!(sql.contains("FROM users"));
+    assert!(sql.contains("WHERE id = 1"));
+    assert!(!sql.starts_with("    "));
+}
+
+#[test]
+fn test_escape_sequences_in_string() {
+    let java = r#"
+        public class Dao {
+            public void run() {
+                String sql = "SELECT * FROM users WHERE name = 'O\'Brien'";
+            }
+        }
+    "#;
+    let result = extract_sql_from_java(java, "Dao.java", &JavaExtractConfig::default());
+    assert_eq!(result.extractions.len(), 1);
+    assert!(result.extractions[0].sql.contains("O'Brien"));
+}
+
+#[test]
+fn test_empty_java_file() {
+    let java = "// empty file";
+    let result = extract_sql_from_java(java, "Empty.java", &JavaExtractConfig::default());
+    assert!(result.extractions.is_empty());
+    assert!(result.errors.is_empty());
+}
+
+#[test]
+fn test_syntax_error_in_java() {
+    let java = "public class { }";
+    let result = extract_sql_from_java(java, "Broken.java", &JavaExtractConfig::default());
+    assert!(result.extractions.is_empty());
+}
+
+#[test]
+fn test_placeholder_in_field_constant() {
+    let java = r#"
+        public class Dao {
+            private static final String SQL = "SELECT * FROM users WHERE id = ?";
+        }
+    "#;
+    let result = extract_sql_from_java(java, "Dao.java", &JavaExtractConfig::default());
+    assert_eq!(result.extractions.len(), 1);
+    assert!(result.extractions[0].sql.contains("__JAVA_VAR_JDBC_PARAM_1__"));
+}
