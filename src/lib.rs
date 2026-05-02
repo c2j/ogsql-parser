@@ -31,6 +31,7 @@ pub use formatter::SqlFormatter;
 pub use parser::{Parser, ParserError, ParseOptions, ParseOutput, CommentInfo, StatementIter};
 pub use token::tokenizer::{Tokenizer, TokenizerError};
 pub use token::{Keyword, SourceLocation, Span, Token, TokenWithSpan};
+pub use token_formatter::{CommaStyle, FormatConfig, KeywordCase};
 
 #[cfg(feature = "ibatis")]
 pub mod ibatis;
