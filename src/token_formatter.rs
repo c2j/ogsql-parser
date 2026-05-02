@@ -200,6 +200,20 @@ impl<'a> TokenFormatter<'a> {
         }
     }
 
+    fn current_line_length(&self) -> usize {
+        self.output
+            .rfind('\n')
+            .map(|pos| self.output.len() - pos - 1)
+            .unwrap_or(self.output.len())
+    }
+
+    fn would_exceed_line_width(&self, token_text: &str) -> bool {
+        if self.config.line_width == 0 {
+            return false;
+        }
+        self.current_line_length() + token_text.len() > self.config.line_width
+    }
+
     fn emit_default_token(&mut self) {
         let tws = &self.tokens[self.pos];
         let is_space_rejecting = matches!(
@@ -230,6 +244,16 @@ impl<'a> TokenFormatter<'a> {
 
         if !is_space_rejecting && !prev_rejects_space && !self.output.ends_with(' ') && !self.output.ends_with('\n') {
             self.output.push(' ');
+        }
+
+        // Soft line wrapping: if this token would exceed line width, and we're not
+        // in a structured list (where newlines are already handled), insert a newline
+        if self.config.line_width > 0
+            && !self.in_create_table_body()
+            && self.would_exceed_line_width(&text)
+        {
+            self.output.push('\n');
+            self.emit_indent();
         }
 
         self.output.push_str(&text);
@@ -265,6 +289,10 @@ impl<'a> TokenFormatter<'a> {
 
     fn in_select_context(&self) -> bool {
         self.indent_stack.iter().any(|k| matches!(k, IndentKind::Select))
+    }
+
+    fn in_pl_block(&self) -> bool {
+        self.indent_stack.iter().any(|k| matches!(k, IndentKind::Begin | IndentKind::If | IndentKind::Loop | IndentKind::Case))
     }
 
     fn is_procedure_or_function_context(&self) -> bool {
@@ -418,8 +446,16 @@ impl<'a> TokenFormatter<'a> {
             }
 
             // ── FROM / WHERE / GROUP BY / HAVING / ORDER / LIMIT / OFFSET / UNION ─
-            Token::Keyword(Keyword::FROM)
-            | Token::Keyword(Keyword::WHERE)
+            Token::Keyword(Keyword::FROM) => {
+                if self.in_select_context() {
+                    self.pop_indent_to(IndentKind::Select);
+                }
+                self.emit_line_start();
+                self.emit_current_token();
+                self.pos += 1;
+            }
+
+            Token::Keyword(Keyword::WHERE)
             | Token::Keyword(Keyword::GROUP_P)
             | Token::Keyword(Keyword::HAVING)
             | Token::Keyword(Keyword::ORDER)
@@ -433,6 +469,21 @@ impl<'a> TokenFormatter<'a> {
                 }
                 self.emit_line_start();
                 self.emit_current_token();
+                self.pos += 1;
+            }
+
+            // ── JOIN types ─────────────────────────────────────────────────────
+            Token::Keyword(Keyword::INNER_P)
+            | Token::Keyword(Keyword::LEFT)
+            | Token::Keyword(Keyword::RIGHT)
+            | Token::Keyword(Keyword::FULL)
+            | Token::Keyword(Keyword::CROSS)
+            | Token::Keyword(Keyword::JOIN) => {
+                if self.paren_depth == 0 {
+                    self.emit_line_start();
+                }
+                self.emit_current_token();
+                self.emit_space();
                 self.pos += 1;
             }
 
@@ -513,6 +564,57 @@ impl<'a> TokenFormatter<'a> {
             Token::Keyword(Keyword::IF_P) => {
                 self.emit_line_start();
                 self.emit_current_token();
+                self.pos += 1;
+            }
+
+            // ── WHILE / FOR (PL/pgSQL loops) ──────────────────────────────────
+            Token::Keyword(Keyword::WHILE_P) => {
+                self.emit_line_start();
+                self.emit_current_token();
+                self.emit_space();
+                self.pos += 1;
+            }
+
+            Token::Keyword(Keyword::FOR) => {
+                if self.in_pl_block() {
+                    self.emit_line_start();
+                    self.emit_current_token();
+                    self.emit_space();
+                } else {
+                    self.emit_default_token();
+                }
+                self.pos += 1;
+            }
+
+            // ── CASE ──────────────────────────────────────────────────────────
+            Token::Keyword(Keyword::CASE) => {
+                if self.in_pl_block() {
+                    self.emit_line_start();
+                }
+                self.emit_current_token();
+                self.indent_stack.push(IndentKind::Case);
+                self.pos += 1;
+                self.needs_line = true;
+            }
+
+            // ── RETURN / EXECUTE (PL/pgSQL statements) ───────────────────────
+            Token::Keyword(Keyword::RETURN)
+            | Token::Keyword(Keyword::EXECUTE) => {
+                if self.in_pl_block() {
+                    self.emit_line_start();
+                }
+                self.emit_current_token();
+                self.emit_space();
+                self.pos += 1;
+            }
+
+            // ── RAISE / PERFORM (identifiers in PL/pgSQL, not keywords) ─────────
+            Token::Ident(name) if matches!(name.to_uppercase().as_str(), "RAISE" | "PERFORM") => {
+                if self.in_pl_block() {
+                    self.emit_line_start();
+                }
+                self.emit_current_token();
+                self.emit_space();
                 self.pos += 1;
             }
 
@@ -863,6 +965,29 @@ mod tests {
         assert_eq!(compact, input_compact, "Content preserved: {:?}", output);
     }
 
+    // ── JOIN formatting ────────────────────────────────────────────────────────
+
+    #[test]
+    fn test_join_formatting() {
+        let input = "SELECT a.id FROM users a JOIN orders b ON a.id = b.user_id LEFT JOIN products c ON b.product_id = c.id";
+        let output = format_sql(input);
+        assert!(output.contains("JOIN orders"), "JOIN preserved: {:?}", output);
+        assert!(output.contains("ON a.id = b.user_id"), "ON condition preserved: {:?}", output);
+        assert!(output.contains("LEFT"), "LEFT JOIN preserved: {:?}", output);
+        assert!(output.contains("JOIN products"), "JOIN products: {:?}", output);
+    }
+
+    // ── CREATE FUNCTION/PROCEDURE formatting ───────────────────────────────────
+
+    #[test]
+    fn test_create_function_formatting() {
+        let input = "CREATE OR REPLACE FUNCTION my_func(p1 INTEGER) RETURNS INTEGER IS BEGIN RETURN p1 + 1; END";
+        let output = format_sql(input);
+        assert!(output.contains("FUNCTION my_func"), "Function header: {:?}", output);
+        assert!(output.contains("IS\nBEGIN"), "IS -> BEGIN: {:?}", output);
+        assert!(output.contains("RETURN p1 + 1;"), "Return statement: {:?}", output);
+    }
+
     // ── PL/pgSQL enhanced ──────────────────────────────────────────────────────
 
     #[test]
@@ -871,5 +996,41 @@ mod tests {
         let output = format_sql(input);
         assert!(output.contains("CASE"), "CASE preserved: {:?}", output);
         assert!(output.contains("END"), "END preserved: {:?}", output);
+    }
+
+    #[test]
+    fn test_while_loop() {
+        let input = "BEGIN WHILE x > 0 LOOP x := x - 1; END LOOP; END";
+        let output = format_sql(input);
+        assert!(output.contains("WHILE x > 0"), "WHILE header: {:?}", output);
+        assert!(output.contains("LOOP"), "LOOP keyword: {:?}", output);
+        assert!(output.contains("x := x - 1;"), "Loop body: {:?}", output);
+    }
+
+    #[test]
+    fn test_for_loop() {
+        let input = "BEGIN FOR i IN 1..10 LOOP x := x + i; END LOOP; END";
+        let output = format_sql(input);
+        assert!(output.contains("FOR i IN 1"), "FOR header start: {:?}", output);
+        assert!(output.contains("10"), "FOR header end: {:?}", output);
+        assert!(output.contains("x := x + i;"), "Loop body: {:?}", output);
+    }
+
+    #[test]
+    fn test_return_in_block() {
+        let input = "BEGIN x := 1; RETURN x; END";
+        let output = format_sql(input);
+        assert!(output.contains("RETURN x;"), "RETURN in block: {:?}", output);
+    }
+
+    // ── Line width ─────────────────────────────────────────────────────────────
+
+    #[test]
+    fn test_line_width_unlimited() {
+        let config = FormatConfig { line_width: 0, select_newline: false, ..Default::default() };
+        let input = "SELECT a, b, c, d, e, f, g, h, i, j FROM very_long_table_name";
+        let output = format_sql_with(input, config);
+        let compact: String = output.chars().filter(|c| *c != '\n').collect();
+        assert!(compact.len() > 50, "Should not wrap when line_width=0");
     }
 }
