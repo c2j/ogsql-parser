@@ -24,6 +24,10 @@ struct Cli {
 
     #[arg(long, global = true)]
     comments: bool,
+
+    #[arg(long, global = true)]
+    /// Enable MyBatis #{param} and ${expr} placeholder support / 启用 MyBatis 占位符支持
+    mybatis: bool,
 }
 
 #[derive(Subcommand)]
@@ -101,8 +105,8 @@ fn read_input(file: Option<&str>) -> String {
     }
 }
 
-fn parse_input(sql: &str, preserve_comments: bool) -> ogsql_parser::ParseOutput {
-    let options = ogsql_parser::ParseOptions { preserve_comments };
+fn parse_input(sql: &str, preserve_comments: bool, mybatis_params: bool) -> ogsql_parser::ParseOutput {
+    let options = ogsql_parser::ParseOptions { preserve_comments, mybatis_params };
     ogsql_parser::Parser::parse_sql_with_options(sql, options)
 }
 
@@ -125,6 +129,8 @@ fn token_display(t: &TokenWithSpan) -> (String, String) {
         Token::OpDblBang => ("Op".into(), "!!".into()),
         Token::OpConcat => ("Op".into(), "||".into()),
         Token::Comment(s) => ("Comment".into(), s.clone()),
+        Token::MyBatisParam(s) => ("MyBatisParam".into(), format!("#{{{}}}", s)),
+        Token::MyBatisRawExpr(s) => ("MyBatisRawExpr".into(), format!("${{{}}}", s)),
         other => ("Other".into(), format!("{:?}", other)),
     }
 }
@@ -140,7 +146,11 @@ struct TokenInfo {
 
 fn cmd_format(cli: &Cli) {
     let sql = read_input(cli.file.as_deref());
-    let tokens = match Tokenizer::new(&sql).preserve_comments(true).tokenize() {
+    let mut tokenizer = Tokenizer::new(&sql).preserve_comments(true);
+    if cli.mybatis {
+        tokenizer = tokenizer.mybatis_params(true);
+    }
+    let tokens = match tokenizer.tokenize() {
         Ok(t) => t,
         Err(e) => die!("Tokenization error: {}", e),
     };
@@ -161,7 +171,7 @@ fn cmd_format(cli: &Cli) {
 
 fn cmd_parse(cli: &Cli) {
     let sql = read_input(cli.file.as_deref());
-    let output = parse_input(&sql, cli.comments);
+    let output = parse_input(&sql, cli.comments, cli.mybatis);
 
     if cli.json {
         let stmt_values: Vec<serde_json::Value> = output
@@ -265,6 +275,9 @@ fn cmd_tokenize(cli: &Cli) {
     if cli.comments {
         tokenizer = tokenizer.preserve_comments(true);
     }
+    if cli.mybatis {
+        tokenizer = tokenizer.mybatis_params(true);
+    }
     let tokens = match tokenizer.tokenize() {
         Ok(t) => t,
         Err(e) => die!("Tokenizer error: {}", e),
@@ -353,7 +366,7 @@ fn is_warning(e: &ogsql_parser::ParserError) -> bool {
 
 fn cmd_validate(cli: &Cli) {
     let sql = read_input(cli.file.as_deref());
-    let output = parse_input(&sql, false);
+    let output = parse_input(&sql, false, cli.mybatis);
     let stmts = output.statements;
     let errors = output.errors;
 
@@ -649,7 +662,7 @@ mod api {
         responses((status = 200, description = "Parsed AST result"))
     )]
     pub async fn handle_parse(Json(input): Json<SqlInput>) -> Json<serde_json::Value> {
-        let output = super::parse_input(&input.sql, input.preserve_comments);
+        let output = super::parse_input(&input.sql, input.preserve_comments, false);
         let all_stmts: Vec<_> = output.statements.iter().map(|si| si.statement.clone()).collect();
         let fingerprints = ogsql_parser::compute_query_fingerprints(&all_stmts);
         let mut out = serde_json::json!({"statements": output.statements, "errors": output.errors});
@@ -677,7 +690,7 @@ mod api {
         responses((status = 200, description = "Formatted SQL result"))
     )]
     pub async fn handle_format(Json(input): Json<SqlInput>) -> Json<serde_json::Value> {
-        let output = super::parse_input(&input.sql, false);
+        let output = super::parse_input(&input.sql, false, false);
         let formatter = ogsql_parser::SqlFormatter::new();
         let formatted: Vec<String> = output
             .statements
@@ -728,7 +741,7 @@ mod api {
         responses((status = 200, description = "Validation result"))
     )]
     pub async fn handle_validate(Json(input): Json<SqlInput>) -> Json<serde_json::Value> {
-        let output = super::parse_input(&input.sql, false);
+        let output = super::parse_input(&input.sql, false, false);
         Json(serde_json::json!({
             "valid": output.errors.is_empty(),
             "error_count": output.errors.len(),

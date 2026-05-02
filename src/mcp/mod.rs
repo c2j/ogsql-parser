@@ -73,7 +73,7 @@ impl OgsqlServer {
         &self,
         Parameters(ParseParams { sql, preserve_comments }): Parameters<ParseParams>,
     ) -> String {
-        let options = crate::ParseOptions { preserve_comments };
+        let options = crate::ParseOptions { preserve_comments, mybatis_params: false };
         let output = crate::Parser::parse_sql_with_options(&sql, options);
 
         let all_stmts: Vec<_> = output
@@ -137,6 +137,7 @@ impl OgsqlServer {
             &sql,
             crate::ParseOptions {
                 preserve_comments: false,
+                mybatis_params: false,
             },
         );
         let formatter = crate::SqlFormatter::new();
@@ -163,6 +164,7 @@ impl OgsqlServer {
             &sql,
             crate::ParseOptions {
                 preserve_comments: false,
+                mybatis_params: false,
             },
         );
         let errors = output.errors;
