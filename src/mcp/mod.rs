@@ -9,6 +9,8 @@ use rmcp::tool;
 use rmcp::tool_router;
 use serde::Deserialize;
 
+use crate::token_formatter::{CommaStyle, FormatConfig, KeywordCase, TokenFormatter};
+
 // ── Parameter types ──────────────────────────────────────────────────────────
 
 #[derive(Debug, Deserialize, JsonSchema)]
@@ -26,10 +28,28 @@ pub struct TokenizeParams {
     pub sql: String,
 }
 
+fn default_indent() -> usize { 2 }
+fn default_line_width() -> usize { 120 }
+
 #[derive(Debug, Deserialize, JsonSchema)]
 pub struct FormatParams {
     /// SQL text to format
     pub sql: String,
+    /// Number of spaces per indentation level
+    #[serde(default = "default_indent")]
+    pub indent: usize,
+    /// Keyword casing: "preserve", "upper", or "lower"
+    #[serde(default)]
+    pub keyword_case: String,
+    /// Comma positioning: "trailing" or "leading"
+    #[serde(default)]
+    pub comma_style: String,
+    /// Maximum line width before wrapping
+    #[serde(default = "default_line_width")]
+    pub line_width: usize,
+    /// Convert keywords to uppercase (legacy compat, overrides keyword_case when true)
+    #[serde(default)]
+    pub uppercase: bool,
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
@@ -131,26 +151,47 @@ impl OgsqlServer {
     #[tool(description = "Format SQL with standardized keyword casing and indentation")]
     fn format(
         &self,
-        Parameters(FormatParams { sql }): Parameters<FormatParams>,
+        Parameters(FormatParams {
+            sql,
+            indent,
+            keyword_case,
+            comma_style,
+            line_width,
+            uppercase,
+        }): Parameters<FormatParams>,
     ) -> String {
-        let output = crate::Parser::parse_sql_with_options(
-            &sql,
-            crate::ParseOptions {
-                preserve_comments: false,
-                mybatis_params: false,
-            },
-        );
-        let formatter = crate::SqlFormatter::new();
-        let formatted: Vec<String> = output
-            .statements
-            .iter()
-            .map(|si| formatter.format_statement(&si.statement))
-            .collect();
+        let tokens = match crate::Tokenizer::new(&sql).preserve_comments(true).tokenize() {
+            Ok(t) => t,
+            Err(e) => return format!("{{\"error\": \"{}\"}}", e),
+        };
+
+        let keyword_case = match keyword_case.to_lowercase().as_str() {
+            "upper" => KeywordCase::Upper,
+            "lower" => KeywordCase::Lower,
+            _ => KeywordCase::Preserve,
+        };
+
+        let comma_style = match comma_style.to_lowercase().as_str() {
+            "leading" => CommaStyle::Leading,
+            _ => CommaStyle::Trailing,
+        };
+
+        let config = FormatConfig {
+            indent_width: indent,
+            keyword_case,
+            comma_style,
+            line_width,
+            uppercase_keywords: uppercase,
+            ..Default::default()
+        };
+
+        let formatter = TokenFormatter::with_config(&sql, tokens, config);
+        let formatted = formatter.format();
+
         serde_json::to_string_pretty(&serde_json::json!({
-            "formatted": formatted.join(";\n"),
-            "statement_count": formatted.len(),
-            "error_count": output.errors.len(),
-            "errors": output.errors,
+            "formatted": formatted,
+            "error_count": 0usize,
+            "errors": Vec::<crate::ParserError>::new(),
         }))
         .unwrap_or_else(|e| format!("{{\"error\": \"{}\"}}", e))
     }

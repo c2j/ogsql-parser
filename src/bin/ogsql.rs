@@ -2,6 +2,7 @@ use std::io::Read as _;
 
 use clap::{Parser as ClapParser, Subcommand};
 use ogsql_parser::*;
+use ogsql_parser::token_formatter::{FormatConfig, KeywordCase, CommaStyle};
 use serde::Serialize;
 
 #[derive(ClapParser)]
@@ -33,7 +34,32 @@ struct Cli {
 #[derive(Subcommand)]
 enum Commands {
     /// Format SQL statements with standardized keyword casing / 格式化 SQL 语句
-    Format,
+    Format {
+        /// Indentation width in spaces
+        #[arg(short = 'i', long, default_value_t = 2)]
+        indent: usize,
+        /// Keyword casing: preserve, upper, lower
+        #[arg(short = 'k', long, default_value = "preserve")]
+        keyword_case: String,
+        /// Comma style: trailing, leading
+        #[arg(long, default_value = "trailing")]
+        comma: String,
+        /// Maximum line width (0 = unlimited)
+        #[arg(short = 'w', long, default_value_t = 120)]
+        line_width: usize,
+        /// Shorthand for --keyword-case upper
+        #[arg(short = 'u', long)]
+        uppercase: bool,
+        /// Don't put each SELECT column on its own line
+        #[arg(long)]
+        no_select_newline: bool,
+        /// Don't put AND/OR on new lines
+        #[arg(long)]
+        no_logical_newline: bool,
+        /// Don't put semicolons on their own line
+        #[arg(long)]
+        no_semicolon_newline: bool,
+    },
     /// Parse SQL into AST and print the abstract syntax tree / 解析 SQL 为 AST
     Parse,
     /// Convert JSON (from `parse -j`) back to SQL / 将 JSON（parse -j 的输出）还原为 SQL
@@ -144,7 +170,17 @@ struct TokenInfo {
     column: usize,
 }
 
-fn cmd_format(cli: &Cli) {
+fn cmd_format(
+    cli: &Cli,
+    indent: usize,
+    keyword_case: String,
+    comma: String,
+    line_width: usize,
+    uppercase: bool,
+    no_select_newline: bool,
+    no_logical_newline: bool,
+    no_semicolon_newline: bool,
+) {
     let sql = read_input(cli.file.as_deref());
     let mut tokenizer = Tokenizer::new(&sql).preserve_comments(true);
     if cli.mybatis {
@@ -154,7 +190,26 @@ fn cmd_format(cli: &Cli) {
         Ok(t) => t,
         Err(e) => die!("Tokenization error: {}", e),
     };
-    let formatted = token_formatter::TokenFormatter::new(&sql, tokens).format();
+    let keyword_case = match keyword_case.as_str() {
+        "upper" => KeywordCase::Upper,
+        "lower" => KeywordCase::Lower,
+        _ => KeywordCase::Preserve,
+    };
+    let comma_style = match comma.as_str() {
+        "leading" => CommaStyle::Leading,
+        _ => CommaStyle::Trailing,
+    };
+    let config = FormatConfig {
+        indent_width: indent,
+        keyword_case,
+        comma_style,
+        line_width,
+        uppercase_keywords: uppercase,
+        select_newline: !no_select_newline,
+        logical_operator_newline: !no_logical_newline,
+        semicolon_newline: !no_semicolon_newline,
+    };
+    let formatted = token_formatter::TokenFormatter::with_config(&sql, tokens, config).format();
 
     if cli.json {
         let out = serde_json::json!({
@@ -635,6 +690,16 @@ mod api {
         pub sql: String,
         #[serde(default)]
         pub preserve_comments: bool,
+        #[serde(default)]
+        pub indent: Option<usize>,
+        #[serde(default)]
+        pub keyword_case: Option<String>,
+        #[serde(default)]
+        pub comma_style: Option<String>,
+        #[serde(default)]
+        pub line_width: Option<usize>,
+        #[serde(default)]
+        pub uppercase: Option<bool>,
     }
 
     #[derive(Deserialize, ToSchema)]
@@ -690,17 +755,43 @@ mod api {
         responses((status = 200, description = "Formatted SQL result"))
     )]
     pub async fn handle_format(Json(input): Json<SqlInput>) -> Json<serde_json::Value> {
-        let output = super::parse_input(&input.sql, false, false);
-        let formatter = ogsql_parser::SqlFormatter::new();
-        let formatted: Vec<String> = output
-            .statements
-            .iter()
-            .map(|si| formatter.format_statement(&si.statement))
-            .collect();
+        let tokens = match ogsql_parser::Tokenizer::new(&input.sql).preserve_comments(true).tokenize() {
+            Ok(t) => t,
+            Err(e) => {
+                return Json(serde_json::json!({
+                    "formatted": "",
+                    "error": format!("{}", e),
+                }));
+            }
+        };
+
+        let mut config = ogsql_parser::FormatConfig::default();
+        if let Some(indent) = input.indent {
+            config.indent_width = indent;
+        }
+        if let Some(ref kw) = input.keyword_case {
+            config.keyword_case = match kw.as_str() {
+                "upper" => ogsql_parser::token_formatter::KeywordCase::Upper,
+                "lower" => ogsql_parser::token_formatter::KeywordCase::Lower,
+                _ => ogsql_parser::token_formatter::KeywordCase::Preserve,
+            };
+        }
+        if let Some(ref comma) = input.comma_style {
+            config.comma_style = match comma.as_str() {
+                "leading" => ogsql_parser::token_formatter::CommaStyle::Leading,
+                _ => ogsql_parser::token_formatter::CommaStyle::Trailing,
+            };
+        }
+        if let Some(line_width) = input.line_width {
+            config.line_width = line_width;
+        }
+        if input.uppercase == Some(true) {
+            config.uppercase_keywords = true;
+        }
+
+        let formatted = ogsql_parser::token_formatter::TokenFormatter::with_config(&input.sql, tokens, config).format();
         Json(serde_json::json!({
-            "formatted": formatted.join(";\n"),
-            "error_count": output.errors.len(),
-            "errors": output.errors,
+            "formatted": formatted,
         }))
     }
 
@@ -1691,7 +1782,26 @@ fn main() {
     let cli = Cli::parse();
 
     match cli.command {
-        Commands::Format => cmd_format(&cli),
+        Commands::Format {
+            indent,
+            ref keyword_case,
+            ref comma,
+            line_width,
+            uppercase,
+            no_select_newline,
+            no_logical_newline,
+            no_semicolon_newline,
+        } => cmd_format(
+            &cli,
+            indent,
+            keyword_case.clone(),
+            comma.clone(),
+            line_width,
+            uppercase,
+            no_select_newline,
+            no_logical_newline,
+            no_semicolon_newline,
+        ),
         Commands::Parse => cmd_parse(&cli),
         Commands::JsonToSql => cmd_json2sql(&cli),
         Commands::Tokenize => cmd_tokenize(&cli),
