@@ -81,6 +81,12 @@ pub enum Token {
     // --- Parameters ---
     /// Positional parameter ($1, $2, ...)
     Param(i32),
+    /// MyBatis parameter placeholder: #{param, jdbcType=BIGINT}
+    /// Content is everything between #{ and }
+    MyBatisParam(String),
+    /// MyBatis raw expression: ${expr}
+    /// Content is everything between ${ and }
+    MyBatisRawExpr(String),
 
     // --- Operators ---
     /// Multi-character operator (>=, !=, <>, ||, etc.)
