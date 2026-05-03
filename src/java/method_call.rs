@@ -4,7 +4,7 @@ use tree_sitter::Node;
 
 use super::constant::{SQL_METHOD_AMBIGUOUS, SQL_METHOD_UNAMBIGUOUS};
 use super::extract::ExtractContext;
-use super::heuristics::{convert_placeholders, detect_parameter_style, looks_like_sql};
+use super::heuristics::{detect_parameter_style, looks_like_sql};
 use crate::java::types::*;
 
 impl<'a> ExtractContext<'a> {
@@ -53,7 +53,7 @@ impl<'a> ExtractContext<'a> {
                 _ => SqlKind::NativeSql,
             };
             let param_style = detect_parameter_style(&sql_text);
-            let sql_converted = convert_placeholders(&sql_text);
+            let sql_converted = self.convert_placeholders(&sql_text);
             let parse_result = self.try_parse_sql(&sql_converted, sql_kind);
 
             self.extractions.push(ExtractedSql {

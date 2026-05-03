@@ -72,7 +72,7 @@ fn test_placeholder_named_colon() {
     let ext = &result.extractions[0];
     assert_eq!(
         ext.sql.trim(),
-        "SELECT * FROM users WHERE status = __JAVA_VAR_status__"
+        "SELECT * FROM users WHERE status = __JAVA_VAR_int_status__"
     );
 }
 
@@ -89,7 +89,7 @@ fn test_placeholder_named_multiple() {
     let ext = &result.extractions[0];
     assert_eq!(
         ext.sql.trim(),
-        "INSERT INTO users (name, email) VALUES (__JAVA_VAR_name__, __JAVA_VAR_email__)"
+        "INSERT INTO users (name, email) VALUES (__JAVA_VAR_String_name__, __JAVA_VAR_String_email__)"
     );
 }
 
@@ -149,7 +149,7 @@ fn test_query_annotation_native_sql() {
     assert!(result.errors.is_empty(), "Errors: {:?}", result.errors);
     assert_eq!(result.extractions.len(), 1);
     let ext = &result.extractions[0];
-    assert_eq!(ext.sql.trim(), "SELECT * FROM users WHERE status = __JAVA_VAR_status__");
+    assert_eq!(ext.sql.trim(), "SELECT * FROM users WHERE status = __JAVA_VAR_int_status__");
     assert_eq!(ext.origin.method, ExtractionMethod::Annotation);
     assert_eq!(ext.origin.annotation_name.as_deref(), Some("Query"));
     assert_eq!(ext.sql_kind, SqlKind::NativeSql);
@@ -183,7 +183,7 @@ fn test_query_annotation_string_concatenation() {
     assert_eq!(result.extractions.len(), 1);
     assert_eq!(
         result.extractions[0].sql.trim(),
-        "SELECT * FROM users WHERE status = __JAVA_VAR_status__"
+        "SELECT * FROM users WHERE status = __JAVA_VAR_int_status__"
     );
 }
 
@@ -1020,7 +1020,7 @@ fn test_interface_declaration() {
     "#;
     let result = extract_sql_from_java(java, "UserRepository.java", &JavaExtractConfig::default());
     assert_eq!(result.extractions.len(), 1);
-    assert!(result.extractions[0].sql.contains("__JAVA_VAR_id__"));
+    assert!(result.extractions[0].sql.contains("__JAVA_VAR_int_id__"));
 }
 
 #[test]
@@ -1098,7 +1098,7 @@ fn test_mybatis_hash_placeholder_converted() {
     assert_eq!(result.extractions.len(), 1);
     assert_eq!(
         result.extractions[0].sql.trim(),
-        "select * from T_USERS where USER_NAME = __JAVA_VAR_username__"
+        "select * from T_USERS where USER_NAME = __JAVA_VAR_String_username__"
     );
     assert!(result.extractions[0].parse_result.is_some());
     let parse_result = result.extractions[0].parse_result.as_ref().unwrap();
@@ -1116,5 +1116,5 @@ fn test_mybatis_dollar_placeholder_converted() {
     let result = extract_sql_from_java(java, "Mapper.java", &JavaExtractConfig::default());
     assert_eq!(result.extractions.len(), 1);
     assert!(result.extractions[0].sql.contains("__JAVA_VAR_tableName__"));
-    assert!(result.extractions[0].sql.contains("__JAVA_VAR_id__"));
+    assert!(result.extractions[0].sql.contains("__JAVA_VAR_int_id__"));
 }

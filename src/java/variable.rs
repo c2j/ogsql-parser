@@ -4,7 +4,7 @@ use tree_sitter::Node;
 
 use super::constant::{SQL_NAME_PATTERN, SQL_STATEMENT_PREFIXES, STRING_BUILDER_TYPES};
 use super::extract::{ExtractContext, TrackedVar};
-use super::heuristics::{convert_placeholders, detect_parameter_style, detect_sql_kind_from_content, looks_like_sql};
+use super::heuristics::{detect_parameter_style, detect_sql_kind_from_content, looks_like_sql};
 use crate::java::types::*;
 
 impl<'a> ExtractContext<'a> {
@@ -118,7 +118,7 @@ impl<'a> ExtractContext<'a> {
 
         let sql_kind = detect_sql_kind_from_content(&sql_text);
         let param_style = detect_parameter_style(&sql_text);
-        let sql_converted = convert_placeholders(&sql_text);
+        let sql_converted = self.convert_placeholders(&sql_text);
         let parse_result = if sql_converted.trim().is_empty() {
             None
         } else {
@@ -200,7 +200,7 @@ impl<'a> ExtractContext<'a> {
 
         let sql_kind = detect_sql_kind_from_content(&sql_text);
         let param_style = detect_parameter_style(&sql_text);
-        let sql_converted = convert_placeholders(&sql_text);
+        let sql_converted = self.convert_placeholders(&sql_text);
         let is_concatenated = value_node.kind() == "binary_expression";
         let parse_result = self.try_parse_sql(&sql_converted, sql_kind);
 
@@ -569,7 +569,7 @@ impl<'a> ExtractContext<'a> {
 
         let sql_kind = detect_sql_kind_from_content(&sql_text);
         let param_style = detect_parameter_style(&sql_text);
-        let sql_converted = convert_placeholders(&sql_text);
+        let sql_converted = self.convert_placeholders(&sql_text);
         let is_concatenated = rhs.kind() == "binary_expression";
         let parse_result = self.try_parse_sql(&sql_converted, sql_kind);
 
