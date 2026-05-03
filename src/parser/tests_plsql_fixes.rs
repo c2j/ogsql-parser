@@ -516,3 +516,101 @@ fn test_set_transaction_serializable_deferrable() {
         other => panic!("expected SetTransaction, got {:?}", other),
     }
 }
+
+#[test]
+fn test_pl_call_with_qualified_name() {
+    let sql = "CREATE OR REPLACE PROCEDURE prc_test IS
+               BEGIN
+                 CALL pkg_inventory.check_stock(p_product_id, p_qty);
+               END;";
+    let stmt = parse_one(sql);
+    match stmt {
+        Statement::CreateProcedure(p) => {
+            let block = p.block.as_ref().expect("procedure should have a body");
+            assert_eq!(block.body.len(), 1);
+            match &block.body[0] {
+                PlStatement::ProcedureCall(call) => {
+                    assert_eq!(call.name, vec!["pkg_inventory", "check_stock"]);
+                    assert_eq!(call.arguments.len(), 2);
+                }
+                other => panic!("expected ProcedureCall, got {:?}", other),
+            }
+        }
+        other => panic!("expected CreateProcedure, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_pl_call_with_simple_name_no_args() {
+    let sql = "CREATE OR REPLACE PROCEDURE prc_test IS
+               BEGIN
+                 CALL my_procedure();
+               END;";
+    let stmt = parse_one(sql);
+    match stmt {
+        Statement::CreateProcedure(p) => {
+            let block = p.block.as_ref().expect("procedure should have a body");
+            assert_eq!(block.body.len(), 1);
+            match &block.body[0] {
+                PlStatement::ProcedureCall(call) => {
+                    assert_eq!(call.name, vec!["my_procedure"]);
+                    assert_eq!(call.arguments.len(), 0);
+                }
+                other => panic!("expected ProcedureCall, got {:?}", other),
+            }
+        }
+        other => panic!("expected CreateProcedure, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_pl_call_with_literal_arguments() {
+    let sql = "CREATE OR REPLACE PROCEDURE prc_test IS
+               BEGIN
+                 CALL pkg_order.create_order(p_user_id, 0, 1);
+               END;";
+    let stmt = parse_one(sql);
+    match stmt {
+        Statement::CreateProcedure(p) => {
+            let block = p.block.as_ref().expect("procedure should have a body");
+            assert_eq!(block.body.len(), 1);
+            match &block.body[0] {
+                PlStatement::ProcedureCall(call) => {
+                    assert_eq!(call.name, vec!["pkg_order", "create_order"]);
+                    assert_eq!(call.arguments.len(), 3);
+                }
+                other => panic!("expected ProcedureCall, got {:?}", other),
+            }
+        }
+        other => panic!("expected CreateProcedure, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_pl_call_inside_package_body() {
+    let sql = "CREATE OR REPLACE PACKAGE BODY my_pkg IS
+               PROCEDURE proc1 IS
+               BEGIN
+                 CALL pkg_order.create_order(1, 2, 3);
+               END proc1;
+               END my_pkg;";
+    let stmt = parse_one(sql);
+    match stmt {
+        Statement::CreatePackageBody(p) => {
+            let proc = p.items.iter().find_map(|i| match i {
+                PackageItem::Procedure(pr) => Some(pr),
+                _ => None,
+            }).expect("should have a procedure");
+            let block = proc.block.as_ref().expect("procedure should have a block");
+            assert_eq!(block.body.len(), 1);
+            match &block.body[0] {
+                PlStatement::ProcedureCall(call) => {
+                    assert_eq!(call.name, vec!["pkg_order", "create_order"]);
+                    assert_eq!(call.arguments.len(), 3);
+                }
+                other => panic!("expected ProcedureCall, got {:?}", other),
+            }
+        }
+        other => panic!("expected CreatePackageBody, got {:?}", other),
+    }
+}

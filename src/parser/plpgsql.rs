@@ -603,6 +603,8 @@ impl Parser {
             self.parse_pl_execute()
         } else if self.match_ident_str("perform") {
             self.parse_pl_perform()
+        } else if self.match_ident_str("call") {
+            self.parse_pl_call()
         } else if self.match_ident_str("open") {
             self.parse_pl_open()
         } else if self.match_ident_str("fetch") {
@@ -1782,6 +1784,61 @@ impl Parser {
             parsed_query,
             parsed_expr,
         })
+    }
+
+    fn parse_pl_call(&mut self) -> Result<PlStatement, ParserError> {
+        let save_pos = self.pos;
+
+        self.advance();
+
+        let name = match self.parse_object_name() {
+            Ok(n) => n,
+            Err(_) => {
+                self.pos = save_pos;
+                let sql = self.skip_to_semicolon_or_keyword();
+                return Ok(PlStatement::Sql(sql));
+            }
+        };
+
+        if let Err(_) = self.expect_token(&Token::LParen) {
+            self.pos = save_pos;
+            let sql = self.skip_to_semicolon_or_keyword();
+            return Ok(PlStatement::Sql(sql));
+        }
+
+        let mut arguments = Vec::new();
+        if !self.match_token(&Token::RParen) {
+            loop {
+                match self.parse_expr() {
+                    Ok(arg) => arguments.push(arg),
+                    Err(_) => {
+                        self.pos = save_pos;
+                        let sql = self.skip_to_semicolon_or_keyword();
+                        return Ok(PlStatement::Sql(sql));
+                    }
+                }
+                if self.match_token(&Token::Comma) {
+                    self.advance();
+                } else {
+                    break;
+                }
+            }
+        }
+
+        if let Err(_) = self.expect_token(&Token::RParen) {
+            self.pos = save_pos;
+            let sql = self.skip_to_semicolon_or_keyword();
+            return Ok(PlStatement::Sql(sql));
+        }
+
+        arguments.retain(|a| !matches!(a, Expr::Default));
+
+        self.try_consume_semicolon();
+
+        Ok(PlStatement::ProcedureCall(Spanned::new(PlProcedureCall {
+            name,
+            arguments,
+        }, None)))
     }
 
     fn parse_pl_open(&mut self) -> Result<PlStatement, ParserError> {
