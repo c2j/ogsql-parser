@@ -8,66 +8,13 @@ use super::types::JavaExtractConfig;
 use crate::java::error::JavaError;
 use crate::java::types::*;
 
-struct TrackedVar {
-    sql: String,
-    extraction_index: usize,
+
+
+pub(super) struct TrackedVar {
+    pub(super) sql: String,
+    pub(super) extraction_index: usize,
+    pub(super) is_string_builder: bool,
 }
-
-const SQL_ANNOTATIONS: &[&str] = &["Query", "NamedQuery", "SqlUpdate", "SqlQuery", "Modifying"];
-
-const SQL_METHOD_UNAMBIGUOUS: &[&str] = &[
-    "createNativeQuery",
-    "createQuery",
-    "prepareStatement",
-    "prepareCall",
-    "executeQuery",
-    "executeUpdate",
-    "executeProcedure",
-];
-
-const SQL_METHOD_AMBIGUOUS: &[&str] = &["query", "update", "execute"];
-
-const SQL_KEYWORDS: &[&str] = &[
-    "SELECT ",
-    "INSERT ",
-    "UPDATE ",
-    "DELETE ",
-    "WITH ",
-    "CREATE ",
-    "ALTER ",
-    "DROP ",
-    "MERGE ",
-    "TRUNCATE ",
-    "CALL ",
-    "{CALL ",
-];
-
-const SQL_NAME_PATTERN: &str = "SQL";
-
-const SQL_STATEMENT_PREFIXES: &[&str] = &[
-    "SELECT ",
-    "INSERT ",
-    "UPDATE ",
-    "DELETE ",
-    "WITH ",
-    "CREATE ",
-    "ALTER ",
-    "DROP ",
-    "MERGE ",
-    "TRUNCATE ",
-    "CALL ",
-    "select ",
-    "insert ",
-    "update ",
-    "delete ",
-    "with ",
-    "create ",
-    "alter ",
-    "drop ",
-    "merge ",
-    "truncate ",
-    "call ",
-];
 
 pub fn extract(
     source: &str,
@@ -87,28 +34,32 @@ pub fn extract(
         extra_sql_methods: &config.extra_sql_methods,
     };
     ctx.visit(root);
+    let extractions: Vec<ExtractedSql> = ctx
+        .extractions
+        .into_iter()
+        .filter(|e| starts_with_sql_keyword(&e.sql))
+        .collect();
     JavaExtractResult {
         file_path: file_path.to_string(),
-        extractions: ctx.extractions,
+        extractions,
         errors: ctx.errors,
     }
 }
 
-struct ExtractContext<'a> {
-    source: &'a str,
-    file_path: &'a str,
-    extractions: Vec<ExtractedSql>,
-    errors: Vec<JavaError>,
-    class_name: Option<String>,
-    method_name: Option<String>,
-    sql_vars: HashMap<String, TrackedVar>,
-    /// Maps variable name to Java type name (e.g., "tableName" to "String")
-    var_types: HashMap<String, String>,
-    extra_sql_methods: &'a [String],
+pub(super) struct ExtractContext<'a> {
+    pub(super) source: &'a str,
+    pub(super) file_path: &'a str,
+    pub(super) extractions: Vec<ExtractedSql>,
+    pub(super) errors: Vec<JavaError>,
+    pub(super) class_name: Option<String>,
+    pub(super) method_name: Option<String>,
+    pub(super) sql_vars: HashMap<String, TrackedVar>,
+    pub(super) var_types: HashMap<String, String>,
+    pub(super) extra_sql_methods: &'a [String],
 }
 
 impl<'a> ExtractContext<'a> {
-    fn visit(&mut self, node: Node) {
+    pub(super) fn visit(&mut self, node: Node) {
         match node.kind() {
             "class_declaration" | "interface_declaration" | "enum_declaration" => {
                 self.visit_type_declaration(node);
@@ -140,7 +91,7 @@ impl<'a> ExtractContext<'a> {
         }
     }
 
-    fn visit_type_declaration(&mut self, node: Node) {
+    pub(super) fn visit_type_declaration(&mut self, node: Node) {
         let old_class = self.class_name.clone();
         if let Some(name_node) = node.child_by_field_name("name") {
             self.class_name = Some(self.node_text(name_node));
@@ -152,7 +103,7 @@ impl<'a> ExtractContext<'a> {
         self.class_name = old_class;
     }
 
-    fn visit_method_declaration(&mut self, node: Node) {
+    pub(super) fn visit_method_declaration(&mut self, node: Node) {
         let old_method = self.method_name.clone();
         let old_sql_vars = std::mem::take(&mut self.sql_vars);
         let old_var_types = std::mem::take(&mut self.var_types);
@@ -160,7 +111,6 @@ impl<'a> ExtractContext<'a> {
             self.method_name = Some(self.node_text(name_node));
         }
 
-        // extract parameter types
         if let Some(params_node) = node.child_by_field_name("parameters") {
             let mut cursor = params_node.walk();
             for child in params_node.children(&mut cursor) {
@@ -192,7 +142,6 @@ impl<'a> ExtractContext<'a> {
             }
         }
 
-        // process annotations — modifiers is not a named field, iterate children
         let mut cursor = node.walk();
         for child in node.children(&mut cursor) {
             if child.kind() == "modifiers" {
@@ -205,7 +154,6 @@ impl<'a> ExtractContext<'a> {
             }
         }
 
-        // recurse into body for P1/P2
         if let Some(body) = node.child_by_field_name("body") {
             let mut cursor = body.walk();
             for child in body.children(&mut cursor) {
@@ -218,549 +166,14 @@ impl<'a> ExtractContext<'a> {
         self.var_types = old_var_types;
     }
 
-    // ── P0: Annotation SQL Extraction ──
-
-    fn visit_annotation(&mut self, node: Node) {
-        let name_node = match node.child_by_field_name("name") {
-            Some(n) => n,
-            None => return,
-        };
-        let annotation_name = self.node_text(name_node);
-        match annotation_name.as_str() {
-            "NamedQueries" => self.visit_named_queries(node),
-            name if SQL_ANNOTATIONS.contains(&name) => {
-                self.visit_sql_annotation(node, &annotation_name);
-            }
-            _ => {}
-        }
-    }
-
-    fn visit_named_queries(&mut self, node: Node) {
-        let mut cursor = node.walk();
-        for child in node.children(&mut cursor) {
-            if child.kind() == "annotation_argument_list" {
-                let mut inner_cursor = child.walk();
-                for inner_child in child.children(&mut inner_cursor) {
-                    if inner_child.kind() == "annotation" {
-                        self.visit_annotation(inner_child);
-                    }
-                }
-            }
-        }
-    }
-
-    fn visit_sql_annotation(&mut self, node: Node, annotation_name: &str) {
-        let args_node = match node.child_by_field_name("arguments") {
-            Some(n) if n.kind() == "annotation_argument_list" => n,
-            _ => return,
-        };
-
-        let native_flag = self.check_native_query_flag(&args_node);
-        let sql_value = self.find_sql_value_in_annotation(&args_node, annotation_name);
-
-        if let Some((sql_text, is_text_block)) = sql_value {
-            let sql_kind = match native_flag {
-                NativeQueryFlag::True => SqlKind::NativeSql,
-                NativeQueryFlag::False => SqlKind::Jpql,
-                NativeQueryFlag::NotPresent => match annotation_name {
-                    "NamedQuery" | "Modifying" => SqlKind::Jpql,
-                    "SqlUpdate" | "SqlQuery" => SqlKind::NativeSql,
-                    "Query" => SqlKind::Jpql,
-                    _ => SqlKind::NativeSql,
-                },
-            };
-
-            let param_style = detect_parameter_style(&sql_text);
-            let parse_result = self.try_parse_sql(&sql_text, sql_kind);
-
-            self.extractions.push(ExtractedSql {
-                sql: sql_text,
-                origin: SqlOrigin {
-                    method: ExtractionMethod::Annotation,
-                    class_name: self.class_name.clone(),
-                    method_name: self.method_name.clone(),
-                    annotation_name: Some(annotation_name.to_string()),
-                    api_method_name: None,
-                    variable_name: None,
-                    line: node.start_position().row + 1,
-                    column: node.start_position().column,
-                },
-                sql_kind,
-                parameter_style: param_style,
-                is_concatenated: false,
-                is_text_block,
-                parse_result,
-            });
-        }
-    }
-
-    fn find_sql_value_in_annotation(
-        &self,
-        args_node: &Node,
-        annotation_name: &str,
-    ) -> Option<(String, bool)> {
-        let target_key = match annotation_name {
-            "NamedQuery" => "query",
-            _ => "value",
-        };
-
-        let mut cursor = args_node.walk();
-        for child in args_node.children(&mut cursor) {
-            match child.kind() {
-                "element_value_pair" => {
-                    let key_node = child.child_by_field_name("key")?;
-                    if self.node_text(key_node) == target_key {
-                        let value_node = child.child_by_field_name("value")?;
-                        return self.extract_string_value(value_node);
-                    }
-                }
-                "string_literal" | "binary_expression" => {
-                    return self.extract_string_value(child);
-                }
-                _ => {}
-            }
-        }
-
-        // fallback for @Query("SELECT ...") without explicit value= key
-        if annotation_name == "Query" {
-            let mut cursor = args_node.walk();
-            for child in args_node.children(&mut cursor) {
-                if child.kind() == "string_literal" {
-                    return self.extract_string_value(child);
-                }
-            }
-        }
-        None
-    }
-
-    fn check_native_query_flag(&self, args_node: &Node) -> NativeQueryFlag {
-        let mut cursor = args_node.walk();
-        for child in args_node.children(&mut cursor) {
-            if child.kind() == "element_value_pair" {
-                if let Some(key) = child.child_by_field_name("key") {
-                    if self.node_text(key) == "nativeQuery" {
-                        if let Some(value) = child.child_by_field_name("value") {
-                            return if self.node_text(value) == "true" {
-                                NativeQueryFlag::True
-                            } else {
-                                NativeQueryFlag::False
-                            };
-                        }
-                    }
-                }
-            }
-        }
-        NativeQueryFlag::NotPresent
-    }
-
-    // ── P1: Method Call SQL Extraction ──
-
-    fn visit_method_invocation(&mut self, node: Node) {
-        let name_node = match node.child_by_field_name("name") {
-            Some(n) => n,
-            None => return,
-        };
-        let method_name = self.node_text(name_node);
-
-        let is_unambiguous = SQL_METHOD_UNAMBIGUOUS.contains(&method_name.as_str())
-            || self.extra_sql_methods.iter().any(|m| m == &method_name);
-        let is_ambiguous = SQL_METHOD_AMBIGUOUS.contains(&method_name.as_str());
-
-        if !is_unambiguous && !is_ambiguous {
-            // still recurse — method calls may be nested
-            let mut cursor = node.walk();
-            for child in node.children(&mut cursor) {
-                self.visit(child);
-            }
-            return;
-        }
-
-        let args_node = match node.child_by_field_name("arguments") {
-            Some(n) if n.kind() == "argument_list" => n,
-            _ => return,
-        };
-
-        if let Some((sql_text, is_text_block)) = self.find_first_string_arg(&args_node) {
-            if !is_unambiguous && !looks_like_sql(&sql_text) {
-                return;
-            }
-
-            let sql_kind = match method_name.as_str() {
-                "createQuery" => SqlKind::Jpql,
-                _ => SqlKind::NativeSql,
-            };
-            let param_style = detect_parameter_style(&sql_text);
-            let parse_result = self.try_parse_sql(&sql_text, sql_kind);
-
-            self.extractions.push(ExtractedSql {
-                sql: sql_text,
-                origin: SqlOrigin {
-                    method: ExtractionMethod::MethodCall,
-                    class_name: self.class_name.clone(),
-                    method_name: self.method_name.clone(),
-                    annotation_name: None,
-                    api_method_name: Some(method_name),
-                    variable_name: None,
-                    line: node.start_position().row + 1,
-                    column: node.start_position().column,
-                },
-                sql_kind,
-                parameter_style: param_style,
-                is_concatenated: false,
-                is_text_block,
-                parse_result,
-            });
-        }
-
+    pub(super) fn recurse(&mut self, node: Node) {
         let mut cursor = node.walk();
         for child in node.children(&mut cursor) {
             self.visit(child);
         }
     }
 
-    fn find_first_string_arg(&self, args_node: &Node) -> Option<(String, bool)> {
-        let mut cursor = args_node.walk();
-        for child in args_node.children(&mut cursor) {
-            match child.kind() {
-                "string_literal" | "binary_expression" => {
-                    return self.extract_string_value(child);
-                }
-                _ => continue,
-            }
-        }
-        None
-    }
-
-    // ── P2: Constant SQL Extraction ──
-
-    fn visit_field_declaration(&mut self, node: Node) {
-        self.check_string_declaration(node);
-        let mut cursor = node.walk();
-        for child in node.children(&mut cursor) {
-            self.visit(child);
-        }
-    }
-
-    fn visit_local_variable_declaration(&mut self, node: Node) {
-        self.check_string_declaration(node);
-
-        let mut cursor = node.walk();
-        let mut type_name: Option<String> = None;
-        for child in node.children(&mut cursor) {
-            match child.kind() {
-                "type_identifier"
-                | "primitive_type"
-                | "integral_type"
-                | "floating_point_type"
-                | "boolean_type"
-                | "generic_type"
-                | "array_type" => {
-                    type_name = self.extract_type_name(child);
-                }
-                "variable_declarator" => {
-                    if let Some(t) = &type_name {
-                        if let Some(name_node) = child.child_by_field_name("name") {
-                            self.var_types.insert(self.node_text(name_node), t.clone());
-                        }
-                    }
-                }
-                _ => {}
-            }
-        }
-
-        let mut cursor = node.walk();
-        for child in node.children(&mut cursor) {
-            self.visit(child);
-        }
-    }
-
-    fn check_string_declaration(&mut self, node: Node) {
-        let mut cursor = node.walk();
-        for child in node.children(&mut cursor) {
-            if child.kind() == "variable_declarator" {
-                self.check_declarator(child);
-            }
-        }
-    }
-
-    fn check_declarator(&mut self, declarator: Node) {
-        let name_node = match declarator.child_by_field_name("name") {
-            Some(n) => n,
-            None => return,
-        };
-        let value_node = match declarator.child_by_field_name("value") {
-            Some(n) => n,
-            None => return,
-        };
-
-        let var_name = self.node_text(name_node);
-        let (sql_text, is_text_block) = match self.extract_string_value(value_node) {
-            Some(v) => v,
-            None => return,
-        };
-
-        let var_name_upper = var_name.to_uppercase();
-        let name_looks_like_sql = var_name_upper.contains(SQL_NAME_PATTERN);
-
-        let content_looks_like_sql = looks_like_sql(&sql_text);
-
-        if !name_looks_like_sql && !content_looks_like_sql {
-            return;
-        }
-
-        // when only the variable name hints SQL (not the content), require
-        // the content to at least start with a SQL statement prefix to avoid
-        // false positives like "No SqlSessionFactory specified"
-        if name_looks_like_sql && !content_looks_like_sql {
-            let trimmed = sql_text.trim();
-            let starts_like_sql = SQL_STATEMENT_PREFIXES
-                .iter()
-                .any(|prefix| trimmed.starts_with(prefix));
-            if !starts_like_sql {
-                return;
-            }
-        }
-
-        let sql_kind = detect_sql_kind_from_content(&sql_text);
-        let param_style = detect_parameter_style(&sql_text);
-        let is_concatenated = value_node.kind() == "binary_expression";
-        let parse_result = self.try_parse_sql(&sql_text, sql_kind);
-
-        self.extractions.push(ExtractedSql {
-            sql: sql_text.clone(),
-            origin: SqlOrigin {
-                method: ExtractionMethod::Constant,
-                class_name: self.class_name.clone(),
-                method_name: self.method_name.clone(),
-                annotation_name: None,
-                api_method_name: None,
-                variable_name: Some(var_name.clone()),
-                line: declarator.start_position().row + 1,
-                column: declarator.start_position().column,
-            },
-            sql_kind,
-            parameter_style: param_style,
-            is_concatenated,
-            is_text_block,
-            parse_result,
-        });
-
-        self.sql_vars.insert(
-            var_name,
-            TrackedVar {
-                sql: sql_text,
-                extraction_index: self.extractions.len() - 1,
-            },
-        );
-    }
-
-    // ── Cross-Statement Concatenation Tracking ──
-
-    fn visit_assignment_expression(&mut self, node: Node) {
-        let left = match node.child_by_field_name("left") {
-            Some(n) if n.kind() == "identifier" => n,
-            _ => {
-                self.recurse(node);
-                return;
-            }
-        };
-        let var_name = self.node_text(left);
-
-        if !self.sql_vars.contains_key(&var_name) {
-            self.recurse(node);
-            return;
-        }
-
-        let operator = node
-            .child_by_field_name("operator")
-            .map(|n| self.node_text(n))
-            .unwrap_or_default();
-
-        let right = match node.child_by_field_name("right") {
-            Some(n) => n,
-            None => {
-                self.recurse(node);
-                return;
-            }
-        };
-
-        match operator.as_str() {
-            "+=" => {
-                if let Some(parts) = self.extract_concat_string_parts(right) {
-                    if !parts.is_empty() {
-                        self.append_to_tracked_var(&var_name, &parts, node);
-                    }
-                }
-            }
-            "=" => {
-                // Distinguish concatenation (sql = sql + "...") from plain
-                // reassignment (sql = "new SQL").  Concatenation appends to
-                // the existing extraction; reassignment creates a brand-new one.
-                if right.kind() == "binary_expression"
-                    && self.is_binary_left_identifier(right, &var_name)
-                {
-                    // Concatenation: sql = sql + "..." → append new parts only
-                    let parts = self.collect_concat_parts(right);
-                    let append_parts: Vec<_> = parts.into_iter().skip(1).collect();
-                    if !append_parts.is_empty() {
-                        self.append_to_tracked_var(&var_name, &append_parts, node);
-                    }
-                } else {
-                    // Reassignment: sql = "new SQL" → create a new extraction
-                    self.reassign_tracked_var(&var_name, right, node);
-                }
-            }
-            _ => {}
-        }
-
-        self.recurse(node);
-    }
-
-    fn extract_concat_string_parts(&self, node: Node) -> Option<Vec<(String, bool)>> {
-        match node.kind() {
-            "string_literal" => {
-                let raw = self.node_text(node);
-                let is_tb = raw.starts_with("\"\"\"");
-                Some(vec![(self.decode_java_string(&raw, is_tb), is_tb)])
-            }
-            "binary_expression" => {
-                let parts = self.collect_concat_parts(node);
-                if parts.is_empty() {
-                    None
-                } else {
-                    Some(parts)
-                }
-            }
-            _ => {
-                let var_name = self.node_text(node);
-                Some(vec![(self.make_var_placeholder(&var_name), false)])
-            }
-        }
-    }
-
-    fn extract_append_parts_for_var(
-        &self,
-        rhs: Node,
-        var_name: &str,
-    ) -> Option<Vec<(String, bool)>> {
-        match rhs.kind() {
-            "string_literal" => {
-                let raw = self.node_text(rhs);
-                let is_tb = raw.starts_with("\"\"\"");
-                Some(vec![(self.decode_java_string(&raw, is_tb), is_tb)])
-            }
-            "binary_expression" => {
-                let parts = self.collect_concat_parts(rhs);
-                if parts.is_empty() {
-                    return None;
-                }
-                if self.is_binary_left_identifier(rhs, var_name) {
-                    Some(parts.into_iter().skip(1).collect())
-                } else {
-                    Some(parts)
-                }
-            }
-            _ => None,
-        }
-    }
-
-    fn is_binary_left_identifier(&self, node: Node, var_name: &str) -> bool {
-        let mut current = node;
-        loop {
-            let left = match current.child_by_field_name("left") {
-                Some(n) => n,
-                None => return false,
-            };
-            match left.kind() {
-                "identifier" => return self.node_text(left) == var_name,
-                "binary_expression" => current = left,
-                _ => return false,
-            }
-        }
-    }
-
-    fn append_to_tracked_var(&mut self, var_name: &str, parts: &[(String, bool)], node: Node) {
-        let tracked = match self.sql_vars.get_mut(var_name) {
-            Some(t) => t,
-            None => return,
-        };
-        for (part, _) in parts {
-            tracked.sql.push_str(part);
-        }
-        let idx = tracked.extraction_index;
-        let new_sql = tracked.sql.clone();
-
-        let sql_kind = self.extractions[idx].sql_kind;
-        let parse_result = self.try_parse_sql(&new_sql, sql_kind);
-
-        let ext = match self.extractions.get_mut(idx) {
-            Some(e) => e,
-            None => return,
-        };
-        ext.sql = new_sql;
-        ext.is_concatenated = true;
-        ext.origin.line = node.start_position().row + 1;
-        ext.origin.column = node.start_position().column;
-        ext.parse_result = parse_result;
-    }
-
-    fn reassign_tracked_var(&mut self, var_name: &str, rhs: Node, node: Node) {
-        let (sql_text, is_text_block) = match self.extract_string_value(rhs) {
-            Some(v) => v,
-            None => {
-                self.sql_vars.remove(var_name);
-                return;
-            }
-        };
-
-        if !looks_like_sql(&sql_text) {
-            self.sql_vars.remove(var_name);
-            return;
-        }
-
-        let sql_kind = detect_sql_kind_from_content(&sql_text);
-        let param_style = detect_parameter_style(&sql_text);
-        let is_concatenated = rhs.kind() == "binary_expression";
-        let parse_result = self.try_parse_sql(&sql_text, sql_kind);
-
-        self.extractions.push(ExtractedSql {
-            sql: sql_text.clone(),
-            origin: SqlOrigin {
-                method: ExtractionMethod::Constant,
-                class_name: self.class_name.clone(),
-                method_name: self.method_name.clone(),
-                annotation_name: None,
-                api_method_name: None,
-                variable_name: Some(var_name.to_string()),
-                line: node.start_position().row + 1,
-                column: node.start_position().column,
-            },
-            sql_kind,
-            parameter_style: param_style,
-            is_concatenated,
-            is_text_block,
-            parse_result,
-        });
-
-        self.sql_vars.insert(
-            var_name.to_string(),
-            TrackedVar {
-                sql: sql_text,
-                extraction_index: self.extractions.len() - 1,
-            },
-        );
-    }
-
-    fn recurse(&mut self, node: Node) {
-        let mut cursor = node.walk();
-        for child in node.children(&mut cursor) {
-            self.visit(child);
-        }
-    }
-
-    // ── String Extraction Helpers ──
-
-    fn extract_string_value(&self, node: Node) -> Option<(String, bool)> {
+    pub(super) fn extract_string_value(&self, node: Node) -> Option<(String, bool)> {
         match node.kind() {
             "string_literal" => {
                 let raw = self.node_text(node);
@@ -780,7 +193,7 @@ impl<'a> ExtractContext<'a> {
         }
     }
 
-    fn collect_concat_parts(&self, node: Node) -> Vec<(String, bool)> {
+    pub(super) fn collect_concat_parts(&self, node: Node) -> Vec<(String, bool)> {
         let op = node
             .child_by_field_name("operator")
             .map(|n| self.node_text(n));
@@ -801,8 +214,7 @@ impl<'a> ExtractContext<'a> {
                     parts.extend(self.collect_concat_parts(left));
                 }
                 _ => {
-                    let var_name = self.node_text(left);
-                    parts.push((self.make_var_placeholder(&var_name), false));
+                    parts.push((self.make_placeholder_for_node(left), false));
                 }
             }
         }
@@ -818,8 +230,7 @@ impl<'a> ExtractContext<'a> {
                     parts.extend(self.collect_concat_parts(right));
                 }
                 _ => {
-                    let var_name = self.node_text(right);
-                    parts.push((self.make_var_placeholder(&var_name), false));
+                    parts.push((self.make_placeholder_for_node(right), false));
                 }
             }
         }
@@ -827,111 +238,7 @@ impl<'a> ExtractContext<'a> {
         parts
     }
 
-    fn decode_java_string(&self, raw: &str, is_text_block: bool) -> String {
-        if is_text_block {
-            self.decode_text_block(raw)
-        } else {
-            self.decode_regular_string(raw)
-        }
-    }
-
-    fn decode_regular_string(&self, raw: &str) -> String {
-        let inner = raw.strip_prefix('"').and_then(|s| s.strip_suffix('"'));
-        match inner {
-            Some(s) => self.process_escape_sequences(s),
-            None => raw.to_string(),
-        }
-    }
-
-    fn decode_text_block(&self, raw: &str) -> String {
-        let inner = raw
-            .strip_prefix("\"\"\"")
-            .and_then(|s| s.strip_suffix("\"\"\""));
-        let inner = match inner {
-            Some(s) => s,
-            None => return raw.to_string(),
-        };
-
-        let lines: Vec<&str> = inner.lines().collect();
-        if lines.is_empty() {
-            return String::new();
-        }
-
-        let start = if lines.first().map(|l| l.trim().is_empty()).unwrap_or(false) {
-            1
-        } else {
-            0
-        };
-
-        let effective_lines = &lines[start..];
-        let min_indent = effective_lines
-            .iter()
-            .filter(|l| !l.trim().is_empty())
-            .map(|l| l.chars().take_while(|c| *c == ' ' || *c == '\t').count())
-            .min()
-            .unwrap_or(0);
-
-        let result: Vec<String> = effective_lines
-            .iter()
-            .map(|l| {
-                if l.len() >= min_indent {
-                    l[min_indent..].to_string()
-                } else {
-                    l.trim_end().to_string()
-                }
-            })
-            .collect();
-
-        let mut joined = result.join("\n");
-        joined = joined.trim().to_string();
-        self.process_escape_sequences(&joined)
-    }
-
-    fn process_escape_sequences(&self, s: &str) -> String {
-        let mut result = String::with_capacity(s.len());
-        let chars: Vec<char> = s.chars().collect();
-        let mut i = 0;
-        while i < chars.len() {
-            if chars[i] == '\\' && i + 1 < chars.len() {
-                match chars[i + 1] {
-                    'n' => {
-                        result.push('\n');
-                        i += 2;
-                    }
-                    't' => {
-                        result.push('\t');
-                        i += 2;
-                    }
-                    'r' => {
-                        result.push('\r');
-                        i += 2;
-                    }
-                    '"' => {
-                        result.push('"');
-                        i += 2;
-                    }
-                    '\'' => {
-                        result.push('\'');
-                        i += 2;
-                    }
-                    '\\' => {
-                        result.push('\\');
-                        i += 2;
-                    }
-                    _ => {
-                        result.push(chars[i]);
-                        i += 1;
-                    }
-                }
-            } else {
-                result.push(chars[i]);
-                i += 1;
-            }
-        }
-        result
-    }
-
-    fn try_parse_sql(&self, sql: &str, sql_kind: SqlKind) -> Option<SqlParseResult> {
+    pub(super) fn try_parse_sql(&self, sql: &str, sql_kind: SqlKind) -> Option<SqlParseResult> {
         if sql_kind == SqlKind::Jpql {
             return None;
         }
@@ -940,16 +247,14 @@ impl<'a> ExtractContext<'a> {
             return None;
         }
 
-        // replace JDBC ? parameter markers with NULL so the parser can handle them
-        let parseable = replace_jdbc_parameters(&flat_sql);
-        let (stmts, errors) = crate::parser::Parser::parse_sql(&parseable);
+        let (stmts, errors) = crate::parser::Parser::parse_sql(&flat_sql);
         Some(SqlParseResult {
             statements: stmts,
             errors,
         })
     }
 
-    fn extract_type_name(&self, node: Node) -> Option<String> {
+    pub(super) fn extract_type_name(&self, node: Node) -> Option<String> {
         match node.kind() {
             "type_identifier"
             | "primitive_type"
@@ -985,144 +290,93 @@ impl<'a> ExtractContext<'a> {
         }
     }
 
-    fn make_var_placeholder(&self, var_name: &str) -> String {
-        let sanitized: String = var_name
-            .chars()
-            .map(|c| {
-                if c == '.' || c == '(' || c == ')' {
-                    '_'
-                } else {
-                    c
-                }
-            })
-            .collect();
-        match self.var_types.get(var_name) {
-            Some(type_name) => format!("__JAVA_VAR_{}_{}__", type_name, sanitized),
+    pub(super) fn make_var_placeholder(&self, var_name: &str) -> String {
+        let sanitized = sanitize_var_name(var_name);
+        let type_name = self.var_types.get(var_name)
+            .or_else(|| {
+                let trimmed = var_name.trim();
+                if trimmed != var_name { self.var_types.get(trimmed) } else { None }
+            });
+        match type_name {
+            Some(t) => format!("__JAVA_VAR_{}_{}__", t, sanitized),
             None => format!("__JAVA_VAR_{}__", sanitized),
         }
     }
 
-    fn node_text(&self, node: Node) -> String {
+    pub(super) fn make_placeholder_for_node(&self, node: Node) -> String {
+        let var_name = self.node_text(node);
+        let sanitized = sanitize_var_name(&var_name);
+        let inferred_type = self.infer_expression_type(node);
+        match inferred_type {
+            Some(t) => format!("__JAVA_VAR_{}_{}__", t, sanitized),
+            None => match self.var_types.get(&var_name) {
+                Some(t) => format!("__JAVA_VAR_{}_{}__", t, sanitized),
+                None => format!("__JAVA_VAR_{}__", sanitized),
+            },
+        }
+    }
+
+    fn infer_expression_type(&self, node: Node) -> Option<String> {
+        match node.kind() {
+            "identifier" => self.var_types.get(&self.node_text(node)).cloned(),
+            "parenthesized_expression" => {
+                let mut cursor = node.walk();
+                for child in node.children(&mut cursor) {
+                    if child.kind() != "(" && child.kind() != ")" {
+                        return self.infer_expression_type(child);
+                    }
+                }
+                None
+            }
+            "binary_expression" => {
+                let op = node.child_by_field_name("operator")
+                    .map(|n| self.node_text(n));
+                if op.as_deref() == Some("+") {
+                    let left_type = node.child_by_field_name("left")
+                        .and_then(|n| self.infer_expression_type(n));
+                    let right_type = node.child_by_field_name("right")
+                        .and_then(|n| self.infer_expression_type(n));
+                    if left_type.as_deref() == Some("String") || right_type.as_deref() == Some("String") {
+                        return Some("String".to_string());
+                    }
+                    return left_type.or(right_type);
+                }
+                node.child_by_field_name("left").and_then(|n| self.infer_expression_type(n))
+            }
+            "method_invocation" => {
+                let name = node.child_by_field_name("name")
+                    .map(|n| self.node_text(n));
+                match name.as_deref() {
+                    Some("toString") | Some("valueOf") => Some("String".to_string()),
+                    Some("length") | Some("intValue") | Some("longValue") => Some("int".to_string()),
+                    _ => None,
+                }
+            }
+            "string_literal" => Some("String".to_string()),
+            _ => None,
+        }
+    }
+
+    pub(super) fn node_text(&self, node: Node) -> String {
         self.source[node.byte_range()].to_string()
     }
 }
 
-enum NativeQueryFlag {
-    True,
-    False,
-    NotPresent,
-}
-
-fn looks_like_sql(text: &str) -> bool {
-    let upper = text.to_uppercase();
-    SQL_KEYWORDS.iter().any(|kw| upper.contains(kw))
-}
-
-fn detect_sql_kind_from_content(sql: &str) -> SqlKind {
-    let upper = sql.trim().to_uppercase();
-    let prefix = upper.split_whitespace().next().unwrap_or("");
-    match prefix {
-        "CREATE" | "ALTER" | "DROP" | "TRUNCATE" => SqlKind::Ddl,
-        _ => SqlKind::NativeSql,
-    }
-}
-
-fn detect_parameter_style(sql: &str) -> ParameterStyle {
-    let mut has_question = false;
-    let mut has_numbered = false;
-    let mut has_named_colon = false;
-    let mut has_hash = false;
-
-    let chars: Vec<char> = sql.chars().collect();
-    let len = chars.len();
-    let mut in_string = false;
-    let mut i = 0;
-
-    while i < len {
-        if chars[i] == '\'' {
-            in_string = !in_string;
-            i += 1;
-            continue;
-        }
-        if in_string {
-            i += 1;
-            continue;
-        }
-        if chars[i] == '?' && i + 1 < len && chars[i + 1].is_ascii_digit() {
-            has_numbered = true;
-        } else if chars[i] == '?' {
-            has_question = true;
-        } else if chars[i] == ':' && i + 1 < len && chars[i + 1].is_ascii_alphabetic() {
-            has_named_colon = true;
-        } else if chars[i] == '#' && i + 1 < len && chars[i + 1] == '{' {
-            has_hash = true;
-        }
-        i += 1;
-    }
-
-    if has_hash {
-        ParameterStyle::NamedHash
-    } else if has_numbered {
-        ParameterStyle::PositionalNumbered
-    } else if has_named_colon {
-        ParameterStyle::NamedColon
-    } else if has_question {
-        ParameterStyle::PositionalQuestion
-    } else {
-        ParameterStyle::None
-    }
-}
-
-/// Replace JDBC `?` parameter markers and `:name` named parameters with `NULL`
-/// so the core SQL parser (which doesn't understand JDBC parameters) can parse the statement.
-/// Also replaces `?1` numbered params. String literals are preserved.
-fn replace_jdbc_parameters(sql: &str) -> String {
-    let chars: Vec<char> = sql.chars().collect();
-    let len = chars.len();
-    let mut result = String::with_capacity(sql.len());
-    let mut in_string = false;
-    let mut i = 0;
-
-    while i < len {
-        if chars[i] == '\'' {
-            in_string = !in_string;
-            result.push(chars[i]);
-            i += 1;
-            continue;
-        }
-        if in_string {
-            result.push(chars[i]);
-            i += 1;
-            continue;
-        }
-
-        // `?` followed by digit → numbered param like ?1
-        if chars[i] == '?' {
-            result.push_str("NULL");
-            i += 1;
-            // skip trailing digits for ?1, ?2 etc
-            while i < len && chars[i].is_ascii_digit() {
-                i += 1;
+fn sanitize_var_name(var_name: &str) -> String {
+    var_name
+        .chars()
+        .map(|c| {
+            if c.is_ascii_alphanumeric() || c == '_' {
+                c
+            } else {
+                '_'
             }
-            continue;
-        }
+        })
+        .collect()
+}
 
-        // `:name` → named param, replace with NULL
-        if chars[i] == ':'
-            && i + 1 < len
-            && (chars[i + 1].is_ascii_alphabetic() || chars[i + 1] == '_')
-        {
-            result.push_str("NULL");
-            i += 1;
-            while i < len && (chars[i].is_ascii_alphanumeric() || chars[i] == '_') {
-                i += 1;
-            }
-            continue;
-        }
-
-        result.push(chars[i]);
-        i += 1;
-    }
-
-    result
+fn starts_with_sql_keyword(sql: &str) -> bool {
+    let first_word = sql.trim().split_whitespace().next().unwrap_or("");
+    let upper = first_word.to_uppercase();
+    matches!(upper.as_str(), "SELECT" | "INSERT" | "UPDATE" | "DELETE" | "MERGE" | "WITH")
 }

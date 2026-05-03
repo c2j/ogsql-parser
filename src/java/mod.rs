@@ -7,6 +7,13 @@ pub mod error;
 pub mod extract;
 pub mod types;
 
+mod annotation;
+mod constant;
+mod heuristics;
+mod method_call;
+mod string_decode;
+mod variable;
+
 pub use error::JavaError;
 pub use types::{
     ExtractedSql, ExtractionMethod, JavaExtractConfig, JavaExtractResult, ParameterStyle, SqlKind,
