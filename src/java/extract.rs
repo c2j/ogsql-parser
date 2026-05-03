@@ -34,9 +34,14 @@ pub fn extract(
         extra_sql_methods: &config.extra_sql_methods,
     };
     ctx.visit(root);
+    let extractions: Vec<ExtractedSql> = ctx
+        .extractions
+        .into_iter()
+        .filter(|e| starts_with_sql_keyword(&e.sql))
+        .collect();
     JavaExtractResult {
         file_path: file_path.to_string(),
-        extractions: ctx.extractions,
+        extractions,
         errors: ctx.errors,
     }
 }
@@ -368,4 +373,10 @@ fn sanitize_var_name(var_name: &str) -> String {
             }
         })
         .collect()
+}
+
+fn starts_with_sql_keyword(sql: &str) -> bool {
+    let first_word = sql.trim().split_whitespace().next().unwrap_or("");
+    let upper = first_word.to_uppercase();
+    matches!(upper.as_str(), "SELECT" | "INSERT" | "UPDATE" | "DELETE" | "MERGE" | "WITH")
 }
