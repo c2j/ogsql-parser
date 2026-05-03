@@ -355,15 +355,18 @@ impl Parser {
             self.has_begin_after_declare(self.pos)
         });
 
+        let mut skip_next = false;
+
         for i in self.pos..self.tokens.len() {
+            if skip_next {
+                skip_next = false;
+                continue;
+            }
             match &self.tokens[i].token {
                 Token::Eof => return if i > 0 { i - 1 } else { 0 },
                 Token::LParen => depth += 1,
                 Token::RParen => depth = (depth - 1).max(0),
                 Token::DollarString { .. } => {
-                    // Dollar-quoted body contains its own BEGIN/END internally
-                    // (not as separate tokens), so clear in_routine_decl to
-                    // prevent subsequent semicolons from being swallowed.
                     if in_routine_decl && begin_depth == 0 {
                         in_routine_decl = false;
                     }
@@ -391,6 +394,7 @@ impl Parser {
                         {
                             case_depth -= 1;
                         }
+                        skip_next = true;
                     } else if case_depth > 0 {
                         case_depth -= 1;
                     } else if begin_depth > 0 {
