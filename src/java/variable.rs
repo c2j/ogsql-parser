@@ -315,8 +315,7 @@ impl<'a> ExtractContext<'a> {
                     return Some(self.decode_java_string(&raw, is_tb));
                 }
                 _ => {
-                    let var_name = self.node_text(child);
-                    return Some(self.make_var_placeholder(&var_name));
+                    return Some(self.make_placeholder_for_node(child));
                 }
             }
         }
@@ -507,8 +506,7 @@ impl<'a> ExtractContext<'a> {
                 }
             }
             _ => {
-                let var_name = self.node_text(node);
-                Some(vec![(self.make_var_placeholder(&var_name), false)])
+                Some(vec![(self.make_placeholder_for_node(node), false)])
             }
         }
     }

@@ -209,8 +209,7 @@ impl<'a> ExtractContext<'a> {
                     parts.extend(self.collect_concat_parts(left));
                 }
                 _ => {
-                    let var_name = self.node_text(left);
-                    parts.push((self.make_var_placeholder(&var_name), false));
+                    parts.push((self.make_placeholder_for_node(left), false));
                 }
             }
         }
@@ -226,8 +225,7 @@ impl<'a> ExtractContext<'a> {
                     parts.extend(self.collect_concat_parts(right));
                 }
                 _ => {
-                    let var_name = self.node_text(right);
-                    parts.push((self.make_var_placeholder(&var_name), false));
+                    parts.push((self.make_placeholder_for_node(right), false));
                 }
             }
         }
@@ -288,16 +286,7 @@ impl<'a> ExtractContext<'a> {
     }
 
     pub(super) fn make_var_placeholder(&self, var_name: &str) -> String {
-        let sanitized: String = var_name
-            .chars()
-            .map(|c| {
-                if c.is_ascii_alphanumeric() || c == '_' {
-                    c
-                } else {
-                    '_'
-                }
-            })
-            .collect();
+        let sanitized = sanitize_var_name(var_name);
         let type_name = self.var_types.get(var_name)
             .or_else(|| {
                 let trimmed = var_name.trim();
@@ -309,7 +298,74 @@ impl<'a> ExtractContext<'a> {
         }
     }
 
+    pub(super) fn make_placeholder_for_node(&self, node: Node) -> String {
+        let var_name = self.node_text(node);
+        let sanitized = sanitize_var_name(&var_name);
+        let inferred_type = self.infer_expression_type(node);
+        match inferred_type {
+            Some(t) => format!("__JAVA_VAR_{}_{}__", t, sanitized),
+            None => match self.var_types.get(&var_name) {
+                Some(t) => format!("__JAVA_VAR_{}_{}__", t, sanitized),
+                None => format!("__JAVA_VAR_{}__", sanitized),
+            },
+        }
+    }
+
+    fn infer_expression_type(&self, node: Node) -> Option<String> {
+        match node.kind() {
+            "identifier" => self.var_types.get(&self.node_text(node)).cloned(),
+            "parenthesized_expression" => {
+                let mut cursor = node.walk();
+                for child in node.children(&mut cursor) {
+                    if child.kind() != "(" && child.kind() != ")" {
+                        return self.infer_expression_type(child);
+                    }
+                }
+                None
+            }
+            "binary_expression" => {
+                let op = node.child_by_field_name("operator")
+                    .map(|n| self.node_text(n));
+                if op.as_deref() == Some("+") {
+                    let left_type = node.child_by_field_name("left")
+                        .and_then(|n| self.infer_expression_type(n));
+                    let right_type = node.child_by_field_name("right")
+                        .and_then(|n| self.infer_expression_type(n));
+                    if left_type.as_deref() == Some("String") || right_type.as_deref() == Some("String") {
+                        return Some("String".to_string());
+                    }
+                    return left_type.or(right_type);
+                }
+                node.child_by_field_name("left").and_then(|n| self.infer_expression_type(n))
+            }
+            "method_invocation" => {
+                let name = node.child_by_field_name("name")
+                    .map(|n| self.node_text(n));
+                match name.as_deref() {
+                    Some("toString") | Some("valueOf") => Some("String".to_string()),
+                    Some("length") | Some("intValue") | Some("longValue") => Some("int".to_string()),
+                    _ => None,
+                }
+            }
+            "string_literal" => Some("String".to_string()),
+            _ => None,
+        }
+    }
+
     pub(super) fn node_text(&self, node: Node) -> String {
         self.source[node.byte_range()].to_string()
     }
+}
+
+fn sanitize_var_name(var_name: &str) -> String {
+    var_name
+        .chars()
+        .map(|c| {
+            if c.is_ascii_alphanumeric() || c == '_' {
+                c
+            } else {
+                '_'
+            }
+        })
+        .collect()
 }
