@@ -291,15 +291,20 @@ impl<'a> ExtractContext<'a> {
         let sanitized: String = var_name
             .chars()
             .map(|c| {
-                if c == '.' || c == '(' || c == ')' {
-                    '_'
-                } else {
+                if c.is_ascii_alphanumeric() || c == '_' {
                     c
+                } else {
+                    '_'
                 }
             })
             .collect();
-        match self.var_types.get(var_name) {
-            Some(type_name) => format!("__JAVA_VAR_{}_{}__", type_name, sanitized),
+        let type_name = self.var_types.get(var_name)
+            .or_else(|| {
+                let trimmed = var_name.trim();
+                if trimmed != var_name { self.var_types.get(trimmed) } else { None }
+            });
+        match type_name {
+            Some(t) => format!("__JAVA_VAR_{}_{}__", t, sanitized),
             None => format!("__JAVA_VAR_{}__", sanitized),
         }
     }
