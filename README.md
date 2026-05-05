@@ -164,6 +164,8 @@ Commands:
   json2sql    Convert JSON (from `parse -j`) back to SQL / 将 JSON 还原为 SQL
   tokenize    Tokenize SQL into a list of tokens / 将 SQL 分词为 token 列表
   validate    Validate SQL syntax and report errors / 校验 SQL 语法
+  parse-xml   Parse iBatis/MyBatis XML mapper → extracted SQL [requires: ibatis feature]
+  parse-java  Extract and parse SQL from Java source files [requires: java feature]
   serve       Start an HTTP API server for parsing SQL [requires: serve feature]
   playground  Launch an interactive terminal UI playground [requires: tui feature]
 
@@ -241,6 +243,18 @@ ogsql -f query.sql parse -j
 
 # Start HTTP API server
 ogsql serve --host 0.0.0.0 --port 3000
+
+# Parse iBatis/MyBatis XML mapper (basic)
+echo '<mapper namespace="test"><select id="find">SELECT * FROM t WHERE id = #{id}</select></mapper>' | ogsql parse-xml
+
+# Parse XML mapper with CSV output
+ogsql parse-xml --csv -f mapper/UserMapper.xml
+
+# Parse XML mapper with parameter type inference from Java source
+ogsql parse-xml -d /path/to/mapper-xml --java-src /path/to/src/main/java --csv
+
+# Parse XML in directory with Java source for type inference
+ogsql parse-xml --dir ./mapper-xml --java-src ./src/main/java -j
 ```
 
 #### HTTP API Endpoints / HTTP API 接口
@@ -277,7 +291,7 @@ ogsql-mcp
 | `format` | Format SQL with configurable indent, keyword case, comma style, line width |
 | `validate` | Validate SQL syntax, report errors/warnings |
 | `json2sql` | Convert AST JSON back to SQL |
-| `parse_xml` | Parse iBatis/MyBatis XML mapper → extracted SQL |
+| `parse_xml` | Parse iBatis/MyBatis XML mapper → extracted SQL (with optional parameter type inference via `java_src`/`java_sources`) |
 | `parse_java` | Extract SQL from Java source files |
 
 ##### Claude Desktop Configuration
@@ -382,6 +396,38 @@ fn main() {
 - Comments and whitespace (non-semantic)
 - Original keyword casing (formatter normalizes to uppercase)
 - Original formatting/layout
+
+#### iBatis/MyBatis XML Parsing / iBatis XML 解析
+
+When built with `--features ibatis`, MyBatis XML mapper parsing is available:
+
+```rust
+use ogsql_parser::ibatis;
+
+fn main() {
+    let xml = br#"<mapper namespace="com.example.UserMapper">
+        <select id="findById" parameterType="com.example.User">
+            SELECT * FROM users WHERE id = #{id} AND name = #{name}
+        </select>
+    </mapper>"#;
+
+    let result = ibatis::parse_mapper_bytes(xml);
+    for stmt in &result.statements {
+        println!("{}: {}", stmt.id, stmt.flat_sql);
+        for param in &stmt.parameters {
+            println!("  param {} -> {:?}", param.name, param.jdbc_type);
+        }
+    }
+}
+```
+
+With `--features ibatis,java`, parameter types are inferred from Java source:
+
+```rust
+let result = ibatis::parse_mapper_bytes_with_java_src(
+    xml, None, vec![std::path::PathBuf::from("/project/src/main/java")]
+);
+```
 
 ---
 

@@ -68,6 +68,14 @@ pub struct Json2SqlParams {
 pub struct ParseXmlParams {
     /// XML content of an iBatis/MyBatis mapper file
     pub xml: String,
+    #[cfg(feature = "java")]
+    /// Directory path containing Java source files for parameter type inference
+    #[serde(default)]
+    pub java_src: Option<String>,
+    #[cfg(feature = "java")]
+    /// Inline Java source map: {relative_path: source_code} for parameter type inference
+    #[serde(default)]
+    pub java_sources: Option<std::collections::HashMap<String, String>>,
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
@@ -261,13 +269,47 @@ impl OgsqlServer {
         .unwrap_or_else(|e| format!("{{\"error\": \"{}\"}}", e))
     }
 
-    #[tool(description = "Parse iBatis/MyBatis XML mapper content and extract SQL statements")]
+    #[tool(description = "Parse iBatis/MyBatis XML mapper content and extract SQL statements. Optional java_src (directory path) or java_sources (inline {path: content} map) enables parameter type inference from Java source.")]
     fn parse_xml(
         &self,
+        #[cfg(feature = "java")]
+        Parameters(ParseXmlParams { xml, java_src, java_sources }): Parameters<ParseXmlParams>,
+        #[cfg(not(feature = "java"))]
         Parameters(ParseXmlParams { xml }): Parameters<ParseXmlParams>,
     ) -> String {
-        let result =
-            crate::ibatis::parse_mapper_bytes_with_path(xml.as_bytes(), None);
+        #[cfg(feature = "java")]
+        let (java_roots, tmp_dir) = {
+            if let Some(ref sources) = java_sources {
+                let tmp = std::env::temp_dir().join(format!("ogsql_mcp_{}", std::process::id()));
+                for (path, content) in sources {
+                    let full_path = tmp.join(path);
+                    if let Some(parent) = full_path.parent() {
+                        let _ = std::fs::create_dir_all(parent);
+                    }
+                    let _ = std::fs::write(&full_path, content);
+                }
+                (vec![tmp.clone()], Some(tmp))
+            } else if let Some(ref src) = java_src {
+                (vec![std::path::PathBuf::from(src)], None)
+            } else {
+                (vec![], None)
+            }
+        };
+        #[cfg(not(feature = "java"))]
+        let java_roots: Vec<std::path::PathBuf> = vec![];
+
+        #[cfg(feature = "java")]
+        let result = crate::ibatis::parse_mapper_bytes_with_java_src(
+            xml.as_bytes(), None, java_roots
+        );
+        #[cfg(not(feature = "java"))]
+        let result = crate::ibatis::parse_mapper_bytes(xml.as_bytes());
+
+        #[cfg(feature = "java")]
+        if let Some(tmp) = tmp_dir {
+            let _ = std::fs::remove_dir_all(&tmp);
+        }
+
         serde_json::to_string_pretty(&result)
             .unwrap_or_else(|e| format!("{{\"error\": \"{}\"}}", e))
     }

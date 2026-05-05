@@ -9,12 +9,18 @@ pub mod types;
 
 mod annotation;
 mod constant;
+mod dto_fields;
 mod heuristics;
+mod mapper_interface;
 mod method_call;
 mod string_decode;
 mod variable;
 
+pub use dto_fields::parse_dto_fields;
 pub use error::JavaError;
+pub use mapper_interface::{
+    MapperInterfaceInfo, MapperMethodInfo, MethodParam, parse_mapper_interface,
+};
 pub use types::{
     ExtractedSql, ExtractionMethod, JavaExtractConfig, JavaExtractResult, ParameterStyle, SqlKind,
     SqlOrigin, SqlParseResult,

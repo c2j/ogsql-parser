@@ -95,6 +95,10 @@ enum Commands {
         /// Output in CSV format / 以 CSV 格式输出
         #[arg(long = "csv")]
         csv: bool,
+        #[cfg(feature = "java")]
+        /// Java source root directory for parameter type inference / Java 源码根目录，用于参数类型推断
+        #[arg(long = "java-src")]
+        java_src: Option<String>,
     },
     #[cfg(feature = "java")]
     /// Extract and parse SQL from Java source files / 从 Java 源文件中提取并解析 SQL
@@ -1131,20 +1135,34 @@ fn cmd_playground() {
 }
 
 #[cfg(feature = "ibatis")]
-fn cmd_parse_xml(cli: &Cli, dir: Option<&str>, csv: bool) {
+fn cmd_parse_xml(cli: &Cli, dir: Option<&str>, csv: bool, java_src: Option<&str>) {
     if dir.is_some() && cli.file.is_some() {
         die!("Error: --dir and -f are mutually exclusive");
     }
 
+    #[cfg(feature = "java")]
+    let java_roots: Vec<std::path::PathBuf> = match java_src {
+        Some(path) => {
+            let p = std::path::Path::new(path);
+            if !p.is_dir() {
+                die!("Error: '{}' is not a directory", path);
+            }
+            vec![p.to_path_buf()]
+        }
+        None => Vec::new(),
+    };
+    #[cfg(not(feature = "java"))]
+    let java_roots: Vec<std::path::PathBuf> = Vec::new();
+
     if let Some(dir_path) = dir {
-        cmd_parse_xml_dir(cli, dir_path, csv);
+        cmd_parse_xml_dir(cli, dir_path, csv, &java_roots);
     } else {
-        cmd_parse_xml_single(cli, csv);
+        cmd_parse_xml_single(cli, csv, &java_roots);
     }
 }
 
 #[cfg(feature = "ibatis")]
-fn cmd_parse_xml_single(cli: &Cli, csv: bool) {
+fn cmd_parse_xml_single(cli: &Cli, csv: bool, java_roots: &[std::path::PathBuf]) {
     let input = match cli.file.as_deref() {
         Some(path) => std::fs::read(path).unwrap_or_else(|e| die!("Error reading {}: {}", path, e)),
         None => {
@@ -1156,6 +1174,15 @@ fn cmd_parse_xml_single(cli: &Cli, csv: bool) {
         }
     };
 
+    #[cfg(feature = "java")]
+    let result = if java_roots.is_empty() {
+        ogsql_parser::ibatis::parse_mapper_bytes_with_path(&input, cli.file.as_deref())
+    } else {
+        ogsql_parser::ibatis::parse_mapper_bytes_with_java_src(
+            &input, cli.file.as_deref(), java_roots.to_vec()
+        )
+    };
+    #[cfg(not(feature = "java"))]
     let result = ogsql_parser::ibatis::parse_mapper_bytes_with_path(&input, cli.file.as_deref());
 
     if csv {
@@ -1173,7 +1200,7 @@ fn cmd_parse_xml_single(cli: &Cli, csv: bool) {
 }
 
 #[cfg(feature = "ibatis")]
-fn cmd_parse_xml_dir(cli: &Cli, dir_path: &str, csv: bool) {
+fn cmd_parse_xml_dir(cli: &Cli, dir_path: &str, csv: bool, java_roots: &[std::path::PathBuf]) {
     use std::path::Path;
 
     let root = Path::new(dir_path);
@@ -1210,6 +1237,20 @@ fn cmd_parse_xml_dir(cli: &Cli, dir_path: &str, csv: bool) {
             .map(|p| p.to_str().unwrap_or("."))
             .unwrap_or(".");
 
+        #[cfg(feature = "java")]
+        let result = if java_roots.is_empty() {
+            ogsql_parser::ibatis::parse_mapper_bytes_with_path(
+                &bytes,
+                Some(&path.to_string_lossy()),
+            )
+        } else {
+            ogsql_parser::ibatis::parse_mapper_bytes_with_java_src(
+                &bytes,
+                Some(&path.to_string_lossy()),
+                java_roots.to_vec(),
+            )
+        };
+        #[cfg(not(feature = "java"))]
         let result = ogsql_parser::ibatis::parse_mapper_bytes_with_path(
             &bytes,
             Some(&path.to_string_lossy()),
@@ -1686,7 +1727,7 @@ fn extract_variables(sql: &str) -> String {
 
 #[cfg(feature = "ibatis")]
 fn output_csv_xml_header() {
-    println!("file,directory,line,method,sql,variables,error,warning");
+    println!("file,directory,line,method,sql,variables,parameter_types,error,warning");
 }
 
 #[cfg(feature = "ibatis")]
@@ -1715,14 +1756,24 @@ fn output_csv_xml_rows(
 
         let sql = stmt.flat_sql.trim().replace('\n', "\\n").replace('\r', "");
         let variables = extract_variables(&stmt.flat_sql);
+        let parameter_types: String = stmt
+            .parameters
+            .iter()
+            .map(|p| match p.jdbc_type {
+                Some(ref jt) => format!("{}:{:?}", p.name, jt),
+                None => p.name.clone(),
+            })
+            .collect::<Vec<_>>()
+            .join(";");
         println!(
-            "{},{},{},{},{},{},{},{}",
+            "{},{},{},{},{},{},{},{},{}",
             csv_escape(file_name),
             csv_escape(rel_dir),
             stmt.line,
             csv_escape(&stmt.id),
             csv_escape(&sql),
             csv_escape(&variables),
+            csv_escape(&parameter_types),
             csv_escape(&errors),
             csv_escape(&warnings),
         );
@@ -1830,7 +1881,13 @@ fn main() {
         #[cfg(feature = "tui")]
         Commands::Playground => cmd_playground(),
         #[cfg(feature = "ibatis")]
-        Commands::ParseXml { ref dir, csv } => cmd_parse_xml(&cli, dir.as_deref(), csv),
+        #[cfg(not(feature = "java"))]
+        Commands::ParseXml { ref dir, csv } => cmd_parse_xml(&cli, dir.as_deref(), csv, None),
+        #[cfg(feature = "ibatis")]
+        #[cfg(feature = "java")]
+        Commands::ParseXml { ref dir, csv, ref java_src } => {
+            cmd_parse_xml(&cli, dir.as_deref(), csv, java_src.as_deref())
+        }
         #[cfg(feature = "java")]
         Commands::ParseJava {
             ref extra_sql_methods,

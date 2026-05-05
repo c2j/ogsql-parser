@@ -3,6 +3,11 @@
 //! 从 XML mapper 文件中提取 SQL 语句，建模动态 SQL 元素，
 //! 并将提取的 SQL 馈入核心 Parser 得到结构化 AST。
 
+mod util;
+
+#[cfg(feature = "java")]
+mod java_resolve;
+
 pub mod error;
 pub mod flatten;
 pub mod parser;
@@ -11,17 +16,38 @@ pub mod types;
 
 pub use error::IbatisError;
 pub use types::{
-    FlattenedStatement, MapperFile, MapperStatement, ParsedMapper, ParsedStatement, SqlFragment,
-    SqlNode, StatementKind,
+    FlattenedStatement, InferenceSource, JdbcType, MapperFile, MapperStatement, ParamMeta,
+    ParsedMapper, ParsedStatement, SqlFragment, SqlNode, StatementKind,
 };
+
+#[cfg(feature = "java")]
+pub use java_resolve::JavaSourceResolver;
 
 /// 从 XML 字节解析 mapper 文件。
 pub fn parse_mapper_bytes(xml: &[u8]) -> ParsedMapper {
-    parse_mapper_bytes_with_path(xml, None)
+    parse_mapper_bytes_internal(xml, None, Vec::new())
 }
 
 /// 从 XML 字节解析 mapper 文件，附带源文件路径。
 pub fn parse_mapper_bytes_with_path(xml: &[u8], file_path: Option<&str>) -> ParsedMapper {
+    parse_mapper_bytes_internal(xml, file_path, Vec::new())
+}
+
+#[cfg(feature = "java")]
+/// 从 XML 字节解析 mapper 文件，附带 Java 源码根目录以进行类型推断。
+pub fn parse_mapper_bytes_with_java_src(
+    xml: &[u8],
+    file_path: Option<&str>,
+    java_source_roots: Vec<std::path::PathBuf>,
+) -> ParsedMapper {
+    parse_mapper_bytes_internal(xml, file_path, java_source_roots)
+}
+
+fn parse_mapper_bytes_internal(
+    xml: &[u8],
+    file_path: Option<&str>,
+    #[allow(unused_variables)] java_source_roots: Vec<std::path::PathBuf>,
+) -> ParsedMapper {
     let mut errors = Vec::new();
 
     let mapper_file = match parser::parse_xml(xml) {
@@ -59,10 +85,31 @@ pub fn parse_mapper_bytes_with_path(xml: &[u8], file_path: Option<&str>) -> Pars
             None
         };
 
+        let collected = flatten::collect_params(&stmt.body);
+
+        #[cfg(feature = "java")]
+        let parameters = {
+            let resolver = java_resolve::JavaSourceResolver::new(java_source_roots.clone());
+            infer_param_types(&mapper_file.namespace, stmt, &collected, &resolver)
+        };
+        #[cfg(not(feature = "java"))]
+        let parameters = collected.iter().map(|(name, java_type, raw)| {
+            types::ParamMeta {
+                name: name.clone(),
+                jdbc_type: None,
+                source: java_type.as_ref().map(|_| types::InferenceSource::InlineJavaType),
+                position: 0,
+                raw: raw.clone(),
+            }
+        }).collect();
+
         statements.push(ParsedStatement {
             id: stmt.id.clone(),
             kind: stmt.kind,
+            parameter_type: stmt.parameter_type.clone(),
+            result_type: stmt.result_type.clone(),
             flat_sql,
+            parameters,
             has_dynamic_elements: has_dynamic,
             line: stmt.line,
             parse_result,
@@ -81,6 +128,99 @@ pub fn parse_mapper_bytes_with_path(xml: &[u8], file_path: Option<&str>) -> Pars
     }
 }
 
+#[cfg(feature = "java")]
+fn infer_param_types(
+    namespace: &str,
+    stmt: &types::MapperStatement,
+    collected_params: &[(String, Option<String>, String)],
+    resolver: &java_resolve::JavaSourceResolver,
+) -> Vec<types::ParamMeta> {
+    use crate::ibatis::types::{InferenceSource, ParamMeta};
+    use crate::ibatis::java_resolve::{java_type_to_jdbc, jdbc_type_from_str};
+
+    // Parse Mapper interface (if available)
+    let interface_info = resolver.read_source(namespace)
+        .and_then(|src| crate::java::parse_mapper_interface(&src));
+
+    // Get method params for this statement
+    let method_params = interface_info.as_ref()
+        .and_then(|info| info.methods.get(&stmt.id))
+        .map(|m| &m.params);
+
+    // Parse DTO (if parameterType is a FQN, not "map")
+    let dto_fields = stmt.parameter_type.as_ref()
+        .filter(|pt| pt.contains('.') && !pt.eq_ignore_ascii_case("map"))
+        .and_then(|pt| resolver.read_source(pt))
+        .map(|src| crate::java::parse_dto_fields(&src))
+        .unwrap_or_default();
+
+    collected_params.iter().map(|(name, inline_java_type, raw)| {
+        // Priority 1: XML inline annotation
+        if let Some(ref jt) = inline_java_type {
+            if let Some(jdbc) = java_type_to_jdbc(jt) {
+                return ParamMeta {
+                    name: name.clone(),
+                    jdbc_type: Some(jdbc),
+                    source: Some(InferenceSource::InlineJavaType),
+                    position: 0,
+                    raw: raw.clone(),
+                };
+            }
+            if let Some(jdbc) = jdbc_type_from_str(jt) {
+                return ParamMeta {
+                    name: name.clone(),
+                    jdbc_type: Some(jdbc),
+                    source: Some(InferenceSource::InlineJdbcType),
+                    position: 0,
+                    raw: raw.clone(),
+                };
+            }
+        }
+
+        // Priority 2: Mapper interface method signature
+        if let Some(params) = method_params {
+            if let Some(param) = params.iter().find(|p| p.name == *name) {
+                if let Some(jdbc) = java_type_to_jdbc(&param.java_type) {
+                    let source = if param.param_annotation.is_some() {
+                        InferenceSource::JavaParamAnnotation
+                    } else {
+                        InferenceSource::JavaMethodSignature
+                    };
+                    return ParamMeta {
+                        name: name.clone(),
+                        jdbc_type: Some(jdbc),
+                        source: Some(source),
+                        position: 0,
+                        raw: raw.clone(),
+                    };
+                }
+            }
+        }
+
+        // Priority 3: DTO fields
+        if let Some(java_t) = dto_fields.get(name) {
+            if let Some(jdbc) = java_type_to_jdbc(java_t) {
+                return ParamMeta {
+                    name: name.clone(),
+                    jdbc_type: Some(jdbc),
+                    source: Some(InferenceSource::JavaDtoField),
+                    position: 0,
+                    raw: raw.clone(),
+                };
+            }
+        }
+
+        // No type info
+        ParamMeta {
+            name: name.clone(),
+            jdbc_type: None,
+            source: None,
+            position: 0,
+            raw: raw.clone(),
+        }
+    }).collect()
+}
+
 fn has_dynamic_elements(node: &SqlNode) -> bool {
     match node {
         SqlNode::Text { .. } | SqlNode::Parameter { .. } | SqlNode::RawExpr { .. } => false,
@@ -91,7 +231,8 @@ fn has_dynamic_elements(node: &SqlNode) -> bool {
         | SqlNode::Set { .. }
         | SqlNode::Trim { .. }
         | SqlNode::ForEach { .. }
-        | SqlNode::Bind { .. } => true,
+        | SqlNode::Bind { .. }
+        | SqlNode::Include { .. } => true,
     }
 }
 
