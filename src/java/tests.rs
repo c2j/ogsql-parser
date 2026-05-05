@@ -1118,3 +1118,71 @@ fn test_mybatis_dollar_placeholder_converted() {
     assert!(result.extractions[0].sql.contains("__JAVA_VAR_tableName__"));
     assert!(result.extractions[0].sql.contains("__JAVA_VAR_int_id__"));
 }
+
+#[test]
+fn test_parse_mapper_interface_basic() {
+    let source = r#"
+package com.example.mapper;
+
+public interface UserMapper {
+    User findById(int id);
+    List<User> findByName(String name);
+    void insert(User user);
+}
+"#;
+    let info = crate::java::parse_mapper_interface(source).unwrap();
+    assert_eq!(info.fqn, "com.example.mapper.UserMapper");
+    assert!(info.methods.contains_key("findById"));
+    let method = &info.methods["findById"];
+    assert_eq!(method.params.len(), 1);
+    assert_eq!(method.params[0].name, "id");
+    assert_eq!(method.params[0].java_type, "int");
+}
+
+#[test]
+fn test_parse_mapper_interface_with_param_annotation() {
+    let source = r#"
+package com.example.mapper;
+
+public interface UserMapper {
+    List<User> search(@Param("status") int status, @Param("name") String name);
+}
+"#;
+    let info = crate::java::parse_mapper_interface(source).unwrap();
+    let method = &info.methods["search"];
+    assert_eq!(method.params.len(), 2);
+    assert_eq!(method.params[0].name, "status");
+    assert_eq!(method.params[0].java_type, "int");
+    assert_eq!(method.params[0].param_annotation, Some("status".into()));
+    assert_eq!(method.params[1].name, "name");
+    assert_eq!(method.params[1].java_type, "String");
+}
+
+#[test]
+fn test_parse_mapper_interface_not_interface() {
+    let source = "public class Foo { }";
+    assert!(crate::java::parse_mapper_interface(source).is_none());
+}
+
+#[test]
+fn test_parse_dto_fields() {
+    let source = r#"
+package com.example.model;
+
+public class User {
+    private Long id;
+    private String name;
+    private Integer age;
+    private BigDecimal salary;
+    private Date createTime;
+    private boolean active;
+}
+"#;
+    let fields = crate::java::parse_dto_fields(source);
+    assert_eq!(fields.get("id").unwrap(), "Long");
+    assert_eq!(fields.get("name").unwrap(), "String");
+    assert_eq!(fields.get("age").unwrap(), "Integer");
+    assert_eq!(fields.get("salary").unwrap(), "BigDecimal");
+    assert_eq!(fields.get("createTime").unwrap(), "Date");
+    assert_eq!(fields.get("active").unwrap(), "boolean");
+}
