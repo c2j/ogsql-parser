@@ -174,7 +174,54 @@ fn node_text(node: &SqlNode) -> String {
         SqlNode::Trim { children, .. } => children.iter().map(node_text).collect(),
         SqlNode::ForEach { children, .. } => children.iter().map(node_text).collect(),
         SqlNode::Bind { .. } => String::new(),
+        SqlNode::Include { refid } => format!("<include refid=\"{}\" />", refid),
     }
+}
+
+#[test]
+fn test_include_parsed_as_node() {
+    let xml = br#"<mapper namespace="test">
+        <sql id="cols">id, name</sql>
+        <select id="findAll">SELECT <include refid="cols"/> FROM users</select>
+    </mapper>"#;
+    let mapper = crate::ibatis::parser::parse_xml(xml).unwrap();
+    let stmt = mapper
+        .statements
+        .iter()
+        .find(|s| s.id == "findAll")
+        .unwrap();
+    if let SqlNode::Sequence { children } = &stmt.body {
+        let include_nodes: Vec<_> = children
+            .iter()
+            .filter(|n| matches!(n, SqlNode::Include { .. }))
+            .collect();
+        assert_eq!(include_nodes.len(), 1, "expected exactly one Include node");
+        if let SqlNode::Include { refid } = include_nodes[0] {
+            assert_eq!(refid, "cols");
+        } else {
+            panic!("expected Include node");
+        }
+    } else {
+        panic!("expected Sequence node");
+    }
+}
+
+#[test]
+fn test_include_resolved_structurally() {
+    let xml = br#"<mapper namespace="test">
+        <sql id="cols">id, name</sql>
+        <select id="findAll">SELECT <include refid="cols"/> FROM users</select>
+    </mapper>"#;
+    let mapper = crate::ibatis::parser::parse_xml(xml).unwrap();
+    let resolved = crate::ibatis::resolver::resolve_includes(&mapper).unwrap();
+    let stmt = resolved
+        .statements
+        .iter()
+        .find(|s| s.id == "findAll")
+        .unwrap();
+    let content = node_text(&stmt.body);
+    assert!(content.contains("id, name"), "got: {}", content);
+    assert!(!content.contains("<include"), "raw include text should not remain, got: {}", content);
 }
 
 // ── Include Resolution Tests ──
@@ -542,4 +589,67 @@ fn test_entity_outside_cdata_operators() {
     assert_eq!(result.statements.len(), 1, "errors: {:?}", result.errors);
     assert!(result.statements[0].flat_sql.contains(">="), "got: {}", result.statements[0].flat_sql);
     assert!(result.statements[0].flat_sql.contains("<="), "got: {}", result.statements[0].flat_sql);
+}
+
+#[cfg(feature = "java")]
+#[test]
+fn test_java_type_to_jdbc_mapping() {
+    use crate::ibatis::types::JdbcType;
+    assert_eq!(crate::ibatis::java_resolve::java_type_to_jdbc("int"), Some(JdbcType::Integer));
+    assert_eq!(crate::ibatis::java_resolve::java_type_to_jdbc("String"), Some(JdbcType::VarChar));
+    assert_eq!(crate::ibatis::java_resolve::java_type_to_jdbc("Long"), Some(JdbcType::BigInt));
+    assert_eq!(crate::ibatis::java_resolve::java_type_to_jdbc("Date"), Some(JdbcType::Timestamp));
+    assert_eq!(crate::ibatis::java_resolve::java_type_to_jdbc("Unknown"), None);
+}
+
+#[cfg(feature = "java")]
+#[test]
+fn test_jdbc_type_from_str() {
+    use crate::ibatis::types::JdbcType;
+    assert_eq!(crate::ibatis::java_resolve::jdbc_type_from_str("VARCHAR"), Some(JdbcType::VarChar));
+    assert_eq!(crate::ibatis::java_resolve::jdbc_type_from_str("INTEGER"), Some(JdbcType::Integer));
+    assert_eq!(crate::ibatis::java_resolve::jdbc_type_from_str("timestamp"), Some(JdbcType::Timestamp));
+}
+
+#[cfg(feature = "java")]
+#[test]
+fn test_e2e_param_type_from_java_interface() {
+    let java_source = r#"
+package com.example.mapper;
+public interface UserMapper {
+    User findById(int id);
+    List<User> findByName(String name);
+}
+"#;
+
+    let tmp_dir = std::env::temp_dir().join("ogsql_test_java_src_e2e");
+    let pkg_dir = tmp_dir.join("com/example/mapper");
+    std::fs::create_dir_all(&pkg_dir).unwrap();
+    std::fs::write(pkg_dir.join("UserMapper.java"), java_source).unwrap();
+
+    let xml = br#"<mapper namespace="com.example.mapper.UserMapper">
+        <select id="findById">SELECT * FROM users WHERE id = #{id}</select>
+        <select id="findByName">SELECT * FROM users WHERE name = #{name}</select>
+    </mapper>"#;
+
+    let result = crate::ibatis::parse_mapper_bytes_with_java_src(
+        xml,
+        None,
+        vec![tmp_dir.clone()],
+    );
+
+    assert_eq!(result.statements.len(), 2);
+
+    let stmt1 = &result.statements[0];
+    assert_eq!(stmt1.id, "findById");
+    assert_eq!(stmt1.parameters.len(), 1);
+    assert_eq!(stmt1.parameters[0].name, "id");
+    assert_eq!(stmt1.parameters[0].jdbc_type, Some(crate::ibatis::types::JdbcType::Integer));
+
+    let stmt2 = &result.statements[1];
+    assert_eq!(stmt2.id, "findByName");
+    assert_eq!(stmt2.parameters[0].name, "name");
+    assert_eq!(stmt2.parameters[0].jdbc_type, Some(crate::ibatis::types::JdbcType::VarChar));
+
+    let _ = std::fs::remove_dir_all(&tmp_dir);
 }

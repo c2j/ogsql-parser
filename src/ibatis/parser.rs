@@ -8,6 +8,7 @@ use quick_xml::Reader;
 
 use crate::ibatis::error::IbatisError;
 use crate::ibatis::types::{MapperFile, MapperStatement, SqlFragment, SqlNode, StatementKind};
+use crate::ibatis::util::{find_closing_brace, parse_param_type};
 
 const SKIP_TAGS: &[&str] = &["resultMap", "cache", "cache-ref", "parameterMap"];
 
@@ -142,11 +143,12 @@ fn read_node_tree(reader: &mut Reader<&[u8]>, end_tag: &[u8]) -> Vec<SqlNode> {
                     let tag_name = String::from_utf8_lossy(ln.as_ref());
                     let attrs = format_attributes(&e);
                     let inner = read_node_tree(reader, ln.as_ref());
-                    text_buf.push_str(&format!("<{}{}>", tag_name, attrs));
+                    let mut text = format!("<{}{}>", tag_name, attrs);
                     for child in &inner {
-                        text_buf.push_str(&node_to_raw_text(child));
+                        text.push_str(&simple_node_to_text(child));
                     }
-                    text_buf.push_str(&format!("</{}>", tag_name));
+                    text.push_str(&format!("</{}>", tag_name));
+                    text_buf.push_str(&text);
                     flush_text_to_nodes(&mut text_buf, &mut nodes);
                 }
             }
@@ -155,9 +157,7 @@ fn read_node_tree(reader: &mut Reader<&[u8]>, end_tag: &[u8]) -> Vec<SqlNode> {
                 let ln = e.local_name();
                 if ln.as_ref().eq_ignore_ascii_case(b"include") {
                     if let Some(refid) = get_attr(&e, "refid") {
-                        nodes.push(SqlNode::Text {
-                            content: format!("<include refid=\"{}\"/>", refid),
-                        });
+                        nodes.push(SqlNode::Include { refid });
                     }
                 } else if ln.as_ref().eq_ignore_ascii_case(b"bind") {
                     nodes.push(SqlNode::Bind {
@@ -239,25 +239,6 @@ fn parse_text_to_nodes(text: &str) -> Vec<SqlNode> {
         });
     }
     nodes
-}
-
-fn find_closing_brace(chars: &[char], start: usize) -> Option<usize> {
-    let mut depth = 1;
-    let mut i = start;
-    while i < chars.len() {
-        match chars[i] {
-            '{' => depth += 1,
-            '}' => {
-                depth -= 1;
-                if depth == 0 {
-                    return Some(i);
-                }
-            }
-            _ => {}
-        }
-        i += 1;
-    }
-    None
 }
 
 fn parse_dynamic_element(
@@ -345,7 +326,7 @@ fn merge_children(children: Vec<SqlNode>) -> SqlNode {
     }
 }
 
-fn node_to_raw_text(node: &SqlNode) -> String {
+fn simple_node_to_text(node: &SqlNode) -> String {
     match node {
         SqlNode::Text { content } => content.clone(),
         SqlNode::Parameter { name, java_type } => match java_type {
@@ -353,32 +334,7 @@ fn node_to_raw_text(node: &SqlNode) -> String {
             None => format!("#{{{}}}", name),
         },
         SqlNode::RawExpr { expr } => format!("${{{}}}", expr),
-        SqlNode::If { test, children } => {
-            let inner: String = children.iter().map(node_to_raw_text).collect();
-            if test.is_empty() {
-                inner
-            } else {
-                format!("<if test=\"{}\">{}</if>", test, inner)
-            }
-        }
-        SqlNode::Choose { branches } => {
-            let mut s = String::new();
-            for (test, ch) in branches {
-                let inner: String = ch.iter().map(node_to_raw_text).collect();
-                if let Some(t) = test {
-                    s.push_str(&inner);
-                } else {
-                    s.push_str(&inner);
-                }
-            }
-            s
-        }
-        SqlNode::Where { children } => children.iter().map(node_to_raw_text).collect(),
-        SqlNode::Set { children } => children.iter().map(node_to_raw_text).collect(),
-        SqlNode::Trim { children, .. } => children.iter().map(node_to_raw_text).collect(),
-        SqlNode::ForEach { children, .. } => children.iter().map(node_to_raw_text).collect(),
-        SqlNode::Bind { .. } => String::new(),
-        SqlNode::Sequence { children } => children.iter().map(node_to_raw_text).collect(),
+        _ => String::new(),
     }
 }
 
@@ -469,23 +425,4 @@ fn byte_offset_to_line(source: &[u8], offset: usize) -> usize {
         }
     }
     line
-}
-
-/// Extract name and optional java_type/jdbc_type from a MyBatis param string.
-/// Format: `name` or `name,javaType=double` or `name,jdbcType=NUMERIC` or `name,javaType=double,jdbcType=NUMERIC`.
-/// Prefers javaType over jdbcType.
-fn parse_param_type(param: &str) -> (String, Option<String>) {
-    let mut parts = param.split(',');
-    let name = parts.next().unwrap_or("").trim().to_string();
-    let mut java_type: Option<String> = None;
-    let mut jdbc_type: Option<String> = None;
-    for part in parts {
-        let part = part.trim();
-        if let Some(val) = part.strip_prefix("javaType=") {
-            java_type = Some(val.to_string());
-        } else if let Some(val) = part.strip_prefix("jdbcType=") {
-            jdbc_type = Some(val.to_string());
-        }
-    }
-    (name, java_type.or(jdbc_type))
 }

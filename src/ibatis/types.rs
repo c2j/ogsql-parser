@@ -52,6 +52,9 @@ pub enum SqlNode {
     RawExpr {
         expr: String,
     },
+    Include {
+        refid: String,
+    },
     If {
         test: String,
         children: Vec<SqlNode>,
@@ -114,11 +117,65 @@ pub struct ParsedMapper {
 pub struct ParsedStatement {
     pub id: String,
     pub kind: StatementKind,
+    pub parameter_type: Option<String>,
+    pub result_type: Option<String>,
     pub flat_sql: String,
+    pub parameters: Vec<ParamMeta>,
     pub has_dynamic_elements: bool,
     pub line: usize,
     pub parse_result: Option<(
         Vec<crate::ast::StatementInfo>,
         Vec<crate::parser::ParserError>,
     )>,
+}
+
+/// MyBatis 支持的 JDBC 类型（常用子集）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub enum JdbcType {
+    Integer,
+    BigInt,
+    SmallInt,
+    TinyInt,
+    Decimal,
+    Numeric,
+    Double,
+    Float,
+    Real,
+    Char,
+    VarChar,
+    LongVarChar,
+    NChar,
+    NVarChar,
+    Clob,
+    NClob,
+    Binary,
+    VarBinary,
+    Blob,
+    Date,
+    Time,
+    Timestamp,
+    Boolean,
+    Null,
+    Array,
+    Other,
+}
+
+/// 参数类型推断来源。
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub enum InferenceSource {
+    InlineJavaType,
+    InlineJdbcType,
+    JavaMethodSignature,
+    JavaParamAnnotation,
+    JavaDtoField,
+}
+
+/// 参数元数据。
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct ParamMeta {
+    pub name: String,
+    pub jdbc_type: Option<JdbcType>,
+    pub source: Option<InferenceSource>,
+    pub position: usize,
+    pub raw: String,
 }

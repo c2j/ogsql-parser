@@ -6,6 +6,7 @@
 //! - ${expr} → __XML_RAW_expr__
 
 use crate::ibatis::types::SqlNode;
+use crate::ibatis::util::{find_closing_brace, parse_param_type};
 
 const PARAM_PREFIX: &str = "__XML_PARAM_";
 const RAW_PREFIX: &str = "__XML_RAW_";
@@ -76,11 +77,50 @@ pub fn flatten_sql(node: &SqlNode) -> String {
         }
         SqlNode::Bind { .. } => String::new(),
         SqlNode::Sequence { children } => flatten_children(children),
+        SqlNode::Include { refid } => {
+            format!("/* UNRESOLVED_INCLUDE({}) */", refid)
+        }
     }
 }
 
 fn flatten_children(children: &[SqlNode]) -> String {
     children.iter().map(|c| flatten_sql(c)).collect()
+}
+
+/// 从 SqlNode 树中收集所有 Parameter 节点。
+pub fn collect_params(node: &SqlNode) -> Vec<(String, Option<String>, String)> {
+    let mut params = Vec::new();
+    collect_params_recursive(node, &mut params);
+    params
+}
+
+fn collect_params_recursive(
+    node: &SqlNode,
+    params: &mut Vec<(String, Option<String>, String)>,
+) {
+    match node {
+        SqlNode::Parameter { name, java_type } => {
+            let raw = match java_type {
+                Some(t) => format!("#{{{},{}}}", name, format!("javaType={}", t)),
+                None => format!("#{{{}}}", name),
+            };
+            params.push((name.clone(), java_type.clone(), raw));
+        }
+        SqlNode::If { children, .. }
+        | SqlNode::Where { children, .. }
+        | SqlNode::Set { children, .. }
+        | SqlNode::Trim { children, .. }
+        | SqlNode::ForEach { children, .. }
+        | SqlNode::Sequence { children } => {
+            for c in children { collect_params_recursive(c, params); }
+        }
+        SqlNode::Choose { branches } => {
+            for (_, ch) in branches {
+                for c in ch { collect_params_recursive(c, params); }
+            }
+        }
+        SqlNode::Text { .. } | SqlNode::RawExpr { .. } | SqlNode::Bind { .. } | SqlNode::Include { .. } => {}
+    }
 }
 
 /// 应用 trim 逻辑：添加前缀/后缀，移除前缀/后缀覆盖。
@@ -99,10 +139,18 @@ fn apply_trim(
             .map(|s| s.trim())
             .filter(|s| !s.is_empty())
             .collect();
-        for ov in &ov_list {
+        loop {
             let trimmed = result.trim_start();
-            if trimmed.len() >= ov.len() && trimmed[..ov.len()].eq_ignore_ascii_case(ov) {
-                result = trimmed[ov.len()..].to_string();
+            let mut stripped = false;
+            for ov in &ov_list {
+                if trimmed.len() >= ov.len() && trimmed[..ov.len()].eq_ignore_ascii_case(ov) {
+                    result = trimmed[ov.len()..].to_string();
+                    stripped = true;
+                    break;
+                }
+            }
+            if !stripped {
+                break;
             }
         }
     }
@@ -113,11 +161,20 @@ fn apply_trim(
             .map(|s| s.trim())
             .filter(|s| !s.is_empty())
             .collect();
-        for ov in &ov_list {
-            if result.len() >= ov.len()
-                && result[result.len() - ov.len()..].eq_ignore_ascii_case(ov)
-            {
-                result.truncate(result.len() - ov.len());
+        loop {
+            let trimmed = result.trim_end();
+            let mut stripped = false;
+            for ov in &ov_list {
+                if trimmed.len() >= ov.len()
+                    && trimmed[trimmed.len() - ov.len()..].eq_ignore_ascii_case(ov)
+                {
+                    result = trimmed[..trimmed.len() - ov.len()].to_string();
+                    stripped = true;
+                    break;
+                }
+            }
+            if !stripped {
+                break;
             }
         }
     }
@@ -224,42 +281,6 @@ fn replace_params(sql: &str) -> String {
     }
 
     result
-}
-
-/// 从位置 start 开始查找匹配的 `}`，考虑嵌套。
-fn find_closing_brace(chars: &[char], start: usize) -> Option<usize> {
-    let mut depth = 1;
-    let mut i = start;
-    while i < chars.len() {
-        match chars[i] {
-            '{' => depth += 1,
-            '}' => {
-                depth -= 1;
-                if depth == 0 {
-                    return Some(i);
-                }
-            }
-            _ => {}
-        }
-        i += 1;
-    }
-    None
-}
-
-fn parse_param_type(param: &str) -> (String, Option<String>) {
-    let mut parts = param.split(',');
-    let name = parts.next().unwrap_or("").trim().to_string();
-    let mut java_type: Option<String> = None;
-    let mut jdbc_type: Option<String> = None;
-    for part in parts {
-        let part = part.trim();
-        if let Some(val) = part.strip_prefix("javaType=") {
-            java_type = Some(val.to_string());
-        } else if let Some(val) = part.strip_prefix("jdbcType=") {
-            jdbc_type = Some(val.to_string());
-        }
-    }
-    (name, java_type.or(jdbc_type))
 }
 
 #[cfg(test)]
