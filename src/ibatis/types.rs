@@ -9,6 +9,8 @@ pub struct MapperFile {
     pub fragments: Vec<SqlFragment>,
     /// iBatis 2.x parameterMap 定义 (<parameterMap id="...">)
     pub parameter_maps: Vec<ParameterMapDef>,
+    /// typeAlias 映射 (<typeAlias alias="account" type="testdomain.Account" />)
+    pub type_aliases: Vec<(String, String)>,
     /// SQL 语句 (<select>/<insert>/<update>/<delete>)
     pub statements: Vec<MapperStatement>,
 }
@@ -186,6 +188,7 @@ pub enum JdbcType {
 pub enum InferenceSource {
     InlineJavaType,
     InlineJdbcType,
+    ParameterClass,
     JavaMethodSignature,
     JavaParamAnnotation,
     JavaDtoField,
