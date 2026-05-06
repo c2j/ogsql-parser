@@ -30,6 +30,7 @@ pub fn resolve_includes(mapper: &MapperFile) -> Result<MapperFile, IbatisError> 
     Ok(MapperFile {
         namespace: mapper.namespace.clone(),
         fragments: resolved_fragments,
+        parameter_maps: mapper.parameter_maps.clone(),
         statements: resolved_statements,
     })
 }
