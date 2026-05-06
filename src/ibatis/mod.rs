@@ -156,12 +156,27 @@ fn infer_param_types(
         .and_then(|info| info.methods.get(&stmt.id))
         .map(|m| &m.params);
 
-    // Parse DTO (if parameterType is a FQN, not "map")
-    let dto_fields = stmt.parameter_type.as_ref()
+    // Parse DTO from XML parameterType or from method parameter type
+    let mut dto_fields: std::collections::HashMap<String, String> = stmt.parameter_type.as_ref()
         .filter(|pt| pt.contains('.') && !pt.eq_ignore_ascii_case("map"))
         .and_then(|pt| resolver.read_source(pt))
         .map(|src| crate::java::parse_dto_fields(&src))
         .unwrap_or_default();
+
+    if dto_fields.is_empty() {
+        if let Some(ref info) = interface_info {
+            if let Some(method) = info.methods.get(&stmt.id) {
+                for param in &method.params {
+                    if java_type_to_jdbc(&param.java_type).is_none() {
+                        if let Some(src) = resolver.read_source_by_class_name(&param.java_type) {
+                            let fields = crate::java::parse_dto_fields(&src);
+                            dto_fields.extend(fields);
+                        }
+                    }
+                }
+            }
+        }
+    }
 
     collected_params.iter().map(|(name, inline_java_type, raw)| {
         // Priority 1: XML inline annotation

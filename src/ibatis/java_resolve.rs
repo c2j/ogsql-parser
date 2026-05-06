@@ -82,6 +82,27 @@ impl JavaSourceResolver {
             .map(|root| root.join(&relative))
             .find(|path| path.is_file())
     }
+
+    pub fn resolve_by_class_name(&self, class_name: &str) -> Option<PathBuf> {
+        let target = format!("{}.java", class_name);
+        for root in &self.roots {
+            let found = walkdir::WalkDir::new(root)
+                .into_iter()
+                .filter_map(|e| e.ok())
+                .find(|e| {
+                    e.file_name().to_str().map(|n| n == target).unwrap_or(false)
+                });
+            if let Some(entry) = found {
+                return Some(entry.into_path());
+            }
+        }
+        None
+    }
+
+    pub fn read_source_by_class_name(&self, class_name: &str) -> Option<String> {
+        let path = self.resolve_by_class_name(class_name)?;
+        std::fs::read_to_string(&path).ok()
+    }
 }
 
 pub fn java_type_to_jdbc(java_type: &str) -> Option<crate::ibatis::types::JdbcType> {
