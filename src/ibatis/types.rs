@@ -69,6 +69,7 @@ pub enum SqlNode {
     },
     RawExpr {
         expr: String,
+        java_type: Option<String>,
     },
     Include {
         refid: String,

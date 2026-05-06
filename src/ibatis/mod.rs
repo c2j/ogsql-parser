@@ -107,9 +107,12 @@ fn parse_mapper_bytes_internal(
 
         for param in &parameters {
             if let Some(jdbc) = &param.jdbc_type {
-                let untyped = format!("{}{}{}", "__XML_PARAM_", param.name, "__");
-                let typed = format!("{}{}_{}{}", "__XML_PARAM_", format!("{:?}", jdbc).to_uppercase(), param.name, "__");
-                flat_sql = flat_sql.replace(&untyped, &typed);
+                let jdbc_str = format!("{:?}", jdbc).to_uppercase();
+                for prefix in ["__XML_PARAM_", "__XML_RAW_"] {
+                    let untyped = format!("{}{}{}", prefix, param.name, "__");
+                    let typed = format!("{}{}_{}{}", prefix, jdbc_str, param.name, "__");
+                    flat_sql = flat_sql.replace(&untyped, &typed);
+                }
             }
         }
 

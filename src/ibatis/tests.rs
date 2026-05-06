@@ -163,7 +163,10 @@ fn node_text(node: &SqlNode) -> String {
             Some(t) => format!("#{{{},{}}}", name, format!("javaType={}", t)),
             None => format!("#{{{}}}", name),
         },
-        SqlNode::RawExpr { expr } => format!("${{{}}}", expr),
+        SqlNode::RawExpr { expr, java_type } => match java_type {
+            Some(t) => format!("${{{},{}}}", expr, format!("javaType={}", t)),
+            None => format!("${{{}}}", expr),
+        },
         SqlNode::If { children, .. } => children.iter().map(node_text).collect(),
         SqlNode::Choose { branches } => branches
             .iter()
@@ -366,6 +369,34 @@ fn test_e2e_dollar_param_placeholder() {
     let result = super::parse_mapper_bytes(xml);
     let stmt = &result.statements[0];
     assert!(stmt.flat_sql.contains("__XML_RAW_column__"));
+}
+
+#[test]
+fn test_e2e_dollar_param_with_java_type() {
+    let xml = br#"<mapper namespace="test">
+        <select id="dynamicOrder">SELECT * FROM users ORDER BY ${column,javaType=string}</select>
+    </mapper>"#;
+    let result = super::parse_mapper_bytes(xml);
+    let stmt = &result.statements[0];
+    assert!(
+        stmt.flat_sql.contains("__XML_RAW_STRING_column__"),
+        "got: {}",
+        stmt.flat_sql
+    );
+}
+
+#[test]
+fn test_e2e_dollar_param_with_jdbc_type() {
+    let xml = br#"<mapper namespace="test">
+        <select id="dynamicCol">SELECT ${col,jdbcType=VARCHAR} FROM users</select>
+    </mapper>"#;
+    let result = super::parse_mapper_bytes(xml);
+    let stmt = &result.statements[0];
+    assert!(
+        stmt.flat_sql.contains("__XML_RAW_VARCHAR_col__"),
+        "got: {}",
+        stmt.flat_sql
+    );
 }
 
 #[test]

@@ -4,6 +4,7 @@
 //! - #{param} → __XML_PARAM_param__
 //! - #{param,javaType=double} → __XML_PARAM_DOUBLE_param__
 //! - ${expr} → __XML_RAW_expr__
+//! - ${expr,javaType=string} → __XML_RAW_STRING_expr__
 
 use crate::ibatis::types::SqlNode;
 use crate::ibatis::util::{find_closing_brace, parse_param_type};
@@ -36,9 +37,18 @@ pub fn flatten_sql(node: &SqlNode) -> String {
                 None => format!("{}{}{}", PARAM_PREFIX, sanitized, PLACEHOLDER_SUFFIX),
             }
         }
-        SqlNode::RawExpr { expr } => {
+        SqlNode::RawExpr { expr, java_type } => {
             let sanitized = sanitize_param_name(expr);
-            format!("{}{}{}", RAW_PREFIX, sanitized, PLACEHOLDER_SUFFIX)
+            match java_type {
+                Some(t) => format!(
+                    "{}{}_{}{}",
+                    RAW_PREFIX,
+                    t.to_uppercase(),
+                    sanitized,
+                    PLACEHOLDER_SUFFIX
+                ),
+                None => format!("{}{}{}", RAW_PREFIX, sanitized, PLACEHOLDER_SUFFIX),
+            }
         }
         // 动态元素: "最完整"策略，取所有内容
         SqlNode::If { children, prepend, .. } => apply_prepend(prepend, &flatten_children(children)),
@@ -166,6 +176,13 @@ fn collect_params_recursive(
             };
             params.push((name.clone(), java_type.clone(), raw));
         }
+        SqlNode::RawExpr { expr, java_type } => {
+            let raw = match java_type {
+                Some(t) => format!("${{{},{}}}", expr, format!("javaType={}", t)),
+                None => format!("${{{}}}", expr),
+            };
+            params.push((expr.clone(), java_type.clone(), raw));
+        }
         SqlNode::If { children, .. }
         | SqlNode::Where { children, .. }
         | SqlNode::Set { children, .. }
@@ -179,7 +196,7 @@ fn collect_params_recursive(
                 for c in ch { collect_params_recursive(c, params); }
             }
         }
-        SqlNode::Text { .. } | SqlNode::RawExpr { .. } | SqlNode::Bind { .. } | SqlNode::Include { .. } => {}
+        SqlNode::Text { .. } | SqlNode::Bind { .. } | SqlNode::Include { .. } => {}
     }
 }
 
@@ -264,6 +281,7 @@ fn apply_trim(
 /// - `#{param}` → `__XML_PARAM_param__`
 /// - `#{name,javaType=double}` → `__XML_PARAM_DOUBLE_name__`
 /// - `${expr}` → `__XML_RAW_expr__`
+/// - `${expr,javaType=string}` → `__XML_RAW_STRING_expr__`
 /// - `'...'` 内的 `#{}` 和 `${}` 不替换
 fn replace_params(sql: &str) -> String {
     let mut result = String::with_capacity(sql.len());
@@ -327,10 +345,23 @@ fn replace_params(sql: &str) -> String {
         // 处理 ${
         if c == '$' && i + 1 < len && chars[i + 1] == '{' {
             if let Some(end) = find_closing_brace(&chars, i + 2) {
-                let expr: String = chars[i + 2..end].iter().collect();
-                result.push_str(RAW_PREFIX);
-                result.push_str(&sanitize_param_name(&expr));
-                result.push_str(PLACEHOLDER_SUFFIX);
+                let raw: String = chars[i + 2..end].iter().collect();
+                let (name, java_type) = parse_param_type(&raw);
+                let sanitized = sanitize_param_name(&name);
+                match java_type {
+                    Some(t) => {
+                        result.push_str(RAW_PREFIX);
+                        result.push_str(&t.to_uppercase());
+                        result.push('_');
+                        result.push_str(&sanitized);
+                        result.push_str(PLACEHOLDER_SUFFIX);
+                    }
+                    None => {
+                        result.push_str(RAW_PREFIX);
+                        result.push_str(&sanitized);
+                        result.push_str(PLACEHOLDER_SUFFIX);
+                    }
+                }
                 i = end + 1;
                 continue;
             }
@@ -362,11 +393,24 @@ fn replace_params(sql: &str) -> String {
                 end += 1;
             }
             if end < len && end > start {
-                let param: String = chars[start..end].iter().collect();
-                if !param.contains(' ') && !param.contains('\n') && !param.contains('\r') {
-                    result.push_str(RAW_PREFIX);
-                    result.push_str(&sanitize_param_name(&param));
-                    result.push_str(PLACEHOLDER_SUFFIX);
+                let raw: String = chars[start..end].iter().collect();
+                if !raw.contains(' ') && !raw.contains('\n') && !raw.contains('\r') {
+                    let (name, java_type) = parse_param_type(&raw);
+                    let sanitized = sanitize_param_name(&name);
+                    match java_type {
+                        Some(t) => {
+                            result.push_str(RAW_PREFIX);
+                            result.push_str(&t.to_uppercase());
+                            result.push('_');
+                            result.push_str(&sanitized);
+                            result.push_str(PLACEHOLDER_SUFFIX);
+                        }
+                        None => {
+                            result.push_str(RAW_PREFIX);
+                            result.push_str(&sanitized);
+                            result.push_str(PLACEHOLDER_SUFFIX);
+                        }
+                    }
                     i = end + 1;
                     continue;
                 }
@@ -457,5 +501,21 @@ mod param_tests {
     #[test]
     fn test_param_no_type() {
         assert_eq!(replace_params("#{simple}"), "__XML_PARAM_simple__");
+    }
+
+    #[test]
+    fn test_dollar_param_with_java_type() {
+        assert_eq!(
+            replace_params("ORDER BY ${col,javaType=string}"),
+            "ORDER BY __XML_RAW_STRING_col__"
+        );
+    }
+
+    #[test]
+    fn test_dollar_param_with_jdbc_type() {
+        assert_eq!(
+            replace_params("${table,jdbcType=VARCHAR}"),
+            "__XML_RAW_VARCHAR_table__"
+        );
     }
 }

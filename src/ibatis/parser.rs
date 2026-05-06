@@ -238,8 +238,9 @@ fn parse_text_to_nodes(text: &str) -> Vec<SqlNode> {
                         content: std::mem::take(&mut current_text),
                     });
                 }
-                let expr: String = chars[i + 2..end].iter().collect();
-                nodes.push(SqlNode::RawExpr { expr });
+                let raw: String = chars[i + 2..end].iter().collect();
+                let (expr, java_type) = parse_param_type(&raw);
+                nodes.push(SqlNode::RawExpr { expr, java_type });
                 i = end + 1;
                 continue;
             }
@@ -283,7 +284,9 @@ fn parse_text_to_nodes(text: &str) -> Vec<SqlNode> {
                             content: std::mem::take(&mut current_text),
                         });
                     }
-                    nodes.push(SqlNode::RawExpr { expr: param });
+                    let raw: String = chars[start..end].iter().collect();
+                    let (expr, java_type) = parse_param_type(&raw);
+                    nodes.push(SqlNode::RawExpr { expr, java_type });
                     i = end + 1;
                     continue;
                 }
@@ -424,7 +427,10 @@ fn simple_node_to_text(node: &SqlNode) -> String {
             Some(t) => format!("#{{{},{}}}", name, format!("javaType={}", t)),
             None => format!("#{{{}}}", name),
         },
-        SqlNode::RawExpr { expr } => format!("${{{}}}", expr),
+        SqlNode::RawExpr { expr, java_type } => match java_type {
+            Some(t) => format!("${{{},{}}}", expr, format!("javaType={}", t)),
+            None => format!("${{{}}}", expr),
+        },
         _ => String::new(),
     }
 }
