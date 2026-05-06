@@ -26,7 +26,9 @@ pub fn parse_xml(xml: &[u8]) -> Result<MapperFile, IbatisError> {
         match reader.read_event_into(&mut buf) {
             Ok(Event::Start(e)) => {
                 let tag = e.local_name();
-                if tag.as_ref().eq_ignore_ascii_case(b"mapper") {
+                if tag.as_ref().eq_ignore_ascii_case(b"mapper")
+                    || tag.as_ref().eq_ignore_ascii_case(b"sqlMap")
+                {
                     namespace = get_attr(&e, "namespace").unwrap_or_default();
                 } else if tag.as_ref().eq_ignore_ascii_case(b"sql") {
                     let id = get_attr(&e, "id").unwrap_or_default();
@@ -38,9 +40,12 @@ pub fn parse_xml(xml: &[u8]) -> Result<MapperFile, IbatisError> {
                 } else if let Some(kind) = statement_kind(tag.as_ref()) {
                     let line = byte_offset_to_line(xml, reader.buffer_position() as usize);
                     let id = get_attr(&e, "id").unwrap_or_default();
-                    let parameter_type = get_attr(&e, "parameterType");
-                    let result_type =
-                        get_attr(&e, "resultType").or_else(|| get_attr(&e, "resultMap"));
+                    let parameter_type = get_attr(&e, "parameterType")
+                        .or_else(|| get_attr(&e, "parameterClass"))
+                        .or_else(|| get_attr(&e, "parameterMap"));
+                    let result_type = get_attr(&e, "resultType")
+                        .or_else(|| get_attr(&e, "resultMap"))
+                        .or_else(|| get_attr(&e, "resultClass"));
                     let children = read_node_tree(&mut reader, tag.as_ref());
                     statements.push(MapperStatement {
                         kind,
