@@ -4,7 +4,7 @@ use std::collections::HashMap;
 
 use tree_sitter::Node;
 
-use super::types::JavaExtractConfig;
+use super::types::{JavaExtractConfig, JdbcParamInfo};
 use crate::java::error::JavaError;
 use crate::java::types::*;
 
@@ -31,6 +31,8 @@ pub fn extract(
         method_name: None,
         sql_vars: HashMap::new(),
         var_types: HashMap::new(),
+        jdbc_param_map: HashMap::new(),
+        ps_var_to_extraction: HashMap::new(),
         extra_sql_methods: &config.extra_sql_methods,
     };
     ctx.visit(root);
@@ -55,6 +57,10 @@ pub(super) struct ExtractContext<'a> {
     pub(super) method_name: Option<String>,
     pub(super) sql_vars: HashMap<String, TrackedVar>,
     pub(super) var_types: HashMap<String, String>,
+    /// Tracks setXxx calls: (ps_var_name, param_index) → inferred info.
+    pub(super) jdbc_param_map: HashMap<(String, usize), JdbcParamInfo>,
+    /// Maps PreparedStatement variable name → extraction index for backfill.
+    pub(super) ps_var_to_extraction: HashMap<String, usize>,
     pub(super) extra_sql_methods: &'a [String],
 }
 
@@ -107,6 +113,8 @@ impl<'a> ExtractContext<'a> {
         let old_method = self.method_name.clone();
         let old_sql_vars = std::mem::take(&mut self.sql_vars);
         let old_var_types = std::mem::take(&mut self.var_types);
+        let old_jdbc_param_map = std::mem::take(&mut self.jdbc_param_map);
+        let old_ps_var_to_extraction = std::mem::take(&mut self.ps_var_to_extraction);
         if let Some(name_node) = node.child_by_field_name("name") {
             self.method_name = Some(self.node_text(name_node));
         }
@@ -161,9 +169,14 @@ impl<'a> ExtractContext<'a> {
             }
         }
 
+        // Backfill JDBC parameter type/name inference from setXxx() calls
+        self.backfill_jdbc_params();
+
         self.method_name = old_method;
         self.sql_vars = old_sql_vars;
         self.var_types = old_var_types;
+        self.jdbc_param_map = old_jdbc_param_map;
+        self.ps_var_to_extraction = old_ps_var_to_extraction;
     }
 
     pub(super) fn recurse(&mut self, node: Node) {
@@ -316,6 +329,34 @@ impl<'a> ExtractContext<'a> {
         }
     }
 
+    /// If this method_invocation is the RHS of a variable declaration or assignment,
+    /// return the LHS variable name by walking up the CST.
+    pub(super) fn find_assignment_target(&self, node: Node) -> Option<String> {
+        let mut current = node;
+        loop {
+            let parent = current.parent()?;
+            match parent.kind() {
+                "variable_declarator" => {
+                    if let Some(name_node) = parent.child_by_field_name("name") {
+                        return Some(self.node_text(name_node));
+                    }
+                    return None;
+                }
+                "assignment_expression" => {
+                    let left = parent.child_by_field_name("left")?;
+                    if left.kind() == "identifier" {
+                        return Some(self.node_text(left));
+                    }
+                    return None;
+                }
+                "argument_list" | "field_access" | "method_invocation" => {
+                    current = parent;
+                }
+                _ => return None,
+            }
+        }
+    }
+
     fn infer_expression_type(&self, node: Node) -> Option<String> {
         match node.kind() {
             "identifier" => self.var_types.get(&self.node_text(node)).cloned(),
@@ -354,6 +395,43 @@ impl<'a> ExtractContext<'a> {
             }
             "string_literal" => Some("String".to_string()),
             _ => None,
+        }
+    }
+
+    /// After collecting setXxx() info, replace __JAVA_VAR_JDBC_PARAM_N__
+    /// with __JAVA_VAR_{Type}_{name}__ in the extracted SQL.
+    pub(super) fn backfill_jdbc_params(&mut self) {
+        let mut to_reparse: std::collections::HashSet<usize> = std::collections::HashSet::new();
+
+        for ((ps_var, _param_idx), info) in &self.jdbc_param_map {
+            let ext_idx = match self.ps_var_to_extraction.get(ps_var) {
+                Some(&idx) => idx,
+                None => continue,
+            };
+            let ext = match self.extractions.get_mut(ext_idx) {
+                Some(e) => e,
+                None => continue,
+            };
+
+            let old = format!("__JAVA_VAR_JDBC_PARAM_{}__", info.index);
+            let new = match &info.var_name {
+                Some(name) => format!("__JAVA_VAR_{}_{}__", info.java_type, sanitize_var_name(name)),
+                None => format!("__JAVA_VAR_{}_JDBC_PARAM_{}__", info.java_type, info.index),
+            };
+            ext.sql = ext.sql.replace(&old, &new);
+            to_reparse.insert(ext_idx);
+        }
+
+        // Re-parse modified extractions
+        for idx in to_reparse {
+            let (sql, sql_kind) = {
+                let ext = &self.extractions[idx];
+                (ext.sql.clone(), ext.sql_kind)
+            };
+            let parse_result = self.try_parse_sql(&sql, sql_kind);
+            if let Some(ext) = self.extractions.get_mut(idx) {
+                ext.parse_result = parse_result;
+            }
         }
     }
 

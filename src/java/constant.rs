@@ -32,6 +32,29 @@ pub(super) const SQL_METHOD_UNAMBIGUOUS: &[&str] = &[
 
 pub(super) const SQL_METHOD_AMBIGUOUS: &[&str] = &["query", "update", "execute"];
 
+pub(super) const JDBC_SETTER_TYPES: &[(&str, &str)] = &[
+    ("setString", "String"),
+    ("setInt", "int"),
+    ("setLong", "long"),
+    ("setDouble", "double"),
+    ("setFloat", "float"),
+    ("setShort", "short"),
+    ("setByte", "byte"),
+    ("setBoolean", "boolean"),
+    ("setDate", "Date"),
+    ("setTime", "Time"),
+    ("setTimestamp", "Timestamp"),
+    ("setBigDecimal", "BigDecimal"),
+    ("setBytes", "byte[]"),
+    ("setBlob", "Blob"),
+    ("setClob", "Clob"),
+    ("setNClob", "NClob"),
+    ("setBinaryStream", "InputStream"),
+    ("setCharacterStream", "Reader"),
+    ("setAsciiStream", "InputStream"),
+    ("setURL", "URL"),
+];
+
 pub(super) const SQL_KEYWORDS: &[&str] = &[
     "SELECT ",
     "INSERT ",
