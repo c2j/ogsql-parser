@@ -1298,6 +1298,15 @@ fn cmd_parse_xml_dir(cli: &Cli, dir_path: &str, csv: bool, java_roots: &[std::pa
                     stmt.id, stmt.kind, file_name, stmt.line
                 );
                 println!("{}", stmt.flat_sql.trim());
+                if !stmt.parameters.is_empty() {
+                    let typed: Vec<String> = stmt.parameters.iter().map(|p| {
+                        match &p.jdbc_type {
+                            Some(jt) => format!("{}:{:?}", p.name, jt),
+                            None => p.name.clone(),
+                        }
+                    }).collect();
+                    println!("  [params: {}]", typed.join(", "));
+                }
                 if stmt.has_dynamic_elements {
                     println!("  [contains dynamic SQL elements]");
                 }
@@ -1352,6 +1361,15 @@ fn print_xml_text(result: &ogsql_parser::ibatis::ParsedMapper) {
     for stmt in &result.statements {
         println!("── {} ({:?}) ──", stmt.id, stmt.kind);
         println!("{}", stmt.flat_sql.trim());
+        if !stmt.parameters.is_empty() {
+            let typed: Vec<String> = stmt.parameters.iter().map(|p| {
+                match &p.jdbc_type {
+                    Some(jt) => format!("{}:{:?}", p.name, jt),
+                    None => p.name.clone(),
+                }
+            }).collect();
+            println!("  [params: {}]", typed.join(", "));
+        }
         if stmt.has_dynamic_elements {
             println!("  [contains dynamic SQL elements]");
         }
