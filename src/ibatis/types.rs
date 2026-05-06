@@ -75,6 +75,7 @@ pub enum SqlNode {
     },
     If {
         test: String,
+        prepend: Option<String>,
         children: Vec<SqlNode>,
     },
     Choose {
@@ -104,6 +105,7 @@ pub enum SqlNode {
         open: Option<String>,
         separator: Option<String>,
         close: Option<String>,
+        prepend: Option<String>,
         children: Vec<SqlNode>,
     },
     Bind {

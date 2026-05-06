@@ -10,7 +10,7 @@ use crate::ibatis::error::IbatisError;
 use crate::ibatis::types::{MapperFile, MapperStatement, ParameterMapDef, ParameterMapEntry, SqlFragment, SqlNode, StatementKind};
 use crate::ibatis::util::{find_closing_brace, parse_param_type};
 
-const SKIP_TAGS: &[&str] = &["resultMap", "cache", "cache-ref"];
+const SKIP_TAGS: &[&str] = &["resultMap", "cache", "cache-ref", "selectKey"];
 
 pub fn parse_xml(xml: &[u8]) -> Result<MapperFile, IbatisError> {
     let mut reader = Reader::from_reader(xml);
@@ -149,7 +149,9 @@ fn read_node_tree(reader: &mut Reader<&[u8]>, end_tag: &[u8]) -> Vec<SqlNode> {
             Ok(Event::Start(e)) => {
                 flush_text_to_nodes(&mut text_buf, &mut nodes);
                 let ln = e.local_name();
-                if let Some(node) = parse_dynamic_element(reader, ln.as_ref(), &e) {
+                if is_skip_tag(ln.as_ref()) {
+                    skip_content(reader, ln.as_ref());
+                } else if let Some(node) = parse_dynamic_element(reader, ln.as_ref(), &e) {
                     nodes.push(node);
                 } else {
                     let tag_name = String::from_utf8_lossy(ln.as_ref());
@@ -306,7 +308,7 @@ fn parse_dynamic_element(
     if tag.eq_ignore_ascii_case(b"if") {
         let test = get_attr(element, "test").unwrap_or_default();
         let children = read_node_tree(reader, b"if");
-        Some(SqlNode::If { test, children })
+        Some(SqlNode::If { test, prepend: get_attr(element, "prepend"), children })
     } else if tag.eq_ignore_ascii_case(b"where") {
         let children = read_node_tree(reader, b"where");
         Some(SqlNode::Where { children })
@@ -331,6 +333,7 @@ fn parse_dynamic_element(
             open: get_attr(element, "open"),
             separator: get_attr(element, "separator"),
             close: get_attr(element, "close"),
+            prepend: get_attr(element, "prepend"),
             children,
         })
     } else if tag.eq_ignore_ascii_case(b"choose") {
@@ -340,16 +343,27 @@ fn parse_dynamic_element(
     } else if tag.eq_ignore_ascii_case(b"when") {
         let test = get_attr(element, "test").unwrap_or_default();
         let children = read_node_tree(reader, b"when");
-        Some(SqlNode::If { test, children })
+        Some(SqlNode::If { test, prepend: get_attr(element, "prepend"), children })
     } else if tag.eq_ignore_ascii_case(b"otherwise") {
         let children = read_node_tree(reader, b"otherwise");
         Some(SqlNode::If {
             test: String::new(),
+            prepend: get_attr(element, "prepend"),
             children,
         })
     } else if tag.eq_ignore_ascii_case(b"dynamic") {
         let children = read_node_tree(reader, b"dynamic");
-        Some(SqlNode::Sequence { children })
+        let prepend = get_attr(element, "prepend");
+        match prepend {
+            Some(p) if !p.is_empty() => Some(SqlNode::Trim {
+                prefix: Some(p),
+                suffix: None,
+                prefix_overrides: Some("AND |OR ".to_string()),
+                suffix_overrides: None,
+                children,
+            }),
+            _ => Some(SqlNode::Sequence { children }),
+        }
     } else if tag.eq_ignore_ascii_case(b"iterate") {
         let children = read_node_tree(reader, b"iterate");
         Some(SqlNode::ForEach {
@@ -359,12 +373,14 @@ fn parse_dynamic_element(
             open: get_attr(element, "open"),
             separator: get_attr(element, "conjunction"),
             close: get_attr(element, "close"),
+            prepend: get_attr(element, "prepend"),
             children,
         })
     } else if is_ibatis2_conditional(tag) {
         let test = synthesize_ibatis2_test(element);
+        let prepend = get_attr(element, "prepend");
         let children = read_node_tree(reader, tag);
-        Some(SqlNode::If { test, children })
+        Some(SqlNode::If { test, prepend, children })
     } else {
         None
     }
@@ -374,7 +390,7 @@ fn parse_choose_branches(children: Vec<SqlNode>) -> Vec<(Option<String>, Vec<Sql
     let mut branches = Vec::new();
     for child in children {
         match child {
-            SqlNode::If { test, children } => {
+            SqlNode::If { test, prepend: _, children } => {
                 if test.is_empty() {
                     branches.push((None, children));
                 } else {
