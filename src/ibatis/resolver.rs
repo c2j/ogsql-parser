@@ -60,10 +60,11 @@ fn resolve_node(
 
             Ok(resolved)
         }
-        SqlNode::If { test, children } => {
+        SqlNode::If { test, prepend, children } => {
             let resolved_children = resolve_children(children, fragments, visited)?;
             Ok(SqlNode::If {
                 test: test.clone(),
+                prepend: prepend.clone(),
                 children: resolved_children,
             })
         }
@@ -112,6 +113,7 @@ fn resolve_node(
             open,
             separator,
             close,
+            prepend,
             children,
         } => {
             let resolved_children = resolve_children(children, fragments, visited)?;
@@ -122,6 +124,7 @@ fn resolve_node(
                 open: open.clone(),
                 separator: separator.clone(),
                 close: close.clone(),
+                prepend: prepend.clone(),
                 children: resolved_children,
             })
         }

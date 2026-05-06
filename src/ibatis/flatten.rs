@@ -41,9 +41,8 @@ pub fn flatten_sql(node: &SqlNode) -> String {
             format!("{}{}{}", RAW_PREFIX, sanitized, PLACEHOLDER_SUFFIX)
         }
         // 动态元素: "最完整"策略，取所有内容
-        SqlNode::If { children, .. } => flatten_children(children),
+        SqlNode::If { children, prepend, .. } => apply_prepend(prepend, &flatten_children(children)),
         SqlNode::Choose { branches } => {
-            // 取第一个分支
             if let Some((_, branch)) = branches.first() {
                 flatten_children(branch)
             } else {
@@ -78,13 +77,15 @@ pub fn flatten_sql(node: &SqlNode) -> String {
             open,
             separator: _,
             close,
+            prepend,
             children,
             ..
         } => {
             let content = flatten_children(children);
             let open_str = open.as_deref().unwrap_or("");
             let close_str = close.as_deref().unwrap_or("");
-            format!("{}{}{}", open_str, content, close_str)
+            let body = format!("{}{}{}", open_str, content, close_str);
+            apply_prepend(prepend, &body)
         }
         SqlNode::Bind { .. } => String::new(),
         SqlNode::Sequence { children } => flatten_children(children),
@@ -96,6 +97,19 @@ pub fn flatten_sql(node: &SqlNode) -> String {
 
 fn flatten_children(children: &[SqlNode]) -> String {
     children.iter().map(|c| flatten_sql(c)).collect()
+}
+
+fn apply_prepend(prepend: &Option<String>, content: &str) -> String {
+    let trimmed = content.trim();
+    if trimmed.is_empty() {
+        return String::new();
+    }
+    match prepend {
+        Some(p) if !p.is_empty() => {
+            format!("{} {}", p, content)
+        }
+        _ => content.to_string(),
+    }
 }
 
 /// 从 SqlNode 树中收集所有 Parameter 节点。
