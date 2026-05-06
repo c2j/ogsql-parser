@@ -68,3 +68,11 @@ pub struct JavaExtractConfig {
     /// Additional method names to treat as unambiguous SQL carriers.
     pub extra_sql_methods: Vec<String>,
 }
+
+/// Inferred type/name info for a JDBC `?` parameter, derived from `setXxx()` calls.
+#[derive(Debug, Clone)]
+pub(super) struct JdbcParamInfo {
+    pub(super) index: usize,
+    pub(super) java_type: String,
+    pub(super) var_name: Option<String>,
+}

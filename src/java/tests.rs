@@ -312,7 +312,7 @@ fn test_prepare_statement() {
     assert_eq!(result.extractions.len(), 1);
     let ext = &result.extractions[0];
     assert!(ext.sql.contains("DELETE FROM users"));
-    assert!(ext.sql.contains("__JAVA_VAR_JDBC_PARAM_1__"));
+    assert!(ext.sql.contains("__JAVA_VAR_String_id__"), "SQL: {}", ext.sql);
     assert_eq!(
         ext.origin.api_method_name.as_deref(),
         Some("prepareStatement")
@@ -1185,4 +1185,201 @@ public class User {
     assert_eq!(fields.get("salary").unwrap(), "BigDecimal");
     assert_eq!(fields.get("createTime").unwrap(), "Date");
     assert_eq!(fields.get("active").unwrap(), "boolean");
+}
+
+// ── JDBC Parameter Type Inference Tests ──
+
+#[test]
+fn test_jdbc_setString_inference() {
+    let java = r#"
+        public class UserDao {
+            public void insert(String seqId, String zipName) {
+                String sqlSub = "INSERT INTO dat_mail_aas_attachment (SEQ_ID,FILE_NAME,FILE_CONTENT) VALUES (?,?, empty_blob())";
+                PreparedStatement st = conn.prepareStatement(sqlSub);
+                st.setString(1, seqId);
+                st.setString(2, zipName);
+                st.execute();
+            }
+        }
+    "#;
+    let result = extract_sql_from_java(java, "UserDao.java", &JavaExtractConfig::default());
+    assert!(result.errors.is_empty(), "Errors: {:?}", result.errors);
+    let ext = result.extractions.iter().find(|e| e.sql.contains("INSERT INTO")).unwrap();
+    assert!(ext.sql.contains("__JAVA_VAR_String_seqId__"), "SQL: {}", ext.sql);
+    assert!(ext.sql.contains("__JAVA_VAR_String_zipName__"), "SQL: {}", ext.sql);
+}
+
+#[test]
+fn test_jdbc_setInt_inference() {
+    let java = r#"
+        public class Dao {
+            public void query(int id, String name) {
+                PreparedStatement ps = conn.prepareStatement("SELECT * FROM t WHERE id = ? AND name = ?");
+                ps.setInt(1, id);
+                ps.setString(2, name);
+            }
+        }
+    "#;
+    let result = extract_sql_from_java(java, "Dao.java", &JavaExtractConfig::default());
+    assert!(result.errors.is_empty(), "Errors: {:?}", result.errors);
+    let ext = result.extractions.iter().find(|e| e.sql.contains("SELECT")).unwrap();
+    assert!(ext.sql.contains("__JAVA_VAR_int_id__"), "SQL: {}", ext.sql);
+    assert!(ext.sql.contains("__JAVA_VAR_String_name__"), "SQL: {}", ext.sql);
+}
+
+#[test]
+fn test_jdbc_multiple_types() {
+    let java = r#"
+        public class Dao {
+            public void insert(String name, int age, BigDecimal salary) {
+                PreparedStatement ps = conn.prepareStatement("INSERT INTO emp (name, age, salary) VALUES (?, ?, ?)");
+                ps.setString(1, name);
+                ps.setInt(2, age);
+                ps.setBigDecimal(3, salary);
+            }
+        }
+    "#;
+    let result = extract_sql_from_java(java, "Dao.java", &JavaExtractConfig::default());
+    assert!(result.errors.is_empty(), "Errors: {:?}", result.errors);
+    let ext = result.extractions.iter().find(|e| e.sql.contains("INSERT")).unwrap();
+    assert!(ext.sql.contains("__JAVA_VAR_String_name__"), "SQL: {}", ext.sql);
+    assert!(ext.sql.contains("__JAVA_VAR_int_age__"), "SQL: {}", ext.sql);
+    assert!(ext.sql.contains("__JAVA_VAR_BigDecimal_salary__"), "SQL: {}", ext.sql);
+}
+
+#[test]
+fn test_jdbc_no_setter_falls_back_to_param_n() {
+    let java = r#"
+        public class Dao {
+            public void query() {
+                PreparedStatement ps = conn.prepareStatement("SELECT * FROM t WHERE id = ?");
+            }
+        }
+    "#;
+    let result = extract_sql_from_java(java, "Dao.java", &JavaExtractConfig::default());
+    assert!(result.errors.is_empty(), "Errors: {:?}", result.errors);
+    let ext = result.extractions.iter().find(|e| e.sql.contains("SELECT")).unwrap();
+    assert!(ext.sql.contains("__JAVA_VAR_JDBC_PARAM_1__"), "SQL: {}", ext.sql);
+    assert!(!ext.sql.contains("__JAVA_VAR_String_"), "SQL: {}", ext.sql);
+}
+
+#[test]
+fn test_jdbc_partial_setter_inference() {
+    let java = r#"
+        public class Dao {
+            public void query(String name, int age) {
+                PreparedStatement ps = conn.prepareStatement("SELECT * FROM t WHERE name = ? AND age = ?");
+                ps.setString(1, name);
+            }
+        }
+    "#;
+    let result = extract_sql_from_java(java, "Dao.java", &JavaExtractConfig::default());
+    let ext = result.extractions.iter().find(|e| e.sql.contains("SELECT")).unwrap();
+    assert!(ext.sql.contains("__JAVA_VAR_String_name__"), "SQL: {}", ext.sql);
+    assert!(ext.sql.contains("__JAVA_VAR_JDBC_PARAM_2__"), "SQL: {}", ext.sql);
+}
+
+#[test]
+fn test_jdbc_setter_out_of_order() {
+    let java = r#"
+        public class Dao {
+            public void query(String name, int id) {
+                PreparedStatement ps = conn.prepareStatement("SELECT * FROM t WHERE id = ? AND name = ?");
+                ps.setString(2, name);
+                ps.setInt(1, id);
+            }
+        }
+    "#;
+    let result = extract_sql_from_java(java, "Dao.java", &JavaExtractConfig::default());
+    let ext = result.extractions.iter().find(|e| e.sql.contains("SELECT")).unwrap();
+    assert!(ext.sql.contains("id = __JAVA_VAR_int_id__"), "SQL: {}", ext.sql);
+    assert!(ext.sql.contains("name = __JAVA_VAR_String_name__"), "SQL: {}", ext.sql);
+}
+
+#[test]
+fn test_jdbc_two_prepared_statements_same_method() {
+    let java = r#"
+        public class Dao {
+            public void batch(String a, String b) {
+                PreparedStatement ps1 = conn.prepareStatement("INSERT INTO t1 (v) VALUES (?)");
+                ps1.setString(1, a);
+                PreparedStatement ps2 = conn.prepareStatement("INSERT INTO t2 (v) VALUES (?)");
+                ps2.setString(1, b);
+            }
+        }
+    "#;
+    let result = extract_sql_from_java(java, "Dao.java", &JavaExtractConfig::default());
+    assert!(result.errors.is_empty(), "Errors: {:?}", result.errors);
+    let insert_t1 = result.extractions.iter().find(|e| e.sql.contains("t1")).unwrap();
+    let insert_t2 = result.extractions.iter().find(|e| e.sql.contains("t2")).unwrap();
+    assert!(insert_t1.sql.contains("__JAVA_VAR_String_a__"), "SQL: {}", insert_t1.sql);
+    assert!(insert_t2.sql.contains("__JAVA_VAR_String_b__"), "SQL: {}", insert_t2.sql);
+}
+
+#[test]
+fn test_jdbc_exact_user_example() {
+    let java = r#"
+        public class AutoSendReport {
+            public void run(String seqId, String zipName) {
+                String sqlSub="INSERT INTO dat_mail_aas_attachment (SEQ_ID,FILE_NAME,FILE_CONTENT) VALUES (?,?, empty_blob())";
+                PreparedStatement st = conn.prepareStatement(sqlSub);
+                st.setString(1, seqId);
+                st.setString(2, zipName);
+                st.execute();
+                conn.commit();
+            }
+        }
+    "#;
+    let result = extract_sql_from_java(java, "AutoSendReport.java", &JavaExtractConfig::default());
+    assert!(result.errors.is_empty(), "Errors: {:?}", result.errors);
+    let ext = result.extractions.iter().find(|e| e.sql.contains("INSERT INTO dat_mail_aas_attachment")).unwrap();
+    assert!(ext.sql.contains("__JAVA_VAR_String_seqId__"), "SQL: {}", ext.sql);
+    assert!(ext.sql.contains("__JAVA_VAR_String_zipName__"), "SQL: {}", ext.sql);
+    assert!(!ext.sql.contains("__JAVA_VAR_JDBC_PARAM_"), "SQL: {}", ext.sql);
+}
+
+#[test]
+fn test_jdbc_setter_with_literal_value() {
+    let java = r#"
+        public class Dao {
+            public void query() {
+                PreparedStatement ps = conn.prepareStatement("SELECT * FROM t WHERE status = ?");
+                ps.setString(1, "active");
+            }
+        }
+    "#;
+    let result = extract_sql_from_java(java, "Dao.java", &JavaExtractConfig::default());
+    let ext = result.extractions.iter().find(|e| e.sql.contains("SELECT")).unwrap();
+    assert!(ext.sql.contains("__JAVA_VAR_String_JDBC_PARAM_1__"), "SQL: {}", ext.sql);
+}
+
+#[test]
+fn test_jdbc_sql_constant_with_prepare_statement() {
+    let java = r#"
+        public class Dao {
+            public void query(int id) {
+                String sql = "SELECT * FROM t WHERE id = ?";
+                PreparedStatement ps = conn.prepareStatement(sql);
+                ps.setInt(1, id);
+            }
+        }
+    "#;
+    let result = extract_sql_from_java(java, "Dao.java", &JavaExtractConfig::default());
+    assert!(result.errors.is_empty(), "Errors: {:?}", result.errors);
+    let ext = result.extractions.iter().find(|e| e.sql.contains("SELECT")).unwrap();
+    assert!(ext.sql.contains("__JAVA_VAR_int_id__"), "SQL: {}", ext.sql);
+}
+
+#[test]
+fn test_jdbc_ambiguous_method_sql_not_affected() {
+    let java = r#"
+        public class Dao {
+            public void run() {
+                jdbc.query("SELECT * FROM users WHERE id = ?");
+            }
+        }
+    "#;
+    let result = extract_sql_from_java(java, "Dao.java", &JavaExtractConfig::default());
+    assert_eq!(result.extractions.len(), 1);
+    assert!(result.extractions[0].sql.contains("__JAVA_VAR_JDBC_PARAM_1__"));
 }
