@@ -230,6 +230,51 @@ fn parse_text_to_nodes(text: &str) -> Vec<SqlNode> {
                 continue;
             }
         }
+
+        // iBatis 2.x #param# format
+        if chars[i] == '#' && (i + 1 >= len || chars[i + 1] != '{') {
+            let start = i + 1;
+            let mut end = start;
+            while end < len && chars[end] != '#' {
+                end += 1;
+            }
+            if end < len && end > start {
+                let param: String = chars[start..end].iter().collect();
+                if !param.contains(' ') && !param.contains('\n') && !param.contains('\r') {
+                    if !current_text.is_empty() {
+                        nodes.push(SqlNode::Text {
+                            content: std::mem::take(&mut current_text),
+                        });
+                    }
+                    let (name, java_type) = parse_param_type(&param);
+                    nodes.push(SqlNode::Parameter { name, java_type });
+                    i = end + 1;
+                    continue;
+                }
+            }
+        }
+
+        // iBatis 2.x $param$ format
+        if chars[i] == '$' && (i + 1 >= len || chars[i + 1] != '{') {
+            let start = i + 1;
+            let mut end = start;
+            while end < len && chars[end] != '$' {
+                end += 1;
+            }
+            if end < len && end > start {
+                let param: String = chars[start..end].iter().collect();
+                if !param.contains(' ') && !param.contains('\n') && !param.contains('\r') {
+                    if !current_text.is_empty() {
+                        nodes.push(SqlNode::Text {
+                            content: std::mem::take(&mut current_text),
+                        });
+                    }
+                    nodes.push(SqlNode::RawExpr { expr: param });
+                    i = end + 1;
+                    continue;
+                }
+            }
+        }
         current_text.push(chars[i]);
         i += 1;
     }

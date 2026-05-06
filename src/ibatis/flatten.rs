@@ -276,6 +276,44 @@ fn replace_params(sql: &str) -> String {
             }
         }
 
+        // 处理 iBatis 2.x #param# 格式
+        if c == '#' && (i + 1 >= len || chars[i + 1] != '{') {
+            let start = i + 1;
+            let mut end = start;
+            while end < len && chars[end] != '#' {
+                end += 1;
+            }
+            if end < len && end > start {
+                let param: String = chars[start..end].iter().collect();
+                if !param.contains(' ') && !param.contains('\n') && !param.contains('\r') {
+                    result.push_str(PARAM_PREFIX);
+                    result.push_str(&param);
+                    result.push_str(PLACEHOLDER_SUFFIX);
+                    i = end + 1;
+                    continue;
+                }
+            }
+        }
+
+        // 处理 iBatis 2.x $param$ 格式
+        if c == '$' && (i + 1 >= len || chars[i + 1] != '{') {
+            let start = i + 1;
+            let mut end = start;
+            while end < len && chars[end] != '$' {
+                end += 1;
+            }
+            if end < len && end > start {
+                let param: String = chars[start..end].iter().collect();
+                if !param.contains(' ') && !param.contains('\n') && !param.contains('\r') {
+                    result.push_str(RAW_PREFIX);
+                    result.push_str(&param);
+                    result.push_str(PLACEHOLDER_SUFFIX);
+                    i = end + 1;
+                    continue;
+                }
+            }
+        }
+
         result.push(c);
         i += 1;
     }

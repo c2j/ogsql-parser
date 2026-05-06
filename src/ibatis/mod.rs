@@ -87,7 +87,7 @@ fn parse_mapper_bytes_internal(
             infer_param_types(&mapper_file.namespace, stmt, &collected, &resolver)
         };
         #[cfg(not(feature = "java"))]
-        let parameters = collected.iter().map(|(name, java_type, raw)| {
+        let parameters: Vec<types::ParamMeta> = collected.iter().map(|(name, java_type, raw)| {
             types::ParamMeta {
                 name: name.clone(),
                 jdbc_type: None,

@@ -19,3 +19,6 @@
 [submodule "lib/ruoyi-springboot3-pro"]
 	path = lib/ruoyi-springboot3-pro
 	url = https://github.com/undsky/RuoYi-SpringBoot3-Pro.git
+[submodule "lib/ibatis-2"]
+	path = lib/ibatis-2
+	url = https://github.com/mybatis/ibatis-2.git
