@@ -12,23 +12,34 @@ const PARAM_PREFIX: &str = "__XML_PARAM_";
 const RAW_PREFIX: &str = "__XML_RAW_";
 const PLACEHOLDER_SUFFIX: &str = "__";
 
+pub fn sanitize_param_name(name: &str) -> String {
+    let s = name.replace("[]", "_item");
+    s.chars()
+        .map(|c| if c.is_alphanumeric() || c == '_' { c } else { '_' })
+        .collect()
+}
+
 /// 将 SqlNode 树扁平化为 SQL 字符串。
-///
-/// Phase 1: 只处理 Text 节点。动态元素在 Task 6 后实现。
 pub fn flatten_sql(node: &SqlNode) -> String {
     match node {
         SqlNode::Text { content } => replace_params(content),
-        SqlNode::Parameter { name, java_type } => match java_type {
-            Some(t) => format!(
-                "{}{}_{}{}",
-                PARAM_PREFIX,
-                t.to_uppercase(),
-                name,
-                PLACEHOLDER_SUFFIX
-            ),
-            None => format!("{}{}{}", PARAM_PREFIX, name, PLACEHOLDER_SUFFIX),
-        },
-        SqlNode::RawExpr { expr } => format!("{}{}{}", RAW_PREFIX, expr, PLACEHOLDER_SUFFIX),
+        SqlNode::Parameter { name, java_type } => {
+            let sanitized = sanitize_param_name(name);
+            match java_type {
+                Some(t) => format!(
+                    "{}{}_{}{}",
+                    PARAM_PREFIX,
+                    t.to_uppercase(),
+                    sanitized,
+                    PLACEHOLDER_SUFFIX
+                ),
+                None => format!("{}{}{}", PARAM_PREFIX, sanitized, PLACEHOLDER_SUFFIX),
+            }
+        }
+        SqlNode::RawExpr { expr } => {
+            let sanitized = sanitize_param_name(expr);
+            format!("{}{}{}", RAW_PREFIX, sanitized, PLACEHOLDER_SUFFIX)
+        }
         // 动态元素: "最完整"策略，取所有内容
         SqlNode::If { children, .. } => flatten_children(children),
         SqlNode::Choose { branches } => {
@@ -250,12 +261,12 @@ fn replace_params(sql: &str) -> String {
                         result.push_str(PARAM_PREFIX);
                         result.push_str(&t.to_uppercase());
                         result.push('_');
-                        result.push_str(&name);
+                        result.push_str(&sanitize_param_name(&name));
                         result.push_str(PLACEHOLDER_SUFFIX);
                     }
                     None => {
                         result.push_str(PARAM_PREFIX);
-                        result.push_str(&name);
+                        result.push_str(&sanitize_param_name(&name));
                         result.push_str(PLACEHOLDER_SUFFIX);
                     }
                 }
@@ -269,7 +280,7 @@ fn replace_params(sql: &str) -> String {
             if let Some(end) = find_closing_brace(&chars, i + 2) {
                 let expr: String = chars[i + 2..end].iter().collect();
                 result.push_str(RAW_PREFIX);
-                result.push_str(&expr);
+                result.push_str(&sanitize_param_name(&expr));
                 result.push_str(PLACEHOLDER_SUFFIX);
                 i = end + 1;
                 continue;
@@ -287,7 +298,7 @@ fn replace_params(sql: &str) -> String {
                 let param: String = chars[start..end].iter().collect();
                 if !param.contains(' ') && !param.contains('\n') && !param.contains('\r') {
                     result.push_str(PARAM_PREFIX);
-                    result.push_str(&param);
+                    result.push_str(&sanitize_param_name(&param));
                     result.push_str(PLACEHOLDER_SUFFIX);
                     i = end + 1;
                     continue;
@@ -295,7 +306,6 @@ fn replace_params(sql: &str) -> String {
             }
         }
 
-        // 处理 iBatis 2.x $param$ 格式
         if c == '$' && (i + 1 >= len || chars[i + 1] != '{') {
             let start = i + 1;
             let mut end = start;
@@ -306,7 +316,7 @@ fn replace_params(sql: &str) -> String {
                 let param: String = chars[start..end].iter().collect();
                 if !param.contains(' ') && !param.contains('\n') && !param.contains('\r') {
                     result.push_str(RAW_PREFIX);
-                    result.push_str(&param);
+                    result.push_str(&sanitize_param_name(&param));
                     result.push_str(PLACEHOLDER_SUFFIX);
                     i = end + 1;
                     continue;
