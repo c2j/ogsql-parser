@@ -77,13 +77,7 @@ fn parse_mapper_bytes_internal(
 
     let mut statements = Vec::new();
     for stmt in &mapper_file.statements {
-        let flat_sql = flatten::flatten_sql(&stmt.body);
-        let has_dynamic = has_dynamic_elements(&stmt.body);
-        let parse_result = if !flat_sql.trim().is_empty() {
-            Some(crate::parser::Parser::parse_sql(&flat_sql))
-        } else {
-            None
-        };
+        let mut flat_sql = flatten::flatten_sql(&stmt.body);
 
         let collected = flatten::collect_params(&stmt.body);
 
@@ -102,6 +96,21 @@ fn parse_mapper_bytes_internal(
                 raw: raw.clone(),
             }
         }).collect();
+
+        for param in &parameters {
+            if let Some(jdbc) = &param.jdbc_type {
+                let untyped = format!("{}{}{}", "__XML_PARAM_", param.name, "__");
+                let typed = format!("{}{}_{}{}", "__XML_PARAM_", format!("{:?}", jdbc).to_uppercase(), param.name, "__");
+                flat_sql = flat_sql.replace(&untyped, &typed);
+            }
+        }
+
+        let has_dynamic = has_dynamic_elements(&stmt.body);
+        let parse_result = if !flat_sql.trim().is_empty() {
+            Some(crate::parser::Parser::parse_sql(&flat_sql))
+        } else {
+            None
+        };
 
         statements.push(ParsedStatement {
             id: stmt.id.clone(),
