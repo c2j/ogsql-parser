@@ -7,8 +7,26 @@ pub struct MapperFile {
     pub namespace: String,
     /// SQL 片段定义 (<sql id="...">)
     pub fragments: Vec<SqlFragment>,
+    /// iBatis 2.x parameterMap 定义 (<parameterMap id="...">)
+    pub parameter_maps: Vec<ParameterMapDef>,
     /// SQL 语句 (<select>/<insert>/<update>/<delete>)
     pub statements: Vec<MapperStatement>,
+}
+
+/// iBatis 2.x <parameterMap> 定义。
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct ParameterMapDef {
+    pub id: String,
+    pub class: Option<String>,
+    pub params: Vec<ParameterMapEntry>,
+}
+
+/// iBatis 2.x <parameterMap> 中的 <parameter> 元素。
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct ParameterMapEntry {
+    pub property: String,
+    pub jdbc_type: Option<String>,
+    pub java_type: Option<String>,
 }
 
 /// 一个 SQL 片段 (<sql id="...">...</sql>)
