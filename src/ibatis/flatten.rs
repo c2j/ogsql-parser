@@ -96,7 +96,42 @@ pub fn flatten_sql(node: &SqlNode) -> String {
 }
 
 fn flatten_children(children: &[SqlNode]) -> String {
-    children.iter().map(|c| flatten_sql(c)).collect()
+    let raw: String = children.iter().map(|c| flatten_sql(c)).collect();
+    deduplicate_conjunctions(&raw)
+}
+
+fn deduplicate_conjunctions(sql: &str) -> String {
+    let mut result = String::with_capacity(sql.len());
+    let mut prev_word = String::new();
+    let mut prev_word_end = 0usize;
+    let chars: Vec<char> = sql.chars().collect();
+    let len = chars.len();
+    let mut i = 0;
+
+    while i < len {
+        let c = chars[i];
+        if c.is_whitespace() {
+            result.push(c);
+            i += 1;
+            continue;
+        }
+        let word_start = i;
+        while i < len && !chars[i].is_whitespace() {
+            i += 1;
+        }
+        let word: String = chars[word_start..i].iter().collect();
+        let word_lower = word.to_lowercase();
+        if (word_lower == "and" || word_lower == "or")
+            && word_lower == prev_word.to_lowercase()
+        {
+            prev_word_end = result.len();
+            continue;
+        }
+        result.push_str(&word);
+        prev_word = word;
+        prev_word_end = result.len();
+    }
+    result
 }
 
 fn apply_prepend(prepend: &Option<String>, content: &str) -> String {
