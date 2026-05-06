@@ -92,7 +92,7 @@ fn parse_mapper_bytes_internal(
         #[cfg(feature = "java")]
         let parameters = {
             let resolver = java_resolve::JavaSourceResolver::new(java_source_roots.clone());
-            infer_param_types(&mapper_file.namespace, stmt, &collected, &resolver)
+            infer_param_types(&mapper_file.namespace, stmt, &collected, &resolver, &mapper_file.type_aliases)
         };
         #[cfg(not(feature = "java"))]
         let parameters: Vec<types::ParamMeta> = collected.iter().map(|(name, java_type, raw)| {
@@ -107,9 +107,12 @@ fn parse_mapper_bytes_internal(
 
         for param in &parameters {
             if let Some(jdbc) = &param.jdbc_type {
-                let untyped = format!("{}{}{}", "__XML_PARAM_", param.name, "__");
-                let typed = format!("{}{}_{}{}", "__XML_PARAM_", format!("{:?}", jdbc).to_uppercase(), param.name, "__");
-                flat_sql = flat_sql.replace(&untyped, &typed);
+                let jdbc_str = format!("{:?}", jdbc).to_uppercase();
+                for prefix in ["__XML_PARAM_", "__XML_RAW_"] {
+                    let untyped = format!("{}{}{}", prefix, param.name, "__");
+                    let typed = format!("{}{}_{}{}", prefix, jdbc_str, param.name, "__");
+                    flat_sql = flat_sql.replace(&untyped, &typed);
+                }
             }
         }
 
@@ -151,9 +154,26 @@ fn infer_param_types(
     stmt: &types::MapperStatement,
     collected_params: &[(String, Option<String>, String)],
     resolver: &java_resolve::JavaSourceResolver,
+    type_aliases: &[(String, String)],
 ) -> Vec<types::ParamMeta> {
     use crate::ibatis::types::{InferenceSource, ParamMeta};
     use crate::ibatis::java_resolve::{java_type_to_jdbc, jdbc_type_from_str};
+
+    let resolved_param_type: Option<String> = stmt.parameter_type.as_ref().map(|pt| {
+        type_aliases.iter()
+            .find(|(alias, _)| alias.eq_ignore_ascii_case(pt))
+            .map(|(_, fqn)| fqn.clone())
+            .unwrap_or_else(|| pt.clone())
+    });
+
+    // P0-A: parameterClass is a simple type (e.g. "java.lang.Integer", "int") -> all params inherit it
+    let simple_param_jdbc = resolved_param_type.as_ref()
+        .and_then(|pt| {
+            let jdbc = java_type_to_jdbc(pt);
+            if jdbc.is_some() { return jdbc; }
+            // FQN last segment: "java.lang.Integer" -> "Integer"
+            pt.rsplit('.').next().and_then(|short| java_type_to_jdbc(short))
+        });
 
     // Parse Mapper interface (if available)
     let interface_info = resolver.read_source(namespace)
@@ -164,12 +184,24 @@ fn infer_param_types(
         .and_then(|info| info.methods.get(&stmt.id))
         .map(|m| &m.params);
 
-    // Parse DTO from XML parameterType or from method parameter type
-    let mut dto_fields: std::collections::HashMap<String, String> = stmt.parameter_type.as_ref()
+    // P0-B: short names resolved via typeAlias, then by class name search
+    let mut dto_fields: std::collections::HashMap<String, String> = resolved_param_type.as_ref()
         .filter(|pt| pt.contains('.') && !pt.eq_ignore_ascii_case("map"))
         .and_then(|pt| resolver.read_source(pt))
         .map(|src| crate::java::parse_dto_fields(&src))
         .unwrap_or_default();
+
+    // P0-B: Try resolve_by_class_name for short names (e.g. "account" -> testdomain.Account)
+    if dto_fields.is_empty() {
+        if let Some(ref pt) = resolved_param_type {
+            if !pt.contains('.') && !pt.eq_ignore_ascii_case("map") {
+                if let Some(src) = resolver.read_source_by_class_name(pt) {
+                    let fields = crate::java::parse_dto_fields(&src);
+                    dto_fields.extend(fields);
+                }
+            }
+        }
+    }
 
     if dto_fields.is_empty() {
         if let Some(ref info) = interface_info {
@@ -209,7 +241,18 @@ fn infer_param_types(
             }
         }
 
-        // Priority 2: Mapper interface method signature
+        // Priority 2: parameterClass is a simple type -> all params inherit that type
+        if let Some(jdbc) = simple_param_jdbc {
+            return ParamMeta {
+                name: name.clone(),
+                jdbc_type: Some(jdbc),
+                source: Some(InferenceSource::ParameterClass),
+                position: 0,
+                raw: raw.clone(),
+            };
+        }
+
+        // Priority 3: Mapper interface method signature
         if let Some(params) = method_params {
             if let Some(param) = params.iter().find(|p| p.name == *name) {
                 if let Some(jdbc) = java_type_to_jdbc(&param.java_type) {
@@ -229,7 +272,7 @@ fn infer_param_types(
             }
         }
 
-        // Priority 3: DTO fields
+        // Priority 4: DTO fields
         if let Some(java_t) = dto_fields.get(name) {
             if let Some(jdbc) = java_type_to_jdbc(java_t) {
                 return ParamMeta {

@@ -31,6 +31,7 @@ pub fn resolve_includes(mapper: &MapperFile) -> Result<MapperFile, IbatisError> 
         namespace: mapper.namespace.clone(),
         fragments: resolved_fragments,
         parameter_maps: mapper.parameter_maps.clone(),
+        type_aliases: mapper.type_aliases.clone(),
         statements: resolved_statements,
     })
 }

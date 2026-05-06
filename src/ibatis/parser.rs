@@ -21,6 +21,7 @@ pub fn parse_xml(xml: &[u8]) -> Result<MapperFile, IbatisError> {
     let mut fragments: Vec<SqlFragment> = Vec::new();
     let mut parameter_maps: Vec<ParameterMapDef> = Vec::new();
     let mut statements: Vec<MapperStatement> = Vec::new();
+    let mut type_aliases: Vec<(String, String)> = Vec::new();
 
     loop {
         buf.clear();
@@ -75,6 +76,10 @@ pub fn parse_xml(xml: &[u8]) -> Result<MapperFile, IbatisError> {
                             content: String::new(),
                         },
                     });
+                } else if tag.as_ref().eq_ignore_ascii_case(b"typeAlias") {
+                    if let (Some(alias), Some(type_attr)) = (get_attr(&e, "alias"), get_attr(&e, "type")) {
+                        type_aliases.push((alias, type_attr));
+                    }
                 }
             }
             Ok(Event::Eof) => break,
@@ -92,6 +97,7 @@ pub fn parse_xml(xml: &[u8]) -> Result<MapperFile, IbatisError> {
         namespace,
         fragments,
         parameter_maps,
+        type_aliases,
         statements,
     })
 }
@@ -238,8 +244,9 @@ fn parse_text_to_nodes(text: &str) -> Vec<SqlNode> {
                         content: std::mem::take(&mut current_text),
                     });
                 }
-                let expr: String = chars[i + 2..end].iter().collect();
-                nodes.push(SqlNode::RawExpr { expr });
+                let raw: String = chars[i + 2..end].iter().collect();
+                let (expr, java_type) = parse_param_type(&raw);
+                nodes.push(SqlNode::RawExpr { expr, java_type });
                 i = end + 1;
                 continue;
             }
@@ -283,7 +290,9 @@ fn parse_text_to_nodes(text: &str) -> Vec<SqlNode> {
                             content: std::mem::take(&mut current_text),
                         });
                     }
-                    nodes.push(SqlNode::RawExpr { expr: param });
+                    let raw: String = chars[start..end].iter().collect();
+                    let (expr, java_type) = parse_param_type(&raw);
+                    nodes.push(SqlNode::RawExpr { expr, java_type });
                     i = end + 1;
                     continue;
                 }
@@ -424,7 +433,10 @@ fn simple_node_to_text(node: &SqlNode) -> String {
             Some(t) => format!("#{{{},{}}}", name, format!("javaType={}", t)),
             None => format!("#{{{}}}", name),
         },
-        SqlNode::RawExpr { expr } => format!("${{{}}}", expr),
+        SqlNode::RawExpr { expr, java_type } => match java_type {
+            Some(t) => format!("${{{},{}}}", expr, format!("javaType={}", t)),
+            None => format!("${{{}}}", expr),
+        },
         _ => String::new(),
     }
 }
