@@ -17,7 +17,8 @@ pub mod types;
 pub use error::IbatisError;
 pub use types::{
     FlattenedStatement, InferenceSource, JdbcType, MapperFile, MapperStatement, ParamMeta,
-    ParsedMapper, ParsedStatement, SqlFragment, SqlNode, StatementKind,
+    ParameterMapDef, ParameterMapEntry, ParsedMapper, ParsedStatement, SqlFragment, SqlNode,
+    StatementKind,
 };
 
 #[cfg(feature = "java")]
@@ -79,7 +80,14 @@ fn parse_mapper_bytes_internal(
     for stmt in &mapper_file.statements {
         let mut flat_sql = flatten::flatten_sql(&stmt.body);
 
-        let collected = flatten::collect_params(&stmt.body);
+        let mut collected = flatten::collect_params(&stmt.body);
+
+        apply_parameter_map(
+            &mut flat_sql,
+            &mut collected,
+            &stmt.parameter_type,
+            &mapper_file.parameter_maps,
+        );
 
         #[cfg(feature = "java")]
         let parameters = {
@@ -243,6 +251,77 @@ fn infer_param_types(
             raw: raw.clone(),
         }
     }).collect()
+}
+
+fn apply_parameter_map(
+    flat_sql: &mut String,
+    collected: &mut Vec<(String, Option<String>, String)>,
+    parameter_type: &Option<String>,
+    parameter_maps: &[types::ParameterMapDef],
+) {
+    let Some(ref param_type) = parameter_type else { return };
+    let pmap = match parameter_maps.iter().find(|pm| pm.id == *param_type) {
+        Some(pm) => pm,
+        None => return,
+    };
+    if pmap.params.is_empty() {
+        return;
+    }
+    let mut idx = 0;
+    let mut result = String::with_capacity(flat_sql.len());
+    let chars: Vec<char> = flat_sql.chars().collect();
+    let mut i = 0;
+    let mut in_string = false;
+    while i < chars.len() {
+        let c = chars[i];
+        if c == '\'' && !in_string {
+            in_string = true;
+            result.push(c);
+            i += 1;
+            continue;
+        }
+        if c == '\'' && in_string {
+            if i + 1 < chars.len() && chars[i + 1] == '\'' {
+                result.push_str("''");
+                i += 2;
+                continue;
+            }
+            in_string = false;
+            result.push(c);
+            i += 1;
+            continue;
+        }
+        if in_string {
+            result.push(c);
+            i += 1;
+            continue;
+        }
+        if c == '?' {
+            if idx < pmap.params.len() {
+                let entry = &pmap.params[idx];
+                let placeholder = match &entry.jdbc_type {
+                    Some(jt) => format!("__XML_PARAM_{}_{}__", jt.to_uppercase(), entry.property),
+                    None => format!("__XML_PARAM_{}__", entry.property),
+                };
+                result.push_str(&placeholder);
+                if !collected.iter().any(|(n, _, _)| *n == entry.property) {
+                    let raw = match &entry.jdbc_type {
+                        Some(jt) => format!("#{{{},jdbcType={}}}", entry.property, jt),
+                        None => format!("#{{{}}}", entry.property),
+                    };
+                    collected.push((entry.property.clone(), entry.jdbc_type.clone(), raw));
+                }
+                idx += 1;
+            } else {
+                result.push(c);
+            }
+            i += 1;
+            continue;
+        }
+        result.push(c);
+        i += 1;
+    }
+    *flat_sql = result;
 }
 
 fn has_dynamic_elements(node: &SqlNode) -> bool {

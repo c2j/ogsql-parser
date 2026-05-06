@@ -653,3 +653,96 @@ public interface UserMapper {
 
     let _ = std::fs::remove_dir_all(&tmp_dir);
 }
+
+#[test]
+fn test_ibatis2_dynamic_tag() {
+    let xml = br#"<?xml version="1.0"?>
+<sqlMap>
+    <select id="testDynamic" parameterClass="map">
+        select * from ACCOUNT
+        <dynamic>
+            <isNotNull property="id">
+                where ACC_ID = #id#
+            </isNotNull>
+        </dynamic>
+    </select>
+</sqlMap>"#;
+    let result = crate::ibatis::parse_mapper_bytes(xml);
+    assert_eq!(result.statements.len(), 1);
+    assert_eq!(result.statements[0].id, "testDynamic");
+    assert!(result.statements[0].has_dynamic_elements);
+}
+
+#[test]
+fn test_ibatis2_iterate_tag() {
+    let xml = br#"<?xml version="1.0"?>
+<sqlMap>
+    <select id="testIterate">
+        select * from ACCOUNT where ACC_ID in
+        <iterate open="(" close=")" conjunction=",">
+            #[]#
+        </iterate>
+    </select>
+</sqlMap>"#;
+    let result = crate::ibatis::parse_mapper_bytes(xml);
+    assert_eq!(result.statements.len(), 1);
+    let sql = &result.statements[0].flat_sql;
+    assert!(sql.contains("__XML_PARAM__item__"), "got: {}", sql);
+}
+
+#[test]
+fn test_ibatis2_isEqual_tag() {
+    let xml = br#"<?xml version="1.0"?>
+<sqlMap>
+    <select id="testIsEqual">
+        select * from ACCOUNT
+        <isEqual property="mode" compareValue="full">
+            where ACC_ID = #id#
+        </isEqual>
+    </select>
+</sqlMap>"#;
+    let result = crate::ibatis::parse_mapper_bytes(xml);
+    assert_eq!(result.statements.len(), 1);
+    assert!(result.statements[0].has_dynamic_elements);
+}
+
+#[test]
+fn test_ibatis2_parameterMap() {
+    let xml = br#"<?xml version="1.0"?>
+<sqlMap>
+    <parameterMap id="test-params" class="account">
+        <parameter property="id"/>
+        <parameter property="firstName"/>
+    </parameterMap>
+    <select id="testPMap" parameterMap="test-params">
+        select * from ACCOUNT where ACC_ID = ? and ACC_FIRST_NAME = ?
+    </select>
+</sqlMap>"#;
+    let result = crate::ibatis::parse_mapper_bytes(xml);
+    assert_eq!(result.statements.len(), 1);
+    let stmt = &result.statements[0];
+    assert_eq!(stmt.id, "testPMap");
+    let sql = &stmt.flat_sql;
+    assert!(sql.contains("__XML_PARAM_id__"), "got: {}", sql);
+    assert!(sql.contains("__XML_PARAM_firstName__"), "got: {}", sql);
+    assert!(!sql.contains("?"), "got: {}", sql);
+    assert_eq!(stmt.parameters.len(), 2);
+    assert_eq!(stmt.parameters[0].name, "id");
+    assert_eq!(stmt.parameters[1].name, "firstName");
+}
+
+#[test]
+fn test_ibatis2_colon_type_syntax() {
+    use crate::ibatis::util::parse_param_type;
+    let (name, jt) = parse_param_type("emailAddress:VARCHAR:no_email@provided.com");
+    assert_eq!(name, "emailAddress");
+    assert_eq!(jt.as_deref(), Some("VARCHAR"));
+}
+
+#[test]
+fn test_sanitize_param_name() {
+    use crate::ibatis::flatten::sanitize_param_name;
+    assert_eq!(sanitize_param_name("nestedList[].idList[]"), "nestedList_item_idList_item");
+    assert_eq!(sanitize_param_name("normalParam"), "normalParam");
+    assert_eq!(sanitize_param_name("value+1"), "value_1");
+}

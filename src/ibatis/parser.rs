@@ -7,10 +7,10 @@ use quick_xml::events::Event;
 use quick_xml::Reader;
 
 use crate::ibatis::error::IbatisError;
-use crate::ibatis::types::{MapperFile, MapperStatement, SqlFragment, SqlNode, StatementKind};
+use crate::ibatis::types::{MapperFile, MapperStatement, ParameterMapDef, ParameterMapEntry, SqlFragment, SqlNode, StatementKind};
 use crate::ibatis::util::{find_closing_brace, parse_param_type};
 
-const SKIP_TAGS: &[&str] = &["resultMap", "cache", "cache-ref", "parameterMap"];
+const SKIP_TAGS: &[&str] = &["resultMap", "cache", "cache-ref"];
 
 pub fn parse_xml(xml: &[u8]) -> Result<MapperFile, IbatisError> {
     let mut reader = Reader::from_reader(xml);
@@ -19,6 +19,7 @@ pub fn parse_xml(xml: &[u8]) -> Result<MapperFile, IbatisError> {
     let mut buf = Vec::new();
     let mut namespace = String::new();
     let mut fragments: Vec<SqlFragment> = Vec::new();
+    let mut parameter_maps: Vec<ParameterMapDef> = Vec::new();
     let mut statements: Vec<MapperStatement> = Vec::new();
 
     loop {
@@ -55,6 +56,11 @@ pub fn parse_xml(xml: &[u8]) -> Result<MapperFile, IbatisError> {
                         body: merge_children(children),
                         line,
                     });
+                } else if tag.as_ref().eq_ignore_ascii_case(b"parameterMap") {
+                    let id = get_attr(&e, "id").unwrap_or_default();
+                    let class = get_attr(&e, "class");
+                    let entries = parse_parameter_map_entries(&mut reader);
+                    parameter_maps.push(ParameterMapDef { id, class, params: entries });
                 } else if is_skip_tag(tag.as_ref()) {
                     skip_content(&mut reader, tag.as_ref());
                 }
@@ -85,6 +91,7 @@ pub fn parse_xml(xml: &[u8]) -> Result<MapperFile, IbatisError> {
     Ok(MapperFile {
         namespace,
         fragments,
+        parameter_maps,
         statements,
     })
 }
@@ -340,6 +347,24 @@ fn parse_dynamic_element(
             test: String::new(),
             children,
         })
+    } else if tag.eq_ignore_ascii_case(b"dynamic") {
+        let children = read_node_tree(reader, b"dynamic");
+        Some(SqlNode::Sequence { children })
+    } else if tag.eq_ignore_ascii_case(b"iterate") {
+        let children = read_node_tree(reader, b"iterate");
+        Some(SqlNode::ForEach {
+            collection: get_attr(element, "property").unwrap_or_default(),
+            item: String::new(),
+            index: None,
+            open: get_attr(element, "open"),
+            separator: get_attr(element, "conjunction"),
+            close: get_attr(element, "close"),
+            children,
+        })
+    } else if is_ibatis2_conditional(tag) {
+        let test = synthesize_ibatis2_test(element);
+        let children = read_node_tree(reader, tag);
+        Some(SqlNode::If { test, children })
     } else {
         None
     }
@@ -406,6 +431,44 @@ fn skip_content(reader: &mut Reader<&[u8]>, end_tag: &[u8]) {
             _ => {}
         }
     }
+}
+
+fn parse_parameter_map_entries(reader: &mut Reader<&[u8]>) -> Vec<ParameterMapEntry> {
+    let mut entries = Vec::new();
+    let mut buf = Vec::new();
+
+    loop {
+        buf.clear();
+        match reader.read_event_into(&mut buf) {
+            Ok(Event::Empty(e)) => {
+                if e.local_name().as_ref().eq_ignore_ascii_case(b"parameter") {
+                    entries.push(ParameterMapEntry {
+                        property: get_attr(&e, "property").unwrap_or_default(),
+                        jdbc_type: get_attr(&e, "jdbcType"),
+                        java_type: get_attr(&e, "javaType"),
+                    });
+                }
+            }
+            Ok(Event::Start(e)) => {
+                if e.local_name().as_ref().eq_ignore_ascii_case(b"parameter") {
+                    entries.push(ParameterMapEntry {
+                        property: get_attr(&e, "property").unwrap_or_default(),
+                        jdbc_type: get_attr(&e, "jdbcType"),
+                        java_type: get_attr(&e, "javaType"),
+                    });
+                    skip_content(reader, b"parameter");
+                }
+            }
+            Ok(Event::End(e)) => {
+                if e.local_name().as_ref().eq_ignore_ascii_case(b"parameterMap") {
+                    break;
+                }
+            }
+            Ok(Event::Eof) => break,
+            _ => {}
+        }
+    }
+    entries
 }
 
 fn get_attr(element: &quick_xml::events::BytesStart<'_>, name: &str) -> Option<String> {
@@ -475,4 +538,38 @@ fn byte_offset_to_line(source: &[u8], offset: usize) -> usize {
         }
     }
     line
+}
+
+fn is_ibatis2_conditional(tag: &[u8]) -> bool {
+    const TAGS: &[&[u8]] = &[
+        b"isEqual",
+        b"isNotEqual",
+        b"isGreaterThan",
+        b"isGreaterEqual",
+        b"isLessThan",
+        b"isLessEqual",
+        b"isNotNull",
+        b"isNotEmpty",
+        b"isParameterPresent",
+        b"isNotParameterPresent",
+        b"isPropertyAvailable",
+        b"isNotPropertyAvailable",
+    ];
+    TAGS.iter()
+        .any(|t| tag.eq_ignore_ascii_case(t))
+}
+
+fn synthesize_ibatis2_test(element: &quick_xml::events::BytesStart<'_>) -> String {
+    let property = get_attr(element, "property").unwrap_or_default();
+    let compare_value = get_attr(element, "compareValue");
+    match compare_value {
+        Some(cv) => format!("{} == '{}'", property, cv),
+        None => {
+            if property.is_empty() {
+                "true".to_string()
+            } else {
+                format!("{} != null", property)
+            }
+        }
+    }
 }
