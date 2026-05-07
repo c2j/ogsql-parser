@@ -398,6 +398,61 @@ impl<'a> ExtractContext<'a> {
         }
     }
 
+    /// Backfill a single PS variable's old binding before its mapping is overwritten.
+    pub(super) fn backfill_for_ps_var(&mut self, ps_var: &str, ext_idx: usize) {
+        let keys: Vec<(String, usize)> = self
+            .jdbc_param_map
+            .keys()
+            .filter(|(v, _)| v == ps_var)
+            .cloned()
+            .collect();
+
+        if keys.is_empty() {
+            return;
+        }
+
+        let mut modified = false;
+        for key in &keys {
+            let info = match self.jdbc_param_map.get(key) {
+                Some(i) => i,
+                None => continue,
+            };
+            let old = format!("__JAVA_VAR_JDBC_PARAM_{}__", info.index);
+            let new = match &info.var_name {
+                Some(name) => format!(
+                    "__JAVA_VAR_{}_{}__",
+                    info.java_type,
+                    sanitize_var_name(name)
+                ),
+                None => format!(
+                    "__JAVA_VAR_{}_JDBC_PARAM_{}__",
+                    info.java_type,
+                    info.index
+                ),
+            };
+            if let Some(ext) = self.extractions.get_mut(ext_idx) {
+                let before = ext.sql.len();
+                ext.sql = ext.sql.replace(&old, &new);
+                modified |= ext.sql.len() != before;
+            }
+        }
+
+        for key in keys {
+            self.jdbc_param_map.remove(&key);
+        }
+
+        if modified {
+            if let Some(ext) = self.extractions.get(ext_idx) {
+                let sql = ext.sql.clone();
+                let sql_kind = ext.sql_kind;
+                let parse_result = self.try_parse_sql(&sql, sql_kind);
+                if let Some(ext) = self.extractions.get_mut(ext_idx) {
+                    ext.parse_result = parse_result;
+                }
+            }
+        }
+    }
+
     /// After collecting setXxx() info, replace __JAVA_VAR_JDBC_PARAM_N__
     /// with __JAVA_VAR_{Type}_{name}__ in the extracted SQL.
     pub(super) fn backfill_jdbc_params(&mut self) {
