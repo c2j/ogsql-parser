@@ -1375,6 +1375,16 @@ impl SqlFormatter {
                 format!("{}.{}", self.format_object_name(sequence), func_name)
             }
             Expr::PlVariable(name) => self.format_object_name(name),
+            Expr::CursorAttribute { cursor, attribute } => {
+                let attr_str = match attribute {
+                    crate::ast::CursorAttributeKind::NotFound => "%NOTFOUND",
+                    crate::ast::CursorAttributeKind::Found => "%FOUND",
+                    crate::ast::CursorAttributeKind::IsOpen => "%ISOPEN",
+                    crate::ast::CursorAttributeKind::RowCount => "%ROWCOUNT",
+                    crate::ast::CursorAttributeKind::BulkExceptions => "%BULK_EXCEPTIONS",
+                };
+                format!("{}{}", self.format_expr(cursor), attr_str)
+            }
         }
     }
 

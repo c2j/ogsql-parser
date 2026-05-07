@@ -1377,8 +1377,22 @@ pub enum Expr {
         sequence: ObjectName,
         function: SequenceFunc,
     },
+    /// PL/pgSQL cursor attribute: cursor_name%NOTFOUND, cursor_name%FOUND, etc.
+    CursorAttribute {
+        cursor: Box<Expr>,
+        attribute: CursorAttributeKind,
+    },
     /// PL/pgSQL variable reference
     PlVariable(ObjectName),
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub enum CursorAttributeKind {
+    NotFound,
+    Found,
+    IsOpen,
+    RowCount,
+    BulkExceptions,
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]

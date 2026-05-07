@@ -81,6 +81,16 @@ impl Parser {
                 continue;
             }
 
+            if op_str == "%" && !self.scope_stack.is_empty() {
+                if let Some(attr) = self.try_parse_cursor_attribute() {
+                    left = Expr::CursorAttribute {
+                        cursor: Box::new(left),
+                        attribute: attr,
+                    };
+                    continue;
+                }
+            }
+
             if matches!(op_str.as_str(), "=" | "<" | ">" | "<=" | ">=" | "<>" | "!=")
                 && matches!(
                     self.peek(),
@@ -246,6 +256,22 @@ impl Parser {
             Token::Typecast => Some((90, "::".to_string(), false)),
             _ => None,
         }
+    }
+
+    fn try_parse_cursor_attribute(&mut self) -> Option<crate::ast::CursorAttributeKind> {
+        let attr = match self.peek() {
+            Token::Ident(s) => match s.to_uppercase().as_str() {
+                "NOTFOUND" => crate::ast::CursorAttributeKind::NotFound,
+                "FOUND" => crate::ast::CursorAttributeKind::Found,
+                "ISOPEN" => crate::ast::CursorAttributeKind::IsOpen,
+                "ROWCOUNT" => crate::ast::CursorAttributeKind::RowCount,
+                "BULK_EXCEPTIONS" => crate::ast::CursorAttributeKind::BulkExceptions,
+                _ => return None,
+            },
+            _ => return None,
+        };
+        self.advance();
+        Some(attr)
     }
 
     fn try_postfix_op(&mut self, left: &mut Expr) -> Result<bool, ParserError> {
