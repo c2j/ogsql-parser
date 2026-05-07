@@ -76,3 +76,22 @@ pub(super) struct JdbcParamInfo {
     pub(super) java_type: String,
     pub(super) var_name: Option<String>,
 }
+
+#[derive(Debug, Clone)]
+pub(super) struct MethodPsBehavior {
+    pub(super) ps_param_index: usize,
+    pub(super) ps_param_name: String,
+    pub(super) setter_patterns: Vec<SetterPattern>,
+}
+
+#[derive(Debug, Clone)]
+pub(super) enum SetterPattern {
+    Literal {
+        index: usize,
+        java_type: String,
+        var_name: Option<String>,
+    },
+    DynamicLoop {
+        java_type: String,
+    },
+}
