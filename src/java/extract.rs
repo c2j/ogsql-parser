@@ -4,8 +4,9 @@ use std::collections::HashMap;
 
 use tree_sitter::Node;
 
-use super::types::{JavaExtractConfig, JdbcParamInfo};
+use super::types::{JavaExtractConfig, JdbcParamInfo, MethodPsBehavior};
 use crate::java::error::JavaError;
+use crate::java::method_call::PendingInjection;
 use crate::java::types::*;
 
 
@@ -14,6 +15,7 @@ pub(super) struct TrackedVar {
     pub(super) sql: String,
     pub(super) extraction_index: usize,
     pub(super) is_string_builder: bool,
+    pub(super) is_field_level: bool,
 }
 
 pub fn extract(
@@ -34,6 +36,10 @@ pub fn extract(
         jdbc_param_map: HashMap::new(),
         ps_var_to_extraction: HashMap::new(),
         extra_sql_methods: &config.extra_sql_methods,
+        method_behaviors: HashMap::new(),
+        pending_injections: Vec::new(),
+        class_ps_to_extraction: HashMap::new(),
+        dynamic_setters: Vec::new(),
     };
     ctx.visit(root);
     let extractions: Vec<ExtractedSql> = ctx
@@ -62,6 +68,10 @@ pub(super) struct ExtractContext<'a> {
     /// Maps PreparedStatement variable name → extraction index for backfill.
     pub(super) ps_var_to_extraction: HashMap<String, usize>,
     pub(super) extra_sql_methods: &'a [String],
+    pub(super) method_behaviors: HashMap<String, MethodPsBehavior>,
+    pub(super) pending_injections: Vec<PendingInjection>,
+    pub(super) class_ps_to_extraction: HashMap<String, usize>,
+    pub(super) dynamic_setters: Vec<(String, String)>,
 }
 
 impl<'a> ExtractContext<'a> {
@@ -106,15 +116,31 @@ impl<'a> ExtractContext<'a> {
         for child in node.children(&mut cursor) {
             self.visit(child);
         }
+        self.apply_pending_injections();
         self.class_name = old_class;
     }
 
     pub(super) fn visit_method_declaration(&mut self, node: Node) {
         let old_method = self.method_name.clone();
+        let field_sql_vars: HashMap<String, TrackedVar> = self
+            .sql_vars
+            .iter()
+            .filter(|(_, v)| v.is_field_level)
+            .map(|(k, v)| (k.clone(), TrackedVar {
+                sql: v.sql.clone(),
+                extraction_index: v.extraction_index,
+                is_string_builder: v.is_string_builder,
+                is_field_level: true,
+            }))
+            .collect();
         let old_sql_vars = std::mem::take(&mut self.sql_vars);
+        for (k, v) in field_sql_vars {
+            self.sql_vars.insert(k, v);
+        }
         let old_var_types = std::mem::take(&mut self.var_types);
         let old_jdbc_param_map = std::mem::take(&mut self.jdbc_param_map);
         let old_ps_var_to_extraction = std::mem::take(&mut self.ps_var_to_extraction);
+        let old_dynamic_setters = std::mem::take(&mut self.dynamic_setters);
         if let Some(name_node) = node.child_by_field_name("name") {
             self.method_name = Some(self.node_text(name_node));
         }
@@ -172,11 +198,18 @@ impl<'a> ExtractContext<'a> {
         // Backfill JDBC parameter type/name inference from setXxx() calls
         self.backfill_jdbc_params();
 
+        self.record_method_behavior(node);
+
+        for (var, idx) in &self.ps_var_to_extraction {
+            self.class_ps_to_extraction.insert(var.clone(), *idx);
+        }
+
         self.method_name = old_method;
         self.sql_vars = old_sql_vars;
         self.var_types = old_var_types;
         self.jdbc_param_map = old_jdbc_param_map;
         self.ps_var_to_extraction = old_ps_var_to_extraction;
+        self.dynamic_setters = old_dynamic_setters;
     }
 
     pub(super) fn recurse(&mut self, node: Node) {
@@ -324,9 +357,40 @@ impl<'a> ExtractContext<'a> {
             Some(t) => format!("__JAVA_VAR_{}_{}__", t, sanitized),
             None => match self.var_types.get(&var_name) {
                 Some(t) => format!("__JAVA_VAR_{}_{}__", t, sanitized),
-                None => format!("__JAVA_VAR_{}__", sanitized),
+                None => {
+                    let default_type = self
+                        .infer_type_from_concat_context(node)
+                        .unwrap_or_else(|| sanitized.clone());
+                    if default_type != sanitized {
+                        format!("__JAVA_VAR_{}_{}__", default_type, sanitized)
+                    } else {
+                        format!("__JAVA_VAR_{}__", sanitized)
+                    }
+                }
             },
         }
+    }
+
+    /// Check if an identifier is used in a string concatenation context (parent `+` binary
+    /// expression where the other operand is a string literal or String-typed expression).
+    fn infer_type_from_concat_context(&self, node: Node) -> Option<String> {
+        let parent = node.parent()?;
+        if parent.kind() != "binary_expression" {
+            return None;
+        }
+        let op = parent.child_by_field_name("operator").map(|n| self.node_text(n));
+        if op.as_deref() != Some("+") {
+            return None;
+        }
+        // Check if the OTHER operand of this + is a String
+        let left = parent.child_by_field_name("left")?;
+        let right = parent.child_by_field_name("right")?;
+        let other = if left.id() == node.id() { right } else { left };
+        let other_type = self.infer_expression_type(other);
+        if other_type.as_deref() == Some("String") {
+            return Some("String".to_string());
+        }
+        None
     }
 
     /// If this method_invocation is the RHS of a variable declaration or assignment,
@@ -488,6 +552,94 @@ impl<'a> ExtractContext<'a> {
                 ext.parse_result = parse_result;
             }
         }
+    }
+
+    fn record_method_behavior(&mut self, node: Node) {
+        let method_name_str = match &self.method_name {
+            Some(n) => n.clone(),
+            None => return,
+        };
+
+        let mut ps_param_name: Option<String> = None;
+        let mut ps_param_index: Option<usize> = None;
+
+        if let Some(params_node) = node.child_by_field_name("parameters") {
+            let mut cursor = params_node.walk();
+            let mut param_idx = 0usize;
+            for child in params_node.children(&mut cursor) {
+                if child.kind() == "formal_parameter" {
+                    let mut pc = child.walk();
+                    let mut type_name: Option<String> = None;
+                    let mut var_name: Option<String> = None;
+                    for p in child.children(&mut pc) {
+                        match p.kind() {
+                            "type_identifier" | "generic_type" => {
+                                type_name = self.extract_type_name(p);
+                            }
+                            "identifier" => {
+                                var_name = Some(self.node_text(p));
+                            }
+                            _ => {}
+                        }
+                    }
+                    if let (Some(t), Some(v)) = (&type_name, &var_name) {
+                        if t == "PreparedStatement" {
+                            ps_param_name = Some(v.clone());
+                            ps_param_index = Some(param_idx);
+                        }
+                    }
+                    param_idx += 1;
+                }
+            }
+        }
+
+        let ps_var = match ps_param_name {
+            Some(v) => v,
+            None => return,
+        };
+        let ps_idx = match ps_param_index {
+            Some(i) => i,
+            None => return,
+        };
+
+        let mut setter_patterns: Vec<crate::java::types::SetterPattern> = Vec::new();
+        for ((var_name, _), info) in &self.jdbc_param_map {
+            if var_name == &ps_var {
+                setter_patterns.push(crate::java::types::SetterPattern::Literal {
+                    index: info.index,
+                    java_type: info.java_type.clone(),
+                    var_name: info.var_name.clone(),
+                });
+            }
+        }
+
+        let mut seen_dynamic_types: std::collections::HashSet<String> = std::collections::HashSet::new();
+        for (var_name, java_type) in &self.dynamic_setters {
+            if var_name == &ps_var && !seen_dynamic_types.contains(java_type) {
+                seen_dynamic_types.insert(java_type.clone());
+                setter_patterns.push(crate::java::types::SetterPattern::DynamicLoop {
+                    java_type: java_type.clone(),
+                });
+            }
+        }
+
+        if setter_patterns.is_empty() {
+            return;
+        }
+
+        setter_patterns.sort_by_key(|p| match p {
+            crate::java::types::SetterPattern::Literal { index, .. } => *index,
+            crate::java::types::SetterPattern::DynamicLoop { .. } => usize::MAX,
+        });
+
+        self.method_behaviors.insert(
+            method_name_str,
+            crate::java::types::MethodPsBehavior {
+                ps_param_index: ps_idx,
+                ps_param_name: ps_var,
+                setter_patterns,
+            },
+        );
     }
 
     pub(super) fn node_text(&self, node: Node) -> String {

@@ -9,7 +9,7 @@ use crate::java::types::*;
 
 impl<'a> ExtractContext<'a> {
     pub(super) fn visit_field_declaration(&mut self, node: Node) {
-        self.check_string_declaration(node);
+        self.check_string_declaration(node, true);
         let mut cursor = node.walk();
         for child in node.children(&mut cursor) {
             self.visit(child);
@@ -25,7 +25,7 @@ impl<'a> ExtractContext<'a> {
         if is_sb {
             self.check_string_builder_declaration(node);
         } else {
-            self.check_string_declaration(node);
+            self.check_string_declaration(node, false);
         }
 
         if let Some(t) = type_name {
@@ -150,20 +150,21 @@ impl<'a> ExtractContext<'a> {
                 sql: sql_converted,
                 extraction_index: self.extractions.len() - 1,
                 is_string_builder: true,
+                is_field_level: false,
             },
         );
     }
 
-    pub(super) fn check_string_declaration(&mut self, node: Node) {
+    pub(super) fn check_string_declaration(&mut self, node: Node, is_field_level: bool) {
         let mut cursor = node.walk();
         for child in node.children(&mut cursor) {
             if child.kind() == "variable_declarator" {
-                self.check_declarator(child);
+                self.check_declarator(child, is_field_level);
             }
         }
     }
 
-    pub(super) fn check_declarator(&mut self, declarator: Node) {
+    pub(super) fn check_declarator(&mut self, declarator: Node, is_field_level: bool) {
         let name_node = match declarator.child_by_field_name("name") {
             Some(n) => n,
             None => return,
@@ -229,6 +230,7 @@ impl<'a> ExtractContext<'a> {
                 sql: sql_converted,
                 extraction_index: self.extractions.len() - 1,
                 is_string_builder: false,
+                is_field_level,
             },
         );
     }
@@ -600,6 +602,7 @@ impl<'a> ExtractContext<'a> {
                 sql: sql_converted,
                 extraction_index: self.extractions.len() - 1,
                 is_string_builder: was_sb,
+                is_field_level: false,
             },
         );
     }

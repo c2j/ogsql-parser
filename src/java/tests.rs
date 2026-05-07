@@ -1470,3 +1470,279 @@ fn test_jdbc_reused_ps_variable_three_rounds() {
     let t3 = result.extractions.iter().find(|e| e.sql.contains("t3")).unwrap();
     assert!(t3.sql.contains("__JAVA_VAR_String_z__"), "t3: {}", t3.sql);
 }
+
+// ── String[] Argument Mapping Tests (Phase 1) ──
+
+#[test]
+fn test_string_array_arg_sql_constant_single_param() {
+    let java = r#"
+        public class Dao {
+            private static final String SQL = "SELECT * FROM t WHERE id = ?";
+            public void query(String nodeId) {
+                DbService.executeQuery("ORACLEJDBC", SQL, new String[] {nodeId});
+            }
+        }
+    "#;
+    let config = JavaExtractConfig {
+        extra_sql_methods: vec!["executeQuery".to_string()],
+    };
+    let result = extract_sql_from_java(java, "Dao.java", &config);
+    assert!(result.errors.is_empty(), "Errors: {:?}", result.errors);
+    let ext = result.extractions.iter().find(|e| e.sql.contains("SELECT")).unwrap();
+    assert!(ext.sql.contains("__JAVA_VAR_String_nodeId__"), "SQL: {}", ext.sql);
+    assert!(!ext.sql.contains("__JAVA_VAR_JDBC_PARAM_"), "SQL: {}", ext.sql);
+}
+
+#[test]
+fn test_string_array_arg_multiple_params() {
+    let java = r#"
+        public class Dao {
+            private static final String SQL = "SELECT * FROM t WHERE a = ? AND b = ?";
+            public void query(String x, String y) {
+                DbService.executeQuery("DB", SQL, new String[] {x, y});
+            }
+        }
+    "#;
+    let config = JavaExtractConfig {
+        extra_sql_methods: vec!["executeQuery".to_string()],
+    };
+    let result = extract_sql_from_java(java, "Dao.java", &config);
+    assert!(result.errors.is_empty(), "Errors: {:?}", result.errors);
+    let ext = result.extractions.iter().find(|e| e.sql.contains("SELECT")).unwrap();
+    assert!(ext.sql.contains("__JAVA_VAR_String_x__"), "SQL: {}", ext.sql);
+    assert!(ext.sql.contains("__JAVA_VAR_String_y__"), "SQL: {}", ext.sql);
+    assert!(!ext.sql.contains("__JAVA_VAR_JDBC_PARAM_"), "SQL: {}", ext.sql);
+}
+
+#[test]
+fn test_object_array_arg_typed_params() {
+    let java = r#"
+        public class Dao {
+            private static final String SQL = "SELECT * FROM t WHERE id = ?";
+            public void query(int id) {
+                DbService.executeQuery("DB", SQL, new Object[] {id});
+            }
+        }
+    "#;
+    let config = JavaExtractConfig {
+        extra_sql_methods: vec!["executeQuery".to_string()],
+    };
+    let result = extract_sql_from_java(java, "Dao.java", &config);
+    assert!(result.errors.is_empty(), "Errors: {:?}", result.errors);
+    let ext = result.extractions.iter().find(|e| e.sql.contains("SELECT")).unwrap();
+    assert!(ext.sql.contains("__JAVA_VAR_int_id__"), "SQL: {}", ext.sql);
+    assert!(!ext.sql.contains("__JAVA_VAR_JDBC_PARAM_"), "SQL: {}", ext.sql);
+}
+
+#[test]
+fn test_inline_sql_with_inline_string_array() {
+    let java = r#"
+        public class Dao {
+            public void query(String nodeId) {
+                DbService.executeQuery("DB", "SELECT * FROM t WHERE id = ?", new String[] {nodeId});
+            }
+        }
+    "#;
+    let config = JavaExtractConfig {
+        extra_sql_methods: vec!["executeQuery".to_string()],
+    };
+    let result = extract_sql_from_java(java, "Dao.java", &config);
+    assert!(result.errors.is_empty(), "Errors: {:?}", result.errors);
+    let ext = result.extractions.iter().find(|e| e.sql.contains("SELECT")).unwrap();
+    assert!(ext.sql.contains("__JAVA_VAR_String_nodeId__"), "SQL: {}", ext.sql);
+    assert!(!ext.sql.contains("__JAVA_VAR_JDBC_PARAM_"), "SQL: {}", ext.sql);
+}
+
+#[test]
+fn test_real_world_integration_ebms_handler() {
+    let java = r#"
+        public class EBMSHandler {
+            private static final String SWITCH_SQL = "SELECT KIND_ID FROM ebk_dic_all_kind t WHERE t.operation_kind = 'PI00168_SWITCH'";
+            private static final String QUERY_MENU_SQL = "SELECT t.node_id, t.node_name, t.edition FROM par_netuser_menu_tree t WHERE t.node_id = ?";
+            public int execute(String node) throws Exception {
+                List list1 = DbService.executeQuery("ORACLEJDBC", SWITCH_SQL);
+                List list2 = DbService.executeQuery("ORACLEJDBC", QUERY_MENU_SQL, new String[] {node});
+                return 0;
+            }
+        }
+    "#;
+    let config = JavaExtractConfig {
+        extra_sql_methods: vec!["executeQuery".to_string()],
+    };
+    let result = extract_sql_from_java(java, "EBMSHandler.java", &config);
+    assert!(result.errors.is_empty(), "Errors: {:?}", result.errors);
+
+    let switch_ext = result
+        .extractions
+        .iter()
+        .find(|e| e.sql.contains("SWITCH"))
+        .unwrap();
+    assert!(
+        !switch_ext.sql.contains("__JAVA_VAR_JDBC_PARAM_"),
+        "SWITCH_SQL should have no unresolved params, got: {}",
+        switch_ext.sql
+    );
+
+    let menu_ext = result
+        .extractions
+        .iter()
+        .find(|e| e.sql.contains("node_id"))
+        .unwrap();
+    assert!(
+        menu_ext.sql.contains("__JAVA_VAR_String_node__"),
+        "QUERY_MENU_SQL should have backfilled node param, got: {}",
+        menu_ext.sql
+    );
+    assert!(
+        !menu_ext.sql.contains("__JAVA_VAR_JDBC_PARAM_"),
+        "QUERY_MENU_SQL should have no unresolved placeholders, got: {}",
+        menu_ext.sql
+    );
+}
+
+// ── Cross-Method PreparedStatement Flow Tests (Phase 2) ──
+
+#[test]
+fn test_cross_method_ps_passing_literal_setters() {
+    let java = r#"
+        public class Dao {
+            public void process(String name, String email) {
+                PreparedStatement ps = conn.prepareStatement("INSERT INTO t (name, email) VALUES (?, ?)");
+                insertData(ps, name, email);
+            }
+
+            public static void insertData(PreparedStatement ps, String name, String email) {
+                ps.setString(1, name);
+                ps.setString(2, email);
+                ps.execute();
+            }
+        }
+    "#;
+    let result = extract_sql_from_java(java, "Dao.java", &JavaExtractConfig::default());
+    assert!(result.errors.is_empty(), "Errors: {:?}", result.errors);
+    let ext = result.extractions.iter().find(|e| e.sql.contains("INSERT INTO t")).unwrap();
+    assert!(ext.sql.contains("__JAVA_VAR_String_name__"), "SQL: {}", ext.sql);
+    assert!(ext.sql.contains("__JAVA_VAR_String_email__"), "SQL: {}", ext.sql);
+    assert!(!ext.sql.contains("__JAVA_VAR_JDBC_PARAM_"), "SQL: {}", ext.sql);
+}
+
+#[test]
+fn test_cross_method_dynamic_loop_setter() {
+    let java = r#"
+        public class Dao {
+            public void process(List list) throws Exception {
+                PreparedStatement ps = conn.prepareStatement("INSERT INTO t (a,b,c) VALUES (?,?,?)");
+                submitData(ps, list);
+            }
+
+            public static void submitData(PreparedStatement ps, List list) throws Exception {
+                for (Iterator it = list.iterator(); it.hasNext();) {
+                    String[] s = (String[]) it.next();
+                    for (int i = 0; i < s.length; i++) {
+                        ps.setString(i + 1, s[i]);
+                    }
+                    ps.addBatch();
+                }
+            }
+        }
+    "#;
+    let result = extract_sql_from_java(java, "Dao.java", &JavaExtractConfig::default());
+    assert!(result.errors.is_empty(), "Errors: {:?}", result.errors);
+    let ext = result.extractions.iter().find(|e| e.sql.contains("INSERT INTO t")).unwrap();
+    assert!(ext.sql.contains("__JAVA_VAR_String_DYNAMIC_1__"), "SQL: {}", ext.sql);
+    assert!(ext.sql.contains("__JAVA_VAR_String_DYNAMIC_2__"), "SQL: {}", ext.sql);
+    assert!(ext.sql.contains("__JAVA_VAR_String_DYNAMIC_3__"), "SQL: {}", ext.sql);
+    assert!(!ext.sql.contains("__JAVA_VAR_JDBC_PARAM_"), "SQL: {}", ext.sql);
+}
+
+#[test]
+fn test_user_scenario_submit_data_cross_method() {
+    let java = r#"
+        public class DataProcessor {
+            public static void submitData(PreparedStatement ps, List list) throws Exception {
+                try {
+                    for (Iterator it = list.iterator(); it.hasNext();) {
+                        String[] s = (String[]) it.next();
+                        for (int i = 0; i < s.length; i++) {
+                            ps.setString(i + 1, s[i]);
+                        }
+                        ps.addBatch();
+                    }
+                    ps.executeBatch();
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+            }
+
+            public void process(List list, String accno) throws Exception {
+                ps = conn.prepareStatement("insert into dat_clnt_fv_tran " +
+                        "(ACCNO,BUSIDATE,SERIALNO,TRXCODE,DRCRF,SUMMARY,AMOUNT,BALANCE,RECIPACC,RECIPNAM,NOTES)" +
+                        "VALUES(lpad(" + accno + ",19,0),?,?,?,?,?,?,?,?,?,?)");
+                if(list.size()>0){
+                    submitData(ps, list);
+                }
+            }
+        }
+    "#;
+    let result = extract_sql_from_java(java, "DataProcessor.java", &JavaExtractConfig::default());
+    assert_eq!(result.extractions.len(), 1);
+    let ext = &result.extractions[0];
+    assert!(ext.sql.contains("__JAVA_VAR_String_accno__"), "SQL: {}", ext.sql);
+    assert!(ext.sql.contains("__JAVA_VAR_String_DYNAMIC_1__"), "SQL: {}", ext.sql);
+    assert!(ext.sql.contains("__JAVA_VAR_String_DYNAMIC_10__"), "SQL: {}", ext.sql);
+    assert!(!ext.sql.contains("__JAVA_VAR_JDBC_PARAM_"), "SQL: {}", ext.sql);
+}
+
+#[test]
+fn test_undeclared_var_in_string_concat_gets_string_type() {
+    let java = r#"
+        public class Foo {
+            public void bar(Connection conn) throws Exception {
+                PreparedStatement ps = conn.prepareStatement(
+                    "SELECT * FROM t WHERE id = " + someVar + " AND name = ?");
+                ps.setString(1, "x");
+            }
+        }
+    "#;
+    let result = extract_sql_from_java(java, "Foo.java", &JavaExtractConfig::default());
+    assert_eq!(result.extractions.len(), 1);
+    let ext = &result.extractions[0];
+    assert!(ext.sql.contains("__JAVA_VAR_String_someVar__"), "SQL: {}", ext.sql);
+}
+
+#[test]
+fn test_cross_method_fallback_when_method_unparsed() {
+    let java = r#"
+        public class MailService {
+            public void saveAttachment(Connection conn) throws Exception {
+                List list = new ArrayList();
+                PreparedStatement ps = conn.prepareStatement(
+                    "insert into t (a,b,c) VALUES (?,?,?)");
+                submitData(ps, list);
+            }
+            public static void submitData(PreparedStatement ps, List list) throws Exception {
+                for (int i = 0; i < 3; i++) {
+                    ps.setString(i + 1, "x");
+                }
+            }
+        }
+    "#;
+    let result = extract_sql_from_java(java, "MailService.java", &JavaExtractConfig::default());
+    assert_eq!(result.extractions.len(), 1);
+    let ext = &result.extractions[0];
+    assert!(
+        ext.sql.contains("__JAVA_VAR_String_DYNAMIC_1__"),
+        "Expected DYNAMIC fallback, got: {}",
+        ext.sql
+    );
+    assert!(
+        ext.sql.contains("__JAVA_VAR_String_DYNAMIC_3__"),
+        "Expected DYNAMIC_3, got: {}",
+        ext.sql
+    );
+    assert!(
+        !ext.sql.contains("__JAVA_VAR_JDBC_PARAM_"),
+        "Should not have JDBC_PARAM, got: {}",
+        ext.sql
+    );
+}
