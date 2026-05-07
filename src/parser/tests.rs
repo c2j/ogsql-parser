@@ -13734,3 +13734,147 @@ fn test_package_body_type_record() {
         other => panic!("expected CreatePackageBody, got {:?}", other),
     }
 }
+
+// ========== Issue #104: CursorAttribute AST node ==========
+
+#[test]
+fn test_cursor_attribute_notfound() {
+    let sql = "DO $$ DECLARE c CURSOR FOR SELECT 1; BEGIN EXIT WHEN c%NOTFOUND; END $$";
+    let block = parse_do_block(sql);
+    let exit = block.body.iter().find_map(|s| match s {
+        PlStatement::Exit { condition, .. } => condition.clone(),
+        _ => None,
+    }).expect("should have EXIT");
+    match exit {
+        Expr::CursorAttribute { cursor, attribute } => {
+            assert!(matches!(cursor.as_ref(), Expr::PlVariable(n) if n[0] == "c"));
+            assert_eq!(attribute, CursorAttributeKind::NotFound);
+        }
+        other => panic!("expected CursorAttribute, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_cursor_attribute_found() {
+    let sql = "DO $$ DECLARE c CURSOR FOR SELECT 1; BEGIN IF c%FOUND THEN NULL; END IF; END $$";
+    let block = parse_do_block(sql);
+    let cond = block.body.iter().find_map(|s| match s {
+        PlStatement::If(if_stmt) => Some(if_stmt.node.condition.clone()),
+        _ => None,
+    }).expect("should have IF");
+    match &cond {
+        Expr::CursorAttribute { attribute, .. } => {
+            assert_eq!(*attribute, CursorAttributeKind::Found);
+        }
+        other => panic!("expected CursorAttribute, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_cursor_attribute_isopen() {
+    let sql = "DO $$ DECLARE c CURSOR FOR SELECT 1; BEGIN IF NOT c%ISOPEN THEN NULL; END IF; END $$";
+    let block = parse_do_block(sql);
+    let cond = block.body.iter().find_map(|s| match s {
+        PlStatement::If(if_stmt) => Some(if_stmt.node.condition.clone()),
+        _ => None,
+    }).expect("should have IF");
+    match &cond {
+        Expr::UnaryOp { op, expr } => {
+            assert_eq!(op, "NOT");
+            match expr.as_ref() {
+                Expr::CursorAttribute { attribute, .. } => {
+                    assert_eq!(*attribute, CursorAttributeKind::IsOpen);
+                }
+                other => panic!("expected CursorAttribute inside NOT, got {:?}", other),
+            }
+        }
+        other => panic!("expected UnaryOp(NOT), got {:?}", other),
+    }
+}
+
+#[test]
+fn test_cursor_attribute_rowcount() {
+    let sql = "DO $$ DECLARE c CURSOR FOR SELECT 1; v_count INT; BEGIN v_count := c%ROWCOUNT; END $$";
+    let block = parse_do_block(sql);
+    let expr = block.body.iter().find_map(|s| match s {
+        PlStatement::Assignment { expression, .. } => Some(expression.clone()),
+        _ => None,
+    }).expect("should have assignment");
+    match &expr {
+        Expr::CursorAttribute { attribute, .. } => {
+            assert_eq!(*attribute, CursorAttributeKind::RowCount);
+        }
+        other => panic!("expected CursorAttribute, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_cursor_attribute_bulk_exceptions() {
+    let sql = "DO $$ DECLARE c CURSOR FOR SELECT 1; BEGIN IF c%BULK_EXCEPTIONS THEN NULL; END IF; END $$";
+    let block = parse_do_block(sql);
+    let cond = block.body.iter().find_map(|s| match s {
+        PlStatement::If(if_stmt) => Some(if_stmt.node.condition.clone()),
+        _ => None,
+    }).expect("should have IF");
+    match &cond {
+        Expr::CursorAttribute { attribute, .. } => {
+            assert_eq!(*attribute, CursorAttributeKind::BulkExceptions);
+        }
+        other => panic!("expected CursorAttribute, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_percent_still_modulo_outside_pl() {
+    let sql = "SELECT 10 % 3";
+    let stmt = parse_one(sql);
+    match &stmt {
+        Statement::Select(sel) => {
+            let target = &sel.targets[0];
+            match target {
+                SelectTarget::Expr(expr, _) => match expr {
+                    Expr::BinaryOp { op, .. } => assert_eq!(op, "%"),
+                    other => panic!("expected BinaryOp, got {:?}", other),
+                },
+                other => panic!("expected Expr target, got {:?}", other),
+            }
+        }
+        _ => panic!("expected SELECT"),
+    }
+}
+
+#[test]
+fn test_percent_still_modulo_in_pl_with_number() {
+    let sql = "DO $$ DECLARE v INT; BEGIN v := v % 2; END $$";
+    let block = parse_do_block(sql);
+    let expr = block.body.iter().find_map(|s| match s {
+        PlStatement::Assignment { expression, .. } => Some(expression.clone()),
+        _ => None,
+    }).expect("should have assignment");
+    match &expr {
+        Expr::BinaryOp { op, .. } => assert_eq!(op, "%"),
+        other => panic!("expected BinaryOp(modulo), got {:?}", other),
+    }
+}
+
+#[test]
+fn test_cursor_attribute_json_roundtrip() {
+    let sql = "DO $$ DECLARE c CURSOR FOR SELECT 1; BEGIN EXIT WHEN c%NOTFOUND; END $$";
+    let stmt = parse_one(sql);
+    let json = serde_json::to_string(&stmt).unwrap();
+    let restored: Statement = serde_json::from_str(&json).unwrap();
+    assert_eq_ignoring_span(&stmt, &restored);
+}
+
+#[test]
+fn test_cursor_attribute_format_roundtrip() {
+    let sql = "DO $$ DECLARE c CURSOR FOR SELECT 1; BEGIN EXIT WHEN c%NOTFOUND; END $$";
+    let stmt = parse_one(sql);
+    let formatter = SqlFormatter::new();
+    let output = formatter.format_statement(&stmt);
+    assert!(
+        output.contains("c%NOTFOUND"),
+        "formatted output should contain c%NOTFOUND, got: {}",
+        output
+    );
+}
