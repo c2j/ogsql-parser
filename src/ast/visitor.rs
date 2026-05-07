@@ -1126,6 +1126,11 @@ fn walk_expr(visitor: &mut dyn Visitor, expr: &Expr) -> VisitorResult {
             }
         }
         Expr::PlVariable(_) => {}
+        Expr::CursorAttribute { cursor, .. } => {
+            if walk_expr(visitor, cursor) == VisitorResult::Stop {
+                return VisitorResult::Stop;
+            }
+        }
         Expr::SequenceValue { .. } => {}
         Expr::SysDate => {}
         _ => {}
