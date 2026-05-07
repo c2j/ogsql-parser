@@ -1383,3 +1383,90 @@ fn test_jdbc_ambiguous_method_sql_not_affected() {
     assert_eq!(result.extractions.len(), 1);
     assert!(result.extractions[0].sql.contains("__JAVA_VAR_JDBC_PARAM_1__"));
 }
+
+#[test]
+fn test_jdbc_reused_ps_variable_both_backfilled() {
+    let java = r#"
+        public class Dao {
+            public void batch(String seqId, String zipName, String status) {
+                String sql1 = "INSERT INTO dat_mail_aas_attachment (SEQ_ID,FILE_NAME,FILE_CONTENT) VALUES (?,?, empty_blob())";
+                PreparedStatement st = conn.prepareStatement(sql1);
+                st.setString(1, seqId);
+                st.setString(2, zipName);
+                st.execute();
+
+                String sql2 = "UPDATE dat_mail_aas_attachment SET FILE_NAME = ? WHERE SEQ_ID = ?";
+                st = conn.prepareStatement(sql2);
+                st.setString(1, zipName);
+                st.setString(2, seqId);
+                st.executeUpdate();
+            }
+        }
+    "#;
+    let result = extract_sql_from_java(java, "Dao.java", &JavaExtractConfig::default());
+    assert!(result.errors.is_empty(), "Errors: {:?}", result.errors);
+    let insert_ext = result.extractions.iter().find(|e| e.sql.contains("INSERT INTO")).unwrap();
+    assert!(
+        insert_ext.sql.contains("__JAVA_VAR_String_seqId__"),
+        "INSERT should have backfilled param 1, got: {}",
+        insert_ext.sql
+    );
+    assert!(
+        insert_ext.sql.contains("__JAVA_VAR_String_zipName__"),
+        "INSERT should have backfilled param 2, got: {}",
+        insert_ext.sql
+    );
+    assert!(
+        !insert_ext.sql.contains("__JAVA_VAR_JDBC_PARAM_"),
+        "INSERT should have no unresolved placeholders, got: {}",
+        insert_ext.sql
+    );
+
+    let update_ext = result.extractions.iter().find(|e| e.sql.contains("UPDATE")).unwrap();
+    assert!(
+        update_ext.sql.contains("__JAVA_VAR_String_zipName__"),
+        "UPDATE should have backfilled param 1, got: {}",
+        update_ext.sql
+    );
+    assert!(
+        update_ext.sql.contains("__JAVA_VAR_String_seqId__"),
+        "UPDATE should have backfilled param 2, got: {}",
+        update_ext.sql
+    );
+}
+
+#[test]
+fn test_jdbc_reused_ps_variable_three_rounds() {
+    let java = r#"
+        public class Dao {
+            public void multi(String x, String y, String z) {
+                String sql1 = "INSERT INTO t1 (v) VALUES (?)";
+                PreparedStatement ps = conn.prepareStatement(sql1);
+                ps.setString(1, x);
+                ps.execute();
+
+                String sql2 = "INSERT INTO t2 (v) VALUES (?)";
+                ps = conn.prepareStatement(sql2);
+                ps.setString(1, y);
+                ps.execute();
+
+                String sql3 = "INSERT INTO t3 (v) VALUES (?)";
+                ps = conn.prepareStatement(sql3);
+                ps.setString(1, z);
+                ps.execute();
+            }
+        }
+    "#;
+    let result = extract_sql_from_java(java, "Dao.java", &JavaExtractConfig::default());
+    assert!(result.errors.is_empty(), "Errors: {:?}", result.errors);
+    assert_eq!(result.extractions.len(), 3);
+
+    let t1 = result.extractions.iter().find(|e| e.sql.contains("t1")).unwrap();
+    assert!(t1.sql.contains("__JAVA_VAR_String_x__"), "t1: {}", t1.sql);
+
+    let t2 = result.extractions.iter().find(|e| e.sql.contains("t2")).unwrap();
+    assert!(t2.sql.contains("__JAVA_VAR_String_y__"), "t2: {}", t2.sql);
+
+    let t3 = result.extractions.iter().find(|e| e.sql.contains("t3")).unwrap();
+    assert!(t3.sql.contains("__JAVA_VAR_String_z__"), "t3: {}", t3.sql);
+}

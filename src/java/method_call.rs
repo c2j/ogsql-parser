@@ -115,6 +115,9 @@ impl<'a> ExtractContext<'a> {
                     }
                 };
                 if let Some(idx) = extraction_idx {
+                    if let Some(&old_idx) = self.ps_var_to_extraction.get(&target_var) {
+                        self.backfill_for_ps_var(&target_var, old_idx);
+                    }
                     self.ps_var_to_extraction.insert(target_var, idx);
                 }
             }
