@@ -66,7 +66,21 @@ enum Commands {
         no_semicolon_newline: bool,
     },
     /// Parse SQL into AST and print the abstract syntax tree / 解析 SQL 为 AST
-    Parse,
+    Parse {
+        /// Recursively scan directory for SQL files / 递归扫描目录中的 SQL 文件
+        #[arg(short = 'd', long = "dir")]
+        dir: Option<String>,
+        /// File extensions to scan, comma-separated (default: sql) / 扫描的文件扩展名，逗号分隔
+        #[arg(short = 'e', long = "ext", value_delimiter = ',', default_value = "sql")]
+        ext: Vec<String>,
+        /// Output in CSV format (flat, one row per statement; packages expanded) / 以 CSV 格式输出
+        #[arg(long = "csv")]
+        csv: bool,
+        /// Target directory for JSON output files (required with --dir -j; preserves directory structure)
+        /// JSON 文件输出目录（配合 --dir -j 使用，保留目录层次结构）
+        #[arg(short = 'o', long = "output-dir")]
+        output_dir: Option<String>,
+    },
     /// Convert JSON (from `parse -j`) back to SQL / 将 JSON（parse -j 的输出）还原为 SQL
     #[command(name = "json2sql")]
     JsonToSql,
@@ -316,6 +330,493 @@ fn cmd_parse(cli: &Cli) {
                     eprintln!("  {}", w);
                 }
             }
+        }
+    }
+}
+
+fn cmd_parse_dir(
+    cli: &Cli,
+    dir_path: &str,
+    exts: &[String],
+    csv: bool,
+    output_dir: Option<&str>,
+) {
+    use std::path::Path;
+
+    let root = Path::new(dir_path);
+    if !root.is_dir() {
+        die!("Error: '{}' is not a directory", dir_path);
+    }
+
+    if cli.json && output_dir.is_none() {
+        die!("Error: --output-dir (-o) is required when using --dir with -j");
+    }
+
+    let normalized_exts: Vec<String> = exts
+        .iter()
+        .map(|e| e.trim_start_matches('.').to_ascii_lowercase())
+        .collect();
+
+    let mut files: Vec<(String, String, std::path::PathBuf)> = Vec::new();
+    for entry in walkdir::WalkDir::new(dir_path)
+        .into_iter()
+        .filter_map(|e| e.ok())
+    {
+        let path = entry.path();
+        if !path.is_file() {
+            continue;
+        }
+        let file_ext = path
+            .extension()
+            .and_then(|e| e.to_str())
+            .unwrap_or("")
+            .to_ascii_lowercase();
+        if !normalized_exts.iter().any(|e| *e == file_ext) {
+            continue;
+        }
+
+        let rel_dir = path
+            .parent()
+            .and_then(|p| p.strip_prefix(root).ok())
+            .map(|p| {
+                let s = p.to_str().unwrap_or(".");
+                if s.is_empty() { "." } else { s }
+            })
+            .unwrap_or(".")
+            .to_string();
+
+        let file_name = path
+            .file_name()
+            .map(|n| n.to_string_lossy().to_string())
+            .unwrap_or_default();
+
+        files.push((file_name, rel_dir, path.to_path_buf()));
+    }
+
+    if files.is_empty() {
+        eprintln!("No files found with extension(s): {}", exts.join(", "));
+        return;
+    }
+
+    if csv {
+        output_csv_parse_header();
+        for (file_name, rel_dir, abs_path) in &files {
+            let sql = read_file_path(abs_path);
+            let output = parse_input(&sql, cli.comments, cli.mybatis);
+            output_csv_parse_rows(&output.statements, file_name, rel_dir, &output.errors);
+        }
+    } else if cli.json {
+        let out_root = Path::new(output_dir.unwrap());
+        std::fs::create_dir_all(out_root)
+            .unwrap_or_else(|e| die!("Error creating output directory '{}': {}", output_dir.unwrap(), e));
+
+        let mut total_files = 0usize;
+        let mut total_stmts = 0usize;
+        for (file_name, rel_dir, abs_path) in &files {
+            let sql = read_file_path(abs_path);
+            let output = parse_input(&sql, cli.comments, cli.mybatis);
+
+            let target_dir = out_root.join(rel_dir);
+            std::fs::create_dir_all(&target_dir)
+                .unwrap_or_else(|e| die!("Error creating directory '{}': {}", target_dir.display(), e));
+
+            let json_name = Path::new(file_name).with_extension("json");
+            let target_path = target_dir.join(&json_name);
+            let json_str = serde_json::to_string_pretty(&output).unwrap();
+            std::fs::write(&target_path, json_str)
+                .unwrap_or_else(|e| die!("Error writing '{}': {}", target_path.display(), e));
+
+            total_stmts += output.statements.len();
+            total_files += 1;
+
+            if !output.errors.is_empty() {
+                let real_errors: Vec<_> = output.errors.iter().filter(|e| !is_warning(e)).collect();
+                if !real_errors.is_empty() {
+                    eprintln!(
+                        "[{}/{}] {} error(s)",
+                        rel_dir, file_name, real_errors.len()
+                    );
+                }
+            }
+        }
+        eprintln!(
+            "Wrote {} file(s), {} statement(s) to {}",
+            total_files, total_stmts, out_root.display()
+        );
+    } else {
+        let mut total = 0usize;
+        for (file_name, _rel_dir, abs_path) in &files {
+            let sql = read_file_path(abs_path);
+            let output = parse_input(&sql, cli.comments, cli.mybatis);
+
+            println!("═══ {} ({} statement(s)) ═══", file_name, output.statements.len());
+            for stmt in &output.statements {
+                println!("{:#?}", stmt);
+            }
+            if !output.errors.is_empty() {
+                let warnings: Vec<_> = output.errors.iter().filter(|e| is_warning(e)).collect();
+                let real_errors: Vec<_> = output.errors.iter().filter(|e| !is_warning(e)).collect();
+                if !real_errors.is_empty() {
+                    eprintln!("[{}] {} error(s):", file_name, real_errors.len());
+                    for e in &real_errors {
+                        eprintln!("  {}", e);
+                    }
+                }
+                if !warnings.is_empty() {
+                    eprintln!("[{}] {} warning(s):", file_name, warnings.len());
+                    for w in &warnings {
+                        eprintln!("  {}", w);
+                    }
+                }
+            }
+            total += output.statements.len();
+            println!();
+        }
+        println!("Total: {} statement(s) from {} file(s)", total, files.len());
+    }
+}
+
+fn read_file_path(path: &std::path::Path) -> String {
+    let bytes = std::fs::read(path)
+        .unwrap_or_else(|e| die!("Error reading {}: {}", path.display(), e));
+    token::decode_sql_file(&bytes)
+        .unwrap_or_else(|e| die!("Error decoding {}: {}", path.display(), e))
+        .0
+}
+
+fn output_csv_parse_header() {
+    println!("file,directory,line,type,name,parent,parameters,return_type,sql,error,warning");
+}
+
+struct ParseCsvRow {
+    line: usize,
+    stmt_type: String,
+    name: String,
+    parent: String,
+    parameters: String,
+    return_type: String,
+    sql: String,
+}
+
+fn format_params(params: &[ogsql_parser::ast::RoutineParam]) -> String {
+    params
+        .iter()
+        .map(|p| match &p.mode {
+            Some(mode) => format!("{} {} {}", p.name, mode, p.data_type),
+            None => format!("{} {}", p.name, p.data_type),
+        })
+        .collect::<Vec<_>>()
+        .join(", ")
+}
+
+fn extract_block_sql(block: &ogsql_parser::ast::plpgsql::PlBlock) -> String {
+    use ogsql_parser::ast::plpgsql::PlStatement;
+    let mut parts: Vec<String> = Vec::new();
+    for stmt in &block.body {
+        match stmt {
+            PlStatement::SqlStatement { sql_text, .. } => {
+                if !sql_text.is_empty() {
+                    parts.push(sql_text.clone());
+                }
+            }
+            PlStatement::Sql(text) => {
+                if !text.is_empty() {
+                    parts.push(text.clone());
+                }
+            }
+            PlStatement::Execute(_) => {
+                parts.push("EXECUTE ...".to_string());
+            }
+            PlStatement::Perform { query, .. } => {
+                parts.push(format!("PERFORM {}", query));
+            }
+            _ => {}
+        }
+    }
+    parts.join("\\n")
+}
+
+fn flatten_statement(si: &ogsql_parser::StatementInfo) -> Vec<ParseCsvRow> {
+    use ogsql_parser::Statement;
+    let mut rows = Vec::new();
+
+    match &si.statement {
+        Statement::CreatePackageBody(s) => {
+            rows.push(ParseCsvRow {
+                line: si.start_line,
+                stmt_type: "CreatePackageBody".into(),
+                name: s.name.join("."),
+                parent: String::new(),
+                parameters: String::new(),
+                return_type: String::new(),
+                sql: String::new(),
+            });
+            for item in &s.items {
+                match item {
+                    ogsql_parser::ast::PackageItem::Procedure(p) => {
+                        let sql = p.block.as_ref().map(extract_block_sql).unwrap_or_default();
+                        rows.push(ParseCsvRow {
+                            line: p.start_line.max(si.start_line),
+                            stmt_type: "Procedure".into(),
+                            name: p.name.join("."),
+                            parent: s.name.join("."),
+                            parameters: format_params(&p.parameters),
+                            return_type: String::new(),
+                            sql,
+                        });
+                    }
+                    ogsql_parser::ast::PackageItem::Function(f) => {
+                        let sql = f.block.as_ref().map(extract_block_sql).unwrap_or_default();
+                        rows.push(ParseCsvRow {
+                            line: f.start_line.max(si.start_line),
+                            stmt_type: "Function".into(),
+                            name: f.name.join("."),
+                            parent: s.name.join("."),
+                            parameters: format_params(&f.parameters),
+                            return_type: f.return_type.clone().unwrap_or_default(),
+                            sql,
+                        });
+                    }
+                    _ => {}
+                }
+            }
+        }
+        Statement::CreatePackage(s) => {
+            rows.push(ParseCsvRow {
+                line: si.start_line,
+                stmt_type: "CreatePackage".into(),
+                name: s.name.join("."),
+                parent: String::new(),
+                parameters: String::new(),
+                return_type: String::new(),
+                sql: String::new(),
+            });
+            for item in &s.items {
+                match item {
+                    ogsql_parser::ast::PackageItem::Procedure(p) => {
+                        rows.push(ParseCsvRow {
+                            line: p.start_line.max(si.start_line),
+                            stmt_type: "Procedure".into(),
+                            name: p.name.join("."),
+                            parent: s.name.join("."),
+                            parameters: format_params(&p.parameters),
+                            return_type: String::new(),
+                            sql: String::new(),
+                        });
+                    }
+                    ogsql_parser::ast::PackageItem::Function(f) => {
+                        rows.push(ParseCsvRow {
+                            line: f.start_line.max(si.start_line),
+                            stmt_type: "Function".into(),
+                            name: f.name.join("."),
+                            parent: s.name.join("."),
+                            parameters: format_params(&f.parameters),
+                            return_type: f.return_type.clone().unwrap_or_default(),
+                            sql: String::new(),
+                        });
+                    }
+                    _ => {}
+                }
+            }
+        }
+        Statement::CreateProcedure(s) => {
+            let sql = s.block.as_ref().map(extract_block_sql).unwrap_or_default();
+            rows.push(ParseCsvRow {
+                line: si.start_line,
+                stmt_type: "CreateProcedure".into(),
+                name: s.name.join("."),
+                parent: String::new(),
+                parameters: format_params(&s.parameters),
+                return_type: String::new(),
+                sql,
+            });
+        }
+        Statement::CreateFunction(s) => {
+            let sql = s.block.as_ref().map(extract_block_sql).unwrap_or_default();
+            rows.push(ParseCsvRow {
+                line: si.start_line,
+                stmt_type: "CreateFunction".into(),
+                name: s.name.join("."),
+                parent: String::new(),
+                parameters: format_params(&s.parameters),
+                return_type: s.return_type.clone().unwrap_or_default(),
+                sql,
+            });
+        }
+        Statement::Do(s) => {
+            let sql = s.block.as_ref().map(extract_block_sql).unwrap_or_default();
+            rows.push(ParseCsvRow {
+                line: si.start_line,
+                stmt_type: "Do".into(),
+                name: String::new(),
+                parent: String::new(),
+                parameters: String::new(),
+                return_type: String::new(),
+                sql,
+            });
+        }
+        Statement::AnonyBlock(s) => {
+            let sql = extract_block_sql(&s.block);
+            rows.push(ParseCsvRow {
+                line: si.start_line,
+                stmt_type: "AnonyBlock".into(),
+                name: String::new(),
+                parent: String::new(),
+                parameters: String::new(),
+                return_type: String::new(),
+                sql,
+            });
+        }
+        Statement::Select(s) => {
+            rows.push(ParseCsvRow {
+                line: si.start_line,
+                stmt_type: "Select".into(),
+                name: s.from.first().and_then(|f| {
+                    if let ogsql_parser::ast::TableRef::Table { name, .. } = f {
+                        Some(name.join("."))
+                    } else {
+                        None
+                    }
+                }).unwrap_or_default(),
+                parent: String::new(),
+                parameters: String::new(),
+                return_type: String::new(),
+                sql: si.sql_text.clone(),
+            });
+        }
+        Statement::Insert(s) => {
+            rows.push(ParseCsvRow {
+                line: si.start_line,
+                stmt_type: "Insert".into(),
+                name: s.table.join("."),
+                parent: String::new(),
+                parameters: String::new(),
+                return_type: String::new(),
+                sql: si.sql_text.clone(),
+            });
+        }
+        Statement::Update(s) => {
+            rows.push(ParseCsvRow {
+                line: si.start_line,
+                stmt_type: "Update".into(),
+                name: s.tables.first().and_then(|f| {
+                    if let ogsql_parser::ast::TableRef::Table { name, .. } = f {
+                        Some(name.join("."))
+                    } else {
+                        None
+                    }
+                }).unwrap_or_default(),
+                parent: String::new(),
+                parameters: String::new(),
+                return_type: String::new(),
+                sql: si.sql_text.clone(),
+            });
+        }
+        Statement::Delete(s) => {
+            rows.push(ParseCsvRow {
+                line: si.start_line,
+                stmt_type: "Delete".into(),
+                name: s.tables.first().and_then(|f| {
+                    if let ogsql_parser::ast::TableRef::Table { name, .. } = f {
+                        Some(name.join("."))
+                    } else {
+                        None
+                    }
+                }).unwrap_or_default(),
+                parent: String::new(),
+                parameters: String::new(),
+                return_type: String::new(),
+                sql: si.sql_text.clone(),
+            });
+        }
+        Statement::Merge(s) => {
+            rows.push(ParseCsvRow {
+                line: si.start_line,
+                stmt_type: "Merge".into(),
+                name: match &s.target {
+                    ogsql_parser::ast::TableRef::Table { name, .. } => name.join("."),
+                    _ => String::new(),
+                },
+                parent: String::new(),
+                parameters: String::new(),
+                return_type: String::new(),
+                sql: si.sql_text.clone(),
+            });
+        }
+        Statement::CreateTable(s) => {
+            rows.push(ParseCsvRow {
+                line: si.start_line,
+                stmt_type: "CreateTable".into(),
+                name: s.name.join("."),
+                parent: String::new(),
+                parameters: String::new(),
+                return_type: String::new(),
+                sql: si.sql_text.clone(),
+            });
+        }
+        _ => {
+            let type_name = serde_json::to_value(&si.statement)
+                .ok()
+                .and_then(|v| {
+                    if let serde_json::Value::Object(map) = v {
+                        map.keys().next().cloned()
+                    } else {
+                        None
+                    }
+                })
+                .unwrap_or_else(|| "Unknown".to_string());
+            rows.push(ParseCsvRow {
+                line: si.start_line,
+                stmt_type: type_name,
+                name: String::new(),
+                parent: String::new(),
+                parameters: String::new(),
+                return_type: String::new(),
+                sql: si.sql_text.clone(),
+            });
+        }
+    }
+    rows
+}
+
+fn output_csv_parse_rows(
+    statements: &[ogsql_parser::StatementInfo],
+    file_name: &str,
+    rel_dir: &str,
+    errors: &[ogsql_parser::ParserError],
+) {
+    let real_errors: Vec<String> = errors
+        .iter()
+        .filter(|e| !is_warning(e))
+        .map(|e| e.to_string())
+        .collect();
+    let warnings: Vec<String> = errors
+        .iter()
+        .filter(|e| is_warning(e))
+        .map(|e| e.to_string())
+        .collect();
+
+    let file_err = real_errors.join("; ");
+    let file_warn = warnings.join("; ");
+
+    for si in statements {
+        let rows = flatten_statement(si);
+        for row in rows {
+            let sql = row.sql.trim().replace('\n', "\\n").replace('\r', "");
+            println!(
+                "{},{},{},{},{},{},{},{},{},{},{}",
+                csv_escape(file_name),
+                csv_escape(rel_dir),
+                row.line,
+                csv_escape(&row.stmt_type),
+                csv_escape(&row.name),
+                csv_escape(&row.parent),
+                csv_escape(&row.parameters),
+                csv_escape(&row.return_type),
+                csv_escape(&sql),
+                csv_escape(&file_err),
+                csv_escape(&file_warn),
+            );
         }
     }
 }
@@ -1876,7 +2377,16 @@ fn main() {
             no_logical_newline,
             no_semicolon_newline,
         ),
-        Commands::Parse => cmd_parse(&cli),
+        Commands::Parse { ref dir, ref ext, csv, ref output_dir } => {
+            if dir.is_some() && cli.file.is_some() {
+                die!("Error: --dir and -f are mutually exclusive");
+            }
+            if let Some(dir_path) = dir {
+                cmd_parse_dir(&cli, dir_path, ext, csv, output_dir.as_deref());
+            } else {
+                cmd_parse(&cli);
+            }
+        }
         Commands::JsonToSql => cmd_json2sql(&cli),
         Commands::Tokenize => cmd_tokenize(&cli),
         Commands::Validate => cmd_validate(&cli),
