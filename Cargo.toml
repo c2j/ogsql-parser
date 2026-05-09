@@ -42,7 +42,7 @@ schemars = { version = "1", optional = true }
 
 [features]
 default = []
-cli = ["dep:clap"]
+cli = ["dep:clap", "dep:walkdir"]
 ibatis = ["dep:quick-xml", "dep:walkdir"]
 java = ["dep:tree-sitter", "dep:tree-sitter-java", "dep:walkdir"]
 serve = ["cli", "dep:axum", "dep:tokio", "dep:tower-http", "dep:utoipa"]
