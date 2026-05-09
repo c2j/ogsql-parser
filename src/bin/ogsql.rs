@@ -412,6 +412,7 @@ fn cmd_parse_dir(
 
         let mut total_files = 0usize;
         let mut total_stmts = 0usize;
+        let mut all_errors: Vec<(String, String, String, Vec<ogsql_parser::ParserError>)> = Vec::new();
         for (file_name, rel_dir, abs_path) in &files {
             let sql = read_file_path(abs_path);
             let output = parse_input(&sql, cli.comments, cli.mybatis);
@@ -429,15 +430,17 @@ fn cmd_parse_dir(
             total_stmts += output.statements.len();
             total_files += 1;
 
-            if !output.errors.is_empty() {
-                let real_errors: Vec<_> = output.errors.iter().filter(|e| !is_warning(e)).collect();
-                if !real_errors.is_empty() {
-                    eprintln!(
-                        "[{}/{}] {} error(s)",
-                        rel_dir, file_name, real_errors.len()
-                    );
-                }
+            let real_errors: Vec<_> = output.errors.iter().filter(|e| !is_warning(e)).cloned().collect();
+            if !real_errors.is_empty() {
+                eprintln!(
+                    "[{}/{}] {} error(s)",
+                    rel_dir, file_name, real_errors.len()
+                );
+                all_errors.push((file_name.clone(), rel_dir.clone(), sql, real_errors));
             }
+        }
+        if !all_errors.is_empty() {
+            write_dir_error_log(out_root, &all_errors);
         }
         eprintln!(
             "Wrote {} file(s), {} statement(s) to {}",
@@ -1110,6 +1113,53 @@ fn write_error_log(
         let _ = writeln!(file, "{}", "-".repeat(60));
     }
     eprintln!("  error details written to error.log");
+}
+
+fn write_dir_error_log(
+    out_root: &std::path::Path,
+    all_errors: &[(String, String, String, Vec<ogsql_parser::ParserError>)],
+) {
+    use std::io::Write;
+    let log_path = out_root.join("error.log");
+    let mut file = match std::fs::File::create(&log_path) {
+        Ok(f) => f,
+        Err(e) => {
+            eprintln!("  warning: cannot create {}: {}", log_path.display(), e);
+            return;
+        }
+    };
+    let context_radius: usize = 5;
+    for (file_name, rel_dir, source, errors) in all_errors {
+        let _ = writeln!(file, "File: {}/{}", rel_dir, file_name);
+        for err in errors {
+            let _ = writeln!(file, "Error: {}", err);
+        }
+        let source_lines: Vec<&str> = source.lines().collect();
+        let err_lines: Vec<usize> = errors.iter().map(|e| error_line(e)).filter(|&l| l > 0).collect();
+        if err_lines.is_empty() {
+            let _ = writeln!(file, "{}", "-".repeat(60));
+            continue;
+        }
+        let min_line = *err_lines.iter().min().unwrap_or(&1);
+        let max_line = *err_lines.iter().max().unwrap_or(&1);
+        let start = min_line.saturating_sub(context_radius + 1);
+        let end = (max_line + context_radius).min(source_lines.len());
+        for (i, line) in source_lines[start..end].iter().enumerate() {
+            let abs_line = start + i + 1;
+            if err_lines.contains(&abs_line) {
+                let _ = writeln!(file, "  {:>4} |> {}", abs_line, line);
+            } else {
+                let _ = writeln!(file, "  {:>4} |  {}", abs_line, line);
+            }
+        }
+        let _ = writeln!(file, "{}", "-".repeat(60));
+    }
+    eprintln!(
+        "  {} error(s) from {} file(s) written to {}",
+        all_errors.iter().map(|(_, _, _, e)| e.len()).sum::<usize>(),
+        all_errors.len(),
+        log_path.display()
+    );
 }
 
 fn error_line(err: &ParserError) -> usize {
