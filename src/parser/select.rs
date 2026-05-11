@@ -16,10 +16,36 @@ impl Parser {
     }
 
     fn parse_select_statement_inner(&mut self) -> Result<SelectStatement, ParserError> {
+        // openGauss allows top-level parenthesized queries: (SELECT ...) UNION ALL (SELECT ...)
+        if matches!(self.peek(), Token::LParen) {
+            let save_pos = self.pos;
+            self.advance();
+            let is_query = matches!(
+                self.peek_keyword(),
+                Some(Keyword::SELECT) | Some(Keyword::WITH)
+            );
+            if is_query {
+                if let Ok(mut stmt) = self.parse_select_statement_inner() {
+                    if matches!(self.peek(), Token::RParen) {
+                        self.advance();
+                        stmt = self.parse_set_operations(stmt)?;
+                        return Ok(stmt);
+                    }
+                }
+            }
+            self.pos = save_pos;
+        }
+
         let with = self.parse_with_clause()?;
         let mut stmt = self.parse_simple_select()?;
         stmt.with = with;
 
+        stmt = self.parse_set_operations(stmt)?;
+        self.parse_order_limit_offset(&mut stmt)?;
+        Ok(stmt)
+    }
+
+    fn parse_set_operations(&mut self, mut stmt: SelectStatement) -> Result<SelectStatement, ParserError> {
         loop {
             let (op, all) = match self.peek_keyword() {
                 Some(Keyword::UNION) => {
@@ -61,8 +87,6 @@ impl Parser {
             };
             stmt.set_operation = Some(set_op);
         }
-
-        self.parse_order_limit_offset(&mut stmt)?;
         Ok(stmt)
     }
 
@@ -638,8 +662,14 @@ impl Parser {
     fn parse_primary_table_ref(&mut self) -> Result<TableRef, ParserError> {
         if self.match_token(&Token::LParen) {
             self.advance();
-            if self.match_keyword(Keyword::SELECT) || self.match_keyword(Keyword::WITH) {
-                let query = self.parse_select_statement()?;
+            let is_subquery = self.match_keyword(Keyword::SELECT)
+                || self.match_keyword(Keyword::WITH)
+                || self.looks_like_parenthesized_query();
+            if is_subquery {
+                self.enter_scope()?;
+                let query = self.parse_select_statement_inner();
+                self.leave_scope();
+                let query = query?;
                 self.expect_token(&Token::RParen)?;
                 let alias = self.parse_optional_alias()?;
                 return Ok(TableRef::Subquery {
@@ -1137,5 +1167,19 @@ impl Parser {
             return Ok(DataType::Text);
         }
         self.parse_data_type()
+    }
+
+    pub(crate) fn looks_like_parenthesized_query(&self) -> bool {
+        let mut lookahead = self.pos;
+        while lookahead < self.tokens.len() {
+            match &self.tokens[lookahead].token {
+                Token::LParen => lookahead += 1,
+                Token::Keyword(kw) => {
+                    return matches!(kw, Keyword::SELECT | Keyword::WITH)
+                }
+                _ => return false,
+            }
+        }
+        false
     }
 }
