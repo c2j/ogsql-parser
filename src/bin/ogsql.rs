@@ -88,7 +88,15 @@ enum Commands {
     /// Tokenize SQL into a list of tokens / 将 SQL 分词为 token 列表
     Tokenize,
     /// Validate SQL syntax and report errors / 校验 SQL 语法
-    Validate,
+    Validate {
+        /// Recursively scan directory for SQL files (can specify multiple times)
+        /// 递归扫描目录中的 SQL 文件（可多次指定）
+        #[arg(short = 'd', long = "dir")]
+        dir: Vec<String>,
+        /// File extensions to scan, comma-separated (default: sql) / 扫描的文件扩展名，逗号分隔
+        #[arg(short = 'e', long = "ext", value_delimiter = ',', default_value = "sql")]
+        ext: Vec<String>,
+    },
     #[cfg(feature = "serve")]
     /// Start an HTTP API server for parsing SQL / 启动 HTTP API 服务器
     Serve {
@@ -940,9 +948,11 @@ fn is_warning(e: &ogsql_parser::ParserError) -> bool {
     )
 }
 
-fn cmd_validate(cli: &Cli) {
-    let sql = read_input(cli.file.as_deref());
-    let output = parse_input(&sql, false, cli.mybatis);
+fn validate_sql(
+    sql: &str,
+    mybatis: bool,
+) -> (Vec<ogsql_parser::StatementInfo>, Vec<ogsql_parser::ParserError>, Vec<ogsql_parser::PackageConsistencyError>) {
+    let output = parse_input(sql, false, mybatis);
     let stmts = output.statements;
     let mut errors = output.errors;
 
@@ -959,6 +969,12 @@ fn cmd_validate(cli: &Cli) {
             });
         }
     }
+    (stmts, errors, pkg_errors)
+}
+
+fn cmd_validate(cli: &Cli) {
+    let sql = read_input(cli.file.as_deref());
+    let (stmts, errors, pkg_errors) = validate_sql(&sql, cli.mybatis);
 
     if cli.json {
         let warnings: Vec<_> = errors.iter().filter(|e| is_warning(e)).collect();
@@ -1002,6 +1018,178 @@ fn cmd_validate(cli: &Cli) {
                 write_error_log(&sql, cli.file.as_deref(), &stmts, &real_errors);
             }
             std::process::exit(1);
+        }
+    }
+}
+
+fn cmd_validate_dir(cli: &Cli, dir_paths: &[String], exts: &[String]) {
+    use std::path::Path;
+
+    for dir_path in dir_paths {
+        if !Path::new(dir_path).is_dir() {
+            die!("Error: '{}' is not a directory", dir_path);
+        }
+    }
+
+    let normalized_exts: Vec<String> = exts
+        .iter()
+        .map(|e| e.trim_start_matches('.').to_ascii_lowercase())
+        .collect();
+
+    let mut files: Vec<(String, String, std::path::PathBuf)> = Vec::new();
+    for dir_path in dir_paths {
+        let root = Path::new(dir_path);
+        for entry in walkdir::WalkDir::new(dir_path)
+            .into_iter()
+            .filter_map(|e| e.ok())
+        {
+            let path = entry.path();
+            if !path.is_file() {
+                continue;
+            }
+            let file_ext = path
+                .extension()
+                .and_then(|e| e.to_str())
+                .unwrap_or("")
+                .to_ascii_lowercase();
+            if !normalized_exts.iter().any(|e| *e == file_ext) {
+                continue;
+            }
+
+            let rel_dir = path
+                .parent()
+                .and_then(|p| p.strip_prefix(root).ok())
+                .map(|p| {
+                    let s = p.to_str().unwrap_or(".");
+                    if s.is_empty() { "." } else { s }
+                })
+                .unwrap_or(".")
+                .to_string();
+
+            let file_name = path
+                .file_name()
+                .map(|n| n.to_string_lossy().to_string())
+                .unwrap_or_default();
+
+            files.push((file_name, rel_dir, path.to_path_buf()));
+        }
+    }
+
+    files.sort_by(|a, b| a.2.cmp(&b.2));
+    files.dedup_by(|a, b| a.2 == b.2);
+
+    if files.is_empty() {
+        eprintln!("No files found with extension(s): {}", exts.join(", "));
+        return;
+    }
+
+    let mut total_files = 0usize;
+    let mut total_errors = 0usize;
+    let mut total_warnings = 0usize;
+    let mut any_invalid = false;
+    let mut all_results: Vec<(String, String, String, Vec<ogsql_parser::ParserError>)> = Vec::new();
+
+    for (file_name, rel_dir, abs_path) in &files {
+        let sql = read_file_path(abs_path);
+        let (stmts, errors, _pkg_errors) = validate_sql(&sql, cli.mybatis);
+
+        let real_errors: Vec<_> = errors.iter().filter(|e| !is_warning(e)).collect();
+        let warnings: Vec<_> = errors.iter().filter(|e| is_warning(e)).collect();
+
+        if !real_errors.is_empty() {
+            any_invalid = true;
+        }
+
+        total_errors += real_errors.len();
+        total_warnings += warnings.len();
+        total_files += 1;
+
+        if cli.json {
+            if !real_errors.is_empty() {
+                all_results.push((
+                    file_name.clone(),
+                    rel_dir.clone(),
+                    sql,
+                    errors.iter().filter(|e| !is_warning(e)).cloned().collect(),
+                ));
+            }
+        } else {
+            if real_errors.is_empty() && warnings.is_empty() {
+                println!("[{}/{}] VALID", rel_dir, file_name);
+            } else if real_errors.is_empty() {
+                println!("[{}/{}] VALID ({} warning(s))", rel_dir, file_name, warnings.len());
+                for w in &warnings {
+                    eprintln!("  warning: {}", w);
+                }
+            } else {
+                println!(
+                    "[{}/{}] INVALID ({} error(s), {} warning(s))",
+                    rel_dir, file_name, real_errors.len(), warnings.len()
+                );
+                for e in &real_errors {
+                    eprintln!("  error: {}", e);
+                }
+                for w in &warnings {
+                    eprintln!("  warning: {}", w);
+                }
+            }
+        }
+        let _ = &stmts;
+    }
+
+    if cli.json {
+        let mut results = Vec::new();
+        for (file_name, rel_dir, abs_path) in &files {
+            let sql = read_file_path(abs_path);
+            let (_stmts, errors, pkg_errors) = validate_sql(&sql, cli.mybatis);
+            let real_errors: Vec<_> = errors.iter().filter(|e| !is_warning(e)).collect();
+            let warnings: Vec<_> = errors.iter().filter(|e| is_warning(e)).collect();
+
+            let mut file_result = serde_json::json!({
+                "file": file_name,
+                "directory": rel_dir,
+                "valid": real_errors.is_empty(),
+                "error_count": real_errors.len(),
+                "warning_count": warnings.len(),
+                "errors": errors,
+            });
+            if !pkg_errors.is_empty() {
+                file_result.as_object_mut().unwrap().insert(
+                    "package_consistency_errors".to_string(),
+                    serde_json::json!(pkg_errors),
+                );
+            }
+            results.push(file_result);
+        }
+        let mut out = serde_json::json!({
+            "valid": !any_invalid,
+            "total_files": total_files,
+            "total_errors": total_errors,
+            "total_warnings": total_warnings,
+            "files": results,
+        });
+        if !all_results.is_empty() {
+            out.as_object_mut().unwrap().insert(
+                "error_log".to_string(),
+                serde_json::json!(all_results.len()),
+            );
+        }
+        println!("{}", serde_json::to_string_pretty(&out).unwrap());
+    } else {
+        println!();
+        if any_invalid {
+            println!(
+                "Result: INVALID — {} error(s), {} warning(s) from {} file(s)",
+                total_errors, total_warnings, total_files
+            );
+            std::process::exit(1);
+        } else if total_warnings > 0 {
+            println!(
+                "Result: VALID — {} warning(s) from {} file(s)",
+                total_warnings, total_files
+            );
+        } else {
+            println!("Result: VALID — {} file(s)", total_files);
         }
     }
 }
@@ -2491,7 +2679,16 @@ fn main() {
         }
         Commands::JsonToSql => cmd_json2sql(&cli),
         Commands::Tokenize => cmd_tokenize(&cli),
-        Commands::Validate => cmd_validate(&cli),
+        Commands::Validate { ref dir, ref ext } => {
+            if !dir.is_empty() && cli.file.is_some() {
+                die!("Error: --dir and -f are mutually exclusive");
+            }
+            if !dir.is_empty() {
+                cmd_validate_dir(&cli, dir, ext);
+            } else {
+                cmd_validate(&cli);
+            }
+        }
         #[cfg(feature = "serve")]
         Commands::Serve { port, host } => {
             let addr = format!("{}:{}", host, port);
