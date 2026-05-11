@@ -534,7 +534,6 @@ fn test_template_extraction_unknown() {
 
 #[test]
 fn test_template_extraction_all_static_concat() {
-    // Concatenation of only literals - no dynamic params
     let trace = TraceChain::Concatenation {
         parts: vec![
             TraceChain::LiteralAssignment {
@@ -545,6 +544,200 @@ fn test_template_extraction_all_static_concat() {
             },
         ],
     };
-    // All static parts, no dynamic params -> None
     assert!(extract_template(&trace).is_none());
+}
+
+// ── Package Consistency Tests ──
+
+fn parse_stmts(sql: &str) -> Vec<crate::ast::StatementInfo> {
+    let options = crate::ParseOptions { preserve_comments: false, mybatis_params: false };
+    crate::Parser::parse_sql_with_options(sql, options).statements
+}
+
+#[test]
+fn test_package_default_value_mismatch() {
+    let sql = r#"
+CREATE OR REPLACE PACKAGE BIGFUND.PKG_XML_MANAGE IS
+  FUNCTION gen_xml_head(p_fcode         IN VARCHAR2,
+                        p_i_seq_no      IN NUMBER,
+                        p_i_retcode     IN VARCHAR2 DEFAULT NULL,
+                        p_i_retmsg      IN VARCHAR2 DEFAULT NULL)
+    RETURN XMLTYPE;
+END PKG_XML_MANAGE;
+/
+
+CREATE OR REPLACE PACKAGE BODY BIGFUND.PKG_XML_MANAGE IS
+  FUNCTION gen_xml_head(p_fcode         IN VARCHAR2,
+                        p_i_seq_no      IN NUMBER,
+                        p_i_retcode     IN VARCHAR2,
+                        p_i_retmsg      IN VARCHAR2)
+    RETURN XMLTYPE IS
+  BEGIN
+    RETURN NULL;
+  END;
+END PKG_XML_MANAGE;
+/
+"#;
+    let stmts = parse_stmts(sql);
+    let errors = validate_package_consistency(&stmts);
+    assert!(!errors.is_empty(), "should detect default value mismatches");
+
+    let default_mismatches: Vec<_> = errors.iter()
+        .filter(|e| matches!(e.kind, PackageConsistencyErrorKind::DefaultMismatch { .. }))
+        .collect();
+    assert!(default_mismatches.len() >= 2, "should detect at least 2 default mismatches (p_i_retcode, p_i_retmsg), got {:?}", default_mismatches.len());
+}
+
+#[test]
+fn test_package_param_count_mismatch() {
+    let sql = r#"
+CREATE OR REPLACE PACKAGE pkg1 IS
+  PROCEDURE my_proc(a IN VARCHAR2, b IN NUMBER);
+END pkg1;
+/
+
+CREATE OR REPLACE PACKAGE BODY pkg1 IS
+  PROCEDURE my_proc(a IN VARCHAR2, b IN NUMBER, c IN VARCHAR2) IS
+  BEGIN
+    NULL;
+  END;
+END pkg1;
+/
+"#;
+    let stmts = parse_stmts(sql);
+    let errors = validate_package_consistency(&stmts);
+    let count_mismatch = errors.iter()
+        .any(|e| matches!(e.kind, PackageConsistencyErrorKind::ParamCountMismatch { spec_count: 2, body_count: 3 }));
+    assert!(count_mismatch, "should detect parameter count mismatch (2 vs 3)");
+}
+
+#[test]
+fn test_package_missing_subprogram_in_body() {
+    let sql = r#"
+CREATE OR REPLACE PACKAGE pkg2 IS
+  FUNCTION get_name(id IN NUMBER) RETURN VARCHAR2;
+  PROCEDURE set_name(id IN NUMBER, name IN VARCHAR2);
+END pkg2;
+/
+
+CREATE OR REPLACE PACKAGE BODY pkg2 IS
+  FUNCTION get_name(id IN NUMBER) RETURN VARCHAR2 IS
+  BEGIN
+    RETURN NULL;
+  END;
+END pkg2;
+/
+"#;
+    let stmts = parse_stmts(sql);
+    let errors = validate_package_consistency(&stmts);
+    let missing = errors.iter()
+        .any(|e| matches!(e.kind, PackageConsistencyErrorKind::MissingInBody) && e.subprogram_name.contains("SET_NAME"));
+    assert!(missing, "should detect set_name missing from body");
+}
+
+#[test]
+fn test_package_extra_subprogram_in_body() {
+    let sql = r#"
+CREATE OR REPLACE PACKAGE pkg3 IS
+  PROCEDURE do_stuff(a IN NUMBER);
+END pkg3;
+/
+
+CREATE OR REPLACE PACKAGE BODY pkg3 IS
+  PROCEDURE do_stuff(a IN NUMBER) IS
+  BEGIN
+    NULL;
+  END;
+  PROCEDURE hidden_proc(x IN VARCHAR2) IS
+  BEGIN
+    NULL;
+  END;
+END pkg3;
+/
+"#;
+    let stmts = parse_stmts(sql);
+    let errors = validate_package_consistency(&stmts);
+    let extra = errors.iter()
+        .any(|e| matches!(e.kind, PackageConsistencyErrorKind::ExtraInBody) && e.subprogram_name.contains("HIDDEN_PROC"));
+    assert!(extra, "should detect hidden_proc as extra in body");
+}
+
+#[test]
+fn test_package_consistent_spec_and_body() {
+    let sql = r#"
+CREATE OR REPLACE PACKAGE pkg4 IS
+  FUNCTION add(a IN NUMBER, b IN NUMBER) RETURN NUMBER;
+END pkg4;
+/
+
+CREATE OR REPLACE PACKAGE BODY pkg4 IS
+  FUNCTION add(a IN NUMBER, b IN NUMBER) RETURN NUMBER IS
+  BEGIN
+    RETURN a + b;
+  END;
+END pkg4;
+/
+"#;
+    let stmts = parse_stmts(sql);
+    let errors = validate_package_consistency(&stmts);
+    assert!(errors.is_empty(), "matching spec and body should produce no errors, got: {:?}", errors);
+}
+
+#[test]
+fn test_package_no_body_is_ok() {
+    let sql = r#"
+CREATE OR REPLACE PACKAGE pkg5 IS
+  PROCEDURE hello;
+END pkg5;
+/
+"#;
+    let stmts = parse_stmts(sql);
+    let errors = validate_package_consistency(&stmts);
+    assert!(errors.is_empty(), "spec without body is valid");
+}
+
+#[test]
+fn test_package_default_value_differs() {
+    let sql = r#"
+CREATE OR REPLACE PACKAGE pkg6 IS
+  PROCEDURE test_proc(a IN VARCHAR2 DEFAULT 'hello');
+END pkg6;
+/
+
+CREATE OR REPLACE PACKAGE BODY pkg6 IS
+  PROCEDURE test_proc(a IN VARCHAR2 DEFAULT 'world') IS
+  BEGIN
+    NULL;
+  END;
+END pkg6;
+/
+"#;
+    let stmts = parse_stmts(sql);
+    let errors = validate_package_consistency(&stmts);
+    let default_diff = errors.iter()
+        .any(|e| matches!(e.kind, PackageConsistencyErrorKind::DefaultMismatch { .. }));
+    assert!(default_diff, "should detect different default values");
+}
+
+#[test]
+fn test_package_type_mismatch() {
+    let sql = r#"
+CREATE OR REPLACE PACKAGE pkg7 IS
+  PROCEDURE test_proc(a IN VARCHAR2);
+END pkg7;
+/
+
+CREATE OR REPLACE PACKAGE BODY pkg7 IS
+  PROCEDURE test_proc(a IN NUMBER) IS
+  BEGIN
+    NULL;
+  END;
+END pkg7;
+/
+"#;
+    let stmts = parse_stmts(sql);
+    let errors = validate_package_consistency(&stmts);
+    let type_mismatch = errors.iter()
+        .any(|e| matches!(e.kind, PackageConsistencyErrorKind::TypeMismatch { .. }));
+    assert!(type_mismatch, "should detect type mismatch VARCHAR2 vs NUMBER");
 }
