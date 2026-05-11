@@ -797,8 +797,17 @@ impl<'a> Tokenizer<'a> {
                 }
                 Some('\\') => {
                     if self.peek() == Some('\'') {
-                        self.advance();
-                        result.push('\'');
+                        // Legacy compatibility: when \' is followed by another ',
+                        // treat \ as literal and let '' handle the escape via
+                        // SQL-standard doubled quoting. This handles legacy SQL
+                        // that mixes \' and '' conventions in the same string.
+                        // (PostgreSQL standard_conforming_strings = on behavior)
+                        if self.peek_byte_at(1) == Some(b'\'') {
+                            result.push('\\');
+                        } else {
+                            self.advance();
+                            result.push('\'');
+                        }
                     } else {
                         result.push('\\');
                     }
@@ -1443,6 +1452,32 @@ mod tests {
             .unwrap();
         assert!(tokens.iter().any(|t| matches!(&t.token, Token::StringLiteral(s) if s.contains("#{price}"))));
         assert!(!tokens.iter().any(|t| matches!(&t.token, Token::MyBatisParam(_))));
+    }
+
+    #[test]
+    fn test_backslash_followed_by_doubled_quote() {
+        // Legacy SQL mixes \' and '' conventions: \'' should be \ literal + '' escape
+        let tokens = tokens_as_vec("'hello\\''world'");
+        assert_eq!(tokens.len(), 2); // StringLiteral + Eof
+        assert!(matches!(&tokens[0], Token::StringLiteral(s) if s == "hello\\'world"));
+    }
+
+    #[test]
+    fn test_backslash_escape_without_doubled_quote() {
+        // Plain \' (not followed by another ') still works as backslash escape
+        let tokens = tokens_as_vec("'it\\'s a test'");
+        assert!(matches!(&tokens[0], Token::StringLiteral(s) if s == "it's a test"));
+    }
+
+    #[test]
+    fn test_legacy_mixed_escape_sql() {
+        // Regression: the exact pattern from the reported bug
+        let sql = r#"insert into t (id, val) values ('41003', 'class="XCombox" url="/icbc/aas/servlet/SingleSelect" para=''sqlMapId=getFundInfoBybondacct&queryPara=\''%$xcombox$%\''&userId=\'''' + window.x_userid + ''\''&roleId=\'''' + window.x_roleid + ''\''''" drag=true errMsg=''async=false')"#;
+        let result = tokenize(sql);
+        assert!(result.is_ok(), "Should parse legacy mixed-escape SQL without error");
+        let tokens = result.unwrap();
+        assert!(tokens.iter().any(|t| matches!(&t.token, Token::StringLiteral(s) if s.contains("$xcombox$"))));
+        assert!(tokens.iter().any(|t| matches!(&t.token, Token::StringLiteral(s) if s.contains("window.x_userid"))));
     }
 
     #[test]
