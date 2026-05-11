@@ -345,7 +345,7 @@ impl Parser {
         let mut case_depth = 0i32;
         let mut seen_outer_end = false;
         let mut in_routine_decl = false;
-        let in_declare_section = self.tokens.get(self.pos).map_or(false, |t| {
+        let mut in_declare_section = self.tokens.get(self.pos).map_or(false, |t| {
             if !matches!(t.token, Token::Keyword(Keyword::DECLARE)) {
                 return false;
             }
@@ -378,6 +378,9 @@ impl Parser {
                     begin_depth += 1;
                     if in_routine_decl && begin_depth == 1 {
                         in_routine_decl = false;
+                    }
+                    if in_declare_section && begin_depth == 1 {
+                        in_declare_section = false;
                     }
                 }
                 Token::Keyword(Keyword::END_P) => {

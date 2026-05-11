@@ -705,10 +705,23 @@ impl Parser {
                 Ok(PlStatement::VariableSet(Spanned::new(set_stmt, None)))
             }
         } else if self.match_ident_str("reset") {
-            self.advance();
-            let reset_stmt = self.parse_reset()?;
-            self.try_consume_semicolon();
-            Ok(PlStatement::VariableReset(Spanned::new(reset_stmt, None)))
+            let next_is_lparen = self.tokens.get(self.pos + 1).map_or(false, |t| matches!(t.token, Token::LParen));
+            if next_is_lparen {
+                self.advance();
+                if let Some(stmt) = self.try_parse_pl_procedure_call_from_name("reset".to_string()) {
+                    self.try_consume_semicolon();
+                    Ok(stmt)
+                } else {
+                    let reset_stmt = self.parse_reset()?;
+                    self.try_consume_semicolon();
+                    Ok(PlStatement::VariableReset(Spanned::new(reset_stmt, None)))
+                }
+            } else {
+                self.advance();
+                let reset_stmt = self.parse_reset()?;
+                self.try_consume_semicolon();
+                Ok(PlStatement::VariableReset(Spanned::new(reset_stmt, None)))
+            }
         } else if let Some(stmt) = self.try_parse_dml_as_pl_statement() {
             Ok(stmt)
         } else {
@@ -912,6 +925,12 @@ impl Parser {
                     Err(_) => None,
                 }
             }
+            Token::LParen if self.looks_like_parenthesized_query() => {
+                match self.parse_select_statement() {
+                    Ok(stmt) => Some(crate::ast::Statement::Select(crate::ast::Spanned::new(stmt, None))),
+                    Err(_) => None,
+                }
+            }
             Token::Keyword(Keyword::INSERT) => {
                 self.advance();
                 match self.parse_insert() {
@@ -1001,6 +1020,40 @@ impl Parser {
         }, None)))
     }
 
+    fn try_parse_pl_procedure_call_from_name(&mut self, name_str: String) -> Option<PlStatement> {
+        if !self.match_token(&Token::LParen) {
+            return None;
+        }
+        self.advance();
+
+        let mut arguments = Vec::new();
+        if !self.match_token(&Token::RParen) {
+            loop {
+                match self.parse_expr() {
+                    Ok(arg) => arguments.push(arg),
+                    Err(_) => return None,
+                }
+                if self.match_token(&Token::Comma) {
+                    self.advance();
+                } else {
+                    break;
+                }
+            }
+        }
+
+        if !self.match_token(&Token::RParen) {
+            return None;
+        }
+        self.advance();
+
+        arguments.retain(|a| !matches!(a, Expr::Default));
+
+        Some(PlStatement::ProcedureCall(Spanned::new(PlProcedureCall {
+            name: ObjectName::from(vec![name_str]),
+            arguments,
+        }, None)))
+    }
+
     fn lookahead_is_transaction(&self) -> bool {
         if self.pos + 1 >= self.tokens.len() {
             return false;
@@ -1067,7 +1120,9 @@ impl Parser {
 
     fn parse_pl_sql_or_assignment(&mut self) -> Result<PlStatement, ParserError> {
         let save = self.pos;
-        if matches!(self.peek(), Token::Ident(_) | Token::QuotedIdent(_)) {
+        let can_be_assignment_target = matches!(self.peek(), Token::Ident(_) | Token::QuotedIdent(_))
+            || matches!(self.peek(), Token::Keyword(kw) if kw.category() == crate::token::keyword::KeywordCategory::Unreserved);
+        if can_be_assignment_target {
             let first = self.parse_identifier().unwrap_or_default();
             let mut name_parts = vec![first];
             while self.match_token(&Token::Dot) {
@@ -1291,7 +1346,7 @@ impl Parser {
             let is_query = matches!(
                 self.peek_keyword(),
                 Some(Keyword::SELECT) | Some(Keyword::WITH)
-            );
+            ) || self.looks_like_parenthesized_query();
 
             if is_query {
                 if let Some(stmt) = self.try_parse_dml_statement() {
@@ -1313,9 +1368,44 @@ impl Parser {
 
         let saved_pos = self.pos;
         if let Ok(name) = self.parse_identifier() {
-            if self.match_ident_str("loop") || matches!(self.peek(), Token::LParen) {
-                let mut arguments = Vec::new();
-                if self.match_token(&Token::LParen) {
+            if self.match_ident_str("loop") {
+                let cursor_name = if !self.scope_stack.is_empty()
+                    && self.is_var_declared(&name.to_lowercase())
+                {
+                    Expr::PlVariable(ObjectName::from(vec![name]))
+                } else {
+                    Expr::ColumnRef(ObjectName::from(vec![name]))
+                };
+                return Ok(PlForKind::Cursor {
+                    cursor_name,
+                    arguments: Vec::new(),
+                });
+            }
+            if matches!(self.peek(), Token::LParen) {
+                let cursor_check = self.pos;
+                let mut paren_depth = 0i32;
+                let mut found_dotdot = false;
+                for j in cursor_check..self.tokens.len() {
+                    match &self.tokens[j].token {
+                        Token::LParen => paren_depth += 1,
+                        Token::RParen => {
+                            paren_depth -= 1;
+                            if paren_depth == 0 {
+                                if let Some(next) = self.tokens.get(j + 1) {
+                                    if matches!(next.token, Token::DotDot) {
+                                        found_dotdot = true;
+                                    }
+                                }
+                                break;
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+                if found_dotdot {
+                    self.pos = saved_pos;
+                } else {
+                    let mut arguments = Vec::new();
                     self.advance();
                     if !self.match_token(&Token::RParen) {
                         loop {
@@ -1328,18 +1418,18 @@ impl Parser {
                         }
                     }
                     self.expect_token(&Token::RParen)?;
+                    let cursor_name = if !self.scope_stack.is_empty()
+                        && self.is_var_declared(&name.to_lowercase())
+                    {
+                        Expr::PlVariable(ObjectName::from(vec![name]))
+                    } else {
+                        Expr::ColumnRef(ObjectName::from(vec![name]))
+                    };
+                    return Ok(PlForKind::Cursor {
+                        cursor_name,
+                        arguments,
+                    });
                 }
-                let cursor_name = if !self.scope_stack.is_empty()
-                    && self.is_var_declared(&name.to_lowercase())
-                {
-                    Expr::PlVariable(ObjectName::from(vec![name]))
-                } else {
-                    Expr::ColumnRef(ObjectName::from(vec![name]))
-                };
-                return Ok(PlForKind::Cursor {
-                    cursor_name,
-                    arguments,
-                });
             }
             self.pos = saved_pos;
         }
