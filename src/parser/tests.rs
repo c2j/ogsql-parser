@@ -13911,3 +13911,191 @@ fn test_plpgsql_standalone_label_before_delete() {
         other => panic!("expected labeled Block, got {:?}", other),
     }
 }
+
+// ========== Guardian Tests: error-20260511 regression guards ==========
+
+fn assert_validates(sql: &str, label: &str) {
+    let (infos, errors) = Parser::parse_sql(sql);
+    let real_errors: Vec<_> = errors.iter().filter(|e| !matches!(e, ParserError::Warning { .. })).collect();
+    assert!(real_errors.is_empty(), "{} failed with {} error(s): {:?}", label, real_errors.len(), real_errors);
+    assert!(!infos.is_empty(), "{} produced no statements", label);
+}
+
+#[test]
+fn test_guard_pl_block_then_ddl() {
+    let sql = "\
+DECLARE
+  V_SQL VARCHAR2(1000);
+BEGIN
+  FOR I IN (SELECT DISTINCT T.OBJECT_TYPE AS OBJECT_TYPE FROM MY_OBJECTS T) LOOP
+    V_SQL := 'drop table';
+    EXECUTE IMMEDIATE V_SQL;
+  END LOOP;
+END;
+/
+CREATE TABLE PAR_SYS_AUTO_AUD_TIME (
+  inst_oper_type VARCHAR2(30) NOT NULL,
+  area_code VARCHAR2(4) NOT NULL
+);";
+    assert_validates(sql, "PL block followed by DDL");
+}
+
+#[test]
+fn test_guard_concat_precedence_in_between() {
+    let sql = "SELECT * FROM t WHERE x BETWEEN 'a' || 'b' AND 'c' || 'd'";
+    assert_validates(sql, "|| precedence in BETWEEN");
+}
+
+#[test]
+fn test_guard_nested_paren_union_view() {
+    let sql = "\
+CREATE OR REPLACE VIEW v (id) AS
+SELECT t1.* FROM (((
+  SELECT t.id FROM t1 t
+  UNION ALL
+  SELECT m.id FROM t2 m
+)
+UNION ALL
+SELECT t.id FROM t3 t
+)
+UNION ALL
+SELECT m.id FROM t4 m
+) t1";
+    assert_validates(sql, "nested parenthesized UNION in VIEW");
+}
+
+#[test]
+fn test_guard_for_loop_double_paren_union() {
+    let sql = "\
+CREATE OR REPLACE PACKAGE BODY pkg_test AS
+  PROCEDURE proc1 IS
+  BEGIN
+    FOR j IN ((SELECT t.name FROM t1 t WHERE t.status = 'A' ORDER BY t.id)
+              UNION ALL
+              SELECT NULL name FROM sys_dummy) LOOP
+      v_attr := '';
+    END LOOP;
+  END;
+END;";
+    assert_validates(sql, "double-paren UNION in FOR loop");
+}
+
+#[test]
+fn test_guard_for_loop_range_with_function_bound() {
+    let sql = "\
+CREATE OR REPLACE PACKAGE BODY pkg_test AS
+  PROCEDURE proc1 IS
+    v_count NUMBER;
+  BEGIN
+    FOR j IN 0 .. (to_number(substr('20260101', 1, 4)) -
+                  to_number(substr('20200101', 1, 4))) LOOP
+      v_count := j;
+    END LOOP;
+    FOR i IN to_number(v_count) .. 12 LOOP
+      v_count := i;
+    END LOOP;
+  END;
+END;";
+    assert_validates(sql, "FOR range with function-call bounds");
+}
+
+#[test]
+fn test_guard_reset_procedure_call() {
+    let sql = "\
+CREATE OR REPLACE PACKAGE BODY pkg_test AS
+  PROCEDURE set_val(SELF IN OUT VARCHAR2) IS
+  BEGIN
+    reset(SELF);
+    SELF := 'x';
+  END;
+  PROCEDURE set_val2(SELF IN OUT VARCHAR2, code IN VARCHAR2) IS
+  BEGIN
+    reset(SELF);
+    SELF := code;
+  END;
+END;";
+    assert_validates(sql, "reset() as procedure call");
+}
+
+#[test]
+fn test_guard_unreserved_keyword_assignment() {
+    let sql = "\
+CREATE OR REPLACE PACKAGE BODY pkg_test AS
+  FUNCTION func1 RETURN NUMBER IS
+    RESULT NUMBER;
+    p_mode VARCHAR2(10);
+  BEGIN
+    IF p_mode = 'A' THEN
+      RESULT := 0;
+    ELSIF p_mode = 'B' THEN
+      RESULT := CASE WHEN p_mode = 'X' THEN 100 ELSE 150 END;
+    ELSE
+      RESULT := 200;
+    END IF;
+    RETURN RESULT;
+  END;
+END;";
+    assert_validates(sql, "RESULT (unreserved keyword) as assignment target");
+}
+
+#[test]
+fn test_guard_for_loop_complex_nested_subquery() {
+    let sql = "\
+CREATE OR REPLACE PACKAGE BODY pkg_test AS
+  PROCEDURE proc1 IS
+  BEGIN
+    FOR r IN (
+      SELECT t_out.code, (SELECT s.name FROM dict s WHERE s.code LIKE t_out.code || '%') name
+      FROM ((SELECT t.code FROM balance t
+             WHERE t.report_type = '01'
+               AND NOT EXISTS (SELECT 1 FROM ext ex WHERE ex.id = t.id
+                               UNION ALL
+                               SELECT 1 FROM ext ex WHERE t.code LIKE ex.code || '%'))) t_out
+    ) LOOP
+      v_err := v_err + 1;
+    END LOOP;
+  END;
+END;";
+    assert_validates(sql, "complex nested subquery in FOR loop");
+}
+
+#[test]
+fn test_guard_for_loop_triple_nested_from() {
+    let sql = "\
+CREATE OR REPLACE PACKAGE BODY pkg_test AS
+  PROCEDURE proc1 IS
+  BEGIN
+    FOR i IN (SELECT a.str
+              FROM (SELECT t.cap_date,
+                           (SELECT b.name FROM area b WHERE b.code = t.code) name,
+                           t.fund
+                    FROM (SELECT t.cap_date, p.code, p.fund
+                          FROM base_info t, fund_info p
+                          WHERE t.fund_code = p.fund_code
+                          UNION ALL
+                          SELECT t.cap_date, p.code, p.fund
+                          FROM base_info_chk t, fund_info p
+                          WHERE t.usage = 'T') t) a
+              ORDER BY a.name) LOOP
+      v_str := i.str;
+    END LOOP;
+  END;
+END;";
+    assert_validates(sql, "triple nested FROM subquery in FOR loop");
+}
+
+#[test]
+fn test_guard_bulk_exceptions_attribute() {
+    let sql = "\
+DO $$
+DECLARE
+  v_errors NUMBER;
+BEGIN
+  v_errors := SQL%BULK_EXCEPTIONS.COUNT;
+  FOR i IN 1 .. v_errors LOOP
+    v_code := SQL%BULK_EXCEPTIONS(i).ERROR_CODE;
+  END LOOP;
+END;
+$$";
+    assert_validates(sql, "%BULK_EXCEPTIONS attribute with subscript and field");
+}

@@ -390,7 +390,12 @@ impl Parser {
                 self.advance();
                 self.expect_token(&Token::LParen)?;
                 loop {
-                    let key = self.parse_identifier()?;
+                    let mut key_parts = vec![self.parse_identifier()?];
+                    while self.match_token(&Token::Dot) {
+                        self.advance();
+                        key_parts.push(self.parse_identifier()?);
+                    }
+                    let key = key_parts.join(".");
                     self.expect_token(&Token::Eq)?;
                     let val = match self.peek().clone() {
                         Token::StringLiteral(s) => {
