@@ -96,6 +96,15 @@ impl Parser {
             } else if self.match_ident_str("PCTUSED") {
                 self.advance();
                 let _ = self.parse_expr();
+            } else if self.match_ident_str("PARALLEL") {
+                self.advance();
+                if matches!(self.peek(), Token::Integer(_)) {
+                    self.advance();
+                }
+            } else if self.match_keyword(Keyword::NOLOGGING) || self.match_keyword(Keyword::LOGGING) {
+                self.advance();
+            } else if self.match_keyword(Keyword::UNUSABLE) {
+                self.advance();
             } else {
                 break;
             }
@@ -1289,8 +1298,34 @@ impl Parser {
             if self.match_keyword(Keyword::PARTITION) {
                 self.advance();
                 let partition_name = self.parse_identifier()?;
+                if self.match_ident_str("PARALLEL") {
+                    self.advance();
+                    if matches!(self.peek(), Token::Integer(_)) {
+                        self.advance();
+                    }
+                }
+                if self.match_keyword(Keyword::NOLOGGING) || self.match_keyword(Keyword::LOGGING) {
+                    self.advance();
+                }
+                if self.match_keyword(Keyword::TABLESPACE) {
+                    self.advance();
+                    let _ = self.parse_identifier();
+                }
                 AlterIndexAction::RebuildPartition { partition_name }
             } else {
+                if self.match_ident_str("PARALLEL") {
+                    self.advance();
+                    if matches!(self.peek(), Token::Integer(_)) {
+                        self.advance();
+                    }
+                }
+                if self.match_keyword(Keyword::NOLOGGING) || self.match_keyword(Keyword::LOGGING) {
+                    self.advance();
+                }
+                if self.match_keyword(Keyword::TABLESPACE) {
+                    self.advance();
+                    let _ = self.parse_identifier();
+                }
                 AlterIndexAction::Rebuild
             }
         } else if self.match_keyword(Keyword::MOVE) {
