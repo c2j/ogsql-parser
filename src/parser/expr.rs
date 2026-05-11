@@ -239,7 +239,7 @@ impl Parser {
             Token::OpArrow => Some((60, "->".to_string(), false)),
             Token::OpJsonArrow => Some((60, "->>".to_string(), false)),
             Token::OpDblBang => Some((60, "!!".to_string(), true)),
-            Token::OpConcat => Some((30, "||".to_string(), false)),
+            Token::OpConcat => Some((50, "||".to_string(), false)),
             Token::Op(op) => {
                 let prec = match op.as_str() {
                     "<?>" => 20,
@@ -530,6 +530,16 @@ impl Parser {
                         }
                     }
                 }
+                if matches!(left, Expr::CursorAttribute { .. }) {
+                    self.advance();
+                    let index = self.parse_expr()?;
+                    self.expect_token(&Token::RParen)?;
+                    *left = Expr::Subscript {
+                        object: Box::new(std::mem::replace(left, Expr::Default)),
+                        index: Box::new(index),
+                    };
+                    return Ok(true);
+                }
                 Ok(false)
             }
             Token::Op(op) if op == "!" => {
@@ -544,6 +554,7 @@ impl Parser {
                 if matches!(left, Expr::Parenthesized(_))
                     || matches!(left, Expr::FunctionCall { .. })
                     || matches!(left, Expr::FieldAccess { .. })
+                    || matches!(left, Expr::CursorAttribute { .. })
                 {
                     self.advance();
                     let field = self.parse_identifier()?;

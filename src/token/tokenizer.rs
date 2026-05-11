@@ -734,7 +734,11 @@ impl<'a> Tokenizer<'a> {
                     }
                 }
                 let op_str = &self.input[start..self.pos];
-                Token::Op(op_str.to_string())
+                if op_str == "||" {
+                    Token::OpConcat
+                } else {
+                    Token::Op(op_str.to_string())
+                }
             }
 
             '\\' => {
