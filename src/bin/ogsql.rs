@@ -936,17 +936,37 @@ fn cmd_validate(cli: &Cli) {
     let sql = read_input(cli.file.as_deref());
     let output = parse_input(&sql, false, cli.mybatis);
     let stmts = output.statements;
-    let errors = output.errors;
+    let mut errors = output.errors;
+
+    let pkg_errors = ogsql_parser::validate_package_consistency(&stmts);
+    if !pkg_errors.is_empty() {
+        for pe in &pkg_errors {
+            let msg = match &pe.detail {
+                Some(d) => format!("package {}: {} — {}", pe.package_name, pe.subprogram_name, d),
+                None => format!("package {}: {} — {:?}", pe.package_name, pe.subprogram_name, pe.kind),
+            };
+            errors.push(ogsql_parser::ParserError::Warning {
+                message: msg,
+                location: ogsql_parser::SourceLocation::default(),
+            });
+        }
+    }
 
     if cli.json {
         let warnings: Vec<_> = errors.iter().filter(|e| is_warning(e)).collect();
         let real_errors: Vec<_> = errors.iter().filter(|e| !is_warning(e)).collect();
-        let out = serde_json::json!({
+        let mut out = serde_json::json!({
             "valid": real_errors.is_empty(),
             "error_count": real_errors.len(),
             "warning_count": warnings.len(),
             "errors": errors,
         });
+        if !pkg_errors.is_empty() {
+            out.as_object_mut().unwrap().insert(
+                "package_consistency_errors".to_string(),
+                serde_json::json!(pkg_errors),
+            );
+        }
         println!("{}", serde_json::to_string_pretty(&out).unwrap());
     } else {
         let real_errors: Vec<_> = errors.iter().filter(|e| !is_warning(e)).collect();
@@ -1393,11 +1413,35 @@ mod api {
     )]
     pub async fn handle_validate(Json(input): Json<SqlInput>) -> Json<serde_json::Value> {
         let output = super::parse_input(&input.sql, false, false);
-        Json(serde_json::json!({
-            "valid": output.errors.is_empty(),
-            "error_count": output.errors.len(),
-            "errors": output.errors,
-        }))
+        let pkg_errors = ogsql_parser::validate_package_consistency(&output.statements);
+        let has_pkg_issues = !pkg_errors.is_empty();
+        let mut errors = output.errors;
+        if has_pkg_issues {
+            for pe in &pkg_errors {
+                let msg = match &pe.detail {
+                    Some(d) => format!("package {}: {} — {}", pe.package_name, pe.subprogram_name, d),
+                    None => format!("package {}: {} — {:?}", pe.package_name, pe.subprogram_name, pe.kind),
+                };
+                errors.push(ogsql_parser::ParserError::Warning {
+                    message: msg,
+                    location: ogsql_parser::SourceLocation::default(),
+                });
+            }
+        }
+        let has_real_errors = errors.iter().any(|e| !super::is_warning(e));
+        let mut result = serde_json::json!({
+            "valid": !has_real_errors,
+            "error_count": errors.iter().filter(|e| !super::is_warning(e)).count(),
+            "warning_count": errors.iter().filter(|e| super::is_warning(e)).count(),
+            "errors": errors,
+        });
+        if has_pkg_issues {
+            result.as_object_mut().unwrap().insert(
+                "package_consistency_errors".to_string(),
+                serde_json::json!(pkg_errors),
+            );
+        }
+        Json(result)
     }
 
     /// Convert JSON (from /api/parse) back to SQL
