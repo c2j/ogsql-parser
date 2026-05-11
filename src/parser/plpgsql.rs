@@ -2434,26 +2434,42 @@ fn is_pl_terminator(p: &Parser) -> bool {
     terminators.iter().any(|t| p.match_ident_str(t))
 }
 
-fn attach_label(mut stmt: PlStatement, label: Option<String>) -> PlStatement {
-    match &mut stmt {
-        PlStatement::Loop(s) => {
-            s.node.label = label.clone();
+fn attach_label(stmt: PlStatement, label: Option<String>) -> PlStatement {
+    let label = match label {
+        Some(l) => l,
+        None => return stmt,
+    };
+    match stmt {
+        PlStatement::Loop(mut s) => {
+            s.node.label = Some(label);
+            PlStatement::Loop(s)
         }
-        PlStatement::While(s) => {
-            s.node.label = label.clone();
+        PlStatement::While(mut s) => {
+            s.node.label = Some(label);
+            PlStatement::While(s)
         }
-        PlStatement::For(s) => {
-            s.node.label = label.clone();
+        PlStatement::For(mut s) => {
+            s.node.label = Some(label);
+            PlStatement::For(s)
         }
-        PlStatement::ForEach(s) => {
-            s.node.label = label.clone();
+        PlStatement::ForEach(mut s) => {
+            s.node.label = Some(label);
+            PlStatement::ForEach(s)
         }
-        PlStatement::Block(s) => {
-            s.node.label = label.clone();
+        PlStatement::Block(mut s) => {
+            s.node.label = Some(label);
+            PlStatement::Block(s)
         }
-        _ => {}
+        // Standalone label before non-control statement: wrap in a labeled Block
+        // so the label is preserved in the AST for GOTO target analysis.
+        other => PlStatement::Block(Spanned::new(PlBlock {
+            label: Some(label),
+            declarations: Vec::new(),
+            body: vec![other],
+            exception_block: None,
+            end_label: None,
+        }, None)),
     }
-    stmt
 }
 
 impl Parser {

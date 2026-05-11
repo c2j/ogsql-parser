@@ -13878,3 +13878,36 @@ fn test_cursor_attribute_format_roundtrip() {
         output
     );
 }
+
+#[test]
+fn test_plpgsql_standalone_label_before_null() {
+    let block = parse_do_block("DO $$ BEGIN NULL; <<cleanup>> NULL; END $$");
+    println!("Body has {} statements:", block.body.len());
+    for (i, s) in block.body.iter().enumerate() {
+        println!("  [{}] {:?}", i, s);
+    }
+    // First statement is plain Null
+    assert!(matches!(block.body[0], PlStatement::Null));
+    // Second should be a labeled Block wrapping Null
+    match &block.body[1] {
+        PlStatement::Block(b) => {
+            assert_eq!(b.label.as_deref(), Some("cleanup"));
+        }
+        other => panic!("expected labeled Block, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_plpgsql_standalone_label_before_delete() {
+    let block = parse_do_block("DO $$ BEGIN <<cleanup>> DELETE FROM t; END $$");
+    println!("Body has {} statements:", block.body.len());
+    for (i, s) in block.body.iter().enumerate() {
+        println!("  [{}] {:?}", i, s);
+    }
+    match &block.body[0] {
+        PlStatement::Block(b) => {
+            assert_eq!(b.label.as_deref(), Some("cleanup"));
+        }
+        other => panic!("expected labeled Block, got {:?}", other),
+    }
+}
