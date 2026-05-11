@@ -1123,5 +1123,294 @@ impl TransactionAnalyzer {
     }
 }
 
+// ── Package Spec vs Body Consistency Validation ──
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct PackageConsistencyError {
+    pub package_name: String,
+    pub subprogram_name: String,
+    pub kind: PackageConsistencyErrorKind,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub detail: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub enum PackageConsistencyErrorKind {
+    /// A subprogram exists in the spec but is missing from the body
+    MissingInBody,
+    /// A subprogram exists in the body but is not declared in the spec
+    ExtraInBody,
+    /// Parameter count differs between spec and body
+    ParamCountMismatch { spec_count: usize, body_count: usize },
+    /// A parameter has a default value in the spec but not in the body (or vice versa)
+    DefaultMismatch { param_name: String, spec_default: Option<String>, body_default: Option<String> },
+    /// A parameter has a different data type in spec vs body
+    TypeMismatch { param_name: String, spec_type: String, body_type: String },
+}
+
+/// Validate that all package specs and bodies in the parsed statements are consistent.
+/// Returns a list of errors/warnings for each mismatch found.
+pub fn validate_package_consistency(
+    stmts: &[crate::ast::StatementInfo],
+) -> Vec<PackageConsistencyError> {
+    use crate::ast::{Statement, CreatePackageStatement, CreatePackageBodyStatement};
+
+    let mut specs: std::collections::HashMap<String, &CreatePackageStatement> =
+        std::collections::HashMap::new();
+    let mut bodies: std::collections::HashMap<String, &CreatePackageBodyStatement> =
+        std::collections::HashMap::new();
+
+    for si in stmts {
+        match &si.statement {
+            Statement::CreatePackage(spec) => {
+                let name = object_name_str(&spec.name);
+                specs.insert(name, spec);
+            }
+            Statement::CreatePackageBody(body) => {
+                let name = object_name_str(&body.name);
+                bodies.insert(name, body);
+            }
+            _ => {}
+        }
+    }
+
+    let mut errors = Vec::new();
+
+    for (pkg_name, spec) in &specs {
+        if let Some(body) = bodies.get(pkg_name) {
+            validate_single_package(pkg_name, spec, body, &mut errors);
+        }
+    }
+
+    errors
+}
+
+fn object_name_str(name: &crate::ast::ObjectName) -> String {
+    name.iter()
+        .map(|s| s.to_uppercase())
+        .collect::<Vec<_>>()
+        .join(".")
+}
+
+fn validate_single_package(
+    pkg_name: &str,
+    spec: &crate::ast::CreatePackageStatement,
+    body: &crate::ast::CreatePackageBodyStatement,
+    errors: &mut Vec<PackageConsistencyError>,
+) {
+    use crate::ast::PackageItem;
+
+    let spec_funcs: std::collections::HashMap<String, &crate::ast::PackageFunction> = spec.items
+        .iter()
+        .filter_map(|item| match item {
+            PackageItem::Function(f) => {
+                let name = object_name_str(&f.name);
+                Some((name, f))
+            }
+            _ => None,
+        })
+        .collect();
+
+    let spec_procs: std::collections::HashMap<String, &crate::ast::PackageProcedure> = spec.items
+        .iter()
+        .filter_map(|item| match item {
+            PackageItem::Procedure(p) => {
+                let name = object_name_str(&p.name);
+                Some((name, p))
+            }
+            _ => None,
+        })
+        .collect();
+
+    let body_funcs: std::collections::HashMap<String, &crate::ast::PackageFunction> = body.items
+        .iter()
+        .filter_map(|item| match item {
+            PackageItem::Function(f) => {
+                let name = object_name_str(&f.name);
+                Some((name, f))
+            }
+            _ => None,
+        })
+        .collect();
+
+    let body_procs: std::collections::HashMap<String, &crate::ast::PackageProcedure> = body.items
+        .iter()
+        .filter_map(|item| match item {
+            PackageItem::Procedure(p) => {
+                let name = object_name_str(&p.name);
+                Some((name, p))
+            }
+            _ => None,
+        })
+        .collect();
+
+    for (func_name, spec_func) in &spec_funcs {
+        if let Some(body_func) = body_funcs.get(func_name) {
+            compare_params(
+                pkg_name,
+                func_name,
+                &spec_func.parameters,
+                &body_func.parameters,
+                errors,
+            );
+        } else {
+            errors.push(PackageConsistencyError {
+                package_name: pkg_name.to_string(),
+                subprogram_name: func_name.clone(),
+                kind: PackageConsistencyErrorKind::MissingInBody,
+                detail: Some("FUNCTION declared in package spec but not defined in package body".to_string()),
+            });
+        }
+    }
+
+    for (proc_name, spec_proc) in &spec_procs {
+        if let Some(body_proc) = body_procs.get(proc_name) {
+            compare_params(
+                pkg_name,
+                proc_name,
+                &spec_proc.parameters,
+                &body_proc.parameters,
+                errors,
+            );
+        } else {
+            errors.push(PackageConsistencyError {
+                package_name: pkg_name.to_string(),
+                subprogram_name: proc_name.clone(),
+                kind: PackageConsistencyErrorKind::MissingInBody,
+                detail: Some("PROCEDURE declared in package spec but not defined in package body".to_string()),
+            });
+        }
+    }
+
+    for func_name in body_funcs.keys() {
+        if !spec_funcs.contains_key(func_name) {
+            errors.push(PackageConsistencyError {
+                package_name: pkg_name.to_string(),
+                subprogram_name: func_name.clone(),
+                kind: PackageConsistencyErrorKind::ExtraInBody,
+                detail: Some("FUNCTION defined in package body but not declared in package spec".to_string()),
+            });
+        }
+    }
+
+    for proc_name in body_procs.keys() {
+        if !spec_procs.contains_key(proc_name) {
+            errors.push(PackageConsistencyError {
+                package_name: pkg_name.to_string(),
+                subprogram_name: proc_name.clone(),
+                kind: PackageConsistencyErrorKind::ExtraInBody,
+                detail: Some("PROCEDURE defined in package body but not declared in package spec".to_string()),
+            });
+        }
+    }
+}
+
+fn compare_params(
+    pkg_name: &str,
+    subprogram_name: &str,
+    spec_params: &[crate::ast::RoutineParam],
+    body_params: &[crate::ast::RoutineParam],
+    errors: &mut Vec<PackageConsistencyError>,
+) {
+    if spec_params.len() != body_params.len() {
+        errors.push(PackageConsistencyError {
+            package_name: pkg_name.to_string(),
+            subprogram_name: subprogram_name.to_string(),
+            kind: PackageConsistencyErrorKind::ParamCountMismatch {
+                spec_count: spec_params.len(),
+                body_count: body_params.len(),
+            },
+            detail: None,
+        });
+    }
+
+    let max_len = spec_params.len().max(body_params.len());
+    for i in 0..max_len {
+        let spec_p = match spec_params.get(i) {
+            Some(p) => p,
+            None => continue,
+        };
+        let body_p = match body_params.get(i) {
+            Some(p) => p,
+            None => continue,
+        };
+
+        match (&spec_p.default_value, &body_p.default_value) {
+            (Some(_), None) => {
+                errors.push(PackageConsistencyError {
+                    package_name: pkg_name.to_string(),
+                    subprogram_name: subprogram_name.to_string(),
+                    kind: PackageConsistencyErrorKind::DefaultMismatch {
+                        param_name: spec_p.name.clone(),
+                        spec_default: spec_p.default_value.clone(),
+                        body_default: None,
+                    },
+                    detail: Some(format!(
+                        "Parameter '{}' has DEFAULT value '{}' in spec but no DEFAULT in body",
+                        spec_p.name,
+                        spec_p.default_value.as_deref().unwrap_or("")
+                    )),
+                });
+            }
+            (None, Some(_)) => {
+                errors.push(PackageConsistencyError {
+                    package_name: pkg_name.to_string(),
+                    subprogram_name: subprogram_name.to_string(),
+                    kind: PackageConsistencyErrorKind::DefaultMismatch {
+                        param_name: body_p.name.clone(),
+                        spec_default: None,
+                        body_default: body_p.default_value.clone(),
+                    },
+                    detail: Some(format!(
+                        "Parameter '{}' has no DEFAULT in spec but has DEFAULT '{}' in body",
+                        body_p.name,
+                        body_p.default_value.as_deref().unwrap_or("")
+                    )),
+                });
+            }
+            (Some(spec_def), Some(body_def)) => {
+                if !default_values_equivalent(spec_def, body_def) {
+                    errors.push(PackageConsistencyError {
+                        package_name: pkg_name.to_string(),
+                        subprogram_name: subprogram_name.to_string(),
+                        kind: PackageConsistencyErrorKind::DefaultMismatch {
+                            param_name: spec_p.name.clone(),
+                            spec_default: Some(spec_def.clone()),
+                            body_default: Some(body_def.clone()),
+                        },
+                        detail: Some(format!(
+                            "Parameter '{}' DEFAULT value differs: spec has '{}', body has '{}'",
+                            spec_p.name, spec_def, body_def
+                        )),
+                    });
+                }
+            }
+            (None, None) => {}
+        }
+
+        let spec_type = spec_p.data_type.to_uppercase().replace(' ', "");
+        let body_type = body_p.data_type.to_uppercase().replace(' ', "");
+        if spec_type != body_type {
+            errors.push(PackageConsistencyError {
+                package_name: pkg_name.to_string(),
+                subprogram_name: subprogram_name.to_string(),
+                kind: PackageConsistencyErrorKind::TypeMismatch {
+                    param_name: spec_p.name.clone(),
+                    spec_type: spec_p.data_type.clone(),
+                    body_type: body_p.data_type.clone(),
+                },
+                detail: None,
+            });
+        }
+    }
+}
+
+/// Compare default values for semantic equivalence.
+/// Handles common cases like "NULL" vs "null", extra whitespace, etc.
+fn default_values_equivalent(a: &str, b: &str) -> bool {
+    let normalize = |s: &str| s.trim().to_uppercase();
+    normalize(a) == normalize(b)
+}
+
 #[cfg(test)]
 mod tests;

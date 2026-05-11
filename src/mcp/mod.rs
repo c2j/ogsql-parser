@@ -216,15 +216,35 @@ impl OgsqlServer {
                 mybatis_params: false,
             },
         );
-        let errors = output.errors;
+        let pkg_errors = crate::validate_package_consistency(&output.statements);
+        let mut errors = output.errors;
+        if !pkg_errors.is_empty() {
+            for pe in &pkg_errors {
+                let msg = match &pe.detail {
+                    Some(d) => format!("package {}: {} — {}", pe.package_name, pe.subprogram_name, d),
+                    None => format!("package {}: {} — {:?}", pe.package_name, pe.subprogram_name, pe.kind),
+                };
+                errors.push(crate::ParserError::Warning {
+                    message: msg,
+                    location: crate::SourceLocation::default(),
+                });
+            }
+        }
         let has_real_errors = errors.iter().any(|e| !is_warning(e));
-        serde_json::to_string_pretty(&serde_json::json!({
+        let mut result = serde_json::json!({
             "valid": !has_real_errors,
             "error_count": errors.iter().filter(|e| !is_warning(e)).count(),
             "warning_count": errors.iter().filter(|e| is_warning(e)).count(),
             "errors": errors,
-        }))
-        .unwrap_or_else(|e| format!("{{\"error\": \"{}\"}}", e))
+        });
+        if !pkg_errors.is_empty() {
+            result.as_object_mut().unwrap().insert(
+                "package_consistency_errors".to_string(),
+                serde_json::json!(pkg_errors),
+            );
+        }
+        serde_json::to_string_pretty(&result)
+            .unwrap_or_else(|e| format!("{{\"error\": \"{}\"}}", e))
     }
 
     #[tool(description = "Convert JSON AST (from parse tool output) back to SQL text")]
