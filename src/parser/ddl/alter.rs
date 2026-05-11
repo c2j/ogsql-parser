@@ -176,6 +176,7 @@ impl Parser {
                             });
                         }
                         let constraint = self.parse_table_constraint()?;
+                        self.try_consume_keyword(Keyword::NOVALIDATE);
                         Ok(AlterTableAction::AddConstraint { name, constraint })
                     } else {
                         let col = self.parse_column_def()?;
@@ -234,6 +235,7 @@ impl Parser {
                             self.advance();
                             self.expect_keyword(Keyword::INDEX)?;
                             let index_name = self.parse_identifier()?;
+                            self.try_consume_keyword(Keyword::NOVALIDATE);
                             return Ok(AlterTableAction::AddConstraintUsingIndex {
                                 name: name.clone().unwrap_or_default(),
                                 index_name,
@@ -254,6 +256,7 @@ impl Parser {
                             self.advance();
                             self.expect_keyword(Keyword::INDEX)?;
                             let index_name = self.parse_identifier()?;
+                            self.try_consume_keyword(Keyword::NOVALIDATE);
                             return Ok(AlterTableAction::AddConstraintUsingIndex {
                                 name: name.clone().unwrap_or_default(),
                                 index_name,
@@ -265,6 +268,7 @@ impl Parser {
                             });
                         }
                         let constraint = self.parse_table_constraint()?;
+                        self.try_consume_keyword(Keyword::NOVALIDATE);
                         Ok(AlterTableAction::AddConstraint { name, constraint })
                     } else {
                         let col = self.parse_column_def()?;
@@ -923,6 +927,14 @@ impl Parser {
                     } else if self.match_keyword(Keyword::NULL_P) {
                         self.advance();
                         AlterColumnAction::DropNotNull
+                    } else if self.match_keyword(Keyword::DEFAULT) {
+                        self.advance();
+                        let _default_expr = self.parse_expr()?;
+                        if self.match_keyword(Keyword::NOT) {
+                            self.advance();
+                            self.expect_keyword(Keyword::NULL_P)?;
+                        }
+                        AlterColumnAction::SetNotNull
                     } else {
                         let data_type = self.parse_data_type()?;
                         if self.match_keyword(Keyword::NOT) {
