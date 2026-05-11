@@ -5139,6 +5139,12 @@ impl SqlFormatter {
             PlStatement::PipeRow { expression } => {
                 format!("{}({});", self.kw("PIPE ROW"), self.format_expr(expression))
             }
+            PlStatement::VariableSet(set_stmt) => {
+                format!("{};", self.format_variable_set(set_stmt))
+            }
+            PlStatement::VariableReset(reset_stmt) => {
+                format!("{};", self.format_variable_reset(reset_stmt))
+            }
         }
     }
 

@@ -699,19 +699,18 @@ impl Parser {
                 self.advance();
                 self.parse_pl_set_transaction()
             } else {
-                self.try_parse_dml_as_pl_statement()
-                    .ok_or_else(|| ParserError::UnexpectedToken {
-                        location: self.current_location(),
-                        expected: "statement".to_string(),
-                        got: format!("{:?}", self.peek()),
-                    })
+                self.advance();
+                let set_stmt = self.parse_set()?;
+                self.try_consume_semicolon();
+                Ok(PlStatement::VariableSet(Spanned::new(set_stmt, None)))
             }
+        } else if self.match_ident_str("reset") {
+            self.advance();
+            let reset_stmt = self.parse_reset()?;
+            self.try_consume_semicolon();
+            Ok(PlStatement::VariableReset(Spanned::new(reset_stmt, None)))
         } else if let Some(stmt) = self.try_parse_dml_as_pl_statement() {
             Ok(stmt)
-        } else if self.match_ident_str("set") && self.lookahead_is_transaction() {
-            self.advance();
-            self.advance();
-            self.parse_pl_set_transaction()
         } else {
             self.parse_pl_sql_or_assignment()
         }?;
