@@ -222,6 +222,10 @@ pub enum PlStatement {
     PipeRow {
         expression: crate::ast::Expr,
     },
+
+    VariableSet(Spanned<crate::ast::VariableSetStatement>),
+
+    VariableReset(Spanned<crate::ast::VariableResetStatement>),
 }
 
 // ── Statement Detail Types ──
