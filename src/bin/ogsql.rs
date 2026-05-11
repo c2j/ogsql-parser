@@ -67,9 +67,10 @@ enum Commands {
     },
     /// Parse SQL into AST and print the abstract syntax tree / 解析 SQL 为 AST
     Parse {
-        /// Recursively scan directory for SQL files / 递归扫描目录中的 SQL 文件
+        /// Recursively scan directory for SQL files (can specify multiple times)
+        /// 递归扫描目录中的 SQL 文件（可多次指定）
         #[arg(short = 'd', long = "dir")]
-        dir: Option<String>,
+        dir: Vec<String>,
         /// File extensions to scan, comma-separated (default: sql) / 扫描的文件扩展名，逗号分隔
         #[arg(short = 'e', long = "ext", value_delimiter = ',', default_value = "sql")]
         ext: Vec<String>,
@@ -336,16 +337,17 @@ fn cmd_parse(cli: &Cli) {
 
 fn cmd_parse_dir(
     cli: &Cli,
-    dir_path: &str,
+    dir_paths: &[String],
     exts: &[String],
     csv: bool,
     output_dir: Option<&str>,
 ) {
     use std::path::Path;
 
-    let root = Path::new(dir_path);
-    if !root.is_dir() {
-        die!("Error: '{}' is not a directory", dir_path);
+    for dir_path in dir_paths {
+        if !Path::new(dir_path).is_dir() {
+            die!("Error: '{}' is not a directory", dir_path);
+        }
     }
 
     if cli.json && output_dir.is_none() {
@@ -358,40 +360,46 @@ fn cmd_parse_dir(
         .collect();
 
     let mut files: Vec<(String, String, std::path::PathBuf)> = Vec::new();
-    for entry in walkdir::WalkDir::new(dir_path)
-        .into_iter()
-        .filter_map(|e| e.ok())
-    {
-        let path = entry.path();
-        if !path.is_file() {
-            continue;
-        }
-        let file_ext = path
-            .extension()
-            .and_then(|e| e.to_str())
-            .unwrap_or("")
-            .to_ascii_lowercase();
-        if !normalized_exts.iter().any(|e| *e == file_ext) {
-            continue;
-        }
+    for dir_path in dir_paths {
+        let root = Path::new(dir_path);
+        for entry in walkdir::WalkDir::new(dir_path)
+            .into_iter()
+            .filter_map(|e| e.ok())
+        {
+            let path = entry.path();
+            if !path.is_file() {
+                continue;
+            }
+            let file_ext = path
+                .extension()
+                .and_then(|e| e.to_str())
+                .unwrap_or("")
+                .to_ascii_lowercase();
+            if !normalized_exts.iter().any(|e| *e == file_ext) {
+                continue;
+            }
 
-        let rel_dir = path
-            .parent()
-            .and_then(|p| p.strip_prefix(root).ok())
-            .map(|p| {
-                let s = p.to_str().unwrap_or(".");
-                if s.is_empty() { "." } else { s }
-            })
-            .unwrap_or(".")
-            .to_string();
+            let rel_dir = path
+                .parent()
+                .and_then(|p| p.strip_prefix(root).ok())
+                .map(|p| {
+                    let s = p.to_str().unwrap_or(".");
+                    if s.is_empty() { "." } else { s }
+                })
+                .unwrap_or(".")
+                .to_string();
 
-        let file_name = path
-            .file_name()
-            .map(|n| n.to_string_lossy().to_string())
-            .unwrap_or_default();
+            let file_name = path
+                .file_name()
+                .map(|n| n.to_string_lossy().to_string())
+                .unwrap_or_default();
 
         files.push((file_name, rel_dir, path.to_path_buf()));
+        }
     }
+
+    files.sort_by(|a, b| a.2.cmp(&b.2));
+    files.dedup_by(|a, b| a.2 == b.2);
 
     if files.is_empty() {
         eprintln!("No files found with extension(s): {}", exts.join(", "));
@@ -2472,11 +2480,11 @@ fn main() {
             no_semicolon_newline,
         ),
         Commands::Parse { ref dir, ref ext, csv, ref output_dir } => {
-            if dir.is_some() && cli.file.is_some() {
+            if !dir.is_empty() && cli.file.is_some() {
                 die!("Error: --dir and -f are mutually exclusive");
             }
-            if let Some(dir_path) = dir {
-                cmd_parse_dir(&cli, dir_path, ext, csv, output_dir.as_deref());
+            if !dir.is_empty() {
+                cmd_parse_dir(&cli, dir, ext, csv, output_dir.as_deref());
             } else {
                 cmd_parse(&cli);
             }
