@@ -81,6 +81,9 @@ enum Commands {
         /// JSON 文件输出目录（配合 --dir -j 使用，保留目录层次结构）
         #[arg(short = 'o', long = "output-dir")]
         output_dir: Option<String>,
+        /// Print statistics after directory processing
+        #[arg(long)]
+        stats: bool,
     },
     /// Convert JSON (from `parse -j`) back to SQL / 将 JSON（parse -j 的输出）还原为 SQL
     #[command(name = "json2sql")]
@@ -96,6 +99,9 @@ enum Commands {
         /// File extensions to scan, comma-separated (default: sql) / 扫描的文件扩展名，逗号分隔
         #[arg(short = 'e', long = "ext", value_delimiter = ',', default_value = "sql")]
         ext: Vec<String>,
+        /// Print statistics after directory processing
+        #[arg(long)]
+        stats: bool,
     },
     #[cfg(feature = "serve")]
     /// Start an HTTP API server for parsing SQL / 启动 HTTP API 服务器
@@ -122,6 +128,9 @@ enum Commands {
         /// Java source root directory for parameter type inference / Java 源码根目录，用于参数类型推断
         #[arg(long = "java-src")]
         java_src: Option<String>,
+        /// Print statistics after directory processing
+        #[arg(long)]
+        stats: bool,
     },
     #[cfg(feature = "java")]
     /// Extract and parse SQL from Java source files / 从 Java 源文件中提取并解析 SQL
@@ -135,6 +144,9 @@ enum Commands {
         /// Output in CSV format / 以 CSV 格式输出
         #[arg(long = "csv")]
         csv: bool,
+        /// Print statistics after directory processing
+        #[arg(long)]
+        stats: bool,
     },
 }
 
@@ -349,6 +361,7 @@ fn cmd_parse_dir(
     exts: &[String],
     csv: bool,
     output_dir: Option<&str>,
+    stats: bool,
 ) {
     use std::path::Path;
 
@@ -414,12 +427,30 @@ fn cmd_parse_dir(
         return;
     }
 
+    let mut files_with_errors: HashSet<String> = HashSet::new();
+    let mut files_with_warnings: HashSet<String> = HashSet::new();
+    let mut stmt_counts: BTreeMap<&'static str, usize> = BTreeMap::new();
+    let mut error_kinds: BTreeMap<&'static str, (usize, HashSet<String>)> = BTreeMap::new();
+    let mut warning_kinds: BTreeMap<&'static str, (usize, HashSet<String>)> = BTreeMap::new();
+
     if csv {
         output_csv_parse_header();
         for (file_name, rel_dir, abs_path) in &files {
             let sql = read_file_path(abs_path);
             let output = parse_input(&sql, cli.comments, cli.mybatis);
             output_csv_parse_rows(&output.statements, file_name, rel_dir, &output.errors);
+            for si in &output.statements {
+                *stmt_counts.entry(stmt_category(&si.statement)).or_insert(0) += 1;
+            }
+            for err in &output.errors {
+                let kind = parser_error_kind(err);
+                let file_set = if is_warning(err) { &mut warning_kinds } else { &mut error_kinds };
+                let entry = file_set.entry(kind).or_insert((0, HashSet::new()));
+                entry.0 += 1;
+                entry.1.insert(file_name.clone());
+                if is_warning(err) { files_with_warnings.insert(file_name.clone()); }
+                else { files_with_errors.insert(file_name.clone()); }
+            }
         }
     } else if cli.json {
         let out_root = Path::new(output_dir.unwrap());
@@ -446,6 +477,19 @@ fn cmd_parse_dir(
             total_stmts += output.statements.len();
             total_files += 1;
 
+            for si in &output.statements {
+                *stmt_counts.entry(stmt_category(&si.statement)).or_insert(0) += 1;
+            }
+            for err in &output.errors {
+                let kind = parser_error_kind(err);
+                let file_set = if is_warning(err) { &mut warning_kinds } else { &mut error_kinds };
+                let entry = file_set.entry(kind).or_insert((0, HashSet::new()));
+                entry.0 += 1;
+                entry.1.insert(file_name.clone());
+                if is_warning(err) { files_with_warnings.insert(file_name.clone()); }
+                else { files_with_errors.insert(file_name.clone()); }
+            }
+
             let real_errors: Vec<_> = output.errors.iter().filter(|e| !is_warning(e)).cloned().collect();
             if !real_errors.is_empty() {
                 eprintln!(
@@ -462,11 +506,32 @@ fn cmd_parse_dir(
             "Wrote {} file(s), {} statement(s) to {}",
             total_files, total_stmts, out_root.display()
         );
+        if stats {
+            print_parse_stats(total_files, &files_with_errors, &files_with_warnings,
+                total_stmts, &stmt_counts, &error_kinds, &warning_kinds, "parse -j");
+        }
     } else {
-        let mut total = 0usize;
+        let mut total_files_txt = 0usize;
+        let mut total_stmts_txt = 0usize;
         for (file_name, _rel_dir, abs_path) in &files {
             let sql = read_file_path(abs_path);
             let output = parse_input(&sql, cli.comments, cli.mybatis);
+
+            total_files_txt += 1;
+            total_stmts_txt += output.statements.len();
+
+            for si in &output.statements {
+                *stmt_counts.entry(stmt_category(&si.statement)).or_insert(0) += 1;
+            }
+            for err in &output.errors {
+                let kind = parser_error_kind(err);
+                let file_set = if is_warning(err) { &mut warning_kinds } else { &mut error_kinds };
+                let entry = file_set.entry(kind).or_insert((0, HashSet::new()));
+                entry.0 += 1;
+                entry.1.insert(file_name.clone());
+                if is_warning(err) { files_with_warnings.insert(file_name.clone()); }
+                else { files_with_errors.insert(file_name.clone()); }
+            }
 
             println!("═══ {} ({} statement(s)) ═══", file_name, output.statements.len());
             for stmt in &output.statements {
@@ -488,10 +553,13 @@ fn cmd_parse_dir(
                     }
                 }
             }
-            total += output.statements.len();
             println!();
         }
-        println!("Total: {} statement(s) from {} file(s)", total, files.len());
+        println!("Total: {} statement(s) from {} file(s)", total_stmts_txt, files.len());
+        if stats {
+            print_parse_stats(total_files_txt, &files_with_errors, &files_with_warnings,
+                total_stmts_txt, &stmt_counts, &error_kinds, &warning_kinds, "parse");
+        }
     }
 }
 
@@ -1022,7 +1090,7 @@ fn cmd_validate(cli: &Cli) {
     }
 }
 
-fn cmd_validate_dir(cli: &Cli, dir_paths: &[String], exts: &[String]) {
+fn cmd_validate_dir(cli: &Cli, dir_paths: &[String], exts: &[String], stats: bool) {
     use std::path::Path;
 
     for dir_path in dir_paths {
@@ -1088,6 +1156,11 @@ fn cmd_validate_dir(cli: &Cli, dir_paths: &[String], exts: &[String]) {
     let mut total_warnings = 0usize;
     let mut any_invalid = false;
     let mut all_results: Vec<(String, String, String, Vec<ogsql_parser::ParserError>)> = Vec::new();
+    let mut files_with_errors: HashSet<String> = HashSet::new();
+    let mut files_with_warnings: HashSet<String> = HashSet::new();
+    let mut stmt_counts: BTreeMap<&'static str, usize> = BTreeMap::new();
+    let mut error_kinds: BTreeMap<&'static str, (usize, HashSet<String>)> = BTreeMap::new();
+    let mut warning_kinds: BTreeMap<&'static str, (usize, HashSet<String>)> = BTreeMap::new();
 
     for (file_name, rel_dir, abs_path) in &files {
         let sql = read_file_path(abs_path);
@@ -1098,11 +1171,27 @@ fn cmd_validate_dir(cli: &Cli, dir_paths: &[String], exts: &[String]) {
 
         if !real_errors.is_empty() {
             any_invalid = true;
+            files_with_errors.insert(file_name.clone());
+        }
+        if !warnings.is_empty() {
+            files_with_warnings.insert(file_name.clone());
         }
 
         total_errors += real_errors.len();
         total_warnings += warnings.len();
         total_files += 1;
+
+        // Stats accumulation
+        for si in &stmts {
+            *stmt_counts.entry(stmt_category(&si.statement)).or_insert(0) += 1;
+        }
+        for err in &errors {
+            let kind = parser_error_kind(err);
+            let file_set = if is_warning(err) { &mut warning_kinds } else { &mut error_kinds };
+            let entry = file_set.entry(kind).or_insert((0, HashSet::new()));
+            entry.0 += 1;
+            entry.1.insert(file_name.clone());
+        }
 
         if cli.json {
             if !real_errors.is_empty() {
@@ -1175,8 +1264,18 @@ fn cmd_validate_dir(cli: &Cli, dir_paths: &[String], exts: &[String]) {
             );
         }
         println!("{}", serde_json::to_string_pretty(&out).unwrap());
+        if stats {
+            let total_stmts: usize = stmt_counts.values().sum();
+            print_parse_stats(total_files, &files_with_errors, &files_with_warnings,
+                total_stmts, &stmt_counts, &error_kinds, &warning_kinds, "validate -j");
+        }
     } else {
         println!();
+        if stats {
+            let total_stmts: usize = stmt_counts.values().sum();
+            print_parse_stats(total_files, &files_with_errors, &files_with_warnings,
+                total_stmts, &stmt_counts, &error_kinds, &warning_kinds, "validate");
+        }
         if any_invalid {
             println!(
                 "Result: INVALID — {} error(s), {} warning(s) from {} file(s)",
@@ -1926,7 +2025,7 @@ fn cmd_playground() {
 }
 
 #[cfg(feature = "ibatis")]
-fn cmd_parse_xml(cli: &Cli, dir: Option<&str>, csv: bool, java_src: Option<&str>) {
+fn cmd_parse_xml(cli: &Cli, dir: Option<&str>, csv: bool, java_src: Option<&str>, stats: bool) {
     if dir.is_some() && cli.file.is_some() {
         die!("Error: --dir and -f are mutually exclusive");
     }
@@ -1946,7 +2045,7 @@ fn cmd_parse_xml(cli: &Cli, dir: Option<&str>, csv: bool, java_src: Option<&str>
     let java_roots: Vec<std::path::PathBuf> = Vec::new();
 
     if let Some(dir_path) = dir {
-        cmd_parse_xml_dir(cli, dir_path, csv, &java_roots);
+        cmd_parse_xml_dir(cli, dir_path, csv, &java_roots, stats);
     } else {
         cmd_parse_xml_single(cli, csv, &java_roots);
     }
@@ -1991,7 +2090,20 @@ fn cmd_parse_xml_single(cli: &Cli, csv: bool, java_roots: &[std::path::PathBuf])
 }
 
 #[cfg(feature = "ibatis")]
-fn cmd_parse_xml_dir(cli: &Cli, dir_path: &str, csv: bool, java_roots: &[std::path::PathBuf]) {
+fn ibatis_error_kind(err: &ogsql_parser::ibatis::error::IbatisError) -> &'static str {
+    use ogsql_parser::ibatis::error::IbatisError;
+    match err {
+        IbatisError::XmlError { .. } => "XmlError",
+        IbatisError::UnknownFragment { .. } => "UnknownFragment",
+        IbatisError::CircularInclude { .. } => "CircularInclude",
+        IbatisError::MissingAttribute { .. } => "MissingAttribute",
+        IbatisError::EmptyMapper => "EmptyMapper",
+        IbatisError::SqlParseError(_) => "SqlParseError",
+    }
+}
+
+#[cfg(feature = "ibatis")]
+fn cmd_parse_xml_dir(cli: &Cli, dir_path: &str, csv: bool, java_roots: &[std::path::PathBuf], stats: bool) {
     use std::path::Path;
 
     let root = Path::new(dir_path);
@@ -2054,6 +2166,45 @@ fn cmd_parse_xml_dir(cli: &Cli, dir_path: &str, csv: bool, java_roots: &[std::pa
         all_results.push((file_name, rel_dir.to_string(), result));
     }
 
+    // Stats accumulators
+    let mut files_with_xml_errors: HashSet<String> = HashSet::new();
+    let mut files_with_sql_errors: HashSet<String> = HashSet::new();
+    let mut files_with_sql_warnings: HashSet<String> = HashSet::new();
+    let mut mapper_stmt_counts: BTreeMap<String, usize> = BTreeMap::new();
+    let mut total_sql_stmts = 0usize;
+    let mut xml_error_kinds: BTreeMap<&'static str, (usize, HashSet<String>)> = BTreeMap::new();
+    let mut sql_error_kinds: BTreeMap<&'static str, (usize, HashSet<String>)> = BTreeMap::new();
+    let mut sql_warning_kinds: BTreeMap<&'static str, (usize, HashSet<String>)> = BTreeMap::new();
+
+    for (file_name, _rel_dir, result) in &all_results {
+        if !result.errors.is_empty() {
+            files_with_xml_errors.insert(file_name.clone());
+        }
+        for err in &result.errors {
+            let kind = ibatis_error_kind(err);
+            let entry = xml_error_kinds.entry(kind).or_insert((0, HashSet::new()));
+            entry.0 += 1;
+            entry.1.insert(file_name.clone());
+        }
+        for stmt in &result.statements {
+            *mapper_stmt_counts.entry(format!("{:?}", stmt.kind)).or_insert(0) += 1;
+            if let Some((infos, parse_errors)) = &stmt.parse_result {
+                total_sql_stmts += infos.len();
+                for perr in parse_errors {
+                    let kind = parser_error_kind(perr);
+                    let file_set = if is_warning(perr) { &mut sql_warning_kinds } else { &mut sql_error_kinds };
+                    let entry = file_set.entry(kind).or_insert((0, HashSet::new()));
+                    entry.0 += 1;
+                    entry.1.insert(file_name.clone());
+                    if is_warning(perr) { files_with_sql_warnings.insert(file_name.clone()); }
+                    else { files_with_sql_errors.insert(file_name.clone()); }
+                }
+            }
+        }
+    }
+
+    let total_mapper: usize = all_results.iter().map(|(_, _, r)| r.statements.len()).sum();
+
     if csv {
         output_csv_xml_header();
         for (file_name, rel_dir, result) in &all_results {
@@ -2074,7 +2225,6 @@ fn cmd_parse_xml_dir(cli: &Cli, dir_path: &str, csv: bool, java_roots: &[std::pa
             .collect();
         println!("{}", serde_json::to_string_pretty(&combined).unwrap());
     } else {
-        let mut total = 0usize;
         for (file_name, _rel_dir, result) in &all_results {
             if !result.errors.is_empty() {
                 eprintln!("[{}] {} error(s):", file_name, result.errors.len());
@@ -2130,13 +2280,59 @@ fn cmd_parse_xml_dir(cli: &Cli, dir_path: &str, csv: bool, java_roots: &[std::pa
                 }
                 println!();
             }
-            total += result.statements.len();
         }
         println!(
             "Total: {} statement(s) from {} file(s)",
-            total,
+            total_mapper,
             all_results.len()
         );
+    }
+
+    if stats {
+        let total_xml_errors: usize = xml_error_kinds.values().map(|(c, _)| c).sum();
+        let total_sql_err_count: usize = sql_error_kinds.values().map(|(c, _)| c).sum();
+        let total_sql_warn_count: usize = sql_warning_kinds.values().map(|(c, _)| c).sum();
+
+        stats_bar("");
+        stats_bar("Summary / parse-xml");
+        stats_bar("");
+
+        eprintln!("  {:<28} {}", "XML files processed:", all_results.len());
+        eprintln!("  {:<28} {}", "Total mapper statements:", total_mapper);
+        let max_kind = mapper_stmt_counts.keys().map(|k| k.len()).max().unwrap_or(10);
+        for (kind, count) in &mapper_stmt_counts {
+            let pct = if total_mapper > 0 { *count as f64 / total_mapper as f64 * 100.0 } else { 0.0 };
+            eprintln!("    {:width$} {:>6} ({:>5.1}%)", kind, count, pct, width = max_kind + 4);
+        }
+        if total_sql_stmts > 0 {
+            eprintln!("  {:<28} {}", "SQL statements (parsed):", total_sql_stmts);
+        }
+        eprintln!();
+
+        if total_xml_errors > 0 {
+            stats_bar("XML error breakdown");
+            eprintln!("  Total: {} (in {} file(s))", total_xml_errors, files_with_xml_errors.len());
+            for (kind, (cnt, files)) in &xml_error_kinds {
+                eprintln!("    {:<20} {:>4} ({} file(s))", kind, cnt, files.len());
+            }
+            eprintln!();
+        }
+        if total_sql_err_count > 0 {
+            stats_bar("SQL parse error breakdown");
+            eprintln!("  Total: {} (in {} file(s))", total_sql_err_count, files_with_sql_errors.len());
+            for (kind, (cnt, files)) in &sql_error_kinds {
+                eprintln!("    {:<20} {:>4} ({} file(s))", kind, cnt, files.len());
+            }
+            eprintln!();
+        }
+        if total_sql_warn_count > 0 {
+            stats_bar("SQL warning breakdown");
+            eprintln!("  Total: {} (in {} file(s))", total_sql_warn_count, files_with_sql_warnings.len());
+            for (kind, (cnt, files)) in &sql_warning_kinds {
+                eprintln!("    {:<20} {:>4} ({} file(s))", kind, cnt, files.len());
+            }
+            eprintln!();
+        }
     }
 }
 
@@ -2202,13 +2398,13 @@ fn print_xml_text(result: &ogsql_parser::ibatis::ParsedMapper) {
 }
 
 #[cfg(feature = "java")]
-fn cmd_parse_java(cli: &Cli, extra_sql_methods: &[String], dir: Option<&str>, csv: bool) {
+fn cmd_parse_java(cli: &Cli, extra_sql_methods: &[String], dir: Option<&str>, csv: bool, stats: bool) {
     if dir.is_some() && cli.file.is_some() {
         die!("Error: --dir and -f are mutually exclusive");
     }
 
     if let Some(dir_path) = dir {
-        cmd_parse_java_dir(cli, extra_sql_methods, dir_path, csv);
+        cmd_parse_java_dir(cli, extra_sql_methods, dir_path, csv, stats);
     } else {
         cmd_parse_java_single(cli, extra_sql_methods, csv);
     }
@@ -2249,7 +2445,18 @@ fn cmd_parse_java_single(cli: &Cli, extra_sql_methods: &[String], csv: bool) {
 }
 
 #[cfg(feature = "java")]
-fn cmd_parse_java_dir(cli: &Cli, extra_sql_methods: &[String], dir_path: &str, csv: bool) {
+fn java_error_kind(err: &ogsql_parser::java::error::JavaError) -> &'static str {
+    use ogsql_parser::java::error::JavaError;
+    match err {
+        JavaError::ParseError { .. } => "ParseError",
+        JavaError::SqlParseError { .. } => "SqlParseError",
+        JavaError::IoError(_) => "IoError",
+        JavaError::EncodingError(_) => "EncodingError",
+    }
+}
+
+#[cfg(feature = "java")]
+fn cmd_parse_java_dir(cli: &Cli, extra_sql_methods: &[String], dir_path: &str, csv: bool, stats: bool) {
     use std::path::Path;
 
     let root = Path::new(dir_path);
@@ -2306,6 +2513,43 @@ fn cmd_parse_java_dir(cli: &Cli, extra_sql_methods: &[String], dir_path: &str, c
             .map(|n| n.to_string_lossy().to_string())
             .unwrap_or_default();
         all_results.push((file_name, rel_dir.to_string(), result));
+    }
+
+    // Stats accumulators
+    let mut files_with_java_errors: HashSet<String> = HashSet::new();
+    let mut files_with_sql_errors: HashSet<String> = HashSet::new();
+    let mut files_with_sql_warnings: HashSet<String> = HashSet::new();
+    let mut total_sql_stmts = 0usize;
+    let mut java_error_kinds: BTreeMap<&'static str, (usize, HashSet<String>)> = BTreeMap::new();
+    let mut sql_error_kinds: BTreeMap<&'static str, (usize, HashSet<String>)> = BTreeMap::new();
+    let mut sql_warning_kinds: BTreeMap<&'static str, (usize, HashSet<String>)> = BTreeMap::new();
+    let mut extraction_method_counts: BTreeMap<String, usize> = BTreeMap::new();
+
+    for (file_name, _rel_dir, result) in &all_results {
+        if !result.errors.is_empty() {
+            files_with_java_errors.insert(file_name.clone());
+        }
+        for err in &result.errors {
+            let kind = java_error_kind(err);
+            let entry = java_error_kinds.entry(kind).or_insert((0, HashSet::new()));
+            entry.0 += 1;
+            entry.1.insert(file_name.clone());
+        }
+        for ext in &result.extractions {
+            *extraction_method_counts.entry(format!("{:?}", ext.origin.method)).or_insert(0) += 1;
+            if let Some(parse_result) = &ext.parse_result {
+                total_sql_stmts += parse_result.statements.len();
+                for perr in &parse_result.errors {
+                    let kind = parser_error_kind(perr);
+                    let file_set = if is_warning(perr) { &mut sql_warning_kinds } else { &mut sql_error_kinds };
+                    let entry = file_set.entry(kind).or_insert((0, HashSet::new()));
+                    entry.0 += 1;
+                    entry.1.insert(file_name.clone());
+                    if is_warning(perr) { files_with_sql_warnings.insert(file_name.clone()); }
+                    else { files_with_sql_errors.insert(file_name.clone()); }
+                }
+            }
+        }
     }
 
     if csv {
@@ -2403,6 +2647,56 @@ fn cmd_parse_java_dir(cli: &Cli, extra_sql_methods: &[String], dir_path: &str, c
             total,
             all_results.len()
         );
+    }
+
+    if stats {
+        let total_extractions: usize = all_results.iter().map(|(_, _, r)| r.extractions.len()).sum();
+        let total_java_errors: usize = java_error_kinds.values().map(|(c, _)| c).sum();
+        let total_sql_err_count: usize = sql_error_kinds.values().map(|(c, _)| c).sum();
+        let total_sql_warn_count: usize = sql_warning_kinds.values().map(|(c, _)| c).sum();
+
+        stats_bar("");
+        stats_bar("Summary / parse-java");
+        stats_bar("");
+
+        eprintln!("  {:<28} {}", "Java files processed:", all_results.len());
+        eprintln!("  {:<28} {}", "Total extractions:", total_extractions);
+        if !extraction_method_counts.is_empty() {
+            let max_kind = extraction_method_counts.keys().map(|k| k.len()).max().unwrap_or(10);
+            for (kind, count) in &extraction_method_counts {
+                let pct = if total_extractions > 0 { *count as f64 / total_extractions as f64 * 100.0 } else { 0.0 };
+                eprintln!("    {:width$} {:>6} ({:>5.1}%)", kind, count, pct, width = max_kind + 4);
+            }
+        }
+        if total_sql_stmts > 0 {
+            eprintln!("  {:<28} {}", "SQL statements (parsed):", total_sql_stmts);
+        }
+        eprintln!();
+
+        if total_java_errors > 0 {
+            stats_bar("Java error breakdown");
+            eprintln!("  Total: {} (in {} file(s))", total_java_errors, files_with_java_errors.len());
+            for (kind, (cnt, files)) in &java_error_kinds {
+                eprintln!("    {:<20} {:>4} ({} file(s))", kind, cnt, files.len());
+            }
+            eprintln!();
+        }
+        if total_sql_err_count > 0 {
+            stats_bar("SQL parse error breakdown");
+            eprintln!("  Total: {} (in {} file(s))", total_sql_err_count, files_with_sql_errors.len());
+            for (kind, (cnt, files)) in &sql_error_kinds {
+                eprintln!("    {:<20} {:>4} ({} file(s))", kind, cnt, files.len());
+            }
+            eprintln!();
+        }
+        if total_sql_warn_count > 0 {
+            stats_bar("SQL warning breakdown");
+            eprintln!("  Total: {} (in {} file(s))", total_sql_warn_count, files_with_sql_warnings.len());
+            for (kind, (cnt, files)) in &sql_warning_kinds {
+                eprintln!("    {:<20} {:>4} ({} file(s))", kind, cnt, files.len());
+            }
+            eprintln!();
+        }
     }
 }
 
@@ -2643,6 +2937,225 @@ fn output_csv_java_rows(
     }
 }
 
+// ═══════════════════════════════════════════════════════════════
+//  Stats helpers for --dir commands
+// ═══════════════════════════════════════════════════════════════
+
+use std::collections::{BTreeMap, HashSet};
+
+fn stmt_category(stmt: &Statement) -> &'static str {
+    use Statement::*;
+    match stmt {
+        Select(_) => "SELECT",
+        Insert(_) | InsertAll(_) | InsertFirst(_) => "INSERT",
+        Update(_) => "UPDATE",
+        Delete(_) => "DELETE",
+        Merge(_) => "MERGE",
+        CreateTable(_) | CreateTableAs(_) => "CREATE TABLE",
+        AlterTable(_) | AlterTablespace(_) => "ALTER TABLE",
+        Drop(_) => "DROP",
+        Truncate(_) => "TRUNCATE",
+        CreateIndex(_) | CreateGlobalIndex(_) => "CREATE INDEX",
+        AlterIndex(_) => "ALTER INDEX",
+        CreateSchema(_) => "CREATE SCHEMA",
+        AlterSchema(_) => "ALTER SCHEMA",
+        CreateDatabase(_) | CreateDatabaseLink(_) => "CREATE DATABASE",
+        AlterDatabase(_) => "ALTER DATABASE",
+        CreateTablespace(_) => "CREATE TABLESPACE",
+        CreateFunction(_) => "CREATE FUNCTION",
+        AlterFunction(_) => "ALTER FUNCTION",
+        CreateProcedure(_) => "CREATE PROCEDURE",
+        AlterProcedure(_) => "ALTER PROCEDURE",
+        CreatePackage(_) | CreatePackageBody(_) => "CREATE PACKAGE",
+        AlterPackage(_) => "ALTER PACKAGE",
+        CreateView(_) | CreateMaterializedView(_) => "CREATE VIEW",
+        AlterView(_) | AlterMaterializedView(_) => "ALTER VIEW",
+        CreateSequence(_) => "CREATE SEQUENCE",
+        AlterSequence(_) => "ALTER SEQUENCE",
+        CreateTrigger(_) => "CREATE TRIGGER",
+        AlterTrigger(_) => "ALTER TRIGGER",
+        CreateDomain(_) | AlterDomain(_) => "DOMAIN",
+        Do(_) | AnonyBlock(_) => "PL/BLOCK",
+        Call(_) => "CALL",
+        Transaction(_) => "TRANSACTION",
+        Copy(_) => "COPY",
+        Explain(_) => "EXPLAIN",
+        Prepare(_) | Execute(_) | Deallocate(_) => "PREPARE/EXECUTE",
+        VariableSet(_) | VariableShow(_) | VariableReset(_) => "SET/SHOW",
+        Grant(_) | Revoke(_) => "GRANT/REVOKE",
+        GrantRole(_) | RevokeRole(_) => "GRANT/REVOKE ROLE",
+        Comment(_) => "COMMENT",
+        Lock(_) => "LOCK",
+        Analyze(_) => "ANALYZE",
+        Vacuum(_) => "VACUUM",
+        Values(_) => "VALUES",
+        ExecuteDirect(_) => "EXECUTE DIRECT",
+        CreateSynonym(_) | AlterSynonym(_) => "SYNONYM",
+        CreateExtension(_) | AlterExtension(_) => "EXTENSION",
+        CreateRole(_) | AlterRole(_) => "ROLE",
+        CreateUser(_) | AlterUser(_) => "USER",
+        CreateGroup(_) | AlterGroup(_) => "GROUP",
+        CreateType(_) => "CREATE TYPE",
+        CreateLanguage(_) => "CREATE LANGUAGE",
+        CreateForeignTable(_) => "FOREIGN TABLE",
+        CreateForeignServer(_) | CreateFdw(_) => "FOREIGN SERVER",
+        CreatePublication(_) | AlterPublication(_) => "PUBLICATION",
+        CreateSubscription(_) | AlterSubscription(_) => "SUBSCRIPTION",
+        CreateNode(_) | AlterNode(_) | CreateNodeGroup(_) | AlterNodeGroup(_) => "NODE",
+        CreateResourcePool(_) | AlterResourcePool(_) => "RESOURCE POOL",
+        CreateWorkloadGroup(_) | AlterWorkloadGroup(_) => "WORKLOAD GROUP",
+        CreateAuditPolicy(_) | AlterAuditPolicy(_) => "AUDIT POLICY",
+        CreateMaskingPolicy(_) | AlterMaskingPolicy(_) => "MASKING POLICY",
+        CreateRlsPolicy(_) | AlterRlsPolicy(_) => "RLS POLICY",
+        CreateDataSource(_) | AlterDataSource(_) => "DATA SOURCE",
+        CreateEvent(_) | AlterEvent(_) => "EVENT",
+        CreateDirectory(_) => "DIRECTORY",
+        AlterDirectory(_) => "ALTER DIRECTORY",
+        CreateAggregate(_) => "CREATE AGGREGATE",
+        CreateOperator(_) => "CREATE OPERATOR",
+        RefreshMaterializedView(_) => "REFRESH MVIEW",
+        Reindex(_) => "REINDEX",
+        Cluster(_) => "CLUSTER",
+        Listen(_) | Notify(_) | Unlisten(_) => "LISTEN/NOTIFY",
+        DeclareCursor(_) | ClosePortal(_) | Fetch(_) | Move(_) => "CURSOR",
+        Purge(_) => "PURGE",
+        TimeCapsule(_) => "TIME CAPSULE",
+        Snapshot(_) => "SNAPSHOT",
+        Shrink(_) => "SHRINK",
+        Compile(_) => "COMPILE",
+        SecLabel(_) => "SECURITY LABEL",
+        Rule(_) | DropRule(_) => "RULE",
+        CreateCast(_) | CreateConversion(_) => "CAST/CONVERSION",
+        CreateOpClass(_) | CreateOpFamily(_) | AlterOpFamily(_) => "OPERATOR CLASS",
+        CreateTextSearchConfig(_) | CreateTextSearchDict(_)
+            | AlterTextSearchConfig(_) | AlterTextSearchDict(_)
+            | AlterTextSearchConfigFull(_) | AlterTextSearchDictFull(_) => "TEXT SEARCH",
+        CreateUserMapping(_) | AlterUserMapping(_) | DropUserMapping(_) => "USER MAPPING",
+        AlterDefaultPrivileges(_) => "ALTER DEFAULT PRIVILEGES",
+        AlterCompositeType(_) => "ALTER TYPE",
+        AlterCoordinator(_) => "ALTER COORDINATOR",
+        AlterAppWorkloadGroupMapping(_) => "ALTER APP WORKLOAD GROUP",
+        AlterDatabaseLink(_) => "ALTER DATABASE LINK",
+        AlterLargeObject(_) => "ALTER LARGE OBJECT",
+        AlterSession(_) => "ALTER SESSION",
+        AlterSystemKillSession(_) => "ALTER SYSTEM KILL",
+        AlterGlobalConfig(_) => "ALTER GLOBAL CONFIG",
+        DropWeakPasswordDictionary | CreateWeakPasswordDictionary
+            | CreateWeakPasswordDictionaryWithValues(_) => "WEAK PASSWORD DICT",
+        CreatePolicyLabel(_) | AlterPolicyLabel(_) | DropPolicyLabel(_) => "POLICY LABEL",
+        CreateContQuery(_) => "CONTINUOUS QUERY",
+        CreateStream(_) => "STREAM",
+        CreateKey(_) => "KEY",
+        SetSessionAuthorization(_) => "SET SESSION AUTHORIZATION",
+        CreateAppWorkloadGroupMapping(_) | DropAppWorkloadGroupMapping(_) => "APP WORKLOAD GROUP",
+        ExpdpDatabase(_) | ExpdpTable(_) | ImpdpDatabase(_) | ImpdpTable(_) => "EXPDP/IMPDP",
+        ReassignOwned(_) => "REASSIGN OWNED",
+        LockBuckets(_) | MarkBuckets(_) => "LOCK BUCKETS",
+        Shutdown(_) | Barrier(_) | Abort | Checkpoint | Empty => "UTILITY",
+        Replace(_) => "REPLACE",
+        GetDiag(_) => "GET DIAGNOSTICS",
+        ShowEvent(_) => "SHOW EVENT",
+        RemovePackage(_) => "REMOVE PACKAGE",
+        PredictBy(_) => "PREDICT BY",
+        CleanConn(_) => "CLEAN CONNECTION",
+        Verify(_) => "VERIFY",
+        _ => "OTHER",
+    }
+}
+
+fn parser_error_kind(err: &ParserError) -> &'static str {
+    match err {
+        ParserError::UnexpectedToken { .. } => "UnexpectedToken",
+        ParserError::UnexpectedEof { .. } => "UnexpectedEof",
+        ParserError::Warning { .. } => "Warning",
+        ParserError::ReservedKeywordAsIdentifier { .. } => "ReservedKeyword",
+        ParserError::TokenizerError(_) => "TokenizerError",
+    }
+}
+
+fn stats_bar(label: &str) {
+    if label.is_empty() {
+        eprintln!("  {}", "─".repeat(55));
+    } else {
+        let side = (55usize.saturating_sub(label.len() + 2)) / 2;
+        eprintln!("  {}{}{}", "─".repeat(side), format!(" {} ", label), "─".repeat(side));
+    }
+}
+
+fn print_parse_stats(
+    files_processed: usize,
+    files_with_errors: &HashSet<String>,
+    files_with_warnings: &HashSet<String>,
+    total_stmts: usize,
+    stmt_counts: &BTreeMap<&'static str, usize>,
+    error_counts: &BTreeMap<&'static str, (usize, HashSet<String>)>,
+    warning_counts: &BTreeMap<&'static str, (usize, HashSet<String>)>,
+    extra_title: &str,
+) {
+    let total_errors: usize = error_counts.values().map(|(c, _)| c).sum();
+    let total_warnings: usize = warning_counts.values().map(|(c, _)| c).sum();
+
+    stats_bar("");
+    let title = if extra_title.is_empty() {
+        "Summary".to_string()
+    } else {
+        format!("Summary / {}", extra_title)
+    };
+    stats_bar(&title);
+    stats_bar("");
+
+    eprintln!("  {:<24} {}", "Files processed:", files_processed);
+    if !files_with_errors.is_empty() {
+        eprintln!("  {:<24} {}", "Files with errors:", files_with_errors.len());
+    }
+    if !files_with_warnings.is_empty() {
+        eprintln!("  {:<24} {}", "Files with warnings:", files_with_warnings.len());
+    }
+    eprintln!("  {:<24} {}", "Total statements:", total_stmts);
+    eprintln!();
+
+    if !stmt_counts.is_empty() {
+        stats_bar("Statement breakdown");
+        let max_name = stmt_counts.keys().map(|k| k.len()).max().unwrap_or(10);
+        for (cat, count) in stmt_counts {
+            let pct = if total_stmts > 0 { *count as f64 / total_stmts as f64 * 100.0 } else { 0.0 };
+            eprintln!("  {:width$} {:>6} ({:>5.1}%)", cat, count, pct, width = max_name);
+        }
+        eprintln!();
+    }
+
+    if total_errors > 0 || total_warnings > 0 {
+        stats_bar("Error / Warning breakdown");
+        eprint!("  Total: ");
+        if total_errors > 0 {
+            eprint!("{} error(s) (in {} file(s))", total_errors, files_with_errors.len());
+        }
+        if total_errors > 0 && total_warnings > 0 {
+            eprint!(", ");
+        }
+        if total_warnings > 0 {
+            eprint!("{} warning(s) (in {} file(s))", total_warnings, files_with_warnings.len());
+        }
+        eprintln!();
+
+        if !error_counts.is_empty() {
+            eprintln!();
+            eprintln!("  Errors:");
+            for (kind, (count, files)) in error_counts {
+                eprintln!("    {:<20} {:>4} ({} file(s))", kind, count, files.len());
+            }
+        }
+        if !warning_counts.is_empty() {
+            eprintln!();
+            eprintln!("  Warnings:");
+            for (kind, (count, files)) in warning_counts {
+                eprintln!("    {:<20} {:>4} ({} file(s))", kind, count, files.len());
+            }
+        }
+        eprintln!();
+    }
+}
+
 fn main() {
     let cli = Cli::parse();
 
@@ -2667,24 +3180,24 @@ fn main() {
             no_logical_newline,
             no_semicolon_newline,
         ),
-        Commands::Parse { ref dir, ref ext, csv, ref output_dir } => {
+        Commands::Parse { ref dir, ref ext, csv, ref output_dir, stats } => {
             if !dir.is_empty() && cli.file.is_some() {
                 die!("Error: --dir and -f are mutually exclusive");
             }
             if !dir.is_empty() {
-                cmd_parse_dir(&cli, dir, ext, csv, output_dir.as_deref());
+                cmd_parse_dir(&cli, dir, ext, csv, output_dir.as_deref(), stats);
             } else {
                 cmd_parse(&cli);
             }
         }
         Commands::JsonToSql => cmd_json2sql(&cli),
         Commands::Tokenize => cmd_tokenize(&cli),
-        Commands::Validate { ref dir, ref ext } => {
+        Commands::Validate { ref dir, ref ext, stats } => {
             if !dir.is_empty() && cli.file.is_some() {
                 die!("Error: --dir and -f are mutually exclusive");
             }
             if !dir.is_empty() {
-                cmd_validate_dir(&cli, dir, ext);
+                cmd_validate_dir(&cli, dir, ext, stats);
             } else {
                 cmd_validate(&cli);
             }
@@ -2709,17 +3222,18 @@ fn main() {
         Commands::Playground => cmd_playground(),
         #[cfg(feature = "ibatis")]
         #[cfg(not(feature = "java"))]
-        Commands::ParseXml { ref dir, csv } => cmd_parse_xml(&cli, dir.as_deref(), csv, None),
+        Commands::ParseXml { ref dir, csv, stats } => cmd_parse_xml(&cli, dir.as_deref(), csv, None, stats),
         #[cfg(feature = "ibatis")]
         #[cfg(feature = "java")]
-        Commands::ParseXml { ref dir, csv, ref java_src } => {
-            cmd_parse_xml(&cli, dir.as_deref(), csv, java_src.as_deref())
+        Commands::ParseXml { ref dir, csv, ref java_src, stats } => {
+            cmd_parse_xml(&cli, dir.as_deref(), csv, java_src.as_deref(), stats)
         }
         #[cfg(feature = "java")]
         Commands::ParseJava {
             ref extra_sql_methods,
             ref dir,
             csv,
-        } => cmd_parse_java(&cli, extra_sql_methods, dir.as_deref(), csv),
+            stats,
+        } => cmd_parse_java(&cli, extra_sql_methods, dir.as_deref(), csv, stats),
     }
 }
