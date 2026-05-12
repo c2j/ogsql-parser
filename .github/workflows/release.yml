@@ -14,40 +14,49 @@ permissions:
 
 env:
   CARGO_TERM_COLOR: always
-  # Change this to adjust which features to build with.
-  # Options: cli (default), serve, tui, full
   BUILD_FEATURES: "full"
   BINARY_NAME: ogsql
 
 jobs:
-  build:
-    name: Build ${{ matrix.platform.target }}
-    runs-on: ${{ matrix.platform.runner }}
-    strategy:
-      fail-fast: false
-      matrix:
-        platform:
-          # --- Linux ---
-          - runner: ubuntu-20.04
-            target: x86_64-unknown-linux-gnu
-            artifact: ogsql-linux-x86_64
-          - runner: ubuntu-20.04
-            target: aarch64-unknown-linux-gnu
-            artifact: ogsql-linux-arm64
-          # --- macOS ---
-          - runner: macos-14
-            target: x86_64-apple-darwin
-            artifact: ogsql-macos-x86_64
-          - runner: macos-14
-            target: aarch64-apple-darwin
-            artifact: ogsql-macos-arm64
-          # --- Windows ---
-          - runner: windows-2022
-            target: x86_64-pc-windows-msvc
-            artifact: ogsql-windows-x86_64
-          - runner: windows-2022
-            target: aarch64-pc-windows-msvc
-            artifact: ogsql-windows-arm64
+  build-linux-x86_64:
+    name: Build linux-x86_64 (glibc ≥ 2.17)
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install Zig
+        uses: mlugg/setup-zig@v1
+        with:
+          version: "0.13.0"
+
+      - name: Install cargo-zigbuild
+        run: cargo install cargo-zigbuild
+
+      - name: Build
+        run: cargo zigbuild --release --features ${{ env.BUILD_FEATURES }} --target x86_64-unknown-linux-gnu.2.17
+
+      - name: Strip
+        run: strip --strip-unneeded target/x86_64-unknown-linux-gnu/release/${{ env.BINARY_NAME }}
+
+      - name: Package
+        run: |
+          cd target/x86_64-unknown-linux-gnu/release
+          tar czf ../../../ogsql-linux-x86_64.tar.gz ${{ env.BINARY_NAME }}
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ogsql-linux-x86_64
+          path: ogsql-linux-x86_64.tar.gz
+
+  build-linux-arm64:
+    name: Build linux-arm64 (glibc ≥ 2.17)
+    runs-on: ubuntu-22.04
 
     steps:
       - name: Checkout
@@ -56,32 +65,48 @@ jobs:
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
-          targets: ${{ matrix.platform.target }}
+          targets: aarch64-unknown-linux-gnu
 
-      # ---------- Linux ARM64 cross-compilation ----------
-      - name: Install AArch64 cross-compiler (Linux ARM64)
-        if: matrix.platform.target == 'aarch64-unknown-linux-gnu'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y gcc-aarch64-linux-gnu
-
-      - name: Configure AArch64 linker (Linux ARM64)
-        if: matrix.platform.target == 'aarch64-unknown-linux-gnu'
-        run: |
-          mkdir -p .cargo
-          cat >> .cargo/config.toml <<'EOF'
-          [target.aarch64-unknown-linux-gnu]
-          linker = "aarch64-linux-gnu-gcc"
-          EOF
-
-      # ---------- Windows ARM64 cross-compilation ----------
-      - name: Install Windows ARM64 linker components
-        if: matrix.platform.target == 'aarch64-pc-windows-msvc'
-        uses: ilammy/msvc-dev-cmd@v1
+      - name: Install Zig
+        uses: mlugg/setup-zig@v1
         with:
-          arch: amd64_arm64
+          version: "0.13.0"
 
-      # ---------- Cache ----------
+      - name: Install cargo-zigbuild
+        run: cargo install cargo-zigbuild
+
+      - name: Build
+        run: cargo zigbuild --release --features ${{ env.BUILD_FEATURES }} --target aarch64-unknown-linux-gnu.2.17
+
+      - name: Strip
+        run: |
+          sudo apt-get install -y binutils-aarch64-linux-gnu
+          aarch64-linux-gnu-strip --strip-unneeded target/aarch64-unknown-linux-gnu/release/${{ env.BINARY_NAME }}
+
+      - name: Package
+        run: |
+          cd target/aarch64-unknown-linux-gnu/release
+          tar czf ../../../ogsql-linux-arm64.tar.gz ${{ env.BINARY_NAME }}
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ogsql-linux-arm64
+          path: ogsql-linux-arm64.tar.gz
+
+  build-windows-x86_64:
+    name: Build windows-x86_64
+    runs-on: windows-2022
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-gnu
+
       - name: Cache Cargo
         uses: actions/cache@v4
         with:
@@ -89,50 +114,34 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             target
-          key: ${{ matrix.platform.target }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: ${{ matrix.platform.target }}-cargo-
+          key: x86_64-pc-windows-gnu-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: x86_64-pc-windows-gnu-cargo-
 
-      # ---------- Build ----------
       - name: Build
-        run: cargo build --release --features ${{ env.BUILD_FEATURES }} --target ${{ matrix.platform.target }}
+        run: cargo build --release --features ${{ env.BUILD_FEATURES }} --target x86_64-pc-windows-gnu
+        env:
+          RUSTFLAGS: "-C target-feature=+crt-static"
 
-      # ---------- Package (Linux / macOS) ----------
-      - name: Strip binary (Linux)
-        if: "contains(matrix.platform.target, 'linux')"
-        run: strip --strip-unneeded target/${{ matrix.platform.target }}/release/${{ env.BINARY_NAME }}
+      - name: Strip
+        run: strip target/x86_64-pc-windows-gnu/release/${{ env.BINARY_NAME }}.exe
+        shell: bash
 
-      - name: Strip binary (macOS)
-        if: "contains(matrix.platform.target, 'darwin')"
-        run: strip -x target/${{ matrix.platform.target }}/release/${{ env.BINARY_NAME }}
-
-      - name: Create tar.gz archive (Linux / macOS)
-        if: "!contains(matrix.platform.target, 'windows')"
-        run: |
-          cd target/${{ matrix.platform.target }}/release
-          tar czf ../../../${{ matrix.platform.artifact }}.tar.gz ${{ env.BINARY_NAME }}
-
-      # ---------- Package (Windows) ----------
-      - name: Create zip archive (Windows)
-        if: contains(matrix.platform.target, 'windows')
+      - name: Package
         shell: pwsh
         run: |
           Compress-Archive `
-            -Path "target/${{ matrix.platform.target }}/release/${{ env.BINARY_NAME }}.exe" `
-            -DestinationPath "${{ matrix.platform.artifact }}.zip"
+            -Path "target/x86_64-pc-windows-gnu/release/${{ env.BINARY_NAME }}.exe" `
+            -DestinationPath "ogsql-windows-x86_64.zip"
 
-      # ---------- Upload ----------
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.platform.artifact }}
-          path: |
-            ${{ matrix.platform.artifact }}.tar.gz
-            ${{ matrix.platform.artifact }}.zip
-          if-no-files-found: error
+          name: ogsql-windows-x86_64
+          path: ogsql-windows-x86_64.zip
 
   release:
     name: Create GitHub Release
-    needs: build
+    needs: [build-linux-x86_64, build-linux-arm64, build-windows-x86_64]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
