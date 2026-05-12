@@ -614,3 +614,140 @@ fn test_pl_call_inside_package_body() {
         other => panic!("expected CreatePackageBody, got {:?}", other),
     }
 }
+
+#[test]
+fn test_with_insert_in_procedure_body() {
+    let sql = "CREATE OR REPLACE PACKAGE BODY my_pkg IS
+               PROCEDURE proc1 IS
+               BEGIN
+                 WITH cte AS (SELECT id FROM t1)
+                 INSERT INTO t2 SELECT * FROM cte;
+               END proc1;
+               END my_pkg;";
+    let stmt = parse_one(sql);
+    match stmt {
+        Statement::CreatePackageBody(p) => {
+            let proc = p.items.iter().find_map(|i| match i {
+                PackageItem::Procedure(pr) => Some(pr),
+                _ => None,
+            }).expect("should have a procedure");
+            let block = proc.block.as_ref().expect("procedure should have a block");
+            assert_eq!(block.body.len(), 1);
+            match &block.body[0] {
+                PlStatement::SqlStatement { statement, .. } => {
+                    match statement.as_ref() {
+                        crate::ast::Statement::Insert(ins) => {
+                            assert!(ins.node.with.is_some(), "INSERT should have WITH clause");
+                            assert_eq!(ins.node.table, vec!["t2"]);
+                        }
+                        other => panic!("expected Insert, got {:?}", other),
+                    }
+                }
+                other => panic!("expected SqlStatement, got {:?}", other),
+            }
+        }
+        other => panic!("expected CreatePackageBody, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_with_update_in_procedure_body() {
+    let sql = "CREATE OR REPLACE PACKAGE BODY my_pkg IS
+               PROCEDURE proc1 IS
+               BEGIN
+                 WITH cte AS (SELECT id, name FROM t1)
+                 UPDATE t2 SET name = cte.name FROM cte WHERE t2.id = cte.id;
+               END proc1;
+               END my_pkg;";
+    let stmt = parse_one(sql);
+    match stmt {
+        Statement::CreatePackageBody(p) => {
+            let proc = p.items.iter().find_map(|i| match i {
+                PackageItem::Procedure(pr) => Some(pr),
+                _ => None,
+            }).expect("should have a procedure");
+            let block = proc.block.as_ref().expect("procedure should have a block");
+            assert_eq!(block.body.len(), 1);
+            match &block.body[0] {
+                PlStatement::SqlStatement { statement, .. } => {
+                    match statement.as_ref() {
+                        crate::ast::Statement::Update(upd) => {
+                            assert!(upd.node.with.is_some(), "UPDATE should have WITH clause");
+                        }
+                        other => panic!("expected Update, got {:?}", other),
+                    }
+                }
+                other => panic!("expected SqlStatement, got {:?}", other),
+            }
+        }
+        other => panic!("expected CreatePackageBody, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_with_delete_in_procedure_body() {
+    let sql = "CREATE OR REPLACE PACKAGE BODY my_pkg IS
+               PROCEDURE proc1 IS
+               BEGIN
+                 WITH cte AS (SELECT id FROM t1 WHERE status = 'inactive')
+                 DELETE FROM t2 USING cte WHERE t2.id = cte.id;
+               END proc1;
+               END my_pkg;";
+    let stmt = parse_one(sql);
+    match stmt {
+        Statement::CreatePackageBody(p) => {
+            let proc = p.items.iter().find_map(|i| match i {
+                PackageItem::Procedure(pr) => Some(pr),
+                _ => None,
+            }).expect("should have a procedure");
+            let block = proc.block.as_ref().expect("procedure should have a block");
+            assert_eq!(block.body.len(), 1);
+            match &block.body[0] {
+                PlStatement::SqlStatement { statement, .. } => {
+                    match statement.as_ref() {
+                        crate::ast::Statement::Delete(del) => {
+                            assert!(del.node.with.is_some(), "DELETE should have WITH clause");
+                        }
+                        other => panic!("expected Delete, got {:?}", other),
+                    }
+                }
+                other => panic!("expected SqlStatement, got {:?}", other),
+            }
+        }
+        other => panic!("expected CreatePackageBody, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_with_select_cte_still_works_in_procedure_body() {
+    let sql = "CREATE OR REPLACE PACKAGE BODY my_pkg IS
+               PROCEDURE proc1 IS
+                 v_result INTEGER;
+               BEGIN
+                 WITH cte AS (SELECT id FROM t1) SELECT COUNT(*) INTO v_result FROM cte;
+               END proc1;
+               END my_pkg;";
+    let stmt = parse_one(sql);
+    match stmt {
+        Statement::CreatePackageBody(p) => {
+            let proc = p.items.iter().find_map(|i| match i {
+                PackageItem::Procedure(pr) => Some(pr),
+                _ => None,
+            }).expect("should have a procedure");
+            let block = proc.block.as_ref().expect("procedure should have a block");
+            assert_eq!(block.body.len(), 1);
+            match &block.body[0] {
+                PlStatement::SqlStatement { statement, .. } => {
+                    match statement.as_ref() {
+                        crate::ast::Statement::Select(sel) => {
+                            assert!(sel.node.with.is_some(), "SELECT should have WITH clause");
+                        }
+                        other => panic!("expected Select, got {:?}", other),
+                    }
+                }
+                other => panic!("expected SqlStatement, got {:?}", other),
+            }
+        }
+        other => panic!("expected CreatePackageBody, got {:?}", other),
+    }
+}

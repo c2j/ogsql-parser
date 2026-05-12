@@ -809,7 +809,7 @@ impl Parser {
         let save_pos = self.pos;
         let start_pos = self.pos;
                 let result = match self.peek() {
-            Token::Keyword(Keyword::SELECT) | Token::Keyword(Keyword::WITH) => {
+            Token::Keyword(Keyword::SELECT) => {
                 self.pl_into_mode = true;
                 let result = match self.parse_select_statement() {
                     Ok(mut stmt) => {
@@ -822,6 +822,74 @@ impl Parser {
                 };
                 self.pl_into_mode = false;
                 result
+            }
+            Token::Keyword(Keyword::WITH) => {
+                if self.is_with_dml_at(self.pos) {
+                    // WITH ... INSERT/UPDATE/DELETE pattern
+                    let with = match self.parse_with_clause() {
+                        Ok(Some(w)) => w,
+                        _ => { self.pos = save_pos; return None; }
+                    };
+                    self.pl_into_mode = true;
+                    let result = match self.peek_keyword() {
+                        Some(Keyword::INSERT) => {
+                            self.advance();
+                            match self.parse_insert() {
+                                Ok(mut stmt) => {
+                                    stmt.with = Some(with);
+                                    let mut merged = hints;
+                                    merged.append(&mut stmt.hints);
+                                    stmt.hints = merged;
+                                    Some(crate::ast::Statement::Insert(crate::ast::Spanned::new(stmt, None)))
+                                }
+                                Err(_) => None,
+                            }
+                        }
+                        Some(Keyword::UPDATE) => {
+                            self.advance();
+                            match self.parse_update() {
+                                Ok(mut stmt) => {
+                                    stmt.with = Some(with);
+                                    let mut merged = hints;
+                                    merged.append(&mut stmt.hints);
+                                    stmt.hints = merged;
+                                    Some(crate::ast::Statement::Update(crate::ast::Spanned::new(stmt, None)))
+                                }
+                                Err(_) => None,
+                            }
+                        }
+                        Some(Keyword::DELETE_P) => {
+                            self.advance();
+                            match self.parse_delete() {
+                                Ok(mut stmt) => {
+                                    stmt.with = Some(with);
+                                    let mut merged = hints;
+                                    merged.append(&mut stmt.hints);
+                                    stmt.hints = merged;
+                                    Some(crate::ast::Statement::Delete(crate::ast::Spanned::new(stmt, None)))
+                                }
+                                Err(_) => None,
+                            }
+                        }
+                        _ => None,
+                    };
+                    self.pl_into_mode = false;
+                    result
+                } else {
+                    // Plain WITH ... SELECT (CTE)
+                    self.pl_into_mode = true;
+                    let result = match self.parse_select_statement() {
+                        Ok(mut stmt) => {
+                            let mut merged = hints;
+                            merged.append(&mut stmt.hints);
+                            stmt.hints = merged;
+                            Some(crate::ast::Statement::Select(crate::ast::Spanned::new(stmt, None)))
+                        }
+                        Err(_) => None,
+                    };
+                    self.pl_into_mode = false;
+                    result
+                }
             }
             Token::Keyword(Keyword::INSERT) => {
                 self.pl_into_mode = true;
@@ -919,10 +987,58 @@ impl Parser {
         let save_pos = self.pos;
 
         let result = match self.peek() {
-            Token::Keyword(Keyword::SELECT) | Token::Keyword(Keyword::WITH) => {
+            Token::Keyword(Keyword::SELECT) => {
                 match self.parse_select_statement() {
                     Ok(stmt) => Some(crate::ast::Statement::Select(crate::ast::Spanned::new(stmt, None))),
                     Err(_) => None,
+                }
+            }
+            Token::Keyword(Keyword::WITH) => {
+                if self.is_with_dml_at(self.pos) {
+                    // WITH ... INSERT/UPDATE/DELETE pattern
+                    let with = match self.parse_with_clause() {
+                        Ok(Some(w)) => w,
+                        _ => { self.pos = save_pos; return None; }
+                    };
+                    match self.peek_keyword() {
+                        Some(Keyword::INSERT) => {
+                            self.advance();
+                            match self.parse_insert() {
+                                Ok(mut stmt) => {
+                                    stmt.with = Some(with);
+                                    Some(crate::ast::Statement::Insert(crate::ast::Spanned::new(stmt, None)))
+                                }
+                                Err(_) => { self.pos = save_pos; None }
+                            }
+                        }
+                        Some(Keyword::UPDATE) => {
+                            self.advance();
+                            match self.parse_update() {
+                                Ok(mut stmt) => {
+                                    stmt.with = Some(with);
+                                    Some(crate::ast::Statement::Update(crate::ast::Spanned::new(stmt, None)))
+                                }
+                                Err(_) => { self.pos = save_pos; None }
+                            }
+                        }
+                        Some(Keyword::DELETE_P) => {
+                            self.advance();
+                            match self.parse_delete() {
+                                Ok(mut stmt) => {
+                                    stmt.with = Some(with);
+                                    Some(crate::ast::Statement::Delete(crate::ast::Spanned::new(stmt, None)))
+                                }
+                                Err(_) => { self.pos = save_pos; None }
+                            }
+                        }
+                        _ => { self.pos = save_pos; None }
+                    }
+                } else {
+                    // Plain WITH ... SELECT (CTE)
+                    match self.parse_select_statement() {
+                        Ok(stmt) => Some(crate::ast::Statement::Select(crate::ast::Spanned::new(stmt, None))),
+                        Err(_) => None,
+                    }
                 }
             }
             Token::LParen if self.looks_like_parenthesized_query() => {
