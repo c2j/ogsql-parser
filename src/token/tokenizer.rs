@@ -800,21 +800,10 @@ impl<'a> Tokenizer<'a> {
                     }
                 }
                 Some('\\') => {
-                    if self.peek() == Some('\'') {
-                        // Legacy compatibility: when \' is followed by another ',
-                        // treat \ as literal and let '' handle the escape via
-                        // SQL-standard doubled quoting. This handles legacy SQL
-                        // that mixes \' and '' conventions in the same string.
-                        // (PostgreSQL standard_conforming_strings = on behavior)
-                        if self.peek_byte_at(1) == Some(b'\'') {
-                            result.push('\\');
-                        } else {
-                            self.advance();
-                            result.push('\'');
-                        }
-                    } else {
-                        result.push('\\');
-                    }
+                    // standard_conforming_strings = on: backslash is a literal
+                    // character in plain '...' strings, not an escape.
+                    // Use E'...' for C-style backslash escaping.
+                    result.push('\\');
                 }
                 Some(c) => result.push(c),
             }
@@ -1459,29 +1448,63 @@ mod tests {
     }
 
     #[test]
-    fn test_backslash_followed_by_doubled_quote() {
-        // Legacy SQL mixes \' and '' conventions: \'' should be \ literal + '' escape
-        let tokens = tokens_as_vec("'hello\\''world'");
+    fn test_standard_conforming_strings_backslash_is_literal() {
+        // openGauss/PostgreSQL standard_conforming_strings = on:
+        // backslash is NOT an escape character in plain '...' strings.
+        // '\'' should parse as: string content '\' + closing quote → result is "\".
+        let tokens = tokens_as_vec("'\\'");
         assert_eq!(tokens.len(), 2); // StringLiteral + Eof
-        assert!(matches!(&tokens[0], Token::StringLiteral(s) if s == "hello\\'world"));
+        assert!(matches!(&tokens[0], Token::StringLiteral(s) if s == "\\"));
     }
 
     #[test]
-    fn test_backslash_escape_without_doubled_quote() {
-        // Plain \' (not followed by another ') still works as backslash escape
-        let tokens = tokens_as_vec("'it\\'s a test'");
+    fn test_standard_string_backslash_not_escape() {
+        // In standard mode, \' is NOT an escape. \ is literal, ' ends the string.
+        // 'it\'s a test' → 'it\' (string "it\") + s + a + test + ' unterminated
+        // The tokenizer should parse 'it\' as a complete string, not treat \' as escape.
+        let tokens = tokens_as_vec("'it\\'");
+        assert_eq!(tokens.len(), 2); // StringLiteral + Eof
+        assert!(matches!(&tokens[0], Token::StringLiteral(s) if s == "it\\"));
+
+        // Contrast with doubled-quote which IS the correct escape:
+        let tokens2 = tokens_as_vec("'it''s a test'");
+        assert!(matches!(&tokens2[0], Token::StringLiteral(s) if s == "it's a test"));
+    }
+
+    #[test]
+    fn test_standard_string_double_backslash_is_two_literals() {
+        // '\\' should be: backslash literal + backslash literal → two backslashes
+        let tokens = tokens_as_vec("'\\\\'");
+        assert_eq!(tokens.len(), 2); // StringLiteral + Eof
+        assert!(matches!(&tokens[0], Token::StringLiteral(s) if s == "\\\\"));
+    }
+
+    #[test]
+    fn test_standard_string_backslash_before_content() {
+        // '\abc' → backslash is literal: "\\abc"
+        let tokens = tokens_as_vec("'\\abc'");
+        assert!(matches!(&tokens[0], Token::StringLiteral(s) if s == "\\abc"));
+    }
+
+    #[test]
+    fn test_standard_string_quote_escape_is_doubled() {
+        // The correct way to include a single quote: double it ''
+        let tokens = tokens_as_vec("'it''s a test'");
         assert!(matches!(&tokens[0], Token::StringLiteral(s) if s == "it's a test"));
     }
 
     #[test]
-    fn test_legacy_mixed_escape_sql() {
-        // Regression: the exact pattern from the reported bug
-        let sql = r#"insert into t (id, val) values ('41003', 'class="XCombox" url="/icbc/aas/servlet/SingleSelect" para=''sqlMapId=getFundInfoBybondacct&queryPara=\''%$xcombox$%\''&userId=\'''' + window.x_userid + ''\''&roleId=\'''' + window.x_roleid + ''\''''" drag=true errMsg=''async=false')"#;
-        let result = tokenize(sql);
-        assert!(result.is_ok(), "Should parse legacy mixed-escape SQL without error");
-        let tokens = result.unwrap();
-        assert!(tokens.iter().any(|t| matches!(&t.token, Token::StringLiteral(s) if s.contains("$xcombox$"))));
-        assert!(tokens.iter().any(|t| matches!(&t.token, Token::StringLiteral(s) if s.contains("window.x_userid"))));
+    fn test_escape_string_e_prefix_still_supports_backslash() {
+        // E'...' strings explicitly enable backslash escaping
+        let tokens = tokens_as_vec("E'it\\'s a test'");
+        assert!(matches!(&tokens[0], Token::EscapeString(s) if s == "it's a test"));
+    }
+
+    #[test]
+    fn test_escape_string_e_backslash() {
+        // E'\\' → single backslash via escape
+        let tokens = tokens_as_vec("E'\\\\'");
+        assert!(matches!(&tokens[0], Token::EscapeString(s) if s == "\\"));
     }
 
     #[test]
