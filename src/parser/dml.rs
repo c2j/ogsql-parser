@@ -112,22 +112,15 @@ impl Parser {
                 if *kw == Keyword::SELECT || *kw == Keyword::WITH {
                     self.advance();
                     let paren_loc = self.current_location();
-                    let select = self.parse_select_statement()?;
+                    let mut select = self.parse_select_statement()?;
                     self.expect_token(&Token::RParen)?;
-                    // Detect unsupported pattern: INSERT INTO ... (SELECT ...) UNION ALL (SELECT ...)
-                    // GaussDB/openGauss does not support UNION ALL with bracketed subqueries in INSERT source.
+                    // Detect pattern: INSERT INTO ... (SELECT ...) UNION ALL (SELECT ...)
+                    // GaussDB/openGauss supports this syntax; emit a compatibility warning.
                     if let Some(Token::Keyword(kw)) = self.tokens.get(self.pos).map(|tws| &tws.token) {
                         if matches!(kw, Keyword::UNION | Keyword::INTERSECT | Keyword::EXCEPT | Keyword::MINUS_P) {
                             self.add_error(ParserError::Warning {
                                 message: format!(
-                                    "bracketed INSERT ... (SELECT ...) {} is not supported in GaussDB/openGauss — remove the parentheses around each SELECT branch to use {} with INSERT",
-                                    match kw {
-                                        Keyword::UNION => "UNION",
-                                        Keyword::INTERSECT => "INTERSECT",
-                                        Keyword::EXCEPT => "EXCEPT",
-                                        Keyword::MINUS_P => "MINUS",
-                                        _ => unreachable!(),
-                                    },
+                                    "bracketed INSERT ... (SELECT ...) {} — consider removing parentheses around each SELECT branch for clarity",
                                     match kw {
                                         Keyword::UNION => "UNION",
                                         Keyword::INTERSECT => "INTERSECT",
@@ -138,6 +131,7 @@ impl Parser {
                                 ),
                                 location: paren_loc,
                             });
+                            select = self.parse_set_operations(select)?;
                         }
                     }
                     InsertSource::Select(Box::new(select))

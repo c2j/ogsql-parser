@@ -45,7 +45,7 @@ impl Parser {
         Ok(stmt)
     }
 
-    fn parse_set_operations(&mut self, mut stmt: SelectStatement) -> Result<SelectStatement, ParserError> {
+    pub(crate) fn parse_set_operations(&mut self, mut stmt: SelectStatement) -> Result<SelectStatement, ParserError> {
         loop {
             let (op, all) = match self.peek_keyword() {
                 Some(Keyword::UNION) => {
