@@ -5223,6 +5223,57 @@ fn test_insert_all_into_with_columns() {
 }
 
 #[test]
+fn test_insert_bracketed_select_union_all_warning_only() {
+    let sql = "INSERT INTO otab (a, b, c) (SELECT x, y, z FROM t1 WHERE id = 1) UNION ALL (SELECT NULL, NULL, '0' FROM sys_dummy)";
+    let tokens = Tokenizer::new(sql).tokenize().unwrap();
+    let mut parser = Parser::new(tokens);
+    let stmts = parser.parse();
+
+    assert_eq!(stmts.len(), 1, "should parse as a single INSERT statement");
+
+    let errors = parser.errors();
+    let warnings: Vec<_> = errors
+        .iter()
+        .filter(|e| matches!(e, ParserError::Warning { .. }))
+        .collect();
+    let hard_errors: Vec<_> = errors
+        .iter()
+        .filter(|e| !matches!(e, ParserError::Warning { .. }))
+        .collect();
+
+    assert_eq!(warnings.len(), 1, "should produce exactly one warning");
+    assert!(
+        warnings[0].to_string().contains("bracketed INSERT"),
+        "warning should mention bracketed INSERT"
+    );
+    assert!(
+        hard_errors.is_empty(),
+        "should produce no hard errors, got: {:?}",
+        hard_errors
+    );
+
+    match &stmts[0] {
+        Statement::Insert(ins) => match &ins.source {
+            InsertSource::Select(sel) => {
+                assert!(
+                    sel.set_operation.is_some(),
+                    "UNION ALL should be captured in set_operation"
+                );
+                match sel.set_operation.as_ref().unwrap() {
+                    SetOperation::Union { all, right } => {
+                        assert!(all, "should be UNION ALL");
+                        assert_eq!(right.from.len(), 1);
+                    }
+                    _ => panic!("expected Union set operation"),
+                }
+            }
+            _ => panic!("expected Select source"),
+        },
+        _ => panic!("expected Insert statement"),
+    }
+}
+
+#[test]
 fn test_pivot() {
     let stmt = parse_one(
         "SELECT * FROM sales PIVOT (SUM(amount) FOR quarter IN ('Q1' AS q1, 'Q2' AS q2))",
