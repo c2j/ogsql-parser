@@ -6,7 +6,7 @@ use crate::ast::{
 };
 use crate::parser::{Parser, ParserError};
 use crate::token::keyword::Keyword;
-use crate::token::Token;
+use crate::token::{SourceLocation, Token};
 
 impl Parser {
     fn apply_dml_partition_to_table_ref(table: TableRef, dml: DmlPartitionClause) -> TableRef {
@@ -111,8 +111,35 @@ impl Parser {
             if let Some(Token::Keyword(kw)) = self.tokens.get(self.pos + 1).map(|tws| &tws.token) {
                 if *kw == Keyword::SELECT || *kw == Keyword::WITH {
                     self.advance();
+                    let paren_loc = self.current_location();
                     let select = self.parse_select_statement()?;
                     self.expect_token(&Token::RParen)?;
+                    // Detect unsupported pattern: INSERT INTO ... (SELECT ...) UNION ALL (SELECT ...)
+                    // GaussDB/openGauss does not support UNION ALL with bracketed subqueries in INSERT source.
+                    if let Some(Token::Keyword(kw)) = self.tokens.get(self.pos).map(|tws| &tws.token) {
+                        if matches!(kw, Keyword::UNION | Keyword::INTERSECT | Keyword::EXCEPT | Keyword::MINUS_P) {
+                            self.add_error(ParserError::Warning {
+                                message: format!(
+                                    "bracketed INSERT ... (SELECT ...) {} is not supported in GaussDB/openGauss — remove the parentheses around each SELECT branch to use {} with INSERT",
+                                    match kw {
+                                        Keyword::UNION => "UNION",
+                                        Keyword::INTERSECT => "INTERSECT",
+                                        Keyword::EXCEPT => "EXCEPT",
+                                        Keyword::MINUS_P => "MINUS",
+                                        _ => unreachable!(),
+                                    },
+                                    match kw {
+                                        Keyword::UNION => "UNION",
+                                        Keyword::INTERSECT => "INTERSECT",
+                                        Keyword::EXCEPT => "EXCEPT",
+                                        Keyword::MINUS_P => "MINUS",
+                                        _ => unreachable!(),
+                                    },
+                                ),
+                                location: paren_loc,
+                            });
+                        }
+                    }
                     InsertSource::Select(Box::new(select))
                 } else {
                     return Err(ParserError::UnexpectedToken {
