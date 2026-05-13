@@ -300,6 +300,28 @@ impl Parser {
                                     };
                                     return Ok(true);
                                 }
+                                if matches!(&next2.token, Token::Keyword(Keyword::TRUE_P)) {
+                                    self.advance();
+                                    self.advance();
+                                    self.advance();
+                                    *left = Expr::IsBoolean {
+                                        expr: Box::new(std::mem::replace(left, Expr::Default)),
+                                        value: true,
+                                        negated: true,
+                                    };
+                                    return Ok(true);
+                                }
+                                if matches!(&next2.token, Token::Keyword(Keyword::FALSE_P)) {
+                                    self.advance();
+                                    self.advance();
+                                    self.advance();
+                                    *left = Expr::IsBoolean {
+                                        expr: Box::new(std::mem::replace(left, Expr::Default)),
+                                        value: false,
+                                        negated: true,
+                                    };
+                                    return Ok(true);
+                                }
                                 if matches!(&next2.token, Token::Keyword(Keyword::DISTINCT)) {
                                     if let Some(next3) = self.tokens.get(self.pos + 3) {
                                         if matches!(&next3.token, Token::Keyword(Keyword::FROM)) {
@@ -319,6 +341,26 @@ impl Parser {
                                     }
                                 }
                             }
+                        }
+                        Token::Keyword(Keyword::TRUE_P) => {
+                            self.advance();
+                            self.advance();
+                            *left = Expr::IsBoolean {
+                                expr: Box::new(std::mem::replace(left, Expr::Default)),
+                                value: true,
+                                negated: false,
+                            };
+                            return Ok(true);
+                        }
+                        Token::Keyword(Keyword::FALSE_P) => {
+                            self.advance();
+                            self.advance();
+                            *left = Expr::IsBoolean {
+                                expr: Box::new(std::mem::replace(left, Expr::Default)),
+                                value: false,
+                                negated: false,
+                            };
+                            return Ok(true);
                         }
                         Token::Keyword(Keyword::DISTINCT) => {
                             if let Some(next2) = self.tokens.get(self.pos + 2) {
