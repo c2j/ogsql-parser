@@ -1255,6 +1255,11 @@ pub enum Expr {
         expr: Box<Expr>,
         negated: bool,
     },
+    IsBoolean {
+        expr: Box<Expr>,
+        value: bool,
+        negated: bool,
+    },
     TypeCast {
         expr: Box<Expr>,
         type_name: DataType,

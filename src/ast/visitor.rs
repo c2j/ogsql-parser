@@ -1056,6 +1056,11 @@ fn walk_expr(visitor: &mut dyn Visitor, expr: &Expr) -> VisitorResult {
                 return VisitorResult::Stop;
             }
         }
+        Expr::IsBoolean { expr, .. } => {
+            if walk_expr(visitor, expr) == VisitorResult::Stop {
+                return VisitorResult::Stop;
+            }
+        }
         Expr::TypeCast { expr, default, format, .. } => {
             if walk_expr(visitor, expr) == VisitorResult::Stop {
                 return VisitorResult::Stop;

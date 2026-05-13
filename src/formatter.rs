@@ -1155,6 +1155,28 @@ impl SqlFormatter {
                     self.kw("NULL")
                 )
             }
+            Expr::IsBoolean {
+                expr,
+                value,
+                negated,
+            } => {
+                let not_str = if *negated {
+                    format!(" {}", self.kw("NOT"))
+                } else {
+                    String::new()
+                };
+                let bool_str = if *value {
+                    self.kw("TRUE")
+                } else {
+                    self.kw("FALSE")
+                };
+                format!(
+                    "{} IS{} {}",
+                    self.format_expr(expr),
+                    not_str,
+                    bool_str
+                )
+            }
             Expr::TypeCast {
                 expr,
                 type_name,

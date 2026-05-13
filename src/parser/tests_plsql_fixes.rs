@@ -751,3 +751,263 @@ fn test_with_select_cte_still_works_in_procedure_body() {
         other => panic!("expected CreatePackageBody, got {:?}", other),
     }
 }
+
+// ========== IS TRUE / IS FALSE expression support (issue #122) ==========
+
+#[test]
+fn test_is_true_in_select() {
+    let sql = "SELECT * FROM t WHERE active IS TRUE";
+    let stmts = parse(sql);
+    assert!(stmts.len() == 1);
+    match &stmts[0] {
+        Statement::Select(sel) => {
+            let where_clause = sel.node.where_clause.as_ref().expect("should have WHERE");
+            match where_clause {
+                Expr::IsBoolean { expr, value, negated } => {
+                    assert!(matches!(expr.as_ref(), Expr::ColumnRef(_)));
+                    assert!(*value);
+                    assert!(!negated);
+                }
+                other => panic!("expected IsBoolean, got {:?}", other),
+            }
+        }
+        other => panic!("expected Select, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_is_false_in_select() {
+    let sql = "SELECT * FROM t WHERE active IS FALSE";
+    let stmts = parse(sql);
+    assert!(stmts.len() == 1);
+    match &stmts[0] {
+        Statement::Select(sel) => {
+            let where_clause = sel.node.where_clause.as_ref().expect("should have WHERE");
+            match where_clause {
+                Expr::IsBoolean { expr, value, negated } => {
+                    assert!(matches!(expr.as_ref(), Expr::ColumnRef(_)));
+                    assert!(!value);
+                    assert!(!negated);
+                }
+                other => panic!("expected IsBoolean, got {:?}", other),
+            }
+        }
+        other => panic!("expected Select, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_is_not_true_in_select() {
+    let sql = "SELECT * FROM t WHERE active IS NOT TRUE";
+    let stmts = parse(sql);
+    assert!(stmts.len() == 1);
+    match &stmts[0] {
+        Statement::Select(sel) => {
+            let where_clause = sel.node.where_clause.as_ref().expect("should have WHERE");
+            match where_clause {
+                Expr::IsBoolean { expr, value, negated } => {
+                    assert!(matches!(expr.as_ref(), Expr::ColumnRef(_)));
+                    assert!(*value);
+                    assert!(*negated);
+                }
+                other => panic!("expected IsBoolean, got {:?}", other),
+            }
+        }
+        other => panic!("expected Select, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_is_not_false_in_select() {
+    let sql = "SELECT * FROM t WHERE active IS NOT FALSE";
+    let stmts = parse(sql);
+    assert!(stmts.len() == 1);
+    match &stmts[0] {
+        Statement::Select(sel) => {
+            let where_clause = sel.node.where_clause.as_ref().expect("should have WHERE");
+            match where_clause {
+                Expr::IsBoolean { expr, value, negated } => {
+                    assert!(matches!(expr.as_ref(), Expr::ColumnRef(_)));
+                    assert!(!value);
+                    assert!(*negated);
+                }
+                other => panic!("expected IsBoolean, got {:?}", other),
+            }
+        }
+        other => panic!("expected Select, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_is_true_in_plpgsql_if() {
+    let sql = "CREATE OR REPLACE FUNCTION test_fn(p_flag IN BOOLEAN) RETURN NUMBER IS
+    BEGIN
+        IF p_flag IS TRUE THEN RETURN 1; ELSE RETURN 0; END IF;
+    END;";
+    let stmt = parse_one(sql);
+    match stmt {
+        Statement::CreateFunction(f) => {
+            let block = f.block.as_ref().expect("function should have a body");
+            assert_eq!(block.body.len(), 1);
+            match &block.body[0] {
+                PlStatement::If(if_stmt) => {
+                    match &if_stmt.node.condition {
+                        Expr::IsBoolean { expr, value, negated } => {
+                            assert!(matches!(expr.as_ref(), Expr::PlVariable(_)));
+                            assert!(*value);
+                            assert!(!negated);
+                        }
+                        other => panic!("expected IsBoolean condition, got {:?}", other),
+                    }
+                    assert_eq!(if_stmt.node.then_stmts.len(), 1);
+                    assert_eq!(if_stmt.node.else_stmts.len(), 1);
+                }
+                other => panic!("expected If statement, got {:?}", other),
+            }
+        }
+        other => panic!("expected CreateFunction, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_is_false_in_plpgsql_if() {
+    let sql = "CREATE OR REPLACE FUNCTION test_fn(p_flag IN BOOLEAN) RETURN NUMBER IS
+    BEGIN
+        IF p_flag IS FALSE THEN RETURN 0; END IF;
+    END;";
+    let stmt = parse_one(sql);
+    match stmt {
+        Statement::CreateFunction(f) => {
+            let block = f.block.as_ref().expect("function should have a body");
+            match &block.body[0] {
+                PlStatement::If(if_stmt) => {
+                    match &if_stmt.node.condition {
+                        Expr::IsBoolean { value, negated, .. } => {
+                            assert!(!value);
+                            assert!(!negated);
+                        }
+                        other => panic!("expected IsBoolean, got {:?}", other),
+                    }
+                }
+                other => panic!("expected If, got {:?}", other),
+            }
+        }
+        other => panic!("expected CreateFunction, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_is_not_true_in_plpgsql_if() {
+    let sql = "CREATE OR REPLACE FUNCTION test_fn(p_flag IN BOOLEAN) RETURN NUMBER IS
+    BEGIN
+        IF p_flag IS NOT TRUE THEN RETURN 0; END IF;
+    END;";
+    let stmt = parse_one(sql);
+    match stmt {
+        Statement::CreateFunction(f) => {
+            let block = f.block.as_ref().expect("function should have a body");
+            match &block.body[0] {
+                PlStatement::If(if_stmt) => {
+                    match &if_stmt.node.condition {
+                        Expr::IsBoolean { value, negated, .. } => {
+                            assert!(*value);
+                            assert!(*negated);
+                        }
+                        other => panic!("expected IsBoolean, got {:?}", other),
+                    }
+                }
+                other => panic!("expected If, got {:?}", other),
+            }
+        }
+        other => panic!("expected CreateFunction, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_is_true_formatter_roundtrip() {
+    let sql = "SELECT * FROM t WHERE active IS TRUE";
+    let stmts = parse(sql);
+    let formatter = SqlFormatter::new();
+    let output = formatter.format_statement(&stmts[0]);
+    assert!(output.contains("IS TRUE"), "formatted output should contain 'IS TRUE': {}", output);
+}
+
+#[test]
+fn test_is_not_false_formatter_roundtrip() {
+    let sql = "SELECT * FROM t WHERE active IS NOT FALSE";
+    let stmts = parse(sql);
+    let formatter = SqlFormatter::new();
+    let output = formatter.format_statement(&stmts[0]);
+    assert!(output.contains("IS NOT FALSE"), "formatted output should contain 'IS NOT FALSE': {}", output);
+}
+
+#[test]
+fn test_package_body_overloaded_functions_with_is_true() {
+    let sql = "CREATE OR REPLACE PACKAGE BODY complex_clearing_pkg AS
+        FUNCTION calc_fee(p_amount IN NUMERIC) RETURN NUMERIC IS
+        BEGIN RETURN p_amount; END;
+        FUNCTION calc_fee(p_amount IN NUMERIC, p_vip_level IN INT DEFAULT 1) RETURN NUMERIC IS
+            v_rate NUMERIC;
+        BEGIN
+            v_rate := 0.0015;
+            RETURN ROUND(p_amount * v_rate, 2);
+        END;
+        FUNCTION calc_fee(p_amount IN NUMERIC, p_discount_rate IN NUMERIC, p_apply_ceil IN BOOLEAN) RETURN NUMERIC IS
+            v_raw NUMERIC;
+        BEGIN
+            v_raw := p_amount * p_discount_rate;
+            IF p_apply_ceil IS TRUE THEN RETURN CEIL(v_raw); ELSE RETURN v_raw; END IF;
+        END;
+    END;";
+    let stmt = parse_one(sql);
+    match stmt {
+        Statement::CreatePackageBody(p) => {
+            let funcs: Vec<_> = p
+                .items
+                .iter()
+                .filter_map(|item| match item {
+                    PackageItem::Function(f) => Some(f.clone()),
+                    _ => None,
+                })
+                .collect();
+            assert_eq!(funcs.len(), 3, "should have 3 overloaded calc_fee functions, got {}", funcs.len());
+            assert_eq!(funcs[0].name, vec!["calc_fee"]);
+            assert_eq!(funcs[0].parameters.len(), 1);
+            assert!(funcs[0].block.is_some());
+            assert_eq!(funcs[1].name, vec!["calc_fee"]);
+            assert_eq!(funcs[1].parameters.len(), 2);
+            assert!(funcs[1].block.is_some());
+            assert_eq!(funcs[2].name, vec!["calc_fee"]);
+            assert_eq!(funcs[2].parameters.len(), 3);
+            assert!(funcs[2].block.is_some());
+
+            let block3 = funcs[2].block.as_ref().expect("3rd overload should have body");
+            assert_eq!(block3.body.len(), 2, "3rd overload body should have 2 statements");
+            match &block3.body[1] {
+                PlStatement::If(if_stmt) => {
+                    match &if_stmt.node.condition {
+                        Expr::IsBoolean { value, negated, .. } => {
+                            assert!(*value, "condition should be IS TRUE");
+                            assert!(!negated);
+                        }
+                        other => panic!("expected IsBoolean in 3rd overload IF condition, got {:?}", other),
+                    }
+                }
+                other => panic!("expected If in 3rd overload body, got {:?}", other),
+            }
+        }
+        other => panic!("expected CreatePackageBody, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_is_true_json_roundtrip() {
+    let sql = "SELECT * FROM t WHERE x IS TRUE AND y IS NOT FALSE";
+    let stmts = parse(sql);
+    let json = serde_json::to_string(&stmts).unwrap();
+    let restored: Vec<Statement> = serde_json::from_str(&json).unwrap();
+    let formatter = SqlFormatter::new();
+    let output = formatter.format_statement(&restored[0]);
+    assert!(output.contains("IS TRUE"));
+    assert!(output.contains("IS NOT FALSE"));
+}
