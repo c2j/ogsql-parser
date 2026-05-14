@@ -85,6 +85,9 @@ pub struct ParseJavaParams {
     /// Extra method names to treat as SQL-bearing (e.g. ["executeQuery", "nativeQuery"])
     #[serde(default)]
     pub extra_sql_methods: Vec<String>,
+    /// Extra variable name patterns for SQL detection (e.g. ["QUERY", "STMT"])
+    #[serde(default)]
+    pub extra_sql_var_patterns: Vec<String>,
 }
 
 // ── Server struct ────────────────────────────────────────────────────────────
@@ -337,10 +340,11 @@ impl OgsqlServer {
     #[tool(description = "Extract embedded SQL from Java source files (string literals, annotations, method calls)")]
     fn parse_java(
         &self,
-        Parameters(ParseJavaParams { source, extra_sql_methods }): Parameters<ParseJavaParams>,
+        Parameters(ParseJavaParams { source, extra_sql_methods, extra_sql_var_patterns }): Parameters<ParseJavaParams>,
     ) -> String {
         let config = crate::java::JavaExtractConfig {
             extra_sql_methods,
+            extra_sql_var_patterns,
         };
         let result =
             crate::java::extract_sql_from_java(&source, "<mcp-input>", &config);

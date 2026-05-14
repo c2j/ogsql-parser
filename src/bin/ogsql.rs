@@ -5,8 +5,28 @@ use ogsql_parser::*;
 use ogsql_parser::token_formatter::{FormatConfig, KeywordCase, CommaStyle};
 use serde::Serialize;
 
+const OGSQL_LOGO: &str = r#"
+  ██████╗  ██████╗ ███████╗ ██████╗ ██╗      ██████╗  █████╗ ██████╗ ███████╗███████╗██████╗
+ ██╔═══██╗██╔════╝ ██╔════╝██╔═══██╗██║      ██╔══██╗██╔══██╗██╔══██╗██╔════╝██╔════╝██╔══██╗
+ ██║   ██║██║  ███╗███████╗██║   ██║██║      ██████╔╝███████║██████╔╝███████╗███████╗██████╔╝
+ ██║   ██║██║   ██║╚════██║██║   ██║██║      ██╔═══╝ ██╔══██║██╔══██╗╚════██║██╔═══╝ ██╔══██╗
+ ╚██████╔╝╚██████╔╝███████║╚██████╔╝███████╗ ██║     ██║  ██║██║  ██║███████║███████╗██║  ██║
+  ╚═════╝  ╚═════╝ ╚══════╝ ╚═════╝ ╚══════╝ ╚═╝     ╚═╝  ╚═╝╚═╝  ╚═╝╚══════╝╚══════╝╚═╝  ╚═╝"#;
+
 #[derive(ClapParser)]
-#[command(name = "ogsql", version, about = "openGauss/GaussDB SQL Parser")]
+#[command(
+    name = "ogsql",
+    version,
+    about = "openGauss/GaussDB SQL Parser",
+    help_template = "\
+{before-help}{name} {version}
+{about-with-newline}\
+{usage-heading} {usage}
+
+{all-args}{after-help}\
+",
+    before_help = OGSQL_LOGO,
+)]
 struct Cli {
     #[command(subcommand)]
     command: Commands,
@@ -138,6 +158,8 @@ enum Commands {
     ParseJava {
         #[arg(long = "extra-sql-methods", value_delimiter = ',')]
         extra_sql_methods: Vec<String>,
+        #[arg(long = "extra-sql-var-patterns", value_delimiter = ',')]
+        extra_sql_var_patterns: Vec<String>,
         /// Recursively scan directory for Java files / 递归扫描目录中的 Java 文件
         #[arg(short = 'd', long = "dir")]
         dir: Option<String>,
@@ -2398,10 +2420,12 @@ fn print_xml_text(result: &ogsql_parser::ibatis::ParsedMapper) {
 }
 
 #[cfg(feature = "java")]
-fn cmd_parse_java(cli: &Cli, extra_sql_methods: &[String], dir: Option<&str>, csv: bool, stats: bool) {
-    if dir.is_some() && cli.file.is_some() {
-        die!("Error: --dir and -f are mutually exclusive");
+fn cmd_parse_java(cli: &Cli, extra_sql_methods: &[String], extra_sql_var_patterns: &[String], dir: Option<&str>, csv: bool, stats: bool) {
+    match dir {
+        Some(dir_path) => cmd_parse_java_dir(cli, extra_sql_methods, extra_sql_var_patterns, dir_path, csv, stats),
+        None => cmd_parse_java_single(cli, extra_sql_methods, extra_sql_var_patterns, csv),
     }
+}
 
     if let Some(dir_path) = dir {
         cmd_parse_java_dir(cli, extra_sql_methods, dir_path, csv, stats);
@@ -2411,7 +2435,7 @@ fn cmd_parse_java(cli: &Cli, extra_sql_methods: &[String], dir: Option<&str>, cs
 }
 
 #[cfg(feature = "java")]
-fn cmd_parse_java_single(cli: &Cli, extra_sql_methods: &[String], csv: bool) {
+fn cmd_parse_java_single(cli: &Cli, extra_sql_methods: &[String], extra_sql_var_patterns: &[String], csv: bool) {
     let (source, file_path) = match cli.file.as_deref() {
         Some(path) => {
             let bytes =
@@ -2431,6 +2455,7 @@ fn cmd_parse_java_single(cli: &Cli, extra_sql_methods: &[String], csv: bool) {
 
     let config = ogsql_parser::java::JavaExtractConfig {
         extra_sql_methods: extra_sql_methods.to_vec(),
+        extra_sql_var_patterns: extra_sql_var_patterns.to_vec(),
     };
     let result = ogsql_parser::java::extract_sql_from_java(&source, &file_path, &config);
 
@@ -2456,7 +2481,7 @@ fn java_error_kind(err: &ogsql_parser::java::error::JavaError) -> &'static str {
 }
 
 #[cfg(feature = "java")]
-fn cmd_parse_java_dir(cli: &Cli, extra_sql_methods: &[String], dir_path: &str, csv: bool, stats: bool) {
+fn cmd_parse_java_dir(cli: &Cli, extra_sql_methods: &[String], extra_sql_var_patterns: &[String], dir_path: &str, csv: bool, stats: bool) {
     use std::path::Path;
 
     let root = Path::new(dir_path);
@@ -2466,6 +2491,7 @@ fn cmd_parse_java_dir(cli: &Cli, extra_sql_methods: &[String], dir_path: &str, c
 
     let config = ogsql_parser::java::JavaExtractConfig {
         extra_sql_methods: extra_sql_methods.to_vec(),
+        extra_sql_var_patterns: extra_sql_var_patterns.to_vec(),
     };
 
     let mut all_results: Vec<(String, String, ogsql_parser::java::JavaExtractResult)> = Vec::new();
@@ -3231,9 +3257,10 @@ fn main() {
         #[cfg(feature = "java")]
         Commands::ParseJava {
             ref extra_sql_methods,
+            ref extra_sql_var_patterns,
             ref dir,
             csv,
             stats,
-        } => cmd_parse_java(&cli, extra_sql_methods, dir.as_deref(), csv, stats),
+        } => cmd_parse_java(&cli, extra_sql_methods, extra_sql_var_patterns, dir.as_deref(), csv, stats),
     }
 }
