@@ -619,6 +619,7 @@ fn test_extra_sql_methods() {
 
     let config = JavaExtractConfig {
         extra_sql_methods: vec!["findNativeQuery".to_string()],
+        ..Default::default()
     };
     let result = extract_sql_from_java(java, "CustomDao.java", &config);
     let method_extractions: Vec<_> = result
@@ -1485,6 +1486,7 @@ fn test_string_array_arg_sql_constant_single_param() {
     "#;
     let config = JavaExtractConfig {
         extra_sql_methods: vec!["executeQuery".to_string()],
+        ..Default::default()
     };
     let result = extract_sql_from_java(java, "Dao.java", &config);
     assert!(result.errors.is_empty(), "Errors: {:?}", result.errors);
@@ -1505,6 +1507,7 @@ fn test_string_array_arg_multiple_params() {
     "#;
     let config = JavaExtractConfig {
         extra_sql_methods: vec!["executeQuery".to_string()],
+        ..Default::default()
     };
     let result = extract_sql_from_java(java, "Dao.java", &config);
     assert!(result.errors.is_empty(), "Errors: {:?}", result.errors);
@@ -1526,6 +1529,7 @@ fn test_object_array_arg_typed_params() {
     "#;
     let config = JavaExtractConfig {
         extra_sql_methods: vec!["executeQuery".to_string()],
+        ..Default::default()
     };
     let result = extract_sql_from_java(java, "Dao.java", &config);
     assert!(result.errors.is_empty(), "Errors: {:?}", result.errors);
@@ -1545,6 +1549,7 @@ fn test_inline_sql_with_inline_string_array() {
     "#;
     let config = JavaExtractConfig {
         extra_sql_methods: vec!["executeQuery".to_string()],
+        ..Default::default()
     };
     let result = extract_sql_from_java(java, "Dao.java", &config);
     assert!(result.errors.is_empty(), "Errors: {:?}", result.errors);
@@ -1568,6 +1573,7 @@ fn test_real_world_integration_ebms_handler() {
     "#;
     let config = JavaExtractConfig {
         extra_sql_methods: vec!["executeQuery".to_string()],
+        ..Default::default()
     };
     let result = extract_sql_from_java(java, "EBMSHandler.java", &config);
     assert!(result.errors.is_empty(), "Errors: {:?}", result.errors);
@@ -1745,4 +1751,54 @@ fn test_cross_method_fallback_when_method_unparsed() {
         "Should not have JDBC_PARAM, got: {}",
         ext.sql
     );
+}
+
+#[test]
+fn test_extra_sql_var_patterns_cmd_sb_empty_init() {
+    let java = r#"
+        public class Dao {
+            public void find(String table) {
+                StringBuilder cmd = new StringBuilder();
+                cmd.append("SELECT * FROM ").append(table);
+            }
+        }
+    "#;
+
+    let result_default = extract_sql_from_java(java, "Dao.java", &JavaExtractConfig::default());
+    assert!(
+        result_default.extractions.is_empty(),
+        "Should not extract 'cmd' StringBuilder without extra patterns"
+    );
+
+    let config = JavaExtractConfig {
+        extra_sql_var_patterns: vec!["CMD".to_string()],
+        ..Default::default()
+    };
+    let result = extract_sql_from_java(java, "Dao.java", &config);
+    assert_eq!(result.extractions.len(), 1);
+    assert!(result.extractions[0].sql.contains("SELECT * FROM"));
+    assert_eq!(result.extractions[0].origin.variable_name.as_deref(), Some("cmd"));
+}
+
+#[test]
+fn test_extra_sql_var_patterns_stmt_and_default_sql_still_works() {
+    let java = r#"
+        public class Dao {
+            public void find(int id) {
+                String stmt = "SELECT * FROM t WHERE id = " + id;
+                String sql = "DELETE FROM temp";
+            }
+        }
+    "#;
+
+    let config = JavaExtractConfig {
+        extra_sql_var_patterns: vec!["STMT".to_string()],
+        ..Default::default()
+    };
+    let result = extract_sql_from_java(java, "Dao.java", &config);
+    assert_eq!(result.extractions.len(), 2);
+    let stmt_ext = result.extractions.iter().find(|e| e.origin.variable_name.as_deref() == Some("stmt")).unwrap();
+    assert!(stmt_ext.sql.contains("SELECT * FROM t"));
+    let sql_ext = result.extractions.iter().find(|e| e.origin.variable_name.as_deref() == Some("sql")).unwrap();
+    assert!(sql_ext.sql.contains("DELETE FROM temp"));
 }
