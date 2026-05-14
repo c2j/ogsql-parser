@@ -290,11 +290,15 @@ fn cmd_format(
     }
 }
 
-fn cmd_parse(cli: &Cli) {
+fn cmd_parse(cli: &Cli, csv: bool) {
     let sql = read_input(cli.file.as_deref());
     let output = parse_input(&sql, cli.comments, cli.mybatis);
 
-    if cli.json {
+    if csv {
+        let file_name = cli.file.as_deref().unwrap_or("<stdin>");
+        output_csv_parse_header();
+        output_csv_parse_rows(&output.statements, file_name, ".", &output.errors, cli.mybatis);
+    } else if cli.json {
         let stmt_values: Vec<serde_json::Value> = output
             .statements
             .iter()
@@ -460,7 +464,7 @@ fn cmd_parse_dir(
         for (file_name, rel_dir, abs_path) in &files {
             let sql = read_file_path(abs_path);
             let output = parse_input(&sql, cli.comments, cli.mybatis);
-            output_csv_parse_rows(&output.statements, file_name, rel_dir, &output.errors);
+            output_csv_parse_rows(&output.statements, file_name, rel_dir, &output.errors, cli.mybatis);
             for si in &output.statements {
                 *stmt_counts.entry(stmt_category(&si.statement)).or_insert(0) += 1;
             }
@@ -618,6 +622,181 @@ fn format_params(params: &[ogsql_parser::ast::RoutineParam]) -> String {
         .join(", ")
 }
 
+enum ConcatPart {
+    Literal(String),
+    Variable(String),
+    Unresolved(String),
+}
+
+/// Evaluate a PL/pgSQL string-concatenation expression (`||`) into concrete parts.
+/// String literals are extracted as their raw content; variables/other expressions
+/// are left as named placeholders. This turns `'SELECT * FROM ' || v_table || ' WHERE 1=1'`
+/// into `["SELECT * FROM ", "${v_table}", " WHERE 1=1"]`.
+fn eval_concat_expr(expr: &ogsql_parser::ast::Expr) -> Vec<ConcatPart> {
+    use ogsql_parser::ast::{Expr, Literal};
+
+    match expr {
+        Expr::BinaryOp { op, left, right, .. } if op == "||" => {
+            let mut parts = eval_concat_expr(left);
+            parts.extend(eval_concat_expr(right));
+            parts
+        }
+        Expr::Literal(Literal::String(s)) => vec![ConcatPart::Literal(s.clone())],
+        Expr::Literal(Literal::DollarString { body, .. }) => vec![ConcatPart::Literal(body.clone())],
+        Expr::Literal(Literal::EscapeString(s)) => vec![ConcatPart::Literal(s.clone())],
+        Expr::ColumnRef(names) | Expr::PlVariable(names) if names.len() == 1 => {
+            vec![ConcatPart::Variable(names[0].clone())]
+        }
+        Expr::Parenthesized(inner) => eval_concat_expr(inner),
+        _ => vec![ConcatPart::Unresolved(format_pl_expr(expr))],
+    }
+}
+
+/// Join evaluated concat parts into a single SQL string, replacing variables via `replace_fn`.
+fn join_concat_parts(
+    parts: &[ConcatPart],
+    replace_fn: &dyn Fn(&str, &std::collections::HashMap<String, Option<String>>) -> String,
+    vars: &std::collections::HashMap<String, Option<String>>,
+    vars_empty: bool,
+) -> String {
+    let mut sql = String::new();
+    for part in parts {
+        match part {
+            ConcatPart::Literal(s) => sql.push_str(s),
+            ConcatPart::Variable(name) => {
+                if vars_empty {
+                    sql.push_str(name);
+                } else {
+                    let single_var: std::collections::HashMap<String, Option<String>> = {
+                        let mut m = std::collections::HashMap::new();
+                        m.insert(name.to_ascii_lowercase(), vars.get(&name.to_ascii_lowercase()).cloned().flatten());
+                        m
+                    };
+                    let replaced = replace_fn(name, &single_var);
+                    sql.push_str(&replaced);
+                }
+            }
+            ConcatPart::Unresolved(s) => {
+                if vars_empty {
+                    sql.push_str(s);
+                } else {
+                    let replaced = replace_fn(s, vars);
+                    sql.push_str(&replaced);
+                }
+            }
+        }
+    }
+    sql
+}
+
+fn extract_execute_sql_content(exec: &ogsql_parser::ast::plpgsql::PlExecuteStmt) -> String {
+    use ogsql_parser::ast::{Expr, Literal};
+
+    if let Some(ref parsed) = exec.parsed_query {
+        let formatter = ogsql_parser::SqlFormatter::new();
+        return formatter.format_statement(parsed);
+    }
+
+    match &exec.string_expr {
+        Expr::Literal(Literal::String(s)) => return s.clone(),
+        Expr::Literal(Literal::DollarString { body, .. }) => return body.clone(),
+        Expr::Literal(Literal::EscapeString(s)) => return s.clone(),
+        _ => {}
+    }
+
+    let parts = eval_concat_expr(&exec.string_expr);
+    let all_literal = parts.iter().all(|p| matches!(p, ConcatPart::Literal(_)));
+    if all_literal {
+        return parts.iter().map(|p| match p { ConcatPart::Literal(s) => s.as_str(), _ => "" }).collect();
+    }
+    format_pl_expr(&exec.string_expr)
+}
+
+/// Build the expanded SQL for an EXECUTE row in CSV output.
+/// Handles string concatenation by flattening `'...' || var || '...'` into
+/// a single SQL string with variables replaced as placeholders.
+fn build_execute_csv_sql(
+    exec: &ogsql_parser::ast::plpgsql::PlExecuteStmt,
+    vars: &std::collections::HashMap<String, Option<String>>,
+    raw: bool,
+) -> String {
+    use ogsql_parser::ast::{Expr, Literal};
+
+    if let Some(ref parsed) = exec.parsed_query {
+        let formatter = ogsql_parser::SqlFormatter::new();
+        let formatted = formatter.format_statement(parsed);
+        return if raw {
+            replace_pl_vars_in_sql_raw(&formatted, vars)
+        } else {
+            replace_pl_vars_in_sql(&formatted, vars)
+        };
+    }
+
+    match &exec.string_expr {
+        Expr::Literal(Literal::String(s)) => {
+            let sql = s.trim();
+            return if raw {
+                replace_pl_vars_in_sql_raw(sql, vars)
+            } else {
+                replace_pl_vars_in_sql(sql, vars)
+            };
+        }
+        Expr::Literal(Literal::DollarString { body, .. }) => {
+            let sql = body.trim();
+            return if raw {
+                replace_pl_vars_in_sql_raw(sql, vars)
+            } else {
+                replace_pl_vars_in_sql(sql, vars)
+            };
+        }
+        Expr::Literal(Literal::EscapeString(s)) => {
+            let sql = s.trim();
+            return if raw {
+                replace_pl_vars_in_sql_raw(sql, vars)
+            } else {
+                replace_pl_vars_in_sql(sql, vars)
+            };
+        }
+        _ => {}
+    }
+
+    let parts = eval_concat_expr(&exec.string_expr);
+    let has_vars = parts.iter().any(|p| !matches!(p, ConcatPart::Literal(_)));
+    if has_vars {
+        let replace_fn: &dyn Fn(&str, &std::collections::HashMap<String, Option<String>>) -> String =
+            if raw { &replace_pl_vars_in_sql_raw } else { &replace_pl_vars_in_sql };
+        return join_concat_parts(&parts, replace_fn, vars, vars.is_empty());
+    }
+
+    let plain = extract_execute_sql_content(exec);
+    if raw {
+        replace_pl_vars_in_sql_raw(&plain, vars)
+    } else {
+        replace_pl_vars_in_sql(&plain, vars)
+    }
+}
+
+fn format_pl_expr(expr: &ogsql_parser::ast::Expr) -> String {
+    use ogsql_parser::ast::{Expr, Literal};
+
+    match expr {
+        Expr::Literal(Literal::String(s)) => format!("'{}'", s),
+        Expr::Literal(Literal::DollarString { tag: None, body }) => format!("$${}$$", body),
+        Expr::Literal(Literal::DollarString { tag: Some(t), body }) => format!("${}${}", t, body),
+        Expr::Literal(Literal::EscapeString(s)) => format!("E'{}'", s),
+        Expr::ColumnRef(names) | Expr::PlVariable(names) => names.join("."),
+        Expr::BinaryOp { op, left, right, .. } => {
+            format!("{} {} {}", format_pl_expr(left), op, format_pl_expr(right))
+        }
+        Expr::Parenthesized(inner) => format!("({})", format_pl_expr(inner)),
+        Expr::FunctionCall { name, args, .. } => {
+            let formatted_args: Vec<String> = args.iter().map(|a| format_pl_expr(a)).collect();
+            format!("{}({})", name.join("."), formatted_args.join(", "))
+        }
+        _ => format!("{:?}", expr),
+    }
+}
+
 fn extract_block_sql(block: &ogsql_parser::ast::plpgsql::PlBlock) -> String {
     use ogsql_parser::ast::plpgsql::PlStatement;
     let mut parts: Vec<String> = Vec::new();
@@ -633,8 +812,11 @@ fn extract_block_sql(block: &ogsql_parser::ast::plpgsql::PlBlock) -> String {
                     parts.push(text.clone());
                 }
             }
-            PlStatement::Execute(_) => {
-                parts.push("EXECUTE ...".to_string());
+            PlStatement::Execute(spanned) => {
+                let sql = extract_execute_sql_content(&spanned.node);
+                if !sql.is_empty() {
+                    parts.push(sql);
+                }
             }
             PlStatement::Perform { query, .. } => {
                 parts.push(format!("PERFORM {}", query));
@@ -645,7 +827,229 @@ fn extract_block_sql(block: &ogsql_parser::ast::plpgsql::PlBlock) -> String {
     parts.join("\\n")
 }
 
-fn flatten_statement(si: &ogsql_parser::StatementInfo) -> Vec<ParseCsvRow> {
+/// Recursively collect SQL rows from a PL/pgSQL block into individual CSV rows.
+fn collect_block_sql_rows(
+    block: &ogsql_parser::ast::plpgsql::PlBlock,
+    parent_name: &str,
+    fallback_line: usize,
+    vars: &std::collections::HashMap<String, Option<String>>,
+) -> Vec<ParseCsvRow> {
+    let mut rows = Vec::new();
+    for stmt in &block.body {
+        collect_pl_stmt_rows(stmt, parent_name, fallback_line, vars, &mut rows);
+    }
+    if let Some(ref exc) = block.exception_block {
+        for handler in &exc.handlers {
+            for stmt in &handler.statements {
+                collect_pl_stmt_rows(stmt, parent_name, fallback_line, vars, &mut rows);
+            }
+        }
+    }
+    rows
+}
+
+/// Extract the start line from a Spanned PlStatement variant, if available.
+fn spanned_line(span: &Option<ogsql_parser::ast::SourceSpan>) -> usize {
+    span.as_ref().map_or(0, |s| s.start.line)
+}
+
+/// Derive a descriptive type string and target name from an embedded SQL Statement.
+fn sql_statement_type_and_name(stmt: &ogsql_parser::Statement) -> (String, String) {
+    use ogsql_parser::Statement;
+    match stmt {
+        Statement::Select(s) => (
+            "SqlStatement/Select".into(),
+            s.from.first().and_then(|f| {
+                if let ogsql_parser::ast::TableRef::Table { name, .. } = f {
+                    Some(name.join("."))
+                } else {
+                    None
+                }
+            }).unwrap_or_default(),
+        ),
+        Statement::Insert(s) => ("SqlStatement/Insert".into(), s.table.join(".")),
+        Statement::Update(s) => (
+            "SqlStatement/Update".into(),
+            s.tables.first().and_then(|f| {
+                if let ogsql_parser::ast::TableRef::Table { name, .. } = f {
+                    Some(name.join("."))
+                } else {
+                    None
+                }
+            }).unwrap_or_default(),
+        ),
+        Statement::Delete(s) => (
+            "SqlStatement/Delete".into(),
+            s.tables.first().and_then(|f| {
+                if let ogsql_parser::ast::TableRef::Table { name, .. } = f {
+                    Some(name.join("."))
+                } else {
+                    None
+                }
+            }).unwrap_or_default(),
+        ),
+        Statement::Merge(s) => (
+            "SqlStatement/Merge".into(),
+            match &s.target {
+                ogsql_parser::ast::TableRef::Table { name, .. } => name.join("."),
+                _ => String::new(),
+            },
+        ),
+        Statement::CreateTable(s) => ("SqlStatement/CreateTable".into(), s.name.join(".")),
+        _ => {
+            let type_name = serde_json::to_value(stmt)
+                .ok()
+                .and_then(|v| {
+                    if let serde_json::Value::Object(map) = v {
+                        map.keys().next().cloned()
+                    } else {
+                        None
+                    }
+                })
+                .unwrap_or_else(|| "Unknown".to_string());
+            (format!("SqlStatement/{}", type_name), String::new())
+        }
+    }
+}
+
+/// Recursively walk a single PlStatement, collecting SQL-bearing nodes as CSV rows.
+fn collect_pl_stmt_rows(
+    pl_stmt: &ogsql_parser::ast::plpgsql::PlStatement,
+    parent_name: &str,
+    fallback_line: usize,
+    vars: &std::collections::HashMap<String, Option<String>>,
+    rows: &mut Vec<ParseCsvRow>,
+) {
+    use ogsql_parser::ast::plpgsql::PlStatement;
+
+    match pl_stmt {
+        PlStatement::SqlStatement { sql_text, statement } => {
+            let (stmt_type, name) = sql_statement_type_and_name(statement);
+            let sql = replace_pl_vars_in_sql(sql_text.trim(), vars);
+            rows.push(ParseCsvRow {
+                line: fallback_line,
+                stmt_type,
+                name,
+                parent: parent_name.to_string(),
+                parameters: String::new(),
+                return_type: String::new(),
+                sql,
+            });
+        }
+        PlStatement::Sql(text) => {
+            if !text.is_empty() {
+                let sql = replace_pl_vars_in_sql(text.trim(), vars);
+                rows.push(ParseCsvRow {
+                    line: fallback_line,
+                    stmt_type: "Sql".into(),
+                    name: String::new(),
+                    parent: parent_name.to_string(),
+                    parameters: String::new(),
+                    return_type: String::new(),
+                    sql,
+                });
+            }
+        }
+        PlStatement::Execute(spanned) => {
+            let line = spanned_line(&spanned.span).max(fallback_line);
+            let sql = build_execute_csv_sql(&spanned.node, vars, true);
+            rows.push(ParseCsvRow {
+                line,
+                stmt_type: "Execute".into(),
+                name: String::new(),
+                parent: parent_name.to_string(),
+                parameters: String::new(),
+                return_type: String::new(),
+                sql,
+            });
+        }
+        PlStatement::Perform { query, .. } => {
+            let sql = replace_pl_vars_in_sql(&format!("PERFORM {}", query), vars);
+            rows.push(ParseCsvRow {
+                line: fallback_line,
+                stmt_type: "Perform".into(),
+                name: String::new(),
+                parent: parent_name.to_string(),
+                parameters: String::new(),
+                return_type: String::new(),
+                sql,
+            });
+        }
+        PlStatement::Block(spanned) => {
+            let line = spanned_line(&spanned.span).max(fallback_line);
+            rows.extend(collect_block_sql_rows(&spanned.node, parent_name, line, vars));
+        }
+        PlStatement::If(spanned) => {
+            let line = spanned_line(&spanned.span).max(fallback_line);
+            let if_stmt = &spanned.node;
+            for s in &if_stmt.then_stmts {
+                collect_pl_stmt_rows(s, parent_name, line, vars, rows);
+            }
+            for elsif in &if_stmt.elsifs {
+                for s in &elsif.stmts {
+                    collect_pl_stmt_rows(s, parent_name, line, vars, rows);
+                }
+            }
+            for s in &if_stmt.else_stmts {
+                collect_pl_stmt_rows(s, parent_name, line, vars, rows);
+            }
+        }
+        PlStatement::Case(spanned) => {
+            let line = spanned_line(&spanned.span).max(fallback_line);
+            let case_stmt = &spanned.node;
+            for when in &case_stmt.whens {
+                for s in &when.stmts {
+                    collect_pl_stmt_rows(s, parent_name, line, vars, rows);
+                }
+            }
+            for s in &case_stmt.else_stmts {
+                collect_pl_stmt_rows(s, parent_name, line, vars, rows);
+            }
+        }
+        PlStatement::Loop(spanned) => {
+            let line = spanned_line(&spanned.span).max(fallback_line);
+            for s in &spanned.node.body {
+                collect_pl_stmt_rows(s, parent_name, line, vars, rows);
+            }
+        }
+        PlStatement::While(spanned) => {
+            let line = spanned_line(&spanned.span).max(fallback_line);
+            for s in &spanned.node.body {
+                collect_pl_stmt_rows(s, parent_name, line, vars, rows);
+            }
+        }
+        PlStatement::For(spanned) => {
+            let line = spanned_line(&spanned.span).max(fallback_line);
+            for s in &spanned.node.body {
+                collect_pl_stmt_rows(s, parent_name, line, vars, rows);
+            }
+        }
+        PlStatement::ForEach(spanned) => {
+            let line = spanned_line(&spanned.span).max(fallback_line);
+            for s in &spanned.node.body {
+                collect_pl_stmt_rows(s, parent_name, line, vars, rows);
+            }
+        }
+        PlStatement::ForAll(spanned) => {
+            let line = spanned_line(&spanned.span).max(fallback_line);
+            let body = &spanned.node.body;
+            if !body.is_empty() {
+                rows.push(ParseCsvRow {
+                    line,
+                    stmt_type: "ForAll".into(),
+                    name: String::new(),
+                    parent: parent_name.to_string(),
+                    parameters: String::new(),
+                    return_type: String::new(),
+                    sql: body.trim().to_string(),
+                });
+            }
+        }
+        _ => {}
+    }
+}
+
+fn flatten_statement(si: &ogsql_parser::StatementInfo, mybatis: bool) -> Vec<ParseCsvRow> {
     use ogsql_parser::Statement;
     let mut rows = Vec::new();
 
@@ -663,7 +1067,6 @@ fn flatten_statement(si: &ogsql_parser::StatementInfo) -> Vec<ParseCsvRow> {
             for item in &s.items {
                 match item {
                     ogsql_parser::ast::PackageItem::Procedure(p) => {
-                        let sql = p.block.as_ref().map(extract_block_sql).unwrap_or_default();
                         rows.push(ParseCsvRow {
                             line: p.start_line.max(si.start_line),
                             stmt_type: "Procedure".into(),
@@ -671,11 +1074,19 @@ fn flatten_statement(si: &ogsql_parser::StatementInfo) -> Vec<ParseCsvRow> {
                             parent: s.name.join("."),
                             parameters: format_params(&p.parameters),
                             return_type: String::new(),
-                            sql,
+                            sql: String::new(),
                         });
+                        if let Some(ref block) = p.block {
+                            let vars = if mybatis { collect_block_vars(block, &p.parameters) } else { std::collections::HashMap::new() };
+                            rows.extend(collect_block_sql_rows(
+                                block,
+                                &p.name.join("."),
+                                p.start_line.max(si.start_line),
+                                &vars,
+                            ));
+                        }
                     }
                     ogsql_parser::ast::PackageItem::Function(f) => {
-                        let sql = f.block.as_ref().map(extract_block_sql).unwrap_or_default();
                         rows.push(ParseCsvRow {
                             line: f.start_line.max(si.start_line),
                             stmt_type: "Function".into(),
@@ -683,8 +1094,17 @@ fn flatten_statement(si: &ogsql_parser::StatementInfo) -> Vec<ParseCsvRow> {
                             parent: s.name.join("."),
                             parameters: format_params(&f.parameters),
                             return_type: f.return_type.clone().unwrap_or_default(),
-                            sql,
+                            sql: String::new(),
                         });
+                        if let Some(ref block) = f.block {
+                            let vars = if mybatis { collect_block_vars(block, &f.parameters) } else { std::collections::HashMap::new() };
+                            rows.extend(collect_block_sql_rows(
+                                block,
+                                &f.name.join("."),
+                                f.start_line.max(si.start_line),
+                                &vars,
+                            ));
+                        }
                     }
                     _ => {}
                 }
@@ -729,31 +1149,38 @@ fn flatten_statement(si: &ogsql_parser::StatementInfo) -> Vec<ParseCsvRow> {
             }
         }
         Statement::CreateProcedure(s) => {
-            let sql = s.block.as_ref().map(extract_block_sql).unwrap_or_default();
+            let proc_name = s.name.join(".");
             rows.push(ParseCsvRow {
                 line: si.start_line,
                 stmt_type: "CreateProcedure".into(),
-                name: s.name.join("."),
+                name: proc_name.clone(),
                 parent: String::new(),
                 parameters: format_params(&s.parameters),
                 return_type: String::new(),
-                sql,
+                sql: String::new(),
             });
+            if let Some(ref block) = s.block {
+                let vars = if mybatis { collect_block_vars(block, &s.parameters) } else { std::collections::HashMap::new() };
+                rows.extend(collect_block_sql_rows(block, &proc_name, si.start_line, &vars));
+            }
         }
         Statement::CreateFunction(s) => {
-            let sql = s.block.as_ref().map(extract_block_sql).unwrap_or_default();
+            let func_name = s.name.join(".");
             rows.push(ParseCsvRow {
                 line: si.start_line,
                 stmt_type: "CreateFunction".into(),
-                name: s.name.join("."),
+                name: func_name.clone(),
                 parent: String::new(),
                 parameters: format_params(&s.parameters),
                 return_type: s.return_type.clone().unwrap_or_default(),
-                sql,
+                sql: String::new(),
             });
+            if let Some(ref block) = s.block {
+                let vars = if mybatis { collect_block_vars(block, &s.parameters) } else { std::collections::HashMap::new() };
+                rows.extend(collect_block_sql_rows(block, &func_name, si.start_line, &vars));
+            }
         }
         Statement::Do(s) => {
-            let sql = s.block.as_ref().map(extract_block_sql).unwrap_or_default();
             rows.push(ParseCsvRow {
                 line: si.start_line,
                 stmt_type: "Do".into(),
@@ -761,11 +1188,14 @@ fn flatten_statement(si: &ogsql_parser::StatementInfo) -> Vec<ParseCsvRow> {
                 parent: String::new(),
                 parameters: String::new(),
                 return_type: String::new(),
-                sql,
+                sql: String::new(),
             });
+            if let Some(ref block) = s.block {
+                let vars = if mybatis { collect_block_vars(block, &[]) } else { std::collections::HashMap::new() };
+                rows.extend(collect_block_sql_rows(block, "", si.start_line, &vars));
+            }
         }
         Statement::AnonyBlock(s) => {
-            let sql = extract_block_sql(&s.block);
             rows.push(ParseCsvRow {
                 line: si.start_line,
                 stmt_type: "AnonyBlock".into(),
@@ -773,8 +1203,10 @@ fn flatten_statement(si: &ogsql_parser::StatementInfo) -> Vec<ParseCsvRow> {
                 parent: String::new(),
                 parameters: String::new(),
                 return_type: String::new(),
-                sql,
+                sql: String::new(),
             });
+            let vars = if mybatis { collect_block_vars(&s.block, &[]) } else { std::collections::HashMap::new() };
+            rows.extend(collect_block_sql_rows(&s.block, "", si.start_line, &vars));
         }
         Statement::Select(s) => {
             rows.push(ParseCsvRow {
@@ -893,6 +1325,7 @@ fn output_csv_parse_rows(
     file_name: &str,
     rel_dir: &str,
     errors: &[ogsql_parser::ParserError],
+    mybatis: bool,
 ) {
     let real_errors: Vec<String> = errors
         .iter()
@@ -909,7 +1342,7 @@ fn output_csv_parse_rows(
     let file_warn = warnings.join("; ");
 
     for si in statements {
-        let rows = flatten_statement(si);
+        let rows = flatten_statement(si, mybatis);
         for row in rows {
             let sql = row.sql.trim().replace('\n', "\\n").replace('\r', "");
             println!(
@@ -2427,13 +2860,6 @@ fn cmd_parse_java(cli: &Cli, extra_sql_methods: &[String], extra_sql_var_pattern
     }
 }
 
-    if let Some(dir_path) = dir {
-        cmd_parse_java_dir(cli, extra_sql_methods, dir_path, csv, stats);
-    } else {
-        cmd_parse_java_single(cli, extra_sql_methods, csv);
-    }
-}
-
 #[cfg(feature = "java")]
 fn cmd_parse_java_single(cli: &Cli, extra_sql_methods: &[String], extra_sql_var_patterns: &[String], csv: bool) {
     let (source, file_path) = match cli.file.as_deref() {
@@ -2816,7 +3242,7 @@ fn csv_escape(s: &str) -> String {
 }
 
 fn extract_variables(sql: &str) -> String {
-    let prefixes = ["__XML_PARAM_", "__XML_RAW_", "__JAVA_VAR_"];
+    let prefixes = ["__XML_PARAM_", "__XML_RAW_", "__JAVA_VAR_", "__SQL_PARAM_", "__SQL_RAW_"];
     let mut vars = Vec::new();
     let mut i = 0;
     let bytes = sql.as_bytes();
@@ -3213,7 +3639,7 @@ fn main() {
             if !dir.is_empty() {
                 cmd_parse_dir(&cli, dir, ext, csv, output_dir.as_deref(), stats);
             } else {
-                cmd_parse(&cli);
+                cmd_parse(&cli, csv);
             }
         }
         Commands::JsonToSql => cmd_json2sql(&cli),
@@ -3262,5 +3688,439 @@ fn main() {
             csv,
             stats,
         } => cmd_parse_java(&cli, extra_sql_methods, extra_sql_var_patterns, dir.as_deref(), csv, stats),
+    }
+}
+
+fn pl_data_type_to_string(dt: &ogsql_parser::ast::plpgsql::PlDataType) -> Option<String> {
+    match dt {
+        ogsql_parser::ast::plpgsql::PlDataType::TypeName(s) => Some(s.clone()),
+        ogsql_parser::ast::plpgsql::PlDataType::PercentType { column, .. } => Some(column.clone()),
+        ogsql_parser::ast::plpgsql::PlDataType::PercentRowType(s) => Some(s.clone()),
+        ogsql_parser::ast::plpgsql::PlDataType::Record => Some("RECORD".into()),
+        ogsql_parser::ast::plpgsql::PlDataType::Cursor => None,
+        ogsql_parser::ast::plpgsql::PlDataType::RefCursor => None,
+    }
+}
+
+fn collect_block_vars(
+    block: &ogsql_parser::ast::plpgsql::PlBlock,
+    params: &[ogsql_parser::ast::RoutineParam],
+) -> std::collections::HashMap<String, Option<String>> {
+    use ogsql_parser::ast::plpgsql::PlDeclaration;
+    let mut vars = std::collections::HashMap::new();
+    for p in params {
+        vars.insert(p.name.to_ascii_lowercase(), Some(p.data_type.clone()));
+    }
+    for decl in &block.declarations {
+        match decl {
+            PlDeclaration::Variable(v) => {
+                let t = pl_data_type_to_string(&v.data_type);
+                vars.insert(v.name.to_ascii_lowercase(), t);
+            }
+            PlDeclaration::Record(r) => {
+                vars.insert(r.name.to_ascii_lowercase(), Some("RECORD".into()));
+            }
+            PlDeclaration::Cursor(c) => {
+                vars.insert(c.name.to_ascii_lowercase(), None);
+            }
+            PlDeclaration::Type(t) => {
+                let name = match t {
+                    ogsql_parser::ast::plpgsql::PlTypeDecl::Record { name, .. } => name,
+                    ogsql_parser::ast::plpgsql::PlTypeDecl::TableOf { name, .. } => name,
+                    ogsql_parser::ast::plpgsql::PlTypeDecl::VarrayOf { name, .. } => name,
+                    ogsql_parser::ast::plpgsql::PlTypeDecl::RefCursor { name } => name,
+                };
+                vars.insert(name.to_ascii_lowercase(), None);
+            }
+            PlDeclaration::NestedProcedure(p) => {
+                vars.insert(p.name.join(".").to_ascii_lowercase(), None);
+            }
+            PlDeclaration::NestedFunction(f) => {
+                vars.insert(f.name.join(".").to_ascii_lowercase(), None);
+            }
+            PlDeclaration::Pragma { name, .. } => {
+                vars.insert(name.to_ascii_lowercase(), None);
+            }
+        }
+    }
+    vars
+}
+
+fn replace_pl_vars_in_sql_with_prefix(
+    sql: &str,
+    vars: &std::collections::HashMap<String, Option<String>>,
+    prefix: &str,
+) -> String {
+    let mut result = String::with_capacity(sql.len());
+    let bytes = sql.as_bytes();
+    let len = bytes.len();
+    let mut i = 0;
+
+    while i < len {
+        let c = bytes[i];
+
+        if c == b'\'' {
+            result.push(c as char);
+            i += 1;
+            while i < len {
+                if bytes[i] == b'\'' {
+                    result.push(bytes[i] as char);
+                    i += 1;
+                    if i < len && bytes[i] == b'\'' {
+                        result.push(bytes[i] as char);
+                        i += 1;
+                        continue;
+                    }
+                    break;
+                }
+                result.push(bytes[i] as char);
+                i += 1;
+            }
+            continue;
+        }
+
+        if c == b'"' {
+            result.push(c as char);
+            i += 1;
+            while i < len {
+                if bytes[i] == b'"' {
+                    result.push(bytes[i] as char);
+                    i += 1;
+                    if i < len && bytes[i] == b'"' {
+                        result.push(bytes[i] as char);
+                        i += 1;
+                        continue;
+                    }
+                    break;
+                }
+                result.push(bytes[i] as char);
+                i += 1;
+            }
+            continue;
+        }
+
+        let is_ident_start = c == b'_' || c.is_ascii_alphabetic();
+        if is_ident_start {
+            let start = i;
+            i += 1;
+            while i < len && (bytes[i] == b'_' || bytes[i].is_ascii_alphanumeric()) {
+                i += 1;
+            }
+            let ident = &sql[start..i];
+            if let Some(maybe_type) = vars.get(&ident.to_ascii_lowercase()) {
+                match maybe_type {
+                    Some(t) => result.push_str(&format!("{}{}_{}__", prefix, t, ident)),
+                    None => result.push_str(&format!("{}{}__", prefix, ident)),
+                }
+            } else {
+                result.push_str(ident);
+            }
+            continue;
+        }
+
+        result.push(c as char);
+        i += 1;
+    }
+
+    result
+}
+
+/// Replace PL/pgSQL variable references with `__SQL_PARAM_` (bind-variable semantics).
+fn replace_pl_vars_in_sql(sql: &str, vars: &std::collections::HashMap<String, Option<String>>) -> String {
+    replace_pl_vars_in_sql_with_prefix(sql, vars, "__SQL_PARAM_")
+}
+
+/// Replace PL/pgSQL variable references with `__SQL_RAW_` (string-interpolation semantics).
+fn replace_pl_vars_in_sql_raw(sql: &str, vars: &std::collections::HashMap<String, Option<String>>) -> String {
+    replace_pl_vars_in_sql_with_prefix(sql, vars, "__SQL_RAW_")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn make_vars(vars: &[(&str, Option<&str>)]) -> std::collections::HashMap<String, Option<String>> {
+        vars.iter()
+            .map(|(k, v)| (k.to_ascii_lowercase(), v.map(|s| s.to_string())))
+            .collect()
+    }
+
+    #[test]
+    fn test_single_var_in_where() {
+        let vars = make_vars(&[("p_account_id", Some("INTEGER"))]);
+        assert_eq!(
+            replace_pl_vars_in_sql(
+                "UPDATE accounts SET frozen_flag = 'Y' WHERE account_id = p_account_id",
+                &vars,
+            ),
+            "UPDATE accounts SET frozen_flag = 'Y' WHERE account_id = __SQL_PARAM_INTEGER_p_account_id__",
+        );
+    }
+
+    #[test]
+    fn test_multiple_vars() {
+        let vars = make_vars(&[
+            ("p_name", Some("VARCHAR")),
+            ("p_age", Some("INTEGER")),
+        ]);
+        assert_eq!(
+            replace_pl_vars_in_sql(
+                "SELECT * FROM users WHERE name = p_name AND age = p_age",
+                &vars,
+            ),
+            "SELECT * FROM users WHERE name = __SQL_PARAM_VARCHAR_p_name__ AND age = __SQL_PARAM_INTEGER_p_age__",
+        );
+    }
+
+    #[test]
+    fn test_var_without_type() {
+        let vars = make_vars(&[("v_result", None)]);
+        assert_eq!(
+            replace_pl_vars_in_sql("SELECT * FROM t WHERE id = v_result", &vars),
+            "SELECT * FROM t WHERE id = __SQL_PARAM_v_result__",
+        );
+    }
+
+    #[test]
+    fn test_mixed_typed_and_untyped() {
+        let vars = make_vars(&[
+            ("p_id", Some("INT")),
+            ("v_count", None),
+        ]);
+        assert_eq!(
+            replace_pl_vars_in_sql(
+                "SELECT * FROM t WHERE id = p_id AND cnt > v_count",
+                &vars,
+            ),
+            "SELECT * FROM t WHERE id = __SQL_PARAM_INT_p_id__ AND cnt > __SQL_PARAM_v_count__",
+        );
+    }
+
+    #[test]
+    fn test_case_insensitive_var_match() {
+        let vars = make_vars(&[("P_ACCOUNT_ID", Some("INTEGER"))]);
+        assert_eq!(
+            replace_pl_vars_in_sql(
+                "WHERE account_id = p_account_id",
+                &vars,
+            ),
+            "WHERE account_id = __SQL_PARAM_INTEGER_p_account_id__",
+        );
+    }
+
+    #[test]
+    fn test_uppercase_var_in_sql() {
+        let vars = make_vars(&[("p_id", Some("INT"))]);
+        assert_eq!(
+            replace_pl_vars_in_sql("WHERE id = P_ID", &vars),
+            "WHERE id = __SQL_PARAM_INT_P_ID__",
+        );
+    }
+
+    #[test]
+    fn test_var_in_single_quote_string_not_replaced() {
+        let vars = make_vars(&[("p_name", Some("VARCHAR"))]);
+        assert_eq!(
+            replace_pl_vars_in_sql(
+                "INSERT INTO logs (msg) VALUES ('p_name was here')",
+                &vars,
+            ),
+            "INSERT INTO logs (msg) VALUES ('p_name was here')",
+        );
+    }
+
+    #[test]
+    fn test_var_adjacent_to_string_literal() {
+        let vars = make_vars(&[("p_status", Some("VARCHAR"))]);
+        assert_eq!(
+            replace_pl_vars_in_sql(
+                "SELECT * FROM t WHERE status = p_status AND msg = 'active'",
+                &vars,
+            ),
+            "SELECT * FROM t WHERE status = __SQL_PARAM_VARCHAR_p_status__ AND msg = 'active'",
+        );
+    }
+
+    #[test]
+    fn test_escaped_quote_in_string() {
+        let vars = make_vars(&[("p_val", Some("TEXT"))]);
+        assert_eq!(
+            replace_pl_vars_in_sql(
+                "SELECT * FROM t WHERE name = 'it''s p_val' AND val = p_val",
+                &vars,
+            ),
+            "SELECT * FROM t WHERE name = 'it''s p_val' AND val = __SQL_PARAM_TEXT_p_val__",
+        );
+    }
+
+    #[test]
+    fn test_var_in_double_quote_not_replaced() {
+        let vars = make_vars(&[("p_id", Some("INT"))]);
+        assert_eq!(
+            replace_pl_vars_in_sql(
+                "SELECT \"p_id\" FROM t WHERE id = p_id",
+                &vars,
+            ),
+            "SELECT \"p_id\" FROM t WHERE id = __SQL_PARAM_INT_p_id__",
+        );
+    }
+
+    #[test]
+    fn test_var_as_substring_of_column_not_replaced() {
+        let vars = make_vars(&[("p_id", Some("INT"))]);
+        assert_eq!(
+            replace_pl_vars_in_sql(
+                "SELECT * FROM t WHERE p_id_extra = 1 AND id = p_id",
+                &vars,
+            ),
+            "SELECT * FROM t WHERE p_id_extra = 1 AND id = __SQL_PARAM_INT_p_id__",
+        );
+    }
+
+    #[test]
+    fn test_var_prefix_of_another_not_replaced() {
+        let vars = make_vars(&[("p", Some("INT"))]);
+        assert_eq!(
+            replace_pl_vars_in_sql("SELECT * FROM t WHERE id = p_name", &vars),
+            "SELECT * FROM t WHERE id = p_name",
+        );
+    }
+
+    #[test]
+    fn test_column_name_same_pattern_preserved() {
+        let vars = make_vars(&[("p_id", Some("INT"))]);
+        assert_eq!(
+            replace_pl_vars_in_sql(
+                "SELECT account_id FROM accounts WHERE account_id = p_id",
+                &vars,
+            ),
+            "SELECT account_id FROM accounts WHERE account_id = __SQL_PARAM_INT_p_id__",
+        );
+    }
+
+    #[test]
+    fn test_no_vars_no_change() {
+        let vars = make_vars(&[]);
+        assert_eq!(
+            replace_pl_vars_in_sql("SELECT * FROM t WHERE id = 1", &vars),
+            "SELECT * FROM t WHERE id = 1",
+        );
+    }
+
+    #[test]
+    fn test_empty_sql() {
+        let vars = make_vars(&[("p_id", Some("INT"))]);
+        assert_eq!(replace_pl_vars_in_sql("", &vars), "");
+    }
+
+    #[test]
+    fn test_unrelated_vars_not_touched() {
+        let vars = make_vars(&[("v_x", Some("INT"))]);
+        assert_eq!(
+            replace_pl_vars_in_sql("SELECT * FROM t WHERE id = v_y", &vars),
+            "SELECT * FROM t WHERE id = v_y",
+        );
+    }
+
+    #[test]
+    fn test_underscore_var_name() {
+        let vars = make_vars(&[("v_total_count", Some("BIGINT"))]);
+        assert_eq!(
+            replace_pl_vars_in_sql(
+                "SELECT * FROM t WHERE cnt = v_total_count",
+                &vars,
+            ),
+            "SELECT * FROM t WHERE cnt = __SQL_PARAM_BIGINT_v_total_count__",
+        );
+    }
+
+    #[test]
+    fn test_var_in_set_clause() {
+        let vars = make_vars(&[
+            ("p_flag", Some("CHAR")),
+            ("p_id", Some("INTEGER")),
+        ]);
+        assert_eq!(
+            replace_pl_vars_in_sql(
+                "UPDATE t SET flag = p_flag WHERE id = p_id",
+                &vars,
+            ),
+            "UPDATE t SET flag = __SQL_PARAM_CHAR_p_flag__ WHERE id = __SQL_PARAM_INTEGER_p_id__",
+        );
+    }
+
+    #[test]
+    fn test_var_as_function_arg() {
+        let vars = make_vars(&[("p_limit", Some("INTEGER"))]);
+        assert_eq!(
+            replace_pl_vars_in_sql(
+                "SELECT * FROM t LIMIT p_limit",
+                &vars,
+            ),
+            "SELECT * FROM t LIMIT __SQL_PARAM_INTEGER_p_limit__",
+        );
+    }
+
+    #[test]
+    fn test_same_var_multiple_times() {
+        let vars = make_vars(&[("p_id", Some("INT"))]);
+        assert_eq!(
+            replace_pl_vars_in_sql(
+                "SELECT * FROM t1 WHERE id = p_id UNION SELECT * FROM t2 WHERE ref_id = p_id",
+                &vars,
+            ),
+            "SELECT * FROM t1 WHERE id = __SQL_PARAM_INT_p_id__ UNION SELECT * FROM t2 WHERE ref_id = __SQL_PARAM_INT_p_id__",
+        );
+    }
+
+    #[test]
+    fn test_extract_variables_sql_param() {
+        let sql = "WHERE id = __SQL_PARAM_INT_p_id__ AND name = __SQL_PARAM_VARCHAR_p_name__";
+        let vars = extract_variables(sql);
+        assert!(vars.contains("__SQL_PARAM_INT_p_id__"), "got: {}", vars);
+        assert!(vars.contains("__SQL_PARAM_VARCHAR_p_name__"), "got: {}", vars);
+    }
+
+    #[test]
+    fn test_extract_variables_mixed_prefixes() {
+        let sql = "WHERE id = __SQL_PARAM_INT_p_id__ AND x = __XML_PARAM_id__ AND y = __JAVA_VAR_String_name__";
+        let vars = extract_variables(sql);
+        assert!(vars.contains("__SQL_PARAM_INT_p_id__"), "got: {}", vars);
+        assert!(vars.contains("__XML_PARAM_id__"), "got: {}", vars);
+        assert!(vars.contains("__JAVA_VAR_String_name__"), "got: {}", vars);
+    }
+
+    #[test]
+    fn test_replace_pl_vars_raw() {
+        let vars = make_vars(&[("v_sql", Some("VARCHAR2"))]);
+        assert_eq!(
+            replace_pl_vars_in_sql_raw("SELECT * FROM t WHERE id = v_sql", &vars),
+            "SELECT * FROM t WHERE id = __SQL_RAW_VARCHAR2_v_sql__",
+        );
+    }
+
+    #[test]
+    fn test_replace_pl_vars_raw_no_type() {
+        let vars = make_vars(&[("v_sql", None)]);
+        assert_eq!(
+            replace_pl_vars_in_sql_raw("v_sql", &vars),
+            "__SQL_RAW_v_sql__",
+        );
+    }
+
+    #[test]
+    fn test_replace_pl_vars_raw_concat() {
+        let vars = make_vars(&[("v_table", Some("VARCHAR2"))]);
+        assert_eq!(
+            replace_pl_vars_in_sql_raw("'SELECT * FROM ' || v_table", &vars),
+            "'SELECT * FROM ' || __SQL_RAW_VARCHAR2_v_table__",
+        );
+    }
+
+    #[test]
+    fn test_extract_variables_sql_raw() {
+        let sql = "EXECUTE IMMEDIATE __SQL_RAW_VARCHAR2_v_sql__";
+        let vars = extract_variables(sql);
+        assert!(vars.contains("__SQL_RAW_VARCHAR2_v_sql__"), "got: {}", vars);
     }
 }
