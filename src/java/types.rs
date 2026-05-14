@@ -67,6 +67,9 @@ pub enum ParameterStyle {
 pub struct JavaExtractConfig {
     /// Additional method names to treat as unambiguous SQL carriers.
     pub extra_sql_methods: Vec<String>,
+    /// Additional variable name patterns for SQL detection (substring match, case-insensitive).
+    /// The default pattern "SQL" is always active; these are appended to it.
+    pub extra_sql_var_patterns: Vec<String>,
 }
 
 /// Inferred type/name info for a JDBC `?` parameter, derived from `setXxx()` calls.

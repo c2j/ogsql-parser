@@ -24,6 +24,14 @@ pub fn extract(
     file_path: &str,
     config: &JavaExtractConfig,
 ) -> JavaExtractResult {
+    let mut sql_var_patterns_upper = vec!["SQL".to_string()];
+    for p in &config.extra_sql_var_patterns {
+        let upper = p.to_uppercase();
+        if !sql_var_patterns_upper.contains(&upper) {
+            sql_var_patterns_upper.push(upper);
+        }
+    }
+
     let mut ctx = ExtractContext {
         source,
         file_path,
@@ -36,6 +44,7 @@ pub fn extract(
         jdbc_param_map: HashMap::new(),
         ps_var_to_extraction: HashMap::new(),
         extra_sql_methods: &config.extra_sql_methods,
+        sql_var_patterns_upper,
         method_behaviors: HashMap::new(),
         pending_injections: Vec::new(),
         class_ps_to_extraction: HashMap::new(),
@@ -68,6 +77,7 @@ pub(super) struct ExtractContext<'a> {
     /// Maps PreparedStatement variable name → extraction index for backfill.
     pub(super) ps_var_to_extraction: HashMap<String, usize>,
     pub(super) extra_sql_methods: &'a [String],
+    pub(super) sql_var_patterns_upper: Vec<String>,
     pub(super) method_behaviors: HashMap<String, MethodPsBehavior>,
     pub(super) pending_injections: Vec<PendingInjection>,
     pub(super) class_ps_to_extraction: HashMap<String, usize>,

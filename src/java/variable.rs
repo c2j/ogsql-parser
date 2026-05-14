@@ -2,7 +2,7 @@
 
 use tree_sitter::Node;
 
-use super::constant::{SQL_NAME_PATTERN, SQL_STATEMENT_PREFIXES, STRING_BUILDER_TYPES};
+use super::constant::{SQL_STATEMENT_PREFIXES, STRING_BUILDER_TYPES};
 use super::extract::{ExtractContext, TrackedVar};
 use super::heuristics::{detect_parameter_style, detect_sql_kind_from_content, looks_like_sql};
 use crate::java::types::*;
@@ -105,7 +105,7 @@ impl<'a> ExtractContext<'a> {
         };
 
         let var_name_upper = var_name.to_uppercase();
-        let name_hints_sql = var_name_upper.contains(SQL_NAME_PATTERN);
+        let name_hints_sql = self.sql_var_patterns_upper.iter().any(|p| var_name_upper.contains(p.as_str()));
         let content_hints_sql = looks_like_sql(&sql_text);
 
         if sql_text.is_empty() {
@@ -181,7 +181,7 @@ impl<'a> ExtractContext<'a> {
         };
 
         let var_name_upper = var_name.to_uppercase();
-        let name_looks_like_sql = var_name_upper.contains(SQL_NAME_PATTERN);
+        let name_looks_like_sql = self.sql_var_patterns_upper.iter().any(|p| var_name_upper.contains(p.as_str()));
 
         let content_looks_like_sql = looks_like_sql(&sql_text);
 
