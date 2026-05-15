@@ -776,6 +776,56 @@ fn build_execute_csv_sql(
     }
 }
 
+fn build_execute_csv_sql_with_trace(
+    exec: &ogsql_parser::ast::plpgsql::PlExecuteStmt,
+    vars: &std::collections::HashMap<String, Option<String>>,
+    assigns: &std::collections::HashMap<String, Vec<ConcatPart>>,
+) -> String {
+    use ogsql_parser::ast::{Expr, Literal};
+
+    if let Some(ref parsed) = exec.parsed_query {
+        let formatter = ogsql_parser::SqlFormatter::new();
+        let formatted = formatter.format_statement(parsed);
+        return replace_pl_vars_in_sql_raw(&formatted, vars);
+    }
+
+    match &exec.string_expr {
+        Expr::Literal(Literal::String(s)) => {
+            return replace_pl_vars_in_sql_raw(s.trim(), vars);
+        }
+        Expr::Literal(Literal::DollarString { body, .. }) => {
+            return replace_pl_vars_in_sql_raw(body.trim(), vars);
+        }
+        Expr::Literal(Literal::EscapeString(s)) => {
+            return replace_pl_vars_in_sql_raw(s.trim(), vars);
+        }
+        Expr::ColumnRef(names) | Expr::PlVariable(names) if names.len() == 1 => {
+            let var_name = &names[0];
+            if let Some(traced_parts) = assigns.get(&var_name.to_ascii_lowercase()) {
+                let has_vars = traced_parts.iter().any(|p| !matches!(p, ConcatPart::Literal(_)));
+                if has_vars {
+                    return join_concat_parts(traced_parts, &replace_pl_vars_in_sql_raw, vars, vars.is_empty());
+                } else {
+                    let flat: String = traced_parts.iter().map(|p| match p {
+                        ConcatPart::Literal(s) => s.as_str(), _ => ""
+                    }).collect();
+                    return replace_pl_vars_in_sql_raw(flat.trim(), vars);
+                }
+            }
+        }
+        _ => {}
+    }
+
+    let parts = eval_concat_expr(&exec.string_expr);
+    let has_vars = parts.iter().any(|p| !matches!(p, ConcatPart::Literal(_)));
+    if has_vars {
+        return join_concat_parts(&parts, &replace_pl_vars_in_sql_raw, vars, vars.is_empty());
+    }
+
+    let plain = extract_execute_sql_content(exec);
+    replace_pl_vars_in_sql_raw(&plain, vars)
+}
+
 fn format_pl_expr(expr: &ogsql_parser::ast::Expr) -> String {
     use ogsql_parser::ast::{Expr, Literal};
 
@@ -835,13 +885,14 @@ fn collect_block_sql_rows(
     vars: &std::collections::HashMap<String, Option<String>>,
 ) -> Vec<ParseCsvRow> {
     let mut rows = Vec::new();
+    let mut assigns: std::collections::HashMap<String, Vec<ConcatPart>> = std::collections::HashMap::new();
     for stmt in &block.body {
-        collect_pl_stmt_rows(stmt, parent_name, fallback_line, vars, &mut rows);
+        collect_pl_stmt_rows(stmt, parent_name, fallback_line, vars, &mut assigns, &mut rows);
     }
     if let Some(ref exc) = block.exception_block {
         for handler in &exc.handlers {
             for stmt in &handler.statements {
-                collect_pl_stmt_rows(stmt, parent_name, fallback_line, vars, &mut rows);
+                collect_pl_stmt_rows(stmt, parent_name, fallback_line, vars, &mut assigns, &mut rows);
             }
         }
     }
@@ -918,11 +969,24 @@ fn collect_pl_stmt_rows(
     parent_name: &str,
     fallback_line: usize,
     vars: &std::collections::HashMap<String, Option<String>>,
+    assigns: &mut std::collections::HashMap<String, Vec<ConcatPart>>,
     rows: &mut Vec<ParseCsvRow>,
 ) {
     use ogsql_parser::ast::plpgsql::PlStatement;
 
     match pl_stmt {
+        PlStatement::Assignment { target, expression } => {
+            let target_name = match target {
+                ogsql_parser::ast::Expr::PlVariable(n) | ogsql_parser::ast::Expr::ColumnRef(n) => {
+                    n.last().cloned().unwrap_or_default()
+                }
+                _ => String::new(),
+            };
+            if !target_name.is_empty() {
+                assigns.insert(target_name.to_ascii_lowercase(), eval_concat_expr(expression));
+            }
+        }
+
         PlStatement::SqlStatement { span, sql_text, statement } => {
             let (stmt_type, name) = sql_statement_type_and_name(statement);
             let sql = replace_pl_vars_in_sql(sql_text.trim(), vars);
@@ -953,7 +1017,7 @@ fn collect_pl_stmt_rows(
         }
         PlStatement::Execute(spanned) => {
             let line = spanned_line(&spanned.span).max(fallback_line);
-            let sql = build_execute_csv_sql(&spanned.node, vars, true);
+            let sql = build_execute_csv_sql_with_trace(&spanned.node, vars, assigns);
             rows.push(ParseCsvRow {
                 line,
                 stmt_type: "Execute".into(),
@@ -979,21 +1043,30 @@ fn collect_pl_stmt_rows(
         }
         PlStatement::Block(spanned) => {
             let line = spanned_line(&spanned.span).max(fallback_line);
-            rows.extend(collect_block_sql_rows(&spanned.node, parent_name, line, vars));
+            for s in &spanned.node.body {
+                collect_pl_stmt_rows(s, parent_name, line, vars, assigns, rows);
+            }
+            if let Some(ref exc) = spanned.node.exception_block {
+                for handler in &exc.handlers {
+                    for s in &handler.statements {
+                        collect_pl_stmt_rows(s, parent_name, line, vars, assigns, rows);
+                    }
+                }
+            }
         }
         PlStatement::If(spanned) => {
             let line = spanned_line(&spanned.span).max(fallback_line);
             let if_stmt = &spanned.node;
             for s in &if_stmt.then_stmts {
-                collect_pl_stmt_rows(s, parent_name, line, vars, rows);
+                collect_pl_stmt_rows(s, parent_name, line, vars, assigns, rows);
             }
             for elsif in &if_stmt.elsifs {
                 for s in &elsif.stmts {
-                    collect_pl_stmt_rows(s, parent_name, line, vars, rows);
+                    collect_pl_stmt_rows(s, parent_name, line, vars, assigns, rows);
                 }
             }
             for s in &if_stmt.else_stmts {
-                collect_pl_stmt_rows(s, parent_name, line, vars, rows);
+                collect_pl_stmt_rows(s, parent_name, line, vars, assigns, rows);
             }
         }
         PlStatement::Case(spanned) => {
@@ -1001,35 +1074,35 @@ fn collect_pl_stmt_rows(
             let case_stmt = &spanned.node;
             for when in &case_stmt.whens {
                 for s in &when.stmts {
-                    collect_pl_stmt_rows(s, parent_name, line, vars, rows);
+                    collect_pl_stmt_rows(s, parent_name, line, vars, assigns, rows);
                 }
             }
             for s in &case_stmt.else_stmts {
-                collect_pl_stmt_rows(s, parent_name, line, vars, rows);
+                collect_pl_stmt_rows(s, parent_name, line, vars, assigns, rows);
             }
         }
         PlStatement::Loop(spanned) => {
             let line = spanned_line(&spanned.span).max(fallback_line);
             for s in &spanned.node.body {
-                collect_pl_stmt_rows(s, parent_name, line, vars, rows);
+                collect_pl_stmt_rows(s, parent_name, line, vars, assigns, rows);
             }
         }
         PlStatement::While(spanned) => {
             let line = spanned_line(&spanned.span).max(fallback_line);
             for s in &spanned.node.body {
-                collect_pl_stmt_rows(s, parent_name, line, vars, rows);
+                collect_pl_stmt_rows(s, parent_name, line, vars, assigns, rows);
             }
         }
         PlStatement::For(spanned) => {
             let line = spanned_line(&spanned.span).max(fallback_line);
             for s in &spanned.node.body {
-                collect_pl_stmt_rows(s, parent_name, line, vars, rows);
+                collect_pl_stmt_rows(s, parent_name, line, vars, assigns, rows);
             }
         }
         PlStatement::ForEach(spanned) => {
             let line = spanned_line(&spanned.span).max(fallback_line);
             for s in &spanned.node.body {
-                collect_pl_stmt_rows(s, parent_name, line, vars, rows);
+                collect_pl_stmt_rows(s, parent_name, line, vars, assigns, rows);
             }
         }
         PlStatement::ForAll(spanned) => {
