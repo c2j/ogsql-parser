@@ -644,8 +644,16 @@ fn eval_concat_expr(expr: &ogsql_parser::ast::Expr) -> Vec<ConcatPart> {
         Expr::Literal(Literal::String(s)) => vec![ConcatPart::Literal(s.clone())],
         Expr::Literal(Literal::DollarString { body, .. }) => vec![ConcatPart::Literal(body.clone())],
         Expr::Literal(Literal::EscapeString(s)) => vec![ConcatPart::Literal(s.clone())],
-        Expr::ColumnRef(names) | Expr::PlVariable(names) if names.len() == 1 => {
+        Expr::PlVariable(names) if names.len() == 1 => {
             vec![ConcatPart::Variable(names[0].clone())]
+        }
+        Expr::ColumnRef(names) if names.len() == 1 => {
+            let name = &names[0];
+            if name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_') {
+                vec![ConcatPart::Variable(name.clone())]
+            } else {
+                vec![ConcatPart::Literal(name.clone())]
+            }
         }
         Expr::Parenthesized(inner) => eval_concat_expr(inner),
         _ => vec![ConcatPart::Unresolved(format_pl_expr(expr))],
@@ -657,14 +665,25 @@ fn join_concat_parts(
     parts: &[ConcatPart],
     replace_fn: &dyn Fn(&str, &std::collections::HashMap<String, Option<String>>) -> String,
     vars: &std::collections::HashMap<String, Option<String>>,
-    vars_empty: bool,
+    assigns: &std::collections::HashMap<String, Vec<ConcatPart>>,
 ) -> String {
+    let vars_empty = vars.is_empty();
     let mut sql = String::new();
     for part in parts {
         match part {
             ConcatPart::Literal(s) => sql.push_str(s),
             ConcatPart::Variable(name) => {
-                if vars_empty {
+                if let Some(traced_parts) = assigns.get(&name.to_ascii_lowercase()) {
+                    let has_inner_vars = traced_parts.iter().any(|p| !matches!(p, ConcatPart::Literal(_)));
+                    if has_inner_vars {
+                        sql.push_str(&join_concat_parts(traced_parts, replace_fn, vars, assigns));
+                    } else {
+                        let flat: String = traced_parts.iter().map(|p| match p {
+                            ConcatPart::Literal(s) => s.as_str(), _ => ""
+                        }).collect();
+                        sql.push_str(&flat);
+                    }
+                } else if vars_empty {
                     sql.push_str(name);
                 } else {
                     let single_var: std::collections::HashMap<String, Option<String>> = {
@@ -687,6 +706,35 @@ fn join_concat_parts(
         }
     }
     sql
+}
+
+fn try_parse_sql_assignment(sql: &str) -> Option<(&str, &str)> {
+    let s = sql.trim();
+    let eq_pos = s.find(":=").or_else(|| {
+        let bytes = s.as_bytes();
+        for (i, &b) in bytes.iter().enumerate() {
+            if b == b'=' && i > 0 {
+                let prev = bytes[i - 1];
+                if prev != b'!' && prev != b'<' && prev != b'>' && prev != b'=' && prev != b':' {
+                    if i + 1 < bytes.len() && bytes[i + 1] == b'=' {
+                        continue;
+                    }
+                    return Some(i);
+                }
+            }
+        }
+        None
+    })?;
+    let (lhs, rhs) = if s.get(eq_pos..eq_pos+2) == Some(":=") {
+        (&s[..eq_pos], &s[eq_pos+2..])
+    } else {
+        (&s[..eq_pos], &s[eq_pos+1..])
+    };
+    let var = lhs.trim();
+    if var.is_empty() || !var.chars().next().map(|c| c.is_ascii_alphabetic() || c == '_').unwrap_or(false) {
+        return None;
+    }
+    Some((var, rhs.trim()))
 }
 
 fn extract_execute_sql_content(exec: &ogsql_parser::ast::plpgsql::PlExecuteStmt) -> String {
@@ -760,12 +808,13 @@ fn build_execute_csv_sql(
         _ => {}
     }
 
+    let empty_assigns: std::collections::HashMap<String, Vec<ConcatPart>> = std::collections::HashMap::new();
     let parts = eval_concat_expr(&exec.string_expr);
     let has_vars = parts.iter().any(|p| !matches!(p, ConcatPart::Literal(_)));
     if has_vars {
         let replace_fn: &dyn Fn(&str, &std::collections::HashMap<String, Option<String>>) -> String =
             if raw { &replace_pl_vars_in_sql_raw } else { &replace_pl_vars_in_sql };
-        return join_concat_parts(&parts, replace_fn, vars, vars.is_empty());
+        return join_concat_parts(&parts, replace_fn, vars, &empty_assigns);
     }
 
     let plain = extract_execute_sql_content(exec);
@@ -774,6 +823,56 @@ fn build_execute_csv_sql(
     } else {
         replace_pl_vars_in_sql(&plain, vars)
     }
+}
+
+fn build_execute_csv_sql_with_trace(
+    exec: &ogsql_parser::ast::plpgsql::PlExecuteStmt,
+    vars: &std::collections::HashMap<String, Option<String>>,
+    assigns: &std::collections::HashMap<String, Vec<ConcatPart>>,
+) -> String {
+    use ogsql_parser::ast::{Expr, Literal};
+
+    if let Some(ref parsed) = exec.parsed_query {
+        let formatter = ogsql_parser::SqlFormatter::new();
+        let formatted = formatter.format_statement(parsed);
+        return replace_pl_vars_in_sql_raw(&formatted, vars);
+    }
+
+    match &exec.string_expr {
+        Expr::Literal(Literal::String(s)) => {
+            return replace_pl_vars_in_sql_raw(s.trim(), vars);
+        }
+        Expr::Literal(Literal::DollarString { body, .. }) => {
+            return replace_pl_vars_in_sql_raw(body.trim(), vars);
+        }
+        Expr::Literal(Literal::EscapeString(s)) => {
+            return replace_pl_vars_in_sql_raw(s.trim(), vars);
+        }
+        Expr::ColumnRef(names) | Expr::PlVariable(names) if names.len() == 1 => {
+            let var_name = &names[0];
+            if let Some(traced_parts) = assigns.get(&var_name.to_ascii_lowercase()) {
+                let has_vars = traced_parts.iter().any(|p| !matches!(p, ConcatPart::Literal(_)));
+                if has_vars {
+                    return join_concat_parts(traced_parts, &replace_pl_vars_in_sql_raw, vars, assigns);
+                } else {
+                    let flat: String = traced_parts.iter().map(|p| match p {
+                        ConcatPart::Literal(s) => s.as_str(), _ => ""
+                    }).collect();
+                    return replace_pl_vars_in_sql_raw(flat.trim(), vars);
+                }
+            }
+        }
+        _ => {}
+    }
+
+    let parts = eval_concat_expr(&exec.string_expr);
+    let has_vars = parts.iter().any(|p| !matches!(p, ConcatPart::Literal(_)));
+    if has_vars {
+        return join_concat_parts(&parts, &replace_pl_vars_in_sql_raw, vars, assigns);
+    }
+
+    let plain = extract_execute_sql_content(exec);
+    replace_pl_vars_in_sql_raw(&plain, vars)
 }
 
 fn format_pl_expr(expr: &ogsql_parser::ast::Expr) -> String {
@@ -835,13 +934,14 @@ fn collect_block_sql_rows(
     vars: &std::collections::HashMap<String, Option<String>>,
 ) -> Vec<ParseCsvRow> {
     let mut rows = Vec::new();
+    let mut assigns: std::collections::HashMap<String, Vec<ConcatPart>> = std::collections::HashMap::new();
     for stmt in &block.body {
-        collect_pl_stmt_rows(stmt, parent_name, fallback_line, vars, &mut rows);
+        collect_pl_stmt_rows(stmt, parent_name, fallback_line, vars, &mut assigns, &mut rows);
     }
     if let Some(ref exc) = block.exception_block {
         for handler in &exc.handlers {
             for stmt in &handler.statements {
-                collect_pl_stmt_rows(stmt, parent_name, fallback_line, vars, &mut rows);
+                collect_pl_stmt_rows(stmt, parent_name, fallback_line, vars, &mut assigns, &mut rows);
             }
         }
     }
@@ -918,11 +1018,24 @@ fn collect_pl_stmt_rows(
     parent_name: &str,
     fallback_line: usize,
     vars: &std::collections::HashMap<String, Option<String>>,
+    assigns: &mut std::collections::HashMap<String, Vec<ConcatPart>>,
     rows: &mut Vec<ParseCsvRow>,
 ) {
     use ogsql_parser::ast::plpgsql::PlStatement;
 
     match pl_stmt {
+        PlStatement::Assignment { target, expression } => {
+            let target_name = match target {
+                ogsql_parser::ast::Expr::PlVariable(n) | ogsql_parser::ast::Expr::ColumnRef(n) => {
+                    n.last().cloned().unwrap_or_default()
+                }
+                _ => String::new(),
+            };
+            if !target_name.is_empty() {
+                assigns.insert(target_name.to_ascii_lowercase(), eval_concat_expr(expression));
+            }
+        }
+
         PlStatement::SqlStatement { span, sql_text, statement } => {
             let (stmt_type, name) = sql_statement_type_and_name(statement);
             let sql = replace_pl_vars_in_sql(sql_text.trim(), vars);
@@ -939,6 +1052,16 @@ fn collect_pl_stmt_rows(
         }
         PlStatement::Sql(text) => {
             if !text.is_empty() {
+                if let Some((var, rhs)) = try_parse_sql_assignment(text) {
+                    let rhs_sql = rhs.trim();
+                    if rhs_sql.starts_with('"') && rhs_sql.ends_with('"') {
+                        let inner = &rhs_sql[1..rhs_sql.len()-1];
+                        assigns.insert(var.to_ascii_lowercase(), vec![ConcatPart::Literal(inner.to_string())]);
+                    } else if rhs_sql.starts_with('\'') && rhs_sql.ends_with('\'') {
+                        let inner = &rhs_sql[1..rhs_sql.len()-1];
+                        assigns.insert(var.to_ascii_lowercase(), vec![ConcatPart::Literal(inner.to_string())]);
+                    }
+                }
                 let sql = replace_pl_vars_in_sql(text.trim(), vars);
                 rows.push(ParseCsvRow {
                     line: fallback_line,
@@ -953,7 +1076,7 @@ fn collect_pl_stmt_rows(
         }
         PlStatement::Execute(spanned) => {
             let line = spanned_line(&spanned.span).max(fallback_line);
-            let sql = build_execute_csv_sql(&spanned.node, vars, true);
+            let sql = build_execute_csv_sql_with_trace(&spanned.node, vars, assigns);
             rows.push(ParseCsvRow {
                 line,
                 stmt_type: "Execute".into(),
@@ -979,21 +1102,30 @@ fn collect_pl_stmt_rows(
         }
         PlStatement::Block(spanned) => {
             let line = spanned_line(&spanned.span).max(fallback_line);
-            rows.extend(collect_block_sql_rows(&spanned.node, parent_name, line, vars));
+            for s in &spanned.node.body {
+                collect_pl_stmt_rows(s, parent_name, line, vars, assigns, rows);
+            }
+            if let Some(ref exc) = spanned.node.exception_block {
+                for handler in &exc.handlers {
+                    for s in &handler.statements {
+                        collect_pl_stmt_rows(s, parent_name, line, vars, assigns, rows);
+                    }
+                }
+            }
         }
         PlStatement::If(spanned) => {
             let line = spanned_line(&spanned.span).max(fallback_line);
             let if_stmt = &spanned.node;
             for s in &if_stmt.then_stmts {
-                collect_pl_stmt_rows(s, parent_name, line, vars, rows);
+                collect_pl_stmt_rows(s, parent_name, line, vars, assigns, rows);
             }
             for elsif in &if_stmt.elsifs {
                 for s in &elsif.stmts {
-                    collect_pl_stmt_rows(s, parent_name, line, vars, rows);
+                    collect_pl_stmt_rows(s, parent_name, line, vars, assigns, rows);
                 }
             }
             for s in &if_stmt.else_stmts {
-                collect_pl_stmt_rows(s, parent_name, line, vars, rows);
+                collect_pl_stmt_rows(s, parent_name, line, vars, assigns, rows);
             }
         }
         PlStatement::Case(spanned) => {
@@ -1001,35 +1133,35 @@ fn collect_pl_stmt_rows(
             let case_stmt = &spanned.node;
             for when in &case_stmt.whens {
                 for s in &when.stmts {
-                    collect_pl_stmt_rows(s, parent_name, line, vars, rows);
+                    collect_pl_stmt_rows(s, parent_name, line, vars, assigns, rows);
                 }
             }
             for s in &case_stmt.else_stmts {
-                collect_pl_stmt_rows(s, parent_name, line, vars, rows);
+                collect_pl_stmt_rows(s, parent_name, line, vars, assigns, rows);
             }
         }
         PlStatement::Loop(spanned) => {
             let line = spanned_line(&spanned.span).max(fallback_line);
             for s in &spanned.node.body {
-                collect_pl_stmt_rows(s, parent_name, line, vars, rows);
+                collect_pl_stmt_rows(s, parent_name, line, vars, assigns, rows);
             }
         }
         PlStatement::While(spanned) => {
             let line = spanned_line(&spanned.span).max(fallback_line);
             for s in &spanned.node.body {
-                collect_pl_stmt_rows(s, parent_name, line, vars, rows);
+                collect_pl_stmt_rows(s, parent_name, line, vars, assigns, rows);
             }
         }
         PlStatement::For(spanned) => {
             let line = spanned_line(&spanned.span).max(fallback_line);
             for s in &spanned.node.body {
-                collect_pl_stmt_rows(s, parent_name, line, vars, rows);
+                collect_pl_stmt_rows(s, parent_name, line, vars, assigns, rows);
             }
         }
         PlStatement::ForEach(spanned) => {
             let line = spanned_line(&spanned.span).max(fallback_line);
             for s in &spanned.node.body {
-                collect_pl_stmt_rows(s, parent_name, line, vars, rows);
+                collect_pl_stmt_rows(s, parent_name, line, vars, assigns, rows);
             }
         }
         PlStatement::ForAll(spanned) => {
