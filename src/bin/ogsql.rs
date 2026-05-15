@@ -644,8 +644,16 @@ fn eval_concat_expr(expr: &ogsql_parser::ast::Expr) -> Vec<ConcatPart> {
         Expr::Literal(Literal::String(s)) => vec![ConcatPart::Literal(s.clone())],
         Expr::Literal(Literal::DollarString { body, .. }) => vec![ConcatPart::Literal(body.clone())],
         Expr::Literal(Literal::EscapeString(s)) => vec![ConcatPart::Literal(s.clone())],
-        Expr::ColumnRef(names) | Expr::PlVariable(names) if names.len() == 1 => {
+        Expr::PlVariable(names) if names.len() == 1 => {
             vec![ConcatPart::Variable(names[0].clone())]
+        }
+        Expr::ColumnRef(names) if names.len() == 1 => {
+            let name = &names[0];
+            if name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_') {
+                vec![ConcatPart::Variable(name.clone())]
+            } else {
+                vec![ConcatPart::Literal(name.clone())]
+            }
         }
         Expr::Parenthesized(inner) => eval_concat_expr(inner),
         _ => vec![ConcatPart::Unresolved(format_pl_expr(expr))],
@@ -698,6 +706,35 @@ fn join_concat_parts(
         }
     }
     sql
+}
+
+fn try_parse_sql_assignment(sql: &str) -> Option<(&str, &str)> {
+    let s = sql.trim();
+    let eq_pos = s.find(":=").or_else(|| {
+        let bytes = s.as_bytes();
+        for (i, &b) in bytes.iter().enumerate() {
+            if b == b'=' && i > 0 {
+                let prev = bytes[i - 1];
+                if prev != b'!' && prev != b'<' && prev != b'>' && prev != b'=' && prev != b':' {
+                    if i + 1 < bytes.len() && bytes[i + 1] == b'=' {
+                        continue;
+                    }
+                    return Some(i);
+                }
+            }
+        }
+        None
+    })?;
+    let (lhs, rhs) = if s.get(eq_pos..eq_pos+2) == Some(":=") {
+        (&s[..eq_pos], &s[eq_pos+2..])
+    } else {
+        (&s[..eq_pos], &s[eq_pos+1..])
+    };
+    let var = lhs.trim();
+    if var.is_empty() || !var.chars().next().map(|c| c.is_ascii_alphabetic() || c == '_').unwrap_or(false) {
+        return None;
+    }
+    Some((var, rhs.trim()))
 }
 
 fn extract_execute_sql_content(exec: &ogsql_parser::ast::plpgsql::PlExecuteStmt) -> String {
@@ -1015,6 +1052,16 @@ fn collect_pl_stmt_rows(
         }
         PlStatement::Sql(text) => {
             if !text.is_empty() {
+                if let Some((var, rhs)) = try_parse_sql_assignment(text) {
+                    let rhs_sql = rhs.trim();
+                    if rhs_sql.starts_with('"') && rhs_sql.ends_with('"') {
+                        let inner = &rhs_sql[1..rhs_sql.len()-1];
+                        assigns.insert(var.to_ascii_lowercase(), vec![ConcatPart::Literal(inner.to_string())]);
+                    } else if rhs_sql.starts_with('\'') && rhs_sql.ends_with('\'') {
+                        let inner = &rhs_sql[1..rhs_sql.len()-1];
+                        assigns.insert(var.to_ascii_lowercase(), vec![ConcatPart::Literal(inner.to_string())]);
+                    }
+                }
                 let sql = replace_pl_vars_in_sql(text.trim(), vars);
                 rows.push(ParseCsvRow {
                     line: fallback_line,
