@@ -667,28 +667,46 @@ fn join_concat_parts(
     vars: &std::collections::HashMap<String, Option<String>>,
     assigns: &std::collections::HashMap<String, Vec<ConcatPart>>,
 ) -> String {
+    join_concat_parts_inner(parts, replace_fn, vars, assigns, &mut std::collections::HashSet::new())
+}
+
+fn join_concat_parts_inner(
+    parts: &[ConcatPart],
+    replace_fn: &dyn Fn(&str, &std::collections::HashMap<String, Option<String>>) -> String,
+    vars: &std::collections::HashMap<String, Option<String>>,
+    assigns: &std::collections::HashMap<String, Vec<ConcatPart>>,
+    visited: &mut std::collections::HashSet<String>,
+) -> String {
     let vars_empty = vars.is_empty();
     let mut sql = String::new();
     for part in parts {
         match part {
             ConcatPart::Literal(s) => sql.push_str(s),
             ConcatPart::Variable(name) => {
-                if let Some(traced_parts) = assigns.get(&name.to_ascii_lowercase()) {
-                    let has_inner_vars = traced_parts.iter().any(|p| !matches!(p, ConcatPart::Literal(_)));
-                    if has_inner_vars {
-                        sql.push_str(&join_concat_parts(traced_parts, replace_fn, vars, assigns));
-                    } else {
-                        let flat: String = traced_parts.iter().map(|p| match p {
-                            ConcatPart::Literal(s) => s.as_str(), _ => ""
-                        }).collect();
-                        sql.push_str(&flat);
+                let key = name.to_ascii_lowercase();
+                if !visited.contains(&key) {
+                    if let Some(traced_parts) = assigns.get(&key) {
+                        let has_inner_vars = traced_parts.iter().any(|p| !matches!(p, ConcatPart::Literal(_)));
+                        if has_inner_vars {
+                            visited.insert(key.clone());
+                            sql.push_str(&join_concat_parts_inner(traced_parts, replace_fn, vars, assigns, visited));
+                            visited.remove(&key);
+                            continue;
+                        } else {
+                            let flat: String = traced_parts.iter().map(|p| match p {
+                                ConcatPart::Literal(s) => s.as_str(), _ => ""
+                            }).collect();
+                            sql.push_str(&flat);
+                            continue;
+                        }
                     }
-                } else if vars_empty {
+                }
+                if vars_empty {
                     sql.push_str(name);
                 } else {
                     let single_var: std::collections::HashMap<String, Option<String>> = {
                         let mut m = std::collections::HashMap::new();
-                        m.insert(name.to_ascii_lowercase(), vars.get(&name.to_ascii_lowercase()).cloned().flatten());
+                        m.insert(key.clone(), vars.get(&key).cloned().flatten());
                         m
                     };
                     let replaced = replace_fn(name, &single_var);
