@@ -622,6 +622,7 @@ fn format_params(params: &[ogsql_parser::ast::RoutineParam]) -> String {
         .join(", ")
 }
 
+#[derive(Clone)]
 enum ConcatPart {
     Literal(String),
     Variable(String),
@@ -901,6 +902,13 @@ fn format_pl_expr(expr: &ogsql_parser::ast::Expr) -> String {
         Expr::Literal(Literal::DollarString { tag: None, body }) => format!("$${}$$", body),
         Expr::Literal(Literal::DollarString { tag: Some(t), body }) => format!("${}${}", t, body),
         Expr::Literal(Literal::EscapeString(s)) => format!("E'{}'", s),
+        Expr::Literal(Literal::Integer(n)) => n.to_string(),
+        Expr::Literal(Literal::Float(s)) => s.clone(),
+        Expr::Literal(Literal::Boolean(b)) => b.to_string(),
+        Expr::Literal(Literal::Null) => "NULL".into(),
+        Expr::Literal(Literal::BitString(s)) => format!("B'{}'", s),
+        Expr::Literal(Literal::HexString(s)) => format!("X'{}'", s),
+        Expr::Literal(Literal::NationalString(s)) => format!("N'{}'", s),
         Expr::ColumnRef(names) | Expr::PlVariable(names) => names.join("."),
         Expr::BinaryOp { op, left, right, .. } => {
             format!("{} {} {}", format_pl_expr(left), op, format_pl_expr(right))
@@ -944,6 +952,215 @@ fn extract_block_sql(block: &ogsql_parser::ast::plpgsql::PlBlock) -> String {
     parts.join("\\n")
 }
 
+fn format_using_args_pl(args: &[ogsql_parser::ast::plpgsql::PlUsingArg]) -> String {
+    if args.is_empty() {
+        return String::new();
+    }
+    let parts: Vec<String> = args.iter().map(|a| {
+        let mode_prefix = match a.mode {
+            ogsql_parser::ast::plpgsql::PlUsingMode::In => "",
+            ogsql_parser::ast::plpgsql::PlUsingMode::Out => "OUT ",
+            ogsql_parser::ast::plpgsql::PlUsingMode::InOut => "INOUT ",
+        };
+        format!("{}{}", mode_prefix, format_pl_expr(&a.argument))
+    }).collect();
+    format!("USING {}", parts.join(", "))
+}
+
+fn format_using_args_exprs(args: &[ogsql_parser::ast::Expr]) -> String {
+    if args.is_empty() {
+        return String::new();
+    }
+    let parts: Vec<String> = args.iter().map(|a| format_pl_expr(a)).collect();
+    parts.join(", ")
+}
+
+fn build_dynamic_sql_from_expr(
+    expr: &ogsql_parser::ast::Expr,
+    vars: &std::collections::HashMap<String, Option<String>>,
+    assigns: &std::collections::HashMap<String, Vec<ConcatPart>>,
+) -> String {
+    use ogsql_parser::ast::{Expr, Literal};
+
+    match expr {
+        Expr::Literal(Literal::String(s)) => replace_pl_vars_in_sql(s.trim(), vars),
+        Expr::Literal(Literal::DollarString { body, .. }) => replace_pl_vars_in_sql(body.trim(), vars),
+        Expr::Literal(Literal::EscapeString(s)) => replace_pl_vars_in_sql(s.trim(), vars),
+        Expr::ColumnRef(names) | Expr::PlVariable(names) if names.len() == 1 => {
+            let var_name = &names[0];
+            if let Some(traced_parts) = assigns.get(&var_name.to_ascii_lowercase()) {
+                let has_vars = traced_parts.iter().any(|p| !matches!(p, ConcatPart::Literal(_)));
+                if has_vars {
+                    return join_concat_parts(traced_parts, &replace_pl_vars_in_sql_raw, vars, assigns);
+                } else {
+                    let flat: String = traced_parts.iter().map(|p| match p {
+                        ConcatPart::Literal(s) => s.as_str(), _ => ""
+                    }).collect();
+                    return replace_pl_vars_in_sql_raw(flat.trim(), vars);
+                }
+            }
+            format_pl_expr(expr)
+        }
+        Expr::BinaryOp { op, .. } if op == "||" => {
+            let parts = eval_concat_expr(expr);
+            join_concat_parts(&parts, &replace_pl_vars_in_sql_raw, vars, assigns)
+        }
+        _ => format_pl_expr(expr),
+    }
+}
+
+fn resolve_for_query_text(
+    query: &str,
+    vars: &std::collections::HashMap<String, Option<String>>,
+    assigns: &std::collections::HashMap<String, Vec<ConcatPart>>,
+) -> (String, String) {
+    let q = query.trim();
+    if q.is_empty() {
+        return ("Embedded/Select".into(), String::new());
+    }
+
+    let is_execute_prefix = q.to_ascii_lowercase().starts_with("execute ");
+    let looks_like_static_sql = ["select ", "insert ", "update ", "delete ", "merge ", "with "]
+        .iter()
+        .any(|kw| q.to_ascii_lowercase().starts_with(kw));
+
+    if is_execute_prefix {
+        let after_execute = q[8..].trim_start();
+        let after_execute = if after_execute.to_ascii_lowercase().starts_with("immediate ") {
+            after_execute[9..].trim_start()
+        } else {
+            after_execute
+        };
+        let inner = strip_trailing_using(after_execute);
+        let sql = resolve_dynamic_query_text(inner.trim(), vars, assigns);
+        let using_part = extract_trailing_using_text(after_execute);
+        let full_sql = if using_part.is_empty() {
+            sql
+        } else {
+            format!("{}\nUSING {}", sql, replace_pl_vars_in_sql(&using_part, vars))
+        };
+        return ("Embedded/Execute".into(), full_sql);
+    }
+
+    if looks_like_static_sql {
+        let (sql_part, using_part) = split_query_and_using(q);
+        let sql = replace_pl_vars_in_sql(sql_part.trim(), vars);
+        let full_sql = if using_part.is_empty() {
+            sql
+        } else {
+            format!("{}\nUSING {}", sql, replace_pl_vars_in_sql(&using_part, vars))
+        };
+        return ("Embedded/Select".into(), full_sql);
+    }
+
+    let inner = strip_trailing_using(q);
+    let using_part = extract_trailing_using_text(q);
+    let sql = resolve_dynamic_query_text(inner.trim(), vars, assigns);
+    let full_sql = if using_part.is_empty() {
+        sql
+    } else {
+        format!("{}\nUSING {}", sql, replace_pl_vars_in_sql(&using_part, vars))
+    };
+    ("Embedded/Execute".into(), full_sql)
+}
+
+fn split_query_and_using(text: &str) -> (String, String) {
+    if let Some(pos) = find_using_keyword_pos(text) {
+        (text[..pos].to_string(), text[pos + 5..].trim().to_string())
+    } else {
+        (text.to_string(), String::new())
+    }
+}
+
+fn strip_trailing_using(text: &str) -> String {
+    if let Some(pos) = find_using_keyword_pos(text) {
+        text[..pos].to_string()
+    } else {
+        text.to_string()
+    }
+}
+
+fn extract_trailing_using_text(text: &str) -> String {
+    if let Some(pos) = find_using_keyword_pos(text) {
+        text[pos + 5..].trim().to_string()
+    } else {
+        String::new()
+    }
+}
+
+fn find_using_keyword_pos(text: &str) -> Option<usize> {
+    let lower = text.to_ascii_lowercase();
+    let mut in_string_single = false;
+    let mut in_string_double = false;
+    let mut i = 0;
+    let bytes = lower.as_bytes();
+    while i < bytes.len() {
+        let c = bytes[i];
+        if c == b'\'' && !in_string_double {
+            in_string_single = !in_string_single;
+            i += 1;
+            continue;
+        }
+        if c == b'"' && !in_string_single {
+            in_string_double = !in_string_double;
+            i += 1;
+            continue;
+        }
+        if !in_string_single && !in_string_double && lower[i..].starts_with("using ") {
+            return Some(i);
+        }
+        i += 1;
+    }
+    None
+}
+
+fn resolve_dynamic_query_text(
+    text: &str,
+    vars: &std::collections::HashMap<String, Option<String>>,
+    assigns: &std::collections::HashMap<String, Vec<ConcatPart>>,
+) -> String {
+    let t = text.trim();
+    if t.is_empty() {
+        return String::new();
+    }
+    if t.contains("||") {
+        let (stmts, _) = ogsql_parser::parser::Parser::parse_sql(&format!("SELECT {}", t));
+        if let Some(si) = stmts.first() {
+            if let ogsql_parser::Statement::Select(ref sel) = si.statement {
+                if let Some(ref first_item) = sel.node.targets.first() {
+                    if let ogsql_parser::ast::SelectTarget::Expr(expr, _) = first_item {
+                        let parts = eval_concat_expr(expr);
+                        return join_concat_parts(&parts, &replace_pl_vars_in_sql_raw, vars, assigns);
+                    }
+                }
+            }
+        }
+    }
+    if let Some(rest) = t.strip_prefix('\'').and_then(|s| s.strip_suffix('\'')) {
+        return replace_pl_vars_in_sql(rest.trim(), vars);
+    }
+    if let Some(rest) = t.strip_prefix("E'").and_then(|s| s.strip_suffix('\'')) {
+        return replace_pl_vars_in_sql(rest.trim(), vars);
+    }
+    if t.starts_with("$$") {
+        if let Some(rest) = t.strip_prefix("$$").and_then(|s| s.strip_suffix("$$")) {
+            return replace_pl_vars_in_sql(rest.trim(), vars);
+        }
+    }
+    if let Some(traced_parts) = assigns.get(&t.to_ascii_lowercase()) {
+        let has_vars = traced_parts.iter().any(|p| !matches!(p, ConcatPart::Literal(_)));
+        if has_vars {
+            return join_concat_parts(traced_parts, &replace_pl_vars_in_sql_raw, vars, assigns);
+        } else {
+            let flat: String = traced_parts.iter().map(|p| match p {
+                ConcatPart::Literal(s) => s.as_str(), _ => ""
+            }).collect();
+            return replace_pl_vars_in_sql_raw(flat.trim(), vars);
+        }
+    }
+    replace_pl_vars_in_sql(t, vars)
+}
+
 /// Recursively collect SQL rows from a PL/pgSQL block into individual CSV rows.
 fn collect_block_sql_rows(
     block: &ogsql_parser::ast::plpgsql::PlBlock,
@@ -951,8 +1168,19 @@ fn collect_block_sql_rows(
     fallback_line: usize,
     vars: &std::collections::HashMap<String, Option<String>>,
 ) -> Vec<ParseCsvRow> {
+    use ogsql_parser::ast::plpgsql::PlDeclaration;
     let mut rows = Vec::new();
     let mut assigns: std::collections::HashMap<String, Vec<ConcatPart>> = std::collections::HashMap::new();
+    for decl in &block.declarations {
+        if let PlDeclaration::Variable(ref v) = decl {
+            if let Some(ref expr) = v.default {
+                let parts = eval_concat_expr(expr);
+                if !parts.is_empty() {
+                    assigns.insert(v.name.to_ascii_lowercase(), parts);
+                }
+            }
+        }
+    }
     for stmt in &block.body {
         collect_pl_stmt_rows(stmt, parent_name, fallback_line, vars, &mut assigns, &mut rows);
     }
@@ -1050,7 +1278,21 @@ fn collect_pl_stmt_rows(
                 _ => String::new(),
             };
             if !target_name.is_empty() {
-                assigns.insert(target_name.to_ascii_lowercase(), eval_concat_expr(expression));
+                let key = target_name.to_ascii_lowercase();
+                let mut parts = eval_concat_expr(expression);
+                if let Some(prev) = assigns.get(&key).cloned() {
+                    let mut resolved = Vec::with_capacity(parts.len());
+                    for part in &parts {
+                        match part {
+                            ConcatPart::Variable(name) if name.to_ascii_lowercase() == key => {
+                                resolved.extend(prev.iter().cloned());
+                            }
+                            other => resolved.push(other.clone()),
+                        }
+                    }
+                    parts = resolved;
+                }
+                assigns.insert(key, parts);
             }
         }
 
@@ -1172,7 +1414,59 @@ fn collect_pl_stmt_rows(
         }
         PlStatement::For(spanned) => {
             let line = spanned_line(&spanned.span).max(fallback_line);
-            for s in &spanned.node.body {
+            let for_stmt = &spanned.node;
+            match &for_stmt.kind {
+                ogsql_parser::ast::plpgsql::PlForKind::Query { query, parsed_query, using_args: _ } => {
+                    rows.push(ParseCsvRow {
+                        line,
+                        stmt_type: "ForQuery".into(),
+                        name: for_stmt.variable.clone(),
+                        parent: parent_name.to_string(),
+                        parameters: String::new(),
+                        return_type: String::new(),
+                        sql: String::new(),
+                    });
+                    if let Some(ref stmt) = parsed_query {
+                        let formatter = ogsql_parser::SqlFormatter::new();
+                        let formatted = formatter.format_statement(stmt);
+                        let sql = replace_pl_vars_in_sql(&formatted, vars);
+                        rows.push(ParseCsvRow {
+                            line,
+                            stmt_type: "Embedded/Select".into(),
+                            name: String::new(),
+                            parent: parent_name.to_string(),
+                            parameters: String::new(),
+                            return_type: String::new(),
+                            sql,
+                        });
+                    } else {
+                        let (embedded_type, sql) = resolve_for_query_text(query, vars, assigns);
+                        rows.push(ParseCsvRow {
+                            line,
+                            stmt_type: embedded_type,
+                            name: String::new(),
+                            parent: parent_name.to_string(),
+                            parameters: String::new(),
+                            return_type: String::new(),
+                            sql,
+                        });
+                    }
+                }
+                ogsql_parser::ast::plpgsql::PlForKind::Cursor { cursor_name, arguments } => {
+                    let args_str: Vec<String> = arguments.iter().map(|a| format_pl_expr(a)).collect();
+                    rows.push(ParseCsvRow {
+                        line,
+                        stmt_type: "ForCursor".into(),
+                        name: for_stmt.variable.clone(),
+                        parent: parent_name.to_string(),
+                        parameters: args_str.join(", "),
+                        return_type: String::new(),
+                        sql: String::new(),
+                    });
+                }
+                _ => {}
+            }
+            for s in &for_stmt.body {
                 collect_pl_stmt_rows(s, parent_name, line, vars, assigns, rows);
             }
         }
@@ -1195,6 +1489,109 @@ fn collect_pl_stmt_rows(
                     return_type: String::new(),
                     sql: body.trim().to_string(),
                 });
+            }
+        }
+        PlStatement::Open(spanned) => {
+            let line = spanned_line(&spanned.span).max(fallback_line);
+            let open_stmt = &spanned.node;
+            let cursor_name = format_pl_expr(&open_stmt.cursor);
+            match &open_stmt.kind {
+                ogsql_parser::ast::plpgsql::PlOpenKind::ForQuery { scroll: _, query, parsed_query } => {
+                    rows.push(ParseCsvRow {
+                        line,
+                        stmt_type: "Open/ForQuery".into(),
+                        name: cursor_name,
+                        parent: parent_name.to_string(),
+                        parameters: String::new(),
+                        return_type: String::new(),
+                        sql: String::new(),
+                    });
+                    if let Some(ref stmt) = parsed_query {
+                        let formatter = ogsql_parser::SqlFormatter::new();
+                        let formatted = formatter.format_statement(stmt);
+                        let sql = replace_pl_vars_in_sql(&formatted, vars);
+                        rows.push(ParseCsvRow {
+                            line,
+                            stmt_type: "Embedded/Select".into(),
+                            name: String::new(),
+                            parent: parent_name.to_string(),
+                            parameters: String::new(),
+                            return_type: String::new(),
+                            sql,
+                        });
+                    } else {
+                        let (embedded_type, sql) = resolve_for_query_text(query, vars, assigns);
+                        rows.push(ParseCsvRow {
+                            line,
+                            stmt_type: embedded_type,
+                            name: String::new(),
+                            parent: parent_name.to_string(),
+                            parameters: String::new(),
+                            return_type: String::new(),
+                            sql,
+                        });
+                    }
+                }
+                ogsql_parser::ast::plpgsql::PlOpenKind::ForExecute { query, using_args } => {
+                    rows.push(ParseCsvRow {
+                        line,
+                        stmt_type: "Open/ForExecute".into(),
+                        name: cursor_name,
+                        parent: parent_name.to_string(),
+                        parameters: String::new(),
+                        return_type: String::new(),
+                        sql: String::new(),
+                    });
+                    let dynamic_sql = build_dynamic_sql_from_expr(query, vars, assigns);
+                    let using_suffix = format_using_args_exprs(using_args);
+                    let full_sql = if using_suffix.is_empty() {
+                        dynamic_sql
+                    } else {
+                        format!("{}\nUSING {}", dynamic_sql, using_suffix)
+                    };
+                    rows.push(ParseCsvRow {
+                        line,
+                        stmt_type: "Embedded/Execute".into(),
+                        name: String::new(),
+                        parent: parent_name.to_string(),
+                        parameters: String::new(),
+                        return_type: String::new(),
+                        sql: full_sql,
+                    });
+                }
+                ogsql_parser::ast::plpgsql::PlOpenKind::ForUsing { expressions } => {
+                    rows.push(ParseCsvRow {
+                        line,
+                        stmt_type: "Open/ForUsing".into(),
+                        name: cursor_name,
+                        parent: parent_name.to_string(),
+                        parameters: String::new(),
+                        return_type: String::new(),
+                        sql: String::new(),
+                    });
+                    let exprs: Vec<String> = expressions.iter().map(|e| format_pl_expr(e)).collect();
+                    rows.push(ParseCsvRow {
+                        line,
+                        stmt_type: "Embedded/Execute".into(),
+                        name: String::new(),
+                        parent: parent_name.to_string(),
+                        parameters: String::new(),
+                        return_type: String::new(),
+                        sql: exprs.join(", "),
+                    });
+                }
+                ogsql_parser::ast::plpgsql::PlOpenKind::Simple { arguments } => {
+                    let args_str: Vec<String> = arguments.iter().map(|a| format_pl_expr(a)).collect();
+                    rows.push(ParseCsvRow {
+                        line,
+                        stmt_type: "Open/Simple".into(),
+                        name: cursor_name,
+                        parent: parent_name.to_string(),
+                        parameters: args_str.join(", "),
+                        return_type: String::new(),
+                        sql: String::new(),
+                    });
+                }
             }
         }
         _ => {}
@@ -1479,23 +1876,26 @@ fn output_csv_parse_rows(
     errors: &[ogsql_parser::ParserError],
     mybatis: bool,
 ) {
-    let real_errors: Vec<String> = errors
-        .iter()
-        .filter(|e| !is_warning(e))
-        .map(|e| e.to_string())
-        .collect();
-    let warnings: Vec<String> = errors
-        .iter()
-        .filter(|e| is_warning(e))
-        .map(|e| e.to_string())
-        .collect();
-
-    let file_err = real_errors.join("; ");
-    let file_warn = warnings.join("; ");
-
     for si in statements {
+        let stmt_start = si.start_line;
+        let stmt_end = si.end_line;
+
+        let stmt_errors: Vec<&ogsql_parser::ParserError> = errors
+            .iter()
+            .filter(|e| {
+                let eline = error_line(e);
+                eline == 0 || (eline >= stmt_start && eline <= stmt_end)
+            })
+            .collect();
+
         let rows = flatten_statement(si, mybatis);
         for row in rows {
+            let (row_err, row_warn) = filter_errors_for_row(
+                &stmt_errors,
+                &si.statement,
+                row.line,
+            );
+
             let sql = row.sql.trim().replace('\n', "\\n").replace('\r', "");
             println!(
                 "{},{},{},{},{},{},{},{},{},{},{}",
@@ -1508,11 +1908,77 @@ fn output_csv_parse_rows(
                 csv_escape(&row.parameters),
                 csv_escape(&row.return_type),
                 csv_escape(&sql),
-                csv_escape(&file_err),
-                csv_escape(&file_warn),
+                csv_escape(&row_err),
+                csv_escape(&row_warn),
             );
         }
     }
+}
+
+fn filter_errors_for_row(
+    errors: &[&ogsql_parser::ParserError],
+    stmt: &ogsql_parser::Statement,
+    row_line: usize,
+) -> (String, String) {
+    use ogsql_parser::ast::PackageItem;
+
+    let sub_range: Option<(usize, usize)> = match stmt {
+        ogsql_parser::Statement::CreatePackageBody(pkg) => {
+            pkg.items.iter().find_map(|item| match item {
+                PackageItem::Procedure(p)
+                    if p.start_line > 0 && row_line >= p.start_line && row_line <= p.end_line =>
+                {
+                    Some((p.start_line, p.end_line))
+                }
+                PackageItem::Function(f)
+                    if f.start_line > 0 && row_line >= f.start_line && row_line <= f.end_line =>
+                {
+                    Some((f.start_line, f.end_line))
+                }
+                _ => None,
+            })
+        }
+        ogsql_parser::Statement::CreatePackage(pkg) => {
+            pkg.items.iter().find_map(|item| match item {
+                PackageItem::Procedure(p)
+                    if p.start_line > 0 && row_line >= p.start_line && row_line <= p.end_line =>
+                {
+                    Some((p.start_line, p.end_line))
+                }
+                PackageItem::Function(f)
+                    if f.start_line > 0 && row_line >= f.start_line && row_line <= f.end_line =>
+                {
+                    Some((f.start_line, f.end_line))
+                }
+                _ => None,
+            })
+        }
+        _ => None,
+    };
+
+    let (range_start, range_end) = sub_range.unwrap_or((row_line, row_line));
+
+    let real_errors: Vec<String> = errors
+        .iter()
+        .filter(|e| !is_warning(e))
+        .filter(|e| {
+            let eline = error_line(e);
+            eline >= range_start && eline <= range_end
+        })
+        .map(|e| e.to_string())
+        .collect();
+
+    let warnings: Vec<String> = errors
+        .iter()
+        .filter(|e| is_warning(e))
+        .filter(|e| {
+            let eline = error_line(e);
+            eline >= range_start && eline <= range_end
+        })
+        .map(|e| e.to_string())
+        .collect();
+
+    (real_errors.join("; "), warnings.join("; "))
 }
 
 fn extract_pl_block(
