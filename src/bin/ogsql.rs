@@ -657,14 +657,25 @@ fn join_concat_parts(
     parts: &[ConcatPart],
     replace_fn: &dyn Fn(&str, &std::collections::HashMap<String, Option<String>>) -> String,
     vars: &std::collections::HashMap<String, Option<String>>,
-    vars_empty: bool,
+    assigns: &std::collections::HashMap<String, Vec<ConcatPart>>,
 ) -> String {
+    let vars_empty = vars.is_empty();
     let mut sql = String::new();
     for part in parts {
         match part {
             ConcatPart::Literal(s) => sql.push_str(s),
             ConcatPart::Variable(name) => {
-                if vars_empty {
+                if let Some(traced_parts) = assigns.get(&name.to_ascii_lowercase()) {
+                    let has_inner_vars = traced_parts.iter().any(|p| !matches!(p, ConcatPart::Literal(_)));
+                    if has_inner_vars {
+                        sql.push_str(&join_concat_parts(traced_parts, replace_fn, vars, assigns));
+                    } else {
+                        let flat: String = traced_parts.iter().map(|p| match p {
+                            ConcatPart::Literal(s) => s.as_str(), _ => ""
+                        }).collect();
+                        sql.push_str(&flat);
+                    }
+                } else if vars_empty {
                     sql.push_str(name);
                 } else {
                     let single_var: std::collections::HashMap<String, Option<String>> = {
@@ -760,12 +771,13 @@ fn build_execute_csv_sql(
         _ => {}
     }
 
+    let empty_assigns: std::collections::HashMap<String, Vec<ConcatPart>> = std::collections::HashMap::new();
     let parts = eval_concat_expr(&exec.string_expr);
     let has_vars = parts.iter().any(|p| !matches!(p, ConcatPart::Literal(_)));
     if has_vars {
         let replace_fn: &dyn Fn(&str, &std::collections::HashMap<String, Option<String>>) -> String =
             if raw { &replace_pl_vars_in_sql_raw } else { &replace_pl_vars_in_sql };
-        return join_concat_parts(&parts, replace_fn, vars, vars.is_empty());
+        return join_concat_parts(&parts, replace_fn, vars, &empty_assigns);
     }
 
     let plain = extract_execute_sql_content(exec);
@@ -804,7 +816,7 @@ fn build_execute_csv_sql_with_trace(
             if let Some(traced_parts) = assigns.get(&var_name.to_ascii_lowercase()) {
                 let has_vars = traced_parts.iter().any(|p| !matches!(p, ConcatPart::Literal(_)));
                 if has_vars {
-                    return join_concat_parts(traced_parts, &replace_pl_vars_in_sql_raw, vars, vars.is_empty());
+                    return join_concat_parts(traced_parts, &replace_pl_vars_in_sql_raw, vars, assigns);
                 } else {
                     let flat: String = traced_parts.iter().map(|p| match p {
                         ConcatPart::Literal(s) => s.as_str(), _ => ""
@@ -819,7 +831,7 @@ fn build_execute_csv_sql_with_trace(
     let parts = eval_concat_expr(&exec.string_expr);
     let has_vars = parts.iter().any(|p| !matches!(p, ConcatPart::Literal(_)));
     if has_vars {
-        return join_concat_parts(&parts, &replace_pl_vars_in_sql_raw, vars, vars.is_empty());
+        return join_concat_parts(&parts, &replace_pl_vars_in_sql_raw, vars, assigns);
     }
 
     let plain = extract_execute_sql_content(exec);
