@@ -1266,12 +1266,13 @@ impl Parser {
                     let next = &self.tokens[self.pos + 1].token;
                     let next2 = &self.tokens[self.pos + 2].token;
                     if matches!(next, Token::Plus) && matches!(next2, Token::RParen) {
+                        let loc = self.current_location();
                         self.advance();
                         self.advance();
                         self.advance();
                         self.add_error(ParserError::Warning {
                             message: "Oracle-style outer join operator '(+)' is deprecated, use standard JOIN syntax instead".to_string(),
-                            location: self.current_location(),
+                            location: loc,
                         });
                         return Ok(Expr::ColumnRef(obj_name));
                     }
@@ -1299,12 +1300,13 @@ impl Parser {
                 let next = &self.tokens[self.pos + 1].token;
                 let next2 = &self.tokens[self.pos + 2].token;
                 if matches!(next, Token::Plus) && matches!(next2, Token::RParen) {
+                    let loc = self.current_location();
                     self.advance();
                     self.advance();
                     self.advance();
                     self.add_error(ParserError::Warning {
                         message: "Oracle-style outer join operator '(+)' is deprecated, use standard JOIN syntax instead".to_string(),
-                        location: self.current_location(),
+                        location: loc,
                     });
                     return Ok(Expr::ColumnRef(name));
                 }
