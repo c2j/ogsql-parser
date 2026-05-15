@@ -138,7 +138,7 @@ impl Parser {
                     self.advance();
                 }
                 Token::Comma => {
-                    type_name.push_str(", ");
+                    type_name.push(',');
                     self.advance();
                 }
                 Token::Dot => {
@@ -179,6 +179,7 @@ impl Parser {
                         && !type_name.ends_with('[')
                         && !type_name.ends_with('.')
                         && !type_name.ends_with('%')
+                        && !type_name.ends_with(',')
                     {
                         type_name.push(' ');
                     }

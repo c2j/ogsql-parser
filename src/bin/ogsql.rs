@@ -923,11 +923,12 @@ fn collect_pl_stmt_rows(
     use ogsql_parser::ast::plpgsql::PlStatement;
 
     match pl_stmt {
-        PlStatement::SqlStatement { sql_text, statement } => {
+        PlStatement::SqlStatement { span, sql_text, statement } => {
             let (stmt_type, name) = sql_statement_type_and_name(statement);
             let sql = replace_pl_vars_in_sql(sql_text.trim(), vars);
+            let line = span.as_ref().map(|s| s.start.line).unwrap_or(fallback_line).max(1);
             rows.push(ParseCsvRow {
-                line: fallback_line,
+                line,
                 stmt_type,
                 name,
                 parent: parent_name.to_string(),
@@ -963,10 +964,11 @@ fn collect_pl_stmt_rows(
                 sql,
             });
         }
-        PlStatement::Perform { query, .. } => {
+        PlStatement::Perform { span, query, .. } => {
             let sql = replace_pl_vars_in_sql(&format!("PERFORM {}", query), vars);
+            let line = span.as_ref().map(|s| s.start.line).unwrap_or(fallback_line).max(1);
             rows.push(ParseCsvRow {
-                line: fallback_line,
+                line,
                 stmt_type: "Perform".into(),
                 name: String::new(),
                 parent: parent_name.to_string(),
@@ -3746,6 +3748,29 @@ fn collect_block_vars(
     vars
 }
 
+fn sanitize_type_for_placeholder(t: &str) -> String {
+    let mut s: String = t
+        .chars()
+        .map(|c| {
+            if c.is_ascii_alphanumeric() || c == '_' {
+                c
+            } else {
+                '_'
+            }
+        })
+        .collect();
+    // Collapse consecutive underscores
+    while s.contains("__") {
+        s = s.replace("__", "_");
+    }
+    // Strip trailing underscores to avoid creating "__" when combined with
+    // the "_" separator in format!("{}{}_{}__", prefix, sanitized_type, ident)
+    while s.ends_with('_') {
+        s.pop();
+    }
+    s
+}
+
 fn replace_pl_vars_in_sql_with_prefix(
     sql: &str,
     vars: &std::collections::HashMap<String, Option<String>>,
@@ -3809,7 +3834,7 @@ fn replace_pl_vars_in_sql_with_prefix(
             let ident = &sql[start..i];
             if let Some(maybe_type) = vars.get(&ident.to_ascii_lowercase()) {
                 match maybe_type {
-                    Some(t) => result.push_str(&format!("{}{}_{}__", prefix, t, ident)),
+                    Some(t) => result.push_str(&format!("{}{}_{}__", prefix, sanitize_type_for_placeholder(t), ident)),
                     None => result.push_str(&format!("{}{}__", prefix, ident)),
                 }
             } else {
