@@ -5139,6 +5139,7 @@ impl SqlFormatter {
             PlStatement::SqlStatement {
                 sql_text,
                 statement,
+                ..
             } => {
                 let _ = sql_text;
                 format!("{};", self.format_statement(&statement))

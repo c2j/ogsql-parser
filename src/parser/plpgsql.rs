@@ -1,5 +1,5 @@
 use crate::ast::plpgsql::{FetchDirection, GetDiagItemKind, *};
-use crate::ast::{Expr, Literal, ObjectName, SelectStatement, SelectTarget, Spanned, Statement};
+use crate::ast::{Expr, Literal, ObjectName, SelectStatement, SelectTarget, SourceSpan, Spanned, Statement};
 use crate::parser::{Parser, ParserError};
 use crate::token::keyword::Keyword;
 use crate::token::Token;
@@ -651,6 +651,7 @@ impl Parser {
         } else if self.match_ident_str("pipe") {
             self.parse_pl_pipe_row()
         } else if self.match_ident_str("begin") {
+            let start = self.current_location();
             self.advance();
             let mut body = Vec::new();
             let mut exception_block = None;
@@ -681,11 +682,12 @@ impl Parser {
                 body,
                 exception_block,
                 end_label,
-            }, None)))
+            }, Some(SourceSpan { start, end: self.prev_location() }))))
         } else if self.match_ident_str("declare") {
+            let start = self.current_location();
             self.advance();
             let block = self.parse_pl_block_with_declare(label.clone())?;
-            let result = Ok(PlStatement::Block(Spanned::new(block, None)));
+            let result = Ok(PlStatement::Block(Spanned::new(block, Some(SourceSpan { start, end: self.prev_location() }))));
             self.try_consume_semicolon();
             result
         } else if self.match_ident_str("set") {
@@ -699,14 +701,16 @@ impl Parser {
                 self.advance();
                 self.parse_pl_set_transaction()
             } else {
+                let start = self.current_location();
                 self.advance();
                 let set_stmt = self.parse_set()?;
                 self.try_consume_semicolon();
-                Ok(PlStatement::VariableSet(Spanned::new(set_stmt, None)))
+                Ok(PlStatement::VariableSet(Spanned::new(set_stmt, Some(SourceSpan { start, end: self.prev_location() }))))
             }
         } else if self.match_ident_str("reset") {
             let next_is_lparen = self.tokens.get(self.pos + 1).map_or(false, |t| matches!(t.token, Token::LParen));
             if next_is_lparen {
+                let start = self.current_location();
                 self.advance();
                 if let Some(stmt) = self.try_parse_pl_procedure_call_from_name("reset".to_string()) {
                     self.try_consume_semicolon();
@@ -714,13 +718,14 @@ impl Parser {
                 } else {
                     let reset_stmt = self.parse_reset()?;
                     self.try_consume_semicolon();
-                    Ok(PlStatement::VariableReset(Spanned::new(reset_stmt, None)))
+                    Ok(PlStatement::VariableReset(Spanned::new(reset_stmt, Some(SourceSpan { start, end: self.prev_location() }))))
                 }
             } else {
+                let start = self.current_location();
                 self.advance();
                 let reset_stmt = self.parse_reset()?;
                 self.try_consume_semicolon();
-                Ok(PlStatement::VariableReset(Spanned::new(reset_stmt, None)))
+                Ok(PlStatement::VariableReset(Spanned::new(reset_stmt, Some(SourceSpan { start, end: self.prev_location() }))))
             }
         } else if let Some(stmt) = self.try_parse_dml_as_pl_statement() {
             Ok(stmt)
@@ -970,6 +975,10 @@ impl Parser {
                 }
                 let sql_text = self.tokens_to_raw_string(start_pos, dml_end_pos);
                 Some(PlStatement::SqlStatement {
+                    span: Some(SourceSpan {
+                        start: self.tokens.get(start_pos).map(|t| t.location).unwrap_or_default(),
+                        end: self.prev_location(),
+                    }),
                     sql_text,
                     statement: Box::new(stmt),
                 })
@@ -1088,6 +1097,7 @@ impl Parser {
     }
 
     fn try_parse_pl_procedure_call(&mut self) -> Option<PlStatement> {
+        let start = self.current_location();
         let save = self.pos;
 
         let name = match self.parse_object_name() {
@@ -1133,10 +1143,11 @@ impl Parser {
         Some(PlStatement::ProcedureCall(Spanned::new(PlProcedureCall {
             name,
             arguments,
-        }, None)))
+        }, Some(SourceSpan { start, end: self.prev_location() }))))
     }
 
     fn try_parse_pl_procedure_call_from_name(&mut self, name_str: String) -> Option<PlStatement> {
+        let start = self.current_location();
         if !self.match_token(&Token::LParen) {
             return None;
         }
@@ -1167,7 +1178,7 @@ impl Parser {
         Some(PlStatement::ProcedureCall(Spanned::new(PlProcedureCall {
             name: ObjectName::from(vec![name_str]),
             arguments,
-        }, None)))
+        }, Some(SourceSpan { start, end: self.prev_location() }))))
     }
 
     fn lookahead_is_transaction(&self) -> bool {
@@ -1282,6 +1293,7 @@ impl Parser {
     }
 
     fn parse_pl_if(&mut self) -> Result<PlStatement, ParserError> {
+        let start = self.current_location();
         self.advance();
         let condition = self.parse_expr()?;
         self.expect_ident_str("then")?;
@@ -1316,10 +1328,11 @@ impl Parser {
             then_stmts,
             elsifs,
             else_stmts,
-        }, None)))
+        }, Some(SourceSpan { start, end: self.prev_location() }))))
     }
 
     fn parse_pl_case(&mut self) -> Result<PlStatement, ParserError> {
+        let start = self.current_location();
         self.advance();
 
         let expression = if self.match_ident_str("when") {
@@ -1352,10 +1365,11 @@ impl Parser {
             expression,
             whens,
             else_stmts,
-        }, None)))
+        }, Some(SourceSpan { start, end: self.prev_location() }))))
     }
 
     fn parse_pl_loop(&mut self) -> Result<PlStatement, ParserError> {
+        let start = self.current_location();
         self.advance();
         let body = self.parse_pl_statements_until(&[])?;
         self.expect_keyword(Keyword::END_P)?;
@@ -1367,10 +1381,11 @@ impl Parser {
             label: None,
             body,
             end_label,
-        }, None)))
+        }, Some(SourceSpan { start, end: self.prev_location() }))))
     }
 
     fn parse_pl_while(&mut self) -> Result<PlStatement, ParserError> {
+        let start = self.current_location();
         self.advance();
         let condition = self.parse_expr()?;
         self.expect_ident_str("loop")?;
@@ -1385,10 +1400,11 @@ impl Parser {
             condition,
             body,
             end_label,
-        }, None)))
+        }, Some(SourceSpan { start, end: self.prev_location() }))))
     }
 
     fn parse_pl_for(&mut self) -> Result<PlStatement, ParserError> {
+        let start = self.current_location();
         self.advance();
         let variable = self.parse_identifier()?;
         self.expect_ident_str("in")?;
@@ -1414,7 +1430,7 @@ impl Parser {
             kind,
             body,
             end_label,
-        }, None)))
+        }, Some(SourceSpan { start, end: self.prev_location() }))))
     }
 
     fn parse_pl_for_kind(&mut self) -> Result<PlForKind, ParserError> {
@@ -1572,6 +1588,7 @@ impl Parser {
     }
 
     fn parse_pl_foreach(&mut self) -> Result<PlStatement, ParserError> {
+        let start = self.current_location();
         self.advance();
         let variable = self.parse_identifier()?;
         self.expect_ident_str("in")?;
@@ -1610,7 +1627,7 @@ impl Parser {
             slice,
             body,
             end_label,
-        }, None)))
+        }, Some(SourceSpan { start, end: self.prev_location() }))))
     }
 
     fn parse_pl_exit(&mut self) -> Result<PlStatement, ParserError> {
@@ -1658,6 +1675,7 @@ impl Parser {
     }
 
     fn parse_pl_return(&mut self) -> Result<PlStatement, ParserError> {
+        let start = self.current_location();
         self.advance();
 
         if self.match_ident_str("next") {
@@ -1707,7 +1725,7 @@ impl Parser {
                     is_dynamic: true,
                     dynamic_expr: Some(dynamic_expr),
                     using_args,
-                }, None)));
+                }, Some(SourceSpan { start, end: self.prev_location() }))));
             } else {
                 let save_pos = self.pos;
                 if let Some(stmt) = self.try_parse_dml_statement() {
@@ -1718,7 +1736,7 @@ impl Parser {
                         is_dynamic: false,
                         dynamic_expr: None,
                         using_args: Vec::new(),
-                    }, None)));
+                    }, Some(SourceSpan { start, end: self.prev_location() }))));
                 }
                 let expr = self.parse_expr()?;
                 self.try_consume_semicolon();
@@ -1727,7 +1745,7 @@ impl Parser {
                     is_dynamic: false,
                     dynamic_expr: Some(expr),
                     using_args: Vec::new(),
-                }, None)));
+                }, Some(SourceSpan { start, end: self.prev_location() }))));
             }
         }
 
@@ -1742,6 +1760,7 @@ impl Parser {
     }
 
     fn parse_pl_raise(&mut self) -> Result<PlStatement, ParserError> {
+        let start = self.current_location();
         self.advance();
 
         // Form 1: RAISE; (re-raise in exception handler)
@@ -1754,7 +1773,7 @@ impl Parser {
                 options: Vec::new(),
                 condname: None,
                 sqlstate: None,
-            }, None)));
+            }, Some(SourceSpan { start, end: self.prev_location() }))));
         }
 
         let level = if self.match_ident_str("debug") {
@@ -1787,7 +1806,7 @@ impl Parser {
                 options: Vec::new(),
                 condname: None,
                 sqlstate: None,
-            }, None)));
+            }, Some(SourceSpan { start, end: self.prev_location() }))));
         }
 
         // Form 3: RAISE condition_name; (condition name without level)
@@ -1803,7 +1822,7 @@ impl Parser {
                         options: Vec::new(),
                         condname: Some(name),
                         sqlstate: None,
-                    }, None)));
+                    }, Some(SourceSpan { start, end: self.prev_location() }))));
                 }
             }
             self.pos = save_pos;
@@ -1821,7 +1840,7 @@ impl Parser {
                 options,
                 condname: None,
                 sqlstate: None,
-            }, None)));
+            }, Some(SourceSpan { start, end: self.prev_location() }))));
         }
 
         // Form 5: RAISE [level] 'format', param1, param2 [USING option = expr, ...]
@@ -1855,7 +1874,7 @@ impl Parser {
             options,
             condname: None,
             sqlstate: None,
-        }, None)))
+        }, Some(SourceSpan { start, end: self.prev_location() }))))
     }
 
     fn parse_raise_options(&mut self) -> Result<Vec<RaiseOption>, ParserError> {
@@ -1878,6 +1897,7 @@ impl Parser {
     }
 
     fn parse_pl_execute(&mut self) -> Result<PlStatement, ParserError> {
+        let start = self.current_location();
         self.advance(); // consume "execute"
 
         let immediate = self.try_consume_ident_str("immediate");
@@ -1943,10 +1963,11 @@ impl Parser {
             into_targets,
             using_args,
             parsed_query,
-        }, None)))
+        }, Some(SourceSpan { start, end: self.prev_location() }))))
     }
 
     fn parse_pl_perform(&mut self) -> Result<PlStatement, ParserError> {
+        let start = self.current_location();
         self.advance();
 
         let (query, parsed_query, parsed_expr) = {
@@ -1985,6 +2006,7 @@ impl Parser {
         self.try_consume_semicolon();
 
         Ok(PlStatement::Perform {
+            span: Some(SourceSpan { start, end: self.prev_location() }),
             query,
             parsed_query,
             parsed_expr,
@@ -1992,6 +2014,7 @@ impl Parser {
     }
 
     fn parse_pl_call(&mut self) -> Result<PlStatement, ParserError> {
+        let start = self.current_location();
         let save_pos = self.pos;
 
         self.advance();
@@ -2043,10 +2066,11 @@ impl Parser {
         Ok(PlStatement::ProcedureCall(Spanned::new(PlProcedureCall {
             name,
             arguments,
-        }, None)))
+        }, Some(SourceSpan { start, end: self.prev_location() }))))
     }
 
     fn parse_pl_open(&mut self) -> Result<PlStatement, ParserError> {
+        let start = self.current_location();
         self.advance();
         let cursor = self.parse_expr()?;
 
@@ -2138,10 +2162,11 @@ impl Parser {
         };
 
         self.try_consume_semicolon();
-        Ok(PlStatement::Open(Spanned::new(PlOpenStmt { cursor, kind }, None)))
+        Ok(PlStatement::Open(Spanned::new(PlOpenStmt { cursor, kind }, Some(SourceSpan { start, end: self.prev_location() }))))
     }
 
     fn parse_pl_fetch(&mut self) -> Result<PlStatement, ParserError> {
+        let start = self.current_location();
         self.advance();
 
         let direction = if self.match_ident_str("next")
@@ -2186,7 +2211,7 @@ impl Parser {
             direction,
             bulk_collect,
             into: into_vars,
-        }, None)))
+        }, Some(SourceSpan { start, end: self.prev_location() }))))
     }
 
     fn parse_pl_cursor_direction(&mut self) -> Result<FetchDirection, ParserError> {
@@ -2296,6 +2321,7 @@ impl Parser {
     }
 
     fn parse_pl_get_diagnostics(&mut self) -> Result<PlStatement, ParserError> {
+        let start = self.current_location();
         self.advance();
 
         let stacked = if self.match_ident_str("stacked") {
@@ -2354,7 +2380,7 @@ impl Parser {
         Ok(PlStatement::GetDiagnostics(Spanned::new(PlGetDiagStmt {
             stacked,
             items,
-        }, None)))
+        }, Some(SourceSpan { start, end: self.prev_location() }))))
     }
 
     fn parse_pl_rollback(&mut self) -> Result<PlStatement, ParserError> {
@@ -2388,6 +2414,7 @@ impl Parser {
     }
 
     fn parse_pl_forall(&mut self) -> Result<PlStatement, ParserError> {
+        let start = self.current_location();
         self.advance();
         let variable = self.parse_identifier()?;
         self.expect_ident_str("in")?;
@@ -2452,7 +2479,7 @@ impl Parser {
             bounds: bounds.trim().to_string(),
             save_exceptions,
             body: String::new(),
-        }, None)))
+        }, Some(SourceSpan { start, end: self.prev_location() }))))
     }
 
     fn parse_pl_pipe_row(&mut self) -> Result<PlStatement, ParserError> {
