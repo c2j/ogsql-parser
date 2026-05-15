@@ -160,6 +160,8 @@ pub enum PlStatement {
     Execute(Spanned<PlExecuteStmt>),
 
     Perform {
+        #[serde(skip_serializing_if = "Option::is_none", default)]
+        span: Option<crate::ast::SourceSpan>,
         query: String,
         #[serde(skip_serializing_if = "Option::is_none")]
         parsed_query: Option<Box<crate::ast::Statement>>,
@@ -212,6 +214,8 @@ pub enum PlStatement {
     Sql(String),
 
     SqlStatement {
+        #[serde(skip_serializing_if = "Option::is_none", default)]
+        span: Option<crate::ast::SourceSpan>,
         sql_text: String,
         #[serde(flatten)]
         statement: Box<crate::ast::Statement>,

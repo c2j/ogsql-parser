@@ -1001,6 +1001,7 @@ fn test_plpgsql_perform_expression() {
             query,
             parsed_query,
             parsed_expr,
+            ..
         } => {
             assert!(parsed_query.is_none(), "PERFORM 1 should not be a DML");
             assert!(parsed_expr.is_some(), "PERFORM 1 should parse as expression");
@@ -2568,10 +2569,13 @@ fn test_format_package_body_roundtrip() {
     let stmt = parse_one(sql);
     let formatted = SqlFormatter::new().format_statement(&stmt);
     let stmt2 = parse_one(&formatted);
+    // Round-trip should produce semantically equivalent SQL
+    // (AST may differ in span fields which contain source positions)
+    let formatted2 = SqlFormatter::new().format_statement(&stmt2);
     assert_eq!(
-        stmt, stmt2,
-        "round-trip should produce equivalent AST\nOriginal formatted: {}",
-        formatted
+        formatted, formatted2,
+        "round-trip should produce equivalent SQL\nOriginal formatted: {}\nRe-formatted: {}",
+        formatted, formatted2
     );
 }
 
