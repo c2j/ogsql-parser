@@ -9,7 +9,7 @@ pub use analyzer::return_cursor::{
     ReturnCursorAnnotation, RoutineReturnAnalysis, ReturnCursorGroup,
     ReturnCursorBranch, ResultColumn, analyze_return_cursors, has_return_cursors,
 };
-pub use analyzer::{analyze_pl_block, analyze_transactions, compute_query_fingerprints, validate_package_consistency, validate_pl_variables, DynamicSqlReport, PackageConsistencyError, PackageConsistencyErrorKind, QueryFingerprint, TransactionReport, UndefinedVariableError};
+pub use analyzer::{analyze_pl_block, analyze_transactions, compute_query_fingerprints, validate_package_consistency, validate_pl_variables, validate_pl_variables_with_extra_vars, DynamicSqlReport, PackageConsistencyError, PackageConsistencyErrorKind, QueryFingerprint, TransactionReport, UndefinedVariableError};
 pub use analyzer::schema::{SchemaMap, SchemaResolutionReport, load_schema, resolve_schema};
 
 pub use ast::visitor::{
