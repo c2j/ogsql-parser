@@ -688,6 +688,7 @@ fn output_csv_parse_header() {
 
 struct ParseCsvRow {
     line: usize,
+    end_line: usize,
     stmt_type: String,
     name: String,
     parent: String,
@@ -1299,6 +1300,18 @@ fn spanned_line(span: &Option<ogsql_parser::ast::SourceSpan>) -> usize {
     span.as_ref().map_or(0, |s| s.start.line)
 }
 
+fn spanned_end_line(span: &Option<ogsql_parser::ast::SourceSpan>, fallback: usize) -> usize {
+    span.as_ref().map_or(fallback, |s| s.end.line.max(fallback))
+}
+
+fn sql_end_line(start_line: usize, sql: &str) -> usize {
+    if sql.is_empty() {
+        start_line
+    } else {
+        start_line + sql.lines().count().saturating_sub(1)
+    }
+}
+
 /// Derive a descriptive type string and target name from an embedded SQL Statement.
 fn sql_statement_type_and_name(stmt: &ogsql_parser::Statement) -> (String, String) {
     use ogsql_parser::Statement;
@@ -1406,6 +1419,7 @@ fn collect_pl_stmt_rows(
             let line = span.as_ref().map(|s| s.start.line).unwrap_or(fallback_line).max(1);
             rows.push(ParseCsvRow {
                 line,
+                end_line: spanned_end_line(span, line),
                 stmt_type,
                 name,
                 parent: parent_name.to_string(),
@@ -1431,6 +1445,7 @@ fn collect_pl_stmt_rows(
                 let sql = replace_pl_vars_in_sql(text.trim(), vars);
                 rows.push(ParseCsvRow {
                     line: fallback_line,
+                    end_line: sql_end_line(fallback_line, &sql),
                     stmt_type: "Sql".into(),
                     name: String::new(),
                     parent: parent_name.to_string(),
@@ -1447,6 +1462,7 @@ fn collect_pl_stmt_rows(
             let sql = build_execute_csv_sql_with_trace(&spanned.node, vars, assigns);
             rows.push(ParseCsvRow {
                 line,
+                end_line: sql_end_line(line, &sql),
                 stmt_type: "Execute".into(),
                 name: String::new(),
                 parent: parent_name.to_string(),
@@ -1462,6 +1478,7 @@ fn collect_pl_stmt_rows(
             let line = span.as_ref().map(|s| s.start.line).unwrap_or(fallback_line).max(1);
             rows.push(ParseCsvRow {
                 line,
+                end_line: spanned_end_line(span, line),
                 stmt_type: "Perform".into(),
                 name: String::new(),
                 parent: parent_name.to_string(),
@@ -1544,6 +1561,7 @@ fn collect_pl_stmt_rows(
                 ogsql_parser::ast::plpgsql::PlForKind::Query { query, parsed_query, using_args: _ } => {
                     rows.push(ParseCsvRow {
                         line,
+                        end_line: line,
                         stmt_type: "ForQuery".into(),
                         name: for_stmt.variable.clone(),
                         parent: parent_name.to_string(),
@@ -1559,6 +1577,7 @@ fn collect_pl_stmt_rows(
                         let sql = replace_pl_vars_in_sql(&formatted, vars);
                         rows.push(ParseCsvRow {
                             line,
+                            end_line: sql_end_line(line, &sql),
                             stmt_type: "Embedded/Select".into(),
                             name: String::new(),
                             parent: parent_name.to_string(),
@@ -1572,6 +1591,7 @@ fn collect_pl_stmt_rows(
                         let (embedded_type, sql) = resolve_for_query_text(query, vars, assigns);
                         rows.push(ParseCsvRow {
                             line,
+                            end_line: sql_end_line(line, &sql),
                             stmt_type: embedded_type,
                             name: String::new(),
                             parent: parent_name.to_string(),
@@ -1587,6 +1607,7 @@ fn collect_pl_stmt_rows(
                     let args_str: Vec<String> = arguments.iter().map(|a| format_pl_expr(a)).collect();
                     rows.push(ParseCsvRow {
                         line,
+                        end_line: line,
                         stmt_type: "ForCursor".into(),
                         name: for_stmt.variable.clone(),
                         parent: parent_name.to_string(),
@@ -1616,6 +1637,7 @@ fn collect_pl_stmt_rows(
             if !body.is_empty() {
                 rows.push(ParseCsvRow {
                     line,
+                    end_line: line,
                     stmt_type: "ForAll".into(),
                     name: String::new(),
                     parent: parent_name.to_string(),
@@ -1629,21 +1651,17 @@ fn collect_pl_stmt_rows(
         }
         PlStatement::Open(spanned) => {
             let line = spanned_line(&spanned.span).max(fallback_line);
+            let end_line = spanned_end_line(&spanned.span, line);
             let open_stmt = &spanned.node;
             let cursor_name = format_pl_expr(&open_stmt.cursor);
             let is_out = out_cursors.contains(&cursor_name.to_lowercase()) || all_opens_are_returns;
             match &open_stmt.kind {
                 ogsql_parser::ast::plpgsql::PlOpenKind::ForQuery { scroll: _, query, parsed_query } => {
                     if is_out {
-                        let sql = if let Some(ref stmt) = parsed_query {
-                            let formatter = ogsql_parser::SqlFormatter::new();
-                            let formatted = formatter.format_statement(stmt);
-                            replace_pl_vars_in_sql(&formatted, vars)
-                        } else {
-                            replace_pl_vars_in_sql(query.trim(), vars)
-                        };
+                        let sql = replace_pl_vars_in_sql(query.trim(), vars);
                         rows.push(ParseCsvRow {
                             line,
+                            end_line,
                             stmt_type: "ReturnCursorSQL".into(),
                             name: cursor_name,
                             parent: parent_name.to_string(),
@@ -1656,6 +1674,7 @@ fn collect_pl_stmt_rows(
                     } else {
                         rows.push(ParseCsvRow {
                             line,
+                            end_line: line,
                             stmt_type: "Open/ForQuery".into(),
                             name: cursor_name,
                             parent: parent_name.to_string(),
@@ -1665,12 +1684,11 @@ fn collect_pl_stmt_rows(
                             branch_path: branch_path.to_string(),
                             branch_condition: branch_condition.to_string(),
                         });
-                        if let Some(ref stmt) = parsed_query {
-                            let formatter = ogsql_parser::SqlFormatter::new();
-                            let formatted = formatter.format_statement(stmt);
-                            let sql = replace_pl_vars_in_sql(&formatted, vars);
+                        if !query.trim().is_empty() {
+                            let sql = replace_pl_vars_in_sql(query.trim(), vars);
                             rows.push(ParseCsvRow {
                                 line,
+                                end_line: end_line,
                                 stmt_type: "Embedded/Select".into(),
                                 name: String::new(),
                                 parent: parent_name.to_string(),
@@ -1684,6 +1702,7 @@ fn collect_pl_stmt_rows(
                             let (embedded_type, sql) = resolve_for_query_text(query, vars, assigns);
                             rows.push(ParseCsvRow {
                                 line,
+                                end_line: end_line,
                                 stmt_type: embedded_type,
                                 name: String::new(),
                                 parent: parent_name.to_string(),
@@ -1707,6 +1726,7 @@ fn collect_pl_stmt_rows(
                     if is_out {
                         rows.push(ParseCsvRow {
                             line,
+                            end_line: end_line,
                             stmt_type: "ReturnCursorSQL".into(),
                             name: cursor_name,
                             parent: parent_name.to_string(),
@@ -1719,6 +1739,7 @@ fn collect_pl_stmt_rows(
                     } else {
                         rows.push(ParseCsvRow {
                             line,
+                            end_line: line,
                             stmt_type: "Open/ForExecute".into(),
                             name: cursor_name,
                             parent: parent_name.to_string(),
@@ -1730,6 +1751,7 @@ fn collect_pl_stmt_rows(
                         });
                         rows.push(ParseCsvRow {
                             line,
+                            end_line: end_line,
                             stmt_type: "Embedded/Execute".into(),
                             name: String::new(),
                             parent: parent_name.to_string(),
@@ -1744,6 +1766,7 @@ fn collect_pl_stmt_rows(
                 ogsql_parser::ast::plpgsql::PlOpenKind::ForUsing { expressions } => {
                     rows.push(ParseCsvRow {
                         line,
+                        end_line: line,
                         stmt_type: "Open/ForUsing".into(),
                         name: cursor_name,
                         parent: parent_name.to_string(),
@@ -1756,6 +1779,7 @@ fn collect_pl_stmt_rows(
                     let exprs: Vec<String> = expressions.iter().map(|e| format_pl_expr(e)).collect();
                     rows.push(ParseCsvRow {
                         line,
+                        end_line: line,
                         stmt_type: "Embedded/Execute".into(),
                         name: String::new(),
                         parent: parent_name.to_string(),
@@ -1770,6 +1794,7 @@ fn collect_pl_stmt_rows(
                     let args_str: Vec<String> = arguments.iter().map(|a| format_pl_expr(a)).collect();
                     rows.push(ParseCsvRow {
                         line,
+                        end_line: line,
                         stmt_type: "Open/Simple".into(),
                         name: cursor_name,
                         parent: parent_name.to_string(),
@@ -1794,6 +1819,7 @@ fn flatten_statement(si: &ogsql_parser::StatementInfo, mybatis: bool) -> Vec<Par
         Statement::CreatePackageBody(s) => {
             rows.push(ParseCsvRow {
                 line: si.start_line,
+                end_line: si.start_line,
                 stmt_type: "CreatePackageBody".into(),
                 name: s.name.join("."),
                 parent: String::new(),
@@ -1808,6 +1834,7 @@ fn flatten_statement(si: &ogsql_parser::StatementInfo, mybatis: bool) -> Vec<Par
                     ogsql_parser::ast::PackageItem::Procedure(p) => {
                         rows.push(ParseCsvRow {
                             line: p.start_line.max(si.start_line),
+                            end_line: p.start_line.max(si.start_line),
                             stmt_type: "Procedure".into(),
                             name: p.name.join("."),
                             parent: s.name.join("."),
@@ -1833,6 +1860,7 @@ fn flatten_statement(si: &ogsql_parser::StatementInfo, mybatis: bool) -> Vec<Par
                     ogsql_parser::ast::PackageItem::Function(f) => {
                         rows.push(ParseCsvRow {
                             line: f.start_line.max(si.start_line),
+                            end_line: f.start_line.max(si.start_line),
                             stmt_type: "Function".into(),
                             name: f.name.join("."),
                             parent: s.name.join("."),
@@ -1863,6 +1891,7 @@ fn flatten_statement(si: &ogsql_parser::StatementInfo, mybatis: bool) -> Vec<Par
         Statement::CreatePackage(s) => {
             rows.push(ParseCsvRow {
                 line: si.start_line,
+                end_line: si.start_line,
                 stmt_type: "CreatePackage".into(),
                 name: s.name.join("."),
                 parent: String::new(),
@@ -1877,6 +1906,7 @@ fn flatten_statement(si: &ogsql_parser::StatementInfo, mybatis: bool) -> Vec<Par
                     ogsql_parser::ast::PackageItem::Procedure(p) => {
                         rows.push(ParseCsvRow {
                             line: p.start_line.max(si.start_line),
+                            end_line: p.start_line.max(si.start_line),
                             stmt_type: "Procedure".into(),
                             name: p.name.join("."),
                             parent: s.name.join("."),
@@ -1890,6 +1920,7 @@ fn flatten_statement(si: &ogsql_parser::StatementInfo, mybatis: bool) -> Vec<Par
                     ogsql_parser::ast::PackageItem::Function(f) => {
                         rows.push(ParseCsvRow {
                             line: f.start_line.max(si.start_line),
+                            end_line: f.start_line.max(si.start_line),
                             stmt_type: "Function".into(),
                             name: f.name.join("."),
                             parent: s.name.join("."),
@@ -1908,6 +1939,7 @@ fn flatten_statement(si: &ogsql_parser::StatementInfo, mybatis: bool) -> Vec<Par
             let proc_name = s.name.join(".");
             rows.push(ParseCsvRow {
                 line: si.start_line,
+                end_line: si.start_line,
                 stmt_type: "CreateProcedure".into(),
                 name: proc_name.clone(),
                 parent: String::new(),
@@ -1927,6 +1959,7 @@ fn flatten_statement(si: &ogsql_parser::StatementInfo, mybatis: bool) -> Vec<Par
             let func_name = s.name.join(".");
             rows.push(ParseCsvRow {
                 line: si.start_line,
+                end_line: si.start_line,
                 stmt_type: "CreateFunction".into(),
                 name: func_name.clone(),
                 parent: String::new(),
@@ -1946,6 +1979,7 @@ fn flatten_statement(si: &ogsql_parser::StatementInfo, mybatis: bool) -> Vec<Par
         Statement::Do(s) => {
             rows.push(ParseCsvRow {
                 line: si.start_line,
+                end_line: si.start_line,
                 stmt_type: "Do".into(),
                 name: String::new(),
                 parent: String::new(),
@@ -1964,6 +1998,7 @@ fn flatten_statement(si: &ogsql_parser::StatementInfo, mybatis: bool) -> Vec<Par
         Statement::AnonyBlock(s) => {
             rows.push(ParseCsvRow {
                 line: si.start_line,
+                end_line: si.start_line,
                 stmt_type: "AnonyBlock".into(),
                 name: String::new(),
                 parent: String::new(),
@@ -1980,6 +2015,7 @@ fn flatten_statement(si: &ogsql_parser::StatementInfo, mybatis: bool) -> Vec<Par
         Statement::Select(s) => {
             rows.push(ParseCsvRow {
                 line: si.start_line,
+                end_line: sql_end_line(si.start_line, &si.sql_text),
                 stmt_type: "Select".into(),
                 name: s.from.first().and_then(|f| {
                     if let ogsql_parser::ast::TableRef::Table { name, .. } = f {
@@ -1999,6 +2035,7 @@ fn flatten_statement(si: &ogsql_parser::StatementInfo, mybatis: bool) -> Vec<Par
         Statement::Insert(s) => {
             rows.push(ParseCsvRow {
                 line: si.start_line,
+                end_line: sql_end_line(si.start_line, &si.sql_text),
                 stmt_type: "Insert".into(),
                 name: s.table.join("."),
                 parent: String::new(),
@@ -2012,6 +2049,7 @@ fn flatten_statement(si: &ogsql_parser::StatementInfo, mybatis: bool) -> Vec<Par
         Statement::Update(s) => {
             rows.push(ParseCsvRow {
                 line: si.start_line,
+                end_line: sql_end_line(si.start_line, &si.sql_text),
                 stmt_type: "Update".into(),
                 name: s.tables.first().and_then(|f| {
                     if let ogsql_parser::ast::TableRef::Table { name, .. } = f {
@@ -2031,6 +2069,7 @@ fn flatten_statement(si: &ogsql_parser::StatementInfo, mybatis: bool) -> Vec<Par
         Statement::Delete(s) => {
             rows.push(ParseCsvRow {
                 line: si.start_line,
+                end_line: sql_end_line(si.start_line, &si.sql_text),
                 stmt_type: "Delete".into(),
                 name: s.tables.first().and_then(|f| {
                     if let ogsql_parser::ast::TableRef::Table { name, .. } = f {
@@ -2050,6 +2089,7 @@ fn flatten_statement(si: &ogsql_parser::StatementInfo, mybatis: bool) -> Vec<Par
         Statement::Merge(s) => {
             rows.push(ParseCsvRow {
                 line: si.start_line,
+                end_line: sql_end_line(si.start_line, &si.sql_text),
                 stmt_type: "Merge".into(),
                 name: match &s.target {
                     ogsql_parser::ast::TableRef::Table { name, .. } => name.join("."),
@@ -2066,6 +2106,7 @@ fn flatten_statement(si: &ogsql_parser::StatementInfo, mybatis: bool) -> Vec<Par
         Statement::CreateTable(s) => {
             rows.push(ParseCsvRow {
                 line: si.start_line,
+                end_line: sql_end_line(si.start_line, &si.sql_text),
                 stmt_type: "CreateTable".into(),
                 name: s.name.join("."),
                 parent: String::new(),
@@ -2089,6 +2130,7 @@ fn flatten_statement(si: &ogsql_parser::StatementInfo, mybatis: bool) -> Vec<Par
                 .unwrap_or_else(|| "Unknown".to_string());
             rows.push(ParseCsvRow {
                 line: si.start_line,
+                end_line: sql_end_line(si.start_line, &si.sql_text),
                 stmt_type: type_name,
                 name: String::new(),
                 parent: String::new(),
@@ -2126,8 +2168,8 @@ fn output_csv_parse_rows(
         for row in rows {
             let (row_err, row_warn) = filter_errors_for_row(
                 &stmt_errors,
-                &si.statement,
                 row.line,
+                row.end_line,
             );
 
             let sql = row.sql.trim().replace('\n', "\\n").replace('\r', "");
@@ -2153,53 +2195,15 @@ fn output_csv_parse_rows(
 
 fn filter_errors_for_row(
     errors: &[&ogsql_parser::ParserError],
-    stmt: &ogsql_parser::Statement,
-    row_line: usize,
+    row_start_line: usize,
+    row_end_line: usize,
 ) -> (String, String) {
-    use ogsql_parser::ast::PackageItem;
-
-    let sub_range: Option<(usize, usize)> = match stmt {
-        ogsql_parser::Statement::CreatePackageBody(pkg) => {
-            pkg.items.iter().find_map(|item| match item {
-                PackageItem::Procedure(p)
-                    if p.start_line > 0 && row_line >= p.start_line && row_line <= p.end_line =>
-                {
-                    Some((p.start_line, p.end_line))
-                }
-                PackageItem::Function(f)
-                    if f.start_line > 0 && row_line >= f.start_line && row_line <= f.end_line =>
-                {
-                    Some((f.start_line, f.end_line))
-                }
-                _ => None,
-            })
-        }
-        ogsql_parser::Statement::CreatePackage(pkg) => {
-            pkg.items.iter().find_map(|item| match item {
-                PackageItem::Procedure(p)
-                    if p.start_line > 0 && row_line >= p.start_line && row_line <= p.end_line =>
-                {
-                    Some((p.start_line, p.end_line))
-                }
-                PackageItem::Function(f)
-                    if f.start_line > 0 && row_line >= f.start_line && row_line <= f.end_line =>
-                {
-                    Some((f.start_line, f.end_line))
-                }
-                _ => None,
-            })
-        }
-        _ => None,
-    };
-
-    let (range_start, range_end) = sub_range.unwrap_or((row_line, row_line));
-
     let real_errors: Vec<String> = errors
         .iter()
         .filter(|e| !is_warning(e))
         .filter(|e| {
             let eline = error_line(e);
-            eline >= range_start && eline <= range_end
+            eline >= row_start_line && eline <= row_end_line
         })
         .map(|e| e.to_string())
         .collect();
@@ -2209,7 +2213,7 @@ fn filter_errors_for_row(
         .filter(|e| is_warning(e))
         .filter(|e| {
             let eline = error_line(e);
-            eline >= range_start && eline <= range_end
+            eline >= row_start_line && eline <= row_end_line
         })
         .map(|e| e.to_string())
         .collect();
