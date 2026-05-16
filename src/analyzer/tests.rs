@@ -741,3 +741,158 @@ END pkg7;
         .any(|e| matches!(e.kind, PackageConsistencyErrorKind::TypeMismatch { .. }));
     assert!(type_mismatch, "should detect type mismatch VARCHAR2 vs NUMBER");
 }
+
+// ── validate_pl_variables tests ──
+
+fn parse_proc_validate(sql: &str) -> (crate::ast::plpgsql::PlBlock, Vec<crate::ast::RoutineParam>) {
+    let tokens = crate::Tokenizer::new(sql).tokenize().unwrap();
+    let stmts = Parser::new(tokens).parse();
+    match &stmts[0] {
+        crate::ast::Statement::CreateProcedure(proc) => {
+            let block = proc.block.as_ref().expect("block should parse").clone();
+            (block, proc.parameters.clone())
+        }
+        _ => panic!("expected CreateProcedure, got {:?}", stmts[0]),
+    }
+}
+
+fn parse_do_validate(sql: &str) -> crate::ast::plpgsql::PlBlock {
+    let tokens = crate::Tokenizer::new(sql).tokenize().unwrap();
+    let stmts = Parser::new(tokens).parse();
+    match &stmts[0] {
+        crate::ast::Statement::Do(d) => d.block.as_ref().expect("block should parse").clone(),
+        crate::ast::Statement::AnonyBlock(ab) => ab.block.clone(),
+        _ => panic!("expected DO or AnonyBlock, got {:?}", stmts[0]),
+    }
+}
+
+fn has_undefined(warnings: &[UndefinedVariableWarning], name: &str) -> bool {
+    warnings.iter().any(|w| w.variable_name == name)
+}
+
+#[test]
+fn test_detect_undefined_var_in_execute() {
+    let (block, params) = parse_proc_validate(
+        "CREATE OR REPLACE PROCEDURE test1 IS v_count INTEGER; BEGIN EXECUTE IMMEDIATE v_sql; END;"
+    );
+    let warnings = validate_pl_variables(&block, &params);
+    assert_eq!(warnings.len(), 1, "should detect exactly 1 undefined var, got: {:?}", warnings);
+    assert!(has_undefined(&warnings, "v_sql"));
+    assert_eq!(warnings[0].context, "EXECUTE IMMEDIATE");
+}
+
+#[test]
+fn test_no_warning_for_declared_var_in_execute() {
+    let (block, params) = parse_proc_validate(
+        "CREATE OR REPLACE PROCEDURE test2 IS v_sql VARCHAR2(4000); BEGIN EXECUTE IMMEDIATE v_sql; END;"
+    );
+    let warnings = validate_pl_variables(&block, &params);
+    assert!(warnings.is_empty(), "declared variable should not warn, got: {:?}", warnings);
+}
+
+#[test]
+fn test_no_warning_for_param_in_execute_using() {
+    let (block, params) = parse_proc_validate(
+        "CREATE OR REPLACE PROCEDURE test3(p_name IN VARCHAR2) IS v_sql VARCHAR2(4000); BEGIN EXECUTE IMMEDIATE v_sql USING p_name; END;"
+    );
+    let warnings = validate_pl_variables(&block, &params);
+    assert!(warnings.is_empty(), "parameter should be in scope, got: {:?}", warnings);
+}
+
+#[test]
+fn test_no_warning_for_builtin_systimestamp() {
+    let (block, params) = parse_proc_validate(
+        "CREATE OR REPLACE PROCEDURE test4 IS v_ts TIMESTAMP; BEGIN v_ts := SYSTIMESTAMP; END;"
+    );
+    let warnings = validate_pl_variables(&block, &params);
+    assert!(warnings.is_empty(), "SYSTIMESTAMP is a built-in, got: {:?}", warnings);
+}
+
+#[test]
+fn test_no_warning_for_sql_column_ref() {
+    let block = parse_do_validate(
+        "DO $$ BEGIN SELECT name FROM users WHERE id = 1; END $$"
+    );
+    let warnings = validate_pl_variables(&block, &[]);
+    assert!(!has_undefined(&warnings, "name"), "SQL column 'name' should not be flagged");
+    assert!(!has_undefined(&warnings, "id"), "SQL column 'id' should not be flagged");
+}
+
+#[test]
+fn test_detect_undefined_in_assignment_target() {
+    let (block, params) = parse_proc_validate(
+        "CREATE OR REPLACE PROCEDURE test5 IS BEGIN v_result := 42; END;"
+    );
+    let warnings = validate_pl_variables(&block, &params);
+    assert_eq!(warnings.len(), 1);
+    assert!(has_undefined(&warnings, "v_result"));
+    assert_eq!(warnings[0].context, "assignment target");
+}
+
+#[test]
+fn test_detect_undefined_in_if_condition() {
+    let (block, params) = parse_proc_validate(
+        "CREATE OR REPLACE PROCEDURE test6 IS BEGIN IF v_flag THEN NULL; END IF; END;"
+    );
+    let warnings = validate_pl_variables(&block, &params);
+    assert_eq!(warnings.len(), 1);
+    assert!(has_undefined(&warnings, "v_flag"));
+    assert_eq!(warnings[0].context, "IF condition");
+}
+
+#[test]
+fn test_detect_undefined_in_while_condition() {
+    let (block, params) = parse_proc_validate(
+        "CREATE OR REPLACE PROCEDURE test7 IS BEGIN WHILE v_running LOOP NULL; END LOOP; END;"
+    );
+    let warnings = validate_pl_variables(&block, &params);
+    assert_eq!(warnings.len(), 1);
+    assert!(has_undefined(&warnings, "v_running"));
+}
+
+#[test]
+fn test_detect_undefined_in_concat_expression() {
+    let (block, params) = parse_proc_validate(
+        "CREATE OR REPLACE PROCEDURE test8 IS v_sql VARCHAR2(4000); BEGIN v_sql := 'SELECT * FROM ' || v_table; END;"
+    );
+    let warnings = validate_pl_variables(&block, &params);
+    assert_eq!(warnings.len(), 1);
+    assert!(has_undefined(&warnings, "v_table"));
+}
+
+#[test]
+fn test_no_warning_for_for_loop_variable() {
+    let (block, params) = parse_proc_validate(
+        "CREATE OR REPLACE PROCEDURE test9 IS BEGIN FOR i IN 1..10 LOOP NULL; END LOOP; END;"
+    );
+    let warnings = validate_pl_variables(&block, &params);
+    assert!(warnings.is_empty(), "FOR loop variable should be in scope, got: {:?}", warnings);
+}
+
+#[test]
+fn test_no_warning_for_nested_block_vars() {
+    let (block, params) = parse_proc_validate(
+        "CREATE OR REPLACE PROCEDURE test10 IS BEGIN DECLARE v_inner INTEGER; BEGIN v_inner := 1; END; END;"
+    );
+    let warnings = validate_pl_variables(&block, &params);
+    assert!(warnings.is_empty(), "nested block variable should be in scope, got: {:?}", warnings);
+}
+
+#[test]
+fn test_detect_undefined_in_raise_params() {
+    let (block, params) = parse_proc_validate(
+        "CREATE OR REPLACE PROCEDURE test11 IS BEGIN RAISE NOTICE 'val=%', v_val; END;"
+    );
+    let warnings = validate_pl_variables(&block, &params);
+    assert_eq!(warnings.len(), 1);
+    assert!(has_undefined(&warnings, "v_val"));
+}
+
+#[test]
+fn test_no_warning_for_perform_sql() {
+    let (block, params) = parse_proc_validate(
+        "CREATE OR REPLACE PROCEDURE test12 IS BEGIN PERFORM name FROM users WHERE id = 1; END;"
+    );
+    let warnings = validate_pl_variables(&block, &params);
+    assert!(warnings.is_empty(), "PERFORM SQL columns should not be flagged, got: {:?}", warnings);
+}
