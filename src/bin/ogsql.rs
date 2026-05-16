@@ -1092,24 +1092,18 @@ fn find_using_keyword_pos(text: &str) -> Option<usize> {
     let lower = text.to_ascii_lowercase();
     let mut in_string_single = false;
     let mut in_string_double = false;
-    let mut i = 0;
-    let bytes = lower.as_bytes();
-    while i < bytes.len() {
-        let c = bytes[i];
-        if c == b'\'' && !in_string_double {
+    for (i, c) in lower.char_indices() {
+        if c == '\'' && !in_string_double {
             in_string_single = !in_string_single;
-            i += 1;
             continue;
         }
-        if c == b'"' && !in_string_single {
+        if c == '"' && !in_string_single {
             in_string_double = !in_string_double;
-            i += 1;
             continue;
         }
         if !in_string_single && !in_string_double && lower[i..].starts_with("using ") {
             return Some(i);
         }
-        i += 1;
     }
     None
 }
