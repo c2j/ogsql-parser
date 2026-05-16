@@ -1452,6 +1452,8 @@ const PL_BUILTIN_VALUES: &[&str] = &[
     "FOUND",
     "NOT_FOUND",
     "ROW_COUNT",
+    "SQLCODE",
+    "SQLERRM",
 ];
 
 fn is_pl_builtin(name: &str) -> bool {
