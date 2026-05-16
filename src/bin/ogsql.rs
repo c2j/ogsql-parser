@@ -2202,32 +2202,57 @@ fn output_csv_parse_rows(
     }
 }
 
+/// Merge same-type error/warning messages, deduplicating identical text
+/// and appending occurrence count + line numbers.
+/// "msg; msg; msg" → "msg (×3, lines 1, 4, 10)"
+fn merge_error_messages(errors: &[&ogsql_parser::ParserError], warn: bool) -> String {
+    use std::collections::BTreeMap;
+
+    let mut groups: BTreeMap<String, Vec<usize>> = BTreeMap::new();
+    for e in errors {
+        if is_warning(e) != warn {
+            continue;
+        }
+        let line = error_line(e);
+        groups.entry(e.to_string()).or_default().push(line);
+    }
+
+    groups
+        .iter()
+        .map(|(msg, lines)| {
+            if lines.len() > 1 {
+                let line_nums: Vec<String> =
+                    lines.iter().filter(|l| **l > 0).map(|l| l.to_string()).collect();
+                if line_nums.is_empty() {
+                    format!("{} (×{})", msg, lines.len())
+                } else {
+                    format!("{} (×{}, lines {})", msg, lines.len(), line_nums.join(", "))
+                }
+            } else {
+                msg.clone()
+            }
+        })
+        .collect::<Vec<_>>()
+        .join("; ")
+}
+
 fn filter_errors_for_row(
     errors: &[&ogsql_parser::ParserError],
     row_start_line: usize,
     row_end_line: usize,
 ) -> (String, String) {
-    let real_errors: Vec<String> = errors
+    let in_range: Vec<&ogsql_parser::ParserError> = errors
         .iter()
-        .filter(|e| !is_warning(e))
         .filter(|e| {
             let eline = error_line(e);
-            eline >= row_start_line && eline <= row_end_line
+            eline == 0 || (eline >= row_start_line && eline <= row_end_line)
         })
-        .map(|e| e.to_string())
+        .copied()
         .collect();
 
-    let warnings: Vec<String> = errors
-        .iter()
-        .filter(|e| is_warning(e))
-        .filter(|e| {
-            let eline = error_line(e);
-            eline >= row_start_line && eline <= row_end_line
-        })
-        .map(|e| e.to_string())
-        .collect();
-
-    (real_errors.join("; "), warnings.join("; "))
+    let row_err = merge_error_messages(&in_range, false);
+    let row_warn = merge_error_messages(&in_range, true);
+    (row_err, row_warn)
 }
 
 fn extract_pl_block(
@@ -4238,17 +4263,8 @@ fn output_csv_xml_rows(
     for stmt in statements {
         let (errors, warnings) = match &stmt.parse_result {
             Some((_, parse_errors)) => {
-                let errs: Vec<String> = parse_errors
-                    .iter()
-                    .filter(|e| !is_warning(e))
-                    .map(|e| e.to_string())
-                    .collect();
-                let warns: Vec<String> = parse_errors
-                    .iter()
-                    .filter(|e| is_warning(e))
-                    .map(|e| e.to_string())
-                    .collect();
-                (errs.join("; "), warns.join("; "))
+                let refs: Vec<&ogsql_parser::ParserError> = parse_errors.iter().collect();
+                (merge_error_messages(&refs, false), merge_error_messages(&refs, true))
             }
             None => (String::new(), String::new()),
         };
@@ -4300,19 +4316,8 @@ fn output_csv_java_rows(
 
         let (errors, warnings) = match &ext.parse_result {
             Some(parse_result) => {
-                let errs: Vec<String> = parse_result
-                    .errors
-                    .iter()
-                    .filter(|e| !is_warning(e))
-                    .map(|e| e.to_string())
-                    .collect();
-                let warns: Vec<String> = parse_result
-                    .errors
-                    .iter()
-                    .filter(|e| is_warning(e))
-                    .map(|e| e.to_string())
-                    .collect();
-                (errs.join("; "), warns.join("; "))
+                let refs: Vec<&ogsql_parser::ParserError> = parse_result.errors.iter().collect();
+                (merge_error_messages(&refs, false), merge_error_messages(&refs, true))
             }
             None => (String::new(), String::new()),
         };
