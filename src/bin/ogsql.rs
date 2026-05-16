@@ -4758,4 +4758,40 @@ mod tests {
         let vars = extract_variables(sql);
         assert!(vars.contains("__SQL_RAW_VARCHAR2_v_sql__"), "got: {}", vars);
     }
+
+    #[test]
+    fn test_find_using_keyword_pos_chinese_aliases_no_panic() {
+        // Regression: byte-index slicing on multi-byte UTF-8 (Chinese) caused panic.
+        // "账号类型" starts at byte 110, char '账' occupies bytes 110..113.
+        // A byte-by-byte scan would land on byte 111 (mid-character) and panic on &str[..].
+        let sql = "select * from ( select decode ( t . if_inter_bank , '1' , '银行间资金结算账户' , '银行存款类' ) 账号类型 , t . fund_name 组合 , t . accno 账户 from t ) using p_min_amount, p_start_date";
+        let pos = find_using_keyword_pos(sql);
+        assert!(pos.is_some(), "should find USING keyword");
+        let p = pos.unwrap();
+        assert!(sql[p..].to_ascii_lowercase().starts_with("using "), "slice at pos must start with 'using '");
+    }
+
+    #[test]
+    fn test_find_using_keyword_pos_pure_chinese_no_using() {
+        let sql = "select 账号类型 , 组合 , 账户名称 from dual";
+        assert_eq!(find_using_keyword_pos(sql), None);
+    }
+
+    #[test]
+    fn test_find_using_keyword_pos_chinese_inside_string_skipped() {
+        // "using " inside a string literal must be ignored
+        let sql = "select 'using 中文测试' from dual using p_id";
+        let pos = find_using_keyword_pos(sql);
+        assert!(pos.is_some());
+        let p = pos.unwrap();
+        assert!(sql[p..].to_ascii_lowercase().starts_with("using "));
+    }
+
+    #[test]
+    fn test_find_using_keyword_pos_mixed_multibyte() {
+        // Mix of Chinese, Japanese, Korean with USING at end
+        let sql = "select 账号, データ, 데이터 from t using v_id";
+        let pos = find_using_keyword_pos(sql);
+        assert!(pos.is_some());
+    }
 }
