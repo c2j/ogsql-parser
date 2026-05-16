@@ -1417,7 +1417,7 @@ fn default_values_equivalent(a: &str, b: &str) -> bool {
 
 /// A warning about a potentially undefined variable reference in PL/pgSQL code.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
-pub struct UndefinedVariableWarning {
+pub struct UndefinedVariableError {
     /// The unresolved variable name.
     pub variable_name: String,
     /// Source location of the reference, if available.
@@ -1473,27 +1473,29 @@ fn is_pl_builtin(name: &str) -> bool {
 pub fn validate_pl_variables(
     block: &PlBlock,
     params: &[crate::ast::RoutineParam],
-) -> Vec<UndefinedVariableWarning> {
+) -> Vec<UndefinedVariableError> {
     let mut validator = PlVariableValidator::new();
     for p in params {
         validator.declare(&p.name);
     }
     validator.process_block(block);
-    validator.warnings
+    validator.errors
 }
 
 struct PlVariableValidator {
     /// Scope stack: each entry is a set of variable names (lowercase) in that scope level.
     scope_stack: Vec<std::collections::HashSet<String>>,
     /// Collected warnings.
-    warnings: Vec<UndefinedVariableWarning>,
+    errors: Vec<UndefinedVariableError>,
+    current_span: Option<crate::ast::SourceSpan>,
 }
 
 impl PlVariableValidator {
     fn new() -> Self {
         Self {
             scope_stack: vec![std::collections::HashSet::new()],
-            warnings: Vec::new(),
+            errors: Vec::new(),
+            current_span: None,
         }
     }
 
@@ -1558,6 +1560,7 @@ impl PlVariableValidator {
     }
 
     fn process_statement(&mut self, stmt: &PlStatement) {
+        let saved_span = self.current_span.take();
         match stmt {
             // ── PL expressions: CHECK for undefined variables ──
 
@@ -1567,6 +1570,7 @@ impl PlVariableValidator {
             }
 
             PlStatement::Execute(exec) => {
+                self.current_span = exec.span.clone();
                 self.check_expr(&exec.node.string_expr, "EXECUTE IMMEDIATE");
                 for target in &exec.node.into_targets {
                     self.check_expr(target, "EXECUTE IMMEDIATE INTO");
@@ -1577,6 +1581,7 @@ impl PlVariableValidator {
             }
 
             PlStatement::If(if_stmt) => {
+                self.current_span = if_stmt.span.clone();
                 self.check_expr(&if_stmt.node.condition, "IF condition");
                 self.process_statements(&if_stmt.node.then_stmts);
                 for elsif in &if_stmt.node.elsifs {
@@ -1587,6 +1592,7 @@ impl PlVariableValidator {
             }
 
             PlStatement::Case(case_stmt) => {
+                self.current_span = case_stmt.span.clone();
                 if let Some(ref expr) = case_stmt.node.expression {
                     self.check_expr(expr, "CASE expression");
                 }
@@ -1598,11 +1604,13 @@ impl PlVariableValidator {
             }
 
             PlStatement::While(while_stmt) => {
+                self.current_span = while_stmt.span.clone();
                 self.check_expr(&while_stmt.node.condition, "WHILE condition");
                 self.process_statements(&while_stmt.node.body);
             }
 
             PlStatement::For(for_stmt) => {
+                self.current_span = for_stmt.span.clone();
                 self.enter_scope();
                 self.declare(&for_stmt.node.variable);
                 match &for_stmt.node.kind {
@@ -1630,6 +1638,7 @@ impl PlVariableValidator {
             }
 
             PlStatement::ForEach(foreach_stmt) => {
+                self.current_span = foreach_stmt.span.clone();
                 self.enter_scope();
                 self.declare(&foreach_stmt.node.variable);
                 self.check_expr(&foreach_stmt.node.expression, "FOREACH expression");
@@ -1638,6 +1647,7 @@ impl PlVariableValidator {
             }
 
             PlStatement::Loop(loop_stmt) => {
+                self.current_span = loop_stmt.span.clone();
                 self.process_statements(&loop_stmt.node.body);
             }
 
@@ -1664,6 +1674,7 @@ impl PlVariableValidator {
             }
 
             PlStatement::ReturnQuery(rq) => {
+                self.current_span = rq.span.clone();
                 if let Some(ref expr) = rq.node.dynamic_expr {
                     self.check_expr(expr, "RETURN QUERY EXECUTE");
                 }
@@ -1673,6 +1684,7 @@ impl PlVariableValidator {
             }
 
             PlStatement::Raise(raise) => {
+                self.current_span = raise.span.clone();
                 for param in &raise.node.params {
                     self.check_expr(param, "RAISE parameter");
                 }
@@ -1682,6 +1694,7 @@ impl PlVariableValidator {
             }
 
             PlStatement::Open(open) => {
+                self.current_span = open.span.clone();
                 self.check_expr(&open.node.cursor, "OPEN cursor");
                 match &open.node.kind {
                     PlOpenKind::Simple { arguments } => {
@@ -1707,6 +1720,7 @@ impl PlVariableValidator {
             }
 
             PlStatement::Fetch(fetch) => {
+                self.current_span = fetch.span.clone();
                 self.check_expr(&fetch.node.cursor, "FETCH cursor");
                 for target in &fetch.node.into {
                     self.check_expr(target, "FETCH INTO target");
@@ -1722,12 +1736,14 @@ impl PlVariableValidator {
             }
 
             PlStatement::GetDiagnostics(gd) => {
+                self.current_span = gd.span.clone();
                 for item in &gd.node.items {
                     self.check_expr(&item.target, "GET DIAGNOSTICS target");
                 }
             }
 
             PlStatement::ProcedureCall(call) => {
+                self.current_span = call.span.clone();
                 for arg in &call.node.arguments {
                     self.check_expr(arg, "procedure call argument");
                 }
@@ -1738,6 +1754,7 @@ impl PlVariableValidator {
             }
 
             PlStatement::Block(inner_block) => {
+                self.current_span = inner_block.span.clone();
                 self.enter_scope();
                 self.process_block(&inner_block.node);
                 self.exit_scope();
@@ -1760,6 +1777,7 @@ impl PlVariableValidator {
             PlStatement::VariableSet(_) => {}
             PlStatement::VariableReset(_) => {}
         }
+        self.current_span = saved_span;
     }
 
     fn check_expr(&mut self, expr: &Expr, context: &str) {
@@ -1767,9 +1785,9 @@ impl PlVariableValidator {
             Expr::ColumnRef(names) | Expr::PlVariable(names) if names.len() == 1 => {
                 let name = &names[0];
                 if !self.is_declared(name) && !is_pl_builtin(name) {
-                    self.warnings.push(UndefinedVariableWarning {
+                    self.errors.push(UndefinedVariableError {
                         variable_name: name.clone(),
-                        location: None,
+                        location: self.current_span.clone(),
                         context: context.to_string(),
                     });
                 }
