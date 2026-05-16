@@ -5,6 +5,10 @@ pub mod parser;
 pub mod token;
 pub mod token_formatter;
 
+pub use analyzer::return_cursor::{
+    ReturnCursorAnnotation, RoutineReturnAnalysis, ReturnCursorGroup,
+    ReturnCursorBranch, ResultColumn, analyze_return_cursors, has_return_cursors,
+};
 pub use analyzer::{analyze_pl_block, analyze_transactions, compute_query_fingerprints, validate_package_consistency, DynamicSqlReport, PackageConsistencyError, PackageConsistencyErrorKind, QueryFingerprint, TransactionReport};
 pub use analyzer::schema::{SchemaMap, SchemaResolutionReport, load_schema, resolve_schema};
 

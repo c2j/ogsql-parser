@@ -290,6 +290,83 @@ fn cmd_format(
     }
 }
 
+fn has_routine_return_cursors(stmt: &ogsql_parser::Statement) -> bool {
+    use ogsql_parser::Statement;
+    match stmt {
+        Statement::CreateProcedure(p) => {
+            ogsql_parser::has_return_cursors(&p.parameters, None)
+        }
+        Statement::CreateFunction(f) => {
+            ogsql_parser::has_return_cursors(&f.parameters, f.return_type.as_deref())
+        }
+        Statement::CreatePackageBody(pkg) => {
+            pkg.items.iter().any(|item| match item {
+                ogsql_parser::ast::PackageItem::Procedure(p) =>
+                    ogsql_parser::has_return_cursors(&p.parameters, None),
+                ogsql_parser::ast::PackageItem::Function(f) =>
+                    ogsql_parser::has_return_cursors(&f.parameters, f.return_type.as_deref()),
+                _ => false,
+            })
+        }
+        _ => false,
+    }
+}
+
+fn compute_routine_analysis(stmt: &ogsql_parser::Statement) -> Option<serde_json::Value> {
+    use ogsql_parser::Statement;
+    match stmt {
+        Statement::CreateProcedure(p) => {
+            let block = p.block.as_ref()?;
+            let analysis = ogsql_parser::analyze_return_cursors(
+                block, &p.parameters, &p.name.join("."), "Procedure", None,
+            );
+            if analysis.return_cursors.is_empty() { return None; }
+            Some(serde_json::json!(analysis))
+        }
+        Statement::CreateFunction(f) => {
+            let block = f.block.as_ref()?;
+            let analysis = ogsql_parser::analyze_return_cursors(
+                block, &f.parameters, &f.name.join("."), "Function",
+                f.return_type.as_deref(),
+            );
+            if analysis.return_cursors.is_empty() { return None; }
+            Some(serde_json::json!(analysis))
+        }
+        Statement::CreatePackageBody(pkg) => {
+            let mut analyses = Vec::new();
+            for item in &pkg.items {
+                match item {
+                    ogsql_parser::ast::PackageItem::Procedure(p) => {
+                        if let Some(ref block) = p.block {
+                            let analysis = ogsql_parser::analyze_return_cursors(
+                                block, &p.parameters, &p.name.join("."),
+                                "Procedure", None,
+                            );
+                            if !analysis.return_cursors.is_empty() {
+                                analyses.push(analysis);
+                            }
+                        }
+                    }
+                    ogsql_parser::ast::PackageItem::Function(f) => {
+                        if let Some(ref block) = f.block {
+                            let analysis = ogsql_parser::analyze_return_cursors(
+                                block, &f.parameters, &f.name.join("."),
+                                "Function", f.return_type.as_deref(),
+                            );
+                            if !analysis.return_cursors.is_empty() {
+                                analyses.push(analysis);
+                            }
+                        }
+                    }
+                    _ => {}
+                }
+            }
+            if analyses.is_empty() { None } else { Some(serde_json::json!(analyses)) }
+        }
+        _ => None,
+    }
+}
+
 fn cmd_parse(cli: &Cli, csv: bool) {
     let sql = read_input(cli.file.as_deref());
     let output = parse_input(&sql, cli.comments, cli.mybatis);
@@ -331,6 +408,14 @@ fn cmd_parse(cli: &Cli, csv: bool) {
                     }
                 }
                 annotate_builtin_functions(&mut obj);
+                if has_routine_return_cursors(&si.statement) {
+                    if let Some(analysis) = compute_routine_analysis(&si.statement) {
+                        obj.as_object_mut().unwrap().insert(
+                            "routine_analysis".to_string(),
+                            analysis,
+                        );
+                    }
+                }
                 obj
             })
             .collect();
@@ -598,7 +683,7 @@ fn read_file_path(path: &std::path::Path) -> String {
 }
 
 fn output_csv_parse_header() {
-    println!("file,directory,line,type,name,parent,parameters,return_type,sql,error,warning");
+    println!("file,directory,line,type,name,parent,parameters,return_type,sql,error,warning,branch_path,branch_condition");
 }
 
 struct ParseCsvRow {
@@ -609,6 +694,8 @@ struct ParseCsvRow {
     parameters: String,
     return_type: String,
     sql: String,
+    branch_path: String,
+    branch_condition: String,
 }
 
 fn format_params(params: &[ogsql_parser::ast::RoutineParam]) -> String {
@@ -1155,12 +1242,31 @@ fn resolve_dynamic_query_text(
     replace_pl_vars_in_sql(t, vars)
 }
 
+fn join_branch(parent: &str, segment: &str) -> String {
+    if parent.is_empty() { segment.to_string() } else { format!("{}.{}", parent, segment) }
+}
+
+fn extract_out_cursor_set(params: &[ogsql_parser::ast::RoutineParam]) -> std::collections::HashSet<String> {
+    params.iter()
+        .filter(|p| {
+            let is_out = p.mode.as_deref() == Some("OUT")
+                || p.mode.as_deref() == Some("INOUT")
+                || p.mode.as_deref() == Some("IN OUT");
+            let is_cursor = p.data_type.to_uppercase().contains("REFCURSOR");
+            is_out && is_cursor
+        })
+        .map(|p| p.name.to_lowercase())
+        .collect()
+}
+
 /// Recursively collect SQL rows from a PL/pgSQL block into individual CSV rows.
 fn collect_block_sql_rows(
     block: &ogsql_parser::ast::plpgsql::PlBlock,
     parent_name: &str,
     fallback_line: usize,
     vars: &std::collections::HashMap<String, Option<String>>,
+    out_cursors: &std::collections::HashSet<String>,
+    all_opens_are_returns: bool,
 ) -> Vec<ParseCsvRow> {
     use ogsql_parser::ast::plpgsql::PlDeclaration;
     let mut rows = Vec::new();
@@ -1176,12 +1282,12 @@ fn collect_block_sql_rows(
         }
     }
     for stmt in &block.body {
-        collect_pl_stmt_rows(stmt, parent_name, fallback_line, vars, &mut assigns, &mut rows);
+        collect_pl_stmt_rows(stmt, parent_name, fallback_line, vars, &mut assigns, &mut rows, out_cursors, all_opens_are_returns, "", "");
     }
     if let Some(ref exc) = block.exception_block {
         for handler in &exc.handlers {
             for stmt in &handler.statements {
-                collect_pl_stmt_rows(stmt, parent_name, fallback_line, vars, &mut assigns, &mut rows);
+                collect_pl_stmt_rows(stmt, parent_name, fallback_line, vars, &mut assigns, &mut rows, out_cursors, all_opens_are_returns, "", "");
             }
         }
     }
@@ -1260,6 +1366,10 @@ fn collect_pl_stmt_rows(
     vars: &std::collections::HashMap<String, Option<String>>,
     assigns: &mut std::collections::HashMap<String, Vec<ConcatPart>>,
     rows: &mut Vec<ParseCsvRow>,
+    out_cursors: &std::collections::HashSet<String>,
+    all_opens_are_returns: bool,
+    branch_path: &str,
+    branch_condition: &str,
 ) {
     use ogsql_parser::ast::plpgsql::PlStatement;
 
@@ -1302,6 +1412,8 @@ fn collect_pl_stmt_rows(
                 parameters: String::new(),
                 return_type: String::new(),
                 sql,
+                branch_path: branch_path.to_string(),
+                branch_condition: branch_condition.to_string(),
             });
         }
         PlStatement::Sql(text) => {
@@ -1325,6 +1437,8 @@ fn collect_pl_stmt_rows(
                     parameters: String::new(),
                     return_type: String::new(),
                     sql,
+                    branch_path: branch_path.to_string(),
+                    branch_condition: branch_condition.to_string(),
                 });
             }
         }
@@ -1339,6 +1453,8 @@ fn collect_pl_stmt_rows(
                 parameters: String::new(),
                 return_type: String::new(),
                 sql,
+                branch_path: branch_path.to_string(),
+                branch_condition: branch_condition.to_string(),
             });
         }
         PlStatement::Perform { span, query, .. } => {
@@ -1352,17 +1468,20 @@ fn collect_pl_stmt_rows(
                 parameters: String::new(),
                 return_type: String::new(),
                 sql,
+                branch_path: branch_path.to_string(),
+                branch_condition: branch_condition.to_string(),
             });
         }
         PlStatement::Block(spanned) => {
             let line = spanned_line(&spanned.span).max(fallback_line);
+            let bp = join_branch(branch_path, "Block");
             for s in &spanned.node.body {
-                collect_pl_stmt_rows(s, parent_name, line, vars, assigns, rows);
+                collect_pl_stmt_rows(s, parent_name, line, vars, assigns, rows, out_cursors, all_opens_are_returns, &bp, branch_condition);
             }
             if let Some(ref exc) = spanned.node.exception_block {
                 for handler in &exc.handlers {
                     for s in &handler.statements {
-                        collect_pl_stmt_rows(s, parent_name, line, vars, assigns, rows);
+                        collect_pl_stmt_rows(s, parent_name, line, vars, assigns, rows, out_cursors, all_opens_are_returns, &bp, branch_condition);
                     }
                 }
             }
@@ -1370,45 +1489,57 @@ fn collect_pl_stmt_rows(
         PlStatement::If(spanned) => {
             let line = spanned_line(&spanned.span).max(fallback_line);
             let if_stmt = &spanned.node;
+            let cond_str = format_pl_expr(&if_stmt.condition);
             for s in &if_stmt.then_stmts {
-                collect_pl_stmt_rows(s, parent_name, line, vars, assigns, rows);
+                collect_pl_stmt_rows(s, parent_name, line, vars, assigns, rows, out_cursors, all_opens_are_returns,
+                    &join_branch(branch_path, "IF.then"), &cond_str);
             }
-            for elsif in &if_stmt.elsifs {
+            for (i, elsif) in if_stmt.elsifs.iter().enumerate() {
+                let elsif_cond = format_pl_expr(&elsif.condition);
                 for s in &elsif.stmts {
-                    collect_pl_stmt_rows(s, parent_name, line, vars, assigns, rows);
+                    collect_pl_stmt_rows(s, parent_name, line, vars, assigns, rows, out_cursors, all_opens_are_returns,
+                        &join_branch(branch_path, &format!("IF.elsif#{}.then", i + 1)), &elsif_cond);
                 }
             }
             for s in &if_stmt.else_stmts {
-                collect_pl_stmt_rows(s, parent_name, line, vars, assigns, rows);
+                collect_pl_stmt_rows(s, parent_name, line, vars, assigns, rows, out_cursors, all_opens_are_returns,
+                    &join_branch(branch_path, "IF.else"), &cond_str);
             }
         }
         PlStatement::Case(spanned) => {
             let line = spanned_line(&spanned.span).max(fallback_line);
             let case_stmt = &spanned.node;
-            for when in &case_stmt.whens {
+            for (i, when) in case_stmt.whens.iter().enumerate() {
+                let when_cond = format_pl_expr(&when.condition);
                 for s in &when.stmts {
-                    collect_pl_stmt_rows(s, parent_name, line, vars, assigns, rows);
+                    collect_pl_stmt_rows(s, parent_name, line, vars, assigns, rows, out_cursors, all_opens_are_returns,
+                        &join_branch(branch_path, &format!("CASE.when#{}", i + 1)), &when_cond);
                 }
             }
             for s in &case_stmt.else_stmts {
-                collect_pl_stmt_rows(s, parent_name, line, vars, assigns, rows);
+                collect_pl_stmt_rows(s, parent_name, line, vars, assigns, rows, out_cursors, all_opens_are_returns,
+                    &join_branch(branch_path, "CASE.else"), "");
             }
         }
         PlStatement::Loop(spanned) => {
             let line = spanned_line(&spanned.span).max(fallback_line);
+            let bp = join_branch(branch_path, "LOOP");
             for s in &spanned.node.body {
-                collect_pl_stmt_rows(s, parent_name, line, vars, assigns, rows);
+                collect_pl_stmt_rows(s, parent_name, line, vars, assigns, rows, out_cursors, all_opens_are_returns, &bp, branch_condition);
             }
         }
         PlStatement::While(spanned) => {
             let line = spanned_line(&spanned.span).max(fallback_line);
+            let while_cond = format_pl_expr(&spanned.node.condition);
+            let bp = join_branch(branch_path, "WHILE");
             for s in &spanned.node.body {
-                collect_pl_stmt_rows(s, parent_name, line, vars, assigns, rows);
+                collect_pl_stmt_rows(s, parent_name, line, vars, assigns, rows, out_cursors, all_opens_are_returns, &bp, &while_cond);
             }
         }
         PlStatement::For(spanned) => {
             let line = spanned_line(&spanned.span).max(fallback_line);
             let for_stmt = &spanned.node;
+            let bp = join_branch(branch_path, "FOR");
             match &for_stmt.kind {
                 ogsql_parser::ast::plpgsql::PlForKind::Query { query, parsed_query, using_args: _ } => {
                     rows.push(ParseCsvRow {
@@ -1419,6 +1550,8 @@ fn collect_pl_stmt_rows(
                         parameters: String::new(),
                         return_type: String::new(),
                         sql: String::new(),
+                        branch_path: bp.clone(),
+                        branch_condition: branch_condition.to_string(),
                     });
                     if let Some(ref stmt) = parsed_query {
                         let formatter = ogsql_parser::SqlFormatter::new();
@@ -1432,6 +1565,8 @@ fn collect_pl_stmt_rows(
                             parameters: String::new(),
                             return_type: String::new(),
                             sql,
+                            branch_path: bp.clone(),
+                            branch_condition: branch_condition.to_string(),
                         });
                     } else {
                         let (embedded_type, sql) = resolve_for_query_text(query, vars, assigns);
@@ -1443,6 +1578,8 @@ fn collect_pl_stmt_rows(
                             parameters: String::new(),
                             return_type: String::new(),
                             sql,
+                            branch_path: bp.clone(),
+                            branch_condition: branch_condition.to_string(),
                         });
                     }
                 }
@@ -1456,18 +1593,21 @@ fn collect_pl_stmt_rows(
                         parameters: args_str.join(", "),
                         return_type: String::new(),
                         sql: String::new(),
+                        branch_path: bp.clone(),
+                        branch_condition: branch_condition.to_string(),
                     });
                 }
                 _ => {}
             }
             for s in &for_stmt.body {
-                collect_pl_stmt_rows(s, parent_name, line, vars, assigns, rows);
+                collect_pl_stmt_rows(s, parent_name, line, vars, assigns, rows, out_cursors, all_opens_are_returns, &bp, branch_condition);
             }
         }
         PlStatement::ForEach(spanned) => {
             let line = spanned_line(&spanned.span).max(fallback_line);
+            let bp = join_branch(branch_path, "FOREACH");
             for s in &spanned.node.body {
-                collect_pl_stmt_rows(s, parent_name, line, vars, assigns, rows);
+                collect_pl_stmt_rows(s, parent_name, line, vars, assigns, rows, out_cursors, all_opens_are_returns, &bp, branch_condition);
             }
         }
         PlStatement::ForAll(spanned) => {
@@ -1482,6 +1622,8 @@ fn collect_pl_stmt_rows(
                     parameters: String::new(),
                     return_type: String::new(),
                     sql: body.trim().to_string(),
+                    branch_path: branch_path.to_string(),
+                    branch_condition: branch_condition.to_string(),
                 });
             }
         }
@@ -1489,53 +1631,72 @@ fn collect_pl_stmt_rows(
             let line = spanned_line(&spanned.span).max(fallback_line);
             let open_stmt = &spanned.node;
             let cursor_name = format_pl_expr(&open_stmt.cursor);
+            let is_out = out_cursors.contains(&cursor_name.to_lowercase()) || all_opens_are_returns;
             match &open_stmt.kind {
                 ogsql_parser::ast::plpgsql::PlOpenKind::ForQuery { scroll: _, query, parsed_query } => {
-                    rows.push(ParseCsvRow {
-                        line,
-                        stmt_type: "Open/ForQuery".into(),
-                        name: cursor_name,
-                        parent: parent_name.to_string(),
-                        parameters: String::new(),
-                        return_type: String::new(),
-                        sql: String::new(),
-                    });
-                    if let Some(ref stmt) = parsed_query {
-                        let formatter = ogsql_parser::SqlFormatter::new();
-                        let formatted = formatter.format_statement(stmt);
-                        let sql = replace_pl_vars_in_sql(&formatted, vars);
+                    if is_out {
+                        let sql = if let Some(ref stmt) = parsed_query {
+                            let formatter = ogsql_parser::SqlFormatter::new();
+                            let formatted = formatter.format_statement(stmt);
+                            replace_pl_vars_in_sql(&formatted, vars)
+                        } else {
+                            replace_pl_vars_in_sql(query.trim(), vars)
+                        };
                         rows.push(ParseCsvRow {
                             line,
-                            stmt_type: "Embedded/Select".into(),
-                            name: String::new(),
+                            stmt_type: "ReturnCursorSQL".into(),
+                            name: cursor_name,
                             parent: parent_name.to_string(),
                             parameters: String::new(),
-                            return_type: String::new(),
+                            return_type: "REFCURSOR".into(),
                             sql,
+                            branch_path: branch_path.to_string(),
+                            branch_condition: branch_condition.to_string(),
                         });
                     } else {
-                        let (embedded_type, sql) = resolve_for_query_text(query, vars, assigns);
                         rows.push(ParseCsvRow {
                             line,
-                            stmt_type: embedded_type,
-                            name: String::new(),
+                            stmt_type: "Open/ForQuery".into(),
+                            name: cursor_name,
                             parent: parent_name.to_string(),
                             parameters: String::new(),
                             return_type: String::new(),
-                            sql,
+                            sql: String::new(),
+                            branch_path: branch_path.to_string(),
+                            branch_condition: branch_condition.to_string(),
                         });
+                        if let Some(ref stmt) = parsed_query {
+                            let formatter = ogsql_parser::SqlFormatter::new();
+                            let formatted = formatter.format_statement(stmt);
+                            let sql = replace_pl_vars_in_sql(&formatted, vars);
+                            rows.push(ParseCsvRow {
+                                line,
+                                stmt_type: "Embedded/Select".into(),
+                                name: String::new(),
+                                parent: parent_name.to_string(),
+                                parameters: String::new(),
+                                return_type: String::new(),
+                                sql,
+                                branch_path: branch_path.to_string(),
+                                branch_condition: branch_condition.to_string(),
+                            });
+                        } else {
+                            let (embedded_type, sql) = resolve_for_query_text(query, vars, assigns);
+                            rows.push(ParseCsvRow {
+                                line,
+                                stmt_type: embedded_type,
+                                name: String::new(),
+                                parent: parent_name.to_string(),
+                                parameters: String::new(),
+                                return_type: String::new(),
+                                sql,
+                                branch_path: branch_path.to_string(),
+                                branch_condition: branch_condition.to_string(),
+                            });
+                        }
                     }
                 }
                 ogsql_parser::ast::plpgsql::PlOpenKind::ForExecute { query, using_args } => {
-                    rows.push(ParseCsvRow {
-                        line,
-                        stmt_type: "Open/ForExecute".into(),
-                        name: cursor_name,
-                        parent: parent_name.to_string(),
-                        parameters: String::new(),
-                        return_type: String::new(),
-                        sql: String::new(),
-                    });
                     let dynamic_sql = build_dynamic_sql_from_expr(query, vars, assigns);
                     let using_suffix = format_using_args_exprs(using_args);
                     let full_sql = if using_suffix.is_empty() {
@@ -1543,15 +1704,42 @@ fn collect_pl_stmt_rows(
                     } else {
                         format!("{}\nUSING {}", dynamic_sql, using_suffix)
                     };
-                    rows.push(ParseCsvRow {
-                        line,
-                        stmt_type: "Embedded/Execute".into(),
-                        name: String::new(),
-                        parent: parent_name.to_string(),
-                        parameters: String::new(),
-                        return_type: String::new(),
-                        sql: full_sql,
-                    });
+                    if is_out {
+                        rows.push(ParseCsvRow {
+                            line,
+                            stmt_type: "ReturnCursorSQL".into(),
+                            name: cursor_name,
+                            parent: parent_name.to_string(),
+                            parameters: String::new(),
+                            return_type: "REFCURSOR".into(),
+                            sql: full_sql,
+                            branch_path: branch_path.to_string(),
+                            branch_condition: branch_condition.to_string(),
+                        });
+                    } else {
+                        rows.push(ParseCsvRow {
+                            line,
+                            stmt_type: "Open/ForExecute".into(),
+                            name: cursor_name,
+                            parent: parent_name.to_string(),
+                            parameters: String::new(),
+                            return_type: String::new(),
+                            sql: String::new(),
+                            branch_path: branch_path.to_string(),
+                            branch_condition: branch_condition.to_string(),
+                        });
+                        rows.push(ParseCsvRow {
+                            line,
+                            stmt_type: "Embedded/Execute".into(),
+                            name: String::new(),
+                            parent: parent_name.to_string(),
+                            parameters: String::new(),
+                            return_type: String::new(),
+                            sql: full_sql,
+                            branch_path: branch_path.to_string(),
+                            branch_condition: branch_condition.to_string(),
+                        });
+                    }
                 }
                 ogsql_parser::ast::plpgsql::PlOpenKind::ForUsing { expressions } => {
                     rows.push(ParseCsvRow {
@@ -1562,6 +1750,8 @@ fn collect_pl_stmt_rows(
                         parameters: String::new(),
                         return_type: String::new(),
                         sql: String::new(),
+                        branch_path: branch_path.to_string(),
+                        branch_condition: branch_condition.to_string(),
                     });
                     let exprs: Vec<String> = expressions.iter().map(|e| format_pl_expr(e)).collect();
                     rows.push(ParseCsvRow {
@@ -1572,6 +1762,8 @@ fn collect_pl_stmt_rows(
                         parameters: String::new(),
                         return_type: String::new(),
                         sql: exprs.join(", "),
+                        branch_path: branch_path.to_string(),
+                        branch_condition: branch_condition.to_string(),
                     });
                 }
                 ogsql_parser::ast::plpgsql::PlOpenKind::Simple { arguments } => {
@@ -1584,6 +1776,8 @@ fn collect_pl_stmt_rows(
                         parameters: args_str.join(", "),
                         return_type: String::new(),
                         sql: String::new(),
+                        branch_path: branch_path.to_string(),
+                        branch_condition: branch_condition.to_string(),
                     });
                 }
             }
@@ -1606,6 +1800,8 @@ fn flatten_statement(si: &ogsql_parser::StatementInfo, mybatis: bool) -> Vec<Par
                 parameters: String::new(),
                 return_type: String::new(),
                 sql: String::new(),
+                branch_path: String::new(),
+                branch_condition: String::new(),
             });
             for item in &s.items {
                 match item {
@@ -1618,14 +1814,19 @@ fn flatten_statement(si: &ogsql_parser::StatementInfo, mybatis: bool) -> Vec<Par
                             parameters: format_params(&p.parameters),
                             return_type: String::new(),
                             sql: String::new(),
+                            branch_path: String::new(),
+                            branch_condition: String::new(),
                         });
                         if let Some(ref block) = p.block {
                             let vars = if mybatis { collect_block_vars(block, &p.parameters) } else { std::collections::HashMap::new() };
+                            let out_cursors = extract_out_cursor_set(&p.parameters);
                             rows.extend(collect_block_sql_rows(
                                 block,
                                 &p.name.join("."),
                                 p.start_line.max(si.start_line),
                                 &vars,
+                                &out_cursors,
+                                false,
                             ));
                         }
                     }
@@ -1638,14 +1839,20 @@ fn flatten_statement(si: &ogsql_parser::StatementInfo, mybatis: bool) -> Vec<Par
                             parameters: format_params(&f.parameters),
                             return_type: f.return_type.clone().unwrap_or_default(),
                             sql: String::new(),
+                            branch_path: String::new(),
+                            branch_condition: String::new(),
                         });
                         if let Some(ref block) = f.block {
                             let vars = if mybatis { collect_block_vars(block, &f.parameters) } else { std::collections::HashMap::new() };
+                            let out_cursors = extract_out_cursor_set(&f.parameters);
+                            let is_return_cursor = f.return_type.as_ref().map_or(false, |rt| rt.to_uppercase().contains("REFCURSOR"));
                             rows.extend(collect_block_sql_rows(
                                 block,
                                 &f.name.join("."),
                                 f.start_line.max(si.start_line),
                                 &vars,
+                                &out_cursors,
+                                is_return_cursor,
                             ));
                         }
                     }
@@ -1662,6 +1869,8 @@ fn flatten_statement(si: &ogsql_parser::StatementInfo, mybatis: bool) -> Vec<Par
                 parameters: String::new(),
                 return_type: String::new(),
                 sql: String::new(),
+                branch_path: String::new(),
+                branch_condition: String::new(),
             });
             for item in &s.items {
                 match item {
@@ -1674,6 +1883,8 @@ fn flatten_statement(si: &ogsql_parser::StatementInfo, mybatis: bool) -> Vec<Par
                             parameters: format_params(&p.parameters),
                             return_type: String::new(),
                             sql: String::new(),
+                            branch_path: String::new(),
+                            branch_condition: String::new(),
                         });
                     }
                     ogsql_parser::ast::PackageItem::Function(f) => {
@@ -1685,6 +1896,8 @@ fn flatten_statement(si: &ogsql_parser::StatementInfo, mybatis: bool) -> Vec<Par
                             parameters: format_params(&f.parameters),
                             return_type: f.return_type.clone().unwrap_or_default(),
                             sql: String::new(),
+                            branch_path: String::new(),
+                            branch_condition: String::new(),
                         });
                     }
                     _ => {}
@@ -1701,10 +1914,13 @@ fn flatten_statement(si: &ogsql_parser::StatementInfo, mybatis: bool) -> Vec<Par
                 parameters: format_params(&s.parameters),
                 return_type: String::new(),
                 sql: String::new(),
+                branch_path: String::new(),
+                branch_condition: String::new(),
             });
             if let Some(ref block) = s.block {
                 let vars = if mybatis { collect_block_vars(block, &s.parameters) } else { std::collections::HashMap::new() };
-                rows.extend(collect_block_sql_rows(block, &proc_name, si.start_line, &vars));
+                let out_cursors = extract_out_cursor_set(&s.parameters);
+                rows.extend(collect_block_sql_rows(block, &proc_name, si.start_line, &vars, &out_cursors, false));
             }
         }
         Statement::CreateFunction(s) => {
@@ -1717,10 +1933,14 @@ fn flatten_statement(si: &ogsql_parser::StatementInfo, mybatis: bool) -> Vec<Par
                 parameters: format_params(&s.parameters),
                 return_type: s.return_type.clone().unwrap_or_default(),
                 sql: String::new(),
+                branch_path: String::new(),
+                branch_condition: String::new(),
             });
             if let Some(ref block) = s.block {
                 let vars = if mybatis { collect_block_vars(block, &s.parameters) } else { std::collections::HashMap::new() };
-                rows.extend(collect_block_sql_rows(block, &func_name, si.start_line, &vars));
+                let out_cursors = extract_out_cursor_set(&s.parameters);
+                let is_return_cursor = s.return_type.as_ref().map_or(false, |rt| rt.to_uppercase().contains("REFCURSOR"));
+                rows.extend(collect_block_sql_rows(block, &func_name, si.start_line, &vars, &out_cursors, is_return_cursor));
             }
         }
         Statement::Do(s) => {
@@ -1732,10 +1952,13 @@ fn flatten_statement(si: &ogsql_parser::StatementInfo, mybatis: bool) -> Vec<Par
                 parameters: String::new(),
                 return_type: String::new(),
                 sql: String::new(),
+                branch_path: String::new(),
+                branch_condition: String::new(),
             });
             if let Some(ref block) = s.block {
                 let vars = if mybatis { collect_block_vars(block, &[]) } else { std::collections::HashMap::new() };
-                rows.extend(collect_block_sql_rows(block, "", si.start_line, &vars));
+                let out_cursors = std::collections::HashSet::new();
+                rows.extend(collect_block_sql_rows(block, "", si.start_line, &vars, &out_cursors, false));
             }
         }
         Statement::AnonyBlock(s) => {
@@ -1747,9 +1970,12 @@ fn flatten_statement(si: &ogsql_parser::StatementInfo, mybatis: bool) -> Vec<Par
                 parameters: String::new(),
                 return_type: String::new(),
                 sql: String::new(),
+                branch_path: String::new(),
+                branch_condition: String::new(),
             });
             let vars = if mybatis { collect_block_vars(&s.block, &[]) } else { std::collections::HashMap::new() };
-            rows.extend(collect_block_sql_rows(&s.block, "", si.start_line, &vars));
+            let out_cursors = std::collections::HashSet::new();
+            rows.extend(collect_block_sql_rows(&s.block, "", si.start_line, &vars, &out_cursors, false));
         }
         Statement::Select(s) => {
             rows.push(ParseCsvRow {
@@ -1766,6 +1992,8 @@ fn flatten_statement(si: &ogsql_parser::StatementInfo, mybatis: bool) -> Vec<Par
                 parameters: String::new(),
                 return_type: String::new(),
                 sql: si.sql_text.clone(),
+                branch_path: String::new(),
+                branch_condition: String::new(),
             });
         }
         Statement::Insert(s) => {
@@ -1777,6 +2005,8 @@ fn flatten_statement(si: &ogsql_parser::StatementInfo, mybatis: bool) -> Vec<Par
                 parameters: String::new(),
                 return_type: String::new(),
                 sql: si.sql_text.clone(),
+                branch_path: String::new(),
+                branch_condition: String::new(),
             });
         }
         Statement::Update(s) => {
@@ -1794,6 +2024,8 @@ fn flatten_statement(si: &ogsql_parser::StatementInfo, mybatis: bool) -> Vec<Par
                 parameters: String::new(),
                 return_type: String::new(),
                 sql: si.sql_text.clone(),
+                branch_path: String::new(),
+                branch_condition: String::new(),
             });
         }
         Statement::Delete(s) => {
@@ -1811,6 +2043,8 @@ fn flatten_statement(si: &ogsql_parser::StatementInfo, mybatis: bool) -> Vec<Par
                 parameters: String::new(),
                 return_type: String::new(),
                 sql: si.sql_text.clone(),
+                branch_path: String::new(),
+                branch_condition: String::new(),
             });
         }
         Statement::Merge(s) => {
@@ -1825,6 +2059,8 @@ fn flatten_statement(si: &ogsql_parser::StatementInfo, mybatis: bool) -> Vec<Par
                 parameters: String::new(),
                 return_type: String::new(),
                 sql: si.sql_text.clone(),
+                branch_path: String::new(),
+                branch_condition: String::new(),
             });
         }
         Statement::CreateTable(s) => {
@@ -1836,6 +2072,8 @@ fn flatten_statement(si: &ogsql_parser::StatementInfo, mybatis: bool) -> Vec<Par
                 parameters: String::new(),
                 return_type: String::new(),
                 sql: si.sql_text.clone(),
+                branch_path: String::new(),
+                branch_condition: String::new(),
             });
         }
         _ => {
@@ -1857,6 +2095,8 @@ fn flatten_statement(si: &ogsql_parser::StatementInfo, mybatis: bool) -> Vec<Par
                 parameters: String::new(),
                 return_type: String::new(),
                 sql: si.sql_text.clone(),
+                branch_path: String::new(),
+                branch_condition: String::new(),
             });
         }
     }
@@ -1892,7 +2132,7 @@ fn output_csv_parse_rows(
 
             let sql = row.sql.trim().replace('\n', "\\n").replace('\r', "");
             println!(
-                "{},{},{},{},{},{},{},{},{},{},{}",
+                "{},{},{},{},{},{},{},{},{},{},{},{},{}",
                 csv_escape(file_name),
                 csv_escape(rel_dir),
                 row.line,
@@ -1904,6 +2144,8 @@ fn output_csv_parse_rows(
                 csv_escape(&sql),
                 csv_escape(&row_err),
                 csv_escape(&row_warn),
+                csv_escape(&row.branch_path),
+                csv_escape(&row.branch_condition),
             );
         }
     }
