@@ -1658,7 +1658,16 @@ fn collect_pl_stmt_rows(
             match &open_stmt.kind {
                 ogsql_parser::ast::plpgsql::PlOpenKind::ForQuery { scroll: _, query, parsed_query } => {
                     if is_out {
-                        let sql = replace_pl_vars_in_sql(query.trim(), vars);
+                        let sql = if let Some(ref stmt) = parsed_query {
+                            let formatter = ogsql_parser::SqlFormatter::new();
+                            let formatted = formatter.format_statement(stmt);
+                            replace_pl_vars_in_sql(&formatted, vars)
+                        } else if query.trim().is_empty() {
+                            String::new()
+                        } else {
+                            let (_, resolved) = resolve_for_query_text(query, vars, assigns);
+                            resolved
+                        };
                         rows.push(ParseCsvRow {
                             line,
                             end_line,
