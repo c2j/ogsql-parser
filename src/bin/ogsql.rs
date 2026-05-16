@@ -119,6 +119,9 @@ enum Commands {
         /// File extensions to scan, comma-separated (default: sql) / 扫描的文件扩展名，逗号分隔
         #[arg(short = 'e', long = "ext", value_delimiter = ',', default_value = "sql")]
         ext: Vec<String>,
+        /// Output validation results in CSV format / 以 CSV 格式输出校验结果
+        #[arg(long = "csv")]
+        csv: bool,
         /// Print statistics after directory processing
         #[arg(long)]
         stats: bool,
@@ -2202,6 +2205,89 @@ fn output_csv_parse_rows(
     }
 }
 
+fn output_csv_validate_header() {
+    println!("file,directory,line,type,name,parent,parameters,return_type,sql,error,warning,branch_path,branch_condition");
+}
+
+fn output_csv_validate_rows(
+    stmts: &[ogsql_parser::StatementInfo],
+    errors: &[ogsql_parser::ParserError],
+    var_errors: &[ogsql_parser::UndefinedVariableError],
+    file_name: &str,
+    rel_dir: &str,
+) {
+    for si in stmts {
+        let stmt_start = si.start_line;
+        let stmt_end = si.end_line;
+
+        let stmt_errors: Vec<&ogsql_parser::ParserError> = errors
+            .iter()
+            .filter(|e| {
+                let eline = error_line(e);
+                eline == 0 || (eline >= stmt_start && eline <= stmt_end)
+            })
+            .collect();
+
+        let stmt_var_errors: Vec<&ogsql_parser::UndefinedVariableError> = var_errors
+            .iter()
+            .filter(|ve| {
+                ve.location.as_ref().map_or(false, |sp| {
+                    sp.start.line >= stmt_start && sp.start.line <= stmt_end
+                })
+            })
+            .collect();
+
+        let rows = flatten_statement(si, false);
+        for row in rows {
+            let (row_parse_err, row_parse_warn) = filter_errors_for_row(
+                &stmt_errors,
+                row.line,
+                row.end_line,
+            );
+
+            let row_var_errs: Vec<&ogsql_parser::UndefinedVariableError> = stmt_var_errors
+                .iter()
+                .filter(|ve| {
+                    ve.location.as_ref().map_or(false, |sp| {
+                        sp.start.line >= row.line && sp.start.line <= row.end_line
+                    })
+                })
+                .copied()
+                .collect();
+
+            let mut err_parts: Vec<String> = Vec::new();
+            if !row_parse_err.is_empty() {
+                err_parts.push(row_parse_err);
+            }
+            for ve in &row_var_errs {
+                let line_info = ve.location.as_ref()
+                    .map(|sp| format!(":{}", sp.start.line))
+                    .unwrap_or_default();
+                err_parts.push(format!("undefined variable '{}' in {}{}", ve.variable_name, ve.context, line_info));
+            }
+
+            let all_err = err_parts.join("; ");
+            let sql = row.sql.trim().replace('\n', "\\n").replace('\r', "");
+            println!(
+                "{},{},{},{},{},{},{},{},{},{},{},{},{}",
+                csv_escape(file_name),
+                csv_escape(rel_dir),
+                row.line,
+                csv_escape(&row.stmt_type),
+                csv_escape(&row.name),
+                csv_escape(&row.parent),
+                csv_escape(&row.parameters),
+                csv_escape(&row.return_type),
+                csv_escape(&sql),
+                csv_escape(&all_err),
+                csv_escape(&row_parse_warn),
+                csv_escape(&row.branch_path),
+                csv_escape(&row.branch_condition),
+            );
+        }
+    }
+}
+
 /// Merge same-type error/warning messages, deduplicating identical text
 /// and appending occurrence count + line numbers.
 /// "msg; msg; msg" → "msg (×3, lines 1, 4, 10)"
@@ -2438,7 +2524,7 @@ fn validate_pl_variables_from_stmts(stmts: &[ogsql_parser::StatementInfo]) -> Ve
     warnings
 }
 
-fn cmd_validate(cli: &Cli) {
+fn cmd_validate(cli: &Cli, csv: bool) {
     let sql = read_input(cli.file.as_deref());
     let (stmts, errors, pkg_errors, var_errors) = validate_sql(&sql, cli.mybatis);
 
@@ -2448,6 +2534,29 @@ fn cmd_validate(cli: &Cli) {
             .unwrap_or_default();
         format!("undefined variable '{}' in {}{}", ve.variable_name, ve.context, line_info)
     };
+
+    if csv {
+        let file_name = cli.file.as_deref().unwrap_or("<stdin>");
+        let mut all_errors = errors.clone();
+        for pe in &pkg_errors {
+            let msg = match &pe.detail {
+                Some(d) => format!("package {}: {} — {}", pe.package_name, pe.subprogram_name, d),
+                None => format!("package {}: {} — {:?}", pe.package_name, pe.subprogram_name, pe.kind),
+            };
+            all_errors.push(ogsql_parser::ParserError::Warning {
+                message: msg,
+                location: ogsql_parser::SourceLocation::default(),
+            });
+        }
+        output_csv_validate_header();
+        output_csv_validate_rows(&stmts, &all_errors, &var_errors, file_name, ".");
+        let real_errors: Vec<_> = errors.iter().filter(|e| !is_warning(e)).collect();
+        let has_errors = !real_errors.is_empty() || !var_errors.is_empty();
+        if has_errors {
+            std::process::exit(1);
+        }
+        return;
+    }
 
     if cli.json {
         let warnings: Vec<_> = errors.iter().filter(|e| is_warning(e)).collect();
@@ -2506,7 +2615,7 @@ fn cmd_validate(cli: &Cli) {
     }
 }
 
-fn cmd_validate_dir(cli: &Cli, dir_paths: &[String], exts: &[String], stats: bool) {
+fn cmd_validate_dir(cli: &Cli, dir_paths: &[String], exts: &[String], csv: bool, stats: bool) {
     use std::path::Path;
 
     for dir_path in dir_paths {
@@ -2578,14 +2687,19 @@ fn cmd_validate_dir(cli: &Cli, dir_paths: &[String], exts: &[String], stats: boo
     let mut error_kinds: BTreeMap<&'static str, (usize, HashSet<String>)> = BTreeMap::new();
     let mut warning_kinds: BTreeMap<&'static str, (usize, HashSet<String>)> = BTreeMap::new();
 
+    if csv {
+        output_csv_validate_header();
+    }
+
     for (file_name, rel_dir, abs_path) in &files {
         let sql = read_file_path(abs_path);
-        let (stmts, errors, _pkg_errors, _var_errors) = validate_sql(&sql, cli.mybatis);
+        let (stmts, errors, pkg_errors, var_errors) = validate_sql(&sql, cli.mybatis);
 
         let real_errors: Vec<_> = errors.iter().filter(|e| !is_warning(e)).collect();
         let warnings: Vec<_> = errors.iter().filter(|e| is_warning(e)).collect();
+        let has_var_errors = !var_errors.is_empty();
 
-        if !real_errors.is_empty() {
+        if !real_errors.is_empty() || has_var_errors {
             any_invalid = true;
             files_with_errors.insert(file_name.clone());
         }
@@ -2593,11 +2707,10 @@ fn cmd_validate_dir(cli: &Cli, dir_paths: &[String], exts: &[String], stats: boo
             files_with_warnings.insert(file_name.clone());
         }
 
-        total_errors += real_errors.len();
+        total_errors += real_errors.len() + var_errors.len();
         total_warnings += warnings.len();
         total_files += 1;
 
-        // Stats accumulation
         for si in &stmts {
             *stmt_counts.entry(stmt_category(&si.statement)).or_insert(0) += 1;
         }
@@ -2609,7 +2722,20 @@ fn cmd_validate_dir(cli: &Cli, dir_paths: &[String], exts: &[String], stats: boo
             entry.1.insert(file_name.clone());
         }
 
-        if cli.json {
+        if csv {
+            let mut all_errors = errors.clone();
+            for pe in &pkg_errors {
+                let msg = match &pe.detail {
+                    Some(d) => format!("package {}: {} — {}", pe.package_name, pe.subprogram_name, d),
+                    None => format!("package {}: {} — {:?}", pe.package_name, pe.subprogram_name, pe.kind),
+                };
+                all_errors.push(ogsql_parser::ParserError::Warning {
+                    message: msg,
+                    location: ogsql_parser::SourceLocation::default(),
+                });
+            }
+            output_csv_validate_rows(&stmts, &all_errors, &var_errors, file_name, rel_dir);
+        } else if cli.json {
             if !real_errors.is_empty() {
                 all_results.push((
                     file_name.clone(),
@@ -2642,7 +2768,16 @@ fn cmd_validate_dir(cli: &Cli, dir_paths: &[String], exts: &[String], stats: boo
         let _ = &stmts;
     }
 
-    if cli.json {
+    if csv {
+        if stats {
+            let total_stmts: usize = stmt_counts.values().sum();
+            print_parse_stats(total_files, &files_with_errors, &files_with_warnings,
+                total_stmts, &stmt_counts, &error_kinds, &warning_kinds, "validate --csv");
+        }
+        if any_invalid {
+            std::process::exit(1);
+        }
+    } else if cli.json {
         let mut results = Vec::new();
         for (file_name, rel_dir, abs_path) in &files {
             let sql = read_file_path(abs_path);
@@ -4593,14 +4728,14 @@ fn main() {
         }
         Commands::JsonToSql => cmd_json2sql(&cli),
         Commands::Tokenize => cmd_tokenize(&cli),
-        Commands::Validate { ref dir, ref ext, stats } => {
+        Commands::Validate { ref dir, ref ext, csv, stats } => {
             if !dir.is_empty() && cli.file.is_some() {
                 die!("Error: --dir and -f are mutually exclusive");
             }
             if !dir.is_empty() {
-                cmd_validate_dir(&cli, dir, ext, stats);
+                cmd_validate_dir(&cli, dir, ext, csv, stats);
             } else {
-                cmd_validate(&cli);
+                cmd_validate(&cli, csv);
             }
         }
         #[cfg(feature = "serve")]
