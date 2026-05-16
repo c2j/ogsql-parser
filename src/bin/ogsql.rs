@@ -2206,7 +2206,178 @@ fn output_csv_parse_rows(
 }
 
 fn output_csv_validate_header() {
-    println!("file,directory,line,type,name,parent,parameters,return_type,sql,error,warning,branch_path,branch_condition");
+    println!("file,directory,line,type,name,parent,parameters,return_type,valid,error_count,warning_count,errors,warnings");
+}
+
+struct ValidateCsvRow {
+    line: usize,
+    row_type: String,
+    name: String,
+    parent: String,
+    parameters: String,
+    return_type: String,
+    start_line: usize,
+    end_line: usize,
+}
+
+fn collect_validate_routine_rows(si: &ogsql_parser::StatementInfo) -> Vec<ValidateCsvRow> {
+    use ogsql_parser::Statement;
+    match &si.statement {
+        Statement::CreatePackageBody(s) => {
+            let mut rows = vec![ValidateCsvRow {
+                line: si.start_line,
+                row_type: "CreatePackageBody".into(),
+                name: s.name.join("."),
+                parent: String::new(),
+                parameters: String::new(),
+                return_type: String::new(),
+                start_line: si.start_line,
+                end_line: si.end_line,
+            }];
+            for item in &s.items {
+                match item {
+                    ogsql_parser::ast::PackageItem::Procedure(p) => {
+                        rows.push(ValidateCsvRow {
+                            line: p.start_line.max(si.start_line),
+                            row_type: "Procedure".into(),
+                            name: p.name.join("."),
+                            parent: s.name.join("."),
+                            parameters: format_params(&p.parameters),
+                            return_type: String::new(),
+                            start_line: p.start_line.max(si.start_line),
+                            end_line: if p.end_line > 0 { p.end_line } else { si.end_line },
+                        });
+                    }
+                    ogsql_parser::ast::PackageItem::Function(f) => {
+                        rows.push(ValidateCsvRow {
+                            line: f.start_line.max(si.start_line),
+                            row_type: "Function".into(),
+                            name: f.name.join("."),
+                            parent: s.name.join("."),
+                            parameters: format_params(&f.parameters),
+                            return_type: f.return_type.clone().unwrap_or_default(),
+                            start_line: f.start_line.max(si.start_line),
+                            end_line: if f.end_line > 0 { f.end_line } else { si.end_line },
+                        });
+                    }
+                    _ => {}
+                }
+            }
+            rows
+        }
+        Statement::CreatePackage(s) => {
+            let mut rows = vec![ValidateCsvRow {
+                line: si.start_line,
+                row_type: "CreatePackage".into(),
+                name: s.name.join("."),
+                parent: String::new(),
+                parameters: String::new(),
+                return_type: String::new(),
+                start_line: si.start_line,
+                end_line: si.end_line,
+            }];
+            for item in &s.items {
+                match item {
+                    ogsql_parser::ast::PackageItem::Procedure(p) => {
+                        rows.push(ValidateCsvRow {
+                            line: p.start_line.max(si.start_line),
+                            row_type: "Procedure".into(),
+                            name: p.name.join("."),
+                            parent: s.name.join("."),
+                            parameters: format_params(&p.parameters),
+                            return_type: String::new(),
+                            start_line: p.start_line.max(si.start_line),
+                            end_line: if p.end_line > 0 { p.end_line } else { si.end_line },
+                        });
+                    }
+                    ogsql_parser::ast::PackageItem::Function(f) => {
+                        rows.push(ValidateCsvRow {
+                            line: f.start_line.max(si.start_line),
+                            row_type: "Function".into(),
+                            name: f.name.join("."),
+                            parent: s.name.join("."),
+                            parameters: format_params(&f.parameters),
+                            return_type: f.return_type.clone().unwrap_or_default(),
+                            start_line: f.start_line.max(si.start_line),
+                            end_line: if f.end_line > 0 { f.end_line } else { si.end_line },
+                        });
+                    }
+                    _ => {}
+                }
+            }
+            rows
+        }
+        Statement::CreateProcedure(s) => {
+            vec![ValidateCsvRow {
+                line: si.start_line,
+                row_type: "CreateProcedure".into(),
+                name: s.name.join("."),
+                parent: String::new(),
+                parameters: format_params(&s.parameters),
+                return_type: String::new(),
+                start_line: si.start_line,
+                end_line: si.end_line,
+            }]
+        }
+        Statement::CreateFunction(s) => {
+            vec![ValidateCsvRow {
+                line: si.start_line,
+                row_type: "CreateFunction".into(),
+                name: s.name.join("."),
+                parent: String::new(),
+                parameters: format_params(&s.parameters),
+                return_type: s.return_type.clone().unwrap_or_default(),
+                start_line: si.start_line,
+                end_line: si.end_line,
+            }]
+        }
+        Statement::Do(_) => {
+            vec![ValidateCsvRow {
+                line: si.start_line,
+                row_type: "Do".into(),
+                name: String::new(),
+                parent: String::new(),
+                parameters: String::new(),
+                return_type: String::new(),
+                start_line: si.start_line,
+                end_line: si.end_line,
+            }]
+        }
+        Statement::AnonyBlock(_) => {
+            vec![ValidateCsvRow {
+                line: si.start_line,
+                row_type: "AnonyBlock".into(),
+                name: String::new(),
+                parent: String::new(),
+                parameters: String::new(),
+                return_type: String::new(),
+                start_line: si.start_line,
+                end_line: si.end_line,
+            }]
+        }
+        _ => {
+            let type_name = serde_json::to_value(&si.statement)
+                .ok()
+                .and_then(|v| {
+                    if let serde_json::Value::Object(map) = v {
+                        map.keys().next().cloned()
+                    } else {
+                        None
+                    }
+                })
+                .unwrap_or_else(|| "Unknown".to_string());
+            vec![ValidateCsvRow {
+                line: si.start_line,
+                row_type: type_name,
+                name: String::new(),
+                parent: String::new(),
+                parameters: String::new(),
+                return_type: String::new(),
+                start_line: si.start_line,
+                end_line: si.end_line,
+            }]
+        }
+    }
 }
 
 fn output_csv_validate_rows(
@@ -2220,7 +2391,7 @@ fn output_csv_validate_rows(
         let stmt_start = si.start_line;
         let stmt_end = si.end_line;
 
-        let stmt_errors: Vec<&ogsql_parser::ParserError> = errors
+        let stmt_parse_errors: Vec<&ogsql_parser::ParserError> = errors
             .iter()
             .filter(|e| {
                 let eline = error_line(e);
@@ -2237,22 +2408,21 @@ fn output_csv_validate_rows(
             })
             .collect();
 
-        let rows = flatten_statement(si, false);
+        let rows = collect_validate_routine_rows(si);
         for row in rows {
             let (row_parse_err, row_parse_warn) = filter_errors_for_row(
-                &stmt_errors,
-                row.line,
+                &stmt_parse_errors,
+                row.start_line,
                 row.end_line,
             );
 
-            let row_var_errs: Vec<&ogsql_parser::UndefinedVariableError> = stmt_var_errors
+            let row_var_errs: Vec<&&ogsql_parser::UndefinedVariableError> = stmt_var_errors
                 .iter()
                 .filter(|ve| {
                     ve.location.as_ref().map_or(false, |sp| {
-                        sp.start.line >= row.line && sp.start.line <= row.end_line
+                        sp.start.line >= row.start_line && sp.start.line <= row.end_line
                     })
                 })
-                .copied()
                 .collect();
 
             let mut err_parts: Vec<String> = Vec::new();
@@ -2266,27 +2436,48 @@ fn output_csv_validate_rows(
                 err_parts.push(format!("undefined variable '{}' in {}{}", ve.variable_name, ve.context, line_info));
             }
 
+            let error_count = {
+                let parse_err_count = stmt_parse_errors.iter().filter(|e| {
+                    let eline = error_line(e);
+                    eline == 0 || (eline >= row.start_line && eline <= row.end_line)
+                }).count();
+                let real_parse_err_count = parse_err_count - stmt_parse_errors.iter().filter(|e| {
+                    is_warning(e) && {
+                        let eline = error_line(e);
+                        eline == 0 || (eline >= row.start_line && eline <= row.end_line)
+                    }
+                }).count();
+                real_parse_err_count + row_var_errs.len()
+            };
+            let warning_count = stmt_parse_errors.iter().filter(|e| {
+                is_warning(e) && {
+                    let eline = error_line(e);
+                    eline == 0 || (eline >= row.start_line && eline <= row.end_line)
+                }
+            }).count();
+
             let all_err = err_parts.join("; ");
-            let sql = row.sql.trim().replace('\n', "\\n").replace('\r', "");
+            let is_valid = error_count == 0;
             println!(
                 "{},{},{},{},{},{},{},{},{},{},{},{},{}",
                 csv_escape(file_name),
                 csv_escape(rel_dir),
                 row.line,
-                csv_escape(&row.stmt_type),
+                csv_escape(&row.row_type),
                 csv_escape(&row.name),
                 csv_escape(&row.parent),
                 csv_escape(&row.parameters),
                 csv_escape(&row.return_type),
-                csv_escape(&sql),
+                if is_valid { "VALID" } else { "INVALID" },
+                error_count,
+                warning_count,
                 csv_escape(&all_err),
                 csv_escape(&row_parse_warn),
-                csv_escape(&row.branch_path),
-                csv_escape(&row.branch_condition),
             );
         }
     }
 }
+
 
 /// Merge same-type error/warning messages, deduplicating identical text
 /// and appending occurrence count + line numbers.
