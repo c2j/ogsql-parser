@@ -766,7 +766,7 @@ fn parse_do_validate(sql: &str) -> crate::ast::plpgsql::PlBlock {
     }
 }
 
-fn has_undefined(warnings: &[UndefinedVariableWarning], name: &str) -> bool {
+fn has_undefined(warnings: &[UndefinedVariableError], name: &str) -> bool {
     warnings.iter().any(|w| w.variable_name == name)
 }
 
