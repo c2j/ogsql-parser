@@ -2341,7 +2341,7 @@ fn is_warning(e: &ogsql_parser::ParserError) -> bool {
 fn validate_sql(
     sql: &str,
     mybatis: bool,
-) -> (Vec<ogsql_parser::StatementInfo>, Vec<ogsql_parser::ParserError>, Vec<ogsql_parser::PackageConsistencyError>, Vec<ogsql_parser::UndefinedVariableWarning>) {
+) -> (Vec<ogsql_parser::StatementInfo>, Vec<ogsql_parser::ParserError>, Vec<ogsql_parser::PackageConsistencyError>, Vec<ogsql_parser::UndefinedVariableError>) {
     let output = parse_input(sql, false, mybatis);
     let stmts = output.statements;
     let mut errors = output.errors;
@@ -2360,12 +2360,12 @@ fn validate_sql(
         }
     }
 
-    let var_warnings = validate_pl_variables_from_stmts(&stmts);
+    let var_errors = validate_pl_variables_from_stmts(&stmts);
 
-    (stmts, errors, pkg_errors, var_warnings)
+    (stmts, errors, pkg_errors, var_errors)
 }
 
-fn validate_pl_variables_from_stmts(stmts: &[ogsql_parser::StatementInfo]) -> Vec<ogsql_parser::UndefinedVariableWarning> {
+fn validate_pl_variables_from_stmts(stmts: &[ogsql_parser::StatementInfo]) -> Vec<ogsql_parser::UndefinedVariableError> {
     use ogsql_parser::ast::Statement;
     let mut warnings = Vec::new();
     for si in stmts {
@@ -2415,14 +2415,21 @@ fn validate_pl_variables_from_stmts(stmts: &[ogsql_parser::StatementInfo]) -> Ve
 
 fn cmd_validate(cli: &Cli) {
     let sql = read_input(cli.file.as_deref());
-    let (stmts, errors, pkg_errors, var_warnings) = validate_sql(&sql, cli.mybatis);
+    let (stmts, errors, pkg_errors, var_errors) = validate_sql(&sql, cli.mybatis);
+
+    let format_var_err = |ve: &ogsql_parser::UndefinedVariableError| -> String {
+        let line_info = ve.location.as_ref()
+            .map(|sp| format!(":{}", sp.start.line))
+            .unwrap_or_default();
+        format!("undefined variable '{}' in {}{}", ve.variable_name, ve.context, line_info)
+    };
 
     if cli.json {
         let warnings: Vec<_> = errors.iter().filter(|e| is_warning(e)).collect();
         let real_errors: Vec<_> = errors.iter().filter(|e| !is_warning(e)).collect();
         let mut out = serde_json::json!({
-            "valid": real_errors.is_empty(),
-            "error_count": real_errors.len(),
+            "valid": real_errors.is_empty() && var_errors.is_empty(),
+            "error_count": real_errors.len() + var_errors.len(),
             "warning_count": warnings.len(),
             "errors": errors,
         });
@@ -2432,42 +2439,39 @@ fn cmd_validate(cli: &Cli) {
                 serde_json::json!(pkg_errors),
             );
         }
-        if !var_warnings.is_empty() {
+        if !var_errors.is_empty() {
             out.as_object_mut().unwrap().insert(
                 "undefined_variables".to_string(),
-                serde_json::json!(var_warnings),
+                serde_json::json!(var_errors),
             );
         }
         println!("{}", serde_json::to_string_pretty(&out).unwrap());
     } else {
         let real_errors: Vec<_> = errors.iter().filter(|e| !is_warning(e)).collect();
         let warnings: Vec<_> = errors.iter().filter(|e| is_warning(e)).collect();
-        let has_var_warnings = !var_warnings.is_empty();
-        if real_errors.is_empty() && warnings.is_empty() && !has_var_warnings {
+        let has_var_errors = !var_errors.is_empty();
+        if real_errors.is_empty() && warnings.is_empty() && !has_var_errors {
             println!("VALID");
-        } else if real_errors.is_empty() {
-            let total = warnings.len() + var_warnings.len();
-            println!("VALID ({} warning(s)):", total);
+        } else if real_errors.is_empty() && !has_var_errors {
+            println!("VALID ({} warning(s)):", warnings.len());
             for w in &warnings {
                 eprintln!("  warning: {}", w);
             }
-            for vw in &var_warnings {
-                eprintln!("  warning: undefined variable '{}' in {}", vw.variable_name, vw.context);
-            }
         } else {
+            let total_errors = real_errors.len() + var_errors.len();
             println!(
                 "INVALID ({} error(s), {} warning(s)):",
-                real_errors.len(),
-                warnings.len() + var_warnings.len()
+                total_errors,
+                warnings.len()
             );
             for e in &real_errors {
                 eprintln!("  error: {}", e);
             }
+            for ve in &var_errors {
+                eprintln!("  error: {}", format_var_err(ve));
+            }
             for w in &warnings {
                 eprintln!("  warning: {}", w);
-            }
-            for vw in &var_warnings {
-                eprintln!("  warning: undefined variable '{}' in {}", vw.variable_name, vw.context);
             }
             if cli.verbose {
                 write_error_log(&sql, cli.file.as_deref(), &stmts, &real_errors);
@@ -2551,7 +2555,7 @@ fn cmd_validate_dir(cli: &Cli, dir_paths: &[String], exts: &[String], stats: boo
 
     for (file_name, rel_dir, abs_path) in &files {
         let sql = read_file_path(abs_path);
-        let (stmts, errors, _pkg_errors, _var_warnings) = validate_sql(&sql, cli.mybatis);
+        let (stmts, errors, _pkg_errors, _var_errors) = validate_sql(&sql, cli.mybatis);
 
         let real_errors: Vec<_> = errors.iter().filter(|e| !is_warning(e)).collect();
         let warnings: Vec<_> = errors.iter().filter(|e| is_warning(e)).collect();
@@ -2617,15 +2621,15 @@ fn cmd_validate_dir(cli: &Cli, dir_paths: &[String], exts: &[String], stats: boo
         let mut results = Vec::new();
         for (file_name, rel_dir, abs_path) in &files {
             let sql = read_file_path(abs_path);
-            let (_stmts, errors, pkg_errors, var_warnings) = validate_sql(&sql, cli.mybatis);
+            let (_stmts, errors, pkg_errors, var_errors) = validate_sql(&sql, cli.mybatis);
             let real_errors: Vec<_> = errors.iter().filter(|e| !is_warning(e)).collect();
             let warnings: Vec<_> = errors.iter().filter(|e| is_warning(e)).collect();
 
             let mut file_result = serde_json::json!({
                 "file": file_name,
                 "directory": rel_dir,
-                "valid": real_errors.is_empty(),
-                "error_count": real_errors.len(),
+                "valid": real_errors.is_empty() && var_errors.is_empty(),
+                "error_count": real_errors.len() + var_errors.len(),
                 "warning_count": warnings.len(),
                 "errors": errors,
             });
@@ -3110,12 +3114,12 @@ mod api {
                 });
             }
         }
-        let var_warnings = super::validate_pl_variables_from_stmts(&output.statements);
-        let has_var_warnings = !var_warnings.is_empty();
-        let has_real_errors = errors.iter().any(|e| !super::is_warning(e));
+        let var_errors = super::validate_pl_variables_from_stmts(&output.statements);
+        let has_var_errors = !var_errors.is_empty();
+        let has_real_errors = errors.iter().any(|e| !super::is_warning(e)) || has_var_errors;
         let mut result = serde_json::json!({
             "valid": !has_real_errors,
-            "error_count": errors.iter().filter(|e| !super::is_warning(e)).count(),
+            "error_count": errors.iter().filter(|e| !super::is_warning(e)).count() + var_errors.len(),
             "warning_count": errors.iter().filter(|e| super::is_warning(e)).count(),
             "errors": errors,
         });
@@ -3125,10 +3129,10 @@ mod api {
                 serde_json::json!(pkg_errors),
             );
         }
-        if has_var_warnings {
+        if has_var_errors {
             result.as_object_mut().unwrap().insert(
                 "undefined_variables".to_string(),
-                serde_json::json!(var_warnings),
+                serde_json::json!(var_errors),
             );
         }
         Json(result)
