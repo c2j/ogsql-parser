@@ -6,7 +6,7 @@ use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 
 use crate::ast::plpgsql::{PlBlock, PlDeclaration, PlOpenKind, PlStatement};
-use crate::ast::{Expr, Literal, Statement};
+use crate::ast::{Expr, Literal, SourceSpan, Statement};
 
 // ── 报告类型 ──
 
@@ -1411,6 +1411,519 @@ fn compare_params(
 fn default_values_equivalent(a: &str, b: &str) -> bool {
     let normalize = |s: &str| s.trim().to_uppercase();
     normalize(a) == normalize(b)
+}
+
+// ── PL Undefined Variable Validation ──
+
+/// A warning about a potentially undefined variable reference in PL/pgSQL code.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct UndefinedVariableWarning {
+    /// The unresolved variable name.
+    pub variable_name: String,
+    /// Source location of the reference, if available.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub location: Option<crate::ast::SourceSpan>,
+    /// Description of the PL context where the reference was found
+    /// (e.g., "EXECUTE IMMEDIATE", "assignment", "IF condition").
+    pub context: String,
+}
+
+/// SQL built-in values that are valid references in PL expressions.
+/// These appear as `ColumnRef` in the AST but are NOT undefined variables.
+const PL_BUILTIN_VALUES: &[&str] = &[
+    "SYSDATE",
+    "SYSTIMESTAMP",
+    "CURRENT_DATE",
+    "CURRENT_TIME",
+    "CURRENT_TIMESTAMP",
+    "LOCALTIME",
+    "LOCALTIMESTAMP",
+    "USER",
+    "CURRENT_USER",
+    "SESSION_USER",
+    "UID",
+    "SESSIONTIMEZONE",
+    "DBTIMEZONE",
+    "ROWID",
+    "ROWNUM",
+    "LEVEL",
+    "NEXTVAL",
+    "CURRVAL",
+    "FOUND",
+    "NOT_FOUND",
+    "ROW_COUNT",
+];
+
+fn is_pl_builtin(name: &str) -> bool {
+    PL_BUILTIN_VALUES.iter().any(|&b| b.eq_ignore_ascii_case(name))
+}
+
+/// Validate that all variable references in a PL block resolve to declared variables.
+///
+/// This performs a semantic analysis pass over the PL block, checking that every
+/// `ColumnRef` in PL-level expressions (not embedded SQL) refers to either a
+/// declared variable/parameter or a known SQL built-in value.
+///
+/// # Arguments
+/// * `block` - The PL block to validate
+/// * `params` - Procedure/function parameter names (added to scope)
+///
+/// # Returns
+/// A list of warnings for potentially undefined variable references.
+pub fn validate_pl_variables(
+    block: &PlBlock,
+    params: &[crate::ast::RoutineParam],
+) -> Vec<UndefinedVariableWarning> {
+    let mut validator = PlVariableValidator::new();
+    for p in params {
+        validator.declare(&p.name);
+    }
+    validator.process_block(block);
+    validator.warnings
+}
+
+struct PlVariableValidator {
+    /// Scope stack: each entry is a set of variable names (lowercase) in that scope level.
+    scope_stack: Vec<std::collections::HashSet<String>>,
+    /// Collected warnings.
+    warnings: Vec<UndefinedVariableWarning>,
+}
+
+impl PlVariableValidator {
+    fn new() -> Self {
+        Self {
+            scope_stack: vec![std::collections::HashSet::new()],
+            warnings: Vec::new(),
+        }
+    }
+
+    /// Insert a name into the current (innermost) scope.
+    fn declare(&mut self, name: &str) {
+        if let Some(scope) = self.scope_stack.last_mut() {
+            scope.insert(name.to_lowercase());
+        }
+    }
+
+    /// Check if a name exists in any scope level (search innermost first).
+    fn is_declared(&self, name: &str) -> bool {
+        let lower = name.to_lowercase();
+        self.scope_stack.iter().rev().any(|s| s.contains(&lower))
+    }
+
+    fn enter_scope(&mut self) {
+        self.scope_stack.push(std::collections::HashSet::new());
+    }
+
+    fn exit_scope(&mut self) {
+        self.scope_stack.pop();
+    }
+
+    fn process_block(&mut self, block: &PlBlock) {
+        self.process_declarations(&block.declarations);
+                self.process_statements(&block.body);
+                if let Some(ref eb) = block.exception_block {
+            for handler in &eb.handlers {
+                self.process_statements(&handler.statements);
+            }
+        }
+    }
+
+    fn process_declarations(&mut self, declarations: &[PlDeclaration]) {
+        use crate::ast::plpgsql::{PlDeclaration, PlTypeDecl};
+        for decl in declarations {
+            match decl {
+                PlDeclaration::Variable(v) => self.declare(&v.name),
+                PlDeclaration::Cursor(c) => self.declare(&c.name),
+                PlDeclaration::Record(r) => self.declare(&r.name),
+                PlDeclaration::Type(t) => {
+                    let name = match t {
+                        PlTypeDecl::Record { name, .. } => name,
+                        PlTypeDecl::TableOf { name, .. } => name,
+                        PlTypeDecl::VarrayOf { name, .. } => name,
+                        PlTypeDecl::RefCursor { name } => name,
+                    };
+                    self.declare(name);
+                }
+                PlDeclaration::NestedProcedure(p) => self.declare(&p.name.join("_")),
+                PlDeclaration::NestedFunction(f) => self.declare(&f.name.join("_")),
+                PlDeclaration::Pragma { .. } => {}
+            }
+        }
+    }
+
+    fn process_statements(&mut self, stmts: &[PlStatement]) {
+        for stmt in stmts {
+            self.process_statement(stmt);
+        }
+    }
+
+    fn process_statement(&mut self, stmt: &PlStatement) {
+        match stmt {
+            // ── PL expressions: CHECK for undefined variables ──
+
+            PlStatement::Assignment { target, expression } => {
+                self.check_expr(target, "assignment target");
+                self.check_expr(expression, "assignment expression");
+            }
+
+            PlStatement::Execute(exec) => {
+                self.check_expr(&exec.node.string_expr, "EXECUTE IMMEDIATE");
+                for target in &exec.node.into_targets {
+                    self.check_expr(target, "EXECUTE IMMEDIATE INTO");
+                }
+                for arg in &exec.node.using_args {
+                    self.check_expr(&arg.argument, "EXECUTE IMMEDIATE USING");
+                }
+            }
+
+            PlStatement::If(if_stmt) => {
+                self.check_expr(&if_stmt.node.condition, "IF condition");
+                self.process_statements(&if_stmt.node.then_stmts);
+                for elsif in &if_stmt.node.elsifs {
+                    self.check_expr(&elsif.condition, "ELSIF condition");
+                    self.process_statements(&elsif.stmts);
+                }
+                self.process_statements(&if_stmt.node.else_stmts);
+            }
+
+            PlStatement::Case(case_stmt) => {
+                if let Some(ref expr) = case_stmt.node.expression {
+                    self.check_expr(expr, "CASE expression");
+                }
+                for when in &case_stmt.node.whens {
+                    self.check_expr(&when.condition, "CASE WHEN condition");
+                    self.process_statements(&when.stmts);
+                }
+                self.process_statements(&case_stmt.node.else_stmts);
+            }
+
+            PlStatement::While(while_stmt) => {
+                self.check_expr(&while_stmt.node.condition, "WHILE condition");
+                self.process_statements(&while_stmt.node.body);
+            }
+
+            PlStatement::For(for_stmt) => {
+                self.enter_scope();
+                self.declare(&for_stmt.node.variable);
+                match &for_stmt.node.kind {
+                    crate::ast::plpgsql::PlForKind::Range { low, high, step, .. } => {
+                        self.check_expr(low, "FOR loop lower bound");
+                        self.check_expr(high, "FOR loop upper bound");
+                        if let Some(s) = step {
+                            self.check_expr(s, "FOR loop step");
+                        }
+                    }
+                    crate::ast::plpgsql::PlForKind::Query { using_args, .. } => {
+                        for arg in using_args {
+                            self.check_expr(&arg.argument, "FOR IN SELECT USING");
+                        }
+                    }
+                    crate::ast::plpgsql::PlForKind::Cursor { cursor_name, arguments } => {
+                        self.check_expr(cursor_name, "FOR IN cursor");
+                        for arg in arguments {
+                            self.check_expr(arg, "FOR IN cursor arguments");
+                        }
+                    }
+                }
+                self.process_statements(&for_stmt.node.body);
+                self.exit_scope();
+            }
+
+            PlStatement::ForEach(foreach_stmt) => {
+                self.enter_scope();
+                self.declare(&foreach_stmt.node.variable);
+                self.check_expr(&foreach_stmt.node.expression, "FOREACH expression");
+                self.process_statements(&foreach_stmt.node.body);
+                self.exit_scope();
+            }
+
+            PlStatement::Loop(loop_stmt) => {
+                self.process_statements(&loop_stmt.node.body);
+            }
+
+            PlStatement::Exit { condition, .. } => {
+                if let Some(ref expr) = condition {
+                    self.check_expr(expr, "EXIT WHEN condition");
+                }
+            }
+
+            PlStatement::Continue { condition, .. } => {
+                if let Some(ref expr) = condition {
+                    self.check_expr(expr, "CONTINUE WHEN condition");
+                }
+            }
+
+            PlStatement::Return { expression } => {
+                if let Some(ref expr) = expression {
+                    self.check_expr(expr, "RETURN expression");
+                }
+            }
+
+            PlStatement::ReturnNext { expression } => {
+                self.check_expr(expression, "RETURN NEXT expression");
+            }
+
+            PlStatement::ReturnQuery(rq) => {
+                if let Some(ref expr) = rq.node.dynamic_expr {
+                    self.check_expr(expr, "RETURN QUERY EXECUTE");
+                }
+                for arg in &rq.node.using_args {
+                    self.check_expr(&arg.argument, "RETURN QUERY USING");
+                }
+            }
+
+            PlStatement::Raise(raise) => {
+                for param in &raise.node.params {
+                    self.check_expr(param, "RAISE parameter");
+                }
+                for opt in &raise.node.options {
+                    self.check_expr(&opt.value, "RAISE option");
+                }
+            }
+
+            PlStatement::Open(open) => {
+                self.check_expr(&open.node.cursor, "OPEN cursor");
+                match &open.node.kind {
+                    PlOpenKind::Simple { arguments } => {
+                        for arg in arguments {
+                            self.check_expr(arg, "OPEN cursor arguments");
+                        }
+                    }
+                    PlOpenKind::ForExecute { query, using_args } => {
+                        self.check_expr(query, "OPEN FOR EXECUTE");
+                        for arg in using_args {
+                            self.check_expr(arg, "OPEN FOR EXECUTE USING");
+                        }
+                    }
+                    PlOpenKind::ForUsing { expressions } => {
+                        for expr in expressions {
+                            self.check_expr(expr, "OPEN FOR USING");
+                        }
+                    }
+                    PlOpenKind::ForQuery { .. } => {
+                        // SQL query — skip column refs
+                    }
+                }
+            }
+
+            PlStatement::Fetch(fetch) => {
+                self.check_expr(&fetch.node.cursor, "FETCH cursor");
+                for target in &fetch.node.into {
+                    self.check_expr(target, "FETCH INTO target");
+                }
+            }
+
+            PlStatement::Close { cursor } => {
+                self.check_expr(cursor, "CLOSE cursor");
+            }
+
+            PlStatement::Move { cursor, .. } => {
+                self.check_expr(cursor, "MOVE cursor");
+            }
+
+            PlStatement::GetDiagnostics(gd) => {
+                for item in &gd.node.items {
+                    self.check_expr(&item.target, "GET DIAGNOSTICS target");
+                }
+            }
+
+            PlStatement::ProcedureCall(call) => {
+                for arg in &call.node.arguments {
+                    self.check_expr(arg, "procedure call argument");
+                }
+            }
+
+            PlStatement::PipeRow { expression } => {
+                self.check_expr(expression, "PIPE ROW expression");
+            }
+
+            PlStatement::Block(inner_block) => {
+                self.enter_scope();
+                self.process_block(&inner_block.node);
+                self.exit_scope();
+            }
+
+            // ── SQL contexts: SKIP ──
+            PlStatement::SqlStatement { .. } => {}
+            PlStatement::Perform { .. } => {}
+            PlStatement::Sql(_) => {}
+
+            // ── No PL expressions to check ──
+            PlStatement::Null => {}
+            PlStatement::Goto { .. } => {}
+            PlStatement::Commit { .. } => {}
+            PlStatement::Rollback { .. } => {}
+            PlStatement::Savepoint { .. } => {}
+            PlStatement::ReleaseSavepoint { .. } => {}
+            PlStatement::SetTransaction { .. } => {}
+            PlStatement::ForAll(_) => {} // bounds are strings, not expressions
+            PlStatement::VariableSet(_) => {}
+            PlStatement::VariableReset(_) => {}
+        }
+    }
+
+    fn check_expr(&mut self, expr: &Expr, context: &str) {
+        match expr {
+            Expr::ColumnRef(names) | Expr::PlVariable(names) if names.len() == 1 => {
+                let name = &names[0];
+                if !self.is_declared(name) && !is_pl_builtin(name) {
+                    self.warnings.push(UndefinedVariableWarning {
+                        variable_name: name.clone(),
+                        location: None,
+                        context: context.to_string(),
+                    });
+                }
+            }
+
+            Expr::BinaryOp { left, right, .. } => {
+                self.check_expr(left, context);
+                self.check_expr(right, context);
+            }
+            Expr::UnaryOp { expr: inner, .. } => {
+                self.check_expr(inner, context);
+            }
+            Expr::IsNull { expr: inner, .. } => {
+                self.check_expr(inner, context);
+            }
+            Expr::IsBoolean { expr: inner, .. } => {
+                self.check_expr(inner, context);
+            }
+            Expr::InList { expr: inner, list, .. } => {
+                self.check_expr(inner, context);
+                for item in list {
+                    self.check_expr(item, context);
+                }
+            }
+            Expr::InSubquery { expr: inner, .. } => {
+                self.check_expr(inner, context);
+            }
+            Expr::Between { expr: inner, low, high, .. } => {
+                self.check_expr(inner, context);
+                self.check_expr(low, context);
+                self.check_expr(high, context);
+            }
+            Expr::Like { expr: inner, pattern, escape, .. } => {
+                self.check_expr(inner, context);
+                self.check_expr(pattern, context);
+                if let Some(ref e) = escape {
+                    self.check_expr(e, context);
+                }
+            }
+            Expr::FunctionCall { args, .. } => {
+                for arg in args {
+                    self.check_expr(arg, context);
+                }
+            }
+            Expr::SpecialFunction { args, .. } => {
+                for arg in args {
+                    self.check_expr(arg, context);
+                }
+            }
+            Expr::Case { operand, whens, else_expr } => {
+                if let Some(ref op) = operand {
+                    self.check_expr(op, context);
+                }
+                for when in whens {
+                    self.check_expr(&when.condition, context);
+                    self.check_expr(&when.result, context);
+                }
+                if let Some(ref el) = else_expr {
+                    self.check_expr(el, context);
+                }
+            }
+            Expr::TypeCast { expr: inner, .. } => {
+                self.check_expr(inner, context);
+            }
+            Expr::Treat { expr: inner, .. } => {
+                self.check_expr(inner, context);
+            }
+            Expr::CollationFor { expr: inner } => {
+                self.check_expr(inner, context);
+            }
+            Expr::Parenthesized(inner) => {
+                self.check_expr(inner, context);
+            }
+            Expr::Subscript { object, index } => {
+                self.check_expr(object, context);
+                self.check_expr(index, context);
+            }
+            Expr::FieldAccess { object, .. } => {
+                self.check_expr(object, context);
+            }
+            Expr::Array(exprs) => {
+                for e in exprs {
+                    self.check_expr(e, context);
+                }
+            }
+            Expr::RowConstructor(exprs) => {
+                for e in exprs {
+                    self.check_expr(e, context);
+                }
+            }
+            Expr::Prior(inner) => {
+                self.check_expr(inner, context);
+            }
+            Expr::ScalarSublink { expr: inner, .. } => {
+                self.check_expr(inner, context);
+            }
+            Expr::CursorAttribute { cursor, .. } => {
+                self.check_expr(cursor, context);
+            }
+            Expr::XmlElement { evalname, content, .. } => {
+                if let Some(ref e) = evalname {
+                    self.check_expr(e, context);
+                }
+                for c in content {
+                    self.check_expr(&c.expr, context);
+                }
+            }
+            Expr::XmlConcat(exprs) => {
+                for e in exprs {
+                    self.check_expr(e, context);
+                }
+            }
+            Expr::XmlForest(items) => {
+                for item in items {
+                    self.check_expr(&item.expr, context);
+                }
+            }
+            Expr::XmlParse { expr: inner, .. } => {
+                self.check_expr(inner, context);
+            }
+            Expr::XmlPi { content, .. } => {
+                if let Some(ref c) = content {
+                    self.check_expr(c, context);
+                }
+            }
+            Expr::XmlRoot { expr: inner, version, .. } => {
+                self.check_expr(inner, context);
+                if let Some(ref v) = version {
+                    self.check_expr(v, context);
+                }
+            }
+            Expr::XmlSerialize { expr: inner, .. } => {
+                self.check_expr(inner, context);
+            }
+            Expr::PredictBy { features, .. } => {
+                for f in features {
+                    self.check_expr(f, context);
+                }
+            }
+            Expr::SequenceValue { .. } => {}
+
+            Expr::ColumnRef(_) | Expr::PlVariable(_) => {}
+            Expr::Literal(_) => {}
+            Expr::QualifiedStar(_) => {}
+            Expr::Exists(_) => {}
+            Expr::Subquery(_) => {}
+            Expr::Parameter(_) => {}
+            Expr::MyBatisParam(_) => {}
+            Expr::MyBatisRawExpr(_) => {}
+            Expr::Default => {}
+            Expr::SysDate => {}
+            Expr::CurrentOf { .. } => {}
+        }
+    }
 }
 
 #[cfg(test)]
