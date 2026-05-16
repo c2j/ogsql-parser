@@ -114,8 +114,23 @@ impl OgsqlServer {
             .collect();
         let fingerprints = crate::compute_query_fingerprints(&all_stmts);
 
+        let stmt_values: Vec<serde_json::Value> = output
+            .statements
+            .iter()
+            .map(|si| {
+                let mut obj = serde_json::to_value(si).unwrap();
+                if let Some(analysis) = compute_routine_analysis(&si.statement) {
+                    obj.as_object_mut().unwrap().insert(
+                        "routine_analysis".to_string(),
+                        analysis,
+                    );
+                }
+                obj
+            })
+            .collect();
+
         let mut out = serde_json::json!({
-            "statements": output.statements,
+            "statements": stmt_values,
             "errors": output.errors,
         });
         if !fingerprints.is_empty() {
@@ -385,4 +400,59 @@ fn is_warning(e: &crate::ParserError) -> bool {
         crate::ParserError::Warning { .. }
             | crate::ParserError::ReservedKeywordAsIdentifier { .. }
     )
+}
+
+fn compute_routine_analysis(stmt: &crate::Statement) -> Option<serde_json::Value> {
+    use crate::ast::PackageItem;
+    match stmt {
+        crate::Statement::CreateProcedure(p) => {
+            let block = p.block.as_ref()?;
+            let analysis = crate::analyze_return_cursors(
+                block, &p.parameters, &p.name.join("."), "Procedure", None,
+            );
+            if analysis.return_cursors.is_empty() { return None; }
+            Some(serde_json::json!(analysis))
+        }
+        crate::Statement::CreateFunction(f) => {
+            let block = f.block.as_ref()?;
+            let analysis = crate::analyze_return_cursors(
+                block, &f.parameters, &f.name.join("."), "Function",
+                f.return_type.as_deref(),
+            );
+            if analysis.return_cursors.is_empty() { return None; }
+            Some(serde_json::json!(analysis))
+        }
+        crate::Statement::CreatePackageBody(pkg) => {
+            let mut analyses = Vec::new();
+            for item in &pkg.items {
+                match item {
+                    PackageItem::Procedure(p) => {
+                        if let Some(ref block) = p.block {
+                            let analysis = crate::analyze_return_cursors(
+                                block, &p.parameters, &p.name.join("."),
+                                "Procedure", None,
+                            );
+                            if !analysis.return_cursors.is_empty() {
+                                analyses.push(analysis);
+                            }
+                        }
+                    }
+                    PackageItem::Function(f) => {
+                        if let Some(ref block) = f.block {
+                            let analysis = crate::analyze_return_cursors(
+                                block, &f.parameters, &f.name.join("."),
+                                "Function", f.return_type.as_deref(),
+                            );
+                            if !analysis.return_cursors.is_empty() {
+                                analyses.push(analysis);
+                            }
+                        }
+                    }
+                    _ => {}
+                }
+            }
+            if analyses.is_empty() { None } else { Some(serde_json::json!(analyses)) }
+        }
+        _ => None,
+    }
 }
