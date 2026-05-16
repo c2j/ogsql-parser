@@ -2328,7 +2328,7 @@ fn is_warning(e: &ogsql_parser::ParserError) -> bool {
 fn validate_sql(
     sql: &str,
     mybatis: bool,
-) -> (Vec<ogsql_parser::StatementInfo>, Vec<ogsql_parser::ParserError>, Vec<ogsql_parser::PackageConsistencyError>) {
+) -> (Vec<ogsql_parser::StatementInfo>, Vec<ogsql_parser::ParserError>, Vec<ogsql_parser::PackageConsistencyError>, Vec<ogsql_parser::UndefinedVariableWarning>) {
     let output = parse_input(sql, false, mybatis);
     let stmts = output.statements;
     let mut errors = output.errors;
@@ -2346,12 +2346,63 @@ fn validate_sql(
             });
         }
     }
-    (stmts, errors, pkg_errors)
+
+    let var_warnings = validate_pl_variables_from_stmts(&stmts);
+
+    (stmts, errors, pkg_errors, var_warnings)
+}
+
+fn validate_pl_variables_from_stmts(stmts: &[ogsql_parser::StatementInfo]) -> Vec<ogsql_parser::UndefinedVariableWarning> {
+    use ogsql_parser::ast::Statement;
+    let mut warnings = Vec::new();
+    for si in stmts {
+        match &si.statement {
+            Statement::CreateProcedure(proc) => {
+                if let Some(ref block) = proc.block {
+                    let vars = ogsql_parser::validate_pl_variables(block, &proc.parameters);
+                    warnings.extend(vars);
+                }
+            }
+            Statement::CreateFunction(func) => {
+                if let Some(ref block) = func.block {
+                    let vars = ogsql_parser::validate_pl_variables(block, &func.parameters);
+                    warnings.extend(vars);
+                }
+            }
+            Statement::Do(do_stmt) => {
+                if let Some(ref block) = do_stmt.block {
+                    let vars = ogsql_parser::validate_pl_variables(block, &[]);
+                    warnings.extend(vars);
+                }
+            }
+            Statement::CreatePackageBody(body) => {
+                for item in &body.items {
+                    match item {
+                        ogsql_parser::ast::PackageItem::Procedure(proc) => {
+                            if let Some(ref block) = proc.block {
+                                let vars = ogsql_parser::validate_pl_variables(block, &proc.parameters);
+                                warnings.extend(vars);
+                            }
+                        }
+                        ogsql_parser::ast::PackageItem::Function(func) => {
+                            if let Some(ref block) = func.block {
+                                let vars = ogsql_parser::validate_pl_variables(block, &func.parameters);
+                                warnings.extend(vars);
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+    warnings
 }
 
 fn cmd_validate(cli: &Cli) {
     let sql = read_input(cli.file.as_deref());
-    let (stmts, errors, pkg_errors) = validate_sql(&sql, cli.mybatis);
+    let (stmts, errors, pkg_errors, var_warnings) = validate_sql(&sql, cli.mybatis);
 
     if cli.json {
         let warnings: Vec<_> = errors.iter().filter(|e| is_warning(e)).collect();
@@ -2368,28 +2419,42 @@ fn cmd_validate(cli: &Cli) {
                 serde_json::json!(pkg_errors),
             );
         }
+        if !var_warnings.is_empty() {
+            out.as_object_mut().unwrap().insert(
+                "undefined_variables".to_string(),
+                serde_json::json!(var_warnings),
+            );
+        }
         println!("{}", serde_json::to_string_pretty(&out).unwrap());
     } else {
         let real_errors: Vec<_> = errors.iter().filter(|e| !is_warning(e)).collect();
         let warnings: Vec<_> = errors.iter().filter(|e| is_warning(e)).collect();
-        if real_errors.is_empty() && warnings.is_empty() {
+        let has_var_warnings = !var_warnings.is_empty();
+        if real_errors.is_empty() && warnings.is_empty() && !has_var_warnings {
             println!("VALID");
         } else if real_errors.is_empty() {
-            println!("VALID ({} warning(s)):", warnings.len());
+            let total = warnings.len() + var_warnings.len();
+            println!("VALID ({} warning(s)):", total);
             for w in &warnings {
                 eprintln!("  warning: {}", w);
+            }
+            for vw in &var_warnings {
+                eprintln!("  warning: undefined variable '{}' in {}", vw.variable_name, vw.context);
             }
         } else {
             println!(
                 "INVALID ({} error(s), {} warning(s)):",
                 real_errors.len(),
-                warnings.len()
+                warnings.len() + var_warnings.len()
             );
             for e in &real_errors {
                 eprintln!("  error: {}", e);
             }
             for w in &warnings {
                 eprintln!("  warning: {}", w);
+            }
+            for vw in &var_warnings {
+                eprintln!("  warning: undefined variable '{}' in {}", vw.variable_name, vw.context);
             }
             if cli.verbose {
                 write_error_log(&sql, cli.file.as_deref(), &stmts, &real_errors);
@@ -2473,7 +2538,7 @@ fn cmd_validate_dir(cli: &Cli, dir_paths: &[String], exts: &[String], stats: boo
 
     for (file_name, rel_dir, abs_path) in &files {
         let sql = read_file_path(abs_path);
-        let (stmts, errors, _pkg_errors) = validate_sql(&sql, cli.mybatis);
+        let (stmts, errors, _pkg_errors, _var_warnings) = validate_sql(&sql, cli.mybatis);
 
         let real_errors: Vec<_> = errors.iter().filter(|e| !is_warning(e)).collect();
         let warnings: Vec<_> = errors.iter().filter(|e| is_warning(e)).collect();
@@ -2539,7 +2604,7 @@ fn cmd_validate_dir(cli: &Cli, dir_paths: &[String], exts: &[String], stats: boo
         let mut results = Vec::new();
         for (file_name, rel_dir, abs_path) in &files {
             let sql = read_file_path(abs_path);
-            let (_stmts, errors, pkg_errors) = validate_sql(&sql, cli.mybatis);
+            let (_stmts, errors, pkg_errors, var_warnings) = validate_sql(&sql, cli.mybatis);
             let real_errors: Vec<_> = errors.iter().filter(|e| !is_warning(e)).collect();
             let warnings: Vec<_> = errors.iter().filter(|e| is_warning(e)).collect();
 
@@ -3032,6 +3097,8 @@ mod api {
                 });
             }
         }
+        let var_warnings = super::validate_pl_variables_from_stmts(&output.statements);
+        let has_var_warnings = !var_warnings.is_empty();
         let has_real_errors = errors.iter().any(|e| !super::is_warning(e));
         let mut result = serde_json::json!({
             "valid": !has_real_errors,
@@ -3043,6 +3110,12 @@ mod api {
             result.as_object_mut().unwrap().insert(
                 "package_consistency_errors".to_string(),
                 serde_json::json!(pkg_errors),
+            );
+        }
+        if has_var_warnings {
+            result.as_object_mut().unwrap().insert(
+                "undefined_variables".to_string(),
+                serde_json::json!(var_warnings),
             );
         }
         Json(result)
