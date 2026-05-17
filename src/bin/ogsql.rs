@@ -659,6 +659,9 @@ fn cmd_parse_dir(
                     for e in &real_errors {
                         eprintln!("  {}", e);
                     }
+                    if cli.verbose {
+                        write_error_log(&sql, Some(file_name), &output.statements, &real_errors);
+                    }
                 }
                 if !warnings.is_empty() {
                     eprintln!("[{}] {} warning(s):", file_name, warnings.len());
@@ -3062,6 +3065,9 @@ fn cmd_validate_dir(cli: &Cli, dir_paths: &[String], exts: &[String], csv: bool,
                 }
                 for w in &warnings {
                     eprintln!("  warning: {}", w);
+                }
+                if cli.verbose {
+                    write_error_log(&sql, Some(&format!("{}/{}", rel_dir, file_name)), &stmts, &real_errors);
                 }
             }
         }
