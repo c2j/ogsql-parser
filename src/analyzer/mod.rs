@@ -1455,6 +1455,10 @@ const PL_BUILTIN_VALUES: &[&str] = &[
     "SQLCODE",
     "SQLERRM",
     "SQLSTATE",
+    "YEAR", "MONTH", "DAY", "HOUR", "MINUTE", "SECOND",
+    "EPOCH", "DOW", "DOY", "ISODOW", "ISOYEAR", "QUARTER", "WEEK",
+    "CENTURY", "DECADE", "MILLISECONDS", "MICROSECONDS",
+    "TIMEZONE", "TIMEZONE_HOUR", "TIMEZONE_MINUTE",
 ];
 
 fn is_pl_builtin(name: &str) -> bool {

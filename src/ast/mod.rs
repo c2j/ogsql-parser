@@ -1600,6 +1600,9 @@ pub struct DeleteStatement {
     pub tables: Vec<TableRef>,
     pub using: Vec<TableRef>,
     pub where_clause: Option<Expr>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default)]
+    pub limit: Option<Expr>,
     pub returning: Vec<SelectTarget>,
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(default)]

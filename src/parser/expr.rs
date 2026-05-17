@@ -1364,6 +1364,10 @@ impl Parser {
             self.advance();
             let value = self.parse_expr()?;
             Ok((value, has_variadic))
+        } else if self.match_keyword(Keyword::VALUE_P) {
+            self.advance();
+            let value = self.parse_expr()?;
+            Ok((value, has_variadic))
         } else {
             Ok((first, has_variadic))
         }
