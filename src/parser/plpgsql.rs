@@ -143,8 +143,10 @@ impl Parser {
             return self.parse_pl_cursor_decl(real_name);
         }
 
-        if self.match_keyword(Keyword::TYPE_P) {
-            return self.parse_pl_type_decl(name);
+        // TYPE name IS RECORD/TABLE/VARRAY/... (first ident was "TYPE", read actual name)
+        if name.eq_ignore_ascii_case("type") {
+            let real_name = self.parse_identifier()?;
+            return self.parse_pl_type_decl_body(real_name);
         }
 
         self.parse_pl_var_decl(name)
@@ -511,6 +513,7 @@ impl Parser {
     pub(crate) fn skip_to_semicolon_or_keyword(&mut self) -> String {
         let mut collected = String::new();
         let mut depth = 0i32;
+        let mut case_depth = 0i32;
 
         loop {
             match self.peek() {
@@ -538,7 +541,22 @@ impl Parser {
                     self.advance();
                 }
                 _ => {
-                    if depth == 0 && is_pl_terminator(self) {
+                    if depth == 0 && self.match_ident_str("case") {
+                        case_depth += 1;
+                    }
+                    // Inside a SQL CASE expression, WHEN/THEN/ELSE/END belong to CASE, not PL.
+                    if depth == 0 && case_depth > 0 && is_sql_case_terminator(self) {
+                        if self.match_ident_str("end") {
+                            case_depth -= 1;
+                        }
+                        if !collected.is_empty() {
+                            collected.push(' ');
+                        }
+                        collected.push_str(&self.token_to_string());
+                        self.advance();
+                        continue;
+                    }
+                    if depth == 0 && case_depth == 0 && is_pl_terminator(self) {
                         break;
                     }
                     if !collected.is_empty() {
@@ -2778,6 +2796,11 @@ fn is_pl_terminator(p: &Parser) -> bool {
         "declare",
     ];
     terminators.iter().any(|t| p.match_ident_str(t))
+}
+
+fn is_sql_case_terminator(p: &Parser) -> bool {
+    let case_terms = ["when", "then", "else", "end"];
+    case_terms.iter().any(|t| p.match_ident_str(t))
 }
 
 fn attach_label(stmt: PlStatement, label: Option<String>) -> PlStatement {

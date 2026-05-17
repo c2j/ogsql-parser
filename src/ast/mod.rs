@@ -230,7 +230,12 @@ pub enum ColumnConstraint {
     Unique,
     PrimaryKey,
     Check(Expr),
-    References(ObjectName, Vec<String>),
+    References {
+        ref_table: ObjectName,
+        ref_columns: Vec<String>,
+        on_delete: Option<ReferentialAction>,
+        on_update: Option<ReferentialAction>,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
