@@ -1655,7 +1655,7 @@ impl SqlFormatter {
                 let assign_strs: Vec<String> = assignments
                     .iter()
                     .map(|a| {
-                        let col = self.format_object_name(&a.column);
+                         let col = self.format_object_name(&a.columns[0]);
                         format!("{} = {}", col, self.format_expr(&a.value))
                     })
                     .collect();
@@ -1710,7 +1710,7 @@ impl SqlFormatter {
                         .map(|a| {
                             format!(
                                 "{} = {}",
-                                self.format_object_name(&a.column),
+                                self.format_object_name(&a.columns[0]),
                                 self.format_expr(&a.value)
                             )
                         })
@@ -1818,11 +1818,17 @@ impl SqlFormatter {
             .assignments
             .iter()
             .map(|a| {
-                format!(
-                    "{} = {}",
-                    self.format_object_name(&a.column),
-                    self.format_expr(&a.value)
-                )
+                if a.columns.len() == 1 {
+                    format!(
+                        "{} = {}",
+                        self.format_object_name(&a.columns[0]),
+                        self.format_expr(&a.value)
+                    )
+                } else {
+                    let cols: Vec<String> =
+                        a.columns.iter().map(|c| self.format_object_name(c)).collect();
+                    format!("({}) = {}", cols.join(", "), self.format_expr(&a.value))
+                }
             })
             .collect();
         parts.push(format!("{} {}", self.kw("SET"), assignments.join(", ")));
@@ -1954,7 +1960,7 @@ impl SqlFormatter {
                     .map(|a| {
                         format!(
                             "{} = {}",
-                            self.format_object_name(&a.column),
+                            self.format_object_name(&a.columns[0]),
                             self.format_expr(&a.value)
                         )
                     })

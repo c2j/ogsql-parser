@@ -1589,7 +1589,9 @@ pub struct UpdateStatement {
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct UpdateAssignment {
-    pub column: ObjectName,
+    /// Column targets. Single assignment: `columns: vec![vec!["col"]]`.
+    /// Multi-column: `SET (a, b, c) = (...)` → `columns: vec![vec!["a"], vec!["b"], vec!["c"]]`.
+    pub columns: Vec<ObjectName>,
     pub value: Expr,
 }
 
