@@ -769,7 +769,7 @@ dependencies = [
 
 [[package]]
 name = "ogsql-parser"
-version = "0.4.4"
+version = "0.4.6"
 dependencies = [
  "axum",
  "clap",
