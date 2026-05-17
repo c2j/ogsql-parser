@@ -375,12 +375,19 @@ impl Parser {
                     case_depth += 1;
                 }
                 Token::Keyword(Keyword::BEGIN_P) => {
-                    begin_depth += 1;
-                    if in_routine_decl && begin_depth == 1 {
-                        in_routine_decl = false;
-                    }
-                    if in_declare_section && begin_depth == 1 {
-                        in_declare_section = false;
+                    // At top level (depth=0, begin_depth=0, subprog_depth=0), BEGIN is
+                    // transactional unless we're inside a routine declaration or declare section.
+                    // Inside a package subprogram or already-nested block, BEGIN is a PL block.
+                    let is_pl_block_begin = begin_depth > 0 || depth > 0 || subprog_depth > 0
+                        || in_routine_decl || in_declare_section;
+                    if is_pl_block_begin {
+                        begin_depth += 1;
+                        if in_routine_decl && begin_depth == 1 {
+                            in_routine_decl = false;
+                        }
+                        if in_declare_section && begin_depth == 1 {
+                            in_declare_section = false;
+                        }
                     }
                 }
                 Token::Keyword(Keyword::END_P) => {
