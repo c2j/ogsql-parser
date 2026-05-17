@@ -448,11 +448,28 @@ impl Parser {
             }
         }
         let using = if !has_from && self.match_keyword(Keyword::FROM) {
+            // DELETE t FROM t2 WHERE ...  (no initial FROM, second FROM introduces extra tables)
             self.advance();
             self.parse_from_clause()?
         } else if self.match_keyword(Keyword::USING) {
+            // DELETE FROM t USING t2, t3 WHERE ...
+            // USING is followed directly by table references (no FROM keyword)
             self.advance();
-            self.parse_from_clause()?
+            let mut tables = vec![self.parse_table_ref()?];
+            while self.match_token(&Token::Comma) {
+                self.advance();
+                tables.push(self.parse_table_ref()?);
+            }
+            tables
+        } else if has_from && self.match_keyword(Keyword::FROM) {
+            // DELETE FROM t1 FROM t2 WHERE ... (second FROM introduces extra tables)
+            self.advance();
+            let mut tables = vec![self.parse_table_ref()?];
+            while self.match_token(&Token::Comma) {
+                self.advance();
+                tables.push(self.parse_table_ref()?);
+            }
+            tables
         } else {
             vec![]
         };
