@@ -81,16 +81,6 @@ impl Parser {
                 continue;
             }
 
-            if op_str == "%" && !self.scope_stack.is_empty() {
-                if let Some(attr) = self.try_parse_cursor_attribute() {
-                    left = Expr::CursorAttribute {
-                        cursor: Box::new(left),
-                        attribute: attr,
-                    };
-                    continue;
-                }
-            }
-
             if matches!(op_str.as_str(), "=" | "<" | ">" | "<=" | ">=" | "<>" | "!=")
                 && matches!(
                     self.peek(),
@@ -637,6 +627,20 @@ impl Parser {
                         };
                     }
                     return Ok(true);
+                }
+                Ok(false)
+            }
+            Token::Percent => {
+                if !self.scope_stack.is_empty() {
+                    self.advance();
+                    if let Some(attr) = self.try_parse_cursor_attribute() {
+                        *left = Expr::CursorAttribute {
+                            cursor: Box::new(std::mem::replace(left, Expr::Default)),
+                            attribute: attr,
+                        };
+                        return Ok(true);
+                    }
+                    self.pos -= 1;
                 }
                 Ok(false)
             }

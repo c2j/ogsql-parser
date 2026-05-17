@@ -1459,6 +1459,7 @@ const PL_BUILTIN_VALUES: &[&str] = &[
     "EPOCH", "DOW", "DOY", "ISODOW", "ISOYEAR", "QUARTER", "WEEK",
     "CENTURY", "DECADE", "MILLISECONDS", "MICROSECONDS",
     "TIMEZONE", "TIMEZONE_HOUR", "TIMEZONE_MINUTE",
+    "BOTH", "LEADING", "TRAILING",
 ];
 
 fn is_pl_builtin(name: &str) -> bool {
