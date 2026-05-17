@@ -1141,7 +1141,26 @@ impl Parser {
                 }
                 self.pos = saved;
                 self.errors.truncate(saved_err_len);
-                let name = self.parse_object_name()?;
+                // Parse first identifier (keyword-as-identifier),
+                // then check for qualified star (e.g. temp.*) before
+                // continuing with dotted name resolution.
+                let first = self.parse_identifier()?;
+                let name = if self.match_token(&Token::Dot) {
+                    self.advance();
+                    if self.match_token(&Token::Star) {
+                        self.advance();
+                        return Ok(Expr::QualifiedStar(first));
+                    }
+                    let mut parts = vec![first];
+                    parts.push(self.parse_identifier()?);
+                    while self.match_token(&Token::Dot) {
+                        self.advance();
+                        parts.push(self.parse_identifier()?);
+                    }
+                    parts
+                } else {
+                    vec![first]
+                };
                 if let Token::StringLiteral(s) = self.peek().clone() {
                     self.advance();
                     return Ok(Expr::TypeCast {
