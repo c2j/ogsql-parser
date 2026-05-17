@@ -751,6 +751,11 @@ fn walk_insert(visitor: &mut dyn Visitor, insert: &InsertStatement) -> VisitorRe
             }
         }
         InsertSource::DefaultValues => {}
+        InsertSource::RecordVariable(expr) => {
+            if walk_expr(visitor, expr) == VisitorResult::Stop {
+                return VisitorResult::Stop;
+            }
+        }
         InsertSource::Set(assignments) => {
             for a in assignments {
                 if walk_expr(visitor, &a.value) == VisitorResult::Stop {
