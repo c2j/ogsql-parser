@@ -86,25 +86,30 @@ impl Parser {
             InsertSource::Set(assignments)
         } else if self.match_keyword(Keyword::VALUES) {
             self.advance();
-            let mut rows = Vec::new();
-            loop {
-                self.expect_token(&Token::LParen)?;
-                let mut row = Vec::new();
-                if !self.match_token(&Token::RParen) {
-                    row.push(self.parse_expr()?);
-                    while self.match_token(&Token::Comma) {
-                        self.advance();
-                        row.push(self.parse_expr()?);
-                    }
-                }
-                self.expect_token(&Token::RParen)?;
-                rows.push(row);
-                if !self.match_token(&Token::Comma) {
-                    break;
-                }
+            if self.match_token(&Token::LParen) {
                 self.advance();
+                let mut rows = Vec::new();
+                loop {
+                    let mut row = Vec::new();
+                    if !self.match_token(&Token::RParen) {
+                        row.push(self.parse_expr()?);
+                        while self.match_token(&Token::Comma) {
+                            self.advance();
+                            row.push(self.parse_expr()?);
+                        }
+                    }
+                    self.expect_token(&Token::RParen)?;
+                    rows.push(row);
+                    if !self.match_token(&Token::Comma) {
+                        break;
+                    }
+                    self.advance();
+                    self.expect_token(&Token::LParen)?;
+                }
+                InsertSource::Values(rows)
+            } else {
+                InsertSource::RecordVariable(self.parse_expr()?)
             }
-            InsertSource::Values(rows)
         } else if self.match_keyword(Keyword::SELECT) || self.match_keyword(Keyword::WITH) {
             InsertSource::Select(Box::new(self.parse_select_statement()?))
         } else if self.match_token(&Token::LParen) {

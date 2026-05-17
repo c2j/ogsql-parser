@@ -1538,6 +1538,9 @@ pub enum InsertSource {
     Select(Box<SelectStatement>),
     DefaultValues,
     Set(Vec<UpdateAssignment>),
+    /// INSERT INTO t VALUES record_variable — GaussDB/openGauss Oracle-compatible
+    /// syntax where a %ROWTYPE or RECORD variable is used without parentheses.
+    RecordVariable(Expr),
 }
 
 // INSERT ALL / INSERT FIRST multi-table insert types

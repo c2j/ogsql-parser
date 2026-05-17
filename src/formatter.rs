@@ -1650,6 +1650,9 @@ impl SqlFormatter {
             InsertSource::DefaultValues => {
                 parts.push(self.kw("DEFAULT VALUES"));
             }
+            InsertSource::RecordVariable(expr) => {
+                parts.push(format!("{} {}", self.kw("VALUES"), self.format_expr(expr)));
+            }
             InsertSource::Set(assignments) => {
                 parts.push(self.kw("SET"));
                 let assign_strs: Vec<String> = assignments
