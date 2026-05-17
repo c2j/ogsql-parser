@@ -85,6 +85,36 @@ impl Parser {
     }
 
     fn parse_function_parameter(&mut self) -> Result<RoutineParam, ParserError> {
+        // Try mode-first syntax: OUT result INT, IN name VARCHAR2, INOUT val INT, IN OUT val INT
+        let saved_pos = self.pos;
+        let saved_error_count = self.errors.len();
+        if let Some(mode) = self.parse_param_mode() {
+            // Mode-first: MODE name type [DEFAULT expr]
+            // Check that the next token looks like an identifier/name (not a comma/paren/EOF)
+            match self.peek() {
+                Token::Ident(_) | Token::QuotedIdent(_) | Token::Keyword(_) => {
+                    let name = self.parse_identifier()?;
+                    let data_type = self.parse_param_data_type()?;
+                    let default_value = self.parse_param_default()?;
+                    return Ok(RoutineParam {
+                        name,
+                        mode: Some(mode),
+                        data_type,
+                        default_value,
+                    });
+                }
+                _ => {
+                    // Not a name after mode keyword — restore and try name-first
+                    self.pos = saved_pos;
+                    self.errors.truncate(saved_error_count);
+                }
+            }
+        } else {
+            // No mode found — restore position for name-first attempt
+            self.pos = saved_pos;
+        }
+
+        // Name-first syntax: name [MODE] type [DEFAULT expr]
         let name = self.parse_identifier()?;
         let mode = self.parse_param_mode();
         let data_type = self.parse_param_data_type()?;
