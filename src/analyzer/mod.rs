@@ -1454,6 +1454,7 @@ const PL_BUILTIN_VALUES: &[&str] = &[
     "ROW_COUNT",
     "SQLCODE",
     "SQLERRM",
+    "SQLSTATE",
 ];
 
 fn is_pl_builtin(name: &str) -> bool {
@@ -1476,9 +1477,20 @@ pub fn validate_pl_variables(
     block: &PlBlock,
     params: &[crate::ast::RoutineParam],
 ) -> Vec<UndefinedVariableError> {
+    validate_pl_variables_with_extra_vars(block, params, &[])
+}
+
+pub fn validate_pl_variables_with_extra_vars(
+    block: &PlBlock,
+    params: &[crate::ast::RoutineParam],
+    extra_vars: &[&str],
+) -> Vec<UndefinedVariableError> {
     let mut validator = PlVariableValidator::new();
     for p in params {
         validator.declare(&p.name);
+    }
+    for v in extra_vars {
+        validator.declare(v);
     }
     validator.process_block(block);
     validator.errors
@@ -1887,6 +1899,11 @@ impl PlVariableValidator {
                 self.check_expr(inner, context);
             }
             Expr::CursorAttribute { cursor, .. } => {
+                if let Expr::ColumnRef(names) | Expr::PlVariable(names) = cursor.as_ref() {
+                    if names.len() == 1 && names[0].eq_ignore_ascii_case("SQL") {
+                        return;
+                    }
+                }
                 self.check_expr(cursor, context);
             }
             Expr::XmlElement { evalname, content, .. } => {
