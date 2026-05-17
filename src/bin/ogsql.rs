@@ -2691,12 +2691,26 @@ fn validate_pl_variables_from_stmts(stmts: &[ogsql_parser::StatementInfo]) -> Ve
                 }
             }
             Statement::CreatePackageBody(body) => {
-                let pkg_vars: Vec<&str> = body.items.iter()
+                let body_name: String = body.name.iter().map(|s| s.to_lowercase()).collect::<Vec<_>>().join(".");
+                let mut pkg_vars: Vec<&str> = body.items.iter()
                     .filter_map(|item| match item {
                         ogsql_parser::ast::PackageItem::Variable(v) => Some(v.name.as_str()),
                         _ => None,
                     })
                     .collect();
+                // Also collect variables/constants from the matching package spec
+                for other_si in stmts {
+                    if let Statement::CreatePackage(spec) = &other_si.statement {
+                        let spec_name: String = spec.name.iter().map(|s| s.to_lowercase()).collect::<Vec<_>>().join(".");
+                        if spec_name == body_name {
+                            for item in &spec.items {
+                                if let ogsql_parser::ast::PackageItem::Variable(v) = item {
+                                    pkg_vars.push(v.name.as_str());
+                                }
+                            }
+                        }
+                    }
+                }
                 for item in &body.items {
                     match item {
                         ogsql_parser::ast::PackageItem::Procedure(proc) => {
