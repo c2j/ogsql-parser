@@ -786,7 +786,7 @@ impl Parser {
                 self.add_error(ParserError::UnexpectedToken {
                     location: err_loc,
                     expected: "valid DML statement".to_string(),
-                    got: "unparseable DML (dynamic table name requires EXECUTE IMMEDIATE)".to_string(),
+                    got: "unparseable DML".to_string(),
                 });
                 if sql.is_empty() {
                     Ok(PlStatement::Null)
@@ -1593,7 +1593,7 @@ impl Parser {
                                 self.add_error(ParserError::UnexpectedToken {
                                     location: err_loc,
                                     expected: "valid query in FOR-IN-SELECT".to_string(),
-                                    got: "unparseable query (dynamic table name requires EXECUTE IMMEDIATE)".to_string(),
+                                    got: "unparseable query".to_string(),
                                 });
                                 return Ok(PlForKind::Query {
                                     query: raw,
