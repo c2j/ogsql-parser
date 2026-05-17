@@ -565,6 +565,12 @@ fn cmd_parse_dir(
                 if is_warning(err) { files_with_warnings.insert(file_name.clone()); }
                 else { files_with_errors.insert(file_name.clone()); }
             }
+            if cli.verbose {
+                let real_errors: Vec<_> = output.errors.iter().filter(|e| !is_warning(e)).collect();
+                if !real_errors.is_empty() {
+                    write_error_log(&sql, Some(file_name), &output.statements, &real_errors);
+                }
+            }
         }
     } else if cli.json {
         let out_root = Path::new(output_dir.unwrap());
@@ -3066,10 +3072,10 @@ fn cmd_validate_dir(cli: &Cli, dir_paths: &[String], exts: &[String], csv: bool,
                 for w in &warnings {
                     eprintln!("  warning: {}", w);
                 }
-                if cli.verbose {
-                    write_error_log(&sql, Some(&format!("{}/{}", rel_dir, file_name)), &stmts, &real_errors);
-                }
             }
+        }
+        if cli.verbose && !real_errors.is_empty() {
+            write_error_log(&sql, Some(&format!("{}/{}", rel_dir, file_name)), &stmts, &real_errors);
         }
         let _ = &stmts;
     }
