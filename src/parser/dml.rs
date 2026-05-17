@@ -441,6 +441,17 @@ impl Parser {
         } else {
             None
         };
+        let limit = if self.match_keyword(Keyword::LIMIT) {
+            self.advance();
+            if self.match_keyword(Keyword::ALL) {
+                self.advance();
+                None
+            } else {
+                Some(self.parse_expr()?)
+            }
+        } else {
+            None
+        };
         let (returning, into_targets, bulk_collect) = if self.match_keyword(Keyword::RETURNING) {
             self.advance();
             let returning = self.parse_target_list()?;
@@ -469,6 +480,7 @@ impl Parser {
             tables,
             using,
             where_clause,
+            limit,
             returning,
             into_targets,
             bulk_collect,

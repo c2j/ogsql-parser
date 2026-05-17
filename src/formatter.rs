@@ -1887,6 +1887,10 @@ impl SqlFormatter {
             ));
         }
 
+        if let Some(limit) = &stmt.limit {
+            parts.push(format!("{} {}", self.kw("LIMIT"), self.format_expr(limit)));
+        }
+
         if !stmt.returning.is_empty() {
             parts.push(format!(
                 "{} {}",
