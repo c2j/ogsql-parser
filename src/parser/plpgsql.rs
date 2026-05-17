@@ -553,6 +553,35 @@ impl Parser {
         collected.trim().to_string()
     }
 
+    fn collect_to_semicolon(&mut self) -> String {
+        let mut collected = String::new();
+        let mut depth = 0i32;
+        loop {
+            match self.peek() {
+                Token::Eof => break,
+                Token::Semicolon if depth == 0 => break,
+                Token::LParen => {
+                    depth += 1;
+                    if !collected.is_empty() { collected.push(' '); }
+                    collected.push_str(&self.token_to_string());
+                    self.advance();
+                }
+                Token::RParen => {
+                    if depth > 0 { depth -= 1; }
+                    if !collected.is_empty() { collected.push(' '); }
+                    collected.push_str(&self.token_to_string());
+                    self.advance();
+                }
+                _ => {
+                    if !collected.is_empty() { collected.push(' '); }
+                    collected.push_str(&self.token_to_string());
+                    self.advance();
+                }
+            }
+        }
+        collected.trim().to_string()
+    }
+
     fn parse_pl_statements_until(
         &mut self,
         terminators: &[&str],
@@ -569,7 +598,14 @@ impl Parser {
             if matches!(self.peek(), Token::Eof) {
                 break;
             }
-            let stmt = self.parse_pl_statement()?;
+            let stmt = match self.parse_pl_statement() {
+                Ok(s) => s,
+                Err(e) => {
+                    self.add_error(e);
+                    self.skip_to_semicolon_or_keyword();
+                    continue;
+                }
+            };
             stmts.push(stmt);
         }
         Ok(stmts)
@@ -670,7 +706,14 @@ impl Parser {
                     self.advance();
                     break;
                 } else {
-                    let stmt = self.parse_pl_statement()?;
+                    let stmt = match self.parse_pl_statement() {
+                        Ok(s) => s,
+                        Err(e) => {
+                            self.add_error(e);
+                            self.skip_to_semicolon_or_keyword();
+                            continue;
+                        }
+                    };
                     body.push(stmt);
                 }
             }
@@ -730,7 +773,29 @@ impl Parser {
         } else if let Some(stmt) = self.try_parse_dml_as_pl_statement() {
             Ok(stmt)
         } else {
-            self.parse_pl_sql_or_assignment()
+            let is_dml_start = matches!(self.peek(),
+                Token::Keyword(Keyword::SELECT) | Token::Keyword(Keyword::WITH)
+                | Token::Keyword(Keyword::INSERT) | Token::Keyword(Keyword::UPDATE)
+                | Token::Keyword(Keyword::DELETE_P) | Token::Keyword(Keyword::MERGE)
+                | Token::Hint(_)
+            );
+            if is_dml_start {
+                let err_loc = self.current_location();
+                let sql = self.collect_to_semicolon();
+                self.try_consume_semicolon();
+                self.add_error(ParserError::UnexpectedToken {
+                    location: err_loc,
+                    expected: "valid DML statement".to_string(),
+                    got: "unparseable DML (dynamic table name requires EXECUTE IMMEDIATE)".to_string(),
+                });
+                if sql.is_empty() {
+                    Ok(PlStatement::Null)
+                } else {
+                    Ok(PlStatement::Sql(sql))
+                }
+            } else {
+                self.parse_pl_sql_or_assignment()
+            }
         }?;
 
         if self.pos == before_pos {
@@ -766,7 +831,14 @@ impl Parser {
                 self.advance();
                 break;
             } else {
-                let stmt = self.parse_pl_statement()?;
+                let stmt = match self.parse_pl_statement() {
+                    Ok(s) => s,
+                    Err(e) => {
+                        self.add_error(e);
+                        self.skip_to_semicolon_or_keyword();
+                        continue;
+                    }
+                };
                 body.push(stmt);
             }
         }
@@ -813,6 +885,7 @@ impl Parser {
 
         let save_pos = self.pos;
         let start_pos = self.pos;
+        let saved_error_count = self.errors.len();
                 let result = match self.peek() {
             Token::Keyword(Keyword::SELECT) => {
                 self.pl_into_mode = true;
@@ -958,6 +1031,11 @@ impl Parser {
 
         match result {
             Some(stmt) => {
+                let before_dml = self.errors.split_off(saved_error_count);
+                let kept: Vec<_> = before_dml.into_iter()
+                    .filter(|e| !matches!(e, ParserError::ReservedKeywordAsIdentifier { .. }))
+                    .collect();
+                self.errors.extend(kept);
                 let dml_end_pos = self.pos;
                 let had_semicolon = self.match_token(&Token::Semicolon);
                 if had_semicolon {
@@ -985,6 +1063,7 @@ impl Parser {
             }
             None => {
                 self.pos = save_pos;
+                self.errors.truncate(saved_error_count);
                 None
             }
         }
@@ -994,6 +1073,7 @@ impl Parser {
     /// On failure, restores position and returns `None`.
     pub(crate) fn try_parse_dml_statement(&mut self) -> Option<Box<crate::ast::Statement>> {
         let save_pos = self.pos;
+        let saved_error_count = self.errors.len();
 
         let result = match self.peek() {
             Token::Keyword(Keyword::SELECT) => {
@@ -1091,6 +1171,7 @@ impl Parser {
             Some(stmt) => Some(Box::new(stmt)),
             None => {
                 self.pos = save_pos;
+                self.errors.truncate(saved_error_count);
                 None
             }
         }
@@ -1099,17 +1180,20 @@ impl Parser {
     fn try_parse_pl_procedure_call(&mut self) -> Option<PlStatement> {
         let start = self.current_location();
         let save = self.pos;
+        let saved_error_count = self.errors.len();
 
         let name = match self.parse_object_name() {
             Ok(n) => n,
             Err(_) => {
                 self.pos = save;
+                self.errors.truncate(saved_error_count);
                 return None;
             }
         };
 
         if !self.match_token(&Token::LParen) {
             self.pos = save;
+            self.errors.truncate(saved_error_count);
             return None;
         }
         self.advance();
@@ -1121,6 +1205,7 @@ impl Parser {
                     Ok(arg) => arguments.push(arg),
                     Err(_) => {
                         self.pos = save;
+                        self.errors.truncate(saved_error_count);
                         return None;
                     }
                 }
@@ -1134,6 +1219,7 @@ impl Parser {
 
         if !self.match_token(&Token::RParen) {
             self.pos = save;
+            self.errors.truncate(saved_error_count);
             return None;
         }
         self.advance();
@@ -1491,6 +1577,34 @@ impl Parser {
                             using_args: Vec::new(),
                         });
                     }
+                }
+                let err_loc = self.current_location();
+                let mut paren_depth = 1i32;
+                let scan_start = save_pos + 1;
+                let mut scan_pos = scan_start;
+                while scan_pos < self.tokens.len() {
+                    match &self.tokens[scan_pos].token {
+                        Token::LParen => paren_depth += 1,
+                        Token::RParen => {
+                            paren_depth -= 1;
+                            if paren_depth == 0 {
+                                let raw = self.tokens_to_raw_string(save_pos, scan_pos + 1);
+                                self.pos = scan_pos + 1;
+                                self.add_error(ParserError::UnexpectedToken {
+                                    location: err_loc,
+                                    expected: "valid query in FOR-IN-SELECT".to_string(),
+                                    got: "unparseable query (dynamic table name requires EXECUTE IMMEDIATE)".to_string(),
+                                });
+                                return Ok(PlForKind::Query {
+                                    query: raw,
+                                    parsed_query: None,
+                                    using_args: Vec::new(),
+                                });
+                            }
+                        }
+                        _ => {}
+                    }
+                    scan_pos += 1;
                 }
             }
 
@@ -2784,7 +2898,14 @@ impl Parser {
             } else if matches!(self.peek(), Token::Eof) {
                 break;
             } else {
-                let stmt = self.parse_pl_statement()?;
+                let stmt = match self.parse_pl_statement() {
+                    Ok(s) => s,
+                    Err(e) => {
+                        self.add_error(e);
+                        self.skip_to_semicolon_or_keyword();
+                        continue;
+                    }
+                };
                 body.push(stmt);
             }
         }

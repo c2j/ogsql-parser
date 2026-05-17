@@ -971,16 +971,22 @@ impl Parser {
 
     fn skip_to_end_subprogram(&mut self) -> String {
         let mut collected = String::new();
-        let mut depth = 0i32;
+        let mut begin_depth = 0i32;
+        let mut case_depth = 0i32;
         loop {
             match self.peek() {
                 Token::Eof => break,
+                Token::Keyword(Keyword::CASE) => {
+                    case_depth += 1;
+                }
                 Token::Keyword(Keyword::BEGIN_P) => {
-                    depth += 1;
+                    begin_depth += 1;
                 }
                 Token::Keyword(Keyword::END_P) => {
-                    if depth > 0 {
-                        depth -= 1;
+                    if case_depth > 0 {
+                        case_depth -= 1;
+                    } else if begin_depth > 0 {
+                        begin_depth -= 1;
                     } else if !self.lookahead_is_compound_end() {
                         self.advance();
                         while matches!(self.peek(), Token::Ident(_)) {
