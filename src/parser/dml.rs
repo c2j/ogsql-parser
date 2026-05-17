@@ -75,7 +75,7 @@ impl Parser {
                 self.expect_token(&Token::Eq)?;
                 let value = self.parse_expr()?;
                 assignments.push(crate::ast::UpdateAssignment {
-                    column: vec![col],
+                    columns: vec![vec![col]],
                     value,
                 });
                 if !self.match_token(&Token::Comma) {
@@ -167,7 +167,7 @@ impl Parser {
                     let column = self.parse_object_name()?;
                     self.expect_token(&Token::Eq)?;
                     let value = self.parse_expr()?;
-                    assignments.push(UpdateAssignment { column, value });
+                    assignments.push(UpdateAssignment { columns: vec![column], value });
                     if !self.match_token(&Token::Comma) {
                         break;
                     }
@@ -215,7 +215,7 @@ impl Parser {
                         let column = self.parse_object_name()?;
                         self.expect_token(&Token::Eq)?;
                         let value = self.parse_expr()?;
-                        assignments.push(UpdateAssignment { column, value });
+                        assignments.push(UpdateAssignment { columns: vec![column], value });
                         if !self.match_token(&Token::Comma) {
                             break;
                         }
@@ -346,10 +346,26 @@ impl Parser {
         self.expect_keyword(Keyword::SET)?;
         let mut assignments = Vec::new();
         loop {
-            let column = self.parse_object_name()?;
-            self.expect_token(&Token::Eq)?;
-            let value = self.parse_expr()?;
-            assignments.push(UpdateAssignment { column, value });
+            if self.match_token(&Token::LParen) {
+                self.advance();
+                let mut columns = vec![self.parse_object_name()?];
+                while self.match_token(&Token::Comma) {
+                    self.advance();
+                    columns.push(self.parse_object_name()?);
+                }
+                self.expect_token(&Token::RParen)?;
+                self.expect_token(&Token::Eq)?;
+                let value = self.parse_expr()?;
+                assignments.push(UpdateAssignment { columns, value });
+            } else {
+                let column = self.parse_object_name()?;
+                self.expect_token(&Token::Eq)?;
+                let value = self.parse_expr()?;
+                assignments.push(UpdateAssignment {
+                    columns: vec![column],
+                    value,
+                });
+            }
             if !self.match_token(&Token::Comma) {
                 break;
             }
@@ -529,7 +545,7 @@ impl Parser {
                     let column = self.parse_object_name()?;
                     self.expect_token(&Token::Eq)?;
                     let value = self.parse_expr()?;
-                    assignments.push(UpdateAssignment { column, value });
+                    assignments.push(UpdateAssignment { columns: vec![column], value });
                     if !self.match_token(&Token::Comma) {
                         break;
                     }
