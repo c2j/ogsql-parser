@@ -1466,6 +1466,10 @@ fn is_pl_builtin(name: &str) -> bool {
     PL_BUILTIN_VALUES.iter().any(|&b| b.eq_ignore_ascii_case(name))
 }
 
+fn is_known_function(name: &str) -> bool {
+    crate::parser::function_registry::lookup_function(name).is_some()
+}
+
 /// Validate that all variable references in a PL block resolve to declared variables.
 ///
 /// This performs a semantic analysis pass over the PL block, checking that every
@@ -1482,13 +1486,22 @@ pub fn validate_pl_variables(
     block: &PlBlock,
     params: &[crate::ast::RoutineParam],
 ) -> Vec<UndefinedVariableError> {
-    validate_pl_variables_with_extra_vars(block, params, &[])
+    validate_pl_variables_with_extra_vars_and_funcs(block, params, &[], &[])
 }
 
 pub fn validate_pl_variables_with_extra_vars(
     block: &PlBlock,
     params: &[crate::ast::RoutineParam],
     extra_vars: &[&str],
+) -> Vec<UndefinedVariableError> {
+    validate_pl_variables_with_extra_vars_and_funcs(block, params, extra_vars, &[])
+}
+
+pub fn validate_pl_variables_with_extra_vars_and_funcs(
+    block: &PlBlock,
+    params: &[crate::ast::RoutineParam],
+    extra_vars: &[&str],
+    extra_funcs: &[&str],
 ) -> Vec<UndefinedVariableError> {
     let mut validator = PlVariableValidator::new();
     for p in params {
@@ -1497,14 +1510,16 @@ pub fn validate_pl_variables_with_extra_vars(
     for v in extra_vars {
         validator.declare(v);
     }
+    for f in extra_funcs {
+        validator.declare_func(f);
+    }
     validator.process_block(block);
     validator.errors
 }
 
 struct PlVariableValidator {
-    /// Scope stack: each entry is a set of variable names (lowercase) in that scope level.
     scope_stack: Vec<std::collections::HashSet<String>>,
-    /// Collected warnings.
+    known_funcs: std::collections::HashSet<String>,
     errors: Vec<UndefinedVariableError>,
     current_span: Option<crate::ast::SourceSpan>,
 }
@@ -1513,19 +1528,26 @@ impl PlVariableValidator {
     fn new() -> Self {
         Self {
             scope_stack: vec![std::collections::HashSet::new()],
+            known_funcs: std::collections::HashSet::new(),
             errors: Vec::new(),
             current_span: None,
         }
     }
 
-    /// Insert a name into the current (innermost) scope.
     fn declare(&mut self, name: &str) {
         if let Some(scope) = self.scope_stack.last_mut() {
             scope.insert(name.to_lowercase());
         }
     }
 
-    /// Check if a name exists in any scope level (search innermost first).
+    fn declare_func(&mut self, name: &str) {
+        self.known_funcs.insert(name.to_lowercase());
+    }
+
+    fn is_known_func(&self, name: &str) -> bool {
+        self.known_funcs.contains(&name.to_lowercase())
+    }
+
     fn is_declared(&self, name: &str) -> bool {
         let lower = name.to_lowercase();
         self.scope_stack.iter().rev().any(|s| s.contains(&lower))
@@ -1764,7 +1786,7 @@ impl PlVariableValidator {
             PlStatement::ProcedureCall(call) => {
                 self.current_span = call.span.clone();
                 for arg in &call.node.arguments {
-                    self.check_expr(arg, "procedure call argument");
+                    self.check_expr_proc_arg(arg);
                 }
             }
 
@@ -1803,7 +1825,7 @@ impl PlVariableValidator {
         match expr {
             Expr::ColumnRef(names) | Expr::PlVariable(names) if names.len() == 1 => {
                 let name = &names[0];
-                if !self.is_declared(name) && !is_pl_builtin(name) {
+                if !self.is_declared(name) && !is_pl_builtin(name) && !is_known_function(name) && !self.is_known_func(name) {
                     self.errors.push(UndefinedVariableError {
                         variable_name: name.clone(),
                         location: self.current_span.clone(),
@@ -1964,6 +1986,46 @@ impl PlVariableValidator {
             Expr::Default => {}
             Expr::SysDate => {}
             Expr::CurrentOf { .. } => {}
+        }
+    }
+
+    fn check_expr_proc_arg(&mut self, expr: &Expr) {
+        match expr {
+            Expr::ColumnRef(_) | Expr::PlVariable(_) => {
+                // Procedure call arguments may reference SQL columns or external
+                // parameterless functions — skip validation for single-component names.
+            }
+            Expr::BinaryOp { left, right, .. } => {
+                self.check_expr_proc_arg(left);
+                self.check_expr_proc_arg(right);
+            }
+            Expr::UnaryOp { expr: inner, .. } => {
+                self.check_expr_proc_arg(inner);
+            }
+            Expr::Parenthesized(inner) => {
+                self.check_expr_proc_arg(inner);
+            }
+            Expr::FunctionCall { args, .. } | Expr::SpecialFunction { args, .. } => {
+                for arg in args {
+                    self.check_expr_proc_arg(arg);
+                }
+            }
+            Expr::TypeCast { expr: inner, .. } => {
+                self.check_expr_proc_arg(inner);
+            }
+            Expr::Case { operand, whens, else_expr } => {
+                if let Some(ref op) = operand {
+                    self.check_expr_proc_arg(op);
+                }
+                for when in whens {
+                    self.check_expr_proc_arg(&when.condition);
+                    self.check_expr_proc_arg(&when.result);
+                }
+                if let Some(ref el) = else_expr {
+                    self.check_expr_proc_arg(el);
+                }
+            }
+            _ => {}
         }
     }
 }
