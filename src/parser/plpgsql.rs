@@ -631,6 +631,7 @@ impl Parser {
 
     fn parse_pl_statement(&mut self) -> Result<PlStatement, ParserError> {
         let before_pos = self.pos;
+        let error_count_before = self.errors.len();
         let label = self.try_parse_pl_label();
 
         let stmt = if self.match_ident_str("if") {
@@ -798,14 +799,17 @@ impl Parser {
                 | Token::Hint(_)
             );
             if is_dml_start {
+                let had_real_error = self.errors.len() > error_count_before;
                 let err_loc = self.current_location();
                 let sql = self.collect_to_semicolon();
                 self.try_consume_semicolon();
-                self.add_error(ParserError::UnexpectedToken {
-                    location: err_loc,
-                    expected: "valid DML statement".to_string(),
-                    got: "unparseable DML".to_string(),
-                });
+                if !had_real_error {
+                    self.add_error(ParserError::UnexpectedToken {
+                        location: err_loc,
+                        expected: "valid DML statement".to_string(),
+                        got: "unparseable DML".to_string(),
+                    });
+                }
                 if sql.is_empty() {
                     Ok(PlStatement::Null)
                 } else {
@@ -904,6 +908,7 @@ impl Parser {
         let save_pos = self.pos;
         let start_pos = self.pos;
         let saved_error_count = self.errors.len();
+        let mut first_err: Option<ParserError> = None;
                 let result = match self.peek() {
             Token::Keyword(Keyword::SELECT) => {
                 self.pl_into_mode = true;
@@ -914,14 +919,13 @@ impl Parser {
                         stmt.hints = merged;
                         Some(crate::ast::Statement::Select(crate::ast::Spanned::new(stmt, None)))
                     }
-                    Err(_) => None,
+                    Err(e) => { first_err = Some(e); None }
                 };
                 self.pl_into_mode = false;
                 result
             }
             Token::Keyword(Keyword::WITH) => {
                 if self.is_with_dml_at(self.pos) {
-                    // WITH ... INSERT/UPDATE/DELETE pattern
                     let with = match self.parse_with_clause() {
                         Ok(Some(w)) => w,
                         _ => { self.pos = save_pos; return None; }
@@ -938,7 +942,7 @@ impl Parser {
                                     stmt.hints = merged;
                                     Some(crate::ast::Statement::Insert(crate::ast::Spanned::new(stmt, None)))
                                 }
-                                Err(_) => None,
+                                Err(e) => { first_err = Some(e); None }
                             }
                         }
                         Some(Keyword::UPDATE) => {
@@ -951,7 +955,7 @@ impl Parser {
                                     stmt.hints = merged;
                                     Some(crate::ast::Statement::Update(crate::ast::Spanned::new(stmt, None)))
                                 }
-                                Err(_) => None,
+                                Err(e) => { first_err = Some(e); None }
                             }
                         }
                         Some(Keyword::DELETE_P) => {
@@ -964,7 +968,7 @@ impl Parser {
                                     stmt.hints = merged;
                                     Some(crate::ast::Statement::Delete(crate::ast::Spanned::new(stmt, None)))
                                 }
-                                Err(_) => None,
+                                Err(e) => { first_err = Some(e); None }
                             }
                         }
                         _ => None,
@@ -972,7 +976,6 @@ impl Parser {
                     self.pl_into_mode = false;
                     result
                 } else {
-                    // Plain WITH ... SELECT (CTE)
                     self.pl_into_mode = true;
                     let result = match self.parse_select_statement() {
                         Ok(mut stmt) => {
@@ -981,7 +984,7 @@ impl Parser {
                             stmt.hints = merged;
                             Some(crate::ast::Statement::Select(crate::ast::Spanned::new(stmt, None)))
                         }
-                        Err(_) => None,
+                        Err(e) => { first_err = Some(e); None }
                     };
                     self.pl_into_mode = false;
                     result
@@ -997,7 +1000,7 @@ impl Parser {
                         stmt.hints = merged;
                         Some(crate::ast::Statement::Insert(crate::ast::Spanned::new(stmt, None)))
                     }
-                    Err(_) => None,
+                    Err(e) => { first_err = Some(e); None }
                 };
                 self.pl_into_mode = false;
                 result
@@ -1012,7 +1015,7 @@ impl Parser {
                         stmt.hints = merged;
                         Some(crate::ast::Statement::Update(crate::ast::Spanned::new(stmt, None)))
                     }
-                    Err(_) => None,
+                    Err(e) => { first_err = Some(e); None }
                 };
                 self.pl_into_mode = false;
                 result
@@ -1027,7 +1030,7 @@ impl Parser {
                         stmt.hints = merged;
                         Some(crate::ast::Statement::Delete(crate::ast::Spanned::new(stmt, None)))
                     }
-                    Err(_) => None,
+                    Err(e) => { first_err = Some(e); None }
                 };
                 self.pl_into_mode = false;
                 result
@@ -1041,7 +1044,7 @@ impl Parser {
                         stmt.hints = merged;
                         Some(crate::ast::Statement::Merge(crate::ast::Spanned::new(stmt, None)))
                     }
-                    Err(_) => None,
+                    Err(e) => { first_err = Some(e); None }
                 }
             }
             _ => None,
@@ -1082,6 +1085,9 @@ impl Parser {
             None => {
                 self.pos = save_pos;
                 self.errors.truncate(saved_error_count);
+                if let Some(e) = first_err {
+                    self.errors.push(e);
+                }
                 None
             }
         }
