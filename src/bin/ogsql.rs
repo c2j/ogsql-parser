@@ -3049,7 +3049,7 @@ fn cmd_validate_dir(cli: &Cli, dir_paths: &[String], exts: &[String], csv: bool,
                 all_results.push((
                     file_name.clone(),
                     rel_dir.clone(),
-                    sql,
+                    sql.clone(),
                     errors.iter().filter(|e| !is_warning(e)).cloned().collect(),
                 ));
             }
