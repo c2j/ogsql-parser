@@ -2563,14 +2563,37 @@ impl SqlFormatter {
             ColumnConstraint::Check(expr) => {
                 format!("{} ({})", self.kw("CHECK"), self.format_expr(expr))
             }
-            ColumnConstraint::References(table, cols) => {
+            ColumnConstraint::References {
+                ref_table,
+                ref_columns,
+                on_delete,
+                on_update,
+            } => {
                 let mut result = format!(
                     "{} {}",
                     self.kw("REFERENCES"),
-                    self.format_object_name(table)
+                    self.format_object_name(ref_table)
                 );
-                if !cols.is_empty() {
-                    result = format!("{} ({})", result, cols.join(", "));
+                if !ref_columns.is_empty() {
+                    result = format!("{} ({})", result, ref_columns.join(", "));
+                }
+                if let Some(action) = on_delete {
+                    result = format!(
+                        "{} {} {}",
+                        result,
+                        self.kw("ON"),
+                        self.kw("DELETE")
+                    );
+                    result = format!("{} {}", result, self.format_referential_action(action));
+                }
+                if let Some(action) = on_update {
+                    result = format!(
+                        "{} {} {}",
+                        result,
+                        self.kw("ON"),
+                        self.kw("UPDATE")
+                    );
+                    result = format!("{} {}", result, self.format_referential_action(action));
                 }
                 result
             }

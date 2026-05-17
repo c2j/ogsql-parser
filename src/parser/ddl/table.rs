@@ -1470,8 +1470,8 @@ impl Parser {
             }
             Some(Keyword::REFERENCES) => {
                 self.advance();
-                let table = self.parse_object_name()?;
-                let columns = if self.match_token(&Token::LParen) {
+                let ref_table = self.parse_object_name()?;
+                let ref_columns = if self.match_token(&Token::LParen) {
                     self.advance();
                     let mut cols = vec![self.parse_identifier()?];
                     while self.match_token(&Token::Comma) {
@@ -1483,7 +1483,14 @@ impl Parser {
                 } else {
                     Vec::new()
                 };
-                Some(ColumnConstraint::References(table, columns))
+                let on_delete = self.parse_referential_action(Keyword::DELETE_P)?;
+                let on_update = self.parse_referential_action(Keyword::UPDATE)?;
+                Some(ColumnConstraint::References {
+                    ref_table,
+                    ref_columns,
+                    on_delete,
+                    on_update,
+                })
             }
             _ => None,
         };
