@@ -1606,6 +1606,8 @@ impl PlVariableValidator {
             // ── PL expressions: CHECK for undefined variables ──
 
             PlStatement::Assignment { target, expression } => {
+                // Assignment has no Spanned wrapper — keep parent span for location.
+                self.current_span = saved_span.clone();
                 self.check_expr(target, "assignment target");
                 self.check_expr(expression, "assignment expression");
             }

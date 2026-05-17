@@ -2402,26 +2402,55 @@ fn output_csv_validate_rows(
         let stmt_var_errors: Vec<&ogsql_parser::UndefinedVariableError> = var_errors
             .iter()
             .filter(|ve| {
-                ve.location.as_ref().map_or(false, |sp| {
+                ve.location.as_ref().map_or(true, |sp| {
                     sp.start.line >= stmt_start && sp.start.line <= stmt_end
                 })
             })
             .collect();
 
         let rows = collect_validate_routine_rows(si);
-        for row in rows {
-            let (row_parse_err, row_parse_warn) = filter_errors_for_row(
-                &stmt_parse_errors,
-                row.start_line,
-                row.end_line,
-            );
+        let row_count = rows.len();
+        let child_ranges: Vec<(usize, usize)> = if row_count > 1 {
+            rows[1..].iter().map(|r| (r.start_line, r.end_line)).collect()
+        } else {
+            Vec::new()
+        };
+        let error_in_child = |eline: usize| -> bool {
+            child_ranges.iter().any(|&(s, e)| eline >= s && eline <= e)
+        };
+        for (row_idx, row) in rows.iter().enumerate() {
+            let is_parent_with_children = row_idx == 0 && row_count > 1;
+
+            let row_parse_errors: Vec<&ogsql_parser::ParserError> = stmt_parse_errors
+                .iter()
+                .filter(|e| {
+                    let eline = error_line(e);
+                    let in_row = eline == 0 || (eline >= row.start_line && eline <= row.end_line);
+                    if !in_row { return false; }
+                    if is_parent_with_children {
+                        eline == 0 || !error_in_child(eline)
+                    } else {
+                        true
+                    }
+                })
+                .copied()
+                .collect();
+
+            let row_parse_err = merge_error_messages(&row_parse_errors, false);
+            let row_parse_warn = merge_error_messages(&row_parse_errors, true);
 
             let row_var_errs: Vec<&&ogsql_parser::UndefinedVariableError> = stmt_var_errors
                 .iter()
                 .filter(|ve| {
-                    ve.location.as_ref().map_or(false, |sp| {
+                    let in_row = ve.location.as_ref().map_or(row_idx == row_count - 1, |sp| {
                         sp.start.line >= row.start_line && sp.start.line <= row.end_line
-                    })
+                    });
+                    if !in_row { return false; }
+                    if is_parent_with_children {
+                        ve.location.as_ref().map_or(false, |sp| !error_in_child(sp.start.line))
+                    } else {
+                        true
+                    }
                 })
                 .collect();
 
@@ -2437,24 +2466,10 @@ fn output_csv_validate_rows(
             }
 
             let error_count = {
-                let parse_err_count = stmt_parse_errors.iter().filter(|e| {
-                    let eline = error_line(e);
-                    eline == 0 || (eline >= row.start_line && eline <= row.end_line)
-                }).count();
-                let real_parse_err_count = parse_err_count - stmt_parse_errors.iter().filter(|e| {
-                    is_warning(e) && {
-                        let eline = error_line(e);
-                        eline == 0 || (eline >= row.start_line && eline <= row.end_line)
-                    }
-                }).count();
+                let real_parse_err_count = row_parse_errors.iter().filter(|e| !is_warning(e)).count();
                 real_parse_err_count + row_var_errs.len()
             };
-            let warning_count = stmt_parse_errors.iter().filter(|e| {
-                is_warning(e) && {
-                    let eline = error_line(e);
-                    eline == 0 || (eline >= row.start_line && eline <= row.end_line)
-                }
-            }).count();
+            let warning_count = row_parse_errors.iter().filter(|e| is_warning(e)).count();
 
             let all_err = err_parts.join("; ");
             let is_valid = error_count == 0;
@@ -2640,9 +2655,67 @@ fn is_warning(e: &ogsql_parser::ParserError) -> bool {
     )
 }
 
+fn collect_defined_routine_names(stmts: &[ogsql_parser::StatementInfo]) -> Vec<String> {
+    use ogsql_parser::ast::Statement;
+    let mut names = Vec::new();
+    for si in stmts {
+        match &si.statement {
+            Statement::CreateFunction(func) => {
+                if let Some(last) = func.name.last() {
+                    names.push(last.to_lowercase());
+                }
+            }
+            Statement::CreateProcedure(proc) => {
+                if let Some(last) = proc.name.last() {
+                    names.push(last.to_lowercase());
+                }
+            }
+            Statement::CreatePackage(spec) => {
+                for item in &spec.items {
+                    match item {
+                        ogsql_parser::ast::PackageItem::Function(f) => {
+                            if let Some(last) = f.name.last() {
+                                names.push(last.to_lowercase());
+                            }
+                        }
+                        ogsql_parser::ast::PackageItem::Procedure(p) => {
+                            if let Some(last) = p.name.last() {
+                                names.push(last.to_lowercase());
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+            }
+            Statement::CreatePackageBody(body) => {
+                for item in &body.items {
+                    match item {
+                        ogsql_parser::ast::PackageItem::Function(f) => {
+                            if let Some(last) = f.name.last() {
+                                names.push(last.to_lowercase());
+                            }
+                        }
+                        ogsql_parser::ast::PackageItem::Procedure(p) => {
+                            if let Some(last) = p.name.last() {
+                                names.push(last.to_lowercase());
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+    names.sort();
+    names.dedup();
+    names
+}
+
 fn validate_sql(
     sql: &str,
     mybatis: bool,
+    extra_funcs: &[String],
 ) -> (Vec<ogsql_parser::StatementInfo>, Vec<ogsql_parser::ParserError>, Vec<ogsql_parser::PackageConsistencyError>, Vec<ogsql_parser::UndefinedVariableError>) {
     let output = parse_input(sql, false, mybatis);
     let stmts = output.statements;
@@ -2662,31 +2735,38 @@ fn validate_sql(
         }
     }
 
-    let var_errors = validate_pl_variables_from_stmts(&stmts);
+    let mut all_funcs: Vec<String> = extra_funcs.to_vec();
+    let own_funcs = collect_defined_routine_names(&stmts);
+    all_funcs.extend(own_funcs);
+    all_funcs.sort();
+    all_funcs.dedup();
+
+    let var_errors = validate_pl_variables_from_stmts(&stmts, &all_funcs);
 
     (stmts, errors, pkg_errors, var_errors)
 }
 
-fn validate_pl_variables_from_stmts(stmts: &[ogsql_parser::StatementInfo]) -> Vec<ogsql_parser::UndefinedVariableError> {
+fn validate_pl_variables_from_stmts(stmts: &[ogsql_parser::StatementInfo], known_funcs: &[String]) -> Vec<ogsql_parser::UndefinedVariableError> {
     use ogsql_parser::ast::Statement;
     let mut warnings = Vec::new();
+    let funcs_str: Vec<&str> = known_funcs.iter().map(|s| s.as_str()).collect();
     for si in stmts {
         match &si.statement {
             Statement::CreateProcedure(proc) => {
                 if let Some(ref block) = proc.block {
-                    let vars = ogsql_parser::validate_pl_variables(block, &proc.parameters);
+                    let vars = ogsql_parser::validate_pl_variables_with_extra_vars_and_funcs(block, &proc.parameters, &[], &funcs_str);
                     warnings.extend(vars);
                 }
             }
             Statement::CreateFunction(func) => {
                 if let Some(ref block) = func.block {
-                    let vars = ogsql_parser::validate_pl_variables(block, &func.parameters);
+                    let vars = ogsql_parser::validate_pl_variables_with_extra_vars_and_funcs(block, &func.parameters, &[], &funcs_str);
                     warnings.extend(vars);
                 }
             }
             Statement::Do(do_stmt) => {
                 if let Some(ref block) = do_stmt.block {
-                    let vars = ogsql_parser::validate_pl_variables(block, &[]);
+                    let vars = ogsql_parser::validate_pl_variables_with_extra_vars_and_funcs(block, &[], &[], &funcs_str);
                     warnings.extend(vars);
                 }
             }
@@ -2698,7 +2778,6 @@ fn validate_pl_variables_from_stmts(stmts: &[ogsql_parser::StatementInfo]) -> Ve
                         _ => None,
                     })
                     .collect();
-                // Also collect variables/constants from the matching package spec
                 for other_si in stmts {
                     if let Statement::CreatePackage(spec) = &other_si.statement {
                         let spec_name: String = spec.name.iter().map(|s| s.to_lowercase()).collect::<Vec<_>>().join(".");
@@ -2715,13 +2794,13 @@ fn validate_pl_variables_from_stmts(stmts: &[ogsql_parser::StatementInfo]) -> Ve
                     match item {
                         ogsql_parser::ast::PackageItem::Procedure(proc) => {
                             if let Some(ref block) = proc.block {
-                                let vars = ogsql_parser::validate_pl_variables_with_extra_vars(block, &proc.parameters, &pkg_vars);
+                                let vars = ogsql_parser::validate_pl_variables_with_extra_vars_and_funcs(block, &proc.parameters, &pkg_vars, &funcs_str);
                                 warnings.extend(vars);
                             }
                         }
                         ogsql_parser::ast::PackageItem::Function(func) => {
                             if let Some(ref block) = func.block {
-                                let vars = ogsql_parser::validate_pl_variables_with_extra_vars(block, &func.parameters, &pkg_vars);
+                                let vars = ogsql_parser::validate_pl_variables_with_extra_vars_and_funcs(block, &func.parameters, &pkg_vars, &funcs_str);
                                 warnings.extend(vars);
                             }
                         }
@@ -2737,7 +2816,7 @@ fn validate_pl_variables_from_stmts(stmts: &[ogsql_parser::StatementInfo]) -> Ve
 
 fn cmd_validate(cli: &Cli, csv: bool) {
     let sql = read_input(cli.file.as_deref());
-    let (stmts, errors, pkg_errors, var_errors) = validate_sql(&sql, cli.mybatis);
+    let (stmts, errors, pkg_errors, var_errors) = validate_sql(&sql, cli.mybatis, &[]);
 
     let format_var_err = |ve: &ogsql_parser::UndefinedVariableError| -> String {
         let line_info = ve.location.as_ref()
@@ -2902,9 +2981,19 @@ fn cmd_validate_dir(cli: &Cli, dir_paths: &[String], exts: &[String], csv: bool,
         output_csv_validate_header();
     }
 
+    // Pre-scan: collect all defined routine names across all files
+    let mut all_defined_funcs: Vec<String> = Vec::new();
+    for (_, _, abs_path) in &files {
+        let sql = read_file_path(abs_path);
+        let output = parse_input(&sql, false, cli.mybatis);
+        all_defined_funcs.extend(collect_defined_routine_names(&output.statements));
+    }
+    all_defined_funcs.sort();
+    all_defined_funcs.dedup();
+
     for (file_name, rel_dir, abs_path) in &files {
         let sql = read_file_path(abs_path);
-        let (stmts, errors, pkg_errors, var_errors) = validate_sql(&sql, cli.mybatis);
+    let (stmts, errors, pkg_errors, var_errors) = validate_sql(&sql, cli.mybatis, &all_defined_funcs);
 
         let real_errors: Vec<_> = errors.iter().filter(|e| !is_warning(e)).collect();
         let warnings: Vec<_> = errors.iter().filter(|e| is_warning(e)).collect();
@@ -2992,7 +3081,7 @@ fn cmd_validate_dir(cli: &Cli, dir_paths: &[String], exts: &[String], csv: bool,
         let mut results = Vec::new();
         for (file_name, rel_dir, abs_path) in &files {
             let sql = read_file_path(abs_path);
-            let (_stmts, errors, pkg_errors, var_errors) = validate_sql(&sql, cli.mybatis);
+            let (_stmts, errors, pkg_errors, var_errors) = validate_sql(&sql, cli.mybatis, &all_defined_funcs);
             let real_errors: Vec<_> = errors.iter().filter(|e| !is_warning(e)).collect();
             let warnings: Vec<_> = errors.iter().filter(|e| is_warning(e)).collect();
 
@@ -3485,7 +3574,7 @@ mod api {
                 });
             }
         }
-        let var_errors = super::validate_pl_variables_from_stmts(&output.statements);
+        let var_errors = super::validate_pl_variables_from_stmts(&output.statements, &[]);
         let has_var_errors = !var_errors.is_empty();
         let has_real_errors = errors.iter().any(|e| !super::is_warning(e)) || has_var_errors;
         let mut result = serde_json::json!({
