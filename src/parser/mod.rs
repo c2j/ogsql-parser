@@ -1059,6 +1059,7 @@ impl Parser {
                     | Keyword::MINUS_P
                     | Keyword::FOR
                     | Keyword::INTO
+                    | Keyword::ON
                     | Keyword::END_P
                     | Keyword::THEN
                     | Keyword::ELSE
@@ -1066,6 +1067,8 @@ impl Parser {
                     | Keyword::AND
                     | Keyword::OR
                     | Keyword::AS
+                    | Keyword::SET
+                    | Keyword::USING
                     // JOIN keywords — a table alias can be followed by any join clause
                     | Keyword::LEFT
                     | Keyword::RIGHT
