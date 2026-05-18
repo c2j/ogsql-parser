@@ -31,8 +31,10 @@ struct Cli {
     #[command(subcommand)]
     command: Commands,
 
+    /// Read SQL from file(s) instead of stdin (can specify multiple times)
+    /// 从文件读取 SQL（可多次指定）
     #[arg(short = 'f', long, global = true)]
-    file: Option<String>,
+    file: Vec<String>,
 
     #[arg(short = 'j', long, global = true)]
     json: bool,
@@ -250,7 +252,10 @@ fn cmd_format(
     no_logical_newline: bool,
     no_semicolon_newline: bool,
 ) {
-    let sql = read_input(cli.file.as_deref());
+    if cli.file.len() > 1 {
+        die!("Error: format command accepts at most one --file");
+    }
+    let sql = read_input(cli.file.first().map(|s| s.as_str()));
     let mut tokenizer = Tokenizer::new(&sql).preserve_comments(true);
     if cli.mybatis {
         tokenizer = tokenizer.mybatis_params(true);
@@ -371,11 +376,19 @@ fn compute_routine_analysis(stmt: &ogsql_parser::Statement) -> Option<serde_json
 }
 
 fn cmd_parse(cli: &Cli, csv: bool) {
-    let sql = read_input(cli.file.as_deref());
+    if cli.file.len() <= 1 {
+        cmd_parse_single(cli, cli.file.first().map(|s| s.as_str()), csv);
+    } else {
+        cmd_parse_files(cli, csv);
+    }
+}
+
+fn cmd_parse_single(cli: &Cli, file_path: Option<&str>, csv: bool) {
+    let sql = read_input(file_path);
     let output = parse_input(&sql, cli.comments, cli.mybatis);
 
     if csv {
-        let file_name = cli.file.as_deref().unwrap_or("<stdin>");
+        let file_name = file_path.unwrap_or("<stdin>");
         output_csv_parse_header();
         output_csv_parse_rows(&output.statements, file_name, ".", &output.errors, cli.mybatis);
     } else if cli.json {
@@ -456,7 +469,7 @@ fn cmd_parse(cli: &Cli, csv: bool) {
                     eprintln!("  {}", e);
                 }
                 if cli.verbose {
-                    write_error_log(&sql, cli.file.as_deref(), &output.statements, &real_errors);
+                    write_error_log(&sql, file_path, &output.statements, &real_errors);
                 }
             }
             if !warnings.is_empty() {
@@ -465,6 +478,167 @@ fn cmd_parse(cli: &Cli, csv: bool) {
                     eprintln!("  {}", w);
                 }
             }
+        }
+    }
+}
+
+fn cmd_parse_files(cli: &Cli, csv: bool) {
+    let mut files_with_errors: HashSet<String> = HashSet::new();
+    let mut files_with_warnings: HashSet<String> = HashSet::new();
+    let mut stmt_counts: BTreeMap<&'static str, usize> = BTreeMap::new();
+    let mut error_kinds: BTreeMap<&'static str, (usize, HashSet<String>)> = BTreeMap::new();
+    let mut warning_kinds: BTreeMap<&'static str, (usize, HashSet<String>)> = BTreeMap::new();
+
+    if csv {
+        output_csv_parse_header();
+        for file_path in &cli.file {
+            let sql = read_input(Some(file_path.as_str()));
+            let output = parse_input(&sql, cli.comments, cli.mybatis);
+            output_csv_parse_rows(&output.statements, file_path, ".", &output.errors, cli.mybatis);
+            for si in &output.statements {
+                *stmt_counts.entry(stmt_category(&si.statement)).or_insert(0) += 1;
+            }
+            for err in &output.errors {
+                let kind = parser_error_kind(err);
+                let file_set = if is_warning(err) { &mut warning_kinds } else { &mut error_kinds };
+                let entry = file_set.entry(kind).or_insert((0, HashSet::new()));
+                entry.0 += 1;
+                entry.1.insert(file_path.clone());
+                if is_warning(err) { files_with_warnings.insert(file_path.clone()); }
+                else { files_with_errors.insert(file_path.clone()); }
+            }
+        }
+    } else if cli.json {
+        let mut all_results = Vec::new();
+        for file_path in &cli.file {
+            let sql = read_input(Some(file_path.as_str()));
+            let output = parse_input(&sql, cli.comments, cli.mybatis);
+
+            let stmt_values: Vec<serde_json::Value> = output
+                .statements
+                .iter()
+                .map(|si| {
+                    let mut obj = serde_json::to_value(si).unwrap();
+                    if let Some(block) = extract_pl_block(&si.statement) {
+                        let report = ogsql_parser::analyze_pl_block(block);
+                        if !report.execute_findings.is_empty() {
+                            obj.as_object_mut().unwrap().insert(
+                                "dynamic_sql_analysis".to_string(),
+                                serde_json::json!(report),
+                            );
+                        }
+                        let tx_report = ogsql_parser::analyze_transactions(block);
+                        obj.as_object_mut().unwrap().insert(
+                            "transaction_analysis".to_string(),
+                            serde_json::to_string_pretty(&tx_report).unwrap().into(),
+                        );
+                        if let Some(ref schema_path) = cli.schema_json {
+                            match ogsql_parser::load_schema(schema_path) {
+                                Ok(schema) => {
+                                    let schema_report = ogsql_parser::resolve_schema(block, &schema);
+                                    obj.as_object_mut().unwrap().insert(
+                                        "schema_resolution".to_string(),
+                                        serde_json::json!(schema_report),
+                                    );
+                                }
+                                Err(e) => eprintln!("Warning: {}", e),
+                            }
+                        }
+                    }
+                    annotate_builtin_functions(&mut obj);
+                    if has_routine_return_cursors(&si.statement) {
+                        if let Some(analysis) = compute_routine_analysis(&si.statement) {
+                            obj.as_object_mut().unwrap().insert(
+                                "routine_analysis".to_string(),
+                                analysis,
+                            );
+                        }
+                    }
+                    obj
+                })
+                .collect();
+
+            let all_stmts: Vec<_> = output.statements.iter().map(|si| si.statement.clone()).collect();
+            let fingerprints = ogsql_parser::compute_query_fingerprints(&all_stmts);
+
+            let mut file_result = serde_json::json!({
+                "file": file_path,
+                "statements": stmt_values,
+                "errors": output.errors,
+            });
+            if !fingerprints.is_empty() {
+                file_result.as_object_mut().unwrap().insert(
+                    "query_fingerprints".to_string(),
+                    serde_json::json!(fingerprints),
+                );
+            }
+            if !output.comments.is_empty() {
+                file_result.as_object_mut().unwrap().insert(
+                    "comments".to_string(),
+                    serde_json::json!(output.comments),
+                );
+            }
+            all_results.push(file_result);
+
+            for si in &output.statements {
+                *stmt_counts.entry(stmt_category(&si.statement)).or_insert(0) += 1;
+            }
+            for err in &output.errors {
+                let kind = parser_error_kind(err);
+                let file_set = if is_warning(err) { &mut warning_kinds } else { &mut error_kinds };
+                let entry = file_set.entry(kind).or_insert((0, HashSet::new()));
+                entry.0 += 1;
+                entry.1.insert(file_path.clone());
+                if is_warning(err) { files_with_warnings.insert(file_path.clone()); }
+                else { files_with_errors.insert(file_path.clone()); }
+            }
+        }
+        let out = serde_json::json!({
+            "files": all_results,
+        });
+        println!("{}", serde_json::to_string_pretty(&out).unwrap());
+    } else {
+        for file_path in &cli.file {
+            let sql = read_input(Some(file_path.as_str()));
+            let output = parse_input(&sql, cli.comments, cli.mybatis);
+
+            for si in &output.statements {
+                *stmt_counts.entry(stmt_category(&si.statement)).or_insert(0) += 1;
+            }
+            for err in &output.errors {
+                let kind = parser_error_kind(err);
+                let file_set = if is_warning(err) { &mut warning_kinds } else { &mut error_kinds };
+                let entry = file_set.entry(kind).or_insert((0, HashSet::new()));
+                entry.0 += 1;
+                entry.1.insert(file_path.clone());
+                if is_warning(err) { files_with_warnings.insert(file_path.clone()); }
+                else { files_with_errors.insert(file_path.clone()); }
+            }
+
+            println!("═══ {} ({} statement(s)) ═══", file_path, output.statements.len());
+            for stmt in &output.statements {
+                println!("{:#?}", stmt);
+            }
+            if !output.errors.is_empty() {
+                let warnings: Vec<_> = output.errors.iter().filter(|e| is_warning(e)).collect();
+                let real_errors: Vec<_> = output.errors.iter().filter(|e| !is_warning(e)).collect();
+                if !real_errors.is_empty() {
+                    eprintln!("[{}] {} error(s):", file_path, real_errors.len());
+                    for e in &real_errors {
+                        eprintln!("  {}", e);
+                    }
+                    if cli.verbose {
+                        write_error_log(&sql, Some(file_path), &output.statements, &real_errors);
+                    }
+                }
+                if !warnings.is_empty() {
+                    eprintln!("[{}] {} warning(s):", file_path, warnings.len());
+                    for w in &warnings {
+                        eprintln!("  {}", w);
+                    }
+                }
+            }
+            println!();
         }
     }
 }
@@ -2570,7 +2744,10 @@ fn extract_pl_block(
 }
 
 fn cmd_tokenize(cli: &Cli) {
-    let sql = read_input(cli.file.as_deref());
+    if cli.file.len() > 1 {
+        die!("Error: tokenize command accepts at most one --file");
+    }
+    let sql = read_input(cli.file.first().map(|s| s.as_str()));
     let mut tokenizer = Tokenizer::new(&sql);
     if cli.comments {
         tokenizer = tokenizer.preserve_comments(true);
@@ -2605,7 +2782,10 @@ fn cmd_tokenize(cli: &Cli) {
 }
 
 fn cmd_json2sql(cli: &Cli) {
-    let input = read_input(cli.file.as_deref());
+    if cli.file.len() > 1 {
+        die!("Error: json2sql command accepts at most one --file");
+    }
+    let input = read_input(cli.file.first().map(|s| s.as_str()));
 
     let json_value: serde_json::Value = match serde_json::from_str(&input) {
         Ok(v) => v,
@@ -2824,7 +3004,15 @@ fn validate_pl_variables_from_stmts(stmts: &[ogsql_parser::StatementInfo], known
 }
 
 fn cmd_validate(cli: &Cli, csv: bool) {
-    let sql = read_input(cli.file.as_deref());
+    if cli.file.len() <= 1 {
+        cmd_validate_single(cli, cli.file.first().map(|s| s.as_str()), csv);
+    } else {
+        cmd_validate_files(cli, csv);
+    }
+}
+
+fn cmd_validate_single(cli: &Cli, file_path: Option<&str>, csv: bool) {
+    let sql = read_input(file_path);
     let (stmts, errors, pkg_errors, var_errors) = validate_sql(&sql, cli.mybatis, &[]);
 
     let format_var_err = |ve: &ogsql_parser::UndefinedVariableError| -> String {
@@ -2835,7 +3023,7 @@ fn cmd_validate(cli: &Cli, csv: bool) {
     };
 
     if csv {
-        let file_name = cli.file.as_deref().unwrap_or("<stdin>");
+        let file_name = file_path.unwrap_or("<stdin>");
         let mut all_errors = errors.clone();
         for pe in &pkg_errors {
             let msg = match &pe.detail {
@@ -2907,8 +3095,124 @@ fn cmd_validate(cli: &Cli, csv: bool) {
                 eprintln!("  warning: {}", w);
             }
             if cli.verbose {
-                write_error_log(&sql, cli.file.as_deref(), &stmts, &real_errors);
+                write_error_log(&sql, file_path, &stmts, &real_errors);
             }
+            std::process::exit(1);
+        }
+    }
+}
+
+fn cmd_validate_files(cli: &Cli, csv: bool) {
+    let format_var_err = |ve: &ogsql_parser::UndefinedVariableError| -> String {
+        let line_info = ve.location.as_ref()
+            .map(|sp| format!(":{}", sp.start.line))
+            .unwrap_or_default();
+        format!("undefined variable '{}' in {}{}", ve.variable_name, ve.context, line_info)
+    };
+
+    if csv {
+        output_csv_validate_header();
+        let mut any_errors = false;
+        for file_path in &cli.file {
+            let sql = read_input(Some(file_path.as_str()));
+            let (stmts, errors, pkg_errors, var_errors) = validate_sql(&sql, cli.mybatis, &[]);
+            let mut all_errors = errors.clone();
+            for pe in &pkg_errors {
+                let msg = match &pe.detail {
+                    Some(d) => format!("package {}: {} — {}", pe.package_name, pe.subprogram_name, d),
+                    None => format!("package {}: {} — {:?}", pe.package_name, pe.subprogram_name, pe.kind),
+                };
+                all_errors.push(ogsql_parser::ParserError::Warning {
+                    message: msg,
+                    location: ogsql_parser::SourceLocation::default(),
+                });
+            }
+            output_csv_validate_rows(&stmts, &all_errors, &var_errors, file_path, ".");
+            let real_errors: Vec<_> = errors.iter().filter(|e| !is_warning(e)).collect();
+            if !real_errors.is_empty() || !var_errors.is_empty() {
+                any_errors = true;
+            }
+        }
+        if any_errors {
+            std::process::exit(1);
+        }
+        return;
+    }
+
+    if cli.json {
+        let mut all_results = Vec::new();
+        for file_path in &cli.file {
+            let sql = read_input(Some(file_path.as_str()));
+            let (stmts, errors, pkg_errors, var_errors) = validate_sql(&sql, cli.mybatis, &[]);
+
+            let real_errors: Vec<_> = errors.iter().filter(|e| !is_warning(e)).collect();
+            let warnings: Vec<_> = errors.iter().filter(|e| is_warning(e)).collect();
+            let mut file_result = serde_json::json!({
+                "file": file_path,
+                "valid": real_errors.is_empty() && var_errors.is_empty(),
+                "error_count": real_errors.len() + var_errors.len(),
+                "warning_count": warnings.len(),
+                "errors": errors,
+            });
+            if !pkg_errors.is_empty() {
+                file_result.as_object_mut().unwrap().insert(
+                    "package_consistency_errors".to_string(),
+                    serde_json::json!(pkg_errors),
+                );
+            }
+            if !var_errors.is_empty() {
+                file_result.as_object_mut().unwrap().insert(
+                    "undefined_variables".to_string(),
+                    serde_json::json!(var_errors),
+                );
+            }
+            all_results.push(file_result);
+        }
+        let out = serde_json::json!({
+            "files": all_results,
+        });
+        println!("{}", serde_json::to_string_pretty(&out).unwrap());
+    } else {
+        let mut any_invalid = false;
+        for file_path in &cli.file {
+            let sql = read_input(Some(file_path.as_str()));
+            let (stmts, errors, _pkg_errors, var_errors) = validate_sql(&sql, cli.mybatis, &[]);
+
+            let real_errors: Vec<_> = errors.iter().filter(|e| !is_warning(e)).collect();
+            let warnings: Vec<_> = errors.iter().filter(|e| is_warning(e)).collect();
+            let has_var_errors = !var_errors.is_empty();
+
+            if real_errors.is_empty() && warnings.is_empty() && !has_var_errors {
+                println!("{}: VALID", file_path);
+            } else if real_errors.is_empty() && !has_var_errors {
+                println!("{}: VALID ({} warning(s)):", file_path, warnings.len());
+                for w in &warnings {
+                    eprintln!("  warning: {}", w);
+                }
+            } else {
+                any_invalid = true;
+                let total_errors = real_errors.len() + var_errors.len();
+                println!(
+                    "{}: INVALID ({} error(s), {} warning(s)):",
+                    file_path,
+                    total_errors,
+                    warnings.len()
+                );
+                for e in &real_errors {
+                    eprintln!("  error: {}", e);
+                }
+                for ve in &var_errors {
+                    eprintln!("  error: {}", format_var_err(ve));
+                }
+                for w in &warnings {
+                    eprintln!("  warning: {}", w);
+                }
+                if cli.verbose {
+                    write_error_log(&sql, Some(file_path), &stmts, &real_errors);
+                }
+            }
+        }
+        if any_invalid {
             std::process::exit(1);
         }
     }
@@ -3290,7 +3594,7 @@ fn write_error_log(
         }
         let _ = writeln!(file, "{}", "-".repeat(60));
     }
-    eprintln!("  error details written to error.log");
+    // eprintln!("  error details written to error.log");
 }
 
 fn write_dir_error_log(
@@ -3897,7 +4201,7 @@ fn cmd_playground() {
 
 #[cfg(feature = "ibatis")]
 fn cmd_parse_xml(cli: &Cli, dir: Option<&str>, csv: bool, java_src: Option<&str>, stats: bool) {
-    if dir.is_some() && cli.file.is_some() {
+    if dir.is_some() && !cli.file.is_empty() {
         die!("Error: --dir and -f are mutually exclusive");
     }
 
@@ -3924,7 +4228,11 @@ fn cmd_parse_xml(cli: &Cli, dir: Option<&str>, csv: bool, java_src: Option<&str>
 
 #[cfg(feature = "ibatis")]
 fn cmd_parse_xml_single(cli: &Cli, csv: bool, java_roots: &[std::path::PathBuf]) {
-    let input = match cli.file.as_deref() {
+    if cli.file.len() > 1 {
+        die!("Error: parse-xml command accepts at most one --file");
+    }
+    let file_opt = cli.file.first().map(|s| s.as_str());
+    let input = match file_opt {
         Some(path) => std::fs::read(path).unwrap_or_else(|e| die!("Error reading {}: {}", path, e)),
         None => {
             let mut buf = Vec::new();
@@ -3937,20 +4245,20 @@ fn cmd_parse_xml_single(cli: &Cli, csv: bool, java_roots: &[std::path::PathBuf])
 
     #[cfg(feature = "java")]
     let result = if java_roots.is_empty() {
-        ogsql_parser::ibatis::parse_mapper_bytes_with_path(&input, cli.file.as_deref())
+        ogsql_parser::ibatis::parse_mapper_bytes_with_path(&input, file_opt)
     } else {
         ogsql_parser::ibatis::parse_mapper_bytes_with_java_src(
-            &input, cli.file.as_deref(), java_roots.to_vec()
+            &input, file_opt, java_roots.to_vec()
         )
     };
     #[cfg(not(feature = "java"))]
-    let result = ogsql_parser::ibatis::parse_mapper_bytes_with_path(&input, cli.file.as_deref());
+    let result = ogsql_parser::ibatis::parse_mapper_bytes_with_path(&input, file_opt);
 
     if csv {
         output_csv_xml_header();
         output_csv_xml_rows(
             &result.statements,
-            cli.file.as_deref().unwrap_or("<stdin>"),
+            file_opt.unwrap_or("<stdin>"),
             ".",
         );
     } else if cli.json {
@@ -4278,7 +4586,11 @@ fn cmd_parse_java(cli: &Cli, extra_sql_methods: &[String], extra_sql_var_pattern
 
 #[cfg(feature = "java")]
 fn cmd_parse_java_single(cli: &Cli, extra_sql_methods: &[String], extra_sql_var_patterns: &[String], csv: bool) {
-    let (source, file_path) = match cli.file.as_deref() {
+    if cli.file.len() > 1 {
+        die!("Error: parse-java command accepts at most one --file");
+    }
+    let file_opt = cli.file.first().map(|s| s.as_str());
+    let (source, file_path) = match file_opt {
         Some(path) => {
             let bytes =
                 std::fs::read(path).unwrap_or_else(|e| die!("Error reading {}: {}", path, e));
@@ -5029,7 +5341,7 @@ fn main() {
             no_semicolon_newline,
         ),
         Commands::Parse { ref dir, ref ext, csv, ref output_dir, stats } => {
-            if !dir.is_empty() && cli.file.is_some() {
+            if !dir.is_empty() && !cli.file.is_empty() {
                 die!("Error: --dir and -f are mutually exclusive");
             }
             if !dir.is_empty() {
@@ -5041,7 +5353,7 @@ fn main() {
         Commands::JsonToSql => cmd_json2sql(&cli),
         Commands::Tokenize => cmd_tokenize(&cli),
         Commands::Validate { ref dir, ref ext, csv, stats } => {
-            if !dir.is_empty() && cli.file.is_some() {
+            if !dir.is_empty() && !cli.file.is_empty() {
                 die!("Error: --dir and -f are mutually exclusive");
             }
             if !dir.is_empty() {
