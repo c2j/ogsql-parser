@@ -721,6 +721,7 @@ impl Parser {
                     alias: None,
                     partition: None,
                     timecapsule: None,
+                    tablesample: None,
                 }],
                 where_clause: None,
                 connect_by: None,
