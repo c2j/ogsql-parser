@@ -1,5 +1,5 @@
 use crate::ast::{
-    ConnectByClause, Cte, FetchClause, GroupByItem, JoinType, LockClause, ObjectName, OrderByItem,
+    ConnectByClause, Cte, Expr, FetchClause, GroupByItem, JoinType, LockClause, ObjectName, OrderByItem,
     PivotClause, PivotValue, SelectIntoTable, SelectStatement, SelectTarget, SetOperation,
     TableRef, TableSampleClause, UnpivotClause, ValuesStatement, WithClause,
 };
@@ -465,14 +465,26 @@ impl Parser {
         self.advance();
         let mut tables = vec![self.parse_table_ref()?];
         self.try_consume_table_modifiers(&mut tables[0]);
+        self.try_consume_table_alias(&mut tables[0]);
         while self.match_token(&Token::Comma) {
             self.advance();
             tables.push(self.parse_table_ref()?);
             if let Some(last) = tables.last_mut() {
                 self.try_consume_table_modifiers(last);
+                self.try_consume_table_alias(last);
             }
         }
         Ok(tables)
+    }
+
+    fn try_consume_table_alias(&mut self, table_ref: &mut TableRef) {
+        if let TableRef::Table { alias, .. } = table_ref {
+            if alias.is_none() {
+                if let Ok(Some(a)) = self.parse_optional_alias() {
+                    *alias = Some(a);
+                }
+            }
+        }
     }
 
     fn try_consume_table_modifiers(&mut self, table_ref: &mut TableRef) {
@@ -517,6 +529,27 @@ impl Parser {
                 } = table_ref
                 {
                     *ts_field = Some(ts);
+                }
+            }
+        }
+        if self.match_keyword(Keyword::SAMPLE) {
+            self.advance();
+            if self.match_token(&Token::LParen) {
+                self.advance();
+                if let Ok(pct) = self.parse_expr() {
+                    if self.expect_token(&Token::RParen).is_ok() {
+                        if let TableRef::Table {
+                            tablesample: ref mut ts_field,
+                            ..
+                        } = table_ref
+                        {
+                            *ts_field = Some(TableSampleClause {
+                                method: "SAMPLE".to_string(),
+                                arguments: vec![pct],
+                                repeatable: None,
+                            });
+                        }
+                    }
                 }
             }
         }
@@ -680,7 +713,16 @@ impl Parser {
         }
         if self.match_ident_str("PIVOT") {
             self.advance();
-            let pivot = self.parse_pivot()?;
+            let xml = if self.match_ident_str("XML") {
+                self.advance();
+                true
+            } else {
+                false
+            };
+            let mut pivot = self.parse_pivot()?;
+            if xml {
+                pivot.xml = Some(true);
+            }
             left = TableRef::Pivot {
                 source: Box::new(left),
                 pivot,
@@ -897,10 +939,18 @@ impl Parser {
                 } else {
                     None
                 };
+                let using = if self.match_keyword(Keyword::USING) {
+                    self.advance();
+                    let op_name = self.parse_operator_name()?;
+                    Some(Expr::ColumnRef(op_name))
+                } else {
+                    None
+                };
                 items.push(OrderByItem {
                     expr,
                     asc,
                     nulls_first,
+                    using,
                 });
                 if !self.match_token(&Token::Comma) {
                     break;
@@ -1115,6 +1165,7 @@ impl Parser {
         self.expect_token(&Token::RParen)?;
         self.expect_token(&Token::RParen)?;
         Ok(PivotClause {
+            xml: None,
             aggregate,
             for_column,
             values,
@@ -1216,6 +1267,7 @@ impl Parser {
                     expr,
                     asc,
                     nulls_first,
+                    using: None,
                 });
                 if !self.match_token(&Token::Comma) {
                     break;
@@ -1271,5 +1323,42 @@ impl Parser {
             }
         }
         false
+    }
+
+    fn parse_operator_name(&mut self) -> Result<ObjectName, ParserError> {
+        let first = self.parse_operator_part()?;
+        let mut parts = vec![first];
+        while self.match_token(&Token::Dot) {
+            self.advance();
+            match self.parse_operator_part() {
+                Ok(part) => parts.push(part),
+                Err(_) => break,
+            }
+        }
+        Ok(ObjectName::from(parts))
+    }
+
+    fn parse_operator_part(&mut self) -> Result<String, ParserError> {
+        let name = match self.peek().clone() {
+            Token::Op(s) => s.clone(),
+            Token::Gt => ">".to_string(),
+            Token::Lt => "<".to_string(),
+            Token::Eq => "=".to_string(),
+            Token::OpLe => "<=".to_string(),
+            Token::OpGe => ">=".to_string(),
+            Token::OpNe => "<>".to_string(),
+            Token::OpNe2 => "!=".to_string(),
+            Token::Ident(s) => s.clone(),
+            Token::Keyword(kw) => kw.as_str().to_string(),
+            _ => {
+                return Err(ParserError::UnexpectedToken {
+                    location: self.current_location(),
+                    expected: "operator".to_string(),
+                    got: format!("{:?}", self.peek()),
+                })
+            }
+        };
+        self.advance();
+        Ok(name)
     }
 }

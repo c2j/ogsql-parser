@@ -1575,6 +1575,7 @@ impl Parser {
                     expr,
                     asc,
                     nulls_first: None,
+                    using: None,
                 });
                 if !self.match_token(&Token::Comma) {
                     break;
@@ -1679,6 +1680,7 @@ impl Parser {
                     expr,
                     asc,
                     nulls_first: None,
+                    using: None,
                 });
                 if !self.match_token(&Token::Comma) {
                     break;
@@ -1928,6 +1930,7 @@ impl Parser {
                     expr,
                     asc,
                     nulls_first,
+                    using: None,
                 });
                 if !self.match_token(&Token::Comma) {
                     break;
@@ -2021,6 +2024,7 @@ impl Parser {
                     expr,
                     asc,
                     nulls_first,
+                    using: None,
                 });
                 if !self.match_token(&Token::Comma) {
                     break;

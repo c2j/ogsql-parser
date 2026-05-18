@@ -14154,3 +14154,181 @@ END;
 $$";
     assert_validates(sql, "%BULK_EXCEPTIONS attribute with subscript and field");
 }
+
+// ── ORDER BY USING ──────────────────────────────────────────────
+
+#[test]
+fn test_order_by_using_operator() {
+    let stmt = parse_one("SELECT * FROM t ORDER BY x USING >");
+    match stmt {
+        Statement::Select(s) => {
+            assert_eq!(s.order_by.len(), 1);
+            assert!(s.order_by[0].asc.is_none());
+            assert!(s.order_by[0].nulls_first.is_none());
+            assert!(s.order_by[0].using.is_some());
+        }
+        _ => panic!("expected Select"),
+    }
+}
+
+#[test]
+fn test_order_by_using_desc() {
+    let stmt = parse_one("SELECT * FROM t ORDER BY x DESC USING <");
+    match stmt {
+        Statement::Select(s) => {
+            assert_eq!(s.order_by.len(), 1);
+            assert_eq!(s.order_by[0].asc, Some(false));
+            assert!(s.order_by[0].using.is_some());
+        }
+        _ => panic!("expected Select"),
+    }
+}
+
+#[test]
+fn test_order_by_using_qualified_name() {
+    let stmt = parse_one("SELECT * FROM t ORDER BY x USING schema.my_op");
+    match stmt {
+        Statement::Select(s) => {
+            assert_eq!(s.order_by.len(), 1);
+            let using_expr = s.order_by[0].using.as_ref().unwrap();
+            match using_expr {
+                Expr::ColumnRef(name) => {
+                    assert_eq!(name.join("."), "schema.my_op");
+                }
+                _ => panic!("expected ColumnRef for USING operator"),
+            }
+        }
+        _ => panic!("expected Select"),
+    }
+}
+
+#[test]
+fn test_order_by_using_multiple() {
+    let stmt = parse_one("SELECT * FROM t ORDER BY x USING >, y DESC USING <");
+    match stmt {
+        Statement::Select(s) => {
+            assert_eq!(s.order_by.len(), 2);
+            assert!(s.order_by[0].using.is_some());
+            assert!(s.order_by[1].using.is_some());
+            assert_eq!(s.order_by[1].asc, Some(false));
+        }
+        _ => panic!("expected Select"),
+    }
+}
+
+#[test]
+fn test_order_by_using_without_using() {
+    let stmt = parse_one("SELECT * FROM t ORDER BY x ASC, y DESC");
+    match stmt {
+        Statement::Select(s) => {
+            assert_eq!(s.order_by.len(), 2);
+            assert!(s.order_by[0].using.is_none());
+            assert!(s.order_by[1].using.is_none());
+        }
+        _ => panic!("expected Select"),
+    }
+}
+
+#[test]
+fn test_guard_order_by_using() {
+    assert_validates("SELECT * FROM t ORDER BY x USING >", "ORDER BY USING operator");
+    assert_validates("SELECT * FROM t ORDER BY x DESC USING <", "ORDER BY USING with DESC");
+    assert_validates(
+        "SELECT * FROM t ORDER BY x ASC NULLS FIRST USING schema.my_op",
+        "ORDER BY USING with qualified name",
+    );
+}
+
+// ── SAMPLE ──────────────────────────────────────────────────────
+
+#[test]
+fn test_sample_basic() {
+    let stmt = parse_one("SELECT * FROM t SAMPLE (0.1)");
+    match stmt {
+        Statement::Select(s) => {
+            assert_eq!(s.from.len(), 1);
+            match &s.from[0] {
+                TableRef::Table { tablesample, .. } => {
+                    let ts = tablesample.as_ref().unwrap();
+                    assert_eq!(ts.method, "SAMPLE");
+                    assert_eq!(ts.arguments.len(), 1);
+                    assert!(ts.repeatable.is_none());
+                }
+                _ => panic!("expected Table"),
+            }
+        }
+        _ => panic!("expected Select"),
+    }
+}
+
+#[test]
+fn test_sample_with_alias() {
+    let stmt = parse_one("SELECT * FROM t SAMPLE (0.5) AS s");
+    match stmt {
+        Statement::Select(s) => {
+            assert_eq!(s.from.len(), 1);
+            match &s.from[0] {
+                TableRef::Table { alias, tablesample, .. } => {
+                    assert_eq!(alias.as_deref(), Some("s"));
+                    assert!(tablesample.is_some());
+                }
+                _ => panic!("expected Table"),
+            }
+        }
+        _ => panic!("expected Select"),
+    }
+}
+
+#[test]
+fn test_guard_sample() {
+    assert_validates("SELECT * FROM t SAMPLE (0.1)", "SAMPLE table modifier");
+    assert_validates("SELECT * FROM t SAMPLE (50)", "SAMPLE with integer");
+}
+
+// ── PIVOT XML ───────────────────────────────────────────────────
+
+#[test]
+fn test_pivot_xml() {
+    let stmt = parse_one(
+        "SELECT * FROM sales PIVOT XML (SUM(amount) FOR quarter IN ('Q1' AS q1, 'Q2' AS q2))",
+    );
+    match stmt {
+        Statement::Select(s) => {
+            assert_eq!(s.from.len(), 1);
+            match &s.from[0] {
+                TableRef::Pivot { pivot, .. } => {
+                    assert_eq!(pivot.xml, Some(true));
+                    assert_eq!(pivot.values.len(), 2);
+                }
+                _ => panic!("expected Pivot"),
+            }
+        }
+        _ => panic!("expected Select"),
+    }
+}
+
+#[test]
+fn test_pivot_without_xml() {
+    let stmt = parse_one(
+        "SELECT * FROM sales PIVOT (SUM(amount) FOR quarter IN ('Q1' AS q1))",
+    );
+    match stmt {
+        Statement::Select(s) => {
+            match &s.from[0] {
+                TableRef::Pivot { pivot, .. } => {
+                    assert_eq!(pivot.xml, None);
+                }
+                _ => panic!("expected Pivot"),
+            }
+        }
+        _ => panic!("expected Select"),
+    }
+}
+
+#[test]
+fn test_guard_pivot_xml() {
+    assert_validates(
+        "SELECT * FROM sales PIVOT XML (SUM(amount) FOR quarter IN ('Q1' AS q1, 'Q2' AS q2))",
+        "PIVOT XML",
+    );
+}

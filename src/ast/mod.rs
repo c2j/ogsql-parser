@@ -1150,6 +1150,8 @@ pub struct TableSampleClause {
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct PivotClause {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub xml: Option<bool>,
     pub aggregate: Expr,
     pub for_column: ObjectName,
     pub values: Vec<PivotValue>,
@@ -1183,6 +1185,7 @@ pub struct OrderByItem {
     pub expr: Expr,
     pub asc: Option<bool>,
     pub nulls_first: Option<bool>,
+    pub using: Option<Expr>,
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
