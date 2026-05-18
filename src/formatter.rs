@@ -580,12 +580,20 @@ impl SqlFormatter {
                 alias,
                 partition,
                 timecapsule,
+                tablesample,
             } => {
                 let mut result = self.format_object_name(name);
                 if let Some(p) = partition {
                     let vals: Vec<String> =
                         p.values.iter().map(|v| self.quote_identifier(v)).collect();
                     result = format!("{} PARTITION ({})", result, vals.join(", "));
+                }
+                if let Some(ts) = tablesample {
+                    let args: Vec<String> = ts.arguments.iter().map(|a| self.format_expr(a)).collect();
+                    result = format!("{} TABLESAMPLE {} ({})", result, self.quote_identifier(&ts.method), args.join(", "));
+                    if let Some(rep) = &ts.repeatable {
+                        result = format!("{} REPEATABLE ({})", result, self.format_expr(rep));
+                    }
                 }
                 if let Some(tc) = timecapsule {
                     result = format!("{} TIMECAPSULE {}", result, self.format_expr(tc));
@@ -723,10 +731,16 @@ impl SqlFormatter {
                     })
                     .collect::<Vec<_>>()
                     .join(", ");
+                let nulls_mod = match unpivot.include_nulls {
+                    Some(true) => format!(" {} {}", self.kw("INCLUDE"), self.kw("NULLS")),
+                    Some(false) => format!(" {} {}", self.kw("EXCLUDE"), self.kw("NULLS")),
+                    None => String::new(),
+                };
                 format!(
-                    "{} {} ({} {} {} ({}))",
+                    "{} {}{} ({} {} {} ({}))",
                     source_str,
                     self.kw("UNPIVOT"),
+                    nulls_mod,
                     self.format_object_name(&unpivot.value_column),
                     self.kw("FOR"),
                     self.format_object_name(&unpivot.for_column),
@@ -747,6 +761,7 @@ impl SqlFormatter {
                 alias,
                 partition: _,
                 timecapsule: _,
+                tablesample: _,
             } => {
                 let mut parts = vec![self.format_object_name(name)];
                 if let Some(p) = partition {

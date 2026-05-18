@@ -16,6 +16,7 @@ impl Parser {
                 alias,
                 partition: _,
                 timecapsule,
+                tablesample,
             } => {
                 let part = match dml {
                     DmlPartitionClause::Partition(names) => TablePartitionRef {
@@ -40,6 +41,7 @@ impl Parser {
                     alias,
                     partition: Some(part),
                     timecapsule,
+                    tablesample,
                 }
             }
             other => other,
@@ -532,11 +534,12 @@ impl Parser {
         let partition = self.parse_dml_partition()?;
         let target_alias = self.parse_optional_alias()?;
         let target = TableRef::Table {
-            name: target_name,
-            alias: target_alias,
-            partition: None,
-            timecapsule: None,
-        };
+                    name: target_name,
+                    alias: target_alias,
+                    partition: None,
+                    timecapsule: None,
+                    tablesample: None,
+                };
         self.expect_keyword(Keyword::USING)?;
         let mut source = self.parse_table_ref()?;
         let source_partition = self.parse_dml_partition()?;

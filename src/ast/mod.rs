@@ -1032,21 +1032,25 @@ pub enum LockClause {
         tables: Vec<ObjectName>,
         nowait: bool,
         skip_locked: bool,
+        wait: Option<Expr>,
     },
     Share {
         tables: Vec<ObjectName>,
         nowait: bool,
         skip_locked: bool,
+        wait: Option<Expr>,
     },
     NoKeyUpdate {
         tables: Vec<ObjectName>,
         nowait: bool,
         skip_locked: bool,
+        wait: Option<Expr>,
     },
     KeyShare {
         tables: Vec<ObjectName>,
         nowait: bool,
         skip_locked: bool,
+        wait: Option<Expr>,
     },
 }
 
@@ -1094,6 +1098,7 @@ pub enum TableRef {
         alias: Option<String>,
         partition: Option<TablePartitionRef>,
         timecapsule: Option<Expr>,
+        tablesample: Option<TableSampleClause>,
     },
     FunctionCall {
         name: ObjectName,
@@ -1137,6 +1142,13 @@ pub struct TablePartitionRef {
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct TableSampleClause {
+    pub method: String,
+    pub arguments: Vec<Expr>,
+    pub repeatable: Option<Expr>,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct PivotClause {
     pub aggregate: Expr,
     pub for_column: ObjectName,
@@ -1151,6 +1163,7 @@ pub struct PivotValue {
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct UnpivotClause {
+    pub include_nulls: Option<bool>,
     pub value_column: ObjectName,
     pub for_column: ObjectName,
     pub columns: Vec<PivotValue>,
