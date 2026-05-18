@@ -707,13 +707,20 @@ impl SqlFormatter {
                     })
                     .collect::<Vec<_>>()
                     .join(", ");
+                let xml_str = if pivot.xml == Some(true) {
+                    format!(" {}", self.kw("XML"))
+                } else {
+                    String::new()
+                };
                 format!(
-                    "{} {} ({} {} {} ({}))",
+                    "{} {}{} ({} {} {} {} ({}))",
                     source_str,
                     self.kw("PIVOT"),
+                    xml_str,
                     self.format_expr(&pivot.aggregate),
                     self.kw("FOR"),
                     self.format_object_name(&pivot.for_column),
+                    self.kw("IN"),
                     values
                 )
             }
@@ -1612,6 +1619,9 @@ impl SqlFormatter {
                     self.kw("LAST")
                 }
             );
+        }
+        if let Some(using) = &item.using {
+            result = format!("{} {} {}", result, self.kw("USING"), self.format_expr(using));
         }
         result
     }
@@ -7726,3 +7736,4 @@ mod tests {
         assert!(formatted.contains("EXPLAIN"));
     }
 }
+
