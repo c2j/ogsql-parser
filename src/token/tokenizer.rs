@@ -1090,7 +1090,8 @@ fn is_ident_start(c: char) -> bool {
 }
 
 fn is_ident_cont(c: char) -> bool {
-    c.is_ascii_alphanumeric() || c == '_' || c == '$' || c == '#' || (c as u32) >= 0x80
+    // '#' excluded: it's an operator prefix (#>, #>>, #-) per PG/openGauss spec, not an ident char (issue #156)
+    c.is_ascii_alphanumeric() || c == '_' || c == '$' || (c as u32) >= 0x80
 }
 
 fn is_op_char(c: char) -> bool {
@@ -1517,5 +1518,34 @@ mod tests {
         let param_token = tokens.iter().find(|t| matches!(&t.token, Token::MyBatisParam(_))).unwrap();
         let span_text = &sql[param_token.span.start..param_token.span.end];
         assert_eq!(span_text, "#{id}");
+    }
+
+    #[test]
+    fn test_json_path_operator_not_consumed_into_ident() {
+        let tokens = tokens_as_vec("x::JSON#>'{a}'");
+        let typecast_pos = tokens.iter().position(|t| matches!(t, Token::Typecast)).unwrap();
+        let after_typecast = &tokens[typecast_pos + 1..];
+        assert!(
+            matches!(&after_typecast[0], Token::Ident(s) if s == "JSON"),
+            "Expected JSON ident after ::, got {:?}",
+            after_typecast[0]
+        );
+        assert!(
+            matches!(&after_typecast[1], Token::Op(op) if op == "#>"),
+            "Expected #> operator after JSON, got {:?}",
+            after_typecast[1]
+        );
+    }
+
+    #[test]
+    fn test_json_path_text_operator_not_consumed_into_ident() {
+        let tokens = tokens_as_vec("x::JSON#>>'{a}'");
+        let typecast_pos = tokens.iter().position(|t| matches!(t, Token::Typecast)).unwrap();
+        let after_typecast = &tokens[typecast_pos + 1..];
+        assert!(
+            matches!(&after_typecast[1], Token::Op(op) if op == "#>>"),
+            "Expected #>> operator after JSON, got {:?}",
+            after_typecast[1]
+        );
     }
 }
