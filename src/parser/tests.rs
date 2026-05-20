@@ -1257,7 +1257,7 @@ fn test_plpgsql_forall() {
     match &block.body[0] {
         PlStatement::ForAll(f) => {
             assert_eq!(f.variable, "i");
-            assert_eq!(f.bounds, "1  10 insert into t values ( i )");
+            assert_eq!(f.bounds, "1 .. 10 insert into t values ( i )");
             assert!(!f.save_exceptions);
         }
         _ => panic!("expected ForAll"),
@@ -1272,7 +1272,7 @@ fn test_plpgsql_forall_save_exceptions() {
     match &block.body[0] {
         PlStatement::ForAll(f) => {
             assert_eq!(f.variable, "i");
-            assert_eq!(f.bounds, "1  10 insert into t values ( i )");
+            assert_eq!(f.bounds, "1 .. 10 insert into t values ( i )");
             assert!(f.save_exceptions);
         }
         _ => panic!("expected ForAll with SAVE EXCEPTIONS"),
@@ -4977,6 +4977,37 @@ fn test_json_roundtrip_typecast() {
     let json = serde_json::to_string(&stmts).unwrap();
     let deserialized: Vec<Statement> = serde_json::from_str(&json).unwrap();
     assert_eq!(stmts, deserialized);
+}
+
+#[test]
+fn test_for_in_execute_typecast_preserved() {
+    // Regression test: token_to_string() was silently dropping Token::Typecast (::),
+    // causing FOR-IN-EXECUTE raw query reconstruction to lose the :: operator.
+    // Before fix: "execute v_sql  text" (double space, no ::)
+    // After fix:  "execute v_sql :: text"
+    let sql = "CREATE OR REPLACE PROCEDURE p IS\nBEGIN\n    FOR r IN EXECUTE v_sql::text LOOP\n        NULL;\n    END LOOP;\nEND";
+    let stmt = parse_one(sql);
+    match stmt {
+        Statement::CreateProcedure(p) => {
+            if let Some(block) = &p.node.block {
+                if let Some(PlStatement::For(pl_for)) = block.body.first() {
+                    match &pl_for.kind {
+                        PlForKind::Query { query, .. } => {
+                            assert!(
+                                query.contains("::"),
+                                "Typecast operator :: should be preserved in FOR-IN-EXECUTE query, got: {}",
+                                query
+                            );
+                        }
+                        _ => panic!("expected Query kind"),
+                    }
+                } else {
+                    panic!("expected For statement in block body");
+                }
+            }
+        }
+        _ => panic!("expected CreateProcedure, got {:?}", stmt),
+    }
 }
 
 #[test]
