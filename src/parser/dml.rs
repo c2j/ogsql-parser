@@ -1,7 +1,7 @@
 use crate::ast::{
     DeleteStatement, DmlPartitionClause, InsertAllCondition, InsertAllStatement, InsertAllTarget,
     InsertFirstStatement, InsertSource, InsertStatement, MergeAction, MergeStatement,
-    MergeWhenClause, OnConflictAction, OnConflictTarget, SelectTarget, TablePartitionRef, TableRef,
+    MergeWhenClause, OnDuplicateKeyUpdate, TablePartitionRef, TableRef,
     UpdateAssignment, UpdateStatement,
 };
 use crate::parser::{Parser, ParserError};
@@ -163,7 +163,7 @@ impl Parser {
                 got: format!("{:?}", self.peek()),
             });
         };
-        let on_conflict = if self.match_keyword(Keyword::ON) {
+        let on_duplicate_key = if self.match_keyword(Keyword::ON) {
             self.advance();
             if self.match_keyword(Keyword::DUPLICATE) {
                 self.advance();
@@ -186,66 +186,16 @@ impl Parser {
                 } else {
                     None
                 };
-                Some(OnConflictAction::Update {
-                    target: None,
+                Some(OnDuplicateKeyUpdate {
                     assignments,
                     where_clause,
                 })
             } else if self.match_keyword(Keyword::CONFLICT) {
-                self.advance();
-                let target = if self.match_keyword(Keyword::ON) {
-                    self.advance();
-                    self.expect_keyword(Keyword::CONSTRAINT)?;
-                    let name = self.parse_identifier()?;
-                    Some(OnConflictTarget::OnConstraint(name))
-                } else if self.match_token(&Token::LParen) {
-                    self.advance();
-                    let mut cols = vec![self.parse_identifier()?];
-                    while self.match_token(&Token::Comma) {
-                        self.advance();
-                        cols.push(self.parse_identifier()?);
-                    }
-                    self.expect_token(&Token::RParen)?;
-                    Some(OnConflictTarget::Columns(cols))
-                } else {
-                    None
-                };
-                self.expect_keyword(Keyword::DO)?;
-                if self.match_keyword(Keyword::NOTHING) {
-                    self.advance();
-                    Some(OnConflictAction::Nothing { target })
-                } else if self.match_keyword(Keyword::UPDATE) {
-                    self.advance();
-                    self.expect_keyword(Keyword::SET)?;
-                    let mut assignments = Vec::new();
-                    loop {
-                        let column = self.parse_object_name()?;
-                        self.expect_token(&Token::Eq)?;
-                        let value = self.parse_expr()?;
-                        assignments.push(UpdateAssignment { columns: vec![column], value });
-                        if !self.match_token(&Token::Comma) {
-                            break;
-                        }
-                        self.advance();
-                    }
-                    let where_clause = if self.match_keyword(Keyword::WHERE) {
-                        self.advance();
-                        Some(self.parse_expr()?)
-                    } else {
-                        None
-                    };
-                    Some(OnConflictAction::Update {
-                        target,
-                        assignments,
-                        where_clause,
-                    })
-                } else {
-                    return Err(ParserError::UnexpectedToken {
-                        location: self.current_location(),
-                        expected: "NOTHING or UPDATE".to_string(),
-                        got: format!("{:?}", self.peek()),
-                    });
-                }
+                return Err(ParserError::UnsupportedSyntax {
+                    location: self.current_location(),
+                    syntax: "ON CONFLICT".to_string(),
+                    hint: "openGauss does not support ON CONFLICT. Use ON DUPLICATE KEY UPDATE instead.".to_string(),
+                });
             } else {
                 self.pos -= 1;
                 None
@@ -283,7 +233,7 @@ impl Parser {
             partition,
             columns,
             source,
-            on_conflict,
+            on_duplicate_key,
             returning,
             into_targets,
             bulk_collect,

@@ -1526,7 +1526,7 @@ pub struct InsertStatement {
     pub partition: Option<DmlPartitionClause>,
     pub columns: Vec<String>,
     pub source: InsertSource,
-    pub on_conflict: Option<OnConflictAction>,
+    pub on_duplicate_key: Option<OnDuplicateKeyUpdate>,
     pub returning: Vec<SelectTarget>,
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(default)]
@@ -1536,21 +1536,9 @@ pub struct InsertStatement {
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
-pub enum OnConflictAction {
-    Nothing {
-        target: Option<OnConflictTarget>,
-    },
-    Update {
-        target: Option<OnConflictTarget>,
-        assignments: Vec<UpdateAssignment>,
-        where_clause: Option<Expr>,
-    },
-}
-
-#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
-pub enum OnConflictTarget {
-    Columns(Vec<String>),
-    OnConstraint(String),
+pub struct OnDuplicateKeyUpdate {
+    pub assignments: Vec<UpdateAssignment>,
+    pub where_clause: Option<Expr>,
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
