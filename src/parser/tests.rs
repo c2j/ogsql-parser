@@ -1257,7 +1257,7 @@ fn test_plpgsql_forall() {
     match &block.body[0] {
         PlStatement::ForAll(f) => {
             assert_eq!(f.variable, "i");
-            assert_eq!(f.bounds, "1  10 insert into t values ( i )");
+            assert_eq!(f.bounds, "1 .. 10 insert into t values ( i )");
             assert!(!f.save_exceptions);
         }
         _ => panic!("expected ForAll"),
@@ -1272,7 +1272,7 @@ fn test_plpgsql_forall_save_exceptions() {
     match &block.body[0] {
         PlStatement::ForAll(f) => {
             assert_eq!(f.variable, "i");
-            assert_eq!(f.bounds, "1  10 insert into t values ( i )");
+            assert_eq!(f.bounds, "1 .. 10 insert into t values ( i )");
             assert!(f.save_exceptions);
         }
         _ => panic!("expected ForAll with SAVE EXCEPTIONS"),
@@ -4930,6 +4930,27 @@ fn test_cast_with_integer_data_type() {
 }
 
 #[test]
+fn test_cast_numeric_with_precision_roundtrip() {
+    let sql = "SELECT CAST(3.14159 AS NUMERIC(10,2)) AS pi_rounded";
+    let stmt = parse_one(sql);
+    match stmt {
+        Statement::Select(s) => {
+            assert_eq!(s.targets.len(), 1);
+            if let SelectTarget::Expr(expr, alias) = &s.targets[0] {
+                match expr {
+                    Expr::TypeCast { type_name, .. } => {
+                        assert!(matches!(type_name, DataType::Numeric(Some(10), Some(2))));
+                    }
+                    _ => panic!("expected TypeCast expression, got {:?}", expr),
+                }
+                assert_eq!(alias.as_ref().map(|a| &a[..]), Some("pi_rounded"));
+            }
+        }
+        _ => panic!("expected Select"),
+    }
+}
+
+#[test]
 fn test_implicit_typecast_custom_data_type() {
     let sql = "SELECT date '2023-01-01'";
     let stmt = parse_one(sql);
@@ -4956,6 +4977,37 @@ fn test_json_roundtrip_typecast() {
     let json = serde_json::to_string(&stmts).unwrap();
     let deserialized: Vec<Statement> = serde_json::from_str(&json).unwrap();
     assert_eq!(stmts, deserialized);
+}
+
+#[test]
+fn test_for_in_execute_typecast_preserved() {
+    // Regression test: token_to_string() was silently dropping Token::Typecast (::),
+    // causing FOR-IN-EXECUTE raw query reconstruction to lose the :: operator.
+    // Before fix: "execute v_sql  text" (double space, no ::)
+    // After fix:  "execute v_sql :: text"
+    let sql = "CREATE OR REPLACE PROCEDURE p IS\nBEGIN\n    FOR r IN EXECUTE v_sql::text LOOP\n        NULL;\n    END LOOP;\nEND";
+    let stmt = parse_one(sql);
+    match stmt {
+        Statement::CreateProcedure(p) => {
+            if let Some(block) = &p.node.block {
+                if let Some(PlStatement::For(pl_for)) = block.body.first() {
+                    match &pl_for.kind {
+                        PlForKind::Query { query, .. } => {
+                            assert!(
+                                query.contains("::"),
+                                "Typecast operator :: should be preserved in FOR-IN-EXECUTE query, got: {}",
+                                query
+                            );
+                        }
+                        _ => panic!("expected Query kind"),
+                    }
+                } else {
+                    panic!("expected For statement in block body");
+                }
+            }
+        }
+        _ => panic!("expected CreateProcedure, got {:?}", stmt),
+    }
 }
 
 #[test]
