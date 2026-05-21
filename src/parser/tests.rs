@@ -6920,57 +6920,72 @@ END;"#;
 }
 
 #[test]
-fn test_on_conflict_do_nothing() {
-    let stmt = parse_one("INSERT INTO t VALUES (1) ON CONFLICT DO NOTHING");
+fn test_on_conflict_rejected() {
+    let sql = "INSERT INTO t VALUES (1) ON CONFLICT DO NOTHING";
+    let tokens = Tokenizer::new(sql).tokenize().unwrap();
+    let mut parser = Parser::new(tokens);
+    let stmts = parser.parse();
+    let errors = parser.errors();
+    assert!(!errors.is_empty(), "ON CONFLICT should produce an error");
+    let msg = format!("{:?}", errors);
+    assert!(
+        msg.contains("unsupported syntax") || msg.contains("ON CONFLICT"),
+        "error should mention ON CONFLICT: {}",
+        msg
+    );
+    assert!(
+        matches!(stmts[0], Statement::Empty),
+        "ON CONFLICT should produce Empty statement"
+    );
+}
+
+#[test]
+fn test_on_conflict_with_columns_rejected() {
+    let sql = "INSERT INTO t VALUES (1) ON CONFLICT (id) DO UPDATE SET name = 'x'";
+    let tokens = Tokenizer::new(sql).tokenize().unwrap();
+    let mut parser = Parser::new(tokens);
+    let stmts = parser.parse();
+    let errors = parser.errors();
+    assert!(!errors.is_empty(), "ON CONFLICT (columns) should produce an error");
+    assert!(
+        matches!(stmts[0], Statement::Empty),
+        "ON CONFLICT should produce Empty statement"
+    );
+}
+
+#[test]
+fn test_on_conflict_on_constraint_rejected() {
+    let sql = "INSERT INTO t VALUES (1) ON CONFLICT ON CONSTRAINT pk DO NOTHING";
+    let tokens = Tokenizer::new(sql).tokenize().unwrap();
+    let mut parser = Parser::new(tokens);
+    let stmts = parser.parse();
+    let errors = parser.errors();
+    assert!(!errors.is_empty(), "ON CONFLICT ON CONSTRAINT should produce an error");
+    assert!(
+        matches!(stmts[0], Statement::Empty),
+        "ON CONFLICT should produce Empty statement"
+    );
+}
+
+#[test]
+fn test_on_duplicate_key_update() {
+    let stmt = parse_one("INSERT INTO t (a, b) VALUES (1, 2) ON DUPLICATE KEY UPDATE b = EXCLUDED.b");
     match stmt {
         Statement::Insert(ins) => {
-            let oc = ins.node.on_conflict.expect("expected on_conflict");
-            assert!(matches!(oc, OnConflictAction::Nothing { target: None }));
+            let dk = ins.node.on_duplicate_key.expect("expected on_duplicate_key");
+            assert_eq!(dk.assignments.len(), 1);
         }
         _ => panic!("expected Insert"),
     }
 }
 
 #[test]
-fn test_on_conflict_columns() {
-    let stmt = parse_one("INSERT INTO t VALUES (1) ON CONFLICT (id) DO UPDATE SET name = 'x'");
+fn test_on_duplicate_key_update_multiple() {
+    let stmt = parse_one("INSERT INTO t (a, b, c) VALUES (1, 2, 3) ON DUPLICATE KEY UPDATE b = EXCLUDED.b, c = 5");
     match stmt {
         Statement::Insert(ins) => {
-            let oc = ins.node.on_conflict.expect("expected on_conflict");
-            match oc {
-                OnConflictAction::Update {
-                    target,
-                    assignments,
-                    ..
-                } => {
-                    assert!(
-                        matches!(target, Some(OnConflictTarget::Columns(cols)) if cols == vec!["id"])
-                    );
-                    assert_eq!(assignments.len(), 1);
-                }
-                _ => panic!("expected Update action"),
-            }
-        }
-        _ => panic!("expected Insert"),
-    }
-}
-
-#[test]
-fn test_on_conflict_on_constraint() {
-    let stmt = parse_one("INSERT INTO t VALUES (1) ON CONFLICT ON CONSTRAINT pk DO NOTHING");
-    match stmt {
-        Statement::Insert(ins) => {
-            let oc = ins.node.on_conflict.expect("expected on_conflict");
-            match oc {
-                OnConflictAction::Nothing { target } => {
-                    assert!(
-                        matches!(target, Some(OnConflictTarget::OnConstraint(ref name)) if name == "pk"),
-                        "expected OnConstraint(pk), got {:?}",
-                        target
-                    );
-                }
-                other => panic!("expected Nothing, got {:?}", other),
-            }
+            let dk = ins.node.on_duplicate_key.expect("expected on_duplicate_key");
+            assert_eq!(dk.assignments.len(), 2);
         }
         _ => panic!("expected Insert"),
     }

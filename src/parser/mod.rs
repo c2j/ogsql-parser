@@ -37,6 +37,12 @@ pub enum ParserError {
     },
     #[error("{0}")]
     TokenizerError(#[from] crate::token::tokenizer::TokenizerError),
+    #[error("unsupported syntax at line {}, column {}: {} ({})", .location.line, .location.column, .syntax, .hint)]
+    UnsupportedSyntax {
+        location: SourceLocation,
+        syntax: String,
+        hint: String,
+    },
 }
 
 pub struct Parser {
@@ -936,7 +942,7 @@ impl Parser {
     /// Try to consume an optional column alias: [AS] identifier
     /// Unlike parse_optional_alias, also accepts non-reserved keywords as implicit aliases.
     /// Uses 1-token lookahead to avoid consuming keywords that start subsequent clauses
-    /// (e.g., LOOP in PL/pgSQL, CONNECT in hierarchical queries, ON CONFLICT in INSERT).
+    /// (e.g., LOOP in PL/pgSQL, CONNECT in hierarchical queries, ON DUPLICATE KEY UPDATE in INSERT).
     fn parse_optional_column_alias(&mut self) -> Result<Option<String>, ParserError> {
         if self.match_keyword(Keyword::AS) {
             self.advance();
