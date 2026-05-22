@@ -5230,6 +5230,7 @@ fn parser_error_kind(err: &ParserError) -> &'static str {
         ParserError::Warning { .. } => "Warning",
         ParserError::ReservedKeywordAsIdentifier { .. } => "ReservedKeyword",
         ParserError::TokenizerError(_) => "TokenizerError",
+        ParserError::UnsupportedSyntax { .. } => "UnsupportedSyntax",
     }
 }
 
