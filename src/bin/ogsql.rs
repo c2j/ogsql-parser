@@ -2844,6 +2844,23 @@ fn is_warning(e: &ogsql_parser::ParserError) -> bool {
     )
 }
 
+fn merge_error_detail(err: &ogsql_parser::MergeSemanticError) -> String {
+    match &err.detail {
+        Some(d) => d.clone(),
+        None => match err.kind {
+            ogsql_parser::MergeSemanticErrorKind::DeleteNotSupported => {
+                "GaussDB does not support MERGE ... WHEN MATCHED THEN DELETE".to_string()
+            }
+            ogsql_parser::MergeSemanticErrorKind::OnColumnUpdated => {
+                "GaussDB does not allow updating columns referenced in the ON clause".to_string()
+            }
+            ogsql_parser::MergeSemanticErrorKind::DualTableNotSupported => {
+                "GaussDB does not have a DUAL table".to_string()
+            }
+        },
+    }
+}
+
 fn collect_defined_routine_names(stmts: &[ogsql_parser::StatementInfo]) -> Vec<String> {
     use ogsql_parser::ast::Statement;
     let mut names = Vec::new();
@@ -2920,6 +2937,17 @@ fn validate_sql(
             errors.push(ogsql_parser::ParserError::Warning {
                 message: msg,
                 location: ogsql_parser::SourceLocation::default(),
+            });
+        }
+    }
+
+    let merge_errors = ogsql_parser::validate_merge_semantics(&stmts);
+    if !merge_errors.is_empty() {
+        for me in &merge_errors {
+            errors.push(ogsql_parser::ParserError::UnsupportedSyntax {
+                location: me.location.clone(),
+                syntax: "MERGE".to_string(),
+                hint: merge_error_detail(me),
             });
         }
     }

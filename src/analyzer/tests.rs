@@ -896,3 +896,109 @@ fn test_no_warning_for_perform_sql() {
     let warnings = validate_pl_variables(&block, &params);
     assert!(warnings.is_empty(), "PERFORM SQL columns should not be flagged, got: {:?}", warnings);
 }
+
+// ── MERGE Semantic Validation Tests ──
+
+fn parse_merge_stmts(sql: &str) -> Vec<crate::ast::StatementInfo> {
+    let tokens = crate::Tokenizer::new(sql).tokenize().unwrap();
+    let stmts = Parser::new(tokens).parse();
+    stmts.iter().map(|s| crate::ast::StatementInfo {
+        sql_text: sql.to_string(),
+        start_line: 1,
+        start_col: 1,
+        end_line: 1,
+        end_col: sql.len(),
+        statement: s.clone(),
+    }).collect()
+}
+
+#[test]
+fn test_merge_delete_not_supported() {
+    let sql = "MERGE INTO emp_performance tgt USING (SELECT emp_id FROM employees WHERE base_salary < 7000) src ON (tgt.emp_id = src.emp_id) WHEN MATCHED THEN DELETE";
+    let infos = parse_merge_stmts(sql);
+    let errors = super::validate_merge_semantics(&infos);
+    assert_eq!(errors.len(), 1);
+    assert_eq!(errors[0].kind, super::MergeSemanticErrorKind::DeleteNotSupported);
+}
+
+#[test]
+fn test_merge_on_column_updated() {
+    let sql = "MERGE INTO emp_bonus tgt USING (SELECT emp_id, base_salary FROM employees) src ON (tgt.emp_id = src.emp_id AND tgt.calc_method = 'MERGE_UPDATE') WHEN MATCHED THEN UPDATE SET bonus_amount = src.base_salary, calc_method = 'UPDATED' WHEN NOT MATCHED THEN INSERT (bonus_id, emp_id) VALUES (nextval('seq_bonus'), src.emp_id)";
+    let infos = parse_merge_stmts(sql);
+    let errors = super::validate_merge_semantics(&infos);
+    assert!(errors.iter().any(|e| e.kind == super::MergeSemanticErrorKind::OnColumnUpdated),
+        "Expected OnColumnUpdated error, got: {:?}", errors);
+}
+
+#[test]
+fn test_merge_dual_table_not_supported() {
+    let sql = "MERGE INTO employees tgt USING (SELECT 1070 AS emp_id, 'MergeNew' AS name FROM DUAL) src ON (tgt.emp_id = src.emp_id) WHEN NOT MATCHED THEN INSERT (emp_id, emp_name) VALUES (src.emp_id, src.name)";
+    let infos = parse_merge_stmts(sql);
+    let errors = super::validate_merge_semantics(&infos);
+    assert!(errors.iter().any(|e| e.kind == super::MergeSemanticErrorKind::DualTableNotSupported),
+        "Expected DualTableNotSupported error, got: {:?}", errors);
+}
+
+#[test]
+fn test_merge_valid_no_errors() {
+    let sql = "MERGE INTO products p USING newproducts np ON (p.product_id = np.product_id) WHEN MATCHED THEN UPDATE SET p.product_name = np.product_name WHEN NOT MATCHED THEN INSERT VALUES (np.product_id, np.product_name)";
+    let infos = parse_merge_stmts(sql);
+    let errors = super::validate_merge_semantics(&infos);
+    assert!(errors.is_empty(), "Expected no errors for valid MERGE, got: {:?}", errors);
+}
+
+#[test]
+fn test_merge_on_column_updated_unqualified() {
+    let sql = "MERGE INTO salary_history h USING (SELECT emp_id, base_salary FROM employees) e ON (h.emp_id = e.emp_id AND h.change_date >= CURRENT_DATE) WHEN MATCHED THEN UPDATE SET old_salary = h.new_salary, new_salary = e.base_salary, change_date = CURRENT_TIMESTAMP";
+    let infos = parse_merge_stmts(sql);
+    let errors = super::validate_merge_semantics(&infos);
+    assert!(errors.iter().any(|e| e.kind == super::MergeSemanticErrorKind::OnColumnUpdated),
+        "Expected OnColumnUpdated for change_date, got: {:?}", errors);
+}
+
+#[test]
+fn test_merge_dual_case_insensitive() {
+    let sql = "MERGE INTO t1 tgt USING (SELECT 1 AS id FROM dual) src ON (tgt.id = src.id) WHEN NOT MATCHED THEN INSERT (id) VALUES (src.id)";
+    let infos = parse_merge_stmts(sql);
+    let errors = super::validate_merge_semantics(&infos);
+    assert!(errors.iter().any(|e| e.kind == super::MergeSemanticErrorKind::DualTableNotSupported),
+        "Expected DualTableNotSupported for lowercase 'dual', got: {:?}", errors);
+}
+
+#[test]
+fn test_merge_delete_inside_procedure() {
+    let sql = "CREATE OR REPLACE PROCEDURE test_merge IS BEGIN MERGE INTO emp_performance tgt USING (SELECT emp_id FROM employees WHERE base_salary < 7000) src ON (tgt.emp_id = src.emp_id) WHEN MATCHED THEN DELETE; END;";
+    let tokens = crate::Tokenizer::new(sql).tokenize().unwrap();
+    let stmts = Parser::new(tokens).parse();
+    let infos: Vec<crate::ast::StatementInfo> = stmts.iter().map(|s| crate::ast::StatementInfo {
+        sql_text: sql.to_string(),
+        start_line: 1, start_col: 1, end_line: 1, end_col: sql.len(),
+        statement: s.clone(),
+    }).collect();
+    let errors = super::validate_merge_semantics(&infos);
+    assert_eq!(errors.len(), 1, "Expected 1 DeleteNotSupported error for MERGE inside procedure, got: {:?}", errors);
+    assert_eq!(errors[0].kind, super::MergeSemanticErrorKind::DeleteNotSupported);
+}
+
+#[test]
+fn test_merge_delete_inside_package_body() {
+    let sql = r#"CREATE OR REPLACE PACKAGE BODY pkg_test AS
+        PROCEDURE do_merge IS
+        BEGIN
+            MERGE INTO emp_performance tgt
+            USING (SELECT emp_id FROM employees WHERE base_salary < 7000) src
+            ON (tgt.emp_id = src.emp_id)
+            WHEN MATCHED THEN DELETE;
+        END do_merge;
+    END pkg_test;"#;
+    let tokens = crate::Tokenizer::new(sql).tokenize().unwrap();
+    let stmts = Parser::new(tokens).parse();
+    let infos: Vec<crate::ast::StatementInfo> = stmts.iter().map(|s| crate::ast::StatementInfo {
+        sql_text: sql.to_string(),
+        start_line: 1, start_col: 1, end_line: 1, end_col: sql.len(),
+        statement: s.clone(),
+    }).collect();
+    let errors = super::validate_merge_semantics(&infos);
+    assert_eq!(errors.len(), 1, "Expected 1 DeleteNotSupported error for MERGE inside package body, got: {:?}", errors);
+    assert_eq!(errors[0].kind, super::MergeSemanticErrorKind::DeleteNotSupported);
+}
