@@ -6,7 +6,7 @@ use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 
 use crate::ast::plpgsql::{PlBlock, PlDeclaration, PlOpenKind, PlStatement};
-use crate::ast::{Expr, Literal, SourceSpan, Statement};
+use crate::ast::{Expr, Literal, SourceSpan, Statement, StatementInfo};
 
 // ── 报告类型 ──
 
@@ -2029,6 +2029,353 @@ impl PlVariableValidator {
             }
             _ => {}
         }
+    }
+}
+
+// ── MERGE Semantic Validation for GaussDB ──
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct MergeSemanticError {
+    pub kind: MergeSemanticErrorKind,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub detail: Option<String>,
+    #[serde(default)]
+    pub location: crate::token::SourceLocation,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub enum MergeSemanticErrorKind {
+    /// GaussDB does not support WHEN MATCHED THEN DELETE
+    DeleteNotSupported,
+    /// Columns referenced in ON clause cannot be updated
+    OnColumnUpdated,
+    /// DUAL table does not exist in GaussDB
+    DualTableNotSupported,
+}
+
+/// Validate MERGE statements against GaussDB semantic restrictions.
+///
+/// Returns a list of errors for each violation found across all MERGE statements
+/// in the provided statement list (including MERGE inside PL/pgSQL blocks).
+pub fn validate_merge_semantics(stmts: &[StatementInfo]) -> Vec<MergeSemanticError> {
+    let mut errors = Vec::new();
+    for si in stmts {
+        let loc = crate::token::SourceLocation {
+            line: si.start_line,
+            column: si.start_col,
+            offset: 0,
+        };
+        collect_merge_errors(&si.statement, &mut errors, loc);
+    }
+    errors
+}
+
+fn span_to_location(span: Option<&crate::ast::SourceSpan>) -> crate::token::SourceLocation {
+    span.map(|s| s.start.clone())
+        .unwrap_or_default()
+}
+
+fn collect_merge_errors(
+    stmt: &Statement,
+    errors: &mut Vec<MergeSemanticError>,
+    fallback_loc: crate::token::SourceLocation,
+) {
+    match stmt {
+        Statement::Merge(ref merge_stmt) => {
+            let loc = if merge_stmt.span.is_some() {
+                span_to_location(merge_stmt.span.as_ref())
+            } else {
+                fallback_loc
+            };
+            errors.extend(validate_single_merge(&merge_stmt.node, loc));
+        }
+        Statement::CreateProcedure(ref proc) => {
+            if let Some(ref block) = proc.block {
+                scan_pl_block(block, errors);
+            }
+        }
+        Statement::CreateFunction(ref func) => {
+            if let Some(ref block) = func.block {
+                scan_pl_block(block, errors);
+            }
+        }
+        Statement::Do(ref do_stmt) => {
+            if let Some(ref block) = do_stmt.block {
+                scan_pl_block(block, errors);
+            }
+        }
+        Statement::AnonyBlock(ref ab) => {
+            scan_pl_block(&ab.block, errors);
+        }
+        Statement::CreatePackageBody(ref body) => {
+            for item in &body.items {
+                match item {
+                    crate::ast::PackageItem::Procedure(ref p) => {
+                        if let Some(ref block) = p.block {
+                            scan_pl_block(block, errors);
+                        }
+                    }
+                    crate::ast::PackageItem::Function(ref f) => {
+                        if let Some(ref block) = f.block {
+                            scan_pl_block(block, errors);
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        }
+        _ => {}
+    }
+}
+
+fn scan_pl_block(block: &crate::ast::plpgsql::PlBlock, errors: &mut Vec<MergeSemanticError>) {
+    for stmt in &block.body {
+        scan_pl_stmt(stmt, errors);
+    }
+    if let Some(ref exc) = block.exception_block {
+        for handler in &exc.handlers {
+            for stmt in &handler.statements {
+                scan_pl_stmt(stmt, errors);
+            }
+        }
+    }
+}
+
+fn scan_pl_stmt(stmt: &crate::ast::plpgsql::PlStatement, errors: &mut Vec<MergeSemanticError>) {
+    use crate::ast::plpgsql::PlStatement as Ps;
+    match stmt {
+        Ps::SqlStatement { statement, span, .. } => {
+            let loc = if let Some(ref sp) = span {
+                sp.start.clone()
+            } else if let Statement::Merge(ref ms) = statement.as_ref() {
+                span_to_location(ms.span.as_ref())
+            } else {
+                crate::token::SourceLocation::default()
+            };
+            collect_merge_errors(statement, errors, loc);
+        }
+        Ps::Block(ref inner) => {
+            scan_pl_block(&inner.node, errors);
+        }
+        Ps::If(ref if_stmt) => {
+            for s in &if_stmt.node.then_stmts {
+                scan_pl_stmt(s, errors);
+            }
+            for elsif in &if_stmt.node.elsifs {
+                for s in &elsif.stmts {
+                    scan_pl_stmt(s, errors);
+                }
+            }
+            for s in &if_stmt.node.else_stmts {
+                scan_pl_stmt(s, errors);
+            }
+        }
+        Ps::Case(ref case_stmt) => {
+            for when in &case_stmt.node.whens {
+                for s in &when.stmts {
+                    scan_pl_stmt(s, errors);
+                }
+            }
+            for s in &case_stmt.node.else_stmts {
+                scan_pl_stmt(s, errors);
+            }
+        }
+        Ps::Loop(ref loop_stmt) => {
+            for s in &loop_stmt.node.body {
+                scan_pl_stmt(s, errors);
+            }
+        }
+        Ps::While(ref while_stmt) => {
+            for s in &while_stmt.node.body {
+                scan_pl_stmt(s, errors);
+            }
+        }
+        Ps::For(ref for_stmt) => {
+            for s in &for_stmt.node.body {
+                scan_pl_stmt(s, errors);
+            }
+        }
+        Ps::ForEach(ref foreach_stmt) => {
+            for s in &foreach_stmt.node.body {
+                scan_pl_stmt(s, errors);
+            }
+        }
+        Ps::ForAll(ref _forall_stmt) => {
+            // ForAll body is a String (raw SQL), not structured PlStatement
+        }
+        _ => {}
+    }
+}
+
+fn validate_single_merge(stmt: &crate::ast::MergeStatement, loc: crate::token::SourceLocation) -> Vec<MergeSemanticError> {
+    let mut errors = Vec::new();
+
+    for clause in &stmt.when_clauses {
+        // Check 1: WHEN MATCHED THEN DELETE is not supported
+        if clause.matched && matches!(clause.action, crate::ast::MergeAction::Delete) {
+            errors.push(MergeSemanticError {
+                kind: MergeSemanticErrorKind::DeleteNotSupported,
+                detail: Some("GaussDB does not support MERGE ... WHEN MATCHED THEN DELETE".to_string()),
+                location: loc.clone(),
+            });
+        }
+
+        // Check 2: Columns referenced in ON clause cannot be updated
+        if let crate::ast::MergeAction::Update(ref assignments) = clause.action {
+            let on_columns = extract_target_columns_from_expr(&stmt.on_condition, &stmt.target);
+            if !on_columns.is_empty() {
+                let mut conflicting = Vec::new();
+                for assign in assignments {
+                    for col_name in &assign.columns {
+                        let col_lower = col_name.last().map(|s| s.to_lowercase());
+                        if let Some(ref col) = col_lower {
+                            if on_columns.contains(col) {
+                                if !conflicting.contains(col) {
+                                    conflicting.push(col.clone());
+                                }
+                            }
+                        }
+                    }
+                }
+                if !conflicting.is_empty() {
+                    errors.push(MergeSemanticError {
+                        kind: MergeSemanticErrorKind::OnColumnUpdated,
+                        detail: Some(format!(
+                            "Columns referenced in the ON clause cannot be updated: {}",
+                            conflicting.join(", ")
+                        )),
+                        location: loc.clone(),
+                    });
+                }
+            }
+        }
+    }
+
+    // Check 3: DUAL table does not exist in GaussDB
+    if uses_dual_table(&stmt.source) {
+        errors.push(MergeSemanticError {
+            kind: MergeSemanticErrorKind::DualTableNotSupported,
+            detail: Some("GaussDB does not have a DUAL table; use a VALUES clause or bare SELECT instead".to_string()),
+            location: loc.clone(),
+        });
+    }
+
+    errors
+}
+
+/// Extract column names from an expression that belong to the target table.
+///
+/// The target table is identified by its alias (if present) or its unqualified name.
+/// Column names are returned in lowercase for case-insensitive comparison.
+fn extract_target_columns_from_expr(
+    expr: &Expr,
+    target: &crate::ast::TableRef,
+) -> std::collections::HashSet<String> {
+    let target_id = match target {
+        crate::ast::TableRef::Table { name, alias, .. } => {
+            if let Some(ref a) = alias {
+                a.to_lowercase()
+            } else {
+                name.last().map(|s| s.to_lowercase()).unwrap_or_default()
+            }
+        }
+        _ => return std::collections::HashSet::new(),
+    };
+
+    let mut cols = std::collections::HashSet::new();
+    collect_target_columns(expr, &target_id, &mut cols);
+    cols
+}
+
+fn collect_target_columns(
+    expr: &Expr,
+    target_id: &str,
+    cols: &mut std::collections::HashSet<String>,
+) {
+    match expr {
+        Expr::ColumnRef(parts) => {
+            if parts.len() == 2 && parts[0].to_lowercase() == target_id {
+                cols.insert(parts[1].to_lowercase());
+            } else if parts.len() == 1 {
+                // Unqualified column — conservatively include as potential target column
+                cols.insert(parts[0].to_lowercase());
+            }
+        }
+        Expr::BinaryOp { left, right, .. } => {
+            collect_target_columns(left, target_id, cols);
+            collect_target_columns(right, target_id, cols);
+        }
+        Expr::Parenthesized(inner) => {
+            collect_target_columns(inner, target_id, cols);
+        }
+        Expr::FunctionCall { args, .. } => {
+            for arg in args {
+                collect_target_columns(arg, target_id, cols);
+            }
+        }
+        Expr::Like { expr: e, pattern, .. } => {
+            collect_target_columns(e, target_id, cols);
+            collect_target_columns(pattern, target_id, cols);
+        }
+        Expr::Between { expr: e, low, high, .. } => {
+            collect_target_columns(e, target_id, cols);
+            collect_target_columns(low, target_id, cols);
+            collect_target_columns(high, target_id, cols);
+        }
+        Expr::InList { expr: e, list, .. } => {
+            collect_target_columns(e, target_id, cols);
+            for item in list {
+                collect_target_columns(item, target_id, cols);
+            }
+        }
+        Expr::IsNull { expr: e, .. } => {
+            collect_target_columns(e, target_id, cols);
+        }
+        Expr::IsBoolean { expr: e, .. } => {
+            collect_target_columns(e, target_id, cols);
+        }
+        Expr::UnaryOp { expr: e, .. } => {
+            collect_target_columns(e, target_id, cols);
+        }
+        Expr::TypeCast { expr: e, .. } => {
+            collect_target_columns(e, target_id, cols);
+        }
+        Expr::Case { operand, whens, else_expr } => {
+            if let Some(ref op) = operand {
+                collect_target_columns(op, target_id, cols);
+            }
+            for when in whens {
+                collect_target_columns(&when.condition, target_id, cols);
+                collect_target_columns(&when.result, target_id, cols);
+            }
+            if let Some(ref el) = else_expr {
+                collect_target_columns(el, target_id, cols);
+            }
+        }
+        _ => {}
+    }
+}
+
+/// Check if a TableRef (or its nested subqueries) references the DUAL table.
+fn uses_dual_table(table_ref: &crate::ast::TableRef) -> bool {
+    match table_ref {
+        crate::ast::TableRef::Table { name, .. } => {
+            name.last().map_or(false, |n| n.eq_ignore_ascii_case("dual"))
+        }
+        crate::ast::TableRef::Subquery { query, .. } => {
+            for tr in &query.from {
+                if uses_dual_table(tr) {
+                    return true;
+                }
+            }
+            false
+        }
+        crate::ast::TableRef::Join { left, right, .. } => {
+            uses_dual_table(left) || uses_dual_table(right)
+        }
+        crate::ast::TableRef::Pivot { source, .. } => uses_dual_table(source),
+        crate::ast::TableRef::Unpivot { source, .. } => uses_dual_table(source),
+        _ => false,
     }
 }
 
