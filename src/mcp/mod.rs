@@ -248,6 +248,16 @@ impl OgsqlServer {
                 });
             }
         }
+        let merge_errors = crate::validate_merge_semantics(&output.statements);
+        if !merge_errors.is_empty() {
+            for me in &merge_errors {
+                errors.push(crate::ParserError::UnsupportedSyntax {
+                    location: me.location.clone(),
+                    syntax: "MERGE".to_string(),
+                    hint: merge_error_detail(me),
+                });
+            }
+        }
         let has_real_errors = errors.iter().any(|e| !is_warning(e));
         let mut result = serde_json::json!({
             "valid": !has_real_errors,
@@ -259,6 +269,12 @@ impl OgsqlServer {
             result.as_object_mut().unwrap().insert(
                 "package_consistency_errors".to_string(),
                 serde_json::json!(pkg_errors),
+            );
+        }
+        if !merge_errors.is_empty() {
+            result.as_object_mut().unwrap().insert(
+                "merge_semantic_errors".to_string(),
+                serde_json::json!(merge_errors),
             );
         }
         serde_json::to_string_pretty(&result)
@@ -400,6 +416,23 @@ fn is_warning(e: &crate::ParserError) -> bool {
         crate::ParserError::Warning { .. }
             | crate::ParserError::ReservedKeywordAsIdentifier { .. }
     )
+}
+
+fn merge_error_detail(err: &crate::MergeSemanticError) -> String {
+    match &err.detail {
+        Some(d) => d.clone(),
+        None => match err.kind {
+            crate::MergeSemanticErrorKind::DeleteNotSupported => {
+                "GaussDB does not support MERGE ... WHEN MATCHED THEN DELETE".to_string()
+            }
+            crate::MergeSemanticErrorKind::OnColumnUpdated => {
+                "GaussDB does not allow updating columns referenced in the ON clause".to_string()
+            }
+            crate::MergeSemanticErrorKind::DualTableNotSupported => {
+                "GaussDB does not have a DUAL table".to_string()
+            }
+        },
+    }
 }
 
 fn compute_routine_analysis(stmt: &crate::Statement) -> Option<serde_json::Value> {
