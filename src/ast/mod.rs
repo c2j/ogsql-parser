@@ -1111,11 +1111,15 @@ pub enum TableRef {
     Subquery {
         query: Box<SelectStatement>,
         alias: Option<String>,
+        #[serde(default)]
+        lateral: bool,
     },
     Values {
         values: Box<ValuesStatement>,
         alias: Option<String>,
         column_names: Vec<String>,
+        #[serde(default)]
+        lateral: bool,
     },
     Join {
         left: Box<TableRef>,
@@ -1527,6 +1531,9 @@ pub struct InsertStatement {
     pub columns: Vec<String>,
     pub source: InsertSource,
     pub on_duplicate_key: Option<OnDuplicateKeyUpdate>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default)]
+    pub on_conflict: Option<OnConflict>,
     pub returning: Vec<SelectTarget>,
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(default)]
@@ -1539,6 +1546,27 @@ pub struct InsertStatement {
 pub struct OnDuplicateKeyUpdate {
     pub assignments: Vec<UpdateAssignment>,
     pub where_clause: Option<Expr>,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct OnConflict {
+    pub target: Option<ConflictTarget>,
+    pub action: ConflictAction,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub enum ConflictTarget {
+    Columns(Vec<String>),
+    OnConstraint(String),
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub enum ConflictAction {
+    DoNothing,
+    DoUpdate {
+        assignments: Vec<UpdateAssignment>,
+        where_clause: Option<Expr>,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -2340,7 +2368,7 @@ pub struct ExecuteDirectStatement {
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct ValuesStatement {
     pub rows: Vec<Vec<Expr>>,
-    #[serde(skip_serializing_if = "Vec::is_empty")]
+    #[serde(skip_serializing_if = "Vec::is_empty", default)]
     pub order_by: Vec<OrderByItem>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub limit: Option<Expr>,
