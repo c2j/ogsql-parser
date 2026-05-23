@@ -625,8 +625,9 @@ impl SqlFormatter {
                 }
                 result
             }
-            TableRef::Subquery { query, alias } => {
-                let result = format!("({})", self.format_select(query));
+            TableRef::Subquery { query, alias, lateral } => {
+                let sub = format!("({})", self.format_select(query));
+                let result = if *lateral { format!("{} {}", self.kw("LATERAL"), sub) } else { sub };
                 match alias {
                     Some(a) => format!("{} AS {}", result, self.quote_identifier(a)),
                     None => result,
@@ -636,8 +637,10 @@ impl SqlFormatter {
                 values,
                 alias,
                 column_names,
+                lateral,
             } => {
-                let result = format!("({})", self.format_values(values));
+                let vals = format!("({})", self.format_values(values));
+                let result = if *lateral { format!("{} {}", self.kw("LATERAL"), vals) } else { vals };
                 let alias_str = match alias {
                     Some(a) => {
                         let cols = if column_names.is_empty() {
@@ -652,7 +655,7 @@ impl SqlFormatter {
                                     .join(", ")
                             )
                         };
-                        format!(" {}{}{}", self.quote_identifier(a), cols, "")
+                        format!(" AS {}{}", self.quote_identifier(a), cols)
                     }
                     None => String::new(),
                 };
@@ -1710,6 +1713,39 @@ impl SqlFormatter {
                 dup_parts.push(self.format_expr(w));
             }
             parts.push(dup_parts.join(" "));
+        }
+
+        if let Some(ref on_conflict) = stmt.on_conflict {
+            let mut conflict_parts = vec![self.kw("ON"), self.kw("CONFLICT")];
+            match &on_conflict.target {
+                Some(ConflictTarget::Columns(cols)) => {
+                    let col_strs: Vec<String> = cols.iter().map(|c| self.quote_identifier(c)).collect();
+                    conflict_parts.push(format!("({})", col_strs.join(", ")));
+                }
+                Some(ConflictTarget::OnConstraint(name)) => {
+                    conflict_parts.push(format!("{} {}", self.kw("ON CONSTRAINT"), self.quote_identifier(name)));
+                }
+                None => {}
+            }
+            conflict_parts.push(self.kw("DO"));
+            match &on_conflict.action {
+                ConflictAction::DoNothing => {
+                    conflict_parts.push(self.kw("NOTHING"));
+                }
+                ConflictAction::DoUpdate { assignments, where_clause } => {
+                    conflict_parts.push(self.kw("UPDATE"));
+                    conflict_parts.push(self.kw("SET"));
+                    let assigns: Vec<String> = assignments.iter().map(|a| {
+                        format!("{} = {}", self.format_object_name(&a.columns[0]), self.format_expr(&a.value))
+                    }).collect();
+                    conflict_parts.push(assigns.join(", "));
+                    if let Some(ref wc) = where_clause {
+                        conflict_parts.push(self.kw("WHERE"));
+                        conflict_parts.push(self.format_expr(wc));
+                    }
+                }
+            }
+            parts.push(conflict_parts.join(" "));
         }
 
         if !stmt.returning.is_empty() {

@@ -6920,51 +6920,88 @@ END;"#;
 }
 
 #[test]
-fn test_on_conflict_rejected() {
+fn test_on_conflict_do_nothing() {
     let sql = "INSERT INTO t VALUES (1) ON CONFLICT DO NOTHING";
     let tokens = Tokenizer::new(sql).tokenize().unwrap();
     let mut parser = Parser::new(tokens);
     let stmts = parser.parse();
     let errors = parser.errors();
-    assert!(!errors.is_empty(), "ON CONFLICT should produce an error");
-    let msg = format!("{:?}", errors);
-    assert!(
-        msg.contains("unsupported syntax") || msg.contains("ON CONFLICT"),
-        "error should mention ON CONFLICT: {}",
-        msg
-    );
-    assert!(
-        matches!(stmts[0], Statement::Empty),
-        "ON CONFLICT should produce Empty statement"
-    );
+    assert!(errors.is_empty(), "Expected no errors: {:?}", errors);
+    match &stmts[0] {
+        Statement::Insert(ins) => {
+            let oc = ins.node.on_conflict.as_ref().expect("expected on_conflict");
+            assert!(oc.target.is_none());
+            assert!(matches!(oc.action, ConflictAction::DoNothing));
+        }
+        _ => panic!("expected Insert"),
+    }
 }
 
 #[test]
-fn test_on_conflict_with_columns_rejected() {
-    let sql = "INSERT INTO t VALUES (1) ON CONFLICT (id) DO UPDATE SET name = 'x'";
+fn test_on_conflict_do_update() {
+    let sql = "INSERT INTO t VALUES (1) ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name";
     let tokens = Tokenizer::new(sql).tokenize().unwrap();
     let mut parser = Parser::new(tokens);
     let stmts = parser.parse();
-    let errors = parser.errors();
-    assert!(!errors.is_empty(), "ON CONFLICT (columns) should produce an error");
-    assert!(
-        matches!(stmts[0], Statement::Empty),
-        "ON CONFLICT should produce Empty statement"
-    );
+    match &stmts[0] {
+        Statement::Insert(ins) => {
+            let oc = ins.node.on_conflict.as_ref().expect("expected on_conflict");
+            match &oc.target {
+                Some(ConflictTarget::Columns(cols)) => assert_eq!(cols, &["id"]),
+                _ => panic!("expected Columns target"),
+            }
+            match &oc.action {
+                ConflictAction::DoUpdate { assignments, where_clause } => {
+                    assert_eq!(assignments.len(), 1);
+                    assert!(where_clause.is_none());
+                }
+                _ => panic!("expected DoUpdate"),
+            }
+        }
+        _ => panic!("expected Insert, got {:?}", stmts[0]),
+    }
 }
 
 #[test]
-fn test_on_conflict_on_constraint_rejected() {
+fn test_on_conflict_on_constraint() {
     let sql = "INSERT INTO t VALUES (1) ON CONFLICT ON CONSTRAINT pk DO NOTHING";
     let tokens = Tokenizer::new(sql).tokenize().unwrap();
     let mut parser = Parser::new(tokens);
     let stmts = parser.parse();
     let errors = parser.errors();
-    assert!(!errors.is_empty(), "ON CONFLICT ON CONSTRAINT should produce an error");
-    assert!(
-        matches!(stmts[0], Statement::Empty),
-        "ON CONFLICT should produce Empty statement"
-    );
+    assert!(errors.is_empty(), "Expected no errors: {:?}", errors);
+    match &stmts[0] {
+        Statement::Insert(ins) => {
+            let oc = ins.node.on_conflict.as_ref().expect("expected on_conflict");
+            match &oc.target {
+                Some(ConflictTarget::OnConstraint(name)) => assert_eq!(name, "pk"),
+                _ => panic!("expected OnConstraint target"),
+            }
+            assert!(matches!(oc.action, ConflictAction::DoNothing));
+        }
+        _ => panic!("expected Insert"),
+    }
+}
+
+#[test]
+fn test_on_conflict_with_where() {
+    let sql = "INSERT INTO t VALUES (1, 'test') ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name WHERE t.id > 0";
+    let tokens = Tokenizer::new(sql).tokenize().unwrap();
+    let mut parser = Parser::new(tokens);
+    let stmts = parser.parse();
+    match &stmts[0] {
+        Statement::Insert(ins) => {
+            let oc = ins.node.on_conflict.as_ref().expect("expected on_conflict");
+            match &oc.action {
+                ConflictAction::DoUpdate { assignments, where_clause } => {
+                    assert_eq!(assignments.len(), 1);
+                    assert!(where_clause.is_some());
+                }
+                _ => panic!("expected DoUpdate"),
+            }
+        }
+        _ => panic!("expected Insert, got {:?}", stmts[0]),
+    }
 }
 
 #[test]
@@ -11479,6 +11516,7 @@ fn test_values_in_from_multi_row() {
                     values,
                     alias,
                     column_names: _,
+                    ..
                 } => {
                     assert_eq!(alias.as_deref(), Some("t"));
                     assert_eq!(values.rows.len(), 3);
@@ -14398,4 +14436,83 @@ fn test_guard_pivot_xml() {
         "SELECT * FROM sales PIVOT XML (SUM(amount) FOR quarter IN ('Q1' AS q1, 'Q2' AS q2))",
         "PIVOT XML",
     );
+}
+
+#[test]
+fn test_lateral_subquery_join_roundtrip() {
+    let sql = "SELECT d.dept_name, e.emp_name FROM departments d LEFT JOIN LATERAL (SELECT emp_name FROM employees WHERE dept_id = d.dept_id) e ON TRUE";
+    let tokens = Tokenizer::new(sql).tokenize().unwrap();
+    let stmts = Parser::new(tokens).parse();
+    assert_eq!(stmts.len(), 1);
+    match &stmts[0] {
+        Statement::Select(sel) => {
+            assert_eq!(sel.from.len(), 1);
+            match &sel.from[0] {
+                TableRef::Join { right, .. } => {
+                    match right.as_ref() {
+                        TableRef::Subquery { lateral, alias, .. } => {
+                            assert!(lateral, "lateral should be true for LATERAL subquery");
+                            assert_eq!(alias.as_deref(), Some("e"));
+                        }
+                        other => panic!("expected Subquery, got {:?}", other),
+                    }
+                }
+                other => panic!("expected Join, got {:?}", other),
+            }
+        }
+        other => panic!("expected Select, got {:?}", other),
+    }
+    let formatter = SqlFormatter::new();
+    let output = formatter.format_statement(&stmts[0]);
+    assert!(output.contains("LATERAL"), "formatted SQL should contain LATERAL: {}", output);
+    let json = serde_json::to_string(&stmts).unwrap();
+    let restored: Vec<Statement> = serde_json::from_str(&json).unwrap();
+    let output2 = formatter.format_statement(&restored[0]);
+    assert_eq!(output, output2, "JSON round-trip should preserve LATERAL");
+}
+
+#[test]
+fn test_lateral_values_roundtrip() {
+    let sql = "SELECT * FROM LATERAL (VALUES (1, 'a'), (2, 'b')) AS t(x, y)";
+    let tokens = Tokenizer::new(sql).tokenize().unwrap();
+    let stmts = Parser::new(tokens).parse();
+    assert_eq!(stmts.len(), 1);
+    match &stmts[0] {
+        Statement::Select(sel) => {
+            assert_eq!(sel.from.len(), 1);
+            match &sel.from[0] {
+                TableRef::Values { lateral, alias, .. } => {
+                    assert!(lateral, "lateral should be true for LATERAL VALUES");
+                    assert_eq!(alias.as_deref(), Some("t"));
+                }
+                other => panic!("expected Values, got {:?}", other),
+            }
+        }
+        other => panic!("expected Select, got {:?}", other),
+    }
+    let formatter = SqlFormatter::new();
+    let output = formatter.format_statement(&stmts[0]);
+    assert!(output.contains("LATERAL"), "formatted SQL should contain LATERAL: {}", output);
+    let json = serde_json::to_string(&stmts).unwrap();
+    let restored: Vec<Statement> = serde_json::from_str(&json).unwrap();
+    let output2 = formatter.format_statement(&restored[0]);
+    assert_eq!(output, output2, "JSON round-trip should preserve LATERAL");
+}
+
+#[test]
+fn test_non_lateral_subquery_is_false() {
+    let sql = "SELECT * FROM (SELECT 1) AS t";
+    let tokens = Tokenizer::new(sql).tokenize().unwrap();
+    let stmts = Parser::new(tokens).parse();
+    match &stmts[0] {
+        Statement::Select(sel) => {
+            match &sel.from[0] {
+                TableRef::Subquery { lateral, .. } => {
+                    assert!(!lateral, "non-LATERAL subquery should have lateral: false");
+                }
+                other => panic!("expected Subquery, got {:?}", other),
+            }
+        }
+        other => panic!("expected Select, got {:?}", other),
+    }
 }
