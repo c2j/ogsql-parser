@@ -754,6 +754,7 @@ impl Parser {
                 return Ok(TableRef::Subquery {
                     query: Box::new(query),
                     alias,
+                    lateral: false,
                 });
             }
             if self.match_keyword(Keyword::VALUES) {
@@ -777,6 +778,7 @@ impl Parser {
                     values: Box::new(values),
                     alias,
                     column_names,
+                    lateral: false,
                 });
             }
             let table_ref = self.parse_table_ref()?;
@@ -807,6 +809,7 @@ impl Parser {
                     values: Box::new(values),
                     alias,
                     column_names,
+                    lateral: true,
                 });
             }
             let query = self.parse_select_statement()?;
@@ -815,6 +818,7 @@ impl Parser {
             return Ok(TableRef::Subquery {
                 query: Box::new(query),
                 alias,
+                lateral: true,
             });
         }
         let name = self.parse_object_name()?;
