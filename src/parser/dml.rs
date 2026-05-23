@@ -1,8 +1,8 @@
 use crate::ast::{
-    DeleteStatement, DmlPartitionClause, InsertAllCondition, InsertAllStatement, InsertAllTarget,
-    InsertFirstStatement, InsertSource, InsertStatement, MergeAction, MergeStatement,
-    MergeWhenClause, OnDuplicateKeyUpdate, TablePartitionRef, TableRef,
-    UpdateAssignment, UpdateStatement,
+    ConflictAction, ConflictTarget, DeleteStatement, DmlPartitionClause, InsertAllCondition,
+    InsertAllStatement, InsertAllTarget, InsertFirstStatement, InsertSource, InsertStatement,
+    MergeAction, MergeStatement, MergeWhenClause, OnConflict, OnDuplicateKeyUpdate,
+    TablePartitionRef, TableRef, UpdateAssignment, UpdateStatement,
 };
 use crate::parser::{Parser, ParserError};
 use crate::token::keyword::Keyword;
@@ -163,6 +163,7 @@ impl Parser {
                 got: format!("{:?}", self.peek()),
             });
         };
+        let mut on_conflict: Option<OnConflict> = None;
         let on_duplicate_key = if self.match_keyword(Keyword::ON) {
             self.advance();
             if self.match_keyword(Keyword::DUPLICATE) {
@@ -191,11 +192,52 @@ impl Parser {
                     where_clause,
                 })
             } else if self.match_keyword(Keyword::CONFLICT) {
-                return Err(ParserError::UnsupportedSyntax {
-                    location: self.current_location(),
-                    syntax: "ON CONFLICT".to_string(),
-                    hint: "openGauss does not support ON CONFLICT. Use ON DUPLICATE KEY UPDATE instead.".to_string(),
-                });
+                self.advance();
+                let target = if self.match_keyword(Keyword::ON) {
+                    self.advance();
+                    self.expect_keyword(Keyword::CONSTRAINT)?;
+                    let name = self.parse_identifier()?;
+                    Some(ConflictTarget::OnConstraint(name))
+                } else if self.match_token(&Token::LParen) {
+                    self.advance();
+                    let mut cols = vec![self.parse_identifier()?];
+                    while self.match_token(&Token::Comma) {
+                        self.advance();
+                        cols.push(self.parse_identifier()?);
+                    }
+                    self.expect_token(&Token::RParen)?;
+                    Some(ConflictTarget::Columns(cols))
+                } else {
+                    None
+                };
+                self.expect_keyword(Keyword::DO)?;
+                let action = if self.match_keyword(Keyword::NOTHING) {
+                    self.advance();
+                    ConflictAction::DoNothing
+                } else {
+                    self.expect_keyword(Keyword::UPDATE)?;
+                    self.expect_keyword(Keyword::SET)?;
+                    let mut assignments = Vec::new();
+                    loop {
+                        let column = self.parse_object_name()?;
+                        self.expect_token(&Token::Eq)?;
+                        let value = self.parse_expr()?;
+                        assignments.push(UpdateAssignment { columns: vec![column], value });
+                        if !self.match_token(&Token::Comma) {
+                            break;
+                        }
+                        self.advance();
+                    }
+                    let where_clause = if self.match_keyword(Keyword::WHERE) {
+                        self.advance();
+                        Some(self.parse_expr()?)
+                    } else {
+                        None
+                    };
+                    ConflictAction::DoUpdate { assignments, where_clause }
+                };
+                on_conflict = Some(OnConflict { target, action });
+                None
             } else {
                 self.pos -= 1;
                 None
@@ -234,6 +276,7 @@ impl Parser {
             columns,
             source,
             on_duplicate_key,
+            on_conflict,
             returning,
             into_targets,
             bulk_collect,

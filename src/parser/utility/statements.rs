@@ -1466,6 +1466,7 @@ impl Parser {
                     values: Box::new(values_stmt),
                     alias: None,
                     column_names: vec![],
+                    lateral: false,
                 }],
                 where_clause: None,
                 connect_by: None,
