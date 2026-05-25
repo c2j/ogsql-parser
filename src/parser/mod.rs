@@ -1821,7 +1821,8 @@ impl Parser {
                 if !self.is_declare_cursor_at(self.pos) && self.has_begin_after_declare(self.pos) {
                     self.advance();
                     let declarations = self.parse_pl_declarations_until_begin()?;
-                    let block = self.parse_pl_block_body(None, declarations)?;
+                    let begin_location = self.current_location();
+                    let block = self.parse_pl_block_body(None, declarations, begin_location)?;
                     self.try_consume_semicolon();
                     crate::ast::Statement::AnonyBlock(crate::ast::Spanned::new(crate::ast::AnonyBlockStatement { block }, Some(crate::ast::SourceSpan { start, end: self.prev_location() })))
                 } else if self.is_declare_cursor_at(self.pos) {

@@ -789,7 +789,8 @@ impl Parser {
             }
         }
 
-        let block = self.parse_pl_block_body(None, Vec::new())?;
+        let begin_location = self.current_location();
+        let block = self.parse_pl_block_body(None, Vec::new(), begin_location)?;
         Ok(crate::ast::AnonyBlockStatement { block })
     }
 
