@@ -54,14 +54,25 @@ impl Parser {
         let alias = self.parse_optional_alias()?;
         let partition = self.parse_dml_partition()?;
         let columns = if self.match_token(&Token::LParen) {
-            self.advance();
-            let mut cols = vec![self.parse_identifier()?];
-            while self.match_token(&Token::Comma) {
+            // Look ahead: if (SELECT or (WITH, this is NOT a column list
+            // but a parenthesized INSERT source — skip and let source parsing handle it
+            let is_parenthesized_source = self
+                .tokens
+                .get(self.pos + 1)
+                .map(|tws| matches!(&tws.token, Token::Keyword(kw) if *kw == Keyword::SELECT || *kw == Keyword::WITH))
+                .unwrap_or(false);
+            if is_parenthesized_source {
+                vec![]
+            } else {
                 self.advance();
-                cols.push(self.parse_identifier()?);
+                let mut cols = vec![self.parse_identifier()?];
+                while self.match_token(&Token::Comma) {
+                    self.advance();
+                    cols.push(self.parse_identifier()?);
+                }
+                self.expect_token(&Token::RParen)?;
+                cols
             }
-            self.expect_token(&Token::RParen)?;
-            cols
         } else {
             vec![]
         };
@@ -115,16 +126,23 @@ impl Parser {
         } else if self.match_keyword(Keyword::SELECT) || self.match_keyword(Keyword::WITH) {
             InsertSource::Select(Box::new(self.parse_select_statement()?))
         } else if self.match_token(&Token::LParen) {
-            if let Some(Token::Keyword(kw)) = self.tokens.get(self.pos + 1).map(|tws| &tws.token) {
-                if *kw == Keyword::SELECT || *kw == Keyword::WITH {
+            let save_pos = self.pos;
+            let save_err_len = self.errors.len();
+            let paren_loc = self.current_location();
+            self.advance();
+            if let Ok(mut select) = self.parse_select_statement() {
+                if self.match_token(&Token::RParen) {
                     self.advance();
-                    let paren_loc = self.current_location();
-                    let mut select = self.parse_select_statement()?;
-                    self.expect_token(&Token::RParen)?;
-                    // Detect pattern: INSERT INTO ... (SELECT ...) UNION ALL (SELECT ...)
-                    // GaussDB/openGauss supports this syntax; emit a compatibility warning.
-                    if let Some(Token::Keyword(kw)) = self.tokens.get(self.pos).map(|tws| &tws.token) {
-                        if matches!(kw, Keyword::UNION | Keyword::INTERSECT | Keyword::EXCEPT | Keyword::MINUS_P) {
+                    if let Some(Token::Keyword(kw)) =
+                        self.tokens.get(self.pos).map(|tws| &tws.token)
+                    {
+                        if matches!(
+                            kw,
+                            Keyword::UNION
+                                | Keyword::INTERSECT
+                                | Keyword::EXCEPT
+                                | Keyword::MINUS_P
+                        ) {
                             self.add_error(ParserError::Warning {
                                 message: format!(
                                     "bracketed INSERT ... (SELECT ...) {} — consider removing parentheses around each SELECT branch for clarity",
@@ -143,6 +161,8 @@ impl Parser {
                     }
                     InsertSource::Select(Box::new(select))
                 } else {
+                    self.pos = save_pos;
+                    self.errors.truncate(save_err_len);
                     return Err(ParserError::UnexpectedToken {
                         location: self.current_location(),
                         expected: "VALUES, SELECT, DEFAULT VALUES".to_string(),
@@ -150,6 +170,8 @@ impl Parser {
                     });
                 }
             } else {
+                self.pos = save_pos;
+                self.errors.truncate(save_err_len);
                 return Err(ParserError::UnexpectedToken {
                     location: self.current_location(),
                     expected: "VALUES, SELECT, DEFAULT VALUES".to_string(),

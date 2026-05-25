@@ -15,9 +15,10 @@ impl Parser {
             Vec::new()
         };
 
+        let begin_location = self.current_location();
         self.expect_keyword(Keyword::BEGIN_P)?;
 
-        self.parse_pl_block_body(label, declarations)
+        self.parse_pl_block_body(label, declarations, begin_location)
     }
 
     fn declaration_name(&self, decl: &PlDeclaration) -> Option<String> {
@@ -36,6 +37,7 @@ impl Parser {
         &mut self,
         label: Option<String>,
         declarations: Vec<PlDeclaration>,
+        begin_location: crate::token::SourceLocation,
     ) -> Result<PlBlock, ParserError> {
         self.enter_scope()?;
         self.push_scope();
@@ -44,7 +46,7 @@ impl Parser {
                 self.declare_var(&name);
             }
         }
-        let result = self.parse_pl_block_body_inner(label, declarations);
+        let result = self.parse_pl_block_body_inner(label, declarations, begin_location);
         self.pop_scope();
         self.leave_scope();
         result
@@ -54,6 +56,7 @@ impl Parser {
         &mut self,
         label: Option<String>,
         declarations: Vec<PlDeclaration>,
+        begin_location: crate::token::SourceLocation,
     ) -> Result<PlBlock, ParserError> {
         let mut body = Vec::new();
         let mut exception_block = None;
@@ -62,7 +65,7 @@ impl Parser {
             if matches!(self.peek(), Token::Eof) {
                 return Err(ParserError::UnexpectedToken {
                     location: self.current_location(),
-                    expected: "END".to_string(),
+                    expected: format!("END (to close BEGIN at line {})", begin_location.line),
                     got: "EOF".to_string(),
                 });
             }
