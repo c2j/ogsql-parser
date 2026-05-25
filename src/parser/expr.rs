@@ -98,6 +98,47 @@ impl Parser {
                 self.advance();
                 self.expect_token(&Token::LParen)?;
                 self.consume_hints();
+                if self.match_keyword(Keyword::VALUES) {
+                    self.advance();
+                    let values_stmt = self.parse_values_statement()?;
+                    self.expect_token(&Token::RParen)?;
+                    let targets = values_stmt
+                        .rows
+                        .into_iter()
+                        .filter_map(|mut row| row.pop())
+                        .map(|expr| crate::ast::SelectTarget::Expr(expr, None))
+                        .collect();
+                    left = Expr::ScalarSublink {
+                        expr: Box::new(left),
+                        op: op_str,
+                        sublink_type,
+                        subquery: Box::new(crate::ast::SelectStatement {
+                            targets,
+                            hints: vec![],
+                            with: None,
+                            distinct: false,
+                            distinct_on: vec![],
+                            into_targets: None,
+                            bulk_collect: false,
+                            into_table: None,
+                            from: vec![],
+                            where_clause: None,
+                            connect_by: None,
+                            group_by: vec![],
+                            having: None,
+                            order_by: vec![],
+                            order_siblings: false,
+                            limit: None,
+                            offset: None,
+                            fetch: None,
+                            lock_clause: None,
+                            window_clause: vec![],
+                            set_operation: None,
+                            raw_body: None,
+                        }),
+                    };
+                    continue;
+                }
                 let saved_pos = self.pos;
                 let saved_err_len = self.errors.len();
                 if let Ok(subquery) = self.parse_select_statement() {
@@ -659,6 +700,23 @@ impl Parser {
                 negated,
             });
         }
+        // Handle IN ((SELECT...) UNION (SELECT...)) — parenthesized subquery with set operations
+        if self.match_token(&Token::LParen) {
+            let save_pos = self.pos;
+            let save_err_len = self.errors.len();
+            if let Ok(subquery) = self.parse_select_statement() {
+                if self.match_token(&Token::RParen) {
+                    self.advance();
+                    return Ok(Expr::InSubquery {
+                        expr: Box::new(left),
+                        subquery: Box::new(subquery),
+                        negated,
+                    });
+                }
+            }
+            self.pos = save_pos;
+            self.errors.truncate(save_err_len);
+        }
         let mut list = vec![self.parse_expr()?];
         while self.match_token(&Token::Comma) {
             self.advance();
@@ -1171,6 +1229,21 @@ impl Parser {
                     });
                 }
                 if self.match_token(&Token::LParen) {
+                    if self.tokens.len() > self.pos + 2 {
+                        let next = &self.tokens[self.pos + 1].token;
+                        let next2 = &self.tokens[self.pos + 2].token;
+                        if matches!(next, Token::Plus) && matches!(next2, Token::RParen) {
+                            let loc = self.current_location();
+                            self.advance();
+                            self.advance();
+                            self.advance();
+                            self.add_error(ParserError::Warning {
+                                message: "Oracle-style outer join operator '(+)' is deprecated, use standard JOIN syntax instead".to_string(),
+                                location: loc,
+                            });
+                            return Ok(Expr::ColumnRef(name));
+                        }
+                    }
                     return self.parse_function_call(name);
                 }
                 if name.len() >= 2 {

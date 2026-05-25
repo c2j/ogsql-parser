@@ -750,7 +750,11 @@ impl Parser {
                 self.leave_scope();
                 let query = query?;
                 self.expect_token(&Token::RParen)?;
-                let alias = self.parse_optional_alias()?;
+                let alias = if self.match_ident_str("PIVOT") || self.match_ident_str("UNPIVOT") {
+                    None
+                } else {
+                    self.parse_optional_alias()?
+                };
                 return Ok(TableRef::Subquery {
                     query: Box::new(query),
                     alias,
