@@ -3102,11 +3102,377 @@ fn test_cursor_decl_with_parsed_select() {
                         other => panic!("expected Select, got {:?}", other),
                     }
                 }
-                other => panic!("expected Cursor, got {:?}", other),
+                other => panic!("expected cursor declaration, got {:?}", other),
             }
         }
-        other => panic!("expected Do, got {:?}", other),
+        other => panic!("expected DO statement, got {:?}", other),
     }
+}
+
+fn parse_valid(sql: &str) -> Vec<Statement> {
+    let tokens = Tokenizer::new(sql).tokenize().unwrap();
+    let mut parser = Parser::new(tokens);
+    let stmts = parser.parse();
+    let hard_errors: Vec<_> = parser
+        .errors()
+        .iter()
+        .filter(|e| !matches!(e, ParserError::Warning { .. }))
+        .collect();
+    assert!(
+        hard_errors.is_empty(),
+        "SQL should parse without errors:\n  SQL: {}\n  Errors: {:?}",
+        sql,
+        hard_errors
+    );
+    assert!(
+        !stmts.is_empty(),
+        "SQL should produce at least one statement:\n  SQL: {}",
+        sql
+    );
+    stmts
+}
+
+fn assert_valid(sql: &str) {
+    parse_valid(sql);
+}
+
+// ============================================================
+// GaussDB Syntax Gap Tests (error-5.txt regression)
+// ============================================================
+
+// --- Category A: INSERT INTO table (SELECT ...) ---
+
+#[test]
+fn test_gaussdb_insert_select_no_columns() {
+    let stmts = parse_valid("INSERT INTO t1 (SELECT * FROM t2)");
+    match &stmts[0] {
+        Statement::Insert(ins) => {
+            assert!(ins.columns.is_empty(), "no column list expected");
+            match &ins.source {
+                InsertSource::Select(_) => {}
+                other => panic!("expected Select source, got {:?}", other),
+            }
+        }
+        other => panic!("expected Insert, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_gaussdb_insert_select_with_columns() {
+    let stmts = parse_valid("INSERT INTO t1 (a, b) (SELECT x, y FROM t2)");
+    match &stmts[0] {
+        Statement::Insert(ins) => {
+            assert_eq!(ins.columns.len(), 2);
+            match &ins.source {
+                InsertSource::Select(_) => {}
+                other => panic!("expected Select source, got {:?}", other),
+            }
+        }
+        other => panic!("expected Insert, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_gaussdb_insert_double_paren_select() {
+    let stmts = parse_valid("INSERT INTO t1 (a, b) ((SELECT x, y FROM t2))");
+    match &stmts[0] {
+        Statement::Insert(ins) => {
+            assert_eq!(ins.columns.len(), 2);
+            match &ins.source {
+                InsertSource::Select(_) => {}
+                other => panic!("expected Select source, got {:?}", other),
+            }
+        }
+        other => panic!("expected Insert, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_gaussdb_insert_select_no_columns_complex() {
+    let sql = "INSERT INTO par_fund_accnt_relation (SELECT v_row.seq_id, v_row.fund_code, v_row.accnt_book_code FROM sys_dummy)";
+    assert_valid(sql);
+}
+
+#[test]
+fn test_gaussdb_insert_double_paren_select_complex() {
+    let sql = "INSERT INTO dat_fax_receive_info (col1, col2) ((SELECT v_fax_seq, t.fax_type FROM dat_fax_receive_info t WHERE t.fax_seq = p_fax_seq))";
+    assert_valid(sql);
+}
+
+#[test]
+fn test_gaussdb_insert_select_nextval() {
+    let sql = "INSERT INTO dat_zl_accountinfo (SELECT seq_external_no.nextval, t.facctcode, t.facctname FROM dat_zl_accountinfo_temp t WHERE t.fund_id = v_fund_template)";
+    assert_valid(sql);
+}
+
+#[test]
+fn test_gaussdb_insert_plain_select_still_works() {
+    let stmts = parse_valid("INSERT INTO t1 SELECT * FROM t2");
+    match &stmts[0] {
+        Statement::Insert(ins) => {
+            assert!(ins.columns.is_empty());
+            match &ins.source {
+                InsertSource::Select(_) => {}
+                other => panic!("expected Select source, got {:?}", other),
+            }
+        }
+        other => panic!("expected Insert, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_gaussdb_insert_values_still_works() {
+    let stmts = parse_valid("INSERT INTO t1 (a, b) VALUES (1, 2)");
+    match &stmts[0] {
+        Statement::Insert(ins) => {
+            assert_eq!(ins.columns.len(), 2);
+            match &ins.source {
+                InsertSource::Values(rows) => {
+                    assert_eq!(rows.len(), 1);
+                    assert_eq!(rows[0].len(), 2);
+                }
+                other => panic!("expected Values source, got {:?}", other),
+            }
+        }
+        other => panic!("expected Insert, got {:?}", other),
+    }
+}
+
+// --- Category B: Oracle (+) outer join ---
+
+#[test]
+fn test_gaussdb_oracle_plus_identifier() {
+    let sql = "SELECT * FROM t1, t2 WHERE t1.id = t2.id(+)";
+    let tokens = Tokenizer::new(sql).tokenize().unwrap();
+    let mut parser = Parser::new(tokens);
+    let stmts = parser.parse();
+    let hard_errors: Vec<_> = parser
+        .errors()
+        .iter()
+        .filter(|e| !matches!(e, ParserError::Warning { .. }))
+        .collect();
+    assert!(hard_errors.is_empty(), "should have no hard errors: {:?}", hard_errors);
+    assert!(!stmts.is_empty());
+}
+
+#[test]
+fn test_gaussdb_oracle_plus_keyword_column() {
+    let sql = "SELECT * FROM t1, t2 WHERE LANGUAGE(+) = '02'";
+    let tokens = Tokenizer::new(sql).tokenize().unwrap();
+    let mut parser = Parser::new(tokens);
+    let stmts = parser.parse();
+    let hard_errors: Vec<_> = parser
+        .errors()
+        .iter()
+        .filter(|e| !matches!(e, ParserError::Warning { .. }))
+        .collect();
+    assert!(hard_errors.is_empty(), "should have no hard errors: {:?}", hard_errors);
+    assert!(!stmts.is_empty());
+}
+
+#[test]
+fn test_gaussdb_oracle_plus_qualified_column() {
+    let sql = "SELECT * FROM t1, t2 WHERE t.code = exchange.coin_code(+)";
+    let tokens = Tokenizer::new(sql).tokenize().unwrap();
+    let mut parser = Parser::new(tokens);
+    let stmts = parser.parse();
+    let hard_errors: Vec<_> = parser
+        .errors()
+        .iter()
+        .filter(|e| !matches!(e, ParserError::Warning { .. }))
+        .collect();
+    assert!(hard_errors.is_empty(), "should have no hard errors: {:?}", hard_errors);
+    assert!(!stmts.is_empty());
+}
+
+#[test]
+fn test_gaussdb_oracle_plus_emits_warning() {
+    let sql = "SELECT * FROM t1, t2 WHERE t1.id = t2.id(+)";
+    let tokens = Tokenizer::new(sql).tokenize().unwrap();
+    let mut parser = Parser::new(tokens);
+    let _stmts = parser.parse();
+    let warnings: Vec<_> = parser
+        .errors()
+        .iter()
+        .filter(|e| matches!(e, ParserError::Warning { .. }))
+        .collect();
+    assert!(
+        warnings.iter().any(|w| w.to_string().contains("(+)")),
+        "should emit a warning mentioning (+): {:?}",
+        warnings
+    );
+}
+
+// --- Category C: PIVOT / UNPIVOT after subquery ---
+
+#[test]
+fn test_gaussdb_pivot_after_subquery() {
+    let sql = "SELECT * FROM (SELECT a, b FROM t) PIVOT(MAX(b) FOR a IN ('x', 'y'))";
+    let stmts = parse_valid(sql);
+    match &stmts[0] {
+        Statement::Select(sel) => {
+            match &sel.from[0] {
+                TableRef::Pivot { source, .. } => {
+                    match source.as_ref() {
+                        TableRef::Subquery { .. } => {}
+                        other => panic!("expected Subquery source, got {:?}", other),
+                    }
+                }
+                other => panic!("expected Pivot table ref, got {:?}", other),
+            }
+        }
+        other => panic!("expected Select, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_gaussdb_unpivot_after_subquery() {
+    let sql = "SELECT * FROM (SELECT * FROM t1 WHERE rownum = 1) UNPIVOT(val FOR name IN(col1, col2))";
+    let stmts = parse_valid(sql);
+    match &stmts[0] {
+        Statement::Select(sel) => {
+            match &sel.from[0] {
+                TableRef::Unpivot { source, .. } => {
+                    match source.as_ref() {
+                        TableRef::Subquery { .. } => {}
+                        other => panic!("expected Subquery source, got {:?}", other),
+                    }
+                }
+                other => panic!("expected Unpivot table ref, got {:?}", other),
+            }
+        }
+        other => panic!("expected Select, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_gaussdb_pivot_subquery_with_alias() {
+    let sql = "SELECT * FROM (SELECT a, b FROM t) s PIVOT(MAX(b) FOR a IN ('x'))";
+    assert_valid(sql);
+}
+
+#[test]
+fn test_gaussdb_pivot_plain_table_still_works() {
+    let sql = "SELECT * FROM t PIVOT(MAX(b) FOR a IN ('x', 'y'))";
+    assert_valid(sql);
+}
+
+// --- Category D: IN ((SELECT...) UNION (SELECT...)) ---
+
+#[test]
+fn test_gaussdb_in_union_subquery() {
+    let sql = "SELECT * FROM t WHERE code IN ((SELECT code FROM t1) UNION (SELECT code FROM t2))";
+    let stmts = parse_valid(sql);
+    match &stmts[0] {
+        Statement::Select(sel) => {
+            match &sel.where_clause {
+                Some(Expr::InSubquery { negated, .. }) => {
+                    assert!(!negated);
+                }
+                Some(other) => panic!("expected InSubquery, got {:?}", other),
+                None => panic!("expected WHERE clause"),
+            }
+        }
+        other => panic!("expected Select, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_gaussdb_not_in_union_subquery() {
+    let sql = "SELECT * FROM t WHERE code NOT IN ((SELECT code FROM t1) UNION (SELECT code FROM t2))";
+    let stmts = parse_valid(sql);
+    match &stmts[0] {
+        Statement::Select(sel) => {
+            match &sel.where_clause {
+                Some(Expr::InSubquery { negated, .. }) => {
+                    assert!(negated);
+                }
+                Some(other) => panic!("expected InSubquery, got {:?}", other),
+                None => panic!("expected WHERE clause"),
+            }
+        }
+        other => panic!("expected Select, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_gaussdb_in_plain_select_still_works() {
+    let sql = "SELECT * FROM t WHERE id IN (SELECT id FROM t1)";
+    assert_valid(sql);
+}
+
+#[test]
+fn test_gaussdb_in_list_still_works() {
+    let sql = "SELECT * FROM t WHERE id IN (1, 2, 3)";
+    assert_valid(sql);
+}
+
+// --- Category E: ANY(VALUES(...)) ---
+
+#[test]
+fn test_gaussdb_any_values() {
+    let sql = "SELECT * FROM t WHERE 0 <> ANY(VALUES(1), (2), (3))";
+    assert_valid(sql);
+}
+
+#[test]
+fn test_gaussdb_all_values() {
+    let sql = "SELECT * FROM t WHERE x > ALL(VALUES(10), (20))";
+    assert_valid(sql);
+}
+
+#[test]
+fn test_gaussdb_any_values_complex_expr() {
+    let sql = "SELECT * FROM vv WHERE (0 <> ANY(VALUES(to_number(REPLACE(vv.deal_amount1, ',', ''))), (to_number(REPLACE(vv.deal_amount2, ',', '')))))";
+    assert_valid(sql);
+}
+
+#[test]
+fn test_gaussdb_any_select_still_works() {
+    let sql = "SELECT * FROM t WHERE x = ANY(SELECT id FROM t1)";
+    assert_valid(sql);
+}
+
+#[test]
+fn test_gaussdb_some_values() {
+    let sql = "SELECT * FROM t WHERE x > SOME(VALUES(1), (2))";
+    assert_valid(sql);
+}
+
+// --- Cross-category regression: error-5.txt representative cases ---
+
+#[test]
+fn test_gaussdb_error5_category_a_insert_parenthesized_select() {
+    assert_valid("INSERT INTO FUNDCODE_PRIV_FUNDKIND (SELECT p_targetuser_id, role_id FROM sys_dummy)");
+    assert_valid("INSERT INTO par_fund_accnt_relation (SELECT v_row.seq_id, v_row.fund_code, v_row.accnt_book_code FROM sys_dummy)");
+}
+
+#[test]
+fn test_gaussdb_error5_category_b_oracle_plus() {
+    let sql1 = "SELECT * FROM t1, t2 WHERE t.coin_code = exchange.coin_code(+)";
+    let sql2 = "SELECT * FROM t1, t2 WHERE LANGUAGE(+) = '02'";
+    assert_valid(sql1);
+    assert_valid(sql2);
+}
+
+#[test]
+fn test_gaussdb_error5_category_c_pivot_unpivot() {
+    let sql1 = "SELECT * FROM (SELECT * FROM t WHERE user_code = p_code) PIVOT(MIN(remark12) FOR remark11 IN ('1','2'))";
+    let sql2 = "SELECT * FROM (SELECT * FROM t1 WHERE rownum = 1) UNPIVOT(val FOR name IN(col1, col2))";
+    assert_valid(sql1);
+    assert_valid(sql2);
+}
+
+#[test]
+fn test_gaussdb_error5_category_d_union_in() {
+    let sql = "SELECT * FROM t WHERE code IN ((SELECT code FROM t1) UNION (SELECT code FROM t2))";
+    assert_valid(sql);
+}
+
+#[test]
+fn test_gaussdb_error5_category_e_any_values() {
+    let sql = "SELECT * FROM t WHERE 0 <> ANY(VALUES(1), (2), (3))";
+    assert_valid(sql);
 }
 
 #[test]
