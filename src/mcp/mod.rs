@@ -489,3 +489,6 @@ fn compute_routine_analysis(stmt: &crate::Statement) -> Option<serde_json::Value
         _ => None,
     }
 }
+
+#[cfg(test)]
+mod tests;
