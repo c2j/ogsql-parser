@@ -9,6 +9,7 @@ pub struct SqlFormatter {
 }
 
 impl SqlFormatter {
+    /// Creates a new SQL formatter with default settings (uppercase keywords).
     pub fn new() -> Self {
         Self {
             indent: 0,
@@ -16,6 +17,10 @@ impl SqlFormatter {
         }
     }
 
+    /// Formats an AST statement back into SQL text.
+    ///
+    /// This is the inverse of parsing — it converts the parsed AST into a
+    /// normalized SQL string with standardized keyword casing and formatting.
     pub fn format_statement(&self, stmt: &Statement) -> String {
         match stmt {
             Statement::Select(s) => self.format_select(s),

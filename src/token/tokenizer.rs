@@ -35,6 +35,13 @@ pub struct Tokenizer<'a> {
 }
 
 impl<'a> Tokenizer<'a> {
+    /// Creates a new tokenizer for the given SQL input string.
+    ///
+    /// # Example
+    /// ```rust
+    /// use ogsql_parser::Tokenizer;
+    /// let tokens = Tokenizer::new("SELECT 1").tokenize().unwrap();
+    /// ```
     pub fn new(input: &'a str) -> Self {
         Self {
             input,
@@ -50,11 +57,13 @@ impl<'a> Tokenizer<'a> {
         }
     }
 
+    /// Enables MyBatis-style parameter placeholder support (`#{param}` and `${expr}`).
     pub fn mybatis_params(mut self, yes: bool) -> Self {
         self.mybatis_params = yes;
         self
     }
 
+    /// Preserves SQL comments as tokens instead of discarding them.
     pub fn preserve_comments(mut self, yes: bool) -> Self {
         self.preserve_comments = yes;
         self
@@ -68,6 +77,9 @@ impl<'a> Tokenizer<'a> {
         }
     }
 
+    /// Tokenizes the input SQL into a vector of tokens with location metadata.
+    ///
+    /// Returns `Err(TokenizerError)` for unterminated strings, comments, or invalid characters.
     pub fn tokenize(mut self) -> Result<Vec<TokenWithSpan>, TokenizerError> {
         let mut tokens = Vec::with_capacity(self.input.len() / 8);
         loop {

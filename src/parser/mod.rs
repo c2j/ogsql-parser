@@ -58,6 +58,9 @@ pub struct Parser {
 const MAX_PARSE_DEPTH: u32 = 256;
 
 impl Parser {
+    /// Creates a new parser from a token stream produced by [`Tokenizer`](crate::Tokenizer).
+    ///
+    /// Use [`parse_sql`](Self::parse_sql) for a simpler one-shot API.
     pub fn new(tokens: Vec<TokenWithSpan>) -> Self {
         Self {
             tokens,
@@ -146,6 +149,18 @@ impl Parser {
         self.depth = self.depth.saturating_sub(1);
     }
 
+    /// Parses SQL text into statement information and error reports in one call.
+    ///
+    /// Returns a tuple of `(statements, errors)`. Even when errors are present,
+    /// the parser attempts to recover and produce partial results.
+    ///
+    /// # Example
+    /// ```rust
+    /// use ogsql_parser::Parser;
+    /// let (infos, errors) = Parser::parse_sql("SELECT 1; SELECT 2");
+    /// assert_eq!(infos.len(), 2);
+    /// assert!(errors.is_empty());
+    /// ```
     pub fn parse_sql(input: &str) -> (Vec<crate::ast::StatementInfo>, Vec<ParserError>) {
         match crate::token::tokenizer::Tokenizer::new(input).tokenize() {
             Ok(tokens) => {
@@ -157,6 +172,9 @@ impl Parser {
         }
     }
 
+    /// Parses exactly one SQL statement, returning an error if zero or multiple are found.
+    ///
+    /// Use this when you expect exactly one statement from input (e.g., DDL scripts).
     pub fn parse_one(
         input: &str,
     ) -> Result<(crate::ast::StatementInfo, Vec<ParserError>), ParserError> {
@@ -177,10 +195,14 @@ impl Parser {
         }
     }
 
+    /// Returns all parser errors collected during parsing.
+    ///
+    /// Check [`has_errors`](Self::has_errors) for a boolean check.
     pub fn errors(&self) -> &[ParserError] {
         &self.errors
     }
 
+    /// Returns `true` if the parser encountered any errors during parsing.
     pub fn has_errors(&self) -> bool {
         !self.errors.is_empty()
     }
@@ -206,6 +228,10 @@ impl Parser {
             .unwrap_or_default()
     }
 
+    /// Parses the token stream into a list of SQL statements with error recovery.
+    ///
+    /// Invalid statements are replaced with [`Statement::Empty`](crate::Statement::Empty)
+    /// and reported via [`errors()`](Self::errors). This method never panics on invalid input.
     pub fn parse(&mut self) -> Vec<crate::ast::Statement> {
         let mut stmts = Vec::new();
         loop {
