@@ -1025,34 +1025,76 @@ impl Parser {
     }
 
     pub(crate) fn parse_data_type(&mut self) -> Result<DataType, ParserError> {
-        let result = match self.peek_keyword() {
+        let mut result = match self.peek_keyword() {
+            // Numeric types
+            Some(Keyword::BOOLEAN_P)
+            | Some(Keyword::TINYINT)
+            | Some(Keyword::SMALLINT)
+            | Some(Keyword::INTEGER)
+            | Some(Keyword::INT_P)
+            | Some(Keyword::BIGINT)
+            | Some(Keyword::REAL)
+            | Some(Keyword::FLOAT_P)
+            | Some(Keyword::DOUBLE_P)
+            | Some(Keyword::NUMERIC)
+            | Some(Keyword::DECIMAL_P) => self.parse_numeric_data_type()?,
+
+            // String types
+            Some(Keyword::CHAR_P)
+            | Some(Keyword::CHARACTER)
+            | Some(Keyword::VARCHAR)
+            | Some(Keyword::TEXT_P)
+            | Some(Keyword::BYTE_P) => self.parse_string_data_type()?,
+
+            // Temporal types
+            Some(Keyword::TIMESTAMP)
+            | Some(Keyword::DATE_P)
+            | Some(Keyword::TIME)
+            | Some(Keyword::INTERVAL) => self.parse_temporal_data_type()?,
+
+            // Bit types
+            Some(Keyword::BIT) => self.parse_bit_data_type()?,
+
+            // Fallback: custom types and identifiers
+            _ => self.parse_custom_data_type()?,
+        };
+        while self.match_token(&Token::LBracket) {
+            self.advance();
+            self.expect_token(&Token::RBracket)?;
+            result = DataType::Array(Box::new(result));
+        }
+        Ok(result)
+    }
+
+    fn parse_numeric_data_type(&mut self) -> Result<DataType, ParserError> {
+        match self.peek_keyword() {
             Some(Keyword::BOOLEAN_P) => {
                 self.advance();
-                DataType::Boolean
+                Ok(DataType::Boolean)
             }
             Some(Keyword::TINYINT) => {
                 self.advance();
                 let precision = self.parse_opt_int_precision()?;
-                DataType::TinyInt(precision)
+                Ok(DataType::TinyInt(precision))
             }
             Some(Keyword::SMALLINT) => {
                 self.advance();
                 let precision = self.parse_opt_int_precision()?;
-                DataType::SmallInt(precision)
+                Ok(DataType::SmallInt(precision))
             }
             Some(Keyword::INTEGER) | Some(Keyword::INT_P) => {
                 self.advance();
                 let precision = self.parse_opt_int_precision()?;
-                DataType::Integer(precision)
+                Ok(DataType::Integer(precision))
             }
             Some(Keyword::BIGINT) => {
                 self.advance();
                 let precision = self.parse_opt_int_precision()?;
-                DataType::BigInt(precision)
+                Ok(DataType::BigInt(precision))
             }
             Some(Keyword::REAL) => {
                 self.advance();
-                DataType::Real
+                Ok(DataType::Real)
             }
             Some(Keyword::FLOAT_P) => {
                 self.advance();
@@ -1064,14 +1106,14 @@ impl Parser {
                 } else {
                     None
                 };
-                DataType::Float(precision)
+                Ok(DataType::Float(precision))
             }
             Some(Keyword::DOUBLE_P) => {
                 self.advance();
                 if self.match_keyword(Keyword::PRECISION) {
                     self.advance();
                 }
-                DataType::Double
+                Ok(DataType::Double)
             }
             Some(Keyword::NUMERIC) | Some(Keyword::DECIMAL_P) => {
                 self.advance();
@@ -1089,191 +1131,140 @@ impl Parser {
                 } else {
                     (None, None)
                 };
-                DataType::Numeric(precision, scale)
+                Ok(DataType::Numeric(precision, scale))
             }
+            _ => unreachable!("parse_numeric_data_type called without numeric keyword"),
+        }
+    }
+
+    fn parse_string_data_type(&mut self) -> Result<DataType, ParserError> {
+        match self.peek_keyword() {
             Some(Keyword::CHAR_P) | Some(Keyword::CHARACTER) => {
                 self.advance();
                 if self.match_keyword(Keyword::VARYING) {
                     self.advance();
-                    let len = if self.match_token(&Token::LParen) {
-                        self.advance();
-                        let n = self.parse_int_literal()?;
-                        self.expect_token(&Token::RParen)?;
-                        Some(n)
-                    } else {
-                        None
-                    };
-                    DataType::Varchar(len)
+                    let len = self.parse_opt_paren_length()?;
+                    Ok(DataType::Varchar(len))
                 } else {
-                    let len = if self.match_token(&Token::LParen) {
-                        self.advance();
-                        let n = self.parse_int_literal()?;
-                        self.expect_token(&Token::RParen)?;
-                        Some(n)
-                    } else {
-                        None
-                    };
-                    DataType::Char(len)
+                    let len = self.parse_opt_paren_length()?;
+                    Ok(DataType::Char(len))
                 }
             }
             Some(Keyword::VARCHAR) => {
                 self.advance();
-                let len = if self.match_token(&Token::LParen) {
-                    self.advance();
-                    let n = self.parse_int_literal()?;
-                    self.expect_token(&Token::RParen)?;
-                    Some(n)
-                } else {
-                    None
-                };
-                DataType::Varchar(len)
+                let len = self.parse_opt_paren_length()?;
+                Ok(DataType::Varchar(len))
             }
             Some(Keyword::TEXT_P) => {
                 self.advance();
-                DataType::Text
+                Ok(DataType::Text)
             }
             Some(Keyword::BYTE_P) => {
                 self.advance();
-                DataType::Bytea
+                Ok(DataType::Bytea)
             }
+            _ => unreachable!("parse_string_data_type called without string keyword"),
+        }
+    }
+
+    fn parse_temporal_data_type(&mut self) -> Result<DataType, ParserError> {
+        match self.peek_keyword() {
             Some(Keyword::TIMESTAMP) => {
                 self.advance();
-                let precision = if self.match_token(&Token::LParen) {
-                    self.advance();
-                    let n = self.parse_int_literal()?;
-                    self.expect_token(&Token::RParen)?;
-                    Some(n)
-                } else {
-                    None
-                };
+                let precision = self.parse_opt_paren_length()?;
                 let tz = self.parse_timezone_info()?;
-                DataType::Timestamp(precision, tz)
+                Ok(DataType::Timestamp(precision, tz))
             }
             Some(Keyword::DATE_P) => {
                 self.advance();
-                DataType::Date
+                Ok(DataType::Date)
             }
             Some(Keyword::TIME) => {
                 self.advance();
-                let precision = if self.match_token(&Token::LParen) {
-                    self.advance();
-                    let n = self.parse_int_literal()?;
-                    self.expect_token(&Token::RParen)?;
-                    Some(n)
-                } else {
-                    None
-                };
+                let precision = self.parse_opt_paren_length()?;
                 let tz = self.parse_timezone_info()?;
-                DataType::Time(precision, tz)
+                Ok(DataType::Time(precision, tz))
             }
             Some(Keyword::INTERVAL) => {
                 self.advance();
                 let it = self.parse_opt_interval_type()?;
-                DataType::Interval(it)
+                Ok(DataType::Interval(it))
             }
-            Some(Keyword::BIT) => {
-                self.advance();
-                if self.match_keyword(Keyword::VARYING) {
-                    self.advance();
-                    let len = if self.match_token(&Token::LParen) {
-                        self.advance();
-                        let n = self.parse_int_literal()?;
-                        self.expect_token(&Token::RParen)?;
-                        Some(n)
-                    } else {
-                        None
-                    };
-                    DataType::Varbit(len)
-                } else {
-                    let len = if self.match_token(&Token::LParen) {
-                        self.advance();
-                        let n = self.parse_int_literal()?;
-                        self.expect_token(&Token::RParen)?;
-                        Some(n)
-                    } else {
-                        None
-                    };
-                    DataType::Bit(len)
-                }
-            }
-            _ => {
-                if let Token::Ident(s) = self.peek().clone() {
-                    match s.to_uppercase().as_str() {
-                        "SERIAL" => {
-                            self.advance();
-                            DataType::Serial
-                        }
-                        "SMALLSERIAL" => {
-                            self.advance();
-                            DataType::SmallSerial
-                        }
-                        "BIGSERIAL" => {
-                            self.advance();
-                            DataType::BigSerial
-                        }
-                        "BINARY_FLOAT" => {
-                            self.advance();
-                            DataType::BinaryFloat
-                        }
-                        "BINARY_DOUBLE" => {
-                            self.advance();
-                            DataType::BinaryDouble
-                        }
-                        "BOOL" => {
-                            self.advance();
-                            DataType::Boolean
-                        }
-                        _ => {
-                            let name = self.parse_object_name()?;
-                            let args = if self.match_token(&Token::LParen) {
-                                self.advance();
-                                let mut args = Vec::new();
-                                loop {
-                                    args.push(self.parse_expr()?);
-                                    if self.match_token(&Token::Comma) {
-                                        self.advance();
-                                    } else {
-                                        break;
-                                    }
-                                }
-                                self.expect_token(&Token::RParen)?;
-                                args
-                            } else {
-                                Vec::new()
-                            };
-                            DataType::Custom(name, args)
-                        }
-                    }
-                } else {
-                    let name = self.parse_object_name()?;
-                    let args = if self.match_token(&Token::LParen) {
-                        self.advance();
-                        let mut args = Vec::new();
-                        loop {
-                            args.push(self.parse_expr()?);
-                            if self.match_token(&Token::Comma) {
-                                self.advance();
-                            } else {
-                                break;
-                            }
-                        }
-                        self.expect_token(&Token::RParen)?;
-                        args
-                    } else {
-                        Vec::new()
-                    };
-                    DataType::Custom(name, args)
-                }
-            }
-        };
-        // Check for array suffix [] (possibly multiple, for multi-dimensional arrays)
-        let mut result = result;
-        while self.match_token(&Token::LBracket) {
-            self.advance();
-            self.expect_token(&Token::RBracket)?;
-            result = DataType::Array(Box::new(result));
+            _ => unreachable!("parse_temporal_data_type called without temporal keyword"),
         }
-        Ok(result)
+    }
+
+    fn parse_bit_data_type(&mut self) -> Result<DataType, ParserError> {
+        self.advance(); // consume BIT
+        if self.match_keyword(Keyword::VARYING) {
+            self.advance();
+            let len = self.parse_opt_paren_length()?;
+            Ok(DataType::Varbit(len))
+        } else {
+            let len = self.parse_opt_paren_length()?;
+            Ok(DataType::Bit(len))
+        }
+    }
+
+    fn parse_custom_data_type(&mut self) -> Result<DataType, ParserError> {
+        if let Token::Ident(s) = self.peek().clone() {
+            match s.to_uppercase().as_str() {
+                "SERIAL" => {
+                    self.advance();
+                    return Ok(DataType::Serial);
+                }
+                "SMALLSERIAL" => {
+                    self.advance();
+                    return Ok(DataType::SmallSerial);
+                }
+                "BIGSERIAL" => {
+                    self.advance();
+                    return Ok(DataType::BigSerial);
+                }
+                "BINARY_FLOAT" => {
+                    self.advance();
+                    return Ok(DataType::BinaryFloat);
+                }
+                "BINARY_DOUBLE" => {
+                    self.advance();
+                    return Ok(DataType::BinaryDouble);
+                }
+                "BOOL" => {
+                    self.advance();
+                    return Ok(DataType::Boolean);
+                }
+                _ => {}
+            }
+        }
+        let name = self.parse_object_name()?;
+        let args = if self.match_token(&Token::LParen) {
+            self.advance();
+            let mut args = Vec::new();
+            loop {
+                args.push(self.parse_expr()?);
+                if self.match_token(&Token::Comma) {
+                    self.advance();
+                } else {
+                    break;
+                }
+            }
+            self.expect_token(&Token::RParen)?;
+            args
+        } else {
+            Vec::new()
+        };
+        Ok(DataType::Custom(name, args))
+    }
+
+    fn parse_opt_paren_length(&mut self) -> Result<Option<u32>, ParserError> {
+        if self.match_token(&Token::LParen) {
+            self.advance();
+            let n = self.parse_int_literal()?;
+            self.expect_token(&Token::RParen)?;
+            Ok(Some(n))
+        } else {
+            Ok(None)
+        }
     }
 
     fn parse_int_literal(&mut self) -> Result<u32, ParserError> {
