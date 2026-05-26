@@ -25,7 +25,7 @@ pub enum ParserError {
         expected: String,
         location: SourceLocation,
     },
-    #[error("{}", .message)]
+    #[error("{message}{loc}", loc = .location.format_if_real())]
     Warning {
         message: String,
         location: SourceLocation,

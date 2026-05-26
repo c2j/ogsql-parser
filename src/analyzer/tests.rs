@@ -897,6 +897,27 @@ fn test_no_warning_for_perform_sql() {
     assert!(warnings.is_empty(), "PERFORM SQL columns should not be flagged, got: {:?}", warnings);
 }
 
+#[test]
+fn test_agg_from_alias_not_undefined() {
+    let (block, params) = parse_proc_validate(
+        "CREATE OR REPLACE PROCEDURE test_agg_from IS v_n INTEGER; v_result FLOAT8; BEGIN v_result := SUM(p_spectrum(i) FROM generate_series(1, v_n) AS i); END;"
+    );
+    let warnings = validate_pl_variables(&block, &params);
+    assert!(warnings.iter().all(|w| w.variable_name != "i"),
+        "agg FROM alias 'i' should not be flagged as undefined, got: {:?}", warnings);
+}
+
+#[test]
+fn test_agg_from_detects_undefined_in_args() {
+    let (block, params) = parse_proc_validate(
+        "CREATE OR REPLACE PROCEDURE test_agg_from2 IS BEGIN v_result := SUM(p_spectrum(i) FROM generate_series(1, v_n) AS i); END;"
+    );
+    let warnings = validate_pl_variables(&block, &params);
+    assert!(has_undefined(&warnings, "v_result"), "v_result should be undefined");
+    assert!(has_undefined(&warnings, "v_n"), "v_n in generate_series args should be undefined");
+    assert!(!has_undefined(&warnings, "i"), "i should NOT be flagged (agg FROM alias)");
+}
+
 // ── MERGE Semantic Validation Tests ──
 
 fn parse_merge_stmts(sql: &str) -> Vec<crate::ast::StatementInfo> {

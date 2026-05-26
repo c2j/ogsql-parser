@@ -1321,7 +1321,10 @@ fn compare_params(
                 spec_count: spec_params.len(),
                 body_count: body_params.len(),
             },
-            detail: None,
+            detail: Some(format!(
+                "parameter count mismatch: spec has {}, body has {}",
+                spec_params.len(), body_params.len()
+            )),
         });
     }
 
@@ -1400,7 +1403,10 @@ fn compare_params(
                     spec_type: spec_p.data_type.clone(),
                     body_type: body_p.data_type.clone(),
                 },
-                detail: None,
+                detail: Some(format!(
+                    "parameter '{}' type mismatch: spec has '{}', body has '{}'",
+                    spec_p.name, spec_p.data_type, body_p.data_type
+                )),
             });
         }
     }
@@ -1457,7 +1463,7 @@ const PL_BUILTIN_VALUES: &[&str] = &[
     "SQLSTATE",
     "YEAR", "MONTH", "DAY", "HOUR", "MINUTE", "SECOND",
     "EPOCH", "DOW", "DOY", "ISODOW", "ISOYEAR", "QUARTER", "WEEK",
-    "CENTURY", "DECADE", "MILLISECONDS", "MICROSECONDS",
+    "CENTURY", "DECADE", "MILLISECOND", "MILLISECONDS", "MICROSECOND", "MICROSECONDS",
     "TIMEZONE", "TIMEZONE_HOUR", "TIMEZONE_MINUTE",
     "BOTH", "LEADING", "TRAILING",
 ];
@@ -1870,9 +1876,21 @@ impl PlVariableValidator {
                     self.check_expr(e, context);
                 }
             }
-            Expr::FunctionCall { args, .. } => {
+            Expr::FunctionCall { args, agg_from, .. } => {
+                // Aggregate FROM clause (e.g., SUM(expr FROM generate_series(1, N) AS i))
+                // introduces SQL-level aliases that are valid references in the aggregate args.
+                if agg_from.is_some() {
+                    self.enter_scope();
+                    for item in agg_from.as_ref().unwrap() {
+                        self.declare_table_ref_alias(item);
+                        self.check_table_ref_exprs(item, context);
+                    }
+                }
                 for arg in args {
                     self.check_expr(arg, context);
+                }
+                if agg_from.is_some() {
+                    self.exit_scope();
                 }
             }
             Expr::SpecialFunction { args, .. } => {
@@ -1988,6 +2006,56 @@ impl PlVariableValidator {
             Expr::Default => {}
             Expr::SysDate => {}
             Expr::CurrentOf { .. } => {}
+        }
+    }
+
+    fn declare_table_ref_alias(&mut self, table_ref: &crate::ast::TableRef) {
+        let alias = match table_ref {
+            crate::ast::TableRef::Table { alias, .. } => alias.as_ref(),
+            crate::ast::TableRef::FunctionCall { alias, .. } => alias.as_ref(),
+            crate::ast::TableRef::Subquery { alias, .. } => alias.as_ref(),
+            crate::ast::TableRef::Values { alias, .. } => alias.as_ref(),
+            crate::ast::TableRef::Join { .. } => None,
+            crate::ast::TableRef::Pivot { .. } => None,
+            crate::ast::TableRef::Unpivot { .. } => None,
+        };
+        if let Some(a) = alias {
+            self.declare(a);
+        }
+    }
+
+    fn check_table_ref_exprs(&mut self, table_ref: &crate::ast::TableRef, context: &str) {
+        match table_ref {
+            crate::ast::TableRef::FunctionCall { args, .. } => {
+                for arg in args {
+                    self.check_expr(arg, context);
+                }
+            }
+            crate::ast::TableRef::Table { tablesample, .. } => {
+                if let Some(ref ts) = tablesample {
+                    for arg in &ts.arguments {
+                        self.check_expr(arg, context);
+                    }
+                    if let Some(ref r) = ts.repeatable {
+                        self.check_expr(r, context);
+                    }
+                }
+            }
+            crate::ast::TableRef::Subquery { .. } | crate::ast::TableRef::Values { .. } => {}
+            crate::ast::TableRef::Join { left, right, condition, .. } => {
+                self.check_table_ref_exprs(left, context);
+                self.check_table_ref_exprs(right, context);
+                if let Some(ref c) = condition {
+                    self.check_expr(c, context);
+                }
+            }
+            crate::ast::TableRef::Pivot { source, pivot } => {
+                self.check_table_ref_exprs(source, context);
+                self.check_expr(&pivot.aggregate, context);
+            }
+            crate::ast::TableRef::Unpivot { source, .. } => {
+                self.check_table_ref_exprs(source, context);
+            }
         }
     }
 

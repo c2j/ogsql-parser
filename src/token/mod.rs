@@ -33,6 +33,24 @@ impl Default for SourceLocation {
     }
 }
 
+impl SourceLocation {
+    pub fn format_if_real(&self) -> LocationDisplay<'_> {
+        LocationDisplay(self)
+    }
+}
+
+pub struct LocationDisplay<'a>(pub &'a SourceLocation);
+
+impl std::fmt::Display for LocationDisplay<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        if self.0.line > 1 || self.0.column > 1 || self.0.offset > 0 {
+            write!(f, " at line {}, column {}", self.0.line, self.0.column)
+        } else {
+            Ok(())
+        }
+    }
+}
+
 /// A token with its location in the source text.
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct TokenWithSpan {
