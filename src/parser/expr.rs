@@ -1174,7 +1174,7 @@ impl Parser {
                     return self.parse_function_call(name);
                 }
                 if name.len() >= 2 {
-                    let last = name.last().unwrap().to_lowercase();
+                    let last = name.last().expect("name has at least 2 elements when len() >= 2").to_lowercase();
                     if last == "nextval" || last == "currval" {
                         let func = if last == "nextval" {
                             SequenceFunc::Nextval
@@ -1259,7 +1259,7 @@ impl Parser {
             }
             let obj_name = name;
             if obj_name.len() >= 2 {
-                let last = obj_name.last().unwrap().to_lowercase();
+                let last = obj_name.last().expect("obj_name has at least 2 elements when len() >= 2").to_lowercase();
                 if last == "nextval" || last == "currval" {
                     let func = if last == "nextval" {
                         SequenceFunc::Nextval
@@ -1509,7 +1509,7 @@ impl Parser {
                 if let Some(Expr::FunctionCall { ref within_group, .. }) = args.last() {
                     if !within_group.is_empty() {
                         // Implicit SELECT: wrap last arg in Subquery (#81)
-                        let last_arg = args.pop().unwrap();
+                        let last_arg = args.pop().expect("args is non-empty when args.last() returned Some");
                         let select = SelectStatement {
                             hints: vec![],
                             with: None,
@@ -1831,7 +1831,7 @@ impl Parser {
     fn parse_trim_function(&mut self, name: ObjectName) -> Result<Expr, ParserError> {
         let direction = match self.peek_keyword() {
             Some(Keyword::LEADING) | Some(Keyword::TRAILING) | Some(Keyword::BOTH) => {
-                let dir = self.peek_keyword().unwrap().as_str().to_string();
+                let dir = self.peek_keyword().expect("peek_keyword matched in outer match arm").as_str().to_string();
                 self.advance();
                 Some(dir)
             }

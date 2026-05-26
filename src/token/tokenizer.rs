@@ -14,6 +14,11 @@ pub enum TokenizerError {
     UnterminatedQuotedIdentifier(usize),
     #[error("invalid character {0:?} at position {1}")]
     InvalidCharacter(char, usize),
+    #[error("unexpected end of input at position {position}: expected {expected}")]
+    UnexpectedEof {
+        expected: String,
+        position: usize,
+    },
 }
 
 pub struct Tokenizer<'a> {
@@ -538,9 +543,9 @@ impl<'a> Tokenizer<'a> {
                     let frac_start = self.advance_while_pos(|c| c.is_ascii_digit());
                     let mut full = format!(".{}", &self.input[frac_start..self.pos]);
                     if self.peek() == Some('e') || self.peek() == Some('E') {
-                        full.push(self.advance().unwrap());
+                        full.push(self.advance().expect("peek() confirmed 'e'/'E' exists"));
                         if self.peek() == Some('+') || self.peek() == Some('-') {
-                            full.push(self.advance().unwrap());
+                            full.push(self.advance().expect("peek() confirmed '+'/'-' exists"));
                         }
                         let exp_start = self.advance_while_pos(|c| c.is_ascii_digit());
                         full.push_str(&self.input[exp_start..self.pos]);
@@ -971,7 +976,7 @@ impl<'a> Tokenizer<'a> {
                 Some(c) => {
                     window.push_back(c);
                     if window.len() > delim_len {
-                        result.push(window.pop_front().unwrap());
+                        result.push(window.pop_front().expect("window len > delim_len checked above"));
                     }
                     if window.len() == delim_len && window.iter().eq(delim_chars.iter()) {
                         return Ok(result);
@@ -1023,9 +1028,9 @@ impl<'a> Tokenizer<'a> {
 
         // Exponent part
         if self.peek() == Some('e') || self.peek() == Some('E') {
-            num.push(self.advance().unwrap());
+            num.push(self.advance().expect("peek() confirmed 'e'/'E' exists"));
             if self.peek() == Some('+') || self.peek() == Some('-') {
-                num.push(self.advance().unwrap());
+                num.push(self.advance().expect("peek() confirmed '+'/'-' exists"));
             }
             let exp_start = self.advance_while_pos(|c| c.is_ascii_digit());
             num.push_str(&self.input[exp_start..self.pos]);

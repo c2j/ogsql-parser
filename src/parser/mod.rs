@@ -168,7 +168,7 @@ impl Parser {
                 expected: "statement".to_string(),
                 location: parser.current_location(),
             }),
-            1 => Ok((infos.into_iter().next().unwrap(), parser.errors().to_vec())),
+            1 => Ok((infos.into_iter().next().expect("infos has exactly 1 element when len() == 1"), parser.errors().to_vec())),
             n => Err(ParserError::UnexpectedToken {
                 location: parser.current_location(),
                 expected: "single statement".to_string(),
@@ -266,7 +266,7 @@ impl Parser {
                             if matches!(s, crate::ast::Statement::Empty)
                                 && self.errors.len() > saved_error_count
                             {
-                                let real_error = self.errors.pop().unwrap();
+                                let real_error = self.errors.pop().expect("errors len > saved_error_count checked above");
                                 self.errors.truncate(saved_error_count);
                                 self.errors.push(real_error);
                             }
@@ -296,7 +296,7 @@ impl Parser {
                     let end_token = if end_pos < self.tokens.len() {
                         &self.tokens[end_pos]
                     } else {
-                        self.tokens.last().unwrap()
+                        self.tokens.last().expect("tokens is non-empty when end_pos >= len")
                     };
                     let end_span = end_token.span;
 
@@ -2403,7 +2403,7 @@ impl Parser {
                 || self.match_keyword(Keyword::ADD_P)
                 || self.match_keyword(Keyword::DROP)
             {
-                let act = format!("{:?}", self.peek_keyword().unwrap()).to_lowercase();
+                let act = format!("{:?}", self.peek_keyword().expect("match_keyword confirmed a keyword matches")).to_lowercase();
                 self.advance();
                 act
             } else {
@@ -2970,7 +2970,7 @@ impl Parser {
             | Some(Keyword::SCHEMA)
             | Some(Keyword::VIEW)
             | Some(Keyword::FUNCTION) => {
-                let kw = self.peek_keyword().unwrap();
+                let kw = self.peek_keyword().expect("peek_keyword matched in outer match arm");
                 self.advance();
                 kw.as_str().to_string()
             }

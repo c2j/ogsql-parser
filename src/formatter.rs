@@ -1500,7 +1500,7 @@ impl SqlFormatter {
         if s.chars()
             .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_')
             && !s.is_empty()
-            && !s.chars().next().unwrap().is_ascii_digit()
+            && !s.chars().next().expect("s is non-empty after is_empty() check").is_ascii_digit()
         {
             s.to_string()
         } else {
@@ -1511,7 +1511,7 @@ impl SqlFormatter {
     fn quote_identifier_relaxed(&self, s: &str) -> String {
         if s.chars().all(|c| c.is_ascii_alphanumeric() || c == '_')
             && !s.is_empty()
-            && !s.chars().next().unwrap().is_ascii_digit()
+            && !s.chars().next().expect("s is non-empty after is_empty() check").is_ascii_digit()
         {
             s.to_string()
         } else {
@@ -1553,7 +1553,7 @@ impl SqlFormatter {
         }
 
         if inner.len() == 1 && ws.window_name.is_some() {
-            parts.push(inner.pop().unwrap());
+            parts.push(inner.pop().expect("inner has exactly 1 element when window_name is Some"));
         } else {
             parts.push(format!("({})", inner.join(" ")));
         }
@@ -4423,15 +4423,15 @@ impl SqlFormatter {
                 format!(
                     "{} {}",
                     self.kw("SAVEPOINT"),
-                    self.quote_identifier(stmt.savepoint_name.as_ref().unwrap())
-                )
-            }
-            TransactionKind::ReleaseSavepoint => {
-                format!(
-                    "{} {} {}",
-                    self.kw("RELEASE"),
-                    self.kw("SAVEPOINT"),
-                    self.quote_identifier(stmt.savepoint_name.as_ref().unwrap())
+                    self.quote_identifier(stmt.savepoint_name.as_ref().expect("Savepoint must have savepoint_name"))
+                    )
+                }
+                TransactionKind::ReleaseSavepoint => {
+                    format!(
+                        "{} {} {}",
+                        self.kw("RELEASE"),
+                        self.kw("SAVEPOINT"),
+                        self.quote_identifier(stmt.savepoint_name.as_ref().expect("ReleaseSavepoint must have savepoint_name"))
                 )
             }
             TransactionKind::PrepareTransaction => {
@@ -4439,7 +4439,7 @@ impl SqlFormatter {
                     "{} {} '{}'",
                     self.kw("PREPARE"),
                     self.kw("TRANSACTION"),
-                    stmt.transaction_id.as_ref().unwrap()
+                    stmt.transaction_id.as_ref().expect("PrepareTransaction must have transaction_id")
                 )
             }
             TransactionKind::CommitPrepared => {
@@ -4447,7 +4447,7 @@ impl SqlFormatter {
                     "{} {} '{}'",
                     self.kw("COMMIT"),
                     self.kw("PREPARED"),
-                    stmt.transaction_id.as_ref().unwrap()
+                    stmt.transaction_id.as_ref().expect("CommitPrepared must have transaction_id")
                 )
             }
             TransactionKind::RollbackPrepared => {
@@ -4455,7 +4455,7 @@ impl SqlFormatter {
                     "{} {} '{}'",
                     self.kw("ROLLBACK"),
                     self.kw("PREPARED"),
-                    stmt.transaction_id.as_ref().unwrap()
+                    stmt.transaction_id.as_ref().expect("RollbackPrepared must have transaction_id")
                 )
             }
             TransactionKind::SetTransaction => {
@@ -7229,9 +7229,9 @@ impl SqlFormatter {
                 self.kw("ALTER TRIGGER"),
                 stmt.name,
                 self.kw("ON"),
-                self.format_object_name(stmt.table.as_ref().unwrap()),
+                self.format_object_name(stmt.table.as_ref().expect("ALTER TRIGGER must have table")),
                 self.kw("RENAME TO"),
-                stmt.new_name.as_ref().unwrap()
+                stmt.new_name.as_ref().expect("ALTER TRIGGER RENAME must have new_name")
             )
         }
     }
