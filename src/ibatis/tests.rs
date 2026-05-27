@@ -777,3 +777,861 @@ fn test_sanitize_param_name() {
     assert_eq!(sanitize_param_name("normalParam"), "normalParam");
     assert_eq!(sanitize_param_name("value+1"), "value_1");
 }
+
+// ── Structured AST API Tests (Issue #179) ──
+
+fn find_first_node_of_type<'a>(node: &'a SqlNode, type_name: &str) -> Option<&'a SqlNode> {
+    let is_match = match type_name {
+        "if" => matches!(node, SqlNode::If { .. }),
+        "choose" => matches!(node, SqlNode::Choose { .. }),
+        "foreach" => matches!(node, SqlNode::ForEach { .. }),
+        "where" => matches!(node, SqlNode::Where { .. }),
+        "set" => matches!(node, SqlNode::Set { .. }),
+        "trim" => matches!(node, SqlNode::Trim { .. }),
+        "bind" => matches!(node, SqlNode::Bind { .. }),
+        "rawexpr" => matches!(node, SqlNode::RawExpr { .. }),
+        "parameter" => matches!(node, SqlNode::Parameter { .. }),
+        "include" => matches!(node, SqlNode::Include { .. }),
+        _ => false,
+    };
+    if is_match {
+        return Some(node);
+    }
+    match node {
+        SqlNode::Sequence { children }
+        | SqlNode::If { children, .. }
+        | SqlNode::Where { children }
+        | SqlNode::Set { children }
+        | SqlNode::Trim { children, .. }
+        | SqlNode::ForEach { children, .. } => {
+            for child in children {
+                if let Some(found) = find_first_node_of_type(child, type_name) {
+                    return Some(found);
+                }
+            }
+            None
+        }
+        SqlNode::Choose { branches } => {
+            for (_, ch) in branches {
+                for child in ch {
+                    if let Some(found) = find_first_node_of_type(child, type_name) {
+                        return Some(found);
+                    }
+                }
+            }
+            None
+        }
+        _ => None,
+    }
+}
+
+#[test]
+fn test_structured_simple_select() {
+    let xml = br#"<mapper namespace="com.example.UserMapper">
+        <select id="findById" parameterType="int" resultType="User">
+            SELECT * FROM users WHERE id = #{id}
+        </select>
+    </mapper>"#;
+    let result = super::parse_mapper_bytes_structured(xml);
+    assert_eq!(result.namespace, "com.example.UserMapper");
+    assert!(result.errors.is_empty());
+    assert_eq!(result.statements.len(), 1);
+    assert_eq!(result.statements[0].id, "findById");
+    assert_eq!(result.statements[0].kind, StatementKind::Select);
+    assert!(!result.statements[0].has_dynamic_elements);
+    assert_eq!(result.statements[0].parameters.len(), 1);
+    assert_eq!(result.statements[0].parameters[0].name, "id");
+}
+
+#[test]
+fn test_structured_preserves_if_tree() {
+    let xml = br#"<mapper namespace="test">
+        <select id="findUser">
+            SELECT * FROM users
+            <where>
+                <if test="name != null">AND name = #{name}</if>
+                <if test="age != null">AND age = #{age}</if>
+            </where>
+        </select>
+    </mapper>"#;
+    let result = super::parse_mapper_bytes_structured(xml);
+    assert!(result.errors.is_empty());
+    let stmt = &result.statements[0];
+    assert!(stmt.has_dynamic_elements);
+
+    let where_node = find_first_node_of_type(&stmt.body, "where");
+    assert!(where_node.is_some(), "expected a Where node");
+
+    if let SqlNode::Where { children: where_children } = where_node.unwrap() {
+        let if_nodes: Vec<_> = where_children.iter()
+            .filter(|n| matches!(n, SqlNode::If { .. }))
+            .collect();
+        assert_eq!(if_nodes.len(), 2, "expected two If nodes inside Where");
+
+        if let SqlNode::If { test, children: if_children, .. } = if_nodes[0] {
+            assert_eq!(test, "name != null");
+            let params: Vec<_> = if_children.iter()
+                .filter(|n| matches!(n, SqlNode::Parameter { .. }))
+                .collect();
+            assert_eq!(params.len(), 1);
+            if let SqlNode::Parameter { name, .. } = params[0] {
+                assert_eq!(name, "name");
+            }
+        }
+
+        if let SqlNode::If { test, .. } = if_nodes[1] {
+            assert_eq!(test, "age != null");
+        }
+    }
+}
+
+#[test]
+fn test_structured_preserves_foreach_tree() {
+    let xml = br#"<mapper namespace="test">
+        <select id="findByIds">
+            SELECT * FROM users WHERE id IN
+            <foreach collection="ids" item="id" open="(" separator="," close=")">
+                #{id}
+            </foreach>
+        </select>
+    </mapper>"#;
+    let result = super::parse_mapper_bytes_structured(xml);
+    let stmt = &result.statements[0];
+    assert!(stmt.has_dynamic_elements);
+
+    let foreach = find_first_node_of_type(&stmt.body, "foreach");
+    assert!(foreach.is_some());
+
+    if let SqlNode::ForEach { collection, item, open, separator, close, children, .. } = foreach.unwrap() {
+        assert_eq!(collection, "ids");
+        assert_eq!(item, "id");
+        assert_eq!(open.as_deref(), Some("("));
+        assert_eq!(separator.as_deref(), Some(","));
+        assert_eq!(close.as_deref(), Some(")"));
+        let params: Vec<_> = children.iter()
+            .filter(|n| matches!(n, SqlNode::Parameter { .. }))
+            .collect();
+        assert_eq!(params.len(), 1);
+    }
+}
+
+#[test]
+fn test_structured_preserves_choose_tree() {
+    let xml = br#"<mapper namespace="test">
+        <select id="find">
+            SELECT * FROM users
+            <where>
+                <choose>
+                    <when test="id != null">AND id = #{id}</when>
+                    <otherwise>AND status = 'ACTIVE'</otherwise>
+                </choose>
+            </where>
+        </select>
+    </mapper>"#;
+    let result = super::parse_mapper_bytes_structured(xml);
+    let stmt = &result.statements[0];
+    assert!(stmt.has_dynamic_elements);
+
+    let choose = find_first_node_of_type(&stmt.body, "choose");
+    assert!(choose.is_some());
+
+    if let SqlNode::Choose { branches } = choose.unwrap() {
+        assert_eq!(branches.len(), 2);
+        assert_eq!(branches[0].0.as_deref(), Some("id != null"));
+        assert!(branches[1].0.as_ref().map_or(true, |t| t.is_empty()));
+    }
+}
+
+#[test]
+fn test_structured_preserves_trim_tree() {
+    let xml = br#"<mapper namespace="test">
+        <select id="find">
+            SELECT * FROM users
+            <trim prefix="WHERE" prefixOverrides="AND |OR ">
+                <if test="name != null">AND name = #{name}</if>
+            </trim>
+        </select>
+    </mapper>"#;
+    let result = super::parse_mapper_bytes_structured(xml);
+    let stmt = &result.statements[0];
+
+    let trim = find_first_node_of_type(&stmt.body, "trim");
+    assert!(trim.is_some());
+
+    if let SqlNode::Trim { prefix, prefix_overrides, children, .. } = trim.unwrap() {
+        assert_eq!(prefix.as_deref(), Some("WHERE"));
+        assert_eq!(prefix_overrides.as_deref(), Some("AND |OR "));
+        let if_nodes: Vec<_> = children.iter()
+            .filter(|n| matches!(n, SqlNode::If { .. }))
+            .collect();
+        assert_eq!(if_nodes.len(), 1, "trim should have one If child");
+    }
+}
+
+#[test]
+fn test_structured_preserves_set_tree() {
+    let xml = br#"<mapper namespace="test">
+        <update id="updateUser">
+            UPDATE users
+            <set>
+                <if test="name != null">name = #{name},</if>
+                <if test="email != null">email = #{email},</if>
+            </set>
+            WHERE id = #{id}
+        </update>
+    </mapper>"#;
+    let result = super::parse_mapper_bytes_structured(xml);
+    let stmt = &result.statements[0];
+    assert!(stmt.has_dynamic_elements);
+
+    let set = find_first_node_of_type(&stmt.body, "set");
+    assert!(set.is_some());
+
+    if let SqlNode::Set { children } = set.unwrap() {
+        let if_nodes: Vec<_> = children.iter()
+            .filter(|n| matches!(n, SqlNode::If { .. }))
+            .collect();
+        assert_eq!(if_nodes.len(), 2);
+    }
+}
+
+#[test]
+fn test_structured_preserves_bind_node() {
+    let xml = br#"<mapper namespace="test">
+        <select id="search">
+            SELECT * FROM users
+            <where>
+                <bind name="pattern" value="'%' + name + '%'"/>
+                name LIKE #{pattern}
+            </where>
+        </select>
+    </mapper>"#;
+    let result = super::parse_mapper_bytes_structured(xml);
+    let stmt = &result.statements[0];
+    assert!(stmt.has_dynamic_elements);
+
+    let bind = find_first_node_of_type(&stmt.body, "bind");
+    assert!(bind.is_some());
+
+    if let SqlNode::Bind { name, value } = bind.unwrap() {
+        assert_eq!(name, "pattern");
+        assert_eq!(value, "'%' + name + '%'");
+    }
+}
+
+#[test]
+fn test_structured_include_resolved() {
+    let xml = br#"<mapper namespace="test">
+        <sql id="cols">id, name</sql>
+        <select id="findAll">SELECT <include refid="cols"/> FROM users</select>
+    </mapper>"#;
+    let result = super::parse_mapper_bytes_structured(xml);
+    assert!(result.errors.is_empty());
+    let stmt = &result.statements[0];
+    let text = node_text(&stmt.body);
+    assert!(text.contains("id, name"), "include should be resolved, got: {}", text);
+    assert!(!text.contains("<include"));
+}
+
+#[test]
+fn test_structured_fragments_preserved() {
+    let xml = br#"<mapper namespace="test">
+        <sql id="baseColumns">id, name, email</sql>
+        <select id="findAll">SELECT <include refid="baseColumns"/> FROM users</select>
+    </mapper>"#;
+    let result = super::parse_mapper_bytes_structured(xml);
+    assert_eq!(result.fragments.len(), 1);
+    assert_eq!(result.fragments[0].id, "baseColumns");
+}
+
+#[test]
+fn test_structured_source_location() {
+    let xml = br#"<mapper namespace="test">
+        <select id="find">SELECT 1</select>
+    </mapper>"#;
+    let result = super::parse_mapper_bytes_structured_with_path(xml, Some("test.xml"));
+    let stmt = &result.statements[0];
+    assert_eq!(stmt.location.file_path.as_deref(), Some("test.xml"));
+    assert!(stmt.location.line > 0);
+}
+
+#[test]
+fn test_structured_empty_mapper() {
+    let xml = br#"<mapper namespace="empty"></mapper>"#;
+    let result = super::parse_mapper_bytes_structured(xml);
+    assert!(result.statements.is_empty());
+    assert!(result.errors.iter().any(|e| matches!(e, IbatisError::EmptyMapper)));
+}
+
+#[test]
+fn test_structured_invalid_xml() {
+    let xml = b"not xml at all";
+    let result = super::parse_mapper_bytes_structured(xml);
+    assert!(!result.errors.is_empty());
+}
+
+#[test]
+fn test_structured_collects_params() {
+    let xml = br#"<mapper namespace="test">
+        <select id="find">
+            SELECT * FROM users WHERE id = #{id} AND name = #{name}
+        </select>
+    </mapper>"#;
+    let result = super::parse_mapper_bytes_structured(xml);
+    let stmt = &result.statements[0];
+    assert_eq!(stmt.parameters.len(), 2);
+    let names: Vec<&str> = stmt.parameters.iter().map(|p| p.name.as_str()).collect();
+    assert!(names.contains(&"id"));
+    assert!(names.contains(&"name"));
+}
+
+#[test]
+fn test_structured_dollar_param() {
+    let xml = br#"<mapper namespace="test">
+        <select id="dynamicOrder">SELECT * FROM users ORDER BY ${column}</select>
+    </mapper>"#;
+    let result = super::parse_mapper_bytes_structured(xml);
+    let stmt = &result.statements[0];
+    let raw = find_first_node_of_type(&stmt.body, "rawexpr");
+    assert!(raw.is_some());
+    if let SqlNode::RawExpr { expr, .. } = raw.unwrap() {
+        assert_eq!(expr, "column");
+    }
+}
+
+#[test]
+fn test_structured_nested_if_inside_foreach() {
+    let xml = br#"<mapper namespace="test">
+        <select id="complex">
+            SELECT * FROM users
+            <where>
+                <if test="ids != null">
+                    AND id IN
+                    <foreach collection="ids" item="id" open="(" separator="," close=")">
+                        <if test="id != null">#{id}</if>
+                    </foreach>
+                </if>
+            </where>
+        </select>
+    </mapper>"#;
+    let result = super::parse_mapper_bytes_structured(xml);
+    assert!(result.errors.is_empty());
+    let stmt = &result.statements[0];
+    assert!(stmt.has_dynamic_elements);
+
+    let where_node = find_first_node_of_type(&stmt.body, "where");
+    assert!(where_node.is_some(), "should have Where node");
+
+    let foreach = find_first_node_of_type(&stmt.body, "foreach");
+    assert!(foreach.is_some(), "should have ForEach node");
+
+    if let SqlNode::ForEach { children, .. } = foreach.unwrap() {
+        let inner_if: Vec<_> = children.iter()
+            .filter(|n| matches!(n, SqlNode::If { .. }))
+            .collect();
+        assert_eq!(inner_if.len(), 1, "ForEach should contain one inner If");
+        if let SqlNode::If { test, .. } = inner_if[0] {
+            assert_eq!(test, "id != null");
+        }
+    }
+}
+
+#[test]
+fn test_structured_ibatis2_compat() {
+    let xml = br#"<?xml version="1.0"?>
+<sqlMap>
+    <select id="testDynamic" parameterClass="map">
+        select * from ACCOUNT
+        <dynamic>
+            <isNotNull property="id">
+                where ACC_ID = #id#
+            </isNotNull>
+        </dynamic>
+    </select>
+</sqlMap>"#;
+    let result = super::parse_mapper_bytes_structured(xml);
+    assert_eq!(result.statements.len(), 1);
+    assert!(result.statements[0].has_dynamic_elements);
+}
+
+#[test]
+fn test_structured_multiple_statements() {
+    let xml = br#"<mapper namespace="test">
+        <select id="find">SELECT * FROM users WHERE id = #{id}</select>
+        <insert id="add">INSERT INTO users (name) VALUES (#{name})</insert>
+        <update id="update">UPDATE users SET name = #{name} WHERE id = #{id}</update>
+        <delete id="remove">DELETE FROM users WHERE id = #{id}</delete>
+    </mapper>"#;
+    let result = super::parse_mapper_bytes_structured(xml);
+    assert_eq!(result.statements.len(), 4);
+    assert_eq!(result.statements[0].kind, StatementKind::Select);
+    assert_eq!(result.statements[1].kind, StatementKind::Insert);
+    assert_eq!(result.statements[2].kind, StatementKind::Update);
+    assert_eq!(result.statements[3].kind, StatementKind::Delete);
+}
+
+#[test]
+fn test_structured_json_roundtrip() {
+    let xml = br#"<mapper namespace="test">
+        <select id="find">
+            SELECT * FROM users
+            <where>
+                <if test="name != null">AND name = #{name}</if>
+            </where>
+        </select>
+    </mapper>"#;
+    let result = super::parse_mapper_bytes_structured(xml);
+    let json = serde_json::to_string(&result).expect("should serialize to JSON");
+    assert!(json.contains("\"namespace\":\"test\""));
+    assert!(json.contains("\"id\":\"find\""));
+    assert!(json.contains("\"name != null\""));
+
+    let restored: super::StructuredMapper = serde_json::from_str(&json).expect("should deserialize from JSON");
+    assert_eq!(restored.namespace, "test");
+    assert_eq!(restored.statements.len(), 1);
+    assert!(restored.statements[0].has_dynamic_elements);
+}
+
+#[test]
+fn test_structured_no_dynamic_elements_for_static_sql() {
+    let xml = br#"<mapper namespace="test">
+        <select id="staticQuery">SELECT 1</select>
+    </mapper>"#;
+    let result = super::parse_mapper_bytes_structured(xml);
+    assert!(!result.statements[0].has_dynamic_elements);
+    assert!(result.statements[0].parameters.is_empty());
+}
+
+// ── Guard Tests: parse_mapper_bytes unchanged ──
+
+#[test]
+fn guard_flat_api_simple() {
+    let xml = br#"<mapper namespace="test">
+        <select id="findById">SELECT * FROM users WHERE id = #{id}</select>
+    </mapper>"#;
+    let result = super::parse_mapper_bytes(xml);
+    assert!(result.errors.is_empty());
+    assert_eq!(result.statements.len(), 1);
+    assert!(result.statements[0].flat_sql.contains("__XML_PARAM_id__"));
+    assert!(result.statements[0].parse_result.is_some());
+}
+
+#[test]
+fn guard_flat_api_dynamic_where() {
+    let xml = br#"<mapper namespace="test">
+        <select id="find">
+            SELECT * FROM users
+            <where>
+                <if test="name != null">AND name = #{name}</if>
+            </where>
+        </select>
+    </mapper>"#;
+    let result = super::parse_mapper_bytes(xml);
+    assert!(result.errors.is_empty());
+    assert!(result.statements[0].has_dynamic_elements);
+    assert!(result.statements[0].flat_sql.contains("WHERE"));
+    assert!(!result.statements[0].flat_sql.contains("WHERE AND"));
+}
+
+#[test]
+fn guard_flat_api_foreach() {
+    let xml = br#"<mapper namespace="test">
+        <select id="findByIds">
+            SELECT * FROM users WHERE id IN
+            <foreach collection="ids" item="id" open="(" separator="," close=")">
+                #{id}
+            </foreach>
+        </select>
+    </mapper>"#;
+    let result = super::parse_mapper_bytes(xml);
+    let sql = &result.statements[0].flat_sql;
+    assert!(sql.contains("IN"));
+    assert!(sql.contains("("));
+    assert!(sql.contains(")"));
+}
+
+#[test]
+fn guard_flat_api_include() {
+    let xml = br#"<mapper namespace="test">
+        <sql id="cols">id, name</sql>
+        <select id="findAll">SELECT <include refid="cols"/> FROM users</select>
+    </mapper>"#;
+    let result = super::parse_mapper_bytes(xml);
+    assert!(result.errors.is_empty());
+    assert!(result.statements[0].flat_sql.contains("id, name"));
+}
+
+#[test]
+fn guard_flat_api_dollar_param() {
+    let xml = br#"<mapper namespace="test">
+        <select id="dynamicOrder">SELECT * FROM users ORDER BY ${column}</select>
+    </mapper>"#;
+    let result = super::parse_mapper_bytes(xml);
+    assert!(result.statements[0].flat_sql.contains("__XML_RAW_column__"));
+}
+
+#[test]
+fn guard_flat_api_empty_mapper() {
+    let xml = br#"<mapper namespace="empty"></mapper>"#;
+    let result = super::parse_mapper_bytes(xml);
+    assert!(result.statements.is_empty());
+    assert!(result.errors.iter().any(|e| matches!(e, IbatisError::EmptyMapper)));
+}
+
+#[test]
+fn guard_flat_api_multiple_statements() {
+    let xml = br#"<mapper namespace="test">
+        <select id="find">SELECT * FROM users WHERE id = #{id}</select>
+        <insert id="add">INSERT INTO users (name) VALUES (#{name})</insert>
+        <update id="update">UPDATE users SET name = #{name} WHERE id = #{id}</update>
+        <delete id="remove">DELETE FROM users WHERE id = #{id}</delete>
+    </mapper>"#;
+    let result = super::parse_mapper_bytes(xml);
+    assert_eq!(result.statements.len(), 4);
+    assert_eq!(result.statements[0].kind, StatementKind::Select);
+    assert_eq!(result.statements[1].kind, StatementKind::Insert);
+    assert_eq!(result.statements[2].kind, StatementKind::Update);
+    assert_eq!(result.statements[3].kind, StatementKind::Delete);
+}
+
+// ── Expand Variants Tests (Issue #179 downstream) ──
+
+use crate::ibatis::types::{BranchStep, ExpandConfig, IfExpandStrategy, PlaceholderStrategy};
+
+fn default_expand_config() -> ExpandConfig {
+    ExpandConfig {
+        max_depth: 10,
+        max_variants: 100,
+        foreach_sizes: vec![1, 2],
+        if_strategy: IfExpandStrategy::Both,
+        placeholder: PlaceholderStrategy::PreserveInternalMarkers,
+    }
+}
+
+#[test]
+fn test_expand_simple_select_no_dynamic() {
+    let xml = br#"<mapper namespace="test">
+        <select id="find">SELECT * FROM users WHERE id = #{id}</select>
+    </mapper>"#;
+    let result = super::parse_mapper_bytes_structured(xml);
+    let stmt = &result.statements[0];
+    let variants = stmt.expand_variants(&default_expand_config());
+    assert_eq!(variants.len(), 1);
+    assert!(variants[0].sql.contains("SELECT"));
+    assert!(variants[0].sql.contains("__XML_PARAM_id__"));
+    assert!(variants[0].branch_path.is_empty());
+    assert_eq!(variants[0].parameters.len(), 1);
+}
+
+#[test]
+fn test_expand_if_both_two_variants() {
+    let xml = br#"<mapper namespace="test">
+        <select id="find">
+            SELECT * FROM users
+            <where>
+                <if test="name != null">AND name = #{name}</if>
+            </where>
+        </select>
+    </mapper>"#;
+    let result = super::parse_mapper_bytes_structured(xml);
+    let stmt = &result.statements[0];
+    let variants = stmt.expand_variants(&default_expand_config());
+    assert_eq!(variants.len(), 2);
+
+    let included = &variants[0];
+    assert!(included.sql.contains("WHERE"), "got: {}", included.sql);
+    assert!(included.sql.contains("__XML_PARAM_name__"));
+
+    let excluded = &variants[1];
+    assert!(!excluded.sql.contains("name"), "got: {}", excluded.sql);
+}
+
+#[test]
+fn test_expand_if_include_only() {
+    let xml = br#"<mapper namespace="test">
+        <select id="find">
+            SELECT * FROM users
+            <where>
+                <if test="name != null">AND name = #{name}</if>
+            </where>
+        </select>
+    </mapper>"#;
+    let result = super::parse_mapper_bytes_structured(xml);
+    let config = ExpandConfig { if_strategy: IfExpandStrategy::IncludeOnly, ..default_expand_config() };
+    let variants = result.statements[0].expand_variants(&config);
+    assert_eq!(variants.len(), 1);
+    assert!(variants[0].sql.contains("WHERE"));
+}
+
+#[test]
+fn test_expand_if_exclude_only() {
+    let xml = br#"<mapper namespace="test">
+        <select id="find">
+            SELECT * FROM users
+            <where>
+                <if test="name != null">AND name = #{name}</if>
+            </where>
+        </select>
+    </mapper>"#;
+    let result = super::parse_mapper_bytes_structured(xml);
+    let config = ExpandConfig { if_strategy: IfExpandStrategy::ExcludeOnly, ..default_expand_config() };
+    let variants = result.statements[0].expand_variants(&config);
+    assert_eq!(variants.len(), 1);
+    assert!(!variants[0].sql.contains("name"));
+}
+
+#[test]
+fn test_expand_two_ifs_combinatorial() {
+    let xml = br#"<mapper namespace="test">
+        <select id="find">
+            SELECT * FROM users
+            <where>
+                <if test="name != null">AND name = #{name}</if>
+                <if test="age != null">AND age = #{age}</if>
+            </where>
+        </select>
+    </mapper>"#;
+    let result = super::parse_mapper_bytes_structured(xml);
+    let variants = result.statements[0].expand_variants(&default_expand_config());
+    assert_eq!(variants.len(), 4, "2 independent Ifs should produce 4 variants");
+}
+
+#[test]
+fn test_expand_where_strips_leading_and() {
+    let xml = br#"<mapper namespace="test">
+        <select id="find">
+            SELECT * FROM users
+            <where>
+                <if test="name != null">AND name = #{name}</if>
+            </where>
+        </select>
+    </mapper>"#;
+    let result = super::parse_mapper_bytes_structured(xml);
+    let variants = result.statements[0].expand_variants(&default_expand_config());
+    let included = &variants[0];
+    assert!(!included.sql.contains("WHERE AND"), "got: {}", included.sql);
+    assert!(included.sql.contains("WHERE"));
+}
+
+#[test]
+fn test_expand_set_strips_trailing_comma() {
+    let xml = br#"<mapper namespace="test">
+        <update id="updateUser">
+            UPDATE users
+            <set>
+                <if test="name != null">name = #{name},</if>
+            </set>
+            WHERE id = #{id}
+        </update>
+    </mapper>"#;
+    let result = super::parse_mapper_bytes_structured(xml);
+    let variants = result.statements[0].expand_variants(&default_expand_config());
+    let included = &variants[0];
+    assert!(included.sql.contains("SET"), "got: {}", included.sql);
+    let set_content = included.sql.split("SET").nth(1).unwrap_or("").trim();
+    let before_where = set_content.split("WHERE").next().unwrap_or("").trim();
+    assert!(!before_where.ends_with(','), "SET content should not end with comma, got: {}", before_where);
+}
+
+#[test]
+fn test_expand_foreach_with_sizes() {
+    let xml = br#"<mapper namespace="test">
+        <select id="findByIds">
+            SELECT * FROM users WHERE id IN
+            <foreach collection="ids" item="id" open="(" separator="," close=")">
+                #{id}
+            </foreach>
+        </select>
+    </mapper>"#;
+    let result = super::parse_mapper_bytes_structured(xml);
+    let variants = result.statements[0].expand_variants(&default_expand_config());
+    assert_eq!(variants.len(), 2);
+
+    assert!(variants[0].sql.contains("("));
+    assert!(variants[0].sql.contains(")"));
+
+    let size2_sql = &variants[1].sql;
+    assert!(size2_sql.contains(","), "size=2 should have separator, got: {}", size2_sql);
+}
+
+#[test]
+fn test_expand_choose_two_branches() {
+    let xml = br#"<mapper namespace="test">
+        <select id="find">
+            SELECT * FROM users
+            <where>
+                <choose>
+                    <when test="id != null">AND id = #{id}</when>
+                    <otherwise>AND status = 'ACTIVE'</otherwise>
+                </choose>
+            </where>
+        </select>
+    </mapper>"#;
+    let result = super::parse_mapper_bytes_structured(xml);
+    let variants = result.statements[0].expand_variants(&default_expand_config());
+    assert_eq!(variants.len(), 2);
+}
+
+#[test]
+fn test_expand_branch_path_recorded() {
+    let xml = br#"<mapper namespace="test">
+        <select id="find">
+            SELECT * FROM users
+            <where>
+                <if test="name != null">AND name = #{name}</if>
+            </where>
+        </select>
+    </mapper>"#;
+    let result = super::parse_mapper_bytes_structured(xml);
+    let variants = result.statements[0].expand_variants(&default_expand_config());
+    assert!(variants[0].branch_path.iter().any(|s| matches!(s, BranchStep::If { included: true, .. })));
+    assert!(variants[1].branch_path.iter().any(|s| matches!(s, BranchStep::If { included: false, .. })));
+}
+
+#[test]
+fn test_expand_params_per_variant() {
+    let xml = br#"<mapper namespace="test">
+        <select id="find">
+            SELECT * FROM users
+            <where>
+                <if test="name != null">AND name = #{name}</if>
+                <if test="age != null">AND age = #{age}</if>
+            </where>
+        </select>
+    </mapper>"#;
+    let result = super::parse_mapper_bytes_structured(xml);
+    let variants = result.statements[0].expand_variants(&default_expand_config());
+
+    let both = variants.iter().find(|v| v.branch_path.iter().all(|s| {
+        matches!(s, BranchStep::If { included: true, .. })
+    })).unwrap();
+    assert_eq!(both.parameters.len(), 2);
+
+    let neither = variants.iter().find(|v| v.branch_path.iter().all(|s| {
+        matches!(s, BranchStep::If { included: false, .. })
+    })).unwrap();
+    assert_eq!(neither.parameters.len(), 0);
+}
+
+#[test]
+fn test_expand_placeholder_question_mark() {
+    let xml = br#"<mapper namespace="test">
+        <select id="find">SELECT * FROM users WHERE id = #{id} AND name = #{name}</select>
+    </mapper>"#;
+    let result = super::parse_mapper_bytes_structured(xml);
+    let config = ExpandConfig { placeholder: PlaceholderStrategy::QuestionMark, ..default_expand_config() };
+    let variants = result.statements[0].expand_variants(&config);
+    assert_eq!(variants.len(), 1);
+    assert!(variants[0].sql.contains("?"), "got: {}", variants[0].sql);
+    assert!(!variants[0].sql.contains("__XML_PARAM_"));
+}
+
+#[test]
+fn test_expand_max_variants_cap() {
+    let xml = br#"<mapper namespace="test">
+        <select id="find">
+            SELECT * FROM users
+            <where>
+                <if test="a">AND a = #{a}</if>
+                <if test="b">AND b = #{b}</if>
+                <if test="c">AND c = #{c}</if>
+            </where>
+        </select>
+    </mapper>"#;
+    let result = super::parse_mapper_bytes_structured(xml);
+    let config = ExpandConfig { max_variants: 3, ..default_expand_config() };
+    let variants = result.statements[0].expand_variants(&config);
+    assert_eq!(variants.len(), 3);
+}
+
+#[test]
+fn test_expand_trim_semantics() {
+    let xml = br#"<mapper namespace="test">
+        <select id="find">
+            SELECT * FROM users
+            <trim prefix="WHERE" prefixOverrides="AND |OR ">
+                <if test="name != null">AND name = #{name}</if>
+            </trim>
+        </select>
+    </mapper>"#;
+    let result = super::parse_mapper_bytes_structured(xml);
+    let variants = result.statements[0].expand_variants(&default_expand_config());
+    let included = &variants[0];
+    assert!(included.sql.contains("WHERE"), "got: {}", included.sql);
+    assert!(!included.sql.contains("WHERE AND"), "got: {}", included.sql);
+}
+
+#[test]
+fn test_to_parsed_statement_static() {
+    let xml = br#"<mapper namespace="test">
+        <select id="findById">SELECT * FROM users WHERE id = #{id}</select>
+    </mapper>"#;
+    let structured = super::parse_mapper_bytes_structured(xml);
+    let parsed = structured.statements[0].to_parsed_statement("test");
+    assert_eq!(parsed.id, "findById");
+    assert_eq!(parsed.kind, StatementKind::Select);
+    assert!(parsed.flat_sql.contains("__XML_PARAM_id__"));
+    assert!(!parsed.has_dynamic_elements);
+    assert!(parsed.parse_result.is_some());
+}
+
+#[test]
+fn test_to_parsed_statement_dynamic() {
+    let xml = br#"<mapper namespace="test">
+        <select id="find">
+            SELECT * FROM users
+            <where>
+                <if test="name != null">AND name = #{name}</if>
+            </where>
+        </select>
+    </mapper>"#;
+    let structured = super::parse_mapper_bytes_structured(xml);
+    let parsed = structured.statements[0].to_parsed_statement("test");
+    assert!(parsed.has_dynamic_elements);
+    assert!(parsed.flat_sql.contains("WHERE"));
+    assert!(!parsed.flat_sql.contains("WHERE AND"));
+}
+
+#[test]
+fn test_expand_nested_if_foreach() {
+    let xml = br#"<mapper namespace="test">
+        <select id="complex">
+            SELECT * FROM users
+            <where>
+                <if test="ids != null">
+                    AND id IN
+                    <foreach collection="ids" item="id" open="(" separator="," close=")">
+                        #{id}
+                    </foreach>
+                </if>
+            </where>
+        </select>
+    </mapper>"#;
+    let result = super::parse_mapper_bytes_structured(xml);
+    let config = ExpandConfig { foreach_sizes: vec![2], ..default_expand_config() };
+    let variants = result.statements[0].expand_variants(&config);
+
+    let included = variants.iter().find(|v| v.branch_path.iter().any(|s| {
+        matches!(s, BranchStep::If { test, included: true } if test == "ids != null")
+    })).unwrap();
+    assert!(included.sql.contains("("), "got: {}", included.sql);
+    assert!(included.sql.contains(","), "foreach size=2 should have separator, got: {}", included.sql);
+}
+
+#[test]
+fn test_expand_foreach_branch_step_recorded() {
+    let xml = br#"<mapper namespace="test">
+        <select id="findByIds">
+            SELECT * FROM users WHERE id IN
+            <foreach collection="ids" item="id" open="(" separator="," close=")">
+                #{id}
+            </foreach>
+        </select>
+    </mapper>"#;
+    let result = super::parse_mapper_bytes_structured(xml);
+    let variants = result.statements[0].expand_variants(&default_expand_config());
+    assert_eq!(variants.len(), 2);
+
+    assert!(matches!(&variants[0].branch_path[0], BranchStep::Foreach { collection, size: 1 } if collection == "ids"));
+    assert!(matches!(&variants[1].branch_path[0], BranchStep::Foreach { collection, size: 2 } if collection == "ids"));
+}
