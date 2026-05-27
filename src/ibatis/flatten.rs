@@ -283,7 +283,7 @@ fn apply_trim(
 /// - `${expr}` → `__XML_RAW_expr__`
 /// - `${expr,javaType=string}` → `__XML_RAW_STRING_expr__`
 /// - `'...'` 内的 `#{}` 和 `${}` 不替换
-fn replace_params(sql: &str) -> String {
+pub fn replace_params(sql: &str) -> String {
     let mut result = String::with_capacity(sql.len());
     let chars: Vec<char> = sql.chars().collect();
     let len = chars.len();

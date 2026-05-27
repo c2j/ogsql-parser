@@ -156,6 +156,9 @@ enum Commands {
         /// Print statistics after directory processing
         #[arg(long)]
         stats: bool,
+        /// Output structured dynamic SQL AST (preserves SqlNode tree instead of flattening)
+        #[arg(long)]
+        structured: bool,
     },
     #[cfg(feature = "java")]
     /// Extract and parse SQL from Java source files / 从 Java 源文件中提取并解析 SQL
@@ -4243,7 +4246,7 @@ fn cmd_playground() {
 }
 
 #[cfg(feature = "ibatis")]
-fn cmd_parse_xml(cli: &Cli, dir: Option<&str>, csv: bool, java_src: Option<&str>, stats: bool) {
+fn cmd_parse_xml(cli: &Cli, dir: Option<&str>, csv: bool, java_src: Option<&str>, stats: bool, structured: bool) {
     if dir.is_some() && !cli.file.is_empty() {
         die!("Error: --dir and -f are mutually exclusive");
     }
@@ -4261,6 +4264,14 @@ fn cmd_parse_xml(cli: &Cli, dir: Option<&str>, csv: bool, java_src: Option<&str>
     };
     #[cfg(not(feature = "java"))]
     let java_roots: Vec<std::path::PathBuf> = Vec::new();
+
+    if structured {
+        if dir.is_some() {
+            die!("Error: --structured is not supported with --dir yet");
+        }
+        cmd_parse_xml_structured(cli, csv);
+        return;
+    }
 
     if let Some(dir_path) = dir {
         cmd_parse_xml_dir(cli, dir_path, csv, &java_roots, stats);
@@ -4309,6 +4320,34 @@ fn cmd_parse_xml_single(cli: &Cli, csv: bool, java_roots: &[std::path::PathBuf])
     } else {
         print_xml_text(&result);
     }
+}
+
+#[cfg(feature = "ibatis")]
+fn cmd_parse_xml_structured(cli: &Cli, _csv: bool) {
+    if cli.file.len() > 1 {
+        die!("Error: parse-xml --structured accepts at most one --file");
+    }
+    let file_opt = cli.file.first().map(|s| s.as_str());
+    let input = match file_opt {
+        Some(path) => std::fs::read(path).unwrap_or_else(|e| die!("Error reading {}: {}", path, e)),
+        None => {
+            let mut buf = Vec::new();
+            std::io::stdin()
+                .read_to_end(&mut buf)
+                .unwrap_or_else(|e| die!("Error reading stdin: {}", e));
+            buf
+        }
+    };
+
+    let result = ogsql_parser::ibatis::parse_mapper_bytes_structured_with_path(&input, file_opt);
+
+    if !result.errors.is_empty() {
+        for err in &result.errors {
+            eprintln!("Error: {:?}", err);
+        }
+    }
+
+    println!("{}", serde_json::to_string_pretty(&result).unwrap());
 }
 
 #[cfg(feature = "ibatis")]
@@ -5426,11 +5465,11 @@ fn main() {
         Commands::Playground => cmd_playground(),
         #[cfg(feature = "ibatis")]
         #[cfg(not(feature = "java"))]
-        Commands::ParseXml { ref dir, csv, stats } => cmd_parse_xml(&cli, dir.as_deref(), csv, None, stats),
+        Commands::ParseXml { ref dir, csv, stats, structured } => cmd_parse_xml(&cli, dir.as_deref(), csv, None, stats, structured),
         #[cfg(feature = "ibatis")]
         #[cfg(feature = "java")]
-        Commands::ParseXml { ref dir, csv, ref java_src, stats } => {
-            cmd_parse_xml(&cli, dir.as_deref(), csv, java_src.as_deref(), stats)
+        Commands::ParseXml { ref dir, csv, ref java_src, stats, structured } => {
+            cmd_parse_xml(&cli, dir.as_deref(), csv, java_src.as_deref(), stats, structured)
         }
         #[cfg(feature = "java")]
         Commands::ParseJava {
