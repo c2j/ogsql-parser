@@ -16,6 +16,7 @@ pub enum FuncCategory {
     Scalar,
     SetReturning,
     Special,
+    TypeConstructor,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
@@ -32,6 +33,7 @@ pub enum FuncDomain {
     TextSearch,
     Crypto,
     System,
+    ExceptionContext,
     TypeConversion,
     OracleCompat,
     // ── Oracle 兼容包函数域 ──
@@ -364,6 +366,14 @@ static FUNCTIONS: &[FuncMeta] = &[
         true
     ),
     f!(
+        "array_to_json",
+        FuncCategory::Scalar,
+        FuncDomain::Json,
+        1,
+        Some(2),
+        false
+    ),
+    f!(
         "ascii",
         FuncCategory::Scalar,
         FuncDomain::String,
@@ -502,6 +512,14 @@ static FUNCTIONS: &[FuncMeta] = &[
         false
     ),
     f!(
+        "col_description",
+        FuncCategory::Scalar,
+        FuncDomain::System,
+        2,
+        Some(3),
+        false
+    ),
+    f!(
         "concat",
         FuncCategory::Scalar,
         FuncDomain::String,
@@ -603,6 +621,14 @@ static FUNCTIONS: &[FuncMeta] = &[
         FuncDomain::System,
         0,
         Some(1),
+        false
+    ),
+    f!(
+        "current_setting",
+        FuncCategory::Scalar,
+        FuncDomain::System,
+        1,
+        Some(2),
         false
     ),
     f!(
@@ -1273,6 +1299,23 @@ static FUNCTIONS: &[FuncMeta] = &[
         None,
         true
     ),
+    // ── H ───────────────────────────────────────────────────────
+    f!(
+        "has_schema_privilege",
+        FuncCategory::Scalar,
+        FuncDomain::System,
+        2,
+        Some(4),
+        false
+    ),
+    f!(
+        "has_table_privilege",
+        FuncCategory::Scalar,
+        FuncDomain::System,
+        2,
+        Some(4),
+        false
+    ),
     // ── I ───────────────────────────────────────────────────────
     f!(
         "inet_client_addr",
@@ -1340,6 +1383,22 @@ static FUNCTIONS: &[FuncMeta] = &[
     ),
     // ── J ───────────────────────────────────────────────────────
     f!(
+        "json",
+        FuncCategory::TypeConstructor,
+        FuncDomain::Json,
+        0,
+        Some(1),
+        false
+    ),
+    f!(
+        "json_agg",
+        FuncCategory::Aggregate,
+        FuncDomain::Json,
+        1,
+        Some(1),
+        true
+    ),
+    f!(
         "json_array_elements",
         FuncCategory::SetReturning,
         FuncDomain::Json,
@@ -1372,6 +1431,22 @@ static FUNCTIONS: &[FuncMeta] = &[
         false
     ),
     f!(
+        "json_typeof",
+        FuncCategory::Scalar,
+        FuncDomain::Json,
+        1,
+        Some(1),
+        false
+    ),
+    f!(
+        "jsonb_agg",
+        FuncCategory::Aggregate,
+        FuncDomain::Json,
+        1,
+        Some(1),
+        true
+    ),
+    f!(
         "jsonb_array_elements",
         FuncCategory::SetReturning,
         FuncDomain::Json,
@@ -1398,6 +1473,22 @@ static FUNCTIONS: &[FuncMeta] = &[
     f!(
         "jsonb_object_keys",
         FuncCategory::SetReturning,
+        FuncDomain::Json,
+        1,
+        Some(1),
+        false
+    ),
+    f!(
+        "jsonb_pretty",
+        FuncCategory::Scalar,
+        FuncDomain::Json,
+        1,
+        Some(1),
+        false
+    ),
+    f!(
+        "jsonb_typeof",
+        FuncCategory::Scalar,
         FuncDomain::Json,
         1,
         Some(1),
@@ -1801,11 +1892,59 @@ static FUNCTIONS: &[FuncMeta] = &[
         false
     ),
     f!(
+        "pg_cancel_backend",
+        FuncCategory::Scalar,
+        FuncDomain::System,
+        1,
+        Some(1),
+        false
+    ),
+    f!(
         "pg_conf_load_time",
         FuncCategory::Scalar,
         FuncDomain::System,
         0,
         Some(0),
+        false
+    ),
+    f!(
+        "pg_database_size",
+        FuncCategory::Scalar,
+        FuncDomain::System,
+        1,
+        Some(1),
+        false
+    ),
+    f!(
+        "pg_exception_context",
+        FuncCategory::Scalar,
+        FuncDomain::ExceptionContext,
+        0,
+        Some(0),
+        false
+    ),
+    f!(
+        "pg_exception_detail",
+        FuncCategory::Scalar,
+        FuncDomain::ExceptionContext,
+        0,
+        Some(0),
+        false
+    ),
+    f!(
+        "pg_exception_hint",
+        FuncCategory::Scalar,
+        FuncDomain::ExceptionContext,
+        0,
+        Some(0),
+        false
+    ),
+    f!(
+        "pg_get_userbyid",
+        FuncCategory::Scalar,
+        FuncDomain::System,
+        1,
+        Some(1),
         false
     ),
     f!(
@@ -1817,7 +1956,55 @@ static FUNCTIONS: &[FuncMeta] = &[
         false
     ),
     f!(
+        "pg_relation_size",
+        FuncCategory::Scalar,
+        FuncDomain::System,
+        1,
+        Some(2),
+        false
+    ),
+    f!(
         "pg_sleep",
+        FuncCategory::Scalar,
+        FuncDomain::System,
+        1,
+        Some(1),
+        false
+    ),
+    f!(
+        "pg_table_is_visible",
+        FuncCategory::Scalar,
+        FuncDomain::System,
+        1,
+        Some(2),
+        false
+    ),
+    f!(
+        "pg_table_size",
+        FuncCategory::Scalar,
+        FuncDomain::System,
+        1,
+        Some(1),
+        false
+    ),
+    f!(
+        "pg_terminate_backend",
+        FuncCategory::Scalar,
+        FuncDomain::System,
+        1,
+        Some(1),
+        false
+    ),
+    f!(
+        "pg_total_relation_size",
+        FuncCategory::Scalar,
+        FuncDomain::System,
+        1,
+        Some(1),
+        false
+    ),
+    f!(
+        "pg_typeof",
         FuncCategory::Scalar,
         FuncDomain::System,
         1,
@@ -2050,6 +2237,14 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(0),
         false
     ),
+    f!(
+        "row_to_json",
+        FuncCategory::Scalar,
+        FuncDomain::Json,
+        1,
+        Some(2),
+        false
+    ),
     fo!(
         "rownum",
         FuncCategory::Scalar,
@@ -2081,6 +2276,14 @@ static FUNCTIONS: &[FuncMeta] = &[
         FuncDomain::System,
         0,
         Some(0),
+        false
+    ),
+    f!(
+        "set_config",
+        FuncCategory::Scalar,
+        FuncDomain::System,
+        2,
+        Some(3),
         false
     ),
     f!(
@@ -2240,6 +2443,22 @@ static FUNCTIONS: &[FuncMeta] = &[
         "to_hex",
         FuncCategory::Scalar,
         FuncDomain::TypeConversion,
+        1,
+        Some(1),
+        false
+    ),
+    f!(
+        "to_json",
+        FuncCategory::Scalar,
+        FuncDomain::Json,
+        1,
+        Some(1),
+        false
+    ),
+    f!(
+        "to_jsonb",
+        FuncCategory::Scalar,
+        FuncDomain::Json,
         1,
         Some(1),
         false
@@ -2516,6 +2735,7 @@ pub fn lookup_builtin_meta(name: &str) -> Option<crate::ast::BuiltinFuncMeta> {
             FuncCategory::Scalar => "Scalar",
             FuncCategory::SetReturning => "SetReturning",
             FuncCategory::Special => "Special",
+            FuncCategory::TypeConstructor => "TypeConstructor",
         }.to_string(),
         domain: match m.domain {
             FuncDomain::Math => "Math",
@@ -2530,8 +2750,10 @@ pub fn lookup_builtin_meta(name: &str) -> Option<crate::ast::BuiltinFuncMeta> {
             FuncDomain::TextSearch => "TextSearch",
             FuncDomain::Crypto => "Crypto",
             FuncDomain::System => "System",
+            FuncDomain::ExceptionContext => "ExceptionContext",
             FuncDomain::TypeConversion => "TypeConversion",
             FuncDomain::OracleCompat => "OracleCompat",
+            // ── Oracle 兼容包函数域 ──
             FuncDomain::DbeFile => "DbeFile",
             FuncDomain::DbeLob => "DbeLob",
             FuncDomain::DbeOutput => "DbeOutput",
@@ -2548,6 +2770,7 @@ pub fn lookup_builtin_meta(name: &str) -> Option<crate::ast::BuiltinFuncMeta> {
             FuncDomain::PkgService => "PkgService",
             FuncDomain::UtlFile => "UtlFile",
             FuncDomain::Xml => "Xml",
+            // ── 其他 ──
             FuncDomain::Ai => "Ai",
             FuncDomain::Other => "Other",
         }.to_string(),
@@ -2580,6 +2803,7 @@ pub fn lookup_builtin_meta_qualified(full_name: &str) -> Option<crate::ast::Buil
             FuncCategory::Scalar => "Scalar",
             FuncCategory::SetReturning => "SetReturning",
             FuncCategory::Special => "Special",
+            FuncCategory::TypeConstructor => "TypeConstructor",
         }.to_string(),
         domain: match m.domain {
             FuncDomain::Math => "Math",
@@ -2594,6 +2818,7 @@ pub fn lookup_builtin_meta_qualified(full_name: &str) -> Option<crate::ast::Buil
             FuncDomain::TextSearch => "TextSearch",
             FuncDomain::Crypto => "Crypto",
             FuncDomain::System => "System",
+            FuncDomain::ExceptionContext => "ExceptionContext",
             FuncDomain::TypeConversion => "TypeConversion",
             FuncDomain::OracleCompat => "OracleCompat",
             FuncDomain::DbeFile => "DbeFile",
@@ -3537,6 +3762,121 @@ mod tests {
                 FUNCTIONS[i].name,
                 i
             );
+        }
+    }
+
+    // ── Exception context function tests ──
+
+    #[test]
+    fn test_lookup_exception_context_functions() {
+        for name in &["pg_exception_context", "pg_exception_detail", "pg_exception_hint"] {
+            let meta = lookup_function(name).unwrap_or_else(|| panic!("{} not found", name));
+            assert_eq!(meta.domain, FuncDomain::ExceptionContext, "{} domain", name);
+            assert_eq!(meta.category, FuncCategory::Scalar, "{} category", name);
+            assert_eq!(meta.min_args, 0, "{} min_args", name);
+            assert_eq!(meta.max_args, Some(0), "{} max_args", name);
+        }
+    }
+
+    #[test]
+    fn test_builtin_meta_exception_context() {
+        let meta = lookup_builtin_meta("pg_exception_detail").unwrap();
+        assert_eq!(meta.category, "Scalar");
+        assert_eq!(meta.domain, "ExceptionContext");
+
+        let meta = lookup_builtin_meta("pg_exception_hint").unwrap();
+        assert_eq!(meta.category, "Scalar");
+        assert_eq!(meta.domain, "ExceptionContext");
+
+        let meta = lookup_builtin_meta("pg_exception_context").unwrap();
+        assert_eq!(meta.category, "Scalar");
+        assert_eq!(meta.domain, "ExceptionContext");
+    }
+
+    // ── JSON function tests ──
+
+    #[test]
+    fn test_lookup_json_type_constructor() {
+        let meta = lookup_function("json").unwrap();
+        assert_eq!(meta.category, FuncCategory::TypeConstructor);
+        assert_eq!(meta.domain, FuncDomain::Json);
+        assert_eq!(meta.min_args, 0);
+        assert_eq!(meta.max_args, Some(1));
+    }
+
+    #[test]
+    fn test_lookup_json_aggregate_functions() {
+        let json_agg = lookup_function("json_agg").unwrap();
+        assert_eq!(json_agg.category, FuncCategory::Aggregate);
+        assert_eq!(json_agg.domain, FuncDomain::Json);
+        assert!(json_agg.supports_distinct);
+
+        let jsonb_agg = lookup_function("jsonb_agg").unwrap();
+        assert_eq!(jsonb_agg.category, FuncCategory::Aggregate);
+        assert_eq!(jsonb_agg.domain, FuncDomain::Json);
+        assert!(jsonb_agg.supports_distinct);
+    }
+
+    #[test]
+    fn test_lookup_json_conversion_functions() {
+        for name in &["to_json", "to_jsonb", "array_to_json", "row_to_json"] {
+            let meta = lookup_function(name).unwrap_or_else(|| panic!("{} not found", name));
+            assert_eq!(meta.category, FuncCategory::Scalar, "{} category", name);
+            assert_eq!(meta.domain, FuncDomain::Json, "{} domain", name);
+        }
+    }
+
+    #[test]
+    fn test_lookup_json_typeof_functions() {
+        for name in &["json_typeof", "jsonb_typeof", "jsonb_pretty"] {
+            let meta = lookup_function(name).unwrap_or_else(|| panic!("{} not found", name));
+            assert_eq!(meta.category, FuncCategory::Scalar, "{} category", name);
+            assert_eq!(meta.domain, FuncDomain::Json, "{} domain", name);
+        }
+    }
+
+    #[test]
+    fn test_builtin_meta_json_type_constructor() {
+        let meta = lookup_builtin_meta("json").unwrap();
+        assert_eq!(meta.category, "TypeConstructor");
+        assert_eq!(meta.domain, "Json");
+    }
+
+    // ── P1 system function tests ──
+
+    #[test]
+    fn test_lookup_p1_system_functions() {
+        let funcs = [
+            ("col_description", 2, Some(3)),
+            ("current_setting", 1, Some(2)),
+            ("has_schema_privilege", 2, Some(4)),
+            ("has_table_privilege", 2, Some(4)),
+            ("pg_cancel_backend", 1, Some(1)),
+            ("pg_database_size", 1, Some(1)),
+            ("pg_get_userbyid", 1, Some(1)),
+            ("pg_relation_size", 1, Some(2)),
+            ("pg_table_is_visible", 1, Some(2)),
+            ("pg_table_size", 1, Some(1)),
+            ("pg_terminate_backend", 1, Some(1)),
+            ("pg_total_relation_size", 1, Some(1)),
+            ("pg_typeof", 1, Some(1)),
+            ("set_config", 2, Some(3)),
+        ];
+        for (name, min, max) in &funcs {
+            let meta = lookup_function(name).unwrap_or_else(|| panic!("{} not found", name));
+            assert_eq!(meta.domain, FuncDomain::System, "{} domain", name);
+            assert_eq!(meta.category, FuncCategory::Scalar, "{} category", name);
+            assert_eq!(meta.min_args, *min, "{} min_args", name);
+            assert_eq!(meta.max_args, *max, "{} max_args", name);
+        }
+    }
+
+    #[test]
+    fn test_builtin_meta_p1_system_functions() {
+        for name in &["pg_typeof", "current_setting", "set_config", "pg_database_size"] {
+            let meta = lookup_builtin_meta(name).unwrap();
+            assert_eq!(meta.category, "Scalar", "{} category", name);
+            assert_eq!(meta.domain, "System", "{} domain", name);
         }
     }
 }
