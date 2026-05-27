@@ -63,3 +63,6 @@ required-features = ["mcp"]
 [package.metadata.docs.rs]
 all-features = true
 rustdoc-args = ["--cfg", "docsrs"]
+
+[lints.clippy]
+unwrap_used = "warn"

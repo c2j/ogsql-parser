@@ -1,17 +1,46 @@
+# Build artifacts
 /target
+
+# Submodules (reference only)
 /lib/openGauss-server
-/examples/gauss
 /lib/mybatis-spring
 /lib/mybatis-crud
 /lib/gaussdb-examples
 /lib/servicecomb-java-chassis
 /lib/maku-boot
 /lib/ruoyi-springboot3-pro
+
+# Git worktrees
 .worktrees/
+
+# Debug / error logs
+error*.log
+error*.txt
 err-report.txt
-error.log
+
+# Lib garbage
 lib/GenerateInstructionsMapper.xml
-error-latest.log
-error-1.log
-error-2.log
-error-3.log
+lib/error_*.java
+lib/error-execute.sql
+lib/PKG_*.sql
+
+# Temp directory
+tmp/
+
+# OS artifacts
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Coverage
+cobertura.xml
+lcov.info
+
+# Misc
+/examples/gauss
