@@ -3340,6 +3340,13 @@ fn cmd_validate_dir(cli: &Cli, dir_paths: &[String], exts: &[String], csv: bool,
         let warnings: Vec<_> = errors.iter().filter(|e| is_warning(e)).collect();
         let has_var_errors = !var_errors.is_empty();
 
+        let format_var_err = |ve: &ogsql_parser::UndefinedVariableError| -> String {
+            let line_info = ve.location.as_ref()
+                .map(|sp| format!(":{}", sp.start.line))
+                .unwrap_or_default();
+            format!("undefined variable '{}' in {}{}", ve.variable_name, ve.context, line_info)
+        };
+
         if !real_errors.is_empty() || has_var_errors {
             any_invalid = true;
             files_with_errors.insert(file_name.clone());
@@ -3386,27 +3393,35 @@ fn cmd_validate_dir(cli: &Cli, dir_paths: &[String], exts: &[String], csv: bool,
                 ));
             }
         } else {
-            if real_errors.is_empty() && warnings.is_empty() {
+            if real_errors.is_empty() && warnings.is_empty() && !has_var_errors {
                 println!("[{}/{}] VALID", rel_dir, file_name);
-            } else if real_errors.is_empty() {
+            } else if real_errors.is_empty() && !has_var_errors {
                 println!("[{}/{}] VALID ({} warning(s))", rel_dir, file_name, warnings.len());
                 for w in &warnings {
                     eprintln!("  warning: {}", w);
                 }
             } else {
+                let total_errs = real_errors.len() + var_errors.len();
                 println!(
                     "[{}/{}] INVALID ({} error(s), {} warning(s))",
-                    rel_dir, file_name, real_errors.len(), warnings.len()
+                    rel_dir, file_name, total_errs, warnings.len()
                 );
                 for e in &real_errors {
                     eprintln!("  error: {}", e);
                 }
+                for ve in &var_errors {
+                    eprintln!("  error: {}", format_var_err(ve));
+                }
                 for w in &warnings {
                     eprintln!("  warning: {}", w);
                 }
+                if cli.verbose {
+                    let all_real: Vec<&ogsql_parser::ParserError> = real_errors.iter().copied().collect();
+                    write_error_log(&sql, Some(&format!("{}/{}", rel_dir, file_name)), &stmts, &all_real);
+                }
             }
         }
-        if cli.verbose && !real_errors.is_empty() {
+        if cli.verbose && !real_errors.is_empty() && !has_var_errors {
             write_error_log(&sql, Some(&format!("{}/{}", rel_dir, file_name)), &stmts, &real_errors);
         }
         let _ = &stmts;

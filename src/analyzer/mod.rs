@@ -10,6 +10,7 @@ use crate::ast::{Expr, Literal, SourceSpan, Statement, StatementInfo};
 
 // ── 报告类型 ──
 
+/// Result of analyzing dynamic SQL usage in a PL/pgSQL block.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct DynamicSqlReport {
     pub execute_findings: Vec<ExecuteFinding>,
@@ -18,6 +19,7 @@ pub struct DynamicSqlReport {
     pub ref_cursor_queries: Vec<RefCursorQuery>,
 }
 
+/// A single `EXECUTE IMMEDIATE` finding with resolved SQL and trace chain.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct ExecuteFinding {
     pub statement_path: Vec<usize>,
@@ -34,6 +36,7 @@ pub struct ExecuteFinding {
     pub dynamic_template: Option<DynamicTemplate>,
 }
 
+/// Maps a dynamic parameter to its source variable and position in parameterized SQL.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct ParameterBinding {
     pub position: usize,
@@ -42,6 +45,7 @@ pub struct ParameterBinding {
     pub wrapping: Option<String>,
 }
 
+/// Records a variable's assigned value and the PL statement path where it was set.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct VariableTrace {
     pub variable_name: String,
@@ -49,6 +53,7 @@ pub struct VariableTrace {
     pub value: String,
 }
 
+/// Provenance chain tracing how a dynamic SQL string was constructed.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub enum TraceChain {
     LiteralAssignment {
@@ -69,7 +74,9 @@ pub enum TraceChain {
 
 // ── Dynamic SQL Template Decomposition ──
 
+/// Decomposed template of a dynamic SQL string with static parts and dynamic parameters.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+/// A single dynamic parameter extracted from a SQL template.
 pub struct DynamicTemplate {
     /// Static SQL fragments interleaved with dynamic params
     /// Template reconstruction: static_parts[0] + dynamic_params[0] + static_parts[1] + ...
@@ -80,6 +87,8 @@ pub struct DynamicTemplate {
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+
+/// /// A single dynamic parameter extracted from a SQL template.
 pub struct DynamicParam {
     /// Source variable name or expression
     pub source: String,
@@ -88,7 +97,10 @@ pub struct DynamicParam {
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+
+/// /// An IF condition guarding a dynamic parameter in a template.
 pub struct TemplateCondition {
+/// An IF condition guarding a dynamic parameter in a template.
     /// The variable checked in the IF condition
     pub param: String,
     /// The operator: "IS NOT NULL", "IS NULL", "= value", etc.
@@ -185,6 +197,8 @@ fn build_concat_part(trace: &TraceChain, bindings: &mut Vec<ParameterBinding>) -
 // ── Optional filter detection ──
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+
+/// /// A conditional WHERE filter that becomes active when a parameter is non-NULL.
 pub struct OptionalFilter {
     pub parameter: String,
     pub column: Vec<String>,
@@ -301,6 +315,8 @@ fn try_match_optional_filter(is_null_side: &Expr, comparison_side: &Expr) -> Opt
 // ── REF CURSOR query detection ──
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+
+/// /// A REF CURSOR out parameter and its associated query.
 pub struct RefCursorQuery {
     pub out_param_name: String,
     pub query: Option<String>,
@@ -376,6 +392,8 @@ fn collect_ref_cursor_queries(
     queries
 }
 
+
+/// /// Find all REF CURSOR out parameters and their associated queries in a PL block.
 pub fn find_ref_cursor_queries(
     block: &PlBlock,
     params: &[(String, String, Option<String>)],
@@ -396,6 +414,8 @@ pub fn find_ref_cursor_queries(
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+
+/// /// A normalized SQL fingerprint with all occurrences in the input.
 pub struct QueryFingerprint {
     pub fingerprint: String,
     pub occurrences: Vec<FingerprintOccurrence>,
@@ -403,6 +423,8 @@ pub struct QueryFingerprint {
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+
+/// /// Location where a specific fingerprint was found.
 pub struct FingerprintOccurrence {
     pub location: String,
 }
@@ -415,6 +437,8 @@ fn fingerprint_statement(stmt: &Statement) -> Option<String> {
     Some(format!("fp_{:016x}", hasher.finish()))
 }
 
+
+/// /// Compute structural fingerprints for all SQL statements, grouping identical queries.
 pub fn compute_query_fingerprints(stmts: &[Statement]) -> Vec<QueryFingerprint> {
     let mut fingerprint_map: HashMap<String, QueryFingerprint> = HashMap::new();
 
@@ -571,6 +595,8 @@ struct VarState {
     trace: TraceChain,
 }
 
+
+/// /// Tracks variable assignments and traces dynamic SQL construction in PL/pgSQL.
 pub struct DynamicSqlAnalyzer {
     scopes: Vec<HashMap<String, VarState>>,
     findings: Vec<ExecuteFinding>,
@@ -874,6 +900,8 @@ impl DynamicSqlAnalyzer {
 
 // ── 公共入口函数 ──
 
+
+/// /// Analyze a PL block for dynamic SQL patterns, variable tracing, and ref cursor queries.
 pub fn analyze_pl_block(block: &PlBlock) -> DynamicSqlReport {
     DynamicSqlAnalyzer::new().analyze(block)
 }
@@ -881,6 +909,8 @@ pub fn analyze_pl_block(block: &PlBlock) -> DynamicSqlReport {
 // ── Transaction Analysis ──
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+
+/// /// Result of analyzing transaction control flow in a PL/pgSQL block.
 pub struct TransactionReport {
     pub has_explicit_commit: bool,
     pub has_explicit_rollback: bool,
@@ -890,6 +920,8 @@ pub struct TransactionReport {
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+
+/// /// A contiguous range of statements between two transaction boundaries.
 pub struct TransactionSegment {
     pub index: usize,
     pub start_reason: TransactionBoundary,
@@ -899,6 +931,8 @@ pub struct TransactionSegment {
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+
+/// /// Reason why a transaction segment starts or ends.
 pub enum TransactionBoundary {
     ProcedureEntry,
     PostCommit,
@@ -909,6 +943,8 @@ pub enum TransactionBoundary {
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+
+/// /// A nested block that forms an implicit sub-transaction.
 pub struct SubTransaction {
     pub block_path: Vec<usize>,
     pub implicit_savepoint: bool,
@@ -917,18 +953,24 @@ pub struct SubTransaction {
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+
+/// /// Information about an exception handler within a sub-transaction.
 pub struct ExceptionHandlerInfo {
     pub conditions: Vec<String>,
     pub statement_count: usize,
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+
+/// /// A call to another procedure/function that may affect transaction state.
 pub struct CrossProcedureCall {
     pub call_path: Vec<usize>,
     pub callee: String,
     pub callee_may_commit: bool,
 }
 
+
+/// /// Analyze transaction boundaries, segments, and cross-procedure calls in a PL block.
 pub fn analyze_transactions(block: &PlBlock) -> TransactionReport {
     let mut analyzer = TransactionAnalyzer::new();
     analyzer.analyze(block)
@@ -1127,6 +1169,8 @@ impl TransactionAnalyzer {
 // ── Package Spec vs Body Consistency Validation ──
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+
+/// /// A mismatch between a package spec and its body.
 pub struct PackageConsistencyError {
     pub package_name: String,
     pub subprogram_name: String,
@@ -1136,6 +1180,8 @@ pub struct PackageConsistencyError {
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+
+/// /// Category of package spec vs body inconsistency.
 pub enum PackageConsistencyErrorKind {
     /// A subprogram exists in the spec but is missing from the body
     MissingInBody,
@@ -1321,7 +1367,10 @@ fn compare_params(
                 spec_count: spec_params.len(),
                 body_count: body_params.len(),
             },
-            detail: None,
+            detail: Some(format!(
+                "parameter count mismatch: spec has {}, body has {}",
+                spec_params.len(), body_params.len()
+            )),
         });
     }
 
@@ -1400,7 +1449,10 @@ fn compare_params(
                     spec_type: spec_p.data_type.clone(),
                     body_type: body_p.data_type.clone(),
                 },
-                detail: None,
+                detail: Some(format!(
+                    "parameter '{}' type mismatch: spec has '{}', body has '{}'",
+                    spec_p.name, spec_p.data_type, body_p.data_type
+                )),
             });
         }
     }
@@ -1457,7 +1509,7 @@ const PL_BUILTIN_VALUES: &[&str] = &[
     "SQLSTATE",
     "YEAR", "MONTH", "DAY", "HOUR", "MINUTE", "SECOND",
     "EPOCH", "DOW", "DOY", "ISODOW", "ISOYEAR", "QUARTER", "WEEK",
-    "CENTURY", "DECADE", "MILLISECONDS", "MICROSECONDS",
+    "CENTURY", "DECADE", "MILLISECOND", "MILLISECONDS", "MICROSECOND", "MICROSECONDS",
     "TIMEZONE", "TIMEZONE_HOUR", "TIMEZONE_MINUTE",
     "BOTH", "LEADING", "TRAILING",
 ];
@@ -1489,6 +1541,8 @@ pub fn validate_pl_variables(
     validate_pl_variables_with_extra_vars_and_funcs(block, params, &[], &[])
 }
 
+
+/// /// Like validate_pl_variables but with additional pre-declared variable names.
 pub fn validate_pl_variables_with_extra_vars(
     block: &PlBlock,
     params: &[crate::ast::RoutineParam],
@@ -1497,6 +1551,8 @@ pub fn validate_pl_variables_with_extra_vars(
     validate_pl_variables_with_extra_vars_and_funcs(block, params, extra_vars, &[])
 }
 
+
+/// /// Like validate_pl_variables but with extra variable names and known function names.
 pub fn validate_pl_variables_with_extra_vars_and_funcs(
     block: &PlBlock,
     params: &[crate::ast::RoutineParam],
@@ -1870,9 +1926,21 @@ impl PlVariableValidator {
                     self.check_expr(e, context);
                 }
             }
-            Expr::FunctionCall { args, .. } => {
+            Expr::FunctionCall { args, agg_from, .. } => {
+                // Aggregate FROM clause (e.g., SUM(expr FROM generate_series(1, N) AS i))
+                // introduces SQL-level aliases that are valid references in the aggregate args.
+                if agg_from.is_some() {
+                    self.enter_scope();
+                    for item in agg_from.as_ref().unwrap() {
+                        self.declare_table_ref_alias(item);
+                        self.check_table_ref_exprs(item, context);
+                    }
+                }
                 for arg in args {
                     self.check_expr(arg, context);
+                }
+                if agg_from.is_some() {
+                    self.exit_scope();
                 }
             }
             Expr::SpecialFunction { args, .. } => {
@@ -1991,6 +2059,56 @@ impl PlVariableValidator {
         }
     }
 
+    fn declare_table_ref_alias(&mut self, table_ref: &crate::ast::TableRef) {
+        let alias = match table_ref {
+            crate::ast::TableRef::Table { alias, .. } => alias.as_ref(),
+            crate::ast::TableRef::FunctionCall { alias, .. } => alias.as_ref(),
+            crate::ast::TableRef::Subquery { alias, .. } => alias.as_ref(),
+            crate::ast::TableRef::Values { alias, .. } => alias.as_ref(),
+            crate::ast::TableRef::Join { .. } => None,
+            crate::ast::TableRef::Pivot { .. } => None,
+            crate::ast::TableRef::Unpivot { .. } => None,
+        };
+        if let Some(a) = alias {
+            self.declare(a);
+        }
+    }
+
+    fn check_table_ref_exprs(&mut self, table_ref: &crate::ast::TableRef, context: &str) {
+        match table_ref {
+            crate::ast::TableRef::FunctionCall { args, .. } => {
+                for arg in args {
+                    self.check_expr(arg, context);
+                }
+            }
+            crate::ast::TableRef::Table { tablesample, .. } => {
+                if let Some(ref ts) = tablesample {
+                    for arg in &ts.arguments {
+                        self.check_expr(arg, context);
+                    }
+                    if let Some(ref r) = ts.repeatable {
+                        self.check_expr(r, context);
+                    }
+                }
+            }
+            crate::ast::TableRef::Subquery { .. } | crate::ast::TableRef::Values { .. } => {}
+            crate::ast::TableRef::Join { left, right, condition, .. } => {
+                self.check_table_ref_exprs(left, context);
+                self.check_table_ref_exprs(right, context);
+                if let Some(ref c) = condition {
+                    self.check_expr(c, context);
+                }
+            }
+            crate::ast::TableRef::Pivot { source, pivot } => {
+                self.check_table_ref_exprs(source, context);
+                self.check_expr(&pivot.aggregate, context);
+            }
+            crate::ast::TableRef::Unpivot { source, .. } => {
+                self.check_table_ref_exprs(source, context);
+            }
+        }
+    }
+
     fn check_expr_proc_arg(&mut self, expr: &Expr) {
         match expr {
             Expr::ColumnRef(_) | Expr::PlVariable(_) => {
@@ -2035,6 +2153,8 @@ impl PlVariableValidator {
 // ── MERGE Semantic Validation for GaussDB ──
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+
+/// /// A GaussDB semantic restriction violation in a MERGE statement.
 pub struct MergeSemanticError {
     pub kind: MergeSemanticErrorKind,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -2044,6 +2164,8 @@ pub struct MergeSemanticError {
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+
+/// /// Category of MERGE semantic restriction.
 pub enum MergeSemanticErrorKind {
     /// GaussDB does not support WHEN MATCHED THEN DELETE
     DeleteNotSupported,
