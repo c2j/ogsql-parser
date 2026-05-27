@@ -32,10 +32,19 @@ pub fn expand_variants(stmt: &StructuredStatement, config: &ExpandConfig) -> Vec
 
     let mut results: Vec<ExpandedVariant> = variants
         .into_iter()
-        .map(|state| ExpandedVariant {
-            sql: state.sql_buffer,
-            branch_path: state.branch_path,
-            parameters: state.params,
+        .map(|state| {
+            let parse_result = if config.generate_parse_results && !state.sql_buffer.trim().is_empty()
+            {
+                Some(crate::parser::Parser::parse_sql(&state.sql_buffer))
+            } else {
+                None
+            };
+            ExpandedVariant {
+                sql: state.sql_buffer,
+                branch_path: state.branch_path,
+                parameters: state.params,
+                parse_result,
+            }
         })
         .collect();
 

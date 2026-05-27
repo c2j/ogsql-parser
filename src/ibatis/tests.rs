@@ -1305,6 +1305,7 @@ fn default_expand_config() -> ExpandConfig {
         foreach_sizes: vec![1, 2],
         if_strategy: IfExpandStrategy::Both,
         placeholder: PlaceholderStrategy::PreserveInternalMarkers,
+        generate_parse_results: false,
     }
 }
 
@@ -1634,4 +1635,66 @@ fn test_expand_foreach_branch_step_recorded() {
 
     assert!(matches!(&variants[0].branch_path[0], BranchStep::Foreach { collection, size: 1 } if collection == "ids"));
     assert!(matches!(&variants[1].branch_path[0], BranchStep::Foreach { collection, size: 2 } if collection == "ids"));
+}
+
+// ── parse_result field tests (Issue #179 comment) ──
+
+#[test]
+fn test_expand_parse_results_disabled_by_default() {
+    let xml = br#"<mapper namespace="test">
+        <select id="find">SELECT * FROM users WHERE id = #{id}</select>
+    </mapper>"#;
+    let result = super::parse_mapper_bytes_structured(xml);
+    let variants = result.statements[0].expand_variants(&ExpandConfig::default());
+    assert!(variants[0].parse_result.is_none());
+}
+
+#[test]
+fn test_expand_parse_results_generated_when_enabled() {
+    let xml = br#"<mapper namespace="test">
+        <select id="find">SELECT * FROM users WHERE id = #{id}</select>
+    </mapper>"#;
+    let result = super::parse_mapper_bytes_structured(xml);
+    let config = ExpandConfig { generate_parse_results: true, ..default_expand_config() };
+    let variants = result.statements[0].expand_variants(&config);
+    assert_eq!(variants.len(), 1);
+    let pr = variants[0].parse_result.as_ref().expect("parse_result should be Some");
+    assert!(!pr.0.is_empty(), "should parse at least one statement");
+}
+
+#[test]
+fn test_expand_parse_results_variants_with_parse_result() {
+    let xml = br#"<mapper namespace="test">
+        <select id="find">
+            SELECT * FROM users WHERE id = #{id}
+        </select>
+    </mapper>"#;
+    let result = super::parse_mapper_bytes_structured(xml);
+    let config = ExpandConfig { generate_parse_results: true, ..default_expand_config() };
+    let variants = result.statements[0].expand_variants(&config);
+
+    assert_eq!(variants.len(), 1);
+    let v = &variants[0];
+    assert!(v.sql.contains("SELECT"));
+    let pr = v.parse_result.as_ref().expect("non-empty SQL should have parse_result");
+    assert!(!pr.0.is_empty(), "should parse at least one statement");
+}
+
+#[test]
+fn test_expand_parse_results_empty_variant_has_none() {
+    let xml = br#"<mapper namespace="test">
+        <select id="find">
+            <if test="name != null">AND name = #{name}</if>
+        </select>
+    </mapper>"#;
+    let result = super::parse_mapper_bytes_structured(xml);
+    let config = ExpandConfig { generate_parse_results: true, ..default_expand_config() };
+    let variants = result.statements[0].expand_variants(&config);
+
+    // The excluded variant has empty SQL → parse_result should be None
+    let excluded = variants.iter().find(|v| {
+        v.branch_path.iter().any(|s| matches!(s, BranchStep::If { included: false, .. }))
+    }).unwrap();
+    assert!(excluded.sql.trim().is_empty());
+    assert!(excluded.parse_result.is_none(), "empty SQL should not generate parse_result");
 }

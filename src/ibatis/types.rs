@@ -299,6 +299,12 @@ pub struct ExpandConfig {
     pub foreach_sizes: Vec<usize>,
     pub if_strategy: IfExpandStrategy,
     pub placeholder: PlaceholderStrategy,
+    /// 是否为每个展开变体生成 `parse_result`。
+    ///
+    /// `false`（默认）时 `ExpandedVariant::parse_result` 为 `None`，
+    /// 调用方按需自行解析。`true` 时展开时对每个变体的 `sql`
+    /// 调用 `Parser::parse_sql()` 并填充结果。
+    pub generate_parse_results: bool,
 }
 
 impl Default for ExpandConfig {
@@ -309,6 +315,7 @@ impl Default for ExpandConfig {
             foreach_sizes: vec![1, 2],
             if_strategy: IfExpandStrategy::Both,
             placeholder: PlaceholderStrategy::PreserveInternalMarkers,
+            generate_parse_results: false,
         }
     }
 }
@@ -330,4 +337,13 @@ pub struct ExpandedVariant {
     pub branch_path: Vec<BranchStep>,
     /// 此变体中实际出现的参数（仅限当前分支组合下出现的参数）。
     pub parameters: Vec<ParamMeta>,
+    /// 解析结果（可选，按需填充）。
+    ///
+    /// 在 `expand_variants` 中对每个变体的 `sql` 调用 `Parser::parse_sql()` 生成
+    /// （需 `ExpandConfig::generate_parse_results == true`）。
+    /// 调用方可从中提取 CALL 目标、表访问关系等。
+    pub parse_result: Option<(
+        Vec<crate::ast::StatementInfo>,
+        Vec<crate::parser::ParserError>,
+    )>,
 }
