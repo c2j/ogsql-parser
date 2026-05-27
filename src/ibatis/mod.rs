@@ -9,16 +9,19 @@ mod util;
 mod java_resolve;
 
 pub mod error;
+pub mod expand;
 pub mod flatten;
 pub mod parser;
 pub mod resolver;
 pub mod types;
 
 pub use error::IbatisError;
+pub use expand::expand_variants;
 pub use types::{
-    FlattenedStatement, InferenceSource, JdbcType, MapperFile, MapperStatement, ParamMeta,
-    ParameterMapDef, ParameterMapEntry, ParsedMapper, ParsedStatement, SqlFragment, SqlNode,
-    StatementKind,
+    BranchStep, ExpandConfig, ExpandedVariant, FlattenedStatement, IfExpandStrategy,
+    InferenceSource, JdbcType, MapperFile, MapperStatement, ParamMeta, ParameterMapDef,
+    ParameterMapEntry, ParsedMapper, ParsedStatement, PlaceholderStrategy, SqlFragment, SqlNode,
+    StatementKind, StructuredMapper, StructuredStatement, XmlSourceLocation,
 };
 
 #[cfg(feature = "java")]
@@ -42,6 +45,86 @@ pub fn parse_mapper_bytes_with_java_src(
     java_source_roots: Vec<std::path::PathBuf>,
 ) -> ParsedMapper {
     parse_mapper_bytes_internal(xml, file_path, java_source_roots)
+}
+
+/// 从 XML 字节解析 mapper 文件，返回保留完整动态 SQL 树形结构的 AST。
+///
+/// 与 [`parse_mapper_bytes`] 不同，此函数不做扁平化（`flatten_sql`），
+/// 而是直接返回 `SqlNode` 树，使调用方可以：
+/// - 枚举所有可能的 SQL 变体（用于 AWR 慢 SQL 指纹匹配）
+/// - 实现自定义展开策略
+/// - 将动态元素溯源到源码位置
+pub fn parse_mapper_bytes_structured(xml: &[u8]) -> StructuredMapper {
+    parse_mapper_bytes_structured_with_path(xml, None)
+}
+
+/// 带 file_path 的结构化解析，用于在 `XmlSourceLocation` 中记录源文件路径。
+pub fn parse_mapper_bytes_structured_with_path(xml: &[u8], file_path: Option<&str>) -> StructuredMapper {
+    let mut errors = Vec::new();
+
+    let mapper_file = match parser::parse_xml(xml) {
+        Ok(m) => m,
+        Err(e) => {
+            return StructuredMapper {
+                namespace: String::new(),
+                statements: Vec::new(),
+                fragments: Vec::new(),
+                errors: vec![e],
+            };
+        }
+    };
+
+    let mapper_file = match resolver::resolve_includes(&mapper_file) {
+        Ok(m) => m,
+        Err(e) => {
+            errors.push(e);
+            return StructuredMapper {
+                namespace: mapper_file.namespace,
+                statements: Vec::new(),
+                fragments: Vec::new(),
+                errors,
+            };
+        }
+    };
+
+    let statements: Vec<StructuredStatement> = mapper_file.statements.iter().map(|stmt| {
+        let has_dynamic = has_dynamic_elements(&stmt.body);
+        let collected = flatten::collect_params(&stmt.body);
+        let parameters: Vec<ParamMeta> = collected.iter().map(|(name, java_type, raw)| {
+            ParamMeta {
+                name: name.clone(),
+                jdbc_type: None,
+                source: java_type.as_ref().map(|_| InferenceSource::InlineJavaType),
+                position: 0,
+                raw: raw.clone(),
+            }
+        }).collect();
+
+        StructuredStatement {
+            id: stmt.id.clone(),
+            kind: stmt.kind,
+            parameter_type: stmt.parameter_type.clone(),
+            result_type: stmt.result_type.clone(),
+            body: stmt.body.clone(),
+            has_dynamic_elements: has_dynamic,
+            location: XmlSourceLocation {
+                file_path: file_path.map(|s| s.to_string()),
+                line: stmt.line,
+            },
+            parameters,
+        }
+    }).collect();
+
+    if statements.is_empty() && errors.is_empty() {
+        errors.push(IbatisError::EmptyMapper);
+    }
+
+    StructuredMapper {
+        namespace: mapper_file.namespace,
+        statements,
+        fragments: mapper_file.fragments,
+        errors,
+    }
 }
 
 fn parse_mapper_bytes_internal(
