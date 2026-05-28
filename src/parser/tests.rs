@@ -14882,3 +14882,256 @@ fn test_non_lateral_subquery_is_false() {
         other => panic!("expected Select, got {:?}", other),
     }
 }
+
+#[test]
+fn test_table_alias_column_list() {
+    // PostgreSQL/openGauss syntax: FROM table_name alias(col1, col2, ...)
+    let sql = "SELECT * FROM const c(w)";
+    let tokens = Tokenizer::new(sql).tokenize().unwrap();
+    let stmts = Parser::new(tokens).parse();
+    assert_eq!(stmts.len(), 1);
+    match &stmts[0] {
+        Statement::Select(sel) => {
+            assert_eq!(sel.from.len(), 1);
+            match &sel.from[0] {
+                TableRef::Table {
+                    name,
+                    alias,
+                    column_aliases,
+                    ..
+                } => {
+                    assert_eq!(name.join("."), "const");
+                    assert_eq!(alias.as_deref(), Some("c"));
+                    assert_eq!(column_aliases.len(), 1);
+                    assert_eq!(column_aliases[0], "w");
+                }
+                other => panic!("expected Table, got {:?}", other),
+            }
+        }
+        other => panic!("expected Select, got {:?}", other),
+    }
+    // Round-trip
+    let formatter = SqlFormatter::new();
+    let output = formatter.format_statement(&stmts[0]);
+    assert!(
+        output.contains("c(w)"),
+        "formatted SQL should contain alias with column list: {}",
+        output
+    );
+    let json = serde_json::to_string(&stmts).unwrap();
+    let restored: Vec<Statement> = serde_json::from_str(&json).unwrap();
+    let output2 = formatter.format_statement(&restored[0]);
+    assert_eq!(output, output2, "JSON round-trip should preserve column aliases");
+}
+
+#[test]
+fn test_table_alias_column_list_multiple() {
+    let sql = "SELECT * FROM my_table t(a, b, c)";
+    let tokens = Tokenizer::new(sql).tokenize().unwrap();
+    let stmts = Parser::new(tokens).parse();
+    assert_eq!(stmts.len(), 1);
+    match &stmts[0] {
+        Statement::Select(sel) => {
+            match &sel.from[0] {
+                TableRef::Table {
+                    name,
+                    alias,
+                    column_aliases,
+                    ..
+                } => {
+                    assert_eq!(name.join("."), "my_table");
+                    assert_eq!(alias.as_deref(), Some("t"));
+                    assert_eq!(column_aliases, &vec!["a".to_string(), "b".to_string(), "c".to_string()]);
+                }
+                other => panic!("expected Table, got {:?}", other),
+            }
+        }
+        other => panic!("expected Select, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_table_alias_column_list_with_comma_joined_table() {
+    // The exact pattern from terris.sql: FROM const c(w), LATERAL (...)
+    let sql = "SELECT id FROM const c(w), LATERAL (VALUES (1, 2)) AS v(x, y)";
+    let tokens = Tokenizer::new(sql).tokenize().unwrap();
+    let stmts = Parser::new(tokens).parse();
+    assert_eq!(stmts.len(), 1);
+    match &stmts[0] {
+        Statement::Select(sel) => {
+            assert_eq!(sel.from.len(), 2);
+            // First table: const c(w)
+            match &sel.from[0] {
+                TableRef::Table {
+                    name,
+                    alias,
+                    column_aliases,
+                    ..
+                } => {
+                    assert_eq!(name.join("."), "const");
+                    assert_eq!(alias.as_deref(), Some("c"));
+                    assert_eq!(column_aliases, &vec!["w".to_string()]);
+                }
+                other => panic!("expected Table, got {:?}", other),
+            }
+            // Second table: LATERAL (VALUES ...) AS v(x, y)
+            match &sel.from[1] {
+                TableRef::Values {
+                    lateral,
+                    alias,
+                    column_names,
+                    ..
+                } => {
+                    assert!(lateral);
+                    assert_eq!(alias.as_deref(), Some("v"));
+                    assert_eq!(column_names, &vec!["x".to_string(), "y".to_string()]);
+                }
+                other => panic!("expected Values, got {:?}", other),
+            }
+        }
+        other => panic!("expected Select, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_array_slice_subscript_both_bounds() {
+    let sql = "SELECT arr[1:3] FROM t";
+    let tokens = Tokenizer::new(sql).tokenize().unwrap();
+    let stmts = Parser::new(tokens).parse();
+    assert_eq!(stmts.len(), 1);
+    match &stmts[0] {
+        Statement::Select(sel) => {
+            match &sel.targets[0] {
+                SelectTarget::Expr(expr, _) => {
+                    match expr {
+                        Expr::Subscript {
+                            object,
+                            lower,
+                            upper,
+                            is_slice,
+                        } => {
+                            assert!(matches!(object.as_ref(), Expr::ColumnRef(_)));
+                            assert!(lower.is_some());
+                            assert!(upper.is_some());
+                            assert!(*is_slice);
+                        }
+                        other => panic!("expected Subscript, got {:?}", other),
+                    }
+                }
+                other => panic!("expected Expr target, got {:?}", other),
+            }
+        }
+        other => panic!("expected Select, got {:?}", other),
+    }
+    let formatter = SqlFormatter::new();
+    let output = formatter.format_statement(&stmts[0]);
+    assert!(output.contains("[1:3]"), "formatted SQL should contain [1:3]: {}", output);
+    let json = serde_json::to_string(&stmts).unwrap();
+    let restored: Vec<Statement> = serde_json::from_str(&json).unwrap();
+    let output2 = formatter.format_statement(&restored[0]);
+    assert_eq!(output, output2, "JSON round-trip should preserve array slice");
+}
+
+#[test]
+fn test_array_slice_subscript_upper_only() {
+    // arr[:3]
+    let sql = "SELECT movement.pos[:3] FROM t";
+    let tokens = Tokenizer::new(sql).tokenize().unwrap();
+    let stmts = Parser::new(tokens).parse();
+    assert_eq!(stmts.len(), 1);
+    match &stmts[0] {
+        Statement::Select(sel) => {
+            match &sel.targets[0] {
+                SelectTarget::Expr(expr, _) => {
+                    match expr {
+                        Expr::Subscript {
+                            lower,
+                            upper,
+                            is_slice,
+                            ..
+                        } => {
+                            assert!(lower.is_none());
+                            assert!(upper.is_some());
+                            assert!(*is_slice);
+                        }
+                        other => panic!("expected Subscript, got {:?}", other),
+                    }
+                }
+                other => panic!("expected Expr target, got {:?}", other),
+            }
+        }
+        other => panic!("expected Select, got {:?}", other),
+    }
+    let formatter = SqlFormatter::new();
+    let output = formatter.format_statement(&stmts[0]);
+    assert!(output.contains("[:3]"), "formatted SQL should contain [:3]: {}", output);
+}
+
+#[test]
+fn test_array_slice_subscript_lower_only() {
+    // arr[2:]
+    let sql = "SELECT arr[2:] FROM t";
+    let tokens = Tokenizer::new(sql).tokenize().unwrap();
+    let stmts = Parser::new(tokens).parse();
+    assert_eq!(stmts.len(), 1);
+    match &stmts[0] {
+        Statement::Select(sel) => {
+            match &sel.targets[0] {
+                SelectTarget::Expr(expr, _) => {
+                    match expr {
+                        Expr::Subscript {
+                            lower,
+                            upper,
+                            is_slice,
+                            ..
+                        } => {
+                            assert!(lower.is_some());
+                            assert!(upper.is_none());
+                            assert!(*is_slice);
+                        }
+                        other => panic!("expected Subscript, got {:?}", other),
+                    }
+                }
+                other => panic!("expected Expr target, got {:?}", other),
+            }
+        }
+        other => panic!("expected Select, got {:?}", other),
+    }
+    let formatter = SqlFormatter::new();
+    let output = formatter.format_statement(&stmts[0]);
+    assert!(output.contains("[2:]"), "formatted SQL should contain [2:]: {}", output);
+}
+
+#[test]
+fn test_subscript_single_index_still_works() {
+    let sql = "SELECT arr[1] FROM t";
+    let tokens = Tokenizer::new(sql).tokenize().unwrap();
+    let stmts = Parser::new(tokens).parse();
+    assert_eq!(stmts.len(), 1);
+    match &stmts[0] {
+        Statement::Select(sel) => {
+            match &sel.targets[0] {
+                SelectTarget::Expr(expr, _) => {
+                    match expr {
+                        Expr::Subscript {
+                            lower,
+                            upper,
+                            is_slice,
+                            ..
+                        } => {
+                            assert!(lower.is_some());
+                            assert!(upper.is_none());
+                            assert!(!is_slice);
+                        }
+                        other => panic!("expected Subscript, got {:?}", other),
+                    }
+                }
+                other => panic!("expected Expr target, got {:?}", other),
+            }
+        }
+        other => panic!("expected Select, got {:?}", other),
+    }
+    let formatter = SqlFormatter::new();
+    let output = formatter.format_statement(&stmts[0]);
+    assert!(output.contains("[1]"), "formatted SQL should contain [1]: {}", output);
+}

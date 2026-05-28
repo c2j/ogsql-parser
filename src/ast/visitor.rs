@@ -1093,12 +1093,19 @@ fn walk_expr(visitor: &mut dyn Visitor, expr: &Expr) -> VisitorResult {
                 }
             }
         }
-        Expr::Subscript { object, index } => {
+        Expr::Subscript { object, lower, upper, .. } => {
             if walk_expr(visitor, object) == VisitorResult::Stop {
                 return VisitorResult::Stop;
             }
-            if walk_expr(visitor, index) == VisitorResult::Stop {
-                return VisitorResult::Stop;
+            if let Some(l) = lower {
+                if walk_expr(visitor, l) == VisitorResult::Stop {
+                    return VisitorResult::Stop;
+                }
+            }
+            if let Some(u) = upper {
+                if walk_expr(visitor, u) == VisitorResult::Stop {
+                    return VisitorResult::Stop;
+                }
             }
         }
         Expr::FieldAccess { object, .. } => {

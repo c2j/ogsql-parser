@@ -585,6 +585,7 @@ impl SqlFormatter {
             TableRef::Table {
                 name,
                 alias,
+                column_aliases,
                 partition,
                 timecapsule,
                 tablesample,
@@ -607,6 +608,10 @@ impl SqlFormatter {
                 }
                 if let Some(a) = alias {
                     result = format!("{} AS {}", result, self.quote_identifier(a));
+                }
+                if !column_aliases.is_empty() {
+                    let cols: Vec<String> = column_aliases.iter().map(|c| self.quote_identifier(c)).collect();
+                    result = format!("{}({})", result, cols.join(", "));
                 }
                 result
             }
@@ -776,6 +781,7 @@ impl SqlFormatter {
             TableRef::Table {
                 name,
                 alias,
+                column_aliases: _,
                 partition: _,
                 timecapsule: _,
                 tablesample: _,
@@ -1257,8 +1263,21 @@ impl SqlFormatter {
             Expr::Array(elements) => {
                 format!("{}[{}]", self.kw("ARRAY"), self.format_exprs(elements))
             }
-            Expr::Subscript { object, index } => {
-                format!("{}[{}]", self.format_expr(object), self.format_expr(index))
+            Expr::Subscript { object, lower, upper, is_slice } => {
+                if *is_slice {
+                    let lower_str = match lower {
+                        Some(l) => self.format_expr(l),
+                        None => String::new(),
+                    };
+                    let upper_str = match upper {
+                        Some(u) => self.format_expr(u),
+                        None => String::new(),
+                    };
+                    format!("{}[{}:{}]", self.format_expr(object), lower_str, upper_str)
+                } else {
+                    let index = lower.as_ref().expect("non-slice subscript should have lower");
+                    format!("{}[{}]", self.format_expr(object), self.format_expr(index))
+                }
             }
             Expr::FieldAccess { object, field } => {
                 format!(

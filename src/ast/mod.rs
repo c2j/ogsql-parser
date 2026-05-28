@@ -1096,6 +1096,8 @@ pub enum TableRef {
     Table {
         name: ObjectName,
         alias: Option<String>,
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        column_aliases: Vec<String>,
         partition: Option<TablePartitionRef>,
         timecapsule: Option<Expr>,
         tablesample: Option<TableSampleClause>,
@@ -1304,7 +1306,12 @@ pub enum Expr {
     Array(Vec<Expr>),
     Subscript {
         object: Box<Expr>,
-        index: Box<Expr>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        lower: Option<Box<Expr>>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        upper: Option<Box<Expr>>,
+        #[serde(default)]
+        is_slice: bool,
     },
     FieldAccess {
         object: Box<Expr>,

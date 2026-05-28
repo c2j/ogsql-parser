@@ -14,6 +14,7 @@ impl Parser {
             TableRef::Table {
                 name,
                 alias,
+                column_aliases,
                 partition: _,
                 timecapsule,
                 tablesample,
@@ -39,6 +40,7 @@ impl Parser {
                 TableRef::Table {
                     name,
                     alias,
+                    column_aliases,
                     partition: Some(part),
                     timecapsule,
                     tablesample,
@@ -551,6 +553,7 @@ impl Parser {
         let target = TableRef::Table {
                     name: target_name,
                     alias: target_alias,
+                    column_aliases: vec![],
                     partition: None,
                     timecapsule: None,
                     tablesample: None,

@@ -1972,9 +1972,10 @@ impl PlVariableValidator {
             Expr::Parenthesized(inner) => {
                 self.check_expr(inner, context);
             }
-            Expr::Subscript { object, index } => {
+            Expr::Subscript { object, lower, upper, .. } => {
                 self.check_expr(object, context);
-                self.check_expr(index, context);
+                if let Some(l) = lower { self.check_expr(l, context); }
+                if let Some(u) = upper { self.check_expr(u, context); }
             }
             Expr::FieldAccess { object, .. } => {
                 self.check_expr(object, context);
