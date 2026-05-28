@@ -1467,6 +1467,13 @@ fn default_values_equivalent(a: &str, b: &str) -> bool {
 
 // ── PL Undefined Variable Validation ──
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum UndefinedRefKind {
+    Variable,
+    Function,
+}
+
 /// A warning about a potentially undefined variable reference in PL/pgSQL code.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct UndefinedVariableError {
@@ -1478,6 +1485,12 @@ pub struct UndefinedVariableError {
     /// Description of the PL context where the reference was found
     /// (e.g., "EXECUTE IMMEDIATE", "assignment", "IF condition").
     pub context: String,
+    #[serde(default = "default_ref_kind")]
+    pub kind: UndefinedRefKind,
+}
+
+fn default_ref_kind() -> UndefinedRefKind {
+    UndefinedRefKind::Variable
 }
 
 /// SQL built-in values that are valid references in PL expressions.
@@ -1538,7 +1551,7 @@ pub fn validate_pl_variables(
     block: &PlBlock,
     params: &[crate::ast::RoutineParam],
 ) -> Vec<UndefinedVariableError> {
-    validate_pl_variables_with_extra_vars_and_funcs(block, params, &[], &[])
+    validate_pl_variables_with_extra_vars_and_funcs(block, params, &[], &[], false)
 }
 
 
@@ -1548,7 +1561,7 @@ pub fn validate_pl_variables_with_extra_vars(
     params: &[crate::ast::RoutineParam],
     extra_vars: &[&str],
 ) -> Vec<UndefinedVariableError> {
-    validate_pl_variables_with_extra_vars_and_funcs(block, params, extra_vars, &[])
+    validate_pl_variables_with_extra_vars_and_funcs(block, params, extra_vars, &[], false)
 }
 
 
@@ -1558,8 +1571,9 @@ pub fn validate_pl_variables_with_extra_vars_and_funcs(
     params: &[crate::ast::RoutineParam],
     extra_vars: &[&str],
     extra_funcs: &[&str],
+    strict: bool,
 ) -> Vec<UndefinedVariableError> {
-    let mut validator = PlVariableValidator::new();
+    let mut validator = PlVariableValidator::new(strict);
     for p in params {
         validator.declare(&p.name);
     }
@@ -1578,15 +1592,17 @@ struct PlVariableValidator {
     known_funcs: std::collections::HashSet<String>,
     errors: Vec<UndefinedVariableError>,
     current_span: Option<crate::ast::SourceSpan>,
+    strict: bool,
 }
 
 impl PlVariableValidator {
-    fn new() -> Self {
+    fn new(strict: bool) -> Self {
         Self {
             scope_stack: vec![std::collections::HashSet::new()],
             known_funcs: std::collections::HashSet::new(),
             errors: Vec::new(),
             current_span: None,
+            strict,
         }
     }
 
@@ -1888,6 +1904,7 @@ impl PlVariableValidator {
                         variable_name: name.clone(),
                         location: self.current_span.clone(),
                         context: context.to_string(),
+                        kind: UndefinedRefKind::Variable,
                     });
                 }
             }
@@ -1926,7 +1943,23 @@ impl PlVariableValidator {
                     self.check_expr(e, context);
                 }
             }
-            Expr::FunctionCall { args, agg_from, .. } => {
+            Expr::FunctionCall { name, args, agg_from, builtin, .. } => {
+                if self.strict {
+                    if let Some(fname) = name.last() {
+                        if builtin.is_none()
+                            && !is_known_function(fname)
+                            && !self.is_known_func(fname)
+                            && !is_pl_builtin(fname)
+                        {
+                            self.errors.push(UndefinedVariableError {
+                                variable_name: fname.clone(),
+                                location: self.current_span.clone(),
+                                context: context.to_string(),
+                                kind: UndefinedRefKind::Function,
+                            });
+                        }
+                    }
+                }
                 // Aggregate FROM clause (e.g., SUM(expr FROM generate_series(1, N) AS i))
                 // introduces SQL-level aliases that are valid references in the aggregate args.
                 if agg_from.is_some() {
