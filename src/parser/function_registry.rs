@@ -1761,6 +1761,15 @@ static FUNCTIONS: &[FuncMeta] = &[
     ),
 
     f!(
+        "json_append",
+        FuncCategory::Scalar,
+        FuncDomain::Json,
+        2,
+        None,
+        false
+    ),
+
+    f!(
         "json_array_elements",
         FuncCategory::SetReturning,
         FuncDomain::Json,
@@ -1785,6 +1794,15 @@ static FUNCTIONS: &[FuncMeta] = &[
         1,
         Some(1),
         false
+    ),
+
+    f!(
+        "json_object",
+        FuncCategory::Scalar,
+        FuncDomain::Json,
+        1,
+        None,
+        true
     ),
 
     f!(
@@ -1817,6 +1835,15 @@ static FUNCTIONS: &[FuncMeta] = &[
     f!(
         "jsonb_array_elements",
         FuncCategory::SetReturning,
+        FuncDomain::Json,
+        1,
+        Some(1),
+        false
+    ),
+
+    f!(
+        "jsonb_array_length",
+        FuncCategory::Scalar,
         FuncDomain::Json,
         1,
         Some(1),
