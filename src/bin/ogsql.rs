@@ -127,6 +127,9 @@ enum Commands {
         /// Print statistics after directory processing
         #[arg(long)]
         stats: bool,
+        /// Enable strict mode: detect undefined function calls in PL blocks / 启用严格模式：检测 PL 块中的未定义函数调用
+        #[arg(long)]
+        strict: bool,
     },
     #[cfg(feature = "serve")]
     /// Start an HTTP API server for parsing SQL / 启动 HTTP API 服务器
@@ -2648,7 +2651,11 @@ fn output_csv_validate_rows(
                 let line_info = ve.location.as_ref()
                     .map(|sp| format!(":{}", sp.start.line))
                     .unwrap_or_default();
-                err_parts.push(format!("undefined variable '{}' in {}{}", ve.variable_name, ve.context, line_info));
+                let kind_label = match ve.kind {
+                    ogsql_parser::UndefinedRefKind::Function => "undefined function",
+                    ogsql_parser::UndefinedRefKind::Variable => "undefined variable",
+                };
+                err_parts.push(format!("{} '{}' in {}{}", kind_label, ve.variable_name, ve.context, line_info));
             }
 
             let error_count = {
@@ -2925,6 +2932,7 @@ fn validate_sql(
     sql: &str,
     mybatis: bool,
     extra_funcs: &[String],
+    strict: bool,
 ) -> (Vec<ogsql_parser::StatementInfo>, Vec<ogsql_parser::ParserError>, Vec<ogsql_parser::PackageConsistencyError>, Vec<ogsql_parser::UndefinedVariableError>) {
     let output = parse_input(sql, false, mybatis);
     let stmts = output.statements;
@@ -2961,12 +2969,12 @@ fn validate_sql(
     all_funcs.sort();
     all_funcs.dedup();
 
-    let var_errors = validate_pl_variables_from_stmts(&stmts, &all_funcs);
+    let var_errors = validate_pl_variables_from_stmts(&stmts, &all_funcs, strict);
 
     (stmts, errors, pkg_errors, var_errors)
 }
 
-fn validate_pl_variables_from_stmts(stmts: &[ogsql_parser::StatementInfo], known_funcs: &[String]) -> Vec<ogsql_parser::UndefinedVariableError> {
+fn validate_pl_variables_from_stmts(stmts: &[ogsql_parser::StatementInfo], known_funcs: &[String], strict: bool) -> Vec<ogsql_parser::UndefinedVariableError> {
     use ogsql_parser::ast::Statement;
     let mut warnings = Vec::new();
     let funcs_str: Vec<&str> = known_funcs.iter().map(|s| s.as_str()).collect();
@@ -2974,19 +2982,19 @@ fn validate_pl_variables_from_stmts(stmts: &[ogsql_parser::StatementInfo], known
         match &si.statement {
             Statement::CreateProcedure(proc) => {
                 if let Some(ref block) = proc.block {
-                    let vars = ogsql_parser::validate_pl_variables_with_extra_vars_and_funcs(block, &proc.parameters, &[], &funcs_str);
+                    let vars = ogsql_parser::validate_pl_variables_with_extra_vars_and_funcs(block, &proc.parameters, &[], &funcs_str, strict);
                     warnings.extend(vars);
                 }
             }
             Statement::CreateFunction(func) => {
                 if let Some(ref block) = func.block {
-                    let vars = ogsql_parser::validate_pl_variables_with_extra_vars_and_funcs(block, &func.parameters, &[], &funcs_str);
+                    let vars = ogsql_parser::validate_pl_variables_with_extra_vars_and_funcs(block, &func.parameters, &[], &funcs_str, strict);
                     warnings.extend(vars);
                 }
             }
             Statement::Do(do_stmt) => {
                 if let Some(ref block) = do_stmt.block {
-                    let vars = ogsql_parser::validate_pl_variables_with_extra_vars_and_funcs(block, &[], &[], &funcs_str);
+                    let vars = ogsql_parser::validate_pl_variables_with_extra_vars_and_funcs(block, &[], &[], &funcs_str, strict);
                     warnings.extend(vars);
                 }
             }
@@ -3014,13 +3022,13 @@ fn validate_pl_variables_from_stmts(stmts: &[ogsql_parser::StatementInfo], known
                     match item {
                         ogsql_parser::ast::PackageItem::Procedure(proc) => {
                             if let Some(ref block) = proc.block {
-                                let vars = ogsql_parser::validate_pl_variables_with_extra_vars_and_funcs(block, &proc.parameters, &pkg_vars, &funcs_str);
+                                let vars = ogsql_parser::validate_pl_variables_with_extra_vars_and_funcs(block, &proc.parameters, &pkg_vars, &funcs_str, strict);
                                 warnings.extend(vars);
                             }
                         }
                         ogsql_parser::ast::PackageItem::Function(func) => {
                             if let Some(ref block) = func.block {
-                                let vars = ogsql_parser::validate_pl_variables_with_extra_vars_and_funcs(block, &func.parameters, &pkg_vars, &funcs_str);
+                                let vars = ogsql_parser::validate_pl_variables_with_extra_vars_and_funcs(block, &func.parameters, &pkg_vars, &funcs_str, strict);
                                 warnings.extend(vars);
                             }
                         }
@@ -3034,25 +3042,28 @@ fn validate_pl_variables_from_stmts(stmts: &[ogsql_parser::StatementInfo], known
     warnings
 }
 
-fn cmd_validate(cli: &Cli, csv: bool) {
+fn cmd_validate(cli: &Cli, csv: bool, strict: bool) {
     if cli.file.len() <= 1 {
-        cmd_validate_single(cli, cli.file.first().map(|s| s.as_str()), csv);
+        cmd_validate_single(cli, cli.file.first().map(|s| s.as_str()), csv, strict);
     } else {
-        cmd_validate_files(cli, csv);
+        cmd_validate_files(cli, csv, strict);
     }
 }
 
-fn cmd_validate_single(cli: &Cli, file_path: Option<&str>, csv: bool) {
+fn cmd_validate_single(cli: &Cli, file_path: Option<&str>, csv: bool, strict: bool) {
     let sql = read_input(file_path);
-    let (stmts, errors, pkg_errors, var_errors) = validate_sql(&sql, cli.mybatis, &[]);
+    let (stmts, errors, pkg_errors, var_errors) = validate_sql(&sql, cli.mybatis, &[], strict);
 
     let format_var_err = |ve: &ogsql_parser::UndefinedVariableError| -> String {
         let line_info = ve.location.as_ref()
             .map(|sp| format!(":{}", sp.start.line))
             .unwrap_or_default();
-        format!("undefined variable '{}' in {}{}", ve.variable_name, ve.context, line_info)
+        let kind_label = match ve.kind {
+            ogsql_parser::UndefinedRefKind::Function => "undefined function",
+            ogsql_parser::UndefinedRefKind::Variable => "undefined variable",
+        };
+        format!("{} '{}' in {}{}", kind_label, ve.variable_name, ve.context, line_info)
     };
-
     if csv {
         let file_name = file_path.unwrap_or("<stdin>");
         let mut all_errors = errors.clone();
@@ -3085,6 +3096,12 @@ fn cmd_validate_single(cli: &Cli, file_path: Option<&str>, csv: bool) {
             "warning_count": warnings.len(),
             "errors": errors,
         });
+        if strict {
+            out.as_object_mut().unwrap().insert(
+                "strict_mode".to_string(),
+                serde_json::json!(true),
+            );
+        }
         if !pkg_errors.is_empty() {
             out.as_object_mut().unwrap().insert(
                 "package_consistency_errors".to_string(),
@@ -3111,11 +3128,19 @@ fn cmd_validate_single(cli: &Cli, file_path: Option<&str>, csv: bool) {
             }
         } else {
             let total_errors = real_errors.len() + var_errors.len();
-            println!(
-                "INVALID ({} error(s), {} warning(s)):",
-                total_errors,
-                warnings.len()
-            );
+            if strict {
+                println!(
+                    "INVALID ({} error(s), {} warning(s)) [strict mode]:",
+                    total_errors,
+                    warnings.len()
+                );
+            } else {
+                println!(
+                    "INVALID ({} error(s), {} warning(s)):",
+                    total_errors,
+                    warnings.len()
+                );
+            }
             for e in &real_errors {
                 eprintln!("  error: {}", e);
             }
@@ -3133,12 +3158,16 @@ fn cmd_validate_single(cli: &Cli, file_path: Option<&str>, csv: bool) {
     }
 }
 
-fn cmd_validate_files(cli: &Cli, csv: bool) {
+fn cmd_validate_files(cli: &Cli, csv: bool, strict: bool) {
     let format_var_err = |ve: &ogsql_parser::UndefinedVariableError| -> String {
         let line_info = ve.location.as_ref()
             .map(|sp| format!(":{}", sp.start.line))
             .unwrap_or_default();
-        format!("undefined variable '{}' in {}{}", ve.variable_name, ve.context, line_info)
+        let kind_label = match ve.kind {
+            ogsql_parser::UndefinedRefKind::Function => "undefined function",
+            ogsql_parser::UndefinedRefKind::Variable => "undefined variable",
+        };
+        format!("{} '{}' in {}{}", kind_label, ve.variable_name, ve.context, line_info)
     };
 
     if csv {
@@ -3146,7 +3175,7 @@ fn cmd_validate_files(cli: &Cli, csv: bool) {
         let mut any_errors = false;
         for file_path in &cli.file {
             let sql = read_input(Some(file_path.as_str()));
-            let (stmts, errors, pkg_errors, var_errors) = validate_sql(&sql, cli.mybatis, &[]);
+            let (stmts, errors, pkg_errors, var_errors) = validate_sql(&sql, cli.mybatis, &[], strict);
             let mut all_errors = errors.clone();
             for pe in &pkg_errors {
                 let msg = match &pe.detail {
@@ -3174,7 +3203,7 @@ fn cmd_validate_files(cli: &Cli, csv: bool) {
         let mut all_results = Vec::new();
         for file_path in &cli.file {
             let sql = read_input(Some(file_path.as_str()));
-            let (stmts, errors, pkg_errors, var_errors) = validate_sql(&sql, cli.mybatis, &[]);
+            let (stmts, errors, pkg_errors, var_errors) = validate_sql(&sql, cli.mybatis, &[], strict);
 
             let real_errors: Vec<_> = errors.iter().filter(|e| !is_warning(e)).collect();
             let warnings: Vec<_> = errors.iter().filter(|e| is_warning(e)).collect();
@@ -3185,6 +3214,12 @@ fn cmd_validate_files(cli: &Cli, csv: bool) {
                 "warning_count": warnings.len(),
                 "errors": errors,
             });
+            if strict {
+                file_result.as_object_mut().unwrap().insert(
+                    "strict_mode".to_string(),
+                    serde_json::json!(true),
+                );
+            }
             if !pkg_errors.is_empty() {
                 file_result.as_object_mut().unwrap().insert(
                     "package_consistency_errors".to_string(),
@@ -3207,7 +3242,7 @@ fn cmd_validate_files(cli: &Cli, csv: bool) {
         let mut any_invalid = false;
         for file_path in &cli.file {
             let sql = read_input(Some(file_path.as_str()));
-            let (stmts, errors, _pkg_errors, var_errors) = validate_sql(&sql, cli.mybatis, &[]);
+            let (stmts, errors, _pkg_errors, var_errors) = validate_sql(&sql, cli.mybatis, &[], strict);
 
             let real_errors: Vec<_> = errors.iter().filter(|e| !is_warning(e)).collect();
             let warnings: Vec<_> = errors.iter().filter(|e| is_warning(e)).collect();
@@ -3249,7 +3284,7 @@ fn cmd_validate_files(cli: &Cli, csv: bool) {
     }
 }
 
-fn cmd_validate_dir(cli: &Cli, dir_paths: &[String], exts: &[String], csv: bool, stats: bool) {
+fn cmd_validate_dir(cli: &Cli, dir_paths: &[String], exts: &[String], csv: bool, stats: bool, strict: bool) {
     use std::path::Path;
 
     for dir_path in dir_paths {
@@ -3337,7 +3372,7 @@ fn cmd_validate_dir(cli: &Cli, dir_paths: &[String], exts: &[String], csv: bool,
 
     for (file_name, rel_dir, abs_path) in &files {
         let sql = read_file_path(abs_path);
-    let (stmts, errors, pkg_errors, var_errors) = validate_sql(&sql, cli.mybatis, &all_defined_funcs);
+    let (stmts, errors, pkg_errors, var_errors) = validate_sql(&sql, cli.mybatis, &all_defined_funcs, strict);
 
         let real_errors: Vec<_> = errors.iter().filter(|e| !is_warning(e)).collect();
         let warnings: Vec<_> = errors.iter().filter(|e| is_warning(e)).collect();
@@ -3347,7 +3382,11 @@ fn cmd_validate_dir(cli: &Cli, dir_paths: &[String], exts: &[String], csv: bool,
             let line_info = ve.location.as_ref()
                 .map(|sp| format!(":{}", sp.start.line))
                 .unwrap_or_default();
-            format!("undefined variable '{}' in {}{}", ve.variable_name, ve.context, line_info)
+            let kind_label = match ve.kind {
+                ogsql_parser::UndefinedRefKind::Function => "undefined function",
+                ogsql_parser::UndefinedRefKind::Variable => "undefined variable",
+            };
+            format!("{} '{}' in {}{}", kind_label, ve.variable_name, ve.context, line_info)
         };
 
         if !real_errors.is_empty() || has_var_errors {
@@ -3443,7 +3482,7 @@ fn cmd_validate_dir(cli: &Cli, dir_paths: &[String], exts: &[String], csv: bool,
         let mut results = Vec::new();
         for (file_name, rel_dir, abs_path) in &files {
             let sql = read_file_path(abs_path);
-            let (_stmts, errors, pkg_errors, var_errors) = validate_sql(&sql, cli.mybatis, &all_defined_funcs);
+            let (_stmts, errors, pkg_errors, var_errors) = validate_sql(&sql, cli.mybatis, &all_defined_funcs, strict);
             let real_errors: Vec<_> = errors.iter().filter(|e| !is_warning(e)).collect();
             let warnings: Vec<_> = errors.iter().filter(|e| is_warning(e)).collect();
 
@@ -3470,6 +3509,12 @@ fn cmd_validate_dir(cli: &Cli, dir_paths: &[String], exts: &[String], csv: bool,
             "total_warnings": total_warnings,
             "files": results,
         });
+        if strict {
+            out.as_object_mut().unwrap().insert(
+                "strict_mode".to_string(),
+                serde_json::json!(true),
+            );
+        }
         if !all_results.is_empty() {
             out.as_object_mut().unwrap().insert(
                 "error_log".to_string(),
@@ -3490,10 +3535,15 @@ fn cmd_validate_dir(cli: &Cli, dir_paths: &[String], exts: &[String], csv: bool,
                 total_stmts, &stmt_counts, &error_kinds, &warning_kinds, "validate");
         }
         if any_invalid {
-            println!(
+            print!(
                 "Result: INVALID — {} error(s), {} warning(s) from {} file(s)",
                 total_errors, total_warnings, total_files
             );
+            if strict {
+                println!(" (--strict mode enabled)");
+            } else {
+                println!();
+            }
             std::process::exit(1);
         } else if total_warnings > 0 {
             println!(
@@ -3936,7 +3986,7 @@ mod api {
                 });
             }
         }
-        let var_errors = super::validate_pl_variables_from_stmts(&output.statements, &[]);
+        let var_errors = super::validate_pl_variables_from_stmts(&output.statements, &[], false);
         let has_var_errors = !var_errors.is_empty();
         let has_real_errors = errors.iter().any(|e| !super::is_warning(e)) || has_var_errors;
         let mut result = serde_json::json!({
@@ -5435,14 +5485,14 @@ fn main() {
         }
         Commands::JsonToSql => cmd_json2sql(&cli),
         Commands::Tokenize => cmd_tokenize(&cli),
-        Commands::Validate { ref dir, ref ext, csv, stats } => {
+        Commands::Validate { ref dir, ref ext, csv, stats, strict } => {
             if !dir.is_empty() && !cli.file.is_empty() {
                 die!("Error: --dir and -f are mutually exclusive");
             }
             if !dir.is_empty() {
-                cmd_validate_dir(&cli, dir, ext, csv, stats);
+                cmd_validate_dir(&cli, dir, ext, csv, stats, strict);
             } else {
-                cmd_validate(&cli, csv);
+                cmd_validate(&cli, csv, strict);
             }
         }
         #[cfg(feature = "serve")]

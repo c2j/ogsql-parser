@@ -906,9 +906,22 @@ impl Parser {
         } else {
             self.parse_optional_alias()?
         };
+        let column_aliases = if alias.is_some() && self.match_token(&Token::LParen) {
+            self.advance();
+            let mut names = vec![self.parse_identifier()?];
+            while self.match_token(&Token::Comma) {
+                self.advance();
+                names.push(self.parse_identifier()?);
+            }
+            self.expect_token(&Token::RParen)?;
+            names
+        } else {
+            vec![]
+        };
         Ok(TableRef::Table {
             name,
             alias,
+            column_aliases,
             partition: None,
             timecapsule: None,
             tablesample: None,

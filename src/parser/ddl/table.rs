@@ -719,6 +719,7 @@ impl Parser {
                 from: vec![TableRef::Table {
                     name: table_name.clone(),
                     alias: None,
+                    column_aliases: vec![],
                     partition: None,
                     timecapsule: None,
                     tablesample: None,

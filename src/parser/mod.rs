@@ -126,7 +126,9 @@ impl Parser {
             self.expect_token(&Token::RParen)?;
             expr = crate::ast::Expr::Subscript {
                 object: Box::new(expr),
-                index: Box::new(index),
+                lower: Some(Box::new(index)),
+                upper: None,
+                is_slice: false,
             };
         }
         Ok(expr)

@@ -577,11 +577,38 @@ impl Parser {
             }
             Token::LBracket => {
                 self.advance();
-                let index = self.parse_expr()?;
+                // Check if starts with : ([:upper] slice)
+                let (lower, upper, is_slice) = if self.match_token(&Token::Colon) {
+                    self.advance();
+                    // [:upper]
+                    let upper = if self.match_token(&Token::RBracket) {
+                        None
+                    } else {
+                        Some(Box::new(self.parse_expr()?))
+                    };
+                    (None, upper, true)
+                } else {
+                    let first = self.parse_expr()?;
+                    if self.match_token(&Token::Colon) {
+                        self.advance();
+                        // [lower:upper] or [lower:]
+                        let upper = if self.match_token(&Token::RBracket) {
+                            None
+                        } else {
+                            Some(Box::new(self.parse_expr()?))
+                        };
+                        (Some(Box::new(first)), upper, true)
+                    } else {
+                        // [expr]
+                        (Some(Box::new(first)), None, false)
+                    }
+                };
                 self.expect_token(&Token::RBracket)?;
                 *left = Expr::Subscript {
                     object: Box::new(std::mem::replace(left, Expr::Default)),
-                    index: Box::new(index),
+                    lower,
+                    upper,
+                    is_slice,
                 };
                 Ok(true)
             }
@@ -609,7 +636,9 @@ impl Parser {
                     self.expect_token(&Token::RParen)?;
                     *left = Expr::Subscript {
                         object: Box::new(std::mem::replace(left, Expr::Default)),
-                        index: Box::new(index),
+                        lower: Some(Box::new(index)),
+                        upper: None,
+                        is_slice: false,
                     };
                     return Ok(true);
                 }

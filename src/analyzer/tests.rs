@@ -1023,3 +1023,73 @@ fn test_merge_delete_inside_package_body() {
     assert_eq!(errors.len(), 1, "Expected 1 DeleteNotSupported error for MERGE inside package body, got: {:?}", errors);
     assert_eq!(errors[0].kind, super::MergeSemanticErrorKind::DeleteNotSupported);
 }
+
+// ── Strict Mode Tests ──
+
+#[test]
+fn test_strict_mode_detects_undefined_function() {
+    let (block, params) = parse_proc_validate(
+        "CREATE OR REPLACE PROCEDURE test_strict1 IS result INTEGER; BEGIN result := unknown_func(1); END;"
+    );
+    let non_strict = super::validate_pl_variables_with_extra_vars_and_funcs(&block, &params, &[], &[], false);
+    let func_errors: Vec<_> = non_strict.iter()
+        .filter(|e| e.kind == super::UndefinedRefKind::Function)
+        .collect();
+    assert!(func_errors.is_empty(), "non-strict should not flag function calls: {:?}", func_errors);
+
+    let strict = super::validate_pl_variables_with_extra_vars_and_funcs(&block, &params, &[], &[], true);
+    let func_errors: Vec<_> = strict.iter()
+        .filter(|e| e.kind == super::UndefinedRefKind::Function)
+        .collect();
+    assert!(!func_errors.is_empty(), "strict mode should flag unknown_func");
+    assert_eq!(func_errors[0].variable_name, "unknown_func");
+}
+
+#[test]
+fn test_strict_mode_allows_known_functions() {
+    let (block, params) = parse_proc_validate(
+        "CREATE OR REPLACE PROCEDURE test_strict2 IS result INTEGER; BEGIN result := abs(-5); END;"
+    );
+    let strict = super::validate_pl_variables_with_extra_vars_and_funcs(&block, &params, &[], &[], true);
+    let func_errors: Vec<_> = strict.iter()
+        .filter(|e| e.kind == super::UndefinedRefKind::Function)
+        .collect();
+    assert!(func_errors.is_empty(), "known functions should not be flagged: {:?}", func_errors);
+}
+
+#[test]
+fn test_strict_mode_allows_user_defined_functions() {
+    let (block, params) = parse_proc_validate(
+        "CREATE OR REPLACE PROCEDURE test_strict3 IS result INTEGER; BEGIN result := my_custom_func(1); END;"
+    );
+    let strict = super::validate_pl_variables_with_extra_vars_and_funcs(&block, &params, &[], &["my_custom_func"], true);
+    let func_errors: Vec<_> = strict.iter()
+        .filter(|e| e.kind == super::UndefinedRefKind::Function)
+        .collect();
+    assert!(func_errors.is_empty(), "user-defined functions should not be flagged: {:?}", func_errors);
+}
+
+#[test]
+fn test_strict_mode_allows_pl_builtins() {
+    let (block, params) = parse_proc_validate(
+        "CREATE OR REPLACE PROCEDURE test_strict4 IS v_ts TIMESTAMP; BEGIN v_ts := SYSDATE; END;"
+    );
+    let strict = super::validate_pl_variables_with_extra_vars_and_funcs(&block, &params, &[], &[], true);
+    let func_errors: Vec<_> = strict.iter()
+        .filter(|e| e.kind == super::UndefinedRefKind::Function)
+        .collect();
+    assert!(func_errors.is_empty(), "PL builtins should not be flagged: {:?}", func_errors);
+}
+
+#[test]
+fn test_strict_mode_flags_in_if_condition() {
+    let (block, params) = parse_proc_validate(
+        "CREATE OR REPLACE PROCEDURE test_strict5 IS BEGIN IF some_condition(i, j) THEN NULL; END IF; END;"
+    );
+    let strict = super::validate_pl_variables_with_extra_vars_and_funcs(&block, &params, &[], &[], true);
+    let func_errors: Vec<_> = strict.iter()
+        .filter(|e| e.kind == super::UndefinedRefKind::Function)
+        .collect();
+    assert!(!func_errors.is_empty(), "strict mode should flag unknown function in IF condition");
+    assert_eq!(func_errors[0].variable_name, "some_condition");
+}
