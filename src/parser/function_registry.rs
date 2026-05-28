@@ -30,6 +30,8 @@ pub enum FuncDomain {
     Json,
     Network,
     Geometric,
+    Hash,
+    Range,
     TextSearch,
     Crypto,
     System,
@@ -324,7 +326,17 @@ macro_rules! fop {
 
 /// Sorted (by lowercase name) array of all registered built-in functions.
 static FUNCTIONS: &[FuncMeta] = &[
-    // ── A ───────────────────────────────────────────────────────
+    // ── A ───────────────────────────────────────────────────
+
+    f!(
+        "abbrev",
+        FuncCategory::Scalar,
+        FuncDomain::Network,
+        1,
+        Some(1),
+        false
+    ),
+
     f!(
         "abs",
         FuncCategory::Scalar,
@@ -333,6 +345,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(1),
         false
     ),
+
     f!(
         "acos",
         FuncCategory::Scalar,
@@ -341,6 +354,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(1),
         false
     ),
+
     fo!(
         "add_months",
         FuncCategory::Scalar,
@@ -349,6 +363,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(2),
         false
     ),
+
     f!(
         "age",
         FuncCategory::Scalar,
@@ -358,6 +373,15 @@ static FUNCTIONS: &[FuncMeta] = &[
         false
     ),
     f!(
+        "area",
+        FuncCategory::Scalar,
+        FuncDomain::Geometric,
+        1,
+        Some(1),
+        false
+    ),
+
+    f!(
         "array_agg",
         FuncCategory::Aggregate,
         FuncDomain::Aggregate,
@@ -365,6 +389,25 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(1),
         true
     ),
+
+    f!(
+        "array_append",
+        FuncCategory::Scalar,
+        FuncDomain::Array,
+        2,
+        Some(2),
+        false
+    ),
+
+    f!(
+        "array_length",
+        FuncCategory::Scalar,
+        FuncDomain::Array,
+        2,
+        Some(2),
+        false
+    ),
+
     f!(
         "array_to_json",
         FuncCategory::Scalar,
@@ -373,6 +416,16 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(2),
         false
     ),
+
+    f!(
+        "array_to_string",
+        FuncCategory::Scalar,
+        FuncDomain::Array,
+        2,
+        Some(3),
+        false
+    ),
+
     f!(
         "ascii",
         FuncCategory::Scalar,
@@ -381,6 +434,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(1),
         false
     ),
+
     f!(
         "asin",
         FuncCategory::Scalar,
@@ -389,6 +443,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(1),
         false
     ),
+
     f!(
         "atan",
         FuncCategory::Scalar,
@@ -397,6 +452,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(1),
         false
     ),
+
     f!(
         "atan2",
         FuncCategory::Scalar,
@@ -405,6 +461,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(2),
         false
     ),
+
     f!(
         "avg",
         FuncCategory::Aggregate,
@@ -413,7 +470,9 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(1),
         true
     ),
-    // ── B ───────────────────────────────────────────────────────
+    // ── B ───────────────────────────────────────────────────
+
+
     f!(
         "bit_and",
         FuncCategory::Aggregate,
@@ -422,6 +481,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(1),
         true
     ),
+
     f!(
         "bit_length",
         FuncCategory::Scalar,
@@ -430,6 +490,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(1),
         false
     ),
+
     f!(
         "bit_or",
         FuncCategory::Aggregate,
@@ -439,6 +500,15 @@ static FUNCTIONS: &[FuncMeta] = &[
         true
     ),
     f!(
+        "broadcast",
+        FuncCategory::Scalar,
+        FuncDomain::Network,
+        1,
+        Some(1),
+        false
+    ),
+
+    f!(
         "btrim",
         FuncCategory::Scalar,
         FuncDomain::String,
@@ -446,7 +516,9 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(2),
         false
     ),
-    // ── C ───────────────────────────────────────────────────────
+    // ── C ───────────────────────────────────────────────────
+
+
     f!(
         "cbrt",
         FuncCategory::Scalar,
@@ -455,6 +527,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(1),
         false
     ),
+
     f!(
         "ceil",
         FuncCategory::Scalar,
@@ -463,6 +536,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(1),
         false
     ),
+
     f!(
         "ceiling",
         FuncCategory::Scalar,
@@ -472,6 +546,15 @@ static FUNCTIONS: &[FuncMeta] = &[
         false
     ),
     f!(
+        "center",
+        FuncCategory::Scalar,
+        FuncDomain::Geometric,
+        1,
+        Some(1),
+        false
+    ),
+
+    f!(
         "char_length",
         FuncCategory::Scalar,
         FuncDomain::String,
@@ -479,6 +562,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(1),
         false
     ),
+
     f!(
         "character_length",
         FuncCategory::Scalar,
@@ -487,6 +571,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(1),
         false
     ),
+
     f!(
         "chr",
         FuncCategory::Scalar,
@@ -496,6 +581,15 @@ static FUNCTIONS: &[FuncMeta] = &[
         false
     ),
     f!(
+        "circle",
+        FuncCategory::Scalar,
+        FuncDomain::Geometric,
+        1,
+        Some(1),
+        false
+    ),
+
+    f!(
         "clock_timestamp",
         FuncCategory::Scalar,
         FuncDomain::DateTime,
@@ -503,6 +597,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(0),
         false
     ),
+
     f!(
         "coalesce",
         FuncCategory::Special,
@@ -511,6 +606,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         None,
         false
     ),
+
     f!(
         "col_description",
         FuncCategory::Scalar,
@@ -519,6 +615,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(3),
         false
     ),
+
     f!(
         "concat",
         FuncCategory::Scalar,
@@ -527,6 +624,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         None,
         false
     ),
+
     f!(
         "concat_ws",
         FuncCategory::Scalar,
@@ -535,6 +633,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         None,
         false
     ),
+
     f!(
         "convert",
         FuncCategory::Scalar,
@@ -544,6 +643,23 @@ static FUNCTIONS: &[FuncMeta] = &[
         false
     ),
     f!(
+        "convert_from",
+        FuncCategory::Scalar,
+        FuncDomain::TypeConversion,
+        2,
+        Some(2),
+        false
+    ),
+    f!(
+        "convert_to",
+        FuncCategory::Scalar,
+        FuncDomain::TypeConversion,
+        2,
+        Some(2),
+        false
+    ),
+
+    f!(
         "corr",
         FuncCategory::Aggregate,
         FuncDomain::Aggregate,
@@ -551,6 +667,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(2),
         true
     ),
+
     f!(
         "cos",
         FuncCategory::Scalar,
@@ -559,6 +676,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(1),
         false
     ),
+
     f!(
         "cot",
         FuncCategory::Scalar,
@@ -567,6 +685,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(1),
         false
     ),
+
     f!(
         "count",
         FuncCategory::Aggregate,
@@ -575,6 +694,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(1),
         true
     ),
+
     f!(
         "covar_pop",
         FuncCategory::Aggregate,
@@ -583,6 +703,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(2),
         true
     ),
+
     f!(
         "covar_samp",
         FuncCategory::Aggregate,
@@ -591,6 +712,16 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(2),
         true
     ),
+
+    f!(
+        "crc32",
+        FuncCategory::Scalar,
+        FuncDomain::Hash,
+        1,
+        Some(2),
+        false
+    ),
+
     f!(
         "cume_dist",
         FuncCategory::Window,
@@ -599,6 +730,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(0),
         false
     ),
+
     f!(
         "current_database",
         FuncCategory::Scalar,
@@ -607,6 +739,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(0),
         false
     ),
+
     f!(
         "current_date",
         FuncCategory::Scalar,
@@ -615,6 +748,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(0),
         false
     ),
+
     f!(
         "current_schema",
         FuncCategory::Scalar,
@@ -623,6 +757,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(1),
         false
     ),
+
     f!(
         "current_setting",
         FuncCategory::Scalar,
@@ -631,6 +766,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(2),
         false
     ),
+
     f!(
         "current_time",
         FuncCategory::Scalar,
@@ -639,6 +775,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(1),
         false
     ),
+
     f!(
         "current_timestamp",
         FuncCategory::Scalar,
@@ -647,6 +784,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(1),
         false
     ),
+
     f!(
         "current_user",
         FuncCategory::Scalar,
@@ -655,7 +793,17 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(0),
         false
     ),
-    // ── D ───────────────────────────────────────────────────────
+    f!(
+        "currval",
+        FuncCategory::Scalar,
+        FuncDomain::System,
+        1,
+        Some(2),
+        false
+    ),
+    // ── D ───────────────────────────────────────────────────
+
+
     f!(
         "date_part",
         FuncCategory::Scalar,
@@ -664,6 +812,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(2),
         false
     ),
+
     f!(
         "date_trunc",
         FuncCategory::Scalar,
@@ -672,6 +821,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(2),
         false
     ),
+
     fop!(
         "dbe_file.close",
         FuncCategory::Scalar,
@@ -680,6 +830,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(1),
         false
     ),
+
     fop!(
         "dbe_file.copy",
         FuncCategory::Scalar,
@@ -688,6 +839,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(3),
         false
     ),
+
     fop!(
         "dbe_file.open",
         FuncCategory::Scalar,
@@ -696,6 +848,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(4),
         false
     ),
+
     fop!(
         "dbe_file.read_line",
         FuncCategory::Scalar,
@@ -704,6 +857,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(3),
         false
     ),
+
     fop!(
         "dbe_file.remove",
         FuncCategory::Scalar,
@@ -712,6 +866,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(2),
         false
     ),
+
     fop!(
         "dbe_file.rename",
         FuncCategory::Scalar,
@@ -720,6 +875,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(3),
         false
     ),
+
     fop!(
         "dbe_file.write_line",
         FuncCategory::Scalar,
@@ -728,6 +884,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(2),
         false
     ),
+
     fop!(
         "dbe_lob.append",
         FuncCategory::Scalar,
@@ -736,6 +893,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(2),
         false
     ),
+
     fop!(
         "dbe_lob.compare",
         FuncCategory::Scalar,
@@ -744,6 +902,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(3),
         false
     ),
+
     fop!(
         "dbe_lob.copy",
         FuncCategory::Scalar,
@@ -752,6 +911,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(5),
         false
     ),
+
     fop!(
         "dbe_lob.createtemporary",
         FuncCategory::Scalar,
@@ -760,6 +920,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(3),
         false
     ),
+
     fop!(
         "dbe_lob.erase",
         FuncCategory::Scalar,
@@ -768,6 +929,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(3),
         false
     ),
+
     fop!(
         "dbe_lob.freetemporary",
         FuncCategory::Scalar,
@@ -776,6 +938,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(1),
         false
     ),
+
     fop!(
         "dbe_lob.getlength",
         FuncCategory::Scalar,
@@ -784,6 +947,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(1),
         false
     ),
+
     fop!(
         "dbe_lob.instr",
         FuncCategory::Scalar,
@@ -792,6 +956,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(4),
         false
     ),
+
     fop!(
         "dbe_lob.read",
         FuncCategory::Scalar,
@@ -800,6 +965,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(3),
         false
     ),
+
     fop!(
         "dbe_lob.substr",
         FuncCategory::Scalar,
@@ -808,6 +974,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(3),
         false
     ),
+
     fop!(
         "dbe_lob.trim",
         FuncCategory::Scalar,
@@ -816,6 +983,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(2),
         false
     ),
+
     fop!(
         "dbe_lob.write",
         FuncCategory::Scalar,
@@ -824,6 +992,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(3),
         false
     ),
+
     fop!(
         "dbe_output.disable",
         FuncCategory::Scalar,
@@ -832,6 +1001,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(0),
         false
     ),
+
     fop!(
         "dbe_output.enable",
         FuncCategory::Scalar,
@@ -840,6 +1010,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(1),
         false
     ),
+
     fop!(
         "dbe_output.get_line",
         FuncCategory::Scalar,
@@ -848,6 +1019,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(2),
         false
     ),
+
     fop!(
         "dbe_output.get_lines",
         FuncCategory::Scalar,
@@ -856,6 +1028,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(2),
         false
     ),
+
     fop!(
         "dbe_output.new_line",
         FuncCategory::Scalar,
@@ -864,6 +1037,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(0),
         false
     ),
+
     fop!(
         "dbe_output.print",
         FuncCategory::Scalar,
@@ -872,6 +1046,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(1),
         false
     ),
+
     fop!(
         "dbe_output.put",
         FuncCategory::Scalar,
@@ -880,6 +1055,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(1),
         false
     ),
+
     fop!(
         "dbe_output.put_line",
         FuncCategory::Scalar,
@@ -888,6 +1064,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(1),
         false
     ),
+
     fop!(
         "dbe_scheduler.create_job",
         FuncCategory::Scalar,
@@ -896,6 +1073,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         None,
         false
     ),
+
     fop!(
         "dbe_scheduler.drop_job",
         FuncCategory::Scalar,
@@ -904,6 +1082,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         None,
         false
     ),
+
     fop!(
         "dbe_scheduler.run_job",
         FuncCategory::Scalar,
@@ -912,6 +1091,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(2),
         false
     ),
+
     fop!(
         "dbe_session.clear_context",
         FuncCategory::Scalar,
@@ -920,6 +1100,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(3),
         false
     ),
+
     fop!(
         "dbe_session.set_context",
         FuncCategory::Scalar,
@@ -928,6 +1109,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(3),
         false
     ),
+
     fop!(
         "dbe_sql.close_cursor",
         FuncCategory::Scalar,
@@ -936,6 +1118,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(1),
         false
     ),
+
     fop!(
         "dbe_sql.column_value",
         FuncCategory::Scalar,
@@ -944,6 +1127,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(3),
         false
     ),
+
     fop!(
         "dbe_sql.execute",
         FuncCategory::Scalar,
@@ -952,6 +1136,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(2),
         false
     ),
+
     fop!(
         "dbe_sql.fetch_rows",
         FuncCategory::Scalar,
@@ -960,6 +1145,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(1),
         false
     ),
+
     fop!(
         "dbe_sql.open_cursor",
         FuncCategory::Scalar,
@@ -968,6 +1154,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(0),
         false
     ),
+
     fop!(
         "dbe_sql.register_variable",
         FuncCategory::Scalar,
@@ -976,6 +1163,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(3),
         false
     ),
+
     fop!(
         "dbe_stats.lock_table_stats",
         FuncCategory::Scalar,
@@ -984,6 +1172,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(1),
         false
     ),
+
     fop!(
         "dbe_stats.unlock_table_stats",
         FuncCategory::Scalar,
@@ -992,6 +1181,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(1),
         false
     ),
+
     fop!(
         "dbe_utility.format_error_backtrace",
         FuncCategory::Scalar,
@@ -1000,6 +1190,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(0),
         false
     ),
+
     fop!(
         "dbe_utility.format_error_stack",
         FuncCategory::Scalar,
@@ -1008,6 +1199,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(0),
         false
     ),
+
     fop!(
         "dbe_utility.get_time",
         FuncCategory::Scalar,
@@ -1016,6 +1208,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(0),
         false
     ),
+
     fop!(
         "dbms_lob.append",
         FuncCategory::Scalar,
@@ -1024,6 +1217,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(2),
         false
     ),
+
     fop!(
         "dbms_lob.read",
         FuncCategory::Scalar,
@@ -1032,6 +1226,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(3),
         false
     ),
+
     fop!(
         "dbms_lob.substr",
         FuncCategory::Scalar,
@@ -1040,6 +1235,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(3),
         false
     ),
+
     fop!(
         "dbms_lob.write",
         FuncCategory::Scalar,
@@ -1048,6 +1244,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(3),
         false
     ),
+
     fop!(
         "dbms_output.disable",
         FuncCategory::Scalar,
@@ -1056,6 +1253,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(0),
         false
     ),
+
     fop!(
         "dbms_output.enable",
         FuncCategory::Scalar,
@@ -1064,6 +1262,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(1),
         false
     ),
+
     fop!(
         "dbms_output.put",
         FuncCategory::Scalar,
@@ -1072,6 +1271,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(1),
         false
     ),
+
     fop!(
         "dbms_output.put_line",
         FuncCategory::Scalar,
@@ -1080,6 +1280,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(1),
         false
     ),
+
     fop!(
         "dbms_scheduler.create_job",
         FuncCategory::Scalar,
@@ -1088,6 +1289,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         None,
         false
     ),
+
     fop!(
         "dbms_scheduler.drop_job",
         FuncCategory::Scalar,
@@ -1096,6 +1298,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         None,
         false
     ),
+
     fop!(
         "dbms_scheduler.run_job",
         FuncCategory::Scalar,
@@ -1104,6 +1307,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(2),
         false
     ),
+
     fop!(
         "dbms_sql.close_cursor",
         FuncCategory::Scalar,
@@ -1112,6 +1316,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(1),
         false
     ),
+
     fop!(
         "dbms_sql.column_value",
         FuncCategory::Scalar,
@@ -1120,6 +1325,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(3),
         false
     ),
+
     fop!(
         "dbms_sql.execute",
         FuncCategory::Scalar,
@@ -1128,6 +1334,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(2),
         false
     ),
+
     fop!(
         "dbms_sql.fetch_rows",
         FuncCategory::Scalar,
@@ -1136,6 +1343,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(1),
         false
     ),
+
     fop!(
         "dbms_sql.open_cursor",
         FuncCategory::Scalar,
@@ -1144,6 +1352,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(0),
         false
     ),
+
     fop!(
         "dbms_utility.format_error_backtrace",
         FuncCategory::Scalar,
@@ -1152,6 +1361,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(0),
         false
     ),
+
     fop!(
         "dbms_utility.get_time",
         FuncCategory::Scalar,
@@ -1160,6 +1370,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(0),
         false
     ),
+
     fo!(
         "decode",
         FuncCategory::Special,
@@ -1168,6 +1379,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         None,
         false
     ),
+
     f!(
         "degrees",
         FuncCategory::Scalar,
@@ -1176,6 +1388,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(1),
         false
     ),
+
     f!(
         "dense_rank",
         FuncCategory::Window,
@@ -1184,6 +1397,25 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(0),
         false
     ),
+
+    f!(
+        "diameter",
+        FuncCategory::Scalar,
+        FuncDomain::Geometric,
+        1,
+        Some(1),
+        false
+    ),
+
+    f!(
+        "digest",
+        FuncCategory::Scalar,
+        FuncDomain::Crypto,
+        2,
+        Some(2),
+        false
+    ),
+
     f!(
         "div",
         FuncCategory::Scalar,
@@ -1192,7 +1424,9 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(2),
         false
     ),
-    // ── E ───────────────────────────────────────────────────────
+    // ── E ───────────────────────────────────────────────────
+
+
     f!(
         "encode",
         FuncCategory::Scalar,
@@ -1201,6 +1435,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(2),
         false
     ),
+
     f!(
         "every",
         FuncCategory::Aggregate,
@@ -1209,6 +1444,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(1),
         true
     ),
+
     f!(
         "exp",
         FuncCategory::Scalar,
@@ -1217,6 +1453,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(1),
         false
     ),
+
     f!(
         "extract",
         FuncCategory::Scalar,
@@ -1225,7 +1462,9 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(2),
         false
     ),
-    // ── F ───────────────────────────────────────────────────────
+    // ── F ───────────────────────────────────────────────────
+
+
     f!(
         "factorial",
         FuncCategory::Scalar,
@@ -1235,6 +1474,15 @@ static FUNCTIONS: &[FuncMeta] = &[
         false
     ),
     f!(
+        "family",
+        FuncCategory::Scalar,
+        FuncDomain::Network,
+        1,
+        Some(1),
+        false
+    ),
+
+    f!(
         "first_value",
         FuncCategory::Window,
         FuncDomain::Window,
@@ -1242,6 +1490,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(1),
         false
     ),
+
     f!(
         "floor",
         FuncCategory::Scalar,
@@ -1250,6 +1499,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(1),
         false
     ),
+
     f!(
         "format",
         FuncCategory::Scalar,
@@ -1258,7 +1508,17 @@ static FUNCTIONS: &[FuncMeta] = &[
         None,
         false
     ),
-    // ── G ───────────────────────────────────────────────────────
+    f!(
+        "format_type",
+        FuncCategory::Scalar,
+        FuncDomain::System,
+        1,
+        Some(2),
+        false
+    ),
+    // ── G ───────────────────────────────────────────────────
+
+
     f!(
         "gcd",
         FuncCategory::Scalar,
@@ -1267,6 +1527,16 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(2),
         false
     ),
+
+    f!(
+        "gen_random_uuid",
+        FuncCategory::Scalar,
+        FuncDomain::Crypto,
+        0,
+        Some(0),
+        false
+    ),
+
     f!(
         "generate_series",
         FuncCategory::SetReturning,
@@ -1275,6 +1545,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(3),
         false
     ),
+
     f!(
         "generate_subscripts",
         FuncCategory::SetReturning,
@@ -1283,6 +1554,32 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(3),
         false
     ),
+
+    f!(
+        "get_bit",
+        FuncCategory::Scalar,
+        FuncDomain::String,
+        2,
+        Some(2),
+        false
+    ),
+    f!(
+        "get_byte",
+        FuncCategory::Scalar,
+        FuncDomain::String,
+        2,
+        Some(2),
+        false
+    ),
+    f!(
+        "get_current_ts_config",
+        FuncCategory::Scalar,
+        FuncDomain::TextSearch,
+        0,
+        Some(0),
+        false
+    ),
+
     f!(
         "greatest",
         FuncCategory::Special,
@@ -1291,6 +1588,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         None,
         false
     ),
+
     fo!(
         "group_concat",
         FuncCategory::Aggregate,
@@ -1299,7 +1597,41 @@ static FUNCTIONS: &[FuncMeta] = &[
         None,
         true
     ),
-    // ── H ───────────────────────────────────────────────────────
+    f!(
+        "gs_decrypt",
+        FuncCategory::Scalar,
+        FuncDomain::Crypto,
+        3,
+        Some(3),
+        false
+    ),
+    f!(
+        "gs_decrypt_aes128",
+        FuncCategory::Scalar,
+        FuncDomain::Crypto,
+        2,
+        Some(2),
+        false
+    ),
+    f!(
+        "gs_encrypt",
+        FuncCategory::Scalar,
+        FuncDomain::Crypto,
+        3,
+        Some(3),
+        false
+    ),
+    f!(
+        "gs_encrypt_aes128",
+        FuncCategory::Scalar,
+        FuncDomain::Crypto,
+        2,
+        Some(2),
+        false
+    ),
+    // ── H ───────────────────────────────────────────────────
+
+
     f!(
         "has_schema_privilege",
         FuncCategory::Scalar,
@@ -1308,6 +1640,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(4),
         false
     ),
+
     f!(
         "has_table_privilege",
         FuncCategory::Scalar,
@@ -1316,7 +1649,25 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(4),
         false
     ),
-    // ── I ───────────────────────────────────────────────────────
+    f!(
+        "host",
+        FuncCategory::Scalar,
+        FuncDomain::Network,
+        1,
+        Some(1),
+        false
+    ),
+    f!(
+        "hostmask",
+        FuncCategory::Scalar,
+        FuncDomain::Network,
+        1,
+        Some(1),
+        false
+    ),
+    // ── I ───────────────────────────────────────────────────
+
+
     f!(
         "inet_client_addr",
         FuncCategory::Scalar,
@@ -1325,6 +1676,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(0),
         false
     ),
+
     f!(
         "inet_client_port",
         FuncCategory::Scalar,
@@ -1333,6 +1685,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(0),
         false
     ),
+
     f!(
         "inet_server_addr",
         FuncCategory::Scalar,
@@ -1341,6 +1694,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(0),
         false
     ),
+
     f!(
         "inet_server_port",
         FuncCategory::Scalar,
@@ -1349,6 +1703,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(0),
         false
     ),
+
     f!(
         "initcap",
         FuncCategory::Scalar,
@@ -1357,6 +1712,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(1),
         false
     ),
+
     fo!(
         "instr",
         FuncCategory::Scalar,
@@ -1365,6 +1721,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(4),
         false
     ),
+
     fo!(
         "instrb",
         FuncCategory::Scalar,
@@ -1373,6 +1730,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(4),
         false
     ),
+
     f!(
         "isfinite",
         FuncCategory::Scalar,
@@ -1381,7 +1739,9 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(1),
         false
     ),
-    // ── J ───────────────────────────────────────────────────────
+    // ── J ───────────────────────────────────────────────────
+
+
     f!(
         "json",
         FuncCategory::TypeConstructor,
@@ -1390,6 +1750,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(1),
         false
     ),
+
     f!(
         "json_agg",
         FuncCategory::Aggregate,
@@ -1398,6 +1759,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(1),
         true
     ),
+
     f!(
         "json_array_elements",
         FuncCategory::SetReturning,
@@ -1406,6 +1768,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(1),
         false
     ),
+
     f!(
         "json_each",
         FuncCategory::SetReturning,
@@ -1414,6 +1777,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(1),
         false
     ),
+
     f!(
         "json_each_text",
         FuncCategory::SetReturning,
@@ -1422,6 +1786,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(1),
         false
     ),
+
     f!(
         "json_object_keys",
         FuncCategory::SetReturning,
@@ -1430,6 +1795,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(1),
         false
     ),
+
     f!(
         "json_typeof",
         FuncCategory::Scalar,
@@ -1438,6 +1804,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(1),
         false
     ),
+
     f!(
         "jsonb_agg",
         FuncCategory::Aggregate,
@@ -1446,6 +1813,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(1),
         true
     ),
+
     f!(
         "jsonb_array_elements",
         FuncCategory::SetReturning,
@@ -1454,6 +1822,25 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(1),
         false
     ),
+
+    f!(
+        "jsonb_build_array",
+        FuncCategory::Scalar,
+        FuncDomain::Json,
+        0,
+        None,
+        true
+    ),
+
+    f!(
+        "jsonb_build_object",
+        FuncCategory::Scalar,
+        FuncDomain::Json,
+        0,
+        None,
+        true
+    ),
+
     f!(
         "jsonb_each",
         FuncCategory::SetReturning,
@@ -1462,6 +1849,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(1),
         false
     ),
+
     f!(
         "jsonb_each_text",
         FuncCategory::SetReturning,
@@ -1470,6 +1858,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(1),
         false
     ),
+
     f!(
         "jsonb_object_keys",
         FuncCategory::SetReturning,
@@ -1478,6 +1867,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(1),
         false
     ),
+
     f!(
         "jsonb_pretty",
         FuncCategory::Scalar,
@@ -1486,6 +1876,16 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(1),
         false
     ),
+
+    f!(
+        "jsonb_set",
+        FuncCategory::Scalar,
+        FuncDomain::Json,
+        3,
+        Some(4),
+        false
+    ),
+
     f!(
         "jsonb_typeof",
         FuncCategory::Scalar,
@@ -1494,6 +1894,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(1),
         false
     ),
+
     f!(
         "justify_days",
         FuncCategory::Scalar,
@@ -1502,6 +1903,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(1),
         false
     ),
+
     f!(
         "justify_hours",
         FuncCategory::Scalar,
@@ -1510,6 +1912,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(1),
         false
     ),
+
     f!(
         "justify_interval",
         FuncCategory::Scalar,
@@ -1518,7 +1921,9 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(1),
         false
     ),
-    // ── L ───────────────────────────────────────────────────────
+    // ── L ───────────────────────────────────────────────────
+
+
     f!(
         "lag",
         FuncCategory::Window,
@@ -1527,6 +1932,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(3),
         false
     ),
+
     fo!(
         "last_day",
         FuncCategory::Scalar,
@@ -1535,6 +1941,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(1),
         false
     ),
+
     f!(
         "last_value",
         FuncCategory::Window,
@@ -1543,6 +1950,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(1),
         false
     ),
+
     f!(
         "lastval",
         FuncCategory::Scalar,
@@ -1551,6 +1959,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(0),
         false
     ),
+
     f!(
         "lcm",
         FuncCategory::Scalar,
@@ -1559,6 +1968,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(2),
         false
     ),
+
     f!(
         "lead",
         FuncCategory::Window,
@@ -1567,6 +1977,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(3),
         false
     ),
+
     f!(
         "least",
         FuncCategory::Special,
@@ -1575,6 +1986,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         None,
         false
     ),
+
     f!(
         "left",
         FuncCategory::Scalar,
@@ -1583,6 +1995,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(2),
         false
     ),
+
     f!(
         "length",
         FuncCategory::Scalar,
@@ -1591,6 +2004,15 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(2),
         false
     ),
+    f!(
+        "lengthb",
+        FuncCategory::Scalar,
+        FuncDomain::String,
+        1,
+        Some(1),
+        false
+    ),
+
     fo!(
         "listagg",
         FuncCategory::Aggregate,
@@ -1599,6 +2021,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(2),
         true
     ),
+
     f!(
         "ln",
         FuncCategory::Scalar,
@@ -1607,6 +2030,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(1),
         false
     ),
+
     f!(
         "localtime",
         FuncCategory::Scalar,
@@ -1615,6 +2039,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(1),
         false
     ),
+
     f!(
         "localtimestamp",
         FuncCategory::Scalar,
@@ -1623,6 +2048,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(1),
         false
     ),
+
     f!(
         "log",
         FuncCategory::Scalar,
@@ -1631,6 +2057,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(2),
         false
     ),
+
     f!(
         "log10",
         FuncCategory::Scalar,
@@ -1639,6 +2066,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(1),
         false
     ),
+
     f!(
         "lower",
         FuncCategory::Scalar,
@@ -1647,6 +2075,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(1),
         false
     ),
+
     f!(
         "lpad",
         FuncCategory::Scalar,
@@ -1655,6 +2084,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(3),
         false
     ),
+
     f!(
         "ltrim",
         FuncCategory::Scalar,
@@ -1663,7 +2093,9 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(2),
         false
     ),
-    // ── M ───────────────────────────────────────────────────────
+    // ── M ───────────────────────────────────────────────────
+
+
     f!(
         "make_date",
         FuncCategory::Scalar,
@@ -1672,6 +2104,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(3),
         false
     ),
+
     f!(
         "make_time",
         FuncCategory::Scalar,
@@ -1680,6 +2113,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(3),
         false
     ),
+
     f!(
         "make_timestamp",
         FuncCategory::Scalar,
@@ -1688,6 +2122,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(6),
         false
     ),
+
     f!(
         "make_timestamptz",
         FuncCategory::Scalar,
@@ -1697,6 +2132,15 @@ static FUNCTIONS: &[FuncMeta] = &[
         false
     ),
     f!(
+        "masklen",
+        FuncCategory::Scalar,
+        FuncDomain::Network,
+        1,
+        Some(1),
+        false
+    ),
+
+    f!(
         "max",
         FuncCategory::Aggregate,
         FuncDomain::Aggregate,
@@ -1705,6 +2149,15 @@ static FUNCTIONS: &[FuncMeta] = &[
         true
     ),
     f!(
+        "md5",
+        FuncCategory::Scalar,
+        FuncDomain::Crypto,
+        1,
+        Some(2),
+        false
+    ),
+
+    f!(
         "median",
         FuncCategory::Aggregate,
         FuncDomain::Aggregate,
@@ -1712,6 +2165,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(1),
         true
     ),
+
     f!(
         "min",
         FuncCategory::Aggregate,
@@ -1720,6 +2174,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(1),
         true
     ),
+
     f!(
         "mod",
         FuncCategory::Scalar,
@@ -1728,6 +2183,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(2),
         false
     ),
+
     f!(
         "mode",
         FuncCategory::Aggregate,
@@ -1736,6 +2192,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(1),
         true
     ),
+
     fo!(
         "months_between",
         FuncCategory::Scalar,
@@ -1744,7 +2201,25 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(2),
         false
     ),
-    // ── N ───────────────────────────────────────────────────────
+    // ── N ───────────────────────────────────────────────────
+
+    f!(
+        "netmask",
+        FuncCategory::Scalar,
+        FuncDomain::Network,
+        1,
+        Some(1),
+        false
+    ),
+    f!(
+        "network",
+        FuncCategory::Scalar,
+        FuncDomain::Network,
+        1,
+        Some(1),
+        false
+    ),
+
     fo!(
         "next_day",
         FuncCategory::Scalar,
@@ -1753,6 +2228,15 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(2),
         false
     ),
+    f!(
+        "nextval",
+        FuncCategory::Scalar,
+        FuncDomain::System,
+        1,
+        Some(1),
+        false
+    ),
+
     fo!(
         "nls_initcap",
         FuncCategory::Scalar,
@@ -1761,6 +2245,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(2),
         false
     ),
+
     fo!(
         "nls_lower",
         FuncCategory::Scalar,
@@ -1769,6 +2254,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(2),
         false
     ),
+
     fo!(
         "nls_sort",
         FuncCategory::Scalar,
@@ -1777,6 +2263,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(2),
         false
     ),
+
     fo!(
         "nls_upper",
         FuncCategory::Scalar,
@@ -1785,6 +2272,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(2),
         false
     ),
+
     fo!(
         "nlssort",
         FuncCategory::Scalar,
@@ -1793,6 +2281,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(2),
         false
     ),
+
     f!(
         "now",
         FuncCategory::Scalar,
@@ -1801,6 +2290,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(0),
         false
     ),
+
     f!(
         "nth_value",
         FuncCategory::Window,
@@ -1809,6 +2299,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(2),
         false
     ),
+
     f!(
         "ntile",
         FuncCategory::Window,
@@ -1817,6 +2308,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(1),
         false
     ),
+
     f!(
         "nullif",
         FuncCategory::Special,
@@ -1825,6 +2317,16 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(2),
         false
     ),
+
+    f!(
+        "numrange",
+        FuncCategory::Scalar,
+        FuncDomain::Range,
+        2,
+        Some(3),
+        false
+    ),
+
     fo!(
         "nvl",
         FuncCategory::Special,
@@ -1833,6 +2335,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(2),
         false
     ),
+
     fo!(
         "nvl2",
         FuncCategory::Special,
@@ -1841,7 +2344,9 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(3),
         false
     ),
-    // ── O ───────────────────────────────────────────────────────
+    // ── O ───────────────────────────────────────────────────
+
+
     f!(
         "octet_length",
         FuncCategory::Scalar,
@@ -1850,6 +2355,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(1),
         false
     ),
+
     f!(
         "overlay",
         FuncCategory::Scalar,
@@ -1858,7 +2364,9 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(4),
         false
     ),
-    // ── P ───────────────────────────────────────────────────────
+    // ── P ───────────────────────────────────────────────────
+
+
     f!(
         "percent_rank",
         FuncCategory::Window,
@@ -1867,6 +2375,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(0),
         false
     ),
+
     f!(
         "percentile_cont",
         FuncCategory::Aggregate,
@@ -1875,6 +2384,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(2),
         true
     ),
+
     f!(
         "percentile_disc",
         FuncCategory::Aggregate,
@@ -1884,6 +2394,31 @@ static FUNCTIONS: &[FuncMeta] = &[
         true
     ),
     f!(
+        "pg_advisory_lock",
+        FuncCategory::Scalar,
+        FuncDomain::System,
+        1,
+        Some(2),
+        false
+    ),
+    f!(
+        "pg_advisory_unlock",
+        FuncCategory::Scalar,
+        FuncDomain::System,
+        1,
+        Some(2),
+        false
+    ),
+    f!(
+        "pg_advisory_xact_lock",
+        FuncCategory::Scalar,
+        FuncDomain::System,
+        1,
+        Some(2),
+        false
+    ),
+
+    f!(
         "pg_backend_pid",
         FuncCategory::Scalar,
         FuncDomain::System,
@@ -1891,6 +2426,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(0),
         false
     ),
+
     f!(
         "pg_cancel_backend",
         FuncCategory::Scalar,
@@ -1900,6 +2436,23 @@ static FUNCTIONS: &[FuncMeta] = &[
         false
     ),
     f!(
+        "pg_collation_is_visible",
+        FuncCategory::Scalar,
+        FuncDomain::System,
+        1,
+        Some(2),
+        false
+    ),
+    f!(
+        "pg_column_size",
+        FuncCategory::Scalar,
+        FuncDomain::System,
+        1,
+        Some(1),
+        false
+    ),
+
+    f!(
         "pg_conf_load_time",
         FuncCategory::Scalar,
         FuncDomain::System,
@@ -1907,6 +2460,39 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(0),
         false
     ),
+    f!(
+        "pg_conversion_is_visible",
+        FuncCategory::Scalar,
+        FuncDomain::System,
+        1,
+        Some(1),
+        false
+    ),
+    f!(
+        "pg_create_logical_replication_slot",
+        FuncCategory::Scalar,
+        FuncDomain::System,
+        2,
+        Some(3),
+        false
+    ),
+    f!(
+        "pg_create_physical_replication_slot",
+        FuncCategory::Scalar,
+        FuncDomain::System,
+        1,
+        Some(2),
+        false
+    ),
+    f!(
+        "pg_current_xlog_location",
+        FuncCategory::Scalar,
+        FuncDomain::System,
+        0,
+        Some(0),
+        false
+    ),
+
     f!(
         "pg_database_size",
         FuncCategory::Scalar,
@@ -1916,6 +2502,23 @@ static FUNCTIONS: &[FuncMeta] = &[
         false
     ),
     f!(
+        "pg_describe_object",
+        FuncCategory::Scalar,
+        FuncDomain::System,
+        3,
+        Some(3),
+        false
+    ),
+    f!(
+        "pg_drop_replication_slot",
+        FuncCategory::Scalar,
+        FuncDomain::System,
+        1,
+        Some(1),
+        false
+    ),
+
+    f!(
         "pg_exception_context",
         FuncCategory::Scalar,
         FuncDomain::ExceptionContext,
@@ -1923,6 +2526,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(0),
         false
     ),
+
     f!(
         "pg_exception_detail",
         FuncCategory::Scalar,
@@ -1931,6 +2535,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(0),
         false
     ),
+
     f!(
         "pg_exception_hint",
         FuncCategory::Scalar,
@@ -1940,6 +2545,87 @@ static FUNCTIONS: &[FuncMeta] = &[
         false
     ),
     f!(
+        "pg_export_snapshot",
+        FuncCategory::Scalar,
+        FuncDomain::System,
+        0,
+        Some(0),
+        false
+    ),
+    f!(
+        "pg_function_is_visible",
+        FuncCategory::Scalar,
+        FuncDomain::System,
+        1,
+        Some(1),
+        false
+    ),
+    f!(
+        "pg_get_constraintdef",
+        FuncCategory::Scalar,
+        FuncDomain::System,
+        1,
+        Some(2),
+        false
+    ),
+    f!(
+        "pg_get_expr",
+        FuncCategory::Scalar,
+        FuncDomain::System,
+        2,
+        Some(3),
+        false
+    ),
+    f!(
+        "pg_get_functiondef",
+        FuncCategory::Scalar,
+        FuncDomain::System,
+        1,
+        Some(1),
+        false
+    ),
+    f!(
+        "pg_get_indexdef",
+        FuncCategory::Scalar,
+        FuncDomain::System,
+        1,
+        Some(3),
+        false
+    ),
+    f!(
+        "pg_get_keywords",
+        FuncCategory::Scalar,
+        FuncDomain::System,
+        0,
+        Some(0),
+        false
+    ),
+    f!(
+        "pg_get_ruledef",
+        FuncCategory::Scalar,
+        FuncDomain::System,
+        1,
+        Some(2),
+        false
+    ),
+    f!(
+        "pg_get_serial_sequence",
+        FuncCategory::Scalar,
+        FuncDomain::System,
+        2,
+        Some(2),
+        false
+    ),
+    f!(
+        "pg_get_triggerdef",
+        FuncCategory::Scalar,
+        FuncDomain::System,
+        1,
+        Some(1),
+        false
+    ),
+
+    f!(
         "pg_get_userbyid",
         FuncCategory::Scalar,
         FuncDomain::System,
@@ -1947,6 +2633,143 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(1),
         false
     ),
+    f!(
+        "pg_get_viewdef",
+        FuncCategory::Scalar,
+        FuncDomain::System,
+        1,
+        Some(2),
+        false
+    ),
+    f!(
+        "pg_has_role",
+        FuncCategory::Scalar,
+        FuncDomain::System,
+        2,
+        Some(3),
+        false
+    ),
+    f!(
+        "pg_identify_object",
+        FuncCategory::Scalar,
+        FuncDomain::System,
+        3,
+        Some(3),
+        false
+    ),
+    f!(
+        "pg_indexes_size",
+        FuncCategory::Scalar,
+        FuncDomain::System,
+        1,
+        Some(1),
+        false
+    ),
+    f!(
+        "pg_is_in_recovery",
+        FuncCategory::Scalar,
+        FuncDomain::System,
+        0,
+        Some(0),
+        false
+    ),
+    f!(
+        "pg_is_other_temp_schema",
+        FuncCategory::Scalar,
+        FuncDomain::System,
+        1,
+        Some(1),
+        false
+    ),
+    f!(
+        "pg_last_xact_replay_timestamp",
+        FuncCategory::Scalar,
+        FuncDomain::System,
+        0,
+        Some(0),
+        false
+    ),
+    f!(
+        "pg_listening_channels",
+        FuncCategory::Scalar,
+        FuncDomain::System,
+        0,
+        Some(0),
+        false
+    ),
+    f!(
+        "pg_logical_slot_get_binary_changes",
+        FuncCategory::Scalar,
+        FuncDomain::System,
+        2,
+        None,
+        false
+    ),
+    f!(
+        "pg_logical_slot_get_changes",
+        FuncCategory::Scalar,
+        FuncDomain::System,
+        2,
+        None,
+        false
+    ),
+    f!(
+        "pg_logical_slot_peek_binary_changes",
+        FuncCategory::Scalar,
+        FuncDomain::System,
+        2,
+        None,
+        false
+    ),
+    f!(
+        "pg_logical_slot_peek_changes",
+        FuncCategory::Scalar,
+        FuncDomain::System,
+        2,
+        None,
+        false
+    ),
+    f!(
+        "pg_ls_dir",
+        FuncCategory::Scalar,
+        FuncDomain::System,
+        1,
+        Some(1),
+        false
+    ),
+    f!(
+        "pg_my_temp_schema",
+        FuncCategory::Scalar,
+        FuncDomain::System,
+        0,
+        Some(0),
+        false
+    ),
+    f!(
+        "pg_opclass_is_visible",
+        FuncCategory::Scalar,
+        FuncDomain::System,
+        1,
+        Some(1),
+        false
+    ),
+    f!(
+        "pg_operator_is_visible",
+        FuncCategory::Scalar,
+        FuncDomain::System,
+        1,
+        Some(1),
+        false
+    ),
+    f!(
+        "pg_opfamily_is_visible",
+        FuncCategory::Scalar,
+        FuncDomain::System,
+        1,
+        Some(1),
+        false
+    ),
+
     f!(
         "pg_postmaster_start_time",
         FuncCategory::Scalar,
@@ -1956,6 +2779,63 @@ static FUNCTIONS: &[FuncMeta] = &[
         false
     ),
     f!(
+        "pg_prepared_statement",
+        FuncCategory::Scalar,
+        FuncDomain::System,
+        1,
+        Some(1),
+        false
+    ),
+    f!(
+        "pg_prepared_xact",
+        FuncCategory::Scalar,
+        FuncDomain::System,
+        1,
+        Some(1),
+        false
+    ),
+    f!(
+        "pg_query_audit",
+        FuncCategory::Scalar,
+        FuncDomain::System,
+        2,
+        Some(2),
+        false
+    ),
+    f!(
+        "pg_read_binary_file",
+        FuncCategory::Scalar,
+        FuncDomain::System,
+        1,
+        Some(3),
+        false
+    ),
+    f!(
+        "pg_read_file",
+        FuncCategory::Scalar,
+        FuncDomain::System,
+        1,
+        Some(3),
+        false
+    ),
+    f!(
+        "pg_relation_filenode",
+        FuncCategory::Scalar,
+        FuncDomain::System,
+        1,
+        Some(1),
+        false
+    ),
+    f!(
+        "pg_relation_filepath",
+        FuncCategory::Scalar,
+        FuncDomain::System,
+        1,
+        Some(1),
+        false
+    ),
+
+    f!(
         "pg_relation_size",
         FuncCategory::Scalar,
         FuncDomain::System,
@@ -1963,6 +2843,55 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(2),
         false
     ),
+    f!(
+        "pg_replication_origin_create",
+        FuncCategory::Scalar,
+        FuncDomain::System,
+        1,
+        Some(1),
+        false
+    ),
+    f!(
+        "pg_replication_origin_drop",
+        FuncCategory::Scalar,
+        FuncDomain::System,
+        1,
+        Some(1),
+        false
+    ),
+    f!(
+        "pg_replication_origin_oid",
+        FuncCategory::Scalar,
+        FuncDomain::System,
+        1,
+        Some(1),
+        false
+    ),
+    f!(
+        "pg_replication_origin_progress",
+        FuncCategory::Scalar,
+        FuncDomain::System,
+        1,
+        Some(2),
+        false
+    ),
+    f!(
+        "pg_rotate_logfile",
+        FuncCategory::Scalar,
+        FuncDomain::System,
+        0,
+        Some(0),
+        false
+    ),
+    f!(
+        "pg_size_pretty",
+        FuncCategory::Scalar,
+        FuncDomain::System,
+        1,
+        Some(1),
+        false
+    ),
+
     f!(
         "pg_sleep",
         FuncCategory::Scalar,
@@ -1972,6 +2901,39 @@ static FUNCTIONS: &[FuncMeta] = &[
         false
     ),
     f!(
+        "pg_start_backup",
+        FuncCategory::Scalar,
+        FuncDomain::System,
+        1,
+        Some(2),
+        false
+    ),
+    f!(
+        "pg_stat_file",
+        FuncCategory::Scalar,
+        FuncDomain::System,
+        1,
+        Some(1),
+        false
+    ),
+    f!(
+        "pg_stop_backup",
+        FuncCategory::Scalar,
+        FuncDomain::System,
+        0,
+        Some(1),
+        false
+    ),
+    f!(
+        "pg_switch_xlog",
+        FuncCategory::Scalar,
+        FuncDomain::System,
+        0,
+        Some(0),
+        false
+    ),
+
+    f!(
         "pg_table_is_visible",
         FuncCategory::Scalar,
         FuncDomain::System,
@@ -1979,6 +2941,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(2),
         false
     ),
+
     f!(
         "pg_table_size",
         FuncCategory::Scalar,
@@ -1988,6 +2951,31 @@ static FUNCTIONS: &[FuncMeta] = &[
         false
     ),
     f!(
+        "pg_tablespace_databases",
+        FuncCategory::Scalar,
+        FuncDomain::System,
+        1,
+        Some(1),
+        false
+    ),
+    f!(
+        "pg_tablespace_location",
+        FuncCategory::Scalar,
+        FuncDomain::System,
+        1,
+        Some(1),
+        false
+    ),
+    f!(
+        "pg_tablespace_size",
+        FuncCategory::Scalar,
+        FuncDomain::System,
+        1,
+        Some(1),
+        false
+    ),
+
+    f!(
         "pg_terminate_backend",
         FuncCategory::Scalar,
         FuncDomain::System,
@@ -1995,6 +2983,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(1),
         false
     ),
+
     f!(
         "pg_total_relation_size",
         FuncCategory::Scalar,
@@ -2004,6 +2993,63 @@ static FUNCTIONS: &[FuncMeta] = &[
         false
     ),
     f!(
+        "pg_try_advisory_lock",
+        FuncCategory::Scalar,
+        FuncDomain::System,
+        1,
+        Some(2),
+        false
+    ),
+    f!(
+        "pg_try_advisory_xact_lock",
+        FuncCategory::Scalar,
+        FuncDomain::System,
+        1,
+        Some(2),
+        false
+    ),
+    f!(
+        "pg_ts_config_is_visible",
+        FuncCategory::Scalar,
+        FuncDomain::System,
+        1,
+        Some(1),
+        false
+    ),
+    f!(
+        "pg_ts_dict_is_visible",
+        FuncCategory::Scalar,
+        FuncDomain::System,
+        1,
+        Some(1),
+        false
+    ),
+    f!(
+        "pg_ts_parser_is_visible",
+        FuncCategory::Scalar,
+        FuncDomain::System,
+        1,
+        Some(1),
+        false
+    ),
+    f!(
+        "pg_ts_template_is_visible",
+        FuncCategory::Scalar,
+        FuncDomain::System,
+        1,
+        Some(1),
+        false
+    ),
+    f!(
+        "pg_type_is_visible",
+        FuncCategory::Scalar,
+        FuncDomain::System,
+        1,
+        Some(1),
+        false
+    ),
+
+    f!(
         "pg_typeof",
         FuncCategory::Scalar,
         FuncDomain::System,
@@ -2012,6 +3058,47 @@ static FUNCTIONS: &[FuncMeta] = &[
         false
     ),
     f!(
+        "pg_xlog_location_diff",
+        FuncCategory::Scalar,
+        FuncDomain::System,
+        2,
+        Some(2),
+        false
+    ),
+    f!(
+        "pg_xlog_replay_pause",
+        FuncCategory::Scalar,
+        FuncDomain::System,
+        0,
+        Some(0),
+        false
+    ),
+    f!(
+        "pg_xlog_replay_resume",
+        FuncCategory::Scalar,
+        FuncDomain::System,
+        0,
+        Some(0),
+        false
+    ),
+    f!(
+        "pg_xlogfile_name",
+        FuncCategory::Scalar,
+        FuncDomain::System,
+        1,
+        Some(1),
+        false
+    ),
+    f!(
+        "pg_xlogfile_name_offset",
+        FuncCategory::Scalar,
+        FuncDomain::System,
+        1,
+        Some(1),
+        false
+    ),
+
+    f!(
         "pi",
         FuncCategory::Scalar,
         FuncDomain::Math,
@@ -2019,6 +3106,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(0),
         false
     ),
+
     fop!(
         "pkg_service.sql_cancel",
         FuncCategory::Scalar,
@@ -2028,6 +3116,31 @@ static FUNCTIONS: &[FuncMeta] = &[
         false
     ),
     f!(
+        "plainto_tsquery",
+        FuncCategory::Scalar,
+        FuncDomain::TextSearch,
+        1,
+        Some(2),
+        false
+    ),
+    f!(
+        "point",
+        FuncCategory::Scalar,
+        FuncDomain::Geometric,
+        2,
+        Some(2),
+        false
+    ),
+    f!(
+        "polygon",
+        FuncCategory::Scalar,
+        FuncDomain::Geometric,
+        1,
+        Some(1),
+        false
+    ),
+
+    f!(
         "position",
         FuncCategory::Scalar,
         FuncDomain::String,
@@ -2035,6 +3148,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(2),
         false
     ),
+
     f!(
         "power",
         FuncCategory::Scalar,
@@ -2043,7 +3157,17 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(2),
         false
     ),
-    // ── Q ───────────────────────────────────────────────────────
+    // ── Q ───────────────────────────────────────────────────
+
+    f!(
+        "querytree",
+        FuncCategory::Scalar,
+        FuncDomain::TextSearch,
+        1,
+        Some(1),
+        false
+    ),
+
     f!(
         "quote_ident",
         FuncCategory::Scalar,
@@ -2052,6 +3176,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(1),
         false
     ),
+
     f!(
         "quote_literal",
         FuncCategory::Scalar,
@@ -2060,6 +3185,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(1),
         false
     ),
+
     f!(
         "quote_nullable",
         FuncCategory::Scalar,
@@ -2068,7 +3194,9 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(1),
         false
     ),
-    // ── R ───────────────────────────────────────────────────────
+    // ── R ───────────────────────────────────────────────────
+
+
     f!(
         "radians",
         FuncCategory::Scalar,
@@ -2078,6 +3206,23 @@ static FUNCTIONS: &[FuncMeta] = &[
         false
     ),
     f!(
+        "radius",
+        FuncCategory::Scalar,
+        FuncDomain::Geometric,
+        1,
+        Some(1),
+        false
+    ),
+    f!(
+        "random",
+        FuncCategory::Scalar,
+        FuncDomain::Math,
+        0,
+        Some(0),
+        false
+    ),
+
+    f!(
         "rank",
         FuncCategory::Window,
         FuncDomain::Window,
@@ -2085,6 +3230,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(0),
         false
     ),
+
     f!(
         "ratio_to_report",
         FuncCategory::Window,
@@ -2093,6 +3239,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(1),
         false
     ),
+
     f!(
         "regexp_count",
         FuncCategory::Scalar,
@@ -2101,6 +3248,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(4),
         false
     ),
+
     f!(
         "regexp_instr",
         FuncCategory::Scalar,
@@ -2109,6 +3257,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(5),
         false
     ),
+
     f!(
         "regexp_like",
         FuncCategory::Scalar,
@@ -2117,6 +3266,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(3),
         false
     ),
+
     f!(
         "regexp_matches",
         FuncCategory::Scalar,
@@ -2125,6 +3275,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(3),
         false
     ),
+
     f!(
         "regexp_replace",
         FuncCategory::Scalar,
@@ -2134,6 +3285,23 @@ static FUNCTIONS: &[FuncMeta] = &[
         false
     ),
     f!(
+        "regexp_split_to_array",
+        FuncCategory::Scalar,
+        FuncDomain::String,
+        1,
+        Some(3),
+        false
+    ),
+    f!(
+        "regexp_split_to_table",
+        FuncCategory::SetReturning,
+        FuncDomain::String,
+        1,
+        Some(3),
+        false
+    ),
+
+    f!(
         "regexp_substr",
         FuncCategory::Scalar,
         FuncDomain::String,
@@ -2141,6 +3309,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(4),
         false
     ),
+
     f!(
         "regr_avgx",
         FuncCategory::Aggregate,
@@ -2149,6 +3318,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(2),
         true
     ),
+
     f!(
         "regr_avgy",
         FuncCategory::Aggregate,
@@ -2157,6 +3327,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(2),
         true
     ),
+
     f!(
         "regr_count",
         FuncCategory::Aggregate,
@@ -2165,6 +3336,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(2),
         true
     ),
+
     f!(
         "regr_intercept",
         FuncCategory::Aggregate,
@@ -2173,6 +3345,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(2),
         true
     ),
+
     f!(
         "regr_r2",
         FuncCategory::Aggregate,
@@ -2181,6 +3354,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(2),
         true
     ),
+
     f!(
         "regr_slope",
         FuncCategory::Aggregate,
@@ -2190,6 +3364,31 @@ static FUNCTIONS: &[FuncMeta] = &[
         true
     ),
     f!(
+        "regr_sxx",
+        FuncCategory::Aggregate,
+        FuncDomain::Aggregate,
+        2,
+        Some(2),
+        true
+    ),
+    f!(
+        "regr_sxy",
+        FuncCategory::Aggregate,
+        FuncDomain::Aggregate,
+        2,
+        Some(2),
+        true
+    ),
+    f!(
+        "regr_syy",
+        FuncCategory::Aggregate,
+        FuncDomain::Aggregate,
+        2,
+        Some(2),
+        true
+    ),
+
+    f!(
         "repeat",
         FuncCategory::Scalar,
         FuncDomain::String,
@@ -2197,6 +3396,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(2),
         false
     ),
+
     f!(
         "replace",
         FuncCategory::Scalar,
@@ -2205,6 +3405,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(3),
         false
     ),
+
     f!(
         "reverse",
         FuncCategory::Scalar,
@@ -2213,6 +3414,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(1),
         false
     ),
+
     f!(
         "right",
         FuncCategory::Scalar,
@@ -2221,6 +3423,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(2),
         false
     ),
+
     f!(
         "round",
         FuncCategory::Scalar,
@@ -2229,6 +3432,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(2),
         false
     ),
+
     f!(
         "row_number",
         FuncCategory::Window,
@@ -2237,6 +3441,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(0),
         false
     ),
+
     f!(
         "row_to_json",
         FuncCategory::Scalar,
@@ -2245,6 +3450,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(2),
         false
     ),
+
     fo!(
         "rownum",
         FuncCategory::Scalar,
@@ -2253,6 +3459,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(0),
         false
     ),
+
     f!(
         "rpad",
         FuncCategory::Scalar,
@@ -2261,6 +3468,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(3),
         false
     ),
+
     f!(
         "rtrim",
         FuncCategory::Scalar,
@@ -2269,7 +3477,9 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(2),
         false
     ),
-    // ── S ───────────────────────────────────────────────────────
+    // ── S ───────────────────────────────────────────────────
+
+
     f!(
         "session_user",
         FuncCategory::Scalar,
@@ -2279,6 +3489,23 @@ static FUNCTIONS: &[FuncMeta] = &[
         false
     ),
     f!(
+        "set_bit",
+        FuncCategory::Scalar,
+        FuncDomain::String,
+        3,
+        Some(3),
+        false
+    ),
+    f!(
+        "set_byte",
+        FuncCategory::Scalar,
+        FuncDomain::String,
+        3,
+        Some(3),
+        false
+    ),
+
+    f!(
         "set_config",
         FuncCategory::Scalar,
         FuncDomain::System,
@@ -2287,6 +3514,31 @@ static FUNCTIONS: &[FuncMeta] = &[
         false
     ),
     f!(
+        "setseed",
+        FuncCategory::Scalar,
+        FuncDomain::Math,
+        1,
+        Some(1),
+        false
+    ),
+    f!(
+        "setval",
+        FuncCategory::Scalar,
+        FuncDomain::System,
+        2,
+        Some(3),
+        false
+    ),
+    f!(
+        "sha1",
+        FuncCategory::Scalar,
+        FuncDomain::Crypto,
+        1,
+        Some(1),
+        false
+    ),
+
+    f!(
         "sign",
         FuncCategory::Scalar,
         FuncDomain::Math,
@@ -2294,6 +3546,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(1),
         false
     ),
+
     f!(
         "sin",
         FuncCategory::Scalar,
@@ -2302,6 +3555,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(1),
         false
     ),
+
     f!(
         "split_part",
         FuncCategory::Scalar,
@@ -2310,6 +3564,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(3),
         false
     ),
+
     f!(
         "sqrt",
         FuncCategory::Scalar,
@@ -2318,6 +3573,43 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(1),
         false
     ),
+
+    fo!(
+        "st_buffer",
+        FuncCategory::Scalar,
+        FuncDomain::Geometric,
+        2,
+        Some(3),
+        false
+    ),
+
+    fo!(
+        "st_envelope",
+        FuncCategory::Scalar,
+        FuncDomain::Geometric,
+        1,
+        Some(1),
+        false
+    ),
+
+    fo!(
+        "st_makepoint",
+        FuncCategory::Scalar,
+        FuncDomain::Geometric,
+        2,
+        Some(4),
+        false
+    ),
+
+    fo!(
+        "st_setsrid",
+        FuncCategory::Scalar,
+        FuncDomain::Geometric,
+        2,
+        Some(2),
+        false
+    ),
+
     f!(
         "statement_timestamp",
         FuncCategory::Scalar,
@@ -2326,6 +3618,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(0),
         false
     ),
+
     f!(
         "stddev",
         FuncCategory::Aggregate,
@@ -2334,6 +3627,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(1),
         true
     ),
+
     f!(
         "stddev_pop",
         FuncCategory::Aggregate,
@@ -2342,6 +3636,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(1),
         true
     ),
+
     f!(
         "stddev_samp",
         FuncCategory::Aggregate,
@@ -2350,6 +3645,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(1),
         true
     ),
+
     f!(
         "string_agg",
         FuncCategory::Aggregate,
@@ -2358,6 +3654,16 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(2),
         true
     ),
+
+    f!(
+        "string_to_array",
+        FuncCategory::Scalar,
+        FuncDomain::Array,
+        2,
+        Some(3),
+        false
+    ),
+
     f!(
         "strpos",
         FuncCategory::Scalar,
@@ -2366,6 +3672,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(2),
         false
     ),
+
     f!(
         "substr",
         FuncCategory::Scalar,
@@ -2374,6 +3681,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(3),
         false
     ),
+
     fo!(
         "substrb",
         FuncCategory::Scalar,
@@ -2382,6 +3690,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(3),
         false
     ),
+
     f!(
         "substring",
         FuncCategory::Scalar,
@@ -2390,6 +3699,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(3),
         false
     ),
+
     f!(
         "sum",
         FuncCategory::Aggregate,
@@ -2398,6 +3708,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(1),
         true
     ),
+
     fo!(
         "sysdate",
         FuncCategory::Scalar,
@@ -2406,7 +3717,9 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(0),
         false
     ),
-    // ── T ───────────────────────────────────────────────────────
+    // ── T ───────────────────────────────────────────────────
+
+
     f!(
         "tan",
         FuncCategory::Scalar,
@@ -2416,6 +3729,15 @@ static FUNCTIONS: &[FuncMeta] = &[
         false
     ),
     f!(
+        "timeofday",
+        FuncCategory::Scalar,
+        FuncDomain::DateTime,
+        0,
+        Some(0),
+        false
+    ),
+
+    f!(
         "to_ascii",
         FuncCategory::Scalar,
         FuncDomain::TypeConversion,
@@ -2423,6 +3745,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(2),
         false
     ),
+
     f!(
         "to_char",
         FuncCategory::Scalar,
@@ -2431,6 +3754,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(2),
         false
     ),
+
     f!(
         "to_date",
         FuncCategory::Scalar,
@@ -2439,6 +3763,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(2),
         false
     ),
+
     f!(
         "to_hex",
         FuncCategory::Scalar,
@@ -2447,6 +3772,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(1),
         false
     ),
+
     f!(
         "to_json",
         FuncCategory::Scalar,
@@ -2455,6 +3781,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(1),
         false
     ),
+
     f!(
         "to_jsonb",
         FuncCategory::Scalar,
@@ -2463,6 +3790,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(1),
         false
     ),
+
     f!(
         "to_number",
         FuncCategory::Scalar,
@@ -2471,6 +3799,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(2),
         false
     ),
+
     f!(
         "to_timestamp",
         FuncCategory::Scalar,
@@ -2480,6 +3809,23 @@ static FUNCTIONS: &[FuncMeta] = &[
         false
     ),
     f!(
+        "to_tsquery",
+        FuncCategory::Scalar,
+        FuncDomain::TextSearch,
+        1,
+        Some(2),
+        false
+    ),
+    f!(
+        "to_tsvector",
+        FuncCategory::Scalar,
+        FuncDomain::TextSearch,
+        1,
+        Some(2),
+        false
+    ),
+
+    f!(
         "transaction_timestamp",
         FuncCategory::Scalar,
         FuncDomain::DateTime,
@@ -2487,6 +3833,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(0),
         false
     ),
+
     f!(
         "translate",
         FuncCategory::Scalar,
@@ -2495,6 +3842,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(3),
         false
     ),
+
     f!(
         "trim",
         FuncCategory::Scalar,
@@ -2503,6 +3851,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(3),
         false
     ),
+
     f!(
         "trunc",
         FuncCategory::Scalar,
@@ -2511,7 +3860,139 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(2),
         false
     ),
-    // ── U ───────────────────────────────────────────────────────
+    f!(
+        "ts_headline",
+        FuncCategory::Scalar,
+        FuncDomain::TextSearch,
+        2,
+        Some(4),
+        false
+    ),
+    f!(
+        "ts_lexize",
+        FuncCategory::Scalar,
+        FuncDomain::TextSearch,
+        2,
+        Some(2),
+        false
+    ),
+    f!(
+        "ts_parse",
+        FuncCategory::Scalar,
+        FuncDomain::TextSearch,
+        1,
+        Some(2),
+        false
+    ),
+    f!(
+        "ts_rank",
+        FuncCategory::Scalar,
+        FuncDomain::TextSearch,
+        1,
+        Some(4),
+        false
+    ),
+    f!(
+        "ts_rank_cd",
+        FuncCategory::Scalar,
+        FuncDomain::TextSearch,
+        1,
+        Some(4),
+        false
+    ),
+    f!(
+        "ts_rewrite",
+        FuncCategory::Scalar,
+        FuncDomain::TextSearch,
+        2,
+        Some(3),
+        false
+    ),
+    f!(
+        "ts_stat",
+        FuncCategory::Scalar,
+        FuncDomain::TextSearch,
+        1,
+        Some(2),
+        false
+    ),
+    f!(
+        "ts_token_type",
+        FuncCategory::Scalar,
+        FuncDomain::TextSearch,
+        0,
+        Some(1),
+        false
+    ),
+
+    f!(
+        "tsrange",
+        FuncCategory::Scalar,
+        FuncDomain::Range,
+        2,
+        Some(3),
+        false
+    ),
+
+    f!(
+        "tsvector_update_trigger",
+        FuncCategory::Scalar,
+        FuncDomain::TextSearch,
+        0,
+        Some(0),
+        false
+    ),
+    f!(
+        "txid_current",
+        FuncCategory::Scalar,
+        FuncDomain::System,
+        0,
+        Some(0),
+        false
+    ),
+    f!(
+        "txid_current_snapshot",
+        FuncCategory::Scalar,
+        FuncDomain::System,
+        0,
+        Some(0),
+        false
+    ),
+    f!(
+        "txid_snapshot_xip",
+        FuncCategory::Scalar,
+        FuncDomain::System,
+        1,
+        Some(1),
+        false
+    ),
+    f!(
+        "txid_snapshot_xmax",
+        FuncCategory::Scalar,
+        FuncDomain::System,
+        1,
+        Some(1),
+        false
+    ),
+    f!(
+        "txid_snapshot_xmin",
+        FuncCategory::Scalar,
+        FuncDomain::System,
+        1,
+        Some(1),
+        false
+    ),
+    f!(
+        "txid_visible_in_snapshot",
+        FuncCategory::Scalar,
+        FuncDomain::System,
+        2,
+        Some(2),
+        false
+    ),
+    // ── U ───────────────────────────────────────────────────
+
+
     f!(
         "unnest",
         FuncCategory::SetReturning,
@@ -2520,6 +4001,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(1),
         false
     ),
+
     f!(
         "upper",
         FuncCategory::Scalar,
@@ -2528,6 +4010,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(1),
         false
     ),
+
     f!(
         "user",
         FuncCategory::Scalar,
@@ -2536,6 +4019,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(0),
         false
     ),
+
     fop!(
         "utl_file.fclose",
         FuncCategory::Scalar,
@@ -2544,6 +4028,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(1),
         false
     ),
+
     fop!(
         "utl_file.fclose_all",
         FuncCategory::Scalar,
@@ -2552,6 +4037,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(0),
         false
     ),
+
     fop!(
         "utl_file.fopen",
         FuncCategory::Scalar,
@@ -2560,6 +4046,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(4),
         false
     ),
+
     fop!(
         "utl_file.get_line",
         FuncCategory::Scalar,
@@ -2568,6 +4055,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(2),
         false
     ),
+
     fop!(
         "utl_file.put_line",
         FuncCategory::Scalar,
@@ -2576,7 +4064,9 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(2),
         false
     ),
-    // ── V ───────────────────────────────────────────────────────
+    // ── V ───────────────────────────────────────────────────
+
+
     f!(
         "var_pop",
         FuncCategory::Aggregate,
@@ -2585,6 +4075,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(1),
         true
     ),
+
     f!(
         "var_samp",
         FuncCategory::Aggregate,
@@ -2593,6 +4084,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(1),
         true
     ),
+
     f!(
         "variance",
         FuncCategory::Aggregate,
@@ -2601,6 +4093,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(1),
         true
     ),
+
     f!(
         "version",
         FuncCategory::Scalar,
@@ -2609,7 +4102,17 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(0),
         false
     ),
-    // ── W ───────────────────────────────────────────────────────
+    // ── W ───────────────────────────────────────────────────
+
+    f!(
+        "width",
+        FuncCategory::Scalar,
+        FuncDomain::Geometric,
+        1,
+        Some(1),
+        false
+    ),
+
     f!(
         "width_bucket",
         FuncCategory::Scalar,
@@ -2618,6 +4121,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(4),
         false
     ),
+
     fo!(
         "wm_concat",
         FuncCategory::Aggregate,
@@ -2626,6 +4130,17 @@ static FUNCTIONS: &[FuncMeta] = &[
         None,
         true
     ),
+    // ── X ───────────────────────────────────────────────────
+
+    f!(
+        "xml_is_well_formed",
+        FuncCategory::Scalar,
+        FuncDomain::Xml,
+        1,
+        Some(1),
+        false
+    ),
+
     fop!(
         "xmlagg",
         FuncCategory::Aggregate,
@@ -2634,6 +4149,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(1),
         true
     ),
+
     fop!(
         "xmlattributes",
         FuncCategory::Scalar,
@@ -2642,6 +4158,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         None,
         false
     ),
+
     fop!(
         "xmlcomment",
         FuncCategory::Scalar,
@@ -2650,6 +4167,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(1),
         false
     ),
+
     fop!(
         "xmlconcat",
         FuncCategory::Scalar,
@@ -2658,6 +4176,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         None,
         false
     ),
+
     fop!(
         "xmlelement",
         FuncCategory::Scalar,
@@ -2666,6 +4185,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         None,
         false
     ),
+
     fop!(
         "xmlforest",
         FuncCategory::Scalar,
@@ -2674,6 +4194,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         None,
         false
     ),
+
     fop!(
         "xmlparse",
         FuncCategory::Scalar,
@@ -2682,6 +4203,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(2),
         false
     ),
+
     fop!(
         "xmlpi",
         FuncCategory::Scalar,
@@ -2690,6 +4212,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(2),
         false
     ),
+
     fop!(
         "xmlquery",
         FuncCategory::Scalar,
@@ -2698,6 +4221,7 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(3),
         false
     ),
+
     fop!(
         "xmlserialize",
         FuncCategory::Scalar,
@@ -2706,12 +4230,29 @@ static FUNCTIONS: &[FuncMeta] = &[
         Some(3),
         false
     ),
+
     fop!(
         "xmltype",
         FuncCategory::Scalar,
         FuncDomain::Xml,
         1,
         Some(1),
+        false
+    ),
+    f!(
+        "xpath",
+        FuncCategory::Scalar,
+        FuncDomain::Xml,
+        2,
+        Some(2),
+        false
+    ),
+    f!(
+        "xpath_exists",
+        FuncCategory::Scalar,
+        FuncDomain::Xml,
+        2,
+        Some(2),
         false
     ),
 ];
@@ -2747,6 +4288,8 @@ pub fn lookup_builtin_meta(name: &str) -> Option<crate::ast::BuiltinFuncMeta> {
             FuncDomain::Json => "Json",
             FuncDomain::Network => "Network",
             FuncDomain::Geometric => "Geometric",
+            FuncDomain::Hash => "Hash",
+            FuncDomain::Range => "Range",
             FuncDomain::TextSearch => "TextSearch",
             FuncDomain::Crypto => "Crypto",
             FuncDomain::System => "System",
@@ -2815,6 +4358,8 @@ pub fn lookup_builtin_meta_qualified(full_name: &str) -> Option<crate::ast::Buil
             FuncDomain::Json => "Json",
             FuncDomain::Network => "Network",
             FuncDomain::Geometric => "Geometric",
+            FuncDomain::Hash => "Hash",
+            FuncDomain::Range => "Range",
             FuncDomain::TextSearch => "TextSearch",
             FuncDomain::Crypto => "Crypto",
             FuncDomain::System => "System",
