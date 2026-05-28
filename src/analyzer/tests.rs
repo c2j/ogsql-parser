@@ -1093,3 +1093,27 @@ fn test_strict_mode_flags_in_if_condition() {
     assert!(!func_errors.is_empty(), "strict mode should flag unknown function in IF condition");
     assert_eq!(func_errors[0].variable_name, "some_condition");
 }
+
+#[test]
+fn test_strict_mode_allows_declared_var_as_subscript() {
+    let (block, params) = parse_proc_validate(
+        "CREATE OR REPLACE PROCEDURE test_subscript IS v_arr INTEGER; result INTEGER; BEGIN result := v_arr(1); END;"
+    );
+    let strict = super::validate_pl_variables_with_extra_vars_and_funcs(&block, &params, &[], &[], true);
+    let func_errors: Vec<_> = strict.iter()
+        .filter(|e| e.kind == super::UndefinedRefKind::Function)
+        .collect();
+    assert!(func_errors.is_empty(), "declared variable used as subscript should not be flagged: {:?}", func_errors);
+}
+
+#[test]
+fn test_strict_mode_allows_param_as_subscript() {
+    let (block, params) = parse_proc_validate(
+        "CREATE OR REPLACE PROCEDURE test_param_subscript(p_arr IN INTEGER) IS result INTEGER; BEGIN result := p_arr(1); END;"
+    );
+    let strict = super::validate_pl_variables_with_extra_vars_and_funcs(&block, &params, &[], &[], true);
+    let func_errors: Vec<_> = strict.iter()
+        .filter(|e| e.kind == super::UndefinedRefKind::Function)
+        .collect();
+    assert!(func_errors.is_empty(), "parameter used as subscript should not be flagged: {:?}", func_errors);
+}

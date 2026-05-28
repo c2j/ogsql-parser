@@ -1950,6 +1950,7 @@ impl PlVariableValidator {
                             && !is_known_function(fname)
                             && !self.is_known_func(fname)
                             && !is_pl_builtin(fname)
+                            && !self.is_declared(fname)
                         {
                             self.errors.push(UndefinedVariableError {
                                 variable_name: fname.clone(),
