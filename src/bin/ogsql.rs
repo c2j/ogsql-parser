@@ -2899,6 +2899,15 @@ fn collect_defined_routine_names(stmts: &[ogsql_parser::StatementInfo]) -> Vec<S
                                 names.push(last.to_lowercase());
                             }
                         }
+                        ogsql_parser::ast::PackageItem::Type(t) => {
+                            let name = match t {
+                                ogsql_parser::ast::plpgsql::PlTypeDecl::Record { name, .. } => name,
+                                ogsql_parser::ast::plpgsql::PlTypeDecl::TableOf { name, .. } => name,
+                                ogsql_parser::ast::plpgsql::PlTypeDecl::VarrayOf { name, .. } => name,
+                                ogsql_parser::ast::plpgsql::PlTypeDecl::RefCursor { name } => name,
+                            };
+                            names.push(name.to_lowercase());
+                        }
                         _ => {}
                     }
                 }
@@ -2915,6 +2924,15 @@ fn collect_defined_routine_names(stmts: &[ogsql_parser::StatementInfo]) -> Vec<S
                             if let Some(last) = p.name.last() {
                                 names.push(last.to_lowercase());
                             }
+                        }
+                        ogsql_parser::ast::PackageItem::Type(t) => {
+                            let name = match t {
+                                ogsql_parser::ast::plpgsql::PlTypeDecl::Record { name, .. } => name,
+                                ogsql_parser::ast::plpgsql::PlTypeDecl::TableOf { name, .. } => name,
+                                ogsql_parser::ast::plpgsql::PlTypeDecl::VarrayOf { name, .. } => name,
+                                ogsql_parser::ast::plpgsql::PlTypeDecl::RefCursor { name } => name,
+                            };
+                            names.push(name.to_lowercase());
                         }
                         _ => {}
                     }
