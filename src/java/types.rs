@@ -106,6 +106,7 @@ pub enum SetterPattern {
         index: usize,
         java_type: String,
         var_name: Option<String>,
+        param_index: Option<usize>,
     },
     DynamicLoop {
         java_type: String,

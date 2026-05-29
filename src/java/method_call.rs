@@ -13,6 +13,7 @@ pub(super) struct PendingInjection {
     pub(super) method_name: String,
     pub(super) arg_count: usize,
     pub(super) extraction_idx: Option<usize>,
+    pub(super) call_arg_names: Vec<Option<String>>,
 }
 
 impl<'a> ExtractContext<'a> {
@@ -58,17 +59,28 @@ impl<'a> ExtractContext<'a> {
                 let mut cursor = args_node.walk();
                 let mut found_ps_var: Option<String> = None;
                 let mut arg_count = 0usize;
+                let mut call_arg_names: Vec<Option<String>> = Vec::new();
                 for child in args_node.children(&mut cursor) {
                     if child.kind() == "," || child.kind() == "(" || child.kind() == ")" {
                         continue;
                     }
                     arg_count += 1;
-                    if child.kind() == "identifier" {
-                        let arg_name = self.node_text(child);
-                        if self.ps_var_to_extraction.contains_key(&arg_name) {
-                            found_ps_var = Some(arg_name);
+                    let arg_name = match child.kind() {
+                        "identifier" => Some(self.node_text(child)),
+                        "field_access" => {
+                            child.child_by_field_name("field")
+                                .map(|n| self.node_text(n))
+                        }
+                        _ => None,
+                    };
+                    if let Some(ref name) = arg_name {
+                        if self.ps_var_to_extraction.contains_key(name)
+                            || self.var_types.get(name).map_or(false, |t| t == "PreparedStatement")
+                        {
+                            found_ps_var = Some(name.clone());
                         }
                     }
+                    call_arg_names.push(arg_name);
                 }
                 if let Some(ps_var) = found_ps_var {
                     let ext_idx = self.ps_var_to_extraction.get(&ps_var).copied();
@@ -77,6 +89,7 @@ impl<'a> ExtractContext<'a> {
                         method_name: method_name.clone(),
                         arg_count,
                         extraction_idx: ext_idx,
+                        call_arg_names,
                     });
                 }
             }
@@ -165,7 +178,6 @@ impl<'a> ExtractContext<'a> {
                 let extraction_idx = match pushed_extraction_idx {
                     Some(idx) => Some(idx),
                     None => {
-                        // First arg may be a tracked SQL variable; resolve its extraction index
                         let mut cursor = args_node.walk();
                         let mut found = None;
                         for child in args_node.children(&mut cursor) {
@@ -176,6 +188,21 @@ impl<'a> ExtractContext<'a> {
                                     break;
                                 }
                             }
+                            if child.kind() == "method_invocation" {
+                                if let Some(name_n) = child.child_by_field_name("name") {
+                                    if self.node_text(name_n) == "toString" {
+                                        if let Some(obj) = child.child_by_field_name("object") {
+                                            if obj.kind() == "identifier" {
+                                                let arg_name = self.node_text(obj);
+                                                if let Some(tracked) = self.sql_vars.get(&arg_name) {
+                                                    found = Some(tracked.extraction_index);
+                                                    break;
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
                         }
                         found
                     }
@@ -183,6 +210,25 @@ impl<'a> ExtractContext<'a> {
                 if let Some(idx) = extraction_idx {
                     if let Some(&old_idx) = self.ps_var_to_extraction.get(&target_var) {
                         self.backfill_for_ps_var(&target_var, old_idx);
+                    }
+                    if let Some(ext) = self.extractions.get_mut(idx) {
+                        let mut param_num = 0usize;
+                        let mut result = String::with_capacity(ext.sql.len() + 200);
+                        let mut in_quote = false;
+                        for c in ext.sql.chars() {
+                            if c == '\'' {
+                                in_quote = !in_quote;
+                                result.push(c);
+                            } else if c == '?' && !in_quote {
+                                param_num += 1;
+                                result.push_str(&format!("__JAVA_VAR_JDBC_PARAM_{}__", param_num));
+                            } else {
+                                result.push(c);
+                            }
+                        }
+                        if param_num > 0 {
+                            ext.sql = result;
+                        }
                     }
                     self.ps_var_to_extraction.insert(target_var, idx);
                 }
@@ -326,6 +372,27 @@ impl<'a> ExtractContext<'a> {
             }
             "method_invocation" => {
                 node.child_by_field_name("name").map(|n| self.node_text(n))
+            }
+            "binary_expression" => {
+                let mut found = None;
+                let mut stack = vec![node];
+                while let Some(current) = stack.pop() {
+                    let mut cursor = current.walk();
+                    for child in current.children(&mut cursor) {
+                        match child.kind() {
+                            "identifier" => {
+                                found = Some(self.node_text(child));
+                                break;
+                            }
+                            "binary_expression" => stack.push(child),
+                            _ => {}
+                        }
+                    }
+                    if found.is_some() {
+                        break;
+                    }
+                }
+                found
             }
             _ => None,
         }
@@ -504,9 +571,19 @@ impl<'a> ExtractContext<'a> {
                         index,
                         java_type,
                         var_name,
+                        param_index,
                     } => {
                         let old = format!("__JAVA_VAR_JDBC_PARAM_{}__", index);
-                        let new = match var_name {
+                        let resolved_name = var_name.as_ref().and_then(|name| {
+                            param_index.and_then(|pidx| {
+                                injection.call_arg_names.get(pidx)
+                                    .and_then(|n| n.as_ref().map(|s| s.as_str()))
+                                    .filter(|actual| actual != &name.as_str())
+                            })
+                        });
+                        let resolved_name = resolved_name
+                            .or_else(|| var_name.as_ref().map(|n| n.as_str()));
+                        let new = match resolved_name {
                             Some(name) => {
                                 let sanitized = name
                                     .chars()

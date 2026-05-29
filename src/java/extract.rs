@@ -111,6 +111,12 @@ impl<'a> ExtractContext<'a> {
             "assignment_expression" => {
                 self.visit_assignment_expression(node);
             }
+            "return_statement" => {
+                self.visit_return_statement(node);
+            }
+            "switch_expression" => {
+                self.visit_switch_expression(node);
+            }
             _ => {
                 let mut cursor = node.walk();
                 for child in node.children(&mut cursor) {
@@ -130,6 +136,81 @@ impl<'a> ExtractContext<'a> {
             self.visit(child);
         }
         self.class_name = old_class;
+    }
+
+    pub(super) fn visit_switch_expression(&mut self, node: Node) {
+        let body = match node.child_by_field_name("body") {
+            Some(b) => b,
+            None => { self.recurse(node); return; }
+        };
+        let mut cursor = body.walk();
+        for child in body.children(&mut cursor) {
+            if child.kind() == "switch_rule" {
+                self.extract_switch_rule_sql(child);
+            } else if child.kind() == "switch_block_statement_group" {
+                self.recurse(child);
+            }
+        }
+    }
+
+    fn extract_switch_rule_sql(&mut self, rule: Node) {
+        let mut cursor = rule.walk();
+        for child in rule.children(&mut cursor) {
+            match child.kind() {
+                "expression_statement" => {
+                    let expr = child.children(&mut child.walk())
+                        .find(|c| c.kind() != ";");
+                    if let Some(expr_node) = expr {
+                        self.extract_expression_sql(expr_node, child.start_position().row + 1, child.start_position().column);
+                    }
+                }
+                "block" => self.recurse(child),
+                _ => {}
+            }
+        }
+    }
+
+    fn extract_expression_sql(&mut self, node: Node, line: usize, column: usize) {
+        let (sql_text, is_text_block) = match self.extract_string_value(node) {
+            Some(v) => v,
+            None => return,
+        };
+        if !super::heuristics::looks_like_sql(&sql_text) {
+            return;
+        }
+        let sql_kind = super::heuristics::detect_sql_kind_from_content(&sql_text);
+        let param_style = super::heuristics::detect_parameter_style(&sql_text);
+        let sql_converted = self.convert_placeholders(&sql_text);
+        let is_concatenated = node.kind() == "binary_expression";
+        let parse_result = self.try_parse_sql(&sql_converted, sql_kind);
+
+        self.extractions.push(ExtractedSql {
+            sql: sql_converted,
+            origin: SqlOrigin {
+                method: ExtractionMethod::Constant,
+                class_name: self.class_name.clone(),
+                method_name: self.method_name.clone(),
+                annotation_name: None,
+                api_method_name: None,
+                variable_name: None,
+                line,
+                column,
+            },
+            sql_kind,
+            parameter_style: param_style,
+            is_concatenated,
+            is_text_block,
+            parse_result,
+        });
+    }
+
+    pub(super) fn visit_return_statement(&mut self, node: Node) {
+        let value_node = node.children(&mut node.walk())
+            .find(|c| c.kind() != "return");
+        if let Some(value) = value_node {
+            self.extract_expression_sql(value, node.start_position().row + 1, node.start_position().column);
+        }
+        self.recurse(node);
     }
 
     pub(super) fn visit_method_declaration(&mut self, node: Node) {
@@ -168,7 +249,11 @@ impl<'a> ExtractContext<'a> {
                         match pc.kind() {
                             "type_identifier"
                             | "generic_type"
-                            | "scoped_type_identifier" => {
+                            | "scoped_type_identifier"
+                            | "primitive_type"
+                            | "integral_type"
+                            | "floating_point_type"
+                            | "boolean_type" => {
                                 type_name = self.extract_type_name(pc);
                             }
                             "identifier" => {
@@ -206,7 +291,9 @@ impl<'a> ExtractContext<'a> {
         // Backfill JDBC parameter type/name inference from setXxx() calls
         self.backfill_jdbc_params();
 
+        self.track_return_sql(node);
         self.record_method_behavior(node);
+        self.record_delegation_behavior(node);
 
         for (var, idx) in &self.ps_var_to_extraction {
             self.class_ps_to_extraction.insert(var.clone(), *idx);
@@ -269,6 +356,15 @@ impl<'a> ExtractContext<'a> {
                     Some((results.join(""), false))
                 }
             }
+            "field_access" => {
+                self.resolve_field_access_constant(node)
+                    .map(|v| (v, false))
+            }
+            "identifier" => {
+                let name = self.node_text(node);
+                self.string_constants.get(&name)
+                    .map(|v| (v.clone(), false))
+            }
             _ => None,
         }
     }
@@ -308,6 +404,18 @@ impl<'a> ExtractContext<'a> {
                         parts.push((self.make_placeholder_for_node(left), false));
                     }
                 }
+                "method_invocation" => {
+                    if let Some(name_n) = left.child_by_field_name("name") {
+                        let name = self.node_text(name_n);
+                        if let Some(val) = self.string_constants.get(&name) {
+                            parts.push((val.clone(), false));
+                        } else {
+                            parts.push((self.make_placeholder_for_node(left), false));
+                        }
+                    } else {
+                        parts.push((self.make_placeholder_for_node(left), false));
+                    }
+                }
                 _ => {
                     parts.push((self.make_placeholder_for_node(left), false));
                 }
@@ -335,6 +443,18 @@ impl<'a> ExtractContext<'a> {
                 "field_access" => {
                     if let Some(val) = self.resolve_field_access_constant(right) {
                         parts.push((val, false));
+                    } else {
+                        parts.push((self.make_placeholder_for_node(right), false));
+                    }
+                }
+                "method_invocation" => {
+                    if let Some(name_n) = right.child_by_field_name("name") {
+                        let name = self.node_text(name_n);
+                        if let Some(val) = self.string_constants.get(&name) {
+                            parts.push((val.clone(), false));
+                        } else {
+                            parts.push((self.make_placeholder_for_node(right), false));
+                        }
                     } else {
                         parts.push((self.make_placeholder_for_node(right), false));
                     }
@@ -420,11 +540,24 @@ impl<'a> ExtractContext<'a> {
 
     pub(super) fn make_placeholder_for_node(&self, node: Node) -> String {
         let var_name = self.node_text(node);
-        let sanitized = sanitize_var_name(&var_name);
+        let display_name = match node.kind() {
+            "field_access" => {
+                var_name.rsplit('.').next().unwrap_or(&var_name).to_string()
+            }
+            "method_invocation" => {
+                node.child_by_field_name("name")
+                    .map(|n| self.node_text(n))
+                    .unwrap_or_else(|| var_name.clone())
+            }
+            _ => var_name.clone(),
+        };
+        let sanitized = sanitize_var_name(&display_name);
         let inferred_type = self.infer_expression_type(node);
         match inferred_type {
             Some(t) => format!("__JAVA_VAR_{}_{}__", t, sanitized),
-            None => match self.var_types.get(&var_name) {
+            None => match self.var_types.get(&display_name)
+                .or_else(|| self.var_types.get(&var_name))
+            {
                 Some(t) => format!("__JAVA_VAR_{}_{}__", t, sanitized),
                 None => {
                     let default_type = self
@@ -631,6 +764,7 @@ impl<'a> ExtractContext<'a> {
 
         let mut ps_param_name: Option<String> = None;
         let mut ps_param_index: Option<usize> = None;
+        let mut param_name_to_idx: std::collections::HashMap<String, usize> = std::collections::HashMap::new();
 
         if let Some(params_node) = node.child_by_field_name("parameters") {
             let mut cursor = params_node.walk();
@@ -656,6 +790,7 @@ impl<'a> ExtractContext<'a> {
                             ps_param_name = Some(v.clone());
                             ps_param_index = Some(param_idx);
                         }
+                        param_name_to_idx.insert(v.clone(), param_idx);
                     }
                     param_idx += 1;
                 }
@@ -674,10 +809,13 @@ impl<'a> ExtractContext<'a> {
         let mut setter_patterns: Vec<crate::java::types::SetterPattern> = Vec::new();
         for ((var_name, _), info) in &self.jdbc_param_map {
             if var_name == &ps_var {
+                let pidx = info.var_name.as_ref()
+                    .and_then(|n| param_name_to_idx.get(n).copied());
                 setter_patterns.push(crate::java::types::SetterPattern::Literal {
                     index: info.index,
                     java_type: info.java_type.clone(),
                     var_name: info.var_name.clone(),
+                    param_index: pidx,
                 });
             }
         }
@@ -723,6 +861,110 @@ impl<'a> ExtractContext<'a> {
                 setter_patterns,
             },
         );
+    }
+
+    fn track_return_sql(&mut self, node: Node) {
+        let method_name_str = match &self.method_name {
+            Some(n) => n.clone(),
+            None => return,
+        };
+        let body = match node.child_by_field_name("body") {
+            Some(b) => b,
+            None => return,
+        };
+        let mut last_return: Option<Node> = None;
+        let mut cursor = body.walk();
+        for child in body.children(&mut cursor) {
+            if child.kind() == "return_statement" {
+                last_return = Some(child);
+            }
+        }
+        let ret_stmt = match last_return {
+            Some(n) => n,
+            None => return,
+        };
+        let ret_value = match ret_stmt.children(&mut ret_stmt.walk())
+            .find(|c| c.kind() != "return")
+        {
+            Some(n) => n,
+            None => return,
+        };
+        if let Some((sql_text, _)) = self.extract_string_value(ret_value) {
+            if super::heuristics::looks_like_sql(&sql_text) {
+                self.string_constants.insert(method_name_str, sql_text);
+            }
+        }
+    }
+
+    fn record_delegation_behavior(&mut self, node: Node) {
+        let method_name_str = match &self.method_name {
+            Some(n) => n.clone(),
+            None => return,
+        };
+        if self.method_behaviors.contains_key(&format!("{}:", method_name_str))
+            || self.method_behaviors.contains_key(&method_name_str) {
+            return;
+        }
+
+        let mut ps_param_index: Option<usize> = None;
+        if let Some(params_node) = node.child_by_field_name("parameters") {
+            let mut cursor = params_node.walk();
+            let mut idx = 0usize;
+            for child in params_node.children(&mut cursor) {
+                if child.kind() == "formal_parameter" {
+                    let mut pc = child.walk();
+                    let mut type_name: Option<String> = None;
+                    for p in child.children(&mut pc) {
+                        if p.kind() == "type_identifier" || p.kind() == "generic_type" || p.kind() == "scoped_type_identifier" {
+                            type_name = self.extract_type_name(p);
+                        }
+                    }
+                    if type_name.as_deref() == Some("PreparedStatement") {
+                        ps_param_index = Some(idx);
+                    }
+                    idx += 1;
+                }
+            }
+        }
+        let ps_idx = match ps_param_index {
+            Some(i) => i,
+            None => return,
+        };
+
+        let total_params = {
+            let mut count = 0usize;
+            if let Some(params_node) = node.child_by_field_name("parameters") {
+                let mut cursor = params_node.walk();
+                for child in params_node.children(&mut cursor) {
+                    if child.kind() == "formal_parameter" {
+                        count += 1;
+                    }
+                }
+            }
+            count
+        };
+
+        for injection in &self.pending_injections {
+            if injection.extraction_idx.is_some() {
+                continue;
+            }
+            let behavior_key = format!("{}:{}", injection.method_name, injection.arg_count);
+            let behavior = self.method_behaviors.get(&behavior_key)
+                .or_else(|| self.method_behaviors.get(&injection.method_name));
+            if let Some(behavior) = behavior {
+                if behavior.ps_param_index < injection.call_arg_names.len() {
+                    self.method_behaviors.insert(
+                        format!("{}:{}", method_name_str, total_params),
+                        crate::java::types::MethodPsBehavior {
+                            ps_param_index: ps_idx,
+                            ps_param_name: String::new(),
+                            setter_patterns: behavior.setter_patterns.clone(),
+                        },
+                    );
+                }
+                return;
+            }
+        }
     }
 
     pub(super) fn node_text(&self, node: Node) -> String {
