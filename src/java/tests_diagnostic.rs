@@ -2191,4 +2191,267 @@ fn diag_q5_cross_file_concat_with_concat_value_in_setter() {
         "simple value in cross-file setter, got: {}", sql);
 }
 
+// ═══════════════════════════════════════════════════════════════
+// GROUP M (extended): Switch expressions — Java 14+ arrow syntax
+// ═══════════════════════════════════════════════════════════════
+
+#[test]
+fn diag_m6_switch_expression_assigned_to_var() {
+    let java = r#"
+        public class Dao {
+            public void query(String table) {
+                String sql = switch (table) {
+                    case "users" -> "SELECT * FROM users";
+                    case "orders" -> "SELECT * FROM orders";
+                    default -> "SELECT 1";
+                };
+            }
+        }
+    "#;
+    let result = extract_sql_from_java(java, "Dao.java", &JavaExtractConfig::default());
+    assert!(result.extractions.len() >= 1,
+        "switch expression assigned to var should extract SQL cases, got: {}", result.extractions.len());
+}
+
+#[test]
+fn diag_m7_switch_expression_with_concat() {
+    let java = r#"
+        public class Dao {
+            public void query(String table) {
+                String sql = switch (table) {
+                    case "users" -> "SELECT * FROM " + table;
+                    case "orders" -> "DELETE FROM " + table;
+                    default -> "SELECT 1";
+                };
+            }
+        }
+    "#;
+    let result = extract_sql_from_java(java, "Dao.java", &JavaExtractConfig::default());
+    assert!(result.extractions.len() >= 1,
+        "switch expression with concat should extract SQL, got: {}", result.extractions.len());
+}
+
+#[test]
+fn diag_m8_switch_expression_in_method_arg() {
+    let java = r#"
+        public class Dao {
+            public void query(String type) throws Exception {
+                jdbcTemplate.query(switch (type) {
+                    case "full" -> "SELECT * FROM users";
+                    default -> "SELECT id FROM users";
+                }, (rs, rn) -> null);
+            }
+        }
+    "#;
+    let result = extract_sql_from_java(java, "Dao.java", &JavaExtractConfig::default());
+    assert!(result.extractions.len() >= 1,
+        "switch expression as method argument should extract SQL, got: {}", result.extractions.len());
+}
+
+#[test]
+fn diag_m9_switch_expression_only_non_sql() {
+    let java = r#"
+        public class Dao {
+            public void process(String type) {
+                String label = switch (type) {
+                    case "a" -> "hello";
+                    case "b" -> "world";
+                    default -> "unknown";
+                };
+            }
+        }
+    "#;
+    let result = extract_sql_from_java(java, "Dao.java", &JavaExtractConfig::default());
+    assert!(result.extractions.is_empty(),
+        "switch expression with no SQL should not extract, got: {}", result.extractions.len());
+}
+
+#[test]
+fn diag_m10_switch_expression_with_placeholders() {
+    let java = r#"
+        public class Dao {
+            public void query(String type, int id) throws Exception {
+                String sql = switch (type) {
+                    case "find" -> "SELECT * FROM users WHERE id = ?";
+                    case "delete" -> "DELETE FROM users WHERE id = ?";
+                    default -> "SELECT 1";
+                };
+                PreparedStatement ps = conn.prepareStatement(sql);
+                ps.setInt(1, id);
+            }
+        }
+    "#;
+    let result = extract_sql_from_java(java, "Dao.java", &JavaExtractConfig::default());
+    assert!(result.extractions.len() >= 1,
+        "switch expression with JDBC placeholders should extract, got: {}", result.extractions.len());
+    let all_sql: String = result.extractions.iter().map(|e| e.sql.as_str()).collect();
+    assert!(all_sql.contains("WHERE id"),
+        "placeholder-containing SQL should appear, got: {:?}", result.extractions);
+}
+
+#[test]
+fn diag_m11_switch_expression_nested_in_sb_append() {
+    let java = r#"
+        public class Dao {
+            public void query(String type) {
+                StringBuilder sql = new StringBuilder("SELECT * FROM users");
+                sql.append(switch (type) {
+                    case "active" -> " WHERE active = 1";
+                    case "inactive" -> " WHERE active = 0";
+                    default -> "";
+                });
+            }
+        }
+    "#;
+    let result = extract_sql_from_java(java, "Dao.java", &JavaExtractConfig::default());
+    assert!(result.extractions.len() >= 1,
+        "switch expression inside SB append should produce assembled SQL, got: {}", result.extractions.len());
+}
+
+// ═══════════════════════════════════════════════════════════════
+// GROUP O (extended): Return-SQL patterns
+// ═══════════════════════════════════════════════════════════════
+
+#[test]
+fn diag_o13_return_sql_from_if() {
+    let java = r#"
+        public class Dao {
+            public String getQuery(String type) {
+                if ("simple".equals(type)) {
+                    return "SELECT id FROM users";
+                } else {
+                    return "SELECT u.id, u.name, d.dept FROM users u JOIN dept d ON u.dept_id = d.id";
+                }
+            }
+        }
+    "#;
+    let result = extract_sql_from_java(java, "Dao.java", &JavaExtractConfig::default());
+    assert!(result.extractions.len() >= 2,
+        "return SQL from both if/else branches should extract, got: {}", result.extractions.len());
+}
+
+#[test]
+fn diag_o14_return_sql_from_switch() {
+    let java = r#"
+        public class Dao {
+            public String getQuery(int type) {
+                switch (type) {
+                    case 1: return "SELECT * FROM users";
+                    case 2: return "SELECT * FROM orders";
+                    default: return "SELECT 1";
+                }
+            }
+        }
+    "#;
+    let result = extract_sql_from_java(java, "Dao.java", &JavaExtractConfig::default());
+    assert!(result.extractions.len() >= 2,
+        "return SQL from switch cases should extract, got: {}", result.extractions.len());
+}
+
+#[test]
+fn diag_o15_return_sql_from_ternary() {
+    let java = r#"
+        public class Dao {
+            public String getQuery(boolean simple) {
+                return simple ? "SELECT id FROM users" : "SELECT * FROM users JOIN dept ON users.dept_id = dept.id";
+            }
+        }
+    "#;
+    let result = extract_sql_from_java(java, "Dao.java", &JavaExtractConfig::default());
+    assert!(result.extractions.len() >= 1,
+        "return SQL from ternary should extract, got: {}", result.extractions.len());
+}
+
+#[test]
+fn diag_o16_return_sql_only_non_sql() {
+    let java = r#"
+        public class Dao {
+            public String getLabel(String type) {
+                if ("a".equals(type)) {
+                    return "hello";
+                }
+                return "world";
+            }
+        }
+    "#;
+    let result = extract_sql_from_java(java, "Dao.java", &JavaExtractConfig::default());
+    assert!(result.extractions.is_empty(),
+        "return of non-SQL strings should not extract, got: {}", result.extractions.len());
+}
+
+#[test]
+fn diag_o17_return_sql_with_concat() {
+    let java = r#"
+        public class Dao {
+            public String getQuery(String table) {
+                return "SELECT * FROM " + table + " WHERE active = 1";
+            }
+        }
+    "#;
+    let result = extract_sql_from_java(java, "Dao.java", &JavaExtractConfig::default());
+    assert!(result.extractions.len() >= 1,
+        "return of concatenated SQL should extract, got: {}", result.extractions.len());
+}
+
+#[test]
+fn diag_o18_return_sql_deep_nesting() {
+    let java = r#"
+        public class Dao {
+            public String getQuery(String type, String status) {
+                if ("user".equals(type)) {
+                    if ("active".equals(status)) {
+                        return "SELECT * FROM users WHERE active = 1";
+                    } else {
+                        return "SELECT * FROM users WHERE active = 0";
+                    }
+                } else {
+                    return "SELECT * FROM orders";
+                }
+            }
+        }
+    "#;
+    let result = extract_sql_from_java(java, "Dao.java", &JavaExtractConfig::default());
+    assert!(result.extractions.len() >= 2,
+        "return SQL from deeply nested if should extract, got: {}", result.extractions.len());
+}
+
+#[test]
+fn diag_o19_return_sql_used_by_caller() {
+    let java = r#"
+        public class Dao {
+            public String buildQuery(String table) {
+                return "SELECT * FROM " + table;
+            }
+            public void execute() throws Exception {
+                String sql = buildQuery("users");
+                PreparedStatement ps = conn.prepareStatement(sql);
+            }
+        }
+    "#;
+    let result = extract_sql_from_java(java, "Dao.java", &JavaExtractConfig::default());
+    assert!(result.extractions.len() >= 1,
+        "SQL returned from method and used by caller should extract, got: {}", result.extractions.len());
+}
+
+#[test]
+fn diag_o20_return_sql_in_try_catch() {
+    let java = r#"
+        public class Dao {
+            public String getQuery(boolean safe) {
+                try {
+                    if (safe) {
+                        return "SELECT * FROM users";
+                    }
+                    return "DELETE FROM users";
+                } catch (Exception e) {
+                    return "SELECT 1";
+                }
+            }
+        }
+    "#;
+    let result = extract_sql_from_java(java, "Dao.java", &JavaExtractConfig::default());
+    assert!(result.extractions.len() >= 2,
+        "return SQL inside try/catch should extract, got: {}", result.extractions.len());
+}
+
 
