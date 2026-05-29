@@ -45,9 +45,7 @@ impl<'a> ExtractContext<'a> {
 
     pub(super) fn visit_local_variable_declaration(&mut self, node: Node) {
         let type_name = self.detect_local_var_type(node);
-        let is_sb = type_name
-            .as_ref()
-            .map_or(false, |t| STRING_BUILDER_TYPES.contains(&t.as_str()));
+        let is_sb = type_name.as_ref().is_some_and(|t| STRING_BUILDER_TYPES.contains(&t.as_str()));
 
         if is_sb {
             self.check_string_builder_declaration(node);
@@ -153,11 +151,8 @@ impl<'a> ExtractContext<'a> {
         let sql_kind = detect_sql_kind_from_content(&sql_text);
         let param_style = detect_parameter_style(&sql_text);
         let sql_converted = self.convert_placeholders(&sql_text);
-        let parse_result = if sql_converted.trim().is_empty() {
-            None
-        } else {
-            self.try_parse_sql(&sql_converted, sql_kind)
-        };
+        let parse_result =
+            if sql_converted.trim().is_empty() { None } else { self.try_parse_sql(&sql_converted, sql_kind) };
 
         self.extractions.push(ExtractedSql {
             sql: sql_converted.clone(),
@@ -240,9 +235,7 @@ impl<'a> ExtractContext<'a> {
 
         if name_looks_like_sql && !content_looks_like_sql {
             let trimmed = sql_text.trim();
-            let starts_like_sql = SQL_STATEMENT_PREFIXES
-                .iter()
-                .any(|prefix| trimmed.starts_with(prefix));
+            let starts_like_sql = SQL_STATEMENT_PREFIXES.iter().any(|prefix| trimmed.starts_with(prefix));
             if !starts_like_sql {
                 return;
             }
@@ -287,10 +280,7 @@ impl<'a> ExtractContext<'a> {
     pub(super) fn find_method_chain_root(&self, node: Node) -> Option<String> {
         let mut current = node;
         loop {
-            let object = match current.child_by_field_name("object") {
-                Some(n) => n,
-                None => return None,
-            };
+            let object = current.child_by_field_name("object")?;
             match object.kind() {
                 "identifier" => return Some(self.node_text(object)),
                 "method_invocation" => current = object,
@@ -428,12 +418,7 @@ impl<'a> ExtractContext<'a> {
                 Some(t) => t,
                 None => return,
             };
-            let byte_off = tracked
-                .sql
-                .char_indices()
-                .nth(off)
-                .map(|(i, _)| i)
-                .unwrap_or(tracked.sql.len());
+            let byte_off = tracked.sql.char_indices().nth(off).map(|(i, _)| i).unwrap_or(tracked.sql.len());
             tracked.sql.insert_str(byte_off, &val);
 
             let idx = tracked.extraction_index;
@@ -541,10 +526,8 @@ impl<'a> ExtractContext<'a> {
 
             let chars: Vec<char> = tracked.sql.chars().collect();
             if s < chars.len() && e <= chars.len() && s <= e {
-                let new_sql: String = chars[..s].iter().copied()
-                    .chain(val.chars())
-                    .chain(chars[e..].iter().copied())
-                    .collect();
+                let new_sql: String =
+                    chars[..s].iter().copied().chain(val.chars()).chain(chars[e..].iter().copied()).collect();
                 tracked.sql = new_sql;
 
                 let idx = tracked.extraction_index;
@@ -586,10 +569,7 @@ impl<'a> ExtractContext<'a> {
             return;
         }
 
-        let operator = node
-            .child_by_field_name("operator")
-            .map(|n| self.node_text(n))
-            .unwrap_or_default();
+        let operator = node.child_by_field_name("operator").map(|n| self.node_text(n)).unwrap_or_default();
 
         let right = match node.child_by_field_name("right") {
             Some(n) => n,
@@ -608,9 +588,7 @@ impl<'a> ExtractContext<'a> {
                 }
             }
             "=" => {
-                if right.kind() == "binary_expression"
-                    && self.is_binary_left_identifier(right, &var_name)
-                {
+                if right.kind() == "binary_expression" && self.is_binary_left_identifier(right, &var_name) {
                     let parts = self.collect_concat_parts(right);
                     let append_parts: Vec<_> = parts.into_iter().skip(1).collect();
                     if !append_parts.is_empty() {
@@ -641,9 +619,7 @@ impl<'a> ExtractContext<'a> {
                     Some(parts)
                 }
             }
-            _ => {
-                Some(vec![(self.make_placeholder_for_node(node), false)])
-            }
+            _ => Some(vec![(self.make_placeholder_for_node(node), false)]),
         }
     }
 
@@ -726,10 +702,7 @@ impl<'a> ExtractContext<'a> {
             parse_result,
         });
 
-        let was_sb = self
-            .sql_vars
-            .get(var_name)
-            .map_or(false, |v| v.is_string_builder);
+        let was_sb = self.sql_vars.get(var_name).is_some_and(|v| v.is_string_builder);
         self.sql_vars.insert(
             var_name.to_string(),
             TrackedVar {

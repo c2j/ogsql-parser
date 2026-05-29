@@ -27,9 +27,7 @@ pub fn parse_mapper_interface(source: &str) -> Option<MapperInterfaceInfo> {
     let root = tree.root_node();
     let package_name = extract_package_name(&root, source);
     let interface_node = find_interface(&root)?;
-    let class_name = interface_node
-        .child_by_field_name("name")
-        .map(|n| source[n.byte_range()].to_string())?;
+    let class_name = interface_node.child_by_field_name("name").map(|n| source[n.byte_range()].to_string())?;
     let fqn = match &package_name {
         Some(pkg) => format!("{}.{}", pkg, class_name),
         None => class_name,
@@ -98,9 +96,9 @@ fn extract_methods(interface: &Node, source: &str) -> HashMap<String, MapperMeth
 fn parse_method(node: &Node, source: &str) -> Option<(String, MapperMethodInfo)> {
     let name_node = node.child_by_field_name("name")?;
     let method_name = source[name_node.byte_range()].to_string();
-    let return_type = node.child_by_field_name("type")
-        .map(|n| extract_type_name_simple(&n, source));
-    let params = node.child_by_field_name("parameters")
+    let return_type = node.child_by_field_name("type").map(|n| extract_type_name_simple(&n, source));
+    let params = node
+        .child_by_field_name("parameters")
         .map(|params_node| extract_params(&params_node, source))
         .unwrap_or_default();
     Some((method_name, MapperMethodInfo { return_type, params }))
@@ -134,8 +132,13 @@ fn parse_formal_parameter(node: &Node, source: &str) -> Option<MethodParam> {
                     }
                 }
             }
-            "type_identifier" | "primitive_type" | "integral_type"
-            | "floating_point_type" | "boolean_type" | "generic_type" | "array_type" => {
+            "type_identifier"
+            | "primitive_type"
+            | "integral_type"
+            | "floating_point_type"
+            | "boolean_type"
+            | "generic_type"
+            | "array_type" => {
                 java_type = Some(extract_type_name_simple(&child, source));
             }
             "identifier" => {
@@ -158,7 +161,9 @@ fn extract_param_annotation(node: &Node, source: &str) -> Option<String> {
     for child in node.children(&mut cursor) {
         if child.kind() == "identifier" {
             let ann_name = source[child.byte_range()].to_string();
-            if ann_name != "Param" { return None; }
+            if ann_name != "Param" {
+                return None;
+            }
         }
         if child.kind() == "annotation_argument_list" || child.kind() == "argument_list" {
             let mut arg_cursor = child.walk();
@@ -175,8 +180,9 @@ fn extract_param_annotation(node: &Node, source: &str) -> Option<String> {
 
 fn extract_type_name_simple(node: &Node, source: &str) -> String {
     match node.kind() {
-        "type_identifier" | "primitive_type" | "integral_type"
-        | "floating_point_type" | "boolean_type" => source[node.byte_range()].to_string(),
+        "type_identifier" | "primitive_type" | "integral_type" | "floating_point_type" | "boolean_type" => {
+            source[node.byte_range()].to_string()
+        }
         "generic_type" => {
             let mut cursor = node.walk();
             for child in node.children(&mut cursor) {
@@ -189,9 +195,9 @@ fn extract_type_name_simple(node: &Node, source: &str) -> String {
         "array_type" => {
             let mut cursor = node.walk();
             for child in node.children(&mut cursor) {
-                if matches!(child.kind(),
-                    "type_identifier" | "primitive_type" | "integral_type"
-                    | "floating_point_type" | "boolean_type"
+                if matches!(
+                    child.kind(),
+                    "type_identifier" | "primitive_type" | "integral_type" | "floating_point_type" | "boolean_type"
                 ) {
                     return source[child.byte_range()].to_string();
                 }

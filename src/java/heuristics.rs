@@ -114,15 +114,10 @@ impl<'a> ExtractContext<'a> {
                 continue;
             }
 
-            if chars[i] == ':'
-                && i + 1 < len
-                && (chars[i + 1].is_ascii_alphabetic() || chars[i + 1] == '_')
-            {
+            if chars[i] == ':' && i + 1 < len && (chars[i + 1].is_ascii_alphabetic() || chars[i + 1] == '_') {
                 let name_start = i + 1;
                 let mut name_end = name_start;
-                while name_end < len
-                    && (chars[name_end].is_ascii_alphanumeric() || chars[name_end] == '_')
-                {
+                while name_end < len && (chars[name_end].is_ascii_alphanumeric() || chars[name_end] == '_') {
                     name_end += 1;
                 }
                 let name: String = chars[name_start..name_end].iter().collect();

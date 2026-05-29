@@ -9,8 +9,6 @@ use crate::java::error::JavaError;
 use crate::java::method_call::PendingInjection;
 use crate::java::types::*;
 
-
-
 pub(super) struct TrackedVar {
     pub(super) sql: String,
     pub(super) extraction_index: usize,
@@ -18,12 +16,7 @@ pub(super) struct TrackedVar {
     pub(super) is_field_level: bool,
 }
 
-pub fn extract(
-    source: &str,
-    root: Node,
-    file_path: &str,
-    config: &JavaExtractConfig,
-) -> JavaExtractResult {
+pub fn extract(source: &str, root: Node, file_path: &str, config: &JavaExtractConfig) -> JavaExtractResult {
     let mut sql_var_patterns_upper = vec!["SQL".to_string()];
     for p in &config.extra_sql_var_patterns {
         let upper = p.to_uppercase();
@@ -53,20 +46,14 @@ pub fn extract(
     };
     ctx.visit(root);
     ctx.apply_pending_injections();
-    let extractions: Vec<ExtractedSql> = ctx
-        .extractions
-        .into_iter()
-        .filter(|e| starts_with_sql_keyword(&e.sql))
-        .collect();
-    JavaExtractResult {
-        file_path: file_path.to_string(),
-        extractions,
-        errors: ctx.errors,
-    }
+    let extractions: Vec<ExtractedSql> =
+        ctx.extractions.into_iter().filter(|e| starts_with_sql_keyword(&e.sql)).collect();
+    JavaExtractResult { file_path: file_path.to_string(), extractions, errors: ctx.errors }
 }
 
 pub(super) struct ExtractContext<'a> {
     pub(super) source: &'a str,
+    #[allow(dead_code)]
     pub(super) file_path: &'a str,
     pub(super) extractions: Vec<ExtractedSql>,
     pub(super) errors: Vec<JavaError>,
@@ -141,7 +128,10 @@ impl<'a> ExtractContext<'a> {
     pub(super) fn visit_switch_expression(&mut self, node: Node) {
         let body = match node.child_by_field_name("body") {
             Some(b) => b,
-            None => { self.recurse(node); return; }
+            None => {
+                self.recurse(node);
+                return;
+            }
         };
         let mut cursor = body.walk();
         for child in body.children(&mut cursor) {
@@ -158,10 +148,13 @@ impl<'a> ExtractContext<'a> {
         for child in rule.children(&mut cursor) {
             match child.kind() {
                 "expression_statement" => {
-                    let expr = child.children(&mut child.walk())
-                        .find(|c| c.kind() != ";");
+                    let expr = child.children(&mut child.walk()).find(|c| c.kind() != ";");
                     if let Some(expr_node) = expr {
-                        self.extract_expression_sql(expr_node, child.start_position().row + 1, child.start_position().column);
+                        self.extract_expression_sql(
+                            expr_node,
+                            child.start_position().row + 1,
+                            child.start_position().column,
+                        );
                     }
                 }
                 "block" => self.recurse(child),
@@ -205,8 +198,7 @@ impl<'a> ExtractContext<'a> {
     }
 
     pub(super) fn visit_return_statement(&mut self, node: Node) {
-        let value_node = node.children(&mut node.walk())
-            .find(|c| c.kind() != "return");
+        let value_node = node.children(&mut node.walk()).find(|c| c.kind() != "return");
         if let Some(value) = value_node {
             self.extract_expression_sql(value, node.start_position().row + 1, node.start_position().column);
         }
@@ -219,12 +211,17 @@ impl<'a> ExtractContext<'a> {
             .sql_vars
             .iter()
             .filter(|(_, v)| v.is_field_level)
-            .map(|(k, v)| (k.clone(), TrackedVar {
-                sql: v.sql.clone(),
-                extraction_index: v.extraction_index,
-                is_string_builder: v.is_string_builder,
-                is_field_level: true,
-            }))
+            .map(|(k, v)| {
+                (
+                    k.clone(),
+                    TrackedVar {
+                        sql: v.sql.clone(),
+                        extraction_index: v.extraction_index,
+                        is_string_builder: v.is_string_builder,
+                        is_field_level: true,
+                    },
+                )
+            })
             .collect();
         let old_sql_vars = std::mem::take(&mut self.sql_vars);
         for (k, v) in field_sql_vars {
@@ -356,23 +353,17 @@ impl<'a> ExtractContext<'a> {
                     Some((results.join(""), false))
                 }
             }
-            "field_access" => {
-                self.resolve_field_access_constant(node)
-                    .map(|v| (v, false))
-            }
+            "field_access" => self.resolve_field_access_constant(node).map(|v| (v, false)),
             "identifier" => {
                 let name = self.node_text(node);
-                self.string_constants.get(&name)
-                    .map(|v| (v.clone(), false))
+                self.string_constants.get(&name).map(|v| (v.clone(), false))
             }
             _ => None,
         }
     }
 
     pub(super) fn collect_concat_parts(&self, node: Node) -> Vec<(String, bool)> {
-        let op = node
-            .child_by_field_name("operator")
-            .map(|n| self.node_text(n));
+        let op = node.child_by_field_name("operator").map(|n| self.node_text(n));
         if op.as_deref() != Some("+") {
             return vec![];
         }
@@ -478,19 +469,14 @@ impl<'a> ExtractContext<'a> {
         }
 
         let (stmts, errors) = crate::parser::Parser::parse_sql(&flat_sql);
-        Some(SqlParseResult {
-            statements: stmts,
-            errors,
-        })
+        Some(SqlParseResult { statements: stmts, errors })
     }
 
     pub(super) fn extract_type_name(&self, node: Node) -> Option<String> {
         match node.kind() {
-            "type_identifier"
-            | "primitive_type"
-            | "integral_type"
-            | "floating_point_type"
-            | "boolean_type" => Some(self.node_text(node)),
+            "type_identifier" | "primitive_type" | "integral_type" | "floating_point_type" | "boolean_type" => {
+                Some(self.node_text(node))
+            }
             "scoped_type_identifier" => {
                 let text = self.node_text(node);
                 let short = text.rsplit('.').next().unwrap_or(&text);
@@ -525,13 +511,17 @@ impl<'a> ExtractContext<'a> {
         }
     }
 
+    #[allow(dead_code)]
     pub(super) fn make_var_placeholder(&self, var_name: &str) -> String {
         let sanitized = sanitize_var_name(var_name);
-        let type_name = self.var_types.get(var_name)
-            .or_else(|| {
-                let trimmed = var_name.trim();
-                if trimmed != var_name { self.var_types.get(trimmed) } else { None }
-            });
+        let type_name = self.var_types.get(var_name).or_else(|| {
+            let trimmed = var_name.trim();
+            if trimmed != var_name {
+                self.var_types.get(trimmed)
+            } else {
+                None
+            }
+        });
         match type_name {
             Some(t) => format!("__JAVA_VAR_{}_{}__", t, sanitized),
             None => format!("__JAVA_VAR_{}__", sanitized),
@@ -541,13 +531,9 @@ impl<'a> ExtractContext<'a> {
     pub(super) fn make_placeholder_for_node(&self, node: Node) -> String {
         let var_name = self.node_text(node);
         let display_name = match node.kind() {
-            "field_access" => {
-                var_name.rsplit('.').next().unwrap_or(&var_name).to_string()
-            }
+            "field_access" => var_name.rsplit('.').next().unwrap_or(&var_name).to_string(),
             "method_invocation" => {
-                node.child_by_field_name("name")
-                    .map(|n| self.node_text(n))
-                    .unwrap_or_else(|| var_name.clone())
+                node.child_by_field_name("name").map(|n| self.node_text(n)).unwrap_or_else(|| var_name.clone())
             }
             _ => var_name.clone(),
         };
@@ -555,14 +541,10 @@ impl<'a> ExtractContext<'a> {
         let inferred_type = self.infer_expression_type(node);
         match inferred_type {
             Some(t) => format!("__JAVA_VAR_{}_{}__", t, sanitized),
-            None => match self.var_types.get(&display_name)
-                .or_else(|| self.var_types.get(&var_name))
-            {
+            None => match self.var_types.get(&display_name).or_else(|| self.var_types.get(&var_name)) {
                 Some(t) => format!("__JAVA_VAR_{}_{}__", t, sanitized),
                 None => {
-                    let default_type = self
-                        .infer_type_from_concat_context(node)
-                        .unwrap_or_else(|| sanitized.clone());
+                    let default_type = self.infer_type_from_concat_context(node).unwrap_or_else(|| sanitized.clone());
                     if default_type != sanitized {
                         format!("__JAVA_VAR_{}_{}__", default_type, sanitized)
                     } else {
@@ -636,13 +618,10 @@ impl<'a> ExtractContext<'a> {
                 None
             }
             "binary_expression" => {
-                let op = node.child_by_field_name("operator")
-                    .map(|n| self.node_text(n));
+                let op = node.child_by_field_name("operator").map(|n| self.node_text(n));
                 if op.as_deref() == Some("+") {
-                    let left_type = node.child_by_field_name("left")
-                        .and_then(|n| self.infer_expression_type(n));
-                    let right_type = node.child_by_field_name("right")
-                        .and_then(|n| self.infer_expression_type(n));
+                    let left_type = node.child_by_field_name("left").and_then(|n| self.infer_expression_type(n));
+                    let right_type = node.child_by_field_name("right").and_then(|n| self.infer_expression_type(n));
                     if left_type.as_deref() == Some("String") || right_type.as_deref() == Some("String") {
                         return Some("String".to_string());
                     }
@@ -651,8 +630,7 @@ impl<'a> ExtractContext<'a> {
                 node.child_by_field_name("left").and_then(|n| self.infer_expression_type(n))
             }
             "method_invocation" => {
-                let name = node.child_by_field_name("name")
-                    .map(|n| self.node_text(n));
+                let name = node.child_by_field_name("name").map(|n| self.node_text(n));
                 match name.as_deref() {
                     Some("toString") | Some("valueOf") => Some("String".to_string()),
                     Some("length") | Some("intValue") | Some("longValue") => Some("int".to_string()),
@@ -666,12 +644,7 @@ impl<'a> ExtractContext<'a> {
 
     /// Backfill a single PS variable's old binding before its mapping is overwritten.
     pub(super) fn backfill_for_ps_var(&mut self, ps_var: &str, ext_idx: usize) {
-        let keys: Vec<(String, usize)> = self
-            .jdbc_param_map
-            .keys()
-            .filter(|(v, _)| v == ps_var)
-            .cloned()
-            .collect();
+        let keys: Vec<(String, usize)> = self.jdbc_param_map.keys().filter(|(v, _)| v == ps_var).cloned().collect();
 
         if keys.is_empty() {
             return;
@@ -685,16 +658,8 @@ impl<'a> ExtractContext<'a> {
             };
             let old = format!("__JAVA_VAR_JDBC_PARAM_{}__", info.index);
             let new = match &info.var_name {
-                Some(name) => format!(
-                    "__JAVA_VAR_{}_{}__",
-                    info.java_type,
-                    sanitize_var_name(name)
-                ),
-                None => format!(
-                    "__JAVA_VAR_{}_JDBC_PARAM_{}__",
-                    info.java_type,
-                    info.index
-                ),
+                Some(name) => format!("__JAVA_VAR_{}_{}__", info.java_type, sanitize_var_name(name)),
+                None => format!("__JAVA_VAR_{}_JDBC_PARAM_{}__", info.java_type, info.index),
             };
             if let Some(ext) = self.extractions.get_mut(ext_idx) {
                 let before = ext.sql.len();
@@ -809,8 +774,7 @@ impl<'a> ExtractContext<'a> {
         let mut setter_patterns: Vec<crate::java::types::SetterPattern> = Vec::new();
         for ((var_name, _), info) in &self.jdbc_param_map {
             if var_name == &ps_var {
-                let pidx = info.var_name.as_ref()
-                    .and_then(|n| param_name_to_idx.get(n).copied());
+                let pidx = info.var_name.as_ref().and_then(|n| param_name_to_idx.get(n).copied());
                 setter_patterns.push(crate::java::types::SetterPattern::Literal {
                     index: info.index,
                     java_type: info.java_type.clone(),
@@ -824,9 +788,7 @@ impl<'a> ExtractContext<'a> {
         for (var_name, java_type) in &self.dynamic_setters {
             if var_name == &ps_var && !seen_dynamic_types.contains(java_type) {
                 seen_dynamic_types.insert(java_type.clone());
-                setter_patterns.push(crate::java::types::SetterPattern::DynamicLoop {
-                    java_type: java_type.clone(),
-                });
+                setter_patterns.push(crate::java::types::SetterPattern::DynamicLoop { java_type: java_type.clone() });
             }
         }
 
@@ -855,11 +817,7 @@ impl<'a> ExtractContext<'a> {
         let key = format!("{}:{}", method_name_str, total_params);
         self.method_behaviors.insert(
             key,
-            crate::java::types::MethodPsBehavior {
-                ps_param_index: ps_idx,
-                ps_param_name: ps_var,
-                setter_patterns,
-            },
+            crate::java::types::MethodPsBehavior { ps_param_index: ps_idx, ps_param_name: ps_var, setter_patterns },
         );
     }
 
@@ -883,9 +841,7 @@ impl<'a> ExtractContext<'a> {
             Some(n) => n,
             None => return,
         };
-        let ret_value = match ret_stmt.children(&mut ret_stmt.walk())
-            .find(|c| c.kind() != "return")
-        {
+        let ret_value = match ret_stmt.children(&mut ret_stmt.walk()).find(|c| c.kind() != "return") {
             Some(n) => n,
             None => return,
         };
@@ -902,7 +858,8 @@ impl<'a> ExtractContext<'a> {
             None => return,
         };
         if self.method_behaviors.contains_key(&format!("{}:", method_name_str))
-            || self.method_behaviors.contains_key(&method_name_str) {
+            || self.method_behaviors.contains_key(&method_name_str)
+        {
             return;
         }
 
@@ -915,7 +872,10 @@ impl<'a> ExtractContext<'a> {
                     let mut pc = child.walk();
                     let mut type_name: Option<String> = None;
                     for p in child.children(&mut pc) {
-                        if p.kind() == "type_identifier" || p.kind() == "generic_type" || p.kind() == "scoped_type_identifier" {
+                        if p.kind() == "type_identifier"
+                            || p.kind() == "generic_type"
+                            || p.kind() == "scoped_type_identifier"
+                        {
                             type_name = self.extract_type_name(p);
                         }
                     }
@@ -949,8 +909,8 @@ impl<'a> ExtractContext<'a> {
                 continue;
             }
             let behavior_key = format!("{}:{}", injection.method_name, injection.arg_count);
-            let behavior = self.method_behaviors.get(&behavior_key)
-                .or_else(|| self.method_behaviors.get(&injection.method_name));
+            let behavior =
+                self.method_behaviors.get(&behavior_key).or_else(|| self.method_behaviors.get(&injection.method_name));
             if let Some(behavior) = behavior {
                 if behavior.ps_param_index < injection.call_arg_names.len() {
                     self.method_behaviors.insert(
@@ -975,13 +935,10 @@ impl<'a> ExtractContext<'a> {
         if node.kind() != "field_access" {
             return None;
         }
-        let last_ident = node.child_by_field_name("field")
-            .or_else(|| {
-                let mut cursor = node.walk();
-                node.children(&mut cursor)
-                    .filter(|c| c.kind() == "identifier")
-                    .last()
-            });
+        let last_ident = node.child_by_field_name("field").or_else(|| {
+            let mut cursor = node.walk();
+            node.children(&mut cursor).filter(|c| c.kind() == "identifier").last()
+        });
         match last_ident {
             Some(n) => {
                 let name = self.node_text(n);
@@ -993,22 +950,14 @@ impl<'a> ExtractContext<'a> {
 }
 
 pub(crate) fn starts_with_sql_keyword(sql: &str) -> bool {
-    let first_word = sql.trim().split_whitespace().next().unwrap_or("");
+    let first_word = sql.split_whitespace().next().unwrap_or("");
     let upper = first_word.to_uppercase();
     matches!(upper.as_str(), "SELECT" | "INSERT" | "UPDATE" | "DELETE" | "MERGE" | "WITH")
 }
 
 fn sanitize_var_name(var_name: &str) -> String {
-    let mapped: String = var_name
-        .chars()
-        .map(|c| {
-            if c.is_ascii_alphanumeric() || c == '_' {
-                c
-            } else {
-                '_'
-            }
-        })
-        .collect();
+    let mapped: String =
+        var_name.chars().map(|c| if c.is_ascii_alphanumeric() || c == '_' { c } else { '_' }).collect();
     let mut result = String::with_capacity(mapped.len());
     let mut prev_underscore = false;
     for c in mapped.chars() {
@@ -1025,5 +974,9 @@ fn sanitize_var_name(var_name: &str) -> String {
     while result.ends_with('_') {
         result.pop();
     }
-    if result.is_empty() { "_".to_string() } else { result }
+    if result.is_empty() {
+        "_".to_string()
+    } else {
+        result
+    }
 }

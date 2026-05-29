@@ -78,19 +78,10 @@ pub(super) struct JdbcParamInfo {
     pub(super) var_name: Option<String>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct CrossFileState {
     pub method_behaviors: std::collections::HashMap<String, MethodPsBehavior>,
     pub string_constants: std::collections::HashMap<String, String>,
-}
-
-impl Default for CrossFileState {
-    fn default() -> Self {
-        Self {
-            method_behaviors: std::collections::HashMap::new(),
-            string_constants: std::collections::HashMap::new(),
-        }
-    }
 }
 
 #[derive(Debug, Clone)]
@@ -102,13 +93,6 @@ pub struct MethodPsBehavior {
 
 #[derive(Debug, Clone)]
 pub enum SetterPattern {
-    Literal {
-        index: usize,
-        java_type: String,
-        var_name: Option<String>,
-        param_index: Option<usize>,
-    },
-    DynamicLoop {
-        java_type: String,
-    },
+    Literal { index: usize, java_type: String, var_name: Option<String>, param_index: Option<usize> },
+    DynamicLoop { java_type: String },
 }

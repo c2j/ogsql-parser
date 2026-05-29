@@ -17,23 +17,15 @@ mod variable;
 
 pub use dto_fields::parse_dto_fields;
 pub use error::JavaError;
-pub use mapper_interface::{
-    MapperInterfaceInfo, MapperMethodInfo, MethodParam, parse_mapper_interface,
-};
+pub use mapper_interface::{parse_mapper_interface, MapperInterfaceInfo, MapperMethodInfo, MethodParam};
 pub use types::{
-    CrossFileState, ExtractedSql, ExtractionMethod, JavaExtractConfig, JavaExtractResult,
-    MethodPsBehavior, ParameterStyle, SetterPattern, SqlKind, SqlOrigin, SqlParseResult,
+    CrossFileState, ExtractedSql, ExtractionMethod, JavaExtractConfig, JavaExtractResult, MethodPsBehavior,
+    ParameterStyle, SetterPattern, SqlKind, SqlOrigin, SqlParseResult,
 };
 
-pub fn extract_sql_from_java(
-    source: &str,
-    file_path: &str,
-    config: &JavaExtractConfig,
-) -> JavaExtractResult {
+pub fn extract_sql_from_java(source: &str, file_path: &str, config: &JavaExtractConfig) -> JavaExtractResult {
     let mut parser = Parser::new();
-    parser
-        .set_language(&tree_sitter_java::LANGUAGE.into())
-        .expect("Failed to set Java language for tree-sitter");
+    parser.set_language(&tree_sitter_java::LANGUAGE.into()).expect("Failed to set Java language for tree-sitter");
 
     let tree = match parser.parse(source, None) {
         Some(tree) => tree,
@@ -41,9 +33,7 @@ pub fn extract_sql_from_java(
             return JavaExtractResult {
                 file_path: file_path.to_string(),
                 extractions: Vec::new(),
-                errors: vec![JavaError::ParseError {
-                    message: "tree-sitter returned no parse tree".to_string(),
-                }],
+                errors: vec![JavaError::ParseError { message: "tree-sitter returned no parse tree".to_string() }],
             };
         }
     };
@@ -51,10 +41,7 @@ pub fn extract_sql_from_java(
     extract::extract(source, tree.root_node(), file_path, config)
 }
 
-pub fn extract_sql_from_java_files(
-    files: &[(&str, &str)],
-    config: &JavaExtractConfig,
-) -> Vec<JavaExtractResult> {
+pub fn extract_sql_from_java_files(files: &[(&str, &str)], config: &JavaExtractConfig) -> Vec<JavaExtractResult> {
     let mut state = CrossFileState::default();
     extract_sql_from_java_files_with_state(files, config, &mut state)
 }
@@ -66,9 +53,7 @@ pub fn extract_sql_from_java_files_with_state(
 ) -> Vec<JavaExtractResult> {
     let mut results = Vec::new();
     let mut parser = Parser::new();
-    parser
-        .set_language(&tree_sitter_java::LANGUAGE.into())
-        .expect("Failed to set Java language for tree-sitter");
+    parser.set_language(&tree_sitter_java::LANGUAGE.into()).expect("Failed to set Java language for tree-sitter");
 
     for (file_path, source) in files {
         let tree = match parser.parse(source, None) {
@@ -77,9 +62,7 @@ pub fn extract_sql_from_java_files_with_state(
                 results.push(JavaExtractResult {
                     file_path: file_path.to_string(),
                     extractions: Vec::new(),
-                    errors: vec![JavaError::ParseError {
-                        message: "tree-sitter returned no parse tree".to_string(),
-                    }],
+                    errors: vec![JavaError::ParseError { message: "tree-sitter returned no parse tree".to_string() }],
                 });
                 continue;
             }
@@ -119,17 +102,10 @@ pub fn extract_sql_from_java_files_with_state(
         state.method_behaviors = ctx.method_behaviors;
         state.string_constants = ctx.string_constants;
 
-        let extractions: Vec<ExtractedSql> = ctx
-            .extractions
-            .into_iter()
-            .filter(|e| extract::starts_with_sql_keyword(&e.sql))
-            .collect();
+        let extractions: Vec<ExtractedSql> =
+            ctx.extractions.into_iter().filter(|e| extract::starts_with_sql_keyword(&e.sql)).collect();
 
-        results.push(JavaExtractResult {
-            file_path: file_path.to_string(),
-            extractions,
-            errors: ctx.errors,
-        });
+        results.push(JavaExtractResult { file_path: file_path.to_string(), extractions, errors: ctx.errors });
     }
 
     results

@@ -3,8 +3,7 @@ use tree_sitter::Node;
 
 pub fn parse_dto_fields(source: &str) -> HashMap<String, String> {
     let mut parser = tree_sitter::Parser::new();
-    parser.set_language(&tree_sitter_java::LANGUAGE.into())
-        .expect("Failed to set Java language");
+    parser.set_language(&tree_sitter_java::LANGUAGE.into()).expect("Failed to set Java language");
     let tree = match parser.parse(source, None) {
         Some(t) => t,
         None => return HashMap::new(),
@@ -36,8 +35,13 @@ fn parse_field(node: &Node, source: &str, fields: &mut HashMap<String, String>) 
     let mut cursor = node.walk();
     for child in node.children(&mut cursor) {
         match child.kind() {
-            "type_identifier" | "primitive_type" | "integral_type"
-            | "floating_point_type" | "boolean_type" | "generic_type" | "array_type" => {
+            "type_identifier"
+            | "primitive_type"
+            | "integral_type"
+            | "floating_point_type"
+            | "boolean_type"
+            | "generic_type"
+            | "array_type" => {
                 type_name = Some(extract_type(&child, source));
             }
             "variable_declarator" => {
@@ -66,8 +70,9 @@ fn parse_field(node: &Node, source: &str, fields: &mut HashMap<String, String>) 
 
 fn extract_type(node: &Node, source: &str) -> String {
     match node.kind() {
-        "type_identifier" | "primitive_type" | "integral_type"
-        | "floating_point_type" | "boolean_type" => source[node.byte_range()].to_string(),
+        "type_identifier" | "primitive_type" | "integral_type" | "floating_point_type" | "boolean_type" => {
+            source[node.byte_range()].to_string()
+        }
         "generic_type" => {
             let mut cursor = node.walk();
             for child in node.children(&mut cursor) {

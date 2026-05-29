@@ -5,7 +5,7 @@ use tree_sitter::Node;
 use super::constant::{JDBC_SETTER_TYPES, SQL_METHOD_AMBIGUOUS, SQL_METHOD_UNAMBIGUOUS};
 use super::extract::ExtractContext;
 use super::heuristics::{detect_parameter_style, looks_like_sql};
-use super::types::{JdbcParamInfo, MethodPsBehavior};
+use super::types::JdbcParamInfo;
 use crate::java::types::*;
 
 pub(super) struct PendingInjection {
@@ -27,7 +27,7 @@ impl<'a> ExtractContext<'a> {
         if method_name == "append" || method_name == "insert" || method_name == "delete" || method_name == "replace" {
             if let Some(root_var) = self.find_method_chain_root(node) {
                 if self.sql_vars.contains_key(&root_var)
-                    && self.sql_vars.get(&root_var).map_or(false, |v| v.is_string_builder)
+                    && self.sql_vars.get(&root_var).is_some_and(|v| v.is_string_builder)
                 {
                     self.handle_string_builder_call(node, &root_var, &method_name);
                     return;
@@ -41,7 +41,7 @@ impl<'a> ExtractContext<'a> {
             if next_char.is_ascii_uppercase() {
                 if let Some(root_var) = self.find_method_chain_root(node) {
                     let is_ps = self.ps_var_to_extraction.contains_key(&root_var)
-                        || self.var_types.get(&root_var).map_or(false, |t| t == "PreparedStatement");
+                        || self.var_types.get(&root_var).is_some_and(|t| t == "PreparedStatement");
                     if is_ps {
                         self.visit_setter_call(node, &method_name);
                         return;
@@ -67,15 +67,12 @@ impl<'a> ExtractContext<'a> {
                     arg_count += 1;
                     let arg_name = match child.kind() {
                         "identifier" => Some(self.node_text(child)),
-                        "field_access" => {
-                            child.child_by_field_name("field")
-                                .map(|n| self.node_text(n))
-                        }
+                        "field_access" => child.child_by_field_name("field").map(|n| self.node_text(n)),
                         _ => None,
                     };
                     if let Some(ref name) = arg_name {
                         if self.ps_var_to_extraction.contains_key(name)
-                            || self.var_types.get(name).map_or(false, |t| t == "PreparedStatement")
+                            || self.var_types.get(name).is_some_and(|t| t == "PreparedStatement")
                         {
                             found_ps_var = Some(name.clone());
                         }
@@ -255,13 +252,10 @@ impl<'a> ExtractContext<'a> {
                     }
                 }
                 "field_access" => {
-                    let last_ident = child.child_by_field_name("field")
-                        .or_else(|| {
-                            let mut c = child.walk();
-                            child.children(&mut c)
-                                .filter(|n| n.kind() == "identifier")
-                                .last()
-                        });
+                    let last_ident = child.child_by_field_name("field").or_else(|| {
+                        let mut c = child.walk();
+                        child.children(&mut c).filter(|n| n.kind() == "identifier").last()
+                    });
                     if let Some(n) = last_ident {
                         let name = self.node_text(n);
                         if let Some(val) = self.string_constants.get(&name) {
@@ -351,14 +345,7 @@ impl<'a> ExtractContext<'a> {
             None => return,
         };
 
-        self.jdbc_param_map.insert(
-            (ps_var, param_index),
-            JdbcParamInfo {
-                index: param_index,
-                java_type,
-                var_name,
-            },
-        );
+        self.jdbc_param_map.insert((ps_var, param_index), JdbcParamInfo { index: param_index, java_type, var_name });
     }
 
     /// Extract a variable name from the setter value argument.
@@ -370,9 +357,7 @@ impl<'a> ExtractContext<'a> {
                 let parts: Vec<&str> = text.rsplitn(2, '.').collect();
                 Some(parts[0].to_string())
             }
-            "method_invocation" => {
-                node.child_by_field_name("name").map(|n| self.node_text(n))
-            }
+            "method_invocation" => node.child_by_field_name("name").map(|n| self.node_text(n)),
             "binary_expression" => {
                 let mut found = None;
                 let mut stack = vec![node];
@@ -412,7 +397,15 @@ impl<'a> ExtractContext<'a> {
         let mut elements = Vec::new();
         let mut cursor = node.walk();
         for child in node.children(&mut cursor) {
-            if child.kind() == "dimensions" || child.kind() == "type_identifier" || child.kind() == "integral_type" || child.kind() == "primitive_type" || child.kind() == "floating_point_type" || child.kind() == "boolean_type" || child.kind() == "generic_type" || child.kind() == "array_type" {
+            if child.kind() == "dimensions"
+                || child.kind() == "type_identifier"
+                || child.kind() == "integral_type"
+                || child.kind() == "primitive_type"
+                || child.kind() == "floating_point_type"
+                || child.kind() == "boolean_type"
+                || child.kind() == "generic_type"
+                || child.kind() == "array_type"
+            {
                 continue;
             }
             if child.kind() == "dimensions" {
@@ -447,7 +440,8 @@ impl<'a> ExtractContext<'a> {
             for (i, (var_name, inferred_type)) in elements.iter().enumerate() {
                 let param_num = i + 1;
                 let old = format!("__JAVA_VAR_JDBC_PARAM_{}__", param_num);
-                let java_type = inferred_type.as_deref()
+                let java_type = inferred_type
+                    .as_deref()
                     .or_else(|| self.var_types.get(var_name).map(|s| s.as_str()))
                     .unwrap_or("Object");
                 let sanitized = var_name
@@ -472,11 +466,8 @@ impl<'a> ExtractContext<'a> {
         }
     }
 
-    fn resolve_ps_arg_extraction(
-        &self,
-        args_node: &Node,
-        behavior: &super::types::MethodPsBehavior,
-    ) -> Option<usize> {
+    #[allow(dead_code)]
+    fn resolve_ps_arg_extraction(&self, args_node: &Node, behavior: &MethodPsBehavior) -> Option<usize> {
         let mut cursor = args_node.walk();
         let mut arg_idx = 0usize;
         for child in args_node.children(&mut cursor) {
@@ -554,7 +545,10 @@ impl<'a> ExtractContext<'a> {
                 },
             };
             let behavior_key = format!("{}:{}", injection.method_name, injection.arg_count);
-            let behavior = self.method_behaviors.get(&behavior_key).cloned()
+            let behavior = self
+                .method_behaviors
+                .get(&behavior_key)
+                .cloned()
                 .or_else(|| self.method_behaviors.get(&injection.method_name).cloned());
             let behavior = match behavior {
                 Some(b) => b,
@@ -567,33 +561,23 @@ impl<'a> ExtractContext<'a> {
             let mut modified = false;
             for pattern in &behavior.setter_patterns {
                 match pattern {
-                    super::types::SetterPattern::Literal {
-                        index,
-                        java_type,
-                        var_name,
-                        param_index,
-                    } => {
+                    super::types::SetterPattern::Literal { index, java_type, var_name, param_index } => {
                         let old = format!("__JAVA_VAR_JDBC_PARAM_{}__", index);
                         let resolved_name = var_name.as_ref().and_then(|name| {
                             param_index.and_then(|pidx| {
-                                injection.call_arg_names.get(pidx)
+                                injection
+                                    .call_arg_names
+                                    .get(pidx)
                                     .and_then(|n| n.as_ref().map(|s| s.as_str()))
                                     .filter(|actual| actual != &name.as_str())
                             })
                         });
-                        let resolved_name = resolved_name
-                            .or_else(|| var_name.as_ref().map(|n| n.as_str()));
+                        let resolved_name = resolved_name.or_else(|| var_name.as_ref().map(|n| n.as_str()));
                         let new = match resolved_name {
                             Some(name) => {
                                 let sanitized = name
                                     .chars()
-                                    .map(|c| {
-                                        if c.is_ascii_alphanumeric() || c == '_' {
-                                            c
-                                        } else {
-                                            '_'
-                                        }
-                                    })
+                                    .map(|c| if c.is_ascii_alphanumeric() || c == '_' { c } else { '_' })
                                     .collect::<String>();
                                 format!("__JAVA_VAR_{}_{}__", java_type, sanitized)
                             }

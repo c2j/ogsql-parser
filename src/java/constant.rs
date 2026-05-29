@@ -70,8 +70,6 @@ pub(super) const SQL_KEYWORDS: &[&str] = &[
     "{CALL ",
 ];
 
-pub(super) const SQL_NAME_PATTERN: &str = "SQL";
-
 pub(super) const SQL_STATEMENT_PREFIXES: &[&str] = &[
     "SELECT ",
     "INSERT ",

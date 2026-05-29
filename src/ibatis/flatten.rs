@@ -15,9 +15,7 @@ const PLACEHOLDER_SUFFIX: &str = "__";
 
 pub fn sanitize_param_name(name: &str) -> String {
     let s = name.replace("[]", "_item");
-    s.chars()
-        .map(|c| if c.is_alphanumeric() || c == '_' { c } else { '_' })
-        .collect()
+    s.chars().map(|c| if c.is_alphanumeric() || c == '_' { c } else { '_' }).collect()
 }
 
 /// 将 SqlNode 树扁平化为 SQL 字符串。
@@ -27,26 +25,14 @@ pub fn flatten_sql(node: &SqlNode) -> String {
         SqlNode::Parameter { name, java_type } => {
             let sanitized = sanitize_param_name(name);
             match java_type {
-                Some(t) => format!(
-                    "{}{}_{}{}",
-                    PARAM_PREFIX,
-                    t.to_uppercase(),
-                    sanitized,
-                    PLACEHOLDER_SUFFIX
-                ),
+                Some(t) => format!("{}{}_{}{}", PARAM_PREFIX, t.to_uppercase(), sanitized, PLACEHOLDER_SUFFIX),
                 None => format!("{}{}{}", PARAM_PREFIX, sanitized, PLACEHOLDER_SUFFIX),
             }
         }
         SqlNode::RawExpr { expr, java_type } => {
             let sanitized = sanitize_param_name(expr);
             match java_type {
-                Some(t) => format!(
-                    "{}{}_{}{}",
-                    RAW_PREFIX,
-                    t.to_uppercase(),
-                    sanitized,
-                    PLACEHOLDER_SUFFIX
-                ),
+                Some(t) => format!("{}{}_{}{}", RAW_PREFIX, t.to_uppercase(), sanitized, PLACEHOLDER_SUFFIX),
                 None => format!("{}{}{}", RAW_PREFIX, sanitized, PLACEHOLDER_SUFFIX),
             }
         }
@@ -67,13 +53,7 @@ pub fn flatten_sql(node: &SqlNode) -> String {
             let content = flatten_children(children);
             apply_trim(&content, Some("SET"), None, None, Some(","))
         }
-        SqlNode::Trim {
-            prefix,
-            suffix,
-            prefix_overrides,
-            suffix_overrides,
-            children,
-        } => {
+        SqlNode::Trim { prefix, suffix, prefix_overrides, suffix_overrides, children } => {
             let content = flatten_children(children);
             apply_trim(
                 &content,
@@ -83,14 +63,7 @@ pub fn flatten_sql(node: &SqlNode) -> String {
                 suffix_overrides.as_deref(),
             )
         }
-        SqlNode::ForEach {
-            open,
-            separator: _,
-            close,
-            prepend,
-            children,
-            ..
-        } => {
+        SqlNode::ForEach { open, separator: _, close, prepend, children, .. } => {
             let content = flatten_children(children);
             let open_str = open.as_deref().unwrap_or("");
             let close_str = close.as_deref().unwrap_or("");
@@ -106,14 +79,14 @@ pub fn flatten_sql(node: &SqlNode) -> String {
 }
 
 fn flatten_children(children: &[SqlNode]) -> String {
-    let raw: String = children.iter().map(|c| flatten_sql(c)).collect();
+    let raw: String = children.iter().map(flatten_sql).collect();
     deduplicate_conjunctions(&raw)
 }
 
 fn deduplicate_conjunctions(sql: &str) -> String {
     let mut result = String::with_capacity(sql.len());
     let mut prev_word = String::new();
-    let mut prev_word_end = 0usize;
+    let mut _prev_word_end = 0usize;
     let chars: Vec<char> = sql.chars().collect();
     let len = chars.len();
     let mut i = 0;
@@ -131,15 +104,13 @@ fn deduplicate_conjunctions(sql: &str) -> String {
         }
         let word: String = chars[word_start..i].iter().collect();
         let word_lower = word.to_lowercase();
-        if (word_lower == "and" || word_lower == "or")
-            && word_lower == prev_word.to_lowercase()
-        {
-            prev_word_end = result.len();
+        if (word_lower == "and" || word_lower == "or") && word_lower == prev_word.to_lowercase() {
+            _prev_word_end = result.len();
             continue;
         }
         result.push_str(&word);
         prev_word = word;
-        prev_word_end = result.len();
+        _prev_word_end = result.len();
     }
     result
 }
@@ -164,10 +135,7 @@ pub fn collect_params(node: &SqlNode) -> Vec<(String, Option<String>, String)> {
     params
 }
 
-fn collect_params_recursive(
-    node: &SqlNode,
-    params: &mut Vec<(String, Option<String>, String)>,
-) {
+fn collect_params_recursive(node: &SqlNode, params: &mut Vec<(String, Option<String>, String)>) {
     match node {
         SqlNode::Parameter { name, java_type } => {
             let raw = match java_type {
@@ -189,11 +157,15 @@ fn collect_params_recursive(
         | SqlNode::Trim { children, .. }
         | SqlNode::ForEach { children, .. }
         | SqlNode::Sequence { children } => {
-            for c in children { collect_params_recursive(c, params); }
+            for c in children {
+                collect_params_recursive(c, params);
+            }
         }
         SqlNode::Choose { branches } => {
             for (_, ch) in branches {
-                for c in ch { collect_params_recursive(c, params); }
+                for c in ch {
+                    collect_params_recursive(c, params);
+                }
             }
         }
         SqlNode::Text { .. } | SqlNode::Bind { .. } | SqlNode::Include { .. } => {}
@@ -211,11 +183,7 @@ fn apply_trim(
     let mut result = content.trim().to_string();
 
     if let Some(overrides) = prefix_overrides {
-        let ov_list: Vec<&str> = overrides
-            .split('|')
-            .map(|s| s.trim())
-            .filter(|s| !s.is_empty())
-            .collect();
+        let ov_list: Vec<&str> = overrides.split('|').map(|s| s.trim()).filter(|s| !s.is_empty()).collect();
         loop {
             let trimmed = result.trim_start();
             let mut stripped = false;
@@ -233,18 +201,12 @@ fn apply_trim(
     }
 
     if let Some(overrides) = suffix_overrides {
-        let ov_list: Vec<&str> = overrides
-            .split('|')
-            .map(|s| s.trim())
-            .filter(|s| !s.is_empty())
-            .collect();
+        let ov_list: Vec<&str> = overrides.split('|').map(|s| s.trim()).filter(|s| !s.is_empty()).collect();
         loop {
             let trimmed = result.trim_end();
             let mut stripped = false;
             for ov in &ov_list {
-                if trimmed.len() >= ov.len()
-                    && trimmed[trimmed.len() - ov.len()..].eq_ignore_ascii_case(ov)
-                {
+                if trimmed.len() >= ov.len() && trimmed[trimmed.len() - ov.len()..].eq_ignore_ascii_case(ov) {
                     result = trimmed[..trimmed.len() - ov.len()].to_string();
                     stripped = true;
                     break;
@@ -430,18 +392,12 @@ mod param_tests {
 
     #[test]
     fn test_hash_param() {
-        assert_eq!(
-            replace_params("WHERE id = #{id}"),
-            "WHERE id = __XML_PARAM_id__"
-        );
+        assert_eq!(replace_params("WHERE id = #{id}"), "WHERE id = __XML_PARAM_id__");
     }
 
     #[test]
     fn test_dollar_param() {
-        assert_eq!(
-            replace_params("ORDER BY ${col}"),
-            "ORDER BY __XML_RAW_col__"
-        );
+        assert_eq!(replace_params("ORDER BY ${col}"), "ORDER BY __XML_RAW_col__");
     }
 
     #[test]
@@ -454,26 +410,17 @@ mod param_tests {
 
     #[test]
     fn test_param_in_string_not_replaced() {
-        assert_eq!(
-            replace_params("WHERE name = '#{not_a_param}'"),
-            "WHERE name = '#{not_a_param}'"
-        );
+        assert_eq!(replace_params("WHERE name = '#{not_a_param}'"), "WHERE name = '#{not_a_param}'");
     }
 
     #[test]
     fn test_dollar_in_string_not_replaced() {
-        assert_eq!(
-            replace_params("WHERE name = '${not_a_param}'"),
-            "WHERE name = '${not_a_param}'"
-        );
+        assert_eq!(replace_params("WHERE name = '${not_a_param}'"), "WHERE name = '${not_a_param}'");
     }
 
     #[test]
     fn test_param_with_type_annotation() {
-        assert_eq!(
-            replace_params("#{price,javaType=double,jdbcType=NUMERIC}"),
-            "__XML_PARAM_DOUBLE_price__"
-        );
+        assert_eq!(replace_params("#{price,javaType=double,jdbcType=NUMERIC}"), "__XML_PARAM_DOUBLE_price__");
     }
 
     #[test]
@@ -492,10 +439,7 @@ mod param_tests {
 
     #[test]
     fn test_param_with_jdbc_type_only() {
-        assert_eq!(
-            replace_params("#{name,jdbcType=VARCHAR}"),
-            "__XML_PARAM_VARCHAR_name__"
-        );
+        assert_eq!(replace_params("#{name,jdbcType=VARCHAR}"), "__XML_PARAM_VARCHAR_name__");
     }
 
     #[test]
@@ -505,17 +449,11 @@ mod param_tests {
 
     #[test]
     fn test_dollar_param_with_java_type() {
-        assert_eq!(
-            replace_params("ORDER BY ${col,javaType=string}"),
-            "ORDER BY __XML_RAW_STRING_col__"
-        );
+        assert_eq!(replace_params("ORDER BY ${col,javaType=string}"), "ORDER BY __XML_RAW_STRING_col__");
     }
 
     #[test]
     fn test_dollar_param_with_jdbc_type() {
-        assert_eq!(
-            replace_params("${table,jdbcType=VARCHAR}"),
-            "__XML_RAW_VARCHAR_table__"
-        );
+        assert_eq!(replace_params("${table,jdbcType=VARCHAR}"), "__XML_RAW_VARCHAR_table__");
     }
 }

@@ -1,8 +1,20 @@
+// Pre-existing code issues that became deny-by-warning in Rust 1.93. Fix gradually.
+#![allow(
+    clippy::unwrap_used,
+    clippy::too_many_arguments,
+    clippy::type_complexity,
+    clippy::collapsible_if,
+    clippy::collapsible_match,
+    clippy::if_same_then_else,
+    dead_code,
+    clippy::format_in_format_args
+)]
+
 use std::io::Read as _;
 
 use clap::{Parser as ClapParser, Subcommand};
+use ogsql_parser::token_formatter::{CommaStyle, FormatConfig, KeywordCase};
 use ogsql_parser::*;
-use ogsql_parser::token_formatter::{FormatConfig, KeywordCase, CommaStyle};
 use serde::Serialize;
 
 const OGSQL_LOGO: &str = r#"
@@ -192,17 +204,12 @@ fn annotate_builtin_functions(_value: &mut serde_json::Value) {}
 fn read_input(file: Option<&str>) -> String {
     match file {
         Some(path) => {
-            let bytes =
-                std::fs::read(path).unwrap_or_else(|e| die!("Error reading {}: {}", path, e));
-            token::decode_sql_file(&bytes)
-                .unwrap_or_else(|e| die!("Error decoding {}: {}", path, e))
-                .0
+            let bytes = std::fs::read(path).unwrap_or_else(|e| die!("Error reading {}: {}", path, e));
+            token::decode_sql_file(&bytes).unwrap_or_else(|e| die!("Error decoding {}: {}", path, e)).0
         }
         None => {
             let mut buf = String::new();
-            std::io::stdin()
-                .read_to_string(&mut buf)
-                .unwrap_or_else(|e| die!("Error reading stdin: {}", e));
+            std::io::stdin().read_to_string(&mut buf).unwrap_or_else(|e| die!("Error reading stdin: {}", e));
             buf
         }
     }
@@ -307,21 +314,15 @@ fn cmd_format(
 fn has_routine_return_cursors(stmt: &ogsql_parser::Statement) -> bool {
     use ogsql_parser::Statement;
     match stmt {
-        Statement::CreateProcedure(p) => {
-            ogsql_parser::has_return_cursors(&p.parameters, None)
-        }
-        Statement::CreateFunction(f) => {
-            ogsql_parser::has_return_cursors(&f.parameters, f.return_type.as_deref())
-        }
-        Statement::CreatePackageBody(pkg) => {
-            pkg.items.iter().any(|item| match item {
-                ogsql_parser::ast::PackageItem::Procedure(p) =>
-                    ogsql_parser::has_return_cursors(&p.parameters, None),
-                ogsql_parser::ast::PackageItem::Function(f) =>
-                    ogsql_parser::has_return_cursors(&f.parameters, f.return_type.as_deref()),
-                _ => false,
-            })
-        }
+        Statement::CreateProcedure(p) => ogsql_parser::has_return_cursors(&p.parameters, None),
+        Statement::CreateFunction(f) => ogsql_parser::has_return_cursors(&f.parameters, f.return_type.as_deref()),
+        Statement::CreatePackageBody(pkg) => pkg.items.iter().any(|item| match item {
+            ogsql_parser::ast::PackageItem::Procedure(p) => ogsql_parser::has_return_cursors(&p.parameters, None),
+            ogsql_parser::ast::PackageItem::Function(f) => {
+                ogsql_parser::has_return_cursors(&f.parameters, f.return_type.as_deref())
+            }
+            _ => false,
+        }),
         _ => false,
     }
 }
@@ -331,19 +332,25 @@ fn compute_routine_analysis(stmt: &ogsql_parser::Statement) -> Option<serde_json
     match stmt {
         Statement::CreateProcedure(p) => {
             let block = p.block.as_ref()?;
-            let analysis = ogsql_parser::analyze_return_cursors(
-                block, &p.parameters, &p.name.join("."), "Procedure", None,
-            );
-            if analysis.return_cursors.is_empty() { return None; }
+            let analysis =
+                ogsql_parser::analyze_return_cursors(block, &p.parameters, &p.name.join("."), "Procedure", None);
+            if analysis.return_cursors.is_empty() {
+                return None;
+            }
             Some(serde_json::json!(analysis))
         }
         Statement::CreateFunction(f) => {
             let block = f.block.as_ref()?;
             let analysis = ogsql_parser::analyze_return_cursors(
-                block, &f.parameters, &f.name.join("."), "Function",
+                block,
+                &f.parameters,
+                &f.name.join("."),
+                "Function",
                 f.return_type.as_deref(),
             );
-            if analysis.return_cursors.is_empty() { return None; }
+            if analysis.return_cursors.is_empty() {
+                return None;
+            }
             Some(serde_json::json!(analysis))
         }
         Statement::CreatePackageBody(pkg) => {
@@ -353,8 +360,11 @@ fn compute_routine_analysis(stmt: &ogsql_parser::Statement) -> Option<serde_json
                     ogsql_parser::ast::PackageItem::Procedure(p) => {
                         if let Some(ref block) = p.block {
                             let analysis = ogsql_parser::analyze_return_cursors(
-                                block, &p.parameters, &p.name.join("."),
-                                "Procedure", None,
+                                block,
+                                &p.parameters,
+                                &p.name.join("."),
+                                "Procedure",
+                                None,
                             );
                             if !analysis.return_cursors.is_empty() {
                                 analyses.push(analysis);
@@ -364,8 +374,11 @@ fn compute_routine_analysis(stmt: &ogsql_parser::Statement) -> Option<serde_json
                     ogsql_parser::ast::PackageItem::Function(f) => {
                         if let Some(ref block) = f.block {
                             let analysis = ogsql_parser::analyze_return_cursors(
-                                block, &f.parameters, &f.name.join("."),
-                                "Function", f.return_type.as_deref(),
+                                block,
+                                &f.parameters,
+                                &f.name.join("."),
+                                "Function",
+                                f.return_type.as_deref(),
                             );
                             if !analysis.return_cursors.is_empty() {
                                 analyses.push(analysis);
@@ -375,7 +388,11 @@ fn compute_routine_analysis(stmt: &ogsql_parser::Statement) -> Option<serde_json
                     _ => {}
                 }
             }
-            if analyses.is_empty() { None } else { Some(serde_json::json!(analyses)) }
+            if analyses.is_empty() {
+                None
+            } else {
+                Some(serde_json::json!(analyses))
+            }
         }
         _ => None,
     }
@@ -406,10 +423,9 @@ fn cmd_parse_single(cli: &Cli, file_path: Option<&str>, csv: bool) {
                 if let Some(block) = extract_pl_block(&si.statement) {
                     let report = ogsql_parser::analyze_pl_block(block);
                     if !report.execute_findings.is_empty() {
-                        obj.as_object_mut().unwrap().insert(
-                            "dynamic_sql_analysis".to_string(),
-                            serde_json::json!(report),
-                        );
+                        obj.as_object_mut()
+                            .unwrap()
+                            .insert("dynamic_sql_analysis".to_string(), serde_json::json!(report));
                     }
                     let tx_report = ogsql_parser::analyze_transactions(block);
                     obj.as_object_mut().unwrap().insert(
@@ -420,10 +436,9 @@ fn cmd_parse_single(cli: &Cli, file_path: Option<&str>, csv: bool) {
                         match ogsql_parser::load_schema(schema_path) {
                             Ok(schema) => {
                                 let schema_report = ogsql_parser::resolve_schema(block, &schema);
-                                obj.as_object_mut().unwrap().insert(
-                                    "schema_resolution".to_string(),
-                                    serde_json::json!(schema_report),
-                                );
+                                obj.as_object_mut()
+                                    .unwrap()
+                                    .insert("schema_resolution".to_string(), serde_json::json!(schema_report));
                             }
                             Err(e) => eprintln!("Warning: {}", e),
                         }
@@ -432,10 +447,7 @@ fn cmd_parse_single(cli: &Cli, file_path: Option<&str>, csv: bool) {
                 annotate_builtin_functions(&mut obj);
                 if has_routine_return_cursors(&si.statement) {
                     if let Some(analysis) = compute_routine_analysis(&si.statement) {
-                        obj.as_object_mut().unwrap().insert(
-                            "routine_analysis".to_string(),
-                            analysis,
-                        );
+                        obj.as_object_mut().unwrap().insert("routine_analysis".to_string(), analysis);
                     }
                 }
                 obj
@@ -450,16 +462,10 @@ fn cmd_parse_single(cli: &Cli, file_path: Option<&str>, csv: bool) {
             "errors": output.errors,
         });
         if !fingerprints.is_empty() {
-            out.as_object_mut().unwrap().insert(
-                "query_fingerprints".to_string(),
-                serde_json::json!(fingerprints),
-            );
+            out.as_object_mut().unwrap().insert("query_fingerprints".to_string(), serde_json::json!(fingerprints));
         }
         if !output.comments.is_empty() {
-            out.as_object_mut().unwrap().insert(
-                "comments".to_string(),
-                serde_json::json!(output.comments),
-            );
+            out.as_object_mut().unwrap().insert("comments".to_string(), serde_json::json!(output.comments));
         }
         println!("{}", serde_json::to_string_pretty(&out).unwrap());
     } else {
@@ -510,8 +516,11 @@ fn cmd_parse_files(cli: &Cli, csv: bool) {
                 let entry = file_set.entry(kind).or_insert((0, HashSet::new()));
                 entry.0 += 1;
                 entry.1.insert(file_path.clone());
-                if is_warning(err) { files_with_warnings.insert(file_path.clone()); }
-                else { files_with_errors.insert(file_path.clone()); }
+                if is_warning(err) {
+                    files_with_warnings.insert(file_path.clone());
+                } else {
+                    files_with_errors.insert(file_path.clone());
+                }
             }
         }
     } else if cli.json {
@@ -528,10 +537,9 @@ fn cmd_parse_files(cli: &Cli, csv: bool) {
                     if let Some(block) = extract_pl_block(&si.statement) {
                         let report = ogsql_parser::analyze_pl_block(block);
                         if !report.execute_findings.is_empty() {
-                            obj.as_object_mut().unwrap().insert(
-                                "dynamic_sql_analysis".to_string(),
-                                serde_json::json!(report),
-                            );
+                            obj.as_object_mut()
+                                .unwrap()
+                                .insert("dynamic_sql_analysis".to_string(), serde_json::json!(report));
                         }
                         let tx_report = ogsql_parser::analyze_transactions(block);
                         obj.as_object_mut().unwrap().insert(
@@ -542,10 +550,9 @@ fn cmd_parse_files(cli: &Cli, csv: bool) {
                             match ogsql_parser::load_schema(schema_path) {
                                 Ok(schema) => {
                                     let schema_report = ogsql_parser::resolve_schema(block, &schema);
-                                    obj.as_object_mut().unwrap().insert(
-                                        "schema_resolution".to_string(),
-                                        serde_json::json!(schema_report),
-                                    );
+                                    obj.as_object_mut()
+                                        .unwrap()
+                                        .insert("schema_resolution".to_string(), serde_json::json!(schema_report));
                                 }
                                 Err(e) => eprintln!("Warning: {}", e),
                             }
@@ -554,10 +561,7 @@ fn cmd_parse_files(cli: &Cli, csv: bool) {
                     annotate_builtin_functions(&mut obj);
                     if has_routine_return_cursors(&si.statement) {
                         if let Some(analysis) = compute_routine_analysis(&si.statement) {
-                            obj.as_object_mut().unwrap().insert(
-                                "routine_analysis".to_string(),
-                                analysis,
-                            );
+                            obj.as_object_mut().unwrap().insert("routine_analysis".to_string(), analysis);
                         }
                     }
                     obj
@@ -573,16 +577,13 @@ fn cmd_parse_files(cli: &Cli, csv: bool) {
                 "errors": output.errors,
             });
             if !fingerprints.is_empty() {
-                file_result.as_object_mut().unwrap().insert(
-                    "query_fingerprints".to_string(),
-                    serde_json::json!(fingerprints),
-                );
+                file_result
+                    .as_object_mut()
+                    .unwrap()
+                    .insert("query_fingerprints".to_string(), serde_json::json!(fingerprints));
             }
             if !output.comments.is_empty() {
-                file_result.as_object_mut().unwrap().insert(
-                    "comments".to_string(),
-                    serde_json::json!(output.comments),
-                );
+                file_result.as_object_mut().unwrap().insert("comments".to_string(), serde_json::json!(output.comments));
             }
             all_results.push(file_result);
 
@@ -595,8 +596,11 @@ fn cmd_parse_files(cli: &Cli, csv: bool) {
                 let entry = file_set.entry(kind).or_insert((0, HashSet::new()));
                 entry.0 += 1;
                 entry.1.insert(file_path.clone());
-                if is_warning(err) { files_with_warnings.insert(file_path.clone()); }
-                else { files_with_errors.insert(file_path.clone()); }
+                if is_warning(err) {
+                    files_with_warnings.insert(file_path.clone());
+                } else {
+                    files_with_errors.insert(file_path.clone());
+                }
             }
         }
         let out = serde_json::json!({
@@ -617,8 +621,11 @@ fn cmd_parse_files(cli: &Cli, csv: bool) {
                 let entry = file_set.entry(kind).or_insert((0, HashSet::new()));
                 entry.0 += 1;
                 entry.1.insert(file_path.clone());
-                if is_warning(err) { files_with_warnings.insert(file_path.clone()); }
-                else { files_with_errors.insert(file_path.clone()); }
+                if is_warning(err) {
+                    files_with_warnings.insert(file_path.clone());
+                } else {
+                    files_with_errors.insert(file_path.clone());
+                }
             }
 
             println!("═══ {} ({} statement(s)) ═══", file_path, output.statements.len());
@@ -649,14 +656,7 @@ fn cmd_parse_files(cli: &Cli, csv: bool) {
     }
 }
 
-fn cmd_parse_dir(
-    cli: &Cli,
-    dir_paths: &[String],
-    exts: &[String],
-    csv: bool,
-    output_dir: Option<&str>,
-    stats: bool,
-) {
+fn cmd_parse_dir(cli: &Cli, dir_paths: &[String], exts: &[String], csv: bool, output_dir: Option<&str>, stats: bool) {
     use std::path::Path;
 
     for dir_path in dir_paths {
@@ -669,28 +669,18 @@ fn cmd_parse_dir(
         die!("Error: --output-dir (-o) is required when using --dir with -j");
     }
 
-    let normalized_exts: Vec<String> = exts
-        .iter()
-        .map(|e| e.trim_start_matches('.').to_ascii_lowercase())
-        .collect();
+    let normalized_exts: Vec<String> = exts.iter().map(|e| e.trim_start_matches('.').to_ascii_lowercase()).collect();
 
     let mut files: Vec<(String, String, std::path::PathBuf)> = Vec::new();
     for dir_path in dir_paths {
         let root = Path::new(dir_path);
-        for entry in walkdir::WalkDir::new(dir_path)
-            .into_iter()
-            .filter_map(|e| e.ok())
-        {
+        for entry in walkdir::WalkDir::new(dir_path).into_iter().filter_map(|e| e.ok()) {
             let path = entry.path();
             if !path.is_file() {
                 continue;
             }
-            let file_ext = path
-                .extension()
-                .and_then(|e| e.to_str())
-                .unwrap_or("")
-                .to_ascii_lowercase();
-            if !normalized_exts.iter().any(|e| *e == file_ext) {
+            let file_ext = path.extension().and_then(|e| e.to_str()).unwrap_or("").to_ascii_lowercase();
+            if !normalized_exts.contains(&file_ext) {
                 continue;
             }
 
@@ -699,17 +689,18 @@ fn cmd_parse_dir(
                 .and_then(|p| p.strip_prefix(root).ok())
                 .map(|p| {
                     let s = p.to_str().unwrap_or(".");
-                    if s.is_empty() { "." } else { s }
+                    if s.is_empty() {
+                        "."
+                    } else {
+                        s
+                    }
                 })
                 .unwrap_or(".")
                 .to_string();
 
-            let file_name = path
-                .file_name()
-                .map(|n| n.to_string_lossy().to_string())
-                .unwrap_or_default();
+            let file_name = path.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default();
 
-        files.push((file_name, rel_dir, path.to_path_buf()));
+            files.push((file_name, rel_dir, path.to_path_buf()));
         }
     }
 
@@ -742,8 +733,11 @@ fn cmd_parse_dir(
                 let entry = file_set.entry(kind).or_insert((0, HashSet::new()));
                 entry.0 += 1;
                 entry.1.insert(file_name.clone());
-                if is_warning(err) { files_with_warnings.insert(file_name.clone()); }
-                else { files_with_errors.insert(file_name.clone()); }
+                if is_warning(err) {
+                    files_with_warnings.insert(file_name.clone());
+                } else {
+                    files_with_errors.insert(file_name.clone());
+                }
             }
             if cli.verbose {
                 let real_errors: Vec<_> = output.errors.iter().filter(|e| !is_warning(e)).collect();
@@ -786,29 +780,34 @@ fn cmd_parse_dir(
                 let entry = file_set.entry(kind).or_insert((0, HashSet::new()));
                 entry.0 += 1;
                 entry.1.insert(file_name.clone());
-                if is_warning(err) { files_with_warnings.insert(file_name.clone()); }
-                else { files_with_errors.insert(file_name.clone()); }
+                if is_warning(err) {
+                    files_with_warnings.insert(file_name.clone());
+                } else {
+                    files_with_errors.insert(file_name.clone());
+                }
             }
 
             let real_errors: Vec<_> = output.errors.iter().filter(|e| !is_warning(e)).cloned().collect();
             if !real_errors.is_empty() {
-                eprintln!(
-                    "[{}/{}] {} error(s)",
-                    rel_dir, file_name, real_errors.len()
-                );
+                eprintln!("[{}/{}] {} error(s)", rel_dir, file_name, real_errors.len());
                 all_errors.push((file_name.clone(), rel_dir.clone(), sql, real_errors));
             }
         }
         if !all_errors.is_empty() {
             write_dir_error_log(out_root, &all_errors);
         }
-        eprintln!(
-            "Wrote {} file(s), {} statement(s) to {}",
-            total_files, total_stmts, out_root.display()
-        );
+        eprintln!("Wrote {} file(s), {} statement(s) to {}", total_files, total_stmts, out_root.display());
         if stats {
-            print_parse_stats(total_files, &files_with_errors, &files_with_warnings,
-                total_stmts, &stmt_counts, &error_kinds, &warning_kinds, "parse -j");
+            print_parse_stats(
+                total_files,
+                &files_with_errors,
+                &files_with_warnings,
+                total_stmts,
+                &stmt_counts,
+                &error_kinds,
+                &warning_kinds,
+                "parse -j",
+            );
         }
     } else {
         let mut total_files_txt = 0usize;
@@ -829,8 +828,11 @@ fn cmd_parse_dir(
                 let entry = file_set.entry(kind).or_insert((0, HashSet::new()));
                 entry.0 += 1;
                 entry.1.insert(file_name.clone());
-                if is_warning(err) { files_with_warnings.insert(file_name.clone()); }
-                else { files_with_errors.insert(file_name.clone()); }
+                if is_warning(err) {
+                    files_with_warnings.insert(file_name.clone());
+                } else {
+                    files_with_errors.insert(file_name.clone());
+                }
             }
 
             println!("═══ {} ({} statement(s)) ═══", file_name, output.statements.len());
@@ -860,22 +862,29 @@ fn cmd_parse_dir(
         }
         println!("Total: {} statement(s) from {} file(s)", total_stmts_txt, files.len());
         if stats {
-            print_parse_stats(total_files_txt, &files_with_errors, &files_with_warnings,
-                total_stmts_txt, &stmt_counts, &error_kinds, &warning_kinds, "parse");
+            print_parse_stats(
+                total_files_txt,
+                &files_with_errors,
+                &files_with_warnings,
+                total_stmts_txt,
+                &stmt_counts,
+                &error_kinds,
+                &warning_kinds,
+                "parse",
+            );
         }
     }
 }
 
 fn read_file_path(path: &std::path::Path) -> String {
-    let bytes = std::fs::read(path)
-        .unwrap_or_else(|e| die!("Error reading {}: {}", path.display(), e));
-    token::decode_sql_file(&bytes)
-        .unwrap_or_else(|e| die!("Error decoding {}: {}", path.display(), e))
-        .0
+    let bytes = std::fs::read(path).unwrap_or_else(|e| die!("Error reading {}: {}", path.display(), e));
+    token::decode_sql_file(&bytes).unwrap_or_else(|e| die!("Error decoding {}: {}", path.display(), e)).0
 }
 
 fn output_csv_parse_header() {
-    println!("file,directory,line,type,name,parent,parameters,return_type,sql,error,warning,branch_path,branch_condition");
+    println!(
+        "file,directory,line,type,name,parent,parameters,return_type,sql,error,warning,branch_path,branch_condition"
+    );
 }
 
 struct ParseCsvRow {
@@ -974,9 +983,13 @@ fn join_concat_parts_inner(
                             visited.remove(&key);
                             continue;
                         } else {
-                            let flat: String = traced_parts.iter().map(|p| match p {
-                                ConcatPart::Literal(s) => s.as_str(), _ => ""
-                            }).collect();
+                            let flat: String = traced_parts
+                                .iter()
+                                .map(|p| match p {
+                                    ConcatPart::Literal(s) => s.as_str(),
+                                    _ => "",
+                                })
+                                .collect();
                             sql.push_str(&flat);
                             continue;
                         }
@@ -1024,10 +1037,10 @@ fn try_parse_sql_assignment(sql: &str) -> Option<(&str, &str)> {
         }
         None
     })?;
-    let (lhs, rhs) = if s.get(eq_pos..eq_pos+2) == Some(":=") {
-        (&s[..eq_pos], &s[eq_pos+2..])
+    let (lhs, rhs) = if s.get(eq_pos..eq_pos + 2) == Some(":=") {
+        (&s[..eq_pos], &s[eq_pos + 2..])
     } else {
-        (&s[..eq_pos], &s[eq_pos+1..])
+        (&s[..eq_pos], &s[eq_pos + 1..])
     };
     let var = lhs.trim();
     if var.is_empty() || !var.chars().next().map(|c| c.is_ascii_alphabetic() || c == '_').unwrap_or(false) {
@@ -1054,7 +1067,13 @@ fn extract_execute_sql_content(exec: &ogsql_parser::ast::plpgsql::PlExecuteStmt)
     let parts = eval_concat_expr(&exec.string_expr);
     let all_literal = parts.iter().all(|p| matches!(p, ConcatPart::Literal(_)));
     if all_literal {
-        return parts.iter().map(|p| match p { ConcatPart::Literal(s) => s.as_str(), _ => "" }).collect();
+        return parts
+            .iter()
+            .map(|p| match p {
+                ConcatPart::Literal(s) => s.as_str(),
+                _ => "",
+            })
+            .collect();
     }
     format_pl_expr(&exec.string_expr)
 }
@@ -1082,27 +1101,15 @@ fn build_execute_csv_sql(
     match &exec.string_expr {
         Expr::Literal(Literal::String(s)) => {
             let sql = s.trim();
-            return if raw {
-                replace_pl_vars_in_sql_raw(sql, vars)
-            } else {
-                replace_pl_vars_in_sql(sql, vars)
-            };
+            return if raw { replace_pl_vars_in_sql_raw(sql, vars) } else { replace_pl_vars_in_sql(sql, vars) };
         }
         Expr::Literal(Literal::DollarString { body, .. }) => {
             let sql = body.trim();
-            return if raw {
-                replace_pl_vars_in_sql_raw(sql, vars)
-            } else {
-                replace_pl_vars_in_sql(sql, vars)
-            };
+            return if raw { replace_pl_vars_in_sql_raw(sql, vars) } else { replace_pl_vars_in_sql(sql, vars) };
         }
         Expr::Literal(Literal::EscapeString(s)) => {
             let sql = s.trim();
-            return if raw {
-                replace_pl_vars_in_sql_raw(sql, vars)
-            } else {
-                replace_pl_vars_in_sql(sql, vars)
-            };
+            return if raw { replace_pl_vars_in_sql_raw(sql, vars) } else { replace_pl_vars_in_sql(sql, vars) };
         }
         _ => {}
     }
@@ -1154,9 +1161,13 @@ fn build_execute_csv_sql_with_trace(
                 if has_vars {
                     return join_concat_parts(traced_parts, &replace_pl_vars_in_sql_raw, vars, assigns);
                 } else {
-                    let flat: String = traced_parts.iter().map(|p| match p {
-                        ConcatPart::Literal(s) => s.as_str(), _ => ""
-                    }).collect();
+                    let flat: String = traced_parts
+                        .iter()
+                        .map(|p| match p {
+                            ConcatPart::Literal(s) => s.as_str(),
+                            _ => "",
+                        })
+                        .collect();
                     return replace_pl_vars_in_sql_raw(flat.trim(), vars);
                 }
             }
@@ -1195,7 +1206,7 @@ fn format_pl_expr(expr: &ogsql_parser::ast::Expr) -> String {
         }
         Expr::Parenthesized(inner) => format!("({})", format_pl_expr(inner)),
         Expr::FunctionCall { name, args, .. } => {
-            let formatted_args: Vec<String> = args.iter().map(|a| format_pl_expr(a)).collect();
+            let formatted_args: Vec<String> = args.iter().map(format_pl_expr).collect();
             format!("{}({})", name.join("."), formatted_args.join(", "))
         }
         _ => format!("{:?}", expr),
@@ -1236,14 +1247,17 @@ fn format_using_args_pl(args: &[ogsql_parser::ast::plpgsql::PlUsingArg]) -> Stri
     if args.is_empty() {
         return String::new();
     }
-    let parts: Vec<String> = args.iter().map(|a| {
-        let mode_prefix = match a.mode {
-            ogsql_parser::ast::plpgsql::PlUsingMode::In => "",
-            ogsql_parser::ast::plpgsql::PlUsingMode::Out => "OUT ",
-            ogsql_parser::ast::plpgsql::PlUsingMode::InOut => "INOUT ",
-        };
-        format!("{}{}", mode_prefix, format_pl_expr(&a.argument))
-    }).collect();
+    let parts: Vec<String> = args
+        .iter()
+        .map(|a| {
+            let mode_prefix = match a.mode {
+                ogsql_parser::ast::plpgsql::PlUsingMode::In => "",
+                ogsql_parser::ast::plpgsql::PlUsingMode::Out => "OUT ",
+                ogsql_parser::ast::plpgsql::PlUsingMode::InOut => "INOUT ",
+            };
+            format!("{}{}", mode_prefix, format_pl_expr(&a.argument))
+        })
+        .collect();
     format!("USING {}", parts.join(", "))
 }
 
@@ -1251,7 +1265,7 @@ fn format_using_args_exprs(args: &[ogsql_parser::ast::Expr]) -> String {
     if args.is_empty() {
         return String::new();
     }
-    let parts: Vec<String> = args.iter().map(|a| format_pl_expr(a)).collect();
+    let parts: Vec<String> = args.iter().map(format_pl_expr).collect();
     parts.join(", ")
 }
 
@@ -1273,9 +1287,13 @@ fn build_dynamic_sql_from_expr(
                 if has_vars {
                     return join_concat_parts(traced_parts, &replace_pl_vars_in_sql_raw, vars, assigns);
                 } else {
-                    let flat: String = traced_parts.iter().map(|p| match p {
-                        ConcatPart::Literal(s) => s.as_str(), _ => ""
-                    }).collect();
+                    let flat: String = traced_parts
+                        .iter()
+                        .map(|p| match p {
+                            ConcatPart::Literal(s) => s.as_str(),
+                            _ => "",
+                        })
+                        .collect();
                     return replace_pl_vars_in_sql_raw(flat.trim(), vars);
                 }
             }
@@ -1426,9 +1444,13 @@ fn resolve_dynamic_query_text(
         if has_vars {
             return join_concat_parts(traced_parts, &replace_pl_vars_in_sql_raw, vars, assigns);
         } else {
-            let flat: String = traced_parts.iter().map(|p| match p {
-                ConcatPart::Literal(s) => s.as_str(), _ => ""
-            }).collect();
+            let flat: String = traced_parts
+                .iter()
+                .map(|p| match p {
+                    ConcatPart::Literal(s) => s.as_str(),
+                    _ => "",
+                })
+                .collect();
             return replace_pl_vars_in_sql_raw(flat.trim(), vars);
         }
     }
@@ -1436,11 +1458,16 @@ fn resolve_dynamic_query_text(
 }
 
 fn join_branch(parent: &str, segment: &str) -> String {
-    if parent.is_empty() { segment.to_string() } else { format!("{}.{}", parent, segment) }
+    if parent.is_empty() {
+        segment.to_string()
+    } else {
+        format!("{}.{}", parent, segment)
+    }
 }
 
 fn extract_out_cursor_set(params: &[ogsql_parser::ast::RoutineParam]) -> std::collections::HashSet<String> {
-    params.iter()
+    params
+        .iter()
         .filter(|p| {
             let is_out = p.mode.as_deref() == Some("OUT")
                 || p.mode.as_deref() == Some("INOUT")
@@ -1475,12 +1502,34 @@ fn collect_block_sql_rows(
         }
     }
     for stmt in &block.body {
-        collect_pl_stmt_rows(stmt, parent_name, fallback_line, vars, &mut assigns, &mut rows, out_cursors, all_opens_are_returns, "", "");
+        collect_pl_stmt_rows(
+            stmt,
+            parent_name,
+            fallback_line,
+            vars,
+            &mut assigns,
+            &mut rows,
+            out_cursors,
+            all_opens_are_returns,
+            "",
+            "",
+        );
     }
     if let Some(ref exc) = block.exception_block {
         for handler in &exc.handlers {
             for stmt in &handler.statements {
-                collect_pl_stmt_rows(stmt, parent_name, fallback_line, vars, &mut assigns, &mut rows, out_cursors, all_opens_are_returns, "", "");
+                collect_pl_stmt_rows(
+                    stmt,
+                    parent_name,
+                    fallback_line,
+                    vars,
+                    &mut assigns,
+                    &mut rows,
+                    out_cursors,
+                    all_opens_are_returns,
+                    "",
+                    "",
+                );
             }
         }
     }
@@ -1510,34 +1559,43 @@ fn sql_statement_type_and_name(stmt: &ogsql_parser::Statement) -> (String, Strin
     match stmt {
         Statement::Select(s) => (
             "SqlStatement/Select".into(),
-            s.from.first().and_then(|f| {
-                if let ogsql_parser::ast::TableRef::Table { name, .. } = f {
-                    Some(name.join("."))
-                } else {
-                    None
-                }
-            }).unwrap_or_default(),
+            s.from
+                .first()
+                .and_then(|f| {
+                    if let ogsql_parser::ast::TableRef::Table { name, .. } = f {
+                        Some(name.join("."))
+                    } else {
+                        None
+                    }
+                })
+                .unwrap_or_default(),
         ),
         Statement::Insert(s) => ("SqlStatement/Insert".into(), s.table.join(".")),
         Statement::Update(s) => (
             "SqlStatement/Update".into(),
-            s.tables.first().and_then(|f| {
-                if let ogsql_parser::ast::TableRef::Table { name, .. } = f {
-                    Some(name.join("."))
-                } else {
-                    None
-                }
-            }).unwrap_or_default(),
+            s.tables
+                .first()
+                .and_then(|f| {
+                    if let ogsql_parser::ast::TableRef::Table { name, .. } = f {
+                        Some(name.join("."))
+                    } else {
+                        None
+                    }
+                })
+                .unwrap_or_default(),
         ),
         Statement::Delete(s) => (
             "SqlStatement/Delete".into(),
-            s.tables.first().and_then(|f| {
-                if let ogsql_parser::ast::TableRef::Table { name, .. } = f {
-                    Some(name.join("."))
-                } else {
-                    None
-                }
-            }).unwrap_or_default(),
+            s.tables
+                .first()
+                .and_then(|f| {
+                    if let ogsql_parser::ast::TableRef::Table { name, .. } = f {
+                        Some(name.join("."))
+                    } else {
+                        None
+                    }
+                })
+                .unwrap_or_default(),
         ),
         Statement::Merge(s) => (
             "SqlStatement/Merge".into(),
@@ -1550,13 +1608,7 @@ fn sql_statement_type_and_name(stmt: &ogsql_parser::Statement) -> (String, Strin
         _ => {
             let type_name = serde_json::to_value(stmt)
                 .ok()
-                .and_then(|v| {
-                    if let serde_json::Value::Object(map) = v {
-                        map.keys().next().cloned()
-                    } else {
-                        None
-                    }
-                })
+                .and_then(|v| if let serde_json::Value::Object(map) = v { map.keys().next().cloned() } else { None })
                 .unwrap_or_else(|| "Unknown".to_string());
             (format!("SqlStatement/{}", type_name), String::new())
         }
@@ -1627,10 +1679,10 @@ fn collect_pl_stmt_rows(
                 if let Some((var, rhs)) = try_parse_sql_assignment(text) {
                     let rhs_sql = rhs.trim();
                     if rhs_sql.starts_with('"') && rhs_sql.ends_with('"') {
-                        let inner = &rhs_sql[1..rhs_sql.len()-1];
+                        let inner = &rhs_sql[1..rhs_sql.len() - 1];
                         assigns.insert(var.to_ascii_lowercase(), vec![ConcatPart::Literal(inner.to_string())]);
                     } else if rhs_sql.starts_with('\'') && rhs_sql.ends_with('\'') {
-                        let inner = &rhs_sql[1..rhs_sql.len()-1];
+                        let inner = &rhs_sql[1..rhs_sql.len() - 1];
                         assigns.insert(var.to_ascii_lowercase(), vec![ConcatPart::Literal(inner.to_string())]);
                     }
                 }
@@ -1685,12 +1737,34 @@ fn collect_pl_stmt_rows(
             let line = spanned_line(&spanned.span).max(fallback_line);
             let bp = join_branch(branch_path, "Block");
             for s in &spanned.node.body {
-                collect_pl_stmt_rows(s, parent_name, line, vars, assigns, rows, out_cursors, all_opens_are_returns, &bp, branch_condition);
+                collect_pl_stmt_rows(
+                    s,
+                    parent_name,
+                    line,
+                    vars,
+                    assigns,
+                    rows,
+                    out_cursors,
+                    all_opens_are_returns,
+                    &bp,
+                    branch_condition,
+                );
             }
             if let Some(ref exc) = spanned.node.exception_block {
                 for handler in &exc.handlers {
                     for s in &handler.statements {
-                        collect_pl_stmt_rows(s, parent_name, line, vars, assigns, rows, out_cursors, all_opens_are_returns, &bp, branch_condition);
+                        collect_pl_stmt_rows(
+                            s,
+                            parent_name,
+                            line,
+                            vars,
+                            assigns,
+                            rows,
+                            out_cursors,
+                            all_opens_are_returns,
+                            &bp,
+                            branch_condition,
+                        );
                     }
                 }
             }
@@ -1700,19 +1774,49 @@ fn collect_pl_stmt_rows(
             let if_stmt = &spanned.node;
             let cond_str = format_pl_expr(&if_stmt.condition);
             for s in &if_stmt.then_stmts {
-                collect_pl_stmt_rows(s, parent_name, line, vars, assigns, rows, out_cursors, all_opens_are_returns,
-                    &join_branch(branch_path, "IF.then"), &cond_str);
+                collect_pl_stmt_rows(
+                    s,
+                    parent_name,
+                    line,
+                    vars,
+                    assigns,
+                    rows,
+                    out_cursors,
+                    all_opens_are_returns,
+                    &join_branch(branch_path, "IF.then"),
+                    &cond_str,
+                );
             }
             for (i, elsif) in if_stmt.elsifs.iter().enumerate() {
                 let elsif_cond = format_pl_expr(&elsif.condition);
                 for s in &elsif.stmts {
-                    collect_pl_stmt_rows(s, parent_name, line, vars, assigns, rows, out_cursors, all_opens_are_returns,
-                        &join_branch(branch_path, &format!("IF.elsif#{}.then", i + 1)), &elsif_cond);
+                    collect_pl_stmt_rows(
+                        s,
+                        parent_name,
+                        line,
+                        vars,
+                        assigns,
+                        rows,
+                        out_cursors,
+                        all_opens_are_returns,
+                        &join_branch(branch_path, &format!("IF.elsif#{}.then", i + 1)),
+                        &elsif_cond,
+                    );
                 }
             }
             for s in &if_stmt.else_stmts {
-                collect_pl_stmt_rows(s, parent_name, line, vars, assigns, rows, out_cursors, all_opens_are_returns,
-                    &join_branch(branch_path, "IF.else"), &cond_str);
+                collect_pl_stmt_rows(
+                    s,
+                    parent_name,
+                    line,
+                    vars,
+                    assigns,
+                    rows,
+                    out_cursors,
+                    all_opens_are_returns,
+                    &join_branch(branch_path, "IF.else"),
+                    &cond_str,
+                );
             }
         }
         PlStatement::Case(spanned) => {
@@ -1721,20 +1825,51 @@ fn collect_pl_stmt_rows(
             for (i, when) in case_stmt.whens.iter().enumerate() {
                 let when_cond = format_pl_expr(&when.condition);
                 for s in &when.stmts {
-                    collect_pl_stmt_rows(s, parent_name, line, vars, assigns, rows, out_cursors, all_opens_are_returns,
-                        &join_branch(branch_path, &format!("CASE.when#{}", i + 1)), &when_cond);
+                    collect_pl_stmt_rows(
+                        s,
+                        parent_name,
+                        line,
+                        vars,
+                        assigns,
+                        rows,
+                        out_cursors,
+                        all_opens_are_returns,
+                        &join_branch(branch_path, &format!("CASE.when#{}", i + 1)),
+                        &when_cond,
+                    );
                 }
             }
             for s in &case_stmt.else_stmts {
-                collect_pl_stmt_rows(s, parent_name, line, vars, assigns, rows, out_cursors, all_opens_are_returns,
-                    &join_branch(branch_path, "CASE.else"), "");
+                collect_pl_stmt_rows(
+                    s,
+                    parent_name,
+                    line,
+                    vars,
+                    assigns,
+                    rows,
+                    out_cursors,
+                    all_opens_are_returns,
+                    &join_branch(branch_path, "CASE.else"),
+                    "",
+                );
             }
         }
         PlStatement::Loop(spanned) => {
             let line = spanned_line(&spanned.span).max(fallback_line);
             let bp = join_branch(branch_path, "LOOP");
             for s in &spanned.node.body {
-                collect_pl_stmt_rows(s, parent_name, line, vars, assigns, rows, out_cursors, all_opens_are_returns, &bp, branch_condition);
+                collect_pl_stmt_rows(
+                    s,
+                    parent_name,
+                    line,
+                    vars,
+                    assigns,
+                    rows,
+                    out_cursors,
+                    all_opens_are_returns,
+                    &bp,
+                    branch_condition,
+                );
             }
         }
         PlStatement::While(spanned) => {
@@ -1742,7 +1877,18 @@ fn collect_pl_stmt_rows(
             let while_cond = format_pl_expr(&spanned.node.condition);
             let bp = join_branch(branch_path, "WHILE");
             for s in &spanned.node.body {
-                collect_pl_stmt_rows(s, parent_name, line, vars, assigns, rows, out_cursors, all_opens_are_returns, &bp, &while_cond);
+                collect_pl_stmt_rows(
+                    s,
+                    parent_name,
+                    line,
+                    vars,
+                    assigns,
+                    rows,
+                    out_cursors,
+                    all_opens_are_returns,
+                    &bp,
+                    &while_cond,
+                );
             }
         }
         PlStatement::For(spanned) => {
@@ -1795,8 +1941,8 @@ fn collect_pl_stmt_rows(
                         });
                     }
                 }
-                ogsql_parser::ast::plpgsql::PlForKind::Cursor { cursor_name, arguments } => {
-                    let args_str: Vec<String> = arguments.iter().map(|a| format_pl_expr(a)).collect();
+                ogsql_parser::ast::plpgsql::PlForKind::Cursor { cursor_name: _, arguments } => {
+                    let args_str: Vec<String> = arguments.iter().map(format_pl_expr).collect();
                     rows.push(ParseCsvRow {
                         line,
                         end_line: line,
@@ -1813,14 +1959,36 @@ fn collect_pl_stmt_rows(
                 _ => {}
             }
             for s in &for_stmt.body {
-                collect_pl_stmt_rows(s, parent_name, line, vars, assigns, rows, out_cursors, all_opens_are_returns, &bp, branch_condition);
+                collect_pl_stmt_rows(
+                    s,
+                    parent_name,
+                    line,
+                    vars,
+                    assigns,
+                    rows,
+                    out_cursors,
+                    all_opens_are_returns,
+                    &bp,
+                    branch_condition,
+                );
             }
         }
         PlStatement::ForEach(spanned) => {
             let line = spanned_line(&spanned.span).max(fallback_line);
             let bp = join_branch(branch_path, "FOREACH");
             for s in &spanned.node.body {
-                collect_pl_stmt_rows(s, parent_name, line, vars, assigns, rows, out_cursors, all_opens_are_returns, &bp, branch_condition);
+                collect_pl_stmt_rows(
+                    s,
+                    parent_name,
+                    line,
+                    vars,
+                    assigns,
+                    rows,
+                    out_cursors,
+                    all_opens_are_returns,
+                    &bp,
+                    branch_condition,
+                );
             }
         }
         PlStatement::ForAll(spanned) => {
@@ -1889,7 +2057,7 @@ fn collect_pl_stmt_rows(
                             let sql = replace_pl_vars_in_sql(query.trim(), vars);
                             rows.push(ParseCsvRow {
                                 line,
-                                end_line: end_line,
+                                end_line,
                                 stmt_type: "Embedded/Select".into(),
                                 name: String::new(),
                                 parent: parent_name.to_string(),
@@ -1903,7 +2071,7 @@ fn collect_pl_stmt_rows(
                             let (embedded_type, sql) = resolve_for_query_text(query, vars, assigns);
                             rows.push(ParseCsvRow {
                                 line,
-                                end_line: end_line,
+                                end_line,
                                 stmt_type: embedded_type,
                                 name: String::new(),
                                 parent: parent_name.to_string(),
@@ -1927,7 +2095,7 @@ fn collect_pl_stmt_rows(
                     if is_out {
                         rows.push(ParseCsvRow {
                             line,
-                            end_line: end_line,
+                            end_line,
                             stmt_type: "ReturnCursorSQL".into(),
                             name: cursor_name,
                             parent: parent_name.to_string(),
@@ -1952,7 +2120,7 @@ fn collect_pl_stmt_rows(
                         });
                         rows.push(ParseCsvRow {
                             line,
-                            end_line: end_line,
+                            end_line,
                             stmt_type: "Embedded/Execute".into(),
                             name: String::new(),
                             parent: parent_name.to_string(),
@@ -1977,7 +2145,7 @@ fn collect_pl_stmt_rows(
                         branch_path: branch_path.to_string(),
                         branch_condition: branch_condition.to_string(),
                     });
-                    let exprs: Vec<String> = expressions.iter().map(|e| format_pl_expr(e)).collect();
+                    let exprs: Vec<String> = expressions.iter().map(format_pl_expr).collect();
                     rows.push(ParseCsvRow {
                         line,
                         end_line: line,
@@ -1992,7 +2160,7 @@ fn collect_pl_stmt_rows(
                     });
                 }
                 ogsql_parser::ast::plpgsql::PlOpenKind::Simple { arguments } => {
-                    let args_str: Vec<String> = arguments.iter().map(|a| format_pl_expr(a)).collect();
+                    let args_str: Vec<String> = arguments.iter().map(format_pl_expr).collect();
                     rows.push(ParseCsvRow {
                         line,
                         end_line: line,
@@ -2046,7 +2214,11 @@ fn flatten_statement(si: &ogsql_parser::StatementInfo, mybatis: bool) -> Vec<Par
                             branch_condition: String::new(),
                         });
                         if let Some(ref block) = p.block {
-                            let vars = if mybatis { collect_block_vars(block, &p.parameters) } else { std::collections::HashMap::new() };
+                            let vars = if mybatis {
+                                collect_block_vars(block, &p.parameters)
+                            } else {
+                                std::collections::HashMap::new()
+                            };
                             let out_cursors = extract_out_cursor_set(&p.parameters);
                             rows.extend(collect_block_sql_rows(
                                 block,
@@ -2072,9 +2244,14 @@ fn flatten_statement(si: &ogsql_parser::StatementInfo, mybatis: bool) -> Vec<Par
                             branch_condition: String::new(),
                         });
                         if let Some(ref block) = f.block {
-                            let vars = if mybatis { collect_block_vars(block, &f.parameters) } else { std::collections::HashMap::new() };
+                            let vars = if mybatis {
+                                collect_block_vars(block, &f.parameters)
+                            } else {
+                                std::collections::HashMap::new()
+                            };
                             let out_cursors = extract_out_cursor_set(&f.parameters);
-                            let is_return_cursor = f.return_type.as_ref().map_or(false, |rt| rt.to_uppercase().contains("REFCURSOR"));
+                            let is_return_cursor =
+                                f.return_type.as_ref().is_some_and(|rt| rt.to_uppercase().contains("REFCURSOR"));
                             rows.extend(collect_block_sql_rows(
                                 block,
                                 &f.name.join("."),
@@ -2151,7 +2328,8 @@ fn flatten_statement(si: &ogsql_parser::StatementInfo, mybatis: bool) -> Vec<Par
                 branch_condition: String::new(),
             });
             if let Some(ref block) = s.block {
-                let vars = if mybatis { collect_block_vars(block, &s.parameters) } else { std::collections::HashMap::new() };
+                let vars =
+                    if mybatis { collect_block_vars(block, &s.parameters) } else { std::collections::HashMap::new() };
                 let out_cursors = extract_out_cursor_set(&s.parameters);
                 rows.extend(collect_block_sql_rows(block, &proc_name, si.start_line, &vars, &out_cursors, false));
             }
@@ -2171,10 +2349,18 @@ fn flatten_statement(si: &ogsql_parser::StatementInfo, mybatis: bool) -> Vec<Par
                 branch_condition: String::new(),
             });
             if let Some(ref block) = s.block {
-                let vars = if mybatis { collect_block_vars(block, &s.parameters) } else { std::collections::HashMap::new() };
+                let vars =
+                    if mybatis { collect_block_vars(block, &s.parameters) } else { std::collections::HashMap::new() };
                 let out_cursors = extract_out_cursor_set(&s.parameters);
-                let is_return_cursor = s.return_type.as_ref().map_or(false, |rt| rt.to_uppercase().contains("REFCURSOR"));
-                rows.extend(collect_block_sql_rows(block, &func_name, si.start_line, &vars, &out_cursors, is_return_cursor));
+                let is_return_cursor = s.return_type.as_ref().is_some_and(|rt| rt.to_uppercase().contains("REFCURSOR"));
+                rows.extend(collect_block_sql_rows(
+                    block,
+                    &func_name,
+                    si.start_line,
+                    &vars,
+                    &out_cursors,
+                    is_return_cursor,
+                ));
             }
         }
         Statement::Do(s) => {
@@ -2218,13 +2404,17 @@ fn flatten_statement(si: &ogsql_parser::StatementInfo, mybatis: bool) -> Vec<Par
                 line: si.start_line,
                 end_line: sql_end_line(si.start_line, &si.sql_text),
                 stmt_type: "Select".into(),
-                name: s.from.first().and_then(|f| {
-                    if let ogsql_parser::ast::TableRef::Table { name, .. } = f {
-                        Some(name.join("."))
-                    } else {
-                        None
-                    }
-                }).unwrap_or_default(),
+                name: s
+                    .from
+                    .first()
+                    .and_then(|f| {
+                        if let ogsql_parser::ast::TableRef::Table { name, .. } = f {
+                            Some(name.join("."))
+                        } else {
+                            None
+                        }
+                    })
+                    .unwrap_or_default(),
                 parent: String::new(),
                 parameters: String::new(),
                 return_type: String::new(),
@@ -2252,13 +2442,17 @@ fn flatten_statement(si: &ogsql_parser::StatementInfo, mybatis: bool) -> Vec<Par
                 line: si.start_line,
                 end_line: sql_end_line(si.start_line, &si.sql_text),
                 stmt_type: "Update".into(),
-                name: s.tables.first().and_then(|f| {
-                    if let ogsql_parser::ast::TableRef::Table { name, .. } = f {
-                        Some(name.join("."))
-                    } else {
-                        None
-                    }
-                }).unwrap_or_default(),
+                name: s
+                    .tables
+                    .first()
+                    .and_then(|f| {
+                        if let ogsql_parser::ast::TableRef::Table { name, .. } = f {
+                            Some(name.join("."))
+                        } else {
+                            None
+                        }
+                    })
+                    .unwrap_or_default(),
                 parent: String::new(),
                 parameters: String::new(),
                 return_type: String::new(),
@@ -2272,13 +2466,17 @@ fn flatten_statement(si: &ogsql_parser::StatementInfo, mybatis: bool) -> Vec<Par
                 line: si.start_line,
                 end_line: sql_end_line(si.start_line, &si.sql_text),
                 stmt_type: "Delete".into(),
-                name: s.tables.first().and_then(|f| {
-                    if let ogsql_parser::ast::TableRef::Table { name, .. } = f {
-                        Some(name.join("."))
-                    } else {
-                        None
-                    }
-                }).unwrap_or_default(),
+                name: s
+                    .tables
+                    .first()
+                    .and_then(|f| {
+                        if let ogsql_parser::ast::TableRef::Table { name, .. } = f {
+                            Some(name.join("."))
+                        } else {
+                            None
+                        }
+                    })
+                    .unwrap_or_default(),
                 parent: String::new(),
                 parameters: String::new(),
                 return_type: String::new(),
@@ -2321,13 +2519,7 @@ fn flatten_statement(si: &ogsql_parser::StatementInfo, mybatis: bool) -> Vec<Par
         _ => {
             let type_name = serde_json::to_value(&si.statement)
                 .ok()
-                .and_then(|v| {
-                    if let serde_json::Value::Object(map) = v {
-                        map.keys().next().cloned()
-                    } else {
-                        None
-                    }
-                })
+                .and_then(|v| if let serde_json::Value::Object(map) = v { map.keys().next().cloned() } else { None })
                 .unwrap_or_else(|| "Unknown".to_string());
             rows.push(ParseCsvRow {
                 line: si.start_line,
@@ -2367,11 +2559,7 @@ fn output_csv_parse_rows(
 
         let rows = flatten_statement(si, mybatis);
         for row in rows {
-            let (row_err, row_warn) = filter_errors_for_row(
-                &stmt_errors,
-                row.line,
-                row.end_line,
-            );
+            let (row_err, row_warn) = filter_errors_for_row(&stmt_errors, row.line, row.end_line);
 
             let sql = row.sql.trim().replace('\n', "\\n").replace('\r', "");
             println!(
@@ -2395,7 +2583,9 @@ fn output_csv_parse_rows(
 }
 
 fn output_csv_validate_header() {
-    println!("file,directory,line,type,name,parent,parameters,return_type,valid,error_count,warning_count,errors,warnings");
+    println!(
+        "file,directory,line,type,name,parent,parameters,return_type,valid,error_count,warning_count,errors,warnings"
+    );
 }
 
 struct ValidateCsvRow {
@@ -2547,13 +2737,7 @@ fn collect_validate_routine_rows(si: &ogsql_parser::StatementInfo) -> Vec<Valida
         _ => {
             let type_name = serde_json::to_value(&si.statement)
                 .ok()
-                .and_then(|v| {
-                    if let serde_json::Value::Object(map) = v {
-                        map.keys().next().cloned()
-                    } else {
-                        None
-                    }
-                })
+                .and_then(|v| if let serde_json::Value::Object(map) = v { map.keys().next().cloned() } else { None })
                 .unwrap_or_else(|| "Unknown".to_string());
             vec![ValidateCsvRow {
                 line: si.start_line,
@@ -2590,23 +2774,14 @@ fn output_csv_validate_rows(
 
         let stmt_var_errors: Vec<&ogsql_parser::UndefinedVariableError> = var_errors
             .iter()
-            .filter(|ve| {
-                ve.location.as_ref().map_or(true, |sp| {
-                    sp.start.line >= stmt_start && sp.start.line <= stmt_end
-                })
-            })
+            .filter(|ve| ve.location.as_ref().is_none_or(|sp| sp.start.line >= stmt_start && sp.start.line <= stmt_end))
             .collect();
 
         let rows = collect_validate_routine_rows(si);
         let row_count = rows.len();
-        let child_ranges: Vec<(usize, usize)> = if row_count > 1 {
-            rows[1..].iter().map(|r| (r.start_line, r.end_line)).collect()
-        } else {
-            Vec::new()
-        };
-        let error_in_child = |eline: usize| -> bool {
-            child_ranges.iter().any(|&(s, e)| eline >= s && eline <= e)
-        };
+        let child_ranges: Vec<(usize, usize)> =
+            if row_count > 1 { rows[1..].iter().map(|r| (r.start_line, r.end_line)).collect() } else { Vec::new() };
+        let error_in_child = |eline: usize| -> bool { child_ranges.iter().any(|&(s, e)| eline >= s && eline <= e) };
         for (row_idx, row) in rows.iter().enumerate() {
             let is_parent_with_children = row_idx == 0 && row_count > 1;
 
@@ -2615,7 +2790,9 @@ fn output_csv_validate_rows(
                 .filter(|e| {
                     let eline = error_line(e);
                     let in_row = eline == 0 || (eline >= row.start_line && eline <= row.end_line);
-                    if !in_row { return false; }
+                    if !in_row {
+                        return false;
+                    }
                     if is_parent_with_children {
                         eline == 0 || !error_in_child(eline)
                     } else {
@@ -2634,9 +2811,11 @@ fn output_csv_validate_rows(
                     let in_row = ve.location.as_ref().map_or(row_idx == row_count - 1, |sp| {
                         sp.start.line >= row.start_line && sp.start.line <= row.end_line
                     });
-                    if !in_row { return false; }
+                    if !in_row {
+                        return false;
+                    }
                     if is_parent_with_children {
-                        ve.location.as_ref().map_or(false, |sp| !error_in_child(sp.start.line))
+                        ve.location.as_ref().is_some_and(|sp| !error_in_child(sp.start.line))
                     } else {
                         true
                     }
@@ -2648,9 +2827,7 @@ fn output_csv_validate_rows(
                 err_parts.push(row_parse_err);
             }
             for ve in &row_var_errs {
-                let line_info = ve.location.as_ref()
-                    .map(|sp| format!(":{}", sp.start.line))
-                    .unwrap_or_default();
+                let line_info = ve.location.as_ref().map(|sp| format!(":{}", sp.start.line)).unwrap_or_default();
                 let kind_label = match ve.kind {
                     ogsql_parser::UndefinedRefKind::Function => "undefined function",
                     ogsql_parser::UndefinedRefKind::Variable => "undefined variable",
@@ -2686,7 +2863,6 @@ fn output_csv_validate_rows(
     }
 }
 
-
 /// Merge same-type error/warning messages, deduplicating identical text
 /// and appending occurrence count + line numbers.
 /// "msg; msg; msg" → "msg (×3, lines 1, 4, 10)"
@@ -2706,8 +2882,7 @@ fn merge_error_messages(errors: &[&ogsql_parser::ParserError], warn: bool) -> St
         .iter()
         .map(|(msg, lines)| {
             if lines.len() > 1 {
-                let line_nums: Vec<String> =
-                    lines.iter().filter(|l| **l > 0).map(|l| l.to_string()).collect();
+                let line_nums: Vec<String> = lines.iter().filter(|l| **l > 0).map(|l| l.to_string()).collect();
                 if line_nums.is_empty() {
                     format!("{} (×{})", msg, lines.len())
                 } else {
@@ -2740,9 +2915,7 @@ fn filter_errors_for_row(
     (row_err, row_warn)
 }
 
-fn extract_pl_block(
-    stmt: &ogsql_parser::Statement,
-) -> Option<&ogsql_parser::ast::plpgsql::PlBlock> {
+fn extract_pl_block(stmt: &ogsql_parser::Statement) -> Option<&ogsql_parser::ast::plpgsql::PlBlock> {
     use ogsql_parser::Statement;
     match stmt {
         Statement::Do(d) => d.block.as_ref(),
@@ -2775,12 +2948,7 @@ fn cmd_tokenize(cli: &Cli) {
             .iter()
             .map(|t| {
                 let (token_type, value) = token_display(t);
-                TokenInfo {
-                    token_type,
-                    value,
-                    line: t.location.line,
-                    column: t.location.column,
-                }
+                TokenInfo { token_type, value, line: t.location.line, column: t.location.column }
             })
             .collect();
         println!("{}", serde_json::to_string_pretty(&info).unwrap());
@@ -2812,9 +2980,7 @@ fn cmd_json2sql(cli: &Cli) {
             .iter()
             .filter_map(|v| {
                 if v.get("sql_text").is_some() {
-                    serde_json::from_value::<StatementInfo>(v.clone())
-                        .ok()
-                        .map(|si| si.statement)
+                    serde_json::from_value::<StatementInfo>(v.clone()).ok().map(|si| si.statement)
                 } else {
                     serde_json::from_value::<Statement>(v.clone()).ok()
                 }
@@ -2829,10 +2995,7 @@ fn cmd_json2sql(cli: &Cli) {
     }
 
     let formatter = SqlFormatter::new();
-    let formatted: Vec<String> = statements
-        .iter()
-        .map(|s| formatter.format_statement(s))
-        .collect();
+    let formatted: Vec<String> = statements.iter().map(|s| formatter.format_statement(s)).collect();
 
     if cli.json {
         let out = serde_json::json!({
@@ -2849,8 +3012,7 @@ fn cmd_json2sql(cli: &Cli) {
 fn is_warning(e: &ogsql_parser::ParserError) -> bool {
     matches!(
         e,
-        ogsql_parser::ParserError::Warning { .. }
-            | ogsql_parser::ParserError::ReservedKeywordAsIdentifier { .. }
+        ogsql_parser::ParserError::Warning { .. } | ogsql_parser::ParserError::ReservedKeywordAsIdentifier { .. }
     )
 }
 
@@ -2951,7 +3113,12 @@ fn validate_sql(
     mybatis: bool,
     extra_funcs: &[String],
     strict: bool,
-) -> (Vec<ogsql_parser::StatementInfo>, Vec<ogsql_parser::ParserError>, Vec<ogsql_parser::PackageConsistencyError>, Vec<ogsql_parser::UndefinedVariableError>) {
+) -> (
+    Vec<ogsql_parser::StatementInfo>,
+    Vec<ogsql_parser::ParserError>,
+    Vec<ogsql_parser::PackageConsistencyError>,
+    Vec<ogsql_parser::UndefinedVariableError>,
+) {
     let output = parse_input(sql, false, mybatis);
     let stmts = output.statements;
     let mut errors = output.errors;
@@ -2974,7 +3141,7 @@ fn validate_sql(
     if !merge_errors.is_empty() {
         for me in &merge_errors {
             errors.push(ogsql_parser::ParserError::UnsupportedSyntax {
-                location: me.location.clone(),
+                location: me.location,
                 syntax: "MERGE".to_string(),
                 hint: merge_error_detail(me),
             });
@@ -2992,7 +3159,11 @@ fn validate_sql(
     (stmts, errors, pkg_errors, var_errors)
 }
 
-fn validate_pl_variables_from_stmts(stmts: &[ogsql_parser::StatementInfo], known_funcs: &[String], strict: bool) -> Vec<ogsql_parser::UndefinedVariableError> {
+fn validate_pl_variables_from_stmts(
+    stmts: &[ogsql_parser::StatementInfo],
+    known_funcs: &[String],
+    strict: bool,
+) -> Vec<ogsql_parser::UndefinedVariableError> {
     use ogsql_parser::ast::Statement;
     let mut warnings = Vec::new();
     let funcs_str: Vec<&str> = known_funcs.iter().map(|s| s.as_str()).collect();
@@ -3000,25 +3171,45 @@ fn validate_pl_variables_from_stmts(stmts: &[ogsql_parser::StatementInfo], known
         match &si.statement {
             Statement::CreateProcedure(proc) => {
                 if let Some(ref block) = proc.block {
-                    let vars = ogsql_parser::validate_pl_variables_with_extra_vars_and_funcs(block, &proc.parameters, &[], &funcs_str, strict);
+                    let vars = ogsql_parser::validate_pl_variables_with_extra_vars_and_funcs(
+                        block,
+                        &proc.parameters,
+                        &[],
+                        &funcs_str,
+                        strict,
+                    );
                     warnings.extend(vars);
                 }
             }
             Statement::CreateFunction(func) => {
                 if let Some(ref block) = func.block {
-                    let vars = ogsql_parser::validate_pl_variables_with_extra_vars_and_funcs(block, &func.parameters, &[], &funcs_str, strict);
+                    let vars = ogsql_parser::validate_pl_variables_with_extra_vars_and_funcs(
+                        block,
+                        &func.parameters,
+                        &[],
+                        &funcs_str,
+                        strict,
+                    );
                     warnings.extend(vars);
                 }
             }
             Statement::Do(do_stmt) => {
                 if let Some(ref block) = do_stmt.block {
-                    let vars = ogsql_parser::validate_pl_variables_with_extra_vars_and_funcs(block, &[], &[], &funcs_str, strict);
+                    let vars = ogsql_parser::validate_pl_variables_with_extra_vars_and_funcs(
+                        block,
+                        &[],
+                        &[],
+                        &funcs_str,
+                        strict,
+                    );
                     warnings.extend(vars);
                 }
             }
             Statement::CreatePackageBody(body) => {
                 let body_name: String = body.name.iter().map(|s| s.to_lowercase()).collect::<Vec<_>>().join(".");
-                let mut pkg_vars: Vec<&str> = body.items.iter()
+                let mut pkg_vars: Vec<&str> = body
+                    .items
+                    .iter()
                     .filter_map(|item| match item {
                         ogsql_parser::ast::PackageItem::Variable(v) => Some(v.name.as_str()),
                         _ => None,
@@ -3026,7 +3217,8 @@ fn validate_pl_variables_from_stmts(stmts: &[ogsql_parser::StatementInfo], known
                     .collect();
                 for other_si in stmts {
                     if let Statement::CreatePackage(spec) = &other_si.statement {
-                        let spec_name: String = spec.name.iter().map(|s| s.to_lowercase()).collect::<Vec<_>>().join(".");
+                        let spec_name: String =
+                            spec.name.iter().map(|s| s.to_lowercase()).collect::<Vec<_>>().join(".");
                         if spec_name == body_name {
                             for item in &spec.items {
                                 if let ogsql_parser::ast::PackageItem::Variable(v) = item {
@@ -3040,13 +3232,25 @@ fn validate_pl_variables_from_stmts(stmts: &[ogsql_parser::StatementInfo], known
                     match item {
                         ogsql_parser::ast::PackageItem::Procedure(proc) => {
                             if let Some(ref block) = proc.block {
-                                let vars = ogsql_parser::validate_pl_variables_with_extra_vars_and_funcs(block, &proc.parameters, &pkg_vars, &funcs_str, strict);
+                                let vars = ogsql_parser::validate_pl_variables_with_extra_vars_and_funcs(
+                                    block,
+                                    &proc.parameters,
+                                    &pkg_vars,
+                                    &funcs_str,
+                                    strict,
+                                );
                                 warnings.extend(vars);
                             }
                         }
                         ogsql_parser::ast::PackageItem::Function(func) => {
                             if let Some(ref block) = func.block {
-                                let vars = ogsql_parser::validate_pl_variables_with_extra_vars_and_funcs(block, &func.parameters, &pkg_vars, &funcs_str, strict);
+                                let vars = ogsql_parser::validate_pl_variables_with_extra_vars_and_funcs(
+                                    block,
+                                    &func.parameters,
+                                    &pkg_vars,
+                                    &funcs_str,
+                                    strict,
+                                );
                                 warnings.extend(vars);
                             }
                         }
@@ -3073,9 +3277,7 @@ fn cmd_validate_single(cli: &Cli, file_path: Option<&str>, csv: bool, strict: bo
     let (stmts, errors, pkg_errors, var_errors) = validate_sql(&sql, cli.mybatis, &[], strict);
 
     let format_var_err = |ve: &ogsql_parser::UndefinedVariableError| -> String {
-        let line_info = ve.location.as_ref()
-            .map(|sp| format!(":{}", sp.start.line))
-            .unwrap_or_default();
+        let line_info = ve.location.as_ref().map(|sp| format!(":{}", sp.start.line)).unwrap_or_default();
         let kind_label = match ve.kind {
             ogsql_parser::UndefinedRefKind::Function => "undefined function",
             ogsql_parser::UndefinedRefKind::Variable => "undefined variable",
@@ -3115,22 +3317,15 @@ fn cmd_validate_single(cli: &Cli, file_path: Option<&str>, csv: bool, strict: bo
             "errors": errors,
         });
         if strict {
-            out.as_object_mut().unwrap().insert(
-                "strict_mode".to_string(),
-                serde_json::json!(true),
-            );
+            out.as_object_mut().unwrap().insert("strict_mode".to_string(), serde_json::json!(true));
         }
         if !pkg_errors.is_empty() {
-            out.as_object_mut().unwrap().insert(
-                "package_consistency_errors".to_string(),
-                serde_json::json!(pkg_errors),
-            );
+            out.as_object_mut()
+                .unwrap()
+                .insert("package_consistency_errors".to_string(), serde_json::json!(pkg_errors));
         }
         if !var_errors.is_empty() {
-            out.as_object_mut().unwrap().insert(
-                "undefined_variables".to_string(),
-                serde_json::json!(var_errors),
-            );
+            out.as_object_mut().unwrap().insert("undefined_variables".to_string(), serde_json::json!(var_errors));
         }
         println!("{}", serde_json::to_string_pretty(&out).unwrap());
     } else {
@@ -3147,17 +3342,9 @@ fn cmd_validate_single(cli: &Cli, file_path: Option<&str>, csv: bool, strict: bo
         } else {
             let total_errors = real_errors.len() + var_errors.len();
             if strict {
-                println!(
-                    "INVALID ({} error(s), {} warning(s)) [strict mode]:",
-                    total_errors,
-                    warnings.len()
-                );
+                println!("INVALID ({} error(s), {} warning(s)) [strict mode]:", total_errors, warnings.len());
             } else {
-                println!(
-                    "INVALID ({} error(s), {} warning(s)):",
-                    total_errors,
-                    warnings.len()
-                );
+                println!("INVALID ({} error(s), {} warning(s)):", total_errors, warnings.len());
             }
             for e in &real_errors {
                 eprintln!("  error: {}", e);
@@ -3178,9 +3365,7 @@ fn cmd_validate_single(cli: &Cli, file_path: Option<&str>, csv: bool, strict: bo
 
 fn cmd_validate_files(cli: &Cli, csv: bool, strict: bool) {
     let format_var_err = |ve: &ogsql_parser::UndefinedVariableError| -> String {
-        let line_info = ve.location.as_ref()
-            .map(|sp| format!(":{}", sp.start.line))
-            .unwrap_or_default();
+        let line_info = ve.location.as_ref().map(|sp| format!(":{}", sp.start.line)).unwrap_or_default();
         let kind_label = match ve.kind {
             ogsql_parser::UndefinedRefKind::Function => "undefined function",
             ogsql_parser::UndefinedRefKind::Variable => "undefined variable",
@@ -3221,7 +3406,7 @@ fn cmd_validate_files(cli: &Cli, csv: bool, strict: bool) {
         let mut all_results = Vec::new();
         for file_path in &cli.file {
             let sql = read_input(Some(file_path.as_str()));
-            let (stmts, errors, pkg_errors, var_errors) = validate_sql(&sql, cli.mybatis, &[], strict);
+            let (_stmts, errors, pkg_errors, var_errors) = validate_sql(&sql, cli.mybatis, &[], strict);
 
             let real_errors: Vec<_> = errors.iter().filter(|e| !is_warning(e)).collect();
             let warnings: Vec<_> = errors.iter().filter(|e| is_warning(e)).collect();
@@ -3233,22 +3418,19 @@ fn cmd_validate_files(cli: &Cli, csv: bool, strict: bool) {
                 "errors": errors,
             });
             if strict {
-                file_result.as_object_mut().unwrap().insert(
-                    "strict_mode".to_string(),
-                    serde_json::json!(true),
-                );
+                file_result.as_object_mut().unwrap().insert("strict_mode".to_string(), serde_json::json!(true));
             }
             if !pkg_errors.is_empty() {
-                file_result.as_object_mut().unwrap().insert(
-                    "package_consistency_errors".to_string(),
-                    serde_json::json!(pkg_errors),
-                );
+                file_result
+                    .as_object_mut()
+                    .unwrap()
+                    .insert("package_consistency_errors".to_string(), serde_json::json!(pkg_errors));
             }
             if !var_errors.is_empty() {
-                file_result.as_object_mut().unwrap().insert(
-                    "undefined_variables".to_string(),
-                    serde_json::json!(var_errors),
-                );
+                file_result
+                    .as_object_mut()
+                    .unwrap()
+                    .insert("undefined_variables".to_string(), serde_json::json!(var_errors));
             }
             all_results.push(file_result);
         }
@@ -3276,12 +3458,7 @@ fn cmd_validate_files(cli: &Cli, csv: bool, strict: bool) {
             } else {
                 any_invalid = true;
                 let total_errors = real_errors.len() + var_errors.len();
-                println!(
-                    "{}: INVALID ({} error(s), {} warning(s)):",
-                    file_path,
-                    total_errors,
-                    warnings.len()
-                );
+                println!("{}: INVALID ({} error(s), {} warning(s)):", file_path, total_errors, warnings.len());
                 for e in &real_errors {
                     eprintln!("  error: {}", e);
                 }
@@ -3311,28 +3488,18 @@ fn cmd_validate_dir(cli: &Cli, dir_paths: &[String], exts: &[String], csv: bool,
         }
     }
 
-    let normalized_exts: Vec<String> = exts
-        .iter()
-        .map(|e| e.trim_start_matches('.').to_ascii_lowercase())
-        .collect();
+    let normalized_exts: Vec<String> = exts.iter().map(|e| e.trim_start_matches('.').to_ascii_lowercase()).collect();
 
     let mut files: Vec<(String, String, std::path::PathBuf)> = Vec::new();
     for dir_path in dir_paths {
         let root = Path::new(dir_path);
-        for entry in walkdir::WalkDir::new(dir_path)
-            .into_iter()
-            .filter_map(|e| e.ok())
-        {
+        for entry in walkdir::WalkDir::new(dir_path).into_iter().filter_map(|e| e.ok()) {
             let path = entry.path();
             if !path.is_file() {
                 continue;
             }
-            let file_ext = path
-                .extension()
-                .and_then(|e| e.to_str())
-                .unwrap_or("")
-                .to_ascii_lowercase();
-            if !normalized_exts.iter().any(|e| *e == file_ext) {
+            let file_ext = path.extension().and_then(|e| e.to_str()).unwrap_or("").to_ascii_lowercase();
+            if !normalized_exts.contains(&file_ext) {
                 continue;
             }
 
@@ -3341,15 +3508,16 @@ fn cmd_validate_dir(cli: &Cli, dir_paths: &[String], exts: &[String], csv: bool,
                 .and_then(|p| p.strip_prefix(root).ok())
                 .map(|p| {
                     let s = p.to_str().unwrap_or(".");
-                    if s.is_empty() { "." } else { s }
+                    if s.is_empty() {
+                        "."
+                    } else {
+                        s
+                    }
                 })
                 .unwrap_or(".")
                 .to_string();
 
-            let file_name = path
-                .file_name()
-                .map(|n| n.to_string_lossy().to_string())
-                .unwrap_or_default();
+            let file_name = path.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default();
 
             files.push((file_name, rel_dir, path.to_path_buf()));
         }
@@ -3390,16 +3558,14 @@ fn cmd_validate_dir(cli: &Cli, dir_paths: &[String], exts: &[String], csv: bool,
 
     for (file_name, rel_dir, abs_path) in &files {
         let sql = read_file_path(abs_path);
-    let (stmts, errors, pkg_errors, var_errors) = validate_sql(&sql, cli.mybatis, &all_defined_funcs, strict);
+        let (stmts, errors, pkg_errors, var_errors) = validate_sql(&sql, cli.mybatis, &all_defined_funcs, strict);
 
         let real_errors: Vec<_> = errors.iter().filter(|e| !is_warning(e)).collect();
         let warnings: Vec<_> = errors.iter().filter(|e| is_warning(e)).collect();
         let has_var_errors = !var_errors.is_empty();
 
         let format_var_err = |ve: &ogsql_parser::UndefinedVariableError| -> String {
-            let line_info = ve.location.as_ref()
-                .map(|sp| format!(":{}", sp.start.line))
-                .unwrap_or_default();
+            let line_info = ve.location.as_ref().map(|sp| format!(":{}", sp.start.line)).unwrap_or_default();
             let kind_label = match ve.kind {
                 ogsql_parser::UndefinedRefKind::Function => "undefined function",
                 ogsql_parser::UndefinedRefKind::Variable => "undefined variable",
@@ -3452,33 +3618,28 @@ fn cmd_validate_dir(cli: &Cli, dir_paths: &[String], exts: &[String], csv: bool,
                     errors.iter().filter(|e| !is_warning(e)).cloned().collect(),
                 ));
             }
+        } else if real_errors.is_empty() && warnings.is_empty() && !has_var_errors {
+            println!("[{}/{}] VALID", rel_dir, file_name);
+        } else if real_errors.is_empty() && !has_var_errors {
+            println!("[{}/{}] VALID ({} warning(s))", rel_dir, file_name, warnings.len());
+            for w in &warnings {
+                eprintln!("  warning: {}", w);
+            }
         } else {
-            if real_errors.is_empty() && warnings.is_empty() && !has_var_errors {
-                println!("[{}/{}] VALID", rel_dir, file_name);
-            } else if real_errors.is_empty() && !has_var_errors {
-                println!("[{}/{}] VALID ({} warning(s))", rel_dir, file_name, warnings.len());
-                for w in &warnings {
-                    eprintln!("  warning: {}", w);
-                }
-            } else {
-                let total_errs = real_errors.len() + var_errors.len();
-                println!(
-                    "[{}/{}] INVALID ({} error(s), {} warning(s))",
-                    rel_dir, file_name, total_errs, warnings.len()
-                );
-                for e in &real_errors {
-                    eprintln!("  error: {}", e);
-                }
-                for ve in &var_errors {
-                    eprintln!("  error: {}", format_var_err(ve));
-                }
-                for w in &warnings {
-                    eprintln!("  warning: {}", w);
-                }
-                if cli.verbose {
-                    let all_real: Vec<&ogsql_parser::ParserError> = real_errors.iter().copied().collect();
-                    write_error_log(&sql, Some(&format!("{}/{}", rel_dir, file_name)), &stmts, &all_real);
-                }
+            let total_errs = real_errors.len() + var_errors.len();
+            println!("[{}/{}] INVALID ({} error(s), {} warning(s))", rel_dir, file_name, total_errs, warnings.len());
+            for e in &real_errors {
+                eprintln!("  error: {}", e);
+            }
+            for ve in &var_errors {
+                eprintln!("  error: {}", format_var_err(ve));
+            }
+            for w in &warnings {
+                eprintln!("  warning: {}", w);
+            }
+            if cli.verbose {
+                let all_real: Vec<&ogsql_parser::ParserError> = real_errors.to_vec();
+                write_error_log(&sql, Some(&format!("{}/{}", rel_dir, file_name)), &stmts, &all_real);
             }
         }
         if cli.verbose && !real_errors.is_empty() && !has_var_errors {
@@ -3490,8 +3651,16 @@ fn cmd_validate_dir(cli: &Cli, dir_paths: &[String], exts: &[String], csv: bool,
     if csv {
         if stats {
             let total_stmts: usize = stmt_counts.values().sum();
-            print_parse_stats(total_files, &files_with_errors, &files_with_warnings,
-                total_stmts, &stmt_counts, &error_kinds, &warning_kinds, "validate --csv");
+            print_parse_stats(
+                total_files,
+                &files_with_errors,
+                &files_with_warnings,
+                total_stmts,
+                &stmt_counts,
+                &error_kinds,
+                &warning_kinds,
+                "validate --csv",
+            );
         }
         if any_invalid {
             std::process::exit(1);
@@ -3513,10 +3682,10 @@ fn cmd_validate_dir(cli: &Cli, dir_paths: &[String], exts: &[String], csv: bool,
                 "errors": errors,
             });
             if !pkg_errors.is_empty() {
-                file_result.as_object_mut().unwrap().insert(
-                    "package_consistency_errors".to_string(),
-                    serde_json::json!(pkg_errors),
-                );
+                file_result
+                    .as_object_mut()
+                    .unwrap()
+                    .insert("package_consistency_errors".to_string(), serde_json::json!(pkg_errors));
             }
             results.push(file_result);
         }
@@ -3528,29 +3697,39 @@ fn cmd_validate_dir(cli: &Cli, dir_paths: &[String], exts: &[String], csv: bool,
             "files": results,
         });
         if strict {
-            out.as_object_mut().unwrap().insert(
-                "strict_mode".to_string(),
-                serde_json::json!(true),
-            );
+            out.as_object_mut().unwrap().insert("strict_mode".to_string(), serde_json::json!(true));
         }
         if !all_results.is_empty() {
-            out.as_object_mut().unwrap().insert(
-                "error_log".to_string(),
-                serde_json::json!(all_results.len()),
-            );
+            out.as_object_mut().unwrap().insert("error_log".to_string(), serde_json::json!(all_results.len()));
         }
         println!("{}", serde_json::to_string_pretty(&out).unwrap());
         if stats {
             let total_stmts: usize = stmt_counts.values().sum();
-            print_parse_stats(total_files, &files_with_errors, &files_with_warnings,
-                total_stmts, &stmt_counts, &error_kinds, &warning_kinds, "validate -j");
+            print_parse_stats(
+                total_files,
+                &files_with_errors,
+                &files_with_warnings,
+                total_stmts,
+                &stmt_counts,
+                &error_kinds,
+                &warning_kinds,
+                "validate -j",
+            );
         }
     } else {
         println!();
         if stats {
             let total_stmts: usize = stmt_counts.values().sum();
-            print_parse_stats(total_files, &files_with_errors, &files_with_warnings,
-                total_stmts, &stmt_counts, &error_kinds, &warning_kinds, "validate");
+            print_parse_stats(
+                total_files,
+                &files_with_errors,
+                &files_with_warnings,
+                total_stmts,
+                &stmt_counts,
+                &error_kinds,
+                &warning_kinds,
+                "validate",
+            );
         }
         if any_invalid {
             print!(
@@ -3564,28 +3743,16 @@ fn cmd_validate_dir(cli: &Cli, dir_paths: &[String], exts: &[String], csv: bool,
             }
             std::process::exit(1);
         } else if total_warnings > 0 {
-            println!(
-                "Result: VALID — {} warning(s) from {} file(s)",
-                total_warnings, total_files
-            );
+            println!("Result: VALID — {} warning(s) from {} file(s)", total_warnings, total_files);
         } else {
             println!("Result: VALID — {} file(s)", total_files);
         }
     }
 }
 
-fn write_error_log(
-    source: &str,
-    file_path: Option<&str>,
-    stmts: &[StatementInfo],
-    errors: &[&ParserError],
-) {
+fn write_error_log(source: &str, file_path: Option<&str>, stmts: &[StatementInfo], errors: &[&ParserError]) {
     use std::io::Write;
-    let mut file = match std::fs::OpenOptions::new()
-        .append(true)
-        .create(true)
-        .open("error.log")
-    {
+    let mut file = match std::fs::OpenOptions::new().append(true).create(true).open("error.log") {
         Ok(f) => f,
         Err(e) => {
             eprintln!("  warning: cannot create error.log: {}", e);
@@ -3602,17 +3769,12 @@ fn write_error_log(
             ParserError::UnexpectedToken { location, .. } => (location.line, location.column),
             ParserError::UnexpectedEof { location, .. } => (location.line, location.column),
             ParserError::TokenizerError(_) => (0, 0),
-            ParserError::ReservedKeywordAsIdentifier { location, .. } => {
-                (location.line, location.column)
-            }
+            ParserError::ReservedKeywordAsIdentifier { location, .. } => (location.line, location.column),
             _ => (0, 0),
         };
         if line == 0 {
             groups.push((usize::MAX, None, 0, 0, vec![err_idx])); // sentinel: no line info
-        } else if let Some(si_idx) = stmts
-            .iter()
-            .position(|si| line >= si.start_line && line <= si.end_line)
-        {
+        } else if let Some(si_idx) = stmts.iter().position(|si| line >= si.start_line && line <= si.end_line) {
             let si = &stmts[si_idx];
             let (sub_name, sub_start, sub_end) = find_error_sub_item(&si.statement, line);
             if let Some(pos) = groups.iter().position(|(idx, sn, ss, se, _)| {
@@ -3650,18 +3812,14 @@ fn write_error_log(
             };
             let stmt_start = si.start_line;
 
-            let (label_start, label_end, omitted_after) =
-                if *sub_start > 0 && *sub_end > 0 {
-                    (*sub_start, *sub_end, sub_end - sub_start + 1)
-                } else {
-                    (si.start_line, si.end_line, all_lines.len())
-                };
+            let (label_start, label_end, omitted_after) = if *sub_start > 0 && *sub_end > 0 {
+                (*sub_start, *sub_end, sub_end - sub_start + 1)
+            } else {
+                (si.start_line, si.end_line, all_lines.len())
+            };
 
-            let error_lines: Vec<usize> = err_indices
-                .iter()
-                .map(|&ei| error_line(errors[ei]))
-                .filter(|&l| l > 0)
-                .collect();
+            let error_lines: Vec<usize> =
+                err_indices.iter().map(|&ei| error_line(errors[ei])).filter(|&l| l > 0).collect();
 
             let label_relative_start = label_start.saturating_sub(stmt_start);
             let label_len = label_end.saturating_sub(label_start) + 1;
@@ -3680,11 +3838,8 @@ fn write_error_log(
             let omitted_after_actual = all_lines.len().saturating_sub(ctx_end);
 
             if let Some(name) = sub_name {
-                let _ = writeln!(
-                    file,
-                    "In {} (line {}-{} of {}-line statement):",
-                    name, sub_start, sub_end, omitted_after
-                );
+                let _ =
+                    writeln!(file, "In {} (line {}-{} of {}-line statement):", name, sub_start, sub_end, omitted_after);
             } else {
                 let _ = writeln!(file, "Statement (line {}-{}):", si.start_line, si.end_line);
             }
@@ -3701,8 +3856,7 @@ fn write_error_log(
                 let _ = writeln!(
                     file,
                     "  ... ({} lines omitted) ...",
-                    omitted_before.saturating_sub(context_radius)
-                        + omitted_after_actual.saturating_sub(context_radius)
+                    omitted_before.saturating_sub(context_radius) + omitted_after_actual.saturating_sub(context_radius)
                 );
             }
         }
@@ -3731,7 +3885,7 @@ fn write_dir_error_log(
             let _ = writeln!(file, "Error: {}", err);
         }
         let source_lines: Vec<&str> = source.lines().collect();
-        let err_lines: Vec<usize> = errors.iter().map(|e| error_line(e)).filter(|&l| l > 0).collect();
+        let err_lines: Vec<usize> = errors.iter().map(error_line).filter(|&l| l > 0).collect();
         if err_lines.is_empty() {
             let _ = writeln!(file, "{}", "-".repeat(60));
             continue;
@@ -3775,17 +3929,13 @@ fn find_error_sub_item(stmt: &Statement, error_line: usize) -> (Option<String>, 
             for item in &pkg.items {
                 match item {
                     PackageItem::Procedure(p)
-                        if p.start_line > 0
-                            && error_line >= p.start_line
-                            && error_line <= p.end_line =>
+                        if p.start_line > 0 && error_line >= p.start_line && error_line <= p.end_line =>
                     {
                         let name = p.name.join(".");
                         return (Some(format!("PROCEDURE {}", name)), p.start_line, p.end_line);
                     }
                     PackageItem::Function(f)
-                        if f.start_line > 0
-                            && error_line >= f.start_line
-                            && error_line <= f.end_line =>
+                        if f.start_line > 0 && error_line >= f.start_line && error_line <= f.end_line =>
                     {
                         let name = f.name.join(".");
                         return (Some(format!("FUNCTION {}", name)), f.start_line, f.end_line);
@@ -3799,17 +3949,13 @@ fn find_error_sub_item(stmt: &Statement, error_line: usize) -> (Option<String>, 
             for item in &pkg.items {
                 match item {
                     PackageItem::Procedure(p)
-                        if p.start_line > 0
-                            && error_line >= p.start_line
-                            && error_line <= p.end_line =>
+                        if p.start_line > 0 && error_line >= p.start_line && error_line <= p.end_line =>
                     {
                         let name = p.name.join(".");
                         return (Some(format!("PROCEDURE {}", name)), p.start_line, p.end_line);
                     }
                     PackageItem::Function(f)
-                        if f.start_line > 0
-                            && error_line >= f.start_line
-                            && error_line <= f.end_line =>
+                        if f.start_line > 0 && error_line >= f.start_line && error_line <= f.end_line =>
                     {
                         let name = f.name.join(".");
                         return (Some(format!("FUNCTION {}", name)), f.start_line, f.end_line);
@@ -3888,16 +4034,10 @@ mod api {
         let fingerprints = ogsql_parser::compute_query_fingerprints(&all_stmts);
         let mut out = serde_json::json!({"statements": output.statements, "errors": output.errors});
         if !fingerprints.is_empty() {
-            out.as_object_mut().unwrap().insert(
-                "query_fingerprints".to_string(),
-                serde_json::json!(fingerprints),
-            );
+            out.as_object_mut().unwrap().insert("query_fingerprints".to_string(), serde_json::json!(fingerprints));
         }
         if !output.comments.is_empty() {
-            out.as_object_mut().unwrap().insert(
-                "comments".to_string(),
-                serde_json::json!(output.comments),
-            );
+            out.as_object_mut().unwrap().insert("comments".to_string(), serde_json::json!(output.comments));
         }
         Json(out)
     }
@@ -4014,16 +4154,13 @@ mod api {
             "errors": errors,
         });
         if has_pkg_issues {
-            result.as_object_mut().unwrap().insert(
-                "package_consistency_errors".to_string(),
-                serde_json::json!(pkg_errors),
-            );
+            result
+                .as_object_mut()
+                .unwrap()
+                .insert("package_consistency_errors".to_string(), serde_json::json!(pkg_errors));
         }
         if has_var_errors {
-            result.as_object_mut().unwrap().insert(
-                "undefined_variables".to_string(),
-                serde_json::json!(var_errors),
-            );
+            result.as_object_mut().unwrap().insert("undefined_variables".to_string(), serde_json::json!(var_errors));
         }
         Json(result)
     }
@@ -4042,33 +4179,22 @@ mod api {
             Err(e) => return Json(serde_json::json!({"error": format!("Invalid JSON: {}", e)})),
         };
 
-        let statements: Vec<ogsql_parser::Statement> = if let Some(arr) =
-            json_value.get("statements")
-        {
+        let statements: Vec<ogsql_parser::Statement> = if let Some(arr) = json_value.get("statements") {
             match serde_json::from_value(arr.clone()) {
                 Ok(s) => s,
                 Err(e) => {
-                    return Json(
-                        serde_json::json!({"error": format!("Failed to deserialize statements: {}", e)}),
-                    )
+                    return Json(serde_json::json!({"error": format!("Failed to deserialize statements: {}", e)}))
                 }
             }
         } else {
             match serde_json::from_value(json_value) {
                 Ok(s) => s,
-                Err(e) => {
-                    return Json(
-                        serde_json::json!({"error": format!("Failed to deserialize: {}", e)}),
-                    )
-                }
+                Err(e) => return Json(serde_json::json!({"error": format!("Failed to deserialize: {}", e)})),
             }
         };
 
         let formatter = ogsql_parser::SqlFormatter::new();
-        let formatted: Vec<String> = statements
-            .iter()
-            .map(|s| formatter.format_statement(s))
-            .collect();
+        let formatted: Vec<String> = statements.iter().map(|s| formatter.format_statement(s)).collect();
 
         Json(serde_json::json!({
             "statements": formatted,
@@ -4096,9 +4222,7 @@ mod api {
 fn cmd_playground() {
     use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyModifiers};
     use crossterm::execute;
-    use crossterm::terminal::{
-        disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen,
-    };
+    use crossterm::terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen};
     use ratatui::backend::CrosstermBackend;
     use ratatui::layout::{Constraint, Direction, Layout};
     use ratatui::style::{Color, Modifier, Style};
@@ -4118,9 +4242,7 @@ fn cmd_playground() {
     impl App {
         fn new() -> Self {
             Self {
-                input: String::from(
-                    "SELECT id, name\nFROM users\nWHERE status = 'active'\nORDER BY id LIMIT 10;",
-                ),
+                input: String::from("SELECT id, name\nFROM users\nWHERE status = 'active'\nORDER BY id LIMIT 10;"),
                 cursor: 42,
                 tab_index: 0,
                 input_scroll: 0,
@@ -4145,10 +4267,7 @@ fn cmd_playground() {
                 .iter()
                 .map(|t| {
                     let (tt, val) = token_display(t);
-                    format!(
-                        "{:<16} L{:>3}:C{:>3}  {}",
-                        tt, t.location.line, t.location.column, val
-                    )
+                    format!("{:<16} L{:>3}:C{:>3}  {}", tt, t.location.line, t.location.column, val)
                 })
                 .collect::<Vec<_>>()
                 .join("\n"),
@@ -4161,11 +4280,7 @@ fn cmd_playground() {
                     }
                 }
                 let fmt = SqlFormatter::new();
-                stmts
-                    .iter()
-                    .map(|s| fmt.format_statement(s))
-                    .collect::<Vec<_>>()
-                    .join(";\n")
+                stmts.iter().map(|s| fmt.format_statement(s)).collect::<Vec<_>>().join(";\n")
             }
             _ => {
                 let mut parser = Parser::new(tokens);
@@ -4195,54 +4310,30 @@ fn cmd_playground() {
             .split(f.area());
 
         let input_title = Line::from(vec![
-            Span::styled(
-                " SQL Input ",
-                Style::default()
-                    .fg(Color::Yellow)
-                    .add_modifier(Modifier::BOLD),
-            ),
+            Span::styled(" SQL Input ", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
             Span::raw(" (Esc=quit, Tab=switch view, Shift+Up/Down=scroll output)"),
         ]);
-        let input_block = Block::default()
-            .title(input_title)
-            .borders(Borders::ALL)
-            .border_style(Style::default().fg(Color::Yellow));
-        let input = Paragraph::new(app.input.as_str())
-            .block(input_block)
-            .scroll((app.input_scroll, 0));
+        let input_block =
+            Block::default().title(input_title).borders(Borders::ALL).border_style(Style::default().fg(Color::Yellow));
+        let input = Paragraph::new(app.input.as_str()).block(input_block).scroll((app.input_scroll, 0));
         f.render_widget(input, chunks[0]);
 
-        let tabs_block = Block::default()
-            .borders(Borders::ALL)
-            .border_style(Style::default().fg(Color::Cyan));
+        let tabs_block = Block::default().borders(Borders::ALL).border_style(Style::default().fg(Color::Cyan));
         let tabs = Tabs::new(vec!["AST", "Tokens", "Formatted"])
             .block(tabs_block.clone())
             .select(app.tab_index)
             .style(Style::default().fg(Color::DarkGray))
-            .highlight_style(
-                Style::default()
-                    .fg(Color::Cyan)
-                    .add_modifier(Modifier::BOLD),
-            );
+            .highlight_style(Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD));
         f.render_widget(&tabs, chunks[1]);
 
         let output_area = tabs_block.inner(chunks[1]);
         let output_text = compute_output(app);
-        let output = Paragraph::new(output_text.as_str())
-            .wrap(Wrap { trim: false })
-            .scroll((app.output_scroll, 0));
+        let output = Paragraph::new(output_text.as_str()).wrap(Wrap { trim: false }).scroll((app.output_scroll, 0));
         f.render_widget(output, output_area);
 
         let line_before_cursor = app.input[..app.cursor].matches('\n').count() as u16;
-        let last_col = app.input[..app.cursor]
-            .split('\n')
-            .last()
-            .map(|l| l.len())
-            .unwrap_or(0) as u16;
-        f.set_cursor_position((
-            chunks[0].x + last_col + 1,
-            chunks[0].y + line_before_cursor + 1 - app.input_scroll,
-        ));
+        let last_col = app.input[..app.cursor].split('\n').next_back().map(|l| l.len()).unwrap_or(0) as u16;
+        f.set_cursor_position((chunks[0].x + last_col + 1, chunks[0].y + line_before_cursor + 1 - app.input_scroll));
     }
 
     enable_raw_mode().expect("Failed to enable raw mode");
@@ -4257,9 +4348,7 @@ fn cmd_playground() {
         terminal.draw(|f| draw(f, &app)).expect("Failed to draw");
 
         match event::read().expect("Failed to read event") {
-            Event::Key(KeyEvent {
-                code, modifiers, ..
-            }) => match code {
+            Event::Key(KeyEvent { code, modifiers, .. }) => match code {
                 KeyCode::Esc => break,
                 KeyCode::Tab => app.tab_index = (app.tab_index + 1) % 3,
                 KeyCode::Backspace => {
@@ -4358,9 +4447,7 @@ fn cmd_parse_xml_single(cli: &Cli, csv: bool, java_roots: &[std::path::PathBuf])
         Some(path) => std::fs::read(path).unwrap_or_else(|e| die!("Error reading {}: {}", path, e)),
         None => {
             let mut buf = Vec::new();
-            std::io::stdin()
-                .read_to_end(&mut buf)
-                .unwrap_or_else(|e| die!("Error reading stdin: {}", e));
+            std::io::stdin().read_to_end(&mut buf).unwrap_or_else(|e| die!("Error reading stdin: {}", e));
             buf
         }
     };
@@ -4369,20 +4456,14 @@ fn cmd_parse_xml_single(cli: &Cli, csv: bool, java_roots: &[std::path::PathBuf])
     let result = if java_roots.is_empty() {
         ogsql_parser::ibatis::parse_mapper_bytes_with_path(&input, file_opt)
     } else {
-        ogsql_parser::ibatis::parse_mapper_bytes_with_java_src(
-            &input, file_opt, java_roots.to_vec()
-        )
+        ogsql_parser::ibatis::parse_mapper_bytes_with_java_src(&input, file_opt, java_roots.to_vec())
     };
     #[cfg(not(feature = "java"))]
     let result = ogsql_parser::ibatis::parse_mapper_bytes_with_path(&input, file_opt);
 
     if csv {
         output_csv_xml_header();
-        output_csv_xml_rows(
-            &result.statements,
-            file_opt.unwrap_or("<stdin>"),
-            ".",
-        );
+        output_csv_xml_rows(&result.statements, file_opt.unwrap_or("<stdin>"), ".");
     } else if cli.json {
         println!("{}", serde_json::to_string_pretty(&result).unwrap());
     } else {
@@ -4400,9 +4481,7 @@ fn cmd_parse_xml_structured(cli: &Cli, _csv: bool) {
         Some(path) => std::fs::read(path).unwrap_or_else(|e| die!("Error reading {}: {}", path, e)),
         None => {
             let mut buf = Vec::new();
-            std::io::stdin()
-                .read_to_end(&mut buf)
-                .unwrap_or_else(|e| die!("Error reading stdin: {}", e));
+            std::io::stdin().read_to_end(&mut buf).unwrap_or_else(|e| die!("Error reading stdin: {}", e));
             buf
         }
     };
@@ -4442,10 +4521,7 @@ fn cmd_parse_xml_dir(cli: &Cli, dir_path: &str, csv: bool, java_roots: &[std::pa
 
     let mut all_results: Vec<(String, String, ogsql_parser::ibatis::ParsedMapper)> = Vec::new();
 
-    for entry in walkdir::WalkDir::new(dir_path)
-        .into_iter()
-        .filter_map(|e| e.ok())
-    {
+    for entry in walkdir::WalkDir::new(dir_path).into_iter().filter_map(|e| e.ok()) {
         let path = entry.path();
         if !path.is_file() {
             continue;
@@ -4463,18 +4539,12 @@ fn cmd_parse_xml_dir(cli: &Cli, dir_path: &str, csv: bool, java_roots: &[std::pa
             }
         };
 
-        let rel_dir = path
-            .parent()
-            .and_then(|p| p.strip_prefix(root).ok())
-            .map(|p| p.to_str().unwrap_or("."))
-            .unwrap_or(".");
+        let rel_dir =
+            path.parent().and_then(|p| p.strip_prefix(root).ok()).map(|p| p.to_str().unwrap_or(".")).unwrap_or(".");
 
         #[cfg(feature = "java")]
         let result = if java_roots.is_empty() {
-            ogsql_parser::ibatis::parse_mapper_bytes_with_path(
-                &bytes,
-                Some(&path.to_string_lossy()),
-            )
+            ogsql_parser::ibatis::parse_mapper_bytes_with_path(&bytes, Some(&path.to_string_lossy()))
         } else {
             ogsql_parser::ibatis::parse_mapper_bytes_with_java_src(
                 &bytes,
@@ -4483,15 +4553,9 @@ fn cmd_parse_xml_dir(cli: &Cli, dir_path: &str, csv: bool, java_roots: &[std::pa
             )
         };
         #[cfg(not(feature = "java"))]
-        let result = ogsql_parser::ibatis::parse_mapper_bytes_with_path(
-            &bytes,
-            Some(&path.to_string_lossy()),
-        );
+        let result = ogsql_parser::ibatis::parse_mapper_bytes_with_path(&bytes, Some(&path.to_string_lossy()));
 
-        let file_name = path
-            .file_name()
-            .map(|n| n.to_string_lossy().to_string())
-            .unwrap_or_default();
+        let file_name = path.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default();
         all_results.push((file_name, rel_dir.to_string(), result));
     }
 
@@ -4525,8 +4589,11 @@ fn cmd_parse_xml_dir(cli: &Cli, dir_path: &str, csv: bool, java_roots: &[std::pa
                     let entry = file_set.entry(kind).or_insert((0, HashSet::new()));
                     entry.0 += 1;
                     entry.1.insert(file_name.clone());
-                    if is_warning(perr) { files_with_sql_warnings.insert(file_name.clone()); }
-                    else { files_with_sql_errors.insert(file_name.clone()); }
+                    if is_warning(perr) {
+                        files_with_sql_warnings.insert(file_name.clone());
+                    } else {
+                        files_with_sql_errors.insert(file_name.clone());
+                    }
                 }
             }
         }
@@ -4563,18 +4630,17 @@ fn cmd_parse_xml_dir(cli: &Cli, dir_path: &str, csv: bool, java_roots: &[std::pa
             }
 
             for stmt in &result.statements {
-                println!(
-                    "── {} ({:?}) [{} L{}] ──",
-                    stmt.id, stmt.kind, file_name, stmt.line
-                );
+                println!("── {} ({:?}) [{} L{}] ──", stmt.id, stmt.kind, file_name, stmt.line);
                 println!("{}", stmt.flat_sql.trim());
                 if !stmt.parameters.is_empty() {
-                    let typed: Vec<String> = stmt.parameters.iter().map(|p| {
-                        match &p.jdbc_type {
+                    let typed: Vec<String> = stmt
+                        .parameters
+                        .iter()
+                        .map(|p| match &p.jdbc_type {
                             Some(jt) => format!("{}:{:?}", p.name, jt),
                             None => p.name.clone(),
-                        }
-                    }).collect();
+                        })
+                        .collect();
                     println!("  [params: {}]", typed.join(", "));
                 }
                 if stmt.has_dynamic_elements {
@@ -4599,22 +4665,14 @@ fn cmd_parse_xml_dir(cli: &Cli, dir_path: &str, csv: bool, java_roots: &[std::pa
                         println!(
                             "  ✓ Parsed successfully ({} statement(s)){}",
                             infos.len(),
-                            if warnings.is_empty() {
-                                ""
-                            } else {
-                                " (with warnings)"
-                            }
+                            if warnings.is_empty() { "" } else { " (with warnings)" }
                         );
                     }
                 }
                 println!();
             }
         }
-        println!(
-            "Total: {} statement(s) from {} file(s)",
-            total_mapper,
-            all_results.len()
-        );
+        println!("Total: {} statement(s) from {} file(s)", total_mapper, all_results.len());
     }
 
     if stats {
@@ -4678,12 +4736,14 @@ fn print_xml_text(result: &ogsql_parser::ibatis::ParsedMapper) {
         println!("── {} ({:?}) ──", stmt.id, stmt.kind);
         println!("{}", stmt.flat_sql.trim());
         if !stmt.parameters.is_empty() {
-            let typed: Vec<String> = stmt.parameters.iter().map(|p| {
-                match &p.jdbc_type {
+            let typed: Vec<String> = stmt
+                .parameters
+                .iter()
+                .map(|p| match &p.jdbc_type {
                     Some(jt) => format!("{}:{:?}", p.name, jt),
                     None => p.name.clone(),
-                }
-            }).collect();
+                })
+                .collect();
             println!("  [params: {}]", typed.join(", "));
         }
         if stmt.has_dynamic_elements {
@@ -4708,26 +4768,25 @@ fn print_xml_text(result: &ogsql_parser::ibatis::ParsedMapper) {
                 println!(
                     "  ✓ Parsed successfully ({} statement(s)){}",
                     infos.len(),
-                    if warnings.is_empty() {
-                        ""
-                    } else {
-                        " (with warnings)"
-                    }
+                    if warnings.is_empty() { "" } else { " (with warnings)" }
                 );
             }
         }
         println!();
     }
 
-    println!(
-        "Total: {} statement(s) in namespace '{}'",
-        result.statements.len(),
-        result.namespace
-    );
+    println!("Total: {} statement(s) in namespace '{}'", result.statements.len(), result.namespace);
 }
 
 #[cfg(feature = "java")]
-fn cmd_parse_java(cli: &Cli, extra_sql_methods: &[String], extra_sql_var_patterns: &[String], dir: Option<&str>, csv: bool, stats: bool) {
+fn cmd_parse_java(
+    cli: &Cli,
+    extra_sql_methods: &[String],
+    extra_sql_var_patterns: &[String],
+    dir: Option<&str>,
+    csv: bool,
+    stats: bool,
+) {
     match dir {
         Some(dir_path) => cmd_parse_java_dir(cli, extra_sql_methods, extra_sql_var_patterns, dir_path, csv, stats),
         None => cmd_parse_java_single(cli, extra_sql_methods, extra_sql_var_patterns, csv),
@@ -4742,17 +4801,14 @@ fn cmd_parse_java_single(cli: &Cli, extra_sql_methods: &[String], extra_sql_var_
     let file_opt = cli.file.first().map(|s| s.as_str());
     let (source, file_path) = match file_opt {
         Some(path) => {
-            let bytes =
-                std::fs::read(path).unwrap_or_else(|e| die!("Error reading {}: {}", path, e));
-            let (text, _encoding) = ogsql_parser::token::decode_sql_file(&bytes)
-                .unwrap_or_else(|e| die!("Error decoding {}: {}", path, e));
+            let bytes = std::fs::read(path).unwrap_or_else(|e| die!("Error reading {}: {}", path, e));
+            let (text, _encoding) =
+                ogsql_parser::token::decode_sql_file(&bytes).unwrap_or_else(|e| die!("Error decoding {}: {}", path, e));
             (text, path.to_string())
         }
         None => {
             let mut buf = String::new();
-            std::io::stdin()
-                .read_to_string(&mut buf)
-                .unwrap_or_else(|e| die!("Error reading stdin: {}", e));
+            std::io::stdin().read_to_string(&mut buf).unwrap_or_else(|e| die!("Error reading stdin: {}", e));
             (buf, "<stdin>".to_string())
         }
     };
@@ -4785,7 +4841,14 @@ fn java_error_kind(err: &ogsql_parser::java::error::JavaError) -> &'static str {
 }
 
 #[cfg(feature = "java")]
-fn cmd_parse_java_dir(cli: &Cli, extra_sql_methods: &[String], extra_sql_var_patterns: &[String], dir_path: &str, csv: bool, stats: bool) {
+fn cmd_parse_java_dir(
+    cli: &Cli,
+    extra_sql_methods: &[String],
+    extra_sql_var_patterns: &[String],
+    dir_path: &str,
+    csv: bool,
+    stats: bool,
+) {
     use std::path::Path;
 
     let root = Path::new(dir_path);
@@ -4800,10 +4863,7 @@ fn cmd_parse_java_dir(cli: &Cli, extra_sql_methods: &[String], extra_sql_var_pat
 
     let mut all_results: Vec<(String, String, ogsql_parser::java::JavaExtractResult)> = Vec::new();
 
-    for entry in walkdir::WalkDir::new(dir_path)
-        .into_iter()
-        .filter_map(|e| e.ok())
-    {
+    for entry in walkdir::WalkDir::new(dir_path).into_iter().filter_map(|e| e.ok()) {
         let path = entry.path();
         if !path.is_file() {
             continue;
@@ -4832,16 +4892,10 @@ fn cmd_parse_java_dir(cli: &Cli, extra_sql_methods: &[String], extra_sql_var_pat
         let file_path_str = path.to_string_lossy().to_string();
         let result = ogsql_parser::java::extract_sql_from_java(&source, &file_path_str, &config);
 
-        let rel_dir = path
-            .parent()
-            .and_then(|p| p.strip_prefix(root).ok())
-            .map(|p| p.to_str().unwrap_or("."))
-            .unwrap_or(".");
+        let rel_dir =
+            path.parent().and_then(|p| p.strip_prefix(root).ok()).map(|p| p.to_str().unwrap_or(".")).unwrap_or(".");
 
-        let file_name = path
-            .file_name()
-            .map(|n| n.to_string_lossy().to_string())
-            .unwrap_or_default();
+        let file_name = path.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default();
         all_results.push((file_name, rel_dir.to_string(), result));
     }
 
@@ -4875,8 +4929,11 @@ fn cmd_parse_java_dir(cli: &Cli, extra_sql_methods: &[String], extra_sql_var_pat
                     let entry = file_set.entry(kind).or_insert((0, HashSet::new()));
                     entry.0 += 1;
                     entry.1.insert(file_name.clone());
-                    if is_warning(perr) { files_with_sql_warnings.insert(file_name.clone()); }
-                    else { files_with_sql_errors.insert(file_name.clone()); }
+                    if is_warning(perr) {
+                        files_with_sql_warnings.insert(file_name.clone());
+                    } else {
+                        files_with_sql_errors.insert(file_name.clone());
+                    }
                 }
             }
         }
@@ -4912,11 +4969,7 @@ fn cmd_parse_java_dir(cli: &Cli, extra_sql_methods: &[String], extra_sql_var_pat
 
             for ext in &result.extractions {
                 let location = match &ext.origin.class_name {
-                    Some(cls) => format!(
-                        "{}::{}",
-                        cls,
-                        ext.origin.method_name.as_deref().unwrap_or("")
-                    ),
+                    Some(cls) => format!("{}::{}", cls, ext.origin.method_name.as_deref().unwrap_or("")),
                     None => file_name.clone(),
                 };
                 println!(
@@ -4934,16 +4987,8 @@ fn cmd_parse_java_dir(cli: &Cli, extra_sql_methods: &[String], extra_sql_var_pat
                     println!("  [params: {:?}]", ext.parameter_style);
                 }
                 if let Some(parse_result) = &ext.parse_result {
-                    let warnings: Vec<_> = parse_result
-                        .errors
-                        .iter()
-                        .filter(|e| is_warning(e))
-                        .collect();
-                    let real_errors: Vec<_> = parse_result
-                        .errors
-                        .iter()
-                        .filter(|e| !is_warning(e))
-                        .collect();
+                    let warnings: Vec<_> = parse_result.errors.iter().filter(|e| is_warning(e)).collect();
+                    let real_errors: Vec<_> = parse_result.errors.iter().filter(|e| !is_warning(e)).collect();
                     if !real_errors.is_empty() {
                         eprintln!("  {} parse error(s):", real_errors.len());
                         for e in &real_errors {
@@ -4960,11 +5005,7 @@ fn cmd_parse_java_dir(cli: &Cli, extra_sql_methods: &[String], extra_sql_var_pat
                         println!(
                             "  ✓ Parsed successfully ({} statement(s)){}",
                             parse_result.statements.len(),
-                            if warnings.is_empty() {
-                                ""
-                            } else {
-                                " (with warnings)"
-                            }
+                            if warnings.is_empty() { "" } else { " (with warnings)" }
                         );
                     }
                 }
@@ -4972,11 +5013,7 @@ fn cmd_parse_java_dir(cli: &Cli, extra_sql_methods: &[String], extra_sql_var_pat
             }
             total += result.extractions.len();
         }
-        println!(
-            "Total: {} extraction(s) from {} file(s)",
-            total,
-            all_results.len()
-        );
+        println!("Total: {} extraction(s) from {} file(s)", total, all_results.len());
     }
 
     if stats {
@@ -5045,17 +5082,10 @@ fn print_java_text(result: &ogsql_parser::java::JavaExtractResult, file_path: &s
 
     for ext in &result.extractions {
         let location = match &ext.origin.class_name {
-            Some(cls) => format!(
-                "{}::{}",
-                cls,
-                ext.origin.method_name.as_deref().unwrap_or("")
-            ),
+            Some(cls) => format!("{}::{}", cls, ext.origin.method_name.as_deref().unwrap_or("")),
             None => file_path.to_string(),
         };
-        println!(
-            "── {:?} [{:?}] @ {} L{} ──",
-            ext.origin.method, ext.sql_kind, location, ext.origin.line
-        );
+        println!("── {:?} [{:?}] @ {} L{} ──", ext.origin.method, ext.sql_kind, location, ext.origin.line);
         println!("{}", ext.sql.trim());
         if ext.is_concatenated {
             println!("  [concatenated]");
@@ -5067,16 +5097,8 @@ fn print_java_text(result: &ogsql_parser::java::JavaExtractResult, file_path: &s
             println!("  [params: {:?}]", ext.parameter_style);
         }
         if let Some(parse_result) = &ext.parse_result {
-            let warnings: Vec<_> = parse_result
-                .errors
-                .iter()
-                .filter(|e| is_warning(e))
-                .collect();
-            let real_errors: Vec<_> = parse_result
-                .errors
-                .iter()
-                .filter(|e| !is_warning(e))
-                .collect();
+            let warnings: Vec<_> = parse_result.errors.iter().filter(|e| is_warning(e)).collect();
+            let real_errors: Vec<_> = parse_result.errors.iter().filter(|e| !is_warning(e)).collect();
             if !real_errors.is_empty() {
                 eprintln!("  {} parse error(s):", real_errors.len());
                 for e in &real_errors {
@@ -5093,22 +5115,14 @@ fn print_java_text(result: &ogsql_parser::java::JavaExtractResult, file_path: &s
                 println!(
                     "  ✓ Parsed successfully ({} statement(s)){}",
                     parse_result.statements.len(),
-                    if warnings.is_empty() {
-                        ""
-                    } else {
-                        " (with warnings)"
-                    }
+                    if warnings.is_empty() { "" } else { " (with warnings)" }
                 );
             }
         }
         println!();
     }
 
-    println!(
-        "Total: {} extraction(s) from {}",
-        result.extractions.len(),
-        file_path
-    );
+    println!("Total: {} extraction(s) from {}", result.extractions.len(), file_path);
 }
 
 fn csv_escape(s: &str) -> String {
@@ -5134,9 +5148,7 @@ fn extract_variables(sql: &str) -> String {
         let mut found = false;
         for prefix in &prefixes {
             let prefix_bytes = prefix.as_bytes();
-            if i + prefix_bytes.len() + 2 <= len
-                && &bytes[i..i + prefix_bytes.len()] == prefix_bytes
-            {
+            if i + prefix_bytes.len() + 2 <= len && &bytes[i..i + prefix_bytes.len()] == prefix_bytes {
                 let content_start = i + prefix_bytes.len();
                 let mut end = content_start;
                 while end + 1 < len && !(bytes[end] == b'_' && bytes[end + 1] == b'_') {
@@ -5164,11 +5176,7 @@ fn output_csv_xml_header() {
 }
 
 #[cfg(feature = "ibatis")]
-fn output_csv_xml_rows(
-    statements: &[ogsql_parser::ibatis::ParsedStatement],
-    file_name: &str,
-    rel_dir: &str,
-) {
+fn output_csv_xml_rows(statements: &[ogsql_parser::ibatis::ParsedStatement], file_name: &str, rel_dir: &str) {
     for stmt in statements {
         let (errors, warnings) = match &stmt.parse_result {
             Some((_, parse_errors)) => {
@@ -5210,11 +5218,7 @@ fn output_csv_java_header() {
 }
 
 #[cfg(feature = "java")]
-fn output_csv_java_rows(
-    extractions: &[ogsql_parser::java::ExtractedSql],
-    file_name: &str,
-    rel_dir: &str,
-) {
+fn output_csv_java_rows(extractions: &[ogsql_parser::java::ExtractedSql], file_name: &str, rel_dir: &str) {
     for ext in extractions {
         let method = match (&ext.origin.class_name, &ext.origin.method_name) {
             (Some(cls), Some(m)) => format!("{}::{}", cls, m),
@@ -5337,9 +5341,12 @@ fn stmt_category(stmt: &Statement) -> &'static str {
         Rule(_) | DropRule(_) => "RULE",
         CreateCast(_) | CreateConversion(_) => "CAST/CONVERSION",
         CreateOpClass(_) | CreateOpFamily(_) | AlterOpFamily(_) => "OPERATOR CLASS",
-        CreateTextSearchConfig(_) | CreateTextSearchDict(_)
-            | AlterTextSearchConfig(_) | AlterTextSearchDict(_)
-            | AlterTextSearchConfigFull(_) | AlterTextSearchDictFull(_) => "TEXT SEARCH",
+        CreateTextSearchConfig(_)
+        | CreateTextSearchDict(_)
+        | AlterTextSearchConfig(_)
+        | AlterTextSearchDict(_)
+        | AlterTextSearchConfigFull(_)
+        | AlterTextSearchDictFull(_) => "TEXT SEARCH",
         CreateUserMapping(_) | AlterUserMapping(_) | DropUserMapping(_) => "USER MAPPING",
         AlterDefaultPrivileges(_) => "ALTER DEFAULT PRIVILEGES",
         AlterCompositeType(_) => "ALTER TYPE",
@@ -5350,8 +5357,9 @@ fn stmt_category(stmt: &Statement) -> &'static str {
         AlterSession(_) => "ALTER SESSION",
         AlterSystemKillSession(_) => "ALTER SYSTEM KILL",
         AlterGlobalConfig(_) => "ALTER GLOBAL CONFIG",
-        DropWeakPasswordDictionary | CreateWeakPasswordDictionary
-            | CreateWeakPasswordDictionaryWithValues(_) => "WEAK PASSWORD DICT",
+        DropWeakPasswordDictionary | CreateWeakPasswordDictionary | CreateWeakPasswordDictionaryWithValues(_) => {
+            "WEAK PASSWORD DICT"
+        }
         CreatePolicyLabel(_) | AlterPolicyLabel(_) | DropPolicyLabel(_) => "POLICY LABEL",
         CreateContQuery(_) => "CONTINUOUS QUERY",
         CreateStream(_) => "STREAM",
@@ -5407,11 +5415,7 @@ fn print_parse_stats(
     let total_warnings: usize = warning_counts.values().map(|(c, _)| c).sum();
 
     stats_bar("");
-    let title = if extra_title.is_empty() {
-        "Summary".to_string()
-    } else {
-        format!("Summary / {}", extra_title)
-    };
+    let title = if extra_title.is_empty() { "Summary".to_string() } else { format!("Summary / {}", extra_title) };
     stats_bar(&title);
     stats_bar("");
 
@@ -5524,29 +5528,25 @@ fn main() {
                 let listener = tokio::net::TcpListener::bind(&addr)
                     .await
                     .unwrap_or_else(|e| die!("Failed to bind {}: {}", addr, e));
-                axum::serve(listener, api::router())
-                    .await
-                    .unwrap_or_else(|e| die!("Server error: {}", e));
+                axum::serve(listener, api::router()).await.unwrap_or_else(|e| die!("Server error: {}", e));
             });
         }
         #[cfg(feature = "tui")]
         Commands::Playground => cmd_playground(),
         #[cfg(feature = "ibatis")]
         #[cfg(not(feature = "java"))]
-        Commands::ParseXml { ref dir, csv, stats, structured } => cmd_parse_xml(&cli, dir.as_deref(), csv, None, stats, structured),
+        Commands::ParseXml { ref dir, csv, stats, structured } => {
+            cmd_parse_xml(&cli, dir.as_deref(), csv, None, stats, structured)
+        }
         #[cfg(feature = "ibatis")]
         #[cfg(feature = "java")]
         Commands::ParseXml { ref dir, csv, ref java_src, stats, structured } => {
             cmd_parse_xml(&cli, dir.as_deref(), csv, java_src.as_deref(), stats, structured)
         }
         #[cfg(feature = "java")]
-        Commands::ParseJava {
-            ref extra_sql_methods,
-            ref extra_sql_var_patterns,
-            ref dir,
-            csv,
-            stats,
-        } => cmd_parse_java(&cli, extra_sql_methods, extra_sql_var_patterns, dir.as_deref(), csv, stats),
+        Commands::ParseJava { ref extra_sql_methods, ref extra_sql_var_patterns, ref dir, csv, stats } => {
+            cmd_parse_java(&cli, extra_sql_methods, extra_sql_var_patterns, dir.as_deref(), csv, stats)
+        }
     }
 }
 
@@ -5606,16 +5606,7 @@ fn collect_block_vars(
 }
 
 fn sanitize_type_for_placeholder(t: &str) -> String {
-    let mut s: String = t
-        .chars()
-        .map(|c| {
-            if c.is_ascii_alphanumeric() || c == '_' {
-                c
-            } else {
-                '_'
-            }
-        })
-        .collect();
+    let mut s: String = t.chars().map(|c| if c.is_ascii_alphanumeric() || c == '_' { c } else { '_' }).collect();
     // Collapse consecutive underscores
     while s.contains("__") {
         s = s.replace("__", "_");
@@ -5722,34 +5713,23 @@ mod tests {
     use super::*;
 
     fn make_vars(vars: &[(&str, Option<&str>)]) -> std::collections::HashMap<String, Option<String>> {
-        vars.iter()
-            .map(|(k, v)| (k.to_ascii_lowercase(), v.map(|s| s.to_string())))
-            .collect()
+        vars.iter().map(|(k, v)| (k.to_ascii_lowercase(), v.map(|s| s.to_string()))).collect()
     }
 
     #[test]
     fn test_single_var_in_where() {
         let vars = make_vars(&[("p_account_id", Some("INTEGER"))]);
         assert_eq!(
-            replace_pl_vars_in_sql(
-                "UPDATE accounts SET frozen_flag = 'Y' WHERE account_id = p_account_id",
-                &vars,
-            ),
+            replace_pl_vars_in_sql("UPDATE accounts SET frozen_flag = 'Y' WHERE account_id = p_account_id", &vars,),
             "UPDATE accounts SET frozen_flag = 'Y' WHERE account_id = __SQL_PARAM_INTEGER_p_account_id__",
         );
     }
 
     #[test]
     fn test_multiple_vars() {
-        let vars = make_vars(&[
-            ("p_name", Some("VARCHAR")),
-            ("p_age", Some("INTEGER")),
-        ]);
+        let vars = make_vars(&[("p_name", Some("VARCHAR")), ("p_age", Some("INTEGER"))]);
         assert_eq!(
-            replace_pl_vars_in_sql(
-                "SELECT * FROM users WHERE name = p_name AND age = p_age",
-                &vars,
-            ),
+            replace_pl_vars_in_sql("SELECT * FROM users WHERE name = p_name AND age = p_age", &vars,),
             "SELECT * FROM users WHERE name = __SQL_PARAM_VARCHAR_p_name__ AND age = __SQL_PARAM_INTEGER_p_age__",
         );
     }
@@ -5765,15 +5745,9 @@ mod tests {
 
     #[test]
     fn test_mixed_typed_and_untyped() {
-        let vars = make_vars(&[
-            ("p_id", Some("INT")),
-            ("v_count", None),
-        ]);
+        let vars = make_vars(&[("p_id", Some("INT")), ("v_count", None)]);
         assert_eq!(
-            replace_pl_vars_in_sql(
-                "SELECT * FROM t WHERE id = p_id AND cnt > v_count",
-                &vars,
-            ),
+            replace_pl_vars_in_sql("SELECT * FROM t WHERE id = p_id AND cnt > v_count", &vars,),
             "SELECT * FROM t WHERE id = __SQL_PARAM_INT_p_id__ AND cnt > __SQL_PARAM_v_count__",
         );
     }
@@ -5782,10 +5756,7 @@ mod tests {
     fn test_case_insensitive_var_match() {
         let vars = make_vars(&[("P_ACCOUNT_ID", Some("INTEGER"))]);
         assert_eq!(
-            replace_pl_vars_in_sql(
-                "WHERE account_id = p_account_id",
-                &vars,
-            ),
+            replace_pl_vars_in_sql("WHERE account_id = p_account_id", &vars,),
             "WHERE account_id = __SQL_PARAM_INTEGER_p_account_id__",
         );
     }
@@ -5793,20 +5764,14 @@ mod tests {
     #[test]
     fn test_uppercase_var_in_sql() {
         let vars = make_vars(&[("p_id", Some("INT"))]);
-        assert_eq!(
-            replace_pl_vars_in_sql("WHERE id = P_ID", &vars),
-            "WHERE id = __SQL_PARAM_INT_P_ID__",
-        );
+        assert_eq!(replace_pl_vars_in_sql("WHERE id = P_ID", &vars), "WHERE id = __SQL_PARAM_INT_P_ID__",);
     }
 
     #[test]
     fn test_var_in_single_quote_string_not_replaced() {
         let vars = make_vars(&[("p_name", Some("VARCHAR"))]);
         assert_eq!(
-            replace_pl_vars_in_sql(
-                "INSERT INTO logs (msg) VALUES ('p_name was here')",
-                &vars,
-            ),
+            replace_pl_vars_in_sql("INSERT INTO logs (msg) VALUES ('p_name was here')", &vars,),
             "INSERT INTO logs (msg) VALUES ('p_name was here')",
         );
     }
@@ -5815,10 +5780,7 @@ mod tests {
     fn test_var_adjacent_to_string_literal() {
         let vars = make_vars(&[("p_status", Some("VARCHAR"))]);
         assert_eq!(
-            replace_pl_vars_in_sql(
-                "SELECT * FROM t WHERE status = p_status AND msg = 'active'",
-                &vars,
-            ),
+            replace_pl_vars_in_sql("SELECT * FROM t WHERE status = p_status AND msg = 'active'", &vars,),
             "SELECT * FROM t WHERE status = __SQL_PARAM_VARCHAR_p_status__ AND msg = 'active'",
         );
     }
@@ -5827,10 +5789,7 @@ mod tests {
     fn test_escaped_quote_in_string() {
         let vars = make_vars(&[("p_val", Some("TEXT"))]);
         assert_eq!(
-            replace_pl_vars_in_sql(
-                "SELECT * FROM t WHERE name = 'it''s p_val' AND val = p_val",
-                &vars,
-            ),
+            replace_pl_vars_in_sql("SELECT * FROM t WHERE name = 'it''s p_val' AND val = p_val", &vars,),
             "SELECT * FROM t WHERE name = 'it''s p_val' AND val = __SQL_PARAM_TEXT_p_val__",
         );
     }
@@ -5839,10 +5798,7 @@ mod tests {
     fn test_var_in_double_quote_not_replaced() {
         let vars = make_vars(&[("p_id", Some("INT"))]);
         assert_eq!(
-            replace_pl_vars_in_sql(
-                "SELECT \"p_id\" FROM t WHERE id = p_id",
-                &vars,
-            ),
+            replace_pl_vars_in_sql("SELECT \"p_id\" FROM t WHERE id = p_id", &vars,),
             "SELECT \"p_id\" FROM t WHERE id = __SQL_PARAM_INT_p_id__",
         );
     }
@@ -5851,10 +5807,7 @@ mod tests {
     fn test_var_as_substring_of_column_not_replaced() {
         let vars = make_vars(&[("p_id", Some("INT"))]);
         assert_eq!(
-            replace_pl_vars_in_sql(
-                "SELECT * FROM t WHERE p_id_extra = 1 AND id = p_id",
-                &vars,
-            ),
+            replace_pl_vars_in_sql("SELECT * FROM t WHERE p_id_extra = 1 AND id = p_id", &vars,),
             "SELECT * FROM t WHERE p_id_extra = 1 AND id = __SQL_PARAM_INT_p_id__",
         );
     }
@@ -5872,10 +5825,7 @@ mod tests {
     fn test_column_name_same_pattern_preserved() {
         let vars = make_vars(&[("p_id", Some("INT"))]);
         assert_eq!(
-            replace_pl_vars_in_sql(
-                "SELECT account_id FROM accounts WHERE account_id = p_id",
-                &vars,
-            ),
+            replace_pl_vars_in_sql("SELECT account_id FROM accounts WHERE account_id = p_id", &vars,),
             "SELECT account_id FROM accounts WHERE account_id = __SQL_PARAM_INT_p_id__",
         );
     }
@@ -5883,10 +5833,7 @@ mod tests {
     #[test]
     fn test_no_vars_no_change() {
         let vars = make_vars(&[]);
-        assert_eq!(
-            replace_pl_vars_in_sql("SELECT * FROM t WHERE id = 1", &vars),
-            "SELECT * FROM t WHERE id = 1",
-        );
+        assert_eq!(replace_pl_vars_in_sql("SELECT * FROM t WHERE id = 1", &vars), "SELECT * FROM t WHERE id = 1",);
     }
 
     #[test]
@@ -5898,35 +5845,23 @@ mod tests {
     #[test]
     fn test_unrelated_vars_not_touched() {
         let vars = make_vars(&[("v_x", Some("INT"))]);
-        assert_eq!(
-            replace_pl_vars_in_sql("SELECT * FROM t WHERE id = v_y", &vars),
-            "SELECT * FROM t WHERE id = v_y",
-        );
+        assert_eq!(replace_pl_vars_in_sql("SELECT * FROM t WHERE id = v_y", &vars), "SELECT * FROM t WHERE id = v_y",);
     }
 
     #[test]
     fn test_underscore_var_name() {
         let vars = make_vars(&[("v_total_count", Some("BIGINT"))]);
         assert_eq!(
-            replace_pl_vars_in_sql(
-                "SELECT * FROM t WHERE cnt = v_total_count",
-                &vars,
-            ),
+            replace_pl_vars_in_sql("SELECT * FROM t WHERE cnt = v_total_count", &vars,),
             "SELECT * FROM t WHERE cnt = __SQL_PARAM_BIGINT_v_total_count__",
         );
     }
 
     #[test]
     fn test_var_in_set_clause() {
-        let vars = make_vars(&[
-            ("p_flag", Some("CHAR")),
-            ("p_id", Some("INTEGER")),
-        ]);
+        let vars = make_vars(&[("p_flag", Some("CHAR")), ("p_id", Some("INTEGER"))]);
         assert_eq!(
-            replace_pl_vars_in_sql(
-                "UPDATE t SET flag = p_flag WHERE id = p_id",
-                &vars,
-            ),
+            replace_pl_vars_in_sql("UPDATE t SET flag = p_flag WHERE id = p_id", &vars,),
             "UPDATE t SET flag = __SQL_PARAM_CHAR_p_flag__ WHERE id = __SQL_PARAM_INTEGER_p_id__",
         );
     }
@@ -5935,10 +5870,7 @@ mod tests {
     fn test_var_as_function_arg() {
         let vars = make_vars(&[("p_limit", Some("INTEGER"))]);
         assert_eq!(
-            replace_pl_vars_in_sql(
-                "SELECT * FROM t LIMIT p_limit",
-                &vars,
-            ),
+            replace_pl_vars_in_sql("SELECT * FROM t LIMIT p_limit", &vars,),
             "SELECT * FROM t LIMIT __SQL_PARAM_INTEGER_p_limit__",
         );
     }
@@ -5984,10 +5916,7 @@ mod tests {
     #[test]
     fn test_replace_pl_vars_raw_no_type() {
         let vars = make_vars(&[("v_sql", None)]);
-        assert_eq!(
-            replace_pl_vars_in_sql_raw("v_sql", &vars),
-            "__SQL_RAW_v_sql__",
-        );
+        assert_eq!(replace_pl_vars_in_sql_raw("v_sql", &vars), "__SQL_RAW_v_sql__",);
     }
 
     #[test]

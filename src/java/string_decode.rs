@@ -20,9 +20,7 @@ impl<'a> ExtractContext<'a> {
     }
 
     pub(super) fn decode_text_block(&self, raw: &str) -> String {
-        let inner = raw
-            .strip_prefix("\"\"\"")
-            .and_then(|s| s.strip_suffix("\"\"\""));
+        let inner = raw.strip_prefix("\"\"\"").and_then(|s| s.strip_suffix("\"\"\""));
         let inner = match inner {
             Some(s) => s,
             None => return raw.to_string(),
@@ -33,11 +31,7 @@ impl<'a> ExtractContext<'a> {
             return String::new();
         }
 
-        let start = if lines.first().map(|l| l.trim().is_empty()).unwrap_or(false) {
-            1
-        } else {
-            0
-        };
+        let start = if lines.first().map(|l| l.trim().is_empty()).unwrap_or(false) { 1 } else { 0 };
 
         let effective_lines = &lines[start..];
         let min_indent = effective_lines
@@ -49,13 +43,7 @@ impl<'a> ExtractContext<'a> {
 
         let result: Vec<String> = effective_lines
             .iter()
-            .map(|l| {
-                if l.len() >= min_indent {
-                    l[min_indent..].to_string()
-                } else {
-                    l.trim_end().to_string()
-                }
-            })
+            .map(|l| if l.len() >= min_indent { l[min_indent..].to_string() } else { l.trim_end().to_string() })
             .collect();
 
         let mut joined = result.join("\n");
