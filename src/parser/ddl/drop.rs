@@ -432,13 +432,7 @@ impl Parser {
         let cascade = self.try_consume_keyword(Keyword::CASCADE);
         let _ = self.try_consume_keyword(Keyword::RESTRICT);
         let purge = self.try_consume_keyword(Keyword::PURGE);
-        Ok(DropStatement {
-            object_type,
-            if_exists,
-            names,
-            cascade,
-            purge,
-        })
+        Ok(DropStatement { object_type, if_exists, names, cascade, purge })
     }
 
     // ========== CREATE INDEX ==========

@@ -65,11 +65,7 @@ fn test_parse_statements_count() {
 #[test]
 fn test_parse_select_statement() {
     let mapper = parse_simple_mapper();
-    let select = mapper
-        .statements
-        .iter()
-        .find(|s| s.id == "findById")
-        .unwrap();
+    let select = mapper.statements.iter().find(|s| s.id == "findById").unwrap();
     assert_eq!(select.kind, StatementKind::Select);
     assert_eq!(select.parameter_type.as_deref(), Some("int"));
     assert_eq!(select.result_type.as_deref(), Some("User"));
@@ -78,11 +74,7 @@ fn test_parse_select_statement() {
 #[test]
 fn test_parse_insert_statement() {
     let mapper = parse_simple_mapper();
-    let insert = mapper
-        .statements
-        .iter()
-        .find(|s| s.id == "insertUser")
-        .unwrap();
+    let insert = mapper.statements.iter().find(|s| s.id == "insertUser").unwrap();
     assert_eq!(insert.kind, StatementKind::Insert);
     assert_eq!(insert.parameter_type.as_deref(), Some("User"));
 }
@@ -90,17 +82,9 @@ fn test_parse_insert_statement() {
 #[test]
 fn test_parse_update_and_delete() {
     let mapper = parse_simple_mapper();
-    let update = mapper
-        .statements
-        .iter()
-        .find(|s| s.id == "updateName")
-        .unwrap();
+    let update = mapper.statements.iter().find(|s| s.id == "updateName").unwrap();
     assert_eq!(update.kind, StatementKind::Update);
-    let delete = mapper
-        .statements
-        .iter()
-        .find(|s| s.id == "deleteById")
-        .unwrap();
+    let delete = mapper.statements.iter().find(|s| s.id == "deleteById").unwrap();
     assert_eq!(delete.kind, StatementKind::Delete);
 }
 
@@ -168,10 +152,7 @@ fn node_text(node: &SqlNode) -> String {
             None => format!("${{{}}}", expr),
         },
         SqlNode::If { children, .. } => children.iter().map(node_text).collect(),
-        SqlNode::Choose { branches } => branches
-            .iter()
-            .flat_map(|(_, ch)| ch.iter().map(node_text))
-            .collect(),
+        SqlNode::Choose { branches } => branches.iter().flat_map(|(_, ch)| ch.iter().map(node_text)).collect(),
         SqlNode::Where { children } => children.iter().map(node_text).collect(),
         SqlNode::Set { children } => children.iter().map(node_text).collect(),
         SqlNode::Trim { children, .. } => children.iter().map(node_text).collect(),
@@ -188,16 +169,9 @@ fn test_include_parsed_as_node() {
         <select id="findAll">SELECT <include refid="cols"/> FROM users</select>
     </mapper>"#;
     let mapper = crate::ibatis::parser::parse_xml(xml).unwrap();
-    let stmt = mapper
-        .statements
-        .iter()
-        .find(|s| s.id == "findAll")
-        .unwrap();
+    let stmt = mapper.statements.iter().find(|s| s.id == "findAll").unwrap();
     if let SqlNode::Sequence { children } = &stmt.body {
-        let include_nodes: Vec<_> = children
-            .iter()
-            .filter(|n| matches!(n, SqlNode::Include { .. }))
-            .collect();
+        let include_nodes: Vec<_> = children.iter().filter(|n| matches!(n, SqlNode::Include { .. })).collect();
         assert_eq!(include_nodes.len(), 1, "expected exactly one Include node");
         if let SqlNode::Include { refid } = include_nodes[0] {
             assert_eq!(refid, "cols");
@@ -217,11 +191,7 @@ fn test_include_resolved_structurally() {
     </mapper>"#;
     let mapper = crate::ibatis::parser::parse_xml(xml).unwrap();
     let resolved = crate::ibatis::resolver::resolve_includes(&mapper).unwrap();
-    let stmt = resolved
-        .statements
-        .iter()
-        .find(|s| s.id == "findAll")
-        .unwrap();
+    let stmt = resolved.statements.iter().find(|s| s.id == "findAll").unwrap();
     let content = node_text(&stmt.body);
     assert!(content.contains("id, name"), "got: {}", content);
     assert!(!content.contains("<include"), "raw include text should not remain, got: {}", content);
@@ -237,11 +207,7 @@ fn test_include_resolution_basic() {
     </mapper>"#;
     let mapper = crate::ibatis::parser::parse_xml(xml).unwrap();
     let resolved = crate::ibatis::resolver::resolve_includes(&mapper).unwrap();
-    let stmt = resolved
-        .statements
-        .iter()
-        .find(|s| s.id == "findAll")
-        .unwrap();
+    let stmt = resolved.statements.iter().find(|s| s.id == "findAll").unwrap();
     let content = node_text(&stmt.body);
     assert!(content.contains("id, name, email"), "got: {}", content);
     assert!(content.contains("SELECT"));
@@ -259,11 +225,7 @@ fn test_include_resolution_chained() {
     let resolved = crate::ibatis::resolver::resolve_includes(&mapper).unwrap();
     let stmt = &resolved.statements[0];
     let content = node_text(&stmt.body);
-    assert!(
-        content.contains("users"),
-        "chained include should expand, got: {}",
-        content
-    );
+    assert!(content.contains("users"), "chained include should expand, got: {}", content);
 }
 
 #[test]
@@ -378,11 +340,7 @@ fn test_e2e_dollar_param_with_java_type() {
     </mapper>"#;
     let result = super::parse_mapper_bytes(xml);
     let stmt = &result.statements[0];
-    assert!(
-        stmt.flat_sql.contains("__XML_RAW_STRING_column__"),
-        "got: {}",
-        stmt.flat_sql
-    );
+    assert!(stmt.flat_sql.contains("__XML_RAW_STRING_column__"), "got: {}", stmt.flat_sql);
 }
 
 #[test]
@@ -392,11 +350,7 @@ fn test_e2e_dollar_param_with_jdbc_type() {
     </mapper>"#;
     let result = super::parse_mapper_bytes(xml);
     let stmt = &result.statements[0];
-    assert!(
-        stmt.flat_sql.contains("__XML_RAW_VARCHAR_col__"),
-        "got: {}",
-        stmt.flat_sql
-    );
+    assert!(stmt.flat_sql.contains("__XML_RAW_VARCHAR_col__"), "got: {}", stmt.flat_sql);
 }
 
 #[test]
@@ -404,10 +358,7 @@ fn test_e2e_empty_mapper() {
     let xml = br#"<mapper namespace="empty"></mapper>"#;
     let result = super::parse_mapper_bytes(xml);
     assert!(result.statements.is_empty());
-    assert!(result
-        .errors
-        .iter()
-        .any(|e| matches!(e, IbatisError::EmptyMapper)));
+    assert!(result.errors.iter().any(|e| matches!(e, IbatisError::EmptyMapper)));
 }
 
 #[test]
@@ -443,11 +394,7 @@ fn test_dynamic_if() {
     assert!(result.errors.is_empty(), "errors: {:?}", result.errors);
     let stmt = &result.statements[0];
     assert!(stmt.flat_sql.contains("SELECT * FROM users"));
-    assert!(
-        stmt.flat_sql.contains("WHERE"),
-        "should have WHERE, got: {}",
-        stmt.flat_sql
-    );
+    assert!(stmt.flat_sql.contains("WHERE"), "should have WHERE, got: {}", stmt.flat_sql);
     assert!(stmt.has_dynamic_elements);
 }
 
@@ -532,11 +479,7 @@ fn test_dynamic_trim_custom() {
     let result = super::parse_mapper_bytes(xml);
     let sql = &result.statements[0].flat_sql;
     assert!(sql.contains("WHERE"), "should have WHERE, got: {}", sql);
-    assert!(
-        !sql.contains("WHERE AND"),
-        "prefix override should strip AND, got: {}",
-        sql
-    );
+    assert!(!sql.contains("WHERE AND"), "prefix override should strip AND, got: {}", sql);
 }
 
 #[test]
@@ -663,11 +606,7 @@ public interface UserMapper {
         <select id="findByName">SELECT * FROM users WHERE name = #{name}</select>
     </mapper>"#;
 
-    let result = crate::ibatis::parse_mapper_bytes_with_java_src(
-        xml,
-        None,
-        vec![tmp_dir.clone()],
-    );
+    let result = crate::ibatis::parse_mapper_bytes_with_java_src(xml, None, vec![tmp_dir.clone()]);
 
     assert_eq!(result.statements.len(), 2);
 
@@ -863,16 +802,12 @@ fn test_structured_preserves_if_tree() {
     assert!(where_node.is_some(), "expected a Where node");
 
     if let SqlNode::Where { children: where_children } = where_node.unwrap() {
-        let if_nodes: Vec<_> = where_children.iter()
-            .filter(|n| matches!(n, SqlNode::If { .. }))
-            .collect();
+        let if_nodes: Vec<_> = where_children.iter().filter(|n| matches!(n, SqlNode::If { .. })).collect();
         assert_eq!(if_nodes.len(), 2, "expected two If nodes inside Where");
 
         if let SqlNode::If { test, children: if_children, .. } = if_nodes[0] {
             assert_eq!(test, "name != null");
-            let params: Vec<_> = if_children.iter()
-                .filter(|n| matches!(n, SqlNode::Parameter { .. }))
-                .collect();
+            let params: Vec<_> = if_children.iter().filter(|n| matches!(n, SqlNode::Parameter { .. })).collect();
             assert_eq!(params.len(), 1);
             if let SqlNode::Parameter { name, .. } = params[0] {
                 assert_eq!(name, "name");
@@ -908,9 +843,7 @@ fn test_structured_preserves_foreach_tree() {
         assert_eq!(open.as_deref(), Some("("));
         assert_eq!(separator.as_deref(), Some(","));
         assert_eq!(close.as_deref(), Some(")"));
-        let params: Vec<_> = children.iter()
-            .filter(|n| matches!(n, SqlNode::Parameter { .. }))
-            .collect();
+        let params: Vec<_> = children.iter().filter(|n| matches!(n, SqlNode::Parameter { .. })).collect();
         assert_eq!(params.len(), 1);
     }
 }
@@ -961,9 +894,7 @@ fn test_structured_preserves_trim_tree() {
     if let SqlNode::Trim { prefix, prefix_overrides, children, .. } = trim.unwrap() {
         assert_eq!(prefix.as_deref(), Some("WHERE"));
         assert_eq!(prefix_overrides.as_deref(), Some("AND |OR "));
-        let if_nodes: Vec<_> = children.iter()
-            .filter(|n| matches!(n, SqlNode::If { .. }))
-            .collect();
+        let if_nodes: Vec<_> = children.iter().filter(|n| matches!(n, SqlNode::If { .. })).collect();
         assert_eq!(if_nodes.len(), 1, "trim should have one If child");
     }
 }
@@ -988,9 +919,7 @@ fn test_structured_preserves_set_tree() {
     assert!(set.is_some());
 
     if let SqlNode::Set { children } = set.unwrap() {
-        let if_nodes: Vec<_> = children.iter()
-            .filter(|n| matches!(n, SqlNode::If { .. }))
-            .collect();
+        let if_nodes: Vec<_> = children.iter().filter(|n| matches!(n, SqlNode::If { .. })).collect();
         assert_eq!(if_nodes.len(), 2);
     }
 }
@@ -1126,9 +1055,7 @@ fn test_structured_nested_if_inside_foreach() {
     assert!(foreach.is_some(), "should have ForEach node");
 
     if let SqlNode::ForEach { children, .. } = foreach.unwrap() {
-        let inner_if: Vec<_> = children.iter()
-            .filter(|n| matches!(n, SqlNode::If { .. }))
-            .collect();
+        let inner_if: Vec<_> = children.iter().filter(|n| matches!(n, SqlNode::If { .. })).collect();
         assert_eq!(inner_if.len(), 1, "ForEach should contain one inner If");
         if let SqlNode::If { test, .. } = inner_if[0] {
             assert_eq!(test, "id != null");
@@ -1503,14 +1430,16 @@ fn test_expand_params_per_variant() {
     let result = super::parse_mapper_bytes_structured(xml);
     let variants = result.statements[0].expand_variants(&default_expand_config());
 
-    let both = variants.iter().find(|v| v.branch_path.iter().all(|s| {
-        matches!(s, BranchStep::If { included: true, .. })
-    })).unwrap();
+    let both = variants
+        .iter()
+        .find(|v| v.branch_path.iter().all(|s| matches!(s, BranchStep::If { included: true, .. })))
+        .unwrap();
     assert_eq!(both.parameters.len(), 2);
 
-    let neither = variants.iter().find(|v| v.branch_path.iter().all(|s| {
-        matches!(s, BranchStep::If { included: false, .. })
-    })).unwrap();
+    let neither = variants
+        .iter()
+        .find(|v| v.branch_path.iter().all(|s| matches!(s, BranchStep::If { included: false, .. })))
+        .unwrap();
     assert_eq!(neither.parameters.len(), 0);
 }
 
@@ -1612,9 +1541,12 @@ fn test_expand_nested_if_foreach() {
     let config = ExpandConfig { foreach_sizes: vec![2], ..default_expand_config() };
     let variants = result.statements[0].expand_variants(&config);
 
-    let included = variants.iter().find(|v| v.branch_path.iter().any(|s| {
-        matches!(s, BranchStep::If { test, included: true } if test == "ids != null")
-    })).unwrap();
+    let included = variants
+        .iter()
+        .find(|v| {
+            v.branch_path.iter().any(|s| matches!(s, BranchStep::If { test, included: true } if test == "ids != null"))
+        })
+        .unwrap();
     assert!(included.sql.contains("("), "got: {}", included.sql);
     assert!(included.sql.contains(","), "foreach size=2 should have separator, got: {}", included.sql);
 }
@@ -1692,9 +1624,10 @@ fn test_expand_parse_results_empty_variant_has_none() {
     let variants = result.statements[0].expand_variants(&config);
 
     // The excluded variant has empty SQL → parse_result should be None
-    let excluded = variants.iter().find(|v| {
-        v.branch_path.iter().any(|s| matches!(s, BranchStep::If { included: false, .. }))
-    }).unwrap();
+    let excluded = variants
+        .iter()
+        .find(|v| v.branch_path.iter().any(|s| matches!(s, BranchStep::If { included: false, .. })))
+        .unwrap();
     assert!(excluded.sql.trim().is_empty());
     assert!(excluded.parse_result.is_none(), "empty SQL should not generate parse_result");
 }

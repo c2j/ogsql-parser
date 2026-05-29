@@ -159,11 +159,15 @@ pub enum RegistryError {
     InvalidJson(#[from] serde_json::Error),
 }
 
+impl Default for FunctionRegistry {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl FunctionRegistry {
     pub fn new() -> Self {
-        FunctionRegistry {
-            extensions: HashMap::new(),
-        }
+        FunctionRegistry { extensions: HashMap::new() }
     }
 
     /// Load extension entries from a JSON string (array of `FuncMetaOwned`).
@@ -209,7 +213,7 @@ impl FunctionRegistry {
                     if arg_count > 0 {
                         warnings.push(ParserError::Warning {
                             message: format!("function {} takes no arguments", display_name),
-                            location: location.clone(),
+                            location,
                         });
                     }
                 }
@@ -220,7 +224,7 @@ impl FunctionRegistry {
                                 "function {} requires exactly {} argument(s)",
                                 display_name, meta.min_args
                             ),
-                            location: location.clone(),
+                            location,
                         });
                     }
                 }
@@ -231,16 +235,13 @@ impl FunctionRegistry {
                                 "function {} requires at least {} argument(s)",
                                 display_name, meta.min_args
                             ),
-                            location: location.clone(),
+                            location,
                         });
                     }
                     if arg_count > max as usize {
                         warnings.push(ParserError::Warning {
-                            message: format!(
-                                "function {} takes at most {} argument(s)",
-                                display_name, max
-                            ),
-                            location: location.clone(),
+                            message: format!("function {} takes at most {} argument(s)", display_name, max),
+                            location,
                         });
                     }
                 }
@@ -251,7 +252,7 @@ impl FunctionRegistry {
                                 "function {} requires at least {} argument(s)",
                                 display_name, meta.min_args
                             ),
-                            location: location.clone(),
+                            location,
                         });
                     }
                 }
@@ -261,7 +262,7 @@ impl FunctionRegistry {
         if has_distinct && !meta.supports_distinct {
             warnings.push(ParserError::Warning {
                 message: format!("DISTINCT is not supported for function {}", display_name),
-                location: location.clone(),
+                location,
             });
         }
 
@@ -327,3961 +328,477 @@ macro_rules! fop {
 /// Sorted (by lowercase name) array of all registered built-in functions.
 static FUNCTIONS: &[FuncMeta] = &[
     // ── A ───────────────────────────────────────────────────
-
-    f!(
-        "abbrev",
-        FuncCategory::Scalar,
-        FuncDomain::Network,
-        1,
-        Some(1),
-        false
-    ),
-
-    f!(
-        "abs",
-        FuncCategory::Scalar,
-        FuncDomain::Math,
-        1,
-        Some(1),
-        false
-    ),
-
-    f!(
-        "acos",
-        FuncCategory::Scalar,
-        FuncDomain::Math,
-        1,
-        Some(1),
-        false
-    ),
-
-    fo!(
-        "add_months",
-        FuncCategory::Scalar,
-        FuncDomain::OracleCompat,
-        2,
-        Some(2),
-        false
-    ),
-
-    f!(
-        "age",
-        FuncCategory::Scalar,
-        FuncDomain::DateTime,
-        1,
-        Some(2),
-        false
-    ),
-    f!(
-        "area",
-        FuncCategory::Scalar,
-        FuncDomain::Geometric,
-        1,
-        Some(1),
-        false
-    ),
-
-    f!(
-        "array_agg",
-        FuncCategory::Aggregate,
-        FuncDomain::Aggregate,
-        1,
-        Some(1),
-        true
-    ),
-
-    f!(
-        "array_append",
-        FuncCategory::Scalar,
-        FuncDomain::Array,
-        2,
-        Some(2),
-        false
-    ),
-
-    f!(
-        "array_length",
-        FuncCategory::Scalar,
-        FuncDomain::Array,
-        2,
-        Some(2),
-        false
-    ),
-
-    f!(
-        "array_to_json",
-        FuncCategory::Scalar,
-        FuncDomain::Json,
-        1,
-        Some(2),
-        false
-    ),
-
-    f!(
-        "array_to_string",
-        FuncCategory::Scalar,
-        FuncDomain::Array,
-        2,
-        Some(3),
-        false
-    ),
-
-    f!(
-        "ascii",
-        FuncCategory::Scalar,
-        FuncDomain::String,
-        1,
-        Some(1),
-        false
-    ),
-
-    f!(
-        "asin",
-        FuncCategory::Scalar,
-        FuncDomain::Math,
-        1,
-        Some(1),
-        false
-    ),
-
-    f!(
-        "atan",
-        FuncCategory::Scalar,
-        FuncDomain::Math,
-        1,
-        Some(1),
-        false
-    ),
-
-    f!(
-        "atan2",
-        FuncCategory::Scalar,
-        FuncDomain::Math,
-        2,
-        Some(2),
-        false
-    ),
-
-    f!(
-        "avg",
-        FuncCategory::Aggregate,
-        FuncDomain::Aggregate,
-        1,
-        Some(1),
-        true
-    ),
+    f!("abbrev", FuncCategory::Scalar, FuncDomain::Network, 1, Some(1), false),
+    f!("abs", FuncCategory::Scalar, FuncDomain::Math, 1, Some(1), false),
+    f!("acos", FuncCategory::Scalar, FuncDomain::Math, 1, Some(1), false),
+    fo!("add_months", FuncCategory::Scalar, FuncDomain::OracleCompat, 2, Some(2), false),
+    f!("age", FuncCategory::Scalar, FuncDomain::DateTime, 1, Some(2), false),
+    f!("area", FuncCategory::Scalar, FuncDomain::Geometric, 1, Some(1), false),
+    f!("array_agg", FuncCategory::Aggregate, FuncDomain::Aggregate, 1, Some(1), true),
+    f!("array_append", FuncCategory::Scalar, FuncDomain::Array, 2, Some(2), false),
+    f!("array_length", FuncCategory::Scalar, FuncDomain::Array, 2, Some(2), false),
+    f!("array_to_json", FuncCategory::Scalar, FuncDomain::Json, 1, Some(2), false),
+    f!("array_to_string", FuncCategory::Scalar, FuncDomain::Array, 2, Some(3), false),
+    f!("ascii", FuncCategory::Scalar, FuncDomain::String, 1, Some(1), false),
+    f!("asin", FuncCategory::Scalar, FuncDomain::Math, 1, Some(1), false),
+    f!("atan", FuncCategory::Scalar, FuncDomain::Math, 1, Some(1), false),
+    f!("atan2", FuncCategory::Scalar, FuncDomain::Math, 2, Some(2), false),
+    f!("avg", FuncCategory::Aggregate, FuncDomain::Aggregate, 1, Some(1), true),
     // ── B ───────────────────────────────────────────────────
-
-
-    f!(
-        "bit_and",
-        FuncCategory::Aggregate,
-        FuncDomain::Aggregate,
-        1,
-        Some(1),
-        true
-    ),
-
-    f!(
-        "bit_length",
-        FuncCategory::Scalar,
-        FuncDomain::String,
-        1,
-        Some(1),
-        false
-    ),
-
-    f!(
-        "bit_or",
-        FuncCategory::Aggregate,
-        FuncDomain::Aggregate,
-        1,
-        Some(1),
-        true
-    ),
-    f!(
-        "broadcast",
-        FuncCategory::Scalar,
-        FuncDomain::Network,
-        1,
-        Some(1),
-        false
-    ),
-
-    f!(
-        "btrim",
-        FuncCategory::Scalar,
-        FuncDomain::String,
-        1,
-        Some(2),
-        false
-    ),
+    f!("bit_and", FuncCategory::Aggregate, FuncDomain::Aggregate, 1, Some(1), true),
+    f!("bit_length", FuncCategory::Scalar, FuncDomain::String, 1, Some(1), false),
+    f!("bit_or", FuncCategory::Aggregate, FuncDomain::Aggregate, 1, Some(1), true),
+    f!("broadcast", FuncCategory::Scalar, FuncDomain::Network, 1, Some(1), false),
+    f!("btrim", FuncCategory::Scalar, FuncDomain::String, 1, Some(2), false),
     // ── C ───────────────────────────────────────────────────
-
-
-    f!(
-        "cbrt",
-        FuncCategory::Scalar,
-        FuncDomain::Math,
-        1,
-        Some(1),
-        false
-    ),
-
-    f!(
-        "ceil",
-        FuncCategory::Scalar,
-        FuncDomain::Math,
-        1,
-        Some(1),
-        false
-    ),
-
-    f!(
-        "ceiling",
-        FuncCategory::Scalar,
-        FuncDomain::Math,
-        1,
-        Some(1),
-        false
-    ),
-    f!(
-        "center",
-        FuncCategory::Scalar,
-        FuncDomain::Geometric,
-        1,
-        Some(1),
-        false
-    ),
-
-    f!(
-        "char_length",
-        FuncCategory::Scalar,
-        FuncDomain::String,
-        1,
-        Some(1),
-        false
-    ),
-
-    f!(
-        "character_length",
-        FuncCategory::Scalar,
-        FuncDomain::String,
-        1,
-        Some(1),
-        false
-    ),
-
-    f!(
-        "chr",
-        FuncCategory::Scalar,
-        FuncDomain::String,
-        1,
-        Some(1),
-        false
-    ),
-    f!(
-        "circle",
-        FuncCategory::Scalar,
-        FuncDomain::Geometric,
-        1,
-        Some(1),
-        false
-    ),
-
-    f!(
-        "clock_timestamp",
-        FuncCategory::Scalar,
-        FuncDomain::DateTime,
-        0,
-        Some(0),
-        false
-    ),
-
-    f!(
-        "coalesce",
-        FuncCategory::Special,
-        FuncDomain::Other,
-        2,
-        None,
-        false
-    ),
-
-    f!(
-        "col_description",
-        FuncCategory::Scalar,
-        FuncDomain::System,
-        2,
-        Some(3),
-        false
-    ),
-
-    f!(
-        "concat",
-        FuncCategory::Scalar,
-        FuncDomain::String,
-        2,
-        None,
-        false
-    ),
-
-    f!(
-        "concat_ws",
-        FuncCategory::Scalar,
-        FuncDomain::String,
-        2,
-        None,
-        false
-    ),
-
-    f!(
-        "convert",
-        FuncCategory::Scalar,
-        FuncDomain::TypeConversion,
-        2,
-        Some(3),
-        false
-    ),
-    f!(
-        "convert_from",
-        FuncCategory::Scalar,
-        FuncDomain::TypeConversion,
-        2,
-        Some(2),
-        false
-    ),
-    f!(
-        "convert_to",
-        FuncCategory::Scalar,
-        FuncDomain::TypeConversion,
-        2,
-        Some(2),
-        false
-    ),
-
-    f!(
-        "corr",
-        FuncCategory::Aggregate,
-        FuncDomain::Aggregate,
-        2,
-        Some(2),
-        true
-    ),
-
-    f!(
-        "cos",
-        FuncCategory::Scalar,
-        FuncDomain::Math,
-        1,
-        Some(1),
-        false
-    ),
-
-    f!(
-        "cot",
-        FuncCategory::Scalar,
-        FuncDomain::Math,
-        1,
-        Some(1),
-        false
-    ),
-
-    f!(
-        "count",
-        FuncCategory::Aggregate,
-        FuncDomain::Aggregate,
-        1,
-        Some(1),
-        true
-    ),
-
-    f!(
-        "covar_pop",
-        FuncCategory::Aggregate,
-        FuncDomain::Aggregate,
-        2,
-        Some(2),
-        true
-    ),
-
-    f!(
-        "covar_samp",
-        FuncCategory::Aggregate,
-        FuncDomain::Aggregate,
-        2,
-        Some(2),
-        true
-    ),
-
-    f!(
-        "crc32",
-        FuncCategory::Scalar,
-        FuncDomain::Hash,
-        1,
-        Some(2),
-        false
-    ),
-
-    f!(
-        "cume_dist",
-        FuncCategory::Window,
-        FuncDomain::Window,
-        0,
-        Some(0),
-        false
-    ),
-
-    f!(
-        "current_database",
-        FuncCategory::Scalar,
-        FuncDomain::System,
-        0,
-        Some(0),
-        false
-    ),
-
-    f!(
-        "current_date",
-        FuncCategory::Scalar,
-        FuncDomain::DateTime,
-        0,
-        Some(0),
-        false
-    ),
-
-    f!(
-        "current_schema",
-        FuncCategory::Scalar,
-        FuncDomain::System,
-        0,
-        Some(1),
-        false
-    ),
-
-    f!(
-        "current_setting",
-        FuncCategory::Scalar,
-        FuncDomain::System,
-        1,
-        Some(2),
-        false
-    ),
-
-    f!(
-        "current_time",
-        FuncCategory::Scalar,
-        FuncDomain::DateTime,
-        0,
-        Some(1),
-        false
-    ),
-
-    f!(
-        "current_timestamp",
-        FuncCategory::Scalar,
-        FuncDomain::DateTime,
-        0,
-        Some(1),
-        false
-    ),
-
-    f!(
-        "current_user",
-        FuncCategory::Scalar,
-        FuncDomain::System,
-        0,
-        Some(0),
-        false
-    ),
-    f!(
-        "currval",
-        FuncCategory::Scalar,
-        FuncDomain::System,
-        1,
-        Some(2),
-        false
-    ),
+    f!("cbrt", FuncCategory::Scalar, FuncDomain::Math, 1, Some(1), false),
+    f!("ceil", FuncCategory::Scalar, FuncDomain::Math, 1, Some(1), false),
+    f!("ceiling", FuncCategory::Scalar, FuncDomain::Math, 1, Some(1), false),
+    f!("center", FuncCategory::Scalar, FuncDomain::Geometric, 1, Some(1), false),
+    f!("char_length", FuncCategory::Scalar, FuncDomain::String, 1, Some(1), false),
+    f!("character_length", FuncCategory::Scalar, FuncDomain::String, 1, Some(1), false),
+    f!("chr", FuncCategory::Scalar, FuncDomain::String, 1, Some(1), false),
+    f!("circle", FuncCategory::Scalar, FuncDomain::Geometric, 1, Some(1), false),
+    f!("clock_timestamp", FuncCategory::Scalar, FuncDomain::DateTime, 0, Some(0), false),
+    f!("coalesce", FuncCategory::Special, FuncDomain::Other, 2, None, false),
+    f!("col_description", FuncCategory::Scalar, FuncDomain::System, 2, Some(3), false),
+    f!("concat", FuncCategory::Scalar, FuncDomain::String, 2, None, false),
+    f!("concat_ws", FuncCategory::Scalar, FuncDomain::String, 2, None, false),
+    f!("convert", FuncCategory::Scalar, FuncDomain::TypeConversion, 2, Some(3), false),
+    f!("convert_from", FuncCategory::Scalar, FuncDomain::TypeConversion, 2, Some(2), false),
+    f!("convert_to", FuncCategory::Scalar, FuncDomain::TypeConversion, 2, Some(2), false),
+    f!("corr", FuncCategory::Aggregate, FuncDomain::Aggregate, 2, Some(2), true),
+    f!("cos", FuncCategory::Scalar, FuncDomain::Math, 1, Some(1), false),
+    f!("cot", FuncCategory::Scalar, FuncDomain::Math, 1, Some(1), false),
+    f!("count", FuncCategory::Aggregate, FuncDomain::Aggregate, 1, Some(1), true),
+    f!("covar_pop", FuncCategory::Aggregate, FuncDomain::Aggregate, 2, Some(2), true),
+    f!("covar_samp", FuncCategory::Aggregate, FuncDomain::Aggregate, 2, Some(2), true),
+    f!("crc32", FuncCategory::Scalar, FuncDomain::Hash, 1, Some(2), false),
+    f!("cume_dist", FuncCategory::Window, FuncDomain::Window, 0, Some(0), false),
+    f!("current_database", FuncCategory::Scalar, FuncDomain::System, 0, Some(0), false),
+    f!("current_date", FuncCategory::Scalar, FuncDomain::DateTime, 0, Some(0), false),
+    f!("current_schema", FuncCategory::Scalar, FuncDomain::System, 0, Some(1), false),
+    f!("current_setting", FuncCategory::Scalar, FuncDomain::System, 1, Some(2), false),
+    f!("current_time", FuncCategory::Scalar, FuncDomain::DateTime, 0, Some(1), false),
+    f!("current_timestamp", FuncCategory::Scalar, FuncDomain::DateTime, 0, Some(1), false),
+    f!("current_user", FuncCategory::Scalar, FuncDomain::System, 0, Some(0), false),
+    f!("currval", FuncCategory::Scalar, FuncDomain::System, 1, Some(2), false),
     // ── D ───────────────────────────────────────────────────
-
-
-    f!(
-        "date_part",
-        FuncCategory::Scalar,
-        FuncDomain::DateTime,
-        2,
-        Some(2),
-        false
-    ),
-
-    f!(
-        "date_trunc",
-        FuncCategory::Scalar,
-        FuncDomain::DateTime,
-        2,
-        Some(2),
-        false
-    ),
-
-    fop!(
-        "dbe_file.close",
-        FuncCategory::Scalar,
-        FuncDomain::DbeFile,
-        1,
-        Some(1),
-        false
-    ),
-
-    fop!(
-        "dbe_file.copy",
-        FuncCategory::Scalar,
-        FuncDomain::DbeFile,
-        3,
-        Some(3),
-        false
-    ),
-
-    fop!(
-        "dbe_file.open",
-        FuncCategory::Scalar,
-        FuncDomain::DbeFile,
-        2,
-        Some(4),
-        false
-    ),
-
-    fop!(
-        "dbe_file.read_line",
-        FuncCategory::Scalar,
-        FuncDomain::DbeFile,
-        2,
-        Some(3),
-        false
-    ),
-
-    fop!(
-        "dbe_file.remove",
-        FuncCategory::Scalar,
-        FuncDomain::DbeFile,
-        2,
-        Some(2),
-        false
-    ),
-
-    fop!(
-        "dbe_file.rename",
-        FuncCategory::Scalar,
-        FuncDomain::DbeFile,
-        3,
-        Some(3),
-        false
-    ),
-
-    fop!(
-        "dbe_file.write_line",
-        FuncCategory::Scalar,
-        FuncDomain::DbeFile,
-        2,
-        Some(2),
-        false
-    ),
-
-    fop!(
-        "dbe_lob.append",
-        FuncCategory::Scalar,
-        FuncDomain::DbeLob,
-        2,
-        Some(2),
-        false
-    ),
-
-    fop!(
-        "dbe_lob.compare",
-        FuncCategory::Scalar,
-        FuncDomain::DbeLob,
-        2,
-        Some(3),
-        false
-    ),
-
-    fop!(
-        "dbe_lob.copy",
-        FuncCategory::Scalar,
-        FuncDomain::DbeLob,
-        3,
-        Some(5),
-        false
-    ),
-
-    fop!(
-        "dbe_lob.createtemporary",
-        FuncCategory::Scalar,
-        FuncDomain::DbeLob,
-        1,
-        Some(3),
-        false
-    ),
-
-    fop!(
-        "dbe_lob.erase",
-        FuncCategory::Scalar,
-        FuncDomain::DbeLob,
-        2,
-        Some(3),
-        false
-    ),
-
-    fop!(
-        "dbe_lob.freetemporary",
-        FuncCategory::Scalar,
-        FuncDomain::DbeLob,
-        1,
-        Some(1),
-        false
-    ),
-
-    fop!(
-        "dbe_lob.getlength",
-        FuncCategory::Scalar,
-        FuncDomain::DbeLob,
-        1,
-        Some(1),
-        false
-    ),
-
-    fop!(
-        "dbe_lob.instr",
-        FuncCategory::Scalar,
-        FuncDomain::DbeLob,
-        2,
-        Some(4),
-        false
-    ),
-
-    fop!(
-        "dbe_lob.read",
-        FuncCategory::Scalar,
-        FuncDomain::DbeLob,
-        3,
-        Some(3),
-        false
-    ),
-
-    fop!(
-        "dbe_lob.substr",
-        FuncCategory::Scalar,
-        FuncDomain::DbeLob,
-        1,
-        Some(3),
-        false
-    ),
-
-    fop!(
-        "dbe_lob.trim",
-        FuncCategory::Scalar,
-        FuncDomain::DbeLob,
-        2,
-        Some(2),
-        false
-    ),
-
-    fop!(
-        "dbe_lob.write",
-        FuncCategory::Scalar,
-        FuncDomain::DbeLob,
-        3,
-        Some(3),
-        false
-    ),
-
-    fop!(
-        "dbe_output.disable",
-        FuncCategory::Scalar,
-        FuncDomain::DbeOutput,
-        0,
-        Some(0),
-        false
-    ),
-
-    fop!(
-        "dbe_output.enable",
-        FuncCategory::Scalar,
-        FuncDomain::DbeOutput,
-        0,
-        Some(1),
-        false
-    ),
-
-    fop!(
-        "dbe_output.get_line",
-        FuncCategory::Scalar,
-        FuncDomain::DbeOutput,
-        2,
-        Some(2),
-        false
-    ),
-
-    fop!(
-        "dbe_output.get_lines",
-        FuncCategory::Scalar,
-        FuncDomain::DbeOutput,
-        2,
-        Some(2),
-        false
-    ),
-
-    fop!(
-        "dbe_output.new_line",
-        FuncCategory::Scalar,
-        FuncDomain::DbeOutput,
-        0,
-        Some(0),
-        false
-    ),
-
-    fop!(
-        "dbe_output.print",
-        FuncCategory::Scalar,
-        FuncDomain::DbeOutput,
-        1,
-        Some(1),
-        false
-    ),
-
-    fop!(
-        "dbe_output.put",
-        FuncCategory::Scalar,
-        FuncDomain::DbeOutput,
-        1,
-        Some(1),
-        false
-    ),
-
-    fop!(
-        "dbe_output.put_line",
-        FuncCategory::Scalar,
-        FuncDomain::DbeOutput,
-        1,
-        Some(1),
-        false
-    ),
-
-    fop!(
-        "dbe_scheduler.create_job",
-        FuncCategory::Scalar,
-        FuncDomain::DbeScheduler,
-        1,
-        None,
-        false
-    ),
-
-    fop!(
-        "dbe_scheduler.drop_job",
-        FuncCategory::Scalar,
-        FuncDomain::DbeScheduler,
-        1,
-        None,
-        false
-    ),
-
-    fop!(
-        "dbe_scheduler.run_job",
-        FuncCategory::Scalar,
-        FuncDomain::DbeScheduler,
-        1,
-        Some(2),
-        false
-    ),
-
-    fop!(
-        "dbe_session.clear_context",
-        FuncCategory::Scalar,
-        FuncDomain::DbeSession,
-        2,
-        Some(3),
-        false
-    ),
-
-    fop!(
-        "dbe_session.set_context",
-        FuncCategory::Scalar,
-        FuncDomain::DbeSession,
-        3,
-        Some(3),
-        false
-    ),
-
-    fop!(
-        "dbe_sql.close_cursor",
-        FuncCategory::Scalar,
-        FuncDomain::DbeSql,
-        1,
-        Some(1),
-        false
-    ),
-
-    fop!(
-        "dbe_sql.column_value",
-        FuncCategory::Scalar,
-        FuncDomain::DbeSql,
-        3,
-        Some(3),
-        false
-    ),
-
-    fop!(
-        "dbe_sql.execute",
-        FuncCategory::Scalar,
-        FuncDomain::DbeSql,
-        1,
-        Some(2),
-        false
-    ),
-
-    fop!(
-        "dbe_sql.fetch_rows",
-        FuncCategory::Scalar,
-        FuncDomain::DbeSql,
-        1,
-        Some(1),
-        false
-    ),
-
-    fop!(
-        "dbe_sql.open_cursor",
-        FuncCategory::Scalar,
-        FuncDomain::DbeSql,
-        0,
-        Some(0),
-        false
-    ),
-
-    fop!(
-        "dbe_sql.register_variable",
-        FuncCategory::Scalar,
-        FuncDomain::DbeSql,
-        3,
-        Some(3),
-        false
-    ),
-
-    fop!(
-        "dbe_stats.lock_table_stats",
-        FuncCategory::Scalar,
-        FuncDomain::DbeStats,
-        1,
-        Some(1),
-        false
-    ),
-
-    fop!(
-        "dbe_stats.unlock_table_stats",
-        FuncCategory::Scalar,
-        FuncDomain::DbeStats,
-        1,
-        Some(1),
-        false
-    ),
-
-    fop!(
-        "dbe_utility.format_error_backtrace",
-        FuncCategory::Scalar,
-        FuncDomain::DbeUtility,
-        0,
-        Some(0),
-        false
-    ),
-
-    fop!(
-        "dbe_utility.format_error_stack",
-        FuncCategory::Scalar,
-        FuncDomain::DbeUtility,
-        0,
-        Some(0),
-        false
-    ),
-
-    fop!(
-        "dbe_utility.get_time",
-        FuncCategory::Scalar,
-        FuncDomain::DbeUtility,
-        0,
-        Some(0),
-        false
-    ),
-
-    fop!(
-        "dbms_lob.append",
-        FuncCategory::Scalar,
-        FuncDomain::DbmsLob,
-        2,
-        Some(2),
-        false
-    ),
-
-    fop!(
-        "dbms_lob.read",
-        FuncCategory::Scalar,
-        FuncDomain::DbmsLob,
-        3,
-        Some(3),
-        false
-    ),
-
-    fop!(
-        "dbms_lob.substr",
-        FuncCategory::Scalar,
-        FuncDomain::DbmsLob,
-        1,
-        Some(3),
-        false
-    ),
-
-    fop!(
-        "dbms_lob.write",
-        FuncCategory::Scalar,
-        FuncDomain::DbmsLob,
-        3,
-        Some(3),
-        false
-    ),
-
-    fop!(
-        "dbms_output.disable",
-        FuncCategory::Scalar,
-        FuncDomain::DbmsOutput,
-        0,
-        Some(0),
-        false
-    ),
-
-    fop!(
-        "dbms_output.enable",
-        FuncCategory::Scalar,
-        FuncDomain::DbmsOutput,
-        0,
-        Some(1),
-        false
-    ),
-
-    fop!(
-        "dbms_output.put",
-        FuncCategory::Scalar,
-        FuncDomain::DbmsOutput,
-        1,
-        Some(1),
-        false
-    ),
-
-    fop!(
-        "dbms_output.put_line",
-        FuncCategory::Scalar,
-        FuncDomain::DbmsOutput,
-        1,
-        Some(1),
-        false
-    ),
-
-    fop!(
-        "dbms_scheduler.create_job",
-        FuncCategory::Scalar,
-        FuncDomain::DbmsScheduler,
-        1,
-        None,
-        false
-    ),
-
-    fop!(
-        "dbms_scheduler.drop_job",
-        FuncCategory::Scalar,
-        FuncDomain::DbmsScheduler,
-        1,
-        None,
-        false
-    ),
-
-    fop!(
-        "dbms_scheduler.run_job",
-        FuncCategory::Scalar,
-        FuncDomain::DbmsScheduler,
-        1,
-        Some(2),
-        false
-    ),
-
-    fop!(
-        "dbms_sql.close_cursor",
-        FuncCategory::Scalar,
-        FuncDomain::DbmsSql,
-        1,
-        Some(1),
-        false
-    ),
-
-    fop!(
-        "dbms_sql.column_value",
-        FuncCategory::Scalar,
-        FuncDomain::DbmsSql,
-        3,
-        Some(3),
-        false
-    ),
-
-    fop!(
-        "dbms_sql.execute",
-        FuncCategory::Scalar,
-        FuncDomain::DbmsSql,
-        1,
-        Some(2),
-        false
-    ),
-
-    fop!(
-        "dbms_sql.fetch_rows",
-        FuncCategory::Scalar,
-        FuncDomain::DbmsSql,
-        1,
-        Some(1),
-        false
-    ),
-
-    fop!(
-        "dbms_sql.open_cursor",
-        FuncCategory::Scalar,
-        FuncDomain::DbmsSql,
-        0,
-        Some(0),
-        false
-    ),
-
-    fop!(
-        "dbms_utility.format_error_backtrace",
-        FuncCategory::Scalar,
-        FuncDomain::DbmsUtility,
-        0,
-        Some(0),
-        false
-    ),
-
-    fop!(
-        "dbms_utility.get_time",
-        FuncCategory::Scalar,
-        FuncDomain::DbmsUtility,
-        0,
-        Some(0),
-        false
-    ),
-
-    fo!(
-        "decode",
-        FuncCategory::Special,
-        FuncDomain::OracleCompat,
-        2,
-        None,
-        false
-    ),
-
-    f!(
-        "degrees",
-        FuncCategory::Scalar,
-        FuncDomain::Math,
-        1,
-        Some(1),
-        false
-    ),
-
-    f!(
-        "dense_rank",
-        FuncCategory::Window,
-        FuncDomain::Window,
-        0,
-        Some(0),
-        false
-    ),
-
-    f!(
-        "diameter",
-        FuncCategory::Scalar,
-        FuncDomain::Geometric,
-        1,
-        Some(1),
-        false
-    ),
-
-    f!(
-        "digest",
-        FuncCategory::Scalar,
-        FuncDomain::Crypto,
-        2,
-        Some(2),
-        false
-    ),
-
-    f!(
-        "div",
-        FuncCategory::Scalar,
-        FuncDomain::Math,
-        2,
-        Some(2),
-        false
-    ),
+    f!("date_part", FuncCategory::Scalar, FuncDomain::DateTime, 2, Some(2), false),
+    f!("date_trunc", FuncCategory::Scalar, FuncDomain::DateTime, 2, Some(2), false),
+    fop!("dbe_file.close", FuncCategory::Scalar, FuncDomain::DbeFile, 1, Some(1), false),
+    fop!("dbe_file.copy", FuncCategory::Scalar, FuncDomain::DbeFile, 3, Some(3), false),
+    fop!("dbe_file.open", FuncCategory::Scalar, FuncDomain::DbeFile, 2, Some(4), false),
+    fop!("dbe_file.read_line", FuncCategory::Scalar, FuncDomain::DbeFile, 2, Some(3), false),
+    fop!("dbe_file.remove", FuncCategory::Scalar, FuncDomain::DbeFile, 2, Some(2), false),
+    fop!("dbe_file.rename", FuncCategory::Scalar, FuncDomain::DbeFile, 3, Some(3), false),
+    fop!("dbe_file.write_line", FuncCategory::Scalar, FuncDomain::DbeFile, 2, Some(2), false),
+    fop!("dbe_lob.append", FuncCategory::Scalar, FuncDomain::DbeLob, 2, Some(2), false),
+    fop!("dbe_lob.compare", FuncCategory::Scalar, FuncDomain::DbeLob, 2, Some(3), false),
+    fop!("dbe_lob.copy", FuncCategory::Scalar, FuncDomain::DbeLob, 3, Some(5), false),
+    fop!("dbe_lob.createtemporary", FuncCategory::Scalar, FuncDomain::DbeLob, 1, Some(3), false),
+    fop!("dbe_lob.erase", FuncCategory::Scalar, FuncDomain::DbeLob, 2, Some(3), false),
+    fop!("dbe_lob.freetemporary", FuncCategory::Scalar, FuncDomain::DbeLob, 1, Some(1), false),
+    fop!("dbe_lob.getlength", FuncCategory::Scalar, FuncDomain::DbeLob, 1, Some(1), false),
+    fop!("dbe_lob.instr", FuncCategory::Scalar, FuncDomain::DbeLob, 2, Some(4), false),
+    fop!("dbe_lob.read", FuncCategory::Scalar, FuncDomain::DbeLob, 3, Some(3), false),
+    fop!("dbe_lob.substr", FuncCategory::Scalar, FuncDomain::DbeLob, 1, Some(3), false),
+    fop!("dbe_lob.trim", FuncCategory::Scalar, FuncDomain::DbeLob, 2, Some(2), false),
+    fop!("dbe_lob.write", FuncCategory::Scalar, FuncDomain::DbeLob, 3, Some(3), false),
+    fop!("dbe_output.disable", FuncCategory::Scalar, FuncDomain::DbeOutput, 0, Some(0), false),
+    fop!("dbe_output.enable", FuncCategory::Scalar, FuncDomain::DbeOutput, 0, Some(1), false),
+    fop!("dbe_output.get_line", FuncCategory::Scalar, FuncDomain::DbeOutput, 2, Some(2), false),
+    fop!("dbe_output.get_lines", FuncCategory::Scalar, FuncDomain::DbeOutput, 2, Some(2), false),
+    fop!("dbe_output.new_line", FuncCategory::Scalar, FuncDomain::DbeOutput, 0, Some(0), false),
+    fop!("dbe_output.print", FuncCategory::Scalar, FuncDomain::DbeOutput, 1, Some(1), false),
+    fop!("dbe_output.put", FuncCategory::Scalar, FuncDomain::DbeOutput, 1, Some(1), false),
+    fop!("dbe_output.put_line", FuncCategory::Scalar, FuncDomain::DbeOutput, 1, Some(1), false),
+    fop!("dbe_scheduler.create_job", FuncCategory::Scalar, FuncDomain::DbeScheduler, 1, None, false),
+    fop!("dbe_scheduler.drop_job", FuncCategory::Scalar, FuncDomain::DbeScheduler, 1, None, false),
+    fop!("dbe_scheduler.run_job", FuncCategory::Scalar, FuncDomain::DbeScheduler, 1, Some(2), false),
+    fop!("dbe_session.clear_context", FuncCategory::Scalar, FuncDomain::DbeSession, 2, Some(3), false),
+    fop!("dbe_session.set_context", FuncCategory::Scalar, FuncDomain::DbeSession, 3, Some(3), false),
+    fop!("dbe_sql.close_cursor", FuncCategory::Scalar, FuncDomain::DbeSql, 1, Some(1), false),
+    fop!("dbe_sql.column_value", FuncCategory::Scalar, FuncDomain::DbeSql, 3, Some(3), false),
+    fop!("dbe_sql.execute", FuncCategory::Scalar, FuncDomain::DbeSql, 1, Some(2), false),
+    fop!("dbe_sql.fetch_rows", FuncCategory::Scalar, FuncDomain::DbeSql, 1, Some(1), false),
+    fop!("dbe_sql.open_cursor", FuncCategory::Scalar, FuncDomain::DbeSql, 0, Some(0), false),
+    fop!("dbe_sql.register_variable", FuncCategory::Scalar, FuncDomain::DbeSql, 3, Some(3), false),
+    fop!("dbe_stats.lock_table_stats", FuncCategory::Scalar, FuncDomain::DbeStats, 1, Some(1), false),
+    fop!("dbe_stats.unlock_table_stats", FuncCategory::Scalar, FuncDomain::DbeStats, 1, Some(1), false),
+    fop!("dbe_utility.format_error_backtrace", FuncCategory::Scalar, FuncDomain::DbeUtility, 0, Some(0), false),
+    fop!("dbe_utility.format_error_stack", FuncCategory::Scalar, FuncDomain::DbeUtility, 0, Some(0), false),
+    fop!("dbe_utility.get_time", FuncCategory::Scalar, FuncDomain::DbeUtility, 0, Some(0), false),
+    fop!("dbms_lob.append", FuncCategory::Scalar, FuncDomain::DbmsLob, 2, Some(2), false),
+    fop!("dbms_lob.read", FuncCategory::Scalar, FuncDomain::DbmsLob, 3, Some(3), false),
+    fop!("dbms_lob.substr", FuncCategory::Scalar, FuncDomain::DbmsLob, 1, Some(3), false),
+    fop!("dbms_lob.write", FuncCategory::Scalar, FuncDomain::DbmsLob, 3, Some(3), false),
+    fop!("dbms_output.disable", FuncCategory::Scalar, FuncDomain::DbmsOutput, 0, Some(0), false),
+    fop!("dbms_output.enable", FuncCategory::Scalar, FuncDomain::DbmsOutput, 0, Some(1), false),
+    fop!("dbms_output.put", FuncCategory::Scalar, FuncDomain::DbmsOutput, 1, Some(1), false),
+    fop!("dbms_output.put_line", FuncCategory::Scalar, FuncDomain::DbmsOutput, 1, Some(1), false),
+    fop!("dbms_scheduler.create_job", FuncCategory::Scalar, FuncDomain::DbmsScheduler, 1, None, false),
+    fop!("dbms_scheduler.drop_job", FuncCategory::Scalar, FuncDomain::DbmsScheduler, 1, None, false),
+    fop!("dbms_scheduler.run_job", FuncCategory::Scalar, FuncDomain::DbmsScheduler, 1, Some(2), false),
+    fop!("dbms_sql.close_cursor", FuncCategory::Scalar, FuncDomain::DbmsSql, 1, Some(1), false),
+    fop!("dbms_sql.column_value", FuncCategory::Scalar, FuncDomain::DbmsSql, 3, Some(3), false),
+    fop!("dbms_sql.execute", FuncCategory::Scalar, FuncDomain::DbmsSql, 1, Some(2), false),
+    fop!("dbms_sql.fetch_rows", FuncCategory::Scalar, FuncDomain::DbmsSql, 1, Some(1), false),
+    fop!("dbms_sql.open_cursor", FuncCategory::Scalar, FuncDomain::DbmsSql, 0, Some(0), false),
+    fop!("dbms_utility.format_error_backtrace", FuncCategory::Scalar, FuncDomain::DbmsUtility, 0, Some(0), false),
+    fop!("dbms_utility.get_time", FuncCategory::Scalar, FuncDomain::DbmsUtility, 0, Some(0), false),
+    fo!("decode", FuncCategory::Special, FuncDomain::OracleCompat, 2, None, false),
+    f!("degrees", FuncCategory::Scalar, FuncDomain::Math, 1, Some(1), false),
+    f!("dense_rank", FuncCategory::Window, FuncDomain::Window, 0, Some(0), false),
+    f!("diameter", FuncCategory::Scalar, FuncDomain::Geometric, 1, Some(1), false),
+    f!("digest", FuncCategory::Scalar, FuncDomain::Crypto, 2, Some(2), false),
+    f!("div", FuncCategory::Scalar, FuncDomain::Math, 2, Some(2), false),
     // ── E ───────────────────────────────────────────────────
-
-
-    f!(
-        "encode",
-        FuncCategory::Scalar,
-        FuncDomain::String,
-        2,
-        Some(2),
-        false
-    ),
-
-    f!(
-        "every",
-        FuncCategory::Aggregate,
-        FuncDomain::Aggregate,
-        1,
-        Some(1),
-        true
-    ),
-
-    f!(
-        "exp",
-        FuncCategory::Scalar,
-        FuncDomain::Math,
-        1,
-        Some(1),
-        false
-    ),
-
-    f!(
-        "extract",
-        FuncCategory::Scalar,
-        FuncDomain::DateTime,
-        2,
-        Some(2),
-        false
-    ),
+    f!("encode", FuncCategory::Scalar, FuncDomain::String, 2, Some(2), false),
+    f!("every", FuncCategory::Aggregate, FuncDomain::Aggregate, 1, Some(1), true),
+    f!("exp", FuncCategory::Scalar, FuncDomain::Math, 1, Some(1), false),
+    f!("extract", FuncCategory::Scalar, FuncDomain::DateTime, 2, Some(2), false),
     // ── F ───────────────────────────────────────────────────
-
-
-    f!(
-        "factorial",
-        FuncCategory::Scalar,
-        FuncDomain::Math,
-        1,
-        Some(1),
-        false
-    ),
-    f!(
-        "family",
-        FuncCategory::Scalar,
-        FuncDomain::Network,
-        1,
-        Some(1),
-        false
-    ),
-
-    f!(
-        "first_value",
-        FuncCategory::Window,
-        FuncDomain::Window,
-        1,
-        Some(1),
-        false
-    ),
-
-    f!(
-        "floor",
-        FuncCategory::Scalar,
-        FuncDomain::Math,
-        1,
-        Some(1),
-        false
-    ),
-
-    f!(
-        "format",
-        FuncCategory::Scalar,
-        FuncDomain::String,
-        2,
-        None,
-        false
-    ),
-    f!(
-        "format_type",
-        FuncCategory::Scalar,
-        FuncDomain::System,
-        1,
-        Some(2),
-        false
-    ),
+    f!("factorial", FuncCategory::Scalar, FuncDomain::Math, 1, Some(1), false),
+    f!("family", FuncCategory::Scalar, FuncDomain::Network, 1, Some(1), false),
+    f!("first_value", FuncCategory::Window, FuncDomain::Window, 1, Some(1), false),
+    f!("floor", FuncCategory::Scalar, FuncDomain::Math, 1, Some(1), false),
+    f!("format", FuncCategory::Scalar, FuncDomain::String, 2, None, false),
+    f!("format_type", FuncCategory::Scalar, FuncDomain::System, 1, Some(2), false),
     // ── G ───────────────────────────────────────────────────
-
-
-    f!(
-        "gcd",
-        FuncCategory::Scalar,
-        FuncDomain::Math,
-        2,
-        Some(2),
-        false
-    ),
-
-    f!(
-        "gen_random_uuid",
-        FuncCategory::Scalar,
-        FuncDomain::Crypto,
-        0,
-        Some(0),
-        false
-    ),
-
-    f!(
-        "generate_series",
-        FuncCategory::SetReturning,
-        FuncDomain::Other,
-        2,
-        Some(3),
-        false
-    ),
-
-    f!(
-        "generate_subscripts",
-        FuncCategory::SetReturning,
-        FuncDomain::Array,
-        2,
-        Some(3),
-        false
-    ),
-
-    f!(
-        "get_bit",
-        FuncCategory::Scalar,
-        FuncDomain::String,
-        2,
-        Some(2),
-        false
-    ),
-    f!(
-        "get_byte",
-        FuncCategory::Scalar,
-        FuncDomain::String,
-        2,
-        Some(2),
-        false
-    ),
-    f!(
-        "get_current_ts_config",
-        FuncCategory::Scalar,
-        FuncDomain::TextSearch,
-        0,
-        Some(0),
-        false
-    ),
-
-    f!(
-        "greatest",
-        FuncCategory::Special,
-        FuncDomain::Other,
-        2,
-        None,
-        false
-    ),
-
-    fo!(
-        "group_concat",
-        FuncCategory::Aggregate,
-        FuncDomain::String,
-        1,
-        None,
-        true
-    ),
-    f!(
-        "gs_decrypt",
-        FuncCategory::Scalar,
-        FuncDomain::Crypto,
-        3,
-        Some(3),
-        false
-    ),
-    f!(
-        "gs_decrypt_aes128",
-        FuncCategory::Scalar,
-        FuncDomain::Crypto,
-        2,
-        Some(2),
-        false
-    ),
-    f!(
-        "gs_encrypt",
-        FuncCategory::Scalar,
-        FuncDomain::Crypto,
-        3,
-        Some(3),
-        false
-    ),
-    f!(
-        "gs_encrypt_aes128",
-        FuncCategory::Scalar,
-        FuncDomain::Crypto,
-        2,
-        Some(2),
-        false
-    ),
+    f!("gcd", FuncCategory::Scalar, FuncDomain::Math, 2, Some(2), false),
+    f!("gen_random_uuid", FuncCategory::Scalar, FuncDomain::Crypto, 0, Some(0), false),
+    f!("generate_series", FuncCategory::SetReturning, FuncDomain::Other, 2, Some(3), false),
+    f!("generate_subscripts", FuncCategory::SetReturning, FuncDomain::Array, 2, Some(3), false),
+    f!("get_bit", FuncCategory::Scalar, FuncDomain::String, 2, Some(2), false),
+    f!("get_byte", FuncCategory::Scalar, FuncDomain::String, 2, Some(2), false),
+    f!("get_current_ts_config", FuncCategory::Scalar, FuncDomain::TextSearch, 0, Some(0), false),
+    f!("greatest", FuncCategory::Special, FuncDomain::Other, 2, None, false),
+    fo!("group_concat", FuncCategory::Aggregate, FuncDomain::String, 1, None, true),
+    f!("gs_decrypt", FuncCategory::Scalar, FuncDomain::Crypto, 3, Some(3), false),
+    f!("gs_decrypt_aes128", FuncCategory::Scalar, FuncDomain::Crypto, 2, Some(2), false),
+    f!("gs_encrypt", FuncCategory::Scalar, FuncDomain::Crypto, 3, Some(3), false),
+    f!("gs_encrypt_aes128", FuncCategory::Scalar, FuncDomain::Crypto, 2, Some(2), false),
     // ── H ───────────────────────────────────────────────────
-
-
-    f!(
-        "has_schema_privilege",
-        FuncCategory::Scalar,
-        FuncDomain::System,
-        2,
-        Some(4),
-        false
-    ),
-
-    f!(
-        "has_table_privilege",
-        FuncCategory::Scalar,
-        FuncDomain::System,
-        2,
-        Some(4),
-        false
-    ),
-    f!(
-        "host",
-        FuncCategory::Scalar,
-        FuncDomain::Network,
-        1,
-        Some(1),
-        false
-    ),
-    f!(
-        "hostmask",
-        FuncCategory::Scalar,
-        FuncDomain::Network,
-        1,
-        Some(1),
-        false
-    ),
+    f!("has_schema_privilege", FuncCategory::Scalar, FuncDomain::System, 2, Some(4), false),
+    f!("has_table_privilege", FuncCategory::Scalar, FuncDomain::System, 2, Some(4), false),
+    f!("host", FuncCategory::Scalar, FuncDomain::Network, 1, Some(1), false),
+    f!("hostmask", FuncCategory::Scalar, FuncDomain::Network, 1, Some(1), false),
     // ── I ───────────────────────────────────────────────────
-
-
-    f!(
-        "inet_client_addr",
-        FuncCategory::Scalar,
-        FuncDomain::System,
-        0,
-        Some(0),
-        false
-    ),
-
-    f!(
-        "inet_client_port",
-        FuncCategory::Scalar,
-        FuncDomain::System,
-        0,
-        Some(0),
-        false
-    ),
-
-    f!(
-        "inet_server_addr",
-        FuncCategory::Scalar,
-        FuncDomain::System,
-        0,
-        Some(0),
-        false
-    ),
-
-    f!(
-        "inet_server_port",
-        FuncCategory::Scalar,
-        FuncDomain::System,
-        0,
-        Some(0),
-        false
-    ),
-
-    f!(
-        "initcap",
-        FuncCategory::Scalar,
-        FuncDomain::String,
-        1,
-        Some(1),
-        false
-    ),
-
-    fo!(
-        "instr",
-        FuncCategory::Scalar,
-        FuncDomain::String,
-        2,
-        Some(4),
-        false
-    ),
-
-    fo!(
-        "instrb",
-        FuncCategory::Scalar,
-        FuncDomain::String,
-        2,
-        Some(4),
-        false
-    ),
-
-    f!(
-        "isfinite",
-        FuncCategory::Scalar,
-        FuncDomain::DateTime,
-        1,
-        Some(1),
-        false
-    ),
+    f!("inet_client_addr", FuncCategory::Scalar, FuncDomain::System, 0, Some(0), false),
+    f!("inet_client_port", FuncCategory::Scalar, FuncDomain::System, 0, Some(0), false),
+    f!("inet_server_addr", FuncCategory::Scalar, FuncDomain::System, 0, Some(0), false),
+    f!("inet_server_port", FuncCategory::Scalar, FuncDomain::System, 0, Some(0), false),
+    f!("initcap", FuncCategory::Scalar, FuncDomain::String, 1, Some(1), false),
+    fo!("instr", FuncCategory::Scalar, FuncDomain::String, 2, Some(4), false),
+    fo!("instrb", FuncCategory::Scalar, FuncDomain::String, 2, Some(4), false),
+    f!("isfinite", FuncCategory::Scalar, FuncDomain::DateTime, 1, Some(1), false),
     // ── J ───────────────────────────────────────────────────
-
-
-    f!(
-        "json",
-        FuncCategory::TypeConstructor,
-        FuncDomain::Json,
-        0,
-        Some(1),
-        false
-    ),
-
-    f!(
-        "json_agg",
-        FuncCategory::Aggregate,
-        FuncDomain::Json,
-        1,
-        Some(1),
-        true
-    ),
-
-    f!(
-        "json_append",
-        FuncCategory::Scalar,
-        FuncDomain::Json,
-        2,
-        None,
-        false
-    ),
-
-    f!(
-        "json_array_elements",
-        FuncCategory::SetReturning,
-        FuncDomain::Json,
-        1,
-        Some(1),
-        false
-    ),
-
-    f!(
-        "json_each",
-        FuncCategory::SetReturning,
-        FuncDomain::Json,
-        1,
-        Some(1),
-        false
-    ),
-
-    f!(
-        "json_each_text",
-        FuncCategory::SetReturning,
-        FuncDomain::Json,
-        1,
-        Some(1),
-        false
-    ),
-
-    f!(
-        "json_object",
-        FuncCategory::Scalar,
-        FuncDomain::Json,
-        1,
-        None,
-        true
-    ),
-
-    f!(
-        "json_object_keys",
-        FuncCategory::SetReturning,
-        FuncDomain::Json,
-        1,
-        Some(1),
-        false
-    ),
-
-    f!(
-        "json_typeof",
-        FuncCategory::Scalar,
-        FuncDomain::Json,
-        1,
-        Some(1),
-        false
-    ),
-
-    f!(
-        "jsonb_agg",
-        FuncCategory::Aggregate,
-        FuncDomain::Json,
-        1,
-        Some(1),
-        true
-    ),
-
-    f!(
-        "jsonb_array_elements",
-        FuncCategory::SetReturning,
-        FuncDomain::Json,
-        1,
-        Some(1),
-        false
-    ),
-
-    f!(
-        "jsonb_array_length",
-        FuncCategory::Scalar,
-        FuncDomain::Json,
-        1,
-        Some(1),
-        false
-    ),
-
-    f!(
-        "jsonb_build_array",
-        FuncCategory::Scalar,
-        FuncDomain::Json,
-        0,
-        None,
-        true
-    ),
-
-    f!(
-        "jsonb_build_object",
-        FuncCategory::Scalar,
-        FuncDomain::Json,
-        0,
-        None,
-        true
-    ),
-
-    f!(
-        "jsonb_each",
-        FuncCategory::SetReturning,
-        FuncDomain::Json,
-        1,
-        Some(1),
-        false
-    ),
-
-    f!(
-        "jsonb_each_text",
-        FuncCategory::SetReturning,
-        FuncDomain::Json,
-        1,
-        Some(1),
-        false
-    ),
-
-    f!(
-        "jsonb_object_keys",
-        FuncCategory::SetReturning,
-        FuncDomain::Json,
-        1,
-        Some(1),
-        false
-    ),
-
-    f!(
-        "jsonb_pretty",
-        FuncCategory::Scalar,
-        FuncDomain::Json,
-        1,
-        Some(1),
-        false
-    ),
-
-    f!(
-        "jsonb_set",
-        FuncCategory::Scalar,
-        FuncDomain::Json,
-        3,
-        Some(4),
-        false
-    ),
-
-    f!(
-        "jsonb_typeof",
-        FuncCategory::Scalar,
-        FuncDomain::Json,
-        1,
-        Some(1),
-        false
-    ),
-
-    f!(
-        "justify_days",
-        FuncCategory::Scalar,
-        FuncDomain::DateTime,
-        1,
-        Some(1),
-        false
-    ),
-
-    f!(
-        "justify_hours",
-        FuncCategory::Scalar,
-        FuncDomain::DateTime,
-        1,
-        Some(1),
-        false
-    ),
-
-    f!(
-        "justify_interval",
-        FuncCategory::Scalar,
-        FuncDomain::DateTime,
-        1,
-        Some(1),
-        false
-    ),
+    f!("json", FuncCategory::TypeConstructor, FuncDomain::Json, 0, Some(1), false),
+    f!("json_agg", FuncCategory::Aggregate, FuncDomain::Json, 1, Some(1), true),
+    f!("json_append", FuncCategory::Scalar, FuncDomain::Json, 2, None, false),
+    f!("json_array_elements", FuncCategory::SetReturning, FuncDomain::Json, 1, Some(1), false),
+    f!("json_each", FuncCategory::SetReturning, FuncDomain::Json, 1, Some(1), false),
+    f!("json_each_text", FuncCategory::SetReturning, FuncDomain::Json, 1, Some(1), false),
+    f!("json_object", FuncCategory::Scalar, FuncDomain::Json, 1, None, true),
+    f!("json_object_keys", FuncCategory::SetReturning, FuncDomain::Json, 1, Some(1), false),
+    f!("json_typeof", FuncCategory::Scalar, FuncDomain::Json, 1, Some(1), false),
+    f!("jsonb_agg", FuncCategory::Aggregate, FuncDomain::Json, 1, Some(1), true),
+    f!("jsonb_array_elements", FuncCategory::SetReturning, FuncDomain::Json, 1, Some(1), false),
+    f!("jsonb_array_length", FuncCategory::Scalar, FuncDomain::Json, 1, Some(1), false),
+    f!("jsonb_build_array", FuncCategory::Scalar, FuncDomain::Json, 0, None, true),
+    f!("jsonb_build_object", FuncCategory::Scalar, FuncDomain::Json, 0, None, true),
+    f!("jsonb_each", FuncCategory::SetReturning, FuncDomain::Json, 1, Some(1), false),
+    f!("jsonb_each_text", FuncCategory::SetReturning, FuncDomain::Json, 1, Some(1), false),
+    f!("jsonb_object_keys", FuncCategory::SetReturning, FuncDomain::Json, 1, Some(1), false),
+    f!("jsonb_pretty", FuncCategory::Scalar, FuncDomain::Json, 1, Some(1), false),
+    f!("jsonb_set", FuncCategory::Scalar, FuncDomain::Json, 3, Some(4), false),
+    f!("jsonb_typeof", FuncCategory::Scalar, FuncDomain::Json, 1, Some(1), false),
+    f!("justify_days", FuncCategory::Scalar, FuncDomain::DateTime, 1, Some(1), false),
+    f!("justify_hours", FuncCategory::Scalar, FuncDomain::DateTime, 1, Some(1), false),
+    f!("justify_interval", FuncCategory::Scalar, FuncDomain::DateTime, 1, Some(1), false),
     // ── L ───────────────────────────────────────────────────
-
-
-    f!(
-        "lag",
-        FuncCategory::Window,
-        FuncDomain::Window,
-        2,
-        Some(3),
-        false
-    ),
-
-    fo!(
-        "last_day",
-        FuncCategory::Scalar,
-        FuncDomain::OracleCompat,
-        1,
-        Some(1),
-        false
-    ),
-
-    f!(
-        "last_value",
-        FuncCategory::Window,
-        FuncDomain::Window,
-        1,
-        Some(1),
-        false
-    ),
-
-    f!(
-        "lastval",
-        FuncCategory::Scalar,
-        FuncDomain::System,
-        0,
-        Some(0),
-        false
-    ),
-
-    f!(
-        "lcm",
-        FuncCategory::Scalar,
-        FuncDomain::Math,
-        2,
-        Some(2),
-        false
-    ),
-
-    f!(
-        "lead",
-        FuncCategory::Window,
-        FuncDomain::Window,
-        2,
-        Some(3),
-        false
-    ),
-
-    f!(
-        "least",
-        FuncCategory::Special,
-        FuncDomain::Other,
-        2,
-        None,
-        false
-    ),
-
-    f!(
-        "left",
-        FuncCategory::Scalar,
-        FuncDomain::String,
-        2,
-        Some(2),
-        false
-    ),
-
-    f!(
-        "length",
-        FuncCategory::Scalar,
-        FuncDomain::String,
-        1,
-        Some(2),
-        false
-    ),
-    f!(
-        "lengthb",
-        FuncCategory::Scalar,
-        FuncDomain::String,
-        1,
-        Some(1),
-        false
-    ),
-
-    fo!(
-        "listagg",
-        FuncCategory::Aggregate,
-        FuncDomain::String,
-        1,
-        Some(2),
-        true
-    ),
-
-    f!(
-        "ln",
-        FuncCategory::Scalar,
-        FuncDomain::Math,
-        1,
-        Some(1),
-        false
-    ),
-
-    f!(
-        "localtime",
-        FuncCategory::Scalar,
-        FuncDomain::DateTime,
-        0,
-        Some(1),
-        false
-    ),
-
-    f!(
-        "localtimestamp",
-        FuncCategory::Scalar,
-        FuncDomain::DateTime,
-        0,
-        Some(1),
-        false
-    ),
-
-    f!(
-        "log",
-        FuncCategory::Scalar,
-        FuncDomain::Math,
-        1,
-        Some(2),
-        false
-    ),
-
-    f!(
-        "log10",
-        FuncCategory::Scalar,
-        FuncDomain::Math,
-        1,
-        Some(1),
-        false
-    ),
-
-    f!(
-        "lower",
-        FuncCategory::Scalar,
-        FuncDomain::String,
-        1,
-        Some(1),
-        false
-    ),
-
-    f!(
-        "lpad",
-        FuncCategory::Scalar,
-        FuncDomain::String,
-        2,
-        Some(3),
-        false
-    ),
-
-    f!(
-        "ltrim",
-        FuncCategory::Scalar,
-        FuncDomain::String,
-        1,
-        Some(2),
-        false
-    ),
+    f!("lag", FuncCategory::Window, FuncDomain::Window, 2, Some(3), false),
+    fo!("last_day", FuncCategory::Scalar, FuncDomain::OracleCompat, 1, Some(1), false),
+    f!("last_value", FuncCategory::Window, FuncDomain::Window, 1, Some(1), false),
+    f!("lastval", FuncCategory::Scalar, FuncDomain::System, 0, Some(0), false),
+    f!("lcm", FuncCategory::Scalar, FuncDomain::Math, 2, Some(2), false),
+    f!("lead", FuncCategory::Window, FuncDomain::Window, 2, Some(3), false),
+    f!("least", FuncCategory::Special, FuncDomain::Other, 2, None, false),
+    f!("left", FuncCategory::Scalar, FuncDomain::String, 2, Some(2), false),
+    f!("length", FuncCategory::Scalar, FuncDomain::String, 1, Some(2), false),
+    f!("lengthb", FuncCategory::Scalar, FuncDomain::String, 1, Some(1), false),
+    fo!("listagg", FuncCategory::Aggregate, FuncDomain::String, 1, Some(2), true),
+    f!("ln", FuncCategory::Scalar, FuncDomain::Math, 1, Some(1), false),
+    f!("localtime", FuncCategory::Scalar, FuncDomain::DateTime, 0, Some(1), false),
+    f!("localtimestamp", FuncCategory::Scalar, FuncDomain::DateTime, 0, Some(1), false),
+    f!("log", FuncCategory::Scalar, FuncDomain::Math, 1, Some(2), false),
+    f!("log10", FuncCategory::Scalar, FuncDomain::Math, 1, Some(1), false),
+    f!("lower", FuncCategory::Scalar, FuncDomain::String, 1, Some(1), false),
+    f!("lpad", FuncCategory::Scalar, FuncDomain::String, 2, Some(3), false),
+    f!("ltrim", FuncCategory::Scalar, FuncDomain::String, 1, Some(2), false),
     // ── M ───────────────────────────────────────────────────
-
-
-    f!(
-        "make_date",
-        FuncCategory::Scalar,
-        FuncDomain::DateTime,
-        3,
-        Some(3),
-        false
-    ),
-
-    f!(
-        "make_time",
-        FuncCategory::Scalar,
-        FuncDomain::DateTime,
-        3,
-        Some(3),
-        false
-    ),
-
-    f!(
-        "make_timestamp",
-        FuncCategory::Scalar,
-        FuncDomain::DateTime,
-        6,
-        Some(6),
-        false
-    ),
-
-    f!(
-        "make_timestamptz",
-        FuncCategory::Scalar,
-        FuncDomain::DateTime,
-        6,
-        Some(7),
-        false
-    ),
-    f!(
-        "masklen",
-        FuncCategory::Scalar,
-        FuncDomain::Network,
-        1,
-        Some(1),
-        false
-    ),
-
-    f!(
-        "max",
-        FuncCategory::Aggregate,
-        FuncDomain::Aggregate,
-        1,
-        Some(1),
-        true
-    ),
-    f!(
-        "md5",
-        FuncCategory::Scalar,
-        FuncDomain::Crypto,
-        1,
-        Some(2),
-        false
-    ),
-
-    f!(
-        "median",
-        FuncCategory::Aggregate,
-        FuncDomain::Aggregate,
-        1,
-        Some(1),
-        true
-    ),
-
-    f!(
-        "min",
-        FuncCategory::Aggregate,
-        FuncDomain::Aggregate,
-        1,
-        Some(1),
-        true
-    ),
-
-    f!(
-        "mod",
-        FuncCategory::Scalar,
-        FuncDomain::Math,
-        2,
-        Some(2),
-        false
-    ),
-
-    f!(
-        "mode",
-        FuncCategory::Aggregate,
-        FuncDomain::Aggregate,
-        1,
-        Some(1),
-        true
-    ),
-
-    fo!(
-        "months_between",
-        FuncCategory::Scalar,
-        FuncDomain::OracleCompat,
-        2,
-        Some(2),
-        false
-    ),
+    f!("make_date", FuncCategory::Scalar, FuncDomain::DateTime, 3, Some(3), false),
+    f!("make_time", FuncCategory::Scalar, FuncDomain::DateTime, 3, Some(3), false),
+    f!("make_timestamp", FuncCategory::Scalar, FuncDomain::DateTime, 6, Some(6), false),
+    f!("make_timestamptz", FuncCategory::Scalar, FuncDomain::DateTime, 6, Some(7), false),
+    f!("masklen", FuncCategory::Scalar, FuncDomain::Network, 1, Some(1), false),
+    f!("max", FuncCategory::Aggregate, FuncDomain::Aggregate, 1, Some(1), true),
+    f!("md5", FuncCategory::Scalar, FuncDomain::Crypto, 1, Some(2), false),
+    f!("median", FuncCategory::Aggregate, FuncDomain::Aggregate, 1, Some(1), true),
+    f!("min", FuncCategory::Aggregate, FuncDomain::Aggregate, 1, Some(1), true),
+    f!("mod", FuncCategory::Scalar, FuncDomain::Math, 2, Some(2), false),
+    f!("mode", FuncCategory::Aggregate, FuncDomain::Aggregate, 1, Some(1), true),
+    fo!("months_between", FuncCategory::Scalar, FuncDomain::OracleCompat, 2, Some(2), false),
     // ── N ───────────────────────────────────────────────────
-
-    f!(
-        "netmask",
-        FuncCategory::Scalar,
-        FuncDomain::Network,
-        1,
-        Some(1),
-        false
-    ),
-    f!(
-        "network",
-        FuncCategory::Scalar,
-        FuncDomain::Network,
-        1,
-        Some(1),
-        false
-    ),
-
-    fo!(
-        "next_day",
-        FuncCategory::Scalar,
-        FuncDomain::OracleCompat,
-        2,
-        Some(2),
-        false
-    ),
-    f!(
-        "nextval",
-        FuncCategory::Scalar,
-        FuncDomain::System,
-        1,
-        Some(1),
-        false
-    ),
-
-    fo!(
-        "nls_initcap",
-        FuncCategory::Scalar,
-        FuncDomain::OracleCompat,
-        1,
-        Some(2),
-        false
-    ),
-
-    fo!(
-        "nls_lower",
-        FuncCategory::Scalar,
-        FuncDomain::OracleCompat,
-        1,
-        Some(2),
-        false
-    ),
-
-    fo!(
-        "nls_sort",
-        FuncCategory::Scalar,
-        FuncDomain::OracleCompat,
-        1,
-        Some(2),
-        false
-    ),
-
-    fo!(
-        "nls_upper",
-        FuncCategory::Scalar,
-        FuncDomain::OracleCompat,
-        1,
-        Some(2),
-        false
-    ),
-
-    fo!(
-        "nlssort",
-        FuncCategory::Scalar,
-        FuncDomain::OracleCompat,
-        1,
-        Some(2),
-        false
-    ),
-
-    f!(
-        "now",
-        FuncCategory::Scalar,
-        FuncDomain::DateTime,
-        0,
-        Some(0),
-        false
-    ),
-
-    f!(
-        "nth_value",
-        FuncCategory::Window,
-        FuncDomain::Window,
-        2,
-        Some(2),
-        false
-    ),
-
-    f!(
-        "ntile",
-        FuncCategory::Window,
-        FuncDomain::Window,
-        1,
-        Some(1),
-        false
-    ),
-
-    f!(
-        "nullif",
-        FuncCategory::Special,
-        FuncDomain::Other,
-        2,
-        Some(2),
-        false
-    ),
-
-    f!(
-        "numrange",
-        FuncCategory::Scalar,
-        FuncDomain::Range,
-        2,
-        Some(3),
-        false
-    ),
-
-    fo!(
-        "nvl",
-        FuncCategory::Special,
-        FuncDomain::OracleCompat,
-        2,
-        Some(2),
-        false
-    ),
-
-    fo!(
-        "nvl2",
-        FuncCategory::Special,
-        FuncDomain::OracleCompat,
-        3,
-        Some(3),
-        false
-    ),
+    f!("netmask", FuncCategory::Scalar, FuncDomain::Network, 1, Some(1), false),
+    f!("network", FuncCategory::Scalar, FuncDomain::Network, 1, Some(1), false),
+    fo!("next_day", FuncCategory::Scalar, FuncDomain::OracleCompat, 2, Some(2), false),
+    f!("nextval", FuncCategory::Scalar, FuncDomain::System, 1, Some(1), false),
+    fo!("nls_initcap", FuncCategory::Scalar, FuncDomain::OracleCompat, 1, Some(2), false),
+    fo!("nls_lower", FuncCategory::Scalar, FuncDomain::OracleCompat, 1, Some(2), false),
+    fo!("nls_sort", FuncCategory::Scalar, FuncDomain::OracleCompat, 1, Some(2), false),
+    fo!("nls_upper", FuncCategory::Scalar, FuncDomain::OracleCompat, 1, Some(2), false),
+    fo!("nlssort", FuncCategory::Scalar, FuncDomain::OracleCompat, 1, Some(2), false),
+    f!("now", FuncCategory::Scalar, FuncDomain::DateTime, 0, Some(0), false),
+    f!("nth_value", FuncCategory::Window, FuncDomain::Window, 2, Some(2), false),
+    f!("ntile", FuncCategory::Window, FuncDomain::Window, 1, Some(1), false),
+    f!("nullif", FuncCategory::Special, FuncDomain::Other, 2, Some(2), false),
+    f!("numrange", FuncCategory::Scalar, FuncDomain::Range, 2, Some(3), false),
+    fo!("nvl", FuncCategory::Special, FuncDomain::OracleCompat, 2, Some(2), false),
+    fo!("nvl2", FuncCategory::Special, FuncDomain::OracleCompat, 3, Some(3), false),
     // ── O ───────────────────────────────────────────────────
-
-
-    f!(
-        "octet_length",
-        FuncCategory::Scalar,
-        FuncDomain::String,
-        1,
-        Some(1),
-        false
-    ),
-
-    f!(
-        "overlay",
-        FuncCategory::Scalar,
-        FuncDomain::String,
-        3,
-        Some(4),
-        false
-    ),
+    f!("octet_length", FuncCategory::Scalar, FuncDomain::String, 1, Some(1), false),
+    f!("overlay", FuncCategory::Scalar, FuncDomain::String, 3, Some(4), false),
     // ── P ───────────────────────────────────────────────────
-
-
-    f!(
-        "percent_rank",
-        FuncCategory::Window,
-        FuncDomain::Window,
-        0,
-        Some(0),
-        false
-    ),
-
-    f!(
-        "percentile_cont",
-        FuncCategory::Aggregate,
-        FuncDomain::Aggregate,
-        1,
-        Some(2),
-        true
-    ),
-
-    f!(
-        "percentile_disc",
-        FuncCategory::Aggregate,
-        FuncDomain::Aggregate,
-        1,
-        Some(2),
-        true
-    ),
-    f!(
-        "pg_advisory_lock",
-        FuncCategory::Scalar,
-        FuncDomain::System,
-        1,
-        Some(2),
-        false
-    ),
-    f!(
-        "pg_advisory_unlock",
-        FuncCategory::Scalar,
-        FuncDomain::System,
-        1,
-        Some(2),
-        false
-    ),
-    f!(
-        "pg_advisory_xact_lock",
-        FuncCategory::Scalar,
-        FuncDomain::System,
-        1,
-        Some(2),
-        false
-    ),
-
-    f!(
-        "pg_backend_pid",
-        FuncCategory::Scalar,
-        FuncDomain::System,
-        0,
-        Some(0),
-        false
-    ),
-
-    f!(
-        "pg_cancel_backend",
-        FuncCategory::Scalar,
-        FuncDomain::System,
-        1,
-        Some(1),
-        false
-    ),
-    f!(
-        "pg_collation_is_visible",
-        FuncCategory::Scalar,
-        FuncDomain::System,
-        1,
-        Some(2),
-        false
-    ),
-    f!(
-        "pg_column_size",
-        FuncCategory::Scalar,
-        FuncDomain::System,
-        1,
-        Some(1),
-        false
-    ),
-
-    f!(
-        "pg_conf_load_time",
-        FuncCategory::Scalar,
-        FuncDomain::System,
-        0,
-        Some(0),
-        false
-    ),
-    f!(
-        "pg_conversion_is_visible",
-        FuncCategory::Scalar,
-        FuncDomain::System,
-        1,
-        Some(1),
-        false
-    ),
-    f!(
-        "pg_create_logical_replication_slot",
-        FuncCategory::Scalar,
-        FuncDomain::System,
-        2,
-        Some(3),
-        false
-    ),
-    f!(
-        "pg_create_physical_replication_slot",
-        FuncCategory::Scalar,
-        FuncDomain::System,
-        1,
-        Some(2),
-        false
-    ),
-    f!(
-        "pg_current_xlog_location",
-        FuncCategory::Scalar,
-        FuncDomain::System,
-        0,
-        Some(0),
-        false
-    ),
-
-    f!(
-        "pg_database_size",
-        FuncCategory::Scalar,
-        FuncDomain::System,
-        1,
-        Some(1),
-        false
-    ),
-    f!(
-        "pg_describe_object",
-        FuncCategory::Scalar,
-        FuncDomain::System,
-        3,
-        Some(3),
-        false
-    ),
-    f!(
-        "pg_drop_replication_slot",
-        FuncCategory::Scalar,
-        FuncDomain::System,
-        1,
-        Some(1),
-        false
-    ),
-
-    f!(
-        "pg_exception_context",
-        FuncCategory::Scalar,
-        FuncDomain::ExceptionContext,
-        0,
-        Some(0),
-        false
-    ),
-
-    f!(
-        "pg_exception_detail",
-        FuncCategory::Scalar,
-        FuncDomain::ExceptionContext,
-        0,
-        Some(0),
-        false
-    ),
-
-    f!(
-        "pg_exception_hint",
-        FuncCategory::Scalar,
-        FuncDomain::ExceptionContext,
-        0,
-        Some(0),
-        false
-    ),
-    f!(
-        "pg_export_snapshot",
-        FuncCategory::Scalar,
-        FuncDomain::System,
-        0,
-        Some(0),
-        false
-    ),
-    f!(
-        "pg_function_is_visible",
-        FuncCategory::Scalar,
-        FuncDomain::System,
-        1,
-        Some(1),
-        false
-    ),
-    f!(
-        "pg_get_constraintdef",
-        FuncCategory::Scalar,
-        FuncDomain::System,
-        1,
-        Some(2),
-        false
-    ),
-    f!(
-        "pg_get_expr",
-        FuncCategory::Scalar,
-        FuncDomain::System,
-        2,
-        Some(3),
-        false
-    ),
-    f!(
-        "pg_get_functiondef",
-        FuncCategory::Scalar,
-        FuncDomain::System,
-        1,
-        Some(1),
-        false
-    ),
-    f!(
-        "pg_get_indexdef",
-        FuncCategory::Scalar,
-        FuncDomain::System,
-        1,
-        Some(3),
-        false
-    ),
-    f!(
-        "pg_get_keywords",
-        FuncCategory::Scalar,
-        FuncDomain::System,
-        0,
-        Some(0),
-        false
-    ),
-    f!(
-        "pg_get_ruledef",
-        FuncCategory::Scalar,
-        FuncDomain::System,
-        1,
-        Some(2),
-        false
-    ),
-    f!(
-        "pg_get_serial_sequence",
-        FuncCategory::Scalar,
-        FuncDomain::System,
-        2,
-        Some(2),
-        false
-    ),
-    f!(
-        "pg_get_triggerdef",
-        FuncCategory::Scalar,
-        FuncDomain::System,
-        1,
-        Some(1),
-        false
-    ),
-
-    f!(
-        "pg_get_userbyid",
-        FuncCategory::Scalar,
-        FuncDomain::System,
-        1,
-        Some(1),
-        false
-    ),
-    f!(
-        "pg_get_viewdef",
-        FuncCategory::Scalar,
-        FuncDomain::System,
-        1,
-        Some(2),
-        false
-    ),
-    f!(
-        "pg_has_role",
-        FuncCategory::Scalar,
-        FuncDomain::System,
-        2,
-        Some(3),
-        false
-    ),
-    f!(
-        "pg_identify_object",
-        FuncCategory::Scalar,
-        FuncDomain::System,
-        3,
-        Some(3),
-        false
-    ),
-    f!(
-        "pg_indexes_size",
-        FuncCategory::Scalar,
-        FuncDomain::System,
-        1,
-        Some(1),
-        false
-    ),
-    f!(
-        "pg_is_in_recovery",
-        FuncCategory::Scalar,
-        FuncDomain::System,
-        0,
-        Some(0),
-        false
-    ),
-    f!(
-        "pg_is_other_temp_schema",
-        FuncCategory::Scalar,
-        FuncDomain::System,
-        1,
-        Some(1),
-        false
-    ),
-    f!(
-        "pg_last_xact_replay_timestamp",
-        FuncCategory::Scalar,
-        FuncDomain::System,
-        0,
-        Some(0),
-        false
-    ),
-    f!(
-        "pg_listening_channels",
-        FuncCategory::Scalar,
-        FuncDomain::System,
-        0,
-        Some(0),
-        false
-    ),
-    f!(
-        "pg_logical_slot_get_binary_changes",
-        FuncCategory::Scalar,
-        FuncDomain::System,
-        2,
-        None,
-        false
-    ),
-    f!(
-        "pg_logical_slot_get_changes",
-        FuncCategory::Scalar,
-        FuncDomain::System,
-        2,
-        None,
-        false
-    ),
-    f!(
-        "pg_logical_slot_peek_binary_changes",
-        FuncCategory::Scalar,
-        FuncDomain::System,
-        2,
-        None,
-        false
-    ),
-    f!(
-        "pg_logical_slot_peek_changes",
-        FuncCategory::Scalar,
-        FuncDomain::System,
-        2,
-        None,
-        false
-    ),
-    f!(
-        "pg_ls_dir",
-        FuncCategory::Scalar,
-        FuncDomain::System,
-        1,
-        Some(1),
-        false
-    ),
-    f!(
-        "pg_my_temp_schema",
-        FuncCategory::Scalar,
-        FuncDomain::System,
-        0,
-        Some(0),
-        false
-    ),
-    f!(
-        "pg_opclass_is_visible",
-        FuncCategory::Scalar,
-        FuncDomain::System,
-        1,
-        Some(1),
-        false
-    ),
-    f!(
-        "pg_operator_is_visible",
-        FuncCategory::Scalar,
-        FuncDomain::System,
-        1,
-        Some(1),
-        false
-    ),
-    f!(
-        "pg_opfamily_is_visible",
-        FuncCategory::Scalar,
-        FuncDomain::System,
-        1,
-        Some(1),
-        false
-    ),
-
-    f!(
-        "pg_postmaster_start_time",
-        FuncCategory::Scalar,
-        FuncDomain::System,
-        0,
-        Some(0),
-        false
-    ),
-    f!(
-        "pg_prepared_statement",
-        FuncCategory::Scalar,
-        FuncDomain::System,
-        1,
-        Some(1),
-        false
-    ),
-    f!(
-        "pg_prepared_xact",
-        FuncCategory::Scalar,
-        FuncDomain::System,
-        1,
-        Some(1),
-        false
-    ),
-    f!(
-        "pg_query_audit",
-        FuncCategory::Scalar,
-        FuncDomain::System,
-        2,
-        Some(2),
-        false
-    ),
-    f!(
-        "pg_read_binary_file",
-        FuncCategory::Scalar,
-        FuncDomain::System,
-        1,
-        Some(3),
-        false
-    ),
-    f!(
-        "pg_read_file",
-        FuncCategory::Scalar,
-        FuncDomain::System,
-        1,
-        Some(3),
-        false
-    ),
-    f!(
-        "pg_relation_filenode",
-        FuncCategory::Scalar,
-        FuncDomain::System,
-        1,
-        Some(1),
-        false
-    ),
-    f!(
-        "pg_relation_filepath",
-        FuncCategory::Scalar,
-        FuncDomain::System,
-        1,
-        Some(1),
-        false
-    ),
-
-    f!(
-        "pg_relation_size",
-        FuncCategory::Scalar,
-        FuncDomain::System,
-        1,
-        Some(2),
-        false
-    ),
-    f!(
-        "pg_replication_origin_create",
-        FuncCategory::Scalar,
-        FuncDomain::System,
-        1,
-        Some(1),
-        false
-    ),
-    f!(
-        "pg_replication_origin_drop",
-        FuncCategory::Scalar,
-        FuncDomain::System,
-        1,
-        Some(1),
-        false
-    ),
-    f!(
-        "pg_replication_origin_oid",
-        FuncCategory::Scalar,
-        FuncDomain::System,
-        1,
-        Some(1),
-        false
-    ),
-    f!(
-        "pg_replication_origin_progress",
-        FuncCategory::Scalar,
-        FuncDomain::System,
-        1,
-        Some(2),
-        false
-    ),
-    f!(
-        "pg_rotate_logfile",
-        FuncCategory::Scalar,
-        FuncDomain::System,
-        0,
-        Some(0),
-        false
-    ),
-    f!(
-        "pg_size_pretty",
-        FuncCategory::Scalar,
-        FuncDomain::System,
-        1,
-        Some(1),
-        false
-    ),
-
-    f!(
-        "pg_sleep",
-        FuncCategory::Scalar,
-        FuncDomain::System,
-        1,
-        Some(1),
-        false
-    ),
-    f!(
-        "pg_start_backup",
-        FuncCategory::Scalar,
-        FuncDomain::System,
-        1,
-        Some(2),
-        false
-    ),
-    f!(
-        "pg_stat_file",
-        FuncCategory::Scalar,
-        FuncDomain::System,
-        1,
-        Some(1),
-        false
-    ),
-    f!(
-        "pg_stop_backup",
-        FuncCategory::Scalar,
-        FuncDomain::System,
-        0,
-        Some(1),
-        false
-    ),
-    f!(
-        "pg_switch_xlog",
-        FuncCategory::Scalar,
-        FuncDomain::System,
-        0,
-        Some(0),
-        false
-    ),
-
-    f!(
-        "pg_table_is_visible",
-        FuncCategory::Scalar,
-        FuncDomain::System,
-        1,
-        Some(2),
-        false
-    ),
-
-    f!(
-        "pg_table_size",
-        FuncCategory::Scalar,
-        FuncDomain::System,
-        1,
-        Some(1),
-        false
-    ),
-    f!(
-        "pg_tablespace_databases",
-        FuncCategory::Scalar,
-        FuncDomain::System,
-        1,
-        Some(1),
-        false
-    ),
-    f!(
-        "pg_tablespace_location",
-        FuncCategory::Scalar,
-        FuncDomain::System,
-        1,
-        Some(1),
-        false
-    ),
-    f!(
-        "pg_tablespace_size",
-        FuncCategory::Scalar,
-        FuncDomain::System,
-        1,
-        Some(1),
-        false
-    ),
-
-    f!(
-        "pg_terminate_backend",
-        FuncCategory::Scalar,
-        FuncDomain::System,
-        1,
-        Some(1),
-        false
-    ),
-
-    f!(
-        "pg_total_relation_size",
-        FuncCategory::Scalar,
-        FuncDomain::System,
-        1,
-        Some(1),
-        false
-    ),
-    f!(
-        "pg_try_advisory_lock",
-        FuncCategory::Scalar,
-        FuncDomain::System,
-        1,
-        Some(2),
-        false
-    ),
-    f!(
-        "pg_try_advisory_xact_lock",
-        FuncCategory::Scalar,
-        FuncDomain::System,
-        1,
-        Some(2),
-        false
-    ),
-    f!(
-        "pg_ts_config_is_visible",
-        FuncCategory::Scalar,
-        FuncDomain::System,
-        1,
-        Some(1),
-        false
-    ),
-    f!(
-        "pg_ts_dict_is_visible",
-        FuncCategory::Scalar,
-        FuncDomain::System,
-        1,
-        Some(1),
-        false
-    ),
-    f!(
-        "pg_ts_parser_is_visible",
-        FuncCategory::Scalar,
-        FuncDomain::System,
-        1,
-        Some(1),
-        false
-    ),
-    f!(
-        "pg_ts_template_is_visible",
-        FuncCategory::Scalar,
-        FuncDomain::System,
-        1,
-        Some(1),
-        false
-    ),
-    f!(
-        "pg_type_is_visible",
-        FuncCategory::Scalar,
-        FuncDomain::System,
-        1,
-        Some(1),
-        false
-    ),
-
-    f!(
-        "pg_typeof",
-        FuncCategory::Scalar,
-        FuncDomain::System,
-        1,
-        Some(1),
-        false
-    ),
-    f!(
-        "pg_xlog_location_diff",
-        FuncCategory::Scalar,
-        FuncDomain::System,
-        2,
-        Some(2),
-        false
-    ),
-    f!(
-        "pg_xlog_replay_pause",
-        FuncCategory::Scalar,
-        FuncDomain::System,
-        0,
-        Some(0),
-        false
-    ),
-    f!(
-        "pg_xlog_replay_resume",
-        FuncCategory::Scalar,
-        FuncDomain::System,
-        0,
-        Some(0),
-        false
-    ),
-    f!(
-        "pg_xlogfile_name",
-        FuncCategory::Scalar,
-        FuncDomain::System,
-        1,
-        Some(1),
-        false
-    ),
-    f!(
-        "pg_xlogfile_name_offset",
-        FuncCategory::Scalar,
-        FuncDomain::System,
-        1,
-        Some(1),
-        false
-    ),
-
-    f!(
-        "pi",
-        FuncCategory::Scalar,
-        FuncDomain::Math,
-        0,
-        Some(0),
-        false
-    ),
-
-    fop!(
-        "pkg_service.sql_cancel",
-        FuncCategory::Scalar,
-        FuncDomain::PkgService,
-        1,
-        Some(1),
-        false
-    ),
-    f!(
-        "plainto_tsquery",
-        FuncCategory::Scalar,
-        FuncDomain::TextSearch,
-        1,
-        Some(2),
-        false
-    ),
-    f!(
-        "point",
-        FuncCategory::Scalar,
-        FuncDomain::Geometric,
-        2,
-        Some(2),
-        false
-    ),
-    f!(
-        "polygon",
-        FuncCategory::Scalar,
-        FuncDomain::Geometric,
-        1,
-        Some(1),
-        false
-    ),
-
-    f!(
-        "position",
-        FuncCategory::Scalar,
-        FuncDomain::String,
-        2,
-        Some(2),
-        false
-    ),
-
-    f!(
-        "power",
-        FuncCategory::Scalar,
-        FuncDomain::Math,
-        2,
-        Some(2),
-        false
-    ),
+    f!("percent_rank", FuncCategory::Window, FuncDomain::Window, 0, Some(0), false),
+    f!("percentile_cont", FuncCategory::Aggregate, FuncDomain::Aggregate, 1, Some(2), true),
+    f!("percentile_disc", FuncCategory::Aggregate, FuncDomain::Aggregate, 1, Some(2), true),
+    f!("pg_advisory_lock", FuncCategory::Scalar, FuncDomain::System, 1, Some(2), false),
+    f!("pg_advisory_unlock", FuncCategory::Scalar, FuncDomain::System, 1, Some(2), false),
+    f!("pg_advisory_xact_lock", FuncCategory::Scalar, FuncDomain::System, 1, Some(2), false),
+    f!("pg_backend_pid", FuncCategory::Scalar, FuncDomain::System, 0, Some(0), false),
+    f!("pg_cancel_backend", FuncCategory::Scalar, FuncDomain::System, 1, Some(1), false),
+    f!("pg_collation_is_visible", FuncCategory::Scalar, FuncDomain::System, 1, Some(2), false),
+    f!("pg_column_size", FuncCategory::Scalar, FuncDomain::System, 1, Some(1), false),
+    f!("pg_conf_load_time", FuncCategory::Scalar, FuncDomain::System, 0, Some(0), false),
+    f!("pg_conversion_is_visible", FuncCategory::Scalar, FuncDomain::System, 1, Some(1), false),
+    f!("pg_create_logical_replication_slot", FuncCategory::Scalar, FuncDomain::System, 2, Some(3), false),
+    f!("pg_create_physical_replication_slot", FuncCategory::Scalar, FuncDomain::System, 1, Some(2), false),
+    f!("pg_current_xlog_location", FuncCategory::Scalar, FuncDomain::System, 0, Some(0), false),
+    f!("pg_database_size", FuncCategory::Scalar, FuncDomain::System, 1, Some(1), false),
+    f!("pg_describe_object", FuncCategory::Scalar, FuncDomain::System, 3, Some(3), false),
+    f!("pg_drop_replication_slot", FuncCategory::Scalar, FuncDomain::System, 1, Some(1), false),
+    f!("pg_exception_context", FuncCategory::Scalar, FuncDomain::ExceptionContext, 0, Some(0), false),
+    f!("pg_exception_detail", FuncCategory::Scalar, FuncDomain::ExceptionContext, 0, Some(0), false),
+    f!("pg_exception_hint", FuncCategory::Scalar, FuncDomain::ExceptionContext, 0, Some(0), false),
+    f!("pg_export_snapshot", FuncCategory::Scalar, FuncDomain::System, 0, Some(0), false),
+    f!("pg_function_is_visible", FuncCategory::Scalar, FuncDomain::System, 1, Some(1), false),
+    f!("pg_get_constraintdef", FuncCategory::Scalar, FuncDomain::System, 1, Some(2), false),
+    f!("pg_get_expr", FuncCategory::Scalar, FuncDomain::System, 2, Some(3), false),
+    f!("pg_get_functiondef", FuncCategory::Scalar, FuncDomain::System, 1, Some(1), false),
+    f!("pg_get_indexdef", FuncCategory::Scalar, FuncDomain::System, 1, Some(3), false),
+    f!("pg_get_keywords", FuncCategory::Scalar, FuncDomain::System, 0, Some(0), false),
+    f!("pg_get_ruledef", FuncCategory::Scalar, FuncDomain::System, 1, Some(2), false),
+    f!("pg_get_serial_sequence", FuncCategory::Scalar, FuncDomain::System, 2, Some(2), false),
+    f!("pg_get_triggerdef", FuncCategory::Scalar, FuncDomain::System, 1, Some(1), false),
+    f!("pg_get_userbyid", FuncCategory::Scalar, FuncDomain::System, 1, Some(1), false),
+    f!("pg_get_viewdef", FuncCategory::Scalar, FuncDomain::System, 1, Some(2), false),
+    f!("pg_has_role", FuncCategory::Scalar, FuncDomain::System, 2, Some(3), false),
+    f!("pg_identify_object", FuncCategory::Scalar, FuncDomain::System, 3, Some(3), false),
+    f!("pg_indexes_size", FuncCategory::Scalar, FuncDomain::System, 1, Some(1), false),
+    f!("pg_is_in_recovery", FuncCategory::Scalar, FuncDomain::System, 0, Some(0), false),
+    f!("pg_is_other_temp_schema", FuncCategory::Scalar, FuncDomain::System, 1, Some(1), false),
+    f!("pg_last_xact_replay_timestamp", FuncCategory::Scalar, FuncDomain::System, 0, Some(0), false),
+    f!("pg_listening_channels", FuncCategory::Scalar, FuncDomain::System, 0, Some(0), false),
+    f!("pg_logical_slot_get_binary_changes", FuncCategory::Scalar, FuncDomain::System, 2, None, false),
+    f!("pg_logical_slot_get_changes", FuncCategory::Scalar, FuncDomain::System, 2, None, false),
+    f!("pg_logical_slot_peek_binary_changes", FuncCategory::Scalar, FuncDomain::System, 2, None, false),
+    f!("pg_logical_slot_peek_changes", FuncCategory::Scalar, FuncDomain::System, 2, None, false),
+    f!("pg_ls_dir", FuncCategory::Scalar, FuncDomain::System, 1, Some(1), false),
+    f!("pg_my_temp_schema", FuncCategory::Scalar, FuncDomain::System, 0, Some(0), false),
+    f!("pg_opclass_is_visible", FuncCategory::Scalar, FuncDomain::System, 1, Some(1), false),
+    f!("pg_operator_is_visible", FuncCategory::Scalar, FuncDomain::System, 1, Some(1), false),
+    f!("pg_opfamily_is_visible", FuncCategory::Scalar, FuncDomain::System, 1, Some(1), false),
+    f!("pg_postmaster_start_time", FuncCategory::Scalar, FuncDomain::System, 0, Some(0), false),
+    f!("pg_prepared_statement", FuncCategory::Scalar, FuncDomain::System, 1, Some(1), false),
+    f!("pg_prepared_xact", FuncCategory::Scalar, FuncDomain::System, 1, Some(1), false),
+    f!("pg_query_audit", FuncCategory::Scalar, FuncDomain::System, 2, Some(2), false),
+    f!("pg_read_binary_file", FuncCategory::Scalar, FuncDomain::System, 1, Some(3), false),
+    f!("pg_read_file", FuncCategory::Scalar, FuncDomain::System, 1, Some(3), false),
+    f!("pg_relation_filenode", FuncCategory::Scalar, FuncDomain::System, 1, Some(1), false),
+    f!("pg_relation_filepath", FuncCategory::Scalar, FuncDomain::System, 1, Some(1), false),
+    f!("pg_relation_size", FuncCategory::Scalar, FuncDomain::System, 1, Some(2), false),
+    f!("pg_replication_origin_create", FuncCategory::Scalar, FuncDomain::System, 1, Some(1), false),
+    f!("pg_replication_origin_drop", FuncCategory::Scalar, FuncDomain::System, 1, Some(1), false),
+    f!("pg_replication_origin_oid", FuncCategory::Scalar, FuncDomain::System, 1, Some(1), false),
+    f!("pg_replication_origin_progress", FuncCategory::Scalar, FuncDomain::System, 1, Some(2), false),
+    f!("pg_rotate_logfile", FuncCategory::Scalar, FuncDomain::System, 0, Some(0), false),
+    f!("pg_size_pretty", FuncCategory::Scalar, FuncDomain::System, 1, Some(1), false),
+    f!("pg_sleep", FuncCategory::Scalar, FuncDomain::System, 1, Some(1), false),
+    f!("pg_start_backup", FuncCategory::Scalar, FuncDomain::System, 1, Some(2), false),
+    f!("pg_stat_file", FuncCategory::Scalar, FuncDomain::System, 1, Some(1), false),
+    f!("pg_stop_backup", FuncCategory::Scalar, FuncDomain::System, 0, Some(1), false),
+    f!("pg_switch_xlog", FuncCategory::Scalar, FuncDomain::System, 0, Some(0), false),
+    f!("pg_table_is_visible", FuncCategory::Scalar, FuncDomain::System, 1, Some(2), false),
+    f!("pg_table_size", FuncCategory::Scalar, FuncDomain::System, 1, Some(1), false),
+    f!("pg_tablespace_databases", FuncCategory::Scalar, FuncDomain::System, 1, Some(1), false),
+    f!("pg_tablespace_location", FuncCategory::Scalar, FuncDomain::System, 1, Some(1), false),
+    f!("pg_tablespace_size", FuncCategory::Scalar, FuncDomain::System, 1, Some(1), false),
+    f!("pg_terminate_backend", FuncCategory::Scalar, FuncDomain::System, 1, Some(1), false),
+    f!("pg_total_relation_size", FuncCategory::Scalar, FuncDomain::System, 1, Some(1), false),
+    f!("pg_try_advisory_lock", FuncCategory::Scalar, FuncDomain::System, 1, Some(2), false),
+    f!("pg_try_advisory_xact_lock", FuncCategory::Scalar, FuncDomain::System, 1, Some(2), false),
+    f!("pg_ts_config_is_visible", FuncCategory::Scalar, FuncDomain::System, 1, Some(1), false),
+    f!("pg_ts_dict_is_visible", FuncCategory::Scalar, FuncDomain::System, 1, Some(1), false),
+    f!("pg_ts_parser_is_visible", FuncCategory::Scalar, FuncDomain::System, 1, Some(1), false),
+    f!("pg_ts_template_is_visible", FuncCategory::Scalar, FuncDomain::System, 1, Some(1), false),
+    f!("pg_type_is_visible", FuncCategory::Scalar, FuncDomain::System, 1, Some(1), false),
+    f!("pg_typeof", FuncCategory::Scalar, FuncDomain::System, 1, Some(1), false),
+    f!("pg_xlog_location_diff", FuncCategory::Scalar, FuncDomain::System, 2, Some(2), false),
+    f!("pg_xlog_replay_pause", FuncCategory::Scalar, FuncDomain::System, 0, Some(0), false),
+    f!("pg_xlog_replay_resume", FuncCategory::Scalar, FuncDomain::System, 0, Some(0), false),
+    f!("pg_xlogfile_name", FuncCategory::Scalar, FuncDomain::System, 1, Some(1), false),
+    f!("pg_xlogfile_name_offset", FuncCategory::Scalar, FuncDomain::System, 1, Some(1), false),
+    f!("pi", FuncCategory::Scalar, FuncDomain::Math, 0, Some(0), false),
+    fop!("pkg_service.sql_cancel", FuncCategory::Scalar, FuncDomain::PkgService, 1, Some(1), false),
+    f!("plainto_tsquery", FuncCategory::Scalar, FuncDomain::TextSearch, 1, Some(2), false),
+    f!("point", FuncCategory::Scalar, FuncDomain::Geometric, 2, Some(2), false),
+    f!("polygon", FuncCategory::Scalar, FuncDomain::Geometric, 1, Some(1), false),
+    f!("position", FuncCategory::Scalar, FuncDomain::String, 2, Some(2), false),
+    f!("power", FuncCategory::Scalar, FuncDomain::Math, 2, Some(2), false),
     // ── Q ───────────────────────────────────────────────────
-
-    f!(
-        "querytree",
-        FuncCategory::Scalar,
-        FuncDomain::TextSearch,
-        1,
-        Some(1),
-        false
-    ),
-
-    f!(
-        "quote_ident",
-        FuncCategory::Scalar,
-        FuncDomain::String,
-        1,
-        Some(1),
-        false
-    ),
-
-    f!(
-        "quote_literal",
-        FuncCategory::Scalar,
-        FuncDomain::String,
-        1,
-        Some(1),
-        false
-    ),
-
-    f!(
-        "quote_nullable",
-        FuncCategory::Scalar,
-        FuncDomain::String,
-        1,
-        Some(1),
-        false
-    ),
+    f!("querytree", FuncCategory::Scalar, FuncDomain::TextSearch, 1, Some(1), false),
+    f!("quote_ident", FuncCategory::Scalar, FuncDomain::String, 1, Some(1), false),
+    f!("quote_literal", FuncCategory::Scalar, FuncDomain::String, 1, Some(1), false),
+    f!("quote_nullable", FuncCategory::Scalar, FuncDomain::String, 1, Some(1), false),
     // ── R ───────────────────────────────────────────────────
-
-
-    f!(
-        "radians",
-        FuncCategory::Scalar,
-        FuncDomain::Math,
-        1,
-        Some(1),
-        false
-    ),
-    f!(
-        "radius",
-        FuncCategory::Scalar,
-        FuncDomain::Geometric,
-        1,
-        Some(1),
-        false
-    ),
-    f!(
-        "random",
-        FuncCategory::Scalar,
-        FuncDomain::Math,
-        0,
-        Some(0),
-        false
-    ),
-
-    f!(
-        "rank",
-        FuncCategory::Window,
-        FuncDomain::Window,
-        0,
-        Some(0),
-        false
-    ),
-
-    f!(
-        "ratio_to_report",
-        FuncCategory::Window,
-        FuncDomain::Window,
-        1,
-        Some(1),
-        false
-    ),
-
-    f!(
-        "regexp_count",
-        FuncCategory::Scalar,
-        FuncDomain::String,
-        2,
-        Some(4),
-        false
-    ),
-
-    f!(
-        "regexp_instr",
-        FuncCategory::Scalar,
-        FuncDomain::String,
-        2,
-        Some(5),
-        false
-    ),
-
-    f!(
-        "regexp_like",
-        FuncCategory::Scalar,
-        FuncDomain::String,
-        2,
-        Some(3),
-        false
-    ),
-
-    f!(
-        "regexp_matches",
-        FuncCategory::Scalar,
-        FuncDomain::String,
-        2,
-        Some(3),
-        false
-    ),
-
-    f!(
-        "regexp_replace",
-        FuncCategory::Scalar,
-        FuncDomain::String,
-        2,
-        Some(6),
-        false
-    ),
-    f!(
-        "regexp_split_to_array",
-        FuncCategory::Scalar,
-        FuncDomain::String,
-        1,
-        Some(3),
-        false
-    ),
-    f!(
-        "regexp_split_to_table",
-        FuncCategory::SetReturning,
-        FuncDomain::String,
-        1,
-        Some(3),
-        false
-    ),
-
-    f!(
-        "regexp_substr",
-        FuncCategory::Scalar,
-        FuncDomain::String,
-        2,
-        Some(4),
-        false
-    ),
-
-    f!(
-        "regr_avgx",
-        FuncCategory::Aggregate,
-        FuncDomain::Aggregate,
-        2,
-        Some(2),
-        true
-    ),
-
-    f!(
-        "regr_avgy",
-        FuncCategory::Aggregate,
-        FuncDomain::Aggregate,
-        2,
-        Some(2),
-        true
-    ),
-
-    f!(
-        "regr_count",
-        FuncCategory::Aggregate,
-        FuncDomain::Aggregate,
-        2,
-        Some(2),
-        true
-    ),
-
-    f!(
-        "regr_intercept",
-        FuncCategory::Aggregate,
-        FuncDomain::Aggregate,
-        2,
-        Some(2),
-        true
-    ),
-
-    f!(
-        "regr_r2",
-        FuncCategory::Aggregate,
-        FuncDomain::Aggregate,
-        2,
-        Some(2),
-        true
-    ),
-
-    f!(
-        "regr_slope",
-        FuncCategory::Aggregate,
-        FuncDomain::Aggregate,
-        2,
-        Some(2),
-        true
-    ),
-    f!(
-        "regr_sxx",
-        FuncCategory::Aggregate,
-        FuncDomain::Aggregate,
-        2,
-        Some(2),
-        true
-    ),
-    f!(
-        "regr_sxy",
-        FuncCategory::Aggregate,
-        FuncDomain::Aggregate,
-        2,
-        Some(2),
-        true
-    ),
-    f!(
-        "regr_syy",
-        FuncCategory::Aggregate,
-        FuncDomain::Aggregate,
-        2,
-        Some(2),
-        true
-    ),
-
-    f!(
-        "repeat",
-        FuncCategory::Scalar,
-        FuncDomain::String,
-        2,
-        Some(2),
-        false
-    ),
-
-    f!(
-        "replace",
-        FuncCategory::Scalar,
-        FuncDomain::String,
-        2,
-        Some(3),
-        false
-    ),
-
-    f!(
-        "reverse",
-        FuncCategory::Scalar,
-        FuncDomain::String,
-        1,
-        Some(1),
-        false
-    ),
-
-    f!(
-        "right",
-        FuncCategory::Scalar,
-        FuncDomain::String,
-        2,
-        Some(2),
-        false
-    ),
-
-    f!(
-        "round",
-        FuncCategory::Scalar,
-        FuncDomain::Math,
-        1,
-        Some(2),
-        false
-    ),
-
-    f!(
-        "row_number",
-        FuncCategory::Window,
-        FuncDomain::Window,
-        0,
-        Some(0),
-        false
-    ),
-
-    f!(
-        "row_to_json",
-        FuncCategory::Scalar,
-        FuncDomain::Json,
-        1,
-        Some(2),
-        false
-    ),
-
-    fo!(
-        "rownum",
-        FuncCategory::Scalar,
-        FuncDomain::OracleCompat,
-        0,
-        Some(0),
-        false
-    ),
-
-    f!(
-        "rpad",
-        FuncCategory::Scalar,
-        FuncDomain::String,
-        2,
-        Some(3),
-        false
-    ),
-
-    f!(
-        "rtrim",
-        FuncCategory::Scalar,
-        FuncDomain::String,
-        1,
-        Some(2),
-        false
-    ),
+    f!("radians", FuncCategory::Scalar, FuncDomain::Math, 1, Some(1), false),
+    f!("radius", FuncCategory::Scalar, FuncDomain::Geometric, 1, Some(1), false),
+    f!("random", FuncCategory::Scalar, FuncDomain::Math, 0, Some(0), false),
+    f!("rank", FuncCategory::Window, FuncDomain::Window, 0, Some(0), false),
+    f!("ratio_to_report", FuncCategory::Window, FuncDomain::Window, 1, Some(1), false),
+    f!("regexp_count", FuncCategory::Scalar, FuncDomain::String, 2, Some(4), false),
+    f!("regexp_instr", FuncCategory::Scalar, FuncDomain::String, 2, Some(5), false),
+    f!("regexp_like", FuncCategory::Scalar, FuncDomain::String, 2, Some(3), false),
+    f!("regexp_matches", FuncCategory::Scalar, FuncDomain::String, 2, Some(3), false),
+    f!("regexp_replace", FuncCategory::Scalar, FuncDomain::String, 2, Some(6), false),
+    f!("regexp_split_to_array", FuncCategory::Scalar, FuncDomain::String, 1, Some(3), false),
+    f!("regexp_split_to_table", FuncCategory::SetReturning, FuncDomain::String, 1, Some(3), false),
+    f!("regexp_substr", FuncCategory::Scalar, FuncDomain::String, 2, Some(4), false),
+    f!("regr_avgx", FuncCategory::Aggregate, FuncDomain::Aggregate, 2, Some(2), true),
+    f!("regr_avgy", FuncCategory::Aggregate, FuncDomain::Aggregate, 2, Some(2), true),
+    f!("regr_count", FuncCategory::Aggregate, FuncDomain::Aggregate, 2, Some(2), true),
+    f!("regr_intercept", FuncCategory::Aggregate, FuncDomain::Aggregate, 2, Some(2), true),
+    f!("regr_r2", FuncCategory::Aggregate, FuncDomain::Aggregate, 2, Some(2), true),
+    f!("regr_slope", FuncCategory::Aggregate, FuncDomain::Aggregate, 2, Some(2), true),
+    f!("regr_sxx", FuncCategory::Aggregate, FuncDomain::Aggregate, 2, Some(2), true),
+    f!("regr_sxy", FuncCategory::Aggregate, FuncDomain::Aggregate, 2, Some(2), true),
+    f!("regr_syy", FuncCategory::Aggregate, FuncDomain::Aggregate, 2, Some(2), true),
+    f!("repeat", FuncCategory::Scalar, FuncDomain::String, 2, Some(2), false),
+    f!("replace", FuncCategory::Scalar, FuncDomain::String, 2, Some(3), false),
+    f!("reverse", FuncCategory::Scalar, FuncDomain::String, 1, Some(1), false),
+    f!("right", FuncCategory::Scalar, FuncDomain::String, 2, Some(2), false),
+    f!("round", FuncCategory::Scalar, FuncDomain::Math, 1, Some(2), false),
+    f!("row_number", FuncCategory::Window, FuncDomain::Window, 0, Some(0), false),
+    f!("row_to_json", FuncCategory::Scalar, FuncDomain::Json, 1, Some(2), false),
+    fo!("rownum", FuncCategory::Scalar, FuncDomain::OracleCompat, 0, Some(0), false),
+    f!("rpad", FuncCategory::Scalar, FuncDomain::String, 2, Some(3), false),
+    f!("rtrim", FuncCategory::Scalar, FuncDomain::String, 1, Some(2), false),
     // ── S ───────────────────────────────────────────────────
-
-
-    f!(
-        "session_user",
-        FuncCategory::Scalar,
-        FuncDomain::System,
-        0,
-        Some(0),
-        false
-    ),
-    f!(
-        "set_bit",
-        FuncCategory::Scalar,
-        FuncDomain::String,
-        3,
-        Some(3),
-        false
-    ),
-    f!(
-        "set_byte",
-        FuncCategory::Scalar,
-        FuncDomain::String,
-        3,
-        Some(3),
-        false
-    ),
-
-    f!(
-        "set_config",
-        FuncCategory::Scalar,
-        FuncDomain::System,
-        2,
-        Some(3),
-        false
-    ),
-    f!(
-        "setseed",
-        FuncCategory::Scalar,
-        FuncDomain::Math,
-        1,
-        Some(1),
-        false
-    ),
-    f!(
-        "setval",
-        FuncCategory::Scalar,
-        FuncDomain::System,
-        2,
-        Some(3),
-        false
-    ),
-    f!(
-        "sha1",
-        FuncCategory::Scalar,
-        FuncDomain::Crypto,
-        1,
-        Some(1),
-        false
-    ),
-
-    f!(
-        "sign",
-        FuncCategory::Scalar,
-        FuncDomain::Math,
-        1,
-        Some(1),
-        false
-    ),
-
-    f!(
-        "sin",
-        FuncCategory::Scalar,
-        FuncDomain::Math,
-        1,
-        Some(1),
-        false
-    ),
-
-    f!(
-        "split_part",
-        FuncCategory::Scalar,
-        FuncDomain::String,
-        3,
-        Some(3),
-        false
-    ),
-
-    f!(
-        "sqrt",
-        FuncCategory::Scalar,
-        FuncDomain::Math,
-        1,
-        Some(1),
-        false
-    ),
-
-    fo!(
-        "st_buffer",
-        FuncCategory::Scalar,
-        FuncDomain::Geometric,
-        2,
-        Some(3),
-        false
-    ),
-
-    fo!(
-        "st_envelope",
-        FuncCategory::Scalar,
-        FuncDomain::Geometric,
-        1,
-        Some(1),
-        false
-    ),
-
-    fo!(
-        "st_makepoint",
-        FuncCategory::Scalar,
-        FuncDomain::Geometric,
-        2,
-        Some(4),
-        false
-    ),
-
-    fo!(
-        "st_setsrid",
-        FuncCategory::Scalar,
-        FuncDomain::Geometric,
-        2,
-        Some(2),
-        false
-    ),
-
-    f!(
-        "statement_timestamp",
-        FuncCategory::Scalar,
-        FuncDomain::DateTime,
-        0,
-        Some(0),
-        false
-    ),
-
-    f!(
-        "stddev",
-        FuncCategory::Aggregate,
-        FuncDomain::Aggregate,
-        1,
-        Some(1),
-        true
-    ),
-
-    f!(
-        "stddev_pop",
-        FuncCategory::Aggregate,
-        FuncDomain::Aggregate,
-        1,
-        Some(1),
-        true
-    ),
-
-    f!(
-        "stddev_samp",
-        FuncCategory::Aggregate,
-        FuncDomain::Aggregate,
-        1,
-        Some(1),
-        true
-    ),
-
-    f!(
-        "string_agg",
-        FuncCategory::Aggregate,
-        FuncDomain::String,
-        2,
-        Some(2),
-        true
-    ),
-
-    f!(
-        "string_to_array",
-        FuncCategory::Scalar,
-        FuncDomain::Array,
-        2,
-        Some(3),
-        false
-    ),
-
-    f!(
-        "strpos",
-        FuncCategory::Scalar,
-        FuncDomain::String,
-        2,
-        Some(2),
-        false
-    ),
-
-    f!(
-        "substr",
-        FuncCategory::Scalar,
-        FuncDomain::String,
-        2,
-        Some(3),
-        false
-    ),
-
-    fo!(
-        "substrb",
-        FuncCategory::Scalar,
-        FuncDomain::String,
-        2,
-        Some(3),
-        false
-    ),
-
-    f!(
-        "substring",
-        FuncCategory::Scalar,
-        FuncDomain::String,
-        2,
-        Some(3),
-        false
-    ),
-
-    f!(
-        "sum",
-        FuncCategory::Aggregate,
-        FuncDomain::Aggregate,
-        1,
-        Some(1),
-        true
-    ),
-
-    fo!(
-        "sysdate",
-        FuncCategory::Scalar,
-        FuncDomain::OracleCompat,
-        0,
-        Some(0),
-        false
-    ),
+    f!("session_user", FuncCategory::Scalar, FuncDomain::System, 0, Some(0), false),
+    f!("set_bit", FuncCategory::Scalar, FuncDomain::String, 3, Some(3), false),
+    f!("set_byte", FuncCategory::Scalar, FuncDomain::String, 3, Some(3), false),
+    f!("set_config", FuncCategory::Scalar, FuncDomain::System, 2, Some(3), false),
+    f!("setseed", FuncCategory::Scalar, FuncDomain::Math, 1, Some(1), false),
+    f!("setval", FuncCategory::Scalar, FuncDomain::System, 2, Some(3), false),
+    f!("sha1", FuncCategory::Scalar, FuncDomain::Crypto, 1, Some(1), false),
+    f!("sign", FuncCategory::Scalar, FuncDomain::Math, 1, Some(1), false),
+    f!("sin", FuncCategory::Scalar, FuncDomain::Math, 1, Some(1), false),
+    f!("split_part", FuncCategory::Scalar, FuncDomain::String, 3, Some(3), false),
+    f!("sqrt", FuncCategory::Scalar, FuncDomain::Math, 1, Some(1), false),
+    fo!("st_buffer", FuncCategory::Scalar, FuncDomain::Geometric, 2, Some(3), false),
+    fo!("st_envelope", FuncCategory::Scalar, FuncDomain::Geometric, 1, Some(1), false),
+    fo!("st_makepoint", FuncCategory::Scalar, FuncDomain::Geometric, 2, Some(4), false),
+    fo!("st_setsrid", FuncCategory::Scalar, FuncDomain::Geometric, 2, Some(2), false),
+    f!("statement_timestamp", FuncCategory::Scalar, FuncDomain::DateTime, 0, Some(0), false),
+    f!("stddev", FuncCategory::Aggregate, FuncDomain::Aggregate, 1, Some(1), true),
+    f!("stddev_pop", FuncCategory::Aggregate, FuncDomain::Aggregate, 1, Some(1), true),
+    f!("stddev_samp", FuncCategory::Aggregate, FuncDomain::Aggregate, 1, Some(1), true),
+    f!("string_agg", FuncCategory::Aggregate, FuncDomain::String, 2, Some(2), true),
+    f!("string_to_array", FuncCategory::Scalar, FuncDomain::Array, 2, Some(3), false),
+    f!("strpos", FuncCategory::Scalar, FuncDomain::String, 2, Some(2), false),
+    f!("substr", FuncCategory::Scalar, FuncDomain::String, 2, Some(3), false),
+    fo!("substrb", FuncCategory::Scalar, FuncDomain::String, 2, Some(3), false),
+    f!("substring", FuncCategory::Scalar, FuncDomain::String, 2, Some(3), false),
+    f!("sum", FuncCategory::Aggregate, FuncDomain::Aggregate, 1, Some(1), true),
+    fo!("sysdate", FuncCategory::Scalar, FuncDomain::OracleCompat, 0, Some(0), false),
     // ── T ───────────────────────────────────────────────────
-
-
-    f!(
-        "tan",
-        FuncCategory::Scalar,
-        FuncDomain::Math,
-        1,
-        Some(1),
-        false
-    ),
-    f!(
-        "timeofday",
-        FuncCategory::Scalar,
-        FuncDomain::DateTime,
-        0,
-        Some(0),
-        false
-    ),
-
-    f!(
-        "to_ascii",
-        FuncCategory::Scalar,
-        FuncDomain::TypeConversion,
-        1,
-        Some(2),
-        false
-    ),
-
-    f!(
-        "to_char",
-        FuncCategory::Scalar,
-        FuncDomain::TypeConversion,
-        1,
-        Some(2),
-        false
-    ),
-
-    f!(
-        "to_date",
-        FuncCategory::Scalar,
-        FuncDomain::TypeConversion,
-        1,
-        Some(2),
-        false
-    ),
-
-    f!(
-        "to_hex",
-        FuncCategory::Scalar,
-        FuncDomain::TypeConversion,
-        1,
-        Some(1),
-        false
-    ),
-
-    f!(
-        "to_json",
-        FuncCategory::Scalar,
-        FuncDomain::Json,
-        1,
-        Some(1),
-        false
-    ),
-
-    f!(
-        "to_jsonb",
-        FuncCategory::Scalar,
-        FuncDomain::Json,
-        1,
-        Some(1),
-        false
-    ),
-
-    f!(
-        "to_number",
-        FuncCategory::Scalar,
-        FuncDomain::TypeConversion,
-        1,
-        Some(2),
-        false
-    ),
-
-    f!(
-        "to_timestamp",
-        FuncCategory::Scalar,
-        FuncDomain::DateTime,
-        1,
-        Some(2),
-        false
-    ),
-    f!(
-        "to_tsquery",
-        FuncCategory::Scalar,
-        FuncDomain::TextSearch,
-        1,
-        Some(2),
-        false
-    ),
-    f!(
-        "to_tsvector",
-        FuncCategory::Scalar,
-        FuncDomain::TextSearch,
-        1,
-        Some(2),
-        false
-    ),
-
-    f!(
-        "transaction_timestamp",
-        FuncCategory::Scalar,
-        FuncDomain::DateTime,
-        0,
-        Some(0),
-        false
-    ),
-
-    f!(
-        "translate",
-        FuncCategory::Scalar,
-        FuncDomain::String,
-        3,
-        Some(3),
-        false
-    ),
-
-    f!(
-        "trim",
-        FuncCategory::Scalar,
-        FuncDomain::String,
-        1,
-        Some(3),
-        false
-    ),
-
-    f!(
-        "trunc",
-        FuncCategory::Scalar,
-        FuncDomain::Math,
-        1,
-        Some(2),
-        false
-    ),
-    f!(
-        "ts_headline",
-        FuncCategory::Scalar,
-        FuncDomain::TextSearch,
-        2,
-        Some(4),
-        false
-    ),
-    f!(
-        "ts_lexize",
-        FuncCategory::Scalar,
-        FuncDomain::TextSearch,
-        2,
-        Some(2),
-        false
-    ),
-    f!(
-        "ts_parse",
-        FuncCategory::Scalar,
-        FuncDomain::TextSearch,
-        1,
-        Some(2),
-        false
-    ),
-    f!(
-        "ts_rank",
-        FuncCategory::Scalar,
-        FuncDomain::TextSearch,
-        1,
-        Some(4),
-        false
-    ),
-    f!(
-        "ts_rank_cd",
-        FuncCategory::Scalar,
-        FuncDomain::TextSearch,
-        1,
-        Some(4),
-        false
-    ),
-    f!(
-        "ts_rewrite",
-        FuncCategory::Scalar,
-        FuncDomain::TextSearch,
-        2,
-        Some(3),
-        false
-    ),
-    f!(
-        "ts_stat",
-        FuncCategory::Scalar,
-        FuncDomain::TextSearch,
-        1,
-        Some(2),
-        false
-    ),
-    f!(
-        "ts_token_type",
-        FuncCategory::Scalar,
-        FuncDomain::TextSearch,
-        0,
-        Some(1),
-        false
-    ),
-
-    f!(
-        "tsrange",
-        FuncCategory::Scalar,
-        FuncDomain::Range,
-        2,
-        Some(3),
-        false
-    ),
-
-    f!(
-        "tsvector_update_trigger",
-        FuncCategory::Scalar,
-        FuncDomain::TextSearch,
-        0,
-        Some(0),
-        false
-    ),
-    f!(
-        "txid_current",
-        FuncCategory::Scalar,
-        FuncDomain::System,
-        0,
-        Some(0),
-        false
-    ),
-    f!(
-        "txid_current_snapshot",
-        FuncCategory::Scalar,
-        FuncDomain::System,
-        0,
-        Some(0),
-        false
-    ),
-    f!(
-        "txid_snapshot_xip",
-        FuncCategory::Scalar,
-        FuncDomain::System,
-        1,
-        Some(1),
-        false
-    ),
-    f!(
-        "txid_snapshot_xmax",
-        FuncCategory::Scalar,
-        FuncDomain::System,
-        1,
-        Some(1),
-        false
-    ),
-    f!(
-        "txid_snapshot_xmin",
-        FuncCategory::Scalar,
-        FuncDomain::System,
-        1,
-        Some(1),
-        false
-    ),
-    f!(
-        "txid_visible_in_snapshot",
-        FuncCategory::Scalar,
-        FuncDomain::System,
-        2,
-        Some(2),
-        false
-    ),
+    f!("tan", FuncCategory::Scalar, FuncDomain::Math, 1, Some(1), false),
+    f!("timeofday", FuncCategory::Scalar, FuncDomain::DateTime, 0, Some(0), false),
+    f!("to_ascii", FuncCategory::Scalar, FuncDomain::TypeConversion, 1, Some(2), false),
+    f!("to_char", FuncCategory::Scalar, FuncDomain::TypeConversion, 1, Some(2), false),
+    f!("to_date", FuncCategory::Scalar, FuncDomain::TypeConversion, 1, Some(2), false),
+    f!("to_hex", FuncCategory::Scalar, FuncDomain::TypeConversion, 1, Some(1), false),
+    f!("to_json", FuncCategory::Scalar, FuncDomain::Json, 1, Some(1), false),
+    f!("to_jsonb", FuncCategory::Scalar, FuncDomain::Json, 1, Some(1), false),
+    f!("to_number", FuncCategory::Scalar, FuncDomain::TypeConversion, 1, Some(2), false),
+    f!("to_timestamp", FuncCategory::Scalar, FuncDomain::DateTime, 1, Some(2), false),
+    f!("to_tsquery", FuncCategory::Scalar, FuncDomain::TextSearch, 1, Some(2), false),
+    f!("to_tsvector", FuncCategory::Scalar, FuncDomain::TextSearch, 1, Some(2), false),
+    f!("transaction_timestamp", FuncCategory::Scalar, FuncDomain::DateTime, 0, Some(0), false),
+    f!("translate", FuncCategory::Scalar, FuncDomain::String, 3, Some(3), false),
+    f!("trim", FuncCategory::Scalar, FuncDomain::String, 1, Some(3), false),
+    f!("trunc", FuncCategory::Scalar, FuncDomain::Math, 1, Some(2), false),
+    f!("ts_headline", FuncCategory::Scalar, FuncDomain::TextSearch, 2, Some(4), false),
+    f!("ts_lexize", FuncCategory::Scalar, FuncDomain::TextSearch, 2, Some(2), false),
+    f!("ts_parse", FuncCategory::Scalar, FuncDomain::TextSearch, 1, Some(2), false),
+    f!("ts_rank", FuncCategory::Scalar, FuncDomain::TextSearch, 1, Some(4), false),
+    f!("ts_rank_cd", FuncCategory::Scalar, FuncDomain::TextSearch, 1, Some(4), false),
+    f!("ts_rewrite", FuncCategory::Scalar, FuncDomain::TextSearch, 2, Some(3), false),
+    f!("ts_stat", FuncCategory::Scalar, FuncDomain::TextSearch, 1, Some(2), false),
+    f!("ts_token_type", FuncCategory::Scalar, FuncDomain::TextSearch, 0, Some(1), false),
+    f!("tsrange", FuncCategory::Scalar, FuncDomain::Range, 2, Some(3), false),
+    f!("tsvector_update_trigger", FuncCategory::Scalar, FuncDomain::TextSearch, 0, Some(0), false),
+    f!("txid_current", FuncCategory::Scalar, FuncDomain::System, 0, Some(0), false),
+    f!("txid_current_snapshot", FuncCategory::Scalar, FuncDomain::System, 0, Some(0), false),
+    f!("txid_snapshot_xip", FuncCategory::Scalar, FuncDomain::System, 1, Some(1), false),
+    f!("txid_snapshot_xmax", FuncCategory::Scalar, FuncDomain::System, 1, Some(1), false),
+    f!("txid_snapshot_xmin", FuncCategory::Scalar, FuncDomain::System, 1, Some(1), false),
+    f!("txid_visible_in_snapshot", FuncCategory::Scalar, FuncDomain::System, 2, Some(2), false),
     // ── U ───────────────────────────────────────────────────
-
-
-    f!(
-        "unnest",
-        FuncCategory::SetReturning,
-        FuncDomain::Array,
-        1,
-        Some(1),
-        false
-    ),
-
-    f!(
-        "upper",
-        FuncCategory::Scalar,
-        FuncDomain::String,
-        1,
-        Some(1),
-        false
-    ),
-
-    f!(
-        "user",
-        FuncCategory::Scalar,
-        FuncDomain::System,
-        0,
-        Some(0),
-        false
-    ),
-
-    fop!(
-        "utl_file.fclose",
-        FuncCategory::Scalar,
-        FuncDomain::UtlFile,
-        1,
-        Some(1),
-        false
-    ),
-
-    fop!(
-        "utl_file.fclose_all",
-        FuncCategory::Scalar,
-        FuncDomain::UtlFile,
-        0,
-        Some(0),
-        false
-    ),
-
-    fop!(
-        "utl_file.fopen",
-        FuncCategory::Scalar,
-        FuncDomain::UtlFile,
-        2,
-        Some(4),
-        false
-    ),
-
-    fop!(
-        "utl_file.get_line",
-        FuncCategory::Scalar,
-        FuncDomain::UtlFile,
-        1,
-        Some(2),
-        false
-    ),
-
-    fop!(
-        "utl_file.put_line",
-        FuncCategory::Scalar,
-        FuncDomain::UtlFile,
-        1,
-        Some(2),
-        false
-    ),
+    f!("unnest", FuncCategory::SetReturning, FuncDomain::Array, 1, Some(1), false),
+    f!("upper", FuncCategory::Scalar, FuncDomain::String, 1, Some(1), false),
+    f!("user", FuncCategory::Scalar, FuncDomain::System, 0, Some(0), false),
+    fop!("utl_file.fclose", FuncCategory::Scalar, FuncDomain::UtlFile, 1, Some(1), false),
+    fop!("utl_file.fclose_all", FuncCategory::Scalar, FuncDomain::UtlFile, 0, Some(0), false),
+    fop!("utl_file.fopen", FuncCategory::Scalar, FuncDomain::UtlFile, 2, Some(4), false),
+    fop!("utl_file.get_line", FuncCategory::Scalar, FuncDomain::UtlFile, 1, Some(2), false),
+    fop!("utl_file.put_line", FuncCategory::Scalar, FuncDomain::UtlFile, 1, Some(2), false),
     // ── V ───────────────────────────────────────────────────
-
-
-    f!(
-        "var_pop",
-        FuncCategory::Aggregate,
-        FuncDomain::Aggregate,
-        1,
-        Some(1),
-        true
-    ),
-
-    f!(
-        "var_samp",
-        FuncCategory::Aggregate,
-        FuncDomain::Aggregate,
-        1,
-        Some(1),
-        true
-    ),
-
-    f!(
-        "variance",
-        FuncCategory::Aggregate,
-        FuncDomain::Aggregate,
-        1,
-        Some(1),
-        true
-    ),
-
-    f!(
-        "version",
-        FuncCategory::Scalar,
-        FuncDomain::System,
-        0,
-        Some(0),
-        false
-    ),
+    f!("var_pop", FuncCategory::Aggregate, FuncDomain::Aggregate, 1, Some(1), true),
+    f!("var_samp", FuncCategory::Aggregate, FuncDomain::Aggregate, 1, Some(1), true),
+    f!("variance", FuncCategory::Aggregate, FuncDomain::Aggregate, 1, Some(1), true),
+    f!("version", FuncCategory::Scalar, FuncDomain::System, 0, Some(0), false),
     // ── W ───────────────────────────────────────────────────
-
-    f!(
-        "width",
-        FuncCategory::Scalar,
-        FuncDomain::Geometric,
-        1,
-        Some(1),
-        false
-    ),
-
-    f!(
-        "width_bucket",
-        FuncCategory::Scalar,
-        FuncDomain::Math,
-        3,
-        Some(4),
-        false
-    ),
-
-    fo!(
-        "wm_concat",
-        FuncCategory::Aggregate,
-        FuncDomain::String,
-        1,
-        None,
-        true
-    ),
+    f!("width", FuncCategory::Scalar, FuncDomain::Geometric, 1, Some(1), false),
+    f!("width_bucket", FuncCategory::Scalar, FuncDomain::Math, 3, Some(4), false),
+    fo!("wm_concat", FuncCategory::Aggregate, FuncDomain::String, 1, None, true),
     // ── X ───────────────────────────────────────────────────
-
-    f!(
-        "xml_is_well_formed",
-        FuncCategory::Scalar,
-        FuncDomain::Xml,
-        1,
-        Some(1),
-        false
-    ),
-
-    fop!(
-        "xmlagg",
-        FuncCategory::Aggregate,
-        FuncDomain::Xml,
-        1,
-        Some(1),
-        true
-    ),
-
-    fop!(
-        "xmlattributes",
-        FuncCategory::Scalar,
-        FuncDomain::Xml,
-        1,
-        None,
-        false
-    ),
-
-    fop!(
-        "xmlcomment",
-        FuncCategory::Scalar,
-        FuncDomain::Xml,
-        1,
-        Some(1),
-        false
-    ),
-
-    fop!(
-        "xmlconcat",
-        FuncCategory::Scalar,
-        FuncDomain::Xml,
-        1,
-        None,
-        false
-    ),
-
-    fop!(
-        "xmlelement",
-        FuncCategory::Scalar,
-        FuncDomain::Xml,
-        1,
-        None,
-        false
-    ),
-
-    fop!(
-        "xmlforest",
-        FuncCategory::Scalar,
-        FuncDomain::Xml,
-        1,
-        None,
-        false
-    ),
-
-    fop!(
-        "xmlparse",
-        FuncCategory::Scalar,
-        FuncDomain::Xml,
-        1,
-        Some(2),
-        false
-    ),
-
-    fop!(
-        "xmlpi",
-        FuncCategory::Scalar,
-        FuncDomain::Xml,
-        1,
-        Some(2),
-        false
-    ),
-
-    fop!(
-        "xmlquery",
-        FuncCategory::Scalar,
-        FuncDomain::Xml,
-        2,
-        Some(3),
-        false
-    ),
-
-    fop!(
-        "xmlserialize",
-        FuncCategory::Scalar,
-        FuncDomain::Xml,
-        2,
-        Some(3),
-        false
-    ),
-
-    fop!(
-        "xmltype",
-        FuncCategory::Scalar,
-        FuncDomain::Xml,
-        1,
-        Some(1),
-        false
-    ),
-    f!(
-        "xpath",
-        FuncCategory::Scalar,
-        FuncDomain::Xml,
-        2,
-        Some(2),
-        false
-    ),
-    f!(
-        "xpath_exists",
-        FuncCategory::Scalar,
-        FuncDomain::Xml,
-        2,
-        Some(2),
-        false
-    ),
+    f!("xml_is_well_formed", FuncCategory::Scalar, FuncDomain::Xml, 1, Some(1), false),
+    fop!("xmlagg", FuncCategory::Aggregate, FuncDomain::Xml, 1, Some(1), true),
+    fop!("xmlattributes", FuncCategory::Scalar, FuncDomain::Xml, 1, None, false),
+    fop!("xmlcomment", FuncCategory::Scalar, FuncDomain::Xml, 1, Some(1), false),
+    fop!("xmlconcat", FuncCategory::Scalar, FuncDomain::Xml, 1, None, false),
+    fop!("xmlelement", FuncCategory::Scalar, FuncDomain::Xml, 1, None, false),
+    fop!("xmlforest", FuncCategory::Scalar, FuncDomain::Xml, 1, None, false),
+    fop!("xmlparse", FuncCategory::Scalar, FuncDomain::Xml, 1, Some(2), false),
+    fop!("xmlpi", FuncCategory::Scalar, FuncDomain::Xml, 1, Some(2), false),
+    fop!("xmlquery", FuncCategory::Scalar, FuncDomain::Xml, 2, Some(3), false),
+    fop!("xmlserialize", FuncCategory::Scalar, FuncDomain::Xml, 2, Some(3), false),
+    fop!("xmltype", FuncCategory::Scalar, FuncDomain::Xml, 1, Some(1), false),
+    f!("xpath", FuncCategory::Scalar, FuncDomain::Xml, 2, Some(2), false),
+    f!("xpath_exists", FuncCategory::Scalar, FuncDomain::Xml, 2, Some(2), false),
 ];
 
 /// Look up a built-in function by name (case-insensitive, binary search).
@@ -4304,7 +821,8 @@ pub fn lookup_builtin_meta(name: &str) -> Option<crate::ast::BuiltinFuncMeta> {
             FuncCategory::SetReturning => "SetReturning",
             FuncCategory::Special => "Special",
             FuncCategory::TypeConstructor => "TypeConstructor",
-        }.to_string(),
+        }
+        .to_string(),
         domain: match m.domain {
             FuncDomain::Math => "Math",
             FuncDomain::String => "String",
@@ -4343,7 +861,8 @@ pub fn lookup_builtin_meta(name: &str) -> Option<crate::ast::BuiltinFuncMeta> {
             // ── 其他 ──
             FuncDomain::Ai => "Ai",
             FuncDomain::Other => "Other",
-        }.to_string(),
+        }
+        .to_string(),
     })
 }
 
@@ -4354,7 +873,7 @@ pub fn lookup_function_qualified(full_name: &str) -> Option<&'static FuncMeta> {
     if idx < FUNCTIONS.len() && FUNCTIONS[idx].name == lower {
         return Some(&FUNCTIONS[idx]);
     }
-    let last_seg = lower.split('.').last().unwrap_or(&lower);
+    let last_seg = lower.split('.').next_back().unwrap_or(&lower);
     if last_seg.len() == lower.len() {
         return None;
     }
@@ -4374,7 +893,8 @@ pub fn lookup_builtin_meta_qualified(full_name: &str) -> Option<crate::ast::Buil
             FuncCategory::SetReturning => "SetReturning",
             FuncCategory::Special => "Special",
             FuncCategory::TypeConstructor => "TypeConstructor",
-        }.to_string(),
+        }
+        .to_string(),
         domain: match m.domain {
             FuncDomain::Math => "Math",
             FuncDomain::String => "String",
@@ -4411,7 +931,8 @@ pub fn lookup_builtin_meta_qualified(full_name: &str) -> Option<crate::ast::Buil
             FuncDomain::Xml => "Xml",
             FuncDomain::Ai => "Ai",
             FuncDomain::Other => "Other",
-        }.to_string(),
+        }
+        .to_string(),
     })
 }
 
@@ -4443,10 +964,7 @@ pub fn validate_function_call(
             Some(max) if meta.min_args == max => {
                 if arg_count != meta.min_args as usize {
                     warnings.push(ParserError::Warning {
-                        message: format!(
-                            "function {} requires exactly {} argument(s)",
-                            meta.name, meta.min_args
-                        ),
+                        message: format!("function {} requires exactly {} argument(s)", meta.name, meta.min_args),
                         location,
                     });
                 }
@@ -4454,19 +972,13 @@ pub fn validate_function_call(
             Some(max) => {
                 if arg_count < meta.min_args as usize {
                     warnings.push(ParserError::Warning {
-                        message: format!(
-                            "function {} requires at least {} argument(s)",
-                            meta.name, meta.min_args
-                        ),
+                        message: format!("function {} requires at least {} argument(s)", meta.name, meta.min_args),
                         location,
                     });
                 }
                 if arg_count > max as usize {
                     warnings.push(ParserError::Warning {
-                        message: format!(
-                            "function {} takes at most {} argument(s)",
-                            meta.name, max
-                        ),
+                        message: format!("function {} takes at most {} argument(s)", meta.name, max),
                         location,
                     });
                 }
@@ -4475,10 +987,7 @@ pub fn validate_function_call(
                 // Variadic: min_args..∞
                 if arg_count < meta.min_args as usize {
                     warnings.push(ParserError::Warning {
-                        message: format!(
-                            "function {} requires at least {} argument(s)",
-                            meta.name, meta.min_args
-                        ),
+                        message: format!("function {} requires at least {} argument(s)", meta.name, meta.min_args),
                         location,
                     });
                 }
@@ -4767,8 +1276,7 @@ mod tests {
 
     #[test]
     fn test_lookup_set_returning_generate_series() {
-        let meta =
-            lookup_function("generate_series").expect("generate_series should be registered");
+        let meta = lookup_function("generate_series").expect("generate_series should be registered");
         assert_eq!(meta.category, FuncCategory::SetReturning);
     }
 
@@ -5025,12 +1533,8 @@ mod tests {
                 "compat": 7
             }
         ]"#;
-        let reg = FunctionRegistry::new()
-            .with_extensions_from_json(json)
-            .unwrap();
-        let meta = reg
-            .lookup("custom_encrypt")
-            .expect("extension func should be found");
+        let reg = FunctionRegistry::new().with_extensions_from_json(json).unwrap();
+        let meta = reg.lookup("custom_encrypt").expect("extension func should be found");
         assert_eq!(meta.category, FuncCategory::Scalar);
         assert_eq!(meta.domain, FuncDomain::Crypto);
         assert_eq!(meta.min_args, 1);
@@ -5051,9 +1555,7 @@ mod tests {
                 "compat": 7
             }
         ]"#;
-        let reg = FunctionRegistry::new()
-            .with_extensions_from_json(json)
-            .unwrap();
+        let reg = FunctionRegistry::new().with_extensions_from_json(json).unwrap();
         let meta = reg.lookup("count").expect("count should be found");
         // Extension overrides core
         assert_eq!(meta.category, FuncCategory::Scalar);
@@ -5083,9 +1585,7 @@ mod tests {
                 "compat": 7
             }
         ]"#;
-        let reg = FunctionRegistry::new()
-            .with_extensions_from_json(json)
-            .unwrap();
+        let reg = FunctionRegistry::new().with_extensions_from_json(json).unwrap();
         let a = reg.lookup("func_a").unwrap();
         assert_eq!(a.category, FuncCategory::Scalar);
         assert_eq!(a.domain, FuncDomain::Math);
@@ -5107,9 +1607,7 @@ mod tests {
 
     #[test]
     fn test_registry_empty_json_array() {
-        let reg = FunctionRegistry::new()
-            .with_extensions_from_json("[]")
-            .unwrap();
+        let reg = FunctionRegistry::new().with_extensions_from_json("[]").unwrap();
         // Core still works
         assert!(reg.lookup("count").is_some());
         assert!(reg.lookup("custom_nonexistent").is_none());
@@ -5130,9 +1628,7 @@ mod tests {
                 "compat": 7
             }
         ]"#;
-        let reg = FunctionRegistry::new()
-            .with_extensions_from_json(json)
-            .unwrap();
+        let reg = FunctionRegistry::new().with_extensions_from_json(json).unwrap();
         let w = reg.validate("my_agg", 5, false, false, false, loc());
         assert!(w.iter().any(|e| e.to_string().contains("at most 2")));
     }
@@ -5150,9 +1646,7 @@ mod tests {
                 "compat": 7
             }
         ]"#;
-        let reg = FunctionRegistry::new()
-            .with_extensions_from_json(json)
-            .unwrap();
+        let reg = FunctionRegistry::new().with_extensions_from_json(json).unwrap();
         let w = reg.validate("custom_window", 0, false, false, false, loc());
         assert!(w.iter().any(|e| e.to_string().contains("OVER")));
     }
@@ -5167,9 +1661,7 @@ mod tests {
     #[test]
     fn test_registry_validate_unknown_no_warnings() {
         let reg = FunctionRegistry::new();
-        assert!(reg
-            .validate("nonexistent_xyz", 5, true, true, false, loc())
-            .is_empty());
+        assert!(reg.validate("nonexistent_xyz", 5, true, true, false, loc()).is_empty());
     }
 
     // ── Oracle Package Function Domain Tests ──

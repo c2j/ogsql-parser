@@ -54,10 +54,7 @@ fn assert_eq_vec_ignoring_span(left: &[Statement], right: &[Statement], msg: &st
 
 fn parse_one(sql: &str) -> Statement {
     let stmts = parse(sql);
-    stmts
-        .into_iter()
-        .next()
-        .expect("expected at least one statement")
+    stmts.into_iter().next().expect("expected at least one statement")
 }
 
 fn parse_err(sql: &str) -> Statement {
@@ -71,9 +68,7 @@ fn parse_err(sql: &str) -> Statement {
 fn parse_do_block(sql: &str) -> PlBlock {
     let stmt = parse_one(sql);
     match stmt {
-        Statement::Do(d) => d.node
-            .block
-            .expect("DO statement should have parsed a PL/pgSQL block"),
+        Statement::Do(d) => d.node.block.expect("DO statement should have parsed a PL/pgSQL block"),
         _ => panic!("expected DO statement"),
     }
 }
@@ -211,10 +206,7 @@ fn test_plpgsql_simple_if() {
     assert_eq!(block.body.len(), 1);
     match &block.body[0] {
         PlStatement::If(if_stmt) => {
-            assert!(matches!(
-                &if_stmt.condition,
-                Expr::Literal(Literal::Boolean(true))
-            ));
+            assert!(matches!(&if_stmt.condition, Expr::Literal(Literal::Boolean(true))));
             assert_eq!(if_stmt.then_stmts.len(), 1);
             assert!(if_stmt.elsifs.is_empty());
             assert!(if_stmt.else_stmts.is_empty());
@@ -225,18 +217,13 @@ fn test_plpgsql_simple_if() {
 
 #[test]
 fn test_plpgsql_if_elsif_else() {
-    let block = parse_do_block(
-        "DO $$ BEGIN IF TRUE THEN NULL; ELSIF FALSE THEN NULL; ELSE NULL; END IF; END $$",
-    );
+    let block = parse_do_block("DO $$ BEGIN IF TRUE THEN NULL; ELSIF FALSE THEN NULL; ELSE NULL; END IF; END $$");
     assert_eq!(block.body.len(), 1);
     match &block.body[0] {
         PlStatement::If(if_stmt) => {
             assert_eq!(if_stmt.elsifs.len(), 1);
             assert_eq!(if_stmt.else_stmts.len(), 1);
-            assert!(matches!(
-                &if_stmt.elsifs[0].condition,
-                Expr::Literal(Literal::Boolean(false))
-            ));
+            assert!(matches!(&if_stmt.elsifs[0].condition, Expr::Literal(Literal::Boolean(false))));
         }
         _ => panic!("expected If"),
     }
@@ -244,8 +231,7 @@ fn test_plpgsql_if_elsif_else() {
 
 #[test]
 fn test_plpgsql_nested_if() {
-    let block =
-        parse_do_block("DO $$ BEGIN IF TRUE THEN IF FALSE THEN NULL; END IF; END IF; END $$");
+    let block = parse_do_block("DO $$ BEGIN IF TRUE THEN IF FALSE THEN NULL; END IF; END IF; END $$");
     assert_eq!(block.body.len(), 1);
     match &block.body[0] {
         PlStatement::If(if_stmt) => {
@@ -373,10 +359,7 @@ fn test_plpgsql_plain_case() {
         PlStatement::Case(case_stmt) => {
             assert!(case_stmt.expression.is_some());
             assert_eq!(case_stmt.whens.len(), 1);
-            assert!(matches!(
-                &case_stmt.whens[0].condition,
-                Expr::Literal(Literal::Integer(1))
-            ));
+            assert!(matches!(&case_stmt.whens[0].condition, Expr::Literal(Literal::Integer(1))));
         }
         _ => panic!("expected Case"),
     }
@@ -391,13 +374,7 @@ fn test_plpgsql_loop_with_exit() {
     match &block.body[0] {
         PlStatement::Loop(loop_stmt) => {
             assert_eq!(loop_stmt.body.len(), 1);
-            assert!(matches!(
-                &loop_stmt.body[0],
-                PlStatement::Exit {
-                    label: None,
-                    condition: None
-                }
-            ));
+            assert!(matches!(&loop_stmt.body[0], PlStatement::Exit { label: None, condition: None }));
         }
         _ => panic!("expected Loop"),
     }
@@ -424,10 +401,7 @@ fn test_plpgsql_while_loop() {
     assert_eq!(block.body.len(), 1);
     match &block.body[0] {
         PlStatement::While(w) => {
-            assert!(matches!(
-                &w.condition,
-                Expr::Literal(Literal::Boolean(true))
-            ));
+            assert!(matches!(&w.condition, Expr::Literal(Literal::Boolean(true))));
             assert_eq!(w.body.len(), 1);
         }
         _ => panic!("expected While"),
@@ -440,10 +414,7 @@ fn test_plpgsql_while_labeled() {
     match &block.body[0] {
         PlStatement::While(w) => {
             assert_eq!(w.label.as_deref(), Some("wl"));
-            assert!(matches!(
-                &w.condition,
-                Expr::Literal(Literal::Boolean(true))
-            ));
+            assert!(matches!(&w.condition, Expr::Literal(Literal::Boolean(true))));
             assert_eq!(w.body.len(), 1);
         }
         _ => panic!("expected While"),
@@ -460,12 +431,7 @@ fn test_plpgsql_for_range() {
         PlStatement::For(f) => {
             assert_eq!(f.variable, "i");
             match &f.kind {
-                PlForKind::Range {
-                    low,
-                    high,
-                    step: None,
-                    reverse: false,
-                } => {
+                PlForKind::Range { low, high, step: None, reverse: false } => {
                     assert!(matches!(low, Expr::Literal(Literal::Integer(1))));
                     assert!(matches!(high, Expr::Literal(Literal::Integer(10))));
                 }
@@ -534,10 +500,7 @@ $$ LANGUAGE plpgsql"#;
                         PlForKind::Query { query, parsed_query, .. } => {
                             assert!(query.to_lowercase().contains("select"));
                             assert!(query.to_lowercase().contains("order by"));
-                            assert!(
-                                parsed_query.is_some(),
-                                "SELECT should be structurally parsed, not just raw text"
-                            );
+                            assert!(parsed_query.is_some(), "SELECT should be structurally parsed, not just raw text");
                         }
                         _ => panic!("expected Query kind, got {:?}", f.kind),
                     }
@@ -560,23 +523,16 @@ $$ LANGUAGE plpgsql"#;
 #[test]
 fn test_plpgsql_exit() {
     let block = parse_do_block("DO $$ BEGIN EXIT; END $$");
-    assert!(matches!(
-        &block.body[0],
-        PlStatement::Exit {
-            label: None,
-            condition: None
-        }
-    ));
+    assert!(matches!(&block.body[0], PlStatement::Exit { label: None, condition: None }));
 }
 
 #[test]
 fn test_plpgsql_exit_when() {
     let block = parse_do_block("DO $$ BEGIN EXIT WHEN TRUE; END $$");
     match &block.body[0] {
-        PlStatement::Exit {
-            label: None,
-            condition: Some(c),
-        } => assert!(matches!(c, Expr::Literal(Literal::Boolean(true)))),
+        PlStatement::Exit { label: None, condition: Some(c) } => {
+            assert!(matches!(c, Expr::Literal(Literal::Boolean(true))))
+        }
         _ => panic!("expected Exit with condition"),
     }
 }
@@ -585,10 +541,9 @@ fn test_plpgsql_exit_when() {
 fn test_plpgsql_continue_when() {
     let block = parse_do_block("DO $$ BEGIN CONTINUE WHEN FALSE; END $$");
     match &block.body[0] {
-        PlStatement::Continue {
-            label: None,
-            condition: Some(c),
-        } => assert!(matches!(c, Expr::Literal(Literal::Boolean(false)))),
+        PlStatement::Continue { label: None, condition: Some(c) } => {
+            assert!(matches!(c, Expr::Literal(Literal::Boolean(false))))
+        }
         _ => panic!("expected Continue with condition"),
     }
 }
@@ -598,19 +553,14 @@ fn test_plpgsql_continue_when() {
 #[test]
 fn test_plpgsql_return() {
     let block = parse_do_block("DO $$ BEGIN RETURN; END $$");
-    assert!(matches!(
-        &block.body[0],
-        PlStatement::Return { expression: None }
-    ));
+    assert!(matches!(&block.body[0], PlStatement::Return { expression: None }));
 }
 
 #[test]
 fn test_plpgsql_return_expr() {
     let block = parse_do_block("DO $$ BEGIN RETURN 42; END $$");
     match &block.body[0] {
-        PlStatement::Return {
-            expression: Some(e),
-        } => assert!(matches!(e, Expr::Literal(Literal::Integer(42)))),
+        PlStatement::Return { expression: Some(e) } => assert!(matches!(e, Expr::Literal(Literal::Integer(42)))),
         _ => panic!("expected Return with expression"),
     }
 }
@@ -662,10 +612,7 @@ fn test_plpgsql_return_query_execute_using() {
             assert!(q.dynamic_expr.is_some());
             assert_eq!(q.using_args.len(), 1);
             assert!(matches!(q.using_args[0].mode, PlUsingMode::In));
-            assert!(matches!(
-                q.using_args[0].argument,
-                Expr::Literal(Literal::Integer(10))
-            ));
+            assert!(matches!(q.using_args[0].argument, Expr::Literal(Literal::Integer(10))));
         }
         _ => panic!("expected ReturnQuery"),
     }
@@ -718,9 +665,17 @@ fn test_plpgsql_raise_format_params() {
     match &block.body[0] {
         PlStatement::Raise(r) => {
             assert!(matches!(r.level, Some(RaiseLevel::Notice)));
-            assert!(r.message.as_deref().unwrap().contains("Hello"), "message should contain format string, got {:?}", r.message);
+            assert!(
+                r.message.as_deref().unwrap().contains("Hello"),
+                "message should contain format string, got {:?}",
+                r.message
+            );
             assert_eq!(r.params.len(), 1, "expected 1 param, got {:?}", r.params);
-            assert!(matches!(&r.params[0], Expr::ColumnRef(n) if n == &["name"]), "expected ColumnRef for name, got {:?}", r.params[0]);
+            assert!(
+                matches!(&r.params[0], Expr::ColumnRef(n) if n == &["name"]),
+                "expected ColumnRef for name, got {:?}",
+                r.params[0]
+            );
         }
         _ => panic!("expected Raise"),
     }
@@ -760,9 +715,7 @@ fn test_plpgsql_execute() {
     let block = parse_do_block("DO $$ BEGIN EXECUTE 'SELECT 1'; END $$");
     match &block.body[0] {
         PlStatement::Execute(e) => {
-            assert!(
-                matches!(&e.string_expr, Expr::Literal(Literal::String(s)) if s.contains("SELECT 1"))
-            );
+            assert!(matches!(&e.string_expr, Expr::Literal(Literal::String(s)) if s.contains("SELECT 1")));
             assert!(!e.immediate);
             assert!(e.into_targets.is_empty());
             assert!(e.using_args.is_empty());
@@ -773,9 +726,7 @@ fn test_plpgsql_execute() {
 
 #[test]
 fn test_plpgsql_execute_immediate_simple() {
-    let block = parse_do_block(
-        "DO $$ BEGIN EXECUTE IMMEDIATE 'INSERT INTO t VALUES(:1, :2)' USING a, b; END $$",
-    );
+    let block = parse_do_block("DO $$ BEGIN EXECUTE IMMEDIATE 'INSERT INTO t VALUES(:1, :2)' USING a, b; END $$");
     match &block.body[0] {
         PlStatement::Execute(e) => {
             assert!(e.immediate);
@@ -790,9 +741,7 @@ fn test_plpgsql_execute_immediate_simple() {
 
 #[test]
 fn test_plpgsql_execute_immediate_into() {
-    let block = parse_do_block(
-        "DO $$ BEGIN EXECUTE IMMEDIATE 'SELECT count(*) FROM t' INTO v_count; END $$",
-    );
+    let block = parse_do_block("DO $$ BEGIN EXECUTE IMMEDIATE 'SELECT count(*) FROM t' INTO v_count; END $$");
     match &block.body[0] {
         PlStatement::Execute(e) => {
             assert!(e.immediate);
@@ -806,7 +755,7 @@ fn test_plpgsql_execute_immediate_into() {
 #[test]
 fn test_plpgsql_execute_immediate_into_using() {
     let block = parse_do_block(
-        "DO $$ BEGIN EXECUTE IMMEDIATE 'SELECT name FROM t WHERE id=:1' INTO v_name USING IN v_id; END $$"
+        "DO $$ BEGIN EXECUTE IMMEDIATE 'SELECT name FROM t WHERE id=:1' INTO v_name USING IN v_id; END $$",
     );
     match &block.body[0] {
         PlStatement::Execute(e) => {
@@ -821,8 +770,7 @@ fn test_plpgsql_execute_immediate_into_using() {
 
 #[test]
 fn test_plpgsql_execute_immediate_using_in_out() {
-    let block =
-        parse_do_block("DO $$ BEGIN EXECUTE IMMEDIATE stmt USING OUT v1, IN v2, IN OUT v3; END $$");
+    let block = parse_do_block("DO $$ BEGIN EXECUTE IMMEDIATE stmt USING OUT v1, IN v2, IN OUT v3; END $$");
     match &block.body[0] {
         PlStatement::Execute(e) => {
             assert!(e.immediate);
@@ -853,9 +801,8 @@ fn test_plpgsql_execute_immediate_multi_into() {
 
 #[test]
 fn test_plpgsql_execute_concat_expr() {
-    let block = parse_do_block(
-        "DO $$ BEGIN EXECUTE IMMEDIATE 'ALTER TABLE ' || tab_name || ' ADD COLUMN c INT'; END $$",
-    );
+    let block =
+        parse_do_block("DO $$ BEGIN EXECUTE IMMEDIATE 'ALTER TABLE ' || tab_name || ' ADD COLUMN c INT'; END $$");
     match &block.body[0] {
         PlStatement::Execute(e) => {
             assert!(e.immediate);
@@ -867,14 +814,11 @@ fn test_plpgsql_execute_concat_expr() {
 
 #[test]
 fn test_plpgsql_for_in_execute() {
-    let block = parse_do_block(
-        "DO $$ BEGIN FOR rec IN EXECUTE 'SELECT * FROM ' || tab_name LOOP NULL; END LOOP; END $$",
-    );
+    let block =
+        parse_do_block("DO $$ BEGIN FOR rec IN EXECUTE 'SELECT * FROM ' || tab_name LOOP NULL; END LOOP; END $$");
     match &block.body[0] {
         PlStatement::For(f) => match &f.kind {
-            PlForKind::Query {
-                query, using_args, ..
-            } => {
+            PlForKind::Query { query, using_args, .. } => {
                 assert!(query.to_lowercase().contains("execute"));
                 assert!(using_args.is_empty());
             }
@@ -887,13 +831,11 @@ fn test_plpgsql_for_in_execute() {
 #[test]
 fn test_plpgsql_for_in_execute_using() {
     let block = parse_do_block(
-        "DO $$ BEGIN FOR rec IN EXECUTE 'SELECT * FROM t WHERE id=:1' USING v_id LOOP NULL; END LOOP; END $$"
+        "DO $$ BEGIN FOR rec IN EXECUTE 'SELECT * FROM t WHERE id=:1' USING v_id LOOP NULL; END LOOP; END $$",
     );
     match &block.body[0] {
         PlStatement::For(f) => match &f.kind {
-            PlForKind::Query {
-                query, using_args, ..
-            } => {
+            PlForKind::Query { query, using_args, .. } => {
                 assert!(query.to_lowercase().contains("using"));
                 assert!(using_args.is_empty());
             }
@@ -905,15 +847,11 @@ fn test_plpgsql_for_in_execute_using() {
 
 #[test]
 fn test_plpgsql_execute_string_literal_parsed() {
-    let block =
-        parse_do_block("DO $$ BEGIN EXECUTE IMMEDIATE 'call calc_stats($1, $1, $2, $1)'; END $$");
+    let block = parse_do_block("DO $$ BEGIN EXECUTE IMMEDIATE 'call calc_stats($1, $1, $2, $1)'; END $$");
     match &block.body[0] {
         PlStatement::Execute(e) => {
             assert!(e.immediate);
-            assert!(
-                e.parsed_query.is_some(),
-                "string literal should be re-parsed"
-            );
+            assert!(e.parsed_query.is_some(), "string literal should be re-parsed");
             let inner = e.parsed_query.as_ref().unwrap();
             match inner.as_ref() {
                 crate::ast::Statement::Call(c) => {
@@ -941,15 +879,11 @@ fn test_plpgsql_execute_variable_not_parsed() {
 
 #[test]
 fn test_plpgsql_execute_concat_not_parsed() {
-    let block =
-        parse_do_block("DO $$ BEGIN EXECUTE IMMEDIATE 'SELECT * FROM ' || tab_name; END $$");
+    let block = parse_do_block("DO $$ BEGIN EXECUTE IMMEDIATE 'SELECT * FROM ' || tab_name; END $$");
     match &block.body[0] {
         PlStatement::Execute(e) => {
             assert!(e.immediate);
-            assert!(
-                e.parsed_query.is_none(),
-                "concatenation should NOT be re-parsed"
-            );
+            assert!(e.parsed_query.is_none(), "concatenation should NOT be re-parsed");
         }
         _ => panic!("expected Execute"),
     }
@@ -957,8 +891,7 @@ fn test_plpgsql_execute_concat_not_parsed() {
 
 #[test]
 fn test_plpgsql_execute_dml_string_parsed() {
-    let block =
-        parse_do_block("DO $$ BEGIN EXECUTE 'SELECT id, name FROM users WHERE id = 1'; END $$");
+    let block = parse_do_block("DO $$ BEGIN EXECUTE 'SELECT id, name FROM users WHERE id = 1'; END $$");
     match &block.body[0] {
         PlStatement::Execute(e) => {
             assert!(!e.immediate);
@@ -975,10 +908,7 @@ fn test_plpgsql_execute_invalid_sql_string_not_parsed() {
     let block = parse_do_block("DO $$ BEGIN EXECUTE 'not valid sql at all !!!'; END $$");
     match &block.body[0] {
         PlStatement::Execute(e) => {
-            assert!(
-                e.parsed_query.is_none(),
-                "invalid SQL should gracefully fall back to None"
-            );
+            assert!(e.parsed_query.is_none(), "invalid SQL should gracefully fall back to None");
         }
         _ => panic!("expected Execute"),
     }
@@ -997,12 +927,7 @@ fn test_plpgsql_perform_expression() {
     // PERFORM with a simple expression (not DML)
     let block = parse_do_block("DO $$ BEGIN PERFORM 1; END $$");
     match &block.body[0] {
-        PlStatement::Perform {
-            query,
-            parsed_query,
-            parsed_expr,
-            ..
-        } => {
+        PlStatement::Perform { query, parsed_query, parsed_expr, .. } => {
             assert!(parsed_query.is_none(), "PERFORM 1 should not be a DML");
             assert!(parsed_expr.is_some(), "PERFORM 1 should parse as expression");
             let expr = parsed_expr.as_ref().unwrap();
@@ -1050,11 +975,7 @@ fn test_plpgsql_perform_dml_preserved() {
     // Existing behavior: PERFORM with DML should use parsed_query
     let block = parse_do_block("DO $$ BEGIN PERFORM SELECT * FROM t; END $$");
     match &block.body[0] {
-        PlStatement::Perform {
-            parsed_query,
-            parsed_expr,
-            ..
-        } => {
+        PlStatement::Perform { parsed_query, parsed_expr, .. } => {
             assert!(parsed_query.is_some(), "DML PERFORM should have parsed_query");
             assert!(parsed_expr.is_none(), "DML PERFORM should not have parsed_expr");
         }
@@ -1149,10 +1070,7 @@ fn test_plpgsql_get_diagnostics() {
             assert!(!g.stacked);
             assert_eq!(g.items.len(), 1);
             assert!(matches!(&g.items[0].target, Expr::ColumnRef(n) if n == &["x"]));
-            assert!(matches!(
-                g.items[0].item,
-                plpgsql::GetDiagItemKind::RowCount
-            ));
+            assert!(matches!(g.items[0].item, plpgsql::GetDiagItemKind::RowCount));
         }
         _ => panic!("expected GetDiagnostics"),
     }
@@ -1165,10 +1083,7 @@ fn test_plpgsql_get_stacked_diagnostics() {
         PlStatement::GetDiagnostics(g) => {
             assert!(g.stacked);
             assert_eq!(g.items.len(), 1);
-            assert!(matches!(
-                g.items[0].item,
-                plpgsql::GetDiagItemKind::ReturnedSqlstate
-            ));
+            assert!(matches!(g.items[0].item, plpgsql::GetDiagItemKind::ReturnedSqlstate));
         }
         _ => panic!("expected GetDiagnostics"),
     }
@@ -1195,10 +1110,7 @@ fn test_plpgsql_rollback() {
 fn test_plpgsql_rollback_to_savepoint() {
     let block = parse_do_block("DO $$ BEGIN ROLLBACK TO sp; END $$");
     match &block.body[0] {
-        PlStatement::Rollback {
-            to_savepoint: Some(sp),
-            ..
-        } => assert_eq!(sp, "sp"),
+        PlStatement::Rollback { to_savepoint: Some(sp), .. } => assert_eq!(sp, "sp"),
         _ => panic!("expected Rollback TO"),
     }
 }
@@ -1266,9 +1178,7 @@ fn test_plpgsql_forall() {
 
 #[test]
 fn test_plpgsql_forall_save_exceptions() {
-    let block = parse_do_block(
-        "DO $$ BEGIN FORALL i IN 1..10 SAVE EXCEPTIONS INSERT INTO t VALUES (i); END $$",
-    );
+    let block = parse_do_block("DO $$ BEGIN FORALL i IN 1..10 SAVE EXCEPTIONS INSERT INTO t VALUES (i); END $$");
     match &block.body[0] {
         PlStatement::ForAll(f) => {
             assert_eq!(f.variable, "i");
@@ -1310,10 +1220,7 @@ fn test_plpgsql_nested_block() {
 fn test_plpgsql_exception_handler() {
     let block = parse_do_block("DO $$ BEGIN EXCEPTION WHEN OTHERS THEN NULL; END; END $$");
     assert!(block.body.is_empty());
-    let exc = block
-        .exception_block
-        .as_ref()
-        .expect("expected exception block");
+    let exc = block.exception_block.as_ref().expect("expected exception block");
     assert_eq!(exc.handlers.len(), 1);
     assert_eq!(exc.handlers[0].conditions, vec!["OTHERS".to_string()]);
     assert_eq!(exc.handlers[0].statements.len(), 1);
@@ -1321,9 +1228,8 @@ fn test_plpgsql_exception_handler() {
 
 #[test]
 fn test_plpgsql_multiple_exception_handlers() {
-    let block = parse_do_block(
-        "DO $$ BEGIN EXCEPTION WHEN no_data_found THEN NULL; WHEN OTHERS THEN NULL; END; END $$",
-    );
+    let block =
+        parse_do_block("DO $$ BEGIN EXCEPTION WHEN no_data_found THEN NULL; WHEN OTHERS THEN NULL; END; END $$");
     assert!(block.body.is_empty());
     let exc = block.exception_block.as_ref().unwrap();
     assert_eq!(exc.handlers.len(), 2);
@@ -1340,10 +1246,7 @@ fn test_plpgsql_realworld_if_with_assignment() {
     match &block.body[0] {
         PlStatement::If(if_stmt) => {
             assert_eq!(if_stmt.then_stmts.len(), 1);
-            assert!(matches!(
-                &if_stmt.then_stmts[0],
-                PlStatement::Assignment { .. }
-            ));
+            assert!(matches!(&if_stmt.then_stmts[0], PlStatement::Assignment { .. }));
         }
         _ => panic!("expected If"),
     }
@@ -1378,10 +1281,7 @@ fn test_plpgsql_combined_statements() {
     assert_eq!(block.body.len(), 3);
     assert!(matches!(&block.body[0], PlStatement::Null));
     assert!(matches!(&block.body[1], PlStatement::Assignment { .. }));
-    assert!(matches!(
-        &block.body[2],
-        PlStatement::Return { expression: None }
-    ));
+    assert!(matches!(&block.body[2], PlStatement::Return { expression: None }));
 }
 
 // --- Anonymous Block Dispatch ---
@@ -1623,18 +1523,9 @@ fn test_create_role_with_options() {
     match stmt {
         Statement::CreateRole(r) => {
             assert_eq!(r.name, "admin");
-            assert!(r
-                .options
-                .iter()
-                .any(|o| matches!(o, RoleOption::Superuser(true))));
-            assert!(r
-                .options
-                .iter()
-                .any(|o| matches!(o, RoleOption::CreateDb(true))));
-            assert!(r
-                .options
-                .iter()
-                .any(|o| matches!(o, RoleOption::Login(true))));
+            assert!(r.options.iter().any(|o| matches!(o, RoleOption::Superuser(true))));
+            assert!(r.options.iter().any(|o| matches!(o, RoleOption::CreateDb(true))));
+            assert!(r.options.iter().any(|o| matches!(o, RoleOption::Login(true))));
         }
         _ => panic!("expected CreateRole, got {:?}", stmt),
     }
@@ -1646,10 +1537,7 @@ fn test_create_user_with_password() {
     match stmt {
         Statement::CreateUser(u) => {
             assert_eq!(u.name, "davide");
-            assert!(u
-                .options
-                .iter()
-                .any(|o| matches!(o, RoleOption::UnencryptedPassword(_))));
+            assert!(u.options.iter().any(|o| matches!(o, RoleOption::UnencryptedPassword(_))));
         }
         _ => panic!("expected CreateUser, got {:?}", stmt),
     }
@@ -1773,11 +1661,7 @@ fn test_alter_type_add_attribute() {
         Statement::AlterCompositeType(a) => {
             assert_eq!(a.name, vec!["compfoo"]);
             match &a.action {
-                AlterTypeAction::AddAttribute {
-                    name,
-                    data_type,
-                    cascade,
-                } => {
+                AlterTypeAction::AddAttribute { name, data_type, cascade } => {
                     assert_eq!(name, "f3");
                     assert_eq!(data_type, "text");
                     assert!(!cascade);
@@ -1808,11 +1692,7 @@ fn test_alter_type_drop_attribute() {
         Statement::AlterCompositeType(a) => {
             assert_eq!(a.name, vec!["compfoo"]);
             match &a.action {
-                AlterTypeAction::DropAttribute {
-                    name,
-                    if_exists,
-                    cascade,
-                } => {
+                AlterTypeAction::DropAttribute { name, if_exists, cascade } => {
                     assert_eq!(name, "f2");
                     assert!(!if_exists);
                     assert!(!cascade);
@@ -1829,11 +1709,7 @@ fn test_alter_type_drop_attribute_if_exists() {
     let stmt = parse_one("ALTER TYPE compfoo DROP ATTRIBUTE IF EXISTS f2 CASCADE");
     match stmt {
         Statement::AlterCompositeType(a) => match &a.action {
-            AlterTypeAction::DropAttribute {
-                name,
-                if_exists,
-                cascade,
-            } => {
+            AlterTypeAction::DropAttribute { name, if_exists, cascade } => {
                 assert_eq!(name, "f2");
                 assert!(if_exists);
                 assert!(cascade);
@@ -1849,11 +1725,7 @@ fn test_alter_type_rename_attribute() {
     let stmt = parse_one("ALTER TYPE compfoo RENAME ATTRIBUTE f1 TO f1_new");
     match stmt {
         Statement::AlterCompositeType(a) => match &a.action {
-            AlterTypeAction::RenameAttribute {
-                old_name,
-                new_name,
-                cascade,
-            } => {
+            AlterTypeAction::RenameAttribute { old_name, new_name, cascade } => {
                 assert_eq!(old_name, "f1");
                 assert_eq!(new_name, "f1_new");
                 assert!(!cascade);
@@ -1883,12 +1755,7 @@ fn test_alter_type_add_enum_value() {
         Statement::AlterCompositeType(a) => {
             assert_eq!(a.name, vec!["bug_status"]);
             match &a.action {
-                AlterTypeAction::AddEnumValue {
-                    if_not_exists: _,
-                    value,
-                    before,
-                    after,
-                } => {
+                AlterTypeAction::AddEnumValue { if_not_exists: _, value, before, after } => {
                     assert_eq!(value, "in_progress");
                     assert_eq!(before, &Some("closed".to_string()));
                     assert!(after.is_none());
@@ -1905,12 +1772,7 @@ fn test_alter_type_add_enum_value_after() {
     let stmt = parse_one("ALTER TYPE bug_status ADD VALUE 'in_progress' AFTER 'open'");
     match stmt {
         Statement::AlterCompositeType(a) => match &a.action {
-            AlterTypeAction::AddEnumValue {
-                if_not_exists: _,
-                value,
-                before,
-                after,
-            } => {
+            AlterTypeAction::AddEnumValue { if_not_exists: _, value, before, after } => {
                 assert_eq!(value, "in_progress");
                 assert!(before.is_none());
                 assert_eq!(after, &Some("open".to_string()));
@@ -1926,10 +1788,7 @@ fn test_alter_type_rename_enum_value() {
     let stmt = parse_one("ALTER TYPE bug_status RENAME VALUE 'open' TO 'new_open'");
     match stmt {
         Statement::AlterCompositeType(a) => match &a.action {
-            AlterTypeAction::RenameEnumValue {
-                old_value,
-                new_value,
-            } => {
+            AlterTypeAction::RenameEnumValue { old_value, new_value } => {
                 assert_eq!(old_value, "open");
                 assert_eq!(new_value, "new_open");
             }
@@ -1992,15 +1851,20 @@ fn test_create_or_replace_package() {
 
 #[test]
 fn test_create_package_with_schema() {
-    let stmt = parse_one("CREATE OR REPLACE PACKAGE dams_ci.pack_log AS PROCEDURE excption_1(in_desc IN varchar); END pack_log;");
+    let stmt = parse_one(
+        "CREATE OR REPLACE PACKAGE dams_ci.pack_log AS PROCEDURE excption_1(in_desc IN varchar); END pack_log;",
+    );
     match stmt {
         Statement::CreatePackage(p) => {
             assert_eq!(p.name, vec!["dams_ci", "pack_log"]);
-            assert!(p.items.iter().any(|item| match item {
-                PackageItem::Procedure(pr) => pr.name.join(".").contains("excption_1"),
-                PackageItem::Raw(s) => s.contains("excption_1"),
-                _ => false,
-            }), "should contain excption_1 procedure");
+            assert!(
+                p.items.iter().any(|item| match item {
+                    PackageItem::Procedure(pr) => pr.name.join(".").contains("excption_1"),
+                    PackageItem::Raw(s) => s.contains("excption_1"),
+                    _ => false,
+                }),
+                "should contain excption_1 procedure"
+            );
         }
         _ => panic!("expected CreatePackage, got {:?}", stmt),
     }
@@ -2045,11 +1909,14 @@ fn test_create_package_body_with_function() {
     let stmt = parse_one("CREATE OR REPLACE PACKAGE BODY trigger_test AS function tri_insert_func() return trigger as begin insert into test_trigger_des_tbl values(new.id1, new.id2, new.id3); return new; end; end trigger_test;");
     match stmt {
         Statement::CreatePackageBody(p) => {
-            assert!(p.items.iter().any(|item| match item {
-                PackageItem::Function(f) => f.name.join(".").contains("tri_insert_func"),
-                PackageItem::Raw(s) => s.contains("tri_insert_func"),
-                _ => false,
-            }), "should contain tri_insert_func");
+            assert!(
+                p.items.iter().any(|item| match item {
+                    PackageItem::Function(f) => f.name.join(".").contains("tri_insert_func"),
+                    PackageItem::Raw(s) => s.contains("tri_insert_func"),
+                    _ => false,
+                }),
+                "should contain tri_insert_func"
+            );
         }
         _ => panic!("expected CreatePackageBody, got {:?}", stmt),
     }
@@ -2065,10 +1932,14 @@ fn test_create_package_spec_multi_procs() {
     match stmt {
         Statement::CreatePackage(p) => {
             assert_eq!(p.name, vec!["my_pkg"]);
-            let proc_names: Vec<String> = p.items.iter().filter_map(|item| match item {
-                PackageItem::Procedure(pr) => Some(pr.name.join(".")),
-                _ => None,
-            }).collect();
+            let proc_names: Vec<String> = p
+                .items
+                .iter()
+                .filter_map(|item| match item {
+                    PackageItem::Procedure(pr) => Some(pr.name.join(".")),
+                    _ => None,
+                })
+                .collect();
             assert!(proc_names.iter().any(|n| n.contains("proc1")), "should contain proc1, got: {:?}", proc_names);
             assert!(proc_names.iter().any(|n| n.contains("proc2")), "should contain proc2, got: {:?}", proc_names);
         }
@@ -2093,10 +1964,14 @@ fn test_create_package_body_multi_procedures() {
     match stmt {
         Statement::CreatePackageBody(p) => {
             assert_eq!(p.name, vec!["my_pkg"]);
-            let proc_names: Vec<String> = p.items.iter().filter_map(|item| match item {
-                PackageItem::Procedure(pr) => Some(pr.name.join(".")),
-                _ => None,
-            }).collect();
+            let proc_names: Vec<String> = p
+                .items
+                .iter()
+                .filter_map(|item| match item {
+                    PackageItem::Procedure(pr) => Some(pr.name.join(".")),
+                    _ => None,
+                })
+                .collect();
             assert!(proc_names.iter().any(|n| n.contains("proc1")), "should contain proc1");
             assert!(proc_names.iter().any(|n| n.contains("proc2")), "should contain proc2");
         }
@@ -2120,16 +1995,22 @@ fn test_create_package_body_with_function_and_procedure() {
     match stmt {
         Statement::CreatePackageBody(p) => {
             assert_eq!(p.name, vec!["my_pkg"]);
-            assert!(p.items.iter().any(|item| match item {
-                PackageItem::Function(f) => f.name.join(".").contains("get_name"),
-                PackageItem::Raw(s) => s.contains("get_name"),
-                _ => false,
-            }), "should contain get_name");
-            assert!(p.items.iter().any(|item| match item {
-                PackageItem::Procedure(pr) => pr.name.join(".").contains("do_thing"),
-                PackageItem::Raw(s) => s.contains("do_thing"),
-                _ => false,
-            }), "should contain do_thing");
+            assert!(
+                p.items.iter().any(|item| match item {
+                    PackageItem::Function(f) => f.name.join(".").contains("get_name"),
+                    PackageItem::Raw(s) => s.contains("get_name"),
+                    _ => false,
+                }),
+                "should contain get_name"
+            );
+            assert!(
+                p.items.iter().any(|item| match item {
+                    PackageItem::Procedure(pr) => pr.name.join(".").contains("do_thing"),
+                    PackageItem::Raw(s) => s.contains("do_thing"),
+                    _ => false,
+                }),
+                "should contain do_thing"
+            );
         }
         _ => panic!("expected CreatePackageBody, got {:?}", stmt),
     }
@@ -2163,14 +2044,8 @@ fn test_package_body_structured_procedure() {
             assert_eq!(proc.name, vec!["proc1"]);
             assert!(proc.block.is_some(), "procedure should have a body");
             let block = proc.block.as_ref().unwrap();
-            assert!(
-                !block.body.is_empty(),
-                "procedure body should have statements"
-            );
-            assert!(
-                !block.declarations.is_empty(),
-                "procedure should have variable declarations"
-            );
+            assert!(!block.body.is_empty(), "procedure body should have statements");
+            assert!(!block.declarations.is_empty(), "procedure should have variable declarations");
         }
         _ => panic!("expected CreatePackageBody, got {:?}", stmt),
     }
@@ -2200,10 +2075,7 @@ fn test_package_body_structured_function() {
             assert_eq!(func.return_type.as_deref(), Some("varchar2"));
             assert!(func.block.is_some(), "function should have a body");
             let block = func.block.as_ref().unwrap();
-            assert!(
-                !block.body.is_empty(),
-                "function body should have statements"
-            );
+            assert!(!block.body.is_empty(), "function body should have statements");
         }
         _ => panic!("expected CreatePackageBody, got {:?}", stmt),
     }
@@ -2256,14 +2128,8 @@ fn test_package_body_structured_mixed() {
     match stmt {
         Statement::CreatePackageBody(p) => {
             assert!(!p.items.is_empty(), "should have structured items");
-            let has_func = p
-                .items
-                .iter()
-                .any(|item| matches!(item, PackageItem::Function(_)));
-            let has_proc = p
-                .items
-                .iter()
-                .any(|item| matches!(item, PackageItem::Procedure(_)));
+            let has_func = p.items.iter().any(|item| matches!(item, PackageItem::Function(_)));
+            let has_proc = p.items.iter().any(|item| matches!(item, PackageItem::Procedure(_)));
             assert!(has_func, "should have a function");
             assert!(has_proc, "should have a procedure");
         }
@@ -2272,7 +2138,6 @@ fn test_package_body_structured_mixed() {
 }
 
 // ========== P3: No redundant body field in Package ==========
-
 
 #[test]
 fn test_package_body_no_redundant_body_field() {
@@ -2337,10 +2202,16 @@ end pkg_test;
     let mut parser = Parser::new(tokens);
     let stmts = parser.parse();
     assert_eq!(stmts.len(), 2, "expected 2 statements (spec + body), got {}", stmts.len());
-    assert!(matches!(&stmts[0], Statement::CreatePackage(p) if p.name == vec!["pkg_test"]),
-        "first should be CreatePackage, got {:?}", &stmts[0]);
-    assert!(matches!(&stmts[1], Statement::CreatePackageBody(b) if b.name == vec!["pkg_test"]),
-        "second should be CreatePackageBody, got {:?}", &stmts[1]);
+    assert!(
+        matches!(&stmts[0], Statement::CreatePackage(p) if p.name == vec!["pkg_test"]),
+        "first should be CreatePackage, got {:?}",
+        &stmts[0]
+    );
+    assert!(
+        matches!(&stmts[1], Statement::CreatePackageBody(b) if b.name == vec!["pkg_test"]),
+        "second should be CreatePackageBody, got {:?}",
+        &stmts[1]
+    );
 }
 
 #[test]
@@ -2359,10 +2230,16 @@ end pkg_test;
 /";
     let (infos, _errs) = Parser::parse_sql(sql);
     assert_eq!(infos.len(), 2, "expected 2 statements (spec + body), got {}", infos.len());
-    assert!(matches!(&infos[0].statement, Statement::CreatePackage(p) if p.name == vec!["pkg_test"]),
-        "first should be CreatePackage, got {:?}", &infos[0].statement);
-    assert!(matches!(&infos[1].statement, Statement::CreatePackageBody(b) if b.name == vec!["pkg_test"]),
-        "second should be CreatePackageBody, got {:?}", &infos[1].statement);
+    assert!(
+        matches!(&infos[0].statement, Statement::CreatePackage(p) if p.name == vec!["pkg_test"]),
+        "first should be CreatePackage, got {:?}",
+        &infos[0].statement
+    );
+    assert!(
+        matches!(&infos[1].statement, Statement::CreatePackageBody(b) if b.name == vec!["pkg_test"]),
+        "second should be CreatePackageBody, got {:?}",
+        &infos[1].statement
+    );
 }
 
 #[test]
@@ -2393,7 +2270,11 @@ create or replace package pkg_test is
 end pkg_test;";
     let (infos, _errs) = Parser::parse_sql(sql);
     assert_eq!(infos.len(), 2, "expected 2 statements (garbage + package), got {}", infos.len());
-    assert!(matches!(infos[0].statement, Statement::Empty), "first statement should be Empty (garbage), got {:?}", infos[0].statement);
+    assert!(
+        matches!(infos[0].statement, Statement::Empty),
+        "first statement should be Empty (garbage), got {:?}",
+        infos[0].statement
+    );
     match &infos[1].statement {
         Statement::CreatePackage(p) => {
             assert_eq!(p.name, vec!["pkg_test"]);
@@ -2453,10 +2334,7 @@ fn test_embedded_insert_sql_text_not_empty() {
     let block = parse_do_block(sql);
     match &block.body[0] {
         PlStatement::SqlStatement { sql_text, .. } => {
-            assert!(
-                !sql_text.is_empty(),
-                "SqlStatement.sql_text should contain the original INSERT text"
-            );
+            assert!(!sql_text.is_empty(), "SqlStatement.sql_text should contain the original INSERT text");
             assert!(
                 sql_text.to_uppercase().contains("INSERT"),
                 "sql_text should contain 'INSERT', got: {:?}",
@@ -2473,10 +2351,7 @@ fn test_embedded_delete_sql_text_not_empty() {
     let block = parse_do_block(sql);
     match &block.body[0] {
         PlStatement::SqlStatement { sql_text, .. } => {
-            assert!(
-                !sql_text.is_empty(),
-                "SqlStatement.sql_text should contain the original DELETE text"
-            );
+            assert!(!sql_text.is_empty(), "SqlStatement.sql_text should contain the original DELETE text");
             assert!(
                 sql_text.to_uppercase().contains("DELETE"),
                 "sql_text should contain 'DELETE', got: {:?}",
@@ -2551,11 +2426,7 @@ fn test_format_package_body_from_items() {
         "formatted should contain DELETE statement, got: {}",
         formatted
     );
-    assert!(
-        formatted.to_uppercase().contains("END"),
-        "formatted should contain END, got: {}",
-        formatted
-    );
+    assert!(formatted.to_uppercase().contains("END"), "formatted should contain END, got: {}", formatted);
 }
 
 #[test]
@@ -2590,11 +2461,7 @@ fn test_format_package_body_with_function_roundtrip() {
     let stmt = parse_one(sql);
     let formatted = SqlFormatter::new().format_statement(&stmt);
     let stmt2 = parse_one(&formatted);
-    assert_eq!(
-        stmt, stmt2,
-        "round-trip should produce equivalent AST\nOriginal formatted: {}",
-        formatted
-    );
+    assert_eq!(stmt, stmt2, "round-trip should produce equivalent AST\nOriginal formatted: {}", formatted);
 }
 
 // ========== Bare PROCEDURE / FUNCTION tests ==========
@@ -2643,11 +2510,7 @@ fn test_create_procedure_with_structured_body() {
             assert_eq!(p.name, vec!["my_proc"]);
             assert_eq!(p.parameters.len(), 1);
             let block = p.block.as_ref().expect("expected block to be parsed");
-            assert!(
-                block.body.len() >= 2,
-                "expected at least 2 statements in body, got {}",
-                block.body.len()
-            );
+            assert!(block.body.len() >= 2, "expected at least 2 statements in body, got {}", block.body.len());
         }
         _ => panic!("expected CreateProcedure, got {:?}", stmt),
     }
@@ -2701,14 +2564,8 @@ fn test_create_procedure_without_body_falls_back() {
     match stmt {
         Statement::CreateProcedure(p) => {
             assert_eq!(p.name, vec!["java_proc"]);
-            assert!(
-                p.block.is_none(),
-                "expected no block for LANGUAGE JAVA style"
-            );
-            assert!(
-                !p.options.extra.is_empty(),
-                "expected options extra for fallback case"
-            );
+            assert!(p.block.is_none(), "expected no block for LANGUAGE JAVA style");
+            assert!(!p.options.extra.is_empty(), "expected options extra for fallback case");
         }
         _ => panic!("expected CreateProcedure, got {:?}", stmt),
     }
@@ -2716,16 +2573,12 @@ fn test_create_procedure_without_body_falls_back() {
 
 #[test]
 fn test_create_function_dollar_quoted_body() {
-    let sql =
-        "CREATE FUNCTION foo() RETURNS integer AS $$ BEGIN RETURN 1; END; $$ LANGUAGE plpgsql";
+    let sql = "CREATE FUNCTION foo() RETURNS integer AS $$ BEGIN RETURN 1; END; $$ LANGUAGE plpgsql";
     let stmt = parse_one(sql);
     match stmt {
         Statement::CreateFunction(f) => {
             assert_eq!(f.name, vec!["foo"]);
-            let block = f
-                .block
-                .as_ref()
-                .expect("expected block to be parsed from dollar-quoted body");
+            let block = f.block.as_ref().expect("expected block to be parsed from dollar-quoted body");
             assert!(!block.body.is_empty(), "expected body statements");
         }
         _ => panic!("expected CreateFunction, got {:?}", stmt),
@@ -2734,7 +2587,8 @@ fn test_create_function_dollar_quoted_body() {
 
 #[test]
 fn test_create_function_dollar_quoted_multi_statement() {
-    let sql = "CREATE FUNCTION bar() RETURNS void AS $$ DECLARE x INTEGER; BEGIN x := 1; RETURN; END; $$ LANGUAGE plpgsql";
+    let sql =
+        "CREATE FUNCTION bar() RETURNS void AS $$ DECLARE x INTEGER; BEGIN x := 1; RETURN; END; $$ LANGUAGE plpgsql";
     let stmt = parse_one(sql);
     match stmt {
         Statement::CreateFunction(f) => {
@@ -2780,7 +2634,13 @@ END;
 $$;"#;
     let (infos, errs) = Parser::parse_sql(sql);
     assert!(errs.is_empty(), "unexpected errors: {:?}", errs);
-    assert_eq!(infos.len(), 2, "expected 2 statements, got {}: {:?}", infos.len(), infos.iter().map(|i| format!("{:?}", std::mem::discriminant(&i.statement))).collect::<Vec<_>>());
+    assert_eq!(
+        infos.len(),
+        2,
+        "expected 2 statements, got {}: {:?}",
+        infos.len(),
+        infos.iter().map(|i| format!("{:?}", std::mem::discriminant(&i.statement))).collect::<Vec<_>>()
+    );
     assert!(matches!(infos[0].statement, Statement::CreateProcedure(_)));
     assert!(matches!(infos[1].statement, Statement::CreateProcedure(_)));
 
@@ -2857,8 +2717,7 @@ fn test_create_extension_if_not_exists() {
 
 #[test]
 fn test_create_extension_with_options() {
-    let stmt =
-        parse_one("CREATE EXTENSION IF NOT EXISTS hstore WITH SCHEMA public VERSION '1.0' CASCADE");
+    let stmt = parse_one("CREATE EXTENSION IF NOT EXISTS hstore WITH SCHEMA public VERSION '1.0' CASCADE");
     match stmt {
         Statement::CreateExtension(e) => {
             assert!(e.if_not_exists);
@@ -2900,8 +2759,7 @@ fn test_create_domain_not_null() {
 
 #[test]
 fn test_create_domain_with_check() {
-    let stmt =
-        parse_one("CREATE DOMAIN dcheck varchar(15) NOT NULL CHECK (VALUE = 'a' OR VALUE = 'c')");
+    let stmt = parse_one("CREATE DOMAIN dcheck varchar(15) NOT NULL CHECK (VALUE = 'a' OR VALUE = 'c')");
     match stmt {
         Statement::CreateDomain(d) => {
             assert!(d.not_null);
@@ -2962,9 +2820,7 @@ fn test_create_cast_with_inout() {
 
 #[test]
 fn test_create_cast_with_function() {
-    let stmt = parse_one(
-        "CREATE CAST (int4 AS casttesttype) WITH FUNCTION int4_casttesttype(int4) AS IMPLICIT",
-    );
+    let stmt = parse_one("CREATE CAST (int4 AS casttesttype) WITH FUNCTION int4_casttesttype(int4) AS IMPLICIT");
     match stmt {
         Statement::CreateCast(c) => {
             match &c.method {
@@ -3041,10 +2897,7 @@ fn test_alter_view_alter_column_default() {
     let stmt = parse_one("ALTER VIEW rw_view1 ALTER COLUMN bb SET DEFAULT 'View default'");
     match stmt {
         Statement::AlterView(a) => match &a.action {
-            AlterViewAction::AlterColumnDefault {
-                column,
-                set_default,
-            } => {
+            AlterViewAction::AlterColumnDefault { column, set_default } => {
                 assert_eq!(column, "bb");
                 assert!(set_default.is_some());
             }
@@ -3056,8 +2909,7 @@ fn test_alter_view_alter_column_default() {
 
 #[test]
 fn test_alter_trigger_rename() {
-    let stmt =
-        parse_one("ALTER TRIGGER repcount_update_row ON my_table RENAME TO repcount_update_row2");
+    let stmt = parse_one("ALTER TRIGGER repcount_update_row ON my_table RENAME TO repcount_update_row2");
     match stmt {
         Statement::AlterTrigger(a) => {
             assert_eq!(a.name, "repcount_update_row");
@@ -3113,22 +2965,9 @@ fn parse_valid(sql: &str) -> Vec<Statement> {
     let tokens = Tokenizer::new(sql).tokenize().unwrap();
     let mut parser = Parser::new(tokens);
     let stmts = parser.parse();
-    let hard_errors: Vec<_> = parser
-        .errors()
-        .iter()
-        .filter(|e| !matches!(e, ParserError::Warning { .. }))
-        .collect();
-    assert!(
-        hard_errors.is_empty(),
-        "SQL should parse without errors:\n  SQL: {}\n  Errors: {:?}",
-        sql,
-        hard_errors
-    );
-    assert!(
-        !stmts.is_empty(),
-        "SQL should produce at least one statement:\n  SQL: {}",
-        sql
-    );
+    let hard_errors: Vec<_> = parser.errors().iter().filter(|e| !matches!(e, ParserError::Warning { .. })).collect();
+    assert!(hard_errors.is_empty(), "SQL should parse without errors:\n  SQL: {}\n  Errors: {:?}", sql, hard_errors);
+    assert!(!stmts.is_empty(), "SQL should produce at least one statement:\n  SQL: {}", sql);
     stmts
 }
 
@@ -3246,11 +3085,7 @@ fn test_gaussdb_oracle_plus_identifier() {
     let tokens = Tokenizer::new(sql).tokenize().unwrap();
     let mut parser = Parser::new(tokens);
     let stmts = parser.parse();
-    let hard_errors: Vec<_> = parser
-        .errors()
-        .iter()
-        .filter(|e| !matches!(e, ParserError::Warning { .. }))
-        .collect();
+    let hard_errors: Vec<_> = parser.errors().iter().filter(|e| !matches!(e, ParserError::Warning { .. })).collect();
     assert!(hard_errors.is_empty(), "should have no hard errors: {:?}", hard_errors);
     assert!(!stmts.is_empty());
 }
@@ -3261,11 +3096,7 @@ fn test_gaussdb_oracle_plus_keyword_column() {
     let tokens = Tokenizer::new(sql).tokenize().unwrap();
     let mut parser = Parser::new(tokens);
     let stmts = parser.parse();
-    let hard_errors: Vec<_> = parser
-        .errors()
-        .iter()
-        .filter(|e| !matches!(e, ParserError::Warning { .. }))
-        .collect();
+    let hard_errors: Vec<_> = parser.errors().iter().filter(|e| !matches!(e, ParserError::Warning { .. })).collect();
     assert!(hard_errors.is_empty(), "should have no hard errors: {:?}", hard_errors);
     assert!(!stmts.is_empty());
 }
@@ -3276,11 +3107,7 @@ fn test_gaussdb_oracle_plus_qualified_column() {
     let tokens = Tokenizer::new(sql).tokenize().unwrap();
     let mut parser = Parser::new(tokens);
     let stmts = parser.parse();
-    let hard_errors: Vec<_> = parser
-        .errors()
-        .iter()
-        .filter(|e| !matches!(e, ParserError::Warning { .. }))
-        .collect();
+    let hard_errors: Vec<_> = parser.errors().iter().filter(|e| !matches!(e, ParserError::Warning { .. })).collect();
     assert!(hard_errors.is_empty(), "should have no hard errors: {:?}", hard_errors);
     assert!(!stmts.is_empty());
 }
@@ -3291,11 +3118,7 @@ fn test_gaussdb_oracle_plus_emits_warning() {
     let tokens = Tokenizer::new(sql).tokenize().unwrap();
     let mut parser = Parser::new(tokens);
     let _stmts = parser.parse();
-    let warnings: Vec<_> = parser
-        .errors()
-        .iter()
-        .filter(|e| matches!(e, ParserError::Warning { .. }))
-        .collect();
+    let warnings: Vec<_> = parser.errors().iter().filter(|e| matches!(e, ParserError::Warning { .. })).collect();
     assert!(
         warnings.iter().any(|w| w.to_string().contains("(+)")),
         "should emit a warning mentioning (+): {:?}",
@@ -3310,17 +3133,13 @@ fn test_gaussdb_pivot_after_subquery() {
     let sql = "SELECT * FROM (SELECT a, b FROM t) PIVOT(MAX(b) FOR a IN ('x', 'y'))";
     let stmts = parse_valid(sql);
     match &stmts[0] {
-        Statement::Select(sel) => {
-            match &sel.from[0] {
-                TableRef::Pivot { source, .. } => {
-                    match source.as_ref() {
-                        TableRef::Subquery { .. } => {}
-                        other => panic!("expected Subquery source, got {:?}", other),
-                    }
-                }
-                other => panic!("expected Pivot table ref, got {:?}", other),
-            }
-        }
+        Statement::Select(sel) => match &sel.from[0] {
+            TableRef::Pivot { source, .. } => match source.as_ref() {
+                TableRef::Subquery { .. } => {}
+                other => panic!("expected Subquery source, got {:?}", other),
+            },
+            other => panic!("expected Pivot table ref, got {:?}", other),
+        },
         other => panic!("expected Select, got {:?}", other),
     }
 }
@@ -3330,17 +3149,13 @@ fn test_gaussdb_unpivot_after_subquery() {
     let sql = "SELECT * FROM (SELECT * FROM t1 WHERE rownum = 1) UNPIVOT(val FOR name IN(col1, col2))";
     let stmts = parse_valid(sql);
     match &stmts[0] {
-        Statement::Select(sel) => {
-            match &sel.from[0] {
-                TableRef::Unpivot { source, .. } => {
-                    match source.as_ref() {
-                        TableRef::Subquery { .. } => {}
-                        other => panic!("expected Subquery source, got {:?}", other),
-                    }
-                }
-                other => panic!("expected Unpivot table ref, got {:?}", other),
-            }
-        }
+        Statement::Select(sel) => match &sel.from[0] {
+            TableRef::Unpivot { source, .. } => match source.as_ref() {
+                TableRef::Subquery { .. } => {}
+                other => panic!("expected Subquery source, got {:?}", other),
+            },
+            other => panic!("expected Unpivot table ref, got {:?}", other),
+        },
         other => panic!("expected Select, got {:?}", other),
     }
 }
@@ -3364,15 +3179,13 @@ fn test_gaussdb_in_union_subquery() {
     let sql = "SELECT * FROM t WHERE code IN ((SELECT code FROM t1) UNION (SELECT code FROM t2))";
     let stmts = parse_valid(sql);
     match &stmts[0] {
-        Statement::Select(sel) => {
-            match &sel.where_clause {
-                Some(Expr::InSubquery { negated, .. }) => {
-                    assert!(!negated);
-                }
-                Some(other) => panic!("expected InSubquery, got {:?}", other),
-                None => panic!("expected WHERE clause"),
+        Statement::Select(sel) => match &sel.where_clause {
+            Some(Expr::InSubquery { negated, .. }) => {
+                assert!(!negated);
             }
-        }
+            Some(other) => panic!("expected InSubquery, got {:?}", other),
+            None => panic!("expected WHERE clause"),
+        },
         other => panic!("expected Select, got {:?}", other),
     }
 }
@@ -3382,15 +3195,13 @@ fn test_gaussdb_not_in_union_subquery() {
     let sql = "SELECT * FROM t WHERE code NOT IN ((SELECT code FROM t1) UNION (SELECT code FROM t2))";
     let stmts = parse_valid(sql);
     match &stmts[0] {
-        Statement::Select(sel) => {
-            match &sel.where_clause {
-                Some(Expr::InSubquery { negated, .. }) => {
-                    assert!(negated);
-                }
-                Some(other) => panic!("expected InSubquery, got {:?}", other),
-                None => panic!("expected WHERE clause"),
+        Statement::Select(sel) => match &sel.where_clause {
+            Some(Expr::InSubquery { negated, .. }) => {
+                assert!(negated);
             }
-        }
+            Some(other) => panic!("expected InSubquery, got {:?}", other),
+            None => panic!("expected WHERE clause"),
+        },
         other => panic!("expected Select, got {:?}", other),
     }
 }
@@ -3457,7 +3268,8 @@ fn test_gaussdb_error5_category_b_oracle_plus() {
 
 #[test]
 fn test_gaussdb_error5_category_c_pivot_unpivot() {
-    let sql1 = "SELECT * FROM (SELECT * FROM t WHERE user_code = p_code) PIVOT(MIN(remark12) FOR remark11 IN ('1','2'))";
+    let sql1 =
+        "SELECT * FROM (SELECT * FROM t WHERE user_code = p_code) PIVOT(MIN(remark12) FOR remark11 IN ('1','2'))";
     let sql2 = "SELECT * FROM (SELECT * FROM t1 WHERE rownum = 1) UNPIVOT(val FOR name IN(col1, col2))";
     assert_valid(sql1);
     assert_valid(sql2);
@@ -3481,10 +3293,7 @@ fn test_cursor_decl_with_is_keyword() {
     let stmt = parse_one(sql);
     match stmt {
         Statement::Do(d) => {
-            let block = d
-                .block
-                .as_ref()
-                .expect("DO block should be parsed with IS keyword");
+            let block = d.block.as_ref().expect("DO block should be parsed with IS keyword");
             assert_eq!(block.declarations.len(), 1);
             match &block.declarations[0] {
                 PlDeclaration::Cursor(c) => {
@@ -3594,7 +3403,8 @@ fn test_parameterized_cursor_with_in_out_mode() {
 
 #[test]
 fn test_cursor_in_anonymous_block() {
-    let sql = "DECLARE CURSOR c_dat_inst_attach_info IS SELECT t1.seq_no FROM dat_inst_attach_info t1; BEGIN NULL; END;";
+    let sql =
+        "DECLARE CURSOR c_dat_inst_attach_info IS SELECT t1.seq_no FROM dat_inst_attach_info t1; BEGIN NULL; END;";
     let stmt = parse_one(sql);
     match stmt {
         Statement::AnonyBlock(ab) => {
@@ -3665,10 +3475,7 @@ fn test_alter_table_drop_partition_update_distributed_global_index() {
             assert_eq!(at.actions.len(), 1);
             match &at.actions[0] {
                 AlterTableAction::DropPartition {
-                    name,
-                    update_global_index,
-                    update_distributed_global_index,
-                    ..
+                    name, update_global_index, update_distributed_global_index, ..
                 } => {
                     assert_eq!(name, "p1");
                     assert!(!*update_global_index);
@@ -3683,9 +3490,7 @@ fn test_alter_table_drop_partition_update_distributed_global_index() {
 
 #[test]
 fn test_alter_table_merge_partitions_no_update_distributed_global_index() {
-    let stmt = parse_one(
-        "ALTER TABLE t1 MERGE PARTITIONS p1, p2 INTO PARTITION p3 NO UPDATE DISTRIBUTED GLOBAL INDEX",
-    );
+    let stmt = parse_one("ALTER TABLE t1 MERGE PARTITIONS p1, p2 INTO PARTITION p3 NO UPDATE DISTRIBUTED GLOBAL INDEX");
     match stmt {
         Statement::AlterTable(at) => {
             assert_eq!(at.actions.len(), 1);
@@ -3714,10 +3519,7 @@ fn test_alter_table_enable_row_movement() {
     match stmt {
         Statement::AlterTable(at) => {
             assert_eq!(at.actions.len(), 1);
-            assert!(matches!(
-                &at.actions[0],
-                AlterTableAction::EnableRowMovement
-            ));
+            assert!(matches!(&at.actions[0], AlterTableAction::EnableRowMovement));
         }
         _ => panic!("expected AlterTable"),
     }
@@ -3729,10 +3531,7 @@ fn test_alter_table_disable_row_movement() {
     match stmt {
         Statement::AlterTable(at) => {
             assert_eq!(at.actions.len(), 1);
-            assert!(matches!(
-                &at.actions[0],
-                AlterTableAction::DisableRowMovement
-            ));
+            assert!(matches!(&at.actions[0], AlterTableAction::DisableRowMovement));
         }
         _ => panic!("expected AlterTable"),
     }
@@ -3758,9 +3557,7 @@ fn test_alter_table_move_partition_for() {
 
 #[test]
 fn test_alter_table_split_partition_for() {
-    let stmt = parse_one(
-        "ALTER TABLE t1 SPLIT PARTITION FOR (100) AT (200) INTO (PARTITION p2, PARTITION p3)",
-    );
+    let stmt = parse_one("ALTER TABLE t1 SPLIT PARTITION FOR (100) AT (200) INTO (PARTITION p2, PARTITION p3)");
     match stmt {
         Statement::AlterTable(at) => {
             assert_eq!(at.actions.len(), 1);
@@ -3792,11 +3589,7 @@ fn test_alter_table_split_partition_for_update_global_index() {
     );
     match stmt {
         Statement::AlterTable(at) => match &at.actions[0] {
-            AlterTableAction::SplitPartitionFor {
-                update_global_index,
-                update_distributed_global_index,
-                ..
-            } => {
+            AlterTableAction::SplitPartitionFor { update_global_index, update_distributed_global_index, .. } => {
                 assert!(*update_global_index);
                 assert!(update_distributed_global_index.is_none());
             }
@@ -3808,8 +3601,7 @@ fn test_alter_table_split_partition_for_update_global_index() {
 
 #[test]
 fn test_alter_table_exchange_partition_with_validation() {
-    let stmt =
-        parse_one("ALTER TABLE t1 EXCHANGE PARTITION p1 WITH TABLE t2 WITH VALIDATION VERBOSE");
+    let stmt = parse_one("ALTER TABLE t1 EXCHANGE PARTITION p1 WITH TABLE t2 WITH VALIDATION VERBOSE");
     match stmt {
         Statement::AlterTable(at) => {
             assert_eq!(at.actions.len(), 1);
@@ -3841,11 +3633,7 @@ fn test_alter_table_exchange_partition_without_validation() {
     let stmt = parse_one("ALTER TABLE t1 EXCHANGE PARTITION p1 WITH TABLE t2 WITHOUT VALIDATION");
     match stmt {
         Statement::AlterTable(at) => match &at.actions[0] {
-            AlterTableAction::ExchangePartition {
-                with_validation,
-                verbose,
-                ..
-            } => {
+            AlterTableAction::ExchangePartition { with_validation, verbose, .. } => {
                 assert_eq!(*with_validation, Some(false));
                 assert!(!*verbose);
             }
@@ -3860,12 +3648,7 @@ fn test_alter_table_exchange_partition_update_global_index() {
     let stmt = parse_one("ALTER TABLE t1 EXCHANGE PARTITION p1 WITH TABLE t2 UPDATE GLOBAL INDEX");
     match stmt {
         Statement::AlterTable(at) => match &at.actions[0] {
-            AlterTableAction::ExchangePartition {
-                update_global_index,
-                with_validation,
-                verbose,
-                ..
-            } => {
+            AlterTableAction::ExchangePartition { update_global_index, with_validation, verbose, .. } => {
                 assert!(*update_global_index);
                 assert!(with_validation.is_none());
                 assert!(!*verbose);
@@ -3881,11 +3664,7 @@ fn test_alter_table_truncate_partition_update_distributed_global_index() {
     let stmt = parse_one("ALTER TABLE t1 TRUNCATE PARTITION p1 UPDATE DISTRIBUTED GLOBAL INDEX");
     match stmt {
         Statement::AlterTable(at) => match &at.actions[0] {
-            AlterTableAction::TruncatePartition {
-                name,
-                update_distributed_global_index,
-                ..
-            } => {
+            AlterTableAction::TruncatePartition { name, update_distributed_global_index, .. } => {
                 assert_eq!(name, "p1");
                 assert_eq!(*update_distributed_global_index, Some(true));
             }
@@ -3915,14 +3694,8 @@ fn test_alter_table_partition_update_index_roundtrip() {
             "ALTER TABLE t1 EXCHANGE PARTITION p1 WITH TABLE t2 WITHOUT VALIDATION",
             "ALTER TABLE t1 EXCHANGE PARTITION p1 WITH TABLE t2 WITHOUT VALIDATION",
         ),
-        (
-            "ALTER TABLE t1 ENABLE ROW MOVEMENT",
-            "ALTER TABLE t1 ENABLE ROW MOVEMENT",
-        ),
-        (
-            "ALTER TABLE t1 DISABLE ROW MOVEMENT",
-            "ALTER TABLE t1 DISABLE ROW MOVEMENT",
-        ),
+        ("ALTER TABLE t1 ENABLE ROW MOVEMENT", "ALTER TABLE t1 ENABLE ROW MOVEMENT"),
+        ("ALTER TABLE t1 DISABLE ROW MOVEMENT", "ALTER TABLE t1 DISABLE ROW MOVEMENT"),
         (
             "ALTER TABLE t1 MOVE PARTITION FOR (100) TABLESPACE ts1",
             "ALTER TABLE t1 MOVE PARTITION FOR (100) TABLESPACE ts1",
@@ -4090,10 +3863,7 @@ fn test_create_global_index_with_tablespace() {
     match stmt {
         Statement::CreateGlobalIndex(s) => {
             assert_eq!(s.with_options.len(), 1);
-            assert_eq!(
-                s.with_options[0],
-                ("fillfactor".to_string(), "70".to_string())
-            );
+            assert_eq!(s.with_options[0], ("fillfactor".to_string(), "70".to_string()));
             assert_eq!(s.tablespace.as_deref(), Some("ts1"));
         }
         other => panic!("expected CreateGlobalIndex, got {:?}", other),
@@ -4152,10 +3922,7 @@ fn test_create_global_index_full() {
             assert_eq!(s.columns[1].ordering, Some(IndexOrdering::Desc));
             assert_eq!(s.columns[1].nulls, Some(IndexNulls::First));
             assert_eq!(s.containing, vec!["col3", "col4"]);
-            assert!(matches!(
-                s.distribute_by,
-                Some(DistributeClause::Hash { .. })
-            ));
+            assert!(matches!(s.distribute_by, Some(DistributeClause::Hash { .. })));
             assert_eq!(s.with_options.len(), 1);
             assert_eq!(s.tablespace.as_deref(), Some("ts1"));
             assert_eq!(s.visible, Some(true));
@@ -4187,11 +3954,7 @@ fn test_open_for_with_parsed_select() {
             assert_eq!(ab.block.body.len(), 1);
             match &ab.block.body[0] {
                 PlStatement::Open(open_stmt) => match &open_stmt.kind {
-                    PlOpenKind::ForQuery {
-                        scroll,
-                        query,
-                        parsed_query,
-                    } => {
+                    PlOpenKind::ForQuery { scroll, query, parsed_query } => {
                         assert_eq!(scroll, &None);
                         assert!(!query.is_empty());
                         assert!(parsed_query.is_some(), "OPEN FOR query should be parsed");
@@ -4221,11 +3984,7 @@ fn test_for_in_query_with_parsed_select() {
             assert_eq!(ab.block.body.len(), 1);
             match &ab.block.body[0] {
                 PlStatement::For(for_stmt) => match &for_stmt.kind {
-                    PlForKind::Query {
-                        query,
-                        parsed_query,
-                        ..
-                    } => {
+                    PlForKind::Query { query, parsed_query, .. } => {
                         assert!(!query.is_empty());
                         assert!(parsed_query.is_some(), "FOR IN query should be parsed");
                         let parsed = parsed_query.as_ref().unwrap();
@@ -4273,10 +4032,7 @@ fn test_nested_procedure_declaration() {
                 .collect::<Vec<_>>();
             assert_eq!(nested.len(), 1, "should have 1 nested procedure");
             assert_eq!(nested[0].name, vec!["inner_proc"]);
-            let inner_block = nested[0]
-                .block
-                .as_ref()
-                .expect("inner block should be parsed");
+            let inner_block = nested[0].block.as_ref().expect("inner block should be parsed");
             assert_eq!(inner_block.declarations.len(), 1);
             assert!(inner_block.body.len() > 0, "inner block should have body");
         }
@@ -4294,10 +4050,7 @@ fn test_create_foreign_table_with_types() {
         Statement::CreateForeignTable(t) => {
             assert_eq!(t.columns.len(), 2);
             assert!(matches!(t.columns[0].data_type, DataType::Integer(_)));
-            assert!(matches!(
-                t.columns[1].data_type,
-                DataType::Varchar(Some(100))
-            ));
+            assert!(matches!(t.columns[1].data_type, DataType::Varchar(Some(100))));
         }
         _ => panic!("expected CreateForeignTable, got {:?}", stmt),
     }
@@ -4305,8 +4058,7 @@ fn test_create_foreign_table_with_types() {
 
 #[test]
 fn test_create_materialized_view_parsed_query() {
-    let sql =
-        "CREATE MATERIALIZED VIEW mv AS SELECT id, name FROM users WHERE active = true WITH DATA";
+    let sql = "CREATE MATERIALIZED VIEW mv AS SELECT id, name FROM users WHERE active = true WITH DATA";
     let stmt = parse_one(sql);
     match stmt {
         Statement::CreateMaterializedView(mv) => {
@@ -4657,9 +4409,7 @@ fn test_national_string_literal() {
             assert_eq!(s.targets.len(), 1);
             match &s.targets[0] {
                 SelectTarget::Expr(expr, None) => {
-                    assert!(
-                        matches!(expr, Expr::Literal(Literal::NationalString(s)) if s == "hello")
-                    );
+                    assert!(matches!(expr, Expr::Literal(Literal::NationalString(s)) if s == "hello"));
                 }
                 _ => panic!("expected expr target"),
             }
@@ -4756,11 +4506,7 @@ fn test_literal_format_roundtrip() {
     // $tag$...$tag$
     let stmt = parse_one("SELECT $tag$hello$tag$");
     let sql = formatter.format_statement(&stmt);
-    assert!(
-        sql.contains("$tag$hello$tag$"),
-        "expected $tag$hello$tag$ in: {}",
-        sql
-    );
+    assert!(sql.contains("$tag$hello$tag$"), "expected $tag$hello$tag$ in: {}", sql);
 }
 
 // ========== JSON Deserialize Round-Trip Tests ==========
@@ -4779,15 +4525,13 @@ fn sql_roundtrip(sql: &str) -> String {
 
 #[test]
 fn test_json_roundtrip_select() {
-    let stmt =
-        parse_one("SELECT id, name FROM users WHERE status = 'active' ORDER BY id DESC LIMIT 10");
+    let stmt = parse_one("SELECT id, name FROM users WHERE status = 'active' ORDER BY id DESC LIMIT 10");
     assert_eq!(stmt, json_roundtrip(&stmt));
 }
 
 #[test]
 fn test_json_roundtrip_insert() {
-    let stmt =
-        parse_one("INSERT INTO users (id, name) VALUES (1, 'Alice'), (2, 'Bob') RETURNING id");
+    let stmt = parse_one("INSERT INTO users (id, name) VALUES (1, 'Alice'), (2, 'Bob') RETURNING id");
     assert_eq!(stmt, json_roundtrip(&stmt));
 }
 
@@ -4805,9 +4549,7 @@ fn test_json_roundtrip_delete() {
 
 #[test]
 fn test_json_roundtrip_create_table() {
-    let stmt = parse_one(
-        "CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY, name VARCHAR(100) NOT NULL)",
-    );
+    let stmt = parse_one("CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY, name VARCHAR(100) NOT NULL)");
     assert_eq!(stmt, json_roundtrip(&stmt));
 }
 
@@ -4825,10 +4567,7 @@ fn test_json_roundtrip_complex_expressions() {
 
 #[test]
 fn test_sql_roundtrip_select_basic() {
-    assert_eq!(
-        sql_roundtrip("SELECT id FROM users"),
-        "SELECT id FROM users"
-    );
+    assert_eq!(sql_roundtrip("SELECT id FROM users"), "SELECT id FROM users");
 }
 
 #[test]
@@ -4848,8 +4587,7 @@ fn test_sql_roundtrip_insert_values() {
 
 #[test]
 fn test_sql_roundtrip_join() {
-    let result =
-        sql_roundtrip("SELECT a.id FROM users AS a INNER JOIN orders AS o ON a.id = o.user_id");
+    let result = sql_roundtrip("SELECT a.id FROM users AS a INNER JOIN orders AS o ON a.id = o.user_id");
     assert!(result.contains("INNER JOIN"));
     assert!(result.contains("ON"));
 }
@@ -4858,21 +4596,22 @@ fn test_sql_roundtrip_join() {
 
 #[test]
 fn test_json_roundtrip_window_frame_rows() {
-    let stmt = parse_one("SELECT ROW_NUMBER() OVER (ORDER BY id ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING) FROM t");
-    assert_eq!(stmt, json_roundtrip(&stmt));
-}
-
-#[test]
-fn test_json_roundtrip_window_frame_range() {
     let stmt = parse_one(
-        "SELECT AVG(x) OVER (ORDER BY id RANGE BETWEEN 1 PRECEDING AND 1 FOLLOWING) FROM t",
+        "SELECT ROW_NUMBER() OVER (ORDER BY id ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING) FROM t",
     );
     assert_eq!(stmt, json_roundtrip(&stmt));
 }
 
 #[test]
+fn test_json_roundtrip_window_frame_range() {
+    let stmt = parse_one("SELECT AVG(x) OVER (ORDER BY id RANGE BETWEEN 1 PRECEDING AND 1 FOLLOWING) FROM t");
+    assert_eq!(stmt, json_roundtrip(&stmt));
+}
+
+#[test]
 fn test_json_roundtrip_window_frame_current_row() {
-    let stmt = parse_one("SELECT SUM(x) OVER (PARTITION BY a ORDER BY b ROWS BETWEEN CURRENT ROW AND 1 FOLLOWING) FROM t");
+    let stmt =
+        parse_one("SELECT SUM(x) OVER (PARTITION BY a ORDER BY b ROWS BETWEEN CURRENT ROW AND 1 FOLLOWING) FROM t");
     assert_eq!(stmt, json_roundtrip(&stmt));
 }
 
@@ -4912,15 +4651,9 @@ fn test_declare_cursor_with_parsed_select() {
             assert_eq!(c.scrollability, CursorScrollability::Default);
             assert!(!c.binary);
             // query is now Box<SelectStatement>, not String
-            assert!(
-                !c.query.targets.is_empty(),
-                "cursor query should have targets"
-            );
+            assert!(!c.query.targets.is_empty(), "cursor query should have targets");
             assert!(!c.query.from.is_empty(), "cursor query should have FROM");
-            assert!(
-                c.query.where_clause.is_some(),
-                "cursor query should have WHERE"
-            );
+            assert!(c.query.where_clause.is_some(), "cursor query should have WHERE");
         }
         _ => panic!("expected DeclareCursor, got {:?}", stmt),
     }
@@ -5096,10 +4829,7 @@ fn test_plpgsql_fetch_forward_count() {
     match &block.body[0] {
         PlStatement::Fetch(f) => {
             assert!(matches!(&f.cursor, Expr::ColumnRef(n) if n == &["cur"]));
-            assert!(matches!(
-                &f.direction,
-                Some(plpgsql::FetchDirection::Forward(Some(5)))
-            ));
+            assert!(matches!(&f.direction, Some(plpgsql::FetchDirection::Forward(Some(5)))));
         }
         _ => panic!("expected Fetch"),
     }
@@ -5111,10 +4841,7 @@ fn test_plpgsql_fetch_forward_bare() {
     match &block.body[0] {
         PlStatement::Fetch(f) => {
             assert!(matches!(&f.cursor, Expr::ColumnRef(n) if n == &["cur"]));
-            assert!(matches!(
-                &f.direction,
-                Some(plpgsql::FetchDirection::Forward(None))
-            ));
+            assert!(matches!(&f.direction, Some(plpgsql::FetchDirection::Forward(None))));
         }
         _ => panic!("expected Fetch"),
     }
@@ -5126,10 +4853,7 @@ fn test_plpgsql_fetch_forward_all() {
     match &block.body[0] {
         PlStatement::Fetch(f) => {
             assert!(matches!(&f.cursor, Expr::ColumnRef(n) if n == &["cur"]));
-            assert!(matches!(
-                &f.direction,
-                Some(plpgsql::FetchDirection::ForwardAll)
-            ));
+            assert!(matches!(&f.direction, Some(plpgsql::FetchDirection::ForwardAll)));
         }
         _ => panic!("expected Fetch"),
     }
@@ -5141,10 +4865,7 @@ fn test_plpgsql_fetch_absolute() {
     match &block.body[0] {
         PlStatement::Fetch(f) => {
             assert!(matches!(&f.cursor, Expr::ColumnRef(n) if n == &["cur"]));
-            assert!(matches!(
-                &f.direction,
-                Some(plpgsql::FetchDirection::Absolute(10))
-            ));
+            assert!(matches!(&f.direction, Some(plpgsql::FetchDirection::Absolute(10))));
         }
         _ => panic!("expected Fetch"),
     }
@@ -5156,10 +4877,7 @@ fn test_plpgsql_fetch_absolute_negative() {
     match &block.body[0] {
         PlStatement::Fetch(f) => {
             assert!(matches!(&f.cursor, Expr::ColumnRef(n) if n == &["cur"]));
-            assert!(matches!(
-                &f.direction,
-                Some(plpgsql::FetchDirection::Absolute(-3))
-            ));
+            assert!(matches!(&f.direction, Some(plpgsql::FetchDirection::Absolute(-3))));
         }
         _ => panic!("expected Fetch"),
     }
@@ -5171,10 +4889,7 @@ fn test_plpgsql_fetch_relative() {
     match &block.body[0] {
         PlStatement::Fetch(f) => {
             assert!(matches!(&f.cursor, Expr::ColumnRef(n) if n == &["cur"]));
-            assert!(matches!(
-                &f.direction,
-                Some(plpgsql::FetchDirection::Relative(5))
-            ));
+            assert!(matches!(&f.direction, Some(plpgsql::FetchDirection::Relative(5))));
         }
         _ => panic!("expected Fetch"),
     }
@@ -5186,10 +4901,7 @@ fn test_plpgsql_fetch_backward_count() {
     match &block.body[0] {
         PlStatement::Fetch(f) => {
             assert!(matches!(&f.cursor, Expr::ColumnRef(n) if n == &["cur"]));
-            assert!(matches!(
-                &f.direction,
-                Some(plpgsql::FetchDirection::Backward(Some(3)))
-            ));
+            assert!(matches!(&f.direction, Some(plpgsql::FetchDirection::Backward(Some(3)))));
         }
         _ => panic!("expected Fetch"),
     }
@@ -5201,10 +4913,7 @@ fn test_plpgsql_fetch_backward_all() {
     match &block.body[0] {
         PlStatement::Fetch(f) => {
             assert!(matches!(&f.cursor, Expr::ColumnRef(n) if n == &["cur"]));
-            assert!(matches!(
-                &f.direction,
-                Some(plpgsql::FetchDirection::BackwardAll)
-            ));
+            assert!(matches!(&f.direction, Some(plpgsql::FetchDirection::BackwardAll)));
         }
         _ => panic!("expected Fetch"),
     }
@@ -5216,10 +4925,7 @@ fn test_plpgsql_move_forward_count() {
     match &block.body[0] {
         PlStatement::Move { cursor, direction } => {
             assert!(matches!(cursor, Expr::ColumnRef(n) if n == &["cur"]));
-            assert!(matches!(
-                direction,
-                Some(plpgsql::FetchDirection::Forward(Some(5)))
-            ));
+            assert!(matches!(direction, Some(plpgsql::FetchDirection::Forward(Some(5)))));
         }
         _ => panic!("expected Move"),
     }
@@ -5231,10 +4937,7 @@ fn test_plpgsql_move_absolute() {
     match &block.body[0] {
         PlStatement::Move { cursor, direction } => {
             assert!(matches!(cursor, Expr::ColumnRef(n) if n == &["cur"]));
-            assert!(matches!(
-                direction,
-                Some(plpgsql::FetchDirection::Absolute(10))
-            ));
+            assert!(matches!(direction, Some(plpgsql::FetchDirection::Absolute(10))));
         }
         _ => panic!("expected Move"),
     }
@@ -5248,10 +4951,7 @@ fn test_plpgsql_get_diagnostics_message_text() {
             assert!(!g.stacked);
             assert_eq!(g.items.len(), 1);
             assert!(matches!(&g.items[0].target, Expr::ColumnRef(n) if n == &["msg"]));
-            assert!(matches!(
-                g.items[0].item,
-                plpgsql::GetDiagItemKind::MessageText
-            ));
+            assert!(matches!(g.items[0].item, plpgsql::GetDiagItemKind::MessageText));
         }
         _ => panic!("expected GetDiagnostics"),
     }
@@ -5425,7 +5125,9 @@ fn test_rule_statement_has_parsed_actions_none() {
 
 #[test]
 fn test_grouping_sets_basic() {
-    let stmt = parse_one("SELECT dept, region, SUM(salary) FROM emp GROUP BY GROUPING SETS ((dept, region), (dept), (region), ())");
+    let stmt = parse_one(
+        "SELECT dept, region, SUM(salary) FROM emp GROUP BY GROUPING SETS ((dept, region), (dept), (region), ())",
+    );
     match stmt {
         Statement::Select(s) => {
             assert_eq!(s.group_by.len(), 1);
@@ -5446,8 +5148,7 @@ fn test_grouping_sets_basic() {
 
 #[test]
 fn test_rollup() {
-    let stmt =
-        parse_one("SELECT year, month, SUM(amount) FROM sales GROUP BY ROLLUP (year, month)");
+    let stmt = parse_one("SELECT year, month, SUM(amount) FROM sales GROUP BY ROLLUP (year, month)");
     match stmt {
         Statement::Select(s) => {
             assert_eq!(s.group_by.len(), 1);
@@ -5464,8 +5165,7 @@ fn test_rollup() {
 
 #[test]
 fn test_cube() {
-    let stmt =
-        parse_one("SELECT year, product, SUM(amount) FROM sales GROUP BY CUBE (year, product)");
+    let stmt = parse_one("SELECT year, product, SUM(amount) FROM sales GROUP BY CUBE (year, product)");
     match stmt {
         Statement::Select(s) => {
             assert_eq!(s.group_by.len(), 1);
@@ -5482,8 +5182,7 @@ fn test_cube() {
 
 #[test]
 fn test_mixed_group_by() {
-    let stmt =
-        parse_one("SELECT dept, region, SUM(salary) FROM emp GROUP BY dept, ROLLUP (region)");
+    let stmt = parse_one("SELECT dept, region, SUM(salary) FROM emp GROUP BY dept, ROLLUP (region)");
     match stmt {
         Statement::Select(s) => {
             assert_eq!(s.group_by.len(), 2);
@@ -5577,9 +5276,8 @@ fn test_prior_in_expression() {
 
 #[test]
 fn test_insert_all_unconditional() {
-    let stmt = parse_one(
-        "INSERT ALL INTO sales_east VALUES (1, 'a') INTO sales_west VALUES (2, 'b') SELECT * FROM source",
-    );
+    let stmt =
+        parse_one("INSERT ALL INTO sales_east VALUES (1, 'a') INTO sales_west VALUES (2, 'b') SELECT * FROM source");
     match stmt {
         Statement::InsertAll(ia) => {
             assert_eq!(ia.targets.len(), 2);
@@ -5654,33 +5352,17 @@ fn test_insert_bracketed_select_union_all_warning_only() {
     assert_eq!(stmts.len(), 1, "should parse as a single INSERT statement");
 
     let errors = parser.errors();
-    let warnings: Vec<_> = errors
-        .iter()
-        .filter(|e| matches!(e, ParserError::Warning { .. }))
-        .collect();
-    let hard_errors: Vec<_> = errors
-        .iter()
-        .filter(|e| !matches!(e, ParserError::Warning { .. }))
-        .collect();
+    let warnings: Vec<_> = errors.iter().filter(|e| matches!(e, ParserError::Warning { .. })).collect();
+    let hard_errors: Vec<_> = errors.iter().filter(|e| !matches!(e, ParserError::Warning { .. })).collect();
 
     assert_eq!(warnings.len(), 1, "should produce exactly one warning");
-    assert!(
-        warnings[0].to_string().contains("bracketed INSERT"),
-        "warning should mention bracketed INSERT"
-    );
-    assert!(
-        hard_errors.is_empty(),
-        "should produce no hard errors, got: {:?}",
-        hard_errors
-    );
+    assert!(warnings[0].to_string().contains("bracketed INSERT"), "warning should mention bracketed INSERT");
+    assert!(hard_errors.is_empty(), "should produce no hard errors, got: {:?}", hard_errors);
 
     match &stmts[0] {
         Statement::Insert(ins) => match &ins.source {
             InsertSource::Select(sel) => {
-                assert!(
-                    sel.set_operation.is_some(),
-                    "UNION ALL should be captured in set_operation"
-                );
+                assert!(sel.set_operation.is_some(), "UNION ALL should be captured in set_operation");
                 match sel.set_operation.as_ref().unwrap() {
                     SetOperation::Union { all, right } => {
                         assert!(all, "should be UNION ALL");
@@ -5697,9 +5379,7 @@ fn test_insert_bracketed_select_union_all_warning_only() {
 
 #[test]
 fn test_pivot() {
-    let stmt = parse_one(
-        "SELECT * FROM sales PIVOT (SUM(amount) FOR quarter IN ('Q1' AS q1, 'Q2' AS q2))",
-    );
+    let stmt = parse_one("SELECT * FROM sales PIVOT (SUM(amount) FOR quarter IN ('Q1' AS q1, 'Q2' AS q2))");
     match stmt {
         Statement::Select(s) => {
             assert_eq!(s.from.len(), 1);
@@ -5719,8 +5399,7 @@ fn test_pivot() {
 
 #[test]
 fn test_unpivot() {
-    let stmt =
-        parse_one("SELECT * FROM pivoted UNPIVOT (amount FOR quarter IN (q1 AS 'Q1', q2 AS 'Q2'))");
+    let stmt = parse_one("SELECT * FROM pivoted UNPIVOT (amount FOR quarter IN (q1 AS 'Q1', q2 AS 'Q2'))");
     match stmt {
         Statement::Select(s) => {
             assert_eq!(s.from.len(), 1);
@@ -5810,9 +5489,7 @@ fn test_alter_table_drop_partition() {
         Statement::AlterTable(at) => {
             assert_eq!(at.actions.len(), 1);
             match &at.actions[0] {
-                AlterTableAction::DropPartition {
-                    name, if_exists, ..
-                } => {
+                AlterTableAction::DropPartition { name, if_exists, .. } => {
                     assert_eq!(name, "p202501");
                     assert!(!if_exists);
                 }
@@ -5843,15 +5520,12 @@ fn test_alter_table_truncate_partition() {
 
 #[test]
 fn test_alter_table_merge_partitions() {
-    let stmt =
-        parse_one("ALTER TABLE sales MERGE PARTITIONS p202501, p202502 INTO PARTITION p2025q1");
+    let stmt = parse_one("ALTER TABLE sales MERGE PARTITIONS p202501, p202502 INTO PARTITION p2025q1");
     match stmt {
         Statement::AlterTable(at) => {
             assert_eq!(at.actions.len(), 1);
             match &at.actions[0] {
-                AlterTableAction::MergePartitions {
-                    names, into_name, ..
-                } => {
+                AlterTableAction::MergePartitions { names, into_name, .. } => {
                     assert_eq!(names.len(), 2);
                     assert_eq!(into_name, "p2025q1");
                 }
@@ -5871,12 +5545,7 @@ fn test_alter_table_split_partition() {
         Statement::AlterTable(at) => {
             assert_eq!(at.actions.len(), 1);
             match &at.actions[0] {
-                AlterTableAction::SplitPartition {
-                    name,
-                    at_value,
-                    into,
-                    ..
-                } => {
+                AlterTableAction::SplitPartition { name, at_value, into, .. } => {
                     assert_eq!(name, "p2025q1");
                     assert!(at_value.is_some());
                     assert_eq!(into.len(), 2);
@@ -5933,11 +5602,7 @@ fn test_create_table_range_partition_with_values() {
         Statement::CreateTable(ct) => {
             assert!(ct.partition_by.is_some());
             match ct.partition_by.as_ref().unwrap() {
-                PartitionClause::Range {
-                    columns,
-                    partitions,
-                    ..
-                } => {
+                PartitionClause::Range { columns, partitions, .. } => {
                     assert_eq!(columns[0].join("."), "sale_date");
                     assert_eq!(partitions.len(), 2);
                     assert_eq!(partitions[0].name, "p2025");
@@ -5991,9 +5656,7 @@ fn test_within_group() {
 
 #[test]
 fn test_filter_with_over() {
-    let stmt = parse_one(
-        "SELECT COUNT(*) FILTER (WHERE status = 'active') OVER (PARTITION BY dept) FROM users",
-    );
+    let stmt = parse_one("SELECT COUNT(*) FILTER (WHERE status = 'active') OVER (PARTITION BY dept) FROM users");
     match stmt {
         Statement::Select(s) => match &s.targets[0] {
             SelectTarget::Expr(expr, _) => match expr {
@@ -6057,11 +5720,7 @@ fn test_create_table_interval_partition() {
     );
     match stmt {
         Statement::CreateTable(ct) => match ct.partition_by.as_ref().unwrap() {
-            PartitionClause::Range {
-                interval,
-                partitions,
-                ..
-            } => {
+            PartitionClause::Range { interval, partitions, .. } => {
                 assert!(interval.is_some());
                 assert_eq!(partitions.len(), 1);
             }
@@ -6078,11 +5737,7 @@ fn test_create_table_list_partition() {
     );
     match stmt {
         Statement::CreateTable(ct) => match ct.partition_by.as_ref().unwrap() {
-            PartitionClause::List {
-                columns,
-                partitions,
-                ..
-            } => {
+            PartitionClause::List { columns, partitions, .. } => {
                 assert_eq!(columns[0].join("."), "region");
                 assert_eq!(partitions.len(), 2);
                 assert_eq!(partitions[0].name, "p_east");
@@ -6098,11 +5753,7 @@ fn test_create_table_hash_partition() {
     let stmt = parse_one("CREATE TABLE t (id INT) PARTITION BY HASH (id) PARTITIONS 4");
     match stmt {
         Statement::CreateTable(ct) => match ct.partition_by.as_ref().unwrap() {
-            PartitionClause::Hash {
-                columns,
-                partitions_count,
-                ..
-            } => {
+            PartitionClause::Hash { columns, partitions_count, .. } => {
                 assert_eq!(columns[0].join("."), "id");
                 assert_eq!(*partitions_count, Some(4));
             }
@@ -6128,9 +5779,7 @@ fn test_create_table_partition_no_defs() {
 
 #[test]
 fn test_create_database_link() {
-    let stmt = parse_one(
-        "CREATE DATABASE LINK remote_db CONNECT TO user1 IDENTIFIED BY 'pass' USING 'host:port/db'",
-    );
+    let stmt = parse_one("CREATE DATABASE LINK remote_db CONNECT TO user1 IDENTIFIED BY 'pass' USING 'host:port/db'");
     match stmt {
         Statement::CreateDatabaseLink(dbl) => {
             assert_eq!(dbl.name, "remote_db");
@@ -6159,9 +5808,7 @@ fn test_create_public_database_link() {
 
 #[test]
 fn test_create_table_distribute_by_hash() {
-    let stmt = parse_one(
-        "CREATE TABLE t (id INT, name VARCHAR(100)) DISTRIBUTE BY HASH (id) TO GROUP group1",
-    );
+    let stmt = parse_one("CREATE TABLE t (id INT, name VARCHAR(100)) DISTRIBUTE BY HASH (id) TO GROUP group1");
     match stmt {
         Statement::CreateTable(ct) => {
             assert!(ct.distribute_by.is_some());
@@ -6182,10 +5829,7 @@ fn test_create_table_distribute_by_replication() {
     let stmt = parse_one("CREATE TABLE t (id INT) DISTRIBUTE BY REPLICATION");
     match stmt {
         Statement::CreateTable(ct) => {
-            assert!(matches!(
-                ct.distribute_by.as_ref().unwrap(),
-                DistributeClause::Replication
-            ));
+            assert!(matches!(ct.distribute_by.as_ref().unwrap(), DistributeClause::Replication));
         }
         _ => panic!("expected CreateTable"),
     }
@@ -6193,9 +5837,7 @@ fn test_create_table_distribute_by_replication() {
 
 #[test]
 fn test_create_table_with_partition_and_distribute() {
-    let stmt = parse_one(
-        "CREATE TABLE sales (id INT, dt DATE) PARTITION BY RANGE (dt) DISTRIBUTE BY HASH (id)",
-    );
+    let stmt = parse_one("CREATE TABLE sales (id INT, dt DATE) PARTITION BY RANGE (dt) DISTRIBUTE BY HASH (id)");
     match stmt {
         Statement::CreateTable(ct) => {
             assert!(ct.partition_by.is_some());
@@ -6217,11 +5859,7 @@ fn test_create_table_subpartition_range_list() {
             assert!(ct.partition_by.is_some());
             assert!(ct.subpartition_by.is_some());
             match ct.subpartition_by.as_ref().unwrap() {
-                PartitionClause::List {
-                    columns,
-                    partitions,
-                    ..
-                } => {
+                PartitionClause::List { columns, partitions, .. } => {
                     assert_eq!(columns[0].join("."), "name");
                     assert!(partitions.is_empty()); // subpartition defs are in partition defs
                 }
@@ -6253,11 +5891,7 @@ fn test_create_table_subpartition_hash() {
             assert!(ct.subpartition_by.is_some());
             assert_eq!(ct.subpartitions_count, Some(4));
             match ct.subpartition_by.as_ref().unwrap() {
-                PartitionClause::Hash {
-                    columns,
-                    partitions_count,
-                    ..
-                } => {
+                PartitionClause::Hash { columns, partitions_count, .. } => {
                     assert_eq!(columns[0].join("."), "id");
                     assert_eq!(*partitions_count, Some(4));
                 }
@@ -6404,11 +6038,7 @@ fn test_alter_table_split_subpartition() {
     );
     match stmt {
         Statement::AlterTable(at) => match &at.actions[0] {
-            AlterTableAction::SplitSubPartition {
-                name,
-                at_value,
-                into,
-            } => {
+            AlterTableAction::SplitSubPartition { name, at_value, into } => {
                 assert_eq!(name, "sp1");
                 assert!(at_value.is_some());
                 assert_eq!(into.len(), 2);
@@ -6472,10 +6102,7 @@ fn test_alter_table_ilm_enable_all() {
     match stmt {
         Statement::AlterTable(at) => {
             assert_eq!(at.actions.len(), 1);
-            assert!(matches!(
-                at.actions[0],
-                AlterTableAction::IlmEnableAllPolicies
-            ));
+            assert!(matches!(at.actions[0], AlterTableAction::IlmEnableAllPolicies));
         }
         _ => panic!("expected AlterTable"),
     }
@@ -6487,10 +6114,7 @@ fn test_alter_table_ilm_disable_all() {
     match stmt {
         Statement::AlterTable(at) => {
             assert_eq!(at.actions.len(), 1);
-            assert!(matches!(
-                at.actions[0],
-                AlterTableAction::IlmDisableAllPolicies
-            ));
+            assert!(matches!(at.actions[0], AlterTableAction::IlmDisableAllPolicies));
         }
         _ => panic!("expected AlterTable"),
     }
@@ -6502,10 +6126,7 @@ fn test_alter_table_ilm_delete_all() {
     match stmt {
         Statement::AlterTable(at) => {
             assert_eq!(at.actions.len(), 1);
-            assert!(matches!(
-                at.actions[0],
-                AlterTableAction::IlmDeleteAllPolicies
-            ));
+            assert!(matches!(at.actions[0], AlterTableAction::IlmDeleteAllPolicies));
         }
         _ => panic!("expected AlterTable"),
     }
@@ -6540,12 +6161,7 @@ fn test_create_table_partition_range_columns() {
         Statement::CreateTable(ct) => {
             let pb = ct.partition_by.as_ref().expect("expected partition_by");
             match pb {
-                PartitionClause::Range {
-                    columns,
-                    is_columns,
-                    partitions,
-                    ..
-                } => {
+                PartitionClause::Range { columns, is_columns, partitions, .. } => {
                     assert_eq!(*is_columns, true);
                     assert_eq!(columns, &vec![vec!["name".to_string()]]);
                     assert_eq!(partitions.len(), 2);
@@ -6566,11 +6182,7 @@ fn test_create_table_partition_list_columns() {
         Statement::CreateTable(ct) => {
             let pb = ct.partition_by.as_ref().expect("expected partition_by");
             match pb {
-                PartitionClause::List {
-                    columns,
-                    is_columns,
-                    partitions,
-                } => {
+                PartitionClause::List { columns, is_columns, partitions } => {
                     assert_eq!(*is_columns, true);
                     assert_eq!(columns, &vec![vec!["region".to_string()]]);
                     assert_eq!(partitions.len(), 2);
@@ -6591,9 +6203,7 @@ fn test_create_table_partition_range_with_partitions_count() {
         Statement::CreateTable(ct) => {
             let pb = ct.partition_by.as_ref().expect("expected partition_by");
             match pb {
-                PartitionClause::Range {
-                    partitions_count, ..
-                } => {
+                PartitionClause::Range { partitions_count, .. } => {
                     assert_eq!(*partitions_count, Some(10));
                 }
                 other => panic!("expected Range, got {:?}", other),
@@ -6803,13 +6413,7 @@ fn test_xmlelement_with_attributes() {
         Statement::Select(s) => {
             assert_eq!(s.targets.len(), 1);
             match &s.targets[0] {
-                SelectTarget::Expr(
-                    Expr::XmlElement {
-                        attributes: Some(attrs),
-                        ..
-                    },
-                    _,
-                ) => {
+                SelectTarget::Expr(Expr::XmlElement { attributes: Some(attrs), .. }, _) => {
                     assert_eq!(attrs.items.len(), 1);
                     assert_eq!(attrs.items[0].name.as_deref(), Some("baz"));
                 }
@@ -6827,13 +6431,7 @@ fn test_xmlelement_noentityescaping_bug() {
     assert_eq!(stmts.len(), 1);
     match &stmts[0] {
         Statement::Select(s) => match &s.targets[0] {
-            SelectTarget::Expr(
-                Expr::XmlElement {
-                    attributes: Some(attrs),
-                    ..
-                },
-                _,
-            ) => {
+            SelectTarget::Expr(Expr::XmlElement { attributes: Some(attrs), .. }, _) => {
                 assert_eq!(attrs.entity_escaping, Some(false));
                 assert_eq!(attrs.items.len(), 1);
             }
@@ -6850,15 +6448,7 @@ fn test_xmlelement_entityescaping() {
     assert_eq!(stmts.len(), 1);
     match &stmts[0] {
         Statement::Select(s) => match &s.targets[0] {
-            SelectTarget::Expr(
-                Expr::XmlElement {
-                    entity_escaping: Some(true),
-                    name,
-                    content,
-                    ..
-                },
-                _,
-            ) => {
+            SelectTarget::Expr(Expr::XmlElement { entity_escaping: Some(true), name, content, .. }, _) => {
                 assert_eq!(name.as_deref(), Some("entityescaping<>"));
                 assert_eq!(content.len(), 1);
             }
@@ -6906,14 +6496,7 @@ fn test_xmlparse_document() {
     assert_eq!(stmts.len(), 1);
     match &stmts[0] {
         Statement::Select(s) => match &s.targets[0] {
-            SelectTarget::Expr(
-                Expr::XmlParse {
-                    option: XmlOption::Document,
-                    wellformed: false,
-                    ..
-                },
-                _,
-            ) => {}
+            SelectTarget::Expr(Expr::XmlParse { option: XmlOption::Document, wellformed: false, .. }, _) => {}
             _ => panic!("expected XmlParse"),
         },
         _ => panic!("expected SELECT"),
@@ -6926,14 +6509,7 @@ fn test_xmlparse_content_wellformed() {
     assert_eq!(stmts.len(), 1);
     match &stmts[0] {
         Statement::Select(s) => match &s.targets[0] {
-            SelectTarget::Expr(
-                Expr::XmlParse {
-                    option: XmlOption::Content,
-                    wellformed: true,
-                    ..
-                },
-                _,
-            ) => {}
+            SelectTarget::Expr(Expr::XmlParse { option: XmlOption::Content, wellformed: true, .. }, _) => {}
             _ => panic!("expected XmlParse"),
         },
         _ => panic!("expected SELECT"),
@@ -6946,13 +6522,7 @@ fn test_xmlpi() {
     assert_eq!(stmts.len(), 1);
     match &stmts[0] {
         Statement::Select(s) => match &s.targets[0] {
-            SelectTarget::Expr(
-                Expr::XmlPi {
-                    name: Some(n),
-                    content: Some(_),
-                },
-                _,
-            ) => {
+            SelectTarget::Expr(Expr::XmlPi { name: Some(n), content: Some(_) }, _) => {
                 assert_eq!(n, "php");
             }
             _ => panic!("expected XmlPi"),
@@ -6980,14 +6550,7 @@ fn test_xmlroot() {
     assert_eq!(stmts.len(), 1);
     match &stmts[0] {
         Statement::Select(s) => match &s.targets[0] {
-            SelectTarget::Expr(
-                Expr::XmlRoot {
-                    version: Some(_),
-                    standalone: Some(Some(true)),
-                    ..
-                },
-                _,
-            ) => {}
+            SelectTarget::Expr(Expr::XmlRoot { version: Some(_), standalone: Some(Some(true)), .. }, _) => {}
             _ => panic!("expected XmlRoot"),
         },
         _ => panic!("expected SELECT"),
@@ -7000,14 +6563,7 @@ fn test_xmlserialize() {
     assert_eq!(stmts.len(), 1);
     match &stmts[0] {
         Statement::Select(s) => match &s.targets[0] {
-            SelectTarget::Expr(
-                Expr::XmlSerialize {
-                    option: XmlOption::Content,
-                    type_name: _,
-                    ..
-                },
-                _,
-            ) => {}
+            SelectTarget::Expr(Expr::XmlSerialize { option: XmlOption::Content, type_name: _, .. }, _) => {}
             _ => panic!("expected XmlSerialize"),
         },
         _ => panic!("expected SELECT"),
@@ -7022,11 +6578,7 @@ fn test_insert_hint_roundtrip() {
     let stmts = parse(sql);
     let formatter = SqlFormatter::new();
     let output = formatter.format_statement(&stmts[0]);
-    assert!(
-        output.contains("/*+"),
-        "INSERT hint should be preserved in formatter output: {}",
-        output
-    );
+    assert!(output.contains("/*+"), "INSERT hint should be preserved in formatter output: {}", output);
 }
 
 #[test]
@@ -7035,11 +6587,7 @@ fn test_update_hint_roundtrip() {
     let stmts = parse(sql);
     let formatter = SqlFormatter::new();
     let output = formatter.format_statement(&stmts[0]);
-    assert!(
-        output.contains("/*+"),
-        "UPDATE hint should be preserved in formatter output: {}",
-        output
-    );
+    assert!(output.contains("/*+"), "UPDATE hint should be preserved in formatter output: {}", output);
 }
 
 #[test]
@@ -7048,24 +6596,17 @@ fn test_delete_hint_roundtrip() {
     let stmts = parse(sql);
     let formatter = SqlFormatter::new();
     let output = formatter.format_statement(&stmts[0]);
-    assert!(
-        output.contains("/*+"),
-        "DELETE hint should be preserved in formatter output: {}",
-        output
-    );
+    assert!(output.contains("/*+"), "DELETE hint should be preserved in formatter output: {}", output);
 }
 
 #[test]
 fn test_merge_hint_roundtrip() {
-    let sql = "MERGE /*+ leading(t1 t2) */ INTO t1 USING t2 ON t1.id = t2.id WHEN MATCHED THEN UPDATE SET t1.val = t2.val";
+    let sql =
+        "MERGE /*+ leading(t1 t2) */ INTO t1 USING t2 ON t1.id = t2.id WHEN MATCHED THEN UPDATE SET t1.val = t2.val";
     let stmts = parse(sql);
     let formatter = SqlFormatter::new();
     let output = formatter.format_statement(&stmts[0]);
-    assert!(
-        output.contains("/*+"),
-        "MERGE hint should be preserved in formatter output: {}",
-        output
-    );
+    assert!(output.contains("/*+"), "MERGE hint should be preserved in formatter output: {}", output);
 }
 
 #[test]
@@ -7139,11 +6680,7 @@ fn test_hint_unknown_warning() {
     let mut parser = Parser::new(tokens);
     let stmts = parser.parse();
     assert!(!stmts.is_empty());
-    let warnings: Vec<_> = parser
-        .errors()
-        .iter()
-        .filter(|e| matches!(e, ParserError::Warning { .. }))
-        .collect();
+    let warnings: Vec<_> = parser.errors().iter().filter(|e| matches!(e, ParserError::Warning { .. })).collect();
     assert!(!warnings.is_empty(), "Should warn about unknown hint");
     assert!(warnings[0].to_string().contains("Unknown hint"));
 }
@@ -7155,11 +6692,7 @@ fn test_hint_set_missing_value_warning() {
     let mut parser = Parser::new(tokens);
     let stmts = parser.parse();
     assert!(!stmts.is_empty());
-    let warnings: Vec<_> = parser
-        .errors()
-        .iter()
-        .filter(|e| matches!(e, ParserError::Warning { .. }))
-        .collect();
+    let warnings: Vec<_> = parser.errors().iter().filter(|e| matches!(e, ParserError::Warning { .. })).collect();
     assert!(!warnings.is_empty(), "Should warn about malformed set hint");
 }
 
@@ -7173,14 +6706,8 @@ fn test_hint_json_roundtrip() {
     let restored: Vec<Statement> = serde_json::from_str(&json).unwrap();
     let formatter = SqlFormatter::new();
     let output = formatter.format_statement(&restored[0]);
-    assert!(
-        output.contains("tablescan(t1)"),
-        "Hint should survive JSON round-trip"
-    );
-    assert!(
-        output.contains("leading(t1 t2)"),
-        "Hint should survive JSON round-trip"
-    );
+    assert!(output.contains("tablescan(t1)"), "Hint should survive JSON round-trip");
+    assert!(output.contains("leading(t1 t2)"), "Hint should survive JSON round-trip");
 }
 
 #[test]
@@ -7190,11 +6717,7 @@ fn test_func_coalesce_warning() {
     let mut parser = Parser::new(tokens);
     let stmts = parser.parse();
     assert!(!stmts.is_empty());
-    let warnings: Vec<_> = parser
-        .errors()
-        .iter()
-        .filter(|e| matches!(e, ParserError::Warning { .. }))
-        .collect();
+    let warnings: Vec<_> = parser.errors().iter().filter(|e| matches!(e, ParserError::Warning { .. })).collect();
     assert!(!warnings.is_empty(), "COALESCE with 1 arg should warn");
 }
 
@@ -7205,11 +6728,7 @@ fn test_func_window_no_over_warning() {
     let mut parser = Parser::new(tokens);
     let stmts = parser.parse();
     assert!(!stmts.is_empty());
-    let warnings: Vec<_> = parser
-        .errors()
-        .iter()
-        .filter(|e| matches!(e, ParserError::Warning { .. }))
-        .collect();
+    let warnings: Vec<_> = parser.errors().iter().filter(|e| matches!(e, ParserError::Warning { .. })).collect();
     assert!(!warnings.is_empty(), "row_number without OVER should warn");
 }
 
@@ -7220,11 +6739,7 @@ fn test_func_window_with_over_ok() {
     let mut parser = Parser::new(tokens);
     let stmts = parser.parse();
     assert!(!stmts.is_empty());
-    let warnings: Vec<_> = parser
-        .errors()
-        .iter()
-        .filter(|e| matches!(e, ParserError::Warning { .. }))
-        .collect();
+    let warnings: Vec<_> = parser.errors().iter().filter(|e| matches!(e, ParserError::Warning { .. })).collect();
     assert!(warnings.is_empty(), "row_number with OVER should not warn");
 }
 
@@ -7232,31 +6747,18 @@ fn test_func_window_with_over_ok() {
 fn test_into_prefix_alias_standalone_error() {
     let sql = "SELECT to_number(p_in_checkbalance) INTOAAAA v_in_checkbalance FROM sys_dummy;";
     let (_, errors) = Parser::parse_sql(sql);
-    let errors: Vec<_> = errors
-        .iter()
-        .filter(|e| !matches!(e, ParserError::Warning { .. }))
-        .collect();
+    let errors: Vec<_> = errors.iter().filter(|e| !matches!(e, ParserError::Warning { .. })).collect();
     assert!(!errors.is_empty(), "INTOAAAA should produce a parse error");
     let msg = format!("{}", errors[0]);
-    assert!(
-        msg.contains("INTOAAAA"),
-        "error should point to INTOAAAA: {}",
-        msg
-    );
+    assert!(msg.contains("INTOAAAA"), "error should point to INTOAAAA: {}", msg);
 }
 
 #[test]
 fn test_into_prefix_alias_no_false_positive() {
     let sql = "SELECT id AS intx FROM t1";
     let (_, errors) = Parser::parse_sql(sql);
-    let warnings: Vec<_> = errors
-        .iter()
-        .filter(|e| matches!(e, ParserError::Warning { .. }))
-        .collect();
-    assert!(
-        warnings.is_empty(),
-        "intx should not trigger INTO-prefix warning"
-    );
+    let warnings: Vec<_> = errors.iter().filter(|e| matches!(e, ParserError::Warning { .. })).collect();
+    assert!(warnings.is_empty(), "intx should not trigger INTO-prefix warning");
 }
 
 #[test]
@@ -7269,20 +6771,10 @@ BEGIN
 END;
 END;"#;
     let (_, errors) = Parser::parse_sql(sql);
-    let errors: Vec<_> = errors
-        .iter()
-        .filter(|e| !matches!(e, ParserError::Warning { .. }))
-        .collect();
-    assert!(
-        !errors.is_empty(),
-        "PL context should report error for INTOAAAA"
-    );
+    let errors: Vec<_> = errors.iter().filter(|e| !matches!(e, ParserError::Warning { .. })).collect();
+    assert!(!errors.is_empty(), "PL context should report error for INTOAAAA");
     let msg = format!("{}", errors[0]);
-    assert!(
-        msg.contains("INTOAAAA"),
-        "error should mention INTOAAAA: {}",
-        msg
-    );
+    assert!(msg.contains("INTOAAAA"), "error should mention INTOAAAA: {}", msg);
 }
 
 #[test]
@@ -7403,15 +6895,9 @@ fn test_reserved_keyword_as_table_name_error() {
     let mut parser = Parser::new(tokens);
     let stmts = parser.parse();
     assert!(!stmts.is_empty(), "Should still produce AST (soft error)");
-    let reserved_errors: Vec<_> = parser
-        .errors()
-        .iter()
-        .filter(|e| matches!(e, ParserError::ReservedKeywordAsIdentifier { .. }))
-        .collect();
-    assert!(
-        !reserved_errors.is_empty(),
-        "Reserved keyword 'select' used as table name should error"
-    );
+    let reserved_errors: Vec<_> =
+        parser.errors().iter().filter(|e| matches!(e, ParserError::ReservedKeywordAsIdentifier { .. })).collect();
+    assert!(!reserved_errors.is_empty(), "Reserved keyword 'select' used as table name should error");
     assert!(reserved_errors[0].to_string().contains("select"));
 }
 
@@ -7422,15 +6908,9 @@ fn test_reserved_keyword_as_column_name_error() {
     let mut parser = Parser::new(tokens);
     let stmts = parser.parse();
     assert!(!stmts.is_empty(), "Should still produce AST (soft error)");
-    let reserved_errors: Vec<_> = parser
-        .errors()
-        .iter()
-        .filter(|e| matches!(e, ParserError::ReservedKeywordAsIdentifier { .. }))
-        .collect();
-    assert!(
-        !reserved_errors.is_empty(),
-        "Reserved keyword 'where' used as column name should error"
-    );
+    let reserved_errors: Vec<_> =
+        parser.errors().iter().filter(|e| matches!(e, ParserError::ReservedKeywordAsIdentifier { .. })).collect();
+    assert!(!reserved_errors.is_empty(), "Reserved keyword 'where' used as column name should error");
 }
 
 #[test]
@@ -7440,15 +6920,9 @@ fn test_nonreserved_keyword_as_table_name_no_warning() {
     let mut parser = Parser::new(tokens);
     let stmts = parser.parse();
     assert!(!stmts.is_empty());
-    let keyword_issues: Vec<_> = parser
-        .errors()
-        .iter()
-        .filter(|e| matches!(e, ParserError::ReservedKeywordAsIdentifier { .. }))
-        .collect();
-    assert!(
-        keyword_issues.is_empty(),
-        "Non-reserved keyword 'action' as table name should not trigger any warning"
-    );
+    let keyword_issues: Vec<_> =
+        parser.errors().iter().filter(|e| matches!(e, ParserError::ReservedKeywordAsIdentifier { .. })).collect();
+    assert!(keyword_issues.is_empty(), "Non-reserved keyword 'action' as table name should not trigger any warning");
 }
 
 #[test]
@@ -7458,15 +6932,9 @@ fn test_nonreserved_keyword_as_column_name_no_warning() {
     let mut parser = Parser::new(tokens);
     let stmts = parser.parse();
     assert!(!stmts.is_empty());
-    let keyword_issues: Vec<_> = parser
-        .errors()
-        .iter()
-        .filter(|e| matches!(e, ParserError::ReservedKeywordAsIdentifier { .. }))
-        .collect();
-    assert!(
-        keyword_issues.is_empty(),
-        "Non-reserved keyword 'commit' as column name should not trigger any warning"
-    );
+    let keyword_issues: Vec<_> =
+        parser.errors().iter().filter(|e| matches!(e, ParserError::ReservedKeywordAsIdentifier { .. })).collect();
+    assert!(keyword_issues.is_empty(), "Non-reserved keyword 'commit' as column name should not trigger any warning");
 }
 
 #[test]
@@ -7476,15 +6944,9 @@ fn test_colname_keyword_as_identifier_no_warning() {
     let mut parser = Parser::new(tokens);
     let stmts = parser.parse();
     assert!(!stmts.is_empty());
-    let keyword_issues: Vec<_> = parser
-        .errors()
-        .iter()
-        .filter(|e| matches!(e, ParserError::ReservedKeywordAsIdentifier { .. }))
-        .collect();
-    assert!(
-        keyword_issues.is_empty(),
-        "ColName keyword 'bigint' as identifier should not trigger any warning"
-    );
+    let keyword_issues: Vec<_> =
+        parser.errors().iter().filter(|e| matches!(e, ParserError::ReservedKeywordAsIdentifier { .. })).collect();
+    assert!(keyword_issues.is_empty(), "ColName keyword 'bigint' as identifier should not trigger any warning");
 }
 
 #[test]
@@ -7494,15 +6956,9 @@ fn test_quoted_identifier_no_warning() {
     let mut parser = Parser::new(tokens);
     let stmts = parser.parse();
     assert!(!stmts.is_empty());
-    let keyword_issues: Vec<_> = parser
-        .errors()
-        .iter()
-        .filter(|e| matches!(e, ParserError::ReservedKeywordAsIdentifier { .. }))
-        .collect();
-    assert!(
-        keyword_issues.is_empty(),
-        "Quoted identifier should not trigger keyword warnings"
-    );
+    let keyword_issues: Vec<_> =
+        parser.errors().iter().filter(|e| matches!(e, ParserError::ReservedKeywordAsIdentifier { .. })).collect();
+    assert!(keyword_issues.is_empty(), "Quoted identifier should not trigger keyword warnings");
 }
 
 #[test]
@@ -7512,15 +6968,9 @@ fn test_normal_identifier_no_warning() {
     let mut parser = Parser::new(tokens);
     let stmts = parser.parse();
     assert!(!stmts.is_empty());
-    let keyword_issues: Vec<_> = parser
-        .errors()
-        .iter()
-        .filter(|e| matches!(e, ParserError::ReservedKeywordAsIdentifier { .. }))
-        .collect();
-    assert!(
-        keyword_issues.is_empty(),
-        "Normal identifiers should not trigger keyword warnings"
-    );
+    let keyword_issues: Vec<_> =
+        parser.errors().iter().filter(|e| matches!(e, ParserError::ReservedKeywordAsIdentifier { .. })).collect();
+    assert!(keyword_issues.is_empty(), "Normal identifiers should not trigger keyword warnings");
 }
 
 #[test]
@@ -7530,15 +6980,9 @@ fn test_create_table_quoted_reserved_no_error() {
     let mut parser = Parser::new(tokens);
     let stmts = parser.parse();
     assert!(!stmts.is_empty());
-    let keyword_issues: Vec<_> = parser
-        .errors()
-        .iter()
-        .filter(|e| matches!(e, ParserError::ReservedKeywordAsIdentifier { .. }))
-        .collect();
-    assert!(
-        keyword_issues.is_empty(),
-        "Quoted identifiers in CREATE TABLE should not trigger errors"
-    );
+    let keyword_issues: Vec<_> =
+        parser.errors().iter().filter(|e| matches!(e, ParserError::ReservedKeywordAsIdentifier { .. })).collect();
+    assert!(keyword_issues.is_empty(), "Quoted identifiers in CREATE TABLE should not trigger errors");
 }
 
 // ── Keyword category guard tests (verified against kwlist.h) ──
@@ -7748,23 +7192,15 @@ fn test_guard_type_func_name_keywords_from_kwlist() {
 /// (COL_NAME keyword), name is an alias (UNRESERVED keyword) — all are legitimate uses.
 #[test]
 fn test_user_reported_sql_no_errors_no_warnings() {
-    let sql =
-        r#"select c1 as name, to_char(sysdate,"yyyymmdd"), nvl(c3,"01") from t where rownum=1"#;
+    let sql = r#"select c1 as name, to_char(sysdate,"yyyymmdd"), nvl(c3,"01") from t where rownum=1"#;
     let tokens = Tokenizer::new(sql).tokenize().unwrap();
     let mut parser = Parser::new(tokens);
     let stmts = parser.parse();
     assert!(!stmts.is_empty(), "Should produce valid AST");
 
-    let keyword_issues: Vec<_> = parser
-        .errors()
-        .iter()
-        .filter(|e| matches!(e, ParserError::ReservedKeywordAsIdentifier { .. }))
-        .collect();
-    assert!(
-        keyword_issues.is_empty(),
-        "User's SQL should produce 0 keyword errors, got: {:?}",
-        keyword_issues
-    );
+    let keyword_issues: Vec<_> =
+        parser.errors().iter().filter(|e| matches!(e, ParserError::ReservedKeywordAsIdentifier { .. })).collect();
+    assert!(keyword_issues.is_empty(), "User's SQL should produce 0 keyword errors, got: {:?}", keyword_issues);
 }
 
 #[test]
@@ -7774,16 +7210,9 @@ fn test_sysdate_as_expression_no_error() {
     let mut parser = Parser::new(tokens);
     let stmts = parser.parse();
     assert!(!stmts.is_empty());
-    let reserved_errors: Vec<_> = parser
-        .errors()
-        .iter()
-        .filter(|e| matches!(e, ParserError::ReservedKeywordAsIdentifier { .. }))
-        .collect();
-    assert!(
-        reserved_errors.is_empty(),
-        "SYSDATE as expression should not produce error, got: {:?}",
-        reserved_errors
-    );
+    let reserved_errors: Vec<_> =
+        parser.errors().iter().filter(|e| matches!(e, ParserError::ReservedKeywordAsIdentifier { .. })).collect();
+    assert!(reserved_errors.is_empty(), "SYSDATE as expression should not produce error, got: {:?}", reserved_errors);
 }
 
 #[test]
@@ -7798,11 +7227,7 @@ fn test_sysdate_in_select() {
     match target {
         SelectTarget::Expr(expr, alias) => {
             assert_eq!(*alias, None);
-            assert!(
-                matches!(expr, Expr::SysDate),
-                "expected SysDate, got {:?}",
-                expr
-            );
+            assert!(matches!(expr, Expr::SysDate), "expected SysDate, got {:?}", expr);
         }
         _ => panic!("expected Expr target, got {:?}", target),
     }
@@ -7845,11 +7270,7 @@ fn test_sysdate_in_where() {
     match where_clause {
         Expr::BinaryOp { left: _, op, right } => {
             assert_eq!(op, ">");
-            assert!(
-                matches!(right.as_ref(), Expr::SysDate),
-                "expected SysDate on right of >, got {:?}",
-                right
-            );
+            assert!(matches!(right.as_ref(), Expr::SysDate), "expected SysDate on right of >, got {:?}", right);
         }
         _ => panic!("expected BinaryOp in WHERE, got {:?}", where_clause),
     }
@@ -7875,16 +7296,9 @@ fn test_rownum_in_where_no_error() {
     let mut parser = Parser::new(tokens);
     let stmts = parser.parse();
     assert!(!stmts.is_empty());
-    let reserved_errors: Vec<_> = parser
-        .errors()
-        .iter()
-        .filter(|e| matches!(e, ParserError::ReservedKeywordAsIdentifier { .. }))
-        .collect();
-    assert!(
-        reserved_errors.is_empty(),
-        "ROWNUM in WHERE should not produce error, got: {:?}",
-        reserved_errors
-    );
+    let reserved_errors: Vec<_> =
+        parser.errors().iter().filter(|e| matches!(e, ParserError::ReservedKeywordAsIdentifier { .. })).collect();
+    assert!(reserved_errors.is_empty(), "ROWNUM in WHERE should not produce error, got: {:?}", reserved_errors);
 }
 
 #[test]
@@ -7894,15 +7308,9 @@ fn test_current_date_as_expression_no_error() {
     let mut parser = Parser::new(tokens);
     let stmts = parser.parse();
     assert!(!stmts.is_empty());
-    let keyword_issues: Vec<_> = parser
-        .errors()
-        .iter()
-        .filter(|e| matches!(e, ParserError::ReservedKeywordAsIdentifier { .. }))
-        .collect();
-    assert!(
-        keyword_issues.is_empty(),
-        "CURRENT_DATE as expression should not produce error"
-    );
+    let keyword_issues: Vec<_> =
+        parser.errors().iter().filter(|e| matches!(e, ParserError::ReservedKeywordAsIdentifier { .. })).collect();
+    assert!(keyword_issues.is_empty(), "CURRENT_DATE as expression should not produce error");
 }
 
 #[test]
@@ -7912,15 +7320,9 @@ fn test_current_timestamp_with_precision_no_error() {
     let mut parser = Parser::new(tokens);
     let stmts = parser.parse();
     assert!(!stmts.is_empty());
-    let keyword_issues: Vec<_> = parser
-        .errors()
-        .iter()
-        .filter(|e| matches!(e, ParserError::ReservedKeywordAsIdentifier { .. }))
-        .collect();
-    assert!(
-        keyword_issues.is_empty(),
-        "CURRENT_TIMESTAMP(6) should not produce error"
-    );
+    let keyword_issues: Vec<_> =
+        parser.errors().iter().filter(|e| matches!(e, ParserError::ReservedKeywordAsIdentifier { .. })).collect();
+    assert!(keyword_issues.is_empty(), "CURRENT_TIMESTAMP(6) should not produce error");
 }
 
 #[test]
@@ -7930,15 +7332,9 @@ fn test_nvl_function_call_no_warning() {
     let mut parser = Parser::new(tokens);
     let stmts = parser.parse();
     assert!(!stmts.is_empty());
-    let keyword_issues: Vec<_> = parser
-        .errors()
-        .iter()
-        .filter(|e| matches!(e, ParserError::ReservedKeywordAsIdentifier { .. }))
-        .collect();
-    assert!(
-        keyword_issues.is_empty(),
-        "nvl() function call should not produce any keyword warning"
-    );
+    let keyword_issues: Vec<_> =
+        parser.errors().iter().filter(|e| matches!(e, ParserError::ReservedKeywordAsIdentifier { .. })).collect();
+    assert!(keyword_issues.is_empty(), "nvl() function call should not produce any keyword warning");
 }
 
 #[test]
@@ -7948,15 +7344,9 @@ fn test_name_as_alias_no_warning() {
     let mut parser = Parser::new(tokens);
     let stmts = parser.parse();
     assert!(!stmts.is_empty());
-    let keyword_issues: Vec<_> = parser
-        .errors()
-        .iter()
-        .filter(|e| matches!(e, ParserError::ReservedKeywordAsIdentifier { .. }))
-        .collect();
-    assert!(
-        keyword_issues.is_empty(),
-        "name as alias should not produce any keyword warning"
-    );
+    let keyword_issues: Vec<_> =
+        parser.errors().iter().filter(|e| matches!(e, ParserError::ReservedKeywordAsIdentifier { .. })).collect();
+    assert!(keyword_issues.is_empty(), "name as alias should not produce any keyword warning");
 }
 
 // ── Keyword classification tests: value, name, rule, null, minus ──
@@ -8052,11 +7442,8 @@ fn test_value_as_table_name_no_error() {
     let mut parser = Parser::new(tokens);
     let stmts = parser.parse();
     assert!(!stmts.is_empty());
-    let keyword_issues: Vec<_> = parser
-        .errors()
-        .iter()
-        .filter(|e| matches!(e, ParserError::ReservedKeywordAsIdentifier { .. }))
-        .collect();
+    let keyword_issues: Vec<_> =
+        parser.errors().iter().filter(|e| matches!(e, ParserError::ReservedKeywordAsIdentifier { .. })).collect();
     assert!(
         keyword_issues.is_empty(),
         "Unreserved keyword 'value' as table name should not trigger error, got: {:?}",
@@ -8072,15 +7459,9 @@ fn test_value_as_column_name_no_error() {
     let mut parser = Parser::new(tokens);
     let stmts = parser.parse();
     assert!(!stmts.is_empty());
-    let keyword_issues: Vec<_> = parser
-        .errors()
-        .iter()
-        .filter(|e| matches!(e, ParserError::ReservedKeywordAsIdentifier { .. }))
-        .collect();
-    assert!(
-        keyword_issues.is_empty(),
-        "Unreserved keyword 'value' as column name should not trigger error"
-    );
+    let keyword_issues: Vec<_> =
+        parser.errors().iter().filter(|e| matches!(e, ParserError::ReservedKeywordAsIdentifier { .. })).collect();
+    assert!(keyword_issues.is_empty(), "Unreserved keyword 'value' as column name should not trigger error");
 }
 
 #[test]
@@ -8091,15 +7472,9 @@ fn test_name_as_table_name_no_error() {
     let mut parser = Parser::new(tokens);
     let stmts = parser.parse();
     assert!(!stmts.is_empty());
-    let keyword_issues: Vec<_> = parser
-        .errors()
-        .iter()
-        .filter(|e| matches!(e, ParserError::ReservedKeywordAsIdentifier { .. }))
-        .collect();
-    assert!(
-        keyword_issues.is_empty(),
-        "Unreserved keyword 'name' as table name should not trigger error"
-    );
+    let keyword_issues: Vec<_> =
+        parser.errors().iter().filter(|e| matches!(e, ParserError::ReservedKeywordAsIdentifier { .. })).collect();
+    assert!(keyword_issues.is_empty(), "Unreserved keyword 'name' as table name should not trigger error");
 }
 
 #[test]
@@ -8110,15 +7485,9 @@ fn test_rule_as_table_name_no_error() {
     let mut parser = Parser::new(tokens);
     let stmts = parser.parse();
     assert!(!stmts.is_empty());
-    let keyword_issues: Vec<_> = parser
-        .errors()
-        .iter()
-        .filter(|e| matches!(e, ParserError::ReservedKeywordAsIdentifier { .. }))
-        .collect();
-    assert!(
-        keyword_issues.is_empty(),
-        "Unreserved keyword 'rule' as table name should not trigger error"
-    );
+    let keyword_issues: Vec<_> =
+        parser.errors().iter().filter(|e| matches!(e, ParserError::ReservedKeywordAsIdentifier { .. })).collect();
+    assert!(keyword_issues.is_empty(), "Unreserved keyword 'rule' as table name should not trigger error");
 }
 
 // === Reserved keywords used as identifiers should produce error ===
@@ -8131,15 +7500,9 @@ fn test_null_as_table_name_reserved_error() {
     let mut parser = Parser::new(tokens);
     let stmts = parser.parse();
     assert!(!stmts.is_empty(), "Should still produce AST (soft error)");
-    let reserved_errors: Vec<_> = parser
-        .errors()
-        .iter()
-        .filter(|e| matches!(e, ParserError::ReservedKeywordAsIdentifier { .. }))
-        .collect();
-    assert!(
-        !reserved_errors.is_empty(),
-        "Reserved keyword 'null' used as table name should error"
-    );
+    let reserved_errors: Vec<_> =
+        parser.errors().iter().filter(|e| matches!(e, ParserError::ReservedKeywordAsIdentifier { .. })).collect();
+    assert!(!reserved_errors.is_empty(), "Reserved keyword 'null' used as table name should error");
     assert!(reserved_errors[0].to_string().contains("null"));
 }
 
@@ -8151,15 +7514,9 @@ fn test_minus_as_table_name_reserved_error() {
     let mut parser = Parser::new(tokens);
     let stmts = parser.parse();
     assert!(!stmts.is_empty(), "Should still produce AST (soft error)");
-    let reserved_errors: Vec<_> = parser
-        .errors()
-        .iter()
-        .filter(|e| matches!(e, ParserError::ReservedKeywordAsIdentifier { .. }))
-        .collect();
-    assert!(
-        !reserved_errors.is_empty(),
-        "Reserved keyword 'minus' used as table name should error"
-    );
+    let reserved_errors: Vec<_> =
+        parser.errors().iter().filter(|e| matches!(e, ParserError::ReservedKeywordAsIdentifier { .. })).collect();
+    assert!(!reserved_errors.is_empty(), "Reserved keyword 'minus' used as table name should error");
     assert!(reserved_errors[0].to_string().contains("minus"));
 }
 
@@ -8173,15 +7530,9 @@ fn test_null_quoted_as_table_name_no_error() {
     let mut parser = Parser::new(tokens);
     let stmts = parser.parse();
     assert!(!stmts.is_empty());
-    let keyword_issues: Vec<_> = parser
-        .errors()
-        .iter()
-        .filter(|e| matches!(e, ParserError::ReservedKeywordAsIdentifier { .. }))
-        .collect();
-    assert!(
-        keyword_issues.is_empty(),
-        "Quoted \"null\" should not trigger keyword errors"
-    );
+    let keyword_issues: Vec<_> =
+        parser.errors().iter().filter(|e| matches!(e, ParserError::ReservedKeywordAsIdentifier { .. })).collect();
+    assert!(keyword_issues.is_empty(), "Quoted \"null\" should not trigger keyword errors");
 }
 
 #[test]
@@ -8192,15 +7543,9 @@ fn test_minus_quoted_as_table_name_no_error() {
     let mut parser = Parser::new(tokens);
     let stmts = parser.parse();
     assert!(!stmts.is_empty());
-    let keyword_issues: Vec<_> = parser
-        .errors()
-        .iter()
-        .filter(|e| matches!(e, ParserError::ReservedKeywordAsIdentifier { .. }))
-        .collect();
-    assert!(
-        keyword_issues.is_empty(),
-        "Quoted \"minus\" should not trigger keyword errors"
-    );
+    let keyword_issues: Vec<_> =
+        parser.errors().iter().filter(|e| matches!(e, ParserError::ReservedKeywordAsIdentifier { .. })).collect();
+    assert!(keyword_issues.is_empty(), "Quoted \"minus\" should not trigger keyword errors");
 }
 
 // === Semantic usage tests: null/minus in valid SQL contexts ===
@@ -8213,15 +7558,9 @@ fn test_null_in_select_list_no_error() {
     let mut parser = Parser::new(tokens);
     let stmts = parser.parse();
     assert!(!stmts.is_empty());
-    let keyword_issues: Vec<_> = parser
-        .errors()
-        .iter()
-        .filter(|e| matches!(e, ParserError::ReservedKeywordAsIdentifier { .. }))
-        .collect();
-    assert!(
-        keyword_issues.is_empty(),
-        "NULL as expression should not produce keyword error"
-    );
+    let keyword_issues: Vec<_> =
+        parser.errors().iter().filter(|e| matches!(e, ParserError::ReservedKeywordAsIdentifier { .. })).collect();
+    assert!(keyword_issues.is_empty(), "NULL as expression should not produce keyword error");
 }
 
 #[test]
@@ -8232,15 +7571,9 @@ fn test_null_in_where_is_null_no_error() {
     let mut parser = Parser::new(tokens);
     let stmts = parser.parse();
     assert!(!stmts.is_empty());
-    let keyword_issues: Vec<_> = parser
-        .errors()
-        .iter()
-        .filter(|e| matches!(e, ParserError::ReservedKeywordAsIdentifier { .. }))
-        .collect();
-    assert!(
-        keyword_issues.is_empty(),
-        "IS NULL should not produce keyword error"
-    );
+    let keyword_issues: Vec<_> =
+        parser.errors().iter().filter(|e| matches!(e, ParserError::ReservedKeywordAsIdentifier { .. })).collect();
+    assert!(keyword_issues.is_empty(), "IS NULL should not produce keyword error");
 }
 
 #[test]
@@ -8251,15 +7584,9 @@ fn test_minus_as_set_operator_no_error() {
     let mut parser = Parser::new(tokens);
     let stmts = parser.parse();
     assert!(!stmts.is_empty());
-    let keyword_issues: Vec<_> = parser
-        .errors()
-        .iter()
-        .filter(|e| matches!(e, ParserError::ReservedKeywordAsIdentifier { .. }))
-        .collect();
-    assert!(
-        keyword_issues.is_empty(),
-        "MINUS as set operator should not produce keyword error"
-    );
+    let keyword_issues: Vec<_> =
+        parser.errors().iter().filter(|e| matches!(e, ParserError::ReservedKeywordAsIdentifier { .. })).collect();
+    assert!(keyword_issues.is_empty(), "MINUS as set operator should not produce keyword error");
 }
 
 // === value/rule in domain/rule statements (valid semantic use) ===
@@ -8272,15 +7599,9 @@ fn test_value_in_domain_check_no_error() {
     let mut parser = Parser::new(tokens);
     let stmts = parser.parse();
     assert!(!stmts.is_empty());
-    let keyword_issues: Vec<_> = parser
-        .errors()
-        .iter()
-        .filter(|e| matches!(e, ParserError::ReservedKeywordAsIdentifier { .. }))
-        .collect();
-    assert!(
-        keyword_issues.is_empty(),
-        "VALUE in CHECK constraint should not produce keyword error"
-    );
+    let keyword_issues: Vec<_> =
+        parser.errors().iter().filter(|e| matches!(e, ParserError::ReservedKeywordAsIdentifier { .. })).collect();
+    assert!(keyword_issues.is_empty(), "VALUE in CHECK constraint should not produce keyword error");
 }
 
 #[test]
@@ -8421,8 +7742,7 @@ fn test_multiple_unreserved_keyword_aliases() {
 
 #[test]
 fn test_subquery_with_unreserved_keyword_aliases() {
-    let sql =
-        "SELECT name1, value, result FROM (SELECT c1 name1, c2 as value, c3 result FROM t) t1";
+    let sql = "SELECT name1, value, result FROM (SELECT c1 name1, c2 as value, c3 result FROM t) t1";
     let stmt = parse_one(sql);
     match stmt {
         Statement::Select(s) => {
@@ -8458,11 +7778,8 @@ fn test_unreserved_keyword_alias_no_keyword_errors() {
     let mut parser = Parser::new(tokens);
     let stmts = parser.parse();
     assert!(!stmts.is_empty());
-    let keyword_issues: Vec<_> = parser
-        .errors()
-        .iter()
-        .filter(|e| matches!(e, ParserError::ReservedKeywordAsIdentifier { .. }))
-        .collect();
+    let keyword_issues: Vec<_> =
+        parser.errors().iter().filter(|e| matches!(e, ParserError::ReservedKeywordAsIdentifier { .. })).collect();
     assert!(
         keyword_issues.is_empty(),
         "Unreserved keywords as implicit aliases should not trigger errors, got: {:?}",
@@ -8483,10 +7800,7 @@ fn test_reserved_keyword_null_not_implicit_alias() {
             assert_eq!(s.targets.len(), 1);
             match &s.targets[0] {
                 SelectTarget::Expr(_, alias) => {
-                    assert!(
-                        alias.is_none(),
-                        "Reserved keyword 'null' should NOT be treated as implicit alias"
-                    );
+                    assert!(alias.is_none(), "Reserved keyword 'null' should NOT be treated as implicit alias");
                 }
                 other => panic!("expected Expr target, got {:?}", other),
             }
@@ -8592,10 +7906,7 @@ fn test_select_into_table() {
     let stmt = parse_one(sql);
     match stmt {
         Statement::Select(s) => {
-            assert!(
-                s.into_targets.is_none(),
-                "into_targets should be None for INTO TABLE"
-            );
+            assert!(s.into_targets.is_none(), "into_targets should be None for INTO TABLE");
             let into_table = s.into_table.as_ref().expect("expected into_table");
             assert!(!into_table.unlogged);
             assert_eq!(into_table.table_name, vec!["new_table".to_string()]);
@@ -8660,10 +7971,7 @@ fn test_select_into_variables_still_works() {
     let stmt = parse_one(sql);
     match stmt {
         Statement::Select(s) => {
-            assert!(
-                s.into_table.is_none(),
-                "into_table should be None for PL/pgSQL INTO"
-            );
+            assert!(s.into_table.is_none(), "into_table should be None for PL/pgSQL INTO");
             let into_targets = s.into_targets.as_ref().expect("expected into_targets");
             assert_eq!(into_targets.len(), 2);
         }
@@ -8787,16 +8095,14 @@ fn test_function_call_alias_with_column_list() {
     let stmts = Parser::new(tokens).parse();
     assert_eq!(stmts.len(), 1);
     match &stmts[0] {
-        Statement::Select(s) => {
-            match &s.from[0] {
-                TableRef::FunctionCall { alias, column_defs, .. } => {
-                    assert_eq!(alias.as_deref(), Some("t"));
-                    assert_eq!(column_defs.len(), 1);
-                    assert_eq!(column_defs[0].name, "column_value");
-                }
-                other => panic!("expected FunctionCall, got {:?}", other),
+        Statement::Select(s) => match &s.from[0] {
+            TableRef::FunctionCall { alias, column_defs, .. } => {
+                assert_eq!(alias.as_deref(), Some("t"));
+                assert_eq!(column_defs.len(), 1);
+                assert_eq!(column_defs[0].name, "column_value");
             }
-        }
+            other => panic!("expected FunctionCall, got {:?}", other),
+        },
         _ => panic!("expected SELECT"),
     }
 }
@@ -9005,9 +8311,7 @@ fn test_create_synonym() {
 
 #[test]
 fn test_create_model() {
-    let stmt = parse_one(
-        "CREATE MODEL mymodel USING linear FEATURES (col1, col2) TARGET col3 FROM mytable",
-    );
+    let stmt = parse_one("CREATE MODEL mymodel USING linear FEATURES (col1, col2) TARGET col3 FROM mytable");
     match stmt {
         Statement::CreateModel(s) => {
             assert_eq!(s.name, "mymodel");
@@ -9464,9 +8768,7 @@ fn test_delete_partition() {
         Statement::Delete(d) => {
             assert_eq!(d.tables.len(), 1);
             match &d.tables[0] {
-                TableRef::Table {
-                    name, partition, ..
-                } => {
+                TableRef::Table { name, partition, .. } => {
                     assert_eq!(name.join("."), "range_list");
                     assert!(partition.is_some());
                     let p = partition.as_ref().unwrap();
@@ -9549,9 +8851,7 @@ fn test_delete_with_alias_partition() {
         Statement::Delete(d) => {
             assert_eq!(d.tables.len(), 1);
             match &d.tables[0] {
-                TableRef::Table {
-                    alias, partition, ..
-                } => {
+                TableRef::Table { alias, partition, .. } => {
                     assert_eq!(alias.as_deref(), Some("t"));
                     assert!(partition.is_some());
                     let p = partition.as_ref().unwrap();
@@ -9572,9 +8872,7 @@ fn test_plpgsql_open_for_execute() {
             assert!(matches!(&o.cursor, Expr::ColumnRef(n) if n == &["cur"]));
             match &o.kind {
                 PlOpenKind::ForExecute { query, using_args } => {
-                    assert!(
-                        matches!(query, Expr::Literal(crate::ast::Literal::String(s)) if s == "SELECT * FROM t")
-                    );
+                    assert!(matches!(query, Expr::Literal(crate::ast::Literal::String(s)) if s == "SELECT * FROM t"));
                     assert!(using_args.is_empty());
                 }
                 other => panic!("expected ForExecute, got {:?}", other),
@@ -9649,10 +8947,7 @@ fn roundtrip_cursor(sql: &str) {
     let restored: Vec<Statement> = serde_json::from_str(&json).unwrap();
 
     let formatter = SqlFormatter::new();
-    let output: Vec<String> = restored
-        .iter()
-        .map(|s| formatter.format_statement(s))
-        .collect();
+    let output: Vec<String> = restored.iter().map(|s| formatter.format_statement(s)).collect();
     let result_sql = output.join(";\n");
 
     let tokens2 = Tokenizer::new(&result_sql).tokenize().unwrap();
@@ -9701,10 +8996,7 @@ fn test_cursor_roundtrip_close() {
 
 #[test]
 fn test_cursor_roundtrip_current_of() {
-    let cases = vec![
-        "UPDATE t SET x = 1 WHERE CURRENT OF cur",
-        "DELETE FROM t WHERE CURRENT OF cur",
-    ];
+    let cases = vec!["UPDATE t SET x = 1 WHERE CURRENT OF cur", "DELETE FROM t WHERE CURRENT OF cur"];
     for sql in cases {
         roundtrip_cursor(sql);
     }
@@ -9763,8 +9055,7 @@ fn test_merge_insert_qualified_columns_in_procedure() {
 
 #[test]
 fn test_merge_insert_qualified_columns_in_procedure_with_subquery() {
-    let sql =
-        "CREATE OR REPLACE PROCEDURE test_merge(p_i_node VARCHAR2, p_o_code OUT VARCHAR2) IS\n\
+    let sql = "CREATE OR REPLACE PROCEDURE test_merge(p_i_node VARCHAR2, p_o_code OUT VARCHAR2) IS\n\
                v_count NUMBER;\n\
                BEGIN\n\
                MERGE INTO par_sys_organ_tree_acnt t1\n\
@@ -9782,11 +9073,7 @@ fn test_merge_insert_qualified_columns_in_procedure_with_subquery() {
                END";
     let (stmts, errors) = parse_with_errors(sql);
     assert!(!stmts.is_empty(), "Procedure should produce an AST");
-    assert!(
-        errors.is_empty(),
-        "Full MERGE in procedure should not produce reserved keyword errors, got: {:?}",
-        errors
-    );
+    assert!(errors.is_empty(), "Full MERGE in procedure should not produce reserved keyword errors, got: {:?}", errors);
 }
 
 #[test]
@@ -9794,11 +9081,7 @@ fn test_merge_insert_simple_columns_still_works() {
     let sql = "MERGE INTO t1 USING t2 ON t1.id = t2.id WHEN NOT MATCHED THEN INSERT (organ_id, acnt_type) VALUES (t2.organ_id, t2.acnt_type)";
     let (stmts, errors) = parse_with_errors(sql);
     assert!(!stmts.is_empty());
-    assert!(
-        errors.is_empty(),
-        "Simple column names should work fine, got: {:?}",
-        errors
-    );
+    assert!(errors.is_empty(), "Simple column names should work fine, got: {:?}", errors);
 }
 
 #[test]
@@ -9806,11 +9089,7 @@ fn test_merge_insert_no_columns_still_works() {
     let sql = "MERGE INTO t1 USING t2 ON t1.id = t2.id WHEN NOT MATCHED THEN INSERT VALUES (t2.id, t2.val)";
     let (stmts, errors) = parse_with_errors(sql);
     assert!(!stmts.is_empty());
-    assert!(
-        errors.is_empty(),
-        "INSERT without column list should work, got: {:?}",
-        errors
-    );
+    assert!(errors.is_empty(), "INSERT without column list should work, got: {:?}", errors);
 }
 
 #[test]
@@ -9837,10 +9116,7 @@ fn test_reserved_keyword_misuse_still_detected_after_merge_fix() {
     let sql = "SELECT * FROM select";
     let (stmts, errors) = parse_with_errors(sql);
     assert!(!stmts.is_empty(), "Should still produce AST (soft error)");
-    assert!(
-        !errors.is_empty(),
-        "Using reserved keyword 'select' as table name should still be caught"
-    );
+    assert!(!errors.is_empty(), "Using reserved keyword 'select' as table name should still be caught");
     assert!(errors[0].to_string().contains("select"));
 }
 
@@ -9850,11 +9126,7 @@ fn test_scalar_sublink_any() {
     let stmt = parse_one(sql);
     match stmt {
         Statement::Select(s) => match &s.where_clause {
-            Some(Expr::ScalarSublink {
-                sublink_type: ScalarSublinkType::Any,
-                op,
-                ..
-            }) => assert_eq!(op, ">"),
+            Some(Expr::ScalarSublink { sublink_type: ScalarSublinkType::Any, op, .. }) => assert_eq!(op, ">"),
             other => panic!("expected ScalarSublink(Any), got {:?}", other),
         },
         other => panic!("expected Select, got {:?}", other),
@@ -9867,11 +9139,7 @@ fn test_scalar_sublink_all() {
     let stmt = parse_one(sql);
     match stmt {
         Statement::Select(s) => match &s.where_clause {
-            Some(Expr::ScalarSublink {
-                sublink_type: ScalarSublinkType::All,
-                op,
-                ..
-            }) => assert_eq!(op, "<="),
+            Some(Expr::ScalarSublink { sublink_type: ScalarSublinkType::All, op, .. }) => assert_eq!(op, "<="),
             other => panic!("expected ScalarSublink(All), got {:?}", other),
         },
         other => panic!("expected Select, got {:?}", other),
@@ -9884,11 +9152,7 @@ fn test_scalar_sublink_some() {
     let stmt = parse_one(sql);
     match stmt {
         Statement::Select(s) => match &s.where_clause {
-            Some(Expr::ScalarSublink {
-                sublink_type: ScalarSublinkType::Some,
-                op,
-                ..
-            }) => assert_eq!(op, "="),
+            Some(Expr::ScalarSublink { sublink_type: ScalarSublinkType::Some, op, .. }) => assert_eq!(op, "="),
             other => panic!("expected ScalarSublink(Some), got {:?}", other),
         },
         other => panic!("expected Select, got {:?}", other),
@@ -9901,10 +9165,7 @@ fn test_scalar_sublink_with_hint() {
     let stmt = parse_one(sql);
     match stmt {
         Statement::Select(s) => match &s.where_clause {
-            Some(Expr::ScalarSublink {
-                sublink_type: ScalarSublinkType::Any,
-                ..
-            }) => {}
+            Some(Expr::ScalarSublink { sublink_type: ScalarSublinkType::Any, .. }) => {}
             other => panic!("expected ScalarSublink(Any), got {:?}", other),
         },
         other => panic!("expected Select, got {:?}", other),
@@ -9930,16 +9191,8 @@ fn test_scalar_sublink_format_roundtrip() {
     let stmt = parse_one(sql);
     let formatter = SqlFormatter::new();
     let formatted = formatter.format_statement(&stmt);
-    assert!(
-        formatted.contains("ANY"),
-        "formatted should contain ANY: {}",
-        formatted
-    );
-    assert!(
-        formatted.contains("SELECT a FROM t2"),
-        "formatted should contain subquery: {}",
-        formatted
-    );
+    assert!(formatted.contains("ANY"), "formatted should contain ANY: {}", formatted);
+    assert!(formatted.contains("SELECT a FROM t2"), "formatted should contain subquery: {}", formatted);
 }
 
 #[test]
@@ -9958,13 +9211,7 @@ fn test_column_constraint_enable_disable() {
     ];
     for (sql, label) in cases {
         let stmts = parse(sql);
-        assert_eq!(
-            stmts.len(),
-            1,
-            "{}: expected 1 statement, got {}",
-            label,
-            stmts.len()
-        );
+        assert_eq!(stmts.len(), 1, "{}: expected 1 statement, got {}", label, stmts.len());
         assert!(
             !matches!(stmts[0], Statement::Empty),
             "{}: parsed as Empty — constraint with ENABLE/DISABLE failed",
@@ -9990,15 +9237,8 @@ fn test_postfix_factorial() {
 fn test_postfix_factorial_with_alias() {
     let (stmts, errors) = parse_with_errors("SELECT 5 ! AS RESULT");
     assert!(!stmts.is_empty());
-    let as_errors: Vec<_> = errors
-        .iter()
-        .filter(|e| format!("{:?}", e).contains("as"))
-        .collect();
-    assert!(
-        as_errors.is_empty(),
-        "Should not error on AS, got: {:?}",
-        as_errors
-    );
+    let as_errors: Vec<_> = errors.iter().filter(|e| format!("{:?}", e).contains("as")).collect();
+    assert!(as_errors.is_empty(), "Should not error on AS, got: {:?}", as_errors);
 }
 
 #[test]
@@ -10052,11 +9292,7 @@ fn test_select_user() {
 fn test_select_user_no_reserved_error() {
     let (stmts, errors) = parse_with_errors("SELECT USER");
     assert!(!stmts.is_empty(), "should parse SELECT USER");
-    assert!(
-        errors.is_empty(),
-        "USER should not trigger reserved keyword error, got: {:?}",
-        errors
-    );
+    assert!(errors.is_empty(), "USER should not trigger reserved keyword error, got: {:?}", errors);
 }
 
 // ========== Task 2: TRIM direction keywords ==========
@@ -10065,51 +9301,37 @@ fn test_select_user_no_reserved_error() {
 fn test_trim_both_no_error() {
     let (stmts, errors) = parse_with_errors("SELECT trim(BOTH 'x' FROM 'xTomxx')");
     assert!(!stmts.is_empty());
-    assert!(
-        errors.is_empty(),
-        "BOTH should not trigger reserved keyword error, got: {:?}",
-        errors
-    );
+    assert!(errors.is_empty(), "BOTH should not trigger reserved keyword error, got: {:?}", errors);
 }
 
 #[test]
 fn test_trim_leading_no_error() {
     let (stmts, errors) = parse_with_errors("SELECT trim(LEADING 'x' FROM 'xTomxx')");
     assert!(!stmts.is_empty());
-    assert!(
-        errors.is_empty(),
-        "LEADING should not trigger reserved keyword error, got: {:?}",
-        errors
-    );
+    assert!(errors.is_empty(), "LEADING should not trigger reserved keyword error, got: {:?}", errors);
 }
 
 #[test]
 fn test_trim_trailing_no_error() {
     let (stmts, errors) = parse_with_errors("SELECT trim(TRAILING 'x' FROM 'xTomxx')");
     assert!(!stmts.is_empty());
-    assert!(
-        errors.is_empty(),
-        "TRAILING should not trigger reserved keyword error, got: {:?}",
-        errors
-    );
+    assert!(errors.is_empty(), "TRAILING should not trigger reserved keyword error, got: {:?}", errors);
 }
 
 #[test]
 fn test_trim_both_from_ast() {
     let stmt = parse_one("SELECT trim(BOTH 'x' FROM 'xTomxx')");
     match stmt {
-        Statement::Select(s) => {
-            match &s.targets[0] {
-                SelectTarget::Expr(expr, _) => match expr {
-                    Expr::SpecialFunction { name, args } => {
-                        assert_eq!(name, "trim");
-                        assert_eq!(args.len(), 3, "trim(BOTH 'x' FROM 'xTomxx') should have 3 args: [BOTH, 'x', 'xTomxx']");
-                    }
-                    _ => panic!("expected SpecialFunction, got {:?}", expr),
-                },
-                _ => panic!("expected Expr target"),
-            }
-        }
+        Statement::Select(s) => match &s.targets[0] {
+            SelectTarget::Expr(expr, _) => match expr {
+                Expr::SpecialFunction { name, args } => {
+                    assert_eq!(name, "trim");
+                    assert_eq!(args.len(), 3, "trim(BOTH 'x' FROM 'xTomxx') should have 3 args: [BOTH, 'x', 'xTomxx']");
+                }
+                _ => panic!("expected SpecialFunction, got {:?}", expr),
+            },
+            _ => panic!("expected Expr target"),
+        },
         _ => panic!("expected Select, got {:?}", stmt),
     }
 }
@@ -10186,11 +9408,7 @@ fn test_not_similar_to() {
 fn test_similar_to_no_reserved_error() {
     let (stmts, errors) = parse_with_errors("SELECT 'abc' SIMILAR TO 'abc'");
     assert!(!stmts.is_empty());
-    assert!(
-        errors.is_empty(),
-        "SIMILAR TO should not produce errors, got: {:?}",
-        errors
-    );
+    assert!(errors.is_empty(), "SIMILAR TO should not produce errors, got: {:?}", errors);
 }
 
 // ========== Task 5: LIKE ... ESCAPE clause ==========
@@ -10212,12 +9430,7 @@ fn test_like_escape_ast() {
     match stmt {
         Statement::Select(s) => match &s.targets[0] {
             SelectTarget::Expr(expr, _) => match expr {
-                Expr::Like {
-                    escape,
-                    negated,
-                    case_insensitive,
-                    ..
-                } => {
+                Expr::Like { escape, negated, case_insensitive, .. } => {
                     assert!(!negated);
                     assert!(!case_insensitive);
                     assert!(escape.is_some(), "ESCAPE should be parsed");
@@ -10236,9 +9449,7 @@ fn test_not_like_escape() {
     match stmt {
         Statement::Select(s) => match &s.targets[0] {
             SelectTarget::Expr(expr, _) => match expr {
-                Expr::Like {
-                    negated, escape, ..
-                } => {
+                Expr::Like { negated, escape, .. } => {
                     assert!(negated);
                     assert!(escape.is_some());
                 }
@@ -10257,12 +9468,7 @@ fn test_ilike_no_escape() {
     match stmt {
         Statement::Select(s) => match &s.targets[0] {
             SelectTarget::Expr(expr, _) => match expr {
-                Expr::Like {
-                    case_insensitive,
-                    escape,
-                    negated,
-                    ..
-                } => {
+                Expr::Like { case_insensitive, escape, negated, .. } => {
                     assert!(case_insensitive);
                     assert!(!negated);
                     assert!(escape.is_none());
@@ -10279,11 +9485,7 @@ fn test_ilike_no_escape() {
 fn test_like_escape_no_error() {
     let (stmts, errors) = parse_with_errors("SELECT 'AA_BBCC' LIKE '%A@_B%' ESCAPE '@'");
     assert!(!stmts.is_empty());
-    assert!(
-        errors.is_empty(),
-        "LIKE ESCAPE should not produce errors, got: {:?}",
-        errors
-    );
+    assert!(errors.is_empty(), "LIKE ESCAPE should not produce errors, got: {:?}", errors);
 }
 
 // ========== Task 6: WINDOW clause ==========
@@ -10303,9 +9505,8 @@ fn test_window_clause() {
 
 #[test]
 fn test_window_clause_multiple() {
-    let stmt = parse_one(
-        "SELECT count(*) OVER w1, avg(x) OVER w2 FROM t WINDOW w1 AS (ORDER BY id), w2 AS (PARTITION BY y)",
-    );
+    let stmt =
+        parse_one("SELECT count(*) OVER w1, avg(x) OVER w2 FROM t WINDOW w1 AS (ORDER BY id), w2 AS (PARTITION BY y)");
     match stmt {
         Statement::Select(s) => {
             assert_eq!(s.targets.len(), 2);
@@ -10333,14 +9534,9 @@ fn test_window_clause_with_frame() {
 
 #[test]
 fn test_window_clause_no_error() {
-    let (stmts, errors) =
-        parse_with_errors("SELECT count(*) OVER w FROM t WINDOW w AS (ORDER BY id)");
+    let (stmts, errors) = parse_with_errors("SELECT count(*) OVER w FROM t WINDOW w AS (ORDER BY id)");
     assert!(!stmts.is_empty());
-    assert!(
-        errors.is_empty(),
-        "WINDOW clause should not produce errors, got: {:?}",
-        errors
-    );
+    assert!(errors.is_empty(), "WINDOW clause should not produce errors, got: {:?}", errors);
 }
 
 // ========== Task 8: Regex operators ~*, !~, !~* ==========
@@ -10425,7 +9621,9 @@ fn test_convert_normal() {
 
 #[test]
 fn test_listagg_within_group() {
-    let stmt = parse_one("SELECT deptno, listagg(ename, ',') WITHIN GROUP (ORDER BY ename) AS employees FROM emp GROUP BY deptno");
+    let stmt = parse_one(
+        "SELECT deptno, listagg(ename, ',') WITHIN GROUP (ORDER BY ename) AS employees FROM emp GROUP BY deptno",
+    );
     match stmt {
         Statement::Select(s) => {
             assert_eq!(s.targets.len(), 2);
@@ -10447,8 +9645,7 @@ fn test_group_concat_separator() {
 
 #[test]
 fn test_group_concat_order_by() {
-    let stmt =
-        parse_one("SELECT id, group_concat(v ORDER BY v DESC) FROM t GROUP BY id ORDER BY id ASC");
+    let stmt = parse_one("SELECT id, group_concat(v ORDER BY v DESC) FROM t GROUP BY id ORDER BY id ASC");
     match stmt {
         Statement::Select(s) => {
             assert_eq!(s.targets.len(), 2);
@@ -10500,19 +9697,24 @@ fn test_percentile_cont_within_group_in_package_body() {
     let stmt = parse_one(sql);
     match &stmt {
         Statement::CreatePackageBody(pkg) => {
-            let proc = pkg.items.iter().find_map(|i| match i {
-                PackageItem::Procedure(pr) => Some(pr),
-                _ => None,
-            }).expect("should have a procedure");
+            let proc = pkg
+                .items
+                .iter()
+                .find_map(|i| match i {
+                    PackageItem::Procedure(pr) => Some(pr),
+                    _ => None,
+                })
+                .expect("should have a procedure");
             let block = proc.block.as_ref().expect("procedure should have a block");
 
             // Assignment with PERCENTILE_CONT should be parsed
-            assert!(matches!(block.body.first(), Some(PlStatement::Assignment { .. })),
-                "first statement should be an Assignment");
+            assert!(
+                matches!(block.body.first(), Some(PlStatement::Assignment { .. })),
+                "first statement should be an Assignment"
+            );
 
             // NULL after the assignment
-            assert!(matches!(block.body.get(1), Some(PlStatement::Null)),
-                "second statement should be Null");
+            assert!(matches!(block.body.get(1), Some(PlStatement::Null)), "second statement should be Null");
 
             // EXCEPTION block must NOT be lost
             let exc = block.exception_block.as_ref().expect("EXCEPTION block must be preserved");
@@ -10529,18 +9731,16 @@ fn test_mode_within_group() {
     let sql = "SELECT MODE() WITHIN GROUP (ORDER BY val) FROM unnest(ARRAY[1,2,3]) AS val";
     let stmt = parse_one(sql);
     match &stmt {
-        Statement::Select(s) => {
-            match &s.targets[0] {
-                SelectTarget::Expr(expr, _) => match expr {
-                    Expr::FunctionCall { within_group, args, .. } => {
-                        assert!(args.is_empty(), "MODE() should have no arguments");
-                        assert_eq!(within_group.len(), 1, "MODE should have WITHIN GROUP");
-                    }
-                    _ => panic!("expected FunctionCall"),
-                },
-                _ => panic!("expected Expr target"),
-            }
-        }
+        Statement::Select(s) => match &s.targets[0] {
+            SelectTarget::Expr(expr, _) => match expr {
+                Expr::FunctionCall { within_group, args, .. } => {
+                    assert!(args.is_empty(), "MODE() should have no arguments");
+                    assert_eq!(within_group.len(), 1, "MODE should have WITHIN GROUP");
+                }
+                _ => panic!("expected FunctionCall"),
+            },
+            _ => panic!("expected Expr target"),
+        },
         _ => panic!("expected Select, got {:?}", stmt),
     }
 }
@@ -10727,16 +9927,11 @@ fn test_grant_all_privileges_on_table() {
 
 #[test]
 fn test_grant_column_level_with_grant_option() {
-    let stmt = parse_one(
-        "GRANT SELECT (r_reason_sk, r_reason_id) ON tpcds.reason TO joe WITH GRANT OPTION",
-    );
+    let stmt = parse_one("GRANT SELECT (r_reason_sk, r_reason_id) ON tpcds.reason TO joe WITH GRANT OPTION");
     match stmt {
         Statement::Grant(g) => {
             assert!(g.with_grant_option);
-            assert!(g
-                .privileges
-                .iter()
-                .any(|p| matches!(p, Privilege::SelectColumns(_))));
+            assert!(g.privileges.iter().any(|p| matches!(p, Privilege::SelectColumns(_))));
         }
         _ => panic!("expected Grant, got {:?}", stmt),
     }
@@ -10823,12 +10018,7 @@ fn test_partition_dml_check() {
                 } else {
                     let (_, errors) = parse_with_errors(sql);
                     if !errors.is_empty() {
-                        failures.push(format!(
-                            "FAIL ({} errors): {} — {}",
-                            errors.len(),
-                            desc,
-                            sql
-                        ));
+                        failures.push(format!("FAIL ({} errors): {} — {}", errors.len(), desc, sql));
                     }
                 }
             }
@@ -10926,11 +10116,7 @@ fn test_set_statements_check() {
 #[test]
 fn test_set_on_off_values() {
     let (stmts, errors) = parse_with_errors("SET enable_hypo_index = on");
-    assert!(
-        errors.is_empty(),
-        "Expected no errors for SET ... = on, got: {:?}",
-        errors
-    );
+    assert!(errors.is_empty(), "Expected no errors for SET ... = on, got: {:?}", errors);
     match &stmts[0] {
         Statement::VariableSet(v) => assert_eq!(v.name, "enable_hypo_index"),
         _ => panic!("expected VariableSet, got {:?}", stmts[0]),
@@ -10941,11 +10127,7 @@ fn test_set_on_off_values() {
     assert!(!stmts.is_empty());
 
     let (stmts, errors) = parse_with_errors("SET enable_seq_scan = off");
-    assert!(
-        errors.is_empty(),
-        "Expected no errors for SET ... = off, got: {:?}",
-        errors
-    );
+    assert!(errors.is_empty(), "Expected no errors for SET ... = off, got: {:?}", errors);
     assert!(!stmts.is_empty());
 }
 
@@ -10990,25 +10172,12 @@ fn test_half_sql_baseline() {
     let errors = parser.errors();
 
     let total = stmts.len();
-    let empty = stmts
-        .iter()
-        .filter(|s| matches!(s, crate::ast::Statement::Empty))
-        .count();
+    let empty = stmts.iter().filter(|s| matches!(s, crate::ast::Statement::Empty)).count();
     let ok = total - empty;
 
-    eprintln!(
-        "half-sql.sql: {} total, {} OK, {} Empty, {} parser errors",
-        total,
-        ok,
-        empty,
-        errors.len()
-    );
+    eprintln!("half-sql.sql: {} total, {} OK, {} Empty, {} parser errors", total, ok, empty, errors.len());
 
-    assert!(
-        ok >= 470,
-        "At least 470 statements should parse OK, got {}",
-        ok
-    );
+    assert!(ok >= 470, "At least 470 statements should parse OK, got {}", ok);
 }
 
 #[test]
@@ -11022,8 +10191,7 @@ fn test_half_sql_categorize_failures() {
     let sql_lines: Vec<&str> = sql.lines().collect();
 
     // Split SQL into statements by semicolons (approximate)
-    let mut fail_categories: std::collections::HashMap<String, Vec<String>> =
-        std::collections::HashMap::new();
+    let mut fail_categories: std::collections::HashMap<String, Vec<String>> = std::collections::HashMap::new();
 
     // Simple approach: split by semicolons
     let mut pos = 0;
@@ -11060,10 +10228,7 @@ fn test_half_sql_categorize_failures() {
                 let category = tokens.join(" ").to_uppercase();
 
                 // Check if this was parsed as Empty (approximate - count by position)
-                fail_categories
-                    .entry(category)
-                    .or_default()
-                    .push(stmt_text.chars().take(200).collect());
+                fail_categories.entry(category).or_default().push(stmt_text.chars().take(200).collect());
             }
             stmt_start = i + 1;
         }
@@ -11071,18 +10236,10 @@ fn test_half_sql_categorize_failures() {
 
     // Now parse and count actual failures
     let total = stmts.len();
-    let empty_count = stmts
-        .iter()
-        .filter(|s| matches!(s, crate::ast::Statement::Empty))
-        .count();
+    let empty_count = stmts.iter().filter(|s| matches!(s, crate::ast::Statement::Empty)).count();
 
     eprintln!("\n=== half-sql.sql Failure Analysis ===");
-    eprintln!(
-        "Total: {}, OK: {}, Empty: {}",
-        total,
-        total - empty_count,
-        empty_count
-    );
+    eprintln!("Total: {}, OK: {}, Empty: {}", total, total - empty_count, empty_count);
     eprintln!("\nAll statement categories (first 3 tokens):");
 
     let mut sorted: Vec<_> = fail_categories.iter().collect();
@@ -11100,8 +10257,7 @@ fn test_half_sql_categorize_failures() {
 fn test_half_sql_failure_categories() {
     let sql = std::fs::read_to_string("GaussDB-2.23.07.210/sql/half-sql.sql").unwrap();
 
-    let mut categories: std::collections::BTreeMap<String, (usize, Vec<String>)> =
-        std::collections::BTreeMap::new();
+    let mut categories: std::collections::BTreeMap<String, (usize, Vec<String>)> = std::collections::BTreeMap::new();
     let mut current = String::new();
     let mut in_dollar = false;
     let mut dollar_tag = String::new();
@@ -11171,9 +10327,7 @@ fn test_half_sql_failure_categories() {
                     }
                 }
                 Err(_) => {
-                    let entry = categories
-                        .entry(format!("TOKENIZE_ERR: {}", cat))
-                        .or_insert((0, Vec::new()));
+                    let entry = categories.entry(format!("TOKENIZE_ERR: {}", cat)).or_insert((0, Vec::new()));
                     entry.0 += 1;
                 }
             }
@@ -11559,19 +10713,11 @@ fn test_function_default_on_conversion_error() {
 
 #[test]
 fn test_function_single_arg_overloads() {
-    let cases = vec![
-        "SELECT to_date('2015-08-14')",
-        "SELECT to_char(site) FROM employee",
-        "SELECT to_timestamp(200120400)",
-    ];
+    let cases =
+        vec!["SELECT to_date('2015-08-14')", "SELECT to_char(site) FROM employee", "SELECT to_timestamp(200120400)"];
     for sql in cases {
         let (stmts, errors) = parse_with_errors(sql);
-        assert!(
-            errors.is_empty(),
-            "Unexpected errors for '{}': {:?}",
-            sql,
-            errors
-        );
+        assert!(errors.is_empty(), "Unexpected errors for '{}': {:?}", sql, errors);
         assert_eq!(stmts.len(), 1, "Expected 1 statement for '{}'", sql);
     }
 }
@@ -11707,10 +10853,7 @@ fn test_array_type_formatter_roundtrip() {
     let cases = vec![
         ("CREATE TABLE t (a INT[])", "CREATE TABLE t (a INTEGER[])"),
         ("CREATE TABLE t (a TEXT[])", "CREATE TABLE t (a TEXT[])"),
-        (
-            "CREATE TABLE t (a VARCHAR(100)[])",
-            "CREATE TABLE t (a VARCHAR(100)[])",
-        ),
+        ("CREATE TABLE t (a VARCHAR(100)[])", "CREATE TABLE t (a VARCHAR(100)[])"),
     ];
     for (input, expected) in cases {
         let stmt = parse_one(input);
@@ -11722,14 +10865,8 @@ fn test_array_type_formatter_roundtrip() {
 #[test]
 fn test_character_varying_formatter_roundtrip() {
     let cases = vec![
-        (
-            "CREATE TABLE t (a CHARACTER(10))",
-            "CREATE TABLE t (a CHAR(10))",
-        ),
-        (
-            "CREATE TABLE t (a CHARACTER VARYING(100))",
-            "CREATE TABLE t (a VARCHAR(100))",
-        ),
+        ("CREATE TABLE t (a CHARACTER(10))", "CREATE TABLE t (a CHAR(10))"),
+        ("CREATE TABLE t (a CHARACTER VARYING(100))", "CREATE TABLE t (a VARCHAR(100))"),
     ];
     for (input, expected) in cases {
         let stmt = parse_one(input);
@@ -11800,12 +10937,8 @@ fn test_prefix_at_at() {
 
 #[test]
 fn test_geometric_lt_caret() {
-    let tokens = Tokenizer::new("SELECT box '..' <^ box '..'")
-        .tokenize()
-        .unwrap();
-    let has_op = tokens
-        .iter()
-        .any(|tws| matches!(&tws.token, Token::Op(op) if op == "<^"));
+    let tokens = Tokenizer::new("SELECT box '..' <^ box '..'").tokenize().unwrap();
+    let has_op = tokens.iter().any(|tws| matches!(&tws.token, Token::Op(op) if op == "<^"));
     assert!(has_op, "expected <^ operator token");
     let stmt = parse_one("SELECT box '..' <^ box '..' AS RESULT");
     match stmt {
@@ -11818,12 +10951,8 @@ fn test_geometric_lt_caret() {
 
 #[test]
 fn test_geometric_gt_caret() {
-    let tokens = Tokenizer::new("SELECT box '..' >^ box '..'")
-        .tokenize()
-        .unwrap();
-    let has_op = tokens
-        .iter()
-        .any(|tws| matches!(&tws.token, Token::Op(op) if op == ">^"));
+    let tokens = Tokenizer::new("SELECT box '..' >^ box '..'").tokenize().unwrap();
+    let has_op = tokens.iter().any(|tws| matches!(&tws.token, Token::Op(op) if op == ">^"));
     assert!(has_op, "expected >^ operator token");
     let stmt = parse_one("SELECT box '..' >^ box '..' AS RESULT");
     match stmt {
@@ -11836,12 +10965,8 @@ fn test_geometric_gt_caret() {
 
 #[test]
 fn test_range_adjacent_op() {
-    let tokens = Tokenizer::new("SELECT numrange(1.1,2.2) -|- numrange(2.2,3.3)")
-        .tokenize()
-        .unwrap();
-    let has_op = tokens
-        .iter()
-        .any(|tws| matches!(&tws.token, Token::Op(op) if op == "-|-"));
+    let tokens = Tokenizer::new("SELECT numrange(1.1,2.2) -|- numrange(2.2,3.3)").tokenize().unwrap();
+    let has_op = tokens.iter().any(|tws| matches!(&tws.token, Token::Op(op) if op == "-|-"));
     assert!(has_op, "expected -|- operator token");
     let stmt = parse_one("SELECT numrange(1.1,2.2) -|- numrange(2.2,3.3) AS RESULT");
     match stmt {
@@ -11878,12 +11003,7 @@ fn test_values_in_from_multi_row() {
         Statement::Select(s) => {
             assert_eq!(s.from.len(), 1);
             match &s.from[0] {
-                TableRef::Values {
-                    values,
-                    alias,
-                    column_names: _,
-                    ..
-                } => {
+                TableRef::Values { values, alias, column_names: _, .. } => {
                     assert_eq!(alias.as_deref(), Some("t"));
                     assert_eq!(values.rows.len(), 3);
                     assert_eq!(values.rows[0].len(), 2);
@@ -11954,7 +11074,8 @@ fn test_debug_drop_user_mapping() {
 
 #[test]
 fn test_debug_create_public_database_link() {
-    let sql = "CREATE PUBLIC DATABASE LINK public_dblink CONNECT TO 'user1' IDENTIFIED BY '********' USING 'host:port/db';";
+    let sql =
+        "CREATE PUBLIC DATABASE LINK public_dblink CONNECT TO 'user1' IDENTIFIED BY '********' USING 'host:port/db';";
     let (infos, errors) = Parser::parse_sql(sql);
     if !errors.is_empty() {
         for e in &errors {
@@ -12044,10 +11165,7 @@ fn test_create_masking_policy_with_filter() {
             assert_eq!(s.filter_clauses[1].kind, "APP");
             assert_eq!(s.filter_clauses[1].values, vec!["gsql"]);
             assert_eq!(s.filter_clauses[2].kind, "IP");
-            assert_eq!(
-                s.filter_clauses[2].values,
-                vec!["10.20.30.40", "127.0.0.0/24"]
-            );
+            assert_eq!(s.filter_clauses[2].values, vec!["10.20.30.40", "127.0.0.0/24"]);
         }
         _ => panic!("expected CreateMaskingPolicy, got {:?}", stmt),
     }
@@ -12068,10 +11186,7 @@ fn test_alter_masking_policy_modify_filter() {
                     assert_eq!(filter_clauses[1].kind, "APP");
                     assert_eq!(filter_clauses[1].values, vec!["gsql"]);
                     assert_eq!(filter_clauses[2].kind, "IP");
-                    assert_eq!(
-                        filter_clauses[2].values,
-                        vec!["10.20.30.40", "127.0.0.0/24"]
-                    );
+                    assert_eq!(filter_clauses[2].values, vec!["10.20.30.40", "127.0.0.0/24"]);
                 }
                 other => panic!("expected ModifyFilter action, got {:?}", other),
             }
@@ -12107,10 +11222,7 @@ fn test_predict_by_basic() {
             assert_eq!(s.targets.len(), 2);
             match &s.targets[1] {
                 SelectTarget::Expr(expr, None) => match expr {
-                    Expr::PredictBy {
-                        model_name,
-                        features,
-                    } => {
+                    Expr::PredictBy { model_name, features } => {
                         assert_eq!(model_name, "price_model");
                         assert_eq!(features.len(), 2);
                     }
@@ -12134,10 +11246,7 @@ fn test_predict_by_with_alias() {
                 SelectTarget::Expr(expr, alias) => {
                     assert_eq!(alias.as_deref(), Some("PREDICT"));
                     match expr {
-                        Expr::PredictBy {
-                            model_name,
-                            features,
-                        } => {
+                        Expr::PredictBy { model_name, features } => {
                             assert_eq!(model_name, "iris_classification");
                             assert_eq!(features.len(), 4);
                         }
@@ -12161,13 +11270,7 @@ fn test_predict_by_two_features() {
     let stmt = parse_one(sql);
     match stmt {
         Statement::Select(s) => match &s.targets[1] {
-            SelectTarget::Expr(
-                Expr::PredictBy {
-                    model_name,
-                    features,
-                },
-                None,
-            ) => {
+            SelectTarget::Expr(Expr::PredictBy { model_name, features }, None) => {
                 assert_eq!(model_name, "patient_logistic_regression");
                 assert_eq!(features.len(), 2);
             }
@@ -12179,18 +11282,11 @@ fn test_predict_by_two_features() {
 
 #[test]
 fn test_predict_by_single_feature() {
-    let sql =
-        "select id, PREDICT BY patient_linear_regression (FEATURES second_attack) FROM patients";
+    let sql = "select id, PREDICT BY patient_linear_regression (FEATURES second_attack) FROM patients";
     let stmt = parse_one(sql);
     match stmt {
         Statement::Select(s) => match &s.targets[1] {
-            SelectTarget::Expr(
-                Expr::PredictBy {
-                    model_name,
-                    features,
-                },
-                None,
-            ) => {
+            SelectTarget::Expr(Expr::PredictBy { model_name, features }, None) => {
                 assert_eq!(model_name, "patient_linear_regression");
                 assert_eq!(features.len(), 1);
             }
@@ -12207,13 +11303,7 @@ fn test_predict_by_with_numeric_feature() {
     match stmt {
         Statement::Select(s) => {
             match &s.targets[1] {
-                SelectTarget::Expr(
-                    Expr::PredictBy {
-                        model_name,
-                        features,
-                    },
-                    None,
-                ) => {
+                SelectTarget::Expr(Expr::PredictBy { model_name, features }, None) => {
                     assert_eq!(model_name, "patient_linear_regression");
                     assert_eq!(features.len(), 3);
                     // First feature is numeric literal
@@ -12250,11 +11340,8 @@ fn assert_no_reserved_keyword_warnings(sql: &str) {
     let mut parser = Parser::new(tokens);
     let stmts = parser.parse();
     assert!(!stmts.is_empty(), "Should produce AST: {}", sql);
-    let reserved_warnings: Vec<_> = parser
-        .errors()
-        .iter()
-        .filter(|e| matches!(e, ParserError::ReservedKeywordAsIdentifier { .. }))
-        .collect();
+    let reserved_warnings: Vec<_> =
+        parser.errors().iter().filter(|e| matches!(e, ParserError::ReservedKeywordAsIdentifier { .. })).collect();
     assert!(
         reserved_warnings.is_empty(),
         "Unexpected reserved keyword warnings for: {}\nWarnings: {:?}",
@@ -12309,9 +11396,7 @@ fn test_set_option_off_not_warning() {
 
 #[test]
 fn test_generic_options_with_reserved_keyword_key() {
-    assert_no_reserved_keyword_warnings(
-        "CREATE SERVER my_server FOREIGN DATA WRAPPER fdw OPTIONS (user 'bob')",
-    );
+    assert_no_reserved_keyword_warnings("CREATE SERVER my_server FOREIGN DATA WRAPPER fdw OPTIONS (user 'bob')");
 }
 
 #[test]
@@ -12321,15 +11406,9 @@ fn test_true_reserved_keyword_as_table_name_still_warns() {
     let mut parser = Parser::new(tokens);
     let stmts = parser.parse();
     assert!(!stmts.is_empty());
-    let reserved_errors: Vec<_> = parser
-        .errors()
-        .iter()
-        .filter(|e| matches!(e, ParserError::ReservedKeywordAsIdentifier { .. }))
-        .collect();
-    assert!(
-        !reserved_errors.is_empty(),
-        "True misuse: 'select' as table name should still warn"
-    );
+    let reserved_errors: Vec<_> =
+        parser.errors().iter().filter(|e| matches!(e, ParserError::ReservedKeywordAsIdentifier { .. })).collect();
+    assert!(!reserved_errors.is_empty(), "True misuse: 'select' as table name should still warn");
 }
 
 #[test]
@@ -12339,15 +11418,9 @@ fn test_true_reserved_keyword_as_column_name_still_warns() {
     let mut parser = Parser::new(tokens);
     let stmts = parser.parse();
     assert!(!stmts.is_empty());
-    let reserved_errors: Vec<_> = parser
-        .errors()
-        .iter()
-        .filter(|e| matches!(e, ParserError::ReservedKeywordAsIdentifier { .. }))
-        .collect();
-    assert!(
-        !reserved_errors.is_empty(),
-        "True misuse: 'where' as column name should still warn"
-    );
+    let reserved_errors: Vec<_> =
+        parser.errors().iter().filter(|e| matches!(e, ParserError::ReservedKeywordAsIdentifier { .. })).collect();
+    assert!(!reserved_errors.is_empty(), "True misuse: 'where' as column name should still warn");
 }
 
 #[test]
@@ -12355,16 +11428,14 @@ fn test_alter_table_add_constraint_pk_using_index() {
     let sql = "ALTER TABLE t ADD CONSTRAINT pk_t PRIMARY KEY (id) USING INDEX idx_t PCTFREE 10 INITRANS 2 MAXTRANS 255";
     let stmt = parse_one(sql);
     match stmt {
-        Statement::AlterTable(s) => { let AlterTableStatement {  actions, ..  } = &s.node;
+        Statement::AlterTable(s) => {
+            let AlterTableStatement { actions, .. } = &s.node;
             assert_eq!(actions.len(), 1);
             match &actions[0] {
                 AlterTableAction::AddConstraint { name, constraint } => {
                     assert_eq!(name.as_deref(), Some("pk_t"));
                     match constraint {
-                        TableConstraint::PrimaryKey {
-                            columns,
-                            using_index,
-                        } => {
+                        TableConstraint::PrimaryKey { columns, using_index } => {
                             assert_eq!(*columns, vec!["id".to_string()]);
                             assert!(using_index.is_some());
                             assert!(using_index.as_ref().unwrap().contains("idx_t"));
@@ -12384,20 +11455,12 @@ fn test_create_table_with_storage_params() {
     let sql = "CREATE TABLE t (id INT, code VARCHAR(1)) PCTFREE 10 INITRANS 2 MAXTRANS 255";
     let stmt = parse_one(sql);
     match stmt {
-        Statement::CreateTable(s) => { let CreateTableStatement {  table_options, ..  } = &s.node;
+        Statement::CreateTable(s) => {
+            let CreateTableStatement { table_options, .. } = &s.node;
             let keys: Vec<&str> = table_options.iter().map(|(k, _)| k.as_str()).collect();
-            assert!(
-                keys.contains(&"PCTFREE"),
-                "expected PCTFREE in table_options"
-            );
-            assert!(
-                keys.contains(&"INITRANS"),
-                "expected INITRANS in table_options"
-            );
-            assert!(
-                keys.contains(&"MAXTRANS"),
-                "expected MAXTRANS in table_options"
-            );
+            assert!(keys.contains(&"PCTFREE"), "expected PCTFREE in table_options");
+            assert!(keys.contains(&"INITRANS"), "expected INITRANS in table_options");
+            assert!(keys.contains(&"MAXTRANS"), "expected MAXTRANS in table_options");
         }
         _ => panic!("expected CreateTable, got {:?}", stmt),
     }
@@ -12408,7 +11471,8 @@ fn test_create_index_with_storage_params() {
     let sql = "CREATE INDEX ind1 ON t1 (part_id) INITRANS 2 MAXTRANS 255";
     let stmt = parse_one(sql);
     match stmt {
-        Statement::CreateIndex(s) => { let CreateIndexStatement {  table, columns, ..  } = &s.node;
+        Statement::CreateIndex(s) => {
+            let CreateIndexStatement { table, columns, .. } = &s.node;
             assert_eq!(table.clone(), vec!["t1".to_string()]);
             assert_eq!(columns.len(), 1);
         }
@@ -12421,7 +11485,8 @@ fn test_create_index_with_pctfree_and_tablespace() {
     let sql = "CREATE INDEX idx ON t1 (c1) PCTFREE 20 TABLESPACE pg_default";
     let stmt = parse_one(sql);
     match stmt {
-        Statement::CreateIndex(s) => { let CreateIndexStatement {  tablespace, ..  } = &s.node;
+        Statement::CreateIndex(s) => {
+            let CreateIndexStatement { tablespace, .. } = &s.node;
             assert!(tablespace.is_some());
         }
         _ => panic!("expected CreateIndex, got {:?}", stmt),
@@ -12433,7 +11498,8 @@ fn test_alter_index_storage_params() {
     let sql = "ALTER INDEX idx PCTFREE 20 INITRANS 4 MAXTRANS 255";
     let stmt = parse_one(sql);
     match stmt {
-        Statement::AlterIndex(s) => { let AlterIndexStatement {  name, action, ..  } = &s.node;
+        Statement::AlterIndex(s) => {
+            let AlterIndexStatement { name, action, .. } = &s.node;
             assert_eq!(name.clone(), vec!["idx".to_string()]);
             assert!(matches!(action, AlterIndexAction::NoOp));
         }
@@ -12446,29 +11512,15 @@ fn test_create_table_inline_constraint_using_index_no_name() {
     let sql = "CREATE TABLE t2 (id INT, CONSTRAINT PK_A PRIMARY KEY (id) USING INDEX PCTFREE 10 INITRANS 2 MAXTRANS 255) NOCOMPRESS";
     let stmt = parse_one(sql);
     match stmt {
-        Statement::CreateTable(s) => { let CreateTableStatement { 
-            constraints,
-            compress,
-            ..
-         } = &s.node;
+        Statement::CreateTable(s) => {
+            let CreateTableStatement { constraints, compress, .. } = &s.node;
             assert_eq!(constraints.len(), 1);
             match &constraints[0] {
-                TableConstraint::PrimaryKey {
-                    columns,
-                    using_index,
-                } => {
+                TableConstraint::PrimaryKey { columns, using_index } => {
                     assert_eq!(*columns, vec!["id".to_string()]);
                     let ui = using_index.as_ref().unwrap();
-                    assert!(
-                        ui.to_uppercase().contains("PCTFREE 10"),
-                        "using_index: {}",
-                        ui
-                    );
-                    assert!(
-                        ui.to_uppercase().contains("INITRANS 2"),
-                        "using_index: {}",
-                        ui
-                    );
+                    assert!(ui.to_uppercase().contains("PCTFREE 10"), "using_index: {}", ui);
+                    assert!(ui.to_uppercase().contains("INITRANS 2"), "using_index: {}", ui);
                 }
                 _ => panic!("expected PrimaryKey"),
             }
@@ -12486,8 +11538,11 @@ fn guard_alter_table_drop_bare_ident() {
     match parse_one(sql) {
         Statement::AlterTable(a) => {
             let action = a.actions.first().expect("should have action");
-            assert!(matches!(action, AlterTableAction::DropColumn { name, .. } if name == "col"),
-                "expected DropColumn(col), got {:?}", action);
+            assert!(
+                matches!(action, AlterTableAction::DropColumn { name, .. } if name == "col"),
+                "expected DropColumn(col), got {:?}",
+                action
+            );
         }
         other => panic!("expected AlterTable, got {:?}", other),
     }
@@ -12499,8 +11554,11 @@ fn guard_alter_table_drop_index() {
     match parse_one(sql) {
         Statement::AlterTable(a) => {
             let action = a.actions.first().expect("should have action");
-            assert!(matches!(action, AlterTableAction::DropIndex { name, if_exists: false } if name == "idx"),
-                "expected DropIndex(idx, false), got {:?}", action);
+            assert!(
+                matches!(action, AlterTableAction::DropIndex { name, if_exists: false } if name == "idx"),
+                "expected DropIndex(idx, false), got {:?}",
+                action
+            );
         }
         other => panic!("expected AlterTable, got {:?}", other),
     }
@@ -12512,8 +11570,11 @@ fn guard_alter_table_drop_index_if_exists() {
     match parse_one(sql) {
         Statement::AlterTable(a) => {
             let action = a.actions.first().expect("should have action");
-            assert!(matches!(action, AlterTableAction::DropIndex { name, if_exists: true } if name == "idx"),
-                "expected DropIndex(idx, true), got {:?}", action);
+            assert!(
+                matches!(action, AlterTableAction::DropIndex { name, if_exists: true } if name == "idx"),
+                "expected DropIndex(idx, true), got {:?}",
+                action
+            );
         }
         other => panic!("expected AlterTable, got {:?}", other),
     }
@@ -12525,8 +11586,11 @@ fn guard_alter_table_drop_if_exists_index() {
     match parse_one(sql) {
         Statement::AlterTable(a) => {
             let action = a.actions.first().expect("should have action");
-            assert!(matches!(action, AlterTableAction::DropIndex { name, if_exists: true } if name == "idx"),
-                "expected DropIndex(idx, true), got {:?}", action);
+            assert!(
+                matches!(action, AlterTableAction::DropIndex { name, if_exists: true } if name == "idx"),
+                "expected DropIndex(idx, true), got {:?}",
+                action
+            );
         }
         other => panic!("expected AlterTable, got {:?}", other),
     }
@@ -12538,8 +11602,11 @@ fn guard_alter_table_add_constraint_if_not_exists_pk() {
     match parse_one(sql) {
         Statement::AlterTable(a) => {
             let action = a.actions.first().expect("should have action");
-            assert!(matches!(action, AlterTableAction::AddConstraint { .. }),
-                "expected AddConstraint, got {:?}", action);
+            assert!(
+                matches!(action, AlterTableAction::AddConstraint { .. }),
+                "expected AddConstraint, got {:?}",
+                action
+            );
         }
         other => panic!("expected AlterTable, got {:?}", other),
     }
@@ -12551,8 +11618,11 @@ fn guard_alter_table_add_constraint_if_not_exists_unique() {
     match parse_one(sql) {
         Statement::AlterTable(a) => {
             let action = a.actions.first().expect("should have action");
-            assert!(matches!(action, AlterTableAction::AddConstraint { .. }),
-                "expected AddConstraint, got {:?}", action);
+            assert!(
+                matches!(action, AlterTableAction::AddConstraint { .. }),
+                "expected AddConstraint, got {:?}",
+                action
+            );
         }
         other => panic!("expected AlterTable, got {:?}", other),
     }
@@ -12586,7 +11656,8 @@ fn guard_alter_table_add_constraint_unique_using_index() {
 
 #[test]
 fn guard_alter_table_add_constraint_unique_using_index_with_options() {
-    let sql = "CREATE TABLE t (id INT, CONSTRAINT SYS_C0082826 UNIQUE (NAME) USING INDEX PCTFREE 10 INITRANS 2 MAXTRANS 255)";
+    let sql =
+        "CREATE TABLE t (id INT, CONSTRAINT SYS_C0082826 UNIQUE (NAME) USING INDEX PCTFREE 10 INITRANS 2 MAXTRANS 255)";
     match parse_one(sql) {
         Statement::CreateTable(ct) => {
             assert_eq!(ct.constraints.len(), 1);
@@ -12650,8 +11721,7 @@ fn guard_alter_table_modify_not_null() {
     match parse_one(sql) {
         Statement::AlterTable(a) => {
             let action = a.actions.first().expect("should have action");
-            assert!(matches!(action, AlterTableAction::AlterColumn { .. }),
-                "expected AlterColumn, got {:?}", action);
+            assert!(matches!(action, AlterTableAction::AlterColumn { .. }), "expected AlterColumn, got {:?}", action);
         }
         other => panic!("expected AlterTable, got {:?}", other),
     }
@@ -12748,8 +11818,11 @@ fn guard_alter_index_rebuild_partition() {
     let sql = "ALTER INDEX idx REBUILD PARTITION p1";
     match parse_one(sql) {
         Statement::AlterIndex(a) => {
-            assert!(matches!(a.action, AlterIndexAction::RebuildPartition { ref partition_name } if partition_name == "p1"),
-                "expected RebuildPartition(p1), got {:?}", a.action);
+            assert!(
+                matches!(a.action, AlterIndexAction::RebuildPartition { ref partition_name } if partition_name == "p1"),
+                "expected RebuildPartition(p1), got {:?}",
+                a.action
+            );
         }
         other => panic!("expected AlterIndex, got {:?}", other),
     }
@@ -12781,14 +11854,16 @@ fn guard_create_sequence_order() {
 fn guard_create_type_table_of() {
     let sql = "CREATE TYPE t AS TABLE OF VARCHAR(100)";
     match parse_one(sql) {
-        Statement::CreateType(ct) => {
-            match &ct.type_kind {
-                TypeKind::Table { element_type } => {
-                    assert!(element_type.to_lowercase().contains("varchar"), "expected VARCHAR in element_type, got {}", element_type);
-                }
-                other => panic!("expected Table kind, got {:?}", other),
+        Statement::CreateType(ct) => match &ct.type_kind {
+            TypeKind::Table { element_type } => {
+                assert!(
+                    element_type.to_lowercase().contains("varchar"),
+                    "expected VARCHAR in element_type, got {}",
+                    element_type
+                );
             }
-        }
+            other => panic!("expected Table kind, got {:?}", other),
+        },
         other => panic!("expected CreateType, got {:?}", other),
     }
 }
@@ -12810,8 +11885,11 @@ fn guard_create_trigger_update_of_no_parens() {
     let sql = "CREATE TRIGGER trig BEFORE UPDATE OF col1, col2 ON tbl FOR EACH ROW EXECUTE PROCEDURE func()";
     match parse_one(sql) {
         Statement::CreateTrigger(ct) => {
-            assert!(ct.events.iter().any(|e| matches!(e, TriggerEvent::UpdateOf(cols) if cols.len() == 2)),
-                "expected UpdateOf with 2 columns, got {:?}", ct.events);
+            assert!(
+                ct.events.iter().any(|e| matches!(e, TriggerEvent::UpdateOf(cols) if cols.len() == 2)),
+                "expected UpdateOf with 2 columns, got {:?}",
+                ct.events
+            );
         }
         other => panic!("expected CreateTrigger, got {:?}", other),
     }
@@ -12821,15 +11899,13 @@ fn guard_create_trigger_update_of_no_parens() {
 fn guard_unreserved_keyword_table_alias() {
     let sql = "SELECT * FROM table_name CLIENT";
     match parse_one(sql) {
-        Statement::Select(s) => {
-            match &s.from[0] {
-                TableRef::Table { alias, name, .. } => {
-                    assert_eq!(name, &vec!["table_name".to_string()]);
-                    assert_eq!(alias, &Some("client".to_string()));
-                }
-                other => panic!("expected Table ref, got {:?}", other),
+        Statement::Select(s) => match &s.from[0] {
+            TableRef::Table { alias, name, .. } => {
+                assert_eq!(name, &vec!["table_name".to_string()]);
+                assert_eq!(alias, &Some("client".to_string()));
             }
-        }
+            other => panic!("expected Table ref, got {:?}", other),
+        },
         other => panic!("expected Select, got {:?}", other),
     }
 }
@@ -12864,8 +11940,10 @@ fn guard_create_table_pk_include() {
     let sql = "CREATE TABLE t (id INT, PRIMARY KEY (id) INCLUDE (col1))";
     match parse_one(sql) {
         Statement::CreateTable(ct) => {
-            assert!(ct.constraints.iter().any(|c| matches!(c, TableConstraint::PrimaryKey { .. })),
-                "expected PrimaryKey constraint");
+            assert!(
+                ct.constraints.iter().any(|c| matches!(c, TableConstraint::PrimaryKey { .. })),
+                "expected PrimaryKey constraint"
+            );
         }
         other => panic!("expected CreateTable, got {:?}", other),
     }
@@ -12890,9 +11968,7 @@ fn parse_do_block_with_source(sql: &str) -> PlBlock {
     let stmts = parser.parse();
     let stmt = stmts.into_iter().next().expect("expected at least one statement");
     match stmt {
-        Statement::Do(d) => d.node
-            .block
-            .expect("DO statement should have parsed a PL/pgSQL block"),
+        Statement::Do(d) => d.node.block.expect("DO statement should have parsed a PL/pgSQL block"),
         _ => panic!("expected DO statement"),
     }
 }
@@ -12925,10 +12001,7 @@ fn test_pl_select_single_into_variable() {
         "PL SELECT INTO should NOT parse as SelectIntoTable, got: {:?}",
         select.into_table
     );
-    assert!(
-        select.into_targets.is_some(),
-        "PL SELECT INTO should parse into_targets as variable list"
-    );
+    assert!(select.into_targets.is_some(), "PL SELECT INTO should parse into_targets as variable list");
     let targets = select.into_targets.as_ref().unwrap();
     assert_eq!(targets.len(), 1, "should have exactly 1 INTO target variable");
 }
@@ -12937,34 +12010,26 @@ fn test_pl_select_single_into_variable() {
 
 #[test]
 fn test_pl_select_func_into_variable() {
-    let block = parse_do_block(
-        "DO $$ BEGIN SELECT to_number(p_in_checkBalance) INTO v_in_checkBalance FROM sys_dummy; END $$",
-    );
+    let block =
+        parse_do_block("DO $$ BEGIN SELECT to_number(p_in_checkBalance) INTO v_in_checkBalance FROM sys_dummy; END $$");
     let sql_stmt = extract_sql_statement_from_block(&block).expect("should have a SQL statement");
     let select = extract_select_from_pl(sql_stmt).expect("should have a SELECT");
     assert!(
         select.into_table.is_none(),
         "PL SELECT to_number(..) INTO var FROM table should NOT parse as SelectIntoTable"
     );
-    assert!(
-        select.into_targets.is_some(),
-        "PL SELECT to_number(..) INTO var FROM table should parse into_targets"
-    );
+    assert!(select.into_targets.is_some(), "PL SELECT to_number(..) INTO var FROM table should parse into_targets");
 }
 
 // --- P6-3: PL block — SELECT multi-col INTO multi-variable FROM table ---
 
 #[test]
 fn test_pl_select_multi_into_variables() {
-    let block = parse_do_block(
-        "DO $$ BEGIN SELECT name, salary INTO v_name, v_salary FROM emp WHERE emp_id = 42; END $$",
-    );
+    let block =
+        parse_do_block("DO $$ BEGIN SELECT name, salary INTO v_name, v_salary FROM emp WHERE emp_id = 42; END $$");
     let sql_stmt = extract_sql_statement_from_block(&block).expect("should have a SQL statement");
     let select = extract_select_from_pl(sql_stmt).expect("should have a SELECT");
-    assert!(
-        select.into_table.is_none(),
-        "PL SELECT .. INTO v1, v2 FROM table should NOT parse as SelectIntoTable"
-    );
+    assert!(select.into_table.is_none(), "PL SELECT .. INTO v1, v2 FROM table should NOT parse as SelectIntoTable");
     let targets = select.into_targets.as_ref().expect("should have into_targets");
     assert_eq!(targets.len(), 2, "should have exactly 2 INTO target variables");
 }
@@ -12973,15 +12038,10 @@ fn test_pl_select_multi_into_variables() {
 
 #[test]
 fn test_pl_select_expr_into_variable() {
-    let block = parse_do_block(
-        "DO $$ BEGIN SELECT COUNT(*) INTO v_total FROM orders WHERE status = 'active'; END $$",
-    );
+    let block = parse_do_block("DO $$ BEGIN SELECT COUNT(*) INTO v_total FROM orders WHERE status = 'active'; END $$");
     let sql_stmt = extract_sql_statement_from_block(&block).expect("should have a SQL statement");
     let select = extract_select_from_pl(sql_stmt).expect("should have a SELECT");
-    assert!(
-        select.into_table.is_none(),
-        "PL SELECT COUNT(*) INTO var FROM table should NOT parse as SelectIntoTable"
-    );
+    assert!(select.into_table.is_none(), "PL SELECT COUNT(*) INTO var FROM table should NOT parse as SelectIntoTable");
     assert!(select.into_targets.is_some());
 }
 
@@ -12989,20 +12049,19 @@ fn test_pl_select_expr_into_variable() {
 
 #[test]
 fn test_pl_select_into_in_nested_block() {
-    let block = parse_do_block(
-        "DO $$ BEGIN BEGIN SELECT 1 INTO v_x FROM dual; END; END $$",
-    );
+    let block = parse_do_block("DO $$ BEGIN BEGIN SELECT 1 INTO v_x FROM dual; END; END $$");
     // Navigate into the nested block
-    let nested_block = block.body.iter().find_map(|s| match s {
-        PlStatement::Block(b) => Some(b),
-        _ => None,
-    }).expect("should have a nested block");
+    let nested_block = block
+        .body
+        .iter()
+        .find_map(|s| match s {
+            PlStatement::Block(b) => Some(b),
+            _ => None,
+        })
+        .expect("should have a nested block");
     let sql_stmt = extract_sql_statement_from_block(nested_block).expect("nested block should have SQL");
     let select = extract_select_from_pl(sql_stmt).expect("should have a SELECT");
-    assert!(
-        select.into_table.is_none(),
-        "PL nested block SELECT INTO should NOT parse as SelectIntoTable"
-    );
+    assert!(select.into_table.is_none(), "PL nested block SELECT INTO should NOT parse as SelectIntoTable");
     assert!(select.into_targets.is_some());
 }
 
@@ -13013,35 +12072,37 @@ fn test_pl_select_into_in_loop() {
     let block = parse_do_block(
         "DO $$ BEGIN LOOP SELECT balance INTO v_bal FROM accounts WHERE id = v_id; EXIT WHEN v_bal > 100; END LOOP; END $$",
     );
-    let loop_stmt = block.body.iter().find_map(|s| match s {
-        PlStatement::Loop(l) => Some(l),
-        _ => None,
-    }).expect("should have a LOOP");
-    let sql_stmt = loop_stmt.body.iter().find(|s| matches!(s, PlStatement::SqlStatement { .. }))
+    let loop_stmt = block
+        .body
+        .iter()
+        .find_map(|s| match s {
+            PlStatement::Loop(l) => Some(l),
+            _ => None,
+        })
+        .expect("should have a LOOP");
+    let sql_stmt = loop_stmt
+        .body
+        .iter()
+        .find(|s| matches!(s, PlStatement::SqlStatement { .. }))
         .expect("loop body should have SQL");
     let select = extract_select_from_pl(sql_stmt).expect("should have a SELECT");
-    assert!(
-        select.into_table.is_none(),
-        "PL SELECT INTO inside LOOP should NOT parse as SelectIntoTable"
-    );
+    assert!(select.into_table.is_none(), "PL SELECT INTO inside LOOP should NOT parse as SelectIntoTable");
 }
 
 // --- P6-7: PL block — SELECT INTO in EXCEPTION handler ---
 
 #[test]
 fn test_pl_select_into_in_exception_handler() {
-    let block = parse_do_block(
-        "DO $$ BEGIN SELECT val INTO v FROM t; EXCEPTION WHEN OTHERS THEN SELECT 0 INTO v; END $$",
-    );
+    let block =
+        parse_do_block("DO $$ BEGIN SELECT val INTO v FROM t; EXCEPTION WHEN OTHERS THEN SELECT 0 INTO v; END $$");
     let handler = block.exception_block.as_ref().expect("should have exception block");
-    let sql_stmt = handler.handlers[0].statements.iter()
+    let sql_stmt = handler.handlers[0]
+        .statements
+        .iter()
         .find(|s| matches!(s, PlStatement::SqlStatement { .. }))
         .expect("handler should have SQL");
     let select = extract_select_from_pl(sql_stmt).expect("should have a SELECT");
-    assert!(
-        select.into_table.is_none(),
-        "PL SELECT INTO in exception handler should NOT parse as SelectIntoTable"
-    );
+    assert!(select.into_table.is_none(), "PL SELECT INTO in exception handler should NOT parse as SelectIntoTable");
 }
 
 // --- P6-8: Package body procedure — SELECT INTO variable (original error-sp.sql scenario) ---
@@ -13061,21 +12122,19 @@ fn test_package_body_select_into_variable() {
     let stmt = parse_one(sql);
     match &stmt {
         Statement::CreatePackageBody(p) => {
-            let proc = p.items.iter().find_map(|i| match i {
-                PackageItem::Procedure(pr) => Some(pr),
-                _ => None,
-            }).expect("should have a procedure");
+            let proc = p
+                .items
+                .iter()
+                .find_map(|i| match i {
+                    PackageItem::Procedure(pr) => Some(pr),
+                    _ => None,
+                })
+                .expect("should have a procedure");
             let block = proc.block.as_ref().expect("procedure should have a block");
             let sql_stmt = extract_sql_statement_from_block(block).expect("should have SQL");
             let select = extract_select_from_pl(sql_stmt).expect("should have a SELECT");
-            assert!(
-                select.into_table.is_none(),
-                "Package body SELECT INTO should NOT parse as SelectIntoTable"
-            );
-            assert!(
-                select.into_targets.is_some(),
-                "Package body SELECT INTO should parse into_targets"
-            );
+            assert!(select.into_table.is_none(), "Package body SELECT INTO should NOT parse as SelectIntoTable");
+            assert!(select.into_targets.is_some(), "Package body SELECT INTO should parse into_targets");
         }
         _ => panic!("expected CreatePackageBody, got {:?}", stmt),
     }
@@ -13154,12 +12213,18 @@ fn test_complex_procedure_multiple_select_into() {
     let stmt = parse_one(sql);
     match &stmt {
         Statement::CreatePackageBody(p) => {
-            let proc = p.items.iter().find_map(|i| match i {
-                PackageItem::Procedure(pr) => Some(pr),
-                _ => None,
-            }).expect("should have transfer procedure");
+            let proc = p
+                .items
+                .iter()
+                .find_map(|i| match i {
+                    PackageItem::Procedure(pr) => Some(pr),
+                    _ => None,
+                })
+                .expect("should have transfer procedure");
             let block = proc.block.as_ref().expect("should have block");
-            let sql_stmts: Vec<_> = block.body.iter()
+            let sql_stmts: Vec<_> = block
+                .body
+                .iter()
                 .filter_map(|s| match s {
                     PlStatement::SqlStatement { statement, .. } => match statement.as_ref() {
                         Statement::Select(sel) => Some(sel.clone()),
@@ -13170,16 +12235,8 @@ fn test_complex_procedure_multiple_select_into() {
                 .collect();
             assert!(sql_stmts.len() >= 4, "should have at least 4 SELECT statements, got {}", sql_stmts.len());
             for (i, sel) in sql_stmts.iter().enumerate() {
-                assert!(
-                    sel.into_table.is_none(),
-                    "SELECT #{} in procedure should NOT have into_table",
-                    i + 1
-                );
-                assert!(
-                    sel.into_targets.is_some(),
-                    "SELECT #{} in procedure should have into_targets",
-                    i + 1
-                );
+                assert!(sel.into_table.is_none(), "SELECT #{} in procedure should NOT have into_table", i + 1);
+                assert!(sel.into_targets.is_some(), "SELECT #{} in procedure should have into_targets", i + 1);
             }
         }
         _ => panic!("expected CreatePackageBody, got {:?}", stmt),
@@ -13212,9 +12269,7 @@ fn test_pl_variable_into_single() {
 
 #[test]
 fn test_pl_variable_into_multiple() {
-    let block = parse_do_block(
-        "DO $$ DECLARE v1 INTEGER; v2 TEXT; BEGIN SELECT c1, c2 INTO v1, v2 FROM t; END $$",
-    );
+    let block = parse_do_block("DO $$ DECLARE v1 INTEGER; v2 TEXT; BEGIN SELECT c1, c2 INTO v1, v2 FROM t; END $$");
     let sql_stmt = extract_sql_statement_from_block(&block).expect("should have a SQL statement");
     let select = extract_select_from_pl(sql_stmt).expect("should have a SELECT");
     let into_targets = select.into_targets.as_ref().expect("should have into_targets");
@@ -13243,9 +12298,7 @@ fn test_pl_variable_into_multiple() {
 
 #[test]
 fn test_pl_variable_undeclared_stays_column_ref() {
-    let block = parse_do_block(
-        "DO $$ BEGIN SELECT name INTO v_undeclared FROM users WHERE id = 1; END $$",
-    );
+    let block = parse_do_block("DO $$ BEGIN SELECT name INTO v_undeclared FROM users WHERE id = 1; END $$");
     let sql_stmt = extract_sql_statement_from_block(&block).expect("should have a SQL statement");
     let select = extract_select_from_pl(sql_stmt).expect("should have a SELECT");
     let into_targets = select.into_targets.as_ref().expect("should have into_targets");
@@ -13265,10 +12318,14 @@ fn test_pl_variable_param_into() {
     match &stmt {
         Statement::CreateProcedure(proc) => {
             let block = proc.block.as_ref().expect("should have block");
-            let sql_stmt = block.body.iter().find_map(|s| match s {
-                PlStatement::SqlStatement { statement, .. } => Some(statement.as_ref()),
-                _ => None,
-            }).expect("should have SQL statement");
+            let sql_stmt = block
+                .body
+                .iter()
+                .find_map(|s| match s {
+                    PlStatement::SqlStatement { statement, .. } => Some(statement.as_ref()),
+                    _ => None,
+                })
+                .expect("should have SQL statement");
             match sql_stmt {
                 Statement::Select(select) => {
                     let into_targets = select.into_targets.as_ref().expect("should have into_targets");
@@ -13292,15 +12349,23 @@ fn test_pl_variable_for_loop_implicit_scope() {
     let block = parse_do_block(
         "DO $$ BEGIN FOR rec IN SELECT name FROM users LOOP SELECT name INTO rec FROM dual; END LOOP; END $$",
     );
-    let for_stmt = block.body.iter().find_map(|s| match s {
-        PlStatement::For(f) => Some(f),
-        _ => None,
-    }).expect("should have FOR statement");
+    let for_stmt = block
+        .body
+        .iter()
+        .find_map(|s| match s {
+            PlStatement::For(f) => Some(f),
+            _ => None,
+        })
+        .expect("should have FOR statement");
 
-    let sql_stmt = for_stmt.body.iter().find_map(|s| match s {
-        PlStatement::SqlStatement { statement, .. } => Some(statement.as_ref()),
-        _ => None,
-    }).expect("should have SQL statement inside FOR body");
+    let sql_stmt = for_stmt
+        .body
+        .iter()
+        .find_map(|s| match s {
+            PlStatement::SqlStatement { statement, .. } => Some(statement.as_ref()),
+            _ => None,
+        })
+        .expect("should have SQL statement inside FOR body");
 
     match sql_stmt {
         Statement::Select(select) => {
@@ -13331,18 +12396,26 @@ BEGIN
 END;
 $$"#;
     let block = parse_do_block(sql);
-    let inner_block = block.body.iter().find_map(|s| match s {
-        PlStatement::Block(b) => Some(b),
-        _ => None,
-    }).expect("should have inner block");
-
-    let sql_stmt = inner_block.body.iter().find_map(|s| match s {
-        PlStatement::SqlStatement { statement, .. } => match statement.as_ref() {
-            Statement::Select(sel) => Some(sel.clone()),
+    let inner_block = block
+        .body
+        .iter()
+        .find_map(|s| match s {
+            PlStatement::Block(b) => Some(b),
             _ => None,
-        },
-        _ => None,
-    }).expect("should have SELECT statement");
+        })
+        .expect("should have inner block");
+
+    let sql_stmt = inner_block
+        .body
+        .iter()
+        .find_map(|s| match s {
+            PlStatement::SqlStatement { statement, .. } => match statement.as_ref() {
+                Statement::Select(sel) => Some(sel.clone()),
+                _ => None,
+            },
+            _ => None,
+        })
+        .expect("should have SELECT statement");
 
     let into = sql_stmt.into_targets.as_ref().expect("should have into_targets");
     assert_eq!(into.len(), 1);
@@ -13429,14 +12502,20 @@ END"#;
     match &stmt {
         Statement::CreatePackageBody(pkg) => {
             assert_eq!(pkg.name, vec!["test_pkg"]);
-            let proc = pkg.items.iter().find_map(|i| match i {
-                PackageItem::Procedure(pr) => Some(pr),
-                _ => None,
-            }).expect("should have a procedure");
+            let proc = pkg
+                .items
+                .iter()
+                .find_map(|i| match i {
+                    PackageItem::Procedure(pr) => Some(pr),
+                    _ => None,
+                })
+                .expect("should have a procedure");
             assert_eq!(proc.name, vec!["get_user"]);
             let block = proc.block.as_ref().expect("procedure should have a block");
 
-            let selects: Vec<_> = block.body.iter()
+            let selects: Vec<_> = block
+                .body
+                .iter()
                 .filter_map(|s| match s {
                     PlStatement::SqlStatement { statement, .. } => match statement.as_ref() {
                         Statement::Select(sel) => Some(sel.clone()),
@@ -13477,16 +12556,24 @@ BEGIN
 END;
 $$"#;
     let block = parse_do_block(sql);
-    let foreach = block.body.iter().find_map(|s| match s {
-        PlStatement::ForEach(f) => Some(f),
-        _ => None,
-    }).expect("should have a FOREACH statement");
+    let foreach = block
+        .body
+        .iter()
+        .find_map(|s| match s {
+            PlStatement::ForEach(f) => Some(f),
+            _ => None,
+        })
+        .expect("should have a FOREACH statement");
     assert_eq!(foreach.variable, "x");
 
-    let sql_stmt = foreach.body.iter().find_map(|s| match s {
-        PlStatement::SqlStatement { statement, .. } => Some(statement.as_ref()),
-        _ => None,
-    }).expect("should have SQL in FOREACH body");
+    let sql_stmt = foreach
+        .body
+        .iter()
+        .find_map(|s| match s {
+            PlStatement::SqlStatement { statement, .. } => Some(statement.as_ref()),
+            _ => None,
+        })
+        .expect("should have SQL in FOREACH body");
 
     match sql_stmt {
         Statement::Select(select) => {
@@ -13515,10 +12602,7 @@ $$"#;
     let tokens = Tokenizer::new(sql).tokenize().unwrap();
     let stmts = Parser::new(tokens).parse();
     let formatter = SqlFormatter::new();
-    let output = stmts.iter()
-        .map(|s| formatter.format_statement(s))
-        .collect::<Vec<_>>()
-        .join(";\n");
+    let output = stmts.iter().map(|s| formatter.format_statement(s)).collect::<Vec<_>>().join(";\n");
     assert!(output.contains("v_name"), "formatter output should contain 'v_name', got: {}", output);
 }
 
@@ -13562,10 +12646,14 @@ END test_pkg;
     let stmt = parse_one(sql);
     match &stmt {
         Statement::CreatePackageBody(pkg) => {
-            let procs: Vec<_> = pkg.items.iter().filter_map(|i| match i {
-                PackageItem::Procedure(pr) => Some(pr),
-                _ => None,
-            }).collect();
+            let procs: Vec<_> = pkg
+                .items
+                .iter()
+                .filter_map(|i| match i {
+                    PackageItem::Procedure(pr) => Some(pr),
+                    _ => None,
+                })
+                .collect();
             assert_eq!(procs.len(), 2, "both procedures should be parsed, got {} procedures", procs.len());
             assert_eq!(procs[1].name, vec!["prc_second"]);
         }
@@ -13583,14 +12671,12 @@ fn test_issue17_temp_alias_right_join() {
         Statement::Select(sel) => {
             assert_eq!(sel.from.len(), 1, "should have one table ref");
             match &sel.from[0] {
-                TableRef::Join { left, .. } => {
-                    match left.as_ref() {
-                        TableRef::Subquery { alias, .. } => {
-                            assert_eq!(alias.as_deref(), Some("temp"), "subquery alias should be 'temp'");
-                        }
-                        other => panic!("expected Subquery, got {:?}", other),
+                TableRef::Join { left, .. } => match left.as_ref() {
+                    TableRef::Subquery { alias, .. } => {
+                        assert_eq!(alias.as_deref(), Some("temp"), "subquery alias should be 'temp'");
                     }
-                }
+                    other => panic!("expected Subquery, got {:?}", other),
+                },
                 other => panic!("expected Join, got {:?}", other),
             }
         }
@@ -13605,19 +12691,15 @@ fn test_issue17_temp_alias_cross_join() {
     let stmts = Parser::new(tokens).parse();
     assert!(stmts.len() == 1, "should parse one statement");
     match &stmts[0] {
-        Statement::Select(sel) => {
-            match &sel.from[0] {
-                TableRef::Join { left, .. } => {
-                    match left.as_ref() {
-                        TableRef::Subquery { alias, .. } => {
-                            assert_eq!(alias.as_deref(), Some("temp"));
-                        }
-                        other => panic!("expected Subquery, got {:?}", other),
-                    }
+        Statement::Select(sel) => match &sel.from[0] {
+            TableRef::Join { left, .. } => match left.as_ref() {
+                TableRef::Subquery { alias, .. } => {
+                    assert_eq!(alias.as_deref(), Some("temp"));
                 }
-                other => panic!("expected Join, got {:?}", other),
-            }
-        }
+                other => panic!("expected Subquery, got {:?}", other),
+            },
+            other => panic!("expected Join, got {:?}", other),
+        },
         other => panic!("expected Select, got {:?}", other),
     }
 }
@@ -13637,7 +12719,7 @@ fn extract_update_from_pl(pl: &PlStatement) -> Option<&UpdateStatement> {
 #[test]
 fn test_pl_variable_in_update_where() {
     let block = parse_do_block(
-        r#"DO $$ DECLARE p_in_accno VARCHAR(100); BEGIN UPDATE dat_dsr_submit_result t SET t.donef = '1' WHERE t.data_key = p_in_accno AND t.donef = '0' AND rownum = 1; END $$"#
+        r#"DO $$ DECLARE p_in_accno VARCHAR(100); BEGIN UPDATE dat_dsr_submit_result t SET t.donef = '1' WHERE t.data_key = p_in_accno AND t.donef = '0' AND rownum = 1; END $$"#,
     );
     let sql_stmt = extract_sql_statement_from_block(&block).expect("should have a SQL statement");
     let update = extract_update_from_pl(sql_stmt).expect("should have an UPDATE");
@@ -13651,7 +12733,9 @@ fn test_pl_variable_in_update_where() {
     fn walk_expr(expr: &Expr, found_var: &mut bool, found_qualified: &mut bool, found_rownum: &mut bool) {
         match expr {
             Expr::PlVariable(name) if name == &["p_in_accno"] => *found_var = true,
-            Expr::ColumnRef(name) if name.len() == 2 && name[0] == "t" && name[1] == "data_key" => *found_qualified = true,
+            Expr::ColumnRef(name) if name.len() == 2 && name[0] == "t" && name[1] == "data_key" => {
+                *found_qualified = true
+            }
             Expr::ColumnRef(name) if name == &["rownum"] => *found_rownum = true,
             Expr::BinaryOp { left, right, .. } => {
                 walk_expr(left, found_var, found_qualified, found_rownum);
@@ -13687,10 +12771,14 @@ END test_pkg;
     let stmt = parse_one(sql);
     match &stmt {
         Statement::CreatePackageBody(pkg) => {
-            let proc = pkg.items.iter().find_map(|i| match i {
-                PackageItem::Procedure(pr) => Some(pr),
-                _ => None,
-            }).expect("should have a procedure");
+            let proc = pkg
+                .items
+                .iter()
+                .find_map(|i| match i {
+                    PackageItem::Procedure(pr) => Some(pr),
+                    _ => None,
+                })
+                .expect("should have a procedure");
             assert_eq!(proc.name, vec!["prc_test"]);
             let block = proc.block.as_ref().expect("procedure should have a block");
             assert!(!block.body.is_empty(), "procedure body should not be empty");
@@ -13754,10 +12842,14 @@ END test_pkg;
     let stmt = parse_one(sql);
     match &stmt {
         Statement::CreatePackageBody(pkg) => {
-            let proc = pkg.items.iter().find_map(|i| match i {
-                PackageItem::Procedure(pr) => Some(pr),
-                _ => None,
-            }).expect("should have a procedure");
+            let proc = pkg
+                .items
+                .iter()
+                .find_map(|i| match i {
+                    PackageItem::Procedure(pr) => Some(pr),
+                    _ => None,
+                })
+                .expect("should have a procedure");
             let block = proc.block.as_ref().expect("procedure should have a block");
             assert!(!block.body.is_empty(), "procedure body should not be empty");
         }
@@ -13798,10 +12890,14 @@ END test_pkg;
     let stmt = parse_one(sql);
     match &stmt {
         Statement::CreatePackageBody(pkg) => {
-            let proc = pkg.items.iter().find_map(|i| match i {
-                PackageItem::Procedure(pr) => Some(pr),
-                _ => None,
-            }).expect("should have a procedure");
+            let proc = pkg
+                .items
+                .iter()
+                .find_map(|i| match i {
+                    PackageItem::Procedure(pr) => Some(pr),
+                    _ => None,
+                })
+                .expect("should have a procedure");
             assert_eq!(proc.name, vec!["prc_test"]);
             let block = proc.block.as_ref().expect("procedure should have a block");
             assert!(!block.body.is_empty(), "procedure body should not be empty");
@@ -13842,11 +12938,20 @@ fn test_package_body_variable_with_default() {
     match stmt {
         Statement::CreatePackageBody(p) => {
             assert_eq!(p.name, vec!["pkg_example"]);
-            let vars: Vec<_> = p.items.iter().filter_map(|item| match item {
-                PackageItem::Variable(v) => Some(v.clone()),
-                _ => None,
-            }).collect();
-            assert_eq!(vars.len(), 3, "should have 3 variable declarations, got items: {:?}", p.items.iter().map(|i| format!("{:?}", i)).collect::<Vec<_>>());
+            let vars: Vec<_> = p
+                .items
+                .iter()
+                .filter_map(|item| match item {
+                    PackageItem::Variable(v) => Some(v.clone()),
+                    _ => None,
+                })
+                .collect();
+            assert_eq!(
+                vars.len(),
+                3,
+                "should have 3 variable declarations, got items: {:?}",
+                p.items.iter().map(|i| format!("{:?}", i)).collect::<Vec<_>>()
+            );
 
             assert_eq!(vars[0].name, "v_status");
             match &vars[0].data_type {
@@ -13885,10 +12990,14 @@ fn test_package_body_variable_no_default() {
     let stmt = parse_one(sql);
     match stmt {
         Statement::CreatePackageBody(p) => {
-            let vars: Vec<_> = p.items.iter().filter_map(|item| match item {
-                PackageItem::Variable(v) => Some(v.clone()),
-                _ => None,
-            }).collect();
+            let vars: Vec<_> = p
+                .items
+                .iter()
+                .filter_map(|item| match item {
+                    PackageItem::Variable(v) => Some(v.clone()),
+                    _ => None,
+                })
+                .collect();
             assert_eq!(vars.len(), 1, "should have 1 variable declaration");
             assert_eq!(vars[0].name, "v_buffer");
             assert!(vars[0].default.is_none());
@@ -13910,10 +13019,14 @@ fn test_package_body_variable_percent_type() {
     let stmt = parse_one(sql);
     match stmt {
         Statement::CreatePackageBody(p) => {
-            let vars: Vec<_> = p.items.iter().filter_map(|item| match item {
-                PackageItem::Variable(v) => Some(v.clone()),
-                _ => None,
-            }).collect();
+            let vars: Vec<_> = p
+                .items
+                .iter()
+                .filter_map(|item| match item {
+                    PackageItem::Variable(v) => Some(v.clone()),
+                    _ => None,
+                })
+                .collect();
             assert_eq!(vars.len(), 2, "should have 2 variable declarations");
             assert_eq!(vars[0].name, "DEFAULT_LOG_LEVEL");
             assert!(matches!(vars[0].data_type, PlDataType::PercentType { .. }));
@@ -13936,10 +13049,14 @@ fn test_package_body_variable_exception() {
     let stmt = parse_one(sql);
     match stmt {
         Statement::CreatePackageBody(p) => {
-            let vars: Vec<_> = p.items.iter().filter_map(|item| match item {
-                PackageItem::Variable(v) => Some(v.clone()),
-                _ => None,
-            }).collect();
+            let vars: Vec<_> = p
+                .items
+                .iter()
+                .filter_map(|item| match item {
+                    PackageItem::Variable(v) => Some(v.clone()),
+                    _ => None,
+                })
+                .collect();
             assert_eq!(vars.len(), 1, "should have 1 variable declaration");
             assert_eq!(vars[0].name, "LOGGING_EXCEPTION");
             assert!(matches!(vars[0].data_type, PlDataType::TypeName(ref s) if s.eq_ignore_ascii_case("EXCEPTION")));
@@ -13956,10 +13073,14 @@ fn test_package_body_variable_with_precision() {
     let stmt = parse_one(sql);
     match stmt {
         Statement::CreatePackageBody(p) => {
-            let vars: Vec<_> = p.items.iter().filter_map(|item| match item {
-                PackageItem::Variable(v) => Some(v.clone()),
-                _ => None,
-            }).collect();
+            let vars: Vec<_> = p
+                .items
+                .iter()
+                .filter_map(|item| match item {
+                    PackageItem::Variable(v) => Some(v.clone()),
+                    _ => None,
+                })
+                .collect();
             assert_eq!(vars.len(), 1, "should have 1 variable declaration");
             assert_eq!(vars[0].name, "v_sql");
         }
@@ -14060,7 +13181,12 @@ fn test_comments_multiple() {
 fn test_comments_inside_dollar_string_body() {
     let sql = "CREATE OR REPLACE PROCEDURE pkg_test.demo() AS $$\nDECLARE\n    v_count INT;  -- record count\nBEGIN\n    -- insert new record\n    INSERT INTO t_test(id) VALUES (1);\n    /* batch update\n       note concurrency */\n    UPDATE t_test SET name = 'x' WHERE id = 1;\nEND;\n$$ LANGUAGE plpgsql;";
     let output = parse_with_comments(sql);
-    assert!(output.comments.len() >= 3, "should have at least 3 comments from body, got {}: {:?}", output.comments.len(), output.comments);
+    assert!(
+        output.comments.len() >= 3,
+        "should have at least 3 comments from body, got {}: {:?}",
+        output.comments.len(),
+        output.comments
+    );
 
     let line_comments: Vec<_> = output.comments.iter().filter(|c| c.comment_type == "line").collect();
     let block_comments: Vec<_> = output.comments.iter().filter(|c| c.comment_type == "block").collect();
@@ -14128,10 +13254,7 @@ fn test_package_body_function_case_with_parameterized_return_type() {
 
             assert!(func.block.is_some(), "function should have a body");
             let block = func.block.as_ref().unwrap();
-            assert!(
-                !block.body.is_empty(),
-                "function body should have statements"
-            );
+            assert!(!block.body.is_empty(), "function body should have statements");
 
             let has_case = block.body.iter().any(|s| matches!(s, PlStatement::Case(_)));
             let has_return = block.body.iter().any(|s| matches!(s, PlStatement::Return { .. }));
@@ -14267,10 +13390,14 @@ fn test_package_body_type_record() {
 fn test_cursor_attribute_notfound() {
     let sql = "DO $$ DECLARE c CURSOR FOR SELECT 1; BEGIN EXIT WHEN c%NOTFOUND; END $$";
     let block = parse_do_block(sql);
-    let exit = block.body.iter().find_map(|s| match s {
-        PlStatement::Exit { condition, .. } => condition.clone(),
-        _ => None,
-    }).expect("should have EXIT");
+    let exit = block
+        .body
+        .iter()
+        .find_map(|s| match s {
+            PlStatement::Exit { condition, .. } => condition.clone(),
+            _ => None,
+        })
+        .expect("should have EXIT");
     match exit {
         Expr::CursorAttribute { cursor, attribute } => {
             assert!(matches!(cursor.as_ref(), Expr::PlVariable(n) if n[0] == "c"));
@@ -14284,10 +13411,14 @@ fn test_cursor_attribute_notfound() {
 fn test_cursor_attribute_found() {
     let sql = "DO $$ DECLARE c CURSOR FOR SELECT 1; BEGIN IF c%FOUND THEN NULL; END IF; END $$";
     let block = parse_do_block(sql);
-    let cond = block.body.iter().find_map(|s| match s {
-        PlStatement::If(if_stmt) => Some(if_stmt.node.condition.clone()),
-        _ => None,
-    }).expect("should have IF");
+    let cond = block
+        .body
+        .iter()
+        .find_map(|s| match s {
+            PlStatement::If(if_stmt) => Some(if_stmt.node.condition.clone()),
+            _ => None,
+        })
+        .expect("should have IF");
     match &cond {
         Expr::CursorAttribute { attribute, .. } => {
             assert_eq!(*attribute, CursorAttributeKind::Found);
@@ -14300,10 +13431,14 @@ fn test_cursor_attribute_found() {
 fn test_cursor_attribute_isopen() {
     let sql = "DO $$ DECLARE c CURSOR FOR SELECT 1; BEGIN IF NOT c%ISOPEN THEN NULL; END IF; END $$";
     let block = parse_do_block(sql);
-    let cond = block.body.iter().find_map(|s| match s {
-        PlStatement::If(if_stmt) => Some(if_stmt.node.condition.clone()),
-        _ => None,
-    }).expect("should have IF");
+    let cond = block
+        .body
+        .iter()
+        .find_map(|s| match s {
+            PlStatement::If(if_stmt) => Some(if_stmt.node.condition.clone()),
+            _ => None,
+        })
+        .expect("should have IF");
     match &cond {
         Expr::UnaryOp { op, expr } => {
             assert_eq!(op, "NOT");
@@ -14322,10 +13457,14 @@ fn test_cursor_attribute_isopen() {
 fn test_cursor_attribute_rowcount() {
     let sql = "DO $$ DECLARE c CURSOR FOR SELECT 1; v_count INT; BEGIN v_count := c%ROWCOUNT; END $$";
     let block = parse_do_block(sql);
-    let expr = block.body.iter().find_map(|s| match s {
-        PlStatement::Assignment { expression, .. } => Some(expression.clone()),
-        _ => None,
-    }).expect("should have assignment");
+    let expr = block
+        .body
+        .iter()
+        .find_map(|s| match s {
+            PlStatement::Assignment { expression, .. } => Some(expression.clone()),
+            _ => None,
+        })
+        .expect("should have assignment");
     match &expr {
         Expr::CursorAttribute { attribute, .. } => {
             assert_eq!(*attribute, CursorAttributeKind::RowCount);
@@ -14338,10 +13477,14 @@ fn test_cursor_attribute_rowcount() {
 fn test_cursor_attribute_bulk_exceptions() {
     let sql = "DO $$ DECLARE c CURSOR FOR SELECT 1; BEGIN IF c%BULK_EXCEPTIONS THEN NULL; END IF; END $$";
     let block = parse_do_block(sql);
-    let cond = block.body.iter().find_map(|s| match s {
-        PlStatement::If(if_stmt) => Some(if_stmt.node.condition.clone()),
-        _ => None,
-    }).expect("should have IF");
+    let cond = block
+        .body
+        .iter()
+        .find_map(|s| match s {
+            PlStatement::If(if_stmt) => Some(if_stmt.node.condition.clone()),
+            _ => None,
+        })
+        .expect("should have IF");
     match &cond {
         Expr::CursorAttribute { attribute, .. } => {
             assert_eq!(*attribute, CursorAttributeKind::BulkExceptions);
@@ -14373,10 +13516,14 @@ fn test_percent_still_modulo_outside_pl() {
 fn test_percent_still_modulo_in_pl_with_number() {
     let sql = "DO $$ DECLARE v INT; BEGIN v := v % 2; END $$";
     let block = parse_do_block(sql);
-    let expr = block.body.iter().find_map(|s| match s {
-        PlStatement::Assignment { expression, .. } => Some(expression.clone()),
-        _ => None,
-    }).expect("should have assignment");
+    let expr = block
+        .body
+        .iter()
+        .find_map(|s| match s {
+            PlStatement::Assignment { expression, .. } => Some(expression.clone()),
+            _ => None,
+        })
+        .expect("should have assignment");
     match &expr {
         Expr::BinaryOp { op, .. } => assert_eq!(op, "%"),
         other => panic!("expected BinaryOp(modulo), got {:?}", other),
@@ -14398,11 +13545,7 @@ fn test_cursor_attribute_format_roundtrip() {
     let stmt = parse_one(sql);
     let formatter = SqlFormatter::new();
     let output = formatter.format_statement(&stmt);
-    assert!(
-        output.contains("c%NOTFOUND"),
-        "formatted output should contain c%NOTFOUND, got: {}",
-        output
-    );
+    assert!(output.contains("c%NOTFOUND"), "formatted output should contain c%NOTFOUND, got: {}", output);
 }
 
 #[test]
@@ -14760,9 +13903,7 @@ fn test_guard_sample() {
 
 #[test]
 fn test_pivot_xml() {
-    let stmt = parse_one(
-        "SELECT * FROM sales PIVOT XML (SUM(amount) FOR quarter IN ('Q1' AS q1, 'Q2' AS q2))",
-    );
+    let stmt = parse_one("SELECT * FROM sales PIVOT XML (SUM(amount) FOR quarter IN ('Q1' AS q1, 'Q2' AS q2))");
     match stmt {
         Statement::Select(s) => {
             assert_eq!(s.from.len(), 1);
@@ -14780,18 +13921,14 @@ fn test_pivot_xml() {
 
 #[test]
 fn test_pivot_without_xml() {
-    let stmt = parse_one(
-        "SELECT * FROM sales PIVOT (SUM(amount) FOR quarter IN ('Q1' AS q1))",
-    );
+    let stmt = parse_one("SELECT * FROM sales PIVOT (SUM(amount) FOR quarter IN ('Q1' AS q1))");
     match stmt {
-        Statement::Select(s) => {
-            match &s.from[0] {
-                TableRef::Pivot { pivot, .. } => {
-                    assert_eq!(pivot.xml, None);
-                }
-                _ => panic!("expected Pivot"),
+        Statement::Select(s) => match &s.from[0] {
+            TableRef::Pivot { pivot, .. } => {
+                assert_eq!(pivot.xml, None);
             }
-        }
+            _ => panic!("expected Pivot"),
+        },
         _ => panic!("expected Select"),
     }
 }
@@ -14814,15 +13951,13 @@ fn test_lateral_subquery_join_roundtrip() {
         Statement::Select(sel) => {
             assert_eq!(sel.from.len(), 1);
             match &sel.from[0] {
-                TableRef::Join { right, .. } => {
-                    match right.as_ref() {
-                        TableRef::Subquery { lateral, alias, .. } => {
-                            assert!(lateral, "lateral should be true for LATERAL subquery");
-                            assert_eq!(alias.as_deref(), Some("e"));
-                        }
-                        other => panic!("expected Subquery, got {:?}", other),
+                TableRef::Join { right, .. } => match right.as_ref() {
+                    TableRef::Subquery { lateral, alias, .. } => {
+                        assert!(lateral, "lateral should be true for LATERAL subquery");
+                        assert_eq!(alias.as_deref(), Some("e"));
                     }
-                }
+                    other => panic!("expected Subquery, got {:?}", other),
+                },
                 other => panic!("expected Join, got {:?}", other),
             }
         }
@@ -14871,14 +14006,12 @@ fn test_non_lateral_subquery_is_false() {
     let tokens = Tokenizer::new(sql).tokenize().unwrap();
     let stmts = Parser::new(tokens).parse();
     match &stmts[0] {
-        Statement::Select(sel) => {
-            match &sel.from[0] {
-                TableRef::Subquery { lateral, .. } => {
-                    assert!(!lateral, "non-LATERAL subquery should have lateral: false");
-                }
-                other => panic!("expected Subquery, got {:?}", other),
+        Statement::Select(sel) => match &sel.from[0] {
+            TableRef::Subquery { lateral, .. } => {
+                assert!(!lateral, "non-LATERAL subquery should have lateral: false");
             }
-        }
+            other => panic!("expected Subquery, got {:?}", other),
+        },
         other => panic!("expected Select, got {:?}", other),
     }
 }
@@ -14894,12 +14027,7 @@ fn test_table_alias_column_list() {
         Statement::Select(sel) => {
             assert_eq!(sel.from.len(), 1);
             match &sel.from[0] {
-                TableRef::Table {
-                    name,
-                    alias,
-                    column_aliases,
-                    ..
-                } => {
+                TableRef::Table { name, alias, column_aliases, .. } => {
                     assert_eq!(name.join("."), "const");
                     assert_eq!(alias.as_deref(), Some("c"));
                     assert_eq!(column_aliases.len(), 1);
@@ -14913,11 +14041,7 @@ fn test_table_alias_column_list() {
     // Round-trip
     let formatter = SqlFormatter::new();
     let output = formatter.format_statement(&stmts[0]);
-    assert!(
-        output.contains("c(w)"),
-        "formatted SQL should contain alias with column list: {}",
-        output
-    );
+    assert!(output.contains("c(w)"), "formatted SQL should contain alias with column list: {}", output);
     let json = serde_json::to_string(&stmts).unwrap();
     let restored: Vec<Statement> = serde_json::from_str(&json).unwrap();
     let output2 = formatter.format_statement(&restored[0]);
@@ -14931,21 +14055,14 @@ fn test_table_alias_column_list_multiple() {
     let stmts = Parser::new(tokens).parse();
     assert_eq!(stmts.len(), 1);
     match &stmts[0] {
-        Statement::Select(sel) => {
-            match &sel.from[0] {
-                TableRef::Table {
-                    name,
-                    alias,
-                    column_aliases,
-                    ..
-                } => {
-                    assert_eq!(name.join("."), "my_table");
-                    assert_eq!(alias.as_deref(), Some("t"));
-                    assert_eq!(column_aliases, &vec!["a".to_string(), "b".to_string(), "c".to_string()]);
-                }
-                other => panic!("expected Table, got {:?}", other),
+        Statement::Select(sel) => match &sel.from[0] {
+            TableRef::Table { name, alias, column_aliases, .. } => {
+                assert_eq!(name.join("."), "my_table");
+                assert_eq!(alias.as_deref(), Some("t"));
+                assert_eq!(column_aliases, &vec!["a".to_string(), "b".to_string(), "c".to_string()]);
             }
-        }
+            other => panic!("expected Table, got {:?}", other),
+        },
         other => panic!("expected Select, got {:?}", other),
     }
 }
@@ -14962,12 +14079,7 @@ fn test_table_alias_column_list_with_comma_joined_table() {
             assert_eq!(sel.from.len(), 2);
             // First table: const c(w)
             match &sel.from[0] {
-                TableRef::Table {
-                    name,
-                    alias,
-                    column_aliases,
-                    ..
-                } => {
+                TableRef::Table { name, alias, column_aliases, .. } => {
                     assert_eq!(name.join("."), "const");
                     assert_eq!(alias.as_deref(), Some("c"));
                     assert_eq!(column_aliases, &vec!["w".to_string()]);
@@ -14976,12 +14088,7 @@ fn test_table_alias_column_list_with_comma_joined_table() {
             }
             // Second table: LATERAL (VALUES ...) AS v(x, y)
             match &sel.from[1] {
-                TableRef::Values {
-                    lateral,
-                    alias,
-                    column_names,
-                    ..
-                } => {
+                TableRef::Values { lateral, alias, column_names, .. } => {
                     assert!(lateral);
                     assert_eq!(alias.as_deref(), Some("v"));
                     assert_eq!(column_names, &vec!["x".to_string(), "y".to_string()]);
@@ -15000,27 +14107,18 @@ fn test_array_slice_subscript_both_bounds() {
     let stmts = Parser::new(tokens).parse();
     assert_eq!(stmts.len(), 1);
     match &stmts[0] {
-        Statement::Select(sel) => {
-            match &sel.targets[0] {
-                SelectTarget::Expr(expr, _) => {
-                    match expr {
-                        Expr::Subscript {
-                            object,
-                            lower,
-                            upper,
-                            is_slice,
-                        } => {
-                            assert!(matches!(object.as_ref(), Expr::ColumnRef(_)));
-                            assert!(lower.is_some());
-                            assert!(upper.is_some());
-                            assert!(*is_slice);
-                        }
-                        other => panic!("expected Subscript, got {:?}", other),
-                    }
+        Statement::Select(sel) => match &sel.targets[0] {
+            SelectTarget::Expr(expr, _) => match expr {
+                Expr::Subscript { object, lower, upper, is_slice } => {
+                    assert!(matches!(object.as_ref(), Expr::ColumnRef(_)));
+                    assert!(lower.is_some());
+                    assert!(upper.is_some());
+                    assert!(*is_slice);
                 }
-                other => panic!("expected Expr target, got {:?}", other),
-            }
-        }
+                other => panic!("expected Subscript, got {:?}", other),
+            },
+            other => panic!("expected Expr target, got {:?}", other),
+        },
         other => panic!("expected Select, got {:?}", other),
     }
     let formatter = SqlFormatter::new();
@@ -15040,26 +14138,17 @@ fn test_array_slice_subscript_upper_only() {
     let stmts = Parser::new(tokens).parse();
     assert_eq!(stmts.len(), 1);
     match &stmts[0] {
-        Statement::Select(sel) => {
-            match &sel.targets[0] {
-                SelectTarget::Expr(expr, _) => {
-                    match expr {
-                        Expr::Subscript {
-                            lower,
-                            upper,
-                            is_slice,
-                            ..
-                        } => {
-                            assert!(lower.is_none());
-                            assert!(upper.is_some());
-                            assert!(*is_slice);
-                        }
-                        other => panic!("expected Subscript, got {:?}", other),
-                    }
+        Statement::Select(sel) => match &sel.targets[0] {
+            SelectTarget::Expr(expr, _) => match expr {
+                Expr::Subscript { lower, upper, is_slice, .. } => {
+                    assert!(lower.is_none());
+                    assert!(upper.is_some());
+                    assert!(*is_slice);
                 }
-                other => panic!("expected Expr target, got {:?}", other),
-            }
-        }
+                other => panic!("expected Subscript, got {:?}", other),
+            },
+            other => panic!("expected Expr target, got {:?}", other),
+        },
         other => panic!("expected Select, got {:?}", other),
     }
     let formatter = SqlFormatter::new();
@@ -15075,26 +14164,17 @@ fn test_array_slice_subscript_lower_only() {
     let stmts = Parser::new(tokens).parse();
     assert_eq!(stmts.len(), 1);
     match &stmts[0] {
-        Statement::Select(sel) => {
-            match &sel.targets[0] {
-                SelectTarget::Expr(expr, _) => {
-                    match expr {
-                        Expr::Subscript {
-                            lower,
-                            upper,
-                            is_slice,
-                            ..
-                        } => {
-                            assert!(lower.is_some());
-                            assert!(upper.is_none());
-                            assert!(*is_slice);
-                        }
-                        other => panic!("expected Subscript, got {:?}", other),
-                    }
+        Statement::Select(sel) => match &sel.targets[0] {
+            SelectTarget::Expr(expr, _) => match expr {
+                Expr::Subscript { lower, upper, is_slice, .. } => {
+                    assert!(lower.is_some());
+                    assert!(upper.is_none());
+                    assert!(*is_slice);
                 }
-                other => panic!("expected Expr target, got {:?}", other),
-            }
-        }
+                other => panic!("expected Subscript, got {:?}", other),
+            },
+            other => panic!("expected Expr target, got {:?}", other),
+        },
         other => panic!("expected Select, got {:?}", other),
     }
     let formatter = SqlFormatter::new();
@@ -15109,26 +14189,17 @@ fn test_subscript_single_index_still_works() {
     let stmts = Parser::new(tokens).parse();
     assert_eq!(stmts.len(), 1);
     match &stmts[0] {
-        Statement::Select(sel) => {
-            match &sel.targets[0] {
-                SelectTarget::Expr(expr, _) => {
-                    match expr {
-                        Expr::Subscript {
-                            lower,
-                            upper,
-                            is_slice,
-                            ..
-                        } => {
-                            assert!(lower.is_some());
-                            assert!(upper.is_none());
-                            assert!(!is_slice);
-                        }
-                        other => panic!("expected Subscript, got {:?}", other),
-                    }
+        Statement::Select(sel) => match &sel.targets[0] {
+            SelectTarget::Expr(expr, _) => match expr {
+                Expr::Subscript { lower, upper, is_slice, .. } => {
+                    assert!(lower.is_some());
+                    assert!(upper.is_none());
+                    assert!(!is_slice);
                 }
-                other => panic!("expected Expr target, got {:?}", other),
-            }
-        }
+                other => panic!("expected Subscript, got {:?}", other),
+            },
+            other => panic!("expected Expr target, got {:?}", other),
+        },
         other => panic!("expected Select, got {:?}", other),
     }
     let formatter = SqlFormatter::new();

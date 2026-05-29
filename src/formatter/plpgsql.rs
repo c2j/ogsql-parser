@@ -1,5 +1,5 @@
-use crate::ast::*;
 use super::SqlFormatter;
+use crate::ast::*;
 
 impl SqlFormatter {
     pub(crate) fn format_anon_block(&self, stmt: &AnonyBlockStatement) -> String {
@@ -18,7 +18,12 @@ impl SqlFormatter {
         self.format_pl_block_inner(block, indent, true)
     }
 
-    pub(crate) fn format_pl_block_inner(&self, block: &crate::ast::plpgsql::PlBlock, indent: usize, named: bool) -> String {
+    pub(crate) fn format_pl_block_inner(
+        &self,
+        block: &crate::ast::plpgsql::PlBlock,
+        indent: usize,
+        named: bool,
+    ) -> String {
         let mut s = String::new();
 
         if let Some(ref label) = block.label {
@@ -132,11 +137,7 @@ impl SqlFormatter {
                         .join(", ");
                     format!("{} {} ({})", name, self.kw("TYPE IS RECORD"), fields_str)
                 }
-                PlTypeDecl::TableOf {
-                    name,
-                    elem_type,
-                    index_by,
-                } => {
+                PlTypeDecl::TableOf { name, elem_type, index_by } => {
                     let mut s = format!(
                         "{} {} {} {}",
                         name,
@@ -145,21 +146,11 @@ impl SqlFormatter {
                         ""
                     );
                     if let Some(idx) = index_by {
-                        s = format!(
-                            "{} {} {} {}",
-                            s.trim(),
-                            self.kw("INDEX BY"),
-                            self.format_pl_data_type(idx),
-                            ""
-                        );
+                        s = format!("{} {} {} {}", s.trim(), self.kw("INDEX BY"), self.format_pl_data_type(idx), "");
                     }
                     s.trim().to_string()
                 }
-                PlTypeDecl::VarrayOf {
-                    name,
-                    size,
-                    elem_type,
-                } => {
+                PlTypeDecl::VarrayOf { name, size, elem_type } => {
                     format!(
                         "{} {} ({}) {} {}",
                         name,
@@ -174,51 +165,27 @@ impl SqlFormatter {
                 }
             },
             PlDeclaration::NestedProcedure(p) => {
-                let mut s = format!(
-                    "{} {} ",
-                    self.kw("PROCEDURE"),
-                    self.format_object_name(&p.name)
-                );
+                let mut s = format!("{} {} ", self.kw("PROCEDURE"), self.format_object_name(&p.name));
                 if !p.parameters.is_empty() {
-                    let params: Vec<String> = p
-                        .parameters
-                        .iter()
-                        .map(|p| self.format_routine_param(p))
-                        .collect();
+                    let params: Vec<String> = p.parameters.iter().map(|p| self.format_routine_param(p)).collect();
                     s.push_str(&format!("({})", params.join(", ")));
                 }
                 if let Some(ref block) = p.block {
-                    s.push_str(&format!(
-                        " {} {}",
-                        self.kw("AS"),
-                        self.format_pl_block(block, 0)
-                    ));
+                    s.push_str(&format!(" {} {}", self.kw("AS"), self.format_pl_block(block, 0)));
                 }
                 s
             }
             PlDeclaration::NestedFunction(f) => {
-                let mut s = format!(
-                    "{} {} ",
-                    self.kw("FUNCTION"),
-                    self.format_object_name(&f.name)
-                );
+                let mut s = format!("{} {} ", self.kw("FUNCTION"), self.format_object_name(&f.name));
                 if !f.parameters.is_empty() {
-                    let params: Vec<String> = f
-                        .parameters
-                        .iter()
-                        .map(|p| self.format_routine_param(p))
-                        .collect();
+                    let params: Vec<String> = f.parameters.iter().map(|p| self.format_routine_param(p)).collect();
                     s.push_str(&format!("({})", params.join(", ")));
                 }
                 if let Some(ref rt) = f.return_type {
                     s.push_str(&format!(" {} {}", self.kw("RETURN"), rt));
                 }
                 if let Some(ref block) = f.block {
-                    s.push_str(&format!(
-                        " {} {}",
-                        self.kw("AS"),
-                        self.format_pl_block(block, 0)
-                    ));
+                    s.push_str(&format!(" {} {}", self.kw("AS"), self.format_pl_block(block, 0)));
                 }
                 s
             }
@@ -256,8 +223,12 @@ impl SqlFormatter {
                 if let Some(ref il) = isolation_level {
                     s.push_str(&format!(" {} {}", self.kw("ISOLATION"), self.kw("LEVEL")));
                     match il {
-                        PlIsolationLevel::ReadCommitted => s.push_str(&format!(" {} {}", self.kw("READ"), self.kw("COMMITTED"))),
-                        PlIsolationLevel::RepeatableRead => s.push_str(&format!(" {} {}", self.kw("REPEATABLE"), self.kw("READ"))),
+                        PlIsolationLevel::ReadCommitted => {
+                            s.push_str(&format!(" {} {}", self.kw("READ"), self.kw("COMMITTED")))
+                        }
+                        PlIsolationLevel::RepeatableRead => {
+                            s.push_str(&format!(" {} {}", self.kw("REPEATABLE"), self.kw("READ")))
+                        }
                         PlIsolationLevel::Serializable => s.push_str(&format!(" {}", self.kw("SERIALIZABLE"))),
                     }
                 }
@@ -312,12 +283,7 @@ impl SqlFormatter {
                 }
             }
             PlStatement::ReturnNext { expression } => {
-                format!(
-                    "{} {} {};",
-                    self.kw("RETURN"),
-                    self.kw("NEXT"),
-                    self.format_expr(expression)
-                )
+                format!("{} {} {};", self.kw("RETURN"), self.kw("NEXT"), self.format_expr(expression))
             }
             PlStatement::ReturnQuery(q) => {
                 let mut s = format!("{} {}", self.kw("RETURN"), self.kw("QUERY"));
@@ -359,8 +325,7 @@ impl SqlFormatter {
                 };
                 s.push_str(&format!(" {}", self.format_expr(&e.string_expr)));
                 if !e.into_targets.is_empty() {
-                    let targets: Vec<String> =
-                        e.into_targets.iter().map(|t| self.format_expr(t)).collect();
+                    let targets: Vec<String> = e.into_targets.iter().map(|t| self.format_expr(t)).collect();
                     s.push_str(&format!(" {} {}", self.kw("INTO"), targets.join(", ")));
                 }
                 if !e.using_args.is_empty() {
@@ -394,8 +359,7 @@ impl SqlFormatter {
                 match &o.kind {
                     PlOpenKind::Simple { arguments } => {
                         if !arguments.is_empty() {
-                            let args: Vec<String> =
-                                arguments.iter().map(|a| self.format_expr(a)).collect();
+                            let args: Vec<String> = arguments.iter().map(|a| self.format_expr(a)).collect();
                             s.push_str(&format!("({})", args.join(", ")));
                         }
                     }
@@ -410,20 +374,14 @@ impl SqlFormatter {
                         s.push_str(&format!(" {} {}", self.kw("FOR"), query));
                     }
                     PlOpenKind::ForExecute { query, using_args } => {
-                        s.push_str(&format!(
-                            " {} {}",
-                            self.kw("FOR EXECUTE"),
-                            self.format_expr(query)
-                        ));
+                        s.push_str(&format!(" {} {}", self.kw("FOR EXECUTE"), self.format_expr(query)));
                         if !using_args.is_empty() {
-                            let args: Vec<String> =
-                                using_args.iter().map(|a| self.format_expr(a)).collect();
+                            let args: Vec<String> = using_args.iter().map(|a| self.format_expr(a)).collect();
                             s.push_str(&format!(" {} {}", self.kw("USING"), args.join(", ")));
                         }
                     }
                     PlOpenKind::ForUsing { expressions } => {
-                        let exprs: Vec<String> =
-                            expressions.iter().map(|e| self.format_expr(e)).collect();
+                        let exprs: Vec<String> = expressions.iter().map(|e| self.format_expr(e)).collect();
                         s.push_str(&format!(" {} {}", self.kw("FOR USING"), exprs.join(", ")));
                     }
                 }
@@ -434,10 +392,7 @@ impl SqlFormatter {
                 if let Some(ref dir) = f.direction {
                     s.push_str(&format!(" {} ", dir));
                 }
-                s.push_str(&format!(
-                    "{}",
-                    self.format_expr(&f.cursor)
-                ));
+                s.push_str(&self.format_expr(&f.cursor).to_string());
                 if f.bulk_collect {
                     s.push_str(&format!(" {} {}", self.kw("BULK"), self.kw("COLLECT")));
                 }
@@ -525,8 +480,7 @@ impl SqlFormatter {
             PlStatement::Goto { label } => format!("{} {};", self.kw("GOTO"), label),
             PlStatement::ProcedureCall(call) => {
                 let name = call.name.join(".");
-                let args: Vec<String> =
-                    call.arguments.iter().map(|a| self.format_expr(a)).collect();
+                let args: Vec<String> = call.arguments.iter().map(|a| self.format_expr(a)).collect();
                 let args_str = args.join(", ");
                 if args_str.is_empty() {
                     format!("{};", name)
@@ -541,28 +495,14 @@ impl SqlFormatter {
                     format!("{};", sql)
                 }
             }
-            PlStatement::SqlStatement {
-                sql_text,
-                statement,
-                ..
-            } => {
+            PlStatement::SqlStatement { sql_text, statement, .. } => {
                 let _ = sql_text;
-                format!("{};", self.format_statement(&statement))
+                format!("{};", self.format_statement(statement))
             }
             PlStatement::ForAll(f) => {
-                let save_exceptions = if f.save_exceptions {
-                    format!(" {}", self.kw("SAVE EXCEPTIONS"))
-                } else {
-                    String::new()
-                };
-                format!(
-                    "{} {} {}{} {}",
-                    self.kw("FORALL"),
-                    f.variable,
-                    f.bounds,
-                    save_exceptions,
-                    f.body
-                )
+                let save_exceptions =
+                    if f.save_exceptions { format!(" {}", self.kw("SAVE EXCEPTIONS")) } else { String::new() };
+                format!("{} {} {}{} {}", self.kw("FORALL"), f.variable, f.bounds, save_exceptions, f.body)
             }
             PlStatement::PipeRow { expression } => {
                 format!("{}({});", self.kw("PIPE ROW"), self.format_expr(expression))
@@ -577,12 +517,7 @@ impl SqlFormatter {
     }
 
     pub(crate) fn format_pl_if(&self, i: &crate::ast::plpgsql::PlIfStmt, indent: usize) -> String {
-        let mut s = format!(
-            "{} {} {}",
-            self.kw("IF"),
-            self.format_expr(&i.condition),
-            self.kw("THEN")
-        );
+        let mut s = format!("{} {} {}", self.kw("IF"), self.format_expr(&i.condition), self.kw("THEN"));
         for stmt in &i.then_stmts {
             s.push('\n');
             s.push_str(&Self::pad(indent + 1));
@@ -591,12 +526,7 @@ impl SqlFormatter {
         for elsif in &i.elsifs {
             s.push('\n');
             s.push_str(&Self::pad(indent));
-            s.push_str(&format!(
-                "{} {} {}",
-                self.kw("ELSIF"),
-                self.format_expr(&elsif.condition),
-                self.kw("THEN")
-            ));
+            s.push_str(&format!("{} {} {}", self.kw("ELSIF"), self.format_expr(&elsif.condition), self.kw("THEN")));
             for stmt in &elsif.stmts {
                 s.push('\n');
                 s.push_str(&Self::pad(indent + 1));
@@ -627,12 +557,7 @@ impl SqlFormatter {
         for when in &c.whens {
             s.push('\n');
             s.push_str(&Self::pad(indent + 1));
-            s.push_str(&format!(
-                "{} {} {}",
-                self.kw("WHEN"),
-                self.format_expr(&when.condition),
-                self.kw("THEN")
-            ));
+            s.push_str(&format!("{} {} {}", self.kw("WHEN"), self.format_expr(&when.condition), self.kw("THEN")));
             for stmt in &when.stmts {
                 s.push('\n');
                 s.push_str(&Self::pad(indent + 2));
@@ -684,12 +609,7 @@ impl SqlFormatter {
         } else {
             s.push_str(&Self::pad(indent));
         }
-        s.push_str(&format!(
-            "{} {} {}",
-            self.kw("WHILE"),
-            self.format_expr(&w.condition),
-            self.kw("LOOP")
-        ));
+        s.push_str(&format!("{} {} {}", self.kw("WHILE"), self.format_expr(&w.condition), self.kw("LOOP")));
         for stmt in &w.body {
             s.push('\n');
             s.push_str(&Self::pad(indent + 1));
@@ -712,27 +632,13 @@ impl SqlFormatter {
         } else {
             s.push_str(&Self::pad(indent));
         }
-        s.push_str(&format!(
-            "{} {} {} ",
-            self.kw("FOR"),
-            f.variable,
-            self.kw("IN")
-        ));
+        s.push_str(&format!("{} {} {} ", self.kw("FOR"), f.variable, self.kw("IN")));
         match &f.kind {
-            PlForKind::Range {
-                low,
-                high,
-                step,
-                reverse,
-            } => {
+            PlForKind::Range { low, high, step, reverse } => {
                 if *reverse {
                     s.push_str(&format!("{} ", self.kw("REVERSE")));
                 }
-                s.push_str(&format!(
-                    "{}..{}",
-                    self.format_expr(low),
-                    self.format_expr(high)
-                ));
+                s.push_str(&format!("{}..{}", self.format_expr(low), self.format_expr(high)));
                 if let Some(ref st) = step {
                     s.push_str(&format!(" {} {}", self.kw("BY"), self.format_expr(st)));
                 }
@@ -740,10 +646,7 @@ impl SqlFormatter {
             PlForKind::Query { query, .. } => {
                 s.push_str(query);
             }
-            PlForKind::Cursor {
-                cursor_name,
-                arguments,
-            } => {
+            PlForKind::Cursor { cursor_name, arguments } => {
                 s.push_str(&self.format_expr(cursor_name));
                 if !arguments.is_empty() {
                     let args: Vec<String> = arguments.iter().map(|a| self.format_expr(a)).collect();
@@ -826,11 +729,8 @@ impl SqlFormatter {
         }
         if !r.options.is_empty() {
             s.push_str(&format!(" {}", self.kw("USING")));
-            let opts: Vec<String> = r
-                .options
-                .iter()
-                .map(|o| format!("{} = {}", o.name, self.format_expr(&o.value)))
-                .collect();
+            let opts: Vec<String> =
+                r.options.iter().map(|o| format!("{} = {}", o.name, self.format_expr(&o.value))).collect();
             s.push_str(&format!(" {}", opts.join(", ")));
         }
         format!("{};", s)

@@ -1,50 +1,27 @@
 use crate::ast::{
-    ConflictAction, ConflictTarget, DeleteStatement, DmlPartitionClause, InsertAllCondition,
-    InsertAllStatement, InsertAllTarget, InsertFirstStatement, InsertSource, InsertStatement,
-    MergeAction, MergeStatement, MergeWhenClause, OnConflict, OnDuplicateKeyUpdate,
-    TablePartitionRef, TableRef, UpdateAssignment, UpdateStatement,
+    ConflictAction, ConflictTarget, DeleteStatement, DmlPartitionClause, InsertAllCondition, InsertAllStatement,
+    InsertAllTarget, InsertFirstStatement, InsertSource, InsertStatement, MergeAction, MergeStatement, MergeWhenClause,
+    OnConflict, OnDuplicateKeyUpdate, TablePartitionRef, TableRef, UpdateAssignment, UpdateStatement,
 };
 use crate::parser::{Parser, ParserError};
 use crate::token::keyword::Keyword;
-use crate::token::{SourceLocation, Token};
+use crate::token::Token;
 
 impl Parser {
     fn apply_dml_partition_to_table_ref(table: TableRef, dml: DmlPartitionClause) -> TableRef {
         match table {
-            TableRef::Table {
-                name,
-                alias,
-                column_aliases,
-                partition: _,
-                timecapsule,
-                tablesample,
-            } => {
+            TableRef::Table { name, alias, column_aliases, partition: _, timecapsule, tablesample } => {
                 let part = match dml {
-                    DmlPartitionClause::Partition(names) => TablePartitionRef {
-                        for_values: None,
-                        values: names,
-                    },
-                    DmlPartitionClause::Subpartition(names) => TablePartitionRef {
-                        for_values: None,
-                        values: names,
-                    },
-                    DmlPartitionClause::PartitionFor(exprs) => TablePartitionRef {
-                        for_values: Some(exprs),
-                        values: vec![],
-                    },
-                    DmlPartitionClause::SubpartitionFor(exprs) => TablePartitionRef {
-                        for_values: Some(exprs),
-                        values: vec![],
-                    },
+                    DmlPartitionClause::Partition(names) => TablePartitionRef { for_values: None, values: names },
+                    DmlPartitionClause::Subpartition(names) => TablePartitionRef { for_values: None, values: names },
+                    DmlPartitionClause::PartitionFor(exprs) => {
+                        TablePartitionRef { for_values: Some(exprs), values: vec![] }
+                    }
+                    DmlPartitionClause::SubpartitionFor(exprs) => {
+                        TablePartitionRef { for_values: Some(exprs), values: vec![] }
+                    }
                 };
-                TableRef::Table {
-                    name,
-                    alias,
-                    column_aliases,
-                    partition: Some(part),
-                    timecapsule,
-                    tablesample,
-                }
+                TableRef::Table { name, alias, column_aliases, partition: Some(part), timecapsule, tablesample }
             }
             other => other,
         }
@@ -89,10 +66,7 @@ impl Parser {
                 let col = self.parse_identifier()?;
                 self.expect_token(&Token::Eq)?;
                 let value = self.parse_expr()?;
-                assignments.push(crate::ast::UpdateAssignment {
-                    columns: vec![vec![col]],
-                    value,
-                });
+                assignments.push(crate::ast::UpdateAssignment { columns: vec![vec![col]], value });
                 if !self.match_token(&Token::Comma) {
                     break;
                 }
@@ -135,16 +109,8 @@ impl Parser {
             if let Ok(mut select) = self.parse_select_statement() {
                 if self.match_token(&Token::RParen) {
                     self.advance();
-                    if let Some(Token::Keyword(kw)) =
-                        self.tokens.get(self.pos).map(|tws| &tws.token)
-                    {
-                        if matches!(
-                            kw,
-                            Keyword::UNION
-                                | Keyword::INTERSECT
-                                | Keyword::EXCEPT
-                                | Keyword::MINUS_P
-                        ) {
+                    if let Some(Token::Keyword(kw)) = self.tokens.get(self.pos).map(|tws| &tws.token) {
+                        if matches!(kw, Keyword::UNION | Keyword::INTERSECT | Keyword::EXCEPT | Keyword::MINUS_P) {
                             self.add_error(ParserError::Warning {
                                 message: format!(
                                     "bracketed INSERT ... (SELECT ...) {} — consider removing parentheses around each SELECT branch for clarity",
@@ -211,10 +177,7 @@ impl Parser {
                 } else {
                     None
                 };
-                Some(OnDuplicateKeyUpdate {
-                    assignments,
-                    where_clause,
-                })
+                Some(OnDuplicateKeyUpdate { assignments, where_clause })
             } else if self.match_keyword(Keyword::CONFLICT) {
                 self.advance();
                 let target = if self.match_keyword(Keyword::ON) {
@@ -307,9 +270,7 @@ impl Parser {
         })
     }
 
-    pub(crate) fn parse_dml_partition(
-        &mut self,
-    ) -> Result<Option<DmlPartitionClause>, ParserError> {
+    pub(crate) fn parse_dml_partition(&mut self) -> Result<Option<DmlPartitionClause>, ParserError> {
         if self.match_keyword(Keyword::PARTITION) {
             self.advance();
             if self.match_keyword(Keyword::FOR) {
@@ -385,10 +346,7 @@ impl Parser {
                 let column = self.parse_object_name()?;
                 self.expect_token(&Token::Eq)?;
                 let value = self.parse_expr()?;
-                assignments.push(UpdateAssignment {
-                    columns: vec![column],
-                    value,
-                });
+                assignments.push(UpdateAssignment { columns: vec![column], value });
             }
             if !self.match_token(&Token::Comma) {
                 break;
@@ -551,13 +509,13 @@ impl Parser {
         let partition = self.parse_dml_partition()?;
         let target_alias = self.parse_optional_alias()?;
         let target = TableRef::Table {
-                    name: target_name,
-                    alias: target_alias,
-                    column_aliases: vec![],
-                    partition: None,
-                    timecapsule: None,
-                    tablesample: None,
-                };
+            name: target_name,
+            alias: target_alias,
+            column_aliases: vec![],
+            partition: None,
+            timecapsule: None,
+            tablesample: None,
+        };
         self.expect_keyword(Keyword::USING)?;
         let mut source = self.parse_table_ref()?;
         let source_partition = self.parse_dml_partition()?;
@@ -634,11 +592,7 @@ impl Parser {
             } else {
                 None
             };
-            when_clauses.push(MergeWhenClause {
-                matched,
-                action,
-                where_clause,
-            });
+            when_clauses.push(MergeWhenClause { matched, action, where_clause });
         }
         Ok(MergeStatement {
             hints: post_hints,
@@ -685,11 +639,7 @@ impl Parser {
             }
             self.advance();
         }
-        Ok(InsertAllTarget {
-            table,
-            columns,
-            values: all_rows,
-        })
+        Ok(InsertAllTarget { table, columns, values: all_rows })
     }
 
     pub(crate) fn parse_insert_all(&mut self) -> Result<InsertAllStatement, ParserError> {
@@ -706,10 +656,7 @@ impl Parser {
                 while self.match_keyword(Keyword::INTO) {
                     cond_targets.push(self.parse_insert_all_target()?);
                 }
-                conditions.push(InsertAllCondition {
-                    condition,
-                    targets: cond_targets,
-                });
+                conditions.push(InsertAllCondition { condition, targets: cond_targets });
             } else if self.match_keyword(Keyword::INTO) {
                 targets.push(self.parse_insert_all_target()?);
             } else if self.match_keyword(Keyword::ELSE) {
@@ -726,12 +673,7 @@ impl Parser {
 
         let source = Box::new(self.parse_select_statement()?);
 
-        Ok(InsertAllStatement {
-            targets,
-            conditions,
-            else_targets,
-            source,
-        })
+        Ok(InsertAllStatement { targets, conditions, else_targets, source })
     }
 
     pub(crate) fn parse_insert_first(&mut self) -> Result<InsertFirstStatement, ParserError> {
@@ -747,10 +689,7 @@ impl Parser {
                 while self.match_keyword(Keyword::INTO) {
                     cond_targets.push(self.parse_insert_all_target()?);
                 }
-                when_clauses.push(InsertAllCondition {
-                    condition,
-                    targets: cond_targets,
-                });
+                when_clauses.push(InsertAllCondition { condition, targets: cond_targets });
             } else if self.match_keyword(Keyword::ELSE) {
                 self.advance();
                 else_targets.push(self.parse_insert_all_target()?);
@@ -765,10 +704,6 @@ impl Parser {
 
         let source = Box::new(self.parse_select_statement()?);
 
-        Ok(InsertFirstStatement {
-            when_clauses,
-            else_targets,
-            source,
-        })
+        Ok(InsertFirstStatement { when_clauses, else_targets, source })
     }
 }

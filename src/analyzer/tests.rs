@@ -20,21 +20,12 @@ fn test_literal_assignment_to_execute() {
     assert_eq!(report.execute_findings.len(), 1);
     let finding = &report.execute_findings[0];
     assert_eq!(finding.expression_desc, "plsql_block");
-    assert_eq!(
-        finding.resolved_value.as_deref(),
-        Some("call calc_stats($1, $1, $2, $1)")
-    );
+    assert_eq!(finding.resolved_value.as_deref(), Some("call calc_stats($1, $1, $2, $1)"));
     assert!(finding.parsed_statement.is_some());
     match &finding.trace {
-        TraceChain::VariableCopy {
-            source_var,
-            source_chain,
-        } => {
+        TraceChain::VariableCopy { source_var, source_chain } => {
             assert_eq!(source_var, "plsql_block");
-            assert!(matches!(
-                source_chain.as_ref(),
-                TraceChain::LiteralAssignment { .. }
-            ));
+            assert!(matches!(source_chain.as_ref(), TraceChain::LiteralAssignment { .. }));
         }
         other => panic!("expected VariableCopy, got {:?}", other),
     }
@@ -49,10 +40,7 @@ fn test_variable_chain() {
     assert_eq!(finding.resolved_value.as_deref(), Some("SELECT 1"));
     assert!(finding.parsed_statement.is_some());
     match &finding.trace {
-        TraceChain::VariableCopy {
-            source_var,
-            source_chain,
-        } => {
+        TraceChain::VariableCopy { source_var, source_chain } => {
             assert_eq!(source_var, "b");
             match source_chain.as_ref() {
                 TraceChain::VariableCopy { source_var, .. } => {
@@ -73,25 +61,17 @@ fn test_concatenation() {
     let report = analyze_pl_block(&block);
     assert_eq!(report.execute_findings.len(), 1);
     let finding = &report.execute_findings[0];
-    assert_eq!(
-        finding.resolved_value.as_deref(),
-        Some("SELECT * FROM users")
-    );
+    assert_eq!(finding.resolved_value.as_deref(), Some("SELECT * FROM users"));
     assert!(finding.parsed_statement.is_some());
 }
 
 #[test]
 fn test_concat_with_literal_and_variable() {
-    let block = parse_block(
-        "DO $$ BEGIN tab := 'users'; EXECUTE IMMEDIATE 'SELECT * FROM ' || tab; END $$",
-    );
+    let block = parse_block("DO $$ BEGIN tab := 'users'; EXECUTE IMMEDIATE 'SELECT * FROM ' || tab; END $$");
     let report = analyze_pl_block(&block);
     assert_eq!(report.execute_findings.len(), 1);
     let finding = &report.execute_findings[0];
-    assert_eq!(
-        finding.resolved_value.as_deref(),
-        Some("SELECT * FROM users")
-    );
+    assert_eq!(finding.resolved_value.as_deref(), Some("SELECT * FROM users"));
     assert!(finding.parsed_statement.is_some());
 }
 
@@ -101,16 +81,13 @@ fn test_unknown_variable() {
     let report = analyze_pl_block(&block);
     assert_eq!(report.execute_findings.len(), 1);
     assert!(report.execute_findings[0].resolved_value.is_none());
-    assert!(matches!(
-        report.execute_findings[0].trace,
-        TraceChain::Unknown
-    ));
+    assert!(matches!(report.execute_findings[0].trace, TraceChain::Unknown));
 }
 
 #[test]
 fn test_assignment_in_if_branch() {
     let block = parse_block(
-        "DO $$ BEGIN IF true THEN sql_text := 'DROP TABLE temp'; END IF; EXECUTE IMMEDIATE sql_text; END $$"
+        "DO $$ BEGIN IF true THEN sql_text := 'DROP TABLE temp'; END IF; EXECUTE IMMEDIATE sql_text; END $$",
     );
     let report = analyze_pl_block(&block);
     assert_eq!(report.execute_findings.len(), 1);
@@ -120,46 +97,27 @@ fn test_assignment_in_if_branch() {
 
 #[test]
 fn test_multiple_executes() {
-    let block = parse_block(
-        "DO $$ BEGIN a := 'SELECT 1'; b := 'SELECT 2'; EXECUTE IMMEDIATE a; EXECUTE IMMEDIATE b; END $$"
-    );
+    let block =
+        parse_block("DO $$ BEGIN a := 'SELECT 1'; b := 'SELECT 2'; EXECUTE IMMEDIATE a; EXECUTE IMMEDIATE b; END $$");
     let report = analyze_pl_block(&block);
     assert_eq!(report.execute_findings.len(), 2);
-    assert_eq!(
-        report.execute_findings[0].resolved_value.as_deref(),
-        Some("SELECT 1")
-    );
-    assert_eq!(
-        report.execute_findings[1].resolved_value.as_deref(),
-        Some("SELECT 2")
-    );
+    assert_eq!(report.execute_findings[0].resolved_value.as_deref(), Some("SELECT 1"));
+    assert_eq!(report.execute_findings[1].resolved_value.as_deref(), Some("SELECT 2"));
 }
 
 #[test]
 fn test_variable_traces_recorded() {
-    let block = parse_block(
-        "DO $$ BEGIN x := 'hello'; y := x; z := y || ' world'; EXECUTE IMMEDIATE z; END $$",
-    );
+    let block = parse_block("DO $$ BEGIN x := 'hello'; y := x; z := y || ' world'; EXECUTE IMMEDIATE z; END $$");
     let report = analyze_pl_block(&block);
     assert!(report.variable_traces.len() >= 3);
-    assert!(report
-        .variable_traces
-        .iter()
-        .any(|t| t.variable_name == "x" && t.value == "hello"));
-    assert!(report
-        .variable_traces
-        .iter()
-        .any(|t| t.variable_name == "y" && t.value == "hello"));
-    assert!(report
-        .variable_traces
-        .iter()
-        .any(|t| t.variable_name == "z" && t.value == "hello world"));
+    assert!(report.variable_traces.iter().any(|t| t.variable_name == "x" && t.value == "hello"));
+    assert!(report.variable_traces.iter().any(|t| t.variable_name == "y" && t.value == "hello"));
+    assert!(report.variable_traces.iter().any(|t| t.variable_name == "z" && t.value == "hello world"));
 }
 
 #[test]
 fn test_nested_block_inner_scope() {
-    let block =
-        parse_block("DO $$ BEGIN BEGIN inner := 'SELECT 1'; END; EXECUTE IMMEDIATE inner; END $$");
+    let block = parse_block("DO $$ BEGIN BEGIN inner := 'SELECT 1'; END; EXECUTE IMMEDIATE inner; END $$");
     let report = analyze_pl_block(&block);
     assert_eq!(report.execute_findings.len(), 1);
     // inner scope variables don't leak to outer scope
@@ -186,9 +144,7 @@ fn test_statement_path_tracking() {
 
 #[test]
 fn test_for_loop_variable_in_scope() {
-    let block = parse_block(
-        "DO $$ BEGIN FOR rec IN 1..10 LOOP EXECUTE IMMEDIATE rec; END LOOP; END $$"
-    );
+    let block = parse_block("DO $$ BEGIN FOR rec IN 1..10 LOOP EXECUTE IMMEDIATE rec; END LOOP; END $$");
     let report = analyze_pl_block(&block);
     assert_eq!(report.execute_findings.len(), 1);
     // rec is declared in FOR scope but has no known string value
@@ -204,15 +160,11 @@ fn test_for_loop_variable_in_scope() {
 
 #[test]
 fn test_variable_no_default_in_scope() {
-    let block = parse_block(
-        "DO $$ DECLARE v_sql VARCHAR(100); BEGIN v_sql := 'SELECT 1'; EXECUTE IMMEDIATE v_sql; END $$"
-    );
+    let block =
+        parse_block("DO $$ DECLARE v_sql VARCHAR(100); BEGIN v_sql := 'SELECT 1'; EXECUTE IMMEDIATE v_sql; END $$");
     let report = analyze_pl_block(&block);
     assert_eq!(report.execute_findings.len(), 1);
-    assert_eq!(
-        report.execute_findings[0].resolved_value.as_deref(),
-        Some("SELECT 1")
-    );
+    assert_eq!(report.execute_findings[0].resolved_value.as_deref(), Some("SELECT 1"));
     match &report.execute_findings[0].trace {
         TraceChain::VariableCopy { source_var, .. } => {
             assert_eq!(source_var, "v_sql");
@@ -223,9 +175,7 @@ fn test_variable_no_default_in_scope() {
 
 #[test]
 fn test_cursor_declaration_in_scope() {
-    let block = parse_block(
-        "DO $$ DECLARE cur CURSOR FOR SELECT 1; BEGIN NULL; END $$"
-    );
+    let block = parse_block("DO $$ DECLARE cur CURSOR FOR SELECT 1; BEGIN NULL; END $$");
     // Cursor is registered in scope — no crash, no execute findings
     let report = analyze_pl_block(&block);
     assert_eq!(report.execute_findings.len(), 0);
@@ -234,7 +184,7 @@ fn test_cursor_declaration_in_scope() {
 #[test]
 fn test_foreach_loop_variable_in_scope() {
     let block = parse_block(
-        "DO $$ DECLARE arr INT[]; BEGIN FOREACH item IN ARRAY arr LOOP EXECUTE IMMEDIATE item; END LOOP; END $$"
+        "DO $$ DECLARE arr INT[]; BEGIN FOREACH item IN ARRAY arr LOOP EXECUTE IMMEDIATE item; END LOOP; END $$",
     );
     let report = analyze_pl_block(&block);
     assert_eq!(report.execute_findings.len(), 1);
@@ -249,16 +199,11 @@ fn test_foreach_loop_variable_in_scope() {
 
 #[test]
 fn test_for_loop_variable_does_not_leak() {
-    let block = parse_block(
-        "DO $$ BEGIN FOR rec IN 1..10 LOOP NULL; END LOOP; EXECUTE IMMEDIATE rec; END $$"
-    );
+    let block = parse_block("DO $$ BEGIN FOR rec IN 1..10 LOOP NULL; END LOOP; EXECUTE IMMEDIATE rec; END $$");
     let report = analyze_pl_block(&block);
     assert_eq!(report.execute_findings.len(), 1);
     assert!(report.execute_findings[0].resolved_value.is_none());
-    assert!(matches!(
-        report.execute_findings[0].trace,
-        TraceChain::Unknown
-    ));
+    assert!(matches!(report.execute_findings[0].trace, TraceChain::Unknown));
 }
 
 fn parse_proc_block(sql: &str) -> (crate::ast::plpgsql::PlBlock, Vec<(String, String, Option<String>)>) {
@@ -267,9 +212,8 @@ fn parse_proc_block(sql: &str) -> (crate::ast::plpgsql::PlBlock, Vec<(String, St
     if let Some(crate::ast::Statement::CreatePackageBody(pkg)) = stmts.into_iter().next() {
         for item in &pkg.node.items {
             if let crate::ast::PackageItem::Procedure(proc) = item {
-                let params: Vec<_> = proc.parameters.iter().map(|p| {
-                    (p.name.clone(), p.data_type.clone(), p.mode.clone())
-                }).collect();
+                let params: Vec<_> =
+                    proc.parameters.iter().map(|p| (p.name.clone(), p.data_type.clone(), p.mode.clone())).collect();
                 let block = proc.block.as_ref().expect("procedure should have block").clone();
                 return (block, params);
             }
@@ -287,7 +231,7 @@ fn test_ref_cursor_out_param_detected() {
     OPEN out_list FOR SELECT * FROM t_users WHERE accno = p_acnt;
   END prc_query;
 END PKG_TEST;
-/"#
+/"#,
     );
     let queries = find_ref_cursor_queries(&block, &params);
     assert_eq!(queries.len(), 1);
@@ -305,7 +249,7 @@ fn test_ref_cursor_not_matched_for_non_out() {
     OPEN cur FOR SELECT 1;
   END prc_query;
 END PKG_TEST;
-/"#
+/"#,
     );
     let queries = find_ref_cursor_queries(&block, &params);
     assert!(queries.is_empty());
@@ -322,7 +266,7 @@ fn test_ref_cursor_for_execute() {
     OPEN out_list FOR EXECUTE v_sql;
   END prc_query;
 END PKG_TEST;
-/"#
+/"#,
     );
     let queries = find_ref_cursor_queries(&block, &params);
     assert_eq!(queries.len(), 1);
@@ -339,7 +283,7 @@ fn test_no_ref_cursor_params() {
     NULL;
   END prc_query;
 END PKG_TEST;
-/"#
+/"#,
     );
     let queries = find_ref_cursor_queries(&block, &params);
     assert!(queries.is_empty());
@@ -352,9 +296,8 @@ fn parse_statements(sql: &str) -> Vec<crate::ast::Statement> {
 
 #[test]
 fn test_fingerprint_identical_queries() {
-    let stmts = parse_statements(
-        "SELECT * FROM t_users WHERE accno = 'admin'; SELECT * FROM t_users WHERE accno = 'admin'"
-    );
+    let stmts =
+        parse_statements("SELECT * FROM t_users WHERE accno = 'admin'; SELECT * FROM t_users WHERE accno = 'admin'");
     let fps = compute_query_fingerprints(&stmts);
     assert_eq!(fps.len(), 1, "identical queries should have same fingerprint");
     assert_eq!(fps[0].occurrences.len(), 2);
@@ -362,9 +305,7 @@ fn test_fingerprint_identical_queries() {
 
 #[test]
 fn test_fingerprint_different_queries() {
-    let stmts = parse_statements(
-        "SELECT * FROM t_users; SELECT * FROM t_orders"
-    );
+    let stmts = parse_statements("SELECT * FROM t_users; SELECT * FROM t_orders");
     let fps = compute_query_fingerprints(&stmts);
     assert_eq!(fps.len(), 2, "different queries should have different fingerprints");
 }
@@ -423,7 +364,8 @@ fn test_commit_splits_segments() {
 
 #[test]
 fn test_commit_and_rollback_three_segments() {
-    let block = parse_block("DO $$ BEGIN INSERT INTO t VALUES(1); COMMIT; DELETE FROM t; ROLLBACK; UPDATE t SET x = 1; END $$");
+    let block =
+        parse_block("DO $$ BEGIN INSERT INTO t VALUES(1); COMMIT; DELETE FROM t; ROLLBACK; UPDATE t SET x = 1; END $$");
     let report = analyze_transactions(&block);
     assert!(report.has_explicit_commit);
     assert!(report.has_explicit_rollback);
@@ -448,7 +390,7 @@ BEGIN
     END;
     DELETE FROM t;
 END;
-$$ LANGUAGE plpgsql"#
+$$ LANGUAGE plpgsql"#,
     );
     let report = analyze_transactions(&block);
     assert_eq!(report.transaction_segments.len(), 1);
@@ -470,7 +412,7 @@ BEGIN
     INSERT INTO t_log(id) VALUES(1);
     COMMIT;
 END;
-$$ LANGUAGE plpgsql"#
+$$ LANGUAGE plpgsql"#,
     );
     let report = analyze_transactions(&block);
     assert!(report.has_autonomous_transaction, "PRAGMA AUTONOMOUS_TRANSACTION should be detected");
@@ -498,9 +440,7 @@ fn test_template_extraction_concatenation() {
                     value: "SELECT * FROM t WHERE 1=1".to_string(),
                 }),
             },
-            TraceChain::LiteralAssignment {
-                value: " AND status = ".to_string(),
-            },
+            TraceChain::LiteralAssignment { value: " AND status = ".to_string() },
             TraceChain::VariableCopy {
                 source_var: "p_status".to_string(),
                 source_chain: Box::new(TraceChain::Unknown),
@@ -520,9 +460,7 @@ fn test_template_extraction_concatenation() {
 #[test]
 fn test_template_extraction_literal_only() {
     // Pure literal - no template needed
-    let trace = TraceChain::LiteralAssignment {
-        value: "SELECT 1".to_string(),
-    };
+    let trace = TraceChain::LiteralAssignment { value: "SELECT 1".to_string() };
     assert!(extract_template(&trace).is_none());
 }
 
@@ -536,12 +474,8 @@ fn test_template_extraction_unknown() {
 fn test_template_extraction_all_static_concat() {
     let trace = TraceChain::Concatenation {
         parts: vec![
-            TraceChain::LiteralAssignment {
-                value: "SELECT ".to_string(),
-            },
-            TraceChain::LiteralAssignment {
-                value: "1".to_string(),
-            },
+            TraceChain::LiteralAssignment { value: "SELECT ".to_string() },
+            TraceChain::LiteralAssignment { value: "1".to_string() },
         ],
     };
     assert!(extract_template(&trace).is_none());
@@ -582,10 +516,13 @@ END PKG_XML_MANAGE;
     let errors = validate_package_consistency(&stmts);
     assert!(!errors.is_empty(), "should detect default value mismatches");
 
-    let default_mismatches: Vec<_> = errors.iter()
-        .filter(|e| matches!(e.kind, PackageConsistencyErrorKind::DefaultMismatch { .. }))
-        .collect();
-    assert!(default_mismatches.len() >= 2, "should detect at least 2 default mismatches (p_i_retcode, p_i_retmsg), got {:?}", default_mismatches.len());
+    let default_mismatches: Vec<_> =
+        errors.iter().filter(|e| matches!(e.kind, PackageConsistencyErrorKind::DefaultMismatch { .. })).collect();
+    assert!(
+        default_mismatches.len() >= 2,
+        "should detect at least 2 default mismatches (p_i_retcode, p_i_retmsg), got {:?}",
+        default_mismatches.len()
+    );
 }
 
 #[test]
@@ -606,7 +543,8 @@ END pkg1;
 "#;
     let stmts = parse_stmts(sql);
     let errors = validate_package_consistency(&stmts);
-    let count_mismatch = errors.iter()
+    let count_mismatch = errors
+        .iter()
         .any(|e| matches!(e.kind, PackageConsistencyErrorKind::ParamCountMismatch { spec_count: 2, body_count: 3 }));
     assert!(count_mismatch, "should detect parameter count mismatch (2 vs 3)");
 }
@@ -630,8 +568,9 @@ END pkg2;
 "#;
     let stmts = parse_stmts(sql);
     let errors = validate_package_consistency(&stmts);
-    let missing = errors.iter()
-        .any(|e| matches!(e.kind, PackageConsistencyErrorKind::MissingInBody) && e.subprogram_name.contains("SET_NAME"));
+    let missing = errors.iter().any(|e| {
+        matches!(e.kind, PackageConsistencyErrorKind::MissingInBody) && e.subprogram_name.contains("SET_NAME")
+    });
     assert!(missing, "should detect set_name missing from body");
 }
 
@@ -657,8 +596,9 @@ END pkg3;
 "#;
     let stmts = parse_stmts(sql);
     let errors = validate_package_consistency(&stmts);
-    let extra = errors.iter()
-        .any(|e| matches!(e.kind, PackageConsistencyErrorKind::ExtraInBody) && e.subprogram_name.contains("HIDDEN_PROC"));
+    let extra = errors.iter().any(|e| {
+        matches!(e.kind, PackageConsistencyErrorKind::ExtraInBody) && e.subprogram_name.contains("HIDDEN_PROC")
+    });
     assert!(extra, "should detect hidden_proc as extra in body");
 }
 
@@ -714,8 +654,7 @@ END pkg6;
 "#;
     let stmts = parse_stmts(sql);
     let errors = validate_package_consistency(&stmts);
-    let default_diff = errors.iter()
-        .any(|e| matches!(e.kind, PackageConsistencyErrorKind::DefaultMismatch { .. }));
+    let default_diff = errors.iter().any(|e| matches!(e.kind, PackageConsistencyErrorKind::DefaultMismatch { .. }));
     assert!(default_diff, "should detect different default values");
 }
 
@@ -737,8 +676,7 @@ END pkg7;
 "#;
     let stmts = parse_stmts(sql);
     let errors = validate_package_consistency(&stmts);
-    let type_mismatch = errors.iter()
-        .any(|e| matches!(e.kind, PackageConsistencyErrorKind::TypeMismatch { .. }));
+    let type_mismatch = errors.iter().any(|e| matches!(e.kind, PackageConsistencyErrorKind::TypeMismatch { .. }));
     assert!(type_mismatch, "should detect type mismatch VARCHAR2 vs NUMBER");
 }
 
@@ -773,7 +711,7 @@ fn has_undefined(warnings: &[UndefinedVariableError], name: &str) -> bool {
 #[test]
 fn test_detect_undefined_var_in_execute() {
     let (block, params) = parse_proc_validate(
-        "CREATE OR REPLACE PROCEDURE test1 IS v_count INTEGER; BEGIN EXECUTE IMMEDIATE v_sql; END;"
+        "CREATE OR REPLACE PROCEDURE test1 IS v_count INTEGER; BEGIN EXECUTE IMMEDIATE v_sql; END;",
     );
     let warnings = validate_pl_variables(&block, &params);
     assert_eq!(warnings.len(), 1, "should detect exactly 1 undefined var, got: {:?}", warnings);
@@ -784,7 +722,7 @@ fn test_detect_undefined_var_in_execute() {
 #[test]
 fn test_no_warning_for_declared_var_in_execute() {
     let (block, params) = parse_proc_validate(
-        "CREATE OR REPLACE PROCEDURE test2 IS v_sql VARCHAR2(4000); BEGIN EXECUTE IMMEDIATE v_sql; END;"
+        "CREATE OR REPLACE PROCEDURE test2 IS v_sql VARCHAR2(4000); BEGIN EXECUTE IMMEDIATE v_sql; END;",
     );
     let warnings = validate_pl_variables(&block, &params);
     assert!(warnings.is_empty(), "declared variable should not warn, got: {:?}", warnings);
@@ -801,18 +739,15 @@ fn test_no_warning_for_param_in_execute_using() {
 
 #[test]
 fn test_no_warning_for_builtin_systimestamp() {
-    let (block, params) = parse_proc_validate(
-        "CREATE OR REPLACE PROCEDURE test4 IS v_ts TIMESTAMP; BEGIN v_ts := SYSTIMESTAMP; END;"
-    );
+    let (block, params) =
+        parse_proc_validate("CREATE OR REPLACE PROCEDURE test4 IS v_ts TIMESTAMP; BEGIN v_ts := SYSTIMESTAMP; END;");
     let warnings = validate_pl_variables(&block, &params);
     assert!(warnings.is_empty(), "SYSTIMESTAMP is a built-in, got: {:?}", warnings);
 }
 
 #[test]
 fn test_no_warning_for_sql_column_ref() {
-    let block = parse_do_validate(
-        "DO $$ BEGIN SELECT name FROM users WHERE id = 1; END $$"
-    );
+    let block = parse_do_validate("DO $$ BEGIN SELECT name FROM users WHERE id = 1; END $$");
     let warnings = validate_pl_variables(&block, &[]);
     assert!(!has_undefined(&warnings, "name"), "SQL column 'name' should not be flagged");
     assert!(!has_undefined(&warnings, "id"), "SQL column 'id' should not be flagged");
@@ -820,9 +755,7 @@ fn test_no_warning_for_sql_column_ref() {
 
 #[test]
 fn test_detect_undefined_in_assignment_target() {
-    let (block, params) = parse_proc_validate(
-        "CREATE OR REPLACE PROCEDURE test5 IS BEGIN v_result := 42; END;"
-    );
+    let (block, params) = parse_proc_validate("CREATE OR REPLACE PROCEDURE test5 IS BEGIN v_result := 42; END;");
     let warnings = validate_pl_variables(&block, &params);
     assert_eq!(warnings.len(), 1);
     assert!(has_undefined(&warnings, "v_result"));
@@ -831,9 +764,8 @@ fn test_detect_undefined_in_assignment_target() {
 
 #[test]
 fn test_detect_undefined_in_if_condition() {
-    let (block, params) = parse_proc_validate(
-        "CREATE OR REPLACE PROCEDURE test6 IS BEGIN IF v_flag THEN NULL; END IF; END;"
-    );
+    let (block, params) =
+        parse_proc_validate("CREATE OR REPLACE PROCEDURE test6 IS BEGIN IF v_flag THEN NULL; END IF; END;");
     let warnings = validate_pl_variables(&block, &params);
     assert_eq!(warnings.len(), 1);
     assert!(has_undefined(&warnings, "v_flag"));
@@ -842,9 +774,8 @@ fn test_detect_undefined_in_if_condition() {
 
 #[test]
 fn test_detect_undefined_in_while_condition() {
-    let (block, params) = parse_proc_validate(
-        "CREATE OR REPLACE PROCEDURE test7 IS BEGIN WHILE v_running LOOP NULL; END LOOP; END;"
-    );
+    let (block, params) =
+        parse_proc_validate("CREATE OR REPLACE PROCEDURE test7 IS BEGIN WHILE v_running LOOP NULL; END LOOP; END;");
     let warnings = validate_pl_variables(&block, &params);
     assert_eq!(warnings.len(), 1);
     assert!(has_undefined(&warnings, "v_running"));
@@ -853,7 +784,7 @@ fn test_detect_undefined_in_while_condition() {
 #[test]
 fn test_detect_undefined_in_concat_expression() {
     let (block, params) = parse_proc_validate(
-        "CREATE OR REPLACE PROCEDURE test8 IS v_sql VARCHAR2(4000); BEGIN v_sql := 'SELECT * FROM ' || v_table; END;"
+        "CREATE OR REPLACE PROCEDURE test8 IS v_sql VARCHAR2(4000); BEGIN v_sql := 'SELECT * FROM ' || v_table; END;",
     );
     let warnings = validate_pl_variables(&block, &params);
     assert_eq!(warnings.len(), 1);
@@ -862,9 +793,8 @@ fn test_detect_undefined_in_concat_expression() {
 
 #[test]
 fn test_no_warning_for_for_loop_variable() {
-    let (block, params) = parse_proc_validate(
-        "CREATE OR REPLACE PROCEDURE test9 IS BEGIN FOR i IN 1..10 LOOP NULL; END LOOP; END;"
-    );
+    let (block, params) =
+        parse_proc_validate("CREATE OR REPLACE PROCEDURE test9 IS BEGIN FOR i IN 1..10 LOOP NULL; END LOOP; END;");
     let warnings = validate_pl_variables(&block, &params);
     assert!(warnings.is_empty(), "FOR loop variable should be in scope, got: {:?}", warnings);
 }
@@ -872,7 +802,7 @@ fn test_no_warning_for_for_loop_variable() {
 #[test]
 fn test_no_warning_for_nested_block_vars() {
     let (block, params) = parse_proc_validate(
-        "CREATE OR REPLACE PROCEDURE test10 IS BEGIN DECLARE v_inner INTEGER; BEGIN v_inner := 1; END; END;"
+        "CREATE OR REPLACE PROCEDURE test10 IS BEGIN DECLARE v_inner INTEGER; BEGIN v_inner := 1; END; END;",
     );
     let warnings = validate_pl_variables(&block, &params);
     assert!(warnings.is_empty(), "nested block variable should be in scope, got: {:?}", warnings);
@@ -880,9 +810,8 @@ fn test_no_warning_for_nested_block_vars() {
 
 #[test]
 fn test_detect_undefined_in_raise_params() {
-    let (block, params) = parse_proc_validate(
-        "CREATE OR REPLACE PROCEDURE test11 IS BEGIN RAISE NOTICE 'val=%', v_val; END;"
-    );
+    let (block, params) =
+        parse_proc_validate("CREATE OR REPLACE PROCEDURE test11 IS BEGIN RAISE NOTICE 'val=%', v_val; END;");
     let warnings = validate_pl_variables(&block, &params);
     assert_eq!(warnings.len(), 1);
     assert!(has_undefined(&warnings, "v_val"));
@@ -890,9 +819,8 @@ fn test_detect_undefined_in_raise_params() {
 
 #[test]
 fn test_no_warning_for_perform_sql() {
-    let (block, params) = parse_proc_validate(
-        "CREATE OR REPLACE PROCEDURE test12 IS BEGIN PERFORM name FROM users WHERE id = 1; END;"
-    );
+    let (block, params) =
+        parse_proc_validate("CREATE OR REPLACE PROCEDURE test12 IS BEGIN PERFORM name FROM users WHERE id = 1; END;");
     let warnings = validate_pl_variables(&block, &params);
     assert!(warnings.is_empty(), "PERFORM SQL columns should not be flagged, got: {:?}", warnings);
 }
@@ -903,8 +831,11 @@ fn test_agg_from_alias_not_undefined() {
         "CREATE OR REPLACE PROCEDURE test_agg_from IS v_n INTEGER; v_result FLOAT8; BEGIN v_result := SUM(p_spectrum(i) FROM generate_series(1, v_n) AS i); END;"
     );
     let warnings = validate_pl_variables(&block, &params);
-    assert!(warnings.iter().all(|w| w.variable_name != "i"),
-        "agg FROM alias 'i' should not be flagged as undefined, got: {:?}", warnings);
+    assert!(
+        warnings.iter().all(|w| w.variable_name != "i"),
+        "agg FROM alias 'i' should not be flagged as undefined, got: {:?}",
+        warnings
+    );
 }
 
 #[test]
@@ -923,14 +854,17 @@ fn test_agg_from_detects_undefined_in_args() {
 fn parse_merge_stmts(sql: &str) -> Vec<crate::ast::StatementInfo> {
     let tokens = crate::Tokenizer::new(sql).tokenize().unwrap();
     let stmts = Parser::new(tokens).parse();
-    stmts.iter().map(|s| crate::ast::StatementInfo {
-        sql_text: sql.to_string(),
-        start_line: 1,
-        start_col: 1,
-        end_line: 1,
-        end_col: sql.len(),
-        statement: s.clone(),
-    }).collect()
+    stmts
+        .iter()
+        .map(|s| crate::ast::StatementInfo {
+            sql_text: sql.to_string(),
+            start_line: 1,
+            start_col: 1,
+            end_line: 1,
+            end_col: sql.len(),
+            statement: s.clone(),
+        })
+        .collect()
 }
 
 #[test]
@@ -947,8 +881,11 @@ fn test_merge_on_column_updated() {
     let sql = "MERGE INTO emp_bonus tgt USING (SELECT emp_id, base_salary FROM employees) src ON (tgt.emp_id = src.emp_id AND tgt.calc_method = 'MERGE_UPDATE') WHEN MATCHED THEN UPDATE SET bonus_amount = src.base_salary, calc_method = 'UPDATED' WHEN NOT MATCHED THEN INSERT (bonus_id, emp_id) VALUES (nextval('seq_bonus'), src.emp_id)";
     let infos = parse_merge_stmts(sql);
     let errors = super::validate_merge_semantics(&infos);
-    assert!(errors.iter().any(|e| e.kind == super::MergeSemanticErrorKind::OnColumnUpdated),
-        "Expected OnColumnUpdated error, got: {:?}", errors);
+    assert!(
+        errors.iter().any(|e| e.kind == super::MergeSemanticErrorKind::OnColumnUpdated),
+        "Expected OnColumnUpdated error, got: {:?}",
+        errors
+    );
 }
 
 #[test]
@@ -956,8 +893,11 @@ fn test_merge_dual_table_not_supported() {
     let sql = "MERGE INTO employees tgt USING (SELECT 1070 AS emp_id, 'MergeNew' AS name FROM DUAL) src ON (tgt.emp_id = src.emp_id) WHEN NOT MATCHED THEN INSERT (emp_id, emp_name) VALUES (src.emp_id, src.name)";
     let infos = parse_merge_stmts(sql);
     let errors = super::validate_merge_semantics(&infos);
-    assert!(errors.iter().any(|e| e.kind == super::MergeSemanticErrorKind::DualTableNotSupported),
-        "Expected DualTableNotSupported error, got: {:?}", errors);
+    assert!(
+        errors.iter().any(|e| e.kind == super::MergeSemanticErrorKind::DualTableNotSupported),
+        "Expected DualTableNotSupported error, got: {:?}",
+        errors
+    );
 }
 
 #[test]
@@ -973,8 +913,11 @@ fn test_merge_on_column_updated_unqualified() {
     let sql = "MERGE INTO salary_history h USING (SELECT emp_id, base_salary FROM employees) e ON (h.emp_id = e.emp_id AND h.change_date >= CURRENT_DATE) WHEN MATCHED THEN UPDATE SET old_salary = h.new_salary, new_salary = e.base_salary, change_date = CURRENT_TIMESTAMP";
     let infos = parse_merge_stmts(sql);
     let errors = super::validate_merge_semantics(&infos);
-    assert!(errors.iter().any(|e| e.kind == super::MergeSemanticErrorKind::OnColumnUpdated),
-        "Expected OnColumnUpdated for change_date, got: {:?}", errors);
+    assert!(
+        errors.iter().any(|e| e.kind == super::MergeSemanticErrorKind::OnColumnUpdated),
+        "Expected OnColumnUpdated for change_date, got: {:?}",
+        errors
+    );
 }
 
 #[test]
@@ -982,8 +925,11 @@ fn test_merge_dual_case_insensitive() {
     let sql = "MERGE INTO t1 tgt USING (SELECT 1 AS id FROM dual) src ON (tgt.id = src.id) WHEN NOT MATCHED THEN INSERT (id) VALUES (src.id)";
     let infos = parse_merge_stmts(sql);
     let errors = super::validate_merge_semantics(&infos);
-    assert!(errors.iter().any(|e| e.kind == super::MergeSemanticErrorKind::DualTableNotSupported),
-        "Expected DualTableNotSupported for lowercase 'dual', got: {:?}", errors);
+    assert!(
+        errors.iter().any(|e| e.kind == super::MergeSemanticErrorKind::DualTableNotSupported),
+        "Expected DualTableNotSupported for lowercase 'dual', got: {:?}",
+        errors
+    );
 }
 
 #[test]
@@ -991,11 +937,17 @@ fn test_merge_delete_inside_procedure() {
     let sql = "CREATE OR REPLACE PROCEDURE test_merge IS BEGIN MERGE INTO emp_performance tgt USING (SELECT emp_id FROM employees WHERE base_salary < 7000) src ON (tgt.emp_id = src.emp_id) WHEN MATCHED THEN DELETE; END;";
     let tokens = crate::Tokenizer::new(sql).tokenize().unwrap();
     let stmts = Parser::new(tokens).parse();
-    let infos: Vec<crate::ast::StatementInfo> = stmts.iter().map(|s| crate::ast::StatementInfo {
-        sql_text: sql.to_string(),
-        start_line: 1, start_col: 1, end_line: 1, end_col: sql.len(),
-        statement: s.clone(),
-    }).collect();
+    let infos: Vec<crate::ast::StatementInfo> = stmts
+        .iter()
+        .map(|s| crate::ast::StatementInfo {
+            sql_text: sql.to_string(),
+            start_line: 1,
+            start_col: 1,
+            end_line: 1,
+            end_col: sql.len(),
+            statement: s.clone(),
+        })
+        .collect();
     let errors = super::validate_merge_semantics(&infos);
     assert_eq!(errors.len(), 1, "Expected 1 DeleteNotSupported error for MERGE inside procedure, got: {:?}", errors);
     assert_eq!(errors[0].kind, super::MergeSemanticErrorKind::DeleteNotSupported);
@@ -1014,11 +966,17 @@ fn test_merge_delete_inside_package_body() {
     END pkg_test;"#;
     let tokens = crate::Tokenizer::new(sql).tokenize().unwrap();
     let stmts = Parser::new(tokens).parse();
-    let infos: Vec<crate::ast::StatementInfo> = stmts.iter().map(|s| crate::ast::StatementInfo {
-        sql_text: sql.to_string(),
-        start_line: 1, start_col: 1, end_line: 1, end_col: sql.len(),
-        statement: s.clone(),
-    }).collect();
+    let infos: Vec<crate::ast::StatementInfo> = stmts
+        .iter()
+        .map(|s| crate::ast::StatementInfo {
+            sql_text: sql.to_string(),
+            start_line: 1,
+            start_col: 1,
+            end_line: 1,
+            end_col: sql.len(),
+            statement: s.clone(),
+        })
+        .collect();
     let errors = super::validate_merge_semantics(&infos);
     assert_eq!(errors.len(), 1, "Expected 1 DeleteNotSupported error for MERGE inside package body, got: {:?}", errors);
     assert_eq!(errors[0].kind, super::MergeSemanticErrorKind::DeleteNotSupported);
@@ -1029,18 +987,14 @@ fn test_merge_delete_inside_package_body() {
 #[test]
 fn test_strict_mode_detects_undefined_function() {
     let (block, params) = parse_proc_validate(
-        "CREATE OR REPLACE PROCEDURE test_strict1 IS result INTEGER; BEGIN result := unknown_func(1); END;"
+        "CREATE OR REPLACE PROCEDURE test_strict1 IS result INTEGER; BEGIN result := unknown_func(1); END;",
     );
     let non_strict = super::validate_pl_variables_with_extra_vars_and_funcs(&block, &params, &[], &[], false);
-    let func_errors: Vec<_> = non_strict.iter()
-        .filter(|e| e.kind == super::UndefinedRefKind::Function)
-        .collect();
+    let func_errors: Vec<_> = non_strict.iter().filter(|e| e.kind == super::UndefinedRefKind::Function).collect();
     assert!(func_errors.is_empty(), "non-strict should not flag function calls: {:?}", func_errors);
 
     let strict = super::validate_pl_variables_with_extra_vars_and_funcs(&block, &params, &[], &[], true);
-    let func_errors: Vec<_> = strict.iter()
-        .filter(|e| e.kind == super::UndefinedRefKind::Function)
-        .collect();
+    let func_errors: Vec<_> = strict.iter().filter(|e| e.kind == super::UndefinedRefKind::Function).collect();
     assert!(!func_errors.is_empty(), "strict mode should flag unknown_func");
     assert_eq!(func_errors[0].variable_name, "unknown_func");
 }
@@ -1048,48 +1002,40 @@ fn test_strict_mode_detects_undefined_function() {
 #[test]
 fn test_strict_mode_allows_known_functions() {
     let (block, params) = parse_proc_validate(
-        "CREATE OR REPLACE PROCEDURE test_strict2 IS result INTEGER; BEGIN result := abs(-5); END;"
+        "CREATE OR REPLACE PROCEDURE test_strict2 IS result INTEGER; BEGIN result := abs(-5); END;",
     );
     let strict = super::validate_pl_variables_with_extra_vars_and_funcs(&block, &params, &[], &[], true);
-    let func_errors: Vec<_> = strict.iter()
-        .filter(|e| e.kind == super::UndefinedRefKind::Function)
-        .collect();
+    let func_errors: Vec<_> = strict.iter().filter(|e| e.kind == super::UndefinedRefKind::Function).collect();
     assert!(func_errors.is_empty(), "known functions should not be flagged: {:?}", func_errors);
 }
 
 #[test]
 fn test_strict_mode_allows_user_defined_functions() {
     let (block, params) = parse_proc_validate(
-        "CREATE OR REPLACE PROCEDURE test_strict3 IS result INTEGER; BEGIN result := my_custom_func(1); END;"
+        "CREATE OR REPLACE PROCEDURE test_strict3 IS result INTEGER; BEGIN result := my_custom_func(1); END;",
     );
-    let strict = super::validate_pl_variables_with_extra_vars_and_funcs(&block, &params, &[], &["my_custom_func"], true);
-    let func_errors: Vec<_> = strict.iter()
-        .filter(|e| e.kind == super::UndefinedRefKind::Function)
-        .collect();
+    let strict =
+        super::validate_pl_variables_with_extra_vars_and_funcs(&block, &params, &[], &["my_custom_func"], true);
+    let func_errors: Vec<_> = strict.iter().filter(|e| e.kind == super::UndefinedRefKind::Function).collect();
     assert!(func_errors.is_empty(), "user-defined functions should not be flagged: {:?}", func_errors);
 }
 
 #[test]
 fn test_strict_mode_allows_pl_builtins() {
-    let (block, params) = parse_proc_validate(
-        "CREATE OR REPLACE PROCEDURE test_strict4 IS v_ts TIMESTAMP; BEGIN v_ts := SYSDATE; END;"
-    );
+    let (block, params) =
+        parse_proc_validate("CREATE OR REPLACE PROCEDURE test_strict4 IS v_ts TIMESTAMP; BEGIN v_ts := SYSDATE; END;");
     let strict = super::validate_pl_variables_with_extra_vars_and_funcs(&block, &params, &[], &[], true);
-    let func_errors: Vec<_> = strict.iter()
-        .filter(|e| e.kind == super::UndefinedRefKind::Function)
-        .collect();
+    let func_errors: Vec<_> = strict.iter().filter(|e| e.kind == super::UndefinedRefKind::Function).collect();
     assert!(func_errors.is_empty(), "PL builtins should not be flagged: {:?}", func_errors);
 }
 
 #[test]
 fn test_strict_mode_flags_in_if_condition() {
     let (block, params) = parse_proc_validate(
-        "CREATE OR REPLACE PROCEDURE test_strict5 IS BEGIN IF some_condition(i, j) THEN NULL; END IF; END;"
+        "CREATE OR REPLACE PROCEDURE test_strict5 IS BEGIN IF some_condition(i, j) THEN NULL; END IF; END;",
     );
     let strict = super::validate_pl_variables_with_extra_vars_and_funcs(&block, &params, &[], &[], true);
-    let func_errors: Vec<_> = strict.iter()
-        .filter(|e| e.kind == super::UndefinedRefKind::Function)
-        .collect();
+    let func_errors: Vec<_> = strict.iter().filter(|e| e.kind == super::UndefinedRefKind::Function).collect();
     assert!(!func_errors.is_empty(), "strict mode should flag unknown function in IF condition");
     assert_eq!(func_errors[0].variable_name, "some_condition");
 }
@@ -1097,12 +1043,10 @@ fn test_strict_mode_flags_in_if_condition() {
 #[test]
 fn test_strict_mode_allows_declared_var_as_subscript() {
     let (block, params) = parse_proc_validate(
-        "CREATE OR REPLACE PROCEDURE test_subscript IS v_arr INTEGER; result INTEGER; BEGIN result := v_arr(1); END;"
+        "CREATE OR REPLACE PROCEDURE test_subscript IS v_arr INTEGER; result INTEGER; BEGIN result := v_arr(1); END;",
     );
     let strict = super::validate_pl_variables_with_extra_vars_and_funcs(&block, &params, &[], &[], true);
-    let func_errors: Vec<_> = strict.iter()
-        .filter(|e| e.kind == super::UndefinedRefKind::Function)
-        .collect();
+    let func_errors: Vec<_> = strict.iter().filter(|e| e.kind == super::UndefinedRefKind::Function).collect();
     assert!(func_errors.is_empty(), "declared variable used as subscript should not be flagged: {:?}", func_errors);
 }
 
@@ -1112,8 +1056,6 @@ fn test_strict_mode_allows_param_as_subscript() {
         "CREATE OR REPLACE PROCEDURE test_param_subscript(p_arr IN INTEGER) IS result INTEGER; BEGIN result := p_arr(1); END;"
     );
     let strict = super::validate_pl_variables_with_extra_vars_and_funcs(&block, &params, &[], &[], true);
-    let func_errors: Vec<_> = strict.iter()
-        .filter(|e| e.kind == super::UndefinedRefKind::Function)
-        .collect();
+    let func_errors: Vec<_> = strict.iter().filter(|e| e.kind == super::UndefinedRefKind::Function).collect();
     assert!(func_errors.is_empty(), "parameter used as subscript should not be flagged: {:?}", func_errors);
 }

@@ -110,285 +110,275 @@ pub fn walk_pl_block(visitor: &mut dyn Visitor, block: &crate::ast::plpgsql::PlB
 pub fn walk_pl_statement(visitor: &mut dyn Visitor, stmt: &crate::ast::plpgsql::PlStatement) -> VisitorResult {
     let result = visitor.visit_pl_statement(stmt);
     match result {
-        VisitorResult::Continue => {
-            match stmt {
-                crate::ast::plpgsql::PlStatement::Block(block) => {
-                    walk_pl_block(visitor, block)
+        VisitorResult::Continue => match stmt {
+            crate::ast::plpgsql::PlStatement::Block(block) => walk_pl_block(visitor, block),
+            crate::ast::plpgsql::PlStatement::Assignment { target, expression } => {
+                if walk_expr(visitor, target) == VisitorResult::Stop {
+                    return VisitorResult::Stop;
                 }
-                crate::ast::plpgsql::PlStatement::Assignment { target, expression } => {
+                walk_expr(visitor, expression)
+            }
+            crate::ast::plpgsql::PlStatement::If(if_stmt) => {
+                if walk_expr(visitor, &if_stmt.condition) == VisitorResult::Stop {
+                    return VisitorResult::Stop;
+                }
+                for stmt in &if_stmt.then_stmts {
+                    if walk_pl_statement(visitor, stmt) == VisitorResult::Stop {
+                        return VisitorResult::Stop;
+                    }
+                }
+                for elsif in &if_stmt.elsifs {
+                    if walk_expr(visitor, &elsif.condition) == VisitorResult::Stop {
+                        return VisitorResult::Stop;
+                    }
+                    for stmt in &elsif.stmts {
+                        if walk_pl_statement(visitor, stmt) == VisitorResult::Stop {
+                            return VisitorResult::Stop;
+                        }
+                    }
+                }
+                for stmt in &if_stmt.else_stmts {
+                    if walk_pl_statement(visitor, stmt) == VisitorResult::Stop {
+                        return VisitorResult::Stop;
+                    }
+                }
+                VisitorResult::Continue
+            }
+            crate::ast::plpgsql::PlStatement::Case(case_stmt) => {
+                if let Some(ref expr) = case_stmt.expression {
+                    if walk_expr(visitor, expr) == VisitorResult::Stop {
+                        return VisitorResult::Stop;
+                    }
+                }
+                for when in &case_stmt.whens {
+                    if walk_expr(visitor, &when.condition) == VisitorResult::Stop {
+                        return VisitorResult::Stop;
+                    }
+                    for stmt in &when.stmts {
+                        if walk_pl_statement(visitor, stmt) == VisitorResult::Stop {
+                            return VisitorResult::Stop;
+                        }
+                    }
+                }
+                for stmt in &case_stmt.else_stmts {
+                    if walk_pl_statement(visitor, stmt) == VisitorResult::Stop {
+                        return VisitorResult::Stop;
+                    }
+                }
+                VisitorResult::Continue
+            }
+            crate::ast::plpgsql::PlStatement::Loop(loop_stmt) => {
+                for stmt in &loop_stmt.body {
+                    if walk_pl_statement(visitor, stmt) == VisitorResult::Stop {
+                        return VisitorResult::Stop;
+                    }
+                }
+                VisitorResult::Continue
+            }
+            crate::ast::plpgsql::PlStatement::While(while_stmt) => {
+                if walk_expr(visitor, &while_stmt.condition) == VisitorResult::Stop {
+                    return VisitorResult::Stop;
+                }
+                for stmt in &while_stmt.body {
+                    if walk_pl_statement(visitor, stmt) == VisitorResult::Stop {
+                        return VisitorResult::Stop;
+                    }
+                }
+                VisitorResult::Continue
+            }
+            crate::ast::plpgsql::PlStatement::For(for_stmt) => {
+                match &for_stmt.kind {
+                    crate::ast::plpgsql::PlForKind::Range { low, high, step, .. } => {
+                        if walk_expr(visitor, low) == VisitorResult::Stop {
+                            return VisitorResult::Stop;
+                        }
+                        if walk_expr(visitor, high) == VisitorResult::Stop {
+                            return VisitorResult::Stop;
+                        }
+                        if let Some(step) = step {
+                            if walk_expr(visitor, step) == VisitorResult::Stop {
+                                return VisitorResult::Stop;
+                            }
+                        }
+                    }
+                    crate::ast::plpgsql::PlForKind::Query { parsed_query, using_args, .. } => {
+                        if let Some(ref query) = parsed_query {
+                            if walk_statement(visitor, query) == VisitorResult::Stop {
+                                return VisitorResult::Stop;
+                            }
+                        }
+                        for arg in using_args {
+                            if walk_expr(visitor, &arg.argument) == VisitorResult::Stop {
+                                return VisitorResult::Stop;
+                            }
+                        }
+                    }
+                    crate::ast::plpgsql::PlForKind::Cursor { cursor_name, arguments } => {
+                        if walk_expr(visitor, cursor_name) == VisitorResult::Stop {
+                            return VisitorResult::Stop;
+                        }
+                        for arg in arguments {
+                            if walk_expr(visitor, arg) == VisitorResult::Stop {
+                                return VisitorResult::Stop;
+                            }
+                        }
+                    }
+                }
+                for stmt in &for_stmt.body {
+                    if walk_pl_statement(visitor, stmt) == VisitorResult::Stop {
+                        return VisitorResult::Stop;
+                    }
+                }
+                VisitorResult::Continue
+            }
+            crate::ast::plpgsql::PlStatement::ForEach(foreach_stmt) => {
+                if walk_expr(visitor, &foreach_stmt.expression) == VisitorResult::Stop {
+                    return VisitorResult::Stop;
+                }
+                for stmt in &foreach_stmt.body {
+                    if walk_pl_statement(visitor, stmt) == VisitorResult::Stop {
+                        return VisitorResult::Stop;
+                    }
+                }
+                VisitorResult::Continue
+            }
+            crate::ast::plpgsql::PlStatement::Exit { condition, .. }
+            | crate::ast::plpgsql::PlStatement::Continue { condition, .. } => {
+                if let Some(ref condition) = condition {
+                    if walk_expr(visitor, condition) == VisitorResult::Stop {
+                        return VisitorResult::Stop;
+                    }
+                }
+                VisitorResult::Continue
+            }
+            crate::ast::plpgsql::PlStatement::Return { expression } => {
+                if let Some(ref expression) = expression {
+                    if walk_expr(visitor, expression) == VisitorResult::Stop {
+                        return VisitorResult::Stop;
+                    }
+                }
+                VisitorResult::Continue
+            }
+            crate::ast::plpgsql::PlStatement::ReturnNext { expression } => walk_expr(visitor, expression),
+            crate::ast::plpgsql::PlStatement::ReturnQuery(return_query) => {
+                if let Some(ref dynamic_expr) = return_query.dynamic_expr {
+                    if walk_expr(visitor, dynamic_expr) == VisitorResult::Stop {
+                        return VisitorResult::Stop;
+                    }
+                }
+                for arg in &return_query.using_args {
+                    if walk_expr(visitor, &arg.argument) == VisitorResult::Stop {
+                        return VisitorResult::Stop;
+                    }
+                }
+                VisitorResult::Continue
+            }
+            crate::ast::plpgsql::PlStatement::Raise(raise_stmt) => {
+                for param in &raise_stmt.params {
+                    if walk_expr(visitor, param) == VisitorResult::Stop {
+                        return VisitorResult::Stop;
+                    }
+                }
+                for option in &raise_stmt.options {
+                    if walk_expr(visitor, &option.value) == VisitorResult::Stop {
+                        return VisitorResult::Stop;
+                    }
+                }
+                VisitorResult::Continue
+            }
+            crate::ast::plpgsql::PlStatement::Execute(execute_stmt) => {
+                if walk_expr(visitor, &execute_stmt.string_expr) == VisitorResult::Stop {
+                    return VisitorResult::Stop;
+                }
+                for target in &execute_stmt.into_targets {
                     if walk_expr(visitor, target) == VisitorResult::Stop {
                         return VisitorResult::Stop;
                     }
-                    walk_expr(visitor, expression)
                 }
-                crate::ast::plpgsql::PlStatement::If(if_stmt) => {
-                    if walk_expr(visitor, &if_stmt.condition) == VisitorResult::Stop {
+                for arg in &execute_stmt.using_args {
+                    if walk_expr(visitor, &arg.argument) == VisitorResult::Stop {
                         return VisitorResult::Stop;
                     }
-                    for stmt in &if_stmt.then_stmts {
-                        if walk_pl_statement(visitor, stmt) == VisitorResult::Stop {
-                            return VisitorResult::Stop;
-                        }
-                    }
-                    for elsif in &if_stmt.elsifs {
-                        if walk_expr(visitor, &elsif.condition) == VisitorResult::Stop {
-                            return VisitorResult::Stop;
-                        }
-                        for stmt in &elsif.stmts {
-                            if walk_pl_statement(visitor, stmt) == VisitorResult::Stop {
-                                return VisitorResult::Stop;
-                            }
-                        }
-                    }
-                    for stmt in &if_stmt.else_stmts {
-                        if walk_pl_statement(visitor, stmt) == VisitorResult::Stop {
-                            return VisitorResult::Stop;
-                        }
-                    }
-                    VisitorResult::Continue
                 }
-                crate::ast::plpgsql::PlStatement::Case(case_stmt) => {
-                    if let Some(ref expr) = case_stmt.expression {
-                        if walk_expr(visitor, expr) == VisitorResult::Stop {
-                            return VisitorResult::Stop;
-                        }
-                    }
-                    for when in &case_stmt.whens {
-                        if walk_expr(visitor, &when.condition) == VisitorResult::Stop {
-                            return VisitorResult::Stop;
-                        }
-                        for stmt in &when.stmts {
-                            if walk_pl_statement(visitor, stmt) == VisitorResult::Stop {
-                                return VisitorResult::Stop;
-                            }
-                        }
-                    }
-                    for stmt in &case_stmt.else_stmts {
-                        if walk_pl_statement(visitor, stmt) == VisitorResult::Stop {
-                            return VisitorResult::Stop;
-                        }
-                    }
-                    VisitorResult::Continue
-                }
-                crate::ast::plpgsql::PlStatement::Loop(loop_stmt) => {
-                    for stmt in &loop_stmt.body {
-                        if walk_pl_statement(visitor, stmt) == VisitorResult::Stop {
-                            return VisitorResult::Stop;
-                        }
-                    }
-                    VisitorResult::Continue
-                }
-                crate::ast::plpgsql::PlStatement::While(while_stmt) => {
-                    if walk_expr(visitor, &while_stmt.condition) == VisitorResult::Stop {
+                if let Some(ref parsed_query) = execute_stmt.parsed_query {
+                    if walk_statement(visitor, parsed_query) == VisitorResult::Stop {
                         return VisitorResult::Stop;
                     }
-                    for stmt in &while_stmt.body {
-                        if walk_pl_statement(visitor, stmt) == VisitorResult::Stop {
-                            return VisitorResult::Stop;
-                        }
-                    }
-                    VisitorResult::Continue
                 }
-                crate::ast::plpgsql::PlStatement::For(for_stmt) => {
-                    match &for_stmt.kind {
-                        crate::ast::plpgsql::PlForKind::Range { low, high, step, .. } => {
-                            if walk_expr(visitor, low) == VisitorResult::Stop {
-                                return VisitorResult::Stop;
-                            }
-                            if walk_expr(visitor, high) == VisitorResult::Stop {
-                                return VisitorResult::Stop;
-                            }
-                            if let Some(step) = step {
-                                if walk_expr(visitor, step) == VisitorResult::Stop {
-                                    return VisitorResult::Stop;
-                                }
-                            }
-                        }
-                        crate::ast::plpgsql::PlForKind::Query { parsed_query, using_args, .. } => {
-                            if let Some(ref query) = parsed_query {
-                                if walk_statement(visitor, query) == VisitorResult::Stop {
-                                    return VisitorResult::Stop;
-                                }
-                            }
-                            for arg in using_args {
-                                if walk_expr(visitor, &arg.argument) == VisitorResult::Stop {
-                                    return VisitorResult::Stop;
-                                }
-                            }
-                        }
-                        crate::ast::plpgsql::PlForKind::Cursor { cursor_name, arguments } => {
-                            if walk_expr(visitor, cursor_name) == VisitorResult::Stop {
-                                return VisitorResult::Stop;
-                            }
-                            for arg in arguments {
-                                if walk_expr(visitor, arg) == VisitorResult::Stop {
-                                    return VisitorResult::Stop;
-                                }
-                            }
-                        }
-                    }
-                    for stmt in &for_stmt.body {
-                        if walk_pl_statement(visitor, stmt) == VisitorResult::Stop {
-                            return VisitorResult::Stop;
-                        }
-                    }
-                    VisitorResult::Continue
-                }
-                crate::ast::plpgsql::PlStatement::ForEach(foreach_stmt) => {
-                    if walk_expr(visitor, &foreach_stmt.expression) == VisitorResult::Stop {
-                        return VisitorResult::Stop;
-                    }
-                    for stmt in &foreach_stmt.body {
-                        if walk_pl_statement(visitor, stmt) == VisitorResult::Stop {
-                            return VisitorResult::Stop;
-                        }
-                    }
-                    VisitorResult::Continue
-                }
-                crate::ast::plpgsql::PlStatement::Exit { condition, .. } |
-                crate::ast::plpgsql::PlStatement::Continue { condition, .. } => {
-                    if let Some(ref condition) = condition {
-                        if walk_expr(visitor, condition) == VisitorResult::Stop {
-                            return VisitorResult::Stop;
-                        }
-                    }
-                    VisitorResult::Continue
-                }
-                crate::ast::plpgsql::PlStatement::Return { expression } => {
-                    if let Some(ref expression) = expression {
-                        if walk_expr(visitor, expression) == VisitorResult::Stop {
-                            return VisitorResult::Stop;
-                        }
-                    }
-                    VisitorResult::Continue
-                }
-                crate::ast::plpgsql::PlStatement::ReturnNext { expression } => {
-                    walk_expr(visitor, expression)
-                }
-                crate::ast::plpgsql::PlStatement::ReturnQuery(return_query) => {
-                    if let Some(ref dynamic_expr) = return_query.dynamic_expr {
-                        if walk_expr(visitor, dynamic_expr) == VisitorResult::Stop {
-                            return VisitorResult::Stop;
-                        }
-                    }
-                    for arg in &return_query.using_args {
-                        if walk_expr(visitor, &arg.argument) == VisitorResult::Stop {
-                            return VisitorResult::Stop;
-                        }
-                    }
-                    VisitorResult::Continue
-                }
-                crate::ast::plpgsql::PlStatement::Raise(raise_stmt) => {
-                    for param in &raise_stmt.params {
-                        if walk_expr(visitor, param) == VisitorResult::Stop {
-                            return VisitorResult::Stop;
-                        }
-                    }
-                    for option in &raise_stmt.options {
-                        if walk_expr(visitor, &option.value) == VisitorResult::Stop {
-                            return VisitorResult::Stop;
-                        }
-                    }
-                    VisitorResult::Continue
-                }
-                crate::ast::plpgsql::PlStatement::Execute(execute_stmt) => {
-                    if walk_expr(visitor, &execute_stmt.string_expr) == VisitorResult::Stop {
-                        return VisitorResult::Stop;
-                    }
-                    for target in &execute_stmt.into_targets {
-                        if walk_expr(visitor, target) == VisitorResult::Stop {
-                            return VisitorResult::Stop;
-                        }
-                    }
-                    for arg in &execute_stmt.using_args {
-                        if walk_expr(visitor, &arg.argument) == VisitorResult::Stop {
-                            return VisitorResult::Stop;
-                        }
-                    }
-                    if let Some(ref parsed_query) = execute_stmt.parsed_query {
-                        if walk_statement(visitor, parsed_query) == VisitorResult::Stop {
-                            return VisitorResult::Stop;
-                        }
-                    }
-                    VisitorResult::Continue
-                }
-                crate::ast::plpgsql::PlStatement::Perform { parsed_query, parsed_expr, .. } => {
-                    if let Some(ref query) = parsed_query {
-                        if walk_statement(visitor, query) == VisitorResult::Stop {
-                            return VisitorResult::Stop;
-                        }
-                    }
-                    if let Some(ref expr) = parsed_expr {
-                        if walk_expr(visitor, expr) == VisitorResult::Stop {
-                            return VisitorResult::Stop;
-                        }
-                    }
-                    VisitorResult::Continue
-                }
-                crate::ast::plpgsql::PlStatement::Open(open_stmt) => {
-                    match &open_stmt.kind {
-                        crate::ast::plpgsql::PlOpenKind::Simple { arguments } => {
-                            for arg in arguments {
-                                if walk_expr(visitor, arg) == VisitorResult::Stop {
-                                    return VisitorResult::Stop;
-                                }
-                            }
-                        }
-                        crate::ast::plpgsql::PlOpenKind::ForQuery { parsed_query, .. } => {
-                            if let Some(ref query) = parsed_query {
-                                if walk_statement(visitor, query) == VisitorResult::Stop {
-                                    return VisitorResult::Stop;
-                                }
-                            }
-                        }
-                        crate::ast::plpgsql::PlOpenKind::ForExecute { query, using_args } => {
-                            if walk_expr(visitor, query) == VisitorResult::Stop {
-                                return VisitorResult::Stop;
-                            }
-                            for arg in using_args {
-                                if walk_expr(visitor, arg) == VisitorResult::Stop {
-                                    return VisitorResult::Stop;
-                                }
-                            }
-                        }
-                        crate::ast::plpgsql::PlOpenKind::ForUsing { expressions } => {
-                            for expr in expressions {
-                                if walk_expr(visitor, expr) == VisitorResult::Stop {
-                                    return VisitorResult::Stop;
-                                }
-                            }
-                        }
-                    }
-                    VisitorResult::Continue
-                }
-                crate::ast::plpgsql::PlStatement::Fetch(fetch_stmt) => {
-                    for expr in &fetch_stmt.into {
-                        if walk_expr(visitor, expr) == VisitorResult::Stop {
-                            return VisitorResult::Stop;
-                        }
-                    }
-                    VisitorResult::Continue
-                }
-                crate::ast::plpgsql::PlStatement::ProcedureCall(proc_call) => {
-                    if visitor.visit_procedure_call(proc_call) == VisitorResult::Stop {
-                        return VisitorResult::Stop;
-                    }
-                    for arg in &proc_call.arguments {
-                        if walk_expr(visitor, arg) == VisitorResult::Stop {
-                            return VisitorResult::Stop;
-                        }
-                    }
-                    VisitorResult::Continue
-                }
-                crate::ast::plpgsql::PlStatement::SqlStatement { statement, .. } => {
-                    walk_statement(visitor, statement)
-                }
-                crate::ast::plpgsql::PlStatement::PipeRow { expression } => {
-                    walk_expr(visitor, expression)
-                }
-                _ => VisitorResult::Continue,
+                VisitorResult::Continue
             }
-        }
+            crate::ast::plpgsql::PlStatement::Perform { parsed_query, parsed_expr, .. } => {
+                if let Some(ref query) = parsed_query {
+                    if walk_statement(visitor, query) == VisitorResult::Stop {
+                        return VisitorResult::Stop;
+                    }
+                }
+                if let Some(ref expr) = parsed_expr {
+                    if walk_expr(visitor, expr) == VisitorResult::Stop {
+                        return VisitorResult::Stop;
+                    }
+                }
+                VisitorResult::Continue
+            }
+            crate::ast::plpgsql::PlStatement::Open(open_stmt) => {
+                match &open_stmt.kind {
+                    crate::ast::plpgsql::PlOpenKind::Simple { arguments } => {
+                        for arg in arguments {
+                            if walk_expr(visitor, arg) == VisitorResult::Stop {
+                                return VisitorResult::Stop;
+                            }
+                        }
+                    }
+                    crate::ast::plpgsql::PlOpenKind::ForQuery { parsed_query, .. } => {
+                        if let Some(ref query) = parsed_query {
+                            if walk_statement(visitor, query) == VisitorResult::Stop {
+                                return VisitorResult::Stop;
+                            }
+                        }
+                    }
+                    crate::ast::plpgsql::PlOpenKind::ForExecute { query, using_args } => {
+                        if walk_expr(visitor, query) == VisitorResult::Stop {
+                            return VisitorResult::Stop;
+                        }
+                        for arg in using_args {
+                            if walk_expr(visitor, arg) == VisitorResult::Stop {
+                                return VisitorResult::Stop;
+                            }
+                        }
+                    }
+                    crate::ast::plpgsql::PlOpenKind::ForUsing { expressions } => {
+                        for expr in expressions {
+                            if walk_expr(visitor, expr) == VisitorResult::Stop {
+                                return VisitorResult::Stop;
+                            }
+                        }
+                    }
+                }
+                VisitorResult::Continue
+            }
+            crate::ast::plpgsql::PlStatement::Fetch(fetch_stmt) => {
+                for expr in &fetch_stmt.into {
+                    if walk_expr(visitor, expr) == VisitorResult::Stop {
+                        return VisitorResult::Stop;
+                    }
+                }
+                VisitorResult::Continue
+            }
+            crate::ast::plpgsql::PlStatement::ProcedureCall(proc_call) => {
+                if visitor.visit_procedure_call(proc_call) == VisitorResult::Stop {
+                    return VisitorResult::Stop;
+                }
+                for arg in &proc_call.arguments {
+                    if walk_expr(visitor, arg) == VisitorResult::Stop {
+                        return VisitorResult::Stop;
+                    }
+                }
+                VisitorResult::Continue
+            }
+            crate::ast::plpgsql::PlStatement::SqlStatement { statement, .. } => walk_statement(visitor, statement),
+            crate::ast::plpgsql::PlStatement::PipeRow { expression } => walk_expr(visitor, expression),
+            _ => VisitorResult::Continue,
+        },
         VisitorResult::SkipChildren => VisitorResult::Continue,
         VisitorResult::Stop => VisitorResult::Stop,
     }
@@ -405,44 +395,42 @@ pub fn walk_pl_type_decl(visitor: &mut dyn Visitor, decl: &crate::ast::plpgsql::
 pub fn walk_pl_declaration(visitor: &mut dyn Visitor, decl: &crate::ast::plpgsql::PlDeclaration) -> VisitorResult {
     let result = visitor.visit_pl_declaration(decl);
     match result {
-        VisitorResult::Continue => {
-            match decl {
-                crate::ast::plpgsql::PlDeclaration::Variable(var_decl) => {
-                    if let Some(ref default) = var_decl.default {
-                        if walk_expr(visitor, default) == VisitorResult::Stop {
-                            return VisitorResult::Stop;
-                        }
-                    }
-                    VisitorResult::Continue
-                }
-                crate::ast::plpgsql::PlDeclaration::Cursor(cursor_decl) => {
-                    if let Some(ref parsed_query) = cursor_decl.parsed_query {
-                        if walk_statement(visitor, parsed_query) == VisitorResult::Stop {
-                            return VisitorResult::Stop;
-                        }
-                    }
-                    VisitorResult::Continue
-                }
-                crate::ast::plpgsql::PlDeclaration::Type(crate::ast::plpgsql::PlTypeDecl::VarrayOf { size, .. }) => {
-                    walk_expr(visitor, size)
-                }
-                crate::ast::plpgsql::PlDeclaration::NestedProcedure(proc) => {
-                    if let Some(ref block) = proc.block {
-                        walk_pl_block(visitor, block)
-                    } else {
-                        VisitorResult::Continue
+        VisitorResult::Continue => match decl {
+            crate::ast::plpgsql::PlDeclaration::Variable(var_decl) => {
+                if let Some(ref default) = var_decl.default {
+                    if walk_expr(visitor, default) == VisitorResult::Stop {
+                        return VisitorResult::Stop;
                     }
                 }
-                crate::ast::plpgsql::PlDeclaration::NestedFunction(func) => {
-                    if let Some(ref block) = func.block {
-                        walk_pl_block(visitor, block)
-                    } else {
-                        VisitorResult::Continue
-                    }
-                }
-                _ => VisitorResult::Continue,
+                VisitorResult::Continue
             }
-        }
+            crate::ast::plpgsql::PlDeclaration::Cursor(cursor_decl) => {
+                if let Some(ref parsed_query) = cursor_decl.parsed_query {
+                    if walk_statement(visitor, parsed_query) == VisitorResult::Stop {
+                        return VisitorResult::Stop;
+                    }
+                }
+                VisitorResult::Continue
+            }
+            crate::ast::plpgsql::PlDeclaration::Type(crate::ast::plpgsql::PlTypeDecl::VarrayOf { size, .. }) => {
+                walk_expr(visitor, size)
+            }
+            crate::ast::plpgsql::PlDeclaration::NestedProcedure(proc) => {
+                if let Some(ref block) = proc.block {
+                    walk_pl_block(visitor, block)
+                } else {
+                    VisitorResult::Continue
+                }
+            }
+            crate::ast::plpgsql::PlDeclaration::NestedFunction(func) => {
+                if let Some(ref block) = func.block {
+                    walk_pl_block(visitor, block)
+                } else {
+                    VisitorResult::Continue
+                }
+            }
+            _ => VisitorResult::Continue,
+        },
         VisitorResult::SkipChildren => VisitorResult::Continue,
         VisitorResult::Stop => VisitorResult::Stop,
     }
@@ -684,9 +672,9 @@ fn walk_select(visitor: &mut dyn Visitor, select: &SelectStatement) -> VisitorRe
     // set_operation
     if let Some(ref set_op) = select.set_operation {
         match set_op {
-            crate::ast::SetOperation::Union { right, .. } |
-            crate::ast::SetOperation::Intersect { right, .. } |
-            crate::ast::SetOperation::Except { right, .. } => {
+            crate::ast::SetOperation::Union { right, .. }
+            | crate::ast::SetOperation::Intersect { right, .. }
+            | crate::ast::SetOperation::Except { right, .. } => {
                 if walk_select(visitor, right) == VisitorResult::Stop {
                     return VisitorResult::Stop;
                 }
@@ -728,11 +716,7 @@ fn walk_select(visitor: &mut dyn Visitor, select: &SelectStatement) -> VisitorRe
 fn walk_insert(visitor: &mut dyn Visitor, insert: &InsertStatement) -> VisitorResult {
     let result = visitor.visit_insert(insert);
     if result != VisitorResult::Continue {
-        return if result == VisitorResult::Stop {
-            VisitorResult::Stop
-        } else {
-            VisitorResult::Continue
-        };
+        return if result == VisitorResult::Stop { VisitorResult::Stop } else { VisitorResult::Continue };
     }
 
     match &insert.source {
@@ -771,11 +755,7 @@ fn walk_insert(visitor: &mut dyn Visitor, insert: &InsertStatement) -> VisitorRe
 fn walk_update(visitor: &mut dyn Visitor, update: &UpdateStatement) -> VisitorResult {
     let result = visitor.visit_update(update);
     if result != VisitorResult::Continue {
-        return if result == VisitorResult::Stop {
-            VisitorResult::Stop
-        } else {
-            VisitorResult::Continue
-        };
+        return if result == VisitorResult::Stop { VisitorResult::Stop } else { VisitorResult::Continue };
     }
 
     for assignment in &update.assignments {
@@ -796,11 +776,7 @@ fn walk_update(visitor: &mut dyn Visitor, update: &UpdateStatement) -> VisitorRe
 fn walk_delete(visitor: &mut dyn Visitor, delete: &DeleteStatement) -> VisitorResult {
     let result = visitor.visit_delete(delete);
     if result != VisitorResult::Continue {
-        return if result == VisitorResult::Stop {
-            VisitorResult::Stop
-        } else {
-            VisitorResult::Continue
-        };
+        return if result == VisitorResult::Stop { VisitorResult::Stop } else { VisitorResult::Continue };
     }
 
     if let Some(ref where_clause) = delete.where_clause {
@@ -815,11 +791,7 @@ fn walk_delete(visitor: &mut dyn Visitor, delete: &DeleteStatement) -> VisitorRe
 fn walk_create_table(visitor: &mut dyn Visitor, table: &CreateTableStatement) -> VisitorResult {
     let result = visitor.visit_create_table(table);
     if result != VisitorResult::Continue {
-        return if result == VisitorResult::Stop {
-            VisitorResult::Stop
-        } else {
-            VisitorResult::Continue
-        };
+        return if result == VisitorResult::Stop { VisitorResult::Stop } else { VisitorResult::Continue };
     }
 
     VisitorResult::Continue
@@ -828,11 +800,7 @@ fn walk_create_table(visitor: &mut dyn Visitor, table: &CreateTableStatement) ->
 fn walk_expr(visitor: &mut dyn Visitor, expr: &Expr) -> VisitorResult {
     let result = visitor.visit_expr(expr);
     if result != VisitorResult::Continue {
-        return if result == VisitorResult::Stop {
-            VisitorResult::Stop
-        } else {
-            VisitorResult::Continue
-        };
+        return if result == VisitorResult::Stop { VisitorResult::Stop } else { VisitorResult::Continue };
     }
 
     match expr {
@@ -849,7 +817,17 @@ fn walk_expr(visitor: &mut dyn Visitor, expr: &Expr) -> VisitorResult {
                 return VisitorResult::Stop;
             }
         }
-        Expr::FunctionCall { args, over, filter, within_group, separator, default, conversion_format, agg_from, .. } => {
+        Expr::FunctionCall {
+            args,
+            over,
+            filter,
+            within_group,
+            separator,
+            default,
+            conversion_format,
+            agg_from,
+            ..
+        } => {
             for arg in args {
                 if walk_expr(visitor, arg) == VisitorResult::Stop {
                     return VisitorResult::Stop;
@@ -905,11 +883,7 @@ fn walk_expr(visitor: &mut dyn Visitor, expr: &Expr) -> VisitorResult {
                 return VisitorResult::Stop;
             }
         }
-        Expr::Case {
-            operand,
-            whens,
-            else_expr,
-        } => {
+        Expr::Case { operand, whens, else_expr } => {
             if let Some(op) = operand {
                 if walk_expr(visitor, op) == VisitorResult::Stop {
                     return VisitorResult::Stop;
@@ -929,12 +903,7 @@ fn walk_expr(visitor: &mut dyn Visitor, expr: &Expr) -> VisitorResult {
                 }
             }
         }
-        Expr::XmlElement {
-            evalname,
-            attributes,
-            content,
-            ..
-        } => {
+        Expr::XmlElement { evalname, attributes, content, .. } => {
             if let Some(expr) = evalname {
                 if walk_expr(visitor, expr) == VisitorResult::Stop {
                     return VisitorResult::Stop;
@@ -1249,13 +1218,12 @@ fn walk_table_ref(visitor: &mut dyn Visitor, table_ref: &TableRef) -> VisitorRes
 mod visitor_tests {
     use super::*;
     use crate::ast::plpgsql::{
-        PlBlock, PlDeclaration, PlExceptionBlock, PlExceptionHandler, PlForKind, PlForStmt,
-        PlIfStmt, PlLoopStmt, PlOpenKind, PlOpenStmt, PlProcedureCall, PlStatement, PlWhileStmt,
+        PlBlock, PlDeclaration, PlExceptionBlock, PlExceptionHandler, PlForKind, PlForStmt, PlIfStmt, PlLoopStmt,
+        PlOpenKind, PlOpenStmt, PlProcedureCall, PlStatement, PlWhileStmt,
     };
     use crate::ast::{
-        CallFuncStatement, CreateFunctionStatement, CreatePackageBodyStatement,
-        CreatePackageStatement, CreateProcedureStatement, DoStatement, Expr, ObjectName,
-        SelectStatement, Statement, TableRef,
+        CallFuncStatement, CreateFunctionStatement, CreatePackageBodyStatement, CreatePackageStatement,
+        CreateProcedureStatement, DoStatement, Expr, ObjectName, SelectStatement, Statement, TableRef,
     };
     use crate::parser::Parser;
     use crate::token::tokenizer::Tokenizer;
@@ -1274,12 +1242,10 @@ mod visitor_tests {
     fn parse_expr(sql: &str) -> Expr {
         let stmt = parse_single(&format!("SELECT {}", sql));
         match stmt {
-            Statement::Select(ref select) => {
-                match &select.targets[0] {
-                    crate::ast::SelectTarget::Expr(expr, _) => expr.clone(),
-                    _ => panic!("Expected expression target"),
-                }
-            }
+            Statement::Select(ref select) => match &select.targets[0] {
+                crate::ast::SelectTarget::Expr(expr, _) => expr.clone(),
+                _ => panic!("Expected expression target"),
+            },
             _ => panic!("Expected SELECT statement"),
         }
     }
@@ -1362,46 +1328,42 @@ mod visitor_tests {
     #[test]
     fn test_pl_block_visitor_methods_exist() {
         let mut visitor = TestVisitor::default();
-        let block = PlBlock {
-            label: None,
-            declarations: vec![],
-            body: vec![],
-            exception_block: None,
-            end_label: None,
-        };
+        let block = PlBlock { label: None, declarations: vec![], body: vec![], exception_block: None, end_label: None };
         assert_eq!(visitor.visit_pl_block(&block), VisitorResult::Continue);
         assert_eq!(visitor.visit_pl_statement(&PlStatement::Null), VisitorResult::Continue);
-        assert_eq!(visitor.visit_pl_declaration(&PlDeclaration::Record(crate::ast::plpgsql::PlRecordDecl { name: "x".to_string() })), VisitorResult::Continue);
-        assert_eq!(visitor.visit_pl_exception_handler(&PlExceptionHandler { conditions: vec![], statements: vec![] }), VisitorResult::Continue);
+        assert_eq!(
+            visitor.visit_pl_declaration(&PlDeclaration::Record(crate::ast::plpgsql::PlRecordDecl {
+                name: "x".to_string()
+            })),
+            VisitorResult::Continue
+        );
+        assert_eq!(
+            visitor.visit_pl_exception_handler(&PlExceptionHandler { conditions: vec![], statements: vec![] }),
+            VisitorResult::Continue
+        );
     }
 
     #[test]
     fn test_walk_pl_block_basic() {
         let block = PlBlock {
             label: None,
-            declarations: vec![
-                PlDeclaration::Variable(crate::ast::plpgsql::PlVarDecl {
-                    name: "x".to_string(),
-                    data_type: crate::ast::plpgsql::PlDataType::TypeName("INTEGER".to_string()),
-                    default: Some(Expr::Literal(crate::ast::Literal::Integer(42))),
-                    constant: false,
-                    not_null: false,
-                    collate: None,
-                }),
-            ],
-            body: vec![
-                PlStatement::Assignment {
-                    target: Expr::ColumnRef(crate::ast::ObjectName::from(vec!["x".to_string()])),
-                    expression: Expr::Literal(crate::ast::Literal::Integer(1)),
-                },
-            ],
+            declarations: vec![PlDeclaration::Variable(crate::ast::plpgsql::PlVarDecl {
+                name: "x".to_string(),
+                data_type: crate::ast::plpgsql::PlDataType::TypeName("INTEGER".to_string()),
+                default: Some(Expr::Literal(crate::ast::Literal::Integer(42))),
+                constant: false,
+                not_null: false,
+                collate: None,
+            })],
+            body: vec![PlStatement::Assignment {
+                target: Expr::ColumnRef(crate::ast::ObjectName::from(vec!["x".to_string()])),
+                expression: Expr::Literal(crate::ast::Literal::Integer(1)),
+            }],
             exception_block: Some(PlExceptionBlock {
-                handlers: vec![
-                    PlExceptionHandler {
-                        conditions: vec!["OTHERS".to_string()],
-                        statements: vec![PlStatement::Null],
-                    },
-                ],
+                handlers: vec![PlExceptionHandler {
+                    conditions: vec!["OTHERS".to_string()],
+                    statements: vec![PlStatement::Null],
+                }],
             }),
             end_label: None,
         };
@@ -1418,15 +1380,18 @@ mod visitor_tests {
 
     #[test]
     fn test_walk_pl_statement_if() {
-        let if_stmt = PlStatement::If(crate::ast::Spanned::new(PlIfStmt {
-            condition: Expr::Literal(crate::ast::Literal::Boolean(true)),
-            then_stmts: vec![PlStatement::Null],
-            elsifs: vec![crate::ast::plpgsql::PlElsif {
-                condition: Expr::Literal(crate::ast::Literal::Boolean(false)),
-                stmts: vec![PlStatement::Null],
-            }],
-            else_stmts: vec![PlStatement::Null],
-        }, None));
+        let if_stmt = PlStatement::If(crate::ast::Spanned::new(
+            PlIfStmt {
+                condition: Expr::Literal(crate::ast::Literal::Boolean(true)),
+                then_stmts: vec![PlStatement::Null],
+                elsifs: vec![crate::ast::plpgsql::PlElsif {
+                    condition: Expr::Literal(crate::ast::Literal::Boolean(false)),
+                    stmts: vec![PlStatement::Null],
+                }],
+                else_stmts: vec![PlStatement::Null],
+            },
+            None,
+        ));
 
         let mut visitor = TestVisitor::default();
         walk_pl_statement(&mut visitor, &if_stmt);
@@ -1437,11 +1402,10 @@ mod visitor_tests {
 
     #[test]
     fn test_walk_pl_statement_loop() {
-        let loop_stmt = PlStatement::Loop(crate::ast::Spanned::new(PlLoopStmt {
-            label: None,
-            body: vec![PlStatement::Null, PlStatement::Null],
-            end_label: None,
-        }, None));
+        let loop_stmt = PlStatement::Loop(crate::ast::Spanned::new(
+            PlLoopStmt { label: None, body: vec![PlStatement::Null, PlStatement::Null], end_label: None },
+            None,
+        ));
 
         let mut visitor = TestVisitor::default();
         walk_pl_statement(&mut visitor, &loop_stmt);
@@ -1451,12 +1415,15 @@ mod visitor_tests {
 
     #[test]
     fn test_walk_pl_statement_while() {
-        let while_stmt = PlStatement::While(crate::ast::Spanned::new(PlWhileStmt {
-            label: None,
-            condition: Expr::Literal(crate::ast::Literal::Boolean(true)),
-            body: vec![PlStatement::Null],
-            end_label: None,
-        }, None));
+        let while_stmt = PlStatement::While(crate::ast::Spanned::new(
+            PlWhileStmt {
+                label: None,
+                condition: Expr::Literal(crate::ast::Literal::Boolean(true)),
+                body: vec![PlStatement::Null],
+                end_label: None,
+            },
+            None,
+        ));
 
         let mut visitor = TestVisitor::default();
         walk_pl_statement(&mut visitor, &while_stmt);
@@ -1467,18 +1434,21 @@ mod visitor_tests {
 
     #[test]
     fn test_walk_pl_statement_for_range() {
-        let for_stmt = PlStatement::For(crate::ast::Spanned::new(PlForStmt {
-            label: None,
-            variable: "i".to_string(),
-            kind: PlForKind::Range {
-                low: Expr::Literal(crate::ast::Literal::Integer(1)),
-                high: Expr::Literal(crate::ast::Literal::Integer(10)),
-                step: None,
-                reverse: false,
+        let for_stmt = PlStatement::For(crate::ast::Spanned::new(
+            PlForStmt {
+                label: None,
+                variable: "i".to_string(),
+                kind: PlForKind::Range {
+                    low: Expr::Literal(crate::ast::Literal::Integer(1)),
+                    high: Expr::Literal(crate::ast::Literal::Integer(10)),
+                    step: None,
+                    reverse: false,
+                },
+                body: vec![PlStatement::Null],
+                end_label: None,
             },
-            body: vec![PlStatement::Null],
-            end_label: None,
-        }, None));
+            None,
+        ));
 
         let mut visitor = TestVisitor::default();
         walk_pl_statement(&mut visitor, &for_stmt);
@@ -1489,13 +1459,16 @@ mod visitor_tests {
 
     #[test]
     fn test_walk_pl_statement_procedure_call() {
-        let proc_call = PlStatement::ProcedureCall(crate::ast::Spanned::new(PlProcedureCall {
-            name: vec!["schema".to_string(), "proc".to_string()],
-            arguments: vec![
-                Expr::Literal(crate::ast::Literal::Integer(1)),
-                Expr::Literal(crate::ast::Literal::Integer(2)),
-            ],
-        }, None));
+        let proc_call = PlStatement::ProcedureCall(crate::ast::Spanned::new(
+            PlProcedureCall {
+                name: vec!["schema".to_string(), "proc".to_string()],
+                arguments: vec![
+                    Expr::Literal(crate::ast::Literal::Integer(1)),
+                    Expr::Literal(crate::ast::Literal::Integer(2)),
+                ],
+            },
+            None,
+        ));
 
         let mut visitor = TestVisitor::default();
         walk_pl_statement(&mut visitor, &proc_call);
@@ -1518,10 +1491,7 @@ mod visitor_tests {
                         conditions: vec!["NO_DATA_FOUND".to_string()],
                         statements: vec![PlStatement::Null],
                     },
-                    PlExceptionHandler {
-                        conditions: vec!["OTHERS".to_string()],
-                        statements: vec![PlStatement::Null],
-                    },
+                    PlExceptionHandler { conditions: vec!["OTHERS".to_string()], statements: vec![PlStatement::Null] },
                 ],
             }),
             end_label: None,
@@ -1912,7 +1882,11 @@ mod visitor_tests {
         let mut visitor = TestVisitor::default();
         walk_statement(&mut visitor, &stmt);
 
-        assert!(visitor.table_refs.len() >= 2, "Join should recurse into left and right table refs, got: {:?}", visitor.table_refs);
+        assert!(
+            visitor.table_refs.len() >= 2,
+            "Join should recurse into left and right table refs, got: {:?}",
+            visitor.table_refs
+        );
     }
 
     #[test]
@@ -1923,10 +1897,13 @@ mod visitor_tests {
         let mut visitor = TestVisitor::default();
         walk_statement(&mut visitor, &stmt);
 
-        let func_refs: Vec<&String> = visitor.table_refs.iter()
-            .filter(|r| r.starts_with("FunctionCall("))
-            .collect();
-        assert_eq!(func_refs.len(), 1, "Expected one FunctionCall table ref from PERFORM, got: {:?}", visitor.table_refs);
+        let func_refs: Vec<&String> = visitor.table_refs.iter().filter(|r| r.starts_with("FunctionCall(")).collect();
+        assert_eq!(
+            func_refs.len(),
+            1,
+            "Expected one FunctionCall table ref from PERFORM, got: {:?}",
+            visitor.table_refs
+        );
         assert!(func_refs[0].contains("pkg_audit.log_transfer"));
     }
 
@@ -2012,6 +1989,10 @@ mod visitor_tests {
         let mut visitor = TestVisitor::default();
         walk_statement(&mut visitor, &stmt);
 
-        assert!(visitor.exprs.len() >= 2, "PERFORM func(args) should visit the function args as expressions, got {} exprs", visitor.exprs.len());
+        assert!(
+            visitor.exprs.len() >= 2,
+            "PERFORM func(args) should visit the function args as expressions, got {} exprs",
+            visitor.exprs.len()
+        );
     }
 }

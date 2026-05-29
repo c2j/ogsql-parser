@@ -25,11 +25,7 @@ pub struct SourceLocation {
 
 impl Default for SourceLocation {
     fn default() -> Self {
-        Self {
-            line: 1,
-            column: 1,
-            offset: 0,
-        }
+        Self { line: 1, column: 1, offset: 0 }
     }
 }
 

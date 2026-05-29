@@ -11,10 +11,7 @@ pub struct SqlFormatter {
 impl SqlFormatter {
     /// Creates a new SQL formatter with default settings (uppercase keywords).
     pub fn new() -> Self {
-        Self {
-            indent: 0,
-            uppercase_keywords: true,
-        }
+        Self { indent: 0, uppercase_keywords: true }
     }
 
     /// Formats an AST statement back into SQL text.
@@ -168,11 +165,7 @@ impl SqlFormatter {
                 if !s.values.is_empty() {
                     r.push_str(&format!(
                         " WITH VALUES ({})",
-                        s.values
-                            .iter()
-                            .map(|v| format!("'{}'", v))
-                            .collect::<Vec<_>>()
-                            .join(", ")
+                        s.values.iter().map(|v| format!("'{}'", v)).collect::<Vec<_>>().join(", ")
                     ));
                 }
                 r
@@ -180,11 +173,7 @@ impl SqlFormatter {
             Statement::PredictBy(s) => {
                 let mut r = format!("{} {}", self.kw("PREDICT"), self.kw("BY"));
                 r.push_str(&format!(" {}", s.model));
-                r.push_str(&format!(
-                    " {} ({})",
-                    self.kw("FEATURES"),
-                    s.features.join(", ")
-                ));
+                r.push_str(&format!(" {} ({})", self.kw("FEATURES"), s.features.join(", ")));
                 if let Some(ref u) = s.using_clause {
                     r.push_str(&format!(" {} {}", self.kw("USING"), u));
                 }
@@ -212,12 +201,7 @@ impl SqlFormatter {
                 }
             }
             Statement::CreateAppWorkloadGroupMapping(s) => {
-                format!(
-                    "{} {} {}",
-                    self.kw("CREATE APP WORKLOAD GROUP MAPPING"),
-                    s.name,
-                    s.raw_rest
-                )
+                format!("{} {} {}", self.kw("CREATE APP WORKLOAD GROUP MAPPING"), s.name, s.raw_rest)
             }
             Statement::DropAppWorkloadGroupMapping(s) => {
                 format!("{} {}", self.kw("DROP APP WORKLOAD GROUP MAPPING"), s.name)
@@ -231,11 +215,7 @@ impl SqlFormatter {
                 )
             }
             Statement::CreateTextSearchDict(s) => {
-                let opts: Vec<String> = s
-                    .options
-                    .iter()
-                    .map(|(k, v)| format!("{} = {}", k, v))
-                    .collect();
+                let opts: Vec<String> = s.options.iter().map(|(k, v)| format!("{} = {}", k, v)).collect();
                 format!(
                     "{} {} ({})",
                     self.kw("CREATE TEXT SEARCH DICTIONARY"),
@@ -252,11 +232,7 @@ impl SqlFormatter {
                 )
             }
             Statement::AlterTextSearchDictFull(s) => {
-                let opts: Vec<String> = s
-                    .options
-                    .iter()
-                    .map(|(k, v)| format!("{} = {}", k, v))
-                    .collect();
+                let opts: Vec<String> = s.options.iter().map(|(k, v)| format!("{} = {}", k, v)).collect();
                 format!(
                     "{} {} ({})",
                     self.kw("ALTER TEXT SEARCH DICTIONARY"),
@@ -277,33 +253,17 @@ impl SqlFormatter {
                 format!("{} {}", self.kw("IMPDP TABLE"), s.raw_rest)
             }
             Statement::ReassignOwned(s) => {
-                format!(
-                    "{} {} {} {}",
-                    self.kw("REASSIGN OWNED BY"),
-                    s.old_role,
-                    self.kw("TO"),
-                    s.new_role
-                )
+                format!("{} {} {} {}", self.kw("REASSIGN OWNED BY"), s.old_role, self.kw("TO"), s.new_role)
             }
             Statement::AlterDomain(s) => {
-                let mut r = format!(
-                    "{} {}",
-                    self.kw("ALTER DOMAIN"),
-                    self.format_object_name(&s.name)
-                );
+                let mut r = format!("{} {}", self.kw("ALTER DOMAIN"), self.format_object_name(&s.name));
                 match &s.action {
                     AlterDomainAction::SetDefault { expr } => {
                         r.push_str(&format!(" {} {}", self.kw("SET DEFAULT"), expr))
                     }
-                    AlterDomainAction::DropDefault => {
-                        r.push_str(&format!(" {}", self.kw("DROP DEFAULT")))
-                    }
-                    AlterDomainAction::SetNotNull => {
-                        r.push_str(&format!(" {}", self.kw("SET NOT NULL")))
-                    }
-                    AlterDomainAction::DropNotNull => {
-                        r.push_str(&format!(" {}", self.kw("DROP NOT NULL")))
-                    }
+                    AlterDomainAction::DropDefault => r.push_str(&format!(" {}", self.kw("DROP DEFAULT"))),
+                    AlterDomainAction::SetNotNull => r.push_str(&format!(" {}", self.kw("SET NOT NULL"))),
+                    AlterDomainAction::DropNotNull => r.push_str(&format!(" {}", self.kw("DROP NOT NULL"))),
                     AlterDomainAction::AddConstraint { name, check_expr } => {
                         r.push_str(&format!(" {}", self.kw("ADD")));
                         if let Some(n) = name {
@@ -316,11 +276,7 @@ impl SqlFormatter {
                             " {} {} {}",
                             self.kw("DROP CONSTRAINT"),
                             name,
-                            if *cascade {
-                                self.kw("CASCADE")
-                            } else {
-                                String::new()
-                            }
+                            if *cascade { self.kw("CASCADE") } else { String::new() }
                         ));
                     }
                     AlterDomainAction::OwnerTo { new_owner } => {
@@ -380,11 +336,7 @@ impl SqlFormatter {
             if stmt.distinct_on.is_empty() {
                 select_parts.push(self.kw("DISTINCT"));
             } else {
-                let cols: Vec<String> = stmt
-                    .distinct_on
-                    .iter()
-                    .map(|e| self.format_expr(e))
-                    .collect();
+                let cols: Vec<String> = stmt.distinct_on.iter().map(|e| self.format_expr(e)).collect();
                 select_parts.push(format!("{} ON ({})", self.kw("DISTINCT"), cols.join(", ")));
             }
         }
@@ -411,56 +363,31 @@ impl SqlFormatter {
         }
 
         if !stmt.from.is_empty() {
-            parts.push(format!(
-                "{} {}",
-                self.kw("FROM"),
-                self.format_table_refs(&stmt.from)
-            ));
+            parts.push(format!("{} {}", self.kw("FROM"), self.format_table_refs(&stmt.from)));
         }
 
         if let Some(where_clause) = &stmt.where_clause {
-            parts.push(format!(
-                "{} {}",
-                self.kw("WHERE"),
-                self.format_expr(where_clause)
-            ));
+            parts.push(format!("{} {}", self.kw("WHERE"), self.format_expr(where_clause)));
         }
 
         if let Some(cb) = &stmt.connect_by {
             if let Some(sw) = &cb.start_with {
-                parts.push(format!(
-                    "{} {}",
-                    self.kw("START WITH"),
-                    self.format_expr(sw)
-                ));
+                parts.push(format!("{} {}", self.kw("START WITH"), self.format_expr(sw)));
             }
             let nocycle = if cb.nocycle { " NOCYCLE" } else { "" };
-            parts.push(format!(
-                "{}{} {}",
-                self.kw("CONNECT BY"),
-                nocycle,
-                self.format_expr(&cb.condition)
-            ));
+            parts.push(format!("{}{} {}", self.kw("CONNECT BY"), nocycle, self.format_expr(&cb.condition)));
         }
 
         if !stmt.group_by.is_empty() {
             parts.push(format!(
                 "{} {}",
                 self.kw("GROUP BY"),
-                stmt.group_by
-                    .iter()
-                    .map(|item| self.format_group_by_item(item))
-                    .collect::<Vec<_>>()
-                    .join(", ")
+                stmt.group_by.iter().map(|item| self.format_group_by_item(item)).collect::<Vec<_>>().join(", ")
             ));
         }
 
         if let Some(having) = &stmt.having {
-            parts.push(format!(
-                "{} {}",
-                self.kw("HAVING"),
-                self.format_expr(having)
-            ));
+            parts.push(format!("{} {}", self.kw("HAVING"), self.format_expr(having)));
         }
 
         let mut result = parts.join(" ");
@@ -481,11 +408,7 @@ impl SqlFormatter {
         let mut final_parts = vec![result];
 
         if !stmt.order_by.is_empty() {
-            final_parts.push(format!(
-                "{} {}",
-                self.kw("ORDER BY"),
-                self.format_order_by(&stmt.order_by)
-            ));
+            final_parts.push(format!("{} {}", self.kw("ORDER BY"), self.format_order_by(&stmt.order_by)));
         }
 
         if !stmt.window_clause.is_empty() {
@@ -509,11 +432,7 @@ impl SqlFormatter {
         }
 
         if let Some(offset) = &stmt.offset {
-            final_parts.push(format!(
-                "{} {}",
-                self.kw("OFFSET"),
-                self.format_expr(offset)
-            ));
+            final_parts.push(format!("{} {}", self.kw("OFFSET"), self.format_expr(offset)));
         }
 
         final_parts.join(" ")
@@ -539,11 +458,7 @@ impl SqlFormatter {
             }
         }
         if !cte.columns.is_empty() {
-            let cols: Vec<String> = cte
-                .columns
-                .iter()
-                .map(|c| self.quote_identifier(c))
-                .collect();
+            let cols: Vec<String> = cte.columns.iter().map(|c| self.quote_identifier(c)).collect();
             parts.push(format!("({})", cols.join(", ")));
         }
         parts.push(self.kw("AS").to_string());
@@ -552,10 +467,7 @@ impl SqlFormatter {
     }
 
     fn format_select_targets(&self, targets: &[SelectTarget]) -> String {
-        let formatted: Vec<String> = targets
-            .iter()
-            .map(|t| self.format_select_target(t))
-            .collect();
+        let formatted: Vec<String> = targets.iter().map(|t| self.format_select_target(t)).collect();
         formatted.join(", ")
     }
 
@@ -582,23 +494,16 @@ impl SqlFormatter {
 
     fn format_table_ref(&self, r: &TableRef) -> String {
         match r {
-            TableRef::Table {
-                name,
-                alias,
-                column_aliases,
-                partition,
-                timecapsule,
-                tablesample,
-            } => {
+            TableRef::Table { name, alias, column_aliases, partition, timecapsule, tablesample } => {
                 let mut result = self.format_object_name(name);
                 if let Some(p) = partition {
-                    let vals: Vec<String> =
-                        p.values.iter().map(|v| self.quote_identifier(v)).collect();
+                    let vals: Vec<String> = p.values.iter().map(|v| self.quote_identifier(v)).collect();
                     result = format!("{} PARTITION ({})", result, vals.join(", "));
                 }
                 if let Some(ts) = tablesample {
                     let args: Vec<String> = ts.arguments.iter().map(|a| self.format_expr(a)).collect();
-                    result = format!("{} TABLESAMPLE {} ({})", result, self.quote_identifier(&ts.method), args.join(", "));
+                    result =
+                        format!("{} TABLESAMPLE {} ({})", result, self.quote_identifier(&ts.method), args.join(", "));
                     if let Some(rep) = &ts.repeatable {
                         result = format!("{} REPEATABLE ({})", result, self.format_expr(rep));
                     }
@@ -615,24 +520,14 @@ impl SqlFormatter {
                 }
                 result
             }
-            TableRef::FunctionCall {
-                name,
-                args,
-                alias,
-                column_defs,
-                ..
-            } => {
+            TableRef::FunctionCall { name, args, alias, column_defs, .. } => {
                 let args_str: Vec<String> = args.iter().map(|a| self.format_expr(a)).collect();
-                let mut result =
-                    format!("{}({})", self.format_object_name(name), args_str.join(", "));
+                let mut result = format!("{}({})", self.format_object_name(name), args_str.join(", "));
                 if let Some(a) = alias {
                     result = format!("{} AS {}", result, self.quote_identifier(a));
                 }
                 if !column_defs.is_empty() {
-                    let defs: Vec<String> = column_defs
-                        .iter()
-                        .map(|d| self.format_column_def(d))
-                        .collect();
+                    let defs: Vec<String> = column_defs.iter().map(|d| self.format_column_def(d)).collect();
                     result = format!("{}({})", result, defs.join(", "));
                 }
                 result
@@ -645,12 +540,7 @@ impl SqlFormatter {
                     None => result,
                 }
             }
-            TableRef::Values {
-                values,
-                alias,
-                column_names,
-                lateral,
-            } => {
+            TableRef::Values { values, alias, column_names, lateral } => {
                 let vals = format!("({})", self.format_values(values));
                 let result = if *lateral { format!("{} {}", self.kw("LATERAL"), vals) } else { vals };
                 let alias_str = match alias {
@@ -660,11 +550,7 @@ impl SqlFormatter {
                         } else {
                             format!(
                                 "({})",
-                                column_names
-                                    .iter()
-                                    .map(|c| self.quote_identifier(c))
-                                    .collect::<Vec<_>>()
-                                    .join(", ")
+                                column_names.iter().map(|c| self.quote_identifier(c)).collect::<Vec<_>>().join(", ")
                             )
                         };
                         format!(" AS {}{}", self.quote_identifier(a), cols)
@@ -673,14 +559,7 @@ impl SqlFormatter {
                 };
                 format!("{}{}", result, alias_str)
             }
-            TableRef::Join {
-                left,
-                right,
-                join_type,
-                condition,
-                natural,
-                using_columns,
-            } => {
+            TableRef::Join { left, right, join_type, condition, natural, using_columns } => {
                 let left_str = self.format_table_ref(left);
                 let join_kw = match join_type {
                     JoinType::Inner => self.kw("INNER JOIN"),
@@ -690,21 +569,12 @@ impl SqlFormatter {
                     JoinType::Cross => self.kw("CROSS JOIN"),
                 };
                 let right_str = self.format_table_ref(right);
-                let natural_kw = if *natural {
-                    format!("{} ", self.kw("NATURAL"))
-                } else {
-                    String::new()
-                };
+                let natural_kw = if *natural { format!("{} ", self.kw("NATURAL")) } else { String::new() };
                 let mut result = format!("{} {}{} {}", left_str, natural_kw, join_kw, right_str);
                 if let Some(cond) = condition {
                     result = format!("{} {} {}", result, self.kw("ON"), self.format_expr(cond));
                 } else if !using_columns.is_empty() {
-                    result = format!(
-                        "{} {} ({})",
-                        result,
-                        self.kw("USING"),
-                        using_columns.join(", ")
-                    );
+                    result = format!("{} {} ({})", result, self.kw("USING"), using_columns.join(", "));
                 }
                 result
             }
@@ -722,11 +592,7 @@ impl SqlFormatter {
                     })
                     .collect::<Vec<_>>()
                     .join(", ");
-                let xml_str = if pivot.xml == Some(true) {
-                    format!(" {}", self.kw("XML"))
-                } else {
-                    String::new()
-                };
+                let xml_str = if pivot.xml == Some(true) { format!(" {}", self.kw("XML")) } else { String::new() };
                 format!(
                     "{} {}{} ({} {} {} {} ({}))",
                     source_str,
@@ -772,20 +638,9 @@ impl SqlFormatter {
         }
     }
 
-    fn format_table_ref_with_partition(
-        &self,
-        table_ref: &TableRef,
-        partition: Option<&DmlPartitionClause>,
-    ) -> String {
+    fn format_table_ref_with_partition(&self, table_ref: &TableRef, partition: Option<&DmlPartitionClause>) -> String {
         match table_ref {
-            TableRef::Table {
-                name,
-                alias,
-                column_aliases: _,
-                partition: _,
-                timecapsule: _,
-                tablesample: _,
-            } => {
+            TableRef::Table { name, alias, column_aliases: _, partition: _, timecapsule: _, tablesample: _ } => {
                 let mut parts = vec![self.format_object_name(name)];
                 if let Some(p) = partition {
                     parts.push(self.format_dml_partition(p));
@@ -815,13 +670,7 @@ impl SqlFormatter {
                         if s.is_empty() {
                             "()".to_string()
                         } else {
-                            format!(
-                                "({})",
-                                s.iter()
-                                    .map(|e| self.format_expr(e))
-                                    .collect::<Vec<_>>()
-                                    .join(", ")
-                            )
+                            format!("({})", s.iter().map(|e| self.format_expr(e)).collect::<Vec<_>>().join(", "))
                         }
                     })
                     .collect();
@@ -831,20 +680,14 @@ impl SqlFormatter {
                 format!(
                     "{} ({})",
                     self.kw("ROLLUP"),
-                    cols.iter()
-                        .map(|e| self.format_expr(e))
-                        .collect::<Vec<_>>()
-                        .join(", ")
+                    cols.iter().map(|e| self.format_expr(e)).collect::<Vec<_>>().join(", ")
                 )
             }
             GroupByItem::Cube(cols) => {
                 format!(
                     "{} ({})",
                     self.kw("CUBE"),
-                    cols.iter()
-                        .map(|e| self.format_expr(e))
-                        .collect::<Vec<_>>()
-                        .join(", ")
+                    cols.iter().map(|e| self.format_expr(e)).collect::<Vec<_>>().join(", ")
                 )
             }
         }
@@ -856,32 +699,16 @@ impl SqlFormatter {
             Expr::ColumnRef(name) => self.format_object_name(name),
             Expr::QualifiedStar(table) => format!("{}.*", self.quote_identifier_relaxed(table)),
             Expr::BinaryOp { left, op, right } => {
-                format!(
-                    "{} {} {}",
-                    self.format_expr(left),
-                    op.to_uppercase(),
-                    self.format_expr(right)
-                )
+                format!("{} {} {}", self.format_expr(left), op.to_uppercase(), self.format_expr(right))
             }
-            Expr::Like {
-                expr,
-                pattern,
-                escape,
-                negated,
-                case_insensitive,
-            } => {
+            Expr::Like { expr, pattern, escape, negated, case_insensitive } => {
                 let op = match (*negated, *case_insensitive) {
                     (false, false) => "LIKE",
                     (true, false) => "NOT LIKE",
                     (false, true) => "ILIKE",
                     (true, true) => "NOT ILIKE",
                 };
-                let mut result = format!(
-                    "{} {} {}",
-                    self.format_expr(expr),
-                    self.kw(op),
-                    self.format_expr(pattern)
-                );
+                let mut result = format!("{} {} {}", self.format_expr(expr), self.kw(op), self.format_expr(pattern));
                 if let Some(esc) = escape {
                     result = format!("{} {} {}", result, self.kw("ESCAPE"), self.format_expr(esc));
                 }
@@ -908,21 +735,14 @@ impl SqlFormatter {
                 agg_from,
                 ..
             } => {
-                let parts: Vec<String> = name
-                    .iter()
-                    .map(|s| self.quote_identifier_relaxed(s))
-                    .collect();
+                let parts: Vec<String> = name.iter().map(|s| self.quote_identifier_relaxed(s)).collect();
                 let mut result = format!("{}(", parts.join("."));
                 if *distinct {
                     result.push_str(&format!("{} ", self.kw("DISTINCT")));
                 }
                 result.push_str(&self.format_exprs(args));
                 if let Some(sep) = separator {
-                    result.push_str(&format!(
-                        " {} {}",
-                        self.kw("SEPARATOR"),
-                        self.format_expr(sep)
-                    ));
+                    result.push_str(&format!(" {} {}", self.kw("SEPARATOR"), self.format_expr(sep)));
                 }
                 if let Some(def) = default {
                     result.push_str(&format!(
@@ -937,9 +757,9 @@ impl SqlFormatter {
                     result.push_str(&format!(", {}", self.format_expr(fmt)));
                 }
                 if let Some(from_items) = agg_from {
-                    result.push_str(" ");
+                    result.push(' ');
                     result.push_str(&self.kw("FROM"));
-                    result.push_str(" ");
+                    result.push(' ');
                     result.push_str(&self.format_table_refs(from_items));
                 }
                 result.push(')');
@@ -952,11 +772,7 @@ impl SqlFormatter {
                         .map(|item| {
                             let mut s = self.format_expr(&item.expr);
                             if let Some(asc) = item.asc {
-                                s = format!(
-                                    "{} {}",
-                                    s,
-                                    if asc { self.kw("ASC") } else { self.kw("DESC") }
-                                );
+                                s = format!("{} {}", s, if asc { self.kw("ASC") } else { self.kw("DESC") });
                             }
                             s
                         })
@@ -1073,22 +889,13 @@ impl SqlFormatter {
             Expr::CurrentOf { cursor_name } => {
                 format!("{} {} {}", self.kw("CURRENT"), self.kw("OF"), cursor_name)
             }
-            Expr::Case {
-                operand,
-                whens,
-                else_expr,
-            } => {
+            Expr::Case { operand, whens, else_expr } => {
                 let mut parts = vec![self.kw("CASE")];
                 if let Some(op) = operand {
                     parts.push(self.format_expr(op));
                 }
                 for w in whens {
-                    parts.push(format!(
-                        "{} {} {}",
-                        self.kw("WHEN"),
-                        self.format_expr(&w.condition),
-                        self.kw("THEN")
-                    ));
+                    parts.push(format!("{} {} {}", self.kw("WHEN"), self.format_expr(&w.condition), self.kw("THEN")));
                     parts.push(self.format_expr(&w.result));
                 }
                 if let Some(e) = else_expr {
@@ -1098,17 +905,8 @@ impl SqlFormatter {
                 parts.push(self.kw("END"));
                 parts.join(" ")
             }
-            Expr::Between {
-                expr,
-                low,
-                high,
-                negated,
-            } => {
-                let not_str = if *negated {
-                    format!("{} ", self.kw("NOT"))
-                } else {
-                    String::new()
-                };
+            Expr::Between { expr, low, high, negated } => {
+                let not_str = if *negated { format!("{} ", self.kw("NOT")) } else { String::new() };
                 format!(
                     "{} {}{} {} {} {}",
                     self.format_expr(expr),
@@ -1119,41 +917,13 @@ impl SqlFormatter {
                     self.format_expr(high)
                 )
             }
-            Expr::InList {
-                expr,
-                list,
-                negated,
-            } => {
-                let not_str = if *negated {
-                    format!("{} ", self.kw("NOT"))
-                } else {
-                    String::new()
-                };
-                format!(
-                    "{} {}{} ({})",
-                    self.format_expr(expr),
-                    not_str,
-                    self.kw("IN"),
-                    self.format_exprs(list)
-                )
+            Expr::InList { expr, list, negated } => {
+                let not_str = if *negated { format!("{} ", self.kw("NOT")) } else { String::new() };
+                format!("{} {}{} ({})", self.format_expr(expr), not_str, self.kw("IN"), self.format_exprs(list))
             }
-            Expr::InSubquery {
-                expr,
-                subquery,
-                negated,
-            } => {
-                let not_str = if *negated {
-                    format!("{} ", self.kw("NOT"))
-                } else {
-                    String::new()
-                };
-                format!(
-                    "{} {}{} ({})",
-                    self.format_expr(expr),
-                    not_str,
-                    self.kw("IN"),
-                    self.format_select(subquery)
-                )
+            Expr::InSubquery { expr, subquery, negated } => {
+                let not_str = if *negated { format!("{} ", self.kw("NOT")) } else { String::new() };
+                format!("{} {}{} ({})", self.format_expr(expr), not_str, self.kw("IN"), self.format_select(subquery))
             }
             Expr::Exists(subquery) => {
                 format!("{} ({})", self.kw("EXISTS"), self.format_select(subquery))
@@ -1161,12 +931,7 @@ impl SqlFormatter {
             Expr::Subquery(subquery) => {
                 format!("({})", self.format_select(subquery))
             }
-            Expr::ScalarSublink {
-                expr,
-                op,
-                sublink_type,
-                subquery,
-            } => {
+            Expr::ScalarSublink { expr, op, sublink_type, subquery } => {
                 let type_str = match sublink_type {
                     crate::ast::ScalarSublinkType::Any => self.kw("ANY"),
                     crate::ast::ScalarSublinkType::Some => self.kw("SOME"),
@@ -1181,51 +946,16 @@ impl SqlFormatter {
                 )
             }
             Expr::IsNull { expr, negated } => {
-                let not_str = if *negated {
-                    format!(" {}", self.kw("NOT"))
-                } else {
-                    String::new()
-                };
-                format!(
-                    "{} IS{} {}",
-                    self.format_expr(expr),
-                    not_str,
-                    self.kw("NULL")
-                )
+                let not_str = if *negated { format!(" {}", self.kw("NOT")) } else { String::new() };
+                format!("{} IS{} {}", self.format_expr(expr), not_str, self.kw("NULL"))
             }
-            Expr::IsBoolean {
-                expr,
-                value,
-                negated,
-            } => {
-                let not_str = if *negated {
-                    format!(" {}", self.kw("NOT"))
-                } else {
-                    String::new()
-                };
-                let bool_str = if *value {
-                    self.kw("TRUE")
-                } else {
-                    self.kw("FALSE")
-                };
-                format!(
-                    "{} IS{} {}",
-                    self.format_expr(expr),
-                    not_str,
-                    bool_str
-                )
+            Expr::IsBoolean { expr, value, negated } => {
+                let not_str = if *negated { format!(" {}", self.kw("NOT")) } else { String::new() };
+                let bool_str = if *value { self.kw("TRUE") } else { self.kw("FALSE") };
+                format!("{} IS{} {}", self.format_expr(expr), not_str, bool_str)
             }
-            Expr::TypeCast {
-                expr,
-                type_name,
-                default,
-                format: fmt_expr,
-            } => {
-                let mut result = format!(
-                    "{}::{}",
-                    self.format_expr(expr),
-                    self.format_data_type(type_name)
-                );
+            Expr::TypeCast { expr, type_name, default, format: fmt_expr } => {
+                let mut result = format!("{}::{}", self.format_expr(expr), self.format_data_type(type_name));
                 if let Some(def) = default {
                     result = format!(
                         "{} {} {} {}",
@@ -1250,12 +980,7 @@ impl SqlFormatter {
                 )
             }
             Expr::CollationFor { expr } => {
-                format!(
-                    "{} {} ({})",
-                    self.kw("COLLATION"),
-                    self.kw("FOR"),
-                    self.format_expr(expr)
-                )
+                format!("{} {} ({})", self.kw("COLLATION"), self.kw("FOR"), self.format_expr(expr))
             }
             Expr::Parameter(n) => format!("${}", n),
             Expr::MyBatisParam(content) => format!("#{{{}}}", content),
@@ -1280,11 +1005,7 @@ impl SqlFormatter {
                 }
             }
             Expr::FieldAccess { object, field } => {
-                format!(
-                    "{}.{}",
-                    self.format_expr(object),
-                    self.quote_identifier(field)
-                )
+                format!("{}.{}", self.format_expr(object), self.quote_identifier(field))
             }
             Expr::Parenthesized(expr) => {
                 format!("({})", self.format_expr(expr))
@@ -1295,13 +1016,7 @@ impl SqlFormatter {
             }
             Expr::Prior(e) => format!("{} {}", self.kw("PRIOR"), self.format_expr(e)),
             Expr::Default => self.kw("DEFAULT").to_string(),
-            Expr::XmlElement {
-                entity_escaping,
-                evalname,
-                name,
-                attributes,
-                content,
-            } => {
+            Expr::XmlElement { entity_escaping, evalname, name, attributes, content } => {
                 let mut result = self.kw("XMLELEMENT") + "(";
                 if let Some(true) = entity_escaping {
                     result = result + &self.kw("ENTITYESCAPING") + " ";
@@ -1319,11 +1034,7 @@ impl SqlFormatter {
                 for item in content {
                     result = result + ", " + &self.format_expr(&item.expr);
                     if let Some(alias) = &item.alias {
-                        result = result
-                            + " "
-                            + &self.kw("AS")
-                            + " "
-                            + &self.quote_identifier_relaxed(alias);
+                        result = result + " " + &self.kw("AS") + " " + &self.quote_identifier_relaxed(alias);
                     }
                 }
                 result + ")"
@@ -1337,32 +1048,19 @@ impl SqlFormatter {
                     .map(|item| {
                         let mut s = self.format_expr(&item.expr);
                         if let Some(alias) = &item.alias {
-                            s = s
-                                + " "
-                                + &self.kw("AS")
-                                + " "
-                                + &self.quote_identifier_relaxed(alias);
+                            s = s + " " + &self.kw("AS") + " " + &self.quote_identifier_relaxed(alias);
                         }
                         s
                     })
                     .collect();
                 format!("{}({})", self.kw("XMLFOREST"), parts.join(", "))
             }
-            Expr::XmlParse {
-                option,
-                expr,
-                wellformed,
-            } => {
+            Expr::XmlParse { option, expr, wellformed } => {
                 let opt_str = match option {
                     XmlOption::Document => self.kw("DOCUMENT"),
                     XmlOption::Content => self.kw("CONTENT"),
                 };
-                let mut result = format!(
-                    "{}({} {}",
-                    self.kw("XMLPARSE"),
-                    opt_str,
-                    self.format_expr(expr)
-                );
+                let mut result = format!("{}({} {}", self.kw("XMLPARSE"), opt_str, self.format_expr(expr));
                 if *wellformed {
                     result = result + " " + &self.kw("WELLFORMED");
                 }
@@ -1378,17 +1076,8 @@ impl SqlFormatter {
                 }
                 result + ")"
             }
-            Expr::XmlRoot {
-                expr,
-                version,
-                standalone,
-            } => {
-                let mut result = format!(
-                    "{}({}, {}",
-                    self.kw("XMLROOT"),
-                    self.format_expr(expr),
-                    self.kw("VERSION")
-                );
+            Expr::XmlRoot { expr, version, standalone } => {
+                let mut result = format!("{}({}, {}", self.kw("XMLROOT"), self.format_expr(expr), self.kw("VERSION"));
                 if let Some(v) = version {
                     result = result + " " + &self.format_expr(v);
                 } else {
@@ -1404,11 +1093,7 @@ impl SqlFormatter {
                 }
                 result + ")"
             }
-            Expr::XmlSerialize {
-                option,
-                expr,
-                type_name,
-            } => {
+            Expr::XmlSerialize { option, expr, type_name } => {
                 let opt_str = match option {
                     XmlOption::Document => self.kw("DOCUMENT"),
                     XmlOption::Content => self.kw("CONTENT"),
@@ -1422,21 +1107,14 @@ impl SqlFormatter {
                     self.format_data_type(type_name)
                 )
             }
-            Expr::PredictBy {
-                model_name,
-                features,
-            } => {
+            Expr::PredictBy { model_name, features } => {
                 format!(
                     "{} {} {} ({} {})",
                     self.kw("PREDICT"),
                     self.kw("BY"),
                     model_name,
                     self.kw("FEATURES"),
-                    features
-                        .iter()
-                        .map(|f| self.format_expr(f))
-                        .collect::<Vec<_>>()
-                        .join(", ")
+                    features.iter().map(|f| self.format_expr(f)).collect::<Vec<_>>().join(", ")
                 )
             }
             Expr::SysDate => self.kw("SYSDATE"),
@@ -1523,8 +1201,7 @@ impl SqlFormatter {
         if s == "*" {
             return s.to_string();
         }
-        if s.chars()
-            .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_')
+        if s.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_')
             && !s.is_empty()
             && !s.chars().next().expect("s is non-empty after is_empty() check").is_ascii_digit()
         {
@@ -1559,19 +1236,11 @@ impl SqlFormatter {
         }
 
         if !ws.partition_by.is_empty() {
-            inner.push(format!(
-                "{} {}",
-                self.kw("PARTITION BY"),
-                self.format_exprs(&ws.partition_by)
-            ));
+            inner.push(format!("{} {}", self.kw("PARTITION BY"), self.format_exprs(&ws.partition_by)));
         }
 
         if !ws.order_by.is_empty() {
-            inner.push(format!(
-                "{} {}",
-                self.kw("ORDER BY"),
-                self.format_order_by(&ws.order_by)
-            ));
+            inner.push(format!("{} {}", self.kw("ORDER BY"), self.format_order_by(&ws.order_by)));
         }
 
         if let Some(frame) = &ws.frame {
@@ -1631,23 +1300,10 @@ impl SqlFormatter {
     fn format_order_by_item(&self, item: &OrderByItem) -> String {
         let mut result = self.format_expr(&item.expr);
         if let Some(asc) = item.asc {
-            result = format!(
-                "{} {}",
-                result,
-                if asc { self.kw("ASC") } else { self.kw("DESC") }
-            );
+            result = format!("{} {}", result, if asc { self.kw("ASC") } else { self.kw("DESC") });
         }
         if let Some(nf) = item.nulls_first {
-            result = format!(
-                "{} {} {}",
-                result,
-                self.kw("NULLS"),
-                if nf {
-                    self.kw("FIRST")
-                } else {
-                    self.kw("LAST")
-                }
-            );
+            result = format!("{} {} {}", result, self.kw("NULLS"), if nf { self.kw("FIRST") } else { self.kw("LAST") });
         }
         if let Some(using) = &item.using {
             result = format!("{} {} {}", result, self.kw("USING"), self.format_expr(using));
@@ -1688,15 +1344,9 @@ impl SqlFormatter {
 
         match &stmt.source {
             InsertSource::Values(rows) => {
-                let rows_formatted: Vec<String> = rows
-                    .iter()
-                    .map(|row| format!("({})", self.format_exprs(row)))
-                    .collect();
-                parts.push(format!(
-                    "{} {}",
-                    self.kw("VALUES"),
-                    rows_formatted.join(", ")
-                ));
+                let rows_formatted: Vec<String> =
+                    rows.iter().map(|row| format!("({})", self.format_exprs(row))).collect();
+                parts.push(format!("{} {}", self.kw("VALUES"), rows_formatted.join(", ")));
             }
             InsertSource::Select(sel) => {
                 parts.push(self.format_select(sel));
@@ -1712,7 +1362,7 @@ impl SqlFormatter {
                 let assign_strs: Vec<String> = assignments
                     .iter()
                     .map(|a| {
-                         let col = self.format_object_name(&a.columns[0]);
+                        let col = self.format_object_name(&a.columns[0]);
                         format!("{} = {}", col, self.format_expr(&a.value))
                     })
                     .collect();
@@ -1725,13 +1375,7 @@ impl SqlFormatter {
             let assign_strs: Vec<String> = dup_key
                 .assignments
                 .iter()
-                .map(|a| {
-                    format!(
-                        "{} = {}",
-                        self.format_object_name(&a.columns[0]),
-                        self.format_expr(&a.value)
-                    )
-                })
+                .map(|a| format!("{} = {}", self.format_object_name(&a.columns[0]), self.format_expr(&a.value)))
                 .collect();
             dup_parts.push(assign_strs.join(", "));
             if let Some(w) = &dup_key.where_clause {
@@ -1761,9 +1405,10 @@ impl SqlFormatter {
                 ConflictAction::DoUpdate { assignments, where_clause } => {
                     conflict_parts.push(self.kw("UPDATE"));
                     conflict_parts.push(self.kw("SET"));
-                    let assigns: Vec<String> = assignments.iter().map(|a| {
-                        format!("{} = {}", self.format_object_name(&a.columns[0]), self.format_expr(&a.value))
-                    }).collect();
+                    let assigns: Vec<String> = assignments
+                        .iter()
+                        .map(|a| format!("{} = {}", self.format_object_name(&a.columns[0]), self.format_expr(&a.value)))
+                        .collect();
                     conflict_parts.push(assigns.join(", "));
                     if let Some(ref wc) = where_clause {
                         conflict_parts.push(self.kw("WHERE"));
@@ -1775,11 +1420,7 @@ impl SqlFormatter {
         }
 
         if !stmt.returning.is_empty() {
-            parts.push(format!(
-                "{} {}",
-                self.kw("RETURNING"),
-                self.format_select_targets(&stmt.returning)
-            ));
+            parts.push(format!("{} {}", self.kw("RETURNING"), self.format_select_targets(&stmt.returning)));
         }
 
         if let Some(into_targets) = &stmt.into_targets {
@@ -1799,11 +1440,7 @@ impl SqlFormatter {
         if !target.columns.is_empty() {
             parts.push(format!("({})", target.columns.join(", ")));
         }
-        let rows: Vec<String> = target
-            .values
-            .iter()
-            .map(|row| format!("({})", self.format_exprs(row)))
-            .collect();
+        let rows: Vec<String> = target.values.iter().map(|row| format!("({})", self.format_exprs(row))).collect();
         parts.push(format!("{} {}", self.kw("VALUES"), rows.join(", ")));
         parts.join(" ")
     }
@@ -1868,14 +1505,9 @@ impl SqlFormatter {
             .iter()
             .map(|a| {
                 if a.columns.len() == 1 {
-                    format!(
-                        "{} = {}",
-                        self.format_object_name(&a.columns[0]),
-                        self.format_expr(&a.value)
-                    )
+                    format!("{} = {}", self.format_object_name(&a.columns[0]), self.format_expr(&a.value))
                 } else {
-                    let cols: Vec<String> =
-                        a.columns.iter().map(|c| self.format_object_name(c)).collect();
+                    let cols: Vec<String> = a.columns.iter().map(|c| self.format_object_name(c)).collect();
                     format!("({}) = {}", cols.join(", "), self.format_expr(&a.value))
                 }
             })
@@ -1883,27 +1515,15 @@ impl SqlFormatter {
         parts.push(format!("{} {}", self.kw("SET"), assignments.join(", ")));
 
         if !stmt.from.is_empty() {
-            parts.push(format!(
-                "{} {}",
-                self.kw("FROM"),
-                self.format_table_refs(&stmt.from)
-            ));
+            parts.push(format!("{} {}", self.kw("FROM"), self.format_table_refs(&stmt.from)));
         }
 
         if let Some(where_clause) = &stmt.where_clause {
-            parts.push(format!(
-                "{} {}",
-                self.kw("WHERE"),
-                self.format_expr(where_clause)
-            ));
+            parts.push(format!("{} {}", self.kw("WHERE"), self.format_expr(where_clause)));
         }
 
         if !stmt.returning.is_empty() {
-            parts.push(format!(
-                "{} {}",
-                self.kw("RETURNING"),
-                self.format_select_targets(&stmt.returning)
-            ));
+            parts.push(format!("{} {}", self.kw("RETURNING"), self.format_select_targets(&stmt.returning)));
         }
 
         if let Some(into_targets) = &stmt.into_targets {
@@ -1927,19 +1547,11 @@ impl SqlFormatter {
         parts.push(self.format_table_refs(&stmt.tables));
 
         if !stmt.using.is_empty() {
-            parts.push(format!(
-                "{} {}",
-                self.kw("USING"),
-                self.format_table_refs(&stmt.using)
-            ));
+            parts.push(format!("{} {}", self.kw("USING"), self.format_table_refs(&stmt.using)));
         }
 
         if let Some(where_clause) = &stmt.where_clause {
-            parts.push(format!(
-                "{} {}",
-                self.kw("WHERE"),
-                self.format_expr(where_clause)
-            ));
+            parts.push(format!("{} {}", self.kw("WHERE"), self.format_expr(where_clause)));
         }
 
         if let Some(limit) = &stmt.limit {
@@ -1947,11 +1559,7 @@ impl SqlFormatter {
         }
 
         if !stmt.returning.is_empty() {
-            parts.push(format!(
-                "{} {}",
-                self.kw("RETURNING"),
-                self.format_select_targets(&stmt.returning)
-            ));
+            parts.push(format!("{} {}", self.kw("RETURNING"), self.format_select_targets(&stmt.returning)));
         }
 
         if let Some(into_targets) = &stmt.into_targets {
@@ -1975,25 +1583,15 @@ impl SqlFormatter {
         parts.push(self.format_table_ref_with_partition(&stmt.target, stmt.partition.as_ref()));
 
         parts.push(self.kw("USING"));
-        parts.push(
-            self.format_table_ref_with_partition(&stmt.source, stmt.source_partition.as_ref()),
-        );
+        parts.push(self.format_table_ref_with_partition(&stmt.source, stmt.source_partition.as_ref()));
         parts.push(self.kw("ON"));
         parts.push(self.format_expr(&stmt.on_condition));
 
         for wc in &stmt.when_clauses {
             let when_str = if wc.matched {
-                format!(
-                    "{} {}",
-                    self.kw("WHEN MATCHED THEN"),
-                    self.format_merge_action(&wc.action)
-                )
+                format!("{} {}", self.kw("WHEN MATCHED THEN"), self.format_merge_action(&wc.action))
             } else {
-                format!(
-                    "{} {}",
-                    self.kw("WHEN NOT MATCHED THEN"),
-                    self.format_merge_action(&wc.action)
-                )
+                format!("{} {}", self.kw("WHEN NOT MATCHED THEN"), self.format_merge_action(&wc.action))
             };
             parts.push(when_str);
         }
@@ -2006,13 +1604,7 @@ impl SqlFormatter {
             MergeAction::Update(assignments) => {
                 let assigns: Vec<String> = assignments
                     .iter()
-                    .map(|a| {
-                        format!(
-                            "{} = {}",
-                            self.format_object_name(&a.columns[0]),
-                            self.format_expr(&a.value)
-                        )
-                    })
+                    .map(|a| format!("{} = {}", self.format_object_name(&a.columns[0]), self.format_expr(&a.value)))
                     .collect();
                 format!("{} {}", self.kw("UPDATE SET"), assigns.join(", "))
             }
@@ -2020,15 +1612,10 @@ impl SqlFormatter {
             MergeAction::Insert { columns, values } => {
                 let mut parts = vec![self.kw("INSERT")];
                 if !columns.is_empty() {
-                    let col_strs: Vec<String> =
-                        columns.iter().map(|c| self.format_object_name(c)).collect();
+                    let col_strs: Vec<String> = columns.iter().map(|c| self.format_object_name(c)).collect();
                     parts.push(format!("({})", col_strs.join(", ")));
                 }
-                parts.push(format!(
-                    "{} ({})",
-                    self.kw("VALUES"),
-                    self.format_exprs(values)
-                ));
+                parts.push(format!("{} ({})", self.kw("VALUES"), self.format_exprs(values)));
                 parts.join(" ")
             }
         }
@@ -2099,32 +1686,19 @@ impl SqlFormatter {
         }
 
         if !stmt.options.is_empty() {
-            let opts: Vec<String> = stmt
-                .options
-                .iter()
-                .map(|(k, v)| format!("{} = {}", k, v))
-                .collect();
+            let opts: Vec<String> = stmt.options.iter().map(|(k, v)| format!("{} = {}", k, v)).collect();
             parts.push(format!("{} ({})", self.kw("WITH"), opts.join(", ")));
         }
 
         if !stmt.table_options.is_empty() {
-            let opts: Vec<String> = stmt
-                .table_options
-                .iter()
-                .map(|(k, v)| format!("{} = {}", k, v))
-                .collect();
+            let opts: Vec<String> = stmt.table_options.iter().map(|(k, v)| format!("{} = {}", k, v)).collect();
             parts.push(format!("{} ({})", self.kw("TABLE OPTION"), opts.join(", ")));
         }
 
         if let Some(ilm) = &stmt.ilm {
             let mut ilm_parts = vec![self.kw("ILM ADD POLICY ROW STORE COMPRESS ADVANCED ROW")];
             ilm_parts.push(self.kw("AFTER"));
-            ilm_parts.push(format!(
-                "{} {} {}",
-                ilm.after_n,
-                ilm.unit,
-                self.kw("OF NO MODIFICATION")
-            ));
+            ilm_parts.push(format!("{} {} {}", ilm.after_n, ilm.unit, self.kw("OF NO MODIFICATION")));
             if let Some(cond) = &ilm.condition {
                 ilm_parts.push(format!("{} ({})", self.kw("ON"), self.format_expr(cond)));
             }
@@ -2145,29 +1719,14 @@ impl SqlFormatter {
     fn format_distribute_clause(&self, clause: &DistributeClause) -> String {
         match clause {
             DistributeClause::Hash { columns } => {
-                format!(
-                    "{} {} ({})",
-                    self.kw("DISTRIBUTE BY HASH"),
-                    "",
-                    columns.join(", ")
-                )
+                format!("{} {} ({})", self.kw("DISTRIBUTE BY HASH"), "", columns.join(", "))
             }
             DistributeClause::Replication => self.kw("DISTRIBUTE BY REPLICATION"),
             DistributeClause::RoundRobin { columns } => {
-                format!(
-                    "{} {} ({})",
-                    self.kw("DISTRIBUTE BY ROUNDROBIN"),
-                    "",
-                    columns.join(", ")
-                )
+                format!("{} {} ({})", self.kw("DISTRIBUTE BY ROUNDROBIN"), "", columns.join(", "))
             }
             DistributeClause::Modulo { columns } => {
-                format!(
-                    "{} {} ({})",
-                    self.kw("DISTRIBUTE BY MODULO"),
-                    "",
-                    columns.join(", ")
-                )
+                format!("{} {} ({})", self.kw("DISTRIBUTE BY MODULO"), "", columns.join(", "))
             }
         }
     }
@@ -2182,55 +1741,24 @@ impl SqlFormatter {
             }
             DmlPartitionClause::PartitionFor(exprs) => {
                 let formatted: Vec<String> = exprs.iter().map(|e| self.format_expr(e)).collect();
-                format!(
-                    "{} {} ({})",
-                    self.kw("PARTITION"),
-                    self.kw("FOR"),
-                    formatted.join(", ")
-                )
+                format!("{} {} ({})", self.kw("PARTITION"), self.kw("FOR"), formatted.join(", "))
             }
             DmlPartitionClause::SubpartitionFor(exprs) => {
                 let formatted: Vec<String> = exprs.iter().map(|e| self.format_expr(e)).collect();
-                format!(
-                    "{} {} ({})",
-                    self.kw("SUBPARTITION"),
-                    self.kw("FOR"),
-                    formatted.join(", ")
-                )
+                format!("{} {} ({})", self.kw("SUBPARTITION"), self.kw("FOR"), formatted.join(", "))
             }
         }
     }
 
     fn format_partition_clause(&self, clause: &PartitionClause) -> String {
         match clause {
-            PartitionClause::Range {
-                columns,
-                interval,
-                is_columns,
-                partitions_count,
-                partitions,
-            } => {
+            PartitionClause::Range { columns, interval, is_columns, partitions_count, partitions } => {
                 let mut parts = vec![
-                    if *is_columns {
-                        self.kw("PARTITION BY RANGE COLUMNS")
-                    } else {
-                        self.kw("PARTITION BY RANGE")
-                    },
-                    format!(
-                        "({})",
-                        columns
-                            .iter()
-                            .map(|c| self.format_object_name(c))
-                            .collect::<Vec<_>>()
-                            .join(", ")
-                    ),
+                    if *is_columns { self.kw("PARTITION BY RANGE COLUMNS") } else { self.kw("PARTITION BY RANGE") },
+                    format!("({})", columns.iter().map(|c| self.format_object_name(c)).collect::<Vec<_>>().join(", ")),
                 ];
                 if let Some(iv) = interval {
-                    parts.push(format!(
-                        "{} ({})",
-                        self.kw("INTERVAL"),
-                        self.format_expr(iv)
-                    ));
+                    parts.push(format!("{} ({})", self.kw("INTERVAL"), self.format_expr(iv)));
                 }
                 if let Some(n) = partitions_count {
                     parts.push(format!("{} {}", self.kw("PARTITIONS"), n));
@@ -2240,46 +1768,20 @@ impl SqlFormatter {
                 }
                 parts.join(" ")
             }
-            PartitionClause::List {
-                columns,
-                is_columns,
-                partitions,
-            } => {
+            PartitionClause::List { columns, is_columns, partitions } => {
                 let mut parts = vec![
-                    if *is_columns {
-                        self.kw("PARTITION BY LIST COLUMNS")
-                    } else {
-                        self.kw("PARTITION BY LIST")
-                    },
-                    format!(
-                        "({})",
-                        columns
-                            .iter()
-                            .map(|c| self.format_object_name(c))
-                            .collect::<Vec<_>>()
-                            .join(", ")
-                    ),
+                    if *is_columns { self.kw("PARTITION BY LIST COLUMNS") } else { self.kw("PARTITION BY LIST") },
+                    format!("({})", columns.iter().map(|c| self.format_object_name(c)).collect::<Vec<_>>().join(", ")),
                 ];
                 if !partitions.is_empty() {
                     parts.push(self.format_partition_defs(partitions));
                 }
                 parts.join(" ")
             }
-            PartitionClause::Hash {
-                columns,
-                partitions_count,
-                partitions,
-            } => {
+            PartitionClause::Hash { columns, partitions_count, partitions } => {
                 let mut parts = vec![
                     self.kw("PARTITION BY HASH"),
-                    format!(
-                        "({})",
-                        columns
-                            .iter()
-                            .map(|c| self.format_object_name(c))
-                            .collect::<Vec<_>>()
-                            .join(", ")
-                    ),
+                    format!("({})", columns.iter().map(|c| self.format_object_name(c)).collect::<Vec<_>>().join(", ")),
                 ];
                 if let Some(n) = partitions_count {
                     parts.push(format!("{} {}", self.kw("PARTITIONS"), n));
@@ -2294,72 +1796,34 @@ impl SqlFormatter {
 
     fn format_subpartition_clause(&self, clause: &PartitionClause) -> String {
         match clause {
-            PartitionClause::Range {
-                columns,
-                is_columns,
-                partitions,
-                ..
-            } => {
+            PartitionClause::Range { columns, is_columns, partitions, .. } => {
                 let mut parts = vec![
                     if *is_columns {
                         self.kw("SUBPARTITION BY RANGE COLUMNS")
                     } else {
                         self.kw("SUBPARTITION BY RANGE")
                     },
-                    format!(
-                        "({})",
-                        columns
-                            .iter()
-                            .map(|c| self.format_object_name(c))
-                            .collect::<Vec<_>>()
-                            .join(", ")
-                    ),
+                    format!("({})", columns.iter().map(|c| self.format_object_name(c)).collect::<Vec<_>>().join(", ")),
                 ];
                 if !partitions.is_empty() {
                     parts.push(self.format_partition_defs(partitions));
                 }
                 parts.join(" ")
             }
-            PartitionClause::List {
-                columns,
-                is_columns,
-                partitions,
-            } => {
+            PartitionClause::List { columns, is_columns, partitions } => {
                 let mut parts = vec![
-                    if *is_columns {
-                        self.kw("SUBPARTITION BY LIST COLUMNS")
-                    } else {
-                        self.kw("SUBPARTITION BY LIST")
-                    },
-                    format!(
-                        "({})",
-                        columns
-                            .iter()
-                            .map(|c| self.format_object_name(c))
-                            .collect::<Vec<_>>()
-                            .join(", ")
-                    ),
+                    if *is_columns { self.kw("SUBPARTITION BY LIST COLUMNS") } else { self.kw("SUBPARTITION BY LIST") },
+                    format!("({})", columns.iter().map(|c| self.format_object_name(c)).collect::<Vec<_>>().join(", ")),
                 ];
                 if !partitions.is_empty() {
                     parts.push(self.format_partition_defs(partitions));
                 }
                 parts.join(" ")
             }
-            PartitionClause::Hash {
-                columns,
-                partitions_count,
-                partitions,
-            } => {
+            PartitionClause::Hash { columns, partitions_count, partitions } => {
                 let mut parts = vec![
                     self.kw("SUBPARTITION BY HASH"),
-                    format!(
-                        "({})",
-                        columns
-                            .iter()
-                            .map(|c| self.format_object_name(c))
-                            .collect::<Vec<_>>()
-                            .join(", ")
-                    ),
+                    format!("({})", columns.iter().map(|c| self.format_object_name(c)).collect::<Vec<_>>().join(", ")),
                 ];
                 if let Some(n) = partitions_count {
                     parts.push(format!("{} {}", self.kw("SUBPARTITIONS"), n));
@@ -2376,42 +1840,24 @@ impl SqlFormatter {
         let parts: Vec<String> = defs
             .iter()
             .map(|d| {
-                let mut s = format!(
-                    "{} {}",
-                    self.kw("PARTITION"),
-                    self.quote_identifier(&d.name)
-                );
+                let mut s = format!("{} {}", self.kw("PARTITION"), self.quote_identifier(&d.name));
                 if let Some(v) = &d.values {
                     s = format!("{} {}", s, self.format_partition_values(v));
                 }
                 if let Some(ts) = &d.tablespace {
-                    s = format!(
-                        "{} {} {}",
-                        s,
-                        self.kw("TABLESPACE"),
-                        self.quote_identifier(ts)
-                    );
+                    s = format!("{} {} {}", s, self.kw("TABLESPACE"), self.quote_identifier(ts));
                 }
                 if !d.subpartitions.is_empty() {
                     let subs: Vec<String> = d
                         .subpartitions
                         .iter()
                         .map(|sp| {
-                            let mut ss = format!(
-                                "{} {}",
-                                self.kw("SUBPARTITION"),
-                                self.quote_identifier(&sp.name)
-                            );
+                            let mut ss = format!("{} {}", self.kw("SUBPARTITION"), self.quote_identifier(&sp.name));
                             if let Some(v) = &sp.values {
                                 ss = format!("{} {}", ss, self.format_partition_values(v));
                             }
                             if let Some(ts) = &sp.tablespace {
-                                ss = format!(
-                                    "{} {} {}",
-                                    ss,
-                                    self.kw("TABLESPACE"),
-                                    self.quote_identifier(ts)
-                                );
+                                ss = format!("{} {} {}", ss, self.kw("TABLESPACE"), self.quote_identifier(ts));
                             }
                             ss
                         })
@@ -2453,11 +1899,7 @@ impl SqlFormatter {
         }
 
         if let Some(g) = &col.generated {
-            let stored_str = if g.stored {
-                format!(" {}", self.kw("STORED"))
-            } else {
-                String::new()
-            };
+            let stored_str = if g.stored { format!(" {}", self.kw("STORED")) } else { String::new() };
             parts.push(format!(
                 "{} {} {} ({}){}",
                 self.kw("GENERATED"),
@@ -2579,11 +2021,7 @@ impl SqlFormatter {
                 if args.is_empty() {
                     base
                 } else {
-                    let args_str = args
-                        .iter()
-                        .map(|a| self.format_expr(a))
-                        .collect::<Vec<_>>()
-                        .join(", ");
+                    let args_str = args.iter().map(|a| self.format_expr(a)).collect::<Vec<_>>().join(", ");
                     format!("{}({})", base, args_str)
                 }
             }
@@ -2609,36 +2047,17 @@ impl SqlFormatter {
             ColumnConstraint::Check(expr) => {
                 format!("{} ({})", self.kw("CHECK"), self.format_expr(expr))
             }
-            ColumnConstraint::References {
-                ref_table,
-                ref_columns,
-                on_delete,
-                on_update,
-            } => {
-                let mut result = format!(
-                    "{} {}",
-                    self.kw("REFERENCES"),
-                    self.format_object_name(ref_table)
-                );
+            ColumnConstraint::References { ref_table, ref_columns, on_delete, on_update } => {
+                let mut result = format!("{} {}", self.kw("REFERENCES"), self.format_object_name(ref_table));
                 if !ref_columns.is_empty() {
                     result = format!("{} ({})", result, ref_columns.join(", "));
                 }
                 if let Some(action) = on_delete {
-                    result = format!(
-                        "{} {} {}",
-                        result,
-                        self.kw("ON"),
-                        self.kw("DELETE")
-                    );
+                    result = format!("{} {} {}", result, self.kw("ON"), self.kw("DELETE"));
                     result = format!("{} {}", result, self.format_referential_action(action));
                 }
                 if let Some(action) = on_update {
-                    result = format!(
-                        "{} {} {}",
-                        result,
-                        self.kw("ON"),
-                        self.kw("UPDATE")
-                    );
+                    result = format!("{} {} {}", result, self.kw("ON"), self.kw("UPDATE"));
                     result = format!("{} {}", result, self.format_referential_action(action));
                 }
                 result
@@ -2660,10 +2079,7 @@ impl SqlFormatter {
 
     fn format_table_constraint(&self, c: &TableConstraint) -> String {
         match c {
-            TableConstraint::PrimaryKey {
-                columns,
-                using_index,
-            } => {
+            TableConstraint::PrimaryKey { columns, using_index } => {
                 let mut s = format!("{} ({})", self.kw("PRIMARY KEY"), columns.join(", "));
                 if let Some(ui) = using_index {
                     if ui.is_empty() {
@@ -2674,12 +2090,7 @@ impl SqlFormatter {
                 }
                 s
             }
-            TableConstraint::Unique {
-                columns,
-                deferrable,
-                with_options,
-                using_index,
-            } => {
+            TableConstraint::Unique { columns, deferrable, with_options, using_index } => {
                 let mut s = format!("{} ({})", self.kw("UNIQUE"), columns.join(", "));
                 if *deferrable {
                     s = format!("{} {}", s, self.kw("DEFERRABLE"));
@@ -2699,13 +2110,7 @@ impl SqlFormatter {
             TableConstraint::Check(expr) => {
                 format!("{} ({})", self.kw("CHECK"), self.format_expr(expr))
             }
-            TableConstraint::ForeignKey {
-                columns,
-                ref_table,
-                ref_columns,
-                on_delete,
-                on_update,
-            } => {
+            TableConstraint::ForeignKey { columns, ref_table, ref_columns, on_delete, on_update } => {
                 let mut result = format!(
                     "{} ({}) {} {}",
                     self.kw("FOREIGN KEY"),
@@ -2717,20 +2122,10 @@ impl SqlFormatter {
                     result = format!("{} ({})", result, ref_columns.join(", "));
                 }
                 if let Some(action) = on_delete {
-                    result = format!(
-                        "{} {} {}",
-                        result,
-                        self.kw("ON DELETE"),
-                        self.format_referential_action(action)
-                    );
+                    result = format!("{} {} {}", result, self.kw("ON DELETE"), self.format_referential_action(action));
                 }
                 if let Some(action) = on_update {
-                    result = format!(
-                        "{} {} {}",
-                        result,
-                        self.kw("ON UPDATE"),
-                        self.format_referential_action(action)
-                    );
+                    result = format!("{} {} {}", result, self.kw("ON UPDATE"), self.format_referential_action(action));
                 }
                 result
             }
@@ -2756,11 +2151,7 @@ impl SqlFormatter {
 
         parts.push(self.format_object_name(&stmt.name));
 
-        let actions: Vec<String> = stmt
-            .actions
-            .iter()
-            .map(|a| self.format_alter_table_action(a))
-            .collect();
+        let actions: Vec<String> = stmt.actions.iter().map(|a| self.format_alter_table_action(a)).collect();
         parts.push(actions.join(", "));
 
         parts.join(" ")
@@ -2789,11 +2180,7 @@ impl SqlFormatter {
             AlterTableAction::AddColumn(col) => {
                 format!("{} {}", self.kw("ADD COLUMN"), self.format_column_def(col))
             }
-            AlterTableAction::DropColumn {
-                name,
-                if_exists,
-                cascade,
-            } => {
+            AlterTableAction::DropColumn { name, if_exists, cascade } => {
                 let mut parts = vec![self.kw("DROP COLUMN")];
                 if *if_exists {
                     parts.push(self.kw("IF EXISTS"));
@@ -2813,11 +2200,7 @@ impl SqlFormatter {
                 )
             }
             AlterTableAction::AddConstraint { constraint, .. } => {
-                format!(
-                    "{} {}",
-                    self.kw("ADD"),
-                    self.format_table_constraint(constraint)
-                )
+                format!("{} {}", self.kw("ADD"), self.format_table_constraint(constraint))
             }
             AlterTableAction::AddConstraintIfExists { name } => {
                 format!(
@@ -2828,11 +2211,7 @@ impl SqlFormatter {
                     self.kw("EXISTS")
                 )
             }
-            AlterTableAction::DropConstraint {
-                name,
-                if_exists,
-                cascade,
-            } => {
+            AlterTableAction::DropConstraint { name, if_exists, cascade } => {
                 let mut parts = vec![self.kw("DROP CONSTRAINT")];
                 if *if_exists {
                     parts.push(self.kw("IF EXISTS"));
@@ -2853,57 +2232,32 @@ impl SqlFormatter {
                 )
             }
             AlterTableAction::RenameTo { new_name } => {
-                format!(
-                    "{} {}",
-                    self.kw("RENAME TO"),
-                    self.quote_identifier(new_name)
-                )
+                format!("{} {}", self.kw("RENAME TO"), self.quote_identifier(new_name))
             }
             AlterTableAction::OwnerTo { owner } => {
                 format!("{} {}", self.kw("OWNER TO"), self.quote_identifier(owner))
             }
             AlterTableAction::SetSchema { schema } => {
-                format!(
-                    "{} {}",
-                    self.kw("SET SCHEMA"),
-                    self.quote_identifier(schema)
-                )
+                format!("{} {}", self.kw("SET SCHEMA"), self.quote_identifier(schema))
             }
             AlterTableAction::SetOptions { options } => {
                 let pairs: Vec<String> = options
                     .iter()
-                    .map(|(k, v)| {
-                        format!(
-                            "{} = {}",
-                            self.quote_identifier(k),
-                            self.quote_identifier(v)
-                        )
-                    })
+                    .map(|(k, v)| format!("{} = {}", self.quote_identifier(k), self.quote_identifier(v)))
                     .collect();
                 format!("{} ({})", self.kw("SET"), pairs.join(", "))
             }
             AlterTableAction::SetTablespace { tablespace } => {
-                format!(
-                    "{} {}",
-                    self.kw("SET TABLESPACE"),
-                    self.quote_identifier(tablespace)
-                )
+                format!("{} {}", self.kw("SET TABLESPACE"), self.quote_identifier(tablespace))
             }
             AlterTableAction::SetWithoutOids => self.kw("SET WITHOUT OIDS").to_string(),
             AlterTableAction::ResetOptions { options } => {
                 let names: Vec<String> = options.iter().map(|o| self.quote_identifier(o)).collect();
                 format!("{} ({})", self.kw("RESET"), names.join(", "))
             }
-            AlterTableAction::AddPartition {
-                name,
-                values,
-                tablespace,
-            } => {
-                let mut parts = vec![
-                    self.kw("ADD PARTITION"),
-                    self.quote_identifier(name),
-                    self.format_partition_values(values),
-                ];
+            AlterTableAction::AddPartition { name, values, tablespace } => {
+                let mut parts =
+                    vec![self.kw("ADD PARTITION"), self.quote_identifier(name), self.format_partition_values(values)];
                 if let Some(ts) = tablespace {
                     parts.push(format!("{} {}", self.kw("TABLESPACE"), ts));
                 }
@@ -2920,11 +2274,7 @@ impl SqlFormatter {
                     parts.push(self.kw("IF EXISTS"));
                 }
                 parts.push(self.quote_identifier(name));
-                self.append_update_index_clauses(
-                    &mut parts,
-                    *update_global_index,
-                    *update_distributed_global_index,
-                );
+                self.append_update_index_clauses(&mut parts, *update_global_index, *update_distributed_global_index);
                 parts.join(" ")
             }
             AlterTableAction::TruncatePartition {
@@ -2936,27 +2286,15 @@ impl SqlFormatter {
             } => {
                 let partition_ref = if let Some(vals) = for_values {
                     let val_strs: Vec<String> = vals.iter().map(|v| self.format_expr(v)).collect();
-                    format!(
-                        "{} FOR ({})",
-                        self.kw("TRUNCATE PARTITION"),
-                        val_strs.join(", ")
-                    )
+                    format!("{} FOR ({})", self.kw("TRUNCATE PARTITION"), val_strs.join(", "))
                 } else {
-                    format!(
-                        "{} {}",
-                        self.kw("TRUNCATE PARTITION"),
-                        self.quote_identifier(name)
-                    )
+                    format!("{} {}", self.kw("TRUNCATE PARTITION"), self.quote_identifier(name))
                 };
                 let mut parts = vec![partition_ref];
                 if *cascade {
                     parts.push(self.kw("CASCADE"));
                 }
-                self.append_update_index_clauses(
-                    &mut parts,
-                    *update_global_index,
-                    *update_distributed_global_index,
-                );
+                self.append_update_index_clauses(&mut parts, *update_global_index, *update_distributed_global_index);
                 parts.join(" ")
             }
             AlterTableAction::MergePartitions {
@@ -2965,21 +2303,12 @@ impl SqlFormatter {
                 update_global_index,
                 update_distributed_global_index,
             } => {
-                let name_list: Vec<String> =
-                    names.iter().map(|n| self.quote_identifier(n)).collect();
+                let name_list: Vec<String> = names.iter().map(|n| self.quote_identifier(n)).collect();
                 let mut parts = vec![
                     format!("{} {}", self.kw("MERGE PARTITIONS"), name_list.join(", ")),
-                    format!(
-                        "{} {}",
-                        self.kw("INTO PARTITION"),
-                        self.quote_identifier(into_name)
-                    ),
+                    format!("{} {}", self.kw("INTO PARTITION"), self.quote_identifier(into_name)),
                 ];
-                self.append_update_index_clauses(
-                    &mut parts,
-                    *update_global_index,
-                    *update_distributed_global_index,
-                );
+                self.append_update_index_clauses(&mut parts, *update_global_index, *update_distributed_global_index);
                 parts.join(" ")
             }
             AlterTableAction::SplitPartition {
@@ -2996,11 +2325,7 @@ impl SqlFormatter {
                 let partitions: Vec<String> = into
                     .iter()
                     .map(|p| {
-                        let mut s = format!(
-                            "{} {}",
-                            self.kw("PARTITION"),
-                            self.quote_identifier(&p.name)
-                        );
+                        let mut s = format!("{} {}", self.kw("PARTITION"), self.quote_identifier(&p.name));
                         if let Some(v) = &p.values {
                             s = format!("{} {}", s, self.format_partition_values(v));
                         }
@@ -3008,11 +2333,7 @@ impl SqlFormatter {
                     })
                     .collect();
                 parts.push(format!("{} ({})", self.kw("INTO"), partitions.join(", ")));
-                self.append_update_index_clauses(
-                    &mut parts,
-                    *update_global_index,
-                    *update_distributed_global_index,
-                );
+                self.append_update_index_clauses(&mut parts, *update_global_index, *update_distributed_global_index);
                 parts.join(" ")
             }
             AlterTableAction::ExchangePartition {
@@ -3039,11 +2360,7 @@ impl SqlFormatter {
                 if *verbose {
                     parts.push(self.kw("VERBOSE"));
                 }
-                self.append_update_index_clauses(
-                    &mut parts,
-                    *update_global_index,
-                    *update_distributed_global_index,
-                );
+                self.append_update_index_clauses(&mut parts, *update_global_index, *update_distributed_global_index);
                 parts.join(" ")
             }
             AlterTableAction::RenamePartition { old_name, new_name } => {
@@ -3055,11 +2372,7 @@ impl SqlFormatter {
                     self.quote_identifier(new_name)
                 )
             }
-            AlterTableAction::AddSubPartition {
-                partition_name: _,
-                name,
-                values,
-            } => {
+            AlterTableAction::AddSubPartition { partition_name: _, name, values } => {
                 let mut parts = vec![self.kw("ADD SUBPARTITION"), self.quote_identifier(name)];
                 if let Some(v) = values {
                     parts.push(self.format_partition_values(v));
@@ -3075,18 +2388,14 @@ impl SqlFormatter {
                 parts.join(" ")
             }
             AlterTableAction::TruncateSubPartition { name, cascade } => {
-                let mut parts = vec![
-                    self.kw("TRUNCATE SUBPARTITION"),
-                    self.quote_identifier(name),
-                ];
+                let mut parts = vec![self.kw("TRUNCATE SUBPARTITION"), self.quote_identifier(name)];
                 if *cascade {
                     parts.push(self.kw("CASCADE"));
                 }
                 parts.join(" ")
             }
             AlterTableAction::MergeSubPartitions { names, into_name } => {
-                let name_list: Vec<String> =
-                    names.iter().map(|n| self.quote_identifier(n)).collect();
+                let name_list: Vec<String> = names.iter().map(|n| self.quote_identifier(n)).collect();
                 format!(
                     "{} {} {} {}",
                     self.kw("MERGE SUBPARTITIONS"),
@@ -3095,11 +2404,7 @@ impl SqlFormatter {
                     self.quote_identifier(into_name)
                 )
             }
-            AlterTableAction::SplitSubPartition {
-                name,
-                at_value,
-                into,
-            } => {
+            AlterTableAction::SplitSubPartition { name, at_value, into } => {
                 let mut parts = vec![self.kw("SPLIT SUBPARTITION"), self.quote_identifier(name)];
                 if let Some(at) = at_value {
                     parts.push(format!("{} {}", self.kw("AT"), self.format_expr(at)));
@@ -3107,21 +2412,12 @@ impl SqlFormatter {
                 let subs: Vec<String> = into
                     .iter()
                     .map(|p| {
-                        let mut s = format!(
-                            "{} {}",
-                            self.kw("SUBPARTITION"),
-                            self.quote_identifier(&p.name)
-                        );
+                        let mut s = format!("{} {}", self.kw("SUBPARTITION"), self.quote_identifier(&p.name));
                         if let Some(v) = &p.values {
                             s = format!("{} {}", s, self.format_partition_values(v));
                         }
                         if let Some(ts) = &p.tablespace {
-                            s = format!(
-                                "{} {} {}",
-                                s,
-                                self.kw("TABLESPACE"),
-                                self.quote_identifier(ts)
-                            );
+                            s = format!("{} {} {}", s, self.kw("TABLESPACE"), self.quote_identifier(ts));
                         }
                         s
                     })
@@ -3182,21 +2478,15 @@ impl SqlFormatter {
                 update_global_index,
                 update_distributed_global_index,
             } => {
-                let mut parts = vec![
-                    self.kw("SPLIT PARTITION"),
-                    format!("{} ({})", self.kw("FOR"), self.format_expr(expr)),
-                ];
+                let mut parts =
+                    vec![self.kw("SPLIT PARTITION"), format!("{} ({})", self.kw("FOR"), self.format_expr(expr))];
                 if let Some(at) = at_value {
                     parts.push(format!("{} {}", self.kw("AT"), self.format_expr(at)));
                 }
                 let partitions: Vec<String> = into
                     .iter()
                     .map(|p| {
-                        let mut s = format!(
-                            "{} {}",
-                            self.kw("PARTITION"),
-                            self.quote_identifier(&p.name)
-                        );
+                        let mut s = format!("{} {}", self.kw("PARTITION"), self.quote_identifier(&p.name));
                         if let Some(v) = &p.values {
                             s = format!("{} {}", s, self.format_partition_values(v));
                         }
@@ -3204,11 +2494,7 @@ impl SqlFormatter {
                     })
                     .collect();
                 parts.push(format!("{} ({})", self.kw("INTO"), partitions.join(", ")));
-                self.append_update_index_clauses(
-                    &mut parts,
-                    *update_global_index,
-                    *update_distributed_global_index,
-                );
+                self.append_update_index_clauses(&mut parts, *update_global_index, *update_distributed_global_index);
                 parts.join(" ")
             }
             AlterTableAction::DropPartitionFor {
@@ -3222,11 +2508,7 @@ impl SqlFormatter {
                     parts.push(self.kw("IF EXISTS"));
                 }
                 parts.push(format!("{} ({})", self.kw("FOR"), self.format_expr(expr)));
-                self.append_update_index_clauses(
-                    &mut parts,
-                    *update_global_index,
-                    *update_distributed_global_index,
-                );
+                self.append_update_index_clauses(&mut parts, *update_global_index, *update_distributed_global_index);
                 parts.join(" ")
             }
             AlterTableAction::RenamePartitionFor { expr, new_name } => {
@@ -3239,12 +2521,8 @@ impl SqlFormatter {
                     self.quote_identifier(new_name)
                 )
             }
-            AlterTableAction::EnableRowLevelSecurity => {
-                self.kw("ENABLE ROW LEVEL SECURITY").to_string()
-            }
-            AlterTableAction::DisableRowLevelSecurity => {
-                self.kw("DISABLE ROW LEVEL SECURITY").to_string()
-            }
+            AlterTableAction::EnableRowLevelSecurity => self.kw("ENABLE ROW LEVEL SECURITY").to_string(),
+            AlterTableAction::DisableRowLevelSecurity => self.kw("DISABLE ROW LEVEL SECURITY").to_string(),
             AlterTableAction::EnableRowMovement => self.kw("ENABLE ROW MOVEMENT").to_string(),
             AlterTableAction::DisableRowMovement => self.kw("DISABLE ROW MOVEMENT").to_string(),
             AlterTableAction::SetCharset { charset, collation } => {
@@ -3264,26 +2542,18 @@ impl SqlFormatter {
                 format!(
                     "{} {}",
                     self.kw("ENABLE TRIGGER"),
-                    name.as_deref()
-                        .map(|n| self.quote_identifier(n))
-                        .unwrap_or_else(|| self.kw("ALL").to_string())
+                    name.as_deref().map(|n| self.quote_identifier(n)).unwrap_or_else(|| self.kw("ALL").to_string())
                 )
             }
             AlterTableAction::DisableTrigger { name } => {
                 format!(
                     "{} {}",
                     self.kw("DISABLE TRIGGER"),
-                    name.as_deref()
-                        .map(|n| self.quote_identifier(n))
-                        .unwrap_or_else(|| self.kw("ALL").to_string())
+                    name.as_deref().map(|n| self.quote_identifier(n)).unwrap_or_else(|| self.kw("ALL").to_string())
                 )
             }
             AlterTableAction::ValidateConstraint { name } => {
-                format!(
-                    "{} {}",
-                    self.kw("VALIDATE CONSTRAINT"),
-                    self.quote_identifier(name)
-                )
+                format!("{} {}", self.kw("VALIDATE CONSTRAINT"), self.quote_identifier(name))
             }
             AlterTableAction::AddConstraintUsingIndex { name, index_name } => {
                 format!(
@@ -3298,18 +2568,10 @@ impl SqlFormatter {
                 format!("{} {}", self.kw("INHERIT"), self.format_object_name(parent))
             }
             AlterTableAction::NoInherit { parent } => {
-                format!(
-                    "{} {}",
-                    self.kw("NO INHERIT"),
-                    self.format_object_name(parent)
-                )
+                format!("{} {}", self.kw("NO INHERIT"), self.format_object_name(parent))
             }
             AlterTableAction::ClusterOn { index_name } => {
-                format!(
-                    "{} {}",
-                    self.kw("CLUSTER ON"),
-                    self.quote_identifier(index_name)
-                )
+                format!("{} {}", self.kw("CLUSTER ON"), self.quote_identifier(index_name))
             }
             AlterTableAction::SetWithoutCluster => self.kw("SET WITHOUT CLUSTER").to_string(),
             AlterTableAction::ReplicaIdentity(identity) => match identity {
@@ -3333,35 +2595,19 @@ impl SqlFormatter {
             },
             AlterTableAction::SetCompress => self.kw("SET COMPRESS").to_string(),
             AlterTableAction::SetNoCompress => self.kw("NOCOMPRESS").to_string(),
-            AlterTableAction::ForceRowLevelSecurity => {
-                self.kw("FORCE ROW LEVEL SECURITY").to_string()
-            }
-            AlterTableAction::NoForceRowLevelSecurity => {
-                self.kw("NO FORCE ROW LEVEL SECURITY").to_string()
-            }
+            AlterTableAction::ForceRowLevelSecurity => self.kw("FORCE ROW LEVEL SECURITY").to_string(),
+            AlterTableAction::NoForceRowLevelSecurity => self.kw("NO FORCE ROW LEVEL SECURITY").to_string(),
             AlterTableAction::OfType { type_name } => {
                 format!("{} {}", self.kw("OF"), self.format_object_name(type_name))
             }
             AlterTableAction::NotOfType { type_name } => {
-                format!(
-                    "{} {}",
-                    self.kw("NOT OF"),
-                    self.format_object_name(type_name)
-                )
+                format!("{} {}", self.kw("NOT OF"), self.format_object_name(type_name))
             }
             AlterTableAction::AddNode { node_name } => {
-                format!(
-                    "{} {}",
-                    self.kw("ADD NODE"),
-                    self.quote_identifier(node_name)
-                )
+                format!("{} {}", self.kw("ADD NODE"), self.quote_identifier(node_name))
             }
             AlterTableAction::DeleteNode { node_name } => {
-                format!(
-                    "{} {}",
-                    self.kw("DELETE NODE"),
-                    self.quote_identifier(node_name)
-                )
+                format!("{} {}", self.kw("DELETE NODE"), self.quote_identifier(node_name))
             }
             AlterTableAction::SetComment { comment } => {
                 format!("{} = {}", self.kw("COMMENT"), self.quote_string(comment))
@@ -3369,12 +2615,7 @@ impl SqlFormatter {
             AlterTableAction::IlmAddPolicy(policy) => {
                 let mut ilm_parts = vec![self.kw("ILM ADD POLICY ROW STORE COMPRESS ADVANCED ROW")];
                 ilm_parts.push(self.kw("AFTER"));
-                ilm_parts.push(format!(
-                    "{} {} {}",
-                    policy.after_n,
-                    policy.unit,
-                    self.kw("OF NO MODIFICATION")
-                ));
+                ilm_parts.push(format!("{} {} {}", policy.after_n, policy.unit, self.kw("OF NO MODIFICATION")));
                 if let Some(cond) = &policy.condition {
                     ilm_parts.push(format!("{} ({})", self.kw("ON"), self.format_expr(cond)));
                 }
@@ -3390,11 +2631,8 @@ impl SqlFormatter {
                 let defs: Vec<String> = cols
                     .iter()
                     .map(|c| {
-                        let mut s = format!(
-                            "{} {}",
-                            self.quote_identifier(&c.name),
-                            self.format_data_type(&c.data_type)
-                        );
+                        let mut s =
+                            format!("{} {}", self.quote_identifier(&c.name), self.format_data_type(&c.data_type));
                         match c.nullability {
                             Some(false) => s = format!("{} {}", s, self.kw("NOT NULL")),
                             Some(true) => s = format!("{} {}", s, self.kw("NULL")),
@@ -3435,18 +2673,9 @@ impl SqlFormatter {
                     StatisticsOpKind::Disable => self.kw("DISABLE"),
                 };
                 let cols: Vec<String> = columns.iter().map(|c| self.quote_identifier(c)).collect();
-                format!(
-                    "{} {} (({}))",
-                    op_str,
-                    self.kw("STATISTICS"),
-                    cols.join(", ")
-                )
+                format!("{} {} (({}))", op_str, self.kw("STATISTICS"), cols.join(", "))
             }
-            AlterTableAction::AlterColumnStatistics {
-                column,
-                percent,
-                value,
-            } => {
+            AlterTableAction::AlterColumnStatistics { column, percent, value } => {
                 if *percent {
                     format!(
                         "{} {} {} {}",
@@ -3475,9 +2704,7 @@ impl SqlFormatter {
                 )
             }
             AlterTableAction::GsiWaitAll => self.kw("GSIWAITALL").to_string(),
-            AlterTableAction::EncryptionKeyRotation => {
-                self.kw("ENCRYPTION KEY ROTATION").to_string()
-            }
+            AlterTableAction::EncryptionKeyRotation => self.kw("ENCRYPTION KEY ROTATION").to_string(),
             AlterTableAction::SetRule { enable, mode, name } => {
                 let mut parts = vec![];
                 if *enable {
@@ -3497,10 +2724,7 @@ impl SqlFormatter {
     }
 
     fn format_alter_tablespace(&self, stmt: &AlterTablespaceStatement) -> String {
-        let mut parts = vec![
-            self.kw("ALTER TABLESPACE"),
-            self.quote_identifier(&stmt.name),
-        ];
+        let mut parts = vec![self.kw("ALTER TABLESPACE"), self.quote_identifier(&stmt.name)];
         match &stmt.action {
             AlterTablespaceAction::RenameTo { new_name } => {
                 parts.push(self.kw("RENAME TO"));
@@ -3513,13 +2737,7 @@ impl SqlFormatter {
             AlterTablespaceAction::SetOptions { options } => {
                 let pairs: Vec<String> = options
                     .iter()
-                    .map(|(k, v)| {
-                        format!(
-                            "{} = {}",
-                            self.quote_identifier(k),
-                            self.quote_identifier(v)
-                        )
-                    })
+                    .map(|(k, v)| format!("{} = {}", self.quote_identifier(k), self.quote_identifier(v)))
                     .collect();
                 parts.push(format!("{} ({})", self.kw("SET"), pairs.join(", ")));
             }
@@ -3648,11 +2866,7 @@ impl SqlFormatter {
             parts.push(self.kw("IF EXISTS"));
         }
 
-        let names: Vec<String> = stmt
-            .names
-            .iter()
-            .map(|n| self.format_object_name(n))
-            .collect();
+        let names: Vec<String> = stmt.names.iter().map(|n| self.format_object_name(n)).collect();
         parts.push(names.join(", "));
 
         if stmt.cascade {
@@ -3669,11 +2883,7 @@ impl SqlFormatter {
     fn format_truncate(&self, stmt: &TruncateStatement) -> String {
         let mut parts = vec![self.kw("TRUNCATE TABLE")];
 
-        let tables: Vec<String> = stmt
-            .tables
-            .iter()
-            .map(|t| self.format_object_name(t))
-            .collect();
+        let tables: Vec<String> = stmt.tables.iter().map(|t| self.format_object_name(t)).collect();
         parts.push(tables.join(", "));
 
         if stmt.restart_identity {
@@ -3756,11 +2966,7 @@ impl SqlFormatter {
         parts.push(format!("({})", cols.join(", ")));
 
         if let Some(where_clause) = &stmt.where_clause {
-            parts.push(format!(
-                "{} {}",
-                self.kw("WHERE"),
-                self.format_expr(where_clause)
-            ));
+            parts.push(format!("{} {}", self.kw("WHERE"), self.format_expr(where_clause)));
         }
 
         parts.join(" ")
@@ -3843,11 +3049,7 @@ impl SqlFormatter {
         if !stmt.containing.is_empty() {
             parts.push(format!(
                 "CONTAINING ({})",
-                stmt.containing
-                    .iter()
-                    .map(|c| self.quote_identifier(c))
-                    .collect::<Vec<_>>()
-                    .join(", ")
+                stmt.containing.iter().map(|c| self.quote_identifier(c)).collect::<Vec<_>>().join(", ")
             ));
         }
 
@@ -3856,36 +3058,20 @@ impl SqlFormatter {
         }
 
         if !stmt.with_options.is_empty() {
-            let opts: Vec<String> = stmt
-                .with_options
-                .iter()
-                .map(|(k, v)| format!("{} = {}", k, v))
-                .collect();
+            let opts: Vec<String> = stmt.with_options.iter().map(|(k, v)| format!("{} = {}", k, v)).collect();
             parts.push(format!("{} ({})", self.kw("WITH"), opts.join(", ")));
         }
 
         if let Some(ts) = &stmt.tablespace {
-            parts.push(format!(
-                "{} {}",
-                self.kw("TABLESPACE"),
-                self.quote_identifier(ts)
-            ));
+            parts.push(format!("{} {}", self.kw("TABLESPACE"), self.quote_identifier(ts)));
         }
 
         if let Some(vis) = stmt.visible {
-            parts.push(if vis {
-                self.kw("VISIBLE")
-            } else {
-                self.kw("INVISIBLE")
-            });
+            parts.push(if vis { self.kw("VISIBLE") } else { self.kw("INVISIBLE") });
         }
 
         if let Some(where_clause) = &stmt.where_clause {
-            parts.push(format!(
-                "{} {}",
-                self.kw("WHERE"),
-                self.format_expr(where_clause)
-            ));
+            parts.push(format!("{} {}", self.kw("WHERE"), self.format_expr(where_clause)));
         }
 
         parts.join(" ")
@@ -3944,19 +3130,11 @@ impl SqlFormatter {
         parts.push(self.format_object_name(&stmt.name));
 
         if let Some(start) = &stmt.start {
-            parts.push(format!(
-                "{} {}",
-                self.kw("START WITH"),
-                self.format_expr(start)
-            ));
+            parts.push(format!("{} {}", self.kw("START WITH"), self.format_expr(start)));
         }
 
         if let Some(incr) = &stmt.increment {
-            parts.push(format!(
-                "{} {}",
-                self.kw("INCREMENT BY"),
-                self.format_expr(incr)
-            ));
+            parts.push(format!("{} {}", self.kw("INCREMENT BY"), self.format_expr(incr)));
         }
 
         if let Some(min) = &stmt.min_value {
@@ -3976,12 +3154,7 @@ impl SqlFormatter {
         }
 
         if let Some(owned) = &stmt.owned_by {
-            parts.push(format!(
-                "{} {} {}",
-                self.kw("OWNED"),
-                self.kw("BY"),
-                self.format_object_name(owned)
-            ));
+            parts.push(format!("{} {} {}", self.kw("OWNED"), self.kw("BY"), self.format_object_name(owned)));
         }
 
         parts.join(" ")
@@ -4020,74 +3193,46 @@ impl SqlFormatter {
         let mut parts = vec![self.kw("CREATE DATABASE")];
         parts.push(self.quote_identifier(&stmt.name));
 
-        if !stmt.owner.is_none()
-            || !stmt.template.is_none()
-            || !stmt.encoding.is_none()
-            || !stmt.locale.is_none()
-            || !stmt.lc_collate.is_none()
-            || !stmt.lc_ctype.is_none()
-            || !stmt.tablespace.is_none()
-            || !stmt.allow_connections.is_none()
-            || !stmt.connection_limit.is_none()
-            || !stmt.is_template.is_none()
+        if stmt.owner.is_some()
+            || stmt.template.is_some()
+            || stmt.encoding.is_some()
+            || stmt.locale.is_some()
+            || stmt.lc_collate.is_some()
+            || stmt.lc_ctype.is_some()
+            || stmt.tablespace.is_some()
+            || stmt.allow_connections.is_some()
+            || stmt.connection_limit.is_some()
+            || stmt.is_template.is_some()
         {
             parts.push(self.kw("WITH"));
         }
 
         if let Some(owner) = &stmt.owner {
-            parts.push(format!(
-                "{} = {}",
-                self.kw("OWNER"),
-                self.quote_identifier(owner)
-            ));
+            parts.push(format!("{} = {}", self.kw("OWNER"), self.quote_identifier(owner)));
         }
 
         if let Some(template) = &stmt.template {
-            parts.push(format!(
-                "{} = {}",
-                self.kw("TEMPLATE"),
-                self.quote_identifier(template)
-            ));
+            parts.push(format!("{} = {}", self.kw("TEMPLATE"), self.quote_identifier(template)));
         }
 
         if let Some(encoding) = &stmt.encoding {
-            parts.push(format!(
-                "{} = {}",
-                self.kw("ENCODING"),
-                self.quote_string(encoding)
-            ));
+            parts.push(format!("{} = {}", self.kw("ENCODING"), self.quote_string(encoding)));
         }
 
         if let Some(locale) = &stmt.locale {
-            parts.push(format!(
-                "{} = {}",
-                self.kw("LOCALE"),
-                self.quote_string(locale)
-            ));
+            parts.push(format!("{} = {}", self.kw("LOCALE"), self.quote_string(locale)));
         }
 
         if let Some(lc_collate) = &stmt.lc_collate {
-            parts.push(format!(
-                "{} = {}",
-                self.kw("LC_COLLATE"),
-                self.quote_string(lc_collate)
-            ));
+            parts.push(format!("{} = {}", self.kw("LC_COLLATE"), self.quote_string(lc_collate)));
         }
 
         if let Some(lc_ctype) = &stmt.lc_ctype {
-            parts.push(format!(
-                "{} = {}",
-                self.kw("LC_CTYPE"),
-                self.quote_string(lc_ctype)
-            ));
+            parts.push(format!("{} = {}", self.kw("LC_CTYPE"), self.quote_string(lc_ctype)));
         }
 
         if let Some(tablespace) = &stmt.tablespace {
-            parts.push(format!(
-                "{} = {}",
-                self.kw("TABLESPACE"),
-                self.quote_identifier(tablespace)
-            ));
+            parts.push(format!("{} = {}", self.kw("TABLESPACE"), self.quote_identifier(tablespace)));
         }
 
         if let Some(allow_conn) = &stmt.allow_connections {
@@ -4113,18 +3258,10 @@ impl SqlFormatter {
         parts.push(self.kw("DATABASE LINK"));
         parts.push(self.quote_identifier(&stmt.name));
         if let Some(user) = &stmt.user {
-            parts.push(format!(
-                "{} {}",
-                self.kw("CONNECT TO"),
-                self.quote_identifier(user)
-            ));
+            parts.push(format!("{} {}", self.kw("CONNECT TO"), self.quote_identifier(user)));
         }
         if let Some(pwd) = &stmt.password {
-            parts.push(format!(
-                "{} {}",
-                self.kw("IDENTIFIED BY"),
-                self.quote_string(pwd)
-            ));
+            parts.push(format!("{} {}", self.kw("IDENTIFIED BY"), self.quote_string(pwd)));
         }
         if let Some(using) = &stmt.using_clause {
             parts.push(format!("{} {}", self.kw("USING"), self.quote_string(using)));
@@ -4288,10 +3425,7 @@ impl SqlFormatter {
     }
 
     fn format_alter_foreign_table(&self, stmt: &AlterForeignTableStatement) -> String {
-        let mut parts = vec![
-            self.kw("ALTER FOREIGN TABLE"),
-            self.format_object_name(&stmt.name),
-        ];
+        let mut parts = vec![self.kw("ALTER FOREIGN TABLE"), self.format_object_name(&stmt.name)];
         if !stmt.raw_rest.is_empty() {
             parts.push(stmt.raw_rest.clone());
         }
@@ -4307,10 +3441,7 @@ impl SqlFormatter {
     }
 
     fn format_alter_fdw(&self, stmt: &AlterFdwStatement) -> String {
-        let mut parts = vec![
-            self.kw("ALTER FOREIGN DATA WRAPPER"),
-            self.quote_identifier(&stmt.name),
-        ];
+        let mut parts = vec![self.kw("ALTER FOREIGN DATA WRAPPER"), self.quote_identifier(&stmt.name)];
         if !stmt.raw_rest.is_empty() {
             parts.push(stmt.raw_rest.clone());
         }
@@ -4318,10 +3449,7 @@ impl SqlFormatter {
     }
 
     fn format_alter_publication(&self, stmt: &AlterPublicationStatement) -> String {
-        let mut parts = vec![
-            self.kw("ALTER PUBLICATION"),
-            self.quote_identifier(&stmt.name),
-        ];
+        let mut parts = vec![self.kw("ALTER PUBLICATION"), self.quote_identifier(&stmt.name)];
         if !stmt.raw_rest.is_empty() {
             parts.push(stmt.raw_rest.clone());
         }
@@ -4329,10 +3457,7 @@ impl SqlFormatter {
     }
 
     fn format_alter_subscription(&self, stmt: &AlterSubscriptionStatement) -> String {
-        let mut parts = vec![
-            self.kw("ALTER SUBSCRIPTION"),
-            self.quote_identifier(&stmt.name),
-        ];
+        let mut parts = vec![self.kw("ALTER SUBSCRIPTION"), self.quote_identifier(&stmt.name)];
         if !stmt.raw_rest.is_empty() {
             parts.push(stmt.raw_rest.clone());
         }
@@ -4348,10 +3473,7 @@ impl SqlFormatter {
     }
 
     fn format_alter_node_group(&self, stmt: &AlterNodeGroupStatement) -> String {
-        let mut parts = vec![
-            self.kw("ALTER NODE GROUP"),
-            self.quote_identifier(&stmt.name),
-        ];
+        let mut parts = vec![self.kw("ALTER NODE GROUP"), self.quote_identifier(&stmt.name)];
         if !stmt.raw_rest.is_empty() {
             parts.push(stmt.raw_rest.clone());
         }
@@ -4359,10 +3481,7 @@ impl SqlFormatter {
     }
 
     fn format_alter_workload_group(&self, stmt: &AlterWorkloadGroupStatement) -> String {
-        let mut parts = vec![
-            self.kw("ALTER WORKLOAD GROUP"),
-            self.quote_identifier(&stmt.name),
-        ];
+        let mut parts = vec![self.kw("ALTER WORKLOAD GROUP"), self.quote_identifier(&stmt.name)];
         if !stmt.raw_rest.is_empty() {
             parts.push(stmt.raw_rest.clone());
         }
@@ -4370,10 +3489,7 @@ impl SqlFormatter {
     }
 
     fn format_alter_audit_policy(&self, stmt: &AlterAuditPolicyStatement) -> String {
-        let mut parts = vec![
-            self.kw("ALTER AUDIT POLICY"),
-            self.quote_identifier(&stmt.name),
-        ];
+        let mut parts = vec![self.kw("ALTER AUDIT POLICY"), self.quote_identifier(&stmt.name)];
         if !stmt.raw_rest.is_empty() {
             parts.push(stmt.raw_rest.clone());
         }
@@ -4381,10 +3497,7 @@ impl SqlFormatter {
     }
 
     fn format_alter_rls_policy(&self, stmt: &AlterRlsPolicyStatement) -> String {
-        let mut parts = vec![
-            self.kw("ALTER RLS POLICY"),
-            self.quote_identifier(&stmt.name),
-        ];
+        let mut parts = vec![self.kw("ALTER RLS POLICY"), self.quote_identifier(&stmt.name)];
         if !stmt.raw_rest.is_empty() {
             parts.push(stmt.raw_rest.clone());
         }
@@ -4392,10 +3505,7 @@ impl SqlFormatter {
     }
 
     fn format_alter_data_source(&self, stmt: &AlterDataSourceStatement) -> String {
-        let mut parts = vec![
-            self.kw("ALTER DATA SOURCE"),
-            self.quote_identifier(&stmt.name),
-        ];
+        let mut parts = vec![self.kw("ALTER DATA SOURCE"), self.quote_identifier(&stmt.name)];
         if !stmt.raw_rest.is_empty() {
             parts.push(stmt.raw_rest.clone());
         }
@@ -4424,10 +3534,7 @@ impl SqlFormatter {
     }
 
     fn format_alter_materialized_view(&self, stmt: &AlterMaterializedViewStatement) -> String {
-        let mut parts = vec![
-            self.kw("ALTER MATERIALIZED VIEW"),
-            self.format_object_name(&stmt.name),
-        ];
+        let mut parts = vec![self.kw("ALTER MATERIALIZED VIEW"), self.format_object_name(&stmt.name)];
         if !stmt.raw_rest.is_empty() {
             parts.push(stmt.raw_rest.clone());
         }
@@ -4450,14 +3557,16 @@ impl SqlFormatter {
                     "{} {}",
                     self.kw("SAVEPOINT"),
                     self.quote_identifier(stmt.savepoint_name.as_ref().expect("Savepoint must have savepoint_name"))
+                )
+            }
+            TransactionKind::ReleaseSavepoint => {
+                format!(
+                    "{} {} {}",
+                    self.kw("RELEASE"),
+                    self.kw("SAVEPOINT"),
+                    self.quote_identifier(
+                        stmt.savepoint_name.as_ref().expect("ReleaseSavepoint must have savepoint_name")
                     )
-                }
-                TransactionKind::ReleaseSavepoint => {
-                    format!(
-                        "{} {} {}",
-                        self.kw("RELEASE"),
-                        self.kw("SAVEPOINT"),
-                        self.quote_identifier(stmt.savepoint_name.as_ref().expect("ReleaseSavepoint must have savepoint_name"))
                 )
             }
             TransactionKind::PrepareTransaction => {
@@ -4495,10 +3604,7 @@ impl SqlFormatter {
     }
 
     fn format_transaction_modes(&self, modes: &[TransactionMode]) -> String {
-        let formatted: Vec<String> = modes
-            .iter()
-            .map(|m| self.format_transaction_mode(m))
-            .collect();
+        let formatted: Vec<String> = modes.iter().map(|m| self.format_transaction_mode(m)).collect();
         formatted.join(", ")
     }
 
@@ -4624,13 +3730,7 @@ impl SqlFormatter {
         if stmt.plan {
             parts.push(self.kw("PLAN"));
             if let Some(ref sid) = stmt.statement_id {
-                parts.push(format!(
-                    "{} {} {} '{}'",
-                    self.kw("SET"),
-                    self.kw("STATEMENT_ID"),
-                    "=",
-                    sid
-                ));
+                parts.push(format!("{} {} {} '{}'", self.kw("SET"), self.kw("STATEMENT_ID"), "=", sid));
             }
             parts.push(self.kw("FOR"));
         }
@@ -4654,22 +3754,13 @@ impl SqlFormatter {
 
     fn format_call(&self, stmt: &CallFuncStatement) -> String {
         let args: Vec<String> = stmt.args.iter().map(|a| self.format_call_arg(a)).collect();
-        format!(
-            "{} {}({})",
-            self.kw("CALL"),
-            self.format_object_name(&stmt.func_name),
-            args.join(", ")
-        )
+        format!("{} {}({})", self.kw("CALL"), self.format_object_name(&stmt.func_name), args.join(", "))
     }
 
     fn format_call_arg(&self, arg: &CallArg) -> String {
         match arg {
             CallArg::Positional(expr) => self.format_expr(expr),
-            CallArg::Named {
-                name,
-                arg,
-                uses_arrow,
-            } => {
+            CallArg::Named { name, arg, uses_arrow } => {
                 if *uses_arrow {
                     format!("{} => {}", name, self.format_expr(arg))
                 } else {
@@ -4678,7 +3769,6 @@ impl SqlFormatter {
             }
         }
     }
-
 }
 
 impl Default for SqlFormatter {
@@ -4698,10 +3788,7 @@ impl SqlFormatter {
         if options.is_empty() {
             return String::new();
         }
-        let pairs: Vec<String> = options
-            .iter()
-            .map(|(k, v)| format!("{} = '{}'", k, v))
-            .collect();
+        let pairs: Vec<String> = options.iter().map(|(k, v)| format!("{} = '{}'", k, v)).collect();
         format!(" WITH ({})", pairs.join(", "))
     }
 
@@ -4731,16 +3818,9 @@ impl SqlFormatter {
     }
 
     fn format_create_foreign_table(&self, stmt: &CreateForeignTableStatement) -> String {
-        let mut s = format!(
-            "CREATE FOREIGN TABLE {}",
-            self.format_object_name(&stmt.name)
-        );
+        let mut s = format!("CREATE FOREIGN TABLE {}", self.format_object_name(&stmt.name));
         if !stmt.columns.is_empty() {
-            let cols: Vec<String> = stmt
-                .columns
-                .iter()
-                .map(|c| self.format_column_def(c))
-                .collect();
+            let cols: Vec<String> = stmt.columns.iter().map(|c| self.format_column_def(c)).collect();
             s.push_str(&format!(" ({})", cols.join(", ")));
         }
         s.push_str(&format!(" SERVER {}", stmt.server_name));
@@ -4753,11 +3833,7 @@ impl SqlFormatter {
         if stmt.all_tables {
             s.push_str(" FOR ALL TABLES");
         } else if !stmt.tables.is_empty() {
-            let tables: Vec<String> = stmt
-                .tables
-                .iter()
-                .map(|t| self.format_object_name(t))
-                .collect();
+            let tables: Vec<String> = stmt.tables.iter().map(|t| self.format_object_name(t)).collect();
             s.push_str(&format!(" FOR TABLE {}", tables.join(", ")));
         }
         s.push_str(&self.format_options(&stmt.options));
@@ -4818,10 +3894,7 @@ impl SqlFormatter {
     }
 
     fn format_filter_clauses(&self, clauses: &[FilterClause]) -> String {
-        let parts: Vec<String> = clauses
-            .iter()
-            .map(|c| format!("{} ({})", c.kind, c.values.join(", ")))
-            .collect();
+        let parts: Vec<String> = clauses.iter().map(|c| format!("{} ({})", c.kind, c.values.join(", "))).collect();
         parts.join(", ")
     }
 
@@ -4831,21 +3904,14 @@ impl SqlFormatter {
             s.push_str(&format!(" {}", func));
         }
         if !stmt.function_args.is_empty() {
-            let args: Vec<String> = stmt
-                .function_args
-                .iter()
-                .map(|a| self.format_expr(a))
-                .collect();
+            let args: Vec<String> = stmt.function_args.iter().map(|a| self.format_expr(a)).collect();
             s.push_str(&format!(" ({})", args.join(", ")));
         }
         if !stmt.labels.is_empty() {
             s.push_str(&format!(" ON LABEL ({})", stmt.labels.join(", ")));
         }
         if !stmt.filter_clauses.is_empty() {
-            s.push_str(&format!(
-                " FILTER ON {}",
-                self.format_filter_clauses(&stmt.filter_clauses)
-            ));
+            s.push_str(&format!(" FILTER ON {}", self.format_filter_clauses(&stmt.filter_clauses)));
         }
         s.push_str(&self.format_options(&stmt.options));
         s
@@ -4853,22 +3919,12 @@ impl SqlFormatter {
 
     fn format_create_policy_label(&self, stmt: &CreatePolicyLabelStatement) -> String {
         let op = if stmt.add { "ADD" } else { "REMOVE" };
-        let targets: Vec<String> = stmt
-            .targets
-            .iter()
-            .map(|t| self.format_object_name(t))
-            .collect();
-        let mut s = format!("CREATE RESOURCE LABEL");
+        let targets: Vec<String> = stmt.targets.iter().map(|t| self.format_object_name(t)).collect();
+        let mut s = "CREATE RESOURCE LABEL".to_string();
         if stmt.if_not_exists {
             s.push_str(" IF NOT EXISTS");
         }
-        s.push_str(&format!(
-            " {} {} {} ({})",
-            stmt.name,
-            op,
-            stmt.label_type,
-            targets.join(", ")
-        ));
+        s.push_str(&format!(" {} {} {} ({})", stmt.name, op, stmt.label_type, targets.join(", ")));
         s
     }
 
@@ -4879,31 +3935,16 @@ impl SqlFormatter {
                 s.push_str(&format!(" COMMENTS '{}'", comment));
             }
             AlterMaskingPolicyAction::Add { function, labels } => {
-                s.push_str(&format!(
-                    " ADD {} ON LABEL ({})",
-                    function,
-                    labels.join(", ")
-                ));
+                s.push_str(&format!(" ADD {} ON LABEL ({})", function, labels.join(", ")));
             }
             AlterMaskingPolicyAction::Remove { function, labels } => {
-                s.push_str(&format!(
-                    " REMOVE {} ON LABEL ({})",
-                    function,
-                    labels.join(", ")
-                ));
+                s.push_str(&format!(" REMOVE {} ON LABEL ({})", function, labels.join(", ")));
             }
             AlterMaskingPolicyAction::Modify { function, labels } => {
-                s.push_str(&format!(
-                    " MODIFY {} ON LABEL ({})",
-                    function,
-                    labels.join(", ")
-                ));
+                s.push_str(&format!(" MODIFY {} ON LABEL ({})", function, labels.join(", ")));
             }
             AlterMaskingPolicyAction::ModifyFilter { filter_clauses } => {
-                s.push_str(&format!(
-                    " MODIFY ( FILTER ON {} )",
-                    self.format_filter_clauses(filter_clauses)
-                ));
+                s.push_str(&format!(" MODIFY ( FILTER ON {} )", self.format_filter_clauses(filter_clauses)));
             }
             AlterMaskingPolicyAction::DropFilter => {
                 s.push_str(" DROP FILTER");
@@ -4917,26 +3958,12 @@ impl SqlFormatter {
 
     fn format_alter_policy_label(&self, stmt: &AlterPolicyLabelStatement) -> String {
         let op = if stmt.add { "ADD" } else { "REMOVE" };
-        let targets: Vec<String> = stmt
-            .targets
-            .iter()
-            .map(|t| self.format_object_name(t))
-            .collect();
-        format!(
-            "ALTER RESOURCE LABEL {} {} {} ({})",
-            stmt.name,
-            op,
-            stmt.label_type,
-            targets.join(", ")
-        )
+        let targets: Vec<String> = stmt.targets.iter().map(|t| self.format_object_name(t)).collect();
+        format!("ALTER RESOURCE LABEL {} {} {} ({})", stmt.name, op, stmt.label_type, targets.join(", "))
     }
 
     fn format_create_rls_policy(&self, stmt: &CreateRlsPolicyStatement) -> String {
-        let mut s = format!(
-            "CREATE POLICY {} ON {}",
-            stmt.name,
-            self.format_object_name(&stmt.table)
-        );
+        let mut s = format!("CREATE POLICY {} ON {}", stmt.name, self.format_object_name(&stmt.table));
         if !stmt.permissive {
             s.push_str(" AS RESTRICTIVE");
         }
@@ -4977,38 +4004,19 @@ impl SqlFormatter {
     }
 
     fn format_grant(&self, stmt: &GrantStatement) -> String {
-        let privs = stmt
-            .privileges
-            .iter()
-            .map(|p| self.format_privilege(p))
-            .collect::<Vec<_>>()
-            .join(", ");
+        let privs = stmt.privileges.iter().map(|p| self.format_privilege(p)).collect::<Vec<_>>().join(", ");
         let target = match &stmt.target {
-            GrantTarget::Table(tables) => format!(
-                "TABLE {}",
-                tables
-                    .iter()
-                    .map(|t| self.format_object_name(t))
-                    .collect::<Vec<_>>()
-                    .join(", ")
-            ),
+            GrantTarget::Table(tables) => {
+                format!("TABLE {}", tables.iter().map(|t| self.format_object_name(t)).collect::<Vec<_>>().join(", "))
+            }
             GrantTarget::Schema(schemas) => format!("SCHEMA {}", schemas.join(", ")),
             GrantTarget::Database(dbs) => format!("DATABASE {}", dbs.join(", ")),
-            GrantTarget::Function(funcs) => format!(
-                "FUNCTION {}",
-                funcs
-                    .iter()
-                    .map(|f| self.format_object_name(f))
-                    .collect::<Vec<_>>()
-                    .join(", ")
-            ),
-            GrantTarget::Sequence(seqs) => format!(
-                "SEQUENCE {}",
-                seqs.iter()
-                    .map(|s| self.format_object_name(s))
-                    .collect::<Vec<_>>()
-                    .join(", ")
-            ),
+            GrantTarget::Function(funcs) => {
+                format!("FUNCTION {}", funcs.iter().map(|f| self.format_object_name(f)).collect::<Vec<_>>().join(", "))
+            }
+            GrantTarget::Sequence(seqs) => {
+                format!("SEQUENCE {}", seqs.iter().map(|s| self.format_object_name(s)).collect::<Vec<_>>().join(", "))
+            }
             GrantTarget::AllTablesInSchema(schemas) => {
                 format!("ALL TABLES IN SCHEMA {}", schemas.join(", "))
             }
@@ -5028,23 +4036,10 @@ impl SqlFormatter {
                 format!("LARGE OBJECT {}", names.join(", "))
             }
             GrantTarget::Type(types) => {
-                format!(
-                    "TYPE {}",
-                    types
-                        .iter()
-                        .map(|t| self.format_object_name(t))
-                        .collect::<Vec<_>>()
-                        .join(", ")
-                )
+                format!("TYPE {}", types.iter().map(|t| self.format_object_name(t)).collect::<Vec<_>>().join(", "))
             }
         };
-        let mut s = format!(
-            "{} {} ON {} TO {}",
-            self.kw("GRANT"),
-            privs,
-            target,
-            stmt.grantees.join(", ")
-        );
+        let mut s = format!("{} {} ON {} TO {}", self.kw("GRANT"), privs, target, stmt.grantees.join(", "));
         if stmt.with_grant_option {
             s.push_str(&format!(" {}", self.kw("WITH GRANT OPTION")));
         }
@@ -5055,38 +4050,19 @@ impl SqlFormatter {
     }
 
     fn format_revoke(&self, stmt: &RevokeStatement) -> String {
-        let privs = stmt
-            .privileges
-            .iter()
-            .map(|p| self.format_privilege(p))
-            .collect::<Vec<_>>()
-            .join(", ");
+        let privs = stmt.privileges.iter().map(|p| self.format_privilege(p)).collect::<Vec<_>>().join(", ");
         let target = match &stmt.target {
-            GrantTarget::Table(tables) => format!(
-                "TABLE {}",
-                tables
-                    .iter()
-                    .map(|t| self.format_object_name(t))
-                    .collect::<Vec<_>>()
-                    .join(", ")
-            ),
+            GrantTarget::Table(tables) => {
+                format!("TABLE {}", tables.iter().map(|t| self.format_object_name(t)).collect::<Vec<_>>().join(", "))
+            }
             GrantTarget::Schema(schemas) => format!("SCHEMA {}", schemas.join(", ")),
             GrantTarget::Database(dbs) => format!("DATABASE {}", dbs.join(", ")),
-            GrantTarget::Function(funcs) => format!(
-                "FUNCTION {}",
-                funcs
-                    .iter()
-                    .map(|f| self.format_object_name(f))
-                    .collect::<Vec<_>>()
-                    .join(", ")
-            ),
-            GrantTarget::Sequence(seqs) => format!(
-                "SEQUENCE {}",
-                seqs.iter()
-                    .map(|s| self.format_object_name(s))
-                    .collect::<Vec<_>>()
-                    .join(", ")
-            ),
+            GrantTarget::Function(funcs) => {
+                format!("FUNCTION {}", funcs.iter().map(|f| self.format_object_name(f)).collect::<Vec<_>>().join(", "))
+            }
+            GrantTarget::Sequence(seqs) => {
+                format!("SEQUENCE {}", seqs.iter().map(|s| self.format_object_name(s)).collect::<Vec<_>>().join(", "))
+            }
             GrantTarget::AllTablesInSchema(schemas) => {
                 format!("ALL TABLES IN SCHEMA {}", schemas.join(", "))
             }
@@ -5106,23 +4082,10 @@ impl SqlFormatter {
                 format!("LARGE OBJECT {}", names.join(", "))
             }
             GrantTarget::Type(types) => {
-                format!(
-                    "TYPE {}",
-                    types
-                        .iter()
-                        .map(|t| self.format_object_name(t))
-                        .collect::<Vec<_>>()
-                        .join(", ")
-                )
+                format!("TYPE {}", types.iter().map(|t| self.format_object_name(t)).collect::<Vec<_>>().join(", "))
             }
         };
-        let mut s = format!(
-            "{} {} ON {} FROM {}",
-            self.kw("REVOKE"),
-            privs,
-            target,
-            stmt.grantees.join(", ")
-        );
+        let mut s = format!("{} {} ON {} FROM {}", self.kw("REVOKE"), privs, target, stmt.grantees.join(", "));
         if stmt.cascade {
             s.push_str(&format!(" {}", self.kw("CASCADE")));
         }
@@ -5149,11 +4112,7 @@ impl SqlFormatter {
         let mut s = format!(
             "{}{}",
             self.kw("VACUUM"),
-            if opts.is_empty() {
-                String::new()
-            } else {
-                format!(" {}", opts.join(" "))
-            }
+            if opts.is_empty() { String::new() } else { format!(" {}", opts.join(" ")) }
         );
         if !stmt.tables.is_empty() {
             s.push(' ');
@@ -5183,14 +4142,7 @@ impl SqlFormatter {
         }
         if !stmt.tables.is_empty() {
             s.push(' ');
-            s.push_str(
-                &stmt
-                    .tables
-                    .iter()
-                    .map(|t| self.format_object_name(&t.name))
-                    .collect::<Vec<_>>()
-                    .join(", "),
-            );
+            s.push_str(&stmt.tables.iter().map(|t| self.format_object_name(&t.name)).collect::<Vec<_>>().join(", "));
         }
         if !stmt.options.is_empty() {
             s.push(' ');
@@ -5236,11 +4188,7 @@ impl SqlFormatter {
         if !stmt.params.is_empty() {
             s.push_str(&format!(
                 "({})",
-                stmt.params
-                    .iter()
-                    .map(|p| self.format_expr(p))
-                    .collect::<Vec<_>>()
-                    .join(", ")
+                stmt.params.iter().map(|p| self.format_expr(p)).collect::<Vec<_>>().join(", ")
             ));
         }
         s
@@ -5268,28 +4216,16 @@ impl SqlFormatter {
             .collect();
         let mut s = format!("{} {}", self.kw("VALUES"), rows.join(", "));
         if !stmt.order_by.is_empty() {
-            let items: Vec<String> = stmt
-                .order_by
-                .iter()
-                .map(|o| self.format_order_by_item(o))
-                .collect();
+            let items: Vec<String> = stmt.order_by.iter().map(|o| self.format_order_by_item(o)).collect();
             s.push_str(&format!(" {} {}", self.kw("ORDER"), self.kw("BY")));
             s.push(' ');
             s.push_str(&items.join(", "));
         }
         if let Some(ref limit) = stmt.limit {
-            s.push_str(&format!(
-                " {} {}",
-                self.kw("LIMIT"),
-                self.format_expr(limit)
-            ));
+            s.push_str(&format!(" {} {}", self.kw("LIMIT"), self.format_expr(limit)));
         }
         if let Some(ref offset) = stmt.offset {
-            s.push_str(&format!(
-                " {} {}",
-                self.kw("OFFSET"),
-                self.format_expr(offset)
-            ));
+            s.push_str(&format!(" {} {}", self.kw("OFFSET"), self.format_expr(offset)));
         }
         s
     }
@@ -5298,11 +4234,7 @@ impl SqlFormatter {
         if stmt.all {
             self.kw("DEALLOCATE ALL").to_string()
         } else {
-            format!(
-                "{} {}",
-                self.kw("DEALLOCATE PREPARE"),
-                stmt.name.as_deref().unwrap_or("")
-            )
+            format!("{} {}", self.kw("DEALLOCATE PREPARE"), stmt.name.as_deref().unwrap_or(""))
         }
     }
 
@@ -5317,25 +4249,13 @@ impl SqlFormatter {
         r.push(' ');
         r.push_str(&self.quote_identifier(&stmt.name));
         if let Some(ref h) = stmt.handler {
-            r.push_str(&format!(
-                " {} {}",
-                self.kw("HANDLER"),
-                self.quote_identifier(h)
-            ));
+            r.push_str(&format!(" {} {}", self.kw("HANDLER"), self.quote_identifier(h)));
         }
         if let Some(ref i) = stmt.inline_func {
-            r.push_str(&format!(
-                " {} {}",
-                self.kw("INLINE"),
-                self.quote_identifier(i)
-            ));
+            r.push_str(&format!(" {} {}", self.kw("INLINE"), self.quote_identifier(i)));
         }
         if let Some(ref v) = stmt.validator {
-            r.push_str(&format!(
-                " {} {}",
-                self.kw("VALIDATOR"),
-                self.quote_identifier(v)
-            ));
+            r.push_str(&format!(" {} {}", self.kw("VALIDATOR"), self.quote_identifier(v)));
         }
         r
     }
@@ -5355,19 +4275,10 @@ impl SqlFormatter {
         let mut s = format!(
             "{} {}",
             self.kw("LOCK TABLE"),
-            stmt.tables
-                .iter()
-                .map(|t| self.format_object_name(t))
-                .collect::<Vec<_>>()
-                .join(", ")
+            stmt.tables.iter().map(|t| self.format_object_name(t)).collect::<Vec<_>>().join(", ")
         );
         if !stmt.mode.is_empty() {
-            s.push_str(&format!(
-                " {} {} {}",
-                self.kw("IN"),
-                stmt.mode,
-                self.kw("MODE")
-            ));
+            s.push_str(&format!(" {} {} {}", self.kw("IN"), stmt.mode, self.kw("MODE")));
         }
         if stmt.nowait {
             s.push(' ');
@@ -5430,11 +4341,7 @@ impl SqlFormatter {
             }
             CursorReturnTo::Default => {}
         }
-        s.push_str(&format!(
-            " {} {}",
-            self.kw("CURSOR FOR"),
-            self.format_select(&stmt.query)
-        ));
+        s.push_str(&format!(" {} {}", self.kw("CURSOR FOR"), self.format_select(&stmt.query)));
         s
     }
 
@@ -5447,24 +4354,12 @@ impl SqlFormatter {
 
     fn format_fetch(&self, stmt: &FetchStatement) -> String {
         let dir = self.format_direction(&stmt.direction);
-        format!(
-            "{} {} {} {}",
-            self.kw("FETCH"),
-            dir,
-            self.kw("FROM"),
-            stmt.cursor_name
-        )
+        format!("{} {} {} {}", self.kw("FETCH"), dir, self.kw("FROM"), stmt.cursor_name)
     }
 
     fn format_move(&self, stmt: &MoveStatement) -> String {
         let dir = self.format_direction(&stmt.direction);
-        format!(
-            "{} {} {} {}",
-            self.kw("MOVE"),
-            dir,
-            self.kw("FROM"),
-            stmt.cursor_name
-        )
+        format!("{} {} {} {}", self.kw("MOVE"), dir, self.kw("FROM"), stmt.cursor_name)
     }
 
     fn format_direction(&self, direction: &FetchDirection) -> String {
@@ -5618,8 +4513,7 @@ impl SqlFormatter {
             if stmt.func_args.is_empty() {
                 String::new()
             } else {
-                let args: Vec<String> =
-                    stmt.func_args.iter().map(|a| self.format_expr(a)).collect();
+                let args: Vec<String> = stmt.func_args.iter().map(|a| self.format_expr(a)).collect();
                 format!("({})", args.join(", "))
             }
         ));
@@ -5627,41 +4521,24 @@ impl SqlFormatter {
     }
 
     fn format_create_materialized_view(&self, stmt: &CreateMaterializedViewStatement) -> String {
-        let mut s = format!(
-            "{} {}",
-            self.kw("CREATE MATERIALIZED VIEW"),
-            self.format_object_name(&stmt.name)
-        );
+        let mut s = format!("{} {}", self.kw("CREATE MATERIALIZED VIEW"), self.format_object_name(&stmt.name));
         if !stmt.columns.is_empty() {
             s.push_str(&format!("({})", stmt.columns.join(", ")));
         }
-        s.push_str(&format!(
-            " {} {}",
-            self.kw("AS"),
-            self.format_select(&stmt.query)
-        ));
+        s.push_str(&format!(" {} {}", self.kw("AS"), self.format_select(&stmt.query)));
         if let Some(ref ts) = stmt.tablespace {
             s.push_str(&format!(" {} {}", self.kw("TABLESPACE"), ts));
         }
         if stmt.with_data {
             s.push_str(&format!(" {} {}", self.kw("WITH"), self.kw("DATA")));
         } else {
-            s.push_str(&format!(
-                " {} {} {}",
-                self.kw("WITH"),
-                self.kw("NO"),
-                self.kw("DATA")
-            ));
+            s.push_str(&format!(" {} {} {}", self.kw("WITH"), self.kw("NO"), self.kw("DATA")));
         }
         s
     }
 
     fn format_refresh_matview(&self, stmt: &RefreshMatViewStatement) -> String {
-        let mut s = format!(
-            "{} {}",
-            self.kw("REFRESH MATERIALIZED VIEW"),
-            self.format_object_name(&stmt.name)
-        );
+        let mut s = format!("{} {}", self.kw("REFRESH MATERIALIZED VIEW"), self.format_object_name(&stmt.name));
         if stmt.concurrent {
             s.push(' ');
             s.push_str(&self.kw("CONCURRENTLY"));
@@ -5671,13 +4548,9 @@ impl SqlFormatter {
 
     fn format_alter_database(&self, stmt: &AlterDatabaseStatement) -> String {
         let action = match &stmt.action {
-            AlterDatabaseAction::Set { parameter, value } => format!(
-                "{} {} {} {}",
-                self.kw("SET"),
-                parameter,
-                self.kw("TO"),
-                value
-            ),
+            AlterDatabaseAction::Set { parameter, value } => {
+                format!("{} {} {} {}", self.kw("SET"), parameter, self.kw("TO"), value)
+            }
             AlterDatabaseAction::Reset { parameter } => {
                 format!("{} {}", self.kw("RESET"), parameter)
             }
@@ -5690,9 +4563,7 @@ impl SqlFormatter {
             AlterDatabaseAction::WithConnectionLimit { limit } => {
                 format!("{} {}", self.kw("WITH CONNECTION LIMIT"), limit)
             }
-            AlterDatabaseAction::EnablePrivateObject => {
-                self.kw("ENABLE PRIVATE OBJECT").to_string()
-            }
+            AlterDatabaseAction::EnablePrivateObject => self.kw("ENABLE PRIVATE OBJECT").to_string(),
         };
         format!("{} {} {}", self.kw("ALTER DATABASE"), stmt.name, action)
     }
@@ -5728,20 +4599,13 @@ impl SqlFormatter {
                 SequenceOption::Restart(_) => self.kw("RESTART").to_string(),
                 SequenceOption::Cache(n) => format!("{} {}", self.kw("CACHE"), n),
                 SequenceOption::Cycle(true) => self.kw("CYCLE").to_string(),
-                SequenceOption::Cycle(false) | SequenceOption::NoCycle => {
-                    self.kw("NO CYCLE").to_string()
-                }
+                SequenceOption::Cycle(false) | SequenceOption::NoCycle => self.kw("NO CYCLE").to_string(),
                 SequenceOption::OwnedBy { owner } => {
                     format!("{} {}", self.kw("OWNED BY"), self.format_object_name(owner))
                 }
             })
             .collect();
-        format!(
-            "{} {} {}",
-            self.kw("ALTER SEQUENCE"),
-            self.format_object_name(&stmt.name),
-            opts.join(" ")
-        )
+        format!("{} {} {}", self.kw("ALTER SEQUENCE"), self.format_object_name(&stmt.name), opts.join(" "))
     }
 
     fn format_alter_function(&self, stmt: &AlterFunctionStatement) -> String {
@@ -5762,13 +4626,9 @@ impl SqlFormatter {
             AlterFunctionAction::SetSchema { schema } => {
                 format!("{} {}", self.kw("SET SCHEMA"), schema)
             }
-            AlterFunctionAction::Set { parameter, value } => format!(
-                "{} {} {} {}",
-                self.kw("SET"),
-                parameter,
-                self.kw("TO"),
-                value
-            ),
+            AlterFunctionAction::Set { parameter, value } => {
+                format!("{} {} {} {}", self.kw("SET"), parameter, self.kw("TO"), value)
+            }
             AlterFunctionAction::Reset { parameter } => {
                 format!("{} {}", self.kw("RESET"), parameter)
             }
@@ -5782,9 +4642,7 @@ impl SqlFormatter {
             }
             AlterFunctionAction::Strict => self.kw("STRICT").to_string(),
             AlterFunctionAction::CalledOnNullInput => self.kw("CALLED ON NULL INPUT").to_string(),
-            AlterFunctionAction::ReturnsNullOnNullInput => {
-                self.kw("RETURNS NULL ON NULL INPUT").to_string()
-            }
+            AlterFunctionAction::ReturnsNullOnNullInput => self.kw("RETURNS NULL ON NULL INPUT").to_string(),
             AlterFunctionAction::Shippable { not: false } => self.kw("SHIPPABLE").to_string(),
             AlterFunctionAction::Shippable { not: true } => {
                 format!("{} {}", self.kw("NOT"), self.kw("SHIPPABLE"))
@@ -5822,13 +4680,9 @@ impl SqlFormatter {
 
     fn format_alter_global_config(&self, stmt: &AlterGlobalConfigStatement) -> String {
         match &stmt.action {
-            AlterGlobalConfigAction::Set { parameter, value } => format!(
-                "{} {} {} {}",
-                self.kw("ALTER SYSTEM SET"),
-                parameter,
-                self.kw("="),
-                value
-            ),
+            AlterGlobalConfigAction::Set { parameter, value } => {
+                format!("{} {} {} {}", self.kw("ALTER SYSTEM SET"), parameter, self.kw("="), value)
+            }
             AlterGlobalConfigAction::Reset { parameter } => {
                 format!("{} {}", self.kw("ALTER SYSTEM RESET"), parameter)
             }
@@ -5856,26 +4710,14 @@ impl SqlFormatter {
         if stmt.replace {
             s.push_str(&format!(" {} {}", self.kw("OR"), self.kw("REPLACE")));
         }
-        s.push_str(&format!(
-            "{} {}",
-            self.kw(" FUNCTION"),
-            self.format_object_name(&stmt.name)
-        ));
-        let params: Vec<String> = stmt
-            .parameters
-            .iter()
-            .map(|p| self.format_routine_param(p))
-            .collect();
+        s.push_str(&format!("{} {}", self.kw(" FUNCTION"), self.format_object_name(&stmt.name)));
+        let params: Vec<String> = stmt.parameters.iter().map(|p| self.format_routine_param(p)).collect();
         s.push_str(&format!("({})", params.join(", ")));
         if let Some(rt) = &stmt.return_type {
             s.push_str(&format!(" {} {}", self.kw("RETURNS"), rt));
         }
         if let Some(block) = &stmt.block {
-            s.push_str(&format!(
-                " {} {}",
-                self.kw("AS"),
-                self.format_pl_block_named(block, 0)
-            ));
+            s.push_str(&format!(" {} {}", self.kw("AS"), self.format_pl_block_named(block, 0)));
         }
         let opts_str = self.format_function_options(&stmt.options);
         if !opts_str.is_empty() {
@@ -5889,23 +4731,11 @@ impl SqlFormatter {
         if stmt.replace {
             s.push_str(&format!(" {} {}", self.kw("OR"), self.kw("REPLACE")));
         }
-        s.push_str(&format!(
-            "{} {}",
-            self.kw(" PROCEDURE"),
-            self.format_object_name(&stmt.name)
-        ));
-        let params: Vec<String> = stmt
-            .parameters
-            .iter()
-            .map(|p| self.format_routine_param(p))
-            .collect();
+        s.push_str(&format!("{} {}", self.kw(" PROCEDURE"), self.format_object_name(&stmt.name)));
+        let params: Vec<String> = stmt.parameters.iter().map(|p| self.format_routine_param(p)).collect();
         s.push_str(&format!("({})", params.join(", ")));
         if let Some(block) = &stmt.block {
-            s.push_str(&format!(
-                " {} {}",
-                self.kw("AS"),
-                self.format_pl_block_named(block, 0)
-            ));
+            s.push_str(&format!(" {} {}", self.kw("AS"), self.format_pl_block_named(block, 0)));
         }
         let opts_str = self.format_function_options(&stmt.options);
         if !opts_str.is_empty() {
@@ -5951,9 +4781,7 @@ impl SqlFormatter {
         match &opts.parallel {
             Some(ParallelMode::Safe) => parts.push(self.kw("PARALLEL SAFE").to_string()),
             Some(ParallelMode::Unsafe) => parts.push(self.kw("PARALLEL UNSAFE").to_string()),
-            Some(ParallelMode::Restricted) => {
-                parts.push(self.kw("PARALLEL RESTRICTED").to_string())
-            }
+            Some(ParallelMode::Restricted) => parts.push(self.kw("PARALLEL RESTRICTED").to_string()),
             None => {}
         }
         if let Some(fenced) = opts.fenced {
@@ -5981,16 +4809,10 @@ impl SqlFormatter {
         if stmt.replace {
             s.push_str(&format!(" {}", self.kw("OR REPLACE")));
         }
-        s.push_str(&format!(
-            " {} {}",
-            self.kw("PACKAGE"),
-            self.format_object_name(&stmt.name)
-        ));
+        s.push_str(&format!(" {} {}", self.kw("PACKAGE"), self.format_object_name(&stmt.name)));
         if let Some(authid) = &stmt.authid {
             match authid {
-                PackageAuthid::CurrentUser => {
-                    s.push_str(&format!(" {}", self.kw("AUTHID CURRENT_USER")))
-                }
+                PackageAuthid::CurrentUser => s.push_str(&format!(" {}", self.kw("AUTHID CURRENT_USER"))),
                 PackageAuthid::Definer => s.push_str(&format!(" {}", self.kw("AUTHID DEFINER"))),
             }
         }
@@ -6001,7 +4823,7 @@ impl SqlFormatter {
             s.push_str(&self.format_package_item(item, 1));
         }
         s.push('\n');
-        s.push_str(&format!("{}", self.kw("END")));
+        s.push_str(&self.kw("END").to_string());
         s.push(';');
         s
     }
@@ -6011,11 +4833,7 @@ impl SqlFormatter {
         if stmt.replace {
             s.push_str(&format!(" {}", self.kw("OR REPLACE")));
         }
-        s.push_str(&format!(
-            " {} {}",
-            self.kw("PACKAGE BODY"),
-            self.format_object_name(&stmt.name)
-        ));
+        s.push_str(&format!(" {} {}", self.kw("PACKAGE BODY"), self.format_object_name(&stmt.name)));
         s.push_str(&format!(" {}", self.kw("AS")));
         for item in &stmt.items {
             s.push('\n');
@@ -6023,7 +4841,7 @@ impl SqlFormatter {
             s.push_str(&self.format_package_item(item, 1));
         }
         s.push('\n');
-        s.push_str(&format!("{}", self.kw("END")));
+        s.push_str(&self.kw("END").to_string());
         s.push(';');
         s
     }
@@ -6052,14 +4870,29 @@ impl SqlFormatter {
                         format!("{} {} {} ({})", self.kw("TYPE"), name, self.kw("IS RECORD"), fields_str)
                     }
                     PlTypeDecl::TableOf { name, elem_type, index_by } => {
-                        let mut s = format!("{} {} {} {} {}", self.kw("TYPE"), name, self.kw("IS TABLE OF"), self.format_pl_data_type(elem_type), "");
+                        let mut s = format!(
+                            "{} {} {} {} {}",
+                            self.kw("TYPE"),
+                            name,
+                            self.kw("IS TABLE OF"),
+                            self.format_pl_data_type(elem_type),
+                            ""
+                        );
                         if let Some(idx) = index_by {
                             s = format!("{} {} {}", s.trim(), self.kw("INDEX BY"), self.format_pl_data_type(idx));
                         }
                         s.trim().to_string()
                     }
                     PlTypeDecl::VarrayOf { name, size, elem_type } => {
-                        format!("{} {} {} ({}) {} {}", self.kw("TYPE"), name, self.kw("IS VARRAY"), self.format_expr(size), self.kw("OF"), self.format_pl_data_type(elem_type))
+                        format!(
+                            "{} {} {} ({}) {} {}",
+                            self.kw("TYPE"),
+                            name,
+                            self.kw("IS VARRAY"),
+                            self.format_expr(size),
+                            self.kw("OF"),
+                            self.format_pl_data_type(elem_type)
+                        )
                     }
                     PlTypeDecl::RefCursor { name } => {
                         format!("{} {} {}", self.kw("TYPE"), name, self.kw("IS REF CURSOR"))
@@ -6072,17 +4905,9 @@ impl SqlFormatter {
     }
 
     fn format_package_procedure(&self, proc: &PackageProcedure, indent: usize) -> String {
-        let mut s = format!(
-            "{} {}",
-            self.kw("PROCEDURE"),
-            self.format_object_name(&proc.name)
-        );
+        let mut s = format!("{} {}", self.kw("PROCEDURE"), self.format_object_name(&proc.name));
         if !proc.parameters.is_empty() {
-            let params: Vec<String> = proc
-                .parameters
-                .iter()
-                .map(|p| self.format_routine_param(p))
-                .collect();
+            let params: Vec<String> = proc.parameters.iter().map(|p| self.format_routine_param(p)).collect();
             s.push_str(&format!("({})", params.join(", ")));
         }
         if let Some(ref block) = proc.block {
@@ -6095,17 +4920,9 @@ impl SqlFormatter {
     }
 
     fn format_package_function(&self, func: &PackageFunction, indent: usize) -> String {
-        let mut s = format!(
-            "{} {}",
-            self.kw("FUNCTION"),
-            self.format_object_name(&func.name)
-        );
+        let mut s = format!("{} {}", self.kw("FUNCTION"), self.format_object_name(&func.name));
         if !func.parameters.is_empty() {
-            let params: Vec<String> = func
-                .parameters
-                .iter()
-                .map(|p| self.format_routine_param(p))
-                .collect();
+            let params: Vec<String> = func.parameters.iter().map(|p| self.format_routine_param(p)).collect();
             s.push_str(&format!("({})", params.join(", ")));
         }
         if let Some(ref rt) = func.return_type {
@@ -6147,11 +4964,7 @@ impl SqlFormatter {
     }
 
     fn format_create_user(&self, stmt: &CreateUserStatement) -> String {
-        let mut s = format!(
-            "{} {}",
-            self.kw("CREATE USER"),
-            self.quote_identifier(&stmt.name)
-        );
+        let mut s = format!("{} {}", self.kw("CREATE USER"), self.quote_identifier(&stmt.name));
         for opt in &stmt.options {
             s.push(' ');
             s.push_str(&self.format_role_option(opt));
@@ -6176,31 +4989,23 @@ impl SqlFormatter {
             RoleOption::BypassRls(true) => self.kw("BYPASSRLS"),
             RoleOption::BypassRls(false) => self.kw("NOBYPASSRLS"),
             RoleOption::ConnectionLimit(n) => format!("{} {}", self.kw("CONNECTION LIMIT"), n),
-            RoleOption::EncryptedPassword(p) => format!(
-                "{} {}",
-                self.kw("ENCRYPTED PASSWORD"),
-                self.format_literal(&Literal::String(p.clone()))
-            ),
-            RoleOption::UnencryptedPassword(p) => format!(
-                "{} {}",
-                self.kw("PASSWORD"),
-                self.format_literal(&Literal::String(p.clone()))
-            ),
-            RoleOption::ValidUntil(t) => format!(
-                "{} {}",
-                self.kw("VALID UNTIL"),
-                self.format_literal(&Literal::String(t.clone()))
-            ),
+            RoleOption::EncryptedPassword(p) => {
+                format!("{} {}", self.kw("ENCRYPTED PASSWORD"), self.format_literal(&Literal::String(p.clone())))
+            }
+            RoleOption::UnencryptedPassword(p) => {
+                format!("{} {}", self.kw("PASSWORD"), self.format_literal(&Literal::String(p.clone())))
+            }
+            RoleOption::ValidUntil(t) => {
+                format!("{} {}", self.kw("VALID UNTIL"), self.format_literal(&Literal::String(t.clone())))
+            }
             RoleOption::InRole(roles) => format!("{} {}", self.kw("IN ROLE"), roles.join(", ")),
             RoleOption::Role(roles) => format!("{} {}", self.kw("ROLE"), roles.join(", ")),
             RoleOption::Admin(roles) => format!("{} {}", self.kw("ADMIN"), roles.join(", ")),
             RoleOption::User(users) => format!("{} {}", self.kw("USER"), users.join(", ")),
             RoleOption::Sysid(id) => format!("{} {}", self.kw("SYSID"), id),
-            RoleOption::DefaultTablespace(ts) => format!(
-                "{} {}",
-                self.kw("DEFAULT TABLESPACE"),
-                self.quote_identifier(ts)
-            ),
+            RoleOption::DefaultTablespace(ts) => {
+                format!("{} {}", self.kw("DEFAULT TABLESPACE"), self.quote_identifier(ts))
+            }
             RoleOption::Tablespace(ts) => {
                 format!("{} {}", self.kw("TABLESPACE"), self.quote_identifier(ts))
             }
@@ -6248,11 +5053,7 @@ impl SqlFormatter {
 
     fn format_revoke_role(&self, stmt: &RevokeRoleStatement) -> String {
         let mut s = format!("{} {}", self.kw("REVOKE"), stmt.roles.join(", "));
-        s.push_str(&format!(
-            " {} {}",
-            self.kw("FROM"),
-            stmt.grantees.join(", ")
-        ));
+        s.push_str(&format!(" {} {}", self.kw("FROM"), stmt.grantees.join(", ")));
         if stmt.cascade {
             s.push_str(&format!(" {}", self.kw("CASCADE")));
         }
@@ -6275,28 +5076,14 @@ impl SqlFormatter {
 
     fn format_alter_composite_type(&self, stmt: &AlterCompositeTypeStatement) -> String {
         let action = match &stmt.action {
-            AlterTypeAction::AddAttribute {
-                name,
-                data_type,
-                cascade,
-            } => {
-                let mut s = format!(
-                    "{} {} {} {}",
-                    self.kw("ADD ATTRIBUTE"),
-                    name,
-                    self.kw("TYPE"),
-                    data_type
-                );
+            AlterTypeAction::AddAttribute { name, data_type, cascade } => {
+                let mut s = format!("{} {} {} {}", self.kw("ADD ATTRIBUTE"), name, self.kw("TYPE"), data_type);
                 if *cascade {
                     s.push_str(&format!(" {}", self.kw("CASCADE")));
                 }
                 s
             }
-            AlterTypeAction::DropAttribute {
-                name,
-                if_exists,
-                cascade,
-            } => {
+            AlterTypeAction::DropAttribute { name, if_exists, cascade } => {
                 let mut s = format!("{} {}", self.kw("DROP ATTRIBUTE"), name);
                 if *if_exists {
                     s.push_str(&format!(" {}", self.kw("IF EXISTS")));
@@ -6306,19 +5093,9 @@ impl SqlFormatter {
                 }
                 s
             }
-            AlterTypeAction::RenameAttribute {
-                old_name,
-                new_name,
-                cascade,
-            } => {
-                let mut s = format!(
-                    "{} {} {} {} {}",
-                    self.kw("RENAME ATTRIBUTE"),
-                    old_name,
-                    self.kw("TO"),
-                    new_name,
-                    ""
-                );
+            AlterTypeAction::RenameAttribute { old_name, new_name, cascade } => {
+                let mut s =
+                    format!("{} {} {} {} {}", self.kw("RENAME ATTRIBUTE"), old_name, self.kw("TO"), new_name, "");
                 if *cascade {
                     s.push_str(&format!(" {}", self.kw("CASCADE")));
                 }
@@ -6327,17 +5104,8 @@ impl SqlFormatter {
             AlterTypeAction::RenameTo(new_name) => format!("{} {}", self.kw("RENAME TO"), new_name),
             AlterTypeAction::SetSchema(schema) => format!("{} {}", self.kw("SET SCHEMA"), schema),
             AlterTypeAction::OwnerTo(owner) => format!("{} {}", self.kw("OWNER TO"), owner),
-            AlterTypeAction::AddEnumValue {
-                if_not_exists,
-                value,
-                before,
-                after,
-            } => {
-                let ine = if *if_not_exists {
-                    self.kw("IF NOT EXISTS")
-                } else {
-                    String::new()
-                };
+            AlterTypeAction::AddEnumValue { if_not_exists, value, before, after } => {
+                let ine = if *if_not_exists { self.kw("IF NOT EXISTS") } else { String::new() };
                 let mut s = format!("{} {} {}", self.kw("ADD VALUE"), ine, value);
                 if let Some(b) = before {
                     s = format!("{} {} {}", s, self.kw("BEFORE"), b);
@@ -6347,25 +5115,11 @@ impl SqlFormatter {
                 }
                 s.trim().to_string()
             }
-            AlterTypeAction::RenameEnumValue {
-                old_value,
-                new_value,
-            } => {
-                format!(
-                    "{} {} {} {}",
-                    self.kw("RENAME VALUE"),
-                    old_value,
-                    self.kw("TO"),
-                    new_value
-                )
+            AlterTypeAction::RenameEnumValue { old_value, new_value } => {
+                format!("{} {} {} {}", self.kw("RENAME VALUE"), old_value, self.kw("TO"), new_value)
             }
         };
-        format!(
-            "{} {} {}",
-            self.kw("ALTER TYPE"),
-            self.format_object_name(&stmt.name),
-            action
-        )
+        format!("{} {} {}", self.kw("ALTER TYPE"), self.format_object_name(&stmt.name), action)
     }
 
     fn format_alter_view(&self, stmt: &AlterViewStatement) -> String {
@@ -6379,43 +5133,20 @@ impl SqlFormatter {
             }
             AlterViewAction::SetSchema(schema) => format!("{} {}", self.kw("SET SCHEMA"), schema),
             AlterViewAction::OwnerTo(owner) => format!("{} {}", self.kw("OWNER TO"), owner),
-            AlterViewAction::AlterColumnDefault {
-                column,
-                set_default,
-            } => match set_default {
-                Some(val) => format!(
-                    "{} {} {} {} {}",
-                    self.kw("ALTER COLUMN"),
-                    column,
-                    self.kw("SET DEFAULT"),
-                    "",
-                    val
-                ),
-                None => format!(
-                    "{} {} {}",
-                    self.kw("ALTER COLUMN"),
-                    column,
-                    self.kw("DROP DEFAULT")
-                ),
+            AlterViewAction::AlterColumnDefault { column, set_default } => match set_default {
+                Some(val) => {
+                    format!("{} {} {} {} {}", self.kw("ALTER COLUMN"), column, self.kw("SET DEFAULT"), "", val)
+                }
+                None => format!("{} {} {}", self.kw("ALTER COLUMN"), column, self.kw("DROP DEFAULT")),
             },
         };
-        format!(
-            "{} {} {}",
-            self.kw("ALTER VIEW"),
-            self.format_object_name(&stmt.name),
-            action
-        )
+        format!("{} {} {}", self.kw("ALTER VIEW"), self.format_object_name(&stmt.name), action)
     }
 
     fn format_alter_trigger(&self, stmt: &AlterTriggerStatement) -> String {
         if let Some(enable) = stmt.enable {
             let action = if enable { "ENABLE" } else { "DISABLE" };
-            format!(
-                "{} {} {}",
-                self.kw("ALTER TRIGGER"),
-                stmt.name,
-                self.kw(action)
-            )
+            format!("{} {} {}", self.kw("ALTER TRIGGER"), stmt.name, self.kw(action))
         } else {
             format!(
                 "{} {} {} {} {} {}",
@@ -6430,12 +5161,7 @@ impl SqlFormatter {
     }
 
     fn format_alter_extension(&self, stmt: &AlterExtensionStatement) -> String {
-        format!(
-            "{} {} {}",
-            self.kw("ALTER EXTENSION"),
-            stmt.name,
-            stmt.action
-        )
+        format!("{} {} {}", self.kw("ALTER EXTENSION"), stmt.name, stmt.action)
     }
 
     fn format_create_cast(&self, stmt: &CreateCastStatement) -> String {
@@ -6447,9 +5173,7 @@ impl SqlFormatter {
             self.format_data_type(&stmt.target_type)
         );
         match &stmt.method {
-            CastMethod::WithFunction(func) => {
-                s.push_str(&format!(" {} {}", self.kw("WITH FUNCTION"), func))
-            }
+            CastMethod::WithFunction(func) => s.push_str(&format!(" {} {}", self.kw("WITH FUNCTION"), func)),
             CastMethod::WithoutFunction => s.push_str(&format!(" {}", self.kw("WITHOUT FUNCTION"))),
             CastMethod::WithInout => s.push_str(&format!(" {}", self.kw("WITH INOUT"))),
         }
@@ -6470,21 +5194,13 @@ impl SqlFormatter {
             self.format_data_type(&stmt.data_type)
         );
         if let Some(def) = &stmt.default_value {
-            s.push_str(&format!(
-                " {} {}",
-                self.kw("DEFAULT"),
-                self.format_expr(def)
-            ));
+            s.push_str(&format!(" {} {}", self.kw("DEFAULT"), self.format_expr(def)));
         }
         if stmt.not_null {
             s.push_str(&format!(" {}", self.kw("NOT NULL")));
         }
         if let Some(check) = &stmt.check {
-            s.push_str(&format!(
-                " {} ({})",
-                self.kw("CHECK"),
-                self.format_expr(check)
-            ));
+            s.push_str(&format!(" {} ({})", self.kw("CHECK"), self.format_expr(check)));
         }
         s
     }
@@ -6533,22 +5249,11 @@ impl SqlFormatter {
         s.push_str(&format!(" {}", stmt.name));
         if !stmt.base_types.is_empty() {
             s.push('(');
-            s.push_str(
-                &stmt
-                    .base_types
-                    .iter()
-                    .map(|t| self.format_data_type(t))
-                    .collect::<Vec<_>>()
-                    .join(", "),
-            );
+            s.push_str(&stmt.base_types.iter().map(|t| self.format_data_type(t)).collect::<Vec<_>>().join(", "));
             s.push(')');
         }
         if !stmt.options.is_empty() {
-            let pairs: Vec<String> = stmt
-                .options
-                .iter()
-                .map(|(k, v)| format!("{} = {}", k, v))
-                .collect();
+            let pairs: Vec<String> = stmt.options.iter().map(|(k, v)| format!("{} = {}", k, v)).collect();
             s.push_str(&format!(" ({})", pairs.join(", ")));
         }
         s
@@ -6558,11 +5263,7 @@ impl SqlFormatter {
         let mut s = format!("{} {}", self.kw("CREATE"), self.kw("OPERATOR"));
         s.push_str(&format!(" {}", stmt.name));
         if !stmt.options.is_empty() {
-            let pairs: Vec<String> = stmt
-                .options
-                .iter()
-                .map(|(k, v)| format!("{} = {}", k, v))
-                .collect();
+            let pairs: Vec<String> = stmt.options.iter().map(|(k, v)| format!("{} = {}", k, v)).collect();
             s.push_str(&format!(" ({})", pairs.join(", ")));
         }
         s
@@ -6574,12 +5275,7 @@ impl SqlFormatter {
             s.push_str(&format!(" {} {} {}", self.kw("FOR"), self.kw("ROLE"), role));
         }
         if let Some(schema) = &stmt.schema {
-            s.push_str(&format!(
-                " {} {} {}",
-                self.kw("IN"),
-                self.kw("SCHEMA"),
-                schema
-            ));
+            s.push_str(&format!(" {} {} {}", self.kw("IN"), self.kw("SCHEMA"), schema));
         }
         s.push(' ');
         match &stmt.action {
@@ -6594,12 +5290,7 @@ impl SqlFormatter {
         if stmt.if_not_exists {
             s.push_str(&format!(" {}", self.kw("IF NOT EXISTS")));
         }
-        s.push_str(&format!(
-            " {} {} {}",
-            self.kw("FOR"),
-            stmt.user_name,
-            self.kw("SERVER")
-        ));
+        s.push_str(&format!(" {} {} {}", self.kw("FOR"), stmt.user_name, self.kw("SERVER")));
         s.push_str(&format!(" {}", self.format_object_name(&stmt.server)));
         s.push_str(&self.format_options(&stmt.options));
         s
@@ -6607,12 +5298,7 @@ impl SqlFormatter {
 
     fn format_alter_user_mapping(&self, stmt: &AlterUserMappingStatement) -> String {
         let mut s = format!("{} {}", self.kw("ALTER"), self.kw("USER MAPPING"));
-        s.push_str(&format!(
-            " {} {} {}",
-            self.kw("FOR"),
-            stmt.user_name,
-            self.kw("SERVER")
-        ));
+        s.push_str(&format!(" {} {} {}", self.kw("FOR"), stmt.user_name, self.kw("SERVER")));
         s.push_str(&format!(" {}", self.format_object_name(&stmt.server)));
         s.push_str(&self.format_options(&stmt.options));
         s
@@ -6623,12 +5309,7 @@ impl SqlFormatter {
         if stmt.if_exists {
             s.push_str(&format!(" {}", self.kw("IF EXISTS")));
         }
-        s.push_str(&format!(
-            " {} {} {}",
-            self.kw("FOR"),
-            stmt.user_name,
-            self.kw("SERVER")
-        ));
+        s.push_str(&format!(" {} {} {}", self.kw("FOR"), stmt.user_name, self.kw("SERVER")));
         s.push_str(&format!(" {}", self.format_object_name(&stmt.server)));
         s
     }
@@ -6725,23 +5406,12 @@ impl SqlFormatter {
     }
 
     fn format_clean_conn(&self, stmt: &CleanConnStatement) -> String {
-        let mut s = format!(
-            "{} {} {} {}",
-            self.kw("CLEAN"),
-            self.kw("CONNECTION"),
-            self.kw("TO"),
-            self.kw("ALL")
-        );
+        let mut s = format!("{} {} {} {}", self.kw("CLEAN"), self.kw("CONNECTION"), self.kw("TO"), self.kw("ALL"));
         if stmt.force {
             s.push_str(&format!(" {}", self.kw("FORCE")));
         }
         if let Some(db) = &stmt.for_database {
-            s.push_str(&format!(
-                " {} {} {}",
-                self.kw("FOR"),
-                self.kw("DATABASE"),
-                db
-            ));
+            s.push_str(&format!(" {} {} {}", self.kw("FOR"), self.kw("DATABASE"), db));
         }
         if let Some(user) = &stmt.to_user {
             s.push_str(&format!(" {} {} {}", self.kw("TO"), self.kw("USER"), user));
@@ -6759,12 +5429,7 @@ impl SqlFormatter {
     }
 
     fn format_sec_label(&self, stmt: &SecLabelStatement) -> String {
-        let mut s = format!(
-            "{} {} {}",
-            self.kw("SECURITY"),
-            self.kw("LABEL"),
-            stmt.object_type
-        );
+        let mut s = format!("{} {} {}", self.kw("SECURITY"), self.kw("LABEL"), stmt.object_type);
         s.push_str(&format!(" {}", self.format_object_name(&stmt.name)));
         if let Some(provider) = &stmt.provider {
             s.push_str(&format!(" {} {}", self.kw("FOR"), provider));
@@ -6924,4 +5589,3 @@ mod tests {
         assert!(formatted.contains("EXPLAIN"));
     }
 }
-

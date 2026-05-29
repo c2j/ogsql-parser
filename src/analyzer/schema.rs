@@ -1,6 +1,6 @@
-use std::collections::HashMap;
-use serde::{Serialize, Deserialize};
 use crate::ast::plpgsql::{PlBlock, PlDataType, PlStatement};
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
 pub type SchemaMap = HashMap<String, HashMap<String, String>>;
 
@@ -42,18 +42,13 @@ pub struct UnresolvedRef {
 }
 
 pub fn load_schema(path: &str) -> Result<SchemaMap, String> {
-    let content = std::fs::read_to_string(path)
-        .map_err(|e| format!("Failed to read schema file '{}': {}", path, e))?;
-    serde_json::from_str(&content)
-        .map_err(|e| format!("Failed to parse schema JSON: {}", e))
+    let content = std::fs::read_to_string(path).map_err(|e| format!("Failed to read schema file '{}': {}", path, e))?;
+    serde_json::from_str(&content).map_err(|e| format!("Failed to parse schema JSON: {}", e))
 }
 
 pub fn resolve_schema(block: &PlBlock, schema: &SchemaMap) -> SchemaResolutionReport {
-    let mut report = SchemaResolutionReport {
-        resolved_types: Vec::new(),
-        resolved_rowtypes: Vec::new(),
-        unresolved: Vec::new(),
-    };
+    let mut report =
+        SchemaResolutionReport { resolved_types: Vec::new(), resolved_rowtypes: Vec::new(), unresolved: Vec::new() };
     resolve_schema_recursive(block, schema, &mut report);
     report
 }
@@ -62,12 +57,10 @@ fn resolve_schema_recursive(block: &PlBlock, schema: &SchemaMap, report: &mut Sc
     for decl in &block.declarations {
         let data_type = match decl {
             crate::ast::plpgsql::PlDeclaration::Variable(v) => &v.data_type,
-            crate::ast::plpgsql::PlDeclaration::Cursor(c) => {
-                match c.return_type {
-                    Some(ref dt) => dt,
-                    None => continue,
-                }
-            }
+            crate::ast::plpgsql::PlDeclaration::Cursor(c) => match c.return_type {
+                Some(ref dt) => dt,
+                None => continue,
+            },
             _ => continue,
         };
 
@@ -100,13 +93,11 @@ fn resolve_schema_recursive(block: &PlBlock, schema: &SchemaMap, report: &mut Sc
             PlDataType::PercentRowType(table) => {
                 let table_lower = table.to_lowercase();
                 if let Some(columns) = schema.get(&table_lower) {
-                    let cols: Vec<ColumnDef> = columns.iter()
+                    let cols: Vec<ColumnDef> = columns
+                        .iter()
                         .map(|(name, dt)| ColumnDef { name: name.clone(), data_type: dt.clone() })
                         .collect();
-                    report.resolved_rowtypes.push(ResolvedRowType {
-                        table: table.clone(),
-                        columns: cols,
-                    });
+                    report.resolved_rowtypes.push(ResolvedRowType { table: table.clone(), columns: cols });
                 } else {
                     report.unresolved.push(UnresolvedRef {
                         table: table.clone(),
@@ -146,16 +137,10 @@ fn extract_block_from_statement(stmt: &PlStatement) -> Option<&PlBlock> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ast::plpgsql::{PlBlock, PlDeclaration, PlDataType, PlVarDecl};
+    use crate::ast::plpgsql::{PlBlock, PlDataType, PlDeclaration, PlVarDecl};
 
     fn make_block(decls: Vec<PlDeclaration>) -> PlBlock {
-        PlBlock {
-            label: None,
-            declarations: decls,
-            body: vec![],
-            exception_block: None,
-            end_label: None,
-        }
+        PlBlock { label: None, declarations: decls, body: vec![], exception_block: None, end_label: None }
     }
 
     fn var_decl(name: &str, data_type: PlDataType) -> PlDeclaration {
@@ -180,12 +165,10 @@ mod tests {
     #[test]
     fn test_resolve_percent_type_found() {
         let schema = schema_with("DB_LOG", "proc_name", "varchar2(200)");
-        let block = make_block(vec![
-            var_decl("v_procname", PlDataType::PercentType {
-                table: "DB_LOG".to_string(),
-                column: "PROC_NAME".to_string(),
-            }),
-        ]);
+        let block = make_block(vec![var_decl(
+            "v_procname",
+            PlDataType::PercentType { table: "DB_LOG".to_string(), column: "PROC_NAME".to_string() },
+        )]);
         let report = resolve_schema(&block, &schema);
         assert_eq!(report.resolved_types.len(), 1);
         assert_eq!(report.resolved_types[0].table, "DB_LOG");
@@ -197,12 +180,10 @@ mod tests {
     #[test]
     fn test_resolve_percent_type_not_found() {
         let schema = schema_with("DB_LOG", "proc_name", "varchar2(200)");
-        let block = make_block(vec![
-            var_decl("v_unknown", PlDataType::PercentType {
-                table: "MISSING_TABLE".to_string(),
-                column: "COL".to_string(),
-            }),
-        ]);
+        let block = make_block(vec![var_decl(
+            "v_unknown",
+            PlDataType::PercentType { table: "MISSING_TABLE".to_string(), column: "COL".to_string() },
+        )]);
         let report = resolve_schema(&block, &schema);
         assert!(report.resolved_types.is_empty());
         assert_eq!(report.unresolved.len(), 1);
@@ -219,9 +200,7 @@ mod tests {
         let mut schema = HashMap::new();
         schema.insert("users".to_string(), inner);
 
-        let block = make_block(vec![
-            var_decl("v_user", PlDataType::PercentRowType("users".to_string())),
-        ]);
+        let block = make_block(vec![var_decl("v_user", PlDataType::PercentRowType("users".to_string()))]);
         let report = resolve_schema(&block, &schema);
         assert_eq!(report.resolved_rowtypes.len(), 1);
         assert_eq!(report.resolved_rowtypes[0].table, "users");
@@ -233,14 +212,14 @@ mod tests {
     fn test_resolve_mixed() {
         let schema = schema_with("DB_LOG", "proc_name", "varchar2(200)");
         let block = make_block(vec![
-            var_decl("v_procname", PlDataType::PercentType {
-                table: "DB_LOG".to_string(),
-                column: "PROC_NAME".to_string(),
-            }),
-            var_decl("v_unknown", PlDataType::PercentType {
-                table: "MISSING_TABLE".to_string(),
-                column: "COL".to_string(),
-            }),
+            var_decl(
+                "v_procname",
+                PlDataType::PercentType { table: "DB_LOG".to_string(), column: "PROC_NAME".to_string() },
+            ),
+            var_decl(
+                "v_unknown",
+                PlDataType::PercentType { table: "MISSING_TABLE".to_string(), column: "COL".to_string() },
+            ),
         ]);
         let report = resolve_schema(&block, &schema);
         assert_eq!(report.resolved_types.len(), 1);

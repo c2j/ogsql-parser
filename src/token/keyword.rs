@@ -1,7 +1,5 @@
 #![allow(non_camel_case_types)]
-#[derive(
-    Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
-)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize)]
 pub enum Keyword {
     ABORT_P,
     ABSOLUTE_P,
@@ -1472,73 +1470,51 @@ impl Keyword {
             Keyword::BOTH | Keyword::BUCKETS | Keyword::CASE | Keyword::CAST | Keyword::CHECK => {
                 KeywordCategory::Reserved
             }
-            Keyword::COLLATE
-            | Keyword::COLUMN
-            | Keyword::CONSTRAINT
-            | Keyword::CREATE
-            | Keyword::CURRENT_CATALOG => KeywordCategory::Reserved,
+            Keyword::COLLATE | Keyword::COLUMN | Keyword::CONSTRAINT | Keyword::CREATE | Keyword::CURRENT_CATALOG => {
+                KeywordCategory::Reserved
+            }
             Keyword::CURRENT_DATE
             | Keyword::CURRENT_ROLE
             | Keyword::CURRENT_TIME
             | Keyword::CURRENT_TIMESTAMP
             | Keyword::CURRENT_USER => KeywordCategory::Reserved,
-            Keyword::DEFAULT
-            | Keyword::DEFERRABLE
-            | Keyword::DESC
-            | Keyword::DISTINCT
-            | Keyword::DO => KeywordCategory::Reserved,
-            Keyword::ELSE
-            | Keyword::END_P
-            | Keyword::EXCEPT
-            | Keyword::EXCLUDED
-            | Keyword::FALSE_P => KeywordCategory::Reserved,
+            Keyword::DEFAULT | Keyword::DEFERRABLE | Keyword::DESC | Keyword::DISTINCT | Keyword::DO => {
+                KeywordCategory::Reserved
+            }
+            Keyword::ELSE | Keyword::END_P | Keyword::EXCEPT | Keyword::EXCLUDED | Keyword::FALSE_P => {
+                KeywordCategory::Reserved
+            }
             Keyword::FETCH | Keyword::FOR | Keyword::FOREIGN | Keyword::FROM | Keyword::GRANT => {
                 KeywordCategory::Reserved
             }
-            Keyword::GROUP_P | Keyword::GROUPPARENT | Keyword::HAVING | Keyword::IN_P => {
+            Keyword::GROUP_P | Keyword::GROUPPARENT | Keyword::HAVING | Keyword::IN_P => KeywordCategory::Reserved,
+            Keyword::INITIALLY | Keyword::INTERSECT | Keyword::INTO | Keyword::IS | Keyword::LEADING => {
                 KeywordCategory::Reserved
             }
-            Keyword::INITIALLY
-            | Keyword::INTERSECT
-            | Keyword::INTO
-            | Keyword::IS
-            | Keyword::LEADING => KeywordCategory::Reserved,
             Keyword::LESS
             | Keyword::LIMIT
             | Keyword::LOCALTIME
             | Keyword::LOCALTIMESTAMP
             | Keyword::MAXVALUE
             | Keyword::MINUS_P => KeywordCategory::Reserved,
-            Keyword::MODIFY_P
-            | Keyword::NOCYCLE
-            | Keyword::NOT
-            | Keyword::NULL_P
-            | Keyword::OFFSET => KeywordCategory::Reserved,
+            Keyword::MODIFY_P | Keyword::NOCYCLE | Keyword::NOT | Keyword::NULL_P | Keyword::OFFSET => {
+                KeywordCategory::Reserved
+            }
             Keyword::ON | Keyword::ONLY | Keyword::OR | Keyword::ORDER | Keyword::PERFORMANCE => {
                 KeywordCategory::Reserved
             }
-            Keyword::PLACING
-            | Keyword::PRIMARY
-            | Keyword::PROCEDURE
-            | Keyword::REFERENCES
-            | Keyword::REJECT_P => KeywordCategory::Reserved,
-            Keyword::RETURNING | Keyword::ROWNUM | Keyword::SELECT | Keyword::SESSION_USER => {
+            Keyword::PLACING | Keyword::PRIMARY | Keyword::PROCEDURE | Keyword::REFERENCES | Keyword::REJECT_P => {
                 KeywordCategory::Reserved
             }
-            Keyword::SHRINK | Keyword::SOME | Keyword::SYMMETRIC | Keyword::SYSDATE => {
-                KeywordCategory::Reserved
-            }
+            Keyword::RETURNING | Keyword::ROWNUM | Keyword::SELECT | Keyword::SESSION_USER => KeywordCategory::Reserved,
+            Keyword::SHRINK | Keyword::SOME | Keyword::SYMMETRIC | Keyword::SYSDATE => KeywordCategory::Reserved,
             Keyword::TABLE | Keyword::THEN | Keyword::TO | Keyword::TRAILING | Keyword::TRUE_P => {
                 KeywordCategory::Reserved
             }
-            Keyword::UNION | Keyword::UNIQUE | Keyword::USER | Keyword::USING => {
+            Keyword::UNION | Keyword::UNIQUE | Keyword::USER | Keyword::USING => KeywordCategory::Reserved,
+            Keyword::VARIADIC | Keyword::VERIFY | Keyword::WHEN | Keyword::WHERE | Keyword::WINDOW => {
                 KeywordCategory::Reserved
             }
-            Keyword::VARIADIC
-            | Keyword::VERIFY
-            | Keyword::WHEN
-            | Keyword::WHERE
-            | Keyword::WINDOW => KeywordCategory::Reserved,
             Keyword::WITH => KeywordCategory::Reserved,
             Keyword::BETWEEN
             | Keyword::BIGINT
@@ -1555,93 +1531,61 @@ impl Keyword {
             | Keyword::CHARACTER
             | Keyword::COALESCE
             | Keyword::DATE_P => KeywordCategory::ColName,
-            Keyword::DEC
-            | Keyword::DECIMAL_P
-            | Keyword::DECODE
-            | Keyword::EXISTS
-            | Keyword::EXTRACT => KeywordCategory::ColName,
-            Keyword::FLOAT_P
-            | Keyword::GREATEST
-            | Keyword::GROUPING_P
-            | Keyword::INOUT
-            | Keyword::INT_P => KeywordCategory::ColName,
-            Keyword::INTEGER
-            | Keyword::INTERVAL
-            | Keyword::JSON_EXISTS
-            | Keyword::LEAST
-            | Keyword::NATIONAL => KeywordCategory::ColName,
-            Keyword::NCHAR
-            | Keyword::NONE
-            | Keyword::NTH_VALUE_P
-            | Keyword::NULLIF
-            | Keyword::NUMBER_P => KeywordCategory::ColName,
-            Keyword::NUMERIC
-            | Keyword::NVARCHAR
-            | Keyword::NVARCHAR2
-            | Keyword::NVL
-            | Keyword::OUT_P => KeywordCategory::ColName,
-            Keyword::OVERLAY
-            | Keyword::POSITION
-            | Keyword::PRECISION
-            | Keyword::REAL
-            | Keyword::ROW => KeywordCategory::ColName,
-            Keyword::SETOF
-            | Keyword::SMALLDATETIME
-            | Keyword::SMALLINT
-            | Keyword::SUBSTRING
-            | Keyword::TIME => KeywordCategory::ColName,
-            Keyword::TIMESTAMP
-            | Keyword::TIMESTAMPDIFF
-            | Keyword::TINYINT
-            | Keyword::TREAT
-            | Keyword::TRIM => KeywordCategory::ColName,
-            Keyword::VALUES
-            | Keyword::VARCHAR
-            | Keyword::VARCHAR2
-            | Keyword::XMLATTRIBUTES
-            | Keyword::XMLCONCAT => KeywordCategory::ColName,
-            Keyword::XMLELEMENT
-            | Keyword::XMLEXISTS
-            | Keyword::XMLFOREST
-            | Keyword::XMLPARSE
-            | Keyword::XMLPI => KeywordCategory::ColName,
+            Keyword::DEC | Keyword::DECIMAL_P | Keyword::DECODE | Keyword::EXISTS | Keyword::EXTRACT => {
+                KeywordCategory::ColName
+            }
+            Keyword::FLOAT_P | Keyword::GREATEST | Keyword::GROUPING_P | Keyword::INOUT | Keyword::INT_P => {
+                KeywordCategory::ColName
+            }
+            Keyword::INTEGER | Keyword::INTERVAL | Keyword::JSON_EXISTS | Keyword::LEAST | Keyword::NATIONAL => {
+                KeywordCategory::ColName
+            }
+            Keyword::NCHAR | Keyword::NONE | Keyword::NTH_VALUE_P | Keyword::NULLIF | Keyword::NUMBER_P => {
+                KeywordCategory::ColName
+            }
+            Keyword::NUMERIC | Keyword::NVARCHAR | Keyword::NVARCHAR2 | Keyword::NVL | Keyword::OUT_P => {
+                KeywordCategory::ColName
+            }
+            Keyword::OVERLAY | Keyword::POSITION | Keyword::PRECISION | Keyword::REAL | Keyword::ROW => {
+                KeywordCategory::ColName
+            }
+            Keyword::SETOF | Keyword::SMALLDATETIME | Keyword::SMALLINT | Keyword::SUBSTRING | Keyword::TIME => {
+                KeywordCategory::ColName
+            }
+            Keyword::TIMESTAMP | Keyword::TIMESTAMPDIFF | Keyword::TINYINT | Keyword::TREAT | Keyword::TRIM => {
+                KeywordCategory::ColName
+            }
+            Keyword::VALUES | Keyword::VARCHAR | Keyword::VARCHAR2 | Keyword::XMLATTRIBUTES | Keyword::XMLCONCAT => {
+                KeywordCategory::ColName
+            }
+            Keyword::XMLELEMENT | Keyword::XMLEXISTS | Keyword::XMLFOREST | Keyword::XMLPARSE | Keyword::XMLPI => {
+                KeywordCategory::ColName
+            }
             Keyword::XMLROOT | Keyword::XMLSERIALIZE => KeywordCategory::ColName,
             Keyword::AUTHORIZATION
             | Keyword::BINARY
             | Keyword::COLLATION
             | Keyword::COMPACT
             | Keyword::CONCURRENTLY => KeywordCategory::TypeFuncName,
-            Keyword::CROSS
-            | Keyword::CSN
-            | Keyword::CURRENT_SCHEMA
-            | Keyword::DELTAMERGE
-            | Keyword::FREEZE => KeywordCategory::TypeFuncName,
-            Keyword::FULL
-            | Keyword::HDFSDIRECTORY
-            | Keyword::ILIKE
-            | Keyword::INNER_P
-            | Keyword::JOIN => KeywordCategory::TypeFuncName,
-            Keyword::LEFT
-            | Keyword::LIKE
-            | Keyword::NATURAL
-            | Keyword::NOTNULL
-            | Keyword::OUTER_P => KeywordCategory::TypeFuncName,
-            Keyword::OVERLAPS
-            | Keyword::RECYCLEBIN
-            | Keyword::RIGHT
-            | Keyword::SIMILAR
-            | Keyword::TABLESAMPLE => KeywordCategory::TypeFuncName,
+            Keyword::CROSS | Keyword::CSN | Keyword::CURRENT_SCHEMA | Keyword::DELTAMERGE | Keyword::FREEZE => {
+                KeywordCategory::TypeFuncName
+            }
+            Keyword::FULL | Keyword::HDFSDIRECTORY | Keyword::ILIKE | Keyword::INNER_P | Keyword::JOIN => {
+                KeywordCategory::TypeFuncName
+            }
+            Keyword::LEFT | Keyword::LIKE | Keyword::NATURAL | Keyword::NOTNULL | Keyword::OUTER_P => {
+                KeywordCategory::TypeFuncName
+            }
+            Keyword::OVERLAPS | Keyword::RECYCLEBIN | Keyword::RIGHT | Keyword::SIMILAR | Keyword::TABLESAMPLE => {
+                KeywordCategory::TypeFuncName
+            }
             Keyword::TIMECAPSULE | Keyword::VERBOSE => KeywordCategory::TypeFuncName,
-            Keyword::ABORT_P
-            | Keyword::ABSOLUTE_P
-            | Keyword::ACCESS
-            | Keyword::ACCOUNT
-            | Keyword::ACTION => KeywordCategory::Unreserved,
-            Keyword::ADD_P
-            | Keyword::ADMIN
-            | Keyword::AFTER
-            | Keyword::AGGREGATE
-            | Keyword::ALGORITHM => KeywordCategory::Unreserved,
+            Keyword::ABORT_P | Keyword::ABSOLUTE_P | Keyword::ACCESS | Keyword::ACCOUNT | Keyword::ACTION => {
+                KeywordCategory::Unreserved
+            }
+            Keyword::ADD_P | Keyword::ADMIN | Keyword::AFTER | Keyword::AGGREGATE | Keyword::ALGORITHM => {
+                KeywordCategory::Unreserved
+            }
             Keyword::ALSO | Keyword::ALTER | Keyword::ALWAYS | Keyword::APP | Keyword::APPEND => {
                 KeywordCategory::Unreserved
             }
@@ -1651,16 +1595,12 @@ impl Keyword {
             | Keyword::ASSERTION
             | Keyword::ASENSITIVE
             | Keyword::ASSIGNMENT => KeywordCategory::Unreserved,
-            Keyword::AT
-            | Keyword::ATTRIBUTE
-            | Keyword::AUDIT
-            | Keyword::AUTO_INCREMENT
-            | Keyword::AUTOEXTEND => KeywordCategory::Unreserved,
-            Keyword::AUTOMAPPED
-            | Keyword::BACKWARD
-            | Keyword::BARRIER
-            | Keyword::BEFORE
-            | Keyword::BEGIN_P => KeywordCategory::Unreserved,
+            Keyword::AT | Keyword::ATTRIBUTE | Keyword::AUDIT | Keyword::AUTO_INCREMENT | Keyword::AUTOEXTEND => {
+                KeywordCategory::Unreserved
+            }
+            Keyword::AUTOMAPPED | Keyword::BACKWARD | Keyword::BARRIER | Keyword::BEFORE | Keyword::BEGIN_P => {
+                KeywordCategory::Unreserved
+            }
             Keyword::BEGIN_NON_ANOYBLOCK
             | Keyword::BLANKS
             | Keyword::BLOB_P
@@ -1669,21 +1609,17 @@ impl Keyword {
             Keyword::BUILD | Keyword::BY | Keyword::BYTE_P | Keyword::CACHE | Keyword::CALL => {
                 KeywordCategory::Unreserved
             }
-            Keyword::CALLED
-            | Keyword::CANCELABLE
-            | Keyword::CASCADE
-            | Keyword::CASCADED
-            | Keyword::CATALOG_P => KeywordCategory::Unreserved,
+            Keyword::CALLED | Keyword::CANCELABLE | Keyword::CASCADE | Keyword::CASCADED | Keyword::CATALOG_P => {
+                KeywordCategory::Unreserved
+            }
             Keyword::CATALOG_NAME
             | Keyword::CHAIN
             | Keyword::CHANGE
             | Keyword::CHARACTERISTICS
             | Keyword::CHARACTERSET => KeywordCategory::Unreserved,
-            Keyword::CHARSET
-            | Keyword::CHECKPOINT
-            | Keyword::CLASS
-            | Keyword::CLASS_ORIGIN
-            | Keyword::CLEAN => KeywordCategory::Unreserved,
+            Keyword::CHARSET | Keyword::CHECKPOINT | Keyword::CLASS | Keyword::CLASS_ORIGIN | Keyword::CLEAN => {
+                KeywordCategory::Unreserved
+            }
             Keyword::CLIENT
             | Keyword::CLIENT_MASTER_KEY
             | Keyword::CLIENT_MASTER_KEYS
@@ -1699,11 +1635,9 @@ impl Keyword {
             | Keyword::COMMIT
             | Keyword::COMMITTED
             | Keyword::COMPATIBLE_ILLEGAL_CHARS => KeywordCategory::Unreserved,
-            Keyword::COMPILE
-            | Keyword::COMPLETE
-            | Keyword::COMPLETION
-            | Keyword::COMPRESS
-            | Keyword::CONDITION => KeywordCategory::Unreserved,
+            Keyword::COMPILE | Keyword::COMPLETE | Keyword::COMPLETION | Keyword::COMPRESS | Keyword::CONDITION => {
+                KeywordCategory::Unreserved
+            }
             Keyword::CONFIGURATION
             | Keyword::CONNECT
             | Keyword::CONNECTION
@@ -1720,21 +1654,15 @@ impl Keyword {
             | Keyword::CONTVIEW
             | Keyword::CONVERSION_P
             | Keyword::CONVERT_P => KeywordCategory::Unreserved,
-            Keyword::COORDINATOR
-            | Keyword::COORDINATORS
-            | Keyword::COPY
-            | Keyword::COST
-            | Keyword::CSV => KeywordCategory::Unreserved,
-            Keyword::CUBE
-            | Keyword::CURRENT_P
-            | Keyword::CURSOR
-            | Keyword::CURSOR_NAME
-            | Keyword::CYCLE => KeywordCategory::Unreserved,
-            Keyword::DATA_P
-            | Keyword::DATABASE
-            | Keyword::DATAFILE
-            | Keyword::DATANODE
-            | Keyword::DATANODES => KeywordCategory::Unreserved,
+            Keyword::COORDINATOR | Keyword::COORDINATORS | Keyword::COPY | Keyword::COST | Keyword::CSV => {
+                KeywordCategory::Unreserved
+            }
+            Keyword::CUBE | Keyword::CURRENT_P | Keyword::CURSOR | Keyword::CURSOR_NAME | Keyword::CYCLE => {
+                KeywordCategory::Unreserved
+            }
+            Keyword::DATA_P | Keyword::DATABASE | Keyword::DATAFILE | Keyword::DATANODE | Keyword::DATANODES => {
+                KeywordCategory::Unreserved
+            }
             Keyword::DATATYPE_CL
             | Keyword::DATE_FORMAT_P
             | Keyword::DAY_P
@@ -1745,31 +1673,25 @@ impl Keyword {
             | Keyword::DEALLOCATE
             | Keyword::DECLARE
             | Keyword::DEFAULTS => KeywordCategory::Unreserved,
-            Keyword::DEFERRED
-            | Keyword::DEFINER
-            | Keyword::DELETE_P
-            | Keyword::DELIMITER
-            | Keyword::DELIMITERS => KeywordCategory::Unreserved,
+            Keyword::DEFERRED | Keyword::DEFINER | Keyword::DELETE_P | Keyword::DELIMITER | Keyword::DELIMITERS => {
+                KeywordCategory::Unreserved
+            }
             Keyword::DELTA
             | Keyword::DENSE_RANK
             | Keyword::DETERMINISTIC
             | Keyword::DIAGNOSTICS
             | Keyword::DICTIONARY => KeywordCategory::Unreserved,
-            Keyword::DIRECT
-            | Keyword::DIRECTORY
-            | Keyword::DISABLE_P
-            | Keyword::DISCARD
-            | Keyword::DISCONNECT => KeywordCategory::Unreserved,
+            Keyword::DIRECT | Keyword::DIRECTORY | Keyword::DISABLE_P | Keyword::DISCARD | Keyword::DISCONNECT => {
+                KeywordCategory::Unreserved
+            }
             Keyword::DISTRIBUTE
             | Keyword::DISTRIBUTION
             | Keyword::DOCUMENT_P
             | Keyword::DOMAIN_P
             | Keyword::DOUBLE_P => KeywordCategory::Unreserved,
-            Keyword::DROP
-            | Keyword::DUMPFILE
-            | Keyword::DUPLICATE
-            | Keyword::EACH
-            | Keyword::ELASTIC => KeywordCategory::Unreserved,
+            Keyword::DROP | Keyword::DUMPFILE | Keyword::DUPLICATE | Keyword::EACH | Keyword::ELASTIC => {
+                KeywordCategory::Unreserved
+            }
             Keyword::ENABLE_P
             | Keyword::ENCLOSED
             | Keyword::ENCODING
@@ -1781,53 +1703,41 @@ impl Keyword {
             | Keyword::ENFORCED
             | Keyword::ENTITYESCAPING
             | Keyword::ENUM_P => KeywordCategory::Unreserved,
-            Keyword::EOL
-            | Keyword::ERROR_P
-            | Keyword::ERRORS
-            | Keyword::ESCAPE
-            | Keyword::ESCAPED => KeywordCategory::Unreserved,
+            Keyword::EOL | Keyword::ERROR_P | Keyword::ERRORS | Keyword::ESCAPE | Keyword::ESCAPED => {
+                KeywordCategory::Unreserved
+            }
             Keyword::ESCAPING
             | Keyword::EVALNAME
             | Keyword::EVENT
             | Keyword::EVENTS
             | Keyword::EVERY
             | Keyword::EXCHANGE => KeywordCategory::Unreserved,
-            Keyword::EXCLUDE
-            | Keyword::EXCLUDING
-            | Keyword::EXCLUSIVE
-            | Keyword::EXECUTE
-            | Keyword::EXPIRED_P => KeywordCategory::Unreserved,
-            Keyword::EXPLAIN
-            | Keyword::EXTENSION
-            | Keyword::EXTERNAL
-            | Keyword::FAMILY
-            | Keyword::FAST => KeywordCategory::Unreserved,
+            Keyword::EXCLUDE | Keyword::EXCLUDING | Keyword::EXCLUSIVE | Keyword::EXECUTE | Keyword::EXPIRED_P => {
+                KeywordCategory::Unreserved
+            }
+            Keyword::EXPLAIN | Keyword::EXTENSION | Keyword::EXTERNAL | Keyword::FAMILY | Keyword::FAST => {
+                KeywordCategory::Unreserved
+            }
             Keyword::FEATURES
             | Keyword::FENCED
             | Keyword::FIELDS
             | Keyword::FILEHEADER_P
             | Keyword::FILL_MISSING_FIELDS => KeywordCategory::Unreserved,
-            Keyword::FILLER
-            | Keyword::FILTER
-            | Keyword::FINAL
-            | Keyword::FIRST_P
-            | Keyword::FIXED_P => KeywordCategory::Unreserved,
-            Keyword::FOLLOWING
-            | Keyword::FOLLOWS_P
-            | Keyword::FORCE
-            | Keyword::FORMATTER
-            | Keyword::FORWARD => KeywordCategory::Unreserved,
+            Keyword::FILLER | Keyword::FILTER | Keyword::FINAL | Keyword::FIRST_P | Keyword::FIXED_P => {
+                KeywordCategory::Unreserved
+            }
+            Keyword::FOLLOWING | Keyword::FOLLOWS_P | Keyword::FORCE | Keyword::FORMATTER | Keyword::FORWARD => {
+                KeywordCategory::Unreserved
+            }
             Keyword::FUNCTION
             | Keyword::FUNCTIONS
             | Keyword::GENERATED
             | Keyword::GET
             | Keyword::GLOBAL
             | Keyword::GROUPS => KeywordCategory::Unreserved,
-            Keyword::GRANTED
-            | Keyword::HANDLER
-            | Keyword::HEADER_P
-            | Keyword::HOLD
-            | Keyword::HOUR_P => KeywordCategory::Unreserved,
+            Keyword::GRANTED | Keyword::HANDLER | Keyword::HEADER_P | Keyword::HOLD | Keyword::HOUR_P => {
+                KeywordCategory::Unreserved
+            }
             Keyword::HOUR_MINUTE_P
             | Keyword::HOUR_SECOND_P
             | Keyword::IDENTIFIED
@@ -1839,327 +1749,221 @@ impl Keyword {
             | Keyword::IMMEDIATE
             | Keyword::IMMUTABLE
             | Keyword::IMPLICIT_P => KeywordCategory::Unreserved,
-            Keyword::INCLUDE
-            | Keyword::INCLUDING
-            | Keyword::INCREMENT
-            | Keyword::INCREMENTAL
-            | Keyword::INDEX => KeywordCategory::Unreserved,
-            Keyword::INDEXES
-            | Keyword::INFILE
-            | Keyword::INFINITE_P
-            | Keyword::INHERIT
-            | Keyword::INHERITS => KeywordCategory::Unreserved,
-            Keyword::INITIAL_P
-            | Keyword::INITRANS
-            | Keyword::INLINE_P
-            | Keyword::INPUT_P
-            | Keyword::INSENSITIVE => KeywordCategory::Unreserved,
-            Keyword::INSERT
-            | Keyword::INSTEAD
-            | Keyword::INTERNAL
-            | Keyword::INVISIBLE
-            | Keyword::INVOKER => KeywordCategory::Unreserved,
+            Keyword::INCLUDE | Keyword::INCLUDING | Keyword::INCREMENT | Keyword::INCREMENTAL | Keyword::INDEX => {
+                KeywordCategory::Unreserved
+            }
+            Keyword::INDEXES | Keyword::INFILE | Keyword::INFINITE_P | Keyword::INHERIT | Keyword::INHERITS => {
+                KeywordCategory::Unreserved
+            }
+            Keyword::INITIAL_P | Keyword::INITRANS | Keyword::INLINE_P | Keyword::INPUT_P | Keyword::INSENSITIVE => {
+                KeywordCategory::Unreserved
+            }
+            Keyword::INSERT | Keyword::INSTEAD | Keyword::INTERNAL | Keyword::INVISIBLE | Keyword::INVOKER => {
+                KeywordCategory::Unreserved
+            }
             Keyword::IP | Keyword::ISNULL | Keyword::ISOLATION | Keyword::KEEP | Keyword::KEY => {
                 KeywordCategory::Unreserved
             }
-            Keyword::KEY_PATH
-            | Keyword::KEY_STORE
-            | Keyword::KILL
-            | Keyword::LABEL
-            | Keyword::LANGUAGE => KeywordCategory::Unreserved,
-            Keyword::LARGE_P
-            | Keyword::LAST_P
-            | Keyword::LATERAL_P
-            | Keyword::LC_COLLATE_P
-            | Keyword::LC_CTYPE_P => KeywordCategory::Unreserved,
-            Keyword::LEAKPROOF
-            | Keyword::LEVEL
-            | Keyword::LINES
-            | Keyword::LIST
-            | Keyword::LISTEN => KeywordCategory::Unreserved,
-            Keyword::LOAD
-            | Keyword::LOCAL
-            | Keyword::LOCATION
-            | Keyword::LOCK_P
-            | Keyword::LOCKED => KeywordCategory::Unreserved,
+            Keyword::KEY_PATH | Keyword::KEY_STORE | Keyword::KILL | Keyword::LABEL | Keyword::LANGUAGE => {
+                KeywordCategory::Unreserved
+            }
+            Keyword::LARGE_P | Keyword::LAST_P | Keyword::LATERAL_P | Keyword::LC_COLLATE_P | Keyword::LC_CTYPE_P => {
+                KeywordCategory::Unreserved
+            }
+            Keyword::LEAKPROOF | Keyword::LEVEL | Keyword::LINES | Keyword::LIST | Keyword::LISTEN => {
+                KeywordCategory::Unreserved
+            }
+            Keyword::LOAD | Keyword::LOCAL | Keyword::LOCATION | Keyword::LOCK_P | Keyword::LOCKED => {
+                KeywordCategory::Unreserved
+            }
             Keyword::LOG_P
             | Keyword::LOGGING
             | Keyword::LOGIN_ANY
             | Keyword::LOGIN_FAILURE
             | Keyword::LOGIN_SUCCESS => KeywordCategory::Unreserved,
-            Keyword::LOGOUT
-            | Keyword::LOOP
-            | Keyword::MAP
-            | Keyword::MAPPING
-            | Keyword::MASKING => KeywordCategory::Unreserved,
-            Keyword::MASTER
-            | Keyword::MATCH
-            | Keyword::MATCHED
-            | Keyword::MATERIALIZED
-            | Keyword::MAXEXTENTS => KeywordCategory::Unreserved,
-            Keyword::MAXSIZE | Keyword::MAXTRANS | Keyword::MEMBER | Keyword::MERGE => {
+            Keyword::LOGOUT | Keyword::LOOP | Keyword::MAP | Keyword::MAPPING | Keyword::MASKING => {
                 KeywordCategory::Unreserved
             }
+            Keyword::MASTER | Keyword::MATCH | Keyword::MATCHED | Keyword::MATERIALIZED | Keyword::MAXEXTENTS => {
+                KeywordCategory::Unreserved
+            }
+            Keyword::MAXSIZE | Keyword::MAXTRANS | Keyword::MEMBER | Keyword::MERGE => KeywordCategory::Unreserved,
             Keyword::MESSAGE_TEXT
             | Keyword::METHOD
             | Keyword::MINEXTENTS
             | Keyword::MINUTE_P
             | Keyword::MINUTE_SECOND_P => KeywordCategory::Unreserved,
-            Keyword::MINVALUE
-            | Keyword::MODE
-            | Keyword::MODEL
-            | Keyword::MONTH_P
-            | Keyword::MOVE => KeywordCategory::Unreserved,
-            Keyword::MOVEMENT
-            | Keyword::MYSQL_ERRNO
-            | Keyword::NAME_P
-            | Keyword::NAMES
-            | Keyword::NAN_P => KeywordCategory::Unreserved,
+            Keyword::MINVALUE | Keyword::MODE | Keyword::MODEL | Keyword::MONTH_P | Keyword::MOVE => {
+                KeywordCategory::Unreserved
+            }
+            Keyword::MOVEMENT | Keyword::MYSQL_ERRNO | Keyword::NAME_P | Keyword::NAMES | Keyword::NAN_P => {
+                KeywordCategory::Unreserved
+            }
             Keyword::NEXT
             | Keyword::NO
             | Keyword::NOCOMPRESS
             | Keyword::NODE
             | Keyword::NOENTITYESCAPING
             | Keyword::NOLOGGING => KeywordCategory::Unreserved,
-            Keyword::NOMAXVALUE
-            | Keyword::NOMINVALUE
-            | Keyword::NOTHING
-            | Keyword::NOTIFY
-            | Keyword::NOVALIDATE => KeywordCategory::Unreserved,
-            Keyword::NOWAIT
-            | Keyword::NULLCOLS
-            | Keyword::NULLS_P
-            | Keyword::NUMSTR
-            | Keyword::OBJECT_P => KeywordCategory::Unreserved,
-            Keyword::OF
-            | Keyword::OFF
-            | Keyword::OIDS
-            | Keyword::OPERATOR
-            | Keyword::OPTIMIZATION => KeywordCategory::Unreserved,
-            Keyword::OPTION
-            | Keyword::OPTIONALLY
-            | Keyword::OPTIONS
-            | Keyword::OUTFILE
-            | Keyword::OVER => KeywordCategory::Unreserved,
-            Keyword::OWNED
-            | Keyword::OWNER
-            | Keyword::PACKAGE
-            | Keyword::PACKAGES
-            | Keyword::PARALLEL_ENABLE => KeywordCategory::Unreserved,
-            Keyword::PARSER
-            | Keyword::PARTIAL
-            | Keyword::PARTITION
-            | Keyword::PARTITIONS
-            | Keyword::PASSING => KeywordCategory::Unreserved,
-            Keyword::PASSWORD
-            | Keyword::PCTFREE
-            | Keyword::PER_P
-            | Keyword::PERCENT
-            | Keyword::PERM => KeywordCategory::Unreserved,
-            Keyword::PIPELINED
-            | Keyword::PLAN
-            | Keyword::PLANS
-            | Keyword::POLICY
-            | Keyword::POOL => KeywordCategory::Unreserved,
-            Keyword::PRECEDES_P
-            | Keyword::PRECEDING
-            | Keyword::PREDICT
-            | Keyword::PREFERRED
-            | Keyword::PREFIX => KeywordCategory::Unreserved,
-            Keyword::PREPARE
-            | Keyword::PREPARED
-            | Keyword::PRESERVE
-            | Keyword::PRIOR
-            | Keyword::PRIORER => KeywordCategory::Unreserved,
+            Keyword::NOMAXVALUE | Keyword::NOMINVALUE | Keyword::NOTHING | Keyword::NOTIFY | Keyword::NOVALIDATE => {
+                KeywordCategory::Unreserved
+            }
+            Keyword::NOWAIT | Keyword::NULLCOLS | Keyword::NULLS_P | Keyword::NUMSTR | Keyword::OBJECT_P => {
+                KeywordCategory::Unreserved
+            }
+            Keyword::OF | Keyword::OFF | Keyword::OIDS | Keyword::OPERATOR | Keyword::OPTIMIZATION => {
+                KeywordCategory::Unreserved
+            }
+            Keyword::OPTION | Keyword::OPTIONALLY | Keyword::OPTIONS | Keyword::OUTFILE | Keyword::OVER => {
+                KeywordCategory::Unreserved
+            }
+            Keyword::OWNED | Keyword::OWNER | Keyword::PACKAGE | Keyword::PACKAGES | Keyword::PARALLEL_ENABLE => {
+                KeywordCategory::Unreserved
+            }
+            Keyword::PARSER | Keyword::PARTIAL | Keyword::PARTITION | Keyword::PARTITIONS | Keyword::PASSING => {
+                KeywordCategory::Unreserved
+            }
+            Keyword::PASSWORD | Keyword::PCTFREE | Keyword::PER_P | Keyword::PERCENT | Keyword::PERM => {
+                KeywordCategory::Unreserved
+            }
+            Keyword::PIPELINED | Keyword::PLAN | Keyword::PLANS | Keyword::POLICY | Keyword::POOL => {
+                KeywordCategory::Unreserved
+            }
+            Keyword::PRECEDES_P | Keyword::PRECEDING | Keyword::PREDICT | Keyword::PREFERRED | Keyword::PREFIX => {
+                KeywordCategory::Unreserved
+            }
+            Keyword::PREPARE | Keyword::PREPARED | Keyword::PRESERVE | Keyword::PRIOR | Keyword::PRIORER => {
+                KeywordCategory::Unreserved
+            }
             Keyword::PRIVATE
             | Keyword::PRIVILEGE
             | Keyword::PRIVILEGES
             | Keyword::PROCEDURAL
             | Keyword::PROFILE
             | Keyword::PUBLIC => KeywordCategory::Unreserved,
-            Keyword::PUBLICATION
-            | Keyword::PUBLISH
-            | Keyword::PURGE
-            | Keyword::QUERY
-            | Keyword::QUOTE => KeywordCategory::Unreserved,
-            Keyword::RANDOMIZED
-            | Keyword::RANGE
-            | Keyword::RATIO
-            | Keyword::RAW
-            | Keyword::READ => KeywordCategory::Unreserved,
-            Keyword::REASSIGN
-            | Keyword::REBUILD
-            | Keyword::RECHECK
-            | Keyword::RECURSIVE
-            | Keyword::REDISANYVALUE => KeywordCategory::Unreserved,
-            Keyword::REF
-            | Keyword::REFRESH
-            | Keyword::REINDEX
-            | Keyword::RELATIVE_P
-            | Keyword::RELEASE => KeywordCategory::Unreserved,
-            Keyword::RELOPTIONS
-            | Keyword::REMOTE_P
-            | Keyword::REMOVE
-            | Keyword::RENAME
-            | Keyword::REPEAT => KeywordCategory::Unreserved,
-            Keyword::REPEATABLE
-            | Keyword::REPLACE
-            | Keyword::REPLICA
-            | Keyword::RESET
-            | Keyword::RESIZE => KeywordCategory::Unreserved,
-            Keyword::RESOURCE
-            | Keyword::RESPECT_P
-            | Keyword::RESTART
-            | Keyword::RESTRICT
-            | Keyword::RESULT => KeywordCategory::Unreserved,
+            Keyword::PUBLICATION | Keyword::PUBLISH | Keyword::PURGE | Keyword::QUERY | Keyword::QUOTE => {
+                KeywordCategory::Unreserved
+            }
+            Keyword::RANDOMIZED | Keyword::RANGE | Keyword::RATIO | Keyword::RAW | Keyword::READ => {
+                KeywordCategory::Unreserved
+            }
+            Keyword::REASSIGN | Keyword::REBUILD | Keyword::RECHECK | Keyword::RECURSIVE | Keyword::REDISANYVALUE => {
+                KeywordCategory::Unreserved
+            }
+            Keyword::REF | Keyword::REFRESH | Keyword::REINDEX | Keyword::RELATIVE_P | Keyword::RELEASE => {
+                KeywordCategory::Unreserved
+            }
+            Keyword::RELOPTIONS | Keyword::REMOTE_P | Keyword::REMOVE | Keyword::RENAME | Keyword::REPEAT => {
+                KeywordCategory::Unreserved
+            }
+            Keyword::REPEATABLE | Keyword::REPLACE | Keyword::REPLICA | Keyword::RESET | Keyword::RESIZE => {
+                KeywordCategory::Unreserved
+            }
+            Keyword::RESOURCE | Keyword::RESPECT_P | Keyword::RESTART | Keyword::RESTRICT | Keyword::RESULT => {
+                KeywordCategory::Unreserved
+            }
             Keyword::RESULT_CACHE
             | Keyword::RETURN
             | Keyword::RETURNED_SQLSTATE
             | Keyword::RETURNS
             | Keyword::REUSE => KeywordCategory::Unreserved,
-            Keyword::REVOKE
-            | Keyword::ROLE
-            | Keyword::ROLES
-            | Keyword::ROLLBACK
-            | Keyword::ROLLUP => KeywordCategory::Unreserved,
-            Keyword::ROTATE
-            | Keyword::ROTATION
-            | Keyword::ROW_COUNT
-            | Keyword::ROWS
-            | Keyword::ROWTYPE_P => KeywordCategory::Unreserved,
-            Keyword::RULE
-            | Keyword::SAMPLE
-            | Keyword::SAVEPOINT
-            | Keyword::SCHEDULE
-            | Keyword::SCHEMA => KeywordCategory::Unreserved,
-            Keyword::SCHEMA_NAME
-            | Keyword::SCROLL
-            | Keyword::SEARCH
-            | Keyword::SECOND_P
-            | Keyword::SECURITY => KeywordCategory::Unreserved,
-            Keyword::SEPARATOR_P
-            | Keyword::SEQUENCE
-            | Keyword::SEQUENCES
-            | Keyword::SERIALIZABLE
-            | Keyword::SERVER => KeywordCategory::Unreserved,
+            Keyword::REVOKE | Keyword::ROLE | Keyword::ROLES | Keyword::ROLLBACK | Keyword::ROLLUP => {
+                KeywordCategory::Unreserved
+            }
+            Keyword::ROTATE | Keyword::ROTATION | Keyword::ROW_COUNT | Keyword::ROWS | Keyword::ROWTYPE_P => {
+                KeywordCategory::Unreserved
+            }
+            Keyword::RULE | Keyword::SAMPLE | Keyword::SAVEPOINT | Keyword::SCHEDULE | Keyword::SCHEMA => {
+                KeywordCategory::Unreserved
+            }
+            Keyword::SCHEMA_NAME | Keyword::SCROLL | Keyword::SEARCH | Keyword::SECOND_P | Keyword::SECURITY => {
+                KeywordCategory::Unreserved
+            }
+            Keyword::SEPARATOR_P | Keyword::SEQUENCE | Keyword::SEQUENCES | Keyword::SERIALIZABLE | Keyword::SERVER => {
+                KeywordCategory::Unreserved
+            }
             Keyword::SESSION
             | Keyword::SET
             | Keyword::SETS
             | Keyword::SHARE
             | Keyword::SHARE_MEMORY
             | Keyword::SHIPPABLE => KeywordCategory::Unreserved,
-            Keyword::SHOW
-            | Keyword::SHUTDOWN
-            | Keyword::SIBLINGS
-            | Keyword::SIMPLE
-            | Keyword::SIZE => KeywordCategory::Unreserved,
-            Keyword::SKIP
-            | Keyword::SLAVE
-            | Keyword::SLICE
-            | Keyword::SMALLDATETIME_FORMAT_P
-            | Keyword::SNAPSHOT => KeywordCategory::Unreserved,
-            Keyword::SOURCE_P
-            | Keyword::SPACE
-            | Keyword::SPECIFICATION
-            | Keyword::SPILL
-            | Keyword::SPLIT => KeywordCategory::Unreserved,
-            Keyword::SQL_P
-            | Keyword::STABLE
-            | Keyword::STACKED_P
-            | Keyword::STANDALONE_P
-            | Keyword::START => KeywordCategory::Unreserved,
-            Keyword::STARTING
-            | Keyword::STARTS
-            | Keyword::STATEMENT
-            | Keyword::STATEMENT_ID
-            | Keyword::STATIC_P => KeywordCategory::Unreserved,
-            Keyword::STATISTICS
-            | Keyword::STDIN
-            | Keyword::STDOUT
-            | Keyword::STORAGE
-            | Keyword::STORE_P => KeywordCategory::Unreserved,
-            Keyword::STORED
-            | Keyword::STRATIFY
-            | Keyword::STREAM
-            | Keyword::STRICT_P
-            | Keyword::STRIP_P => KeywordCategory::Unreserved,
+            Keyword::SHOW | Keyword::SHUTDOWN | Keyword::SIBLINGS | Keyword::SIMPLE | Keyword::SIZE => {
+                KeywordCategory::Unreserved
+            }
+            Keyword::SKIP | Keyword::SLAVE | Keyword::SLICE | Keyword::SMALLDATETIME_FORMAT_P | Keyword::SNAPSHOT => {
+                KeywordCategory::Unreserved
+            }
+            Keyword::SOURCE_P | Keyword::SPACE | Keyword::SPECIFICATION | Keyword::SPILL | Keyword::SPLIT => {
+                KeywordCategory::Unreserved
+            }
+            Keyword::SQL_P | Keyword::STABLE | Keyword::STACKED_P | Keyword::STANDALONE_P | Keyword::START => {
+                KeywordCategory::Unreserved
+            }
+            Keyword::STARTING | Keyword::STARTS | Keyword::STATEMENT | Keyword::STATEMENT_ID | Keyword::STATIC_P => {
+                KeywordCategory::Unreserved
+            }
+            Keyword::STATISTICS | Keyword::STDIN | Keyword::STDOUT | Keyword::STORAGE | Keyword::STORE_P => {
+                KeywordCategory::Unreserved
+            }
+            Keyword::STORED | Keyword::STRATIFY | Keyword::STREAM | Keyword::STRICT_P | Keyword::STRIP_P => {
+                KeywordCategory::Unreserved
+            }
             Keyword::SUBCLASS_ORIGIN
             | Keyword::SUBPARTITION
             | Keyword::SUBPARTITIONS
             | Keyword::SUBSCRIPTION
             | Keyword::SYNONYM => KeywordCategory::Unreserved,
-            Keyword::SYS_REFCURSOR
-            | Keyword::SYSID
-            | Keyword::SYSTEM_P
-            | Keyword::TABLE_NAME
-            | Keyword::TABLES => KeywordCategory::Unreserved,
-            Keyword::TABLESPACE
-            | Keyword::TARGET
-            | Keyword::TEMP
-            | Keyword::TEMPLATE
-            | Keyword::TEMPORARY => KeywordCategory::Unreserved,
-            Keyword::TERMINATED
-            | Keyword::TEXT_P
-            | Keyword::THAN
-            | Keyword::TIES
-            | Keyword::TIME_FORMAT_P => KeywordCategory::Unreserved,
+            Keyword::SYS_REFCURSOR | Keyword::SYSID | Keyword::SYSTEM_P | Keyword::TABLE_NAME | Keyword::TABLES => {
+                KeywordCategory::Unreserved
+            }
+            Keyword::TABLESPACE | Keyword::TARGET | Keyword::TEMP | Keyword::TEMPLATE | Keyword::TEMPORARY => {
+                KeywordCategory::Unreserved
+            }
+            Keyword::TERMINATED | Keyword::TEXT_P | Keyword::THAN | Keyword::TIES | Keyword::TIME_FORMAT_P => {
+                KeywordCategory::Unreserved
+            }
             Keyword::TIMESTAMP_FORMAT_P
             | Keyword::TIMEZONE_HOUR_P
             | Keyword::TIMEZONE_MINUTE_P
             | Keyword::TRANSACTION
             | Keyword::TRANSFORM => KeywordCategory::Unreserved,
-            Keyword::TRIGGER
-            | Keyword::TRUNCATE
-            | Keyword::TRUSTED
-            | Keyword::TSFIELD
-            | Keyword::TSTAG => KeywordCategory::Unreserved,
-            Keyword::TSTIME
-            | Keyword::TYPE_P
-            | Keyword::TYPES_P
-            | Keyword::UNBOUNDED
-            | Keyword::UNCOMMITTED => KeywordCategory::Unreserved,
+            Keyword::TRIGGER | Keyword::TRUNCATE | Keyword::TRUSTED | Keyword::TSFIELD | Keyword::TSTAG => {
+                KeywordCategory::Unreserved
+            }
+            Keyword::TSTIME | Keyword::TYPE_P | Keyword::TYPES_P | Keyword::UNBOUNDED | Keyword::UNCOMMITTED => {
+                KeywordCategory::Unreserved
+            }
             Keyword::UNDER
             | Keyword::UNENCRYPTED
             | Keyword::UNIMCSTORED
             | Keyword::UNKNOWN
             | Keyword::UNLIMITED
             | Keyword::UNLISTEN => KeywordCategory::Unreserved,
-            Keyword::UNLOCK
-            | Keyword::UNLOGGED
-            | Keyword::UNTIL
-            | Keyword::UNUSABLE
-            | Keyword::UPDATE => KeywordCategory::Unreserved,
-            Keyword::USE_P
-            | Keyword::USEEOF
-            | Keyword::VACUUM
-            | Keyword::VALID
-            | Keyword::VALIDATE => KeywordCategory::Unreserved,
-            Keyword::VALIDATION
-            | Keyword::VALIDATOR
-            | Keyword::VALUE_P
-            | Keyword::VARIABLES
-            | Keyword::VARRAY => KeywordCategory::Unreserved,
-            Keyword::VARYING
-            | Keyword::VCGROUP
-            | Keyword::VERSION_P
-            | Keyword::VIEW
-            | Keyword::VISIBLE => KeywordCategory::Unreserved,
+            Keyword::UNLOCK | Keyword::UNLOGGED | Keyword::UNTIL | Keyword::UNUSABLE | Keyword::UPDATE => {
+                KeywordCategory::Unreserved
+            }
+            Keyword::USE_P | Keyword::USEEOF | Keyword::VACUUM | Keyword::VALID | Keyword::VALIDATE => {
+                KeywordCategory::Unreserved
+            }
+            Keyword::VALIDATION | Keyword::VALIDATOR | Keyword::VALUE_P | Keyword::VARIABLES | Keyword::VARRAY => {
+                KeywordCategory::Unreserved
+            }
+            Keyword::VARYING | Keyword::VCGROUP | Keyword::VERSION_P | Keyword::VIEW | Keyword::VISIBLE => {
+                KeywordCategory::Unreserved
+            }
             Keyword::VOLATILE
             | Keyword::WAIT
             | Keyword::WARNINGS
             | Keyword::WEAK
             | Keyword::WELLFORMED
             | Keyword::WHILE_P => KeywordCategory::Unreserved,
-            Keyword::WHITESPACE_P
-            | Keyword::WITHIN
-            | Keyword::WITHOUT
-            | Keyword::WORK
-            | Keyword::WORKLOAD => KeywordCategory::Unreserved,
-            Keyword::WRAPPER
-            | Keyword::WRITE
-            | Keyword::XML_P
-            | Keyword::YEAR_P
-            | Keyword::YEAR_MONTH_P => KeywordCategory::Unreserved,
+            Keyword::WHITESPACE_P | Keyword::WITHIN | Keyword::WITHOUT | Keyword::WORK | Keyword::WORKLOAD => {
+                KeywordCategory::Unreserved
+            }
+            Keyword::WRAPPER | Keyword::WRITE | Keyword::XML_P | Keyword::YEAR_P | Keyword::YEAR_MONTH_P => {
+                KeywordCategory::Unreserved
+            }
             Keyword::YES_P | Keyword::ZONE => KeywordCategory::Unreserved,
         }
     }

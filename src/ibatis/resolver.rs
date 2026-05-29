@@ -9,11 +9,7 @@ use crate::ibatis::error::IbatisError;
 use crate::ibatis::types::{MapperFile, SqlNode};
 
 pub fn resolve_includes(mapper: &MapperFile) -> Result<MapperFile, IbatisError> {
-    let fragment_map: HashMap<&str, &SqlNode> = mapper
-        .fragments
-        .iter()
-        .map(|f| (f.id.as_str(), &f.body))
-        .collect();
+    let fragment_map: HashMap<&str, &SqlNode> = mapper.fragments.iter().map(|f| (f.id.as_str(), &f.body)).collect();
 
     let mut resolved_statements = mapper.statements.clone();
     for stmt in &mut resolved_statements {
@@ -49,11 +45,8 @@ fn resolve_node(
                 return Err(IbatisError::CircularInclude { chain });
             }
 
-            let fragment_body = fragments
-                .get(refid.as_str())
-                .ok_or_else(|| IbatisError::UnknownFragment {
-                    refid: refid.clone(),
-                })?;
+            let fragment_body =
+                fragments.get(refid.as_str()).ok_or_else(|| IbatisError::UnknownFragment { refid: refid.clone() })?;
 
             visited.insert(refid.clone());
             let resolved = resolve_node(fragment_body, fragments, visited)?;
@@ -63,11 +56,7 @@ fn resolve_node(
         }
         SqlNode::If { test, prepend, children } => {
             let resolved_children = resolve_children(children, fragments, visited)?;
-            Ok(SqlNode::If {
-                test: test.clone(),
-                prepend: prepend.clone(),
-                children: resolved_children,
-            })
+            Ok(SqlNode::If { test: test.clone(), prepend: prepend.clone(), children: resolved_children })
         }
         SqlNode::Choose { branches } => {
             let mut resolved_branches = Vec::new();
@@ -75,29 +64,17 @@ fn resolve_node(
                 let resolved_children = resolve_children(children, fragments, visited)?;
                 resolved_branches.push((test.clone(), resolved_children));
             }
-            Ok(SqlNode::Choose {
-                branches: resolved_branches,
-            })
+            Ok(SqlNode::Choose { branches: resolved_branches })
         }
         SqlNode::Where { children } => {
             let resolved_children = resolve_children(children, fragments, visited)?;
-            Ok(SqlNode::Where {
-                children: resolved_children,
-            })
+            Ok(SqlNode::Where { children: resolved_children })
         }
         SqlNode::Set { children } => {
             let resolved_children = resolve_children(children, fragments, visited)?;
-            Ok(SqlNode::Set {
-                children: resolved_children,
-            })
+            Ok(SqlNode::Set { children: resolved_children })
         }
-        SqlNode::Trim {
-            prefix,
-            suffix,
-            prefix_overrides,
-            suffix_overrides,
-            children,
-        } => {
+        SqlNode::Trim { prefix, suffix, prefix_overrides, suffix_overrides, children } => {
             let resolved_children = resolve_children(children, fragments, visited)?;
             Ok(SqlNode::Trim {
                 prefix: prefix.clone(),
@@ -107,16 +84,7 @@ fn resolve_node(
                 children: resolved_children,
             })
         }
-        SqlNode::ForEach {
-            collection,
-            item,
-            index,
-            open,
-            separator,
-            close,
-            prepend,
-            children,
-        } => {
+        SqlNode::ForEach { collection, item, index, open, separator, close, prepend, children } => {
             let resolved_children = resolve_children(children, fragments, visited)?;
             Ok(SqlNode::ForEach {
                 collection: collection.clone(),
@@ -131,9 +99,7 @@ fn resolve_node(
         }
         SqlNode::Sequence { children } => {
             let resolved_children = resolve_children(children, fragments, visited)?;
-            Ok(SqlNode::Sequence {
-                children: resolved_children,
-            })
+            Ok(SqlNode::Sequence { children: resolved_children })
         }
         other => Ok(other.clone()),
     }
@@ -144,8 +110,5 @@ fn resolve_children(
     fragments: &HashMap<&str, &SqlNode>,
     visited: &mut HashSet<String>,
 ) -> Result<Vec<SqlNode>, IbatisError> {
-    children
-        .iter()
-        .map(|c| resolve_node(c, fragments, visited))
-        .collect()
+    children.iter().map(|c| resolve_node(c, fragments, visited)).collect()
 }

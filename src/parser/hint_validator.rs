@@ -231,12 +231,7 @@ fn parse_hint_list(content: &str) -> Vec<ParsedHint> {
 
         let (actual_name, negated) = resolve_name_and_negation(&name);
 
-        hints.push(ParsedHint {
-            name: actual_name,
-            negated,
-            queryblock,
-            args,
-        });
+        hints.push(ParsedHint { name: actual_name, negated, queryblock, args });
     }
 
     hints
@@ -250,11 +245,10 @@ fn resolve_name_and_negation(name: &str) -> (String, bool) {
     }
 
     // Check if the full name with no_ prefix is a known hint (e.g. no_expand)
-    if lower.starts_with("no_") {
+    if let Some(base) = lower.strip_prefix("no_") {
         if KNOWN_HINTS.contains(&lower.as_str()) {
             return (lower, false);
         }
-        let base = &lower[3..];
         if KNOWN_HINTS.contains(&base) {
             return (base.to_string(), true);
         }
@@ -275,7 +269,7 @@ pub fn validate_hints(hint_content: &str, location: SourceLocation) -> Vec<Parse
     let hints = parse_hint_list(hint_content);
     let mut warnings = Vec::new();
     for hint in &hints {
-        warnings.extend(validate_single_hint(hint, location.clone()));
+        warnings.extend(validate_single_hint(hint, location));
     }
     warnings
 }
@@ -285,40 +279,31 @@ fn validate_single_hint(hint: &ParsedHint, location: SourceLocation) -> Vec<Pars
 
     if !KNOWN_HINTS.contains(&hint.name.as_str()) {
         warnings.push(ParserError::Warning {
-            message: format!(
-                "Unknown hint '{}' — not in GaussDB documented hint list",
-                hint.name
-            ),
-            location: location.clone(),
+            message: format!("Unknown hint '{}' — not in GaussDB documented hint list", hint.name),
+            location,
         });
         return warnings;
     }
 
     if hint.negated && !HINTS_SUPPORTING_NO_PREFIX.contains(&hint.name.as_str()) {
         warnings.push(ParserError::Warning {
-            message: format!(
-                "Hint 'no {}' does not support 'no' prefix negation",
-                hint.name
-            ),
-            location: location.clone(),
+            message: format!("Hint 'no {}' does not support 'no' prefix negation", hint.name),
+            location,
         });
     }
 
     let needs_parens = HINTS_WITH_PARENS.contains(&hint.name.as_str());
     if needs_parens && hint.args.is_none() {
         warnings.push(ParserError::Warning {
-            message: format!(
-                "Hint '{}' requires parenthesized arguments, e.g. {}(table_name)",
-                hint.name, hint.name
-            ),
-            location: location.clone(),
+            message: format!("Hint '{}' requires parenthesized arguments, e.g. {}(table_name)", hint.name, hint.name),
+            location,
         });
     }
 
     if !needs_parens && hint.args.is_some() && NO_PAREN_HINTS.contains(&hint.name.as_str()) {
         warnings.push(ParserError::Warning {
             message: format!("Hint '{}' does not take parenthesized arguments", hint.name),
-            location: location.clone(),
+            location,
         });
     }
 
@@ -327,8 +312,10 @@ fn validate_single_hint(hint: &ParsedHint, location: SourceLocation) -> Vec<Pars
             let trimmed = args.trim();
             if !trimmed.starts_with('"') || !trimmed.ends_with('"') {
                 warnings.push(ParserError::Warning {
-                    message: "Hint 'wlmrule' requires quoted argument: wlmrule(\"time_limit,max_execute_time,max_iops\")".to_string(),
-                    location: location.clone(),
+                    message:
+                        "Hint 'wlmrule' requires quoted argument: wlmrule(\"time_limit,max_execute_time,max_iops\")"
+                            .to_string(),
+                    location,
                 });
             }
         }
@@ -339,9 +326,8 @@ fn validate_single_hint(hint: &ParsedHint, location: SourceLocation) -> Vec<Pars
             let parts: Vec<&str> = args.split_whitespace().collect();
             if parts.len() < 2 {
                 warnings.push(ParserError::Warning {
-                    message: "Hint 'set' requires parameter name and value: set(param_name value)"
-                        .to_string(),
-                    location: location.clone(),
+                    message: "Hint 'set' requires parameter name and value: set(param_name value)".to_string(),
+                    location,
                 });
             }
         }
@@ -353,16 +339,15 @@ fn validate_single_hint(hint: &ParsedHint, location: SourceLocation) -> Vec<Pars
             if trimmed.is_empty() {
                 warnings.push(ParserError::Warning {
                     message: "Hint 'leading' requires at least one table name".to_string(),
-                    location: location.clone(),
+                    location,
                 });
             } else {
                 let open = trimmed.chars().filter(|c| *c == '(').count();
                 let close = trimmed.chars().filter(|c| *c == ')').count();
                 if open != close {
                     warnings.push(ParserError::Warning {
-                        message: "Hint 'leading' has unbalanced parentheses in table list"
-                            .to_string(),
-                        location: location.clone(),
+                        message: "Hint 'leading' has unbalanced parentheses in table list".to_string(),
+                        location,
                     });
                 }
             }
@@ -425,9 +410,7 @@ mod tests {
     #[test]
     fn test_validate_missing_parens() {
         let w = validate_hints("tablescan", loc());
-        assert!(w
-            .iter()
-            .any(|e| e.to_string().contains("requires parenthesized")));
+        assert!(w.iter().any(|e| e.to_string().contains("requires parenthesized")));
     }
 
     #[test]
@@ -438,9 +421,7 @@ mod tests {
     #[test]
     fn test_validate_set_missing_value() {
         let w = validate_hints("set(enable_hashjoin)", loc());
-        assert!(w
-            .iter()
-            .any(|e| e.to_string().contains("parameter name and value")));
+        assert!(w.iter().any(|e| e.to_string().contains("parameter name and value")));
     }
 
     #[test]
@@ -477,8 +458,6 @@ mod tests {
     #[test]
     fn test_leading_empty_args() {
         let w = validate_hints("leading()", loc());
-        assert!(w
-            .iter()
-            .any(|e| e.to_string().contains("at least one table")));
+        assert!(w.iter().any(|e| e.to_string().contains("at least one table")));
     }
 }

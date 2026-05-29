@@ -1,7 +1,7 @@
 use crate::ast::{
-    ConnectByClause, Cte, Expr, FetchClause, GroupByItem, JoinType, LockClause, ObjectName, OrderByItem,
-    PivotClause, PivotValue, SelectIntoTable, SelectStatement, SelectTarget, SetOperation,
-    TableRef, TableSampleClause, UnpivotClause, ValuesStatement, WithClause,
+    ConnectByClause, Cte, Expr, FetchClause, GroupByItem, JoinType, LockClause, ObjectName, OrderByItem, PivotClause,
+    PivotValue, SelectIntoTable, SelectStatement, SelectTarget, SetOperation, TableRef, TableSampleClause,
+    UnpivotClause, ValuesStatement, WithClause,
 };
 use crate::parser::{Parser, ParserError};
 use crate::token::keyword::Keyword;
@@ -20,10 +20,7 @@ impl Parser {
         if matches!(self.peek(), Token::LParen) {
             let save_pos = self.pos;
             self.advance();
-            let is_query = matches!(
-                self.peek_keyword(),
-                Some(Keyword::SELECT) | Some(Keyword::WITH)
-            );
+            let is_query = matches!(self.peek_keyword(), Some(Keyword::SELECT) | Some(Keyword::WITH));
             if is_query {
                 if let Ok(mut stmt) = self.parse_select_statement_inner() {
                     if matches!(self.peek(), Token::RParen) {
@@ -72,18 +69,9 @@ impl Parser {
             };
             let right = self.parse_simple_select()?;
             let set_op = match op {
-                "union" => SetOperation::Union {
-                    all,
-                    right: Box::new(right),
-                },
-                "intersect" => SetOperation::Intersect {
-                    all,
-                    right: Box::new(right),
-                },
-                _ => SetOperation::Except {
-                    all,
-                    right: Box::new(right),
-                },
+                "union" => SetOperation::Union { all, right: Box::new(right) },
+                "intersect" => SetOperation::Intersect { all, right: Box::new(right) },
+                _ => SetOperation::Except { all, right: Box::new(right) },
             };
             stmt.set_operation = Some(set_op);
         }
@@ -139,16 +127,10 @@ impl Parser {
             } else {
                 self.parse_select_statement()?
             };
-            if !query.raw_body.is_some() {
+            if query.raw_body.is_none() {
                 self.expect_token(&Token::RParen)?;
             }
-            ctes.push(Cte {
-                name,
-                columns,
-                query: Box::new(query),
-                raw_body: None,
-                materialized,
-            });
+            ctes.push(Cte { name, columns, query: Box::new(query), raw_body: None, materialized });
             if !self.match_token(&Token::Comma) {
                 break;
             }
@@ -167,7 +149,7 @@ impl Parser {
 
         self.expect_keyword(Keyword::SELECT)?;
         let hints = self.consume_hints();
-        let (distinct, mut distinct_on) = if self.match_keyword(Keyword::DISTINCT) {
+        let (distinct, distinct_on) = if self.match_keyword(Keyword::DISTINCT) {
             self.advance();
             let cols = if self.match_keyword(Keyword::ON) {
                 self.advance();
@@ -203,28 +185,14 @@ impl Parser {
                     self.advance();
                 }
                 let table_name = self.parse_object_name()?;
-                (
-                    None,
-                    Some(SelectIntoTable {
-                        unlogged,
-                        table_name,
-                    }),
-                    false,
-                )
+                (None, Some(SelectIntoTable { unlogged, table_name }), false)
             } else if self.pl_into_mode {
                 (Some(self.parse_pl_into_target_list()?), None, false)
             } else {
                 let save_pos = self.pos;
                 if let Ok(table_name) = self.parse_object_name() {
                     if self.match_keyword(Keyword::FROM) || self.match_token(&Token::Eof) {
-                        (
-                            None,
-                            Some(SelectIntoTable {
-                                unlogged: false,
-                                table_name,
-                            }),
-                            false,
-                        )
+                        (None, Some(SelectIntoTable { unlogged: false, table_name }), false)
                     } else {
                         self.pos = save_pos;
                         (Some(self.parse_target_list()?), None, false)
@@ -238,11 +206,7 @@ impl Parser {
             self.advance();
             self.expect_ident_str("collect")?;
             self.expect_keyword(Keyword::INTO)?;
-            let targets = if self.pl_into_mode {
-                self.parse_pl_into_target_list()?
-            } else {
-                self.parse_target_list()?
-            };
+            let targets = if self.pl_into_mode { self.parse_pl_into_target_list()? } else { self.parse_target_list()? };
             (Some(targets), None, true)
         } else {
             (None, None, false)
@@ -277,11 +241,7 @@ impl Parser {
             } else {
                 start_with
             };
-            Some(ConnectByClause {
-                nocycle,
-                condition,
-                start_with: sw,
-            })
+            Some(ConnectByClause { nocycle, condition, start_with: sw })
         } else {
             None
         };
@@ -435,16 +395,9 @@ impl Parser {
             let upper = alias_str.to_uppercase();
             if upper.starts_with("INTO")
                 && upper.len() > 4
-                && upper[4..]
-                    .chars()
-                    .next()
-                    .map_or(false, |c| c.is_ascii_alphabetic())
+                && upper[4..].chars().next().is_some_and(|c| c.is_ascii_alphabetic())
             {
-                let loc = self
-                    .tokens
-                    .get(alias_start)
-                    .map(|t| t.location)
-                    .unwrap_or_default();
+                let loc = self.tokens.get(alias_start).map(|t| t.location).unwrap_or_default();
                 self.add_error(ParserError::Warning {
                     message: format!(
                         "alias \"{}\" looks like a typo for \"INTO {}\" — possible missing space",
@@ -490,44 +443,28 @@ impl Parser {
     fn try_consume_table_modifiers(&mut self, table_ref: &mut TableRef) {
         if self.match_keyword(Keyword::PARTITION) {
             if let Ok(Some(p)) = self.try_parse_partition_ref(Keyword::PARTITION) {
-                if let TableRef::Table {
-                    partition: ref mut pp,
-                    ..
-                } = table_ref
-                {
+                if let TableRef::Table { partition: ref mut pp, .. } = table_ref {
                     *pp = Some(p);
                 }
             }
         }
         if self.match_keyword(Keyword::SUBPARTITION) {
             if let Ok(Some(p)) = self.try_parse_partition_ref(Keyword::SUBPARTITION) {
-                if let TableRef::Table {
-                    partition: ref mut pp,
-                    ..
-                } = table_ref
-                {
+                if let TableRef::Table { partition: ref mut pp, .. } = table_ref {
                     *pp = Some(p);
                 }
             }
         }
         if self.match_keyword(Keyword::TIMECAPSULE) {
             if let Ok(tc) = self.try_parse_timecapsule() {
-                if let TableRef::Table {
-                    timecapsule: ref mut tc_field,
-                    ..
-                } = table_ref
-                {
+                if let TableRef::Table { timecapsule: ref mut tc_field, .. } = table_ref {
                     *tc_field = Some(tc);
                 }
             }
         }
         if self.match_keyword(Keyword::TABLESAMPLE) {
             if let Ok(ts) = self.try_parse_tablesample() {
-                if let TableRef::Table {
-                    tablesample: ref mut ts_field,
-                    ..
-                } = table_ref
-                {
+                if let TableRef::Table { tablesample: ref mut ts_field, .. } = table_ref {
                     *ts_field = Some(ts);
                 }
             }
@@ -538,11 +475,7 @@ impl Parser {
                 self.advance();
                 if let Ok(pct) = self.parse_expr() {
                     if self.expect_token(&Token::RParen).is_ok() {
-                        if let TableRef::Table {
-                            tablesample: ref mut ts_field,
-                            ..
-                        } = table_ref
-                        {
+                        if let TableRef::Table { tablesample: ref mut ts_field, .. } = table_ref {
                             *ts_field = Some(TableSampleClause {
                                 method: "SAMPLE".to_string(),
                                 arguments: vec![pct],
@@ -574,11 +507,7 @@ impl Parser {
         } else {
             None
         };
-        Ok(TableSampleClause {
-            method,
-            arguments,
-            repeatable,
-        })
+        Ok(TableSampleClause { method, arguments, repeatable })
     }
 
     fn try_parse_timecapsule(&mut self) -> Result<crate::ast::Expr, ParserError> {
@@ -615,10 +544,7 @@ impl Parser {
                 exprs.push(self.parse_expr()?);
             }
             self.expect_token(&Token::RParen)?;
-            Ok(Some(crate::ast::TablePartitionRef {
-                values: vec![],
-                for_values: Some(exprs),
-            }))
+            Ok(Some(crate::ast::TablePartitionRef { values: vec![], for_values: Some(exprs) }))
         } else {
             self.expect_token(&Token::LParen)?;
             let mut values = vec![self.parse_identifier()?];
@@ -627,10 +553,7 @@ impl Parser {
                 values.push(self.parse_identifier()?);
             }
             self.expect_token(&Token::RParen)?;
-            Ok(Some(crate::ast::TablePartitionRef {
-                values,
-                for_values: None,
-            }))
+            Ok(Some(crate::ast::TablePartitionRef { values, for_values: None }))
         }
     }
 
@@ -723,17 +646,11 @@ impl Parser {
             if xml {
                 pivot.xml = Some(true);
             }
-            left = TableRef::Pivot {
-                source: Box::new(left),
-                pivot,
-            };
+            left = TableRef::Pivot { source: Box::new(left), pivot };
         } else if self.match_ident_str("UNPIVOT") {
             self.advance();
             let unpivot = self.parse_unpivot()?;
-            left = TableRef::Unpivot {
-                source: Box::new(left),
-                unpivot,
-            };
+            left = TableRef::Unpivot { source: Box::new(left), unpivot };
         }
         Ok(left)
     }
@@ -755,11 +672,7 @@ impl Parser {
                 } else {
                     self.parse_optional_alias()?
                 };
-                return Ok(TableRef::Subquery {
-                    query: Box::new(query),
-                    alias,
-                    lateral: false,
-                });
+                return Ok(TableRef::Subquery { query: Box::new(query), alias, lateral: false });
             }
             if self.match_keyword(Keyword::VALUES) {
                 self.advance();
@@ -778,12 +691,7 @@ impl Parser {
                 } else {
                     vec![]
                 };
-                return Ok(TableRef::Values {
-                    values: Box::new(values),
-                    alias,
-                    column_names,
-                    lateral: false,
-                });
+                return Ok(TableRef::Values { values: Box::new(values), alias, column_names, lateral: false });
             }
             let table_ref = self.parse_table_ref()?;
             self.expect_token(&Token::RParen)?;
@@ -809,21 +717,12 @@ impl Parser {
                 } else {
                     vec![]
                 };
-                return Ok(TableRef::Values {
-                    values: Box::new(values),
-                    alias,
-                    column_names,
-                    lateral: true,
-                });
+                return Ok(TableRef::Values { values: Box::new(values), alias, column_names, lateral: true });
             }
             let query = self.parse_select_statement()?;
             self.expect_token(&Token::RParen)?;
             let alias = self.parse_optional_alias()?;
-            return Ok(TableRef::Subquery {
-                query: Box::new(query),
-                alias,
-                lateral: true,
-            });
+            return Ok(TableRef::Subquery { query: Box::new(query), alias, lateral: true });
         }
         let name = self.parse_object_name()?;
         if self.match_token(&Token::LParen) {
@@ -861,16 +760,10 @@ impl Parser {
             };
             let column_defs = if self.match_token(&Token::LParen) {
                 self.advance();
-                let mut defs = vec![(
-                    self.parse_identifier()?,
-                    self.parse_optional_func_col_type()?,
-                )];
+                let mut defs = vec![(self.parse_identifier()?, self.parse_optional_func_col_type()?)];
                 while self.match_token(&Token::Comma) {
                     self.advance();
-                    defs.push((
-                        self.parse_identifier()?,
-                        self.parse_optional_func_col_type()?,
-                    ));
+                    defs.push((self.parse_identifier()?, self.parse_optional_func_col_type()?));
                 }
                 self.expect_token(&Token::RParen)?;
                 defs.into_iter()
@@ -890,16 +783,9 @@ impl Parser {
             } else {
                 vec![]
             };
-            let builtin = crate::parser::function_registry::lookup_builtin_meta(
-                &name.last().cloned().unwrap_or_default(),
-            );
-            return Ok(TableRef::FunctionCall {
-                name,
-                args,
-                alias,
-                column_defs,
-                builtin,
-            });
+            let builtin =
+                crate::parser::function_registry::lookup_builtin_meta(&name.last().cloned().unwrap_or_default());
+            return Ok(TableRef::FunctionCall { name, args, alias, column_defs, builtin });
         }
         let alias = if self.match_ident_str("PIVOT") || self.match_ident_str("UNPIVOT") {
             None
@@ -918,14 +804,7 @@ impl Parser {
         } else {
             vec![]
         };
-        Ok(TableRef::Table {
-            name,
-            alias,
-            column_aliases,
-            partition: None,
-            timecapsule: None,
-            tablesample: None,
-        })
+        Ok(TableRef::Table { name, alias, column_aliases, partition: None, timecapsule: None, tablesample: None })
     }
 
     fn parse_order_limit_offset(&mut self, stmt: &mut SelectStatement) -> Result<(), ParserError> {
@@ -967,12 +846,7 @@ impl Parser {
                 } else {
                     None
                 };
-                items.push(OrderByItem {
-                    expr,
-                    asc,
-                    nulls_first,
-                    using,
-                });
+                items.push(OrderByItem { expr, asc, nulls_first, using });
                 if !self.match_token(&Token::Comma) {
                     break;
                 }
@@ -1066,7 +940,7 @@ impl Parser {
         }
         self.advance();
 
-        let (lock_type, has_no_key) = if self.match_keyword(Keyword::UPDATE) {
+        let (lock_type, _has_no_key) = if self.match_keyword(Keyword::UPDATE) {
             self.advance();
             (0usize, false)
         } else if self.match_keyword(Keyword::SHARE) {
@@ -1114,30 +988,10 @@ impl Parser {
         };
 
         let clause = match lock_type {
-            0 => LockClause::Update {
-                tables,
-                nowait,
-                skip_locked,
-                wait,
-            },
-            1 => LockClause::Share {
-                tables,
-                nowait,
-                skip_locked,
-                wait,
-            },
-            2 => LockClause::NoKeyUpdate {
-                tables,
-                nowait,
-                skip_locked,
-                wait,
-            },
-            _ => LockClause::KeyShare {
-                tables,
-                nowait,
-                skip_locked,
-                wait,
-            },
+            0 => LockClause::Update { tables, nowait, skip_locked, wait },
+            1 => LockClause::Share { tables, nowait, skip_locked, wait },
+            2 => LockClause::NoKeyUpdate { tables, nowait, skip_locked, wait },
+            _ => LockClause::KeyShare { tables, nowait, skip_locked, wait },
         };
 
         Ok(Some(clause))
@@ -1185,12 +1039,7 @@ impl Parser {
         }
         self.expect_token(&Token::RParen)?;
         self.expect_token(&Token::RParen)?;
-        Ok(PivotClause {
-            xml: None,
-            aggregate,
-            for_column,
-            values,
-        })
+        Ok(PivotClause { xml: None, aggregate, for_column, values })
     }
 
     fn parse_unpivot(&mut self) -> Result<UnpivotClause, ParserError> {
@@ -1223,12 +1072,7 @@ impl Parser {
         }
         self.expect_token(&Token::RParen)?;
         self.expect_token(&Token::RParen)?;
-        Ok(UnpivotClause {
-            include_nulls,
-            value_column,
-            for_column,
-            columns,
-        })
+        Ok(UnpivotClause { include_nulls, value_column, for_column, columns })
     }
 
     pub(crate) fn parse_values_statement(&mut self) -> Result<ValuesStatement, ParserError> {
@@ -1284,12 +1128,7 @@ impl Parser {
                 } else {
                     None
                 };
-                order_by.push(OrderByItem {
-                    expr,
-                    asc,
-                    nulls_first,
-                    using: None,
-                });
+                order_by.push(OrderByItem { expr, asc, nulls_first, using: None });
                 if !self.match_token(&Token::Comma) {
                     break;
                 }
@@ -1316,12 +1155,7 @@ impl Parser {
             None
         };
 
-        Ok(ValuesStatement {
-            rows,
-            order_by,
-            limit,
-            offset,
-        })
+        Ok(ValuesStatement { rows, order_by, limit, offset })
     }
 
     fn parse_optional_func_col_type(&mut self) -> Result<crate::ast::DataType, ParserError> {
@@ -1337,9 +1171,7 @@ impl Parser {
         while lookahead < self.tokens.len() {
             match &self.tokens[lookahead].token {
                 Token::LParen => lookahead += 1,
-                Token::Keyword(kw) => {
-                    return matches!(kw, Keyword::SELECT | Keyword::WITH)
-                }
+                Token::Keyword(kw) => return matches!(kw, Keyword::SELECT | Keyword::WITH),
                 _ => return false,
             }
         }

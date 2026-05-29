@@ -3,7 +3,7 @@
 //! openGauss supports multiple character encodings. This module provides
 //! detection and conversion to UTF-8 for tokenization.
 
-use encoding_rs::{CoderResult, Encoding};
+use encoding_rs::Encoding;
 
 /// Detect and decode SQL file content to UTF-8.
 ///
@@ -65,10 +65,7 @@ pub fn decode_with_encoding(bytes: &[u8], encoding_name: &str) -> Result<String,
             if !had_errors {
                 return Ok(cow.into_owned());
             }
-            return Err(std::io::Error::new(
-                std::io::ErrorKind::InvalidData,
-                "Invalid UTF-16",
-            ));
+            return Err(std::io::Error::new(std::io::ErrorKind::InvalidData, "Invalid UTF-16"));
         }
         "UTF-16LE" | "UTF16LE" => encoding_rs::UTF_16LE,
         "UTF-16BE" | "UTF16BE" => encoding_rs::UTF_16BE,
@@ -84,10 +81,7 @@ pub fn decode_with_encoding(bytes: &[u8], encoding_name: &str) -> Result<String,
 
     let (cow, _, had_errors) = encoding.decode(bytes);
     if had_errors {
-        Err(std::io::Error::new(
-            std::io::ErrorKind::InvalidData,
-            format!("Invalid {} data", encoding_name),
-        ))
+        Err(std::io::Error::new(std::io::ErrorKind::InvalidData, format!("Invalid {} data", encoding_name)))
     } else {
         Ok(cow.into_owned())
     }

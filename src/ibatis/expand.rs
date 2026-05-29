@@ -5,8 +5,8 @@
 
 use crate::ibatis::flatten::{self, sanitize_param_name};
 use crate::ibatis::types::{
-    BranchStep, ExpandConfig, ExpandedVariant, IfExpandStrategy, ParamMeta, PlaceholderStrategy,
-    SqlNode, StructuredStatement,
+    BranchStep, ExpandConfig, ExpandedVariant, IfExpandStrategy, ParamMeta, PlaceholderStrategy, SqlNode,
+    StructuredStatement,
 };
 
 const PARAM_PREFIX: &str = "__XML_PARAM_";
@@ -22,19 +22,14 @@ struct ExpansionState {
 
 /// 展开 `StructuredStatement` 的所有 SQL 变体。
 pub fn expand_variants(stmt: &StructuredStatement, config: &ExpandConfig) -> Vec<ExpandedVariant> {
-    let initial = ExpansionState {
-        sql_buffer: String::new(),
-        branch_path: Vec::new(),
-        params: Vec::new(),
-    };
+    let initial = ExpansionState { sql_buffer: String::new(), branch_path: Vec::new(), params: Vec::new() };
     let mut variants = vec![initial];
     expand_node(&stmt.body, &mut variants, 0, config);
 
     let mut results: Vec<ExpandedVariant> = variants
         .into_iter()
         .map(|state| {
-            let parse_result = if config.generate_parse_results && !state.sql_buffer.trim().is_empty()
-            {
+            let parse_result = if config.generate_parse_results && !state.sql_buffer.trim().is_empty() {
                 Some(crate::parser::Parser::parse_sql(&state.sql_buffer))
             } else {
                 None
@@ -52,12 +47,7 @@ pub fn expand_variants(stmt: &StructuredStatement, config: &ExpandConfig) -> Vec
     results
 }
 
-fn expand_node(
-    node: &SqlNode,
-    variants: &mut Vec<ExpansionState>,
-    depth: usize,
-    config: &ExpandConfig,
-) {
+fn expand_node(node: &SqlNode, variants: &mut Vec<ExpansionState>, depth: usize, config: &ExpandConfig) {
     if depth > config.max_depth || variants.len() >= config.max_variants {
         return;
     }
@@ -110,11 +100,7 @@ fn expand_node(
         SqlNode::Where { children } => {
             let mut sub_variants = variants
                 .drain(..)
-                .map(|v| ExpansionState {
-                    sql_buffer: String::new(),
-                    branch_path: v.branch_path,
-                    params: v.params,
-                })
+                .map(|v| ExpansionState { sql_buffer: String::new(), branch_path: v.branch_path, params: v.params })
                 .collect::<Vec<_>>();
             for child in children {
                 expand_node(child, &mut sub_variants, depth + 1, config);
@@ -122,48 +108,26 @@ fn expand_node(
             let prefix_overrides = Some("AND |OR ");
             for sub in sub_variants {
                 let trimmed = apply_trim(&sub.sql_buffer, Some("WHERE"), None, prefix_overrides, None);
-                variants.push(ExpansionState {
-                    sql_buffer: trimmed,
-                    branch_path: sub.branch_path,
-                    params: sub.params,
-                });
+                variants.push(ExpansionState { sql_buffer: trimmed, branch_path: sub.branch_path, params: sub.params });
             }
         }
         SqlNode::Set { children } => {
             let mut sub_variants = variants
                 .drain(..)
-                .map(|v| ExpansionState {
-                    sql_buffer: String::new(),
-                    branch_path: v.branch_path,
-                    params: v.params,
-                })
+                .map(|v| ExpansionState { sql_buffer: String::new(), branch_path: v.branch_path, params: v.params })
                 .collect::<Vec<_>>();
             for child in children {
                 expand_node(child, &mut sub_variants, depth + 1, config);
             }
             for sub in sub_variants {
                 let trimmed = apply_trim(&sub.sql_buffer, Some("SET"), None, None, Some(","));
-                variants.push(ExpansionState {
-                    sql_buffer: trimmed,
-                    branch_path: sub.branch_path,
-                    params: sub.params,
-                });
+                variants.push(ExpansionState { sql_buffer: trimmed, branch_path: sub.branch_path, params: sub.params });
             }
         }
-        SqlNode::Trim {
-            prefix,
-            suffix,
-            prefix_overrides,
-            suffix_overrides,
-            children,
-        } => {
+        SqlNode::Trim { prefix, suffix, prefix_overrides, suffix_overrides, children } => {
             let mut sub_variants = variants
                 .drain(..)
-                .map(|v| ExpansionState {
-                    sql_buffer: String::new(),
-                    branch_path: v.branch_path,
-                    params: v.params,
-                })
+                .map(|v| ExpansionState { sql_buffer: String::new(), branch_path: v.branch_path, params: v.params })
                 .collect::<Vec<_>>();
             for child in children {
                 expand_node(child, &mut sub_variants, depth + 1, config);
@@ -176,21 +140,10 @@ fn expand_node(
                     prefix_overrides.as_deref(),
                     suffix_overrides.as_deref(),
                 );
-                variants.push(ExpansionState {
-                    sql_buffer: trimmed,
-                    branch_path: sub.branch_path,
-                    params: sub.params,
-                });
+                variants.push(ExpansionState { sql_buffer: trimmed, branch_path: sub.branch_path, params: sub.params });
             }
         }
-        SqlNode::ForEach {
-            collection,
-            open,
-            separator,
-            close,
-            children,
-            ..
-        } => {
+        SqlNode::ForEach { collection, open, separator, close, children, .. } => {
             expand_foreach(collection, open, separator, close, children, variants, depth, config);
         }
         SqlNode::Bind { .. } => {}
@@ -240,29 +193,26 @@ fn expand_if(
 
             for v in variants.drain(..) {
                 // included = true
-            let mut inc = ExpansionState {
-                sql_buffer: String::new(),
-                branch_path: {
-                    let mut p = v.branch_path.clone();
-                    p.push(BranchStep::If { test: test.to_string(), included: true });
-                    p
-                },
-                params: v.params.clone(),
-            };
-            let mut inc_vec = vec![inc];
-            for child in children {
-                expand_node(child, &mut inc_vec, depth + 1, config);
-            }
-            let prepend_str = prepend.unwrap_or("");
-            inc_vec[0].sql_buffer = apply_prepend_text(prepend_str, &inc_vec[0].sql_buffer);
-            new_variants.push(inc_vec.remove(0));
-
-            // included = false
-            let mut exc = ExpansionState {
+                let inc = ExpansionState {
                     sql_buffer: String::new(),
-                    branch_path: v.branch_path,
-                    params: v.params,
+                    branch_path: {
+                        let mut p = v.branch_path.clone();
+                        p.push(BranchStep::If { test: test.to_string(), included: true });
+                        p
+                    },
+                    params: v.params.clone(),
                 };
+                let mut inc_vec = vec![inc];
+                for child in children {
+                    expand_node(child, &mut inc_vec, depth + 1, config);
+                }
+                let prepend_str = prepend.unwrap_or("");
+                inc_vec[0].sql_buffer = apply_prepend_text(prepend_str, &inc_vec[0].sql_buffer);
+                new_variants.push(inc_vec.remove(0));
+
+                // included = false
+                let mut exc =
+                    ExpansionState { sql_buffer: String::new(), branch_path: v.branch_path, params: v.params };
                 exc.branch_path.push(BranchStep::If { test: test.to_string(), included: false });
                 new_variants.push(exc);
             }
@@ -281,7 +231,7 @@ fn expand_choose(
 
     for v in variants.drain(..) {
         for (idx, (_test, branch_children)) in branches.iter().enumerate() {
-            let mut sub = ExpansionState {
+            let sub = ExpansionState {
                 sql_buffer: String::new(),
                 branch_path: {
                     let mut p = v.branch_path.clone();
@@ -325,10 +275,7 @@ fn expand_foreach(
                 sql_buffer: String::new(),
                 branch_path: {
                     let mut p = v.branch_path.clone();
-                    p.push(BranchStep::Foreach {
-                        collection: collection.to_string(),
-                        size,
-                    });
+                    p.push(BranchStep::Foreach { collection: collection.to_string(), size });
                     p
                 },
                 params: v.params.clone(),
@@ -340,11 +287,8 @@ fn expand_foreach(
                         sub.sql_buffer.push_str(sep);
                     }
                 }
-                let mut body_buf = vec![ExpansionState {
-                    sql_buffer: String::new(),
-                    branch_path: Vec::new(),
-                    params: Vec::new(),
-                }];
+                let mut body_buf =
+                    vec![ExpansionState { sql_buffer: String::new(), branch_path: Vec::new(), params: Vec::new() }];
                 for child in children {
                     expand_node(child, &mut body_buf, depth + 1, config);
                 }
@@ -469,11 +413,7 @@ fn apply_trim(
     let mut result = content.trim().to_string();
 
     if let Some(overrides) = prefix_overrides {
-        let ov_list: Vec<&str> = overrides
-            .split('|')
-            .map(|s| s.trim())
-            .filter(|s| !s.is_empty())
-            .collect();
+        let ov_list: Vec<&str> = overrides.split('|').map(|s| s.trim()).filter(|s| !s.is_empty()).collect();
         loop {
             let trimmed = result.trim_start();
             let mut stripped = false;
@@ -491,18 +431,12 @@ fn apply_trim(
     }
 
     if let Some(overrides) = suffix_overrides {
-        let ov_list: Vec<&str> = overrides
-            .split('|')
-            .map(|s| s.trim())
-            .filter(|s| !s.is_empty())
-            .collect();
+        let ov_list: Vec<&str> = overrides.split('|').map(|s| s.trim()).filter(|s| !s.is_empty()).collect();
         loop {
             let trimmed = result.trim_end();
             let mut stripped = false;
             for ov in &ov_list {
-                if trimmed.len() >= ov.len()
-                    && trimmed[trimmed.len() - ov.len()..].eq_ignore_ascii_case(ov)
-                {
+                if trimmed.len() >= ov.len() && trimmed[trimmed.len() - ov.len()..].eq_ignore_ascii_case(ov) {
                     result = trimmed[..trimmed.len() - ov.len()].to_string();
                     stripped = true;
                     break;

@@ -1,5 +1,5 @@
 use crate::ast::plpgsql::{FetchDirection, GetDiagItemKind, *};
-use crate::ast::{Expr, Literal, ObjectName, SelectStatement, SelectTarget, SourceSpan, Spanned, Statement};
+use crate::ast::{Expr, Literal, ObjectName, SourceSpan, Spanned};
 use crate::parser::{Parser, ParserError};
 use crate::token::keyword::Keyword;
 use crate::token::Token;
@@ -83,13 +83,7 @@ impl Parser {
 
         let end_label = self.try_parse_pl_label();
 
-        Ok(PlBlock {
-            label,
-            declarations,
-            body,
-            exception_block,
-            end_label,
-        })
+        Ok(PlBlock { label, declarations, body, exception_block, end_label })
     }
 
     fn try_parse_pl_label(&mut self) -> Option<String> {
@@ -190,14 +184,7 @@ impl Parser {
 
         self.try_consume_semicolon();
 
-        Ok(PlDeclaration::Variable(PlVarDecl {
-            name,
-            data_type,
-            default,
-            constant,
-            not_null,
-            collate,
-        }))
+        Ok(PlDeclaration::Variable(PlVarDecl { name, data_type, default, constant, not_null, collate }))
     }
 
     fn is_next_token_type_name(&self) -> bool {
@@ -246,10 +233,7 @@ impl Parser {
                 let column = name[dot_pos + 1..].to_string();
                 return Ok(PlDataType::PercentType { table, column });
             }
-            return Ok(PlDataType::PercentType {
-                table: name,
-                column: String::new(),
-            });
+            return Ok(PlDataType::PercentType { table: name, column: String::new() });
         }
 
         let mut type_name = name;
@@ -359,11 +343,7 @@ impl Parser {
                         PlArgMode::In
                     };
                     let arg_type = self.parse_pl_data_type()?;
-                    arguments.push(PlCursorArg {
-                        name: arg_name,
-                        data_type: arg_type,
-                        mode: arg_mode,
-                    });
+                    arguments.push(PlCursorArg { name: arg_name, data_type: arg_type, mode: arg_mode });
                     if self.match_token(&Token::Comma) {
                         self.advance();
                     } else {
@@ -415,14 +395,7 @@ impl Parser {
         };
         self.try_consume_semicolon();
 
-        Ok(PlDeclaration::Cursor(PlCursorDecl {
-            name,
-            arguments,
-            return_type,
-            query,
-            parsed_query,
-            scrollable: false,
-        }))
+        Ok(PlDeclaration::Cursor(PlCursorDecl { name, arguments, return_type, query, parsed_query, scrollable: false }))
     }
 
     fn parse_pl_type_decl(&mut self, name: String) -> Result<PlDeclaration, ParserError> {
@@ -444,10 +417,7 @@ impl Parser {
                 loop {
                     let field_name = self.parse_identifier()?;
                     let field_type = self.parse_pl_data_type()?;
-                    fields.push(PlTypeField {
-                        name: field_name,
-                        data_type: field_type,
-                    });
+                    fields.push(PlTypeField { name: field_name, data_type: field_type });
                     if self.match_token(&Token::Comma) {
                         self.advance();
                     } else {
@@ -471,11 +441,7 @@ impl Parser {
                 index_by = Some(self.parse_pl_data_type()?);
             }
             self.try_consume_semicolon();
-            Ok(PlDeclaration::Type(PlTypeDecl::TableOf {
-                name,
-                elem_type,
-                index_by,
-            }))
+            Ok(PlDeclaration::Type(PlTypeDecl::TableOf { name, elem_type, index_by }))
         } else if self.match_ident_str("varray") {
             self.advance();
             self.expect_token(&Token::LParen)?;
@@ -484,11 +450,7 @@ impl Parser {
             self.expect_keyword(Keyword::OF)?;
             let elem_type = self.parse_pl_data_type()?;
             self.try_consume_semicolon();
-            Ok(PlDeclaration::Type(PlTypeDecl::VarrayOf {
-                name,
-                size: Box::new(size),
-                elem_type,
-            }))
+            Ok(PlDeclaration::Type(PlTypeDecl::VarrayOf { name, size: Box::new(size), elem_type }))
         } else if self.match_ident_str("ref") {
             self.advance();
             if self.match_ident_str("cursor") || self.match_keyword(Keyword::CURSOR) {
@@ -510,8 +472,6 @@ impl Parser {
             })
         }
     }
-
-
 
     pub(crate) fn skip_to_semicolon_or_keyword(&mut self) -> String {
         let mut collected = String::new();
@@ -583,18 +543,26 @@ impl Parser {
                 Token::Semicolon if depth == 0 => break,
                 Token::LParen => {
                     depth += 1;
-                    if !collected.is_empty() { collected.push(' '); }
+                    if !collected.is_empty() {
+                        collected.push(' ');
+                    }
                     collected.push_str(&self.token_to_string());
                     self.advance();
                 }
                 Token::RParen => {
-                    if depth > 0 { depth -= 1; }
-                    if !collected.is_empty() { collected.push(' '); }
+                    if depth > 0 {
+                        depth -= 1;
+                    }
+                    if !collected.is_empty() {
+                        collected.push(' ');
+                    }
                     collected.push_str(&self.token_to_string());
                     self.advance();
                 }
                 _ => {
-                    if !collected.is_empty() { collected.push(' '); }
+                    if !collected.is_empty() {
+                        collected.push(' ');
+                    }
                     collected.push_str(&self.token_to_string());
                     self.advance();
                 }
@@ -603,10 +571,7 @@ impl Parser {
         collected.trim().to_string()
     }
 
-    fn parse_pl_statements_until(
-        &mut self,
-        terminators: &[&str],
-    ) -> Result<Vec<PlStatement>, ParserError> {
+    fn parse_pl_statements_until(&mut self, terminators: &[&str]) -> Result<Vec<PlStatement>, ParserError> {
         let mut stmts = Vec::new();
         loop {
             let is_terminator = terminators.iter().any(|t| self.match_ident_str(t));
@@ -741,22 +706,20 @@ impl Parser {
             }
             let end_label = self.try_parse_pl_label();
             self.try_consume_semicolon();
-            Ok(PlStatement::Block(Spanned::new(PlBlock {
-                label: None,
-                declarations: Vec::new(),
-                body,
-                exception_block,
-                end_label,
-            }, Some(SourceSpan { start, end: self.prev_location() }))))
+            Ok(PlStatement::Block(Spanned::new(
+                PlBlock { label: None, declarations: Vec::new(), body, exception_block, end_label },
+                Some(SourceSpan { start, end: self.prev_location() }),
+            )))
         } else if self.match_ident_str("declare") {
             let start = self.current_location();
             self.advance();
             let block = self.parse_pl_block_with_declare(label.clone())?;
-            let result = Ok(PlStatement::Block(Spanned::new(block, Some(SourceSpan { start, end: self.prev_location() }))));
+            let result =
+                Ok(PlStatement::Block(Spanned::new(block, Some(SourceSpan { start, end: self.prev_location() }))));
             self.try_consume_semicolon();
             result
         } else if self.match_ident_str("set") {
-            let is_set_transaction = self.tokens.get(self.pos + 1).map_or(false, |t| match &t.token {
+            let is_set_transaction = self.tokens.get(self.pos + 1).is_some_and(|t| match &t.token {
                 Token::Ident(s) => s.eq_ignore_ascii_case("transaction"),
                 Token::Keyword(kw) => kw.as_str().eq_ignore_ascii_case("transaction"),
                 _ => false,
@@ -770,10 +733,13 @@ impl Parser {
                 self.advance();
                 let set_stmt = self.parse_set()?;
                 self.try_consume_semicolon();
-                Ok(PlStatement::VariableSet(Spanned::new(set_stmt, Some(SourceSpan { start, end: self.prev_location() }))))
+                Ok(PlStatement::VariableSet(Spanned::new(
+                    set_stmt,
+                    Some(SourceSpan { start, end: self.prev_location() }),
+                )))
             }
         } else if self.match_ident_str("reset") {
-            let next_is_lparen = self.tokens.get(self.pos + 1).map_or(false, |t| matches!(t.token, Token::LParen));
+            let next_is_lparen = self.tokens.get(self.pos + 1).is_some_and(|t| matches!(t.token, Token::LParen));
             if next_is_lparen {
                 let start = self.current_location();
                 self.advance();
@@ -783,23 +749,33 @@ impl Parser {
                 } else {
                     let reset_stmt = self.parse_reset()?;
                     self.try_consume_semicolon();
-                    Ok(PlStatement::VariableReset(Spanned::new(reset_stmt, Some(SourceSpan { start, end: self.prev_location() }))))
+                    Ok(PlStatement::VariableReset(Spanned::new(
+                        reset_stmt,
+                        Some(SourceSpan { start, end: self.prev_location() }),
+                    )))
                 }
             } else {
                 let start = self.current_location();
                 self.advance();
                 let reset_stmt = self.parse_reset()?;
                 self.try_consume_semicolon();
-                Ok(PlStatement::VariableReset(Spanned::new(reset_stmt, Some(SourceSpan { start, end: self.prev_location() }))))
+                Ok(PlStatement::VariableReset(Spanned::new(
+                    reset_stmt,
+                    Some(SourceSpan { start, end: self.prev_location() }),
+                )))
             }
         } else if let Some(stmt) = self.try_parse_dml_as_pl_statement() {
             Ok(stmt)
         } else {
-            let is_dml_start = matches!(self.peek(),
-                Token::Keyword(Keyword::SELECT) | Token::Keyword(Keyword::WITH)
-                | Token::Keyword(Keyword::INSERT) | Token::Keyword(Keyword::UPDATE)
-                | Token::Keyword(Keyword::DELETE_P) | Token::Keyword(Keyword::MERGE)
-                | Token::Hint(_)
+            let is_dml_start = matches!(
+                self.peek(),
+                Token::Keyword(Keyword::SELECT)
+                    | Token::Keyword(Keyword::WITH)
+                    | Token::Keyword(Keyword::INSERT)
+                    | Token::Keyword(Keyword::UPDATE)
+                    | Token::Keyword(Keyword::DELETE_P)
+                    | Token::Keyword(Keyword::MERGE)
+                    | Token::Hint(_)
             );
             if is_dml_start {
                 let had_real_error = self.errors.len() > error_count_before;
@@ -834,10 +810,7 @@ impl Parser {
         }
     }
 
-    fn parse_pl_block_with_declare(
-        &mut self,
-        label: Option<String>,
-    ) -> Result<PlBlock, ParserError> {
+    fn parse_pl_block_with_declare(&mut self, label: Option<String>) -> Result<PlBlock, ParserError> {
         let declarations = self.parse_pl_declarations()?;
         self.expect_keyword(Keyword::BEGIN_P)?;
 
@@ -869,13 +842,7 @@ impl Parser {
         }
 
         let end_label = self.try_parse_pl_label();
-        Ok(PlBlock {
-            label,
-            declarations,
-            body,
-            exception_block,
-            end_label,
-        })
+        Ok(PlBlock { label, declarations, body, exception_block, end_label })
     }
 
     fn try_parse_dml_as_pl_statement(&mut self) -> Option<PlStatement> {
@@ -912,7 +879,7 @@ impl Parser {
         let start_pos = self.pos;
         let saved_error_count = self.errors.len();
         let mut first_err: Option<ParserError> = None;
-                let result = match self.peek() {
+        let result = match self.peek() {
             Token::Keyword(Keyword::SELECT) => {
                 self.pl_into_mode = true;
                 let result = match self.parse_select_statement() {
@@ -922,7 +889,10 @@ impl Parser {
                         stmt.hints = merged;
                         Some(crate::ast::Statement::Select(crate::ast::Spanned::new(stmt, None)))
                     }
-                    Err(e) => { first_err = Some(e); None }
+                    Err(e) => {
+                        first_err = Some(e);
+                        None
+                    }
                 };
                 self.pl_into_mode = false;
                 result
@@ -931,7 +901,10 @@ impl Parser {
                 if self.is_with_dml_at(self.pos) {
                     let with = match self.parse_with_clause() {
                         Ok(Some(w)) => w,
-                        _ => { self.pos = save_pos; return None; }
+                        _ => {
+                            self.pos = save_pos;
+                            return None;
+                        }
                     };
                     self.pl_into_mode = true;
                     let result = match self.peek_keyword() {
@@ -945,7 +918,10 @@ impl Parser {
                                     stmt.hints = merged;
                                     Some(crate::ast::Statement::Insert(crate::ast::Spanned::new(stmt, None)))
                                 }
-                                Err(e) => { first_err = Some(e); None }
+                                Err(e) => {
+                                    first_err = Some(e);
+                                    None
+                                }
                             }
                         }
                         Some(Keyword::UPDATE) => {
@@ -958,7 +934,10 @@ impl Parser {
                                     stmt.hints = merged;
                                     Some(crate::ast::Statement::Update(crate::ast::Spanned::new(stmt, None)))
                                 }
-                                Err(e) => { first_err = Some(e); None }
+                                Err(e) => {
+                                    first_err = Some(e);
+                                    None
+                                }
                             }
                         }
                         Some(Keyword::DELETE_P) => {
@@ -971,7 +950,10 @@ impl Parser {
                                     stmt.hints = merged;
                                     Some(crate::ast::Statement::Delete(crate::ast::Spanned::new(stmt, None)))
                                 }
-                                Err(e) => { first_err = Some(e); None }
+                                Err(e) => {
+                                    first_err = Some(e);
+                                    None
+                                }
                             }
                         }
                         _ => None,
@@ -987,7 +969,10 @@ impl Parser {
                             stmt.hints = merged;
                             Some(crate::ast::Statement::Select(crate::ast::Spanned::new(stmt, None)))
                         }
-                        Err(e) => { first_err = Some(e); None }
+                        Err(e) => {
+                            first_err = Some(e);
+                            None
+                        }
                     };
                     self.pl_into_mode = false;
                     result
@@ -1003,7 +988,10 @@ impl Parser {
                         stmt.hints = merged;
                         Some(crate::ast::Statement::Insert(crate::ast::Spanned::new(stmt, None)))
                     }
-                    Err(e) => { first_err = Some(e); None }
+                    Err(e) => {
+                        first_err = Some(e);
+                        None
+                    }
                 };
                 self.pl_into_mode = false;
                 result
@@ -1018,7 +1006,10 @@ impl Parser {
                         stmt.hints = merged;
                         Some(crate::ast::Statement::Update(crate::ast::Spanned::new(stmt, None)))
                     }
-                    Err(e) => { first_err = Some(e); None }
+                    Err(e) => {
+                        first_err = Some(e);
+                        None
+                    }
                 };
                 self.pl_into_mode = false;
                 result
@@ -1033,7 +1024,10 @@ impl Parser {
                         stmt.hints = merged;
                         Some(crate::ast::Statement::Delete(crate::ast::Spanned::new(stmt, None)))
                     }
-                    Err(e) => { first_err = Some(e); None }
+                    Err(e) => {
+                        first_err = Some(e);
+                        None
+                    }
                 };
                 self.pl_into_mode = false;
                 result
@@ -1047,7 +1041,10 @@ impl Parser {
                         stmt.hints = merged;
                         Some(crate::ast::Statement::Merge(crate::ast::Spanned::new(stmt, None)))
                     }
-                    Err(e) => { first_err = Some(e); None }
+                    Err(e) => {
+                        first_err = Some(e);
+                        None
+                    }
                 }
             }
             _ => None,
@@ -1056,7 +1053,8 @@ impl Parser {
         match result {
             Some(stmt) => {
                 let before_dml = self.errors.split_off(saved_error_count);
-                let kept: Vec<_> = before_dml.into_iter()
+                let kept: Vec<_> = before_dml
+                    .into_iter()
                     .filter(|e| !matches!(e, ParserError::ReservedKeywordAsIdentifier { .. }))
                     .collect();
                 self.errors.extend(kept);
@@ -1103,18 +1101,19 @@ impl Parser {
         let saved_error_count = self.errors.len();
 
         let result = match self.peek() {
-            Token::Keyword(Keyword::SELECT) => {
-                match self.parse_select_statement() {
-                    Ok(stmt) => Some(crate::ast::Statement::Select(crate::ast::Spanned::new(stmt, None))),
-                    Err(_) => None,
-                }
-            }
+            Token::Keyword(Keyword::SELECT) => match self.parse_select_statement() {
+                Ok(stmt) => Some(crate::ast::Statement::Select(crate::ast::Spanned::new(stmt, None))),
+                Err(_) => None,
+            },
             Token::Keyword(Keyword::WITH) => {
                 if self.is_with_dml_at(self.pos) {
                     // WITH ... INSERT/UPDATE/DELETE pattern
                     let with = match self.parse_with_clause() {
                         Ok(Some(w)) => w,
-                        _ => { self.pos = save_pos; return None; }
+                        _ => {
+                            self.pos = save_pos;
+                            return None;
+                        }
                     };
                     match self.peek_keyword() {
                         Some(Keyword::INSERT) => {
@@ -1124,7 +1123,10 @@ impl Parser {
                                     stmt.with = Some(with);
                                     Some(crate::ast::Statement::Insert(crate::ast::Spanned::new(stmt, None)))
                                 }
-                                Err(_) => { self.pos = save_pos; None }
+                                Err(_) => {
+                                    self.pos = save_pos;
+                                    None
+                                }
                             }
                         }
                         Some(Keyword::UPDATE) => {
@@ -1134,7 +1136,10 @@ impl Parser {
                                     stmt.with = Some(with);
                                     Some(crate::ast::Statement::Update(crate::ast::Spanned::new(stmt, None)))
                                 }
-                                Err(_) => { self.pos = save_pos; None }
+                                Err(_) => {
+                                    self.pos = save_pos;
+                                    None
+                                }
                             }
                         }
                         Some(Keyword::DELETE_P) => {
@@ -1144,10 +1149,16 @@ impl Parser {
                                     stmt.with = Some(with);
                                     Some(crate::ast::Statement::Delete(crate::ast::Spanned::new(stmt, None)))
                                 }
-                                Err(_) => { self.pos = save_pos; None }
+                                Err(_) => {
+                                    self.pos = save_pos;
+                                    None
+                                }
                             }
                         }
-                        _ => { self.pos = save_pos; None }
+                        _ => {
+                            self.pos = save_pos;
+                            None
+                        }
                     }
                 } else {
                     // Plain WITH ... SELECT (CTE)
@@ -1157,12 +1168,10 @@ impl Parser {
                     }
                 }
             }
-            Token::LParen if self.looks_like_parenthesized_query() => {
-                match self.parse_select_statement() {
-                    Ok(stmt) => Some(crate::ast::Statement::Select(crate::ast::Spanned::new(stmt, None))),
-                    Err(_) => None,
-                }
-            }
+            Token::LParen if self.looks_like_parenthesized_query() => match self.parse_select_statement() {
+                Ok(stmt) => Some(crate::ast::Statement::Select(crate::ast::Spanned::new(stmt, None))),
+                Err(_) => None,
+            },
             Token::Keyword(Keyword::INSERT) => {
                 self.advance();
                 match self.parse_insert() {
@@ -1253,10 +1262,10 @@ impl Parser {
 
         arguments.retain(|a| !matches!(a, Expr::Default));
 
-        Some(PlStatement::ProcedureCall(Spanned::new(PlProcedureCall {
-            name,
-            arguments,
-        }, Some(SourceSpan { start, end: self.prev_location() }))))
+        Some(PlStatement::ProcedureCall(Spanned::new(
+            PlProcedureCall { name, arguments },
+            Some(SourceSpan { start, end: self.prev_location() }),
+        )))
     }
 
     fn try_parse_pl_procedure_call_from_name(&mut self, name_str: String) -> Option<PlStatement> {
@@ -1288,10 +1297,10 @@ impl Parser {
 
         arguments.retain(|a| !matches!(a, Expr::Default));
 
-        Some(PlStatement::ProcedureCall(Spanned::new(PlProcedureCall {
-            name: ObjectName::from(vec![name_str]),
-            arguments,
-        }, Some(SourceSpan { start, end: self.prev_location() }))))
+        Some(PlStatement::ProcedureCall(Spanned::new(
+            PlProcedureCall { name: ObjectName::from(vec![name_str]), arguments },
+            Some(SourceSpan { start, end: self.prev_location() }),
+        )))
     }
 
     fn lookahead_is_transaction(&self) -> bool {
@@ -1300,7 +1309,9 @@ impl Parser {
         }
         match &self.tokens[self.pos + 1] {
             crate::token::TokenWithSpan { token: Token::Ident(s), .. } => s.eq_ignore_ascii_case("transaction"),
-            crate::token::TokenWithSpan { token: Token::Keyword(kw), .. } => kw.as_str().eq_ignore_ascii_case("transaction"),
+            crate::token::TokenWithSpan { token: Token::Keyword(kw), .. } => {
+                kw.as_str().eq_ignore_ascii_case("transaction")
+            }
             _ => false,
         }
     }
@@ -1375,9 +1386,7 @@ impl Parser {
                 self.try_consume_semicolon();
                 let target = if name_parts.len() == 1 {
                     let name = &name_parts[0];
-                    if !self.scope_stack.is_empty()
-                        && self.is_var_declared(&name.to_lowercase())
-                    {
+                    if !self.scope_stack.is_empty() && self.is_var_declared(&name.to_lowercase()) {
                         Expr::PlVariable(ObjectName::from(name_parts))
                     } else {
                         Expr::ColumnRef(ObjectName::from(name_parts))
@@ -1419,10 +1428,7 @@ impl Parser {
             let elsif_cond = self.parse_expr()?;
             self.expect_ident_str("then")?;
             let elsif_stmts = self.parse_pl_statements_until(&["elsif", "else"])?;
-            elsifs.push(PlElsif {
-                condition: elsif_cond,
-                stmts: elsif_stmts,
-            });
+            elsifs.push(PlElsif { condition: elsif_cond, stmts: elsif_stmts });
         }
 
         let else_stmts = if self.match_ident_str("else") {
@@ -1436,23 +1442,17 @@ impl Parser {
         self.expect_ident_str("if")?;
         self.try_consume_semicolon();
 
-        Ok(PlStatement::If(Spanned::new(PlIfStmt {
-            condition,
-            then_stmts,
-            elsifs,
-            else_stmts,
-        }, Some(SourceSpan { start, end: self.prev_location() }))))
+        Ok(PlStatement::If(Spanned::new(
+            PlIfStmt { condition, then_stmts, elsifs, else_stmts },
+            Some(SourceSpan { start, end: self.prev_location() }),
+        )))
     }
 
     fn parse_pl_case(&mut self) -> Result<PlStatement, ParserError> {
         let start = self.current_location();
         self.advance();
 
-        let expression = if self.match_ident_str("when") {
-            None
-        } else {
-            Some(self.parse_expr()?)
-        };
+        let expression = if self.match_ident_str("when") { None } else { Some(self.parse_expr()?) };
 
         let mut whens = Vec::new();
         while self.match_ident_str("when") {
@@ -1474,11 +1474,10 @@ impl Parser {
         self.expect_ident_str("case")?;
         self.try_consume_semicolon();
 
-        Ok(PlStatement::Case(Spanned::new(PlCaseStmt {
-            expression,
-            whens,
-            else_stmts,
-        }, Some(SourceSpan { start, end: self.prev_location() }))))
+        Ok(PlStatement::Case(Spanned::new(
+            PlCaseStmt { expression, whens, else_stmts },
+            Some(SourceSpan { start, end: self.prev_location() }),
+        )))
     }
 
     fn parse_pl_loop(&mut self) -> Result<PlStatement, ParserError> {
@@ -1490,11 +1489,10 @@ impl Parser {
         let end_label = self.try_parse_pl_label();
         self.try_consume_semicolon();
 
-        Ok(PlStatement::Loop(Spanned::new(PlLoopStmt {
-            label: None,
-            body,
-            end_label,
-        }, Some(SourceSpan { start, end: self.prev_location() }))))
+        Ok(PlStatement::Loop(Spanned::new(
+            PlLoopStmt { label: None, body, end_label },
+            Some(SourceSpan { start, end: self.prev_location() }),
+        )))
     }
 
     fn parse_pl_while(&mut self) -> Result<PlStatement, ParserError> {
@@ -1508,12 +1506,10 @@ impl Parser {
         let end_label = self.try_parse_pl_label();
         self.try_consume_semicolon();
 
-        Ok(PlStatement::While(Spanned::new(PlWhileStmt {
-            label: None,
-            condition,
-            body,
-            end_label,
-        }, Some(SourceSpan { start, end: self.prev_location() }))))
+        Ok(PlStatement::While(Spanned::new(
+            PlWhileStmt { label: None, condition, body, end_label },
+            Some(SourceSpan { start, end: self.prev_location() }),
+        )))
     }
 
     fn parse_pl_for(&mut self) -> Result<PlStatement, ParserError> {
@@ -1537,13 +1533,10 @@ impl Parser {
         let end_label = self.try_parse_pl_label();
         self.try_consume_semicolon();
 
-        Ok(PlStatement::For(Spanned::new(PlForStmt {
-            label: None,
-            variable,
-            kind,
-            body,
-            end_label,
-        }, Some(SourceSpan { start, end: self.prev_location() }))))
+        Ok(PlStatement::For(Spanned::new(
+            PlForStmt { label: None, variable, kind, body, end_label },
+            Some(SourceSpan { start, end: self.prev_location() }),
+        )))
     }
 
     fn parse_pl_for_kind(&mut self) -> Result<PlForKind, ParserError> {
@@ -1576,11 +1569,7 @@ impl Parser {
                     (self.collect_until_ident_str("loop")?, None)
                 }
             };
-            return Ok(PlForKind::Query {
-                query,
-                parsed_query,
-                using_args: Vec::new(),
-            });
+            return Ok(PlForKind::Query { query, parsed_query, using_args: Vec::new() });
         }
 
         // Handle parenthesized query: FOR var IN (SELECT ... | WITH ...) LOOP
@@ -1588,21 +1577,15 @@ impl Parser {
             let save_pos = self.pos;
             self.advance(); // consume (
 
-            let is_query = matches!(
-                self.peek_keyword(),
-                Some(Keyword::SELECT) | Some(Keyword::WITH)
-            ) || self.looks_like_parenthesized_query();
+            let is_query = matches!(self.peek_keyword(), Some(Keyword::SELECT) | Some(Keyword::WITH))
+                || self.looks_like_parenthesized_query();
 
             if is_query {
                 if let Some(stmt) = self.try_parse_dml_statement() {
                     if matches!(self.peek(), Token::RParen) {
                         self.advance(); // consume )
                         let raw = self.tokens_to_raw_string(save_pos, self.pos);
-                        return Ok(PlForKind::Query {
-                            query: raw,
-                            parsed_query: Some(stmt),
-                            using_args: Vec::new(),
-                        });
+                        return Ok(PlForKind::Query { query: raw, parsed_query: Some(stmt), using_args: Vec::new() });
                     }
                 }
                 let err_loc = self.current_location();
@@ -1622,11 +1605,7 @@ impl Parser {
                                     expected: "valid query in FOR-IN-SELECT".to_string(),
                                     got: "unparseable query".to_string(),
                                 });
-                                return Ok(PlForKind::Query {
-                                    query: raw,
-                                    parsed_query: None,
-                                    using_args: Vec::new(),
-                                });
+                                return Ok(PlForKind::Query { query: raw, parsed_query: None, using_args: Vec::new() });
                             }
                         }
                         _ => {}
@@ -1642,17 +1621,12 @@ impl Parser {
         let saved_pos = self.pos;
         if let Ok(name) = self.parse_identifier() {
             if self.match_ident_str("loop") {
-                let cursor_name = if !self.scope_stack.is_empty()
-                    && self.is_var_declared(&name.to_lowercase())
-                {
+                let cursor_name = if !self.scope_stack.is_empty() && self.is_var_declared(&name.to_lowercase()) {
                     Expr::PlVariable(ObjectName::from(vec![name]))
                 } else {
                     Expr::ColumnRef(ObjectName::from(vec![name]))
                 };
-                return Ok(PlForKind::Cursor {
-                    cursor_name,
-                    arguments: Vec::new(),
-                });
+                return Ok(PlForKind::Cursor { cursor_name, arguments: Vec::new() });
             }
             if matches!(self.peek(), Token::LParen) {
                 let cursor_check = self.pos;
@@ -1691,17 +1665,12 @@ impl Parser {
                         }
                     }
                     self.expect_token(&Token::RParen)?;
-                    let cursor_name = if !self.scope_stack.is_empty()
-                        && self.is_var_declared(&name.to_lowercase())
-                    {
+                    let cursor_name = if !self.scope_stack.is_empty() && self.is_var_declared(&name.to_lowercase()) {
                         Expr::PlVariable(ObjectName::from(vec![name]))
                     } else {
                         Expr::ColumnRef(ObjectName::from(vec![name]))
                     };
-                    return Ok(PlForKind::Cursor {
-                        cursor_name,
-                        arguments,
-                    });
+                    return Ok(PlForKind::Cursor { cursor_name, arguments });
                 }
             }
             self.pos = saved_pos;
@@ -1720,12 +1689,7 @@ impl Parser {
             None
         };
 
-        Ok(PlForKind::Range {
-            low,
-            high,
-            step,
-            reverse,
-        })
+        Ok(PlForKind::Range { low, high, step, reverse })
     }
 
     fn parse_pl_foreach(&mut self) -> Result<PlStatement, ParserError> {
@@ -1761,22 +1725,16 @@ impl Parser {
         let end_label = self.try_parse_pl_label();
         self.try_consume_semicolon();
 
-        Ok(PlStatement::ForEach(Spanned::new(PlForEachStmt {
-            label: None,
-            variable,
-            expression,
-            slice,
-            body,
-            end_label,
-        }, Some(SourceSpan { start, end: self.prev_location() }))))
+        Ok(PlStatement::ForEach(Spanned::new(
+            PlForEachStmt { label: None, variable, expression, slice, body, end_label },
+            Some(SourceSpan { start, end: self.prev_location() }),
+        )))
     }
 
     fn parse_pl_exit(&mut self) -> Result<PlStatement, ParserError> {
         self.advance();
 
-        let label = if !matches!(self.peek(), Token::Semicolon | Token::Eof)
-            && !self.match_ident_str("when")
-        {
+        let label = if !matches!(self.peek(), Token::Semicolon | Token::Eof) && !self.match_ident_str("when") {
             Some(self.parse_identifier()?)
         } else {
             None
@@ -1796,9 +1754,7 @@ impl Parser {
     fn parse_pl_continue(&mut self) -> Result<PlStatement, ParserError> {
         self.advance();
 
-        let label = if !matches!(self.peek(), Token::Semicolon | Token::Eof)
-            && !self.match_ident_str("when")
-        {
+        let label = if !matches!(self.peek(), Token::Semicolon | Token::Eof) && !self.match_ident_str("when") {
             Some(self.parse_identifier()?)
         } else {
             None
@@ -1849,10 +1805,7 @@ impl Parser {
                         } else {
                             PlUsingMode::In
                         };
-                        using_args.push(PlUsingArg {
-                            mode,
-                            argument: self.parse_expr()?,
-                        });
+                        using_args.push(PlUsingArg { mode, argument: self.parse_expr()? });
                         if self.match_token(&Token::Comma) {
                             self.advance();
                         } else {
@@ -1861,40 +1814,41 @@ impl Parser {
                     }
                 }
                 self.try_consume_semicolon();
-                return Ok(PlStatement::ReturnQuery(Spanned::new(PlReturnQueryStmt {
-                    query: String::new(),
-                    is_dynamic: true,
-                    dynamic_expr: Some(dynamic_expr),
-                    using_args,
-                }, Some(SourceSpan { start, end: self.prev_location() }))));
+                return Ok(PlStatement::ReturnQuery(Spanned::new(
+                    PlReturnQueryStmt {
+                        query: String::new(),
+                        is_dynamic: true,
+                        dynamic_expr: Some(dynamic_expr),
+                        using_args,
+                    },
+                    Some(SourceSpan { start, end: self.prev_location() }),
+                )));
             } else {
                 let save_pos = self.pos;
-                if let Some(stmt) = self.try_parse_dml_statement() {
+                if let Some(_stmt) = self.try_parse_dml_statement() {
                     let raw = self.tokens_to_raw_string(save_pos, self.pos);
                     self.try_consume_semicolon();
-                    return Ok(PlStatement::ReturnQuery(Spanned::new(PlReturnQueryStmt {
-                        query: raw,
-                        is_dynamic: false,
-                        dynamic_expr: None,
-                        using_args: Vec::new(),
-                    }, Some(SourceSpan { start, end: self.prev_location() }))));
+                    return Ok(PlStatement::ReturnQuery(Spanned::new(
+                        PlReturnQueryStmt { query: raw, is_dynamic: false, dynamic_expr: None, using_args: Vec::new() },
+                        Some(SourceSpan { start, end: self.prev_location() }),
+                    )));
                 }
                 let expr = self.parse_expr()?;
                 self.try_consume_semicolon();
-                return Ok(PlStatement::ReturnQuery(Spanned::new(PlReturnQueryStmt {
-                    query: String::new(),
-                    is_dynamic: false,
-                    dynamic_expr: Some(expr),
-                    using_args: Vec::new(),
-                }, Some(SourceSpan { start, end: self.prev_location() }))));
+                return Ok(PlStatement::ReturnQuery(Spanned::new(
+                    PlReturnQueryStmt {
+                        query: String::new(),
+                        is_dynamic: false,
+                        dynamic_expr: Some(expr),
+                        using_args: Vec::new(),
+                    },
+                    Some(SourceSpan { start, end: self.prev_location() }),
+                )));
             }
         }
 
-        let expression = if matches!(self.peek(), Token::Semicolon | Token::Eof) {
-            None
-        } else {
-            Some(self.parse_expr()?)
-        };
+        let expression =
+            if matches!(self.peek(), Token::Semicolon | Token::Eof) { None } else { Some(self.parse_expr()?) };
 
         self.try_consume_semicolon();
         Ok(PlStatement::Return { expression })
@@ -1907,14 +1861,17 @@ impl Parser {
         // Form 1: RAISE; (re-raise in exception handler)
         if matches!(self.peek(), Token::Semicolon) {
             self.advance();
-            return Ok(PlStatement::Raise(Spanned::new(PlRaiseStmt {
-                level: None,
-                message: None,
-                params: Vec::new(),
-                options: Vec::new(),
-                condname: None,
-                sqlstate: None,
-            }, Some(SourceSpan { start, end: self.prev_location() }))));
+            return Ok(PlStatement::Raise(Spanned::new(
+                PlRaiseStmt {
+                    level: None,
+                    message: None,
+                    params: Vec::new(),
+                    options: Vec::new(),
+                    condname: None,
+                    sqlstate: None,
+                },
+                Some(SourceSpan { start, end: self.prev_location() }),
+            )));
         }
 
         let level = if self.match_ident_str("debug") {
@@ -1940,14 +1897,17 @@ impl Parser {
         // Form 2: RAISE level; (level-only raise)
         if matches!(self.peek(), Token::Semicolon) && level.is_some() {
             self.advance();
-            return Ok(PlStatement::Raise(Spanned::new(PlRaiseStmt {
-                level,
-                message: None,
-                params: Vec::new(),
-                options: Vec::new(),
-                condname: None,
-                sqlstate: None,
-            }, Some(SourceSpan { start, end: self.prev_location() }))));
+            return Ok(PlStatement::Raise(Spanned::new(
+                PlRaiseStmt {
+                    level,
+                    message: None,
+                    params: Vec::new(),
+                    options: Vec::new(),
+                    condname: None,
+                    sqlstate: None,
+                },
+                Some(SourceSpan { start, end: self.prev_location() }),
+            )));
         }
 
         // Form 3: RAISE condition_name; (condition name without level)
@@ -1956,14 +1916,17 @@ impl Parser {
             if let Ok(name) = self.parse_identifier() {
                 if matches!(self.peek(), Token::Semicolon) {
                     self.try_consume_semicolon();
-                    return Ok(PlStatement::Raise(Spanned::new(PlRaiseStmt {
-                        level: None,
-                        message: None,
-                        params: Vec::new(),
-                        options: Vec::new(),
-                        condname: Some(name),
-                        sqlstate: None,
-                    }, Some(SourceSpan { start, end: self.prev_location() }))));
+                    return Ok(PlStatement::Raise(Spanned::new(
+                        PlRaiseStmt {
+                            level: None,
+                            message: None,
+                            params: Vec::new(),
+                            options: Vec::new(),
+                            condname: Some(name),
+                            sqlstate: None,
+                        },
+                        Some(SourceSpan { start, end: self.prev_location() }),
+                    )));
                 }
             }
             self.pos = save_pos;
@@ -1974,14 +1937,10 @@ impl Parser {
             self.advance();
             let options = self.parse_raise_options()?;
             self.try_consume_semicolon();
-            return Ok(PlStatement::Raise(Spanned::new(PlRaiseStmt {
-                level,
-                message: None,
-                params: Vec::new(),
-                options,
-                condname: None,
-                sqlstate: None,
-            }, Some(SourceSpan { start, end: self.prev_location() }))));
+            return Ok(PlStatement::Raise(Spanned::new(
+                PlRaiseStmt { level, message: None, params: Vec::new(), options, condname: None, sqlstate: None },
+                Some(SourceSpan { start, end: self.prev_location() }),
+            )));
         }
 
         // Form 5: RAISE [level] 'format', param1, param2 [USING option = expr, ...]
@@ -2008,14 +1967,10 @@ impl Parser {
 
         self.try_consume_semicolon();
 
-        Ok(PlStatement::Raise(Spanned::new(PlRaiseStmt {
-            level,
-            message: Some(message),
-            params,
-            options,
-            condname: None,
-            sqlstate: None,
-        }, Some(SourceSpan { start, end: self.prev_location() }))))
+        Ok(PlStatement::Raise(Spanned::new(
+            PlRaiseStmt { level, message: Some(message), params, options, condname: None, sqlstate: None },
+            Some(SourceSpan { start, end: self.prev_location() }),
+        )))
     }
 
     fn parse_raise_options(&mut self) -> Result<Vec<RaiseOption>, ParserError> {
@@ -2024,10 +1979,7 @@ impl Parser {
             let opt_name = self.parse_identifier()?;
             self.expect_token(&Token::Eq)?;
             let opt_value = self.parse_expr()?;
-            options.push(RaiseOption {
-                name: opt_name,
-                value: opt_value,
-            });
+            options.push(RaiseOption { name: opt_name, value: opt_value });
             if self.match_token(&Token::Comma) {
                 self.advance();
             } else {
@@ -2047,9 +1999,7 @@ impl Parser {
 
         let parsed_query = match &string_expr {
             Expr::Literal(Literal::String(s)) => Self::parse_statement_from_str(s),
-            Expr::Literal(Literal::DollarString { body, .. }) => {
-                Self::parse_statement_from_str(body)
-            }
+            Expr::Literal(Literal::DollarString { body, .. }) => Self::parse_statement_from_str(body),
             _ => None,
         };
 
@@ -2084,10 +2034,7 @@ impl Parser {
                 } else {
                     PlUsingMode::In
                 };
-                using_args.push(PlUsingArg {
-                    mode,
-                    argument: self.parse_expr()?,
-                });
+                using_args.push(PlUsingArg { mode, argument: self.parse_expr()? });
                 if self.match_token(&Token::Comma) {
                     self.advance();
                 } else {
@@ -2098,13 +2045,10 @@ impl Parser {
 
         self.try_consume_semicolon();
 
-        Ok(PlStatement::Execute(Spanned::new(PlExecuteStmt {
-            immediate,
-            string_expr,
-            into_targets,
-            using_args,
-            parsed_query,
-        }, Some(SourceSpan { start, end: self.prev_location() }))))
+        Ok(PlStatement::Execute(Spanned::new(
+            PlExecuteStmt { immediate, string_expr, into_targets, using_args, parsed_query },
+            Some(SourceSpan { start, end: self.prev_location() }),
+        )))
     }
 
     fn parse_pl_perform(&mut self) -> Result<PlStatement, ParserError> {
@@ -2169,7 +2113,7 @@ impl Parser {
             }
         };
 
-        if let Err(_) = self.expect_token(&Token::LParen) {
+        if self.expect_token(&Token::LParen).is_err() {
             self.pos = save_pos;
             let sql = self.skip_to_semicolon_or_keyword();
             return Ok(PlStatement::Sql(sql));
@@ -2194,7 +2138,7 @@ impl Parser {
             }
         }
 
-        if let Err(_) = self.expect_token(&Token::RParen) {
+        if self.expect_token(&Token::RParen).is_err() {
             self.pos = save_pos;
             let sql = self.skip_to_semicolon_or_keyword();
             return Ok(PlStatement::Sql(sql));
@@ -2204,10 +2148,10 @@ impl Parser {
 
         self.try_consume_semicolon();
 
-        Ok(PlStatement::ProcedureCall(Spanned::new(PlProcedureCall {
-            name,
-            arguments,
-        }, Some(SourceSpan { start, end: self.prev_location() }))))
+        Ok(PlStatement::ProcedureCall(Spanned::new(
+            PlProcedureCall { name, arguments },
+            Some(SourceSpan { start, end: self.prev_location() }),
+        )))
     }
 
     fn parse_pl_open(&mut self) -> Result<PlStatement, ParserError> {
@@ -2289,21 +2233,18 @@ impl Parser {
                             (self.skip_to_semicolon_or_keyword(), None)
                         }
                     };
-                    PlOpenKind::ForQuery {
-                        scroll,
-                        query,
-                        parsed_query,
-                    }
+                    PlOpenKind::ForQuery { scroll, query, parsed_query }
                 }
             } else {
-                PlOpenKind::Simple {
-                    arguments: Vec::new(),
-                }
+                PlOpenKind::Simple { arguments: Vec::new() }
             }
         };
 
         self.try_consume_semicolon();
-        Ok(PlStatement::Open(Spanned::new(PlOpenStmt { cursor, kind }, Some(SourceSpan { start, end: self.prev_location() }))))
+        Ok(PlStatement::Open(Spanned::new(
+            PlOpenStmt { cursor, kind },
+            Some(SourceSpan { start, end: self.prev_location() }),
+        )))
     }
 
     fn parse_pl_fetch(&mut self) -> Result<PlStatement, ParserError> {
@@ -2347,12 +2288,10 @@ impl Parser {
         }
         self.try_consume_semicolon();
 
-        Ok(PlStatement::Fetch(Spanned::new(PlFetchStmt {
-            cursor,
-            direction,
-            bulk_collect,
-            into: into_vars,
-        }, Some(SourceSpan { start, end: self.prev_location() }))))
+        Ok(PlStatement::Fetch(Spanned::new(
+            PlFetchStmt { cursor, direction, bulk_collect, into: into_vars },
+            Some(SourceSpan { start, end: self.prev_location() }),
+        )))
     }
 
     fn parse_pl_cursor_direction(&mut self) -> Result<FetchDirection, ParserError> {
@@ -2477,9 +2416,7 @@ impl Parser {
         let mut items = Vec::new();
         loop {
             let target_name = self.parse_identifier()?;
-            let target = if !self.scope_stack.is_empty()
-                && self.is_var_declared(&target_name.to_lowercase())
-            {
+            let target = if !self.scope_stack.is_empty() && self.is_var_declared(&target_name.to_lowercase()) {
                 Expr::PlVariable(ObjectName::from(vec![target_name]))
             } else {
                 Expr::ColumnRef(ObjectName::from(vec![target_name]))
@@ -2518,10 +2455,10 @@ impl Parser {
         }
 
         self.try_consume_semicolon();
-        Ok(PlStatement::GetDiagnostics(Spanned::new(PlGetDiagStmt {
-            stacked,
-            items,
-        }, Some(SourceSpan { start, end: self.prev_location() }))))
+        Ok(PlStatement::GetDiagnostics(Spanned::new(
+            PlGetDiagStmt { stacked, items },
+            Some(SourceSpan { start, end: self.prev_location() }),
+        )))
     }
 
     fn parse_pl_rollback(&mut self) -> Result<PlStatement, ParserError> {
@@ -2615,12 +2552,10 @@ impl Parser {
 
         self.try_consume_semicolon();
 
-        Ok(PlStatement::ForAll(Spanned::new(PlForAllStmt {
-            variable,
-            bounds: bounds.trim().to_string(),
-            save_exceptions,
-            body: String::new(),
-        }, Some(SourceSpan { start, end: self.prev_location() }))))
+        Ok(PlStatement::ForAll(Spanned::new(
+            PlForAllStmt { variable, bounds: bounds.trim().to_string(), save_exceptions, body: String::new() },
+            Some(SourceSpan { start, end: self.prev_location() }),
+        )))
     }
 
     fn parse_pl_pipe_row(&mut self) -> Result<PlStatement, ParserError> {
@@ -2663,10 +2598,7 @@ impl Parser {
             self.expect_ident_str("then")?;
             let statements = self.parse_pl_statements_until(&["when"])?;
 
-            handlers.push(PlExceptionHandler {
-                conditions,
-                statements,
-            });
+            handlers.push(PlExceptionHandler { conditions, statements });
         }
         Ok(PlExceptionBlock { handlers })
     }
@@ -2793,17 +2725,7 @@ impl Parser {
 }
 
 fn is_pl_terminator(p: &Parser) -> bool {
-    let terminators = [
-        "begin",
-        "end",
-        "exception",
-        "when",
-        "then",
-        "else",
-        "elsif",
-        "loop",
-        "declare",
-    ];
+    let terminators = ["begin", "end", "exception", "when", "then", "else", "elsif", "loop", "declare"];
     terminators.iter().any(|t| p.match_ident_str(t))
 }
 
@@ -2840,13 +2762,16 @@ fn attach_label(stmt: PlStatement, label: Option<String>) -> PlStatement {
         }
         // Standalone label before non-control statement: wrap in a labeled Block
         // so the label is preserved in the AST for GOTO target analysis.
-        other => PlStatement::Block(Spanned::new(PlBlock {
-            label: Some(label),
-            declarations: Vec::new(),
-            body: vec![other],
-            exception_block: None,
-            end_label: None,
-        }, None)),
+        other => PlStatement::Block(Spanned::new(
+            PlBlock {
+                label: Some(label),
+                declarations: Vec::new(),
+                body: vec![other],
+                exception_block: None,
+                end_label: None,
+            },
+            None,
+        )),
     }
 }
 
@@ -2943,18 +2868,10 @@ impl Parser {
         }
 
         self.pop_scope();
-        Ok(PlBlock {
-            label: None,
-            declarations,
-            body,
-            exception_block,
-            end_label: None,
-        })
+        Ok(PlBlock { label: None, declarations, body, exception_block, end_label: None })
     }
 
-    pub(crate) fn parse_pl_declarations_until_begin(
-        &mut self,
-    ) -> Result<Vec<PlDeclaration>, ParserError> {
+    pub(crate) fn parse_pl_declarations_until_begin(&mut self) -> Result<Vec<PlDeclaration>, ParserError> {
         let mut declarations = Vec::new();
         while !self.match_keyword(Keyword::BEGIN_P) && !matches!(self.peek(), Token::Eof) {
             if self.match_ident_str("procedure") {
@@ -3102,12 +3019,7 @@ impl Parser {
                 self.advance();
                 n
             }
-            _ => {
-                return PlDeclaration::Pragma {
-                    name: String::new(),
-                    arguments: String::new(),
-                }
-            }
+            _ => return PlDeclaration::Pragma { name: String::new(), arguments: String::new() },
         };
 
         let arguments = if self.match_token(&Token::LParen) {

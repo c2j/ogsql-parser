@@ -170,23 +170,18 @@ impl Parser {
         }
         let mut with_admin_option = false;
         let mut granted_by = None;
-        if self.try_consume_keyword(Keyword::WITH) {
-            if self.match_keyword(Keyword::ADMIN) || self.match_ident_str("ADMIN") {
-                self.advance();
-                self.expect_keyword(Keyword::OPTION)?;
-                with_admin_option = true;
-            }
+        if self.try_consume_keyword(Keyword::WITH)
+            && (self.match_keyword(Keyword::ADMIN) || self.match_ident_str("ADMIN"))
+        {
+            self.advance();
+            self.expect_keyword(Keyword::OPTION)?;
+            with_admin_option = true;
         }
         if self.try_consume_keyword(Keyword::GRANTED) {
             self.expect_keyword(Keyword::BY)?;
             granted_by = Some(self.parse_identifier()?);
         }
-        Ok(GrantRoleStatement {
-            roles,
-            grantees,
-            with_admin_option,
-            granted_by,
-        })
+        Ok(GrantRoleStatement { roles, grantees, with_admin_option, granted_by })
     }
 
     pub(crate) fn parse_revoke_role(&mut self) -> Result<RevokeRoleStatement, ParserError> {
@@ -210,18 +205,12 @@ impl Parser {
             granted_by = Some(self.parse_identifier()?);
         }
         let cascade = self.try_consume_keyword(Keyword::CASCADE);
-        Ok(RevokeRoleStatement {
-            roles,
-            grantees,
-            granted_by,
-            cascade,
-        })
+        Ok(RevokeRoleStatement { roles, grantees, granted_by, cascade })
     }
 
     pub(crate) fn parse_grant(&mut self) -> Result<GrantStatement, ParserError> {
         let mut privileges = Vec::new();
-        let target;
-        let grantees;
+
         let mut with_grant_option = false;
         let mut granted_by = None;
 
@@ -229,18 +218,16 @@ impl Parser {
 
         self.expect_keyword(Keyword::ON)?;
 
-        target = self.parse_grant_target()?;
+        let target = self.parse_grant_target()?;
 
         self.expect_keyword(Keyword::TO)?;
 
-        grantees = self.parse_grantee_list()?;
+        let grantees = self.parse_grantee_list()?;
 
-        if self.try_consume_keyword(Keyword::WITH) {
-            if self.match_keyword(Keyword::GRANT) {
-                self.advance();
-                self.expect_keyword(Keyword::OPTION)?;
-                with_grant_option = true;
-            }
+        if self.try_consume_keyword(Keyword::WITH) && self.match_keyword(Keyword::GRANT) {
+            self.advance();
+            self.expect_keyword(Keyword::OPTION)?;
+            with_grant_option = true;
         }
 
         if self.try_consume_keyword(Keyword::GRANTED) {
@@ -248,19 +235,12 @@ impl Parser {
             granted_by = Some(self.parse_identifier()?);
         }
 
-        Ok(GrantStatement {
-            privileges,
-            target,
-            grantees,
-            with_grant_option,
-            granted_by,
-        })
+        Ok(GrantStatement { privileges, target, grantees, with_grant_option, granted_by })
     }
 
     pub(crate) fn parse_revoke(&mut self) -> Result<RevokeStatement, ParserError> {
         let mut privileges = Vec::new();
-        let target;
-        let grantees;
+
         let mut cascade = false;
         let mut granted_by = None;
 
@@ -268,11 +248,11 @@ impl Parser {
 
         self.expect_keyword(Keyword::ON)?;
 
-        target = self.parse_grant_target()?;
+        let target = self.parse_grant_target()?;
 
         self.expect_keyword(Keyword::FROM)?;
 
-        grantees = self.parse_grantee_list()?;
+        let grantees = self.parse_grantee_list()?;
 
         if self.match_keyword(Keyword::CASCADE) {
             self.advance();
@@ -286,13 +266,7 @@ impl Parser {
             granted_by = Some(self.parse_identifier()?);
         }
 
-        Ok(RevokeStatement {
-            privileges,
-            target,
-            grantees,
-            cascade,
-            granted_by,
-        })
+        Ok(RevokeStatement { privileges, target, grantees, cascade, granted_by })
     }
 
     fn parse_privileges(&mut self) -> Result<Vec<Privilege>, ParserError> {
@@ -435,7 +409,7 @@ impl Parser {
     fn parse_grant_target(&mut self) -> Result<GrantTarget, ParserError> {
         if self.match_keyword(Keyword::ALL) {
             self.advance();
-            let what = match self.peek_keyword() {
+            match self.peek_keyword() {
                 Some(Keyword::TABLES) => {
                     self.advance();
                     self.expect_keyword(Keyword::IN_P)?;

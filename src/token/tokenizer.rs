@@ -15,10 +15,7 @@ pub enum TokenizerError {
     #[error("invalid character {0:?} at position {1}")]
     InvalidCharacter(char, usize),
     #[error("unexpected end of input at position {position}: expected {expected}")]
-    UnexpectedEof {
-        expected: String,
-        position: usize,
-    },
+    UnexpectedEof { expected: String, position: usize },
 }
 
 pub struct Tokenizer<'a> {
@@ -70,11 +67,7 @@ impl<'a> Tokenizer<'a> {
     }
 
     fn current_location(&self) -> SourceLocation {
-        SourceLocation {
-            line: self.line,
-            column: self.pos - self.line_start + 1,
-            offset: self.pos,
-        }
+        SourceLocation { line: self.line, column: self.pos - self.line_start + 1, offset: self.pos }
     }
 
     /// Tokenizes the input SQL into a vector of tokens with location metadata.
@@ -88,10 +81,7 @@ impl<'a> Tokenizer<'a> {
                 None => {
                     tokens.push(TokenWithSpan {
                         token: Token::Eof,
-                        span: Span {
-                            start: self.pos,
-                            end: self.pos,
-                        },
+                        span: Span { start: self.pos, end: self.pos },
                         location: self.current_location(),
                     });
                     return Ok(tokens);
@@ -220,7 +210,7 @@ impl<'a> Tokenizer<'a> {
     }
 
     fn skip_whitespace_in_token(&mut self) {
-        while self.peek().map_or(false, |c| c.is_ascii_whitespace()) {
+        while self.peek().is_some_and(|c| c.is_ascii_whitespace()) {
             self.advance();
         }
     }
@@ -308,10 +298,7 @@ impl<'a> Tokenizer<'a> {
             let start = self.pos;
             return Ok(Some(TokenWithSpan {
                 token: Token::Hint(hint),
-                span: Span {
-                    start,
-                    end: self.pos,
-                },
+                span: Span { start, end: self.pos },
                 location: self.current_location(),
             }));
         }
@@ -320,10 +307,7 @@ impl<'a> Tokenizer<'a> {
             let start = self.pos;
             return Ok(Some(TokenWithSpan {
                 token: Token::Comment(comment),
-                span: Span {
-                    start,
-                    end: self.pos,
-                },
+                span: Span { start, end: self.pos },
                 location: self.current_location(),
             }));
         }
@@ -336,10 +320,7 @@ impl<'a> Tokenizer<'a> {
             let start = self.pos;
             return Ok(Some(TokenWithSpan {
                 token: Token::Hint(hint),
-                span: Span {
-                    start,
-                    end: self.pos,
-                },
+                span: Span { start, end: self.pos },
                 location: self.current_location(),
             }));
         }
@@ -348,10 +329,7 @@ impl<'a> Tokenizer<'a> {
             let start = self.pos;
             return Ok(Some(TokenWithSpan {
                 token: Token::Comment(comment),
-                span: Span {
-                    start,
-                    end: self.pos,
-                },
+                span: Span { start, end: self.pos },
                 location: self.current_location(),
             }));
         }
@@ -393,9 +371,7 @@ impl<'a> Tokenizer<'a> {
                     self.advance();
                     let s = self.scan_string()?;
                     Token::NationalString(s)
-                } else if self
-                    .peek_byte_at(1)
-                    .map_or(false, |b| b.is_ascii_whitespace())
+                } else if self.peek_byte_at(1).is_some_and(|b| b.is_ascii_whitespace())
                     && self.peek_byte_past_whitespace(2) == Some(b'\'')
                 {
                     self.advance();
@@ -415,9 +391,7 @@ impl<'a> Tokenizer<'a> {
                     self.advance();
                     let s = self.scan_escape_string()?;
                     Token::EscapeString(s)
-                } else if self
-                    .peek_byte_at(1)
-                    .map_or(false, |b| b.is_ascii_whitespace())
+                } else if self.peek_byte_at(1).is_some_and(|b| b.is_ascii_whitespace())
                     && self.peek_byte_past_whitespace(2) == Some(b'\'')
                 {
                     self.advance();
@@ -437,9 +411,7 @@ impl<'a> Tokenizer<'a> {
                     self.advance();
                     let s = self.scan_string()?;
                     Token::BitString(s)
-                } else if self
-                    .peek_byte_at(1)
-                    .map_or(false, |b| b.is_ascii_whitespace())
+                } else if self.peek_byte_at(1).is_some_and(|b| b.is_ascii_whitespace())
                     && self.peek_byte_past_whitespace(2) == Some(b'\'')
                 {
                     self.advance();
@@ -459,9 +431,7 @@ impl<'a> Tokenizer<'a> {
                     self.advance();
                     let s = self.scan_string()?;
                     Token::HexString(s)
-                } else if self
-                    .peek_byte_at(1)
-                    .map_or(false, |b| b.is_ascii_whitespace())
+                } else if self.peek_byte_at(1).is_some_and(|b| b.is_ascii_whitespace())
                     && self.peek_byte_past_whitespace(2) == Some(b'\'')
                 {
                     self.advance();
@@ -479,12 +449,8 @@ impl<'a> Tokenizer<'a> {
                 self.advance();
                 if self.peek() == Some('@') {
                     self.advance();
-                    if self.chars.peek().map_or(false, |c| {
-                        c.is_alphanumeric() || *c == '_' || *c == '.' || *c == '$'
-                    }) {
-                        let start = self.advance_while_pos(|c| {
-                            c.is_alphanumeric() || c == '_' || c == '.' || c == '$'
-                        });
+                    if self.chars.peek().is_some_and(|c| c.is_alphanumeric() || *c == '_' || *c == '.' || *c == '$') {
+                        let start = self.advance_while_pos(|c| c.is_alphanumeric() || c == '_' || c == '.' || c == '$');
                         Token::SetIdent(self.slice_from(start))
                     } else {
                         Token::Op("@@".to_string())
@@ -550,7 +516,7 @@ impl<'a> Tokenizer<'a> {
                 if self.peek() == Some('.') {
                     self.advance();
                     Token::DotDot
-                } else if self.peek().map_or(false, |c| c.is_ascii_digit()) {
+                } else if self.peek().is_some_and(|c| c.is_ascii_digit()) {
                     // Number starting with dot: .123
                     let frac_start = self.advance_while_pos(|c| c.is_ascii_digit());
                     let mut full = format!(".{}", &self.input[frac_start..self.pos]);
@@ -792,14 +758,7 @@ impl<'a> Tokenizer<'a> {
                 | Token::Keyword(Keyword::MERGE)
         );
 
-        Ok(Some(TokenWithSpan {
-            token,
-            span: Span {
-                start,
-                end: self.pos,
-            },
-            location: self.current_location(),
-        }))
+        Ok(Some(TokenWithSpan { token, span: Span { start, end: self.pos }, location: self.current_location() }))
     }
 
     fn scan_string(&mut self) -> Result<String, TokenizerError> {
@@ -870,7 +829,7 @@ impl<'a> Tokenizer<'a> {
     fn scan_quoted_identifier(&mut self) -> Result<String, TokenizerError> {
         let mut result = String::new();
         let start = self.pos;
-        let start_line = self.line;
+        let _start_line = self.line;
         loop {
             match self.advance() {
                 None => return Err(TokenizerError::UnterminatedQuotedIdentifier(start)),
@@ -929,18 +888,14 @@ impl<'a> Tokenizer<'a> {
         }
 
         // Per openGauss scan.l: tag chars must be valid identifier chars (no spaces, #, etc.)
-        let tag_start = self
-            .advance_while_pos(|c| c.is_ascii_alphanumeric() || c == '_' || (c as u32) >= 0x200);
+        let tag_start = self.advance_while_pos(|c| c.is_ascii_alphanumeric() || c == '_' || (c as u32) >= 0x200);
         if self.peek() == Some('$') {
             self.advance();
             let tag = self.input[tag_start..self.pos - 1].to_string();
             let delimiter = format!("${}$", tag);
             let content = self.scan_dollar_string_content(&delimiter)?;
             let tag_opt = if tag.is_empty() { None } else { Some(tag) };
-            Ok(Token::DollarString {
-                tag: tag_opt,
-                body: content,
-            })
+            Ok(Token::DollarString { tag: tag_opt, body: content })
         } else {
             let tag = &self.input[tag_start..self.pos];
             if tag.is_empty() {
@@ -979,8 +934,7 @@ impl<'a> Tokenizer<'a> {
         let delim_chars: Vec<char> = delimiter.chars().collect();
         let delim_len = delim_chars.len();
         let mut result = String::with_capacity(256);
-        let mut window: std::collections::VecDeque<char> =
-            std::collections::VecDeque::with_capacity(delim_len);
+        let mut window: std::collections::VecDeque<char> = std::collections::VecDeque::with_capacity(delim_len);
 
         loop {
             match self.advance() {
@@ -1021,13 +975,11 @@ impl<'a> Tokenizer<'a> {
         num.push_str(&self.input[int_start..self.pos]);
 
         // Check for ".." (1..10 should be 1 DOT_DOT 10)
-        if self.peek() == Some('.') {
-            if self.peek_byte_at(1) == Some(b'.') {
-                if let Ok(n) = num.parse::<i64>() {
-                    return Token::Integer(n);
-                }
-                return Token::Float(num);
+        if self.peek() == Some('.') && self.peek_byte_at(1) == Some(b'.') {
+            if let Ok(n) = num.parse::<i64>() {
+                return Token::Integer(n);
             }
+            return Token::Float(num);
         }
 
         // Decimal part
@@ -1058,10 +1010,7 @@ impl<'a> Tokenizer<'a> {
         }
 
         // f/d suffix (e.g., 3.14f, 123d)
-        if self.peek() == Some('f')
-            || self.peek() == Some('F')
-            || self.peek() == Some('d')
-            || self.peek() == Some('D')
+        if self.peek() == Some('f') || self.peek() == Some('F') || self.peek() == Some('d') || self.peek() == Some('D')
         {
             self.advance();
             return Token::Float(num);
@@ -1112,25 +1061,7 @@ fn is_ident_cont(c: char) -> bool {
 }
 
 fn is_op_char(c: char) -> bool {
-    matches!(
-        c,
-        '~' | '!'
-            | '@'
-            | '#'
-            | '^'
-            | '&'
-            | '|'
-            | '`'
-            | '?'
-            | '+'
-            | '-'
-            | '*'
-            | '/'
-            | '%'
-            | '<'
-            | '>'
-            | '='
-    )
+    matches!(c, '~' | '!' | '@' | '#' | '^' | '&' | '|' | '`' | '?' | '+' | '-' | '*' | '/' | '%' | '<' | '>' | '=')
 }
 
 #[cfg(test)]
@@ -1143,11 +1074,7 @@ mod tests {
     }
 
     fn tokens_as_vec(input: &str) -> Vec<Token> {
-        tokenize(input)
-            .unwrap()
-            .into_iter()
-            .map(|t| t.token)
-            .collect()
+        tokenize(input).unwrap().into_iter().map(|t| t.token).collect()
     }
 
     #[test]
@@ -1259,9 +1186,7 @@ mod tests {
     #[test]
     fn test_dollar_quoted_string() {
         let tokens = tokens_as_vec("$$hello world$$");
-        assert!(
-            matches!(&tokens[0], Token::DollarString { tag: None, body } if body == "hello world")
-        );
+        assert!(matches!(&tokens[0], Token::DollarString { tag: None, body } if body == "hello world"));
     }
 
     #[test]
@@ -1324,72 +1249,44 @@ mod tests {
 
     #[test]
     fn test_single_line_comment_preserved() {
-        let tokens = Tokenizer::new("SELECT -- this is a comment\nFROM dual")
-            .preserve_comments(true)
-            .tokenize()
-            .unwrap();
+        let tokens =
+            Tokenizer::new("SELECT -- this is a comment\nFROM dual").preserve_comments(true).tokenize().unwrap();
         let tokens: Vec<Token> = tokens.into_iter().map(|t| t.token).collect();
         let comment = tokens.iter().find(|t| matches!(t, Token::Comment(_)));
         assert!(comment.is_some(), "Should have a Comment token");
         if let Some(Token::Comment(content)) = comment {
             assert!(content.contains("--"), "Comment should include -- prefix");
-            assert!(
-                content.contains("this is a comment"),
-                "Comment should contain the text"
-            );
+            assert!(content.contains("this is a comment"), "Comment should contain the text");
         }
     }
 
     #[test]
     fn test_block_comment_preserved() {
-        let tokens = Tokenizer::new("SELECT /* block\ncomment */ FROM dual")
-            .preserve_comments(true)
-            .tokenize()
-            .unwrap();
+        let tokens =
+            Tokenizer::new("SELECT /* block\ncomment */ FROM dual").preserve_comments(true).tokenize().unwrap();
         let tokens: Vec<Token> = tokens.into_iter().map(|t| t.token).collect();
         let comment = tokens.iter().find(|t| matches!(t, Token::Comment(_)));
         assert!(comment.is_some(), "Should have a Comment token");
         if let Some(Token::Comment(content)) = comment {
             assert!(content.starts_with("/*"), "Block comment should start with /*");
             assert!(content.ends_with("*/"), "Block comment should end with */");
-            assert!(
-                content.contains("block") && content.contains("comment"),
-                "Should contain content"
-            );
+            assert!(content.contains("block") && content.contains("comment"), "Should contain content");
         }
     }
 
     #[test]
     fn test_comment_token_ordering() {
-        let tokens = Tokenizer::new("SELECT /* c1 */ a, /* c2 */ b FROM t")
-            .preserve_comments(true)
-            .tokenize()
-            .unwrap();
-        let select_pos = tokens
-            .iter()
-            .position(|t| matches!(&t.token, Token::Keyword(Keyword::SELECT)))
-            .unwrap();
-        let first_comment_pos = tokens
-            .iter()
-            .position(|t| matches!(&t.token, Token::Comment(_)))
-            .unwrap();
-        assert!(
-            select_pos < first_comment_pos,
-            "SELECT should come before first comment"
-        );
+        let tokens = Tokenizer::new("SELECT /* c1 */ a, /* c2 */ b FROM t").preserve_comments(true).tokenize().unwrap();
+        let select_pos = tokens.iter().position(|t| matches!(&t.token, Token::Keyword(Keyword::SELECT))).unwrap();
+        let first_comment_pos = tokens.iter().position(|t| matches!(&t.token, Token::Comment(_))).unwrap();
+        assert!(select_pos < first_comment_pos, "SELECT should come before first comment");
     }
 
     #[test]
     fn test_hint_not_affected_by_comment_preservation() {
-        let tokens = Tokenizer::new("SELECT /*+ INDEX(t idx) */ a FROM t")
-            .preserve_comments(true)
-            .tokenize()
-            .unwrap();
+        let tokens = Tokenizer::new("SELECT /*+ INDEX(t idx) */ a FROM t").preserve_comments(true).tokenize().unwrap();
         let tokens: Vec<Token> = tokens.into_iter().map(|t| t.token).collect();
-        assert!(
-            tokens.iter().any(|t| matches!(t, Token::Hint(_))),
-            "Hints should still be Hint tokens"
-        );
+        assert!(tokens.iter().any(|t| matches!(t, Token::Hint(_))), "Hints should still be Hint tokens");
         assert!(
             !tokens.iter().any(|t| matches!(t, Token::Comment(c) if c.contains("INDEX"))),
             "Hints should NOT be Comment tokens"
@@ -1398,10 +1295,7 @@ mod tests {
 
     #[test]
     fn test_mybatis_param_simple() {
-        let tokens = Tokenizer::new("SELECT #{id}")
-            .mybatis_params(true)
-            .tokenize()
-            .unwrap();
+        let tokens = Tokenizer::new("SELECT #{id}").mybatis_params(true).tokenize().unwrap();
         assert!(matches!(&tokens[1].token, Token::MyBatisParam(s) if s == "id"));
     }
 
@@ -1416,51 +1310,34 @@ mod tests {
 
     #[test]
     fn test_mybatis_raw_expr() {
-        let tokens = Tokenizer::new("SELECT ${col}")
-            .mybatis_params(true)
-            .tokenize()
-            .unwrap();
+        let tokens = Tokenizer::new("SELECT ${col}").mybatis_params(true).tokenize().unwrap();
         assert!(matches!(&tokens[1].token, Token::MyBatisRawExpr(s) if s == "col"));
     }
 
     #[test]
     fn test_mybatis_disabled_hash_is_op() {
-        let tokens = Tokenizer::new("SELECT #{id}")
-            .mybatis_params(false)
-            .tokenize()
-            .unwrap();
+        let tokens = Tokenizer::new("SELECT #{id}").mybatis_params(false).tokenize().unwrap();
         assert!(tokens.iter().any(|t| matches!(&t.token, Token::Op(s) if s == "#")));
         assert!(!tokens.iter().any(|t| matches!(&t.token, Token::MyBatisParam(_))));
     }
 
     #[test]
     fn test_mybatis_dollar_param_still_works() {
-        let tokens = Tokenizer::new("SELECT $1")
-            .mybatis_params(true)
-            .tokenize()
-            .unwrap();
+        let tokens = Tokenizer::new("SELECT $1").mybatis_params(true).tokenize().unwrap();
         assert!(matches!(&tokens[1].token, Token::Param(n) if *n == 1));
     }
 
     #[test]
     fn test_mybatis_multiple_params() {
         let sql = "INSERT INTO t (a, b) VALUES (#{x}, #{y})";
-        let tokens = Tokenizer::new(sql)
-            .mybatis_params(true)
-            .tokenize()
-            .unwrap();
-        let params: Vec<_> = tokens.iter()
-            .filter(|t| matches!(&t.token, Token::MyBatisParam(_)))
-            .collect();
+        let tokens = Tokenizer::new(sql).mybatis_params(true).tokenize().unwrap();
+        let params: Vec<_> = tokens.iter().filter(|t| matches!(&t.token, Token::MyBatisParam(_))).collect();
         assert_eq!(params.len(), 2);
     }
 
     #[test]
     fn test_mybatis_in_string_literal_not_scanned() {
-        let tokens = Tokenizer::new("SELECT 'item = #{price}'")
-            .mybatis_params(true)
-            .tokenize()
-            .unwrap();
+        let tokens = Tokenizer::new("SELECT 'item = #{price}'").mybatis_params(true).tokenize().unwrap();
         assert!(tokens.iter().any(|t| matches!(&t.token, Token::StringLiteral(s) if s.contains("#{price}"))));
         assert!(!tokens.iter().any(|t| matches!(&t.token, Token::MyBatisParam(_))));
     }
@@ -1528,10 +1405,7 @@ mod tests {
     #[test]
     fn test_mybatis_param_preserves_source_span() {
         let sql = "SELECT #{id} FROM t";
-        let tokens = Tokenizer::new(sql)
-            .mybatis_params(true)
-            .tokenize()
-            .unwrap();
+        let tokens = Tokenizer::new(sql).mybatis_params(true).tokenize().unwrap();
         let param_token = tokens.iter().find(|t| matches!(&t.token, Token::MyBatisParam(_))).unwrap();
         let span_text = &sql[param_token.span.start..param_token.span.end];
         assert_eq!(span_text, "#{id}");

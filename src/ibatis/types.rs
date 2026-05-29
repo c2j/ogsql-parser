@@ -146,10 +146,7 @@ pub struct ParsedStatement {
     pub parameters: Vec<ParamMeta>,
     pub has_dynamic_elements: bool,
     pub line: usize,
-    pub parse_result: Option<(
-        Vec<crate::ast::StatementInfo>,
-        Vec<crate::parser::ParserError>,
-    )>,
+    pub parse_result: Option<(Vec<crate::ast::StatementInfo>, Vec<crate::parser::ParserError>)>,
 }
 
 /// MyBatis 支持的 JDBC 类型（常用子集）。
@@ -243,14 +240,11 @@ impl StructuredStatement {
 
     /// 转换为 [`ParsedStatement`] 供向后兼容的调用方使用。
     /// 使用 `flat_sql`（"最完整"变体）和解析结果。
-    pub fn to_parsed_statement(&self, namespace: &str) -> ParsedStatement {
+    pub fn to_parsed_statement(&self, _namespace: &str) -> ParsedStatement {
         use crate::ibatis::flatten;
         let flat_sql = flatten::flatten_sql(&self.body);
-        let parse_result = if !flat_sql.trim().is_empty() {
-            Some(crate::parser::Parser::parse_sql(&flat_sql))
-        } else {
-            None
-        };
+        let parse_result =
+            if !flat_sql.trim().is_empty() { Some(crate::parser::Parser::parse_sql(&flat_sql)) } else { None };
         ParsedStatement {
             id: self.id.clone(),
             kind: self.kind,
@@ -342,8 +336,5 @@ pub struct ExpandedVariant {
     /// 在 `expand_variants` 中对每个变体的 `sql` 调用 `Parser::parse_sql()` 生成
     /// （需 `ExpandConfig::generate_parse_results == true`）。
     /// 调用方可从中提取 CALL 目标、表访问关系等。
-    pub parse_result: Option<(
-        Vec<crate::ast::StatementInfo>,
-        Vec<crate::parser::ParserError>,
-    )>,
+    pub parse_result: Option<(Vec<crate::ast::StatementInfo>, Vec<crate::parser::ParserError>)>,
 }

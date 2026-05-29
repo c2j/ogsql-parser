@@ -206,10 +206,7 @@ impl<'a> TokenFormatter<'a> {
     }
 
     fn current_line_length(&self) -> usize {
-        self.output
-            .rfind('\n')
-            .map(|pos| self.output.len() - pos - 1)
-            .unwrap_or(self.output.len())
+        self.output.rfind('\n').map(|pos| self.output.len() - pos - 1).unwrap_or(self.output.len())
     }
 
     fn would_exceed_line_width(&self, token_text: &str) -> bool {
@@ -221,25 +218,13 @@ impl<'a> TokenFormatter<'a> {
 
     fn emit_default_token(&mut self) {
         let tws = &self.tokens[self.pos];
-        let is_space_rejecting = matches!(
-            &tws.token,
-            Token::Comma
-                | Token::Semicolon
-                | Token::RParen
-                | Token::RBracket
-                | Token::Dot
-        );
+        let is_space_rejecting =
+            matches!(&tws.token, Token::Comma | Token::Semicolon | Token::RParen | Token::RBracket | Token::Dot);
         let prev_rejects_space = self.pos > 0 && {
             let prev = &self.tokens[self.pos - 1].token;
-            matches!(
-                prev,
-                Token::LParen | Token::LBracket | Token::Comma | Token::Dot
-            )
+            matches!(prev, Token::LParen | Token::LBracket | Token::Comma | Token::Dot)
         };
-        let text = self.transform_text(
-            &self.source[tws.span.start..tws.span.end],
-            &tws.token,
-        );
+        let text = self.transform_text(&self.source[tws.span.start..tws.span.end], &tws.token);
         let pos = self.pos;
         let _ = tws;
 
@@ -253,10 +238,7 @@ impl<'a> TokenFormatter<'a> {
 
         // Soft line wrapping: if this token would exceed line width, and we're not
         // in a structured list (where newlines are already handled), insert a newline
-        if self.config.line_width > 0
-            && !self.in_create_table_body()
-            && self.would_exceed_line_width(&text)
-        {
+        if self.config.line_width > 0 && !self.in_create_table_body() && self.would_exceed_line_width(&text) {
             self.output.push('\n');
             self.emit_indent();
         }
@@ -297,7 +279,9 @@ impl<'a> TokenFormatter<'a> {
     }
 
     fn in_pl_block(&self) -> bool {
-        self.indent_stack.iter().any(|k| matches!(k, IndentKind::Begin | IndentKind::If | IndentKind::Loop | IndentKind::Case))
+        self.indent_stack
+            .iter()
+            .any(|k| matches!(k, IndentKind::Begin | IndentKind::If | IndentKind::Loop | IndentKind::Case))
     }
 
     fn in_insert_context(&self) -> bool {
@@ -374,43 +358,41 @@ impl<'a> TokenFormatter<'a> {
                 }
             }
 
-            Token::Keyword(Keyword::END_P) => {
-                match next_token {
-                    Some(Token::Keyword(Keyword::IF_P)) => {
-                        self.pop_indent_to(IndentKind::If);
-                        self.emit_line_start();
-                        self.emit_current_token();
-                        self.pos += 1;
-                        self.emit_space();
-                        self.emit_current_token();
-                        self.pos += 1;
-                    }
-                    Some(Token::Keyword(Keyword::LOOP)) => {
-                        self.pop_indent_to(IndentKind::Loop);
-                        self.emit_line_start();
-                        self.emit_current_token();
-                        self.pos += 1;
-                        self.emit_space();
-                        self.emit_current_token();
-                        self.pos += 1;
-                    }
-                    Some(Token::Keyword(Keyword::CASE)) => {
-                        self.pop_indent_to(IndentKind::Case);
-                        self.emit_line_start();
-                        self.emit_current_token();
-                        self.pos += 1;
-                        self.emit_space();
-                        self.emit_current_token();
-                        self.pos += 1;
-                    }
-                    _ => {
-                        self.pop_indent_to(IndentKind::Begin);
-                        self.emit_line_start();
-                        self.emit_current_token();
-                        self.pos += 1;
-                    }
+            Token::Keyword(Keyword::END_P) => match next_token {
+                Some(Token::Keyword(Keyword::IF_P)) => {
+                    self.pop_indent_to(IndentKind::If);
+                    self.emit_line_start();
+                    self.emit_current_token();
+                    self.pos += 1;
+                    self.emit_space();
+                    self.emit_current_token();
+                    self.pos += 1;
                 }
-            }
+                Some(Token::Keyword(Keyword::LOOP)) => {
+                    self.pop_indent_to(IndentKind::Loop);
+                    self.emit_line_start();
+                    self.emit_current_token();
+                    self.pos += 1;
+                    self.emit_space();
+                    self.emit_current_token();
+                    self.pos += 1;
+                }
+                Some(Token::Keyword(Keyword::CASE)) => {
+                    self.pop_indent_to(IndentKind::Case);
+                    self.emit_line_start();
+                    self.emit_current_token();
+                    self.pos += 1;
+                    self.emit_space();
+                    self.emit_current_token();
+                    self.pos += 1;
+                }
+                _ => {
+                    self.pop_indent_to(IndentKind::Begin);
+                    self.emit_line_start();
+                    self.emit_current_token();
+                    self.pos += 1;
+                }
+            },
 
             Token::Ident(name) if name.to_uppercase() == "EXCEPTION" => {
                 self.pop_indent_to(IndentKind::Begin);
@@ -454,9 +436,8 @@ impl<'a> TokenFormatter<'a> {
             Token::Semicolon => {
                 self.emit_current_token();
                 // Pop DML/CTE indent contexts, but keep PL/pgSQL block contexts
-                self.indent_stack.retain(|k| {
-                    matches!(k, IndentKind::Begin | IndentKind::If | IndentKind::Loop | IndentKind::Case)
-                });
+                self.indent_stack
+                    .retain(|k| matches!(k, IndentKind::Begin | IndentKind::If | IndentKind::Loop | IndentKind::Case));
                 if self.config.semicolon_newline {
                     self.needs_line = true;
                 } else {
@@ -640,8 +621,7 @@ impl<'a> TokenFormatter<'a> {
             }
 
             // ── RETURN / EXECUTE (PL/pgSQL statements) ───────────────────────
-            Token::Keyword(Keyword::RETURN)
-            | Token::Keyword(Keyword::EXECUTE) => {
+            Token::Keyword(Keyword::RETURN) | Token::Keyword(Keyword::EXECUTE) => {
                 if self.in_pl_block() {
                     self.emit_line_start();
                 }
@@ -842,18 +822,12 @@ mod tests {
     use super::*;
 
     fn format_sql(input: &str) -> String {
-        let tokens = crate::Tokenizer::new(input)
-            .preserve_comments(true)
-            .tokenize()
-            .unwrap();
+        let tokens = crate::Tokenizer::new(input).preserve_comments(true).tokenize().unwrap();
         TokenFormatter::new(input, tokens).format()
     }
 
     fn format_sql_with(input: &str, config: FormatConfig) -> String {
-        let tokens = crate::Tokenizer::new(input)
-            .preserve_comments(true)
-            .tokenize()
-            .unwrap();
+        let tokens = crate::Tokenizer::new(input).preserve_comments(true).tokenize().unwrap();
         TokenFormatter::with_config(input, tokens, config).format()
     }
 
@@ -1026,8 +1000,7 @@ mod tests {
         let config = FormatConfig { select_newline: true, ..Default::default() };
         let input = "SELECT id, name, age FROM users WHERE id = 1";
         let output = format_sql_with(input, config);
-        assert!(output.contains("SELECT\n  id,\n  name,\n  age\nFROM"),
-            "Columns on new lines: {:?}", output);
+        assert!(output.contains("SELECT\n  id,\n  name,\n  age\nFROM"), "Columns on new lines: {:?}", output);
     }
 
     #[test]
@@ -1047,8 +1020,7 @@ mod tests {
         let config = FormatConfig { logical_operator_newline: true, select_newline: false, ..Default::default() };
         let input = "SELECT id FROM users WHERE a = 1 AND b = 2 OR c = 3";
         let output = format_sql_with(input, config);
-        assert!(output.contains("WHERE a = 1\nAND b = 2\nOR c = 3"),
-            "AND/OR on new lines: {:?}", output);
+        assert!(output.contains("WHERE a = 1\nAND b = 2\nOR c = 3"), "AND/OR on new lines: {:?}", output);
     }
 
     #[test]
@@ -1063,11 +1035,7 @@ mod tests {
 
     #[test]
     fn test_comma_trailing() {
-        let config = FormatConfig {
-            comma_style: CommaStyle::Trailing,
-            select_newline: true,
-            ..Default::default()
-        };
+        let config = FormatConfig { comma_style: CommaStyle::Trailing, select_newline: true, ..Default::default() };
         let input = "SELECT id, name, age FROM t";
         let output = format_sql_with(input, config);
         assert!(output.contains("id,\n  name,\n  age"), "Trailing comma: {:?}", output);
@@ -1075,11 +1043,7 @@ mod tests {
 
     #[test]
     fn test_comma_leading() {
-        let config = FormatConfig {
-            comma_style: CommaStyle::Leading,
-            select_newline: true,
-            ..Default::default()
-        };
+        let config = FormatConfig { comma_style: CommaStyle::Leading, select_newline: true, ..Default::default() };
         let input = "SELECT id, name, age FROM t";
         let output = format_sql_with(input, config);
         assert!(output.contains("id\n  , name\n  , age"), "Leading comma: {:?}", output);
@@ -1119,7 +1083,8 @@ mod tests {
 
     #[test]
     fn test_join_formatting() {
-        let input = "SELECT a.id FROM users a JOIN orders b ON a.id = b.user_id LEFT JOIN products c ON b.product_id = c.id";
+        let input =
+            "SELECT a.id FROM users a JOIN orders b ON a.id = b.user_id LEFT JOIN products c ON b.product_id = c.id";
         let output = format_sql(input);
         assert!(output.contains("JOIN orders"), "JOIN preserved: {:?}", output);
         assert!(output.contains("ON a.id = b.user_id"), "ON condition preserved: {:?}", output);
@@ -1199,10 +1164,8 @@ mod tests {
 
     #[test]
     fn test_insert_mybatis_params() {
-        let tokens = crate::Tokenizer::new("INSERT INTO t (a, b) VALUES (#{x}, #{y})")
-            .mybatis_params(true)
-            .tokenize()
-            .unwrap();
+        let tokens =
+            crate::Tokenizer::new("INSERT INTO t (a, b) VALUES (#{x}, #{y})").mybatis_params(true).tokenize().unwrap();
         let output = TokenFormatter::new("INSERT INTO t (a, b) VALUES (#{x}, #{y})", tokens).format();
         assert!(output.contains("#{x}"), "MyBatis param preserved: {:?}", output);
         assert!(output.contains("#{y}"), "MyBatis param preserved: {:?}", output);

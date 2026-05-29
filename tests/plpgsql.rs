@@ -34,7 +34,8 @@ fn while_loop() {
 
 #[test]
 fn for_loop() {
-    let sql = "DO $$ DECLARE r RECORD; BEGIN FOR r IN SELECT id FROM users LOOP RAISE NOTICE '%', r.id; END LOOP; END $$";
+    let sql =
+        "DO $$ DECLARE r RECORD; BEGIN FOR r IN SELECT id FROM users LOOP RAISE NOTICE '%', r.id; END LOOP; END $$";
     let tokens = Tokenizer::new(sql).tokenize().unwrap();
     let stmts = Parser::new(tokens).parse();
     assert_eq!(stmts.len(), 1);
@@ -90,9 +91,6 @@ fn plpgsql_roundtrip() {
     let json = serde_json::to_string(&stmts).unwrap();
     let restored: Vec<ogsql_parser::Statement> = serde_json::from_str(&json).unwrap();
     let formatter = SqlFormatter::new();
-    let formatted: Vec<String> = restored
-        .iter()
-        .map(|s| formatter.format_statement(s))
-        .collect();
+    let formatted: Vec<String> = restored.iter().map(|s| formatter.format_statement(s)).collect();
     assert_eq!(formatted.len(), 1);
 }

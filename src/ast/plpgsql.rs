@@ -93,23 +93,10 @@ pub struct PlRecordDecl {
 /// TYPE declaration: name IS RECORD (fields) | name IS TABLE OF type | name IS VARRAY(n) OF type
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum PlTypeDecl {
-    Record {
-        name: String,
-        fields: Vec<PlTypeField>,
-    },
-    TableOf {
-        name: String,
-        elem_type: PlDataType,
-        index_by: Option<PlDataType>,
-    },
-    VarrayOf {
-        name: String,
-        size: Box<crate::ast::Expr>,
-        elem_type: PlDataType,
-    },
-    RefCursor {
-        name: String,
-    },
+    Record { name: String, fields: Vec<PlTypeField> },
+    TableOf { name: String, elem_type: PlDataType, index_by: Option<PlDataType> },
+    VarrayOf { name: String, size: Box<crate::ast::Expr>, elem_type: PlDataType },
+    RefCursor { name: String },
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -294,12 +281,7 @@ pub struct PlForStmt {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum PlForKind {
     /// FOR i IN low..high [BY step] LOOP
-    Range {
-        low: crate::ast::Expr,
-        high: crate::ast::Expr,
-        step: Option<crate::ast::Expr>,
-        reverse: bool,
-    },
+    Range { low: crate::ast::Expr, high: crate::ast::Expr, step: Option<crate::ast::Expr>, reverse: bool },
     /// FOR rec IN query LOOP
     Query {
         query: String,
@@ -309,10 +291,7 @@ pub enum PlForKind {
         using_args: Vec<PlUsingArg>,
     },
     /// FOR rec IN cursor_name [([args])] LOOP
-    Cursor {
-        cursor_name: crate::ast::Expr,
-        arguments: Vec<crate::ast::Expr>,
-    },
+    Cursor { cursor_name: crate::ast::Expr, arguments: Vec<crate::ast::Expr> },
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

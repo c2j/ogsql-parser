@@ -13,18 +13,13 @@ fn parse(sql: &str) -> Vec<Statement> {
 
 fn parse_one(sql: &str) -> Statement {
     let stmts = parse(sql);
-    stmts
-        .into_iter()
-        .next()
-        .expect("expected at least one statement")
+    stmts.into_iter().next().expect("expected at least one statement")
 }
 
 fn parse_do_block(sql: &str) -> PlBlock {
     let stmt = parse_one(sql);
     match stmt {
-        Statement::Do(d) => d.node
-            .block
-            .expect("DO statement should have parsed a PL/pgSQL block"),
+        Statement::Do(d) => d.node.block.expect("DO statement should have parsed a PL/pgSQL block"),
         _ => panic!("expected DO statement"),
     }
 }
@@ -101,10 +96,14 @@ fn test_package_body_procedure_call_as_statement() {
     let stmt = parse_one(sql);
     match stmt {
         Statement::CreatePackageBody(p) => {
-            let proc = p.items.iter().find_map(|i| match i {
-                PackageItem::Procedure(pr) => Some(pr),
-                _ => None,
-            }).expect("should have a procedure");
+            let proc = p
+                .items
+                .iter()
+                .find_map(|i| match i {
+                    PackageItem::Procedure(pr) => Some(pr),
+                    _ => None,
+                })
+                .expect("should have a procedure");
             let block = proc.block.as_ref().expect("procedure should have a block");
             assert_eq!(block.body.len(), 1);
             assert!(
@@ -158,14 +157,8 @@ fn test_package_body_with_nested_begin_end_error_recovery() {
     let stmt = parse_one(sql);
     match stmt {
         Statement::CreatePackageBody(p) => {
-            assert!(
-                p.items.iter().any(|i| matches!(i, PackageItem::Procedure(_))),
-                "should have a procedure"
-            );
-            assert!(
-                p.items.iter().any(|i| matches!(i, PackageItem::Function(_))),
-                "should have a function"
-            );
+            assert!(p.items.iter().any(|i| matches!(i, PackageItem::Procedure(_))), "should have a procedure");
+            assert!(p.items.iter().any(|i| matches!(i, PackageItem::Function(_))), "should have a function");
         }
         other => panic!("expected CreatePackageBody, got {:?}", other),
     }
@@ -190,15 +183,15 @@ fn test_package_body_error_recovery_preserves_remaining_items() {
     let stmt = parse_one(sql);
     match stmt {
         Statement::CreatePackageBody(p) => {
-            let procs: Vec<_> = p.items.iter().filter_map(|i| match i {
-                PackageItem::Procedure(pr) => Some(pr),
-                _ => None,
-            }).collect();
-            assert!(
-                procs.len() >= 1,
-                "should have at least one parsed procedure, got {} items total",
-                p.items.len()
-            );
+            let procs: Vec<_> = p
+                .items
+                .iter()
+                .filter_map(|i| match i {
+                    PackageItem::Procedure(pr) => Some(pr),
+                    _ => None,
+                })
+                .collect();
+            assert!(procs.len() >= 1, "should have at least one parsed procedure, got {} items total", p.items.len());
         }
         other => panic!("expected CreatePackageBody, got {:?}", other),
     }
@@ -432,7 +425,11 @@ $$ LANGUAGE plpgsql"#;
                     assert_eq!(for_stmt.node.variable, "v_rec");
                     match &for_stmt.node.kind {
                         PlForKind::Query { query, parsed_query, .. } => {
-                            assert!(query.to_uppercase().contains("SELECT"), "query should contain SELECT, got: {:?}", query);
+                            assert!(
+                                query.to_uppercase().contains("SELECT"),
+                                "query should contain SELECT, got: {:?}",
+                                query
+                            );
                             assert!(parsed_query.is_some(), "parsed_query should be Some");
                         }
                         other => panic!("expected PlForKind::Query, got {:?}", other),
@@ -506,7 +503,8 @@ fn test_set_transaction_read_only() {
 
 #[test]
 fn test_set_transaction_serializable_deferrable() {
-    let block = parse_do_block("DO $$ BEGIN SET TRANSACTION ISOLATION LEVEL SERIALIZABLE READ WRITE DEFERRABLE; END $$");
+    let block =
+        parse_do_block("DO $$ BEGIN SET TRANSACTION ISOLATION LEVEL SERIALIZABLE READ WRITE DEFERRABLE; END $$");
     match &block.body[0] {
         PlStatement::SetTransaction { isolation_level, read_only, deferrable } => {
             assert!(matches!(isolation_level, Some(PlIsolationLevel::Serializable)));
@@ -597,10 +595,14 @@ fn test_pl_call_inside_package_body() {
     let stmt = parse_one(sql);
     match stmt {
         Statement::CreatePackageBody(p) => {
-            let proc = p.items.iter().find_map(|i| match i {
-                PackageItem::Procedure(pr) => Some(pr),
-                _ => None,
-            }).expect("should have a procedure");
+            let proc = p
+                .items
+                .iter()
+                .find_map(|i| match i {
+                    PackageItem::Procedure(pr) => Some(pr),
+                    _ => None,
+                })
+                .expect("should have a procedure");
             let block = proc.block.as_ref().expect("procedure should have a block");
             assert_eq!(block.body.len(), 1);
             match &block.body[0] {
@@ -627,22 +629,24 @@ fn test_with_insert_in_procedure_body() {
     let stmt = parse_one(sql);
     match stmt {
         Statement::CreatePackageBody(p) => {
-            let proc = p.items.iter().find_map(|i| match i {
-                PackageItem::Procedure(pr) => Some(pr),
-                _ => None,
-            }).expect("should have a procedure");
+            let proc = p
+                .items
+                .iter()
+                .find_map(|i| match i {
+                    PackageItem::Procedure(pr) => Some(pr),
+                    _ => None,
+                })
+                .expect("should have a procedure");
             let block = proc.block.as_ref().expect("procedure should have a block");
             assert_eq!(block.body.len(), 1);
             match &block.body[0] {
-                PlStatement::SqlStatement { statement, .. } => {
-                    match statement.as_ref() {
-                        crate::ast::Statement::Insert(ins) => {
-                            assert!(ins.node.with.is_some(), "INSERT should have WITH clause");
-                            assert_eq!(ins.node.table, vec!["t2"]);
-                        }
-                        other => panic!("expected Insert, got {:?}", other),
+                PlStatement::SqlStatement { statement, .. } => match statement.as_ref() {
+                    crate::ast::Statement::Insert(ins) => {
+                        assert!(ins.node.with.is_some(), "INSERT should have WITH clause");
+                        assert_eq!(ins.node.table, vec!["t2"]);
                     }
-                }
+                    other => panic!("expected Insert, got {:?}", other),
+                },
                 other => panic!("expected SqlStatement, got {:?}", other),
             }
         }
@@ -662,21 +666,23 @@ fn test_with_update_in_procedure_body() {
     let stmt = parse_one(sql);
     match stmt {
         Statement::CreatePackageBody(p) => {
-            let proc = p.items.iter().find_map(|i| match i {
-                PackageItem::Procedure(pr) => Some(pr),
-                _ => None,
-            }).expect("should have a procedure");
+            let proc = p
+                .items
+                .iter()
+                .find_map(|i| match i {
+                    PackageItem::Procedure(pr) => Some(pr),
+                    _ => None,
+                })
+                .expect("should have a procedure");
             let block = proc.block.as_ref().expect("procedure should have a block");
             assert_eq!(block.body.len(), 1);
             match &block.body[0] {
-                PlStatement::SqlStatement { statement, .. } => {
-                    match statement.as_ref() {
-                        crate::ast::Statement::Update(upd) => {
-                            assert!(upd.node.with.is_some(), "UPDATE should have WITH clause");
-                        }
-                        other => panic!("expected Update, got {:?}", other),
+                PlStatement::SqlStatement { statement, .. } => match statement.as_ref() {
+                    crate::ast::Statement::Update(upd) => {
+                        assert!(upd.node.with.is_some(), "UPDATE should have WITH clause");
                     }
-                }
+                    other => panic!("expected Update, got {:?}", other),
+                },
                 other => panic!("expected SqlStatement, got {:?}", other),
             }
         }
@@ -696,21 +702,23 @@ fn test_with_delete_in_procedure_body() {
     let stmt = parse_one(sql);
     match stmt {
         Statement::CreatePackageBody(p) => {
-            let proc = p.items.iter().find_map(|i| match i {
-                PackageItem::Procedure(pr) => Some(pr),
-                _ => None,
-            }).expect("should have a procedure");
+            let proc = p
+                .items
+                .iter()
+                .find_map(|i| match i {
+                    PackageItem::Procedure(pr) => Some(pr),
+                    _ => None,
+                })
+                .expect("should have a procedure");
             let block = proc.block.as_ref().expect("procedure should have a block");
             assert_eq!(block.body.len(), 1);
             match &block.body[0] {
-                PlStatement::SqlStatement { statement, .. } => {
-                    match statement.as_ref() {
-                        crate::ast::Statement::Delete(del) => {
-                            assert!(del.node.with.is_some(), "DELETE should have WITH clause");
-                        }
-                        other => panic!("expected Delete, got {:?}", other),
+                PlStatement::SqlStatement { statement, .. } => match statement.as_ref() {
+                    crate::ast::Statement::Delete(del) => {
+                        assert!(del.node.with.is_some(), "DELETE should have WITH clause");
                     }
-                }
+                    other => panic!("expected Delete, got {:?}", other),
+                },
                 other => panic!("expected SqlStatement, got {:?}", other),
             }
         }
@@ -730,21 +738,23 @@ fn test_with_select_cte_still_works_in_procedure_body() {
     let stmt = parse_one(sql);
     match stmt {
         Statement::CreatePackageBody(p) => {
-            let proc = p.items.iter().find_map(|i| match i {
-                PackageItem::Procedure(pr) => Some(pr),
-                _ => None,
-            }).expect("should have a procedure");
+            let proc = p
+                .items
+                .iter()
+                .find_map(|i| match i {
+                    PackageItem::Procedure(pr) => Some(pr),
+                    _ => None,
+                })
+                .expect("should have a procedure");
             let block = proc.block.as_ref().expect("procedure should have a block");
             assert_eq!(block.body.len(), 1);
             match &block.body[0] {
-                PlStatement::SqlStatement { statement, .. } => {
-                    match statement.as_ref() {
-                        crate::ast::Statement::Select(sel) => {
-                            assert!(sel.node.with.is_some(), "SELECT should have WITH clause");
-                        }
-                        other => panic!("expected Select, got {:?}", other),
+                PlStatement::SqlStatement { statement, .. } => match statement.as_ref() {
+                    crate::ast::Statement::Select(sel) => {
+                        assert!(sel.node.with.is_some(), "SELECT should have WITH clause");
                     }
-                }
+                    other => panic!("expected Select, got {:?}", other),
+                },
                 other => panic!("expected SqlStatement, got {:?}", other),
             }
         }
@@ -880,15 +890,13 @@ fn test_is_false_in_plpgsql_if() {
         Statement::CreateFunction(f) => {
             let block = f.block.as_ref().expect("function should have a body");
             match &block.body[0] {
-                PlStatement::If(if_stmt) => {
-                    match &if_stmt.node.condition {
-                        Expr::IsBoolean { value, negated, .. } => {
-                            assert!(!value);
-                            assert!(!negated);
-                        }
-                        other => panic!("expected IsBoolean, got {:?}", other),
+                PlStatement::If(if_stmt) => match &if_stmt.node.condition {
+                    Expr::IsBoolean { value, negated, .. } => {
+                        assert!(!value);
+                        assert!(!negated);
                     }
-                }
+                    other => panic!("expected IsBoolean, got {:?}", other),
+                },
                 other => panic!("expected If, got {:?}", other),
             }
         }
@@ -907,15 +915,13 @@ fn test_is_not_true_in_plpgsql_if() {
         Statement::CreateFunction(f) => {
             let block = f.block.as_ref().expect("function should have a body");
             match &block.body[0] {
-                PlStatement::If(if_stmt) => {
-                    match &if_stmt.node.condition {
-                        Expr::IsBoolean { value, negated, .. } => {
-                            assert!(*value);
-                            assert!(*negated);
-                        }
-                        other => panic!("expected IsBoolean, got {:?}", other),
+                PlStatement::If(if_stmt) => match &if_stmt.node.condition {
+                    Expr::IsBoolean { value, negated, .. } => {
+                        assert!(*value);
+                        assert!(*negated);
                     }
-                }
+                    other => panic!("expected IsBoolean, got {:?}", other),
+                },
                 other => panic!("expected If, got {:?}", other),
             }
         }
@@ -984,15 +990,13 @@ fn test_package_body_overloaded_functions_with_is_true() {
             let block3 = funcs[2].block.as_ref().expect("3rd overload should have body");
             assert_eq!(block3.body.len(), 2, "3rd overload body should have 2 statements");
             match &block3.body[1] {
-                PlStatement::If(if_stmt) => {
-                    match &if_stmt.node.condition {
-                        Expr::IsBoolean { value, negated, .. } => {
-                            assert!(*value, "condition should be IS TRUE");
-                            assert!(!negated);
-                        }
-                        other => panic!("expected IsBoolean in 3rd overload IF condition, got {:?}", other),
+                PlStatement::If(if_stmt) => match &if_stmt.node.condition {
+                    Expr::IsBoolean { value, negated, .. } => {
+                        assert!(*value, "condition should be IS TRUE");
+                        assert!(!negated);
                     }
-                }
+                    other => panic!("expected IsBoolean in 3rd overload IF condition, got {:?}", other),
+                },
                 other => panic!("expected If in 3rd overload body, got {:?}", other),
             }
         }

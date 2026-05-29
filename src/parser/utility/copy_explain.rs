@@ -32,10 +32,7 @@ impl Parser {
         // COPY [BINARY] relation [(columns)] [WITH OIDS] FROM|TO ...
         if self.match_keyword(Keyword::BINARY) {
             self.advance();
-            options.push(CopyOption {
-                name: "format".to_string(),
-                value: Some("binary".to_string()),
-            });
+            options.push(CopyOption { name: "format".to_string(), value: Some("binary".to_string()) });
         }
 
         let relation = Some(self.parse_object_name()?);
@@ -57,10 +54,7 @@ impl Parser {
             self.advance();
             if self.match_keyword(Keyword::OIDS) {
                 self.advance();
-                options.push(CopyOption {
-                    name: "oids".to_string(),
-                    value: None,
-                });
+                options.push(CopyOption { name: "oids".to_string(), value: None });
             } else {
                 // WITH (options) form — put it back by not advancing further
             }
@@ -83,15 +77,7 @@ impl Parser {
         let (filename, is_program) = self.parse_copy_filename()?;
         self.parse_copy_trailing_options(&mut options)?;
 
-        Ok(CopyStatement {
-            relation,
-            query: None,
-            columns,
-            is_from,
-            filename,
-            is_program,
-            options,
-        })
+        Ok(CopyStatement { relation, query: None, columns, is_from, filename, is_program, options })
     }
 
     fn parse_copy_filename(&mut self) -> Result<(Option<String>, bool), ParserError> {
@@ -132,10 +118,7 @@ impl Parser {
         }
     }
 
-    fn parse_copy_trailing_options(
-        &mut self,
-        options: &mut Vec<CopyOption>,
-    ) -> Result<(), ParserError> {
+    fn parse_copy_trailing_options(&mut self, options: &mut Vec<CopyOption>) -> Result<(), ParserError> {
         // WITH/OPTIONS section
         let had_with = self.match_keyword(Keyword::WITH);
         if had_with {
@@ -213,126 +196,75 @@ impl Parser {
         }
     }
 
-    fn parse_copy_oldstyle_options(
-        &mut self,
-        options: &mut Vec<CopyOption>,
-    ) -> Result<(), ParserError> {
+    fn parse_copy_oldstyle_options(&mut self, options: &mut Vec<CopyOption>) -> Result<(), ParserError> {
         loop {
             if self.match_keyword(Keyword::BINARY) {
                 self.advance();
-                options.push(CopyOption {
-                    name: "format".to_string(),
-                    value: Some("binary".to_string()),
-                });
+                options.push(CopyOption { name: "format".to_string(), value: Some("binary".to_string()) });
             } else if self.match_keyword(Keyword::OIDS) {
                 self.advance();
-                options.push(CopyOption {
-                    name: "oids".to_string(),
-                    value: None,
-                });
+                options.push(CopyOption { name: "oids".to_string(), value: None });
             } else if self.match_keyword(Keyword::FREEZE) {
                 self.advance();
-                options.push(CopyOption {
-                    name: "freeze".to_string(),
-                    value: None,
-                });
+                options.push(CopyOption { name: "freeze".to_string(), value: None });
             } else if self.match_keyword(Keyword::DELIMITER) {
                 self.advance();
                 self.try_consume_keyword(Keyword::AS);
                 let val = self.parse_string_literal()?;
-                options.push(CopyOption {
-                    name: "delimiter".to_string(),
-                    value: Some(val),
-                });
+                options.push(CopyOption { name: "delimiter".to_string(), value: Some(val) });
             } else if self.match_keyword(Keyword::NULL_P) {
                 self.advance();
                 self.try_consume_keyword(Keyword::AS);
                 let val = self.parse_string_literal()?;
-                options.push(CopyOption {
-                    name: "null".to_string(),
-                    value: Some(val),
-                });
+                options.push(CopyOption { name: "null".to_string(), value: Some(val) });
             } else if self.match_keyword(Keyword::CSV) {
                 self.advance();
-                options.push(CopyOption {
-                    name: "format".to_string(),
-                    value: Some("csv".to_string()),
-                });
+                options.push(CopyOption { name: "format".to_string(), value: Some("csv".to_string()) });
             } else if self.match_keyword(Keyword::FIXED_P) {
                 self.advance();
                 if self.match_keyword(Keyword::FORMATTER) {
                     self.advance();
                     let formatter_val = self.skip_balanced_parens_as_string()?;
-                    options.push(CopyOption {
-                        name: "fixed_formatter".to_string(),
-                        value: Some(formatter_val),
-                    });
+                    options.push(CopyOption { name: "fixed_formatter".to_string(), value: Some(formatter_val) });
                 } else {
-                    options.push(CopyOption {
-                        name: "format".to_string(),
-                        value: Some("fixed".to_string()),
-                    });
+                    options.push(CopyOption { name: "format".to_string(), value: Some("fixed".to_string()) });
                 }
             } else if self.match_keyword(Keyword::HEADER_P) {
                 self.advance();
-                options.push(CopyOption {
-                    name: "header".to_string(),
-                    value: None,
-                });
+                options.push(CopyOption { name: "header".to_string(), value: None });
             } else if self.match_keyword(Keyword::QUOTE) {
                 self.advance();
                 self.try_consume_keyword(Keyword::AS);
                 let val = self.parse_string_literal()?;
-                options.push(CopyOption {
-                    name: "quote".to_string(),
-                    value: Some(val),
-                });
+                options.push(CopyOption { name: "quote".to_string(), value: Some(val) });
             } else if self.match_keyword(Keyword::ESCAPE) {
                 self.advance();
                 self.try_consume_keyword(Keyword::AS);
                 let val = self.parse_string_literal()?;
-                options.push(CopyOption {
-                    name: "escape".to_string(),
-                    value: Some(val),
-                });
+                options.push(CopyOption { name: "escape".to_string(), value: Some(val) });
             } else if self.match_keyword(Keyword::ENCODING) {
                 self.advance();
                 let val = self.parse_string_literal()?;
-                options.push(CopyOption {
-                    name: "encoding".to_string(),
-                    value: Some(val),
-                });
+                options.push(CopyOption { name: "encoding".to_string(), value: Some(val) });
             } else if self.match_keyword(Keyword::EOL) {
                 self.advance();
                 let val = self.parse_string_literal()?;
-                options.push(CopyOption {
-                    name: "eol".to_string(),
-                    value: Some(val),
-                });
+                options.push(CopyOption { name: "eol".to_string(), value: Some(val) });
             } else if self.match_keyword(Keyword::FORCE) {
                 self.advance();
                 if self.match_keyword(Keyword::QUOTE) {
                     self.advance();
-                    options.push(CopyOption {
-                        name: "force_quote".to_string(),
-                        value: None,
-                    });
+                    options.push(CopyOption { name: "force_quote".to_string(), value: None });
                 } else if self.match_keyword(Keyword::NOT) {
                     self.advance();
                     self.expect_keyword(Keyword::NULL_P)?;
-                    options.push(CopyOption {
-                        name: "force_not_null".to_string(),
-                        value: None,
-                    });
+                    options.push(CopyOption { name: "force_not_null".to_string(), value: None });
                 }
             } else if self.match_keyword(Keyword::WITHOUT) {
                 self.advance();
                 if self.match_keyword(Keyword::ESCAPING) {
                     self.advance();
-                    options.push(CopyOption {
-                        name: "noescaping".to_string(),
-                        value: None,
-                    });
+                    options.push(CopyOption { name: "noescaping".to_string(), value: None });
                 }
             } else if self.match_keyword(Keyword::LOG_P) {
                 self.advance();
@@ -343,12 +275,7 @@ impl Parser {
                         self.advance();
                     }
                     options.push(CopyOption {
-                        name: if has_data {
-                            "log_errors_data"
-                        } else {
-                            "log_errors"
-                        }
-                        .to_string(),
+                        name: if has_data { "log_errors_data" } else { "log_errors" }.to_string(),
                         value: None,
                     });
                 }
@@ -357,36 +284,21 @@ impl Parser {
                 if self.match_keyword(Keyword::LIMIT) {
                     self.advance();
                     let val = self.parse_string_literal()?;
-                    options.push(CopyOption {
-                        name: "reject_limit".to_string(),
-                        value: Some(val),
-                    });
+                    options.push(CopyOption { name: "reject_limit".to_string(), value: Some(val) });
                 }
             } else if self.match_keyword(Keyword::FILL_MISSING_FIELDS) {
                 self.advance();
-                options.push(CopyOption {
-                    name: "fill_missing_fields".to_string(),
-                    value: None,
-                });
+                options.push(CopyOption { name: "fill_missing_fields".to_string(), value: None });
             } else if self.match_keyword(Keyword::COMPATIBLE_ILLEGAL_CHARS) {
                 self.advance();
-                options.push(CopyOption {
-                    name: "compatible_illegal_chars".to_string(),
-                    value: None,
-                });
+                options.push(CopyOption { name: "compatible_illegal_chars".to_string(), value: None });
             } else if self.match_keyword(Keyword::IGNORE_EXTRA_DATA) {
                 self.advance();
-                options.push(CopyOption {
-                    name: "ignore_extra_data".to_string(),
-                    value: None,
-                });
+                options.push(CopyOption { name: "ignore_extra_data".to_string(), value: None });
             } else if self.match_keyword(Keyword::TRANSFORM) {
                 self.advance();
                 let transform_val = self.skip_balanced_parens_as_string()?;
-                options.push(CopyOption {
-                    name: "transform".to_string(),
-                    value: Some(transform_val),
-                });
+                options.push(CopyOption { name: "transform".to_string(), value: Some(transform_val) });
             } else {
                 break;
             }
@@ -462,9 +374,7 @@ impl Parser {
         }
     }
 
-    fn skip_balanced_parens_and_collect(
-        &mut self,
-    ) -> Result<Vec<crate::token::TokenWithSpan>, ParserError> {
+    fn skip_balanced_parens_and_collect(&mut self) -> Result<Vec<crate::token::TokenWithSpan>, ParserError> {
         // Already past LParen — collect tokens until matching RParen
         let mut depth = 1i32;
         let mut collected: Vec<crate::token::TokenWithSpan> = Vec::new();
@@ -589,15 +499,7 @@ impl Parser {
         // Parse the inner statement (it handles its own semicolon consumption)
         let inner = self.parse_statement()?;
 
-        Ok(ExplainStatement {
-            analyze,
-            verbose,
-            performance,
-            plan,
-            statement_id,
-            options,
-            query: Box::new(inner),
-        })
+        Ok(ExplainStatement { analyze, verbose, performance, plan, statement_id, options, query: Box::new(inner) })
     }
 
     // ── CALL ──
@@ -608,10 +510,7 @@ impl Parser {
 
         if self.match_token(&Token::RParen) {
             self.advance();
-            return Ok(CallFuncStatement {
-                func_name,
-                args: vec![],
-            });
+            return Ok(CallFuncStatement { func_name, args: vec![] });
         }
 
         let mut args = Vec::new();
@@ -638,11 +537,7 @@ impl Parser {
                     }
                 };
                 let arg = self.parse_expr()?;
-                args.push(CallArg::Named {
-                    name,
-                    arg,
-                    uses_arrow,
-                });
+                args.push(CallArg::Named { name, arg, uses_arrow });
             } else {
                 let arg = self.parse_expr()?;
                 args.push(CallArg::Positional(arg));
@@ -700,32 +595,17 @@ impl Parser {
                     break;
                 }
             }
-            return Ok(VariableSetStatement {
-                local,
-                session,
-                global,
-                name,
-                value: modes,
-            });
+            return Ok(VariableSetStatement { local, session, global, name, value: modes });
         }
 
-        if name.to_uppercase() == "ROLE"
-            && !self.match_token(&Token::Eq)
-            && !self.match_keyword(Keyword::TO)
-        {
+        if name.to_uppercase() == "ROLE" && !self.match_token(&Token::Eq) && !self.match_keyword(Keyword::TO) {
             let role_name = self.consume_any_identifier()?;
             let mut values = vec![Expr::ColumnRef(vec![role_name])];
             if self.match_keyword(Keyword::PASSWORD) {
                 self.advance();
                 values.push(self.parse_expr()?);
             }
-            return Ok(VariableSetStatement {
-                local,
-                session,
-                global,
-                name,
-                value: values,
-            });
+            return Ok(VariableSetStatement { local, session, global, name, value: values });
         }
 
         if name.to_uppercase() == "CONSTRAINTS" {
@@ -733,13 +613,7 @@ impl Parser {
             while !self.match_token(&Token::Semicolon) && !self.peek().eq(&Token::Eof) {
                 values.push(Expr::ColumnRef(vec![self.consume_any_identifier()?]));
             }
-            return Ok(VariableSetStatement {
-                local,
-                session,
-                global,
-                name,
-                value: values,
-            });
+            return Ok(VariableSetStatement { local, session, global, name, value: values });
         }
 
         if name.to_uppercase() == "AUTHORIZATION" && (session || global) {
@@ -749,13 +623,7 @@ impl Parser {
                 self.advance();
                 values.push(self.parse_expr()?);
             }
-            return Ok(VariableSetStatement {
-                local,
-                session,
-                global,
-                name,
-                value: values,
-            });
+            return Ok(VariableSetStatement { local, session, global, name, value: values });
         }
 
         if self.match_token(&Token::Eq) || self.match_keyword(Keyword::TO) {
@@ -774,13 +642,7 @@ impl Parser {
             values
         };
 
-        Ok(VariableSetStatement {
-            local,
-            session,
-            global,
-            name,
-            value,
-        })
+        Ok(VariableSetStatement { local, session, global, name, value })
     }
 
     pub(crate) fn parse_show(&mut self) -> Result<VariableShowStatement, ParserError> {
@@ -792,10 +654,7 @@ impl Parser {
         };
         let like_pattern = if self.match_keyword(Keyword::LIKE) {
             self.advance();
-            Some(
-                self.parse_identifier()
-                    .unwrap_or_else(|_| self.parse_set_variable_name().unwrap_or_default()),
-            )
+            Some(self.parse_identifier().unwrap_or_else(|_| self.parse_set_variable_name().unwrap_or_default()))
         } else {
             None
         };
@@ -805,9 +664,7 @@ impl Parser {
     pub(crate) fn parse_reset(&mut self) -> Result<VariableResetStatement, ParserError> {
         if self.match_keyword(Keyword::ALL) {
             self.advance();
-            Ok(VariableResetStatement {
-                name: "ALL".to_string(),
-            })
+            Ok(VariableResetStatement { name: "ALL".to_string() })
         } else {
             let name = self.parse_set_variable_name()?;
             Ok(VariableResetStatement { name })
@@ -859,12 +716,7 @@ impl Parser {
                 break;
             }
         }
-        Ok(TransactionStatement {
-            kind: TransactionKind::Begin,
-            modes,
-            savepoint_name: None,
-            transaction_id: None,
-        })
+        Ok(TransactionStatement { kind: TransactionKind::Begin, modes, savepoint_name: None, transaction_id: None })
     }
 
     pub(crate) fn parse_set_transaction(&mut self) -> Result<TransactionStatement, ParserError> {
@@ -902,9 +754,7 @@ impl Parser {
         })
     }
 
-    pub(crate) fn parse_transaction_rollback(
-        &mut self,
-    ) -> Result<TransactionStatement, ParserError> {
+    pub(crate) fn parse_transaction_rollback(&mut self) -> Result<TransactionStatement, ParserError> {
         if self.match_keyword(Keyword::TRANSACTION) {
             self.advance();
         }

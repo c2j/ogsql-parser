@@ -568,18 +568,9 @@ pub enum ReplicaIdentity {
 pub enum PartitionValues {
     LessThan(Vec<Expr>),
     InValues(Vec<Expr>),
-    StartEnd {
-        start: Expr,
-        end: Expr,
-        every: Option<Expr>,
-    },
-    StartOnly {
-        start: Expr,
-    },
-    EndOnly {
-        end: Expr,
-        every: Option<Expr>,
-    },
+    StartEnd { start: Expr, end: Expr, every: Option<Expr> },
+    StartOnly { start: Expr },
+    EndOnly { end: Expr, every: Option<Expr> },
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -1028,46 +1019,17 @@ pub struct FetchClause {
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum LockClause {
-    Update {
-        tables: Vec<ObjectName>,
-        nowait: bool,
-        skip_locked: bool,
-        wait: Option<Expr>,
-    },
-    Share {
-        tables: Vec<ObjectName>,
-        nowait: bool,
-        skip_locked: bool,
-        wait: Option<Expr>,
-    },
-    NoKeyUpdate {
-        tables: Vec<ObjectName>,
-        nowait: bool,
-        skip_locked: bool,
-        wait: Option<Expr>,
-    },
-    KeyShare {
-        tables: Vec<ObjectName>,
-        nowait: bool,
-        skip_locked: bool,
-        wait: Option<Expr>,
-    },
+    Update { tables: Vec<ObjectName>, nowait: bool, skip_locked: bool, wait: Option<Expr> },
+    Share { tables: Vec<ObjectName>, nowait: bool, skip_locked: bool, wait: Option<Expr> },
+    NoKeyUpdate { tables: Vec<ObjectName>, nowait: bool, skip_locked: bool, wait: Option<Expr> },
+    KeyShare { tables: Vec<ObjectName>, nowait: bool, skip_locked: bool, wait: Option<Expr> },
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum SetOperation {
-    Union {
-        all: bool,
-        right: Box<SelectStatement>,
-    },
-    Intersect {
-        all: bool,
-        right: Box<SelectStatement>,
-    },
-    Except {
-        all: bool,
-        right: Box<SelectStatement>,
-    },
+    Union { all: bool, right: Box<SelectStatement> },
+    Intersect { all: bool, right: Box<SelectStatement> },
+    Except { all: bool, right: Box<SelectStatement> },
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -1570,10 +1532,7 @@ pub enum ConflictTarget {
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum ConflictAction {
     DoNothing,
-    DoUpdate {
-        assignments: Vec<UpdateAssignment>,
-        where_clause: Option<Expr>,
-    },
+    DoUpdate { assignments: Vec<UpdateAssignment>, where_clause: Option<Expr> },
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -1683,10 +1642,7 @@ pub struct MergeWhenClause {
 pub enum MergeAction {
     Update(Vec<UpdateAssignment>),
     Delete,
-    Insert {
-        columns: Vec<ObjectName>,
-        values: Vec<Expr>,
-    },
+    Insert { columns: Vec<ObjectName>, values: Vec<Expr> },
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -1804,11 +1760,7 @@ pub struct ExplainStatement {
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum CallArg {
     Positional(Expr),
-    Named {
-        name: String,
-        arg: Expr,
-        uses_arrow: bool,
-    },
+    Named { name: String, arg: Expr, uses_arrow: bool },
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -2124,9 +2076,7 @@ pub struct PackageProcedure {
 
 impl PartialEq for PackageProcedure {
     fn eq(&self, other: &Self) -> bool {
-        self.name == other.name
-            && self.parameters == other.parameters
-            && self.block == other.block
+        self.name == other.name && self.parameters == other.parameters && self.block == other.block
     }
 }
 
@@ -2422,16 +2372,9 @@ pub struct AlterSchemaStatement {
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum AlterSchemaAction {
-    RenameTo {
-        new_name: String,
-    },
-    OwnerTo {
-        owner: String,
-    },
-    CharacterSet {
-        charset: String,
-        collate: Option<String>,
-    },
+    RenameTo { new_name: String },
+    OwnerTo { owner: String },
+    CharacterSet { charset: String, collate: Option<String> },
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -2689,55 +2632,27 @@ pub struct AlterIndexStatement {
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum AlterIndexAction {
     RenameTo(String),
-    RenamePartition {
-        old_name: String,
-        new_name: String,
-    },
+    RenamePartition { old_name: String, new_name: String },
     SetTablespace(String),
     Set(Vec<(String, String)>),
     Reset(Vec<String>),
     Unusable,
     Rebuild,
-    MovePartition {
-        partition_name: String,
-        tablespace: Option<String>,
-    },
-    RebuildPartition {
-        partition_name: String,
-    },
+    MovePartition { partition_name: String, tablespace: Option<String> },
+    RebuildPartition { partition_name: String },
     NoOp,
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum AlterTypeAction {
-    AddAttribute {
-        name: String,
-        data_type: String,
-        cascade: bool,
-    },
-    DropAttribute {
-        name: String,
-        if_exists: bool,
-        cascade: bool,
-    },
-    RenameAttribute {
-        old_name: String,
-        new_name: String,
-        cascade: bool,
-    },
+    AddAttribute { name: String, data_type: String, cascade: bool },
+    DropAttribute { name: String, if_exists: bool, cascade: bool },
+    RenameAttribute { old_name: String, new_name: String, cascade: bool },
     RenameTo(String),
     SetSchema(String),
     OwnerTo(String),
-    AddEnumValue {
-        if_not_exists: bool,
-        value: String,
-        before: Option<String>,
-        after: Option<String>,
-    },
-    RenameEnumValue {
-        old_value: String,
-        new_value: String,
-    },
+    AddEnumValue { if_not_exists: bool, value: String, before: Option<String>, after: Option<String> },
+    RenameEnumValue { old_value: String, new_value: String },
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -2753,10 +2668,7 @@ pub enum AlterViewAction {
     Reset(Vec<String>),
     SetSchema(String),
     OwnerTo(String),
-    AlterColumnDefault {
-        column: String,
-        set_default: Option<String>,
-    },
+    AlterColumnDefault { column: String, set_default: Option<String> },
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -3124,29 +3036,15 @@ pub struct AlterDomainStatement {
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum AlterDomainAction {
-    SetDefault {
-        expr: String,
-    },
+    SetDefault { expr: String },
     DropDefault,
     SetNotNull,
     DropNotNull,
-    AddConstraint {
-        name: Option<String>,
-        check_expr: String,
-    },
-    DropConstraint {
-        name: String,
-        cascade: bool,
-    },
-    OwnerTo {
-        new_owner: String,
-    },
-    RenameTo {
-        new_name: String,
-    },
-    ValidateConstraint {
-        name: String,
-    },
+    AddConstraint { name: Option<String>, check_expr: String },
+    DropConstraint { name: String, cascade: bool },
+    OwnerTo { new_owner: String },
+    RenameTo { new_name: String },
+    ValidateConstraint { name: String },
 }
 
 // ========== Real implementations for 10 utility statements ==========
@@ -3238,21 +3136,10 @@ pub struct AlterPolicyLabelStatement {
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum AlterMaskingPolicyAction {
     Comments(String),
-    Add {
-        function: String,
-        labels: Vec<String>,
-    },
-    Remove {
-        function: String,
-        labels: Vec<String>,
-    },
-    Modify {
-        function: String,
-        labels: Vec<String>,
-    },
-    ModifyFilter {
-        filter_clauses: Vec<FilterClause>,
-    },
+    Add { function: String, labels: Vec<String> },
+    Remove { function: String, labels: Vec<String> },
+    Modify { function: String, labels: Vec<String> },
+    ModifyFilter { filter_clauses: Vec<FilterClause> },
     DropFilter,
     Disable,
 }
@@ -3289,14 +3176,8 @@ pub struct AlterDatabaseLinkStatement {
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum AlterDatabaseLinkAction {
-    ConnectTo {
-        user: String,
-        password: String,
-        connect_string: Option<String>,
-    },
-    RenameTo {
-        new_name: String,
-    },
+    ConnectTo { user: String, password: String, connect_string: Option<String> },
+    RenameTo { new_name: String },
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]

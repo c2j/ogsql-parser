@@ -8,10 +8,7 @@ fn roundtrip(sql: &str) -> (String, Vec<String>) {
     let restored: Vec<ogsql_parser::Statement> = serde_json::from_str(&json).unwrap();
 
     let formatter = SqlFormatter::new();
-    let formatted: Vec<String> = restored
-        .iter()
-        .map(|s| formatter.format_statement(s))
-        .collect();
+    let formatted: Vec<String> = restored.iter().map(|s| formatter.format_statement(s)).collect();
 
     (json, formatted)
 }

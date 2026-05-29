@@ -15,34 +15,17 @@ use crate::token::{SourceLocation, Token, TokenWithSpan};
 #[derive(Debug, Clone, thiserror::Error, serde::Serialize, serde::Deserialize)]
 pub enum ParserError {
     #[error("unexpected token at line {}, column {}: expected {}, got {}", .location.line, .location.column, expected, got)]
-    UnexpectedToken {
-        location: SourceLocation,
-        expected: String,
-        got: String,
-    },
+    UnexpectedToken { location: SourceLocation, expected: String, got: String },
     #[error("unexpected end of input at line {}, column {}: expected {}", .location.line, .location.column, expected)]
-    UnexpectedEof {
-        expected: String,
-        location: SourceLocation,
-    },
+    UnexpectedEof { expected: String, location: SourceLocation },
     #[error("{message}{loc}", loc = .location.format_if_real())]
-    Warning {
-        message: String,
-        location: SourceLocation,
-    },
+    Warning { message: String, location: SourceLocation },
     #[error("reserved keyword \"{}\" cannot be used as identifier at line {}, column {}", .keyword, .location.line, .location.column)]
-    ReservedKeywordAsIdentifier {
-        keyword: String,
-        location: SourceLocation,
-    },
+    ReservedKeywordAsIdentifier { keyword: String, location: SourceLocation },
     #[error("{0}")]
     TokenizerError(#[from] crate::token::tokenizer::TokenizerError),
     #[error("unsupported syntax at line {}, column {}: {} ({})", .location.line, .location.column, .syntax, .hint)]
-    UnsupportedSyntax {
-        location: SourceLocation,
-        syntax: String,
-        hint: String,
-    },
+    UnsupportedSyntax { location: SourceLocation, syntax: String, hint: String },
 }
 
 pub struct Parser {
@@ -74,15 +57,7 @@ impl Parser {
     }
 
     pub fn with_source(tokens: Vec<TokenWithSpan>, source: String) -> Self {
-        Self {
-            tokens,
-            pos: 0,
-            errors: Vec::new(),
-            source,
-            depth: 0,
-            pl_into_mode: false,
-            scope_stack: Vec::new(),
-        }
+        Self { tokens, pos: 0, errors: Vec::new(), source, depth: 0, pl_into_mode: false, scope_stack: Vec::new() }
     }
 
     pub fn set_pl_into_mode(&mut self, enabled: bool) {
@@ -177,9 +152,7 @@ impl Parser {
     /// Parses exactly one SQL statement, returning an error if zero or multiple are found.
     ///
     /// Use this when you expect exactly one statement from input (e.g., DDL scripts).
-    pub fn parse_one(
-        input: &str,
-    ) -> Result<(crate::ast::StatementInfo, Vec<ParserError>), ParserError> {
+    pub fn parse_one(input: &str) -> Result<(crate::ast::StatementInfo, Vec<ParserError>), ParserError> {
         let tokens = crate::token::tokenizer::Tokenizer::new(input).tokenize()?;
         let mut parser = Parser::with_source(tokens, input.to_string());
         let infos = parser.parse_with_text();
@@ -188,7 +161,10 @@ impl Parser {
                 expected: "statement".to_string(),
                 location: parser.current_location(),
             }),
-            1 => Ok((infos.into_iter().next().expect("infos has exactly 1 element when len() == 1"), parser.errors().to_vec())),
+            1 => Ok((
+                infos.into_iter().next().expect("infos has exactly 1 element when len() == 1"),
+                parser.errors().to_vec(),
+            )),
             n => Err(ParserError::UnexpectedToken {
                 location: parser.current_location(),
                 expected: "single statement".to_string(),
@@ -214,20 +190,14 @@ impl Parser {
     }
 
     fn current_location(&self) -> SourceLocation {
-        self.tokens
-            .get(self.pos)
-            .map(|t| t.location)
-            .unwrap_or_default()
+        self.tokens.get(self.pos).map(|t| t.location).unwrap_or_default()
     }
 
     fn prev_location(&self) -> SourceLocation {
         if self.pos == 0 {
             return self.current_location();
         }
-        self.tokens
-            .get(self.pos.saturating_sub(1))
-            .map(|t| t.location)
-            .unwrap_or_default()
+        self.tokens.get(self.pos.saturating_sub(1)).map(|t| t.location).unwrap_or_default()
     }
 
     /// Parses the token stream into a list of SQL statements with error recovery.
@@ -291,10 +261,9 @@ impl Parser {
                             // If internal error recovery happened (returns Empty),
                             // rollback spurious errors from consuming past the statement
                             // boundary and keep only the most relevant one (last = from catch block).
-                            if matches!(s, crate::ast::Statement::Empty)
-                                && self.errors.len() > saved_error_count
-                            {
-                                let real_error = self.errors.pop().expect("errors len > saved_error_count checked above");
+                            if matches!(s, crate::ast::Statement::Empty) && self.errors.len() > saved_error_count {
+                                let real_error =
+                                    self.errors.pop().expect("errors len > saved_error_count checked above");
                                 self.errors.truncate(saved_error_count);
                                 self.errors.push(real_error);
                             }
@@ -354,8 +323,7 @@ impl Parser {
 
                     let (start_line, start_col) =
                         Self::byte_offset_to_line_col(&line_offsets, byte_start, &self.source);
-                    let (end_line, end_col) =
-                        Self::byte_offset_to_line_col(&line_offsets, byte_end, &self.source);
+                    let (end_line, end_col) = Self::byte_offset_to_line_col(&line_offsets, byte_end, &self.source);
 
                     infos.push(crate::ast::StatementInfo {
                         sql_text,
@@ -379,7 +347,7 @@ impl Parser {
         let mut case_depth = 0i32;
         let mut seen_outer_end = false;
         let mut in_routine_decl = false;
-        let mut in_declare_section = self.tokens.get(self.pos).map_or(false, |t| {
+        let mut in_declare_section = self.tokens.get(self.pos).is_some_and(|t| {
             if !matches!(t.token, Token::Keyword(Keyword::DECLARE)) {
                 return false;
             }
@@ -412,8 +380,8 @@ impl Parser {
                     // At top level (depth=0, begin_depth=0, subprog_depth=0), BEGIN is
                     // transactional unless we're inside a routine declaration or declare section.
                     // Inside a package subprogram or already-nested block, BEGIN is a PL block.
-                    let is_pl_block_begin = begin_depth > 0 || depth > 0 || subprog_depth > 0
-                        || in_routine_decl || in_declare_section;
+                    let is_pl_block_begin =
+                        begin_depth > 0 || depth > 0 || subprog_depth > 0 || in_routine_decl || in_declare_section;
                     if is_pl_block_begin {
                         begin_depth += 1;
                         if in_routine_decl && begin_depth == 1 {
@@ -433,9 +401,7 @@ impl Parser {
                                 | Token::Keyword(Keyword::CASE)
                         );
                     if next_is_compound {
-                        if matches!(self.tokens[i + 1].token, Token::Keyword(Keyword::CASE))
-                            && case_depth > 0
-                        {
+                        if matches!(self.tokens[i + 1].token, Token::Keyword(Keyword::CASE)) && case_depth > 0 {
                             case_depth -= 1;
                         }
                         skip_next = true;
@@ -492,9 +458,7 @@ impl Parser {
                         return i;
                     }
                 }
-                Token::Keyword(Keyword::CREATE)
-                    if !is_package && depth <= 0 && begin_depth <= 0 =>
-                {
+                Token::Keyword(Keyword::CREATE) if !is_package && depth <= 0 && begin_depth <= 0 => {
                     if self.detect_package_context_at(i) {
                         return if i > self.pos { i - 1 } else { i };
                     }
@@ -569,9 +533,7 @@ impl Parser {
 
     fn is_with_dml_at(&self, pos: usize) -> bool {
         let mut i = pos + 1;
-        if i < self.tokens.len()
-            && matches!(self.tokens[i].token, Token::Keyword(Keyword::RECURSIVE))
-        {
+        if i < self.tokens.len() && matches!(self.tokens[i].token, Token::Keyword(Keyword::RECURSIVE)) {
             i += 1;
         }
         while i < self.tokens.len() {
@@ -624,9 +586,7 @@ impl Parser {
         i += 1;
         if i < self.tokens.len() && matches!(self.tokens[i].token, Token::Keyword(Keyword::OR)) {
             i += 1;
-            if i < self.tokens.len()
-                && matches!(self.tokens[i].token, Token::Keyword(Keyword::REPLACE))
-            {
+            if i < self.tokens.len() && matches!(self.tokens[i].token, Token::Keyword(Keyword::REPLACE)) {
                 i += 1;
             }
         }
@@ -643,9 +603,7 @@ impl Parser {
         while j > 0 {
             j -= 1;
             match &self.tokens[j].token {
-                Token::Keyword(Keyword::FUNCTION) | Token::Keyword(Keyword::PROCEDURE)
-                    if paren_depth == 0 =>
-                {
+                Token::Keyword(Keyword::FUNCTION) | Token::Keyword(Keyword::PROCEDURE) if paren_depth == 0 => {
                     // Check if CREATE [OR REPLACE] precedes this FUNCTION/PROCEDURE
                     let mut k = j;
                     if k > 0 && matches!(self.tokens[k - 1].token, Token::Keyword(Keyword::REPLACE)) {
@@ -698,13 +656,7 @@ impl Parser {
             match &self.tokens[j].token {
                 Token::Slash => return Some(j),
                 Token::Keyword(Keyword::END_P) | Token::Semicolon => return None,
-                _ if !matches!(
-                    self.tokens[j].token,
-                    Token::Keyword(Keyword::END_P) | Token::Ident(_)
-                ) =>
-                {
-                    return None
-                }
+                _ if !matches!(self.tokens[j].token, Token::Keyword(Keyword::END_P) | Token::Ident(_)) => return None,
                 _ => {}
             }
         }
@@ -717,17 +669,11 @@ impl Parser {
         }
         matches!(
             self.tokens[self.pos + 1].token,
-            Token::Keyword(Keyword::LOOP)
-                | Token::Keyword(Keyword::IF_P)
-                | Token::Keyword(Keyword::CASE)
+            Token::Keyword(Keyword::LOOP) | Token::Keyword(Keyword::IF_P) | Token::Keyword(Keyword::CASE)
         )
     }
 
-    fn byte_offset_to_line_col(
-        line_offsets: &[usize],
-        byte_offset: usize,
-        source: &str,
-    ) -> (usize, usize) {
+    fn byte_offset_to_line_col(line_offsets: &[usize], byte_offset: usize, source: &str) -> (usize, usize) {
         let offset = byte_offset.min(source.len());
         let line = line_offsets.partition_point(|&lo| lo <= offset).max(1);
         let line_start = line_offsets[line - 1];
@@ -746,10 +692,7 @@ impl Parser {
     }
 
     pub fn into_iter(self) -> StatementIter {
-        StatementIter {
-            parser: self,
-            done: false,
-        }
+        StatementIter { parser: self, done: false }
     }
 
     pub fn parse_next(&mut self) -> Option<Result<crate::ast::Statement, ParserError>> {
@@ -771,10 +714,7 @@ impl Parser {
     // ── Token navigation helpers ──
 
     fn peek(&self) -> &Token {
-        self.tokens
-            .get(self.pos)
-            .map(|t| &t.token)
-            .unwrap_or(&Token::Eof)
+        self.tokens.get(self.pos).map(|t| &t.token).unwrap_or(&Token::Eof)
     }
 
     fn advance(&mut self) {
@@ -809,12 +749,7 @@ impl Parser {
     }
 
     pub(crate) fn peek_keyword_at(&self, offset: usize) -> Option<Keyword> {
-        if let Token::Keyword(kw) = self
-            .tokens
-            .get(self.pos + offset)
-            .map(|t| &t.token)
-            .unwrap_or(&Token::Eof)
-        {
+        if let Token::Keyword(kw) = self.tokens.get(self.pos + offset).map(|t| &t.token).unwrap_or(&Token::Eof) {
             Some(*kw)
         } else {
             None
@@ -919,10 +854,7 @@ impl Parser {
                 let name = kw.as_str().to_string();
 
                 if kw.category() == crate::token::keyword::KeywordCategory::Reserved {
-                    self.add_error(ParserError::ReservedKeywordAsIdentifier {
-                        keyword: name.clone(),
-                        location,
-                    });
+                    self.add_error(ParserError::ReservedKeywordAsIdentifier { keyword: name.clone(), location });
                 }
                 Ok(name)
             }
@@ -1172,7 +1104,7 @@ impl Parser {
         let mut hints = Vec::new();
         let loc = self.current_location();
         while let Token::Hint(h) = self.peek().clone() {
-            for w in hint_validator::validate_hints(&h, loc.clone()) {
+            for w in hint_validator::validate_hints(&h, loc) {
                 self.add_error(w);
             }
             hints.push(h);
@@ -1192,7 +1124,10 @@ impl Parser {
                         hints.append(&mut stmt.hints);
                         stmt.hints = hints;
                         self.try_consume_semicolon();
-                        crate::ast::Statement::Select(crate::ast::Spanned::new(stmt, Some(crate::ast::SourceSpan { start, end: self.prev_location() })))
+                        crate::ast::Statement::Select(crate::ast::Spanned::new(
+                            stmt,
+                            Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+                        ))
                     }
                     Err(e) => {
                         self.add_error(e);
@@ -1217,7 +1152,10 @@ impl Parser {
                                 Ok(mut stmt) => {
                                     stmt.with = Some(with);
                                     self.try_consume_semicolon();
-                                    crate::ast::Statement::Insert(crate::ast::Spanned::new(stmt, Some(crate::ast::SourceSpan { start, end: self.prev_location() })))
+                                    crate::ast::Statement::Insert(crate::ast::Spanned::new(
+                                        stmt,
+                                        Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+                                    ))
                                 }
                                 Err(e) => {
                                     self.add_error(e);
@@ -1231,7 +1169,10 @@ impl Parser {
                                 Ok(mut stmt) => {
                                     stmt.with = Some(with);
                                     self.try_consume_semicolon();
-                                    crate::ast::Statement::Update(crate::ast::Spanned::new(stmt, Some(crate::ast::SourceSpan { start, end: self.prev_location() })))
+                                    crate::ast::Statement::Update(crate::ast::Spanned::new(
+                                        stmt,
+                                        Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+                                    ))
                                 }
                                 Err(e) => {
                                     self.add_error(e);
@@ -1245,7 +1186,10 @@ impl Parser {
                                 Ok(mut stmt) => {
                                     stmt.with = Some(with);
                                     self.try_consume_semicolon();
-                                    crate::ast::Statement::Delete(crate::ast::Spanned::new(stmt, Some(crate::ast::SourceSpan { start, end: self.prev_location() })))
+                                    crate::ast::Statement::Delete(crate::ast::Spanned::new(
+                                        stmt,
+                                        Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+                                    ))
                                 }
                                 Err(e) => {
                                     self.add_error(e);
@@ -1270,7 +1214,10 @@ impl Parser {
                             hints.append(&mut stmt.hints);
                             stmt.hints = hints;
                             self.try_consume_semicolon();
-                            crate::ast::Statement::Select(crate::ast::Spanned::new(stmt, Some(crate::ast::SourceSpan { start, end: self.prev_location() })))
+                            crate::ast::Statement::Select(crate::ast::Spanned::new(
+                                stmt,
+                                Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+                            ))
                         }
                         Err(e) => {
                             self.add_error(e);
@@ -1287,7 +1234,10 @@ impl Parser {
                     match self.parse_insert_all() {
                         Ok(stmt) => {
                             self.try_consume_semicolon();
-                            crate::ast::Statement::InsertAll(crate::ast::Spanned::new(stmt, Some(crate::ast::SourceSpan { start, end: self.prev_location() })))
+                            crate::ast::Statement::InsertAll(crate::ast::Spanned::new(
+                                stmt,
+                                Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+                            ))
                         }
                         Err(e) => {
                             self.add_error(e);
@@ -1299,7 +1249,10 @@ impl Parser {
                     match self.parse_insert_first() {
                         Ok(stmt) => {
                             self.try_consume_semicolon();
-                            crate::ast::Statement::InsertFirst(crate::ast::Spanned::new(stmt, Some(crate::ast::SourceSpan { start, end: self.prev_location() })))
+                            crate::ast::Statement::InsertFirst(crate::ast::Spanned::new(
+                                stmt,
+                                Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+                            ))
                         }
                         Err(e) => {
                             self.add_error(e);
@@ -1313,7 +1266,10 @@ impl Parser {
                             hints.append(&mut stmt.hints);
                             stmt.hints = hints;
                             self.try_consume_semicolon();
-                            crate::ast::Statement::Insert(crate::ast::Spanned::new(stmt, Some(crate::ast::SourceSpan { start, end: self.prev_location() })))
+                            crate::ast::Statement::Insert(crate::ast::Spanned::new(
+                                stmt,
+                                Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+                            ))
                         }
                         Err(e) => {
                             self.add_error(e);
@@ -1331,7 +1287,10 @@ impl Parser {
                         hints.append(&mut stmt.hints);
                         stmt.hints = hints;
                         self.try_consume_semicolon();
-                        crate::ast::Statement::Update(crate::ast::Spanned::new(stmt, Some(crate::ast::SourceSpan { start, end: self.prev_location() })))
+                        crate::ast::Statement::Update(crate::ast::Spanned::new(
+                            stmt,
+                            Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+                        ))
                     }
                     Err(e) => {
                         self.add_error(e);
@@ -1348,7 +1307,10 @@ impl Parser {
                         hints.append(&mut stmt.hints);
                         stmt.hints = hints;
                         self.try_consume_semicolon();
-                        crate::ast::Statement::Delete(crate::ast::Spanned::new(stmt, Some(crate::ast::SourceSpan { start, end: self.prev_location() })))
+                        crate::ast::Statement::Delete(crate::ast::Spanned::new(
+                            stmt,
+                            Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+                        ))
                     }
                     Err(e) => {
                         self.add_error(e);
@@ -1365,7 +1327,10 @@ impl Parser {
                         hints.append(&mut stmt.hints);
                         stmt.hints = hints;
                         self.try_consume_semicolon();
-                        crate::ast::Statement::Merge(crate::ast::Spanned::new(stmt, Some(crate::ast::SourceSpan { start, end: self.prev_location() })))
+                        crate::ast::Statement::Merge(crate::ast::Spanned::new(
+                            stmt,
+                            Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+                        ))
                     }
                     Err(e) => {
                         self.add_error(e);
@@ -1378,7 +1343,10 @@ impl Parser {
                 match self.parse_truncate() {
                     Ok(stmt) => {
                         self.try_consume_semicolon();
-                        crate::ast::Statement::Truncate(crate::ast::Spanned::new(stmt, Some(crate::ast::SourceSpan { start, end: self.prev_location() })))
+                        crate::ast::Statement::Truncate(crate::ast::Spanned::new(
+                            stmt,
+                            Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+                        ))
                     }
                     Err(e) => {
                         self.add_error(e);
@@ -1391,7 +1359,10 @@ impl Parser {
                 match self.parse_create_procedure() {
                     Ok(stmt) => {
                         self.try_consume_semicolon();
-                        crate::ast::Statement::CreateProcedure(crate::ast::Spanned::new(stmt, Some(crate::ast::SourceSpan { start, end: self.prev_location() })))
+                        crate::ast::Statement::CreateProcedure(crate::ast::Spanned::new(
+                            stmt,
+                            Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+                        ))
                     }
                     Err(e) => {
                         self.add_error(e);
@@ -1404,7 +1375,10 @@ impl Parser {
                 match self.parse_create_function() {
                     Ok(stmt) => {
                         self.try_consume_semicolon();
-                        crate::ast::Statement::CreateFunction(crate::ast::Spanned::new(stmt, Some(crate::ast::SourceSpan { start, end: self.prev_location() })))
+                        crate::ast::Statement::CreateFunction(crate::ast::Spanned::new(
+                            stmt,
+                            Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+                        ))
                     }
                     Err(e) => {
                         self.add_error(e);
@@ -1432,7 +1406,10 @@ impl Parser {
                     match self.parse_set_transaction() {
                         Ok(stmt) => {
                             self.try_consume_semicolon();
-                            crate::ast::Statement::Transaction(crate::ast::Spanned::new(stmt, Some(crate::ast::SourceSpan { start, end: self.prev_location() })))
+                            crate::ast::Statement::Transaction(crate::ast::Spanned::new(
+                                stmt,
+                                Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+                            ))
                         }
                         Err(e) => {
                             self.add_error(e);
@@ -1444,7 +1421,10 @@ impl Parser {
                     match self.parse_set() {
                         Ok(stmt) => {
                             self.try_consume_semicolon();
-                            crate::ast::Statement::VariableSet(crate::ast::Spanned::new(stmt, Some(crate::ast::SourceSpan { start, end: self.prev_location() })))
+                            crate::ast::Statement::VariableSet(crate::ast::Spanned::new(
+                                stmt,
+                                Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+                            ))
                         }
                         Err(e) => {
                             self.add_error(e);
@@ -1458,7 +1438,10 @@ impl Parser {
                 match self.parse_show() {
                     Ok(stmt) => {
                         self.try_consume_semicolon();
-                        crate::ast::Statement::VariableShow(crate::ast::Spanned::new(stmt, Some(crate::ast::SourceSpan { start, end: self.prev_location() })))
+                        crate::ast::Statement::VariableShow(crate::ast::Spanned::new(
+                            stmt,
+                            Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+                        ))
                     }
                     Err(e) => {
                         self.add_error(e);
@@ -1471,7 +1454,10 @@ impl Parser {
                 match self.parse_reset() {
                     Ok(stmt) => {
                         self.try_consume_semicolon();
-                        crate::ast::Statement::VariableReset(crate::ast::Spanned::new(stmt, Some(crate::ast::SourceSpan { start, end: self.prev_location() })))
+                        crate::ast::Statement::VariableReset(crate::ast::Spanned::new(
+                            stmt,
+                            Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+                        ))
                     }
                     Err(e) => {
                         self.add_error(e);
@@ -1485,7 +1471,10 @@ impl Parser {
                     match self.parse_transaction_begin() {
                         Ok(stmt) => {
                             self.try_consume_semicolon();
-                            crate::ast::Statement::Transaction(crate::ast::Spanned::new(stmt, Some(crate::ast::SourceSpan { start, end: self.prev_location() })))
+                            crate::ast::Statement::Transaction(crate::ast::Spanned::new(
+                                stmt,
+                                Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+                            ))
                         }
                         Err(e) => {
                             self.add_error(e);
@@ -1497,7 +1486,10 @@ impl Parser {
                     match self.parse_anonymous_block() {
                         Ok(stmt) => {
                             self.try_consume_semicolon();
-                            crate::ast::Statement::AnonyBlock(crate::ast::Spanned::new(stmt, Some(crate::ast::SourceSpan { start, end: self.prev_location() })))
+                            crate::ast::Statement::AnonyBlock(crate::ast::Spanned::new(
+                                stmt,
+                                Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+                            ))
                         }
                         Err(e) => {
                             self.add_error(e);
@@ -1511,7 +1503,10 @@ impl Parser {
                 match self.parse_transaction_begin() {
                     Ok(stmt) => {
                         self.try_consume_semicolon();
-                        crate::ast::Statement::Transaction(crate::ast::Spanned::new(stmt, Some(crate::ast::SourceSpan { start, end: self.prev_location() })))
+                        crate::ast::Statement::Transaction(crate::ast::Spanned::new(
+                            stmt,
+                            Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+                        ))
                     }
                     Err(e) => {
                         self.add_error(e);
@@ -1525,17 +1520,23 @@ impl Parser {
                     self.advance();
                     let transaction_id = self.parse_string_literal()?;
                     self.try_consume_semicolon();
-                    crate::ast::Statement::Transaction(crate::ast::Spanned::new(crate::ast::TransactionStatement {
-                        kind: crate::ast::TransactionKind::CommitPrepared,
-                        modes: vec![],
-                        savepoint_name: None,
-                        transaction_id: Some(transaction_id),
-                    }, Some(crate::ast::SourceSpan { start, end: self.prev_location() })))
+                    crate::ast::Statement::Transaction(crate::ast::Spanned::new(
+                        crate::ast::TransactionStatement {
+                            kind: crate::ast::TransactionKind::CommitPrepared,
+                            modes: vec![],
+                            savepoint_name: None,
+                            transaction_id: Some(transaction_id),
+                        },
+                        Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+                    ))
                 } else {
                     match self.parse_transaction_commit() {
                         Ok(stmt) => {
                             self.try_consume_semicolon();
-                            crate::ast::Statement::Transaction(crate::ast::Spanned::new(stmt, Some(crate::ast::SourceSpan { start, end: self.prev_location() })))
+                            crate::ast::Statement::Transaction(crate::ast::Spanned::new(
+                                stmt,
+                                Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+                            ))
                         }
                         Err(e) => {
                             self.add_error(e);
@@ -1550,17 +1551,23 @@ impl Parser {
                     self.advance();
                     let transaction_id = self.parse_string_literal()?;
                     self.try_consume_semicolon();
-                    crate::ast::Statement::Transaction(crate::ast::Spanned::new(crate::ast::TransactionStatement {
-                        kind: crate::ast::TransactionKind::RollbackPrepared,
-                        modes: vec![],
-                        savepoint_name: None,
-                        transaction_id: Some(transaction_id),
-                    }, Some(crate::ast::SourceSpan { start, end: self.prev_location() })))
+                    crate::ast::Statement::Transaction(crate::ast::Spanned::new(
+                        crate::ast::TransactionStatement {
+                            kind: crate::ast::TransactionKind::RollbackPrepared,
+                            modes: vec![],
+                            savepoint_name: None,
+                            transaction_id: Some(transaction_id),
+                        },
+                        Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+                    ))
                 } else {
                     match self.parse_transaction_rollback() {
                         Ok(stmt) => {
                             self.try_consume_semicolon();
-                            crate::ast::Statement::Transaction(crate::ast::Spanned::new(stmt, Some(crate::ast::SourceSpan { start, end: self.prev_location() })))
+                            crate::ast::Statement::Transaction(crate::ast::Spanned::new(
+                                stmt,
+                                Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+                            ))
                         }
                         Err(e) => {
                             self.add_error(e);
@@ -1574,7 +1581,10 @@ impl Parser {
                 match self.parse_savepoint() {
                     Ok(stmt) => {
                         self.try_consume_semicolon();
-                        crate::ast::Statement::Transaction(crate::ast::Spanned::new(stmt, Some(crate::ast::SourceSpan { start, end: self.prev_location() })))
+                        crate::ast::Statement::Transaction(crate::ast::Spanned::new(
+                            stmt,
+                            Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+                        ))
                     }
                     Err(e) => {
                         self.add_error(e);
@@ -1587,7 +1597,10 @@ impl Parser {
                 match self.parse_discard() {
                     Ok(stmt) => {
                         self.try_consume_semicolon();
-                        crate::ast::Statement::Discard(crate::ast::Spanned::new(stmt, Some(crate::ast::SourceSpan { start, end: self.prev_location() })))
+                        crate::ast::Statement::Discard(crate::ast::Spanned::new(
+                            stmt,
+                            Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+                        ))
                     }
                     Err(e) => {
                         self.add_error(e);
@@ -1605,7 +1618,10 @@ impl Parser {
                 match self.parse_copy() {
                     Ok(stmt) => {
                         self.try_consume_semicolon();
-                        crate::ast::Statement::Copy(crate::ast::Spanned::new(stmt, Some(crate::ast::SourceSpan { start, end: self.prev_location() })))
+                        crate::ast::Statement::Copy(crate::ast::Spanned::new(
+                            stmt,
+                            Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+                        ))
                     }
                     Err(e) => {
                         self.add_error(e);
@@ -1616,7 +1632,10 @@ impl Parser {
             Token::Keyword(Keyword::EXPLAIN) => {
                 self.advance();
                 match self.parse_explain() {
-                    Ok(stmt) => crate::ast::Statement::Explain(crate::ast::Spanned::new(stmt, Some(crate::ast::SourceSpan { start, end: self.prev_location() }))),
+                    Ok(stmt) => crate::ast::Statement::Explain(crate::ast::Spanned::new(
+                        stmt,
+                        Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+                    )),
                     Err(e) => {
                         self.add_error(e);
                         self.skip_to_semicolon()
@@ -1628,7 +1647,10 @@ impl Parser {
                 match self.parse_call() {
                     Ok(stmt) => {
                         self.try_consume_semicolon();
-                        crate::ast::Statement::Call(crate::ast::Spanned::new(stmt, Some(crate::ast::SourceSpan { start, end: self.prev_location() })))
+                        crate::ast::Statement::Call(crate::ast::Spanned::new(
+                            stmt,
+                            Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+                        ))
                     }
                     Err(e) => {
                         self.add_error(e);
@@ -1642,7 +1664,10 @@ impl Parser {
                     match self.parse_grant_role() {
                         Ok(stmt) => {
                             self.try_consume_semicolon();
-                            crate::ast::Statement::GrantRole(crate::ast::Spanned::new(stmt, Some(crate::ast::SourceSpan { start, end: self.prev_location() })))
+                            crate::ast::Statement::GrantRole(crate::ast::Spanned::new(
+                                stmt,
+                                Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+                            ))
                         }
                         Err(e) => {
                             self.add_error(e);
@@ -1653,7 +1678,10 @@ impl Parser {
                     match self.parse_grant() {
                         Ok(stmt) => {
                             self.try_consume_semicolon();
-                            crate::ast::Statement::Grant(crate::ast::Spanned::new(stmt, Some(crate::ast::SourceSpan { start, end: self.prev_location() })))
+                            crate::ast::Statement::Grant(crate::ast::Spanned::new(
+                                stmt,
+                                Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+                            ))
                         }
                         Err(e) => {
                             self.add_error(e);
@@ -1668,7 +1696,10 @@ impl Parser {
                     match self.parse_revoke_role() {
                         Ok(stmt) => {
                             self.try_consume_semicolon();
-                            crate::ast::Statement::RevokeRole(crate::ast::Spanned::new(stmt, Some(crate::ast::SourceSpan { start, end: self.prev_location() })))
+                            crate::ast::Statement::RevokeRole(crate::ast::Spanned::new(
+                                stmt,
+                                Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+                            ))
                         }
                         Err(e) => {
                             self.add_error(e);
@@ -1679,7 +1710,10 @@ impl Parser {
                     match self.parse_revoke() {
                         Ok(stmt) => {
                             self.try_consume_semicolon();
-                            crate::ast::Statement::Revoke(crate::ast::Spanned::new(stmt, Some(crate::ast::SourceSpan { start, end: self.prev_location() })))
+                            crate::ast::Statement::Revoke(crate::ast::Spanned::new(
+                                stmt,
+                                Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+                            ))
                         }
                         Err(e) => {
                             self.add_error(e);
@@ -1693,7 +1727,10 @@ impl Parser {
                 match self.parse_vacuum() {
                     Ok(stmt) => {
                         self.try_consume_semicolon();
-                        crate::ast::Statement::Vacuum(crate::ast::Spanned::new(stmt, Some(crate::ast::SourceSpan { start, end: self.prev_location() })))
+                        crate::ast::Statement::Vacuum(crate::ast::Spanned::new(
+                            stmt,
+                            Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+                        ))
                     }
                     Err(e) => {
                         self.add_error(e);
@@ -1706,7 +1743,10 @@ impl Parser {
                 match self.parse_do() {
                     Ok(stmt) => {
                         self.try_consume_semicolon();
-                        crate::ast::Statement::Do(crate::ast::Spanned::new(stmt, Some(crate::ast::SourceSpan { start, end: self.prev_location() })))
+                        crate::ast::Statement::Do(crate::ast::Spanned::new(
+                            stmt,
+                            Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+                        ))
                     }
                     Err(e) => {
                         self.add_error(e);
@@ -1720,17 +1760,23 @@ impl Parser {
                     self.advance();
                     let transaction_id = self.parse_string_literal()?;
                     self.try_consume_semicolon();
-                    crate::ast::Statement::Transaction(crate::ast::Spanned::new(crate::ast::TransactionStatement {
-                        kind: crate::ast::TransactionKind::PrepareTransaction,
-                        modes: vec![],
-                        savepoint_name: None,
-                        transaction_id: Some(transaction_id),
-                    }, Some(crate::ast::SourceSpan { start, end: self.prev_location() })))
+                    crate::ast::Statement::Transaction(crate::ast::Spanned::new(
+                        crate::ast::TransactionStatement {
+                            kind: crate::ast::TransactionKind::PrepareTransaction,
+                            modes: vec![],
+                            savepoint_name: None,
+                            transaction_id: Some(transaction_id),
+                        },
+                        Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+                    ))
                 } else {
                     match self.parse_prepare() {
                         Ok(stmt) => {
                             self.try_consume_semicolon();
-                            crate::ast::Statement::Prepare(crate::ast::Spanned::new(stmt, Some(crate::ast::SourceSpan { start, end: self.prev_location() })))
+                            crate::ast::Statement::Prepare(crate::ast::Spanned::new(
+                                stmt,
+                                Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+                            ))
                         }
                         Err(e) => {
                             self.add_error(e);
@@ -1749,15 +1795,18 @@ impl Parser {
                     self.expect_token(&Token::RParen)?;
                     let query = self.parse_string_literal()?;
                     self.try_consume_semicolon();
-                    crate::ast::Statement::ExecuteDirect(crate::ast::Spanned::new(crate::ast::ExecuteDirectStatement {
-                        node_name,
-                        query,
-                    }, Some(crate::ast::SourceSpan { start, end: self.prev_location() })))
+                    crate::ast::Statement::ExecuteDirect(crate::ast::Spanned::new(
+                        crate::ast::ExecuteDirectStatement { node_name, query },
+                        Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+                    ))
                 } else {
                     match self.parse_execute() {
                         Ok(stmt) => {
                             self.try_consume_semicolon();
-                            crate::ast::Statement::Execute(crate::ast::Spanned::new(stmt, Some(crate::ast::SourceSpan { start, end: self.prev_location() })))
+                            crate::ast::Statement::Execute(crate::ast::Spanned::new(
+                                stmt,
+                                Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+                            ))
                         }
                         Err(e) => {
                             self.add_error(e);
@@ -1771,7 +1820,10 @@ impl Parser {
                 match self.parse_deallocate() {
                     Ok(stmt) => {
                         self.try_consume_semicolon();
-                        crate::ast::Statement::Deallocate(crate::ast::Spanned::new(stmt, Some(crate::ast::SourceSpan { start, end: self.prev_location() })))
+                        crate::ast::Statement::Deallocate(crate::ast::Spanned::new(
+                            stmt,
+                            Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+                        ))
                     }
                     Err(e) => {
                         self.add_error(e);
@@ -1784,7 +1836,10 @@ impl Parser {
                 match self.parse_comment() {
                     Ok(stmt) => {
                         self.try_consume_semicolon();
-                        crate::ast::Statement::Comment(crate::ast::Spanned::new(stmt, Some(crate::ast::SourceSpan { start, end: self.prev_location() })))
+                        crate::ast::Statement::Comment(crate::ast::Spanned::new(
+                            stmt,
+                            Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+                        ))
                     }
                     Err(e) => {
                         self.add_error(e);
@@ -1797,7 +1852,10 @@ impl Parser {
                 match self.parse_lock() {
                     Ok(stmt) => {
                         self.try_consume_semicolon();
-                        crate::ast::Statement::Lock(crate::ast::Spanned::new(stmt, Some(crate::ast::SourceSpan { start, end: self.prev_location() })))
+                        crate::ast::Statement::Lock(crate::ast::Spanned::new(
+                            stmt,
+                            Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+                        ))
                     }
                     Err(e) => {
                         self.add_error(e);
@@ -1812,7 +1870,10 @@ impl Parser {
                     match self.parse_refresh_materialized_view() {
                         Ok(stmt) => {
                             self.try_consume_semicolon();
-                            crate::ast::Statement::RefreshMaterializedView(crate::ast::Spanned::new(stmt, Some(crate::ast::SourceSpan { start, end: self.prev_location() })))
+                            crate::ast::Statement::RefreshMaterializedView(crate::ast::Spanned::new(
+                                stmt,
+                                Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+                            ))
                         }
                         Err(e) => {
                             self.add_error(e);
@@ -1823,7 +1884,10 @@ impl Parser {
                     match self.parse_refresh_materialized_view() {
                         Ok(stmt) => {
                             self.try_consume_semicolon();
-                            crate::ast::Statement::RefreshMaterializedView(crate::ast::Spanned::new(stmt, Some(crate::ast::SourceSpan { start, end: self.prev_location() })))
+                            crate::ast::Statement::RefreshMaterializedView(crate::ast::Spanned::new(
+                                stmt,
+                                Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+                            ))
                         }
                         Err(e) => {
                             self.add_error(e);
@@ -1837,7 +1901,10 @@ impl Parser {
                 match self.parse_fetch_cursor() {
                     Ok(stmt) => {
                         self.try_consume_semicolon();
-                        crate::ast::Statement::Fetch(crate::ast::Spanned::new(stmt, Some(crate::ast::SourceSpan { start, end: self.prev_location() })))
+                        crate::ast::Statement::Fetch(crate::ast::Spanned::new(
+                            stmt,
+                            Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+                        ))
                     }
                     Err(e) => {
                         self.add_error(e);
@@ -1852,13 +1919,19 @@ impl Parser {
                     let begin_location = self.current_location();
                     let block = self.parse_pl_block_body(None, declarations, begin_location)?;
                     self.try_consume_semicolon();
-                    crate::ast::Statement::AnonyBlock(crate::ast::Spanned::new(crate::ast::AnonyBlockStatement { block }, Some(crate::ast::SourceSpan { start, end: self.prev_location() })))
+                    crate::ast::Statement::AnonyBlock(crate::ast::Spanned::new(
+                        crate::ast::AnonyBlockStatement { block },
+                        Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+                    ))
                 } else if self.is_declare_cursor_at(self.pos) {
                     self.advance();
                     match self.parse_declare_cursor() {
                         Ok(stmt) => {
                             self.try_consume_semicolon();
-                            crate::ast::Statement::DeclareCursor(crate::ast::Spanned::new(stmt, Some(crate::ast::SourceSpan { start, end: self.prev_location() })))
+                            crate::ast::Statement::DeclareCursor(crate::ast::Spanned::new(
+                                stmt,
+                                Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+                            ))
                         }
                         Err(e) => {
                             self.add_error(e);
@@ -1875,7 +1948,10 @@ impl Parser {
                 match self.parse_close_portal() {
                     Ok(stmt) => {
                         self.try_consume_semicolon();
-                        crate::ast::Statement::ClosePortal(crate::ast::Spanned::new(stmt, Some(crate::ast::SourceSpan { start, end: self.prev_location() })))
+                        crate::ast::Statement::ClosePortal(crate::ast::Spanned::new(
+                            stmt,
+                            Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+                        ))
                     }
                     Err(e) => {
                         self.add_error(e);
@@ -1888,7 +1964,10 @@ impl Parser {
                 match self.parse_cluster() {
                     Ok(stmt) => {
                         self.try_consume_semicolon();
-                        crate::ast::Statement::Cluster(crate::ast::Spanned::new(stmt, Some(crate::ast::SourceSpan { start, end: self.prev_location() })))
+                        crate::ast::Statement::Cluster(crate::ast::Spanned::new(
+                            stmt,
+                            Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+                        ))
                     }
                     Err(e) => {
                         self.add_error(e);
@@ -1901,7 +1980,10 @@ impl Parser {
                 match self.parse_declare_cursor() {
                     Ok(stmt) => {
                         self.try_consume_semicolon();
-                        crate::ast::Statement::DeclareCursor(crate::ast::Spanned::new(stmt, Some(crate::ast::SourceSpan { start, end: self.prev_location() })))
+                        crate::ast::Statement::DeclareCursor(crate::ast::Spanned::new(
+                            stmt,
+                            Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+                        ))
                     }
                     Err(e) => {
                         self.add_error(e);
@@ -1914,7 +1996,10 @@ impl Parser {
                 match self.parse_reindex() {
                     Ok(stmt) => {
                         self.try_consume_semicolon();
-                        crate::ast::Statement::Reindex(crate::ast::Spanned::new(stmt, Some(crate::ast::SourceSpan { start, end: self.prev_location() })))
+                        crate::ast::Statement::Reindex(crate::ast::Spanned::new(
+                            stmt,
+                            Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+                        ))
                     }
                     Err(e) => {
                         self.add_error(e);
@@ -1927,7 +2012,10 @@ impl Parser {
                 match self.parse_listen() {
                     Ok(stmt) => {
                         self.try_consume_semicolon();
-                        crate::ast::Statement::Listen(crate::ast::Spanned::new(stmt, Some(crate::ast::SourceSpan { start, end: self.prev_location() })))
+                        crate::ast::Statement::Listen(crate::ast::Spanned::new(
+                            stmt,
+                            Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+                        ))
                     }
                     Err(e) => {
                         self.add_error(e);
@@ -1940,7 +2028,10 @@ impl Parser {
                 match self.parse_notify() {
                     Ok(stmt) => {
                         self.try_consume_semicolon();
-                        crate::ast::Statement::Notify(crate::ast::Spanned::new(stmt, Some(crate::ast::SourceSpan { start, end: self.prev_location() })))
+                        crate::ast::Statement::Notify(crate::ast::Spanned::new(
+                            stmt,
+                            Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+                        ))
                     }
                     Err(e) => {
                         self.add_error(e);
@@ -1953,7 +2044,10 @@ impl Parser {
                 match self.parse_unlisten() {
                     Ok(stmt) => {
                         self.try_consume_semicolon();
-                        crate::ast::Statement::Unlisten(crate::ast::Spanned::new(stmt, Some(crate::ast::SourceSpan { start, end: self.prev_location() })))
+                        crate::ast::Statement::Unlisten(crate::ast::Spanned::new(
+                            stmt,
+                            Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+                        ))
                     }
                     Err(e) => {
                         self.add_error(e);
@@ -1966,7 +2060,10 @@ impl Parser {
                 match self.parse_rule() {
                     Ok(stmt) => {
                         self.try_consume_semicolon();
-                        crate::ast::Statement::Rule(crate::ast::Spanned::new(stmt, Some(crate::ast::SourceSpan { start, end: self.prev_location() })))
+                        crate::ast::Statement::Rule(crate::ast::Spanned::new(
+                            stmt,
+                            Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+                        ))
                     }
                     Err(e) => {
                         self.add_error(e);
@@ -1979,7 +2076,10 @@ impl Parser {
                 match self.parse_analyze() {
                     Ok(stmt) => {
                         self.try_consume_semicolon();
-                        crate::ast::Statement::Analyze(crate::ast::Spanned::new(stmt, Some(crate::ast::SourceSpan { start, end: self.prev_location() })))
+                        crate::ast::Statement::Analyze(crate::ast::Spanned::new(
+                            stmt,
+                            Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+                        ))
                     }
                     Err(e) => {
                         self.add_error(e);
@@ -1992,7 +2092,10 @@ impl Parser {
                 match self.parse_shutdown() {
                     Ok(stmt) => {
                         self.try_consume_semicolon();
-                        crate::ast::Statement::Shutdown(crate::ast::Spanned::new(stmt, Some(crate::ast::SourceSpan { start, end: self.prev_location() })))
+                        crate::ast::Statement::Shutdown(crate::ast::Spanned::new(
+                            stmt,
+                            Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+                        ))
                     }
                     Err(e) => {
                         self.add_error(e);
@@ -2005,7 +2108,10 @@ impl Parser {
                 match self.parse_barrier() {
                     Ok(stmt) => {
                         self.try_consume_semicolon();
-                        crate::ast::Statement::Barrier(crate::ast::Spanned::new(stmt, Some(crate::ast::SourceSpan { start, end: self.prev_location() })))
+                        crate::ast::Statement::Barrier(crate::ast::Spanned::new(
+                            stmt,
+                            Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+                        ))
                     }
                     Err(e) => {
                         self.add_error(e);
@@ -2018,7 +2124,10 @@ impl Parser {
                 match self.parse_purge() {
                     Ok(stmt) => {
                         self.try_consume_semicolon();
-                        crate::ast::Statement::Purge(crate::ast::Spanned::new(stmt, Some(crate::ast::SourceSpan { start, end: self.prev_location() })))
+                        crate::ast::Statement::Purge(crate::ast::Spanned::new(
+                            stmt,
+                            Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+                        ))
                     }
                     Err(e) => {
                         self.add_error(e);
@@ -2031,7 +2140,10 @@ impl Parser {
                 match self.parse_snapshot() {
                     Ok(stmt) => {
                         self.try_consume_semicolon();
-                        crate::ast::Statement::Snapshot(crate::ast::Spanned::new(stmt, Some(crate::ast::SourceSpan { start, end: self.prev_location() })))
+                        crate::ast::Statement::Snapshot(crate::ast::Spanned::new(
+                            stmt,
+                            Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+                        ))
                     }
                     Err(e) => {
                         self.add_error(e);
@@ -2044,7 +2156,10 @@ impl Parser {
                 match self.parse_timecapsule() {
                     Ok(stmt) => {
                         self.try_consume_semicolon();
-                        crate::ast::Statement::TimeCapsule(crate::ast::Spanned::new(stmt, Some(crate::ast::SourceSpan { start, end: self.prev_location() })))
+                        crate::ast::Statement::TimeCapsule(crate::ast::Spanned::new(
+                            stmt,
+                            Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+                        ))
                     }
                     Err(e) => {
                         self.add_error(e);
@@ -2057,7 +2172,10 @@ impl Parser {
                 match self.parse_shrink() {
                     Ok(stmt) => {
                         self.try_consume_semicolon();
-                        crate::ast::Statement::Shrink(crate::ast::Spanned::new(stmt, Some(crate::ast::SourceSpan { start, end: self.prev_location() })))
+                        crate::ast::Statement::Shrink(crate::ast::Spanned::new(
+                            stmt,
+                            Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+                        ))
                     }
                     Err(e) => {
                         self.add_error(e);
@@ -2070,7 +2188,10 @@ impl Parser {
                 match self.parse_verify() {
                     Ok(stmt) => {
                         self.try_consume_semicolon();
-                        crate::ast::Statement::Verify(crate::ast::Spanned::new(stmt, Some(crate::ast::SourceSpan { start, end: self.prev_location() })))
+                        crate::ast::Statement::Verify(crate::ast::Spanned::new(
+                            stmt,
+                            Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+                        ))
                     }
                     Err(e) => {
                         self.add_error(e);
@@ -2083,7 +2204,10 @@ impl Parser {
                 match self.parse_compile() {
                     Ok(stmt) => {
                         self.try_consume_semicolon();
-                        crate::ast::Statement::Compile(crate::ast::Spanned::new(stmt, Some(crate::ast::SourceSpan { start, end: self.prev_location() })))
+                        crate::ast::Statement::Compile(crate::ast::Spanned::new(
+                            stmt,
+                            Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+                        ))
                     }
                     Err(e) => {
                         self.add_error(e);
@@ -2096,7 +2220,10 @@ impl Parser {
                 match self.parse_clean_conn() {
                     Ok(stmt) => {
                         self.try_consume_semicolon();
-                        crate::ast::Statement::CleanConn(crate::ast::Spanned::new(stmt, Some(crate::ast::SourceSpan { start, end: self.prev_location() })))
+                        crate::ast::Statement::CleanConn(crate::ast::Spanned::new(
+                            stmt,
+                            Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+                        ))
                     }
                     Err(e) => {
                         self.add_error(e);
@@ -2109,7 +2236,10 @@ impl Parser {
                 match self.parse_sec_label() {
                     Ok(stmt) => {
                         self.try_consume_semicolon();
-                        crate::ast::Statement::SecLabel(crate::ast::Spanned::new(stmt, Some(crate::ast::SourceSpan { start, end: self.prev_location() })))
+                        crate::ast::Statement::SecLabel(crate::ast::Spanned::new(
+                            stmt,
+                            Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+                        ))
                     }
                     Err(e) => {
                         self.add_error(e);
@@ -2129,7 +2259,10 @@ impl Parser {
                 match self.parse_values_statement() {
                     Ok(stmt) => {
                         self.try_consume_semicolon();
-                        crate::ast::Statement::Values(crate::ast::Spanned::new(stmt, Some(crate::ast::SourceSpan { start, end: self.prev_location() })))
+                        crate::ast::Statement::Values(crate::ast::Spanned::new(
+                            stmt,
+                            Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+                        ))
                     }
                     Err(e) => {
                         self.add_error(e);
@@ -2142,7 +2275,10 @@ impl Parser {
                 match self.parse_insert() {
                     Ok(stmt) => {
                         self.try_consume_semicolon();
-                        crate::ast::Statement::Replace(crate::ast::Spanned::new(stmt, Some(crate::ast::SourceSpan { start, end: self.prev_location() })))
+                        crate::ast::Statement::Replace(crate::ast::Spanned::new(
+                            stmt,
+                            Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+                        ))
                     }
                     Err(e) => {
                         self.add_error(e);
@@ -2184,11 +2320,10 @@ impl Parser {
                             None
                         };
                         self.try_consume_semicolon();
-                        crate::ast::Statement::PredictBy(crate::ast::Spanned::new(crate::ast::PredictByStatement {
-                            model,
-                            features,
-                            using_clause,
-                        }, Some(crate::ast::SourceSpan { start, end: self.prev_location() })))
+                        crate::ast::Statement::PredictBy(crate::ast::Spanned::new(
+                            crate::ast::PredictByStatement { model, features, using_clause },
+                            Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+                        ))
                     }
                     Err(e) => {
                         self.add_error(e);
@@ -2208,7 +2343,8 @@ impl Parser {
                             Ok(new_role) => {
                                 self.try_consume_semicolon();
                                 crate::ast::Statement::ReassignOwned(crate::ast::Spanned::new(
-                                    crate::ast::ReassignOwnedStatement { old_role, new_role }, Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+                                    crate::ast::ReassignOwnedStatement { old_role, new_role },
+                                    Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
                                 ))
                             }
                             Err(e) => {
@@ -2228,7 +2364,10 @@ impl Parser {
                 match self.parse_move_cursor() {
                     Ok(stmt) => {
                         self.try_consume_semicolon();
-                        crate::ast::Statement::Move(crate::ast::Spanned::new(stmt, Some(crate::ast::SourceSpan { start, end: self.prev_location() })))
+                        crate::ast::Statement::Move(crate::ast::Spanned::new(
+                            stmt,
+                            Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+                        ))
                     }
                     Err(e) => {
                         self.add_error(e);
@@ -2245,9 +2384,10 @@ impl Parser {
                 if self.match_ident_str("buckets") {
                     self.advance();
                     let raw = self.skip_to_semicolon_and_collect();
-                    crate::ast::Statement::LockBuckets(crate::ast::Spanned::new(crate::ast::LockBucketsStatement {
-                        raw_rest: raw,
-                    }, Some(crate::ast::SourceSpan { start, end: self.prev_location() })))
+                    crate::ast::Statement::LockBuckets(crate::ast::Spanned::new(
+                        crate::ast::LockBucketsStatement { raw_rest: raw },
+                        Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+                    ))
                 } else {
                     self.skip_to_semicolon()
                 }
@@ -2257,9 +2397,10 @@ impl Parser {
                 if self.match_ident_str("buckets") {
                     self.advance();
                     let raw = self.skip_to_semicolon_and_collect();
-                    crate::ast::Statement::MarkBuckets(crate::ast::Spanned::new(crate::ast::MarkBucketsStatement {
-                        raw_rest: raw,
-                    }, Some(crate::ast::SourceSpan { start, end: self.prev_location() })))
+                    crate::ast::Statement::MarkBuckets(crate::ast::Spanned::new(
+                        crate::ast::MarkBucketsStatement { raw_rest: raw },
+                        Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+                    ))
                 } else {
                     self.skip_to_semicolon()
                 }
@@ -2268,13 +2409,15 @@ impl Parser {
                 self.advance();
                 let raw = self.skip_to_semicolon_and_collect();
                 if raw.starts_with("database") || raw.starts_with("DATABASE") {
-                    crate::ast::Statement::ExpdpDatabase(crate::ast::Spanned::new(crate::ast::ExpdpDatabaseStatement {
-                        raw_rest: raw,
-                    }, Some(crate::ast::SourceSpan { start, end: self.prev_location() })))
+                    crate::ast::Statement::ExpdpDatabase(crate::ast::Spanned::new(
+                        crate::ast::ExpdpDatabaseStatement { raw_rest: raw },
+                        Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+                    ))
                 } else {
-                    crate::ast::Statement::ExpdpTable(crate::ast::Spanned::new(crate::ast::ExpdpTableStatement {
-                        raw_rest: raw,
-                    }, Some(crate::ast::SourceSpan { start, end: self.prev_location() })))
+                    crate::ast::Statement::ExpdpTable(crate::ast::Spanned::new(
+                        crate::ast::ExpdpTableStatement { raw_rest: raw },
+                        Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+                    ))
                 }
             }
             Token::Ident(ref s) if s.eq_ignore_ascii_case("impdp") => {
@@ -2285,13 +2428,15 @@ impl Parser {
                     || raw.starts_with("recover")
                     || raw.starts_with("RECOVER")
                 {
-                    crate::ast::Statement::ImpdpDatabase(crate::ast::Spanned::new(crate::ast::ImpdpDatabaseStatement {
-                        raw_rest: raw,
-                    }, Some(crate::ast::SourceSpan { start, end: self.prev_location() })))
+                    crate::ast::Statement::ImpdpDatabase(crate::ast::Spanned::new(
+                        crate::ast::ImpdpDatabaseStatement { raw_rest: raw },
+                        Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+                    ))
                 } else {
-                    crate::ast::Statement::ImpdpTable(crate::ast::Spanned::new(crate::ast::ImpdpTableStatement {
-                        raw_rest: raw,
-                    }, Some(crate::ast::SourceSpan { start, end: self.prev_location() })))
+                    crate::ast::Statement::ImpdpTable(crate::ast::Spanned::new(
+                        crate::ast::ImpdpTableStatement { raw_rest: raw },
+                        Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+                    ))
                 }
             }
             _ => {
@@ -2432,18 +2577,15 @@ impl Parser {
                 || self.match_keyword(Keyword::ADD_P)
                 || self.match_keyword(Keyword::DROP)
             {
-                let act = format!("{:?}", self.peek_keyword().expect("match_keyword confirmed a keyword matches")).to_lowercase();
+                let act = format!("{:?}", self.peek_keyword().expect("match_keyword confirmed a keyword matches"))
+                    .to_lowercase();
                 self.advance();
                 act
             } else {
                 String::new()
             };
             let key = self.consume_any_identifier().unwrap_or_default();
-            let full_key = if action.is_empty() {
-                key
-            } else {
-                format!("{} {}", action, key)
-            };
+            let full_key = if action.is_empty() { key } else { format!("{} {}", action, key) };
             let value = match self.peek().clone() {
                 Token::StringLiteral(s) => {
                     self.advance();
@@ -2497,9 +2639,7 @@ impl Parser {
                 }
                 if self.try_consume_keyword(Keyword::NO) {
                     self.advance(); // skip HANDLER or VALIDATOR after NO
-                    if self.match_keyword(Keyword::HANDLER)
-                        || self.match_keyword(Keyword::VALIDATOR)
-                    {
+                    if self.match_keyword(Keyword::HANDLER) || self.match_keyword(Keyword::VALIDATOR) {
                         self.advance();
                     }
                 }
@@ -2510,13 +2650,9 @@ impl Parser {
                 let options = self.parse_generic_options();
                 self.try_consume_semicolon();
                 Ok(crate::ast::Statement::CreateFdw(crate::ast::Spanned::new(
-                    crate::ast::CreateFdwStatement {
-                        name,
-                        handler,
-                        validator,
-                        options,
-                    },
-                    Some(crate::ast::SourceSpan { start, end: self.prev_location() }))))
+                    crate::ast::CreateFdwStatement { name, handler, validator, options },
+                    Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+                )))
             }
             Some(Keyword::SERVER) => {
                 self.advance(); // SERVER
@@ -2538,14 +2674,9 @@ impl Parser {
                 let options = self.parse_generic_options();
                 self.try_consume_semicolon();
                 Ok(crate::ast::Statement::CreateForeignServer(crate::ast::Spanned::new(
-                    crate::ast::CreateForeignServerStatement {
-                        name,
-                        server_type,
-                        version,
-                        fdw_name,
-                        options,
-                    },
-                    Some(crate::ast::SourceSpan { start, end: self.prev_location() }))))
+                    crate::ast::CreateForeignServerStatement { name, server_type, version, fdw_name, options },
+                    Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+                )))
             }
             Some(Keyword::TABLE) => {
                 self.advance(); // TABLE
@@ -2559,9 +2690,8 @@ impl Parser {
                             break;
                         }
                         let col_name = self.parse_identifier()?;
-                        let data_type =
-                            self.parse_data_type().unwrap_or(crate::ast::DataType::Text);
-                        let mut constraints = Vec::new();
+                        let data_type = self.parse_data_type().unwrap_or(crate::ast::DataType::Text);
+                        let constraints = Vec::new();
                         if self.try_consume_keyword(Keyword::NOT) {
                             self.advance(); // NOT NULL
                             if self.match_keyword(Keyword::NULL_P) {
@@ -2595,13 +2725,9 @@ impl Parser {
                 let options = self.parse_options_clause();
                 self.try_consume_semicolon();
                 Ok(crate::ast::Statement::CreateForeignTable(crate::ast::Spanned::new(
-                    crate::ast::CreateForeignTableStatement {
-                        name,
-                        columns,
-                        server_name,
-                        options,
-                    },
-                    Some(crate::ast::SourceSpan { start, end: self.prev_location() }))))
+                    crate::ast::CreateForeignTableStatement { name, columns, server_name, options },
+                    Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+                )))
             }
             _ => Err(ParserError::UnexpectedToken {
                 location: self.current_location(),
@@ -2635,13 +2761,9 @@ impl Parser {
         let options = self.parse_generic_options();
         self.try_consume_semicolon();
         Ok(crate::ast::Statement::CreatePublication(crate::ast::Spanned::new(
-            crate::ast::CreatePublicationStatement {
-                name,
-                tables,
-                all_tables,
-                options,
-            },
-            Some(crate::ast::SourceSpan { start, end: self.prev_location() }))))
+            crate::ast::CreatePublicationStatement { name, tables, all_tables, options },
+            Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+        )))
     }
 
     fn parse_create_subscription(&mut self) -> Result<crate::ast::Statement, ParserError> {
@@ -2674,13 +2796,9 @@ impl Parser {
         let options = self.parse_generic_options();
         self.try_consume_semicolon();
         Ok(crate::ast::Statement::CreateSubscription(crate::ast::Spanned::new(
-            crate::ast::CreateSubscriptionStatement {
-                name,
-                connection,
-                publications,
-                options,
-            },
-            Some(crate::ast::SourceSpan { start, end: self.prev_location() }))))
+            crate::ast::CreateSubscriptionStatement { name, connection, publications, options },
+            Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+        )))
     }
 
     fn parse_create_node_group_inner(&mut self) -> Result<crate::ast::Statement, ParserError> {
@@ -2708,17 +2826,12 @@ impl Parser {
         let options = self.parse_generic_options();
         self.try_consume_semicolon();
         Ok(crate::ast::Statement::CreateNodeGroup(crate::ast::Spanned::new(
-            crate::ast::CreateNodeGroupStatement {
-                name,
-                nodes,
-                options,
-            },
-            Some(crate::ast::SourceSpan { start, end: self.prev_location() }))))
+            crate::ast::CreateNodeGroupStatement { name, nodes, options },
+            Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+        )))
     }
 
-    fn parse_create_resource_pool_after_resource(
-        &mut self,
-    ) -> Result<crate::ast::Statement, ParserError> {
+    fn parse_create_resource_pool_after_resource(&mut self) -> Result<crate::ast::Statement, ParserError> {
         let start = self.current_location();
         self.expect_keyword(Keyword::POOL)?;
         let name = self.parse_identifier()?;
@@ -2726,7 +2839,8 @@ impl Parser {
         self.try_consume_semicolon();
         Ok(crate::ast::Statement::CreateResourcePool(crate::ast::Spanned::new(
             crate::ast::CreateResourcePoolStatement { name, options },
-            Some(crate::ast::SourceSpan { start, end: self.prev_location() }))))
+            Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+        )))
     }
 
     fn parse_create_resource_pool_inner(&mut self) -> Result<crate::ast::Statement, ParserError> {
@@ -2736,7 +2850,8 @@ impl Parser {
         self.try_consume_semicolon();
         Ok(crate::ast::Statement::CreateResourcePool(crate::ast::Spanned::new(
             crate::ast::CreateResourcePoolStatement { name, options },
-            Some(crate::ast::SourceSpan { start, end: self.prev_location() }))))
+            Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+        )))
     }
 
     fn parse_create_workload_group(&mut self) -> Result<crate::ast::Statement, ParserError> {
@@ -2753,12 +2868,9 @@ impl Parser {
         let options = self.parse_generic_options();
         self.try_consume_semicolon();
         Ok(crate::ast::Statement::CreateWorkloadGroup(crate::ast::Spanned::new(
-            crate::ast::CreateWorkloadGroupStatement {
-                name,
-                pool_name,
-                options,
-            },
-            Some(crate::ast::SourceSpan { start, end: self.prev_location() }))))
+            crate::ast::CreateWorkloadGroupStatement { name, pool_name, options },
+            Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+        )))
     }
 
     fn parse_create_audit_policy(&mut self) -> Result<crate::ast::Statement, ParserError> {
@@ -2820,19 +2932,12 @@ impl Parser {
         let options = self.parse_generic_options();
         self.try_consume_semicolon();
         Ok(crate::ast::Statement::CreateAuditPolicy(crate::ast::Spanned::new(
-            crate::ast::CreateAuditPolicyStatement {
-                name,
-                policy_type,
-                privileges,
-                labels,
-                options,
-            },
-            Some(crate::ast::SourceSpan { start, end: self.prev_location() }))))
+            crate::ast::CreateAuditPolicyStatement { name, policy_type, privileges, labels, options },
+            Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+        )))
     }
 
-    fn parse_masking_filter_clauses(
-        &mut self,
-    ) -> Result<Vec<crate::ast::FilterClause>, ParserError> {
+    fn parse_masking_filter_clauses(&mut self) -> Result<Vec<crate::ast::FilterClause>, ParserError> {
         let mut clauses = Vec::new();
         loop {
             // Parse kind: ROLES, APP, IP
@@ -2867,10 +2972,7 @@ impl Parser {
                 self.advance();
             }
             self.expect_token(&Token::RParen)?;
-            clauses.push(crate::ast::FilterClause {
-                kind: kind.to_uppercase(),
-                values,
-            });
+            clauses.push(crate::ast::FilterClause { kind: kind.to_uppercase(), values });
             if !self.match_token(&Token::Comma) {
                 break;
             }
@@ -2938,7 +3040,8 @@ impl Parser {
                 filter_clauses,
                 options,
             },
-            Some(crate::ast::SourceSpan { start, end: self.prev_location() }))))
+            Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+        )))
     }
 
     fn parse_create_rls_policy(&mut self) -> Result<crate::ast::Statement, ParserError> {
@@ -2966,13 +3069,9 @@ impl Parser {
         }
         self.try_consume_semicolon();
         Ok(crate::ast::Statement::CreateRlsPolicy(crate::ast::Spanned::new(
-            crate::ast::CreateRlsPolicyStatement {
-                name,
-                table,
-                permissive,
-                using_expr,
-            },
-            Some(crate::ast::SourceSpan { start, end: self.prev_location() }))))
+            crate::ast::CreateRlsPolicyStatement { name, table, permissive, using_expr },
+            Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+        )))
     }
 
     fn parse_create_resource_label(&mut self) -> Result<crate::ast::Statement, ParserError> {
@@ -3017,14 +3116,9 @@ impl Parser {
         self.expect_token(&Token::RParen)?;
         self.try_consume_semicolon();
         Ok(crate::ast::Statement::CreatePolicyLabel(crate::ast::Spanned::new(
-            crate::ast::CreatePolicyLabelStatement {
-                if_not_exists,
-                name,
-                add,
-                label_type,
-                targets,
-            },
-            Some(crate::ast::SourceSpan { start, end: self.prev_location() }))))
+            crate::ast::CreatePolicyLabelStatement { if_not_exists, name, add, label_type, targets },
+            Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+        )))
     }
 
     fn parse_alter_masking_policy(&mut self) -> Result<crate::ast::Statement, ParserError> {
@@ -3113,7 +3207,8 @@ impl Parser {
         self.try_consume_semicolon();
         Ok(crate::ast::Statement::AlterMaskingPolicy(crate::ast::Spanned::new(
             crate::ast::AlterMaskingPolicyStatement { name, action },
-            Some(crate::ast::SourceSpan { start, end: self.prev_location() }))))
+            Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+        )))
     }
 
     fn parse_alter_resource_label(&mut self) -> Result<crate::ast::Statement, ParserError> {
@@ -3146,18 +3241,12 @@ impl Parser {
         self.expect_token(&Token::RParen)?;
         self.try_consume_semicolon();
         Ok(crate::ast::Statement::AlterPolicyLabel(crate::ast::Spanned::new(
-            crate::ast::AlterPolicyLabelStatement {
-                name,
-                add,
-                label_type,
-                targets,
-            },
-            Some(crate::ast::SourceSpan { start, end: self.prev_location() }))))
+            crate::ast::AlterPolicyLabelStatement { name, add, label_type, targets },
+            Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+        )))
     }
 
-    fn parse_alter_resource_pool(
-        &mut self,
-    ) -> Result<crate::ast::AlterResourcePoolStatement, ParserError> {
+    fn parse_alter_resource_pool(&mut self) -> Result<crate::ast::AlterResourcePoolStatement, ParserError> {
         let name = self.parse_identifier()?;
         let mut options = Vec::new();
         if self.match_keyword(Keyword::WITH) {
@@ -3223,8 +3312,7 @@ impl Parser {
 
         let recursive = self.try_consume_keyword(Keyword::RECURSIVE);
 
-        let temp =
-            self.try_consume_keyword(Keyword::TEMPORARY) || self.try_consume_keyword(Keyword::TEMP);
+        let temp = self.try_consume_keyword(Keyword::TEMPORARY) || self.try_consume_keyword(Keyword::TEMP);
         let unlogged = self.try_consume_keyword(Keyword::UNLOGGED);
 
         let is_public = self.try_consume_ident_str("PUBLIC");
@@ -3273,7 +3361,10 @@ impl Parser {
                     }
                 } else {
                     match self.parse_create_table(temp, unlogged) {
-                        Ok(stmt) => crate::ast::Statement::CreateTable(crate::ast::Spanned::new(stmt, Some(crate::ast::SourceSpan { start, end: self.prev_location() }))),
+                        Ok(stmt) => crate::ast::Statement::CreateTable(crate::ast::Spanned::new(
+                            stmt,
+                            Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+                        )),
                         Err(e) => {
                             self.add_error(e);
                             self.skip_to_semicolon()
@@ -3284,11 +3375,12 @@ impl Parser {
             Some(Keyword::GLOBAL) => {
                 self.advance();
                 // Check for GLOBAL TEMPORARY TABLE
-                if self.try_consume_keyword(Keyword::TEMPORARY)
-                    || self.try_consume_keyword(Keyword::TEMP)
-                {
+                if self.try_consume_keyword(Keyword::TEMPORARY) || self.try_consume_keyword(Keyword::TEMP) {
                     match self.parse_create_table(true, unlogged) {
-                        Ok(stmt) => crate::ast::Statement::CreateTable(crate::ast::Spanned::new(stmt, Some(crate::ast::SourceSpan { start, end: self.prev_location() }))),
+                        Ok(stmt) => crate::ast::Statement::CreateTable(crate::ast::Spanned::new(
+                            stmt,
+                            Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+                        )),
                         Err(e) => {
                             self.add_error(e);
                             self.skip_to_semicolon()
@@ -3296,7 +3388,10 @@ impl Parser {
                     }
                 } else {
                     match self.parse_create_global_index() {
-                        Ok(stmt) => crate::ast::Statement::CreateGlobalIndex(crate::ast::Spanned::new(stmt, Some(crate::ast::SourceSpan { start, end: self.prev_location() }))),
+                        Ok(stmt) => crate::ast::Statement::CreateGlobalIndex(crate::ast::Spanned::new(
+                            stmt,
+                            Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+                        )),
                         Err(e) => {
                             self.add_error(e);
                             self.skip_to_semicolon()
@@ -3305,14 +3400,20 @@ impl Parser {
                 }
             }
             Some(Keyword::INDEX) => match self.parse_create_index(unique) {
-                Ok(stmt) => crate::ast::Statement::CreateIndex(crate::ast::Spanned::new(stmt, Some(crate::ast::SourceSpan { start, end: self.prev_location() }))),
+                Ok(stmt) => crate::ast::Statement::CreateIndex(crate::ast::Spanned::new(
+                    stmt,
+                    Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+                )),
                 Err(e) => {
                     self.add_error(e);
                     self.skip_to_semicolon()
                 }
             },
             Some(Keyword::SEQUENCE) => match self.parse_create_sequence() {
-                Ok(stmt) => crate::ast::Statement::CreateSequence(crate::ast::Spanned::new(stmt, Some(crate::ast::SourceSpan { start, end: self.prev_location() }))),
+                Ok(stmt) => crate::ast::Statement::CreateSequence(crate::ast::Spanned::new(
+                    stmt,
+                    Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+                )),
                 Err(e) => {
                     self.add_error(e);
                     self.skip_to_semicolon()
@@ -3323,7 +3424,10 @@ impl Parser {
                     stmt.replace = replace;
                     stmt.temporary = temp;
                     stmt.recursive = recursive;
-                    crate::ast::Statement::CreateView(crate::ast::Spanned::new(stmt, Some(crate::ast::SourceSpan { start, end: self.prev_location() })))
+                    crate::ast::Statement::CreateView(crate::ast::Spanned::new(
+                        stmt,
+                        Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+                    ))
                 }
                 Err(e) => {
                     self.add_error(e);
@@ -3331,7 +3435,10 @@ impl Parser {
                 }
             },
             Some(Keyword::SCHEMA) => match self.parse_create_schema() {
-                Ok(stmt) => crate::ast::Statement::CreateSchema(crate::ast::Spanned::new(stmt, Some(crate::ast::SourceSpan { start, end: self.prev_location() }))),
+                Ok(stmt) => crate::ast::Statement::CreateSchema(crate::ast::Spanned::new(
+                    stmt,
+                    Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+                )),
                 Err(e) => {
                     self.add_error(e);
                     self.skip_to_semicolon()
@@ -3339,16 +3446,16 @@ impl Parser {
             },
             Some(Keyword::DATABASE) => {
                 let is_link = {
-                    let ahead = if self.pos + 1 < self.tokens.len() {
-                        &self.tokens[self.pos + 1].token
-                    } else {
-                        &Token::Eof
-                    };
+                    let ahead =
+                        if self.pos + 1 < self.tokens.len() { &self.tokens[self.pos + 1].token } else { &Token::Eof };
                     matches!(ahead, Token::Ident(s) if s.eq_ignore_ascii_case("LINK"))
                 };
                 if is_link {
                     match self.parse_create_database_link(is_public) {
-                        Ok(stmt) => crate::ast::Statement::CreateDatabaseLink(crate::ast::Spanned::new(stmt, Some(crate::ast::SourceSpan { start, end: self.prev_location() }))),
+                        Ok(stmt) => crate::ast::Statement::CreateDatabaseLink(crate::ast::Spanned::new(
+                            stmt,
+                            Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+                        )),
                         Err(e) => {
                             self.add_error(e);
                             self.skip_to_semicolon()
@@ -3356,7 +3463,10 @@ impl Parser {
                     }
                 } else {
                     match self.parse_create_database() {
-                        Ok(stmt) => crate::ast::Statement::CreateDatabase(crate::ast::Spanned::new(stmt, Some(crate::ast::SourceSpan { start, end: self.prev_location() }))),
+                        Ok(stmt) => crate::ast::Statement::CreateDatabase(crate::ast::Spanned::new(
+                            stmt,
+                            Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+                        )),
                         Err(e) => {
                             self.add_error(e);
                             self.skip_to_semicolon()
@@ -3365,7 +3475,10 @@ impl Parser {
                 }
             }
             Some(Keyword::TABLESPACE) => match self.parse_create_tablespace() {
-                Ok(stmt) => crate::ast::Statement::CreateTablespace(crate::ast::Spanned::new(stmt, Some(crate::ast::SourceSpan { start, end: self.prev_location() }))),
+                Ok(stmt) => crate::ast::Statement::CreateTablespace(crate::ast::Spanned::new(
+                    stmt,
+                    Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+                )),
                 Err(e) => {
                     self.add_error(e);
                     self.skip_to_semicolon()
@@ -3377,7 +3490,10 @@ impl Parser {
                     Ok(mut stmt) => {
                         stmt.replace = replace;
                         self.try_consume_semicolon();
-                        crate::ast::Statement::CreateFunction(crate::ast::Spanned::new(stmt, Some(crate::ast::SourceSpan { start, end: self.prev_location() })))
+                        crate::ast::Statement::CreateFunction(crate::ast::Spanned::new(
+                            stmt,
+                            Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+                        ))
                     }
                     Err(e) => {
                         self.add_error(e);
@@ -3391,7 +3507,10 @@ impl Parser {
                     Ok(mut stmt) => {
                         stmt.replace = replace;
                         self.try_consume_semicolon();
-                        crate::ast::Statement::CreateProcedure(crate::ast::Spanned::new(stmt, Some(crate::ast::SourceSpan { start, end: self.prev_location() })))
+                        crate::ast::Statement::CreateProcedure(crate::ast::Spanned::new(
+                            stmt,
+                            Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+                        ))
                     }
                     Err(e) => {
                         self.add_error(e);
@@ -3404,7 +3523,10 @@ impl Parser {
                 match self.parse_create_trigger() {
                     Ok(stmt) => {
                         self.try_consume_semicolon();
-                        crate::ast::Statement::CreateTrigger(crate::ast::Spanned::new(stmt, Some(crate::ast::SourceSpan { start, end: self.prev_location() })))
+                        crate::ast::Statement::CreateTrigger(crate::ast::Spanned::new(
+                            stmt,
+                            Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+                        ))
                     }
                     Err(e) => {
                         self.add_error(e);
@@ -3416,7 +3538,10 @@ impl Parser {
                 self.advance();
                 match self.expect_keyword(Keyword::MATERIALIZED) {
                     Ok(()) => match self.parse_create_materialized_view() {
-                        Ok(stmt) => crate::ast::Statement::CreateMaterializedView(crate::ast::Spanned::new(stmt, Some(crate::ast::SourceSpan { start, end: self.prev_location() }))),
+                        Ok(stmt) => crate::ast::Statement::CreateMaterializedView(crate::ast::Spanned::new(
+                            stmt,
+                            Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+                        )),
                         Err(e) => {
                             self.add_error(e);
                             self.skip_to_semicolon()
@@ -3431,7 +3556,10 @@ impl Parser {
             Some(Keyword::MATERIALIZED) => {
                 self.advance();
                 match self.parse_create_materialized_view() {
-                    Ok(stmt) => crate::ast::Statement::CreateMaterializedView(crate::ast::Spanned::new(stmt, Some(crate::ast::SourceSpan { start, end: self.prev_location() }))),
+                    Ok(stmt) => crate::ast::Statement::CreateMaterializedView(crate::ast::Spanned::new(
+                        stmt,
+                        Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+                    )),
                     Err(e) => {
                         self.add_error(e);
                         self.skip_to_semicolon()
@@ -3439,7 +3567,10 @@ impl Parser {
                 }
             }
             Some(Keyword::EXTENSION) => match self.parse_create_extension() {
-                Ok(stmt) => crate::ast::Statement::CreateExtension(crate::ast::Spanned::new(stmt, Some(crate::ast::SourceSpan { start, end: self.prev_location() }))),
+                Ok(stmt) => crate::ast::Statement::CreateExtension(crate::ast::Spanned::new(
+                    stmt,
+                    Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+                )),
                 Err(e) => {
                     self.add_error(e);
                     self.skip_to_semicolon()
@@ -3448,12 +3579,10 @@ impl Parser {
             Some(Keyword::ROLE) => {
                 self.advance();
                 match self.parse_create_role_options() {
-                    Ok((name, options)) => {
-                        crate::ast::Statement::CreateRole(crate::ast::Spanned::new(crate::ast::CreateRoleStatement {
-                            name, 
-                            options,
-                        }, Some(crate::ast::SourceSpan { start, end: self.prev_location() })))
-                    }
+                    Ok((name, options)) => crate::ast::Statement::CreateRole(crate::ast::Spanned::new(
+                        crate::ast::CreateRoleStatement { name, options },
+                        Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+                    )),
                     Err(e) => {
                         self.add_error(e);
                         self.skip_to_semicolon()
@@ -3467,7 +3596,10 @@ impl Parser {
                     match self.parse_create_user_mapping() {
                         Ok(stmt) => {
                             self.try_consume_semicolon();
-                            crate::ast::Statement::CreateUserMapping(crate::ast::Spanned::new(stmt, Some(crate::ast::SourceSpan { start, end: self.prev_location() })))
+                            crate::ast::Statement::CreateUserMapping(crate::ast::Spanned::new(
+                                stmt,
+                                Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+                            ))
                         }
                         Err(e) => {
                             self.add_error(e);
@@ -3476,12 +3608,10 @@ impl Parser {
                     }
                 } else {
                     match self.parse_create_role_options() {
-                        Ok((name, options)) => {
-                            crate::ast::Statement::CreateUser(crate::ast::Spanned::new(crate::ast::CreateUserStatement {
-                                name, 
-                                options,
-                            }, Some(crate::ast::SourceSpan { start, end: self.prev_location() })))
-                        }
+                        Ok((name, options)) => crate::ast::Statement::CreateUser(crate::ast::Spanned::new(
+                            crate::ast::CreateUserStatement { name, options },
+                            Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+                        )),
                         Err(e) => {
                             self.add_error(e);
                             self.skip_to_semicolon()
@@ -3492,12 +3622,10 @@ impl Parser {
             Some(Keyword::GROUP_P) => {
                 self.advance();
                 match self.parse_create_role_options() {
-                    Ok((name, options)) => {
-                        crate::ast::Statement::CreateGroup(crate::ast::Spanned::new(crate::ast::CreateGroupStatement {
-                            name, 
-                            options,
-                        }, Some(crate::ast::SourceSpan { start, end: self.prev_location() })))
-                    }
+                    Ok((name, options)) => crate::ast::Statement::CreateGroup(crate::ast::Spanned::new(
+                        crate::ast::CreateGroupStatement { name, options },
+                        Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+                    )),
                     Err(e) => {
                         self.add_error(e);
                         self.skip_to_semicolon()
@@ -3512,21 +3640,30 @@ impl Parser {
                 }
             },
             Some(Keyword::TYPE_P) => match self.parse_create_type() {
-                Ok(stmt) => crate::ast::Statement::CreateType(crate::ast::Spanned::new(stmt, Some(crate::ast::SourceSpan { start, end: self.prev_location() }))),
+                Ok(stmt) => crate::ast::Statement::CreateType(crate::ast::Spanned::new(
+                    stmt,
+                    Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+                )),
                 Err(e) => {
                     self.add_error(e);
                     self.skip_to_semicolon()
                 }
             },
             Some(Keyword::CAST) => match self.parse_create_cast() {
-                Ok(stmt) => crate::ast::Statement::CreateCast(crate::ast::Spanned::new(stmt, Some(crate::ast::SourceSpan { start, end: self.prev_location() }))),
+                Ok(stmt) => crate::ast::Statement::CreateCast(crate::ast::Spanned::new(
+                    stmt,
+                    Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+                )),
                 Err(e) => {
                     self.add_error(e);
                     self.skip_to_semicolon()
                 }
             },
             Some(Keyword::DOMAIN_P) => match self.parse_create_domain() {
-                Ok(stmt) => crate::ast::Statement::CreateDomain(crate::ast::Spanned::new(stmt, Some(crate::ast::SourceSpan { start, end: self.prev_location() }))),
+                Ok(stmt) => crate::ast::Statement::CreateDomain(crate::ast::Spanned::new(
+                    stmt,
+                    Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+                )),
                 Err(e) => {
                     self.add_error(e);
                     self.skip_to_semicolon()
@@ -3581,10 +3718,10 @@ impl Parser {
                     };
                     let options = self.parse_generic_options();
                     self.try_consume_semicolon();
-                    crate::ast::Statement::CreateNode(crate::ast::Spanned::new(crate::ast::CreateNodeStatement {
-                        name, 
-                        options,
-                    }, Some(crate::ast::SourceSpan { start, end: self.prev_location() })))
+                    crate::ast::Statement::CreateNode(crate::ast::Spanned::new(
+                        crate::ast::CreateNodeStatement { name, options },
+                        Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+                    ))
                 }
             }
             Some(Keyword::WORKLOAD) => match self.parse_create_workload_group() {
@@ -3647,7 +3784,10 @@ impl Parser {
                 match self.parse_create_aggregate() {
                     Ok(stmt) => {
                         self.try_consume_semicolon();
-                        crate::ast::Statement::CreateAggregate(crate::ast::Spanned::new(stmt, Some(crate::ast::SourceSpan { start, end: self.prev_location() })))
+                        crate::ast::Statement::CreateAggregate(crate::ast::Spanned::new(
+                            stmt,
+                            Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+                        ))
                     }
                     Err(e) => {
                         self.add_error(e);
@@ -3659,7 +3799,10 @@ impl Parser {
                 self.advance();
                 if self.match_keyword(Keyword::CLASS) {
                     match self.parse_create_opclass() {
-                        Ok(stmt) => crate::ast::Statement::CreateOpClass(crate::ast::Spanned::new(stmt, Some(crate::ast::SourceSpan { start, end: self.prev_location() }))),
+                        Ok(stmt) => crate::ast::Statement::CreateOpClass(crate::ast::Spanned::new(
+                            stmt,
+                            Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+                        )),
                         Err(e) => {
                             self.add_error(e);
                             self.skip_to_semicolon()
@@ -3667,7 +3810,10 @@ impl Parser {
                     }
                 } else if self.match_keyword(Keyword::FAMILY) {
                     match self.parse_create_opfamily() {
-                        Ok(stmt) => crate::ast::Statement::CreateOpFamily(crate::ast::Spanned::new(stmt, Some(crate::ast::SourceSpan { start, end: self.prev_location() }))),
+                        Ok(stmt) => crate::ast::Statement::CreateOpFamily(crate::ast::Spanned::new(
+                            stmt,
+                            Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+                        )),
                         Err(e) => {
                             self.add_error(e);
                             self.skip_to_semicolon()
@@ -3677,7 +3823,10 @@ impl Parser {
                     match self.parse_create_operator() {
                         Ok(stmt) => {
                             self.try_consume_semicolon();
-                            crate::ast::Statement::CreateOperator(crate::ast::Spanned::new(stmt, Some(crate::ast::SourceSpan { start, end: self.prev_location() })))
+                            crate::ast::Statement::CreateOperator(crate::ast::Spanned::new(
+                                stmt,
+                                Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+                            ))
                         }
                         Err(e) => {
                             self.add_error(e);
@@ -3687,35 +3836,50 @@ impl Parser {
                 }
             }
             Some(Keyword::CONVERSION_P) => match self.parse_create_conversion() {
-                Ok(stmt) => crate::ast::Statement::CreateConversion(crate::ast::Spanned::new(stmt, Some(crate::ast::SourceSpan { start, end: self.prev_location() }))),
+                Ok(stmt) => crate::ast::Statement::CreateConversion(crate::ast::Spanned::new(
+                    stmt,
+                    Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+                )),
                 Err(e) => {
                     self.add_error(e);
                     self.skip_to_semicolon()
                 }
             },
             Some(Keyword::SYNONYM) => match self.parse_create_synonym(replace) {
-                Ok(stmt) => crate::ast::Statement::CreateSynonym(crate::ast::Spanned::new(stmt, Some(crate::ast::SourceSpan { start, end: self.prev_location() }))),
+                Ok(stmt) => crate::ast::Statement::CreateSynonym(crate::ast::Spanned::new(
+                    stmt,
+                    Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+                )),
                 Err(e) => {
                     self.add_error(e);
                     self.skip_to_semicolon()
                 }
             },
             Some(Keyword::MODEL) => match self.parse_create_model() {
-                Ok(stmt) => crate::ast::Statement::CreateModel(crate::ast::Spanned::new(stmt, Some(crate::ast::SourceSpan { start, end: self.prev_location() }))),
+                Ok(stmt) => crate::ast::Statement::CreateModel(crate::ast::Spanned::new(
+                    stmt,
+                    Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+                )),
                 Err(e) => {
                     self.add_error(e);
                     self.skip_to_semicolon()
                 }
             },
             Some(Keyword::ACCESS) => match self.parse_create_am() {
-                Ok(stmt) => crate::ast::Statement::CreateAm(crate::ast::Spanned::new(stmt, Some(crate::ast::SourceSpan { start, end: self.prev_location() }))),
+                Ok(stmt) => crate::ast::Statement::CreateAm(crate::ast::Spanned::new(
+                    stmt,
+                    Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+                )),
                 Err(e) => {
                     self.add_error(e);
                     self.skip_to_semicolon()
                 }
             },
             Some(Keyword::DIRECTORY) => match self.parse_create_directory() {
-                Ok(stmt) => crate::ast::Statement::CreateDirectory(crate::ast::Spanned::new(stmt, Some(crate::ast::SourceSpan { start, end: self.prev_location() }))),
+                Ok(stmt) => crate::ast::Statement::CreateDirectory(crate::ast::Spanned::new(
+                    stmt,
+                    Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+                )),
                 Err(e) => {
                     self.add_error(e);
                     self.skip_to_semicolon()
@@ -3725,7 +3889,10 @@ impl Parser {
                 self.advance();
                 if self.match_keyword(Keyword::SOURCE_P) {
                     match self.parse_create_data_source() {
-                        Ok(stmt) => crate::ast::Statement::CreateDataSource(crate::ast::Spanned::new(stmt, Some(crate::ast::SourceSpan { start, end: self.prev_location() }))),
+                        Ok(stmt) => crate::ast::Statement::CreateDataSource(crate::ast::Spanned::new(
+                            stmt,
+                            Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+                        )),
                         Err(e) => {
                             self.add_error(e);
                             self.skip_to_semicolon()
@@ -3741,21 +3908,30 @@ impl Parser {
                 }
             }
             Some(Keyword::EVENT) => match self.parse_create_event() {
-                Ok(stmt) => crate::ast::Statement::CreateEvent(crate::ast::Spanned::new(stmt, Some(crate::ast::SourceSpan { start, end: self.prev_location() }))),
+                Ok(stmt) => crate::ast::Statement::CreateEvent(crate::ast::Spanned::new(
+                    stmt,
+                    Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+                )),
                 Err(e) => {
                     self.add_error(e);
                     self.skip_to_semicolon()
                 }
             },
             Some(Keyword::STREAM) => match self.parse_create_stream() {
-                Ok(stmt) => crate::ast::Statement::CreateStream(crate::ast::Spanned::new(stmt, Some(crate::ast::SourceSpan { start, end: self.prev_location() }))),
+                Ok(stmt) => crate::ast::Statement::CreateStream(crate::ast::Spanned::new(
+                    stmt,
+                    Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+                )),
                 Err(e) => {
                     self.add_error(e);
                     self.skip_to_semicolon()
                 }
             },
             Some(Keyword::KEY) => match self.parse_create_key() {
-                Ok(stmt) => crate::ast::Statement::CreateKey(crate::ast::Spanned::new(stmt, Some(crate::ast::SourceSpan { start, end: self.prev_location() }))),
+                Ok(stmt) => crate::ast::Statement::CreateKey(crate::ast::Spanned::new(
+                    stmt,
+                    Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+                )),
                 Err(e) => {
                     self.add_error(e);
                     self.skip_to_semicolon()
@@ -3764,7 +3940,10 @@ impl Parser {
             Some(Keyword::LANGUAGE) => {
                 self.advance();
                 match self.parse_create_language() {
-                    Ok(stmt) => crate::ast::Statement::CreateLanguage(crate::ast::Spanned::new(stmt, Some(crate::ast::SourceSpan { start, end: self.prev_location() }))),
+                    Ok(stmt) => crate::ast::Statement::CreateLanguage(crate::ast::Spanned::new(
+                        stmt,
+                        Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+                    )),
                     Err(e) => {
                         self.add_error(e);
                         self.skip_to_semicolon()
@@ -3775,7 +3954,10 @@ impl Parser {
                 self.advance();
                 self.expect_keyword(Keyword::LANGUAGE).unwrap_or(());
                 match self.parse_create_language() {
-                    Ok(stmt) => crate::ast::Statement::CreateLanguage(crate::ast::Spanned::new(stmt, Some(crate::ast::SourceSpan { start, end: self.prev_location() }))),
+                    Ok(stmt) => crate::ast::Statement::CreateLanguage(crate::ast::Spanned::new(
+                        stmt,
+                        Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+                    )),
                     Err(e) => {
                         self.add_error(e);
                         self.skip_to_semicolon()
@@ -3814,14 +3996,20 @@ impl Parser {
                         }
                         self.advance();
                     }
-                    crate::ast::Statement::CreateWeakPasswordDictionaryWithValues(crate::ast::Spanned::new(crate::ast::CreateWeakPasswordDictStatement { values },  Some(crate::ast::SourceSpan { start, end: self.prev_location() })))
+                    crate::ast::Statement::CreateWeakPasswordDictionaryWithValues(crate::ast::Spanned::new(
+                        crate::ast::CreateWeakPasswordDictStatement { values },
+                        Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+                    ))
                 } else if self.match_ident_str("CONTINUOUS") {
                     self.advance();
                     if self.match_keyword(Keyword::QUERY) || self.match_ident_str("QUERY") {
                         self.advance();
                     }
                     match self.parse_create_contquery() {
-                        Ok(stmt) => crate::ast::Statement::CreateContQuery(crate::ast::Spanned::new(stmt, Some(crate::ast::SourceSpan { start, end: self.prev_location() }))),
+                        Ok(stmt) => crate::ast::Statement::CreateContQuery(crate::ast::Spanned::new(
+                            stmt,
+                            Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+                        )),
                         Err(e) => {
                             self.add_error(e);
                             self.skip_to_semicolon()
@@ -3840,11 +4028,10 @@ impl Parser {
                             }
                         };
                         let raw = self.skip_to_semicolon_and_collect();
-                        crate::ast::Statement::CreateTextSearchConfig(crate::ast::Spanned::new(crate::ast::CreateTextSearchConfigStatement {
-                                name, 
-                                parser_name: None,
-                                raw_rest: raw,
-                            }, Some(crate::ast::SourceSpan { start, end: self.prev_location() })))
+                        crate::ast::Statement::CreateTextSearchConfig(crate::ast::Spanned::new(
+                            crate::ast::CreateTextSearchConfigStatement { name, parser_name: None, raw_rest: raw },
+                            Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+                        ))
                     } else if self.match_ident_str("dictionary") {
                         self.advance();
                         let name = match self.parse_object_name() {
@@ -3855,7 +4042,10 @@ impl Parser {
                             }
                         };
                         let options = self.parse_generic_options_no_with();
-                        crate::ast::Statement::CreateTextSearchDict(crate::ast::Spanned::new(crate::ast::CreateTextSearchDictStatement { name,  options }, Some(crate::ast::SourceSpan { start, end: self.prev_location() })))
+                        crate::ast::Statement::CreateTextSearchDict(crate::ast::Spanned::new(
+                            crate::ast::CreateTextSearchDictStatement { name, options },
+                            Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+                        ))
                     } else {
                         self.skip_to_semicolon()
                     }
@@ -3878,10 +4068,10 @@ impl Parser {
                         }
                     };
                     let raw = self.skip_to_semicolon_and_collect();
-                    crate::ast::Statement::CreateAppWorkloadGroupMapping(crate::ast::Spanned::new(crate::ast::CreateAppWorkloadGroupMappingStatement {
-                            name, 
-                            raw_rest: raw,
-                        }, Some(crate::ast::SourceSpan { start, end: self.prev_location() })))
+                    crate::ast::Statement::CreateAppWorkloadGroupMapping(crate::ast::Spanned::new(
+                        crate::ast::CreateAppWorkloadGroupMappingStatement { name, raw_rest: raw },
+                        Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+                    ))
                 } else {
                     self.skip_to_semicolon()
                 }
@@ -3896,7 +4086,10 @@ impl Parser {
             match self.parse_alter_default_privileges() {
                 Ok(stmt) => {
                     self.try_consume_semicolon();
-                    crate::ast::Statement::AlterDefaultPrivileges(crate::ast::Spanned::new(stmt, Some(crate::ast::SourceSpan { start, end: self.prev_location() })))
+                    crate::ast::Statement::AlterDefaultPrivileges(crate::ast::Spanned::new(
+                        stmt,
+                        Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+                    ))
                 }
                 Err(e) => {
                     self.add_error(e);
@@ -3908,7 +4101,10 @@ impl Parser {
                 Some(Keyword::INDEX) => match self.parse_alter_index() {
                     Ok(stmt) => {
                         self.try_consume_semicolon();
-                        crate::ast::Statement::AlterIndex(crate::ast::Spanned::new(stmt, Some(crate::ast::SourceSpan { start, end: self.prev_location() })))
+                        crate::ast::Statement::AlterIndex(crate::ast::Spanned::new(
+                            stmt,
+                            Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+                        ))
                     }
                     Err(e) => {
                         self.add_error(e);
@@ -3916,7 +4112,10 @@ impl Parser {
                     }
                 },
                 Some(Keyword::TABLE) => match self.parse_alter_table() {
-                    Ok(stmt) => crate::ast::Statement::AlterTable(crate::ast::Spanned::new(stmt, Some(crate::ast::SourceSpan { start, end: self.prev_location() }))),
+                    Ok(stmt) => crate::ast::Statement::AlterTable(crate::ast::Spanned::new(
+                        stmt,
+                        Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+                    )),
                     Err(e) => {
                         self.add_error(e);
                         self.skip_to_semicolon()
@@ -3927,7 +4126,10 @@ impl Parser {
                     match self.parse_alter_tablespace() {
                         Ok(stmt) => {
                             self.try_consume_semicolon();
-                            crate::ast::Statement::AlterTablespace(crate::ast::Spanned::new(stmt, Some(crate::ast::SourceSpan { start, end: self.prev_location() })))
+                            crate::ast::Statement::AlterTablespace(crate::ast::Spanned::new(
+                                stmt,
+                                Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+                            ))
                         }
                         Err(e) => {
                             self.add_error(e);
@@ -3943,7 +4145,10 @@ impl Parser {
                         match self.parse_alter_database_link() {
                             Ok(stmt) => {
                                 self.try_consume_semicolon();
-                                crate::ast::Statement::AlterDatabaseLink(crate::ast::Spanned::new(stmt, Some(crate::ast::SourceSpan { start, end: self.prev_location() })))
+                                crate::ast::Statement::AlterDatabaseLink(crate::ast::Spanned::new(
+                                    stmt,
+                                    Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+                                ))
                             }
                             Err(e) => {
                                 self.add_error(e);
@@ -3955,7 +4160,10 @@ impl Parser {
                         match self.parse_alter_database() {
                             Ok(stmt) => {
                                 self.try_consume_semicolon();
-                                crate::ast::Statement::AlterDatabase(crate::ast::Spanned::new(stmt, Some(crate::ast::SourceSpan { start, end: self.prev_location() })))
+                                crate::ast::Statement::AlterDatabase(crate::ast::Spanned::new(
+                                    stmt,
+                                    Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+                                ))
                             }
                             Err(e) => {
                                 self.add_error(e);
@@ -3967,7 +4175,10 @@ impl Parser {
                 Some(Keyword::SCHEMA) => match self.parse_alter_schema() {
                     Ok(stmt) => {
                         self.try_consume_semicolon();
-                        crate::ast::Statement::AlterSchema(crate::ast::Spanned::new(stmt, Some(crate::ast::SourceSpan { start, end: self.prev_location() })))
+                        crate::ast::Statement::AlterSchema(crate::ast::Spanned::new(
+                            stmt,
+                            Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+                        ))
                     }
                     Err(e) => {
                         self.add_error(e);
@@ -3977,7 +4188,10 @@ impl Parser {
                 Some(Keyword::SEQUENCE) => match self.parse_alter_sequence() {
                     Ok(stmt) => {
                         self.try_consume_semicolon();
-                        crate::ast::Statement::AlterSequence(crate::ast::Spanned::new(stmt, Some(crate::ast::SourceSpan { start, end: self.prev_location() })))
+                        crate::ast::Statement::AlterSequence(crate::ast::Spanned::new(
+                            stmt,
+                            Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+                        ))
                     }
                     Err(e) => {
                         self.add_error(e);
@@ -3987,7 +4201,10 @@ impl Parser {
                 Some(Keyword::FUNCTION) => match self.parse_alter_function() {
                     Ok(stmt) => {
                         self.try_consume_semicolon();
-                        crate::ast::Statement::AlterFunction(crate::ast::Spanned::new(stmt, Some(crate::ast::SourceSpan { start, end: self.prev_location() })))
+                        crate::ast::Statement::AlterFunction(crate::ast::Spanned::new(
+                            stmt,
+                            Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+                        ))
                     }
                     Err(e) => {
                         self.add_error(e);
@@ -3999,10 +4216,10 @@ impl Parser {
                     match self.parse_alter_function_skip_keyword() {
                         Ok(stmt) => {
                             self.try_consume_semicolon();
-                            crate::ast::Statement::AlterProcedure(crate::ast::Spanned::new(crate::ast::AlterProcedureStatement {
-                                    name: stmt.name.clone(), 
-                                    action: stmt.action,
-                                }, Some(crate::ast::SourceSpan { start, end: self.prev_location() })))
+                            crate::ast::Statement::AlterProcedure(crate::ast::Spanned::new(
+                                crate::ast::AlterProcedureStatement { name: stmt.name.clone(), action: stmt.action },
+                                Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+                            ))
                         }
                         Err(e) => {
                             self.add_error(e);
@@ -4013,7 +4230,10 @@ impl Parser {
                 Some(Keyword::ROLE) => match self.parse_alter_role() {
                     Ok(stmt) => {
                         self.try_consume_semicolon();
-                        crate::ast::Statement::AlterRole(crate::ast::Spanned::new(stmt, Some(crate::ast::SourceSpan { start, end: self.prev_location() })))
+                        crate::ast::Statement::AlterRole(crate::ast::Spanned::new(
+                            stmt,
+                            Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+                        ))
                     }
                     Err(e) => {
                         self.add_error(e);
@@ -4026,7 +4246,10 @@ impl Parser {
                         match self.parse_alter_user_mapping() {
                             Ok(stmt) => {
                                 self.try_consume_semicolon();
-                                crate::ast::Statement::AlterUserMapping(crate::ast::Spanned::new(stmt, Some(crate::ast::SourceSpan { start, end: self.prev_location() })))
+                                crate::ast::Statement::AlterUserMapping(crate::ast::Spanned::new(
+                                    stmt,
+                                    Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+                                ))
                             }
                             Err(e) => {
                                 self.add_error(e);
@@ -4037,7 +4260,10 @@ impl Parser {
                         match self.parse_alter_user_inner() {
                             Ok(stmt) => {
                                 self.try_consume_semicolon();
-                                crate::ast::Statement::AlterUser(crate::ast::Spanned::new(stmt, Some(crate::ast::SourceSpan { start, end: self.prev_location() })))
+                                crate::ast::Statement::AlterUser(crate::ast::Spanned::new(
+                                    stmt,
+                                    Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+                                ))
                             }
                             Err(e) => {
                                 self.add_error(e);
@@ -4049,7 +4275,10 @@ impl Parser {
                 Some(Keyword::GROUP_P) => match self.parse_alter_group() {
                     Ok(stmt) => {
                         self.try_consume_semicolon();
-                        crate::ast::Statement::AlterGroup(crate::ast::Spanned::new(stmt, Some(crate::ast::SourceSpan { start, end: self.prev_location() })))
+                        crate::ast::Statement::AlterGroup(crate::ast::Spanned::new(
+                            stmt,
+                            Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+                        ))
                     }
                     Err(e) => {
                         self.add_error(e);
@@ -4066,7 +4295,10 @@ impl Parser {
                             match self.parse_alter_system_kill_session() {
                                 Ok(stmt) => {
                                     self.try_consume_semicolon();
-                                    crate::ast::Statement::AlterSystemKillSession(crate::ast::Spanned::new(stmt, Some(crate::ast::SourceSpan { start, end: self.prev_location() })))
+                                    crate::ast::Statement::AlterSystemKillSession(crate::ast::Spanned::new(
+                                        stmt,
+                                        Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+                                    ))
                                 }
                                 Err(e) => {
                                     self.add_error(e);
@@ -4078,7 +4310,10 @@ impl Parser {
                             match self.parse_alter_global_config() {
                                 Ok(stmt) => {
                                     self.try_consume_semicolon();
-                                    crate::ast::Statement::AlterGlobalConfig(crate::ast::Spanned::new(stmt, Some(crate::ast::SourceSpan { start, end: self.prev_location() })))
+                                    crate::ast::Statement::AlterGlobalConfig(crate::ast::Spanned::new(
+                                        stmt,
+                                        Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+                                    ))
                                 }
                                 Err(e) => {
                                     self.add_error(e);
@@ -4091,7 +4326,10 @@ impl Parser {
                         match self.parse_alter_global_config() {
                             Ok(stmt) => {
                                 self.try_consume_semicolon();
-                                crate::ast::Statement::AlterGlobalConfig(crate::ast::Spanned::new(stmt, Some(crate::ast::SourceSpan { start, end: self.prev_location() })))
+                                crate::ast::Statement::AlterGlobalConfig(crate::ast::Spanned::new(
+                                    stmt,
+                                    Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+                                ))
                             }
                             Err(e) => {
                                 self.add_error(e);
@@ -4103,7 +4341,10 @@ impl Parser {
                 Some(Keyword::TYPE_P) => match self.parse_alter_type() {
                     Ok(stmt) => {
                         self.try_consume_semicolon();
-                        crate::ast::Statement::AlterCompositeType(crate::ast::Spanned::new(stmt, Some(crate::ast::SourceSpan { start, end: self.prev_location() })))
+                        crate::ast::Statement::AlterCompositeType(crate::ast::Spanned::new(
+                            stmt,
+                            Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+                        ))
                     }
                     Err(e) => {
                         self.add_error(e);
@@ -4113,7 +4354,10 @@ impl Parser {
                 Some(Keyword::VIEW) => match self.parse_alter_view() {
                     Ok(stmt) => {
                         self.try_consume_semicolon();
-                        crate::ast::Statement::AlterView(crate::ast::Spanned::new(stmt, Some(crate::ast::SourceSpan { start, end: self.prev_location() })))
+                        crate::ast::Statement::AlterView(crate::ast::Spanned::new(
+                            stmt,
+                            Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+                        ))
                     }
                     Err(e) => {
                         self.add_error(e);
@@ -4125,7 +4369,10 @@ impl Parser {
                     match self.parse_alter_domain() {
                         Ok(stmt) => {
                             self.try_consume_semicolon();
-                            crate::ast::Statement::AlterDomain(crate::ast::Spanned::new(stmt, Some(crate::ast::SourceSpan { start, end: self.prev_location() })))
+                            crate::ast::Statement::AlterDomain(crate::ast::Spanned::new(
+                                stmt,
+                                Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+                            ))
                         }
                         Err(e) => {
                             self.add_error(e);
@@ -4138,7 +4385,10 @@ impl Parser {
                     match self.parse_alter_directory() {
                         Ok(stmt) => {
                             self.try_consume_semicolon();
-                            crate::ast::Statement::AlterDirectory(crate::ast::Spanned::new(stmt, Some(crate::ast::SourceSpan { start, end: self.prev_location() })))
+                            crate::ast::Statement::AlterDirectory(crate::ast::Spanned::new(
+                                stmt,
+                                Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+                            ))
                         }
                         Err(e) => {
                             self.add_error(e);
@@ -4149,7 +4399,10 @@ impl Parser {
                 Some(Keyword::LANGUAGE) => match self.parse_alter_language() {
                     Ok(stmt) => {
                         self.try_consume_semicolon();
-                        crate::ast::Statement::AlterLanguage(crate::ast::Spanned::new(stmt, Some(crate::ast::SourceSpan { start, end: self.prev_location() })))
+                        crate::ast::Statement::AlterLanguage(crate::ast::Spanned::new(
+                            stmt,
+                            Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+                        ))
                     }
                     Err(e) => {
                         self.add_error(e);
@@ -4161,7 +4414,10 @@ impl Parser {
                     match self.parse_alter_large_object() {
                         Ok(stmt) => {
                             self.try_consume_semicolon();
-                            crate::ast::Statement::AlterLargeObject(crate::ast::Spanned::new(stmt, Some(crate::ast::SourceSpan { start, end: self.prev_location() })))
+                            crate::ast::Statement::AlterLargeObject(crate::ast::Spanned::new(
+                                stmt,
+                                Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+                            ))
                         }
                         Err(e) => {
                             self.add_error(e);
@@ -4174,7 +4430,10 @@ impl Parser {
                     match self.parse_alter_package() {
                         Ok(stmt) => {
                             self.try_consume_semicolon();
-                            crate::ast::Statement::AlterPackage(crate::ast::Spanned::new(stmt, Some(crate::ast::SourceSpan { start, end: self.prev_location() })))
+                            crate::ast::Statement::AlterPackage(crate::ast::Spanned::new(
+                                stmt,
+                                Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+                            ))
                         }
                         Err(e) => {
                             self.add_error(e);
@@ -4187,7 +4446,10 @@ impl Parser {
                     match self.parse_alter_session() {
                         Ok(stmt) => {
                             self.try_consume_semicolon();
-                            crate::ast::Statement::AlterSession(crate::ast::Spanned::new(stmt, Some(crate::ast::SourceSpan { start, end: self.prev_location() })))
+                            crate::ast::Statement::AlterSession(crate::ast::Spanned::new(
+                                stmt,
+                                Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+                            ))
                         }
                         Err(e) => {
                             self.add_error(e);
@@ -4198,7 +4460,10 @@ impl Parser {
                 Some(Keyword::PROCEDURAL) => match self.parse_alter_language() {
                     Ok(stmt) => {
                         self.try_consume_semicolon();
-                        crate::ast::Statement::AlterLanguage(crate::ast::Spanned::new(stmt, Some(crate::ast::SourceSpan { start, end: self.prev_location() })))
+                        crate::ast::Statement::AlterLanguage(crate::ast::Spanned::new(
+                            stmt,
+                            Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+                        ))
                     }
                     Err(e) => {
                         self.add_error(e);
@@ -4208,7 +4473,10 @@ impl Parser {
                 Some(Keyword::TRIGGER) => match self.parse_alter_trigger() {
                     Ok(stmt) => {
                         self.try_consume_semicolon();
-                        crate::ast::Statement::AlterTrigger(crate::ast::Spanned::new(stmt, Some(crate::ast::SourceSpan { start, end: self.prev_location() })))
+                        crate::ast::Statement::AlterTrigger(crate::ast::Spanned::new(
+                            stmt,
+                            Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+                        ))
                     }
                     Err(e) => {
                         self.add_error(e);
@@ -4218,7 +4486,10 @@ impl Parser {
                 Some(Keyword::EXTENSION) => match self.parse_alter_extension() {
                     Ok(stmt) => {
                         self.try_consume_semicolon();
-                        crate::ast::Statement::AlterExtension(crate::ast::Spanned::new(stmt, Some(crate::ast::SourceSpan { start, end: self.prev_location() })))
+                        crate::ast::Statement::AlterExtension(crate::ast::Spanned::new(
+                            stmt,
+                            Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+                        ))
                     }
                     Err(e) => {
                         self.add_error(e);
@@ -4245,7 +4516,10 @@ impl Parser {
                         match self.parse_alter_resource_pool() {
                             Ok(stmt) => {
                                 self.try_consume_semicolon();
-                                crate::ast::Statement::AlterResourcePool(crate::ast::Spanned::new(stmt, Some(crate::ast::SourceSpan { start, end: self.prev_location() })))
+                                crate::ast::Statement::AlterResourcePool(crate::ast::Spanned::new(
+                                    stmt,
+                                    Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+                                ))
                             }
                             Err(e) => {
                                 self.add_error(e);
@@ -4270,7 +4544,10 @@ impl Parser {
                     if self.match_keyword(Keyword::TABLE) {
                         self.advance();
                         match self.parse_alter_foreign_table() {
-                            Ok(stmt) => crate::ast::Statement::AlterForeignTable(crate::ast::Spanned::new(stmt, Some(crate::ast::SourceSpan { start, end: self.prev_location() }))),
+                            Ok(stmt) => crate::ast::Statement::AlterForeignTable(crate::ast::Spanned::new(
+                                stmt,
+                                Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+                            )),
                             Err(e) => {
                                 self.add_error(e);
                                 self.skip_to_semicolon()
@@ -4279,7 +4556,10 @@ impl Parser {
                     } else if self.match_keyword(Keyword::SERVER) {
                         self.advance();
                         match self.parse_alter_foreign_server() {
-                            Ok(stmt) => crate::ast::Statement::AlterForeignServer(crate::ast::Spanned::new(stmt, Some(crate::ast::SourceSpan { start, end: self.prev_location() }))),
+                            Ok(stmt) => crate::ast::Statement::AlterForeignServer(crate::ast::Spanned::new(
+                                stmt,
+                                Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+                            )),
                             Err(e) => {
                                 self.add_error(e);
                                 self.skip_to_semicolon()
@@ -4297,7 +4577,10 @@ impl Parser {
                         }
                         self.advance();
                         match self.parse_alter_fdw() {
-                            Ok(stmt) => crate::ast::Statement::AlterFdw(crate::ast::Spanned::new(stmt, Some(crate::ast::SourceSpan { start, end: self.prev_location() }))),
+                            Ok(stmt) => crate::ast::Statement::AlterFdw(crate::ast::Spanned::new(
+                                stmt,
+                                Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+                            )),
                             Err(e) => {
                                 self.add_error(e);
                                 self.skip_to_semicolon()
@@ -4315,7 +4598,10 @@ impl Parser {
                 Some(Keyword::SERVER) => {
                     self.advance();
                     match self.parse_alter_foreign_server() {
-                        Ok(stmt) => crate::ast::Statement::AlterForeignServer(crate::ast::Spanned::new(stmt, Some(crate::ast::SourceSpan { start, end: self.prev_location() }))),
+                        Ok(stmt) => crate::ast::Statement::AlterForeignServer(crate::ast::Spanned::new(
+                            stmt,
+                            Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+                        )),
                         Err(e) => {
                             self.add_error(e);
                             self.skip_to_semicolon()
@@ -4325,7 +4611,10 @@ impl Parser {
                 Some(Keyword::PUBLICATION) => {
                     self.advance();
                     match self.parse_alter_publication() {
-                        Ok(stmt) => crate::ast::Statement::AlterPublication(crate::ast::Spanned::new(stmt, Some(crate::ast::SourceSpan { start, end: self.prev_location() }))),
+                        Ok(stmt) => crate::ast::Statement::AlterPublication(crate::ast::Spanned::new(
+                            stmt,
+                            Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+                        )),
                         Err(e) => {
                             self.add_error(e);
                             self.skip_to_semicolon()
@@ -4335,7 +4624,10 @@ impl Parser {
                 Some(Keyword::SUBSCRIPTION) => {
                     self.advance();
                     match self.parse_alter_subscription() {
-                        Ok(stmt) => crate::ast::Statement::AlterSubscription(crate::ast::Spanned::new(stmt, Some(crate::ast::SourceSpan { start, end: self.prev_location() }))),
+                        Ok(stmt) => crate::ast::Statement::AlterSubscription(crate::ast::Spanned::new(
+                            stmt,
+                            Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+                        )),
                         Err(e) => {
                             self.add_error(e);
                             self.skip_to_semicolon()
@@ -4347,7 +4639,10 @@ impl Parser {
                     if self.match_keyword(Keyword::GROUP_P) {
                         self.advance();
                         match self.parse_alter_node_group() {
-                            Ok(stmt) => crate::ast::Statement::AlterNodeGroup(crate::ast::Spanned::new(stmt, Some(crate::ast::SourceSpan { start, end: self.prev_location() }))),
+                            Ok(stmt) => crate::ast::Statement::AlterNodeGroup(crate::ast::Spanned::new(
+                                stmt,
+                                Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+                            )),
                             Err(e) => {
                                 self.add_error(e);
                                 self.skip_to_semicolon()
@@ -4355,7 +4650,10 @@ impl Parser {
                         }
                     } else {
                         match self.parse_alter_node() {
-                            Ok(stmt) => crate::ast::Statement::AlterNode(crate::ast::Spanned::new(stmt, Some(crate::ast::SourceSpan { start, end: self.prev_location() }))),
+                            Ok(stmt) => crate::ast::Statement::AlterNode(crate::ast::Spanned::new(
+                                stmt,
+                                Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+                            )),
                             Err(e) => {
                                 self.add_error(e);
                                 self.skip_to_semicolon()
@@ -4375,7 +4673,10 @@ impl Parser {
                     }
                     self.advance();
                     match self.parse_alter_workload_group() {
-                        Ok(stmt) => crate::ast::Statement::AlterWorkloadGroup(crate::ast::Spanned::new(stmt, Some(crate::ast::SourceSpan { start, end: self.prev_location() }))),
+                        Ok(stmt) => crate::ast::Statement::AlterWorkloadGroup(crate::ast::Spanned::new(
+                            stmt,
+                            Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+                        )),
                         Err(e) => {
                             self.add_error(e);
                             self.skip_to_semicolon()
@@ -4394,7 +4695,10 @@ impl Parser {
                     }
                     self.advance();
                     match self.parse_alter_audit_policy() {
-                        Ok(stmt) => crate::ast::Statement::AlterAuditPolicy(crate::ast::Spanned::new(stmt, Some(crate::ast::SourceSpan { start, end: self.prev_location() }))),
+                        Ok(stmt) => crate::ast::Statement::AlterAuditPolicy(crate::ast::Spanned::new(
+                            stmt,
+                            Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+                        )),
                         Err(e) => {
                             self.add_error(e);
                             self.skip_to_semicolon()
@@ -4404,7 +4708,10 @@ impl Parser {
                 Some(Keyword::POLICY) => {
                     self.advance();
                     match self.parse_alter_rls_policy() {
-                        Ok(stmt) => crate::ast::Statement::AlterRlsPolicy(crate::ast::Spanned::new(stmt, Some(crate::ast::SourceSpan { start, end: self.prev_location() }))),
+                        Ok(stmt) => crate::ast::Statement::AlterRlsPolicy(crate::ast::Spanned::new(
+                            stmt,
+                            Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+                        )),
                         Err(e) => {
                             self.add_error(e);
                             self.skip_to_semicolon()
@@ -4416,7 +4723,10 @@ impl Parser {
                     if self.match_ident_str("source") {
                         self.advance();
                         match self.parse_alter_data_source() {
-                            Ok(stmt) => crate::ast::Statement::AlterDataSource(crate::ast::Spanned::new(stmt, Some(crate::ast::SourceSpan { start, end: self.prev_location() }))),
+                            Ok(stmt) => crate::ast::Statement::AlterDataSource(crate::ast::Spanned::new(
+                                stmt,
+                                Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+                            )),
                             Err(e) => {
                                 self.add_error(e);
                                 self.skip_to_semicolon()
@@ -4434,7 +4744,10 @@ impl Parser {
                 Some(Keyword::EVENT) => {
                     self.advance();
                     match self.parse_alter_event() {
-                        Ok(stmt) => crate::ast::Statement::AlterEvent(crate::ast::Spanned::new(stmt, Some(crate::ast::SourceSpan { start, end: self.prev_location() }))),
+                        Ok(stmt) => crate::ast::Statement::AlterEvent(crate::ast::Spanned::new(
+                            stmt,
+                            Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+                        )),
                         Err(e) => {
                             self.add_error(e);
                             self.skip_to_semicolon()
@@ -4446,7 +4759,10 @@ impl Parser {
                     if self.match_keyword(Keyword::FAMILY) {
                         self.advance();
                         match self.parse_alter_opfamily() {
-                            Ok(stmt) => crate::ast::Statement::AlterOpFamily(crate::ast::Spanned::new(stmt, Some(crate::ast::SourceSpan { start, end: self.prev_location() }))),
+                            Ok(stmt) => crate::ast::Statement::AlterOpFamily(crate::ast::Spanned::new(
+                                stmt,
+                                Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+                            )),
                             Err(e) => {
                                 self.add_error(e);
                                 self.skip_to_semicolon()
@@ -4455,7 +4771,10 @@ impl Parser {
                     } else if self.match_keyword(Keyword::CLASS) {
                         self.advance();
                         match self.parse_alter_opfamily() {
-                            Ok(stmt) => crate::ast::Statement::AlterOpFamily(crate::ast::Spanned::new(stmt, Some(crate::ast::SourceSpan { start, end: self.prev_location() }))),
+                            Ok(stmt) => crate::ast::Statement::AlterOpFamily(crate::ast::Spanned::new(
+                                stmt,
+                                Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+                            )),
                             Err(e) => {
                                 self.add_error(e);
                                 self.skip_to_semicolon()
@@ -4500,18 +4819,15 @@ impl Parser {
                             left_type = self.consume_any_identifier().unwrap_or_default();
                             if self.match_token(&Token::Comma) {
                                 self.advance();
-                                right_type =
-                                    Some(self.consume_any_identifier().unwrap_or_default());
+                                right_type = Some(self.consume_any_identifier().unwrap_or_default());
                             }
                             self.expect_token(&Token::RParen).unwrap_or(());
                         }
                         let raw_rest = self.skip_to_semicolon_and_collect();
-                        crate::ast::Statement::AlterOperator(crate::ast::Spanned::new(crate::ast::AlterOperatorStatement {
-                            name: op_name, 
-                            left_type,
-                            right_type,
-                            raw_rest,
-                        }, Some(crate::ast::SourceSpan { start, end: self.prev_location() })))
+                        crate::ast::Statement::AlterOperator(crate::ast::Spanned::new(
+                            crate::ast::AlterOperatorStatement { name: op_name, left_type, right_type, raw_rest },
+                            Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+                        ))
                     }
                 }
                 Some(Keyword::MATERIALIZED) => {
@@ -4526,7 +4842,10 @@ impl Parser {
                     }
                     self.advance();
                     match self.parse_alter_materialized_view() {
-                        Ok(stmt) => crate::ast::Statement::AlterMaterializedView(crate::ast::Spanned::new(stmt, Some(crate::ast::SourceSpan { start, end: self.prev_location() }))),
+                        Ok(stmt) => crate::ast::Statement::AlterMaterializedView(crate::ast::Spanned::new(
+                            stmt,
+                            Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+                        )),
                         Err(e) => {
                             self.add_error(e);
                             self.skip_to_semicolon()
@@ -4536,7 +4855,10 @@ impl Parser {
                 Some(Keyword::SYNONYM) => match self.parse_alter_synonym() {
                     Ok(stmt) => {
                         self.try_consume_semicolon();
-                        crate::ast::Statement::AlterSynonym(crate::ast::Spanned::new(stmt, Some(crate::ast::SourceSpan { start, end: self.prev_location() })))
+                        crate::ast::Statement::AlterSynonym(crate::ast::Spanned::new(
+                            stmt,
+                            Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+                        ))
                     }
                     Err(e) => {
                         self.add_error(e);
@@ -4559,7 +4881,10 @@ impl Parser {
                         match self.parse_alter_text_search_config() {
                             Ok(stmt) => {
                                 self.try_consume_semicolon();
-                                crate::ast::Statement::AlterTextSearchConfig(crate::ast::Spanned::new(stmt, Some(crate::ast::SourceSpan { start, end: self.prev_location() })))
+                                crate::ast::Statement::AlterTextSearchConfig(crate::ast::Spanned::new(
+                                    stmt,
+                                    Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+                                ))
                             }
                             Err(e) => {
                                 self.add_error(e);
@@ -4571,7 +4896,10 @@ impl Parser {
                         match self.parse_alter_text_search_dict() {
                             Ok(stmt) => {
                                 self.try_consume_semicolon();
-                                crate::ast::Statement::AlterTextSearchDict(crate::ast::Spanned::new(stmt, Some(crate::ast::SourceSpan { start, end: self.prev_location() })))
+                                crate::ast::Statement::AlterTextSearchDict(crate::ast::Spanned::new(
+                                    stmt,
+                                    Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+                                ))
                             }
                             Err(e) => {
                                 self.add_error(e);
@@ -4592,7 +4920,10 @@ impl Parser {
                     match self.parse_alter_coordinator() {
                         Ok(stmt) => {
                             self.try_consume_semicolon();
-                            crate::ast::Statement::AlterCoordinator(crate::ast::Spanned::new(stmt, Some(crate::ast::SourceSpan { start, end: self.prev_location() })))
+                            crate::ast::Statement::AlterCoordinator(crate::ast::Spanned::new(
+                                stmt,
+                                Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+                            ))
                         }
                         Err(e) => {
                             self.add_error(e);
@@ -4632,7 +4963,10 @@ impl Parser {
                     match self.parse_alter_app_workload_group_mapping() {
                         Ok(stmt) => {
                             self.try_consume_semicolon();
-                            crate::ast::Statement::AlterAppWorkloadGroupMapping(crate::ast::Spanned::new(stmt, Some(crate::ast::SourceSpan { start, end: self.prev_location() })))
+                            crate::ast::Statement::AlterAppWorkloadGroupMapping(crate::ast::Spanned::new(
+                                stmt,
+                                Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+                            ))
                         }
                         Err(e) => {
                             self.add_error(e);
@@ -4646,7 +4980,10 @@ impl Parser {
                         if self.match_keyword(Keyword::POLICY) {
                             self.advance();
                             match self.parse_alter_rls_policy() {
-                                Ok(stmt) => crate::ast::Statement::AlterRlsPolicy(crate::ast::Spanned::new(stmt, Some(crate::ast::SourceSpan { start, end: self.prev_location() }))),
+                                Ok(stmt) => crate::ast::Statement::AlterRlsPolicy(crate::ast::Spanned::new(
+                                    stmt,
+                                    Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+                                )),
                                 Err(e) => {
                                     self.add_error(e);
                                     self.skip_to_semicolon()
@@ -4673,7 +5010,10 @@ impl Parser {
                 match self.parse_drop_user_mapping() {
                     Ok(stmt) => {
                         self.try_consume_semicolon();
-                        return crate::ast::Statement::DropUserMapping(crate::ast::Spanned::new(stmt, Some(crate::ast::SourceSpan { start, end: self.prev_location() })));
+                        return crate::ast::Statement::DropUserMapping(crate::ast::Spanned::new(
+                            stmt,
+                            Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+                        ));
                     }
                     Err(e) => {
                         self.add_error(e);
@@ -4694,16 +5034,22 @@ impl Parser {
                 }
             };
             self.try_consume_semicolon();
-            return crate::ast::Statement::Drop(crate::ast::Spanned::new(crate::ast::DropStatement {
-                object_type: crate::ast::ObjectType::Global, 
-                if_exists: false,
-                names: vec![vec![name]],
-                cascade: false,
-                purge: false,
-            }, Some(crate::ast::SourceSpan { start, end: self.prev_location() })));
+            return crate::ast::Statement::Drop(crate::ast::Spanned::new(
+                crate::ast::DropStatement {
+                    object_type: crate::ast::ObjectType::Global,
+                    if_exists: false,
+                    names: vec![vec![name]],
+                    cascade: false,
+                    purge: false,
+                },
+                Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+            ));
         }
         match self.parse_drop() {
-            Ok(stmt) => crate::ast::Statement::Drop(crate::ast::Spanned::new(stmt, Some(crate::ast::SourceSpan { start, end: self.prev_location() }))),
+            Ok(stmt) => crate::ast::Statement::Drop(crate::ast::Spanned::new(
+                stmt,
+                Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+            )),
             Err(e) => {
                 self.add_error(e);
                 self.skip_to_semicolon()
@@ -4711,9 +5057,7 @@ impl Parser {
         }
     }
 
-    fn parse_alter_tablespace(
-        &mut self,
-    ) -> Result<crate::ast::AlterTablespaceStatement, ParserError> {
+    fn parse_alter_tablespace(&mut self) -> Result<crate::ast::AlterTablespaceStatement, ParserError> {
         let name = self.parse_identifier()?;
         let action = if self.match_keyword(Keyword::RENAME) {
             self.advance();
@@ -4952,10 +5296,7 @@ impl Parser {
     /// Parse SQL with options. When `preserve_comments` is true, extracts comments
     /// from the source (including inside `$$...$$` procedure bodies) and returns them
     /// alongside the parsed statements.
-    pub fn parse_sql_with_options(
-        input: &str,
-        options: ParseOptions,
-    ) -> ParseOutput {
+    pub fn parse_sql_with_options(input: &str, options: ParseOptions) -> ParseOutput {
         if !options.preserve_comments && !options.mybatis_params {
             let (statements, errors) = Self::parse_sql(input);
             return ParseOutput { statements, errors, comments: vec![] };
@@ -5003,10 +5344,7 @@ impl Parser {
         }
 
         for (body_start_line, body) in &dollar_bodies {
-            let body_tokens = match crate::token::tokenizer::Tokenizer::new(body)
-                .preserve_comments(true)
-                .tokenize()
-            {
+            let body_tokens = match crate::token::tokenizer::Tokenizer::new(body).preserve_comments(true).tokenize() {
                 Ok(t) => t,
                 Err(_) => continue,
             };
@@ -5028,18 +5366,12 @@ impl Parser {
 
         comments.sort_by_key(|c| (c.line, c.column));
 
-        let clean_tokens: Vec<TokenWithSpan> = tokens
-            .into_iter()
-            .filter(|t| !matches!(t.token, Token::Comment(_)))
-            .collect();
+        let clean_tokens: Vec<TokenWithSpan> =
+            tokens.into_iter().filter(|t| !matches!(t.token, Token::Comment(_))).collect();
 
         let mut parser = Parser::with_source(clean_tokens, input.to_string());
         let statements = parser.parse_with_text();
 
-        ParseOutput {
-            statements,
-            errors: parser.errors().to_vec(),
-            comments,
-        }
+        ParseOutput { statements, errors: parser.errors().to_vec(), comments }
     }
 }

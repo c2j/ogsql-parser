@@ -28,8 +28,12 @@ pub struct TokenizeParams {
     pub sql: String,
 }
 
-fn default_indent() -> usize { 2 }
-fn default_line_width() -> usize { 120 }
+fn default_indent() -> usize {
+    2
+}
+fn default_line_width() -> usize {
+    120
+}
 
 #[derive(Debug, Deserialize, JsonSchema)]
 pub struct FormatParams {
@@ -100,18 +104,11 @@ pub struct OgsqlServer;
 #[tool_router(server_handler)]
 impl OgsqlServer {
     #[tool(description = "Parse SQL into structured AST JSON with error reports and query fingerprints")]
-    fn parse(
-        &self,
-        Parameters(ParseParams { sql, preserve_comments }): Parameters<ParseParams>,
-    ) -> String {
+    fn parse(&self, Parameters(ParseParams { sql, preserve_comments }): Parameters<ParseParams>) -> String {
         let options = crate::ParseOptions { preserve_comments, mybatis_params: false };
         let output = crate::Parser::parse_sql_with_options(&sql, options);
 
-        let all_stmts: Vec<_> = output
-            .statements
-            .iter()
-            .map(|si| si.statement.clone())
-            .collect();
+        let all_stmts: Vec<_> = output.statements.iter().map(|si| si.statement.clone()).collect();
         let fingerprints = crate::compute_query_fingerprints(&all_stmts);
 
         let stmt_values: Vec<serde_json::Value> = output
@@ -120,10 +117,7 @@ impl OgsqlServer {
             .map(|si| {
                 let mut obj = serde_json::to_value(si).unwrap();
                 if let Some(analysis) = compute_routine_analysis(&si.statement) {
-                    obj.as_object_mut().unwrap().insert(
-                        "routine_analysis".to_string(),
-                        analysis,
-                    );
+                    obj.as_object_mut().unwrap().insert("routine_analysis".to_string(), analysis);
                 }
                 obj
             })
@@ -134,25 +128,16 @@ impl OgsqlServer {
             "errors": output.errors,
         });
         if !fingerprints.is_empty() {
-            out.as_object_mut().unwrap().insert(
-                "query_fingerprints".to_string(),
-                serde_json::json!(fingerprints),
-            );
+            out.as_object_mut().unwrap().insert("query_fingerprints".to_string(), serde_json::json!(fingerprints));
         }
         if !output.comments.is_empty() {
-            out.as_object_mut().unwrap().insert(
-                "comments".to_string(),
-                serde_json::json!(output.comments),
-            );
+            out.as_object_mut().unwrap().insert("comments".to_string(), serde_json::json!(output.comments));
         }
         serde_json::to_string_pretty(&out).unwrap_or_else(|e| format!("{{\"error\": \"{}\"}}", e))
     }
 
     #[tool(description = "Tokenize SQL into a list of typed tokens with line/column positions")]
-    fn tokenize(
-        &self,
-        Parameters(TokenizeParams { sql }): Parameters<TokenizeParams>,
-    ) -> String {
+    fn tokenize(&self, Parameters(TokenizeParams { sql }): Parameters<TokenizeParams>) -> String {
         match crate::Tokenizer::new(&sql).tokenize() {
             Ok(tokens) => {
                 let list: Vec<serde_json::Value> = tokens
@@ -177,14 +162,9 @@ impl OgsqlServer {
     #[tool(description = "Format SQL with standardized keyword casing and indentation")]
     fn format(
         &self,
-        Parameters(FormatParams {
-            sql,
-            indent,
-            keyword_case,
-            comma_style,
-            line_width,
-            uppercase,
-        }): Parameters<FormatParams>,
+        Parameters(FormatParams { sql, indent, keyword_case, comma_style, line_width, uppercase }): Parameters<
+            FormatParams,
+        >,
     ) -> String {
         let tokens = match crate::Tokenizer::new(&sql).preserve_comments(true).tokenize() {
             Ok(t) => t,
@@ -223,16 +203,10 @@ impl OgsqlServer {
     }
 
     #[tool(description = "Validate SQL syntax and report errors and warnings")]
-    fn validate(
-        &self,
-        Parameters(ValidateParams { sql }): Parameters<ValidateParams>,
-    ) -> String {
+    fn validate(&self, Parameters(ValidateParams { sql }): Parameters<ValidateParams>) -> String {
         let output = crate::Parser::parse_sql_with_options(
             &sql,
-            crate::ParseOptions {
-                preserve_comments: false,
-                mybatis_params: false,
-            },
+            crate::ParseOptions { preserve_comments: false, mybatis_params: false },
         );
         let pkg_errors = crate::validate_package_consistency(&output.statements);
         let mut errors = output.errors;
@@ -242,17 +216,14 @@ impl OgsqlServer {
                     Some(d) => format!("package {}: {} — {}", pe.package_name, pe.subprogram_name, d),
                     None => format!("package {}: {} — {:?}", pe.package_name, pe.subprogram_name, pe.kind),
                 };
-                errors.push(crate::ParserError::Warning {
-                    message: msg,
-                    location: crate::SourceLocation::default(),
-                });
+                errors.push(crate::ParserError::Warning { message: msg, location: crate::SourceLocation::default() });
             }
         }
         let merge_errors = crate::validate_merge_semantics(&output.statements);
         if !merge_errors.is_empty() {
             for me in &merge_errors {
                 errors.push(crate::ParserError::UnsupportedSyntax {
-                    location: me.location.clone(),
+                    location: me.location,
                     syntax: "MERGE".to_string(),
                     hint: merge_error_detail(me),
                 });
@@ -266,42 +237,31 @@ impl OgsqlServer {
             "errors": errors,
         });
         if !pkg_errors.is_empty() {
-            result.as_object_mut().unwrap().insert(
-                "package_consistency_errors".to_string(),
-                serde_json::json!(pkg_errors),
-            );
+            result
+                .as_object_mut()
+                .unwrap()
+                .insert("package_consistency_errors".to_string(), serde_json::json!(pkg_errors));
         }
         if !merge_errors.is_empty() {
-            result.as_object_mut().unwrap().insert(
-                "merge_semantic_errors".to_string(),
-                serde_json::json!(merge_errors),
-            );
+            result
+                .as_object_mut()
+                .unwrap()
+                .insert("merge_semantic_errors".to_string(), serde_json::json!(merge_errors));
         }
-        serde_json::to_string_pretty(&result)
-            .unwrap_or_else(|e| format!("{{\"error\": \"{}\"}}", e))
+        serde_json::to_string_pretty(&result).unwrap_or_else(|e| format!("{{\"error\": \"{}\"}}", e))
     }
 
     #[tool(description = "Convert JSON AST (from parse tool output) back to SQL text")]
-    fn json2sql(
-        &self,
-        Parameters(Json2SqlParams { json }): Parameters<Json2SqlParams>,
-    ) -> String {
+    fn json2sql(&self, Parameters(Json2SqlParams { json }): Parameters<Json2SqlParams>) -> String {
         let json_value: serde_json::Value = match serde_json::from_str(&json) {
             Ok(v) => v,
             Err(e) => return format!("{{\"error\": \"Invalid JSON: {}\"}}", e),
         };
 
-        let statements: Vec<crate::Statement> = if let Some(arr) =
-            json_value.get("statements")
-        {
+        let statements: Vec<crate::Statement> = if let Some(arr) = json_value.get("statements") {
             match serde_json::from_value(arr.clone()) {
                 Ok(s) => s,
-                Err(e) => {
-                    return format!(
-                        "{{\"error\": \"Failed to deserialize statements: {}\"}}",
-                        e
-                    )
-                }
+                Err(e) => return format!("{{\"error\": \"Failed to deserialize statements: {}\"}}", e),
             }
         } else {
             match serde_json::from_value(json_value) {
@@ -311,10 +271,7 @@ impl OgsqlServer {
         };
 
         let formatter = crate::SqlFormatter::new();
-        let formatted: Vec<String> = statements
-            .iter()
-            .map(|s| formatter.format_statement(s))
-            .collect();
+        let formatted: Vec<String> = statements.iter().map(|s| formatter.format_statement(s)).collect();
 
         serde_json::to_string_pretty(&serde_json::json!({
             "statements": formatted,
@@ -323,13 +280,13 @@ impl OgsqlServer {
         .unwrap_or_else(|e| format!("{{\"error\": \"{}\"}}", e))
     }
 
-    #[tool(description = "Parse iBatis/MyBatis XML mapper content and extract SQL statements. Optional java_src (directory path) or java_sources (inline {path: content} map) enables parameter type inference from Java source.")]
+    #[tool(
+        description = "Parse iBatis/MyBatis XML mapper content and extract SQL statements. Optional java_src (directory path) or java_sources (inline {path: content} map) enables parameter type inference from Java source."
+    )]
     fn parse_xml(
         &self,
-        #[cfg(feature = "java")]
-        Parameters(ParseXmlParams { xml, java_src, java_sources }): Parameters<ParseXmlParams>,
-        #[cfg(not(feature = "java"))]
-        Parameters(ParseXmlParams { xml }): Parameters<ParseXmlParams>,
+        #[cfg(feature = "java")] Parameters(ParseXmlParams { xml, java_src, java_sources }): Parameters<ParseXmlParams>,
+        #[cfg(not(feature = "java"))] Parameters(ParseXmlParams { xml }): Parameters<ParseXmlParams>,
     ) -> String {
         #[cfg(feature = "java")]
         let (java_roots, tmp_dir) = {
@@ -353,9 +310,7 @@ impl OgsqlServer {
         let java_roots: Vec<std::path::PathBuf> = vec![];
 
         #[cfg(feature = "java")]
-        let result = crate::ibatis::parse_mapper_bytes_with_java_src(
-            xml.as_bytes(), None, java_roots
-        );
+        let result = crate::ibatis::parse_mapper_bytes_with_java_src(xml.as_bytes(), None, java_roots);
         #[cfg(not(feature = "java"))]
         let result = crate::ibatis::parse_mapper_bytes(xml.as_bytes());
 
@@ -364,8 +319,7 @@ impl OgsqlServer {
             let _ = std::fs::remove_dir_all(&tmp);
         }
 
-        serde_json::to_string_pretty(&result)
-            .unwrap_or_else(|e| format!("{{\"error\": \"{}\"}}", e))
+        serde_json::to_string_pretty(&result).unwrap_or_else(|e| format!("{{\"error\": \"{}\"}}", e))
     }
 
     #[tool(description = "Extract embedded SQL from Java source files (string literals, annotations, method calls)")]
@@ -373,14 +327,9 @@ impl OgsqlServer {
         &self,
         Parameters(ParseJavaParams { source, extra_sql_methods, extra_sql_var_patterns }): Parameters<ParseJavaParams>,
     ) -> String {
-        let config = crate::java::JavaExtractConfig {
-            extra_sql_methods,
-            extra_sql_var_patterns,
-        };
-        let result =
-            crate::java::extract_sql_from_java(&source, "<mcp-input>", &config);
-        serde_json::to_string_pretty(&result)
-            .unwrap_or_else(|e| format!("{{\"error\": \"{}\"}}", e))
+        let config = crate::java::JavaExtractConfig { extra_sql_methods, extra_sql_var_patterns };
+        let result = crate::java::extract_sql_from_java(&source, "<mcp-input>", &config);
+        serde_json::to_string_pretty(&result).unwrap_or_else(|e| format!("{{\"error\": \"{}\"}}", e))
     }
 }
 
@@ -411,11 +360,7 @@ fn token_display(t: &crate::TokenWithSpan) -> (String, String) {
 }
 
 fn is_warning(e: &crate::ParserError) -> bool {
-    matches!(
-        e,
-        crate::ParserError::Warning { .. }
-            | crate::ParserError::ReservedKeywordAsIdentifier { .. }
-    )
+    matches!(e, crate::ParserError::Warning { .. } | crate::ParserError::ReservedKeywordAsIdentifier { .. })
 }
 
 fn merge_error_detail(err: &crate::MergeSemanticError) -> String {
@@ -428,9 +373,7 @@ fn merge_error_detail(err: &crate::MergeSemanticError) -> String {
             crate::MergeSemanticErrorKind::OnColumnUpdated => {
                 "GaussDB does not allow updating columns referenced in the ON clause".to_string()
             }
-            crate::MergeSemanticErrorKind::DualTableNotSupported => {
-                "GaussDB does not have a DUAL table".to_string()
-            }
+            crate::MergeSemanticErrorKind::DualTableNotSupported => "GaussDB does not have a DUAL table".to_string(),
         },
     }
 }
@@ -440,19 +383,24 @@ fn compute_routine_analysis(stmt: &crate::Statement) -> Option<serde_json::Value
     match stmt {
         crate::Statement::CreateProcedure(p) => {
             let block = p.block.as_ref()?;
-            let analysis = crate::analyze_return_cursors(
-                block, &p.parameters, &p.name.join("."), "Procedure", None,
-            );
-            if analysis.return_cursors.is_empty() { return None; }
+            let analysis = crate::analyze_return_cursors(block, &p.parameters, &p.name.join("."), "Procedure", None);
+            if analysis.return_cursors.is_empty() {
+                return None;
+            }
             Some(serde_json::json!(analysis))
         }
         crate::Statement::CreateFunction(f) => {
             let block = f.block.as_ref()?;
             let analysis = crate::analyze_return_cursors(
-                block, &f.parameters, &f.name.join("."), "Function",
+                block,
+                &f.parameters,
+                &f.name.join("."),
+                "Function",
                 f.return_type.as_deref(),
             );
-            if analysis.return_cursors.is_empty() { return None; }
+            if analysis.return_cursors.is_empty() {
+                return None;
+            }
             Some(serde_json::json!(analysis))
         }
         crate::Statement::CreatePackageBody(pkg) => {
@@ -462,8 +410,11 @@ fn compute_routine_analysis(stmt: &crate::Statement) -> Option<serde_json::Value
                     PackageItem::Procedure(p) => {
                         if let Some(ref block) = p.block {
                             let analysis = crate::analyze_return_cursors(
-                                block, &p.parameters, &p.name.join("."),
-                                "Procedure", None,
+                                block,
+                                &p.parameters,
+                                &p.name.join("."),
+                                "Procedure",
+                                None,
                             );
                             if !analysis.return_cursors.is_empty() {
                                 analyses.push(analysis);
@@ -473,8 +424,11 @@ fn compute_routine_analysis(stmt: &crate::Statement) -> Option<serde_json::Value
                     PackageItem::Function(f) => {
                         if let Some(ref block) = f.block {
                             let analysis = crate::analyze_return_cursors(
-                                block, &f.parameters, &f.name.join("."),
-                                "Function", f.return_type.as_deref(),
+                                block,
+                                &f.parameters,
+                                &f.name.join("."),
+                                "Function",
+                                f.return_type.as_deref(),
                             );
                             if !analysis.return_cursors.is_empty() {
                                 analyses.push(analysis);
@@ -484,7 +438,11 @@ fn compute_routine_analysis(stmt: &crate::Statement) -> Option<serde_json::Value
                     _ => {}
                 }
             }
-            if analyses.is_empty() { None } else { Some(serde_json::json!(analyses)) }
+            if analyses.is_empty() {
+                None
+            } else {
+                Some(serde_json::json!(analyses))
+            }
         }
         _ => None,
     }

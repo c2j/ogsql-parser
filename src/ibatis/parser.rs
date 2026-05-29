@@ -7,7 +7,9 @@ use quick_xml::events::Event;
 use quick_xml::Reader;
 
 use crate::ibatis::error::IbatisError;
-use crate::ibatis::types::{MapperFile, MapperStatement, ParameterMapDef, ParameterMapEntry, SqlFragment, SqlNode, StatementKind};
+use crate::ibatis::types::{
+    MapperFile, MapperStatement, ParameterMapDef, ParameterMapEntry, SqlFragment, SqlNode, StatementKind,
+};
 use crate::ibatis::util::{find_closing_brace, parse_param_type};
 
 const SKIP_TAGS: &[&str] = &["resultMap", "cache", "cache-ref", "selectKey"];
@@ -28,17 +30,12 @@ pub fn parse_xml(xml: &[u8]) -> Result<MapperFile, IbatisError> {
         match reader.read_event_into(&mut buf) {
             Ok(Event::Start(e)) => {
                 let tag = e.local_name();
-                if tag.as_ref().eq_ignore_ascii_case(b"mapper")
-                    || tag.as_ref().eq_ignore_ascii_case(b"sqlMap")
-                {
+                if tag.as_ref().eq_ignore_ascii_case(b"mapper") || tag.as_ref().eq_ignore_ascii_case(b"sqlMap") {
                     namespace = get_attr(&e, "namespace").unwrap_or_default();
                 } else if tag.as_ref().eq_ignore_ascii_case(b"sql") {
                     let id = get_attr(&e, "id").unwrap_or_default();
                     let children = read_node_tree(&mut reader, b"sql");
-                    fragments.push(SqlFragment {
-                        id,
-                        body: merge_children(children),
-                    });
+                    fragments.push(SqlFragment { id, body: merge_children(children) });
                 } else if let Some(kind) = statement_kind(tag.as_ref()) {
                     let line = byte_offset_to_line(xml, reader.buffer_position() as usize);
                     let id = get_attr(&e, "id").unwrap_or_default();
@@ -70,12 +67,7 @@ pub fn parse_xml(xml: &[u8]) -> Result<MapperFile, IbatisError> {
                 let tag = e.local_name();
                 if tag.as_ref().eq_ignore_ascii_case(b"sql") {
                     let id = get_attr(&e, "id").unwrap_or_default();
-                    fragments.push(SqlFragment {
-                        id,
-                        body: SqlNode::Text {
-                            content: String::new(),
-                        },
-                    });
+                    fragments.push(SqlFragment { id, body: SqlNode::Text { content: String::new() } });
                 } else if tag.as_ref().eq_ignore_ascii_case(b"typeAlias") {
                     if let (Some(alias), Some(type_attr)) = (get_attr(&e, "alias"), get_attr(&e, "type")) {
                         type_aliases.push((alias, type_attr));
@@ -93,13 +85,7 @@ pub fn parse_xml(xml: &[u8]) -> Result<MapperFile, IbatisError> {
         }
     }
 
-    Ok(MapperFile {
-        namespace,
-        fragments,
-        parameter_maps,
-        type_aliases,
-        statements,
-    })
+    Ok(MapperFile { namespace, fragments, parameter_maps, type_aliases, statements })
 }
 
 fn statement_kind(tag: &[u8]) -> Option<StatementKind> {
@@ -117,9 +103,7 @@ fn statement_kind(tag: &[u8]) -> Option<StatementKind> {
 }
 
 fn is_skip_tag(tag: &[u8]) -> bool {
-    SKIP_TAGS
-        .iter()
-        .any(|t| tag.eq_ignore_ascii_case(t.as_bytes()))
+    SKIP_TAGS.iter().any(|t| tag.eq_ignore_ascii_case(t.as_bytes()))
 }
 
 fn read_node_tree(reader: &mut Reader<&[u8]>, end_tag: &[u8]) -> Vec<SqlNode> {
@@ -226,9 +210,7 @@ fn parse_text_to_nodes(text: &str) -> Vec<SqlNode> {
         if chars[i] == '#' && i + 1 < len && chars[i + 1] == '{' {
             if let Some(end) = find_closing_brace(&chars, i + 2) {
                 if !current_text.is_empty() {
-                    nodes.push(SqlNode::Text {
-                        content: std::mem::take(&mut current_text),
-                    });
+                    nodes.push(SqlNode::Text { content: std::mem::take(&mut current_text) });
                 }
                 let param: String = chars[i + 2..end].iter().collect();
                 let (name, java_type) = parse_param_type(&param);
@@ -240,9 +222,7 @@ fn parse_text_to_nodes(text: &str) -> Vec<SqlNode> {
         if chars[i] == '$' && i + 1 < len && chars[i + 1] == '{' {
             if let Some(end) = find_closing_brace(&chars, i + 2) {
                 if !current_text.is_empty() {
-                    nodes.push(SqlNode::Text {
-                        content: std::mem::take(&mut current_text),
-                    });
+                    nodes.push(SqlNode::Text { content: std::mem::take(&mut current_text) });
                 }
                 let raw: String = chars[i + 2..end].iter().collect();
                 let (expr, java_type) = parse_param_type(&raw);
@@ -263,9 +243,7 @@ fn parse_text_to_nodes(text: &str) -> Vec<SqlNode> {
                 let param: String = chars[start..end].iter().collect();
                 if !param.contains(' ') && !param.contains('\n') && !param.contains('\r') {
                     if !current_text.is_empty() {
-                        nodes.push(SqlNode::Text {
-                            content: std::mem::take(&mut current_text),
-                        });
+                        nodes.push(SqlNode::Text { content: std::mem::take(&mut current_text) });
                     }
                     let (name, java_type) = parse_param_type(&param);
                     nodes.push(SqlNode::Parameter { name, java_type });
@@ -286,9 +264,7 @@ fn parse_text_to_nodes(text: &str) -> Vec<SqlNode> {
                 let param: String = chars[start..end].iter().collect();
                 if !param.contains(' ') && !param.contains('\n') && !param.contains('\r') {
                     if !current_text.is_empty() {
-                        nodes.push(SqlNode::Text {
-                            content: std::mem::take(&mut current_text),
-                        });
+                        nodes.push(SqlNode::Text { content: std::mem::take(&mut current_text) });
                     }
                     let raw: String = chars[start..end].iter().collect();
                     let (expr, java_type) = parse_param_type(&raw);
@@ -302,9 +278,7 @@ fn parse_text_to_nodes(text: &str) -> Vec<SqlNode> {
         i += 1;
     }
     if !current_text.is_empty() {
-        nodes.push(SqlNode::Text {
-            content: current_text,
-        });
+        nodes.push(SqlNode::Text { content: current_text });
     }
     nodes
 }
@@ -355,11 +329,7 @@ fn parse_dynamic_element(
         Some(SqlNode::If { test, prepend: get_attr(element, "prepend"), children })
     } else if tag.eq_ignore_ascii_case(b"otherwise") {
         let children = read_node_tree(reader, b"otherwise");
-        Some(SqlNode::If {
-            test: String::new(),
-            prepend: get_attr(element, "prepend"),
-            children,
-        })
+        Some(SqlNode::If { test: String::new(), prepend: get_attr(element, "prepend"), children })
     } else if tag.eq_ignore_ascii_case(b"dynamic") {
         let children = read_node_tree(reader, b"dynamic");
         let prepend = get_attr(element, "prepend");
@@ -418,9 +388,7 @@ fn parse_choose_branches(children: Vec<SqlNode>) -> Vec<(Option<String>, Vec<Sql
 
 fn merge_children(children: Vec<SqlNode>) -> SqlNode {
     match children.len() {
-        0 => SqlNode::Text {
-            content: String::new(),
-        },
+        0 => SqlNode::Text { content: String::new() },
         1 => children.into_iter().next().unwrap(),
         _ => SqlNode::Sequence { children },
     }
@@ -502,11 +470,7 @@ fn parse_parameter_map_entries(reader: &mut Reader<&[u8]>) -> Vec<ParameterMapEn
 fn get_attr(element: &quick_xml::events::BytesStart<'_>, name: &str) -> Option<String> {
     element.attributes().find_map(|a| {
         a.ok().and_then(|a| {
-            if a.key
-                .local_name()
-                .as_ref()
-                .eq_ignore_ascii_case(name.as_bytes())
-            {
+            if a.key.local_name().as_ref().eq_ignore_ascii_case(name.as_bytes()) {
                 Some(String::from_utf8_lossy(&a.value).into_owned())
             } else {
                 None
@@ -583,8 +547,7 @@ fn is_ibatis2_conditional(tag: &[u8]) -> bool {
         b"isPropertyAvailable",
         b"isNotPropertyAvailable",
     ];
-    TAGS.iter()
-        .any(|t| tag.eq_ignore_ascii_case(t))
+    TAGS.iter().any(|t| tag.eq_ignore_ascii_case(t))
 }
 
 fn synthesize_ibatis2_test(element: &quick_xml::events::BytesStart<'_>) -> String {

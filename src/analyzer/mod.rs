@@ -1,12 +1,12 @@
 pub mod return_cursor;
 pub mod schema;
 
-use std::collections::HashMap;
 use std::collections::hash_map::DefaultHasher;
+use std::collections::HashMap;
 use std::hash::{Hash, Hasher};
 
 use crate::ast::plpgsql::{PlBlock, PlDeclaration, PlOpenKind, PlStatement};
-use crate::ast::{Expr, Literal, SourceSpan, Statement, StatementInfo};
+use crate::ast::{Expr, Literal, Statement, StatementInfo};
 
 // ── 报告类型 ──
 
@@ -56,19 +56,10 @@ pub struct VariableTrace {
 /// Provenance chain tracing how a dynamic SQL string was constructed.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub enum TraceChain {
-    LiteralAssignment {
-        value: String,
-    },
-    VariableCopy {
-        source_var: String,
-        source_chain: Box<TraceChain>,
-    },
-    Concatenation {
-        parts: Vec<TraceChain>,
-    },
-    DeclarationDefault {
-        value: String,
-    },
+    LiteralAssignment { value: String },
+    VariableCopy { source_var: String, source_chain: Box<TraceChain> },
+    Concatenation { parts: Vec<TraceChain> },
+    DeclarationDefault { value: String },
     Unknown,
 }
 
@@ -100,7 +91,7 @@ pub struct DynamicParam {
 
 /// /// An IF condition guarding a dynamic parameter in a template.
 pub struct TemplateCondition {
-/// An IF condition guarding a dynamic parameter in a template.
+    /// An IF condition guarding a dynamic parameter in a template.
     /// The variable checked in the IF condition
     pub param: String,
     /// The operator: "IS NOT NULL", "IS NULL", "= value", etc.
@@ -143,54 +134,33 @@ fn detect_wrapping_in_sql(sql: &mut String, bindings: &mut Vec<ParameterBinding>
 
 fn build_parameterized_sql(trace: &TraceChain, bindings: &mut Vec<ParameterBinding>) -> String {
     match trace {
-        TraceChain::LiteralAssignment { value }
-        | TraceChain::DeclarationDefault { value } => value.clone(),
+        TraceChain::LiteralAssignment { value } | TraceChain::DeclarationDefault { value } => value.clone(),
 
-        TraceChain::VariableCopy { source_chain, .. } => {
-            build_parameterized_sql(source_chain, bindings)
-        }
+        TraceChain::VariableCopy { source_chain, .. } => build_parameterized_sql(source_chain, bindings),
 
         TraceChain::Unknown => " :?".to_string(),
 
-        TraceChain::Concatenation { parts } => parts
-            .iter()
-            .map(|p| build_concat_part(p, bindings))
-            .collect(),
+        TraceChain::Concatenation { parts } => parts.iter().map(|p| build_concat_part(p, bindings)).collect(),
     }
 }
 
 fn build_concat_part(trace: &TraceChain, bindings: &mut Vec<ParameterBinding>) -> String {
     match trace {
-        TraceChain::LiteralAssignment { value }
-        | TraceChain::DeclarationDefault { value } => value.clone(),
+        TraceChain::LiteralAssignment { value } | TraceChain::DeclarationDefault { value } => value.clone(),
 
-        TraceChain::VariableCopy {
-            source_var,
-            source_chain,
-        } => match source_chain.as_ref() {
-            TraceChain::Concatenation { .. } => {
-                build_parameterized_sql(source_chain, bindings)
-            }
-            TraceChain::VariableCopy { .. } => {
-                build_parameterized_sql(source_chain, bindings)
-            }
+        TraceChain::VariableCopy { source_var, source_chain } => match source_chain.as_ref() {
+            TraceChain::Concatenation { .. } => build_parameterized_sql(source_chain, bindings),
+            TraceChain::VariableCopy { .. } => build_parameterized_sql(source_chain, bindings),
             _ => {
                 let pos = bindings.len() + 1;
-                bindings.push(ParameterBinding {
-                    position: pos,
-                    variable: source_var.clone(),
-                    wrapping: None,
-                });
+                bindings.push(ParameterBinding { position: pos, variable: source_var.clone(), wrapping: None });
                 format!(" :{}", source_var)
             }
         },
 
         TraceChain::Unknown => " :?".to_string(),
 
-        TraceChain::Concatenation { parts } => parts
-            .iter()
-            .map(|p| build_concat_part(p, bindings))
-            .collect(),
+        TraceChain::Concatenation { parts } => parts.iter().map(|p| build_concat_part(p, bindings)).collect(),
     }
 }
 
@@ -216,9 +186,7 @@ fn extract_where_clause(stmt: &Statement) -> Option<&Expr> {
 
 fn extract_var_name(expr: &Expr) -> Option<String> {
     match expr {
-        Expr::PlVariable(names) | Expr::ColumnRef(names) if names.len() == 1 => {
-            Some(names[0].clone())
-        }
+        Expr::PlVariable(names) | Expr::ColumnRef(names) if names.len() == 1 => Some(names[0].clone()),
         _ => None,
     }
 }
@@ -245,17 +213,14 @@ fn collect_optional_filters(expr: &Expr, filters: &mut Vec<OptionalFilter>) {
             }
             if let Some(f) = try_match_optional_filter(right, left) {
                 filters.push(f);
-                return;
             }
         }
         Expr::Parenthesized(inner) => {
             collect_optional_filters(inner, filters);
-            return;
         }
         Expr::BinaryOp { op, left, right } if op == "AND" => {
             collect_optional_filters(left, filters);
             collect_optional_filters(right, filters);
-            return;
         }
         _ => {}
     }
@@ -274,11 +239,7 @@ fn try_match_optional_filter(is_null_side: &Expr, comparison_side: &Expr) -> Opt
                     Expr::ColumnRef(names) => names.clone(),
                     _ => return None,
                 };
-                return Some(OptionalFilter {
-                    parameter: param_name,
-                    column,
-                    operator: "LIKE".to_string(),
-                });
+                return Some(OptionalFilter { parameter: param_name, column, operator: "LIKE".to_string() });
             }
         }
 
@@ -301,11 +262,7 @@ fn try_match_optional_filter(is_null_side: &Expr, comparison_side: &Expr) -> Opt
                     _ => return None,
                 };
 
-                return Some(OptionalFilter {
-                    parameter: param_name,
-                    column,
-                    operator: op.clone(),
-                });
+                return Some(OptionalFilter { parameter: param_name, column, operator: op.clone() });
             }
         }
     }
@@ -325,9 +282,7 @@ pub struct RefCursorQuery {
 
 fn extract_cursor_name(expr: &Expr) -> Option<String> {
     match expr {
-        Expr::PlVariable(names) | Expr::ColumnRef(names) if names.len() == 1 => {
-            Some(names[0].clone())
-        }
+        Expr::PlVariable(names) | Expr::ColumnRef(names) if names.len() == 1 => Some(names[0].clone()),
         _ => None,
     }
 }
@@ -392,17 +347,11 @@ fn collect_ref_cursor_queries(
     queries
 }
 
-
 /// /// Find all REF CURSOR out parameters and their associated queries in a PL block.
-pub fn find_ref_cursor_queries(
-    block: &PlBlock,
-    params: &[(String, String, Option<String>)],
-) -> Vec<RefCursorQuery> {
+pub fn find_ref_cursor_queries(block: &PlBlock, params: &[(String, String, Option<String>)]) -> Vec<RefCursorQuery> {
     let ref_cursor_params: std::collections::HashSet<String> = params
         .iter()
-        .filter(|(_, data_type, mode)| {
-            data_type.to_uppercase().contains("REFCURSOR") && mode.as_deref() == Some("OUT")
-        })
+        .filter(|(_, data_type, mode)| data_type.to_uppercase().contains("REFCURSOR") && mode.as_deref() == Some("OUT"))
         .map(|(name, _, _)| name.clone())
         .collect();
 
@@ -437,7 +386,6 @@ fn fingerprint_statement(stmt: &Statement) -> Option<String> {
     Some(format!("fp_{:016x}", hasher.finish()))
 }
 
-
 /// /// Compute structural fingerprints for all SQL statements, grouping identical queries.
 pub fn compute_query_fingerprints(stmts: &[Statement]) -> Vec<QueryFingerprint> {
     let mut fingerprint_map: HashMap<String, QueryFingerprint> = HashMap::new();
@@ -451,11 +399,7 @@ pub fn compute_query_fingerprints(stmts: &[Statement]) -> Vec<QueryFingerprint> 
     results
 }
 
-fn collect_fingerprints_recursive(
-    stmt: &Statement,
-    location: &str,
-    map: &mut HashMap<String, QueryFingerprint>,
-) {
+fn collect_fingerprints_recursive(stmt: &Statement, location: &str, map: &mut HashMap<String, QueryFingerprint>) {
     if let Some(fp) = fingerprint_statement(stmt) {
         let formatter = crate::formatter::SqlFormatter::new();
         let normalized_sql = formatter.format_statement(stmt);
@@ -464,20 +408,14 @@ fn collect_fingerprints_recursive(
             occurrences: Vec::new(),
             normalized_sql,
         });
-        entry.occurrences.push(FingerprintOccurrence {
-            location: location.to_string(),
-        });
+        entry.occurrences.push(FingerprintOccurrence { location: location.to_string() });
     }
 }
 
 fn extract_template(trace: &TraceChain) -> Option<DynamicTemplate> {
     match trace {
-        TraceChain::Concatenation { parts } => {
-            build_template_from_parts(parts)
-        }
-        TraceChain::VariableCopy { source_chain, .. } => {
-            extract_template(source_chain)
-        }
+        TraceChain::Concatenation { parts } => build_template_from_parts(parts),
+        TraceChain::VariableCopy { source_chain, .. } => extract_template(source_chain),
         _ => None,
     }
 }
@@ -487,12 +425,9 @@ fn extract_template(trace: &TraceChain) -> Option<DynamicTemplate> {
 /// must still be appended to the parent template.
 fn collect_static_text(trace: &TraceChain) -> String {
     match trace {
-        TraceChain::LiteralAssignment { value }
-        | TraceChain::DeclarationDefault { value } => value.clone(),
+        TraceChain::LiteralAssignment { value } | TraceChain::DeclarationDefault { value } => value.clone(),
         TraceChain::VariableCopy { source_chain, .. } => collect_static_text(source_chain),
-        TraceChain::Concatenation { parts } => {
-            parts.iter().map(|p| collect_static_text(p)).collect()
-        }
+        TraceChain::Concatenation { parts } => parts.iter().map(collect_static_text).collect(),
         TraceChain::Unknown => String::new(),
     }
 }
@@ -520,7 +455,7 @@ fn merge_sub_template(
     } else {
         // All-static concatenation: collect literal text and append
         if let Some(last) = static_parts.last_mut() {
-            let text: String = sub_parts.iter().map(|p| collect_static_text(p)).collect();
+            let text: String = sub_parts.iter().map(collect_static_text).collect();
             last.push_str(&text);
         }
     }
@@ -534,40 +469,30 @@ fn build_template_from_parts(parts: &[TraceChain]) -> Option<DynamicTemplate> {
 
     for part in parts {
         match part {
-            TraceChain::LiteralAssignment { value }
-            | TraceChain::DeclarationDefault { value } => {
+            TraceChain::LiteralAssignment { value } | TraceChain::DeclarationDefault { value } => {
                 if let Some(last) = static_parts.last_mut() {
                     last.push_str(value);
                 }
             }
-            TraceChain::VariableCopy { source_var, source_chain } => {
-                match source_chain.as_ref() {
-                    TraceChain::LiteralAssignment { value }
-                    | TraceChain::DeclarationDefault { value } => {
-                        if let Some(last) = static_parts.last_mut() {
-                            last.push_str(value);
-                        }
-                    }
-                    TraceChain::Concatenation { parts: sub_parts } => {
-                        merge_sub_template(sub_parts, &mut static_parts, &mut dynamic_params);
-                    }
-                    _ => {
-                        dynamic_params.push(DynamicParam {
-                            source: source_var.clone(),
-                            param_name: source_var.clone(),
-                        });
-                        static_parts.push(String::new());
+            TraceChain::VariableCopy { source_var, source_chain } => match source_chain.as_ref() {
+                TraceChain::LiteralAssignment { value } | TraceChain::DeclarationDefault { value } => {
+                    if let Some(last) = static_parts.last_mut() {
+                        last.push_str(value);
                     }
                 }
-            }
+                TraceChain::Concatenation { parts: sub_parts } => {
+                    merge_sub_template(sub_parts, &mut static_parts, &mut dynamic_params);
+                }
+                _ => {
+                    dynamic_params.push(DynamicParam { source: source_var.clone(), param_name: source_var.clone() });
+                    static_parts.push(String::new());
+                }
+            },
             TraceChain::Concatenation { parts: sub_parts } => {
                 merge_sub_template(sub_parts, &mut static_parts, &mut dynamic_params);
             }
             TraceChain::Unknown => {
-                dynamic_params.push(DynamicParam {
-                    source: "?".to_string(),
-                    param_name: "?".to_string(),
-                });
+                dynamic_params.push(DynamicParam { source: "?".to_string(), param_name: "?".to_string() });
                 static_parts.push(String::new());
             }
         }
@@ -581,11 +506,7 @@ fn build_template_from_parts(parts: &[TraceChain]) -> Option<DynamicTemplate> {
         *part = part.trim().to_string();
     }
 
-    Some(DynamicTemplate {
-        static_parts,
-        dynamic_params,
-        conditions: Vec::new(),
-    })
+    Some(DynamicTemplate { static_parts, dynamic_params, conditions: Vec::new() })
 }
 
 // ── 内部状态 ──
@@ -595,7 +516,6 @@ struct VarState {
     trace: TraceChain,
 }
 
-
 /// /// Tracks variable assignments and traces dynamic SQL construction in PL/pgSQL.
 pub struct DynamicSqlAnalyzer {
     scopes: Vec<HashMap<String, VarState>>,
@@ -604,14 +524,15 @@ pub struct DynamicSqlAnalyzer {
     path: Vec<usize>,
 }
 
+impl Default for DynamicSqlAnalyzer {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl DynamicSqlAnalyzer {
     pub fn new() -> Self {
-        Self {
-            scopes: vec![HashMap::new()],
-            findings: Vec::new(),
-            traces: Vec::new(),
-            path: Vec::new(),
-        }
+        Self { scopes: vec![HashMap::new()], findings: Vec::new(), traces: Vec::new(), path: Vec::new() }
     }
 
     pub fn analyze(mut self, block: &PlBlock) -> DynamicSqlReport {
@@ -665,25 +586,16 @@ impl DynamicSqlAnalyzer {
                     } else {
                         // Register the variable even without a default value
                         // so it's known in scope (important for PlVariable resolution)
-                        self.set_var(&var_decl.name, VarState {
-                            known_value: None,
-                            trace: TraceChain::Unknown,
-                        });
+                        self.set_var(&var_decl.name, VarState { known_value: None, trace: TraceChain::Unknown });
                     }
                 }
                 PlDeclaration::Cursor(cursor_decl) => {
                     // Register cursor name in scope
-                    self.set_var(&cursor_decl.name, VarState {
-                        known_value: None,
-                        trace: TraceChain::Unknown,
-                    });
+                    self.set_var(&cursor_decl.name, VarState { known_value: None, trace: TraceChain::Unknown });
                 }
                 PlDeclaration::Record(record_decl) => {
                     // Register record name in scope
-                    self.set_var(&record_decl.name, VarState {
-                        known_value: None,
-                        trace: TraceChain::Unknown,
-                    });
+                    self.set_var(&record_decl.name, VarState { known_value: None, trace: TraceChain::Unknown });
                 }
                 _ => {} // Type, NestedProcedure, NestedFunction, Pragma — not variables
             }
@@ -702,9 +614,7 @@ impl DynamicSqlAnalyzer {
         match stmt {
             PlStatement::Assignment { target, expression } => {
                 let target_name = match target {
-                    Expr::PlVariable(n) | Expr::ColumnRef(n) => {
-                        n.last().cloned().unwrap_or_default()
-                    }
+                    Expr::PlVariable(n) | Expr::ColumnRef(n) => n.last().cloned().unwrap_or_default(),
                     _ => String::new(),
                 };
                 let state = self.evaluate_expr(expression);
@@ -720,9 +630,7 @@ impl DynamicSqlAnalyzer {
 
             PlStatement::Execute(exec) => {
                 let (resolved, trace) = self.resolve_expr(&exec.string_expr);
-                let parsed = resolved
-                    .as_ref()
-                    .and_then(|s| crate::parser::Parser::parse_statement_from_str(s));
+                let parsed = resolved.as_ref().and_then(|s| crate::parser::Parser::parse_statement_from_str(s));
                 let desc = self.expr_to_string(&exec.string_expr);
                 let param_result = parameterize_trace(&trace);
                 let dynamic_template = extract_template(&trace);
@@ -730,7 +638,7 @@ impl DynamicSqlAnalyzer {
                 let optional_filters = parsed
                     .as_ref()
                     .and_then(|stmt| extract_where_clause(stmt))
-                    .map(|where_clause| detect_optional_filters(where_clause))
+                    .map(detect_optional_filters)
                     .unwrap_or_default();
 
                 self.findings.push(ExecuteFinding {
@@ -739,11 +647,7 @@ impl DynamicSqlAnalyzer {
                     resolved_value: resolved,
                     parsed_statement: parsed,
                     trace,
-                    parameterized_sql: if param_result.sql.trim().is_empty() {
-                        None
-                    } else {
-                        Some(param_result.sql)
-                    },
+                    parameterized_sql: if param_result.sql.trim().is_empty() { None } else { Some(param_result.sql) },
                     parameter_bindings: param_result.bindings,
                     optional_filters,
                     dynamic_template,
@@ -782,20 +686,14 @@ impl DynamicSqlAnalyzer {
 
             PlStatement::For(for_stmt) => {
                 self.enter_scope();
-                self.set_var(&for_stmt.variable, VarState {
-                    known_value: None,
-                    trace: TraceChain::Unknown,
-                });
+                self.set_var(&for_stmt.variable, VarState { known_value: None, trace: TraceChain::Unknown });
                 self.process_statements(&for_stmt.body);
                 self.exit_scope();
             }
 
             PlStatement::ForEach(foreach_stmt) => {
                 self.enter_scope();
-                self.set_var(&foreach_stmt.variable, VarState {
-                    known_value: None,
-                    trace: TraceChain::Unknown,
-                });
+                self.set_var(&foreach_stmt.variable, VarState { known_value: None, trace: TraceChain::Unknown });
                 self.process_statements(&foreach_stmt.body);
                 self.exit_scope();
             }
@@ -806,20 +704,16 @@ impl DynamicSqlAnalyzer {
 
     fn evaluate_expr(&self, expr: &Expr) -> VarState {
         match expr {
-            Expr::Literal(Literal::String(s)) => VarState {
-                known_value: Some(s.clone()),
-                trace: TraceChain::LiteralAssignment { value: s.clone() },
-            },
+            Expr::Literal(Literal::String(s)) => {
+                VarState { known_value: Some(s.clone()), trace: TraceChain::LiteralAssignment { value: s.clone() } }
+            }
             Expr::Literal(Literal::DollarString { body, .. }) => VarState {
                 known_value: Some(body.clone()),
-                trace: TraceChain::LiteralAssignment {
-                    value: body.clone(),
-                },
+                trace: TraceChain::LiteralAssignment { value: body.clone() },
             },
-            Expr::Literal(Literal::EscapeString(s)) => VarState {
-                known_value: Some(s.clone()),
-                trace: TraceChain::LiteralAssignment { value: s.clone() },
-            },
+            Expr::Literal(Literal::EscapeString(s)) => {
+                VarState { known_value: Some(s.clone()), trace: TraceChain::LiteralAssignment { value: s.clone() } }
+            }
             Expr::ColumnRef(names) if names.len() == 1 => {
                 let var_name = &names[0];
                 if let Some(state) = self.lookup_var(var_name) {
@@ -831,10 +725,7 @@ impl DynamicSqlAnalyzer {
                         },
                     }
                 } else {
-                    VarState {
-                        known_value: None,
-                        trace: TraceChain::Unknown,
-                    }
+                    VarState { known_value: None, trace: TraceChain::Unknown }
                 }
             }
             Expr::PlVariable(names) if names.len() == 1 => {
@@ -848,10 +739,7 @@ impl DynamicSqlAnalyzer {
                         },
                     }
                 } else {
-                    VarState {
-                        known_value: None,
-                        trace: TraceChain::Unknown,
-                    }
+                    VarState { known_value: None, trace: TraceChain::Unknown }
                 }
             }
             Expr::BinaryOp { op, left, right } if op == "||" => {
@@ -863,15 +751,10 @@ impl DynamicSqlAnalyzer {
                 };
                 VarState {
                     known_value,
-                    trace: TraceChain::Concatenation {
-                        parts: vec![left_state.trace, right_state.trace],
-                    },
+                    trace: TraceChain::Concatenation { parts: vec![left_state.trace, right_state.trace] },
                 }
             }
-            _ => VarState {
-                known_value: None,
-                trace: TraceChain::Unknown,
-            },
+            _ => VarState { known_value: None, trace: TraceChain::Unknown },
         }
     }
 
@@ -885,21 +768,15 @@ impl DynamicSqlAnalyzer {
             Expr::ColumnRef(names) => names.join("."),
             Expr::PlVariable(names) => names.join("."),
             Expr::Literal(Literal::String(s)) => format!("'{}'", s),
-            Expr::BinaryOp {
-                op, left, right, ..
-            } => format!(
-                "{} {} {}",
-                self.expr_to_string(left),
-                op,
-                self.expr_to_string(right)
-            ),
+            Expr::BinaryOp { op, left, right, .. } => {
+                format!("{} {} {}", self.expr_to_string(left), op, self.expr_to_string(right))
+            }
             _ => format!("{:?}", expr),
         }
     }
 }
 
 // ── 公共入口函数 ──
-
 
 /// /// Analyze a PL block for dynamic SQL patterns, variable tracing, and ref cursor queries.
 pub fn analyze_pl_block(block: &PlBlock) -> DynamicSqlReport {
@@ -969,7 +846,6 @@ pub struct CrossProcedureCall {
     pub callee_may_commit: bool,
 }
 
-
 /// /// Analyze transaction boundaries, segments, and cross-procedure calls in a PL block.
 pub fn analyze_transactions(block: &PlBlock) -> TransactionReport {
     let mut analyzer = TransactionAnalyzer::new();
@@ -1033,12 +909,15 @@ impl TransactionAnalyzer {
         for (i, stmt) in stmts.iter().enumerate() {
             let mut sub_tx = None;
             self.scan_statement(stmt, &path.iter().copied().chain(std::iter::once(i)).collect::<Vec<_>>(), &mut sub_tx);
-            self.current_segment_stmts.push((self.global_idx, sub_tx.unwrap_or(SubTransactionInfo {
-                block_path: path.iter().copied().chain(std::iter::once(i)).collect(),
-                implicit_savepoint: false,
-                body_range: (0, 0),
-                handlers: Vec::new(),
-            })));
+            self.current_segment_stmts.push((
+                self.global_idx,
+                sub_tx.unwrap_or(SubTransactionInfo {
+                    block_path: path.iter().copied().chain(std::iter::once(i)).collect(),
+                    implicit_savepoint: false,
+                    body_range: (0, 0),
+                    handlers: Vec::new(),
+                }),
+            ));
             self.global_idx += 1;
         }
     }
@@ -1051,7 +930,10 @@ impl TransactionAnalyzer {
                 let sub_transactions = self.drain_sub_transactions();
                 self.segments.push(TransactionSegment {
                     index: self.segments.len(),
-                    start_reason: std::mem::replace(&mut self.current_segment_start_reason, TransactionBoundary::PostCommit),
+                    start_reason: std::mem::replace(
+                        &mut self.current_segment_start_reason,
+                        TransactionBoundary::PostCommit,
+                    ),
                     end_reason: TransactionBoundary::Commit,
                     statement_range: (self.current_segment_start, end),
                     sub_transactions,
@@ -1064,7 +946,10 @@ impl TransactionAnalyzer {
                 let sub_transactions = self.drain_sub_transactions();
                 self.segments.push(TransactionSegment {
                     index: self.segments.len(),
-                    start_reason: std::mem::replace(&mut self.current_segment_start_reason, TransactionBoundary::PostRollback),
+                    start_reason: std::mem::replace(
+                        &mut self.current_segment_start_reason,
+                        TransactionBoundary::PostRollback,
+                    ),
                     end_reason: TransactionBoundary::Rollback,
                     statement_range: (self.current_segment_start, end),
                     sub_transactions,
@@ -1081,7 +966,7 @@ impl TransactionAnalyzer {
             }
             PlStatement::Block(inner_block) => {
                 if inner_block.exception_block.is_some() {
-                    let handler_count = inner_block.exception_block.as_ref().map_or(0, |eb| eb.handlers.len());
+                    let _handler_count = inner_block.exception_block.as_ref().map_or(0, |eb| eb.handlers.len());
                     let handlers: Vec<ExceptionHandlerInfo> = inner_block
                         .exception_block
                         .as_ref()
@@ -1157,7 +1042,10 @@ impl TransactionAnalyzer {
             let sub_transactions = self.drain_sub_transactions();
             self.segments.push(TransactionSegment {
                 index: self.segments.len(),
-                start_reason: std::mem::replace(&mut self.current_segment_start_reason, TransactionBoundary::ProcedureEntry),
+                start_reason: std::mem::replace(
+                    &mut self.current_segment_start_reason,
+                    TransactionBoundary::ProcedureEntry,
+                ),
                 end_reason,
                 statement_range: (self.current_segment_start, end),
                 sub_transactions,
@@ -1197,15 +1085,11 @@ pub enum PackageConsistencyErrorKind {
 
 /// Validate that all package specs and bodies in the parsed statements are consistent.
 /// Returns a list of errors/warnings for each mismatch found.
-pub fn validate_package_consistency(
-    stmts: &[crate::ast::StatementInfo],
-) -> Vec<PackageConsistencyError> {
-    use crate::ast::{Statement, CreatePackageStatement, CreatePackageBodyStatement};
+pub fn validate_package_consistency(stmts: &[crate::ast::StatementInfo]) -> Vec<PackageConsistencyError> {
+    use crate::ast::{CreatePackageBodyStatement, CreatePackageStatement, Statement};
 
-    let mut specs: std::collections::HashMap<String, &CreatePackageStatement> =
-        std::collections::HashMap::new();
-    let mut bodies: std::collections::HashMap<String, &CreatePackageBodyStatement> =
-        std::collections::HashMap::new();
+    let mut specs: std::collections::HashMap<String, &CreatePackageStatement> = std::collections::HashMap::new();
+    let mut bodies: std::collections::HashMap<String, &CreatePackageBodyStatement> = std::collections::HashMap::new();
 
     for si in stmts {
         match &si.statement {
@@ -1233,10 +1117,7 @@ pub fn validate_package_consistency(
 }
 
 fn object_name_str(name: &crate::ast::ObjectName) -> String {
-    name.iter()
-        .map(|s| s.to_uppercase())
-        .collect::<Vec<_>>()
-        .join(".")
+    name.iter().map(|s| s.to_uppercase()).collect::<Vec<_>>().join(".")
 }
 
 fn validate_single_package(
@@ -1247,7 +1128,8 @@ fn validate_single_package(
 ) {
     use crate::ast::PackageItem;
 
-    let spec_funcs: std::collections::HashMap<String, &crate::ast::PackageFunction> = spec.items
+    let spec_funcs: std::collections::HashMap<String, &crate::ast::PackageFunction> = spec
+        .items
         .iter()
         .filter_map(|item| match item {
             PackageItem::Function(f) => {
@@ -1258,7 +1140,8 @@ fn validate_single_package(
         })
         .collect();
 
-    let spec_procs: std::collections::HashMap<String, &crate::ast::PackageProcedure> = spec.items
+    let spec_procs: std::collections::HashMap<String, &crate::ast::PackageProcedure> = spec
+        .items
         .iter()
         .filter_map(|item| match item {
             PackageItem::Procedure(p) => {
@@ -1269,7 +1152,8 @@ fn validate_single_package(
         })
         .collect();
 
-    let body_funcs: std::collections::HashMap<String, &crate::ast::PackageFunction> = body.items
+    let body_funcs: std::collections::HashMap<String, &crate::ast::PackageFunction> = body
+        .items
         .iter()
         .filter_map(|item| match item {
             PackageItem::Function(f) => {
@@ -1280,7 +1164,8 @@ fn validate_single_package(
         })
         .collect();
 
-    let body_procs: std::collections::HashMap<String, &crate::ast::PackageProcedure> = body.items
+    let body_procs: std::collections::HashMap<String, &crate::ast::PackageProcedure> = body
+        .items
         .iter()
         .filter_map(|item| match item {
             PackageItem::Procedure(p) => {
@@ -1293,13 +1178,7 @@ fn validate_single_package(
 
     for (func_name, spec_func) in &spec_funcs {
         if let Some(body_func) = body_funcs.get(func_name) {
-            compare_params(
-                pkg_name,
-                func_name,
-                &spec_func.parameters,
-                &body_func.parameters,
-                errors,
-            );
+            compare_params(pkg_name, func_name, &spec_func.parameters, &body_func.parameters, errors);
         } else {
             errors.push(PackageConsistencyError {
                 package_name: pkg_name.to_string(),
@@ -1312,13 +1191,7 @@ fn validate_single_package(
 
     for (proc_name, spec_proc) in &spec_procs {
         if let Some(body_proc) = body_procs.get(proc_name) {
-            compare_params(
-                pkg_name,
-                proc_name,
-                &spec_proc.parameters,
-                &body_proc.parameters,
-                errors,
-            );
+            compare_params(pkg_name, proc_name, &spec_proc.parameters, &body_proc.parameters, errors);
         } else {
             errors.push(PackageConsistencyError {
                 package_name: pkg_name.to_string(),
@@ -1369,7 +1242,8 @@ fn compare_params(
             },
             detail: Some(format!(
                 "parameter count mismatch: spec has {}, body has {}",
-                spec_params.len(), body_params.len()
+                spec_params.len(),
+                body_params.len()
             )),
         });
     }
@@ -1520,11 +1394,31 @@ const PL_BUILTIN_VALUES: &[&str] = &[
     "SQLCODE",
     "SQLERRM",
     "SQLSTATE",
-    "YEAR", "MONTH", "DAY", "HOUR", "MINUTE", "SECOND",
-    "EPOCH", "DOW", "DOY", "ISODOW", "ISOYEAR", "QUARTER", "WEEK",
-    "CENTURY", "DECADE", "MILLISECOND", "MILLISECONDS", "MICROSECOND", "MICROSECONDS",
-    "TIMEZONE", "TIMEZONE_HOUR", "TIMEZONE_MINUTE",
-    "BOTH", "LEADING", "TRAILING",
+    "YEAR",
+    "MONTH",
+    "DAY",
+    "HOUR",
+    "MINUTE",
+    "SECOND",
+    "EPOCH",
+    "DOW",
+    "DOY",
+    "ISODOW",
+    "ISOYEAR",
+    "QUARTER",
+    "WEEK",
+    "CENTURY",
+    "DECADE",
+    "MILLISECOND",
+    "MILLISECONDS",
+    "MICROSECOND",
+    "MICROSECONDS",
+    "TIMEZONE",
+    "TIMEZONE_HOUR",
+    "TIMEZONE_MINUTE",
+    "BOTH",
+    "LEADING",
+    "TRAILING",
 ];
 
 fn is_pl_builtin(name: &str) -> bool {
@@ -1547,13 +1441,9 @@ fn is_known_function(name: &str) -> bool {
 ///
 /// # Returns
 /// A list of warnings for potentially undefined variable references.
-pub fn validate_pl_variables(
-    block: &PlBlock,
-    params: &[crate::ast::RoutineParam],
-) -> Vec<UndefinedVariableError> {
+pub fn validate_pl_variables(block: &PlBlock, params: &[crate::ast::RoutineParam]) -> Vec<UndefinedVariableError> {
     validate_pl_variables_with_extra_vars_and_funcs(block, params, &[], &[], false)
 }
-
 
 /// /// Like validate_pl_variables but with additional pre-declared variable names.
 pub fn validate_pl_variables_with_extra_vars(
@@ -1563,7 +1453,6 @@ pub fn validate_pl_variables_with_extra_vars(
 ) -> Vec<UndefinedVariableError> {
     validate_pl_variables_with_extra_vars_and_funcs(block, params, extra_vars, &[], false)
 }
-
 
 /// /// Like validate_pl_variables but with extra variable names and known function names.
 pub fn validate_pl_variables_with_extra_vars_and_funcs(
@@ -1635,8 +1524,8 @@ impl PlVariableValidator {
 
     fn process_block(&mut self, block: &PlBlock) {
         self.process_declarations(&block.declarations);
-                self.process_statements(&block.body);
-                if let Some(ref eb) = block.exception_block {
+        self.process_statements(&block.body);
+        if let Some(ref eb) = block.exception_block {
             for handler in &eb.handlers {
                 self.process_statements(&handler.statements);
             }
@@ -1676,7 +1565,6 @@ impl PlVariableValidator {
         let saved_span = self.current_span.take();
         match stmt {
             // ── PL expressions: CHECK for undefined variables ──
-
             PlStatement::Assignment { target, expression } => {
                 // Assignment has no Spanned wrapper — keep parent span for location.
                 self.current_span = saved_span.clone();
@@ -1899,7 +1787,11 @@ impl PlVariableValidator {
         match expr {
             Expr::ColumnRef(names) | Expr::PlVariable(names) if names.len() == 1 => {
                 let name = &names[0];
-                if !self.is_declared(name) && !is_pl_builtin(name) && !is_known_function(name) && !self.is_known_func(name) {
+                if !self.is_declared(name)
+                    && !is_pl_builtin(name)
+                    && !is_known_function(name)
+                    && !self.is_known_func(name)
+                {
                     self.errors.push(UndefinedVariableError {
                         variable_name: name.clone(),
                         location: self.current_span.clone(),
@@ -2008,8 +1900,12 @@ impl PlVariableValidator {
             }
             Expr::Subscript { object, lower, upper, .. } => {
                 self.check_expr(object, context);
-                if let Some(l) = lower { self.check_expr(l, context); }
-                if let Some(u) = upper { self.check_expr(u, context); }
+                if let Some(l) = lower {
+                    self.check_expr(l, context);
+                }
+                if let Some(u) = upper {
+                    self.check_expr(u, context);
+                }
             }
             Expr::FieldAccess { object, .. } => {
                 self.check_expr(object, context);
@@ -2217,19 +2113,14 @@ pub enum MergeSemanticErrorKind {
 pub fn validate_merge_semantics(stmts: &[StatementInfo]) -> Vec<MergeSemanticError> {
     let mut errors = Vec::new();
     for si in stmts {
-        let loc = crate::token::SourceLocation {
-            line: si.start_line,
-            column: si.start_col,
-            offset: 0,
-        };
+        let loc = crate::token::SourceLocation { line: si.start_line, column: si.start_col, offset: 0 };
         collect_merge_errors(&si.statement, &mut errors, loc);
     }
     errors
 }
 
 fn span_to_location(span: Option<&crate::ast::SourceSpan>) -> crate::token::SourceLocation {
-    span.map(|s| s.start.clone())
-        .unwrap_or_default()
+    span.map(|s| s.start).unwrap_or_default()
 }
 
 fn collect_merge_errors(
@@ -2239,11 +2130,7 @@ fn collect_merge_errors(
 ) {
     match stmt {
         Statement::Merge(ref merge_stmt) => {
-            let loc = if merge_stmt.span.is_some() {
-                span_to_location(merge_stmt.span.as_ref())
-            } else {
-                fallback_loc
-            };
+            let loc = if merge_stmt.span.is_some() { span_to_location(merge_stmt.span.as_ref()) } else { fallback_loc };
             errors.extend(validate_single_merge(&merge_stmt.node, loc));
         }
         Statement::CreateProcedure(ref proc) => {
@@ -2303,7 +2190,7 @@ fn scan_pl_stmt(stmt: &crate::ast::plpgsql::PlStatement, errors: &mut Vec<MergeS
     match stmt {
         Ps::SqlStatement { statement, span, .. } => {
             let loc = if let Some(ref sp) = span {
-                sp.start.clone()
+                sp.start
             } else if let Statement::Merge(ref ms) = statement.as_ref() {
                 span_to_location(ms.span.as_ref())
             } else {
@@ -2364,7 +2251,10 @@ fn scan_pl_stmt(stmt: &crate::ast::plpgsql::PlStatement, errors: &mut Vec<MergeS
     }
 }
 
-fn validate_single_merge(stmt: &crate::ast::MergeStatement, loc: crate::token::SourceLocation) -> Vec<MergeSemanticError> {
+fn validate_single_merge(
+    stmt: &crate::ast::MergeStatement,
+    loc: crate::token::SourceLocation,
+) -> Vec<MergeSemanticError> {
     let mut errors = Vec::new();
 
     for clause in &stmt.when_clauses {
@@ -2373,7 +2263,7 @@ fn validate_single_merge(stmt: &crate::ast::MergeStatement, loc: crate::token::S
             errors.push(MergeSemanticError {
                 kind: MergeSemanticErrorKind::DeleteNotSupported,
                 detail: Some("GaussDB does not support MERGE ... WHEN MATCHED THEN DELETE".to_string()),
-                location: loc.clone(),
+                location: loc,
             });
         }
 
@@ -2386,10 +2276,8 @@ fn validate_single_merge(stmt: &crate::ast::MergeStatement, loc: crate::token::S
                     for col_name in &assign.columns {
                         let col_lower = col_name.last().map(|s| s.to_lowercase());
                         if let Some(ref col) = col_lower {
-                            if on_columns.contains(col) {
-                                if !conflicting.contains(col) {
-                                    conflicting.push(col.clone());
-                                }
+                            if on_columns.contains(col) && !conflicting.contains(col) {
+                                conflicting.push(col.clone());
                             }
                         }
                     }
@@ -2401,7 +2289,7 @@ fn validate_single_merge(stmt: &crate::ast::MergeStatement, loc: crate::token::S
                             "Columns referenced in the ON clause cannot be updated: {}",
                             conflicting.join(", ")
                         )),
-                        location: loc.clone(),
+                        location: loc,
                     });
                 }
             }
@@ -2413,7 +2301,7 @@ fn validate_single_merge(stmt: &crate::ast::MergeStatement, loc: crate::token::S
         errors.push(MergeSemanticError {
             kind: MergeSemanticErrorKind::DualTableNotSupported,
             detail: Some("GaussDB does not have a DUAL table; use a VALUES clause or bare SELECT instead".to_string()),
-            location: loc.clone(),
+            location: loc,
         });
     }
 
@@ -2424,10 +2312,7 @@ fn validate_single_merge(stmt: &crate::ast::MergeStatement, loc: crate::token::S
 ///
 /// The target table is identified by its alias (if present) or its unqualified name.
 /// Column names are returned in lowercase for case-insensitive comparison.
-fn extract_target_columns_from_expr(
-    expr: &Expr,
-    target: &crate::ast::TableRef,
-) -> std::collections::HashSet<String> {
+fn extract_target_columns_from_expr(expr: &Expr, target: &crate::ast::TableRef) -> std::collections::HashSet<String> {
     let target_id = match target {
         crate::ast::TableRef::Table { name, alias, .. } => {
             if let Some(ref a) = alias {
@@ -2444,11 +2329,7 @@ fn extract_target_columns_from_expr(
     cols
 }
 
-fn collect_target_columns(
-    expr: &Expr,
-    target_id: &str,
-    cols: &mut std::collections::HashSet<String>,
-) {
+fn collect_target_columns(expr: &Expr, target_id: &str, cols: &mut std::collections::HashSet<String>) {
     match expr {
         Expr::ColumnRef(parts) => {
             if parts.len() == 2 && parts[0].to_lowercase() == target_id {
@@ -2516,9 +2397,7 @@ fn collect_target_columns(
 /// Check if a TableRef (or its nested subqueries) references the DUAL table.
 fn uses_dual_table(table_ref: &crate::ast::TableRef) -> bool {
     match table_ref {
-        crate::ast::TableRef::Table { name, .. } => {
-            name.last().map_or(false, |n| n.eq_ignore_ascii_case("dual"))
-        }
+        crate::ast::TableRef::Table { name, .. } => name.last().is_some_and(|n| n.eq_ignore_ascii_case("dual")),
         crate::ast::TableRef::Subquery { query, .. } => {
             for tr in &query.from {
                 if uses_dual_table(tr) {
@@ -2527,9 +2406,7 @@ fn uses_dual_table(table_ref: &crate::ast::TableRef) -> bool {
             }
             false
         }
-        crate::ast::TableRef::Join { left, right, .. } => {
-            uses_dual_table(left) || uses_dual_table(right)
-        }
+        crate::ast::TableRef::Join { left, right, .. } => uses_dual_table(left) || uses_dual_table(right),
         crate::ast::TableRef::Pivot { source, .. } => uses_dual_table(source),
         crate::ast::TableRef::Unpivot { source, .. } => uses_dual_table(source),
         _ => false,

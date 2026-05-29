@@ -1,7 +1,7 @@
 use crate::ast::{
-    DataType, Expr, Literal, ObjectName, OrderByItem, SelectStatement, SelectTarget, SequenceFunc,
-    WhenClause, WindowFrame, WindowFrameBound, WindowFrameDirection, WindowFrameMode, WindowSpec,
-    XmlAttribute, XmlAttributes, XmlContent, XmlOption,
+    DataType, Expr, Literal, ObjectName, OrderByItem, SelectStatement, SelectTarget, SequenceFunc, WhenClause,
+    WindowFrame, WindowFrameBound, WindowFrameDirection, WindowFrameMode, WindowSpec, XmlAttribute, XmlAttributes,
+    XmlContent, XmlOption,
 };
 use crate::parser::{Parser, ParserError};
 use crate::token::keyword::Keyword;
@@ -16,16 +16,11 @@ impl Parser {
         has_over: bool,
         has_variadic: bool,
     ) -> Option<crate::ast::BuiltinFuncMeta> {
-        let full_name = name.iter()
-            .map(|s| s.to_lowercase())
-            .collect::<Vec<_>>()
-            .join(".");
-        let last_seg = full_name.split('.').last().unwrap_or(&full_name).to_string();
+        let full_name = name.iter().map(|s| s.to_lowercase()).collect::<Vec<_>>().join(".");
+        let last_seg = full_name.split('.').next_back().unwrap_or(&full_name).to_string();
 
         let builtin = crate::parser::function_registry::lookup_builtin_meta_qualified(&full_name)
-            .or_else(|| {
-                crate::parser::function_registry::lookup_builtin_meta(&last_seg)
-            });
+            .or_else(|| crate::parser::function_registry::lookup_builtin_meta(&last_seg));
 
         let warnings = crate::parser::function_registry::validate_function_call(
             &last_seg,
@@ -72,21 +67,14 @@ impl Parser {
 
             if op_str == "::" {
                 let type_name = self.parse_data_type()?;
-                left = Expr::TypeCast {
-                    expr: Box::new(left),
-                    type_name,
-                    default: None,
-                    format: None,
-                };
+                left = Expr::TypeCast { expr: Box::new(left), type_name, default: None, format: None };
                 continue;
             }
 
             if matches!(op_str.as_str(), "=" | "<" | ">" | "<=" | ">=" | "<>" | "!=")
                 && matches!(
                     self.peek(),
-                    Token::Keyword(Keyword::ANY)
-                        | Token::Keyword(Keyword::SOME)
-                        | Token::Keyword(Keyword::ALL)
+                    Token::Keyword(Keyword::ANY) | Token::Keyword(Keyword::SOME) | Token::Keyword(Keyword::ALL)
                 )
             {
                 let sublink_type = match self.peek() {
@@ -187,17 +175,9 @@ impl Parser {
                 continue;
             }
 
-            let right = self.parse_expr_with_precedence(if is_right_assoc {
-                op_prec
-            } else {
-                op_prec + 1
-            })?;
+            let right = self.parse_expr_with_precedence(if is_right_assoc { op_prec } else { op_prec + 1 })?;
 
-            left = Expr::BinaryOp {
-                left: Box::new(left),
-                op: op_str,
-                right: Box::new(right),
-            };
+            left = Expr::BinaryOp { left: Box::new(left), op: op_str, right: Box::new(right) };
         }
 
         Ok(left)
@@ -212,18 +192,12 @@ impl Parser {
         if self.match_keyword(Keyword::NOT) {
             self.advance();
             let expr = self.parse_expr_with_precedence(12)?;
-            return Ok(Expr::UnaryOp {
-                op: "NOT".to_string(),
-                expr: Box::new(expr),
-            });
+            return Ok(Expr::UnaryOp { op: "NOT".to_string(), expr: Box::new(expr) });
         }
         if self.match_token(&Token::Minus) {
             self.advance();
             let expr = self.parse_expr_with_precedence(60)?;
-            return Ok(Expr::UnaryOp {
-                op: "-".to_string(),
-                expr: Box::new(expr),
-            });
+            return Ok(Expr::UnaryOp { op: "-".to_string(), expr: Box::new(expr) });
         }
         if self.match_token(&Token::Plus) {
             self.advance();
@@ -232,23 +206,14 @@ impl Parser {
         if self.match_token(&Token::At) {
             self.advance();
             let expr = self.parse_expr_with_precedence(60)?;
-            return Ok(Expr::UnaryOp {
-                op: "@".to_string(),
-                expr: Box::new(expr),
-            });
+            return Ok(Expr::UnaryOp { op: "@".to_string(), expr: Box::new(expr) });
         }
         if let Some(op) = self.peek().as_op_str() {
-            if matches!(
-                op,
-                "|/" | "||/" | "!!" | "?|" | "?-" | "?-|" | "?||" | "#" | "~" | "@@"
-            ) {
+            if matches!(op, "|/" | "||/" | "!!" | "?|" | "?-" | "?-|" | "?||" | "#" | "~" | "@@") {
                 let op_str = op.to_string();
                 self.advance();
                 let expr = self.parse_expr_with_precedence(60)?;
-                return Ok(Expr::UnaryOp {
-                    op: op_str,
-                    expr: Box::new(expr),
-                });
+                return Ok(Expr::UnaryOp { op: op_str, expr: Box::new(expr) });
             }
         }
         self.parse_primary_expr()
@@ -313,10 +278,8 @@ impl Parser {
                         Token::Keyword(Keyword::NULL_P) => {
                             self.advance();
                             self.advance();
-                            *left = Expr::IsNull {
-                                expr: Box::new(std::mem::replace(left, Expr::Default)),
-                                negated: false,
-                            };
+                            *left =
+                                Expr::IsNull { expr: Box::new(std::mem::replace(left, Expr::Default)), negated: false };
                             return Ok(true);
                         }
                         Token::Keyword(Keyword::NOT) => {
@@ -417,18 +380,12 @@ impl Parser {
             }
             Token::Keyword(Keyword::ISNULL) => {
                 self.advance();
-                *left = Expr::IsNull {
-                    expr: Box::new(std::mem::replace(left, Expr::Default)),
-                    negated: false,
-                };
+                *left = Expr::IsNull { expr: Box::new(std::mem::replace(left, Expr::Default)), negated: false };
                 Ok(true)
             }
             Token::Keyword(Keyword::NOTNULL) => {
                 self.advance();
-                *left = Expr::IsNull {
-                    expr: Box::new(std::mem::replace(left, Expr::Default)),
-                    negated: true,
-                };
+                *left = Expr::IsNull { expr: Box::new(std::mem::replace(left, Expr::Default)), negated: true };
                 Ok(true)
             }
             Token::Keyword(Keyword::BETWEEN) => {
@@ -464,8 +421,7 @@ impl Parser {
                         Token::Keyword(Keyword::IN_P) => {
                             self.advance();
                             self.advance();
-                            *left =
-                                self.parse_in_expr(std::mem::replace(left, Expr::Default), true)?;
+                            *left = self.parse_in_expr(std::mem::replace(left, Expr::Default), true)?;
                             return Ok(true);
                         }
                         Token::Keyword(Keyword::LIKE) => {
@@ -581,22 +537,16 @@ impl Parser {
                 let (lower, upper, is_slice) = if self.match_token(&Token::Colon) {
                     self.advance();
                     // [:upper]
-                    let upper = if self.match_token(&Token::RBracket) {
-                        None
-                    } else {
-                        Some(Box::new(self.parse_expr()?))
-                    };
+                    let upper =
+                        if self.match_token(&Token::RBracket) { None } else { Some(Box::new(self.parse_expr()?)) };
                     (None, upper, true)
                 } else {
                     let first = self.parse_expr()?;
                     if self.match_token(&Token::Colon) {
                         self.advance();
                         // [lower:upper] or [lower:]
-                        let upper = if self.match_token(&Token::RBracket) {
-                            None
-                        } else {
-                            Some(Box::new(self.parse_expr()?))
-                        };
+                        let upper =
+                            if self.match_token(&Token::RBracket) { None } else { Some(Box::new(self.parse_expr()?)) };
                         (Some(Box::new(first)), upper, true)
                     } else {
                         // [expr]
@@ -646,10 +596,7 @@ impl Parser {
             }
             Token::Op(op) if op == "!" => {
                 self.advance();
-                *left = Expr::UnaryOp {
-                    op: "!".to_string(),
-                    expr: Box::new(std::mem::replace(left, Expr::Default)),
-                };
+                *left = Expr::UnaryOp { op: "!".to_string(), expr: Box::new(std::mem::replace(left, Expr::Default)) };
                 Ok(true)
             }
             Token::Dot => {
@@ -691,10 +638,7 @@ impl Parser {
                             builtin: None,
                         };
                     } else {
-                        *left = Expr::FieldAccess {
-                            object: Box::new(std::mem::replace(left, Expr::Default)),
-                            field,
-                        };
+                        *left = Expr::FieldAccess { object: Box::new(std::mem::replace(left, Expr::Default)), field };
                     }
                     return Ok(true);
                 }
@@ -723,11 +667,7 @@ impl Parser {
         if self.match_keyword(Keyword::SELECT) || self.match_keyword(Keyword::WITH) {
             let subquery = self.parse_select_statement()?;
             self.expect_token(&Token::RParen)?;
-            return Ok(Expr::InSubquery {
-                expr: Box::new(left),
-                subquery: Box::new(subquery),
-                negated,
-            });
+            return Ok(Expr::InSubquery { expr: Box::new(left), subquery: Box::new(subquery), negated });
         }
         // Handle IN ((SELECT...) UNION (SELECT...)) — parenthesized subquery with set operations
         if self.match_token(&Token::LParen) {
@@ -736,11 +676,7 @@ impl Parser {
             if let Ok(subquery) = self.parse_select_statement() {
                 if self.match_token(&Token::RParen) {
                     self.advance();
-                    return Ok(Expr::InSubquery {
-                        expr: Box::new(left),
-                        subquery: Box::new(subquery),
-                        negated,
-                    });
+                    return Ok(Expr::InSubquery { expr: Box::new(left), subquery: Box::new(subquery), negated });
                 }
             }
             self.pos = save_pos;
@@ -752,11 +688,7 @@ impl Parser {
             list.push(self.parse_expr()?);
         }
         self.expect_token(&Token::RParen)?;
-        Ok(Expr::InList {
-            expr: Box::new(left),
-            list,
-            negated,
-        })
+        Ok(Expr::InList { expr: Box::new(left), list, negated })
     }
 
     pub(crate) fn parse_primary_expr(&mut self) -> Result<Expr, ParserError> {
@@ -768,7 +700,7 @@ impl Parser {
                 if self.match_token(&Token::Dot) {
                     if let Some(next) = self.tokens.get(self.pos + 1) {
                         if let Token::Integer(frac) = &next.token {
-                            let frac = frac.clone();
+                            let frac = *frac;
                             self.advance();
                             self.advance();
                             let float_str = format!("{}.{}", n, frac);
@@ -778,10 +710,7 @@ impl Parser {
                 }
                 if let Token::Ident(s) = self.peek() {
                     let lower = s.to_lowercase();
-                    if lower.starts_with('e')
-                        && lower.len() > 1
-                        && lower[1..].chars().all(|c| c.is_ascii_digit())
-                    {
+                    if lower.starts_with('e') && lower.len() > 1 && lower[1..].chars().all(|c| c.is_ascii_digit()) {
                         let exp_str = s.clone();
                         self.advance();
                         let float_str = format!("{}{}", n, exp_str);
@@ -947,9 +876,7 @@ impl Parser {
                     }
                     self.advance();
                     let type_name = self.parse_data_type()?;
-                    let default = if self.match_keyword(Keyword::DEFAULT)
-                        || self.match_ident_str("default")
-                    {
+                    let default = if self.match_keyword(Keyword::DEFAULT) || self.match_ident_str("default") {
                         self.advance();
                         let val = self.parse_expr()?;
                         if self.match_keyword(Keyword::ON) || self.match_ident_str("on") {
@@ -972,12 +899,7 @@ impl Parser {
                         None
                     };
                     self.expect_token(&Token::RParen)?;
-                    return Ok(Expr::TypeCast {
-                        expr: Box::new(expr),
-                        type_name,
-                        default,
-                        format,
-                    });
+                    return Ok(Expr::TypeCast { expr: Box::new(expr), type_name, default, format });
                 }
                 if self.match_ident_str("TREAT") {
                     self.advance();
@@ -986,26 +908,17 @@ impl Parser {
                     self.expect_keyword(Keyword::AS)?;
                     let type_name = self.parse_data_type()?;
                     self.expect_token(&Token::RParen)?;
-                    return Ok(Expr::Treat {
-                        expr: Box::new(expr),
-                        type_name,
-                    });
+                    return Ok(Expr::Treat { expr: Box::new(expr), type_name });
                 }
-                if kw == Keyword::COLLATION {
-                    if self
-                        .tokens
-                        .get(self.pos + 1)
-                        .map_or(false, |t| matches!(t.token, Token::Keyword(Keyword::FOR)))
-                    {
-                        self.advance();
-                        self.advance();
-                        self.expect_token(&Token::LParen)?;
-                        let expr = self.parse_expr()?;
-                        self.expect_token(&Token::RParen)?;
-                        return Ok(Expr::CollationFor {
-                            expr: Box::new(expr),
-                        });
-                    }
+                if kw == Keyword::COLLATION
+                    && self.tokens.get(self.pos + 1).is_some_and(|t| matches!(t.token, Token::Keyword(Keyword::FOR)))
+                {
+                    self.advance();
+                    self.advance();
+                    self.expect_token(&Token::LParen)?;
+                    let expr = self.parse_expr()?;
+                    self.expect_token(&Token::RParen)?;
+                    return Ok(Expr::CollationFor { expr: Box::new(expr) });
                 }
                 // PREDICT BY model_name (FEATURES col1, col2, ...) — openGauss ML prediction
                 if kw == Keyword::PREDICT {
@@ -1020,10 +933,7 @@ impl Parser {
                         features.push(self.parse_expr()?);
                     }
                     self.expect_token(&Token::RParen)?;
-                    return Ok(Expr::PredictBy {
-                        model_name,
-                        features,
-                    });
+                    return Ok(Expr::PredictBy { model_name, features });
                 }
                 if kw == Keyword::XMLELEMENT {
                     self.advance();
@@ -1120,10 +1030,7 @@ impl Parser {
                                 self.advance();
                                 return Ok(Expr::SpecialFunction {
                                     name: "interval".to_string(),
-                                    args: vec![
-                                        Expr::Literal(Literal::String(s)),
-                                        Expr::ColumnRef(vec![unit_name]),
-                                    ],
+                                    args: vec![Expr::Literal(Literal::String(s)), Expr::ColumnRef(vec![unit_name])],
                                 });
                             }
                         }
@@ -1187,10 +1094,7 @@ impl Parser {
                 }
                 if matches!(
                     kw,
-                    Keyword::CURRENT_TIME
-                        | Keyword::CURRENT_TIMESTAMP
-                        | Keyword::LOCALTIME
-                        | Keyword::LOCALTIMESTAMP
+                    Keyword::CURRENT_TIME | Keyword::CURRENT_TIMESTAMP | Keyword::LOCALTIME | Keyword::LOCALTIMESTAMP
                 ) {
                     let name = kw.as_str().to_string();
                     self.advance();
@@ -1202,10 +1106,7 @@ impl Parser {
                         }
                         let precision = self.parse_expr()?;
                         self.expect_token(&Token::RParen)?;
-                        return Ok(Expr::SpecialFunction {
-                            name,
-                            args: vec![precision],
-                        });
+                        return Ok(Expr::SpecialFunction { name, args: vec![precision] });
                     }
                     return Ok(Expr::ColumnRef(vec![name]));
                 }
@@ -1278,17 +1179,10 @@ impl Parser {
                 if name.len() >= 2 {
                     let last = name.last().expect("name has at least 2 elements when len() >= 2").to_lowercase();
                     if last == "nextval" || last == "currval" {
-                        let func = if last == "nextval" {
-                            SequenceFunc::Nextval
-                        } else {
-                            SequenceFunc::Currval
-                        };
+                        let func = if last == "nextval" { SequenceFunc::Nextval } else { SequenceFunc::Currval };
                         let mut seq_parts = name.clone();
                         seq_parts.pop();
-                        return Ok(Expr::SequenceValue {
-                            sequence: seq_parts,
-                            function: func,
-                        });
+                        return Ok(Expr::SequenceValue { sequence: seq_parts, function: func });
                     }
                 }
                 // PL context: resolve single-part names against scope stack
@@ -1328,23 +1222,21 @@ impl Parser {
         let mut first = self.parse_identifier()?;
         if self.match_token(&Token::At) {
             self.advance();
-            let version = self
-                .consume_any_identifier()
-                .or_else(|_| match self.peek().clone() {
-                    Token::Integer(n) => {
-                        self.advance();
-                        Ok(n.to_string())
-                    }
-                    Token::Float(f) => {
-                        self.advance();
-                        Ok(f)
-                    }
-                    other => Err(ParserError::UnexpectedToken {
-                        location: self.current_location(),
-                        expected: "version after @".to_string(),
-                        got: format!("{:?}", other),
-                    }),
-                })?;
+            let version = self.consume_any_identifier().or_else(|_| match self.peek().clone() {
+                Token::Integer(n) => {
+                    self.advance();
+                    Ok(n.to_string())
+                }
+                Token::Float(f) => {
+                    self.advance();
+                    Ok(f)
+                }
+                other => Err(ParserError::UnexpectedToken {
+                    location: self.current_location(),
+                    expected: "version after @".to_string(),
+                    got: format!("{:?}", other),
+                }),
+            })?;
             first = format!("{}@{}", first, version);
         }
         if self.match_token(&Token::Dot) {
@@ -1363,17 +1255,10 @@ impl Parser {
             if obj_name.len() >= 2 {
                 let last = obj_name.last().expect("obj_name has at least 2 elements when len() >= 2").to_lowercase();
                 if last == "nextval" || last == "currval" {
-                    let func = if last == "nextval" {
-                        SequenceFunc::Nextval
-                    } else {
-                        SequenceFunc::Currval
-                    };
+                    let func = if last == "nextval" { SequenceFunc::Nextval } else { SequenceFunc::Currval };
                     let mut seq_parts = obj_name.clone();
                     seq_parts.pop();
-                    return Ok(Expr::SequenceValue {
-                        sequence: seq_parts,
-                        function: func,
-                    });
+                    return Ok(Expr::SequenceValue { sequence: seq_parts, function: func });
                 }
             }
             if let Token::StringLiteral(s) = self.peek().clone() {
@@ -1396,7 +1281,9 @@ impl Parser {
                         self.advance();
                         self.advance();
                         self.add_error(ParserError::Warning {
-                            message: "Oracle-style outer join operator '(+)' is deprecated, use standard JOIN syntax instead".to_string(),
+                            message:
+                                "Oracle-style outer join operator '(+)' is deprecated, use standard JOIN syntax instead"
+                                    .to_string(),
                             location: loc,
                         });
                         return Ok(Expr::ColumnRef(obj_name));
@@ -1430,7 +1317,9 @@ impl Parser {
                     self.advance();
                     self.advance();
                     self.add_error(ParserError::Warning {
-                        message: "Oracle-style outer join operator '(+)' is deprecated, use standard JOIN syntax instead".to_string(),
+                        message:
+                            "Oracle-style outer join operator '(+)' is deprecated, use standard JOIN syntax instead"
+                                .to_string(),
                         location: loc,
                     });
                     return Ok(Expr::ColumnRef(name));
@@ -1445,13 +1334,7 @@ impl Parser {
         }
     }
 
-    fn validate_function_args(
-        &mut self,
-        name: &ObjectName,
-        args: &[Expr],
-        distinct: bool,
-        over: &Option<Box<Expr>>,
-    ) {
+    fn validate_function_args(&mut self, name: &ObjectName, args: &[Expr], distinct: bool, over: &Option<Box<Expr>>) {
         if let Some(last) = name.last() {
             let loc = self.current_location();
             let warnings = crate::parser::function_registry::validate_function_call(
@@ -1692,12 +1575,7 @@ impl Parser {
                     }
                     _ => None,
                 };
-                items.push(OrderByItem {
-                    expr,
-                    asc,
-                    nulls_first: None,
-                    using: None,
-                });
+                items.push(OrderByItem { expr, asc, nulls_first: None, using: None });
                 if !self.match_token(&Token::Comma) {
                     break;
                 }
@@ -1737,10 +1615,7 @@ impl Parser {
             self.advance();
             let charset = self.parse_expr()?;
             self.expect_token(&Token::RParen)?;
-            return Ok(Expr::SpecialFunction {
-                name: name.join("."),
-                args: vec![first, charset],
-            });
+            return Ok(Expr::SpecialFunction { name: name.join("."), args: vec![first, charset] });
         }
         let mut args = vec![first];
         while self.match_token(&Token::Comma) {
@@ -1797,12 +1672,7 @@ impl Parser {
                     }
                     _ => None,
                 };
-                items.push(OrderByItem {
-                    expr,
-                    asc,
-                    nulls_first: None,
-                    using: None,
-                });
+                items.push(OrderByItem { expr, asc, nulls_first: None, using: None });
                 if !self.match_token(&Token::Comma) {
                     break;
                 }
@@ -1815,11 +1685,7 @@ impl Parser {
         self.expect_token(&Token::RParen)?;
         let filter = self.try_parse_filter()?;
         let within_group = self.try_parse_within_group()?;
-        let combined_wg = if inner_order_by.is_empty() {
-            within_group
-        } else {
-            inner_order_by
-        };
+        let combined_wg = if inner_order_by.is_empty() { within_group } else { inner_order_by };
         let over = self.try_parse_over_clause()?;
         let builtin = self.validate_func(&name, args.len(), distinct, over.is_some(), false);
         Ok(Expr::FunctionCall {
@@ -1843,20 +1709,13 @@ impl Parser {
         let arg2 = self.parse_expr()?;
         self.expect_keyword(Keyword::FROM)?;
         let arg3 = self.parse_expr()?;
-        let arg4 = if self.try_consume_keyword(Keyword::FOR) {
-            Some(self.parse_expr()?)
-        } else {
-            None
-        };
+        let arg4 = if self.try_consume_keyword(Keyword::FOR) { Some(self.parse_expr()?) } else { None };
         self.expect_token(&Token::RParen)?;
         let mut args = vec![arg1, arg2, arg3];
         if let Some(a) = arg4 {
             args.push(a);
         }
-        Ok(Expr::SpecialFunction {
-            name: name.join("."),
-            args,
-        })
+        Ok(Expr::SpecialFunction { name: name.join("."), args })
     }
 
     fn parse_position_function(&mut self, name: ObjectName) -> Result<Expr, ParserError> {
@@ -1864,12 +1723,7 @@ impl Parser {
         if self.match_token(&Token::Typecast) {
             self.advance();
             let type_name = self.parse_data_type()?;
-            arg1 = Expr::TypeCast {
-                expr: Box::new(arg1),
-                type_name,
-                default: None,
-                format: None,
-            };
+            arg1 = Expr::TypeCast { expr: Box::new(arg1), type_name, default: None, format: None };
         }
         if self.match_keyword(Keyword::IN_P) {
             self.advance();
@@ -1880,18 +1734,10 @@ impl Parser {
         if self.match_token(&Token::Typecast) {
             self.advance();
             let type_name = self.parse_data_type()?;
-            arg2 = Expr::TypeCast {
-                expr: Box::new(arg2),
-                type_name,
-                default: None,
-                format: None,
-            };
+            arg2 = Expr::TypeCast { expr: Box::new(arg2), type_name, default: None, format: None };
         }
         self.expect_token(&Token::RParen)?;
-        Ok(Expr::SpecialFunction {
-            name: name.join("."),
-            args: vec![arg1, arg2],
-        })
+        Ok(Expr::SpecialFunction { name: name.join("."), args: vec![arg1, arg2] })
     }
 
     fn parse_substring_function(&mut self, name: ObjectName) -> Result<Expr, ParserError> {
@@ -1913,10 +1759,7 @@ impl Parser {
             }
         }
         self.expect_token(&Token::RParen)?;
-        Ok(Expr::SpecialFunction {
-            name: name.join("."),
-            args,
-        })
+        Ok(Expr::SpecialFunction { name: name.join("."), args })
     }
 
     fn parse_extract_function(&mut self, name: ObjectName) -> Result<Expr, ParserError> {
@@ -1924,10 +1767,7 @@ impl Parser {
         self.expect_keyword(Keyword::FROM)?;
         let expr = self.parse_expr()?;
         self.expect_token(&Token::RParen)?;
-        Ok(Expr::SpecialFunction {
-            name: name.join("."),
-            args: vec![Expr::ColumnRef(vec![field]), expr],
-        })
+        Ok(Expr::SpecialFunction { name: name.join("."), args: vec![Expr::ColumnRef(vec![field]), expr] })
     }
 
     fn parse_trim_function(&mut self, name: ObjectName) -> Result<Expr, ParserError> {
@@ -1946,10 +1786,7 @@ impl Parser {
                 self.advance();
                 let source = self.parse_expr()?;
                 self.expect_token(&Token::RParen)?;
-                Ok(Expr::SpecialFunction {
-                    name: name.join("."),
-                    args: vec![Expr::ColumnRef(vec![dir]), source],
-                })
+                Ok(Expr::SpecialFunction { name: name.join("."), args: vec![Expr::ColumnRef(vec![dir]), source] })
             } else {
                 // TRIM(direction chars FROM expr)
                 let chars = self.parse_expr()?;
@@ -1969,10 +1806,7 @@ impl Parser {
                 self.advance();
                 let source = self.parse_expr()?;
                 self.expect_token(&Token::RParen)?;
-                Ok(Expr::SpecialFunction {
-                    name: name.join("."),
-                    args: vec![first, source],
-                })
+                Ok(Expr::SpecialFunction { name: name.join("."), args: vec![first, source] })
             } else {
                 // Regular function call: TRIM(expr [, ...])
                 let mut args = vec![first];
@@ -2047,12 +1881,7 @@ impl Parser {
                 } else {
                     None
                 };
-                items.push(OrderByItem {
-                    expr,
-                    asc,
-                    nulls_first,
-                    using: None,
-                });
+                items.push(OrderByItem { expr, asc, nulls_first, using: None });
                 if !self.match_token(&Token::Comma) {
                     break;
                 }
@@ -2082,12 +1911,7 @@ impl Parser {
         } else {
             // OVER window_name (identifier)
             let name = self.parse_identifier()?;
-            Ok(Some(WindowSpec {
-                partition_by: vec![],
-                order_by: vec![],
-                frame: None,
-                window_name: Some(name),
-            }))
+            Ok(Some(WindowSpec { partition_by: vec![], order_by: vec![], frame: None, window_name: Some(name) }))
         }
     }
 
@@ -2141,12 +1965,7 @@ impl Parser {
                 } else {
                     None
                 };
-                items.push(OrderByItem {
-                    expr,
-                    asc,
-                    nulls_first,
-                    using: None,
-                });
+                items.push(OrderByItem { expr, asc, nulls_first, using: None });
                 if !self.match_token(&Token::Comma) {
                     break;
                 }
@@ -2178,12 +1997,7 @@ impl Parser {
             None
         };
 
-        Ok(WindowSpec {
-            partition_by,
-            order_by,
-            frame,
-            window_name,
-        })
+        Ok(WindowSpec { partition_by, order_by, frame, window_name })
     }
 
     /// Try to parse an existing window name (identifier).
@@ -2212,9 +2026,7 @@ impl Parser {
     }
 
     /// Parse frame_extent: BETWEEN frame_bound AND frame_bound | frame_bound
-    fn parse_frame_extent(
-        &mut self,
-    ) -> Result<(Option<WindowFrameBound>, Option<WindowFrameBound>), ParserError> {
+    fn parse_frame_extent(&mut self) -> Result<(Option<WindowFrameBound>, Option<WindowFrameBound>), ParserError> {
         if self.match_keyword(Keyword::BETWEEN) {
             self.advance();
             let start = self.parse_frame_bound()?;
@@ -2235,21 +2047,15 @@ impl Parser {
             self.advance();
             if self.match_keyword(Keyword::PRECEDING) {
                 self.advance();
-                Ok(WindowFrameBound {
-                    direction: WindowFrameDirection::UnboundedPreceding,
-                })
+                Ok(WindowFrameBound { direction: WindowFrameDirection::UnboundedPreceding })
             } else {
                 self.expect_keyword(Keyword::FOLLOWING)?;
-                Ok(WindowFrameBound {
-                    direction: WindowFrameDirection::UnboundedFollowing,
-                })
+                Ok(WindowFrameBound { direction: WindowFrameDirection::UnboundedFollowing })
             }
         } else if self.match_keyword(Keyword::CURRENT_P) {
             self.advance();
             self.expect_keyword(Keyword::ROW)?;
-            Ok(WindowFrameBound {
-                direction: WindowFrameDirection::CurrentRow,
-            })
+            Ok(WindowFrameBound { direction: WindowFrameDirection::CurrentRow })
         } else {
             // numeric offset PRECEDING | FOLLOWING
             let offset = match self.peek().clone() {
@@ -2261,25 +2067,17 @@ impl Parser {
             };
             if self.match_keyword(Keyword::PRECEDING) {
                 self.advance();
-                Ok(WindowFrameBound {
-                    direction: WindowFrameDirection::Preceding(offset),
-                })
+                Ok(WindowFrameBound { direction: WindowFrameDirection::Preceding(offset) })
             } else {
                 self.expect_keyword(Keyword::FOLLOWING)?;
-                Ok(WindowFrameBound {
-                    direction: WindowFrameDirection::Following(offset),
-                })
+                Ok(WindowFrameBound { direction: WindowFrameDirection::Following(offset) })
             }
         }
     }
 
     fn parse_case_expr(&mut self) -> Result<Expr, ParserError> {
         self.expect_keyword(Keyword::CASE)?;
-        let operand = if !self.match_keyword(Keyword::WHEN) {
-            Some(Box::new(self.parse_expr()?))
-        } else {
-            None
-        };
+        let operand = if !self.match_keyword(Keyword::WHEN) { Some(Box::new(self.parse_expr()?)) } else { None };
         let mut whens = Vec::new();
         while self.match_keyword(Keyword::WHEN) {
             self.advance();
@@ -2295,11 +2093,7 @@ impl Parser {
             None
         };
         self.expect_keyword(Keyword::END_P)?;
-        Ok(Expr::Case {
-            operand,
-            whens,
-            else_expr,
-        })
+        Ok(Expr::Case { operand, whens, else_expr })
     }
 
     fn parse_xml_element(&mut self) -> Result<Expr, ParserError> {
@@ -2340,13 +2134,7 @@ impl Parser {
 
         self.expect_token(&Token::RParen)?;
 
-        Ok(Expr::XmlElement {
-            entity_escaping,
-            evalname,
-            name,
-            attributes,
-            content,
-        })
+        Ok(Expr::XmlElement { entity_escaping, evalname, name, attributes, content })
     }
 
     fn parse_xml_attributes_inner(&mut self) -> Result<XmlAttributes, ParserError> {
@@ -2372,10 +2160,7 @@ impl Parser {
         }
 
         self.expect_token(&Token::RParen)?;
-        Ok(XmlAttributes {
-            entity_escaping,
-            items,
-        })
+        Ok(XmlAttributes { entity_escaping, items })
     }
 
     fn parse_xml_concat(&mut self) -> Result<Expr, ParserError> {
@@ -2417,11 +2202,7 @@ impl Parser {
         let expr = self.parse_expr()?;
         let wellformed = self.try_consume_keyword(Keyword::WELLFORMED);
         self.expect_token(&Token::RParen)?;
-        Ok(Expr::XmlParse {
-            option,
-            expr: Box::new(expr),
-            wellformed,
-        })
+        Ok(Expr::XmlParse { option, expr: Box::new(expr), wellformed })
     }
 
     fn parse_xml_pi(&mut self) -> Result<Expr, ParserError> {
@@ -2435,10 +2216,7 @@ impl Parser {
             None
         };
         self.expect_token(&Token::RParen)?;
-        Ok(Expr::XmlPi {
-            name: Some(name),
-            content,
-        })
+        Ok(Expr::XmlPi { name: Some(name), content })
     }
 
     fn parse_xml_root(&mut self) -> Result<Expr, ParserError> {
@@ -2475,11 +2253,7 @@ impl Parser {
             None
         };
         self.expect_token(&Token::RParen)?;
-        Ok(Expr::XmlRoot {
-            expr: Box::new(expr),
-            version,
-            standalone,
-        })
+        Ok(Expr::XmlRoot { expr: Box::new(expr), version, standalone })
     }
 
     fn parse_xml_serialize(&mut self) -> Result<Expr, ParserError> {
@@ -2495,11 +2269,7 @@ impl Parser {
         self.expect_keyword(Keyword::AS)?;
         let type_name = self.parse_data_type()?;
         self.expect_token(&Token::RParen)?;
-        Ok(Expr::XmlSerialize {
-            option,
-            expr: Box::new(expr),
-            type_name,
-        })
+        Ok(Expr::XmlSerialize { option, expr: Box::new(expr), type_name })
     }
 
     fn try_parse_typecast_literal(&mut self, first_kw: Keyword) -> Result<Expr, ParserError> {

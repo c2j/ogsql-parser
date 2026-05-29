@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 
 use crate::ast::plpgsql::{
-    PlBlock, PlCaseStmt, PlForStmt, PlIfStmt, PlLoopStmt, PlOpenKind, PlOpenStmt,
-    PlReturnQueryStmt, PlStatement, PlWhileStmt,
+    PlBlock, PlCaseStmt, PlForStmt, PlIfStmt, PlLoopStmt, PlOpenKind, PlOpenStmt, PlReturnQueryStmt, PlStatement,
+    PlWhileStmt,
 };
 use crate::ast::{Expr, Literal, RoutineParam, SelectTarget, Spanned, Statement};
 
@@ -77,9 +77,7 @@ fn is_out_refcursor(param: &RoutineParam) -> bool {
 }
 
 fn is_return_refcursor(return_type: Option<&str>) -> bool {
-    return_type
-        .map(|rt| rt.to_uppercase().contains("REFCURSOR"))
-        .unwrap_or(false)
+    return_type.map(|rt| rt.to_uppercase().contains("REFCURSOR")).unwrap_or(false)
 }
 
 pub fn has_return_cursors(params: &[RoutineParam], return_type: Option<&str>) -> bool {
@@ -88,9 +86,7 @@ pub fn has_return_cursors(params: &[RoutineParam], return_type: Option<&str>) ->
 
 fn extract_cursor_name(expr: &Expr) -> Option<String> {
     match expr {
-        Expr::PlVariable(names) | Expr::ColumnRef(names) if names.len() == 1 => {
-            Some(names[0].clone())
-        }
+        Expr::PlVariable(names) | Expr::ColumnRef(names) if names.len() == 1 => Some(names[0].clone()),
         _ => None,
     }
 }
@@ -100,12 +96,9 @@ fn format_expr_brief(expr: &Expr) -> String {
         Expr::Literal(Literal::String(s)) => format!("'{}'", s),
         Expr::Literal(lit) => format!("{:?}", lit),
         Expr::ColumnRef(names) | Expr::PlVariable(names) => names.join("."),
-        Expr::BinaryOp { left, op, right } => format!(
-            "{} {} {}",
-            format_expr_brief(left),
-            op,
-            format_expr_brief(right)
-        ),
+        Expr::BinaryOp { left, op, right } => {
+            format!("{} {} {}", format_expr_brief(left), op, format_expr_brief(right))
+        }
         Expr::UnaryOp { op, expr: inner } => format!("{}{}", op, format_expr_brief(inner)),
         Expr::Parenthesized(inner) => format!("({})", format_expr_brief(inner)),
         Expr::FunctionCall { name, args, .. } => {
@@ -135,26 +128,12 @@ fn extract_result_columns(stmt: &Statement) -> Vec<ResultColumn> {
     for target in &select.targets {
         match target {
             SelectTarget::Expr(expr, alias) => {
-                let name = alias
-                    .clone()
-                    .or_else(|| infer_column_name(expr))
-                    .unwrap_or_else(|| "?".to_string());
-                columns.push(ResultColumn {
-                    name,
-                    inferred_type: None,
-                    expression: format_expr_brief(expr),
-                });
+                let name = alias.clone().or_else(|| infer_column_name(expr)).unwrap_or_else(|| "?".to_string());
+                columns.push(ResultColumn { name, inferred_type: None, expression: format_expr_brief(expr) });
             }
             SelectTarget::Star(table) => {
-                let name = table
-                    .as_ref()
-                    .map(|t| format!("{}.*", t))
-                    .unwrap_or_else(|| "*".to_string());
-                columns.push(ResultColumn {
-                    name,
-                    inferred_type: None,
-                    expression: "*".to_string(),
-                });
+                let name = table.as_ref().map(|t| format!("{}.*", t)).unwrap_or_else(|| "*".to_string());
+                columns.push(ResultColumn { name, inferred_type: None, expression: "*".to_string() });
             }
         }
     }
@@ -204,40 +183,24 @@ fn process_open_stmt(
 ) {
     let cursor_name = extract_cursor_name(&open.cursor);
 
-    let matched_out = cursor_name
-        .as_ref()
-        .and_then(|name| out_cursors.iter().find(|c| c.name.eq_ignore_ascii_case(name)));
+    let matched_out =
+        cursor_name.as_ref().and_then(|name| out_cursors.iter().find(|c| c.name.eq_ignore_ascii_case(name)));
 
     if matched_out.is_none() && !is_func_return {
         return;
     }
 
     let (out_param, position, cursor_type) = if let Some(info) = matched_out {
-        (
-            info.name.clone(),
-            info.position,
-            info.cursor_type.clone(),
-        )
+        (info.name.clone(), info.position, info.cursor_type.clone())
     } else if is_func_return {
-        (
-            "<return>".to_string(),
-            0,
-            return_cursor_type.unwrap_or("REFCURSOR").to_string(),
-        )
+        ("<return>".to_string(), 0, return_cursor_type.unwrap_or("REFCURSOR").to_string())
     } else {
         return;
     };
 
     match &open.kind {
-        PlOpenKind::ForQuery {
-            query,
-            parsed_query,
-            ..
-        } => {
-            let result_columns = parsed_query
-                .as_ref()
-                .map(|pq| extract_result_columns(pq))
-                .unwrap_or_default();
+        PlOpenKind::ForQuery { query, parsed_query, .. } => {
+            let result_columns = parsed_query.as_ref().map(|pq| extract_result_columns(pq)).unwrap_or_default();
             annotations.push(make_annotation(
                 &out_param,
                 position,
@@ -250,12 +213,9 @@ fn process_open_stmt(
             ));
         }
         PlOpenKind::ForExecute { query, using_args } => {
-            let query_str = format_expr_brief(&query);
+            let query_str = format_expr_brief(query);
             let parsed = crate::parser::Parser::parse_statement_from_str(&query_str);
-            let result_columns = parsed
-                .as_ref()
-                .map(|pq| extract_result_columns(pq))
-                .unwrap_or_default();
+            let result_columns = parsed.as_ref().map(|pq| extract_result_columns(pq)).unwrap_or_default();
             annotations.push(make_annotation(
                 &out_param,
                 position,
@@ -278,24 +238,14 @@ fn process_return_query(
     branch_ctx: &BranchContext,
     annotations: &mut Vec<ReturnCursorAnnotation>,
 ) {
-    let sql_source = if rq.is_dynamic {
-        "dynamic"
-    } else {
-        "static"
-    };
+    let sql_source = if rq.is_dynamic { "dynamic" } else { "static" };
     let sql = if rq.is_dynamic {
-        rq.dynamic_expr
-            .as_ref()
-            .map(format_expr_brief)
-            .unwrap_or_else(|| rq.query.clone())
+        rq.dynamic_expr.as_ref().map(format_expr_brief).unwrap_or_else(|| rq.query.clone())
     } else {
         rq.query.clone()
     };
     let parsed = crate::parser::Parser::parse_statement_from_str(&sql);
-    let result_columns = parsed
-        .as_ref()
-        .map(|pq| extract_result_columns(pq))
-        .unwrap_or_default();
+    let result_columns = parsed.as_ref().map(|pq| extract_result_columns(pq)).unwrap_or_default();
     annotations.push(make_annotation(
         "<return>",
         0,
@@ -319,14 +269,7 @@ fn walk_statements(
     for stmt in stmts {
         match stmt {
             PlStatement::Open(open) => {
-                process_open_stmt(
-                    open,
-                    out_cursors,
-                    is_func_return,
-                    return_cursor_type,
-                    branch_ctx,
-                    annotations,
-                );
+                process_open_stmt(open, out_cursors, is_func_return, return_cursor_type, branch_ctx, annotations);
             }
             PlStatement::ReturnQuery(rq) if is_func_return => {
                 process_return_query(rq, return_cursor_type, branch_ctx, annotations);
@@ -350,7 +293,14 @@ fn walk_statements(
                 walk_statements(&block.body, out_cursors, is_func_return, return_cursor_type, branch_ctx, annotations);
                 if let Some(ref eb) = block.exception_block {
                     for handler in &eb.handlers {
-                        walk_statements(&handler.statements, out_cursors, is_func_return, return_cursor_type, branch_ctx, annotations);
+                        walk_statements(
+                            &handler.statements,
+                            out_cursors,
+                            is_func_return,
+                            return_cursor_type,
+                            branch_ctx,
+                            annotations,
+                        );
                     }
                 }
             }
@@ -376,27 +326,18 @@ fn walk_if(
     annotations: &mut Vec<ReturnCursorAnnotation>,
 ) {
     let then_path = push_path(&parent_ctx.path, "IF.then");
-    let then_ctx = BranchContext {
-        path: then_path,
-        condition: format_expr_brief(&if_stmt.condition),
-    };
+    let then_ctx = BranchContext { path: then_path, condition: format_expr_brief(&if_stmt.condition) };
     walk_statements(&if_stmt.then_stmts, out_cursors, is_func_return, return_cursor_type, &then_ctx, annotations);
 
     for (i, elsif) in if_stmt.elsifs.iter().enumerate() {
         let elsif_path = push_path(&parent_ctx.path, &format!("IF.elsif#{}.then", i + 1));
-        let elsif_ctx = BranchContext {
-            path: elsif_path,
-            condition: format_expr_brief(&elsif.condition),
-        };
+        let elsif_ctx = BranchContext { path: elsif_path, condition: format_expr_brief(&elsif.condition) };
         walk_statements(&elsif.stmts, out_cursors, is_func_return, return_cursor_type, &elsif_ctx, annotations);
     }
 
     if !if_stmt.else_stmts.is_empty() {
         let else_path = push_path(&parent_ctx.path, "IF.else");
-        let else_ctx = BranchContext {
-            path: else_path,
-            condition: String::new(),
-        };
+        let else_ctx = BranchContext { path: else_path, condition: String::new() };
         walk_statements(&if_stmt.else_stmts, out_cursors, is_func_return, return_cursor_type, &else_ctx, annotations);
     }
 }
@@ -411,19 +352,13 @@ fn walk_case(
 ) {
     for (i, when) in case_stmt.whens.iter().enumerate() {
         let when_path = push_path(&parent_ctx.path, &format!("CASE.when#{}", i + 1));
-        let when_ctx = BranchContext {
-            path: when_path,
-            condition: format_expr_brief(&when.condition),
-        };
+        let when_ctx = BranchContext { path: when_path, condition: format_expr_brief(&when.condition) };
         walk_statements(&when.stmts, out_cursors, is_func_return, return_cursor_type, &when_ctx, annotations);
     }
 
     if !case_stmt.else_stmts.is_empty() {
         let else_path = push_path(&parent_ctx.path, "CASE.else");
-        let else_ctx = BranchContext {
-            path: else_path,
-            condition: String::new(),
-        };
+        let else_ctx = BranchContext { path: else_path, condition: String::new() };
         walk_statements(&case_stmt.else_stmts, out_cursors, is_func_return, return_cursor_type, &else_ctx, annotations);
     }
 }
@@ -437,10 +372,7 @@ fn walk_loop(
     annotations: &mut Vec<ReturnCursorAnnotation>,
 ) {
     let path = push_path(&parent_ctx.path, "LOOP.body");
-    let ctx = BranchContext {
-        path,
-        condition: String::new(),
-    };
+    let ctx = BranchContext { path, condition: String::new() };
     walk_statements(&loop_stmt.body, out_cursors, is_func_return, return_cursor_type, &ctx, annotations);
 }
 
@@ -453,10 +385,7 @@ fn walk_while(
     annotations: &mut Vec<ReturnCursorAnnotation>,
 ) {
     let path = push_path(&parent_ctx.path, "WHILE.body");
-    let ctx = BranchContext {
-        path,
-        condition: format_expr_brief(&while_stmt.condition),
-    };
+    let ctx = BranchContext { path, condition: format_expr_brief(&while_stmt.condition) };
     walk_statements(&while_stmt.body, out_cursors, is_func_return, return_cursor_type, &ctx, annotations);
 }
 
@@ -469,10 +398,7 @@ fn walk_for(
     annotations: &mut Vec<ReturnCursorAnnotation>,
 ) {
     let path = push_path(&parent_ctx.path, "FOR.body");
-    let ctx = BranchContext {
-        path,
-        condition: String::new(),
-    };
+    let ctx = BranchContext { path, condition: String::new() };
     walk_statements(&for_stmt.body, out_cursors, is_func_return, return_cursor_type, &ctx, annotations);
 }
 
@@ -519,18 +445,10 @@ pub fn analyze_return_cursors(
     }
 
     let is_func_return = is_return_refcursor(return_type);
-    let return_cursor_type = return_type.map(|rt| {
-        if rt.to_uppercase().contains("REFCURSOR") {
-            rt.to_string()
-        } else {
-            rt.to_string()
-        }
-    });
+    let return_cursor_type =
+        return_type.map(|rt| if rt.to_uppercase().contains("REFCURSOR") { rt.to_string() } else { rt.to_string() });
 
-    let root_ctx = BranchContext {
-        path: String::new(),
-        condition: String::new(),
-    };
+    let root_ctx = BranchContext { path: String::new(), condition: String::new() };
 
     let mut annotations = Vec::new();
     walk_statements(
@@ -719,13 +637,7 @@ mod tests {
         let params = extract_params(&stmts);
         let ret_type = extract_return_type(&stmts);
 
-        let result = analyze_return_cursors(
-            &block,
-            &params,
-            "get_users_func",
-            "Function",
-            ret_type.as_deref(),
-        );
+        let result = analyze_return_cursors(&block, &params, "get_users_func", "Function", ret_type.as_deref());
 
         assert_eq!(result.return_cursors.len(), 1);
         let group = &result.return_cursors[0];

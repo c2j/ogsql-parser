@@ -200,9 +200,7 @@ impl Parser {
         Ok(s.trim().to_string())
     }
 
-    pub(crate) fn parse_create_materialized_view(
-        &mut self,
-    ) -> Result<CreateMaterializedViewStatement, ParserError> {
+    pub(crate) fn parse_create_materialized_view(&mut self) -> Result<CreateMaterializedViewStatement, ParserError> {
         self.expect_keyword(Keyword::VIEW)?;
 
         let if_not_exists = self.try_consume_keyword(Keyword::IF_P)
@@ -247,19 +245,10 @@ impl Parser {
             }
         }
 
-        Ok(CreateMaterializedViewStatement {
-            if_not_exists,
-            name,
-            columns,
-            query,
-            tablespace,
-            with_data,
-        })
+        Ok(CreateMaterializedViewStatement { if_not_exists, name, columns, query, tablespace, with_data })
     }
 
-    pub(crate) fn parse_refresh_materialized_view(
-        &mut self,
-    ) -> Result<RefreshMatViewStatement, ParserError> {
+    pub(crate) fn parse_refresh_materialized_view(&mut self) -> Result<RefreshMatViewStatement, ParserError> {
         self.expect_keyword(Keyword::MATERIALIZED)?;
         self.expect_keyword(Keyword::VIEW)?;
 
@@ -281,10 +270,7 @@ impl Parser {
         if self.match_token(&Token::LParen) {
             let is_option_list = matches!(
                 self.peek_keyword_at(1),
-                Some(Keyword::FULL)
-                    | Some(Keyword::VERBOSE)
-                    | Some(Keyword::ANALYZE)
-                    | Some(Keyword::FREEZE)
+                Some(Keyword::FULL) | Some(Keyword::VERBOSE) | Some(Keyword::ANALYZE) | Some(Keyword::FREEZE)
             );
             if is_option_list {
                 self.advance();
@@ -364,13 +350,7 @@ impl Parser {
             self.advance();
         }
 
-        Ok(VacuumStatement {
-            full,
-            verbose,
-            analyze,
-            freeze,
-            tables,
-        })
+        Ok(VacuumStatement { full, verbose, analyze, freeze, tables })
     }
 
     pub(crate) fn parse_analyze(&mut self) -> Result<AnalyzeStatement, ParserError> {
@@ -417,11 +397,7 @@ impl Parser {
             }
         }
 
-        Ok(AnalyzeStatement {
-            verbose,
-            tables,
-            options,
-        })
+        Ok(AnalyzeStatement { verbose, tables, options })
     }
 
     pub(crate) fn parse_comment(&mut self) -> Result<CommentStatement, ParserError> {
@@ -521,11 +497,7 @@ impl Parser {
         let name = self.parse_object_name()?;
         self.expect_keyword(Keyword::IS)?;
         let comment = self.parse_string_literal()?;
-        Ok(CommentStatement {
-            object_type,
-            name,
-            comment,
-        })
+        Ok(CommentStatement { object_type, name, comment })
     }
 
     pub(crate) fn parse_lock(&mut self) -> Result<LockStatement, ParserError> {
@@ -572,11 +544,7 @@ impl Parser {
 
         let nowait = self.try_consume_keyword(Keyword::NOWAIT);
 
-        Ok(LockStatement {
-            tables,
-            mode: mode.trim_end_matches(" MODE").to_string(),
-            nowait,
-        })
+        Ok(LockStatement { tables, mode: mode.trim_end_matches(" MODE").to_string(), nowait })
     }
 
     // ── Wave 10: PREPARE / EXECUTE / DEALLOCATE / DO ──
@@ -595,11 +563,9 @@ impl Parser {
                         dt.push('(');
                         let mut first = true;
                         while !self.match_token(&Token::RParen) {
-                            if !first {
-                                if self.match_token(&Token::Comma) {
-                                    self.advance();
-                                    dt.push_str(", ");
-                                }
+                            if !first && self.match_token(&Token::Comma) {
+                                self.advance();
+                                dt.push_str(", ");
                             }
                             first = false;
                             let mut depth = 0i32;
@@ -618,7 +584,7 @@ impl Parser {
                                     crate::token::Token::RParen => break,
                                     crate::token::Token::Comma if depth == 0 => break,
                                     other => {
-                                        dt.push_str(&format!("{:?}", other).trim_matches('"'));
+                                        dt.push_str(format!("{:?}", other).trim_matches('"'));
                                         self.advance();
                                     }
                                 }
@@ -653,12 +619,7 @@ impl Parser {
             }
         };
 
-        Ok(PrepareStatement {
-            name,
-            data_types,
-            statement,
-            parsed_statement,
-        })
+        Ok(PrepareStatement { name, data_types, statement, parsed_statement })
     }
 
     pub(crate) fn parse_execute(&mut self) -> Result<ExecuteStatement, ParserError> {
@@ -689,17 +650,11 @@ impl Parser {
 
         if self.match_keyword(Keyword::ALL) {
             self.advance();
-            return Ok(DeallocateStatement {
-                name: None,
-                all: true,
-            });
+            return Ok(DeallocateStatement { name: None, all: true });
         }
 
         let name = self.parse_identifier()?;
-        Ok(DeallocateStatement {
-            name: Some(name),
-            all: false,
-        })
+        Ok(DeallocateStatement { name: Some(name), all: false })
     }
 
     pub(crate) fn parse_do(&mut self) -> Result<DoStatement, ParserError> {
@@ -726,16 +681,10 @@ impl Parser {
             (code, None)
         };
 
-        Ok(DoStatement {
-            language,
-            code,
-            block,
-        })
+        Ok(DoStatement { language, code, block })
     }
 
-    pub(crate) fn parse_pl_block_from_str(
-        input: &str,
-    ) -> Result<crate::ast::plpgsql::PlBlock, ParserError> {
+    pub(crate) fn parse_pl_block_from_str(input: &str) -> Result<crate::ast::plpgsql::PlBlock, ParserError> {
         let tokens = crate::token::tokenizer::Tokenizer::new(input).tokenize()?;
         let mut parser = Parser::new(tokens);
         parser.parse_pl_block()
@@ -768,19 +717,15 @@ impl Parser {
             Token::Keyword(Keyword::ISOLATION) => true,
             Token::Keyword(Keyword::DEFERRABLE) => true,
             Token::Keyword(Keyword::NOT) => true,
-            Token::Keyword(Keyword::READ) => self.tokens.get(self.pos + 2).map_or(false, |t| {
-                matches!(
-                    t.token,
-                    Token::Keyword(Keyword::ONLY) | Token::Keyword(Keyword::WRITE)
-                )
-            }),
+            Token::Keyword(Keyword::READ) => self
+                .tokens
+                .get(self.pos + 2)
+                .is_some_and(|t| matches!(t.token, Token::Keyword(Keyword::ONLY) | Token::Keyword(Keyword::WRITE))),
             _ => false,
         }
     }
 
-    pub(crate) fn parse_anonymous_block(
-        &mut self,
-    ) -> Result<crate::ast::AnonyBlockStatement, ParserError> {
+    pub(crate) fn parse_anonymous_block(&mut self) -> Result<crate::ast::AnonyBlockStatement, ParserError> {
         if matches!(self.peek(), Token::DollarString { .. }) {
             if let Token::DollarString { body: inner, .. } = self.peek().clone() {
                 self.advance();
@@ -1038,9 +983,7 @@ impl Parser {
         self.parse_alter_function_body()
     }
 
-    pub(crate) fn parse_alter_function_skip_keyword(
-        &mut self,
-    ) -> Result<AlterFunctionStatement, ParserError> {
+    pub(crate) fn parse_alter_function_skip_keyword(&mut self) -> Result<AlterFunctionStatement, ParserError> {
         self.parse_alter_function_body()
     }
 
@@ -1183,7 +1126,7 @@ impl Parser {
         let name = self.parse_identifier()?;
         let mut options = Vec::new();
 
-        if self.try_consume_keyword(Keyword::WITH) {}
+        self.try_consume_keyword(Keyword::WITH);
 
         while !self.match_token(&Token::Semicolon) && !self.match_token(&Token::Eof) {
             match self.peek_keyword() {
@@ -1231,8 +1174,8 @@ impl Parser {
                     if let Token::Ident(s) = self.peek() {
                         let upper = s.to_uppercase();
                         match upper.as_str() {
-                            "SUPERUSER" | "NOSUPERUSER" | "CREATEDB" | "NOCREATEDB"
-                            | "CREATEROLE" | "NOCREATEROLE" | "LOGIN" | "NOLOGIN" | "NOINHERIT" => {
+                            "SUPERUSER" | "NOSUPERUSER" | "CREATEDB" | "NOCREATEDB" | "CREATEROLE" | "NOCREATEROLE"
+                            | "LOGIN" | "NOLOGIN" | "NOINHERIT" => {
                                 self.advance();
                                 options.push((upper, None));
                                 continue;
@@ -1268,7 +1211,7 @@ impl Parser {
         let name = self.parse_identifier()?;
         let mut options = Vec::new();
 
-        if self.try_consume_keyword(Keyword::WITH) {}
+        self.try_consume_keyword(Keyword::WITH);
 
         while !self.match_token(&Token::Semicolon) && !self.match_token(&Token::Eof) {
             match self.peek_keyword() {
@@ -1316,9 +1259,7 @@ impl Parser {
         Ok(AlterUserStatement { name, options })
     }
 
-    pub(crate) fn parse_alter_global_config(
-        &mut self,
-    ) -> Result<AlterGlobalConfigStatement, ParserError> {
+    pub(crate) fn parse_alter_global_config(&mut self) -> Result<AlterGlobalConfigStatement, ParserError> {
         self.expect_keyword(Keyword::SYSTEM_P)?;
         self.expect_keyword(Keyword::SET)?;
 
@@ -1520,10 +1461,7 @@ impl Parser {
 
         let cursor_name = self.parse_identifier()?;
 
-        Ok(FetchStatement {
-            direction,
-            cursor_name,
-        })
+        Ok(FetchStatement { direction, cursor_name })
     }
 
     pub(crate) fn parse_move_cursor(&mut self) -> Result<MoveStatement, ParserError> {
@@ -1535,10 +1473,7 @@ impl Parser {
 
         let cursor_name = self.parse_identifier()?;
 
-        Ok(MoveStatement {
-            direction,
-            cursor_name,
-        })
+        Ok(MoveStatement { direction, cursor_name })
     }
 
     fn parse_cursor_direction(&mut self) -> Result<FetchDirection, ParserError> {
@@ -1611,14 +1546,10 @@ impl Parser {
     pub(crate) fn parse_close_portal(&mut self) -> Result<ClosePortalStatement, ParserError> {
         if self.match_keyword(Keyword::ALL) {
             self.advance();
-            Ok(ClosePortalStatement {
-                target: CloseTarget::All,
-            })
+            Ok(ClosePortalStatement { target: CloseTarget::All })
         } else {
             let name = self.parse_identifier()?;
-            Ok(ClosePortalStatement {
-                target: CloseTarget::Name(name),
-            })
+            Ok(ClosePortalStatement { target: CloseTarget::Name(name) })
         }
     }
 
@@ -1642,9 +1573,7 @@ impl Parser {
             return Ok(UnlistenStatement { channel: None });
         }
         let channel = self.parse_identifier()?;
-        Ok(UnlistenStatement {
-            channel: Some(channel),
-        })
+        Ok(UnlistenStatement { channel: Some(channel) })
     }
 
     pub(crate) fn parse_rule(&mut self) -> Result<RuleStatement, ParserError> {
@@ -1678,10 +1607,8 @@ impl Parser {
         }
 
         let mut instead = false;
-        if self.try_consume_keyword(Keyword::DO) {
-            if self.try_consume_keyword(Keyword::INSTEAD) {
-                instead = true;
-            }
+        if self.try_consume_keyword(Keyword::DO) && self.try_consume_keyword(Keyword::INSTEAD) {
+            instead = true;
         }
 
         let mut actions = Vec::new();
@@ -1705,15 +1632,7 @@ impl Parser {
             self.expect_token(&Token::RParen)?;
         }
 
-        Ok(RuleStatement {
-            name,
-            table,
-            event,
-            condition,
-            instead,
-            actions,
-            parsed_actions: None,
-        })
+        Ok(RuleStatement { name, table, event, condition, instead, actions, parsed_actions: None })
     }
 
     pub(crate) fn parse_cluster(&mut self) -> Result<ClusterStatement, ParserError> {
@@ -1743,12 +1662,7 @@ impl Parser {
             }
         }
 
-        Ok(ClusterStatement {
-            table,
-            verbose,
-            using_index,
-            partition,
-        })
+        Ok(ClusterStatement { table, verbose, using_index, partition })
     }
 
     pub(crate) fn parse_reindex(&mut self) -> Result<ReindexStatement, ParserError> {
@@ -1800,11 +1714,7 @@ impl Parser {
             }
         }
 
-        Ok(ReindexStatement {
-            target,
-            verbose,
-            concurrent,
-        })
+        Ok(ReindexStatement { target, verbose, concurrent })
     }
 
     // ── ALTER GROUP ──
@@ -1845,9 +1755,7 @@ impl Parser {
         Ok(AlterGroupStatement { name, action })
     }
 
-    pub(crate) fn parse_create_aggregate(
-        &mut self,
-    ) -> Result<CreateAggregateStatement, ParserError> {
+    pub(crate) fn parse_create_aggregate(&mut self) -> Result<CreateAggregateStatement, ParserError> {
         let name = self.consume_any_identifier()?;
         let base_types = if self.match_token(&Token::LParen) {
             self.advance();
@@ -1867,11 +1775,7 @@ impl Parser {
             Vec::new()
         };
         let options = self.parse_generic_options_no_with();
-        Ok(CreateAggregateStatement {
-            name,
-            base_types,
-            options,
-        })
+        Ok(CreateAggregateStatement { name, base_types, options })
     }
 
     pub(crate) fn parse_create_operator(&mut self) -> Result<CreateOperatorStatement, ParserError> {
@@ -1910,9 +1814,7 @@ impl Parser {
         Ok(CreateOperatorStatement { name, options })
     }
 
-    pub(crate) fn parse_alter_default_privileges(
-        &mut self,
-    ) -> Result<AlterDefaultPrivilegesStatement, ParserError> {
+    pub(crate) fn parse_alter_default_privileges(&mut self) -> Result<AlterDefaultPrivilegesStatement, ParserError> {
         self.expect_keyword(Keyword::PRIVILEGES)?;
         let mut role = None;
         let mut schema = None;
@@ -1937,49 +1839,30 @@ impl Parser {
                 got: format!("{:?}", self.peek()),
             });
         };
-        Ok(AlterDefaultPrivilegesStatement {
-            role,
-            schema,
-            action,
-        })
+        Ok(AlterDefaultPrivilegesStatement { role, schema, action })
     }
 
-    pub(crate) fn parse_create_user_mapping(
-        &mut self,
-    ) -> Result<CreateUserMappingStatement, ParserError> {
+    pub(crate) fn parse_create_user_mapping(&mut self) -> Result<CreateUserMappingStatement, ParserError> {
         let if_not_exists = self.parse_if_not_exists();
         self.expect_keyword(Keyword::FOR)?;
         let user_name = self.parse_identifier()?;
         self.expect_keyword(Keyword::SERVER)?;
         let server = self.parse_object_name()?;
         let options = self.parse_options_clause();
-        Ok(CreateUserMappingStatement {
-            if_not_exists,
-            user_name,
-            server,
-            options,
-        })
+        Ok(CreateUserMappingStatement { if_not_exists, user_name, server, options })
     }
 
-    pub(crate) fn parse_alter_user_mapping(
-        &mut self,
-    ) -> Result<AlterUserMappingStatement, ParserError> {
+    pub(crate) fn parse_alter_user_mapping(&mut self) -> Result<AlterUserMappingStatement, ParserError> {
         self.expect_keyword(Keyword::MAPPING)?;
         self.expect_keyword(Keyword::FOR)?;
         let user_name = self.parse_identifier()?;
         self.expect_keyword(Keyword::SERVER)?;
         let server = self.parse_object_name()?;
         let options = self.parse_options_clause();
-        Ok(AlterUserMappingStatement {
-            user_name,
-            server,
-            options,
-        })
+        Ok(AlterUserMappingStatement { user_name, server, options })
     }
 
-    pub(crate) fn parse_drop_user_mapping(
-        &mut self,
-    ) -> Result<DropUserMappingStatement, ParserError> {
+    pub(crate) fn parse_drop_user_mapping(&mut self) -> Result<DropUserMappingStatement, ParserError> {
         self.expect_keyword(Keyword::USER)?;
         self.expect_keyword(Keyword::MAPPING)?;
         let if_exists = self.parse_if_exists();
@@ -1987,11 +1870,7 @@ impl Parser {
         let user_name = self.parse_identifier()?;
         self.expect_keyword(Keyword::SERVER)?;
         let server = self.parse_object_name()?;
-        Ok(DropUserMappingStatement {
-            if_exists,
-            user_name,
-            server,
-        })
+        Ok(DropUserMappingStatement { if_exists, user_name, server })
     }
 
     pub(crate) fn parse_shutdown(&mut self) -> Result<ShutdownStatement, ParserError> {
@@ -2067,11 +1946,7 @@ impl Parser {
         self.expect_keyword(Keyword::TABLE)?;
         let table_name = self.parse_object_name()?;
         let action = self.skip_to_semicolon_and_collect();
-        Ok(TimeCapsuleStatement {
-            table_name,
-            action: action.clone(),
-            raw_rest: action,
-        })
+        Ok(TimeCapsuleStatement { table_name, action: action.clone(), raw_rest: action })
     }
 
     pub(crate) fn parse_shrink(&mut self) -> Result<ShrinkStatement, ParserError> {
@@ -2127,11 +2002,7 @@ impl Parser {
             }
         }
 
-        Ok(CleanConnStatement {
-            force,
-            for_database,
-            to_user,
-        })
+        Ok(CleanConnStatement { force, for_database, to_user })
     }
 
     pub(crate) fn parse_sec_label(&mut self) -> Result<SecLabelStatement, ParserError> {
@@ -2186,19 +2057,12 @@ impl Parser {
             label = Some(self.parse_string_literal()?);
         }
 
-        Ok(SecLabelStatement {
-            object_type,
-            name,
-            provider,
-            label,
-        })
+        Ok(SecLabelStatement { object_type, name, provider, label })
     }
 
     // ── ALTER DATABASE LINK / DIRECTORY / LANGUAGE / LARGE OBJECT / PACKAGE / SESSION / SYSTEM KILL SESSION ──
 
-    pub(crate) fn parse_alter_database_link(
-        &mut self,
-    ) -> Result<AlterDatabaseLinkStatement, ParserError> {
+    pub(crate) fn parse_alter_database_link(&mut self) -> Result<AlterDatabaseLinkStatement, ParserError> {
         let name = self.parse_identifier()?;
         let action = if self.match_ident_str("connect") {
             self.advance();
@@ -2219,11 +2083,7 @@ impl Parser {
             } else {
                 None
             };
-            AlterDatabaseLinkAction::ConnectTo {
-                user,
-                password,
-                connect_string,
-            }
+            AlterDatabaseLinkAction::ConnectTo { user, password, connect_string }
         } else if self.match_keyword(Keyword::RENAME) {
             self.advance();
             self.expect_keyword(Keyword::TO)?;
@@ -2269,9 +2129,7 @@ impl Parser {
         Ok(AlterLanguageStatement { name, action })
     }
 
-    pub(crate) fn parse_alter_large_object(
-        &mut self,
-    ) -> Result<AlterLargeObjectStatement, ParserError> {
+    pub(crate) fn parse_alter_large_object(&mut self) -> Result<AlterLargeObjectStatement, ParserError> {
         self.expect_keyword(Keyword::OBJECT_P)?;
         let oid = self.parse_identifier()?;
         self.expect_keyword(Keyword::OWNER)?;
@@ -2298,10 +2156,7 @@ impl Parser {
             } else {
                 false
             };
-            AlterPackageAction::Compile {
-                debug,
-                reuse_settings,
-            }
+            AlterPackageAction::Compile { debug, reuse_settings }
         } else if self.match_keyword(Keyword::OWNER) {
             self.advance();
             self.expect_keyword(Keyword::TO)?;
@@ -2350,15 +2205,10 @@ impl Parser {
         Ok(AlterSessionStatement { action })
     }
 
-    pub(crate) fn parse_alter_system_kill_session(
-        &mut self,
-    ) -> Result<AlterSystemKillSessionStatement, ParserError> {
+    pub(crate) fn parse_alter_system_kill_session(&mut self) -> Result<AlterSystemKillSessionStatement, ParserError> {
         let session_id = self.parse_string_literal()?;
         let immediate = self.try_consume_keyword(Keyword::IMMEDIATE);
-        Ok(AlterSystemKillSessionStatement {
-            session_id,
-            immediate,
-        })
+        Ok(AlterSystemKillSessionStatement { session_id, immediate })
     }
 
     pub(crate) fn parse_create_language(&mut self) -> Result<CreateLanguageStatement, ParserError> {
@@ -2384,13 +2234,7 @@ impl Parser {
             self.expect_keyword(Keyword::VALIDATOR)?;
         }
 
-        Ok(CreateLanguageStatement {
-            name,
-            trusted,
-            handler,
-            inline_func,
-            validator,
-        })
+        Ok(CreateLanguageStatement { name, trusted, handler, inline_func, validator })
     }
 
     pub(crate) fn parse_alter_domain(&mut self) -> Result<AlterDomainStatement, ParserError> {
@@ -2427,10 +2271,7 @@ impl Parser {
                 let cname = self.parse_identifier()?;
                 let cascade = self.try_consume_keyword(Keyword::CASCADE);
                 self.try_consume_keyword(Keyword::RESTRICT);
-                AlterDomainAction::DropConstraint {
-                    name: cname,
-                    cascade,
-                }
+                AlterDomainAction::DropConstraint { name: cname, cascade }
             } else {
                 return Err(ParserError::UnexpectedToken {
                     location: self.current_location(),
@@ -2441,18 +2282,14 @@ impl Parser {
         } else if self.match_keyword(Keyword::ADD_P) {
             self.advance();
             self.try_consume_keyword(Keyword::CONSTRAINT);
-            let cname = if !self.match_keyword(Keyword::CHECK) && !self.match_keyword(Keyword::NOT)
-            {
+            let cname = if !self.match_keyword(Keyword::CHECK) && !self.match_keyword(Keyword::NOT) {
                 Some(self.parse_identifier()?)
             } else {
                 None
             };
             self.try_consume_keyword(Keyword::CHECK);
             let check_expr = self.skip_to_semicolon_and_collect();
-            AlterDomainAction::AddConstraint {
-                name: cname,
-                check_expr,
-            }
+            AlterDomainAction::AddConstraint { name: cname, check_expr }
         } else if self.match_keyword(Keyword::OWNER) {
             self.advance();
             self.expect_keyword(Keyword::TO)?;
@@ -2482,12 +2319,7 @@ impl Parser {
         let mut name = self.parse_identifier()?;
         if self.match_token(&Token::At) {
             self.advance();
-            let version = match &self
-                .tokens
-                .get(self.pos)
-                .map(|t| t.token.clone())
-                .unwrap_or(Token::Eof)
-            {
+            let version = match &self.tokens.get(self.pos).map(|t| t.token.clone()).unwrap_or(Token::Eof) {
                 Token::Float(f) => {
                     self.advance();
                     f.clone()

@@ -11,12 +11,7 @@ fn main() {
         let mut files: Vec<String> = fs::read_dir(regress_dir)
             .expect("Failed to read regress/sql directory")
             .filter_map(|e| e.ok())
-            .filter(|e| {
-                e.path()
-                    .extension()
-                    .map(|ext| ext == "sql")
-                    .unwrap_or(false)
-            })
+            .filter(|e| e.path().extension().map(|ext| ext == "sql").unwrap_or(false))
             .filter_map(|e| e.file_name().to_str().map(|s| s.to_string()))
             .collect();
         files.sort();
@@ -68,10 +63,7 @@ fn main() {
                 tokenized_ok += 1;
                 match ogsql_parser::parser::Parser::new(tokens).parse() {
                     stmts => {
-                        if stmts
-                            .iter()
-                            .any(|s| matches!(s, ogsql_parser::Statement::Empty))
-                        {
+                        if stmts.iter().any(|s| matches!(s, ogsql_parser::Statement::Empty)) {
                             parsed_err += 1;
                         } else {
                             parsed_ok += 1;

@@ -24,13 +24,12 @@ impl Parser {
             self.expect_token(&Token::RParen)?;
         }
 
-        let return_type =
-            if self.match_keyword(Keyword::RETURNS) || self.match_keyword(Keyword::RETURN) {
-                self.advance();
-                Some(self.parse_type_name()?)
-            } else {
-                None
-            };
+        let return_type = if self.match_keyword(Keyword::RETURNS) || self.match_keyword(Keyword::RETURN) {
+            self.advance();
+            Some(self.parse_type_name()?)
+        } else {
+            None
+        };
 
         let has_body = if self.match_keyword(Keyword::IS) || self.match_keyword(Keyword::AS) {
             self.advance();
@@ -74,14 +73,7 @@ impl Parser {
             (None, options)
         };
 
-        Ok(CreateFunctionStatement {
-            replace: false,
-            name,
-            parameters,
-            return_type,
-            options,
-            block,
-        })
+        Ok(CreateFunctionStatement { replace: false, name, parameters, return_type, options, block })
     }
 
     fn parse_function_parameter(&mut self) -> Result<RoutineParam, ParserError> {
@@ -96,12 +88,7 @@ impl Parser {
                     let name = self.parse_identifier()?;
                     let data_type = self.parse_param_data_type()?;
                     let default_value = self.parse_param_default()?;
-                    return Ok(RoutineParam {
-                        name,
-                        mode: Some(mode),
-                        data_type,
-                        default_value,
-                    });
+                    return Ok(RoutineParam { name, mode: Some(mode), data_type, default_value });
                 }
                 _ => {
                     // Not a name after mode keyword — restore and try name-first
@@ -120,12 +107,7 @@ impl Parser {
         let data_type = self.parse_param_data_type()?;
         let default_value = self.parse_param_default()?;
 
-        Ok(RoutineParam {
-            name,
-            mode,
-            data_type,
-            default_value,
-        })
+        Ok(RoutineParam { name, mode, data_type, default_value })
     }
 
     fn parse_param_mode(&mut self) -> Option<String> {
@@ -574,9 +556,7 @@ impl Parser {
         collected.trim().to_string()
     }
 
-    pub(crate) fn parse_create_procedure(
-        &mut self,
-    ) -> Result<CreateProcedureStatement, ParserError> {
+    pub(crate) fn parse_create_procedure(&mut self) -> Result<CreateProcedureStatement, ParserError> {
         let name = self.parse_object_name()?;
 
         let mut parameters = Vec::new();
@@ -638,13 +618,7 @@ impl Parser {
             (None, options)
         };
 
-        Ok(CreateProcedureStatement {
-            replace: false,
-            name,
-            parameters,
-            options,
-            block,
-        })
+        Ok(CreateProcedureStatement { replace: false, name, parameters, options, block })
     }
 
     pub(crate) fn parse_create_package(&mut self, replace: bool) -> Result<Statement, ParserError> {
@@ -683,18 +657,15 @@ impl Parser {
 
         let items = self.parse_package_body_items();
         if is_body {
-            Ok(Statement::CreatePackageBody(crate::ast::Spanned::new(CreatePackageBodyStatement {
-                replace,
-                name,
-                items,
-            }, None)))
+            Ok(Statement::CreatePackageBody(crate::ast::Spanned::new(
+                CreatePackageBodyStatement { replace, name, items },
+                None,
+            )))
         } else {
-            Ok(Statement::CreatePackage(crate::ast::Spanned::new(CreatePackageStatement {
-                replace,
-                name,
-                authid,
-                items,
-            }, None)))
+            Ok(Statement::CreatePackage(crate::ast::Spanned::new(
+                CreatePackageStatement { replace, name, authid, items },
+                None,
+            )))
         }
     }
 
@@ -800,25 +771,21 @@ impl Parser {
                 Token::Keyword(Keyword::TYPE_P) => {
                     self.advance();
                     match self.parse_identifier() {
-                        Ok(type_name) => {
-                            match self.parse_pl_type_decl_body(type_name) {
-                                Ok(crate::ast::plpgsql::PlDeclaration::Type(type_decl)) => {
-                                    items.push(PackageItem::Type(type_decl));
-                                }
-                                _ => {
-                                    self.skip_to_semicolon_or_keyword();
-                                }
+                        Ok(type_name) => match self.parse_pl_type_decl_body(type_name) {
+                            Ok(crate::ast::plpgsql::PlDeclaration::Type(type_decl)) => {
+                                items.push(PackageItem::Type(type_decl));
                             }
-                        }
+                            _ => {
+                                self.skip_to_semicolon_or_keyword();
+                            }
+                        },
                         Err(_) => {
                             self.skip_to_semicolon_or_keyword();
                         }
                     }
                 }
                 _ => {
-                    if let Some(crate::ast::plpgsql::PlDeclaration::Variable(var)) =
-                        self.try_parse_oracle_var_decl()
-                    {
+                    if let Some(crate::ast::plpgsql::PlDeclaration::Variable(var)) = self.try_parse_oracle_var_decl() {
                         items.push(PackageItem::Variable(var));
                     } else {
                         self.advance();
@@ -869,11 +836,11 @@ impl Parser {
                 Token::OpLe => "<=".to_string(),
                 Token::OpNe => "<>".to_string(),
                 Token::OpGe => ">=".to_string(),
-            Token::OpShiftL => "<<".to_string(),
-            Token::OpShiftR => ">>".to_string(),
-            Token::OpArrow => "->".to_string(),
-            Token::OpJsonArrow => "->>".to_string(),
-            Token::OpNe2 => "!=".to_string(),
+                Token::OpShiftL => "<<".to_string(),
+                Token::OpShiftR => ">>".to_string(),
+                Token::OpArrow => "->".to_string(),
+                Token::OpJsonArrow => "->>".to_string(),
+                Token::OpNe2 => "!=".to_string(),
                 Token::OpDblBang => "!!".to_string(),
                 Token::OpConcat => "||".to_string(),
                 Token::Param(n) => format!("${}", n),
@@ -941,22 +908,11 @@ impl Parser {
             None
         };
 
-        let start_line = self.tokens.get(start_pos)
-            .map(|t| t.location.line)
-            .unwrap_or(0);
-        let end_line = self.pos.saturating_sub(1)
-            .min(self.tokens.len().saturating_sub(1));
-        let end_line = self.tokens.get(end_line)
-            .map(|t| t.location.line)
-            .unwrap_or(start_line);
+        let start_line = self.tokens.get(start_pos).map(|t| t.location.line).unwrap_or(0);
+        let end_line = self.pos.saturating_sub(1).min(self.tokens.len().saturating_sub(1));
+        let end_line = self.tokens.get(end_line).map(|t| t.location.line).unwrap_or(start_line);
 
-        Ok(PackageProcedure {
-            name,
-            parameters,
-            block,
-            start_line,
-            end_line,
-        })
+        Ok(PackageProcedure { name, parameters, block, start_line, end_line })
     }
 
     pub(crate) fn parse_package_sub_function(&mut self, start_pos: usize) -> Result<PackageFunction, ParserError> {
@@ -1001,23 +957,11 @@ impl Parser {
             None
         };
 
-        let start_line = self.tokens.get(start_pos)
-            .map(|t| t.location.line)
-            .unwrap_or(0);
-        let end_line = self.pos.saturating_sub(1)
-            .min(self.tokens.len().saturating_sub(1));
-        let end_line = self.tokens.get(end_line)
-            .map(|t| t.location.line)
-            .unwrap_or(start_line);
+        let start_line = self.tokens.get(start_pos).map(|t| t.location.line).unwrap_or(0);
+        let end_line = self.pos.saturating_sub(1).min(self.tokens.len().saturating_sub(1));
+        let end_line = self.tokens.get(end_line).map(|t| t.location.line).unwrap_or(start_line);
 
-        Ok(PackageFunction {
-            name,
-            parameters,
-            return_type,
-            block,
-            start_line,
-            end_line,
-        })
+        Ok(PackageFunction { name, parameters, return_type, block, start_line, end_line })
     }
 
     fn skip_to_end_subprogram(&mut self) -> String {
@@ -1058,9 +1002,7 @@ impl Parser {
         collected.trim().to_string()
     }
 
-    pub(crate) fn parse_create_extension(
-        &mut self,
-    ) -> Result<CreateExtensionStatement, ParserError> {
+    pub(crate) fn parse_create_extension(&mut self) -> Result<CreateExtensionStatement, ParserError> {
         self.expect_keyword(Keyword::EXTENSION)?;
         let if_not_exists = self.parse_if_not_exists();
         let name = self.parse_identifier()?;
@@ -1089,14 +1031,7 @@ impl Parser {
             cascade = true;
         }
 
-        Ok(CreateExtensionStatement {
-            replace: false,
-            if_not_exists,
-            name,
-            schema,
-            version,
-            cascade,
-        })
+        Ok(CreateExtensionStatement { replace: false, if_not_exists, name, schema, version, cascade })
     }
 
     pub(crate) fn parse_create_domain(&mut self) -> Result<CreateDomainStatement, ParserError> {
@@ -1125,20 +1060,13 @@ impl Parser {
             self.expect_token(&Token::RParen)?;
         }
 
-        Ok(CreateDomainStatement {
-            name,
-            data_type,
-            default_value,
-            not_null,
-            check,
-        })
+        Ok(CreateDomainStatement { name, data_type, default_value, not_null, check })
     }
 
     pub(crate) fn collect_until_boundary(&mut self, stop_tokens: &[Token]) -> String {
         let mut collected = String::new();
         loop {
-            let at_stop =
-                stop_tokens.iter().any(|t| *self.peek() == *t) || *self.peek() == Token::Eof;
+            let at_stop = stop_tokens.iter().any(|t| *self.peek() == *t) || *self.peek() == Token::Eof;
             if at_stop {
                 break;
             }
@@ -1208,8 +1136,7 @@ impl Parser {
                 CastMethod::WithInout
             } else {
                 self.expect_keyword(Keyword::FUNCTION)?;
-                let func_name =
-                    self.collect_until_boundary(&[Token::Keyword(Keyword::AS), Token::Semicolon]);
+                let func_name = self.collect_until_boundary(&[Token::Keyword(Keyword::AS), Token::Semicolon]);
                 CastMethod::WithFunction(func_name)
             }
         } else {
@@ -1229,12 +1156,7 @@ impl Parser {
             None
         };
 
-        Ok(CreateCastStatement {
-            source_type,
-            target_type,
-            method,
-            context,
-        })
+        Ok(CreateCastStatement { source_type, target_type, method, context })
     }
 
     fn parse_type_name_for_cast(&mut self) -> Result<String, ParserError> {
