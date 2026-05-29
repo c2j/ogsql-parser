@@ -203,12 +203,27 @@ impl<'a> ExtractContext<'a> {
             Some(n) => n,
             None => return,
         };
-        let value_node = match declarator.child_by_field_name("value") {
-            Some(n) => n,
-            None => return,
-        };
-
         let var_name = self.node_text(name_node);
+        let value_node = declarator.child_by_field_name("value");
+
+        if value_node.is_none() {
+            let var_name_upper = var_name.to_uppercase();
+            let name_hints_sql = self.sql_var_patterns_upper.iter().any(|p| var_name_upper.contains(p.as_str()));
+            if name_hints_sql {
+                self.sql_vars.insert(
+                    var_name,
+                    TrackedVar {
+                        sql: String::new(),
+                        extraction_index: usize::MAX,
+                        is_string_builder: false,
+                        is_field_level,
+                    },
+                );
+            }
+            return;
+        }
+        let value_node = value_node.unwrap();
+
         let (sql_text, is_text_block) = match self.extract_string_value(value_node) {
             Some(v) => v,
             None => return,
