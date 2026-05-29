@@ -10,7 +10,8 @@ pub(super) enum NativeQueryFlag {
 }
 
 pub(super) fn looks_like_sql(text: &str) -> bool {
-    let upper = text.to_uppercase();
+    let normalized: String = text.split_whitespace().collect::<Vec<_>>().join(" ");
+    let upper = normalized.to_uppercase();
     SQL_KEYWORDS.iter().any(|kw| upper.contains(kw))
 }
 

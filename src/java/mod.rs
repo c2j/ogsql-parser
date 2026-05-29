@@ -1,7 +1,6 @@
 //! Java 源码 SQL 提取支持。
-//!
-//! 从 Java 源文件中提取嵌入在注解、方法调用参数、字符串常量中的 SQL 语句，
-//! 并将提取的 SQL 馈入核心 Parser 得到结构化 AST。
+
+use tree_sitter::Parser;
 
 pub mod error;
 pub mod extract;
@@ -22,15 +21,10 @@ pub use mapper_interface::{
     MapperInterfaceInfo, MapperMethodInfo, MethodParam, parse_mapper_interface,
 };
 pub use types::{
-    ExtractedSql, ExtractionMethod, JavaExtractConfig, JavaExtractResult, ParameterStyle, SqlKind,
-    SqlOrigin, SqlParseResult,
+    CrossFileState, ExtractedSql, ExtractionMethod, JavaExtractConfig, JavaExtractResult,
+    MethodPsBehavior, ParameterStyle, SetterPattern, SqlKind, SqlOrigin, SqlParseResult,
 };
 
-use tree_sitter::Parser;
-
-/// 从 Java 源码字节提取 SQL。
-///
-/// 接受 UTF-8 字符串，返回提取结果。
 pub fn extract_sql_from_java(
     source: &str,
     file_path: &str,
@@ -57,5 +51,92 @@ pub fn extract_sql_from_java(
     extract::extract(source, tree.root_node(), file_path, config)
 }
 
+pub fn extract_sql_from_java_files(
+    files: &[(&str, &str)],
+    config: &JavaExtractConfig,
+) -> Vec<JavaExtractResult> {
+    let mut state = CrossFileState::default();
+    extract_sql_from_java_files_with_state(files, config, &mut state)
+}
+
+pub fn extract_sql_from_java_files_with_state(
+    files: &[(&str, &str)],
+    config: &JavaExtractConfig,
+    state: &mut CrossFileState,
+) -> Vec<JavaExtractResult> {
+    let mut results = Vec::new();
+    let mut parser = Parser::new();
+    parser
+        .set_language(&tree_sitter_java::LANGUAGE.into())
+        .expect("Failed to set Java language for tree-sitter");
+
+    for (file_path, source) in files {
+        let tree = match parser.parse(source, None) {
+            Some(t) => t,
+            None => {
+                results.push(JavaExtractResult {
+                    file_path: file_path.to_string(),
+                    extractions: Vec::new(),
+                    errors: vec![JavaError::ParseError {
+                        message: "tree-sitter returned no parse tree".to_string(),
+                    }],
+                });
+                continue;
+            }
+        };
+
+        let mut sql_var_patterns_upper = vec!["SQL".to_string()];
+        for p in &config.extra_sql_var_patterns {
+            let upper = p.to_uppercase();
+            if !sql_var_patterns_upper.contains(&upper) {
+                sql_var_patterns_upper.push(upper);
+            }
+        }
+
+        let mut ctx = extract::ExtractContext {
+            source,
+            file_path,
+            extractions: Vec::new(),
+            errors: Vec::new(),
+            class_name: None,
+            method_name: None,
+            sql_vars: std::collections::HashMap::new(),
+            var_types: std::collections::HashMap::new(),
+            jdbc_param_map: std::collections::HashMap::new(),
+            ps_var_to_extraction: std::collections::HashMap::new(),
+            extra_sql_methods: &config.extra_sql_methods,
+            sql_var_patterns_upper,
+            method_behaviors: std::mem::take(&mut state.method_behaviors),
+            pending_injections: Vec::new(),
+            class_ps_to_extraction: std::collections::HashMap::new(),
+            dynamic_setters: Vec::new(),
+            string_constants: std::mem::take(&mut state.string_constants),
+        };
+
+        ctx.visit(tree.root_node());
+        ctx.apply_pending_injections();
+
+        state.method_behaviors = ctx.method_behaviors;
+        state.string_constants = ctx.string_constants;
+
+        let extractions: Vec<ExtractedSql> = ctx
+            .extractions
+            .into_iter()
+            .filter(|e| extract::starts_with_sql_keyword(&e.sql))
+            .collect();
+
+        results.push(JavaExtractResult {
+            file_path: file_path.to_string(),
+            extractions,
+            errors: ctx.errors,
+        });
+    }
+
+    results
+}
+
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+mod tests_diagnostic;

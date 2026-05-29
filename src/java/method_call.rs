@@ -11,6 +11,8 @@ use crate::java::types::*;
 pub(super) struct PendingInjection {
     pub(super) ps_var: String,
     pub(super) method_name: String,
+    pub(super) arg_count: usize,
+    pub(super) extraction_idx: Option<usize>,
 }
 
 impl<'a> ExtractContext<'a> {
@@ -21,7 +23,7 @@ impl<'a> ExtractContext<'a> {
         };
         let method_name = self.node_text(name_node);
 
-        if method_name == "append" || method_name == "insert" || method_name == "delete" {
+        if method_name == "append" || method_name == "insert" || method_name == "delete" || method_name == "replace" {
             if let Some(root_var) = self.find_method_chain_root(node) {
                 if self.sql_vars.contains_key(&root_var)
                     && self.sql_vars.get(&root_var).map_or(false, |v| v.is_string_builder)
@@ -55,10 +57,12 @@ impl<'a> ExtractContext<'a> {
             if args_node.kind() == "argument_list" {
                 let mut cursor = args_node.walk();
                 let mut found_ps_var: Option<String> = None;
+                let mut arg_count = 0usize;
                 for child in args_node.children(&mut cursor) {
                     if child.kind() == "," || child.kind() == "(" || child.kind() == ")" {
                         continue;
                     }
+                    arg_count += 1;
                     if child.kind() == "identifier" {
                         let arg_name = self.node_text(child);
                         if self.ps_var_to_extraction.contains_key(&arg_name) {
@@ -67,9 +71,12 @@ impl<'a> ExtractContext<'a> {
                     }
                 }
                 if let Some(ps_var) = found_ps_var {
+                    let ext_idx = self.ps_var_to_extraction.get(&ps_var).copied();
                     self.pending_injections.push(PendingInjection {
                         ps_var,
                         method_name: method_name.clone(),
+                        arg_count,
+                        extraction_idx: ext_idx,
                     });
                 }
             }
@@ -194,6 +201,27 @@ impl<'a> ExtractContext<'a> {
             match child.kind() {
                 "string_literal" | "binary_expression" => {
                     return self.extract_string_value(child);
+                }
+                "identifier" => {
+                    let name = self.node_text(child);
+                    if let Some(val) = self.string_constants.get(&name) {
+                        return Some((val.clone(), false));
+                    }
+                }
+                "field_access" => {
+                    let last_ident = child.child_by_field_name("field")
+                        .or_else(|| {
+                            let mut c = child.walk();
+                            child.children(&mut c)
+                                .filter(|n| n.kind() == "identifier")
+                                .last()
+                        });
+                    if let Some(n) = last_ident {
+                        let name = self.node_text(n);
+                        if let Some(val) = self.string_constants.get(&name) {
+                            return Some((val.clone(), false));
+                        }
+                    }
                 }
                 _ => continue,
             }
@@ -451,12 +479,18 @@ impl<'a> ExtractContext<'a> {
     pub(super) fn apply_pending_injections(&mut self) {
         let injections = std::mem::take(&mut self.pending_injections);
         for injection in injections {
-            let ext_idx = match self.class_ps_to_extraction.get(&injection.ps_var) {
-                Some(&idx) => idx,
-                None => continue,
+            let ext_idx = match injection.extraction_idx {
+                Some(idx) => idx,
+                None => match self.class_ps_to_extraction.get(&injection.ps_var) {
+                    Some(&idx) => idx,
+                    None => continue,
+                },
             };
-            let behavior = match self.method_behaviors.get(&injection.method_name) {
-                Some(b) => b.clone(),
+            let behavior_key = format!("{}:{}", injection.method_name, injection.arg_count);
+            let behavior = self.method_behaviors.get(&behavior_key).cloned()
+                .or_else(|| self.method_behaviors.get(&injection.method_name).cloned());
+            let behavior = match behavior {
+                Some(b) => b,
                 None => {
                     self.apply_fallback_dynamic(ext_idx);
                     continue;

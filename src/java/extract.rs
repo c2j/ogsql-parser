@@ -49,8 +49,10 @@ pub fn extract(
         pending_injections: Vec::new(),
         class_ps_to_extraction: HashMap::new(),
         dynamic_setters: Vec::new(),
+        string_constants: HashMap::new(),
     };
     ctx.visit(root);
+    ctx.apply_pending_injections();
     let extractions: Vec<ExtractedSql> = ctx
         .extractions
         .into_iter()
@@ -82,6 +84,7 @@ pub(super) struct ExtractContext<'a> {
     pub(super) pending_injections: Vec<PendingInjection>,
     pub(super) class_ps_to_extraction: HashMap<String, usize>,
     pub(super) dynamic_setters: Vec<(String, String)>,
+    pub(super) string_constants: HashMap<String, String>,
 }
 
 impl<'a> ExtractContext<'a> {
@@ -126,7 +129,6 @@ impl<'a> ExtractContext<'a> {
         for child in node.children(&mut cursor) {
             self.visit(child);
         }
-        self.apply_pending_injections();
         self.class_name = old_class;
     }
 
@@ -147,7 +149,7 @@ impl<'a> ExtractContext<'a> {
         for (k, v) in field_sql_vars {
             self.sql_vars.insert(k, v);
         }
-        let old_var_types = std::mem::take(&mut self.var_types);
+        let old_var_types = self.var_types.clone();
         let old_jdbc_param_map = std::mem::take(&mut self.jdbc_param_map);
         let old_ps_var_to_extraction = std::mem::take(&mut self.ps_var_to_extraction);
         let old_dynamic_setters = std::mem::take(&mut self.dynamic_setters);
@@ -165,12 +167,8 @@ impl<'a> ExtractContext<'a> {
                     for pc in child.children(&mut param_cursor) {
                         match pc.kind() {
                             "type_identifier"
-                            | "primitive_type"
                             | "generic_type"
-                            | "integral_type"
-                            | "floating_point_type"
-                            | "boolean_type"
-                            | "array_type" => {
+                            | "scoped_type_identifier" => {
                                 type_name = self.extract_type_name(pc);
                             }
                             "identifier" => {
@@ -216,7 +214,9 @@ impl<'a> ExtractContext<'a> {
 
         self.method_name = old_method;
         self.sql_vars = old_sql_vars;
-        self.var_types = old_var_types;
+        for (k, v) in old_var_types {
+            self.var_types.entry(k).or_insert(v);
+        }
         self.jdbc_param_map = old_jdbc_param_map;
         self.ps_var_to_extraction = old_ps_var_to_extraction;
         self.dynamic_setters = old_dynamic_setters;
@@ -245,6 +245,30 @@ impl<'a> ExtractContext<'a> {
                 let combined: String = parts.into_iter().map(|(s, _)| s).collect();
                 Some((combined, false))
             }
+            "ternary_expression" => {
+                let consequence = node.child_by_field_name("consequence");
+                let alternative = node.child_by_field_name("alternative");
+                let mut results = Vec::new();
+                if let Some(cons) = consequence {
+                    if let Some((sql, _)) = self.extract_string_value(cons) {
+                        if super::heuristics::looks_like_sql(&sql) {
+                            results.push(sql);
+                        }
+                    }
+                }
+                if let Some(alt) = alternative {
+                    if let Some((sql, _)) = self.extract_string_value(alt) {
+                        if super::heuristics::looks_like_sql(&sql) {
+                            results.push(sql);
+                        }
+                    }
+                }
+                if results.is_empty() {
+                    None
+                } else {
+                    Some((results.join(""), false))
+                }
+            }
             _ => None,
         }
     }
@@ -269,6 +293,21 @@ impl<'a> ExtractContext<'a> {
                 "binary_expression" => {
                     parts.extend(self.collect_concat_parts(left));
                 }
+                "identifier" => {
+                    let name = self.node_text(left);
+                    if let Some(val) = self.string_constants.get(&name) {
+                        parts.push((val.clone(), false));
+                    } else {
+                        parts.push((self.make_placeholder_for_node(left), false));
+                    }
+                }
+                "field_access" => {
+                    if let Some(val) = self.resolve_field_access_constant(left) {
+                        parts.push((val, false));
+                    } else {
+                        parts.push((self.make_placeholder_for_node(left), false));
+                    }
+                }
                 _ => {
                     parts.push((self.make_placeholder_for_node(left), false));
                 }
@@ -284,6 +323,21 @@ impl<'a> ExtractContext<'a> {
                 }
                 "binary_expression" => {
                     parts.extend(self.collect_concat_parts(right));
+                }
+                "identifier" => {
+                    let name = self.node_text(right);
+                    if let Some(val) = self.string_constants.get(&name) {
+                        parts.push((val.clone(), false));
+                    } else {
+                        parts.push((self.make_placeholder_for_node(right), false));
+                    }
+                }
+                "field_access" => {
+                    if let Some(val) = self.resolve_field_access_constant(right) {
+                        parts.push((val, false));
+                    } else {
+                        parts.push((self.make_placeholder_for_node(right), false));
+                    }
                 }
                 _ => {
                     parts.push((self.make_placeholder_for_node(right), false));
@@ -317,6 +371,11 @@ impl<'a> ExtractContext<'a> {
             | "integral_type"
             | "floating_point_type"
             | "boolean_type" => Some(self.node_text(node)),
+            "scoped_type_identifier" => {
+                let text = self.node_text(node);
+                let short = text.rsplit('.').next().unwrap_or(&text);
+                Some(short.to_string())
+            }
             "generic_type" => {
                 let mut cursor = node.walk();
                 for child in node.children(&mut cursor) {
@@ -583,7 +642,7 @@ impl<'a> ExtractContext<'a> {
                     let mut var_name: Option<String> = None;
                     for p in child.children(&mut pc) {
                         match p.kind() {
-                            "type_identifier" | "generic_type" => {
+                            "type_identifier" | "generic_type" | "scoped_type_identifier" => {
                                 type_name = self.extract_type_name(p);
                             }
                             "identifier" => {
@@ -637,13 +696,27 @@ impl<'a> ExtractContext<'a> {
             return;
         }
 
+        let total_params = {
+            let mut count = 0usize;
+            if let Some(params_node) = node.child_by_field_name("parameters") {
+                let mut cursor = params_node.walk();
+                for child in params_node.children(&mut cursor) {
+                    if child.kind() == "formal_parameter" {
+                        count += 1;
+                    }
+                }
+            }
+            count
+        };
+
         setter_patterns.sort_by_key(|p| match p {
             crate::java::types::SetterPattern::Literal { index, .. } => *index,
             crate::java::types::SetterPattern::DynamicLoop { .. } => usize::MAX,
         });
 
+        let key = format!("{}:{}", method_name_str, total_params);
         self.method_behaviors.insert(
-            method_name_str,
+            key,
             crate::java::types::MethodPsBehavior {
                 ps_param_index: ps_idx,
                 ps_param_name: ps_var,
@@ -655,10 +728,36 @@ impl<'a> ExtractContext<'a> {
     pub(super) fn node_text(&self, node: Node) -> String {
         self.source[node.byte_range()].to_string()
     }
+
+    fn resolve_field_access_constant(&self, node: Node) -> Option<String> {
+        if node.kind() != "field_access" {
+            return None;
+        }
+        let last_ident = node.child_by_field_name("field")
+            .or_else(|| {
+                let mut cursor = node.walk();
+                node.children(&mut cursor)
+                    .filter(|c| c.kind() == "identifier")
+                    .last()
+            });
+        match last_ident {
+            Some(n) => {
+                let name = self.node_text(n);
+                self.string_constants.get(&name).cloned()
+            }
+            None => None,
+        }
+    }
+}
+
+pub(crate) fn starts_with_sql_keyword(sql: &str) -> bool {
+    let first_word = sql.trim().split_whitespace().next().unwrap_or("");
+    let upper = first_word.to_uppercase();
+    matches!(upper.as_str(), "SELECT" | "INSERT" | "UPDATE" | "DELETE" | "MERGE" | "WITH")
 }
 
 fn sanitize_var_name(var_name: &str) -> String {
-    var_name
+    let mapped: String = var_name
         .chars()
         .map(|c| {
             if c.is_ascii_alphanumeric() || c == '_' {
@@ -667,11 +766,22 @@ fn sanitize_var_name(var_name: &str) -> String {
                 '_'
             }
         })
-        .collect()
-}
-
-fn starts_with_sql_keyword(sql: &str) -> bool {
-    let first_word = sql.trim().split_whitespace().next().unwrap_or("");
-    let upper = first_word.to_uppercase();
-    matches!(upper.as_str(), "SELECT" | "INSERT" | "UPDATE" | "DELETE" | "MERGE" | "WITH")
+        .collect();
+    let mut result = String::with_capacity(mapped.len());
+    let mut prev_underscore = false;
+    for c in mapped.chars() {
+        if c == '_' {
+            if !prev_underscore {
+                result.push(c);
+            }
+            prev_underscore = true;
+        } else {
+            result.push(c);
+            prev_underscore = false;
+        }
+    }
+    while result.ends_with('_') {
+        result.pop();
+    }
+    if result.is_empty() { "_".to_string() } else { result }
 }

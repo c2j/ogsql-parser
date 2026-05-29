@@ -72,8 +72,6 @@ pub struct JavaExtractConfig {
     pub extra_sql_var_patterns: Vec<String>,
 }
 
-/// Inferred type/name info for a JDBC `?` parameter, derived from `setXxx()` calls.
-#[derive(Debug, Clone)]
 pub(super) struct JdbcParamInfo {
     pub(super) index: usize,
     pub(super) java_type: String,
@@ -81,14 +79,29 @@ pub(super) struct JdbcParamInfo {
 }
 
 #[derive(Debug, Clone)]
-pub(super) struct MethodPsBehavior {
-    pub(super) ps_param_index: usize,
-    pub(super) ps_param_name: String,
-    pub(super) setter_patterns: Vec<SetterPattern>,
+pub struct CrossFileState {
+    pub method_behaviors: std::collections::HashMap<String, MethodPsBehavior>,
+    pub string_constants: std::collections::HashMap<String, String>,
+}
+
+impl Default for CrossFileState {
+    fn default() -> Self {
+        Self {
+            method_behaviors: std::collections::HashMap::new(),
+            string_constants: std::collections::HashMap::new(),
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
-pub(super) enum SetterPattern {
+pub struct MethodPsBehavior {
+    pub ps_param_index: usize,
+    pub ps_param_name: String,
+    pub setter_patterns: Vec<SetterPattern>,
+}
+
+#[derive(Debug, Clone)]
+pub enum SetterPattern {
     Literal {
         index: usize,
         java_type: String,
