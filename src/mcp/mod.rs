@@ -301,9 +301,16 @@ impl OgsqlServer {
                 }
                 (vec![tmp.clone()], Some(tmp))
             } else if let Some(ref src) = java_src {
-                (vec![std::path::PathBuf::from(src)], None)
+                let path = std::path::Path::new(src);
+                if path.is_dir() {
+                    (vec![path.to_path_buf()], None)
+                } else {
+                    let scan_dir = if path.is_dir() { path } else { std::path::Path::new(".") };
+                    (crate::ibatis::detect_java_roots(scan_dir), None)
+                }
             } else {
-                (vec![], None)
+                let scan_dir = std::path::Path::new(".");
+                (crate::ibatis::detect_java_roots(scan_dir), None)
             }
         };
         #[cfg(not(feature = "java"))]

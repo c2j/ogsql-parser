@@ -2,6 +2,43 @@
 //!
 //! 从 XML mapper 文件中提取 SQL 语句，建模动态 SQL 元素，
 //! 并将提取的 SQL 馈入核心 Parser 得到结构化 AST。
+//!
+//! # 快速选择
+//!
+//! | 场景 | 推荐 API |
+//! |------|---------|
+//! | 只解析 XML，不需要 Java 类型推断 | [`parse_mapper_bytes`] |
+//! | 需要记录来源文件路径 | [`parse_mapper_bytes_with_path`] |
+//! | 已知 Java 源码根目录 | [`parse_mapper_bytes_with_java_src`] |
+//! | 只知项目根目录，想自动发现 Java 源码 | [`parse_mapper_bytes_auto`] |
+//! | 需要保留动态 SQL 树（if/choose/foreach） | [`parse_mapper_bytes_structured`] |
+//!
+//! # Java 类型推断（需 `java` feature）
+//!
+//! XML 中的 `#{param}` 默认不带类型信息，输出为 `__XML_PARAM_param__`。
+//! 启用类型推断后可输出 `__XML_PARAM_BIGINT_param__`。
+//!
+//! 类型来源按优先级：XML 内联 > parameterClass > Mapper 接口 > DTO 字段。
+//!
+//! ```ignore
+//! // 方式一：一步到位，传入项目目录自动检测 Java 源码根
+//! let result = ogsql_parser::ibatis::parse_mapper_bytes_auto(
+//!     xml_bytes, None, std::path::Path::new("/my-project")
+//! );
+//!
+//! // 方式二：手动指定源码根
+//! let result = ogsql_parser::ibatis::parse_mapper_bytes_with_java_src(
+//!     xml_bytes, None, vec![std::path::PathBuf::from("/my-project/src/main/java")]
+//! );
+//!
+//! // 方式三：先检测，再决定是否传入
+//! let roots = ogsql_parser::ibatis::detect_java_roots(std::path::Path::new("/my-project"));
+//! if roots.is_empty() {
+//!     // 降级到无类型推断
+//! } else {
+//!     let result = ogsql_parser::ibatis::parse_mapper_bytes_with_java_src(xml_bytes, None, roots);
+//! }
+//! ```
 
 mod util;
 
@@ -24,7 +61,7 @@ pub use types::{
 };
 
 #[cfg(feature = "java")]
-pub use java_resolve::JavaSourceResolver;
+pub use java_resolve::{detect_java_roots, JavaSourceResolver};
 
 /// 从 XML 字节解析 mapper 文件。
 pub fn parse_mapper_bytes(xml: &[u8]) -> ParsedMapper {
@@ -44,6 +81,13 @@ pub fn parse_mapper_bytes_with_java_src(
     java_source_roots: Vec<std::path::PathBuf>,
 ) -> ParsedMapper {
     parse_mapper_bytes_internal(xml, file_path, java_source_roots)
+}
+
+#[cfg(feature = "java")]
+/// 从 XML 字节解析 mapper 文件，自动从 scan_dir 检测 Java 源码根目录以进行类型推断。
+pub fn parse_mapper_bytes_auto(xml: &[u8], file_path: Option<&str>, scan_dir: &std::path::Path) -> ParsedMapper {
+    let roots = java_resolve::detect_java_roots(scan_dir);
+    parse_mapper_bytes_internal(xml, file_path, roots)
 }
 
 /// 从 XML 字节解析 mapper 文件，返回保留完整动态 SQL 树形结构的 AST。

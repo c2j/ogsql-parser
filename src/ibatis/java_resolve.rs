@@ -1,4 +1,6 @@
-use std::path::PathBuf;
+use std::collections::HashSet;
+use std::io::Read;
+use std::path::{Path, PathBuf};
 
 static JAVA_TO_JDBC: &[(&str, crate::ibatis::types::JdbcType)] = &[
     ("int", crate::ibatis::types::JdbcType::Integer),
@@ -107,4 +109,83 @@ pub fn java_type_to_jdbc(java_type: &str) -> Option<crate::ibatis::types::JdbcTy
 
 pub fn jdbc_type_from_str(s: &str) -> Option<crate::ibatis::types::JdbcType> {
     JDBC_TYPE_MAP.iter().find(|(name, _)| name.eq_ignore_ascii_case(s)).map(|(_, jdbc)| *jdbc)
+}
+
+fn extract_package_decl(content: &str) -> Option<String> {
+    let package_start = content.find("package ")?;
+    let after_keyword = package_start + "package ".len();
+    let semicolon_pos = content[after_keyword..].find(';')?;
+    let package_name = content[after_keyword..after_keyword + semicolon_pos].trim();
+    if package_name.is_empty() {
+        return None;
+    }
+    Some(package_name.to_string())
+}
+
+fn infer_root_from_java_file(path: &Path) -> Option<PathBuf> {
+    let file = std::fs::File::open(path).ok()?;
+    let mut limited = file.take(2000);
+    let mut content = String::new();
+    std::io::Read::read_to_string(&mut limited, &mut content).ok()?;
+
+    let package = extract_package_decl(&content)?;
+    let package_path = package.replace('.', std::path::MAIN_SEPARATOR_STR);
+
+    let path_str = path.to_str()?;
+    let package_idx = path_str.rfind(&package_path)?;
+    let root_str = &path_str[..package_idx];
+    let root = PathBuf::from(root_str);
+
+    if walkdir::WalkDir::new(&root)
+        .max_depth(3)
+        .into_iter()
+        .filter_map(|e| e.ok())
+        .any(|e| e.file_name().to_str().map(|n| n.ends_with(".java")).unwrap_or(false))
+    {
+        Some(root)
+    } else {
+        None
+    }
+}
+
+pub fn detect_java_roots(scan_dir: &Path) -> Vec<PathBuf> {
+    let standard_dirs = [
+        "src/main/java",
+        "src/test/java",
+        "src/main/generated/java",
+    ];
+
+    let mut standard_roots = Vec::new();
+    for dir in &standard_dirs {
+        let candidate = scan_dir.join(dir);
+        if candidate.is_dir() {
+            standard_roots.push(candidate);
+        }
+    }
+
+    if !standard_roots.is_empty() {
+        return standard_roots;
+    }
+
+    let mut roots = HashSet::new();
+    let mut sampled = 0;
+    const MAX_SAMPLES: usize = 50;
+
+    for entry in walkdir::WalkDir::new(scan_dir)
+        .into_iter()
+        .filter_map(|e| e.ok())
+        .filter(|e| e.file_type().is_file())
+        .filter(|e| e.file_name().to_str().map(|n| n.ends_with(".java")).unwrap_or(false))
+    {
+        if sampled >= MAX_SAMPLES {
+            break;
+        }
+        sampled += 1;
+
+        if let Some(root) = infer_root_from_java_file(entry.path()) {
+            roots.insert(root);
+        }
+    }
+
+    roots.into_iter().collect()
 }
