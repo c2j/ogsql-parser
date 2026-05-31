@@ -4417,7 +4417,17 @@ fn cmd_parse_xml(cli: &Cli, dir: Option<&str>, csv: bool, java_src: Option<&str>
             }
             vec![p.to_path_buf()]
         }
-        None => Vec::new(),
+        None => {
+            let scan_dir = dir.as_deref().map(std::path::Path::new).unwrap_or_else(|| std::path::Path::new("."));
+            let detected = ogsql_parser::ibatis::detect_java_roots(scan_dir);
+            if !detected.is_empty() {
+                eprintln!("Auto-detected Java source roots:");
+                for r in &detected {
+                    eprintln!("  {}", r.display());
+                }
+            }
+            detected
+        }
     };
     #[cfg(not(feature = "java"))]
     let java_roots: Vec<std::path::PathBuf> = Vec::new();
