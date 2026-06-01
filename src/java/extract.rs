@@ -9,6 +9,15 @@ use crate::java::error::JavaError;
 use crate::java::method_call::PendingInjection;
 use crate::java::types::*;
 
+/// Tracks how a Collection/List variable gets its values.
+#[derive(Clone, Debug)]
+pub(super) enum ListSource {
+    /// Created via `new ArrayList<>()` — no known source yet.
+    NewArrayList,
+    /// Populated by iterating over a source set with a filter guard.
+    Filtered { source_set_var: String },
+}
+
 pub(super) struct TrackedVar {
     pub(super) sql: String,
     pub(super) extraction_index: usize,
@@ -43,6 +52,10 @@ pub fn extract(source: &str, root: Node, file_path: &str, config: &JavaExtractCo
         class_ps_to_extraction: HashMap::new(),
         dynamic_setters: Vec::new(),
         string_constants: HashMap::new(),
+        known_sets: HashMap::new(),
+        list_sources: HashMap::new(),
+        string_exprs: HashMap::new(),
+        local_bool_vars: HashMap::new(),
     };
     ctx.visit(root);
     ctx.apply_pending_injections();
@@ -72,6 +85,14 @@ pub(super) struct ExtractContext<'a> {
     pub(super) class_ps_to_extraction: HashMap<String, usize>,
     pub(super) dynamic_setters: Vec<(String, String)>,
     pub(super) string_constants: HashMap<String, String>,
+    /// Known set literals from `Set.of("a", "b", ...)` declarations.
+    pub(super) known_sets: HashMap<String, Vec<String>>,
+    /// How each collection/list variable is populated.
+    pub(super) list_sources: HashMap<String, ListSource>,
+    /// Evaluation results of String-typed method invocations for cross-method tracking.
+    pub(super) string_exprs: HashMap<String, String>,
+    /// Tracks known boolean local variable values (e.g., `first = true`).
+    pub(super) local_bool_vars: HashMap<String, bool>,
 }
 
 impl<'a> ExtractContext<'a> {
@@ -103,6 +124,15 @@ impl<'a> ExtractContext<'a> {
             }
             "switch_expression" => {
                 self.visit_switch_expression(node);
+            }
+            "enhanced_for_statement" => {
+                self.visit_enhanced_for_statement(node);
+            }
+            "resource" => {
+                self.visit_resource(node);
+            }
+            "if_statement" => {
+                self.visit_if_statement(node);
             }
             _ => {
                 let mut cursor = node.walk();
@@ -231,6 +261,7 @@ impl<'a> ExtractContext<'a> {
         let old_jdbc_param_map = std::mem::take(&mut self.jdbc_param_map);
         let old_ps_var_to_extraction = std::mem::take(&mut self.ps_var_to_extraction);
         let old_dynamic_setters = std::mem::take(&mut self.dynamic_setters);
+        let old_local_bool_vars = std::mem::take(&mut self.local_bool_vars);
         if let Some(name_node) = node.child_by_field_name("name") {
             self.method_name = Some(self.node_text(name_node));
         }
@@ -304,6 +335,7 @@ impl<'a> ExtractContext<'a> {
         self.jdbc_param_map = old_jdbc_param_map;
         self.ps_var_to_extraction = old_ps_var_to_extraction;
         self.dynamic_setters = old_dynamic_setters;
+        self.local_bool_vars = old_local_bool_vars;
     }
 
     pub(super) fn recurse(&mut self, node: Node) {
@@ -384,6 +416,8 @@ impl<'a> ExtractContext<'a> {
                     let name = self.node_text(left);
                     if let Some(val) = self.string_constants.get(&name) {
                         parts.push((val.clone(), false));
+                    } else if let Some(val) = self.string_exprs.get(&name) {
+                        parts.push((val.clone(), false));
                     } else {
                         parts.push((self.make_placeholder_for_node(left), false));
                     }
@@ -426,6 +460,8 @@ impl<'a> ExtractContext<'a> {
                 "identifier" => {
                     let name = self.node_text(right);
                     if let Some(val) = self.string_constants.get(&name) {
+                        parts.push((val.clone(), false));
+                    } else if let Some(val) = self.string_exprs.get(&name) {
                         parts.push((val.clone(), false));
                     } else {
                         parts.push((self.make_placeholder_for_node(right), false));
@@ -523,8 +559,8 @@ impl<'a> ExtractContext<'a> {
             }
         });
         match type_name {
-            Some(t) => format!("__JAVA_VAR_{}_{}__", t, sanitized),
-            None => format!("__JAVA_VAR_{}__", sanitized),
+            Some(t) => format!("__JAVA_RAW_{}_{}__", t, sanitized),
+            None => format!("__JAVA_RAW_{}__", sanitized),
         }
     }
 
@@ -540,15 +576,15 @@ impl<'a> ExtractContext<'a> {
         let sanitized = sanitize_var_name(&display_name);
         let inferred_type = self.infer_expression_type(node);
         match inferred_type {
-            Some(t) => format!("__JAVA_VAR_{}_{}__", t, sanitized),
+            Some(t) => format!("__JAVA_RAW_{}_{}__", t, sanitized),
             None => match self.var_types.get(&display_name).or_else(|| self.var_types.get(&var_name)) {
-                Some(t) => format!("__JAVA_VAR_{}_{}__", t, sanitized),
+                Some(t) => format!("__JAVA_RAW_{}_{}__", t, sanitized),
                 None => {
                     let default_type = self.infer_type_from_concat_context(node).unwrap_or_else(|| sanitized.clone());
                     if default_type != sanitized {
-                        format!("__JAVA_VAR_{}_{}__", default_type, sanitized)
+                        format!("__JAVA_RAW_{}_{}__", default_type, sanitized)
                     } else {
-                        format!("__JAVA_VAR_{}__", sanitized)
+                        format!("__JAVA_RAW_{}__", sanitized)
                     }
                 }
             },
@@ -584,7 +620,7 @@ impl<'a> ExtractContext<'a> {
         loop {
             let parent = current.parent()?;
             match parent.kind() {
-                "variable_declarator" => {
+                "variable_declarator" | "resource" => {
                     if let Some(name_node) = parent.child_by_field_name("name") {
                         return Some(self.node_text(name_node));
                     }
@@ -603,6 +639,17 @@ impl<'a> ExtractContext<'a> {
                 _ => return None,
             }
         }
+    }
+
+    pub(super) fn visit_resource(&mut self, node: Node) {
+        if let Some(type_node) = node.child_by_field_name("type") {
+            if let Some(type_name) = self.extract_type_name(type_node) {
+                if let Some(name_node) = node.child_by_field_name("name") {
+                    self.var_types.insert(self.node_text(name_node), type_name);
+                }
+            }
+        }
+        self.recurse(node);
     }
 
     fn infer_expression_type(&self, node: Node) -> Option<String> {
@@ -684,9 +731,40 @@ impl<'a> ExtractContext<'a> {
         }
     }
 
-    /// After collecting setXxx() info, replace __JAVA_VAR_JDBC_PARAM_N__
-    /// with __JAVA_VAR_{Type}_{name}__ in the extracted SQL.
     pub(super) fn backfill_jdbc_params(&mut self) {
+        // Pre-scan: detect var_names that appear for multiple param indices in the same extraction.
+        // e.g. `params` for indices 1,2,3 → need disambiguation.
+        let mut dup_names: std::collections::HashMap<usize, std::collections::HashSet<String>> =
+            std::collections::HashMap::new();
+        {
+            let mut name_to_indices: std::collections::HashMap<
+                usize,
+                std::collections::HashMap<String, Vec<usize>>,
+            > = std::collections::HashMap::new();
+            for ((ps_var, _param_idx), info) in &self.jdbc_param_map {
+                if let Some(&ext_idx) = self.ps_var_to_extraction.get(ps_var) {
+                    if let Some(name) = &info.var_name {
+                        name_to_indices
+                            .entry(ext_idx)
+                            .or_default()
+                            .entry(name.clone())
+                            .or_default()
+                            .push(info.index);
+                    }
+                }
+            }
+            for (ext_idx, name_map) in &name_to_indices {
+                for (name, indices) in name_map {
+                    if indices.len() > 1 {
+                        dup_names
+                            .entry(*ext_idx)
+                            .or_default()
+                            .insert(name.clone());
+                    }
+                }
+            }
+        }
+
         let mut to_reparse: std::collections::HashSet<usize> = std::collections::HashSet::new();
 
         for ((ps_var, _param_idx), info) in &self.jdbc_param_map {
@@ -701,7 +779,14 @@ impl<'a> ExtractContext<'a> {
 
             let old = format!("__JAVA_VAR_JDBC_PARAM_{}__", info.index);
             let new = match &info.var_name {
-                Some(name) => format!("__JAVA_VAR_{}_{}__", info.java_type, sanitize_var_name(name)),
+                Some(name) => {
+                    let sanitized = sanitize_var_name(name);
+                    if dup_names.get(&ext_idx).is_some_and(|s| s.contains(name)) {
+                        format!("__JAVA_VAR_{}_{}_{}__", info.java_type, sanitized, info.index)
+                    } else {
+                        format!("__JAVA_VAR_{}_{}__", info.java_type, sanitized)
+                    }
+                }
                 None => format!("__JAVA_VAR_{}_JDBC_PARAM_{}__", info.java_type, info.index),
             };
             ext.sql = ext.sql.replace(&old, &new);
@@ -945,6 +1030,426 @@ impl<'a> ExtractContext<'a> {
                 self.string_constants.get(&name).cloned()
             }
             None => None,
+        }
+    }
+
+    // ── Cross-method evaluation helpers ──
+
+    /// Extract elements from `Set.of("a", "b", ...)` into `known_sets`.
+    pub(super) fn try_extract_set_of(&mut self, value_node: Node, var_name: &str) {
+        if value_node.kind() != "method_invocation" {
+            return;
+        }
+        let method_name = match value_node.child_by_field_name("name") {
+            Some(n) => self.node_text(n),
+            None => return,
+        };
+        if method_name != "of" {
+            return;
+        }
+        let args = match value_node.child_by_field_name("arguments") {
+            Some(n) => n,
+            None => return,
+        };
+        let mut elements = Vec::new();
+        for i in 0..args.child_count() {
+            if let Some(child) = args.child(i) {
+                if child.kind() == "string_literal" {
+                    let raw = self.node_text(child);
+                    elements.push(self.decode_java_string(&raw, false));
+                }
+            }
+        }
+        if !elements.is_empty() {
+            self.known_sets.insert(var_name.to_string(), elements);
+        }
+    }
+
+    /// Track `new ArrayList<>()` declarations in `list_sources`.
+    pub(super) fn try_track_list_declaration(&mut self, value_node: Node, var_name: &str) {
+        if value_node.kind() != "object_creation_expression" {
+            return;
+        }
+        let type_node = match value_node.child_by_field_name("type") {
+            Some(n) => n,
+            None => return,
+        };
+        let type_text = self.node_text(type_node);
+        if type_text == "ArrayList" || type_text.starts_with("ArrayList<") {
+            self.list_sources.insert(var_name.to_string(), ListSource::NewArrayList);
+        }
+    }
+
+    /// Visit `for (T var : iterable) { ... }` — detect filter → add patterns.
+    pub(super) fn visit_enhanced_for_statement(&mut self, node: Node) {
+        let loop_var_name = {
+            let mut cursor = node.walk();
+            let mut found = None;
+            for child in node.children(&mut cursor) {
+                if child.kind() == "identifier" {
+                    found = Some(self.node_text(child));
+                    break;
+                }
+            }
+            match found {
+                Some(n) => n,
+                None => { self.recurse(node); return; }
+            }
+        };
+
+        let body = match node.child_by_field_name("body") {
+            Some(n) => n,
+            None => { self.recurse(node); return; }
+        };
+
+        let mut filter_set_var: Option<String> = None;
+        let mut add_list_vars: Vec<String> = Vec::new();
+
+        let mut cursor = body.walk();
+        for child in body.children(&mut cursor) {
+            match child.kind() {
+                "if_statement" => {
+                    if let Some(set_var) = self.detect_negated_contains_guard(child, &loop_var_name) {
+                        filter_set_var = Some(set_var);
+                    }
+                }
+                "expression_statement" => {
+                    if let Some(list_var) = self.detect_list_add_call(child, &loop_var_name) {
+                        add_list_vars.push(list_var);
+                    }
+                }
+                "block" => {
+                    let mut bc = child.walk();
+                    for stmt in child.children(&mut bc) {
+                        match stmt.kind() {
+                            "if_statement" => {
+                                if let Some(set_var) = self.detect_negated_contains_guard(stmt, &loop_var_name) {
+                                    filter_set_var = Some(set_var);
+                                }
+                            }
+                            "expression_statement" => {
+                                if let Some(list_var) = self.detect_list_add_call(stmt, &loop_var_name) {
+                                    add_list_vars.push(list_var);
+                                }
+                            }
+                            _ => {}
+                        }
+                    }
+                }
+                _ => {}
+            }
+        }
+
+        if let Some(ref set_var) = filter_set_var {
+            if self.known_sets.contains_key(set_var) {
+                for list_var in &add_list_vars {
+                    self.list_sources.insert(list_var.clone(), ListSource::Filtered {
+                        source_set_var: set_var.clone(),
+                    });
+                }
+            }
+        }
+
+        self.recurse(node);
+    }
+
+    /// Visit `if (condition) { ... }` with boolean tracking.
+    /// When condition is `!var` and `var` is tracked as `true`, skip the consequence.
+    pub(super) fn visit_if_statement(&mut self, node: Node) {
+        let condition = node.child_by_field_name("condition");
+        let consequence = node.child_by_field_name("consequence");
+        let alternative = node.child_by_field_name("alternative");
+
+        let mut should_visit_consequence = true;
+
+        if let Some(cond) = condition {
+            // Unwrap parenthesized_expression (tree-sitter includes `( )` in condition)
+            let inner = if cond.kind() == "parenthesized_expression" {
+                cond.named_child(0)
+            } else {
+                Some(cond)
+            };
+            if let Some(expr) = inner {
+                if expr.kind() == "unary_expression" {
+                    let has_bang = expr.child_by_field_name("operator")
+                        .map(|op| self.node_text(op) == "!")
+                        .unwrap_or(false);
+                    if has_bang {
+                        if let Some(operand) = expr.child_by_field_name("operand") {
+                            if operand.kind() == "identifier" {
+                                let var_name = self.node_text(operand);
+                                if let Some(&val) = self.local_bool_vars.get(&var_name) {
+                                    should_visit_consequence = !val;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        if should_visit_consequence {
+            if let Some(cons) = consequence {
+                self.visit(cons);
+            }
+        }
+        if let Some(alt) = alternative {
+            self.visit(alt);
+        }
+    }
+
+    /// Check if an if_statement matches: `if (!setVar.contains(loopVar.method())) throw ...`
+    fn detect_negated_contains_guard(&self, if_node: Node, loop_var: &str) -> Option<String> {
+        let condition = if_node.child_by_field_name("condition")?;
+        let consequence = if_node.child_by_field_name("consequence")?;
+
+        // consequence must be a throw_statement (possibly wrapped in a block with braces)
+        let is_throw = consequence.kind() == "throw_statement"
+            || (consequence.kind() == "block"
+                && consequence.named_child_count() == 1
+                && consequence.named_child(0).map_or(false, |c| c.kind() == "throw_statement"));
+        if !is_throw {
+            return None;
+        }
+
+        // condition must be: !expr or expr is a negated expression
+        let inner = if condition.kind() == "unary_expression" {
+            let op = condition.child_by_field_name("operator")?;
+            if self.node_text(op) != "!" {
+                return None;
+            }
+            condition.child_by_field_name("operand")?
+        } else if condition.kind() == "parenthesized_expression" {
+            // Check inside parens for negation pattern
+            let inner_expr = condition.named_child(0)?;
+            if inner_expr.kind() == "unary_expression" {
+                let op = inner_expr.child_by_field_name("operator")?;
+                if self.node_text(op) != "!" {
+                    return None;
+                }
+                inner_expr.child_by_field_name("operand")?
+            } else {
+                return None;
+            }
+        } else {
+            return None;
+        };
+
+        if inner.kind() != "method_invocation" {
+            return None;
+        }
+        let name = match inner.child_by_field_name("name") {
+            Some(n) => self.node_text(n),
+            None => return None,
+        };
+        if name != "contains" {
+            return None;
+        }
+        let obj = match inner.child_by_field_name("object") {
+            Some(n) => n,
+            None => return None,
+        };
+        if obj.kind() != "identifier" {
+            return None;
+        }
+        let set_var = self.node_text(obj);
+
+        // Check first argument starts with loop_var (e.g., `entry.getKey()`)
+        let args = inner.child_by_field_name("arguments")?;
+        let first_arg = self.nth_arg_node(&args, 0)?;
+        let arg_text = self.node_text(first_arg);
+        if !arg_text.starts_with(loop_var) {
+            return None;
+        }
+
+        Some(set_var)
+    }
+
+    /// Check if an expression_statement matches: `listVar.add(loopVar.method())`
+    fn detect_list_add_call(&self, stmt: Node, loop_var: &str) -> Option<String> {
+        if stmt.kind() != "expression_statement" {
+            return None;
+        }
+        let expr = stmt.named_child(0)?;
+        if expr.kind() != "method_invocation" {
+            return None;
+        }
+        let name = match expr.child_by_field_name("name") {
+            Some(n) => self.node_text(n),
+            None => return None,
+        };
+        if name != "add" {
+            return None;
+        }
+        let obj = match expr.child_by_field_name("object") {
+            Some(n) => n,
+            None => return None,
+        };
+        if obj.kind() != "identifier" {
+            return None;
+        }
+        let list_var = self.node_text(obj);
+
+        // Check first argument starts with loop_var
+        let args = expr.child_by_field_name("arguments")?;
+        let first_arg = self.nth_arg_node(&args, 0)?;
+        let arg_text = self.node_text(first_arg);
+        if !arg_text.starts_with(loop_var) {
+            return None;
+        }
+
+        Some(list_var)
+    }
+
+    /// Extract the n-th named argument from an argument_list node.
+    fn nth_arg_node<'b>(&self, args: &Node<'b>, index: u32) -> Option<Node<'b>> {
+        let mut expr_idx = 0u32;
+        for i in 0..args.child_count() {
+            if let Some(child) = args.child(i) {
+                if child.is_named() {
+                    if expr_idx == index {
+                        return Some(child);
+                    }
+                    expr_idx += 1;
+                }
+            }
+        }
+        None
+    }
+
+    // ── Expression evaluation ──
+
+    /// Try to evaluate any node to a concrete string value.
+    pub(super) fn try_evaluate_to_string(&self, node: Node) -> Option<String> {
+        match node.kind() {
+            "string_literal" => {
+                let raw = self.node_text(node);
+                Some(self.decode_java_string(&raw, raw.starts_with("\"\"\"")))
+            }
+            "identifier" => {
+                let name = self.node_text(node);
+                if let Some(val) = self.string_constants.get(&name) {
+                    return Some(val.clone());
+                }
+                if let Some(val) = self.string_exprs.get(&name) {
+                    return Some(val.clone());
+                }
+                None
+            }
+            "method_invocation" => self.try_evaluate_method_result(node),
+            _ => None,
+        }
+    }
+
+    /// Evaluate a method invocation to a string result.
+    pub(super) fn try_evaluate_method_result(&self, node: Node) -> Option<String> {
+        let name = match node.child_by_field_name("name") {
+            Some(n) => self.node_text(n),
+            None => return None,
+        };
+        match name.as_str() {
+            "join" => self.evaluate_string_join(node),
+            "nCopies" => self.evaluate_ncopies_string(node),
+            _ => None,
+        }
+    }
+
+    /// `String.join(delim, iterable)` → evaluate to joined string.
+    fn evaluate_string_join(&self, node: Node) -> Option<String> {
+        let args = node.child_by_field_name("arguments")?;
+        let delim = self.try_eval_string_arg_node(&args, 0)?;
+        let elements = self.try_evaluate_collection_from_arg(&args, 1)?;
+        Some(elements.join(&delim))
+    }
+
+    /// `Collections.nCopies(count, element)` — evaluate to comma-separated string.
+    fn evaluate_ncopies_string(&self, node: Node) -> Option<String> {
+        let args = node.child_by_field_name("arguments")?;
+        let count = self.resolve_int_arg_node(&args, 0)?;
+        let element = self.try_eval_string_arg_node(&args, 1)?;
+        let parts: Vec<&str> = std::iter::repeat(element.as_str()).take(count).collect();
+        Some(parts.join(", "))
+    }
+
+    /// Try to evaluate a method argument to a Vec<String> (collection).
+    fn try_evaluate_collection_from_arg(&self, args: &Node, arg_idx: u32) -> Option<Vec<String>> {
+        let source = self.nth_arg_node(args, arg_idx)?;
+        match source.kind() {
+            "identifier" => {
+                let name = self.node_text(source);
+                if let Some(src) = self.list_sources.get(&name) {
+                    match src {
+                        ListSource::Filtered { source_set_var } => {
+                            return self.known_sets.get(source_set_var).cloned();
+                        }
+                        ListSource::NewArrayList => return None,
+                    }
+                }
+                None
+            }
+            "method_invocation" => {
+                let method_name = match source.child_by_field_name("name") {
+                    Some(n) => self.node_text(n),
+                    None => return None,
+                };
+                if method_name == "nCopies" {
+                    let inner_args = source.child_by_field_name("arguments")?;
+                    let count = self.resolve_int_arg_node(&inner_args, 0)?;
+                    let element = self.try_eval_string_arg_node(&inner_args, 1)?;
+                    Some(vec![element; count])
+                } else {
+                    None
+                }
+            }
+            _ => None,
+        }
+    }
+
+    /// Resolve an argument to an integer value (literal or `var.size()` → known_set size).
+    fn resolve_int_arg_node(&self, args: &Node, arg_idx: u32) -> Option<usize> {
+        let node = self.nth_arg_node(args, arg_idx)?;
+        match node.kind() {
+            "decimal_integer_literal" => {
+                self.node_text(node).parse::<usize>().ok()
+            }
+            "method_invocation" => {
+                let name = match node.child_by_field_name("name") {
+                    Some(n) => self.node_text(n),
+                    None => return None,
+                };
+                if name != "size" {
+                    return None;
+                }
+                let obj = match node.child_by_field_name("object") {
+                    Some(n) => n,
+                    None => return None,
+                };
+                if obj.kind() != "identifier" {
+                    return None;
+                }
+                let obj_name = self.node_text(obj);
+                if let Some(src) = self.list_sources.get(&obj_name) {
+                    match src {
+                        ListSource::Filtered { source_set_var } => {
+                            return self.known_sets.get(source_set_var).map(|s| s.len());
+                        }
+                        _ => return None,
+                    }
+                }
+                None
+            }
+            _ => None,
+        }
+    }
+
+    /// Extract a string literal argument value.
+    fn try_eval_string_arg_node(&self, args: &Node, arg_idx: u32) -> Option<String> {
+        let node = self.nth_arg_node(args, arg_idx)?;
+        if node.kind() == "string_literal" {
+            let raw = self.node_text(node);
+            Some(self.decode_java_string(&raw, raw.starts_with("\"\"\"")))
+        } else {
+            self.try_evaluate_to_string(node)
         }
     }
 }

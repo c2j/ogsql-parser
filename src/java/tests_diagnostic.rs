@@ -90,7 +90,7 @@ fn diag_b1_field_string_type_in_method_concat() {
     let result = extract_sql_from_java(java, "Dao.java", &JavaExtractConfig::default());
     assert_eq!(result.extractions.len(), 1, "should extract SQL from field concat");
     assert!(
-        result.extractions[0].sql.contains("__JAVA_VAR_String_tableName__"),
+        result.extractions[0].sql.contains("__JAVA_RAW_String_tableName__"),
         "field variable should have String type from var_types, got: {}",
         result.extractions[0].sql
     );
@@ -109,8 +109,8 @@ fn diag_b2_field_int_type_in_sql() {
     let result = extract_sql_from_java(java, "Dao.java", &JavaExtractConfig::default());
     assert_eq!(result.extractions.len(), 1, "should extract SQL with field int variable");
     assert!(
-        result.extractions[0].sql.contains("__JAVA_VAR_int_limit__"),
-        "field int should produce __JAVA_VAR_int_limit__, not String; \
+        result.extractions[0].sql.contains("__JAVA_RAW_int_limit__"),
+        "field int should produce __JAVA_RAW_int_limit__, not String; \
         needs field type extraction in visit_field_declaration, got: {}",
         result.extractions[0].sql
     );
@@ -318,7 +318,7 @@ fn diag_d6_int_variable_typed_concat() {
     let result = extract_sql_from_java(java, "Dao.java", &JavaExtractConfig::default());
     assert_eq!(result.extractions.len(), 1);
     assert!(
-        result.extractions[0].sql.contains("__JAVA_VAR_int_limit__"),
+        result.extractions[0].sql.contains("__JAVA_RAW_int_limit__"),
         "local int variable should produce int-typed placeholder, got: {}",
         result.extractions[0].sql
     );
@@ -775,9 +775,9 @@ fn diag_j3_mybatis_dynamic_sql_pattern() {
     let result = extract_sql_from_java(java, "Mapper.java", &JavaExtractConfig::default());
     assert_eq!(result.extractions.len(), 1);
     let sql = &result.extractions[0].sql;
-    assert!(sql.contains("__JAVA_VAR_tableName__"), "dollar-brace raw placeholder, got: {sql}");
+    assert!(sql.contains("__JAVA_RAW_tableName__"), "dollar-brace raw placeholder, got: {sql}");
     assert!(sql.contains("__JAVA_VAR_int_status__"), "hash-brace typed placeholder, got: {sql}");
-    assert!(sql.contains("__JAVA_VAR_String_ids__"), "dollar-brace raw placeholder for ids, got: {sql}");
+    assert!(sql.contains("__JAVA_RAW_String_ids__"), "dollar-brace raw placeholder for ids, got: {sql}");
 }
 
 #[test]
@@ -798,9 +798,9 @@ fn diag_j4_complex_sb_with_variable_parts() {
     let sql = &result.extractions[0].sql;
     assert!(sql.contains("SELECT * FROM"), "base SB, got: {}", sql);
     assert!(sql.contains("WHERE 1=1"), "append, got: {}", sql);
-    assert!(sql.contains("__JAVA_VAR_String_table__"), "table var, got: {}", sql);
-    assert!(sql.contains("__JAVA_VAR_String_status__"), "status var, got: {}", sql);
-    assert!(sql.contains("__JAVA_VAR_int_limit__"), "limit var, got: {}", sql);
+    assert!(sql.contains("__JAVA_RAW_String_table__"), "table var, got: {}", sql);
+    assert!(sql.contains("__JAVA_RAW_String_status__"), "status var, got: {}", sql);
+    assert!(sql.contains("__JAVA_RAW_int_limit__"), "limit var, got: {}", sql);
 }
 
 #[test]
@@ -1948,7 +1948,7 @@ fn diag_p5_cross_file_sb_init_with_constant() {
     );
     let sql = &dao.extractions[0].sql;
     assert!(sql.contains("SELECT u.id, u.name FROM users u"), "constant value as SB init, got: {}", sql);
-    assert!(sql.contains("WHERE u.name LIKE ?"), "append should be tracked, got: {}", sql);
+    assert!(sql.contains("WHERE u.name LIKE __JAVA_VAR_JDBC_PARAM_1__"), "append should be tracked, got: {}", sql);
 }
 
 #[test]

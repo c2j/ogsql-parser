@@ -348,7 +348,6 @@ impl<'a> ExtractContext<'a> {
         self.jdbc_param_map.insert((ps_var, param_index), JdbcParamInfo { index: param_index, java_type, var_name });
     }
 
-    /// Extract a variable name from the setter value argument.
     fn extract_setter_value_name(&self, node: Node) -> Option<String> {
         match node.kind() {
             "identifier" => Some(self.node_text(node)),
@@ -357,7 +356,35 @@ impl<'a> ExtractContext<'a> {
                 let parts: Vec<&str> = text.rsplitn(2, '.').collect();
                 Some(parts[0].to_string())
             }
-            "method_invocation" => node.child_by_field_name("name").map(|n| self.node_text(n)),
+            "method_invocation" => {
+                if let Some(obj) = node.child_by_field_name("object") {
+                    match obj.kind() {
+                        "identifier" => return Some(self.node_text(obj)),
+                        "field_access" => {
+                            if let Some(field) = obj.child_by_field_name("field") {
+                                return Some(self.node_text(field));
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+                node.child_by_field_name("name").map(|n| self.node_text(n))
+            }
+            "object_creation_expression" => {
+                let mut cursor = node.walk();
+                for child in node.children(&mut cursor) {
+                    if child.kind() == "argument_list" {
+                        let mut ac = child.walk();
+                        for arg in child.children(&mut ac) {
+                            if arg.kind() == "," || arg.kind() == "(" || arg.kind() == ")" {
+                                continue;
+                            }
+                            return self.extract_setter_value_name(arg);
+                        }
+                    }
+                }
+                None
+            }
             "binary_expression" => {
                 let mut found = None;
                 let mut stack = vec![node];

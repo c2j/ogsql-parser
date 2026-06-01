@@ -41,6 +41,23 @@ impl<'a> ExtractContext<'a> {
         for child in node.children(&mut cursor) {
             self.visit(child);
         }
+
+        // Track Set.of() declarations in fields for cross-method evaluation
+        if let Some(ref ts) = type_name {
+            if ts == "Set" || ts.starts_with("Set<") {
+                let mut cursor = node.walk();
+                for child in node.children(&mut cursor) {
+                    if child.kind() == "variable_declarator" {
+                        if let Some(value_node) = child.child_by_field_name("value") {
+                            let var_name = child.child_by_field_name("name")
+                                .map(|n| self.node_text(n))
+                                .unwrap_or_default();
+                            self.try_extract_set_of(value_node, &var_name);
+                        }
+                    }
+                }
+            }
+        }
     }
 
     pub(super) fn visit_local_variable_declaration(&mut self, node: Node) {
@@ -68,6 +85,53 @@ impl<'a> ExtractContext<'a> {
 
         if is_string {
             self.track_local_string_constant(node);
+        }
+
+        // Track Set.of() and List declarations for cross-method evaluation
+        if let Some(ref t) = type_name {
+            let is_set = t == "Set" || t.starts_with("Set<");
+            let is_list = matches!(t.as_str(), "List" | "ArrayList" | "Collection")
+                || t.starts_with("List<") || t.starts_with("ArrayList<") || t.starts_with("Collection<");
+            if is_set || is_list {
+                let mut cursor = node.walk();
+                for child in node.children(&mut cursor) {
+                    if child.kind() == "variable_declarator" {
+                        let var_name = child.child_by_field_name("name")
+                            .map(|n| self.node_text(n))
+                            .unwrap_or_default();
+                        if is_set {
+                            if let Some(value_node) = child.child_by_field_name("value") {
+                                self.try_extract_set_of(value_node, &var_name);
+                            }
+                        }
+                        if is_list {
+                            if let Some(value_node) = child.child_by_field_name("value") {
+                                self.try_track_list_declaration(value_node, &var_name);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Track boolean variable initial values for if-statement handling
+        if type_name.as_deref() == Some("boolean") {
+            let mut bc = node.walk();
+            for child in node.children(&mut bc) {
+                if child.kind() == "variable_declarator" {
+                    let var_name = child.child_by_field_name("name")
+                        .map(|n| self.node_text(n))
+                        .unwrap_or_default();
+                    if let Some(value_node) = child.child_by_field_name("value") {
+                        let text = self.node_text(value_node);
+                        if text == "true" {
+                            self.local_bool_vars.insert(var_name, true);
+                        } else if text == "false" {
+                            self.local_bool_vars.insert(var_name, false);
+                        }
+                    }
+                }
+            }
         }
 
         let mut cursor = node.walk();
@@ -221,7 +285,15 @@ impl<'a> ExtractContext<'a> {
 
         let (sql_text, is_text_block) = match self.extract_string_value(value_node) {
             Some(v) => v,
-            None => return,
+            None => {
+                // Eagerly evaluate String method chains (String.join, nCopies, etc.)
+                if value_node.kind() == "method_invocation" {
+                    if let Some(evaluated) = self.try_evaluate_method_result(value_node) {
+                        self.string_exprs.insert(var_name.clone(), evaluated);
+                    }
+                }
+                return;
+            },
         };
 
         let var_name_upper = var_name.to_uppercase();
@@ -331,15 +403,16 @@ impl<'a> ExtractContext<'a> {
             tracked.sql.push_str(&text);
             let idx = tracked.extraction_index;
             let new_sql = tracked.sql.clone();
+            let converted_sql = self.convert_placeholders(&new_sql);
 
             let sql_kind = self.extractions[idx].sql_kind;
-            let parse_result = self.try_parse_sql(&new_sql, sql_kind);
+            let parse_result = self.try_parse_sql(&converted_sql, sql_kind);
 
             let ext = match self.extractions.get_mut(idx) {
                 Some(e) => e,
                 None => return,
             };
-            ext.sql = new_sql;
+            ext.sql = converted_sql;
             ext.is_concatenated = true;
             ext.origin.line = node.start_position().row + 1;
             ext.origin.column = node.start_position().column;
@@ -423,14 +496,15 @@ impl<'a> ExtractContext<'a> {
 
             let idx = tracked.extraction_index;
             let new_sql = tracked.sql.clone();
+            let converted_sql = self.convert_placeholders(&new_sql);
             let sql_kind = self.extractions[idx].sql_kind;
-            let parse_result = self.try_parse_sql(&new_sql, sql_kind);
+            let parse_result = self.try_parse_sql(&converted_sql, sql_kind);
 
             let ext = match self.extractions.get_mut(idx) {
                 Some(e) => e,
                 None => return,
             };
-            ext.sql = new_sql;
+            ext.sql = converted_sql;
             ext.is_concatenated = true;
             ext.origin.line = node.start_position().row + 1;
             ext.origin.column = node.start_position().column;
@@ -472,14 +546,15 @@ impl<'a> ExtractContext<'a> {
 
                 let idx = tracked.extraction_index;
                 let new_sql = tracked.sql.clone();
+                let converted_sql = self.convert_placeholders(&new_sql);
                 let sql_kind = self.extractions[idx].sql_kind;
-                let parse_result = self.try_parse_sql(&new_sql, sql_kind);
+                let parse_result = self.try_parse_sql(&converted_sql, sql_kind);
 
                 let ext = match self.extractions.get_mut(idx) {
                     Some(e) => e,
                     None => return,
                 };
-                ext.sql = new_sql;
+                ext.sql = converted_sql;
                 ext.is_concatenated = true;
                 ext.origin.line = node.start_position().row + 1;
                 ext.origin.column = node.start_position().column;
@@ -532,14 +607,15 @@ impl<'a> ExtractContext<'a> {
 
                 let idx = tracked.extraction_index;
                 let new_sql = tracked.sql.clone();
+                let converted_sql = self.convert_placeholders(&new_sql);
                 let sql_kind = self.extractions[idx].sql_kind;
-                let parse_result = self.try_parse_sql(&new_sql, sql_kind);
+                let parse_result = self.try_parse_sql(&converted_sql, sql_kind);
 
                 let ext = match self.extractions.get_mut(idx) {
                     Some(e) => e,
                     None => return,
                 };
-                ext.sql = new_sql;
+                ext.sql = converted_sql;
                 ext.is_concatenated = true;
                 ext.origin.line = node.start_position().row + 1;
                 ext.origin.column = node.start_position().column;
@@ -563,6 +639,9 @@ impl<'a> ExtractContext<'a> {
             }
         };
         let var_name = self.node_text(left);
+
+        // Track boolean variable values (e.g., `first = false`) for if-statement handling
+        self.track_bool_assignment(&var_name, &node);
 
         if !self.sql_vars.contains_key(&var_name) {
             self.recurse(node);
@@ -602,6 +681,18 @@ impl<'a> ExtractContext<'a> {
         }
 
         self.recurse(node);
+    }
+
+    /// Track boolean assignments like `first = false` for if-statement handling.
+    fn track_bool_assignment(&mut self, var_name: &str, node: &Node) {
+        if let Some(right) = node.child_by_field_name("right") {
+            let text = self.node_text(right);
+            if text == "true" {
+                self.local_bool_vars.insert(var_name.to_string(), true);
+            } else if text == "false" {
+                self.local_bool_vars.insert(var_name.to_string(), false);
+            }
+        }
     }
 
     pub(super) fn extract_concat_string_parts(&self, node: Node) -> Option<Vec<(String, bool)>> {
@@ -648,15 +739,16 @@ impl<'a> ExtractContext<'a> {
         }
         let idx = tracked.extraction_index;
         let new_sql = tracked.sql.clone();
+        let converted_sql = self.convert_placeholders(&new_sql);
 
         let sql_kind = self.extractions[idx].sql_kind;
-        let parse_result = self.try_parse_sql(&new_sql, sql_kind);
+        let parse_result = self.try_parse_sql(&converted_sql, sql_kind);
 
         let ext = match self.extractions.get_mut(idx) {
             Some(e) => e,
             None => return,
         };
-        ext.sql = new_sql;
+        ext.sql = converted_sql;
         ext.is_concatenated = true;
         ext.origin.line = node.start_position().row + 1;
         ext.origin.column = node.start_position().column;

@@ -425,7 +425,7 @@ fn test_cross_statement_concat_assign() {
     assert!(result.errors.is_empty(), "Errors: {:?}", result.errors);
     assert_eq!(result.extractions.len(), 1);
     let ext = &result.extractions[0];
-    assert_eq!(ext.sql, "select a from t where id='__JAVA_VAR_String_mail__'");
+    assert_eq!(ext.sql, "select a from t where id='__JAVA_RAW_String_mail__'");
     assert!(ext.is_concatenated);
     assert!(ext
         .parse_result
@@ -448,7 +448,7 @@ fn test_cross_statement_concat_plus_eq() {
     assert!(result.errors.is_empty(), "Errors: {:?}", result.errors);
     assert_eq!(result.extractions.len(), 1);
     let ext = &result.extractions[0];
-    assert_eq!(ext.sql, "select * from t where id=__JAVA_VAR_int_id__ and name='__JAVA_VAR_String_name__'");
+    assert_eq!(ext.sql, "select * from t where id=__JAVA_RAW_int_id__ and name='__JAVA_RAW_String_name__'");
     assert!(ext.is_concatenated);
 }
 
@@ -470,7 +470,7 @@ fn test_cross_statement_concat_multi_step() {
     let ext = &result.extractions[0];
     assert_eq!(
         ext.sql,
-        "select * from t where id=__JAVA_VAR_int_id__ and name='__JAVA_VAR_String_name__' and status='__JAVA_VAR_String_status__'"
+        "select * from t where id=__JAVA_RAW_int_id__ and name='__JAVA_RAW_String_name__' and status='__JAVA_RAW_String_status__'"
     );
     assert!(ext.is_concatenated);
 }
@@ -712,7 +712,7 @@ fn test_string_builder_basic_append() {
     let result = extract_sql_from_java(java, "Dao.java", &JavaExtractConfig::default());
     assert!(result.errors.is_empty(), "Errors: {:?}", result.errors);
     assert_eq!(result.extractions.len(), 1);
-    assert_eq!(result.extractions[0].sql, "SELECT * FROM users WHERE id = __JAVA_VAR_int_id__");
+    assert_eq!(result.extractions[0].sql, "SELECT * FROM users WHERE id = __JAVA_RAW_int_id__");
     assert!(result.extractions[0].is_concatenated);
 }
 
@@ -730,7 +730,7 @@ fn test_string_builder_empty_init() {
     assert!(result.errors.is_empty(), "Errors: {:?}", result.errors);
     assert_eq!(result.extractions.len(), 1);
     assert!(result.extractions[0].sql.contains("SELECT * FROM"));
-    assert!(result.extractions[0].sql.contains("__JAVA_VAR_String_table__"));
+    assert!(result.extractions[0].sql.contains("__JAVA_RAW_String_table__"));
 }
 
 #[test]
@@ -749,7 +749,7 @@ fn test_string_builder_multi_step() {
     assert_eq!(result.extractions.len(), 1);
     assert_eq!(
         result.extractions[0].sql,
-        "SELECT * FROM users WHERE 1=1 AND id = __JAVA_VAR_int_id__ AND name = '__JAVA_VAR_String_name__'"
+        "SELECT * FROM users WHERE 1=1 AND id = __JAVA_RAW_int_id__ AND name = '__JAVA_RAW_String_name__'"
     );
 }
 
@@ -800,7 +800,7 @@ fn test_string_buffer_basic() {
     assert!(result.errors.is_empty(), "Errors: {:?}", result.errors);
     assert_eq!(result.extractions.len(), 1);
     assert!(result.extractions[0].sql.contains("SELECT * FROM t"));
-    assert!(result.extractions[0].sql.contains("__JAVA_VAR_int_id__"));
+    assert!(result.extractions[0].sql.contains("__JAVA_RAW_int_id__"));
 }
 
 #[test]
@@ -1048,7 +1048,7 @@ fn test_mybatis_dollar_placeholder_converted() {
     "#;
     let result = extract_sql_from_java(java, "Mapper.java", &JavaExtractConfig::default());
     assert_eq!(result.extractions.len(), 1);
-    assert!(result.extractions[0].sql.contains("__JAVA_VAR_tableName__"));
+    assert!(result.extractions[0].sql.contains("__JAVA_RAW_tableName__"));
     assert!(result.extractions[0].sql.contains("__JAVA_VAR_int_id__"));
 }
 
@@ -1602,7 +1602,7 @@ fn test_user_scenario_submit_data_cross_method() {
     let result = extract_sql_from_java(java, "DataProcessor.java", &JavaExtractConfig::default());
     assert_eq!(result.extractions.len(), 1);
     let ext = &result.extractions[0];
-    assert!(ext.sql.contains("__JAVA_VAR_String_accno__"), "SQL: {}", ext.sql);
+    assert!(ext.sql.contains("__JAVA_RAW_String_accno__"), "SQL: {}", ext.sql);
     assert!(ext.sql.contains("__JAVA_VAR_String_DYNAMIC_1__"), "SQL: {}", ext.sql);
     assert!(ext.sql.contains("__JAVA_VAR_String_DYNAMIC_10__"), "SQL: {}", ext.sql);
     assert!(!ext.sql.contains("__JAVA_VAR_JDBC_PARAM_"), "SQL: {}", ext.sql);
@@ -1622,7 +1622,7 @@ fn test_undeclared_var_in_string_concat_gets_string_type() {
     let result = extract_sql_from_java(java, "Foo.java", &JavaExtractConfig::default());
     assert_eq!(result.extractions.len(), 1);
     let ext = &result.extractions[0];
-    assert!(ext.sql.contains("__JAVA_VAR_String_someVar__"), "SQL: {}", ext.sql);
+    assert!(ext.sql.contains("__JAVA_RAW_String_someVar__"), "SQL: {}", ext.sql);
 }
 
 #[test]
@@ -1671,6 +1671,111 @@ fn test_extra_sql_var_patterns_cmd_sb_empty_init() {
     assert_eq!(result.extractions[0].origin.variable_name.as_deref(), Some("cmd"));
 }
 
+// ── Phase X: __JAVA_RAW_ prefix and SB ? placeholder fixes ──
+
+#[test]
+fn test_sb_append_with_jdbc_placeholder_parses_successfully() {
+    let java = r#"
+        public class Dao {
+            public void search() {
+                StringBuilder sql = new StringBuilder("SELECT * FROM users WHERE 1=1");
+                sql.append(" AND name LIKE ?");
+                sql.append(" AND age > ?");
+            }
+        }
+    "#;
+    let result = extract_sql_from_java(java, "Dao.java", &JavaExtractConfig::default());
+    assert!(result.errors.is_empty(), "Java errors: {:?}", result.errors);
+    assert_eq!(result.extractions.len(), 1);
+    let ext = &result.extractions[0];
+    assert!(ext.sql.contains("__JAVA_VAR_JDBC_PARAM_1__"), "SQL: {}", ext.sql);
+    assert!(ext.sql.contains("__JAVA_VAR_JDBC_PARAM_2__"), "SQL: {}", ext.sql);
+    // Should parse successfully (only warnings allowed)
+    assert!(ext.parse_result.is_some(), "No parse result");
+    let parse_result = ext.parse_result.as_ref().unwrap();
+    let real_errors: Vec<_> = parse_result
+        .errors.iter().filter(|e| !matches!(e, crate::parser::ParserError::Warning { .. })).collect();
+    assert!(real_errors.is_empty(), "Parse errors: {:?}", real_errors);
+}
+
+#[test]
+fn test_plus_eq_concat_jdbc_placeholder_parses_successfully() {
+    let java = r#"
+        public class Dao {
+            public void search() {
+                String sql = "SELECT * FROM users WHERE 1=1";
+                sql += " AND name LIKE ?";
+                sql += " AND age > ?";
+            }
+        }
+    "#;
+    let result = extract_sql_from_java(java, "Dao.java", &JavaExtractConfig::default());
+    assert!(result.errors.is_empty(), "Java errors: {:?}", result.errors);
+    assert_eq!(result.extractions.len(), 1);
+    let ext = &result.extractions[0];
+    assert!(ext.sql.contains("__JAVA_VAR_JDBC_PARAM_1__"), "SQL: {}", ext.sql);
+    assert!(ext.sql.contains("__JAVA_VAR_JDBC_PARAM_2__"), "SQL: {}", ext.sql);
+    assert!(ext.parse_result.is_some(), "No parse result");
+    let parse_result = ext.parse_result.as_ref().unwrap();
+    let real_errors: Vec<_> = parse_result
+        .errors.iter().filter(|e| !matches!(e, crate::parser::ParserError::Warning { .. })).collect();
+    assert!(real_errors.is_empty(), "Parse errors: {:?}", real_errors);
+}
+
+#[test]
+fn test_raw_variable_reference_uses_java_raw_prefix() {
+    let java = r#"
+        public class Dao {
+            public void query(String table) {
+                String sql = "SELECT * FROM " + table + " WHERE id = 1";
+            }
+        }
+    "#;
+    let result = extract_sql_from_java(java, "Dao.java", &JavaExtractConfig::default());
+    assert!(result.errors.is_empty(), "Errors: {:?}", result.errors);
+    assert_eq!(result.extractions.len(), 1);
+    let ext = &result.extractions[0];
+    assert!(ext.sql.contains("__JAVA_RAW_String_table__"), "SQL: {}", ext.sql);
+    assert!(!ext.sql.contains("__JAVA_VAR_String_table__"), "Should not use _VAR_ prefix, SQL: {}", ext.sql);
+}
+
+#[test]
+fn test_sb_append_raw_variable_uses_java_raw_prefix() {
+    let java = r#"
+        public class Dao {
+            public void query(int id, String name) {
+                StringBuilder sql = new StringBuilder("SELECT * FROM users WHERE 1=1");
+                sql.append(" AND id = ").append(id);
+                sql.append(" AND name = '").append(name).append("'");
+            }
+        }
+    "#;
+    let result = extract_sql_from_java(java, "Dao.java", &JavaExtractConfig::default());
+    assert!(result.errors.is_empty(), "Errors: {:?}", result.errors);
+    assert_eq!(result.extractions.len(), 1);
+    let ext = &result.extractions[0];
+    assert!(ext.sql.contains("__JAVA_RAW_int_id__"), "SQL: {}", ext.sql);
+    assert!(ext.sql.contains("__JAVA_RAW_String_name__"), "SQL: {}", ext.sql);
+    assert!(!ext.sql.contains("__JAVA_VAR_int_id__"), "Should use _RAW_ prefix, SQL: {}", ext.sql);
+    assert!(!ext.sql.contains("__JAVA_VAR_String_name__"), "Should use _RAW_ prefix, SQL: {}", ext.sql);
+}
+
+#[test]
+fn test_dollar_placeholder_uses_java_raw_prefix() {
+    let java = r#"
+        public interface Mapper {
+            @Select("SELECT * FROM ${tableName} WHERE id = #{id}")
+            List<Map> findAll(@Param("tableName") String table, @Param("id") int id);
+        }
+    "#;
+    let result = extract_sql_from_java(java, "Mapper.java", &JavaExtractConfig::default());
+    assert_eq!(result.extractions.len(), 1);
+    assert!(result.extractions[0].sql.contains("__JAVA_RAW_tableName__"),
+        "Dollar-brace should produce __JAVA_RAW_, SQL: {}", result.extractions[0].sql);
+    assert!(result.extractions[0].sql.contains("__JAVA_VAR_int_id__"),
+        "Hash-brace should produce __JAVA_VAR_, SQL: {}", result.extractions[0].sql);
+}
+
 #[test]
 fn test_extra_sql_var_patterns_stmt_and_default_sql_still_works() {
     let java = r#"
@@ -1689,4 +1794,48 @@ fn test_extra_sql_var_patterns_stmt_and_default_sql_still_works() {
     assert!(stmt_ext.sql.contains("SELECT * FROM t"));
     let sql_ext = result.extractions.iter().find(|e| e.origin.variable_name.as_deref() == Some("sql")).unwrap();
     assert!(sql_ext.sql.contains("DELETE FROM temp"));
+}
+
+// ── Cross-method evaluation (Set.of → for-loop filter → nCopies → String.join) ──
+
+#[test]
+fn test_cross_method_colpart_and_placeholders() {
+    let src = r#"
+import java.util.*;
+public class Test {
+    void foo(Map<String, Object> columnValues) {
+        Set<String> allowedCols = Set.of("emp_name", "dept_id", "hire_date", "salary");
+        List<String> columns = new ArrayList<>();
+
+        for (Map.Entry<String, Object> entry : columnValues.entrySet()) {
+            if (!allowedCols.contains(entry.getKey())) throw new RuntimeException();
+            columns.add(entry.getKey());
+        }
+
+        String colPart = String.join(", ", columns);
+        String placeholderPart = String.join(", ", Collections.nCopies(columns.size(), "?"));
+        String sql = "INSERT INTO employee (" + colPart + ") VALUES (" + placeholderPart + ")";
+    }
+}
+"#;
+
+    let result = crate::java::extract_sql_from_java(src, "Test.java", &crate::java::JavaExtractConfig::default());
+    assert_eq!(result.extractions.len(), 1, "expected 1 extraction, got {:?}", result.errors);
+
+    let sql = &result.extractions[0].sql;
+
+    // colPart should expand to all allowedCols members
+    assert!(sql.contains("emp_name"), "should expand colPart, got: {}", sql);
+    assert!(sql.contains("dept_id"), "should expand colPart, got: {}", sql);
+    assert!(sql.contains("hire_date"), "should expand colPart, got: {}", sql);
+    assert!(sql.contains("salary"), "should expand colPart, got: {}", sql);
+
+    // placeholderPart should expand to 4 JDBC params
+    assert!(sql.contains("__JAVA_VAR_JDBC_PARAM_1__"), "expected JDBC params, got: {}", sql);
+    assert!(sql.contains("__JAVA_VAR_JDBC_PARAM_2__"), "expected 4 params, got: {}", sql);
+    assert!(sql.contains("__JAVA_VAR_JDBC_PARAM_3__"), "expected 4 params, got: {}", sql);
+    assert!(sql.contains("__JAVA_VAR_JDBC_PARAM_4__"), "expected 4 params, got: {}", sql);
+
+    // No __JAVA_RAW_ should survive
+    assert!(!sql.contains("__JAVA_RAW_"), "unexpected __JAVA_RAW_ in: {}", sql);
 }

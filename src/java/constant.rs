@@ -53,6 +53,9 @@ pub(super) const JDBC_SETTER_TYPES: &[(&str, &str)] = &[
     ("setCharacterStream", "Reader"),
     ("setAsciiStream", "InputStream"),
     ("setURL", "URL"),
+    ("setArray", "Array"),
+    ("setRowId", "RowId"),
+    ("setRef", "Ref"),
 ];
 
 pub(super) const SQL_KEYWORDS: &[&str] = &[
