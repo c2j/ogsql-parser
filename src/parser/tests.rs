@@ -6711,6 +6711,93 @@ fn test_hint_json_roundtrip() {
 }
 
 #[test]
+fn test_hint_position_after_select() {
+    let sql = "SELECT /*+ use_cplan */ COUNT(1) FROM t1";
+    let stmts = parse(sql);
+    let formatter = SqlFormatter::new();
+    let output = formatter.format_statement(&stmts[0]);
+    let select_pos = output.find("SELECT").unwrap();
+    let hint_pos = output.find("/*+").unwrap();
+    assert!(
+        hint_pos > select_pos,
+        "SELECT hint should appear AFTER SELECT keyword.\nOutput: {}",
+        output
+    );
+    let first_target = output[select_pos + 6..].trim_start();
+    assert!(
+        first_target.starts_with("/*+"),
+        "Hint should be immediately after SELECT keyword.\nOutput: {}",
+        output
+    );
+}
+
+#[test]
+fn test_hint_position_after_insert() {
+    let sql = "INSERT /*+ set(enable_nestloop off) */ INTO t1 (c1) VALUES (1)";
+    let stmts = parse(sql);
+    let formatter = SqlFormatter::new();
+    let output = formatter.format_statement(&stmts[0]);
+    let insert_pos = output.find("INSERT").unwrap();
+    let hint_pos = output.find("/*+").unwrap();
+    assert!(
+        hint_pos > insert_pos,
+        "INSERT hint should appear AFTER INSERT keyword.\nOutput: {}",
+        output
+    );
+}
+
+#[test]
+fn test_hint_position_after_update() {
+    let sql = "UPDATE /*+ nestloop(t1) */ t1 SET c1 = 1 WHERE c1 > 0";
+    let stmts = parse(sql);
+    let formatter = SqlFormatter::new();
+    let output = formatter.format_statement(&stmts[0]);
+    let update_pos = output.find("UPDATE").unwrap();
+    let hint_pos = output.find("/*+").unwrap();
+    assert!(
+        hint_pos > update_pos,
+        "UPDATE hint should appear AFTER UPDATE keyword.\nOutput: {}",
+        output
+    );
+}
+
+#[test]
+fn test_hint_position_after_delete() {
+    let sql = "DELETE /*+ indexscan(t1 idx_c1) */ FROM t1 WHERE c1 > 0";
+    let stmts = parse(sql);
+    let formatter = SqlFormatter::new();
+    let output = formatter.format_statement(&stmts[0]);
+    let delete_pos = output.find("DELETE").unwrap();
+    let from_pos = output.find("FROM").unwrap();
+    let hint_pos = output.find("/*+").unwrap();
+    assert!(
+        hint_pos > delete_pos,
+        "DELETE hint should appear AFTER DELETE keyword.\nOutput: {}",
+        output
+    );
+    assert!(
+        hint_pos < from_pos,
+        "DELETE hint should appear BEFORE FROM keyword.\nOutput: {}",
+        output
+    );
+}
+
+#[test]
+fn test_hint_position_after_merge() {
+    let sql = "MERGE /*+ leading(t1 t2) */ INTO t1 USING t2 ON t1.id = t2.id WHEN MATCHED THEN UPDATE SET t1.val = t2.val";
+    let stmts = parse(sql);
+    let formatter = SqlFormatter::new();
+    let output = formatter.format_statement(&stmts[0]);
+    let merge_pos = output.find("MERGE").unwrap();
+    let hint_pos = output.find("/*+").unwrap();
+    assert!(
+        hint_pos > merge_pos,
+        "MERGE hint should appear AFTER MERGE keyword.\nOutput: {}",
+        output
+    );
+}
+
+#[test]
 fn test_func_coalesce_warning() {
     let sql = "SELECT coalesce(a) FROM t1";
     let tokens = Tokenizer::new(sql).tokenize().unwrap();

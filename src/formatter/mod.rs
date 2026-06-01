@@ -320,6 +320,215 @@ impl SqlFormatter {
         format!("/* stub: {} */", name)
     }
 
+    fn indent_lines(&self, text: &str, indent: usize) -> String {
+        if indent == 0 {
+            return text.to_string();
+        }
+        let pad = Self::pad(indent);
+        text.split('\n')
+            .enumerate()
+            .map(|(i, line)| {
+                if i == 0 {
+                    line.to_string()
+                } else {
+                    format!("{}{}", pad, line)
+                }
+            })
+            .collect::<Vec<_>>()
+            .join("\n")
+    }
+
+    fn multiline_format_sql(&self, flat: &str, indent: usize) -> String {
+        let pad = Self::pad(indent);
+        let cont_pad = format!("{}{}", pad, Self::pad(1));
+
+        let break_before = [
+            (" FROM ", false),
+            (" WHERE ", true),
+            (" GROUP BY ", false),
+            (" HAVING ", true),
+            (" ORDER BY ", false),
+            (" LIMIT ", false),
+            (" OFFSET ", false),
+            (" CONNECT BY ", false),
+            (" START WITH ", false),
+            (" UNION ALL ", false),
+            (" UNION ", false),
+            (" INTERSECT ALL ", false),
+            (" INTERSECT ", false),
+            (" EXCEPT ALL ", false),
+            (" EXCEPT ", false),
+        ];
+
+        let mut positions: Vec<(usize, usize, bool)> = Vec::new();
+        for (pattern, is_cond) in &break_before {
+            let mut search_from = 0;
+            while let Some(pos) = flat[search_from..].find(pattern) {
+                let match_start = search_from + pos;
+                let kw_start = match_start + 1;
+                let kw_end = kw_start + pattern.trim().len();
+                let mut paren_depth = 0i32;
+                for ch in flat[..kw_start].chars() {
+                    match ch {
+                        '(' => paren_depth += 1,
+                        ')' => paren_depth -= 1,
+                        _ => {}
+                    }
+                }
+                if paren_depth == 0 {
+                    positions.push((kw_start, kw_end, *is_cond));
+                }
+                search_from = match_start + pattern.len();
+                if search_from >= flat.len() {
+                    break;
+                }
+            }
+        }
+        positions.sort_by_key(|(start, _, _)| *start);
+        positions.dedup_by_key(|(start, _, _)| *start);
+
+        if positions.is_empty() {
+            return flat.to_string();
+        }
+
+        let mut result = String::new();
+
+        for (i, (start, kw_end, is_cond)) in positions.iter().enumerate() {
+            if i == 0 && *start > 0 {
+                result.push_str(flat[..*start].trim());
+            }
+
+            if !result.is_empty() {
+                result.push('\n');
+                result.push_str(&pad);
+            }
+
+            let kw_and_content_end = if i + 1 < positions.len() {
+                positions[i + 1].0
+            } else {
+                flat.len()
+            };
+
+            let kw_text = flat[*start..*kw_end].trim();
+            let content = flat[*kw_end..kw_and_content_end].trim();
+
+            if *is_cond && !content.is_empty() {
+                result.push_str(kw_text);
+                result.push(' ');
+                result.push_str(&Self::break_logical_ops(content, &cont_pad));
+            } else {
+                result.push_str(kw_text);
+                if !content.is_empty() {
+                    result.push(' ');
+                    result.push_str(content);
+                }
+            }
+
+        }
+
+        if result.is_empty() {
+            flat.to_string()
+        } else {
+            result
+        }
+    }
+
+    fn break_logical_ops(condition: &str, pad: &str) -> String {
+        let cont_pad = format!("{}{}", pad, Self::pad(1));
+        let mut result = String::new();
+        let mut depth: i32 = 0;
+        let mut chars = condition.chars().peekable();
+        let mut current_token = String::new();
+        let mut tokens: Vec<(String, i32)> = Vec::new();
+
+        while let Some(ch) = chars.next() {
+            match ch {
+                '(' => {
+                    if !current_token.is_empty() {
+                        tokens.push((current_token.clone(), depth));
+                        current_token.clear();
+                    }
+                    depth += 1;
+                    tokens.push(("(".to_string(), depth));
+                }
+                ')' => {
+                    if !current_token.is_empty() {
+                        tokens.push((current_token.clone(), depth));
+                        current_token.clear();
+                    }
+                    depth -= 1;
+                    tokens.push((")".to_string(), depth));
+                }
+                ' ' | '\t' => {
+                    if !current_token.is_empty() {
+                        tokens.push((current_token.clone(), depth));
+                        current_token.clear();
+                    }
+                }
+                _ => {
+                    current_token.push(ch);
+                }
+            }
+        }
+        if !current_token.is_empty() {
+            tokens.push((current_token, depth));
+        }
+
+        let mut i = 0;
+        while i < tokens.len() {
+            let (ref tok, d) = tokens[i];
+            if d == 0 && tok == "AND" {
+                let is_between_and = Self::is_between_and(&tokens, i);
+                if is_between_and {
+                    if !result.ends_with(' ') {
+                        result.push(' ');
+                    }
+                    result.push_str(tok);
+                    result.push(' ');
+                } else {
+                    result = result.trim_end().to_string();
+                    result.push('\n');
+                    result.push_str(&cont_pad);
+                    result.push_str(tok);
+                    result.push(' ');
+                }
+            } else if d == 0 && tok == "OR" {
+                result = result.trim_end().to_string();
+                result.push('\n');
+                result.push_str(&cont_pad);
+                result.push_str(tok);
+                result.push(' ');
+            } else {
+                if !result.is_empty() && !result.ends_with(' ') && !result.ends_with('(') && tok != ")" {
+                    result.push(' ');
+                }
+                result.push_str(tok);
+            }
+            i += 1;
+        }
+
+        result
+    }
+
+    fn is_between_and(tokens: &[(String, i32)], and_idx: usize) -> bool {
+        let mut j = and_idx as i32 - 1;
+        let mut depth = 0i32;
+        while j >= 0 {
+            let (ref tok, _) = tokens[j as usize];
+            if tok == ")" {
+                depth += 1;
+            } else if tok == "(" {
+                depth -= 1;
+            } else if depth == 0 && tok.to_uppercase() == "BETWEEN" {
+                return true;
+            } else if depth == 0 && tok == "AND" {
+                return false;
+            }
+            j -= 1;
+        }
+        false
+    }
+
     fn format_select(&self, stmt: &SelectStatement) -> String {
         let mut parts = Vec::new();
 
@@ -328,10 +537,10 @@ impl SqlFormatter {
         }
 
         let mut select_parts = Vec::new();
+        select_parts.push(self.kw("SELECT"));
         if let Some(hints) = self.format_hints(&stmt.hints) {
             select_parts.push(hints);
         }
-        select_parts.push(self.kw("SELECT"));
         if stmt.distinct {
             if stmt.distinct_on.is_empty() {
                 select_parts.push(self.kw("DISTINCT"));
@@ -1324,10 +1533,11 @@ impl SqlFormatter {
         if let Some(ref w) = stmt.with {
             parts.push(self.format_with(w));
         }
+        parts.push(self.kw("INSERT"));
         if let Some(hints) = self.format_hints(&stmt.hints) {
             parts.push(hints);
         }
-        parts.push(self.kw("INSERT INTO"));
+        parts.push(self.kw("INTO"));
         parts.push(self.format_object_name(&stmt.table));
 
         if let Some(ref alias) = stmt.alias {
@@ -1490,10 +1700,10 @@ impl SqlFormatter {
 
     fn format_update(&self, stmt: &UpdateStatement) -> String {
         let mut parts = Vec::new();
+        parts.push(self.kw("UPDATE"));
         if let Some(hints) = self.format_hints(&stmt.hints) {
             parts.push(hints);
         }
-        parts.push(self.kw("UPDATE"));
         parts.push(self.format_table_refs(&stmt.tables));
 
         if let Some(ref p) = stmt.partition {
@@ -1540,10 +1750,11 @@ impl SqlFormatter {
 
     fn format_delete(&self, stmt: &DeleteStatement) -> String {
         let mut parts = Vec::new();
+        parts.push(self.kw("DELETE"));
         if let Some(hints) = self.format_hints(&stmt.hints) {
             parts.push(hints);
         }
-        parts.push(self.kw("DELETE FROM"));
+        parts.push(self.kw("FROM"));
         parts.push(self.format_table_refs(&stmt.tables));
 
         if !stmt.using.is_empty() {
@@ -1576,10 +1787,11 @@ impl SqlFormatter {
 
     fn format_merge(&self, stmt: &MergeStatement) -> String {
         let mut parts = Vec::new();
+        parts.push(self.kw("MERGE"));
         if let Some(hints) = self.format_hints(&stmt.hints) {
             parts.push(hints);
         }
-        parts.push(self.kw("MERGE INTO"));
+        parts.push(self.kw("INTO"));
         parts.push(self.format_table_ref_with_partition(&stmt.target, stmt.partition.as_ref()));
 
         parts.push(self.kw("USING"));

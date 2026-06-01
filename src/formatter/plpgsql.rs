@@ -497,7 +497,9 @@ impl SqlFormatter {
             }
             PlStatement::SqlStatement { sql_text, statement, .. } => {
                 let _ = sql_text;
-                format!("{};", self.format_statement(statement))
+                let formatted = self.format_statement(statement);
+                let multiline = self.multiline_format_sql(&formatted, indent);
+                format!("{};", multiline)
             }
             PlStatement::ForAll(f) => {
                 let save_exceptions =
