@@ -26,6 +26,16 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Determine version
+        id: version
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            TAG="${{ github.event.inputs.version }}"
+          else
+            TAG="${GITHUB_REF#refs/tags/}"
+          fi
+          echo "version=${TAG#v}" >> "$GITHUB_OUTPUT"
+
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
 
@@ -46,13 +56,13 @@ jobs:
       - name: Package
         run: |
           cd target/x86_64-unknown-linux-gnu/release
-          tar czf ../../../ogsql-linux-x86_64.tar.gz ${{ env.BINARY_NAME }}
+          tar czf ../../../ogsql-${{ steps.version.outputs.version }}-linux-x86_64.tar.gz ${{ env.BINARY_NAME }}
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: ogsql-linux-x86_64
-          path: ogsql-linux-x86_64.tar.gz
+          path: ogsql-${{ steps.version.outputs.version }}-linux-x86_64.tar.gz
 
   build-linux-arm64:
     name: Build linux-arm64 (glibc ≥ 2.17)
@@ -61,6 +71,16 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Determine version
+        id: version
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            TAG="${{ github.event.inputs.version }}"
+          else
+            TAG="${GITHUB_REF#refs/tags/}"
+          fi
+          echo "version=${TAG#v}" >> "$GITHUB_OUTPUT"
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
@@ -86,13 +106,13 @@ jobs:
       - name: Package
         run: |
           cd target/aarch64-unknown-linux-gnu/release
-          tar czf ../../../ogsql-linux-arm64.tar.gz ${{ env.BINARY_NAME }}
+          tar czf ../../../ogsql-${{ steps.version.outputs.version }}-linux-arm64.tar.gz ${{ env.BINARY_NAME }}
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: ogsql-linux-arm64
-          path: ogsql-linux-arm64.tar.gz
+          path: ogsql-${{ steps.version.outputs.version }}-linux-arm64.tar.gz
 
   build-windows-x86_64:
     name: Build windows-x86_64
@@ -101,6 +121,17 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Determine version
+        id: version
+        shell: bash
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            TAG="${{ github.event.inputs.version }}"
+          else
+            TAG="${GITHUB_REF#refs/tags/}"
+          fi
+          echo "version=${TAG#v}" >> "$GITHUB_OUTPUT"
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
@@ -131,13 +162,13 @@ jobs:
         run: |
           Compress-Archive `
             -Path "target/x86_64-pc-windows-gnu/release/${{ env.BINARY_NAME }}.exe" `
-            -DestinationPath "ogsql-windows-x86_64.zip"
+            -DestinationPath "ogsql-${{ steps.version.outputs.version }}-windows-x86_64.zip"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: ogsql-windows-x86_64
-          path: ogsql-windows-x86_64.zip
+          path: ogsql-${{ steps.version.outputs.version }}-windows-x86_64.zip
 
   release:
     name: Create GitHub Release
