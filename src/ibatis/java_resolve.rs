@@ -149,11 +149,7 @@ fn infer_root_from_java_file(path: &Path) -> Option<PathBuf> {
 }
 
 pub fn detect_java_roots(scan_dir: &Path) -> Vec<PathBuf> {
-    let standard_dirs = [
-        "src/main/java",
-        "src/test/java",
-        "src/main/generated/java",
-    ];
+    let standard_dirs = ["src/main/java", "src/test/java", "src/main/generated/java"];
 
     let mut standard_roots = Vec::new();
     for dir in &standard_dirs {

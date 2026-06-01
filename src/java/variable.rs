@@ -49,9 +49,8 @@ impl<'a> ExtractContext<'a> {
                 for child in node.children(&mut cursor) {
                     if child.kind() == "variable_declarator" {
                         if let Some(value_node) = child.child_by_field_name("value") {
-                            let var_name = child.child_by_field_name("name")
-                                .map(|n| self.node_text(n))
-                                .unwrap_or_default();
+                            let var_name =
+                                child.child_by_field_name("name").map(|n| self.node_text(n)).unwrap_or_default();
                             self.try_extract_set_of(value_node, &var_name);
                         }
                     }
@@ -91,14 +90,14 @@ impl<'a> ExtractContext<'a> {
         if let Some(ref t) = type_name {
             let is_set = t == "Set" || t.starts_with("Set<");
             let is_list = matches!(t.as_str(), "List" | "ArrayList" | "Collection")
-                || t.starts_with("List<") || t.starts_with("ArrayList<") || t.starts_with("Collection<");
+                || t.starts_with("List<")
+                || t.starts_with("ArrayList<")
+                || t.starts_with("Collection<");
             if is_set || is_list {
                 let mut cursor = node.walk();
                 for child in node.children(&mut cursor) {
                     if child.kind() == "variable_declarator" {
-                        let var_name = child.child_by_field_name("name")
-                            .map(|n| self.node_text(n))
-                            .unwrap_or_default();
+                        let var_name = child.child_by_field_name("name").map(|n| self.node_text(n)).unwrap_or_default();
                         if is_set {
                             if let Some(value_node) = child.child_by_field_name("value") {
                                 self.try_extract_set_of(value_node, &var_name);
@@ -119,9 +118,7 @@ impl<'a> ExtractContext<'a> {
             let mut bc = node.walk();
             for child in node.children(&mut bc) {
                 if child.kind() == "variable_declarator" {
-                    let var_name = child.child_by_field_name("name")
-                        .map(|n| self.node_text(n))
-                        .unwrap_or_default();
+                    let var_name = child.child_by_field_name("name").map(|n| self.node_text(n)).unwrap_or_default();
                     if let Some(value_node) = child.child_by_field_name("value") {
                         let text = self.node_text(value_node);
                         if text == "true" {
@@ -293,7 +290,7 @@ impl<'a> ExtractContext<'a> {
                     }
                 }
                 return;
-            },
+            }
         };
 
         let var_name_upper = var_name.to_uppercase();

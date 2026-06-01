@@ -737,29 +737,19 @@ impl<'a> ExtractContext<'a> {
         let mut dup_names: std::collections::HashMap<usize, std::collections::HashSet<String>> =
             std::collections::HashMap::new();
         {
-            let mut name_to_indices: std::collections::HashMap<
-                usize,
-                std::collections::HashMap<String, Vec<usize>>,
-            > = std::collections::HashMap::new();
+            let mut name_to_indices: std::collections::HashMap<usize, std::collections::HashMap<String, Vec<usize>>> =
+                std::collections::HashMap::new();
             for ((ps_var, _param_idx), info) in &self.jdbc_param_map {
                 if let Some(&ext_idx) = self.ps_var_to_extraction.get(ps_var) {
                     if let Some(name) = &info.var_name {
-                        name_to_indices
-                            .entry(ext_idx)
-                            .or_default()
-                            .entry(name.clone())
-                            .or_default()
-                            .push(info.index);
+                        name_to_indices.entry(ext_idx).or_default().entry(name.clone()).or_default().push(info.index);
                     }
                 }
             }
             for (ext_idx, name_map) in &name_to_indices {
                 for (name, indices) in name_map {
                     if indices.len() > 1 {
-                        dup_names
-                            .entry(*ext_idx)
-                            .or_default()
-                            .insert(name.clone());
+                        dup_names.entry(*ext_idx).or_default().insert(name.clone());
                     }
                 }
             }
@@ -1093,13 +1083,19 @@ impl<'a> ExtractContext<'a> {
             }
             match found {
                 Some(n) => n,
-                None => { self.recurse(node); return; }
+                None => {
+                    self.recurse(node);
+                    return;
+                }
             }
         };
 
         let body = match node.child_by_field_name("body") {
             Some(n) => n,
-            None => { self.recurse(node); return; }
+            None => {
+                self.recurse(node);
+                return;
+            }
         };
 
         let mut filter_set_var: Option<String> = None;
@@ -1143,9 +1139,8 @@ impl<'a> ExtractContext<'a> {
         if let Some(ref set_var) = filter_set_var {
             if self.known_sets.contains_key(set_var) {
                 for list_var in &add_list_vars {
-                    self.list_sources.insert(list_var.clone(), ListSource::Filtered {
-                        source_set_var: set_var.clone(),
-                    });
+                    self.list_sources
+                        .insert(list_var.clone(), ListSource::Filtered { source_set_var: set_var.clone() });
                 }
             }
         }
@@ -1164,16 +1159,11 @@ impl<'a> ExtractContext<'a> {
 
         if let Some(cond) = condition {
             // Unwrap parenthesized_expression (tree-sitter includes `( )` in condition)
-            let inner = if cond.kind() == "parenthesized_expression" {
-                cond.named_child(0)
-            } else {
-                Some(cond)
-            };
+            let inner = if cond.kind() == "parenthesized_expression" { cond.named_child(0) } else { Some(cond) };
             if let Some(expr) = inner {
                 if expr.kind() == "unary_expression" {
-                    let has_bang = expr.child_by_field_name("operator")
-                        .map(|op| self.node_text(op) == "!")
-                        .unwrap_or(false);
+                    let has_bang =
+                        expr.child_by_field_name("operator").map(|op| self.node_text(op) == "!").unwrap_or(false);
                     if has_bang {
                         if let Some(operand) = expr.child_by_field_name("operand") {
                             if operand.kind() == "identifier" {
@@ -1409,9 +1399,7 @@ impl<'a> ExtractContext<'a> {
     fn resolve_int_arg_node(&self, args: &Node, arg_idx: u32) -> Option<usize> {
         let node = self.nth_arg_node(args, arg_idx)?;
         match node.kind() {
-            "decimal_integer_literal" => {
-                self.node_text(node).parse::<usize>().ok()
-            }
+            "decimal_integer_literal" => self.node_text(node).parse::<usize>().ok(),
             "method_invocation" => {
                 let name = match node.child_by_field_name("name") {
                     Some(n) => self.node_text(n),

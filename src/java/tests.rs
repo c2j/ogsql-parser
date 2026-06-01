@@ -1693,8 +1693,8 @@ fn test_sb_append_with_jdbc_placeholder_parses_successfully() {
     // Should parse successfully (only warnings allowed)
     assert!(ext.parse_result.is_some(), "No parse result");
     let parse_result = ext.parse_result.as_ref().unwrap();
-    let real_errors: Vec<_> = parse_result
-        .errors.iter().filter(|e| !matches!(e, crate::parser::ParserError::Warning { .. })).collect();
+    let real_errors: Vec<_> =
+        parse_result.errors.iter().filter(|e| !matches!(e, crate::parser::ParserError::Warning { .. })).collect();
     assert!(real_errors.is_empty(), "Parse errors: {:?}", real_errors);
 }
 
@@ -1717,8 +1717,8 @@ fn test_plus_eq_concat_jdbc_placeholder_parses_successfully() {
     assert!(ext.sql.contains("__JAVA_VAR_JDBC_PARAM_2__"), "SQL: {}", ext.sql);
     assert!(ext.parse_result.is_some(), "No parse result");
     let parse_result = ext.parse_result.as_ref().unwrap();
-    let real_errors: Vec<_> = parse_result
-        .errors.iter().filter(|e| !matches!(e, crate::parser::ParserError::Warning { .. })).collect();
+    let real_errors: Vec<_> =
+        parse_result.errors.iter().filter(|e| !matches!(e, crate::parser::ParserError::Warning { .. })).collect();
     assert!(real_errors.is_empty(), "Parse errors: {:?}", real_errors);
 }
 
@@ -1770,10 +1770,16 @@ fn test_dollar_placeholder_uses_java_raw_prefix() {
     "#;
     let result = extract_sql_from_java(java, "Mapper.java", &JavaExtractConfig::default());
     assert_eq!(result.extractions.len(), 1);
-    assert!(result.extractions[0].sql.contains("__JAVA_RAW_tableName__"),
-        "Dollar-brace should produce __JAVA_RAW_, SQL: {}", result.extractions[0].sql);
-    assert!(result.extractions[0].sql.contains("__JAVA_VAR_int_id__"),
-        "Hash-brace should produce __JAVA_VAR_, SQL: {}", result.extractions[0].sql);
+    assert!(
+        result.extractions[0].sql.contains("__JAVA_RAW_tableName__"),
+        "Dollar-brace should produce __JAVA_RAW_, SQL: {}",
+        result.extractions[0].sql
+    );
+    assert!(
+        result.extractions[0].sql.contains("__JAVA_VAR_int_id__"),
+        "Hash-brace should produce __JAVA_VAR_, SQL: {}",
+        result.extractions[0].sql
+    );
 }
 
 #[test]
