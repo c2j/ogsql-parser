@@ -118,6 +118,10 @@ enum Commands {
         /// Print statistics after directory processing
         #[arg(long)]
         stats: bool,
+        /// Only parse the specified stored procedure/function (requires --file)
+        /// 仅解析指定的存储过程/函数（需要指定 --file）
+        #[arg(long)]
+        procedure: Option<String>,
     },
     /// Convert JSON (from `parse -j`) back to SQL / 将 JSON（parse -j 的输出）还原为 SQL
     #[command(name = "json2sql")]
@@ -398,17 +402,178 @@ fn compute_routine_analysis(stmt: &ogsql_parser::Statement) -> Option<serde_json
     }
 }
 
-fn cmd_parse(cli: &Cli, csv: bool) {
+/// Filter parse output to only include the specified stored procedure/function.
+/// Also filters errors/warnings to only those belonging to the matched statements.
+/// Returns the filtered output, or an error message if the procedure is not found.
+fn filter_output_by_procedure(
+    output: ogsql_parser::ParseOutput,
+    proc_name: &str,
+) -> Result<ogsql_parser::ParseOutput, String> {
+    use ogsql_parser::ast::PackageItem;
+    use ogsql_parser::Statement;
+
+    let proc_lower = proc_name.to_ascii_lowercase();
+
+    fn item_matches(name: &[String], target: &str) -> bool {
+        let full = name.join(".").to_ascii_lowercase();
+        let short = name.last().map(|n| n.to_ascii_lowercase()).unwrap_or_default();
+        full == target || short == target
+    }
+
+    fn matches_package_item(item: &PackageItem, target: &str) -> bool {
+        match item {
+            PackageItem::Procedure(p) => item_matches(&p.name, target),
+            PackageItem::Function(f) => item_matches(&f.name, target),
+            _ => false,
+        }
+    }
+
+    let mut filtered: Vec<ogsql_parser::ast::StatementInfo> = Vec::new();
+    let mut valid_line_ranges: Vec<(usize, usize)> = Vec::new();
+
+    for si in output.statements {
+        let line_range = (si.start_line, si.end_line);
+        match &si.statement {
+            Statement::CreateProcedure(s) if item_matches(&s.name, &proc_lower) => {
+                valid_line_ranges.push(line_range);
+                filtered.push(si);
+            }
+            Statement::CreateFunction(s) if item_matches(&s.name, &proc_lower) => {
+                valid_line_ranges.push(line_range);
+                filtered.push(si);
+            }
+            Statement::CreatePackageBody(spanned) => {
+                let pkg_full = spanned.name.join(".").to_ascii_lowercase();
+                let pkg_short = spanned.name.last().map(|n| n.to_ascii_lowercase());
+                let pkg_matches =
+                    pkg_full == proc_lower || pkg_short == Some(proc_lower.clone());
+
+                let matching: Vec<PackageItem> = spanned
+                    .items
+                    .iter()
+                    .filter(|item| matches_package_item(item, &proc_lower))
+                    .cloned()
+                    .collect();
+
+                if pkg_matches {
+                    valid_line_ranges.push(line_range);
+                    filtered.push(si);
+                } else if !matching.is_empty() {
+                    let item_ranges: Vec<_> = matching
+                        .iter()
+                        .map(|item| match item {
+                            PackageItem::Procedure(p) => (p.start_line, p.end_line),
+                            PackageItem::Function(f) => (f.start_line, f.end_line),
+                            _ => (0, 0),
+                        })
+                        .collect();
+                    valid_line_ranges.extend(item_ranges);
+                    let new_body = ogsql_parser::ast::CreatePackageBodyStatement {
+                        replace: spanned.replace,
+                        name: spanned.name.clone(),
+                        items: matching,
+                    };
+                    filtered.push(ogsql_parser::ast::StatementInfo {
+                        sql_text: si.sql_text.clone(),
+                        start_line: si.start_line,
+                        start_col: si.start_col,
+                        end_line: si.end_line,
+                        end_col: si.end_col,
+                        statement: Statement::CreatePackageBody(
+                            ogsql_parser::ast::Spanned::new(
+                                new_body,
+                                spanned.span.clone(),
+                            ),
+                        ),
+                    });
+                }
+            }
+            Statement::CreatePackage(spanned) => {
+                let pkg_full = spanned.name.join(".").to_ascii_lowercase();
+                let pkg_short = spanned.name.last().map(|n| n.to_ascii_lowercase());
+                let pkg_matches =
+                    pkg_full == proc_lower || pkg_short == Some(proc_lower.clone());
+
+                let matching: Vec<PackageItem> = spanned
+                    .items
+                    .iter()
+                    .filter(|item| matches_package_item(item, &proc_lower))
+                    .cloned()
+                    .collect();
+
+                if pkg_matches {
+                    valid_line_ranges.push(line_range);
+                    filtered.push(si);
+                } else if !matching.is_empty() {
+                    let item_ranges: Vec<_> = matching
+                        .iter()
+                        .map(|item| match item {
+                            PackageItem::Procedure(p) => (p.start_line, p.end_line),
+                            PackageItem::Function(f) => (f.start_line, f.end_line),
+                            _ => (0, 0),
+                        })
+                        .collect();
+                    valid_line_ranges.extend(item_ranges);
+                    let new_spec = ogsql_parser::ast::CreatePackageStatement {
+                        replace: spanned.replace,
+                        name: spanned.name.clone(),
+                        authid: spanned.authid.clone(),
+                        items: matching,
+                    };
+                    filtered.push(ogsql_parser::ast::StatementInfo {
+                        sql_text: si.sql_text.clone(),
+                        start_line: si.start_line,
+                        start_col: si.start_col,
+                        end_line: si.end_line,
+                        end_col: si.end_col,
+                        statement: Statement::CreatePackage(ogsql_parser::ast::Spanned::new(
+                            new_spec,
+                            spanned.span.clone(),
+                        )),
+                    });
+                }
+            }
+            _ => {}
+        }
+    }
+
+    if filtered.is_empty() {
+        return Err(format!("Procedure '{}' not found in the input file", proc_name));
+    }
+
+    // Filter errors: keep those whose line falls within any valid range,
+    // and always keep errors with line==0 (tokenizer/general errors).
+    let filtered_errors: Vec<_> = output
+        .errors
+        .into_iter()
+        .filter(|err| {
+            let line = error_line(err);
+            line == 0 || valid_line_ranges.iter().any(|(s, e)| line >= *s && line <= *e)
+        })
+        .collect();
+
+    Ok(ogsql_parser::ParseOutput { statements: filtered, errors: filtered_errors, comments: output.comments })
+}
+
+fn cmd_parse(cli: &Cli, csv: bool, proc_name: Option<&str>) {
     if cli.file.len() <= 1 {
-        cmd_parse_single(cli, cli.file.first().map(|s| s.as_str()), csv);
+        cmd_parse_single(cli, cli.file.first().map(|s| s.as_str()), csv, proc_name);
     } else {
         cmd_parse_files(cli, csv);
     }
 }
 
-fn cmd_parse_single(cli: &Cli, file_path: Option<&str>, csv: bool) {
+fn cmd_parse_single(cli: &Cli, file_path: Option<&str>, csv: bool, proc_name: Option<&str>) {
     let sql = read_input(file_path);
     let output = parse_input(&sql, cli.comments, cli.mybatis);
+
+    let output = match proc_name {
+        Some(name) => match filter_output_by_procedure(output, name) {
+            Ok(filtered) => filtered,
+            Err(msg) => die!("{}", msg),
+        },
+        None => output,
+    };
 
     if csv {
         let file_name = file_path.unwrap_or("<stdin>");
@@ -4002,6 +4167,10 @@ mod api {
         pub line_width: Option<usize>,
         #[serde(default)]
         pub uppercase: Option<bool>,
+        /// Only parse the specified stored procedure/function
+        /// 仅解析指定的存储过程/函数
+        #[serde(default)]
+        pub procedure: Option<String>,
     }
 
     #[derive(Deserialize, ToSchema)]
@@ -4030,6 +4199,19 @@ mod api {
     )]
     pub async fn handle_parse(Json(input): Json<SqlInput>) -> Json<serde_json::Value> {
         let output = super::parse_input(&input.sql, input.preserve_comments, false);
+        let output = match input.procedure {
+            Some(ref proc) => match super::filter_output_by_procedure(output, proc) {
+                Ok(filtered) => filtered,
+                Err(msg) => {
+                    return Json(serde_json::json!({
+                        "error": msg,
+                        "statements": [],
+                        "errors": [],
+                    }));
+                }
+            },
+            None => output,
+        };
         let all_stmts: Vec<_> = output.statements.iter().map(|si| si.statement.clone()).collect();
         let fingerprints = ogsql_parser::compute_query_fingerprints(&all_stmts);
         let mut out = serde_json::json!({"statements": output.statements, "errors": output.errors});
@@ -5505,14 +5687,22 @@ fn main() {
             no_logical_newline,
             no_semicolon_newline,
         ),
-        Commands::Parse { ref dir, ref ext, csv, ref output_dir, stats } => {
+        Commands::Parse { ref dir, ref ext, csv, ref output_dir, stats, ref procedure } => {
             if !dir.is_empty() && !cli.file.is_empty() {
                 die!("Error: --dir and -f are mutually exclusive");
+            }
+            if procedure.is_some() {
+                if cli.file.is_empty() {
+                    die!("Error: --procedure requires --file (stdin not supported)");
+                }
+                if cli.file.len() > 1 {
+                    die!("Error: --procedure cannot be used with multiple --file arguments");
+                }
             }
             if !dir.is_empty() {
                 cmd_parse_dir(&cli, dir, ext, csv, output_dir.as_deref(), stats);
             } else {
-                cmd_parse(&cli, csv);
+                cmd_parse(&cli, csv, procedure.as_deref());
             }
         }
         Commands::JsonToSql => cmd_json2sql(&cli),
