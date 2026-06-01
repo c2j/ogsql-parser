@@ -94,6 +94,10 @@ pub fn extract_sql_from_java_files_with_state(
             class_ps_to_extraction: std::collections::HashMap::new(),
             dynamic_setters: Vec::new(),
             string_constants: std::mem::take(&mut state.string_constants),
+            known_sets: std::collections::HashMap::new(),
+            list_sources: std::collections::HashMap::new(),
+            string_exprs: std::collections::HashMap::new(),
+            local_bool_vars: std::collections::HashMap::new(),
         };
 
         ctx.visit(tree.root_node());
