@@ -149,7 +149,7 @@ jobs:
           restore-keys: x86_64-pc-windows-gnu-cargo-
 
       - name: Build
-        run: cargo build --release --features ${{ env.BUILD_FEATURES }} --target x86_64-pc-windows-gnu
+        run: cargo build --release --features cli --target x86_64-pc-windows-gnu
         env:
           RUSTFLAGS: "-C target-feature=+crt-static"
 
