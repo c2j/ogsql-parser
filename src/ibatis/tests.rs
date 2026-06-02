@@ -1613,6 +1613,68 @@ fn test_expand_parse_results_variants_with_parse_result() {
 }
 
 #[test]
+fn test_hash_in_sql_string_literal_not_mistaken_for_param() {
+    // Regression: '# inside SQL string literals was misinterpreted as iBatis 2.x #param# delimiters.
+    // The SQL: select substr(#{str},instr(#{str},'#')+1,instr(#{str},'#',instr(#{str},'#')+1)-instr(#{str},'#')-1)
+    // Contains 5 occurrences of #{str} and 5 occurrences of '#' — the '#' must stay as text.
+    let xml = br#"<mapper namespace="test">
+        <select id="getSeqNo" parameterType="String" resultType="String">
+            select substr(#{str},instr(#{str},'#')+1,instr(#{str},'#',instr(#{str},'#')+1)-instr(#{str},'#')-1)
+        </select>
+    </mapper>"#;
+    let result = super::parse_mapper_bytes_structured(xml);
+    assert!(result.errors.is_empty(), "errors: {:?}", result.errors);
+
+    let stmt = &result.statements[0];
+    assert_eq!(stmt.id, "getSeqNo");
+
+    // All parameters must be named "str" — no garbage like "')+1" or "'"
+    for (i, p) in stmt.parameters.iter().enumerate() {
+        assert_eq!(
+            p.name, "str",
+            "parameter[{}] should be 'str', got '{}'",
+            i, p.name
+        );
+    }
+    // Exactly 5 #{str} occurrences
+    assert_eq!(stmt.parameters.len(), 5, "expected 5 params, got {}: {:?}", stmt.parameters.len(), stmt.parameters);
+
+    // flat_sql should preserve '#' literals
+    let parsed = stmt.to_parsed_statement("test");
+    assert!(parsed.flat_sql.contains(",'#'"), "flat_sql should contain '#' literal, got: {}", parsed.flat_sql);
+    assert!(
+        !parsed.flat_sql.contains("__XML_PARAM____"),
+        "flat_sql should not have double-underscore param corruption: {}",
+        parsed.flat_sql
+    );
+
+    // The SQL must parse without errors
+    if let Some((_, errors)) = &parsed.parse_result {
+        assert!(errors.is_empty(), "SQL parse errors: {:?}", errors);
+    }
+}
+
+#[test]
+fn test_ibatis2_param_respects_string_literals() {
+    // Simpler case: iBatis 2.x #value# format should NOT match when # is inside '...'
+    // The text "WHERE sep = '#' AND id = #value#" should yield:
+    //   Text("WHERE sep = '#' AND id = "), Parameter("value")
+    let nodes = super::parser::parse_text_to_nodes("WHERE sep = '#' AND id = #value#");
+    // Expect: Text("WHERE sep = '#' AND id = "), Parameter("value")
+    let params: Vec<_> = nodes.iter().filter(|n| matches!(n, SqlNode::Parameter { .. })).collect();
+    assert_eq!(params.len(), 1, "expected exactly 1 parameter, got nodes: {:?}", nodes);
+    if let SqlNode::Parameter { name, .. } = params[0] {
+        assert_eq!(name, "value", "parameter name should be 'value', got '{}'", name);
+    }
+    // The '#' text literal should be preserved in a Text node
+    let text_content: String = nodes.iter().filter_map(|n| match n {
+        SqlNode::Text { content } => Some(content.as_str()),
+        _ => None,
+    }).collect();
+    assert!(text_content.contains("'#'"), "text should contain '#' literal, got: {}", text_content);
+}
+
+#[test]
 fn test_expand_parse_results_empty_variant_has_none() {
     let xml = br#"<mapper namespace="test">
         <select id="find">
