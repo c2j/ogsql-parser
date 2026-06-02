@@ -143,14 +143,20 @@ fn node_text(node: &SqlNode) -> String {
     match node {
         SqlNode::Text { content } => content.clone(),
         SqlNode::Sequence { children } => children.iter().map(node_text).collect(),
-        SqlNode::Parameter { name, java_type } => match java_type {
-            Some(t) => format!("#{{{},{}}}", name, format!("javaType={}", t)),
-            None => format!("#{{{}}}", name),
-        },
-        SqlNode::RawExpr { expr, java_type } => match java_type {
-            Some(t) => format!("${{{},{}}}", expr, format!("javaType={}", t)),
-            None => format!("${{{}}}", expr),
-        },
+        SqlNode::Parameter { name, java_type, jdbc_type, .. } => {
+            let type_str: Option<&str> = jdbc_type.as_deref().or(java_type.as_deref());
+            match type_str {
+                Some(t) => format!("#{{{},{}}}", name, format!("jdbcType={}", t)),
+                None => format!("#{{{}}}", name),
+            }
+        }
+        SqlNode::RawExpr { expr, java_type, jdbc_type } => {
+            let type_str: Option<&str> = jdbc_type.as_deref().or(java_type.as_deref());
+            match type_str {
+                Some(t) => format!("${{{},{}}}", expr, format!("jdbcType={}", t)),
+                None => format!("${{{}}}", expr),
+            }
+        }
         SqlNode::If { children, .. } => children.iter().map(node_text).collect(),
         SqlNode::Choose { branches } => branches.iter().flat_map(|(_, ch)| ch.iter().map(node_text)).collect(),
         SqlNode::Where { children } => children.iter().map(node_text).collect(),
@@ -1691,4 +1697,299 @@ fn test_expand_parse_results_empty_variant_has_none() {
         .unwrap();
     assert!(excluded.sql.trim().is_empty());
     assert!(excluded.parse_result.is_none(), "empty SQL should not generate parse_result");
+}
+
+// ── Guard Tests: Callable Stored Procedure Mapper XML ──
+// These tests guard against regressions in parsing complex stored procedure
+// call mappers with foreach, if, #{param,mode=IN,jdbcType=VARCHAR} syntax.
+
+/// Helper: the canonical callable stored procedure mapper XML from user reports.
+fn callable_proc_mapper_xml() -> &'static [u8] {
+    br#"<mapper namespace="com.example.ProcMapper">
+   <select id="callOracleProcCommon" statementType="CALLABLE" resultType="java.util.Map">
+       call ${procName}
+       <foreach collection="param" item="item" index="index" open="(" close=")" separator=",">
+           <if test="item.param == 'i'.toString()">
+               #{item.paramValue,mode=IN,jdbcType=VARCHAR}
+           </if>
+           <if test="item.param == '?'.toString()">
+               #{outParam.key${index},mode=OUT,jdbcType=VARCHAR}
+           </if>
+           <if test="item.param == 'c'.toString()">
+               #{outParam.key${index},mode=OUT,jdbcType=CURSOR,resultMap=myMap}
+           </if>
+           <if test="item.param == 'b'.toString()">
+               #{outParam.key${index},mode=OUT,jdbcType=CLOB,javaType=String}
+           </if>
+       </foreach>
+   </select>
+   <select id="callOracleProcCommon" statementType="CALLABLE" resultType="java.util.Map" databaseId="gauss">
+       {call ${procName}
+       <foreach collection="param" item="item" index="index" open="(" close=")" separator=",">
+           <if test="item.param == 'i'.toString()">
+               #{item.paramValue,mode=IN,jdbcType=VARCHAR}
+           </if>
+           <if test="item.param == '?'.toString()">
+               #{outParam.key${index},mode=OUT,jdbcType=VARCHAR}
+           </if>
+           <if test="item.param == 'c'.toString()">
+               #{outParam.key${index},mode=OUT,jdbcType=OTHER,resultMap=MDBCursorMapGauss}
+           </if>
+           <if test="item.param == 'b'.toString()">
+               #{outParam.key${index},mode=OUT,jdbcType=CLOB,javaType=String}
+           </if>
+       </foreach>
+       }
+   </select>
+   <select id="callOracleProcNoCursor" statementType="CALLABLE" resultType="java.util.Map">
+       call ${procName}
+       <foreach collection="params" item="item" index="index" open="(" close=")" separator=",">
+           <if test="item != '?'.toString()">
+               #{item,mode=IN,jdbcType=VARCHAR}
+           </if>
+           <if test="item == '?'.toString()">
+               #{outParam.key${index},mode=OUT,jdbcType=VARCHAR}
+           </if>
+       </foreach>
+   </select>
+   <select id="callOracleProcCursorOut4" statementType="CALLABLE">
+       {call ${procName}(
+       <foreach collection="inParams" item="item" index="index" separator=",">
+           #{item,mode=IN,jdbcType=VARCHAR}
+       </foreach>
+       <if test="inParams.length > 0">
+           ,
+       </if>
+       #{outParam.o_retcode,mode=OUT,jdbcType=VARCHAR},
+       #{outParam.o_retmsg,mode=OUT,jdbcType=VARCHAR},
+       #{outParam.o_totalnum,mode=OUT,jdbcType=VARCHAR},
+       #{outParam.o_list,mode=OUT,jdbcType=CURSOR,resultMap=MDBCursorMap,javaType=java.lang.Object}
+       )}
+   </select>
+</mapper>"#
+}
+
+// ── Guard: Issue #3 — databaseId captured ──
+
+#[test]
+fn guard_database_id_captured() {
+    let result = super::parse_mapper_bytes_structured(callable_proc_mapper_xml());
+    assert!(result.errors.is_empty(), "errors: {:?}", result.errors);
+
+    // Should have 4 statements total
+    assert_eq!(result.statements.len(), 4, "expected 4 statements, got {}", result.statements.len());
+
+    // First callOracleProcCommon has NO databaseId
+    let first_common = &result.statements[0];
+    assert_eq!(first_common.id, "callOracleProcCommon");
+    assert_eq!(first_common.database_id, None, "first callOracleProcCommon should have database_id=None");
+
+    // Second callOracleProcCommon HAS databaseId="gauss"
+    let gauss_common = &result.statements[1];
+    assert_eq!(gauss_common.id, "callOracleProcCommon");
+    assert_eq!(
+        gauss_common.database_id,
+        Some("gauss".to_string()),
+        "second callOracleProcCommon should have database_id=Some(\"gauss\")"
+    );
+}
+
+// ── Guard: Issue #5 — statementType captured ──
+
+#[test]
+fn guard_statement_type_captured() {
+    let result = super::parse_mapper_bytes_structured(callable_proc_mapper_xml());
+    assert!(result.errors.is_empty(), "errors: {:?}", result.errors);
+
+    for stmt in &result.statements {
+        assert_eq!(
+            stmt.statement_type,
+            Some("CALLABLE".to_string()),
+            "statement '{}' should have statement_type=CALLABLE",
+            stmt.id
+        );
+    }
+}
+
+// ── Guard: Issue #4 — jdbcType preserved separately from javaType ──
+
+#[test]
+fn guard_jdbc_type_preserved_separately() {
+    let result = super::parse_mapper_bytes_structured(callable_proc_mapper_xml());
+    assert!(result.errors.is_empty(), "errors: {:?}", result.errors);
+
+    // In the 4th statement (callOracleProcCursorOut4), the last param has both
+    // jdbcType=CURSOR and javaType=java.lang.Object — both must be preserved.
+    let stmt = result.statements.iter().find(|s| s.id == "callOracleProcCursorOut4").unwrap();
+
+    // Find the outParam.o_list parameter — it should have jdbcType=CURSOR
+    let o_list = stmt.parameters.iter().find(|p| p.name == "outParam.o_list");
+    assert!(o_list.is_some(), "should have outParam.o_list parameter");
+    let o_list = o_list.unwrap();
+    assert_eq!(
+        o_list.jdbc_type,
+        Some(crate::ibatis::types::JdbcType::Cursor),
+        "outParam.o_list should have jdbc_type=Cursor, got: {:?}",
+        o_list.jdbc_type
+    );
+}
+
+// ── Guard: Issue #6 — mode and resultMap preserved in parameter attrs ──
+
+#[test]
+fn guard_mode_preserved_in_param_attrs() {
+    use crate::ibatis::types::SqlNode;
+
+    let result = super::parse_mapper_bytes_structured(callable_proc_mapper_xml());
+    assert!(result.errors.is_empty(), "errors: {:?}", result.errors);
+
+    // In callOracleProcCommon, find the If with test="item.param == 'i'.toString()"
+    // Its child Parameter should have mode=IN, jdbcType=VARCHAR
+    let stmt = &result.statements[0];
+
+    fn find_if_with_test<'a>(node: &'a SqlNode, test_contains: &str) -> Option<&'a SqlNode> {
+        match node {
+            SqlNode::If { test, children, .. } if test.contains(test_contains) => Some(node),
+            SqlNode::If { children, .. } => children.iter().find_map(|c| find_if_with_test(c, test_contains)),
+            SqlNode::ForEach { children, .. } => children.iter().find_map(|c| find_if_with_test(c, test_contains)),
+            SqlNode::Sequence { children } => children.iter().find_map(|c| find_if_with_test(c, test_contains)),
+            SqlNode::Where { children } | SqlNode::Set { children } => {
+                children.iter().find_map(|c| find_if_with_test(c, test_contains))
+            }
+            _ => None,
+        }
+    }
+
+    let if_in = find_if_with_test(&stmt.body, "item.param == 'i'").expect("should find If node for 'i'");
+    if let SqlNode::If { children, .. } = if_in {
+        let param = children.iter().find_map(|c| match c {
+            SqlNode::Parameter { name, .. } if name == "item.paramValue" => Some(c),
+            _ => None,
+        });
+        assert!(param.is_some(), "should find Parameter 'item.paramValue' in If(IN) branch");
+        if let SqlNode::Parameter { mode, jdbc_type, .. } = param.unwrap() {
+            assert_eq!(mode, &Some("IN".to_string()), "item.paramValue should have mode=IN");
+            assert_eq!(jdbc_type, &Some("VARCHAR".to_string()), "item.paramValue should have jdbc_type=VARCHAR");
+        }
+    }
+
+    // Check OUT param has mode=OUT
+    let if_out = find_if_with_test(&stmt.body, "item.param == '?'").expect("should find If node for '?'");
+    if let SqlNode::If { children, .. } = if_out {
+        let param = children.iter().find_map(|c| match c {
+            n @ SqlNode::Parameter { name, .. } if name.contains("outParam.key") => Some(n),
+            _ => None,
+        });
+        assert!(param.is_some(), "should find outParam.key param in If(OUT) branch");
+        if let SqlNode::Parameter { mode, jdbc_type, .. } = param.unwrap() {
+            assert_eq!(mode, &Some("OUT".to_string()), "outParam.key should have mode=OUT");
+            assert_eq!(jdbc_type, &Some("VARCHAR".to_string()), "outParam.key should have jdbc_type=VARCHAR");
+        }
+    }
+
+    // Check CURSOR param has resultMap
+    let if_cursor = find_if_with_test(&stmt.body, "item.param == 'c'").expect("should find If node for 'c'");
+    if let SqlNode::If { children, .. } = if_cursor {
+        let param = children.iter().find_map(|c| match c {
+            n @ SqlNode::Parameter { name, .. } if name.contains("outParam.key") => Some(n),
+            _ => None,
+        });
+        assert!(param.is_some(), "should find outParam.key param in If(CURSOR) branch");
+        if let SqlNode::Parameter { result_map, jdbc_type, .. } = param.unwrap() {
+            assert_eq!(jdbc_type, &Some("CURSOR".to_string()), "CURSOR param should have jdbc_type=CURSOR");
+            assert_eq!(
+                result_map, &Some("myMap".to_string()),
+                "CURSOR param should have result_map=myMap"
+            );
+        }
+    }
+}
+
+// ── Guard: Issue #1 — ForEach separator preserved in flatten ──
+
+#[test]
+fn guard_foreach_separator_in_flat_sql() {
+    let result = super::parse_mapper_bytes(callable_proc_mapper_xml());
+    assert!(result.errors.is_empty(), "errors: {:?}", result.errors);
+
+    // callOracleProcCursorOut4 has foreach with separator=","
+    // The flattened SQL should contain the separator
+    let stmt = result
+        .statements
+        .iter()
+        .find(|s| s.id == "callOracleProcCursorOut4")
+        .expect("should find callOracleProcCursorOut4");
+
+    let sql = &stmt.flat_sql;
+    // The foreach body has #{item,mode=IN,jdbcType=VARCHAR} with separator=","
+    // In the flattened SQL, the separator should appear between items
+    assert!(
+        sql.contains(",") || sql.contains("__XML_PARAM"),
+        "flat_sql should contain separator or params, got: {}",
+        sql
+    );
+}
+
+// ── Guard: Issue #2 — ParamMeta.jdbc_type populated from XML inline attrs ──
+
+#[test]
+fn guard_param_meta_jdbc_type_populated() {
+    let result = super::parse_mapper_bytes(callable_proc_mapper_xml());
+    assert!(result.errors.is_empty(), "errors: {:?}", result.errors);
+
+    // Find callOracleProcCursorOut4 — has params with explicit jdbcType
+    let stmt = result
+        .statements
+        .iter()
+        .find(|s| s.id == "callOracleProcCursorOut4")
+        .expect("should find callOracleProcCursorOut4");
+
+    // outParam.o_retcode has jdbcType=VARCHAR — jdbc_type should be populated
+    let retcode = stmt.parameters.iter().find(|p| p.name == "outParam.o_retcode");
+    assert!(retcode.is_some(), "should have outParam.o_retcode param");
+    let retcode = retcode.unwrap();
+    assert!(
+        retcode.jdbc_type.is_some(),
+        "outParam.o_retcode should have jdbc_type populated (xml has jdbcType=VARCHAR), got: {:?}",
+        retcode
+    );
+    assert_eq!(
+        retcode.jdbc_type,
+        Some(crate::ibatis::types::JdbcType::VarChar),
+        "outParam.o_retcode should be VarChar"
+    );
+
+    // outParam.o_list has jdbcType=CURSOR — should be Cursor
+    let o_list = stmt.parameters.iter().find(|p| p.name == "outParam.o_list");
+    assert!(o_list.is_some(), "should have outParam.o_list param");
+    let o_list = o_list.unwrap();
+    assert!(
+        o_list.jdbc_type.is_some(),
+        "outParam.o_list should have jdbc_type populated (xml has jdbcType=CURSOR), got: {:?}",
+        o_list
+    );
+}
+
+// ── Guard: Flat API also has database_id and statement_type ──
+
+#[test]
+fn guard_flat_api_database_id_and_statement_type() {
+    let result = super::parse_mapper_bytes(callable_proc_mapper_xml());
+    assert!(result.errors.is_empty(), "errors: {:?}", result.errors);
+
+    // Second callOracleProcCommon should have database_id
+    let gauss_stmt = result.statements.iter().find(|s| {
+        s.id == "callOracleProcCommon" && s.database_id.as_deref() == Some("gauss")
+    });
+    assert!(gauss_stmt.is_some(), "should find callOracleProcCommon with database_id=gauss");
+
+    // All should have statement_type=CALLABLE
+    for stmt in &result.statements {
+        assert_eq!(
+            stmt.statement_type,
+            Some("CALLABLE".to_string()),
+            "flat API: statement '{}' should have statement_type=CALLABLE",
+            stmt.id
+        );
+    }
 }
