@@ -58,9 +58,10 @@ fn expand_node(node: &SqlNode, variants: &mut Vec<ExpansionState>, depth: usize,
                 v.sql_buffer.push_str(&rendered);
             }
         }
-        SqlNode::Parameter { name, java_type } => {
+        SqlNode::Parameter { name, java_type, jdbc_type, .. } => {
+            let type_str: Option<&str> = jdbc_type.as_deref().or(java_type.as_deref());
             for v in variants.iter_mut() {
-                v.sql_buffer.push_str(&render_parameter(name, java_type, config.placeholder));
+                v.sql_buffer.push_str(&render_parameter(name, type_str, config.placeholder));
                 if !v.params.iter().any(|p| p.name == *name) {
                     v.params.push(ParamMeta {
                         name: name.clone(),
@@ -72,9 +73,10 @@ fn expand_node(node: &SqlNode, variants: &mut Vec<ExpansionState>, depth: usize,
                 }
             }
         }
-        SqlNode::RawExpr { expr, java_type } => {
+        SqlNode::RawExpr { expr, java_type, jdbc_type } => {
+            let type_str: Option<&str> = jdbc_type.as_deref().or(java_type.as_deref());
             for v in variants.iter_mut() {
-                v.sql_buffer.push_str(&render_raw(expr, java_type, config.placeholder));
+                v.sql_buffer.push_str(&render_raw(expr, type_str, config.placeholder));
                 if !v.params.iter().any(|p| p.name == *expr) {
                     v.params.push(ParamMeta {
                         name: expr.clone(),
@@ -327,11 +329,11 @@ fn render_text_params(text: &str, strategy: PlaceholderStrategy) -> String {
     }
 }
 
-fn render_parameter(name: &str, java_type: &Option<String>, strategy: PlaceholderStrategy) -> String {
+fn render_parameter(name: &str, type_str: Option<&str>, strategy: PlaceholderStrategy) -> String {
     match strategy {
         PlaceholderStrategy::PreserveInternalMarkers => {
             let sanitized = sanitize_param_name(name);
-            match java_type {
+            match type_str {
                 Some(t) => format!("{}{}_{}{}", PARAM_PREFIX, t.to_uppercase(), sanitized, PLACEHOLDER_SUFFIX),
                 None => format!("{}{}{}", PARAM_PREFIX, sanitized, PLACEHOLDER_SUFFIX),
             }
@@ -340,11 +342,11 @@ fn render_parameter(name: &str, java_type: &Option<String>, strategy: Placeholde
     }
 }
 
-fn render_raw(expr: &str, java_type: &Option<String>, strategy: PlaceholderStrategy) -> String {
+fn render_raw(expr: &str, type_str: Option<&str>, strategy: PlaceholderStrategy) -> String {
     match strategy {
         PlaceholderStrategy::PreserveInternalMarkers => {
             let sanitized = sanitize_param_name(expr);
-            match java_type {
+            match type_str {
                 Some(t) => format!("{}{}_{}{}", RAW_PREFIX, t.to_uppercase(), sanitized, PLACEHOLDER_SUFFIX),
                 None => format!("{}{}{}", RAW_PREFIX, sanitized, PLACEHOLDER_SUFFIX),
             }

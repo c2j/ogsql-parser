@@ -22,16 +22,18 @@ pub fn sanitize_param_name(name: &str) -> String {
 pub fn flatten_sql(node: &SqlNode) -> String {
     match node {
         SqlNode::Text { content } => replace_params(content),
-        SqlNode::Parameter { name, java_type } => {
+        SqlNode::Parameter { name, java_type, jdbc_type, .. } => {
             let sanitized = sanitize_param_name(name);
-            match java_type {
+            let type_str: Option<&str> = jdbc_type.as_deref().or(java_type.as_deref());
+            match type_str {
                 Some(t) => format!("{}{}_{}{}", PARAM_PREFIX, t.to_uppercase(), sanitized, PLACEHOLDER_SUFFIX),
                 None => format!("{}{}{}", PARAM_PREFIX, sanitized, PLACEHOLDER_SUFFIX),
             }
         }
-        SqlNode::RawExpr { expr, java_type } => {
+        SqlNode::RawExpr { expr, java_type, jdbc_type } => {
             let sanitized = sanitize_param_name(expr);
-            match java_type {
+            let type_str: Option<&str> = jdbc_type.as_deref().or(java_type.as_deref());
+            match type_str {
                 Some(t) => format!("{}{}_{}{}", RAW_PREFIX, t.to_uppercase(), sanitized, PLACEHOLDER_SUFFIX),
                 None => format!("{}{}{}", RAW_PREFIX, sanitized, PLACEHOLDER_SUFFIX),
             }
@@ -63,8 +65,9 @@ pub fn flatten_sql(node: &SqlNode) -> String {
                 suffix_overrides.as_deref(),
             )
         }
-        SqlNode::ForEach { open, separator: _, close, prepend, children, .. } => {
-            let content = flatten_children(children);
+        SqlNode::ForEach { open, separator, close, prepend, children, .. } => {
+            let sep = separator.as_deref().unwrap_or("");
+            let content = flatten_children_with_separator(children, sep);
             let open_str = open.as_deref().unwrap_or("");
             let close_str = close.as_deref().unwrap_or("");
             let body = format!("{}{}{}", open_str, content, close_str);
@@ -81,6 +84,19 @@ pub fn flatten_sql(node: &SqlNode) -> String {
 fn flatten_children(children: &[SqlNode]) -> String {
     let raw: String = children.iter().map(flatten_sql).collect();
     deduplicate_conjunctions(&raw)
+}
+
+/// Flatten children with a separator between non-empty segments.
+/// Used by ForEach to preserve the `separator` attribute.
+fn flatten_children_with_separator(children: &[SqlNode], separator: &str) -> String {
+    let segments: Vec<String> = children
+        .iter()
+        .map(|c| flatten_sql(c))
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+        .collect();
+    let joined = segments.join(separator);
+    deduplicate_conjunctions(&joined)
 }
 
 fn deduplicate_conjunctions(sql: &str) -> String {
@@ -137,19 +153,21 @@ pub fn collect_params(node: &SqlNode) -> Vec<(String, Option<String>, String)> {
 
 fn collect_params_recursive(node: &SqlNode, params: &mut Vec<(String, Option<String>, String)>) {
     match node {
-        SqlNode::Parameter { name, java_type } => {
-            let raw = match java_type {
-                Some(t) => format!("#{{{},{}}}", name, format!("javaType={}", t)),
+        SqlNode::Parameter { name, java_type, jdbc_type, .. } => {
+            let type_str: Option<&str> = jdbc_type.as_deref().or(java_type.as_deref());
+            let raw = match type_str {
+                Some(t) => format!("#{{{},{}}}", name, format!("jdbcType={}", t)),
                 None => format!("#{{{}}}", name),
             };
-            params.push((name.clone(), java_type.clone(), raw));
+            params.push((name.clone(), type_str.map(|s| s.to_string()), raw));
         }
-        SqlNode::RawExpr { expr, java_type } => {
-            let raw = match java_type {
-                Some(t) => format!("${{{},{}}}", expr, format!("javaType={}", t)),
+        SqlNode::RawExpr { expr, java_type, jdbc_type } => {
+            let type_str: Option<&str> = jdbc_type.as_deref().or(java_type.as_deref());
+            let raw = match type_str {
+                Some(t) => format!("${{{},{}}}", expr, format!("jdbcType={}", t)),
                 None => format!("${{{}}}", expr),
             };
-            params.push((expr.clone(), java_type.clone(), raw));
+            params.push((expr.clone(), type_str.map(|s| s.to_string()), raw));
         }
         SqlNode::If { children, .. }
         | SqlNode::Where { children, .. }
@@ -420,7 +438,7 @@ mod param_tests {
 
     #[test]
     fn test_param_with_type_annotation() {
-        assert_eq!(replace_params("#{price,javaType=double,jdbcType=NUMERIC}"), "__XML_PARAM_DOUBLE_price__");
+        assert_eq!(replace_params("#{price,javaType=double,jdbcType=NUMERIC}"), "__XML_PARAM_NUMERIC_price__");
     }
 
     #[test]
