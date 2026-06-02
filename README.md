@@ -1,4 +1,4 @@
-# OGSQL Parser / OGSQL解析器
+# OGSQL Parser / OGSQL 解析器
 
 > A hand-written recursive descent SQL parser for openGauss/GaussDB written in Rust  
 > 使用 Rust 编写的手写递归下降 SQL 解析器，支持 openGauss/GaussDB
@@ -23,23 +23,23 @@ This project implements a complete SQL parser for openGauss/GaussDB (an enterpri
 | Multi-encoding support / 多字符集支持 | ✅ Complete | UTF-8, EUC-JP, EUC-KR, GB18030, BIG5, UTF-16 |
 | AST / 抽象语法树 | ✅ Complete | 150+ statement types defined |
 | Parser dispatcher / 解析器分发 | ✅ Complete | Top-level statement routing |
-| Unit tests / 单元测试 | ✅ Complete | 230 tests |
+| Unit tests / 单元测试 | ✅ Complete | 1264 tests |
 | Regression tests / 回归测试 | ✅ Complete | 1409/1409 — All openGauss regression tests passing |
 | JSON serde / JSON 序列化 | ✅ Complete | Full serde::Serialize + Deserialize on all AST types |
 
-### Phase 2: Core DML / 第二阶段：核心DML
+### Phase 2: Core DML / 第二阶段：核心 DML
 
 | Component | Status | Details |
 |-----------|--------|---------|
-| SELECT | ✅ Complete | Full SELECT syntax including CTEs, subqueries, window functions |
+| SELECT | ✅ Complete | Full SELECT syntax including CTEs, subqueries, window functions, PIVOT/UNPIVOT |
 | INSERT | ✅ Complete | INSERT VALUES, INSERT SELECT, ON CONFLICT |
 | UPDATE | ✅ Complete | UPDATE with SET, FROM, WHERE, RETURNING |
 | DELETE | ✅ Complete | DELETE with WHERE, RETURNING |
-| MERGE | ✅ Complete | MERGE INTO with WHEN MATCHED/NOT MATCHED |
+| MERGE | ✅ Complete | MERGE INTO with WHEN MATCHED/NOT MATCHED + semantic validation |
 | Expressions / 表达式 | ✅ Complete | Pratt parser for full expression support |
 | Formatter / 格式化器 | ✅ Complete | Configurable SQL formatter: indent, keyword case, comma style, line width, DML/DDL/PL-pgSQL |
 
-### Phase 3: PL/pgSQL Support / 第三阶段：PL/pgSQL支持
+### Phase 3: PL/pgSQL Support / 第三阶段：PL/pgSQL 支持
 
 | Component | Status | Details |
 |-----------|--------|---------|
@@ -62,7 +62,7 @@ This project implements a complete SQL parser for openGauss/GaussDB (an enterpri
 | FORALL / PIPE ROW | ✅ Complete | Bulk operations and pipe row |
 | PL/pgSQL Formatter / 格式化 | ✅ Complete | Full formatting for all PL/pgSQL constructs |
 
-### Phase 4: DDL (In Progress) / 第四阶段：DDL（进行中）
+### Phase 4: DDL / 第四阶段：DDL
 
 | Component | Status | Details |
 |-----------|--------|---------|
@@ -79,35 +79,84 @@ This project implements a complete SQL parser for openGauss/GaussDB (an enterpri
 | ALTER TABLE | 🔄 In Progress | Column operations, constraints |
 | Other DDL | 🔄 In Progress | ALTER FUNCTION, ALTER PROCEDURE, etc. |
 
+### Phase 5: Advanced Features / 第五阶段：高级特性
+
+| Component | Status | Details |
+|-----------|--------|---------|
+| Dynamic SQL analysis / 动态SQL分析 | ✅ Complete | Variable tracing, EXECUTE IMMEDIATE resolution, parameterized output |
+| MERGE semantic validation / MERGE语义校验 | ✅ Complete | Detects non-deterministic and invalid MERGE patterns |
+| Schema loading / Schema 加载 | ✅ Complete | Load and resolve database schema from JSON |
+| Return cursor analysis / 返回游标分析 | ✅ Complete | Analyze PL/pgSQL return cursors and result columns |
+| PL variable validation / PL变量校验 | ✅ Complete | Detect undefined variables and functions in PL blocks |
+| Query fingerprints / SQL指纹 | ✅ Complete | Deterministic fingerprints for query identification |
+| Transaction analysis / 事务分析 | ✅ Complete | Analyze COMMIT/ROLLBACK patterns in PL blocks |
+| Package consistency / 包一致性校验 | ✅ Complete | Validate PACKAGE vs PACKAGE BODY consistency |
+| AST Visitor pattern / AST访问者模式 | ✅ Complete | Walk statements, PL blocks, expressions |
+
+### Phase 6: Integrations / 第六阶段：集成
+
+| Component | Status | Details |
+|-----------|--------|---------|
+| iBatis/MyBatis XML parsing / iBatis XML 解析 | ✅ Complete | Dynamic SQL AST, variant expansion, parameter type inference from Java |
+| Java source SQL extraction / Java源文件SQL提取 | ✅ Complete | String concatenation, switch-expression, cross-method PreparedStatement backfill |
+| MCP server / MCP服务器 | ✅ Complete | Model Context Protocol server for Claude Desktop, Cursor, etc. |
+| HTTP API server / HTTP API 服务 | ✅ Complete | RESTful API for parse, format, validate, tokenize, json2sql |
+| Interactive TUI / 交互式终端 | ✅ Complete | Terminal UI playground for live SQL parsing |
+| Strict validation mode / 严格校验模式 | ✅ Complete | Detect undefined function calls in PL blocks |
+
 ---
 
 ## Project Structure / 项目结构
 
 ```
-ogsql-parser-by-rust/
+ogsql-parser/
 ├── Cargo.toml              # Project configuration
 ├── src/
 │   ├── lib.rs              # Library exports
-│   ├── formatter.rs        # SQL & PL/pgSQL formatter
+│   ├── bin/
+│   │   ├── ogsql.rs        # CLI binary
+│   │   └── ogsql-mcp.rs    # MCP server binary
+│   ├── formatter/          # SQL & PL/pgSQL formatter
+│   ├── token_formatter.rs  # Token-level formatter with FormatConfig
 │   ├── token/
 │   │   ├── mod.rs          # Token types and spans
-│   │   ├── tokenizer.rs    # Lexical analyzer (898 lines)
-│   │   └── keyword.rs      # 717 keyword definitions
+│   │   ├── tokenizer.rs    # Lexical analyzer
+│   │   ├── keyword.rs      # 717 keyword definitions
+│   │   └── encoding.rs     # Multi-encoding support
 │   ├── ast/
 │   │   ├── mod.rs          # 150+ AST node definitions
 │   │   ├── plpgsql.rs      # PL/pgSQL AST types (40+ types)
 │   │   └── visitor.rs      # AST visitor pattern
-│   └── parser/
-│       ├── mod.rs           # Parser dispatch & main logic
-│       ├── select.rs        # SELECT statement parser
-│       ├── dml.rs           # INSERT, UPDATE, DELETE, MERGE
-│       ├── ddl.rs           # DDL statement parsers
-│       ├── expr.rs          # Expression parser (Pratt)
-│       ├── plpgsql.rs       # PL/pgSQL parser (25+ statement types)
-│       ├── utility.rs       # Utility parsers (types, constraints, etc.)
-│       └── tests.rs         # 230 unit tests
+│   ├── parser/
+│   │   ├── mod.rs          # Parser dispatch & main logic
+│   │   ├── select.rs       # SELECT statement parser
+│   │   ├── dml.rs          # INSERT, UPDATE, DELETE, MERGE
+│   │   ├── ddl/            # DDL statement parsers (table, create, alter, drop)
+│   │   ├── expr.rs         # Expression parser (Pratt)
+│   │   ├── plpgsql.rs      # PL/pgSQL parser (25+ statement types)
+│   │   ├── hint_validator.rs # Hint validation
+│   │   ├── function_registry.rs # Built-in function registry
+│   │   └── utility/        # Utility parsers (types, constraints, statements, etc.)
+│   ├── analyzer/
+│   │   ├── mod.rs          # Semantic analysis (dynamic SQL, fingerprints, MERGE, etc.)
+│   │   ├── schema.rs       # Schema loading and resolution
+│   │   └── return_cursor.rs # Return cursor analysis
+│   ├── ibatis/             # iBatis/MyBatis XML parsing
+│   ├── java/               # Java source SQL extraction
+│   └── mcp/                # MCP server implementation
 ├── examples/
-│   └── regression.rs       # Run regression tests
+│   ├── regression.rs       # Run regression tests
+│   ├── test_issues.rs      # Issue-specific test cases
+│   └── test_loc.rs         # Line/column accuracy tests
+├── tests/
+│   ├── roundtrip.rs        # SQL ↔ JSON round-trip tests
+│   ├── plpgsql.rs          # PL/pgSQL integration tests
+│   ├── multi_statement.rs  # Multi-statement parsing tests
+│   └── error_handling.rs   # Error handling tests
+├── docs/
+│   ├── user-guide.md       # User guide
+│   ├── ast-json-reference.md # AST JSON structure reference
+│   └── plans/              # Implementation plans
 ├── lib/
 │   └── openGauss-server/   # Reference source (git submodule)
 └── GaussDB-2.23.07.210/    # Documentation reference
@@ -125,7 +174,7 @@ ogsql-parser-by-rust/
 
 ```bash
 # Default build (CLI only)
-cargo build --release
+cargo build --release --features cli
 
 # With HTTP API server
 cargo build --release --features serve
@@ -143,7 +192,7 @@ cargo build --release --features full
 ### Run Tests / 运行测试
 
 ```bash
-# Unit tests (230 tests)
+# Unit tests (1264 tests)
 cargo test
 
 # Regression tests against openGauss test suite
@@ -170,14 +219,45 @@ Commands:
   playground  Launch an interactive terminal UI playground [requires: tui feature]
 
 Options:
-  -f, --file <FILE>   Read SQL from file instead of stdin
-      --mybatis       Enable MyBatis #{param} and ${expr} placeholder support
-  -j, --json          Output in JSON format
-  -h, --help          Print help
-  -V, --version       Print version
+  -f, --file <FILE>       Read SQL from file instead of stdin (can specify multiple times)
+  -j, --json              Output in JSON format
+  -v, --verbose           Verbose output
+      --comments          Include comments in output
+      --mybatis           Enable MyBatis #{param} and ${expr} placeholder support
+      --schema-json <FILE> Schema JSON file for semantic analysis
+  -h, --help              Print help
+  -V, --version           Print version
 ```
 
-#### Format Options / 格式化选项
+#### parse — 解析 SQL
+
+```bash
+# Parse from stdin
+echo "SELECT * FROM users" | ogsql parse
+
+# Parse to JSON
+echo "SELECT * FROM users" | ogsql parse -j
+
+# Parse from file
+ogsql -f query.sql parse -j
+
+# Parse from directory (batch)
+ogsql parse -d ./sql-files -j
+
+# Parse with output directory (preserves directory structure)
+ogsql parse -d ./sql-files -j -o ./output
+
+# Parse only a specific procedure (filter errors by scope)
+ogsql -f package.sql parse --procedure my_procedure
+
+# Parse with statistics
+ogsql parse -d ./sql-files --stats
+
+# CSV output (flat, one row per statement)
+ogsql parse -d ./sql-files --csv
+```
+
+#### format — 格式化 SQL
 
 ```
 $ ogsql format --help
@@ -238,11 +318,17 @@ echo "with cte as (select id from users) select * from cte" | ogsql format
 # Validate SQL syntax
 echo "SELECT FROM" | ogsql validate
 
+# Validate with strict mode (detects undefined functions in PL blocks)
+echo "CREATE OR REPLACE FUNCTION test() RETURNS VOID AS \$\$ BEGIN PERFORM unknown_func(); END; \$\$ LANGUAGE plpgsql" | ogsql validate --strict
+
+# Validate SQL files in a directory
+ogsql validate -d ./sql-files --csv --stats
+
 # Read from file
 ogsql -f query.sql parse -j
 
 # Start HTTP API server
-ogsql serve --host 0.0.0.0 --port 3000
+ogsql serve --host 127.0.0.1 --port 8080
 
 # Parse iBatis/MyBatis XML mapper (basic)
 echo '<mapper namespace="test"><select id="find">SELECT * FROM t WHERE id = #{id}</select></mapper>' | ogsql parse-xml
@@ -250,11 +336,20 @@ echo '<mapper namespace="test"><select id="find">SELECT * FROM t WHERE id = #{id
 # Parse XML mapper with CSV output
 ogsql parse-xml --csv -f mapper/UserMapper.xml
 
+# Parse XML mapper with structured dynamic SQL AST
+ogsql parse-xml -f mapper/UserMapper.xml --structured
+
 # Parse XML mapper with parameter type inference from Java source
 ogsql parse-xml -d /path/to/mapper-xml --java-src /path/to/src/main/java --csv
 
-# Parse XML in directory with Java source for type inference
-ogsql parse-xml --dir ./mapper-xml --java-src ./src/main/java -j
+# Parse XML in directory with stats
+ogsql parse-xml -d ./mapper-xml --java-src ./src/main/java --stats --csv
+
+# Extract SQL from Java source files
+ogsql parse-java -d ./src/main/java --csv --stats
+
+# Extract SQL with custom method patterns
+ogsql parse-java -d ./src/main/java --extra-sql-methods "executeUpdate,executeQuery" --csv
 ```
 
 #### HTTP API Endpoints / HTTP API 接口
@@ -397,6 +492,105 @@ fn main() {
 - Original keyword casing (formatter normalizes to uppercase)
 - Original formatting/layout
 
+#### Token-Level Formatting / Token 级格式化
+
+```rust
+use ogsql_parser::{Tokenizer, Parser, token_formatter::{FormatConfig, KeywordCase, CommaStyle}};
+
+fn main() {
+    let sql = "select id,name from users where id=1";
+    let tokens = Tokenizer::new(sql).tokenize().unwrap();
+    let statements = Parser::new(tokens).parse().unwrap();
+
+    let config = FormatConfig {
+        indent_width: 4,
+        keyword_case: KeywordCase::Upper,
+        comma_style: CommaStyle::Leading,
+        line_width: 100,
+        ..Default::default()
+    };
+
+    for stmt in &statements {
+        let formatted = config.format_statement(stmt);
+        println!("{}", formatted);
+    }
+}
+```
+
+#### Semantic Analysis / 语义分析
+
+```rust
+use ogsql_parser::{
+    Tokenizer, Parser,
+    validate_pl_variables, validate_merge_semantics,
+    compute_query_fingerprints, analyze_transactions,
+};
+
+fn main() {
+    let sql = "MERGE INTO target t USING source s ON t.id = s.id
+               WHEN MATCHED THEN UPDATE SET t.name = s.name
+               WHEN NOT MATCHED THEN INSERT (id, name) VALUES (s.id, s.name)";
+
+    let tokens = Tokenizer::new(sql).tokenize().unwrap();
+    let statements = Parser::new(tokens).parse().unwrap();
+
+    // MERGE semantic validation — detects non-deterministic and invalid patterns
+    for stmt in &statements {
+        if let Some(errors) = validate_merge_semantics(stmt) {
+            for err in &errors {
+                println!("MERGE error: {:?}", err);
+            }
+        }
+    }
+
+    // Compute query fingerprints for SQL identification
+    let fingerprints = compute_query_fingerprints(&statements);
+    for fp in &fingerprints {
+        println!("Fingerprint: {}", fp);
+    }
+}
+```
+
+#### AST Visitor Pattern / AST 访问者模式
+
+```rust
+use ogsql_parser::{
+    Tokenizer, Parser, Expr,
+    visitor::{Visitor, VisitorResult, walk_statement},
+};
+
+// Custom visitor: collect all function calls
+struct FunctionCollector {
+    functions: Vec<String>,
+}
+
+impl Visitor for FunctionCollector {
+    fn visit_expr(&mut self, expr: &Expr) -> VisitorResult {
+        match expr {
+            Expr::FunctionCall { name, .. } => {
+                self.functions.push(name.join("."));
+            }
+            _ => {}
+        }
+        VisitorResult::Continue
+    }
+}
+
+fn main() {
+    let sql = "SELECT count(*), max(score) FROM users GROUP BY dept";
+    let tokens = Tokenizer::new(sql).tokenize().unwrap();
+    let statements = Parser::new(tokens).parse().unwrap();
+
+    let mut collector = FunctionCollector { functions: vec![] };
+    for stmt in &statements {
+        walk_statement(&mut collector, stmt);
+    }
+
+    println!("Functions found: {:?}", collector.functions);
+    // Output: Functions found: ["count", "max"]
+}
+```
+
 #### iBatis/MyBatis XML Parsing / iBatis XML 解析
 
 When built with `--features ibatis`, MyBatis XML mapper parsing is available:
@@ -467,10 +661,13 @@ SQL Input
    Automatic detection and conversion of UTF-8, EUC-JP, EUC-KR, GB18030, BIG5, UTF-16
 
 5. **Unified parser core / 统一解析器核心**  
-   All interfaces (CLI, HTTP API, TUI) share the same parser core
+   All interfaces (CLI, HTTP API, TUI, MCP) share the same parser core
 
 6. **Full serde support / 完整 serde 支持**  
    All AST types derive `Serialize` + `Deserialize`, enabling lossless JSON round-trip (SQL → JSON → SQL)
+
+7. **Built-in function registry / 内置函数注册表**  
+   27+ registered built-in functions with category and domain metadata
 
 ---
 
@@ -482,8 +679,9 @@ SQL Input
 | Phase 2 | Core DML: SELECT, INSERT, UPDATE, DELETE, MERGE | ✅ Complete |
 | Phase 3 | PL/pgSQL: DO blocks, anonymous blocks, control flow | ✅ Complete |
 | Phase 4 | DDL: CREATE, ALTER, DROP statements | 🔄 In Progress |
-| Phase 5 | Advanced: Function/procedure bodies, packages, triggers | ✅ Complete |
-| Phase 6 | Optimization: Error recovery, performance | 📋 Planned |
+| Phase 5 | Advanced: Semantic analysis, dynamic SQL, MERGE validation | ✅ Complete |
+| Phase 6 | Integrations: iBatis XML, Java SQL, MCP, strict validation | ✅ Complete |
+| Phase 7 | Optimization: Error recovery, performance | 📋 Planned |
 
 ---
 
@@ -494,6 +692,12 @@ SQL Input
 | Language | Rust 2021 | Safety, performance, ecosystem |
 | Error handling | `thiserror` 2.0 | Ergonomic error types |
 | Encoding | `encoding_rs` 0.8 | Multi-character set support (EUC-JP, EUC-KR, GB18030, etc.) |
+| CLI | `clap` 4 | Derive-based argument parsing |
+| HTTP API | `axum` 0.7 | Async web framework |
+| MCP | `rmcp` 1.5 | Model Context Protocol server |
+| TUI | `ratatui` 0.29 | Terminal UI framework |
+| XML parsing | `quick-xml` 0.39 | Fast XML parser for iBatis mappers |
+| Java parsing | `tree-sitter-java` 0.23 | Incremental Java parsing |
 | Testing | Built-in + walkdir 2.0 | Regression test file discovery |
 
 ---
@@ -513,6 +717,15 @@ Documentation reference:
 
 ---
 
+## Documentation / 文档
+
+| Document | Description |
+|----------|-------------|
+| [User Guide](docs/user-guide.md) | Complete user guide covering CLI, library, MCP, and AST JSON reference |
+| [AST JSON Reference](docs/ast-json-reference.md) | Detailed JSON structure reference for `ogsql parse -j` output |
+
+---
+
 ## License / 许可证
 
 MIT OR Apache-2.0
@@ -521,11 +734,12 @@ MIT OR Apache-2.0
 
 ## Contributing / 贡献
 
-This is an active development project. Phases 1-5 are complete, Phase 4 (DDL) and Phase 6 (Optimization) are in progress.
+This is an active development project. Phases 1–3 and 5–6 are complete, Phase 4 (DDL) is in progress, and Phase 7 (Optimization) is planned.
 
-这是一个活跃的开发项目。第一至第三阶段已完成，第四阶段（DDL）进行中。
+这是一个活跃的开发项目。第一至第三阶段和第五至第六阶段已完成，第四阶段（DDL）进行中，第七阶段（优化）已规划。
 
 ---
 
-**Status / 状态**: Phase 5 Complete + JSON Round-Trip / 第五阶段完成 + JSON 往返转换  
-**Last Updated / 最后更新**: 2026-04-11
+**Status / 状态**: Phase 6 Complete | 1264 unit tests | 1409/1409 regression tests passing  
+**Version / 版本**: 0.6.5  
+**Last Updated / 最后更新**: 2026-06-02
