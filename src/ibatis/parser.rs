@@ -199,14 +199,38 @@ fn flush_text_to_nodes(text_buf: &mut String, nodes: &mut Vec<SqlNode>) {
     nodes.extend(parse_text_to_nodes(&text));
 }
 
-fn parse_text_to_nodes(text: &str) -> Vec<SqlNode> {
+pub(crate) fn parse_text_to_nodes(text: &str) -> Vec<SqlNode> {
     let mut nodes = Vec::new();
     let mut current_text = String::new();
     let chars: Vec<char> = text.chars().collect();
     let len = chars.len();
     let mut i = 0;
+    let mut in_single_quote = false;
 
     while i < len {
+        if in_single_quote {
+            if chars[i] == '\'' {
+                if i + 1 < len && chars[i + 1] == '\'' {
+                    current_text.push_str("''");
+                    i += 2;
+                    continue;
+                }
+                current_text.push('\'');
+                in_single_quote = false;
+            } else {
+                current_text.push(chars[i]);
+            }
+            i += 1;
+            continue;
+        }
+
+        if chars[i] == '\'' {
+            current_text.push('\'');
+            in_single_quote = true;
+            i += 1;
+            continue;
+        }
+
         if chars[i] == '#' && i + 1 < len && chars[i + 1] == '{' {
             if let Some(end) = find_closing_brace(&chars, i + 2) {
                 if !current_text.is_empty() {
@@ -232,14 +256,14 @@ fn parse_text_to_nodes(text: &str) -> Vec<SqlNode> {
             }
         }
 
-        // iBatis 2.x #param# format
+        // iBatis 2.x #param# format — only when NOT inside a string literal
         if chars[i] == '#' && (i + 1 >= len || chars[i + 1] != '{') {
             let start = i + 1;
             let mut end = start;
-            while end < len && chars[end] != '#' {
+            while end < len && chars[end] != '\'' && chars[end] != '#' {
                 end += 1;
             }
-            if end < len && end > start {
+            if end < len && chars[end] == '#' && end > start {
                 let param: String = chars[start..end].iter().collect();
                 if !param.contains(' ') && !param.contains('\n') && !param.contains('\r') {
                     if !current_text.is_empty() {
@@ -253,14 +277,14 @@ fn parse_text_to_nodes(text: &str) -> Vec<SqlNode> {
             }
         }
 
-        // iBatis 2.x $param$ format
+        // iBatis 2.x $param$ format — only when NOT inside a string literal
         if chars[i] == '$' && (i + 1 >= len || chars[i + 1] != '{') {
             let start = i + 1;
             let mut end = start;
-            while end < len && chars[end] != '$' {
+            while end < len && chars[end] != '\'' && chars[end] != '$' {
                 end += 1;
             }
-            if end < len && end > start {
+            if end < len && chars[end] == '$' && end > start {
                 let param: String = chars[start..end].iter().collect();
                 if !param.contains(' ') && !param.contains('\n') && !param.contains('\r') {
                     if !current_text.is_empty() {
