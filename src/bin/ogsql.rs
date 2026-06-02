@@ -445,15 +445,10 @@ fn filter_output_by_procedure(
             Statement::CreatePackageBody(spanned) => {
                 let pkg_full = spanned.name.join(".").to_ascii_lowercase();
                 let pkg_short = spanned.name.last().map(|n| n.to_ascii_lowercase());
-                let pkg_matches =
-                    pkg_full == proc_lower || pkg_short == Some(proc_lower.clone());
+                let pkg_matches = pkg_full == proc_lower || pkg_short == Some(proc_lower.clone());
 
-                let matching: Vec<PackageItem> = spanned
-                    .items
-                    .iter()
-                    .filter(|item| matches_package_item(item, &proc_lower))
-                    .cloned()
-                    .collect();
+                let matching: Vec<PackageItem> =
+                    spanned.items.iter().filter(|item| matches_package_item(item, &proc_lower)).cloned().collect();
 
                 if pkg_matches {
                     valid_line_ranges.push(line_range);
@@ -479,27 +474,20 @@ fn filter_output_by_procedure(
                         start_col: si.start_col,
                         end_line: si.end_line,
                         end_col: si.end_col,
-                        statement: Statement::CreatePackageBody(
-                            ogsql_parser::ast::Spanned::new(
-                                new_body,
-                                spanned.span.clone(),
-                            ),
-                        ),
+                        statement: Statement::CreatePackageBody(ogsql_parser::ast::Spanned::new(
+                            new_body,
+                            spanned.span.clone(),
+                        )),
                     });
                 }
             }
             Statement::CreatePackage(spanned) => {
                 let pkg_full = spanned.name.join(".").to_ascii_lowercase();
                 let pkg_short = spanned.name.last().map(|n| n.to_ascii_lowercase());
-                let pkg_matches =
-                    pkg_full == proc_lower || pkg_short == Some(proc_lower.clone());
+                let pkg_matches = pkg_full == proc_lower || pkg_short == Some(proc_lower.clone());
 
-                let matching: Vec<PackageItem> = spanned
-                    .items
-                    .iter()
-                    .filter(|item| matches_package_item(item, &proc_lower))
-                    .cloned()
-                    .collect();
+                let matching: Vec<PackageItem> =
+                    spanned.items.iter().filter(|item| matches_package_item(item, &proc_lower)).cloned().collect();
 
                 if pkg_matches {
                     valid_line_ranges.push(line_range);
@@ -4600,7 +4588,7 @@ fn cmd_parse_xml(cli: &Cli, dir: Option<&str>, csv: bool, java_src: Option<&str>
             vec![p.to_path_buf()]
         }
         None => {
-            let scan_dir = dir.as_deref().map(std::path::Path::new).unwrap_or_else(|| std::path::Path::new("."));
+            let scan_dir = dir.map(std::path::Path::new).unwrap_or_else(|| std::path::Path::new("."));
             let detected = ogsql_parser::ibatis::detect_java_roots(scan_dir);
             if !detected.is_empty() {
                 eprintln!("Auto-detected Java source roots:");

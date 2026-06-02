@@ -1630,11 +1630,7 @@ fn test_hash_in_sql_string_literal_not_mistaken_for_param() {
 
     // All parameters must be named "str" — no garbage like "')+1" or "'"
     for (i, p) in stmt.parameters.iter().enumerate() {
-        assert_eq!(
-            p.name, "str",
-            "parameter[{}] should be 'str', got '{}'",
-            i, p.name
-        );
+        assert_eq!(p.name, "str", "parameter[{}] should be 'str', got '{}'", i, p.name);
     }
     // Exactly 5 #{str} occurrences
     assert_eq!(stmt.parameters.len(), 5, "expected 5 params, got {}: {:?}", stmt.parameters.len(), stmt.parameters);
@@ -1667,10 +1663,13 @@ fn test_ibatis2_param_respects_string_literals() {
         assert_eq!(name, "value", "parameter name should be 'value', got '{}'", name);
     }
     // The '#' text literal should be preserved in a Text node
-    let text_content: String = nodes.iter().filter_map(|n| match n {
-        SqlNode::Text { content } => Some(content.as_str()),
-        _ => None,
-    }).collect();
+    let text_content: String = nodes
+        .iter()
+        .filter_map(|n| match n {
+            SqlNode::Text { content } => Some(content.as_str()),
+            _ => None,
+        })
+        .collect();
     assert!(text_content.contains("'#'"), "text should contain '#' literal, got: {}", text_content);
 }
 

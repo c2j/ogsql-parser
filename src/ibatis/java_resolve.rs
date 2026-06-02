@@ -164,19 +164,18 @@ pub fn detect_java_roots(scan_dir: &Path) -> Vec<PathBuf> {
     }
 
     let mut roots = HashSet::new();
-    let mut sampled = 0;
     const MAX_SAMPLES: usize = 50;
 
-    for entry in walkdir::WalkDir::new(scan_dir)
+    for (sampled, entry) in walkdir::WalkDir::new(scan_dir)
         .into_iter()
         .filter_map(|e| e.ok())
         .filter(|e| e.file_type().is_file())
         .filter(|e| e.file_name().to_str().map(|n| n.ends_with(".java")).unwrap_or(false))
+        .enumerate()
     {
         if sampled >= MAX_SAMPLES {
             break;
         }
-        sampled += 1;
 
         if let Some(root) = infer_root_from_java_file(entry.path()) {
             roots.insert(root);

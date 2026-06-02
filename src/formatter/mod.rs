@@ -327,13 +327,7 @@ impl SqlFormatter {
         let pad = Self::pad(indent);
         text.split('\n')
             .enumerate()
-            .map(|(i, line)| {
-                if i == 0 {
-                    line.to_string()
-                } else {
-                    format!("{}{}", pad, line)
-                }
-            })
+            .map(|(i, line)| if i == 0 { line.to_string() } else { format!("{}{}", pad, line) })
             .collect::<Vec<_>>()
             .join("\n")
     }
@@ -403,11 +397,7 @@ impl SqlFormatter {
                 result.push_str(&pad);
             }
 
-            let kw_and_content_end = if i + 1 < positions.len() {
-                positions[i + 1].0
-            } else {
-                flat.len()
-            };
+            let kw_and_content_end = if i + 1 < positions.len() { positions[i + 1].0 } else { flat.len() };
 
             let kw_text = flat[*start..*kw_end].trim();
             let content = flat[*kw_end..kw_and_content_end].trim();
@@ -423,7 +413,6 @@ impl SqlFormatter {
                     result.push_str(content);
                 }
             }
-
         }
 
         if result.is_empty() {
@@ -437,11 +426,11 @@ impl SqlFormatter {
         let cont_pad = format!("{}{}", pad, Self::pad(1));
         let mut result = String::new();
         let mut depth: i32 = 0;
-        let mut chars = condition.chars().peekable();
+        let chars = condition.chars().peekable();
         let mut current_token = String::new();
         let mut tokens: Vec<(String, i32)> = Vec::new();
 
-        while let Some(ch) = chars.next() {
+        for ch in chars {
             match ch {
                 '(' => {
                     if !current_token.is_empty() {

@@ -1197,7 +1197,7 @@ impl<'a> ExtractContext<'a> {
         let is_throw = consequence.kind() == "throw_statement"
             || (consequence.kind() == "block"
                 && consequence.named_child_count() == 1
-                && consequence.named_child(0).map_or(false, |c| c.kind() == "throw_statement"));
+                && consequence.named_child(0).is_some_and(|c| c.kind() == "throw_statement"));
         if !is_throw {
             return None;
         }
@@ -1235,10 +1235,7 @@ impl<'a> ExtractContext<'a> {
         if name != "contains" {
             return None;
         }
-        let obj = match inner.child_by_field_name("object") {
-            Some(n) => n,
-            None => return None,
-        };
+        let obj = inner.child_by_field_name("object")?;
         if obj.kind() != "identifier" {
             return None;
         }
@@ -1271,10 +1268,7 @@ impl<'a> ExtractContext<'a> {
         if name != "add" {
             return None;
         }
-        let obj = match expr.child_by_field_name("object") {
-            Some(n) => n,
-            None => return None,
-        };
+        let obj = expr.child_by_field_name("object")?;
         if obj.kind() != "identifier" {
             return None;
         }
@@ -1357,7 +1351,7 @@ impl<'a> ExtractContext<'a> {
         let args = node.child_by_field_name("arguments")?;
         let count = self.resolve_int_arg_node(&args, 0)?;
         let element = self.try_eval_string_arg_node(&args, 1)?;
-        let parts: Vec<&str> = std::iter::repeat(element.as_str()).take(count).collect();
+        let parts: Vec<&str> = std::iter::repeat_n(element.as_str(), count).collect();
         Some(parts.join(", "))
     }
 
@@ -1408,10 +1402,7 @@ impl<'a> ExtractContext<'a> {
                 if name != "size" {
                     return None;
                 }
-                let obj = match node.child_by_field_name("object") {
-                    Some(n) => n,
-                    None => return None,
-                };
+                let obj = node.child_by_field_name("object")?;
                 if obj.kind() != "identifier" {
                     return None;
                 }
