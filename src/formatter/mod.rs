@@ -3,22 +3,53 @@ use crate::ast::*;
 pub(crate) mod plpgsql;
 
 pub struct SqlFormatter {
-    #[allow(dead_code)]
     indent: usize,
     uppercase_keywords: bool,
+    pretty_print: bool,
 }
 
 impl SqlFormatter {
     /// Creates a new SQL formatter with default settings (uppercase keywords).
     pub fn new() -> Self {
-        Self { indent: 0, uppercase_keywords: true }
+        Self { indent: 0, uppercase_keywords: true, pretty_print: false }
+    }
+
+    /// Enable multiline/pretty-print output for [`format_statement`](Self::format_statement).
+    ///
+    /// When enabled, line breaks are inserted before major SQL keywords
+    /// (`FROM`, `WHERE`, `GROUP BY`, `HAVING`, `ORDER BY`, `LIMIT`, etc.)
+    /// with proper indentation and parenthesis-depth awareness (subqueries
+    /// are left intact).
+    pub fn pretty_print(mut self, yes: bool) -> Self {
+        self.pretty_print = yes;
+        self
+    }
+
+    /// Set the base indentation level (number of 2-space units) for
+    /// pretty-printed output.
+    pub fn indent(mut self, n: usize) -> Self {
+        self.indent = n;
+        self
     }
 
     /// Formats an AST statement back into SQL text.
     ///
-    /// This is the inverse of parsing — it converts the parsed AST into a
-    /// normalized SQL string with standardized keyword casing and formatting.
+    /// When [`pretty_print(true)`](Self::pretty_print) is enabled, the
+    /// output is reformatted with line breaks before major keywords and
+    /// proper indentation. Otherwise (default), the output is a single-line
+    /// normalized SQL string.
     pub fn format_statement(&self, stmt: &Statement) -> String {
+        let flat = self.format_statement_flat(stmt);
+        if self.pretty_print {
+            self.multiline_format_sql(&flat, self.indent)
+        } else {
+            flat
+        }
+    }
+
+    /// Flat (single-line) formatting — used internally and by the PL/pgSQL
+    /// formatter which applies its own indentation.
+    pub(crate) fn format_statement_flat(&self, stmt: &Statement) -> String {
         match stmt {
             Statement::Select(s) => self.format_select(s),
             Statement::Insert(s) => self.format_insert(s),
@@ -5788,5 +5819,110 @@ mod tests {
         let stmt = parse_one(sql);
         let formatted = stmt.to_string();
         assert!(formatted.contains("EXPLAIN"));
+    }
+
+    #[test]
+    fn test_pretty_print_simple_select() {
+        let sql = "SELECT id, name FROM users WHERE status = 'active'";
+        let stmt = parse_one(sql);
+        let formatter = SqlFormatter::new().pretty_print(true);
+        let result = formatter.format_statement(&stmt);
+        assert!(result.contains("\nFROM"));
+        assert!(result.contains("\nWHERE"));
+        assert!(!result.contains("\nGROUP BY"));
+    }
+
+    #[test]
+    fn test_pretty_print_complex_query() {
+        let sql = "SELECT id, name FROM users WHERE status = 'active' AND age > 18 GROUP BY dept HAVING count(*) > 5 ORDER BY name LIMIT 10";
+        let stmt = parse_one(sql);
+        let formatter = SqlFormatter::new().pretty_print(true);
+        let result = formatter.format_statement(&stmt);
+        assert!(result.contains("\nFROM"));
+        assert!(result.contains("\nWHERE"));
+        assert!(result.contains("\nGROUP BY"));
+        assert!(result.contains("\nHAVING"));
+        assert!(result.contains("\nORDER BY"));
+        assert!(result.contains("\nLIMIT"));
+    }
+
+    #[test]
+    fn test_pretty_print_subquery_no_break_inside() {
+        let sql = "SELECT * FROM (SELECT id FROM t WHERE x = 1) sub";
+        let stmt = parse_one(sql);
+        let formatter = SqlFormatter::new().pretty_print(true);
+        let result = formatter.format_statement(&stmt);
+        assert!(result.contains("\nFROM"));
+        assert_eq!(result.matches("\nFROM").count(), 1);
+    }
+
+    #[test]
+    fn test_pretty_print_and_or_breaks() {
+        let sql = "SELECT * FROM t WHERE a = 1 AND b = 2 OR c = 3";
+        let stmt = parse_one(sql);
+        let formatter = SqlFormatter::new().pretty_print(true);
+        let result = formatter.format_statement(&stmt);
+        assert!(result.contains("\nWHERE"));
+        assert!(result.contains("AND"));
+        assert!(result.contains("OR"));
+        assert!(result.contains('\n'));
+    }
+
+    #[test]
+    fn test_pretty_print_union() {
+        let sql = "SELECT id FROM t1 UNION ALL SELECT id FROM t2";
+        let stmt = parse_one(sql);
+        let formatter = SqlFormatter::new().pretty_print(true);
+        let result = formatter.format_statement(&stmt);
+        assert!(result.contains("\nUNION ALL"));
+    }
+
+    #[test]
+    fn test_pretty_print_no_breakpoints_returns_flat() {
+        let sql = "INSERT INTO t VALUES (1, 2)";
+        let stmt = parse_one(sql);
+        let formatter = SqlFormatter::new().pretty_print(true);
+        let result = formatter.format_statement(&stmt);
+        let flat_formatter = SqlFormatter::new();
+        let flat = flat_formatter.format_statement(&stmt);
+        assert_eq!(result, flat);
+    }
+
+    #[test]
+    fn test_pretty_print_with_indent() {
+        let sql = "SELECT id FROM t WHERE x = 1";
+        let stmt = parse_one(sql);
+        let formatter = SqlFormatter::new().pretty_print(true).indent(2);
+        let result = formatter.format_statement(&stmt);
+        let lines: Vec<&str> = result.lines().collect();
+        assert!(lines.len() > 1);
+        assert!(lines[1].starts_with("    "));
+    }
+
+    #[test]
+    fn test_pretty_print_default_is_flat() {
+        let sql = "SELECT id, name FROM users WHERE status = 'active'";
+        let stmt = parse_one(sql);
+        let formatter = SqlFormatter::new();
+        let result = formatter.format_statement(&stmt);
+        assert!(!result.contains('\n'));
+    }
+
+    #[test]
+    fn test_pretty_print_offset_connect_by() {
+        let sql = "SELECT * FROM t WHERE x = 1 OFFSET 5";
+        let stmt = parse_one(sql);
+        let formatter = SqlFormatter::new().pretty_print(true);
+        let result = formatter.format_statement(&stmt);
+        assert!(result.contains("\nOFFSET"));
+    }
+
+    #[test]
+    fn test_pretty_print_except_intersect() {
+        let sql = "SELECT id FROM t1 EXCEPT SELECT id FROM t2";
+        let stmt = parse_one(sql);
+        let formatter = SqlFormatter::new().pretty_print(true);
+        let result = formatter.format_statement(&stmt);
+        assert!(result.contains("\nEXCEPT"));
     }
 }
