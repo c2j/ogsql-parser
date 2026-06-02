@@ -10,7 +10,7 @@ use crate::ibatis::error::IbatisError;
 use crate::ibatis::types::{
     MapperFile, MapperStatement, ParameterMapDef, ParameterMapEntry, SqlFragment, SqlNode, StatementKind,
 };
-use crate::ibatis::util::{find_closing_brace, parse_param_type};
+use crate::ibatis::util::{find_closing_brace, parse_param_attrs, parse_param_type};
 
 const SKIP_TAGS: &[&str] = &["resultMap", "cache", "cache-ref", "selectKey"];
 
@@ -45,6 +45,8 @@ pub fn parse_xml(xml: &[u8]) -> Result<MapperFile, IbatisError> {
                     let result_type = get_attr(&e, "resultType")
                         .or_else(|| get_attr(&e, "resultMap"))
                         .or_else(|| get_attr(&e, "resultClass"));
+                    let database_id = get_attr(&e, "databaseId");
+                    let statement_type = get_attr(&e, "statementType");
                     let children = read_node_tree(&mut reader, tag.as_ref());
                     statements.push(MapperStatement {
                         kind,
@@ -53,6 +55,8 @@ pub fn parse_xml(xml: &[u8]) -> Result<MapperFile, IbatisError> {
                         result_type,
                         body: merge_children(children),
                         line,
+                        database_id,
+                        statement_type,
                     });
                 } else if tag.as_ref().eq_ignore_ascii_case(b"parameterMap") {
                     let id = get_attr(&e, "id").unwrap_or_default();
@@ -237,8 +241,14 @@ pub(crate) fn parse_text_to_nodes(text: &str) -> Vec<SqlNode> {
                     nodes.push(SqlNode::Text { content: std::mem::take(&mut current_text) });
                 }
                 let param: String = chars[i + 2..end].iter().collect();
-                let (name, java_type) = parse_param_type(&param);
-                nodes.push(SqlNode::Parameter { name, java_type });
+                let (name, attrs) = parse_param_attrs(&param);
+                nodes.push(SqlNode::Parameter {
+                    name,
+                    java_type: attrs.java_type,
+                    jdbc_type: attrs.jdbc_type,
+                    mode: attrs.mode,
+                    result_map: attrs.result_map,
+                });
                 i = end + 1;
                 continue;
             }
@@ -249,8 +259,12 @@ pub(crate) fn parse_text_to_nodes(text: &str) -> Vec<SqlNode> {
                     nodes.push(SqlNode::Text { content: std::mem::take(&mut current_text) });
                 }
                 let raw: String = chars[i + 2..end].iter().collect();
-                let (expr, java_type) = parse_param_type(&raw);
-                nodes.push(SqlNode::RawExpr { expr, java_type });
+                let (expr, attrs) = parse_param_attrs(&raw);
+                nodes.push(SqlNode::RawExpr {
+                    expr,
+                    java_type: attrs.java_type,
+                    jdbc_type: attrs.jdbc_type,
+                });
                 i = end + 1;
                 continue;
             }
@@ -269,8 +283,14 @@ pub(crate) fn parse_text_to_nodes(text: &str) -> Vec<SqlNode> {
                     if !current_text.is_empty() {
                         nodes.push(SqlNode::Text { content: std::mem::take(&mut current_text) });
                     }
-                    let (name, java_type) = parse_param_type(&param);
-                    nodes.push(SqlNode::Parameter { name, java_type });
+                    let (name, attrs) = parse_param_attrs(&param);
+                    nodes.push(SqlNode::Parameter {
+                        name,
+                        java_type: attrs.java_type,
+                        jdbc_type: attrs.jdbc_type,
+                        mode: attrs.mode,
+                        result_map: attrs.result_map,
+                    });
                     i = end + 1;
                     continue;
                 }
@@ -291,8 +311,12 @@ pub(crate) fn parse_text_to_nodes(text: &str) -> Vec<SqlNode> {
                         nodes.push(SqlNode::Text { content: std::mem::take(&mut current_text) });
                     }
                     let raw: String = chars[start..end].iter().collect();
-                    let (expr, java_type) = parse_param_type(&raw);
-                    nodes.push(SqlNode::RawExpr { expr, java_type });
+                    let (expr, attrs) = parse_param_attrs(&raw);
+                    nodes.push(SqlNode::RawExpr {
+                        expr,
+                        java_type: attrs.java_type,
+                        jdbc_type: attrs.jdbc_type,
+                    });
                     i = end + 1;
                     continue;
                 }
@@ -421,14 +445,20 @@ fn merge_children(children: Vec<SqlNode>) -> SqlNode {
 fn simple_node_to_text(node: &SqlNode) -> String {
     match node {
         SqlNode::Text { content } => content.clone(),
-        SqlNode::Parameter { name, java_type } => match java_type {
-            Some(t) => format!("#{{{},{}}}", name, format!("javaType={}", t)),
-            None => format!("#{{{}}}", name),
-        },
-        SqlNode::RawExpr { expr, java_type } => match java_type {
-            Some(t) => format!("${{{},{}}}", expr, format!("javaType={}", t)),
-            None => format!("${{{}}}", expr),
-        },
+        SqlNode::Parameter { name, java_type, jdbc_type, .. } => {
+            let type_str: Option<&str> = jdbc_type.as_deref().or(java_type.as_deref());
+            match type_str {
+                Some(t) => format!("#{{{},{}}}", name, format!("jdbcType={}", t)),
+                None => format!("#{{{}}}", name),
+            }
+        }
+        SqlNode::RawExpr { expr, java_type, jdbc_type } => {
+            let type_str: Option<&str> = jdbc_type.as_deref().or(java_type.as_deref());
+            match type_str {
+                Some(t) => format!("${{{},{}}}", expr, format!("jdbcType={}", t)),
+                None => format!("${{{}}}", expr),
+            }
+        }
         _ => String::new(),
     }
 }

@@ -138,12 +138,15 @@ pub fn parse_mapper_bytes_structured_with_path(xml: &[u8], file_path: Option<&st
             let collected = flatten::collect_params(&stmt.body);
             let parameters: Vec<ParamMeta> = collected
                 .iter()
-                .map(|(name, java_type, raw)| ParamMeta {
-                    name: name.clone(),
-                    jdbc_type: None,
-                    source: java_type.as_ref().map(|_| InferenceSource::InlineJavaType),
-                    position: 0,
-                    raw: raw.clone(),
+                .map(|(name, type_hint, raw)| {
+                    let jdbc_type = type_hint.as_ref().and_then(|s| util::jdbc_type_from_str(s));
+                    ParamMeta {
+                        name: name.clone(),
+                        jdbc_type,
+                        source: type_hint.as_ref().map(|_| InferenceSource::InlineJdbcType),
+                        position: 0,
+                        raw: raw.clone(),
+                    }
                 })
                 .collect();
 
@@ -156,6 +159,8 @@ pub fn parse_mapper_bytes_structured_with_path(xml: &[u8], file_path: Option<&st
                 has_dynamic_elements: has_dynamic,
                 location: XmlSourceLocation { file_path: file_path.map(|s| s.to_string()), line: stmt.line },
                 parameters,
+                database_id: stmt.database_id.clone(),
+                statement_type: stmt.statement_type.clone(),
             }
         })
         .collect();
@@ -215,12 +220,15 @@ fn parse_mapper_bytes_internal(
         #[cfg(not(feature = "java"))]
         let parameters: Vec<types::ParamMeta> = collected
             .iter()
-            .map(|(name, java_type, raw)| types::ParamMeta {
-                name: name.clone(),
-                jdbc_type: None,
-                source: java_type.as_ref().map(|_| types::InferenceSource::InlineJavaType),
-                position: 0,
-                raw: raw.clone(),
+            .map(|(name, type_hint, raw)| {
+                let jdbc_type = type_hint.as_ref().and_then(|s| util::jdbc_type_from_str(s));
+                types::ParamMeta {
+                    name: name.clone(),
+                    jdbc_type,
+                    source: type_hint.as_ref().map(|_| types::InferenceSource::InlineJdbcType),
+                    position: 0,
+                    raw: raw.clone(),
+                }
             })
             .collect();
 
@@ -249,6 +257,8 @@ fn parse_mapper_bytes_internal(
             has_dynamic_elements: has_dynamic,
             line: stmt.line,
             parse_result,
+            database_id: stmt.database_id.clone(),
+            statement_type: stmt.statement_type.clone(),
         });
     }
 

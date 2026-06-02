@@ -48,6 +48,10 @@ pub struct MapperStatement {
     pub body: SqlNode,
     /// 标签在 XML 文件中的行号（1-based）
     pub line: usize,
+    /// MyBatis `databaseId` 属性 — 用于区分多数据库方言。
+    pub database_id: Option<String>,
+    /// MyBatis `statementType` 属性 — 如 CALLABLE、PREPARED 等。
+    pub statement_type: Option<String>,
 }
 
 /// SQL 语句类型
@@ -68,10 +72,17 @@ pub enum SqlNode {
     Parameter {
         name: String,
         java_type: Option<String>,
+        /// MyBatis `jdbcType` 属性（如 VARCHAR、CURSOR、CLOB）。
+        jdbc_type: Option<String>,
+        /// MyBatis `mode` 属性（如 IN、OUT、INOUT）。
+        mode: Option<String>,
+        /// MyBatis `resultMap` 属性（用于 CURSOR 类型游标映射）。
+        result_map: Option<String>,
     },
     RawExpr {
         expr: String,
         java_type: Option<String>,
+        jdbc_type: Option<String>,
     },
     Include {
         refid: String,
@@ -147,6 +158,8 @@ pub struct ParsedStatement {
     pub has_dynamic_elements: bool,
     pub line: usize,
     pub parse_result: Option<(Vec<crate::ast::StatementInfo>, Vec<crate::parser::ParserError>)>,
+    pub database_id: Option<String>,
+    pub statement_type: Option<String>,
 }
 
 /// MyBatis 支持的 JDBC 类型（常用子集）。
@@ -178,6 +191,7 @@ pub enum JdbcType {
     Null,
     Array,
     Other,
+    Cursor,
 }
 
 /// 参数类型推断来源。
@@ -229,6 +243,8 @@ pub struct StructuredStatement {
     pub location: XmlSourceLocation,
     /// 从 body 中收集的所有参数（#{param} 和 ${expr}）
     pub parameters: Vec<ParamMeta>,
+    pub database_id: Option<String>,
+    pub statement_type: Option<String>,
 }
 
 impl StructuredStatement {
@@ -255,6 +271,8 @@ impl StructuredStatement {
             has_dynamic_elements: self.has_dynamic_elements,
             line: self.location.line,
             parse_result,
+            database_id: self.database_id.clone(),
+            statement_type: self.statement_type.clone(),
         }
     }
 }
