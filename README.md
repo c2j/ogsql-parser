@@ -741,5 +741,5 @@ This is an active development project. Phases 1–3 and 5–6 are complete, Phas
 ---
 
 **Status / 状态**: Phase 6 Complete | 1264 unit tests | 1409/1409 regression tests passing  
-**Version / 版本**: 0.6.6  
+**Version / 版本**: 0.6.7  
 **Last Updated / 最后更新**: 2026-06-02

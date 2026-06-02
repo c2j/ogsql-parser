@@ -145,7 +145,7 @@ $ ogsql --help
   ╚██████╔╝╚██████╔╝███████║╚██████╔╝███████╗ ██║     ██║  ██║██║  ██║███████║███████╗██║  ██║
    ╚═════╝  ╚═════╝ ╚══════╝ ╚═════╝ ╚══════╝ ╚═╝     ╚═╝  ╚═╝╚═╝  ╚═╝╚══════╝╚══════╝╚═╝  ╚═╝
 
-ogsql 0.6.6
+ogsql 0.6.7
 openGauss/GaussDB SQL Parser
 
 Usage: ogsql [OPTIONS] <COMMAND>
@@ -527,14 +527,14 @@ MCP 服务器提供以下工具供 AI 助手调用：
 
 ```toml
 [dependencies]
-ogsql-parser = "0.6.6"
+ogsql-parser = "0.6.7"
 
 # 按需启用 feature
 [features]
 # 如果需要 iBatis XML 解析
-# ogsql-parser = { version = "0.6.6", features = ["ibatis"] }
+# ogsql-parser = { version = "0.6.7", features = ["ibatis"] }
 # 如果需要 Java 源文件支持
-# ogsql-parser = { version = "0.6.6", features = ["java"] }
+# ogsql-parser = { version = "0.6.7", features = ["java"] }
 ```
 
 ### 5.2 基本解析
