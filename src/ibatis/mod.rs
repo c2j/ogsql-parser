@@ -48,6 +48,7 @@ mod java_resolve;
 pub mod error;
 pub mod expand;
 pub mod flatten;
+pub mod optimize;
 pub mod parser;
 pub mod resolver;
 pub mod types;
@@ -117,7 +118,7 @@ pub fn parse_mapper_bytes_structured_with_path(xml: &[u8], file_path: Option<&st
         }
     };
 
-    let mapper_file = match resolver::resolve_includes(&mapper_file) {
+    let mut mapper_file = match resolver::resolve_includes(&mapper_file) {
         Ok(m) => m,
         Err(e) => {
             errors.push(e);
@@ -129,6 +130,10 @@ pub fn parse_mapper_bytes_structured_with_path(xml: &[u8], file_path: Option<&st
             };
         }
     };
+
+    for stmt in mapper_file.statements.iter_mut() {
+        optimize::optimize_exclusive_ifs(&mut stmt.body);
+    }
 
     let statements: Vec<StructuredStatement> = mapper_file
         .statements
@@ -191,7 +196,7 @@ fn parse_mapper_bytes_internal(
         }
     };
 
-    let mapper_file = match resolver::resolve_includes(&mapper_file) {
+    let mut mapper_file = match resolver::resolve_includes(&mapper_file) {
         Ok(m) => m,
         Err(e) => {
             errors.push(e);
@@ -203,6 +208,10 @@ fn parse_mapper_bytes_internal(
             };
         }
     };
+
+    for stmt in mapper_file.statements.iter_mut() {
+        optimize::optimize_exclusive_ifs(&mut stmt.body);
+    }
 
     let mut statements = Vec::new();
     for stmt in &mapper_file.statements {
