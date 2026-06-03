@@ -6591,6 +6591,96 @@ fn test_update_hint_roundtrip() {
 }
 
 #[test]
+fn test_delete_order_by_with_limit() {
+    let sql = "DELETE FROM t WHERE status = 0 ORDER BY id LIMIT 10";
+    let stmts = parse(sql);
+    match &stmts[0] {
+        Statement::Delete(s) => {
+            assert!(s.order_by.is_some(), "ORDER BY should be parsed");
+            let items = s.order_by.as_ref().unwrap();
+            assert_eq!(items.len(), 1);
+            assert!(s.limit.is_some(), "LIMIT should be parsed");
+        }
+        other => panic!("expected Delete, got {:?}", other),
+    }
+    // Round-trip
+    let formatter = SqlFormatter::new();
+    let output = formatter.format_statement(&stmts[0]);
+    assert!(output.contains("ORDER BY"), "formatted SQL should contain ORDER BY: {}", output);
+    assert!(output.contains("LIMIT"), "formatted SQL should contain LIMIT: {}", output);
+
+    // Verify JSON round-trip
+    let json = serde_json::to_string(&stmts).unwrap();
+    let restored: Vec<Statement> = serde_json::from_str(&json).unwrap();
+    assert_eq_ignoring_span(&restored[0], &stmts[0]);
+}
+
+#[test]
+fn test_delete_order_by_desc() {
+    let sql = "DELETE FROM t WHERE status = 0 ORDER BY id DESC LIMIT 5";
+    let stmts = parse(sql);
+    match &stmts[0] {
+        Statement::Delete(s) => {
+            let items = s.order_by.as_ref().unwrap();
+            assert_eq!(items.len(), 1);
+            assert_eq!(items[0].asc, Some(false));
+        }
+        other => panic!("expected Delete, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_delete_order_by_multi_column() {
+    let sql = "DELETE FROM t WHERE status = 0 ORDER BY status, id ASC LIMIT 100";
+    let stmts = parse(sql);
+    match &stmts[0] {
+        Statement::Delete(s) => {
+            let items = s.order_by.as_ref().unwrap();
+            assert_eq!(items.len(), 2);
+            assert_eq!(items[0].asc, None); // no explicit direction
+            assert_eq!(items[1].asc, Some(true));
+        }
+        other => panic!("expected Delete, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_delete_order_by_without_limit_warns() {
+    let sql = "DELETE FROM t WHERE status = 0 ORDER BY id";
+    let tokens = Tokenizer::new(sql).tokenize().unwrap();
+    let mut parser = Parser::new(tokens);
+    let stmts = parser.parse();
+
+    // Statement should parse successfully
+    match &stmts[0] {
+        Statement::Delete(s) => {
+            assert!(s.order_by.is_some(), "ORDER BY should be parsed");
+            assert!(s.limit.is_none(), "LIMIT should be None");
+        }
+        other => panic!("expected Delete, got {:?}", other),
+    }
+
+    // Should produce a warning about ORDER BY without LIMIT
+    let warnings: Vec<_> = parser.errors().iter().filter(|e| matches!(e, ParserError::Warning { .. })).collect();
+    assert_eq!(warnings.len(), 1, "expected exactly 1 warning, got {:?} errors: {:?}", warnings.len(), parser.errors());
+    if let ParserError::Warning { message, .. } = &warnings[0] {
+        assert!(message.contains("ORDER BY"), "warning should mention ORDER BY: {}", message);
+        assert!(message.contains("LIMIT"), "warning should mention LIMIT: {}", message);
+    }
+}
+
+#[test]
+fn test_delete_order_by_with_limit_no_warning() {
+    let sql = "DELETE FROM t WHERE status = 0 ORDER BY id LIMIT 10";
+    let tokens = Tokenizer::new(sql).tokenize().unwrap();
+    let mut parser = Parser::new(tokens);
+    let _stmts = parser.parse();
+
+    let warnings: Vec<_> = parser.errors().iter().filter(|e| matches!(e, ParserError::Warning { .. })).collect();
+    assert!(warnings.is_empty(), "should have no warnings when ORDER BY is paired with LIMIT, got: {:?}", warnings);
+}
+
+#[test]
 fn test_delete_hint_roundtrip() {
     let sql = "DELETE /*+ indexscan(t1 idx_c1) */ FROM t1 WHERE c1 > 0";
     let stmts = parse(sql);
