@@ -65,9 +65,8 @@ pub fn flatten_sql(node: &SqlNode) -> String {
                 suffix_overrides.as_deref(),
             )
         }
-        SqlNode::ForEach { open, separator, close, prepend, children, .. } => {
-            let sep = separator.as_deref().unwrap_or("");
-            let content = flatten_children_with_separator(children, sep);
+        SqlNode::ForEach { open, separator: _, close, prepend, children, .. } => {
+            let content = flatten_children(children);
             let open_str = open.as_deref().unwrap_or("");
             let close_str = close.as_deref().unwrap_or("");
             let body = format!("{}{}{}", open_str, content, close_str);
@@ -84,19 +83,6 @@ pub fn flatten_sql(node: &SqlNode) -> String {
 fn flatten_children(children: &[SqlNode]) -> String {
     let raw: String = children.iter().map(flatten_sql).collect();
     deduplicate_conjunctions(&raw)
-}
-
-/// Flatten children with a separator between non-empty segments.
-/// Used by ForEach to preserve the `separator` attribute.
-fn flatten_children_with_separator(children: &[SqlNode], separator: &str) -> String {
-    let segments: Vec<String> = children
-        .iter()
-        .map(|c| flatten_sql(c))
-        .map(|s| s.trim().to_string())
-        .filter(|s| !s.is_empty())
-        .collect();
-    let joined = segments.join(separator);
-    deduplicate_conjunctions(&joined)
 }
 
 fn deduplicate_conjunctions(sql: &str) -> String {
