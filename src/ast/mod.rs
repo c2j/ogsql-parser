@@ -1610,6 +1610,9 @@ pub struct DeleteStatement {
     pub where_clause: Option<Expr>,
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(default)]
+    pub order_by: Option<Vec<OrderByItem>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default)]
     pub limit: Option<Expr>,
     pub returning: Vec<SelectTarget>,
     #[serde(skip_serializing_if = "Option::is_none")]
