@@ -1,0 +1,7 @@
+# Windows 7 compatibility target
+# Build with: cargo +nightly build --release --target x86_64-win7-windows-msvc -Zbuild-std
+[target.x86_64-win7-windows-msvc]
+rustflags = ["-C", "target-feature=+crt-static"]
+
+[target.i686-win7-windows-msvc]
+rustflags = ["-C", "target-feature=+crt-static"]
