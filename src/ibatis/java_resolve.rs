@@ -57,6 +57,7 @@ static JDBC_TYPE_MAP: &[(&str, crate::ibatis::types::JdbcType)] = &[
     ("NULL", crate::ibatis::types::JdbcType::Null),
     ("ARRAY", crate::ibatis::types::JdbcType::Array),
     ("OTHER", crate::ibatis::types::JdbcType::Other),
+    ("CURSOR", crate::ibatis::types::JdbcType::Cursor),
 ];
 
 #[derive(Debug, Clone)]

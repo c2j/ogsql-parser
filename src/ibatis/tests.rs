@@ -1880,61 +1880,57 @@ fn guard_mode_preserved_in_param_attrs() {
     // Its child Parameter should have mode=IN, jdbcType=VARCHAR
     let stmt = &result.statements[0];
 
-    fn find_if_with_test<'a>(node: &'a SqlNode, test_contains: &str) -> Option<&'a SqlNode> {
+    fn find_branch_children<'a>(node: &'a SqlNode, test_contains: &str) -> Option<&'a [SqlNode]> {
         match node {
-            SqlNode::If { test, children, .. } if test.contains(test_contains) => Some(node),
-            SqlNode::If { children, .. } => children.iter().find_map(|c| find_if_with_test(c, test_contains)),
-            SqlNode::ForEach { children, .. } => children.iter().find_map(|c| find_if_with_test(c, test_contains)),
-            SqlNode::Sequence { children } => children.iter().find_map(|c| find_if_with_test(c, test_contains)),
+            SqlNode::If { test, children, .. } if test.contains(test_contains) => Some(children),
+            SqlNode::If { children, .. } => children.iter().find_map(|c| find_branch_children(c, test_contains)),
+            SqlNode::ForEach { children, .. } => children.iter().find_map(|c| find_branch_children(c, test_contains)),
+            SqlNode::Sequence { children } => children.iter().find_map(|c| find_branch_children(c, test_contains)),
             SqlNode::Where { children } | SqlNode::Set { children } => {
-                children.iter().find_map(|c| find_if_with_test(c, test_contains))
+                children.iter().find_map(|c| find_branch_children(c, test_contains))
             }
+            SqlNode::Choose { branches } => branches.iter().find_map(|(test, ch)| {
+                if test.as_ref().map_or(false, |t| t.contains(test_contains)) {
+                    Some(&**ch)
+                } else {
+                    ch.iter().find_map(|c| find_branch_children(c, test_contains))
+                }
+            }),
             _ => None,
         }
     }
 
-    let if_in = find_if_with_test(&stmt.body, "item.param == 'i'").expect("should find If node for 'i'");
-    if let SqlNode::If { children, .. } = if_in {
-        let param = children.iter().find_map(|c| match c {
-            SqlNode::Parameter { name, .. } if name == "item.paramValue" => Some(c),
-            _ => None,
-        });
-        assert!(param.is_some(), "should find Parameter 'item.paramValue' in If(IN) branch");
-        if let SqlNode::Parameter { mode, jdbc_type, .. } = param.unwrap() {
-            assert_eq!(mode, &Some("IN".to_string()), "item.paramValue should have mode=IN");
-            assert_eq!(jdbc_type, &Some("VARCHAR".to_string()), "item.paramValue should have jdbc_type=VARCHAR");
-        }
+    let branch_in = find_branch_children(&stmt.body, "item.param == 'i'").expect("should find branch for 'i'");
+    let param = branch_in.iter().find_map(|c| match c {
+        SqlNode::Parameter { name, .. } if name == "item.paramValue" => Some(c),
+        _ => None,
+    });
+    assert!(param.is_some(), "should find Parameter 'item.paramValue' in IN branch");
+    if let SqlNode::Parameter { mode, jdbc_type, .. } = param.unwrap() {
+        assert_eq!(mode, &Some("IN".to_string()), "item.paramValue should have mode=IN");
+        assert_eq!(jdbc_type, &Some("VARCHAR".to_string()), "item.paramValue should have jdbc_type=VARCHAR");
     }
 
-    // Check OUT param has mode=OUT
-    let if_out = find_if_with_test(&stmt.body, "item.param == '?'").expect("should find If node for '?'");
-    if let SqlNode::If { children, .. } = if_out {
-        let param = children.iter().find_map(|c| match c {
-            n @ SqlNode::Parameter { name, .. } if name.contains("outParam.key") => Some(n),
-            _ => None,
-        });
-        assert!(param.is_some(), "should find outParam.key param in If(OUT) branch");
-        if let SqlNode::Parameter { mode, jdbc_type, .. } = param.unwrap() {
-            assert_eq!(mode, &Some("OUT".to_string()), "outParam.key should have mode=OUT");
-            assert_eq!(jdbc_type, &Some("VARCHAR".to_string()), "outParam.key should have jdbc_type=VARCHAR");
-        }
+    let branch_out = find_branch_children(&stmt.body, "item.param == '?'").expect("should find branch for '?'");
+    let param = branch_out.iter().find_map(|c| match c {
+        n @ SqlNode::Parameter { name, .. } if name.contains("outParam.key") => Some(n),
+        _ => None,
+    });
+    assert!(param.is_some(), "should find outParam.key param in OUT branch");
+    if let SqlNode::Parameter { mode, jdbc_type, .. } = param.unwrap() {
+        assert_eq!(mode, &Some("OUT".to_string()), "outParam.key should have mode=OUT");
+        assert_eq!(jdbc_type, &Some("VARCHAR".to_string()), "outParam.key should have jdbc_type=VARCHAR");
     }
 
-    // Check CURSOR param has resultMap
-    let if_cursor = find_if_with_test(&stmt.body, "item.param == 'c'").expect("should find If node for 'c'");
-    if let SqlNode::If { children, .. } = if_cursor {
-        let param = children.iter().find_map(|c| match c {
-            n @ SqlNode::Parameter { name, .. } if name.contains("outParam.key") => Some(n),
-            _ => None,
-        });
-        assert!(param.is_some(), "should find outParam.key param in If(CURSOR) branch");
-        if let SqlNode::Parameter { result_map, jdbc_type, .. } = param.unwrap() {
-            assert_eq!(jdbc_type, &Some("CURSOR".to_string()), "CURSOR param should have jdbc_type=CURSOR");
-            assert_eq!(
-                result_map, &Some("myMap".to_string()),
-                "CURSOR param should have result_map=myMap"
-            );
-        }
+    let branch_cursor = find_branch_children(&stmt.body, "item.param == 'c'").expect("should find branch for 'c'");
+    let param = branch_cursor.iter().find_map(|c| match c {
+        n @ SqlNode::Parameter { name, .. } if name.contains("outParam.key") => Some(n),
+        _ => None,
+    });
+    assert!(param.is_some(), "should find outParam.key param in CURSOR branch");
+    if let SqlNode::Parameter { result_map, jdbc_type, .. } = param.unwrap() {
+        assert_eq!(jdbc_type, &Some("CURSOR".to_string()), "CURSOR param should have jdbc_type=CURSOR");
+        assert_eq!(result_map, &Some("myMap".to_string()), "CURSOR param should have result_map=myMap");
     }
 }
 
@@ -2011,9 +2007,8 @@ fn guard_flat_api_database_id_and_statement_type() {
     assert!(result.errors.is_empty(), "errors: {:?}", result.errors);
 
     // Second callOracleProcCommon should have database_id
-    let gauss_stmt = result.statements.iter().find(|s| {
-        s.id == "callOracleProcCommon" && s.database_id.as_deref() == Some("gauss")
-    });
+    let gauss_stmt =
+        result.statements.iter().find(|s| s.id == "callOracleProcCommon" && s.database_id.as_deref() == Some("gauss"));
     assert!(gauss_stmt.is_some(), "should find callOracleProcCommon with database_id=gauss");
 
     // All should have statement_type=CALLABLE
@@ -2046,21 +2041,9 @@ fn test_foreach_insert_batch_no_extra_commas() {
     let result = super::parse_mapper_bytes(xml);
     assert!(result.errors.is_empty(), "errors: {:?}", result.errors);
     let sql = &result.statements[0].flat_sql;
-    assert!(
-        !sql.contains("(,__XML_PARAM_"),
-        "should not have leading comma after open paren, got: {}",
-        sql
-    );
-    assert!(
-        !sql.contains(",,__XML_PARAM_"),
-        "should not have double commas between params, got: {}",
-        sql
-    );
-    assert!(
-        !sql.contains(",)"),
-        "should not have trailing comma before close paren, got: {}",
-        sql
-    );
+    assert!(!sql.contains("(,__XML_PARAM_"), "should not have leading comma after open paren, got: {}", sql);
+    assert!(!sql.contains(",,__XML_PARAM_"), "should not have double commas between params, got: {}", sql);
+    assert!(!sql.contains(",)"), "should not have trailing comma before close paren, got: {}", sql);
     assert!(
         sql.contains("(__XML_PARAM_item_userId__, __XML_PARAM_item_roleId__)"),
         "params should be properly separated by single comma+space, got: {}",
@@ -2088,16 +2071,8 @@ fn test_foreach_update_with_cte_no_extra_commas() {
     let result = super::parse_mapper_bytes(xml);
     assert!(result.errors.is_empty(), "errors: {:?}", result.errors);
     let sql = &result.statements[0].flat_sql;
-    assert!(
-        !sql.contains("(,__XML_PARAM_"),
-        "should not have leading comma after open paren, got: {}",
-        sql
-    );
-    assert!(
-        !sql.contains(",,__XML_PARAM_"),
-        "should not have double commas between params, got: {}",
-        sql
-    );
+    assert!(!sql.contains("(,__XML_PARAM_"), "should not have leading comma after open paren, got: {}", sql);
+    assert!(!sql.contains(",,__XML_PARAM_"), "should not have double commas between params, got: {}", sql);
     assert!(
         sql.contains("(__XML_PARAM_item_procedureCode__, __XML_PARAM_item_level__)"),
         "params should be properly separated, got: {}",

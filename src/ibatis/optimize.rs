@@ -348,18 +348,12 @@ mod tests {
 
     #[test]
     fn test_exclusive_compound() {
-        assert!(are_mutually_exclusive(
-            "roleId != null and roleId != 3",
-            "roleId != null and roleId == 3"
-        ));
+        assert!(are_mutually_exclusive("roleId != null and roleId != 3", "roleId != null and roleId == 3"));
     }
 
     #[test]
     fn test_exclusive_compound_no_space() {
-        assert!(are_mutually_exclusive(
-            "roleId != null and roleId !=3",
-            "roleId != null and roleId == 3"
-        ));
+        assert!(are_mutually_exclusive("roleId != null and roleId !=3", "roleId != null and roleId == 3"));
     }
 
     #[test]

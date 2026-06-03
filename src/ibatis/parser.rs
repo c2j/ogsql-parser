@@ -10,7 +10,7 @@ use crate::ibatis::error::IbatisError;
 use crate::ibatis::types::{
     MapperFile, MapperStatement, ParameterMapDef, ParameterMapEntry, SqlFragment, SqlNode, StatementKind,
 };
-use crate::ibatis::util::{find_closing_brace, parse_param_attrs, parse_param_type};
+use crate::ibatis::util::{find_closing_brace, parse_param_attrs};
 
 const SKIP_TAGS: &[&str] = &["resultMap", "cache", "cache-ref", "selectKey"];
 
@@ -260,11 +260,7 @@ pub(crate) fn parse_text_to_nodes(text: &str) -> Vec<SqlNode> {
                 }
                 let raw: String = chars[i + 2..end].iter().collect();
                 let (expr, attrs) = parse_param_attrs(&raw);
-                nodes.push(SqlNode::RawExpr {
-                    expr,
-                    java_type: attrs.java_type,
-                    jdbc_type: attrs.jdbc_type,
-                });
+                nodes.push(SqlNode::RawExpr { expr, java_type: attrs.java_type, jdbc_type: attrs.jdbc_type });
                 i = end + 1;
                 continue;
             }
@@ -312,11 +308,7 @@ pub(crate) fn parse_text_to_nodes(text: &str) -> Vec<SqlNode> {
                     }
                     let raw: String = chars[start..end].iter().collect();
                     let (expr, attrs) = parse_param_attrs(&raw);
-                    nodes.push(SqlNode::RawExpr {
-                        expr,
-                        java_type: attrs.java_type,
-                        jdbc_type: attrs.jdbc_type,
-                    });
+                    nodes.push(SqlNode::RawExpr { expr, java_type: attrs.java_type, jdbc_type: attrs.jdbc_type });
                     i = end + 1;
                     continue;
                 }
