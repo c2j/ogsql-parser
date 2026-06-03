@@ -190,7 +190,40 @@ fn test_include_parsed_as_node() {
 }
 
 #[test]
-fn test_include_resolved_structurally() {
+fn test_include_open_close_parsed_as_node() {
+    let xml = br#"<mapper namespace="test">
+        <sql id="cols">id, name</sql>
+        <select id="findAll">SELECT <include refid="cols"></include> FROM users</select>
+    </mapper>"#;
+    let mapper = crate::ibatis::parser::parse_xml(xml).unwrap();
+    let stmt = mapper.statements.iter().find(|s| s.id == "findAll").unwrap();
+    if let SqlNode::Sequence { children } = &stmt.body {
+        let include_nodes: Vec<_> = children.iter().filter(|n| matches!(n, SqlNode::Include { .. })).collect();
+        assert_eq!(include_nodes.len(), 1, "expected exactly one Include node");
+        if let SqlNode::Include { refid } = include_nodes[0] {
+            assert_eq!(refid, "cols");
+        }
+    } else {
+        panic!("expected Sequence node, got {:?}", stmt.body);
+    }
+}
+
+#[test]
+fn test_include_open_close_resolved() {
+    let xml = br#"<mapper namespace="test">
+        <sql id="allColumn">id, user_code, area_code</sql>
+        <select id="getList">SELECT <include refid="allColumn"></include> FROM users</select>
+    </mapper>"#;
+    let mapper = crate::ibatis::parser::parse_xml(xml).unwrap();
+    let resolved = crate::ibatis::resolver::resolve_includes(&mapper).unwrap();
+    let stmt = resolved.statements.iter().find(|s| s.id == "getList").unwrap();
+    let content = node_text(&stmt.body);
+    assert!(content.contains("id, user_code, area_code"), "got: {}", content);
+    assert!(!content.contains("<include"), "raw include text should not remain, got: {}", content);
+}
+
+#[test]
+fn test_include_open_close_resolved_structurally() {
     let xml = br#"<mapper namespace="test">
         <sql id="cols">id, name</sql>
         <select id="findAll">SELECT <include refid="cols"/> FROM users</select>

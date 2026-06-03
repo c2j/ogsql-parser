@@ -403,6 +403,11 @@ fn parse_dynamic_element(
             prepend: get_attr(element, "prepend"),
             children,
         })
+    } else if tag.eq_ignore_ascii_case(b"include") {
+        // <include refid="..."></include> — 开闭形式（自闭合形式在 Event::Empty 分支处理）
+        let refid = get_attr(element, "refid").unwrap_or_default();
+        let _children = read_node_tree(reader, b"include");
+        Some(SqlNode::Include { refid })
     } else if is_ibatis2_conditional(tag) {
         let test = synthesize_ibatis2_test(element);
         let prepend = get_attr(element, "prepend");
