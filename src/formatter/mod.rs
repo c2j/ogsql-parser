@@ -1785,6 +1785,29 @@ impl SqlFormatter {
             parts.push(format!("{} {}", self.kw("WHERE"), self.format_expr(where_clause)));
         }
 
+        if let Some(order_by) = &stmt.order_by {
+            let items: Vec<String> = order_by.iter().map(|item| {
+                let mut s = self.format_expr(&item.expr);
+                match item.asc {
+                    Some(true) => { s.push(' '); s.push_str(&self.kw("ASC")); }
+                    Some(false) => { s.push(' '); s.push_str(&self.kw("DESC")); }
+                    None => {}
+                }
+                if let Some(nf) = item.nulls_first {
+                    s.push(' ');
+                    if nf { s.push_str(&self.kw("NULLS FIRST")); } else { s.push_str(&self.kw("NULLS LAST")); }
+                }
+                if let Some(ref using) = item.using {
+                    s.push(' ');
+                    s.push_str(&self.kw("USING"));
+                    s.push(' ');
+                    s.push_str(&self.format_expr(using));
+                }
+                s
+            }).collect();
+            parts.push(format!("{} {}", self.kw("ORDER BY"), items.join(", ")));
+        }
+
         if let Some(limit) = &stmt.limit {
             parts.push(format!("{} {}", self.kw("LIMIT"), self.format_expr(limit)));
         }
