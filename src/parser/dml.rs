@@ -1,7 +1,7 @@
 use crate::ast::{
     ConflictAction, ConflictTarget, DeleteStatement, DmlPartitionClause, InsertAllCondition, InsertAllStatement,
     InsertAllTarget, InsertFirstStatement, InsertSource, InsertStatement, MergeAction, MergeStatement, MergeWhenClause,
-    OnConflict, OnDuplicateKeyUpdate, TablePartitionRef, TableRef, UpdateAssignment, UpdateStatement,
+    OnConflict, OnDuplicateKeyUpdate, OrderByItem, TablePartitionRef, TableRef, UpdateAssignment, UpdateStatement,
 };
 use crate::parser::{Parser, ParserError};
 use crate::token::keyword::Keyword;
@@ -456,6 +456,45 @@ impl Parser {
         } else {
             None
         };
+        let order_by = if self.match_keyword(Keyword::ORDER) {
+            self.advance();
+            self.expect_keyword(Keyword::BY)?;
+            let mut items = Vec::new();
+            loop {
+                let expr = self.parse_expr()?;
+                let asc = match self.peek_keyword() {
+                    Some(Keyword::ASC) => {
+                        self.advance();
+                        Some(true)
+                    }
+                    Some(Keyword::DESC) => {
+                        self.advance();
+                        Some(false)
+                    }
+                    _ => None,
+                };
+                let nulls_first = if self.match_keyword(Keyword::NULLS_P) {
+                    self.advance();
+                    if self.match_keyword(Keyword::FIRST_P) {
+                        self.advance();
+                        Some(true)
+                    } else {
+                        self.expect_keyword(Keyword::LAST_P)?;
+                        Some(false)
+                    }
+                } else {
+                    None
+                };
+                items.push(OrderByItem { expr, asc, nulls_first, using: None });
+                if !self.match_token(&Token::Comma) {
+                    break;
+                }
+                self.advance();
+            }
+            Some(items)
+        } else {
+            None
+        };
         let limit = if self.match_keyword(Keyword::LIMIT) {
             self.advance();
             if self.match_keyword(Keyword::ALL) {
@@ -467,6 +506,12 @@ impl Parser {
         } else {
             None
         };
+        if order_by.is_some() && limit.is_none() {
+            self.add_error(ParserError::Warning {
+                message: "DELETE ORDER BY without LIMIT has no effect on row deletion order".to_string(),
+                location: self.prev_location(),
+            });
+        }
         let (returning, into_targets, bulk_collect) = if self.match_keyword(Keyword::RETURNING) {
             self.advance();
             let returning = self.parse_target_list()?;
@@ -495,6 +540,7 @@ impl Parser {
             tables,
             using,
             where_clause,
+            order_by,
             limit,
             returning,
             into_targets,

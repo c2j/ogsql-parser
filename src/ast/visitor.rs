@@ -785,6 +785,14 @@ fn walk_delete(visitor: &mut dyn Visitor, delete: &DeleteStatement) -> VisitorRe
         }
     }
 
+    if let Some(ref order_by) = delete.order_by {
+        for item in order_by {
+            if walk_expr(visitor, &item.expr) == VisitorResult::Stop {
+                return VisitorResult::Stop;
+            }
+        }
+    }
+
     VisitorResult::Continue
 }
 
