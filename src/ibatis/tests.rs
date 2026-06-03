@@ -1993,3 +1993,100 @@ fn guard_flat_api_database_id_and_statement_type() {
         );
     }
 }
+
+// ── Foreach Flatten Regression Tests ──
+// Bug: separator was incorrectly inserted between foreach body children
+// instead of between iterations. The separator is only meaningful during
+// expand (multiple iterations), not during flatten (single iteration).
+
+#[test]
+fn test_foreach_insert_batch_no_extra_commas() {
+    let xml = br#"<mapper namespace="test">
+        <insert id="insertBatch">
+            insert into sys_user_role(user_id, role_id)
+            values
+            <foreach collection="items" item="item" separator=",">
+                (#{item.userId}, #{item.roleId})
+            </foreach>
+        </insert>
+    </mapper>"#;
+    let result = super::parse_mapper_bytes(xml);
+    assert!(result.errors.is_empty(), "errors: {:?}", result.errors);
+    let sql = &result.statements[0].flat_sql;
+    assert!(
+        !sql.contains("(,__XML_PARAM_"),
+        "should not have leading comma after open paren, got: {}",
+        sql
+    );
+    assert!(
+        !sql.contains(",,__XML_PARAM_"),
+        "should not have double commas between params, got: {}",
+        sql
+    );
+    assert!(
+        !sql.contains(",)"),
+        "should not have trailing comma before close paren, got: {}",
+        sql
+    );
+    assert!(
+        sql.contains("(__XML_PARAM_item_userId__, __XML_PARAM_item_roleId__)"),
+        "params should be properly separated by single comma+space, got: {}",
+        sql
+    );
+}
+
+#[test]
+fn test_foreach_update_with_cte_no_extra_commas() {
+    let xml = br#"<mapper namespace="test">
+        <update id="setRunOrder">
+            WITH level_tab AS (
+            select req.procedure_code, req.lv from (values
+            <foreach collection="procedureCodeLvDTOList" item="item" separator=",">
+                (#{item.procedureCode}, #{item.level})
+            </foreach>
+            ) as req(procedure_code, lv)
+            )
+            update ctl_fund_split_proc_run t
+            set t.run_order = n.run_order
+            from (SELECT t.ctid rn FROM aaspb.ctl_fund_split_proc_run t, level_tab s) n
+            where t.ctid = n.rn
+        </update>
+    </mapper>"#;
+    let result = super::parse_mapper_bytes(xml);
+    assert!(result.errors.is_empty(), "errors: {:?}", result.errors);
+    let sql = &result.statements[0].flat_sql;
+    assert!(
+        !sql.contains("(,__XML_PARAM_"),
+        "should not have leading comma after open paren, got: {}",
+        sql
+    );
+    assert!(
+        !sql.contains(",,__XML_PARAM_"),
+        "should not have double commas between params, got: {}",
+        sql
+    );
+    assert!(
+        sql.contains("(__XML_PARAM_item_procedureCode__, __XML_PARAM_item_level__)"),
+        "params should be properly separated, got: {}",
+        sql
+    );
+}
+
+#[test]
+fn test_foreach_values_with_text_comma_no_duplication() {
+    let xml = br#"<mapper namespace="test">
+        <insert id="insertBatch">
+            insert into t(a, b) values
+            <foreach collection="list" item="x" separator=",">
+                (#{x.a}, #{x.b})
+            </foreach>
+        </insert>
+    </mapper>"#;
+    let result = super::parse_mapper_bytes(xml);
+    let sql = &result.statements[0].flat_sql;
+    assert!(
+        sql.contains("(__XML_PARAM_x_a__, __XML_PARAM_x_b__)"),
+        "foreach body should flatten without injecting separator between children, got: {}",
+        sql
+    );
+}
