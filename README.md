@@ -21,9 +21,9 @@ This project implements a complete SQL parser for openGauss/GaussDB (an enterpri
 |-----------|--------|---------|
 | Tokenizer / 分词器 | ✅ Complete | 717 keywords, comments, operators, literals |
 | Multi-encoding support / 多字符集支持 | ✅ Complete | UTF-8, EUC-JP, EUC-KR, GB18030, BIG5, UTF-16 |
-| AST / 抽象语法树 | ✅ Complete | 150+ statement types defined |
+| AST / 抽象语法树 | ✅ Complete | 180+ statement types defined |
 | Parser dispatcher / 解析器分发 | ✅ Complete | Top-level statement routing |
-| Unit tests / 单元测试 | ✅ Complete | 1264 tests |
+| Unit tests / 单元测试 | ✅ Complete | 1646 tests |
 | Regression tests / 回归测试 | ✅ Complete | 1409/1409 — All openGauss regression tests passing |
 | JSON serde / JSON 序列化 | ✅ Complete | Full serde::Serialize + Deserialize on all AST types |
 
@@ -37,7 +37,7 @@ This project implements a complete SQL parser for openGauss/GaussDB (an enterpri
 | DELETE | ✅ Complete | DELETE with WHERE, RETURNING |
 | MERGE | ✅ Complete | MERGE INTO with WHEN MATCHED/NOT MATCHED + semantic validation |
 | Expressions / 表达式 | ✅ Complete | Pratt parser for full expression support |
-| Formatter / 格式化器 | ✅ Complete | Configurable SQL formatter: indent, keyword case, comma style, line width, DML/DDL/PL-pgSQL |
+| Formatter / 格式化器 | ✅ Complete | Configurable SQL formatter: indent, keyword case, comma style, line width, DML/DDL/PL/pgSQL |
 
 ### Phase 3: PL/pgSQL Support / 第三阶段：PL/pgSQL 支持
 
@@ -66,18 +66,46 @@ This project implements a complete SQL parser for openGauss/GaussDB (an enterpri
 
 | Component | Status | Details |
 |-----------|--------|---------|
-| CREATE TABLE | ✅ Complete | Columns, constraints, table options |
+| CREATE TABLE | ✅ Complete | Columns, constraints, table options, partitioning, distribution |
+| CREATE TABLE AS | ✅ Complete | CREATE TABLE ... AS SELECT |
 | CREATE INDEX | ✅ Complete | Index creation with options |
+| CREATE GLOBAL INDEX | ✅ Complete | Global index for distributed tables |
 | CREATE VIEW | ✅ Complete | View definitions |
-| DROP statements | ✅ Complete | DROP TABLE, INDEX, VIEW |
-| TRUNCATE | ✅ Complete | TRUNCATE TABLE |
-| ALTER SYSTEM | ✅ Complete | SET/RESET configuration |
+| CREATE MATERIALIZED VIEW | ✅ Complete | Materialized view with refresh |
 | CREATE FUNCTION | ✅ Complete | Full CREATE FUNCTION with parameters, return type, options, PL/pgSQL body |
 | CREATE PROCEDURE | ✅ Complete | Full CREATE PROCEDURE with parameters, options, PL/pgSQL body |
 | CREATE PACKAGE / PACKAGE BODY | ✅ Complete | Oracle-compatible packages with procedures, functions, cursors |
 | CREATE TRIGGER | ✅ Complete | BEFORE/AFTER/INSTEAD OF, events, WHEN condition, EXECUTE |
-| ALTER TABLE | 🔄 In Progress | Column operations, constraints |
-| Other DDL | 🔄 In Progress | ALTER FUNCTION, ALTER PROCEDURE, etc. |
+| CREATE SCHEMA | ✅ Complete | Schema creation |
+| CREATE DATABASE | ✅ Complete | Database creation with options |
+| CREATE DATABASE LINK | ✅ Complete | Database link for remote access |
+| CREATE TABLESPACE | ✅ Complete | Tablespace management |
+| CREATE SEQUENCE | ✅ Complete | Sequence with all options |
+| CREATE TYPE | ✅ Complete | Composite, enum, range types |
+| CREATE DOMAIN | ✅ Complete | Domain with constraints |
+| CREATE CAST | ✅ Complete | Type cast definitions |
+| CREATE EXTENSION | ✅ Complete | Extension management |
+| CREATE ROLE / USER / GROUP | ✅ Complete | Role-based access control |
+| CREATE FOREIGN TABLE / SERVER / FDW | ✅ Complete | Foreign data wrapper support |
+| CREATE PUBLICATION / SUBSCRIPTION | ✅ Complete | Logical replication |
+| CREATE SYNONYM | ✅ Complete | Oracle-compatible synonyms |
+| CREATE AGGREGATE / OPERATOR | ✅ Complete | Custom aggregates and operators |
+| CREATE MODEL | ✅ Complete | AI model management (PREDICT BY) |
+| GaussDB-specific CREATE | ✅ Complete | NODE, NODE GROUP, RESOURCE POOL, WORKLOAD GROUP, AUDIT/MASKING/RLS POLICY, DATA SOURCE, EVENT, OP CLASS/FAMILY, STREAM, KEY, DIRECTORY, LANGUAGE, WEAK PASSWORD DICTIONARY, TEXT SEARCH CONFIG/DICT, CONT QUERY, APP WORKLOAD GROUP MAPPING |
+| ALTER TABLE | ✅ Complete | Column operations, constraints, options, partitioning |
+| ALTER INDEX / SEQUENCE / VIEW | ✅ Complete | Index, sequence, and view modifications |
+| ALTER FUNCTION / PROCEDURE | ✅ Complete | Function and procedure modifications |
+| ALTER SCHEMA / DATABASE / TABLESPACE | ✅ Complete | Schema, database, and tablespace modifications |
+| ALTER ROLE / USER / GROUP | ✅ Complete | Role management |
+| ALTER TRIGGER / EXTENSION | ✅ Complete | Trigger and extension modifications |
+| ALTER FOREIGN TABLE / SERVER / FDW | ✅ Complete | Foreign data wrapper modifications |
+| ALTER PUBLICATION / SUBSCRIPTION | ✅ Complete | Replication modifications |
+| ALTER TYPE / DOMAIN | ✅ Complete | Type system modifications |
+| GaussDB-specific ALTER | ✅ Complete | NODE, NODE GROUP, RESOURCE POOL, WORKLOAD GROUP, AUDIT/MASKING/RLS POLICY, DATA SOURCE, EVENT, OP FAMILY, OPERATOR, MATERIALIZED VIEW, GLOBAL CONFIG, SESSION, DATABASE LINK, DIRECTORY, LANGUAGE, PACKAGE, COORDINATOR, APP WORKLOAD GROUP MAPPING, SYNONYM, TEXT SEARCH CONFIG/DICT |
+| DROP statements | ✅ Complete | DROP TABLE, INDEX, VIEW, FUNCTION, PROCEDURE, TRIGGER, SCHEMA, DATABASE, and 30+ other object types |
+| TRUNCATE | ✅ Complete | TRUNCATE TABLE |
+| COMMENT | ✅ Complete | COMMENT ON TABLE/COLUMN/... |
+| GRANT / REVOKE | ✅ Complete | Privilege management with role support |
 
 ### Phase 5: Advanced Features / 第五阶段：高级特性
 
@@ -103,6 +131,7 @@ This project implements a complete SQL parser for openGauss/GaussDB (an enterpri
 | HTTP API server / HTTP API 服务 | ✅ Complete | RESTful API for parse, format, validate, tokenize, json2sql |
 | Interactive TUI / 交互式终端 | ✅ Complete | Terminal UI playground for live SQL parsing |
 | Strict validation mode / 严格校验模式 | ✅ Complete | Detect undefined function calls in PL blocks |
+| Windows 7 support / Windows 7 支持 | ✅ Complete | Tier 3 target `x86_64-win7-windows-msvc` with nightly + `-Zbuild-std` |
 
 ---
 
@@ -124,7 +153,7 @@ ogsql-parser/
 │   │   ├── keyword.rs      # 717 keyword definitions
 │   │   └── encoding.rs     # Multi-encoding support
 │   ├── ast/
-│   │   ├── mod.rs          # 150+ AST node definitions
+│   │   ├── mod.rs          # 180+ AST node definitions
 │   │   ├── plpgsql.rs      # PL/pgSQL AST types (40+ types)
 │   │   └── visitor.rs      # AST visitor pattern
 │   ├── parser/
@@ -192,7 +221,7 @@ cargo build --release --features full
 ### Run Tests / 运行测试
 
 ```bash
-# Unit tests (1264 tests)
+# Unit tests (1646 tests)
 cargo test
 
 # Regression tests against openGauss test suite
@@ -667,7 +696,7 @@ SQL Input
    All AST types derive `Serialize` + `Deserialize`, enabling lossless JSON round-trip (SQL → JSON → SQL)
 
 7. **Built-in function registry / 内置函数注册表**  
-   27+ registered built-in functions with category and domain metadata
+   449 registered built-in functions with category and domain metadata across 25+ domains
 
 ---
 
@@ -678,7 +707,7 @@ SQL Input
 | Phase 1 | Foundation: Tokenizer, AST, dispatcher, multi-encoding | ✅ Complete |
 | Phase 2 | Core DML: SELECT, INSERT, UPDATE, DELETE, MERGE | ✅ Complete |
 | Phase 3 | PL/pgSQL: DO blocks, anonymous blocks, control flow | ✅ Complete |
-| Phase 4 | DDL: CREATE, ALTER, DROP statements | 🔄 In Progress |
+| Phase 4 | DDL: CREATE, ALTER, DROP statements | ✅ Complete |
 | Phase 5 | Advanced: Semantic analysis, dynamic SQL, MERGE validation | ✅ Complete |
 | Phase 6 | Integrations: iBatis XML, Java SQL, MCP, strict validation | ✅ Complete |
 | Phase 7 | Optimization: Error recovery, performance | 📋 Planned |
@@ -699,6 +728,7 @@ SQL Input
 | XML parsing | `quick-xml` 0.39 | Fast XML parser for iBatis mappers |
 | Java parsing | `tree-sitter-java` 0.23 | Incremental Java parsing |
 | Testing | Built-in + walkdir 2.0 | Regression test file discovery |
+| Win7 build | nightly + `-Zbuild-std` | Tier 3 Windows 7 target support |
 
 ---
 
@@ -723,6 +753,7 @@ Documentation reference:
 |----------|-------------|
 | [User Guide](docs/user-guide.md) | Complete user guide covering CLI, library, MCP, and AST JSON reference |
 | [AST JSON Reference](docs/ast-json-reference.md) | Detailed JSON structure reference for `ogsql parse -j` output |
+| [GaussDB SQL Features](docs/gaussdb-sql-features.md) | GaussDB/openGauss SQL 语法支持详情 |
 
 ---
 
@@ -734,12 +765,12 @@ MIT OR Apache-2.0
 
 ## Contributing / 贡献
 
-This is an active development project. Phases 1–3 and 5–6 are complete, Phase 4 (DDL) is in progress, and Phase 7 (Optimization) is planned.
+This is an active development project. Phases 1–6 are complete, and Phase 7 (Optimization) is planned.
 
-这是一个活跃的开发项目。第一至第三阶段和第五至第六阶段已完成，第四阶段（DDL）进行中，第七阶段（优化）已规划。
+这是一个活跃的开发项目。第一至第六阶段已完成，第七阶段（优化）已规划。
 
 ---
 
-**Status / 状态**: Phase 6 Complete | 1264 unit tests | 1409/1409 regression tests passing  
-**Version / 版本**: 0.6.7  
-**Last Updated / 最后更新**: 2026-06-02
+**Status / 状态**: Phase 1–6 Complete | 1646 unit tests | 1409/1409 regression tests passing  
+**Version / 版本**: 0.6.10  
+**Last Updated / 最后更新**: 2026-06-04

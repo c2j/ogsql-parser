@@ -1,6 +1,6 @@
 # OGSQL Parser 用户指南
 
-> 版本 0.6.6 | 适用于 openGauss / GaussDB SQL 解析器
+> 版本 0.6.10 | 适用于 openGauss / GaussDB SQL 解析器
 
 ---
 
@@ -59,7 +59,7 @@
 
 OGSQL Parser 是一个使用 Rust 编写的 SQL 解析器，专为 openGauss / GaussDB（基于 PostgreSQL 的企业级数据库）设计。它采用手写递归下降解析技术，不依赖任何解析器生成器，提供以下核心能力：
 
-- **SQL 解析**：将 SQL 文本解析为抽象语法树 (AST)，支持 150+ 种语句类型
+- **SQL 解析**：将 SQL 文本解析为抽象语法树 (AST)，支持 180+ 种语句类型
 - **SQL 格式化**：可配置缩进、关键字大小写、逗号风格、行宽等
 - **SQL 校验**：检测语法错误并报告详细的错误位置
 - **分词 (Tokenize)**：将 SQL 拆解为 Token 序列，支持 717 个关键字
@@ -69,6 +69,7 @@ OGSQL Parser 是一个使用 Rust 编写的 SQL 解析器，专为 openGauss / G
 - **Java 源文件 SQL 提取**：从 Java 代码中提取并解析嵌入的 SQL 语句
 - **多字符集支持**：自动检测和转换 UTF-8、EUC-JP、EUC-KR、GB18030、BIG5、UTF-16
 - **MCP 服务器**：作为 AI 工具服务器，与 Claude Desktop、Cursor 等 AI 编辑器集成
+- **Windows 7 支持**：通过 Tier 3 目标 `x86_64-win7-windows-msvc` 支持在 Windows 7 环境运行
 
 该项目提供了多种使用方式：命令行工具、Rust 库、HTTP API 服务、交互式终端以及 MCP 服务器。
 
@@ -80,6 +81,7 @@ OGSQL Parser 是一个使用 Rust 编写的 SQL 解析器，专为 openGauss / G
 
 - **Rust 1.70+** 及 Cargo
 - （可选）Git，用于克隆仓库
+- （可选）Rust nightly 工具链，用于 Windows 7 目标构建（`x86_64-win7-windows-msvc`）
 
 ### 2.2 编译
 
@@ -145,7 +147,7 @@ $ ogsql --help
   ╚██████╔╝╚██████╔╝███████║╚██████╔╝███████╗ ██║     ██║  ██║██║  ██║███████║███████╗██║  ██║
    ╚═════╝  ╚═════╝ ╚══════╝ ╚═════╝ ╚══════╝ ╚═╝     ╚═╝  ╚═╝╚═╝  ╚═╝╚══════╝╚══════╝╚═╝  ╚═╝
 
-ogsql 0.6.7
+ogsql 0.6.10
 openGauss/GaussDB SQL Parser
 
 Usage: ogsql [OPTIONS] <COMMAND>
@@ -527,14 +529,14 @@ MCP 服务器提供以下工具供 AI 助手调用：
 
 ```toml
 [dependencies]
-ogsql-parser = "0.6.7"
+ogsql-parser = "0.6.10"
 
 # 按需启用 feature
 [features]
 # 如果需要 iBatis XML 解析
-# ogsql-parser = { version = "0.6.7", features = ["ibatis"] }
+# ogsql-parser = { version = "0.6.10", features = ["ibatis"] }
 # 如果需要 Java 源文件支持
-# ogsql-parser = { version = "0.6.7", features = ["java"] }
+# ogsql-parser = { version = "0.6.10", features = ["java"] }
 ```
 
 ### 5.2 基本解析
@@ -1085,25 +1087,46 @@ JOIN 类型：`"Inner"`、`"Left"`、`"Right"`、`"Full"`、`"Cross"`
 
 | 语句 | 状态 |
 |------|------|
-| `CREATE TABLE` | ✅ 已完成（含分区、约束、表选项） |
+| `CREATE TABLE` | ✅ 已完成（含分区、分布、约束、表选项、ILM策略、压缩） |
 | `CREATE TABLE AS` | ✅ 已完成 |
 | `CREATE INDEX` | ✅ 已完成 |
 | `CREATE GLOBAL INDEX` | ✅ 已完成 |
 | `CREATE VIEW` | ✅ 已完成 |
-| `CREATE FUNCTION` | ✅ 已完成（含 PL/pgSQL 体） |
+| `CREATE MATERIALIZED VIEW` | ✅ 已完成（含 REFRESH MATERIALIZED VIEW） |
+| `CREATE FUNCTION` | ✅ 已完成（含 PL/pgSQL 体、参数、返回类型） |
 | `CREATE PROCEDURE` | ✅ 已完成（含 PL/pgSQL 体） |
 | `CREATE PACKAGE / PACKAGE BODY` | ✅ 已完成（Oracle 兼容包） |
 | `CREATE TRIGGER` | ✅ 已完成 |
 | `CREATE SCHEMA` | ✅ 已完成 |
 | `CREATE DATABASE` | ✅ 已完成 |
+| `CREATE DATABASE LINK` | ✅ 已完成 |
+| `CREATE TABLESPACE` | ✅ 已完成 |
 | `CREATE SEQUENCE` | ✅ 已完成 |
-| `CREATE TYPE` | ✅ 已完成 |
+| `CREATE TYPE` | ✅ 已完成（复合、枚举、范围类型） |
 | `CREATE DOMAIN` | ✅ 已完成 |
 | `CREATE CAST` | ✅ 已完成 |
-| `DROP TABLE / INDEX / VIEW ...` | ✅ 已完成 |
+| `CREATE EXTENSION` | ✅ 已完成 |
+| `CREATE ROLE / USER / GROUP` | ✅ 已完成 |
+| `CREATE FOREIGN TABLE / SERVER / FDW` | ✅ 已完成 |
+| `CREATE PUBLICATION / SUBSCRIPTION` | ✅ 已完成 |
+| `CREATE SYNONYM` | ✅ 已完成（Oracle 兼容） |
+| `CREATE AGGREGATE / OPERATOR` | ✅ 已完成 |
+| `CREATE MODEL` | ✅ 已完成（AI 模型管理） |
+| GaussDB 专有 CREATE | ✅ 已完成（NODE、NODE GROUP、RESOURCE POOL、WORKLOAD GROUP、AUDIT/MASKING/RLS POLICY、DATA SOURCE、EVENT、OP CLASS/FAMILY、STREAM、KEY、DIRECTORY、LANGUAGE、WEAK PASSWORD DICTIONARY、TEXT SEARCH CONFIG/DICT、CONT QUERY、APP WORKLOAD GROUP MAPPING） |
+| `ALTER TABLE` | ✅ 已完成 |
+| `ALTER INDEX / SEQUENCE / VIEW` | ✅ 已完成 |
+| `ALTER FUNCTION / PROCEDURE` | ✅ 已完成 |
+| `ALTER SCHEMA / DATABASE / TABLESPACE` | ✅ 已完成 |
+| `ALTER ROLE / USER / GROUP` | ✅ 已完成 |
+| `ALTER TRIGGER / EXTENSION` | ✅ 已完成 |
+| `ALTER FOREIGN TABLE / SERVER / FDW` | ✅ 已完成 |
+| `ALTER PUBLICATION / SUBSCRIPTION` | ✅ 已完成 |
+| `ALTER TYPE / DOMAIN` | ✅ 已完成 |
+| GaussDB 专有 ALTER | ✅ 已完成（NODE、NODE GROUP、RESOURCE POOL、WORKLOAD GROUP、AUDIT/MASKING/RLS POLICY、DATA SOURCE、EVENT、OP FAMILY、OPERATOR、MATERIALIZED VIEW、GLOBAL CONFIG、SESSION、DATABASE LINK、DIRECTORY、LANGUAGE、PACKAGE、COORDINATOR、APP WORKLOAD GROUP MAPPING、SYNONYM、TEXT SEARCH CONFIG/DICT） |
+| `DROP` 语句 | ✅ 已完成（支持 30+ 种对象类型） |
 | `TRUNCATE` | ✅ 已完成 |
-| `ALTER TABLE` | 🔄 进行中 |
-| `ALTER SYSTEM SET/RESET` | ✅ 已完成 |
+| `COMMENT` | ✅ 已完成 |
+| `GRANT / REVOKE` | ✅ 已完成（含角色授权） |
 
 ### 7.3 PL/pgSQL 语句
 
@@ -1130,10 +1153,10 @@ JOIN 类型：`"Inner"`、`"Left"`、`"Right"`、`"Full"`、`"Cross"`
 ### 7.4 其他语句
 
 - `EXPLAIN` / `EXPLAIN ANALYZE`
-- `GRANT` / `REVOKE`
+- `GRANT` / `REVOKE` / `GRANT ROLE` / `REVOKE ROLE`
 - `BEGIN` / `COMMIT` / `ROLLBACK` / `SAVEPOINT`
 - `COPY`
-- `VACUUM` / `REINDEX` / `CLUSTER`
+- `VACUUM` / `REINDEX` / `CLUSTER` / `ANALYZE`
 - `SET` / `SHOW` / `RESET`
 - `CALL`
 - `PREPARE` / `EXECUTE` / `DEALLOCATE`
@@ -1142,6 +1165,16 @@ JOIN 类型：`"Inner"`、`"Left"`、`"Right"`、`"Full"`、`"Cross"`
 - `DECLARE CURSOR` / `FETCH` / `CLOSE`
 - `CHECKPOINT` / `DISCARD`
 - `LISTEN` / `NOTIFY` / `UNLISTEN`
+- `SHUTDOWN` / `BARRIER`
+- `PURGE` / `TIMECAPSULE` / `SNAPSHOT`
+- `SHRINK` / `VERIFY` / `CLEAN CONNECTION`
+- `COMPILE`
+- `REPLACE`（Oracle 兼容 INSERT OR REPLACE）
+- `INSERT ALL / INSERT FIRST`（Oracle 多表插入）
+- `PREDICT BY`（AI 预测）
+- `EXECUTE DIRECT`（分布式直接执行）
+- `SECURITY LABEL`
+- `EXPDP DATABASE/TABLE` / `IMPDP DATABASE/TABLE`（数据导入导出）
 - 以及更多 openGauss/GaussDB 特有语句
 
 ---
@@ -1264,7 +1297,7 @@ src/
 
 ### Q: 如何贡献代码？
 
-这是一个活跃开发的项目。欢迎通过 Issue 和 Pull Request 参与贡献。DDL（Phase 4）和性能优化（Phase 6）仍在进行中。
+这是一个活跃开发的项目。欢迎通过 Issue 和 Pull Request 参与贡献。性能优化（Phase 7）仍在规划中。
 
 ### Q: 许可证是什么？
 
