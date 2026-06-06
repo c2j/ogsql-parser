@@ -1,0 +1,822 @@
+use crate::linter::{Confidence, LintConfig, SqlLinter, WarningLevel};
+use crate::parser::Parser;
+
+fn parse(sql: &str) -> Vec<crate::ast::StatementInfo> {
+    let (stmts, _) = Parser::parse_sql(sql);
+    stmts
+}
+
+fn lint(stmts: &[crate::ast::StatementInfo]) -> Vec<crate::linter::SqlWarning> {
+    let linter = SqlLinter::with_default_rules(LintConfig::default());
+    linter.lint(stmts, None, Confidence::Full)
+}
+
+fn lint_confidence(stmts: &[crate::ast::StatementInfo], confidence: Confidence) -> Vec<crate::linter::SqlWarning> {
+    let linter = SqlLinter::with_default_rules(LintConfig::default());
+    linter.lint(stmts, None, confidence)
+}
+
+fn lint_min_level(stmts: &[crate::ast::StatementInfo], level: WarningLevel) -> Vec<crate::linter::SqlWarning> {
+    let config = LintConfig { min_level: level, ..LintConfig::default() };
+    let linter = SqlLinter::with_default_rules(config);
+    linter.lint(stmts, None, Confidence::Full)
+}
+
+fn has_rule(warnings: &[crate::linter::SqlWarning], rule_id: &str) -> bool {
+    warnings.iter().any(|w| w.rule_id == rule_id)
+}
+
+// ── R001: SELECT * ──
+
+#[test]
+fn r001_unqualified_star() {
+    let stmts = parse("SELECT * FROM t1");
+    let w = lint(&stmts);
+    assert!(has_rule(&w, "R001"), "expected R001 for SELECT *");
+}
+
+#[test]
+fn r001_qualified_star_not_triggered() {
+    let stmts = parse("SELECT t1.* FROM t1");
+    let w = lint(&stmts);
+    assert!(!has_rule(&w, "R001"), "t1.* should not trigger R001");
+}
+
+#[test]
+fn r001_explicit_columns_not_triggered() {
+    let stmts = parse("SELECT id, name FROM t1");
+    let w = lint(&stmts);
+    assert!(!has_rule(&w, "R001"));
+}
+
+// ── R002: Large column sort ──
+
+#[test]
+fn r002_large_group_by() {
+    let sql = "SELECT a,b,c,d,e,f,g,h,i,j,k FROM t1 GROUP BY a,b,c,d,e,f,g,h,i,j,k";
+    let stmts = parse(sql);
+    let w = lint(&stmts);
+    assert!(has_rule(&w, "R002"), "expected R002 for GROUP BY with 11 columns");
+}
+
+#[test]
+fn r002_small_group_by_not_triggered() {
+    let stmts = parse("SELECT a, b FROM t1 GROUP BY a, b");
+    let w = lint(&stmts);
+    assert!(!has_rule(&w, "R002"));
+}
+
+// ── R003: LOCK TABLE ──
+
+#[test]
+fn r003_lock_table() {
+    let stmts = parse("LOCK TABLE t1 IN EXCLUSIVE MODE");
+    let w = lint(&stmts);
+    assert!(has_rule(&w, "R003"), "expected R003 for LOCK TABLE");
+}
+
+// ── R004: DROP CASCADE ──
+
+#[test]
+fn r004_drop_cascade() {
+    let stmts = parse("DROP TABLE t1 CASCADE");
+    let w = lint(&stmts);
+    assert!(has_rule(&w, "R004"), "expected R004 for DROP CASCADE");
+}
+
+#[test]
+fn r004_drop_no_cascade_not_triggered() {
+    let stmts = parse("DROP TABLE t1");
+    let w = lint(&stmts);
+    assert!(!has_rule(&w, "R004"));
+}
+
+// ── R005: Implicit type conversion ──
+
+#[test]
+fn r005_literal_column_comparison() {
+    let stmts = parse("SELECT * FROM t WHERE name = 'abc'");
+    let w = lint(&stmts);
+    assert!(has_rule(&w, "R005"), "expected R005 for literal-column comparison");
+}
+
+#[test]
+fn r005_both_columns_not_triggered() {
+    let stmts = parse("SELECT * FROM t WHERE a = b");
+    let w = lint(&stmts);
+    assert!(!has_rule(&w, "R005"), "col=col should not trigger R005");
+}
+
+// ── R006: Function on WHERE column ──
+
+#[test]
+fn r006_function_on_column() {
+    let stmts = parse("SELECT * FROM t WHERE LENGTH(name) > 5");
+    let w = lint(&stmts);
+    assert!(has_rule(&w, "R006"), "expected R006 for LENGTH(col) in WHERE");
+}
+
+#[test]
+fn r006_plain_column_not_triggered() {
+    let stmts = parse("SELECT * FROM t WHERE name = 'abc'");
+    // R005 may trigger, but R006 should not
+    assert!(!has_rule(&lint(&stmts), "R006"));
+}
+
+// ── R007: LIKE leading wildcard ──
+
+#[test]
+fn r007_leading_percent() {
+    let stmts = parse("SELECT * FROM t WHERE name LIKE '%abc'");
+    let w = lint(&stmts);
+    assert!(has_rule(&w, "R007"), "expected R007 for LIKE '%...'");
+}
+
+#[test]
+fn r007_trailing_wildcard_not_triggered() {
+    let stmts = parse("SELECT * FROM t WHERE name LIKE 'abc%'");
+    let w = lint(&stmts);
+    assert!(!has_rule(&w, "R007"), "LIKE 'abc%' should not trigger R007");
+}
+
+// ── R008: Same-table column compare ──
+
+#[test]
+fn r008_same_table_columns() {
+    let stmts = parse("SELECT * FROM t WHERE t.a > t.b");
+    let w = lint(&stmts);
+    assert!(has_rule(&w, "R008"), "expected R008 for t.a > t.b");
+}
+
+#[test]
+fn r008_different_tables_not_triggered() {
+    let stmts = parse("SELECT * FROM t1 JOIN t2 ON t1.id = t2.id WHERE t1.a > t2.b");
+    let w = lint(&stmts);
+    assert!(!has_rule(&w, "R008"));
+}
+
+// ── R009: Scalar subquery in SELECT ──
+
+#[test]
+fn r009_subquery_in_select() {
+    let stmts = parse("SELECT (SELECT MAX(id) FROM t2) FROM t1");
+    let w = lint(&stmts);
+    assert!(has_rule(&w, "R009"), "expected R009 for scalar subquery in SELECT");
+}
+
+#[test]
+fn r009_subquery_in_where_not_triggered() {
+    let stmts = parse("SELECT * FROM t1 WHERE id IN (SELECT id FROM t2)");
+    let w = lint(&stmts);
+    assert!(!has_rule(&w, "R009"), "subquery in WHERE should not trigger R009");
+}
+
+// ── P001: UNION without ALL ──
+
+#[test]
+fn p001_union_without_all() {
+    let stmts = parse("SELECT id FROM t1 UNION SELECT id FROM t2");
+    let w = lint(&stmts);
+    assert!(has_rule(&w, "P001"), "expected P001 for UNION without ALL");
+}
+
+#[test]
+fn p001_union_all_not_triggered() {
+    let stmts = parse("SELECT id FROM t1 UNION ALL SELECT id FROM t2");
+    let w = lint(&stmts);
+    assert!(!has_rule(&w, "P001"));
+}
+
+// ── P002: NOT IN subquery ──
+
+#[test]
+fn p002_not_in_subquery() {
+    let stmts = parse("SELECT * FROM t WHERE id NOT IN (SELECT id FROM t2)");
+    let w = lint(&stmts);
+    assert!(has_rule(&w, "P002"), "expected P002 for NOT IN (subquery)");
+}
+
+#[test]
+fn p002_in_subquery_not_triggered() {
+    let stmts = parse("SELECT * FROM t WHERE id IN (SELECT id FROM t2)");
+    let w = lint(&stmts);
+    assert!(!has_rule(&w, "P002"));
+}
+
+// ── P003: IN list too large ──
+
+#[test]
+fn p003_large_in_list() {
+    let values: Vec<&str> = (1..=600).map(|_| "1").collect();
+    let sql = format!("SELECT * FROM t WHERE id IN ({})", values.join(","));
+    let stmts = parse(&sql);
+    let config = LintConfig { in_list_threshold: 500, ..LintConfig::default() };
+    let linter = SqlLinter::with_default_rules(config);
+    let w = linter.lint(&stmts, None, Confidence::Full);
+    assert!(has_rule(&w, "P003"), "expected P003 for IN list > 500");
+}
+
+#[test]
+fn p003_small_in_list_not_triggered() {
+    let stmts = parse("SELECT * FROM t WHERE id IN (1, 2, 3)");
+    let w = lint(&stmts);
+    assert!(!has_rule(&w, "P003"));
+}
+
+// ── P004: OR as top-level WHERE ──
+
+#[test]
+fn p004_or_top_level() {
+    let stmts = parse("SELECT * FROM t WHERE a = 1 OR b = 2");
+    let w = lint(&stmts);
+    assert!(has_rule(&w, "P004"), "expected P004 for top-level OR");
+}
+
+#[test]
+fn p004_or_inside_and_not_triggered() {
+    let stmts = parse("SELECT * FROM t WHERE c = 1 AND (a = 1 OR b = 2)");
+    let w = lint(&stmts);
+    assert!(!has_rule(&w, "P004"), "OR inside AND should not trigger P004");
+}
+
+// ── P005: now() function ──
+
+#[test]
+fn p005_now_function() {
+    let stmts = parse("SELECT * FROM t WHERE created > now()");
+    let w = lint(&stmts);
+    assert!(has_rule(&w, "P005"), "expected P005 for now()");
+}
+
+#[test]
+fn p005_other_function_not_triggered() {
+    let stmts = parse("SELECT * FROM t WHERE name = UPPER('abc')");
+    let w = lint(&stmts);
+    assert!(!has_rule(&w, "P005"));
+}
+
+// ── P006: COUNT(*) ──
+
+#[test]
+fn p006_count_star() {
+    let stmts = parse("SELECT COUNT(*) FROM t");
+    let w = lint(&stmts);
+    assert!(has_rule(&w, "P006"), "expected P006 for COUNT(*)");
+}
+
+#[test]
+fn p006_count_column_not_triggered() {
+    let stmts = parse("SELECT COUNT(id) FROM t");
+    let w = lint(&stmts);
+    assert!(!has_rule(&w, "P006"));
+}
+
+// ── P009: Function that should be CASE ──
+
+#[test]
+fn p009_nvl_in_where() {
+    let stmts = parse("SELECT * FROM t WHERE NVL(status, 0) = 1");
+    let w = lint(&stmts);
+    assert!(has_rule(&w, "P009"), "expected P009 for NVL in WHERE");
+}
+
+#[test]
+fn p009_decode_in_where() {
+    let stmts = parse("SELECT * FROM t WHERE DECODE(code, 1, 'A', 'B') = 'A'");
+    let w = lint(&stmts);
+    assert!(has_rule(&w, "P009"), "expected P009 for DECODE in WHERE");
+}
+
+#[test]
+fn p009_coalesce_not_triggered() {
+    let stmts = parse("SELECT * FROM t WHERE COALESCE(status, 0) = 1");
+    let w = lint(&stmts);
+    assert!(!has_rule(&w, "P009"), "COALESCE should not trigger P009");
+}
+
+// ── P010: Multi-column UPDATE from subquery ──
+
+#[test]
+fn p010_multi_col_update_subquery() {
+    let stmts = parse("UPDATE t SET (a, b) = (SELECT x, y FROM t2)");
+    let w = lint(&stmts);
+    assert!(has_rule(&w, "P010"), "expected P010 for multi-col UPDATE subquery");
+}
+
+#[test]
+fn p010_single_col_not_triggered() {
+    let stmts = parse("UPDATE t SET a = (SELECT x FROM t2)");
+    let w = lint(&stmts);
+    assert!(!has_rule(&w, "P010"));
+}
+
+// ── P012: Unnecessary DISTINCT ──
+
+#[test]
+fn p012_distinct() {
+    let stmts = parse("SELECT DISTINCT a, b FROM t");
+    let w = lint(&stmts);
+    assert!(has_rule(&w, "P012"), "expected P012 for DISTINCT");
+}
+
+#[test]
+fn p012_no_distinct_not_triggered() {
+    let stmts = parse("SELECT a, b FROM t");
+    let w = lint(&stmts);
+    assert!(!has_rule(&w, "P012"));
+}
+
+// ── P013: Cartesian product ──
+
+#[test]
+fn p013_cross_join() {
+    let stmts = parse("SELECT * FROM t1 CROSS JOIN t2");
+    let w = lint(&stmts);
+    assert!(has_rule(&w, "P013"), "expected P013 for CROSS JOIN");
+}
+
+// ── P014: Deeply nested subquery ──
+
+#[test]
+fn p014_deep_nesting() {
+    let sql = "SELECT * FROM t WHERE id IN (SELECT id FROM t2 WHERE id IN (SELECT id FROM t3 WHERE id IN (SELECT id FROM t4)))";
+    let stmts = parse(sql);
+    let config = LintConfig { subquery_depth_limit: 3, ..LintConfig::default() };
+    let linter = SqlLinter::with_default_rules(config);
+    let w = linter.lint(&stmts, None, Confidence::Full);
+    assert!(has_rule(&w, "P014"), "expected P014 for deeply nested subquery");
+}
+
+// ── P015: Range equals same value ──
+
+#[test]
+fn p015_between_same() {
+    let stmts = parse("SELECT * FROM t WHERE a BETWEEN 5 AND 5");
+    let w = lint(&stmts);
+    assert!(has_rule(&w, "P015"), "expected P015 for BETWEEN 5 AND 5");
+}
+
+#[test]
+fn p015_between_different_not_triggered() {
+    let stmts = parse("SELECT * FROM t WHERE a BETWEEN 1 AND 10");
+    let w = lint(&stmts);
+    assert!(!has_rule(&w, "P015"));
+}
+
+// ── P016: UPDATE FROM without join condition ──
+
+#[test]
+fn p016_update_from_no_where() {
+    let stmts = parse("UPDATE t SET a = t2.b FROM t2");
+    let w = lint(&stmts);
+    assert!(has_rule(&w, "P016"), "expected P016 for UPDATE FROM without WHERE");
+}
+
+#[test]
+fn p016_update_from_with_where_not_triggered() {
+    let stmts = parse("UPDATE t SET a = t2.b FROM t2 WHERE t.id = t2.id");
+    let w = lint(&stmts);
+    assert!(!has_rule(&w, "P016"));
+}
+
+// ── P017: MERGE ──
+
+#[test]
+fn p017_merge() {
+    let sql = "MERGE INTO target t USING source s ON t.id = s.id WHEN MATCHED THEN UPDATE SET t.a = s.a";
+    let stmts = parse(sql);
+    let w = lint(&stmts);
+    assert!(has_rule(&w, "P017"), "expected P017 for MERGE");
+}
+
+// ── P018: INSERT SELECT without columns ──
+
+#[test]
+fn p018_insert_select_no_columns() {
+    let stmts = parse("INSERT INTO t SELECT * FROM t2");
+    let w = lint(&stmts);
+    assert!(has_rule(&w, "P018"), "expected P018 for INSERT SELECT without columns");
+}
+
+#[test]
+fn p018_insert_select_with_columns_not_triggered() {
+    let stmts = parse("INSERT INTO t (a, b) SELECT x, y FROM t2");
+    let w = lint(&stmts);
+    assert!(!has_rule(&w, "P018"));
+}
+
+// ── P022: EXPLAIN in production ──
+
+#[test]
+fn p022_explain() {
+    let stmts = parse("EXPLAIN SELECT * FROM t");
+    let w = lint(&stmts);
+    assert!(has_rule(&w, "P022"), "expected P022 for EXPLAIN");
+}
+
+// ── P021: Row-by-row INSERT in loop ──
+
+#[test]
+fn p021_insert_in_loop() {
+    let stmts = parse("DO $$ BEGIN FOR i IN 1..10 LOOP INSERT INTO t VALUES (i); END LOOP; END $$");
+    let w = lint(&stmts);
+    assert!(has_rule(&w, "P021"), "expected P021 for INSERT in loop");
+}
+
+#[test]
+fn p021_insert_outside_loop_not_triggered() {
+    let stmts = parse("DO $$ BEGIN INSERT INTO t VALUES (1); END $$");
+    let w = lint(&stmts);
+    assert!(!has_rule(&w, "P021"), "INSERT outside loop should not trigger P021");
+}
+
+// ── Confidence propagation ──
+
+#[test]
+fn confidence_partial_propagated() {
+    let stmts = parse("SELECT * FROM t1");
+    let w = lint_confidence(&stmts, Confidence::Partial);
+    assert!(w.iter().all(|w| w.confidence == Confidence::Partial));
+}
+
+#[test]
+fn confidence_full_propagated() {
+    let stmts = parse("SELECT * FROM t1");
+    let w = lint_confidence(&stmts, Confidence::Full);
+    assert!(w.iter().all(|w| w.confidence == Confidence::Full));
+}
+
+// ── Min level filter ──
+
+#[test]
+fn min_level_prohibition_filters_lower() {
+    let stmts = parse("SELECT DISTINCT a FROM t");
+    let w = lint_min_level(&stmts, WarningLevel::Prohibition);
+    assert!(!has_rule(&w, "P012"), "P012 (Performance) should be filtered by min_level=Prohibition");
+}
+
+// ── Suppress rule ──
+
+#[test]
+fn suppress_rule() {
+    let config = LintConfig { suppress: vec!["R001".into()], ..LintConfig::default() };
+    let linter = SqlLinter::with_default_rules(config);
+    let stmts = parse("SELECT * FROM t");
+    let w = linter.lint(&stmts, None, Confidence::Full);
+    assert!(!has_rule(&w, "R001"), "R001 should be suppressed");
+}
+
+// ── Multiple rules on same statement ──
+
+#[test]
+fn multiple_rules_same_statement() {
+    let stmts = parse("SELECT * FROM t1 UNION SELECT * FROM t2");
+    let w = lint(&stmts);
+    assert!(has_rule(&w, "R001"), "expected R001 for SELECT *");
+    assert!(has_rule(&w, "P001"), "expected P001 for UNION");
+}
+
+// ── No warnings on clean SQL ──
+
+#[test]
+fn no_warnings_clean_sql() {
+    let stmts = parse("SELECT id, name FROM users WHERE status = 'active' ORDER BY id");
+    let w = lint(&stmts);
+    // R005 may trigger for literal-column comparison, filter it out
+    let non_known: Vec<_> = w.iter().filter(|w| w.rule_id != "R005" && w.rule_id != "S007").collect();
+    assert!(non_known.is_empty(), "clean SQL should not produce warnings (except maybe R005/S007): {:?}", non_known);
+}
+
+// ════════════════════════════════════════════════════════════════
+// Phase 2a: Caution rules (C001-C016)
+// ════════════════════════════════════════════════════════════════
+
+// ── C001: Unknown hint ──
+
+#[test]
+fn c001_unknown_hint() {
+    let stmts = parse("SELECT /*+ bogus_hint(t1) */ * FROM t1");
+    let w = lint(&stmts);
+    assert!(has_rule(&w, "C001"), "expected C001 for unknown hint");
+}
+
+#[test]
+fn c001_known_hint_not_triggered() {
+    let stmts = parse("SELECT /*+ hashjoin(t1) */ * FROM t1");
+    let w = lint(&stmts);
+    assert!(!has_rule(&w, "C001"), "known hint should not trigger C001");
+}
+
+// ── C005: Contradictory hints ──
+
+#[test]
+fn c005_contradictory_scan_hints() {
+    let stmts = parse("SELECT /*+ tablescan(t1) indexscan(t1) */ * FROM t1");
+    let w = lint(&stmts);
+    assert!(has_rule(&w, "C005"), "expected C005 for contradictory scan hints");
+}
+
+#[test]
+fn c005_contradictory_negation() {
+    let stmts = parse("SELECT /*+ expand_sublink no_expand_sublink */ * FROM t1");
+    let w = lint(&stmts);
+    assert!(has_rule(&w, "C005"), "expected C005 for hint + no_ negation");
+}
+
+// ── C006: Hint table not in FROM ──
+
+#[test]
+fn c006_hint_table_not_in_from() {
+    let stmts = parse("SELECT /*+ hashjoin(ghost_table) */ * FROM t1");
+    let w = lint(&stmts);
+    assert!(has_rule(&w, "C006"), "expected C006 for hint referencing non-FROM table");
+}
+
+#[test]
+fn c006_hint_table_in_from_not_triggered() {
+    let stmts = parse("SELECT /*+ hashjoin(t1) */ * FROM t1");
+    let w = lint(&stmts);
+    assert!(!has_rule(&w, "C006"), "hint table in FROM should not trigger C006");
+}
+
+// ── C007: UPDATE without WHERE ──
+
+#[test]
+fn c007_update_no_where() {
+    let stmts = parse("UPDATE t SET a = 1");
+    let w = lint(&stmts);
+    assert!(has_rule(&w, "C007"), "expected C007 for UPDATE without WHERE");
+}
+
+#[test]
+fn c007_update_with_where_not_triggered() {
+    let stmts = parse("UPDATE t SET a = 1 WHERE id = 1");
+    let w = lint(&stmts);
+    assert!(!has_rule(&w, "C007"));
+}
+
+// ── C008: DELETE without WHERE ──
+
+#[test]
+fn c008_delete_no_where() {
+    let stmts = parse("DELETE FROM t");
+    let w = lint(&stmts);
+    assert!(has_rule(&w, "C008"), "expected C008 for DELETE without WHERE");
+}
+
+#[test]
+fn c008_delete_with_where_not_triggered() {
+    let stmts = parse("DELETE FROM t WHERE id = 1");
+    let w = lint(&stmts);
+    assert!(!has_rule(&w, "C008"));
+}
+
+// ── C009: INSERT without column list ──
+
+#[test]
+fn c009_insert_no_columns() {
+    let stmts = parse("INSERT INTO t VALUES (1, 2)");
+    let w = lint(&stmts);
+    assert!(has_rule(&w, "C009"), "expected C009 for INSERT without columns");
+}
+
+#[test]
+fn c009_insert_with_columns_not_triggered() {
+    let stmts = parse("INSERT INTO t (a, b) VALUES (1, 2)");
+    let w = lint(&stmts);
+    assert!(!has_rule(&w, "C009"));
+}
+
+// ── C010: Unlogged table ──
+
+#[test]
+fn c010_unlogged_table() {
+    let stmts = parse("CREATE UNLOGGED TABLE t (id INT)");
+    let w = lint(&stmts);
+    assert!(has_rule(&w, "C010"), "expected C010 for UNLOGGED TABLE");
+}
+
+#[test]
+fn c010_regular_table_not_triggered() {
+    let stmts = parse("CREATE TABLE t (id INT)");
+    let w = lint(&stmts);
+    assert!(!has_rule(&w, "C010"));
+}
+
+// ── C011: GOTO statement ──
+
+#[test]
+fn c011_goto_in_pl() {
+    let stmts = parse("DO $$ BEGIN GOTO label1; <<label1>> NULL; END $$");
+    let w = lint(&stmts);
+    assert!(has_rule(&w, "C011"), "expected C011 for GOTO");
+}
+
+// ── C012: EXECUTE with concatenation ──
+
+#[test]
+fn c012_execute_concat() {
+    let stmts = parse("DO $$ BEGIN EXECUTE IMMEDIATE 'SELECT * FROM ' || v_tablename; END $$");
+    let w = lint(&stmts);
+    assert!(has_rule(&w, "C012"), "expected C012 for EXECUTE with concatenation");
+}
+
+#[test]
+fn c012_execute_no_concat_not_triggered() {
+    let stmts = parse("DO $$ BEGIN EXECUTE IMMEDIATE 'SELECT 1'; END $$");
+    let w = lint(&stmts);
+    assert!(!has_rule(&w, "C012"), "EXECUTE without concatenation should not trigger C012");
+}
+
+// ── C013: Exception swallow ──
+
+#[test]
+fn c013_exception_swallow() {
+    let stmts = parse("DO $$ BEGIN NULL; EXCEPTION WHEN OTHERS THEN NULL; END $$");
+    let w = lint(&stmts);
+    assert!(has_rule(&w, "C013"), "expected C013 for WHEN OTHERS THEN without RAISE");
+}
+
+#[test]
+fn c013_exception_with_raise_not_triggered() {
+    let stmts = parse("DO $$ BEGIN NULL; EXCEPTION WHEN OTHERS THEN RAISE NOTICE '%', SQLERRM; END $$");
+    let w = lint(&stmts);
+    assert!(!has_rule(&w, "C013"), "WHEN OTHERS with RAISE should not trigger C013");
+}
+
+// ── C014: PL COMMIT/ROLLBACK ──
+
+#[test]
+fn c014_pl_commit() {
+    let stmts = parse("DO $$ BEGIN COMMIT; END $$");
+    let w = lint(&stmts);
+    assert!(has_rule(&w, "C014"), "expected C014 for COMMIT in PL block");
+}
+
+#[test]
+fn c014_pl_rollback() {
+    let stmts = parse("DO $$ BEGIN ROLLBACK; END $$");
+    let w = lint(&stmts);
+    assert!(has_rule(&w, "C014"), "expected C014 for ROLLBACK in PL block");
+}
+
+// ── C015: SELECT FOR UPDATE blocking ──
+
+#[test]
+fn c015_for_update_blocking() {
+    let stmts = parse("SELECT * FROM t FOR UPDATE");
+    let w = lint(&stmts);
+    assert!(has_rule(&w, "C015"), "expected C015 for SELECT FOR UPDATE");
+}
+
+#[test]
+fn c015_for_update_nowait_not_triggered() {
+    let stmts = parse("SELECT * FROM t FOR UPDATE NOWAIT");
+    let w = lint(&stmts);
+    assert!(!has_rule(&w, "C015"), "FOR UPDATE NOWAIT should not trigger C015");
+}
+
+// ── C016: Autonomous transaction ──
+
+#[test]
+fn c016_autonomous_transaction() {
+    let stmts = parse("DO $$ DECLARE PRAGMA AUTONOMOUS_TRANSACTION; BEGIN NULL; END $$");
+    let w = lint(&stmts);
+    assert!(has_rule(&w, "C016"), "expected C016 for AUTONOMOUS_TRANSACTION");
+}
+
+// ════════════════════════════════════════════════════════════════
+// Phase 2b: Suggestion rules (S001-S008)
+// ════════════════════════════════════════════════════════════════
+
+// ── S001: DELETE full table → use TRUNCATE ──
+
+#[test]
+fn s001_delete_full_table() {
+    let stmts = parse("DELETE FROM t");
+    let w = lint(&stmts);
+    assert!(has_rule(&w, "S001"), "expected S001 for DELETE without WHERE");
+}
+
+// ── S002: LIMIT + OFFSET → use cursor ──
+
+#[test]
+fn s002_limit_offset() {
+    let stmts = parse("SELECT * FROM t LIMIT 10 OFFSET 20");
+    let w = lint(&stmts);
+    assert!(has_rule(&w, "S002"), "expected S002 for OFFSET");
+}
+
+#[test]
+fn s002_limit_no_offset_not_triggered() {
+    let stmts = parse("SELECT * FROM t LIMIT 10");
+    let w = lint(&stmts);
+    assert!(!has_rule(&w, "S002"), "LIMIT without OFFSET should not trigger S002");
+}
+
+// ── S006: LIMIT without ORDER BY ──
+
+#[test]
+fn s006_limit_no_order() {
+    let stmts = parse("SELECT * FROM t LIMIT 10");
+    let w = lint(&stmts);
+    assert!(has_rule(&w, "S006"), "expected S006 for LIMIT without ORDER BY");
+}
+
+#[test]
+fn s006_limit_with_order_not_triggered() {
+    let stmts = parse("SELECT * FROM t ORDER BY id LIMIT 10");
+    let w = lint(&stmts);
+    assert!(!has_rule(&w, "S006"), "LIMIT with ORDER BY should not trigger S006");
+}
+
+// ── S007: Explicit type for literals ──
+
+#[test]
+fn s007_string_literal_in_where() {
+    let stmts = parse("SELECT * FROM t WHERE name = 'abc'");
+    let w = lint(&stmts);
+    assert!(has_rule(&w, "S007"), "expected S007 for untyped string literal in WHERE");
+}
+
+// ── S008: Complex SQL ──
+
+#[test]
+fn s008_complex_sql() {
+    let long_sql = format!("SELECT {} FROM t", "a, ".repeat(500));
+    let stmts = parse(&long_sql);
+    let config = LintConfig { sql_length_limit: 200, ..LintConfig::default() };
+    let linter = SqlLinter::with_default_rules(config);
+    let w = linter.lint(&stmts, None, Confidence::Full);
+    assert!(has_rule(&w, "S008"), "expected S008 for long SQL");
+}
+
+// ── LintConfig from_toml_str ──
+
+#[cfg(feature = "lint-config")]
+#[test]
+fn from_toml_str_partial() {
+    let toml = r#"
+min_level = "caution"
+suppress = ["R001"]
+"#;
+    let config = LintConfig::from_toml_str(toml).unwrap();
+    assert_eq!(config.min_level, WarningLevel::Caution);
+    assert_eq!(config.min_confidence, Confidence::Partial); // default
+    assert_eq!(config.suppress, vec!["R001".to_string()]);
+    assert_eq!(config.in_list_threshold, 500); // default
+}
+
+#[cfg(feature = "lint-config")]
+#[test]
+fn from_toml_str_full() {
+    let toml = r#"
+min_level = "performance"
+min_confidence = "full"
+suppress = ["R001", "P003", "S007"]
+in_list_threshold = 100
+subquery_depth_limit = 5
+sql_length_limit = 1000
+non_equi_join_limit = 4
+group_by_column_limit = 20
+"#;
+    let config = LintConfig::from_toml_str(toml).unwrap();
+    assert_eq!(config.min_level, WarningLevel::Performance);
+    assert_eq!(config.min_confidence, Confidence::Full);
+    assert_eq!(config.suppress, vec!["R001", "P003", "S007"]);
+    assert_eq!(config.in_list_threshold, 100);
+    assert_eq!(config.subquery_depth_limit, 5);
+    assert_eq!(config.sql_length_limit, 1000);
+    assert_eq!(config.non_equi_join_limit, 4);
+    assert_eq!(config.group_by_column_limit, 20);
+}
+
+#[cfg(feature = "lint-config")]
+#[test]
+fn from_toml_str_invalid_toml() {
+    let err = LintConfig::from_toml_str("this is not toml {{{").unwrap_err();
+    assert!(!err.is_empty(), "expected error for invalid TOML");
+}
+
+#[cfg(feature = "lint-config")]
+#[test]
+fn from_toml_str_unknown_field() {
+    // Unknown fields should be silently ignored by serde
+    let toml = r#"
+min_level = "caution"
+unknown_field = "whatever"
+"#;
+    let config = LintConfig::from_toml_str(toml).unwrap();
+    assert_eq!(config.min_level, WarningLevel::Caution);
+    // other fields should still have defaults
+    assert_eq!(config.min_confidence, Confidence::Partial);
+}
+
+#[cfg(feature = "lint-config")]
+#[test]
+fn from_toml_str_empty() {
+    // Empty TOML should produce default config
+    let config = LintConfig::from_toml_str("").unwrap();
+    assert_eq!(config.min_level, WarningLevel::Suggestion);
+    assert_eq!(config.min_confidence, Confidence::Partial);
+}
