@@ -390,6 +390,7 @@ fn token_display(t: &TokenWithSpan) -> (String, String) {
         Token::Comment(s) => ("Comment".into(), s.clone()),
         Token::MyBatisParam(s) => ("MyBatisParam".into(), format!("#{{{}}}", s)),
         Token::MyBatisRawExpr(s) => ("MyBatisRawExpr".into(), format!("${{{}}}", s)),
+        Token::JdbcParam => ("JdbcParam".into(), "?".to_string()),
         other => ("Other".into(), format!("{:?}", other)),
     }
 }

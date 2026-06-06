@@ -1984,6 +1984,7 @@ impl PlVariableValidator {
             Expr::Parameter(_) => {}
             Expr::MyBatisParam(_) => {}
             Expr::MyBatisRawExpr(_) => {}
+            Expr::JdbcParam => {}
             Expr::Default => {}
             Expr::SysDate => {}
             Expr::CurrentOf { .. } => {}

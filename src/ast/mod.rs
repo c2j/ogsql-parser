@@ -1265,6 +1265,8 @@ pub enum Expr {
     Parameter(i32),
     MyBatisParam(String),
     MyBatisRawExpr(String),
+    /// JDBC-style positional parameter: ?
+    JdbcParam,
     Array(Vec<Expr>),
     Subscript {
         object: Box<Expr>,
