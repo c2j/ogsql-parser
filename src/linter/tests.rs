@@ -685,6 +685,44 @@ fn c016_autonomous_transaction() {
     assert!(has_rule(&w, "C016"), "expected C016 for AUTONOMOUS_TRANSACTION");
 }
 
+// ── C017: RAISE in EXCEPTION clears variables ──
+
+#[test]
+fn c017_raise_in_exception_bare_raise() {
+    let stmts = parse("DO $$ BEGIN NULL; EXCEPTION WHEN OTHERS THEN c2 := 5; RAISE; END $$");
+    let w = lint(&stmts);
+    assert!(has_rule(&w, "C017"), "expected C017 for bare RAISE in EXCEPTION");
+}
+
+#[test]
+fn c017_raise_exception_in_exception() {
+    let stmts = parse("DO $$ BEGIN NULL; EXCEPTION WHEN OTHERS THEN RAISE EXCEPTION 'err'; END $$");
+    let w = lint(&stmts);
+    assert!(has_rule(&w, "C017"), "expected C017 for RAISE EXCEPTION in EXCEPTION");
+}
+
+#[test]
+fn c017_raise_info_not_triggered() {
+    let stmts = parse("DO $$ BEGIN NULL; EXCEPTION WHEN OTHERS THEN RAISE INFO 'msg'; END $$");
+    let w = lint(&stmts);
+    assert!(!has_rule(&w, "C017"), "RAISE INFO should not trigger C017");
+}
+
+#[test]
+fn c017_no_exception_block_not_triggered() {
+    let stmts = parse("DO $$ BEGIN RAISE EXCEPTION 'err'; END $$");
+    let w = lint(&stmts);
+    assert!(!has_rule(&w, "C017"), "RAISE outside EXCEPTION should not trigger C017");
+}
+
+#[test]
+fn c017_nested_block_outer_exception() {
+    let stmts =
+        parse("DO $$ BEGIN BEGIN NULL; EXCEPTION WHEN OTHERS THEN RAISE; END; EXCEPTION WHEN OTHERS THEN NULL; END $$");
+    let w = lint(&stmts);
+    assert!(has_rule(&w, "C017"), "expected C017 for nested block EXCEPTION with RAISE");
+}
+
 // ════════════════════════════════════════════════════════════════
 // Phase 2b: Suggestion rules (S001-S008)
 // ════════════════════════════════════════════════════════════════

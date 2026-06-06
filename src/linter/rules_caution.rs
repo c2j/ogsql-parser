@@ -99,6 +99,13 @@ pub fn register(linter: &mut SqlLinter) {
             stmt_kind: StatementKind::PlBlock,
             check_fn: check_c016,
         },
+        LintRuleEntry {
+            id: "C017",
+            name: "raise-in-exception-clears-variables",
+            level: WarningLevel::Caution,
+            stmt_kind: StatementKind::PlBlock,
+            check_fn: check_c017,
+        },
     ];
     for rule in rules {
         linter.register(rule);
@@ -984,4 +991,104 @@ fn check_pl_stmts_for_autonomous(pl_stmts: &[PlStatement], found: &mut bool) {
             return;
         }
     }
+}
+
+// ── C017: RAISE in EXCEPTION clears variables ──
+
+fn check_c017(
+    stmts: &[StatementInfo],
+    _schema: Option<&crate::analyzer::schema::SchemaMap>,
+    _config: &LintConfig,
+    confidence: Confidence,
+    warnings: &mut Vec<SqlWarning>,
+) {
+    for info in stmts {
+        let loc = stmt_location(info);
+        let mut found = false;
+        walk_pl_for_raise_in_exception(&info.statement, &mut found);
+        if found {
+            warnings.push(make_warning(
+                WarningLevel::Caution,
+                "C017",
+                "raise-in-exception-clears-variables",
+                "RAISE \u{5728} EXCEPTION \u{5757}\u{4e2d}\u{4f1a}\u{6e05}\u{7a7a}\u{6240}\u{6709}\u{5c40}\u{90e8}\u{53d8}\u{91cf}\u{503c}\u{ff08}\u{5305}\u{62ec} OUT \u{53c2}\u{6570}\u{ff09}\u{ff0c}\u{5bfc}\u{81f4}\u{8c03}\u{7528}\u{65b9}\u{65e0}\u{6cd5}\u{83b7}\u{53d6}\u{9519}\u{8bef}\u{4fe1}\u{606f}".into(),
+                Some("\u{4f7f}\u{7528} RAISE INFO \u{4f20}\u{9012}\u{5177}\u{4f53}\u{9519}\u{8bef}\u{4fe1}\u{606f}\u{ff0c}\u{6216}\u{5728} RAISE \u{524d}\u{5c06}\u{8f93}\u{51fa}\u{503c}\u{4fdd}\u{5b58}\u{5230}\u{4e34}\u{65f6}\u{8868}/\u{5168}\u{5c40}\u{53d8}\u{91cf}"),
+                loc,
+                None,
+                confidence,
+            ));
+        }
+    }
+}
+
+fn walk_pl_for_raise_in_exception(stmt: &Statement, found: &mut bool) {
+    let block = match stmt {
+        Statement::AnonyBlock(b) => &b.block,
+        Statement::Do(d) => {
+            if let Some(ref block) = d.block {
+                block
+            } else {
+                return;
+            }
+        }
+        _ => return,
+    };
+    check_exception_block_for_reraise(block, found);
+}
+
+fn check_exception_block_for_reraise(block: &PlBlock, found: &mut bool) {
+    if *found {
+        return;
+    }
+    if let Some(ref exc) = block.exception_block {
+        for handler in &exc.handlers {
+            if handler.statements.iter().any(has_reraise) {
+                *found = true;
+                return;
+            }
+        }
+    }
+    // Recurse into nested blocks
+    check_pl_stmts_for_reraise(&block.body, found);
+}
+
+fn check_pl_stmts_for_reraise(stmts: &[PlStatement], found: &mut bool) {
+    if *found {
+        return;
+    }
+    for s in stmts {
+        match s {
+            PlStatement::Block(b) => check_exception_block_for_reraise(b, found),
+            PlStatement::If(i) => {
+                check_pl_stmts_for_reraise(&i.then_stmts, found);
+                for e in &i.elsifs {
+                    check_pl_stmts_for_reraise(&e.stmts, found);
+                }
+                check_pl_stmts_for_reraise(&i.else_stmts, found);
+            }
+            PlStatement::Case(c) => {
+                for w in &c.whens {
+                    check_pl_stmts_for_reraise(&w.stmts, found);
+                }
+                check_pl_stmts_for_reraise(&c.else_stmts, found);
+            }
+            PlStatement::Loop(l) => check_pl_stmts_for_reraise(&l.body, found),
+            PlStatement::While(w) => check_pl_stmts_for_reraise(&w.body, found),
+            PlStatement::For(f) => check_pl_stmts_for_reraise(&f.body, found),
+            PlStatement::ForEach(f) => check_pl_stmts_for_reraise(&f.body, found),
+            _ => {}
+        }
+        if *found {
+            return;
+        }
+    }
+}
+
+/// Returns true if the statement is a re-raise (bare RAISE or RAISE EXCEPTION).
+/// These propagate the exception and clear local variables in GaussDB.
+fn has_reraise(s: &PlStatement) -> bool {
+    matches!(
+        s,
+        PlStatement::Raise(r) if r.level.is_none() || matches!(r.level, Some(RaiseLevel::Exception))
+    )
 }
