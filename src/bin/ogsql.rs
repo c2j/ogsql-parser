@@ -3219,26 +3219,35 @@ fn output_csv_validate_rows(
 fn merge_lint_warnings(warnings: &[&&ogsql_parser::linter::SqlWarning]) -> String {
     use std::collections::BTreeMap;
 
-    let mut groups: BTreeMap<&str, Vec<usize>> = BTreeMap::new();
+    struct Group {
+        message: String,
+        lines: Vec<usize>,
+    }
+    let mut groups: BTreeMap<&str, Group> = BTreeMap::new();
     for w in warnings {
-        groups.entry(&w.rule_id).or_default().push(w.location.line);
+        groups
+            .entry(&w.rule_id)
+            .or_insert_with(|| Group { message: w.message.clone(), lines: Vec::new() })
+            .lines
+            .push(w.location.line);
     }
 
     groups
         .iter()
-        .map(|(rule_id, lines)| {
-            if lines.len() > 1 {
-                let mut unique_lines: Vec<usize> = lines.iter().copied().filter(|l| *l > 0).collect();
+        .map(|(rule_id, group)| {
+            let label = format!("{}: {}", rule_id, group.message);
+            if group.lines.len() > 1 {
+                let mut unique_lines: Vec<usize> = group.lines.iter().copied().filter(|l| *l > 0).collect();
                 unique_lines.sort();
                 unique_lines.dedup();
                 if unique_lines.is_empty() {
-                    format!("{} (\u{00d7}{})", rule_id, lines.len())
+                    format!("{} (\u{00d7}{})", label, group.lines.len())
                 } else {
                     let line_strs: Vec<String> = unique_lines.iter().map(|l| l.to_string()).collect();
-                    format!("{} (\u{00d7}{}, lines {})", rule_id, lines.len(), line_strs.join(", "))
+                    format!("{} (\u{00d7}{}, lines {})", label, group.lines.len(), line_strs.join(", "))
                 }
             } else {
-                rule_id.to_string()
+                label
             }
         })
         .collect::<Vec<_>>()
