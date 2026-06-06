@@ -37,6 +37,7 @@
 pub mod analyzer;
 pub mod ast;
 pub mod formatter;
+pub mod linter;
 pub mod parser;
 pub mod token;
 pub mod token_formatter;

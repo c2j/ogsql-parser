@@ -1,0 +1,1136 @@
+use crate::ast::plpgsql::{PlBlock, PlDeclaration, PlStatement, RaiseLevel};
+use crate::ast::{Expr, InsertSource, LockClause, Statement, StatementInfo};
+use crate::linter::{
+    loc_from_spanned, make_warning, stmt_location, walk_expr, Confidence, LintConfig, LintRuleEntry, SqlLinter,
+    SqlWarning, StatementKind, WarningLevel,
+};
+use crate::parser::hint_validator::KNOWN_HINTS;
+
+pub fn register(linter: &mut SqlLinter) {
+    let rules: Vec<LintRuleEntry> = vec![
+        LintRuleEntry {
+            id: "C001",
+            name: "hint-unknown",
+            level: WarningLevel::Caution,
+            stmt_kind: StatementKind::Dml,
+            check_fn: check_c001,
+        },
+        LintRuleEntry {
+            id: "C005",
+            name: "hint-contradictory",
+            level: WarningLevel::Caution,
+            stmt_kind: StatementKind::Dml,
+            check_fn: check_c005,
+        },
+        LintRuleEntry {
+            id: "C006",
+            name: "hint-table-not-in-from",
+            level: WarningLevel::Caution,
+            stmt_kind: StatementKind::Dml,
+            check_fn: check_c006,
+        },
+        LintRuleEntry {
+            id: "C007",
+            name: "update-without-where",
+            level: WarningLevel::Caution,
+            stmt_kind: StatementKind::Update,
+            check_fn: check_c007,
+        },
+        LintRuleEntry {
+            id: "C008",
+            name: "delete-without-where",
+            level: WarningLevel::Caution,
+            stmt_kind: StatementKind::Delete,
+            check_fn: check_c008,
+        },
+        LintRuleEntry {
+            id: "C009",
+            name: "insert-no-column-list",
+            level: WarningLevel::Caution,
+            stmt_kind: StatementKind::Insert,
+            check_fn: check_c009,
+        },
+        LintRuleEntry {
+            id: "C010",
+            name: "unlogged-table",
+            level: WarningLevel::Caution,
+            stmt_kind: StatementKind::Ddl,
+            check_fn: check_c010,
+        },
+        LintRuleEntry {
+            id: "C011",
+            name: "goto-statement",
+            level: WarningLevel::Caution,
+            stmt_kind: StatementKind::PlBlock,
+            check_fn: check_c011,
+        },
+        LintRuleEntry {
+            id: "C012",
+            name: "execute-concat-sql-injection",
+            level: WarningLevel::Caution,
+            stmt_kind: StatementKind::PlBlock,
+            check_fn: check_c012,
+        },
+        LintRuleEntry {
+            id: "C013",
+            name: "exception-swallow",
+            level: WarningLevel::Caution,
+            stmt_kind: StatementKind::PlBlock,
+            check_fn: check_c013,
+        },
+        LintRuleEntry {
+            id: "C014",
+            name: "pl-commit-rollback",
+            level: WarningLevel::Caution,
+            stmt_kind: StatementKind::PlBlock,
+            check_fn: check_c014,
+        },
+        LintRuleEntry {
+            id: "C015",
+            name: "select-for-update-blocking",
+            level: WarningLevel::Caution,
+            stmt_kind: StatementKind::Select,
+            check_fn: check_c015,
+        },
+        LintRuleEntry {
+            id: "C016",
+            name: "autonomous-transaction",
+            level: WarningLevel::Caution,
+            stmt_kind: StatementKind::PlBlock,
+            check_fn: check_c016,
+        },
+        LintRuleEntry {
+            id: "C017",
+            name: "raise-in-exception-clears-variables",
+            level: WarningLevel::Caution,
+            stmt_kind: StatementKind::PlBlock,
+            check_fn: check_c017,
+        },
+        LintRuleEntry {
+            id: "C018",
+            name: "excessive-insert-values",
+            level: WarningLevel::Caution,
+            stmt_kind: StatementKind::Insert,
+            check_fn: check_c018,
+        },
+    ];
+    for rule in rules {
+        linter.register(rule);
+    }
+}
+
+/// Extract hints from a statement (SELECT, INSERT, UPDATE, DELETE).
+fn extract_hints(stmt: &Statement) -> Vec<&String> {
+    match stmt {
+        Statement::Select(s) => s.hints.iter().collect(),
+        Statement::Insert(s) => s.hints.iter().collect(),
+        Statement::Update(s) => s.hints.iter().collect(),
+        Statement::Delete(s) => s.hints.iter().collect(),
+        _ => vec![],
+    }
+}
+
+// ── C001: Unknown hint ──
+
+fn check_c001(
+    stmts: &[StatementInfo],
+    _schema: Option<&crate::analyzer::schema::SchemaMap>,
+    _config: &LintConfig,
+    confidence: Confidence,
+    warnings: &mut Vec<SqlWarning>,
+) {
+    for info in stmts {
+        let loc = stmt_location(info);
+        for hint in extract_hints(&info.statement) {
+            let parsed = parse_hint_names(hint);
+            for name in parsed {
+                let lower = name.to_lowercase();
+                let base = lower.strip_prefix("no_").or_else(|| lower.strip_prefix("no"));
+                let known = KNOWN_HINTS.contains(&lower.as_str()) || base.is_some_and(|b| KNOWN_HINTS.contains(&b));
+                if !known {
+                    warnings.push(make_warning(
+                        WarningLevel::Caution,
+                        "C001",
+                        "hint-unknown",
+                        format!("Hint '{name}' \u{4e0d}\u{5728} GaussDB \u{5df2}\u{77e5} Hint \u{5217}\u{8868}\u{4e2d}\u{ff0c}\u{5c06}\u{88ab}\u{9759}\u{9ed8}\u{5ffd}\u{7565}"),
+                        Some("\u{68c0}\u{67e5} Hint \u{62fc}\u{5199}\u{662f}\u{5426}\u{6b63}\u{786e}"),
+                        loc,
+                        Some("Hint \u{4f7f}\u{7528}\u{89c4}\u{8303}"),
+                        confidence,
+                    ));
+                }
+            }
+        }
+    }
+}
+
+/// Parse a hint string (the content inside /*+ ... */) into individual hint names.
+fn parse_hint_names(hint: &str) -> Vec<&str> {
+    // Split by whitespace and parentheses, take the first token of each segment
+    let mut names = Vec::new();
+    for segment in hint.split_whitespace() {
+        // Remove parenthesized arguments: "hashjoin(t1)" → "hashjoin"
+        let name = segment.split('(').next().unwrap_or(segment);
+        if !name.is_empty() {
+            names.push(name);
+        }
+    }
+    names
+}
+
+// ── C005: Contradictory hints ──
+
+fn check_c005(
+    stmts: &[StatementInfo],
+    _schema: Option<&crate::analyzer::schema::SchemaMap>,
+    _config: &LintConfig,
+    confidence: Confidence,
+    warnings: &mut Vec<SqlWarning>,
+) {
+    let contradictory_pairs: &[(&str, &str)] = &[
+        ("tablescan", "indexscan"),
+        ("tablescan", "indexonlyscan"),
+        ("tablescan", "bitmapscan"),
+        ("indexscan", "indexonlyscan"),
+        ("nestloop", "hashjoin"),
+        ("nestloop", "mergejoin"),
+        ("hashjoin", "mergejoin"),
+        ("use_hash_agg", "use_sort_agg"),
+        ("expand_sublink", "no_expand_sublink"),
+        ("expand_subquery", "no_expand_subquery"),
+        ("gather", "redistribute"),
+    ];
+
+    for info in stmts {
+        let loc = stmt_location(info);
+        for hint in extract_hints(&info.statement) {
+            let resolved = resolve_hints(hint);
+            let mut seen = std::collections::HashSet::new();
+            for (name, _) in &resolved {
+                let lower = name.to_lowercase();
+                if seen.contains(&lower) {
+                    continue;
+                }
+                let has_pos = resolved.iter().any(|(n, neg)| n == &lower && !neg);
+                let has_neg = resolved.iter().any(|(n, neg)| n == &lower && *neg);
+                if has_pos && has_neg {
+                    warnings.push(make_warning(
+                        WarningLevel::Caution,
+                        "C005",
+                        "hint-contradictory",
+                        format!(
+                            "Hint \u{77db}\u{76fe}: '{lower}' \u{4e0e} 'no_{lower}' \u{540c}\u{65f6}\u{5b58}\u{5728}"
+                        ),
+                        Some("\u{79fb}\u{9664}\u{77db}\u{76fe}\u{7684} Hint"),
+                        loc,
+                        None,
+                        confidence,
+                    ));
+                    seen.insert(lower);
+                }
+            }
+
+            // Check mutually exclusive pairs
+            for (a, b) in contradictory_pairs {
+                let has_a = resolved.iter().any(|(n, _)| n == a);
+                let has_b = resolved.iter().any(|(n, _)| n == b);
+                if has_a && has_b {
+                    warnings.push(make_warning(
+                        WarningLevel::Caution,
+                        "C005",
+                        "hint-contradictory",
+                        format!("Hint \u{4e92}\u{65a5}: '{a}' \u{4e0e} '{b}' \u{4e0d}\u{5e94}\u{540c}\u{65f6}\u{5b58}\u{5728}"),
+                        Some("\u{53ea}\u{4fdd}\u{7559}\u{4e00}\u{4e2a}\u{626b}\u{63cf}\u{65b9}\u{5f0f}/\u{8fde}\u{63a5}\u{65b9}\u{5f0f}\u{7684} Hint"),
+                        loc,
+                        None,
+                        confidence,
+                    ));
+                }
+            }
+        }
+    }
+}
+
+/// Parse a hint string into (name, is_negated) pairs.
+fn resolve_hints(hint: &str) -> Vec<(String, bool)> {
+    let names = parse_hint_names(hint);
+    names
+        .into_iter()
+        .map(|name| {
+            let lower = name.to_lowercase();
+            if let Some(base) = lower.strip_prefix("no_") {
+                if KNOWN_HINTS.contains(&base) {
+                    return (base.to_string(), true);
+                }
+            }
+            if lower.starts_with("no") && lower.len() > 2 {
+                let base = &lower[2..];
+                if KNOWN_HINTS.contains(&base) {
+                    return (base.to_string(), true);
+                }
+            }
+            (lower, false)
+        })
+        .collect()
+}
+
+// ── C006: Hint table not in FROM ──
+
+fn check_c006(
+    stmts: &[StatementInfo],
+    _schema: Option<&crate::analyzer::schema::SchemaMap>,
+    _config: &LintConfig,
+    confidence: Confidence,
+    warnings: &mut Vec<SqlWarning>,
+) {
+    for info in stmts {
+        let loc = stmt_location(info);
+        let from_tables = collect_from_table_names(&info.statement);
+        if from_tables.is_empty() {
+            continue;
+        }
+        for hint in extract_hints(&info.statement) {
+            let hint_tables = extract_hint_table_refs(hint);
+            for ht in hint_tables {
+                let lower = ht.to_lowercase();
+                if !from_tables.contains(&lower) {
+                    warnings.push(make_warning(
+                        WarningLevel::Caution,
+                        "C006",
+                        "hint-table-not-in-from",
+                        format!("Hint \u{5f15}\u{7528}\u{7684}\u{8868} '{ht}' \u{4e0d}\u{5728} FROM \u{5b50}\u{53e5}\u{4e2d}"),
+                        Some("\u{68c0}\u{67e5} Hint \u{4e2d}\u{7684}\u{8868}\u{540d}\u{662f}\u{5426}\u{4e0e} FROM \u{5b50}\u{53e5}\u{4e00}\u{81f4}"),
+                        loc,
+                        None,
+                        confidence,
+                    ));
+                }
+            }
+        }
+    }
+}
+
+fn collect_from_table_names(stmt: &Statement) -> Vec<String> {
+    use crate::ast::TableRef;
+    let mut tables = Vec::new();
+    let from: &[TableRef] = match stmt {
+        Statement::Select(s) => &s.from,
+        Statement::Update(s) => {
+            for t in &s.tables {
+                if let TableRef::Table { name, alias, .. } = t {
+                    tables.push(name.last().cloned().unwrap_or_default().to_lowercase());
+                    if let Some(a) = alias {
+                        tables.push(a.to_lowercase());
+                    }
+                }
+            }
+            &s.from
+        }
+        Statement::Delete(s) => {
+            for t in &s.tables {
+                if let TableRef::Table { name, alias, .. } = t {
+                    tables.push(name.last().cloned().unwrap_or_default().to_lowercase());
+                    if let Some(a) = alias {
+                        tables.push(a.to_lowercase());
+                    }
+                }
+            }
+            &s.using
+        }
+        _ => return tables,
+    };
+    collect_table_names_from(from, &mut tables);
+    tables
+}
+
+fn collect_table_names_from(from: &[crate::ast::TableRef], tables: &mut Vec<String>) {
+    use crate::ast::TableRef;
+    for t in from {
+        match t {
+            TableRef::Table { name, alias, .. } => {
+                tables.push(name.last().cloned().unwrap_or_default().to_lowercase());
+                if let Some(a) = alias {
+                    tables.push(a.to_lowercase());
+                }
+            }
+            TableRef::Join { left, right, .. } => {
+                collect_table_names_from(std::slice::from_ref(left), tables);
+                collect_table_names_from(std::slice::from_ref(right), tables);
+            }
+            TableRef::Subquery { alias, .. } => {
+                if let Some(a) = alias {
+                    tables.push(a.to_lowercase());
+                }
+            }
+            _ => {}
+        }
+    }
+}
+
+/// Extract table name references from hints that take table arguments.
+fn extract_hint_table_refs(hint: &str) -> Vec<&str> {
+    let mut tables = Vec::new();
+    for segment in hint.split_whitespace() {
+        // "hashjoin(t1)" → extract "t1"
+        if let Some(start) = segment.find('(') {
+            if let Some(end) = segment.rfind(')') {
+                let args = &segment[start + 1..end];
+                for arg in args.split(',') {
+                    let trimmed = arg.trim();
+                    // Skip @queryblock prefixes like @sel$1
+                    let name = if trimmed.starts_with('@') {
+                        if let Some(space_pos) = trimmed.find(char::is_whitespace) {
+                            trimmed[space_pos..].trim()
+                        } else {
+                            continue;
+                        }
+                    } else {
+                        trimmed
+                    };
+                    if !name.is_empty() {
+                        tables.push(name);
+                    }
+                }
+            }
+        }
+    }
+    tables
+}
+
+// ── C007: UPDATE without WHERE ──
+
+fn check_c007(
+    stmts: &[StatementInfo],
+    _schema: Option<&crate::analyzer::schema::SchemaMap>,
+    _config: &LintConfig,
+    confidence: Confidence,
+    warnings: &mut Vec<SqlWarning>,
+) {
+    for info in stmts {
+        if let Statement::Update(s) = &info.statement {
+            if s.where_clause.is_none() {
+                let loc = loc_from_spanned(s, stmt_location(info));
+                warnings.push(make_warning(
+                    WarningLevel::Caution,
+                    "C007",
+                    "update-without-where",
+                    "UPDATE \u{65e0} WHERE \u{5b50}\u{53e5}\u{ff0c}\u{53ef}\u{80fd}\u{5f71}\u{54cd}\u{5168}\u{8868}\u{6570}\u{636e}".into(),
+                    Some("\u{786e}\u{8ba4}\u{662f}\u{5426}\u{771f}\u{7684}\u{9700}\u{8981}\u{66f4}\u{65b0}\u{5168}\u{8868}"),
+                    loc,
+                    None,
+                    confidence,
+                ));
+            }
+        }
+    }
+}
+
+// ── C008: DELETE without WHERE ──
+
+fn check_c008(
+    stmts: &[StatementInfo],
+    _schema: Option<&crate::analyzer::schema::SchemaMap>,
+    _config: &LintConfig,
+    confidence: Confidence,
+    warnings: &mut Vec<SqlWarning>,
+) {
+    for info in stmts {
+        if let Statement::Delete(s) = &info.statement {
+            if s.where_clause.is_none() {
+                let loc = loc_from_spanned(s, stmt_location(info));
+                warnings.push(make_warning(
+                    WarningLevel::Caution,
+                    "C008",
+                    "delete-without-where",
+                    "DELETE \u{65e0} WHERE \u{5b50}\u{53e5}\u{ff0c}\u{5c06}\u{5220}\u{9664}\u{5168}\u{8868}\u{6570}\u{636e}".into(),
+                    Some("\u{786e}\u{8ba4}\u{662f}\u{5426}\u{5e94}\u{4f7f}\u{7528} TRUNCATE \u{6216}\u{6dfb}\u{52a0} WHERE \u{6761}\u{4ef6}"),
+                    loc,
+                    None,
+                    confidence,
+                ));
+            }
+        }
+    }
+}
+
+// ── C009: INSERT without column list ──
+
+fn check_c009(
+    stmts: &[StatementInfo],
+    _schema: Option<&crate::analyzer::schema::SchemaMap>,
+    _config: &LintConfig,
+    confidence: Confidence,
+    warnings: &mut Vec<SqlWarning>,
+) {
+    for info in stmts {
+        if let Statement::Insert(s) = &info.statement {
+            if s.columns.is_empty() {
+                let loc = loc_from_spanned(s, stmt_location(info));
+                warnings.push(make_warning(
+                    WarningLevel::Caution,
+                    "C009",
+                    "insert-no-column-list",
+                    "INSERT \u{672a}\u{6307}\u{5b9a}\u{76ee}\u{6807}\u{5217}\u{540d}\u{ff0c}\u{4f9d}\u{8d56}\u{8868}\u{5b9a}\u{4e49}\u{987a}\u{5e8f}".into(),
+                    Some("\u{663e}\u{5f0f}\u{6307}\u{5b9a}\u{76ee}\u{6807}\u{5217}\u{540d}\u{4ee5}\u{907f}\u{514d}\u{8868}\u{7ed3}\u{6784}\u{53d8}\u{5316}\u{5bfc}\u{81f4}\u{6570}\u{636e}\u{9519}\u{8bef}"),
+                    loc,
+                    None,
+                    confidence,
+                ));
+            }
+        }
+    }
+}
+
+// ── C010: Unlogged table ──
+
+fn check_c010(
+    stmts: &[StatementInfo],
+    _schema: Option<&crate::analyzer::schema::SchemaMap>,
+    _config: &LintConfig,
+    confidence: Confidence,
+    warnings: &mut Vec<SqlWarning>,
+) {
+    for info in stmts {
+        let loc = stmt_location(info);
+        match &info.statement {
+            Statement::CreateTable(s) if s.unlogged => {
+                warnings.push(make_warning(
+                    WarningLevel::Caution,
+                    "C010",
+                    "unlogged-table",
+                    "UNLOGGED TABLE \u{5728}\u{6545}\u{969c}\u{6062}\u{590d}\u{65f6}\u{6570}\u{636e}\u{4f1a}\u{4e22}\u{5931}".into(),
+                    Some("\u{8bc4}\u{4f30}\u{662f}\u{5426}\u{53ef}\u{4ee5}\u{4f7f}\u{7528}\u{666e}\u{901a}\u{8868}\u{66ff}\u{4ee3}"),
+                    loc,
+                    None,
+                    confidence,
+                ));
+            }
+            Statement::CreateTableAs(s) if s.unlogged => {
+                warnings.push(make_warning(
+                    WarningLevel::Caution,
+                    "C010",
+                    "unlogged-table",
+                    "UNLOGGED TABLE AS \u{5728}\u{6545}\u{969c}\u{6062}\u{590d}\u{65f6}\u{6570}\u{636e}\u{4f1a}\u{4e22}\u{5931}".into(),
+                    Some("\u{8bc4}\u{4f30}\u{662f}\u{5426}\u{53ef}\u{4ee5}\u{4f7f}\u{7528}\u{666e}\u{901a}\u{8868}\u{66ff}\u{4ee3}"),
+                    loc,
+                    None,
+                    confidence,
+                ));
+            }
+            _ => {}
+        }
+    }
+}
+
+// ── C011: GOTO statement ──
+
+fn check_c011(
+    stmts: &[StatementInfo],
+    _schema: Option<&crate::analyzer::schema::SchemaMap>,
+    _config: &LintConfig,
+    confidence: Confidence,
+    warnings: &mut Vec<SqlWarning>,
+) {
+    for info in stmts {
+        let loc = stmt_location(info);
+        let mut found = false;
+        walk_pl_block_for_goto(&info.statement, &mut found);
+        if found {
+            warnings.push(make_warning(
+                WarningLevel::Caution,
+                "C011",
+                "goto-statement",
+                "PL/pgSQL \u{4e2d}\u{4f7f}\u{7528}\u{4e86} GOTO \u{8bed}\u{53e5}\u{ff0c}\u{4e0d}\u{7b26}\u{5408}\u{7ed3}\u{6784}\u{5316}\u{7f16}\u{7a0b}\u{5efa}\u{8bae}".into(),
+                Some("\u{4f7f}\u{7528} IF/EXIT/CONTINUE \u{66ff}\u{4ee3} GOTO"),
+                loc,
+                None,
+                confidence,
+            ));
+        }
+    }
+}
+
+fn walk_pl_block_for_goto(stmt: &Statement, found: &mut bool) {
+    let block = match stmt {
+        Statement::AnonyBlock(b) => &b.block,
+        Statement::Do(d) => {
+            if let Some(ref block) = d.block {
+                block
+            } else {
+                return;
+            }
+        }
+        _ => return,
+    };
+    check_pl_stmts_for_goto(&block.body, found);
+    if let Some(ref exc) = block.exception_block {
+        for handler in &exc.handlers {
+            check_pl_stmts_for_goto(&handler.statements, found);
+        }
+    }
+}
+
+fn check_pl_stmts_for_goto(stmts: &[PlStatement], found: &mut bool) {
+    if *found {
+        return;
+    }
+    for s in stmts {
+        match s {
+            PlStatement::Goto { .. } => {
+                *found = true;
+                return;
+            }
+            PlStatement::Block(b) => {
+                check_pl_stmts_for_goto(&b.body, found);
+                if let Some(ref exc) = b.exception_block {
+                    for handler in &exc.handlers {
+                        check_pl_stmts_for_goto(&handler.statements, found);
+                    }
+                }
+            }
+            PlStatement::If(i) => {
+                check_pl_stmts_for_goto(&i.then_stmts, found);
+                for e in &i.elsifs {
+                    check_pl_stmts_for_goto(&e.stmts, found);
+                }
+                check_pl_stmts_for_goto(&i.else_stmts, found);
+            }
+            PlStatement::Case(c) => {
+                for w in &c.whens {
+                    check_pl_stmts_for_goto(&w.stmts, found);
+                }
+                check_pl_stmts_for_goto(&c.else_stmts, found);
+            }
+            PlStatement::Loop(l) => check_pl_stmts_for_goto(&l.body, found),
+            PlStatement::While(w) => check_pl_stmts_for_goto(&w.body, found),
+            PlStatement::For(f) => check_pl_stmts_for_goto(&f.body, found),
+            PlStatement::ForEach(f) => check_pl_stmts_for_goto(&f.body, found),
+            _ => {}
+        }
+        if *found {
+            return;
+        }
+    }
+}
+
+// ── C012: EXECUTE with string concatenation (SQL injection risk) ──
+
+fn check_c012(
+    stmts: &[StatementInfo],
+    _schema: Option<&crate::analyzer::schema::SchemaMap>,
+    _config: &LintConfig,
+    confidence: Confidence,
+    warnings: &mut Vec<SqlWarning>,
+) {
+    for info in stmts {
+        let loc = stmt_location(info);
+        let mut found = false;
+        walk_pl_for_execute_concat(&info.statement, &mut found);
+        if found {
+            warnings.push(make_warning(
+                WarningLevel::Caution,
+                "C012",
+                "execute-concat-sql-injection",
+                "EXECUTE IMMEDIATE \u{4e2d}\u{4f7f}\u{7528}\u{5b57}\u{7b26}\u{4e32}\u{62fc}\u{63a5}\u{ff0c}\u{53ef}\u{80fd}\u{5b58}\u{5728} SQL \u{6ce8}\u{5165}\u{98ce}\u{9669}".into(),
+                Some("\u{4f7f}\u{7528} USING \u{53c2}\u{6570}\u{5316}\u{67e5}\u{8be2}\u{66ff}\u{4ee3}\u{5b57}\u{7b26}\u{4e32}\u{62fc}\u{63a5}"),
+                loc,
+                None,
+                confidence,
+            ));
+        }
+    }
+}
+
+fn walk_pl_for_execute_concat(stmt: &Statement, found: &mut bool) {
+    let block = match stmt {
+        Statement::AnonyBlock(b) => &b.block,
+        Statement::Do(d) => {
+            if let Some(ref block) = d.block {
+                block
+            } else {
+                return;
+            }
+        }
+        _ => return,
+    };
+    check_pl_stmts_for_execute_concat(&block.body, found);
+}
+
+fn check_pl_stmts_for_execute_concat(stmts: &[PlStatement], found: &mut bool) {
+    if *found {
+        return;
+    }
+    for s in stmts {
+        match s {
+            PlStatement::Execute(e) => {
+                if has_string_concat(&e.string_expr) {
+                    *found = true;
+                    return;
+                }
+            }
+            PlStatement::Block(b) => {
+                check_pl_stmts_for_execute_concat(&b.body, found);
+            }
+            PlStatement::If(i) => {
+                check_pl_stmts_for_execute_concat(&i.then_stmts, found);
+                for e in &i.elsifs {
+                    check_pl_stmts_for_execute_concat(&e.stmts, found);
+                }
+                check_pl_stmts_for_execute_concat(&i.else_stmts, found);
+            }
+            PlStatement::Case(c) => {
+                for w in &c.whens {
+                    check_pl_stmts_for_execute_concat(&w.stmts, found);
+                }
+                check_pl_stmts_for_execute_concat(&c.else_stmts, found);
+            }
+            PlStatement::Loop(l) => check_pl_stmts_for_execute_concat(&l.body, found),
+            PlStatement::While(w) => check_pl_stmts_for_execute_concat(&w.body, found),
+            PlStatement::For(f) => check_pl_stmts_for_execute_concat(&f.body, found),
+            PlStatement::ForEach(f) => check_pl_stmts_for_execute_concat(&f.body, found),
+            _ => {}
+        }
+        if *found {
+            return;
+        }
+    }
+}
+
+fn has_string_concat(expr: &Expr) -> bool {
+    let mut found = false;
+    walk_expr(expr, &mut |e| {
+        if found {
+            return false;
+        }
+        if let Expr::BinaryOp { op, .. } = e {
+            if op == "||" {
+                found = true;
+                return false;
+            }
+        }
+        true
+    });
+    found
+}
+
+// ── C013: Exception handler swallows errors ──
+
+fn check_c013(
+    stmts: &[StatementInfo],
+    _schema: Option<&crate::analyzer::schema::SchemaMap>,
+    _config: &LintConfig,
+    confidence: Confidence,
+    warnings: &mut Vec<SqlWarning>,
+) {
+    for info in stmts {
+        let loc = stmt_location(info);
+        let mut found = false;
+        walk_pl_for_exception_swallow(&info.statement, &mut found);
+        if found {
+            warnings.push(make_warning(
+                WarningLevel::Caution,
+                "C013",
+                "exception-swallow",
+                "WHEN OTHERS THEN \u{5f02}\u{5e38}\u{5904}\u{7406}\u{4e2d}\u{672a}\u{91cd}\u{65b0}\u{629b}\u{51fa}\u{5f02}\u{5e38}\u{ff0c}\u{53ef}\u{80fd}\u{9759}\u{9ed8}\u{541e}\u{9519}".into(),
+                Some("\u{5728} WHEN OTHERS \u{5904}\u{7406}\u{4e2d}\u{6dfb}\u{52a0} RAISE \u{91cd}\u{65b0}\u{629b}\u{51fa}\u{5f02}\u{5e38}"),
+                loc,
+                None,
+                confidence,
+            ));
+        }
+    }
+}
+
+fn walk_pl_for_exception_swallow(stmt: &Statement, found: &mut bool) {
+    let block = match stmt {
+        Statement::AnonyBlock(b) => &b.block,
+        Statement::Do(d) => {
+            if let Some(ref block) = d.block {
+                block
+            } else {
+                return;
+            }
+        }
+        _ => return,
+    };
+    check_block_for_swallow(block, found);
+}
+
+fn check_block_for_swallow(block: &PlBlock, found: &mut bool) {
+    if *found {
+        return;
+    }
+    if let Some(ref exc) = block.exception_block {
+        for handler in &exc.handlers {
+            if handler.conditions.iter().any(|c| c.eq_ignore_ascii_case("others")) {
+                if !handler.statements.iter().any(has_raise) {
+                    *found = true;
+                    return;
+                }
+            }
+        }
+    }
+    // Recurse into nested blocks
+    check_pl_stmts_for_swallow(&block.body, found);
+}
+
+fn check_pl_stmts_for_swallow(stmts: &[PlStatement], found: &mut bool) {
+    if *found {
+        return;
+    }
+    for s in stmts {
+        match s {
+            PlStatement::Block(b) => check_block_for_swallow(b, found),
+            PlStatement::If(i) => {
+                check_pl_stmts_for_swallow(&i.then_stmts, found);
+                for e in &i.elsifs {
+                    check_pl_stmts_for_swallow(&e.stmts, found);
+                }
+                check_pl_stmts_for_swallow(&i.else_stmts, found);
+            }
+            PlStatement::Case(c) => {
+                for w in &c.whens {
+                    check_pl_stmts_for_swallow(&w.stmts, found);
+                }
+                check_pl_stmts_for_swallow(&c.else_stmts, found);
+            }
+            PlStatement::Loop(l) => check_pl_stmts_for_swallow(&l.body, found),
+            PlStatement::While(w) => check_pl_stmts_for_swallow(&w.body, found),
+            PlStatement::For(f) => check_pl_stmts_for_swallow(&f.body, found),
+            _ => {}
+        }
+        if *found {
+            return;
+        }
+    }
+}
+
+fn has_raise(s: &PlStatement) -> bool {
+    matches!(s, PlStatement::Raise(r) if r.level.as_ref().is_none_or(|l| !matches!(l, RaiseLevel::Debug | RaiseLevel::Log)))
+}
+
+// ── C014: PL block COMMIT/ROLLBACK ──
+
+fn check_c014(
+    stmts: &[StatementInfo],
+    _schema: Option<&crate::analyzer::schema::SchemaMap>,
+    _config: &LintConfig,
+    confidence: Confidence,
+    warnings: &mut Vec<SqlWarning>,
+) {
+    for info in stmts {
+        let loc = stmt_location(info);
+        let mut found = false;
+        walk_pl_for_commit_rollback(&info.statement, &mut found);
+        if found {
+            warnings.push(make_warning(
+                WarningLevel::Caution,
+                "C014",
+                "pl-commit-rollback",
+                "PL/pgSQL \u{5757}\u{4e2d}\u{5305}\u{542b} COMMIT/ROLLBACK\u{ff0c}\u{53ef}\u{80fd}\u{590d}\u{6742}\u{5316}\u{4e8b}\u{52a1}\u{63a7}\u{5236}".into(),
+                Some("\u{8bc4}\u{4f30}\u{662f}\u{5426}\u{53ef}\u{4ee5}\u{5c06}\u{4e8b}\u{52a1}\u{63a7}\u{5236}\u{4ea4}\u{7ed9}\u{5916}\u{5c42}"),
+                loc,
+                None,
+                confidence,
+            ));
+        }
+    }
+}
+
+fn walk_pl_for_commit_rollback(stmt: &Statement, found: &mut bool) {
+    let block = match stmt {
+        Statement::AnonyBlock(b) => &b.block,
+        Statement::Do(d) => {
+            if let Some(ref block) = d.block {
+                block
+            } else {
+                return;
+            }
+        }
+        _ => return,
+    };
+    check_pl_stmts_for_commit_rollback(&block.body, found);
+}
+
+fn check_pl_stmts_for_commit_rollback(pl_stmts: &[PlStatement], found: &mut bool) {
+    if *found {
+        return;
+    }
+    for s in pl_stmts {
+        match s {
+            PlStatement::Commit { .. } | PlStatement::Rollback { .. } => {
+                *found = true;
+                return;
+            }
+            PlStatement::Block(b) => {
+                check_pl_stmts_for_commit_rollback(&b.body, found);
+            }
+            PlStatement::If(i) => {
+                check_pl_stmts_for_commit_rollback(&i.then_stmts, found);
+                for e in &i.elsifs {
+                    check_pl_stmts_for_commit_rollback(&e.stmts, found);
+                }
+                check_pl_stmts_for_commit_rollback(&i.else_stmts, found);
+            }
+            PlStatement::Case(c) => {
+                for w in &c.whens {
+                    check_pl_stmts_for_commit_rollback(&w.stmts, found);
+                }
+                check_pl_stmts_for_commit_rollback(&c.else_stmts, found);
+            }
+            PlStatement::Loop(l) => check_pl_stmts_for_commit_rollback(&l.body, found),
+            PlStatement::While(w) => check_pl_stmts_for_commit_rollback(&w.body, found),
+            PlStatement::For(f) => check_pl_stmts_for_commit_rollback(&f.body, found),
+            _ => {}
+        }
+        if *found {
+            return;
+        }
+    }
+}
+
+// ── C015: SELECT FOR UPDATE blocking ──
+
+fn check_c015(
+    stmts: &[StatementInfo],
+    _schema: Option<&crate::analyzer::schema::SchemaMap>,
+    _config: &LintConfig,
+    confidence: Confidence,
+    warnings: &mut Vec<SqlWarning>,
+) {
+    for info in stmts {
+        if let Statement::Select(s) = &info.statement {
+            if let Some(ref lock) = s.lock_clause {
+                let is_blocking = match lock {
+                    LockClause::Update { nowait: false, skip_locked: false, wait, .. }
+                    | LockClause::Share { nowait: false, skip_locked: false, wait, .. }
+                    | LockClause::NoKeyUpdate { nowait: false, skip_locked: false, wait, .. }
+                    | LockClause::KeyShare { nowait: false, skip_locked: false, wait, .. } => wait.is_none(),
+                    _ => false,
+                };
+                if is_blocking {
+                    let loc = loc_from_spanned(s, stmt_location(info));
+                    warnings.push(make_warning(
+                        WarningLevel::Caution,
+                        "C015",
+                        "select-for-update-blocking",
+                        "SELECT ... FOR UPDATE \u{672a}\u{4f7f}\u{7528} NOWAIT/SKIP LOCKED\u{ff0c}\u{53ef}\u{80fd}\u{957f}\u{65f6}\u{95f4}\u{963b}\u{585e}".into(),
+                        Some("\u{8003}\u{8651}\u{4f7f}\u{7528} NOWAIT \u{6216} SKIP LOCKED"),
+                        loc,
+                        None,
+                        confidence,
+                    ));
+                }
+            }
+        }
+    }
+}
+
+// ── C016: Autonomous transaction pragma ──
+
+fn check_c016(
+    stmts: &[StatementInfo],
+    _schema: Option<&crate::analyzer::schema::SchemaMap>,
+    _config: &LintConfig,
+    confidence: Confidence,
+    warnings: &mut Vec<SqlWarning>,
+) {
+    for info in stmts {
+        let loc = stmt_location(info);
+        let mut found = false;
+        walk_pl_for_autonomous(&info.statement, &mut found);
+        if found {
+            warnings.push(make_warning(
+                WarningLevel::Caution,
+                "C016",
+                "autonomous-transaction",
+                "PRAGMA AUTONOMOUS_TRANSACTION \u{4f1a}\u{521b}\u{5efa}\u{72ec}\u{7acb}\u{4e8b}\u{52a1}\u{ff0c}\u{6027}\u{80fd}\u{5f00}\u{9500}\u{8f83}\u{5927}".into(),
+                Some("\u{8bc4}\u{4f30}\u{662f}\u{5426}\u{771f}\u{7684}\u{9700}\u{8981}\u{72ec}\u{7acb}\u{4e8b}\u{52a1}"),
+                loc,
+                None,
+                confidence,
+            ));
+        }
+    }
+}
+
+fn walk_pl_for_autonomous(stmt: &Statement, found: &mut bool) {
+    let block = match stmt {
+        Statement::AnonyBlock(b) => &b.block,
+        Statement::Do(d) => {
+            if let Some(ref block) = d.block {
+                block
+            } else {
+                return;
+            }
+        }
+        _ => return,
+    };
+    check_pl_decls_for_autonomous(&block.declarations, found);
+    if !*found {
+        check_pl_stmts_for_autonomous(&block.body, found);
+    }
+}
+
+fn check_pl_decls_for_autonomous(decls: &[PlDeclaration], found: &mut bool) {
+    for d in decls {
+        if let PlDeclaration::Pragma { name, .. } = d {
+            if name.eq_ignore_ascii_case("AUTONOMOUS_TRANSACTION") {
+                *found = true;
+                return;
+            }
+        }
+    }
+}
+
+fn check_pl_stmts_for_autonomous(pl_stmts: &[PlStatement], found: &mut bool) {
+    if *found {
+        return;
+    }
+    for s in pl_stmts {
+        if let PlStatement::Block(b) = s {
+            check_pl_decls_for_autonomous(&b.declarations, found);
+            if !*found {
+                check_pl_stmts_for_autonomous(&b.body, found);
+            }
+        }
+        if *found {
+            return;
+        }
+    }
+}
+
+// ── C017: RAISE in EXCEPTION clears variables ──
+
+fn check_c017(
+    stmts: &[StatementInfo],
+    _schema: Option<&crate::analyzer::schema::SchemaMap>,
+    _config: &LintConfig,
+    confidence: Confidence,
+    warnings: &mut Vec<SqlWarning>,
+) {
+    for info in stmts {
+        let loc = stmt_location(info);
+        let mut found = false;
+        walk_pl_for_raise_in_exception(&info.statement, &mut found);
+        if found {
+            warnings.push(make_warning(
+                WarningLevel::Caution,
+                "C017",
+                "raise-in-exception-clears-variables",
+                "RAISE \u{5728} EXCEPTION \u{5757}\u{4e2d}\u{4f1a}\u{6e05}\u{7a7a}\u{6240}\u{6709}\u{5c40}\u{90e8}\u{53d8}\u{91cf}\u{503c}\u{ff08}\u{5305}\u{62ec} OUT \u{53c2}\u{6570}\u{ff09}\u{ff0c}\u{5bfc}\u{81f4}\u{8c03}\u{7528}\u{65b9}\u{65e0}\u{6cd5}\u{83b7}\u{53d6}\u{9519}\u{8bef}\u{4fe1}\u{606f}".into(),
+                Some("\u{4f7f}\u{7528} RAISE INFO \u{4f20}\u{9012}\u{5177}\u{4f53}\u{9519}\u{8bef}\u{4fe1}\u{606f}\u{ff0c}\u{6216}\u{5728} RAISE \u{524d}\u{5c06}\u{8f93}\u{51fa}\u{503c}\u{4fdd}\u{5b58}\u{5230}\u{4e34}\u{65f6}\u{8868}/\u{5168}\u{5c40}\u{53d8}\u{91cf}"),
+                loc,
+                None,
+                confidence,
+            ));
+        }
+    }
+}
+
+fn walk_pl_for_raise_in_exception(stmt: &Statement, found: &mut bool) {
+    let block = match stmt {
+        Statement::AnonyBlock(b) => &b.block,
+        Statement::Do(d) => {
+            if let Some(ref block) = d.block {
+                block
+            } else {
+                return;
+            }
+        }
+        _ => return,
+    };
+    check_exception_block_for_reraise(block, found);
+}
+
+fn check_exception_block_for_reraise(block: &PlBlock, found: &mut bool) {
+    if *found {
+        return;
+    }
+    if let Some(ref exc) = block.exception_block {
+        for handler in &exc.handlers {
+            if handler.statements.iter().any(has_reraise) {
+                *found = true;
+                return;
+            }
+        }
+    }
+    // Recurse into nested blocks
+    check_pl_stmts_for_reraise(&block.body, found);
+}
+
+fn check_pl_stmts_for_reraise(stmts: &[PlStatement], found: &mut bool) {
+    if *found {
+        return;
+    }
+    for s in stmts {
+        match s {
+            PlStatement::Block(b) => check_exception_block_for_reraise(b, found),
+            PlStatement::If(i) => {
+                check_pl_stmts_for_reraise(&i.then_stmts, found);
+                for e in &i.elsifs {
+                    check_pl_stmts_for_reraise(&e.stmts, found);
+                }
+                check_pl_stmts_for_reraise(&i.else_stmts, found);
+            }
+            PlStatement::Case(c) => {
+                for w in &c.whens {
+                    check_pl_stmts_for_reraise(&w.stmts, found);
+                }
+                check_pl_stmts_for_reraise(&c.else_stmts, found);
+            }
+            PlStatement::Loop(l) => check_pl_stmts_for_reraise(&l.body, found),
+            PlStatement::While(w) => check_pl_stmts_for_reraise(&w.body, found),
+            PlStatement::For(f) => check_pl_stmts_for_reraise(&f.body, found),
+            PlStatement::ForEach(f) => check_pl_stmts_for_reraise(&f.body, found),
+            _ => {}
+        }
+        if *found {
+            return;
+        }
+    }
+}
+
+/// Returns true if the statement is a re-raise (bare RAISE or RAISE EXCEPTION).
+/// These propagate the exception and clear local variables in GaussDB.
+fn has_reraise(s: &PlStatement) -> bool {
+    matches!(
+        s,
+        PlStatement::Raise(r) if r.level.is_none() || matches!(r.level, Some(RaiseLevel::Exception))
+    )
+}
+
+// ── C018: Excessive INSERT VALUES rows ──
+
+fn check_c018(
+    stmts: &[StatementInfo],
+    _schema: Option<&crate::analyzer::schema::SchemaMap>,
+    config: &LintConfig,
+    confidence: Confidence,
+    warnings: &mut Vec<SqlWarning>,
+) {
+    for info in stmts {
+        let loc = stmt_location(info);
+        if let Statement::Insert(insert) = &info.statement {
+            if let InsertSource::Values(values) = &insert.source {
+                let n = values.len();
+                if n > config.max_insert_values_rows {
+                    warnings.push(make_warning(
+                        WarningLevel::Caution,
+                        "C018",
+                        "excessive-insert-values",
+                        format!(
+                            "INSERT VALUES \u{5305}\u{542b} {n} \u{4e2a}\u{5143}\u{7ec4}\u{ff0c}\u{5927}\u{6279}\u{91cf}\u{53ef}\u{80fd}\u{5bfc}\u{81f4}\u{957f}\u{4e8b}\u{52a1}\u{3001}\u{9501}\u{7ade}\u{4e89}\u{548c}\u{56de}\u{6eda}\u{4ee3}\u{4ef7}\u{8fc7}\u{9ad8}\u{3002}\u{5efa}\u{8bae}\u{6bcf}\u{6279}\u{63d2}\u{5165} {}\u{2014}{}\u{884c}\u{ff0c}\u{6216}\u{4f7f}\u{7528} COPY",
+                            config.max_insert_values_rows / 5,
+                            config.max_insert_values_rows
+                        ),
+                        Some("\u{62c6}\u{5206}\u{4e3a}\u{66f4}\u{5c0f}\u{6279}\u{6b21}\u{63d2}\u{5165}\u{4ee5}\u{51cf}\u{5c11}\u{9501}\u{6301}\u{6709}\u{65f6}\u{95f4}"),
+                        loc,
+                        None,
+                        confidence,
+                    ));
+                }
+            }
+        }
+    }
+}

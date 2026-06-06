@@ -65,6 +65,43 @@ struct Cli {
     /// Preserves MyBatis placeholders during formatting and tokenization.
     /// 启用 MyBatis #{param} 和 ${expr} 占位符支持，格式化时保留占位符
     mybatis: bool,
+
+    /// Enable SQL anti-pattern linting on parse/validate output
+    /// 启用 SQL 反模式检测（配合 parse/validate/parse-xml/parse-java 使用）
+    #[arg(long, global = true)]
+    lint: bool,
+
+    /// Minimum warning level to report: prohibition, performance, caution, suggestion
+    /// 最低报告级别（配合 --lint 使用）
+    #[arg(long = "min-level", global = true)]
+    min_level: Option<String>,
+
+    /// Minimum confidence to report: full, partial
+    /// 最低可信度（配合 --lint 使用）
+    #[arg(long = "min-confidence", global = true)]
+    min_confidence: Option<String>,
+
+    /// Suppress specific rule IDs (comma-separated)
+    /// 禁用指定规则（逗号分隔，配合 --lint 使用）
+    #[arg(long = "suppress", global = true, value_delimiter = ',')]
+    suppress: Vec<String>,
+
+    /// P003 IN list size threshold (default: 500)
+    #[arg(long = "in-list-threshold", global = true)]
+    in_list_threshold: Option<usize>,
+
+    /// P014 subquery nesting depth limit (default: 3)
+    #[arg(long = "subquery-depth-limit", global = true)]
+    subquery_depth_limit: Option<usize>,
+
+    /// P007 non-equi join count limit (default: 2)
+    #[arg(long = "non-equi-join-limit", global = true)]
+    non_equi_join_limit: Option<usize>,
+
+    /// Path to .ogsql-lint.toml config file
+    /// 配置文件路径
+    #[arg(long = "lint-config", global = true)]
+    lint_config: Option<String>,
 }
 
 #[derive(Subcommand)]
@@ -204,6 +241,114 @@ macro_rules! die {
 }
 
 fn annotate_builtin_functions(_value: &mut serde_json::Value) {}
+
+fn build_lint_config(cli: &Cli) -> ogsql_parser::linter::LintConfig {
+    use ogsql_parser::linter::{Confidence, LintConfig, WarningLevel};
+
+    // 1. Load from config file if specified via --lint-config
+    // 2. Otherwise try standard paths (.ogsql-lint.toml, XDG)
+    // 3. Fall back to defaults
+    let mut config = if let Some(ref path) = cli.lint_config {
+        LintConfig::load_from_file(std::path::Path::new(path))
+            .unwrap_or_else(|e| die!("Error loading lint config '{path}': {e}"))
+    } else {
+        LintConfig::find_and_load().unwrap_or_else(|e| die!("Error searching lint config: {e}")).unwrap_or_default()
+    };
+
+    // CLI overrides take precedence over config file
+    if let Some(ref level) = cli.min_level {
+        config.min_level = match level.to_lowercase().as_str() {
+            "prohibition" => WarningLevel::Prohibition,
+            "performance" => WarningLevel::Performance,
+            "caution" => WarningLevel::Caution,
+            _ => WarningLevel::Suggestion,
+        };
+    }
+    if let Some(ref conf) = cli.min_confidence {
+        config.min_confidence = match conf.to_lowercase().as_str() {
+            "full" => Confidence::Full,
+            _ => Confidence::Partial,
+        };
+    }
+    if !cli.suppress.is_empty() {
+        config.suppress = cli.suppress.clone();
+    }
+    if let Some(t) = cli.in_list_threshold {
+        config.in_list_threshold = t;
+    }
+    if let Some(t) = cli.subquery_depth_limit {
+        config.subquery_depth_limit = t;
+    }
+    if let Some(t) = cli.non_equi_join_limit {
+        config.non_equi_join_limit = t;
+    }
+    config
+}
+
+fn run_lint(
+    stmts: &[ogsql_parser::StatementInfo],
+    confidence: ogsql_parser::linter::Confidence,
+    config: &ogsql_parser::linter::LintConfig,
+) -> Vec<ogsql_parser::linter::SqlWarning> {
+    let linter = ogsql_parser::linter::SqlLinter::with_default_rules(config.clone());
+    linter.lint(stmts, None, confidence)
+}
+
+fn format_warnings_text(warnings: &[ogsql_parser::linter::SqlWarning]) {
+    use ogsql_parser::linter::WarningLevel;
+    for w in warnings {
+        let icon = match w.level {
+            WarningLevel::Prohibition => "\u{1f534}",
+            WarningLevel::Performance => "\u{1f7e1}",
+            WarningLevel::Caution => "\u{1f535}",
+            WarningLevel::Suggestion => "\u{26aa}",
+        };
+        let conf = match w.confidence {
+            ogsql_parser::linter::Confidence::Partial => " [partial]",
+            ogsql_parser::linter::Confidence::Full => "",
+        };
+        eprintln!("  {icon} {} {}{conf}", w.rule_id, w.message);
+        if let Some(ref s) = w.suggestion {
+            eprintln!("          \u{2192} {s}");
+        }
+    }
+}
+
+fn format_warnings_summary(warnings: &[ogsql_parser::linter::SqlWarning]) -> serde_json::Value {
+    ogsql_parser::linter::build_lint_summary(warnings)
+}
+
+#[cfg(feature = "ibatis")]
+fn lint_xml_statements(
+    parsed: &[ogsql_parser::ibatis::types::ParsedStatement],
+    config: &ogsql_parser::linter::LintConfig,
+) -> Vec<ogsql_parser::linter::SqlWarning> {
+    let mut all_warnings = Vec::new();
+    let linter = ogsql_parser::linter::SqlLinter::with_default_rules(config.clone());
+    for stmt in parsed {
+        if let Some((ref stmts, _)) = stmt.parse_result {
+            let mut ws = linter.lint(stmts, None, ogsql_parser::linter::Confidence::Partial);
+            all_warnings.append(&mut ws);
+        }
+    }
+    all_warnings
+}
+
+#[cfg(feature = "java")]
+fn lint_java_extractions(
+    extractions: &[ogsql_parser::java::types::ExtractedSql],
+    config: &ogsql_parser::linter::LintConfig,
+) -> Vec<ogsql_parser::linter::SqlWarning> {
+    let mut all_warnings = Vec::new();
+    let linter = ogsql_parser::linter::SqlLinter::with_default_rules(config.clone());
+    for ext in extractions {
+        if let Some(ref parse_result) = ext.parse_result {
+            let mut ws = linter.lint(&parse_result.statements, None, ogsql_parser::linter::Confidence::Partial);
+            all_warnings.append(&mut ws);
+        }
+    }
+    all_warnings
+}
 
 fn read_input(file: Option<&str>) -> String {
     match file {
@@ -620,6 +765,16 @@ fn cmd_parse_single(cli: &Cli, file_path: Option<&str>, csv: bool, proc_name: Op
         if !output.comments.is_empty() {
             out.as_object_mut().unwrap().insert("comments".to_string(), serde_json::json!(output.comments));
         }
+        if cli.lint {
+            let config = build_lint_config(cli);
+            let lint_warnings = run_lint(&output.statements, ogsql_parser::linter::Confidence::Full, &config);
+            if !lint_warnings.is_empty() {
+                out.as_object_mut().unwrap().insert("lint_warnings".to_string(), serde_json::json!(lint_warnings));
+                out.as_object_mut()
+                    .unwrap()
+                    .insert("lint_summary".to_string(), format_warnings_summary(&lint_warnings));
+            }
+        }
         println!("{}", serde_json::to_string_pretty(&out).unwrap());
     } else {
         for stmt in &output.statements {
@@ -642,6 +797,14 @@ fn cmd_parse_single(cli: &Cli, file_path: Option<&str>, csv: bool, proc_name: Op
                 for w in &warnings {
                     eprintln!("  {}", w);
                 }
+            }
+        }
+        if cli.lint {
+            let config = build_lint_config(cli);
+            let lint_warnings = run_lint(&output.statements, ogsql_parser::linter::Confidence::Full, &config);
+            if !lint_warnings.is_empty() {
+                eprintln!("\n── Lint Warnings ({}) ──", lint_warnings.len());
+                format_warnings_text(&lint_warnings);
             }
         }
     }
@@ -3429,6 +3592,13 @@ fn cmd_validate_single(cli: &Cli, file_path: Option<&str>, csv: bool, strict: bo
     let sql = read_input(file_path);
     let (stmts, errors, pkg_errors, var_errors) = validate_sql(&sql, cli.mybatis, &[], strict);
 
+    let lint_warnings = if cli.lint {
+        let config = build_lint_config(cli);
+        run_lint(&stmts, ogsql_parser::linter::Confidence::Full, &config)
+    } else {
+        vec![]
+    };
+
     let format_var_err = |ve: &ogsql_parser::UndefinedVariableError| -> String {
         let line_info = ve.location.as_ref().map(|sp| format!(":{}", sp.start.line)).unwrap_or_default();
         let kind_label = match ve.kind {
@@ -3480,6 +3650,10 @@ fn cmd_validate_single(cli: &Cli, file_path: Option<&str>, csv: bool, strict: bo
         if !var_errors.is_empty() {
             out.as_object_mut().unwrap().insert("undefined_variables".to_string(), serde_json::json!(var_errors));
         }
+        if !lint_warnings.is_empty() {
+            out.as_object_mut().unwrap().insert("lint_warnings".to_string(), serde_json::json!(lint_warnings));
+            out.as_object_mut().unwrap().insert("lint_summary".to_string(), format_warnings_summary(&lint_warnings));
+        }
         println!("{}", serde_json::to_string_pretty(&out).unwrap());
     } else {
         let real_errors: Vec<_> = errors.iter().filter(|e| !is_warning(e)).collect();
@@ -3508,9 +3682,21 @@ fn cmd_validate_single(cli: &Cli, file_path: Option<&str>, csv: bool, strict: bo
             for w in &warnings {
                 eprintln!("  warning: {}", w);
             }
-            if cli.verbose {
-                write_error_log(&sql, file_path, &stmts, &real_errors);
+        }
+        if !lint_warnings.is_empty() {
+            eprintln!("\n── Lint Warnings ({}) ──", lint_warnings.len());
+            format_warnings_text(&lint_warnings);
+            eprintln!("\n── Summary ──");
+            let summary = format_warnings_summary(&lint_warnings);
+            for (level, count) in summary.get("by_level").unwrap().as_object().unwrap() {
+                eprintln!("  {}: {}", level, count);
             }
+            eprintln!("  Total: {} lint warnings", lint_warnings.len());
+        }
+        if !real_errors.is_empty() && cli.verbose {
+            write_error_log(&sql, file_path, &stmts, &real_errors);
+        }
+        if !real_errors.is_empty() || !var_errors.is_empty() {
             std::process::exit(1);
         }
     }
@@ -3597,6 +3783,13 @@ fn cmd_validate_files(cli: &Cli, csv: bool, strict: bool) {
             let sql = read_input(Some(file_path.as_str()));
             let (stmts, errors, _pkg_errors, var_errors) = validate_sql(&sql, cli.mybatis, &[], strict);
 
+            let lint_warnings = if cli.lint {
+                let config = build_lint_config(cli);
+                run_lint(&stmts, ogsql_parser::linter::Confidence::Full, &config)
+            } else {
+                vec![]
+            };
+
             let real_errors: Vec<_> = errors.iter().filter(|e| !is_warning(e)).collect();
             let warnings: Vec<_> = errors.iter().filter(|e| is_warning(e)).collect();
             let has_var_errors = !var_errors.is_empty();
@@ -3621,9 +3814,13 @@ fn cmd_validate_files(cli: &Cli, csv: bool, strict: bool) {
                 for w in &warnings {
                     eprintln!("  warning: {}", w);
                 }
-                if cli.verbose {
-                    write_error_log(&sql, Some(file_path), &stmts, &real_errors);
-                }
+            }
+            if !lint_warnings.is_empty() {
+                eprintln!("\n── Lint Warnings for {} ({}) ──", file_path, lint_warnings.len());
+                format_warnings_text(&lint_warnings);
+            }
+            if !real_errors.is_empty() && cli.verbose {
+                write_error_log(&sql, Some(file_path), &stmts, &real_errors);
             }
         }
         if any_invalid {
@@ -4159,6 +4356,9 @@ mod api {
         /// 仅解析指定的存储过程/函数
         #[serde(default)]
         pub procedure: Option<String>,
+        /// Enable SQL anti-pattern linting
+        #[serde(default)]
+        pub lint: Option<bool>,
     }
 
     #[derive(Deserialize, ToSchema)]
@@ -4331,6 +4531,15 @@ mod api {
         }
         if has_var_errors {
             result.as_object_mut().unwrap().insert("undefined_variables".to_string(), serde_json::json!(var_errors));
+        }
+        if input.lint == Some(true) {
+            let config = ogsql_parser::linter::LintConfig::default();
+            let lint_warnings = super::run_lint(&output.statements, ogsql_parser::linter::Confidence::Full, &config);
+            result.as_object_mut().unwrap().insert("lint_warnings".to_string(), serde_json::json!(lint_warnings));
+            result
+                .as_object_mut()
+                .unwrap()
+                .insert("lint_summary".to_string(), ogsql_parser::linter::build_lint_summary(&lint_warnings));
         }
         Json(result)
     }
@@ -4641,13 +4850,33 @@ fn cmd_parse_xml_single(cli: &Cli, csv: bool, java_roots: &[std::path::PathBuf])
     #[cfg(not(feature = "java"))]
     let result = ogsql_parser::ibatis::parse_mapper_bytes_with_path(&input, file_opt);
 
+    let lint_warnings = if cli.lint {
+        let config = build_lint_config(cli);
+        lint_xml_statements(&result.statements, &config)
+    } else {
+        vec![]
+    };
+
     if csv {
         output_csv_xml_header();
         output_csv_xml_rows(&result.statements, file_opt.unwrap_or("<stdin>"), ".");
     } else if cli.json {
-        println!("{}", serde_json::to_string_pretty(&result).unwrap());
+        let mut out = serde_json::to_string_pretty(&result).unwrap();
+        if !lint_warnings.is_empty() {
+            let mut val: serde_json::Value = serde_json::from_str(&out).unwrap();
+            val.as_object_mut().unwrap().insert("lint_warnings".to_string(), serde_json::json!(lint_warnings));
+            val.as_object_mut().unwrap().insert("lint_summary".to_string(), format_warnings_summary(&lint_warnings));
+            out = serde_json::to_string_pretty(&val).unwrap();
+        }
+        println!("{}", out);
     } else {
         print_xml_text(&result);
+        if !lint_warnings.is_empty() {
+            eprintln!("\n── Lint Warnings ({}) ──", lint_warnings.len());
+            format_warnings_text(&lint_warnings);
+            eprintln!("── Summary ──");
+            eprintln!("  Total: {} warnings", lint_warnings.len());
+        }
     }
 }
 
@@ -4853,6 +5082,20 @@ fn cmd_parse_xml_dir(cli: &Cli, dir_path: &str, csv: bool, java_roots: &[std::pa
             }
         }
         println!("Total: {} statement(s) from {} file(s)", total_mapper, all_results.len());
+
+        if cli.lint {
+            let config = build_lint_config(cli);
+            let mut all_lint: Vec<ogsql_parser::linter::SqlWarning> = Vec::new();
+            for (_file_name, _rel_dir, result) in &all_results {
+                all_lint.extend(lint_xml_statements(&result.statements, &config));
+            }
+            if !all_lint.is_empty() {
+                eprintln!("\n── Lint Warnings ({}) ──", all_lint.len());
+                format_warnings_text(&all_lint);
+                eprintln!("── Summary ──");
+                eprintln!("  Total: {} warnings", all_lint.len());
+            }
+        }
     }
 
     if stats {
@@ -4999,13 +5242,33 @@ fn cmd_parse_java_single(cli: &Cli, extra_sql_methods: &[String], extra_sql_var_
     };
     let result = ogsql_parser::java::extract_sql_from_java(&source, &file_path, &config);
 
+    let lint_warnings = if cli.lint {
+        let config = build_lint_config(cli);
+        lint_java_extractions(&result.extractions, &config)
+    } else {
+        vec![]
+    };
+
     if csv {
         output_csv_java_header();
         output_csv_java_rows(&result.extractions, &file_path, ".");
     } else if cli.json {
-        println!("{}", serde_json::to_string_pretty(&result).unwrap());
+        let mut out = serde_json::to_string_pretty(&result).unwrap();
+        if !lint_warnings.is_empty() {
+            let mut val: serde_json::Value = serde_json::from_str(&out).unwrap();
+            val.as_object_mut().unwrap().insert("lint_warnings".to_string(), serde_json::json!(lint_warnings));
+            val.as_object_mut().unwrap().insert("lint_summary".to_string(), format_warnings_summary(&lint_warnings));
+            out = serde_json::to_string_pretty(&val).unwrap();
+        }
+        println!("{}", out);
     } else {
         print_java_text(&result, &file_path);
+        if !lint_warnings.is_empty() {
+            eprintln!("\n── Lint Warnings ({}) ──", lint_warnings.len());
+            format_warnings_text(&lint_warnings);
+            eprintln!("── Summary ──");
+            eprintln!("  Total: {} warnings", lint_warnings.len());
+        }
     }
 }
 
@@ -5194,6 +5457,20 @@ fn cmd_parse_java_dir(
             total += result.extractions.len();
         }
         println!("Total: {} extraction(s) from {} file(s)", total, all_results.len());
+
+        if cli.lint {
+            let config = build_lint_config(cli);
+            let mut all_lint: Vec<ogsql_parser::linter::SqlWarning> = Vec::new();
+            for (_file_name, _rel_dir, result) in &all_results {
+                all_lint.extend(lint_java_extractions(&result.extractions, &config));
+            }
+            if !all_lint.is_empty() {
+                eprintln!("\n── Lint Warnings ({}) ──", all_lint.len());
+                format_warnings_text(&all_lint);
+                eprintln!("── Summary ──");
+                eprintln!("  Total: {} warnings", all_lint.len());
+            }
+        }
     }
 
     if stats {

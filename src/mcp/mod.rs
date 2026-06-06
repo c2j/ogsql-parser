@@ -9,6 +9,7 @@ use rmcp::tool;
 use rmcp::tool_router;
 use serde::Deserialize;
 
+use crate::linter::{build_lint_summary, Confidence, LintConfig, SqlLinter};
 use crate::token_formatter::{CommaStyle, FormatConfig, KeywordCase, TokenFormatter};
 
 // ── Parameter types ──────────────────────────────────────────────────────────
@@ -20,6 +21,9 @@ pub struct ParseParams {
     /// Whether to preserve comments in output
     #[serde(default)]
     pub preserve_comments: bool,
+    /// Enable SQL anti-pattern linting
+    #[serde(default)]
+    pub lint: bool,
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
@@ -60,6 +64,9 @@ pub struct FormatParams {
 pub struct ValidateParams {
     /// SQL text to validate
     pub sql: String,
+    /// Enable SQL anti-pattern linting
+    #[serde(default)]
+    pub lint: bool,
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
@@ -104,7 +111,7 @@ pub struct OgsqlServer;
 #[tool_router(server_handler)]
 impl OgsqlServer {
     #[tool(description = "Parse SQL into structured AST JSON with error reports and query fingerprints")]
-    fn parse(&self, Parameters(ParseParams { sql, preserve_comments }): Parameters<ParseParams>) -> String {
+    fn parse(&self, Parameters(ParseParams { sql, preserve_comments, lint }): Parameters<ParseParams>) -> String {
         let options = crate::ParseOptions { preserve_comments, mybatis_params: false };
         let output = crate::Parser::parse_sql_with_options(&sql, options);
 
@@ -132,6 +139,13 @@ impl OgsqlServer {
         }
         if !output.comments.is_empty() {
             out.as_object_mut().unwrap().insert("comments".to_string(), serde_json::json!(output.comments));
+        }
+        if lint {
+            let config = LintConfig::default();
+            let linter = SqlLinter::with_default_rules(config);
+            let lint_warnings = linter.lint(&output.statements, None, Confidence::Full);
+            out.as_object_mut().unwrap().insert("lint_warnings".to_string(), serde_json::json!(lint_warnings));
+            out.as_object_mut().unwrap().insert("lint_summary".to_string(), build_lint_summary(&lint_warnings));
         }
         serde_json::to_string_pretty(&out).unwrap_or_else(|e| format!("{{\"error\": \"{}\"}}", e))
     }
@@ -203,7 +217,7 @@ impl OgsqlServer {
     }
 
     #[tool(description = "Validate SQL syntax and report errors and warnings")]
-    fn validate(&self, Parameters(ValidateParams { sql }): Parameters<ValidateParams>) -> String {
+    fn validate(&self, Parameters(ValidateParams { sql, lint }): Parameters<ValidateParams>) -> String {
         let output = crate::Parser::parse_sql_with_options(
             &sql,
             crate::ParseOptions { preserve_comments: false, mybatis_params: false },
@@ -247,6 +261,13 @@ impl OgsqlServer {
                 .as_object_mut()
                 .unwrap()
                 .insert("merge_semantic_errors".to_string(), serde_json::json!(merge_errors));
+        }
+        if lint {
+            let config = LintConfig::default();
+            let linter = SqlLinter::with_default_rules(config);
+            let lint_warnings = linter.lint(&output.statements, None, Confidence::Full);
+            result.as_object_mut().unwrap().insert("lint_warnings".to_string(), serde_json::json!(lint_warnings));
+            result.as_object_mut().unwrap().insert("lint_summary".to_string(), build_lint_summary(&lint_warnings));
         }
         serde_json::to_string_pretty(&result).unwrap_or_else(|e| format!("{{\"error\": \"{}\"}}", e))
     }

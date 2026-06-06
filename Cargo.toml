@@ -22,6 +22,7 @@ encoding_rs = "0.8"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 phf = { version = "0.11", features = ["macros"] }
+toml = { version = "0.8", optional = true }
 
 # Binary-only deps (feature-gated)
 clap = { version = "4", features = ["derive"], optional = true }
@@ -42,7 +43,8 @@ schemars = { version = "1", optional = true }
 
 [features]
 default = []
-cli = ["dep:clap", "dep:walkdir"]
+lint-config = ["dep:toml"]
+cli = ["dep:clap", "dep:walkdir", "lint-config"]
 ibatis = ["dep:quick-xml", "dep:walkdir"]
 java = ["dep:tree-sitter", "dep:tree-sitter-java", "dep:walkdir"]
 serve = ["cli", "dep:axum", "dep:tokio", "dep:tower-http", "dep:utoipa"]

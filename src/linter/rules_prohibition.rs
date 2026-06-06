@@ -1,0 +1,386 @@
+use crate::ast::{Expr, SelectTarget, Statement, StatementInfo};
+use crate::linter::{
+    loc_from_spanned, make_warning, stmt_location, walk_expr, Confidence, LintConfig, LintRuleEntry, SqlLinter,
+    SqlWarning, StatementKind, WarningLevel,
+};
+
+pub fn register(linter: &mut SqlLinter) {
+    let rules: Vec<LintRuleEntry> = vec![
+        LintRuleEntry {
+            id: "R001",
+            name: "select-star",
+            level: WarningLevel::Prohibition,
+            stmt_kind: StatementKind::Select,
+            check_fn: check_r001,
+        },
+        LintRuleEntry {
+            id: "R002",
+            name: "large-column-sort",
+            level: WarningLevel::Prohibition,
+            stmt_kind: StatementKind::Select,
+            check_fn: check_r002,
+        },
+        LintRuleEntry {
+            id: "R003",
+            name: "lock-table",
+            level: WarningLevel::Prohibition,
+            stmt_kind: StatementKind::All,
+            check_fn: check_r003,
+        },
+        LintRuleEntry {
+            id: "R004",
+            name: "drop-cascade",
+            level: WarningLevel::Prohibition,
+            stmt_kind: StatementKind::All,
+            check_fn: check_r004,
+        },
+        LintRuleEntry {
+            id: "R005",
+            name: "implicit-type-conversion",
+            level: WarningLevel::Prohibition,
+            stmt_kind: StatementKind::Select,
+            check_fn: check_r005,
+        },
+        LintRuleEntry {
+            id: "R006",
+            name: "function-on-where-column",
+            level: WarningLevel::Prohibition,
+            stmt_kind: StatementKind::Dml,
+            check_fn: check_r006,
+        },
+        LintRuleEntry {
+            id: "R007",
+            name: "like-leading-wildcard",
+            level: WarningLevel::Prohibition,
+            stmt_kind: StatementKind::Dml,
+            check_fn: check_r007,
+        },
+        LintRuleEntry {
+            id: "R008",
+            name: "same-table-column-compare",
+            level: WarningLevel::Prohibition,
+            stmt_kind: StatementKind::Dml,
+            check_fn: check_r008,
+        },
+        LintRuleEntry {
+            id: "R009",
+            name: "scalar-subquery-in-select",
+            level: WarningLevel::Prohibition,
+            stmt_kind: StatementKind::Select,
+            check_fn: check_r009,
+        },
+    ];
+    for rule in rules {
+        linter.register(rule);
+    }
+}
+
+// R001: SELECT * (unqualified)
+fn check_r001(
+    stmts: &[StatementInfo],
+    _schema: Option<&crate::analyzer::schema::SchemaMap>,
+    _config: &LintConfig,
+    confidence: Confidence,
+    warnings: &mut Vec<SqlWarning>,
+) {
+    for info in stmts {
+        if let Statement::Select(s) = &info.statement {
+            let loc = loc_from_spanned(s, stmt_location(info));
+            for target in &s.targets {
+                if let SelectTarget::Star(None) = target {
+                    warnings.push(make_warning(
+                        WarningLevel::Prohibition, "R001", "select-star",
+                        "SELECT * \u{8fdd}\u{53cd} GaussDB \u{7f16}\u{7801}\u{89c4}\u{8303}\u{ff1a}\u{8868}\u{7ed3}\u{6784}\u{53d8}\u{5316}\u{65f6}\u{53ef}\u{80fd}\u{5bfc}\u{81f4}\u{4e0d}\u{517c}\u{5bb9}".into(),
+                        Some("\u{660e}\u{786e}\u{5217}\u{51fa}\u{6240}\u{9700}\u{5b57}\u{6bb5}\u{540d}"), loc,
+                        Some("\u{5f00}\u{53d1}\u{8bbe}\u{8ba1}\u{5efa}\u{8bae} > SELECT \u{89c4}\u{8303}"), confidence,
+                    ));
+                }
+            }
+        }
+    }
+}
+
+// R002: Large column sort / group by / distinct
+fn check_r002(
+    stmts: &[StatementInfo],
+    _schema: Option<&crate::analyzer::schema::SchemaMap>,
+    config: &LintConfig,
+    confidence: Confidence,
+    warnings: &mut Vec<SqlWarning>,
+) {
+    for info in stmts {
+        if let Statement::Select(s) = &info.statement {
+            let loc = loc_from_spanned(s, stmt_location(info));
+            let group_count = s.group_by.len();
+            let order_count = s.order_by.len();
+            if group_count > config.group_by_column_limit {
+                warnings.push(make_warning(
+                    WarningLevel::Prohibition, "R002", "large-column-sort",
+                    format!("GROUP BY \u{5305}\u{542b} {group_count} \u{4e2a}\u{8868}\u{8fbe}\u{5f0f}\u{ff0c}\u{8d85}\u{8fc7}\u{9608}\u{503c} {} \u{ff0c}\u{53ef}\u{80fd}\u{5bfc}\u{81f4}\u{6027}\u{80fd}\u{95ee}\u{9898}", config.group_by_column_limit),
+                    Some("\u{7b80}\u{5316} GROUP BY\u{ff0c}\u{51cf}\u{5c11}\u{5206}\u{7ec4}\u{5217}\u{6570}\u{91cf}"), loc,
+                    Some("SELECT \u{89c4}\u{8303}"), confidence,
+                ));
+            }
+            if order_count > config.group_by_column_limit {
+                warnings.push(make_warning(
+                    WarningLevel::Prohibition, "R002", "large-column-sort",
+                    format!("ORDER BY \u{5305}\u{542b} {order_count} \u{4e2a}\u{8868}\u{8fbe}\u{5f0f}\u{ff0c}\u{8d85}\u{8fc7}\u{9608}\u{503c} {} \u{ff0c}\u{53ef}\u{80fd}\u{5bfc}\u{81f4}\u{6027}\u{80fd}\u{95ee}\u{9898}", config.group_by_column_limit),
+                    Some("\u{7b80}\u{5316} ORDER BY\u{ff0c}\u{51cf}\u{5c11}\u{6392}\u{5e8f}\u{5217}\u{6570}\u{91cf}"), loc,
+                    Some("SELECT \u{89c4}\u{8303}"), confidence,
+                ));
+            }
+        }
+    }
+}
+
+// R003: LOCK TABLE
+fn check_r003(
+    stmts: &[StatementInfo],
+    _schema: Option<&crate::analyzer::schema::SchemaMap>,
+    _config: &LintConfig,
+    confidence: Confidence,
+    warnings: &mut Vec<SqlWarning>,
+) {
+    for info in stmts {
+        if let Statement::Lock(s) = &info.statement {
+            let loc = loc_from_spanned(s, stmt_location(info));
+            warnings.push(make_warning(
+                WarningLevel::Prohibition, "R003", "lock-table",
+                "LOCK TABLE \u{53ef}\u{80fd}\u{5bfc}\u{81f4}\u{6b7b}\u{9501}\u{98ce}\u{9669}".into(),
+                Some("\u{907f}\u{514d}\u{5728}\u{4e8b}\u{52a1}\u{4e2d}\u{4f7f}\u{7528} LOCK TABLE\u{ff0c}\u{4f18}\u{5148}\u{4f7f}\u{7528} SELECT ... FOR UPDATE"), loc,
+                Some("SELECT \u{89c4}\u{8303}"), confidence,
+            ));
+        }
+    }
+}
+
+// R004: DROP ... CASCADE
+fn check_r004(
+    stmts: &[StatementInfo],
+    _schema: Option<&crate::analyzer::schema::SchemaMap>,
+    _config: &LintConfig,
+    confidence: Confidence,
+    warnings: &mut Vec<SqlWarning>,
+) {
+    for info in stmts {
+        if let Statement::Drop(s) = &info.statement {
+            if s.cascade {
+                let loc = loc_from_spanned(s, stmt_location(info));
+                let obj_type = object_type_str(&s.object_type);
+                warnings.push(make_warning(
+                    WarningLevel::Prohibition,
+                    "R004",
+                    "drop-cascade",
+                    format!("DROP {obj_type} CASCADE \u{53ef}\u{80fd}\u{8bef}\u{5220}\u{4f9d}\u{8d56}\u{5bf9}\u{8c61}"),
+                    Some("\u{786e}\u{8ba4}\u{4f9d}\u{8d56}\u{5173}\u{7cfb}\u{540e}\u{518d}\u{4f7f}\u{7528} CASCADE"),
+                    loc,
+                    Some("SQL \u{7f16}\u{5199}"),
+                    confidence,
+                ));
+            }
+        }
+    }
+}
+
+fn object_type_str(ot: &crate::ast::ObjectType) -> &'static str {
+    use crate::ast::ObjectType;
+    match ot {
+        ObjectType::Table => "TABLE",
+        ObjectType::Index => "INDEX",
+        ObjectType::Sequence => "SEQUENCE",
+        ObjectType::View => "VIEW",
+        ObjectType::Schema => "SCHEMA",
+        ObjectType::Database => "DATABASE",
+        ObjectType::Tablespace => "TABLESPACE",
+        ObjectType::Function => "FUNCTION",
+        ObjectType::Procedure => "PROCEDURE",
+        ObjectType::Trigger => "TRIGGER",
+        ObjectType::Extension => "EXTENSION",
+        _ => "OBJECT",
+    }
+}
+
+// R005: Implicit type conversion (basic AST-only version)
+fn check_r005(
+    stmts: &[StatementInfo],
+    _schema: Option<&crate::analyzer::schema::SchemaMap>,
+    _config: &LintConfig,
+    confidence: Confidence,
+    warnings: &mut Vec<SqlWarning>,
+) {
+    for info in stmts {
+        let loc = stmt_location(info);
+        if let Some(where_clause) = extract_where_clause(&info.statement) {
+            let mut found = false;
+            walk_expr(where_clause, &mut |e| {
+                if found {
+                    return false;
+                }
+                if let Expr::BinaryOp { left, right, .. } = e {
+                    let l_lit = matches!(**left, Expr::Literal(_));
+                    let r_lit = matches!(**right, Expr::Literal(_));
+                    let l_col = matches!(**left, Expr::ColumnRef(_));
+                    let r_col = matches!(**right, Expr::ColumnRef(_));
+                    if (l_lit && r_col) || (l_col && r_lit) {
+                        found = true;
+                        return false;
+                    }
+                }
+                true
+            });
+            if found {
+                warnings.push(make_warning(
+                    WarningLevel::Prohibition, "R005", "implicit-type-conversion",
+                    "WHERE \u{4e2d}\u{53ef}\u{80fd}\u{5b58}\u{5728}\u{9690}\u{5f0f}\u{7c7b}\u{578b}\u{8f6c}\u{6362}\u{ff08}\u{9700}\u{7ed3}\u{5408}\u{5b57}\u{6bb5}\u{7c7b}\u{578b}\u{786e}\u{8ba4}\u{ff09}".into(),
+                    Some("\u{663e}\u{5f0f}\u{6dfb}\u{52a0}\u{7c7b}\u{578b}\u{8f6c}\u{6362}\u{ff0c}\u{907f}\u{514d}\u{9690}\u{5f0f}\u{8f6c}\u{6362}\u{5bfc}\u{81f4}\u{7d22}\u{5f15}\u{5931}\u{6548}"), loc,
+                    Some("WHERE \u{89c4}\u{8303}"), confidence,
+                ));
+            }
+        }
+    }
+}
+
+// R006: Function wrapping column in WHERE (index-killing pattern)
+fn check_r006(
+    stmts: &[StatementInfo],
+    _schema: Option<&crate::analyzer::schema::SchemaMap>,
+    _config: &LintConfig,
+    confidence: Confidence,
+    warnings: &mut Vec<SqlWarning>,
+) {
+    for info in stmts {
+        let loc = stmt_location(info);
+        if let Some(where_clause) = extract_where_clause(&info.statement) {
+            let mut found = false;
+            walk_expr(where_clause, &mut |e| {
+                if found {
+                    return false;
+                }
+                if let Expr::FunctionCall { args, .. } = e {
+                    for arg in args {
+                        if let Expr::ColumnRef(_) = arg {
+                            found = true;
+                            return false;
+                        }
+                    }
+                }
+                true
+            });
+            if found {
+                warnings.push(make_warning(
+                    WarningLevel::Prohibition, "R006", "function-on-where-column",
+                    "WHERE \u{4e2d}\u{5bf9}\u{5217}\u{4f7f}\u{7528}\u{51fd}\u{6570}\u{ff0c}\u{53ef}\u{80fd}\u{5bfc}\u{81f4}\u{7d22}\u{5f15}\u{5931}\u{6548}".into(),
+                    Some("\u{5c06}\u{51fd}\u{6570}\u{8fd0}\u{7b97}\u{79fb}\u{5230}\u{7b49}\u{53f7}\u{53e6}\u{4e00}\u{4fa7}\u{6216}\u{4f7f}\u{7528}\u{51fd}\u{6570}\u{7d22}\u{5f15}"), loc,
+                    Some("WHERE \u{89c4}\u{8303}"), confidence,
+                ));
+            }
+        }
+    }
+}
+
+// R007: LIKE with leading wildcard
+fn check_r007(
+    stmts: &[StatementInfo],
+    _schema: Option<&crate::analyzer::schema::SchemaMap>,
+    _config: &LintConfig,
+    confidence: Confidence,
+    warnings: &mut Vec<SqlWarning>,
+) {
+    for info in stmts {
+        let loc = stmt_location(info);
+        if let Some(where_clause) = extract_where_clause(&info.statement) {
+            walk_expr(where_clause, &mut |e| {
+                if let Expr::Like { pattern, negated: false, .. } = e {
+                    if let Expr::Literal(crate::ast::Literal::String(s)) = pattern.as_ref() {
+                        if s.starts_with('%') || s.starts_with('_') {
+                            warnings.push(make_warning(
+                                WarningLevel::Prohibition, "R007", "like-leading-wildcard",
+                                format!("LIKE '\u{524d}\u{5bfc}\u{901a}\u{914d}\u{7b26} {s}' \u{5c06}\u{5bfc}\u{81f4}\u{65e0}\u{6cd5}\u{4f7f}\u{7528}\u{7d22}\u{5f15}\u{ff0c}\u{89e6}\u{53d1}\u{5168}\u{8868}\u{626b}\u{63cf}"),
+                                Some("\u{907f}\u{514d}\u{4ee5}\u{901a}\u{914d}\u{7b26}\u{5f00}\u{5934}\u{7684} LIKE \u{6a21}\u{5f0f}"), loc,
+                                Some("WHERE \u{89c4}\u{8303}"), confidence,
+                            ));
+                        }
+                    }
+                }
+                true
+            });
+        }
+    }
+}
+
+// R008: Same-table column comparison in WHERE
+fn check_r008(
+    stmts: &[StatementInfo],
+    _schema: Option<&crate::analyzer::schema::SchemaMap>,
+    _config: &LintConfig,
+    confidence: Confidence,
+    warnings: &mut Vec<SqlWarning>,
+) {
+    for info in stmts {
+        let loc = stmt_location(info);
+        if let Some(where_clause) = extract_where_clause(&info.statement) {
+            walk_expr(where_clause, &mut |e| {
+                if let Expr::BinaryOp { left, right, .. } = e {
+                    if let (Expr::ColumnRef(l), Expr::ColumnRef(r)) = (left.as_ref(), right.as_ref()) {
+                        if l.len() >= 2 && r.len() >= 2 && l[0] == r[0] {
+                            warnings.push(make_warning(
+                                WarningLevel::Prohibition, "R008", "same-table-column-compare",
+                                format!("\u{540c}\u{8868}\u{5217}\u{6bd4}\u{8f83}: {}.{} \u{4e0e} {}.{}\u{ff0c}\u{53ef}\u{80fd}\u{672a}\u{6b63}\u{786e}\u{4f7f}\u{7528}\u{7d22}\u{5f15}", l[0], l.last().unwrap_or(&"".into()), r[0], r.last().unwrap_or(&"".into())),
+                                Some("\u{68c0}\u{67e5}\u{662f}\u{5426}\u{5e94}\u{4f7f}\u{7528}\u{4e0d}\u{540c}\u{8868}\u{7684}\u{5217}\u{8fdb}\u{884c}\u{6bd4}\u{8f83}"), loc,
+                                Some("WHERE \u{89c4}\u{8303}"), confidence,
+                            ));
+                        }
+                    }
+                }
+                true
+            });
+        }
+    }
+}
+
+// R009: Scalar subquery in SELECT target list
+fn check_r009(
+    stmts: &[StatementInfo],
+    _schema: Option<&crate::analyzer::schema::SchemaMap>,
+    _config: &LintConfig,
+    confidence: Confidence,
+    warnings: &mut Vec<SqlWarning>,
+) {
+    for info in stmts {
+        if let Statement::Select(s) = &info.statement {
+            let loc = loc_from_spanned(s, stmt_location(info));
+            for target in &s.targets {
+                if let SelectTarget::Expr(e, _) = target {
+                    let mut found = false;
+                    walk_expr(e, &mut |inner| {
+                        if found {
+                            return false;
+                        }
+                        if matches!(inner, Expr::Subquery(_)) {
+                            found = true;
+                            return false;
+                        }
+                        true
+                    });
+                    if found {
+                        warnings.push(make_warning(
+                            WarningLevel::Prohibition, "R009", "scalar-subquery-in-select",
+                            "SELECT \u{5217}\u{4e2d}\u{5305}\u{542b}\u{6807}\u{91cf}\u{5b50}\u{67e5}\u{8be2}\u{ff0c}\u{6bcf}\u{884c}\u{90fd}\u{4f1a}\u{6267}\u{884c}\u{4e00}\u{6b21}\u{5b50}\u{67e5}\u{8be2}".into(),
+                            Some("\u{6539}\u{7528} JOIN \u{66ff}\u{4ee3}\u{6807}\u{91cf}\u{5b50}\u{67e5}\u{8be2}"), loc,
+                            Some("SQL \u{7f16}\u{5199}"), confidence,
+                        ));
+                    }
+                }
+            }
+        }
+    }
+}
+
+fn extract_where_clause(stmt: &Statement) -> Option<&Expr> {
+    match stmt {
+        Statement::Select(s) => s.where_clause.as_ref(),
+        Statement::Update(s) => s.where_clause.as_ref(),
+        Statement::Delete(s) => s.where_clause.as_ref(),
+        _ => None,
+    }
+}
