@@ -723,6 +723,51 @@ fn c017_nested_block_outer_exception() {
     assert!(has_rule(&w, "C017"), "expected C017 for nested block EXCEPTION with RAISE");
 }
 
+// ── C018: Excessive INSERT VALUES rows ──
+
+#[test]
+fn c018_excessive_insert_values_trigger() {
+    let vals = (0..101).map(|i| format!("({i}, 'x')")).collect::<Vec<_>>().join(", ");
+    let sql = format!("INSERT INTO t (a, b) VALUES {vals}");
+    let stmts = parse(&sql);
+    let w = lint(&stmts);
+    assert!(has_rule(&w, "C018"), "expected C018 for 101-row INSERT VALUES");
+}
+
+#[test]
+fn c018_insert_values_within_limit() {
+    let vals = (0..100).map(|i| format!("({i}, 'x')")).collect::<Vec<_>>().join(", ");
+    let sql = format!("INSERT INTO t (a, b) VALUES {vals}");
+    let stmts = parse(&sql);
+    let w = lint(&stmts);
+    assert!(!has_rule(&w, "C018"), "100 rows should be within default limit");
+}
+
+#[test]
+fn c018_single_row_not_triggered() {
+    let stmts = parse("INSERT INTO t (a, b) VALUES (1, 'x')");
+    let w = lint(&stmts);
+    assert!(!has_rule(&w, "C018"), "single-row INSERT should not trigger C018");
+}
+
+#[test]
+fn c018_insert_select_not_triggered() {
+    let stmts = parse("INSERT INTO t (a, b) SELECT c, d FROM src");
+    let w = lint(&stmts);
+    assert!(!has_rule(&w, "C018"), "INSERT SELECT should not trigger C018");
+}
+
+#[test]
+fn c018_custom_threshold() {
+    let vals = (0..51).map(|i| format!("({i}, 'x')")).collect::<Vec<_>>().join(", ");
+    let sql = format!("INSERT INTO t (a, b) VALUES {vals}");
+    let stmts = parse(&sql);
+    let config = LintConfig { max_insert_values_rows: 50, ..LintConfig::default() };
+    let linter = SqlLinter::with_default_rules(config);
+    let w = linter.lint(&stmts, None, Confidence::Full);
+    assert!(has_rule(&w, "C018"), "51 rows with threshold 50 should trigger C018");
+}
+
 // ════════════════════════════════════════════════════════════════
 // Phase 2b: Suggestion rules (S001-S008)
 // ════════════════════════════════════════════════════════════════
@@ -817,6 +862,7 @@ subquery_depth_limit = 5
 sql_length_limit = 1000
 non_equi_join_limit = 4
 group_by_column_limit = 20
+max_insert_values_rows = 200
 "#;
     let config = LintConfig::from_toml_str(toml).unwrap();
     assert_eq!(config.min_level, WarningLevel::Performance);
@@ -827,6 +873,7 @@ group_by_column_limit = 20
     assert_eq!(config.sql_length_limit, 1000);
     assert_eq!(config.non_equi_join_limit, 4);
     assert_eq!(config.group_by_column_limit, 20);
+    assert_eq!(config.max_insert_values_rows, 200);
 }
 
 #[cfg(feature = "lint-config")]

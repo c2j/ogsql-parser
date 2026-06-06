@@ -1,5 +1,5 @@
 use crate::ast::plpgsql::{PlBlock, PlDeclaration, PlStatement, RaiseLevel};
-use crate::ast::{Expr, LockClause, Statement, StatementInfo};
+use crate::ast::{Expr, InsertSource, LockClause, Statement, StatementInfo};
 use crate::linter::{
     loc_from_spanned, make_warning, stmt_location, walk_expr, Confidence, LintConfig, LintRuleEntry, SqlLinter,
     SqlWarning, StatementKind, WarningLevel,
@@ -105,6 +105,13 @@ pub fn register(linter: &mut SqlLinter) {
             level: WarningLevel::Caution,
             stmt_kind: StatementKind::PlBlock,
             check_fn: check_c017,
+        },
+        LintRuleEntry {
+            id: "C018",
+            name: "excessive-insert-values",
+            level: WarningLevel::Caution,
+            stmt_kind: StatementKind::Insert,
+            check_fn: check_c018,
         },
     ];
     for rule in rules {
@@ -1091,4 +1098,39 @@ fn has_reraise(s: &PlStatement) -> bool {
         s,
         PlStatement::Raise(r) if r.level.is_none() || matches!(r.level, Some(RaiseLevel::Exception))
     )
+}
+
+// ── C018: Excessive INSERT VALUES rows ──
+
+fn check_c018(
+    stmts: &[StatementInfo],
+    _schema: Option<&crate::analyzer::schema::SchemaMap>,
+    config: &LintConfig,
+    confidence: Confidence,
+    warnings: &mut Vec<SqlWarning>,
+) {
+    for info in stmts {
+        let loc = stmt_location(info);
+        if let Statement::Insert(insert) = &info.statement {
+            if let InsertSource::Values(values) = &insert.source {
+                let n = values.len();
+                if n > config.max_insert_values_rows {
+                    warnings.push(make_warning(
+                        WarningLevel::Caution,
+                        "C018",
+                        "excessive-insert-values",
+                        format!(
+                            "INSERT VALUES \u{5305}\u{542b} {n} \u{4e2a}\u{5143}\u{7ec4}\u{ff0c}\u{5927}\u{6279}\u{91cf}\u{53ef}\u{80fd}\u{5bfc}\u{81f4}\u{957f}\u{4e8b}\u{52a1}\u{3001}\u{9501}\u{7ade}\u{4e89}\u{548c}\u{56de}\u{6eda}\u{4ee3}\u{4ef7}\u{8fc7}\u{9ad8}\u{3002}\u{5efa}\u{8bae}\u{6bcf}\u{6279}\u{63d2}\u{5165} {}\u{2014}{}\u{884c}\u{ff0c}\u{6216}\u{4f7f}\u{7528} COPY",
+                            config.max_insert_values_rows / 5,
+                            config.max_insert_values_rows
+                        ),
+                        Some("\u{62c6}\u{5206}\u{4e3a}\u{66f4}\u{5c0f}\u{6279}\u{6b21}\u{63d2}\u{5165}\u{4ee5}\u{51cf}\u{5c11}\u{9501}\u{6301}\u{6709}\u{65f6}\u{95f4}"),
+                        loc,
+                        None,
+                        confidence,
+                    ));
+                }
+            }
+        }
+    }
 }

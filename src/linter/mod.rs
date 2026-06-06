@@ -125,6 +125,8 @@ pub struct LintConfig {
     pub non_equi_join_limit: usize,
     /// R002 -- GROUP BY column count limit (default 10).
     pub group_by_column_limit: usize,
+    /// C018 -- max INSERT VALUES rows per statement (default 100).
+    pub max_insert_values_rows: usize,
 }
 
 impl Default for LintConfig {
@@ -138,6 +140,7 @@ impl Default for LintConfig {
             sql_length_limit: 2000,
             non_equi_join_limit: 2,
             group_by_column_limit: 10,
+            max_insert_values_rows: 100,
         }
     }
 }
@@ -166,6 +169,7 @@ pub struct LintConfigFile {
     pub sql_length_limit: Option<usize>,
     pub non_equi_join_limit: Option<usize>,
     pub group_by_column_limit: Option<usize>,
+    pub max_insert_values_rows: Option<usize>,
 }
 
 #[cfg(feature = "lint-config")]
@@ -247,6 +251,9 @@ impl LintConfig {
         }
         if let Some(v) = file.group_by_column_limit {
             self.group_by_column_limit = v;
+        }
+        if let Some(v) = file.max_insert_values_rows {
+            self.max_insert_values_rows = v;
         }
     }
 }
