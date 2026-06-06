@@ -3191,7 +3191,7 @@ fn merge_error_messages(errors: &[&ogsql_parser::ParserError], warn: bool) -> St
             continue;
         }
         let line = error_line(e);
-        groups.entry(e.to_string()).or_default().push(line);
+        groups.entry(display_key(e)).or_default().push(line);
     }
 
     groups
@@ -3200,9 +3200,9 @@ fn merge_error_messages(errors: &[&ogsql_parser::ParserError], warn: bool) -> St
             if lines.len() > 1 {
                 let line_nums: Vec<String> = lines.iter().filter(|l| **l > 0).map(|l| l.to_string()).collect();
                 if line_nums.is_empty() {
-                    format!("{} (×{})", msg, lines.len())
+                    format!("{} (\u{00d7}{})", msg, lines.len())
                 } else {
-                    format!("{} (×{}, lines {})", msg, lines.len(), line_nums.join(", "))
+                    format!("{} (\u{00d7}{}, lines {})", msg, lines.len(), line_nums.join(", "))
                 }
             } else {
                 msg.clone()
@@ -3210,6 +3210,27 @@ fn merge_error_messages(errors: &[&ogsql_parser::ParserError], warn: bool) -> St
         })
         .collect::<Vec<_>>()
         .join("; ")
+}
+
+/// Extract the display message from a ParserError without location info,
+/// so that same-type errors at different positions are grouped together.
+fn display_key(e: &ogsql_parser::ParserError) -> String {
+    match e {
+        ogsql_parser::ParserError::Warning { message, .. } => message.clone(),
+        ogsql_parser::ParserError::ReservedKeywordAsIdentifier { keyword, .. } => {
+            format!("reserved keyword \"{}\" cannot be used as identifier", keyword)
+        }
+        ogsql_parser::ParserError::UnexpectedToken { expected, got, .. } => {
+            format!("expected {}, got {}", expected, got)
+        }
+        ogsql_parser::ParserError::UnexpectedEof { expected, .. } => {
+            format!("unexpected end of input: expected {}", expected)
+        }
+        ogsql_parser::ParserError::UnsupportedSyntax { syntax, hint, .. } => {
+            format!("{} ({})", syntax, hint)
+        }
+        _ => e.to_string(),
+    }
 }
 
 fn filter_errors_for_row(
