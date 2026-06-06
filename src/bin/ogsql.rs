@@ -3073,6 +3073,7 @@ fn output_csv_validate_rows(
     stmts: &[ogsql_parser::StatementInfo],
     errors: &[ogsql_parser::ParserError],
     var_errors: &[ogsql_parser::UndefinedVariableError],
+    lint_warnings: &[ogsql_parser::linter::SqlWarning],
     file_name: &str,
     rel_dir: &str,
 ) {
@@ -3091,6 +3092,14 @@ fn output_csv_validate_rows(
         let stmt_var_errors: Vec<&ogsql_parser::UndefinedVariableError> = var_errors
             .iter()
             .filter(|ve| ve.location.as_ref().is_none_or(|sp| sp.start.line >= stmt_start && sp.start.line <= stmt_end))
+            .collect();
+
+        let stmt_lint_warnings: Vec<&ogsql_parser::linter::SqlWarning> = lint_warnings
+            .iter()
+            .filter(|w| {
+                let wline = w.location.line;
+                wline == 0 || (wline >= stmt_start && wline <= stmt_end)
+            })
             .collect();
 
         let rows = collect_validate_routine_rows(si);
@@ -3138,6 +3147,31 @@ fn output_csv_validate_rows(
                 })
                 .collect();
 
+            let row_lint: Vec<&&ogsql_parser::linter::SqlWarning> = stmt_lint_warnings
+                .iter()
+                .filter(|w| {
+                    let wline = w.location.line;
+                    let in_row = wline == 0 || (wline >= row.start_line && wline <= row.end_line);
+                    if !in_row {
+                        return false;
+                    }
+                    if is_parent_with_children {
+                        wline == 0 || !error_in_child(wline)
+                    } else {
+                        true
+                    }
+                })
+                .collect();
+
+            let mut warn_parts: Vec<String> = Vec::new();
+            if !row_parse_warn.is_empty() {
+                warn_parts.push(row_parse_warn);
+            }
+            let merged_lint = merge_lint_warnings(&row_lint);
+            if !merged_lint.is_empty() {
+                warn_parts.push(merged_lint);
+            }
+
             let mut err_parts: Vec<String> = Vec::new();
             if !row_parse_err.is_empty() {
                 err_parts.push(row_parse_err);
@@ -3151,13 +3185,15 @@ fn output_csv_validate_rows(
                 err_parts.push(format!("{} '{}' in {}{}", kind_label, ve.variable_name, ve.context, line_info));
             }
 
+            let parse_warn_count = row_parse_errors.iter().filter(|e| is_warning(e)).count();
             let error_count = {
                 let real_parse_err_count = row_parse_errors.iter().filter(|e| !is_warning(e)).count();
                 real_parse_err_count + row_var_errs.len()
             };
-            let warning_count = row_parse_errors.iter().filter(|e| is_warning(e)).count();
+            let warning_count = parse_warn_count + row_lint.len();
 
             let all_err = err_parts.join("; ");
+            let all_warn = warn_parts.join("; ");
             let is_valid = error_count == 0;
             println!(
                 "{},{},{},{},{},{},{},{},{},{},{},{},{}",
@@ -3173,10 +3209,39 @@ fn output_csv_validate_rows(
                 error_count,
                 warning_count,
                 csv_escape(&all_err),
-                csv_escape(&row_parse_warn),
+                csv_escape(&all_warn),
             );
         }
     }
+}
+
+fn merge_lint_warnings(warnings: &[&&ogsql_parser::linter::SqlWarning]) -> String {
+    use std::collections::BTreeMap;
+
+    let mut groups: BTreeMap<&str, Vec<usize>> = BTreeMap::new();
+    for w in warnings {
+        groups.entry(&w.rule_id).or_default().push(w.location.line);
+    }
+
+    groups
+        .iter()
+        .map(|(rule_id, lines)| {
+            if lines.len() > 1 {
+                let mut unique_lines: Vec<usize> = lines.iter().copied().filter(|l| *l > 0).collect();
+                unique_lines.sort();
+                unique_lines.dedup();
+                if unique_lines.is_empty() {
+                    format!("{} (\u{00d7}{})", rule_id, lines.len())
+                } else {
+                    let line_strs: Vec<String> = unique_lines.iter().map(|l| l.to_string()).collect();
+                    format!("{} (\u{00d7}{}, lines {})", rule_id, lines.len(), line_strs.join(", "))
+                }
+            } else {
+                rule_id.to_string()
+            }
+        })
+        .collect::<Vec<_>>()
+        .join("; ")
 }
 
 /// Merge same-type error/warning messages, deduplicating identical text
@@ -3191,18 +3256,21 @@ fn merge_error_messages(errors: &[&ogsql_parser::ParserError], warn: bool) -> St
             continue;
         }
         let line = error_line(e);
-        groups.entry(e.to_string()).or_default().push(line);
+        groups.entry(display_key(e)).or_default().push(line);
     }
 
     groups
         .iter()
         .map(|(msg, lines)| {
             if lines.len() > 1 {
-                let line_nums: Vec<String> = lines.iter().filter(|l| **l > 0).map(|l| l.to_string()).collect();
-                if line_nums.is_empty() {
-                    format!("{} (×{})", msg, lines.len())
+                let mut unique_lines: Vec<usize> = lines.iter().copied().filter(|l| *l > 0).collect();
+                unique_lines.sort();
+                unique_lines.dedup();
+                if unique_lines.is_empty() {
+                    format!("{} (\u{00d7}{})", msg, lines.len())
                 } else {
-                    format!("{} (×{}, lines {})", msg, lines.len(), line_nums.join(", "))
+                    let line_strs: Vec<String> = unique_lines.iter().map(|l| l.to_string()).collect();
+                    format!("{} (\u{00d7}{}, lines {})", msg, lines.len(), line_strs.join(", "))
                 }
             } else {
                 msg.clone()
@@ -3210,6 +3278,27 @@ fn merge_error_messages(errors: &[&ogsql_parser::ParserError], warn: bool) -> St
         })
         .collect::<Vec<_>>()
         .join("; ")
+}
+
+/// Extract the display message from a ParserError without location info,
+/// so that same-type errors at different positions are grouped together.
+fn display_key(e: &ogsql_parser::ParserError) -> String {
+    match e {
+        ogsql_parser::ParserError::Warning { message, .. } => message.clone(),
+        ogsql_parser::ParserError::ReservedKeywordAsIdentifier { keyword, .. } => {
+            format!("reserved keyword \"{}\" cannot be used as identifier", keyword)
+        }
+        ogsql_parser::ParserError::UnexpectedToken { expected, got, .. } => {
+            format!("expected {}, got {}", expected, got)
+        }
+        ogsql_parser::ParserError::UnexpectedEof { expected, .. } => {
+            format!("unexpected end of input: expected {}", expected)
+        }
+        ogsql_parser::ParserError::UnsupportedSyntax { syntax, hint, .. } => {
+            format!("{} ({})", syntax, hint)
+        }
+        _ => e.to_string(),
+    }
 }
 
 fn filter_errors_for_row(
@@ -3621,7 +3710,7 @@ fn cmd_validate_single(cli: &Cli, file_path: Option<&str>, csv: bool, strict: bo
             });
         }
         output_csv_validate_header();
-        output_csv_validate_rows(&stmts, &all_errors, &var_errors, file_name, ".");
+        output_csv_validate_rows(&stmts, &all_errors, &var_errors, &lint_warnings, file_name, ".");
         let real_errors: Vec<_> = errors.iter().filter(|e| !is_warning(e)).collect();
         let has_errors = !real_errors.is_empty() || !var_errors.is_empty();
         if has_errors {
@@ -3729,7 +3818,13 @@ fn cmd_validate_files(cli: &Cli, csv: bool, strict: bool) {
                     location: ogsql_parser::SourceLocation::default(),
                 });
             }
-            output_csv_validate_rows(&stmts, &all_errors, &var_errors, file_path, ".");
+            let lint_warnings = if cli.lint {
+                let config = build_lint_config(cli);
+                run_lint(&stmts, ogsql_parser::linter::Confidence::Full, &config)
+            } else {
+                vec![]
+            };
+            output_csv_validate_rows(&stmts, &all_errors, &var_errors, &lint_warnings, file_path, ".");
             let real_errors: Vec<_> = errors.iter().filter(|e| !is_warning(e)).collect();
             if !real_errors.is_empty() || !var_errors.is_empty() {
                 any_errors = true;
@@ -3958,7 +4053,13 @@ fn cmd_validate_dir(cli: &Cli, dir_paths: &[String], exts: &[String], csv: bool,
                     location: ogsql_parser::SourceLocation::default(),
                 });
             }
-            output_csv_validate_rows(&stmts, &all_errors, &var_errors, file_name, rel_dir);
+            let lint_warnings = if cli.lint {
+                let config = build_lint_config(cli);
+                run_lint(&stmts, ogsql_parser::linter::Confidence::Full, &config)
+            } else {
+                vec![]
+            };
+            output_csv_validate_rows(&stmts, &all_errors, &var_errors, &lint_warnings, file_name, rel_dir);
         } else if cli.json {
             if !real_errors.is_empty() {
                 all_results.push((
