@@ -101,6 +101,8 @@ pub enum Token {
     /// MyBatis raw expression: ${expr}
     /// Content is everything between ${ and }
     MyBatisRawExpr(String),
+    /// JDBC-style positional parameter placeholder: ?
+    JdbcParam,
 
     // --- Operators ---
     /// Multi-character operator (>=, !=, <>, ||, etc.)

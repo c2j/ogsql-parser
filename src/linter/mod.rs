@@ -649,6 +649,7 @@ pub fn walk_expr(expr: &crate::ast::Expr, f: &mut dyn FnMut(&crate::ast::Expr) -
         | Expr::Parameter(_)
         | Expr::MyBatisParam(_)
         | Expr::MyBatisRawExpr(_)
+        | Expr::JdbcParam
         | Expr::Default => {}
         Expr::XmlElement { .. } => {}
         Expr::XmlConcat(exprs) => {

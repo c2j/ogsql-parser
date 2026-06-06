@@ -1079,6 +1079,7 @@ impl Parser {
                 | Token::Param(_)
                 | Token::MyBatisParam(_)
                 | Token::MyBatisRawExpr(_)
+                | Token::JdbcParam
                 | Token::LParen
                 | Token::LBracket
                 | Token::Minus

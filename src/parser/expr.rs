@@ -789,6 +789,10 @@ impl Parser {
                 self.advance();
                 Ok(Expr::MyBatisRawExpr(content.clone()))
             }
+            Token::JdbcParam => {
+                self.advance();
+                Ok(Expr::JdbcParam)
+            }
             Token::Keyword(Keyword::EXISTS) => {
                 self.advance();
                 self.expect_token(&Token::LParen)?;
