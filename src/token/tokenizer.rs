@@ -725,23 +725,8 @@ impl<'a> Tokenizer<'a> {
             }
 
             '?' => {
-                if self.mybatis_params {
-                    self.advance();
-                    Token::JdbcParam
-                } else {
-                    self.advance();
-                    let start = self.pos - 1;
-                    while let Some(&nc) = self.chars.peek() {
-                        if is_op_char(nc) {
-                            self.chars.next();
-                            self.pos += nc.len_utf8();
-                        } else {
-                            break;
-                        }
-                    }
-                    let op_str = &self.input[start..self.pos];
-                    Token::Op(op_str.to_string())
-                }
+                self.advance();
+                Token::JdbcParam
             }
 
             '\\' => {
@@ -1462,29 +1447,35 @@ mod tests {
 
     #[test]
     fn test_jdbc_param_simple() {
-        let tokens = Tokenizer::new("SELECT * FROM t WHERE id = ?").mybatis_params(true).tokenize().unwrap();
+        let tokens = Tokenizer::new("SELECT * FROM t WHERE id = ?").tokenize().unwrap();
         assert!(tokens.iter().any(|t| matches!(&t.token, Token::JdbcParam)));
     }
 
     #[test]
     fn test_jdbc_param_multiple() {
-        let tokens = Tokenizer::new("INSERT INTO t (a, b) VALUES (?, ?)").mybatis_params(true).tokenize().unwrap();
+        let tokens = Tokenizer::new("INSERT INTO t (a, b) VALUES (?, ?)").tokenize().unwrap();
         let params: Vec<_> = tokens.iter().filter(|t| matches!(&t.token, Token::JdbcParam)).collect();
         assert_eq!(params.len(), 2);
     }
 
     #[test]
-    fn test_jdbc_param_disabled() {
-        let tokens = Tokenizer::new("SELECT ?").mybatis_params(false).tokenize().unwrap();
-        assert!(tokens.iter().any(|t| matches!(&t.token, Token::Op(_))));
-        assert!(!tokens.iter().any(|t| matches!(&t.token, Token::JdbcParam)));
-    }
-
-    #[test]
-    fn test_jdbc_param_parse_expr() {
+    fn test_jdbc_param_default_parse() {
+        // ? should parse without errors even without any flags
         use crate::parser::{ParseOptions, Parser};
         let output = Parser::parse_sql_with_options(
             "SELECT * FROM t WHERE id = ? AND name = ?",
+            ParseOptions { preserve_comments: false, mybatis_params: false },
+        );
+        assert!(output.errors.is_empty(), "Parse errors: {:?}", output.errors);
+        assert_eq!(output.statements.len(), 1);
+    }
+
+    #[test]
+    fn test_jdbc_param_with_mybatis_enabled() {
+        // mybatis_params: true still works — ? + #{param} coexist
+        use crate::parser::{ParseOptions, Parser};
+        let output = Parser::parse_sql_with_options(
+            "SELECT * FROM t WHERE id = ? AND name = #{name}",
             ParseOptions { preserve_comments: false, mybatis_params: true },
         );
         assert!(output.errors.is_empty(), "Parse errors: {:?}", output.errors);
