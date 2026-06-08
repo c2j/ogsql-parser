@@ -710,6 +710,11 @@ impl<'a> Tokenizer<'a> {
                 let start = self.pos - c.len_utf8();
                 while let Some(&nc) = self.chars.peek() {
                     if is_op_char(nc) {
+                        // Don't consume -- (line comment start) as part of an operator.
+                        // Break here so skip_whitespace_and_comments can recognize it.
+                        if nc == '-' && self.peek_byte_at(1) == Some(b'-') {
+                            break;
+                        }
                         self.chars.next();
                         self.pos += nc.len_utf8();
                     } else {
