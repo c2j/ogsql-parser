@@ -770,6 +770,20 @@ fn walk_update(visitor: &mut dyn Visitor, update: &UpdateStatement) -> VisitorRe
         }
     }
 
+    if let Some(ref order_by) = update.order_by {
+        for item in order_by {
+            if walk_expr(visitor, &item.expr) == VisitorResult::Stop {
+                return VisitorResult::Stop;
+            }
+        }
+    }
+
+    if let Some(ref limit) = update.limit {
+        if walk_expr(visitor, limit) == VisitorResult::Stop {
+            return VisitorResult::Stop;
+        }
+    }
+
     VisitorResult::Continue
 }
 
