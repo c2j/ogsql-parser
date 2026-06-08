@@ -52,7 +52,22 @@ pub fn flatten_sql(node: &SqlNode) -> String {
             apply_trim(&content, Some("WHERE"), None, Some("AND |OR "), None)
         }
         SqlNode::Set { children } => {
-            let content = flatten_children(children);
+            let parts: Vec<String> =
+                children.iter().map(|c| flatten_sql(c).trim().to_string()).filter(|s| !s.is_empty()).collect();
+            if parts.is_empty() {
+                return String::new();
+            }
+            let mut content = String::new();
+            for (i, part) in parts.iter().enumerate() {
+                if i > 0 {
+                    let prev_needs_sep = !parts[i - 1].ends_with(',');
+                    let cur_needs_sep = !part.starts_with(',');
+                    if prev_needs_sep && cur_needs_sep {
+                        content.push(',');
+                    }
+                }
+                content.push_str(part);
+            }
             apply_trim(&content, Some("SET"), None, None, Some(","))
         }
         SqlNode::Trim { prefix, suffix, prefix_overrides, suffix_overrides, children } => {
@@ -83,7 +98,8 @@ pub fn flatten_sql(node: &SqlNode) -> String {
 }
 
 fn flatten_children(children: &[SqlNode]) -> String {
-    let raw: String = children.iter().map(flatten_sql).collect();
+    let parts: Vec<String> = children.iter().map(flatten_sql).collect();
+    let raw = parts.join(" ");
     deduplicate_conjunctions(&raw)
 }
 
