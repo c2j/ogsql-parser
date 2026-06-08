@@ -877,7 +877,15 @@ impl Parser {
                 self.advance();
                 stmt.limit = None;
             } else {
-                stmt.limit = Some(self.parse_expr()?);
+                let expr = self.parse_expr()?;
+                if self.match_token(&Token::Comma) {
+                    // GaussDB syntax: LIMIT offset, count
+                    self.advance();
+                    stmt.offset = Some(expr);
+                    stmt.limit = Some(self.parse_expr()?);
+                } else {
+                    stmt.limit = Some(expr);
+                }
             }
         }
         if self.match_keyword(Keyword::OFFSET) {
@@ -892,7 +900,15 @@ impl Parser {
             if self.match_keyword(Keyword::ALL) {
                 self.advance();
             } else {
-                stmt.limit = Some(self.parse_expr()?);
+                let expr = self.parse_expr()?;
+                if self.match_token(&Token::Comma) {
+                    // GaussDB syntax: LIMIT offset, count
+                    self.advance();
+                    stmt.offset = Some(expr);
+                    stmt.limit = Some(self.parse_expr()?);
+                } else {
+                    stmt.limit = Some(expr);
+                }
             }
         }
         stmt.fetch = self.parse_fetch_clause()?;
@@ -1136,24 +1152,30 @@ impl Parser {
             }
         }
 
-        let limit = if self.match_keyword(Keyword::LIMIT) {
+        let (limit, mut offset) = if self.match_keyword(Keyword::LIMIT) {
             self.advance();
             if self.match_keyword(Keyword::ALL) {
                 self.advance();
-                None
+                (None, None)
             } else {
-                Some(self.parse_expr()?)
+                let expr = self.parse_expr()?;
+                if self.match_token(&Token::Comma) {
+                    // GaussDB syntax: LIMIT offset, count
+                    self.advance();
+                    let count = self.parse_expr()?;
+                    (Some(count), Some(expr))
+                } else {
+                    (Some(expr), None)
+                }
             }
         } else {
-            None
+            (None, None)
         };
 
-        let offset = if self.match_keyword(Keyword::OFFSET) {
+        if offset.is_none() && self.match_keyword(Keyword::OFFSET) {
             self.advance();
-            Some(self.parse_expr()?)
-        } else {
-            None
-        };
+            offset = Some(self.parse_expr()?);
+        }
 
         Ok(ValuesStatement { rows, order_by, limit, offset })
     }
