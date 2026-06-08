@@ -4412,17 +4412,36 @@ impl Parser {
                 },
                 Some(Keyword::LARGE_P) => {
                     self.advance();
-                    match self.parse_alter_large_object() {
-                        Ok(stmt) => {
-                            self.try_consume_semicolon();
-                            crate::ast::Statement::AlterLargeObject(crate::ast::Spanned::new(
-                                stmt,
-                                Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
-                            ))
+                    if self.match_keyword(Keyword::SEQUENCE) {
+                        self.advance();
+                        self.parse_if_exists();
+                        match self.parse_alter_sequence_inner() {
+                            Ok(mut stmt) => {
+                                stmt.is_large = true;
+                                self.try_consume_semicolon();
+                                crate::ast::Statement::AlterSequence(crate::ast::Spanned::new(
+                                    stmt,
+                                    Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+                                ))
+                            }
+                            Err(e) => {
+                                self.add_error(e);
+                                self.skip_to_semicolon()
+                            }
                         }
-                        Err(e) => {
-                            self.add_error(e);
-                            self.skip_to_semicolon()
+                    } else {
+                        match self.parse_alter_large_object() {
+                            Ok(stmt) => {
+                                self.try_consume_semicolon();
+                                crate::ast::Statement::AlterLargeObject(crate::ast::Spanned::new(
+                                    stmt,
+                                    Some(crate::ast::SourceSpan { start, end: self.prev_location() }),
+                                ))
+                            }
+                            Err(e) => {
+                                self.add_error(e);
+                                self.skip_to_semicolon()
+                            }
                         }
                     }
                 }

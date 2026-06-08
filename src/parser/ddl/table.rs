@@ -371,6 +371,10 @@ impl Parser {
                             self.advance();
                             kw.as_str().to_string()
                         }
+                        Token::Float(f) => {
+                            self.advance();
+                            f
+                        }
                         _ => {
                             return Err(ParserError::UnexpectedToken {
                                 location: self.current_location(),
@@ -468,6 +472,10 @@ impl Parser {
                         Token::Keyword(kw) => {
                             self.advance();
                             kw.as_str().to_string()
+                        }
+                        Token::Float(f) => {
+                            self.advance();
+                            f
                         }
                         _ => {
                             return Err(ParserError::UnexpectedToken {

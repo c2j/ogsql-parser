@@ -2386,6 +2386,7 @@ pub enum AlterSchemaAction {
 pub struct AlterSequenceStatement {
     pub name: ObjectName,
     pub options: Vec<SequenceOption>,
+    pub is_large: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -2399,6 +2400,7 @@ pub enum SequenceOption {
     Cycle(bool),
     NoCycle,
     OwnedBy { owner: ObjectName },
+    OwnerTo { owner: ObjectName },
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
