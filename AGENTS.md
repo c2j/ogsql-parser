@@ -28,7 +28,19 @@ cargo +nightly build --release --features full --target x86_64-win7-windows-msvc
 
 ## CI 要求
 
-- `cargo fmt --all -- --check` 必须通过
-- `cargo clippy --all-features -- -D warnings` 必须通过
-- `cargo test --all-features` 必须通过
-- 版本号在 `Cargo.toml` 中维护，发布时同步更新
+CI 定义在 `.github/workflows/ci.yml`，包含 4 个 job，全部必须通过：
+
+- **Format**: `cargo fmt --all -- --check` 必须通过
+- **Clippy**: `cargo clippy --all-features -- -D warnings` 必须通过
+- **Test**: `cargo test --all-features` 必须通过（当前 1772+ 测试）
+- **Security Audit**: `cargo audit` 必须通过（无已知漏洞依赖）
+
+### 提交前本地验证
+
+```bash
+cargo fmt --all -- --check
+cargo clippy --all-features -- -D warnings
+cargo test --all-features
+```
+
+版本号在 `Cargo.toml` 中维护，发布时同步更新。

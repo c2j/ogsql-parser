@@ -99,7 +99,7 @@ pub fn flatten_sql(node: &SqlNode) -> String {
 
 fn flatten_children(children: &[SqlNode]) -> String {
     let parts: Vec<String> = children.iter().map(flatten_sql).collect();
-    let raw = parts.join(" ");
+    let raw = parts.concat();
     deduplicate_conjunctions(&raw)
 }
 
