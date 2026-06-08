@@ -816,10 +816,130 @@ fn s006_limit_with_order_not_triggered() {
 // ── S007: Explicit type for literals ──
 
 #[test]
-fn s007_string_literal_in_where() {
+fn s007_string_literal_in_where_no_schema() {
     let stmts = parse("SELECT * FROM t WHERE name = 'abc'");
     let w = lint(&stmts);
-    assert!(has_rule(&w, "S007"), "expected S007 for untyped string literal in WHERE");
+    assert!(has_rule(&w, "S007"), "without schema, S007 should warn on string literal in WHERE");
+}
+
+#[test]
+fn s007_varchar_column_same_family_no_warn() {
+    use crate::analyzer::schema::SchemaMap;
+    let mut schema: SchemaMap = std::collections::HashMap::new();
+    let mut cols = std::collections::HashMap::new();
+    cols.insert("name".to_string(), "varchar(100)".to_string());
+    cols.insert("age".to_string(), "integer".to_string());
+    schema.insert("t".to_string(), cols);
+
+    let stmts = parse("SELECT * FROM t WHERE name = 'abc'");
+    let linter = SqlLinter::with_default_rules(LintConfig::default());
+    let w = linter.lint(&stmts, Some(&schema), Confidence::Full);
+    assert!(!has_rule(&w, "S007"), "varchar column vs string literal is same-family, should not warn");
+}
+
+#[test]
+fn s007_int_column_cross_family_warns() {
+    use crate::analyzer::schema::SchemaMap;
+    let mut schema: SchemaMap = std::collections::HashMap::new();
+    let mut cols = std::collections::HashMap::new();
+    cols.insert("name".to_string(), "varchar(100)".to_string());
+    cols.insert("age".to_string(), "integer".to_string());
+    schema.insert("t".to_string(), cols);
+
+    let stmts = parse("SELECT * FROM t WHERE age = '30'");
+    let linter = SqlLinter::with_default_rules(LintConfig::default());
+    let w = linter.lint(&stmts, Some(&schema), Confidence::Full);
+    assert!(has_rule(&w, "S007"), "integer column vs string literal is cross-family, should warn");
+}
+
+#[test]
+fn s007_text_column_same_family_no_warn() {
+    use crate::analyzer::schema::SchemaMap;
+    let mut schema: SchemaMap = std::collections::HashMap::new();
+    let mut cols = std::collections::HashMap::new();
+    cols.insert("description".to_string(), "text".to_string());
+    schema.insert("t".to_string(), cols);
+
+    let stmts = parse("SELECT * FROM t WHERE description = 'hello'");
+    let linter = SqlLinter::with_default_rules(LintConfig::default());
+    let w = linter.lint(&stmts, Some(&schema), Confidence::Full);
+    assert!(!has_rule(&w, "S007"), "text column vs string literal is same-family, should not warn");
+}
+
+#[test]
+fn s007_qualified_column_varchar_no_warn() {
+    use crate::analyzer::schema::SchemaMap;
+    let mut schema: SchemaMap = std::collections::HashMap::new();
+    let mut cols = std::collections::HashMap::new();
+    cols.insert("pro_id".to_string(), "character varying(10)".to_string());
+    schema.insert("file_info".to_string(), cols);
+
+    let stmts = parse("DELETE FROM file_info WHERE pro_id = '10'");
+    let linter = SqlLinter::with_default_rules(LintConfig::default());
+    let w = linter.lint(&stmts, Some(&schema), Confidence::Full);
+    assert!(!has_rule(&w, "S007"), "character varying column vs string literal is same-family, should not warn");
+}
+
+#[test]
+fn s007_delete_without_schema_still_warns() {
+    let stmts = parse("DELETE FROM file_info WHERE pro_id = '10'");
+    let w = lint(&stmts);
+    assert!(has_rule(&w, "S007"), "without schema, S007 should still warn on string literal in WHERE");
+}
+
+#[test]
+fn s007_numeric_column_cross_family_warns() {
+    use crate::analyzer::schema::SchemaMap;
+    let mut schema: SchemaMap = std::collections::HashMap::new();
+    let mut cols = std::collections::HashMap::new();
+    cols.insert("amount".to_string(), "numeric(10,2)".to_string());
+    schema.insert("orders".to_string(), cols);
+
+    let stmts = parse("SELECT * FROM orders WHERE amount = '100.00'");
+    let linter = SqlLinter::with_default_rules(LintConfig::default());
+    let w = linter.lint(&stmts, Some(&schema), Confidence::Full);
+    assert!(has_rule(&w, "S007"), "numeric column vs string literal is cross-family, should warn");
+}
+
+#[test]
+fn s007_unresolved_column_still_warns() {
+    use crate::analyzer::schema::SchemaMap;
+    let schema: SchemaMap = std::collections::HashMap::new();
+
+    let stmts = parse("SELECT * FROM unknown_table WHERE col = 'val'");
+    let linter = SqlLinter::with_default_rules(LintConfig::default());
+    let w = linter.lint(&stmts, Some(&schema), Confidence::Full);
+    assert!(has_rule(&w, "S007"), "unresolvable column with schema present should still warn");
+}
+
+#[test]
+fn s007_table_alias_varchar_no_warn() {
+    use crate::analyzer::schema::SchemaMap;
+    let mut schema: SchemaMap = std::collections::HashMap::new();
+    let mut cols = std::collections::HashMap::new();
+    cols.insert("status".to_string(), "varchar(20)".to_string());
+    cols.insert("id".to_string(), "integer".to_string());
+    schema.insert("users".to_string(), cols);
+
+    let stmts = parse("SELECT * FROM users u WHERE u.status = 'active'");
+    let linter = SqlLinter::with_default_rules(LintConfig::default());
+    let w = linter.lint(&stmts, Some(&schema), Confidence::Full);
+    assert!(!has_rule(&w, "S007"), "aliased varchar column vs string literal should not warn");
+}
+
+#[test]
+fn s007_table_alias_int_cross_family_warns() {
+    use crate::analyzer::schema::SchemaMap;
+    let mut schema: SchemaMap = std::collections::HashMap::new();
+    let mut cols = std::collections::HashMap::new();
+    cols.insert("status".to_string(), "varchar(20)".to_string());
+    cols.insert("id".to_string(), "integer".to_string());
+    schema.insert("users".to_string(), cols);
+
+    let stmts = parse("SELECT * FROM users u WHERE u.id = '42'");
+    let linter = SqlLinter::with_default_rules(LintConfig::default());
+    let w = linter.lint(&stmts, Some(&schema), Confidence::Full);
+    assert!(has_rule(&w, "S007"), "aliased integer column vs string literal should warn");
 }
 
 // ── S008: Complex SQL ──
