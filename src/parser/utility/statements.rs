@@ -867,6 +867,10 @@ impl Parser {
 
     pub(crate) fn parse_alter_sequence(&mut self) -> Result<AlterSequenceStatement, ParserError> {
         self.expect_keyword(Keyword::SEQUENCE)?;
+        self.parse_alter_sequence_inner()
+    }
+
+    pub(crate) fn parse_alter_sequence_inner(&mut self) -> Result<AlterSequenceStatement, ParserError> {
         let name = self.parse_object_name()?;
         let mut options = Vec::new();
 
@@ -930,6 +934,12 @@ impl Parser {
                     let owner = self.parse_object_name()?;
                     options.push(SequenceOption::OwnedBy { owner });
                 }
+                Some(Keyword::OWNER) => {
+                    self.advance();
+                    self.expect_keyword(Keyword::TO)?;
+                    let owner = self.parse_object_name()?;
+                    options.push(SequenceOption::OwnerTo { owner });
+                }
                 Some(Keyword::NO) => {
                     self.advance();
                     match self.peek_keyword() {
@@ -952,7 +962,7 @@ impl Parser {
             }
         }
 
-        Ok(AlterSequenceStatement { name, options })
+        Ok(AlterSequenceStatement { name, options, is_large: false })
     }
 
     pub(crate) fn parse_integer_literal(&mut self) -> Result<i64, ParserError> {

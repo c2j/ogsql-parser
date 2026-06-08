@@ -4872,9 +4872,13 @@ impl SqlFormatter {
                 SequenceOption::OwnedBy { owner } => {
                     format!("{} {}", self.kw("OWNED BY"), self.format_object_name(owner))
                 }
+                SequenceOption::OwnerTo { owner } => {
+                    format!("{} {}", self.kw("OWNER TO"), self.format_object_name(owner))
+                }
             })
             .collect();
-        format!("{} {} {}", self.kw("ALTER SEQUENCE"), self.format_object_name(&stmt.name), opts.join(" "))
+        let prefix = if stmt.is_large { self.kw("ALTER LARGE SEQUENCE") } else { self.kw("ALTER SEQUENCE") };
+        format!("{} {} {}", prefix, self.format_object_name(&stmt.name), opts.join(" "))
     }
 
     fn format_alter_function(&self, stmt: &AlterFunctionStatement) -> String {
