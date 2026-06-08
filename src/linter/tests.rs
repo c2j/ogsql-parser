@@ -954,6 +954,137 @@ fn s008_complex_sql() {
     assert!(has_rule(&w, "S008"), "expected S008 for long SQL");
 }
 
+// ── R005: Schema-aware implicit type conversion ──
+
+#[test]
+fn r005_varchar_column_string_literal_no_warn_with_schema() {
+    use crate::analyzer::schema::SchemaMap;
+    let mut schema: SchemaMap = std::collections::HashMap::new();
+    let mut cols = std::collections::HashMap::new();
+    cols.insert("name".to_string(), "varchar(100)".to_string());
+    schema.insert("t".to_string(), cols);
+
+    let stmts = parse("SELECT * FROM t WHERE name = 'abc'");
+    let linter = SqlLinter::with_default_rules(LintConfig::default());
+    let w = linter.lint(&stmts, Some(&schema), Confidence::Full);
+    assert!(!has_rule(&w, "R005"), "varchar column vs string literal is same-family, should not warn with schema");
+}
+
+#[test]
+fn r005_int_column_string_literal_warns_with_schema() {
+    use crate::analyzer::schema::SchemaMap;
+    let mut schema: SchemaMap = std::collections::HashMap::new();
+    let mut cols = std::collections::HashMap::new();
+    cols.insert("age".to_string(), "integer".to_string());
+    schema.insert("t".to_string(), cols);
+
+    let stmts = parse("SELECT * FROM t WHERE age = '30'");
+    let linter = SqlLinter::with_default_rules(LintConfig::default());
+    let w = linter.lint(&stmts, Some(&schema), Confidence::Full);
+    assert!(has_rule(&w, "R005"), "integer column vs string literal is cross-family, should warn even with schema");
+}
+
+#[test]
+fn r005_int_column_int_literal_no_warn_with_schema() {
+    use crate::analyzer::schema::SchemaMap;
+    let mut schema: SchemaMap = std::collections::HashMap::new();
+    let mut cols = std::collections::HashMap::new();
+    cols.insert("age".to_string(), "integer".to_string());
+    schema.insert("t".to_string(), cols);
+
+    let stmts = parse("SELECT * FROM t WHERE age = 30");
+    let linter = SqlLinter::with_default_rules(LintConfig::default());
+    let w = linter.lint(&stmts, Some(&schema), Confidence::Full);
+    assert!(!has_rule(&w, "R005"), "integer column vs integer literal is same-family, should not warn with schema");
+}
+
+#[test]
+fn r005_no_schema_fallback_still_warns() {
+    let stmts = parse("SELECT * FROM t WHERE name = 'abc'");
+    let w = lint(&stmts);
+    assert!(has_rule(&w, "R005"), "without schema, R005 should still warn on literal-column comparison");
+}
+
+#[test]
+fn r005_update_with_schema_same_family() {
+    use crate::analyzer::schema::SchemaMap;
+    let mut schema: SchemaMap = std::collections::HashMap::new();
+    let mut cols = std::collections::HashMap::new();
+    cols.insert("status".to_string(), "varchar(20)".to_string());
+    schema.insert("t".to_string(), cols);
+
+    let stmts = parse("UPDATE t SET status = 'active' WHERE status = 'inactive'");
+    let linter = SqlLinter::with_default_rules(LintConfig::default());
+    let w = linter.lint(&stmts, Some(&schema), Confidence::Full);
+    assert!(!has_rule(&w, "R005"), "UPDATE: varchar column vs string literal is same-family, should not warn");
+}
+
+#[test]
+fn r005_delete_with_schema_same_family() {
+    use crate::analyzer::schema::SchemaMap;
+    let mut schema: SchemaMap = std::collections::HashMap::new();
+    let mut cols = std::collections::HashMap::new();
+    cols.insert("pro_id".to_string(), "character varying(10)".to_string());
+    schema.insert("file_info".to_string(), cols);
+
+    let stmts = parse("DELETE FROM file_info WHERE pro_id = '10'");
+    let linter = SqlLinter::with_default_rules(LintConfig::default());
+    let w = linter.lint(&stmts, Some(&schema), Confidence::Full);
+    assert!(
+        !has_rule(&w, "R005"),
+        "DELETE: character varying column vs string literal is same-family, should not warn"
+    );
+}
+
+// ── R006: Safe function whitelist ──
+
+#[test]
+fn r006_coalesce_on_column_not_triggered() {
+    let stmts = parse("SELECT * FROM t WHERE COALESCE(name, 'default') = 'abc'");
+    let w = lint(&stmts);
+    assert!(!has_rule(&w, "R006"), "COALESCE(col, ...) is a safe function, should not trigger R006");
+}
+
+#[test]
+fn r006_nvl_on_column_not_triggered() {
+    let stmts = parse("SELECT * FROM t WHERE NVL(name, 'x') = 'abc'");
+    let w = lint(&stmts);
+    assert!(!has_rule(&w, "R006"), "NVL(col, ...) is a safe function, should not trigger R006");
+}
+
+#[test]
+fn r006_upper_on_column_triggered() {
+    let stmts = parse("SELECT * FROM t WHERE UPPER(name) = 'ABC'");
+    let w = lint(&stmts);
+    assert!(has_rule(&w, "R006"), "UPPER(col) is not a safe function, should trigger R006");
+}
+
+#[test]
+fn r006_greatest_on_column_not_triggered() {
+    let stmts = parse("SELECT * FROM t WHERE GREATEST(a, b) > 10");
+    let w = lint(&stmts);
+    assert!(!has_rule(&w, "R006"), "GREATEST is a safe function, should not trigger R006");
+}
+
+// ── R008: Downgraded to Caution level ──
+
+#[test]
+fn r008_same_table_columns_is_caution_level() {
+    let stmts = parse("SELECT * FROM t WHERE t.a > t.b");
+    let linter = SqlLinter::with_default_rules(LintConfig::default());
+    let w = linter.lint(&stmts, None, Confidence::Full);
+    let r008 = w.iter().find(|w| w.rule_id == "R008");
+    assert!(r008.is_some(), "expected R008 for t.a > t.b");
+    assert_eq!(r008.unwrap().level, WarningLevel::Caution, "R008 should be Caution level, not Prohibition");
+}
+
+#[test]
+fn r008_filtered_by_min_level_caution() {
+    let stmts = parse("SELECT * FROM t WHERE t.a > t.b");
+    let w = lint_min_level(&stmts, WarningLevel::Performance);
+    assert!(!has_rule(&w, "R008"), "R008 at Caution level should be filtered by Performance min_level");
+}
+
 // ── LintConfig from_toml_str ──
 
 #[cfg(feature = "lint-config")]

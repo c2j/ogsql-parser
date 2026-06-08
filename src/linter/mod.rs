@@ -2,6 +2,7 @@ mod rules_caution;
 mod rules_performance;
 mod rules_prohibition;
 mod rules_suggestion;
+mod type_helpers;
 
 #[cfg(test)]
 mod tests;

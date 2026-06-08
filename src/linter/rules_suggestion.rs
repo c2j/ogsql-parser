@@ -1,5 +1,6 @@
 use crate::ast::plpgsql::{PlDataType, PlDeclaration, PlStatement};
 use crate::ast::{Expr, Statement, StatementInfo};
+use crate::linter::type_helpers::{build_column_type_map, is_string_type, resolve_column_type};
 use crate::linter::{
     loc_from_spanned, make_warning, stmt_location, walk_expr, Confidence, LintConfig, LintRuleEntry, SqlLinter,
     SqlWarning, StatementKind, WarningLevel,
@@ -321,131 +322,6 @@ fn check_s007(
             ));
         }
     }
-}
-
-/// Build a lowercased `(table_alias_or_name, column_name) → data_type` map
-/// from the schema for all tables referenced in the FROM clause.
-fn build_column_type_map(
-    schema: &crate::analyzer::schema::SchemaMap,
-    tables: &[crate::ast::TableRef],
-) -> std::collections::HashMap<(String, String), String> {
-    let mut map = std::collections::HashMap::new();
-    for tref in tables {
-        collect_table_types(schema, tref, &mut map);
-    }
-    map
-}
-
-/// Recursively collect column types from a table reference (handles joins).
-fn collect_table_types(
-    schema: &crate::analyzer::schema::SchemaMap,
-    tref: &crate::ast::TableRef,
-    map: &mut std::collections::HashMap<(String, String), String>,
-) {
-    use crate::ast::TableRef;
-    match tref {
-        TableRef::Table { name, alias, .. } => {
-            // ObjectName is Vec<String>, e.g. ["schema", "table"] or ["table"].
-            // Try progressively shorter prefixes to match the schema key.
-            let table_key = find_schema_table(schema, name);
-            if let Some(columns) = table_key.and_then(|k| schema.get(k)) {
-                let lookup_name = alias.as_deref().unwrap_or_else(|| name.last().unwrap_or(&name[0]));
-                let lookup_lower = lookup_name.to_lowercase();
-                for (col, dtype) in columns {
-                    map.insert((lookup_lower.clone(), col.to_lowercase()), dtype.clone());
-                }
-            }
-        }
-        TableRef::Join { left, right, .. } => {
-            collect_table_types(schema, left, map);
-            collect_table_types(schema, right, map);
-        }
-        TableRef::Subquery { .. } | TableRef::FunctionCall { .. } | TableRef::Values { .. } => {}
-        TableRef::Pivot { source, .. } | TableRef::Unpivot { source, .. } => {
-            collect_table_types(schema, source, map);
-        }
-    }
-}
-
-/// Find the schema key that matches the given table name, trying
-/// `schema.table`, then `table` alone.
-fn find_schema_table<'a>(schema: &'a crate::analyzer::schema::SchemaMap, name: &[String]) -> Option<&'a String> {
-    if name.is_empty() {
-        return None;
-    }
-    // Try "schema.table" as key.
-    if name.len() >= 2 {
-        let full = format!("{}.{}", name[0].to_lowercase(), name[1].to_lowercase());
-        if let Some(key) = schema.keys().find(|k| *k == &full) {
-            return Some(key);
-        }
-    }
-    // Try just "table" as key.
-    let single = name.last().unwrap().to_lowercase();
-    schema.keys().find(|k| *k == &single)
-}
-
-/// Try to resolve the SQL data type for a column expression using the
-/// pre-built type map. Handles both `col` and `table.col` forms.
-fn resolve_column_type(expr: &Expr, col_types: &std::collections::HashMap<(String, String), String>) -> Option<String> {
-    match expr {
-        Expr::ColumnRef(name) => {
-            if name.len() == 1 {
-                // Unqualified: try every table alias to find a match.
-                for ((_, col), dtype) in col_types {
-                    if col == &name[0].to_lowercase() {
-                        return Some(dtype.clone());
-                    }
-                }
-                None
-            } else if name.len() >= 2 {
-                // Qualified: table.col or schema.table.col.
-                let table = name[name.len() - 2].to_lowercase();
-                let col = name[name.len() - 1].to_lowercase();
-                col_types.get(&(table, col)).cloned()
-            } else {
-                None
-            }
-        }
-        Expr::FieldAccess { object, field } => {
-            // Handle alias.col via FieldAccess.
-            if let Expr::ColumnRef(obj_name) = object.as_ref() {
-                if obj_name.len() == 1 {
-                    let table = obj_name[0].to_lowercase();
-                    let col = field.to_lowercase();
-                    return col_types.get(&(table, col)).cloned();
-                }
-            }
-            None
-        }
-        _ => None,
-    }
-}
-
-/// Check whether a resolved SQL data type belongs to the string family
-/// (varchar, char, text, bpchar, name, clob, nchar, nvarchar, etc.).
-/// Comparison with a string literal against these types is safe — no
-/// implicit cross-family conversion occurs.
-fn is_string_type(data_type: &str) -> bool {
-    let lower = data_type.to_lowercase();
-    // Strip any length/precision suffix: "varchar(100)" → "varchar".
-    let base = lower.split('(').next().unwrap_or(&lower).trim();
-    matches!(
-        base,
-        "varchar"
-            | "varchar2"
-            | "character varying"
-            | "char"
-            | "character"
-            | "text"
-            | "bpchar"
-            | "name"
-            | "clob"
-            | "nchar"
-            | "nvarchar"
-            | "nvarchar2"
-            | "string"
-    )
 }
 
 // ── S008: Complex SQL — consider splitting ──

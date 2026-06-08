@@ -1,4 +1,7 @@
 use crate::ast::{Expr, SelectTarget, Statement, StatementInfo};
+use crate::linter::type_helpers::{
+    build_column_type_map, classify_type_family, literal_type_family, resolve_column_type,
+};
 use crate::linter::{
     loc_from_spanned, make_warning, stmt_location, walk_expr, Confidence, LintConfig, LintRuleEntry, SqlLinter,
     SqlWarning, StatementKind, WarningLevel,
@@ -58,7 +61,7 @@ pub fn register(linter: &mut SqlLinter) {
         LintRuleEntry {
             id: "R008",
             name: "same-table-column-compare",
-            level: WarningLevel::Prohibition,
+            level: WarningLevel::Caution,
             stmt_kind: StatementKind::Dml,
             check_fn: check_r008,
         },
@@ -200,47 +203,107 @@ fn object_type_str(ot: &crate::ast::ObjectType) -> &'static str {
     }
 }
 
-// R005: Implicit type conversion (basic AST-only version)
+// R005: Implicit type conversion (schema-aware)
 fn check_r005(
     stmts: &[StatementInfo],
-    _schema: Option<&crate::analyzer::schema::SchemaMap>,
+    schema: Option<&crate::analyzer::schema::SchemaMap>,
     _config: &LintConfig,
     confidence: Confidence,
     warnings: &mut Vec<SqlWarning>,
 ) {
     for info in stmts {
         let loc = stmt_location(info);
-        if let Some(where_clause) = extract_where_clause(&info.statement) {
-            let mut found = false;
-            walk_expr(where_clause, &mut |e| {
-                if found {
-                    return false;
+        let (where_clause, tables) = match &info.statement {
+            Statement::Select(s) => (s.where_clause.as_ref(), &s.from),
+            Statement::Update(s) => (s.where_clause.as_ref(), &s.tables),
+            Statement::Delete(s) => (s.where_clause.as_ref(), &s.tables),
+            _ => {
+                let Some(wc) = extract_where_clause(&info.statement) else { continue };
+                check_r005_fallback(wc, loc, confidence, warnings);
+                continue;
+            }
+        };
+        let Some(where_clause) = where_clause else { continue };
+
+        let col_types = schema.map(|s| build_column_type_map(s, tables));
+
+        let mut found = false;
+        walk_expr(where_clause, &mut |e| {
+            if found {
+                return false;
+            }
+            if let Expr::BinaryOp { left, right, .. } = e {
+                let l_lit = matches!(left.as_ref(), Expr::Literal(_));
+                let r_lit = matches!(right.as_ref(), Expr::Literal(_));
+                let l_col = matches!(left.as_ref(), Expr::ColumnRef(_));
+                let r_col = matches!(right.as_ref(), Expr::ColumnRef(_));
+                if !((l_lit && r_col) || (l_col && r_lit)) {
+                    return true;
                 }
-                if let Expr::BinaryOp { left, right, .. } = e {
-                    let l_lit = matches!(**left, Expr::Literal(_));
-                    let r_lit = matches!(**right, Expr::Literal(_));
-                    let l_col = matches!(**left, Expr::ColumnRef(_));
-                    let r_col = matches!(**right, Expr::ColumnRef(_));
-                    if (l_lit && r_col) || (l_col && r_lit) {
-                        found = true;
-                        return false;
+
+                if let Some(ref ct) = col_types {
+                    let (lit_expr, col_expr) =
+                        if l_lit { (left.as_ref(), right.as_ref()) } else { (right.as_ref(), left.as_ref()) };
+                    if let (Expr::Literal(lit), Some(col_type)) = (lit_expr, resolve_column_type(col_expr, ct)) {
+                        let lit_family = literal_type_family(lit);
+                        let col_family = classify_type_family(&col_type);
+                        if lit_family == col_family {
+                            return true;
+                        }
                     }
                 }
-                true
-            });
-            if found {
-                warnings.push(make_warning(
+                found = true;
+                return false;
+            }
+            true
+        });
+        if found {
+            warnings.push(make_warning(
+                WarningLevel::Prohibition, "R005", "implicit-type-conversion",
+                "WHERE \u{4e2d}\u{53ef}\u{80fd}\u{5b58}\u{5728}\u{9690}\u{5f0f}\u{7c7b}\u{578b}\u{8f6c}\u{6362}\u{ff0c}\u{53ef}\u{80fd}\u{5bfc}\u{81f4}\u{7d22}\u{5f15}\u{5931}\u{6548}".into(),
+                Some("\u{663e}\u{5f0f}\u{6dfb}\u{52a0}\u{7c7b}\u{578b}\u{8f6c}\u{6362}\u{ff0c}\u{907f}\u{514d}\u{9690}\u{5f0f}\u{8f6c}\u{6362}\u{5bfc}\u{81f4}\u{7d22}\u{5f15}\u{5931}\u{6548}"), loc,
+                Some("WHERE \u{89c4}\u{8303}"), confidence,
+            ));
+        }
+    }
+}
+
+fn check_r005_fallback(
+    where_clause: &Expr,
+    loc: crate::token::SourceLocation,
+    confidence: Confidence,
+    warnings: &mut Vec<SqlWarning>,
+) {
+    let mut found = false;
+    walk_expr(where_clause, &mut |e| {
+        if found {
+            return false;
+        }
+        if let Expr::BinaryOp { left, right, .. } = e {
+            let l_lit = matches!(**left, Expr::Literal(_));
+            let r_lit = matches!(**right, Expr::Literal(_));
+            let l_col = matches!(**left, Expr::ColumnRef(_));
+            let r_col = matches!(**right, Expr::ColumnRef(_));
+            if (l_lit && r_col) || (l_col && r_lit) {
+                found = true;
+                return false;
+            }
+        }
+        true
+    });
+    if found {
+        warnings.push(make_warning(
                     WarningLevel::Prohibition, "R005", "implicit-type-conversion",
                     "WHERE \u{4e2d}\u{53ef}\u{80fd}\u{5b58}\u{5728}\u{9690}\u{5f0f}\u{7c7b}\u{578b}\u{8f6c}\u{6362}\u{ff08}\u{9700}\u{7ed3}\u{5408}\u{5b57}\u{6bb5}\u{7c7b}\u{578b}\u{786e}\u{8ba4}\u{ff09}".into(),
                     Some("\u{663e}\u{5f0f}\u{6dfb}\u{52a0}\u{7c7b}\u{578b}\u{8f6c}\u{6362}\u{ff0c}\u{907f}\u{514d}\u{9690}\u{5f0f}\u{8f6c}\u{6362}\u{5bfc}\u{81f4}\u{7d22}\u{5f15}\u{5931}\u{6548}"), loc,
                     Some("WHERE \u{89c4}\u{8303}"), confidence,
                 ));
-            }
-        }
     }
 }
 
 // R006: Function wrapping column in WHERE (index-killing pattern)
+const SAFE_FUNCTIONS_ON_COLUMNS: &[&str] = &["coalesce", "nvl", "nvl2", "ifnull", "isnull", "greatest", "least"];
+
 fn check_r006(
     stmts: &[StatementInfo],
     _schema: Option<&crate::analyzer::schema::SchemaMap>,
@@ -256,7 +319,11 @@ fn check_r006(
                 if found {
                     return false;
                 }
-                if let Expr::FunctionCall { args, .. } = e {
+                if let Expr::FunctionCall { name, args, .. } = e {
+                    let fn_lower = name.last().map(|s| s.to_lowercase()).unwrap_or_default();
+                    if SAFE_FUNCTIONS_ON_COLUMNS.contains(&fn_lower.as_str()) {
+                        return true;
+                    }
                     for arg in args {
                         if let Expr::ColumnRef(_) = arg {
                             found = true;
@@ -324,7 +391,7 @@ fn check_r008(
                     if let (Expr::ColumnRef(l), Expr::ColumnRef(r)) = (left.as_ref(), right.as_ref()) {
                         if l.len() >= 2 && r.len() >= 2 && l[0] == r[0] {
                             warnings.push(make_warning(
-                                WarningLevel::Prohibition, "R008", "same-table-column-compare",
+                                WarningLevel::Caution, "R008", "same-table-column-compare",
                                 format!("\u{540c}\u{8868}\u{5217}\u{6bd4}\u{8f83}: {}.{} \u{4e0e} {}.{}\u{ff0c}\u{53ef}\u{80fd}\u{672a}\u{6b63}\u{786e}\u{4f7f}\u{7528}\u{7d22}\u{5f15}", l[0], l.last().unwrap_or(&"".into()), r[0], r.last().unwrap_or(&"".into())),
                                 Some("\u{68c0}\u{67e5}\u{662f}\u{5426}\u{5e94}\u{4f7f}\u{7528}\u{4e0d}\u{540c}\u{8868}\u{7684}\u{5217}\u{8fdb}\u{884c}\u{6bd4}\u{8f83}"), loc,
                                 Some("WHERE \u{89c4}\u{8303}"), confidence,
