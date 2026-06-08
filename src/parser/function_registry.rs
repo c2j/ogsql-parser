@@ -518,12 +518,12 @@ static FUNCTIONS: &[FuncMeta] = &[
     f!("justify_hours", FuncCategory::Scalar, FuncDomain::DateTime, 1, Some(1), false),
     f!("justify_interval", FuncCategory::Scalar, FuncDomain::DateTime, 1, Some(1), false),
     // ── L ───────────────────────────────────────────────────
-    f!("lag", FuncCategory::Window, FuncDomain::Window, 2, Some(3), false),
+    f!("lag", FuncCategory::Window, FuncDomain::Window, 1, Some(3), false),
     fo!("last_day", FuncCategory::Scalar, FuncDomain::OracleCompat, 1, Some(1), false),
     f!("last_value", FuncCategory::Window, FuncDomain::Window, 1, Some(1), false),
     f!("lastval", FuncCategory::Scalar, FuncDomain::System, 0, Some(0), false),
     f!("lcm", FuncCategory::Scalar, FuncDomain::Math, 2, Some(2), false),
-    f!("lead", FuncCategory::Window, FuncDomain::Window, 2, Some(3), false),
+    f!("lead", FuncCategory::Window, FuncDomain::Window, 1, Some(3), false),
     f!("least", FuncCategory::Special, FuncDomain::Other, 2, None, false),
     f!("left", FuncCategory::Scalar, FuncDomain::String, 2, Some(2), false),
     f!("length", FuncCategory::Scalar, FuncDomain::String, 1, Some(2), false),
@@ -1421,6 +1421,32 @@ mod tests {
     #[test]
     fn test_validate_window_with_over() {
         assert!(validate_function_call("row_number", 0, false, true, false, loc()).is_empty());
+    }
+
+    #[test]
+    fn test_validate_lag_one_arg_ok() {
+        assert!(validate_function_call("lag", 1, false, true, false, loc()).is_empty());
+    }
+
+    #[test]
+    fn test_validate_lag_two_args_ok() {
+        assert!(validate_function_call("lag", 2, false, true, false, loc()).is_empty());
+    }
+
+    #[test]
+    fn test_validate_lag_three_args_ok() {
+        assert!(validate_function_call("lag", 3, false, true, false, loc()).is_empty());
+    }
+
+    #[test]
+    fn test_validate_lead_one_arg_ok() {
+        assert!(validate_function_call("lead", 1, false, true, false, loc()).is_empty());
+    }
+
+    #[test]
+    fn test_validate_lag_four_args_warns() {
+        let w = validate_function_call("lag", 4, false, true, false, loc());
+        assert!(w.iter().any(|e| e.to_string().contains("at most 3")));
     }
 
     // ── Validation: unknown function produces no warnings ──────
