@@ -82,6 +82,7 @@ pub fn register(linter: &mut SqlLinter) {
 fn check_r001(
     stmts: &[StatementInfo],
     _schema: Option<&crate::analyzer::schema::SchemaMap>,
+    _indexes: Option<&crate::linter::IndexInfo>,
     _config: &LintConfig,
     confidence: Confidence,
     warnings: &mut Vec<SqlWarning>,
@@ -107,6 +108,7 @@ fn check_r001(
 fn check_r002(
     stmts: &[StatementInfo],
     _schema: Option<&crate::analyzer::schema::SchemaMap>,
+    _indexes: Option<&crate::linter::IndexInfo>,
     config: &LintConfig,
     confidence: Confidence,
     warnings: &mut Vec<SqlWarning>,
@@ -140,6 +142,7 @@ fn check_r002(
 fn check_r003(
     stmts: &[StatementInfo],
     _schema: Option<&crate::analyzer::schema::SchemaMap>,
+    _indexes: Option<&crate::linter::IndexInfo>,
     _config: &LintConfig,
     confidence: Confidence,
     warnings: &mut Vec<SqlWarning>,
@@ -161,6 +164,7 @@ fn check_r003(
 fn check_r004(
     stmts: &[StatementInfo],
     _schema: Option<&crate::analyzer::schema::SchemaMap>,
+    _indexes: Option<&crate::linter::IndexInfo>,
     _config: &LintConfig,
     confidence: Confidence,
     warnings: &mut Vec<SqlWarning>,
@@ -207,6 +211,7 @@ fn object_type_str(ot: &crate::ast::ObjectType) -> &'static str {
 fn check_r005(
     stmts: &[StatementInfo],
     schema: Option<&crate::analyzer::schema::SchemaMap>,
+    _indexes: Option<&crate::linter::IndexInfo>,
     _config: &LintConfig,
     confidence: Confidence,
     warnings: &mut Vec<SqlWarning>,
@@ -307,41 +312,178 @@ const SAFE_FUNCTIONS_ON_COLUMNS: &[&str] = &["coalesce", "nvl", "nvl2", "ifnull"
 fn check_r006(
     stmts: &[StatementInfo],
     _schema: Option<&crate::analyzer::schema::SchemaMap>,
+    _indexes: Option<&crate::linter::IndexInfo>,
     _config: &LintConfig,
     confidence: Confidence,
     warnings: &mut Vec<SqlWarning>,
 ) {
     for info in stmts {
         let loc = stmt_location(info);
-        if let Some(where_clause) = extract_where_clause(&info.statement) {
-            let mut found = false;
-            walk_expr(where_clause, &mut |e| {
-                if found {
-                    return false;
+        let (where_clause, tables) = get_where_and_tables(&info.statement);
+        let Some(where_clause) = where_clause else { continue };
+
+        walk_expr(where_clause, &mut |e| {
+            if let Expr::FunctionCall { name, args, .. } = e {
+                let fn_lower = name.last().map(|s| s.to_lowercase()).unwrap_or_default();
+                if SAFE_FUNCTIONS_ON_COLUMNS.contains(&fn_lower.as_str()) {
+                    return true;
                 }
-                if let Expr::FunctionCall { name, args, .. } = e {
-                    let fn_lower = name.last().map(|s| s.to_lowercase()).unwrap_or_default();
-                    if SAFE_FUNCTIONS_ON_COLUMNS.contains(&fn_lower.as_str()) {
-                        return true;
-                    }
-                    for arg in args {
-                        if let Expr::ColumnRef(_) = arg {
-                            found = true;
-                            return false;
+                for arg in args {
+                    if let Expr::ColumnRef(col_ref) = arg {
+                        match _indexes {
+                            Some(idx_info) => {
+                                let table = resolve_table_from_column(col_ref, tables);
+                                let col_lower = col_ref.last().map(|s| s.to_lowercase()).unwrap_or_default();
+
+                                let has_index = table
+                                    .as_ref()
+                                    .and_then(|t| idx_info.column_indexes.get(t))
+                                    .map(|cols| cols.contains(&col_lower))
+                                    .unwrap_or(false);
+
+                                let has_func_index = table
+                                    .as_ref()
+                                    .map(|t| {
+                                        crate::analyzer::schema::matches_function_index(
+                                            &idx_info.indexes,
+                                            t,
+                                            &fn_lower,
+                                            &col_lower,
+                                        )
+                                    })
+                                    .unwrap_or(false);
+
+                                if has_index && !has_func_index {
+                                    warnings.push(make_warning(
+                                        WarningLevel::Prohibition,
+                                        "R006",
+                                        "function-on-where-column",
+                                        "WHERE 中对有索引的列使用函数，将导致索引失效".into(),
+                                        Some("将函数运算移到等号另一侧或使用函数索引"),
+                                        loc,
+                                        Some("WHERE 规范"),
+                                        confidence,
+                                    ));
+                                    return false;
+                                }
+                            }
+                            None => {
+                                warnings.push(make_warning(
+                                    WarningLevel::Prohibition,
+                                    "R006",
+                                    "function-on-where-column",
+                                    "WHERE 中对列使用函数，可能导致索引失效".into(),
+                                    Some("将函数运算移到等号另一侧或使用函数索引"),
+                                    loc,
+                                    Some("WHERE 规范"),
+                                    confidence,
+                                ));
+                                return false;
+                            }
                         }
                     }
                 }
-                true
-            });
-            if found {
-                warnings.push(make_warning(
-                    WarningLevel::Prohibition, "R006", "function-on-where-column",
-                    "WHERE \u{4e2d}\u{5bf9}\u{5217}\u{4f7f}\u{7528}\u{51fd}\u{6570}\u{ff0c}\u{53ef}\u{80fd}\u{5bfc}\u{81f4}\u{7d22}\u{5f15}\u{5931}\u{6548}".into(),
-                    Some("\u{5c06}\u{51fd}\u{6570}\u{8fd0}\u{7b97}\u{79fb}\u{5230}\u{7b49}\u{53f7}\u{53e6}\u{4e00}\u{4fa7}\u{6216}\u{4f7f}\u{7528}\u{51fd}\u{6570}\u{7d22}\u{5f15}"), loc,
-                    Some("WHERE \u{89c4}\u{8303}"), confidence,
-                ));
+            }
+            if let Expr::TypeCast { expr, .. } = e {
+                if let Expr::ColumnRef(col_ref) = expr.as_ref() {
+                    emit_index_aware_r006(col_ref, tables, _indexes, loc, confidence, warnings);
+                }
+            }
+            if let Expr::BinaryOp { op, left, right, .. } = e {
+                if is_sargability_breaking_op(op) {
+                    if let Expr::ColumnRef(col_ref) = left.as_ref() {
+                        emit_index_aware_r006(col_ref, tables, _indexes, loc, confidence, warnings);
+                    }
+                    if let Expr::ColumnRef(col_ref) = right.as_ref() {
+                        emit_index_aware_r006(col_ref, tables, _indexes, loc, confidence, warnings);
+                    }
+                }
+            }
+            true
+        });
+    }
+}
+
+fn is_sargability_breaking_op(op: &str) -> bool {
+    matches!(op, "+" | "-" | "*" | "/" | "||")
+}
+
+fn emit_index_aware_r006(
+    col_ref: &[String],
+    tables: &[crate::ast::TableRef],
+    _indexes: Option<&crate::linter::IndexInfo>,
+    loc: crate::token::SourceLocation,
+    confidence: Confidence,
+    warnings: &mut Vec<SqlWarning>,
+) {
+    if let Some(idx_info) = _indexes {
+        let table = resolve_table_from_column(col_ref, tables);
+        let col_lower = col_ref.last().map(|s| s.to_lowercase()).unwrap_or_default();
+        let has_index = table
+            .as_ref()
+            .and_then(|t| idx_info.column_indexes.get(t))
+            .map(|cols| cols.contains(&col_lower))
+            .unwrap_or(false);
+        if !has_index {
+            return;
+        }
+    }
+    warnings.push(make_warning(
+        WarningLevel::Prohibition,
+        "R006",
+        "function-on-where-column",
+        "WHERE 中对有索引的列使用函数或表达式，将导致索引失效".into(),
+        Some("将运算移到等号另一侧"),
+        loc,
+        Some("WHERE 规范"),
+        confidence,
+    ));
+}
+
+/// Extract the WHERE clause and FROM/tables list from a statement.
+fn get_where_and_tables(stmt: &Statement) -> (Option<&Expr>, &[crate::ast::TableRef]) {
+    match stmt {
+        Statement::Select(s) => (s.where_clause.as_ref(), &s.from),
+        Statement::Update(s) => (s.where_clause.as_ref(), &s.tables),
+        Statement::Delete(s) => (s.where_clause.as_ref(), &s.tables),
+        _ => (extract_where_clause(stmt), &[]),
+    }
+}
+
+/// Resolve which table a column belongs to from the FROM clause.
+/// Returns the table name (lowercase), or None if unresolvable.
+fn resolve_table_from_column(col_ref: &[String], tables: &[crate::ast::TableRef]) -> Option<String> {
+    if col_ref.len() >= 2 {
+        return Some(col_ref[col_ref.len() - 2].to_lowercase());
+    }
+
+    if col_ref.len() == 1 {
+        for tref in tables {
+            if let Some(name) = table_name(tref) {
+                return Some(name.to_lowercase());
             }
         }
+    }
+
+    None
+}
+
+/// Extract the effective table name from a TableRef (handles alias).
+fn table_name(tref: &crate::ast::TableRef) -> Option<&str> {
+    use crate::ast::TableRef;
+    match tref {
+        TableRef::Table { name, alias, .. } => {
+            if let Some(a) = alias {
+                Some(a.as_str())
+            } else {
+                name.last().map(|s| s.as_str())
+            }
+        }
+        TableRef::Join { left, .. } => table_name(left),
+        TableRef::Subquery { alias, .. } | TableRef::FunctionCall { alias, .. } | TableRef::Values { alias, .. } => {
+            alias.as_deref()
+        }
+        TableRef::Pivot { source, .. } | TableRef::Unpivot { source, .. } => table_name(source),
     }
 }
 
@@ -349,17 +491,35 @@ fn check_r006(
 fn check_r007(
     stmts: &[StatementInfo],
     _schema: Option<&crate::analyzer::schema::SchemaMap>,
+    _indexes: Option<&crate::linter::IndexInfo>,
     _config: &LintConfig,
     confidence: Confidence,
     warnings: &mut Vec<SqlWarning>,
 ) {
     for info in stmts {
         let loc = stmt_location(info);
-        if let Some(where_clause) = extract_where_clause(&info.statement) {
-            walk_expr(where_clause, &mut |e| {
-                if let Expr::Like { pattern, negated: false, .. } = e {
-                    if let Expr::Literal(crate::ast::Literal::String(s)) = pattern.as_ref() {
-                        if s.starts_with('%') || s.starts_with('_') {
+        let (where_clause, tables) = get_where_and_tables(&info.statement);
+        let Some(where_clause) = where_clause else { continue };
+        walk_expr(where_clause, &mut |e| {
+            if let Expr::Like { expr, pattern, negated: false, .. } = e {
+                if let Expr::Literal(crate::ast::Literal::String(s)) = pattern.as_ref() {
+                    if s.starts_with('%') || s.starts_with('_') {
+                        let should_warn = match _indexes {
+                            Some(idx_info) => {
+                                if let Expr::ColumnRef(col_ref) = expr.as_ref() {
+                                    let table = resolve_table_from_column(col_ref, tables);
+                                    let col_lower = col_ref.last().map(|s| s.to_lowercase()).unwrap_or_default();
+                                    table
+                                        .and_then(|t| idx_info.column_indexes.get(&t))
+                                        .map(|cols| cols.contains(&col_lower))
+                                        .unwrap_or(false)
+                                } else {
+                                    true
+                                }
+                            }
+                            None => true,
+                        };
+                        if should_warn {
                             warnings.push(make_warning(
                                 WarningLevel::Prohibition, "R007", "like-leading-wildcard",
                                 format!("LIKE '\u{524d}\u{5bfc}\u{901a}\u{914d}\u{7b26} {s}' \u{5c06}\u{5bfc}\u{81f4}\u{65e0}\u{6cd5}\u{4f7f}\u{7528}\u{7d22}\u{5f15}\u{ff0c}\u{89e6}\u{53d1}\u{5168}\u{8868}\u{626b}\u{63cf}"),
@@ -369,9 +529,9 @@ fn check_r007(
                         }
                     }
                 }
-                true
-            });
-        }
+            }
+            true
+        });
     }
 }
 
@@ -379,6 +539,7 @@ fn check_r007(
 fn check_r008(
     stmts: &[StatementInfo],
     _schema: Option<&crate::analyzer::schema::SchemaMap>,
+    _indexes: Option<&crate::linter::IndexInfo>,
     _config: &LintConfig,
     confidence: Confidence,
     warnings: &mut Vec<SqlWarning>,
@@ -409,6 +570,7 @@ fn check_r008(
 fn check_r009(
     stmts: &[StatementInfo],
     _schema: Option<&crate::analyzer::schema::SchemaMap>,
+    _indexes: Option<&crate::linter::IndexInfo>,
     _config: &LintConfig,
     confidence: Confidence,
     warnings: &mut Vec<SqlWarning>,

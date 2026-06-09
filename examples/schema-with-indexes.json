@@ -1,0 +1,35 @@
+{
+  "columns": {
+    "users": {
+      "id": "integer",
+      "name": "varchar(100)",
+      "email": "varchar(200)",
+      "description": "text",
+      "status": "varchar(20)",
+      "created_at": "timestamp",
+      "score": "integer"
+    },
+    "orders": {
+      "order_id": "integer",
+      "user_id": "integer",
+      "amount": "numeric(10,2)",
+      "memo": "varchar(500)",
+      "order_date": "date"
+    }
+  },
+  "indexes": {
+    "users": {
+      "pk_users_id": ["id"],
+      "idx_users_name": ["name"],
+      "idx_users_status": ["status"],
+      "idx_users_email_lower": ["lower(email)"],
+      "idx_users_created_at": ["created_at"]
+    },
+    "orders": {
+      "pk_orders_order_id": ["order_id"],
+      "idx_orders_user_id": ["user_id"],
+      "idx_orders_amount": ["amount"],
+      "idx_orders_date": ["order_date"]
+    }
+  }
+}
