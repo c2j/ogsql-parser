@@ -438,11 +438,28 @@ fn check_r007(
 ) {
     for info in stmts {
         let loc = stmt_location(info);
-        if let Some(where_clause) = extract_where_clause(&info.statement) {
-            walk_expr(where_clause, &mut |e| {
-                if let Expr::Like { pattern, negated: false, .. } = e {
-                    if let Expr::Literal(crate::ast::Literal::String(s)) = pattern.as_ref() {
-                        if s.starts_with('%') || s.starts_with('_') {
+        let (where_clause, tables) = get_where_and_tables(&info.statement);
+        let Some(where_clause) = where_clause else { continue };
+        walk_expr(where_clause, &mut |e| {
+            if let Expr::Like { expr, pattern, negated: false, .. } = e {
+                if let Expr::Literal(crate::ast::Literal::String(s)) = pattern.as_ref() {
+                    if s.starts_with('%') || s.starts_with('_') {
+                        let should_warn = match _indexes {
+                            Some(idx_info) => {
+                                if let Expr::ColumnRef(col_ref) = expr.as_ref() {
+                                    let table = resolve_table_from_column(col_ref, tables);
+                                    let col_lower = col_ref.last().map(|s| s.to_lowercase()).unwrap_or_default();
+                                    table
+                                        .and_then(|t| idx_info.column_indexes.get(&t))
+                                        .map(|cols| cols.contains(&col_lower))
+                                        .unwrap_or(false)
+                                } else {
+                                    true
+                                }
+                            }
+                            None => true,
+                        };
+                        if should_warn {
                             warnings.push(make_warning(
                                 WarningLevel::Prohibition, "R007", "like-leading-wildcard",
                                 format!("LIKE '\u{524d}\u{5bfc}\u{901a}\u{914d}\u{7b26} {s}' \u{5c06}\u{5bfc}\u{81f4}\u{65e0}\u{6cd5}\u{4f7f}\u{7528}\u{7d22}\u{5f15}\u{ff0c}\u{89e6}\u{53d1}\u{5168}\u{8868}\u{626b}\u{63cf}"),
@@ -452,9 +469,9 @@ fn check_r007(
                         }
                     }
                 }
-                true
-            });
-        }
+            }
+            true
+        });
     }
 }
 
