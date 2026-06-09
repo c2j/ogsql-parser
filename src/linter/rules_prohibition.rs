@@ -373,9 +373,56 @@ fn check_r006(
                     }
                 }
             }
+            if let Expr::TypeCast { expr, .. } = e {
+                if let Expr::ColumnRef(col_ref) = expr.as_ref() {
+                    emit_index_aware_r006(col_ref, tables, _indexes, loc, confidence, warnings);
+                }
+            }
+            if let Expr::BinaryOp { op, left, right, .. } = e {
+                if is_sargability_breaking_op(op) {
+                    if let Expr::ColumnRef(col_ref) = left.as_ref() {
+                        emit_index_aware_r006(col_ref, tables, _indexes, loc, confidence, warnings);
+                    }
+                    if let Expr::ColumnRef(col_ref) = right.as_ref() {
+                        emit_index_aware_r006(col_ref, tables, _indexes, loc, confidence, warnings);
+                    }
+                }
+            }
             true
         });
     }
+}
+
+fn is_sargability_breaking_op(op: &str) -> bool {
+    matches!(op, "+" | "-" | "*" | "/" | "||")
+}
+
+fn emit_index_aware_r006(
+    col_ref: &[String],
+    tables: &[crate::ast::TableRef],
+    _indexes: Option<&crate::linter::IndexInfo>,
+    loc: crate::token::SourceLocation,
+    confidence: Confidence,
+    warnings: &mut Vec<SqlWarning>,
+) {
+    if let Some(idx_info) = _indexes {
+        let table = resolve_table_from_column(col_ref, tables);
+        let col_lower = col_ref.last().map(|s| s.to_lowercase()).unwrap_or_default();
+        let has_index = table
+            .as_ref()
+            .and_then(|t| idx_info.column_indexes.get(t))
+            .map(|cols| cols.contains(&col_lower))
+            .unwrap_or(false);
+        if !has_index {
+            return;
+        }
+    }
+    warnings.push(make_warning(
+        WarningLevel::Prohibition, "R006", "function-on-where-column",
+        "WHERE 中对有索引的列使用函数或表达式，将导致索引失效".into(),
+        Some("将运算移到等号另一侧"), loc,
+        Some("WHERE 规范"), confidence,
+    ));
 }
 
 /// Extract the WHERE clause and FROM/tables list from a statement.
@@ -391,7 +438,6 @@ fn get_where_and_tables(stmt: &Statement) -> (Option<&Expr>, &[crate::ast::Table
 /// Resolve which table a column belongs to from the FROM clause.
 /// Returns the table name (lowercase), or None if unresolvable.
 fn resolve_table_from_column(col_ref: &[String], tables: &[crate::ast::TableRef]) -> Option<String> {
-    use crate::ast::TableRef;
 
     if col_ref.len() >= 2 {
         return Some(col_ref[col_ref.len() - 2].to_lowercase());
