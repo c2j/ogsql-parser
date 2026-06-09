@@ -61,6 +61,7 @@ pub fn register(linter: &mut SqlLinter) {
 fn check_s001(
     stmts: &[StatementInfo],
     _schema: Option<&crate::analyzer::schema::SchemaMap>,
+    _indexes: Option<&crate::linter::IndexInfo>,
     _config: &LintConfig,
     confidence: Confidence,
     warnings: &mut Vec<SqlWarning>,
@@ -89,6 +90,7 @@ fn check_s001(
 fn check_s002(
     stmts: &[StatementInfo],
     _schema: Option<&crate::analyzer::schema::SchemaMap>,
+    _indexes: Option<&crate::linter::IndexInfo>,
     _config: &LintConfig,
     confidence: Confidence,
     warnings: &mut Vec<SqlWarning>,
@@ -120,6 +122,7 @@ fn check_s002(
 fn check_s005(
     stmts: &[StatementInfo],
     _schema: Option<&crate::analyzer::schema::SchemaMap>,
+    _indexes: Option<&crate::linter::IndexInfo>,
     _config: &LintConfig,
     confidence: Confidence,
     warnings: &mut Vec<SqlWarning>,
@@ -227,6 +230,7 @@ fn check_pl_stmts_for_type_name(pl_stmts: &[PlStatement], found: &mut bool) {
 fn check_s006(
     stmts: &[StatementInfo],
     _schema: Option<&crate::analyzer::schema::SchemaMap>,
+    _indexes: Option<&crate::linter::IndexInfo>,
     _config: &LintConfig,
     confidence: Confidence,
     warnings: &mut Vec<SqlWarning>,
@@ -256,6 +260,7 @@ fn check_s006(
 fn check_s007(
     stmts: &[StatementInfo],
     schema: Option<&crate::analyzer::schema::SchemaMap>,
+    _indexes: Option<&crate::linter::IndexInfo>,
     _config: &LintConfig,
     confidence: Confidence,
     warnings: &mut Vec<SqlWarning>,
@@ -329,6 +334,7 @@ fn check_s007(
 fn check_s008(
     stmts: &[StatementInfo],
     _schema: Option<&crate::analyzer::schema::SchemaMap>,
+    _indexes: Option<&crate::linter::IndexInfo>,
     config: &LintConfig,
     confidence: Confidence,
     warnings: &mut Vec<SqlWarning>,

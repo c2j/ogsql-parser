@@ -82,6 +82,7 @@ pub fn register(linter: &mut SqlLinter) {
 fn check_r001(
     stmts: &[StatementInfo],
     _schema: Option<&crate::analyzer::schema::SchemaMap>,
+    _indexes: Option<&crate::linter::IndexInfo>,
     _config: &LintConfig,
     confidence: Confidence,
     warnings: &mut Vec<SqlWarning>,
@@ -107,6 +108,7 @@ fn check_r001(
 fn check_r002(
     stmts: &[StatementInfo],
     _schema: Option<&crate::analyzer::schema::SchemaMap>,
+    _indexes: Option<&crate::linter::IndexInfo>,
     config: &LintConfig,
     confidence: Confidence,
     warnings: &mut Vec<SqlWarning>,
@@ -140,6 +142,7 @@ fn check_r002(
 fn check_r003(
     stmts: &[StatementInfo],
     _schema: Option<&crate::analyzer::schema::SchemaMap>,
+    _indexes: Option<&crate::linter::IndexInfo>,
     _config: &LintConfig,
     confidence: Confidence,
     warnings: &mut Vec<SqlWarning>,
@@ -161,6 +164,7 @@ fn check_r003(
 fn check_r004(
     stmts: &[StatementInfo],
     _schema: Option<&crate::analyzer::schema::SchemaMap>,
+    _indexes: Option<&crate::linter::IndexInfo>,
     _config: &LintConfig,
     confidence: Confidence,
     warnings: &mut Vec<SqlWarning>,
@@ -207,6 +211,7 @@ fn object_type_str(ot: &crate::ast::ObjectType) -> &'static str {
 fn check_r005(
     stmts: &[StatementInfo],
     schema: Option<&crate::analyzer::schema::SchemaMap>,
+    _indexes: Option<&crate::linter::IndexInfo>,
     _config: &LintConfig,
     confidence: Confidence,
     warnings: &mut Vec<SqlWarning>,
@@ -307,6 +312,7 @@ const SAFE_FUNCTIONS_ON_COLUMNS: &[&str] = &["coalesce", "nvl", "nvl2", "ifnull"
 fn check_r006(
     stmts: &[StatementInfo],
     _schema: Option<&crate::analyzer::schema::SchemaMap>,
+    _indexes: Option<&crate::linter::IndexInfo>,
     _config: &LintConfig,
     confidence: Confidence,
     warnings: &mut Vec<SqlWarning>,
@@ -349,6 +355,7 @@ fn check_r006(
 fn check_r007(
     stmts: &[StatementInfo],
     _schema: Option<&crate::analyzer::schema::SchemaMap>,
+    _indexes: Option<&crate::linter::IndexInfo>,
     _config: &LintConfig,
     confidence: Confidence,
     warnings: &mut Vec<SqlWarning>,
@@ -379,6 +386,7 @@ fn check_r007(
 fn check_r008(
     stmts: &[StatementInfo],
     _schema: Option<&crate::analyzer::schema::SchemaMap>,
+    _indexes: Option<&crate::linter::IndexInfo>,
     _config: &LintConfig,
     confidence: Confidence,
     warnings: &mut Vec<SqlWarning>,
@@ -409,6 +417,7 @@ fn check_r008(
 fn check_r009(
     stmts: &[StatementInfo],
     _schema: Option<&crate::analyzer::schema::SchemaMap>,
+    _indexes: Option<&crate::linter::IndexInfo>,
     _config: &LintConfig,
     confidence: Confidence,
     warnings: &mut Vec<SqlWarning>,

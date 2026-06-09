@@ -7,11 +7,12 @@ mod type_helpers;
 #[cfg(test)]
 mod tests;
 
-use crate::analyzer::schema::SchemaMap;
+use crate::analyzer::schema::{IndexMapV2, SchemaMap};
 use crate::ast::{SelectStatement, Spanned, Statement, StatementInfo};
 use crate::token::SourceLocation;
 #[cfg(feature = "lint-config")]
 use std::path::{Path, PathBuf};
+use std::collections::{HashMap, HashSet};
 
 /// SQL warning severity level. "Error" is deliberately NOT used to avoid
 /// confusion with `ParserError` which represents syntax-level errors.
@@ -259,13 +260,28 @@ impl LintConfig {
     }
 }
 
+/// Pre-computed index metadata for index-aware lint rules.
+pub struct IndexInfo {
+    /// Raw index definitions: table → index_name → [col_or_expr, ...]
+    pub indexes: IndexMapV2,
+    /// Fast lookup: table (lowercase) → set of column names (lowercase) that have a plain index.
+    pub column_indexes: HashMap<String, HashSet<String>>,
+}
+
 /// A single registered rule.
 pub struct LintRuleEntry {
     pub id: &'static str,
     pub name: &'static str,
     pub level: WarningLevel,
     pub stmt_kind: StatementKind,
-    pub check_fn: fn(&[StatementInfo], Option<&SchemaMap>, &LintConfig, Confidence, &mut Vec<SqlWarning>),
+    pub check_fn: fn(
+        &[StatementInfo],
+        Option<&SchemaMap>,
+        Option<&IndexInfo>,
+        &LintConfig,
+        Confidence,
+        &mut Vec<SqlWarning>,
+    ),
 }
 
 /// Build a JSON summary of lint warnings, grouped by level and rule.
@@ -291,11 +307,12 @@ pub(crate) fn loc_from_spanned<T>(spanned: &Spanned<T>, fallback: SourceLocation
 pub struct SqlLinter {
     rules: Vec<LintRuleEntry>,
     config: LintConfig,
+    index_info: Option<IndexInfo>,
 }
 
 impl SqlLinter {
     pub fn new(config: LintConfig) -> Self {
-        Self { rules: vec![], config }
+        Self { rules: vec![], config, index_info: None }
     }
 
     /// Create a linter with all Phase 1 rules registered.
@@ -310,6 +327,12 @@ impl SqlLinter {
 
     pub fn register(&mut self, rule: LintRuleEntry) {
         self.rules.push(rule);
+    }
+
+    /// Set index metadata for index-aware rules (R006, R007, etc.).
+    pub fn set_index_info(&mut self, indexes: IndexMapV2) {
+        let column_indexes = crate::analyzer::schema::build_column_index_set(&indexes);
+        self.index_info = Some(IndexInfo { indexes, column_indexes });
     }
 
     /// Run all registered rules against the given statements.
@@ -331,7 +354,7 @@ impl SqlLinter {
                 if rule.level < self.config.min_level {
                     continue;
                 }
-                (rule.check_fn)(stmts, schema, &self.config, confidence, &mut warnings);
+                (rule.check_fn)(stmts, schema, self.index_info.as_ref(), &self.config, confidence, &mut warnings);
             }
         }
 

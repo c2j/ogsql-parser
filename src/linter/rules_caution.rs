@@ -135,6 +135,7 @@ fn extract_hints(stmt: &Statement) -> Vec<&String> {
 fn check_c001(
     stmts: &[StatementInfo],
     _schema: Option<&crate::analyzer::schema::SchemaMap>,
+    _indexes: Option<&crate::linter::IndexInfo>,
     _config: &LintConfig,
     confidence: Confidence,
     warnings: &mut Vec<SqlWarning>,
@@ -183,6 +184,7 @@ fn parse_hint_names(hint: &str) -> Vec<&str> {
 fn check_c005(
     stmts: &[StatementInfo],
     _schema: Option<&crate::analyzer::schema::SchemaMap>,
+    _indexes: Option<&crate::linter::IndexInfo>,
     _config: &LintConfig,
     confidence: Confidence,
     warnings: &mut Vec<SqlWarning>,
@@ -279,6 +281,7 @@ fn resolve_hints(hint: &str) -> Vec<(String, bool)> {
 fn check_c006(
     stmts: &[StatementInfo],
     _schema: Option<&crate::analyzer::schema::SchemaMap>,
+    _indexes: Option<&crate::linter::IndexInfo>,
     _config: &LintConfig,
     confidence: Confidence,
     warnings: &mut Vec<SqlWarning>,
@@ -402,6 +405,7 @@ fn extract_hint_table_refs(hint: &str) -> Vec<&str> {
 fn check_c007(
     stmts: &[StatementInfo],
     _schema: Option<&crate::analyzer::schema::SchemaMap>,
+    _indexes: Option<&crate::linter::IndexInfo>,
     _config: &LintConfig,
     confidence: Confidence,
     warnings: &mut Vec<SqlWarning>,
@@ -430,6 +434,7 @@ fn check_c007(
 fn check_c008(
     stmts: &[StatementInfo],
     _schema: Option<&crate::analyzer::schema::SchemaMap>,
+    _indexes: Option<&crate::linter::IndexInfo>,
     _config: &LintConfig,
     confidence: Confidence,
     warnings: &mut Vec<SqlWarning>,
@@ -458,6 +463,7 @@ fn check_c008(
 fn check_c009(
     stmts: &[StatementInfo],
     _schema: Option<&crate::analyzer::schema::SchemaMap>,
+    _indexes: Option<&crate::linter::IndexInfo>,
     _config: &LintConfig,
     confidence: Confidence,
     warnings: &mut Vec<SqlWarning>,
@@ -486,6 +492,7 @@ fn check_c009(
 fn check_c010(
     stmts: &[StatementInfo],
     _schema: Option<&crate::analyzer::schema::SchemaMap>,
+    _indexes: Option<&crate::linter::IndexInfo>,
     _config: &LintConfig,
     confidence: Confidence,
     warnings: &mut Vec<SqlWarning>,
@@ -527,6 +534,7 @@ fn check_c010(
 fn check_c011(
     stmts: &[StatementInfo],
     _schema: Option<&crate::analyzer::schema::SchemaMap>,
+    _indexes: Option<&crate::linter::IndexInfo>,
     _config: &LintConfig,
     confidence: Confidence,
     warnings: &mut Vec<SqlWarning>,
@@ -618,6 +626,7 @@ fn check_pl_stmts_for_goto(stmts: &[PlStatement], found: &mut bool) {
 fn check_c012(
     stmts: &[StatementInfo],
     _schema: Option<&crate::analyzer::schema::SchemaMap>,
+    _indexes: Option<&crate::linter::IndexInfo>,
     _config: &LintConfig,
     confidence: Confidence,
     warnings: &mut Vec<SqlWarning>,
@@ -718,6 +727,7 @@ fn has_string_concat(expr: &Expr) -> bool {
 fn check_c013(
     stmts: &[StatementInfo],
     _schema: Option<&crate::analyzer::schema::SchemaMap>,
+    _indexes: Option<&crate::linter::IndexInfo>,
     _config: &LintConfig,
     confidence: Confidence,
     warnings: &mut Vec<SqlWarning>,
@@ -814,6 +824,7 @@ fn has_raise(s: &PlStatement) -> bool {
 fn check_c014(
     stmts: &[StatementInfo],
     _schema: Option<&crate::analyzer::schema::SchemaMap>,
+    _indexes: Option<&crate::linter::IndexInfo>,
     _config: &LintConfig,
     confidence: Confidence,
     warnings: &mut Vec<SqlWarning>,
@@ -894,6 +905,7 @@ fn check_pl_stmts_for_commit_rollback(pl_stmts: &[PlStatement], found: &mut bool
 fn check_c015(
     stmts: &[StatementInfo],
     _schema: Option<&crate::analyzer::schema::SchemaMap>,
+    _indexes: Option<&crate::linter::IndexInfo>,
     _config: &LintConfig,
     confidence: Confidence,
     warnings: &mut Vec<SqlWarning>,
@@ -931,6 +943,7 @@ fn check_c015(
 fn check_c016(
     stmts: &[StatementInfo],
     _schema: Option<&crate::analyzer::schema::SchemaMap>,
+    _indexes: Option<&crate::linter::IndexInfo>,
     _config: &LintConfig,
     confidence: Confidence,
     warnings: &mut Vec<SqlWarning>,
@@ -1005,6 +1018,7 @@ fn check_pl_stmts_for_autonomous(pl_stmts: &[PlStatement], found: &mut bool) {
 fn check_c017(
     stmts: &[StatementInfo],
     _schema: Option<&crate::analyzer::schema::SchemaMap>,
+    _indexes: Option<&crate::linter::IndexInfo>,
     _config: &LintConfig,
     confidence: Confidence,
     warnings: &mut Vec<SqlWarning>,
@@ -1105,6 +1119,7 @@ fn has_reraise(s: &PlStatement) -> bool {
 fn check_c018(
     stmts: &[StatementInfo],
     _schema: Option<&crate::analyzer::schema::SchemaMap>,
+    _indexes: Option<&crate::linter::IndexInfo>,
     config: &LintConfig,
     confidence: Confidence,
     warnings: &mut Vec<SqlWarning>,
