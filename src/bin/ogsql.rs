@@ -285,25 +285,27 @@ fn build_lint_config(cli: &Cli) -> ogsql_parser::linter::LintConfig {
     config
 }
 
+fn load_lint_schema(cli: &Cli) -> Option<ogsql_parser::FullSchema> {
+    cli.schema_json.as_deref().and_then(|p| ogsql_parser::load_full_schema(p).ok())
+}
+
 fn run_lint(
     stmts: &[ogsql_parser::StatementInfo],
     confidence: ogsql_parser::linter::Confidence,
     config: &ogsql_parser::linter::LintConfig,
-    schema_path: Option<&str>,
+    schema: Option<&ogsql_parser::FullSchema>,
 ) -> Vec<ogsql_parser::linter::SqlWarning> {
     let mut linter = ogsql_parser::linter::SqlLinter::with_default_rules(config.clone());
-    let mut schema = None;
+    let mut columns = None;
 
-    if let Some(path) = schema_path {
-        if let Ok(fs) = ogsql_parser::analyzer::schema::load_full_schema(path) {
-            if !fs.indexes.is_empty() {
-                linter.set_index_info(fs.indexes);
-            }
-            schema = Some(fs.columns);
+    if let Some(fs) = schema {
+        if !fs.indexes.is_empty() {
+            linter.set_index_info(fs.indexes.clone());
         }
+        columns = Some(&fs.columns);
     }
 
-    linter.lint(stmts, schema.as_ref(), confidence)
+    linter.lint(stmts, columns, confidence)
 }
 
 fn format_warnings_text(warnings: &[ogsql_parser::linter::SqlWarning]) {
@@ -784,7 +786,7 @@ fn cmd_parse_single(cli: &Cli, file_path: Option<&str>, csv: bool, proc_name: Op
                 &output.statements,
                 ogsql_parser::linter::Confidence::Full,
                 &config,
-                cli.schema_json.as_deref(),
+                load_lint_schema(cli).as_ref(),
             );
             if !lint_warnings.is_empty() {
                 out.as_object_mut().unwrap().insert("lint_warnings".to_string(), serde_json::json!(lint_warnings));
@@ -823,7 +825,7 @@ fn cmd_parse_single(cli: &Cli, file_path: Option<&str>, csv: bool, proc_name: Op
                 &output.statements,
                 ogsql_parser::linter::Confidence::Full,
                 &config,
-                cli.schema_json.as_deref(),
+                load_lint_schema(cli).as_ref(),
             );
             if !lint_warnings.is_empty() {
                 eprintln!("\n── Lint Warnings ({}) ──", lint_warnings.len());
@@ -3715,7 +3717,7 @@ fn cmd_validate_single(cli: &Cli, file_path: Option<&str>, csv: bool, strict: bo
 
     let lint_warnings = if cli.lint {
         let config = build_lint_config(cli);
-        run_lint(&stmts, ogsql_parser::linter::Confidence::Full, &config, cli.schema_json.as_deref())
+        run_lint(&stmts, ogsql_parser::linter::Confidence::Full, &config, load_lint_schema(cli).as_ref())
     } else {
         vec![]
     };
@@ -3833,6 +3835,22 @@ fn cmd_validate_files(cli: &Cli, csv: bool, strict: bool) {
         format!("{} '{}' in {}{}", kind_label, ve.variable_name, ve.context, line_info)
     };
 
+    let mut auto_schema_files = if cli.schema_json.is_none() && cli.lint {
+        let mut fs = ogsql_parser::FullSchema::default();
+        for file_path in &cli.file {
+            let sql = read_input(Some(file_path.as_str()));
+            let output = parse_input(&sql, false, cli.mybatis);
+            let ddl = ogsql_parser::collect_ddl_schema(&output.statements);
+            fs.columns.extend(ddl.columns);
+            for (t, idxs) in ddl.indexes {
+                fs.indexes.entry(t).or_default().extend(idxs);
+            }
+        }
+        fs
+    } else {
+        ogsql_parser::FullSchema::default()
+    };
+
     if csv {
         output_csv_validate_header();
         let mut any_errors = false;
@@ -3852,7 +3870,10 @@ fn cmd_validate_files(cli: &Cli, csv: bool, strict: bool) {
             }
             let lint_warnings = if cli.lint {
                 let config = build_lint_config(cli);
-                run_lint(&stmts, ogsql_parser::linter::Confidence::Full, &config, cli.schema_json.as_deref())
+                let schema = load_lint_schema(cli).unwrap_or_else(|| auto_schema_files.clone());
+                let schema_ref =
+                    if schema.columns.is_empty() && schema.indexes.is_empty() { None } else { Some(&schema) };
+                run_lint(&stmts, ogsql_parser::linter::Confidence::Full, &config, schema_ref)
             } else {
                 vec![]
             };
@@ -3912,7 +3933,10 @@ fn cmd_validate_files(cli: &Cli, csv: bool, strict: bool) {
 
             let lint_warnings = if cli.lint {
                 let config = build_lint_config(cli);
-                run_lint(&stmts, ogsql_parser::linter::Confidence::Full, &config, cli.schema_json.as_deref())
+                let schema = load_lint_schema(cli).unwrap_or_else(|| auto_schema_files.clone());
+                let schema_ref =
+                    if schema.columns.is_empty() && schema.indexes.is_empty() { None } else { Some(&schema) };
+                run_lint(&stmts, ogsql_parser::linter::Confidence::Full, &config, schema_ref)
             } else {
                 vec![]
             };
@@ -4033,6 +4057,20 @@ fn cmd_validate_dir(cli: &Cli, dir_paths: &[String], exts: &[String], csv: bool,
     all_defined_funcs.sort();
     all_defined_funcs.dedup();
 
+    // Pre-scan: collect DDL schema (columns + indexes) from all files
+    let mut auto_schema = ogsql_parser::FullSchema::default();
+    if cli.schema_json.is_none() {
+        for (_, _, abs_path) in &files {
+            let sql = read_file_path(abs_path);
+            let output = parse_input(&sql, false, cli.mybatis);
+            let fs = ogsql_parser::collect_ddl_schema(&output.statements);
+            auto_schema.columns.extend(fs.columns);
+            for (table, idxs) in fs.indexes {
+                auto_schema.indexes.entry(table).or_default().extend(idxs);
+            }
+        }
+    }
+
     for (file_name, rel_dir, abs_path) in &files {
         let sql = read_file_path(abs_path);
         let (stmts, errors, pkg_errors, var_errors) = validate_sql(&sql, cli.mybatis, &all_defined_funcs, strict);
@@ -4087,7 +4125,7 @@ fn cmd_validate_dir(cli: &Cli, dir_paths: &[String], exts: &[String], csv: bool,
             }
             let lint_warnings = if cli.lint {
                 let config = build_lint_config(cli);
-                run_lint(&stmts, ogsql_parser::linter::Confidence::Full, &config, cli.schema_json.as_deref())
+                run_lint(&stmts, ogsql_parser::linter::Confidence::Full, &config, load_lint_schema(cli).as_ref())
             } else {
                 vec![]
             };
@@ -4670,12 +4708,9 @@ mod api {
         }
         if input.lint == Some(true) {
             let config = ogsql_parser::linter::LintConfig::default();
-            let lint_warnings = super::run_lint(
-                &output.statements,
-                ogsql_parser::linter::Confidence::Full,
-                &config,
-                input.schema_json.as_deref(),
-            );
+            let schema = input.schema_json.as_deref().and_then(|p| ogsql_parser::load_full_schema(p).ok());
+            let lint_warnings =
+                super::run_lint(&output.statements, ogsql_parser::linter::Confidence::Full, &config, schema.as_ref());
             result.as_object_mut().unwrap().insert("lint_warnings".to_string(), serde_json::json!(lint_warnings));
             result
                 .as_object_mut()

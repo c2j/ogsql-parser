@@ -46,7 +46,10 @@ pub use analyzer::return_cursor::{
     analyze_return_cursors, has_return_cursors, ResultColumn, ReturnCursorAnnotation, ReturnCursorBranch,
     ReturnCursorGroup, RoutineReturnAnalysis,
 };
-pub use analyzer::schema::{load_schema, resolve_schema, SchemaMap, SchemaResolutionReport};
+pub use analyzer::schema::{
+    collect_ddl_schema, load_full_schema, load_schema, resolve_schema, FullSchema, IndexMapV2, SchemaMap,
+    SchemaResolutionReport,
+};
 pub use analyzer::{
     analyze_pl_block, analyze_transactions, compute_query_fingerprints, validate_merge_semantics,
     validate_package_consistency, validate_pl_variables, validate_pl_variables_with_extra_vars,

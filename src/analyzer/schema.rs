@@ -140,7 +140,7 @@ fn extract_block_from_statement(stmt: &PlStatement) -> Option<&PlBlock> {
 pub type IndexMapV2 = HashMap<String, HashMap<String, Vec<String>>>;
 
 /// Full schema with both column type info and index metadata.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct FullSchema {
     #[serde(default)]
     pub columns: SchemaMap,
@@ -203,6 +203,139 @@ pub fn matches_function_index(indexes: &IndexMapV2, table: &str, function_name: 
         }
     }
     false
+}
+
+/// Collect DDL schema from parsed statements.
+/// Extracts CREATE TABLE columns and CREATE INDEX definitions into a FullSchema.
+pub fn collect_ddl_schema(stmts: &[crate::ast::StatementInfo]) -> FullSchema {
+    use crate::ast::Statement;
+    let mut columns: SchemaMap = HashMap::new();
+    let mut indexes: IndexMapV2 = HashMap::new();
+
+    for si in stmts {
+        match &si.statement {
+            Statement::CreateTable(t) => {
+                let table_name = t.name.last().map(|s| s.to_lowercase()).unwrap_or_default();
+                let col_map: HashMap<String, String> =
+                    t.columns.iter().map(|c| (c.name.to_lowercase(), data_type_display(&c.data_type))).collect();
+                columns.insert(table_name, col_map);
+            }
+            Statement::CreateIndex(idx) => {
+                let table_name = idx.table.last().map(|s| s.to_lowercase()).unwrap_or_default();
+                let index_name = idx
+                    .name
+                    .as_ref()
+                    .and_then(|n| n.last())
+                    .map(|s| s.to_lowercase())
+                    .unwrap_or_else(|| format!("idx_{table_name}"));
+                let col_entries: Vec<String> = idx
+                    .columns
+                    .iter()
+                    .map(|ic| {
+                        if let Some(ref name) = ic.name {
+                            name.clone()
+                        } else if let Some(ref expr) = ic.expr {
+                            index_expr_to_string(expr)
+                        } else {
+                            String::new()
+                        }
+                    })
+                    .filter(|s| !s.is_empty())
+                    .collect();
+                indexes.entry(table_name).or_default().insert(index_name, col_entries);
+            }
+            Statement::CreateGlobalIndex(cgi) => {
+                let table_name = cgi.table.last().map(|s| s.to_lowercase()).unwrap_or_default();
+                let index_name = cgi
+                    .name
+                    .as_ref()
+                    .and_then(|n| n.last())
+                    .map(|s| s.to_lowercase())
+                    .unwrap_or_else(|| format!("gidx_{table_name}"));
+                let col_entries: Vec<String> =
+                    cgi.columns
+                        .iter()
+                        .map(|c| {
+                            if let Some(ref expr) = c.expression {
+                                index_expr_to_string(expr)
+                            } else {
+                                c.name.clone()
+                            }
+                        })
+                        .filter(|s| !s.is_empty())
+                        .collect();
+                indexes.entry(table_name).or_default().insert(index_name, col_entries);
+            }
+            _ => {}
+        }
+    }
+
+    FullSchema { columns, indexes }
+}
+
+fn data_type_display(dt: &crate::ast::DataType) -> String {
+    use crate::ast::DataType;
+    let fmt_p = |name: &str, p: &Option<u32>| match p {
+        Some(n) => format!("{name}({n})"),
+        None => name.to_string(),
+    };
+    match dt {
+        DataType::Boolean => "boolean".into(),
+        DataType::TinyInt(p) => fmt_p("tinyint", p),
+        DataType::SmallInt(p) => fmt_p("smallint", p),
+        DataType::Integer(p) => fmt_p("integer", p),
+        DataType::BigInt(p) => fmt_p("bigint", p),
+        DataType::Real => "real".into(),
+        DataType::Float(p) => fmt_p("float", p),
+        DataType::Double => "double precision".into(),
+        DataType::Numeric(p, s) => match (p, s) {
+            (Some(p), Some(s)) => format!("numeric({p},{s})"),
+            (Some(p), None) => format!("numeric({p})"),
+            _ => "numeric".into(),
+        },
+        DataType::Char(n) => fmt_p("char", n),
+        DataType::Varchar(n) => fmt_p("varchar", n),
+        DataType::Text => "text".into(),
+        DataType::Bytea => "bytea".into(),
+        DataType::Timestamp(p, _tz) => fmt_p("timestamp", p),
+        DataType::Timestamptz(p) => fmt_p("timestamptz", p),
+        DataType::Date => "date".into(),
+        DataType::Time(p, _tz) => fmt_p("time", p),
+        DataType::Interval(_) => "interval".into(),
+        DataType::Json => "json".into(),
+        DataType::Jsonb => "jsonb".into(),
+        DataType::Uuid => "uuid".into(),
+        DataType::Bit(n) => fmt_p("bit", n),
+        DataType::Varbit(n) => fmt_p("varbit", n),
+        DataType::Serial => "serial".into(),
+        DataType::SmallSerial => "smallserial".into(),
+        DataType::BigSerial => "bigserial".into(),
+        DataType::BinaryFloat => "binary_float".into(),
+        DataType::BinaryDouble => "binary_double".into(),
+        DataType::Array(inner) => format!("{}[]", data_type_display(inner)),
+        DataType::Custom(name, _args) => name.iter().map(|s| s.to_lowercase()).collect::<Vec<_>>().join("."),
+    }
+}
+
+fn index_expr_to_string(expr: &crate::ast::Expr) -> String {
+    use crate::ast::Expr;
+    match expr {
+        Expr::FunctionCall { name, args, .. } => {
+            let fn_name = name.last().map(|s| s.to_string()).unwrap_or_default();
+            let args_str: Vec<String> = args.iter().map(|a| index_expr_to_string(a)).collect();
+            format!("{fn_name}({})", args_str.join(", "))
+        }
+        Expr::ColumnRef(names) => names.join("."),
+        Expr::TypeCast { expr, type_name, .. } => {
+            format!("{}::{}", index_expr_to_string(expr), data_type_display(type_name))
+        }
+        Expr::BinaryOp { left, right, op } => {
+            format!("{} {} {}", index_expr_to_string(left), op, index_expr_to_string(right))
+        }
+        Expr::UnaryOp { op, expr } => format!("{op} {}", index_expr_to_string(expr)),
+        Expr::Literal(crate::ast::Literal::Integer(n)) => n.to_string(),
+        _ => String::new(),
+    }
 }
 
 #[cfg(test)]
