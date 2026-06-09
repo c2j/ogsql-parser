@@ -724,3 +724,312 @@ pub fn walk_select_exprs(select: &SelectStatement, f: &mut dyn FnMut(&crate::ast
 pub fn stmt_location(info: &StatementInfo) -> SourceLocation {
     SourceLocation { line: info.start_line, column: info.start_col, offset: 0 }
 }
+
+/// Collect ALL `SelectStatement` nodes reachable from the given statements,
+/// including those nested inside:
+///
+/// - Subqueries in expressions (`WHERE col IN (SELECT ...)`, `EXISTS (...)` etc.)
+/// - FROM-clause subqueries (`FROM (SELECT ...) AS t`)
+/// - CTE bodies (`WITH cte AS (SELECT ...)`)
+/// - Set operation branches (`UNION`, `INTERSECT`, `EXCEPT`)
+/// - PL/pgSQL blocks (FOR loops, cursor declarations, OPEN cursor, SqlStatement)
+///
+/// Returns `(&SelectStatement, SourceLocation)` pairs for every discovered SELECT.
+/// The location is the best available span from the enclosing context.
+pub fn collect_nested_selects(
+    stmts: &[StatementInfo],
+) -> Vec<(&SelectStatement, SourceLocation)> {
+    let mut results = Vec::new();
+    for info in stmts {
+        collect_selects_from_stmt(&info.statement, stmt_location(info), &mut results);
+    }
+    results
+}
+
+fn collect_selects_from_stmt<'a>(
+    stmt: &'a Statement,
+    loc: SourceLocation,
+    out: &mut Vec<(&'a SelectStatement, SourceLocation)>,
+) {
+    use crate::ast::InsertSource;
+    match stmt {
+        Statement::Select(s) => {
+            out.push((s, loc));
+            collect_nested_in_select(s, out);
+        }
+        Statement::Insert(ins) => {
+            if let InsertSource::Select(s) = &ins.node.source {
+                out.push((s, loc));
+                collect_nested_in_select(s, out);
+            }
+        }
+        Statement::Update(upd) => {
+            for a in &upd.assignments {
+                collect_selects_from_expr(&a.value, out);
+            }
+            if let Some(ref w) = upd.where_clause {
+                collect_selects_from_expr(w, out);
+            }
+        }
+        Statement::Delete(del) => {
+            if let Some(ref w) = del.where_clause {
+                collect_selects_from_expr(w, out);
+            }
+        }
+        Statement::Merge(m) => {
+            collect_selects_from_from(std::slice::from_ref(&m.source), out);
+            collect_selects_from_expr(&m.on_condition, out);
+        }
+        Statement::AnonyBlock(b) => collect_selects_from_pl_block(&b.block, out),
+        Statement::Do(d) => {
+            if let Some(ref block) = d.block {
+                collect_selects_from_pl_block(block, out);
+            }
+        }
+        Statement::CreateTableAs(cta) => {
+            out.push((&cta.query, loc));
+            collect_nested_in_select(&cta.query, out);
+        }
+        Statement::CreateView(cv) => {
+            out.push((&cv.query, loc));
+            collect_nested_in_select(&cv.query, out);
+        }
+        Statement::CreateMaterializedView(cmv) => {
+            out.push((&cmv.query, loc));
+            collect_nested_in_select(&cmv.query, out);
+        }
+        _ => {}
+    }
+}
+
+/// Walk into subqueries nested INSIDE a SELECT: its expressions, FROM, CTEs, set ops.
+fn collect_nested_in_select<'a>(
+    s: &'a SelectStatement,
+    out: &mut Vec<(&'a SelectStatement, SourceLocation)>,
+) {
+    for t in &s.targets {
+        if let crate::ast::SelectTarget::Expr(e, _) = t {
+            collect_selects_from_expr(e, out);
+        }
+    }
+    if let Some(ref w) = s.where_clause {
+        collect_selects_from_expr(w, out);
+    }
+    if let Some(ref h) = s.having {
+        collect_selects_from_expr(h, out);
+    }
+    for item in &s.order_by {
+        collect_selects_from_expr(&item.expr, out);
+    }
+    for gb in &s.group_by {
+        if let crate::ast::GroupByItem::Expr(e) = gb {
+            collect_selects_from_expr(e, out);
+        }
+    }
+    collect_selects_from_from(&s.from, out);
+    if let Some(ref w) = s.with {
+        for cte in &w.ctes {
+            out.push((&cte.query, SourceLocation::default()));
+            collect_nested_in_select(&cte.query, out);
+        }
+    }
+    if let Some(ref so) = s.set_operation {
+        use crate::ast::SetOperation;
+        let right = match so {
+            SetOperation::Union { right, .. }
+            | SetOperation::Intersect { right, .. }
+            | SetOperation::Except { right, .. } => right,
+        };
+        out.push((right, SourceLocation::default()));
+        collect_nested_in_select(right, out);
+    }
+}
+
+/// Walk an expression tree and collect subqueries.
+fn collect_selects_from_expr<'a>(
+    expr: &'a crate::ast::Expr,
+    out: &mut Vec<(&'a SelectStatement, SourceLocation)>,
+) {
+    use crate::ast::Expr;
+    match expr {
+        Expr::Subquery(s) | Expr::Exists(s) => {
+            out.push((s, SourceLocation::default()));
+            collect_nested_in_select(s, out);
+        }
+        Expr::InSubquery { expr, subquery, .. } => {
+            out.push((subquery, SourceLocation::default()));
+            collect_nested_in_select(subquery, out);
+            collect_selects_from_expr(expr, out);
+        }
+        Expr::ScalarSublink { expr, subquery, .. } => {
+            out.push((subquery, SourceLocation::default()));
+            collect_nested_in_select(subquery, out);
+            collect_selects_from_expr(expr, out);
+        }
+        Expr::BinaryOp { left, right, .. } => {
+            collect_selects_from_expr(left, out);
+            collect_selects_from_expr(right, out);
+        }
+        Expr::UnaryOp { expr, .. } => collect_selects_from_expr(expr, out),
+        Expr::FunctionCall { args, over, filter, within_group, .. } => {
+            for a in args { collect_selects_from_expr(a, out); }
+            if let Some(o) = over {
+                for e in &o.partition_by { collect_selects_from_expr(e, out); }
+                for item in &o.order_by { collect_selects_from_expr(&item.expr, out); }
+            }
+            if let Some(fe) = filter { collect_selects_from_expr(fe, out); }
+            for item in within_group { collect_selects_from_expr(&item.expr, out); }
+        }
+        Expr::Case { operand, whens, else_expr } => {
+            if let Some(o) = operand { collect_selects_from_expr(o, out); }
+            for w in whens {
+                collect_selects_from_expr(&w.condition, out);
+                collect_selects_from_expr(&w.result, out);
+            }
+            if let Some(e) = else_expr { collect_selects_from_expr(e, out); }
+        }
+        Expr::Between { expr, low, high, .. } => {
+            collect_selects_from_expr(expr, out);
+            collect_selects_from_expr(low, out);
+            collect_selects_from_expr(high, out);
+        }
+        Expr::InList { expr, list, .. } => {
+            collect_selects_from_expr(expr, out);
+            for e in list { collect_selects_from_expr(e, out); }
+        }
+        Expr::Like { expr, pattern, escape, .. } => {
+            collect_selects_from_expr(expr, out);
+            collect_selects_from_expr(pattern, out);
+            if let Some(e) = escape { collect_selects_from_expr(e, out); }
+        }
+        Expr::IsNull { expr, .. } => collect_selects_from_expr(expr, out),
+        Expr::IsBoolean { expr, .. } => collect_selects_from_expr(expr, out),
+        Expr::TypeCast { expr, .. } => collect_selects_from_expr(expr, out),
+        Expr::Treat { expr, .. } => collect_selects_from_expr(expr, out),
+        Expr::Array(elems) => { for e in elems { collect_selects_from_expr(e, out); } }
+        Expr::Subscript { object, lower, upper, .. } => {
+            collect_selects_from_expr(object, out);
+            if let Some(l) = lower { collect_selects_from_expr(l, out); }
+            if let Some(u) = upper { collect_selects_from_expr(u, out); }
+        }
+        Expr::FieldAccess { object, .. } => collect_selects_from_expr(object, out),
+        Expr::Parenthesized(e) => collect_selects_from_expr(e, out),
+        Expr::Prior(e) => collect_selects_from_expr(e, out),
+        Expr::RowConstructor(exprs) => {
+            for e in exprs { collect_selects_from_expr(e, out); }
+        }
+        Expr::SpecialFunction { args, .. } => {
+            for a in args { collect_selects_from_expr(a, out); }
+        }
+        Expr::XmlConcat(exprs) => { for e in exprs { collect_selects_from_expr(e, out); } }
+        Expr::XmlForest(items) => { for item in items { collect_selects_from_expr(&item.expr, out); } }
+        Expr::XmlParse { expr, .. } => collect_selects_from_expr(expr, out),
+        Expr::XmlPi { content, .. } => { if let Some(c) = content { collect_selects_from_expr(c, out); } }
+        Expr::XmlRoot { expr, version, .. } => {
+            collect_selects_from_expr(expr, out);
+            if let Some(v) = version { collect_selects_from_expr(v, out); }
+        }
+        Expr::XmlSerialize { expr, .. } => collect_selects_from_expr(expr, out),
+        // Terminal nodes
+        Expr::Default | Expr::CurrentOf { .. } | Expr::PredictBy { .. }
+        | Expr::SysDate | Expr::SequenceValue { .. } | Expr::CursorAttribute { .. }
+        | Expr::PlVariable(_) | Expr::Literal(_) | Expr::ColumnRef(_)
+        | Expr::QualifiedStar(_) | Expr::Parameter(_) | Expr::MyBatisParam(_)
+        | Expr::MyBatisRawExpr(_) | Expr::JdbcParam
+        | Expr::XmlElement { .. } | Expr::CollationFor { .. } => {}
+    }
+}
+
+/// Walk FROM clause and collect subqueries.
+fn collect_selects_from_from<'a>(
+    from: &'a [crate::ast::TableRef],
+    out: &mut Vec<(&'a SelectStatement, SourceLocation)>,
+) {
+    use crate::ast::TableRef;
+    for t in from {
+        match t {
+            TableRef::Subquery { query, .. } => {
+                out.push((query, SourceLocation::default()));
+                collect_nested_in_select(query, out);
+            }
+            TableRef::Join { left, right, condition, .. } => {
+                collect_selects_from_from(std::slice::from_ref(left), out);
+                collect_selects_from_from(std::slice::from_ref(right), out);
+                if let Some(cond) = condition {
+                    collect_selects_from_expr(cond, out);
+                }
+            }
+            _ => {}
+        }
+    }
+}
+
+/// Walk a PL/pgSQL block and collect embedded SELECTs.
+fn collect_selects_from_pl_block<'a>(
+    block: &'a crate::ast::plpgsql::PlBlock,
+    out: &mut Vec<(&'a SelectStatement, SourceLocation)>,
+) {
+    use crate::ast::plpgsql::PlDeclaration;
+
+    // Cursor declarations
+    for decl in &block.declarations {
+        if let PlDeclaration::Cursor(c) = decl {
+            if let Some(ref parsed) = c.parsed_query {
+                collect_selects_from_stmt(parsed, SourceLocation::default(), out);
+            }
+        }
+    }
+
+    // Body statements
+    collect_selects_from_pl_stmts(&block.body, out);
+}
+
+fn collect_selects_from_pl_stmts<'a>(
+    stmts: &'a [crate::ast::plpgsql::PlStatement],
+    out: &mut Vec<(&'a SelectStatement, SourceLocation)>,
+) {
+    use crate::ast::plpgsql::{PlForKind, PlOpenKind, PlStatement};
+    for s in stmts {
+        match s {
+            PlStatement::SqlStatement { statement, .. } => {
+                collect_selects_from_stmt(statement, SourceLocation::default(), out);
+            }
+            PlStatement::For(f) => {
+                if let PlForKind::Query { parsed_query: Some(ref q), .. } = f.kind {
+                    collect_selects_from_stmt(q, SourceLocation::default(), out);
+                }
+            }
+            PlStatement::Open(o) => {
+                if let PlOpenKind::ForQuery { parsed_query: Some(ref q), .. } = o.kind {
+                    collect_selects_from_stmt(q, SourceLocation::default(), out);
+                }
+            }
+            PlStatement::Block(b) => {
+                collect_selects_from_pl_stmts(&b.body, out);
+            }
+            PlStatement::If(i) => {
+                collect_selects_from_pl_stmts(&i.then_stmts, out);
+                for e in &i.elsifs {
+                    collect_selects_from_pl_stmts(&e.stmts, out);
+                }
+                collect_selects_from_pl_stmts(&i.else_stmts, out);
+            }
+            PlStatement::Case(c) => {
+                for w in &c.whens {
+                    collect_selects_from_pl_stmts(&w.stmts, out);
+                }
+                collect_selects_from_pl_stmts(&c.else_stmts, out);
+            }
+            PlStatement::Loop(l) => {
+                collect_selects_from_pl_stmts(&l.body, out);
+            }
+            PlStatement::While(w) => {
+                collect_selects_from_pl_stmts(&w.body, out);
+            }
+            PlStatement::ForEach(fe) => {
+                collect_selects_from_pl_stmts(&fe.body, out);
+            }
+            _ => {}
+        }
+    }
+}

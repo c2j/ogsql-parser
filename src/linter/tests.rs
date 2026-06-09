@@ -430,6 +430,87 @@ fn p021_insert_outside_loop_not_triggered() {
     assert!(!has_rule(&w, "P021"), "INSERT outside loop should not trigger P021");
 }
 
+// ── P023: CONNECT BY performance ──
+
+#[test]
+fn p023_connect_by() {
+    let stmts = parse("SELECT * FROM emp CONNECT BY PRIOR empno = mgr");
+    let w = lint(&stmts);
+    assert!(has_rule(&w, "P023"), "expected P023 for CONNECT BY");
+}
+
+#[test]
+fn p023_connect_by_with_start_with() {
+    let stmts = parse("SELECT * FROM emp START WITH mgr IS NULL CONNECT BY PRIOR empno = mgr");
+    let w = lint(&stmts);
+    assert!(has_rule(&w, "P023"), "expected P023 for CONNECT BY with START WITH");
+}
+
+#[test]
+fn p023_connect_by_nocycle() {
+    let stmts = parse("SELECT * FROM emp CONNECT BY NOCYCLE PRIOR empno = mgr");
+    let w = lint(&stmts);
+    assert!(has_rule(&w, "P023"), "expected P023 for CONNECT BY NOCYCLE");
+}
+
+#[test]
+fn p023_no_connect_by_not_triggered() {
+    let stmts = parse("SELECT * FROM emp WHERE empno = 1");
+    let w = lint(&stmts);
+    assert!(!has_rule(&w, "P023"), "plain SELECT should not trigger P023");
+}
+
+#[test]
+fn p023_select_order_by_not_triggered() {
+    let stmts = parse("SELECT * FROM users ORDER BY name");
+    let w = lint(&stmts);
+    assert!(!has_rule(&w, "P023"));
+}
+
+// P023 nested scenarios — detected via collect_nested_selects
+
+#[test]
+fn p023_subquery_in_where_triggered() {
+    let stmts = parse("SELECT * FROM t WHERE col IN (SELECT * FROM emp CONNECT BY PRIOR empno = mgr)");
+    let w = lint(&stmts);
+    assert!(has_rule(&w, "P023"), "expected P023 for CONNECT BY in IN subquery");
+}
+
+#[test]
+fn p023_exists_subquery_triggered() {
+    let stmts = parse("SELECT * FROM t WHERE EXISTS (SELECT 1 FROM emp CONNECT BY PRIOR empno = mgr)");
+    let w = lint(&stmts);
+    assert!(has_rule(&w, "P023"), "expected P023 for CONNECT BY in EXISTS subquery");
+}
+
+#[test]
+fn p023_from_subquery_triggered() {
+    let stmts = parse("SELECT * FROM (SELECT * FROM emp CONNECT BY PRIOR empno = mgr) sub");
+    let w = lint(&stmts);
+    assert!(has_rule(&w, "P023"), "expected P023 for CONNECT BY in FROM subquery");
+}
+
+#[test]
+fn p023_for_loop_triggered() {
+    let stmts = parse("DO $$ BEGIN FOR rec IN SELECT * FROM emp CONNECT BY PRIOR empno = mgr LOOP NULL; END LOOP; END $$");
+    let w = lint(&stmts);
+    assert!(has_rule(&w, "P023"), "expected P023 for CONNECT BY in FOR loop");
+}
+
+#[test]
+fn p023_cursor_declaration_triggered() {
+    let stmts = parse("DO $$ DECLARE cur CURSOR FOR SELECT * FROM emp CONNECT BY PRIOR empno = mgr; BEGIN NULL; END $$");
+    let w = lint(&stmts);
+    assert!(has_rule(&w, "P023"), "expected P023 for CONNECT BY in cursor declaration");
+}
+
+#[test]
+fn p023_cte_triggered() {
+    let stmts = parse("WITH cte AS (SELECT * FROM emp CONNECT BY PRIOR empno = mgr) SELECT * FROM cte");
+    let w = lint(&stmts);
+    assert!(has_rule(&w, "P023"), "expected P023 for CONNECT BY in CTE");
+}
+
 // ── Confidence propagation ──
 
 #[test]
