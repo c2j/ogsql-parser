@@ -319,35 +319,111 @@ fn check_r006(
 ) {
     for info in stmts {
         let loc = stmt_location(info);
-        if let Some(where_clause) = extract_where_clause(&info.statement) {
-            let mut found = false;
-            walk_expr(where_clause, &mut |e| {
-                if found {
-                    return false;
+        let (where_clause, tables) = get_where_and_tables(&info.statement);
+        let Some(where_clause) = where_clause else { continue };
+
+        walk_expr(where_clause, &mut |e| {
+            if let Expr::FunctionCall { name, args, .. } = e {
+                let fn_lower = name.last().map(|s| s.to_lowercase()).unwrap_or_default();
+                if SAFE_FUNCTIONS_ON_COLUMNS.contains(&fn_lower.as_str()) {
+                    return true;
                 }
-                if let Expr::FunctionCall { name, args, .. } = e {
-                    let fn_lower = name.last().map(|s| s.to_lowercase()).unwrap_or_default();
-                    if SAFE_FUNCTIONS_ON_COLUMNS.contains(&fn_lower.as_str()) {
-                        return true;
-                    }
-                    for arg in args {
-                        if let Expr::ColumnRef(_) = arg {
-                            found = true;
-                            return false;
+                for arg in args {
+                    if let Expr::ColumnRef(col_ref) = arg {
+                        match _indexes {
+                            Some(idx_info) => {
+                                let table = resolve_table_from_column(col_ref, tables);
+                                let col_lower = col_ref.last().map(|s| s.to_lowercase()).unwrap_or_default();
+
+                                let has_index = table
+                                    .as_ref()
+                                    .and_then(|t| idx_info.column_indexes.get(t))
+                                    .map(|cols| cols.contains(&col_lower))
+                                    .unwrap_or(false);
+
+                                let has_func_index = table
+                                    .as_ref()
+                                    .map(|t| {
+                                        crate::analyzer::schema::matches_function_index(
+                                            &idx_info.indexes, t, &fn_lower, &col_lower,
+                                        )
+                                    })
+                                    .unwrap_or(false);
+
+                                if has_index && !has_func_index {
+                                    warnings.push(make_warning(
+                                        WarningLevel::Prohibition, "R006", "function-on-where-column",
+                                        "WHERE 中对有索引的列使用函数，将导致索引失效".into(),
+                                        Some("将函数运算移到等号另一侧或使用函数索引"), loc,
+                                        Some("WHERE 规范"), confidence,
+                                    ));
+                                    return false;
+                                }
+                            }
+                            None => {
+                                warnings.push(make_warning(
+                                    WarningLevel::Prohibition, "R006", "function-on-where-column",
+                                    "WHERE 中对列使用函数，可能导致索引失效".into(),
+                                    Some("将函数运算移到等号另一侧或使用函数索引"), loc,
+                                    Some("WHERE 规范"), confidence,
+                                ));
+                                return false;
+                            }
                         }
                     }
                 }
-                true
-            });
-            if found {
-                warnings.push(make_warning(
-                    WarningLevel::Prohibition, "R006", "function-on-where-column",
-                    "WHERE \u{4e2d}\u{5bf9}\u{5217}\u{4f7f}\u{7528}\u{51fd}\u{6570}\u{ff0c}\u{53ef}\u{80fd}\u{5bfc}\u{81f4}\u{7d22}\u{5f15}\u{5931}\u{6548}".into(),
-                    Some("\u{5c06}\u{51fd}\u{6570}\u{8fd0}\u{7b97}\u{79fb}\u{5230}\u{7b49}\u{53f7}\u{53e6}\u{4e00}\u{4fa7}\u{6216}\u{4f7f}\u{7528}\u{51fd}\u{6570}\u{7d22}\u{5f15}"), loc,
-                    Some("WHERE \u{89c4}\u{8303}"), confidence,
-                ));
+            }
+            true
+        });
+    }
+}
+
+/// Extract the WHERE clause and FROM/tables list from a statement.
+fn get_where_and_tables(stmt: &Statement) -> (Option<&Expr>, &[crate::ast::TableRef]) {
+    match stmt {
+        Statement::Select(s) => (s.where_clause.as_ref(), &s.from),
+        Statement::Update(s) => (s.where_clause.as_ref(), &s.tables),
+        Statement::Delete(s) => (s.where_clause.as_ref(), &s.tables),
+        _ => (extract_where_clause(stmt), &[]),
+    }
+}
+
+/// Resolve which table a column belongs to from the FROM clause.
+/// Returns the table name (lowercase), or None if unresolvable.
+fn resolve_table_from_column(col_ref: &[String], tables: &[crate::ast::TableRef]) -> Option<String> {
+    use crate::ast::TableRef;
+
+    if col_ref.len() >= 2 {
+        return Some(col_ref[col_ref.len() - 2].to_lowercase());
+    }
+
+    if col_ref.len() == 1 {
+        for tref in tables {
+            if let Some(name) = table_name(tref) {
+                return Some(name.to_lowercase());
             }
         }
+    }
+
+    None
+}
+
+/// Extract the effective table name from a TableRef (handles alias).
+fn table_name(tref: &crate::ast::TableRef) -> Option<&str> {
+    use crate::ast::TableRef;
+    match tref {
+        TableRef::Table { name, alias, .. } => {
+            if let Some(a) = alias {
+                Some(a.as_str())
+            } else {
+                name.last().map(|s| s.as_str())
+            }
+        }
+        TableRef::Join { left, .. } => table_name(left),
+        TableRef::Subquery { alias, .. }
+        | TableRef::FunctionCall { alias, .. }
+        | TableRef::Values { alias, .. } => alias.as_deref(),
+        TableRef::Pivot { source, .. } | TableRef::Unpivot { source, .. } => table_name(source),
     }
 }
 
