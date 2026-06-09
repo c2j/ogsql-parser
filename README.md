@@ -183,7 +183,8 @@ ogsql-parser/
 │   ├── multi_statement.rs  # Multi-statement parsing tests
 │   └── error_handling.rs   # Error handling tests
 ├── docs/
-│   ├── user-guide.md       # User guide
+│   ├── user-guide.md       # User guide (CLI, HTTP API, MCP)
+│   ├── crate-guide.md      # Crate developer guide (Rust API, AST JSON)
 │   ├── ast-json-reference.md # AST JSON structure reference
 │   └── plans/              # Implementation plans
 ├── lib/
@@ -749,11 +750,13 @@ Documentation reference:
 
 ## Documentation / 文档
 
-| Document | Description |
-|----------|-------------|
-| [User Guide](docs/user-guide.md) | Complete user guide covering CLI, library, MCP, and AST JSON reference |
-| [AST JSON Reference](docs/ast-json-reference.md) | Detailed JSON structure reference for `ogsql parse -j` output |
-| [GaussDB SQL Features](docs/gaussdb-sql-features.md) | GaussDB/openGauss SQL 语法支持详情 |
+| Document | Audience | Description |
+|----------|----------|-------------|
+| [User Guide](docs/user-guide.md) | 终端用户 | CLI、HTTP API、MCP 使用指南 |
+| [Crate Developer Guide](docs/crate-guide.md) | Rust 开发者 | Crate API 使用、AST JSON 参考、错误类型参考 |
+| [AST JSON Reference](docs/ast-json-reference.md) | AST 消费者 | `ogsql parse -j` 输出的完整 JSON 结构 |
+| [Contributing](CONTRIBUTING.md) | 项目贡献者 | 架构概览、从源码构建、开发规范 |
+| [GaussDB SQL Features](docs/gaussdb-sql-features.md) | 全部 | GaussDB/openGauss SQL 语法支持详情 |
 
 ---
 
