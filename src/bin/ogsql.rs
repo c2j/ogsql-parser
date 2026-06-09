@@ -289,9 +289,21 @@ fn run_lint(
     stmts: &[ogsql_parser::StatementInfo],
     confidence: ogsql_parser::linter::Confidence,
     config: &ogsql_parser::linter::LintConfig,
+    schema_path: Option<&str>,
 ) -> Vec<ogsql_parser::linter::SqlWarning> {
-    let linter = ogsql_parser::linter::SqlLinter::with_default_rules(config.clone());
-    linter.lint(stmts, None, confidence)
+    let mut linter = ogsql_parser::linter::SqlLinter::with_default_rules(config.clone());
+    let mut schema = None;
+
+    if let Some(path) = schema_path {
+        if let Ok(fs) = ogsql_parser::analyzer::schema::load_full_schema(path) {
+            if !fs.indexes.is_empty() {
+                linter.set_index_info(fs.indexes);
+            }
+            schema = Some(fs.columns);
+        }
+    }
+
+    linter.lint(stmts, schema.as_ref(), confidence)
 }
 
 fn format_warnings_text(warnings: &[ogsql_parser::linter::SqlWarning]) {
@@ -768,7 +780,7 @@ fn cmd_parse_single(cli: &Cli, file_path: Option<&str>, csv: bool, proc_name: Op
         }
         if cli.lint {
             let config = build_lint_config(cli);
-            let lint_warnings = run_lint(&output.statements, ogsql_parser::linter::Confidence::Full, &config);
+            let lint_warnings = run_lint(&output.statements, ogsql_parser::linter::Confidence::Full, &config, cli.schema_json.as_deref());
             if !lint_warnings.is_empty() {
                 out.as_object_mut().unwrap().insert("lint_warnings".to_string(), serde_json::json!(lint_warnings));
                 out.as_object_mut()
@@ -802,7 +814,7 @@ fn cmd_parse_single(cli: &Cli, file_path: Option<&str>, csv: bool, proc_name: Op
         }
         if cli.lint {
             let config = build_lint_config(cli);
-            let lint_warnings = run_lint(&output.statements, ogsql_parser::linter::Confidence::Full, &config);
+            let lint_warnings = run_lint(&output.statements, ogsql_parser::linter::Confidence::Full, &config, cli.schema_json.as_deref());
             if !lint_warnings.is_empty() {
                 eprintln!("\n── Lint Warnings ({}) ──", lint_warnings.len());
                 format_warnings_text(&lint_warnings);
@@ -3693,7 +3705,7 @@ fn cmd_validate_single(cli: &Cli, file_path: Option<&str>, csv: bool, strict: bo
 
     let lint_warnings = if cli.lint {
         let config = build_lint_config(cli);
-        run_lint(&stmts, ogsql_parser::linter::Confidence::Full, &config)
+        run_lint(&stmts, ogsql_parser::linter::Confidence::Full, &config, cli.schema_json.as_deref())
     } else {
         vec![]
     };
@@ -3830,7 +3842,7 @@ fn cmd_validate_files(cli: &Cli, csv: bool, strict: bool) {
             }
             let lint_warnings = if cli.lint {
                 let config = build_lint_config(cli);
-                run_lint(&stmts, ogsql_parser::linter::Confidence::Full, &config)
+                run_lint(&stmts, ogsql_parser::linter::Confidence::Full, &config, cli.schema_json.as_deref())
             } else {
                 vec![]
             };
@@ -3890,7 +3902,7 @@ fn cmd_validate_files(cli: &Cli, csv: bool, strict: bool) {
 
             let lint_warnings = if cli.lint {
                 let config = build_lint_config(cli);
-                run_lint(&stmts, ogsql_parser::linter::Confidence::Full, &config)
+                run_lint(&stmts, ogsql_parser::linter::Confidence::Full, &config, cli.schema_json.as_deref())
             } else {
                 vec![]
             };
@@ -4065,7 +4077,7 @@ fn cmd_validate_dir(cli: &Cli, dir_paths: &[String], exts: &[String], csv: bool,
             }
             let lint_warnings = if cli.lint {
                 let config = build_lint_config(cli);
-                run_lint(&stmts, ogsql_parser::linter::Confidence::Full, &config)
+                run_lint(&stmts, ogsql_parser::linter::Confidence::Full, &config, cli.schema_json.as_deref())
             } else {
                 vec![]
             };
@@ -4645,7 +4657,7 @@ mod api {
         }
         if input.lint == Some(true) {
             let config = ogsql_parser::linter::LintConfig::default();
-            let lint_warnings = super::run_lint(&output.statements, ogsql_parser::linter::Confidence::Full, &config);
+            let lint_warnings = super::run_lint(&output.statements, ogsql_parser::linter::Confidence::Full, &config, cli.schema_json.as_deref());
             result.as_object_mut().unwrap().insert("lint_warnings".to_string(), serde_json::json!(lint_warnings));
             result
                 .as_object_mut()
