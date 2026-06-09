@@ -1128,18 +1128,27 @@ fn check_c018(
         let loc = stmt_location(info);
         if let Statement::Insert(insert) = &info.statement {
             if let InsertSource::Values(values) = &insert.source {
-                let n = values.len();
-                if n > config.max_insert_values_rows {
+                let row_count = values.len();
+                let col_count = if !insert.columns.is_empty() {
+                    insert.columns.len()
+                } else if let Some(first) = values.first() {
+                    first.len()
+                } else {
+                    0
+                };
+                let total_params = row_count * col_count;
+                if total_params > config.max_insert_values_rows {
                     warnings.push(make_warning(
                         WarningLevel::Caution,
                         "C018",
                         "excessive-insert-values",
                         format!(
-                            "INSERT VALUES \u{5305}\u{542b} {n} \u{4e2a}\u{5143}\u{7ec4}\u{ff0c}\u{5927}\u{6279}\u{91cf}\u{53ef}\u{80fd}\u{5bfc}\u{81f4}\u{957f}\u{4e8b}\u{52a1}\u{3001}\u{9501}\u{7ade}\u{4e89}\u{548c}\u{56de}\u{6eda}\u{4ee3}\u{4ef7}\u{8fc7}\u{9ad8}\u{3002}\u{5efa}\u{8bae}\u{6bcf}\u{6279}\u{63d2}\u{5165} {}\u{2014}{}\u{884c}\u{ff0c}\u{6216}\u{4f7f}\u{7528} COPY",
-                            config.max_insert_values_rows / 5,
-                            config.max_insert_values_rows
+                            "INSERT VALUES {row_count} 行 × {col_count} 列 = {total_params} 个绑定参数，超过阈值 {}。大批量可能导致长事务、锁竞争和回滚代价过高。建议每批插入 {}—{} 行，或使用 COPY",
+                            config.max_insert_values_rows,
+                            config.max_insert_values_rows / col_count.max(1) / 5,
+                            config.max_insert_values_rows / col_count.max(1),
                         ),
-                        Some("\u{62c6}\u{5206}\u{4e3a}\u{66f4}\u{5c0f}\u{6279}\u{6b21}\u{63d2}\u{5165}\u{4ee5}\u{51cf}\u{5c11}\u{9501}\u{6301}\u{6709}\u{65f6}\u{95f4}"),
+                        Some("拆分为更小批次插入以减少锁持有时间"),
                         loc,
                         None,
                         confidence,
