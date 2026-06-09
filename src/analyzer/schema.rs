@@ -1,6 +1,6 @@
 use crate::ast::plpgsql::{PlBlock, PlDataType, PlStatement};
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 pub type SchemaMap = HashMap<String, HashMap<String, String>>;
 
@@ -134,6 +134,82 @@ fn extract_block_from_statement(stmt: &PlStatement) -> Option<&PlBlock> {
     }
 }
 
+// ── Index Metadata Types ──
+
+/// Maps table_name → index_name → list of column names or function expressions in the index.
+pub type IndexMapV2 = HashMap<String, HashMap<String, Vec<String>>>;
+
+/// Full schema with both column type info and index metadata.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FullSchema {
+    #[serde(default)]
+    pub columns: SchemaMap,
+    #[serde(default)]
+    pub indexes: IndexMapV2,
+}
+
+/// Load a FullSchema from a JSON file. Supports both the new format
+/// (with `columns` and `indexes` fields) and the old format (just a
+/// column map, which gets loaded with empty indexes).
+pub fn load_full_schema(path: &str) -> Result<FullSchema, String> {
+    let content = std::fs::read_to_string(path).map_err(|e| format!("Failed to read schema file '{}': {}", path, e))?;
+    // Try to parse as FullSchema first (new format)
+    if let Ok(fs) = serde_json::from_str::<FullSchema>(&content) {
+        return Ok(fs);
+    }
+    // Fall back to old format (just a SchemaMap)
+    let columns: SchemaMap =
+        serde_json::from_str(&content).map_err(|e| format!("Failed to parse schema JSON: {}", e))?;
+    Ok(FullSchema { columns, indexes: HashMap::new() })
+}
+
+/// Build a lookup table: table(lowercase) → set of column names(lowercase)
+/// that have a plain index. Function expression indexes like `lower(email)`
+/// are skipped — only plain column names are included.
+pub fn build_column_index_set(indexes: &IndexMapV2) -> HashMap<String, HashSet<String>> {
+    let mut result: HashMap<String, HashSet<String>> = HashMap::new();
+    for (table, indices) in indexes {
+        let table_lower = table.to_lowercase();
+        let entry = result.entry(table_lower).or_default();
+        for cols in indices.values() {
+            for col in cols {
+                // Skip function expressions (anything containing '(' or whitespace)
+                if col.contains('(') || col.contains(char::is_whitespace) {
+                    continue;
+                }
+                entry.insert(col.to_lowercase());
+            }
+        }
+    }
+    result
+}
+
+/// Check if there's a function index matching `function_name(col_name...)`
+/// for the given table. Does case-insensitive matching on the prefix
+/// `function_name(col_name`.
+pub fn matches_function_index(
+    indexes: &IndexMapV2,
+    table: &str,
+    function_name: &str,
+    col_name: &str,
+) -> bool {
+    let table_lower = table.to_lowercase();
+    let prefix = format!("{}(", function_name.to_lowercase());
+    let needle = format!("{}{}", prefix, col_name.to_lowercase());
+
+    if let Some(indices) = indexes.get(&table_lower) {
+        for cols in indices.values() {
+            for col_expr in cols {
+                let col_lower = col_expr.to_lowercase();
+                if col_lower.starts_with(&needle) {
+                    return true;
+                }
+            }
+        }
+    }
+    false
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -248,5 +324,241 @@ mod tests {
         let err = result.unwrap_err();
         assert!(err.contains("Failed to parse schema JSON"));
         let _ = std::fs::remove_file(&path);
+    }
+
+    // ── Index Metadata Tests ──
+
+    #[test]
+    fn test_load_full_schema_new_format() {
+        use std::io::Write;
+        let dir = std::env::temp_dir();
+        let path = dir.join("ogsql_test_full_schema_new.json");
+        {
+            let mut file = std::fs::File::create(&path).unwrap();
+            write!(
+                file,
+                r#"{{
+                "columns": {{ "users": {{ "id": "integer", "name": "varchar(100)" }} }},
+                "indexes": {{ "users": {{ "pk_users": ["id"], "idx_name": ["name"], "idx_func": ["lower(email)"] }} }}
+            }}"#
+            )
+            .unwrap();
+        }
+        let result = load_full_schema(path.to_str().unwrap());
+        assert!(result.is_ok(), "Failed to load FullSchema: {:?}", result.err());
+        let fs = result.unwrap();
+        assert_eq!(fs.columns.len(), 1);
+        assert!(fs.columns.contains_key("users"));
+        assert_eq!(fs.columns["users"].get("id").unwrap(), "integer");
+        assert_eq!(fs.indexes.len(), 1);
+        assert!(fs.indexes.contains_key("users"));
+        let user_indexes = &fs.indexes["users"];
+        assert!(user_indexes.contains_key("pk_users"));
+        assert_eq!(user_indexes["pk_users"], vec!["id"]);
+        assert!(user_indexes.contains_key("idx_name"));
+        assert_eq!(user_indexes["idx_name"], vec!["name"]);
+        assert!(user_indexes.contains_key("idx_func"));
+        assert_eq!(user_indexes["idx_func"], vec!["lower(email)"]);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn test_load_full_schema_backward_compat() {
+        use std::io::Write;
+        let dir = std::env::temp_dir();
+        let path = dir.join("ogsql_test_full_schema_old.json");
+        {
+            let mut file = std::fs::File::create(&path).unwrap();
+            write!(file, r#"{{ "users": {{ "id": "integer", "name": "varchar(100)" }} }}"#).unwrap();
+        }
+        let result = load_full_schema(path.to_str().unwrap());
+        assert!(result.is_ok(), "Failed to load old format: {:?}", result.err());
+        let fs = result.unwrap();
+        assert_eq!(fs.columns.len(), 1);
+        assert!(fs.columns.contains_key("users"));
+        assert_eq!(fs.columns["users"].get("id").unwrap(), "integer");
+        // Indexes should be empty (backward compat)
+        assert!(fs.indexes.is_empty(), "Old format should produce empty indexes");
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn test_load_full_schema_file_not_found() {
+        let result = load_full_schema("/nonexistent/path/full_schema.json");
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(err.contains("Failed to read schema file"));
+    }
+
+    #[test]
+    fn test_load_full_schema_invalid_json() {
+        use std::io::Write;
+        let dir = std::env::temp_dir();
+        let path = dir.join("ogsql_test_full_schema_invalid.json");
+        {
+            let mut file = std::fs::File::create(&path).unwrap();
+            write!(file, "not json at all").unwrap();
+        }
+        let result = load_full_schema(path.to_str().unwrap());
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(err.contains("Failed to parse schema JSON"));
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn test_build_column_index_set_basic() {
+        let mut indexes: IndexMapV2 = HashMap::new();
+        let mut user_indexes = HashMap::new();
+        user_indexes.insert("pk_users".to_string(), vec!["id".to_string()]);
+        user_indexes.insert("idx_name".to_string(), vec!["name".to_string()]);
+        indexes.insert("users".to_string(), user_indexes);
+
+        let result = build_column_index_set(&indexes);
+        assert_eq!(result.len(), 1);
+        assert!(result.contains_key("users"));
+        let user_cols = &result["users"];
+        assert_eq!(user_cols.len(), 2);
+        assert!(user_cols.contains("id"));
+        assert!(user_cols.contains("name"));
+    }
+
+    #[test]
+    fn test_build_column_index_set_skips_function_indexes() {
+        let mut indexes: IndexMapV2 = HashMap::new();
+        let mut user_indexes = HashMap::new();
+        user_indexes.insert("idx_email".to_string(), vec!["lower(email)".to_string()]);
+        user_indexes.insert("idx_name".to_string(), vec!["name".to_string()]);
+        indexes.insert("users".to_string(), user_indexes);
+
+        let result = build_column_index_set(&indexes);
+        assert_eq!(result.len(), 1);
+        let user_cols = &result["users"];
+        // "lower(email)" should be skipped, only "name" should remain
+        assert_eq!(user_cols.len(), 1);
+        assert!(user_cols.contains("name"));
+        assert!(!user_cols.contains("email"));
+    }
+
+    #[test]
+    fn test_build_column_index_set_multiple_tables() {
+        let mut indexes: IndexMapV2 = HashMap::new();
+        let mut user_indexes = HashMap::new();
+        user_indexes.insert("pk_users".to_string(), vec!["id".to_string()]);
+        indexes.insert("users".to_string(), user_indexes);
+        let mut log_indexes = HashMap::new();
+        log_indexes.insert("idx_proc".to_string(), vec!["proc_name".to_string()]);
+        indexes.insert("db_log".to_string(), log_indexes);
+
+        let result = build_column_index_set(&indexes);
+        assert_eq!(result.len(), 2);
+        assert!(result.contains_key("users"));
+        assert!(result.contains_key("db_log"));
+        assert!(result["users"].contains("id"));
+        assert!(result["db_log"].contains("proc_name"));
+    }
+
+    #[test]
+    fn test_build_column_index_set_empty() {
+        let indexes: IndexMapV2 = HashMap::new();
+        let result = build_column_index_set(&indexes);
+        assert!(result.is_empty());
+    }
+
+    #[test]
+    fn test_build_column_index_set_case_insensitive_keys() {
+        let mut indexes: IndexMapV2 = HashMap::new();
+        let mut user_indexes = HashMap::new();
+        user_indexes.insert("idx_id".to_string(), vec!["ID".to_string()]);
+        indexes.insert("USERS".to_string(), user_indexes);
+
+        let result = build_column_index_set(&indexes);
+        assert!(result.contains_key("users"));
+        assert!(result["users"].contains("id"));
+    }
+
+    #[test]
+    fn test_matches_function_index_found() {
+        let mut indexes: IndexMapV2 = HashMap::new();
+        let mut user_indexes = HashMap::new();
+        user_indexes.insert("idx_func".to_string(), vec!["lower(email)".to_string()]);
+        indexes.insert("users".to_string(), user_indexes);
+
+        assert!(matches_function_index(&indexes, "users", "lower", "email"));
+    }
+
+    #[test]
+    fn test_matches_function_index_not_found() {
+        let mut indexes: IndexMapV2 = HashMap::new();
+        let mut user_indexes = HashMap::new();
+        user_indexes.insert("idx_func".to_string(), vec!["lower(email)".to_string()]);
+        indexes.insert("users".to_string(), user_indexes);
+
+        assert!(!matches_function_index(&indexes, "users", "upper", "email"));
+        assert!(!matches_function_index(&indexes, "users", "lower", "name"));
+    }
+
+    #[test]
+    fn test_matches_function_index_case_insensitive() {
+        let mut indexes: IndexMapV2 = HashMap::new();
+        let mut user_indexes = HashMap::new();
+        user_indexes.insert("idx_func".to_string(), vec!["lower(email)".to_string()]);
+        indexes.insert("USERS".to_string(), user_indexes);
+
+        assert!(matches_function_index(&indexes, "USERS", "LOWER", "EMAIL"));
+        assert!(matches_function_index(&indexes, "users", "LOWER", "email"));
+        assert!(matches_function_index(&indexes, "USERS", "lower", "EMAIL"));
+    }
+
+    #[test]
+    fn test_matches_function_index_table_not_found() {
+        let indexes: IndexMapV2 = HashMap::new();
+        assert!(!matches_function_index(&indexes, "nonexistent", "lower", "email"));
+    }
+
+    #[test]
+    fn test_matches_function_index_no_indexes_for_table() {
+        let mut indexes: IndexMapV2 = HashMap::new();
+        let mut other_indexes = HashMap::new();
+        other_indexes.insert("idx_func".to_string(), vec!["lower(email)".to_string()]);
+        indexes.insert("other".to_string(), other_indexes);
+        assert!(!matches_function_index(&indexes, "users", "lower", "email"));
+    }
+
+    #[test]
+    fn test_full_schema_serde_roundtrip() {
+        let fs = FullSchema {
+            columns: {
+                let mut cols = HashMap::new();
+                let mut inner = HashMap::new();
+                inner.insert("id".to_string(), "integer".to_string());
+                cols.insert("t".to_string(), inner);
+                cols
+            },
+            indexes: {
+                let mut idxs = HashMap::new();
+                let mut inner = HashMap::new();
+                inner.insert("pk_t".to_string(), vec!["id".to_string()]);
+                idxs.insert("t".to_string(), inner);
+                idxs
+            },
+        };
+        let json = serde_json::to_string(&fs).unwrap();
+        let deserialized: FullSchema = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized.columns.len(), 1);
+        assert_eq!(deserialized.indexes.len(), 1);
+        assert_eq!(deserialized.indexes["t"]["pk_t"], vec!["id"]);
+    }
+
+    #[test]
+    fn test_full_schema_serde_default_fallback() {
+        // Old format JSON should deserialize into FullSchema with empty indexes
+        let json = r#"{"t": {"id": "integer"}}"#;
+        let result: Result<FullSchema, _> = serde_json::from_str(json);
+        assert!(result.is_ok(), "Old format should deserialize via serde default: {:?}", result.err());
+        let fs = result.unwrap();
+        assert_eq!(fs.columns.len(), 1);
+        assert_eq!(fs.columns["t"]["id"], "integer");
+        assert!(fs.indexes.is_empty());
     }
 }
