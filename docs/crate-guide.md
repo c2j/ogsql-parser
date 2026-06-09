@@ -42,12 +42,12 @@
 
 ```toml
 [dependencies]
-ogsql-parser = "0.6.10"
+ogsql-parser = "0.6.18"
 
 # 按需启用 feature
-# ogsql-parser = { version = "0.6.10", features = ["ibatis"] }     # iBatis XML 解析
-# ogsql-parser = { version = "0.6.10", features = ["java"] }       # Java 源文件支持
-# ogsql-parser = { version = "0.6.10", features = ["ibatis", "java"] }  # 同时启用
+# ogsql-parser = { version = "0.6.18", features = ["ibatis"] }     # iBatis XML 解析
+# ogsql-parser = { version = "0.6.18", features = ["java"] }       # Java 源文件支持
+# ogsql-parser = { version = "0.6.18", features = ["ibatis", "java"] }  # 同时启用
 ```
 
 ### 1.2 Feature 特性

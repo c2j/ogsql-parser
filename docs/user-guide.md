@@ -1,6 +1,6 @@
 # OGSQL Parser 用户指南
 
-> 版本 0.6.10 | 适用于 openGauss / GaussDB SQL 解析器
+> 版本 0.6.18 | 适用于 openGauss / GaussDB SQL 解析器
 
 本文档面向 **终端用户** — 使用命令行工具、HTTP API 或 MCP 服务器的人群。
 
@@ -117,7 +117,7 @@ $ ogsql --help
   ╚██████╔╝╚██████╔╝███████║╚██████╔╝███████╗ ██║     ██║  ██║██║  ██║███████║███████╗██║  ██║
    ╚═════╝  ╚═════╝ ╚══════╝ ╚═════╝ ╚══════╝ ╚═╝     ╚═╝  ╚═╝╚═╝  ╚═╝╚══════╝╚══════╝╚═╝  ╚═╝
 
-ogsql 0.6.10
+ogsql 0.6.18
 openGauss/GaussDB SQL Parser
 
 Usage: ogsql [OPTIONS] <COMMAND>
