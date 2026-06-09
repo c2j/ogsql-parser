@@ -187,12 +187,7 @@ pub fn build_column_index_set(indexes: &IndexMapV2) -> HashMap<String, HashSet<S
 /// Check if there's a function index matching `function_name(col_name...)`
 /// for the given table. Does case-insensitive matching on the prefix
 /// `function_name(col_name`.
-pub fn matches_function_index(
-    indexes: &IndexMapV2,
-    table: &str,
-    function_name: &str,
-    col_name: &str,
-) -> bool {
+pub fn matches_function_index(indexes: &IndexMapV2, table: &str, function_name: &str, col_name: &str) -> bool {
     let table_lower = table.to_lowercase();
     let prefix = format!("{}(", function_name.to_lowercase());
     let needle = format!("{}{}", prefix, col_name.to_lowercase());

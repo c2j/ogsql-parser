@@ -10,9 +10,9 @@ mod tests;
 use crate::analyzer::schema::{IndexMapV2, SchemaMap};
 use crate::ast::{SelectStatement, Spanned, Statement, StatementInfo};
 use crate::token::SourceLocation;
+use std::collections::{HashMap, HashSet};
 #[cfg(feature = "lint-config")]
 use std::path::{Path, PathBuf};
-use std::collections::{HashMap, HashSet};
 
 /// SQL warning severity level. "Error" is deliberately NOT used to avoid
 /// confusion with `ParserError` which represents syntax-level errors.
@@ -274,14 +274,8 @@ pub struct LintRuleEntry {
     pub name: &'static str,
     pub level: WarningLevel,
     pub stmt_kind: StatementKind,
-    pub check_fn: fn(
-        &[StatementInfo],
-        Option<&SchemaMap>,
-        Option<&IndexInfo>,
-        &LintConfig,
-        Confidence,
-        &mut Vec<SqlWarning>,
-    ),
+    pub check_fn:
+        fn(&[StatementInfo], Option<&SchemaMap>, Option<&IndexInfo>, &LintConfig, Confidence, &mut Vec<SqlWarning>),
 }
 
 /// Build a JSON summary of lint warnings, grouped by level and rule.

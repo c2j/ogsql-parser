@@ -780,7 +780,12 @@ fn cmd_parse_single(cli: &Cli, file_path: Option<&str>, csv: bool, proc_name: Op
         }
         if cli.lint {
             let config = build_lint_config(cli);
-            let lint_warnings = run_lint(&output.statements, ogsql_parser::linter::Confidence::Full, &config, cli.schema_json.as_deref());
+            let lint_warnings = run_lint(
+                &output.statements,
+                ogsql_parser::linter::Confidence::Full,
+                &config,
+                cli.schema_json.as_deref(),
+            );
             if !lint_warnings.is_empty() {
                 out.as_object_mut().unwrap().insert("lint_warnings".to_string(), serde_json::json!(lint_warnings));
                 out.as_object_mut()
@@ -814,7 +819,12 @@ fn cmd_parse_single(cli: &Cli, file_path: Option<&str>, csv: bool, proc_name: Op
         }
         if cli.lint {
             let config = build_lint_config(cli);
-            let lint_warnings = run_lint(&output.statements, ogsql_parser::linter::Confidence::Full, &config, cli.schema_json.as_deref());
+            let lint_warnings = run_lint(
+                &output.statements,
+                ogsql_parser::linter::Confidence::Full,
+                &config,
+                cli.schema_json.as_deref(),
+            );
             if !lint_warnings.is_empty() {
                 eprintln!("\n── Lint Warnings ({}) ──", lint_warnings.len());
                 format_warnings_text(&lint_warnings);
@@ -4657,7 +4667,12 @@ mod api {
         }
         if input.lint == Some(true) {
             let config = ogsql_parser::linter::LintConfig::default();
-            let lint_warnings = super::run_lint(&output.statements, ogsql_parser::linter::Confidence::Full, &config, cli.schema_json.as_deref());
+            let lint_warnings = super::run_lint(
+                &output.statements,
+                ogsql_parser::linter::Confidence::Full,
+                &config,
+                cli.schema_json.as_deref(),
+            );
             result.as_object_mut().unwrap().insert("lint_warnings".to_string(), serde_json::json!(lint_warnings));
             result
                 .as_object_mut()

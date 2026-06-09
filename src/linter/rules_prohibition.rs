@@ -345,27 +345,38 @@ fn check_r006(
                                     .as_ref()
                                     .map(|t| {
                                         crate::analyzer::schema::matches_function_index(
-                                            &idx_info.indexes, t, &fn_lower, &col_lower,
+                                            &idx_info.indexes,
+                                            t,
+                                            &fn_lower,
+                                            &col_lower,
                                         )
                                     })
                                     .unwrap_or(false);
 
                                 if has_index && !has_func_index {
                                     warnings.push(make_warning(
-                                        WarningLevel::Prohibition, "R006", "function-on-where-column",
+                                        WarningLevel::Prohibition,
+                                        "R006",
+                                        "function-on-where-column",
                                         "WHERE 中对有索引的列使用函数，将导致索引失效".into(),
-                                        Some("将函数运算移到等号另一侧或使用函数索引"), loc,
-                                        Some("WHERE 规范"), confidence,
+                                        Some("将函数运算移到等号另一侧或使用函数索引"),
+                                        loc,
+                                        Some("WHERE 规范"),
+                                        confidence,
                                     ));
                                     return false;
                                 }
                             }
                             None => {
                                 warnings.push(make_warning(
-                                    WarningLevel::Prohibition, "R006", "function-on-where-column",
+                                    WarningLevel::Prohibition,
+                                    "R006",
+                                    "function-on-where-column",
                                     "WHERE 中对列使用函数，可能导致索引失效".into(),
-                                    Some("将函数运算移到等号另一侧或使用函数索引"), loc,
-                                    Some("WHERE 规范"), confidence,
+                                    Some("将函数运算移到等号另一侧或使用函数索引"),
+                                    loc,
+                                    Some("WHERE 规范"),
+                                    confidence,
                                 ));
                                 return false;
                             }
@@ -418,10 +429,14 @@ fn emit_index_aware_r006(
         }
     }
     warnings.push(make_warning(
-        WarningLevel::Prohibition, "R006", "function-on-where-column",
+        WarningLevel::Prohibition,
+        "R006",
+        "function-on-where-column",
         "WHERE 中对有索引的列使用函数或表达式，将导致索引失效".into(),
-        Some("将运算移到等号另一侧"), loc,
-        Some("WHERE 规范"), confidence,
+        Some("将运算移到等号另一侧"),
+        loc,
+        Some("WHERE 规范"),
+        confidence,
     ));
 }
 
@@ -438,7 +453,6 @@ fn get_where_and_tables(stmt: &Statement) -> (Option<&Expr>, &[crate::ast::Table
 /// Resolve which table a column belongs to from the FROM clause.
 /// Returns the table name (lowercase), or None if unresolvable.
 fn resolve_table_from_column(col_ref: &[String], tables: &[crate::ast::TableRef]) -> Option<String> {
-
     if col_ref.len() >= 2 {
         return Some(col_ref[col_ref.len() - 2].to_lowercase());
     }
@@ -466,9 +480,9 @@ fn table_name(tref: &crate::ast::TableRef) -> Option<&str> {
             }
         }
         TableRef::Join { left, .. } => table_name(left),
-        TableRef::Subquery { alias, .. }
-        | TableRef::FunctionCall { alias, .. }
-        | TableRef::Values { alias, .. } => alias.as_deref(),
+        TableRef::Subquery { alias, .. } | TableRef::FunctionCall { alias, .. } | TableRef::Values { alias, .. } => {
+            alias.as_deref()
+        }
         TableRef::Pivot { source, .. } | TableRef::Unpivot { source, .. } => table_name(source),
     }
 }
