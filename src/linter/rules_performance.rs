@@ -1202,8 +1202,7 @@ fn check_p023(
 ) {
     for (s, loc) in collect_nested_selects(stmts) {
         if s.connect_by.is_some() {
-            let mut msg =
-                String::from("CONNECT BY 层级查询在数据量大或递归层次深时性能可能显著下降");
+            let mut msg = String::from("CONNECT BY 层级查询在数据量大或递归层次深时性能可能显著下降");
             if s.connect_by.as_ref().is_some_and(|cb| cb.start_with.is_none()) {
                 msg.push_str("；缺少 START WITH 可能导致全表扫描");
             }

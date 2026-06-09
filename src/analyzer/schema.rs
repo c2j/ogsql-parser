@@ -141,6 +141,7 @@ pub type IndexMapV2 = HashMap<String, HashMap<String, Vec<String>>>;
 
 /// Full schema with both column type info and index metadata.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct FullSchema {
     #[serde(default)]
     pub columns: SchemaMap,
@@ -192,7 +193,12 @@ pub fn matches_function_index(indexes: &IndexMapV2, table: &str, function_name: 
     let prefix = format!("{}(", function_name.to_lowercase());
     let needle = format!("{}{}", prefix, col_name.to_lowercase());
 
-    if let Some(indices) = indexes.get(&table_lower) {
+    // Case-insensitive table lookup: iterate all entries since DDL may
+    // preserve original casing while callers pass lowercase or mixed.
+    for (tbl, indices) in indexes {
+        if tbl.to_lowercase() != table_lower {
+            continue;
+        }
         for cols in indices.values() {
             for col_expr in cols {
                 let col_lower = col_expr.to_lowercase();
@@ -680,13 +686,11 @@ mod tests {
 
     #[test]
     fn test_full_schema_serde_default_fallback() {
-        // Old format JSON should deserialize into FullSchema with empty indexes
+        // Old format JSON (without "columns"/"indexes" wrapper) should be
+        // rejected by FullSchema's deny_unknown_fields, but load_full_schema
+        // handles it via the SchemaMap fallback path.
         let json = r#"{"t": {"id": "integer"}}"#;
         let result: Result<FullSchema, _> = serde_json::from_str(json);
-        assert!(result.is_ok(), "Old format should deserialize via serde default: {:?}", result.err());
-        let fs = result.unwrap();
-        assert_eq!(fs.columns.len(), 1);
-        assert_eq!(fs.columns["t"]["id"], "integer");
-        assert!(fs.indexes.is_empty());
+        assert!(result.is_err(), "Old format should be rejected by deny_unknown_fields");
     }
 }
