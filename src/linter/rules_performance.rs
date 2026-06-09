@@ -1,8 +1,8 @@
 use crate::ast::plpgsql::PlStatement;
 use crate::ast::{Expr, InsertSource, SelectTarget, SetOperation, Statement, StatementInfo, TableRef};
 use crate::linter::{
-    loc_from_spanned, make_warning, stmt_location, walk_expr, walk_select_exprs, Confidence, LintConfig, LintRuleEntry,
-    SqlLinter, SqlWarning, StatementKind, WarningLevel,
+    collect_nested_selects, loc_from_spanned, make_warning, stmt_location, walk_expr, walk_select_exprs, Confidence,
+    LintConfig, LintRuleEntry, SqlLinter, SqlWarning, StatementKind, WarningLevel,
 };
 
 pub fn register(linter: &mut SqlLinter) {
@@ -160,6 +160,13 @@ pub fn register(linter: &mut SqlLinter) {
             level: WarningLevel::Performance,
             stmt_kind: StatementKind::All,
             check_fn: check_p022,
+        },
+        LintRuleEntry {
+            id: "P023",
+            name: "connect-by-performance",
+            level: WarningLevel::Performance,
+            stmt_kind: StatementKind::All,
+            check_fn: check_p023,
         },
     ];
     for rule in rules {
@@ -1176,6 +1183,40 @@ fn check_pl_stmts_for_loop_insert(pl_stmts: &[crate::ast::plpgsql::PlStatement],
         }
         if *found {
             return;
+        }
+    }
+}
+
+// ── P023: CONNECT BY hierarchical query ──
+//
+// CONNECT BY queries can degrade severely with large datasets or deep
+// recursion.  GaussDB's WITH RECURSIVE CTE often provides better optimization
+// and clearer semantics for complex traversals.
+fn check_p023(
+    stmts: &[StatementInfo],
+    _schema: Option<&crate::analyzer::schema::SchemaMap>,
+    _indexes: Option<&crate::linter::IndexInfo>,
+    _config: &LintConfig,
+    confidence: Confidence,
+    warnings: &mut Vec<SqlWarning>,
+) {
+    for (s, loc) in collect_nested_selects(stmts) {
+        if s.connect_by.is_some() {
+            let mut msg =
+                String::from("CONNECT BY 层级查询在数据量大或递归层次深时性能可能显著下降");
+            if s.connect_by.as_ref().is_some_and(|cb| cb.start_with.is_none()) {
+                msg.push_str("；缺少 START WITH 可能导致全表扫描");
+            }
+            warnings.push(make_warning(
+                WarningLevel::Performance,
+                "P023",
+                "connect-by-performance",
+                msg,
+                Some("考虑使用 WITH RECURSIVE CTE 替代，或在 START WITH 中限制起始行范围，在 CONNECT BY 条件中添加额外过滤，使用 NOCYCLE 避免死循环"),
+                loc,
+                None,
+                confidence,
+            ));
         }
     }
 }
