@@ -4492,6 +4492,9 @@ mod api {
         /// Enable SQL anti-pattern linting
         #[serde(default)]
         pub lint: Option<bool>,
+        /// Path to schema JSON file for schema-aware lint rules (index metadata, column types)
+        #[serde(default)]
+        pub schema_json: Option<String>,
     }
 
     #[derive(Deserialize, ToSchema)]
@@ -4671,7 +4674,7 @@ mod api {
                 &output.statements,
                 ogsql_parser::linter::Confidence::Full,
                 &config,
-                cli.schema_json.as_deref(),
+                input.schema_json.as_deref(),
             );
             result.as_object_mut().unwrap().insert("lint_warnings".to_string(), serde_json::json!(lint_warnings));
             result
