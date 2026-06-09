@@ -563,8 +563,9 @@ fn multiple_rules_same_statement() {
 fn no_warnings_clean_sql() {
     let stmts = parse("SELECT id, name FROM users WHERE status = 'active' ORDER BY id");
     let w = lint(&stmts);
-    // R005 may trigger for literal-column comparison, filter it out
-    let non_known: Vec<_> = w.iter().filter(|w| w.rule_id != "R005" && w.rule_id != "S007").collect();
+    // R005 may trigger for literal-column comparison, filter it out.
+    // S007 no longer triggers without schema evidence.
+    let non_known: Vec<_> = w.iter().filter(|w| w.rule_id != "R005").collect();
     assert!(non_known.is_empty(), "clean SQL should not produce warnings (except maybe R005/S007): {:?}", non_known);
 }
 
@@ -804,24 +805,40 @@ fn c017_nested_block_outer_exception() {
     assert!(has_rule(&w, "C017"), "expected C017 for nested block EXCEPTION with RAISE");
 }
 
-// ── C018: Excessive INSERT VALUES rows ──
+// ── C018: Excessive INSERT VALUES (rows × columns) ──
 
 #[test]
 fn c018_excessive_insert_values_trigger() {
-    let vals = (0..101).map(|i| format!("({i}, 'x')")).collect::<Vec<_>>().join(", ");
-    let sql = format!("INSERT INTO t (a, b) VALUES {vals}");
-    let stmts = parse(&sql);
-    let w = lint(&stmts);
-    assert!(has_rule(&w, "C018"), "expected C018 for 101-row INSERT VALUES");
+    // 4 rows × 3 cols = 12 > 10
+    let sql = "INSERT INTO t (a, b, c) VALUES (1,2,3), (4,5,6), (7,8,9), (10,11,12)";
+    let stmts = parse(sql);
+    let config = LintConfig { max_insert_values_rows: 10, ..LintConfig::default() };
+    let linter = SqlLinter::with_default_rules(config);
+    let w = linter.lint(&stmts, None, Confidence::Full);
+    assert!(has_rule(&w, "C018"), "4×3=12 > 10 should trigger C018");
 }
 
 #[test]
 fn c018_insert_values_within_limit() {
-    let vals = (0..100).map(|i| format!("({i}, 'x')")).collect::<Vec<_>>().join(", ");
-    let sql = format!("INSERT INTO t (a, b) VALUES {vals}");
+    // 3 rows × 3 cols = 9 < 10
+    let sql = "INSERT INTO t (a, b, c) VALUES (1,2,3), (4,5,6), (7,8,9)";
+    let stmts = parse(sql);
+    let config = LintConfig { max_insert_values_rows: 10, ..LintConfig::default() };
+    let linter = SqlLinter::with_default_rules(config);
+    let w = linter.lint(&stmts, None, Confidence::Full);
+    assert!(!has_rule(&w, "C018"), "3×3=9 ≤ 10 should NOT trigger C018");
+}
+
+#[test]
+fn c018_implicit_columns_infer_from_values() {
+    // No column list → infer 2 cols from values, 11 rows × 2 = 22 > 20
+    let mut vals: Vec<String> = (0..11).map(|i| format!("({i}, 'x')")).collect();
+    let sql = format!("INSERT INTO t VALUES {}", vals.join(", "));
     let stmts = parse(&sql);
-    let w = lint(&stmts);
-    assert!(!has_rule(&w, "C018"), "100 rows should be within default limit");
+    let config = LintConfig { max_insert_values_rows: 20, ..LintConfig::default() };
+    let linter = SqlLinter::with_default_rules(config);
+    let w = linter.lint(&stmts, None, Confidence::Full);
+    assert!(has_rule(&w, "C018"), "11×2=22 > 20 should trigger C018 with implicit columns");
 }
 
 #[test]
@@ -836,17 +853,6 @@ fn c018_insert_select_not_triggered() {
     let stmts = parse("INSERT INTO t (a, b) SELECT c, d FROM src");
     let w = lint(&stmts);
     assert!(!has_rule(&w, "C018"), "INSERT SELECT should not trigger C018");
-}
-
-#[test]
-fn c018_custom_threshold() {
-    let vals = (0..51).map(|i| format!("({i}, 'x')")).collect::<Vec<_>>().join(", ");
-    let sql = format!("INSERT INTO t (a, b) VALUES {vals}");
-    let stmts = parse(&sql);
-    let config = LintConfig { max_insert_values_rows: 50, ..LintConfig::default() };
-    let linter = SqlLinter::with_default_rules(config);
-    let w = linter.lint(&stmts, None, Confidence::Full);
-    assert!(has_rule(&w, "C018"), "51 rows with threshold 50 should trigger C018");
 }
 
 // ════════════════════════════════════════════════════════════════
@@ -900,7 +906,7 @@ fn s006_limit_with_order_not_triggered() {
 fn s007_string_literal_in_where_no_schema() {
     let stmts = parse("SELECT * FROM t WHERE name = 'abc'");
     let w = lint(&stmts);
-    assert!(has_rule(&w, "S007"), "without schema, S007 should warn on string literal in WHERE");
+    assert!(!has_rule(&w, "S007"), "without schema, S007 should NOT warn — no evidence of type mismatch");
 }
 
 #[test]
@@ -965,7 +971,7 @@ fn s007_qualified_column_varchar_no_warn() {
 fn s007_delete_without_schema_still_warns() {
     let stmts = parse("DELETE FROM file_info WHERE pro_id = '10'");
     let w = lint(&stmts);
-    assert!(has_rule(&w, "S007"), "without schema, S007 should still warn on string literal in WHERE");
+    assert!(!has_rule(&w, "S007"), "without schema, S007 should NOT warn — no evidence of type mismatch");
 }
 
 #[test]
@@ -990,7 +996,7 @@ fn s007_unresolved_column_still_warns() {
     let stmts = parse("SELECT * FROM unknown_table WHERE col = 'val'");
     let linter = SqlLinter::with_default_rules(LintConfig::default());
     let w = linter.lint(&stmts, Some(&schema), Confidence::Full);
-    assert!(has_rule(&w, "S007"), "unresolvable column with schema present should still warn");
+    assert!(!has_rule(&w, "S007"), "unresolvable column with schema present should NOT warn — no evidence of type mismatch");
 }
 
 #[test]

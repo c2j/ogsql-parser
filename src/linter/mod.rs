@@ -121,13 +121,14 @@ pub struct LintConfig {
     pub in_list_threshold: usize,
     /// P014 -- subquery nesting depth limit (default 3).
     pub subquery_depth_limit: usize,
-    /// S008 -- SQL text length limit (default 2000).
+    /// S008 -- SQL text length limit (default 4096, aligned with GaussDB track_activity_query_size).
     pub sql_length_limit: usize,
     /// P007 -- non-equi join count limit (default 2).
     pub non_equi_join_limit: usize,
     /// R002 -- GROUP BY column count limit (default 10).
     pub group_by_column_limit: usize,
-    /// C018 -- max INSERT VALUES rows per statement (default 100).
+    /// C018 -- max bind parameters (rows × columns) for INSERT VALUES (default 65535,
+    /// aligned with database bind-parameter limit).
     pub max_insert_values_rows: usize,
 }
 
@@ -139,10 +140,10 @@ impl Default for LintConfig {
             suppress: vec![],
             in_list_threshold: 500,
             subquery_depth_limit: 3,
-            sql_length_limit: 2000,
+            sql_length_limit: 4096,
             non_equi_join_limit: 2,
             group_by_column_limit: 10,
-            max_insert_values_rows: 100,
+            max_insert_values_rows: 65535,
         }
     }
 }

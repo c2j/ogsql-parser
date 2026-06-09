@@ -1422,6 +1422,99 @@ fn test_expand_foreach_with_sizes() {
 }
 
 #[test]
+fn test_expand_foreach_insert_c018_detection() {
+    // Verify that the structured SqlNode tree can detect foreach inside
+    // INSERT VALUES, enabling C018 lint for dynamic batch inserts.
+    let xml = br#"<mapper namespace="test">
+        <insert id="batchInsert">
+            INSERT INTO t (a, b, c, d) VALUES
+            <foreach collection="list" item="x" separator=",">
+                (#{x.a}, #{x.b}, #{x.c}, #{x.d})
+            </foreach>
+        </insert>
+    </mapper>"#;
+    let result = super::parse_mapper_bytes_structured(xml);
+    assert!(result.errors.is_empty());
+
+    use crate::ibatis::types::SqlNode;
+    let body = &result.statements[0].body;
+
+    // Verify it's an INSERT VALUES statement
+    assert!(is_insert_with_values(body), "should detect INSERT VALUES");
+
+    // Verify foreach is found inside the INSERT VALUES
+    let foreach_node = find_foreach_in_insert_values(body);
+    assert!(foreach_node.is_some(), "should find foreach inside INSERT VALUES");
+
+    // Count params per foreach iteration
+    let params = count_params_in_foreach_body(foreach_node.unwrap());
+    assert_eq!(params, 4, "foreach body should have 4 params (x.a, x.b, x.c, x.d)");
+}
+
+/// Returns true if the SqlNode tree contains an INSERT ... VALUES pattern.
+fn is_insert_with_values(node: &SqlNode) -> bool {
+    match node {
+        SqlNode::Text { content } => {
+            let lower = content.to_lowercase();
+            lower.contains("insert") && lower.contains("values")
+        }
+        SqlNode::Sequence { children } | SqlNode::Trim { children, .. } => {
+            children.iter().any(is_insert_with_values)
+        }
+        _ => false,
+    }
+}
+
+/// Finds a ForEach node nested inside INSERT VALUES context.
+fn find_foreach_in_insert_values(node: &SqlNode) -> Option<&SqlNode> {
+    match node {
+        SqlNode::ForEach { .. } => Some(node),
+        SqlNode::Sequence { children }
+        | SqlNode::Trim { children, .. }
+        | SqlNode::Where { children, .. }
+        | SqlNode::Set { children, .. }
+        | SqlNode::If { children, .. }
+        | SqlNode::ForEach { children, .. } => {
+            for child in children {
+                if let Some(f) = find_foreach_in_insert_values(child) {
+                    return Some(f);
+                }
+            }
+            None
+        }
+        SqlNode::Choose { branches } => {
+            for (_, ch) in branches {
+                for c in ch {
+                    if let Some(f) = find_foreach_in_insert_values(c) {
+                        return Some(f);
+                    }
+                }
+            }
+            None
+        }
+        _ => None,
+    }
+}
+
+/// Counts the number of Parameter nodes inside a ForEach body.
+fn count_params_in_foreach_body(node: &SqlNode) -> usize {
+    match node {
+        SqlNode::Parameter { .. } => 1,
+        SqlNode::Sequence { children }
+        | SqlNode::Trim { children, .. }
+        | SqlNode::Where { children, .. }
+        | SqlNode::Set { children, .. }
+        | SqlNode::If { children, .. }
+        | SqlNode::ForEach { children, .. } => children.iter().map(count_params_in_foreach_body).sum(),
+        SqlNode::Choose { branches } => {
+            branches.iter().flat_map(|(_, ch)| ch.iter().map(count_params_in_foreach_body)).sum()
+        }
+        SqlNode::RawExpr { .. } => 1,
+        _ => 0,
+    }
+}
+
+#[test]
 fn test_expand_choose_two_branches() {
     let xml = br#"<mapper namespace="test">
         <select id="find">

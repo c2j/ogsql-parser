@@ -275,9 +275,9 @@ fn check_s007(
         };
         let Some(where_clause) = where_clause else { continue };
 
-        // When schema is available, build a column→type lookup so we can
-        // distinguish same-family comparisons (varchar_col = 'str') from
-        // cross-family ones (int_col = 'str') and avoid false positives.
+        // Only warn when schema is available and provides concrete evidence of
+        // a cross-family comparison (e.g. int_col = 'str'). Without schema or
+        // when the column can't be resolved, skip — no evidence to warn on.
         let col_types = schema.map(|s| build_column_type_map(s, tables));
 
         let mut found = false;
@@ -296,19 +296,17 @@ fn check_s007(
                     return true;
                 }
 
-                // If we have schema info, check whether the comparison is
-                // same-type-family (string literal vs string column) — skip those.
-                if let Some(ref ct) = col_types {
-                    let col_expr = if l_untyped { right.as_ref() } else { left.as_ref() };
-                    if let Some(col_type) = resolve_column_type(col_expr, ct) {
-                        if is_string_type(&col_type) {
-                            // String literal vs string-type column — safe, no warning.
-                            return true;
-                        }
-                    }
-                    // Could not resolve column type, or cross-type-family → warn.
+                let Some(ref ct) = col_types else {
+                    return true; // no schema → skip, no evidence
+                };
+                let col_expr = if l_untyped { right.as_ref() } else { left.as_ref() };
+                let Some(col_type) = resolve_column_type(col_expr, ct) else {
+                    return true; // column unresolved → skip, no evidence
+                };
+                if is_string_type(&col_type) {
+                    return true; // same-family → skip, safe
                 }
-                // No schema → still warn (backward compatible).
+                // Cross-family: concrete evidence of potential implicit conversion.
                 found = true;
                 return false;
             }

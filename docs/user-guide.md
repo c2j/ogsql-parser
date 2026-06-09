@@ -52,6 +52,22 @@
 - [8. 多字符集支持](#8-多字符集支持)
 - [9. 架构概览](#9-架构概览)
 - [10. 常见问题 (FAQ)](#10-常见问题-faq)
+- [11. SQL 反模式检测 (Lint)](#11-sql-反模式检测-lint)
+  - [11.1 快速开始](#111-快速开始)
+  - [11.2 命令行选项](#112-命令行选项)
+  - [11.3 配置文件](#113-配置文件)
+  - [11.4 规则清单](#114-规则清单)
+  - [11.5 Rust 库 API](#115-rust-库-api)
+- [12. 错误与警告类型参考](#12-错误与警告类型参考)
+  - [12.1 错误与警告分类](#121-错误与警告分类)
+  - [12.2 解析错误 (ParserError)](#122-解析错误-parsererror)
+  - [12.3 分词错误 (TokenizerError)](#123-分词错误-tokenizererror)
+  - [12.4 解析警告](#124-解析警告)
+  - [12.5 输出格式](#125-输出格式)
+- [13. 语义校验规则](#13-语义校验规则)
+  - [13.1 PL 变量校验（严格模式）](#131-pl-变量校验严格模式)
+  - [13.2 MERGE 语义校验](#132-merge-语义校验)
+  - [13.3 包一致性校验](#133-包一致性校验)
 
 ---
 
@@ -324,10 +340,10 @@ ogsql -f query.sql format -u -i 4
 
 ### 3.5 validate — 语法校验
 
-检查 SQL 语法是否正确，报告错误和警告信息。
+检查 SQL 语法是否正确，报告错误和警告信息。支持单文件、目录批量扫描、严格模式和多种输出格式。
 
 ```bash
-# 校验正确 SQL
+# 校验单条 SQL
 echo "SELECT * FROM users" | ogsql validate
 # 输出: OK
 
@@ -337,7 +353,56 @@ echo "SELECT FROM" | ogsql validate
 
 # 从文件校验
 ogsql -f procedures.sql validate
+
+# 批量扫描目录
+ogsql validate -d ./sql-files
+
+# 启用严格模式（检测 PL 块中未定义函数调用）
+echo "CREATE OR REPLACE FUNCTION test() RETURNS VOID AS \$\$ BEGIN PERFORM unknown_func(); END; \$\$ LANGUAGE plpgsql" | ogsql validate --strict
+
+# 批量扫描 + CSV 输出 + 统计
+ogsql validate -d ./sql-files --csv --stats
+
+# 批量扫描 + JSON 输出 + 统计
+ogsql validate -d ./sql-files -j --stats
+
+# 校验并生成错误日志（需 -v）
+ogsql -f procedures.sql validate -v
+
+# 配合 --lint 启用 SQL 反模式检测
+ogsql validate -d ./sql-files --lint --stats
 ```
+
+**校验选项：**
+
+| 选项 | 说明 |
+|------|------|
+| `-d, --dir <DIR>` | 递归扫描目录中的 SQL 文件（可多次指定） |
+| `-e, --ext <EXT>` | 扫描的文件扩展名，逗号分隔（默认: `sql`） |
+| `--csv` | 以 CSV 格式输出校验结果（每行一条语句） |
+| `--stats` | 输出统计摘要（文件数、错误数、语句类型分布等） |
+| `--strict` | 启用严格模式：检测 PL 块中未定义的函数调用（详见 [13.1](#131-pl-变量校验严格模式)） |
+
+**校验流程：**
+
+`validate` 命令依次执行以下检查：
+
+1. **分词** — 检查字符串、注释等是否正确闭合
+2. **语法解析** — 检查 SQL 语法是否正确，报告解析错误和警告
+3. **MERGE 语义校验** — 检查 MERGE 语句的 GaussDB 兼容性（详见 [13.2](#132-merge-语义校验)）
+4. **包一致性校验** — 检查 PACKAGE 与 PACKAGE BODY 是否匹配（详见 [13.3](#133-包一致性校验)）
+5. **PL 变量校验** — 检查 PL 块中是否使用了未声明的变量（`--strict` 时还检查未定义函数，详见 [13.1](#131-pl-变量校验严格模式)）
+
+**结果分类：**
+
+- **错误 (error)** — 包括 `UnexpectedToken`、`UnexpectedEof`、`TokenizerError`、`UnsupportedSyntax` 等，表示语法层面存在问题
+- **警告 (warning)** — 包括 `ParserError::Warning` 和 `ReservedKeywordAsIdentifier`，表示潜在问题但不阻止解析
+- **严格模式错误** — PL 块中使用未定义函数时报告（仅 `--strict`）
+
+**退出码：**
+
+- `0` — 所有文件校验通过（可能有警告）
+- `1` — 存在错误（`--csv` 或批量模式时）
 
 ---
 
@@ -717,6 +782,79 @@ fn validate_sql(sql: &str) -> Result<(), String> {
         },
         Err(e) => Err(format!("分词错误: {:?}", e)),
     }
+}
+```
+
+**区分错误和警告：**
+
+解析器返回的 `ParserError` 包含错误和警告两种。使用 `parse_sql` 一次性方法可以获取完整的错误列表和语句列表：
+
+```rust
+use ogsql_parser::Parser;
+
+let (statements, errors) = Parser::parse_sql("SELECT * FROM t");
+
+for err in &errors {
+    match err {
+        ParserError::Warning { message, .. } => {
+            println!("警告: {}", message);
+        }
+        ParserError::ReservedKeywordAsIdentifier { keyword, .. } => {
+            println!("警告: 保留关键字 '{}' 被用作标识符", keyword);
+        }
+        _ => {
+            println!("错误: {}", err);
+        }
+    }
+}
+```
+
+**MERGE 语义校验：**
+
+```rust
+use ogsql_parser::{Parser, validate_merge_semantics};
+
+let (stmts, _) = Parser::parse_sql("MERGE INTO target t USING source s ON t.id = s.id WHEN MATCHED THEN DELETE");
+for stmt in &stmts {
+    if let Some(errors) = validate_merge_semantics(&stmt.statement) {
+        for err in errors {
+            println!("MERGE 错误: {:?}", err.kind);
+        }
+    }
+}
+```
+
+**PL 变量校验：**
+
+```rust
+use ogsql_parser::{Parser, validate_pl_variables_with_extra_vars_and_funcs};
+
+let (stmts, _) = Parser::parse_sql("CREATE FUNCTION test() RETURNS VOID AS $$ BEGIN PERFORM my_func(); END $$ LANGUAGE plpgsql");
+
+for si in &stmts {
+    if let ogsql_parser::ast::Statement::CreateFunction(f) = &si.statement {
+        if let Some(ref block) = f.block {
+            let extra_funcs: Vec<&str> = vec!["my_func"];  // 自定义已知函数
+            let errors = validate_pl_variables_with_extra_vars_and_funcs(
+                block, &f.parameters, &[], &extra_funcs, false,
+            );
+            for err in &errors {
+                println!("未定义变量: {} (位置: {:?})", err.name, err.location);
+            }
+        }
+    }
+}
+```
+
+**包一致性校验：**
+
+```rust
+use ogsql_parser::{Parser, validate_package_consistency};
+
+let (stmts, _) = Parser::parse_sql("CREATE PACKAGE pkg AS ... END; CREATE PACKAGE BODY pkg AS ... END;");
+let errors = validate_package_consistency(&stmts);
+for err in &errors {
+    println!("包不一致: {} — {:?}", err.package_name, err.kind);
 }
 ```
 
@@ -1257,6 +1395,12 @@ src/
 │   ├── mod.rs          # 分析器主模块
 │   ├── schema.rs       # Schema 加载和解析
 │   └── return_cursor.rs # 返回游标分析
+├── linter/             # SQL 反模式检测
+│   ├── mod.rs          # Linter 主模块 (SqlWarning, LintConfig)
+│   ├── rules_prohibition.rs  # 禁止项规则 (R001-R009)
+│   ├── rules_performance.rs  # 性能规则 (P001-P022)
+│   ├── rules_caution.rs      # 注意事项规则 (C001-C018)
+│   └── rules_suggestion.rs   # 建议规则 (S001-S008)
 ├── ibatis/             # iBatis/MyBatis XML 解析
 ├── java/               # Java 源文件 SQL 提取
 └── mcp/                # MCP 服务器实现
@@ -1273,6 +1417,59 @@ src/
 ### Q: 解析遇到错误时会怎样？
 
 解析器会尽可能继续解析后续语句，将遇到的错误收集到 `errors` 数组中返回，而不是直接中止。这意味着即使部分语句有语法错误，仍然可以获取其他正确解析的语句。
+
+**错误与警告的区别：** 解析器将诊断信息分为错误和警告两类。错误（如 `UnexpectedToken`、`TokenizerError`）表示语法问题；警告（如 `ReservedKeywordAsIdentifier`、`Warning` 变体）表示潜在问题但不阻止解析。详见 [12. 错误与警告类型参考](#12-错误与警告类型参考)。
+
+### Q: validate 命令和 parse 命令有什么不同？
+
+`parse` 专注于输出 AST 结构，适合程序化处理和 JSON 往返转换。`validate` 专为语法校验设计，额外执行以下检查：
+
+1. **MERGE 语义校验** — 检测 GaussDB 不支持的 MERGE 模式
+2. **包一致性校验** — 检查 PACKAGE 与 PACKAGE BODY 是否匹配
+3. **PL 变量校验** — 检测 PL 块中未声明的变量
+4. **严格模式** — `--strict` 下额外检测未定义函数调用
+
+`validate` 更适合 CI/CD 流水线中作为质量门禁使用。
+
+### Q: 如何在 CI/CD 中使用校验功能？
+
+```bash
+# 批量校验 SQL 文件目录，CSV 输出 + 统计
+ogsql validate -d ./sql-files --csv --stats
+
+# 启用严格校验 + Lint（自动成为质量门禁，有错误时退出码 1）
+ogsql validate -d ./sql-files --strict --lint --min-level caution --csv --stats
+
+# 使用自定义 lint 配置
+ogsql validate -d ./sql-files --lint --lint-config ./ci/.ogsql-lint.toml --csv --stats
+```
+
+有错误时退出码为 `1`，CI 可据此判断是否阻断流水线。警告不会导致非零退出码。
+
+### Q: 什么是严格模式 (--strict)？什么时候应该使用？
+
+`--strict` 模式在正常 PL 变量校验之外，额外检测 PL 块中调用的函数是否在已知函数列表中。已知函数包括：
+
+- OGSQL 内置的 449 个函数（完整 function_registry）
+- 同一文件中通过 `CREATE FUNCTION` / `CREATE PROCEDURE` / `PACKAGE` 定义的子程序
+
+**使用场景：**
+- **推荐使用** — 当 SQL 文件是完整的功能单元（包含所有依赖定义），严格模式可以捕获拼写错误和缺失依赖
+- **谨慎使用** — 当文件引用了外部模块的函数时，严格模式可能产生误报（需要配合 `--schema-json` 或预先扫描依赖文件）
+
+### Q: Lint 规则太多，如何只关注重要的？
+
+使用 `--min-level` 和 `--suppress` 精细化控制：
+
+```bash
+# 只报告 Prohibition（禁止项）和 Performance（性能）级别
+ogsql validate -d ./sql-files --lint --min-level performance
+
+# 排除特定规则
+ogsql validate -d ./sql-files --lint --suppress R001,P012,S006
+```
+
+也可以通过配置文件永久设置，见 [11.3 配置文件](#113-配置文件)。
 
 ### Q: JSON 往返转换是真正无损的吗？
 
@@ -1302,3 +1499,375 @@ src/
 ### Q: 许可证是什么？
 
 MIT OR Apache-2.0 双许可，您可以选择其中任一使用。
+
+---
+
+## 11. SQL 反模式检测 (Lint)
+
+OGSQL Parser 内置 SQL 静态检测引擎 (`SqlLinter`)，可识别 47 条反模式规则，覆盖**禁止项 (Prohibition)**、**性能 (Performance)**、**注意事项 (Caution)** 和**建议 (Suggestion)** 四个等级。
+
+### 11.1 快速开始
+
+通过 `--lint` 全局选项启用，可配合 `parse`、`validate`、`parse-xml`、`parse-java` 使用：
+
+```bash
+# 单文件 lint
+echo "SELECT * FROM users" | ogsql parse -j --lint
+
+# 目录批量 lint + 统计
+ogsql validate -d ./sql-files --lint --stats
+
+# 只报告 Prohibition 和 Performance 级别
+ogsql validate -d ./sql-files --lint --min-level performance
+
+# 只报告 Full confidence 的结果（排除 iBatis 动态 SQL 的 Partial 结果）
+ogsql validate -d ./sql-files --lint --min-confidence full
+
+# 禁用指定规则（逗号分隔）
+ogsql validate -d ./sql-files --lint --suppress R001,S007
+
+# 使用自定义配置文件（详见 11.3）
+ogsql validate -d ./sql-files --lint --lint-config ./.ogsql-lint.toml
+```
+
+### 11.2 命令行选项
+
+| 选项 | 值 | 默认 | 说明 |
+|------|-----|------|------|
+| `--lint` | — | 关闭 | 启用 SQL 反模式检测 |
+| `--min-level` | `prohibition`, `performance`, `caution`, `suggestion` | `suggestion` | 最低报告级别 |
+| `--min-confidence` | `full`, `partial` | `partial` | 最低可信度（full 排除 iBatis 动态 SQL） |
+| `--suppress` | 逗号分隔规则 ID | — | 禁用指定规则（如 `R001,S007`） |
+| `--in-list-threshold` | 正整数 | `500` | P003: IN 列表大小阈值 |
+| `--subquery-depth-limit` | 正整数 | `3` | P014: 子查询嵌套深度阈值 |
+| `--non-equi-join-limit` | 正整数 | `2` | P007: 非等值 JOIN 数量阈值 |
+| `--lint-config` | 文件路径 | 自动查找 | 配置文件路径（详见 11.3） |
+
+### 11.3 配置文件
+
+OGSQL Lint 支持通过 `.ogsql-lint.toml` 配置文件自定义规则行为。文件搜索顺序：
+
+1. 当前工作目录下的 `.ogsql-lint.toml`
+2. `~/.config/ogsql/lint.toml` (XDG 约定)
+
+**配置示例：**
+
+```toml
+# .ogsql-lint.toml
+min_level = "caution"       # 只报告 Caution 及以上级别
+min_confidence = "full"     # 只报告 Full confidence
+suppress = ["R001", "S007"] # 禁用 SELECT * 和字面量类型建议
+in_list_threshold = 200     # IN 列表超过 200 个值时报告
+subquery_depth_limit = 5    # 子查询嵌套超过 5 层时报告
+sql_length_limit = 4096     # SQL 超过 4096 字符时建议拆分（默认值，与 GaussDB track_activity_query_size 对齐）
+non_equi_join_limit = 3     # 非等值 JOIN 超过 3 个时报告
+group_by_column_limit = 10  # GROUP BY 超过 10 列时报告
+max_insert_values_rows = 65535 # INSERT VALUES 行数×列数阈值（默认值，对齐数据库绑定参数上限）
+```
+
+配置项的优先级：**命令行参数 > 配置文件 > 默认值**。
+
+### 11.4 规则清单
+
+#### 禁止项 (Prohibition) — 违反 GaussDB 编码规范
+
+| ID | 名称 | 适用语句 | 说明 |
+|----|------|----------|------|
+| R001 | `select-star` | SELECT | `SELECT *` 违反编码规范，表结构变化时可能导致不兼容 |
+| R002 | `large-column-sort` | SELECT | GROUP BY / ORDER BY 超过阈值列的表达式，可能导致性能问题 |
+| R003 | `lock-table` | All | `LOCK TABLE` 可能导致死锁风险 |
+| R004 | `drop-cascade` | All | `DROP ... CASCADE` 可能误删依赖对象 |
+| R005 | `implicit-type-conversion` | SELECT | WHERE 中可能存在隐式类型转换，导致索引失效 |
+| R006 | `function-on-where-column` | DML | WHERE 中对有索引的列使用函数或表达式 |
+| R007 | `like-leading-wildcard` | DML | `LIKE '%...'` 前导通配符导致无法使用索引，触发全表扫描 |
+| R008 | `same-table-column-compare` | DML | 同表列比较：可能未正确使用索引 |
+| R009 | `scalar-subquery-in-select` | SELECT | SELECT 列中包含标量子查询，每行都会执行一次子查询 |
+
+#### 性能 (Performance) — 可识别的性能陷阱
+
+| ID | 名称 | 适用语句 | 说明 |
+|----|------|----------|------|
+| P001 | `union-without-all` | SELECT | `UNION` 未使用 `ALL`，存在不必要的去重排序 |
+| P002 | `not-in-subquery` | DML | `NOT IN (子查询)` 性能较差，NULL 值会导致结果不符合预期 |
+| P003 | `in-list-too-large` | DML | IN 列表超过阈值，导致解析缓慢 |
+| P004 | `or-to-union-all` | DML | WHERE 顶层为 OR 条件，可能导致优化器放弃索引 |
+| P005 | `now-function-non-pushable` | DML | `now()` / `sysdate` 不可下推，导致分布式查询性能下降 |
+| P006 | `count-star-large-table` | SELECT | `COUNT(*)` 在大表上性能较差 |
+| P007 | `too-many-non-equi-joins` | SELECT | 非等值 JOIN 条件过多，性能较差 |
+| P008 | `group-by-without-hashagg` | SELECT | GROUP BY 操作未使用 `hash_agg` 提示 |
+| P009 | `function-instead-of-case` | DML | `NVL`/`NVL2`/`DECODE`/`IIF` 函数可用 CASE 替代，可能更高效 |
+| P010 | `multi-column-update-subquery` | UPDATE | 多列 UPDATE 使用子查询效率较低 |
+| P011 | `correlated-subquery` | DML | 关联子查询可能导致每行执行一次子查询 |
+| P012 | `unnecessary-distinct` | SELECT | DISTINCT 存在，需结合唯一键判断是否必要 |
+| P013 | `cartesian-product` | SELECT | CROSS JOIN 或缺少 JOIN 条件，可能产生笛卡尔积 |
+| P014 | `deeply-nested-subquery` | DML | 子查询嵌套深度超过阈值，性能可能较差 |
+| P015 | `range-equals-same-value` | DML | `BETWEEN` 上下界相同，应简化为等号条件 |
+| P016 | `update-from-no-join-condition` | UPDATE | `UPDATE FROM` 无 WHERE 子句，可能产生笛卡尔积更新 |
+| P017 | `merge-without-unique-index` | MERGE | MERGE 语句 ON 条件需要唯一索引保证确定性 |
+| P018 | `insert-select-no-columns` | INSERT | `INSERT INTO ... SELECT` 未指定目标列名，依赖列顺序 |
+| P019 | `multi-table-update` | UPDATE | 多表 UPDATE，可能产生非预期结果 |
+| P020 | `insert-all-multi-table` | All | `INSERT ALL` / `INSERT FIRST` 多表插入 |
+| P021 | `row-by-row-insert-in-loop` | PL Block | 循环体内包含 INSERT，应使用 FORALL 批量操作替代 |
+| P022 | `explain-in-production` | All | EXPLAIN 语句不应出现在生产代码中 |
+| P023 | `connect-by-performance` | All | CONNECT BY 层级查询在数据量大或递归层次深时性能可能显著下降；缺少 START WITH 可能导致全表扫描。考虑使用 WITH RECURSIVE CTE 替代，使用 NOCYCLE 避免死循环 |
+
+#### 注意事项 (Caution) — 合法但需谨慎
+
+| ID | 名称 | 适用语句 | 说明 |
+|----|------|----------|------|
+| C001 | `hint-unknown` | DML | Hint 不在 GaussDB 已知 Hint 列表中，将被静默忽略 |
+| C005 | `hint-contradictory` | DML | Hint 矛盾（如 `tablescan` 与 `indexscan` 同时存在） |
+| C006 | `hint-table-not-in-from` | DML | Hint 引用的表不在 FROM 子句中 |
+| C007 | `update-without-where` | UPDATE | `UPDATE` 无 WHERE 子句，可能影响全表数据 |
+| C008 | `delete-without-where` | DELETE | `DELETE` 无 WHERE 子句，将删除全表数据 |
+| C009 | `insert-no-column-list` | INSERT | INSERT 未指定目标列名，依赖表定义顺序 |
+| C010 | `unlogged-table` | DDL | `UNLOGGED TABLE` 在故障恢复时数据会丢失 |
+| C011 | `goto-statement` | PL Block | PL/pgSQL 中使用了 `GOTO` 语句，不符合结构化编程建议 |
+| C012 | `execute-concat-sql-injection` | PL Block | `EXECUTE IMMEDIATE` 中使用字符串拼接，可能存在 SQL 注入风险 |
+| C013 | `exception-swallow` | PL Block | `WHEN OTHERS THEN` 异常处理中未重新抛出异常，可能静默吞错 |
+| C014 | `pl-commit-rollback` | PL Block | PL/pgSQL 块中包含 COMMIT/ROLLBACK，可能复杂化事务控制 |
+| C015 | `select-for-update-blocking` | SELECT | `SELECT ... FOR UPDATE` 未使用 NOWAIT/SKIP LOCKED，可能长时间阻塞 |
+| C016 | `autonomous-transaction` | PL Block | `PRAGMA AUTONOMOUS_TRANSACTION` 会创建独立事务，性能开销较大 |
+| C017 | `raise-in-exception-clears-variables` | PL Block | RAISE 在 EXCEPTION 块中会清空所有局部变量值（包括 OUT 参数） |
+| C018 | `excessive-insert-values` | INSERT | `INSERT VALUES` 的 `行数 × 列数` 超过阈值（默认 65535，对齐数据库绑定参数上限），大批量可能导致长事务和锁竞争 |
+
+#### 建议 (Suggestion) — 改善可维护性
+
+| ID | 名称 | 适用语句 | 说明 |
+|----|------|----------|------|
+| S001 | `delete-full-table-use-truncate` | DELETE | DELETE 全表可用 TRUNCATE 替代，释放空间更快 |
+| S002 | `limit-offset-use-cursor` | SELECT | OFFSET 分页在大偏移时性能较差，考虑使用游标翻页 |
+| S005 | `prefer-percent-type` | PL Block | PL/pgSQL 变量使用普通类型而非 `%TYPE`/`%ROWTYPE` 锚定 |
+| S006 | `limit-without-order-by` | SELECT | `LIMIT` 无 `ORDER BY`，结果顺序不确定 |
+| S007 | `explicit-type-for-literals` | DML | WHERE 中字符串常量与列比较时类型不匹配（仅在有 schema 且列类型可解析为非同族类型时报告，无 schema 不告警） |
+| S008 | `complex-sql-consider-split` | All | SQL 文本长度超过阈值（默认 4096 字符，与 GaussDB `track_activity_query_size` 对齐），建议拆分简化或使用 CTE |
+
+### 11.5 Rust 库 API
+
+```rust
+use ogsql_parser::linter::{SqlLinter, LintConfig, WarningLevel, Confidence};
+use ogsql_parser::Parser;
+
+// 使用默认配置创建 linter
+let config = LintConfig::default();
+let linter = SqlLinter::with_default_rules(config);
+
+// 解析 SQL
+let (stmts, _) = Parser::parse_sql("SELECT * FROM users");
+
+// 运行 lint
+let warnings = linter.lint(&stmts, None, None);
+for w in &warnings {
+    println!("[{}] {}: {}", w.level, w.rule_id, w.message);
+    if let Some(suggestion) = &w.suggestion {
+        println!("  建议: {}", suggestion);
+    }
+}
+
+// 生成摘要
+let summary = ogsql_parser::linter::build_lint_summary(&warnings);
+println!("{}", serde_json::to_string_pretty(&summary).unwrap());
+```
+
+**从 TOML 文件加载配置：**
+
+```rust
+use ogsql_parser::linter::LintConfig;
+
+// 自动查找 .ogsql-lint.toml
+if let Ok(Some(config)) = LintConfig::find_and_load() {
+    let linter = ogsql_parser::linter::SqlLinter::with_default_rules(config);
+    // ...
+}
+
+// 从指定文件加载
+let config = LintConfig::load_from_file(std::path::Path::new("./.ogsql-lint.toml"))?;
+```
+
+**结合 Schema 和索引信息的 Lint：**
+
+```rust
+use ogsql_parser::analyzer::schema::{SchemaMap, IndexMapV2};
+use ogsql_parser::linter::IndexInfo;
+use std::collections::{HashMap, HashSet};
+
+// 加载 schema（详见 5.9 节）
+let schema: SchemaMap = /* ... */;
+
+// 构建索引信息
+let mut column_indexes: HashMap<String, HashSet<String>> = HashMap::new();
+// ... 填充索引信息 ...
+let index_info = IndexInfo {
+    indexes: IndexMapV2::new(),
+    column_indexes,
+};
+
+// 运行带 schema 的 lint（R005, R006, R007, S007 等规则会更精确）
+let warnings = linter.lint(&stmts, Some(&schema), Some(&index_info));
+```
+
+---
+
+## 12. 错误与警告类型参考
+
+### 12.1 错误与警告分类
+
+OGSQL Parser 将诊断信息分为两类：
+
+| 分类 | 来源 | 说明 |
+|------|------|------|
+| **错误 (Error)** | 语法/语义检查 | 阻止正常解析或影响 SQL 正确性的问题 |
+| **警告 (Warning)** | 语法/语义检查 | 可能是问题但不阻止解析，或使用不推荐写法的提示 |
+
+**判断标准：** `ParserError` 的以下变体被视为警告，其余为错误：
+
+- `ParserError::Warning` — 显式警告信息（如嵌套深度超限、包不一致）
+- `ParserError::ReservedKeywordAsIdentifier` — 保留关键字被用作标识符
+
+### 12.2 解析错误 (ParserError)
+
+`ParserError` 是解析阶段的核心错误类型，共 6 个变体：
+
+| 变体 | 说明 | 输出示例 |
+|------|------|----------|
+| `UnexpectedToken` | 解析到不符合预期的 Token | `unexpected token at line 1, column 8: expected FROM, got *` |
+| `UnexpectedEof` | 语句不完整，提前到达文件末尾 | `unexpected end of input at line 5, column 1: expected )` |
+| `Warning` | 警告信息（不阻止解析） | `nesting depth exceeded 256 — skipping` |
+| `ReservedKeywordAsIdentifier` | 保留关键字被用作标识符 | `reserved keyword "select" cannot be used as identifier at line 3, column 5` |
+| `TokenizerError` | 词法分析错误（见 [12.3](#123-分词错误-tokenizererror)） | `unterminated string literal at position 42` |
+| `UnsupportedSyntax` | 不支持的语法（语义校验产生） | `unsupported syntax at line 10, column 1: MERGE (GaussDB does not support MERGE ... WHEN MATCHED THEN DELETE)` |
+
+**位置信息：** 所有变体（除 `TokenizerError` 外）都包含 `SourceLocation`，包括 `line` 和 `column`（均为 1-based）。
+
+### 12.3 分词错误 (TokenizerError)
+
+分词在解析之前进行，`TokenizerError` 包含 6 个变体：
+
+| 变体 | 说明 |
+|------|------|
+| `UnterminatedString` | 字符串未闭合（如 `'unterminated`） |
+| `UnterminatedComment` | 块注释 `/* ... */` 未闭合 |
+| `UnterminatedDollarString` | 美元符引用字符串 `$$...` 未闭合 |
+| `UnterminatedQuotedIdentifier` | 引号标识符 `"name` 未闭合 |
+| `InvalidCharacter` | 输入中包含无效字符 |
+| `UnexpectedEof` | 在期望更多输入时到达文件末尾 |
+
+> **注意：** 分词错误通过 `TokenizerError` 上的 `#[from]` 宏自动转换为 `ParserError::TokenizerError`，因此即使分词阶段出错，解析器仍能统一收集并报告。
+
+### 12.4 解析警告
+
+除 `ParserError::Warning` 和 `ReservedKeywordAsIdentifier` 外，以下情况也会产生警告：
+
+| 来源 | 说明 |
+|------|------|
+| 嵌套深度超限 | 表达式/语句嵌套超过 256 层时，解析器跳过后续 |
+| 包不一致 | PACKAGE 与 PACKAGE BODY 中定义的子程序不匹配（见 [13.3](#133-包一致性校验)） |
+| 保留关键字 | 在标识符位置使用了 SQL 保留关键字 |
+| PL 变量未定义 | PL 块中引用未声明的变量（见 [13.1](#131-pl-变量校验严格模式)） |
+
+### 12.5 输出格式
+
+**JSON 输出（`-j`）：**
+
+```json
+{
+  "valid": false,
+  "total_files": 10,
+  "total_errors": 3,
+  "total_warnings": 7,
+  "files": [
+    {
+      "file": "query.sql",
+      "directory": "sql/",
+      "valid": false,
+      "error_count": 2,
+      "warning_count": 1,
+      "errors": [
+        "unexpected token at line 5, column 12: expected FROM, got ,",
+        "reserved keyword \"select\" cannot be used as identifier at line 3, column 5"
+      ]
+    }
+  ],
+  "strict_mode": true
+}
+```
+
+**CSV 输出（`--csv`）：** 每行一条语句，字段包括文件路径、语句类型、有效性、错误数、警告数、错误详情等。
+
+**统计输出（`--stats`）：** 在所有结果之后打印汇总信息，包括：
+- 总文件数、有错误的文件数、有警告的文件数
+- 总语句数及按语句类型分布
+- 错误类型分布 (error kinds)
+- 警告类型分布 (warning kinds)
+
+---
+
+## 13. 语义校验规则
+
+除语法解析外，OGSQL Parser 提供多种语义校验，在 `validate` 命令和库 API 中自动启用。
+
+### 13.1 PL 变量校验（严格模式）
+
+检测 PL/pgSQL 块中引用了未声明的变量或函数。
+
+**正常模式（默认）：** 只检查变量是否已声明（检测 `DECLARE` 块中定义的变量）。
+
+**严格模式（`--strict`）：** 同时检查函数调用是否在已知函数列表中。已知函数包括：
+- OGSQL 内置的 449 个函数（通过 `function_registry` 注册）
+- 文件中已 `CREATE FUNCTION` / `CREATE PROCEDURE` 定义的函数
+- 文件中 PACKAGE / PACKAGE BODY 中定义的子程序
+
+**示例：**
+
+```bash
+# 正常模式：只报告未声明变量
+echo "CREATE FUNCTION test() RETURNS VOID AS \$\$
+BEGIN
+  result := undeclared_var;  -- 报告: 未声明变量
+  PERFORM known_func();      -- 不报告（可能是外部函数）
+END; \$\$ LANGUAGE plpgsql" | ogsql validate
+
+# 严格模式：同时报告未定义函数
+echo "CREATE FUNCTION test() RETURNS VOID AS \$\$
+BEGIN
+  PERFORM unknown_func();    -- 报告: 函数不在已知列表中
+END; \$\$ LANGUAGE plpgsql" | ogsql validate --strict
+```
+
+`UndefinedVariableError` 包含以下字段：
+- `name` — 未定义的变量/函数名
+- `location` — 出现位置
+- `kind` — `Variable` 或 `Function`
+
+### 13.2 MERGE 语义校验
+
+检测 MERGE 语句的 GaussDB 兼容性问题：
+
+| 种类 | 说明 |
+|------|------|
+| `DeleteNotSupported` | GaussDB 不支持 `MERGE ... WHEN MATCHED THEN DELETE` |
+| `OnColumnUpdated` | GaussDB 不允许在 WHEN MATCHED 中更新 ON 子句引用的列 |
+| `DualTableNotSupported` | GaussDB 没有 `DUAL` 表 |
+
+```bash
+# 检测 MERGE 语义错误
+echo "MERGE INTO t USING s ON t.id = s.id WHEN MATCHED THEN DELETE" | ogsql validate
+# → MERGE (GaussDB does not support MERGE ... WHEN MATCHED THEN DELETE)
+```
+
+### 13.3 包一致性校验
+
+检查 PACKAGE 与 PACKAGE BODY 定义的一致性：
+
+| 种类 | 说明 |
+|------|------|
+| `MissingInBody` | PACKAGE 中声明了子程序，但 BODY 中缺少实现 |
+| `ExtraInBody` | BODY 中实现了子程序，但 PACKAGE 中未声明 |
+| `SignatureMismatch` | 子程序签名（参数类型/数量）不一致 |
+| `CursorMismatch` | PACKAGE 中声明的游标在 BODY 中不匹配 |
+
+```bash
+# 校验包一致性
+ogsql -f package.sql validate
+# → package pkg: proc_name — MissingInBody
+```
