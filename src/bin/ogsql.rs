@@ -159,6 +159,10 @@ enum Commands {
         /// 仅解析指定的存储过程/函数（需要指定 --file）
         #[arg(long)]
         procedure: Option<String>,
+        /// Extract SQL statements from stored procedures (one row per SQL; variables → __SQL_PARAM_Type_Name__ / __SQL_RAW_Type_Name__)
+        /// 从存储过程中提取 SQL 语句（每行一条 SQL；变量转为参数占位符）
+        #[arg(long = "extract-sql")]
+        extract_sql: bool,
     },
     /// Convert JSON (from `parse -j`) back to SQL / 将 JSON（parse -j 的输出）还原为 SQL
     #[command(name = "json2sql")]
@@ -401,6 +405,7 @@ fn lint_xml_expanded(
 }
 
 /// Returns true if the SqlNode tree contains an INSERT ... VALUES pattern.
+#[cfg(feature = "ibatis")]
 fn is_insert_with_values(node: &ogsql_parser::ibatis::types::SqlNode) -> bool {
     use ogsql_parser::ibatis::types::SqlNode;
     match node {
@@ -416,6 +421,7 @@ fn is_insert_with_values(node: &ogsql_parser::ibatis::types::SqlNode) -> bool {
 }
 
 /// Finds a ForEach node nested inside INSERT VALUES context.
+#[cfg(feature = "ibatis")]
 fn find_foreach_in_insert_values(node: &ogsql_parser::ibatis::types::SqlNode) -> Option<&ogsql_parser::ibatis::types::SqlNode> {
     use ogsql_parser::ibatis::types::SqlNode;
     match node {
@@ -448,6 +454,7 @@ fn find_foreach_in_insert_values(node: &ogsql_parser::ibatis::types::SqlNode) ->
 }
 
 /// Counts the number of Parameter nodes inside a ForEach body.
+#[cfg(feature = "ibatis")]
 fn count_params_in_foreach_body(node: &ogsql_parser::ibatis::types::SqlNode) -> usize {
     use ogsql_parser::ibatis::types::SqlNode;
     match node {
@@ -821,15 +828,15 @@ fn filter_output_by_procedure(
     Ok(ogsql_parser::ParseOutput { statements: filtered, errors: filtered_errors, comments: output.comments })
 }
 
-fn cmd_parse(cli: &Cli, csv: bool, proc_name: Option<&str>) {
+fn cmd_parse(cli: &Cli, csv: bool, proc_name: Option<&str>, extract_sql: bool) {
     if cli.file.len() <= 1 {
-        cmd_parse_single(cli, cli.file.first().map(|s| s.as_str()), csv, proc_name);
+        cmd_parse_single(cli, cli.file.first().map(|s| s.as_str()), csv, proc_name, extract_sql);
     } else {
-        cmd_parse_files(cli, csv);
+        cmd_parse_files(cli, csv, extract_sql);
     }
 }
 
-fn cmd_parse_single(cli: &Cli, file_path: Option<&str>, csv: bool, proc_name: Option<&str>) {
+fn cmd_parse_single(cli: &Cli, file_path: Option<&str>, csv: bool, proc_name: Option<&str>, extract_sql: bool) {
     let sql = read_input(file_path);
     let output = parse_input(&sql, cli.comments, cli.mybatis);
 
@@ -841,10 +848,14 @@ fn cmd_parse_single(cli: &Cli, file_path: Option<&str>, csv: bool, proc_name: Op
         None => output,
     };
 
-    if csv {
+    if csv || extract_sql {
         let file_name = file_path.unwrap_or("<stdin>");
-        output_csv_parse_header();
-        output_csv_parse_rows(&output.statements, file_name, ".", &output.errors, cli.mybatis);
+        if csv {
+            output_csv_parse_header();
+            output_csv_parse_rows(&output.statements, file_name, ".", &output.errors, cli.mybatis, extract_sql);
+        } else {
+            output_extract_rows_text(&output.statements, true);
+        }
     } else if cli.json {
         let stmt_values: Vec<serde_json::Value> = output
             .statements
@@ -953,19 +964,25 @@ fn cmd_parse_single(cli: &Cli, file_path: Option<&str>, csv: bool, proc_name: Op
     }
 }
 
-fn cmd_parse_files(cli: &Cli, csv: bool) {
+fn cmd_parse_files(cli: &Cli, csv: bool, extract_sql: bool) {
     let mut files_with_errors: HashSet<String> = HashSet::new();
     let mut files_with_warnings: HashSet<String> = HashSet::new();
     let mut stmt_counts: BTreeMap<&'static str, usize> = BTreeMap::new();
     let mut error_kinds: BTreeMap<&'static str, (usize, HashSet<String>)> = BTreeMap::new();
     let mut warning_kinds: BTreeMap<&'static str, (usize, HashSet<String>)> = BTreeMap::new();
 
-    if csv {
-        output_csv_parse_header();
+    if csv || extract_sql {
+        if csv {
+            output_csv_parse_header();
+        }
         for file_path in &cli.file {
             let sql = read_input(Some(file_path.as_str()));
             let output = parse_input(&sql, cli.comments, cli.mybatis);
-            output_csv_parse_rows(&output.statements, file_path, ".", &output.errors, cli.mybatis);
+            if csv {
+                output_csv_parse_rows(&output.statements, file_path, ".", &output.errors, cli.mybatis, extract_sql);
+            } else {
+                output_extract_rows_text(&output.statements, true);
+            }
             for si in &output.statements {
                 *stmt_counts.entry(stmt_category(&si.statement)).or_insert(0) += 1;
             }
@@ -1115,7 +1132,7 @@ fn cmd_parse_files(cli: &Cli, csv: bool) {
     }
 }
 
-fn cmd_parse_dir(cli: &Cli, dir_paths: &[String], exts: &[String], csv: bool, output_dir: Option<&str>, stats: bool) {
+fn cmd_parse_dir(cli: &Cli, dir_paths: &[String], exts: &[String], csv: bool, output_dir: Option<&str>, stats: bool, extract_sql: bool) {
     use std::path::Path;
 
     for dir_path in dir_paths {
@@ -1177,12 +1194,18 @@ fn cmd_parse_dir(cli: &Cli, dir_paths: &[String], exts: &[String], csv: bool, ou
     let mut error_kinds: BTreeMap<&'static str, (usize, HashSet<String>)> = BTreeMap::new();
     let mut warning_kinds: BTreeMap<&'static str, (usize, HashSet<String>)> = BTreeMap::new();
 
-    if csv {
-        output_csv_parse_header();
+    if csv || extract_sql {
+        if csv {
+            output_csv_parse_header();
+        }
         for (file_name, rel_dir, abs_path) in &files {
             let sql = read_file_path(abs_path);
             let output = parse_input(&sql, cli.comments, cli.mybatis);
-            output_csv_parse_rows(&output.statements, file_name, rel_dir, &output.errors, cli.mybatis);
+            if csv {
+                output_csv_parse_rows(&output.statements, file_name, rel_dir, &output.errors, cli.mybatis, extract_sql);
+            } else {
+                output_extract_rows_text(&output.statements, true);
+            }
             for si in &output.statements {
                 *stmt_counts.entry(stmt_category(&si.statement)).or_insert(0) += 1;
             }
@@ -2145,19 +2168,21 @@ fn collect_pl_stmt_rows(
                         assigns.insert(var.to_ascii_lowercase(), vec![ConcatPart::Literal(inner.to_string())]);
                     }
                 }
-                let sql = replace_pl_vars_in_sql(text.trim(), vars);
-                rows.push(ParseCsvRow {
-                    line: fallback_line,
-                    end_line: sql_end_line(fallback_line, &sql),
-                    stmt_type: "Sql".into(),
-                    name: String::new(),
-                    parent: parent_name.to_string(),
-                    parameters: String::new(),
-                    return_type: String::new(),
-                    sql,
-                    branch_path: branch_path.to_string(),
-                    branch_condition: branch_condition.to_string(),
-                });
+                if is_sql_statement(text) {
+                    let sql = replace_pl_vars_in_sql(text.trim(), vars);
+                    rows.push(ParseCsvRow {
+                        line: fallback_line,
+                        end_line: sql_end_line(fallback_line, &sql),
+                        stmt_type: "Sql".into(),
+                        name: String::new(),
+                        parent: parent_name.to_string(),
+                        parameters: String::new(),
+                        return_type: String::new(),
+                        sql,
+                        branch_path: branch_path.to_string(),
+                        branch_condition: branch_condition.to_string(),
+                    });
+                }
             }
         }
         PlStatement::Execute(spanned) => {
@@ -2639,41 +2664,46 @@ fn collect_pl_stmt_rows(
     }
 }
 
-fn flatten_statement(si: &ogsql_parser::StatementInfo, mybatis: bool) -> Vec<ParseCsvRow> {
+fn flatten_statement(si: &ogsql_parser::StatementInfo, mybatis: bool, extract_sql: bool) -> Vec<ParseCsvRow> {
     use ogsql_parser::Statement;
     let mut rows = Vec::new();
+    let do_vars = mybatis || extract_sql;
 
     match &si.statement {
         Statement::CreatePackageBody(s) => {
-            rows.push(ParseCsvRow {
-                line: si.start_line,
-                end_line: si.start_line,
-                stmt_type: "CreatePackageBody".into(),
-                name: s.name.join("."),
-                parent: String::new(),
-                parameters: String::new(),
-                return_type: String::new(),
-                sql: String::new(),
-                branch_path: String::new(),
-                branch_condition: String::new(),
-            });
+            if !extract_sql {
+                rows.push(ParseCsvRow {
+                    line: si.start_line,
+                    end_line: si.start_line,
+                    stmt_type: "CreatePackageBody".into(),
+                    name: s.name.join("."),
+                    parent: String::new(),
+                    parameters: String::new(),
+                    return_type: String::new(),
+                    sql: String::new(),
+                    branch_path: String::new(),
+                    branch_condition: String::new(),
+                });
+            }
             for item in &s.items {
                 match item {
                     ogsql_parser::ast::PackageItem::Procedure(p) => {
-                        rows.push(ParseCsvRow {
-                            line: p.start_line.max(si.start_line),
-                            end_line: p.start_line.max(si.start_line),
-                            stmt_type: "Procedure".into(),
-                            name: p.name.join("."),
-                            parent: s.name.join("."),
-                            parameters: format_params(&p.parameters),
-                            return_type: String::new(),
-                            sql: String::new(),
-                            branch_path: String::new(),
-                            branch_condition: String::new(),
-                        });
+                        if !extract_sql {
+                            rows.push(ParseCsvRow {
+                                line: p.start_line.max(si.start_line),
+                                end_line: p.start_line.max(si.start_line),
+                                stmt_type: "Procedure".into(),
+                                name: p.name.join("."),
+                                parent: s.name.join("."),
+                                parameters: format_params(&p.parameters),
+                                return_type: String::new(),
+                                sql: String::new(),
+                                branch_path: String::new(),
+                                branch_condition: String::new(),
+                            });
+                        }
                         if let Some(ref block) = p.block {
-                            let vars = if mybatis {
+                            let vars = if do_vars {
                                 collect_block_vars(block, &p.parameters)
                             } else {
                                 std::collections::HashMap::new()
@@ -2690,20 +2720,22 @@ fn flatten_statement(si: &ogsql_parser::StatementInfo, mybatis: bool) -> Vec<Par
                         }
                     }
                     ogsql_parser::ast::PackageItem::Function(f) => {
-                        rows.push(ParseCsvRow {
-                            line: f.start_line.max(si.start_line),
-                            end_line: f.start_line.max(si.start_line),
-                            stmt_type: "Function".into(),
-                            name: f.name.join("."),
-                            parent: s.name.join("."),
-                            parameters: format_params(&f.parameters),
-                            return_type: f.return_type.clone().unwrap_or_default(),
-                            sql: String::new(),
-                            branch_path: String::new(),
-                            branch_condition: String::new(),
-                        });
+                        if !extract_sql {
+                            rows.push(ParseCsvRow {
+                                line: f.start_line.max(si.start_line),
+                                end_line: f.start_line.max(si.start_line),
+                                stmt_type: "Function".into(),
+                                name: f.name.join("."),
+                                parent: s.name.join("."),
+                                parameters: format_params(&f.parameters),
+                                return_type: f.return_type.clone().unwrap_or_default(),
+                                sql: String::new(),
+                                branch_path: String::new(),
+                                branch_condition: String::new(),
+                            });
+                        }
                         if let Some(ref block) = f.block {
-                            let vars = if mybatis {
+                            let vars = if do_vars {
                                 collect_block_vars(block, &f.parameters)
                             } else {
                                 std::collections::HashMap::new()
@@ -2726,6 +2758,9 @@ fn flatten_statement(si: &ogsql_parser::StatementInfo, mybatis: bool) -> Vec<Par
             }
         }
         Statement::CreatePackage(s) => {
+            if extract_sql {
+                return rows; // no body to extract
+            }
             rows.push(ParseCsvRow {
                 line: si.start_line,
                 end_line: si.start_line,
@@ -2774,42 +2809,52 @@ fn flatten_statement(si: &ogsql_parser::StatementInfo, mybatis: bool) -> Vec<Par
         }
         Statement::CreateProcedure(s) => {
             let proc_name = s.name.join(".");
-            rows.push(ParseCsvRow {
-                line: si.start_line,
-                end_line: si.start_line,
-                stmt_type: "CreateProcedure".into(),
-                name: proc_name.clone(),
-                parent: String::new(),
-                parameters: format_params(&s.parameters),
-                return_type: String::new(),
-                sql: String::new(),
-                branch_path: String::new(),
-                branch_condition: String::new(),
-            });
+            if !extract_sql {
+                rows.push(ParseCsvRow {
+                    line: si.start_line,
+                    end_line: si.start_line,
+                    stmt_type: "CreateProcedure".into(),
+                    name: proc_name.clone(),
+                    parent: String::new(),
+                    parameters: format_params(&s.parameters),
+                    return_type: String::new(),
+                    sql: String::new(),
+                    branch_path: String::new(),
+                    branch_condition: String::new(),
+                });
+            }
             if let Some(ref block) = s.block {
-                let vars =
-                    if mybatis { collect_block_vars(block, &s.parameters) } else { std::collections::HashMap::new() };
+                let vars = if do_vars {
+                    collect_block_vars(block, &s.parameters)
+                } else {
+                    std::collections::HashMap::new()
+                };
                 let out_cursors = extract_out_cursor_set(&s.parameters);
                 rows.extend(collect_block_sql_rows(block, &proc_name, si.start_line, &vars, &out_cursors, false));
             }
         }
         Statement::CreateFunction(s) => {
             let func_name = s.name.join(".");
-            rows.push(ParseCsvRow {
-                line: si.start_line,
-                end_line: si.start_line,
-                stmt_type: "CreateFunction".into(),
-                name: func_name.clone(),
-                parent: String::new(),
-                parameters: format_params(&s.parameters),
-                return_type: s.return_type.clone().unwrap_or_default(),
-                sql: String::new(),
-                branch_path: String::new(),
-                branch_condition: String::new(),
-            });
+            if !extract_sql {
+                rows.push(ParseCsvRow {
+                    line: si.start_line,
+                    end_line: si.start_line,
+                    stmt_type: "CreateFunction".into(),
+                    name: func_name.clone(),
+                    parent: String::new(),
+                    parameters: format_params(&s.parameters),
+                    return_type: s.return_type.clone().unwrap_or_default(),
+                    sql: String::new(),
+                    branch_path: String::new(),
+                    branch_condition: String::new(),
+                });
+            }
             if let Some(ref block) = s.block {
-                let vars =
-                    if mybatis { collect_block_vars(block, &s.parameters) } else { std::collections::HashMap::new() };
+                let vars = if do_vars {
+                    collect_block_vars(block, &s.parameters)
+                } else {
+                    std::collections::HashMap::new()
+                };
                 let out_cursors = extract_out_cursor_set(&s.parameters);
                 let is_return_cursor = s.return_type.as_ref().is_some_and(|rt| rt.to_uppercase().contains("REFCURSOR"));
                 rows.extend(collect_block_sql_rows(
@@ -2823,40 +2868,47 @@ fn flatten_statement(si: &ogsql_parser::StatementInfo, mybatis: bool) -> Vec<Par
             }
         }
         Statement::Do(s) => {
-            rows.push(ParseCsvRow {
-                line: si.start_line,
-                end_line: si.start_line,
-                stmt_type: "Do".into(),
-                name: String::new(),
-                parent: String::new(),
-                parameters: String::new(),
-                return_type: String::new(),
-                sql: String::new(),
-                branch_path: String::new(),
-                branch_condition: String::new(),
-            });
+            if !extract_sql {
+                rows.push(ParseCsvRow {
+                    line: si.start_line,
+                    end_line: si.start_line,
+                    stmt_type: "Do".into(),
+                    name: String::new(),
+                    parent: String::new(),
+                    parameters: String::new(),
+                    return_type: String::new(),
+                    sql: String::new(),
+                    branch_path: String::new(),
+                    branch_condition: String::new(),
+                });
+            }
             if let Some(ref block) = s.block {
-                let vars = if mybatis { collect_block_vars(block, &[]) } else { std::collections::HashMap::new() };
+                let vars = if do_vars { collect_block_vars(block, &[]) } else { std::collections::HashMap::new() };
                 let out_cursors = std::collections::HashSet::new();
                 rows.extend(collect_block_sql_rows(block, "", si.start_line, &vars, &out_cursors, false));
             }
         }
         Statement::AnonyBlock(s) => {
-            rows.push(ParseCsvRow {
-                line: si.start_line,
-                end_line: si.start_line,
-                stmt_type: "AnonyBlock".into(),
-                name: String::new(),
-                parent: String::new(),
-                parameters: String::new(),
-                return_type: String::new(),
-                sql: String::new(),
-                branch_path: String::new(),
-                branch_condition: String::new(),
-            });
-            let vars = if mybatis { collect_block_vars(&s.block, &[]) } else { std::collections::HashMap::new() };
+            if !extract_sql {
+                rows.push(ParseCsvRow {
+                    line: si.start_line,
+                    end_line: si.start_line,
+                    stmt_type: "AnonyBlock".into(),
+                    name: String::new(),
+                    parent: String::new(),
+                    parameters: String::new(),
+                    return_type: String::new(),
+                    sql: String::new(),
+                    branch_path: String::new(),
+                    branch_condition: String::new(),
+                });
+            }
+            let vars = if do_vars { collect_block_vars(&s.block, &[]) } else { std::collections::HashMap::new() };
             let out_cursors = std::collections::HashSet::new();
             rows.extend(collect_block_sql_rows(&s.block, "", si.start_line, &vars, &out_cursors, false));
+        }
+        _ if extract_sql => {
+            return rows; // skip non-procedure statements in extract mode
         }
         Statement::Select(s) => {
             rows.push(ParseCsvRow {
@@ -3003,6 +3055,7 @@ fn output_csv_parse_rows(
     rel_dir: &str,
     errors: &[ogsql_parser::ParserError],
     mybatis: bool,
+    extract_sql: bool,
 ) {
     for si in statements {
         let stmt_start = si.start_line;
@@ -3016,11 +3069,14 @@ fn output_csv_parse_rows(
             })
             .collect();
 
-        let rows = flatten_statement(si, mybatis);
+        let rows = flatten_statement(si, mybatis, extract_sql);
         for row in rows {
+            if extract_sql && row.sql.trim().is_empty() {
+                continue;
+            }
             let (row_err, row_warn) = filter_errors_for_row(&stmt_errors, row.line, row.end_line);
 
-            let sql = row.sql.trim().replace('\n', "\\n").replace('\r', "");
+            let sql = row.sql.trim().replace('\r', "");
             println!(
                 "{},{},{},{},{},{},{},{},{},{},{},{},{}",
                 csv_escape(file_name),
@@ -3037,6 +3093,18 @@ fn output_csv_parse_rows(
                 csv_escape(&row.branch_path),
                 csv_escape(&row.branch_condition),
             );
+        }
+    }
+}
+
+fn output_extract_rows_text(statements: &[ogsql_parser::StatementInfo], mybatis: bool) {
+    for si in statements {
+        let rows = flatten_statement(si, mybatis, true);
+        for row in rows {
+            if row.sql.trim().is_empty() {
+                continue;
+            }
+            println!("[{}] L{}: {} | {}", row.stmt_type, row.line, row.name, row.sql);
         }
     }
 }
@@ -5947,7 +6015,7 @@ fn output_csv_xml_rows(statements: &[ogsql_parser::ibatis::ParsedStatement], fil
             None => (String::new(), String::new()),
         };
 
-        let sql = stmt.flat_sql.trim().replace('\n', "\\n").replace('\r', "");
+        let sql = stmt.flat_sql.trim().replace('\r', "");
         let variables = extract_variables(&stmt.flat_sql);
         let parameter_types: String = stmt
             .parameters
@@ -5996,7 +6064,7 @@ fn output_csv_java_rows(extractions: &[ogsql_parser::java::ExtractedSql], file_n
             None => (String::new(), String::new()),
         };
 
-        let sql = ext.sql.trim().replace('\n', "\\n").replace('\r', "");
+        let sql = ext.sql.trim().replace('\r', "");
         let variables = extract_variables(&ext.sql);
         println!(
             "{},{},{},{},{},{},{},{}",
@@ -6256,7 +6324,7 @@ fn main() {
             no_logical_newline,
             no_semicolon_newline,
         ),
-        Commands::Parse { ref dir, ref ext, csv, ref output_dir, stats, ref procedure } => {
+        Commands::Parse { ref dir, ref ext, csv, ref output_dir, stats, ref procedure, extract_sql } => {
             if !dir.is_empty() && !cli.file.is_empty() {
                 die!("Error: --dir and -f are mutually exclusive");
             }
@@ -6269,9 +6337,9 @@ fn main() {
                 }
             }
             if !dir.is_empty() {
-                cmd_parse_dir(&cli, dir, ext, csv, output_dir.as_deref(), stats);
+                cmd_parse_dir(&cli, dir, ext, csv, output_dir.as_deref(), stats, extract_sql);
             } else {
-                cmd_parse(&cli, csv, procedure.as_deref());
+                cmd_parse(&cli, csv, procedure.as_deref(), extract_sql);
             }
         }
         Commands::JsonToSql => cmd_json2sql(&cli),
@@ -6321,9 +6389,14 @@ fn main() {
 
 fn pl_data_type_to_string(dt: &ogsql_parser::ast::plpgsql::PlDataType) -> Option<String> {
     match dt {
-        ogsql_parser::ast::plpgsql::PlDataType::TypeName(s) => Some(s.clone()),
-        ogsql_parser::ast::plpgsql::PlDataType::PercentType { column, .. } => Some(column.clone()),
-        ogsql_parser::ast::plpgsql::PlDataType::PercentRowType(s) => Some(s.clone()),
+        ogsql_parser::ast::plpgsql::PlDataType::TypeName(s) => Some(normalize_data_type(s)),
+        ogsql_parser::ast::plpgsql::PlDataType::PercentType { column, .. } => {
+            Some(extract_last_ident(column).to_uppercase())
+        }
+        ogsql_parser::ast::plpgsql::PlDataType::PercentRowType(s) => {
+            let ident = extract_last_ident(s);
+            Some(format!("{}_ROWTYPE", ident).to_uppercase())
+        }
         ogsql_parser::ast::plpgsql::PlDataType::Record => Some("RECORD".into()),
         ogsql_parser::ast::plpgsql::PlDataType::Cursor => None,
         ogsql_parser::ast::plpgsql::PlDataType::RefCursor => None,
@@ -6337,7 +6410,7 @@ fn collect_block_vars(
     use ogsql_parser::ast::plpgsql::PlDeclaration;
     let mut vars = std::collections::HashMap::new();
     for p in params {
-        vars.insert(p.name.to_ascii_lowercase(), Some(p.data_type.clone()));
+        vars.insert(p.name.to_ascii_lowercase(), Some(normalize_data_type(&p.data_type)));
     }
     for decl in &block.declarations {
         match decl {
@@ -6374,6 +6447,79 @@ fn collect_block_vars(
     vars
 }
 
+fn normalize_data_type(data_type: &str) -> String {
+    let upper = data_type.trim().to_uppercase();
+
+    // %TYPE / %ROWTYPE references: cannot resolve base type without schema.
+    // Extract the referenced column/type name as the best available hint.
+    if let Some(pos) = upper.find("%TYPE") {
+        let base = &data_type[..pos];
+        return extract_last_ident(base).to_uppercase();
+    }
+    if let Some(pos) = upper.find("%ROWTYPE") {
+        let base = &data_type[..pos];
+        let ident = extract_last_ident(base);
+        return format!("{}_ROWTYPE", ident).to_uppercase();
+    }
+
+    // Normalize to JDBC-compatible type names (strip size/precision).
+    // Oracle-specific names mapped to standard JDBC java.sql.Types equivalents.
+    if upper.starts_with("VARCHAR2") { return "VARCHAR".to_string(); }
+    if upper.starts_with("VARCHAR") { return "VARCHAR".to_string(); }
+    if upper.starts_with("NVARCHAR2") { return "NVARCHAR".to_string(); }
+    if upper.starts_with("NVARCHAR") { return "NVARCHAR".to_string(); }
+    if upper.starts_with("CHARACTER VARYING") { return "VARCHAR".to_string(); }
+    if upper.starts_with("CHARACTER") { return "CHAR".to_string(); }
+    if upper.starts_with("CHAR") { return "CHAR".to_string(); }
+    if upper.starts_with("NCHAR") { return "NCHAR".to_string(); }
+    if upper.starts_with("NUMBER") { return "NUMERIC".to_string(); }
+    if upper.starts_with("NUMERIC") { return "NUMERIC".to_string(); }
+    if upper.starts_with("DECIMAL") { return "DECIMAL".to_string(); }
+    if upper.starts_with("PLS_INTEGER") { return "INTEGER".to_string(); }
+    if upper.starts_with("BINARY_INTEGER") { return "INTEGER".to_string(); }
+    if upper.starts_with("BIGINT") { return "BIGINT".to_string(); }
+    if upper.starts_with("INTEGER") { return "INTEGER".to_string(); }
+    if upper.starts_with("SMALLINT") { return "SMALLINT".to_string(); }
+    if upper.starts_with("TINYINT") { return "TINYINT".to_string(); }
+    if upper.starts_with("INT") && !upper.starts_with("INTERVAL") && !upper.starts_with("INTEGER") {
+        return "INTEGER".to_string();
+    }
+    if upper.starts_with("DOUBLE PRECISION") { return "DOUBLE".to_string(); }
+    if upper.starts_with("DOUBLE") { return "DOUBLE".to_string(); }
+    if upper.starts_with("FLOAT") { return "FLOAT".to_string(); }
+    if upper.starts_with("REAL") { return "REAL".to_string(); }
+    if upper.starts_with("BOOLEAN") { return "BOOLEAN".to_string(); }
+    if upper.starts_with("TIMESTAMP") { return "TIMESTAMP".to_string(); }
+    if upper.starts_with("DATE") { return "DATE".to_string(); }
+    if upper.starts_with("TIME") { return "TIME".to_string(); }
+    if upper.starts_with("CLOB") { return "CLOB".to_string(); }
+    if upper.starts_with("NCLOB") { return "NCLOB".to_string(); }
+    if upper.starts_with("BLOB") { return "BLOB".to_string(); }
+    if upper.starts_with("BYTEA") { return "BYTEA".to_string(); }
+    if upper.starts_with("RAW") { return "RAW".to_string(); }
+    if upper.starts_with("LONG RAW") { return "LONG_RAW".to_string(); }
+    if upper.starts_with("LONG") { return "LONG".to_string(); }
+    if upper.starts_with("ROWID") { return "ROWID".to_string(); }
+    if upper.starts_with("UROWID") { return "UROWID".to_string(); }
+    if upper.starts_with("XMLTYPE") { return "XMLTYPE".to_string(); }
+    if upper.starts_with("SYS_REFCURSOR") { return "CURSOR".to_string(); }
+    if upper.starts_with("REFCURSOR") { return "CURSOR".to_string(); }
+    if upper.starts_with("BFILE") { return "BFILE".to_string(); }
+    if upper.starts_with("INTERVAL") { return "INTERVAL".to_string(); }
+    if upper.starts_with("JSON") { return "JSON".to_string(); }
+    if upper.starts_with("TEXT") { return "TEXT".to_string(); }
+    if upper.starts_with("SERIAL") { return "SERIAL".to_string(); }
+    if upper.starts_with("BIGSERIAL") { return "BIGSERIAL".to_string(); }
+
+    // Unknown type: strip schema prefix, return the base name
+    extract_last_ident(data_type).to_uppercase()
+}
+
+/// Extract the last dot-separated identifier component (e.g., "DB_LOG.PROC_NAME" → "PROC_NAME").
+fn extract_last_ident(s: &str) -> &str {
+    s.rsplit('.').next().unwrap_or(s).trim()
+}
+
 fn sanitize_type_for_placeholder(t: &str) -> String {
     let mut s: String = t.chars().map(|c| if c.is_ascii_alphanumeric() || c == '_' { c } else { '_' }).collect();
     // Collapse consecutive underscores
@@ -6386,6 +6532,29 @@ fn sanitize_type_for_placeholder(t: &str) -> String {
         s.pop();
     }
     s
+}
+
+/// Returns true if the text looks like a SQL statement (DML/DDL), not a PL/pgSQL assignment.
+fn is_sql_statement(text: &str) -> bool {
+    let lower = text.trim().to_ascii_lowercase();
+    // Skip PL/pgSQL assignments (contain := without being embedded SQL)
+    if lower.contains(":=") {
+        return false;
+    }
+    let sql_prefixes = [
+        "select ", "insert ", "update ", "delete ", "merge ", "with ",
+        "create ", "alter ", "drop ", "truncate ",
+        "grant ", "revoke ",
+        "call ",
+        "explain ", "explain ",
+        "lock ", "unlock ",
+        "commit", "rollback", "savepoint",
+        "set ", "reset ",
+        "declare ",
+        "fetch ", "move ", "close ",
+        "copy ", "\\copy ",
+    ];
+    sql_prefixes.iter().any(|p| lower.starts_with(p))
 }
 
 fn replace_pl_vars_in_sql_with_prefix(
@@ -6450,10 +6619,34 @@ fn replace_pl_vars_in_sql_with_prefix(
             }
             let ident = &sql[start..i];
             if let Some(maybe_type) = vars.get(&ident.to_ascii_lowercase()) {
-                match maybe_type {
-                    Some(t) => result.push_str(&format!("{}{}_{}__", prefix, sanitize_type_for_placeholder(t), ident)),
-                    None => result.push_str(&format!("{}{}__", prefix, ident)),
+                let type_str = match maybe_type {
+                    Some(t) => format!("{}_{}", sanitize_type_for_placeholder(t), ident),
+                    None => ident.to_string(),
+                };
+                // Absorb subsequent .field access (e.g., v_rec.order_id → single placeholder)
+                let saved_i = i;
+                let mut j = i;
+                while j < len && bytes[j] == b' ' {
+                    j += 1;
                 }
+                if j < len && bytes[j] == b'.' {
+                    j += 1;
+                    while j < len && bytes[j] == b' ' {
+                        j += 1;
+                    }
+                    if j < len && (bytes[j] == b'_' || bytes[j].is_ascii_alphabetic()) {
+                        let field_start = j;
+                        j += 1;
+                        while j < len && (bytes[j] == b'_' || bytes[j].is_ascii_alphanumeric()) {
+                            j += 1;
+                        }
+                        let field = &sql[field_start..j];
+                        result.push_str(&format!("{}{}_{}__", prefix, type_str, field));
+                        i = j;
+                        continue;
+                    }
+                }
+                result.push_str(&format!("{}{}__", prefix, type_str));
             } else {
                 result.push_str(ident);
             }
