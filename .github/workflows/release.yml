@@ -176,9 +176,50 @@ jobs:
           name: ogsql-windows-x86_64
           path: ogsql-${{ steps.version.outputs.version }}-windows-x86_64.zip
 
+  build-windows-x86_64-win7:
+    name: Build windows-x86_64 (Win7 compatible)
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Determine version
+        id: version
+        shell: bash
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            TAG="${{ github.event.inputs.version }}"
+          else
+            TAG="${GITHUB_REF#refs/tags/}"
+          fi
+          echo "version=${TAG#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Install Rust nightly toolchain
+        uses: dtolnay/rust-toolchain@nightly
+
+      - name: Add rust-src component
+        run: rustup component add rust-src --toolchain nightly
+
+      - name: Build
+        run: cargo +nightly build --release --features ${{ env.BUILD_FEATURES }} --target x86_64-win7-windows-msvc -Zbuild-std
+
+      - name: Package
+        shell: pwsh
+        run: |
+          Compress-Archive `
+            -Path "target/x86_64-win7-windows-msvc/release/${{ env.BINARY_NAME }}.exe" `
+            -DestinationPath "ogsql-${{ steps.version.outputs.version }}-windows-x86_64-win7.zip"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ogsql-windows-x86_64-win7
+          path: ogsql-${{ steps.version.outputs.version }}-windows-x86_64-win7.zip
+
   release:
     name: Create GitHub Release
-    needs: [build-linux-x86_64, build-linux-arm64, build-windows-x86_64]
+    needs: [build-linux-x86_64, build-linux-arm64, build-windows-x86_64, build-windows-x86_64-win7]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
