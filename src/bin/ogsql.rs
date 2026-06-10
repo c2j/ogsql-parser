@@ -4709,18 +4709,58 @@ mod api {
     #[derive(OpenApi)]
     #[openapi(
         paths(health, handle_parse, handle_format, handle_tokenize, handle_validate, handle_json2sql),
-        components(schemas(SqlInput, JsonInput)),
+        components(schemas(ParseInput, FormatInput, ValidateInput, TokenizeInput, JsonInput)),
         tags(
             (name = "ogsql", description = "openGauss/GaussDB SQL Parser API")
         )
     )]
     pub struct ApiDoc;
 
+    #[cfg(feature = "ibatis")]
+    #[derive(OpenApi)]
+    #[openapi(
+        paths(handle_parse_xml),
+        components(schemas(ParseXmlInput)),
+        tags((name = "ogsql", description = "iBatis/MyBatis XML parsing"))
+    )]
+    pub struct ApiDocIbatis;
+
+    #[cfg(feature = "java")]
+    #[derive(OpenApi)]
+    #[openapi(
+        paths(handle_parse_java),
+        components(schemas(ParseJavaInput)),
+        tags((name = "ogsql", description = "Java SQL extraction"))
+    )]
+    pub struct ApiDocJava;
+
+    /// POST /api/parse request body
     #[derive(Deserialize, ToSchema)]
-    pub struct SqlInput {
+    pub struct ParseInput {
         pub sql: String,
         #[serde(default)]
         pub preserve_comments: bool,
+        /// Enable MyBatis #{param} and ${expr} placeholder support
+        #[serde(default)]
+        pub mybatis: bool,
+        /// Only parse the specified stored procedure/function
+        #[serde(default)]
+        pub procedure: Option<String>,
+        /// Extract SQL statements from stored procedures (variables → placeholders)
+        #[serde(default)]
+        pub extract_sql: bool,
+        /// Enable SQL anti-pattern linting
+        #[serde(default)]
+        pub lint: Option<bool>,
+        /// Path to schema JSON file for schema-aware lint and analysis
+        #[serde(default)]
+        pub schema_json: Option<String>,
+    }
+
+    /// POST /api/format request body
+    #[derive(Deserialize, ToSchema)]
+    pub struct FormatInput {
+        pub sql: String,
         #[serde(default)]
         pub indent: Option<usize>,
         #[serde(default)]
@@ -4731,21 +4771,79 @@ mod api {
         pub line_width: Option<usize>,
         #[serde(default)]
         pub uppercase: Option<bool>,
-        /// Only parse the specified stored procedure/function
-        /// 仅解析指定的存储过程/函数
+        /// Enable MyBatis #{param} and ${expr} placeholder support (preserves during formatting)
         #[serde(default)]
-        pub procedure: Option<String>,
+        pub mybatis: bool,
+        /// Don't put each SELECT column on its own line
+        #[serde(default)]
+        pub no_select_newline: Option<bool>,
+        /// Don't put AND/OR on new lines
+        #[serde(default)]
+        pub no_logical_newline: Option<bool>,
+        /// Don't put semicolons on their own line
+        #[serde(default)]
+        pub no_semicolon_newline: Option<bool>,
+    }
+
+    /// POST /api/validate request body
+    #[derive(Deserialize, ToSchema)]
+    pub struct ValidateInput {
+        pub sql: String,
+        /// Enable MyBatis #{param} and ${expr} placeholder support
+        #[serde(default)]
+        pub mybatis: bool,
+        /// Enable strict mode: detect undefined function calls in PL blocks
+        #[serde(default)]
+        pub strict: Option<bool>,
         /// Enable SQL anti-pattern linting
         #[serde(default)]
         pub lint: Option<bool>,
-        /// Path to schema JSON file for schema-aware lint rules (index metadata, column types)
+        /// Path to schema JSON file for schema-aware lint rules
         #[serde(default)]
         pub schema_json: Option<String>,
+    }
+
+    /// POST /api/tokenize request body
+    #[derive(Deserialize, ToSchema)]
+    pub struct TokenizeInput {
+        pub sql: String,
+        #[serde(default)]
+        pub preserve_comments: bool,
+        /// Enable MyBatis #{param} and ${expr} placeholder support
+        #[serde(default)]
+        pub mybatis: bool,
     }
 
     #[derive(Deserialize, ToSchema)]
     pub struct JsonInput {
         pub json: String,
+    }
+
+    #[cfg(feature = "ibatis")]
+    #[derive(Deserialize, ToSchema)]
+    pub struct ParseXmlInput {
+        /// XML content of an iBatis/MyBatis mapper file
+        pub xml: String,
+        #[cfg(feature = "java")]
+        /// Directory path containing Java source files for parameter type inference
+        #[serde(default)]
+        pub java_src: Option<String>,
+        /// Output structured dynamic SQL AST
+        #[serde(default)]
+        pub structured: Option<bool>,
+    }
+
+    #[cfg(feature = "java")]
+    #[derive(Deserialize, ToSchema)]
+    pub struct ParseJavaInput {
+        /// Java source file content
+        pub source: String,
+        /// Extra method names to treat as SQL-bearing
+        #[serde(default)]
+        pub extra_sql_methods: Option<Vec<String>>,
+        /// Extra variable name patterns for SQL detection
+        #[serde(default)]
+        pub extra_sql_var_patterns: Option<Vec<String>>,
     }
 
     /// Health check endpoint
@@ -4764,11 +4862,14 @@ mod api {
         post,
         path = "/api/parse",
         tag = "ogsql",
-        request_body = SqlInput,
+        request_body = ParseInput,
         responses((status = 200, description = "Parsed AST result"))
     )]
-    pub async fn handle_parse(Json(input): Json<SqlInput>) -> Json<serde_json::Value> {
-        let output = super::parse_input(&input.sql, input.preserve_comments, false);
+    pub async fn handle_parse(Json(input): Json<ParseInput>) -> Json<serde_json::Value> {
+        // 1. Parse with mybatis support
+        let output = super::parse_input(&input.sql, input.preserve_comments, input.mybatis);
+
+        // 2. Procedure filter (if specified)
         let output = match input.procedure {
             Some(ref proc) => match super::filter_output_by_procedure(output, proc) {
                 Ok(filtered) => filtered,
@@ -4782,15 +4883,121 @@ mod api {
             },
             None => output,
         };
+
+        // 3. Build enriched statement values with semantic analysis
+        let schema_path = input.schema_json.clone(); // clone before move into closure
+        let stmt_values: Vec<serde_json::Value> = output
+            .statements
+            .iter()
+            .map(|si| {
+                let mut obj = serde_json::to_value(si).unwrap();
+                if let Some(block) = super::extract_pl_block(&si.statement) {
+                    // dynamic_sql_analysis
+                    let report = ogsql_parser::analyze_pl_block(block);
+                    if !report.execute_findings.is_empty() {
+                        obj.as_object_mut()
+                            .unwrap()
+                            .insert("dynamic_sql_analysis".to_string(), serde_json::json!(report));
+                    }
+                    // transaction_analysis
+                    let tx_report = ogsql_parser::analyze_transactions(block);
+                    obj.as_object_mut().unwrap().insert(
+                        "transaction_analysis".to_string(),
+                        serde_json::to_string_pretty(&tx_report).unwrap().into(),
+                    );
+                    // schema_resolution (if schema_json provided)
+                    if let Some(ref schema_path) = schema_path {
+                        match ogsql_parser::load_schema(schema_path) {
+                            Ok(schema) => {
+                                let schema_report = ogsql_parser::resolve_schema(block, &schema);
+                                obj.as_object_mut()
+                                    .unwrap()
+                                    .insert("schema_resolution".to_string(), serde_json::json!(schema_report));
+                            }
+                            Err(e) => {
+                                obj.as_object_mut().unwrap().insert(
+                                    "schema_resolution_error".to_string(),
+                                    serde_json::json!(format!("{}", e)),
+                                );
+                            }
+                        }
+                    }
+                }
+                // routine_analysis (return cursor analysis)
+                if super::has_routine_return_cursors(&si.statement) {
+                    if let Some(analysis) = super::compute_routine_analysis(&si.statement) {
+                        obj.as_object_mut().unwrap().insert("routine_analysis".to_string(), analysis);
+                    }
+                }
+                obj
+            })
+            .collect();
+
+        // 4. Compute fingerprints
         let all_stmts: Vec<_> = output.statements.iter().map(|si| si.statement.clone()).collect();
         let fingerprints = ogsql_parser::compute_query_fingerprints(&all_stmts);
-        let mut out = serde_json::json!({"statements": output.statements, "errors": output.errors});
+
+        // 5. Build output JSON
+        let mut out = serde_json::json!({
+            "statements": stmt_values,
+            "errors": output.errors,
+        });
         if !fingerprints.is_empty() {
             out.as_object_mut().unwrap().insert("query_fingerprints".to_string(), serde_json::json!(fingerprints));
         }
         if !output.comments.is_empty() {
             out.as_object_mut().unwrap().insert("comments".to_string(), serde_json::json!(output.comments));
         }
+
+        // 6. Lint (if enabled)
+        if input.lint == Some(true) {
+            let config = ogsql_parser::linter::LintConfig::default();
+            let lint_warnings =
+                super::run_lint(&output.statements, ogsql_parser::linter::Confidence::Full, &config, None);
+            if !lint_warnings.is_empty() {
+                out.as_object_mut().unwrap().insert("lint_warnings".to_string(), serde_json::json!(lint_warnings));
+                out.as_object_mut()
+                    .unwrap()
+                    .insert("lint_summary".to_string(), super::format_warnings_summary(&lint_warnings));
+            }
+        }
+
+        // 7. Extract SQL (if enabled)
+        if input.extract_sql {
+            let _schema = input.schema_json
+                .as_deref()
+                .and_then(|p| ogsql_parser::load_full_schema(p).ok());
+            let mut extracted_rows: Vec<serde_json::Value> = Vec::new();
+            for si in &output.statements {
+                if let Some(block) = super::extract_pl_block(&si.statement) {
+                    let vars = std::collections::HashMap::new();
+                    let out_cursors = std::collections::HashSet::new();
+                    let rows = super::collect_block_sql_rows(
+                        block,
+                        "",
+                        si.start_line,
+                        &vars,
+                        &out_cursors,
+                        false,
+                    );
+                    for row in rows {
+                        extracted_rows.push(serde_json::json!({
+                            "line": row.line,
+                            "type": row.stmt_type,
+                            "name": row.name,
+                            "parent": row.parent,
+                            "sql": row.sql,
+                            "branch_path": row.branch_path,
+                            "branch_condition": row.branch_condition,
+                        }));
+                    }
+                }
+            }
+            if !extracted_rows.is_empty() {
+                out.as_object_mut().unwrap().insert("extracted_sql".to_string(), serde_json::json!(extracted_rows));
+            }
+        }
+
         Json(out)
     }
 
@@ -4799,11 +5006,15 @@ mod api {
         post,
         path = "/api/format",
         tag = "ogsql",
-        request_body = SqlInput,
+        request_body = FormatInput,
         responses((status = 200, description = "Formatted SQL result"))
     )]
-    pub async fn handle_format(Json(input): Json<SqlInput>) -> Json<serde_json::Value> {
-        let tokens = match ogsql_parser::Tokenizer::new(&input.sql).preserve_comments(true).tokenize() {
+    pub async fn handle_format(Json(input): Json<FormatInput>) -> Json<serde_json::Value> {
+        let mut tokenizer = ogsql_parser::Tokenizer::new(&input.sql).preserve_comments(true);
+        if input.mybatis {
+            tokenizer = tokenizer.mybatis_params(true);
+        }
+        let tokens = match tokenizer.tokenize() {
             Ok(t) => t,
             Err(e) => {
                 return Json(serde_json::json!({
@@ -4836,6 +5047,15 @@ mod api {
         if input.uppercase == Some(true) {
             config.uppercase_keywords = true;
         }
+        if input.no_select_newline == Some(true) {
+            config.select_newline = false;
+        }
+        if input.no_logical_newline == Some(true) {
+            config.logical_operator_newline = false;
+        }
+        if input.no_semicolon_newline == Some(true) {
+            config.semicolon_newline = false;
+        }
 
         let formatted = ogsql_parser::token_formatter::TokenFormatter::with_config(&input.sql, tokens, config).format();
         Json(serde_json::json!({
@@ -4848,11 +5068,18 @@ mod api {
         post,
         path = "/api/tokenize",
         tag = "ogsql",
-        request_body = SqlInput,
+        request_body = TokenizeInput,
         responses((status = 200, description = "Token list"))
     )]
-    pub async fn handle_tokenize(Json(input): Json<SqlInput>) -> Json<serde_json::Value> {
-        let tokens = match ogsql_parser::Tokenizer::new(&input.sql).tokenize() {
+    pub async fn handle_tokenize(Json(input): Json<TokenizeInput>) -> Json<serde_json::Value> {
+        let mut tokenizer = ogsql_parser::Tokenizer::new(&input.sql);
+        if input.preserve_comments {
+            tokenizer = tokenizer.preserve_comments(true);
+        }
+        if input.mybatis {
+            tokenizer = tokenizer.mybatis_params(true);
+        }
+        let tokens = match tokenizer.tokenize() {
             Ok(t) => t,
             Err(e) => return Json(serde_json::json!({"error": e.to_string()})),
         };
@@ -4876,11 +5103,11 @@ mod api {
         post,
         path = "/api/validate",
         tag = "ogsql",
-        request_body = SqlInput,
+        request_body = ValidateInput,
         responses((status = 200, description = "Validation result"))
     )]
-    pub async fn handle_validate(Json(input): Json<SqlInput>) -> Json<serde_json::Value> {
-        let output = super::parse_input(&input.sql, false, false);
+    pub async fn handle_validate(Json(input): Json<ValidateInput>) -> Json<serde_json::Value> {
+        let output = super::parse_input(&input.sql, false, input.mybatis);
         let pkg_errors = ogsql_parser::validate_package_consistency(&output.statements);
         let has_pkg_issues = !pkg_errors.is_empty();
         let mut errors = output.errors;
@@ -4896,7 +5123,18 @@ mod api {
                 });
             }
         }
-        let var_errors = super::validate_pl_variables_from_stmts(&output.statements, &[], false);
+        // MERGE semantic validation
+        let merge_errors = ogsql_parser::validate_merge_semantics(&output.statements);
+        if !merge_errors.is_empty() {
+            for me in &merge_errors {
+                errors.push(ogsql_parser::ParserError::UnsupportedSyntax {
+                    location: me.location,
+                    syntax: "MERGE".to_string(),
+                    hint: super::merge_error_detail(me),
+                });
+            }
+        }
+        let var_errors = super::validate_pl_variables_from_stmts(&output.statements, &[], input.strict.unwrap_or(false));
         let has_var_errors = !var_errors.is_empty();
         let has_real_errors = errors.iter().any(|e| !super::is_warning(e)) || has_var_errors;
         let mut result = serde_json::json!({
@@ -4926,6 +5164,61 @@ mod api {
                 .insert("lint_summary".to_string(), ogsql_parser::linter::build_lint_summary(&lint_warnings));
         }
         Json(result)
+    }
+
+    #[cfg(feature = "ibatis")]
+    /// Parse iBatis/MyBatis XML mapper content
+    #[utoipa::path(
+        post,
+        path = "/api/parse-xml",
+        tag = "ogsql",
+        request_body = ParseXmlInput,
+        responses((status = 200, description = "Parsed iBatis XML result"))
+    )]
+    pub async fn handle_parse_xml(Json(input): Json<ParseXmlInput>) -> Json<serde_json::Value> {
+        #[cfg(feature = "java")]
+        let java_roots: Vec<std::path::PathBuf> = input
+            .java_src
+            .as_deref()
+            .map(|p| vec![std::path::PathBuf::from(p)])
+            .unwrap_or_default();
+        #[cfg(not(feature = "java"))]
+        let _java_roots: Vec<std::path::PathBuf> = vec![];
+
+        let result = if input.structured.unwrap_or(false) {
+            let parsed = ogsql_parser::ibatis::parse_mapper_bytes_structured(input.xml.as_bytes());
+            serde_json::to_value(&parsed).unwrap_or(serde_json::json!({"error": "serialization failed"}))
+        } else {
+            #[cfg(feature = "java")]
+            let r = ogsql_parser::ibatis::parse_mapper_bytes_with_java_src(
+                input.xml.as_bytes(),
+                None,
+                java_roots,
+            );
+            #[cfg(not(feature = "java"))]
+            let r = ogsql_parser::ibatis::parse_mapper_bytes(input.xml.as_bytes());
+            serde_json::to_value(&r).unwrap_or(serde_json::json!({"error": "serialization failed"}))
+        };
+
+        Json(result)
+    }
+
+    #[cfg(feature = "java")]
+    /// Extract and parse SQL from Java source files
+    #[utoipa::path(
+        post,
+        path = "/api/parse-java",
+        tag = "ogsql",
+        request_body = ParseJavaInput,
+        responses((status = 200, description = "Extracted SQL from Java source"))
+    )]
+    pub async fn handle_parse_java(Json(input): Json<ParseJavaInput>) -> Json<serde_json::Value> {
+        let config = ogsql_parser::java::JavaExtractConfig {
+            extra_sql_methods: input.extra_sql_methods.unwrap_or_default(),
+            extra_sql_var_patterns: input.extra_sql_var_patterns.unwrap_or_default(),
+        };
+        let result = ogsql_parser::java::extract_sql_from_java(&input.source, "<api-input>", &config);
+        Json(serde_json::to_value(&result).unwrap_or(serde_json::json!({"error": "serialization failed"})))
     }
 
     /// Convert JSON (from /api/parse) back to SQL
@@ -4965,19 +5258,43 @@ mod api {
         }))
     }
 
+    fn build_openapi() -> utoipa::openapi::OpenApi {
+        #[allow(unused_mut)]
+        let mut spec = ApiDoc::openapi();
+        #[cfg(feature = "ibatis")]
+        {
+            spec.merge(ApiDocIbatis::openapi());
+        }
+        #[cfg(feature = "java")]
+        {
+            spec.merge(ApiDocJava::openapi());
+        }
+        spec
+    }
+
     async fn openapi_spec() -> Json<utoipa::openapi::OpenApi> {
-        Json(ApiDoc::openapi())
+        Json(build_openapi())
     }
 
     pub fn router() -> Router {
-        Router::new()
+        #[allow(unused_mut)]
+        let mut router = Router::new()
             .route("/api/health", get(health))
             .route("/api/parse", post(handle_parse))
             .route("/api/json2sql", post(handle_json2sql))
             .route("/api/format", post(handle_format))
             .route("/api/tokenize", post(handle_tokenize))
             .route("/api/validate", post(handle_validate))
-            .route("/api-docs/openapi.json", get(openapi_spec))
+            .route("/api-docs/openapi.json", get(openapi_spec));
+        #[cfg(feature = "ibatis")]
+        {
+            router = router.route("/api/parse-xml", post(handle_parse_xml));
+        }
+        #[cfg(feature = "java")]
+        {
+            router = router.route("/api/parse-java", post(handle_parse_java));
+        }
+        router
     }
 }
 
