@@ -57,12 +57,15 @@ jobs:
         run: |
           cd target/x86_64-unknown-linux-gnu/release
           tar czf ../../../ogsql-${{ steps.version.outputs.version }}-linux-x86_64.tar.gz ${{ env.BINARY_NAME }}
+          zip ../../../ogsql-${{ steps.version.outputs.version }}-linux-x86_64.zip ${{ env.BINARY_NAME }}
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: ogsql-linux-x86_64
-          path: ogsql-${{ steps.version.outputs.version }}-linux-x86_64.tar.gz
+          path: |
+            ogsql-${{ steps.version.outputs.version }}-linux-x86_64.tar.gz
+            ogsql-${{ steps.version.outputs.version }}-linux-x86_64.zip
 
   build-linux-arm64:
     name: Build linux-arm64 (glibc ≥ 2.17)
@@ -107,12 +110,15 @@ jobs:
         run: |
           cd target/aarch64-unknown-linux-gnu/release
           tar czf ../../../ogsql-${{ steps.version.outputs.version }}-linux-arm64.tar.gz ${{ env.BINARY_NAME }}
+          zip ../../../ogsql-${{ steps.version.outputs.version }}-linux-arm64.zip ${{ env.BINARY_NAME }}
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: ogsql-linux-arm64
-          path: ogsql-${{ steps.version.outputs.version }}-linux-arm64.tar.gz
+          path: |
+            ogsql-${{ steps.version.outputs.version }}-linux-arm64.tar.gz
+            ogsql-${{ steps.version.outputs.version }}-linux-arm64.zip
 
   build-windows-x86_64:
     name: Build windows-x86_64
