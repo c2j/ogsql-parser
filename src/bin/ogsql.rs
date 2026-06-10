@@ -849,9 +849,12 @@ fn cmd_parse_single(cli: &Cli, file_path: Option<&str>, csv: bool, proc_name: Op
         let file_name = file_path.unwrap_or("<stdin>");
         if csv {
             output_csv_parse_header();
-            output_csv_parse_rows(&output.statements, file_name, ".", &output.errors, cli.mybatis, extract_sql);
+        }
+        let schema = if extract_sql { load_schema_for_extract(cli) } else { None };
+        if csv {
+            output_csv_parse_rows(&output.statements, file_name, ".", &output.errors, cli.mybatis, extract_sql, schema.as_ref());
         } else {
-            output_extract_rows_text(&output.statements, true);
+            output_extract_rows_text(&output.statements, true, schema.as_ref());
         }
     } else if cli.json {
         let stmt_values: Vec<serde_json::Value> = output
@@ -972,13 +975,14 @@ fn cmd_parse_files(cli: &Cli, csv: bool, extract_sql: bool) {
         if csv {
             output_csv_parse_header();
         }
+        let schema = if extract_sql { load_schema_for_extract(cli) } else { None };
         for file_path in &cli.file {
             let sql = read_input(Some(file_path.as_str()));
             let output = parse_input(&sql, cli.comments, cli.mybatis);
             if csv {
-                output_csv_parse_rows(&output.statements, file_path, ".", &output.errors, cli.mybatis, extract_sql);
+                output_csv_parse_rows(&output.statements, file_path, ".", &output.errors, cli.mybatis, extract_sql, schema.as_ref());
             } else {
-                output_extract_rows_text(&output.statements, true);
+                output_extract_rows_text(&output.statements, true, schema.as_ref());
             }
             for si in &output.statements {
                 *stmt_counts.entry(stmt_category(&si.statement)).or_insert(0) += 1;
@@ -1203,13 +1207,31 @@ fn cmd_parse_dir(
         if csv {
             output_csv_parse_header();
         }
+        let schema = if extract_sql {
+            let mut s = load_schema_for_extract(cli).unwrap_or_default();
+            // Auto-collect DDL schema from directory files when --schema-json is not provided
+            if cli.schema_json.is_none() {
+                for (_, _, abs_path) in &files {
+                    let ddl_sql = read_file_path(abs_path);
+                    let ddl_output = parse_input(&ddl_sql, false, cli.mybatis);
+                    let fs = ogsql_parser::collect_ddl_schema(&ddl_output.statements);
+                    s.columns.extend(fs.columns);
+                    for (table, idxs) in fs.indexes {
+                        s.indexes.entry(table).or_default().extend(idxs);
+                    }
+                }
+            }
+            if s.columns.is_empty() { None } else { Some(s) }
+        } else {
+            None
+        };
         for (file_name, rel_dir, abs_path) in &files {
             let sql = read_file_path(abs_path);
             let output = parse_input(&sql, cli.comments, cli.mybatis);
             if csv {
-                output_csv_parse_rows(&output.statements, file_name, rel_dir, &output.errors, cli.mybatis, extract_sql);
+                output_csv_parse_rows(&output.statements, file_name, rel_dir, &output.errors, cli.mybatis, extract_sql, schema.as_ref());
             } else {
-                output_extract_rows_text(&output.statements, true);
+                output_extract_rows_text(&output.statements, true, schema.as_ref());
             }
             for si in &output.statements {
                 *stmt_counts.entry(stmt_category(&si.statement)).or_insert(0) += 1;
@@ -2669,7 +2691,7 @@ fn collect_pl_stmt_rows(
     }
 }
 
-fn flatten_statement(si: &ogsql_parser::StatementInfo, mybatis: bool, extract_sql: bool) -> Vec<ParseCsvRow> {
+fn flatten_statement(si: &ogsql_parser::StatementInfo, mybatis: bool, extract_sql: bool, schema: Option<&ogsql_parser::FullSchema>) -> Vec<ParseCsvRow> {
     use ogsql_parser::Statement;
     let mut rows = Vec::new();
     let do_vars = mybatis || extract_sql;
@@ -2709,7 +2731,7 @@ fn flatten_statement(si: &ogsql_parser::StatementInfo, mybatis: bool, extract_sq
                         }
                         if let Some(ref block) = p.block {
                             let vars = if do_vars {
-                                collect_block_vars(block, &p.parameters)
+                                collect_block_vars(block, &p.parameters, schema)
                             } else {
                                 std::collections::HashMap::new()
                             };
@@ -2741,7 +2763,7 @@ fn flatten_statement(si: &ogsql_parser::StatementInfo, mybatis: bool, extract_sq
                         }
                         if let Some(ref block) = f.block {
                             let vars = if do_vars {
-                                collect_block_vars(block, &f.parameters)
+                                collect_block_vars(block, &f.parameters, schema)
                             } else {
                                 std::collections::HashMap::new()
                             };
@@ -2830,7 +2852,7 @@ fn flatten_statement(si: &ogsql_parser::StatementInfo, mybatis: bool, extract_sq
             }
             if let Some(ref block) = s.block {
                 let vars =
-                    if do_vars { collect_block_vars(block, &s.parameters) } else { std::collections::HashMap::new() };
+                    if do_vars { collect_block_vars(block, &s.parameters, schema) } else { std::collections::HashMap::new() };
                 let out_cursors = extract_out_cursor_set(&s.parameters);
                 rows.extend(collect_block_sql_rows(block, &proc_name, si.start_line, &vars, &out_cursors, false));
             }
@@ -2853,7 +2875,7 @@ fn flatten_statement(si: &ogsql_parser::StatementInfo, mybatis: bool, extract_sq
             }
             if let Some(ref block) = s.block {
                 let vars =
-                    if do_vars { collect_block_vars(block, &s.parameters) } else { std::collections::HashMap::new() };
+                    if do_vars { collect_block_vars(block, &s.parameters, schema) } else { std::collections::HashMap::new() };
                 let out_cursors = extract_out_cursor_set(&s.parameters);
                 let is_return_cursor = s.return_type.as_ref().is_some_and(|rt| rt.to_uppercase().contains("REFCURSOR"));
                 rows.extend(collect_block_sql_rows(
@@ -2882,7 +2904,7 @@ fn flatten_statement(si: &ogsql_parser::StatementInfo, mybatis: bool, extract_sq
                 });
             }
             if let Some(ref block) = s.block {
-                let vars = if do_vars { collect_block_vars(block, &[]) } else { std::collections::HashMap::new() };
+                let vars = if do_vars { collect_block_vars(block, &[], schema) } else { std::collections::HashMap::new() };
                 let out_cursors = std::collections::HashSet::new();
                 rows.extend(collect_block_sql_rows(block, "", si.start_line, &vars, &out_cursors, false));
             }
@@ -2902,7 +2924,7 @@ fn flatten_statement(si: &ogsql_parser::StatementInfo, mybatis: bool, extract_sq
                     branch_condition: String::new(),
                 });
             }
-            let vars = if do_vars { collect_block_vars(&s.block, &[]) } else { std::collections::HashMap::new() };
+            let vars = if do_vars { collect_block_vars(&s.block, &[], schema) } else { std::collections::HashMap::new() };
             let out_cursors = std::collections::HashSet::new();
             rows.extend(collect_block_sql_rows(&s.block, "", si.start_line, &vars, &out_cursors, false));
         }
@@ -3055,6 +3077,7 @@ fn output_csv_parse_rows(
     errors: &[ogsql_parser::ParserError],
     mybatis: bool,
     extract_sql: bool,
+    schema: Option<&ogsql_parser::FullSchema>,
 ) {
     for si in statements {
         let stmt_start = si.start_line;
@@ -3068,7 +3091,7 @@ fn output_csv_parse_rows(
             })
             .collect();
 
-        let rows = flatten_statement(si, mybatis, extract_sql);
+        let rows = flatten_statement(si, mybatis, extract_sql, schema);
         for row in rows {
             if extract_sql && row.sql.trim().is_empty() {
                 continue;
@@ -3096,9 +3119,9 @@ fn output_csv_parse_rows(
     }
 }
 
-fn output_extract_rows_text(statements: &[ogsql_parser::StatementInfo], mybatis: bool) {
+fn output_extract_rows_text(statements: &[ogsql_parser::StatementInfo], mybatis: bool, schema: Option<&ogsql_parser::FullSchema>) {
     for si in statements {
-        let rows = flatten_statement(si, mybatis, true);
+        let rows = flatten_statement(si, mybatis, true, schema);
         for row in rows {
             if row.sql.trim().is_empty() {
                 continue;
@@ -6405,11 +6428,12 @@ fn pl_data_type_to_string(dt: &ogsql_parser::ast::plpgsql::PlDataType) -> Option
 fn collect_block_vars(
     block: &ogsql_parser::ast::plpgsql::PlBlock,
     params: &[ogsql_parser::ast::RoutineParam],
+    schema: Option<&ogsql_parser::FullSchema>,
 ) -> std::collections::HashMap<String, Option<String>> {
     use ogsql_parser::ast::plpgsql::PlDeclaration;
     let mut vars = std::collections::HashMap::new();
     for p in params {
-        vars.insert(p.name.to_ascii_lowercase(), Some(normalize_data_type(&p.data_type)));
+        vars.insert(p.name.to_ascii_lowercase(), Some(normalize_data_type_with_schema(&p.data_type, schema)));
     }
     for decl in &block.declarations {
         match decl {
@@ -6447,6 +6471,69 @@ fn collect_block_vars(
 }
 
 fn normalize_data_type(data_type: &str) -> String {
+    normalize_data_type_inner(data_type)
+}
+
+fn normalize_data_type_with_schema(data_type: &str, schema: Option<&ogsql_parser::FullSchema>) -> String {
+    let upper = data_type.trim().to_uppercase();
+
+    // %TYPE / %ROWTYPE references: try to resolve from schema first
+    if let Some(pos) = upper.find("%TYPE") {
+        let reference = &data_type[..pos].trim(); // e.g., "DB_LOG.PROC_NAME"
+        if let Some(s) = schema {
+            if let Some(resolved) = lookup_column_type(s, reference) {
+                return normalize_data_type_inner(&resolved);
+            }
+        }
+        return extract_last_ident(reference).to_uppercase();
+    }
+    if let Some(pos) = upper.find("%ROWTYPE") {
+        let reference = &data_type[..pos].trim();
+        if let Some(s) = schema {
+            if let Some(resolved) = lookup_column_type(s, reference) {
+                let base = normalize_data_type_inner(&resolved);
+                return format!("{}_ROWTYPE", base);
+            }
+        }
+        let ident = extract_last_ident(reference);
+        return format!("{}_ROWTYPE", ident).to_uppercase();
+    }
+
+    normalize_data_type_inner(data_type)
+}
+
+/// Look up a column type in the schema. Reference format: "DB_LOG.PROC_NAME" or "PROC_NAME".
+fn lookup_column_type(schema: &ogsql_parser::FullSchema, reference: &str) -> Option<String> {
+    let parts: Vec<&str> = reference.rsplitn(2, '.').collect();
+    let (col_name, table_part) = if parts.len() == 2 {
+        (parts[0].trim(), Some(parts[1].trim()))
+    } else {
+        (parts[0].trim(), None)
+    };
+    let col_lower = col_name.to_ascii_lowercase();
+
+    for (table, columns) in &schema.columns {
+        if let Some(tp) = table_part {
+            if !table.eq_ignore_ascii_case(tp) {
+                continue;
+            }
+        }
+        if let Some(data_type) = columns.get(&col_lower) {
+            return Some(data_type.clone());
+        }
+    }
+    None
+}
+
+fn load_schema_for_extract(cli: &Cli) -> Option<ogsql_parser::FullSchema> {
+    cli.schema_json.as_deref().and_then(|p| {
+        ogsql_parser::load_full_schema(p)
+            .map_err(|e| eprintln!("Warning: failed to load schema '{}': {}", p, e))
+            .ok()
+    })
+}
+
+fn normalize_data_type_inner(data_type: &str) -> String {
     let upper = data_type.trim().to_uppercase();
 
     // %TYPE / %ROWTYPE references: cannot resolve base type without schema.
