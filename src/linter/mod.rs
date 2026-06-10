@@ -270,6 +270,7 @@ pub struct IndexInfo {
 }
 
 /// A single registered rule.
+#[allow(clippy::type_complexity)]
 pub struct LintRuleEntry {
     pub id: &'static str,
     pub name: &'static str,
@@ -737,9 +738,7 @@ pub fn stmt_location(info: &StatementInfo) -> SourceLocation {
 ///
 /// Returns `(&SelectStatement, SourceLocation)` pairs for every discovered SELECT.
 /// The location is the best available span from the enclosing context.
-pub fn collect_nested_selects(
-    stmts: &[StatementInfo],
-) -> Vec<(&SelectStatement, SourceLocation)> {
+pub fn collect_nested_selects(stmts: &[StatementInfo]) -> Vec<(&SelectStatement, SourceLocation)> {
     let mut results = Vec::new();
     for info in stmts {
         collect_selects_from_stmt(&info.statement, stmt_location(info), &mut results);
@@ -804,10 +803,7 @@ fn collect_selects_from_stmt<'a>(
 }
 
 /// Walk into subqueries nested INSIDE a SELECT: its expressions, FROM, CTEs, set ops.
-fn collect_nested_in_select<'a>(
-    s: &'a SelectStatement,
-    out: &mut Vec<(&'a SelectStatement, SourceLocation)>,
-) {
+fn collect_nested_in_select<'a>(s: &'a SelectStatement, out: &mut Vec<(&'a SelectStatement, SourceLocation)>) {
     for t in &s.targets {
         if let crate::ast::SelectTarget::Expr(e, _) = t {
             collect_selects_from_expr(e, out);
@@ -847,10 +843,7 @@ fn collect_nested_in_select<'a>(
 }
 
 /// Walk an expression tree and collect subqueries.
-fn collect_selects_from_expr<'a>(
-    expr: &'a crate::ast::Expr,
-    out: &mut Vec<(&'a SelectStatement, SourceLocation)>,
-) {
+fn collect_selects_from_expr<'a>(expr: &'a crate::ast::Expr, out: &mut Vec<(&'a SelectStatement, SourceLocation)>) {
     use crate::ast::Expr;
     match expr {
         Expr::Subquery(s) | Expr::Exists(s) => {
@@ -873,21 +866,35 @@ fn collect_selects_from_expr<'a>(
         }
         Expr::UnaryOp { expr, .. } => collect_selects_from_expr(expr, out),
         Expr::FunctionCall { args, over, filter, within_group, .. } => {
-            for a in args { collect_selects_from_expr(a, out); }
-            if let Some(o) = over {
-                for e in &o.partition_by { collect_selects_from_expr(e, out); }
-                for item in &o.order_by { collect_selects_from_expr(&item.expr, out); }
+            for a in args {
+                collect_selects_from_expr(a, out);
             }
-            if let Some(fe) = filter { collect_selects_from_expr(fe, out); }
-            for item in within_group { collect_selects_from_expr(&item.expr, out); }
+            if let Some(o) = over {
+                for e in &o.partition_by {
+                    collect_selects_from_expr(e, out);
+                }
+                for item in &o.order_by {
+                    collect_selects_from_expr(&item.expr, out);
+                }
+            }
+            if let Some(fe) = filter {
+                collect_selects_from_expr(fe, out);
+            }
+            for item in within_group {
+                collect_selects_from_expr(&item.expr, out);
+            }
         }
         Expr::Case { operand, whens, else_expr } => {
-            if let Some(o) = operand { collect_selects_from_expr(o, out); }
+            if let Some(o) = operand {
+                collect_selects_from_expr(o, out);
+            }
             for w in whens {
                 collect_selects_from_expr(&w.condition, out);
                 collect_selects_from_expr(&w.result, out);
             }
-            if let Some(e) = else_expr { collect_selects_from_expr(e, out); }
+            if let Some(e) = else_expr {
+                collect_selects_from_expr(e, out);
+            }
         }
         Expr::Between { expr, low, high, .. } => {
             collect_selects_from_expr(expr, out);
@@ -896,48 +903,88 @@ fn collect_selects_from_expr<'a>(
         }
         Expr::InList { expr, list, .. } => {
             collect_selects_from_expr(expr, out);
-            for e in list { collect_selects_from_expr(e, out); }
+            for e in list {
+                collect_selects_from_expr(e, out);
+            }
         }
         Expr::Like { expr, pattern, escape, .. } => {
             collect_selects_from_expr(expr, out);
             collect_selects_from_expr(pattern, out);
-            if let Some(e) = escape { collect_selects_from_expr(e, out); }
+            if let Some(e) = escape {
+                collect_selects_from_expr(e, out);
+            }
         }
         Expr::IsNull { expr, .. } => collect_selects_from_expr(expr, out),
         Expr::IsBoolean { expr, .. } => collect_selects_from_expr(expr, out),
         Expr::TypeCast { expr, .. } => collect_selects_from_expr(expr, out),
         Expr::Treat { expr, .. } => collect_selects_from_expr(expr, out),
-        Expr::Array(elems) => { for e in elems { collect_selects_from_expr(e, out); } }
+        Expr::Array(elems) => {
+            for e in elems {
+                collect_selects_from_expr(e, out);
+            }
+        }
         Expr::Subscript { object, lower, upper, .. } => {
             collect_selects_from_expr(object, out);
-            if let Some(l) = lower { collect_selects_from_expr(l, out); }
-            if let Some(u) = upper { collect_selects_from_expr(u, out); }
+            if let Some(l) = lower {
+                collect_selects_from_expr(l, out);
+            }
+            if let Some(u) = upper {
+                collect_selects_from_expr(u, out);
+            }
         }
         Expr::FieldAccess { object, .. } => collect_selects_from_expr(object, out),
         Expr::Parenthesized(e) => collect_selects_from_expr(e, out),
         Expr::Prior(e) => collect_selects_from_expr(e, out),
         Expr::RowConstructor(exprs) => {
-            for e in exprs { collect_selects_from_expr(e, out); }
+            for e in exprs {
+                collect_selects_from_expr(e, out);
+            }
         }
         Expr::SpecialFunction { args, .. } => {
-            for a in args { collect_selects_from_expr(a, out); }
+            for a in args {
+                collect_selects_from_expr(a, out);
+            }
         }
-        Expr::XmlConcat(exprs) => { for e in exprs { collect_selects_from_expr(e, out); } }
-        Expr::XmlForest(items) => { for item in items { collect_selects_from_expr(&item.expr, out); } }
+        Expr::XmlConcat(exprs) => {
+            for e in exprs {
+                collect_selects_from_expr(e, out);
+            }
+        }
+        Expr::XmlForest(items) => {
+            for item in items {
+                collect_selects_from_expr(&item.expr, out);
+            }
+        }
         Expr::XmlParse { expr, .. } => collect_selects_from_expr(expr, out),
-        Expr::XmlPi { content, .. } => { if let Some(c) = content { collect_selects_from_expr(c, out); } }
+        Expr::XmlPi { content, .. } => {
+            if let Some(c) = content {
+                collect_selects_from_expr(c, out);
+            }
+        }
         Expr::XmlRoot { expr, version, .. } => {
             collect_selects_from_expr(expr, out);
-            if let Some(v) = version { collect_selects_from_expr(v, out); }
+            if let Some(v) = version {
+                collect_selects_from_expr(v, out);
+            }
         }
         Expr::XmlSerialize { expr, .. } => collect_selects_from_expr(expr, out),
         // Terminal nodes
-        Expr::Default | Expr::CurrentOf { .. } | Expr::PredictBy { .. }
-        | Expr::SysDate | Expr::SequenceValue { .. } | Expr::CursorAttribute { .. }
-        | Expr::PlVariable(_) | Expr::Literal(_) | Expr::ColumnRef(_)
-        | Expr::QualifiedStar(_) | Expr::Parameter(_) | Expr::MyBatisParam(_)
-        | Expr::MyBatisRawExpr(_) | Expr::JdbcParam
-        | Expr::XmlElement { .. } | Expr::CollationFor { .. } => {}
+        Expr::Default
+        | Expr::CurrentOf { .. }
+        | Expr::PredictBy { .. }
+        | Expr::SysDate
+        | Expr::SequenceValue { .. }
+        | Expr::CursorAttribute { .. }
+        | Expr::PlVariable(_)
+        | Expr::Literal(_)
+        | Expr::ColumnRef(_)
+        | Expr::QualifiedStar(_)
+        | Expr::Parameter(_)
+        | Expr::MyBatisParam(_)
+        | Expr::MyBatisRawExpr(_)
+        | Expr::JdbcParam
+        | Expr::XmlElement { .. }
+        | Expr::CollationFor { .. } => {}
     }
 }
 

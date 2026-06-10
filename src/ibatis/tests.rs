@@ -1458,9 +1458,7 @@ fn is_insert_with_values(node: &SqlNode) -> bool {
             let lower = content.to_lowercase();
             lower.contains("insert") && lower.contains("values")
         }
-        SqlNode::Sequence { children } | SqlNode::Trim { children, .. } => {
-            children.iter().any(is_insert_with_values)
-        }
+        SqlNode::Sequence { children } | SqlNode::Trim { children, .. } => children.iter().any(is_insert_with_values),
         _ => false,
     }
 }

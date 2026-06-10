@@ -362,8 +362,6 @@ fn lint_xml_expanded(
     xml_bytes: &[u8],
     config: &ogsql_parser::linter::LintConfig,
 ) -> Vec<ogsql_parser::linter::SqlWarning> {
-    use ogsql_parser::ibatis::types::SqlNode;
-
     let structured = ogsql_parser::ibatis::parse_mapper_bytes_structured(xml_bytes);
     if !structured.errors.is_empty() {
         return vec![];
@@ -413,16 +411,16 @@ fn is_insert_with_values(node: &ogsql_parser::ibatis::types::SqlNode) -> bool {
             let lower = content.to_lowercase();
             lower.contains("insert") && lower.contains("values")
         }
-        SqlNode::Sequence { children } | SqlNode::Trim { children, .. } => {
-            children.iter().any(is_insert_with_values)
-        }
+        SqlNode::Sequence { children } | SqlNode::Trim { children, .. } => children.iter().any(is_insert_with_values),
         _ => false,
     }
 }
 
 /// Finds a ForEach node nested inside INSERT VALUES context.
 #[cfg(feature = "ibatis")]
-fn find_foreach_in_insert_values(node: &ogsql_parser::ibatis::types::SqlNode) -> Option<&ogsql_parser::ibatis::types::SqlNode> {
+fn find_foreach_in_insert_values(
+    node: &ogsql_parser::ibatis::types::SqlNode,
+) -> Option<&ogsql_parser::ibatis::types::SqlNode> {
     use ogsql_parser::ibatis::types::SqlNode;
     match node {
         SqlNode::ForEach { .. } => Some(node),
@@ -430,8 +428,7 @@ fn find_foreach_in_insert_values(node: &ogsql_parser::ibatis::types::SqlNode) ->
         | SqlNode::Trim { children, .. }
         | SqlNode::Where { children, .. }
         | SqlNode::Set { children, .. }
-        | SqlNode::If { children, .. }
-        | SqlNode::ForEach { children, .. } => {
+        | SqlNode::If { children, .. } => {
             for child in children {
                 if let Some(f) = find_foreach_in_insert_values(child) {
                     return Some(f);
@@ -852,9 +849,12 @@ fn cmd_parse_single(cli: &Cli, file_path: Option<&str>, csv: bool, proc_name: Op
         let file_name = file_path.unwrap_or("<stdin>");
         if csv {
             output_csv_parse_header();
-            output_csv_parse_rows(&output.statements, file_name, ".", &output.errors, cli.mybatis, extract_sql);
+        }
+        let schema = if extract_sql { load_schema_for_extract(cli) } else { None };
+        if csv {
+            output_csv_parse_rows(&output.statements, file_name, ".", &output.errors, cli.mybatis, extract_sql, schema.as_ref());
         } else {
-            output_extract_rows_text(&output.statements, true);
+            output_extract_rows_text(&output.statements, true, schema.as_ref());
         }
     } else if cli.json {
         let stmt_values: Vec<serde_json::Value> = output
@@ -975,13 +975,14 @@ fn cmd_parse_files(cli: &Cli, csv: bool, extract_sql: bool) {
         if csv {
             output_csv_parse_header();
         }
+        let schema = if extract_sql { load_schema_for_extract(cli) } else { None };
         for file_path in &cli.file {
             let sql = read_input(Some(file_path.as_str()));
             let output = parse_input(&sql, cli.comments, cli.mybatis);
             if csv {
-                output_csv_parse_rows(&output.statements, file_path, ".", &output.errors, cli.mybatis, extract_sql);
+                output_csv_parse_rows(&output.statements, file_path, ".", &output.errors, cli.mybatis, extract_sql, schema.as_ref());
             } else {
-                output_extract_rows_text(&output.statements, true);
+                output_extract_rows_text(&output.statements, true, schema.as_ref());
             }
             for si in &output.statements {
                 *stmt_counts.entry(stmt_category(&si.statement)).or_insert(0) += 1;
@@ -1132,7 +1133,15 @@ fn cmd_parse_files(cli: &Cli, csv: bool, extract_sql: bool) {
     }
 }
 
-fn cmd_parse_dir(cli: &Cli, dir_paths: &[String], exts: &[String], csv: bool, output_dir: Option<&str>, stats: bool, extract_sql: bool) {
+fn cmd_parse_dir(
+    cli: &Cli,
+    dir_paths: &[String],
+    exts: &[String],
+    csv: bool,
+    output_dir: Option<&str>,
+    stats: bool,
+    extract_sql: bool,
+) {
     use std::path::Path;
 
     for dir_path in dir_paths {
@@ -1198,13 +1207,31 @@ fn cmd_parse_dir(cli: &Cli, dir_paths: &[String], exts: &[String], csv: bool, ou
         if csv {
             output_csv_parse_header();
         }
+        let schema = if extract_sql {
+            let mut s = load_schema_for_extract(cli).unwrap_or_default();
+            // Auto-collect DDL schema from directory files when --schema-json is not provided
+            if cli.schema_json.is_none() {
+                for (_, _, abs_path) in &files {
+                    let ddl_sql = read_file_path(abs_path);
+                    let ddl_output = parse_input(&ddl_sql, false, cli.mybatis);
+                    let fs = ogsql_parser::collect_ddl_schema(&ddl_output.statements);
+                    s.columns.extend(fs.columns);
+                    for (table, idxs) in fs.indexes {
+                        s.indexes.entry(table).or_default().extend(idxs);
+                    }
+                }
+            }
+            if s.columns.is_empty() { None } else { Some(s) }
+        } else {
+            None
+        };
         for (file_name, rel_dir, abs_path) in &files {
             let sql = read_file_path(abs_path);
             let output = parse_input(&sql, cli.comments, cli.mybatis);
             if csv {
-                output_csv_parse_rows(&output.statements, file_name, rel_dir, &output.errors, cli.mybatis, extract_sql);
+                output_csv_parse_rows(&output.statements, file_name, rel_dir, &output.errors, cli.mybatis, extract_sql, schema.as_ref());
             } else {
-                output_extract_rows_text(&output.statements, true);
+                output_extract_rows_text(&output.statements, true, schema.as_ref());
             }
             for si in &output.statements {
                 *stmt_counts.entry(stmt_category(&si.statement)).or_insert(0) += 1;
@@ -2664,7 +2691,7 @@ fn collect_pl_stmt_rows(
     }
 }
 
-fn flatten_statement(si: &ogsql_parser::StatementInfo, mybatis: bool, extract_sql: bool) -> Vec<ParseCsvRow> {
+fn flatten_statement(si: &ogsql_parser::StatementInfo, mybatis: bool, extract_sql: bool, schema: Option<&ogsql_parser::FullSchema>) -> Vec<ParseCsvRow> {
     use ogsql_parser::Statement;
     let mut rows = Vec::new();
     let do_vars = mybatis || extract_sql;
@@ -2704,7 +2731,7 @@ fn flatten_statement(si: &ogsql_parser::StatementInfo, mybatis: bool, extract_sq
                         }
                         if let Some(ref block) = p.block {
                             let vars = if do_vars {
-                                collect_block_vars(block, &p.parameters)
+                                collect_block_vars(block, &p.parameters, schema)
                             } else {
                                 std::collections::HashMap::new()
                             };
@@ -2736,7 +2763,7 @@ fn flatten_statement(si: &ogsql_parser::StatementInfo, mybatis: bool, extract_sq
                         }
                         if let Some(ref block) = f.block {
                             let vars = if do_vars {
-                                collect_block_vars(block, &f.parameters)
+                                collect_block_vars(block, &f.parameters, schema)
                             } else {
                                 std::collections::HashMap::new()
                             };
@@ -2824,11 +2851,8 @@ fn flatten_statement(si: &ogsql_parser::StatementInfo, mybatis: bool, extract_sq
                 });
             }
             if let Some(ref block) = s.block {
-                let vars = if do_vars {
-                    collect_block_vars(block, &s.parameters)
-                } else {
-                    std::collections::HashMap::new()
-                };
+                let vars =
+                    if do_vars { collect_block_vars(block, &s.parameters, schema) } else { std::collections::HashMap::new() };
                 let out_cursors = extract_out_cursor_set(&s.parameters);
                 rows.extend(collect_block_sql_rows(block, &proc_name, si.start_line, &vars, &out_cursors, false));
             }
@@ -2850,11 +2874,8 @@ fn flatten_statement(si: &ogsql_parser::StatementInfo, mybatis: bool, extract_sq
                 });
             }
             if let Some(ref block) = s.block {
-                let vars = if do_vars {
-                    collect_block_vars(block, &s.parameters)
-                } else {
-                    std::collections::HashMap::new()
-                };
+                let vars =
+                    if do_vars { collect_block_vars(block, &s.parameters, schema) } else { std::collections::HashMap::new() };
                 let out_cursors = extract_out_cursor_set(&s.parameters);
                 let is_return_cursor = s.return_type.as_ref().is_some_and(|rt| rt.to_uppercase().contains("REFCURSOR"));
                 rows.extend(collect_block_sql_rows(
@@ -2883,7 +2904,7 @@ fn flatten_statement(si: &ogsql_parser::StatementInfo, mybatis: bool, extract_sq
                 });
             }
             if let Some(ref block) = s.block {
-                let vars = if do_vars { collect_block_vars(block, &[]) } else { std::collections::HashMap::new() };
+                let vars = if do_vars { collect_block_vars(block, &[], schema) } else { std::collections::HashMap::new() };
                 let out_cursors = std::collections::HashSet::new();
                 rows.extend(collect_block_sql_rows(block, "", si.start_line, &vars, &out_cursors, false));
             }
@@ -2903,7 +2924,7 @@ fn flatten_statement(si: &ogsql_parser::StatementInfo, mybatis: bool, extract_sq
                     branch_condition: String::new(),
                 });
             }
-            let vars = if do_vars { collect_block_vars(&s.block, &[]) } else { std::collections::HashMap::new() };
+            let vars = if do_vars { collect_block_vars(&s.block, &[], schema) } else { std::collections::HashMap::new() };
             let out_cursors = std::collections::HashSet::new();
             rows.extend(collect_block_sql_rows(&s.block, "", si.start_line, &vars, &out_cursors, false));
         }
@@ -3056,6 +3077,7 @@ fn output_csv_parse_rows(
     errors: &[ogsql_parser::ParserError],
     mybatis: bool,
     extract_sql: bool,
+    schema: Option<&ogsql_parser::FullSchema>,
 ) {
     for si in statements {
         let stmt_start = si.start_line;
@@ -3069,7 +3091,7 @@ fn output_csv_parse_rows(
             })
             .collect();
 
-        let rows = flatten_statement(si, mybatis, extract_sql);
+        let rows = flatten_statement(si, mybatis, extract_sql, schema);
         for row in rows {
             if extract_sql && row.sql.trim().is_empty() {
                 continue;
@@ -3097,9 +3119,9 @@ fn output_csv_parse_rows(
     }
 }
 
-fn output_extract_rows_text(statements: &[ogsql_parser::StatementInfo], mybatis: bool) {
+fn output_extract_rows_text(statements: &[ogsql_parser::StatementInfo], mybatis: bool, schema: Option<&ogsql_parser::FullSchema>) {
     for si in statements {
-        let rows = flatten_statement(si, mybatis, true);
+        let rows = flatten_statement(si, mybatis, true, schema);
         for row in rows {
             if row.sql.trim().is_empty() {
                 continue;
@@ -4021,7 +4043,7 @@ fn cmd_validate_files(cli: &Cli, csv: bool, strict: bool) {
         format!("{} '{}' in {}{}", kind_label, ve.variable_name, ve.context, line_info)
     };
 
-    let mut auto_schema_files = if cli.schema_json.is_none() && cli.lint {
+    let auto_schema_files = if cli.schema_json.is_none() && cli.lint {
         let mut fs = ogsql_parser::FullSchema::default();
         for file_path in &cli.file {
             let sql = read_input(Some(file_path.as_str()));
@@ -5212,7 +5234,7 @@ fn cmd_parse_xml_single(cli: &Cli, csv: bool, java_roots: &[std::path::PathBuf])
     #[cfg(not(feature = "java"))]
     let result = ogsql_parser::ibatis::parse_mapper_bytes_with_path(&input, file_opt);
 
-    let mut lint_warnings = if cli.lint {
+    let lint_warnings = if cli.lint {
         let config = build_lint_config(cli);
         let mut ws = lint_xml_statements(&result.statements, &config);
         let expand_ws = lint_xml_expanded(&input, &config);
@@ -6406,11 +6428,12 @@ fn pl_data_type_to_string(dt: &ogsql_parser::ast::plpgsql::PlDataType) -> Option
 fn collect_block_vars(
     block: &ogsql_parser::ast::plpgsql::PlBlock,
     params: &[ogsql_parser::ast::RoutineParam],
+    schema: Option<&ogsql_parser::FullSchema>,
 ) -> std::collections::HashMap<String, Option<String>> {
     use ogsql_parser::ast::plpgsql::PlDeclaration;
     let mut vars = std::collections::HashMap::new();
     for p in params {
-        vars.insert(p.name.to_ascii_lowercase(), Some(normalize_data_type(&p.data_type)));
+        vars.insert(p.name.to_ascii_lowercase(), Some(normalize_data_type_with_schema(&p.data_type, schema)));
     }
     for decl in &block.declarations {
         match decl {
@@ -6448,6 +6471,69 @@ fn collect_block_vars(
 }
 
 fn normalize_data_type(data_type: &str) -> String {
+    normalize_data_type_inner(data_type)
+}
+
+fn normalize_data_type_with_schema(data_type: &str, schema: Option<&ogsql_parser::FullSchema>) -> String {
+    let upper = data_type.trim().to_uppercase();
+
+    // %TYPE / %ROWTYPE references: try to resolve from schema first
+    if let Some(pos) = upper.find("%TYPE") {
+        let reference = &data_type[..pos].trim(); // e.g., "DB_LOG.PROC_NAME"
+        if let Some(s) = schema {
+            if let Some(resolved) = lookup_column_type(s, reference) {
+                return normalize_data_type_inner(&resolved);
+            }
+        }
+        return extract_last_ident(reference).to_uppercase();
+    }
+    if let Some(pos) = upper.find("%ROWTYPE") {
+        let reference = &data_type[..pos].trim();
+        if let Some(s) = schema {
+            if let Some(resolved) = lookup_column_type(s, reference) {
+                let base = normalize_data_type_inner(&resolved);
+                return format!("{}_ROWTYPE", base);
+            }
+        }
+        let ident = extract_last_ident(reference);
+        return format!("{}_ROWTYPE", ident).to_uppercase();
+    }
+
+    normalize_data_type_inner(data_type)
+}
+
+/// Look up a column type in the schema. Reference format: "DB_LOG.PROC_NAME" or "PROC_NAME".
+fn lookup_column_type(schema: &ogsql_parser::FullSchema, reference: &str) -> Option<String> {
+    let parts: Vec<&str> = reference.rsplitn(2, '.').collect();
+    let (col_name, table_part) = if parts.len() == 2 {
+        (parts[0].trim(), Some(parts[1].trim()))
+    } else {
+        (parts[0].trim(), None)
+    };
+    let col_lower = col_name.to_ascii_lowercase();
+
+    for (table, columns) in &schema.columns {
+        if let Some(tp) = table_part {
+            if !table.eq_ignore_ascii_case(tp) {
+                continue;
+            }
+        }
+        if let Some(data_type) = columns.get(&col_lower) {
+            return Some(data_type.clone());
+        }
+    }
+    None
+}
+
+fn load_schema_for_extract(cli: &Cli) -> Option<ogsql_parser::FullSchema> {
+    cli.schema_json.as_deref().and_then(|p| {
+        ogsql_parser::load_full_schema(p)
+            .map_err(|e| eprintln!("Warning: failed to load schema '{}': {}", p, e))
+            .ok()
+    })
+}
+
+fn normalize_data_type_inner(data_type: &str) -> String {
     let upper = data_type.trim().to_uppercase();
 
     // %TYPE / %ROWTYPE references: cannot resolve base type without schema.
@@ -6464,52 +6550,138 @@ fn normalize_data_type(data_type: &str) -> String {
 
     // Normalize to JDBC-compatible type names (strip size/precision).
     // Oracle-specific names mapped to standard JDBC java.sql.Types equivalents.
-    if upper.starts_with("VARCHAR2") { return "VARCHAR".to_string(); }
-    if upper.starts_with("VARCHAR") { return "VARCHAR".to_string(); }
-    if upper.starts_with("NVARCHAR2") { return "NVARCHAR".to_string(); }
-    if upper.starts_with("NVARCHAR") { return "NVARCHAR".to_string(); }
-    if upper.starts_with("CHARACTER VARYING") { return "VARCHAR".to_string(); }
-    if upper.starts_with("CHARACTER") { return "CHAR".to_string(); }
-    if upper.starts_with("CHAR") { return "CHAR".to_string(); }
-    if upper.starts_with("NCHAR") { return "NCHAR".to_string(); }
-    if upper.starts_with("NUMBER") { return "NUMERIC".to_string(); }
-    if upper.starts_with("NUMERIC") { return "NUMERIC".to_string(); }
-    if upper.starts_with("DECIMAL") { return "DECIMAL".to_string(); }
-    if upper.starts_with("PLS_INTEGER") { return "INTEGER".to_string(); }
-    if upper.starts_with("BINARY_INTEGER") { return "INTEGER".to_string(); }
-    if upper.starts_with("BIGINT") { return "BIGINT".to_string(); }
-    if upper.starts_with("INTEGER") { return "INTEGER".to_string(); }
-    if upper.starts_with("SMALLINT") { return "SMALLINT".to_string(); }
-    if upper.starts_with("TINYINT") { return "TINYINT".to_string(); }
+    if upper.starts_with("VARCHAR2") {
+        return "VARCHAR".to_string();
+    }
+    if upper.starts_with("VARCHAR") {
+        return "VARCHAR".to_string();
+    }
+    if upper.starts_with("NVARCHAR2") {
+        return "NVARCHAR".to_string();
+    }
+    if upper.starts_with("NVARCHAR") {
+        return "NVARCHAR".to_string();
+    }
+    if upper.starts_with("CHARACTER VARYING") {
+        return "VARCHAR".to_string();
+    }
+    if upper.starts_with("CHARACTER") {
+        return "CHAR".to_string();
+    }
+    if upper.starts_with("CHAR") {
+        return "CHAR".to_string();
+    }
+    if upper.starts_with("NCHAR") {
+        return "NCHAR".to_string();
+    }
+    if upper.starts_with("NUMBER") {
+        return "NUMERIC".to_string();
+    }
+    if upper.starts_with("NUMERIC") {
+        return "NUMERIC".to_string();
+    }
+    if upper.starts_with("DECIMAL") {
+        return "DECIMAL".to_string();
+    }
+    if upper.starts_with("PLS_INTEGER") {
+        return "INTEGER".to_string();
+    }
+    if upper.starts_with("BINARY_INTEGER") {
+        return "INTEGER".to_string();
+    }
+    if upper.starts_with("BIGINT") {
+        return "BIGINT".to_string();
+    }
+    if upper.starts_with("INTEGER") {
+        return "INTEGER".to_string();
+    }
+    if upper.starts_with("SMALLINT") {
+        return "SMALLINT".to_string();
+    }
+    if upper.starts_with("TINYINT") {
+        return "TINYINT".to_string();
+    }
     if upper.starts_with("INT") && !upper.starts_with("INTERVAL") && !upper.starts_with("INTEGER") {
         return "INTEGER".to_string();
     }
-    if upper.starts_with("DOUBLE PRECISION") { return "DOUBLE".to_string(); }
-    if upper.starts_with("DOUBLE") { return "DOUBLE".to_string(); }
-    if upper.starts_with("FLOAT") { return "FLOAT".to_string(); }
-    if upper.starts_with("REAL") { return "REAL".to_string(); }
-    if upper.starts_with("BOOLEAN") { return "BOOLEAN".to_string(); }
-    if upper.starts_with("TIMESTAMP") { return "TIMESTAMP".to_string(); }
-    if upper.starts_with("DATE") { return "DATE".to_string(); }
-    if upper.starts_with("TIME") { return "TIME".to_string(); }
-    if upper.starts_with("CLOB") { return "CLOB".to_string(); }
-    if upper.starts_with("NCLOB") { return "NCLOB".to_string(); }
-    if upper.starts_with("BLOB") { return "BLOB".to_string(); }
-    if upper.starts_with("BYTEA") { return "BYTEA".to_string(); }
-    if upper.starts_with("RAW") { return "RAW".to_string(); }
-    if upper.starts_with("LONG RAW") { return "LONG_RAW".to_string(); }
-    if upper.starts_with("LONG") { return "LONG".to_string(); }
-    if upper.starts_with("ROWID") { return "ROWID".to_string(); }
-    if upper.starts_with("UROWID") { return "UROWID".to_string(); }
-    if upper.starts_with("XMLTYPE") { return "XMLTYPE".to_string(); }
-    if upper.starts_with("SYS_REFCURSOR") { return "CURSOR".to_string(); }
-    if upper.starts_with("REFCURSOR") { return "CURSOR".to_string(); }
-    if upper.starts_with("BFILE") { return "BFILE".to_string(); }
-    if upper.starts_with("INTERVAL") { return "INTERVAL".to_string(); }
-    if upper.starts_with("JSON") { return "JSON".to_string(); }
-    if upper.starts_with("TEXT") { return "TEXT".to_string(); }
-    if upper.starts_with("SERIAL") { return "SERIAL".to_string(); }
-    if upper.starts_with("BIGSERIAL") { return "BIGSERIAL".to_string(); }
+    if upper.starts_with("DOUBLE PRECISION") {
+        return "DOUBLE".to_string();
+    }
+    if upper.starts_with("DOUBLE") {
+        return "DOUBLE".to_string();
+    }
+    if upper.starts_with("FLOAT") {
+        return "FLOAT".to_string();
+    }
+    if upper.starts_with("REAL") {
+        return "REAL".to_string();
+    }
+    if upper.starts_with("BOOLEAN") {
+        return "BOOLEAN".to_string();
+    }
+    if upper.starts_with("TIMESTAMP") {
+        return "TIMESTAMP".to_string();
+    }
+    if upper.starts_with("DATE") {
+        return "DATE".to_string();
+    }
+    if upper.starts_with("TIME") {
+        return "TIME".to_string();
+    }
+    if upper.starts_with("CLOB") {
+        return "CLOB".to_string();
+    }
+    if upper.starts_with("NCLOB") {
+        return "NCLOB".to_string();
+    }
+    if upper.starts_with("BLOB") {
+        return "BLOB".to_string();
+    }
+    if upper.starts_with("BYTEA") {
+        return "BYTEA".to_string();
+    }
+    if upper.starts_with("RAW") {
+        return "RAW".to_string();
+    }
+    if upper.starts_with("LONG RAW") {
+        return "LONG_RAW".to_string();
+    }
+    if upper.starts_with("LONG") {
+        return "LONG".to_string();
+    }
+    if upper.starts_with("ROWID") {
+        return "ROWID".to_string();
+    }
+    if upper.starts_with("UROWID") {
+        return "UROWID".to_string();
+    }
+    if upper.starts_with("XMLTYPE") {
+        return "XMLTYPE".to_string();
+    }
+    if upper.starts_with("SYS_REFCURSOR") {
+        return "CURSOR".to_string();
+    }
+    if upper.starts_with("REFCURSOR") {
+        return "CURSOR".to_string();
+    }
+    if upper.starts_with("BFILE") {
+        return "BFILE".to_string();
+    }
+    if upper.starts_with("INTERVAL") {
+        return "INTERVAL".to_string();
+    }
+    if upper.starts_with("JSON") {
+        return "JSON".to_string();
+    }
+    if upper.starts_with("TEXT") {
+        return "TEXT".to_string();
+    }
+    if upper.starts_with("SERIAL") {
+        return "SERIAL".to_string();
+    }
+    if upper.starts_with("BIGSERIAL") {
+        return "BIGSERIAL".to_string();
+    }
 
     // Unknown type: strip schema prefix, return the base name
     extract_last_ident(data_type).to_uppercase()
@@ -6542,17 +6714,34 @@ fn is_sql_statement(text: &str) -> bool {
         return false;
     }
     let sql_prefixes = [
-        "select ", "insert ", "update ", "delete ", "merge ", "with ",
-        "create ", "alter ", "drop ", "truncate ",
-        "grant ", "revoke ",
+        "select ",
+        "insert ",
+        "update ",
+        "delete ",
+        "merge ",
+        "with ",
+        "create ",
+        "alter ",
+        "drop ",
+        "truncate ",
+        "grant ",
+        "revoke ",
         "call ",
-        "explain ", "explain ",
-        "lock ", "unlock ",
-        "commit", "rollback", "savepoint",
-        "set ", "reset ",
+        "explain ",
+        "explain ",
+        "lock ",
+        "unlock ",
+        "commit",
+        "rollback",
+        "savepoint",
+        "set ",
+        "reset ",
         "declare ",
-        "fetch ", "move ", "close ",
-        "copy ", "\\copy ",
+        "fetch ",
+        "move ",
+        "close ",
+        "copy ",
+        "\\copy ",
     ];
     sql_prefixes.iter().any(|p| lower.starts_with(p))
 }
@@ -6624,7 +6813,7 @@ fn replace_pl_vars_in_sql_with_prefix(
                     None => ident.to_string(),
                 };
                 // Absorb subsequent .field access (e.g., v_rec.order_id → single placeholder)
-                let saved_i = i;
+                let _saved_i = i;
                 let mut j = i;
                 while j < len && bytes[j] == b' ' {
                     j += 1;

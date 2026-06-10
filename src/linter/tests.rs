@@ -492,14 +492,16 @@ fn p023_from_subquery_triggered() {
 
 #[test]
 fn p023_for_loop_triggered() {
-    let stmts = parse("DO $$ BEGIN FOR rec IN SELECT * FROM emp CONNECT BY PRIOR empno = mgr LOOP NULL; END LOOP; END $$");
+    let stmts =
+        parse("DO $$ BEGIN FOR rec IN SELECT * FROM emp CONNECT BY PRIOR empno = mgr LOOP NULL; END LOOP; END $$");
     let w = lint(&stmts);
     assert!(has_rule(&w, "P023"), "expected P023 for CONNECT BY in FOR loop");
 }
 
 #[test]
 fn p023_cursor_declaration_triggered() {
-    let stmts = parse("DO $$ DECLARE cur CURSOR FOR SELECT * FROM emp CONNECT BY PRIOR empno = mgr; BEGIN NULL; END $$");
+    let stmts =
+        parse("DO $$ DECLARE cur CURSOR FOR SELECT * FROM emp CONNECT BY PRIOR empno = mgr; BEGIN NULL; END $$");
     let w = lint(&stmts);
     assert!(has_rule(&w, "P023"), "expected P023 for CONNECT BY in cursor declaration");
 }
@@ -996,7 +998,10 @@ fn s007_unresolved_column_still_warns() {
     let stmts = parse("SELECT * FROM unknown_table WHERE col = 'val'");
     let linter = SqlLinter::with_default_rules(LintConfig::default());
     let w = linter.lint(&stmts, Some(&schema), Confidence::Full);
-    assert!(!has_rule(&w, "S007"), "unresolvable column with schema present should NOT warn — no evidence of type mismatch");
+    assert!(
+        !has_rule(&w, "S007"),
+        "unresolvable column with schema present should NOT warn — no evidence of type mismatch"
+    );
 }
 
 #[test]
