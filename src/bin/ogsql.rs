@@ -4709,18 +4709,40 @@ mod api {
     #[derive(OpenApi)]
     #[openapi(
         paths(health, handle_parse, handle_format, handle_tokenize, handle_validate, handle_json2sql),
-        components(schemas(SqlInput, JsonInput)),
+        components(schemas(ParseInput, FormatInput, ValidateInput, TokenizeInput, JsonInput)),
         tags(
             (name = "ogsql", description = "openGauss/GaussDB SQL Parser API")
         )
     )]
     pub struct ApiDoc;
 
+    /// POST /api/parse request body
     #[derive(Deserialize, ToSchema)]
-    pub struct SqlInput {
+    pub struct ParseInput {
         pub sql: String,
         #[serde(default)]
         pub preserve_comments: bool,
+        /// Enable MyBatis #{param} and ${expr} placeholder support
+        #[serde(default)]
+        pub mybatis: bool,
+        /// Only parse the specified stored procedure/function
+        #[serde(default)]
+        pub procedure: Option<String>,
+        /// Extract SQL statements from stored procedures (variables → placeholders)
+        #[serde(default)]
+        pub extract_sql: bool,
+        /// Enable SQL anti-pattern linting
+        #[serde(default)]
+        pub lint: Option<bool>,
+        /// Path to schema JSON file for schema-aware lint and analysis
+        #[serde(default)]
+        pub schema_json: Option<String>,
+    }
+
+    /// POST /api/format request body
+    #[derive(Deserialize, ToSchema)]
+    pub struct FormatInput {
+        pub sql: String,
         #[serde(default)]
         pub indent: Option<usize>,
         #[serde(default)]
@@ -4731,16 +4753,47 @@ mod api {
         pub line_width: Option<usize>,
         #[serde(default)]
         pub uppercase: Option<bool>,
-        /// Only parse the specified stored procedure/function
-        /// 仅解析指定的存储过程/函数
+        /// Enable MyBatis #{param} and ${expr} placeholder support (preserves during formatting)
         #[serde(default)]
-        pub procedure: Option<String>,
+        pub mybatis: bool,
+        /// Don't put each SELECT column on its own line
+        #[serde(default)]
+        pub no_select_newline: Option<bool>,
+        /// Don't put AND/OR on new lines
+        #[serde(default)]
+        pub no_logical_newline: Option<bool>,
+        /// Don't put semicolons on their own line
+        #[serde(default)]
+        pub no_semicolon_newline: Option<bool>,
+    }
+
+    /// POST /api/validate request body
+    #[derive(Deserialize, ToSchema)]
+    pub struct ValidateInput {
+        pub sql: String,
+        /// Enable MyBatis #{param} and ${expr} placeholder support
+        #[serde(default)]
+        pub mybatis: bool,
+        /// Enable strict mode: detect undefined function calls in PL blocks
+        #[serde(default)]
+        pub strict: Option<bool>,
         /// Enable SQL anti-pattern linting
         #[serde(default)]
         pub lint: Option<bool>,
-        /// Path to schema JSON file for schema-aware lint rules (index metadata, column types)
+        /// Path to schema JSON file for schema-aware lint rules
         #[serde(default)]
         pub schema_json: Option<String>,
+    }
+
+    /// POST /api/tokenize request body
+    #[derive(Deserialize, ToSchema)]
+    pub struct TokenizeInput {
+        pub sql: String,
+        #[serde(default)]
+        pub preserve_comments: bool,
+        /// Enable MyBatis #{param} and ${expr} placeholder support
+        #[serde(default)]
+        pub mybatis: bool,
     }
 
     #[derive(Deserialize, ToSchema)]
@@ -4764,10 +4817,10 @@ mod api {
         post,
         path = "/api/parse",
         tag = "ogsql",
-        request_body = SqlInput,
+        request_body = ParseInput,
         responses((status = 200, description = "Parsed AST result"))
     )]
-    pub async fn handle_parse(Json(input): Json<SqlInput>) -> Json<serde_json::Value> {
+    pub async fn handle_parse(Json(input): Json<ParseInput>) -> Json<serde_json::Value> {
         let output = super::parse_input(&input.sql, input.preserve_comments, false);
         let output = match input.procedure {
             Some(ref proc) => match super::filter_output_by_procedure(output, proc) {
@@ -4799,10 +4852,10 @@ mod api {
         post,
         path = "/api/format",
         tag = "ogsql",
-        request_body = SqlInput,
+        request_body = FormatInput,
         responses((status = 200, description = "Formatted SQL result"))
     )]
-    pub async fn handle_format(Json(input): Json<SqlInput>) -> Json<serde_json::Value> {
+    pub async fn handle_format(Json(input): Json<FormatInput>) -> Json<serde_json::Value> {
         let tokens = match ogsql_parser::Tokenizer::new(&input.sql).preserve_comments(true).tokenize() {
             Ok(t) => t,
             Err(e) => {
@@ -4848,10 +4901,10 @@ mod api {
         post,
         path = "/api/tokenize",
         tag = "ogsql",
-        request_body = SqlInput,
+        request_body = TokenizeInput,
         responses((status = 200, description = "Token list"))
     )]
-    pub async fn handle_tokenize(Json(input): Json<SqlInput>) -> Json<serde_json::Value> {
+    pub async fn handle_tokenize(Json(input): Json<TokenizeInput>) -> Json<serde_json::Value> {
         let tokens = match ogsql_parser::Tokenizer::new(&input.sql).tokenize() {
             Ok(t) => t,
             Err(e) => return Json(serde_json::json!({"error": e.to_string()})),
@@ -4876,10 +4929,10 @@ mod api {
         post,
         path = "/api/validate",
         tag = "ogsql",
-        request_body = SqlInput,
+        request_body = ValidateInput,
         responses((status = 200, description = "Validation result"))
     )]
-    pub async fn handle_validate(Json(input): Json<SqlInput>) -> Json<serde_json::Value> {
+    pub async fn handle_validate(Json(input): Json<ValidateInput>) -> Json<serde_json::Value> {
         let output = super::parse_input(&input.sql, false, false);
         let pkg_errors = ogsql_parser::validate_package_consistency(&output.statements);
         let has_pkg_issues = !pkg_errors.is_empty();
