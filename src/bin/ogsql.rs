@@ -4716,6 +4716,24 @@ mod api {
     )]
     pub struct ApiDoc;
 
+    #[cfg(feature = "ibatis")]
+    #[derive(OpenApi)]
+    #[openapi(
+        paths(handle_parse_xml),
+        components(schemas(ParseXmlInput)),
+        tags((name = "ogsql", description = "iBatis/MyBatis XML parsing"))
+    )]
+    pub struct ApiDocIbatis;
+
+    #[cfg(feature = "java")]
+    #[derive(OpenApi)]
+    #[openapi(
+        paths(handle_parse_java),
+        components(schemas(ParseJavaInput)),
+        tags((name = "ogsql", description = "Java SQL extraction"))
+    )]
+    pub struct ApiDocJava;
+
     /// POST /api/parse request body
     #[derive(Deserialize, ToSchema)]
     pub struct ParseInput {
@@ -4799,6 +4817,33 @@ mod api {
     #[derive(Deserialize, ToSchema)]
     pub struct JsonInput {
         pub json: String,
+    }
+
+    #[cfg(feature = "ibatis")]
+    #[derive(Deserialize, ToSchema)]
+    pub struct ParseXmlInput {
+        /// XML content of an iBatis/MyBatis mapper file
+        pub xml: String,
+        #[cfg(feature = "java")]
+        /// Directory path containing Java source files for parameter type inference
+        #[serde(default)]
+        pub java_src: Option<String>,
+        /// Output structured dynamic SQL AST
+        #[serde(default)]
+        pub structured: Option<bool>,
+    }
+
+    #[cfg(feature = "java")]
+    #[derive(Deserialize, ToSchema)]
+    pub struct ParseJavaInput {
+        /// Java source file content
+        pub source: String,
+        /// Extra method names to treat as SQL-bearing
+        #[serde(default)]
+        pub extra_sql_methods: Option<Vec<String>>,
+        /// Extra variable name patterns for SQL detection
+        #[serde(default)]
+        pub extra_sql_var_patterns: Option<Vec<String>>,
     }
 
     /// Health check endpoint
@@ -5121,6 +5166,61 @@ mod api {
         Json(result)
     }
 
+    #[cfg(feature = "ibatis")]
+    /// Parse iBatis/MyBatis XML mapper content
+    #[utoipa::path(
+        post,
+        path = "/api/parse-xml",
+        tag = "ogsql",
+        request_body = ParseXmlInput,
+        responses((status = 200, description = "Parsed iBatis XML result"))
+    )]
+    pub async fn handle_parse_xml(Json(input): Json<ParseXmlInput>) -> Json<serde_json::Value> {
+        #[cfg(feature = "java")]
+        let java_roots: Vec<std::path::PathBuf> = input
+            .java_src
+            .as_deref()
+            .map(|p| vec![std::path::PathBuf::from(p)])
+            .unwrap_or_default();
+        #[cfg(not(feature = "java"))]
+        let _java_roots: Vec<std::path::PathBuf> = vec![];
+
+        let result = if input.structured.unwrap_or(false) {
+            let parsed = ogsql_parser::ibatis::parse_mapper_bytes_structured(input.xml.as_bytes());
+            serde_json::to_value(&parsed).unwrap_or(serde_json::json!({"error": "serialization failed"}))
+        } else {
+            #[cfg(feature = "java")]
+            let r = ogsql_parser::ibatis::parse_mapper_bytes_with_java_src(
+                input.xml.as_bytes(),
+                None,
+                java_roots,
+            );
+            #[cfg(not(feature = "java"))]
+            let r = ogsql_parser::ibatis::parse_mapper_bytes(input.xml.as_bytes());
+            serde_json::to_value(&r).unwrap_or(serde_json::json!({"error": "serialization failed"}))
+        };
+
+        Json(result)
+    }
+
+    #[cfg(feature = "java")]
+    /// Extract and parse SQL from Java source files
+    #[utoipa::path(
+        post,
+        path = "/api/parse-java",
+        tag = "ogsql",
+        request_body = ParseJavaInput,
+        responses((status = 200, description = "Extracted SQL from Java source"))
+    )]
+    pub async fn handle_parse_java(Json(input): Json<ParseJavaInput>) -> Json<serde_json::Value> {
+        let config = ogsql_parser::java::JavaExtractConfig {
+            extra_sql_methods: input.extra_sql_methods.unwrap_or_default(),
+            extra_sql_var_patterns: input.extra_sql_var_patterns.unwrap_or_default(),
+        };
+        let result = ogsql_parser::java::extract_sql_from_java(&input.source, "<api-input>", &config);
+        Json(serde_json::to_value(&result).unwrap_or(serde_json::json!({"error": "serialization failed"})))
+    }
+
     /// Convert JSON (from /api/parse) back to SQL
     #[utoipa::path(
         post,
@@ -5158,19 +5258,43 @@ mod api {
         }))
     }
 
+    fn build_openapi() -> utoipa::openapi::OpenApi {
+        #[allow(unused_mut)]
+        let mut spec = ApiDoc::openapi();
+        #[cfg(feature = "ibatis")]
+        {
+            spec.merge(ApiDocIbatis::openapi());
+        }
+        #[cfg(feature = "java")]
+        {
+            spec.merge(ApiDocJava::openapi());
+        }
+        spec
+    }
+
     async fn openapi_spec() -> Json<utoipa::openapi::OpenApi> {
-        Json(ApiDoc::openapi())
+        Json(build_openapi())
     }
 
     pub fn router() -> Router {
-        Router::new()
+        #[allow(unused_mut)]
+        let mut router = Router::new()
             .route("/api/health", get(health))
             .route("/api/parse", post(handle_parse))
             .route("/api/json2sql", post(handle_json2sql))
             .route("/api/format", post(handle_format))
             .route("/api/tokenize", post(handle_tokenize))
             .route("/api/validate", post(handle_validate))
-            .route("/api-docs/openapi.json", get(openapi_spec))
+            .route("/api-docs/openapi.json", get(openapi_spec));
+        #[cfg(feature = "ibatis")]
+        {
+            router = router.route("/api/parse-xml", post(handle_parse_xml));
+        }
+        #[cfg(feature = "java")]
+        {
+            router = router.route("/api/parse-java", post(handle_parse_java));
+        }
+        router
     }
 }
 
