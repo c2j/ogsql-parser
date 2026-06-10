@@ -4856,7 +4856,11 @@ mod api {
         responses((status = 200, description = "Formatted SQL result"))
     )]
     pub async fn handle_format(Json(input): Json<FormatInput>) -> Json<serde_json::Value> {
-        let tokens = match ogsql_parser::Tokenizer::new(&input.sql).preserve_comments(true).tokenize() {
+        let mut tokenizer = ogsql_parser::Tokenizer::new(&input.sql).preserve_comments(true);
+        if input.mybatis {
+            tokenizer = tokenizer.mybatis_params(true);
+        }
+        let tokens = match tokenizer.tokenize() {
             Ok(t) => t,
             Err(e) => {
                 return Json(serde_json::json!({
@@ -4889,6 +4893,15 @@ mod api {
         if input.uppercase == Some(true) {
             config.uppercase_keywords = true;
         }
+        if input.no_select_newline == Some(true) {
+            config.select_newline = false;
+        }
+        if input.no_logical_newline == Some(true) {
+            config.logical_operator_newline = false;
+        }
+        if input.no_semicolon_newline == Some(true) {
+            config.semicolon_newline = false;
+        }
 
         let formatted = ogsql_parser::token_formatter::TokenFormatter::with_config(&input.sql, tokens, config).format();
         Json(serde_json::json!({
@@ -4905,7 +4918,14 @@ mod api {
         responses((status = 200, description = "Token list"))
     )]
     pub async fn handle_tokenize(Json(input): Json<TokenizeInput>) -> Json<serde_json::Value> {
-        let tokens = match ogsql_parser::Tokenizer::new(&input.sql).tokenize() {
+        let mut tokenizer = ogsql_parser::Tokenizer::new(&input.sql);
+        if input.preserve_comments {
+            tokenizer = tokenizer.preserve_comments(true);
+        }
+        if input.mybatis {
+            tokenizer = tokenizer.mybatis_params(true);
+        }
+        let tokens = match tokenizer.tokenize() {
             Ok(t) => t,
             Err(e) => return Json(serde_json::json!({"error": e.to_string()})),
         };
@@ -4933,7 +4953,7 @@ mod api {
         responses((status = 200, description = "Validation result"))
     )]
     pub async fn handle_validate(Json(input): Json<ValidateInput>) -> Json<serde_json::Value> {
-        let output = super::parse_input(&input.sql, false, false);
+        let output = super::parse_input(&input.sql, false, input.mybatis);
         let pkg_errors = ogsql_parser::validate_package_consistency(&output.statements);
         let has_pkg_issues = !pkg_errors.is_empty();
         let mut errors = output.errors;
@@ -4949,7 +4969,18 @@ mod api {
                 });
             }
         }
-        let var_errors = super::validate_pl_variables_from_stmts(&output.statements, &[], false);
+        // MERGE semantic validation
+        let merge_errors = ogsql_parser::validate_merge_semantics(&output.statements);
+        if !merge_errors.is_empty() {
+            for me in &merge_errors {
+                errors.push(ogsql_parser::ParserError::UnsupportedSyntax {
+                    location: me.location,
+                    syntax: "MERGE".to_string(),
+                    hint: super::merge_error_detail(me),
+                });
+            }
+        }
+        let var_errors = super::validate_pl_variables_from_stmts(&output.statements, &[], input.strict.unwrap_or(false));
         let has_var_errors = !var_errors.is_empty();
         let has_real_errors = errors.iter().any(|e| !super::is_warning(e)) || has_var_errors;
         let mut result = serde_json::json!({
