@@ -4821,7 +4821,10 @@ mod api {
         responses((status = 200, description = "Parsed AST result"))
     )]
     pub async fn handle_parse(Json(input): Json<ParseInput>) -> Json<serde_json::Value> {
-        let output = super::parse_input(&input.sql, input.preserve_comments, false);
+        // 1. Parse with mybatis support
+        let output = super::parse_input(&input.sql, input.preserve_comments, input.mybatis);
+
+        // 2. Procedure filter (if specified)
         let output = match input.procedure {
             Some(ref proc) => match super::filter_output_by_procedure(output, proc) {
                 Ok(filtered) => filtered,
@@ -4835,15 +4838,121 @@ mod api {
             },
             None => output,
         };
+
+        // 3. Build enriched statement values with semantic analysis
+        let schema_path = input.schema_json.clone(); // clone before move into closure
+        let stmt_values: Vec<serde_json::Value> = output
+            .statements
+            .iter()
+            .map(|si| {
+                let mut obj = serde_json::to_value(si).unwrap();
+                if let Some(block) = super::extract_pl_block(&si.statement) {
+                    // dynamic_sql_analysis
+                    let report = ogsql_parser::analyze_pl_block(block);
+                    if !report.execute_findings.is_empty() {
+                        obj.as_object_mut()
+                            .unwrap()
+                            .insert("dynamic_sql_analysis".to_string(), serde_json::json!(report));
+                    }
+                    // transaction_analysis
+                    let tx_report = ogsql_parser::analyze_transactions(block);
+                    obj.as_object_mut().unwrap().insert(
+                        "transaction_analysis".to_string(),
+                        serde_json::to_string_pretty(&tx_report).unwrap().into(),
+                    );
+                    // schema_resolution (if schema_json provided)
+                    if let Some(ref schema_path) = schema_path {
+                        match ogsql_parser::load_schema(schema_path) {
+                            Ok(schema) => {
+                                let schema_report = ogsql_parser::resolve_schema(block, &schema);
+                                obj.as_object_mut()
+                                    .unwrap()
+                                    .insert("schema_resolution".to_string(), serde_json::json!(schema_report));
+                            }
+                            Err(e) => {
+                                obj.as_object_mut().unwrap().insert(
+                                    "schema_resolution_error".to_string(),
+                                    serde_json::json!(format!("{}", e)),
+                                );
+                            }
+                        }
+                    }
+                }
+                // routine_analysis (return cursor analysis)
+                if super::has_routine_return_cursors(&si.statement) {
+                    if let Some(analysis) = super::compute_routine_analysis(&si.statement) {
+                        obj.as_object_mut().unwrap().insert("routine_analysis".to_string(), analysis);
+                    }
+                }
+                obj
+            })
+            .collect();
+
+        // 4. Compute fingerprints
         let all_stmts: Vec<_> = output.statements.iter().map(|si| si.statement.clone()).collect();
         let fingerprints = ogsql_parser::compute_query_fingerprints(&all_stmts);
-        let mut out = serde_json::json!({"statements": output.statements, "errors": output.errors});
+
+        // 5. Build output JSON
+        let mut out = serde_json::json!({
+            "statements": stmt_values,
+            "errors": output.errors,
+        });
         if !fingerprints.is_empty() {
             out.as_object_mut().unwrap().insert("query_fingerprints".to_string(), serde_json::json!(fingerprints));
         }
         if !output.comments.is_empty() {
             out.as_object_mut().unwrap().insert("comments".to_string(), serde_json::json!(output.comments));
         }
+
+        // 6. Lint (if enabled)
+        if input.lint == Some(true) {
+            let config = ogsql_parser::linter::LintConfig::default();
+            let lint_warnings =
+                super::run_lint(&output.statements, ogsql_parser::linter::Confidence::Full, &config, None);
+            if !lint_warnings.is_empty() {
+                out.as_object_mut().unwrap().insert("lint_warnings".to_string(), serde_json::json!(lint_warnings));
+                out.as_object_mut()
+                    .unwrap()
+                    .insert("lint_summary".to_string(), super::format_warnings_summary(&lint_warnings));
+            }
+        }
+
+        // 7. Extract SQL (if enabled)
+        if input.extract_sql {
+            let _schema = input.schema_json
+                .as_deref()
+                .and_then(|p| ogsql_parser::load_full_schema(p).ok());
+            let mut extracted_rows: Vec<serde_json::Value> = Vec::new();
+            for si in &output.statements {
+                if let Some(block) = super::extract_pl_block(&si.statement) {
+                    let vars = std::collections::HashMap::new();
+                    let out_cursors = std::collections::HashSet::new();
+                    let rows = super::collect_block_sql_rows(
+                        block,
+                        "",
+                        si.start_line,
+                        &vars,
+                        &out_cursors,
+                        false,
+                    );
+                    for row in rows {
+                        extracted_rows.push(serde_json::json!({
+                            "line": row.line,
+                            "type": row.stmt_type,
+                            "name": row.name,
+                            "parent": row.parent,
+                            "sql": row.sql,
+                            "branch_path": row.branch_path,
+                            "branch_condition": row.branch_condition,
+                        }));
+                    }
+                }
+            }
+            if !extracted_rows.is_empty() {
+                out.as_object_mut().unwrap().insert("extracted_sql".to_string(), serde_json::json!(extracted_rows));
+            }
+        }
+
         Json(out)
     }
 
