@@ -2376,8 +2376,14 @@ impl Parser {
                     }
                 }
             }
-            Token::Keyword(_) => {
+            Token::Keyword(kw) => {
+                let location = self.current_location();
                 self.advance();
+                self.add_error(ParserError::UnexpectedToken {
+                    location,
+                    expected: "statement".to_string(),
+                    got: format!("keyword {}", kw.as_str()),
+                });
                 self.skip_to_semicolon()
             }
             Token::Ident(ref s) if s.eq_ignore_ascii_case("lock") => {
@@ -2441,7 +2447,10 @@ impl Parser {
                 }
             }
             _ => {
+                let location = self.current_location();
+                let got = format!("{:?}", self.peek());
                 self.advance();
+                self.add_error(ParserError::UnexpectedToken { location, expected: "statement".to_string(), got });
                 self.skip_to_semicolon()
             }
         };
