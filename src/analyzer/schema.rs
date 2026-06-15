@@ -41,6 +41,11 @@ pub struct UnresolvedRef {
     pub ref_kind: String,
 }
 
+/// Loads a schema definition from a JSON file.
+///
+/// # Errors
+///
+/// Returns `Err(String)` if the file cannot be read or the JSON is invalid.
 pub fn load_schema(path: &str) -> Result<SchemaMap, String> {
     let content = std::fs::read_to_string(path).map_err(|e| format!("Failed to read schema file '{}': {}", path, e))?;
     serde_json::from_str(&content).map_err(|e| format!("Failed to parse schema JSON: {}", e))
@@ -152,6 +157,10 @@ pub struct FullSchema {
 /// Load a FullSchema from a JSON file. Supports both the new format
 /// (with `columns` and `indexes` fields) and the old format (just a
 /// column map, which gets loaded with empty indexes).
+///
+/// # Errors
+///
+/// Returns `Err(String)` if the file cannot be read or the JSON is invalid.
 pub fn load_full_schema(path: &str) -> Result<FullSchema, String> {
     let content = std::fs::read_to_string(path).map_err(|e| format!("Failed to read schema file '{}': {}", path, e))?;
     // Try to parse as FullSchema first (new format)
@@ -328,7 +337,7 @@ fn index_expr_to_string(expr: &crate::ast::Expr) -> String {
     match expr {
         Expr::FunctionCall { name, args, .. } => {
             let fn_name = name.last().map(|s| s.to_string()).unwrap_or_default();
-            let args_str: Vec<String> = args.iter().map(|a| index_expr_to_string(a)).collect();
+            let args_str: Vec<String> = args.iter().map(index_expr_to_string).collect();
             format!("{fn_name}({})", args_str.join(", "))
         }
         Expr::ColumnRef(names) => names.join("."),

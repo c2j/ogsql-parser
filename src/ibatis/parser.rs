@@ -14,6 +14,11 @@ use crate::ibatis::util::{find_closing_brace, parse_param_attrs};
 
 const SKIP_TAGS: &[&str] = &["resultMap", "cache", "cache-ref", "selectKey"];
 
+/// Parses an iBatis/MyBatis XML mapper file into a [`MapperFile`].
+///
+/// # Errors
+///
+/// Returns `Err(IbatisError)` for malformed XML or missing required attributes.
 pub fn parse_xml(xml: &[u8]) -> Result<MapperFile, IbatisError> {
     let mut reader = Reader::from_reader(xml);
     reader.config_mut().trim_text(false);

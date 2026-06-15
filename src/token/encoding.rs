@@ -16,6 +16,10 @@ use encoding_rs::Encoding;
 /// 6. UTF-16 LE/BE
 ///
 /// Returns the decoded string and the encoding name.
+///
+/// # Errors
+///
+/// Returns `Err(std::io::Error)` if the bytes cannot be decoded with any supported encoding.
 pub fn decode_sql_file(bytes: &[u8]) -> Result<(String, &'static str), std::io::Error> {
     // First try UTF-8 (most common case)
     if let Ok(s) = String::from_utf8(bytes.to_vec()) {
