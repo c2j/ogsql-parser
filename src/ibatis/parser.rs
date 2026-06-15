@@ -434,7 +434,7 @@ fn parse_choose_branches(children: Vec<SqlNode>) -> Vec<(Option<String>, Vec<Sql
 fn merge_children(children: Vec<SqlNode>) -> SqlNode {
     match children.len() {
         0 => SqlNode::Text { content: String::new() },
-        1 => children.into_iter().next().unwrap(),
+        1 => children.into_iter().next().expect("match arm guarantees exactly 1 child"),
         _ => SqlNode::Sequence { children },
     }
 }
@@ -445,14 +445,14 @@ fn simple_node_to_text(node: &SqlNode) -> String {
         SqlNode::Parameter { name, java_type, jdbc_type, .. } => {
             let type_str: Option<&str> = jdbc_type.as_deref().or(java_type.as_deref());
             match type_str {
-                Some(t) => format!("#{{{},{}}}", name, format!("jdbcType={}", t)),
+                Some(t) => format!("#{{{},jdbcType={}}}", name, t),
                 None => format!("#{{{}}}", name),
             }
         }
         SqlNode::RawExpr { expr, java_type, jdbc_type } => {
             let type_str: Option<&str> = jdbc_type.as_deref().or(java_type.as_deref());
             match type_str {
-                Some(t) => format!("${{{},{}}}", expr, format!("jdbcType={}", t)),
+                Some(t) => format!("${{{},jdbcType={}}}", expr, t),
                 None => format!("${{{}}}", expr),
             }
         }
