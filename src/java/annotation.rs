@@ -5,7 +5,7 @@ use tree_sitter::Node;
 use super::constant::SQL_ANNOTATIONS;
 use super::extract::ExtractContext;
 use super::heuristics::{detect_parameter_style, NativeQueryFlag};
-use crate::java::types::*;
+use super::types::{ExtractedSql, ExtractionMethod, SqlKind, SqlOrigin};
 
 impl<'a> ExtractContext<'a> {
     pub(super) fn visit_annotation(&mut self, node: Node) {

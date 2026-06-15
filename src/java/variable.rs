@@ -5,7 +5,7 @@ use tree_sitter::Node;
 use super::constant::{SQL_STATEMENT_PREFIXES, STRING_BUILDER_TYPES};
 use super::extract::{ExtractContext, TrackedVar};
 use super::heuristics::{detect_parameter_style, detect_sql_kind_from_content, looks_like_sql};
-use crate::java::types::*;
+use super::types::{ExtractedSql, ExtractionMethod, SqlOrigin};
 
 impl<'a> ExtractContext<'a> {
     pub(super) fn visit_field_declaration(&mut self, node: Node) {
@@ -174,22 +174,18 @@ impl<'a> ExtractContext<'a> {
         let var_name = self.node_text(name_node);
 
         let init_sql = match declarator.child_by_field_name("value") {
-            Some(value) => {
-                if value.kind() == "object_creation_expression" {
-                    if let Some(args) = value.child_by_field_name("arguments") {
-                        if let Some((sql_text, _)) = self.find_first_string_arg(&args) {
-                            Some(sql_text)
-                        } else {
-                            Some(String::new())
-                        }
+            Some(value) if value.kind() == "object_creation_expression" => {
+                if let Some(args) = value.child_by_field_name("arguments") {
+                    if let Some((sql_text, _)) = self.find_first_string_arg(&args) {
+                        Some(sql_text)
                     } else {
                         Some(String::new())
                     }
                 } else {
-                    return;
+                    Some(String::new())
                 }
             }
-            None => return,
+            _ => return,
         };
 
         let sql_text = match init_sql {

@@ -5,8 +5,7 @@ use tree_sitter::Node;
 use super::constant::{JDBC_SETTER_TYPES, SQL_METHOD_AMBIGUOUS, SQL_METHOD_UNAMBIGUOUS};
 use super::extract::ExtractContext;
 use super::heuristics::{detect_parameter_style, looks_like_sql};
-use super::types::JdbcParamInfo;
-use crate::java::types::*;
+use super::types::{ExtractedSql, ExtractionMethod, JdbcParamInfo, MethodPsBehavior, SqlKind, SqlOrigin};
 
 pub(super) struct PendingInjection {
     pub(super) ps_var: String,
