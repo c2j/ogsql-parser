@@ -66,8 +66,8 @@ struct Cli {
     /// 启用 MyBatis #{param} 和 ${expr} 占位符支持，格式化时保留占位符
     mybatis: bool,
 
-    /// Enable SQL anti-pattern linting on parse/validate output
-    /// 启用 SQL 反模式检测（配合 parse/validate/parse-xml/parse-java 使用）
+    /// Enable SQL anti-pattern linting on parse/validate/parse-xml/parse-java/validate-xml/validate-java output
+    /// 启用 SQL 反模式检测（配合 parse/validate/parse-xml/parse-java/validate-xml/validate-java 使用）
     #[arg(long, global = true)]
     lint: bool,
 
@@ -220,6 +220,28 @@ enum Commands {
         #[arg(long)]
         structured: bool,
     },
+    #[cfg(feature = "ibatis")]
+    /// Validate iBatis/MyBatis XML mapper — parse + semantic checks + lint
+    /// 校验 iBatis/MyBatis XML mapper 文件（解析 + 语义校验 + lint）
+    #[command(name = "validate-xml")]
+    ValidateXml {
+        /// Recursively scan directory for XML files / 递归扫描目录
+        #[arg(short = 'd', long = "dir")]
+        dir: Option<String>,
+        /// Output in CSV format / CSV 格式输出
+        #[arg(long = "csv")]
+        csv: bool,
+        #[cfg(feature = "java")]
+        /// Java source root directory for parameter type inference
+        #[arg(long = "java-src")]
+        java_src: Option<String>,
+        /// Print statistics after directory processing
+        #[arg(long)]
+        stats: bool,
+        /// Enable strict mode: detect undefined function calls in PL blocks
+        #[arg(long)]
+        strict: bool,
+    },
     #[cfg(feature = "mcp")]
     /// Start MCP server on stdio (for Claude Desktop, Cursor, etc.) / 启动 MCP 服务器（stdio 模式）
     Mcp,
@@ -240,6 +262,28 @@ enum Commands {
         /// Print statistics after directory processing
         #[arg(long)]
         stats: bool,
+    },
+    #[cfg(feature = "java")]
+    /// Validate Java source — extract SQL + semantic checks + lint
+    /// 校验 Java 源码（提取 SQL + 语义校验 + lint）
+    #[command(name = "validate-java")]
+    ValidateJava {
+        #[arg(long = "extra-sql-methods", value_delimiter = ',')]
+        extra_sql_methods: Vec<String>,
+        #[arg(long = "extra-sql-var-patterns", value_delimiter = ',')]
+        extra_sql_var_patterns: Vec<String>,
+        /// Recursively scan directory for Java files / 递归扫描目录
+        #[arg(short = 'd', long = "dir")]
+        dir: Option<String>,
+        /// Output in CSV format / CSV 格式输出
+        #[arg(long = "csv")]
+        csv: bool,
+        /// Print statistics after directory processing
+        #[arg(long)]
+        stats: bool,
+        /// Enable strict mode: detect undefined function calls in PL blocks
+        #[arg(long)]
+        strict: bool,
     },
 }
 
@@ -3803,22 +3847,23 @@ fn collect_defined_routine_names(stmts: &[ogsql_parser::StatementInfo]) -> Vec<S
     names
 }
 
-fn validate_sql(
-    sql: &str,
-    mybatis: bool,
+/// Run PACKAGE consistency, MERGE semantics, and PL variable validation on
+/// already-parsed statements. Returns errors to merge into the caller's error list.
+/// Used by validate_sql (SQL files), validate-xml (iBatis XML), and validate-java
+/// (Java source) to share the same validation pipeline.
+fn validate_from_stmts(
+    stmts: &[ogsql_parser::StatementInfo],
     extra_funcs: &[String],
     strict: bool,
 ) -> (
-    Vec<ogsql_parser::StatementInfo>,
     Vec<ogsql_parser::ParserError>,
     Vec<ogsql_parser::PackageConsistencyError>,
     Vec<ogsql_parser::UndefinedVariableError>,
 ) {
-    let output = parse_input(sql, false, mybatis);
-    let stmts = output.statements;
-    let mut errors = output.errors;
+    let mut errors = Vec::new();
 
-    let pkg_errors = ogsql_parser::validate_package_consistency(&stmts);
+    // 1. PACKAGE consistency
+    let pkg_errors = ogsql_parser::validate_package_consistency(stmts);
     if !pkg_errors.is_empty() {
         for pe in &pkg_errors {
             let msg = match &pe.detail {
@@ -3832,7 +3877,8 @@ fn validate_sql(
         }
     }
 
-    let merge_errors = ogsql_parser::validate_merge_semantics(&stmts);
+    // 2. MERGE semantic validation
+    let merge_errors = ogsql_parser::validate_merge_semantics(stmts);
     if !merge_errors.is_empty() {
         for me in &merge_errors {
             errors.push(ogsql_parser::ParserError::UnsupportedSyntax {
@@ -3843,15 +3889,36 @@ fn validate_sql(
         }
     }
 
+    // 3. PL variable/function validation
     let mut all_funcs: Vec<String> = extra_funcs.to_vec();
-    let own_funcs = collect_defined_routine_names(&stmts);
+    let own_funcs = collect_defined_routine_names(stmts);
     all_funcs.extend(own_funcs);
     all_funcs.sort();
     all_funcs.dedup();
 
-    let var_errors = validate_pl_variables_from_stmts(&stmts, &all_funcs, strict);
+    let var_errors = validate_pl_variables_from_stmts(stmts, &all_funcs, strict);
 
-    (stmts, errors, pkg_errors, var_errors)
+    (errors, pkg_errors, var_errors)
+}
+
+fn validate_sql(
+    sql: &str,
+    mybatis: bool,
+    extra_funcs: &[String],
+    strict: bool,
+) -> (
+    Vec<ogsql_parser::StatementInfo>,
+    Vec<ogsql_parser::ParserError>,
+    Vec<ogsql_parser::PackageConsistencyError>,
+    Vec<ogsql_parser::UndefinedVariableError>,
+) {
+    let output = parse_input(sql, false, mybatis);
+    let mut errors = output.errors;
+
+    let (core_errors, pkg_errors, var_errors) = validate_from_stmts(&output.statements, extra_funcs, strict);
+    errors.extend(core_errors);
+
+    (output.statements, errors, pkg_errors, var_errors)
 }
 
 fn validate_pl_variables_from_stmts(
@@ -5944,6 +6011,594 @@ fn print_xml_text(result: &ogsql_parser::ibatis::ParsedMapper) {
     println!("Total: {} statement(s) in namespace '{}'", result.statements.len(), result.namespace);
 }
 
+// ---- cmd_validate_xml / validate-xml CLI handlers ----
+// validate-xml 命令处理函数：解析、语义校验、lint
+
+#[cfg(feature = "ibatis")]
+/// Validate a single iBatis/MyBatis XML mapper file — parse + semantic checks + lint
+/// 校验单个 iBatis/MyBatis XML mapper 文件（解析 + 语义校验 + lint）
+fn cmd_validate_xml_single(cli: &Cli, csv: bool, java_roots: &[std::path::PathBuf], strict: bool) {
+    if cli.file.len() > 1 {
+        die!("Error: validate-xml command accepts at most one --file");
+    }
+    let file_opt = cli.file.first().map(|s| s.as_str());
+    let input = match file_opt {
+        Some(path) => std::fs::read(path).unwrap_or_else(|e| die!("Error reading {}: {}", path, e)),
+        None => {
+            let mut buf = Vec::new();
+            std::io::stdin().read_to_end(&mut buf).unwrap_or_else(|e| die!("Error reading stdin: {}", e));
+            buf
+        }
+    };
+
+    #[cfg(feature = "java")]
+    let result = if java_roots.is_empty() {
+        ogsql_parser::ibatis::parse_mapper_bytes_with_path(&input, file_opt)
+    } else {
+        ogsql_parser::ibatis::parse_mapper_bytes_with_java_src(&input, file_opt, java_roots.to_vec())
+    };
+    #[cfg(not(feature = "java"))]
+    let _ = java_roots;
+    #[cfg(not(feature = "java"))]
+    let result = ogsql_parser::ibatis::parse_mapper_bytes_with_path(&input, file_opt);
+
+    let file_name = file_opt.unwrap_or("<stdin>");
+
+    // 收集所有 StatementInfo 和 ParserError
+    let mut all_stmts: Vec<ogsql_parser::StatementInfo> = Vec::new();
+    let mut all_errors: Vec<ogsql_parser::ParserError> = Vec::new();
+    for stmt in &result.statements {
+        if let Some((ref infos, ref parse_errors)) = stmt.parse_result {
+            all_stmts.extend(infos.iter().cloned());
+            all_errors.extend(parse_errors.iter().cloned());
+        }
+    }
+
+    // Convert XML parse errors to ParserError for unified output
+    // 将 XML 解析错误转换为 ParserError 以便统一输出
+    let has_xml_errors = !result.errors.is_empty();
+    for e in &result.errors {
+        all_errors.push(ogsql_parser::ParserError::UnexpectedToken {
+            location: ogsql_parser::SourceLocation::default(),
+            expected: "valid XML mapper".to_string(),
+            got: format!("{}", e),
+        });
+    }
+
+    // Run validation pipeline: PACKAGE consistency, MERGE semantics, PL variable validation
+    // 运行校验管线：PACKAGE 一致性、MERGE 语义、PL 变量校验
+    let (core_errors, pkg_errors, var_errors) = validate_from_stmts(&all_stmts, &[], strict);
+    all_errors.extend(core_errors);
+
+    // Lint with Confidence::Full
+    // 使用 Full 置信度运行 lint
+    let config = build_lint_config(cli);
+    let mut lint_warnings: Vec<ogsql_parser::linter::SqlWarning> = Vec::new();
+    if !all_stmts.is_empty() {
+        let linter = ogsql_parser::linter::SqlLinter::with_default_rules(config.clone());
+        let ws = linter.lint(&all_stmts, None, ogsql_parser::linter::Confidence::Full);
+        lint_warnings.extend(ws);
+    }
+    // Also run lint_xml_expanded for C018 rule (foreach in INSERT VALUES)
+    // 同时运行 lint_xml_expanded 检测 C018 规则（INSERT VALUES 中的 foreach）
+    {
+        let expand_ws = lint_xml_expanded(&input, &config);
+        lint_warnings.extend(expand_ws);
+    }
+
+    // 区分警告和真实错误
+    let warnings: Vec<_> = all_errors.iter().filter(|e| is_warning(e)).collect();
+    let real_errors: Vec<_> = all_errors.iter().filter(|e| !is_warning(e)).collect();
+    let has_errors = !real_errors.is_empty() || !var_errors.is_empty();
+
+    let format_var_err = |ve: &ogsql_parser::UndefinedVariableError| -> String {
+        let line_info = ve.location.as_ref().map(|sp| format!(":{}", sp.start.line)).unwrap_or_default();
+        let kind_label = match ve.kind {
+            ogsql_parser::UndefinedRefKind::Function => "undefined function",
+            ogsql_parser::UndefinedRefKind::Variable => "undefined variable",
+        };
+        format!("{} '{}' in {}{}", kind_label, ve.variable_name, ve.context, line_info)
+    };
+
+    if csv {
+        // CSV output: one row per extracted statement
+        println!("file,line,id,kind,valid,error_count,warning_count,errors,warnings");
+        for stmt in &result.statements {
+            let stmt_real_errors: Vec<&ogsql_parser::ParserError> =
+                real_errors.iter().filter(|e| error_line(e) == 0 || error_line(e) == stmt.line).copied().collect();
+            let stmt_warnings: Vec<&ogsql_parser::ParserError> =
+                warnings.iter().filter(|e| error_line(e) == 0 || error_line(e) == stmt.line).copied().collect();
+            let err_msgs: Vec<String> = stmt_real_errors.iter().map(|e| format!("{}", e)).collect();
+            let warn_msgs: Vec<String> = stmt_warnings.iter().map(|e| format!("{}", e)).collect();
+            println!(
+                "{},{},{},{:?},{},{},{},{},{}",
+                csv_escape(file_name),
+                stmt.line,
+                csv_escape(&stmt.id),
+                stmt.kind,
+                if stmt_real_errors.is_empty() { "VALID" } else { "INVALID" },
+                stmt_real_errors.len(),
+                stmt_warnings.len(),
+                csv_escape(&err_msgs.join("; ")),
+                csv_escape(&warn_msgs.join("; ")),
+            );
+        }
+        // If the file has XML-level errors not attached to any statement, output a summary row
+        if has_xml_errors && result.statements.is_empty() {
+            let err_msgs: Vec<String> = real_errors.iter().map(|e| format!("{}", e)).collect();
+            let warn_msgs: Vec<String> = warnings.iter().map(|e| format!("{}", e)).collect();
+            println!(
+                "{},0,,,{},{},{},{},{}",
+                csv_escape(file_name),
+                if real_errors.is_empty() { "VALID" } else { "INVALID" },
+                real_errors.len(),
+                warnings.len(),
+                csv_escape(&err_msgs.join("; ")),
+                csv_escape(&warn_msgs.join("; ")),
+            );
+        }
+        if has_errors {
+            std::process::exit(1);
+        }
+        return;
+    }
+
+    if cli.json {
+        let mut out = serde_json::json!({
+            "valid": !has_errors,
+            "error_count": real_errors.len() + var_errors.len(),
+            "warning_count": warnings.len(),
+            "errors": all_errors,
+            "statements": result.statements,
+        });
+        if strict {
+            out.as_object_mut().unwrap().insert("strict_mode".to_string(), serde_json::json!(true));
+        }
+        if !pkg_errors.is_empty() {
+            out.as_object_mut()
+                .unwrap()
+                .insert("package_consistency_errors".to_string(), serde_json::json!(pkg_errors));
+        }
+        if !var_errors.is_empty() {
+            out.as_object_mut().unwrap().insert("undefined_variables".to_string(), serde_json::json!(var_errors));
+        }
+        if !lint_warnings.is_empty() {
+            out.as_object_mut().unwrap().insert("lint_warnings".to_string(), serde_json::json!(lint_warnings));
+            out.as_object_mut().unwrap().insert("lint_summary".to_string(), format_warnings_summary(&lint_warnings));
+        }
+        println!("{}", serde_json::to_string_pretty(&out).unwrap());
+    } else {
+        // Text output: print each statement info then VALID/INVALID
+        // 文本输出：打印每条语句信息，然后输出 VALID/INVALID
+        if !result.errors.is_empty() {
+            eprintln!("XML error(s):");
+            for e in &result.errors {
+                eprintln!("  {}", e);
+            }
+        }
+
+        for stmt in &result.statements {
+            println!("── {} ({:?}) ──", stmt.id, stmt.kind);
+            println!("{}", stmt.flat_sql.trim());
+            if !stmt.parameters.is_empty() {
+                let typed: Vec<String> = stmt
+                    .parameters
+                    .iter()
+                    .map(|p| match &p.jdbc_type {
+                        Some(jt) => format!("{}:{:?}", p.name, jt),
+                        None => p.name.clone(),
+                    })
+                    .collect();
+                println!("  [params: {}]", typed.join(", "));
+            }
+            if stmt.has_dynamic_elements {
+                println!("  [contains dynamic SQL elements]");
+            }
+            // Show parse errors for this statement
+            let stmt_real_errors: Vec<&ogsql_parser::ParserError> =
+                real_errors.iter().filter(|e| error_line(e) == 0 || error_line(e) == stmt.line).copied().collect();
+            if !stmt_real_errors.is_empty() {
+                eprintln!("  {} parse error(s):", stmt_real_errors.len());
+                for e in &stmt_real_errors {
+                    eprintln!("    {}", e);
+                }
+            }
+            println!();
+        }
+
+        // Print VALID/INVALID summary
+        // 输出 VALID/INVALID 汇总
+        if has_errors {
+            let total = real_errors.len() + var_errors.len();
+            if strict {
+                println!("INVALID ({} error(s), {} warning(s)) [strict mode]:", total, warnings.len());
+            } else {
+                println!("INVALID ({} error(s), {} warning(s)):", total, warnings.len());
+            }
+            for e in &real_errors {
+                eprintln!("  error: {}", e);
+            }
+            for ve in &var_errors {
+                eprintln!("  error: {}", format_var_err(ve));
+            }
+            for w in &warnings {
+                eprintln!("  warning: {}", w);
+            }
+        } else if !warnings.is_empty() {
+            println!("VALID ({} warning(s)):", warnings.len());
+            for w in &warnings {
+                eprintln!("  warning: {}", w);
+            }
+        } else {
+            println!("VALID");
+        }
+
+        if !lint_warnings.is_empty() {
+            eprintln!("\n── Lint Warnings ({}) ──", lint_warnings.len());
+            format_warnings_text(&lint_warnings);
+            eprintln!("── Summary ──");
+            eprintln!("  Total: {} warnings", lint_warnings.len());
+        }
+
+        if has_errors {
+            std::process::exit(1);
+        }
+    }
+}
+
+#[cfg(feature = "ibatis")]
+/// Validate iBatis/MyBatis XML mappers in a directory — batch validation with stats
+/// 批量校验目录中的 iBatis/MyBatis XML mapper 文件（含统计信息）
+fn cmd_validate_xml_dir(
+    cli: &Cli,
+    dir_path: &str,
+    csv: bool,
+    java_roots: &[std::path::PathBuf],
+    stats: bool,
+    strict: bool,
+) {
+    use std::path::Path;
+
+    let root = Path::new(dir_path);
+    if !root.is_dir() {
+        die!("Error: '{}' is not a directory", dir_path);
+    }
+
+    let mut files_processed: Vec<(
+        String,
+        String,
+        Vec<ogsql_parser::ParserError>,
+        Vec<ogsql_parser::UndefinedVariableError>,
+        Vec<ogsql_parser::PackageConsistencyError>,
+        Vec<ogsql_parser::linter::SqlWarning>,
+        bool,
+    )> = Vec::new();
+    let mut any_invalid = false;
+
+    // Track stats accumulators
+    // 统计信息累加器
+    let mut total_files = 0usize;
+    let mut total_errors = 0usize;
+    let mut total_warnings = 0usize;
+    let mut files_with_errors: std::collections::HashSet<String> = std::collections::HashSet::new();
+    let mut files_with_warnings: std::collections::HashSet<String> = std::collections::HashSet::new();
+
+    if csv {
+        println!("file,directory,line,id,kind,valid,error_count,warning_count,errors,warnings");
+    }
+
+    for entry in walkdir::WalkDir::new(dir_path).into_iter().filter_map(|e| e.ok()) {
+        let path = entry.path();
+        if !path.is_file() {
+            continue;
+        }
+        let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("");
+        if !ext.eq_ignore_ascii_case("xml") {
+            continue;
+        }
+
+        let bytes = match std::fs::read(path) {
+            Ok(b) => b,
+            Err(e) => {
+                eprintln!("Warning: skipping {}: {}", path.display(), e);
+                continue;
+            }
+        };
+
+        let file_name = path.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default();
+        let rel_dir = path
+            .parent()
+            .and_then(|p| p.strip_prefix(root).ok())
+            .map(|p| {
+                let s = p.to_str().unwrap_or(".");
+                if s.is_empty() {
+                    "."
+                } else {
+                    s
+                }
+            })
+            .unwrap_or(".")
+            .to_string();
+
+        #[cfg(feature = "java")]
+        let result = if java_roots.is_empty() {
+            ogsql_parser::ibatis::parse_mapper_bytes_with_path(&bytes, Some(&path.to_string_lossy()))
+        } else {
+            ogsql_parser::ibatis::parse_mapper_bytes_with_java_src(
+                &bytes,
+                Some(&path.to_string_lossy()),
+                java_roots.to_vec(),
+            )
+        };
+        #[cfg(not(feature = "java"))]
+        let _ = java_roots;
+        #[cfg(not(feature = "java"))]
+        let result = ogsql_parser::ibatis::parse_mapper_bytes_with_path(&bytes, Some(&path.to_string_lossy()));
+
+        let mut all_stmts: Vec<ogsql_parser::StatementInfo> = Vec::new();
+        let mut all_errors: Vec<ogsql_parser::ParserError> = Vec::new();
+
+        for stmt in &result.statements {
+            if let Some((ref infos, ref parse_errors)) = stmt.parse_result {
+                all_stmts.extend(infos.iter().cloned());
+                all_errors.extend(parse_errors.iter().cloned());
+            }
+        }
+
+        for e in &result.errors {
+            all_errors.push(ogsql_parser::ParserError::UnexpectedToken {
+                location: ogsql_parser::SourceLocation::default(),
+                expected: "valid XML mapper".to_string(),
+                got: format!("{}", e),
+            });
+        }
+
+        let (core_errors, pkg_errors, var_errors) = validate_from_stmts(&all_stmts, &[], strict);
+        all_errors.extend(core_errors);
+
+        let config = build_lint_config(cli);
+        let mut lint_warnings: Vec<ogsql_parser::linter::SqlWarning> = Vec::new();
+        if !all_stmts.is_empty() {
+            let linter = ogsql_parser::linter::SqlLinter::with_default_rules(config.clone());
+            let ws = linter.lint(&all_stmts, None, ogsql_parser::linter::Confidence::Full);
+            lint_warnings.extend(ws);
+        }
+        {
+            let expand_ws = lint_xml_expanded(&bytes, &config);
+            lint_warnings.extend(expand_ws);
+        }
+
+        let warnings: Vec<_> = all_errors.iter().filter(|e| is_warning(e)).collect();
+        let real_errors: Vec<_> = all_errors.iter().filter(|e| !is_warning(e)).collect();
+        let has_errors = !real_errors.is_empty() || !var_errors.is_empty();
+
+        total_files += 1;
+        if has_errors {
+            any_invalid = true;
+            files_with_errors.insert(file_name.clone());
+        }
+        if !warnings.is_empty() {
+            files_with_warnings.insert(file_name.clone());
+        }
+        total_errors += real_errors.len() + var_errors.len();
+        total_warnings += warnings.len();
+
+        let format_var_err = |ve: &ogsql_parser::UndefinedVariableError| -> String {
+            let line_info = ve.location.as_ref().map(|sp| format!(":{}", sp.start.line)).unwrap_or_default();
+            let kind_label = match ve.kind {
+                ogsql_parser::UndefinedRefKind::Function => "undefined function",
+                ogsql_parser::UndefinedRefKind::Variable => "undefined variable",
+            };
+            format!("{} '{}' in {}{}", kind_label, ve.variable_name, ve.context, line_info)
+        };
+
+        if csv {
+            for stmt in &result.statements {
+                let stmt_real_errors: Vec<&ogsql_parser::ParserError> =
+                    real_errors.iter().filter(|e| error_line(e) == 0 || error_line(e) == stmt.line).copied().collect();
+                let stmt_warnings: Vec<&ogsql_parser::ParserError> =
+                    warnings.iter().filter(|e| error_line(e) == 0 || error_line(e) == stmt.line).copied().collect();
+                let err_msgs: Vec<String> = stmt_real_errors.iter().map(|e| format!("{}", e)).collect();
+                let warn_msgs: Vec<String> = stmt_warnings.iter().map(|e| format!("{}", e)).collect();
+                println!(
+                    "{},{},{},{},{:?},{},{},{},{},{}",
+                    csv_escape(&file_name),
+                    csv_escape(&rel_dir),
+                    stmt.line,
+                    csv_escape(&stmt.id),
+                    stmt.kind,
+                    if stmt_real_errors.is_empty() { "VALID" } else { "INVALID" },
+                    stmt_real_errors.len(),
+                    stmt_warnings.len(),
+                    csv_escape(&err_msgs.join("; ")),
+                    csv_escape(&warn_msgs.join("; ")),
+                );
+            }
+            // A single file might have no statements (pure XML error) — output file-level row
+            if result.statements.is_empty() && (has_errors || !warnings.is_empty()) {
+                let err_msgs: Vec<String> = real_errors.iter().map(|e| format!("{}", e)).collect();
+                let warn_msgs: Vec<String> = warnings.iter().map(|e| format!("{}", e)).collect();
+                println!(
+                    "{},{},0,,,{},{},{},{},{}",
+                    csv_escape(&file_name),
+                    csv_escape(&rel_dir),
+                    if real_errors.is_empty() && var_errors.is_empty() { "VALID" } else { "INVALID" },
+                    real_errors.len() + var_errors.len(),
+                    warnings.len(),
+                    csv_escape(&err_msgs.join("; ")),
+                    csv_escape(&warn_msgs.join("; ")),
+                );
+            }
+        } else if cli.json {
+            files_processed.push((file_name, rel_dir, all_errors, var_errors, pkg_errors, lint_warnings, has_errors));
+        } else {
+            // Text output per file
+            if has_errors {
+                println!(
+                    "[{}/{}] INVALID ({} error(s), {} warning(s))",
+                    rel_dir,
+                    file_name,
+                    real_errors.len() + var_errors.len(),
+                    warnings.len()
+                );
+                for e in &real_errors {
+                    eprintln!("  error: {}", e);
+                }
+                for ve in &var_errors {
+                    eprintln!("  error: {}", format_var_err(ve));
+                }
+                for w in &warnings {
+                    eprintln!("  warning: {}", w);
+                }
+            } else if !warnings.is_empty() {
+                println!("[{}/{}] VALID ({} warning(s))", rel_dir, file_name, warnings.len());
+                for w in &warnings {
+                    eprintln!("  warning: {}", w);
+                }
+            } else {
+                println!("[{}/{}] VALID", rel_dir, file_name);
+            }
+            // Also print statement details if verbose
+            if cli.verbose && !result.statements.is_empty() {
+                for stmt in &result.statements {
+                    println!("  ── {} ({:?}) ──", stmt.id, stmt.kind);
+                    println!("  {}", stmt.flat_sql.trim());
+                }
+            }
+        }
+    }
+
+    if csv {
+        if any_invalid {
+            std::process::exit(1);
+        }
+        return;
+    }
+
+    if cli.json {
+        let mut results: Vec<serde_json::Value> = Vec::new();
+        for (file_name, rel_dir, all_errors, var_errors, pkg_errors, lint_warnings, has_err) in &files_processed {
+            let real_errors_count = all_errors.iter().filter(|e| !is_warning(e)).count();
+            let warnings_count = all_errors.iter().filter(|e| is_warning(e)).count();
+            let mut file_result = serde_json::json!({
+                "file": file_name,
+                "directory": rel_dir,
+                "valid": !has_err,
+                "error_count": real_errors_count + var_errors.len(),
+                "warning_count": warnings_count,
+                "errors": all_errors,
+            });
+            if !pkg_errors.is_empty() {
+                file_result
+                    .as_object_mut()
+                    .unwrap()
+                    .insert("package_consistency_errors".to_string(), serde_json::json!(pkg_errors));
+            }
+            if !var_errors.is_empty() {
+                file_result
+                    .as_object_mut()
+                    .unwrap()
+                    .insert("undefined_variables".to_string(), serde_json::json!(var_errors));
+            }
+            if !lint_warnings.is_empty() {
+                file_result
+                    .as_object_mut()
+                    .unwrap()
+                    .insert("lint_warnings".to_string(), serde_json::json!(lint_warnings));
+            }
+            if strict {
+                file_result.as_object_mut().unwrap().insert("strict_mode".to_string(), serde_json::json!(true));
+            }
+            results.push(file_result);
+        }
+        let mut out = serde_json::json!({
+            "valid": !any_invalid,
+            "total_files": total_files,
+            "total_errors": total_errors,
+            "total_warnings": total_warnings,
+            "files": results,
+        });
+        if strict {
+            out.as_object_mut().unwrap().insert("strict_mode".to_string(), serde_json::json!(true));
+        }
+        println!("{}", serde_json::to_string_pretty(&out).unwrap());
+    } else if stats {
+        stats_bar("");
+        stats_bar("Summary / validate-xml");
+        stats_bar("");
+        eprintln!("  {:<28} {}", "XML files validated:", total_files);
+        eprintln!("  {:<28} {}", "Files with errors:", files_with_errors.len());
+        eprintln!("  {:<28} {}", "Files with warnings:", files_with_warnings.len());
+        eprintln!("  {:<28} {}", "Total errors:", total_errors);
+        eprintln!("  {:<28} {}", "Total warnings:", total_warnings);
+        eprintln!();
+    }
+
+    if total_files == 0 {
+        eprintln!("No .xml files found in '{}'", dir_path);
+    }
+
+    if any_invalid {
+        if stats {
+            print!(
+                "Result: INVALID — {} error(s), {} warning(s) from {} file(s)",
+                total_errors, total_warnings, total_files
+            );
+            if strict {
+                println!(" (--strict mode enabled)");
+            } else {
+                println!();
+            }
+        }
+        std::process::exit(1);
+    } else if total_files > 0 && stats {
+        if total_warnings > 0 {
+            println!("Result: VALID — {} warning(s) from {} file(s)", total_warnings, total_files);
+        } else {
+            println!("Result: VALID — {} file(s)", total_files);
+        }
+    }
+}
+
+#[cfg(feature = "ibatis")]
+/// Entry dispatcher for validate-xml — route to single or directory handler
+/// validate-xml 入口分发函数：路由到单文件或目录处理函数
+fn cmd_validate_xml(cli: &Cli, dir: Option<&str>, csv: bool, java_src: Option<&str>, stats: bool, strict: bool) {
+    // Build java_roots the same way as cmd_parse_xml
+    // 与 cmd_parse_xml 相同的 java_roots 构建逻辑
+    #[cfg(feature = "java")]
+    let java_roots: Vec<std::path::PathBuf> = match java_src {
+        Some(path) => {
+            let p = std::path::Path::new(path);
+            if !p.is_dir() {
+                die!("Error: '{}' is not a directory", path);
+            }
+            vec![p.to_path_buf()]
+        }
+        None => {
+            let scan_dir = dir.map(std::path::Path::new).unwrap_or_else(|| std::path::Path::new("."));
+            let detected = ogsql_parser::ibatis::detect_java_roots(scan_dir);
+            if !detected.is_empty() {
+                eprintln!("Auto-detected Java source roots:");
+                for r in &detected {
+                    eprintln!("  {}", r.display());
+                }
+            }
+            detected
+        }
+    };
+    #[cfg(not(feature = "java"))]
+    let _ = java_src;
+    #[cfg(not(feature = "java"))]
+    let java_roots: Vec<std::path::PathBuf> = Vec::new();
+
+    if let Some(dir_path) = dir {
+        cmd_validate_xml_dir(cli, dir_path, csv, &java_roots, stats, strict);
+    } else {
+        cmd_validate_xml_single(cli, csv, &java_roots, strict);
+    }
+}
+
 #[cfg(feature = "java")]
 fn cmd_parse_java(
     cli: &Cli,
@@ -6370,6 +7025,614 @@ fn extract_variables(sql: &str) -> String {
     vars.join(";")
 }
 
+// ═══════════════════════════════════════════════════════════════
+//  validate-java CLI handlers
+// ═══════════════════════════════════════════════════════════════
+
+#[cfg(feature = "java")]
+/// validate-java CSV 输出头
+fn output_csv_validate_java_header() {
+    println!("file,directory,line,method,sql,valid,error_count,warning_count,errors,warnings");
+}
+
+#[cfg(feature = "java")]
+/// validate-java CSV 输出行：每行对应一个提取的 SQL 片段
+fn output_csv_validate_java_rows(extractions: &[ogsql_parser::java::ExtractedSql], file_name: &str, rel_dir: &str) {
+    for ext in extractions {
+        let method = match (&ext.origin.class_name, &ext.origin.method_name) {
+            (Some(cls), Some(m)) => format!("{}::{}", cls, m),
+            (None, Some(m)) => m.clone(),
+            (Some(cls), None) => cls.clone(),
+            (None, None) => ext.origin.variable_name.clone().unwrap_or_default(),
+        };
+
+        let (errors, warnings) = match &ext.parse_result {
+            Some(parse_result) => {
+                let refs: Vec<&ogsql_parser::ParserError> = parse_result.errors.iter().collect();
+                (merge_error_messages(&refs, false), merge_error_messages(&refs, true))
+            }
+            None => (String::new(), String::new()),
+        };
+
+        let ext_error_count =
+            ext.parse_result.as_ref().map(|pr| pr.errors.iter().filter(|e| !is_warning(e)).count()).unwrap_or(0);
+        let ext_warning_count =
+            ext.parse_result.as_ref().map(|pr| pr.errors.iter().filter(|e| is_warning(e)).count()).unwrap_or(0);
+
+        let sql = ext.sql.trim().replace('\r', "");
+        println!(
+            "{},{},{},{},{},{},{},{},{},{}",
+            csv_escape(file_name),
+            csv_escape(rel_dir),
+            ext.origin.line,
+            csv_escape(&method),
+            csv_escape(&sql),
+            if ext_error_count == 0 { "VALID" } else { "INVALID" },
+            ext_error_count,
+            ext_warning_count,
+            csv_escape(&errors),
+            csv_escape(&warnings),
+        );
+    }
+}
+
+#[cfg(feature = "java")]
+/// 单文件 validate-java：读取 Java 源文件，提取 SQL，执行语义校验 + lint
+fn cmd_validate_java_single(
+    cli: &Cli,
+    extra_sql_methods: &[String],
+    extra_sql_var_patterns: &[String],
+    csv: bool,
+    strict: bool,
+) {
+    if cli.file.len() > 1 {
+        die!("Error: validate-java command accepts at most one --file");
+    }
+    let file_opt = cli.file.first().map(|s| s.as_str());
+    let (source, file_path) = match file_opt {
+        Some(path) => {
+            let bytes = std::fs::read(path).unwrap_or_else(|e| die!("Error reading {}: {}", path, e));
+            let (text, _encoding) =
+                ogsql_parser::token::decode_sql_file(&bytes).unwrap_or_else(|e| die!("Error decoding {}: {}", path, e));
+            (text, path.to_string())
+        }
+        None => {
+            let mut buf = String::new();
+            std::io::stdin().read_to_string(&mut buf).unwrap_or_else(|e| die!("Error reading stdin: {}", e));
+            (buf, "<stdin>".to_string())
+        }
+    };
+
+    let config = ogsql_parser::java::JavaExtractConfig {
+        extra_sql_methods: extra_sql_methods.to_vec(),
+        extra_sql_var_patterns: extra_sql_var_patterns.to_vec(),
+    };
+    let result = ogsql_parser::java::extract_sql_from_java(&source, &file_path, &config);
+
+    // 收集所有 StatementInfo 和错误
+    let mut all_stmts: Vec<ogsql_parser::StatementInfo> = Vec::new();
+    let mut all_errors: Vec<ogsql_parser::ParserError> = Vec::new();
+    let mut has_parse_error = false;
+
+    // Java 提取错误转为 ParserError::Warning
+    for je in &result.errors {
+        all_errors.push(ogsql_parser::ParserError::Warning {
+            message: format!("Java extraction error: {}", je),
+            location: ogsql_parser::SourceLocation::default(),
+        });
+    }
+
+    for ext in &result.extractions {
+        if let Some(ref parse_result) = ext.parse_result {
+            all_stmts.extend(parse_result.statements.clone());
+            for pe in &parse_result.errors {
+                if !is_warning(pe) {
+                    has_parse_error = true;
+                }
+                all_errors.push(pe.clone());
+            }
+        }
+    }
+
+    // PACKAGE + MERGE + PL 校验（共享 validate_from_stmts 管道）
+    let (core_errors, _pkg_errors, var_errors) = validate_from_stmts(&all_stmts, &[], strict);
+    all_errors.extend(core_errors);
+
+    let has_var_errors = !var_errors.is_empty();
+    let has_any_error = has_parse_error || has_var_errors;
+
+    // Lint with Confidence::Full（使用 SqlLinter::with_default_rules 直接创建）
+    // 与 lint_java_extractions 不同，后者使用 Confidence::Partial
+    let lint_warnings = if cli.lint {
+        let config = build_lint_config(cli);
+        let linter = ogsql_parser::linter::SqlLinter::with_default_rules(config);
+        linter.lint(&all_stmts, None, ogsql_parser::linter::Confidence::Full)
+    } else {
+        vec![]
+    };
+
+    if csv {
+        output_csv_validate_java_header();
+        output_csv_validate_java_rows(&result.extractions, &file_path, ".");
+        if has_any_error {
+            std::process::exit(1);
+        }
+        return;
+    }
+
+    if cli.json {
+        // JSON 输出：{file, valid, error_count, warning_count, errors, extractions: [{line, method, sql, kind}]}
+        let real_errors: Vec<_> = all_errors.iter().filter(|e| !is_warning(e)).collect();
+        let warnings: Vec<_> = all_errors.iter().filter(|e| is_warning(e)).collect();
+        let extractions_json: Vec<serde_json::Value> = result
+            .extractions
+            .iter()
+            .map(|ext| {
+                let method = match (&ext.origin.class_name, &ext.origin.method_name) {
+                    (Some(cls), Some(mn)) => format!("{}::{}", cls, mn),
+                    (None, Some(mn)) => mn.clone(),
+                    (Some(cls), None) => cls.clone(),
+                    (None, None) => ext.origin.variable_name.clone().unwrap_or_default(),
+                };
+                serde_json::json!({
+                    "line": ext.origin.line,
+                    "method": method,
+                    "sql": ext.sql.trim(),
+                    "kind": format!("{:?}", ext.sql_kind),
+                })
+            })
+            .collect();
+        let mut out = serde_json::json!({
+            "file": file_path,
+            "valid": !has_any_error,
+            "error_count": real_errors.len() + var_errors.len(),
+            "warning_count": warnings.len() + lint_warnings.len(),
+            "errors": all_errors,
+            "extractions": extractions_json,
+        });
+        if !var_errors.is_empty() {
+            out.as_object_mut().unwrap().insert("undefined_variables".to_string(), serde_json::json!(var_errors));
+        }
+        if !lint_warnings.is_empty() {
+            out.as_object_mut().unwrap().insert("lint_warnings".to_string(), serde_json::json!(lint_warnings));
+            out.as_object_mut().unwrap().insert("lint_summary".to_string(), format_warnings_summary(&lint_warnings));
+        }
+        println!("{}", serde_json::to_string_pretty(&out).unwrap());
+        if has_any_error {
+            std::process::exit(1);
+        }
+    } else {
+        // 文本输出
+        if !result.errors.is_empty() {
+            eprintln!("Java extraction errors for {}:", file_path);
+            for je in &result.errors {
+                eprintln!("  {}", je);
+            }
+        }
+
+        let real_errors: Vec<_> = all_errors.iter().filter(|e| !is_warning(e)).collect();
+        let warnings: Vec<_> = all_errors.iter().filter(|e| is_warning(e)).collect();
+
+        if !has_any_error && warnings.is_empty() {
+            println!("{}: VALID", file_path);
+        } else if !has_any_error {
+            println!("{}: VALID ({} warning(s)):", file_path, warnings.len());
+            for w in &warnings {
+                eprintln!("  warning: {}", w);
+            }
+        } else {
+            let total_errors = real_errors.len() + var_errors.len();
+            if strict {
+                println!(
+                    "{}: INVALID ({} error(s), {} warning(s)) [strict mode]:",
+                    file_path,
+                    total_errors,
+                    warnings.len()
+                );
+            } else {
+                println!("{}: INVALID ({} error(s), {} warning(s)):", file_path, total_errors, warnings.len());
+            }
+            for e in &real_errors {
+                eprintln!("  error: {}", e);
+            }
+            for ve in &var_errors {
+                let line_info = ve.location.as_ref().map(|sp| format!(":{}", sp.start.line)).unwrap_or_default();
+                let kind_label = match ve.kind {
+                    ogsql_parser::UndefinedRefKind::Function => "undefined function",
+                    ogsql_parser::UndefinedRefKind::Variable => "undefined variable",
+                };
+                eprintln!("  error: {} '{}' in {}{}", kind_label, ve.variable_name, ve.context, line_info);
+            }
+            for w in &warnings {
+                eprintln!("  warning: {}", w);
+            }
+        }
+
+        // 逐提取信息
+        for ext in &result.extractions {
+            let location = match (&ext.origin.class_name, &ext.origin.method_name) {
+                (Some(cls), Some(mn)) => format!("{}::{}", cls, mn),
+                (None, Some(mn)) => mn.clone(),
+                (Some(cls), None) => cls.clone(),
+                (None, None) => ext.origin.variable_name.clone().unwrap_or_default(),
+            };
+            println!("── {:?} [{:?}] @ {} L{} ──", ext.origin.method, ext.sql_kind, location, ext.origin.line);
+            println!("{}", ext.sql.trim());
+            if let Some(ref parse_result) = ext.parse_result {
+                let ext_real: Vec<_> = parse_result.errors.iter().filter(|e| !is_warning(e)).collect();
+                let ext_warns: Vec<_> = parse_result.errors.iter().filter(|e| is_warning(e)).collect();
+                if !ext_real.is_empty() {
+                    eprintln!("  {} error(s):", ext_real.len());
+                    for e in &ext_real {
+                        eprintln!("    {}", e);
+                    }
+                }
+                if !ext_warns.is_empty() {
+                    eprintln!("  {} warning(s):", ext_warns.len());
+                    for w in &ext_warns {
+                        eprintln!("    {}", w);
+                    }
+                }
+                if ext_real.is_empty() {
+                    println!(
+                        "  ✓ SQL valid ({} statement(s)){}",
+                        parse_result.statements.len(),
+                        if ext_warns.is_empty() { "" } else { " (with warnings)" }
+                    );
+                } else {
+                    println!("  ✗ SQL INVALID");
+                }
+            } else {
+                println!("  (no parse result)");
+            }
+            println!();
+        }
+
+        if !lint_warnings.is_empty() {
+            eprintln!("\n── Lint Warnings ({}) ──", lint_warnings.len());
+            format_warnings_text(&lint_warnings);
+            eprintln!("── Summary ──");
+            eprintln!("  Total: {} warnings", lint_warnings.len());
+        }
+
+        if has_any_error {
+            std::process::exit(1);
+        }
+    }
+}
+
+#[cfg(feature = "java")]
+/// 目录 validate-java：递归扫描 .java 文件，跨文件提取 + 校验
+fn cmd_validate_java_dir(
+    cli: &Cli,
+    extra_sql_methods: &[String],
+    extra_sql_var_patterns: &[String],
+    dir_path: &str,
+    csv: bool,
+    stats: bool,
+    strict: bool,
+) {
+    use std::path::Path;
+
+    let root = Path::new(dir_path);
+    if !root.is_dir() {
+        die!("Error: '{}' is not a directory", dir_path);
+    }
+
+    // 收集所有 .java 文件
+    let mut files: Vec<(String, String)> = Vec::new(); // (file_path, source)
+    for entry in walkdir::WalkDir::new(dir_path).into_iter().filter_map(|e| e.ok()) {
+        let path = entry.path();
+        if !path.is_file() {
+            continue;
+        }
+        let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("");
+        if !ext.eq_ignore_ascii_case("java") {
+            continue;
+        }
+        let bytes = match std::fs::read(path) {
+            Ok(b) => b,
+            Err(e) => {
+                eprintln!("Warning: skipping {}: {}", path.display(), e);
+                continue;
+            }
+        };
+        let (source, _encoding) = match ogsql_parser::token::decode_sql_file(&bytes) {
+            Ok(s) => s,
+            Err(e) => {
+                eprintln!("Warning: skipping {}: {}", path.display(), e);
+                continue;
+            }
+        };
+        let file_path_str = path.to_string_lossy().to_string();
+        files.push((file_path_str, source));
+    }
+
+    if files.is_empty() {
+        die!("No .java files found in '{}'", dir_path);
+    }
+
+    // 跨文件提取（使用 CrossFileState 支持 PreparedStatement 回填）
+    let config = ogsql_parser::java::JavaExtractConfig {
+        extra_sql_methods: extra_sql_methods.to_vec(),
+        extra_sql_var_patterns: extra_sql_var_patterns.to_vec(),
+    };
+    let file_refs: Vec<(&str, &str)> = files.iter().map(|(p, s)| (p.as_str(), s.as_str())).collect();
+    let mut state = ogsql_parser::java::CrossFileState::default();
+    let all_results = ogsql_parser::java::extract_sql_from_java_files_with_state(&file_refs, &config, &mut state);
+
+    // 统计信息
+    let mut files_with_errors: HashSet<String> = HashSet::new();
+    let mut files_with_warnings: HashSet<String> = HashSet::new();
+    let mut total_extractions = 0usize;
+    let mut total_stmts = 0usize;
+    let mut error_kinds: BTreeMap<&'static str, (usize, HashSet<String>)> = BTreeMap::new();
+    let mut warning_kinds: BTreeMap<&'static str, (usize, HashSet<String>)> = BTreeMap::new();
+    let mut var_error_files: HashSet<String> = HashSet::new();
+
+    // CSV 头（仅在 csv 模式下）
+    if csv {
+        output_csv_validate_java_header();
+    }
+
+    // JSON 收集
+    let mut json_results: Vec<serde_json::Value> = Vec::new();
+
+    for result in &all_results {
+        let file_name =
+            Path::new(&result.file_path).file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default();
+        let rel_dir = Path::new(&result.file_path)
+            .parent()
+            .and_then(|p| p.strip_prefix(root).ok())
+            .map(|p| p.to_str().unwrap_or("."))
+            .unwrap_or(".");
+
+        let mut file_stmts: Vec<ogsql_parser::StatementInfo> = Vec::new();
+        let mut file_errors: Vec<ogsql_parser::ParserError> = Vec::new();
+        let mut has_file_error = false;
+
+        // Java 提取错误
+        for je in &result.errors {
+            file_errors.push(ogsql_parser::ParserError::Warning {
+                message: format!("Java extraction error: {}", je),
+                location: ogsql_parser::SourceLocation::default(),
+            });
+        }
+
+        for ext in &result.extractions {
+            total_extractions += 1;
+            if let Some(ref parse_result) = ext.parse_result {
+                total_stmts += parse_result.statements.len();
+                file_stmts.extend(parse_result.statements.clone());
+                for pe in &parse_result.errors {
+                    if !is_warning(pe) {
+                        has_file_error = true;
+                        let kind = parser_error_kind(pe);
+                        error_kinds.entry(kind).or_insert_with(|| (0, HashSet::new())).0 += 1;
+                        error_kinds.get_mut(kind).unwrap().1.insert(file_name.clone());
+                    } else {
+                        let kind = parser_error_kind(pe);
+                        warning_kinds.entry(kind).or_insert_with(|| (0, HashSet::new())).0 += 1;
+                        warning_kinds.get_mut(kind).unwrap().1.insert(file_name.clone());
+                    }
+                    file_errors.push(pe.clone());
+                }
+            }
+        }
+
+        // PACKAGE + MERGE + PL 校验
+        let (core_errors, _pkg_errors, var_errors) = validate_from_stmts(&file_stmts, &[], strict);
+        file_errors.extend(core_errors);
+
+        if !var_errors.is_empty() {
+            var_error_files.insert(file_name.clone());
+        }
+        if has_file_error || !var_errors.is_empty() {
+            files_with_errors.insert(file_name.clone());
+        }
+        if file_errors.iter().any(is_warning) {
+            files_with_warnings.insert(file_name.clone());
+        }
+
+        if csv {
+            output_csv_validate_java_rows(&result.extractions, &file_name, rel_dir);
+        } else if cli.json {
+            // JSON 按文件收集
+            let real_errors: Vec<_> = file_errors.iter().filter(|e| !is_warning(e)).collect();
+            let warnings: Vec<_> = file_errors.iter().filter(|e| is_warning(e)).collect();
+            let extractions_json: Vec<serde_json::Value> = result
+                .extractions
+                .iter()
+                .map(|ext| {
+                    let method = match (&ext.origin.class_name, &ext.origin.method_name) {
+                        (Some(cls), Some(mn)) => format!("{}::{}", cls, mn),
+                        (None, Some(mn)) => mn.clone(),
+                        (Some(cls), None) => cls.clone(),
+                        (None, None) => ext.origin.variable_name.clone().unwrap_or_default(),
+                    };
+                    serde_json::json!({
+                        "line": ext.origin.line,
+                        "method": method,
+                        "sql": ext.sql.trim(),
+                        "kind": format!("{:?}", ext.sql_kind),
+                    })
+                })
+                .collect();
+            let mut file_result = serde_json::json!({
+                "file": result.file_path,
+                "valid": !has_file_error && var_errors.is_empty(),
+                "error_count": real_errors.len() + var_errors.len(),
+                "warning_count": warnings.len(),
+                "errors": file_errors,
+                "extractions": extractions_json,
+            });
+            if !var_errors.is_empty() {
+                file_result
+                    .as_object_mut()
+                    .unwrap()
+                    .insert("undefined_variables".to_string(), serde_json::json!(var_errors));
+            }
+            json_results.push(file_result);
+        } else {
+            // 文本输出
+            let real_errors: Vec<_> = file_errors.iter().filter(|e| !is_warning(e)).collect();
+            let warnings: Vec<_> = file_errors.iter().filter(|e| is_warning(e)).collect();
+            let has_var = !var_errors.is_empty();
+
+            if !result.errors.is_empty() {
+                eprintln!("Java extraction errors for {}:", result.file_path);
+                for je in &result.errors {
+                    eprintln!("  {}", je);
+                }
+            }
+
+            if !has_file_error && !has_var && warnings.is_empty() {
+                println!("[{}/{}] VALID", rel_dir, file_name);
+            } else if !has_file_error && !has_var {
+                println!("[{}/{}] VALID ({} warning(s))", rel_dir, file_name, warnings.len());
+                for w in &warnings {
+                    eprintln!("  warning: {}", w);
+                }
+            } else {
+                println!(
+                    "[{}/{}] INVALID ({} error(s), {} warning(s))",
+                    rel_dir,
+                    file_name,
+                    real_errors.len() + var_errors.len(),
+                    warnings.len()
+                );
+                for e in &real_errors {
+                    eprintln!("  error: {}", e);
+                }
+                for ve in &var_errors {
+                    let line_info = ve.location.as_ref().map(|sp| format!(":{}", sp.start.line)).unwrap_or_default();
+                    let kind_label = match ve.kind {
+                        ogsql_parser::UndefinedRefKind::Function => "undefined function",
+                        ogsql_parser::UndefinedRefKind::Variable => "undefined variable",
+                    };
+                    eprintln!("  error: {} '{}' in {}{}", kind_label, ve.variable_name, ve.context, line_info);
+                }
+                for w in &warnings {
+                    eprintln!("  warning: {}", w);
+                }
+            }
+
+            // 逐提取详细信息
+            for ext in &result.extractions {
+                let location = match (&ext.origin.class_name, &ext.origin.method_name) {
+                    (Some(cls), Some(mn)) => format!("{}::{}", cls, mn),
+                    (None, Some(mn)) => mn.clone(),
+                    (Some(cls), None) => cls.clone(),
+                    (None, None) => ext.origin.variable_name.clone().unwrap_or_default(),
+                };
+                println!("── {:?} [{:?}] @ {} L{} ──", ext.origin.method, ext.sql_kind, location, ext.origin.line);
+                println!("{}", ext.sql.trim());
+                if let Some(ref parse_result) = ext.parse_result {
+                    let ext_real: Vec<_> = parse_result.errors.iter().filter(|e| !is_warning(e)).collect();
+                    let ext_warns: Vec<_> = parse_result.errors.iter().filter(|e| is_warning(e)).collect();
+                    if !ext_real.is_empty() {
+                        eprintln!("  {} error(s):", ext_real.len());
+                        for e in &ext_real {
+                            eprintln!("    {}", e);
+                        }
+                    }
+                    if !ext_warns.is_empty() {
+                        eprintln!("  {} warning(s):", ext_warns.len());
+                        for w in &ext_warns {
+                            eprintln!("    {}", w);
+                        }
+                    }
+                    if ext_real.is_empty() {
+                        println!(
+                            "  ✓ SQL valid ({} statement(s)){}",
+                            parse_result.statements.len(),
+                            if ext_warns.is_empty() { "" } else { " (with warnings)" }
+                        );
+                    } else {
+                        println!("  ✗ SQL INVALID");
+                    }
+                } else {
+                    println!("  (no parse result)");
+                }
+                println!();
+            }
+        }
+    }
+
+    // JSON 整体输出（dir 模式）
+    if cli.json && !csv {
+        let out = serde_json::json!({ "files": json_results });
+        println!("{}", serde_json::to_string_pretty(&out).unwrap());
+    }
+
+    // 统计信息
+    if stats {
+        let total_error_count: usize = error_kinds.values().map(|(c, _)| c).sum();
+        let total_warning_count: usize = warning_kinds.values().map(|(c, _)| c).sum();
+
+        stats_bar("");
+        stats_bar("Summary / validate-java");
+        stats_bar("");
+
+        eprintln!("  {:<28} {}", "Java files processed:", all_results.len());
+        eprintln!("  {:<28} {}", "Total extractions:", total_extractions);
+        if total_stmts > 0 {
+            eprintln!("  {:<28} {}", "SQL statements (parsed):", total_stmts);
+        }
+        eprintln!();
+
+        if !files_with_errors.is_empty() {
+            stats_bar("Files with validation errors");
+            eprintln!("  Total: {} file(s)", files_with_errors.len());
+            if !var_error_files.is_empty() {
+                eprintln!("  PL variable errors: {} file(s)", var_error_files.len());
+            }
+            eprintln!();
+        }
+
+        if total_error_count > 0 {
+            stats_bar("Error breakdown");
+            eprintln!("  Total: {} error(s) (in {} file(s))", total_error_count, files_with_errors.len());
+            for (kind, (cnt, files)) in &error_kinds {
+                eprintln!("    {:<20} {:>4} ({} file(s))", kind, cnt, files.len());
+            }
+            eprintln!();
+        }
+
+        if total_warning_count > 0 {
+            stats_bar("Warning breakdown");
+            eprintln!("  Total: {} warning(s) (in {} file(s))", total_warning_count, files_with_warnings.len());
+            for (kind, (cnt, files)) in &warning_kinds {
+                eprintln!("    {:<20} {:>4} ({} file(s))", kind, cnt, files.len());
+            }
+            eprintln!();
+        }
+    }
+
+    if !files_with_errors.is_empty() {
+        std::process::exit(1);
+    }
+}
+
+#[cfg(feature = "java")]
+/// validate-java 分发器：根据是否指定 dir 路由到单文件或目录模式
+fn cmd_validate_java(
+    cli: &Cli,
+    extra_sql_methods: &[String],
+    extra_sql_var_patterns: &[String],
+    dir: Option<&str>,
+    csv: bool,
+    stats: bool,
+    strict: bool,
+) {
+    match dir {
+        Some(dir_path) => {
+            cmd_validate_java_dir(cli, extra_sql_methods, extra_sql_var_patterns, dir_path, csv, stats, strict)
+        }
+        None => cmd_validate_java_single(cli, extra_sql_methods, extra_sql_var_patterns, csv, strict),
+    }
+}
+
 #[cfg(feature = "ibatis")]
 fn output_csv_xml_header() {
     println!("file,directory,line,method,sql,variables,parameter_types,error,warning");
@@ -6768,6 +8031,25 @@ fn main() {
         #[cfg(feature = "java")]
         Commands::ParseJava { ref extra_sql_methods, ref extra_sql_var_patterns, ref dir, csv, stats } => {
             cmd_parse_java(&cli, extra_sql_methods, extra_sql_var_patterns, dir.as_deref(), csv, stats)
+        }
+        #[cfg(feature = "ibatis")]
+        Commands::ValidateXml {
+            ref dir,
+            csv,
+            #[cfg(feature = "java")]
+            ref java_src,
+            stats,
+            strict,
+        } => {
+            #[cfg(feature = "java")]
+            let js = java_src.as_deref();
+            #[cfg(not(feature = "java"))]
+            let js: Option<&str> = None;
+            cmd_validate_xml(&cli, dir.as_deref(), csv, js, stats, strict);
+        }
+        #[cfg(feature = "java")]
+        Commands::ValidateJava { ref extra_sql_methods, ref extra_sql_var_patterns, ref dir, csv, stats, strict } => {
+            cmd_validate_java(&cli, extra_sql_methods, extra_sql_var_patterns, dir.as_deref(), csv, stats, strict);
         }
     }
 }
