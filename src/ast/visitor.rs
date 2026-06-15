@@ -963,11 +963,9 @@ fn walk_expr(visitor: &mut dyn Visitor, expr: &Expr) -> VisitorResult {
                 return VisitorResult::Stop;
             }
         }
-        Expr::XmlPi { content, .. } => {
-            if let Some(c) = content {
-                if walk_expr(visitor, c) == VisitorResult::Stop {
-                    return VisitorResult::Stop;
-                }
+        Expr::XmlPi { content: Some(c), .. } => {
+            if walk_expr(visitor, c) == VisitorResult::Stop {
+                return VisitorResult::Stop;
             }
         }
         Expr::XmlRoot { expr, version, .. } => {

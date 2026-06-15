@@ -206,18 +206,13 @@ fn check_select_union(
     confidence: Confidence,
     warnings: &mut Vec<SqlWarning>,
 ) {
-    if let Some(ref set_op) = select.set_operation {
-        match set_op {
-            SetOperation::Union { all: false, .. } => {
-                warnings.push(make_warning(
-                    WarningLevel::Performance, "P001", "union-without-all",
-                    "UNION \u{672a}\u{4f7f}\u{7528} ALL\u{ff0c}\u{5b58}\u{5728}\u{4e0d}\u{5fc5}\u{8981}\u{7684}\u{53bb}\u{91cd}\u{6392}\u{5e8f}".into(),
-                    Some("\u{5982}\u{679c}\u{786e}\u{8ba4}\u{65e0}\u{91cd}\u{53e0}\u{ff0c}\u{6539}\u{7528} UNION ALL"), loc,
-                    None, confidence,
-                ));
-            }
-            _ => {}
-        }
+    if let Some(SetOperation::Union { all: false, .. }) = &select.set_operation {
+        warnings.push(make_warning(
+            WarningLevel::Performance, "P001", "union-without-all",
+            "UNION \u{672a}\u{4f7f}\u{7528} ALL\u{ff0c}\u{5b58}\u{5728}\u{4e0d}\u{5fc5}\u{8981}\u{7684}\u{53bb}\u{91cd}\u{6392}\u{5e8f}".into(),
+            Some("\u{5982}\u{679c}\u{786e}\u{8ba4}\u{65e0}\u{91cd}\u{53e0}\u{ff0c}\u{6539}\u{7528} UNION ALL"), loc,
+            None, confidence,
+        ));
     }
     if let Some(ref set_op) = select.set_operation {
         match set_op {
@@ -328,16 +323,14 @@ fn check_p004(
 ) {
     for info in stmts {
         let loc = stmt_location(info);
-        if let Some(where_clause) = extract_where(&info.statement) {
-            if let Expr::BinaryOp { op, .. } = where_clause {
-                if op.eq_ignore_ascii_case("OR") {
-                    warnings.push(make_warning(
-                        WarningLevel::Performance, "P004", "or-to-union-all",
-                        "WHERE \u{9876}\u{5c42}\u{4e3a} OR \u{6761}\u{4ef6}\u{ff0c}\u{53ef}\u{80fd}\u{5bfc}\u{81f4}\u{4f18}\u{5316}\u{5668}\u{653e}\u{5f03}\u{7d22}\u{5f15}".into(),
-                        Some("\u{8003}\u{8651}\u{5c06} OR \u{6539}\u{5199}\u{4e3a} UNION ALL"), loc,
-                        None, confidence,
-                    ));
-                }
+        if let Some(Expr::BinaryOp { op, .. }) = extract_where(&info.statement) {
+            if op.eq_ignore_ascii_case("OR") {
+                warnings.push(make_warning(
+                    WarningLevel::Performance, "P004", "or-to-union-all",
+                    "WHERE \u{9876}\u{5c42}\u{4e3a} OR \u{6761}\u{4ef6}\u{ff0c}\u{53ef}\u{80fd}\u{5bfc}\u{81f4}\u{4f18}\u{5316}\u{5660}\u{653e}\u{5f03}\u{7d22}\u{5f15}".into(),
+                    Some("\u{8003}\u{8651}\u{5c06} OR \u{6539}\u{5199}\u{4e3a} UNION ALL"), loc,
+                    None, confidence,
+                ));
             }
         }
     }
@@ -463,10 +456,8 @@ fn check_p007(
 
 fn count_non_equi_joins_in_from(from: &[TableRef], count: &mut usize) {
     for t in from {
-        if let TableRef::Join { condition, .. } = t {
-            if let Some(cond) = condition {
-                count_non_equi_in_expr(cond, count);
-            }
+        if let TableRef::Join { condition: Some(cond), .. } = t {
+            count_non_equi_in_expr(cond, count);
         }
     }
 }
@@ -525,22 +516,20 @@ fn check_p010(
         if let Statement::Update(s) = &info.statement {
             let loc = loc_from_spanned(s, stmt_location(info));
             for assignment in &s.assignments {
-                if assignment.columns.len() > 1 {
-                    if matches!(&assignment.value, Expr::Subquery(_)) {
-                        warnings.push(make_warning(
-                            WarningLevel::Performance,
-                            "P010",
-                            "multi-column-update-subquery",
-                            format!(
-                                "UPDATE SET ({}\u{5217}) = (SELECT ...) \u{6548}\u{7387}\u{8f83}\u{4f4e}",
-                                assignment.columns.len()
-                            ),
-                            Some("\u{6539}\u{7528} UPDATE ... FROM ... WHERE ... \u{7684} JOIN \u{98ce}\u{683c}"),
-                            loc,
-                            None,
-                            confidence,
-                        ));
-                    }
+                if assignment.columns.len() > 1 && matches!(&assignment.value, Expr::Subquery(_)) {
+                    warnings.push(make_warning(
+                        WarningLevel::Performance,
+                        "P010",
+                        "multi-column-update-subquery",
+                        format!(
+                            "UPDATE SET ({}\u{5217}) = (SELECT ...) \u{6548}\u{7387}\u{8f83}\u{4f4e}",
+                            assignment.columns.len()
+                        ),
+                        Some("\u{6539}\u{7528} UPDATE ... FROM ... WHERE ... \u{7684} JOIN \u{98ce}\u{683c}"),
+                        loc,
+                        None,
+                        confidence,
+                    ));
                 }
             }
         }
@@ -575,11 +564,11 @@ fn check_p011(
                             return false;
                         }
                     }
-                    Expr::ScalarSublink { subquery, .. } => {
-                        if has_correlated_ref(&subquery.where_clause, &outer_tables) {
-                            found = true;
-                            return false;
-                        }
+                    Expr::ScalarSublink { subquery, .. }
+                        if has_correlated_ref(&subquery.where_clause, &outer_tables) =>
+                    {
+                        found = true;
+                        return false;
                     }
                     _ => {}
                 }
@@ -627,10 +616,8 @@ fn collect_table_names(from: &[TableRef], tables: &mut Vec<String>) {
                 collect_table_names(std::slice::from_ref(left), tables);
                 collect_table_names(std::slice::from_ref(right), tables);
             }
-            TableRef::Subquery { alias, .. } => {
-                if let Some(a) = alias {
-                    tables.push(a.to_lowercase());
-                }
+            TableRef::Subquery { alias: Some(a), .. } => {
+                tables.push(a.to_lowercase());
             }
             _ => {}
         }
@@ -956,16 +943,14 @@ fn check_p018(
 ) {
     for info in stmts {
         if let Statement::Insert(s) = &info.statement {
-            if s.columns.is_empty() {
-                if matches!(&s.source, InsertSource::Select(_)) {
-                    let loc = loc_from_spanned(s, stmt_location(info));
-                    warnings.push(make_warning(
+            if s.columns.is_empty() && matches!(&s.source, InsertSource::Select(_)) {
+                let loc = loc_from_spanned(s, stmt_location(info));
+                warnings.push(make_warning(
                         WarningLevel::Performance, "P018", "insert-select-no-columns",
                         "INSERT INTO ... SELECT \u{672a}\u{6307}\u{5b9a}\u{76ee}\u{6807}\u{5217}\u{540d}\u{ff0c}\u{4f9d}\u{8d56}\u{5217}\u{987a}\u{5e8f}".into(),
                         Some("\u{663e}\u{5f0f}\u{6307}\u{5b9a}\u{76ee}\u{6807}\u{5217}\u{540d}"), loc,
                         None, confidence,
                     ));
-                }
             }
         }
     }

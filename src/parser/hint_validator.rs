@@ -240,8 +240,8 @@ fn parse_hint_list(content: &str) -> Vec<ParsedHint> {
 fn resolve_name_and_negation(name: &str) -> (String, bool) {
     let lower = name.to_lowercase();
 
-    if lower.starts_with("no ") {
-        return (lower[3..].trim().to_string(), true);
+    if let Some(rest) = lower.strip_prefix("no ") {
+        return (rest.trim().to_string(), true);
     }
 
     // Check if the full name with no_ prefix is a known hint (e.g. no_expand)

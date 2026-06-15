@@ -445,8 +445,7 @@ pub fn analyze_return_cursors(
     }
 
     let is_func_return = is_return_refcursor(return_type);
-    let return_cursor_type =
-        return_type.map(|rt| if rt.to_uppercase().contains("REFCURSOR") { rt.to_string() } else { rt.to_string() });
+    let return_cursor_type = return_type.map(|rt| rt.to_string());
 
     let root_ctx = BranchContext { path: String::new(), condition: String::new() };
 

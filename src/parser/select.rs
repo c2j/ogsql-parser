@@ -113,17 +113,13 @@ impl Parser {
             self.expect_token(&Token::LParen)?;
             let query = if self.match_keyword(Keyword::VALUES) {
                 let raw_body = self.collect_until_balanced_paren();
-                let mut s = SelectStatement::default();
-                s.raw_body = Some(raw_body);
-                s
+                SelectStatement { raw_body: Some(raw_body), ..Default::default() }
             } else if matches!(
                 self.peek_keyword(),
                 Some(Keyword::UPDATE) | Some(Keyword::INSERT) | Some(Keyword::DELETE_P)
             ) {
                 let raw_body = self.collect_until_balanced_paren();
-                let mut s = SelectStatement::default();
-                s.raw_body = Some(raw_body);
-                s
+                SelectStatement { raw_body: Some(raw_body), ..Default::default() }
             } else {
                 self.parse_select_statement()?
             };

@@ -846,15 +846,17 @@ impl Parser {
     }
 
     fn try_parse_dml_as_pl_statement(&mut self) -> Option<PlStatement> {
-        let is_dml_or_hint = match self.peek() {
-            Token::Keyword(Keyword::SELECT) | Token::Keyword(Keyword::WITH) => true,
-            Token::Keyword(Keyword::INSERT) => true,
-            Token::Keyword(Keyword::UPDATE) => true,
-            Token::Keyword(Keyword::DELETE_P) => true,
-            Token::Keyword(Keyword::MERGE) => true,
-            Token::Hint(_) => true,
-            _ => false,
-        };
+        let is_dml_or_hint = matches!(
+            self.peek(),
+            Token::Keyword(
+                Keyword::SELECT
+                    | Keyword::WITH
+                    | Keyword::INSERT
+                    | Keyword::UPDATE
+                    | Keyword::DELETE_P
+                    | Keyword::MERGE
+            ) | Token::Hint(_)
+        );
 
         if !is_dml_or_hint {
             return None;
@@ -862,14 +864,17 @@ impl Parser {
 
         let hints = self.consume_hints();
 
-        let is_dml = match self.peek() {
-            Token::Keyword(Keyword::SELECT) | Token::Keyword(Keyword::WITH) => true,
-            Token::Keyword(Keyword::INSERT) => true,
-            Token::Keyword(Keyword::UPDATE) => true,
-            Token::Keyword(Keyword::DELETE_P) => true,
-            Token::Keyword(Keyword::MERGE) => true,
-            _ => false,
-        };
+        let is_dml = matches!(
+            self.peek(),
+            Token::Keyword(
+                Keyword::SELECT
+                    | Keyword::WITH
+                    | Keyword::INSERT
+                    | Keyword::UPDATE
+                    | Keyword::DELETE_P
+                    | Keyword::MERGE
+            )
+        );
 
         if !is_dml {
             return None;

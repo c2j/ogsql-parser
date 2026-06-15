@@ -588,12 +588,8 @@ impl Parser {
 
         if name.to_uppercase() == "TRANSACTION" {
             let mut modes = Vec::new();
-            loop {
-                if let Some(mode) = self.try_parse_transaction_mode()? {
-                    modes.push(Expr::ColumnRef(vec![format!("{:?}", mode)]));
-                } else {
-                    break;
-                }
+            while let Some(mode) = self.try_parse_transaction_mode()? {
+                modes.push(Expr::ColumnRef(vec![format!("{:?}", mode)]));
             }
             return Ok(VariableSetStatement { local, session, global, name, value: modes });
         }
@@ -709,24 +705,16 @@ impl Parser {
             self.advance();
         }
         let mut modes = Vec::new();
-        loop {
-            if let Some(mode) = self.try_parse_transaction_mode()? {
-                modes.push(mode);
-            } else {
-                break;
-            }
+        while let Some(mode) = self.try_parse_transaction_mode()? {
+            modes.push(mode);
         }
         Ok(TransactionStatement { kind: TransactionKind::Begin, modes, savepoint_name: None, transaction_id: None })
     }
 
     pub(crate) fn parse_set_transaction(&mut self) -> Result<TransactionStatement, ParserError> {
         let mut modes = Vec::new();
-        loop {
-            if let Some(mode) = self.try_parse_transaction_mode()? {
-                modes.push(mode);
-            } else {
-                break;
-            }
+        while let Some(mode) = self.try_parse_transaction_mode()? {
+            modes.push(mode);
         }
         Ok(TransactionStatement {
             kind: TransactionKind::SetTransaction,
