@@ -1,3 +1,4 @@
+// A3 exception: ast is a pure data module; this file references 1300+ AST types.
 use crate::ast::*;
 
 pub(crate) mod plpgsql;
@@ -1024,7 +1025,7 @@ impl SqlFormatter {
                 match lower.as_str() {
                     "overlay" => {
                         let mut s = format!("{}(", self.kw("OVERLAY"));
-                        if args.len() >= 1 {
+                        if !args.is_empty() {
                             s.push_str(&self.format_expr(&args[0]));
                         }
                         if args.len() >= 2 {
@@ -1044,7 +1045,7 @@ impl SqlFormatter {
                     }
                     "position" => {
                         let mut s = format!("{}(", self.kw("POSITION"));
-                        if args.len() >= 1 {
+                        if !args.is_empty() {
                             s.push_str(&self.format_expr(&args[0]));
                         }
                         if args.len() >= 2 {
@@ -1056,7 +1057,7 @@ impl SqlFormatter {
                     }
                     "substring" | "substr" => {
                         let mut s = format!("{}(", self.kw("SUBSTRING"));
-                        if args.len() >= 1 {
+                        if !args.is_empty() {
                             s.push_str(&self.format_expr(&args[0]));
                         }
                         if args.len() >= 2 {
@@ -1072,7 +1073,7 @@ impl SqlFormatter {
                     }
                     "extract" => {
                         let mut s = format!("{}(", self.kw("EXTRACT"));
-                        if args.len() >= 1 {
+                        if !args.is_empty() {
                             s.push_str(&self.format_expr(&args[0]));
                         }
                         if args.len() >= 2 {
@@ -1102,7 +1103,7 @@ impl SqlFormatter {
                     }
                     "interval" => {
                         let mut s = self.kw("INTERVAL");
-                        if args.len() >= 1 {
+                        if !args.is_empty() {
                             s.push(' ');
                             s.push_str(&self.format_expr(&args[0]));
                         }

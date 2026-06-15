@@ -1,3 +1,4 @@
+// A3 exception: ast is a pure data module; this file references 270+ AST types.
 use crate::ast::*;
 use crate::parser::ddl::format_data_type;
 use crate::parser::{Parser, ParserError};
