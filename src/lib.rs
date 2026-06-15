@@ -1,3 +1,32 @@
+//! A hand-written recursive descent SQL parser for openGauss/GaussDB.
+//!
+//! Supports the full openGauss SQL dialect including DML, DDL, PL/pgSQL,
+//! and GaussDB-specific extensions. All AST types implement [`serde::Serialize`]
+//! and [`serde::Deserialize`] for lossless JSON round-trip.
+//!
+//! # Quick start
+//!
+//! ```
+//! use ogsql_parser::{Tokenizer, parser::Parser};
+//!
+//! let sql = "SELECT id, name FROM users WHERE status = 'active'";
+//! let tokens = Tokenizer::new(sql).tokenize()?;
+//! let statements = Parser::new(tokens).parse();
+//! # Ok::<(), ogsql_parser::TokenizerError>(())
+//! ```
+//!
+//! # Features
+//!
+//! - **Default**: Library only (tokenizer, parser, AST, formatter, analyzer, linter)
+//! - `cli`: Command-line binary with `parse`, `format`, `validate`, `tokenize`
+//! - `ibatis`: iBatis/MyBatis XML mapper parsing
+//! - `java`: Java source SQL extraction (tree-sitter)
+//! - `serve`: HTTP API server (axum)
+//! - `tui`: Interactive terminal playground (ratatui)
+//! - `mcp`: Model Context Protocol server for AI tools
+//!
+//! See the [project README](https://github.com/User/ogsql-parser) for full documentation.
+
 // Pre-existing code issues that became deny-by-warning in Rust 1.93.
 // These are style issues & pre-existing dead code (not bugs). Fix gradually.
 #![allow(

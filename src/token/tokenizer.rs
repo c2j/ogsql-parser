@@ -2,6 +2,7 @@ use super::keyword::lookup_keyword;
 use super::Keyword;
 use super::{SourceLocation, Span, Token, TokenWithSpan};
 
+/// Errors returned by [`Tokenizer::tokenize`](Tokenizer::tokenize).
 #[derive(Debug, Clone, thiserror::Error, serde::Serialize, serde::Deserialize)]
 pub enum TokenizerError {
     #[error("unterminated string literal at position {0}")]
@@ -18,6 +19,7 @@ pub enum TokenizerError {
     UnexpectedEof { expected: String, position: usize },
 }
 
+/// SQL lexical analyzer. Converts a raw SQL string into [`TokenWithSpan`] tokens.
 pub struct Tokenizer<'a> {
     input: &'a str,
     chars: std::iter::Peekable<std::str::Chars<'a>>,
@@ -166,29 +168,25 @@ impl<'a> Tokenizer<'a> {
                         return Ok(());
                     }
                 }
-                Some('/') => {
-                    if self.peek_byte_at(1) == Some(b'*') {
-                        let start = self.pos;
+                Some('/') if self.peek_byte_at(1) == Some(b'*') => {
+                    let start = self.pos;
+                    self.advance();
+                    self.advance();
+                    if self.peek_byte_at(0) == Some(b'+') {
                         self.advance();
-                        self.advance();
-                        if self.peek_byte_at(0) == Some(b'+') {
-                            self.advance();
-                            if self.after_dml_keyword {
-                                let hint = self.collect_hint_content();
-                                self.pending_hint = Some(hint);
-                            } else {
-                                self.collect_hint_content();
-                            }
-                        } else if self.preserve_comments {
-                            let content = self.collect_block_comment_content(start);
-                            self.pending_comment = Some(content);
-                            return Ok(());
+                        if self.after_dml_keyword {
+                            let hint = self.collect_hint_content();
+                            self.pending_hint = Some(hint);
                         } else {
-                            let saved_pos = self.pos;
-                            self.skip_block_comment(saved_pos)?;
+                            self.collect_hint_content();
                         }
-                    } else {
+                    } else if self.preserve_comments {
+                        let content = self.collect_block_comment_content(start);
+                        self.pending_comment = Some(content);
                         return Ok(());
+                    } else {
+                        let saved_pos = self.pos;
+                        self.skip_block_comment(saved_pos)?;
                     }
                 }
                 _ => return Ok(()),
@@ -226,11 +224,9 @@ impl<'a> Tokenizer<'a> {
                         depth += 1;
                     }
                 }
-                Some('*') => {
-                    if self.peek() == Some('/') {
-                        self.advance();
-                        depth -= 1;
-                    }
+                Some('*') if self.peek() == Some('/') => {
+                    self.advance();
+                    depth -= 1;
                 }
                 _ => {}
             }
@@ -249,11 +245,9 @@ impl<'a> Tokenizer<'a> {
                         depth += 1;
                     }
                 }
-                Some('*') => {
-                    if self.peek() == Some('/') {
-                        self.advance();
-                        depth -= 1;
-                    }
+                Some('*') if self.peek() == Some('/') => {
+                    self.advance();
+                    depth -= 1;
                 }
                 _ => {}
             }

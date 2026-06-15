@@ -12,6 +12,7 @@ use std::collections::HashSet;
 use crate::token::keyword::Keyword;
 use crate::token::{SourceLocation, Token, TokenWithSpan};
 
+/// Errors and warnings produced during SQL parsing.
 #[derive(Debug, Clone, thiserror::Error, serde::Serialize, serde::Deserialize)]
 pub enum ParserError {
     #[error("unexpected token at line {}, column {}: expected {}, got {}", .location.line, .location.column, expected, got)]
@@ -28,6 +29,7 @@ pub enum ParserError {
     UnsupportedSyntax { location: SourceLocation, syntax: String, hint: String },
 }
 
+/// Recursive descent SQL parser. Consumes [`TokenWithSpan`] tokens and produces [`Statement`](crate::ast::Statement) AST nodes.
 pub struct Parser {
     tokens: Vec<TokenWithSpan>,
     pos: usize,
