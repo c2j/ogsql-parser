@@ -26,10 +26,13 @@ toml = { version = "0.8", optional = true }
 
 # Binary-only deps (feature-gated)
 clap = { version = "4", features = ["derive"], optional = true }
-axum = { version = "0.7", optional = true }
+axum = { version = "0.8", features = ["multipart"], optional = true }
 tokio = { version = "1", features = ["rt-multi-thread", "macros"], optional = true }
-tower-http = { version = "0.6", features = ["cors"], optional = true }
+tower-http = { version = "0.6", features = ["cors", "trace", "request-id"], optional = true }
 utoipa = { version = "5", optional = true }
+utoipa-swagger-ui = { version = "9", features = ["axum"], optional = true }
+tracing = { version = "0.1", optional = true }
+tracing-subscriber = { version = "0.3", features = ["json", "env-filter"], optional = true }
 ratatui = { version = "0.29", optional = true }
 crossterm = { version = "0.28", optional = true }
 quick-xml = { version = "0.39", optional = true }
@@ -47,7 +50,7 @@ lint-config = ["dep:toml"]
 cli = ["dep:clap", "dep:walkdir", "lint-config"]
 ibatis = ["dep:quick-xml", "dep:walkdir"]
 java = ["dep:tree-sitter", "dep:tree-sitter-java", "dep:walkdir"]
-serve = ["cli", "dep:axum", "dep:tokio", "dep:tower-http", "dep:utoipa"]
+serve = ["cli", "dep:axum", "dep:tokio", "dep:tower-http", "dep:utoipa", "dep:utoipa-swagger-ui", "dep:tracing", "dep:tracing-subscriber"]
 tui = ["cli", "dep:ratatui", "dep:crossterm"]
 mcp = ["dep:rmcp", "dep:schemars", "dep:tokio", "ibatis", "java"]
 full = ["cli", "ibatis", "java", "mcp", "serve", "tui"]
