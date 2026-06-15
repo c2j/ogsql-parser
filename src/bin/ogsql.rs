@@ -7440,6 +7440,7 @@ fn main() {
 
             tracing::info!(addr = %addr, "starting ogsql server");
             eprintln!("ogsql server listening on http://{}", addr);
+            #[cfg(feature = "utoipa-swagger-ui")]
             eprintln!("  Swagger UI:  http://{}/api-docs/swagger-ui/", addr);
             eprintln!("  OpenAPI spec: http://{}/api-docs/openapi.json", addr);
 
