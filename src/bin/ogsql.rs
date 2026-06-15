@@ -220,6 +220,9 @@ enum Commands {
         #[arg(long)]
         structured: bool,
     },
+    #[cfg(feature = "mcp")]
+    /// Start MCP server on stdio (for Claude Desktop, Cursor, etc.) / 启动 MCP 服务器（stdio 模式）
+    Mcp,
     #[cfg(feature = "java")]
     /// Extract and parse SQL from Java source files / 从 Java 源文件中提取并解析 SQL
     #[command(name = "parse-java")]
@@ -6747,6 +6750,20 @@ fn main() {
         #[cfg(feature = "java")]
         Commands::ParseXml { ref dir, csv, ref java_src, stats, structured } => {
             cmd_parse_xml(&cli, dir.as_deref(), csv, java_src.as_deref(), stats, structured)
+        }
+        #[cfg(feature = "mcp")]
+        Commands::Mcp => {
+            use ogsql_parser::mcp::OgsqlServer;
+            use rmcp::ServiceExt;
+            eprintln!("ogsql: starting MCP server on stdio");
+            let rt = tokio::runtime::Runtime::new().expect("Failed to create tokio runtime");
+            rt.block_on(async {
+                let service = OgsqlServer
+                    .serve(rmcp::transport::stdio())
+                    .await
+                    .unwrap_or_else(|e| die!("MCP server init failed: {:?}", e));
+                service.waiting().await.unwrap_or_else(|e| die!("MCP server error: {:?}", e));
+            });
         }
         #[cfg(feature = "java")]
         Commands::ParseJava { ref extra_sql_methods, ref extra_sql_var_patterns, ref dir, csv, stats } => {
