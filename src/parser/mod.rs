@@ -12,6 +12,7 @@ use std::collections::HashSet;
 use crate::token::keyword::Keyword;
 use crate::token::{SourceLocation, Token, TokenWithSpan};
 
+/// Errors and warnings produced during SQL parsing.
 #[derive(Debug, Clone, thiserror::Error, serde::Serialize, serde::Deserialize)]
 pub enum ParserError {
     #[error("unexpected token at line {}, column {}: expected {}, got {}", .location.line, .location.column, expected, got)]
@@ -28,6 +29,7 @@ pub enum ParserError {
     UnsupportedSyntax { location: SourceLocation, syntax: String, hint: String },
 }
 
+/// Recursive descent SQL parser. Consumes [`TokenWithSpan`] tokens and produces [`Statement`](crate::ast::Statement) AST nodes.
 pub struct Parser {
     tokens: Vec<TokenWithSpan>,
     pos: usize,
@@ -458,10 +460,10 @@ impl Parser {
                         return i;
                     }
                 }
-                Token::Keyword(Keyword::CREATE) if !is_package && depth <= 0 && begin_depth <= 0 => {
-                    if self.detect_package_context_at(i) {
-                        return if i > self.pos { i - 1 } else { i };
-                    }
+                Token::Keyword(Keyword::CREATE)
+                    if !is_package && depth <= 0 && begin_depth <= 0 && self.detect_package_context_at(i) =>
+                {
+                    return if i > self.pos { i - 1 } else { i };
                 }
                 _ => {}
             }
@@ -4830,7 +4832,7 @@ impl Parser {
                             | Token::OpDblBang
                             | Token::OpConcat) => {
                                 self.advance();
-                                tok.as_op_str().unwrap().to_string()
+                                tok.as_op_str().expect("token matched as operator variant").to_string()
                             }
                             other => {
                                 self.add_error(ParserError::UnexpectedToken {
@@ -5240,20 +5242,18 @@ impl Parser {
             Token::Ident(_) | Token::QuotedIdent(_) | Token::Keyword(_) => {}
             _ => return false,
         }
-        if let Token::Keyword(kw) = &self.tokens[i].token {
-            match kw {
-                Keyword::CURSOR
-                | Keyword::BINARY
-                | Keyword::SCROLL
-                | Keyword::NO
-                | Keyword::WITH
-                | Keyword::WITHOUT
-                | Keyword::INSENSITIVE
-                | Keyword::FOR => {
-                    return false;
-                }
-                _ => {}
-            }
+        if let Token::Keyword(
+            Keyword::CURSOR
+            | Keyword::BINARY
+            | Keyword::SCROLL
+            | Keyword::NO
+            | Keyword::WITH
+            | Keyword::WITHOUT
+            | Keyword::INSENSITIVE
+            | Keyword::FOR,
+        ) = &self.tokens[i].token
+        {
+            return false;
         }
         if let Token::Ident(s) = &self.tokens[i].token {
             let upper = s.to_uppercase();

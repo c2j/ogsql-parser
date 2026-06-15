@@ -1,3 +1,4 @@
+// A3 exception: ast is a pure data module; this file references 390+ AST types.
 use crate::ast::*;
 use crate::parser::{Parser, ParserError};
 use crate::token::keyword::Keyword;
@@ -1810,7 +1811,7 @@ impl Parser {
             | Token::OpDblBang
             | Token::OpConcat) => {
                 self.advance();
-                tok.as_op_str().unwrap().to_string()
+                tok.as_op_str().expect("token matched as operator variant").to_string()
             }
             other => {
                 return Err(ParserError::UnexpectedToken {

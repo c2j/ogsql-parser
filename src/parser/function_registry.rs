@@ -171,6 +171,10 @@ impl FunctionRegistry {
     }
 
     /// Load extension entries from a JSON string (array of `FuncMetaOwned`).
+    ///
+    /// # Errors
+    ///
+    /// Returns `Err(RegistryError)` if the JSON cannot be deserialized.
     pub fn with_extensions_from_json(mut self, json: &str) -> Result<Self, RegistryError> {
         let entries: Vec<FuncMetaOwned> = serde_json::from_str(json)?;
         for entry in entries {

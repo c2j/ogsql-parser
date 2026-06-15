@@ -2,6 +2,7 @@
 name = "ogsql-parser"
 version = "0.7.0"
 edition = "2021"
+rust-version = "1.70"
 description = "A SQL parser for openGauss/GaussDB written in Rust"
 license = "MIT OR Apache-2.0"
 readme = "README.md"

@@ -62,7 +62,7 @@ fn find_schema_table<'a>(schema: &'a SchemaMap, name: &[String]) -> Option<&'a S
             return Some(key);
         }
     }
-    let single = name.last().unwrap().to_lowercase();
+    let single = name.last().expect("name is non-empty — checked at function entry").to_lowercase();
     schema.keys().find(|k| *k == &single)
 }
 

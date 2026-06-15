@@ -53,9 +53,7 @@ pub fn router() -> Router {
     #[cfg(feature = "utoipa-swagger-ui")]
     {
         let openapi = openapi::build_openapi();
-        router = router.merge(
-            SwaggerUi::new("/api-docs/swagger-ui").url("/api-docs/openapi.json", openapi),
-        );
+        router = router.merge(SwaggerUi::new("/api-docs/swagger-ui").url("/api-docs/openapi.json", openapi));
     }
 
     #[cfg(feature = "ibatis")]

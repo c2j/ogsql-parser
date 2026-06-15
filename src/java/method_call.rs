@@ -5,8 +5,7 @@ use tree_sitter::Node;
 use super::constant::{JDBC_SETTER_TYPES, SQL_METHOD_AMBIGUOUS, SQL_METHOD_UNAMBIGUOUS};
 use super::extract::ExtractContext;
 use super::heuristics::{detect_parameter_style, looks_like_sql};
-use super::types::JdbcParamInfo;
-use crate::java::types::*;
+use super::types::{ExtractedSql, ExtractionMethod, JdbcParamInfo, MethodPsBehavior, SqlKind, SqlOrigin};
 
 pub(super) struct PendingInjection {
     pub(super) ps_var: String,
@@ -37,7 +36,7 @@ impl<'a> ExtractContext<'a> {
 
         // Intercept JDBC setter calls (setString, setInt, etc.)
         if method_name.starts_with("set") && method_name.len() > 3 {
-            let next_char = method_name.chars().nth(3).unwrap();
+            let next_char = method_name.chars().nth(3).expect("method_name.len() > 3 checked above");
             if next_char.is_ascii_uppercase() {
                 if let Some(root_var) = self.find_method_chain_root(node) {
                     let is_ps = self.ps_var_to_extraction.contains_key(&root_var)

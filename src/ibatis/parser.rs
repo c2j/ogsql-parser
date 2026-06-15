@@ -14,6 +14,11 @@ use crate::ibatis::util::{find_closing_brace, parse_param_attrs};
 
 const SKIP_TAGS: &[&str] = &["resultMap", "cache", "cache-ref", "selectKey"];
 
+/// Parses an iBatis/MyBatis XML mapper file into a [`MapperFile`].
+///
+/// # Errors
+///
+/// Returns `Err(IbatisError)` for malformed XML or missing required attributes.
 pub fn parse_xml(xml: &[u8]) -> Result<MapperFile, IbatisError> {
     let mut reader = Reader::from_reader(xml);
     reader.config_mut().trim_text(false);
@@ -31,22 +36,22 @@ pub fn parse_xml(xml: &[u8]) -> Result<MapperFile, IbatisError> {
             Ok(Event::Start(e)) => {
                 let tag = e.local_name();
                 if tag.as_ref().eq_ignore_ascii_case(b"mapper") || tag.as_ref().eq_ignore_ascii_case(b"sqlMap") {
-                    namespace = get_attr(&e, "namespace").unwrap_or_default();
+                    namespace = read_attr(&e, "namespace").unwrap_or_default();
                 } else if tag.as_ref().eq_ignore_ascii_case(b"sql") {
-                    let id = get_attr(&e, "id").unwrap_or_default();
+                    let id = read_attr(&e, "id").unwrap_or_default();
                     let children = read_node_tree(&mut reader, b"sql");
                     fragments.push(SqlFragment { id, body: merge_children(children) });
                 } else if let Some(kind) = statement_kind(tag.as_ref()) {
                     let line = byte_offset_to_line(xml, reader.buffer_position() as usize);
-                    let id = get_attr(&e, "id").unwrap_or_default();
-                    let parameter_type = get_attr(&e, "parameterType")
-                        .or_else(|| get_attr(&e, "parameterClass"))
-                        .or_else(|| get_attr(&e, "parameterMap"));
-                    let result_type = get_attr(&e, "resultType")
-                        .or_else(|| get_attr(&e, "resultMap"))
-                        .or_else(|| get_attr(&e, "resultClass"));
-                    let database_id = get_attr(&e, "databaseId");
-                    let statement_type = get_attr(&e, "statementType");
+                    let id = read_attr(&e, "id").unwrap_or_default();
+                    let parameter_type = read_attr(&e, "parameterType")
+                        .or_else(|| read_attr(&e, "parameterClass"))
+                        .or_else(|| read_attr(&e, "parameterMap"));
+                    let result_type = read_attr(&e, "resultType")
+                        .or_else(|| read_attr(&e, "resultMap"))
+                        .or_else(|| read_attr(&e, "resultClass"));
+                    let database_id = read_attr(&e, "databaseId");
+                    let statement_type = read_attr(&e, "statementType");
                     let children = read_node_tree(&mut reader, tag.as_ref());
                     statements.push(MapperStatement {
                         kind,
@@ -59,8 +64,8 @@ pub fn parse_xml(xml: &[u8]) -> Result<MapperFile, IbatisError> {
                         statement_type,
                     });
                 } else if tag.as_ref().eq_ignore_ascii_case(b"parameterMap") {
-                    let id = get_attr(&e, "id").unwrap_or_default();
-                    let class = get_attr(&e, "class");
+                    let id = read_attr(&e, "id").unwrap_or_default();
+                    let class = read_attr(&e, "class");
                     let entries = parse_parameter_map_entries(&mut reader);
                     parameter_maps.push(ParameterMapDef { id, class, params: entries });
                 } else if is_skip_tag(tag.as_ref()) {
@@ -70,10 +75,10 @@ pub fn parse_xml(xml: &[u8]) -> Result<MapperFile, IbatisError> {
             Ok(Event::Empty(e)) => {
                 let tag = e.local_name();
                 if tag.as_ref().eq_ignore_ascii_case(b"sql") {
-                    let id = get_attr(&e, "id").unwrap_or_default();
+                    let id = read_attr(&e, "id").unwrap_or_default();
                     fragments.push(SqlFragment { id, body: SqlNode::Text { content: String::new() } });
                 } else if tag.as_ref().eq_ignore_ascii_case(b"typeAlias") {
-                    if let (Some(alias), Some(type_attr)) = (get_attr(&e, "alias"), get_attr(&e, "type")) {
+                    if let (Some(alias), Some(type_attr)) = (read_attr(&e, "alias"), read_attr(&e, "type")) {
                         type_aliases.push((alias, type_attr));
                     }
                 }
@@ -164,13 +169,13 @@ fn read_node_tree(reader: &mut Reader<&[u8]>, end_tag: &[u8]) -> Vec<SqlNode> {
                 flush_text_to_nodes(&mut text_buf, &mut nodes);
                 let ln = e.local_name();
                 if ln.as_ref().eq_ignore_ascii_case(b"include") {
-                    if let Some(refid) = get_attr(&e, "refid") {
+                    if let Some(refid) = read_attr(&e, "refid") {
                         nodes.push(SqlNode::Include { refid });
                     }
                 } else if ln.as_ref().eq_ignore_ascii_case(b"bind") {
                     nodes.push(SqlNode::Bind {
-                        name: get_attr(&e, "name").unwrap_or_default(),
-                        value: get_attr(&e, "value").unwrap_or_default(),
+                        name: read_attr(&e, "name").unwrap_or_default(),
+                        value: read_attr(&e, "value").unwrap_or_default(),
                     });
                 } else {
                     let tag_name = String::from_utf8_lossy(ln.as_ref());
@@ -329,9 +334,9 @@ fn parse_dynamic_element(
     element: &quick_xml::events::BytesStart<'_>,
 ) -> Option<SqlNode> {
     if tag.eq_ignore_ascii_case(b"if") {
-        let test = get_attr(element, "test").unwrap_or_default();
+        let test = read_attr(element, "test").unwrap_or_default();
         let children = read_node_tree(reader, b"if");
-        Some(SqlNode::If { test, prepend: get_attr(element, "prepend"), children })
+        Some(SqlNode::If { test, prepend: read_attr(element, "prepend"), children })
     } else if tag.eq_ignore_ascii_case(b"where") {
         let children = read_node_tree(reader, b"where");
         Some(SqlNode::Where { children })
@@ -341,22 +346,22 @@ fn parse_dynamic_element(
     } else if tag.eq_ignore_ascii_case(b"trim") {
         let children = read_node_tree(reader, b"trim");
         Some(SqlNode::Trim {
-            prefix: get_attr(element, "prefix"),
-            suffix: get_attr(element, "suffix"),
-            prefix_overrides: get_attr(element, "prefixOverrides"),
-            suffix_overrides: get_attr(element, "suffixOverrides"),
+            prefix: read_attr(element, "prefix"),
+            suffix: read_attr(element, "suffix"),
+            prefix_overrides: read_attr(element, "prefixOverrides"),
+            suffix_overrides: read_attr(element, "suffixOverrides"),
             children,
         })
     } else if tag.eq_ignore_ascii_case(b"foreach") {
         let children = read_node_tree(reader, b"foreach");
         Some(SqlNode::ForEach {
-            collection: get_attr(element, "collection").unwrap_or_default(),
-            item: get_attr(element, "item").unwrap_or_else(|| "item".to_string()),
-            index: get_attr(element, "index"),
-            open: get_attr(element, "open"),
-            separator: get_attr(element, "separator"),
-            close: get_attr(element, "close"),
-            prepend: get_attr(element, "prepend"),
+            collection: read_attr(element, "collection").unwrap_or_default(),
+            item: read_attr(element, "item").unwrap_or_else(|| "item".to_string()),
+            index: read_attr(element, "index"),
+            open: read_attr(element, "open"),
+            separator: read_attr(element, "separator"),
+            close: read_attr(element, "close"),
+            prepend: read_attr(element, "prepend"),
             children,
         })
     } else if tag.eq_ignore_ascii_case(b"choose") {
@@ -364,15 +369,15 @@ fn parse_dynamic_element(
         let branches = parse_choose_branches(children);
         Some(SqlNode::Choose { branches })
     } else if tag.eq_ignore_ascii_case(b"when") {
-        let test = get_attr(element, "test").unwrap_or_default();
+        let test = read_attr(element, "test").unwrap_or_default();
         let children = read_node_tree(reader, b"when");
-        Some(SqlNode::If { test, prepend: get_attr(element, "prepend"), children })
+        Some(SqlNode::If { test, prepend: read_attr(element, "prepend"), children })
     } else if tag.eq_ignore_ascii_case(b"otherwise") {
         let children = read_node_tree(reader, b"otherwise");
-        Some(SqlNode::If { test: String::new(), prepend: get_attr(element, "prepend"), children })
+        Some(SqlNode::If { test: String::new(), prepend: read_attr(element, "prepend"), children })
     } else if tag.eq_ignore_ascii_case(b"dynamic") {
         let children = read_node_tree(reader, b"dynamic");
-        let prepend = get_attr(element, "prepend");
+        let prepend = read_attr(element, "prepend");
         match prepend {
             Some(p) if !p.is_empty() => Some(SqlNode::Trim {
                 prefix: Some(p),
@@ -386,23 +391,23 @@ fn parse_dynamic_element(
     } else if tag.eq_ignore_ascii_case(b"iterate") {
         let children = read_node_tree(reader, b"iterate");
         Some(SqlNode::ForEach {
-            collection: get_attr(element, "property").unwrap_or_default(),
+            collection: read_attr(element, "property").unwrap_or_default(),
             item: String::new(),
             index: None,
-            open: get_attr(element, "open"),
-            separator: get_attr(element, "conjunction"),
-            close: get_attr(element, "close"),
-            prepend: get_attr(element, "prepend"),
+            open: read_attr(element, "open"),
+            separator: read_attr(element, "conjunction"),
+            close: read_attr(element, "close"),
+            prepend: read_attr(element, "prepend"),
             children,
         })
     } else if tag.eq_ignore_ascii_case(b"include") {
         // <include refid="..."></include> — 开闭形式（自闭合形式在 Event::Empty 分支处理）
-        let refid = get_attr(element, "refid").unwrap_or_default();
+        let refid = read_attr(element, "refid").unwrap_or_default();
         let _children = read_node_tree(reader, b"include");
         Some(SqlNode::Include { refid })
     } else if is_ibatis2_conditional(tag) {
         let test = synthesize_ibatis2_test(element);
-        let prepend = get_attr(element, "prepend");
+        let prepend = read_attr(element, "prepend");
         let children = read_node_tree(reader, tag);
         Some(SqlNode::If { test, prepend, children })
     } else {
@@ -434,7 +439,7 @@ fn parse_choose_branches(children: Vec<SqlNode>) -> Vec<(Option<String>, Vec<Sql
 fn merge_children(children: Vec<SqlNode>) -> SqlNode {
     match children.len() {
         0 => SqlNode::Text { content: String::new() },
-        1 => children.into_iter().next().unwrap(),
+        1 => children.into_iter().next().expect("match arm guarantees exactly 1 child"),
         _ => SqlNode::Sequence { children },
     }
 }
@@ -445,14 +450,14 @@ fn simple_node_to_text(node: &SqlNode) -> String {
         SqlNode::Parameter { name, java_type, jdbc_type, .. } => {
             let type_str: Option<&str> = jdbc_type.as_deref().or(java_type.as_deref());
             match type_str {
-                Some(t) => format!("#{{{},{}}}", name, format!("jdbcType={}", t)),
+                Some(t) => format!("#{{{},jdbcType={}}}", name, t),
                 None => format!("#{{{}}}", name),
             }
         }
         SqlNode::RawExpr { expr, java_type, jdbc_type } => {
             let type_str: Option<&str> = jdbc_type.as_deref().or(java_type.as_deref());
             match type_str {
-                Some(t) => format!("${{{},{}}}", expr, format!("jdbcType={}", t)),
+                Some(t) => format!("${{{},jdbcType={}}}", expr, t),
                 None => format!("${{{}}}", expr),
             }
         }
@@ -490,18 +495,18 @@ fn parse_parameter_map_entries(reader: &mut Reader<&[u8]>) -> Vec<ParameterMapEn
             Ok(Event::Empty(e)) => {
                 if e.local_name().as_ref().eq_ignore_ascii_case(b"parameter") {
                     entries.push(ParameterMapEntry {
-                        property: get_attr(&e, "property").unwrap_or_default(),
-                        jdbc_type: get_attr(&e, "jdbcType"),
-                        java_type: get_attr(&e, "javaType"),
+                        property: read_attr(&e, "property").unwrap_or_default(),
+                        jdbc_type: read_attr(&e, "jdbcType"),
+                        java_type: read_attr(&e, "javaType"),
                     });
                 }
             }
             Ok(Event::Start(e)) => {
                 if e.local_name().as_ref().eq_ignore_ascii_case(b"parameter") {
                     entries.push(ParameterMapEntry {
-                        property: get_attr(&e, "property").unwrap_or_default(),
-                        jdbc_type: get_attr(&e, "jdbcType"),
-                        java_type: get_attr(&e, "javaType"),
+                        property: read_attr(&e, "property").unwrap_or_default(),
+                        jdbc_type: read_attr(&e, "jdbcType"),
+                        java_type: read_attr(&e, "javaType"),
                     });
                     skip_content(reader, b"parameter");
                 }
@@ -518,7 +523,7 @@ fn parse_parameter_map_entries(reader: &mut Reader<&[u8]>) -> Vec<ParameterMapEn
     entries
 }
 
-fn get_attr(element: &quick_xml::events::BytesStart<'_>, name: &str) -> Option<String> {
+fn read_attr(element: &quick_xml::events::BytesStart<'_>, name: &str) -> Option<String> {
     element.attributes().find_map(|a| {
         a.ok().and_then(|a| {
             if a.key.local_name().as_ref().eq_ignore_ascii_case(name.as_bytes()) {
@@ -602,8 +607,8 @@ fn is_ibatis2_conditional(tag: &[u8]) -> bool {
 }
 
 fn synthesize_ibatis2_test(element: &quick_xml::events::BytesStart<'_>) -> String {
-    let property = get_attr(element, "property").unwrap_or_default();
-    let compare_value = get_attr(element, "compareValue");
+    let property = read_attr(element, "property").unwrap_or_default();
+    let compare_value = read_attr(element, "compareValue");
     match compare_value {
         Some(cv) => format!("{} == '{}'", property, cv),
         None => {

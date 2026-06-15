@@ -160,7 +160,7 @@ fn collect_params_recursive(node: &SqlNode, params: &mut Vec<(String, Option<Str
         SqlNode::Parameter { name, java_type, jdbc_type, .. } => {
             let type_str: Option<&str> = jdbc_type.as_deref().or(java_type.as_deref());
             let raw = match type_str {
-                Some(t) => format!("#{{{},{}}}", name, format!("jdbcType={}", t)),
+                Some(t) => format!("#{{{},jdbcType={}}}", name, t),
                 None => format!("#{{{}}}", name),
             };
             params.push((name.clone(), type_str.map(|s| s.to_string()), raw));
@@ -168,7 +168,7 @@ fn collect_params_recursive(node: &SqlNode, params: &mut Vec<(String, Option<Str
         SqlNode::RawExpr { expr, java_type, jdbc_type } => {
             let type_str: Option<&str> = jdbc_type.as_deref().or(java_type.as_deref());
             let raw = match type_str {
-                Some(t) => format!("${{{},{}}}", expr, format!("jdbcType={}", t)),
+                Some(t) => format!("${{{},jdbcType={}}}", expr, t),
                 None => format!("${{{}}}", expr),
             };
             params.push((expr.clone(), type_str.map(|s| s.to_string()), raw));

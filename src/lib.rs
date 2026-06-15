@@ -1,31 +1,44 @@
+//! A hand-written recursive descent SQL parser for openGauss/GaussDB.
+//!
+//! Supports the full openGauss SQL dialect including DML, DDL, PL/pgSQL,
+//! and GaussDB-specific extensions. All AST types implement [`serde::Serialize`]
+//! and [`serde::Deserialize`] for lossless JSON round-trip.
+//!
+//! # Quick start
+//!
+//! ```
+//! use ogsql_parser::{Tokenizer, parser::Parser};
+//!
+//! let sql = "SELECT id, name FROM users WHERE status = 'active'";
+//! let tokens = Tokenizer::new(sql).tokenize()?;
+//! let statements = Parser::new(tokens).parse();
+//! # Ok::<(), ogsql_parser::TokenizerError>(())
+//! ```
+//!
+//! # Features
+//!
+//! - **Default**: Library only (tokenizer, parser, AST, formatter, analyzer, linter)
+//! - `cli`: Command-line binary with `parse`, `format`, `validate`, `tokenize`
+//! - `ibatis`: iBatis/MyBatis XML mapper parsing
+//! - `java`: Java source SQL extraction (tree-sitter)
+//! - `serve`: HTTP API server (axum)
+//! - `tui`: Interactive terminal playground (ratatui)
+//! - `mcp`: Model Context Protocol server for AI tools
+//!
+//! See the [project README](https://github.com/User/ogsql-parser) for full documentation.
+
 // Pre-existing code issues that became deny-by-warning in Rust 1.93.
 // These are style issues & pre-existing dead code (not bugs). Fix gradually.
 #![allow(
-    clippy::unwrap_used,
-    clippy::len_zero,
+    // Parser pattern: matching different keywords/tokens often leads to identical
+    // handling (advance + same action). Each branch is intentionally separate for
+    // grammar-rule readability. Combining conditions would obscure the grammar.
     clippy::if_same_then_else,
+    clippy::unwrap_used,
     clippy::large_enum_variant,
-    clippy::format_in_format_args,
-    clippy::while_let_loop,
-    clippy::collapsible_match,
-    clippy::field_reassign_with_default,
-    clippy::manual_strip,
-    clippy::match_like_matches_macro,
     clippy::ptr_arg,
     clippy::should_implement_trait,
-    clippy::collapsible_if,
-    clippy::let_and_return,
-    clippy::redundant_closure,
-    clippy::useless_format,
-    clippy::needless_return,
-    clippy::needless_late_init,
     clippy::unnecessary_literal_unwrap,
-    clippy::single_match,
-    clippy::unnecessary_to_owned,
-    clippy::bind_instead_of_map,
-    clippy::map_unwrap_or,
-    clippy::option_if_let_else,
-    clippy::unnecessary_filter_map,
     clippy::result_large_err,
     unexpected_cfgs,
     unreachable_patterns,

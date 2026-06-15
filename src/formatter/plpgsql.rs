@@ -1,4 +1,5 @@
 use super::SqlFormatter;
+// A3 exception: ast is a pure data module; this file references 180+ AST types.
 use crate::ast::*;
 
 impl SqlFormatter {

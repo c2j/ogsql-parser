@@ -4,6 +4,7 @@
 [submodule "lib/mybatis-spring"]
 	path = lib/mybatis-spring
 	url = https://github.com/mybatis/spring.git
+	ignore = dirty
 [submodule "lib/mybatis-crud"]
 	path = lib/mybatis-crud
 	url = https://github.com/cibofdevs/mybatis-crud.git
@@ -22,3 +23,4 @@
 [submodule "lib/ibatis-2"]
 	path = lib/ibatis-2
 	url = https://github.com/mybatis/ibatis-2.git
+	ignore = dirty

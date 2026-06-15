@@ -360,10 +360,8 @@ fn collect_table_names_from(from: &[crate::ast::TableRef], tables: &mut Vec<Stri
                 collect_table_names_from(std::slice::from_ref(left), tables);
                 collect_table_names_from(std::slice::from_ref(right), tables);
             }
-            TableRef::Subquery { alias, .. } => {
-                if let Some(a) = alias {
-                    tables.push(a.to_lowercase());
-                }
+            TableRef::Subquery { alias: Some(a), .. } => {
+                tables.push(a.to_lowercase());
             }
             _ => {}
         }
@@ -772,11 +770,11 @@ fn check_block_for_swallow(block: &PlBlock, found: &mut bool) {
     }
     if let Some(ref exc) = block.exception_block {
         for handler in &exc.handlers {
-            if handler.conditions.iter().any(|c| c.eq_ignore_ascii_case("others")) {
-                if !handler.statements.iter().any(has_raise) {
-                    *found = true;
-                    return;
-                }
+            if handler.conditions.iter().any(|c| c.eq_ignore_ascii_case("others"))
+                && !handler.statements.iter().any(has_raise)
+            {
+                *found = true;
+                return;
             }
         }
     }
@@ -816,7 +814,7 @@ fn check_pl_stmts_for_swallow(stmts: &[PlStatement], found: &mut bool) {
 }
 
 fn has_raise(s: &PlStatement) -> bool {
-    matches!(s, PlStatement::Raise(r) if r.level.as_ref().is_none_or(|l| !matches!(l, RaiseLevel::Debug | RaiseLevel::Log)))
+    matches!(s, PlStatement::Raise(r) if r.level.as_ref().map_or(true, |l| !matches!(l, RaiseLevel::Debug | RaiseLevel::Log)))
 }
 
 // ── C014: PL block COMMIT/ROLLBACK ──

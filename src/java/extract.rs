@@ -4,10 +4,12 @@ use std::collections::HashMap;
 
 use tree_sitter::Node;
 
-use super::types::{JavaExtractConfig, JdbcParamInfo, MethodPsBehavior};
+use super::types::{
+    ExtractedSql, ExtractionMethod, JavaExtractConfig, JavaExtractResult, JdbcParamInfo, MethodPsBehavior, SqlKind,
+    SqlOrigin, SqlParseResult,
+};
 use crate::java::error::JavaError;
 use crate::java::method_call::PendingInjection;
-use crate::java::types::*;
 
 /// Tracks how a Collection/List variable gets its values.
 #[derive(Clone, Debug)]
@@ -1351,7 +1353,7 @@ impl<'a> ExtractContext<'a> {
         let args = node.child_by_field_name("arguments")?;
         let count = self.resolve_int_arg_node(&args, 0)?;
         let element = self.try_eval_string_arg_node(&args, 1)?;
-        let parts: Vec<&str> = std::iter::repeat_n(element.as_str(), count).collect();
+        let parts: Vec<&str> = std::iter::repeat(element.as_str()).take(count).collect();
         Some(parts.join(", "))
     }
 
