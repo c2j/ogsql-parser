@@ -435,12 +435,20 @@ ogsql serve --host 127.0.0.1 --port 8080
 
 | 方法 | 端点 | 说明 | 请求体 |
 |------|------|------|--------|
-| GET | `/api/health` | 健康检查 | — |
-| POST | `/api/parse` | 解析 SQL → AST JSON | `{"sql": "..."}` |
+| GET | `/api/health` | 健康检查（含版本号） | — |
+| POST | `/api/parse` | 解析 SQL → AST JSON | `{"sql": "...", "lint": true, "lint_config": {...}}` |
 | POST | `/api/json2sql` | JSON → SQL | `{"json": "..."}` |
 | POST | `/api/format` | 格式化 SQL | `{"sql": "...", "indent": 2, "keyword_case": "upper", ...}` |
 | POST | `/api/tokenize` | SQL 分词 | `{"sql": "..."}` |
-| POST | `/api/validate` | 校验 SQL | `{"sql": "..."}` |
+| POST | `/api/validate` | 校验 SQL（语法+语义+lint） | `{"sql": "...", "strict": true, "lint": true}` |
+| POST | `/api/parse-xml` | 解析 iBatis/MyBatis XML | `{"xml": "..."}` |
+| POST | `/api/validate-xml` | 校验 iBatis/MyBatis XML | `{"xml": "...", "strict": true, "lint": true}` |
+| POST | `/api/parse-java` | 提取 Java 中的 SQL | `{"source": "..."}` |
+| POST | `/api/validate-java` | 校验 Java 源文件中的 SQL | `{"source": "...", "strict": true, "lint": true}` |
+| GET | `/api-docs/openapi.json` | OpenAPI 规范 | — |
+| GET | `/api-docs/swagger-ui` | Swagger UI 交互文档 | — |
+
+> 注：`parse-xml` / `validate-xml` 需要 `--features ibatis`。`parse-java` / `validate-java` 需要 `--features java`。Swagger UI 资源已嵌入二进制，**无需外网访问**。
 
 **请求示例：**
 
@@ -468,9 +476,37 @@ curl -X POST http://localhost:3000/api/validate \
 | `sql` | string | — | 必填，要格式化的 SQL |
 | `indent` | number | `2` | 缩进空格数 |
 | `keyword_case` | string | `"preserve"` | 关键字大小写：`preserve`、`upper`、`lower` |
-| `comma` | string | `"trailing"` | 逗号风格：`trailing`、`leading` |
+| `comma_style` | string | `"trailing"` | 逗号风格：`trailing`、`leading` |
 | `line_width` | number | `120` | 最大行宽 |
+| `uppercase` | boolean | `false` | 等同于 `keyword_case: "upper"` |
 | `mybatis` | boolean | `false` | 是否保留 MyBatis 占位符 |
+| `no_select_newline` | boolean | `false` | 不将每个 SELECT 列放在单独的行 |
+| `no_logical_newline` | boolean | `false` | 不将 AND/OR 放在新行 |
+| `no_semicolon_newline` | boolean | `false` | 不将分号放在单独的行 |
+
+**Lint 配置（`lint_config`）参数：**
+
+当设置 `"lint": true` 时，可传入 `lint_config` 自定义规则行为：
+
+| 参数 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| `min_level` | string | `"suggestion"` | 最低报告级别：`prohibition`、`performance`、`caution`、`suggestion` |
+| `min_confidence` | string | `"partial"` | 最低可信度：`full`、`partial` |
+| `suppress` | string[] | `[]` | 禁用的规则 ID 列表（如 `["P001", "C018"]`） |
+| `in_list_threshold` | number | `500` | P003 IN 列表大小阈值 |
+| `subquery_depth_limit` | number | `3` | P014 子查询嵌套深度限制 |
+| `non_equi_join_limit` | number | `2` | P007 非等值连接数限制 |
+
+**错误响应格式：**
+
+所有端点错误均返回正确的 HTTP 状态码：
+
+| HTTP 状态码 | 说明 | 响应示例 |
+|------------|------|---------|
+| 400 | 无效 JSON 或缺少必填字段 | `{"error":"bad_request","message":"Invalid JSON: ..."}` |
+| 422 | SQL 分词/解析失败 | `{"error":"unprocessable_entity","message":"Tokenization error: ..."}` |
+| 404 | 资源未找到（如 procedure 不存在） | `{"error":"not_found","message":"Procedure 'x' not found"}` |
+| 500 | 服务器内部错误 | `{"error":"internal_error","message":"serialization failed"}` |
 
 ---
 
