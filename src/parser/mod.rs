@@ -4830,7 +4830,7 @@ impl Parser {
                             | Token::OpDblBang
                             | Token::OpConcat) => {
                                 self.advance();
-                                tok.as_op_str().unwrap().to_string()
+                                tok.as_op_str().expect("token matched as operator variant").to_string()
                             }
                             other => {
                                 self.add_error(ParserError::UnexpectedToken {

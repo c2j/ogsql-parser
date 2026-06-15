@@ -122,9 +122,11 @@ impl OgsqlServer {
             .statements
             .iter()
             .map(|si| {
-                let mut obj = serde_json::to_value(si).unwrap();
+                let mut obj = serde_json::to_value(si).expect("StatementInfo is serializable");
                 if let Some(analysis) = compute_routine_analysis(&si.statement) {
-                    obj.as_object_mut().unwrap().insert("routine_analysis".to_string(), analysis);
+                    obj.as_object_mut()
+                        .expect("to_value of struct yields object")
+                        .insert("routine_analysis".to_string(), analysis);
                 }
                 obj
             })
@@ -135,17 +137,25 @@ impl OgsqlServer {
             "errors": output.errors,
         });
         if !fingerprints.is_empty() {
-            out.as_object_mut().unwrap().insert("query_fingerprints".to_string(), serde_json::json!(fingerprints));
+            out.as_object_mut()
+                .expect("json! macro yields object")
+                .insert("query_fingerprints".to_string(), serde_json::json!(fingerprints));
         }
         if !output.comments.is_empty() {
-            out.as_object_mut().unwrap().insert("comments".to_string(), serde_json::json!(output.comments));
+            out.as_object_mut()
+                .expect("json! macro yields object")
+                .insert("comments".to_string(), serde_json::json!(output.comments));
         }
         if lint {
             let config = LintConfig::default();
             let linter = SqlLinter::with_default_rules(config);
             let lint_warnings = linter.lint(&output.statements, None, Confidence::Full);
-            out.as_object_mut().unwrap().insert("lint_warnings".to_string(), serde_json::json!(lint_warnings));
-            out.as_object_mut().unwrap().insert("lint_summary".to_string(), build_lint_summary(&lint_warnings));
+            out.as_object_mut()
+                .expect("json! macro yields object")
+                .insert("lint_warnings".to_string(), serde_json::json!(lint_warnings));
+            out.as_object_mut()
+                .expect("json! macro yields object")
+                .insert("lint_summary".to_string(), build_lint_summary(&lint_warnings));
         }
         serde_json::to_string_pretty(&out).unwrap_or_else(|e| format!("{{\"error\": \"{}\"}}", e))
     }
@@ -253,21 +263,27 @@ impl OgsqlServer {
         if !pkg_errors.is_empty() {
             result
                 .as_object_mut()
-                .unwrap()
+                .expect("json! macro yields object")
                 .insert("package_consistency_errors".to_string(), serde_json::json!(pkg_errors));
         }
         if !merge_errors.is_empty() {
             result
                 .as_object_mut()
-                .unwrap()
+                .expect("json! macro yields object")
                 .insert("merge_semantic_errors".to_string(), serde_json::json!(merge_errors));
         }
         if lint {
             let config = LintConfig::default();
             let linter = SqlLinter::with_default_rules(config);
             let lint_warnings = linter.lint(&output.statements, None, Confidence::Full);
-            result.as_object_mut().unwrap().insert("lint_warnings".to_string(), serde_json::json!(lint_warnings));
-            result.as_object_mut().unwrap().insert("lint_summary".to_string(), build_lint_summary(&lint_warnings));
+            result
+                .as_object_mut()
+                .expect("json! macro yields object")
+                .insert("lint_warnings".to_string(), serde_json::json!(lint_warnings));
+            result
+                .as_object_mut()
+                .expect("json! macro yields object")
+                .insert("lint_summary".to_string(), build_lint_summary(&lint_warnings));
         }
         serde_json::to_string_pretty(&result).unwrap_or_else(|e| format!("{{\"error\": \"{}\"}}", e))
     }

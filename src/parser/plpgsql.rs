@@ -242,11 +242,11 @@ impl Parser {
         let lower = type_name.to_lowercase();
         if lower == "character" && self.match_keyword(Keyword::VARYING) {
             type_name.push(' ');
-            type_name.push_str(self.peek_keyword().unwrap().as_str());
+            type_name.push_str(self.peek_keyword().expect("just matched keyword — peek is non-None").as_str());
             self.advance();
         } else if lower == "double" && self.match_keyword(Keyword::PRECISION) {
             type_name.push(' ');
-            type_name.push_str(self.peek_keyword().unwrap().as_str());
+            type_name.push_str(self.peek_keyword().expect("just matched keyword — peek is non-None").as_str());
             self.advance();
         }
 

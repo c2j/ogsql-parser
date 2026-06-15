@@ -1857,7 +1857,7 @@ impl PlVariableValidator {
                 // introduces SQL-level aliases that are valid references in the aggregate args.
                 if agg_from.is_some() {
                     self.enter_scope();
-                    for item in agg_from.as_ref().unwrap() {
+                    for item in agg_from.as_ref().expect("agg_from.is_some() checked above") {
                         self.declare_table_ref_alias(item);
                         self.check_table_ref_exprs(item, context);
                     }

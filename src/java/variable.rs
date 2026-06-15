@@ -274,7 +274,7 @@ impl<'a> ExtractContext<'a> {
             }
             return;
         }
-        let value_node = value_node.unwrap();
+        let value_node = value_node.expect("is_none() case returned above");
 
         let (sql_text, is_text_block) = match self.extract_string_value(value_node) {
             Some(v) => v,
