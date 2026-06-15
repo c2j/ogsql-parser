@@ -54,7 +54,7 @@ impl Parser {
                 continue;
             }
 
-            let (op_prec, op_str, is_right_assoc) = match self.get_infix_operator() {
+            let (op_prec, op_str, is_right_assoc) = match self.infix_operator() {
                 Some(info) => info,
                 None => break,
             };
@@ -219,7 +219,7 @@ impl Parser {
         self.parse_primary_expr()
     }
 
-    fn get_infix_operator(&self) -> Option<(u8, String, bool)> {
+    fn infix_operator(&self) -> Option<(u8, String, bool)> {
         match self.peek() {
             Token::Keyword(Keyword::OR) => Some((5, "OR".to_string(), false)),
             Token::Keyword(Keyword::AND) => Some((10, "AND".to_string(), false)),

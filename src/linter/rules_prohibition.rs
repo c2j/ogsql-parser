@@ -319,7 +319,7 @@ fn check_r006(
 ) {
     for info in stmts {
         let loc = stmt_location(info);
-        let (where_clause, tables) = get_where_and_tables(&info.statement);
+        let (where_clause, tables) = where_and_tables(&info.statement);
         let Some(where_clause) = where_clause else { continue };
 
         walk_expr(where_clause, &mut |e| {
@@ -441,7 +441,7 @@ fn emit_index_aware_r006(
 }
 
 /// Extract the WHERE clause and FROM/tables list from a statement.
-fn get_where_and_tables(stmt: &Statement) -> (Option<&Expr>, &[crate::ast::TableRef]) {
+fn where_and_tables(stmt: &Statement) -> (Option<&Expr>, &[crate::ast::TableRef]) {
     match stmt {
         Statement::Select(s) => (s.where_clause.as_ref(), &s.from),
         Statement::Update(s) => (s.where_clause.as_ref(), &s.tables),
@@ -498,7 +498,7 @@ fn check_r007(
 ) {
     for info in stmts {
         let loc = stmt_location(info);
-        let (where_clause, tables) = get_where_and_tables(&info.statement);
+        let (where_clause, tables) = where_and_tables(&info.statement);
         let Some(where_clause) = where_clause else { continue };
         walk_expr(where_clause, &mut |e| {
             if let Expr::Like { expr, pattern, negated: false, .. } = e {
