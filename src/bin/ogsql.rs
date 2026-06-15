@@ -3225,7 +3225,7 @@ fn output_extract_rows_text(
 
 fn output_csv_validate_header() {
     println!(
-        "file,directory,line,type,name,parent,parameters,return_type,valid,error_count,warning_count,errors,warnings"
+        "file,directory,line,type,name,parent,parameters,return_type,sql,valid,error_count,warning_count,errors,warnings"
     );
 }
 
@@ -3236,6 +3236,7 @@ struct ValidateCsvRow {
     parent: String,
     parameters: String,
     return_type: String,
+    sql: String,
     start_line: usize,
     end_line: usize,
 }
@@ -3251,6 +3252,7 @@ fn collect_validate_routine_rows(si: &ogsql_parser::StatementInfo) -> Vec<Valida
                 parent: String::new(),
                 parameters: String::new(),
                 return_type: String::new(),
+                sql: String::new(),
                 start_line: si.start_line,
                 end_line: si.end_line,
             }];
@@ -3264,6 +3266,7 @@ fn collect_validate_routine_rows(si: &ogsql_parser::StatementInfo) -> Vec<Valida
                             parent: s.name.join("."),
                             parameters: format_params(&p.parameters),
                             return_type: String::new(),
+                            sql: String::new(),
                             start_line: p.start_line.max(si.start_line),
                             end_line: if p.end_line > 0 { p.end_line } else { si.end_line },
                         });
@@ -3276,6 +3279,7 @@ fn collect_validate_routine_rows(si: &ogsql_parser::StatementInfo) -> Vec<Valida
                             parent: s.name.join("."),
                             parameters: format_params(&f.parameters),
                             return_type: f.return_type.clone().unwrap_or_default(),
+                            sql: String::new(),
                             start_line: f.start_line.max(si.start_line),
                             end_line: if f.end_line > 0 { f.end_line } else { si.end_line },
                         });
@@ -3293,6 +3297,7 @@ fn collect_validate_routine_rows(si: &ogsql_parser::StatementInfo) -> Vec<Valida
                 parent: String::new(),
                 parameters: String::new(),
                 return_type: String::new(),
+                sql: String::new(),
                 start_line: si.start_line,
                 end_line: si.end_line,
             }];
@@ -3306,6 +3311,7 @@ fn collect_validate_routine_rows(si: &ogsql_parser::StatementInfo) -> Vec<Valida
                             parent: s.name.join("."),
                             parameters: format_params(&p.parameters),
                             return_type: String::new(),
+                            sql: String::new(),
                             start_line: p.start_line.max(si.start_line),
                             end_line: if p.end_line > 0 { p.end_line } else { si.end_line },
                         });
@@ -3318,6 +3324,7 @@ fn collect_validate_routine_rows(si: &ogsql_parser::StatementInfo) -> Vec<Valida
                             parent: s.name.join("."),
                             parameters: format_params(&f.parameters),
                             return_type: f.return_type.clone().unwrap_or_default(),
+                            sql: String::new(),
                             start_line: f.start_line.max(si.start_line),
                             end_line: if f.end_line > 0 { f.end_line } else { si.end_line },
                         });
@@ -3335,6 +3342,7 @@ fn collect_validate_routine_rows(si: &ogsql_parser::StatementInfo) -> Vec<Valida
                 parent: String::new(),
                 parameters: format_params(&s.parameters),
                 return_type: String::new(),
+                sql: String::new(),
                 start_line: si.start_line,
                 end_line: si.end_line,
             }]
@@ -3347,6 +3355,7 @@ fn collect_validate_routine_rows(si: &ogsql_parser::StatementInfo) -> Vec<Valida
                 parent: String::new(),
                 parameters: format_params(&s.parameters),
                 return_type: s.return_type.clone().unwrap_or_default(),
+                sql: String::new(),
                 start_line: si.start_line,
                 end_line: si.end_line,
             }]
@@ -3359,6 +3368,7 @@ fn collect_validate_routine_rows(si: &ogsql_parser::StatementInfo) -> Vec<Valida
                 parent: String::new(),
                 parameters: String::new(),
                 return_type: String::new(),
+                sql: String::new(),
                 start_line: si.start_line,
                 end_line: si.end_line,
             }]
@@ -3371,6 +3381,7 @@ fn collect_validate_routine_rows(si: &ogsql_parser::StatementInfo) -> Vec<Valida
                 parent: String::new(),
                 parameters: String::new(),
                 return_type: String::new(),
+                sql: String::new(),
                 start_line: si.start_line,
                 end_line: si.end_line,
             }]
@@ -3387,6 +3398,7 @@ fn collect_validate_routine_rows(si: &ogsql_parser::StatementInfo) -> Vec<Valida
                 parent: String::new(),
                 parameters: String::new(),
                 return_type: String::new(),
+                sql: String::new(),
                 start_line: si.start_line,
                 end_line: si.end_line,
             }]
@@ -3521,7 +3533,7 @@ fn output_csv_validate_rows(
             let all_warn = warn_parts.join("; ");
             let is_valid = error_count == 0;
             println!(
-                "{},{},{},{},{},{},{},{},{},{},{},{},{}",
+                "{},{},{},{},{},{},{},{},{},{},{},{},{},{}",
                 csv_escape(file_name),
                 csv_escape(rel_dir),
                 row.line,
@@ -3530,6 +3542,7 @@ fn output_csv_validate_rows(
                 csv_escape(&row.parent),
                 csv_escape(&row.parameters),
                 csv_escape(&row.return_type),
+                csv_escape(&row.sql),
                 if is_valid { "VALID" } else { "INVALID" },
                 error_count,
                 warning_count,
@@ -6102,7 +6115,7 @@ fn cmd_validate_xml_single(cli: &Cli, csv: bool, java_roots: &[std::path::PathBu
 
     if csv {
         // CSV output: one row per extracted statement
-        println!("file,line,id,kind,valid,error_count,warning_count,errors,warnings");
+        println!("file,directory,line,type,name,parent,parameters,return_type,sql,valid,error_count,warning_count,errors,warnings");
         for stmt in &result.statements {
             let stmt_real_errors: Vec<&ogsql_parser::ParserError> =
                 real_errors.iter().filter(|e| error_line(e) == 0 || error_line(e) == stmt.line).copied().collect();
@@ -6111,11 +6124,13 @@ fn cmd_validate_xml_single(cli: &Cli, csv: bool, java_roots: &[std::path::PathBu
             let err_msgs: Vec<String> = stmt_real_errors.iter().map(|e| format!("{}", e)).collect();
             let warn_msgs: Vec<String> = stmt_warnings.iter().map(|e| format!("{}", e)).collect();
             println!(
-                "{},{},{},{:?},{},{},{},{},{}",
+                "{},.,{},{},{},{},,,{},{},{},{},{},{}",
                 csv_escape(file_name),
                 stmt.line,
+                format!("{:?}", stmt.kind),
                 csv_escape(&stmt.id),
-                stmt.kind,
+                csv_escape(&result.namespace),
+                csv_escape(&stmt.flat_sql.trim().replace('\r', "")),
                 if stmt_real_errors.is_empty() { "VALID" } else { "INVALID" },
                 stmt_real_errors.len(),
                 stmt_warnings.len(),
@@ -6128,7 +6143,7 @@ fn cmd_validate_xml_single(cli: &Cli, csv: bool, java_roots: &[std::path::PathBu
             let err_msgs: Vec<String> = real_errors.iter().map(|e| format!("{}", e)).collect();
             let warn_msgs: Vec<String> = warnings.iter().map(|e| format!("{}", e)).collect();
             println!(
-                "{},0,,,{},{},{},{},{}",
+                "{},.,0,,,,,,{},{},{},{},{}",
                 csv_escape(file_name),
                 if real_errors.is_empty() { "VALID" } else { "INVALID" },
                 real_errors.len(),
@@ -6284,7 +6299,7 @@ fn cmd_validate_xml_dir(
     let mut files_with_warnings: std::collections::HashSet<String> = std::collections::HashSet::new();
 
     if csv {
-        println!("file,directory,line,id,kind,valid,error_count,warning_count,errors,warnings");
+        println!("file,directory,line,type,name,parent,parameters,return_type,sql,valid,error_count,warning_count,errors,warnings");
     }
 
     for entry in walkdir::WalkDir::new(dir_path).into_iter().filter_map(|e| e.ok()) {
@@ -6401,12 +6416,14 @@ fn cmd_validate_xml_dir(
                 let err_msgs: Vec<String> = stmt_real_errors.iter().map(|e| format!("{}", e)).collect();
                 let warn_msgs: Vec<String> = stmt_warnings.iter().map(|e| format!("{}", e)).collect();
                 println!(
-                    "{},{},{},{},{:?},{},{},{},{},{}",
+                    "{},{},{},{},{},{},,,{},{},{},{},{},{}",
                     csv_escape(&file_name),
                     csv_escape(&rel_dir),
                     stmt.line,
+                    format!("{:?}", stmt.kind),
                     csv_escape(&stmt.id),
-                    stmt.kind,
+                    csv_escape(&result.namespace),
+                    csv_escape(&stmt.flat_sql.trim().replace('\r', "")),
                     if stmt_real_errors.is_empty() { "VALID" } else { "INVALID" },
                     stmt_real_errors.len(),
                     stmt_warnings.len(),
@@ -6419,7 +6436,7 @@ fn cmd_validate_xml_dir(
                 let err_msgs: Vec<String> = real_errors.iter().map(|e| format!("{}", e)).collect();
                 let warn_msgs: Vec<String> = warnings.iter().map(|e| format!("{}", e)).collect();
                 println!(
-                    "{},{},0,,,{},{},{},{},{}",
+                    "{},{},0,,,,,,{},{},{},{},{}",
                     csv_escape(&file_name),
                     csv_escape(&rel_dir),
                     if real_errors.is_empty() && var_errors.is_empty() { "VALID" } else { "INVALID" },
@@ -7032,7 +7049,7 @@ fn extract_variables(sql: &str) -> String {
 #[cfg(feature = "java")]
 /// validate-java CSV 输出头
 fn output_csv_validate_java_header() {
-    println!("file,directory,line,method,sql,valid,error_count,warning_count,errors,warnings");
+    println!("file,directory,line,type,name,parent,parameters,return_type,sql,valid,error_count,warning_count,errors,warnings");
 }
 
 #[cfg(feature = "java")]
@@ -7061,11 +7078,13 @@ fn output_csv_validate_java_rows(extractions: &[ogsql_parser::java::ExtractedSql
 
         let sql = ext.sql.trim().replace('\r', "");
         println!(
-            "{},{},{},{},{},{},{},{},{},{}",
+            "{},{},{},{},{},{},,,{},{},{},{},{},{}",
             csv_escape(file_name),
             csv_escape(rel_dir),
             ext.origin.line,
+            format!("{:?}", ext.sql_kind),
             csv_escape(&method),
+            csv_escape(ext.origin.class_name.as_deref().unwrap_or("")),
             csv_escape(&sql),
             if ext_error_count == 0 { "VALID" } else { "INVALID" },
             ext_error_count,
