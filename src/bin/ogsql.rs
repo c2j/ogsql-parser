@@ -743,7 +743,7 @@ fn filter_output_by_procedure(
 
     let proc_lower = proc_name.to_ascii_lowercase();
 
-    fn item_matches(name: &[String], target: &str) -> bool {
+    fn item_matches(name: &[ogsql_parser::Ident], target: &str) -> bool {
         let full = name.join(".").to_ascii_lowercase();
         let short = name.last().map(|n| n.to_ascii_lowercase()).unwrap_or_default();
         full == target || short == target
@@ -1519,14 +1519,14 @@ fn eval_concat_expr(expr: &ogsql_parser::ast::Expr) -> Vec<ConcatPart> {
         Expr::Literal(Literal::DollarString { body, .. }) => vec![ConcatPart::Literal(body.clone())],
         Expr::Literal(Literal::EscapeString(s)) => vec![ConcatPart::Literal(s.clone())],
         Expr::PlVariable(names) if names.len() == 1 => {
-            vec![ConcatPart::Variable(names[0].clone())]
+            vec![ConcatPart::Variable(names[0].to_string())]
         }
         Expr::ColumnRef(names) if names.len() == 1 => {
             let name = &names[0];
             if name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_') {
-                vec![ConcatPart::Variable(name.clone())]
+                vec![ConcatPart::Variable(name.to_string())]
             } else {
-                vec![ConcatPart::Literal(name.clone())]
+                vec![ConcatPart::Literal(name.to_string())]
             }
         }
         Expr::Parenthesized(inner) => eval_concat_expr(inner),
@@ -2216,9 +2216,9 @@ fn collect_pl_stmt_rows(
 
     match pl_stmt {
         PlStatement::Assignment { target, expression } => {
-            let target_name = match target {
+            let target_name: String = match target {
                 ogsql_parser::ast::Expr::PlVariable(n) | ogsql_parser::ast::Expr::ColumnRef(n) => {
-                    n.last().cloned().unwrap_or_default()
+                    n.last().map(|i| i.to_string()).unwrap_or_default()
                 }
                 _ => String::new(),
             };

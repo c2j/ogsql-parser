@@ -1206,7 +1206,7 @@ impl Parser {
                 Err(_) => break,
             }
         }
-        Ok(ObjectName::from(parts))
+        Ok(parts.into_iter().map(|s| s.into()).collect())
     }
 
     fn parse_operator_part(&mut self) -> Result<String, ParserError> {

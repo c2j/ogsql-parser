@@ -384,11 +384,11 @@ impl Parser {
                 }
             }
             let raw_rest = name_parts.join(" ");
-            vec![vec![raw_rest]]
+            vec![vec![raw_rest.into()]]
         } else if matches!(object_type, ObjectType::WeakPasswordDictionary)
             && (self.match_token(&Token::Semicolon) || self.match_token(&Token::Eof))
         {
-            vec![vec!["__all__".to_string()]]
+            vec![vec!["__all__".into()]]
         } else {
             let mut names = vec![self.parse_object_name()?];
             while self.match_token(&Token::Comma) {

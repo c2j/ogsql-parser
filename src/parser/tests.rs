@@ -11873,7 +11873,7 @@ fn guard_alter_trigger_rename() {
     match parse_one(sql) {
         Statement::AlterTrigger(t) => {
             assert_eq!(t.name, "trig");
-            assert_eq!(t.table, Some(vec!["tbl".to_string()]));
+            assert_eq!(t.table, Some(vec!["tbl".into()]));
             assert_eq!(t.new_name, Some("trig2".to_string()));
             assert!(t.enable.is_none());
         }

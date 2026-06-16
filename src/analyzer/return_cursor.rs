@@ -86,7 +86,7 @@ pub fn has_return_cursors(params: &[RoutineParam], return_type: Option<&str>) ->
 
 fn extract_cursor_name(expr: &Expr) -> Option<String> {
     match expr {
-        Expr::PlVariable(names) | Expr::ColumnRef(names) if names.len() == 1 => Some(names[0].clone()),
+        Expr::PlVariable(names) | Expr::ColumnRef(names) if names.len() == 1 => Some(names[0].to_string()),
         _ => None,
     }
 }
@@ -142,8 +142,8 @@ fn extract_result_columns(stmt: &Statement) -> Vec<ResultColumn> {
 
 fn infer_column_name(expr: &Expr) -> Option<String> {
     match expr {
-        Expr::ColumnRef(names) => names.last().cloned(),
-        Expr::PlVariable(names) => names.last().cloned(),
+        Expr::ColumnRef(names) => names.last().map(|i| i.value.clone()),
+        Expr::PlVariable(names) => names.last().map(|i| i.value.clone()),
         Expr::Literal(Literal::String(_)) => Some("?column?".to_string()),
         _ => None,
     }

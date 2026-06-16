@@ -52,7 +52,7 @@ fn collect_table_types(
     }
 }
 
-fn find_schema_table<'a>(schema: &'a SchemaMap, name: &[String]) -> Option<&'a String> {
+fn find_schema_table<'a>(schema: &'a SchemaMap, name: &[crate::ast::Ident]) -> Option<&'a String> {
     if name.is_empty() {
         return None;
     }

@@ -355,7 +355,7 @@ impl Parser {
                 ordering: None,
                 nulls: None,
                 expression: Some(Expr::FunctionCall {
-                    name: vec![col_name],
+                    name: vec![col_name.into()],
                     args,
                     distinct: false,
                     over: None,

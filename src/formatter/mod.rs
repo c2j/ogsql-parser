@@ -965,7 +965,7 @@ impl SqlFormatter {
                 agg_from,
                 ..
             } => {
-                let parts: Vec<String> = name.iter().map(|s| self.quote_identifier_relaxed(s)).collect();
+                let parts: Vec<String> = name.iter().map(|i| self.format_ident(i)).collect();
                 let mut result = format!("{}(", parts.join("."));
                 if *distinct {
                     result.push_str(&format!("{} ", self.kw("DISTINCT")));
@@ -1453,8 +1453,18 @@ impl SqlFormatter {
         }
     }
 
+    fn format_ident(&self, ident: &Ident) -> String {
+        match ident.quote_style {
+            None => ident.value.clone(),
+            Some(q) => {
+                let escaped = ident.value.replace(q, &format!("{q}{q}"));
+                format!("{q}{escaped}{q}")
+            }
+        }
+    }
+
     fn format_object_name(&self, name: &ObjectName) -> String {
-        let parts: Vec<String> = name.iter().map(|s| self.quote_identifier(s)).collect();
+        let parts: Vec<String> = name.iter().map(|i| self.format_ident(i)).collect();
         parts.join(".")
     }
 

@@ -1,3 +1,4 @@
+pub mod ident;
 pub mod plpgsql;
 
 use crate::token::SourceLocation;
@@ -1416,7 +1417,9 @@ pub enum Literal {
     Null,
 }
 
-pub type ObjectName = Vec<String>;
+pub use ident::Ident;
+
+pub type ObjectName = Vec<Ident>;
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum XmlOption {

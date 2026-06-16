@@ -1,5 +1,5 @@
 use crate::ast::plpgsql::{FetchDirection, GetDiagItemKind, *};
-use crate::ast::{Expr, Literal, ObjectName, SourceSpan, Spanned};
+use crate::ast::{Expr, Literal, SourceSpan, Spanned};
 use crate::parser::{Parser, ParserError};
 use crate::token::keyword::Keyword;
 use crate::token::Token;
@@ -1303,7 +1303,7 @@ impl Parser {
         arguments.retain(|a| !matches!(a, Expr::Default));
 
         Some(PlStatement::ProcedureCall(Spanned::new(
-            PlProcedureCall { name: ObjectName::from(vec![name_str]), arguments },
+            PlProcedureCall { name: vec![name_str.into()], arguments },
             Some(SourceSpan { start, end: self.prev_location() }),
         )))
     }
@@ -1392,12 +1392,12 @@ impl Parser {
                 let target = if name_parts.len() == 1 {
                     let name = &name_parts[0];
                     if !self.scope_stack.is_empty() && self.is_var_declared(&name.to_lowercase()) {
-                        Expr::PlVariable(ObjectName::from(name_parts))
+                        Expr::PlVariable(name_parts.into_iter().map(|s| s.into()).collect())
                     } else {
-                        Expr::ColumnRef(ObjectName::from(name_parts))
+                        Expr::ColumnRef(name_parts.into_iter().map(|s| s.into()).collect())
                     }
                 } else {
-                    Expr::ColumnRef(ObjectName::from(name_parts))
+                    Expr::ColumnRef(name_parts.into_iter().map(|s| s.into()).collect())
                 };
                 return Ok(PlStatement::Assignment { target, expression });
             }
@@ -1626,10 +1626,10 @@ impl Parser {
         let saved_pos = self.pos;
         if let Ok(name) = self.parse_identifier() {
             if self.match_ident_str("loop") {
-                let cursor_name = if !self.scope_stack.is_empty() && self.is_var_declared(&name.to_lowercase()) {
-                    Expr::PlVariable(ObjectName::from(vec![name]))
+                let cursor_name: Expr = if !self.scope_stack.is_empty() && self.is_var_declared(&name.to_lowercase()) {
+                    Expr::PlVariable(vec![name.into()])
                 } else {
-                    Expr::ColumnRef(ObjectName::from(vec![name]))
+                    Expr::ColumnRef(vec![name.into()])
                 };
                 return Ok(PlForKind::Cursor { cursor_name, arguments: Vec::new() });
             }
@@ -1670,11 +1670,12 @@ impl Parser {
                         }
                     }
                     self.expect_token(&Token::RParen)?;
-                    let cursor_name = if !self.scope_stack.is_empty() && self.is_var_declared(&name.to_lowercase()) {
-                        Expr::PlVariable(ObjectName::from(vec![name]))
-                    } else {
-                        Expr::ColumnRef(ObjectName::from(vec![name]))
-                    };
+                    let cursor_name: Expr =
+                        if !self.scope_stack.is_empty() && self.is_var_declared(&name.to_lowercase()) {
+                            Expr::PlVariable(vec![name.into()])
+                        } else {
+                            Expr::ColumnRef(vec![name.into()])
+                        };
                     return Ok(PlForKind::Cursor { cursor_name, arguments });
                 }
             }
@@ -2421,10 +2422,10 @@ impl Parser {
         let mut items = Vec::new();
         loop {
             let target_name = self.parse_identifier()?;
-            let target = if !self.scope_stack.is_empty() && self.is_var_declared(&target_name.to_lowercase()) {
-                Expr::PlVariable(ObjectName::from(vec![target_name]))
+            let target: Expr = if !self.scope_stack.is_empty() && self.is_var_declared(&target_name.to_lowercase()) {
+                Expr::PlVariable(vec![target_name.into()])
             } else {
-                Expr::ColumnRef(ObjectName::from(vec![target_name]))
+                Expr::ColumnRef(vec![target_name.into()])
             };
             self.expect_token(&Token::Eq)?;
             let item_str = self.parse_identifier()?;
