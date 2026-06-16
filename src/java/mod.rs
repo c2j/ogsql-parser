@@ -98,6 +98,7 @@ pub fn extract_sql_from_java_files_with_state(
             list_sources: std::collections::HashMap::new(),
             string_exprs: std::collections::HashMap::new(),
             local_bool_vars: std::collections::HashMap::new(),
+            pending_string_vars: std::collections::HashMap::new(),
         };
 
         ctx.visit(tree.root_node());

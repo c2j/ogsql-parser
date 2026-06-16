@@ -86,6 +86,10 @@ impl<'a> ExtractContext<'a> {
             self.track_local_string_constant(node);
         }
 
+        if is_string {
+            self.track_pending_string_init(node);
+        }
+
         // Track Set.of() and List declarations for cross-method evaluation
         if let Some(ref t) = type_name {
             let is_set = t == "Set" || t.starts_with("Set<");
@@ -360,6 +364,7 @@ impl<'a> ExtractContext<'a> {
             "insert" => self.handle_sb_insert(node, root_var),
             "delete" => self.handle_sb_delete(node, root_var),
             "replace" => self.handle_sb_replace(node, root_var),
+            "deleteCharAt" => self.handle_sb_delete_char_at(node, root_var),
             _ => {}
         }
     }
@@ -376,7 +381,7 @@ impl<'a> ExtractContext<'a> {
             };
             let inner_method = self.node_text(inner_name);
             match inner_method.as_str() {
-                "append" | "insert" | "delete" | "replace" => {
+                "append" | "insert" | "delete" | "replace" | "deleteCharAt" => {
                     self.handle_string_builder_call(object, root_var, &inner_method);
                 }
                 _ => {}
@@ -426,6 +431,23 @@ impl<'a> ExtractContext<'a> {
                     let is_tb = raw.starts_with("\"\"\"");
                     return Some(self.decode_java_string(&raw, is_tb));
                 }
+                "binary_expression" => {
+                    let parts = self.collect_concat_parts(child);
+                    if parts.is_empty() {
+                        return Some(self.make_placeholder_for_node(child));
+                    }
+                    return Some(parts.into_iter().map(|(s, _)| s).collect());
+                }
+                "identifier" => {
+                    let name = self.node_text(child);
+                    if let Some(acc) = self.pending_string_vars.get(&name) {
+                        return Some(acc.clone());
+                    }
+                    if let Some(tracked) = self.sql_vars.get(&name) {
+                        return Some(tracked.sql.clone());
+                    }
+                    return Some(self.make_placeholder_for_node(child));
+                }
                 _ => {
                     return Some(self.make_placeholder_for_node(child));
                 }
@@ -446,7 +468,7 @@ impl<'a> ExtractContext<'a> {
             };
             let inner_method = self.node_text(inner_name);
             match inner_method.as_str() {
-                "append" | "insert" | "delete" | "replace" => {
+                "append" | "insert" | "delete" | "replace" | "deleteCharAt" => {
                     self.handle_string_builder_call(object, root_var, &inner_method);
                 }
                 _ => {}
@@ -617,6 +639,111 @@ impl<'a> ExtractContext<'a> {
         }
     }
 
+    pub(super) fn handle_sb_delete_char_at(&mut self, node: Node, root_var: &str) {
+        let object = match node.child_by_field_name("object") {
+            Some(n) => n,
+            None => return,
+        };
+        if object.kind() == "method_invocation" {
+            let inner_name = match object.child_by_field_name("name") {
+                Some(n) => n,
+                None => return,
+            };
+            let inner_method = self.node_text(inner_name);
+            match inner_method.as_str() {
+                "append" | "insert" | "delete" | "replace" | "deleteCharAt" => {
+                    self.handle_string_builder_call(object, root_var, &inner_method);
+                }
+                _ => {}
+            }
+        }
+
+        let args_node = match node.child_by_field_name("arguments") {
+            Some(n) if n.kind() == "argument_list" => n,
+            _ => return,
+        };
+
+        let sql_len = match self.sql_vars.get(root_var) {
+            Some(t) => t.sql.chars().count(),
+            None => return,
+        };
+
+        let index_node: Option<Node> = {
+            let mut ac = args_node.walk();
+            let mut found = None;
+            for child in args_node.children(&mut ac) {
+                if child.is_named() {
+                    found = Some(child);
+                    break;
+                }
+            }
+            found
+        };
+
+        let idx = match index_node {
+            Some(arg) => self.resolve_sb_index(arg, sql_len),
+            None => return,
+        };
+
+        if let Some(i) = idx {
+            let tracked = match self.sql_vars.get_mut(root_var) {
+                Some(t) => t,
+                None => return,
+            };
+            let chars: Vec<char> = tracked.sql.chars().collect();
+            if i < chars.len() {
+                let new_sql: String = chars[..i].iter().chain(chars[i + 1..].iter()).collect();
+                tracked.sql = new_sql;
+
+                let ext_idx = tracked.extraction_index;
+                let new_sql = tracked.sql.clone();
+                let converted_sql = self.convert_placeholders(&new_sql);
+                let sql_kind = self.extractions[ext_idx].sql_kind;
+                let parse_result = self.try_parse_sql(&converted_sql, sql_kind);
+
+                if let Some(ext) = self.extractions.get_mut(ext_idx) {
+                    ext.sql = converted_sql;
+                    ext.is_concatenated = true;
+                    ext.origin.line = node.start_position().row + 1;
+                    ext.origin.column = node.start_position().column;
+                    ext.parse_result = parse_result;
+                }
+            }
+        }
+    }
+
+    fn resolve_sb_index(&self, node: Node, sql_len: usize) -> Option<usize> {
+        let text = self.node_text(node);
+        if let Some(n) = self.parse_java_int(&text) {
+            return Some(n);
+        }
+        if node.kind() == "binary_expression" {
+            let op = node.child_by_field_name("operator")?;
+            let op_text = self.node_text(op);
+            let left = node.child_by_field_name("left")?;
+            let right = node.child_by_field_name("right")?;
+
+            let left_val = if left.kind() == "method_invocation" {
+                let name = left.child_by_field_name("name")?;
+                if self.node_text(name) != "length" {
+                    return None;
+                }
+                sql_len
+            } else {
+                self.parse_java_int(&self.node_text(left))?
+            };
+
+            let right_val = self.parse_java_int(&self.node_text(right))?;
+
+            return match op_text.as_str() {
+                "-" => left_val.checked_sub(right_val),
+                "+" => Some(left_val + right_val),
+                _ => None,
+            };
+        }
+        None
+    }
+
     pub(super) fn parse_java_int(&self, text: &str) -> Option<usize> {
         let s = text.trim();
         let s = s.strip_suffix('L').or_else(|| s.strip_suffix('l')).unwrap_or(s);
@@ -637,6 +764,7 @@ impl<'a> ExtractContext<'a> {
         self.track_bool_assignment(&var_name, &node);
 
         if !self.sql_vars.contains_key(&var_name) {
+            self.try_track_pending_string_assignment(&var_name, &node);
             self.recurse(node);
             return;
         }
@@ -666,6 +794,11 @@ impl<'a> ExtractContext<'a> {
                     if !append_parts.is_empty() {
                         self.append_to_tracked_var(&var_name, &append_parts, node);
                     }
+                } else if right.kind() == "method_invocation"
+                    && self.find_method_chain_root(right).is_some_and(|r| r == var_name)
+                    && self.sql_vars.get(&var_name).is_some_and(|v| v.is_string_builder)
+                {
+                    // SB self-reassignment chain: sb = sb.method().method()
                 } else {
                     self.reassign_tracked_var(&var_name, right, node);
                 }
@@ -686,6 +819,126 @@ impl<'a> ExtractContext<'a> {
                 self.local_bool_vars.insert(var_name.to_string(), false);
             }
         }
+    }
+
+    fn try_track_pending_string_assignment(&mut self, var_name: &str, node: &Node) {
+        if !matches!(self.var_types.get(var_name).map(|s| s.as_str()), Some("String")) {
+            return;
+        }
+
+        let operator = match node.child_by_field_name("operator") {
+            Some(n) => self.node_text(n),
+            None => return,
+        };
+
+        let right = match node.child_by_field_name("right") {
+            Some(n) => n,
+            None => return,
+        };
+
+        match operator.as_str() {
+            "+=" => {
+                if let Some(parts) = self.extract_concat_string_parts(right) {
+                    let acc = self.pending_string_vars.entry(var_name.to_string()).or_default();
+                    for (part, _) in &parts {
+                        acc.push_str(part);
+                    }
+                }
+            }
+            "=" => {
+                if let Some((text, _)) = self.extract_string_value(right) {
+                    self.pending_string_vars.insert(var_name.to_string(), text);
+                } else if right.kind() == "method_invocation" {
+                    self.try_apply_substring_on_pending(var_name, right);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    fn try_apply_substring_on_pending(&mut self, var_name: &str, node: Node) {
+        let name = match node.child_by_field_name("name") {
+            Some(n) => self.node_text(n),
+            None => return,
+        };
+        if name != "substring" {
+            return;
+        }
+
+        let object = match node.child_by_field_name("object") {
+            Some(n) if n.kind() == "identifier" => n,
+            _ => return,
+        };
+        if self.node_text(object) != var_name {
+            return;
+        }
+
+        let current = match self.pending_string_vars.get(var_name) {
+            Some(v) => v.clone(),
+            None => return,
+        };
+
+        let args = match node.child_by_field_name("arguments") {
+            Some(n) => n,
+            None => return,
+        };
+
+        let arg_nodes: Vec<Node> = {
+            let mut cursor = args.walk();
+            args.named_children(&mut cursor).collect()
+        };
+
+        if arg_nodes.is_empty() {
+            return;
+        }
+
+        let char_count = current.chars().count();
+        let start = match self.resolve_sb_index(arg_nodes[0], char_count) {
+            Some(n) => n,
+            None => return,
+        };
+        let end = if arg_nodes.len() >= 2 {
+            match self.resolve_sb_index(arg_nodes[1], char_count) {
+                Some(n) => n,
+                None => return,
+            }
+        } else {
+            char_count
+        };
+
+        if start > end || end > char_count {
+            return;
+        }
+
+        let new_val: String = current.chars().skip(start).take(end - start).collect();
+        self.pending_string_vars.insert(var_name.to_string(), new_val);
+    }
+
+    pub(super) fn try_extract_ends_with_pattern(&self, node: Node) -> Option<(String, String)> {
+        if node.kind() != "method_invocation" {
+            return None;
+        }
+        let name = node.child_by_field_name("name")?;
+        if self.node_text(name) != "endsWith" {
+            return None;
+        }
+        let obj = node.child_by_field_name("object")?;
+        if obj.kind() != "identifier" {
+            return None;
+        }
+        let var_name = self.node_text(obj);
+        let args = node.child_by_field_name("arguments")?;
+        let arg_nodes: Vec<Node> = {
+            let mut cursor = args.walk();
+            args.named_children(&mut cursor).collect()
+        };
+        let first_arg = arg_nodes.into_iter().next()?;
+        if first_arg.kind() != "string_literal" {
+            return None;
+        }
+        let raw = self.node_text(first_arg);
+        let suffix = self.decode_java_string(&raw, raw.starts_with("\"\"\""));
+        Some((var_name, suffix))
     }
 
     pub(super) fn extract_concat_string_parts(&self, node: Node) -> Option<Vec<(String, bool)>> {
@@ -841,6 +1094,27 @@ impl<'a> ExtractContext<'a> {
                     let is_tb = raw.starts_with("\"\"\"");
                     let val = self.decode_java_string(&raw, is_tb);
                     self.string_constants.insert(self.node_text(name_node), val);
+                }
+            }
+        }
+    }
+
+    fn track_pending_string_init(&mut self, node: Node) {
+        let mut cursor = node.walk();
+        for child in node.children(&mut cursor) {
+            if child.kind() != "variable_declarator" {
+                continue;
+            }
+            let name = match child.child_by_field_name("name") {
+                Some(n) => self.node_text(n),
+                None => continue,
+            };
+            if self.sql_vars.contains_key(&name) {
+                continue;
+            }
+            if let Some(value) = child.child_by_field_name("value") {
+                if let Some((text, _)) = self.extract_string_value(value) {
+                    self.pending_string_vars.insert(name, text);
                 }
             }
         }
