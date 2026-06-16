@@ -186,7 +186,7 @@ fn extract_where_clause(stmt: &Statement) -> Option<&Expr> {
 
 fn extract_var_name(expr: &Expr) -> Option<String> {
     match expr {
-        Expr::PlVariable(names) | Expr::ColumnRef(names) if names.len() == 1 => Some(names[0].clone()),
+        Expr::PlVariable(names) | Expr::ColumnRef(names) if names.len() == 1 => Some(names[0].to_string()),
         _ => None,
     }
 }
@@ -235,8 +235,8 @@ fn try_match_optional_filter(is_null_side: &Expr, comparison_side: &Expr) -> Opt
 
         if let Expr::Like { expr, pattern, negated: false, .. } = comparison {
             if extract_var_name(pattern).as_ref() == Some(&param_name) {
-                let column = match expr.as_ref() {
-                    Expr::ColumnRef(names) => names.clone(),
+                let column: Vec<String> = match expr.as_ref() {
+                    Expr::ColumnRef(names) => names.iter().map(|i| i.value.clone()).collect(),
                     _ => return None,
                 };
                 return Some(OptionalFilter { parameter: param_name, column, operator: "LIKE".to_string() });
@@ -257,8 +257,8 @@ fn try_match_optional_filter(is_null_side: &Expr, comparison_side: &Expr) -> Opt
                     return None;
                 }
 
-                let column = match col_expr.as_ref() {
-                    Expr::ColumnRef(names) => names.clone(),
+                let column: Vec<String> = match col_expr.as_ref() {
+                    Expr::ColumnRef(names) => names.iter().map(|i| i.value.clone()).collect(),
                     _ => return None,
                 };
 
@@ -282,7 +282,7 @@ pub struct RefCursorQuery {
 
 fn extract_cursor_name(expr: &Expr) -> Option<String> {
     match expr {
-        Expr::PlVariable(names) | Expr::ColumnRef(names) if names.len() == 1 => Some(names[0].clone()),
+        Expr::PlVariable(names) | Expr::ColumnRef(names) if names.len() == 1 => Some(names[0].to_string()),
         _ => None,
     }
 }
@@ -613,8 +613,8 @@ impl DynamicSqlAnalyzer {
     fn process_statement(&mut self, stmt: &PlStatement) {
         match stmt {
             PlStatement::Assignment { target, expression } => {
-                let target_name = match target {
-                    Expr::PlVariable(n) | Expr::ColumnRef(n) => n.last().cloned().unwrap_or_default(),
+                let target_name: String = match target {
+                    Expr::PlVariable(n) | Expr::ColumnRef(n) => n.last().map(|i| i.to_string()).unwrap_or_default(),
                     _ => String::new(),
                 };
                 let state = self.evaluate_expr(expression);
@@ -716,11 +716,11 @@ impl DynamicSqlAnalyzer {
             }
             Expr::ColumnRef(names) if names.len() == 1 => {
                 let var_name = &names[0];
-                if let Some(state) = self.lookup_var(var_name) {
+                    if let Some(state) = self.lookup_var(var_name) {
                     VarState {
                         known_value: state.known_value.clone(),
                         trace: TraceChain::VariableCopy {
-                            source_var: var_name.clone(),
+                            source_var: var_name.to_string(),
                             source_chain: Box::new(state.trace.clone()),
                         },
                     }
@@ -734,7 +734,7 @@ impl DynamicSqlAnalyzer {
                     VarState {
                         known_value: state.known_value.clone(),
                         trace: TraceChain::VariableCopy {
-                            source_var: var_name.clone(),
+                            source_var: var_name.to_string(),
                             source_chain: Box::new(state.trace.clone()),
                         },
                     }
@@ -1793,7 +1793,7 @@ impl PlVariableValidator {
                     && !self.is_known_func(name)
                 {
                     self.errors.push(UndefinedVariableError {
-                        variable_name: name.clone(),
+                        variable_name: name.to_string(),
                         location: self.current_span.clone(),
                         context: context.to_string(),
                         kind: UndefinedRefKind::Variable,
@@ -1845,7 +1845,7 @@ impl PlVariableValidator {
                             && !self.is_declared(fname)
                         {
                             self.errors.push(UndefinedVariableError {
-                                variable_name: fname.clone(),
+                                variable_name: fname.to_string(),
                                 location: self.current_span.clone(),
                                 context: context.to_string(),
                                 kind: UndefinedRefKind::Function,
