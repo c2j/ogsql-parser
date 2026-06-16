@@ -66,7 +66,7 @@ impl Parser {
                 let col = self.parse_identifier()?;
                 self.expect_token(&Token::Eq)?;
                 let value = self.parse_expr()?;
-                assignments.push(crate::ast::UpdateAssignment { columns: vec![vec![col]], value });
+                assignments.push(crate::ast::UpdateAssignment { columns: vec![vec![col.into()]], value });
                 if !self.match_token(&Token::Comma) {
                     break;
                 }

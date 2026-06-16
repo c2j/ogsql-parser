@@ -590,14 +590,14 @@ impl Parser {
         if name.to_uppercase() == "TRANSACTION" {
             let mut modes = Vec::new();
             while let Some(mode) = self.try_parse_transaction_mode()? {
-                modes.push(Expr::ColumnRef(vec![format!("{:?}", mode)]));
+                modes.push(Expr::ColumnRef(vec![format!("{:?}", mode).into()]));
             }
             return Ok(VariableSetStatement { local, session, global, name, value: modes });
         }
 
         if name.to_uppercase() == "ROLE" && !self.match_token(&Token::Eq) && !self.match_keyword(Keyword::TO) {
             let role_name = self.consume_any_identifier()?;
-            let mut values = vec![Expr::ColumnRef(vec![role_name])];
+            let mut values = vec![Expr::ColumnRef(vec![role_name.into()])];
             if self.match_keyword(Keyword::PASSWORD) {
                 self.advance();
                 values.push(self.parse_expr()?);
@@ -608,14 +608,14 @@ impl Parser {
         if name.to_uppercase() == "CONSTRAINTS" {
             let mut values = Vec::new();
             while !self.match_token(&Token::Semicolon) && !self.peek().eq(&Token::Eof) {
-                values.push(Expr::ColumnRef(vec![self.consume_any_identifier()?]));
+                values.push(Expr::ColumnRef(vec![self.consume_any_identifier()?.into()]));
             }
             return Ok(VariableSetStatement { local, session, global, name, value: values });
         }
 
         if name.to_uppercase() == "AUTHORIZATION" && (session || global) {
             let user = self.consume_any_identifier()?;
-            let mut values = vec![Expr::ColumnRef(vec![user])];
+            let mut values = vec![Expr::ColumnRef(vec![user.into()])];
             if self.match_keyword(Keyword::PASSWORD) {
                 self.advance();
                 values.push(self.parse_expr()?);
@@ -858,7 +858,7 @@ impl Parser {
             let upper = kw.as_str().to_uppercase();
             if matches!(upper.as_str(), "ON" | "OFF" | "TRUE" | "FALSE") {
                 self.advance();
-                return Ok(Expr::ColumnRef(vec![kw.as_str().to_string()]));
+                return Ok(Expr::ColumnRef(vec![kw.as_str().to_string().into()]));
             }
         }
         self.parse_expr()

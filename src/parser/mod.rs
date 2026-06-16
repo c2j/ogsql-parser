@@ -840,15 +840,16 @@ impl Parser {
 
     /// Consume an identifier (Ident, QuotedIdent, or Keyword-as-identifier).
     /// Reserved keywords used as identifiers emit error; non-reserved are silently accepted.
-    fn parse_identifier(&mut self) -> Result<String, ParserError> {
+    /// Returns an `Ident` that preserves quote_style information.
+    fn parse_ident(&mut self) -> Result<crate::ast::Ident, ParserError> {
         match self.peek().clone() {
             Token::Ident(s) => {
                 self.advance();
-                Ok(s)
+                Ok(crate::ast::Ident::new(s))
             }
             Token::QuotedIdent(s) => {
                 self.advance();
-                Ok(s)
+                Ok(crate::ast::Ident::quoted(s, '"'))
             }
             Token::Keyword(kw) => {
                 let location = self.current_location();
@@ -858,7 +859,7 @@ impl Parser {
                 if kw.category() == crate::token::keyword::KeywordCategory::Reserved {
                     self.add_error(ParserError::ReservedKeywordAsIdentifier { keyword: name.clone(), location });
                 }
-                Ok(name)
+                Ok(crate::ast::Ident::new(name))
             }
             _ => Err(ParserError::UnexpectedToken {
                 location: self.current_location(),
@@ -868,12 +869,19 @@ impl Parser {
         }
     }
 
+    /// Consume an identifier and return its String value (quote_style discarded).
+    /// Used for column names, constraint names, aliases, etc. that are plain `String` in the AST.
+    fn parse_identifier(&mut self) -> Result<String, ParserError> {
+        self.parse_ident().map(|i| i.value)
+    }
+
     /// Parse a qualified name: `name` or `schema.name` or `catalog.schema.name`.
+    /// Preserves quote_style for each part.
     fn parse_object_name(&mut self) -> Result<crate::ast::ObjectName, ParserError> {
-        let mut name = vec![self.parse_identifier()?];
+        let mut name = vec![self.parse_ident()?];
         while self.match_token(&Token::Dot) {
             self.advance();
-            name.push(self.parse_identifier()?);
+            name.push(self.parse_ident()?);
         }
         Ok(name)
     }
@@ -5069,7 +5077,7 @@ impl Parser {
                 crate::ast::DropStatement {
                     object_type: crate::ast::ObjectType::Global,
                     if_exists: false,
-                    names: vec![vec![name]],
+                    names: vec![vec![name.into()]],
                     cascade: false,
                     purge: false,
                 },
