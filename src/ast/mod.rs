@@ -1419,7 +1419,7 @@ pub enum Literal {
 
 pub use ident::Ident;
 
-pub type ObjectName = Vec<String>;
+pub type ObjectName = Vec<Ident>;
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum XmlOption {
