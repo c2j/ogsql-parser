@@ -1376,7 +1376,7 @@ mod visitor_tests {
                 collate: None,
             })],
             body: vec![PlStatement::Assignment {
-                target: Expr::ColumnRef(crate::ast::ObjectName::from(vec!["x".to_string()])),
+                target: Expr::ColumnRef(vec!["x".into()]),
                 expression: Expr::Literal(crate::ast::Literal::Integer(1)),
             }],
             exception_block: Some(PlExceptionBlock {
@@ -1481,7 +1481,7 @@ mod visitor_tests {
     fn test_walk_pl_statement_procedure_call() {
         let proc_call = PlStatement::ProcedureCall(crate::ast::Spanned::new(
             PlProcedureCall {
-                name: vec!["schema".to_string(), "proc".to_string()],
+                name: vec!["schema".into(), "proc".into()],
                 arguments: vec![
                     Expr::Literal(crate::ast::Literal::Integer(1)),
                     Expr::Literal(crate::ast::Literal::Integer(2)),
