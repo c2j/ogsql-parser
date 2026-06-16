@@ -1626,7 +1626,7 @@ impl Parser {
         let saved_pos = self.pos;
         if let Ok(name) = self.parse_identifier() {
             if self.match_ident_str("loop") {
-                        let cursor_name: Expr = if !self.scope_stack.is_empty() && self.is_var_declared(&name.to_lowercase()) {
+                let cursor_name: Expr = if !self.scope_stack.is_empty() && self.is_var_declared(&name.to_lowercase()) {
                     Expr::PlVariable(vec![name.into()])
                 } else {
                     Expr::ColumnRef(vec![name.into()])
@@ -1670,11 +1670,12 @@ impl Parser {
                         }
                     }
                     self.expect_token(&Token::RParen)?;
-                    let cursor_name: Expr = if !self.scope_stack.is_empty() && self.is_var_declared(&name.to_lowercase()) {
-                        Expr::PlVariable(vec![name.into()])
-                    } else {
-                        Expr::ColumnRef(vec![name.into()])
-                    };
+                    let cursor_name: Expr =
+                        if !self.scope_stack.is_empty() && self.is_var_declared(&name.to_lowercase()) {
+                            Expr::PlVariable(vec![name.into()])
+                        } else {
+                            Expr::ColumnRef(vec![name.into()])
+                        };
                     return Ok(PlForKind::Cursor { cursor_name, arguments });
                 }
             }

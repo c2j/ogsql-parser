@@ -716,7 +716,7 @@ impl DynamicSqlAnalyzer {
             }
             Expr::ColumnRef(names) if names.len() == 1 => {
                 let var_name = &names[0];
-                    if let Some(state) = self.lookup_var(var_name) {
+                if let Some(state) = self.lookup_var(var_name) {
                     VarState {
                         known_value: state.known_value.clone(),
                         trace: TraceChain::VariableCopy {

@@ -1034,7 +1034,10 @@ impl Parser {
                                 self.advance();
                                 return Ok(Expr::SpecialFunction {
                                     name: "interval".to_string(),
-                                    args: vec![Expr::Literal(Literal::String(s)), Expr::ColumnRef(vec![unit_name.into()])],
+                                    args: vec![
+                                        Expr::Literal(Literal::String(s)),
+                                        Expr::ColumnRef(vec![unit_name.into()]),
+                                    ],
                                 });
                             }
                         }
@@ -1790,7 +1793,10 @@ impl Parser {
                 self.advance();
                 let source = self.parse_expr()?;
                 self.expect_token(&Token::RParen)?;
-                Ok(Expr::SpecialFunction { name: name.join("."), args: vec![Expr::ColumnRef(vec![dir.into()]), source] })
+                Ok(Expr::SpecialFunction {
+                    name: name.join("."),
+                    args: vec![Expr::ColumnRef(vec![dir.into()]), source],
+                })
             } else {
                 // TRIM(direction chars FROM expr)
                 let chars = self.parse_expr()?;

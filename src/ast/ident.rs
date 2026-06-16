@@ -1,14 +1,14 @@
+use serde::de::{self, Visitor};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::borrow::Borrow;
 use std::fmt;
 use std::ops::Deref;
-use serde::{Deserialize, Serialize, Deserializer, Serializer};
-use serde::de::{self, Visitor};
 
 /// An identifier, decomposed into its value and quote style.
 ///
 /// `quote_style` is `None` for unquoted identifiers (e.g. `mytable`),
 /// `Some('"')` for double-quoted identifiers (e.g. `"MyTable"`).
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Default)]
 pub struct Ident {
     /// The identifier value without quotes.
     pub value: String,
@@ -35,11 +35,15 @@ impl Ident {
 
 impl Deref for Ident {
     type Target = str;
-    fn deref(&self) -> &str { &self.value }
+    fn deref(&self) -> &str {
+        &self.value
+    }
 }
 
 impl Borrow<str> for Ident {
-    fn borrow(&self) -> &str { &self.value }
+    fn borrow(&self) -> &str {
+        &self.value
+    }
 }
 
 impl fmt::Display for Ident {
@@ -55,32 +59,38 @@ impl fmt::Display for Ident {
 }
 
 impl From<String> for Ident {
-    fn from(s: String) -> Self { Self::new(s) }
+    fn from(s: String) -> Self {
+        Self::new(s)
+    }
 }
 
 impl From<&str> for Ident {
-    fn from(s: &str) -> Self { Self::new(s) }
+    fn from(s: &str) -> Self {
+        Self::new(s)
+    }
 }
 
 impl From<&String> for Ident {
-    fn from(s: &String) -> Self { Self::new(s) }
+    fn from(s: &String) -> Self {
+        Self::new(s)
+    }
 }
 
 impl PartialEq<str> for Ident {
-    fn eq(&self, other: &str) -> bool { self.value == other }
+    fn eq(&self, other: &str) -> bool {
+        self.value == other
+    }
 }
 
 impl PartialEq<&str> for Ident {
-    fn eq(&self, other: &&str) -> bool { self.value == *other }
+    fn eq(&self, other: &&str) -> bool {
+        self.value == *other
+    }
 }
 
 impl PartialEq<String> for Ident {
-    fn eq(&self, other: &String) -> bool { self.value == *other }
-}
-
-impl Default for Ident {
-    fn default() -> Self {
-        Self { value: String::new(), quote_style: None }
+    fn eq(&self, other: &String) -> bool {
+        self.value == *other
     }
 }
 

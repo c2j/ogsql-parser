@@ -4,38 +4,25 @@ fn format_sql(sql: &str) -> String {
     let tokens = Tokenizer::new(sql).tokenize().unwrap();
     let stmts = Parser::new(tokens).parse();
     let formatter = SqlFormatter::new();
-    stmts
-        .iter()
-        .map(|s| formatter.format_statement(s))
-        .collect::<Vec<_>>()
-        .join(";\n")
+    stmts.iter().map(|s| formatter.format_statement(s)).collect::<Vec<_>>().join(";\n")
 }
 
 #[test]
 fn unquoted_uppercase_not_quoted() {
     let out = format_sql("SELECT * FROM MyTable");
-    assert!(
-        !out.contains("\"MyTable\""),
-        "Unquoted identifier should not gain quotes. Got: {out}"
-    );
+    assert!(!out.contains("\"MyTable\""), "Unquoted identifier should not gain quotes. Got: {out}");
 }
 
 #[test]
 fn quoted_identifier_preserved() {
     let out = format_sql("SELECT * FROM \"MyTable\"");
-    assert!(
-        out.contains("\"MyTable\""),
-        "Quoted identifier should keep quotes. Got: {out}"
-    );
+    assert!(out.contains("\"MyTable\""), "Quoted identifier should keep quotes. Got: {out}");
 }
 
 #[test]
 fn quoted_lowercase_preserved() {
     let out = format_sql("SELECT * FROM \"mytable\"");
-    assert!(
-        out.contains("\"mytable\""),
-        "Quoted lowercase should keep quotes. Got: {out}"
-    );
+    assert!(out.contains("\"mytable\""), "Quoted lowercase should keep quotes. Got: {out}");
 }
 
 #[test]
