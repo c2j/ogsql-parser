@@ -23,7 +23,12 @@ impl<'a> ExtractContext<'a> {
         };
         let method_name = self.node_text(name_node);
 
-        if method_name == "append" || method_name == "insert" || method_name == "delete" || method_name == "replace" {
+        if method_name == "append"
+            || method_name == "insert"
+            || method_name == "delete"
+            || method_name == "replace"
+            || method_name == "deleteCharAt"
+        {
             if let Some(root_var) = self.find_method_chain_root(node) {
                 if self.sql_vars.contains_key(&root_var)
                     && self.sql_vars.get(&root_var).is_some_and(|v| v.is_string_builder)

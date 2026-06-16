@@ -1,6 +1,6 @@
 [package]
 name = "ogsql-parser"
-version = "0.7.1"
+version = "0.7.2"
 edition = "2021"
 rust-version = "1.70"
 description = "A SQL parser for openGauss/GaussDB written in Rust"
@@ -53,6 +53,7 @@ ibatis = ["dep:quick-xml", "dep:walkdir"]
 java = ["dep:tree-sitter", "dep:tree-sitter-java", "dep:walkdir"]
 serve = ["cli", "dep:axum", "dep:tokio", "dep:tower-http", "dep:utoipa", "dep:utoipa-swagger-ui", "dep:tracing", "dep:tracing-subscriber"]
 serve-minimal = ["cli", "dep:axum", "dep:tokio", "dep:tower-http", "dep:utoipa", "dep:tracing", "dep:tracing-subscriber"]
+utoipa-swagger-ui = ["dep:utoipa-swagger-ui"]
 tui = ["cli", "dep:ratatui", "dep:crossterm"]
 mcp = ["dep:rmcp", "dep:schemars", "dep:tokio", "ibatis", "java"]
 full = ["cli", "ibatis", "java", "mcp", "serve", "tui"]

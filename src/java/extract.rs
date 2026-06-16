@@ -58,6 +58,7 @@ pub fn extract(source: &str, root: Node, file_path: &str, config: &JavaExtractCo
         list_sources: HashMap::new(),
         string_exprs: HashMap::new(),
         local_bool_vars: HashMap::new(),
+        pending_string_vars: HashMap::new(),
     };
     ctx.visit(root);
     ctx.apply_pending_injections();
@@ -95,6 +96,11 @@ pub(super) struct ExtractContext<'a> {
     pub(super) string_exprs: HashMap<String, String>,
     /// Tracks known boolean local variable values (e.g., `first = true`).
     pub(super) local_bool_vars: HashMap<String, bool>,
+    /// Deferred accumulation pool for String variables not yet confirmed as SQL-related.
+    /// Tracks `+=` and `=` construction for any local String variable. When such a variable
+    /// is later appended to a tracked StringBuilder, its accumulated value is flushed into
+    /// the SQL output instead of a generic placeholder.
+    pub(super) pending_string_vars: HashMap<String, String>,
 }
 
 impl<'a> ExtractContext<'a> {
@@ -264,6 +270,7 @@ impl<'a> ExtractContext<'a> {
         let old_ps_var_to_extraction = std::mem::take(&mut self.ps_var_to_extraction);
         let old_dynamic_setters = std::mem::take(&mut self.dynamic_setters);
         let old_local_bool_vars = std::mem::take(&mut self.local_bool_vars);
+        let old_pending_string_vars = std::mem::take(&mut self.pending_string_vars);
         if let Some(name_node) = node.child_by_field_name("name") {
             self.method_name = Some(self.node_text(name_node));
         }
@@ -338,6 +345,7 @@ impl<'a> ExtractContext<'a> {
         self.ps_var_to_extraction = old_ps_var_to_extraction;
         self.dynamic_setters = old_dynamic_setters;
         self.local_bool_vars = old_local_bool_vars;
+        self.pending_string_vars = old_pending_string_vars;
     }
 
     pub(super) fn recurse(&mut self, node: Node) {
@@ -1174,6 +1182,14 @@ impl<'a> ExtractContext<'a> {
                                     should_visit_consequence = !val;
                                 }
                             }
+                        }
+                    }
+                } else if expr.kind() == "method_invocation" {
+                    if let Some((var_name, suffix)) = self.try_extract_ends_with_pattern(expr) {
+                        let skip =
+                            self.pending_string_vars.get(&var_name).is_some_and(|v| !v.ends_with(suffix.as_str()));
+                        if skip {
+                            should_visit_consequence = false;
                         }
                     }
                 }

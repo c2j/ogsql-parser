@@ -1845,3 +1845,350 @@ public class Test {
     // No __JAVA_RAW_ should survive
     assert!(!sql.contains("__JAVA_RAW_"), "unexpected __JAVA_RAW_ in: {}", sql);
 }
+
+// ── Pending String Variable Tracking Tests ──
+
+#[test]
+fn test_pending_string_var_basic_accumulation() {
+    let java = r#"
+        public class Dao {
+            public void build(String val) {
+                StringBuilder sb = new StringBuilder("INSERT INTO t VALUES ");
+                String vals = "(";
+                vals += "'";
+                vals += val;
+                vals += "'";
+                sb.append(vals);
+            }
+        }
+    "#;
+    let result = extract_sql_from_java(java, "Dao.java", &JavaExtractConfig::default());
+    assert_eq!(result.extractions.len(), 1);
+    let sql = &result.extractions[0].sql;
+    assert!(
+        sql.contains("INSERT INTO t VALUES ('__JAVA_RAW_String_val__'"),
+        "expected pending var expanded, got: {}",
+        sql
+    );
+}
+
+#[test]
+fn test_pending_string_var_binary_expr_concat() {
+    let java = r#"
+        public class Dao {
+            public void build(String val) {
+                StringBuilder sb = new StringBuilder("SELECT * FROM t WHERE name IN ");
+                String vals = "(";
+                vals += "'" + val + "',";
+                sb.append(vals);
+            }
+        }
+    "#;
+    let result = extract_sql_from_java(java, "Dao.java", &JavaExtractConfig::default());
+    assert_eq!(result.extractions.len(), 1);
+    let sql = &result.extractions[0].sql;
+    assert!(
+        sql.contains("SELECT * FROM t WHERE name IN ('__JAVA_RAW_String_val__',"),
+        "expected binary concat expanded, got: {}",
+        sql
+    );
+}
+
+#[test]
+fn test_pending_string_var_not_leaked_to_non_sb() {
+    let java = r#"
+        public class Dao {
+            public void build(String val) {
+                String vals = "(";
+                vals += val;
+                vals += ")";
+                System.out.println(vals);
+            }
+        }
+    "#;
+    let result = extract_sql_from_java(java, "Dao.java", &JavaExtractConfig::default());
+    assert_eq!(
+        result.extractions.len(),
+        0,
+        "pending var should NOT produce extraction when not appended to tracked SB"
+    );
+}
+
+// ── Binary Expression in append() Tests ──
+
+#[test]
+fn test_append_binary_expression_preserves_static_parts() {
+    let java = r#"
+        public class Dao {
+            public void build(String colName) {
+                StringBuilder sql = new StringBuilder("INSERT INTO t ");
+                sql.append("(" + colName + ") VALUES ");
+            }
+        }
+    "#;
+    let result = extract_sql_from_java(java, "Dao.java", &JavaExtractConfig::default());
+    assert_eq!(result.extractions.len(), 1);
+    let sql = &result.extractions[0].sql;
+    assert!(sql.contains("INSERT INTO t ("), "should preserve static prefix, got: {}", sql);
+    assert!(sql.contains(") VALUES "), "should preserve ') VALUES ' suffix, got: {}", sql);
+    assert!(sql.contains("__JAVA_RAW_String_colName__"), "should contain placeholder, got: {}", sql);
+}
+
+#[test]
+fn test_append_binary_expression_var_plus_literal() {
+    let java = r#"
+        public class Dao {
+            public void build(String table) {
+                StringBuilder sql = new StringBuilder("SELECT * FROM ");
+                sql.append(table + " WHERE id = 1");
+            }
+        }
+    "#;
+    let result = extract_sql_from_java(java, "Dao.java", &JavaExtractConfig::default());
+    assert_eq!(result.extractions.len(), 1);
+    let sql = &result.extractions[0].sql;
+    assert!(
+        sql.contains("SELECT * FROM __JAVA_RAW_String_table__ WHERE id = 1"),
+        "expected var + literal expanded, got: {}",
+        sql
+    );
+}
+
+// ── deleteCharAt Tests ──
+
+#[test]
+fn test_delete_char_at_literal_index() {
+    let java = r#"
+        public class Dao {
+            public void build() {
+                StringBuilder sql = new StringBuilder("SELECT *, FROM t");
+                sql.deleteCharAt(8);
+            }
+        }
+    "#;
+    let result = extract_sql_from_java(java, "Dao.java", &JavaExtractConfig::default());
+    assert_eq!(result.extractions.len(), 1);
+    let sql = &result.extractions[0].sql;
+    assert!(!sql.contains(","), "comma at index 8 should be deleted, got: {}", sql);
+    assert!(sql.contains("SELECT *"), "should still have SELECT *, got: {}", sql);
+    assert!(sql.contains("FROM t"), "should still have FROM t, got: {}", sql);
+}
+
+#[test]
+fn test_delete_char_at_length_minus_n() {
+    let java = r#"
+        public class Dao {
+            public void build() {
+                StringBuilder sql = new StringBuilder("SELECT * FROM t,, ");
+                sql.deleteCharAt(sql.length() - 2);
+            }
+        }
+    "#;
+    let result = extract_sql_from_java(java, "Dao.java", &JavaExtractConfig::default());
+    assert_eq!(result.extractions.len(), 1);
+    let sql = &result.extractions[0].sql;
+    assert!(sql.matches(',').count() == 1, "expected exactly 1 comma after deleteCharAt(length-2), got: {}", sql);
+}
+
+#[test]
+fn test_delete_char_at_in_chain_before_append() {
+    let java = r#"
+        public class Dao {
+            public void build() {
+                StringBuilder sql = new StringBuilder("SELECT * FROM t,");
+                sql.deleteCharAt(sql.length() - 1).append(" WHERE id = 1");
+            }
+        }
+    "#;
+    let result = extract_sql_from_java(java, "Dao.java", &JavaExtractConfig::default());
+    assert_eq!(result.extractions.len(), 1);
+    let sql = &result.extractions[0].sql;
+    assert!(sql.contains("SELECT * FROM t WHERE id = 1"), "expected comma deleted then WHERE appended, got: {}", sql);
+}
+
+// ── SB Self-Reassignment Chain Tests ──
+
+#[test]
+fn test_sb_self_reassign_delete_char_at_and_append() {
+    let java = r#"
+        public class Dao {
+            public void build() {
+                StringBuilder sql = new StringBuilder("SELECT * FROM t");
+                sql.append(",");
+                sql = sql.deleteCharAt(sql.length() - 1).append(";");
+            }
+        }
+    "#;
+    let result = extract_sql_from_java(java, "Dao.java", &JavaExtractConfig::default());
+    assert_eq!(result.extractions.len(), 1);
+    let sql = &result.extractions[0].sql;
+    assert!(sql.contains("SELECT * FROM t;"), "expected comma deleted and semicolon appended, got: {}", sql);
+    assert!(!sql.contains("t,"), "should not have trailing comma, got: {}", sql);
+}
+
+// ── Complex Guard Test: Simplified user INSERT scenario ──
+
+#[test]
+fn test_complex_dynamic_insert_with_pending_vars_and_delete_char_at() {
+    let java = r#"
+        public class Dao {
+            public void buildInsert(String srcTable, String val) {
+                StringBuilder sqlBuilder = new StringBuilder();
+                sqlBuilder.append("INSERT INTO ");
+                sqlBuilder.append(srcTable + " ");
+                sqlBuilder.append("(" + "col1, col2" + ") VALUES ");
+                String vals = "(";
+                vals += "'" + val + "',";
+                vals += "'fixed'";
+                vals += "), ";
+                sqlBuilder.append(vals);
+                sqlBuilder = sqlBuilder.deleteCharAt(sqlBuilder.length() - 2).append(";");
+            }
+        }
+    "#;
+    let result = extract_sql_from_java(java, "Dao.java", &JavaExtractConfig::default());
+    assert_eq!(
+        result.extractions.len(),
+        1,
+        "extractions: {:?}",
+        result.extractions.iter().map(|e| &e.sql).collect::<Vec<_>>()
+    );
+    let sql = &result.extractions[0].sql;
+
+    assert!(sql.starts_with("INSERT INTO"), "should start with INSERT INTO, got: {}", sql);
+    assert!(sql.contains("__JAVA_RAW_String_srcTable__"), "should contain srcTable placeholder, got: {}", sql);
+    assert!(sql.contains("(col1, col2)"), "should contain column list, got: {}", sql);
+    assert!(sql.contains("VALUES"), "should contain VALUES, got: {}", sql);
+    assert!(sql.contains("('__JAVA_RAW_String_val__'"), "should contain pending var expansion for val, got: {}", sql);
+    assert!(sql.contains("'fixed'"), "should contain fixed literal, got: {}", sql);
+    assert!(sql.contains(";"), "should end with semicolon, got: {}", sql);
+
+    assert!(
+        !sql.contains("__JAVA_RAW_String_vals__"),
+        "should NOT have generic vals placeholder (should be expanded), got: {}",
+        sql
+    );
+}
+
+// ── Pending String substring() Strip Tests ──
+
+#[test]
+fn test_pending_string_substring_strip() {
+    let java = r#"
+        public class Dao {
+            public void build() {
+                StringBuilder sqlBuilder = new StringBuilder();
+                sqlBuilder.append("INSERT INTO t VALUES ");
+                String vals = "(";
+                vals += "'a',";
+                vals += "'b',";
+                if (vals.endsWith(",")) vals = vals.substring(0, vals.length() - 1);
+                vals += ")";
+                sqlBuilder.append(vals);
+            }
+        }
+    "#;
+    let result = extract_sql_from_java(java, "Dao.java", &JavaExtractConfig::default());
+    assert_eq!(result.extractions.len(), 1);
+    let sql = &result.extractions[0].sql;
+    assert!(sql.contains("VALUES ('a','b')"), "trailing comma should be stripped, got: {}", sql);
+}
+
+#[test]
+fn test_ends_with_guard_skips_when_no_suffix() {
+    let java = r#"
+        public class Dao {
+            public void build() {
+                StringBuilder sqlBuilder = new StringBuilder();
+                sqlBuilder.append("INSERT INTO t VALUES ");
+                String vals = "(NO_COMMA";
+                if (vals.endsWith(",")) vals = vals.substring(0, vals.length() - 1);
+                vals += ")";
+                sqlBuilder.append(vals);
+            }
+        }
+    "#;
+    let result = extract_sql_from_java(java, "Dao.java", &JavaExtractConfig::default());
+    assert_eq!(result.extractions.len(), 1);
+    let sql = &result.extractions[0].sql;
+    assert!(
+        sql.contains("(NO_COMMA)"),
+        "endsWith guard should skip substring when value doesn't end with suffix, got: {}",
+        sql
+    );
+}
+
+// ── Full User Scenario Guard Test ──
+
+#[test]
+fn test_full_dynamic_insert_partition_scenario() {
+    let java = r#"
+        import java.util.*;
+        import java.util.stream.Collectors;
+
+        public class PartitionDao {
+            public void buildBatchInsert(String srcTable, String partionField) {
+                List<String> partionFields = Arrays.asList(partionField.split(","));
+                List<Map<String, String>> dataList = new ArrayList<>();
+                Map<String, List<Map<String, String>>> groupList = new LinkedHashMap<>();
+
+                for (String partitionClause : groupList.keySet()) {
+                    StringBuilder sqlBuilder = new StringBuilder();
+                    sqlBuilder.append("INSERT INTO  ");
+                    sqlBuilder.append(srcTable + " ");
+
+                    sqlBuilder.append("(" + dataList.get(0).keySet().stream()
+                        .filter(e -> !partionFields.contains(e))
+                        .collect(Collectors.joining(",")) + ") VALUES ");
+
+                    List<Map<String, String>> groupData = groupList.get(partitionClause);
+                    for (Map<String, String> data : groupData) {
+                        String subStr = "(";
+                        for (String key : data.keySet()) {
+                            if (!partionFields.contains(key)) {
+                                subStr += "'" + data.get(key) + "',";
+                            }
+                        }
+                        if (subStr.endsWith(",")) subStr = subStr.substring(0, subStr.length() - 1);
+                        subStr += "), ";
+                        sqlBuilder.append(subStr);
+                    }
+                    sqlBuilder = sqlBuilder.deleteCharAt(sqlBuilder.length() - 2).append(";\n");
+                }
+            }
+        }
+    "#;
+    let result = extract_sql_from_java(java, "PartitionDao.java", &JavaExtractConfig::default());
+    assert_eq!(
+        result.extractions.len(),
+        1,
+        "expected 1 extraction, got {}: {:?}",
+        result.extractions.len(),
+        result.extractions.iter().map(|e| &e.sql).collect::<Vec<_>>()
+    );
+    let sql = &result.extractions[0].sql;
+
+    assert!(sql.contains("INSERT INTO"), "should contain INSERT INTO, got: {}", sql);
+    assert!(sql.contains("__JAVA_RAW_String_srcTable__"), "should contain srcTable placeholder, got: {}", sql);
+    assert!(sql.contains("VALUES"), "should contain VALUES keyword, got: {}", sql);
+
+    assert!(
+        sql.contains("__JAVA_RAW_String_get__") || sql.contains("__JAVA_RAW_String_data__"),
+        "should contain value placeholder from subStr accumulation, got: {}",
+        sql
+    );
+
+    assert!(
+        !sql.contains("__RAW_String_get__',)"),
+        "trailing comma inside value tuple should be stripped by substring, got: {}",
+        sql
+    );
+
+    assert!(sql.contains(";\n"), "should end with semicolon-newline, got: {}", sql);
+
+    assert!(
+        !sql.contains("__JAVA_RAW_String_subStr__"),
+        "should NOT have generic subStr placeholder (should be expanded), got: {}",
+        sql
+    );
+}
