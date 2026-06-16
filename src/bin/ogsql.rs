@@ -3428,7 +3428,9 @@ fn output_csv_validate_rows(
 
         let stmt_var_errors: Vec<&ogsql_parser::UndefinedVariableError> = var_errors
             .iter()
-            .filter(|ve| ve.location.as_ref().is_none_or(|sp| sp.start.line >= stmt_start && sp.start.line <= stmt_end))
+            .filter(|ve| {
+                ve.location.as_ref().map_or(true, |sp| sp.start.line >= stmt_start && sp.start.line <= stmt_end)
+            })
             .collect();
 
         let stmt_lint_warnings: Vec<&ogsql_parser::linter::SqlWarning> = lint_warnings
