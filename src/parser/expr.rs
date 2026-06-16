@@ -623,7 +623,7 @@ impl Parser {
                         self.expect_token(&Token::RParen)?;
                         let obj = std::mem::replace(left, Expr::Default);
                         let mut name_parts = expr_to_dotted_name(obj);
-                        name_parts.push(field);
+                        name_parts.push(field.into());
                         *left = Expr::FunctionCall {
                             name: name_parts,
                             args,
@@ -1000,7 +1000,7 @@ impl Parser {
                         };
                         return Ok(Expr::TypeCast {
                             expr: Box::new(Expr::Literal(Literal::String(s))),
-                            type_name: DataType::Custom(vec![full_type], Vec::new()),
+                            type_name: DataType::Custom(vec![full_type.into()], Vec::new()),
                             default: None,
                             format: None,
                         });
@@ -1034,13 +1034,13 @@ impl Parser {
                                 self.advance();
                                 return Ok(Expr::SpecialFunction {
                                     name: "interval".to_string(),
-                                    args: vec![Expr::Literal(Literal::String(s)), Expr::ColumnRef(vec![unit_name])],
+                                    args: vec![Expr::Literal(Literal::String(s)), Expr::ColumnRef(vec![unit_name.into()])],
                                 });
                             }
                         }
                         return Ok(Expr::TypeCast {
                             expr: Box::new(Expr::Literal(Literal::String(s))),
-                            type_name: DataType::Custom(vec!["interval".to_string()], Vec::new()),
+                            type_name: DataType::Custom(vec!["interval".to_string().into()], Vec::new()),
                             default: None,
                             format: None,
                         });
@@ -1069,13 +1069,13 @@ impl Parser {
                                 self.advance();
                                 return Ok(Expr::SpecialFunction {
                                     name: "interval".to_string(),
-                                    args: vec![expr, Expr::ColumnRef(vec![unit_name])],
+                                    args: vec![expr, Expr::ColumnRef(vec![unit_name.into()])],
                                 });
                             }
                         }
                         return Ok(expr);
                     }
-                    return Ok(Expr::ColumnRef(vec!["interval".to_string()]));
+                    return Ok(Expr::ColumnRef(vec!["interval".to_string().into()]));
                 }
                 if matches!(kw, Keyword::SYSDATE) {
                     self.advance();
@@ -1094,7 +1094,7 @@ impl Parser {
                         | Keyword::USER
                 ) {
                     self.advance();
-                    return Ok(Expr::ColumnRef(vec![kw.as_str().to_string()]));
+                    return Ok(Expr::ColumnRef(vec![kw.as_str().to_string().into()]));
                 }
                 if matches!(
                     kw,
@@ -1112,7 +1112,7 @@ impl Parser {
                         self.expect_token(&Token::RParen)?;
                         return Ok(Expr::SpecialFunction { name, args: vec![precision] });
                     }
-                    return Ok(Expr::ColumnRef(vec![name]));
+                    return Ok(Expr::ColumnRef(vec![name.into()]));
                 }
                 // CURRENT OF cursor_name — positioned UPDATE/DELETE
                 if kw == Keyword::CURRENT_P {
@@ -1123,7 +1123,7 @@ impl Parser {
                         return Ok(Expr::CurrentOf { cursor_name });
                     }
                     // Not "CURRENT OF" — fall through to treat CURRENT as column ref
-                    return Ok(Expr::ColumnRef(vec!["CURRENT".to_string()]));
+                    return Ok(Expr::ColumnRef(vec!["CURRENT".to_string().into()]));
                 }
                 // Handle multi-word type names before string literals (e.g. double precision 'x')
                 let saved = self.pos;
@@ -1136,18 +1136,18 @@ impl Parser {
                 // Parse first identifier (keyword-as-identifier),
                 // then check for qualified star (e.g. temp.*) before
                 // continuing with dotted name resolution.
-                let first = self.parse_identifier()?;
-                let name = if self.match_token(&Token::Dot) {
+                let first = self.parse_ident()?;
+                let name: ObjectName = if self.match_token(&Token::Dot) {
                     self.advance();
                     if self.match_token(&Token::Star) {
                         self.advance();
-                        return Ok(Expr::QualifiedStar(first));
+                        return Ok(Expr::QualifiedStar(first.value));
                     }
                     let mut parts = vec![first];
-                    parts.push(self.parse_identifier()?);
+                    parts.push(self.parse_ident()?);
                     while self.match_token(&Token::Dot) {
                         self.advance();
-                        parts.push(self.parse_identifier()?);
+                        parts.push(self.parse_ident()?);
                     }
                     parts
                 } else {
@@ -1198,11 +1198,11 @@ impl Parser {
             }
             Token::SetIdent(s) => {
                 self.advance();
-                Ok(Expr::ColumnRef(vec![s]))
+                Ok(Expr::ColumnRef(vec![s.into()]))
             }
             Token::Star => {
                 self.advance();
-                Ok(Expr::ColumnRef(vec!["*".to_string()]))
+                Ok(Expr::ColumnRef(vec!["*".to_string().into()]))
             }
             Token::LBracket => {
                 self.advance();
@@ -1249,11 +1249,11 @@ impl Parser {
                 self.advance();
                 return Ok(Expr::QualifiedStar(first));
             }
-            let mut name = vec![first];
-            name.push(self.parse_identifier()?);
+            let mut name: ObjectName = vec![first.into()];
+            name.push(self.parse_ident()?);
             while self.match_token(&Token::Dot) {
                 self.advance();
-                name.push(self.parse_identifier()?);
+                name.push(self.parse_ident()?);
             }
             let obj_name = name;
             if obj_name.len() >= 2 {
@@ -1300,7 +1300,7 @@ impl Parser {
             }
             return Ok(Expr::ColumnRef(obj_name));
         }
-        let name = vec![first];
+        let name: ObjectName = vec![first.into()];
         if let Token::StringLiteral(s) = self.peek().clone() {
             self.advance();
             return Ok(Expr::TypeCast {
@@ -1452,7 +1452,7 @@ impl Parser {
             let builtin = self.validate_func(&name, 1, distinct, over.is_some(), false);
             return Ok(Expr::FunctionCall {
                 name,
-                args: vec![Expr::ColumnRef(vec!["*".to_string()])],
+                args: vec![Expr::ColumnRef(vec!["*".to_string().into()])],
                 distinct,
                 over,
                 filter,
@@ -1771,7 +1771,7 @@ impl Parser {
         self.expect_keyword(Keyword::FROM)?;
         let expr = self.parse_expr()?;
         self.expect_token(&Token::RParen)?;
-        Ok(Expr::SpecialFunction { name: name.join("."), args: vec![Expr::ColumnRef(vec![field]), expr] })
+        Ok(Expr::SpecialFunction { name: name.join("."), args: vec![Expr::ColumnRef(vec![field.into()]), expr] })
     }
 
     fn parse_trim_function(&mut self, name: ObjectName) -> Result<Expr, ParserError> {
@@ -1790,7 +1790,7 @@ impl Parser {
                 self.advance();
                 let source = self.parse_expr()?;
                 self.expect_token(&Token::RParen)?;
-                Ok(Expr::SpecialFunction { name: name.join("."), args: vec![Expr::ColumnRef(vec![dir]), source] })
+                Ok(Expr::SpecialFunction { name: name.join("."), args: vec![Expr::ColumnRef(vec![dir.into()]), source] })
             } else {
                 // TRIM(direction chars FROM expr)
                 let chars = self.parse_expr()?;
@@ -1799,7 +1799,7 @@ impl Parser {
                 self.expect_token(&Token::RParen)?;
                 Ok(Expr::SpecialFunction {
                     name: name.join("."),
-                    args: vec![Expr::ColumnRef(vec![dir]), chars, source],
+                    args: vec![Expr::ColumnRef(vec![dir.into()]), chars, source],
                 })
             }
         } else {
@@ -2233,7 +2233,7 @@ impl Parser {
             if self.try_consume_keyword(Keyword::VALUE_P) {
                 None
             } else {
-                Some(Box::new(Expr::ColumnRef(vec!["no".to_string()])))
+                Some(Box::new(Expr::ColumnRef(vec!["no".to_string().into()])))
             }
         } else {
             Some(Box::new(self.parse_expr()?))
@@ -2295,14 +2295,14 @@ impl Parser {
     }
 }
 
-fn expr_to_dotted_name(expr: crate::ast::Expr) -> Vec<String> {
+fn expr_to_dotted_name(expr: crate::ast::Expr) -> Vec<crate::ast::Ident> {
     match expr {
         crate::ast::Expr::ColumnRef(name) => name,
         crate::ast::Expr::PlVariable(name) => name,
         crate::ast::Expr::FunctionCall { name, .. } => name,
         crate::ast::Expr::FieldAccess { object, field } => {
             let mut parts = expr_to_dotted_name(*object);
-            parts.push(field);
+            parts.push(field.into());
             parts
         }
         _ => vec![],
