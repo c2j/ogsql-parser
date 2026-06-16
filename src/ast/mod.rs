@@ -1,3 +1,4 @@
+pub mod ident;
 pub mod plpgsql;
 
 use crate::token::SourceLocation;
@@ -1415,6 +1416,8 @@ pub enum Literal {
     Boolean(bool),
     Null,
 }
+
+pub use ident::Ident;
 
 pub type ObjectName = Vec<String>;
 
