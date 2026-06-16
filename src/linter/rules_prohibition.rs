@@ -409,7 +409,7 @@ fn is_sargability_breaking_op(op: &str) -> bool {
 }
 
 fn emit_index_aware_r006(
-    col_ref: &[String],
+    col_ref: &[crate::ast::Ident],
     tables: &[crate::ast::TableRef],
     _indexes: Option<&crate::linter::IndexInfo>,
     loc: crate::token::SourceLocation,
@@ -452,7 +452,7 @@ fn where_and_tables(stmt: &Statement) -> (Option<&Expr>, &[crate::ast::TableRef]
 
 /// Resolve which table a column belongs to from the FROM clause.
 /// Returns the table name (lowercase), or None if unresolvable.
-fn resolve_table_from_column(col_ref: &[String], tables: &[crate::ast::TableRef]) -> Option<String> {
+fn resolve_table_from_column(col_ref: &[crate::ast::Ident], tables: &[crate::ast::TableRef]) -> Option<String> {
     if col_ref.len() >= 2 {
         return Some(col_ref[col_ref.len() - 2].to_lowercase());
     }
