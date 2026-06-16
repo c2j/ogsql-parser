@@ -74,6 +74,10 @@ impl PartialEq<&str> for Ident {
     fn eq(&self, other: &&str) -> bool { self.value == *other }
 }
 
+impl PartialEq<String> for Ident {
+    fn eq(&self, other: &String) -> bool { self.value == *other }
+}
+
 impl Default for Ident {
     fn default() -> Self {
         Self { value: String::new(), quote_style: None }
