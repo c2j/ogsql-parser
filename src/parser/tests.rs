@@ -6928,88 +6928,52 @@ END;"#;
 }
 
 #[test]
-fn test_on_conflict_do_nothing() {
+fn test_on_conflict_rejected_do_nothing() {
     let sql = "INSERT INTO t VALUES (1) ON CONFLICT DO NOTHING";
     let tokens = Tokenizer::new(sql).tokenize().unwrap();
     let mut parser = Parser::new(tokens);
-    let stmts = parser.parse();
+    let _ = parser.parse();
     let errors = parser.errors();
-    assert!(errors.is_empty(), "Expected no errors: {:?}", errors);
-    match &stmts[0] {
-        Statement::Insert(ins) => {
-            let oc = ins.node.on_conflict.as_ref().expect("expected on_conflict");
-            assert!(oc.target.is_none());
-            assert!(matches!(oc.action, ConflictAction::DoNothing));
-        }
-        _ => panic!("expected Insert"),
-    }
+    assert!(!errors.is_empty(), "ON CONFLICT should be rejected");
+    let msg = format!("{}", errors[0]);
+    assert!(msg.contains("ON CONFLICT"), "error should mention ON CONFLICT: {}", msg);
+    assert!(msg.contains("ON DUPLICATE KEY UPDATE"), "error should suggest ON DUPLICATE KEY UPDATE: {}", msg);
 }
 
 #[test]
-fn test_on_conflict_do_update() {
+fn test_on_conflict_rejected_do_update() {
     let sql = "INSERT INTO t VALUES (1) ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name";
     let tokens = Tokenizer::new(sql).tokenize().unwrap();
     let mut parser = Parser::new(tokens);
-    let stmts = parser.parse();
-    match &stmts[0] {
-        Statement::Insert(ins) => {
-            let oc = ins.node.on_conflict.as_ref().expect("expected on_conflict");
-            match &oc.target {
-                Some(ConflictTarget::Columns(cols)) => assert_eq!(cols, &["id"]),
-                _ => panic!("expected Columns target"),
-            }
-            match &oc.action {
-                ConflictAction::DoUpdate { assignments, where_clause } => {
-                    assert_eq!(assignments.len(), 1);
-                    assert!(where_clause.is_none());
-                }
-                _ => panic!("expected DoUpdate"),
-            }
-        }
-        _ => panic!("expected Insert, got {:?}", stmts[0]),
-    }
+    let _ = parser.parse();
+    let errors = parser.errors();
+    assert!(!errors.is_empty(), "ON CONFLICT should be rejected");
+    let msg = format!("{}", errors[0]);
+    assert!(msg.contains("ON CONFLICT"), "error should mention ON CONFLICT: {}", msg);
 }
 
 #[test]
-fn test_on_conflict_on_constraint() {
+fn test_on_conflict_rejected_on_constraint() {
     let sql = "INSERT INTO t VALUES (1) ON CONFLICT ON CONSTRAINT pk DO NOTHING";
     let tokens = Tokenizer::new(sql).tokenize().unwrap();
     let mut parser = Parser::new(tokens);
-    let stmts = parser.parse();
+    let _ = parser.parse();
     let errors = parser.errors();
-    assert!(errors.is_empty(), "Expected no errors: {:?}", errors);
-    match &stmts[0] {
-        Statement::Insert(ins) => {
-            let oc = ins.node.on_conflict.as_ref().expect("expected on_conflict");
-            match &oc.target {
-                Some(ConflictTarget::OnConstraint(name)) => assert_eq!(name, "pk"),
-                _ => panic!("expected OnConstraint target"),
-            }
-            assert!(matches!(oc.action, ConflictAction::DoNothing));
-        }
-        _ => panic!("expected Insert"),
-    }
+    assert!(!errors.is_empty(), "ON CONFLICT should be rejected");
+    let msg = format!("{}", errors[0]);
+    assert!(msg.contains("ON CONFLICT"), "error should mention ON CONFLICT: {}", msg);
 }
 
 #[test]
-fn test_on_conflict_with_where() {
+fn test_on_conflict_rejected_with_where() {
     let sql = "INSERT INTO t VALUES (1, 'test') ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name WHERE t.id > 0";
     let tokens = Tokenizer::new(sql).tokenize().unwrap();
     let mut parser = Parser::new(tokens);
-    let stmts = parser.parse();
-    match &stmts[0] {
-        Statement::Insert(ins) => {
-            let oc = ins.node.on_conflict.as_ref().expect("expected on_conflict");
-            match &oc.action {
-                ConflictAction::DoUpdate { assignments, where_clause } => {
-                    assert_eq!(assignments.len(), 1);
-                    assert!(where_clause.is_some());
-                }
-                _ => panic!("expected DoUpdate"),
-            }
-        }
-        _ => panic!("expected Insert, got {:?}", stmts[0]),
-    }
+    let _ = parser.parse();
+    let errors = parser.errors();
+    assert!(!errors.is_empty(), "ON CONFLICT should be rejected");
+    let msg = format!("{}", errors[0]);
+    assert!(msg.contains("ON CONFLICT"), "error should mention ON CONFLICT: {}", msg);
 }
 
 #[test]
