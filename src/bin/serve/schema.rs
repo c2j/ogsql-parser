@@ -210,6 +210,37 @@ pub struct ParseResponse {
     pub extracted_sql: Option<Vec<serde_json::Value>>,
 }
 
+/// Per-statement validation result for granular error attribution.
+///
+/// Each entry corresponds to one mapper statement (validate-xml),
+/// Java SQL extraction (validate-java), or top-level SQL statement (validate).
+/// Includes the method identifier, source line, extracted SQL, and
+/// its own valid/error/warning breakdown so API consumers can locate
+/// the exact source of validation failures.
+#[derive(Debug, serde::Serialize, ToSchema)]
+#[non_exhaustive]
+pub struct StatementValidation {
+    /// Statement or method identifier: mapper ID, procedure name, or className::methodName.
+    pub method: String,
+    /// Line number in the input source (XML, Java, or SQL file).
+    pub line: usize,
+    /// Statement type, e.g. "Select", "Insert", "CreateProcedure".
+    #[serde(rename = "type")]
+    pub sql_type: String,
+    /// The extracted SQL text (may be empty for SQL-level validate).
+    pub sql: String,
+    /// Whether this specific statement/method is valid.
+    pub valid: bool,
+    /// Number of real errors (non-warning) in this statement.
+    pub error_count: usize,
+    /// Number of warnings in this statement.
+    pub warning_count: usize,
+    /// Real errors attributed to this statement (ParserError JSON).
+    pub errors: Vec<serde_json::Value>,
+    /// Warnings attributed to this statement (ParserError JSON).
+    pub warnings: Vec<serde_json::Value>,
+}
+
 /// POST /api/validate response.
 #[derive(Debug, serde::Serialize, ToSchema)]
 #[non_exhaustive]
@@ -226,6 +257,14 @@ pub struct ValidateResponse {
     pub lint_warnings: Option<Vec<serde_json::Value>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub lint_summary: Option<serde_json::Value>,
+    /// Whether strict validation mode was enabled.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub strict_mode: Option<bool>,
+    /// Per-statement validation breakdown for granular error attribution.
+    /// Present for validate-xml, validate-java, and validate (SQL) when
+    /// the input contains identifiable statements.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub statements: Option<Vec<StatementValidation>>,
 }
 
 // ─── Lint configuration ──────────────────────────────────────
