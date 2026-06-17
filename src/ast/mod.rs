@@ -1174,6 +1174,10 @@ pub enum SequenceFunc {
 pub enum Expr {
     Literal(Literal),
     ColumnRef(ObjectName),
+    /// Oracle-style `(+)` outer-join marker attached to a column reference.
+    /// Preserved for round-trip fidelity; the formatter re-emits `(+)` after the name.
+    /// Treated semantically equivalent to [`Expr::ColumnRef`] everywhere except formatting.
+    ColumnRefOuterJoin(ObjectName),
     QualifiedStar(String),
     BinaryOp {
         left: Box<Expr>,
