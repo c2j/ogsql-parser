@@ -81,6 +81,8 @@ enum IndentKind {
     Merge,
     Cte,
     UpdateSet,
+    WhereCont,
+    ParenExpr,
 }
 
 // ── TokenFormatter ─────────────────────────────────────────────────────────────
@@ -95,6 +97,23 @@ pub struct TokenFormatter<'a> {
     config: FormatConfig,
     /// Parenthesis nesting depth (for subquery / nested expression detection)
     paren_depth: usize,
+    /// Tracks the paren_depth at which BETWEEN was last seen.
+    /// When AND is encountered at the same depth, it is treated as
+    /// BETWEEN's partner (not a logical AND) and kept inline.
+    between_depth: Option<i32>,
+    /// Parallel to indent_stack: records the paren_depth at which each
+    /// IndentKind::Subquery was pushed.  Used in RParen to only pop the
+    /// Subquery indent when the matching `)` is encountered, avoiding
+    /// false pops for function-call parens inside subqueries.
+    subquery_depths: Vec<usize>,
+    /// Parallel to indent_stack for IndentKind::ParenExpr: records the
+    /// paren_depth at which each expression-paren was opened, so RParen
+    /// can pop the correct indent level.
+    paren_expr_depths: Vec<usize>,
+    /// True when inside a DML statement (SELECT / INSERT / UPDATE / DELETE
+    /// / MERGE / WITH).  AND/OR continuation indent is only applied in
+    /// DML contexts to avoid false positives in DDL like CREATE OR REPLACE.
+    dml_stmt_active: bool,
 }
 
 impl<'a> TokenFormatter<'a> {
@@ -118,6 +137,10 @@ impl<'a> TokenFormatter<'a> {
             output: String::new(),
             config,
             paren_depth: 0,
+            between_depth: None,
+            subquery_depths: Vec::new(),
+            paren_expr_depths: Vec::new(),
+            dml_stmt_active: false,
         }
     }
 
@@ -278,6 +301,10 @@ impl<'a> TokenFormatter<'a> {
         self.indent_stack.iter().any(|k| matches!(k, IndentKind::Select))
     }
 
+    fn in_subquery(&self) -> bool {
+        self.indent_stack.iter().any(|k| matches!(k, IndentKind::Subquery))
+    }
+
     fn in_pl_block(&self) -> bool {
         self.indent_stack
             .iter()
@@ -298,6 +325,16 @@ impl<'a> TokenFormatter<'a> {
 
     fn in_cte_context(&self) -> bool {
         self.indent_stack.iter().any(|k| matches!(k, IndentKind::Cte))
+    }
+
+    fn in_where_cont(&self) -> bool {
+        self.indent_stack.iter().any(|k| matches!(k, IndentKind::WhereCont))
+    }
+
+    fn pop_where_cont(&mut self) {
+        while self.indent_stack.last() == Some(&IndentKind::WhereCont) {
+            self.indent_stack.pop();
+        }
     }
 
     fn is_procedure_or_function_context(&self) -> bool {
@@ -435,6 +472,7 @@ impl<'a> TokenFormatter<'a> {
             // ── Semicolon ──────────────────────────────────────────────────────
             Token::Semicolon => {
                 self.emit_current_token();
+                self.dml_stmt_active = false;
                 // Pop DML/CTE indent contexts, but keep PL/pgSQL block contexts
                 self.indent_stack
                     .retain(|k| matches!(k, IndentKind::Begin | IndentKind::If | IndentKind::Loop | IndentKind::Case));
@@ -448,6 +486,7 @@ impl<'a> TokenFormatter<'a> {
 
             // ── SELECT ─────────────────────────────────────────────────────────
             Token::Keyword(Keyword::SELECT) => {
+                self.dml_stmt_active = true;
                 self.emit_line_start();
                 self.emit_current_token();
                 self.indent_stack.push(IndentKind::Select);
@@ -468,6 +507,7 @@ impl<'a> TokenFormatter<'a> {
                     self.emit_space();
                 }
                 self.emit_current_token();
+                self.emit_space();
                 self.pos += 1;
             }
 
@@ -480,11 +520,16 @@ impl<'a> TokenFormatter<'a> {
             | Token::Keyword(Keyword::UNION)
             | Token::Keyword(Keyword::INTERSECT)
             | Token::Keyword(Keyword::EXCEPT) => {
-                if self.in_select_context() {
-                    self.pop_indent_to(IndentKind::Select);
-                }
-                if self.in_update_context() {
-                    self.pop_indent_to(IndentKind::Update);
+                if self.paren_depth == 0 {
+                    if !self.in_subquery() {
+                        self.pop_where_cont();
+                    }
+                    if self.in_select_context() {
+                        self.pop_indent_to(IndentKind::Select);
+                    }
+                    if self.in_update_context() {
+                        self.pop_indent_to(IndentKind::Update);
+                    }
                 }
                 self.emit_line_start();
                 self.emit_current_token();
@@ -500,6 +545,8 @@ impl<'a> TokenFormatter<'a> {
             | Token::Keyword(Keyword::JOIN) => {
                 if self.paren_depth == 0 {
                     self.emit_line_start();
+                } else {
+                    self.emit_space();
                 }
                 self.emit_current_token();
                 self.emit_space();
@@ -507,8 +554,34 @@ impl<'a> TokenFormatter<'a> {
             }
 
             // ── AND / OR ──────────────────────────────────────────────────────
-            Token::Keyword(Keyword::AND) | Token::Keyword(Keyword::OR) => {
-                if self.config.logical_operator_newline && self.paren_depth == 0 {
+            Token::Keyword(Keyword::AND) => {
+                // BETWEEN ... AND: keep the AND inline (it is BETWEEN's partner)
+                if let Some(bd) = self.between_depth {
+                    if bd == self.paren_depth as i32 {
+                        self.emit_default_token();
+                        self.between_depth = None;
+                        // emit_default_token already advanced self.pos
+                        return;
+                    }
+                    self.between_depth = None;
+                }
+                if self.config.logical_operator_newline {
+                    if self.dml_stmt_active && !self.in_subquery() && !self.in_where_cont() {
+                        self.indent_stack.push(IndentKind::WhereCont);
+                    }
+                    self.emit_line_start();
+                    self.emit_current_token();
+                    self.emit_space();
+                    self.pos += 1;
+                } else {
+                    self.emit_default_token();
+                }
+            }
+            Token::Keyword(Keyword::OR) => {
+                if self.config.logical_operator_newline {
+                    if self.dml_stmt_active && !self.in_subquery() && !self.in_where_cont() {
+                        self.indent_stack.push(IndentKind::WhereCont);
+                    }
                     self.emit_line_start();
                     self.emit_current_token();
                     self.emit_space();
@@ -520,11 +593,12 @@ impl<'a> TokenFormatter<'a> {
 
             // ── Comma ──────────────────────────────────────────────────────────
             Token::Comma => {
-                if self.config.select_newline
+                let in_list = (matches!(self.indent_stack.last(), Some(IndentKind::Select))
+                    && self.config.select_newline)
                     || self.in_create_table_body()
                     || self.in_insert_context()
-                    || self.in_update_context()
-                {
+                    || self.in_update_context();
+                if in_list {
                     self.handle_list_comma();
                 } else {
                     self.emit_current_token();
@@ -538,10 +612,13 @@ impl<'a> TokenFormatter<'a> {
                 self.emit_current_token();
                 self.paren_depth += 1;
                 self.pos += 1;
-                // Check if next token is SELECT (subquery)
                 if let Some(Token::Keyword(Keyword::SELECT)) = self.peek_token(0) {
+                    self.subquery_depths.push(self.paren_depth);
                     self.indent_stack.push(IndentKind::Subquery);
                     self.needs_line = true;
+                } else {
+                    self.paren_expr_depths.push(self.paren_depth);
+                    self.indent_stack.push(IndentKind::ParenExpr);
                 }
             }
 
@@ -554,13 +631,24 @@ impl<'a> TokenFormatter<'a> {
                     self.emit_current_token();
                     self.pos += 1;
                 } else {
+                    // Only pop Subquery indent when this ) matches the depth
+                    // of the ( that pushed it (avoid false pops for
+                    // function-call parens inside subqueries).
+                    if let Some(&depth) = self.subquery_depths.last() {
+                        if self.paren_depth == depth {
+                            self.subquery_depths.pop();
+                            self.indent_stack.pop();
+                            self.emit_line_start();
+                        }
+                    }
+                    if let Some(&depth) = self.paren_expr_depths.last() {
+                        if self.paren_depth == depth {
+                            self.paren_expr_depths.pop();
+                            self.indent_stack.pop();
+                        }
+                    }
                     if self.paren_depth > 0 {
                         self.paren_depth -= 1;
-                    }
-                    // If we were in subquery mode, pop indent
-                    if self.indent_stack.last() == Some(&IndentKind::Subquery) {
-                        self.indent_stack.pop();
-                        self.emit_line_start();
                     }
                     self.emit_current_token();
                     self.pos += 1;
@@ -611,9 +699,7 @@ impl<'a> TokenFormatter<'a> {
 
             // ── CASE ──────────────────────────────────────────────────────────
             Token::Keyword(Keyword::CASE) => {
-                if self.in_pl_block() {
-                    self.emit_line_start();
-                }
+                self.emit_line_start();
                 self.emit_current_token();
                 self.indent_stack.push(IndentKind::Case);
                 self.pos += 1;
@@ -656,6 +742,7 @@ impl<'a> TokenFormatter<'a> {
 
             // ── INSERT INTO ... VALUES ──────────────────────────────────────
             Token::Keyword(Keyword::INSERT) => {
+                self.dml_stmt_active = true;
                 self.emit_line_start();
                 self.emit_current_token();
                 self.emit_space();
@@ -667,6 +754,7 @@ impl<'a> TokenFormatter<'a> {
 
             // ── DELETE FROM ─────────────────────────────────────────────────
             Token::Keyword(Keyword::DELETE_P) => {
+                self.dml_stmt_active = true;
                 self.emit_line_start();
                 self.emit_current_token();
                 self.emit_space();
@@ -675,6 +763,7 @@ impl<'a> TokenFormatter<'a> {
 
             // ── UPDATE ... SET ──────────────────────────────────────────────
             Token::Keyword(Keyword::UPDATE) => {
+                self.dml_stmt_active = true;
                 self.emit_line_start();
                 self.emit_current_token();
                 self.emit_space();
@@ -686,6 +775,7 @@ impl<'a> TokenFormatter<'a> {
 
             // ── MERGE INTO ... USING ... ON ... WHEN ────────────────────────
             Token::Keyword(Keyword::MERGE) => {
+                self.dml_stmt_active = true;
                 self.emit_line_start();
                 self.emit_current_token();
                 self.emit_space();
@@ -695,6 +785,7 @@ impl<'a> TokenFormatter<'a> {
 
             // ── WITH (CTE) ─────────────────────────────────────────────────
             Token::Keyword(Keyword::WITH) => {
+                self.dml_stmt_active = true;
                 self.emit_line_start();
                 self.emit_current_token();
                 self.emit_space();
@@ -760,6 +851,12 @@ impl<'a> TokenFormatter<'a> {
                 self.emit_current_token();
                 self.emit_space();
                 self.pos += 1;
+            }
+
+            // ── BETWEEN (needed for BETWEEN ... AND tracking) ─────────────────
+            Token::Keyword(Keyword::BETWEEN) => {
+                self.between_depth = Some(self.paren_depth as i32);
+                self.emit_default_token();
             }
 
             // ── Default ───────────────────────────────────────────────────────
@@ -1020,7 +1117,7 @@ mod tests {
         let config = FormatConfig { logical_operator_newline: true, select_newline: false, ..Default::default() };
         let input = "SELECT id FROM users WHERE a = 1 AND b = 2 OR c = 3";
         let output = format_sql_with(input, config);
-        assert!(output.contains("WHERE a = 1\nAND b = 2\nOR c = 3"), "AND/OR on new lines: {:?}", output);
+        assert!(output.contains("WHERE a = 1\n  AND b = 2\n  OR c = 3"), "AND/OR on new lines: {:?}", output);
     }
 
     #[test]
