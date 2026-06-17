@@ -622,13 +622,21 @@ fn cmd_format(
 
     // Try AST-based formatting first; fall back to token-based formatting
     // when parsing fails (syntax errors, unsupported constructs).
-    let statements = Parser::new(tokens.clone()).parse();
-    let ast_ok = !statements.iter().any(|s| matches!(s, Statement::Empty));
+    // AST path tokenizes without comments (AST formatter drops comments anyway);
+    // token fallback path uses the comment-preserving tokens from above.
+    let ast_tokens = Tokenizer::new(&sql).tokenize();
+    let ast_ok = if let Ok(ref at) = ast_tokens {
+        let stmts = Parser::new(at.clone()).parse();
+        !stmts.iter().any(|s| matches!(s, Statement::Empty))
+    } else {
+        false
+    };
 
     let formatted = if ast_ok && !no_select_newline {
         let upper = uppercase || kw_case == KeywordCase::Upper;
         let fmt = SqlFormatter::new().uppercase_keywords(upper).pretty_print(true).indent(0);
-        statements.iter().map(|s| fmt.format_statement(s)).collect::<Vec<_>>().join(";\n")
+        let stmts = Parser::new(ast_tokens.unwrap()).parse();
+        stmts.iter().map(|s| fmt.format_statement(s)).collect::<Vec<_>>().join(";\n")
     } else {
         let config = FormatConfig {
             indent_width: indent,
