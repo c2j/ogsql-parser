@@ -128,11 +128,15 @@ fn extract_result_columns(stmt: &Statement) -> Vec<ResultColumn> {
     for target in &select.targets {
         match target {
             SelectTarget::Expr(expr, alias) => {
-                let name = alias.clone().or_else(|| infer_column_name(expr)).unwrap_or_else(|| "?".to_string());
+                let name = alias
+                    .as_ref()
+                    .map(|i| i.value.clone())
+                    .or_else(|| infer_column_name(expr))
+                    .unwrap_or_else(|| "?".to_string());
                 columns.push(ResultColumn { name, inferred_type: None, expression: format_expr_brief(expr) });
             }
             SelectTarget::Star(table) => {
-                let name = table.as_ref().map(|t| format!("{}.*", t)).unwrap_or_else(|| "*".to_string());
+                let name = table.as_ref().map(|t| t.value.clone() + ".*").unwrap_or_else(|| "*".to_string());
                 columns.push(ResultColumn { name, inferred_type: None, expression: "*".to_string() });
             }
         }

@@ -706,12 +706,12 @@ impl SqlFormatter {
             SelectTarget::Expr(expr, alias) => {
                 let mut result = self.format_expr(expr);
                 if let Some(a) = alias {
-                    result = format!("{} AS {}", result, self.quote_identifier(a));
+                    result = format!("{} AS {}", result, self.format_ident(a));
                 }
                 result
             }
             SelectTarget::Star(alias) => match alias {
-                Some(a) => format!("{}.*", self.quote_identifier(a)),
+                Some(a) => format!("{}.*", self.format_ident(a)),
                 None => "*".to_string(),
             },
         }
@@ -742,7 +742,7 @@ impl SqlFormatter {
                     result = format!("{} TIMECAPSULE {}", result, self.format_expr(tc));
                 }
                 if let Some(a) = alias {
-                    result = format!("{} AS {}", result, self.quote_identifier(a));
+                    result = format!("{} AS {}", result, self.format_ident(a));
                 }
                 if !column_aliases.is_empty() {
                     let cols: Vec<String> = column_aliases.iter().map(|c| self.quote_identifier(c)).collect();
@@ -754,7 +754,7 @@ impl SqlFormatter {
                 let args_str: Vec<String> = args.iter().map(|a| self.format_expr(a)).collect();
                 let mut result = format!("{}({})", self.format_object_name(name), args_str.join(", "));
                 if let Some(a) = alias {
-                    result = format!("{} AS {}", result, self.quote_identifier(a));
+                    result = format!("{} AS {}", result, self.format_ident(a));
                 }
                 if !column_defs.is_empty() {
                     let defs: Vec<String> = column_defs.iter().map(|d| self.format_column_def(d)).collect();
@@ -766,7 +766,7 @@ impl SqlFormatter {
                 let sub = format!("({})", self.format_select(query));
                 let result = if *lateral { format!("{} {}", self.kw("LATERAL"), sub) } else { sub };
                 match alias {
-                    Some(a) => format!("{} AS {}", result, self.quote_identifier(a)),
+                    Some(a) => format!("{} AS {}", result, self.format_ident(a)),
                     None => result,
                 }
             }
@@ -783,7 +783,7 @@ impl SqlFormatter {
                                 column_names.iter().map(|c| self.quote_identifier(c)).collect::<Vec<_>>().join(", ")
                             )
                         };
-                        format!(" AS {}{}", self.quote_identifier(a), cols)
+                        format!(" AS {}{}", self.format_ident(a), cols)
                     }
                     None => String::new(),
                 };
@@ -1265,7 +1265,7 @@ impl SqlFormatter {
                 for item in content {
                     result = result + ", " + &self.format_expr(&item.expr);
                     if let Some(alias) = &item.alias {
-                        result = result + " " + &self.kw("AS") + " " + &self.quote_identifier_relaxed(alias);
+                        result = result + " " + &self.kw("AS") + " " + &self.format_ident(alias);
                     }
                 }
                 result + ")"
@@ -1279,7 +1279,7 @@ impl SqlFormatter {
                     .map(|item| {
                         let mut s = self.format_expr(&item.expr);
                         if let Some(alias) = &item.alias {
-                            s = s + " " + &self.kw("AS") + " " + &self.quote_identifier_relaxed(alias);
+                            s = s + " " + &self.kw("AS") + " " + &self.format_ident(alias);
                         }
                         s
                     })
@@ -1383,7 +1383,7 @@ impl SqlFormatter {
             .map(|a| {
                 let mut s = self.format_expr(&a.value);
                 if let Some(name) = &a.name {
-                    s = s + " " + &self.kw("AS") + " " + &self.quote_identifier_relaxed(name);
+                    s = s + " " + &self.kw("AS") + " " + &self.format_ident(name);
                 }
                 s
             })
@@ -1573,7 +1573,7 @@ impl SqlFormatter {
         parts.push(self.format_object_name(&stmt.table));
 
         if let Some(ref alias) = stmt.alias {
-            parts.push(self.quote_identifier(alias));
+            parts.push(self.format_ident(alias));
         }
 
         if let Some(ref p) = stmt.partition {

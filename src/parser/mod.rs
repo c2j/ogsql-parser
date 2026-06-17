@@ -887,19 +887,19 @@ impl Parser {
     }
 
     /// Try to consume an optional alias: [AS] identifier
-    fn parse_optional_alias(&mut self) -> Result<Option<String>, ParserError> {
+    fn parse_optional_alias(&mut self) -> Result<Option<crate::ast::Ident>, ParserError> {
         if self.match_keyword(Keyword::AS) {
             self.advance();
-            Ok(Some(self.parse_identifier()?))
+            Ok(Some(self.parse_ident()?))
         } else {
             match self.peek() {
-                Token::Ident(_) | Token::QuotedIdent(_) => Ok(Some(self.parse_identifier()?)),
+                Token::Ident(_) | Token::QuotedIdent(_) => Ok(Some(self.parse_ident()?)),
                 Token::Keyword(kw) => {
                     if kw.category() != crate::token::keyword::KeywordCategory::Reserved
                         && !self.is_clause_keyword(kw)
                         && self.looks_like_alias()
                     {
-                        Ok(Some(self.parse_identifier()?))
+                        Ok(Some(self.parse_ident()?))
                     } else {
                         Ok(None)
                     }
@@ -913,15 +913,15 @@ impl Parser {
     /// Unlike parse_optional_alias, also accepts non-reserved keywords as implicit aliases.
     /// Uses 1-token lookahead to avoid consuming keywords that start subsequent clauses
     /// (e.g., LOOP in PL/pgSQL, CONNECT in hierarchical queries, ON DUPLICATE KEY UPDATE in INSERT).
-    fn parse_optional_column_alias(&mut self) -> Result<Option<String>, ParserError> {
+    fn parse_optional_column_alias(&mut self) -> Result<Option<crate::ast::Ident>, ParserError> {
         if self.match_keyword(Keyword::AS) {
             self.advance();
-            Ok(Some(self.parse_identifier()?))
+            Ok(Some(self.parse_ident()?))
         } else {
             match self.peek() {
                 Token::Ident(_) | Token::QuotedIdent(_) => {
                     if self.looks_like_alias() || self.is_bulk_collect_ahead() {
-                        Ok(Some(self.parse_identifier()?))
+                        Ok(Some(self.parse_ident()?))
                     } else {
                         Ok(None)
                     }
@@ -930,7 +930,7 @@ impl Parser {
                     if kw.category() != crate::token::keyword::KeywordCategory::Reserved
                         && (self.looks_like_alias() || self.is_bulk_collect_ahead())
                     {
-                        Ok(Some(self.parse_identifier()?))
+                        Ok(Some(self.parse_ident()?))
                     } else {
                         Ok(None)
                     }
