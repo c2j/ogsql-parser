@@ -365,11 +365,17 @@ impl SqlFormatter {
     }
 
     fn multiline_format_sql(&self, flat: &str, indent: usize) -> String {
-        let pad = Self::pad(indent);
-        let cont_pad = format!("{}{}", pad, Self::pad(1));
-
-        let break_before = [
+        // Break points: (pattern, is_conditional_clause).
+        // JOIN variants are listed before bare " JOIN " so the overlap
+        // dedup below keeps the longer match and discards the inner one.
+        let break_before: [(&str, bool); 21] = [
             (" FROM ", false),
+            (" LEFT JOIN ", false),
+            (" RIGHT JOIN ", false),
+            (" INNER JOIN ", false),
+            (" FULL JOIN ", false),
+            (" CROSS JOIN ", false),
+            (" JOIN ", false),
             (" WHERE ", true),
             (" GROUP BY ", false),
             (" HAVING ", true),
@@ -386,32 +392,27 @@ impl SqlFormatter {
             (" EXCEPT ", false),
         ];
 
-        let mut positions: Vec<(usize, usize, bool)> = Vec::new();
+        let depths = Self::compute_paren_depths(flat);
+
+        let mut positions: Vec<(usize, usize, bool, i32)> = Vec::new();
         for (pattern, is_cond) in &break_before {
             let mut search_from = 0;
             while let Some(pos) = flat[search_from..].find(pattern) {
                 let match_start = search_from + pos;
                 let kw_start = match_start + 1;
                 let kw_end = kw_start + pattern.trim().len();
-                let mut paren_depth = 0i32;
-                for ch in flat[..kw_start].chars() {
-                    match ch {
-                        '(' => paren_depth += 1,
-                        ')' => paren_depth -= 1,
-                        _ => {}
-                    }
-                }
-                if paren_depth == 0 {
-                    positions.push((kw_start, kw_end, *is_cond));
-                }
+                let paren_depth = depths.get(kw_start).copied().unwrap_or(0);
+                positions.push((kw_start, kw_end, *is_cond, paren_depth));
                 search_from = match_start + pattern.len();
                 if search_from >= flat.len() {
                     break;
                 }
             }
         }
-        positions.sort_by_key(|(start, _, _)| *start);
-        positions.dedup_by_key(|(start, _, _)| *start);
+        positions.sort_by_key(|(start, _, _, _)| *start);
+        // Deduplicate: remove keywords whose range falls inside a longer
+        // keyword at the same position (e.g. "JOIN" inside "LEFT JOIN").
+        positions.dedup_by(|next, prev| next.0 >= prev.0 && next.0 < prev.1);
 
         if positions.is_empty() {
             return flat.to_string();
@@ -419,14 +420,16 @@ impl SqlFormatter {
 
         let mut result = String::new();
 
-        for (i, (start, kw_end, is_cond)) in positions.iter().enumerate() {
+        for (i, (start, kw_end, is_cond, depth)) in positions.iter().enumerate() {
             if i == 0 && *start > 0 {
                 result.push_str(flat[..*start].trim());
             }
 
             if !result.is_empty() {
                 result.push('\n');
-                result.push_str(&pad);
+                // Indent proportionally to subquery nesting depth.
+                let line_pad = Self::pad(indent + *depth as usize);
+                result.push_str(&line_pad);
             }
 
             let kw_and_content_end = if i + 1 < positions.len() { positions[i + 1].0 } else { flat.len() };
@@ -435,9 +438,10 @@ impl SqlFormatter {
             let content = flat[*kw_end..kw_and_content_end].trim();
 
             if *is_cond && !content.is_empty() {
+                let cond_cont_pad = format!("{}{}", Self::pad(indent + *depth as usize), Self::pad(1));
                 result.push_str(kw_text);
                 result.push(' ');
-                result.push_str(&Self::break_logical_ops(content, &cont_pad));
+                result.push_str(&Self::break_logical_ops(content, &cond_cont_pad));
             } else {
                 result.push_str(kw_text);
                 if !content.is_empty() {
@@ -452,6 +456,27 @@ impl SqlFormatter {
         } else {
             result
         }
+    }
+
+    /// Compute parenthesis nesting depth at every byte position of `s`.
+    ///
+    /// Returns a vector where `depths[i]` is the paren depth *after*
+    /// processing byte `i-1` (i.e. the depth at position `i`).
+    /// Works on raw bytes because `(` and `)` are single-byte ASCII.
+    fn compute_paren_depths(s: &str) -> Vec<i32> {
+        let bytes = s.as_bytes();
+        let mut depths = Vec::with_capacity(bytes.len() + 1);
+        let mut d = 0i32;
+        depths.push(d);
+        for &b in bytes {
+            match b {
+                b'(' => d += 1,
+                b')' => d -= 1,
+                _ => {}
+            }
+            depths.push(d);
+        }
+        depths
     }
 
     fn break_logical_ops(condition: &str, pad: &str) -> String {
@@ -5940,13 +5965,44 @@ mod tests {
     }
 
     #[test]
-    fn test_pretty_print_subquery_no_break_inside() {
+    fn test_pretty_print_subquery_from_clause() {
         let sql = "SELECT * FROM (SELECT id FROM t WHERE x = 1) sub";
         let stmt = parse_one(sql);
         let formatter = SqlFormatter::new().pretty_print(true);
         let result = formatter.format_statement(&stmt);
-        assert!(result.contains("\nFROM"));
-        assert_eq!(result.matches("\nFROM").count(), 1);
+        assert!(result.contains("\nFROM (SELECT"), "outer FROM: {result}");
+        assert!(result.contains("\n  FROM t"), "subquery FROM at depth 1: {result}");
+        assert!(result.contains("\n  WHERE x = 1"), "subquery WHERE: {result}");
+    }
+
+    #[test]
+    fn test_pretty_print_exists_subquery() {
+        let sql = "SELECT id FROM t WHERE a = 1 AND EXISTS (SELECT 1 FROM u WHERE u.id = t.id)";
+        let stmt = parse_one(sql);
+        let formatter = SqlFormatter::new().pretty_print(true);
+        let result = formatter.format_statement(&stmt);
+        assert!(result.contains("\n  FROM u"), "EXISTS subquery FROM: {result}");
+        assert!(result.contains("\n  WHERE u.id = t.id"), "EXISTS subquery WHERE: {result}");
+    }
+
+    #[test]
+    fn test_pretty_print_join_breaks() {
+        let sql = "SELECT a.id FROM users a LEFT JOIN orders b ON a.id = b.uid INNER JOIN items c ON b.iid = c.id";
+        let stmt = parse_one(sql);
+        let formatter = SqlFormatter::new().pretty_print(true);
+        let result = formatter.format_statement(&stmt);
+        assert!(result.contains("\nLEFT JOIN"), "LEFT JOIN on new line: {result}");
+        assert!(result.contains("\nINNER JOIN"), "INNER JOIN on new line: {result}");
+    }
+
+    #[test]
+    fn test_pretty_print_nested_subquery() {
+        let sql = "SELECT * FROM (SELECT id FROM (SELECT id FROM deep WHERE x = 1) inner_t) outer_t";
+        let stmt = parse_one(sql);
+        let formatter = SqlFormatter::new().pretty_print(true);
+        let result = formatter.format_statement(&stmt);
+        assert!(result.contains("\n  FROM (SELECT"), "middle subquery at depth 1: {result}");
+        assert!(result.contains("\n    FROM deep"), "innermost subquery at depth 2: {result}");
     }
 
     #[test]
