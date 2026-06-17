@@ -595,14 +595,19 @@ impl SqlFormatter {
             }
         }
 
-        let targets: Vec<String> = stmt.targets.iter().map(|t| self.format_select_target(t)).collect();
+        let targets: Vec<String> =
+            stmt.targets.iter().map(|t| self.format_select_target_pretty(t, indent_level + 1)).collect();
         if targets.len() <= 1 {
             lines.push(format!("{}{} {}", pad, select_kw, targets.first().map(|s| s.as_str()).unwrap_or("")));
         } else {
             lines.push(format!("{}{}", pad, select_kw));
             for (i, t) in targets.iter().enumerate() {
                 let comma = if i + 1 < targets.len() { "," } else { "" };
-                lines.push(format!("{}  {}{}", pad, t, comma));
+                if t.contains('\n') {
+                    lines.push(format!("{}  {}{}", pad, t.trim_start_matches(' '), comma));
+                } else {
+                    lines.push(format!("{}  {}{}", pad, t, comma));
+                }
             }
         }
 
@@ -703,9 +708,115 @@ impl SqlFormatter {
         result
     }
 
-    fn format_table_refs_pretty(&self, refs: &[TableRef], _indent_level: usize) -> String {
-        let parts: Vec<String> = refs.iter().map(|r| self.format_table_ref(r)).collect();
-        parts.join(", ")
+    fn format_table_refs_pretty(&self, refs: &[TableRef], indent_level: usize) -> String {
+        let pad = Self::pad(indent_level);
+        let mut parts: Vec<String> = Vec::new();
+        for (i, r) in refs.iter().enumerate() {
+            if i > 0 {
+                parts.push(format!("{}{}", pad, self.format_table_ref_pretty(r, indent_level)));
+            } else {
+                parts.push(self.format_table_ref_pretty(r, indent_level));
+            }
+        }
+        parts.join(",\n")
+    }
+
+    fn format_table_ref_pretty(&self, r: &TableRef, indent_level: usize) -> String {
+        let pad = Self::pad(indent_level);
+        match r {
+            TableRef::Subquery { query, alias, lateral } => {
+                let sub_pretty = self.format_select_pretty(query, indent_level + 1);
+                let lat = if *lateral { format!("{} ", self.kw("LATERAL")) } else { String::new() };
+                let alias_str = match alias {
+                    Some(a) => format!(" AS {}", self.format_ident(a)),
+                    None => String::new(),
+                };
+                format!("{}(\n{}\n{}){}", lat, sub_pretty, pad, alias_str)
+            }
+            TableRef::Join { left, right, join_type, condition, natural, using_columns } => {
+                let left_str = self.format_table_ref_pretty(left, indent_level);
+                let join_kw = match join_type {
+                    JoinType::Inner => self.kw("INNER JOIN"),
+                    JoinType::Left => self.kw("LEFT JOIN"),
+                    JoinType::Right => self.kw("RIGHT JOIN"),
+                    JoinType::Full => self.kw("FULL JOIN"),
+                    JoinType::Cross => self.kw("CROSS JOIN"),
+                };
+                let natural_kw = if *natural { format!("{} ", self.kw("NATURAL")) } else { String::new() };
+                let right_str = self.format_table_ref_pretty(right, indent_level);
+                let mut result = format!("{}\n{}{}{} {}", left_str, pad, natural_kw, join_kw, right_str);
+                if let Some(cond) = condition {
+                    result.push_str(&format!("\n{}  {} {}", pad, self.kw("ON"), self.format_expr(cond)));
+                } else if !using_columns.is_empty() {
+                    result.push_str(&format!("\n{}  {} ({})", pad, self.kw("USING"), using_columns.join(", ")));
+                }
+                result
+            }
+            _ => self.format_table_ref(r),
+        }
+    }
+
+    fn format_select_target_pretty(&self, target: &SelectTarget, indent_level: usize) -> String {
+        match target {
+            SelectTarget::Expr(expr, alias) => {
+                let expr_str = self.format_expr_pretty_in_select(expr, indent_level);
+                if let Some(a) = alias {
+                    format!("{} AS {}", expr_str, self.format_ident(a))
+                } else {
+                    expr_str
+                }
+            }
+            SelectTarget::Star(alias) => match alias {
+                Some(a) => format!("{}.*", self.format_ident(a)),
+                None => "*".to_string(),
+            },
+        }
+    }
+
+    fn format_expr_pretty_in_select(&self, expr: &Expr, indent_level: usize) -> String {
+        match expr {
+            Expr::Subquery(subquery) => {
+                let close_pad = Self::pad(indent_level);
+                let sub_pretty = self.format_select_pretty(subquery, indent_level + 1);
+                format!("(\n{}\n{})", sub_pretty, close_pad)
+            }
+            Expr::Exists(subquery) => {
+                let close_pad = Self::pad(indent_level);
+                let sub_pretty = self.format_select_pretty(subquery, indent_level + 1);
+                format!("{} (\n{}\n{})", self.kw("EXISTS"), sub_pretty, close_pad)
+            }
+            Expr::Case { operand, whens, else_expr } => {
+                self.format_case_pretty(operand, whens, else_expr, indent_level)
+            }
+            _ => self.format_expr(expr),
+        }
+    }
+
+    fn format_case_pretty(
+        &self,
+        operand: &Option<Box<Expr>>,
+        whens: &[WhenClause],
+        else_expr: &Option<Box<Expr>>,
+        indent_level: usize,
+    ) -> String {
+        let pad = Self::pad(indent_level);
+        let pad_inner = Self::pad(indent_level + 1);
+        let mut lines = vec![self.kw("CASE").to_string()];
+        if let Some(op) = operand {
+            lines[0].push(' ');
+            lines[0].push_str(&self.format_expr(op));
+        }
+        for w in whens {
+            let mut when_line = format!("{}{} {}", pad_inner, self.kw("WHEN"), self.format_expr(&w.condition));
+            let result_pretty = self.format_expr_pretty_in_select(&w.result, indent_level + 2);
+            when_line.push_str(&format!(" {} {}", self.kw("THEN"), result_pretty));
+            lines.push(when_line);
+        }
+        if let Some(e) = else_expr {
+            lines.push(format!("{}{} {}", pad_inner, self.kw("ELSE"), self.format_expr(e)));
+        }
+        lines.push(format!("{}{}", pad, self.kw("END")));
+        lines.join("\n")
     }
 
     fn format_expr_pretty(&self, expr: &Expr, indent_level: usize) -> String {
