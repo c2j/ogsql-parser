@@ -309,6 +309,36 @@ fn do_validate(input: ValidateInput) -> Result<Json<ValidateResponse>, ApiError>
     let has_var_errors = !var_errors.is_empty();
     let has_real_errors = errors.iter().any(|e| !crate::is_warning(e)) || has_var_errors;
 
+    // Build per-statement validation entries with metadata.
+    let formatter = ogsql_parser::SqlFormatter::new();
+    let stmt_validations: Vec<StatementValidation> = output
+        .statements
+        .iter()
+        .map(|si| {
+            let sql = formatter.format_statement(&si.statement);
+            let sql_type = serde_json::to_value(&si.statement)
+                .ok()
+                .and_then(|v| match v {
+                    serde_json::Value::Object(map) => map.keys().next().cloned(),
+                    _ => None,
+                })
+                .unwrap_or_else(|| "Unknown".to_string());
+            let method = statement_method_name(&si.statement);
+
+            StatementValidation {
+                method,
+                line: si.start_line,
+                sql_type,
+                sql,
+                valid: true,
+                error_count: 0,
+                warning_count: 0,
+                errors: vec![],
+                warnings: vec![],
+            }
+        })
+        .collect();
+
     let mut response = ValidateResponse {
         valid: !has_real_errors,
         error_count: errors.iter().filter(|e| !crate::is_warning(e)).count() + var_errors.len(),
@@ -326,6 +356,8 @@ fn do_validate(input: ValidateInput) -> Result<Json<ValidateResponse>, ApiError>
         },
         lint_warnings: None,
         lint_summary: None,
+        strict_mode: if strict { Some(true) } else { None },
+        statements: if stmt_validations.is_empty() { None } else { Some(stmt_validations) },
     };
 
     if input.lint.unwrap_or(false) {
@@ -497,12 +529,39 @@ fn build_xml_validation_response(
 ) -> Result<Json<ValidateResponse>, ApiError> {
     let mut all_stmts: Vec<ogsql_parser::StatementInfo> = Vec::new();
     let mut all_errors: Vec<ogsql_parser::ParserError> = Vec::new();
+    let mut statement_validations: Vec<StatementValidation> = Vec::new();
 
     for stmt in &result.statements {
-        if let Some((ref infos, ref parse_errors)) = stmt.parse_result {
-            all_stmts.extend(infos.iter().cloned());
-            all_errors.extend(parse_errors.iter().cloned());
-        }
+        let stmt_errors: Vec<ogsql_parser::ParserError> =
+            stmt.parse_result.as_ref().map(|(_, errs)| errs.clone()).unwrap_or_default();
+        let stmt_infos: Vec<ogsql_parser::StatementInfo> =
+            stmt.parse_result.as_ref().map(|(infos, _)| infos.clone()).unwrap_or_default();
+
+        all_stmts.extend(stmt_infos);
+        all_errors.extend(stmt_errors.clone());
+
+        let stmt_err: Vec<serde_json::Value> = stmt_errors
+            .iter()
+            .filter(|e| !crate::is_warning(e))
+            .map(|e| serde_json::to_value(e).unwrap_or_default())
+            .collect();
+        let stmt_warn: Vec<serde_json::Value> = stmt_errors
+            .iter()
+            .filter(|e| crate::is_warning(e))
+            .map(|e| serde_json::to_value(e).unwrap_or_default())
+            .collect();
+
+        statement_validations.push(StatementValidation {
+            method: stmt.id.clone(),
+            line: stmt.line,
+            sql_type: format!("{:?}", stmt.kind),
+            sql: stmt.flat_sql.trim().replace('\r', ""),
+            valid: stmt_err.is_empty(),
+            error_count: stmt_err.len(),
+            warning_count: stmt_warn.len(),
+            errors: stmt_err,
+            warnings: stmt_warn,
+        });
     }
 
     for e in &result.errors {
@@ -532,6 +591,8 @@ fn build_xml_validation_response(
         package_consistency_errors: None,
         lint_warnings: None,
         lint_summary: None,
+        strict_mode: if strict.unwrap_or(false) { Some(true) } else { None },
+        statements: if statement_validations.is_empty() { None } else { Some(statement_validations) },
     };
 
     if lint_enabled.unwrap_or(false) {
@@ -593,6 +654,7 @@ fn do_validate_java(input: ValidateJavaInput) -> Result<Json<ValidateResponse>, 
     let mut all_stmts: Vec<ogsql_parser::StatementInfo> = Vec::new();
     let mut all_errors: Vec<ogsql_parser::ParserError> = Vec::new();
     let mut has_parse_error = false;
+    let mut extraction_validations: Vec<StatementValidation> = Vec::new();
 
     for je in &result.errors {
         all_errors.push(ogsql_parser::ParserError::Warning {
@@ -602,6 +664,14 @@ fn do_validate_java(input: ValidateJavaInput) -> Result<Json<ValidateResponse>, 
     }
 
     for ext in &result.extractions {
+        let method = match (&ext.origin.class_name, &ext.origin.method_name) {
+            (Some(cls), Some(m)) => format!("{}::{}", cls, m),
+            (None, Some(m)) => m.clone(),
+            (Some(cls), None) => cls.clone(),
+            (None, None) => ext.origin.variable_name.clone().unwrap_or_default(),
+        };
+
+        let mut ext_errors: Vec<ogsql_parser::ParserError> = Vec::new();
         if let Some(ref parse_result) = ext.parse_result {
             all_stmts.extend(parse_result.statements.clone());
             for pe in &parse_result.errors {
@@ -609,8 +679,32 @@ fn do_validate_java(input: ValidateJavaInput) -> Result<Json<ValidateResponse>, 
                     has_parse_error = true;
                 }
                 all_errors.push(pe.clone());
+                ext_errors.push(pe.clone());
             }
         }
+
+        let ext_err: Vec<serde_json::Value> = ext_errors
+            .iter()
+            .filter(|e| !crate::is_warning(e))
+            .map(|e| serde_json::to_value(e).unwrap_or_default())
+            .collect();
+        let ext_warn: Vec<serde_json::Value> = ext_errors
+            .iter()
+            .filter(|e| crate::is_warning(e))
+            .map(|e| serde_json::to_value(e).unwrap_or_default())
+            .collect();
+
+        extraction_validations.push(StatementValidation {
+            method,
+            line: ext.origin.line,
+            sql_type: format!("{:?}", ext.sql_kind),
+            sql: ext.sql.trim().replace('\r', ""),
+            valid: ext_err.is_empty(),
+            error_count: ext_err.len(),
+            warning_count: ext_warn.len(),
+            errors: ext_err,
+            warnings: ext_warn,
+        });
     }
 
     let (core_errors, _pkg_errors, var_errors) =
@@ -633,6 +727,8 @@ fn do_validate_java(input: ValidateJavaInput) -> Result<Json<ValidateResponse>, 
         package_consistency_errors: None,
         lint_warnings: None,
         lint_summary: None,
+        strict_mode: if input.strict.unwrap_or(false) { Some(true) } else { None },
+        statements: if extraction_validations.is_empty() { None } else { Some(extraction_validations) },
     };
 
     if input.lint.unwrap_or(false) {
@@ -774,4 +870,17 @@ async fn parse_validate_java_multipart(req: Request) -> Result<ValidateJavaInput
         lint: config.lint,
         lint_config: config.lint_config,
     })
+}
+
+// ── helpers ──────────────────────────────────────────────────
+
+fn statement_method_name(stmt: &ogsql_parser::Statement) -> String {
+    use ogsql_parser::Statement;
+    match stmt {
+        Statement::CreateProcedure(s) => s.name.join("."),
+        Statement::CreateFunction(s) => s.name.join("."),
+        Statement::CreatePackage(s) => s.name.join("."),
+        Statement::CreatePackageBody(s) => s.name.join("."),
+        _ => String::new(),
+    }
 }
