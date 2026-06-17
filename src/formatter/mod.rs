@@ -15,6 +15,12 @@ impl SqlFormatter {
         Self { indent: 0, uppercase_keywords: true, pretty_print: false }
     }
 
+    /// Control whether SQL keywords are uppercased in the output.
+    pub fn uppercase_keywords(mut self, yes: bool) -> Self {
+        self.uppercase_keywords = yes;
+        self
+    }
+
     /// Enable multiline/pretty-print output for [`format_statement`](Self::format_statement).
     ///
     /// When enabled, line breaks are inserted before major SQL keywords

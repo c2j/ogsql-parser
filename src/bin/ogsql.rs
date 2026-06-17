@@ -610,7 +610,7 @@ fn cmd_format(
         Ok(t) => t,
         Err(e) => die!("Tokenization error: {}", e),
     };
-    let keyword_case = match keyword_case.as_str() {
+    let kw_case = match keyword_case.as_str() {
         "upper" => KeywordCase::Upper,
         "lower" => KeywordCase::Lower,
         _ => KeywordCase::Preserve,
@@ -619,17 +619,29 @@ fn cmd_format(
         "leading" => CommaStyle::Leading,
         _ => CommaStyle::Trailing,
     };
-    let config = FormatConfig {
-        indent_width: indent,
-        keyword_case,
-        comma_style,
-        line_width,
-        uppercase_keywords: uppercase,
-        select_newline: !no_select_newline,
-        logical_operator_newline: !no_logical_newline,
-        semicolon_newline: !no_semicolon_newline,
+
+    // Try AST-based formatting first; fall back to token-based formatting
+    // when parsing fails (syntax errors, unsupported constructs).
+    let statements = Parser::new(tokens.clone()).parse();
+    let ast_ok = !statements.iter().any(|s| matches!(s, Statement::Empty));
+
+    let formatted = if ast_ok && !no_select_newline {
+        let upper = uppercase || kw_case == KeywordCase::Upper;
+        let fmt = SqlFormatter::new().uppercase_keywords(upper).pretty_print(true).indent(indent / 2);
+        statements.iter().map(|s| fmt.format_statement(s)).collect::<Vec<_>>().join(";\n")
+    } else {
+        let config = FormatConfig {
+            indent_width: indent,
+            keyword_case: kw_case,
+            comma_style,
+            line_width,
+            uppercase_keywords: uppercase,
+            select_newline: !no_select_newline,
+            logical_operator_newline: !no_logical_newline,
+            semicolon_newline: !no_semicolon_newline,
+        };
+        token_formatter::TokenFormatter::with_config(&sql, tokens, config).format()
     };
-    let formatted = token_formatter::TokenFormatter::with_config(&sql, tokens, config).format();
 
     if cli.json {
         let out = serde_json::json!({
