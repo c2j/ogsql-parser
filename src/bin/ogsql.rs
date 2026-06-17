@@ -627,7 +627,7 @@ fn cmd_format(
 
     let formatted = if ast_ok && !no_select_newline {
         let upper = uppercase || kw_case == KeywordCase::Upper;
-        let fmt = SqlFormatter::new().uppercase_keywords(upper).pretty_print(true).indent(indent / 2);
+        let fmt = SqlFormatter::new().uppercase_keywords(upper).pretty_print(true).indent(0);
         statements.iter().map(|s| fmt.format_statement(s)).collect::<Vec<_>>().join(";\n")
     } else {
         let config = FormatConfig {
