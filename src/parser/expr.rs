@@ -575,6 +575,9 @@ impl Parser {
                                     message: "Oracle-style outer join operator '(+)' is deprecated, use standard JOIN syntax instead".to_string(),
                                     location: loc,
                                 });
+                                if let Expr::ColumnRef(name) = &*left {
+                                    *left = Expr::ColumnRefOuterJoin(name.clone());
+                                }
                                 return Ok(true);
                             }
                         }
@@ -1178,7 +1181,7 @@ impl Parser {
                                 message: "Oracle-style outer join operator '(+)' is deprecated, use standard JOIN syntax instead".to_string(),
                                 location: loc,
                             });
-                            return Ok(Expr::ColumnRef(name));
+                            return Ok(Expr::ColumnRefOuterJoin(name));
                         }
                     }
                     return self.parse_function_call(name);
@@ -1293,7 +1296,7 @@ impl Parser {
                                     .to_string(),
                             location: loc,
                         });
-                        return Ok(Expr::ColumnRef(obj_name));
+                        return Ok(Expr::ColumnRefOuterJoin(obj_name));
                     }
                 }
                 return self.parse_function_call(obj_name);
@@ -1329,7 +1332,7 @@ impl Parser {
                                 .to_string(),
                         location: loc,
                     });
-                    return Ok(Expr::ColumnRef(name));
+                    return Ok(Expr::ColumnRefOuterJoin(name));
                 }
             }
             return self.parse_function_call(name);

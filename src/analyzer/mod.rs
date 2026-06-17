@@ -1785,7 +1785,7 @@ impl PlVariableValidator {
 
     fn check_expr(&mut self, expr: &Expr, context: &str) {
         match expr {
-            Expr::ColumnRef(names) | Expr::PlVariable(names) if names.len() == 1 => {
+            Expr::ColumnRef(names) | Expr::ColumnRefOuterJoin(names) | Expr::PlVariable(names) if names.len() == 1 => {
                 let name = &names[0];
                 if !self.is_declared(name)
                     && !is_pl_builtin(name)
@@ -1976,7 +1976,7 @@ impl PlVariableValidator {
             }
             Expr::SequenceValue { .. } => {}
 
-            Expr::ColumnRef(_) | Expr::PlVariable(_) => {}
+            Expr::ColumnRef(_) | Expr::ColumnRefOuterJoin(_) | Expr::PlVariable(_) => {}
             Expr::Literal(_) => {}
             Expr::QualifiedStar(_) => {}
             Expr::Exists(_) => {}

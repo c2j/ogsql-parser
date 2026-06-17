@@ -927,6 +927,7 @@ impl SqlFormatter {
         match expr {
             Expr::Literal(lit) => self.format_literal(lit),
             Expr::ColumnRef(name) => self.format_object_name(name),
+            Expr::ColumnRefOuterJoin(name) => format!("{}(+)", self.format_object_name(name)),
             Expr::QualifiedStar(table) => format!("{}.*", self.quote_identifier_relaxed(table)),
             Expr::BinaryOp { left, op, right } => {
                 format!("{} {} {}", self.format_expr(left), op.to_uppercase(), self.format_expr(right))
