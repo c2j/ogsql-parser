@@ -34,7 +34,7 @@ fn collect_table_types(
         TableRef::Table { name, alias, .. } => {
             let table_key = find_schema_table(schema, name);
             if let Some(columns) = table_key.and_then(|k| schema.get(k)) {
-                let lookup_name = alias.as_deref().unwrap_or_else(|| name.last().unwrap_or(&name[0]));
+                let lookup_name = alias.as_deref().unwrap_or_else(|| name.last().map(|i| i.as_str()).unwrap_or(""));
                 let lookup_lower = lookup_name.to_lowercase();
                 for (col, dtype) in columns {
                     map.insert((lookup_lower.clone(), col.to_lowercase()), dtype.clone());

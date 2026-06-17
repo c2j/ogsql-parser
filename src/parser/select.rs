@@ -382,13 +382,13 @@ impl Parser {
         let expr = self.parse_expr()?;
         let alias = if self.match_keyword(Keyword::AS) {
             self.advance();
-            Some(self.parse_identifier()?)
+            Some(self.parse_ident()?)
         } else {
             self.parse_optional_column_alias()?
         };
         // Heuristic: catch tokenizer-level merge of "INTO var" into "INTOvar" (missing space)
-        if let Some(ref alias_str) = alias {
-            let upper = alias_str.to_uppercase();
+        if let Some(ref alias_ident) = alias {
+            let upper = alias_ident.to_uppercase();
             if upper.starts_with("INTO")
                 && upper.len() > 4
                 && upper[4..].chars().next().is_some_and(|c| c.is_ascii_alphabetic())
@@ -397,8 +397,8 @@ impl Parser {
                 self.add_error(ParserError::Warning {
                     message: format!(
                         "alias \"{}\" looks like a typo for \"INTO {}\" — possible missing space",
-                        alias_str,
-                        &alias_str[4..]
+                        alias_ident.as_str(),
+                        &upper[4..]
                     ),
                     location: loc,
                 });
@@ -738,15 +738,15 @@ impl Parser {
             self.expect_token(&Token::RParen)?;
             let alias = if self.match_keyword(Keyword::AS) {
                 self.advance();
-                Some(self.parse_identifier()?)
+                Some(self.parse_ident()?)
             } else {
                 match self.peek() {
-                    Token::Ident(_) | Token::QuotedIdent(_) => Some(self.parse_identifier()?),
+                    Token::Ident(_) | Token::QuotedIdent(_) => Some(self.parse_ident()?),
                     Token::Keyword(kw) => {
                         if kw.category() != crate::token::keyword::KeywordCategory::Reserved
                             && !self.is_clause_keyword(kw)
                         {
-                            Some(self.parse_identifier()?)
+                            Some(self.parse_ident()?)
                         } else {
                             None
                         }
@@ -1009,14 +1009,14 @@ impl Parser {
         Ok(Some(clause))
     }
 
-    fn parse_pivot_alias(&mut self) -> Result<Option<String>, ParserError> {
+    fn parse_pivot_alias(&mut self) -> Result<Option<crate::ast::Ident>, ParserError> {
         if self.match_keyword(Keyword::AS) {
             self.advance();
             let alias = match self.peek().clone() {
-                Token::Ident(_) | Token::QuotedIdent(_) => self.parse_identifier()?,
+                Token::Ident(_) | Token::QuotedIdent(_) => self.parse_ident()?,
                 Token::StringLiteral(s) => {
                     self.advance();
-                    s
+                    crate::ast::Ident::new(s)
                 }
                 _ => {
                     return Err(ParserError::UnexpectedToken {

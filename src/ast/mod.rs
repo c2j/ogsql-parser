@@ -1050,15 +1050,15 @@ pub struct Cte {
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum SelectTarget {
-    Expr(Expr, Option<String>),
-    Star(Option<String>),
+    Expr(Expr, Option<Ident>),
+    Star(Option<Ident>),
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum TableRef {
     Table {
         name: ObjectName,
-        alias: Option<String>,
+        alias: Option<Ident>,
         #[serde(default, skip_serializing_if = "Vec::is_empty")]
         column_aliases: Vec<String>,
         partition: Option<TablePartitionRef>,
@@ -1068,20 +1068,20 @@ pub enum TableRef {
     FunctionCall {
         name: ObjectName,
         args: Vec<Expr>,
-        alias: Option<String>,
+        alias: Option<Ident>,
         column_defs: Vec<ColumnDef>,
         #[serde(skip_serializing_if = "Option::is_none")]
         builtin: Option<BuiltinFuncMeta>,
     },
     Subquery {
         query: Box<SelectStatement>,
-        alias: Option<String>,
+        alias: Option<Ident>,
         #[serde(default)]
         lateral: bool,
     },
     Values {
         values: Box<ValuesStatement>,
-        alias: Option<String>,
+        alias: Option<Ident>,
         column_names: Vec<String>,
         #[serde(default)]
         lateral: bool,
@@ -1129,7 +1129,7 @@ pub struct PivotClause {
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct PivotValue {
     pub value: Expr,
-    pub alias: Option<String>,
+    pub alias: Option<Ident>,
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -1436,13 +1436,13 @@ pub struct XmlAttributes {
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct XmlAttribute {
     pub value: Expr,
-    pub name: Option<String>,
+    pub name: Option<Ident>,
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct XmlContent {
     pub expr: Expr,
-    pub alias: Option<String>,
+    pub alias: Option<Ident>,
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -1500,7 +1500,7 @@ pub struct InsertStatement {
     pub hints: Vec<String>,
     pub with: Option<WithClause>,
     pub table: ObjectName,
-    pub alias: Option<String>,
+    pub alias: Option<Ident>,
     pub partition: Option<DmlPartitionClause>,
     pub columns: Vec<String>,
     pub source: InsertSource,

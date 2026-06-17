@@ -12016,7 +12016,7 @@ fn guard_unreserved_keyword_table_alias() {
         Statement::Select(s) => match &s.from[0] {
             TableRef::Table { alias, name, .. } => {
                 assert_eq!(name, &vec!["table_name".to_string()]);
-                assert_eq!(alias, &Some("client".to_string()));
+                assert_eq!(alias.as_deref(), Some("client"));
             }
             other => panic!("expected Table ref, got {:?}", other),
         },
