@@ -1,3 +1,5 @@
+#![cfg(feature = "java")]
+
 use tree_sitter::Parser;
 
 fn print_subtree(src: &str, node: tree_sitter::Node, depth: usize) {
