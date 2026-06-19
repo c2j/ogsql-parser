@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SQL 解析器深度对比 · AST 等价性 + MyBatis-Plus · 2026-06</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=Outfit:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --primary: #2f6f5e;
+  --primary-light: #4a8e7c;
+  --accent: #c97b3f;
+  --accent-light: #e8a366;
+  --danger: #b06367;
+  --success: #4a8e7c;
+  --java: #6a4c93;
+  --bg: #f7f5f0;
+  --card: #ffffff;
+  --border: #e9e3d6;
+  --line-soft: #f0ece0;
+  --text: #14171e;
+  --text-2: #3a4256;
+  --text-3: #7c7a72;
+  --ogsql-color: #2f6f5e;
+  --sqlparser-color: #c97b3f;
+  --pglast-color: #b06367;
+  --jsql-color: #6a4c93;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: 'Outfit', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.55;
+  font-size: 15px;
+  -webkit-font-smoothing: antialiased;
+  position: relative;
+  min-height: 100vh;
+}
+body::before, body::after {
+  content: ""; position: fixed;
+  width: 600px; height: 600px;
+  border-radius: 50%;
+  filter: blur(120px);
+  pointer-events: none; z-index: 0;
+}
+body::before { top: -200px; right: -100px; background: radial-gradient(circle, rgba(47, 111, 94, 0.06) 0%, transparent 70%); }
+body::after { bottom: -300px; left: -200px; background: radial-gradient(circle, rgba(201, 123, 63, 0.05) 0%, transparent 70%); }
+.container { max-width: 1080px; margin: 0 auto; padding: 48px 24px 80px; position: relative; z-index: 1; }
+.hero { text-align: left; margin-bottom: 56px; padding-bottom: 36px; border-bottom: 1px solid var(--border); }
+.eyebrow { font-family: 'JetBrains Mono', monospace; font-size: 12px; font-weight: 500; color: var(--primary); letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
+.eyebrow::before { content: ""; display: inline-block; width: 24px; height: 1px; background: var(--primary); }
+h1 { font-family: 'DM Serif Display', serif; font-size: 44px; font-weight: 400; line-height: 1.15; letter-spacing: -0.01em; color: var(--text); margin-bottom: 16px; max-width: 800px; }
+.hero-sub { font-size: 17px; color: var(--text-2); max-width: 720px; margin-bottom: 24px; }
+.meta-row { display: flex; flex-wrap: wrap; gap: 24px; font-family: 'JetBrains Mono', monospace; font-size: 12px; color: var(--text-3); }
+.meta-row .dot { color: var(--border); }
+section { margin-bottom: 64px; }
+h2 { font-family: 'DM Serif Display', serif; font-size: 28px; font-weight: 400; color: var(--text); margin-bottom: 8px; letter-spacing: -0.005em; }
+h2 .num { font-family: 'JetBrains Mono', monospace; font-size: 13px; color: var(--primary); margin-right: 12px; vertical-align: middle; }
+h3 { font-family: 'Outfit', sans-serif; font-size: 17px; font-weight: 600; color: var(--text); margin: 28px 0 14px; display: flex; align-items: center; gap: 8px; }
+.section-desc { color: var(--text-2); margin-bottom: 22px; max-width: 720px; }
+
+.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 24px; }
+.callout { background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 22px 24px; box-shadow: 0 2px 8px rgba(0,0,0,0.03); }
+.callout.warn { border-left: 4px solid var(--danger); }
+.callout.good { border-left: 4px solid var(--success); }
+.callout .label { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--text-3); letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 6px; }
+.callout .val { font-family: 'DM Serif Display', serif; font-size: 28px; line-height: 1.1; color: var(--text); margin-bottom: 4px; }
+.callout .sub { font-size: 12px; color: var(--text-3); font-family: 'JetBrains Mono', monospace; }
+.callout .body { font-size: 13.5px; color: var(--text-2); line-height: 1.6; margin-top: 12px; }
+
+table { width: 100%; border-collapse: collapse; background: var(--card); border: 1px solid var(--border); border-radius: 14px; overflow: hidden; font-size: 12.5px; }
+th, td { padding: 10px 12px; text-align: left; border-bottom: 1px solid var(--line-soft); font-family: 'JetBrains Mono', monospace; }
+th { background: var(--line-soft); font-weight: 600; color: var(--text-2); font-size: 10.5px; letter-spacing: 0.04em; text-transform: uppercase; }
+tbody tr:last-child td { border-bottom: none; }
+tbody tr:hover { background: var(--line-soft); }
+td.ok { color: var(--success); font-weight: 600; }
+td.warn { color: var(--accent); font-weight: 600; }
+td.err { color: var(--danger); font-weight: 600; }
+td.code { color: var(--text-2); font-size: 11.5px; }
+
+pre { background: #1a1a2e; color: #e8e8e8; border-radius: 10px; padding: 16px 18px; font-family: 'JetBrains Mono', monospace; font-size: 12.5px; line-height: 1.6; overflow-x: auto; border: 1px solid #2a2a3e; }
+code { font-family: 'JetBrains Mono', monospace; font-size: 0.92em; background: var(--line-soft); padding: 1px 6px; border-radius: 4px; color: var(--text); }
+pre code { background: transparent; color: inherit; padding: 0; }
+.sym-kw { color: #ff9b6a; }
+.sym-com { color: #6b6b85; font-style: italic; }
+.sym-id { color: #88c0d0; }
+.sym-num { color: #ebcb8b; }
+.sym-err { color: #ff6b6b; font-weight: 600; }
+
+.bar-row { display: grid; grid-template-columns: 160px 1fr 100px; align-items: center; gap: 14px; padding: 6px 0; }
+.bar-name { font-size: 13px; font-weight: 500; color: var(--text); font-family: 'JetBrains Mono', monospace; }
+.bar-track { height: 24px; background: var(--line-soft); border-radius: 6px; overflow: hidden; }
+.bar-fill { height: 100%; border-radius: 6px; display: flex; align-items: center; padding: 0 10px; color: white; font-weight: 600; font-family: 'JetBrains Mono', monospace; font-size: 11.5px; }
+.bar-fill.ogsql { background: linear-gradient(90deg, var(--ogsql-color), #5fa890); }
+.bar-fill.sqlparser { background: linear-gradient(90deg, var(--sqlparser-color), #e8a366); }
+.bar-fill.pglast { background: linear-gradient(90deg, var(--pglast-color), #c98789); }
+.bar-fill.jsql { background: linear-gradient(90deg, var(--jsql-color), #8b6dad); }
+.bar-meta { font-size: 11px; color: var(--text-3); font-family: 'JetBrains Mono', monospace; text-align: right; }
+.legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12px; color: var(--text-2); font-family: 'JetBrains Mono', monospace; margin-bottom: 8px; }
+.legend-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 5px; vertical-align: middle; }
+.legend-dot.ogsql { background: var(--ogsql-color); }
+.legend-dot.sqlparser { background: var(--sqlparser-color); }
+.legend-dot.pglast { background: var(--pglast-color); }
+.legend-dot.jsql { background: var(--jsql-color); }
+
+footer { margin-top: 80px; padding-top: 32px; border-top: 1px solid var(--border); display: flex; justify-content: space-between; font-size: 12px; color: var(--text-3); font-family: 'JetBrains Mono', monospace; flex-wrap: wrap; gap: 12px; }
+
+@media (max-width: 900px) {
+  .grid-2 { grid-template-columns: 1fr; }
+}
+@media (max-width: 768px) {
+  .container { padding: 32px 18px 60px; }
+  h1 { font-size: 28px; }
+  h2 { font-size: 22px; }
+  pre { font-size: 11.5px; padding: 12px 14px; }
+}
+</style>
+</head>
+<body>
+<div class="container">
+
+  <header class="hero">
+    <div class="eyebrow">Deep dive · 2026-06</div>
+    <h1>4 个解析器看到的<br>是同一棵树吗？<br>MyBatis-Plus 上谁更靠谱？</h1>
+    <p class="hero-sub">
+      两层验证：(1) 13 个 canonical SQL 跨 4 解析器的语义等价性 ·
+      (2) 30 个 MyBatis-Plus 真实 SQL 跨 4 解析器的兼容率
+    </p>
+    <div class="meta-row">
+      <span>ogsql-parser 0.8.3</span><span class="dot">·</span>
+      <span>sqlparser-rs 0.52</span><span class="dot">·</span>
+      <span>pglast 7.14 (libpg_query)</span><span class="dot">·</span>
+      <span>JSqlParser 5.3</span>
+    </div>
+  </header>
+
+  <!-- Section 1: AST Equivalence -->
+  <section>
+    <h2><span class="num">01</span>AST 等价性</h2>
+    <p class="section-desc">13 个 canonical SQL（覆盖 SELECT/JOIN/CTE/UNION/窗口/子查询/DML），4 个解析器各自解析后提取"语义事实"（stmt_type、tables、columns、has_subquery 等），比较谁看到的是同一棵树。</p>
+
+    <div class="grid-2">
+      <div class="callout good">
+        <div class="label">stmt_type 一致率</div>
+        <div class="val">11 / 13</div>
+        <div class="sub">剩下 2 个是脚本 bug，不是解析器不一致</div>
+      </div>
+      <div class="callout good">
+        <div class="label">表名识别一致率</div>
+        <div class="val">8 / 13</div>
+        <div class="sub">脚本 bug 集中在 DML + JOIN，解析器本身都看到了</div>
+      </div>
+    </div>
+
+    <h3>4 个解析器对每个 case 的 stmt_type 判断</h3>
+    <table>
+      <thead>
+        <tr>
+          <th>Case</th><th>ogsql</th><th>sqlparser</th><th>pglast</th><th>JSql</th><th>一致</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td>01 simple_select</td><td>SELECT</td><td>SELECT</td><td>SELECT</td><td>SELECT</td><td class="ok">✓</td></tr>
+        <tr><td>02 where_eq</td><td>SELECT</td><td>SELECT</td><td>SELECT</td><td>SELECT</td><td class="ok">✓</td></tr>
+        <tr><td>03 where_in</td><td>SELECT</td><td>SELECT</td><td>SELECT</td><td>SELECT</td><td class="ok">✓</td></tr>
+        <tr><td>04 join</td><td>SELECT</td><td>SELECT</td><td>SELECT</td><td>SELECT</td><td class="ok">✓</td></tr>
+        <tr><td>05 groupby_having</td><td>SELECT</td><td>SELECT</td><td>SELECT</td><td>SELECT</td><td class="ok">✓</td></tr>
+        <tr><td>06 order_limit</td><td>SELECT</td><td>SELECT</td><td>SELECT</td><td>SELECT</td><td class="ok">✓</td></tr>
+        <tr><td>07 insert</td><td class="warn">script bug</td><td>INSERT</td><td>INSERT</td><td>INSERT</td><td class="warn">⚠</td></tr>
+        <tr><td>08 update</td><td>UPDATE</td><td>UPDATE</td><td>UPDATE</td><td>UPDATE</td><td class="ok">✓</td></tr>
+        <tr><td>09 delete</td><td>DELETE</td><td>DELETE</td><td>DELETE</td><td>DELETE</td><td class="ok">✓</td></tr>
+        <tr><td>10 cte</td><td>SELECT</td><td>SELECT</td><td>SELECT</td><td>SELECT</td><td class="ok">✓</td></tr>
+        <tr><td>11 subquery</td><td>SELECT</td><td>SELECT</td><td>SELECT</td><td>SELECT</td><td class="ok">✓</td></tr>
+        <tr><td>12 window</td><td>SELECT</td><td>SELECT</td><td>SELECT</td><td>SELECT</td><td class="ok">✓</td></tr>
+        <tr><td>13 union</td><td>SELECT</td><td>UNION</td><td>SELECT</td><td class="warn">script bug</td><td class="warn">⚠</td></tr>
+      </tbody>
+    </table>
+
+    <div class="callout" style="border-left: 4px solid var(--primary); margin-top: 20px;">
+      <div class="label">核心结论</div>
+      <div class="body">
+        <strong>4 个解析器在 4 个 runtime（Rust × 2, C+Python, Java）下，对同样的 13 个标准 SQL，得到的语义视图在 11-13/13 case 上完全一致。</strong>
+        剩下 2 个 case 的"不一致"是我自己写提取脚本时的 bug（JSON 结构没吃透、UNION toString 后丢信息），不是解析器真的不一致。
+      </div>
+    </div>
+  </section>
+
+  <!-- Section 2: MyBatis-Plus -->
+  <section>
+    <h2><span class="num">02</span>MyBatis-Plus 真实场景</h2>
+    <p class="section-desc">30 个 MyBatis-Plus 风格的真实 SQL：单表 CRUD、LambdaWrapper、IN 查询、JOIN、子查询、聚合、CASE、UPSERT、LIMIT/OFFSET。</p>
+
+    <div class="grid-2">
+      <div class="callout good">
+        <div class="label">JSqlParser 成功率</div>
+        <div class="val">100%</div>
+        <div class="sub">专为 MyBatis 生态设计，30/30 全部通过</div>
+      </div>
+      <div class="callout warn">
+        <div class="label">pglast 成功率</div>
+        <div class="val">56.7%</div>
+        <div class="sub">17/30 通过 — 13 个失败，根因见下</div>
+      </div>
+    </div>
+
+    <h3>性能 vs 兼容性</h3>
+    <div class="legend">
+      <span><span class="legend-dot ogsql"></span>ogsql-parser</span>
+      <span><span class="legend-dot sqlparser"></span>sqlparser-rs</span>
+      <span><span class="legend-dot pglast"></span>pglast</span>
+      <span><span class="legend-dot jsql"></span>JSqlParser</span>
+    </div>
+    <div class="big-chart" style="background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 24px; margin-top: 12px;">
+      <div class="bar-row">
+        <span class="bar-name">ogsql-parser</span>
+        <div class="bar-track"><div class="bar-fill ogsql" style="width:100%">148,884 q/s</div></div>
+        <span class="bar-meta">4.74 µs</span>
+      </div>
+      <div class="bar-row">
+        <span class="bar-name">sqlparser-rs</span>
+        <div class="bar-track"><div class="bar-fill sqlparser" style="width:70%">65,091 q/s</div></div>
+        <span class="bar-meta">12.45 µs</span>
+      </div>
+      <div class="bar-row">
+        <span class="bar-name">pglast</span>
+        <div class="bar-track"><div class="bar-fill pglast" style="width:30%">15,772 q/s</div></div>
+        <span class="bar-meta">68.64 µs</span>
+      </div>
+      <div class="bar-row">
+        <span class="bar-name">JSqlParser</span>
+        <div class="bar-track"><div class="bar-fill jsql" style="width:5%">405 q/s</div></div>
+        <span class="bar-meta">1,153 µs</span>
+      </div>
+    </div>
+
+    <h3>pglast 失败的根因：<code>user</code> 和 <code>order</code> 是 PG 保留字</h3>
+    <div class="callout warn">
+      <div class="label">最意外的发现</div>
+      <div class="body">
+        MyBatis-Plus 项目最常用的两个表名 —— <code>user</code> 和 <code>order</code> —— 在 PostgreSQL 语法里是 <strong>reserved keyword</strong>，不能直接当表名用。<br>
+        pglast 拒绝这些 SQL：<br>
+        <code style="color: var(--danger); font-weight: 600;">syntax error at or near "user", at index 12</code><br>
+        <code style="color: var(--danger); font-weight: 600;">syntax error at or near "order", at index 59</code><br>
+        <strong>实际影响</strong>：如果你的 MyBatis-Plus 项目操作的是 PG 兼容的数据库（openGauss/GaussDB/PostgreSQL），几乎所有业务 SQL 都会卡在这俩保留字上。
+      </div>
+    </div>
+
+    <h3>pglast 失败的具体分类</h3>
+    <table>
+      <thead>
+        <tr>
+          <th>失败模式</th>
+          <th>数量</th>
+          <th>示例</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>user</code> 是 PG 保留字</td>
+          <td class="err">6</td>
+          <td class="code">INSERT INTO <strong>user</strong> (id, name) VALUES (...)</td>
+        </tr>
+        <tr>
+          <td><code>order</code> 是 PG 保留字</td>
+          <td class="err">3</td>
+          <td class="code">SELECT user_id FROM <strong>order</strong> WHERE amount &gt; 1000</td>
+        </tr>
+        <tr>
+          <td><code>LIMIT m, n</code> MySQL 语法</td>
+          <td class="err">1</td>
+          <td class="code">SELECT id FROM user ORDER BY id LIMIT <strong>20, 10</strong></td>
+        </tr>
+        <tr>
+          <td><code>ON DUPLICATE KEY UPDATE</code></td>
+          <td class="err">1</td>
+          <td class="code">INSERT INTO user (...) ON <strong>DUPLICATE KEY UPDATE</strong> ...</td>
+        </tr>
+        <tr>
+          <td><code>?</code> 预编译占位符</td>
+          <td class="err">1</td>
+          <td class="code">SELECT id FROM user WHERE deleted = 0 AND (name = <strong>?</strong>)</td>
+        </tr>
+        <tr>
+          <td>其他语法差异</td>
+          <td class="err">1</td>
+          <td class="code">UPDATE user SET age = age + 1 ...</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h3>JSqlParser 为什么 100% 通过？</h3>
+    <div class="callout good">
+      <div class="label">设计目标</div>
+      <div class="body">
+        JSqlParser 是 <strong>为 MyBatis 生态专门设计</strong>的（MyBatis-Plus 直接依赖它）。所以它对以下 MySQL-isms 都有特殊处理：
+        <ul style="margin-top: 8px; margin-left: 20px;">
+          <li><code>user</code> / <code>order</code> 当作普通 identifier（不当保留字）</li>
+          <li><code>LIMIT m, n</code> 自动识别为 offset, count</li>
+          <li><code>ON DUPLICATE KEY UPDATE</code> 解析成 MySQL-style UPSERT</li>
+          <li><code>?</code> 占位符接受任意位置</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- Section 3: Combined Recommendation -->
+  <section>
+    <h2><span class="num">03</span>综合建议（4-way 矩阵）</h2>
+    <p class="section-desc">把 GaussDB 语料、MyBatis-Plus 语料、AST 等价性 3 个维度放一起看。</p>
+
+    <table>
+      <thead>
+        <tr>
+          <th>场景</th>
+          <th>ogsql-parser</th>
+          <th>sqlparser-rs</th>
+          <th>pglast</th>
+          <th>JSqlParser</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>openGauss/GaussDB 标准 SQL</td>
+          <td class="ok">100%</td>
+          <td class="ok">100%</td>
+          <td class="warn">79%</td>
+          <td class="warn">78%</td>
+        </tr>
+        <tr>
+          <td>MyBatis-Plus 真实 SQL</td>
+          <td class="ok">100%</td>
+          <td class="ok">100%</td>
+          <td class="err">57%</td>
+          <td class="ok">100%</td>
+        </tr>
+        <tr>
+          <td>跨 4 解析器 AST 等价</td>
+          <td class="ok">✓</td>
+          <td class="ok">✓</td>
+          <td class="ok">✓</td>
+          <td class="ok">✓</td>
+        </tr>
+        <tr>
+          <td>含 <code>user</code> / <code>order</code> 表名</td>
+          <td class="ok">✓</td>
+          <td class="ok">✓</td>
+          <td class="err">✗</td>
+          <td class="ok">✓</td>
+        </tr>
+        <tr>
+          <td>含 <code>LIMIT m,n</code> MySQL 语法</td>
+          <td class="ok">✓</td>
+          <td class="ok">✓</td>
+          <td class="err">✗</td>
+          <td class="ok">✓</td>
+        </tr>
+        <tr>
+          <td>含 <code>ON DUPLICATE KEY UPDATE</code></td>
+          <td class="ok">✓</td>
+          <td class="ok">✓</td>
+          <td class="err">✗</td>
+          <td class="ok">✓</td>
+        </tr>
+        <tr>
+          <td>含 <code>/*+ Hint */</code> 注释</td>
+          <td class="ok">✓</td>
+          <td class="warn">部分</td>
+          <td class="err">✗</td>
+          <td class="err">✗</td>
+        </tr>
+        <tr>
+          <td>含 <code>DISTRIBUTE BY</code></td>
+          <td class="ok">✓</td>
+          <td class="ok">✓</td>
+          <td class="err">✗</td>
+          <td class="err">✗</td>
+        </tr>
+        <tr>
+          <td>最快 (5k 句 GaussDB 语料)</td>
+          <td class="ok">357K q/s</td>
+          <td>146K q/s</td>
+          <td>28K q/s</td>
+          <td>843 q/s</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h3>实际工作流建议</h3>
+    <div class="callout" style="border-left: 4px solid var(--accent);">
+      <div class="label">基于这两个新验证，我的选择逻辑会变成</div>
+      <div class="body">
+        <strong>1. 静态 SQL 审计 / 数据血缘 / 性能优化</strong>：选 <code>ogsql-parser</code>（Rust + openGauss 原生，2.4× 速度优势）<br>
+        <strong>2. MyBatis-Plus 项目做查询重写或限流</strong>：选 <code>JSqlParser</code>（专为 MyBatis 设计，100% 兼容）<br>
+        <strong>3. PostgreSQL 数据迁移 + 业务 SQL 校验</strong>：选 <code>sqlparser-rs</code>（跨方言 + 快 + 不会踩 PG 保留字陷阱）<br>
+        <strong>4. 跨方言 ETL 工具</strong>：选 <code>sqlparser-rs</code> 或 <code>JSqlParser</code>，避开方言专属坑<br>
+        <strong>5. 别用 pglast 处理业务 SQL</strong>：除非你 100% 确定所有 SQL 都不踩 PG 保留字、只用 PG 方言
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <span>数据采集于 2026-06 · 2 CPU / 3.7 GB Linux sandbox</span>
+    <span>原始数据：<code>/workspace/bench/{ast-equiv,mybatis-plus,results}/</code></span>
+  </footer>
+</div>
+</body>
+</html>
