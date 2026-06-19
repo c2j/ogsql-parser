@@ -19,11 +19,11 @@ This project implements a complete SQL parser for openGauss/GaussDB (an enterpri
 
 | Component | Status | Details |
 |-----------|--------|---------|
-| Tokenizer / 分词器 | ✅ Complete | 717 keywords, comments, operators, literals |
+| Tokenizer / 分词器 | ✅ Complete | 724 keywords, comments, operators, literals |
 | Multi-encoding support / 多字符集支持 | ✅ Complete | UTF-8, EUC-JP, EUC-KR, GB18030, BIG5, UTF-16 |
-| AST / 抽象语法树 | ✅ Complete | 180+ statement types defined |
+| AST / 抽象语法树 | ✅ Complete | 219+ AST types defined |
 | Parser dispatcher / 解析器分发 | ✅ Complete | Top-level statement routing |
-| Unit tests / 单元测试 | ✅ Complete | 1646 tests |
+| Unit tests / 单元测试 | ✅ Complete | 1900+ tests |
 | Regression tests / 回归测试 | ✅ Complete | 1409/1409 — All openGauss regression tests passing |
 | JSON serde / JSON 序列化 | ✅ Complete | Full serde::Serialize + Deserialize on all AST types |
 
@@ -37,7 +37,7 @@ This project implements a complete SQL parser for openGauss/GaussDB (an enterpri
 | DELETE | ✅ Complete | DELETE with WHERE, RETURNING |
 | MERGE | ✅ Complete | MERGE INTO with WHEN MATCHED/NOT MATCHED + semantic validation |
 | Expressions / 表达式 | ✅ Complete | Pratt parser for full expression support |
-| Formatter / 格式化器 | ✅ Complete | Configurable SQL formatter: indent, keyword case, comma style, line width, DML/DDL/PL/pgSQL |
+| Formatter / 格式化器 | ✅ Complete | Two-stage formatter: structured AST pretty-print (subqueries, JOINs, CASE, scalar subqueries each on separate lines) + configurable token formatter (indent, keyword case, comma style, line width, DML/DDL/PL/pgSQL) |
 
 ### Phase 3: PL/pgSQL Support / 第三阶段：PL/pgSQL 支持
 
@@ -119,6 +119,7 @@ This project implements a complete SQL parser for openGauss/GaussDB (an enterpri
 | Query fingerprints / SQL指纹 | ✅ Complete | Deterministic fingerprints for query identification |
 | Transaction analysis / 事务分析 | ✅ Complete | Analyze COMMIT/ROLLBACK patterns in PL blocks |
 | Package consistency / 包一致性校验 | ✅ Complete | Validate PACKAGE vs PACKAGE BODY consistency |
+| SQL Linter / SQL 反模式检测 | ✅ Complete | 53 anti-pattern rules across 4 severity levels (Prohibition / Performance / Caution / Suggestion), TOML config, index-aware rules, integrated into CLI / MCP / HTTP API |
 | AST Visitor pattern / AST访问者模式 | ✅ Complete | Walk statements, PL blocks, expressions |
 
 ### Phase 6: Integrations / 第六阶段：集成
@@ -131,6 +132,11 @@ This project implements a complete SQL parser for openGauss/GaussDB (an enterpri
 | HTTP API server / HTTP API 服务 | ✅ Complete | RESTful API for parse, format, validate, tokenize, json2sql |
 | Interactive TUI / 交互式终端 | ✅ Complete | Terminal UI playground for live SQL parsing |
 | Strict validation mode / 严格校验模式 | ✅ Complete | Detect undefined function calls in PL blocks |
+| validate-xml / validate-java commands / XML与Java校验命令 | ✅ Complete | Dedicated validation commands for iBatis XML mappers and Java sources with CSV/stats output |
+| serve API enhancements / HTTP API 增强 | ✅ Complete | `/api/parse-xml`, `/api/parse-java`, per-statement validation breakdown, tracing, multipart upload, Swagger UI (`serve`), and a lightweight `serve-minimal` feature |
+| Oracle `(+)` outer-join marker / Oracle 外连接标记 | ✅ Complete | Preserved in AST for full round-trip fidelity |
+| `Ident` quote-style preservation / 标识符引号保留 | ✅ Complete | `ObjectName` → `Vec<Ident>` retains quoted-identifier style across parse/format round-trip |
+| JDBC `?` placeholder / JDBC 占位符 | ✅ Complete | Tokenizer recognizes `?` as `JdbcParam` for prepared-statement SQL |
 | Windows 7 support / Windows 7 支持 | ✅ Complete | Tier 3 target `x86_64-win7-windows-msvc` with nightly + `-Zbuild-std` |
 
 ---
@@ -150,10 +156,10 @@ ogsql-parser/
 │   ├── token/
 │   │   ├── mod.rs          # Token types and spans
 │   │   ├── tokenizer.rs    # Lexical analyzer
-│   │   ├── keyword.rs      # 717 keyword definitions
+│   │   ├── keyword.rs      # 724 keyword definitions
 │   │   └── encoding.rs     # Multi-encoding support
 │   ├── ast/
-│   │   ├── mod.rs          # 180+ AST node definitions
+│   │   ├── mod.rs          # 219+ AST type definitions
 │   │   ├── plpgsql.rs      # PL/pgSQL AST types (40+ types)
 │   │   └── visitor.rs      # AST visitor pattern
 │   ├── parser/
@@ -170,6 +176,7 @@ ogsql-parser/
 │   │   ├── mod.rs          # Semantic analysis (dynamic SQL, fingerprints, MERGE, etc.)
 │   │   ├── schema.rs       # Schema loading and resolution
 │   │   └── return_cursor.rs # Return cursor analysis
+│   ├── linter/             # SQL anti-pattern linter (53 rules, 4 severity levels)
 │   ├── ibatis/             # iBatis/MyBatis XML parsing
 │   ├── java/               # Java source SQL extraction
 │   └── mcp/                # MCP server implementation
@@ -222,7 +229,7 @@ cargo build --release --features full
 ### Run Tests / 运行测试
 
 ```bash
-# Unit tests (1646 tests)
+# Unit tests (1900+ tests)
 cargo test
 
 # Regression tests against openGauss test suite
@@ -243,10 +250,13 @@ Commands:
   json2sql    Convert JSON (from `parse -j`) back to SQL / 将 JSON 还原为 SQL
   tokenize    Tokenize SQL into a list of tokens / 将 SQL 分词为 token 列表
   validate    Validate SQL syntax and report errors / 校验 SQL 语法
+  validate-xml   Validate iBatis/MyBatis XML mappers [requires: ibatis feature]
+  validate-java  Validate SQL extracted from Java source files [requires: java feature]
   parse-xml   Parse iBatis/MyBatis XML mapper → extracted SQL [requires: ibatis feature]
   parse-java  Extract and parse SQL from Java source files [requires: java feature]
   serve       Start an HTTP API server for parsing SQL [requires: serve feature]
   playground  Launch an interactive terminal UI playground [requires: tui feature]
+  mcp         Start the MCP (Model Context Protocol) server [requires: mcp feature]
 
 Options:
   -f, --file <FILE>       Read SQL from file instead of stdin (can specify multiple times)
@@ -255,6 +265,8 @@ Options:
       --comments          Include comments in output
       --mybatis           Enable MyBatis #{param} and ${expr} placeholder support
       --schema-json <FILE> Schema JSON file for semantic analysis
+      --lint              Run SQL anti-pattern linter (53 rules; configurable via .ogsql-lint.toml)
+      --extract-sql       Extract dynamic SQL from PL/pgSQL (resolve EXECUTE IMMEDIATE, %TYPE)
   -h, --help              Print help
   -V, --version           Print version
 ```
@@ -350,6 +362,12 @@ echo "SELECT FROM" | ogsql validate
 
 # Validate with strict mode (detects undefined functions in PL blocks)
 echo "CREATE OR REPLACE FUNCTION test() RETURNS VOID AS \$\$ BEGIN PERFORM unknown_func(); END; \$\$ LANGUAGE plpgsql" | ogsql validate --strict
+
+# Validate with the SQL anti-pattern linter (53 rules; Prohibition/Performance/Caution/Suggestion)
+echo "SELECT * FROM users WHERE LEFT(name, 3) = 'abc'" | ogsql validate --lint
+
+# Lint a directory with index-aware rules (auto-extracts DDL schema for R006/R007)
+ogsql validate -d ./sql-files --lint --csv --stats
 
 # Validate SQL files in a directory
 ogsql validate -d ./sql-files --csv --stats
@@ -701,6 +719,60 @@ SQL Input
 
 ---
 
+## Benchmarks / 性能对比
+
+Full benchmark reports (data collected 2026-06, Linux x86_64, Rust 1.96) are in [`docs/reports/`](docs/reports/). Headline numbers below come from **9,612 GaussDB official regression statements × 5 iterations** (48,060 parses) across 4 parsers spanning Rust / C+Python / Java runtimes.
+
+完整对比报告见 [`docs/reports/`](docs/reports/)。以下关键数据来自 **GaussDB 官方回归测试集 9,612 句 × 5 迭代**（共 48,060 次解析），横跨 Rust / C+Python / Java 四个运行时。
+
+### Performance Summary / 性能总览
+
+| Parser | Runtime | Throughput (q/s) | Median latency | P99 latency | Cold start | Memory (RSS) |
+|---|---|---|---|---|---|---|
+| **ogsql-parser** | Rust | **356,866** | **1.97 µs** | **11.30 µs** | **2.5 ms** | **6.2 MB** |
+| sqlparser-rs 0.52 | Rust | 145,953 | 4.93 µs | 32.47 µs | 2.5 ms | 5.8 MB |
+| pglast 7.14 (libpg_query) | C + Python | 28,165 | 29.89 µs | 148.00 µs | ~51 ms | 28.0 MB |
+| JSqlParser 5.3 | Java (JVM) | 843 | 343.38 µs | 1,665.49 µs | ~308 ms | 116.2 MB |
+
+- **2.4× faster** than sqlparser-rs (same language, comparable). Cross-category speedup is stable at **1.9×–3.1×**, confirming a structural advantage (compact AST, GaussDB-specific fast paths, zero-copy token stream).
+- **12.7× faster** than pglast; **423× faster** than JSqlParser.
+
+### Parse Success Rate / 解析成功率
+
+| Corpus | ogsql-parser | sqlparser-rs | pglast | JSqlParser |
+|---|---|---|---|---|
+| GaussDB official (9,612 stmts) | **100%** | 100% | 79.2% | 78.3% |
+| MyBatis-Plus realistic (30 stmts) | **100%** | 100% | 56.7% | 100% |
+
+- pglast / JSqlParser fail on openGauss extensions: `DISTRIBUTE BY`, range `PARTITION`, Hint comments `/*+ IndexScan(t) */`, Oracle-style `IDENTIFIED BY`, `VARRAY`, partition-targeted `INSERT`.
+- In the MyBatis-Plus scenario pglast degrades sharply because PostgreSQL treats `user` / `order` as reserved keywords and rejects MySQL-isms (`LIMIT m, n`, `ON DUPLICATE KEY UPDATE`).
+
+### AST Equivalence / AST 等价性
+
+On 13 canonical SQL patterns (SELECT/JOIN/CTE/subquery/window/UNION/INSERT/UPDATE/DELETE), all four parsers produced **semantically equivalent views on 11–13/13 cases** — i.e. static-analysis tools built on any of them agree on standard SQL.
+
+### Stress Tests / 极限压力测试
+
+| Input | ogsql | sqlparser-rs | pglast | JSqlParser |
+|---|---|---|---|---|
+| 10K-row INSERT (168 KB) | **12.5 ms** | 22.2 ms | 71.9 ms | 360.4 ms |
+| 200-column SELECT | **123 µs** | 336 µs | 1,372 µs | 4,057 µs |
+| 50-level nested subquery | **76 µs** | 80 µs | 953 µs | 5,398 µs |
+| Error input (unterminated) | **0.3 µs** | 0.5 µs | 3.5 µs | 405+ µs |
+
+ogsql-parser scales linearly at ~30–75 ns/byte and exits early on empty/degenerate input (0.1 µs), which matters for batch SQL validation tools.
+
+### Why ogsql-parser Wins / 优势来源
+
+1. Single target dialect → no dialect-trait indirection
+2. Explicit two-phase `Tokenizer` + `Parser` → reusable token stream
+3. More compact AST (shared structs in common cases)
+4. GaussDB-specific syntax (PL/pgSQL, hints, partitioning) on a dedicated fast path
+
+> Selection guidance: choose **ogsql-parser** for openGauss/GaussDB + Rust + high QPS; **sqlparser-rs** for cross-dialect Rust; **pglast** for pure PostgreSQL + Python; **JSqlParser** for the Java/MyBatis ecosystem. Full decision matrix and reproduction steps in [`docs/reports/`](docs/reports/).
+
+---
+
 ## Development Roadmap / 开发路线图
 
 | Phase | Focus | Status |
@@ -723,11 +795,12 @@ SQL Input
 | Error handling | `thiserror` 2.0 | Ergonomic error types |
 | Encoding | `encoding_rs` 0.8 | Multi-character set support (EUC-JP, EUC-KR, GB18030, etc.) |
 | CLI | `clap` 4 | Derive-based argument parsing |
-| HTTP API | `axum` 0.7 | Async web framework |
+| HTTP API | `axum` 0.8 | Async web framework |
 | MCP | `rmcp` 1.5 | Model Context Protocol server |
 | TUI | `ratatui` 0.29 | Terminal UI framework |
 | XML parsing | `quick-xml` 0.39 | Fast XML parser for iBatis mappers |
 | Java parsing | `tree-sitter-java` 0.23 | Incremental Java parsing |
+| Keyword lookup | `phf` 0.11 | Compile-time perfect hash for O(1) keyword matching |
 | Testing | Built-in + walkdir 2.0 | Regression test file discovery |
 | Win7 build | nightly + `-Zbuild-std` | Tier 3 Windows 7 target support |
 
@@ -740,7 +813,7 @@ This project references the following openGauss source files:
 - `lib/openGauss-server/src/backend/parser/gram.y` (35,325 lines) — Main SQL grammar specification
 - `lib/openGauss-server/src/common/pl/plpgsql/src/gram.y` (15,770 lines) — PL/pgSQL grammar specification
 - `lib/openGauss-server/src/backend/parser/scan.l` — Lexer specification
-- `lib/openGauss-server/src/include/parser/kwlist.h` — Keyword definitions (717 keywords)
+- `lib/openGauss-server/src/include/parser/kwlist.h` — Keyword definitions (724 keywords)
 - `lib/openGauss-server/src/test/regress/sql/` — 1,397 regression test files
 
 Documentation reference:
@@ -757,6 +830,7 @@ Documentation reference:
 | [AST JSON Reference](docs/ast-json-reference.md) | AST 消费者 | `ogsql parse -j` 输出的完整 JSON 结构 |
 | [Contributing](CONTRIBUTING.md) | 项目贡献者 | 架构概览、从源码构建、开发规范 |
 | [GaussDB SQL Features](docs/gaussdb-sql-features.md) | 全部 | GaussDB/openGauss SQL 语法支持详情 |
+| [Benchmark Reports](docs/reports/) | 全部 | ogsql-parser vs sqlparser-rs / pglast / JSqlParser 性能、成功率、AST 等价性对比 |
 
 ---
 
@@ -774,6 +848,6 @@ This is an active development project. Phases 1–6 are complete, and Phase 7 (O
 
 ---
 
-**Status / 状态**: Phase 1–6 Complete | 1646 unit tests | 1409/1409 regression tests passing  
-**Version / 版本**: 0.6.18  
-**Last Updated / 最后更新**: 2026-06-04
+**Status / 状态**: Phase 1–6 Complete | 1900+ unit tests | 1409/1409 regression tests passing | 53 lint rules  
+**Version / 版本**: 0.8.3  
+**Last Updated / 最后更新**: 2026-06-19
