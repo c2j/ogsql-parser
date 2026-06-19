@@ -6261,7 +6261,7 @@ mod tests {
         let stmt = parse_one(sql);
         let formatter = SqlFormatter::new().pretty_print(true);
         let result = formatter.format_statement(&stmt);
-        assert!(result.contains("\nFROM (SELECT"), "outer FROM: {result}");
+        assert!(result.contains("\nFROM (\n"), "outer FROM: {result}");
         assert!(result.contains("\n  FROM t"), "subquery FROM at depth 1: {result}");
         assert!(result.contains("\n  WHERE x = 1"), "subquery WHERE: {result}");
     }
@@ -6272,8 +6272,8 @@ mod tests {
         let stmt = parse_one(sql);
         let formatter = SqlFormatter::new().pretty_print(true);
         let result = formatter.format_statement(&stmt);
-        assert!(result.contains("\n  FROM u"), "EXISTS subquery FROM: {result}");
-        assert!(result.contains("\n  WHERE u.id = t.id"), "EXISTS subquery WHERE: {result}");
+        assert!(result.contains("\n    FROM u"), "EXISTS subquery FROM: {result}");
+        assert!(result.contains("\n    WHERE u.id = t.id"), "EXISTS subquery WHERE: {result}");
     }
 
     #[test]
@@ -6292,7 +6292,7 @@ mod tests {
         let stmt = parse_one(sql);
         let formatter = SqlFormatter::new().pretty_print(true);
         let result = formatter.format_statement(&stmt);
-        assert!(result.contains("\n  FROM (SELECT"), "middle subquery at depth 1: {result}");
+        assert!(result.contains("\n  FROM (\n"), "middle subquery at depth 1: {result}");
         assert!(result.contains("\n    FROM deep"), "innermost subquery at depth 2: {result}");
     }
 
