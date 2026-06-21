@@ -861,12 +861,10 @@ max_insert_values_rows = 65535 # INSERT VALUES 行数×列数阈值
 | R002 | `large-column-sort` | SELECT | GROUP BY / ORDER BY 超过阈值列的表达式，可能导致性能问题 |
 | R003 | `lock-table` | All | `LOCK TABLE` 可能导致死锁风险 |
 | R004 | `drop-cascade` | All | `DROP ... CASCADE` 可能误删依赖对象 |
-| R005 | `implicit-type-conversion` | SELECT | WHERE 中可能存在隐式类型转换，导致索引失效 |
+| R005 | `implicit-type-conversion` | SELECT | WHERE 中可能存在隐式类型转换，导致索引失效（需 schema 辅助，无 schema 时跳过） |
 | R006 | `function-on-where-column` | DML | WHERE 中对有索引的列使用函数或表达式 |
 | R007 | `like-leading-wildcard` | DML | `LIKE '%...'` 前导通配符导致无法使用索引，触发全表扫描 |
 | R008 | `same-table-column-compare` | DML | 同表列比较：可能未正确使用索引 |
-| R009 | `scalar-subquery-in-select` | SELECT | SELECT 列中包含标量子查询，每行都会执行一次子查询 |
-
 #### 性能 (Performance) — 可识别的性能陷阱
 
 | ID | 名称 | 适用语句 | 说明 |
@@ -882,6 +880,7 @@ max_insert_values_rows = 65535 # INSERT VALUES 行数×列数阈值
 | P009 | `function-instead-of-case` | DML | `NVL`/`NVL2`/`DECODE`/`IIF` 函数可用 CASE 替代，可能更高效 |
 | P010 | `multi-column-update-subquery` | UPDATE | 多列 UPDATE 使用子查询效率较低 |
 | P011 | `correlated-subquery` | DML | 关联子查询可能导致每行执行一次子查询 |
+| R009 | `scalar-subquery-in-select` | SELECT | SELECT 列中包含标量子查询，每行都会执行一次子查询 |
 | P012 | `unnecessary-distinct` | SELECT | DISTINCT 存在，需结合唯一键判断是否必要 |
 | P013 | `cartesian-product` | SELECT | CROSS JOIN 或缺少 JOIN 条件，可能产生笛卡尔积 |
 | P014 | `deeply-nested-subquery` | DML | 子查询嵌套深度超过阈值，性能可能较差 |
