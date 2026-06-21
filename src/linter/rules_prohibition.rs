@@ -68,7 +68,7 @@ pub fn register(linter: &mut SqlLinter) {
         LintRuleEntry {
             id: "R009",
             name: "scalar-subquery-in-select",
-            level: WarningLevel::Prohibition,
+            level: WarningLevel::Performance,
             stmt_kind: StatementKind::Select,
             check_fn: check_r009,
         },
@@ -216,6 +216,15 @@ fn check_r005(
     confidence: Confidence,
     warnings: &mut Vec<SqlWarning>,
 ) {
+    // Without schema, R005 cannot distinguish genuine cross-family implicit
+    // type conversion from safe same-family comparisons (e.g. varchar_col =
+    // 'str'). Skip entirely to avoid false positives on legitimate col =
+    // literal patterns. Mirrors S007's "no schema → skip, no evidence"
+    // approach. See issue #240.
+    let Some(schema) = schema else {
+        return;
+    };
+
     for info in stmts {
         let loc = stmt_location(info);
         let (where_clause, tables) = match &info.statement {
@@ -230,7 +239,7 @@ fn check_r005(
         };
         let Some(where_clause) = where_clause else { continue };
 
-        let col_types = schema.map(|s| build_column_type_map(s, tables));
+        let col_types = build_column_type_map(schema, tables);
 
         let mut found = false;
         walk_expr(where_clause, &mut |e| {
@@ -246,15 +255,13 @@ fn check_r005(
                     return true;
                 }
 
-                if let Some(ref ct) = col_types {
-                    let (lit_expr, col_expr) =
-                        if l_lit { (left.as_ref(), right.as_ref()) } else { (right.as_ref(), left.as_ref()) };
-                    if let (Expr::Literal(lit), Some(col_type)) = (lit_expr, resolve_column_type(col_expr, ct)) {
-                        let lit_family = literal_type_family(lit);
-                        let col_family = classify_type_family(&col_type);
-                        if lit_family == col_family {
-                            return true;
-                        }
+                let (lit_expr, col_expr) =
+                    if l_lit { (left.as_ref(), right.as_ref()) } else { (right.as_ref(), left.as_ref()) };
+                if let (Expr::Literal(lit), Some(col_type)) = (lit_expr, resolve_column_type(col_expr, &col_types)) {
+                    let lit_family = literal_type_family(lit);
+                    let col_family = classify_type_family(&col_type);
+                    if lit_family == col_family {
+                        return true;
                     }
                 }
                 found = true;
@@ -593,7 +600,7 @@ fn check_r009(
                     });
                     if found {
                         warnings.push(make_warning(
-                            WarningLevel::Prohibition, "R009", "scalar-subquery-in-select",
+                            WarningLevel::Performance, "R009", "scalar-subquery-in-select",
                             "SELECT \u{5217}\u{4e2d}\u{5305}\u{542b}\u{6807}\u{91cf}\u{5b50}\u{67e5}\u{8be2}\u{ff0c}\u{6bcf}\u{884c}\u{90fd}\u{4f1a}\u{6267}\u{884c}\u{4e00}\u{6b21}\u{5b50}\u{67e5}\u{8be2}".into(),
                             Some("\u{6539}\u{7528} JOIN \u{66ff}\u{4ee3}\u{6807}\u{91cf}\u{5b50}\u{67e5}\u{8be2}"), loc,
                             Some("SQL \u{7f16}\u{5199}"), confidence,
