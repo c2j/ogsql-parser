@@ -94,10 +94,13 @@ fn r004_drop_no_cascade_not_triggered() {
 // ── R005: Implicit type conversion ──
 
 #[test]
-fn r005_literal_column_comparison() {
+fn r005_literal_column_comparison_no_schema_skipped() {
     let stmts = parse("SELECT * FROM t WHERE name = 'abc'");
     let w = lint(&stmts);
-    assert!(has_rule(&w, "R005"), "expected R005 for literal-column comparison");
+    assert!(
+        !has_rule(&w, "R005"),
+        "without schema, R005 should skip — no evidence of cross-family conversion (issue #240)"
+    );
 }
 
 #[test]
@@ -565,10 +568,8 @@ fn multiple_rules_same_statement() {
 fn no_warnings_clean_sql() {
     let stmts = parse("SELECT id, name FROM users WHERE status = 'active' ORDER BY id");
     let w = lint(&stmts);
-    // R005 may trigger for literal-column comparison, filter it out.
-    // S007 no longer triggers without schema evidence.
-    let non_known: Vec<_> = w.iter().filter(|w| w.rule_id != "R005").collect();
-    assert!(non_known.is_empty(), "clean SQL should not produce warnings (except maybe R005/S007): {:?}", non_known);
+    // Without schema, neither R005 nor S007 fire (both require schema evidence).
+    assert!(w.is_empty(), "clean SQL should not produce warnings: {:?}", w);
 }
 
 // ════════════════════════════════════════════════════════════════
@@ -1091,10 +1092,13 @@ fn r005_int_column_int_literal_no_warn_with_schema() {
 }
 
 #[test]
-fn r005_no_schema_fallback_still_warns() {
+fn r005_no_schema_skips_entirely() {
     let stmts = parse("SELECT * FROM t WHERE name = 'abc'");
     let w = lint(&stmts);
-    assert!(has_rule(&w, "R005"), "without schema, R005 should still warn on literal-column comparison");
+    assert!(
+        !has_rule(&w, "R005"),
+        "without schema, R005 must not warn — avoiding false positives on legitimate col = literal (issue #240)"
+    );
 }
 
 #[test]
