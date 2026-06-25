@@ -1,9 +1,10 @@
 use crate::ast::plpgsql::PlStatement;
-use crate::ast::{Expr, InsertSource, SelectTarget, SetOperation, Statement, StatementInfo, TableRef};
+use crate::ast::{Expr, InsertSource, SelectStatement, SelectTarget, SetOperation, Statement, StatementInfo, TableRef};
 use crate::linter::{
-    collect_nested_selects, loc_from_spanned, make_warning, stmt_location, walk_expr, walk_select_exprs, Confidence,
+    collect_selects_from_stmt, loc_from_spanned, make_warning, stmt_location, walk_expr, walk_select_exprs, Confidence,
     LintConfig, LintRuleEntry, SqlLinter, SqlWarning, StatementKind, WarningLevel,
 };
+use crate::token::SourceLocation;
 
 pub fn register(linter: &mut SqlLinter) {
     let rules: Vec<LintRuleEntry> = vec![
@@ -185,18 +186,17 @@ fn extract_where(stmt: &Statement) -> Option<&Expr> {
 
 // P001: UNION without ALL
 fn check_p001(
-    stmts: &[StatementInfo],
+    curr_stmt: &StatementInfo,
+    _stmts: &[StatementInfo],
     _schema: Option<&crate::analyzer::schema::SchemaMap>,
     _indexes: Option<&crate::linter::IndexInfo>,
     _config: &LintConfig,
     confidence: Confidence,
     warnings: &mut Vec<SqlWarning>,
 ) {
-    for info in stmts {
-        if let Statement::Select(s) = &info.statement {
-            let loc = loc_from_spanned(s, stmt_location(info));
-            check_select_union(s, loc, confidence, warnings);
-        }
+    if let Statement::Select(s) = &curr_stmt.statement {
+        let loc = loc_from_spanned(s, stmt_location(curr_stmt));
+        check_select_union(s, loc, confidence, warnings);
     }
 }
 
@@ -236,220 +236,221 @@ fn check_select_union(
 
 // P002: NOT IN (subquery) -- use NOT EXISTS instead
 fn check_p002(
-    stmts: &[StatementInfo],
+    curr_stmt: &StatementInfo,
+    _stmts: &[StatementInfo],
     _schema: Option<&crate::analyzer::schema::SchemaMap>,
     _indexes: Option<&crate::linter::IndexInfo>,
     _config: &LintConfig,
     confidence: Confidence,
     warnings: &mut Vec<SqlWarning>,
 ) {
-    for info in stmts {
-        let loc = stmt_location(info);
-        if let Some(where_clause) = extract_where(&info.statement) {
-            walk_expr(where_clause, &mut |e| match e {
-                Expr::InSubquery { negated: true, .. } => {
-                    warnings.push(make_warning(
+    let loc = stmt_location(curr_stmt);
+    if let Some(where_clause) = extract_where(&curr_stmt.statement) {
+        walk_expr(where_clause, &mut |e| match e {
+            Expr::InSubquery { negated: true, .. } => {
+                warnings.push(make_warning(
                             WarningLevel::Performance, "P002", "not-in-subquery",
                             "NOT IN (\u{5b50}\u{67e5}\u{8be2}) \u{6027}\u{80fd}\u{8f83}\u{5dee}\u{ff0c}\u{5e76}\u{4e14} NULL \u{503c}\u{4f1a}\u{5bfc}\u{81f4}\u{7ed3}\u{679c}\u{4e0d}\u{7b26}\u{9884}\u{671f}".into(),
                             Some("\u{6539}\u{4e3a} NOT EXISTS"), loc,
                             None, confidence,
                         ));
-                    false
-                }
-                Expr::ScalarSublink { op, sublink_type, .. } => {
-                    let is_not_in = op == "<>" || op == "!=" || op == "NOT IN";
-                    if is_not_in && matches!(sublink_type, crate::ast::ScalarSublinkType::All) {
-                        warnings.push(make_warning(
+                false
+            }
+            Expr::ScalarSublink { op, sublink_type, .. } => {
+                let is_not_in = op == "<>" || op == "!=" || op == "NOT IN";
+                if is_not_in && matches!(sublink_type, crate::ast::ScalarSublinkType::All) {
+                    warnings.push(make_warning(
                                 WarningLevel::Performance, "P002", "not-in-subquery",
                                 "\u{6807}\u{91cf}\u{5b50}\u{94fe}\u{63a5} NOT IN/<> ALL \u{6a21}\u{5f0f}\u{ff0c}\u{6027}\u{80fd}\u{8f83}\u{5dee}".into(),
                                 Some("\u{6539}\u{4e3a} NOT EXISTS"), loc,
                                 None, confidence,
                             ));
-                    }
-                    true
                 }
-                Expr::InList { negated: true, list, .. } if list.len() > 10 => {
-                    warnings.push(make_warning(
-                            WarningLevel::Performance, "P002", "not-in-subquery",
-                            format!("NOT IN \u{5217}\u{8868}\u{542b} {} \u{4e2a}\u{503c}\u{ff0c}\u{6027}\u{80fd}\u{8f83}\u{5dee}", list.len()),
-                            Some("\u{6539}\u{4e3a} NOT EXISTS \u{6216} LEFT JOIN ... WHERE ... IS NULL"), loc,
-                            None, confidence,
-                        ));
-                    true
-                }
-                _ => true,
-            });
-        }
+                true
+            }
+            Expr::InList { negated: true, list, .. } if list.len() > 10 => {
+                warnings.push(make_warning(
+                    WarningLevel::Performance,
+                    "P002",
+                    "not-in-subquery",
+                    format!(
+                        "NOT IN \u{5217}\u{8868}\u{542b} {} \u{4e2a}\u{503c}\u{ff0c}\u{6027}\u{80fd}\u{8f83}\u{5dee}",
+                        list.len()
+                    ),
+                    Some("\u{6539}\u{4e3a} NOT EXISTS \u{6216} LEFT JOIN ... WHERE ... IS NULL"),
+                    loc,
+                    None,
+                    confidence,
+                ));
+                true
+            }
+            _ => true,
+        });
     }
 }
 
 // P003: IN list too large
 fn check_p003(
-    stmts: &[StatementInfo],
+    curr_stmt: &StatementInfo,
+    _stmts: &[StatementInfo],
     _schema: Option<&crate::analyzer::schema::SchemaMap>,
     _indexes: Option<&crate::linter::IndexInfo>,
     config: &LintConfig,
     confidence: Confidence,
     warnings: &mut Vec<SqlWarning>,
 ) {
-    for info in stmts {
-        let loc = stmt_location(info);
-        if let Some(where_clause) = extract_where(&info.statement) {
-            walk_expr(where_clause, &mut |e| {
-                if let Expr::InList { list, .. } = e {
-                    if list.len() > config.in_list_threshold {
-                        warnings.push(make_warning(
-                            WarningLevel::Performance, "P003", "in-list-too-large",
-                            format!("IN \u{5217}\u{8868}\u{542b} {} \u{4e2a}\u{503c}\u{ff0c}\u{8d85}\u{8fc7}\u{9608}\u{503c} {}\u{ff0c}\u{5bfc}\u{81f4}\u{89e3}\u{6790}\u{7f13}\u{6162}", list.len(), config.in_list_threshold),
-                            Some("\u{6539}\u{7528} INNER JOIN \u{6216}\u{4e34}\u{65f6}\u{8868}"), loc,
-                            None, confidence,
-                        ));
-                    }
+    let loc = stmt_location(curr_stmt);
+    if let Some(where_clause) = extract_where(&curr_stmt.statement) {
+        walk_expr(where_clause, &mut |e| {
+            if let Expr::InList { list, .. } = e {
+                if list.len() > config.in_list_threshold {
+                    warnings.push(make_warning(
+                        WarningLevel::Performance, "P003", "in-list-too-large",
+                        format!("IN \u{5217}\u{8868}\u{542b} {} \u{4e2a}\u{503c}\u{ff0c}\u{8d85}\u{8fc7}\u{9608}\u{503c} {}\u{ff0c}\u{5bfc}\u{81f4}\u{89e3}\u{6790}\u{7f13}\u{6162}", list.len(), config.in_list_threshold),
+                        Some("\u{6539}\u{7528} INNER JOIN \u{6216}\u{4e34}\u{65f6}\u{8868}"), loc,
+                        None, confidence,
+                    ));
                 }
-                true
-            });
-        }
+            }
+            true
+        });
     }
 }
 
 // P004: OR as top-level WHERE condition
 fn check_p004(
-    stmts: &[StatementInfo],
+    curr_stmt: &StatementInfo,
+    _stmts: &[StatementInfo],
     _schema: Option<&crate::analyzer::schema::SchemaMap>,
     _indexes: Option<&crate::linter::IndexInfo>,
     _config: &LintConfig,
     confidence: Confidence,
     warnings: &mut Vec<SqlWarning>,
 ) {
-    for info in stmts {
-        let loc = stmt_location(info);
-        if let Some(Expr::BinaryOp { op, .. }) = extract_where(&info.statement) {
-            if op.eq_ignore_ascii_case("OR") {
-                warnings.push(make_warning(
-                    WarningLevel::Performance, "P004", "or-to-union-all",
-                    "WHERE \u{9876}\u{5c42}\u{4e3a} OR \u{6761}\u{4ef6}\u{ff0c}\u{53ef}\u{80fd}\u{5bfc}\u{81f4}\u{4f18}\u{5316}\u{5660}\u{653e}\u{5f03}\u{7d22}\u{5f15}".into(),
-                    Some("\u{8003}\u{8651}\u{5c06} OR \u{6539}\u{5199}\u{4e3a} UNION ALL"), loc,
-                    None, confidence,
-                ));
-            }
+    let loc = stmt_location(curr_stmt);
+    if let Some(Expr::BinaryOp { op, .. }) = extract_where(&curr_stmt.statement) {
+        if op.eq_ignore_ascii_case("OR") {
+            warnings.push(make_warning(
+                WarningLevel::Performance, "P004", "or-to-union-all",
+                "WHERE \u{9876}\u{5c42}\u{4e3a} OR \u{6761}\u{4ef6}\u{ff0c}\u{53ef}\u{80fd}\u{5bfc}\u{81f4}\u{4f18}\u{5316}\u{5660}\u{653e}\u{5f03}\u{7d22}\u{5f15}".into(),
+                Some("\u{8003}\u{8651}\u{5c06} OR \u{6539}\u{5199}\u{4e3a} UNION ALL"), loc,
+                None, confidence,
+            ));
         }
     }
 }
 
 // P005: now() function -- non-pushable in distributed queries
 fn check_p005(
-    stmts: &[StatementInfo],
+    curr_stmt: &StatementInfo,
+    _stmts: &[StatementInfo],
     _schema: Option<&crate::analyzer::schema::SchemaMap>,
     _indexes: Option<&crate::linter::IndexInfo>,
     _config: &LintConfig,
     confidence: Confidence,
     warnings: &mut Vec<SqlWarning>,
 ) {
-    for info in stmts {
-        let loc = stmt_location(info);
-        let mut check_fn = |e: &Expr| {
-            if let Expr::FunctionCall { name, .. } = e {
-                let fn_name = name.last().map(|s| s.to_lowercase()).unwrap_or_default();
-                if fn_name == "now" || fn_name == "current_timestamp" || fn_name == "sysdate" {
-                    warnings.push(make_warning(
-                        WarningLevel::Performance, "P005", "now-function-non-pushable",
-                        format!("\u{51fd}\u{6570} {fn_name}() \u{4e0d}\u{53ef}\u{4e0b}\u{63a8}\u{ff0c}\u{5c06}\u{5bfc}\u{81f4}\u{5206}\u{5e03}\u{5f0f}\u{67e5}\u{8be2}\u{6027}\u{80fd}\u{4e0b}\u{964d}"),
-                        Some("\u{7528}\u{65f6}\u{95f4}\u{5b8f}\u{6216}\u{53c2}\u{6570}\u{5316}\u{67e5}\u{8be2}\u{66ff}\u{4ee3}"), loc,
-                        Some("SQL \u{67e5}\u{8be2}\u{6700}\u{4f73}\u{5b9e}\u{8df5}"), confidence,
-                    ));
-                }
+    let loc = stmt_location(curr_stmt);
+    let mut check_fn = |e: &Expr| {
+        if let Expr::FunctionCall { name, .. } = e {
+            let fn_name = name.last().map(|s| s.to_lowercase()).unwrap_or_default();
+            if fn_name == "now" || fn_name == "current_timestamp" || fn_name == "sysdate" {
+                warnings.push(make_warning(
+                    WarningLevel::Performance, "P005", "now-function-non-pushable",
+                    format!("\u{51fd}\u{6570} {fn_name}() \u{4e0d}\u{53ef}\u{4e0b}\u{63a8}\u{ff0c}\u{5c06}\u{5bfc}\u{81f4}\u{5206}\u{5e03}\u{5f0f}\u{67e5}\u{8be2}\u{6027}\u{80fd}\u{4e0b}\u{964d}"),
+                    Some("\u{7528}\u{65f6}\u{95f4}\u{5b8f}\u{6216}\u{53c2}\u{6570}\u{5316}\u{67e5}\u{8be2}\u{66ff}\u{4ee3}"), loc,
+                    Some("SQL \u{67e5}\u{8be2}\u{6700}\u{4f73}\u{5b9e}\u{8df5}"), confidence,
+                ));
             }
-        };
-        match &info.statement {
-            Statement::Select(s) => walk_select_exprs(s, &mut |e| {
-                check_fn(e);
-                true
-            }),
-            Statement::Update(s) => {
-                for a in &s.assignments {
-                    walk_expr(&a.value, &mut |e| {
-                        check_fn(e);
-                        true
-                    });
-                }
-                if let Some(ref w) = s.where_clause {
-                    walk_expr(w, &mut |e| {
-                        check_fn(e);
-                        true
-                    });
-                }
-            }
-            Statement::Delete(s) => {
-                if let Some(ref w) = s.where_clause {
-                    walk_expr(w, &mut |e| {
-                        check_fn(e);
-                        true
-                    });
-                }
-            }
-            _ => {}
         }
+    };
+    match &curr_stmt.statement {
+        Statement::Select(s) => walk_select_exprs(s, &mut |e| {
+            check_fn(e);
+            true
+        }),
+        Statement::Update(s) => {
+            for a in &s.assignments {
+                walk_expr(&a.value, &mut |e| {
+                    check_fn(e);
+                    true
+                });
+            }
+            if let Some(ref w) = s.where_clause {
+                walk_expr(w, &mut |e| {
+                    check_fn(e);
+                    true
+                });
+            }
+        }
+        Statement::Delete(s) => {
+            if let Some(ref w) = s.where_clause {
+                walk_expr(w, &mut |e| {
+                    check_fn(e);
+                    true
+                });
+            }
+        }
+        _ => {}
     }
 }
 
 // P006: COUNT(*) on large table
 fn check_p006(
-    stmts: &[StatementInfo],
+    curr_stmt: &StatementInfo,
+    _stmts: &[StatementInfo],
     _schema: Option<&crate::analyzer::schema::SchemaMap>,
     _indexes: Option<&crate::linter::IndexInfo>,
     _config: &LintConfig,
     confidence: Confidence,
     warnings: &mut Vec<SqlWarning>,
 ) {
-    for info in stmts {
-        if let Statement::Select(s) = &info.statement {
-            let loc = loc_from_spanned(s, stmt_location(info));
-            walk_select_exprs(s, &mut |e| {
-                if let Expr::FunctionCall { name, args, .. } = e {
-                    let fn_name = name.last().map(|s| s.to_lowercase()).unwrap_or_default();
-                    if fn_name == "count" {
-                        let is_star = args.iter().any(|a| {
-                            matches!(a, Expr::ColumnRef(n) if n.len() == 1 && n[0] == "*")
-                                || matches!(a, Expr::QualifiedStar(_))
-                        });
-                        if is_star || args.is_empty() {
-                            warnings.push(make_warning(
-                                WarningLevel::Performance, "P006", "count-star-large-table",
-                                "COUNT(*) \u{5728}\u{5927}\u{8868}\u{4e0a}\u{6027}\u{80fd}\u{8f83}\u{5dee}".into(),
-                                Some("\u{8003}\u{8651}\u{4f7f}\u{7528} pg_class.reltuples \u{6216}\u{8fd1}\u{4f3c}\u{7edf}\u{8ba1}\u{4fe1}\u{606f}"), loc,
-                                None, confidence,
-                            ));
-                        }
+    if let Statement::Select(s) = &curr_stmt.statement {
+        let loc = loc_from_spanned(s, stmt_location(curr_stmt));
+        walk_select_exprs(s, &mut |e| {
+            if let Expr::FunctionCall { name, args, .. } = e {
+                let fn_name = name.last().map(|s| s.to_lowercase()).unwrap_or_default();
+                if fn_name == "count" {
+                    let is_star = args.iter().any(|a| {
+                        matches!(a, Expr::ColumnRef(n) if n.len() == 1 && n[0] == "*")
+                            || matches!(a, Expr::QualifiedStar(_))
+                    });
+                    if is_star || args.is_empty() {
+                        warnings.push(make_warning(
+                            WarningLevel::Performance, "P006", "count-star-large-table",
+                            "COUNT(*) \u{5728}\u{5927}\u{8868}\u{4e0a}\u{6027}\u{80fd}\u{8f83}\u{5dee}".into(),
+                            Some("\u{8003}\u{8651}\u{4f7f}\u{7528} pg_class.reltuples \u{6216}\u{8fd1}\u{4f3c}\u{7edf}\u{8ba1}\u{4fe1}\u{606f}"), loc,
+                            None, confidence,
+                        ));
                     }
                 }
-                true
-            });
-        }
+            }
+            true
+        });
     }
 }
 
 // P007: Too many non-equi joins
 fn check_p007(
-    stmts: &[StatementInfo],
+    curr_stmt: &StatementInfo,
+    _stmts: &[StatementInfo],
     _schema: Option<&crate::analyzer::schema::SchemaMap>,
     _indexes: Option<&crate::linter::IndexInfo>,
     config: &LintConfig,
     confidence: Confidence,
     warnings: &mut Vec<SqlWarning>,
 ) {
-    for info in stmts {
-        if let Statement::Select(s) = &info.statement {
-            let loc = loc_from_spanned(s, stmt_location(info));
-            let mut count = 0usize;
-            count_non_equi_joins_in_from(&s.from, &mut count);
-            if count > config.non_equi_join_limit {
-                warnings.push(make_warning(
-                    WarningLevel::Performance, "P007", "too-many-non-equi-joins",
-                    format!("\u{975e}\u{7b49}\u{503c} JOIN \u{6761}\u{4ef6} {count} \u{4e2a}\u{ff0c}\u{8d85}\u{8fc7}\u{9608}\u{503c} {}\u{ff0c}\u{6027}\u{80fd}\u{8f83}\u{5dee}", config.non_equi_join_limit),
-                    Some("\u{4f18}\u{5148}\u{4f7f}\u{7528}\u{7b49}\u{503c}\u{67e5}\u{8be2}"), loc,
-                    None, confidence,
-                ));
-            }
+    if let Statement::Select(s) = &curr_stmt.statement {
+        let loc = loc_from_spanned(s, stmt_location(curr_stmt));
+        let mut count = 0usize;
+        count_non_equi_joins_in_from(&s.from, &mut count);
+        if count > config.non_equi_join_limit {
+            warnings.push(make_warning(
+                WarningLevel::Performance, "P007", "too-many-non-equi-joins",
+                format!("\u{975e}\u{7b49}\u{503c} JOIN \u{6761}\u{4ef6} {count} \u{4e2a}\u{ff0c}\u{8d85}\u{8fc7}\u{9608}\u{503c} {}\u{ff0c}\u{6027}\u{80fd}\u{8f83}\u{5dee}", config.non_equi_join_limit),
+                Some("\u{4f18}\u{5148}\u{4f7f}\u{7528}\u{7b49}\u{503c}\u{67e5}\u{8be2}"), loc,
+                None, confidence,
+            ));
         }
     }
 }
@@ -475,29 +476,28 @@ fn count_non_equi_in_expr(expr: &Expr, count: &mut usize) {
 
 // P008: GROUP BY without hash_agg hint
 fn check_p008(
-    stmts: &[StatementInfo],
+    curr_stmt: &StatementInfo,
+    _stmts: &[StatementInfo],
     _schema: Option<&crate::analyzer::schema::SchemaMap>,
     _indexes: Option<&crate::linter::IndexInfo>,
     _config: &LintConfig,
     confidence: Confidence,
     warnings: &mut Vec<SqlWarning>,
 ) {
-    for info in stmts {
-        if let Statement::Select(s) = &info.statement {
-            if !s.group_by.is_empty() {
-                let has_hashagg = s
-                    .hints
-                    .iter()
-                    .any(|h| h.to_lowercase().contains("hashagg") || h.to_lowercase().contains("use_hash_agg"));
-                if !has_hashagg {
-                    let loc = loc_from_spanned(s, stmt_location(info));
-                    warnings.push(make_warning(
-                        WarningLevel::Performance, "P008", "group-by-without-hashagg",
-                        "GROUP BY \u{64cd}\u{4f5c}\u{672a}\u{4f7f}\u{7528} hash_agg \u{63d0}\u{793a}\u{ff0c}\u{53ef}\u{80fd}\u{9700}\u{8981}\u{8c03}\u{5927} work_mem".into(),
-                        Some("\u{8003}\u{8651}\u{6dfb}\u{52a0} /*+ hash_agg */ \u{63d0}\u{793a}\u{6216}\u{8c03}\u{5927} work_mem"), loc,
-                        None, confidence,
-                    ));
-                }
+    if let Statement::Select(s) = &curr_stmt.statement {
+        if !s.group_by.is_empty() {
+            let has_hashagg = s
+                .hints
+                .iter()
+                .any(|h| h.to_lowercase().contains("hashagg") || h.to_lowercase().contains("use_hash_agg"));
+            if !has_hashagg {
+                let loc = loc_from_spanned(s, stmt_location(curr_stmt));
+                warnings.push(make_warning(
+                    WarningLevel::Performance, "P008", "group-by-without-hashagg",
+                    "GROUP BY \u{64cd}\u{4f5c}\u{672a}\u{4f7f}\u{7528} hash_agg \u{63d0}\u{793a}\u{ff0c}\u{53ef}\u{80fd}\u{9700}\u{8981}\u{8c03}\u{5927} work_mem".into(),
+                    Some("\u{8003}\u{8651}\u{6dfb}\u{52a0} /*+ hash_agg */ \u{63d0}\u{793a}\u{6216}\u{8c03}\u{5927} work_mem"), loc,
+                    None, confidence,
+                ));
             }
         }
     }
@@ -505,32 +505,31 @@ fn check_p008(
 
 // P010: Multi-column UPDATE from subquery
 fn check_p010(
-    stmts: &[StatementInfo],
+    curr_stmt: &StatementInfo,
+    _stmts: &[StatementInfo],
     _schema: Option<&crate::analyzer::schema::SchemaMap>,
     _indexes: Option<&crate::linter::IndexInfo>,
     _config: &LintConfig,
     confidence: Confidence,
     warnings: &mut Vec<SqlWarning>,
 ) {
-    for info in stmts {
-        if let Statement::Update(s) = &info.statement {
-            let loc = loc_from_spanned(s, stmt_location(info));
-            for assignment in &s.assignments {
-                if assignment.columns.len() > 1 && matches!(&assignment.value, Expr::Subquery(_)) {
-                    warnings.push(make_warning(
-                        WarningLevel::Performance,
-                        "P010",
-                        "multi-column-update-subquery",
-                        format!(
-                            "UPDATE SET ({}\u{5217}) = (SELECT ...) \u{6548}\u{7387}\u{8f83}\u{4f4e}",
-                            assignment.columns.len()
-                        ),
-                        Some("\u{6539}\u{7528} UPDATE ... FROM ... WHERE ... \u{7684} JOIN \u{98ce}\u{683c}"),
-                        loc,
-                        None,
-                        confidence,
-                    ));
-                }
+    if let Statement::Update(s) = &curr_stmt.statement {
+        let loc = loc_from_spanned(s, stmt_location(curr_stmt));
+        for assignment in &s.assignments {
+            if assignment.columns.len() > 1 && matches!(&assignment.value, Expr::Subquery(_)) {
+                warnings.push(make_warning(
+                    WarningLevel::Performance,
+                    "P010",
+                    "multi-column-update-subquery",
+                    format!(
+                        "UPDATE SET ({}\u{5217}) = (SELECT ...) \u{6548}\u{7387}\u{8f83}\u{4f4e}",
+                        assignment.columns.len()
+                    ),
+                    Some("\u{6539}\u{7528} UPDATE ... FROM ... WHERE ... \u{7684} JOIN \u{98ce}\u{683c}"),
+                    loc,
+                    None,
+                    confidence,
+                ));
             }
         }
     }
@@ -538,50 +537,47 @@ fn check_p010(
 
 // P011: Correlated subquery (basic AST-only detection)
 fn check_p011(
-    stmts: &[StatementInfo],
+    curr_stmt: &StatementInfo,
+    _stmts: &[StatementInfo],
     _schema: Option<&crate::analyzer::schema::SchemaMap>,
     _indexes: Option<&crate::linter::IndexInfo>,
     _config: &LintConfig,
     confidence: Confidence,
     warnings: &mut Vec<SqlWarning>,
 ) {
-    for info in stmts {
-        let loc = stmt_location(info);
-        let outer_tables = collect_from_tables(&info.statement);
-        if outer_tables.is_empty() {
-            continue;
-        }
-        if let Some(where_clause) = extract_where(&info.statement) {
-            let mut found = false;
-            walk_expr(where_clause, &mut |e| {
-                if found {
-                    return false;
-                }
-                match e {
-                    Expr::InSubquery { subquery, .. } | Expr::Exists(subquery) | Expr::Subquery(subquery) => {
-                        if has_correlated_ref(&subquery.where_clause, &outer_tables) {
-                            found = true;
-                            return false;
-                        }
-                    }
-                    Expr::ScalarSublink { subquery, .. }
-                        if has_correlated_ref(&subquery.where_clause, &outer_tables) =>
-                    {
+    let loc = stmt_location(curr_stmt);
+    let outer_tables = collect_from_tables(&curr_stmt.statement);
+    if outer_tables.is_empty() {
+        return;
+    }
+    if let Some(where_clause) = extract_where(&curr_stmt.statement) {
+        let mut found = false;
+        walk_expr(where_clause, &mut |e| {
+            if found {
+                return false;
+            }
+            match e {
+                Expr::InSubquery { subquery, .. } | Expr::Exists(subquery) | Expr::Subquery(subquery) => {
+                    if has_correlated_ref(&subquery.where_clause, &outer_tables) {
                         found = true;
                         return false;
                     }
-                    _ => {}
                 }
-                true
-            });
-            if found {
-                warnings.push(make_warning(
-                    WarningLevel::Performance, "P011", "correlated-subquery",
-                    "\u{5173}\u{8054}\u{5b50}\u{67e5}\u{8be2}\u{53ef}\u{80fd}\u{5bfc}\u{81f4}\u{6bcf}\u{884c}\u{6267}\u{884c}\u{4e00}\u{6b21}\u{5b50}\u{67e5}\u{8be2}".into(),
-                    Some("\u{6539}\u{5199}\u{4e3a}\u{7b49}\u{503c} JOIN"), loc,
-                    None, confidence,
-                ));
+                Expr::ScalarSublink { subquery, .. } if has_correlated_ref(&subquery.where_clause, &outer_tables) => {
+                    found = true;
+                    return false;
+                }
+                _ => {}
             }
+            true
+        });
+        if found {
+            warnings.push(make_warning(
+                WarningLevel::Performance, "P011", "correlated-subquery",
+                "\u{5173}\u{8054}\u{5b50}\u{67e5}\u{8be2}\u{53ef}\u{80fd}\u{5bfc}\u{81f4}\u{6bcf}\u{884c}\u{6267}\u{884c}\u{4e00}\u{6b21}\u{5b50}\u{67e5}\u{8be2}".into(),
+                Some("\u{6539}\u{5199}\u{4e3a}\u{7b49}\u{503c} JOIN"), loc,
+                None, confidence,
+            ));
         }
     }
 }
@@ -647,42 +643,40 @@ fn has_correlated_ref(expr: &Option<Expr>, outer_tables: &[String]) -> bool {
 
 // P012: Unnecessary DISTINCT (basic -- warns on all DISTINCT)
 fn check_p012(
-    stmts: &[StatementInfo],
+    curr_stmt: &StatementInfo,
+    _stmts: &[StatementInfo],
     _schema: Option<&crate::analyzer::schema::SchemaMap>,
     _indexes: Option<&crate::linter::IndexInfo>,
     _config: &LintConfig,
     confidence: Confidence,
     warnings: &mut Vec<SqlWarning>,
 ) {
-    for info in stmts {
-        if let Statement::Select(s) = &info.statement {
-            if s.distinct {
-                let loc = loc_from_spanned(s, stmt_location(info));
-                warnings.push(make_warning(
-                    WarningLevel::Performance, "P012", "unnecessary-distinct",
-                    "DISTINCT \u{5b58}\u{5728}\u{ff0c}\u{9700}\u{7ed3}\u{5408}\u{552f}\u{4e00}\u{952e}\u{5224}\u{65ad}\u{662f}\u{5426}\u{5fc5}\u{8981}\u{ff08}\u{9700} schema \u{4fe1}\u{606f}\u{8fdb}\u{4e00}\u{6b65}\u{786e}\u{8ba4}\u{ff09}".into(),
-                    Some("\u{68c0}\u{67e5}\u{53bb}\u{91cd}\u{5fc5}\u{8981}\u{6027}\u{ff0c}\u{5982}\u{679c}\u{5df2}\u{542b}\u{552f}\u{4e00}\u{5217}\u{5219}\u{53ef}\u{79fb}\u{9664}"), loc,
-                    None, confidence,
-                ));
-            }
+    if let Statement::Select(s) = &curr_stmt.statement {
+        if s.distinct {
+            let loc = loc_from_spanned(s, stmt_location(curr_stmt));
+            warnings.push(make_warning(
+                WarningLevel::Performance, "P012", "unnecessary-distinct",
+                "DISTINCT \u{5b58}\u{5728}\u{ff0c}\u{9700}\u{7ed3}\u{5408}\u{552f}\u{4e00}\u{952e}\u{5224}\u{65ad}\u{662f}\u{5426}\u{5fc5}\u{8981}\u{ff08}\u{9700} schema \u{4fe1}\u{606f}\u{8fdb}\u{4e00}\u{6b65}\u{786e}\u{8ba4}\u{ff09}".into(),
+                Some("\u{68c0}\u{67e5}\u{53bb}\u{91cd}\u{5fc5}\u{8981}\u{6027}\u{ff0c}\u{5982}\u{679c}\u{5df2}\u{542b}\u{552f}\u{4e00}\u{5217}\u{5219}\u{53ef}\u{79fb}\u{9664}"), loc,
+                None, confidence,
+            ));
         }
     }
 }
 
 // P013: Cartesian product (CROSS JOIN or missing join condition)
 fn check_p013(
-    stmts: &[StatementInfo],
+    curr_stmt: &StatementInfo,
+    _stmts: &[StatementInfo],
     _schema: Option<&crate::analyzer::schema::SchemaMap>,
     _indexes: Option<&crate::linter::IndexInfo>,
     _config: &LintConfig,
     confidence: Confidence,
     warnings: &mut Vec<SqlWarning>,
 ) {
-    for info in stmts {
-        if let Statement::Select(s) = &info.statement {
-            let loc = loc_from_spanned(s, stmt_location(info));
-            check_cartesian_in_from(&s.from, loc, confidence, warnings);
-        }
+    if let Statement::Select(s) = &curr_stmt.statement {
+        let loc = loc_from_spanned(s, stmt_location(curr_stmt));
+        check_cartesian_in_from(&s.from, loc, confidence, warnings);
     }
 }
 
@@ -721,44 +715,43 @@ fn check_cartesian_in_from(
 
 // P014: Deeply nested subquery
 fn check_p014(
-    stmts: &[StatementInfo],
+    curr_stmt: &StatementInfo,
+    _stmts: &[StatementInfo],
     _schema: Option<&crate::analyzer::schema::SchemaMap>,
     _indexes: Option<&crate::linter::IndexInfo>,
     config: &LintConfig,
     confidence: Confidence,
     warnings: &mut Vec<SqlWarning>,
 ) {
-    for info in stmts {
-        let loc = stmt_location(info);
-        let max_depth = match &info.statement {
-            Statement::Select(s) => subquery_depth_select(s),
-            Statement::Update(u) => {
-                let mut d = 0;
-                for a in &u.assignments {
-                    d = d.max(subquery_depth_expr(&a.value));
-                }
-                if let Some(ref w) = u.where_clause {
-                    d = d.max(subquery_depth_expr(w));
-                }
-                d
+    let loc = stmt_location(curr_stmt);
+    let max_depth = match &curr_stmt.statement {
+        Statement::Select(s) => subquery_depth_select(s),
+        Statement::Update(u) => {
+            let mut d = 0;
+            for a in &u.assignments {
+                d = d.max(subquery_depth_expr(&a.value));
             }
-            Statement::Delete(de) => {
-                if let Some(ref w) = de.where_clause {
-                    subquery_depth_expr(w)
-                } else {
-                    0
-                }
+            if let Some(ref w) = u.where_clause {
+                d = d.max(subquery_depth_expr(w));
             }
-            _ => 0,
-        };
-        if max_depth >= config.subquery_depth_limit {
-            warnings.push(make_warning(
+            d
+        }
+        Statement::Delete(de) => {
+            if let Some(ref w) = de.where_clause {
+                subquery_depth_expr(w)
+            } else {
+                0
+            }
+        }
+        _ => 0,
+    };
+    if max_depth >= config.subquery_depth_limit {
+        warnings.push(make_warning(
                 WarningLevel::Performance, "P014", "deeply-nested-subquery",
                 format!("\u{5b50}\u{67e5}\u{8be2}\u{5d4c}\u{5957}\u{6df1}\u{5ea6} {max_depth} \u{8d85}\u{8fc7}\u{9608}\u{503c} {}\u{ff0c}\u{6027}\u{80fd}\u{53ef}\u{80fd}\u{8f83}\u{5dee}", config.subquery_depth_limit),
                 Some("\u{62c6}\u{5206}\u{4e3a}\u{4e34}\u{65f6}\u{8868}\u{6216} CTE"), loc,
                 None, confidence,
             ));
-        }
     }
 }
 
@@ -852,30 +845,29 @@ fn subquery_depth_expr(expr: &Expr) -> usize {
 
 // P015: Range equals same value (col >= x AND col <= x where x == x)
 fn check_p015(
-    stmts: &[StatementInfo],
+    curr_stmt: &StatementInfo,
+    _stmts: &[StatementInfo],
     _schema: Option<&crate::analyzer::schema::SchemaMap>,
     _indexes: Option<&crate::linter::IndexInfo>,
     _config: &LintConfig,
     confidence: Confidence,
     warnings: &mut Vec<SqlWarning>,
 ) {
-    for info in stmts {
-        let loc = stmt_location(info);
-        if let Some(where_clause) = extract_where(&info.statement) {
-            walk_expr(where_clause, &mut |e| {
-                if let Expr::Between { low, high, negated: false, .. } = e {
-                    if literals_equal(low, high) {
-                        warnings.push(make_warning(
-                            WarningLevel::Performance, "P015", "range-equals-same-value",
-                            "BETWEEN \u{4e0a}\u{4e0b}\u{754c}\u{76f8}\u{540c}\u{ff0c}\u{5e94}\u{7b80}\u{5316}\u{4e3a} \u{7b49}\u{4e8e}\u{6761}\u{4ef6}".into(),
-                            Some("\u{7b80}\u{5316}\u{4e3a} ="), loc,
-                            None, confidence,
-                        ));
-                    }
+    let loc = stmt_location(curr_stmt);
+    if let Some(where_clause) = extract_where(&curr_stmt.statement) {
+        walk_expr(where_clause, &mut |e| {
+            if let Expr::Between { low, high, negated: false, .. } = e {
+                if literals_equal(low, high) {
+                    warnings.push(make_warning(
+                        WarningLevel::Performance, "P015", "range-equals-same-value",
+                        "BETWEEN \u{4e0a}\u{4e0b}\u{754c}\u{76f8}\u{540c}\u{ff0c}\u{5e94}\u{7b80}\u{5316}\u{4e3a} \u{7b49}\u{4e8e}\u{6761}\u{4ef6}".into(),
+                        Some("\u{7b80}\u{5316}\u{4e3a} ="), loc,
+                        None, confidence,
+                    ));
                 }
-                true
-            });
-        }
+            }
+            true
+        });
     }
 }
 
@@ -888,151 +880,150 @@ fn literals_equal(a: &Expr, b: &Expr) -> bool {
 
 // P016: UPDATE FROM without join condition in WHERE
 fn check_p016(
-    stmts: &[StatementInfo],
+    curr_stmt: &StatementInfo,
+    _stmts: &[StatementInfo],
     _schema: Option<&crate::analyzer::schema::SchemaMap>,
     _indexes: Option<&crate::linter::IndexInfo>,
     _config: &LintConfig,
     confidence: Confidence,
     warnings: &mut Vec<SqlWarning>,
 ) {
-    for info in stmts {
-        if let Statement::Update(s) = &info.statement {
-            if !s.from.is_empty() && s.where_clause.is_none() {
-                let loc = loc_from_spanned(s, stmt_location(info));
-                warnings.push(make_warning(
-                    WarningLevel::Performance, "P016", "update-from-no-join-condition",
-                    "UPDATE FROM \u{65e0} WHERE \u{5b50}\u{53e5}\u{ff0c}\u{53ef}\u{80fd}\u{4ea7}\u{751f}\u{7b1b}\u{5361}\u{5c14}\u{79ef}\u{66f4}\u{65b0}".into(),
-                    Some("WHERE \u{4e2d}\u{5173}\u{8054} FROM \u{8868}"), loc,
-                    None, confidence,
-                ));
-            }
+    if let Statement::Update(s) = &curr_stmt.statement {
+        if !s.from.is_empty() && s.where_clause.is_none() {
+            let loc = loc_from_spanned(s, stmt_location(curr_stmt));
+            warnings.push(make_warning(
+                WarningLevel::Performance, "P016", "update-from-no-join-condition",
+                "UPDATE FROM \u{65e0} WHERE \u{5b50}\u{53e5}\u{ff0c}\u{53ef}\u{80fd}\u{4ea7}\u{751f}\u{7b1b}\u{5361}\u{5c14}\u{79ef}\u{66f4}\u{65b0}".into(),
+                Some("WHERE \u{4e2d}\u{5173}\u{8054} FROM \u{8868}"), loc,
+                None, confidence,
+            ));
         }
     }
 }
 
 // P017: MERGE without unique index (basic -- always warns)
 fn check_p017(
-    stmts: &[StatementInfo],
+    curr_stmt: &StatementInfo,
+    _stmts: &[StatementInfo],
     _schema: Option<&crate::analyzer::schema::SchemaMap>,
     _indexes: Option<&crate::linter::IndexInfo>,
     _config: &LintConfig,
     confidence: Confidence,
     warnings: &mut Vec<SqlWarning>,
 ) {
-    for info in stmts {
-        if let Statement::Merge(s) = &info.statement {
-            let loc = loc_from_spanned(s, stmt_location(info));
-            warnings.push(make_warning(
-                WarningLevel::Performance, "P017", "merge-without-unique-index",
-                "MERGE \u{8bed}\u{53e5} ON \u{6761}\u{4ef6}\u{9700}\u{8981}\u{552f}\u{4e00}\u{7d22}\u{5f15}\u{4fdd}\u{8bc1}\u{786e}\u{5b9a}\u{6027}\u{ff08}\u{9700} schema \u{4fe1}\u{606f}\u{786e}\u{8ba4}\u{ff09}".into(),
-                Some("\u{786e}\u{4fdd} ON \u{6761}\u{4ef6}\u{5217}\u{6709}\u{552f}\u{4e00}\u{7d22}\u{5f15}"), loc,
-                None, confidence,
-            ));
-        }
+    if let Statement::Merge(s) = &curr_stmt.statement {
+        let loc = loc_from_spanned(s, stmt_location(curr_stmt));
+        warnings.push(make_warning(
+            WarningLevel::Performance, "P017", "merge-without-unique-index",
+            "MERGE \u{8bed}\u{53e5} ON \u{6761}\u{4ef6}\u{9700}\u{8981}\u{552f}\u{4e00}\u{7d22}\u{5f15}\u{4fdd}\u{8bc1}\u{786e}\u{5b9a}\u{6027}\u{ff08}\u{9700} schema \u{4fe1}\u{606f}\u{786e}\u{8ba4}\u{ff09}".into(),
+            Some("\u{786e}\u{4fdd} ON \u{6761}\u{4ef6}\u{5217}\u{6709}\u{552f}\u{4e00}\u{7d22}\u{5f15}"), loc,
+            None, confidence,
+        ));
     }
 }
 
 // P018: INSERT SELECT without column list
 fn check_p018(
-    stmts: &[StatementInfo],
+    curr_stmt: &StatementInfo,
+    _stmts: &[StatementInfo],
     _schema: Option<&crate::analyzer::schema::SchemaMap>,
     _indexes: Option<&crate::linter::IndexInfo>,
     _config: &LintConfig,
     confidence: Confidence,
     warnings: &mut Vec<SqlWarning>,
 ) {
-    for info in stmts {
-        if let Statement::Insert(s) = &info.statement {
-            if s.columns.is_empty() && matches!(&s.source, InsertSource::Select(_)) {
-                let loc = loc_from_spanned(s, stmt_location(info));
-                warnings.push(make_warning(
-                        WarningLevel::Performance, "P018", "insert-select-no-columns",
-                        "INSERT INTO ... SELECT \u{672a}\u{6307}\u{5b9a}\u{76ee}\u{6807}\u{5217}\u{540d}\u{ff0c}\u{4f9d}\u{8d56}\u{5217}\u{987a}\u{5e8f}".into(),
-                        Some("\u{663e}\u{5f0f}\u{6307}\u{5b9a}\u{76ee}\u{6807}\u{5217}\u{540d}"), loc,
-                        None, confidence,
-                    ));
-            }
+    if let Statement::Insert(s) = &curr_stmt.statement {
+        if s.columns.is_empty() && matches!(&s.source, InsertSource::Select(_)) {
+            let loc = loc_from_spanned(s, stmt_location(curr_stmt));
+            warnings.push(make_warning(
+                    WarningLevel::Performance, "P018", "insert-select-no-columns",
+                    "INSERT INTO ... SELECT \u{672a}\u{6307}\u{5b9a}\u{76ee}\u{6807}\u{5217}\u{540d}\u{ff0c}\u{4f9d}\u{8d56}\u{5217}\u{987a}\u{5e8f}".into(),
+                    Some("\u{663e}\u{5f0f}\u{6307}\u{5b9a}\u{76ee}\u{6807}\u{5217}\u{540d}"), loc,
+                    None, confidence,
+                ));
         }
     }
 }
 
 // P019: Multi-table UPDATE
 fn check_p019(
-    stmts: &[StatementInfo],
+    curr_stmt: &StatementInfo,
+    _stmts: &[StatementInfo],
     _schema: Option<&crate::analyzer::schema::SchemaMap>,
     _indexes: Option<&crate::linter::IndexInfo>,
     _config: &LintConfig,
     confidence: Confidence,
     warnings: &mut Vec<SqlWarning>,
 ) {
-    for info in stmts {
-        if let Statement::Update(s) = &info.statement {
-            if s.tables.len() > 1 {
-                let loc = loc_from_spanned(s, stmt_location(info));
-                warnings.push(make_warning(
-                    WarningLevel::Performance, "P019", "multi-table-update",
-                    format!("\u{591a}\u{8868} UPDATE \u{5305}\u{542b} {} \u{4e2a}\u{8868}\u{ff0c}\u{53ef}\u{80fd}\u{4ea7}\u{751f}\u{975e}\u{9884}\u{671f}\u{7ed3}\u{679c}", s.tables.len()),
-                    Some("\u{62c6}\u{5206}\u{4e3a}\u{591a}\u{6761}\u{5355}\u{8868} UPDATE"), loc,
-                    None, confidence,
-                ));
-            }
+    if let Statement::Update(s) = &curr_stmt.statement {
+        if s.tables.len() > 1 {
+            let loc = loc_from_spanned(s, stmt_location(curr_stmt));
+            warnings.push(make_warning(
+                WarningLevel::Performance, "P019", "multi-table-update",
+                format!("\u{591a}\u{8868} UPDATE \u{5305}\u{542b} {} \u{4e2a}\u{8868}\u{ff0c}\u{53ef}\u{80fd}\u{4ea7}\u{751f}\u{975e}\u{9884}\u{671f}\u{7ed3}\u{679c}", s.tables.len()),
+                Some("\u{62c6}\u{5206}\u{4e3a}\u{591a}\u{6761}\u{5355}\u{8868} UPDATE"), loc,
+                None, confidence,
+            ));
         }
     }
 }
 
 // P020: INSERT ALL / INSERT FIRST multi-table
 fn check_p020(
-    stmts: &[StatementInfo],
+    curr_stmt: &StatementInfo,
+    _stmts: &[StatementInfo],
     _schema: Option<&crate::analyzer::schema::SchemaMap>,
     _indexes: Option<&crate::linter::IndexInfo>,
     _config: &LintConfig,
     confidence: Confidence,
     warnings: &mut Vec<SqlWarning>,
 ) {
-    for info in stmts {
-        match &info.statement {
-            Statement::InsertAll(s) => {
-                let loc = loc_from_spanned(s, stmt_location(info));
-                warnings.push(make_warning(
-                    WarningLevel::Performance, "P020", "insert-all-multi-table",
-                    "INSERT ALL \u{591a}\u{8868}\u{63d2}\u{5165}\u{ff0c}\u{8bc4}\u{4f30}\u{662f}\u{5426}\u{53ef}\u{7528}\u{5355}\u{6761} INSERT...SELECT".into(),
-                    Some("\u{8bc4}\u{4f30}\u{662f}\u{5426}\u{53ef}\u{7528}\u{5355}\u{6761} INSERT...SELECT \u{66ff}\u{4ee3}"), loc,
-                    None, confidence,
-                ));
-            }
-            Statement::InsertFirst(s) => {
-                let loc = loc_from_spanned(s, stmt_location(info));
-                warnings.push(make_warning(
-                    WarningLevel::Performance, "P020", "insert-all-multi-table",
-                    "INSERT FIRST \u{591a}\u{8868}\u{63d2}\u{5165}\u{ff0c}\u{8bc4}\u{4f30}\u{662f}\u{5426}\u{53ef}\u{7528}\u{5355}\u{6761} INSERT...SELECT".into(),
-                    Some("\u{8bc4}\u{4f30}\u{662f}\u{5426}\u{53ef}\u{7528}\u{5355}\u{6761} INSERT...SELECT \u{66ff}\u{4ee3}"), loc,
-                    None, confidence,
-                ));
-            }
-            _ => {}
+    match &curr_stmt.statement {
+        Statement::InsertAll(s) => {
+            let loc = loc_from_spanned(s, stmt_location(curr_stmt));
+            warnings.push(make_warning(
+                WarningLevel::Performance, "P020", "insert-all-multi-table",
+                "INSERT ALL \u{591a}\u{8868}\u{63d2}\u{5165}\u{ff0c}\u{8bc4}\u{4f30}\u{662f}\u{5426}\u{53ef}\u{7528}\u{5355}\u{6761} INSERT...SELECT".into(),
+                Some("\u{8bc4}\u{4f30}\u{662f}\u{5426}\u{53ef}\u{7528}\u{5355}\u{6761} INSERT...SELECT \u{66ff}\u{4ee3}"), loc,
+                None, confidence,
+            ));
         }
+        Statement::InsertFirst(s) => {
+            let loc = loc_from_spanned(s, stmt_location(curr_stmt));
+            warnings.push(make_warning(
+                WarningLevel::Performance, "P020", "insert-all-multi-table",
+                "INSERT FIRST \u{591a}\u{8868}\u{63d2}\u{5165}\u{ff0c}\u{8bc4}\u{4f30}\u{662f}\u{5426}\u{53ef}\u{7528}\u{5355}\u{6761} INSERT...SELECT".into(),
+                Some("\u{8bc4}\u{4f30}\u{662f}\u{5426}\u{53ef}\u{7528}\u{5355}\u{6761} INSERT...SELECT \u{66ff}\u{4ee3}"), loc,
+                None, confidence,
+            ));
+        }
+        _ => {}
     }
 }
 
 // P022: EXPLAIN in production code
 fn check_p022(
-    stmts: &[StatementInfo],
+    curr_stmt: &StatementInfo,
+    _stmts: &[StatementInfo],
     _schema: Option<&crate::analyzer::schema::SchemaMap>,
     _indexes: Option<&crate::linter::IndexInfo>,
     _config: &LintConfig,
     confidence: Confidence,
     warnings: &mut Vec<SqlWarning>,
 ) {
-    for info in stmts {
-        if let Statement::Explain(s) = &info.statement {
-            let loc = loc_from_spanned(s, stmt_location(info));
-            warnings.push(make_warning(
-                WarningLevel::Performance, "P022", "explain-in-production",
-                "EXPLAIN \u{8bed}\u{53e5}\u{4e0d}\u{5e94}\u{51fa}\u{73b0}\u{5728}\u{751f}\u{4ea7}\u{4ee3}\u{7801}\u{4e2d}".into(),
-                Some("\u{79fb}\u{9664} EXPLAIN \u{6216}\u{4ec5}\u{7528}\u{4e8e}\u{8c03}\u{8bd5}"), loc,
-                None, confidence,
-            ));
-        }
+    if let Statement::Explain(s) = &curr_stmt.statement {
+        let loc = loc_from_spanned(s, stmt_location(curr_stmt));
+        warnings.push(make_warning(
+            WarningLevel::Performance,
+            "P022",
+            "explain-in-production",
+            "EXPLAIN \u{8bed}\u{53e5}\u{4e0d}\u{5e94}\u{51fa}\u{73b0}\u{5728}\u{751f}\u{4ea7}\u{4ee3}\u{7801}\u{4e2d}"
+                .into(),
+            Some("\u{79fb}\u{9664} EXPLAIN \u{6216}\u{4ec5}\u{7528}\u{4e8e}\u{8c03}\u{8bd5}"),
+            loc,
+            None,
+            confidence,
+        ));
     }
 }
 
@@ -1041,67 +1032,65 @@ fn check_p022(
 const CASE_REPLACEABLE_FUNCTIONS: &[&str] = &["nvl", "nvl2", "decode", "iif"];
 
 fn check_p009(
-    stmts: &[StatementInfo],
+    curr_stmt: &StatementInfo,
+    _stmts: &[StatementInfo],
     _schema: Option<&crate::analyzer::schema::SchemaMap>,
     _indexes: Option<&crate::linter::IndexInfo>,
     _config: &LintConfig,
     confidence: Confidence,
     warnings: &mut Vec<SqlWarning>,
 ) {
-    for info in stmts {
-        let loc = stmt_location(info);
-        if let Some(where_clause) = extract_where(&info.statement) {
-            walk_expr(where_clause, &mut |e| {
-                if let Expr::FunctionCall { name, .. } = e {
-                    if let Some(fn_name) = name.last() {
-                        let lower = fn_name.to_lowercase();
-                        if CASE_REPLACEABLE_FUNCTIONS.contains(&lower.as_str()) {
-                            warnings.push(make_warning(
-                                WarningLevel::Performance,
-                                "P009",
-                                "function-instead-of-case",
-                                format!("\u{51fd}\u{6570} {fn_name}() \u{53ef}\u{4ee5}\u{7528} CASE \u{8868}\u{8fbe}\u{5f0f}\u{66ff}\u{4ee3}\u{ff0c}\u{53ef}\u{80fd}\u{66f4}\u{9ad8}\u{6548}"),
-                                Some("\u{4f7f}\u{7528} CASE WHEN ... THEN ... ELSE ... END \u{66ff}\u{4ee3}"),
-                                loc,
-                                None,
-                                confidence,
-                            ));
-                            return false;
-                        }
+    let loc = stmt_location(curr_stmt);
+    if let Some(where_clause) = extract_where(&curr_stmt.statement) {
+        walk_expr(where_clause, &mut |e| {
+            if let Expr::FunctionCall { name, .. } = e {
+                if let Some(fn_name) = name.last() {
+                    let lower = fn_name.to_lowercase();
+                    if CASE_REPLACEABLE_FUNCTIONS.contains(&lower.as_str()) {
+                        warnings.push(make_warning(
+                            WarningLevel::Performance,
+                            "P009",
+                            "function-instead-of-case",
+                            format!("\u{51fd}\u{6570} {fn_name}() \u{53ef}\u{4ee5}\u{7528} CASE \u{8868}\u{8fbe}\u{5f0f}\u{66ff}\u{4ee3}\u{ff0c}\u{53ef}\u{80fd}\u{66f4}\u{9ad8}\u{6548}"),
+                            Some("\u{4f7f}\u{7528} CASE WHEN ... THEN ... ELSE ... END \u{66ff}\u{4ee3}"),
+                            loc,
+                            None,
+                            confidence,
+                        ));
+                        return false;
                     }
                 }
-                true
-            });
-        }
+            }
+            true
+        });
     }
 }
 
 // ── P021: Row-by-row INSERT in PL/pgSQL loop ──
 
 fn check_p021(
-    stmts: &[StatementInfo],
+    curr_stmt: &StatementInfo,
+    _stmts: &[StatementInfo],
     _schema: Option<&crate::analyzer::schema::SchemaMap>,
     _indexes: Option<&crate::linter::IndexInfo>,
     _config: &LintConfig,
     confidence: Confidence,
     warnings: &mut Vec<SqlWarning>,
 ) {
-    for info in stmts {
-        let loc = stmt_location(info);
-        let mut found = false;
-        walk_pl_for_loop_insert(&info.statement, &mut found);
-        if found {
-            warnings.push(make_warning(
-                WarningLevel::Performance,
-                "P021",
-                "row-by-row-insert-in-loop",
-                "\u{5faa}\u{73af}\u{4f53}\u{5185}\u{5305}\u{542b} INSERT\u{ff0c}\u{5e94}\u{4f7f}\u{7528} FORALL \u{6279}\u{91cf}\u{64cd}\u{4f5c}\u{66ff}\u{4ee3}".into(),
-                Some("\u{4f7f}\u{7528} FORALL \u{6279}\u{91cf}\u{63d2}\u{5165}\u{6216} INSERT ... SELECT \u{66ff}\u{4ee3}\u{5faa}\u{73af} INSERT"),
-                loc,
-                None,
-                confidence,
-            ));
-        }
+    let loc = stmt_location(curr_stmt);
+    let mut found = false;
+    walk_pl_for_loop_insert(&curr_stmt.statement, &mut found);
+    if found {
+        warnings.push(make_warning(
+            WarningLevel::Performance,
+            "P021",
+            "row-by-row-insert-in-loop",
+            "\u{5faa}\u{73af}\u{4f53}\u{5185}\u{5305}\u{542b} INSERT\u{ff0c}\u{5e94}\u{4f7f}\u{7528} FORALL \u{6279}\u{91cf}\u{64cd}\u{4f5c}\u{66ff}\u{4ee3}".into(),
+            Some("\u{4f7f}\u{7528} FORALL \u{6279}\u{91cf}\u{63d2}\u{5165}\u{6216} INSERT ... SELECT \u{66ff}\u{4ee3}\u{5faa}\u{73af} INSERT"),
+            loc,
+            None,
+            confidence,
+        ));
     }
 }
 
@@ -1178,14 +1167,17 @@ fn check_pl_stmts_for_loop_insert(pl_stmts: &[crate::ast::plpgsql::PlStatement],
 // recursion.  GaussDB's WITH RECURSIVE CTE often provides better optimization
 // and clearer semantics for complex traversals.
 fn check_p023(
-    stmts: &[StatementInfo],
+    curr_stmt: &StatementInfo,
+    _stmts: &[StatementInfo],
     _schema: Option<&crate::analyzer::schema::SchemaMap>,
     _indexes: Option<&crate::linter::IndexInfo>,
     _config: &LintConfig,
     confidence: Confidence,
     warnings: &mut Vec<SqlWarning>,
 ) {
-    for (s, loc) in collect_nested_selects(stmts) {
+    let mut selects: Vec<(&SelectStatement, SourceLocation)> = Vec::new();
+    collect_selects_from_stmt(&curr_stmt.statement, stmt_location(curr_stmt), &mut selects);
+    for (s, loc) in selects {
         if s.connect_by.is_some() {
             let mut msg = String::from("CONNECT BY 层级查询在数据量大或递归层次深时性能可能显著下降");
             if s.connect_by.as_ref().is_some_and(|cb| cb.start_with.is_none()) {

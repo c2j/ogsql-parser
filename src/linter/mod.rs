@@ -287,8 +287,15 @@ pub struct LintRuleEntry {
     pub name: &'static str,
     pub level: WarningLevel,
     pub stmt_kind: StatementKind,
-    pub check_fn:
-        fn(&[StatementInfo], Option<&SchemaMap>, Option<&IndexInfo>, &LintConfig, Confidence, &mut Vec<SqlWarning>),
+    pub check_fn: fn(
+        curr_stmt: &StatementInfo,
+        stmts: &[StatementInfo],
+        Option<&SchemaMap>,
+        Option<&IndexInfo>,
+        &LintConfig,
+        Confidence,
+        &mut Vec<SqlWarning>,
+    ),
 }
 
 /// Build a JSON summary of lint warnings, grouped by level and rule.
@@ -361,7 +368,7 @@ impl SqlLinter {
                 if rule.level < self.config.min_level {
                     continue;
                 }
-                (rule.check_fn)(stmts, schema, self.index_info.as_ref(), &self.config, confidence, &mut warnings);
+                (rule.check_fn)(info, stmts, schema, self.index_info.as_ref(), &self.config, confidence, &mut warnings);
             }
         }
 
@@ -758,7 +765,7 @@ pub fn collect_nested_selects(stmts: &[StatementInfo]) -> Vec<(&SelectStatement,
     results
 }
 
-fn collect_selects_from_stmt<'a>(
+pub(crate) fn collect_selects_from_stmt<'a>(
     stmt: &'a Statement,
     loc: SourceLocation,
     out: &mut Vec<(&'a SelectStatement, SourceLocation)>,
