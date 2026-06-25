@@ -7,6 +7,89 @@
 
 use crate::{MergeSemanticError, PackageConsistencyError, UndefinedVariableError};
 
+/// Collect the names of all routines (functions, procedures) and package-level types
+/// defined in a slice of statements. Used by the PL variable validator to treat
+/// locally-defined routines as known functions.
+///
+/// Walks `StatementInfo` looking at `CreateFunction`, `CreateProcedure`,
+/// `CreatePackage` (spec), and `CreatePackageBody` — for each subprogram found,
+/// the last component of its (possibly schema-qualified) name is collected in
+/// lowercase. Duplicates and sort order are handled by the caller.
+pub fn collect_defined_routine_names(stmts: &[crate::ast::StatementInfo]) -> Vec<String> {
+    use crate::ast::Statement;
+    let mut names = Vec::new();
+    for si in stmts {
+        match &si.statement {
+            Statement::CreateFunction(func) => {
+                if let Some(last) = func.name.last() {
+                    names.push(last.to_lowercase());
+                }
+            }
+            Statement::CreateProcedure(proc) => {
+                if let Some(last) = proc.name.last() {
+                    names.push(last.to_lowercase());
+                }
+            }
+            Statement::CreatePackage(spec) => {
+                for item in &spec.items {
+                    match item {
+                        crate::ast::PackageItem::Function(f) => {
+                            if let Some(last) = f.name.last() {
+                                names.push(last.to_lowercase());
+                            }
+                        }
+                        crate::ast::PackageItem::Procedure(p) => {
+                            if let Some(last) = p.name.last() {
+                                names.push(last.to_lowercase());
+                            }
+                        }
+                        crate::ast::PackageItem::Type(t) => {
+                            let name = match t {
+                                crate::ast::plpgsql::PlTypeDecl::Record { name, .. } => name,
+                                crate::ast::plpgsql::PlTypeDecl::TableOf { name, .. } => name,
+                                crate::ast::plpgsql::PlTypeDecl::VarrayOf { name, .. } => name,
+                                crate::ast::plpgsql::PlTypeDecl::RefCursor { name } => name,
+                            };
+                            names.push(name.to_lowercase());
+                        }
+                        _ => {}
+                    }
+                }
+            }
+            Statement::CreatePackageBody(body) => {
+                for item in &body.items {
+                    match item {
+                        crate::ast::PackageItem::Function(f) => {
+                            if let Some(last) = f.name.last() {
+                                names.push(last.to_lowercase());
+                            }
+                        }
+                        crate::ast::PackageItem::Procedure(p) => {
+                            if let Some(last) = p.name.last() {
+                                names.push(last.to_lowercase());
+                            }
+                        }
+                        crate::ast::PackageItem::Type(t) => {
+                            let name = match t {
+                                crate::ast::plpgsql::PlTypeDecl::Record { name, .. } => name,
+                                crate::ast::plpgsql::PlTypeDecl::TableOf { name, .. } => name,
+                                crate::ast::plpgsql::PlTypeDecl::VarrayOf { name, .. } => name,
+                                crate::ast::plpgsql::PlTypeDecl::RefCursor { name } => name,
+                            };
+                            names.push(name.to_lowercase());
+                        }
+                        _ => {}
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+    names.sort();
+    names.dedup();
+    names
+}
+
 /// Aggregate result of running all three validators on a slice of statements.
 ///
 /// Each bucket is independent — e.g. `merge_errors` may be empty while

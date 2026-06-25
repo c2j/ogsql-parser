@@ -3807,81 +3807,6 @@ fn merge_error_detail(err: &ogsql_parser::MergeSemanticError) -> String {
     }
 }
 
-fn collect_defined_routine_names(stmts: &[ogsql_parser::StatementInfo]) -> Vec<String> {
-    use ogsql_parser::ast::Statement;
-    let mut names = Vec::new();
-    for si in stmts {
-        match &si.statement {
-            Statement::CreateFunction(func) => {
-                if let Some(last) = func.name.last() {
-                    names.push(last.to_lowercase());
-                }
-            }
-            Statement::CreateProcedure(proc) => {
-                if let Some(last) = proc.name.last() {
-                    names.push(last.to_lowercase());
-                }
-            }
-            Statement::CreatePackage(spec) => {
-                for item in &spec.items {
-                    match item {
-                        ogsql_parser::ast::PackageItem::Function(f) => {
-                            if let Some(last) = f.name.last() {
-                                names.push(last.to_lowercase());
-                            }
-                        }
-                        ogsql_parser::ast::PackageItem::Procedure(p) => {
-                            if let Some(last) = p.name.last() {
-                                names.push(last.to_lowercase());
-                            }
-                        }
-                        ogsql_parser::ast::PackageItem::Type(t) => {
-                            let name = match t {
-                                ogsql_parser::ast::plpgsql::PlTypeDecl::Record { name, .. } => name,
-                                ogsql_parser::ast::plpgsql::PlTypeDecl::TableOf { name, .. } => name,
-                                ogsql_parser::ast::plpgsql::PlTypeDecl::VarrayOf { name, .. } => name,
-                                ogsql_parser::ast::plpgsql::PlTypeDecl::RefCursor { name } => name,
-                            };
-                            names.push(name.to_lowercase());
-                        }
-                        _ => {}
-                    }
-                }
-            }
-            Statement::CreatePackageBody(body) => {
-                for item in &body.items {
-                    match item {
-                        ogsql_parser::ast::PackageItem::Function(f) => {
-                            if let Some(last) = f.name.last() {
-                                names.push(last.to_lowercase());
-                            }
-                        }
-                        ogsql_parser::ast::PackageItem::Procedure(p) => {
-                            if let Some(last) = p.name.last() {
-                                names.push(last.to_lowercase());
-                            }
-                        }
-                        ogsql_parser::ast::PackageItem::Type(t) => {
-                            let name = match t {
-                                ogsql_parser::ast::plpgsql::PlTypeDecl::Record { name, .. } => name,
-                                ogsql_parser::ast::plpgsql::PlTypeDecl::TableOf { name, .. } => name,
-                                ogsql_parser::ast::plpgsql::PlTypeDecl::VarrayOf { name, .. } => name,
-                                ogsql_parser::ast::plpgsql::PlTypeDecl::RefCursor { name } => name,
-                            };
-                            names.push(name.to_lowercase());
-                        }
-                        _ => {}
-                    }
-                }
-            }
-            _ => {}
-        }
-    }
-    names.sort();
-    names.dedup();
-    names
-}
-
 /// Run PACKAGE consistency, MERGE semantics, and PL variable validation on
 /// already-parsed statements. Returns errors to merge into the caller's error list.
 /// Used by validate_sql (SQL files), validate-xml (iBatis XML), and validate-java
@@ -3926,7 +3851,7 @@ fn validate_from_stmts(
 
     // 3. PL variable/function validation
     let mut all_funcs: Vec<String> = extra_funcs.to_vec();
-    let own_funcs = collect_defined_routine_names(stmts);
+    let own_funcs = ogsql_parser::collect_defined_routine_names(stmts);
     all_funcs.extend(own_funcs);
     all_funcs.sort();
     all_funcs.dedup();
@@ -4410,7 +4335,7 @@ fn cmd_validate_dir(cli: &Cli, dir_paths: &[String], exts: &[String], csv: bool,
     for (_, _, abs_path) in &files {
         let sql = read_file_path(abs_path);
         let output = parse_input(&sql, false, cli.mybatis);
-        all_defined_funcs.extend(collect_defined_routine_names(&output.statements));
+        all_defined_funcs.extend(ogsql_parser::collect_defined_routine_names(&output.statements));
     }
     all_defined_funcs.sort();
     all_defined_funcs.dedup();
