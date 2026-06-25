@@ -317,6 +317,32 @@ for err in &errors {
 }
 ```
 
+**综合校验 (validate_statements)：**
+
+一次性运行 PACKAGE 一致性、MERGE 语义、PL 变量校验，保留 typed errors：
+
+```rust
+use ogsql_parser::{Parser, validate_statements};
+
+let (stmts, _) = Parser::parse_sql("MERGE INTO t USING s ON t.id = s.id WHEN MATCHED THEN DELETE");
+let report = validate_statements(&stmts, &[], /* strict */ false);
+
+println!("PACKAGE 错误: {}", report.package_errors.len());
+println!("MERGE 错误: {}", report.merge_errors.len());
+println!("PL 变量错误: {}", report.undefined_variable_errors.len());
+
+if report.is_empty() {
+    println!("校验通过");
+}
+```
+
+`extra_funcs` 参数可注入外部已知函数名，避免跨包调用被误报为未定义：
+
+```rust
+let extra: Vec<String> = vec!["external_func".into()];
+let report = validate_statements(&stmts, &extra, true);
+```
+
 ### 2.7 iBatis/MyBatis XML 解析
 
 需要启用 `ibatis` feature。
@@ -582,6 +608,35 @@ for w in &warnings {
 // 生成摘要
 let summary = ogsql_parser::linter::build_lint_summary(&warnings);
 println!("{}", serde_json::to_string_pretty(&summary).unwrap());
+```
+
+**结构化 Mapper Lint（foreach C018）** `[requires: ibatis feature]`：
+
+扁平 SQL 会将 `<foreach>` 塌缩为单次迭代，导致 C018 漏检。`lint_structured_mapper` 在 `SqlNode` 树（展开前）上运行，检测 INSERT VALUES 中的 foreach 动态批量插入：
+
+```rust
+use ogsql_parser::ibatis;
+use ogsql_parser::linter::structured::lint_structured_mapper;
+use ogsql_parser::linter::LintConfig;
+
+let xml = br#"<mapper namespace="t">
+    <insert id="batch">
+        INSERT INTO t (a, b, c, d, e) VALUES
+        <foreach collection="rows" item="r" separator=",">
+            (#{r.a}, #{r.b}, #{r.c}, #{r.d}, #{r.e})
+        </foreach>
+    </insert>
+</mapper>"#;
+
+let structured = ibatis::parse_mapper_bytes_structured(xml);
+let mut config = LintConfig::default();
+config.max_insert_values_rows = 1000; // 阈值：总绑定参数上限
+config.foreach_estimated_rows = 1000;  // foreach 集合估算行数
+
+let warnings = lint_structured_mapper(&structured, &config);
+for w in &warnings {
+    println!("[{}] {}", w.rule_id, w.message);
+}
 ```
 
 **从 TOML 文件加载配置：**

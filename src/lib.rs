@@ -15,6 +15,23 @@
 //! # Ok::<(), ogsql_parser::TokenizerError>(())
 //! ```
 //!
+//! # Validation
+//!
+//! Run PACKAGE consistency, MERGE semantics, and PL variable validation in one call,
+//! with typed errors preserved (no folding into `ParserError`):
+//!
+//! ```
+//! use ogsql_parser::{Parser, validate_statements};
+//!
+//! let (stmts, _) = Parser::parse_sql(
+//!     "MERGE INTO t USING s ON t.id = s.id WHEN MATCHED THEN DELETE",
+//! );
+//! let report = validate_statements(&stmts, &[], false);
+//! if !report.merge_errors.is_empty() {
+//!     println!("MERGE issues: {}", report.merge_errors.len());
+//! }
+//! ```
+//!
 //! # Features
 //!
 //! - **Default**: Library only (tokenizer, parser, AST, formatter, analyzer, linter)
@@ -62,6 +79,9 @@ pub use analyzer::return_cursor::{
 pub use analyzer::schema::{
     collect_ddl_schema, load_full_schema, load_schema, resolve_schema, FullSchema, IndexMapV2, SchemaMap,
     SchemaResolutionReport,
+};
+pub use analyzer::validate::{
+    collect_defined_routine_names, validate_pl_variables_from_stmts, validate_statements, ValidationReport,
 };
 pub use analyzer::{
     analyze_pl_block, analyze_transactions, compute_query_fingerprints, validate_merge_semantics,

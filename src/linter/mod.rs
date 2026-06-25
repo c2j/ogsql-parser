@@ -2,6 +2,8 @@ mod rules_caution;
 mod rules_performance;
 mod rules_prohibition;
 mod rules_suggestion;
+#[cfg(feature = "ibatis")]
+pub mod structured;
 mod type_helpers;
 
 #[cfg(test)]
@@ -130,6 +132,10 @@ pub struct LintConfig {
     /// C018 -- max bind parameters (rows × columns) for INSERT VALUES (default 65535,
     /// aligned with database bind-parameter limit).
     pub max_insert_values_rows: usize,
+    /// C018 (structured variant) — representative iteration count for
+    /// `<foreach>` collections when estimating dynamic-SQL bind parameter
+    /// totals. Defaults to 1000.
+    pub foreach_estimated_rows: usize,
 }
 
 impl Default for LintConfig {
@@ -144,6 +150,7 @@ impl Default for LintConfig {
             non_equi_join_limit: 2,
             group_by_column_limit: 10,
             max_insert_values_rows: 65535,
+            foreach_estimated_rows: 1000,
         }
     }
 }
@@ -173,6 +180,7 @@ pub struct LintConfigFile {
     pub non_equi_join_limit: Option<usize>,
     pub group_by_column_limit: Option<usize>,
     pub max_insert_values_rows: Option<usize>,
+    pub foreach_estimated_rows: Option<usize>,
 }
 
 #[cfg(feature = "lint-config")]
@@ -257,6 +265,9 @@ impl LintConfig {
         }
         if let Some(v) = file.max_insert_values_rows {
             self.max_insert_values_rows = v;
+        }
+        if let Some(v) = file.foreach_estimated_rows {
+            self.foreach_estimated_rows = v;
         }
     }
 }

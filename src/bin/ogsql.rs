@@ -399,124 +399,6 @@ fn lint_xml_statements(
     all_warnings
 }
 
-/// Run linter on expanded dynamic SQL variants (foreach with multiple iterations).
-///
-/// Walks the structured SqlNode tree to detect foreach inside INSERT VALUES
-/// and estimates total bind parameters when the collection is large.
-/// This catches cases that flat SQL misses (flat SQL only shows a single iteration).
-#[cfg(feature = "ibatis")]
-fn lint_xml_expanded(
-    xml_bytes: &[u8],
-    config: &ogsql_parser::linter::LintConfig,
-) -> Vec<ogsql_parser::linter::SqlWarning> {
-    let structured = ogsql_parser::ibatis::parse_mapper_bytes_structured(xml_bytes);
-    if !structured.errors.is_empty() {
-        return vec![];
-    }
-    let mut warnings = Vec::new();
-
-    for stmt in &structured.statements {
-        // Check if the body contains INSERT with foreach in VALUES
-        let is_insert_values = is_insert_with_values(&stmt.body);
-        let foreach_in_values = find_foreach_in_insert_values(&stmt.body);
-
-        if let Some(foreach_node) = foreach_in_values {
-            let params_per_row = count_params_in_foreach_body(foreach_node);
-            if params_per_row > 0 {
-                let estimated_rows = 1000; // representative foreach iteration count
-                let total_params = params_per_row * estimated_rows;
-                if total_params > config.max_insert_values_rows || is_insert_values {
-                    warnings.push(ogsql_parser::linter::SqlWarning {
-                        level: ogsql_parser::linter::WarningLevel::Caution,
-                        rule_id: "C018".to_string(),
-                        rule_name: "excessive-insert-values".to_string(),
-                        message: format!(
-                            "INSERT VALUES 包含 foreach 动态批量插入，每行 {} 个参数。若运行时集合包含 {} 行，总绑定参数将达 {}，可能超过阈值 {}。建议使用分批提交或 COPY",
-                            params_per_row,
-                            estimated_rows / 10,
-                            params_per_row * estimated_rows / 10,
-                            config.max_insert_values_rows
-                        ),
-                        suggestion: Some("拆分为更小批次插入以减少锁持有时间，或使用 COPY 替代".to_string()),
-                        location: ogsql_parser::SourceLocation::default(),
-                        gaussdb_ref: None,
-                        confidence: ogsql_parser::linter::Confidence::Partial,
-                    });
-                }
-            }
-        }
-    }
-    warnings
-}
-
-/// Returns true if the SqlNode tree contains an INSERT ... VALUES pattern.
-#[cfg(feature = "ibatis")]
-fn is_insert_with_values(node: &ogsql_parser::ibatis::types::SqlNode) -> bool {
-    use ogsql_parser::ibatis::types::SqlNode;
-    match node {
-        SqlNode::Text { content } => {
-            let lower = content.to_lowercase();
-            lower.contains("insert") && lower.contains("values")
-        }
-        SqlNode::Sequence { children } | SqlNode::Trim { children, .. } => children.iter().any(is_insert_with_values),
-        _ => false,
-    }
-}
-
-/// Finds a ForEach node nested inside INSERT VALUES context.
-#[cfg(feature = "ibatis")]
-fn find_foreach_in_insert_values(
-    node: &ogsql_parser::ibatis::types::SqlNode,
-) -> Option<&ogsql_parser::ibatis::types::SqlNode> {
-    use ogsql_parser::ibatis::types::SqlNode;
-    match node {
-        SqlNode::ForEach { .. } => Some(node),
-        SqlNode::Sequence { children }
-        | SqlNode::Trim { children, .. }
-        | SqlNode::Where { children, .. }
-        | SqlNode::Set { children, .. }
-        | SqlNode::If { children, .. } => {
-            for child in children {
-                if let Some(f) = find_foreach_in_insert_values(child) {
-                    return Some(f);
-                }
-            }
-            None
-        }
-        SqlNode::Choose { branches } => {
-            for (_, ch) in branches {
-                for c in ch {
-                    if let Some(f) = find_foreach_in_insert_values(c) {
-                        return Some(f);
-                    }
-                }
-            }
-            None
-        }
-        _ => None,
-    }
-}
-
-/// Counts the number of Parameter nodes inside a ForEach body.
-#[cfg(feature = "ibatis")]
-fn count_params_in_foreach_body(node: &ogsql_parser::ibatis::types::SqlNode) -> usize {
-    use ogsql_parser::ibatis::types::SqlNode;
-    match node {
-        SqlNode::Parameter { .. } => 1,
-        SqlNode::Sequence { children }
-        | SqlNode::Trim { children, .. }
-        | SqlNode::Where { children, .. }
-        | SqlNode::Set { children, .. }
-        | SqlNode::If { children, .. }
-        | SqlNode::ForEach { children, .. } => children.iter().map(count_params_in_foreach_body).sum(),
-        SqlNode::Choose { branches } => {
-            branches.iter().flat_map(|(_, ch)| ch.iter().map(count_params_in_foreach_body)).sum()
-        }
-        SqlNode::RawExpr { .. } => 1, // ${expr} also counts as a parameter
-        _ => 0,
-    }
-}
-
 #[cfg(feature = "java")]
 fn lint_java_extractions(
     extractions: &[ogsql_parser::java::types::ExtractedSql],
@@ -3807,85 +3689,13 @@ fn merge_error_detail(err: &ogsql_parser::MergeSemanticError) -> String {
     }
 }
 
-fn collect_defined_routine_names(stmts: &[ogsql_parser::StatementInfo]) -> Vec<String> {
-    use ogsql_parser::ast::Statement;
-    let mut names = Vec::new();
-    for si in stmts {
-        match &si.statement {
-            Statement::CreateFunction(func) => {
-                if let Some(last) = func.name.last() {
-                    names.push(last.to_lowercase());
-                }
-            }
-            Statement::CreateProcedure(proc) => {
-                if let Some(last) = proc.name.last() {
-                    names.push(last.to_lowercase());
-                }
-            }
-            Statement::CreatePackage(spec) => {
-                for item in &spec.items {
-                    match item {
-                        ogsql_parser::ast::PackageItem::Function(f) => {
-                            if let Some(last) = f.name.last() {
-                                names.push(last.to_lowercase());
-                            }
-                        }
-                        ogsql_parser::ast::PackageItem::Procedure(p) => {
-                            if let Some(last) = p.name.last() {
-                                names.push(last.to_lowercase());
-                            }
-                        }
-                        ogsql_parser::ast::PackageItem::Type(t) => {
-                            let name = match t {
-                                ogsql_parser::ast::plpgsql::PlTypeDecl::Record { name, .. } => name,
-                                ogsql_parser::ast::plpgsql::PlTypeDecl::TableOf { name, .. } => name,
-                                ogsql_parser::ast::plpgsql::PlTypeDecl::VarrayOf { name, .. } => name,
-                                ogsql_parser::ast::plpgsql::PlTypeDecl::RefCursor { name } => name,
-                            };
-                            names.push(name.to_lowercase());
-                        }
-                        _ => {}
-                    }
-                }
-            }
-            Statement::CreatePackageBody(body) => {
-                for item in &body.items {
-                    match item {
-                        ogsql_parser::ast::PackageItem::Function(f) => {
-                            if let Some(last) = f.name.last() {
-                                names.push(last.to_lowercase());
-                            }
-                        }
-                        ogsql_parser::ast::PackageItem::Procedure(p) => {
-                            if let Some(last) = p.name.last() {
-                                names.push(last.to_lowercase());
-                            }
-                        }
-                        ogsql_parser::ast::PackageItem::Type(t) => {
-                            let name = match t {
-                                ogsql_parser::ast::plpgsql::PlTypeDecl::Record { name, .. } => name,
-                                ogsql_parser::ast::plpgsql::PlTypeDecl::TableOf { name, .. } => name,
-                                ogsql_parser::ast::plpgsql::PlTypeDecl::VarrayOf { name, .. } => name,
-                                ogsql_parser::ast::plpgsql::PlTypeDecl::RefCursor { name } => name,
-                            };
-                            names.push(name.to_lowercase());
-                        }
-                        _ => {}
-                    }
-                }
-            }
-            _ => {}
-        }
-    }
-    names.sort();
-    names.dedup();
-    names
-}
-
 /// Run PACKAGE consistency, MERGE semantics, and PL variable validation on
 /// already-parsed statements. Returns errors to merge into the caller's error list.
 /// Used by validate_sql (SQL files), validate-xml (iBatis XML), and validate-java
 /// (Java source) to share the same validation pipeline.
+///
+/// This is now a thin wrapper over [`ogsql_parser::validate_statements`]; the
+/// `ParserError` formatting stays here because it is a CLI output concern.
 fn validate_from_stmts(
     stmts: &[ogsql_parser::StatementInfo],
     extra_funcs: &[String],
@@ -3895,45 +3705,33 @@ fn validate_from_stmts(
     Vec<ogsql_parser::PackageConsistencyError>,
     Vec<ogsql_parser::UndefinedVariableError>,
 ) {
+    // Delegate to the public library orchestrator (preserves typed errors).
+    let report = ogsql_parser::validate_statements(stmts, extra_funcs, strict);
+
+    // Format typed errors into ParserError for CLI display. This conversion
+    // lives in the binary because ParserError formatting is a CLI concern.
     let mut errors = Vec::new();
 
-    // 1. PACKAGE consistency
-    let pkg_errors = ogsql_parser::validate_package_consistency(stmts);
-    if !pkg_errors.is_empty() {
-        for pe in &pkg_errors {
-            let msg = match &pe.detail {
-                Some(d) => format!("package {}: {} — {}", pe.package_name, pe.subprogram_name, d),
-                None => format!("package {}: {} — {:?}", pe.package_name, pe.subprogram_name, pe.kind),
-            };
-            errors.push(ogsql_parser::ParserError::Warning {
-                message: msg,
-                location: ogsql_parser::SourceLocation::default(),
-            });
-        }
+    for pe in &report.package_errors {
+        let msg = match &pe.detail {
+            Some(d) => format!("package {}: {} — {}", pe.package_name, pe.subprogram_name, d),
+            None => format!("package {}: {} — {:?}", pe.package_name, pe.subprogram_name, pe.kind),
+        };
+        errors.push(ogsql_parser::ParserError::Warning {
+            message: msg,
+            location: ogsql_parser::SourceLocation::default(),
+        });
     }
 
-    // 2. MERGE semantic validation
-    let merge_errors = ogsql_parser::validate_merge_semantics(stmts);
-    if !merge_errors.is_empty() {
-        for me in &merge_errors {
-            errors.push(ogsql_parser::ParserError::UnsupportedSyntax {
-                location: me.location,
-                syntax: "MERGE".to_string(),
-                hint: merge_error_detail(me),
-            });
-        }
+    for me in &report.merge_errors {
+        errors.push(ogsql_parser::ParserError::UnsupportedSyntax {
+            location: me.location,
+            syntax: "MERGE".to_string(),
+            hint: merge_error_detail(me),
+        });
     }
 
-    // 3. PL variable/function validation
-    let mut all_funcs: Vec<String> = extra_funcs.to_vec();
-    let own_funcs = collect_defined_routine_names(stmts);
-    all_funcs.extend(own_funcs);
-    all_funcs.sort();
-    all_funcs.dedup();
-
-    let var_errors = validate_pl_variables_from_stmts(stmts, &all_funcs, strict);
-
-    (errors, pkg_errors, var_errors)
+    (errors, report.package_errors, report.undefined_variable_errors)
 }
 
 fn validate_sql(
@@ -3954,111 +3752,6 @@ fn validate_sql(
     errors.extend(core_errors);
 
     (output.statements, errors, pkg_errors, var_errors)
-}
-
-fn validate_pl_variables_from_stmts(
-    stmts: &[ogsql_parser::StatementInfo],
-    known_funcs: &[String],
-    strict: bool,
-) -> Vec<ogsql_parser::UndefinedVariableError> {
-    use ogsql_parser::ast::Statement;
-    let mut warnings = Vec::new();
-    let funcs_str: Vec<&str> = known_funcs.iter().map(|s| s.as_str()).collect();
-    for si in stmts {
-        match &si.statement {
-            Statement::CreateProcedure(proc) => {
-                if let Some(ref block) = proc.block {
-                    let vars = ogsql_parser::validate_pl_variables_with_extra_vars_and_funcs(
-                        block,
-                        &proc.parameters,
-                        &[],
-                        &funcs_str,
-                        strict,
-                    );
-                    warnings.extend(vars);
-                }
-            }
-            Statement::CreateFunction(func) => {
-                if let Some(ref block) = func.block {
-                    let vars = ogsql_parser::validate_pl_variables_with_extra_vars_and_funcs(
-                        block,
-                        &func.parameters,
-                        &[],
-                        &funcs_str,
-                        strict,
-                    );
-                    warnings.extend(vars);
-                }
-            }
-            Statement::Do(do_stmt) => {
-                if let Some(ref block) = do_stmt.block {
-                    let vars = ogsql_parser::validate_pl_variables_with_extra_vars_and_funcs(
-                        block,
-                        &[],
-                        &[],
-                        &funcs_str,
-                        strict,
-                    );
-                    warnings.extend(vars);
-                }
-            }
-            Statement::CreatePackageBody(body) => {
-                let body_name: String = body.name.iter().map(|s| s.to_lowercase()).collect::<Vec<_>>().join(".");
-                let mut pkg_vars: Vec<&str> = body
-                    .items
-                    .iter()
-                    .filter_map(|item| match item {
-                        ogsql_parser::ast::PackageItem::Variable(v) => Some(v.name.as_str()),
-                        _ => None,
-                    })
-                    .collect();
-                for other_si in stmts {
-                    if let Statement::CreatePackage(spec) = &other_si.statement {
-                        let spec_name: String =
-                            spec.name.iter().map(|s| s.to_lowercase()).collect::<Vec<_>>().join(".");
-                        if spec_name == body_name {
-                            for item in &spec.items {
-                                if let ogsql_parser::ast::PackageItem::Variable(v) = item {
-                                    pkg_vars.push(v.name.as_str());
-                                }
-                            }
-                        }
-                    }
-                }
-                for item in &body.items {
-                    match item {
-                        ogsql_parser::ast::PackageItem::Procedure(proc) => {
-                            if let Some(ref block) = proc.block {
-                                let vars = ogsql_parser::validate_pl_variables_with_extra_vars_and_funcs(
-                                    block,
-                                    &proc.parameters,
-                                    &pkg_vars,
-                                    &funcs_str,
-                                    strict,
-                                );
-                                warnings.extend(vars);
-                            }
-                        }
-                        ogsql_parser::ast::PackageItem::Function(func) => {
-                            if let Some(ref block) = func.block {
-                                let vars = ogsql_parser::validate_pl_variables_with_extra_vars_and_funcs(
-                                    block,
-                                    &func.parameters,
-                                    &pkg_vars,
-                                    &funcs_str,
-                                    strict,
-                                );
-                                warnings.extend(vars);
-                            }
-                        }
-                        _ => {}
-                    }
-                }
-            }
-            _ => {}
-        }
-    }
-    warnings
 }
 
 fn cmd_validate(cli: &Cli, csv: bool, strict: bool) {
@@ -4410,7 +4103,7 @@ fn cmd_validate_dir(cli: &Cli, dir_paths: &[String], exts: &[String], csv: bool,
     for (_, _, abs_path) in &files {
         let sql = read_file_path(abs_path);
         let output = parse_input(&sql, false, cli.mybatis);
-        all_defined_funcs.extend(collect_defined_routine_names(&output.statements));
+        all_defined_funcs.extend(ogsql_parser::collect_defined_routine_names(&output.statements));
     }
     all_defined_funcs.sort();
     all_defined_funcs.dedup();
@@ -5107,7 +4800,8 @@ fn cmd_parse_xml_single(cli: &Cli, csv: bool, java_roots: &[std::path::PathBuf])
     let lint_warnings = if cli.lint {
         let config = build_lint_config(cli);
         let mut ws = lint_xml_statements(&result.statements, &config);
-        let expand_ws = lint_xml_expanded(&input, &config);
+        let structured = ogsql_parser::ibatis::parse_mapper_bytes_structured(&input);
+        let expand_ws = ogsql_parser::linter::structured::lint_structured_mapper(&structured, &config);
         ws.extend(expand_ws);
         ws
     } else {
@@ -5227,7 +4921,8 @@ fn cmd_parse_xml_dir(cli: &Cli, dir_path: &str, csv: bool, java_roots: &[std::pa
 
         if cli.lint {
             let config = build_lint_config(cli);
-            all_expand_lint.extend(lint_xml_expanded(&bytes, &config));
+            let structured = ogsql_parser::ibatis::parse_mapper_bytes_structured(&bytes);
+            all_expand_lint.extend(ogsql_parser::linter::structured::lint_structured_mapper(&structured, &config));
         }
     }
 
@@ -5536,7 +5231,8 @@ fn cmd_validate_xml_single(cli: &Cli, csv: bool, java_roots: &[std::path::PathBu
     // Also run lint_xml_expanded for C018 rule (foreach in INSERT VALUES)
     // 同时运行 lint_xml_expanded 检测 C018 规则（INSERT VALUES 中的 foreach）
     {
-        let expand_ws = lint_xml_expanded(&input, &config);
+        let structured = ogsql_parser::ibatis::parse_mapper_bytes_structured(&input);
+        let expand_ws = ogsql_parser::linter::structured::lint_structured_mapper(&structured, &config);
         lint_warnings.extend(expand_ws);
     }
 
@@ -5820,7 +5516,8 @@ fn cmd_validate_xml_dir(
             lint_warnings.extend(ws);
         }
         {
-            let expand_ws = lint_xml_expanded(&bytes, &config);
+            let structured = ogsql_parser::ibatis::parse_mapper_bytes_structured(&bytes);
+            let expand_ws = ogsql_parser::linter::structured::lint_structured_mapper(&structured, &config);
             lint_warnings.extend(expand_ws);
         }
 

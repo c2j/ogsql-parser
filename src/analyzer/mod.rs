@@ -1,5 +1,6 @@
 pub mod return_cursor;
 pub mod schema;
+pub mod validate;
 
 use std::collections::hash_map::DefaultHasher;
 use std::collections::HashMap;
