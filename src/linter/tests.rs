@@ -1252,3 +1252,82 @@ fn from_toml_str_empty() {
     assert_eq!(config.min_level, WarningLevel::Suggestion);
     assert_eq!(config.min_confidence, Confidence::Partial);
 }
+
+// ════════════════════════════════════════════════════════════════
+// Regression tests for issue #246: double-iteration bug
+// ════════════════════════════════════════════════════════════════
+//
+// Issue #246: SqlLinter::lint had outer loop `for info in stmts` × inner loop
+// `for info in stmts` inside each check_fn. For N statements, every warning
+// was produced N times (N×M instead of M). PR1 fixed this by passing
+// `curr_stmt: &StatementInfo` as first param and removing the inner loop.
+//
+// These tests lock in the fix: if anyone reintroduces the double-iteration,
+// asserting exact counts will fail.
+
+#[test]
+fn test_s006_multi_statement_no_duplicate_warnings_issue_246() {
+    // N=5 statements, M=2 have LIMIT without ORDER BY (stmts 1 and 3).
+    // Without fix: count = N×M = 5×2 = 10. With fix: count = M = 2.
+    let sql = "\
+        SELECT * FROM t1 LIMIT 5;
+        SELECT id FROM t2 WHERE id = 1;
+        SELECT * FROM t3 LIMIT 10;
+        SELECT id FROM t4 ORDER BY id;
+        SELECT id FROM t5 ORDER BY id LIMIT 1";
+    let stmts = parse(sql);
+    let w = lint(&stmts);
+    let count = w.iter().filter(|w| w.rule_id == "S006").count();
+    assert_eq!(count, 2, "without the fix for issue #246, count would be 5×2=10 (N×M)");
+}
+
+#[test]
+fn test_multiple_rules_multi_statement_no_duplication_issue_246() {
+    // 4 statements: SELECT * (R001), DELETE full table (S001/C008),
+    // LIMIT without ORDER BY (S006), and one clean.
+    // Without fix: each rule fires N=4 times for its single matching stmt.
+    let sql = "\
+        SELECT * FROM t1;
+        DELETE FROM t2;
+        SELECT id FROM t3 LIMIT 5;
+        SELECT id FROM t4 WHERE status = 'active' ORDER BY id";
+    let stmts = parse(sql);
+    let w = lint(&stmts);
+    assert_eq!(
+        w.iter().filter(|w| w.rule_id == "R001").count(),
+        1,
+        "without fix for issue #246, R001 would fire 4 times"
+    );
+    assert_eq!(
+        w.iter().filter(|w| w.rule_id == "S006").count(),
+        1,
+        "without fix for issue #246, S006 would fire 4 times"
+    );
+    assert_eq!(
+        w.iter().filter(|w| w.rule_id == "S001").count(),
+        1,
+        "without fix for issue #246, S001 would fire 4 times"
+    );
+}
+
+#[test]
+fn test_s006_single_statement_still_warns_issue_246() {
+    // Single-statement sanity: fix must not break the simple case.
+    let stmts = parse("SELECT * FROM t LIMIT 10");
+    let w = lint(&stmts);
+    assert_eq!(w.iter().filter(|w| w.rule_id == "S006").count(), 1);
+}
+
+#[test]
+fn test_s006_large_n_no_quadratic_explosion_issue_246() {
+    // N=20 identical statements, all with LIMIT without ORDER BY.
+    // Without fix: count = 20×20 = 400. With fix: count = 20.
+    let sql = (0..20).map(|i| format!("SELECT * FROM t{i} LIMIT 5")).collect::<Vec<_>>().join(";\n");
+    let stmts = parse(&sql);
+    let w = lint(&stmts);
+    assert_eq!(
+        w.iter().filter(|w| w.rule_id == "S006").count(),
+        20,
+        "without fix for issue #246, count would be 20×20=400"
+    );
+}
