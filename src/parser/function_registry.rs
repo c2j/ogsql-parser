@@ -39,14 +39,22 @@ pub enum FuncDomain {
     TypeConversion,
     OracleCompat,
     // ── Oracle 兼容包函数域 ──
+    DbeApplicationInfo,
     DbeFile,
     DbeLob,
+    DbeMatch,
     DbeOutput,
+    DbeRandom,
+    DbeRaw,
     DbeScheduler,
     DbeSession,
     DbeSql,
+    DbeSqlUtil,
     DbeStats,
+    DbeTask,
     DbeUtility,
+    DbeXmlDom,
+    DbeXmlParser,
     DbmsLob,
     DbmsOutput,
     DbmsScheduler,
@@ -81,6 +89,43 @@ impl std::ops::BitOr for CompatMode {
     }
 }
 
+/// Distribution origin — which database products ship this function.
+/// Separate orthogonal dimension from CompatMode (which tracks A/B/PG syntax format).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct Distribution(u8);
+
+impl Distribution {
+    /// Present in open-source openGauss
+    pub const OPENGAUSS: Distribution = Distribution(0x01);
+    /// Present in commercial GaussDB (Huawei Cloud / Stack)
+    pub const GAUSSDB: Distribution = Distribution(0x02);
+    /// Present in both (the default for existing entries)
+    pub const BOTH: Distribution = Distribution(0x03);
+
+    /// Returns true if this distribution includes the given product.
+    pub fn contains(self, other: Distribution) -> bool {
+        (self.0 & other.0) != 0
+    }
+
+    /// True if this function is ONLY in commercial GaussDB, not in open-source openGauss.
+    pub fn is_commercial_only(self) -> bool {
+        self.0 == Self::GAUSSDB.0
+    }
+}
+
+impl Default for Distribution {
+    fn default() -> Self {
+        Distribution::BOTH
+    }
+}
+
+impl std::ops::BitOr for Distribution {
+    type Output = Self;
+    fn bitor(self, rhs: Self) -> Self {
+        Distribution(self.0 | rhs.0)
+    }
+}
+
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct FuncMeta {
     pub name: &'static str,
@@ -90,6 +135,7 @@ pub struct FuncMeta {
     pub max_args: Option<u8>,
     pub supports_distinct: bool,
     pub compat: CompatMode,
+    pub distribution: Distribution,
 }
 
 /// Owned variant of `FuncMeta` for runtime-loaded extension functions.
@@ -103,6 +149,8 @@ pub struct FuncMetaOwned {
     pub max_args: Option<u8>,
     pub supports_distinct: bool,
     pub compat: CompatMode,
+    #[serde(default)]
+    pub distribution: Distribution,
 }
 
 /// Unified lookup result from either the core static registry or runtime extensions.
@@ -115,6 +163,7 @@ pub struct LookupResult {
     pub max_args: Option<u8>,
     pub supports_distinct: bool,
     pub compat: CompatMode,
+    pub distribution: Distribution,
 }
 
 impl From<&FuncMeta> for LookupResult {
@@ -127,6 +176,7 @@ impl From<&FuncMeta> for LookupResult {
             max_args: m.max_args,
             supports_distinct: m.supports_distinct,
             compat: m.compat,
+            distribution: m.distribution,
         }
     }
 }
@@ -141,6 +191,7 @@ impl From<&FuncMetaOwned> for LookupResult {
             max_args: m.max_args,
             supports_distinct: m.supports_distinct,
             compat: m.compat,
+            distribution: m.distribution,
         }
     }
 }
@@ -297,6 +348,7 @@ macro_rules! f {
             max_args: $max,
             supports_distinct: $dist,
             compat: CompatMode::ALL,
+            distribution: Distribution::BOTH,
         }
     };
 }
@@ -311,6 +363,7 @@ macro_rules! fo {
             max_args: $max,
             supports_distinct: $dist,
             compat: ORACLE_COMPAT,
+            distribution: Distribution::BOTH,
         }
     };
 }
@@ -325,6 +378,41 @@ macro_rules! fop {
             max_args: $max,
             supports_distinct: $dist,
             compat: ORACLE_COMPAT,
+            distribution: Distribution::BOTH,
+        }
+    };
+}
+
+/// Like `f!` but marks the function as commercial GaussDB only (not in open-source openGauss).
+/// CompatMode::ALL + Distribution::GAUSSDB. Use for DBE_RANDOM, etc.
+macro_rules! fc {
+    ($name:expr, $cat:expr, $dom:expr, $min:expr, $max:expr, $dist:expr) => {
+        FuncMeta {
+            name: $name,
+            category: $cat,
+            domain: $dom,
+            min_args: $min,
+            max_args: $max,
+            supports_distinct: $dist,
+            compat: CompatMode::ALL,
+            distribution: Distribution::GAUSSDB,
+        }
+    };
+}
+
+/// Like `fo!` but marks the function as commercial GaussDB only AND Oracle-compatible.
+/// ORACLE_COMPAT + Distribution::GAUSSDB. Use for DBE_XMLDOM, DBE_XMLPARSER, etc.
+macro_rules! foc {
+    ($name:expr, $cat:expr, $dom:expr, $min:expr, $max:expr, $dist:expr) => {
+        FuncMeta {
+            name: $name,
+            category: $cat,
+            domain: $dom,
+            min_args: $min,
+            max_args: $max,
+            supports_distinct: $dist,
+            compat: ORACLE_COMPAT,
+            distribution: Distribution::GAUSSDB,
         }
     };
 }
@@ -390,6 +478,25 @@ static FUNCTIONS: &[FuncMeta] = &[
     // ── D ───────────────────────────────────────────────────
     f!("date_part", FuncCategory::Scalar, FuncDomain::DateTime, 2, Some(2), false),
     f!("date_trunc", FuncCategory::Scalar, FuncDomain::DateTime, 2, Some(2), false),
+    fop!(
+        "dbe_application_info.read_client_info",
+        FuncCategory::Scalar,
+        FuncDomain::DbeApplicationInfo,
+        0,
+        Some(1),
+        false
+    ),
+    fop!("dbe_application_info.read_module", FuncCategory::Scalar, FuncDomain::DbeApplicationInfo, 0, Some(2), false),
+    fop!("dbe_application_info.set_action", FuncCategory::Scalar, FuncDomain::DbeApplicationInfo, 1, Some(1), false),
+    fop!(
+        "dbe_application_info.set_client_info",
+        FuncCategory::Scalar,
+        FuncDomain::DbeApplicationInfo,
+        1,
+        Some(1),
+        false
+    ),
+    fop!("dbe_application_info.set_module", FuncCategory::Scalar, FuncDomain::DbeApplicationInfo, 2, Some(2), false),
     fop!("dbe_file.close", FuncCategory::Scalar, FuncDomain::DbeFile, 1, Some(1), false),
     fop!("dbe_file.copy", FuncCategory::Scalar, FuncDomain::DbeFile, 3, Some(3), false),
     fop!("dbe_file.open", FuncCategory::Scalar, FuncDomain::DbeFile, 2, Some(4), false),
@@ -398,28 +505,108 @@ static FUNCTIONS: &[FuncMeta] = &[
     fop!("dbe_file.rename", FuncCategory::Scalar, FuncDomain::DbeFile, 3, Some(3), false),
     fop!("dbe_file.write_line", FuncCategory::Scalar, FuncDomain::DbeFile, 2, Some(2), false),
     fop!("dbe_lob.append", FuncCategory::Scalar, FuncDomain::DbeLob, 2, Some(2), false),
+    fop!("dbe_lob.bfileclose", FuncCategory::Scalar, FuncDomain::DbeLob, 1, Some(1), false),
+    fop!("dbe_lob.bfilename", FuncCategory::Scalar, FuncDomain::DbeLob, 2, Some(2), false),
+    fop!("dbe_lob.bfileopen", FuncCategory::Scalar, FuncDomain::DbeLob, 1, Some(2), false),
+    fop!("dbe_lob.close", FuncCategory::Scalar, FuncDomain::DbeLob, 1, Some(1), false),
     fop!("dbe_lob.compare", FuncCategory::Scalar, FuncDomain::DbeLob, 2, Some(3), false),
+    fop!("dbe_lob.converttoblob", FuncCategory::Scalar, FuncDomain::DbeLob, 2, Some(5), false),
+    fop!("dbe_lob.converttoclob", FuncCategory::Scalar, FuncDomain::DbeLob, 2, Some(5), false),
     fop!("dbe_lob.copy", FuncCategory::Scalar, FuncDomain::DbeLob, 3, Some(5), false),
     fop!("dbe_lob.createtemporary", FuncCategory::Scalar, FuncDomain::DbeLob, 1, Some(3), false),
     fop!("dbe_lob.erase", FuncCategory::Scalar, FuncDomain::DbeLob, 2, Some(3), false),
+    fop!("dbe_lob.fileclose", FuncCategory::Scalar, FuncDomain::DbeLob, 1, Some(1), false),
+    fop!("dbe_lob.fileopen", FuncCategory::Scalar, FuncDomain::DbeLob, 2, Some(2), false),
     fop!("dbe_lob.freetemporary", FuncCategory::Scalar, FuncDomain::DbeLob, 1, Some(1), false),
+    fop!("dbe_lob.getchunksize", FuncCategory::Scalar, FuncDomain::DbeLob, 1, Some(1), false),
     fop!("dbe_lob.getlength", FuncCategory::Scalar, FuncDomain::DbeLob, 1, Some(1), false),
     fop!("dbe_lob.instr", FuncCategory::Scalar, FuncDomain::DbeLob, 2, Some(4), false),
+    fop!("dbe_lob.loadblobfrombfile", FuncCategory::Scalar, FuncDomain::DbeLob, 5, Some(5), false),
+    fop!("dbe_lob.loadblobfromfile", FuncCategory::Scalar, FuncDomain::DbeLob, 5, Some(5), false),
+    fop!("dbe_lob.loadclobfrombfile", FuncCategory::Scalar, FuncDomain::DbeLob, 5, Some(5), false),
+    fop!("dbe_lob.loadclobfromfile", FuncCategory::Scalar, FuncDomain::DbeLob, 5, Some(5), false),
+    fop!("dbe_lob.loadfrombfile", FuncCategory::Scalar, FuncDomain::DbeLob, 3, Some(5), false),
+    fop!("dbe_lob.loadfromfile", FuncCategory::Scalar, FuncDomain::DbeLob, 5, Some(5), false),
+    fop!("dbe_lob.lob_append", FuncCategory::Scalar, FuncDomain::DbeLob, 2, Some(2), false),
+    fop!("dbe_lob.lob_converttoblob", FuncCategory::Scalar, FuncDomain::DbeLob, 5, Some(5), false),
+    fop!("dbe_lob.lob_converttoclob", FuncCategory::Scalar, FuncDomain::DbeLob, 5, Some(5), false),
+    fop!("dbe_lob.lob_copy", FuncCategory::Scalar, FuncDomain::DbeLob, 3, Some(5), false),
+    fop!("dbe_lob.lob_erase", FuncCategory::Scalar, FuncDomain::DbeLob, 2, Some(3), false),
+    fop!("dbe_lob.lob_get_length", FuncCategory::Scalar, FuncDomain::DbeLob, 1, Some(1), false),
+    fop!("dbe_lob.lob_read", FuncCategory::Scalar, FuncDomain::DbeLob, 3, Some(3), false),
+    fop!("dbe_lob.lob_strip", FuncCategory::Scalar, FuncDomain::DbeLob, 2, Some(2), false),
+    fop!("dbe_lob.lob_substr", FuncCategory::Scalar, FuncDomain::DbeLob, 1, Some(3), false),
+    fop!("dbe_lob.lob_write", FuncCategory::Scalar, FuncDomain::DbeLob, 4, Some(4), false),
+    fop!("dbe_lob.lob_write_append", FuncCategory::Scalar, FuncDomain::DbeLob, 2, Some(2), false),
+    fop!("dbe_lob.match", FuncCategory::Scalar, FuncDomain::DbeLob, 2, Some(4), false),
+    fop!("dbe_lob.open", FuncCategory::Scalar, FuncDomain::DbeLob, 1, Some(2), false),
     fop!("dbe_lob.read", FuncCategory::Scalar, FuncDomain::DbeLob, 3, Some(3), false),
+    fop!("dbe_lob.strip", FuncCategory::Scalar, FuncDomain::DbeLob, 2, Some(2), false),
     fop!("dbe_lob.substr", FuncCategory::Scalar, FuncDomain::DbeLob, 1, Some(3), false),
     fop!("dbe_lob.trim", FuncCategory::Scalar, FuncDomain::DbeLob, 2, Some(2), false),
     fop!("dbe_lob.write", FuncCategory::Scalar, FuncDomain::DbeLob, 3, Some(3), false),
+    fop!("dbe_lob.write_append", FuncCategory::Scalar, FuncDomain::DbeLob, 2, Some(2), false),
+    fop!("dbe_match.edit_distance_similarity", FuncCategory::Scalar, FuncDomain::DbeMatch, 2, Some(2), false),
     fop!("dbe_output.disable", FuncCategory::Scalar, FuncDomain::DbeOutput, 0, Some(0), false),
     fop!("dbe_output.enable", FuncCategory::Scalar, FuncDomain::DbeOutput, 0, Some(1), false),
     fop!("dbe_output.get_line", FuncCategory::Scalar, FuncDomain::DbeOutput, 2, Some(2), false),
     fop!("dbe_output.get_lines", FuncCategory::Scalar, FuncDomain::DbeOutput, 2, Some(2), false),
     fop!("dbe_output.new_line", FuncCategory::Scalar, FuncDomain::DbeOutput, 0, Some(0), false),
     fop!("dbe_output.print", FuncCategory::Scalar, FuncDomain::DbeOutput, 1, Some(1), false),
+    fop!("dbe_output.print_line", FuncCategory::Scalar, FuncDomain::DbeOutput, 1, Some(1), false),
     fop!("dbe_output.put", FuncCategory::Scalar, FuncDomain::DbeOutput, 1, Some(1), false),
     fop!("dbe_output.put_line", FuncCategory::Scalar, FuncDomain::DbeOutput, 1, Some(1), false),
+    fop!("dbe_output.set_buffer_size", FuncCategory::Scalar, FuncDomain::DbeOutput, 0, Some(1), false),
+    fc!("dbe_random.get_value", FuncCategory::Scalar, FuncDomain::DbeRandom, 0, Some(2), false),
+    fop!("dbe_raw.bit_and", FuncCategory::Scalar, FuncDomain::DbeRaw, 2, Some(2), false),
+    fop!("dbe_raw.bit_complement", FuncCategory::Scalar, FuncDomain::DbeRaw, 1, Some(1), false),
+    fop!("dbe_raw.bit_or", FuncCategory::Scalar, FuncDomain::DbeRaw, 2, Some(2), false),
+    fop!("dbe_raw.bit_xor", FuncCategory::Scalar, FuncDomain::DbeRaw, 2, Some(2), false),
+    fop!("dbe_raw.cast_from_binary_double_to_raw", FuncCategory::Scalar, FuncDomain::DbeRaw, 1, Some(2), false),
+    fop!("dbe_raw.cast_from_binary_float_to_raw", FuncCategory::Scalar, FuncDomain::DbeRaw, 1, Some(2), false),
+    fop!("dbe_raw.cast_from_binary_integer_to_raw", FuncCategory::Scalar, FuncDomain::DbeRaw, 1, Some(2), false),
+    fop!("dbe_raw.cast_from_number_to_raw", FuncCategory::Scalar, FuncDomain::DbeRaw, 1, Some(1), false),
+    fop!("dbe_raw.cast_from_raw_to_binary_double", FuncCategory::Scalar, FuncDomain::DbeRaw, 1, Some(2), false),
+    fop!("dbe_raw.cast_from_raw_to_binary_float", FuncCategory::Scalar, FuncDomain::DbeRaw, 1, Some(2), false),
+    fop!("dbe_raw.cast_from_raw_to_binary_integer", FuncCategory::Scalar, FuncDomain::DbeRaw, 1, Some(2), false),
+    fop!("dbe_raw.cast_from_raw_to_number", FuncCategory::Scalar, FuncDomain::DbeRaw, 1, Some(1), false),
+    fop!("dbe_raw.cast_from_raw_to_nvarchar2", FuncCategory::Scalar, FuncDomain::DbeRaw, 1, Some(1), false),
+    fop!("dbe_raw.cast_from_varchar2_to_raw", FuncCategory::Scalar, FuncDomain::DbeRaw, 1, Some(1), false),
+    fop!("dbe_raw.cast_to_varchar2", FuncCategory::Scalar, FuncDomain::DbeRaw, 1, Some(1), false),
+    fop!("dbe_raw.compare", FuncCategory::Scalar, FuncDomain::DbeRaw, 2, Some(3), false),
+    fop!("dbe_raw.concat", FuncCategory::Scalar, FuncDomain::DbeRaw, 0, Some(12), false),
+    fop!("dbe_raw.convert", FuncCategory::Scalar, FuncDomain::DbeRaw, 3, Some(3), false),
+    fop!("dbe_raw.copies", FuncCategory::Scalar, FuncDomain::DbeRaw, 2, Some(2), false),
+    fop!("dbe_raw.get_length", FuncCategory::Scalar, FuncDomain::DbeRaw, 1, Some(1), false),
+    fop!("dbe_raw.overlay", FuncCategory::Scalar, FuncDomain::DbeRaw, 2, Some(5), false),
+    fop!("dbe_raw.reverse", FuncCategory::Scalar, FuncDomain::DbeRaw, 1, Some(1), false),
+    fop!("dbe_raw.substr", FuncCategory::Scalar, FuncDomain::DbeRaw, 1, Some(3), false),
+    fop!("dbe_raw.translate", FuncCategory::Scalar, FuncDomain::DbeRaw, 3, Some(3), false),
+    fop!("dbe_raw.transliterate", FuncCategory::Scalar, FuncDomain::DbeRaw, 1, Some(4), false),
+    fop!("dbe_raw.xrange", FuncCategory::Scalar, FuncDomain::DbeRaw, 1, Some(2), false),
+    fop!("dbe_scheduler.create_credential", FuncCategory::Scalar, FuncDomain::DbeScheduler, 3, Some(3), false),
     fop!("dbe_scheduler.create_job", FuncCategory::Scalar, FuncDomain::DbeScheduler, 1, None, false),
+    fop!("dbe_scheduler.create_job_class", FuncCategory::Scalar, FuncDomain::DbeScheduler, 1, Some(3), false),
+    fop!("dbe_scheduler.create_program", FuncCategory::Scalar, FuncDomain::DbeScheduler, 1, None, false),
+    fop!("dbe_scheduler.create_schedule", FuncCategory::Scalar, FuncDomain::DbeScheduler, 1, Some(3), false),
+    fop!("dbe_scheduler.define_program_argument", FuncCategory::Scalar, FuncDomain::DbeScheduler, 3, Some(5), false),
+    fop!("dbe_scheduler.disable", FuncCategory::Scalar, FuncDomain::DbeScheduler, 1, Some(2), false),
+    fop!("dbe_scheduler.drop_credential", FuncCategory::Scalar, FuncDomain::DbeScheduler, 1, Some(1), false),
     fop!("dbe_scheduler.drop_job", FuncCategory::Scalar, FuncDomain::DbeScheduler, 1, None, false),
+    fop!("dbe_scheduler.drop_job_class", FuncCategory::Scalar, FuncDomain::DbeScheduler, 1, Some(1), false),
+    fop!("dbe_scheduler.drop_program", FuncCategory::Scalar, FuncDomain::DbeScheduler, 1, Some(1), false),
+    fop!("dbe_scheduler.drop_schedule", FuncCategory::Scalar, FuncDomain::DbeScheduler, 1, Some(1), false),
+    fop!("dbe_scheduler.enable", FuncCategory::Scalar, FuncDomain::DbeScheduler, 1, Some(2), false),
+    fop!("dbe_scheduler.eval_calendar_string", FuncCategory::Scalar, FuncDomain::DbeScheduler, 2, Some(2), false),
+    fop!("dbe_scheduler.generate_job_name", FuncCategory::Scalar, FuncDomain::DbeScheduler, 1, Some(1), false),
+    fop!("dbe_scheduler.grant_user_authorization", FuncCategory::Scalar, FuncDomain::DbeScheduler, 2, Some(2), false),
+    fop!("dbe_scheduler.revoke_user_authorization", FuncCategory::Scalar, FuncDomain::DbeScheduler, 2, Some(2), false),
+    fop!("dbe_scheduler.run_backend_job", FuncCategory::Scalar, FuncDomain::DbeScheduler, 1, Some(2), false),
+    fop!("dbe_scheduler.run_foreground_job", FuncCategory::Scalar, FuncDomain::DbeScheduler, 1, Some(2), false),
     fop!("dbe_scheduler.run_job", FuncCategory::Scalar, FuncDomain::DbeScheduler, 1, Some(2), false),
+    fop!("dbe_scheduler.set_attribute", FuncCategory::Scalar, FuncDomain::DbeScheduler, 3, Some(3), false),
+    fop!("dbe_scheduler.set_job_argument_value", FuncCategory::Scalar, FuncDomain::DbeScheduler, 3, Some(3), false),
+    fop!("dbe_scheduler.stop_job", FuncCategory::Scalar, FuncDomain::DbeScheduler, 1, Some(2), false),
     fop!("dbe_session.clear_context", FuncCategory::Scalar, FuncDomain::DbeSession, 2, Some(3), false),
     fop!("dbe_session.set_context", FuncCategory::Scalar, FuncDomain::DbeSession, 3, Some(3), false),
     fop!("dbe_sql.close_cursor", FuncCategory::Scalar, FuncDomain::DbeSql, 1, Some(1), false),
@@ -428,11 +615,84 @@ static FUNCTIONS: &[FuncMeta] = &[
     fop!("dbe_sql.fetch_rows", FuncCategory::Scalar, FuncDomain::DbeSql, 1, Some(1), false),
     fop!("dbe_sql.open_cursor", FuncCategory::Scalar, FuncDomain::DbeSql, 0, Some(0), false),
     fop!("dbe_sql.register_variable", FuncCategory::Scalar, FuncDomain::DbeSql, 3, Some(3), false),
+    fop!("dbe_sql_util.create_abort_sql_patch", FuncCategory::Scalar, FuncDomain::DbeSqlUtil, 1, Some(3), false),
+    fop!("dbe_sql_util.create_hint_sql_patch", FuncCategory::Scalar, FuncDomain::DbeSqlUtil, 1, Some(3), false),
+    fop!("dbe_sql_util.disable_sql_patch", FuncCategory::Scalar, FuncDomain::DbeSqlUtil, 1, Some(1), false),
+    fop!("dbe_sql_util.drop_sql_patch", FuncCategory::Scalar, FuncDomain::DbeSqlUtil, 1, Some(1), false),
+    fop!("dbe_sql_util.enable_sql_patch", FuncCategory::Scalar, FuncDomain::DbeSqlUtil, 1, Some(1), false),
+    fop!("dbe_sql_util.show_sql_patch", FuncCategory::Scalar, FuncDomain::DbeSqlUtil, 0, Some(1), false),
+    fop!("dbe_stats.get_stats_history_availability", FuncCategory::Scalar, FuncDomain::DbeStats, 0, Some(0), false),
+    fop!("dbe_stats.get_stats_history_retention", FuncCategory::Scalar, FuncDomain::DbeStats, 0, Some(0), false),
+    fop!("dbe_stats.lock_column_stats", FuncCategory::Scalar, FuncDomain::DbeStats, 3, Some(3), false),
+    fop!("dbe_stats.lock_partition_stats", FuncCategory::Scalar, FuncDomain::DbeStats, 3, Some(3), false),
+    fop!("dbe_stats.lock_schema_stats", FuncCategory::Scalar, FuncDomain::DbeStats, 1, Some(1), false),
     fop!("dbe_stats.lock_table_stats", FuncCategory::Scalar, FuncDomain::DbeStats, 1, Some(1), false),
+    fop!("dbe_stats.purge_stats", FuncCategory::Scalar, FuncDomain::DbeStats, 1, Some(1), false),
+    fop!("dbe_stats.restore_column_stats", FuncCategory::Scalar, FuncDomain::DbeStats, 6, Some(6), false),
+    fop!("dbe_stats.restore_partition_stats", FuncCategory::Scalar, FuncDomain::DbeStats, 6, Some(6), false),
+    fop!("dbe_stats.restore_schema_stats", FuncCategory::Scalar, FuncDomain::DbeStats, 4, Some(4), false),
+    fop!("dbe_stats.restore_table_stats", FuncCategory::Scalar, FuncDomain::DbeStats, 5, Some(5), false),
+    fop!("dbe_stats.unlock_column_stats", FuncCategory::Scalar, FuncDomain::DbeStats, 3, Some(3), false),
+    fop!("dbe_stats.unlock_partition_stats", FuncCategory::Scalar, FuncDomain::DbeStats, 3, Some(3), false),
+    fop!("dbe_stats.unlock_schema_stats", FuncCategory::Scalar, FuncDomain::DbeStats, 1, Some(1), false),
     fop!("dbe_stats.unlock_table_stats", FuncCategory::Scalar, FuncDomain::DbeStats, 1, Some(1), false),
+    fop!("dbe_task.cancel", FuncCategory::Scalar, FuncDomain::DbeTask, 1, Some(1), false),
+    fop!("dbe_task.change", FuncCategory::Scalar, FuncDomain::DbeTask, 1, Some(4), false),
+    fop!("dbe_task.content", FuncCategory::Scalar, FuncDomain::DbeTask, 2, Some(2), false),
+    fop!("dbe_task.finish", FuncCategory::Scalar, FuncDomain::DbeTask, 2, Some(3), false),
+    fop!("dbe_task.id_submit", FuncCategory::Scalar, FuncDomain::DbeTask, 2, Some(4), false),
+    fop!("dbe_task.interval", FuncCategory::Scalar, FuncDomain::DbeTask, 2, Some(2), false),
+    fop!("dbe_task.job_submit", FuncCategory::Scalar, FuncDomain::DbeTask, 1, Some(3), false),
+    fop!("dbe_task.next_time", FuncCategory::Scalar, FuncDomain::DbeTask, 2, Some(2), false),
+    fop!("dbe_task.run", FuncCategory::Scalar, FuncDomain::DbeTask, 1, Some(2), false),
+    fop!("dbe_task.submit", FuncCategory::Scalar, FuncDomain::DbeTask, 1, Some(4), false),
+    fop!("dbe_task.update", FuncCategory::Scalar, FuncDomain::DbeTask, 4, Some(4), false),
     fop!("dbe_utility.format_error_backtrace", FuncCategory::Scalar, FuncDomain::DbeUtility, 0, Some(0), false),
     fop!("dbe_utility.format_error_stack", FuncCategory::Scalar, FuncDomain::DbeUtility, 0, Some(0), false),
     fop!("dbe_utility.get_time", FuncCategory::Scalar, FuncDomain::DbeUtility, 0, Some(0), false),
+    foc!("dbe_xmldom.appendchild", FuncCategory::Scalar, FuncDomain::DbeXmlDom, 2, Some(2), false),
+    foc!("dbe_xmldom.createelement", FuncCategory::Scalar, FuncDomain::DbeXmlDom, 2, Some(3), false),
+    foc!("dbe_xmldom.createtextnode", FuncCategory::Scalar, FuncDomain::DbeXmlDom, 2, Some(2), false),
+    foc!("dbe_xmldom.freedocument", FuncCategory::Scalar, FuncDomain::DbeXmlDom, 1, Some(1), false),
+    foc!("dbe_xmldom.freeelement", FuncCategory::Scalar, FuncDomain::DbeXmlDom, 1, Some(1), false),
+    foc!("dbe_xmldom.freenode", FuncCategory::Scalar, FuncDomain::DbeXmlDom, 1, Some(1), false),
+    foc!("dbe_xmldom.freenodelist", FuncCategory::Scalar, FuncDomain::DbeXmlDom, 1, Some(1), false),
+    foc!("dbe_xmldom.getattribute", FuncCategory::Scalar, FuncDomain::DbeXmlDom, 2, Some(3), false),
+    foc!("dbe_xmldom.getattributes", FuncCategory::Scalar, FuncDomain::DbeXmlDom, 1, Some(1), false),
+    foc!("dbe_xmldom.getchildnodes", FuncCategory::Scalar, FuncDomain::DbeXmlDom, 1, Some(1), false),
+    foc!("dbe_xmldom.getchildrenbytagname", FuncCategory::Scalar, FuncDomain::DbeXmlDom, 2, Some(3), false),
+    foc!("dbe_xmldom.getdocumentelement", FuncCategory::Scalar, FuncDomain::DbeXmlDom, 1, Some(1), false),
+    foc!("dbe_xmldom.getfirstchild", FuncCategory::Scalar, FuncDomain::DbeXmlDom, 1, Some(1), false),
+    foc!("dbe_xmldom.getlastchild", FuncCategory::Scalar, FuncDomain::DbeXmlDom, 1, Some(1), false),
+    foc!("dbe_xmldom.getlength", FuncCategory::Scalar, FuncDomain::DbeXmlDom, 1, Some(1), false),
+    foc!("dbe_xmldom.getlocalname", FuncCategory::Scalar, FuncDomain::DbeXmlDom, 1, Some(2), false),
+    foc!("dbe_xmldom.getnameditem", FuncCategory::Scalar, FuncDomain::DbeXmlDom, 2, Some(3), false),
+    foc!("dbe_xmldom.getnextsibling", FuncCategory::Scalar, FuncDomain::DbeXmlDom, 1, Some(1), false),
+    foc!("dbe_xmldom.getnodename", FuncCategory::Scalar, FuncDomain::DbeXmlDom, 1, Some(1), false),
+    foc!("dbe_xmldom.getnodetype", FuncCategory::Scalar, FuncDomain::DbeXmlDom, 1, Some(1), false),
+    foc!("dbe_xmldom.getnodevalue", FuncCategory::Scalar, FuncDomain::DbeXmlDom, 1, Some(1), false),
+    foc!("dbe_xmldom.getparentnode", FuncCategory::Scalar, FuncDomain::DbeXmlDom, 1, Some(1), false),
+    foc!("dbe_xmldom.gettagname", FuncCategory::Scalar, FuncDomain::DbeXmlDom, 1, Some(1), false),
+    foc!("dbe_xmldom.haschildnodes", FuncCategory::Scalar, FuncDomain::DbeXmlDom, 1, Some(1), false),
+    foc!("dbe_xmldom.importnode", FuncCategory::Scalar, FuncDomain::DbeXmlDom, 3, Some(3), false),
+    foc!("dbe_xmldom.isnull", FuncCategory::Scalar, FuncDomain::DbeXmlDom, 1, Some(1), false),
+    foc!("dbe_xmldom.item", FuncCategory::Scalar, FuncDomain::DbeXmlDom, 2, Some(2), false),
+    foc!("dbe_xmldom.makeelement", FuncCategory::Scalar, FuncDomain::DbeXmlDom, 1, Some(1), false),
+    foc!("dbe_xmldom.makenode", FuncCategory::Scalar, FuncDomain::DbeXmlDom, 1, Some(1), false),
+    foc!("dbe_xmldom.newdomdocument", FuncCategory::Scalar, FuncDomain::DbeXmlDom, 0, Some(1), false),
+    foc!("dbe_xmldom.setattribute", FuncCategory::Scalar, FuncDomain::DbeXmlDom, 2, Some(4), false),
+    foc!("dbe_xmldom.setcharset", FuncCategory::Scalar, FuncDomain::DbeXmlDom, 2, Some(2), false),
+    foc!("dbe_xmldom.setdoctype", FuncCategory::Scalar, FuncDomain::DbeXmlDom, 2, Some(2), false),
+    foc!("dbe_xmldom.setnodevalue", FuncCategory::Scalar, FuncDomain::DbeXmlDom, 2, Some(2), false),
+    foc!("dbe_xmldom.writetobuffer", FuncCategory::Scalar, FuncDomain::DbeXmlDom, 2, Some(2), false),
+    foc!("dbe_xmldom.writetoclob", FuncCategory::Scalar, FuncDomain::DbeXmlDom, 2, Some(2), false),
+    foc!("dbe_xmlparser.freeparser", FuncCategory::Scalar, FuncDomain::DbeXmlParser, 1, Some(1), false),
+    foc!("dbe_xmlparser.getdocument", FuncCategory::Scalar, FuncDomain::DbeXmlParser, 1, Some(1), false),
+    foc!("dbe_xmlparser.getvalidationmode", FuncCategory::Scalar, FuncDomain::DbeXmlParser, 1, Some(1), false),
+    foc!("dbe_xmlparser.newparser", FuncCategory::Scalar, FuncDomain::DbeXmlParser, 0, Some(0), false),
+    foc!("dbe_xmlparser.parsebuffer", FuncCategory::Scalar, FuncDomain::DbeXmlParser, 2, Some(2), false),
+    foc!("dbe_xmlparser.parseclob", FuncCategory::Scalar, FuncDomain::DbeXmlParser, 2, Some(2), false),
+    foc!("dbe_xmlparser.setvalidationmode", FuncCategory::Scalar, FuncDomain::DbeXmlParser, 2, Some(2), false),
     fop!("dbms_lob.append", FuncCategory::Scalar, FuncDomain::DbmsLob, 2, Some(2), false),
     fop!("dbms_lob.read", FuncCategory::Scalar, FuncDomain::DbmsLob, 3, Some(3), false),
     fop!("dbms_lob.substr", FuncCategory::Scalar, FuncDomain::DbmsLob, 1, Some(3), false),
@@ -665,7 +925,24 @@ static FUNCTIONS: &[FuncMeta] = &[
     f!("pg_xlogfile_name", FuncCategory::Scalar, FuncDomain::System, 1, Some(1), false),
     f!("pg_xlogfile_name_offset", FuncCategory::Scalar, FuncDomain::System, 1, Some(1), false),
     f!("pi", FuncCategory::Scalar, FuncDomain::Math, 0, Some(0), false),
+    fop!("pkg_service.isubmit_on_nodes", FuncCategory::Scalar, FuncDomain::PkgService, 5, Some(6), false),
+    fop!("pkg_service.job_cancel", FuncCategory::Scalar, FuncDomain::PkgService, 1, Some(1), false),
+    fop!("pkg_service.job_finish", FuncCategory::Scalar, FuncDomain::PkgService, 2, Some(3), false),
+    fop!("pkg_service.job_submit", FuncCategory::Scalar, FuncDomain::PkgService, 3, Some(5), false),
+    fop!("pkg_service.job_update", FuncCategory::Scalar, FuncDomain::PkgService, 4, Some(4), false),
     fop!("pkg_service.sql_cancel", FuncCategory::Scalar, FuncDomain::PkgService, 1, Some(1), false),
+    fop!("pkg_service.sql_clean_all_contexts", FuncCategory::Scalar, FuncDomain::PkgService, 0, Some(0), false),
+    fop!("pkg_service.sql_get_array_result", FuncCategory::Scalar, FuncDomain::PkgService, 4, Some(4), false),
+    fop!("pkg_service.sql_get_value", FuncCategory::Scalar, FuncDomain::PkgService, 3, Some(3), false),
+    fop!("pkg_service.sql_get_variable_result", FuncCategory::Scalar, FuncDomain::PkgService, 3, Some(3), false),
+    fop!("pkg_service.sql_is_context_active", FuncCategory::Scalar, FuncDomain::PkgService, 1, Some(1), false),
+    fop!("pkg_service.sql_next_row", FuncCategory::Scalar, FuncDomain::PkgService, 1, Some(1), false),
+    fop!("pkg_service.sql_register_context", FuncCategory::Scalar, FuncDomain::PkgService, 0, Some(0), false),
+    fop!("pkg_service.sql_run", FuncCategory::Scalar, FuncDomain::PkgService, 1, Some(1), false),
+    fop!("pkg_service.sql_set_result_type", FuncCategory::Scalar, FuncDomain::PkgService, 4, Some(4), false),
+    fop!("pkg_service.sql_set_sql", FuncCategory::Scalar, FuncDomain::PkgService, 3, Some(3), false),
+    fop!("pkg_service.sql_unregister_context", FuncCategory::Scalar, FuncDomain::PkgService, 1, Some(1), false),
+    fop!("pkg_service.submit_on_nodes", FuncCategory::Scalar, FuncDomain::PkgService, 5, Some(6), false),
     f!("plainto_tsquery", FuncCategory::Scalar, FuncDomain::TextSearch, 1, Some(2), false),
     f!("point", FuncCategory::Scalar, FuncDomain::Geometric, 2, Some(2), false),
     f!("polygon", FuncCategory::Scalar, FuncDomain::Geometric, 1, Some(1), false),
@@ -846,14 +1123,22 @@ pub fn lookup_builtin_meta(name: &str) -> Option<crate::ast::BuiltinFuncMeta> {
             FuncDomain::TypeConversion => "TypeConversion",
             FuncDomain::OracleCompat => "OracleCompat",
             // ── Oracle 兼容包函数域 ──
+            FuncDomain::DbeApplicationInfo => "DbeApplicationInfo",
             FuncDomain::DbeFile => "DbeFile",
             FuncDomain::DbeLob => "DbeLob",
+            FuncDomain::DbeMatch => "DbeMatch",
             FuncDomain::DbeOutput => "DbeOutput",
+            FuncDomain::DbeRandom => "DbeRandom",
+            FuncDomain::DbeRaw => "DbeRaw",
             FuncDomain::DbeScheduler => "DbeScheduler",
             FuncDomain::DbeSession => "DbeSession",
             FuncDomain::DbeSql => "DbeSql",
+            FuncDomain::DbeSqlUtil => "DbeSqlUtil",
             FuncDomain::DbeStats => "DbeStats",
+            FuncDomain::DbeTask => "DbeTask",
             FuncDomain::DbeUtility => "DbeUtility",
+            FuncDomain::DbeXmlDom => "DbeXmlDom",
+            FuncDomain::DbeXmlParser => "DbeXmlParser",
             FuncDomain::DbmsLob => "DbmsLob",
             FuncDomain::DbmsOutput => "DbmsOutput",
             FuncDomain::DbmsScheduler => "DbmsScheduler",
@@ -917,14 +1202,22 @@ pub fn lookup_builtin_meta_qualified(full_name: &str) -> Option<crate::ast::Buil
             FuncDomain::ExceptionContext => "ExceptionContext",
             FuncDomain::TypeConversion => "TypeConversion",
             FuncDomain::OracleCompat => "OracleCompat",
+            FuncDomain::DbeApplicationInfo => "DbeApplicationInfo",
             FuncDomain::DbeFile => "DbeFile",
             FuncDomain::DbeLob => "DbeLob",
+            FuncDomain::DbeMatch => "DbeMatch",
             FuncDomain::DbeOutput => "DbeOutput",
+            FuncDomain::DbeRandom => "DbeRandom",
+            FuncDomain::DbeRaw => "DbeRaw",
             FuncDomain::DbeScheduler => "DbeScheduler",
             FuncDomain::DbeSession => "DbeSession",
             FuncDomain::DbeSql => "DbeSql",
+            FuncDomain::DbeSqlUtil => "DbeSqlUtil",
             FuncDomain::DbeStats => "DbeStats",
+            FuncDomain::DbeTask => "DbeTask",
             FuncDomain::DbeUtility => "DbeUtility",
+            FuncDomain::DbeXmlDom => "DbeXmlDom",
+            FuncDomain::DbeXmlParser => "DbeXmlParser",
             FuncDomain::DbmsLob => "DbmsLob",
             FuncDomain::DbmsOutput => "DbmsOutput",
             FuncDomain::DbmsScheduler => "DbmsScheduler",
@@ -1972,5 +2265,513 @@ mod tests {
             assert_eq!(meta.category, "Scalar", "{} category", name);
             assert_eq!(meta.domain, "System", "{} domain", name);
         }
+    }
+
+    // ── Distribution type tests ────────────────────────────────
+
+    #[test]
+    fn test_distribution_bitops() {
+        let combined = Distribution::OPENGAUSS | Distribution::GAUSSDB;
+        assert_eq!(combined, Distribution::BOTH);
+        assert!(Distribution::BOTH.contains(Distribution::OPENGAUSS));
+        assert!(Distribution::BOTH.contains(Distribution::GAUSSDB));
+        assert!(!Distribution::OPENGAUSS.contains(Distribution::GAUSSDB));
+        assert!(!Distribution::GAUSSDB.contains(Distribution::OPENGAUSS));
+    }
+
+    #[test]
+    fn test_distribution_commercial_only() {
+        assert!(Distribution::GAUSSDB.is_commercial_only());
+        assert!(!Distribution::BOTH.is_commercial_only());
+        assert!(!Distribution::OPENGAUSS.is_commercial_only());
+    }
+
+    #[test]
+    fn test_distribution_default() {
+        assert_eq!(Distribution::default(), Distribution::BOTH);
+    }
+
+    #[test]
+    fn test_func_meta_owned_backward_compat_no_distribution() {
+        // Old-format JSON without `distribution` field — must still deserialize
+        let json = r#"{
+            "name": "legacy_func",
+            "category": "Scalar",
+            "domain": "Math",
+            "min_args": 1,
+            "max_args": 1,
+            "supports_distinct": false,
+            "compat": 7
+        }"#;
+        let meta: FuncMetaOwned = serde_json::from_str(json).unwrap();
+        assert_eq!(meta.name, "legacy_func");
+        assert_eq!(meta.distribution, Distribution::BOTH);
+    }
+
+    #[test]
+    fn test_func_meta_owned_with_distribution() {
+        // New-format JSON with `distribution` field
+        let json = r#"{
+            "name": "commercial_func",
+            "category": "Scalar",
+            "domain": "Math",
+            "min_args": 1,
+            "max_args": 1,
+            "supports_distinct": false,
+            "compat": 7,
+            "distribution": 2
+        }"#;
+        let meta: FuncMetaOwned = serde_json::from_str(json).unwrap();
+        assert_eq!(meta.name, "commercial_func");
+        assert_eq!(meta.distribution, Distribution::GAUSSDB);
+        assert!(meta.distribution.is_commercial_only());
+    }
+
+    #[test]
+    fn test_all_functions_have_valid_distribution() {
+        for meta in FUNCTIONS {
+            assert!(
+                meta.distribution.contains(Distribution::OPENGAUSS)
+                    || meta.distribution.contains(Distribution::GAUSSDB),
+                "Function {} has invalid (zero) distribution",
+                meta.name
+            );
+        }
+    }
+
+    #[test]
+    fn test_commercial_only_functions_registered() {
+        let commercial: Vec<&FuncMeta> = FUNCTIONS.iter().filter(|m| m.distribution.is_commercial_only()).collect();
+        assert!(commercial.len() >= 2, "Expected at least 2 commercial-only functions, found {}", commercial.len());
+        assert!(commercial.iter().any(|m| m.name == "dbe_random.get_value"));
+        assert!(commercial.iter().any(|m| m.name == "dbe_xmldom.makenode"));
+    }
+
+    // ── Smoke test: fc! macro (commercial-only, ALL compat) ─────
+
+    #[test]
+    fn test_lookup_dbe_random_get_value() {
+        let meta = lookup_function("dbe_random.get_value").expect("dbe_random.get_value should be registered");
+        assert_eq!(meta.category, FuncCategory::Scalar);
+        assert_eq!(meta.domain, FuncDomain::DbeRandom);
+        assert_eq!(meta.min_args, 0); // both params have defaults
+        assert_eq!(meta.max_args, Some(2));
+        assert!(meta.distribution.is_commercial_only());
+        assert!(!meta.distribution.contains(Distribution::OPENGAUSS));
+        assert!(meta.compat.contains(CompatMode::A_FORMAT));
+        assert!(meta.compat.contains(CompatMode::B_FORMAT));
+        assert!(meta.compat.contains(CompatMode::PG_FORMAT));
+    }
+
+    #[test]
+    fn test_qualified_lookup_dbe_random_get_value() {
+        let meta = lookup_function_qualified("dbe_random.get_value").unwrap();
+        assert_eq!(meta.domain, FuncDomain::DbeRandom);
+        assert_eq!(meta.distribution, Distribution::GAUSSDB);
+    }
+
+    #[test]
+    fn test_builtin_meta_dbe_random() {
+        let meta = lookup_builtin_meta_qualified("dbe_random.get_value").unwrap();
+        assert_eq!(meta.domain, "DbeRandom");
+    }
+
+    // ── Smoke test: foc! macro (commercial-only, ORACLE_COMPAT) ──
+
+    #[test]
+    fn test_lookup_dbe_xmldom_makenode() {
+        let meta = lookup_function("dbe_xmldom.makenode").expect("dbe_xmldom.makenode should be registered");
+        assert_eq!(meta.category, FuncCategory::Scalar);
+        assert_eq!(meta.domain, FuncDomain::DbeXmlDom);
+        assert_eq!(meta.min_args, 1);
+        assert_eq!(meta.max_args, Some(1));
+        assert!(meta.distribution.is_commercial_only());
+        assert!(!meta.distribution.contains(Distribution::OPENGAUSS));
+        assert!(meta.compat.contains(CompatMode::A_FORMAT));
+        assert!(meta.compat.contains(CompatMode::PG_FORMAT));
+        assert!(!meta.compat.contains(CompatMode::B_FORMAT));
+    }
+
+    #[test]
+    fn test_qualified_lookup_dbe_xmldom_makenode() {
+        let meta = lookup_function_qualified("dbe_xmldom.makenode").unwrap();
+        assert_eq!(meta.domain, FuncDomain::DbeXmlDom);
+        assert_eq!(meta.distribution, Distribution::GAUSSDB);
+    }
+
+    #[test]
+    fn test_builtin_meta_dbe_xmldom() {
+        let meta = lookup_builtin_meta_qualified("dbe_xmldom.makenode").unwrap();
+        assert_eq!(meta.domain, "DbeXmlDom");
+    }
+
+    // ── Phase 2: batch registration guard tests ─────────────────
+
+    #[test]
+    fn test_phase2_dbe_output_completion() {
+        for name in &["dbe_output.print_line", "dbe_output.set_buffer_size"] {
+            let meta = lookup_function(name).unwrap_or_else(|| panic!("{} not found", name));
+            assert_eq!(meta.domain, FuncDomain::DbeOutput);
+        }
+    }
+
+    #[test]
+    fn test_phase2_dbe_stats_completion() {
+        for name in &[
+            "dbe_stats.lock_partition_stats",
+            "dbe_stats.lock_column_stats",
+            "dbe_stats.lock_schema_stats",
+            "dbe_stats.unlock_partition_stats",
+            "dbe_stats.unlock_column_stats",
+            "dbe_stats.unlock_schema_stats",
+            "dbe_stats.restore_table_stats",
+            "dbe_stats.restore_partition_stats",
+            "dbe_stats.restore_column_stats",
+            "dbe_stats.restore_schema_stats",
+            "dbe_stats.purge_stats",
+            "dbe_stats.get_stats_history_retention",
+            "dbe_stats.get_stats_history_availability",
+        ] {
+            let meta = lookup_function(name).unwrap_or_else(|| panic!("{} not found", name));
+            assert_eq!(meta.domain, FuncDomain::DbeStats);
+        }
+    }
+
+    #[test]
+    fn test_phase2_dbe_task_registered() {
+        for name in &[
+            "dbe_task.submit",
+            "dbe_task.id_submit",
+            "dbe_task.cancel",
+            "dbe_task.run",
+            "dbe_task.finish",
+            "dbe_task.update",
+            "dbe_task.change",
+            "dbe_task.content",
+            "dbe_task.next_time",
+            "dbe_task.interval",
+            "dbe_task.job_submit",
+        ] {
+            let meta = lookup_function(name).unwrap_or_else(|| panic!("{} not found", name));
+            assert_eq!(meta.domain, FuncDomain::DbeTask);
+        }
+    }
+
+    #[test]
+    fn test_builtin_meta_dbe_task() {
+        let meta = lookup_builtin_meta_qualified("dbe_task.submit").unwrap();
+        assert_eq!(meta.domain, "DbeTask");
+    }
+
+    #[test]
+    fn test_phase2_pkg_service_completion() {
+        for name in &[
+            "pkg_service.isubmit_on_nodes",
+            "pkg_service.job_cancel",
+            "pkg_service.job_finish",
+            "pkg_service.job_submit",
+            "pkg_service.job_update",
+            "pkg_service.sql_clean_all_contexts",
+            "pkg_service.sql_get_array_result",
+            "pkg_service.sql_get_value",
+            "pkg_service.sql_get_variable_result",
+            "pkg_service.sql_is_context_active",
+            "pkg_service.sql_next_row",
+            "pkg_service.sql_register_context",
+            "pkg_service.sql_run",
+            "pkg_service.sql_set_result_type",
+            "pkg_service.sql_set_sql",
+            "pkg_service.sql_unregister_context",
+            "pkg_service.submit_on_nodes",
+        ] {
+            let meta = lookup_function(name).unwrap_or_else(|| panic!("{} not found", name));
+            assert_eq!(meta.domain, FuncDomain::PkgService);
+        }
+    }
+
+    #[test]
+    fn test_phase2_dbe_lob_completion() {
+        for name in &[
+            "dbe_lob.bfileclose",
+            "dbe_lob.bfileopen",
+            "dbe_lob.bfilename",
+            "dbe_lob.close",
+            "dbe_lob.converttoblob",
+            "dbe_lob.converttoclob",
+            "dbe_lob.fileclose",
+            "dbe_lob.fileopen",
+            "dbe_lob.getchunksize",
+            "dbe_lob.loadblobfrombfile",
+            "dbe_lob.loadblobfromfile",
+            "dbe_lob.loadclobfrombfile",
+            "dbe_lob.loadclobfromfile",
+            "dbe_lob.loadfrombfile",
+            "dbe_lob.loadfromfile",
+            "dbe_lob.lob_append",
+            "dbe_lob.lob_converttoblob",
+            "dbe_lob.lob_converttoclob",
+            "dbe_lob.lob_copy",
+            "dbe_lob.lob_erase",
+            "dbe_lob.lob_get_length",
+            "dbe_lob.lob_read",
+            "dbe_lob.lob_strip",
+            "dbe_lob.lob_substr",
+            "dbe_lob.lob_write",
+            "dbe_lob.lob_write_append",
+            "dbe_lob.match",
+            "dbe_lob.open",
+            "dbe_lob.strip",
+            "dbe_lob.write_append",
+        ] {
+            let meta = lookup_function(name).unwrap_or_else(|| panic!("{} not found", name));
+            assert_eq!(meta.domain, FuncDomain::DbeLob);
+        }
+    }
+
+    #[test]
+    fn test_phase2_dbe_lob_lob_converttoblob_signature() {
+        let meta = lookup_function("dbe_lob.lob_converttoblob").unwrap();
+        assert_eq!(meta.min_args, 5);
+        assert_eq!(meta.max_args, Some(5));
+    }
+
+    #[test]
+    fn test_phase2_dbe_lob_converttoblob_signature() {
+        let meta = lookup_function("dbe_lob.converttoblob").unwrap();
+        assert_eq!(meta.min_args, 2);
+        assert_eq!(meta.max_args, Some(5));
+    }
+
+    // ── Phase 3: XML/DOM packages (commercial-only, O-compatible) ──
+
+    #[test]
+    fn test_phase3_dbe_xmldom_registered() {
+        for name in &[
+            "dbe_xmldom.appendchild",
+            "dbe_xmldom.createelement",
+            "dbe_xmldom.createtextnode",
+            "dbe_xmldom.freedocument",
+            "dbe_xmldom.freeelement",
+            "dbe_xmldom.freenode",
+            "dbe_xmldom.freenodelist",
+            "dbe_xmldom.getattribute",
+            "dbe_xmldom.getattributes",
+            "dbe_xmldom.getchildnodes",
+            "dbe_xmldom.getchildrenbytagname",
+            "dbe_xmldom.getdocumentelement",
+            "dbe_xmldom.getfirstchild",
+            "dbe_xmldom.getlastchild",
+            "dbe_xmldom.getlength",
+            "dbe_xmldom.getlocalname",
+            "dbe_xmldom.getnameditem",
+            "dbe_xmldom.getnextsibling",
+            "dbe_xmldom.getnodename",
+            "dbe_xmldom.getnodetype",
+            "dbe_xmldom.getnodevalue",
+            "dbe_xmldom.getparentnode",
+            "dbe_xmldom.gettagname",
+            "dbe_xmldom.haschildnodes",
+            "dbe_xmldom.importnode",
+            "dbe_xmldom.isnull",
+            "dbe_xmldom.item",
+            "dbe_xmldom.makeelement",
+            "dbe_xmldom.makenode",
+            "dbe_xmldom.newdomdocument",
+            "dbe_xmldom.setattribute",
+            "dbe_xmldom.setcharset",
+            "dbe_xmldom.setdoctype",
+            "dbe_xmldom.setnodevalue",
+            "dbe_xmldom.writetobuffer",
+            "dbe_xmldom.writetoclob",
+        ] {
+            let meta = lookup_function(name).unwrap_or_else(|| panic!("{} not found", name));
+            assert_eq!(meta.domain, FuncDomain::DbeXmlDom);
+            assert!(meta.distribution.is_commercial_only());
+            assert!(!meta.compat.contains(CompatMode::B_FORMAT));
+        }
+    }
+
+    #[test]
+    fn test_phase3_dbe_xmlparser_registered() {
+        for name in &[
+            "dbe_xmlparser.freeparser",
+            "dbe_xmlparser.getdocument",
+            "dbe_xmlparser.getvalidationmode",
+            "dbe_xmlparser.newparser",
+            "dbe_xmlparser.parsebuffer",
+            "dbe_xmlparser.parseclob",
+            "dbe_xmlparser.setvalidationmode",
+        ] {
+            let meta = lookup_function(name).unwrap_or_else(|| panic!("{} not found", name));
+            assert_eq!(meta.domain, FuncDomain::DbeXmlParser);
+            assert!(meta.distribution.is_commercial_only());
+            assert!(!meta.compat.contains(CompatMode::B_FORMAT));
+        }
+    }
+
+    #[test]
+    fn test_builtin_meta_dbe_xmlparser() {
+        let meta = lookup_builtin_meta_qualified("dbe_xmlparser.parsebuffer").unwrap();
+        assert_eq!(meta.domain, "DbeXmlParser");
+    }
+
+    #[test]
+    fn test_phase3_xmldom_newdomdocument_signature() {
+        let meta = lookup_function("dbe_xmldom.newdomdocument").unwrap();
+        assert_eq!(meta.min_args, 0);
+        assert_eq!(meta.max_args, Some(1));
+    }
+
+    // ── Phase 4: RAW, APPLICATION_INFO, SCHEDULER, MATCH, SQL_UTIL ──
+
+    #[test]
+    fn test_phase4_dbe_application_info_registered() {
+        for name in &[
+            "dbe_application_info.read_client_info",
+            "dbe_application_info.read_module",
+            "dbe_application_info.set_action",
+            "dbe_application_info.set_client_info",
+            "dbe_application_info.set_module",
+        ] {
+            let meta = lookup_function(name).unwrap_or_else(|| panic!("{} not found", name));
+            assert_eq!(meta.domain, FuncDomain::DbeApplicationInfo);
+        }
+    }
+
+    #[test]
+    fn test_phase4_dbe_match_registered() {
+        let meta = lookup_function("dbe_match.edit_distance_similarity").unwrap();
+        assert_eq!(meta.domain, FuncDomain::DbeMatch);
+        assert_eq!(meta.min_args, 2);
+        assert_eq!(meta.max_args, Some(2));
+    }
+
+    #[test]
+    fn test_phase4_dbe_raw_registered() {
+        for name in &[
+            "dbe_raw.bit_and",
+            "dbe_raw.bit_complement",
+            "dbe_raw.bit_or",
+            "dbe_raw.bit_xor",
+            "dbe_raw.cast_from_binary_double_to_raw",
+            "dbe_raw.cast_from_binary_float_to_raw",
+            "dbe_raw.cast_from_binary_integer_to_raw",
+            "dbe_raw.cast_from_number_to_raw",
+            "dbe_raw.cast_from_raw_to_binary_double",
+            "dbe_raw.cast_from_raw_to_binary_float",
+            "dbe_raw.cast_from_raw_to_binary_integer",
+            "dbe_raw.cast_from_raw_to_nvarchar2",
+            "dbe_raw.cast_from_raw_to_number",
+            "dbe_raw.cast_from_varchar2_to_raw",
+            "dbe_raw.cast_to_varchar2",
+            "dbe_raw.compare",
+            "dbe_raw.concat",
+            "dbe_raw.convert",
+            "dbe_raw.copies",
+            "dbe_raw.get_length",
+            "dbe_raw.overlay",
+            "dbe_raw.reverse",
+            "dbe_raw.substr",
+            "dbe_raw.translate",
+            "dbe_raw.transliterate",
+            "dbe_raw.xrange",
+        ] {
+            let meta = lookup_function(name).unwrap_or_else(|| panic!("{} not found", name));
+            assert_eq!(meta.domain, FuncDomain::DbeRaw);
+        }
+    }
+
+    #[test]
+    fn test_phase4_dbe_scheduler_completion() {
+        for name in &[
+            "dbe_scheduler.create_credential",
+            "dbe_scheduler.create_job_class",
+            "dbe_scheduler.create_program",
+            "dbe_scheduler.create_schedule",
+            "dbe_scheduler.define_program_argument",
+            "dbe_scheduler.disable",
+            "dbe_scheduler.drop_credential",
+            "dbe_scheduler.drop_job_class",
+            "dbe_scheduler.drop_program",
+            "dbe_scheduler.drop_schedule",
+            "dbe_scheduler.enable",
+            "dbe_scheduler.eval_calendar_string",
+            "dbe_scheduler.generate_job_name",
+            "dbe_scheduler.grant_user_authorization",
+            "dbe_scheduler.revoke_user_authorization",
+            "dbe_scheduler.run_backend_job",
+            "dbe_scheduler.run_foreground_job",
+            "dbe_scheduler.set_attribute",
+            "dbe_scheduler.set_job_argument_value",
+            "dbe_scheduler.stop_job",
+        ] {
+            let meta = lookup_function(name).unwrap_or_else(|| panic!("{} not found", name));
+            assert_eq!(meta.domain, FuncDomain::DbeScheduler);
+        }
+    }
+
+    #[test]
+    fn test_phase4_dbe_sql_util_registered() {
+        for name in &[
+            "dbe_sql_util.create_abort_sql_patch",
+            "dbe_sql_util.create_hint_sql_patch",
+            "dbe_sql_util.disable_sql_patch",
+            "dbe_sql_util.drop_sql_patch",
+            "dbe_sql_util.enable_sql_patch",
+            "dbe_sql_util.show_sql_patch",
+        ] {
+            let meta = lookup_function(name).unwrap_or_else(|| panic!("{} not found", name));
+            assert_eq!(meta.domain, FuncDomain::DbeSqlUtil);
+        }
+    }
+
+    #[test]
+    fn test_phase4_domain_string_mappings() {
+        assert_eq!(
+            lookup_builtin_meta_qualified("dbe_application_info.set_action").unwrap().domain,
+            "DbeApplicationInfo"
+        );
+        assert_eq!(lookup_builtin_meta_qualified("dbe_match.edit_distance_similarity").unwrap().domain, "DbeMatch");
+        assert_eq!(lookup_builtin_meta_qualified("dbe_raw.substr").unwrap().domain, "DbeRaw");
+        assert_eq!(lookup_builtin_meta_qualified("dbe_sql_util.show_sql_patch").unwrap().domain, "DbeSqlUtil");
+    }
+
+    #[test]
+    fn test_registry_extension_commercial_only() {
+        let json = r#"[
+            {
+                "name": "dbe_test_commercial",
+                "category": "Scalar",
+                "domain": "Other",
+                "min_args": 1,
+                "max_args": 1,
+                "supports_distinct": false,
+                "compat": 7,
+                "distribution": 2
+            }
+        ]"#;
+        let reg = FunctionRegistry::new().with_extensions_from_json(json).unwrap();
+        let meta = reg.lookup("dbe_test_commercial").unwrap();
+        assert!(meta.distribution.is_commercial_only());
+        assert!(!meta.distribution.contains(Distribution::OPENGAUSS));
+    }
+
+    #[test]
+    fn test_registry_extension_defaults_to_both() {
+        // Extension without distribution field should default to BOTH
+        let json = r#"[
+            {
+                "name": "dbe_test_default",
+                "category": "Scalar",
+                "domain": "Other",
+                "min_args": 1,
+                "max_args": 1,
+                "supports_distinct": false,
+                "compat": 7
+            }
+        ]"#;
+        let reg = FunctionRegistry::new().with_extensions_from_json(json).unwrap();
+        let meta = reg.lookup("dbe_test_default").unwrap();
+        assert_eq!(meta.distribution, Distribution::BOTH);
     }
 }
