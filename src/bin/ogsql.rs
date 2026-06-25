@@ -3811,6 +3811,9 @@ fn merge_error_detail(err: &ogsql_parser::MergeSemanticError) -> String {
 /// already-parsed statements. Returns errors to merge into the caller's error list.
 /// Used by validate_sql (SQL files), validate-xml (iBatis XML), and validate-java
 /// (Java source) to share the same validation pipeline.
+///
+/// This is now a thin wrapper over [`ogsql_parser::validate_statements`]; the
+/// `ParserError` formatting stays here because it is a CLI output concern.
 fn validate_from_stmts(
     stmts: &[ogsql_parser::StatementInfo],
     extra_funcs: &[String],
@@ -3820,45 +3823,33 @@ fn validate_from_stmts(
     Vec<ogsql_parser::PackageConsistencyError>,
     Vec<ogsql_parser::UndefinedVariableError>,
 ) {
+    // Delegate to the public library orchestrator (preserves typed errors).
+    let report = ogsql_parser::validate_statements(stmts, extra_funcs, strict);
+
+    // Format typed errors into ParserError for CLI display. This conversion
+    // lives in the binary because ParserError formatting is a CLI concern.
     let mut errors = Vec::new();
 
-    // 1. PACKAGE consistency
-    let pkg_errors = ogsql_parser::validate_package_consistency(stmts);
-    if !pkg_errors.is_empty() {
-        for pe in &pkg_errors {
-            let msg = match &pe.detail {
-                Some(d) => format!("package {}: {} — {}", pe.package_name, pe.subprogram_name, d),
-                None => format!("package {}: {} — {:?}", pe.package_name, pe.subprogram_name, pe.kind),
-            };
-            errors.push(ogsql_parser::ParserError::Warning {
-                message: msg,
-                location: ogsql_parser::SourceLocation::default(),
-            });
-        }
+    for pe in &report.package_errors {
+        let msg = match &pe.detail {
+            Some(d) => format!("package {}: {} — {}", pe.package_name, pe.subprogram_name, d),
+            None => format!("package {}: {} — {:?}", pe.package_name, pe.subprogram_name, pe.kind),
+        };
+        errors.push(ogsql_parser::ParserError::Warning {
+            message: msg,
+            location: ogsql_parser::SourceLocation::default(),
+        });
     }
 
-    // 2. MERGE semantic validation
-    let merge_errors = ogsql_parser::validate_merge_semantics(stmts);
-    if !merge_errors.is_empty() {
-        for me in &merge_errors {
-            errors.push(ogsql_parser::ParserError::UnsupportedSyntax {
-                location: me.location,
-                syntax: "MERGE".to_string(),
-                hint: merge_error_detail(me),
-            });
-        }
+    for me in &report.merge_errors {
+        errors.push(ogsql_parser::ParserError::UnsupportedSyntax {
+            location: me.location,
+            syntax: "MERGE".to_string(),
+            hint: merge_error_detail(me),
+        });
     }
 
-    // 3. PL variable/function validation
-    let mut all_funcs: Vec<String> = extra_funcs.to_vec();
-    let own_funcs = ogsql_parser::collect_defined_routine_names(stmts);
-    all_funcs.extend(own_funcs);
-    all_funcs.sort();
-    all_funcs.dedup();
-
-    let var_errors = ogsql_parser::validate_pl_variables_from_stmts(stmts, &all_funcs, strict);
-
-    (errors, pkg_errors, var_errors)
+    (errors, report.package_errors, report.undefined_variable_errors)
 }
 
 fn validate_sql(
