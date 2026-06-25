@@ -2,6 +2,8 @@ mod rules_caution;
 mod rules_performance;
 mod rules_prohibition;
 mod rules_suggestion;
+#[cfg(feature = "ibatis")]
+pub mod structured;
 mod type_helpers;
 
 #[cfg(test)]
