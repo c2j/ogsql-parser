@@ -399,124 +399,6 @@ fn lint_xml_statements(
     all_warnings
 }
 
-/// Run linter on expanded dynamic SQL variants (foreach with multiple iterations).
-///
-/// Walks the structured SqlNode tree to detect foreach inside INSERT VALUES
-/// and estimates total bind parameters when the collection is large.
-/// This catches cases that flat SQL misses (flat SQL only shows a single iteration).
-#[cfg(feature = "ibatis")]
-fn lint_xml_expanded(
-    xml_bytes: &[u8],
-    config: &ogsql_parser::linter::LintConfig,
-) -> Vec<ogsql_parser::linter::SqlWarning> {
-    let structured = ogsql_parser::ibatis::parse_mapper_bytes_structured(xml_bytes);
-    if !structured.errors.is_empty() {
-        return vec![];
-    }
-    let mut warnings = Vec::new();
-
-    for stmt in &structured.statements {
-        // Check if the body contains INSERT with foreach in VALUES
-        let is_insert_values = is_insert_with_values(&stmt.body);
-        let foreach_in_values = find_foreach_in_insert_values(&stmt.body);
-
-        if let Some(foreach_node) = foreach_in_values {
-            let params_per_row = count_params_in_foreach_body(foreach_node);
-            if params_per_row > 0 {
-                let estimated_rows = 1000; // representative foreach iteration count
-                let total_params = params_per_row * estimated_rows;
-                if total_params > config.max_insert_values_rows || is_insert_values {
-                    warnings.push(ogsql_parser::linter::SqlWarning {
-                        level: ogsql_parser::linter::WarningLevel::Caution,
-                        rule_id: "C018".to_string(),
-                        rule_name: "excessive-insert-values".to_string(),
-                        message: format!(
-                            "INSERT VALUES 包含 foreach 动态批量插入，每行 {} 个参数。若运行时集合包含 {} 行，总绑定参数将达 {}，可能超过阈值 {}。建议使用分批提交或 COPY",
-                            params_per_row,
-                            estimated_rows / 10,
-                            params_per_row * estimated_rows / 10,
-                            config.max_insert_values_rows
-                        ),
-                        suggestion: Some("拆分为更小批次插入以减少锁持有时间，或使用 COPY 替代".to_string()),
-                        location: ogsql_parser::SourceLocation::default(),
-                        gaussdb_ref: None,
-                        confidence: ogsql_parser::linter::Confidence::Partial,
-                    });
-                }
-            }
-        }
-    }
-    warnings
-}
-
-/// Returns true if the SqlNode tree contains an INSERT ... VALUES pattern.
-#[cfg(feature = "ibatis")]
-fn is_insert_with_values(node: &ogsql_parser::ibatis::types::SqlNode) -> bool {
-    use ogsql_parser::ibatis::types::SqlNode;
-    match node {
-        SqlNode::Text { content } => {
-            let lower = content.to_lowercase();
-            lower.contains("insert") && lower.contains("values")
-        }
-        SqlNode::Sequence { children } | SqlNode::Trim { children, .. } => children.iter().any(is_insert_with_values),
-        _ => false,
-    }
-}
-
-/// Finds a ForEach node nested inside INSERT VALUES context.
-#[cfg(feature = "ibatis")]
-fn find_foreach_in_insert_values(
-    node: &ogsql_parser::ibatis::types::SqlNode,
-) -> Option<&ogsql_parser::ibatis::types::SqlNode> {
-    use ogsql_parser::ibatis::types::SqlNode;
-    match node {
-        SqlNode::ForEach { .. } => Some(node),
-        SqlNode::Sequence { children }
-        | SqlNode::Trim { children, .. }
-        | SqlNode::Where { children, .. }
-        | SqlNode::Set { children, .. }
-        | SqlNode::If { children, .. } => {
-            for child in children {
-                if let Some(f) = find_foreach_in_insert_values(child) {
-                    return Some(f);
-                }
-            }
-            None
-        }
-        SqlNode::Choose { branches } => {
-            for (_, ch) in branches {
-                for c in ch {
-                    if let Some(f) = find_foreach_in_insert_values(c) {
-                        return Some(f);
-                    }
-                }
-            }
-            None
-        }
-        _ => None,
-    }
-}
-
-/// Counts the number of Parameter nodes inside a ForEach body.
-#[cfg(feature = "ibatis")]
-fn count_params_in_foreach_body(node: &ogsql_parser::ibatis::types::SqlNode) -> usize {
-    use ogsql_parser::ibatis::types::SqlNode;
-    match node {
-        SqlNode::Parameter { .. } => 1,
-        SqlNode::Sequence { children }
-        | SqlNode::Trim { children, .. }
-        | SqlNode::Where { children, .. }
-        | SqlNode::Set { children, .. }
-        | SqlNode::If { children, .. }
-        | SqlNode::ForEach { children, .. } => children.iter().map(count_params_in_foreach_body).sum(),
-        SqlNode::Choose { branches } => {
-            branches.iter().flat_map(|(_, ch)| ch.iter().map(count_params_in_foreach_body)).sum()
-        }
-        SqlNode::RawExpr { .. } => 1, // ${expr} also counts as a parameter
-        _ => 0,
-    }
-}
-
 #[cfg(feature = "java")]
 fn lint_java_extractions(
     extractions: &[ogsql_parser::java::types::ExtractedSql],
@@ -4918,7 +4800,8 @@ fn cmd_parse_xml_single(cli: &Cli, csv: bool, java_roots: &[std::path::PathBuf])
     let lint_warnings = if cli.lint {
         let config = build_lint_config(cli);
         let mut ws = lint_xml_statements(&result.statements, &config);
-        let expand_ws = lint_xml_expanded(&input, &config);
+        let structured = ogsql_parser::ibatis::parse_mapper_bytes_structured(&input);
+        let expand_ws = ogsql_parser::linter::structured::lint_structured_mapper(&structured, &config);
         ws.extend(expand_ws);
         ws
     } else {
@@ -5038,7 +4921,8 @@ fn cmd_parse_xml_dir(cli: &Cli, dir_path: &str, csv: bool, java_roots: &[std::pa
 
         if cli.lint {
             let config = build_lint_config(cli);
-            all_expand_lint.extend(lint_xml_expanded(&bytes, &config));
+            let structured = ogsql_parser::ibatis::parse_mapper_bytes_structured(&bytes);
+            all_expand_lint.extend(ogsql_parser::linter::structured::lint_structured_mapper(&structured, &config));
         }
     }
 
@@ -5347,7 +5231,8 @@ fn cmd_validate_xml_single(cli: &Cli, csv: bool, java_roots: &[std::path::PathBu
     // Also run lint_xml_expanded for C018 rule (foreach in INSERT VALUES)
     // 同时运行 lint_xml_expanded 检测 C018 规则（INSERT VALUES 中的 foreach）
     {
-        let expand_ws = lint_xml_expanded(&input, &config);
+        let structured = ogsql_parser::ibatis::parse_mapper_bytes_structured(&input);
+        let expand_ws = ogsql_parser::linter::structured::lint_structured_mapper(&structured, &config);
         lint_warnings.extend(expand_ws);
     }
 
@@ -5631,7 +5516,8 @@ fn cmd_validate_xml_dir(
             lint_warnings.extend(ws);
         }
         {
-            let expand_ws = lint_xml_expanded(&bytes, &config);
+            let structured = ogsql_parser::ibatis::parse_mapper_bytes_structured(&bytes);
+            let expand_ws = ogsql_parser::linter::structured::lint_structured_mapper(&structured, &config);
             lint_warnings.extend(expand_ws);
         }
 

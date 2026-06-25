@@ -602,7 +602,8 @@ fn build_xml_validation_response(
             let linter = ogsql_parser::linter::SqlLinter::with_default_rules(config.clone());
             lint_warnings.extend(linter.lint(&all_stmts, None, ogsql_parser::linter::Confidence::Full));
         }
-        let expand_ws = crate::lint_xml_expanded(xml_bytes, &config);
+        let structured = ogsql_parser::ibatis::parse_mapper_bytes_structured(xml_bytes);
+        let expand_ws = ogsql_parser::linter::structured::lint_structured_mapper(&structured, &config);
         lint_warnings.extend(expand_ws);
         if !lint_warnings.is_empty() {
             response.lint_summary = Some(ogsql_parser::linter::build_lint_summary(&lint_warnings));
