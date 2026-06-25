@@ -10,11 +10,90 @@ use crate::linter::{Confidence, LintConfig, SqlWarning, WarningLevel};
 /// Lint a structured mapper for foreach-in-INSERT-VALUES (rule C018,
 /// dynamic-SQL variant). Flat SQL collapses `<foreach>` to a single iteration,
 /// so this must run on the `SqlNode` tree before expansion.
-pub fn lint_structured_mapper(
-    mapper: &StructuredMapper,
-    config: &LintConfig,
-) -> Vec<SqlWarning> {
-    unimplemented!("implemented in Step 3")
+pub fn lint_structured_mapper(mapper: &StructuredMapper, config: &LintConfig) -> Vec<SqlWarning> {
+    if !mapper.errors.is_empty() {
+        return vec![];
+    }
+    let mut warnings = Vec::new();
+
+    for stmt in &mapper.statements {
+        if let Some(foreach_node) = find_foreach_in_insert_values(&stmt.body) {
+            let params_per_row = count_params_in_foreach_body(foreach_node);
+            if params_per_row == 0 {
+                continue;
+            }
+            let estimated_rows = config.foreach_estimated_rows;
+            let total_params = params_per_row.saturating_mul(estimated_rows);
+
+            // FIXED: no `|| is_insert_values` clause — the threshold is the sole trigger
+            if total_params > config.max_insert_values_rows {
+                warnings.push(SqlWarning {
+                    level: WarningLevel::Caution,
+                    rule_id: "C018".to_string(),
+                    rule_name: "excessive-insert-values".to_string(),
+                    message: format!(
+                        "INSERT VALUES 包含 foreach 动态批量插入，每行 {} 个参数。\
+                         若运行时集合包含约 {} 行，总绑定参数将达 {}，超过阈值 {}。\
+                         建议分批提交或使用 COPY。",
+                        params_per_row, estimated_rows, total_params, config.max_insert_values_rows
+                    ),
+                    suggestion: Some("拆分为更小批次插入以减少锁持有时间，或使用 COPY 替代".to_string()),
+                    location: crate::SourceLocation::default(),
+                    gaussdb_ref: None,
+                    confidence: Confidence::Partial,
+                });
+            }
+        }
+    }
+    warnings
+}
+
+/// Find a ForEach node nested in the SqlNode tree (typically inside INSERT VALUES).
+fn find_foreach_in_insert_values(node: &SqlNode) -> Option<&SqlNode> {
+    match node {
+        SqlNode::ForEach { .. } => Some(node),
+        SqlNode::Sequence { children }
+        | SqlNode::Trim { children, .. }
+        | SqlNode::Where { children, .. }
+        | SqlNode::Set { children, .. }
+        | SqlNode::If { children, .. } => {
+            for child in children {
+                if let Some(f) = find_foreach_in_insert_values(child) {
+                    return Some(f);
+                }
+            }
+            None
+        }
+        SqlNode::Choose { branches } => {
+            for (_, ch) in branches {
+                for c in ch {
+                    if let Some(f) = find_foreach_in_insert_values(c) {
+                        return Some(f);
+                    }
+                }
+            }
+            None
+        }
+        _ => None,
+    }
+}
+
+/// Count the number of Parameter nodes inside a ForEach body.
+fn count_params_in_foreach_body(node: &SqlNode) -> usize {
+    match node {
+        SqlNode::Parameter { .. } => 1,
+        SqlNode::Sequence { children }
+        | SqlNode::Trim { children, .. }
+        | SqlNode::Where { children, .. }
+        | SqlNode::Set { children, .. }
+        | SqlNode::If { children, .. }
+        | SqlNode::ForEach { children, .. } => children.iter().map(count_params_in_foreach_body).sum(),
+        SqlNode::Choose { branches } => {
+            branches.iter().flat_map(|(_, ch)| ch.iter().map(count_params_in_foreach_body)).sum()
+        }
+        SqlNode::RawExpr { .. } => 1, // ${expr} also counts as a parameter
+        _ => 0,
+    }
 }
 
 #[cfg(test)]
@@ -63,11 +142,7 @@ mod tests {
         let mut config = LintConfig::default();
         config.max_insert_values_rows = usize::MAX; // 1000 << usize::MAX → must NOT fire
         let warnings = lint_structured_mapper(&mapper, &config);
-        assert_eq!(
-            warnings.len(),
-            0,
-            "threshold is usize::MAX — single-param foreach must NOT fire C018"
-        );
+        assert_eq!(warnings.len(), 0, "threshold is usize::MAX — single-param foreach must NOT fire C018");
     }
 
     #[test]
