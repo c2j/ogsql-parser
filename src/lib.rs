@@ -63,7 +63,7 @@ pub use analyzer::schema::{
     collect_ddl_schema, load_full_schema, load_schema, resolve_schema, FullSchema, IndexMapV2, SchemaMap,
     SchemaResolutionReport,
 };
-pub use analyzer::validate::{collect_defined_routine_names, ValidationReport};
+pub use analyzer::validate::{collect_defined_routine_names, validate_pl_variables_from_stmts, ValidationReport};
 pub use analyzer::{
     analyze_pl_block, analyze_transactions, compute_query_fingerprints, validate_merge_semantics,
     validate_package_consistency, validate_pl_variables, validate_pl_variables_with_extra_vars,

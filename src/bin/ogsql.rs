@@ -3856,7 +3856,7 @@ fn validate_from_stmts(
     all_funcs.sort();
     all_funcs.dedup();
 
-    let var_errors = validate_pl_variables_from_stmts(stmts, &all_funcs, strict);
+    let var_errors = ogsql_parser::validate_pl_variables_from_stmts(stmts, &all_funcs, strict);
 
     (errors, pkg_errors, var_errors)
 }
@@ -3879,111 +3879,6 @@ fn validate_sql(
     errors.extend(core_errors);
 
     (output.statements, errors, pkg_errors, var_errors)
-}
-
-fn validate_pl_variables_from_stmts(
-    stmts: &[ogsql_parser::StatementInfo],
-    known_funcs: &[String],
-    strict: bool,
-) -> Vec<ogsql_parser::UndefinedVariableError> {
-    use ogsql_parser::ast::Statement;
-    let mut warnings = Vec::new();
-    let funcs_str: Vec<&str> = known_funcs.iter().map(|s| s.as_str()).collect();
-    for si in stmts {
-        match &si.statement {
-            Statement::CreateProcedure(proc) => {
-                if let Some(ref block) = proc.block {
-                    let vars = ogsql_parser::validate_pl_variables_with_extra_vars_and_funcs(
-                        block,
-                        &proc.parameters,
-                        &[],
-                        &funcs_str,
-                        strict,
-                    );
-                    warnings.extend(vars);
-                }
-            }
-            Statement::CreateFunction(func) => {
-                if let Some(ref block) = func.block {
-                    let vars = ogsql_parser::validate_pl_variables_with_extra_vars_and_funcs(
-                        block,
-                        &func.parameters,
-                        &[],
-                        &funcs_str,
-                        strict,
-                    );
-                    warnings.extend(vars);
-                }
-            }
-            Statement::Do(do_stmt) => {
-                if let Some(ref block) = do_stmt.block {
-                    let vars = ogsql_parser::validate_pl_variables_with_extra_vars_and_funcs(
-                        block,
-                        &[],
-                        &[],
-                        &funcs_str,
-                        strict,
-                    );
-                    warnings.extend(vars);
-                }
-            }
-            Statement::CreatePackageBody(body) => {
-                let body_name: String = body.name.iter().map(|s| s.to_lowercase()).collect::<Vec<_>>().join(".");
-                let mut pkg_vars: Vec<&str> = body
-                    .items
-                    .iter()
-                    .filter_map(|item| match item {
-                        ogsql_parser::ast::PackageItem::Variable(v) => Some(v.name.as_str()),
-                        _ => None,
-                    })
-                    .collect();
-                for other_si in stmts {
-                    if let Statement::CreatePackage(spec) = &other_si.statement {
-                        let spec_name: String =
-                            spec.name.iter().map(|s| s.to_lowercase()).collect::<Vec<_>>().join(".");
-                        if spec_name == body_name {
-                            for item in &spec.items {
-                                if let ogsql_parser::ast::PackageItem::Variable(v) = item {
-                                    pkg_vars.push(v.name.as_str());
-                                }
-                            }
-                        }
-                    }
-                }
-                for item in &body.items {
-                    match item {
-                        ogsql_parser::ast::PackageItem::Procedure(proc) => {
-                            if let Some(ref block) = proc.block {
-                                let vars = ogsql_parser::validate_pl_variables_with_extra_vars_and_funcs(
-                                    block,
-                                    &proc.parameters,
-                                    &pkg_vars,
-                                    &funcs_str,
-                                    strict,
-                                );
-                                warnings.extend(vars);
-                            }
-                        }
-                        ogsql_parser::ast::PackageItem::Function(func) => {
-                            if let Some(ref block) = func.block {
-                                let vars = ogsql_parser::validate_pl_variables_with_extra_vars_and_funcs(
-                                    block,
-                                    &func.parameters,
-                                    &pkg_vars,
-                                    &funcs_str,
-                                    strict,
-                                );
-                                warnings.extend(vars);
-                            }
-                        }
-                        _ => {}
-                    }
-                }
-            }
-            _ => {}
-        }
-    }
-    warnings
 }
 
 fn cmd_validate(cli: &Cli, csv: bool, strict: bool) {

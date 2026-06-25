@@ -7,6 +7,112 @@
 
 use crate::{MergeSemanticError, PackageConsistencyError, UndefinedVariableError};
 
+/// Walk `StatementInfo` slices, extract `PlBlock`s from each variant
+/// (`CreateProcedure`, `CreateFunction`, `Do`, `AnonyBlock`, `CreatePackageBody`),
+/// and run PL variable/function validation per block.
+///
+/// For package bodies, cross-references package-spec variables so they are
+/// recognised as defined during validation of the body's subprograms.
+pub fn validate_pl_variables_from_stmts(
+    stmts: &[crate::ast::StatementInfo],
+    known_funcs: &[String],
+    strict: bool,
+) -> Vec<crate::UndefinedVariableError> {
+    use crate::ast::Statement;
+    let mut warnings = Vec::new();
+    let funcs_str: Vec<&str> = known_funcs.iter().map(|s| s.as_str()).collect();
+    for si in stmts {
+        match &si.statement {
+            Statement::CreateProcedure(proc) => {
+                if let Some(ref block) = proc.block {
+                    let vars = crate::validate_pl_variables_with_extra_vars_and_funcs(
+                        block,
+                        &proc.parameters,
+                        &[],
+                        &funcs_str,
+                        strict,
+                    );
+                    warnings.extend(vars);
+                }
+            }
+            Statement::CreateFunction(func) => {
+                if let Some(ref block) = func.block {
+                    let vars = crate::validate_pl_variables_with_extra_vars_and_funcs(
+                        block,
+                        &func.parameters,
+                        &[],
+                        &funcs_str,
+                        strict,
+                    );
+                    warnings.extend(vars);
+                }
+            }
+            Statement::Do(do_stmt) => {
+                if let Some(ref block) = do_stmt.block {
+                    let vars =
+                        crate::validate_pl_variables_with_extra_vars_and_funcs(block, &[], &[], &funcs_str, strict);
+                    warnings.extend(vars);
+                }
+            }
+            Statement::CreatePackageBody(body) => {
+                let body_name: String = body.name.iter().map(|s| s.to_lowercase()).collect::<Vec<_>>().join(".");
+                let mut pkg_vars: Vec<&str> = body
+                    .items
+                    .iter()
+                    .filter_map(|item| match item {
+                        crate::ast::PackageItem::Variable(v) => Some(v.name.as_str()),
+                        _ => None,
+                    })
+                    .collect();
+                for other_si in stmts {
+                    if let Statement::CreatePackage(spec) = &other_si.statement {
+                        let spec_name: String =
+                            spec.name.iter().map(|s| s.to_lowercase()).collect::<Vec<_>>().join(".");
+                        if spec_name == body_name {
+                            for item in &spec.items {
+                                if let crate::ast::PackageItem::Variable(v) = item {
+                                    pkg_vars.push(v.name.as_str());
+                                }
+                            }
+                        }
+                    }
+                }
+                for item in &body.items {
+                    match item {
+                        crate::ast::PackageItem::Procedure(proc) => {
+                            if let Some(ref block) = proc.block {
+                                let vars = crate::validate_pl_variables_with_extra_vars_and_funcs(
+                                    block,
+                                    &proc.parameters,
+                                    &pkg_vars,
+                                    &funcs_str,
+                                    strict,
+                                );
+                                warnings.extend(vars);
+                            }
+                        }
+                        crate::ast::PackageItem::Function(func) => {
+                            if let Some(ref block) = func.block {
+                                let vars = crate::validate_pl_variables_with_extra_vars_and_funcs(
+                                    block,
+                                    &func.parameters,
+                                    &pkg_vars,
+                                    &funcs_str,
+                                    strict,
+                                );
+                                warnings.extend(vars);
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+    warnings
+}
+
 /// Collect the names of all routines (functions, procedures) and package-level types
 /// defined in a slice of statements. Used by the PL variable validator to treat
 /// locally-defined routines as known functions.
