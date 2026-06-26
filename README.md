@@ -23,7 +23,7 @@ This project implements a complete SQL parser for openGauss/GaussDB (an enterpri
 | Multi-encoding support / 多字符集支持 | ✅ Complete | UTF-8, EUC-JP, EUC-KR, GB18030, BIG5, UTF-16 |
 | AST / 抽象语法树 | ✅ Complete | 219+ AST types defined |
 | Parser dispatcher / 解析器分发 | ✅ Complete | Top-level statement routing |
-| Unit tests / 单元测试 | ✅ Complete | 1900+ tests |
+| Unit tests / 单元测试 | ✅ Complete | 1980+ tests |
 | Regression tests / 回归测试 | ✅ Complete | 1409/1409 — All openGauss regression tests passing |
 | JSON serde / JSON 序列化 | ✅ Complete | Full serde::Serialize + Deserialize on all AST types |
 
@@ -229,7 +229,7 @@ cargo build --release --features full
 ### Run Tests / 运行测试
 
 ```bash
-# Unit tests (1900+ tests)
+# Unit tests (1980+ tests)
 cargo test
 
 # Regression tests against openGauss test suite
@@ -715,7 +715,7 @@ SQL Input
    All AST types derive `Serialize` + `Deserialize`, enabling lossless JSON round-trip (SQL → JSON → SQL)
 
 7. **Built-in function registry / 内置函数注册表**  
-   449 registered built-in functions with category and domain metadata across 25+ domains
+   981 registered built-in functions with category and domain metadata across 44 domains, with per-function distribution markers distinguishing open-source openGauss from commercial GaussDB
 
 ---
 
@@ -848,6 +848,6 @@ This is an active development project. Phases 1–6 are complete, and Phase 7 (O
 
 ---
 
-**Status / 状态**: Phase 1–6 Complete | 1900+ unit tests | 1409/1409 regression tests passing | 53 lint rules  
-**Version / 版本**: 0.8.6  
-**Last Updated / 最后更新**: 2026-06-22
+**Status / 状态**: Phase 1–6 Complete | 1980+ unit tests | 1409/1409 regression tests passing | 53 lint rules  
+**Version / 版本**: 0.8.10  
+**Last Updated / 最后更新**: 2026-06-27
