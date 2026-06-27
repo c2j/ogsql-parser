@@ -1329,15 +1329,15 @@ pub enum Expr {
     /// dedicated parsing logic and a simplified AST representation that only captures
     /// positional arguments (the keywords are implied by position).
     ///
-    /// Additionally, `substr` is treated as an alias of `substring` and always produces
-    /// `SpecialFunction`, even when written with comma syntax (`substr('hello', 1, 3)`).
-    /// This avoids having the same semantic function produce two different AST node types.
+    /// `substr` and `substring` with comma syntax (`substr('hello', 1, 3)`) produce
+    /// [`FunctionCall`] instead of `SpecialFunction`. Keyword syntax
+    /// (`SUBSTRING(str FROM 1 FOR 3)`) produces `SpecialFunction`.
     ///
     /// # Complete list of functions that produce SpecialFunction
     ///
     /// | Function | `name` value | Syntax forms | Notes |
     /// |----------|-------------|--------------|-------|
-    /// | `SUBSTRING` / `SUBSTR` | `"substring"` or `"substr"` | `FROM`/`FOR` keywords **or** commas | `substr` is always SpecialFunction |
+    /// | `SUBSTRING` / `SUBSTR` | `"substring"` or `"substr"` | `FROM`/`FOR` keywords | Comma syntax → `FunctionCall`; keyword syntax → `SpecialFunction` |
     /// | `OVERLAY` | `"overlay"` | `PLACING`/`FROM`/`FOR` keywords | |
     /// | `POSITION` | `"position"` | `IN` keyword | |
     /// | `EXTRACT` | `"extract"` | `field FROM expr` | |
@@ -1357,17 +1357,18 @@ pub enum Expr {
     /// ```rust,ignore
     /// match expr {
     ///     Expr::FunctionCall { name, args, .. } => { /* regular function */ }
-    ///     Expr::SpecialFunction { name, args } => { /* special function */ }
+    ///     Expr::SpecialFunction { name, args, .. } => { /* special function */ }
     ///     _ => {}
     /// }
     /// ```
     ///
-    /// `SpecialFunction` does **not** carry `builtin` metadata, `over`, `filter`,
-    /// or `within_group` clauses. If you need to check whether a function is built-in,
-    /// use the `function_registry` module to look up the name.
+    /// `SpecialFunction` carries `builtin` metadata, populated from `function_registry`.
+    /// It does **not** carry `over`, `filter`, or `within_group` clauses.
     SpecialFunction {
         name: String,
         args: Vec<Expr>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        builtin: Option<BuiltinFuncMeta>,
     },
     /// WHERE CURRENT OF cursor_name — for positioned UPDATE/DELETE
     CurrentOf {

@@ -1337,7 +1337,7 @@ impl SqlFormatter {
                 }
                 result
             }
-            Expr::SpecialFunction { name, args } => {
+            Expr::SpecialFunction { name, args, .. } => {
                 let lower = name.to_lowercase();
                 match lower.as_str() {
                     "overlay" => {
