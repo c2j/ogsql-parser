@@ -141,7 +141,7 @@ Full list of all variants: `Select`, `Insert`, `InsertAll`, `InsertFirst`, `Upda
 | `RowConstructor` | `(1, 'a', TRUE)` | `{ "RowConstructor": [...] }` |
 | `Prior` | `PRIOR x` (hierarchical query) | `{ "Prior": {...} }` |
 | `Default` | `DEFAULT` | `"Default"` |
-| `SpecialFunction` | `EXTRACT(YEAR FROM d)`, `SUBSTRING(s FROM 1 FOR 3)`, `SUBSTR('hello', 1, 3)` | `{ "SpecialFunction": { "name": "extract", "args": [...] } }` |
+| `SpecialFunction` | `EXTRACT(YEAR FROM d)`, `SUBSTRING(s FROM 1 FOR 3)` | `{ "SpecialFunction": { "name": "extract", "args": [...] } }` |
 | `CurrentOf` | `WHERE CURRENT OF cursor` | `{ "CurrentOf": { "cursor_name": "c1" } }` |
 | `XmlElement` | `XMLELEMENT(...)` | `{ "XmlElement": { "name": ..., "content": [...] } }` |
 | `XmlConcat` | `XMLCONCAT(...)` | `{ "XmlConcat": [...] }` |
@@ -156,9 +156,10 @@ Full list of all variants: `Select`, `Insert`, `InsertAll`, `InsertFirst`, `Upda
 ## FunctionCall
 
 The most complex and important expression node. Covers all user-defined functions and most
-built-in functions. For functions with keyword-separated syntax (e.g. `EXTRACT`, `SUBSTRING`,
-`SUBSTR`), see [SpecialFunction](#specialfunction) — JSON consumers must handle **both**
-node types when looking for "all function calls".
+built-in functions, including comma-syntax `SUBSTR(s, p, l)` / `SUBSTRING(s, p, l)`. Only
+keyword-separated syntax (e.g. `EXTRACT`, `SUBSTRING(s FROM ...)`) uses
+[SpecialFunction](#specialfunction) — JSON consumers must handle **both** node types when
+looking for "all function calls".
 
 ```json
 {
@@ -225,16 +226,16 @@ SQL functions that use keyword-separated syntax instead of commas, or have multi
 forms that must be unified into a single AST type. When walking the AST for "all function
 calls", you **must** handle both `FunctionCall` and `SpecialFunction`.
 
-**Why `substr` is SpecialFunction:** `substr` is an alias of `substring`, which supports
-both keyword syntax (`SUBSTRING(str FROM 1 FOR 3)`) and comma syntax (`SUBSTR(str, 1, 3)`).
-To avoid splitting one semantic function across two different AST node types, `substr` is
-always parsed as `SpecialFunction`, even when written with pure comma-separated arguments.
+**Comma vs keyword syntax for SUBSTRING/SUBSTR:** `SUBSTR(s, p, l)` and `SUBSTRING(s, p, l)`
+with comma-separated arguments produce `FunctionCall` (carrying `builtin` metadata). Only the
+keyword form `SUBSTRING(s FROM p [FOR l])` produces `SpecialFunction`. This mirrors how `TRIM`
+and `CONVERT` already split on syntax. See issues #255 / #256 for rationale.
 
 #### Complete List
 
 | Function | `name` value | SQL Syntax | Notes |
 |----------|-------------|------------|-------|
-| `SUBSTRING` / `SUBSTR` | `"substring"` or `"substr"` | `SUBSTRING(str FROM pos [FOR len])` or `SUBSTR(str, pos [, len])` | Both keyword and comma forms → SpecialFunction |
+| `SUBSTRING` / `SUBSTR` | `"substring"` or `"substr"` | `SUBSTRING(str FROM pos [FOR len])` (keyword form) | Keyword form → SpecialFunction; comma form `SUBSTR(str, pos [, len])` → `FunctionCall` |
 | `OVERLAY` | `"overlay"` | `OVERLAY(str PLACING repl FROM pos [FOR len])` | |
 | `POSITION` | `"position"` | `POSITION(substr IN str)` | |
 | `EXTRACT` | `"extract"` | `EXTRACT(field FROM expr)` | First arg is the field name as `ColumnRef` |
@@ -246,7 +247,8 @@ always parsed as `SpecialFunction`, even when written with pure comma-separated 
 | `LOCALTIME` | `"localtime"` | `LOCALTIME` or `LOCALTIME(precision)` | Without `()` → `ColumnRef`, not SpecialFunction |
 | `LOCALTIMESTAMP` | `"localtimestamp"` | `LOCALTIMESTAMP` or `LOCALTIMESTAMP(precision)` | Without `()` → `ColumnRef`, not SpecialFunction |
 
-`SpecialFunction` nodes do **not** have `_meta` annotation — they are recognized by the `name` field.
+`SpecialFunction` nodes carry an optional `builtin` field (function-registry metadata,
+serialized only when present). They do **not** carry `over`, `filter`, or `within_group`.
 
 #### Consumer Guidance
 
@@ -379,9 +381,9 @@ Variants: `Union`, `Intersect`, `Except`. Each has `all` (boolean) and `right` (
 ### Identify all function calls
 
 Walk the JSON tree recursively. Any object with a `FunctionCall` **or** `SpecialFunction` key
-contains a function call node. You must handle both — `SpecialFunction` covers functions like
-`SUBSTRING`, `SUBSTR`, `EXTRACT`, `OVERLAY`, `POSITION`, `TRIM` (with `FROM`), `CONVERT` (with
-`USING`), and `INTERVAL`.
+contains a function call node. You must handle both — `SpecialFunction` covers keyword-syntax
+forms like `SUBSTRING(s FROM ...)`, `EXTRACT`, `OVERLAY`, `POSITION`, `TRIM` (with `FROM`),
+`CONVERT` (with `USING`), and `INTERVAL`. Comma-syntax `SUBSTR(s, p, l)` is `FunctionCall`.
 
 - `FunctionCall`: `name` is an array (last element is the function name)
 - `SpecialFunction`: `name` is a string (never schema-qualified)
