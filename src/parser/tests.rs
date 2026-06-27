@@ -9438,7 +9438,7 @@ fn test_trim_both_from_ast() {
     match stmt {
         Statement::Select(s) => match &s.targets[0] {
             SelectTarget::Expr(expr, _) => match expr {
-                Expr::SpecialFunction { name, args } => {
+                Expr::SpecialFunction { name, args, .. } => {
                     assert_eq!(name, "trim");
                     assert_eq!(args.len(), 3, "trim(BOTH 'x' FROM 'xTomxx') should have 3 args: [BOTH, 'x', 'xTomxx']");
                 }
@@ -9456,7 +9456,7 @@ fn test_trim_leading_with_chars_ast() {
     match stmt {
         Statement::Select(s) => match &s.targets[0] {
             SelectTarget::Expr(expr, _) => match expr {
-                Expr::SpecialFunction { name, args } => {
+                Expr::SpecialFunction { name, args, .. } => {
                     assert_eq!(name, "trim");
                     assert_eq!(args.len(), 3);
                 }
@@ -9710,7 +9710,7 @@ fn test_convert_using_ast() {
     match stmt {
         Statement::Select(s) => match &s.targets[0] {
             SelectTarget::Expr(expr, _) => match expr {
-                Expr::SpecialFunction { name, args } => {
+                Expr::SpecialFunction { name, args, .. } => {
                     assert_eq!(name, "convert");
                     assert_eq!(args.len(), 2);
                 }
@@ -9727,6 +9727,50 @@ fn test_convert_normal() {
     let stmt = parse_one("SELECT convert('text', 'UTF8', 'GBK')");
     match stmt {
         Statement::Select(s) => assert_eq!(s.targets.len(), 1),
+        _ => panic!("expected Select, got {:?}", stmt),
+    }
+}
+
+// ========== Issue #255/#256: SUBSTR/SUBSTRING builtin metadata + comma→FunctionCall ==========
+
+#[test]
+fn test_substr_comma_syntax_is_function_call_with_builtin() {
+    let stmt = parse_one("SELECT substr('hello', 1, 3) FROM t");
+    match stmt {
+        Statement::Select(s) => match &s.targets[0] {
+            SelectTarget::Expr(expr, _) => match expr {
+                Expr::FunctionCall { name, args, builtin, .. } => {
+                    assert_eq!(name.last().map(|i| i.value.as_str()), Some("substr"));
+                    assert_eq!(args.len(), 3);
+                    let meta = builtin.as_ref().expect("comma-syntax substr must carry builtin metadata");
+                    assert_eq!(meta.category, "Scalar");
+                    assert_eq!(meta.domain, "String");
+                }
+                other => panic!("comma-syntax substr must be FunctionCall, got {:?}", other),
+            },
+            _ => panic!("expected Expr target"),
+        },
+        _ => panic!("expected Select, got {:?}", stmt),
+    }
+}
+
+#[test]
+fn test_substring_keyword_syntax_is_special_function_with_builtin() {
+    let stmt = parse_one("SELECT substring('hello' FROM 1 FOR 3) FROM t");
+    match stmt {
+        Statement::Select(s) => match &s.targets[0] {
+            SelectTarget::Expr(expr, _) => match expr {
+                Expr::SpecialFunction { name, args, builtin } => {
+                    assert_eq!(name, "substring");
+                    assert_eq!(args.len(), 3);
+                    let meta = builtin.as_ref().expect("keyword-syntax substring must carry builtin metadata");
+                    assert_eq!(meta.category, "Scalar");
+                    assert_eq!(meta.domain, "String");
+                }
+                other => panic!("keyword-syntax substring must be SpecialFunction, got {:?}", other),
+            },
+            _ => panic!("expected Expr target"),
+        },
         _ => panic!("expected Select, got {:?}", stmt),
     }
 }

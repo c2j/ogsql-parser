@@ -1034,12 +1034,14 @@ impl Parser {
                             ) {
                                 let unit_name = unit_kw.as_str().to_string();
                                 self.advance();
+                                let builtin = crate::parser::function_registry::lookup_builtin_meta("interval");
                                 return Ok(Expr::SpecialFunction {
                                     name: "interval".to_string(),
                                     args: vec![
                                         Expr::Literal(Literal::String(s)),
                                         Expr::ColumnRef(vec![unit_name.into()]),
                                     ],
+                                    builtin,
                                 });
                             }
                         }
@@ -1072,9 +1074,11 @@ impl Parser {
                             ) {
                                 let unit_name = unit_kw.as_str().to_string();
                                 self.advance();
+                                let builtin = crate::parser::function_registry::lookup_builtin_meta("interval");
                                 return Ok(Expr::SpecialFunction {
                                     name: "interval".to_string(),
                                     args: vec![expr, Expr::ColumnRef(vec![unit_name.into()])],
+                                    builtin,
                                 });
                             }
                         }
@@ -1111,11 +1115,13 @@ impl Parser {
                         self.advance();
                         if self.match_token(&Token::RParen) {
                             self.advance();
-                            return Ok(Expr::SpecialFunction { name, args: vec![] });
+                            let builtin = crate::parser::function_registry::lookup_builtin_meta(&name);
+                            return Ok(Expr::SpecialFunction { name, args: vec![], builtin });
                         }
                         let precision = self.parse_expr()?;
                         self.expect_token(&Token::RParen)?;
-                        return Ok(Expr::SpecialFunction { name, args: vec![precision] });
+                        let builtin = crate::parser::function_registry::lookup_builtin_meta(&name);
+                        return Ok(Expr::SpecialFunction { name, args: vec![precision], builtin });
                     }
                     return Ok(Expr::ColumnRef(vec![name.into()]));
                 }
@@ -1408,9 +1414,8 @@ impl Parser {
         if lower_name == "position" {
             return self.parse_position_function(name);
         }
-        // Both `substring` and `substr` are handled by the same parser.
-        // Even `substr(a, 1, 3)` with pure comma syntax becomes SpecialFunction
-        // to avoid splitting one semantic function across two AST node types.
+        // `substring`/`substr` keyword syntax (FROM/FOR) → SpecialFunction;
+        // comma syntax → FunctionCall. See parse_substring_function and #256.
         if lower_name == "substring" || lower_name == "substr" {
             return self.parse_substring_function(name);
         }
@@ -1624,7 +1629,10 @@ impl Parser {
             self.advance();
             let charset = self.parse_expr()?;
             self.expect_token(&Token::RParen)?;
-            return Ok(Expr::SpecialFunction { name: name.join("."), args: vec![first, charset] });
+            let builtin = crate::parser::function_registry::lookup_builtin_meta(
+                &name.last().map(|s| s.to_lowercase()).unwrap_or_default(),
+            );
+            return Ok(Expr::SpecialFunction { name: name.join("."), args: vec![first, charset], builtin });
         }
         let mut args = vec![first];
         while self.match_token(&Token::Comma) {
@@ -1724,7 +1732,10 @@ impl Parser {
         if let Some(a) = arg4 {
             args.push(a);
         }
-        Ok(Expr::SpecialFunction { name: name.join("."), args })
+        let builtin = crate::parser::function_registry::lookup_builtin_meta(
+            &name.last().map(|s| s.to_lowercase()).unwrap_or_default(),
+        );
+        Ok(Expr::SpecialFunction { name: name.join("."), args, builtin })
     }
 
     fn parse_position_function(&mut self, name: ObjectName) -> Result<Expr, ParserError> {
@@ -1746,29 +1757,65 @@ impl Parser {
             arg2 = Expr::TypeCast { expr: Box::new(arg2), type_name, default: None, format: None };
         }
         self.expect_token(&Token::RParen)?;
-        Ok(Expr::SpecialFunction { name: name.join("."), args: vec![arg1, arg2] })
+        let builtin = crate::parser::function_registry::lookup_builtin_meta(
+            &name.last().map(|s| s.to_lowercase()).unwrap_or_default(),
+        );
+        Ok(Expr::SpecialFunction { name: name.join("."), args: vec![arg1, arg2], builtin })
     }
 
     fn parse_substring_function(&mut self, name: ObjectName) -> Result<Expr, ParserError> {
         let arg1 = self.parse_expr()?;
-        let mut args = vec![arg1];
-        if self.try_consume_keyword(Keyword::FROM) {
-            args.push(self.parse_expr()?);
+
+        // Keyword-separated syntax (FROM / FOR) → SpecialFunction.
+        if self.match_keyword(Keyword::FROM) {
+            self.advance();
+            let mut args = vec![arg1, self.parse_expr()?];
             if self.try_consume_keyword(Keyword::FOR) {
                 args.push(self.parse_expr()?);
             }
-        } else if self.try_consume_keyword(Keyword::FOR) {
-            args.push(self.parse_expr()?);
-        } else if self.match_token(&Token::Comma) {
+            self.expect_token(&Token::RParen)?;
+            let builtin = crate::parser::function_registry::lookup_builtin_meta(
+                &name.last().map(|s| s.to_lowercase()).unwrap_or_default(),
+            );
+            return Ok(Expr::SpecialFunction { name: name.join("."), args, builtin });
+        }
+        if self.match_keyword(Keyword::FOR) {
+            self.advance();
+            let args = vec![arg1, self.parse_expr()?];
+            self.expect_token(&Token::RParen)?;
+            let builtin = crate::parser::function_registry::lookup_builtin_meta(
+                &name.last().map(|s| s.to_lowercase()).unwrap_or_default(),
+            );
+            return Ok(Expr::SpecialFunction { name: name.join("."), args, builtin });
+        }
+
+        // Comma syntax (or bare single-arg form) → regular FunctionCall.
+        // Mirrors parse_convert_function's comma path so that comma-syntax substr/substring
+        // obtains builtin metadata, validate_func arg checking, and FILTER/OVER/WITHIN GROUP
+        // support — consistent with how TRIM and CONVERT already split on syntax.
+        let mut args = vec![arg1];
+        while self.match_token(&Token::Comma) {
             self.advance();
             args.push(self.parse_expr()?);
-            if self.match_token(&Token::Comma) {
-                self.advance();
-                args.push(self.parse_expr()?);
-            }
         }
         self.expect_token(&Token::RParen)?;
-        Ok(Expr::SpecialFunction { name: name.join("."), args })
+        let filter = self.try_parse_filter()?;
+        let within_group = self.try_parse_within_group()?;
+        let over = self.try_parse_over_clause()?;
+        let builtin = self.validate_func(&name, args.len(), false, over.is_some(), false);
+        Ok(Expr::FunctionCall {
+            name,
+            args,
+            distinct: false,
+            over,
+            filter,
+            within_group,
+            separator: None,
+            default: None,
+            conversion_format: None,
+            agg_from: None,
+            builtin,
+        })
     }
 
     fn parse_extract_function(&mut self, name: ObjectName) -> Result<Expr, ParserError> {
@@ -1776,7 +1823,14 @@ impl Parser {
         self.expect_keyword(Keyword::FROM)?;
         let expr = self.parse_expr()?;
         self.expect_token(&Token::RParen)?;
-        Ok(Expr::SpecialFunction { name: name.join("."), args: vec![Expr::ColumnRef(vec![field.into()]), expr] })
+        let builtin = crate::parser::function_registry::lookup_builtin_meta(
+            &name.last().map(|s| s.to_lowercase()).unwrap_or_default(),
+        );
+        Ok(Expr::SpecialFunction {
+            name: name.join("."),
+            args: vec![Expr::ColumnRef(vec![field.into()]), expr],
+            builtin,
+        })
     }
 
     fn parse_trim_function(&mut self, name: ObjectName) -> Result<Expr, ParserError> {
@@ -1795,9 +1849,13 @@ impl Parser {
                 self.advance();
                 let source = self.parse_expr()?;
                 self.expect_token(&Token::RParen)?;
+                let builtin = crate::parser::function_registry::lookup_builtin_meta(
+                    &name.last().map(|s| s.to_lowercase()).unwrap_or_default(),
+                );
                 Ok(Expr::SpecialFunction {
                     name: name.join("."),
                     args: vec![Expr::ColumnRef(vec![dir.into()]), source],
+                    builtin,
                 })
             } else {
                 // TRIM(direction chars FROM expr)
@@ -1805,9 +1863,13 @@ impl Parser {
                 self.expect_keyword(Keyword::FROM)?;
                 let source = self.parse_expr()?;
                 self.expect_token(&Token::RParen)?;
+                let builtin = crate::parser::function_registry::lookup_builtin_meta(
+                    &name.last().map(|s| s.to_lowercase()).unwrap_or_default(),
+                );
                 Ok(Expr::SpecialFunction {
                     name: name.join("."),
                     args: vec![Expr::ColumnRef(vec![dir.into()]), chars, source],
+                    builtin,
                 })
             }
         } else {
@@ -1818,7 +1880,10 @@ impl Parser {
                 self.advance();
                 let source = self.parse_expr()?;
                 self.expect_token(&Token::RParen)?;
-                Ok(Expr::SpecialFunction { name: name.join("."), args: vec![first, source] })
+                let builtin = crate::parser::function_registry::lookup_builtin_meta(
+                    &name.last().map(|s| s.to_lowercase()).unwrap_or_default(),
+                );
+                Ok(Expr::SpecialFunction { name: name.join("."), args: vec![first, source], builtin })
             } else {
                 // Regular function call: TRIM(expr [, ...])
                 let mut args = vec![first];
