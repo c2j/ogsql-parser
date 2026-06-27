@@ -16,11 +16,10 @@ impl Parser {
         has_over: bool,
         has_variadic: bool,
     ) -> Option<crate::ast::BuiltinFuncMeta> {
+        let builtin = crate::parser::function_registry::resolve_builtin_meta(name);
+
         let full_name = name.iter().map(|s| s.to_lowercase()).collect::<Vec<_>>().join(".");
         let last_seg = full_name.split('.').next_back().unwrap_or(&full_name).to_string();
-
-        let builtin = crate::parser::function_registry::lookup_builtin_meta_qualified(&full_name)
-            .or_else(|| crate::parser::function_registry::lookup_builtin_meta(&last_seg));
 
         let warnings = crate::parser::function_registry::validate_function_call(
             &last_seg,
