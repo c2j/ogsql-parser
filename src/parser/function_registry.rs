@@ -1593,6 +1593,14 @@ pub fn lookup_builtin_meta_qualified(full_name: &str) -> Option<crate::ast::Buil
     })
 }
 
+/// Resolve built-in function metadata from a [`ObjectName`], handling both
+/// plain (`abs`) and dotted package names (`dbe_output.put_line`).
+pub fn resolve_builtin_meta(name: &crate::ast::ObjectName) -> Option<crate::ast::BuiltinFuncMeta> {
+    let full = name.iter().map(|s| s.to_lowercase()).collect::<Vec<_>>().join(".");
+    let last = full.split('.').next_back().unwrap_or(&full).to_string();
+    lookup_builtin_meta_qualified(&full).or_else(|| lookup_builtin_meta(&last))
+}
+
 /// Validate a function call and return a list of warnings (if any).
 pub fn validate_function_call(
     name: &str,
@@ -3133,5 +3141,32 @@ mod tests {
         let reg = FunctionRegistry::new().with_extensions_from_json(json).unwrap();
         let meta = reg.lookup("dbe_test_default").unwrap();
         assert_eq!(meta.distribution, Distribution::BOTH);
+    }
+
+    #[test]
+    fn test_resolve_builtin_meta_plain_function() {
+        let name: crate::ast::ObjectName = vec!["abs".into()];
+        let meta = super::resolve_builtin_meta(&name).unwrap();
+        assert_eq!(meta.domain, "Math");
+    }
+
+    #[test]
+    fn test_resolve_builtin_meta_dotted_package_function() {
+        let name: crate::ast::ObjectName = vec!["dbe_output".into(), "put_line".into()];
+        let meta = super::resolve_builtin_meta(&name).unwrap();
+        assert_eq!(meta.domain, "DbeOutput");
+    }
+
+    #[test]
+    fn test_resolve_builtin_meta_unknown_returns_none() {
+        let name: crate::ast::ObjectName = vec!["definitely_not_a_real_func_xyz".into()];
+        assert!(super::resolve_builtin_meta(&name).is_none());
+    }
+
+    #[test]
+    fn test_resolve_builtin_meta_schema_qualified_fallback() {
+        let name: crate::ast::ObjectName = vec!["myschema".into(), "abs".into()];
+        let meta = super::resolve_builtin_meta(&name).unwrap();
+        assert_eq!(meta.domain, "Math");
     }
 }
