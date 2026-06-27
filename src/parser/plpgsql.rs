@@ -1267,8 +1267,9 @@ impl Parser {
 
         arguments.retain(|a| !matches!(a, Expr::Default));
 
+        let builtin = crate::parser::function_registry::resolve_builtin_meta(&name);
         Some(PlStatement::ProcedureCall(Spanned::new(
-            PlProcedureCall { name, arguments },
+            PlProcedureCall { name, arguments, builtin },
             Some(SourceSpan { start, end: self.prev_location() }),
         )))
     }
@@ -1302,8 +1303,10 @@ impl Parser {
 
         arguments.retain(|a| !matches!(a, Expr::Default));
 
+        let name: crate::ast::ObjectName = vec![name_str.into()];
+        let builtin = crate::parser::function_registry::resolve_builtin_meta(&name);
         Some(PlStatement::ProcedureCall(Spanned::new(
-            PlProcedureCall { name: vec![name_str.into()], arguments },
+            PlProcedureCall { name, arguments, builtin },
             Some(SourceSpan { start, end: self.prev_location() }),
         )))
     }
@@ -2154,8 +2157,9 @@ impl Parser {
 
         self.try_consume_semicolon();
 
+        let builtin = crate::parser::function_registry::resolve_builtin_meta(&name);
         Ok(PlStatement::ProcedureCall(Spanned::new(
-            PlProcedureCall { name, arguments },
+            PlProcedureCall { name, arguments, builtin },
             Some(SourceSpan { start, end: self.prev_location() }),
         )))
     }

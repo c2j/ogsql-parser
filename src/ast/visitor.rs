@@ -1486,6 +1486,7 @@ mod visitor_tests {
                     Expr::Literal(crate::ast::Literal::Integer(1)),
                     Expr::Literal(crate::ast::Literal::Integer(2)),
                 ],
+                builtin: None,
             },
             None,
         ));

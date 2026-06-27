@@ -225,6 +225,8 @@ pub enum PlStatement {
 pub struct PlProcedureCall {
     pub name: crate::ast::ObjectName,
     pub arguments: Vec<crate::ast::Expr>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub builtin: Option<crate::ast::BuiltinFuncMeta>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

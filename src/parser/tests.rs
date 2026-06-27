@@ -14320,3 +14320,32 @@ fn test_subscript_single_index_still_works() {
     let output = formatter.format_statement(&stmts[0]);
     assert!(output.contains("[1]"), "formatted SQL should contain [1]: {}", output);
 }
+
+#[test]
+fn test_pl_procedure_call_populates_builtin_for_dbe_output() {
+    let block = parse_do_block("DO $$ BEGIN dbe_output.put_line('hello'); END $$");
+    let proc_call = block
+        .body
+        .iter()
+        .find_map(|s| match s {
+            PlStatement::ProcedureCall(spanned) => Some(&spanned.node),
+            _ => None,
+        })
+        .expect("should have a ProcedureCall");
+    let builtin = proc_call.builtin.as_ref().expect("builtin should be populated for dbe_output.put_line");
+    assert_eq!(builtin.domain, "DbeOutput");
+}
+
+#[test]
+fn test_pl_procedure_call_builtin_none_for_unknown_procedure() {
+    let block = parse_do_block("DO $$ BEGIN my_unknown_proc(); END $$");
+    let proc_call = block
+        .body
+        .iter()
+        .find_map(|s| match s {
+            PlStatement::ProcedureCall(spanned) => Some(&spanned.node),
+            _ => None,
+        })
+        .expect("should have a ProcedureCall");
+    assert!(proc_call.builtin.is_none(), "unknown procedure should have builtin == None");
+}

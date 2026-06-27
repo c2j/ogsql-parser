@@ -242,13 +242,14 @@ mod visitor_tests {
 
     #[test]
     fn test_walk_pl_statement_procedure_call() {
-        let proc_call = PlStatement::ProcedureCall(PlProcedureCall {
-            name: vec!["schema".to_string(), "proc".to_string()],
-            arguments: vec![
-                Expr::Literal(crate::ast::Literal::Integer(1)),
-                Expr::Literal(crate::ast::Literal::Integer(2)),
-            ],
-        });
+    let proc_call = PlStatement::ProcedureCall(PlProcedureCall {
+        name: vec!["schema".to_string(), "proc".to_string()],
+        arguments: vec![
+            Expr::Literal(crate::ast::Literal::Integer(1)),
+            Expr::Literal(crate::ast::Literal::Integer(2)),
+        ],
+        builtin: None,
+    });
 
         let mut visitor = TestVisitor::default();
         walk_pl_statement(&mut visitor, &proc_call);
