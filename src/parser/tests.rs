@@ -14349,3 +14349,37 @@ fn test_pl_procedure_call_builtin_none_for_unknown_procedure() {
         .expect("should have a ProcedureCall");
     assert!(proc_call.builtin.is_none(), "unknown procedure should have builtin == None");
 }
+
+#[test]
+fn test_call_statement_populates_builtin_for_known_function() {
+    let stmt = parse_one("CALL abs(-1)");
+    match stmt {
+        Statement::Call(call) => {
+            let builtin = call.node.builtin.as_ref().expect("builtin should be populated for CALL abs(...)");
+            assert_eq!(builtin.domain, "Math");
+        }
+        other => panic!("expected Statement::Call, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_call_statement_builtin_none_for_unknown_procedure() {
+    let stmt = parse_one("CALL my_unknown_proc(42)");
+    match stmt {
+        Statement::Call(call) => {
+            assert!(call.node.builtin.is_none(), "unknown procedure CALL should have builtin == None");
+        }
+        other => panic!("expected Statement::Call, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_call_statement_empty_args_does_not_panic() {
+    let stmt = parse_one("CALL pg_sleep()");
+    match stmt {
+        Statement::Call(call) => {
+            let _ = &call.node.builtin;
+        }
+        other => panic!("expected Statement::Call, got {:?}", other),
+    }
+}

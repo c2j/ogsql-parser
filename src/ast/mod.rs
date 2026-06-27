@@ -1785,6 +1785,8 @@ pub enum CallArg {
 pub struct CallFuncStatement {
     pub func_name: ObjectName,
     pub args: Vec<CallArg>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub builtin: Option<BuiltinFuncMeta>,
 }
 
 macro_rules! stub_struct {

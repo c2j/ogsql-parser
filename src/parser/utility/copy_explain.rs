@@ -507,11 +507,12 @@ impl Parser {
 
     pub(crate) fn parse_call(&mut self) -> Result<CallFuncStatement, ParserError> {
         let func_name = self.parse_object_name()?;
+        let builtin = crate::parser::function_registry::resolve_builtin_meta(&func_name);
         self.expect_token(&Token::LParen)?;
 
         if self.match_token(&Token::RParen) {
             self.advance();
-            return Ok(CallFuncStatement { func_name, args: vec![] });
+            return Ok(CallFuncStatement { func_name, args: vec![], builtin });
         }
 
         let mut args = Vec::new();
@@ -551,7 +552,7 @@ impl Parser {
                 break;
             }
         }
-        Ok(CallFuncStatement { func_name, args })
+        Ok(CallFuncStatement { func_name, args, builtin })
     }
 
     fn is_call_named_arg(&self) -> bool {
