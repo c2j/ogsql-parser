@@ -2,6 +2,8 @@
 ///
 /// Provides metadata lookup (`lookup_function`) and validation (`validate_function_call`)
 /// for built-in functions. Core layer is compile-time constant; extension layer TBD.
+use std::sync::OnceLock;
+
 use crate::parser::ParserError;
 use crate::token::SourceLocation;
 
@@ -1514,7 +1516,30 @@ pub fn lookup_builtin_meta(name: &str) -> Option<crate::ast::BuiltinFuncMeta> {
     })
 }
 
-/// Two-phase lookup: exact full-qualified name, then fallback to last segment.
+/// System schemas where built-in functions actually reside (always trusted
+/// for last-segment fallback). Derived from openGauss system catalog layout.
+const SYSTEM_SCHEMAS: &[&str] = &["pg_catalog", "sys"];
+
+static SYSTEM_PREFIXES: OnceLock<Vec<&'static str>> = OnceLock::new();
+
+fn system_prefixes() -> &'static [&'static str] {
+    SYSTEM_PREFIXES.get_or_init(|| {
+        let mut v: Vec<&'static str> =
+            FUNCTIONS.iter().filter_map(|m| m.name.split_once('.').map(|(p, _)| p)).collect();
+        v.extend_from_slice(SYSTEM_SCHEMAS);
+        v.sort_unstable();
+        v.dedup();
+        v
+    })
+}
+
+fn is_known_system_prefix(prefix: &str) -> bool {
+    system_prefixes().binary_search(&prefix).is_ok()
+}
+
+/// Two-phase lookup: exact full-qualified name, then fallback to last segment
+/// only if the first segment is a known system package/schema (e.g. `pg_catalog`,
+/// `dbe_output`, `dbms_lob`). User-defined schemas never trigger the fallback.
 pub fn lookup_function_qualified(full_name: &str) -> Option<&'static FuncMeta> {
     let lower = full_name.to_ascii_lowercase();
     let idx = FUNCTIONS.partition_point(|m| m.name < lower.as_str());
@@ -1523,6 +1548,10 @@ pub fn lookup_function_qualified(full_name: &str) -> Option<&'static FuncMeta> {
     }
     let last_seg = lower.split('.').next_back().unwrap_or(&lower);
     if last_seg.len() == lower.len() {
+        return None;
+    }
+    let first_seg = lower.split('.').next().unwrap_or(&lower);
+    if !is_known_system_prefix(first_seg) {
         return None;
     }
     let idx2 = FUNCTIONS.partition_point(|m| m.name < last_seg);
@@ -1597,8 +1626,7 @@ pub fn lookup_builtin_meta_qualified(full_name: &str) -> Option<crate::ast::Buil
 /// plain (`abs`) and dotted package names (`dbe_output.put_line`).
 pub fn resolve_builtin_meta(name: &crate::ast::ObjectName) -> Option<crate::ast::BuiltinFuncMeta> {
     let full = name.iter().map(|s| s.to_lowercase()).collect::<Vec<_>>().join(".");
-    let last = full.split('.').next_back().unwrap_or(&full).to_string();
-    lookup_builtin_meta_qualified(&full).or_else(|| lookup_builtin_meta(&last))
+    lookup_builtin_meta_qualified(&full)
 }
 
 /// Validate a function call and return a list of warnings (if any).
@@ -2489,7 +2517,7 @@ mod tests {
 
     #[test]
     fn test_qualified_lookup_fallback_to_last_segment() {
-        let meta = super::lookup_function_qualified("some_schema.upper");
+        let meta = super::lookup_function_qualified("pg_catalog.upper");
         assert!(meta.is_some());
         let m = meta.unwrap();
         assert_eq!(m.domain, FuncDomain::String);
@@ -3165,8 +3193,63 @@ mod tests {
 
     #[test]
     fn test_resolve_builtin_meta_schema_qualified_fallback() {
-        let name: crate::ast::ObjectName = vec!["myschema".into(), "abs".into()];
+        let name: crate::ast::ObjectName = vec!["pg_catalog".into(), "abs".into()];
         let meta = super::resolve_builtin_meta(&name).unwrap();
         assert_eq!(meta.domain, "Math");
+    }
+
+    // ── Issue #258: user packages must not be misidentified as builtin ──
+
+    #[test]
+    fn test_issue_258_pack_log_log_not_builtin() {
+        assert!(super::lookup_function_qualified("pack_log.log").is_none());
+        let name: crate::ast::ObjectName = vec!["pack_log".into(), "log".into()];
+        assert!(super::resolve_builtin_meta(&name).is_none());
+    }
+
+    #[test]
+    fn test_issue_258_bigfund_pack_log_count_not_builtin() {
+        assert!(super::lookup_function_qualified("bigfund.pack_log.count").is_none());
+        let name: crate::ast::ObjectName = vec!["bigfund".into(), "pack_log".into(), "count".into()];
+        assert!(super::resolve_builtin_meta(&name).is_none());
+    }
+
+    #[test]
+    fn test_issue_258_pckg_ctp_lg_public_log_not_builtin() {
+        assert!(super::lookup_function_qualified("pckg_ctp_lg_public.log").is_none());
+    }
+
+    #[test]
+    fn test_issue_258_my_utils_substr_not_builtin() {
+        assert!(super::lookup_function_qualified("my_utils.substr").is_none());
+        let name: crate::ast::ObjectName = vec!["my_utils".into(), "substr".into()];
+        assert!(super::resolve_builtin_meta(&name).is_none());
+    }
+
+    #[test]
+    fn test_issue_258_user_schema_upper_not_builtin() {
+        assert!(super::lookup_function_qualified("some_schema.upper").is_none());
+        assert!(super::lookup_function_qualified("myschema.abs").is_none());
+    }
+
+    #[test]
+    fn test_issue_258_system_prefix_still_resolves() {
+        let meta = super::lookup_function_qualified("pg_catalog.upper");
+        assert!(meta.is_some());
+        assert_eq!(meta.unwrap().domain, FuncDomain::String);
+
+        let meta = super::lookup_function_qualified("sys.abs");
+        assert!(meta.is_some());
+        assert_eq!(meta.unwrap().domain, FuncDomain::Math);
+    }
+
+    #[test]
+    fn test_issue_258_oracle_compat_package_still_resolves() {
+        let meta = super::lookup_function_qualified("dbe_output.put_line");
+        assert!(meta.is_some());
+        assert_eq!(meta.unwrap().domain, FuncDomain::DbeOutput);
+
+        let meta = super::lookup_function_qualified("dbms_output.put_line");
+        assert!(meta.is_some());
     }
 }
