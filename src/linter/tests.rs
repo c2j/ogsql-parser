@@ -1162,6 +1162,15 @@ fn r006_greatest_on_column_not_triggered() {
     assert!(!has_rule(&w, "R006"), "GREATEST is a safe function, should not trigger R006");
 }
 
+#[test]
+fn r006_substr_on_column_now_detected() {
+    // Comma-syntax substr became FunctionCall (#256), so R006 now detects it
+    // (previously invisible because substr produced SpecialFunction).
+    let stmts = parse("SELECT * FROM t WHERE substr(name, 1, 5) = 'abc'");
+    let w = lint(&stmts);
+    assert!(has_rule(&w, "R006"), "substr(col, ...) should trigger R006 after AST change");
+}
+
 // ── R008: Downgraded to Caution level ──
 
 #[test]
