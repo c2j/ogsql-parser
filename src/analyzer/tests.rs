@@ -889,18 +889,6 @@ fn test_merge_on_column_updated() {
 }
 
 #[test]
-fn test_merge_dual_table_not_supported() {
-    let sql = "MERGE INTO employees tgt USING (SELECT 1070 AS emp_id, 'MergeNew' AS name FROM DUAL) src ON (tgt.emp_id = src.emp_id) WHEN NOT MATCHED THEN INSERT (emp_id, emp_name) VALUES (src.emp_id, src.name)";
-    let infos = parse_merge_stmts(sql);
-    let errors = super::validate_merge_semantics(&infos);
-    assert!(
-        errors.iter().any(|e| e.kind == super::MergeSemanticErrorKind::DualTableNotSupported),
-        "Expected DualTableNotSupported error, got: {:?}",
-        errors
-    );
-}
-
-#[test]
 fn test_merge_valid_no_errors() {
     let sql = "MERGE INTO products p USING newproducts np ON (p.product_id = np.product_id) WHEN MATCHED THEN UPDATE SET p.product_name = np.product_name WHEN NOT MATCHED THEN INSERT VALUES (np.product_id, np.product_name)";
     let infos = parse_merge_stmts(sql);
@@ -920,16 +908,316 @@ fn test_merge_on_column_updated_unqualified() {
     );
 }
 
+// ── DUAL Table Regression Tests ──
+// GaussDB commercial version supports DUAL (mapped to SYS_DUMMY).
+// MERGE with DUAL in the USING clause is valid and should not produce errors.
+
+/// Helper: parse SQL, build StatementInfo, run validate_merge_semantics,
+/// return the vector of errors. Used by all DUAL regression tests to reduce boilerplate.
+fn validate_merge_dual(sql: &str) -> Vec<super::MergeSemanticError> {
+    let tokens = crate::Tokenizer::new(sql).tokenize().unwrap();
+    let stmts = Parser::new(tokens).parse();
+    let infos: Vec<crate::ast::StatementInfo> = stmts
+        .iter()
+        .map(|s| crate::ast::StatementInfo {
+            sql_text: sql.to_string(),
+            start_line: 1,
+            start_col: 1,
+            end_line: 1,
+            end_col: sql.len(),
+            statement: s.clone(),
+        })
+        .collect();
+    super::validate_merge_semantics(&infos)
+}
+
+/// Assert that no merge errors are present at all (DUAL is now fully supported).
+fn assert_merge_valid(errors: &[super::MergeSemanticError], context: &str) {
+    assert!(errors.is_empty(), "{}: expected no merge errors, got {}: {:?}", context, errors.len(), errors);
+}
+
+// ── A. Direct DUAL references in MERGE USING clause ──
+
 #[test]
-fn test_merge_dual_case_insensitive() {
-    let sql = "MERGE INTO t1 tgt USING (SELECT 1 AS id FROM dual) src ON (tgt.id = src.id) WHEN NOT MATCHED THEN INSERT (id) VALUES (src.id)";
-    let infos = parse_merge_stmts(sql);
-    let errors = super::validate_merge_semantics(&infos);
-    assert!(
-        errors.iter().any(|e| e.kind == super::MergeSemanticErrorKind::DualTableNotSupported),
-        "Expected DualTableNotSupported for lowercase 'dual', got: {:?}",
-        errors
-    );
+fn test_merge_dual_direct_table() {
+    let sql = "MERGE INTO t tgt USING DUAL src ON (tgt.id = src.dummy) WHEN NOT MATCHED THEN INSERT (id) VALUES (src.dummy)";
+    let errors = validate_merge_dual(sql);
+    assert_merge_valid(&errors, "direct DUAL table in USING");
+}
+
+#[test]
+fn test_merge_dual_direct_table_with_alias() {
+    let sql = "MERGE INTO t tgt USING DUAL d ON (tgt.id = 1) WHEN NOT MATCHED THEN INSERT VALUES (1)";
+    let errors = validate_merge_dual(sql);
+    assert_merge_valid(&errors, "DUAL with alias in USING");
+}
+
+#[test]
+fn test_merge_dual_in_subquery() {
+    let sql = "MERGE INTO employees tgt USING (SELECT 1070 AS emp_id, 'MergeNew' AS name FROM DUAL) src ON (tgt.emp_id = src.emp_id) WHEN NOT MATCHED THEN INSERT (emp_id, emp_name) VALUES (src.emp_id, src.name)";
+    let errors = validate_merge_dual(sql);
+    assert_merge_valid(&errors, "DUAL in subquery in USING");
+}
+
+#[test]
+fn test_merge_dual_subquery_multiple_columns() {
+    let sql = "MERGE INTO t tgt USING (SELECT 1 AS a, 2 AS b, 3 AS c FROM DUAL) src ON (tgt.id = src.a) WHEN NOT MATCHED THEN INSERT (a, b, c) VALUES (src.a, src.b, src.c)";
+    let errors = validate_merge_dual(sql);
+    assert_merge_valid(&errors, "DUAL in multi-column subquery");
+}
+
+// ── B. DUAL in JOIN, nested subqueries, PIVOT/UNPIVOT contexts ──
+
+#[test]
+fn test_merge_dual_in_join_left() {
+    let sql = "MERGE INTO t tgt USING DUAL d JOIN other o ON d.dummy = o.id ON (tgt.id = o.id) WHEN NOT MATCHED THEN INSERT VALUES (o.id)";
+    let errors = validate_merge_dual(sql);
+    assert_merge_valid(&errors, "DUAL as left side of JOIN");
+}
+
+#[test]
+fn test_merge_dual_in_join_right() {
+    let sql = "MERGE INTO t tgt USING other o JOIN DUAL d ON o.id = d.dummy ON (tgt.id = o.id) WHEN NOT MATCHED THEN INSERT VALUES (o.id)";
+    let errors = validate_merge_dual(sql);
+    assert_merge_valid(&errors, "DUAL as right side of JOIN");
+}
+
+#[test]
+fn test_merge_dual_nested_subquery() {
+    let sql = "MERGE INTO t tgt USING (SELECT * FROM (SELECT 1 AS id FROM DUAL) inner_q) src ON (tgt.id = src.id) WHEN NOT MATCHED THEN INSERT VALUES (src.id)";
+    let errors = validate_merge_dual(sql);
+    assert_merge_valid(&errors, "DUAL in nested subquery (2 levels deep)");
+}
+
+#[test]
+fn test_merge_dual_deeply_nested_subquery() {
+    let sql = "MERGE INTO t tgt USING (SELECT * FROM (SELECT * FROM (SELECT 1 AS id FROM dual) l2) l1) src ON (tgt.id = src.id) WHEN NOT MATCHED THEN INSERT VALUES (src.id)";
+    let errors = validate_merge_dual(sql);
+    assert_merge_valid(&errors, "DUAL in deeply nested subquery (3 levels)");
+}
+
+#[test]
+fn test_merge_dual_in_pivot_source() {
+    let sql = "MERGE INTO t tgt USING (SELECT * FROM DUAL PIVOT (MAX(dummy) FOR dummy IN ('x' AS x))) src ON (tgt.id = 1) WHEN NOT MATCHED THEN INSERT VALUES (1)";
+    let errors = validate_merge_dual(sql);
+    assert_merge_valid(&errors, "DUAL as PIVOT source");
+}
+
+#[test]
+fn test_merge_dual_in_unpivot_source() {
+    let sql = "MERGE INTO t tgt USING (SELECT * FROM DUAL UNPIVOT (val FOR col IN (a, b))) src ON (tgt.id = 1) WHEN NOT MATCHED THEN INSERT VALUES (1)";
+    let errors = validate_merge_dual(sql);
+    assert_merge_valid(&errors, "DUAL as UNPIVOT source");
+}
+
+// ── C. DUAL case variations ──
+
+#[test]
+fn test_merge_dual_lowercase() {
+    let sql = "MERGE INTO t tgt USING (SELECT 1 AS id FROM dual) src ON (tgt.id = src.id) WHEN NOT MATCHED THEN INSERT (id) VALUES (src.id)";
+    let errors = validate_merge_dual(sql);
+    assert_merge_valid(&errors, "lowercase 'dual'");
+}
+
+#[test]
+fn test_merge_dual_mixed_case() {
+    let sql = "MERGE INTO t tgt USING (SELECT 1 AS id FROM Dual) src ON (tgt.id = src.id) WHEN NOT MATCHED THEN INSERT VALUES (src.id)";
+    let errors = validate_merge_dual(sql);
+    assert_merge_valid(&errors, "mixed-case 'Dual'");
+}
+
+#[test]
+fn test_merge_dual_all_caps() {
+    let sql = "MERGE INTO t tgt USING (SELECT 1 AS id FROM DUAL) src ON (tgt.id = src.id) WHEN NOT MATCHED THEN INSERT VALUES (src.id)";
+    let errors = validate_merge_dual(sql);
+    assert_merge_valid(&errors, "uppercase 'DUAL'");
+}
+
+#[test]
+fn test_merge_dual_random_case() {
+    let sql = "MERGE INTO t tgt USING (SELECT 1 AS id FROM dUaL) src ON (tgt.id = src.id) WHEN NOT MATCHED THEN INSERT VALUES (src.id)";
+    let errors = validate_merge_dual(sql);
+    assert_merge_valid(&errors, "random-case 'dUaL'");
+}
+
+#[test]
+fn test_merge_dual_schema_qualified() {
+    // GaussDB commercial maps DUAL to SYS_DUMMY, but references to SYS.DUAL may also appear.
+    // `name.last()` returns "dual", so it should match.
+    let sql = "MERGE INTO t tgt USING SYS.DUAL ON (tgt.id = 1) WHEN NOT MATCHED THEN INSERT VALUES (1)";
+    let errors = validate_merge_dual(sql);
+    assert_merge_valid(&errors, "schema-qualified SYS.DUAL");
+}
+
+// ── D. DUAL inside PL/pgSQL blocks ──
+
+#[test]
+fn test_merge_dual_inside_procedure() {
+    let sql = "CREATE OR REPLACE PROCEDURE test_merge_dual IS BEGIN MERGE INTO t tgt USING (SELECT 1 AS id FROM DUAL) src ON (tgt.id = src.id) WHEN NOT MATCHED THEN INSERT VALUES (src.id); END;";
+    let errors = validate_merge_dual(sql);
+    assert_merge_valid(&errors, "DUAL in MERGE inside CREATE PROCEDURE");
+}
+
+#[test]
+fn test_merge_dual_inside_function() {
+    let sql = "CREATE OR REPLACE FUNCTION test_merge_dual_func() RETURNS VOID AS $$ BEGIN MERGE INTO t tgt USING (SELECT 1 AS id FROM DUAL) src ON (tgt.id = src.id) WHEN NOT MATCHED THEN INSERT VALUES (src.id); END; $$ LANGUAGE plpgsql";
+    let errors = validate_merge_dual(sql);
+    assert_merge_valid(&errors, "DUAL in MERGE inside CREATE FUNCTION");
+}
+
+#[test]
+fn test_merge_dual_inside_do_block() {
+    let sql = "DO $$ BEGIN MERGE INTO t tgt USING (SELECT 1 AS id FROM DUAL) src ON (tgt.id = src.id) WHEN NOT MATCHED THEN INSERT VALUES (src.id); END $$";
+    let errors = validate_merge_dual(sql);
+    assert_merge_valid(&errors, "DUAL in MERGE inside DO block");
+}
+
+#[test]
+fn test_merge_dual_inside_anonymous_block() {
+    let sql = "BEGIN MERGE INTO t tgt USING (SELECT 1 AS id FROM DUAL) src ON (tgt.id = src.id) WHEN NOT MATCHED THEN INSERT VALUES (src.id); END;";
+    let errors = validate_merge_dual(sql);
+    assert_merge_valid(&errors, "DUAL in MERGE inside anonymous block");
+}
+
+#[test]
+fn test_merge_dual_inside_package_body() {
+    let sql = "CREATE OR REPLACE PACKAGE BODY pkg_test AS PROCEDURE do_merge IS BEGIN MERGE INTO t tgt USING (SELECT 1 AS id FROM DUAL) src ON (tgt.id = src.id) WHEN NOT MATCHED THEN INSERT VALUES (src.id); END do_merge; END pkg_test;";
+    let errors = validate_merge_dual(sql);
+    assert_merge_valid(&errors, "DUAL in MERGE inside PACKAGE BODY");
+}
+
+#[test]
+fn test_merge_dual_inside_if_block() {
+    let sql = "DO $$ BEGIN IF TRUE THEN MERGE INTO t tgt USING (SELECT 1 AS id FROM DUAL) src ON (tgt.id = src.id) WHEN NOT MATCHED THEN INSERT VALUES (src.id); END IF; END $$";
+    let errors = validate_merge_dual(sql);
+    assert_merge_valid(&errors, "DUAL in MERGE inside IF block");
+}
+
+#[test]
+fn test_merge_dual_inside_loop() {
+    let sql = "DO $$ BEGIN LOOP MERGE INTO t tgt USING (SELECT 1 AS id FROM DUAL) src ON (tgt.id = src.id) WHEN NOT MATCHED THEN INSERT VALUES (src.id); EXIT; END LOOP; END $$";
+    let errors = validate_merge_dual(sql);
+    assert_merge_valid(&errors, "DUAL in MERGE inside LOOP");
+}
+
+#[test]
+fn test_merge_dual_inside_while_loop() {
+    let sql = "CREATE OR REPLACE PROCEDURE test_while IS v_cnt INTEGER := 0; BEGIN WHILE v_cnt < 5 LOOP MERGE INTO t tgt USING (SELECT v_cnt AS id FROM DUAL) src ON (tgt.id = src.id) WHEN NOT MATCHED THEN INSERT VALUES (src.id); v_cnt := v_cnt + 1; END LOOP; END;";
+    let errors = validate_merge_dual(sql);
+    assert_merge_valid(&errors, "DUAL in MERGE inside WHILE loop");
+}
+
+#[test]
+fn test_merge_dual_inside_for_loop() {
+    let sql = "DO $$ DECLARE rec RECORD; BEGIN FOR rec IN SELECT 1 AS id FROM generate_series(1, 3) LOOP MERGE INTO t tgt USING (SELECT rec.id AS id FROM DUAL) src ON (tgt.id = src.id) WHEN NOT MATCHED THEN INSERT VALUES (src.id); END LOOP; END $$";
+    let errors = validate_merge_dual(sql);
+    assert_merge_valid(&errors, "DUAL in MERGE inside FOR loop");
+}
+
+#[test]
+fn test_merge_dual_inside_case_when() {
+    let sql = "DO $$ BEGIN CASE WHEN TRUE THEN MERGE INTO t tgt USING (SELECT 1 AS id FROM DUAL) src ON (tgt.id = src.id) WHEN NOT MATCHED THEN INSERT VALUES (src.id); END CASE; END $$";
+    let errors = validate_merge_dual(sql);
+    assert_merge_valid(&errors, "DUAL in MERGE inside CASE WHEN");
+}
+
+#[test]
+fn test_merge_dual_inside_exception_handler() {
+    let sql = "DO $$ BEGIN MERGE INTO t tgt USING (SELECT 1 AS id FROM DUAL) src ON (tgt.id = src.id) WHEN NOT MATCHED THEN INSERT VALUES (src.id); EXCEPTION WHEN OTHERS THEN MERGE INTO t tgt USING (SELECT 2 AS id FROM DUAL) src ON (tgt.id = src.id) WHEN NOT MATCHED THEN INSERT VALUES (src.id); END $$";
+    let errors = validate_merge_dual(sql);
+    assert_merge_valid(&errors, "DUAL in MERGE inside exception handler");
+}
+
+// ── E. DUAL combined with other MERGE errors — only non-DUAL errors remain ──
+
+#[test]
+fn test_merge_dual_with_delete() {
+    // DUAL is now allowed; only DeleteNotSupported should fire
+    let sql = "MERGE INTO t tgt USING (SELECT 1 AS id FROM DUAL) src ON (tgt.id = src.id) WHEN MATCHED THEN DELETE";
+    let errors = validate_merge_dual(sql);
+    assert_eq!(errors.len(), 1, "Expected only DeleteNotSupported (DUAL is now valid), got {}: {:?}", errors.len(), errors);
+    assert_eq!(errors[0].kind, super::MergeSemanticErrorKind::DeleteNotSupported);
+}
+
+#[test]
+fn test_merge_dual_with_on_column_updated() {
+    // DUAL is now allowed; only OnColumnUpdated should fire
+    let sql = "MERGE INTO t tgt USING (SELECT 1 AS id FROM DUAL) src ON (tgt.id = src.id AND tgt.name = 'test') WHEN MATCHED THEN UPDATE SET id = src.id, name = 'updated'";
+    let errors = validate_merge_dual(sql);
+    assert_eq!(errors.len(), 1, "Expected only OnColumnUpdated (DUAL is now valid), got {}: {:?}", errors.len(), errors);
+    assert_eq!(errors[0].kind, super::MergeSemanticErrorKind::OnColumnUpdated);
+}
+
+#[test]
+fn test_merge_dual_with_update_on_column_on_updated() {
+    // Same as above — only OnColumnUpdated, no DUAL error
+    let sql = "MERGE INTO t tgt USING (SELECT 1 AS id FROM DUAL) src ON (tgt.id = src.id AND tgt.name = 'test') WHEN MATCHED THEN UPDATE SET id = src.id, name = 'updated'";
+    let errors = validate_merge_dual(sql);
+    assert_eq!(errors.len(), 1, "Expected only OnColumnUpdated (DUAL is now valid), got {}: {:?}", errors.len(), errors);
+    assert_eq!(errors[0].kind, super::MergeSemanticErrorKind::OnColumnUpdated);
+}
+
+// ── F. Non-MERGE DUAL usage — should remain VALID (regression safety) ──
+
+#[test]
+fn test_select_from_dual_is_valid() {
+    // Standalone SELECT FROM DUAL should not trigger merge semantic validation at all
+    let sql = "SELECT 1 FROM DUAL";
+    let errors = validate_merge_dual(sql);
+    assert!(errors.is_empty(), "SELECT FROM DUAL should not produce any merge errors, got: {:?}", errors);
+}
+
+#[test]
+fn test_insert_select_from_dual_is_valid() {
+    let sql = "INSERT INTO t (id) SELECT 1 FROM DUAL";
+    let errors = validate_merge_dual(sql);
+    assert!(errors.is_empty(), "INSERT ... SELECT FROM DUAL should not produce merge errors, got: {:?}", errors);
+}
+
+#[test]
+fn test_update_using_select_from_dual_is_valid() {
+    let sql = "UPDATE t SET name = 'x' WHERE id IN (SELECT 1 FROM DUAL)";
+    let errors = validate_merge_dual(sql);
+    assert!(errors.is_empty(), "UPDATE with DUAL in subquery should not produce merge errors, got: {:?}", errors);
+}
+
+#[test]
+fn test_pl_block_select_into_from_dual_is_valid() {
+    let sql = "DO $$ DECLARE v_id INTEGER; BEGIN SELECT 1 INTO v_id FROM DUAL; END $$";
+    let errors = validate_merge_dual(sql);
+    assert!(errors.is_empty(), "PL block SELECT INTO FROM DUAL should not produce merge errors, got: {:?}", errors);
+}
+
+#[test]
+fn test_pl_block_for_loop_over_dual_is_valid() {
+    let sql = "DO $$ DECLARE rec RECORD; BEGIN FOR rec IN SELECT 1 AS id FROM DUAL LOOP NULL; END LOOP; END $$";
+    let errors = validate_merge_dual(sql);
+    assert!(errors.is_empty(), "FOR loop over DUAL should not produce merge errors, got: {:?}", errors);
+}
+
+#[test]
+fn test_insert_all_from_dual_is_valid() {
+    let sql = "INSERT ALL INTO t1 VALUES (1) INTO t2 VALUES (2) SELECT 1 FROM DUAL";
+    let errors = validate_merge_dual(sql);
+    assert!(errors.is_empty(), "INSERT ALL ... SELECT FROM DUAL should not produce merge errors, got: {:?}", errors);
+}
+
+// ── G. DUAL edge cases — table named "dual" but not the DUAL table ──
+
+#[test]
+fn test_merge_dual_not_triggered_by_column_alias_named_dual() {
+    // "AS dual" is a column alias, not a table reference — should NOT trigger
+    let sql = "MERGE INTO t tgt USING (SELECT 1 AS dual FROM other_table) src ON (tgt.id = src.dual) WHEN NOT MATCHED THEN INSERT VALUES (src.dual)";
+    let errors = validate_merge_dual(sql);
+    assert_merge_valid(&errors, "column alias named 'dual' should not trigger");
+}
+
+#[test]
+fn test_merge_dual_not_triggered_by_table_with_dual_in_name() {
+    // Table named "dual_data" should NOT match (only exact "dual")
+    let sql = "MERGE INTO t tgt USING dual_data src ON (tgt.id = src.id) WHEN NOT MATCHED THEN INSERT VALUES (src.id)";
+    let errors = validate_merge_dual(sql);
+    assert_merge_valid(&errors, "table named 'dual_data' should not trigger DUAL check");
 }
 
 #[test]

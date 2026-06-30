@@ -417,7 +417,6 @@ fn merge_error_detail(err: &crate::MergeSemanticError) -> String {
             crate::MergeSemanticErrorKind::OnColumnUpdated => {
                 "GaussDB does not allow updating columns referenced in the ON clause".to_string()
             }
-            crate::MergeSemanticErrorKind::DualTableNotSupported => "GaussDB does not have a DUAL table".to_string(),
         },
     }
 }

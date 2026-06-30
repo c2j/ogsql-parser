@@ -3682,9 +3682,6 @@ fn merge_error_detail(err: &ogsql_parser::MergeSemanticError) -> String {
             ogsql_parser::MergeSemanticErrorKind::OnColumnUpdated => {
                 "GaussDB does not allow updating columns referenced in the ON clause".to_string()
             }
-            ogsql_parser::MergeSemanticErrorKind::DualTableNotSupported => {
-                "GaussDB does not have a DUAL table".to_string()
-            }
         },
     }
 }

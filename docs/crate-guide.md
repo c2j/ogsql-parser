@@ -708,7 +708,6 @@ let warnings = linter.lint(&stmts, Some(&schema), Some(&index_info));
 |------|------|
 | `DeleteNotSupported` | GaussDB 不支持 `MERGE ... WHEN MATCHED THEN DELETE` |
 | `OnColumnUpdated` | GaussDB 不允许在 WHEN MATCHED 中更新 ON 子句引用的列 |
-| `DualTableNotSupported` | GaussDB 没有 `DUAL` 表 |
 
 ### 6.3 包一致性校验
 
