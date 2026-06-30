@@ -55,7 +55,7 @@ pub fn validate_pl_variables_from_stmts(
                 }
             }
             Statement::CreatePackageBody(body) => {
-                let body_name: String = body.name.iter().map(|s| s.to_lowercase()).collect::<Vec<_>>().join(".");
+                let body_key = crate::analyzer::last_name_lower(&body.name);
                 let mut pkg_vars: Vec<&str> = body
                     .items
                     .iter()
@@ -66,9 +66,8 @@ pub fn validate_pl_variables_from_stmts(
                     .collect();
                 for other_si in stmts {
                     if let Statement::CreatePackage(spec) = &other_si.statement {
-                        let spec_name: String =
-                            spec.name.iter().map(|s| s.to_lowercase()).collect::<Vec<_>>().join(".");
-                        if spec_name == body_name {
+                        let spec_key = crate::analyzer::last_name_lower(&spec.name);
+                        if spec_key == body_key {
                             for item in &spec.items {
                                 if let crate::ast::PackageItem::Variable(v) = item {
                                     pkg_vars.push(v.name.as_str());
@@ -320,6 +319,65 @@ mod tests {
         let stmts = parse_stmts(sql);
         let report = validate_statements(&stmts, &["known_func".to_string()], true);
         assert!(report.undefined_variable_errors.is_empty(), "known_func in extra_funcs should suppress error");
+    }
+
+    #[test]
+    fn package_schema_mismatch_emits_warning() {
+        let sql = "CREATE OR REPLACE PACKAGE pkg_a AS v_flag NUMBER; PROCEDURE prc_test; END pkg_a;\n\
+                   CREATE OR REPLACE PACKAGE BODY myschema.pkg_a AS \
+                   PROCEDURE prc_test IS BEGIN v_flag := 1; END prc_test; END pkg_a;";
+        let stmts = parse_stmts(sql);
+        let report = validate_statements(&stmts, &[], false);
+        assert!(
+            report
+                .package_errors
+                .iter()
+                .any(|e| matches!(e.kind, crate::PackageConsistencyErrorKind::SchemaMismatch { .. })),
+            "should emit SchemaMismatch when spec and body have different schema qualification"
+        );
+    }
+
+    #[test]
+    fn package_schema_mismatch_still_resolves_variables() {
+        let sql = "CREATE OR REPLACE PACKAGE pkg_b AS v_flag NUMBER; PROCEDURE prc_test; END pkg_b;\n\
+                   CREATE OR REPLACE PACKAGE BODY myschema.pkg_b AS \
+                   PROCEDURE prc_test IS BEGIN v_flag := 1; END prc_test; END pkg_b;";
+        let stmts = parse_stmts(sql);
+        let report = validate_statements(&stmts, &[], false);
+        assert!(
+            report.undefined_variable_errors.is_empty(),
+            "should NOT report undefined variable when spec/body schemas differ but package name matches"
+        );
+    }
+
+    #[test]
+    fn package_schema_mismatch_reversed_still_resolves_variables() {
+        let sql = "CREATE OR REPLACE PACKAGE myschema.pkg_c AS v_flag NUMBER; PROCEDURE prc_test; END pkg_c;\n\
+                   CREATE OR REPLACE PACKAGE BODY pkg_c AS \
+                   PROCEDURE prc_test IS BEGIN v_flag := 1; END prc_test; END pkg_c;";
+        let stmts = parse_stmts(sql);
+        let report = validate_statements(&stmts, &[], false);
+        assert!(
+            report.undefined_variable_errors.is_empty(),
+            "should NOT report undefined variable when spec has schema but body doesn't"
+        );
+    }
+
+    #[test]
+    fn package_same_schema_no_warning() {
+        let sql = "CREATE OR REPLACE PACKAGE myschema.pkg_d AS v_flag NUMBER; PROCEDURE prc_test; END pkg_d;\n\
+                   CREATE OR REPLACE PACKAGE BODY myschema.pkg_d AS \
+                   PROCEDURE prc_test IS BEGIN v_flag := 1; END prc_test; END pkg_d;";
+        let stmts = parse_stmts(sql);
+        let report = validate_statements(&stmts, &[], false);
+        assert!(
+            !report
+                .package_errors
+                .iter()
+                .any(|e| matches!(e.kind, crate::PackageConsistencyErrorKind::SchemaMismatch { .. })),
+            "should NOT emit SchemaMismatch when spec and body have same schema"
+        );
+        assert!(report.undefined_variable_errors.is_empty(), "should NOT report undefined variable");
     }
 
     /// Helper: parse SQL text into Vec<StatementInfo>.
