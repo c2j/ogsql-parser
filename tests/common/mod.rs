@@ -253,6 +253,7 @@ macro_rules! fixture_tests {
                         $crate::common::assert_snapshot_fixture(f, command, &label);
                     }
                 }
+                eprintln!("  \u{2713} {label}");
             }
             eprintln!("  [fixture_tests] {}: {} fixture(s) passed", $module, fixtures.len());
         }
