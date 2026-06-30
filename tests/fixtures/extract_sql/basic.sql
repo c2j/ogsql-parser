@@ -1,6 +1,7 @@
 -- Issue: N/A
 -- Description: Basic extract-sql scenarios: procedures with SELECT/INSERT/UPDATE/DELETE, variable replacement, INTO clauses
--- Expect: parse success
+-- Expect: snapshot
+-- Command: parse --extract-sql
 
 -- ============================================
 -- 1. Simple SELECT in procedure

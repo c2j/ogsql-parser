@@ -1,6 +1,7 @@
 -- Issue: N/A
 -- Description: FOR, WHILE, LOOP, FOREACH with SQL inside loop bodies
--- Expect: parse success
+-- Expect: snapshot
+-- Command: parse --extract-sql
 
 -- ============================================
 -- 1. FOR loop with static SQL cursor

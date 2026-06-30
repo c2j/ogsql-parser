@@ -1,6 +1,7 @@
 -- Issue: slash-division-operator
 -- Description: / is treated as terminator in PL/pgSQL blocks
--- Expect: all PL/pgSQL parse without error
+-- Expect: parse
+-- Split: blank-line
 
 DO $$ DECLARE x INT := 10 / 2; BEGIN RAISE NOTICE '%', x; END $$;
 

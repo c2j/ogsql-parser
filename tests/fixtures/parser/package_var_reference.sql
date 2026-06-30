@@ -1,6 +1,8 @@
 -- Issue: package-var-reference
 -- Description: Package-level variables referenced inside procedures and functions
--- Expect: all parse without error
+-- Expect: parse
+-- Split: blank-line
+
 
 -- 场景1: 包级变量在过程中赋值和读取
 CREATE OR REPLACE PACKAGE BODY pkg_var_ref AS

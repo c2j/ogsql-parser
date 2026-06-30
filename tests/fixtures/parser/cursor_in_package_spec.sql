@@ -1,6 +1,7 @@
 -- Issue: cursor-in-package-spec
 -- Description: Package spec with cursor declarations (no-param, param, multi-param, IN OUT)
--- Expect: all parse without error
+-- Expect: parse
+-- Split: blank-line
 
 -- 场景1: 包规范中声明无参数游标
 CREATE OR REPLACE PACKAGE pkg_cursor1 IS

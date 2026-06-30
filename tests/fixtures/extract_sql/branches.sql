@@ -1,6 +1,7 @@
 -- Issue: N/A
 -- Description: IF/ELSE/ELSIF and CASE branches with SQL in each branch
--- Expect: parse success
+-- Expect: snapshot
+-- Command: parse --extract-sql
 
 -- ============================================
 -- 1. IF-ELSE with SQL in both branches

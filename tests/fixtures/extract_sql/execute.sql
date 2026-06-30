@@ -1,6 +1,7 @@
 -- Issue: N/A
 -- Description: EXECUTE IMMEDIATE scenarios: string literal, dollar-quoted, concatenation, USING clause, INTO clause
--- Expect: parse success
+-- Expect: snapshot
+-- Command: parse --extract-sql
 
 -- ============================================
 -- 1. EXECUTE IMMEDIATE with simple string

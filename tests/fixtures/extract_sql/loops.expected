@@ -1,0 +1,35 @@
+[Embedded/Select] L13:  | SELECT id, name, salary FROM employees WHERE dept_id = __SQL_PARAM_INTEGER_p_dept_id__
+[SqlStatement/Insert] L16: report | INSERT INTO report (emp_id, emp_name, emp_salary)
+        VALUES (rec.id, rec.name, rec.salary)
+[Embedded/Execute] L33:  | SELECT id, name FROM __SQL_RAW_VARCHAR_p_table__ WHERE __SQL_RAW_VARCHAR_p_condition__
+[SqlStatement/Insert] L35: process_log | INSERT INTO process_log (table_name, record_id, record_name)
+        VALUES (__SQL_PARAM_VARCHAR_p_table__, rec.id, rec.name)
+[SqlStatement/Update] L38: stats | UPDATE stats SET processed_count = __SQL_PARAM_INTEGER_v_count__ WHERE table_name = __SQL_PARAM_VARCHAR_p_table__
+[SqlStatement/Select] L52: pending_tasks | SELECT COUNT(*) INTO __SQL_PARAM_INTEGER_v_total__ FROM pending_tasks
+[SqlStatement/Insert] L54: batch_log | INSERT INTO batch_log (batch_id, start_row, batch_size)
+        VALUES (__SQL_PARAM_INTEGER_v_batch_id__, __SQL_PARAM_INTEGER_v_processed__, __SQL_PARAM_INTEGER_p_batch_size__)
+[SqlStatement/Update] L56: pending_tasks | UPDATE pending_tasks SET status = 'PROCESSING' WHERE id > 0 AND status = 'PENDING'
+[SqlStatement/Insert] L60: completion_log | INSERT INTO completion_log (total_processed) VALUES (__SQL_PARAM_INTEGER_v_processed__)
+[SqlStatement/Select] L75: queue | SELECT COUNT(*) INTO __SQL_PARAM_INTEGER_v_exists__ FROM queue WHERE status = 'PENDING'
+[SqlStatement/Update] L79: queue | UPDATE queue SET status = 'PROCESSING'
+        WHERE id = (SELECT id FROM queue WHERE status = 'PENDING' LIMIT 1)
+[SqlStatement/Insert] L81: loop_log | INSERT INTO loop_log (iteration, remaining) VALUES (__SQL_PARAM_INTEGER_v_counter__, __SQL_PARAM_INTEGER_v_exists__ - 1)
+[SqlStatement/Insert] L101: selected_items | INSERT INTO selected_items (item_id, item_name) VALUES (rec.id, rec.name)
+[Embedded/Select] L114:  | SELECT id, name FROM departments WHERE id = __SQL_PARAM_INTEGER_p_dept_id__
+[SqlStatement/Update] L115: dept_summary | UPDATE dept_summary SET last_scan = CURRENT_TIMESTAMP WHERE dept_id = dept.id
+[Embedded/Select] L116:  | SELECT id, name, salary FROM employees WHERE dept_id = dept.id
+[SqlStatement/Insert] L117: salary_audit | INSERT INTO salary_audit (emp_id, dept_id, emp_name, salary)
+            VALUES (emp.id, dept.id, emp.name, emp.salary)
+[SqlStatement/Insert] L120: dept_scan_log | INSERT INTO dept_scan_log (dept_id, dept_name, scan_time)
+        VALUES (dept.id, dept.name, CURRENT_TIMESTAMP)
+[SqlStatement/Select] L136: users | SELECT name INTO __SQL_PARAM_VARCHAR_v_name__ FROM users WHERE id = __SQL_PARAM_INTEGER_v_id__
+[SqlStatement/Insert] L137: name_list | INSERT INTO name_list (user_id, user_name) VALUES (__SQL_PARAM_INTEGER_v_id__, __SQL_PARAM_VARCHAR_v_name__)
+[Embedded/Select] L151:  | SELECT id, name, type FROM products
+[SqlStatement/Insert] L155: active_products | INSERT INTO active_products (product_id, product_name)
+        VALUES (rec.id, rec.name)
+[Embedded/Select] L169:  | SELECT id, name, salary FROM employees WHERE dept_id = __SQL_PARAM_INTEGER_p_source_dept__ AND status = 'active'
+[SqlStatement/Insert] L173: employees | INSERT INTO employees (id, name, salary, dept_id)
+        VALUES (emp.id + 10000, emp.name, emp.salary, __SQL_PARAM_INTEGER_p_target_dept__)
+[Embedded/Select] L188:  | SELECT id, data FROM large_table ORDER BY id LIMIT __SQL_PARAM_INTEGER_p_limit__ OFFSET __SQL_PARAM_INTEGER_p_offset__
+[SqlStatement/Insert] L194: batch_results | INSERT INTO batch_results (original_id, data, batch_seq)
+        VALUES (rec.id, rec.data, __SQL_PARAM_INTEGER_v_count__)

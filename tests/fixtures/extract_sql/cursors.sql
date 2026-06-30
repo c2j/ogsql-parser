@@ -1,6 +1,7 @@
 -- Issue: N/A
 -- Description: OPEN FOR, RETURN QUERY, FETCH, cursor operations with SQL extraction
--- Expect: parse success
+-- Expect: snapshot
+-- Command: parse --extract-sql
 
 -- ============================================
 -- 1. OPEN cursor FOR static SELECT

@@ -1,6 +1,7 @@
 -- Issue: slash-division-operator
 -- Description: / is treated as statement terminator in SELECT list, DDL, subqueries, and PL/pgSQL
--- Expect: all statements parse without error (no "unexpected token" errors)
+-- Expect: parse
+-- Split: semicolon
 
 SELECT a / 1000 FROM tab;
 

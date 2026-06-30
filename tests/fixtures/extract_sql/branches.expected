@@ -1,0 +1,31 @@
+[SqlStatement/Select] L16: users | SELECT name INTO __SQL_PARAM_VARCHAR_v_name__ FROM users WHERE id = __SQL_PARAM_INTEGER_p_id__ AND type = 'A'
+[SqlStatement/Select] L18: users | SELECT name INTO __SQL_PARAM_VARCHAR_v_name__ FROM users WHERE id = __SQL_PARAM_INTEGER_p_id__ AND type = 'B'
+[SqlStatement/Insert] L20: audit_log | INSERT INTO audit_log (user_id, name_found) VALUES (__SQL_PARAM_INTEGER_p_id__, __SQL_PARAM_VARCHAR_v_name__)
+[SqlStatement/Insert] L34: data_table | INSERT INTO data_table (id, value) VALUES (__SQL_PARAM_INTEGER_p_id__, __SQL_PARAM_VARCHAR_p_value__)
+[SqlStatement/Update] L36: data_table | UPDATE data_table SET value = __SQL_PARAM_VARCHAR_p_value__ WHERE id = __SQL_PARAM_INTEGER_p_id__
+[SqlStatement/Delete] L38: data_table | DELETE FROM data_table WHERE id = __SQL_PARAM_INTEGER_p_id__
+[SqlStatement/Select] L40: data_table | SELECT value FROM data_table WHERE id = __SQL_PARAM_INTEGER_p_id__
+[SqlStatement/Select] L57: users | SELECT name INTO __SQL_PARAM_VARCHAR_v_result__ FROM users WHERE id = __SQL_PARAM_INTEGER_p_id__
+[SqlStatement/Select] L59: users_archive | SELECT name INTO __SQL_PARAM_VARCHAR_v_result__ FROM users_archive WHERE id = __SQL_PARAM_INTEGER_p_id__
+[SqlStatement/Insert] L61: logs | INSERT INTO logs (msg) VALUES ('User result: ' || __SQL_PARAM_VARCHAR_v_result__)
+[SqlStatement/Select] L63: departments | SELECT dept_name INTO __SQL_PARAM_VARCHAR_v_result__ FROM departments WHERE id = __SQL_PARAM_INTEGER_p_id__
+[SqlStatement/Select] L79: users | SELECT COUNT(*) INTO __SQL_PARAM_INTEGER_v_count__ FROM users
+[SqlStatement/Select] L81: users | SELECT COUNT(*) INTO __SQL_PARAM_INTEGER_v_count__ FROM users WHERE status = 'active'
+[SqlStatement/Select] L83: orders | SELECT COUNT(*) INTO __SQL_PARAM_INTEGER_v_count__ FROM orders WHERE user_id = __SQL_PARAM_INTEGER_p_table_id__
+[SqlStatement/Insert] L87: stats | INSERT INTO stats (op, result) VALUES (__SQL_PARAM_VARCHAR_p_op__, __SQL_PARAM_INTEGER_v_count__)
+[SqlStatement/Select] L102: dual | SELECT 'A' INTO __SQL_PARAM_VARCHAR_v_grade__ FROM dual
+[SqlStatement/Update] L103: users | UPDATE users SET grade = 'A' WHERE id = __SQL_PARAM_INTEGER_p_user_id__
+[SqlStatement/Select] L105: dual | SELECT 'B' INTO __SQL_PARAM_VARCHAR_v_grade__ FROM dual
+[SqlStatement/Update] L106: users | UPDATE users SET grade = 'B' WHERE id = __SQL_PARAM_INTEGER_p_user_id__
+[SqlStatement/Select] L108: dual | SELECT 'C' INTO __SQL_PARAM_VARCHAR_v_grade__ FROM dual
+[SqlStatement/Update] L109: users | UPDATE users SET grade = 'C' WHERE id = __SQL_PARAM_INTEGER_p_user_id__
+[SqlStatement/Select] L111: dual | SELECT 'F' INTO __SQL_PARAM_VARCHAR_v_grade__ FROM dual
+[SqlStatement/Update] L112: users | UPDATE users SET grade = 'F' WHERE id = __SQL_PARAM_INTEGER_p_user_id__
+[Execute] L128:  | SELECT name FROM __SQL_RAW_VARCHAR_p_table__ WHERE id = __SQL_RAW_INTEGER_p_id__
+[SqlStatement/Select] L130: main_table | SELECT name INTO __SQL_PARAM_VARCHAR_v_result__ FROM main_table WHERE id = __SQL_PARAM_INTEGER_p_id__
+[SqlStatement/Insert] L132: result_log | INSERT INTO result_log (result) VALUES (__SQL_PARAM_VARCHAR_v_result__)
+[ReturnCursorSQL] L147: p_cursor | SELECT * FROM cache_users WHERE user_id = __SQL_PARAM_INTEGER_p_user_id__
+[ReturnCursorSQL] L150: p_cursor | SELECT * FROM users WHERE user_id = __SQL_RAW_INTEGER_p_user_id__
+[SqlStatement/Delete] L164: main_data | DELETE FROM main_data WHERE id = __SQL_PARAM_INTEGER_p_id__
+[SqlStatement/Delete] L166: temp_data | DELETE FROM temp_data WHERE id = __SQL_PARAM_INTEGER_p_id__
+[SqlStatement/Delete] L168: archive_data | DELETE FROM archive_data WHERE id = __SQL_PARAM_INTEGER_p_id__
