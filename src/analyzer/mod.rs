@@ -2104,8 +2104,6 @@ pub enum MergeSemanticErrorKind {
     DeleteNotSupported,
     /// Columns referenced in ON clause cannot be updated
     OnColumnUpdated,
-    /// DUAL table does not exist in GaussDB
-    DualTableNotSupported,
 }
 
 /// Validate MERGE statements against GaussDB semantic restrictions.
@@ -2298,15 +2296,6 @@ fn validate_single_merge(
         }
     }
 
-    // Check 3: DUAL table does not exist in GaussDB
-    if uses_dual_table(&stmt.source) {
-        errors.push(MergeSemanticError {
-            kind: MergeSemanticErrorKind::DualTableNotSupported,
-            detail: Some("GaussDB does not have a DUAL table; use a VALUES clause or bare SELECT instead".to_string()),
-            location: loc,
-        });
-    }
-
     errors
 }
 
@@ -2393,25 +2382,6 @@ fn collect_target_columns(expr: &Expr, target_id: &str, cols: &mut std::collecti
             }
         }
         _ => {}
-    }
-}
-
-/// Check if a TableRef (or its nested subqueries) references the DUAL table.
-fn uses_dual_table(table_ref: &crate::ast::TableRef) -> bool {
-    match table_ref {
-        crate::ast::TableRef::Table { name, .. } => name.last().is_some_and(|n| n.eq_ignore_ascii_case("dual")),
-        crate::ast::TableRef::Subquery { query, .. } => {
-            for tr in &query.from {
-                if uses_dual_table(tr) {
-                    return true;
-                }
-            }
-            false
-        }
-        crate::ast::TableRef::Join { left, right, .. } => uses_dual_table(left) || uses_dual_table(right),
-        crate::ast::TableRef::Pivot { source, .. } => uses_dual_table(source),
-        crate::ast::TableRef::Unpivot { source, .. } => uses_dual_table(source),
-        _ => false,
     }
 }
 
