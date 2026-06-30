@@ -473,66 +473,66 @@ impl Parser {
         self.tokens.len().saturating_sub(1)
     }
 
-/// Heuristic: is the Slash at position `i` a division operator (not a statement terminator)?
-///
-/// A Slash is likely a division operator when the token before it can end an expression
-/// (e.g. identifier, number, `)`) and the token after it can start an expression
-/// (e.g. identifier, number, `(`, unary `+`/`-`).
-fn looks_like_division_operator(tokens: &[TokenWithSpan], i: usize) -> bool {
-    if i == 0 || i + 1 >= tokens.len() {
-        return false;
+    /// Heuristic: is the Slash at position `i` a division operator (not a statement terminator)?
+    ///
+    /// A Slash is likely a division operator when the token before it can end an expression
+    /// (e.g. identifier, number, `)`) and the token after it can start an expression
+    /// (e.g. identifier, number, `(`, unary `+`/`-`).
+    fn looks_like_division_operator(tokens: &[TokenWithSpan], i: usize) -> bool {
+        if i == 0 || i + 1 >= tokens.len() {
+            return false;
+        }
+        Self::is_expr_end_token(&tokens[i - 1].token) && Self::is_expr_start_token(&tokens[i + 1].token)
     }
-    Self::is_expr_end_token(&tokens[i - 1].token) && Self::is_expr_start_token(&tokens[i + 1].token)
-}
 
-fn is_expr_end_token(tok: &Token) -> bool {
-    matches!(
-        tok,
-        Token::Ident(_)
-            | Token::QuotedIdent(_)
-            | Token::Integer(_)
-            | Token::Float(_)
-            | Token::StringLiteral(_)
-            | Token::BitString(_)
-            | Token::HexString(_)
-            | Token::DollarString { .. }
-            | Token::NationalString(_)
-            | Token::EscapeString(_)
-            | Token::RParen
-            | Token::RBracket
-            | Token::Param(_)
-            | Token::JdbcParam
-            | Token::SetIdent(_)
-    )
-}
+    fn is_expr_end_token(tok: &Token) -> bool {
+        matches!(
+            tok,
+            Token::Ident(_)
+                | Token::QuotedIdent(_)
+                | Token::Integer(_)
+                | Token::Float(_)
+                | Token::StringLiteral(_)
+                | Token::BitString(_)
+                | Token::HexString(_)
+                | Token::DollarString { .. }
+                | Token::NationalString(_)
+                | Token::EscapeString(_)
+                | Token::RParen
+                | Token::RBracket
+                | Token::Param(_)
+                | Token::JdbcParam
+                | Token::SetIdent(_)
+        )
+    }
 
-fn is_expr_start_token(tok: &Token) -> bool {
-    matches!(
-        tok,
-        Token::Ident(_)
-            | Token::QuotedIdent(_)
-            | Token::Integer(_)
-            | Token::Float(_)
-            | Token::StringLiteral(_)
-            | Token::BitString(_)
-            | Token::HexString(_)
-            | Token::DollarString { .. }
-            | Token::NationalString(_)
-            | Token::EscapeString(_)
-            | Token::LParen
-            | Token::Plus
-            | Token::Minus
-            | Token::Param(_)
-            | Token::JdbcParam
-            | Token::SetIdent(_)
-            | Token::Keyword(Keyword::TRUE_P)
-            | Token::Keyword(Keyword::FALSE_P)
-            | Token::Keyword(Keyword::NULL_P)
-            | Token::Keyword(Keyword::CASE)
-            | Token::Keyword(Keyword::EXISTS)
-            | Token::Keyword(Keyword::NOT)
-    )
-}
+    fn is_expr_start_token(tok: &Token) -> bool {
+        matches!(
+            tok,
+            Token::Ident(_)
+                | Token::QuotedIdent(_)
+                | Token::Integer(_)
+                | Token::Float(_)
+                | Token::StringLiteral(_)
+                | Token::BitString(_)
+                | Token::HexString(_)
+                | Token::DollarString { .. }
+                | Token::NationalString(_)
+                | Token::EscapeString(_)
+                | Token::LParen
+                | Token::Plus
+                | Token::Minus
+                | Token::Param(_)
+                | Token::JdbcParam
+                | Token::SetIdent(_)
+                | Token::Keyword(Keyword::TRUE_P)
+                | Token::Keyword(Keyword::FALSE_P)
+                | Token::Keyword(Keyword::NULL_P)
+                | Token::Keyword(Keyword::CASE)
+                | Token::Keyword(Keyword::EXISTS)
+                | Token::Keyword(Keyword::NOT)
+        )
+    }
 
     fn is_separator_line(&self) -> bool {
         let mut count = 0;

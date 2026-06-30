@@ -940,7 +940,8 @@ fn assert_merge_valid(errors: &[super::MergeSemanticError], context: &str) {
 
 #[test]
 fn test_merge_dual_direct_table() {
-    let sql = "MERGE INTO t tgt USING DUAL src ON (tgt.id = src.dummy) WHEN NOT MATCHED THEN INSERT (id) VALUES (src.dummy)";
+    let sql =
+        "MERGE INTO t tgt USING DUAL src ON (tgt.id = src.dummy) WHEN NOT MATCHED THEN INSERT (id) VALUES (src.dummy)";
     let errors = validate_merge_dual(sql);
     assert_merge_valid(&errors, "direct DUAL table in USING");
 }
@@ -1135,7 +1136,13 @@ fn test_merge_dual_with_delete() {
     // DUAL is now allowed; only DeleteNotSupported should fire
     let sql = "MERGE INTO t tgt USING (SELECT 1 AS id FROM DUAL) src ON (tgt.id = src.id) WHEN MATCHED THEN DELETE";
     let errors = validate_merge_dual(sql);
-    assert_eq!(errors.len(), 1, "Expected only DeleteNotSupported (DUAL is now valid), got {}: {:?}", errors.len(), errors);
+    assert_eq!(
+        errors.len(),
+        1,
+        "Expected only DeleteNotSupported (DUAL is now valid), got {}: {:?}",
+        errors.len(),
+        errors
+    );
     assert_eq!(errors[0].kind, super::MergeSemanticErrorKind::DeleteNotSupported);
 }
 
@@ -1144,7 +1151,13 @@ fn test_merge_dual_with_on_column_updated() {
     // DUAL is now allowed; only OnColumnUpdated should fire
     let sql = "MERGE INTO t tgt USING (SELECT 1 AS id FROM DUAL) src ON (tgt.id = src.id AND tgt.name = 'test') WHEN MATCHED THEN UPDATE SET id = src.id, name = 'updated'";
     let errors = validate_merge_dual(sql);
-    assert_eq!(errors.len(), 1, "Expected only OnColumnUpdated (DUAL is now valid), got {}: {:?}", errors.len(), errors);
+    assert_eq!(
+        errors.len(),
+        1,
+        "Expected only OnColumnUpdated (DUAL is now valid), got {}: {:?}",
+        errors.len(),
+        errors
+    );
     assert_eq!(errors[0].kind, super::MergeSemanticErrorKind::OnColumnUpdated);
 }
 
@@ -1153,7 +1166,13 @@ fn test_merge_dual_with_update_on_column_on_updated() {
     // Same as above — only OnColumnUpdated, no DUAL error
     let sql = "MERGE INTO t tgt USING (SELECT 1 AS id FROM DUAL) src ON (tgt.id = src.id AND tgt.name = 'test') WHEN MATCHED THEN UPDATE SET id = src.id, name = 'updated'";
     let errors = validate_merge_dual(sql);
-    assert_eq!(errors.len(), 1, "Expected only OnColumnUpdated (DUAL is now valid), got {}: {:?}", errors.len(), errors);
+    assert_eq!(
+        errors.len(),
+        1,
+        "Expected only OnColumnUpdated (DUAL is now valid), got {}: {:?}",
+        errors.len(),
+        errors
+    );
     assert_eq!(errors[0].kind, super::MergeSemanticErrorKind::OnColumnUpdated);
 }
 

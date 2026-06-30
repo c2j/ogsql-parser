@@ -124,11 +124,7 @@ fn parse_metadata(raw: &str, file_type: &FileType) -> (std::collections::HashMap
         content_start += line.len() + 1;
     }
 
-    let content = if content_start < raw.len() {
-        raw[content_start..].to_string()
-    } else {
-        String::new()
-    };
+    let content = if content_start < raw.len() { raw[content_start..].to_string() } else { String::new() };
 
     (meta, content)
 }
