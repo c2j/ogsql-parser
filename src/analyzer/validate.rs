@@ -61,6 +61,7 @@ pub fn validate_pl_variables_from_stmts(
                     .iter()
                     .filter_map(|item| match item {
                         crate::ast::PackageItem::Variable(v) => Some(v.name.as_str()),
+                        crate::ast::PackageItem::Cursor(c) => Some(c.name.as_str()),
                         _ => None,
                     })
                     .collect();
@@ -69,8 +70,10 @@ pub fn validate_pl_variables_from_stmts(
                         let spec_key = crate::analyzer::last_name_lower(&spec.name);
                         if spec_key == body_key {
                             for item in &spec.items {
-                                if let crate::ast::PackageItem::Variable(v) = item {
-                                    pkg_vars.push(v.name.as_str());
+                                match item {
+                                    crate::ast::PackageItem::Variable(v) => pkg_vars.push(v.name.as_str()),
+                                    crate::ast::PackageItem::Cursor(c) => pkg_vars.push(c.name.as_str()),
+                                    _ => {}
                                 }
                             }
                         }
@@ -383,5 +386,91 @@ mod tests {
     /// Helper: parse SQL text into Vec<StatementInfo>.
     fn parse_stmts(sql: &str) -> Vec<crate::ast::StatementInfo> {
         crate::parser::Parser::parse_sql(sql).0
+    }
+
+    // ── 回归: validate 对带参数游标的处理 ──
+
+    /// validate 应对 DO 块中的带参数游标正确校验，不产生误报。
+    #[test]
+    fn validate_accepts_cursor_with_params_in_do_block() {
+        let sql = r#"DO $$ DECLARE
+    CURSOR c_info(v_code IN VARCHAR2) IS
+      SELECT * FROM t WHERE code = v_code;
+    v_rec RECORD;
+BEGIN
+    OPEN c_info('X');
+    FETCH c_info INTO v_rec;
+    CLOSE c_info;
+END $$"#;
+        let stmts = parse_stmts(sql);
+        let report = validate_statements(&stmts, &[], false);
+        assert!(report.is_empty(), "DO块中的带参数游标应正常校验，不应产生错误，got: {:?}", report);
+    }
+
+    /// validate --strict 应对 DO 块中游标参数引用的 SQL 查询中变量不产生误报。
+    #[test]
+    fn validate_strict_cursor_param_ref_not_flagged() {
+        let sql = r#"DO $$ DECLARE
+    CURSOR c_info(v_code IN VARCHAR2) IS
+      SELECT * FROM t WHERE code = v_code;
+BEGIN
+    OPEN c_info('X');
+END $$"#;
+        let stmts = parse_stmts(sql);
+        let report = validate_statements(&stmts, &[], true);
+        assert_eq!(
+            report.undefined_variable_errors.len(),
+            0,
+            "游标参数 v_code 在 SELECT 中的引用不应被 strict 模式误报为 undefined variable"
+        );
+    }
+
+    /// validate 应正确识别 package spec 中声明的游标，body 中引用时不產生误报。
+    #[test]
+    fn validate_package_spec_with_cursor_no_crash() {
+        let sql = r#"CREATE OR REPLACE PACKAGE test_pkg IS
+  CURSOR c_data(v_code IN VARCHAR2) IS
+    SELECT * FROM t WHERE code = v_code;
+  v_flag NUMBER;
+  PROCEDURE prc_main;
+END test_pkg;
+/
+CREATE OR REPLACE PACKAGE BODY test_pkg IS
+  PROCEDURE prc_main IS
+  BEGIN
+    v_flag := 1;
+    OPEN c_data('X');
+    CLOSE c_data;
+  END prc_main;
+END test_pkg;"#;
+        let stmts = parse_stmts(sql);
+        let report = validate_statements(&stmts, &[], false);
+        assert_eq!(
+            report.undefined_variable_errors.len(),
+            0,
+            "validate 应识别 spec 中声明的游标 c_data，body 中 OPEN/CLOSE 不应误报\n\
+             errors: {:?}",
+            report.undefined_variable_errors
+        );
+        assert!(
+            !report.package_errors.iter().any(|e| matches!(e.kind, crate::PackageConsistencyErrorKind::MissingInBody)),
+            "validate 不应因 package spec 中有游标声明而产生 MissingInBody 误报"
+        );
+    }
+
+    /// validate 对存储过程中 DECLARE 的带参数游标应正常处理。
+    #[test]
+    fn validate_accepts_cursor_with_params_in_procedure() {
+        let sql = r#"CREATE OR REPLACE PROCEDURE test_cursor_proc()
+AS $$ DECLARE
+    CURSOR cu_info(p1 IN OUT VARCHAR2, p2 INTEGER) IS
+      SELECT * FROM t WHERE col1 = p1 AND col2 = p2;
+BEGIN
+    OPEN cu_info('A', 1);
+    CLOSE cu_info;
+END; $$ LANGUAGE plpgsql"#;
+        let stmts = parse_stmts(sql);
+        let report = validate_statements(&stmts, &[], false);
+        assert!(report.is_empty(), "存储过程中的带参数游标应正常校验，got: {:?}", report);
     }
 }

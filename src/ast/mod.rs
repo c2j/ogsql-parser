@@ -2081,6 +2081,7 @@ pub enum PackageItem {
     Function(PackageFunction),
     Variable(crate::ast::plpgsql::PlVarDecl),
     Type(crate::ast::plpgsql::PlTypeDecl),
+    Cursor(crate::ast::plpgsql::PlCursorDecl),
     Raw(String),
 }
 

@@ -499,6 +499,7 @@ pub fn walk_statement(visitor: &mut dyn Visitor, stmt: &Statement) -> VisitorRes
                             }
                         }
                         crate::ast::PackageItem::Variable(_) => {}
+                        crate::ast::PackageItem::Cursor(_) => {}
                         crate::ast::PackageItem::Raw(_) => {}
                     }
                 }
@@ -527,6 +528,7 @@ pub fn walk_statement(visitor: &mut dyn Visitor, stmt: &Statement) -> VisitorRes
                             }
                         }
                         crate::ast::PackageItem::Variable(_) => {}
+                        crate::ast::PackageItem::Cursor(_) => {}
                         crate::ast::PackageItem::Raw(_) => {}
                     }
                 }

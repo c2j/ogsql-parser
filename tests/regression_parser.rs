@@ -83,3 +83,15 @@ fn slash_division_in_plpgsql() {
         }
     }
 }
+
+#[test]
+fn cursor_in_package_spec() {
+    let fixtures = load_named("cursor_in_package_spec", "parser");
+    assert!(!fixtures.is_empty(), "回归守护: fixture 文件缺失");
+    for f in &fixtures {
+        let blocks: Vec<&str> = f.content.split("\n\n").filter(|b| !b.trim().is_empty()).collect();
+        for (i, block) in blocks.iter().enumerate() {
+            assert_parse_all(block, &format!("{}/block{}", f.id, i));
+        }
+    }
+}

@@ -1015,3 +1015,196 @@ fn test_is_true_json_roundtrip() {
     assert!(output.contains("IS TRUE"));
     assert!(output.contains("IS NOT FALSE"));
 }
+
+// ============================================================
+// 回归: 带参数游标 — package 头 vs PL 块
+// ============================================================
+
+/// PL 块（DO）中带参数的游标应被正确解析，包含参数名、模式和类型。
+#[test]
+fn test_cursor_with_params_in_do_block() {
+    let sql = r#"DO $$ DECLARE
+    CURSOR c_info(v_code IN VARCHAR2, p_flag OUT INTEGER) IS
+      SELECT * FROM t WHERE code = v_code;
+BEGIN
+  NULL;
+END $$"#;
+    let stmt = parse_one(sql);
+    match stmt {
+        Statement::Do(d) => {
+            let block = d.block.as_ref().expect("DO block should be parsed");
+            assert_eq!(block.declarations.len(), 1);
+            match &block.declarations[0] {
+                PlDeclaration::Cursor(c) => {
+                    assert_eq!(c.name, "c_info");
+                    assert_eq!(c.arguments.len(), 2, "should have 2 cursor arguments");
+                    assert_eq!(c.arguments[0].name, "v_code");
+                    assert!(matches!(c.arguments[0].mode, PlArgMode::In));
+                    assert!(matches!(&c.arguments[0].data_type, PlDataType::TypeName(t) if t == "varchar2"));
+                    assert_eq!(c.arguments[1].name, "p_flag");
+                    assert!(matches!(c.arguments[1].mode, PlArgMode::Out));
+                    assert!(matches!(&c.arguments[1].data_type, PlDataType::TypeName(t) if t == "integer"));
+                    assert!(!c.query.is_empty(), "cursor query should be captured");
+                    assert!(c.parsed_query.is_some(), "cursor query should be parsed as Select");
+                }
+                other => panic!("expected cursor declaration, got {:?}", other),
+            }
+        }
+        other => panic!("expected DO statement, got {:?}", other),
+    }
+}
+
+/// 匿名块中带参数游标（Oracle 风格 IS）也应正确解析。
+#[test]
+fn test_cursor_with_params_in_anonymous_block() {
+    let sql = r#"DECLARE
+    CURSOR c_dat_info(v_step IN VARCHAR2) IS
+      SELECT * FROM t WHERE step = v_step;
+BEGIN
+  NULL;
+END;"#;
+    let stmt = parse_one(sql);
+    match stmt {
+        Statement::AnonyBlock(b) => {
+            assert_eq!(b.block.declarations.len(), 1);
+            match &b.block.declarations[0] {
+                PlDeclaration::Cursor(c) => {
+                    assert_eq!(c.name, "c_dat_info");
+                    assert_eq!(c.arguments.len(), 1);
+                    assert_eq!(c.arguments[0].name, "v_step");
+                    assert!(matches!(c.arguments[0].mode, PlArgMode::In));
+                    assert!(!c.query.is_empty());
+                }
+                other => panic!("expected cursor declaration, got {:?}", other),
+            }
+        }
+        other => panic!("expected AnonyBlock, got {:?}", other),
+    }
+}
+
+/// 存储过程中 DECLARE 段定义带 IN OUT 参数的游标。
+#[test]
+fn test_cursor_with_inout_params_in_procedure() {
+    let sql = r#"CREATE OR REPLACE PROCEDURE test_cursor_proc()
+AS $$ DECLARE
+    CURSOR cu_info(p1 IN OUT VARCHAR2, p2 INTEGER) IS
+      SELECT * FROM t WHERE col1 = p1 AND col2 = p2;
+BEGIN
+  NULL;
+END; $$ LANGUAGE plpgsql"#;
+    let stmt = parse_one(sql);
+    match stmt {
+        Statement::CreateProcedure(proc) => {
+            let block = proc.block.as_ref().expect("procedure should have body");
+            assert_eq!(block.declarations.len(), 1);
+            match &block.declarations[0] {
+                PlDeclaration::Cursor(c) => {
+                    assert_eq!(c.name, "cu_info");
+                    assert_eq!(c.arguments.len(), 2);
+                    assert!(matches!(c.arguments[0].mode, PlArgMode::InOut));
+                    assert_eq!(c.arguments[0].name, "p1");
+                    assert_eq!(c.arguments[1].name, "p2");
+                    assert!(matches!(c.arguments[1].mode, PlArgMode::In));
+                    assert!(c.parsed_query.is_some());
+                }
+                other => panic!("expected cursor declaration, got {:?}", other),
+            }
+        }
+        other => panic!("expected CreateProcedure, got {:?}", other),
+    }
+}
+
+/// Package 头中的游标声明（无参数）应被正确解析为 PackageItem::Cursor。
+#[test]
+fn test_cursor_in_package_spec_no_params() {
+    let sql = r#"CREATE OR REPLACE PACKAGE test_pkg IS
+  CURSOR c_test IS
+    SELECT * FROM t;
+END test_pkg;"#;
+    let stmt = parse_one(sql);
+    match stmt {
+        Statement::CreatePackage(p) => {
+            assert_eq!(p.items.len(), 1, "should have 1 cursor item");
+            match &p.items[0] {
+                PackageItem::Cursor(c) => {
+                    assert_eq!(c.name, "c_test");
+                    assert!(c.arguments.is_empty(), "no-param cursor should have empty arguments");
+                    assert!(!c.query.is_empty(), "cursor query should be captured");
+                    assert!(c.parsed_query.is_some(), "cursor query should be parsed as Select");
+                }
+                other => panic!("expected PackageItem::Cursor, got {:?}", other),
+            }
+        }
+        other => panic!("expected CreatePackage, got {:?}", other),
+    }
+}
+
+/// Package 头中的带参数游标（含 IN/OUT 参数）应被正确解析，参数名、模式、类型均保留。
+#[test]
+fn test_cursor_with_params_in_package_spec() {
+    let sql = r#"CREATE OR REPLACE PACKAGE test_pkg IS
+  CURSOR c_test(v_code IN VARCHAR2, v_flag OUT INTEGER) IS
+    SELECT * FROM t WHERE code = v_code;
+END test_pkg;"#;
+    let stmt = parse_one(sql);
+    match stmt {
+        Statement::CreatePackage(p) => {
+            assert_eq!(p.items.len(), 1, "should have exactly 1 cursor item");
+            match &p.items[0] {
+                PackageItem::Cursor(c) => {
+                    assert_eq!(c.name, "c_test");
+                    assert_eq!(c.arguments.len(), 2, "should have 2 cursor arguments");
+                    assert_eq!(c.arguments[0].name, "v_code");
+                    assert!(matches!(c.arguments[0].mode, PlArgMode::In));
+                    assert!(matches!(&c.arguments[0].data_type, PlDataType::TypeName(t) if t == "varchar2"));
+                    assert_eq!(c.arguments[1].name, "v_flag");
+                    assert!(matches!(c.arguments[1].mode, PlArgMode::Out));
+                    assert!(matches!(&c.arguments[1].data_type, PlDataType::TypeName(t) if t == "integer"));
+                    assert!(!c.query.is_empty(), "cursor query should be captured");
+                    assert!(c.parsed_query.is_some(), "cursor query should be parsed");
+                }
+                other => panic!("expected PackageItem::Cursor, got {:?}", other),
+            }
+        }
+        other => panic!("expected CreatePackage, got {:?}", other),
+    }
+}
+
+/// 对比验证：package body 中的游标（仍应在 DECLARE 段中处理）
+#[test]
+fn test_cursor_with_params_in_package_body() {
+    let sql = r#"CREATE OR REPLACE PACKAGE BODY test_pkg IS
+  PROCEDURE prc_test IS
+    CURSOR c_info(v_code IN VARCHAR2) IS
+      SELECT * FROM t WHERE code = v_code;
+  BEGIN
+    OPEN c_info('X');
+    CLOSE c_info;
+  END prc_test;
+END test_pkg;"#;
+    let stmt = parse_one(sql);
+    match stmt {
+        Statement::CreatePackageBody(body) => {
+            let proc = body
+                .items
+                .iter()
+                .find_map(|item| match item {
+                    PackageItem::Procedure(p) => Some(p),
+                    _ => None,
+                })
+                .expect("should have procedure item");
+            let block = proc.block.as_ref().expect("procedure should have body");
+            assert_eq!(block.declarations.len(), 1, "should have 1 cursor decl");
+            match &block.declarations[0] {
+                PlDeclaration::Cursor(c) => {
+                    assert_eq!(c.name, "c_info");
+                    assert_eq!(c.arguments.len(), 1);
+                    assert_eq!(c.arguments[0].name, "v_code");
+                    assert!(matches!(c.arguments[0].mode, PlArgMode::In));
+                }
+                other => panic!("expected cursor declaration, got {:?}", other),
+            }
+        }
+        other => panic!("expected CreatePackageBody, got {:?}", other),
+    }
+}

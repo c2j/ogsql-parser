@@ -786,6 +786,26 @@ impl Parser {
                         }
                     }
                 }
+                Token::Keyword(Keyword::CURSOR) => {
+                    self.advance();
+                    match self.parse_identifier() {
+                        Ok(cursor_name) => match self.parse_pl_cursor_decl(cursor_name) {
+                            Ok(crate::ast::plpgsql::PlDeclaration::Cursor(cursor_decl)) => {
+                                items.push(PackageItem::Cursor(cursor_decl));
+                            }
+                            Err(e) => {
+                                self.add_error(e);
+                                self.skip_to_semicolon_or_keyword();
+                            }
+                            _ => {
+                                self.skip_to_semicolon_or_keyword();
+                            }
+                        },
+                        Err(_) => {
+                            self.skip_to_semicolon_or_keyword();
+                        }
+                    }
+                }
                 _ => {
                     if let Some(crate::ast::plpgsql::PlDeclaration::Variable(var)) = self.try_parse_oracle_var_decl() {
                         items.push(PackageItem::Variable(var));

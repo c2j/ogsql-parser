@@ -5541,6 +5541,29 @@ impl SqlFormatter {
                 };
                 format!("{};", inner)
             }
+            PackageItem::Cursor(c) => {
+                let mut s = format!("{} {}", self.kw("CURSOR"), c.name);
+                if !c.arguments.is_empty() {
+                    let args: Vec<String> = c
+                        .arguments
+                        .iter()
+                        .map(|a| {
+                            let mode = match a.mode {
+                                PlArgMode::In => self.kw("IN"),
+                                PlArgMode::Out => self.kw("OUT"),
+                                PlArgMode::InOut => format!("{} {}", self.kw("IN"), self.kw("OUT")),
+                            };
+                            format!("{} {} {}", a.name, mode, self.format_pl_data_type(&a.data_type))
+                        })
+                        .collect();
+                    s.push_str(&format!(" ({})", args.join(", ")));
+                }
+                if !c.query.is_empty() {
+                    s.push_str(&format!(" {} {}", self.kw("IS"), c.query));
+                }
+                s.push(';');
+                s
+            }
             PackageItem::Raw(s) => s.clone(),
         }
     }

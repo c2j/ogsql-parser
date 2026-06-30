@@ -321,7 +321,7 @@ impl Parser {
         }
     }
 
-    fn parse_pl_cursor_decl(&mut self, name: String) -> Result<PlDeclaration, ParserError> {
+    pub(crate) fn parse_pl_cursor_decl(&mut self, name: String) -> Result<PlDeclaration, ParserError> {
         let mut arguments = Vec::new();
         if self.match_token(&Token::LParen) {
             self.advance();
