@@ -60,6 +60,18 @@ fn slash_division_in_complex() {
 }
 
 #[test]
+fn package_var_reference_in_body() {
+    let fixtures = load_named("package_var_reference", "parser");
+    assert!(!fixtures.is_empty(), "回归守护: fixture 文件缺失");
+    for f in &fixtures {
+        let blocks: Vec<&str> = f.content.split("\n\n").filter(|b| !b.trim().is_empty()).collect();
+        for (i, block) in blocks.iter().enumerate() {
+            assert_parse_all(block, &format!("{}/block{}", f.id, i));
+        }
+    }
+}
+
+#[test]
 fn slash_division_in_plpgsql() {
     let fixtures = load_named("slash_division_plpgsql", "parser");
     assert!(!fixtures.is_empty(), "回归守护: fixture 文件缺失");

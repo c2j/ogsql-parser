@@ -1082,6 +1082,8 @@ pub enum PackageConsistencyErrorKind {
     DefaultMismatch { param_name: String, spec_default: Option<String>, body_default: Option<String> },
     /// A parameter has a different data type in spec vs body
     TypeMismatch { param_name: String, spec_type: String, body_type: String },
+    /// The schema qualifier differs between package spec and body
+    SchemaMismatch { spec_name: String, body_name: String },
 }
 
 /// Validate that all package specs and bodies in the parsed statements are consistent.
@@ -1095,12 +1097,12 @@ pub fn validate_package_consistency(stmts: &[crate::ast::StatementInfo]) -> Vec<
     for si in stmts {
         match &si.statement {
             Statement::CreatePackage(spec) => {
-                let name = object_name_str(&spec.name);
-                specs.insert(name, spec);
+                let key = last_name_lower(&spec.name);
+                specs.insert(key, spec);
             }
             Statement::CreatePackageBody(body) => {
-                let name = object_name_str(&body.name);
-                bodies.insert(name, body);
+                let key = last_name_lower(&body.name);
+                bodies.insert(key, body);
             }
             _ => {}
         }
@@ -1108,13 +1110,33 @@ pub fn validate_package_consistency(stmts: &[crate::ast::StatementInfo]) -> Vec<
 
     let mut errors = Vec::new();
 
-    for (pkg_name, spec) in &specs {
-        if let Some(body) = bodies.get(pkg_name) {
-            validate_single_package(pkg_name, spec, body, &mut errors);
+    for (pkg_key, spec) in &specs {
+        if let Some(body) = bodies.get(pkg_key) {
+            let spec_full = object_name_str(&spec.name);
+            let body_full = object_name_str(&body.name);
+            if spec_full != body_full {
+                errors.push(PackageConsistencyError {
+                    package_name: pkg_key.to_uppercase(),
+                    subprogram_name: String::new(),
+                    kind: PackageConsistencyErrorKind::SchemaMismatch {
+                        spec_name: spec_full.clone(),
+                        body_name: body_full.clone(),
+                    },
+                    detail: Some(format!(
+                        "package spec defined as \"{}\" but body defined as \"{}\"",
+                        spec_full, body_full
+                    )),
+                });
+            }
+            validate_single_package(pkg_key, spec, body, &mut errors);
         }
     }
 
     errors
+}
+
+pub(crate) fn last_name_lower(name: &crate::ast::ObjectName) -> String {
+    name.last().map(|s| s.to_lowercase()).unwrap_or_default()
 }
 
 fn object_name_str(name: &crate::ast::ObjectName) -> String {

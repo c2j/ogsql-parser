@@ -13274,6 +13274,102 @@ fn test_package_body_mixed_variables_and_procedures() {
 }
 
 #[test]
+fn test_package_body_procedure_references_package_variable() {
+    let sql = "CREATE OR REPLACE PACKAGE BODY pkg_example AS\n\
+               v_status VARCHAR := 'ACTIVE';\n\
+               v_counter INTEGER := 0;\n\
+               PROCEDURE prc_update(p_new_status VARCHAR) IS\n\
+               BEGIN\n\
+                 v_status := p_new_status;\n\
+                 v_counter := v_counter + 1;\n\
+                 RAISE NOTICE 'status: %, count: %', v_status, v_counter;\n\
+               END prc_update;\n\
+               FUNCTION get_status RETURN VARCHAR IS\n\
+               BEGIN\n\
+                 RETURN v_status;\n\
+               END get_status;\n\
+               END pkg_example;";
+    let stmt = parse_one(sql);
+    match stmt {
+        Statement::CreatePackageBody(p) => {
+            // Verify package-level variables exist
+            assert_eq!(p.items.len(), 4, "should have 4 items: 2 vars + 1 proc + 1 func, got {}", p.items.len());
+            assert!(matches!(&p.items[0], PackageItem::Variable(v) if v.name == "v_status"));
+            assert!(matches!(&p.items[1], PackageItem::Variable(v) if v.name == "v_counter"));
+
+            // Verify procedure references v_status and v_counter
+            let proc = match &p.items[2] {
+                PackageItem::Procedure(pr) => pr,
+                other => panic!("expected Procedure, got {:?}", other),
+            };
+            let block = proc.block.as_ref().expect("procedure should have a block");
+            assert_eq!(block.body.len(), 3, "should have 3 statements: 2 assignments + 1 RAISE");
+
+            // Check assignment: v_status := p_new_status
+            match &block.body[0] {
+                PlStatement::Assignment { target, expression: _ } => match target {
+                    Expr::ColumnRef(ident_list) => {
+                        assert_eq!(ident_list.len(), 1);
+                        assert_eq!(ident_list[0].value, "v_status");
+                    }
+                    other => panic!("expected ColumnRef for assignment target, got {:?}", other),
+                },
+                other => panic!("expected Assignment, got {:?}", other),
+            }
+
+            // Check assignment: v_counter := v_counter + 1 (references v_counter in RHS)
+            match &block.body[1] {
+                PlStatement::Assignment { target, expression: _ } => match target {
+                    Expr::ColumnRef(ident_list) => {
+                        assert_eq!(ident_list.len(), 1);
+                        assert_eq!(ident_list[0].value, "v_counter");
+                    }
+                    other => panic!("expected ColumnRef for assignment target, got {:?}", other),
+                },
+                other => panic!("expected Assignment, got {:?}", other),
+            }
+
+            // Check RAISE references v_status and v_counter
+            match &block.body[2] {
+                PlStatement::Raise(raise_stmt) => {
+                    assert_eq!(raise_stmt.params.len(), 2, "RAISE should have 2 params");
+                    match &raise_stmt.params[0] {
+                        Expr::ColumnRef(ident_list) => {
+                            assert_eq!(ident_list[0].value, "v_status");
+                        }
+                        other => panic!("expected ColumnRef for RAISE param, got {:?}", other),
+                    }
+                    match &raise_stmt.params[1] {
+                        Expr::ColumnRef(ident_list) => {
+                            assert_eq!(ident_list[0].value, "v_counter");
+                        }
+                        other => panic!("expected ColumnRef for RAISE param, got {:?}", other),
+                    }
+                }
+                other => panic!("expected Raise, got {:?}", other),
+            }
+
+            // Verify function references v_status
+            let func = match &p.items[3] {
+                PackageItem::Function(f) => f,
+                other => panic!("expected Function, got {:?}", other),
+            };
+            let fblock = func.block.as_ref().expect("function should have a block");
+            match &fblock.body[0] {
+                PlStatement::Return { expression: Some(expr) } => match expr {
+                    Expr::ColumnRef(ident_list) => {
+                        assert_eq!(ident_list[0].value, "v_status");
+                    }
+                    other => panic!("expected ColumnRef for RETURN, got {:?}", other),
+                },
+                other => panic!("expected Return with expression, got {:?}", other),
+            }
+        }
+        other => panic!("expected CreatePackageBody, got {:?}", other),
+    }
+}
+
+#[test]
 fn test_package_body_variable_json_serialization() {
     let sql = "CREATE OR REPLACE PACKAGE BODY pkg_example AS\n\
                v_status VARCHAR := 'ACTIVE';\n\
