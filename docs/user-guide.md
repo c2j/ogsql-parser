@@ -969,7 +969,6 @@ END; \$\$ LANGUAGE plpgsql" | ogsql validate --strict
 |------|------|
 | `DeleteNotSupported` | GaussDB 不支持 `MERGE ... WHEN MATCHED THEN DELETE` |
 | `OnColumnUpdated` | GaussDB 不允许在 WHEN MATCHED 中更新 ON 子句引用的列 |
-| `DualTableNotSupported` | GaussDB 没有 `DUAL` 表 |
 
 ```bash
 # 检测 MERGE 语义错误
