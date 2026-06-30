@@ -1,0 +1,12 @@
+[Execute] L12:  | SELECT COUNT(*) FROM __SQL_RAW_VARCHAR_p_table_name__
+[Execute] L23:  | UPDATE users SET status = 'active' WHERE id = __SQL_RAW_INTEGER_p_id__
+[Execute] L35:  | UPDATE users SET name = $2 WHERE id = $1
+[Execute] L48:  | SELECT name, age FROM users WHERE id = __SQL_RAW_INTEGER_p_id__
+[Execute] L62:  | SELECT COUNT(*) FROM users WHERE id = __SQL_RAW_INTEGER_p_id__
+[Execute] L79:  | SELECT COUNT(*) FROM __SQL_RAW_VARCHAR_p_table__ WHERE __SQL_RAW_VARCHAR_p_column__ = '__SQL_RAW_VARCHAR_p_value__'
+[Execute] L95:  | SELECT name FROM __SQL_RAW_VARCHAR_p_schema__.__SQL_RAW_VARCHAR_p_table__ WHERE id = __SQL_RAW_INTEGER_p_id__
+[Execute] L107:  | DELETE FROM __SQL_RAW_VARCHAR_p_table__ WHERE id = __SQL_RAW_INTEGER_p_id__
+[Execute] L119:  | INSERT INTO __SQL_RAW_VARCHAR_p_target_table__ SELECT * FROM __SQL_RAW_VARCHAR_p_source_table__
+[Execute] L133:  | DELETE FROM __SQL_RAW_VARCHAR_p_table__ WHERE ROWNUM <= __SQL_RAW_INTEGER_p_batch_size__
+[Execute] L149:  | SELECT COUNT(*) FROM users WHERE 1=1 AND __SQL_RAW_VARCHAR_p_condition__
+[Execute] L163:  | SELECT UPPER(name) FROM users WHERE id = __SQL_RAW_INTEGER_p_user_id__
