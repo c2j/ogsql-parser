@@ -1,0 +1,11 @@
+[ReturnCursorSQL] L13: p_cursor | SELECT id, name, salary FROM employees WHERE dept_id = __SQL_PARAM_INTEGER_p_dept_id__
+[ReturnCursorSQL] L29: p_cursor | SELECT * FROM __SQL_RAW_VARCHAR_p_table__ WHERE id = __SQL_RAW_INTEGER_p_id__
+[ReturnCursorSQL] L44: p_cursor | SELECT * FROM users WHERE id = $1 AND name = $2
+USING p_id, p_name
+[SqlStatement/Insert] L90: fetch_log | INSERT INTO fetch_log (user_id, user_name) VALUES (__SQL_PARAM_INTEGER_v_id__, __SQL_PARAM_VARCHAR_v_name__)
+[Embedded/Select] L93:  | SELECT id, name FROM users WHERE id = __SQL_PARAM_INTEGER_p_cursor_id__
+[SqlStatement/Insert] L95: single_fetch_log | INSERT INTO single_fetch_log (user_id, user_name) VALUES (__SQL_PARAM_INTEGER_v_id__, __SQL_PARAM_VARCHAR_v_name__)
+[ReturnCursorSQL] L109: p_cursor1 | SELECT * FROM users WHERE id = __SQL_PARAM_INTEGER_p_id__
+[ReturnCursorSQL] L110: p_cursor2 | SELECT * FROM orders WHERE user_id = __SQL_PARAM_INTEGER_p_id__
+[ReturnCursorSQL] L122: p_cursor | SELECT u.id, u.name, o.order_id, o.amount FROM users AS u INNER JOIN orders AS o ON u.id = o.user_id WHERE u.id = __SQL_PARAM_INTEGER_p_user_id__ ORDER BY o.order_date DESC
+[SqlStatement/Insert] L148: high_salary_log | INSERT INTO high_salary_log (emp_id, emp_name) VALUES (__SQL_PARAM_INTEGER_v_id__, __SQL_PARAM_VARCHAR_v_name__)

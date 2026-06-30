@@ -1,0 +1,12 @@
+[SqlStatement/Insert] L13: users | INSERT INTO users (name, email, dept_id) VALUES (__SQL_PARAM_VARCHAR_p_name__, __SQL_PARAM_VARCHAR_p_email__, __SQL_PARAM_INTEGER_p_dept_id__)
+[SqlStatement/Insert] L14: user_audit | INSERT INTO user_audit (user_id, action, action_time) VALUES (__SQL_PARAM_INTEGER_v_user_id__, 'CREATE', CURRENT_TIMESTAMP)
+[SqlStatement/Select] L22: users | SELECT status INTO __SQL_PARAM_VARCHAR_v_old_status__ FROM users WHERE id = __SQL_PARAM_INTEGER_p_user_id__
+[SqlStatement/Update] L23: users | UPDATE users SET status = __SQL_PARAM_VARCHAR_p_status__ WHERE id = __SQL_PARAM_INTEGER_p_user_id__
+[SqlStatement/Insert] L24: status_change_log | INSERT INTO status_change_log (user_id, old_status, new_status) VALUES (__SQL_PARAM_INTEGER_p_user_id__, __SQL_PARAM_VARCHAR_v_old_status__, __SQL_PARAM_VARCHAR_p_status__)
+[ReturnCursorSQL] L31: p_cursor | SELECT id, name, email, status FROM users WHERE dept_id = __SQL_PARAM_INTEGER_p_dept_id__ ORDER BY name
+[SqlStatement/Select] L39: users | SELECT COUNT(*) INTO __SQL_PARAM_INTEGER_v_count__ FROM users WHERE status = 'active'
+[Execute] L41:  | INSERT INTO users_archive SELECT * FROM users WHERE status = 'inactive'
+[SqlStatement/Delete] L42: users | DELETE FROM users WHERE status = 'inactive'
+[SqlStatement/Insert] L43: archive_log | INSERT INTO archive_log (count_archived) VALUES (__SQL_PARAM_INTEGER_v_count__)
+[SqlStatement/Select] L51: users | SELECT COUNT(*) INTO __SQL_PARAM_INTEGER_v_count__ FROM users WHERE status = 'active'
+[SqlStatement/Select] L53: users | SELECT COUNT(*) INTO __SQL_PARAM_INTEGER_v_count__ FROM users WHERE status = 'active' AND dept_id = __SQL_PARAM_INTEGER_p_dept_id__

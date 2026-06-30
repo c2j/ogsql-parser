@@ -2668,11 +2668,57 @@ fn collect_pl_stmt_rows(
     }
 }
 
+fn collect_package_item_vars(
+    items: &[ogsql_parser::ast::PackageItem],
+) -> std::collections::HashMap<String, Option<String>> {
+    let mut vars = std::collections::HashMap::new();
+    for item in items {
+        match item {
+            ogsql_parser::ast::PackageItem::Variable(v) => {
+                let t = pl_data_type_to_string(&v.data_type);
+                vars.insert(v.name.to_ascii_lowercase(), t);
+            }
+            ogsql_parser::ast::PackageItem::Cursor(c) => {
+                vars.insert(c.name.to_ascii_lowercase(), None);
+            }
+            ogsql_parser::ast::PackageItem::Type(t) => {
+                let name = match t {
+                    ogsql_parser::ast::plpgsql::PlTypeDecl::Record { name, .. } => name,
+                    ogsql_parser::ast::plpgsql::PlTypeDecl::TableOf { name, .. } => name,
+                    ogsql_parser::ast::plpgsql::PlTypeDecl::VarrayOf { name, .. } => name,
+                    ogsql_parser::ast::plpgsql::PlTypeDecl::RefCursor { name } => name,
+                };
+                vars.insert(name.to_ascii_lowercase(), None);
+            }
+            _ => {}
+        }
+    }
+    vars
+}
+
+/// Collect package-level variable declarations from `CreatePackage` (spec) statements
+/// so that `CreatePackageBody` procedures can reference them.
+fn collect_pkg_spec_vars_from_stmts(
+    stmts: &[ogsql_parser::StatementInfo],
+) -> std::collections::HashMap<String, Option<String>> {
+    let mut vars = std::collections::HashMap::new();
+    for si in stmts {
+        if let ogsql_parser::Statement::CreatePackage(s) = &si.statement {
+            let spec_vars = collect_package_item_vars(&s.items);
+            for (k, v) in spec_vars {
+                vars.entry(k).or_insert(v);
+            }
+        }
+    }
+    vars
+}
+
 fn flatten_statement(
     si: &ogsql_parser::StatementInfo,
     mybatis: bool,
     extract_sql: bool,
     schema: Option<&ogsql_parser::FullSchema>,
+    pkg_spec_vars: &std::collections::HashMap<String, Option<String>>,
 ) -> Vec<ParseCsvRow> {
     use ogsql_parser::Statement;
     let mut rows = Vec::new();
@@ -2694,6 +2740,8 @@ fn flatten_statement(
                     branch_condition: String::new(),
                 });
             }
+            // Collect package-level variables defined in this body (private vars)
+            let body_pkg_vars = collect_package_item_vars(&s.items);
             for item in &s.items {
                 match item {
                     ogsql_parser::ast::PackageItem::Procedure(p) => {
@@ -2712,11 +2760,18 @@ fn flatten_statement(
                             });
                         }
                         if let Some(ref block) = p.block {
-                            let vars = if do_vars {
+                            let mut vars = if do_vars {
                                 collect_block_vars(block, &p.parameters, schema)
                             } else {
                                 std::collections::HashMap::new()
                             };
+                            // Merge package-level vars: spec → body-level → procedure-local (last wins)
+                            for (k, v) in pkg_spec_vars {
+                                vars.entry(k.clone()).or_insert_with(|| v.clone());
+                            }
+                            for (k, v) in &body_pkg_vars {
+                                vars.entry(k.clone()).or_insert_with(|| v.clone());
+                            }
                             let out_cursors = extract_out_cursor_set(&p.parameters);
                             rows.extend(collect_block_sql_rows(
                                 block,
@@ -2744,11 +2799,17 @@ fn flatten_statement(
                             });
                         }
                         if let Some(ref block) = f.block {
-                            let vars = if do_vars {
+                            let mut vars = if do_vars {
                                 collect_block_vars(block, &f.parameters, schema)
                             } else {
                                 std::collections::HashMap::new()
                             };
+                            for (k, v) in pkg_spec_vars {
+                                vars.entry(k.clone()).or_insert_with(|| v.clone());
+                            }
+                            for (k, v) in &body_pkg_vars {
+                                vars.entry(k.clone()).or_insert_with(|| v.clone());
+                            }
                             let out_cursors = extract_out_cursor_set(&f.parameters);
                             let is_return_cursor =
                                 f.return_type.as_ref().is_some_and(|rt| rt.to_uppercase().contains("REFCURSOR"));
@@ -3069,6 +3130,7 @@ fn output_csv_parse_rows(
     extract_sql: bool,
     schema: Option<&ogsql_parser::FullSchema>,
 ) {
+    let pkg_spec_vars = collect_pkg_spec_vars_from_stmts(statements);
     for si in statements {
         let stmt_start = si.start_line;
         let stmt_end = si.end_line;
@@ -3081,7 +3143,7 @@ fn output_csv_parse_rows(
             })
             .collect();
 
-        let rows = flatten_statement(si, mybatis, extract_sql, schema);
+        let rows = flatten_statement(si, mybatis, extract_sql, schema, &pkg_spec_vars);
         for row in rows {
             if extract_sql && row.sql.trim().is_empty() {
                 continue;
@@ -3114,8 +3176,9 @@ fn output_extract_rows_text(
     mybatis: bool,
     schema: Option<&ogsql_parser::FullSchema>,
 ) {
+    let pkg_spec_vars = collect_pkg_spec_vars_from_stmts(statements);
     for si in statements {
-        let rows = flatten_statement(si, mybatis, true, schema);
+        let rows = flatten_statement(si, mybatis, true, schema, &pkg_spec_vars);
         for row in rows {
             if row.sql.trim().is_empty() {
                 continue;

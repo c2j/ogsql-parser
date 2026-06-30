@@ -1,0 +1,34 @@
+[Perform] L13:  | PERFORM process_payment(__SQL_PARAM_INTEGER_p_user_id__, __SQL_PARAM_NUMERIC_p_amount__)
+[Perform] L14:  | PERFORM update_balance(__SQL_PARAM_INTEGER_p_user_id__)
+[SqlStatement/Insert] L15: payment_log | INSERT INTO payment_log (user_id, amount) VALUES (__SQL_PARAM_INTEGER_p_user_id__, __SQL_PARAM_NUMERIC_p_amount__)
+[SqlStatement/Insert] L28: users | INSERT INTO users (name, email) VALUES (__SQL_PARAM_VARCHAR_p_name__, __SQL_PARAM_VARCHAR_p_email__)
+    RETURNING id INTO __SQL_PARAM_INTEGER_v_new_id__
+[SqlStatement/Insert] L30: welcome_queue | INSERT INTO welcome_queue (user_id, message) VALUES (__SQL_PARAM_INTEGER_v_new_id__, 'Welcome')
+[SqlStatement/Insert] L42: data_table | INSERT INTO data_table (id, value) VALUES (__SQL_PARAM_INTEGER_p_id__, __SQL_PARAM_VARCHAR_p_value__)
+[SqlStatement/Update] L45: data_table | UPDATE data_table SET value = __SQL_PARAM_VARCHAR_p_value__ WHERE id = __SQL_PARAM_INTEGER_p_id__
+[SqlStatement/Insert] L47: error_log | INSERT INTO error_log (error_id, error_msg, error_time) VALUES (__SQL_PARAM_INTEGER_p_id__, SQLERRM, CURRENT_TIMESTAMP)
+[SqlStatement/Select] L61: main_table | SELECT name INTO __SQL_PARAM_VARCHAR_v_main_name__ FROM main_table WHERE id = __SQL_PARAM_INTEGER_p_main_id__
+[SqlStatement/Select] L63: sub_table | SELECT id INTO __SQL_PARAM_INTEGER_v_sub_count__ FROM sub_table WHERE main_id = __SQL_PARAM_INTEGER_p_main_id__ AND value = __SQL_PARAM_VARCHAR_p_sub_value__
+[SqlStatement/Update] L64: sub_table | UPDATE sub_table SET processed = 'Y' WHERE id = __SQL_PARAM_INTEGER_v_sub_count__
+[SqlStatement/Insert] L65: sub_process_log | INSERT INTO sub_process_log (main_id, sub_id, processed_by) VALUES (__SQL_PARAM_INTEGER_p_main_id__, __SQL_PARAM_INTEGER_v_sub_count__, __SQL_PARAM_VARCHAR_v_main_name__)
+[SqlStatement/Update] L67: main_table | UPDATE main_table SET last_processed = CURRENT_TIMESTAMP WHERE id = __SQL_PARAM_INTEGER_p_main_id__
+[SqlStatement/Select] L79: tasks | SELECT status INTO __SQL_PARAM_VARCHAR_v_status__ FROM tasks WHERE id = __SQL_PARAM_INTEGER_p_id__
+[SqlStatement/Update] L86: tasks | UPDATE tasks SET status = 'PROCESSING' WHERE id = __SQL_PARAM_INTEGER_p_id__
+[SqlStatement/Insert] L87: task_log | INSERT INTO task_log (task_id, action) VALUES (__SQL_PARAM_INTEGER_p_id__, 'STARTED')
+[SqlStatement/Insert] L90: missing_tasks | INSERT INTO missing_tasks (task_id) VALUES (__SQL_PARAM_INTEGER_p_id__)
+[SqlStatement/Insert] L93: duplicate_attempts | INSERT INTO duplicate_attempts (task_id) VALUES (__SQL_PARAM_INTEGER_p_id__)
+[SqlStatement/Select] L107: batch_process | SELECT COUNT(*) INTO __SQL_PARAM_INTEGER_v_count__ FROM batch_process
+[SqlStatement/Insert] L108: batch_summary | INSERT INTO batch_summary (total_processed) VALUES (__SQL_PARAM_INTEGER_v_count__)
+[SqlStatement/Insert] L121: items | INSERT INTO items (id, value) VALUES (__SQL_PARAM_INTEGER_p_id__, __SQL_PARAM_VARCHAR_p_value__)
+[SqlStatement/Insert] L124: diag_log | INSERT INTO diag_log (item_id, rows_affected) VALUES (__SQL_PARAM_INTEGER_p_id__, __SQL_PARAM_INTEGER_v_row_count__)
+[SqlStatement/Select] L138: users | SELECT name INTO __SQL_PARAM_VARCHAR_v_name__ FROM users WHERE id = __SQL_PARAM_INTEGER_p_id__
+[SqlStatement/Insert] L140: action_log | INSERT INTO action_log (user_id, user_name, action) VALUES (__SQL_PARAM_INTEGER_p_id__, __SQL_PARAM_VARCHAR_v_name__, __SQL_PARAM_VARCHAR_p_action__)
+[SqlStatement/Delete] L142: users | DELETE FROM users WHERE id = __SQL_PARAM_INTEGER_p_id__
+[SqlStatement/Insert] L143: deletion_log | INSERT INTO deletion_log (user_id, user_name) VALUES (__SQL_PARAM_INTEGER_p_id__, __SQL_PARAM_VARCHAR_v_name__)
+[Embedded/Execute] L160:  | SELECT id, data FROM dynamic_data WHERE __SQL_RAW_VARCHAR_p_where_clause__
+[SqlStatement/Insert] L164: extracted_data | INSERT INTO extracted_data (source_id, source_data) VALUES (__SQL_PARAM_INTEGER_v_id__, __SQL_PARAM_VARCHAR_v_data__)
+[SqlStatement/Select] L180: accounts | SELECT balance INTO __SQL_PARAM_NUMERIC_v_balance__ FROM accounts WHERE id = __SQL_PARAM_INTEGER_p_from_id__
+[SqlStatement/Update] L182: accounts | UPDATE accounts SET balance = balance - __SQL_PARAM_NUMERIC_p_amount__ WHERE id = __SQL_PARAM_INTEGER_p_from_id__
+[SqlStatement/Update] L183: accounts | UPDATE accounts SET balance = balance + __SQL_PARAM_NUMERIC_p_amount__ WHERE id = __SQL_PARAM_INTEGER_p_to_id__
+[SqlStatement/Insert] L184: transfers | INSERT INTO transfers (from_id, to_id, amount) VALUES (__SQL_PARAM_INTEGER_p_from_id__, __SQL_PARAM_INTEGER_p_to_id__, __SQL_PARAM_NUMERIC_p_amount__)
+[SqlStatement/Insert] L188: transfer_errors | INSERT INTO transfer_errors (from_id, to_id, error) VALUES (__SQL_PARAM_INTEGER_p_from_id__, __SQL_PARAM_INTEGER_p_to_id__, SQLERRM)
