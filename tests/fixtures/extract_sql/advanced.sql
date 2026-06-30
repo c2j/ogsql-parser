@@ -1,6 +1,7 @@
 -- Issue: N/A
 -- Description: Advanced extract-sql scenarios: PERFORM, RETURNING, exception handlers, sub-blocks, FORALL
--- Expect: parse success
+-- Expect: snapshot
+-- Command: parse --extract-sql
 
 -- ============================================
 -- 1. PERFORM statement

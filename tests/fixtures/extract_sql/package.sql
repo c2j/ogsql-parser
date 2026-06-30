@@ -1,6 +1,7 @@
 -- Issue: N/A
 -- Description: Package body with multiple procedures containing SQL extraction
--- Expect: parse success
+-- Expect: snapshot
+-- Command: parse --extract-sql
 
 CREATE OR REPLACE PACKAGE BODY pkg_user_mgmt AS
     PROCEDURE create_user(

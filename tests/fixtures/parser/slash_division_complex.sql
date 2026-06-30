@@ -1,6 +1,7 @@
 -- Issue: slash-division-operator
 -- Description: / is treated as terminator in complex expression contexts
--- Expect: all statements parse without error
+-- Expect: parse
+-- Split: semicolon
 
 SELECT * FROM tab WHERE a / 1000 > 1;
 

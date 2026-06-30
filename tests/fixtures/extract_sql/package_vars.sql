@@ -1,6 +1,7 @@
 -- Issue: N/A
 -- Description: Package body procedures referencing package-level variables (defined in spec/body top-level)
--- Expect: parse success; package-level vars currently NOT replaced as __SQL_PARAM__ placeholders
+-- Expect: snapshot; package-level vars currently NOT replaced as __SQL_PARAM__ placeholders
+-- Command: parse --extract-sql
 
 -- ============================================
 -- Package spec: defines package-level variables, cursor, type

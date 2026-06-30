@@ -1,0 +1,26 @@
+[SqlStatement/Select] L14: users | SELECT * FROM users WHERE id = __SQL_PARAM_INTEGER_p_id__ AND name = __SQL_PARAM_VARCHAR_p_name__
+[SqlStatement/Insert] L26: users | INSERT INTO users (name, age) VALUES (__SQL_PARAM_VARCHAR_p_name__, __SQL_PARAM_INTEGER_p_age__)
+[SqlStatement/Update] L38: users | UPDATE users SET status = __SQL_PARAM_VARCHAR_p_status__ WHERE id = __SQL_PARAM_INTEGER_p_id__
+[SqlStatement/Delete] L49: users | DELETE FROM users WHERE id = __SQL_PARAM_INTEGER_p_id__
+[SqlStatement/Select] L62: users | SELECT name INTO __SQL_PARAM_VARCHAR_v_name__ FROM users WHERE id = __SQL_PARAM_INTEGER_p_id__
+[SqlStatement/Select] L63: orders | SELECT COUNT(*) INTO __SQL_PARAM_INTEGER_v_count__ FROM orders WHERE user_id = __SQL_PARAM_INTEGER_p_id__
+[SqlStatement/Select] L75: accounts | SELECT frozen_flag INTO __SQL_PARAM_VARCHAR_v_frozen__ FROM accounts WHERE account_id = __SQL_PARAM_INTEGER_p_account_id__
+[SqlStatement/Update] L77: accounts | UPDATE accounts SET frozen_flag = 'N' WHERE account_id = __SQL_PARAM_INTEGER_p_account_id__
+[SqlStatement/Insert] L79: audit_log | INSERT INTO audit_log (account_id, action) VALUES (__SQL_PARAM_INTEGER_p_account_id__, 'UNFREEZE')
+[SqlStatement/Select] L92: users | SELECT name INTO __SQL_PARAM_VARCHAR_p_out__ FROM users WHERE id = __SQL_PARAM_INTEGER_p_in__
+[SqlStatement/Insert] L94: logs | INSERT INTO logs (msg) VALUES ('processed ' || __SQL_PARAM_INTEGER_p_in__)
+[SqlStatement/Select] L104: users | SELECT COUNT(*) INTO __SQL_PARAM_INTEGER_v_count__ FROM users
+[SqlStatement/Insert] L105: stats | INSERT INTO stats (total_users) VALUES (__SQL_PARAM_INTEGER_v_count__)
+[SqlStatement/Select] L119: users | SELECT COUNT(*) INTO __SQL_PARAM_INTEGER_v_total_count__ FROM users WHERE created_by = __SQL_PARAM_VARCHAR_p_created_by__
+[SqlStatement/Select] L120: sessions | SELECT login_time INTO __SQL_PARAM_TIMESTAMP_v_last_login__ FROM sessions WHERE user_id = __SQL_PARAM_INTEGER_p_user_id__
+[SqlStatement/Update] L121: users | UPDATE users SET last_login = __SQL_PARAM_TIMESTAMP_v_last_login__ WHERE id = __SQL_PARAM_INTEGER_p_user_id__
+[SqlStatement/Merge] L134: users | MERGE INTO users t USING (SELECT __SQL_PARAM_INTEGER_p_id__ AS id, __SQL_PARAM_VARCHAR_p_name__ AS name, __SQL_PARAM_INTEGER_p_age__ AS age) s
+    ON (t.id = s.id)
+    WHEN MATCHED THEN UPDATE SET t.name = s.name, t.age = s.age
+    WHEN NOT MATCHED THEN INSERT (id, name, age) VALUES (s.id, s.name, s.age)
+[SqlStatement/Select] L149: dept_users | WITH dept_users AS (
+        SELECT id, name FROM users WHERE dept_id = __SQL_PARAM_INTEGER_p_dept_id__
+    )
+    SELECT COUNT(*) INTO __SQL_PARAM_INTEGER_v_count__ FROM dept_users
+[SqlStatement/Select] L6: users | select COUNT ( * ) into __SQL_PARAM_INTEGER_v_count__ from users
+[SqlStatement/Insert] L7: logs | insert into logs ( msg , cnt ) values ( __SQL_PARAM_VARCHAR_v_msg__ , __SQL_PARAM_INTEGER_v_count__ )

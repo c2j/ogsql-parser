@@ -1,0 +1,10 @@
+[SqlStatement/Select] L30: users | SELECT name INTO __SQL_PARAM_VARCHAR_v_name__ FROM users
+        WHERE id = __SQL_PARAM_INTEGER_p_user_id__ AND org_id = __SQL_PARAM_INTEGER_g_org_id__
+[SqlStatement/Insert] L33: debug_log | INSERT INTO debug_log (user_id, user_name, batch_size)
+            VALUES (__SQL_PARAM_INTEGER_p_user_id__, __SQL_PARAM_VARCHAR_v_name__, __SQL_PARAM_INTEGER_g_batch_size__)
+[SqlStatement/Select] L41: employees | SELECT COUNT(*) INTO __SQL_PARAM_INTEGER_v_count__ FROM employees WHERE dept_id = __SQL_PARAM_INTEGER_p_dept_id__
+[Execute] L43:  | UPDATE employees SET last_audit = CURRENT_TIMESTAMP WHERE org_id = __SQL_RAW_INTEGER_g_org_id__
+[SqlStatement/Insert] L44: audit_summary | INSERT INTO audit_summary (dept_id, emp_count, app_name, org_id)
+        VALUES (__SQL_PARAM_INTEGER_p_dept_id__, __SQL_PARAM_INTEGER_v_count__, __SQL_PARAM_VARCHAR_g_app_name__, __SQL_PARAM_INTEGER_g_org_id__)
+[SqlStatement/Select] L50: users | SELECT COUNT(*) INTO __SQL_PARAM_INTEGER_v_total__ FROM users
+        WHERE status = 'active' AND org_id = __SQL_PARAM_INTEGER_g_org_id__
