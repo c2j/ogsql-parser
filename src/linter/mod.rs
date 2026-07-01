@@ -861,6 +861,44 @@ fn collect_nested_in_select<'a>(s: &'a SelectStatement, out: &mut Vec<(&'a Selec
     }
 }
 
+/// Like [`collect_nested_in_select`] but does NOT recurse into set-operation
+/// branches (UNION/INTERSECT/EXCEPT), which are at the same outer level as the
+/// primary SELECT.  Only true *inner* (nested) SELECTs are collected:
+/// expression subqueries, FROM-clause subqueries, and CTE bodies.
+pub(crate) fn collect_inner_selects_only<'a>(
+    s: &'a SelectStatement,
+    out: &mut Vec<(&'a SelectStatement, SourceLocation)>,
+) {
+    for t in &s.targets {
+        if let crate::ast::SelectTarget::Expr(e, _) = t {
+            collect_selects_from_expr(e, out);
+        }
+    }
+    if let Some(ref w) = s.where_clause {
+        collect_selects_from_expr(w, out);
+    }
+    if let Some(ref h) = s.having {
+        collect_selects_from_expr(h, out);
+    }
+    for item in &s.order_by {
+        collect_selects_from_expr(&item.expr, out);
+    }
+    for gb in &s.group_by {
+        if let crate::ast::GroupByItem::Expr(e) = gb {
+            collect_selects_from_expr(e, out);
+        }
+    }
+    collect_selects_from_from(&s.from, out);
+    if let Some(ref w) = s.with {
+        for cte in &w.ctes {
+            out.push((&cte.query, SourceLocation::default()));
+            collect_inner_selects_only(&cte.query, out);
+        }
+    }
+    // Intentionally do NOT walk set_operation branches — those are at the
+    // same outer level.
+}
+
 /// Walk an expression tree and collect subqueries.
 fn collect_selects_from_expr<'a>(expr: &'a crate::ast::Expr, out: &mut Vec<(&'a SelectStatement, SourceLocation)>) {
     use crate::ast::Expr;

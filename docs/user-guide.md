@@ -1,6 +1,6 @@
 # OGSQL Parser 用户指南
 
-> 版本 0.6.18 | 适用于 openGauss / GaussDB SQL 解析器
+> 版本 0.8.14 | 适用于 openGauss / GaussDB SQL 解析器
 
 本文档面向 **终端用户** — 使用命令行工具、HTTP API 或 MCP 服务器的人群。
 
@@ -61,7 +61,7 @@ OGSQL Parser 是一个使用 Rust 编写的 SQL 解析器，专为 openGauss / G
 - **Java 源文件 SQL 提取**：从 Java 代码中提取并解析嵌入的 SQL 语句
 - **多字符集支持**：自动检测和转换 UTF-8、EUC-JP、EUC-KR、GB18030、BIG5、UTF-16
 - **MCP 服务器**：作为 AI 工具服务器，与 Claude Desktop、Cursor 等 AI 编辑器集成
-- **SQL 反模式检测 (Lint)**：内置 47 条规则，覆盖禁止项、性能、注意事项和建议四个等级
+- **SQL 反模式检测 (Lint)**：内置 53 条规则，覆盖禁止项、性能、注意事项和建议四个等级
 
 该项目提供了多种使用方式：命令行工具、HTTP API 服务、交互式终端以及 MCP 服务器。
 
@@ -788,7 +788,7 @@ MIT OR Apache-2.0 双许可，您可以选择其中任一使用。
 
 ## 11. SQL 反模式检测 (Lint)
 
-OGSQL Parser 内置 SQL 静态检测引擎 (`SqlLinter`)，可识别 47 条反模式规则，覆盖**禁止项 (Prohibition)**、**性能 (Performance)**、**注意事项 (Caution)** 和**建议 (Suggestion)** 四个等级。
+OGSQL Parser 内置 SQL 静态检测引擎 (`SqlLinter`)，可识别 53 条反模式规则，覆盖**禁止项 (Prohibition)**、**性能 (Performance)**、**注意事项 (Caution)** 和**建议 (Suggestion)** 四个等级。
 
 ### 11.1 快速开始
 
@@ -825,6 +825,10 @@ ogsql validate -d ./sql-files --lint --lint-config ./.ogsql-lint.toml
 | `--in-list-threshold` | 正整数 | `500` | P003: IN 列表大小阈值 |
 | `--subquery-depth-limit` | 正整数 | `3` | P014: 子查询嵌套深度阈值 |
 | `--non-equi-join-limit` | 正整数 | `2` | P007: 非等值 JOIN 数量阈值 |
+| `--group-by-column-limit` | 正整数 | `10` | R002: GROUP BY / ORDER BY 列数阈值 |
+| `--max-insert-values-rows` | 正整数 | `65535` | C018: INSERT VALUES 行数×列数阈值 |
+| `--foreach-estimated-rows` | 正整数 | `1000` | C018（iBatis 变体）: `<foreach>` 预估迭代次数 |
+| `--sql-length-limit` | 正整数 | `4096` | S008: SQL 文本长度阈值 |
 | `--lint-config` | 文件路径 | 自动查找 | 配置文件路径（详见 11.3） |
 
 ### 11.3 配置文件
@@ -847,83 +851,89 @@ sql_length_limit = 4096     # SQL 超过 4096 字符时建议拆分
 non_equi_join_limit = 3     # 非等值 JOIN 超过 3 个时报告
 group_by_column_limit = 10  # GROUP BY 超过 10 列时报告
 max_insert_values_rows = 65535 # INSERT VALUES 行数×列数阈值
+foreach_estimated_rows = 1000   # iBatis <foreach> 预估迭代次数（用于 C018 动态变体）
 ```
 
 配置项的优先级：**命令行参数 > 配置文件 > 默认值**。
 
 ### 11.4 规则清单
 
-#### 禁止项 (Prohibition) — 违反 GaussDB 编码规范
+> **等级说明**：`Prohibition`(禁止项) > `Performance`(性能) > `Caution`(注意) > `Suggestion`(建议)。
+> 共 53 条规则（7 Prohibition + 23 Performance + 17 Caution + 6 Suggestion = 53）。
+> 编号不连续（如 C002–C004、S003–S004 不存在）是规划中预留的规则位。
+
+#### 禁止项 (Prohibition) — 违反 GaussDB 编码规范，可能引发数据安全风险（7 条）
 
 | ID | 名称 | 适用语句 | 说明 |
 |----|------|----------|------|
-| R001 | `select-star` | SELECT | `SELECT *` 违反编码规范，表结构变化时可能导致不兼容 |
-| R002 | `large-column-sort` | SELECT | GROUP BY / ORDER BY 超过阈值列的表达式，可能导致性能问题 |
-| R003 | `lock-table` | All | `LOCK TABLE` 可能导致死锁风险 |
-| R004 | `drop-cascade` | All | `DROP ... CASCADE` 可能误删依赖对象 |
-| R005 | `implicit-type-conversion` | SELECT | WHERE 中可能存在隐式类型转换，导致索引失效（需 schema 辅助，无 schema 时跳过） |
-| R006 | `function-on-where-column` | DML | WHERE 中对有索引的列使用函数或表达式 |
-| R007 | `like-leading-wildcard` | DML | `LIKE '%...'` 前导通配符导致无法使用索引，触发全表扫描 |
-| R008 | `same-table-column-compare` | DML | 同表列比较：可能未正确使用索引 |
-#### 性能 (Performance) — 可识别的性能陷阱
+| R001 | `select-star` | SELECT | `SELECT *` 违反编码规范。外层 `SELECT *` 仅在包裹内层显式列子查询（作为透传）时允许；单层独立 `SELECT *`、内层/嵌套/CTE 体中的 `SELECT *`、以及 UNION 分支中的 `SELECT *` 均报警。建议明确列出所需字段名 |
+| R002 | `large-column-sort` | SELECT | GROUP BY / ORDER BY 包含超过阈值（默认 10）个表达式，可能导致性能问题。建议简化分组/排序列数量 |
+| R003 | `lock-table` | All | `LOCK TABLE` 可能导致死锁风险。建议避免在事务中使用 LOCK TABLE，优先使用 `SELECT ... FOR UPDATE` |
+| R004 | `drop-cascade` | All | `DROP ... CASCADE` 可能误删依赖对象。建议确认依赖关系后再使用 CASCADE |
+| R005 | `implicit-type-conversion` | DML | WHERE 中可能存在隐式类型转换，导致索引失效。需要 schema 信息辅助判断，无 schema 时跳过 |
+| R006 | `function-on-where-column` | DML | WHERE 中对列使用函数或表达式运算，将导致索引失效。建议将运算移到等号另一侧或使用函数索引 |
+| R007 | `like-leading-wildcard` | DML | `LIKE '%...'` 前导通配符导致无法使用索引，触发全表扫描。建议避免以通配符开头的 LIKE 模式 |
+
+#### 性能 (Performance) — 可识别的性能陷阱，有明确的优化路径（23 条）
 
 | ID | 名称 | 适用语句 | 说明 |
 |----|------|----------|------|
-| P001 | `union-without-all` | SELECT | `UNION` 未使用 `ALL`，存在不必要的去重排序 |
-| P002 | `not-in-subquery` | DML | `NOT IN (子查询)` 性能较差，NULL 值会导致结果不符合预期 |
-| P003 | `in-list-too-large` | DML | IN 列表超过阈值，导致解析缓慢 |
-| P004 | `or-to-union-all` | DML | WHERE 顶层为 OR 条件，可能导致优化器放弃索引 |
-| P005 | `now-function-non-pushable` | DML | `now()` / `sysdate` 不可下推，导致分布式查询性能下降 |
-| P006 | `count-star-large-table` | SELECT | `COUNT(*)` 在大表上性能较差 |
-| P007 | `too-many-non-equi-joins` | SELECT | 非等值 JOIN 条件过多，性能较差 |
-| P008 | `group-by-without-hashagg` | SELECT | GROUP BY 操作未使用 `hash_agg` 提示 |
-| P009 | `function-instead-of-case` | DML | `NVL`/`NVL2`/`DECODE`/`IIF` 函数可用 CASE 替代，可能更高效 |
-| P010 | `multi-column-update-subquery` | UPDATE | 多列 UPDATE 使用子查询效率较低 |
-| P011 | `correlated-subquery` | DML | 关联子查询可能导致每行执行一次子查询 |
-| R009 | `scalar-subquery-in-select` | SELECT | SELECT 列中包含标量子查询，每行都会执行一次子查询 |
-| P012 | `unnecessary-distinct` | SELECT | DISTINCT 存在，需结合唯一键判断是否必要 |
-| P013 | `cartesian-product` | SELECT | CROSS JOIN 或缺少 JOIN 条件，可能产生笛卡尔积 |
-| P014 | `deeply-nested-subquery` | DML | 子查询嵌套深度超过阈值，性能可能较差 |
-| P015 | `range-equals-same-value` | DML | `BETWEEN` 上下界相同，应简化为等号条件 |
-| P016 | `update-from-no-join-condition` | UPDATE | `UPDATE FROM` 无 WHERE 子句，可能产生笛卡尔积更新 |
-| P017 | `merge-without-unique-index` | MERGE | MERGE 语句 ON 条件需要唯一索引保证确定性 |
-| P018 | `insert-select-no-columns` | INSERT | `INSERT INTO ... SELECT` 未指定目标列名，依赖列顺序 |
-| P019 | `multi-table-update` | UPDATE | 多表 UPDATE，可能产生非预期结果 |
-| P020 | `insert-all-multi-table` | All | `INSERT ALL` / `INSERT FIRST` 多表插入 |
-| P021 | `row-by-row-insert-in-loop` | PL Block | 循环体内包含 INSERT，应使用 FORALL 批量操作替代 |
-| P022 | `explain-in-production` | All | EXPLAIN 语句不应出现在生产代码中 |
-| P023 | `connect-by-performance` | All | CONNECT BY 层级查询在数据量大或递归层次深时性能可能显著下降；缺少 START WITH 可能导致全表扫描 |
+| R009 | `scalar-subquery-in-select` | SELECT | SELECT 列中包含标量子查询，每行都会执行一次子查询。建议改用 JOIN 替代标量子查询 |
+| P001 | `union-without-all` | SELECT | `UNION` 未使用 `ALL`，存在不必要的去重排序。如果确认无重叠，改 `UNION ALL` |
+| P002 | `not-in-subquery` | DML | `NOT IN (子查询)` 性能较差，且 NULL 值会导致结果不符合预期。建议改为 `NOT EXISTS` 或 `LEFT JOIN ... IS NULL` |
+| P003 | `in-list-too-large` | DML | IN 列表值数量超过阈值（默认 500），导致解析缓慢。建议改用临时表或 INNER JOIN |
+| P004 | `or-to-union-all` | DML | WHERE 顶层为 OR 条件，可能导致优化器放弃索引。建议考虑将 OR 改写为 UNION ALL |
+| P005 | `now-function-non-pushable` | DML | `now()` / `current_timestamp` / `sysdate` 不可下推，导致分布式查询性能下降。建议用时间宏或参数化查询替代 |
+| P006 | `count-star-large-table` | SELECT | `COUNT(*)` 在大表上性能较差。建议考虑使用 `pg_class.reltuples` 或近似统计信息 |
+| P007 | `too-many-non-equi-joins` | SELECT | 非等值 JOIN 条件过多（默认超过 2 个），性能较差。建议优先使用等值查询 |
+| P008 | `group-by-without-hashagg` | SELECT | GROUP BY 操作未使用 `hash_agg` 提示，可能需要调大 `work_mem`。建议添加 `/*+ hash_agg */` 提示 |
+| P009 | `function-instead-of-case` | DML | `NVL`/`NVL2`/`DECODE`/`IIF` 函数可用 CASE 表达式替代，可能更高效 |
+| P010 | `multi-column-update-subquery` | UPDATE | 多列 `UPDATE SET (列1,列2) = (SELECT ...)` 效率较低。建议改用 `UPDATE ... FROM ... WHERE` 的 JOIN 风格 |
+| P011 | `correlated-subquery` | DML | 关联子查询可能导致每行执行一次子查询。建议改写为等值 JOIN |
+| P012 | `unnecessary-distinct` | SELECT | DISTINCT 存在，需结合唯一键判断是否必要。如果已含唯一列则可移除（需 schema 信息确认） |
+| P013 | `cartesian-product` | SELECT | CROSS JOIN 或缺少 JOIN 条件，可能产生笛卡尔积。建议补充 JOIN 条件或确认确实需要 CROSS JOIN |
+| P014 | `deeply-nested-subquery` | DML | 子查询嵌套深度超过阈值（默认 3 层），性能可能较差。建议拆分为临时表或 CTE |
+| P015 | `range-equals-same-value` | DML | `BETWEEN x AND x` 上下界相同，应简化为 `= x` |
+| P016 | `update-from-no-join-condition` | UPDATE | `UPDATE FROM` 无 WHERE 子句，可能产生笛卡尔积更新。建议在 WHERE 中关联 FROM 表 |
+| P017 | `merge-without-unique-index` | MERGE | MERGE 语句 ON 条件需要唯一索引保证确定性。建议确保 ON 条件列有唯一索引（需 schema 确认） |
+| P018 | `insert-select-no-columns` | INSERT | `INSERT INTO ... SELECT` 未指定目标列名，依赖列顺序。建议显式指定目标列名 |
+| P019 | `multi-table-update` | UPDATE | 多表 UPDATE，可能产生非预期结果。建议拆分为多条单表 UPDATE |
+| P020 | `insert-all-multi-table` | All | `INSERT ALL` / `INSERT FIRST` 多表插入。建议评估是否可用单条 `INSERT ... SELECT` 替代 |
+| P021 | `row-by-row-insert-in-loop` | PL Block | 循环体内包含 INSERT，应使用 FORALL 批量操作或 `INSERT ... SELECT` 替代逐行插入 |
+| P022 | `explain-in-production` | All | EXPLAIN 语句不应出现在生产代码中。建议仅用于调试环境 |
+| P023 | `connect-by-performance` | All | CONNECT BY 层级查询在数据量大或递归层次深时性能可能显著下降；缺少 START WITH 可能导致全表扫描。建议考虑使用 WITH RECURSIVE CTE 替代 |
 
-#### 注意事项 (Caution) — 合法但需谨慎
-
-| ID | 名称 | 适用语句 | 说明 |
-|----|------|----------|------|
-| C001 | `hint-unknown` | DML | Hint 不在 GaussDB 已知 Hint 列表中，将被静默忽略 |
-| C005 | `hint-contradictory` | DML | Hint 矛盾（如 `tablescan` 与 `indexscan` 同时存在） |
-| C006 | `hint-table-not-in-from` | DML | Hint 引用的表不在 FROM 子句中 |
-| C007 | `update-without-where` | UPDATE | `UPDATE` 无 WHERE 子句，可能影响全表数据 |
-| C008 | `delete-without-where` | DELETE | `DELETE` 无 WHERE 子句，将删除全表数据 |
-| C009 | `insert-no-column-list` | INSERT | INSERT 未指定目标列名，依赖表定义顺序 |
-| C010 | `unlogged-table` | DDL | `UNLOGGED TABLE` 在故障恢复时数据会丢失 |
-| C011 | `goto-statement` | PL Block | PL/pgSQL 中使用了 `GOTO` 语句，不符合结构化编程建议 |
-| C012 | `execute-concat-sql-injection` | PL Block | `EXECUTE IMMEDIATE` 中使用字符串拼接，可能存在 SQL 注入风险 |
-| C013 | `exception-swallow` | PL Block | `WHEN OTHERS THEN` 异常处理中未重新抛出异常，可能静默吞错 |
-| C014 | `pl-commit-rollback` | PL Block | PL/pgSQL 块中包含 COMMIT/ROLLBACK，可能复杂化事务控制 |
-| C015 | `select-for-update-blocking` | SELECT | `SELECT ... FOR UPDATE` 未使用 NOWAIT/SKIP LOCKED，可能长时间阻塞 |
-| C016 | `autonomous-transaction` | PL Block | `PRAGMA AUTONOMOUS_TRANSACTION` 会创建独立事务，性能开销较大 |
-| C017 | `raise-in-exception-clears-variables` | PL Block | RAISE 在 EXCEPTION 块中会清空所有局部变量值（包括 OUT 参数） |
-| C018 | `excessive-insert-values` | INSERT | `INSERT VALUES` 的 `行数 × 列数` 超过阈值 |
-
-#### 建议 (Suggestion) — 改善可维护性
+#### 注意事项 (Caution) — 语法合法但容易忽略，需要上下文判断（17 条）
 
 | ID | 名称 | 适用语句 | 说明 |
 |----|------|----------|------|
-| S001 | `delete-full-table-use-truncate` | DELETE | DELETE 全表可用 TRUNCATE 替代，释放空间更快 |
-| S002 | `limit-offset-use-cursor` | SELECT | OFFSET 分页在大偏移时性能较差，考虑使用游标翻页 |
-| S005 | `prefer-percent-type` | PL Block | PL/pgSQL 变量使用普通类型而非 `%TYPE`/`%ROWTYPE` 锚定 |
-| S006 | `limit-without-order-by` | SELECT | `LIMIT` 无 `ORDER BY`，结果顺序不确定 |
-| S007 | `explicit-type-for-literals` | DML | WHERE 中字符串常量与列比较时类型不匹配 |
-| S008 | `complex-sql-consider-split` | All | SQL 文本长度超过阈值，建议拆分简化或使用 CTE |
+| R008 | `same-table-column-compare` | DML | 同表列比较（如 `t.a = t.b`）：可能未正确使用索引。建议检查是否应使用不同表的列进行比较 |
+| C001 | `hint-unknown` | DML | Hint 不在 GaussDB 已知 Hint 列表中，将被静默忽略。建议检查 Hint 拼写是否正确 |
+| C005 | `hint-contradictory` | DML | Hint 矛盾（如 `tablescan` 与 `indexscan` 同时存在，或 `nestloop` 与 `hashjoin` 互斥）。建议只保留一个扫描方式/连接方式的 Hint |
+| C006 | `hint-table-not-in-from` | DML | Hint 引用的表不在 FROM 子句中。建议检查 Hint 中的表名是否与 FROM 子句一致 |
+| C007 | `update-without-where` | UPDATE | `UPDATE` 无 WHERE 子句，可能影响全表数据。建议确认是否真的需要更新全表 |
+| C008 | `delete-without-where` | DELETE | `DELETE` 无 WHERE 子句，将删除全表数据。建议确认是否应使用 TRUNCATE 或添加 WHERE 条件 |
+| C009 | `insert-no-column-list` | INSERT | INSERT 未指定目标列名，依赖表定义顺序。建议显式指定目标列名以避免表结构变化导致数据错误 |
+| C010 | `unlogged-table` | DDL | `UNLOGGED TABLE` 在故障恢复时数据会丢失。建议评估是否可以使用普通表替代 |
+| C011 | `goto-statement` | PL Block | PL/pgSQL 中使用了 `GOTO` 语句，不符合结构化编程建议。建议使用 IF/EXIT/CONTINUE 替代 |
+| C012 | `execute-concat-sql-injection` | PL Block | `EXECUTE IMMEDIATE` 中使用字符串拼接（`\|\|`），可能存在 SQL 注入风险。建议使用 `USING` 参数化查询替代 |
+| C013 | `exception-swallow` | PL Block | `WHEN OTHERS THEN` 异常处理中未重新抛出异常，可能静默吞错。建议在处理中添加 RAISE 重新抛出 |
+| C014 | `pl-commit-rollback` | PL Block | PL/pgSQL 块中包含 COMMIT/ROLLBACK，可能复杂化事务控制。建议将事务控制交给外层 |
+| C015 | `select-for-update-blocking` | SELECT | `SELECT ... FOR UPDATE` 未使用 NOWAIT/SKIP LOCKED，可能长时间阻塞。建议考虑使用 NOWAIT 或 SKIP LOCKED |
+| C016 | `autonomous-transaction` | PL Block | `PRAGMA AUTONOMOUS_TRANSACTION` 会创建独立事务，性能开销较大。建议评估是否真的需要独立事务 |
+| C017 | `raise-in-exception-clears-variables` | PL Block | RAISE 在 EXCEPTION 块中会清空所有局部变量值（包括 OUT 参数），导致调用方无法获取错误信息。建议使用 RAISE INFO 传递具体错误信息，或在 RAISE 前将输出值保存到临时表/全局变量 |
+| C018 | `excessive-insert-values` | INSERT | `INSERT VALUES` 的 `行数 × 列数` 超过阈值（默认 65535）。建议拆分为更小批次插入以减少锁持有时间，或使用 COPY。iBatis/MyBatis 变体还会检测 `<foreach>` 动态批量插入中的参数膨胀风险 |
+
+#### 建议 (Suggestion) — 改善可维护性和健壮性，不影响正确性（6 条）
+
+| ID | 名称 | 适用语句 | 说明 |
+|----|------|----------|------|
+| S001 | `delete-full-table-use-truncate` | DELETE | DELETE 无 WHERE 删除全表可用 TRUNCATE 替代，释放空间更快且不产生大量 WAL 日志 |
+| S002 | `limit-offset-use-cursor` | SELECT | OFFSET 分页在大偏移时性能较差。建议考虑使用游标翻页替代 LIMIT/OFFSET |
+| S005 | `prefer-percent-type` | PL Block | PL/pgSQL 变量使用普通类型而非 `%TYPE`/`%ROWTYPE` 锚定。建议使用 `table.column%TYPE` 或 `table%ROWTYPE` 以提高可维护性 |
+| S006 | `limit-without-order-by` | SELECT | `LIMIT` 无 `ORDER BY`，结果顺序不确定。建议添加 ORDER BY 保证结果确定性 |
+| S007 | `explicit-type-for-literals` | DML | WHERE 中字符串常量与列比较时类型可能不匹配，可能导致隐式转换。建议使用显式类型转换：`'val'::type` 或 `CAST('val' AS type)`（需要 schema 信息辅助判断） |
+| S008 | `complex-sql-consider-split` | All | SQL 文本长度超过阈值（默认 4096 字符，对齐 GaussDB `track_activity_query_size`），建议拆分为多个简单查询或使用 CTE |
 
 > 如需在 Rust 代码中以库 API 方式使用 Lint 功能，请参阅 [Crate 开发者指南 - SQL Lint](./crate-guide.md#5-sql-lint-库-api)。
 

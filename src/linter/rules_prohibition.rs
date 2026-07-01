@@ -1,11 +1,12 @@
-use crate::ast::{Expr, SelectTarget, Statement, StatementInfo};
+use crate::ast::{Expr, InsertSource, SelectStatement, SelectTarget, Statement, StatementInfo};
 use crate::linter::type_helpers::{
     build_column_type_map, classify_type_family, literal_type_family, resolve_column_type,
 };
 use crate::linter::{
-    loc_from_spanned, make_warning, stmt_location, walk_expr, Confidence, LintConfig, LintRuleEntry, SqlLinter,
-    SqlWarning, StatementKind, WarningLevel,
+    collect_inner_selects_only, collect_selects_from_stmt, loc_from_spanned, make_warning, stmt_location, walk_expr,
+    Confidence, LintConfig, LintRuleEntry, SqlLinter, SqlWarning, StatementKind, WarningLevel,
 };
+use crate::token::SourceLocation;
 
 pub fn register(linter: &mut SqlLinter) {
     let rules: Vec<LintRuleEntry> = vec![
@@ -13,7 +14,7 @@ pub fn register(linter: &mut SqlLinter) {
             id: "R001",
             name: "select-star",
             level: WarningLevel::Prohibition,
-            stmt_kind: StatementKind::Select,
+            stmt_kind: StatementKind::Dml,
             check_fn: check_r001,
         },
         LintRuleEntry {
@@ -78,7 +79,9 @@ pub fn register(linter: &mut SqlLinter) {
     }
 }
 
-// R001: SELECT * (unqualified)
+// R001: SELECT * in nested queries only.
+// Outer-most SELECT * is acceptable. Nested subqueries, CTE bodies, and
+// embedded SELECTs must use explicit column lists.
 fn check_r001(
     curr_stmt: &StatementInfo,
     _stmts: &[StatementInfo],
@@ -88,16 +91,49 @@ fn check_r001(
     confidence: Confidence,
     warnings: &mut Vec<SqlWarning>,
 ) {
-    if let Statement::Select(s) = &curr_stmt.statement {
-        let loc = loc_from_spanned(s, stmt_location(curr_stmt));
-        for target in &s.targets {
-            if let SelectTarget::Star(None) = target {
-                warnings.push(make_warning(
-                    WarningLevel::Prohibition, "R001", "select-star",
-                    "SELECT * \u{8fdd}\u{53cd} GaussDB \u{7f16}\u{7801}\u{89c4}\u{8303}\u{ff1a}\u{8868}\u{7ed3}\u{6784}\u{53d8}\u{5316}\u{65f6}\u{53ef}\u{80fd}\u{5bfc}\u{81f4}\u{4e0d}\u{517c}\u{5bb9}".into(),
-                    Some("\u{660e}\u{786e}\u{5217}\u{51fa}\u{6240}\u{9700}\u{5b57}\u{6bb5}\u{540d}"), loc,
-                    Some("\u{5f00}\u{53d1}\u{8bbe}\u{8ba1}\u{5efa}\u{8bae} > SELECT \u{89c4}\u{8303}"), confidence,
-                ));
+    let mut all_selects: Vec<(&SelectStatement, SourceLocation)> = Vec::new();
+    collect_selects_from_stmt(&curr_stmt.statement, stmt_location(curr_stmt), &mut all_selects);
+
+    // The outermost SELECT is the first entry for Select/Insert-Select/
+    // CreateTableAs/CreateView/CreateMaterializedView.  For other statement
+    // types (Update, Delete, PL blocks, etc.) all collected SELECTs are
+    // already inner and should always warn.
+    let has_outermost = matches!(
+        &curr_stmt.statement,
+        Statement::Select(_)
+            | Statement::CreateTableAs(_)
+            | Statement::CreateView(_)
+            | Statement::CreateMaterializedView(_)
+    ) || matches!(&curr_stmt.statement,
+        Statement::Insert(ins) if matches!(&ins.node.source, InsertSource::Select(_))
+    );
+
+    for (i, (s, loc)) in all_selects.iter().enumerate() {
+        let is_outermost = i == 0 && has_outermost;
+
+        let should_warn = if is_outermost {
+            // Outermost SELECT * is allowed ONLY when it wraps inner
+            // queries (it acts as a pass-through).  Standalone outer
+            // SELECT * (no inner queries) still violates the rule.
+            let mut inner = Vec::new();
+            collect_inner_selects_only(s, &mut inner);
+            inner.is_empty()
+        } else {
+            true
+        };
+
+        if should_warn {
+            for target in &s.targets {
+                if let SelectTarget::Star(None) = target {
+                    warnings.push(make_warning(
+                        WarningLevel::Prohibition, "R001", "select-star",
+                        "SELECT * \u{8fdd}\u{53cd} GaussDB \u{7f16}\u{7801}\u{89c4}\u{8303}\u{ff1a}\u{8868}\u{7ed3}\u{6784}\u{53d8}\u{5316}\u{65f6}\u{53ef}\u{80fd}\u{5bfc}\u{81f4}\u{4e0d}\u{517c}\u{5bb9}".into(),
+                        Some("\u{660e}\u{786e}\u{5217}\u{51fa}\u{6240}\u{9700}\u{5b57}\u{6bb5}\u{540d}"),
+                        *loc,
+                        Some("\u{5f00}\u{53d1}\u{8bbe}\u{8ba1}\u{5efa}\u{8bae} > SELECT \u{89c4}\u{8303}"),
+                        confidence,
+                    ));
+                }
             }
         }
     }

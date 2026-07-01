@@ -27,12 +27,50 @@ fn has_rule(warnings: &[crate::linter::SqlWarning], rule_id: &str) -> bool {
 }
 
 // ── R001: SELECT * ──
+// Outermost SELECT * is allowed ONLY when it wraps inner queries.
+// Standalone and inner/nested SELECT * always warn.
 
 #[test]
-fn r001_unqualified_star() {
+fn r001_standalone_select_star_warns() {
     let stmts = parse("SELECT * FROM t1");
     let w = lint(&stmts);
-    assert!(has_rule(&w, "R001"), "expected R001 for SELECT *");
+    assert!(has_rule(&w, "R001"), "standalone SELECT * should trigger R001");
+}
+
+#[test]
+fn r001_outer_with_inner_allowed() {
+    // Outer * wraps an explicit inner — allowed pass-through.
+    let stmts = parse("SELECT * FROM (SELECT id, name FROM t1) sub");
+    let w = lint(&stmts);
+    assert!(!has_rule(&w, "R001"), "outer * wrapping explicit inner should be allowed");
+}
+
+#[test]
+fn r001_from_subquery_star_flagged() {
+    let stmts = parse("SELECT id FROM (SELECT * FROM t1) sub");
+    let w = lint(&stmts);
+    assert!(has_rule(&w, "R001"), "SELECT * in FROM subquery should trigger R001");
+}
+
+#[test]
+fn r001_cte_body_star_flagged() {
+    let stmts = parse("WITH cte AS (SELECT * FROM t1) SELECT id FROM cte");
+    let w = lint(&stmts);
+    assert!(has_rule(&w, "R001"), "SELECT * in CTE body should trigger R001");
+}
+
+#[test]
+fn r001_where_subquery_star_flagged() {
+    let stmts = parse("SELECT id FROM t1 WHERE id IN (SELECT * FROM t2)");
+    let w = lint(&stmts);
+    assert!(has_rule(&w, "R001"), "SELECT * in WHERE subquery should trigger R001");
+}
+
+#[test]
+fn r001_union_both_select_star_warns() {
+    let stmts = parse("SELECT * FROM t1 UNION ALL SELECT * FROM t2");
+    let w = lint(&stmts);
+    assert!(has_rule(&w, "R001"), "UNION branches with SELECT * should trigger R001");
 }
 
 #[test]
@@ -558,7 +596,7 @@ fn suppress_rule() {
 fn multiple_rules_same_statement() {
     let stmts = parse("SELECT * FROM t1 UNION SELECT * FROM t2");
     let w = lint(&stmts);
-    assert!(has_rule(&w, "R001"), "expected R001 for SELECT *");
+    assert!(has_rule(&w, "R001"), "standalone UNION branches with SELECT * should trigger R001");
     assert!(has_rule(&w, "P001"), "expected P001 for UNION");
 }
 
@@ -1292,9 +1330,6 @@ fn test_s006_multi_statement_no_duplicate_warnings_issue_246() {
 
 #[test]
 fn test_multiple_rules_multi_statement_no_duplication_issue_246() {
-    // 4 statements: SELECT * (R001), DELETE full table (S001/C008),
-    // LIMIT without ORDER BY (S006), and one clean.
-    // Without fix: each rule fires N=4 times for its single matching stmt.
     let sql = "\
         SELECT * FROM t1;
         DELETE FROM t2;
@@ -1302,11 +1337,7 @@ fn test_multiple_rules_multi_statement_no_duplication_issue_246() {
         SELECT id FROM t4 WHERE status = 'active' ORDER BY id";
     let stmts = parse(sql);
     let w = lint(&stmts);
-    assert_eq!(
-        w.iter().filter(|w| w.rule_id == "R001").count(),
-        1,
-        "without fix for issue #246, R001 would fire 4 times"
-    );
+    assert_eq!(w.iter().filter(|w| w.rule_id == "R001").count(), 1, "R001 should fire once for standalone SELECT *");
     assert_eq!(
         w.iter().filter(|w| w.rule_id == "S006").count(),
         1,
