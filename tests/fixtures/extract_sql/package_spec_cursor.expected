@@ -1,0 +1,7 @@
+[SpecCursor] L9: cur_active_users | SELECT id, name, email FROM users WHERE status = 'active'
+[SpecCursor] L9: cur_user_orders | SELECT u.name, o.order_id, o.amount FROM users AS u INNER JOIN orders AS o ON u.id = o.user_id WHERE u.id = p_user_id
+[SpecCursor] L9: cur_dept_employees | SELECT id, name, salary FROM employees WHERE dept_id = p_dept_id ORDER BY salary DESC
+[SpecCursor] L9: cur_high_value_users | SELECT id, name FROM users WHERE id IN (SELECT user_id FROM orders WHERE amount > 1000 GROUP BY user_id)
+[SpecCursor] L9: cur_dept_summary | WITH dept_stats AS (SELECT dept_id, COUNT(*) AS emp_count, AVG(salary) AS avg_sal FROM employees GROUP BY dept_id) SELECT d.name, ds.emp_count, ds.avg_sal FROM departments AS d INNER JOIN dept_stats AS ds ON d.id = ds.dept_id
+[ReturnCursorSQL] L58: p_cursor | SELECT id, name, email FROM users WHERE status = 'active'
+[SqlStatement/Select] L64: orders | SELECT COUNT(*) INTO __SQL_PARAM_INTEGER_v_count__ FROM orders WHERE user_id = __SQL_PARAM_INTEGER_p_user_id__
